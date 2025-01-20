@@ -1,0 +1,30 @@
+{
+  "name": "vscroxy",
+  "version": "1.0.0",
+  "description": "",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "watch": "tsc --watch ./src/**/*"
+  },
+  "keywords": [],
+  "author": "BABA",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/BABA983/vscroxy.git"
+  },
+  "bugs": {
+    "url": "https://github.com/BABA983/vscroxy/issues"
+  },
+  "engines": {
+    "node": ">=20.18.0",
+    "pnpm": ">=9.15.0"
+  },
+  "devDependencies": {
+    "@types/node": "20.x",
+    "electron": "32.2.7",
+    "typescript": "^5.7.3"
+  }
+}
