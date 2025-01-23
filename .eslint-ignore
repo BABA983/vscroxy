@@ -1,0 +1,9 @@
+**/build/*/**/*.js
+**/dist/**/*.js
+**/out/**/*.js
+**/fixtures/**
+**/node_modules/**
+**/src/typings/**/*.d.ts
+**/src/vs/*/**/*.d.ts
+**/typings/**
+!.vscode

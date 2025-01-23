@@ -1,0 +1,14 @@
+{
+  "name": "vscroxy-build",
+  "version": "1.0.0",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "eslint-formatter-compact": "^8.40.0",
+    "event-stream": "^4.0.1",
+    "fancy-log": "^2.0.0",
+    "vinyl-fs": "^4.0.0"
+  }
+}

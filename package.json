@@ -6,7 +6,8 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "watch": "tsc --watch ./src/**/*"
+    "watch": "rimraf out && tsc --watch -p ./src/tsconfig.json",
+    "eslint": "node build/eslint"
   },
   "keywords": [],
   "author": "BABA",
@@ -23,8 +24,19 @@
     "pnpm": ">=9.15.0"
   },
   "devDependencies": {
+    "@stylistic/eslint-plugin-ts": "^2.13.0",
+    "@types/eslint": "^9.6.1",
+    "@types/estree": "^1.0.6",
     "@types/node": "20.x",
     "electron": "32.2.7",
-    "typescript": "^5.7.3"
+    "eslint": "^9.18.0",
+    "eslint-plugin-jsdoc": "^50.6.2",
+    "eslint-plugin-local": "^6.0.0",
+    "glob": "^11.0.1",
+    "minimatch": "^10.0.1",
+    "rimraf": "^6.0.1",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3",
+    "typescript-eslint": "^8.20.0"
   }
 }
