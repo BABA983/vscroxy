@@ -10,7 +10,8 @@
     "watch": "rimraf out && tsc --watch -p ./src/tsconfig.json",
     "eslint": "node build/eslint",
     "vitest": "vitest",
-    "electron": "tsx build/lib/electron"
+    "electron": "tsx build/lib/electron",
+    "prepare": "husky"
   },
   "keywords": [],
   "author": "BABA",
@@ -38,6 +39,7 @@
     "eslint-plugin-jsdoc": "^50.6.2",
     "eslint-plugin-local": "^6.0.0",
     "glob": "^11.0.1",
+    "husky": "^9.1.7",
     "minimatch": "^10.0.1",
     "rimraf": "^2.7.1",
     "tsx": "^4.19.2",

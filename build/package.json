@@ -17,6 +17,7 @@
     "@types/vinyl-fs": "^3.0.5",
     "@vscode/gulp-electron": "^1.36.0",
     "debounce": "^2.2.0",
+    "eslint-formatter-compact": "^8.40.0",
     "event-stream": "3.3.4",
     "fancy-log": "^2.0.0",
     "gulp-filter": "^5.1.0",
