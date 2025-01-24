@@ -1,0 +1,24 @@
+{
+	"extends": "./tsconfig.base.json",
+	"compilerOptions": {
+		"esModuleInterop": true,
+		"removeComments": false,
+		"preserveConstEnums": true,
+		"sourceMap": false,
+		"allowJs": true,
+		"resolveJsonModule": true,
+		"isolatedModules": false,
+		"outDir": "../out",
+		"types": [
+			// "mocha",
+			// for ts-node which can not find built-in node_modules
+			// "node",
+			"trusted-types",
+		]
+	},
+	"include": [
+		"./*.ts",
+		"./typings",
+		"./vs/**/*.ts",
+	]
+}

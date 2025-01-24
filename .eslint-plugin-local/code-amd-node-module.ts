@@ -21,7 +21,7 @@ export = new class ApiProviderNaming implements eslint.Rule.RuleModule {
 		const modules = new Set<string>();
 
 		try {
-			const { dependencies, optionalDependencies } = require(join(__dirname, '../package.json'));
+			const { dependencies, optionalDependencies = {} } = require(join(__dirname, '../package.json'));
 			const all = Object.keys(dependencies).concat(Object.keys(optionalDependencies));
 			for (const key of all) {
 				modules.add(key);

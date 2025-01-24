@@ -10,16 +10,16 @@ import { fileURLToPath } from 'node:url';
 import { minimatch } from 'minimatch';
 
 const migrateEslintPluginLocal = process.argv.includes('--eslint-plugin-local');
+const migrateBaseCommon = process.argv.includes('--base-common');
+const migrateBaseCommonTest = process.argv.includes('--base-common-test');
+const migrateSelfHostTestProvider = process.argv.includes('--self-host-test-provider');
+const migrateBuildLib = process.argv.includes('--build-lib');
 
 const __dirname = path.dirname(fileURLToPath(new URL(import.meta.url)));
 
 const rootFolder = path.join(__dirname, '..');
 const vscodeFolder = path.join(rootFolder, '..', 'vscode');
 const srcFolder = path.join(vscodeFolder, 'src');
-
-const ESLINT_PLUGIN_LOCAL_FOLDER = '.eslint-plugin-local';
-const eslintPluginLocalSrcFolder = path.join(vscodeFolder, ESLINT_PLUGIN_LOCAL_FOLDER);
-const eslintPluginLocalDstFolder = path.join(rootFolder, ESLINT_PLUGIN_LOCAL_FOLDER);
 
 const ignores = readFileSync(path.join(rootFolder, '.gitignore'), 'utf8')
 	.toString()
@@ -68,13 +68,31 @@ function ensureDir(dirPath: string) {
 	}
 }
 
-/** @type {string[]} */
-const files = [];
+function writeDestFile(srcFilePath, fileContents) {
+	const dirPath = path.dirname(srcFilePath);
+	const fileName = path.basename(srcFilePath);
+	const destFilePath = path.join(dirPath.replace('vscode', 'vscroxy'), fileName);
+	ensureDir(dirname(destFilePath));
+	let existingFileContents: Buffer | undefined = undefined;
+	try {
+		existingFileContents = readFileSync(destFilePath);
+	} catch (err) { }
+	if (!buffersAreEqual(existingFileContents, fileContents)) {
+		writeFileSync(destFilePath, fileContents);
+	}
+}
 
+const files: string[] = [];
+
+
+// TODO: Maybe we should use git patch?
 if (migrateEslintPluginLocal) {
+	const eslintPluginLocalSrcFolder = path.join(vscodeFolder, '.eslint-plugin-local');
+	const eslintPluginLocalDstFolder = path.join(rootFolder, '.eslint-plugin-local');
+
 	readdir(eslintPluginLocalSrcFolder, files);
-	const eslintPluginLocalFiles = files.filter(file => !ignores.some(ignore => minimatch(file, ignore)));
-	for (const filePath of eslintPluginLocalFiles) {
+	const files2 = files.filter(file => !ignores.some(ignore => minimatch(file, ignore)));
+	for (const filePath of files2) {
 		const content = readFileSync(filePath);
 		const lines = content.toString().split(/\r\n|\n/);
 		let didChange = false;
@@ -88,17 +106,60 @@ if (migrateEslintPluginLocal) {
 				didChange = true;
 				lines[i] = `require('tsx/cjs/api').register();`;
 				console.log('Patch ts-node successfully...');
+			} else if (/const { dependencies, optionalDependencies } = require\(join\(__dirname, '..\/package\.json'\)\);/.test(line)) {
+				didChange = true;
+				lines[i] = `\t\t\tconst { dependencies, optionalDependencies = {} } = require(join(__dirname, '../package.json'));`;
+				console.log('Patch optionalDep = {} successfully...');
 			}
 		}
-		ensureDir(dirname(eslintPluginLocalDstFolder));
-		let existingFileContents: Buffer | undefined = undefined;
-		try {
-			existingFileContents = readFileSync(eslintPluginLocalDstFolder);
-		} catch (err) { }
 		const fileContents = didChange ? lines.join('\n') : content;
-		if (!buffersAreEqual(existingFileContents, fileContents)) {
-			writeFileSync(path.join(eslintPluginLocalDstFolder, path.basename(filePath)), fileContents);
-		}
+		writeDestFile(path.join(eslintPluginLocalDstFolder, path.basename(filePath)), fileContents);
+	}
+}
 
+if (migrateBaseCommon) {
+	const srcFolder = path.join(vscodeFolder, 'src', 'vs', 'base', 'common');
+
+	readdir(srcFolder, files);
+
+	const files2 = files.filter(file => !ignores.some(ignore => minimatch(file, ignore)));
+	for (const filePath of files2) {
+		const content = readFileSync(filePath);
+		writeDestFile(filePath, content);
+	}
+}
+
+if (migrateBaseCommonTest) {
+	const srcFolder = path.join(vscodeFolder, 'src', 'vs', 'base', 'test', 'common');
+
+	readdir(srcFolder, files);
+
+	const files2 = files.filter(file => !ignores.some(ignore => minimatch(file, ignore)));
+	for (const filePath of files2) {
+		const content = readFileSync(filePath);
+		writeDestFile(filePath, content);
+	}
+}
+
+if (migrateSelfHostTestProvider) {
+	const srcFolder = path.join(vscodeFolder, '.vscode', 'extensions', 'vscode-selfhost-test-provider');
+
+	readdir(srcFolder, files);
+
+	const files2 = files.filter(file => !ignores.some(ignore => minimatch(file, ignore)));
+	for (const filePath of files2) {
+		const content = readFileSync(filePath);
+		writeDestFile(filePath, content);
+	}
+}
+if (migrateBuildLib) {
+	const srcFolder = path.join(vscodeFolder, 'build', 'lib');
+
+	readdir(srcFolder, files);
+
+	const files2 = files.filter(file => !ignores.some(ignore => minimatch(file, ignore)));
+	for (const filePath of files2) {
+		const content = readFileSync(filePath);
+		writeDestFile(filePath, content);
 	}
 }

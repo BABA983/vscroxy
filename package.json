@@ -3,11 +3,14 @@
   "version": "1.0.0",
   "description": "",
   "type": "module",
-  "main": "index.js",
+  "main": "./out/main.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
+    "compile": "rimraf out && tsc -p ./src/tsconfig.json",
     "watch": "rimraf out && tsc --watch -p ./src/tsconfig.json",
-    "eslint": "node build/eslint"
+    "eslint": "node build/eslint",
+    "vitest": "vitest",
+    "electron": "tsx build/lib/electron"
   },
   "keywords": [],
   "author": "BABA",
@@ -28,15 +31,21 @@
     "@types/eslint": "^9.6.1",
     "@types/estree": "^1.0.6",
     "@types/node": "20.x",
+    "@types/semver": "^7.5.8",
+    "@types/trusted-types": "^1.0.6",
     "electron": "32.2.7",
     "eslint": "^9.18.0",
     "eslint-plugin-jsdoc": "^50.6.2",
     "eslint-plugin-local": "^6.0.0",
     "glob": "^11.0.1",
     "minimatch": "^10.0.1",
-    "rimraf": "^6.0.1",
+    "rimraf": "^2.7.1",
     "tsx": "^4.19.2",
     "typescript": "^5.7.3",
-    "typescript-eslint": "^8.20.0"
+    "typescript-eslint": "^8.20.0",
+    "vitest": "^2.1.8"
+  },
+  "dependencies": {
+    "minimist": "^1.2.8"
   }
 }

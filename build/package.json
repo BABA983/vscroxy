@@ -2,13 +2,33 @@
   "name": "vscroxy-build",
   "version": "1.0.0",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "compile": "../node_modules/.bin/tsc -p tsconfig.build.json",
+    "watch": "../node_modules/.bin/tsc -p tsconfig.build.json --watch"
   },
   "license": "MIT",
   "devDependencies": {
-    "eslint-formatter-compact": "^8.40.0",
-    "event-stream": "^4.0.1",
+    "@types/debounce": "^1.2.4",
+    "@types/gulp-filter": "^3.0.32",
+    "@types/gulp-json-editor": "2",
+    "@types/gulp-rename": "0",
+    "@types/rimraf": "^2.0.5",
+    "@types/through": "^0.0.33",
+    "@types/through2": "2",
+    "@types/vinyl-fs": "^3.0.5",
+    "@vscode/gulp-electron": "^1.36.0",
+    "debounce": "^2.2.0",
+    "event-stream": "3.3.4",
     "fancy-log": "^2.0.0",
-    "vinyl-fs": "^4.0.0"
+    "gulp-filter": "^5.1.0",
+    "gulp-json-editor": "2",
+    "gulp-rename": "1",
+    "minimatch": "3",
+    "rimraf": "^2.7.1",
+    "source-map": "^0.6.1",
+    "ternary-stream": "3",
+    "through": "^2.3.8",
+    "through2": "^4.0.2",
+    "vinyl": "^0.4.3",
+    "vinyl-fs": "^3.0.3"
   }
 }

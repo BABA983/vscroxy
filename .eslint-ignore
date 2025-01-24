@@ -3,6 +3,9 @@
 **/out/**/*.js
 **/fixtures/**
 **/node_modules/**
+**/src/**/dompurify.js
+**/src/**/marked.js
+**/src/**/semver.js
 **/src/typings/**/*.d.ts
 **/src/vs/*/**/*.d.ts
 **/typings/**

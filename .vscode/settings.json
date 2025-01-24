@@ -2,11 +2,44 @@
 	"editor.insertSpaces": false,
 	"files.trimTrailingWhitespace": true,
 	"files.insertFinalNewline": true,
+	"files.exclude": {
+		".git": true,
+		".build": true,
+		".profile-oss": true,
+		"**/.DS_Store": true,
+		".vscode-test": true,
+		"cli/target": true,
+		"build/**/*.js.map": true,
+		"build/**/*.js": {
+			"when": "$(basename).ts"
+		}
+	},
+	"search.exclude": {
+		"**/node_modules": true,
+		"cli/target/**": true,
+		".build/**": true,
+		"out/**": true,
+		"out-build/**": true,
+		"out-vscode/**": true,
+		"i18n/**": true,
+		"extensions/**/dist/**": true,
+		"extensions/**/out/**": true,
+		"test/smoke/out/**": true,
+		"test/automation/out/**": true,
+		"test/integration/browser/out/**": true,
+		"src/vs/base/test/common/filters.perf.data.js": true,
+		"src/vs/base/test/node/uri.perf.data.txt": true,
+		"src/vs/workbench/api/test/browser/extHostDocumentData.test.perf-data.ts": true,
+		"src/vs/base/test/node/uri.test.data.txt": true,
+		"src/vs/editor/test/node/diffing/fixtures/**": true,
+		"build/loader.min": true
+	},
 	"css.format.spaceAroundSelectorSeparator": true,
 	"typescript.tsdk": "node_modules/typescript/lib",
 	"typescript.enablePromptUseWorkspaceTsdk": true,
 	"typescript.preferences.importModuleSpecifier": "relative",
 	"typescript.preferences.quoteStyle": "single",
+	"typescript.tsc.autoDetect": "off",
 	"[typescript]": {
 		"editor.defaultFormatter": "vscode.typescript-language-features",
 		"editor.formatOnSave": true
