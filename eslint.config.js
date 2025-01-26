@@ -1081,14 +1081,14 @@ export default tseslint.config(
 					]
 				},
 				{
-					'target': 'src/vs/code/~',
+					'target': 'src/vs/{code,croxy}/~',
 					'restrictions': [
 						'vs/base/~',
 						'vs/base/parts/*/~',
 						'vs/platform/*/~',
 						'vs/editor/~',
 						'vs/editor/contrib/*/~',
-						'vs/code/~',
+						'vs/{code,croxy}/~',
 						{
 							'when': 'hasBrowser',
 							'pattern': 'vs/workbench/workbench.web.main.js'

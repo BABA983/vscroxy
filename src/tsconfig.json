@@ -10,9 +10,10 @@
 		"isolatedModules": false,
 		"outDir": "../out",
 		"types": [
-			// "mocha",
 			// for ts-node which can not find built-in node_modules
-			// "node",
+			// Even if we don't use ts-node but seems typescript can't find @types/node
+			// WTF?
+			"node",
 			"trusted-types",
 		]
 	},
