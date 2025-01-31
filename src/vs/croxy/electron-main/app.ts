@@ -1,10 +1,11 @@
 import { app, BrowserWindow, session, WebFrameMain } from 'electron';
 import { isSigPipeError, onUnexpectedError, setUnexpectedErrorHandler } from '../../base/common/errors.js';
 import { Event } from '../../base/common/event.js';
-import { Disposable } from '../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../base/common/lifecycle.js';
 import { Schemas, VSCODE_AUTHORITY } from '../../base/common/network.js';
 import { IProcessEnvironment, isMacintosh } from '../../base/common/platform.js';
 import { URI } from '../../base/common/uri.js';
+import { Server as ElectronIPCServer } from '../../base/parts/ipc/electron-main/ipc.electron.js';
 import { validatedIpcMain } from '../../base/parts/ipc/electron-main/ipcMain.js';
 import { NativeParsedArgs } from '../../platform/environment/common/argv.js';
 import { IEnvironmentMainService } from '../../platform/environment/electron-main/environmentMainService.js';
@@ -12,10 +13,13 @@ import { isLaunchedFromCli } from '../../platform/environment/node/argvHelper.js
 import { SyncDescriptor } from '../../platform/instantiation/common/descriptors.js';
 import { IInstantiationService, ServicesAccessor } from '../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../platform/instantiation/common/serviceCollection.js';
-import { ILifecycleMainService, LifecycleMainPhase } from '../../platform/lifecycle/electron-main/lifecycleMainService.js';
+import { ILifecycleMainService, LifecycleMainPhase, ShutdownReason } from '../../platform/lifecycle/electron-main/lifecycleMainService.js';
 import { ILogService } from '../../platform/log/common/log.js';
 import { IWindowsMainService, OpenContext } from '../../platform/windows/electron-main/windows.js';
 import { WindowsMainService } from '../../platform/windows/electron-main/windowsMainService.js';
+import { ILoggerMainService } from '../../platform/log/electron-main/loggerService.js';
+import { LoggerChannel } from '../../platform/log/electron-main/logIpc.js';
+import { CSSDevelopmentService, ICSSDevelopmentService } from '../../platform/cssDev/node/cssDevService.js';
 
 export class ProxyApplication extends Disposable {
 
@@ -319,8 +323,7 @@ export class ProxyApplication extends Disposable {
 			}
 
 			// TODO: Resolve shell env
-			return Promise.resolve();
-			// return this.resolveShellEnvironment(args, env, false);
+			return this.resolveShellEnvironment(args, env, false);
 		});
 
 		validatedIpcMain.on('vscode:toggleDevTools', event => event.sender.toggleDevTools());
@@ -348,7 +351,7 @@ export class ProxyApplication extends Disposable {
 			};
 
 			// TODO: handle on client side
-			// this.windowsMainService?.sendToFocused('vscode:reportError', JSON.stringify(friendlyError));
+			this.windowsMainService?.sendToFocused('vscode:reportError', JSON.stringify(friendlyError));
 		}
 
 		this.logService.error(`[uncaught exception in main]: ${error}`);
@@ -362,8 +365,24 @@ export class ProxyApplication extends Disposable {
 		this.logService.debug(`from: ${this.environmentMainService.appRoot}`);
 		this.logService.debug('args:', this.environmentMainService.args);
 
+		// Main process server (electron IPC based)
+		const mainProcessElectronServer = new ElectronIPCServer();
+		Event.once(this.lifecycleMainService.onWillShutdown)(e => {
+			if (e.reason === ShutdownReason.KILL) {
+				// When we go down abnormally, make sure to free up
+				// any IPC we accept from other windows to reduce
+				// the chance of doing work after we go down. Kill
+				// is special in that it does not orderly shutdown
+				// windows.
+				mainProcessElectronServer.dispose();
+			}
+		});
+
 		// Services
 		const appInstantiationService = await this.initServices();
+
+		// Init Channels
+		appInstantiationService.invokeFunction(accessor => this.initChannels(accessor, mainProcessElectronServer));
 
 		// Signal phase: ready - before opening first window
 		this.lifecycleMainService.phase = LifecycleMainPhase.Ready;
@@ -383,7 +402,16 @@ export class ProxyApplication extends Disposable {
 		// Windows
 		services.set(IWindowsMainService, new SyncDescriptor(WindowsMainService, [this.userEnv], false));
 
+		// Dev Only: CSS service (for ESM)
+		services.set(ICSSDevelopmentService, new SyncDescriptor(CSSDevelopmentService, undefined, true));
+
 		return this.mainInstantiationService.createChild(services);
+	}
+
+	private initChannels(accessor: ServicesAccessor, mainProcessElectronServer: ElectronIPCServer) {
+		// Logger
+		const loggerChannel = new LoggerChannel(accessor.get(ILoggerMainService),);
+		mainProcessElectronServer.registerChannel('logger', loggerChannel);
 	}
 
 	private openFirstWindow(accessor: ServicesAccessor) {

@@ -44,57 +44,144 @@ export type OptionDescriptions<T> = {
 	Subcommand<T[P]>
 };
 
-export const NATIVE_CLI_COMMANDS = [] as const;
+export const NATIVE_CLI_COMMANDS = ['tunnel', 'serve-web'] as const;
 
 export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
+	'diff': { type: 'boolean', cat: 'o', alias: 'd', args: ['file', 'file'], description: localize('diff', "Compare two files with each other.") },
+	'merge': { type: 'boolean', cat: 'o', alias: 'm', args: ['path1', 'path2', 'base', 'result'], description: localize('merge', "Perform a three-way merge by providing paths for two modified versions of a file, the common origin of both modified versions and the output file to save merge results.") },
+	'add': { type: 'boolean', cat: 'o', alias: 'a', args: 'folder', description: localize('add', "Add folder(s) to the last active window.") },
+	'remove': { type: 'boolean', cat: 'o', args: 'folder', description: localize('remove', "Remove folder(s) from the last active window.") },
+	'goto': { type: 'boolean', cat: 'o', alias: 'g', args: 'file:line[:character]', description: localize('goto', "Open a file at the path on the specified line and character position.") },
+	'new-window': { type: 'boolean', cat: 'o', alias: 'n', description: localize('newWindow', "Force to open a new window.") },
+	'reuse-window': { type: 'boolean', cat: 'o', alias: 'r', description: localize('reuseWindow', "Force to open a file or folder in an already opened window.") },
+	'wait': { type: 'boolean', cat: 'o', alias: 'w', description: localize('wait', "Wait for the files to be closed before returning.") },
+	'waitMarkerFilePath': { type: 'string' },
 	'locale': { type: 'string', cat: 'o', args: 'locale', description: localize('locale', "The locale to use (e.g. en-US or zh-TW).") },
 	'user-data-dir': { type: 'string', cat: 'o', args: 'dir', description: localize('userDataDir', "Specifies the directory that user data is kept in. Can be used to open multiple distinct instances of Code.") },
-
-	'version': { type: 'boolean', cat: 't', alias: 'v', description: localize('version', "Print version.") },
-	'verbose': { type: 'boolean', cat: 't', global: true, description: localize('verbose', "Print verbose output (implies --wait).") },
-	'log': { type: 'string[]', cat: 't', args: 'level', global: true, description: localize('log', "Log level to use. Default is 'info'. Allowed values are 'critical', 'error', 'warn', 'info', 'debug', 'trace', 'off'. You can also configure the log level of an extension by passing extension id and log level in the following format: '${publisher}.${name}:${logLevel}'. For example: 'vscode.csharp:trace'. Can receive one or more such entries.") },
-	'disable-chromium-sandbox': { type: 'boolean', cat: 't', description: localize('disableChromiumSandbox', "Use this option only when there is requirement to launch the application as sudo user on Linux or when running as an elevated user in an applocker environment on Windows.") },
-	'sandbox': { type: 'boolean' },
-
-	'crash-reporter-id': { type: 'string' },
-	'crash-reporter-directory': { type: 'string' },
-	'logsPath': { type: 'string' },
-
-	'open-devtools': { type: 'boolean' },
-	'enable-smoke-test-driver': { type: 'boolean' },
+	'profile': { type: 'string', 'cat': 'o', args: 'profileName', description: localize('profileName', "Opens the provided folder or workspace with the given profile and associates the profile with the workspace. If the profile does not exist, a new empty one is created.") },
+	'help': { type: 'boolean', cat: 'o', alias: 'h', description: localize('help', "Print usage.") },
 
 	'extensions-dir': { type: 'string', deprecates: ['extensionHomePath'], cat: 'e', args: 'dir', description: localize('extensionHomePath', "Set the root path for extensions.") },
 	'extensions-download-dir': { type: 'string' },
 	'builtin-extensions-dir': { type: 'string' },
 	'list-extensions': { type: 'boolean', cat: 'e', description: localize('listExtensions', "List the installed extensions.") },
+	'show-versions': { type: 'boolean', cat: 'e', description: localize('showVersions', "Show versions of installed extensions, when using --list-extensions.") },
+	'category': { type: 'string', allowEmptyValue: true, cat: 'e', description: localize('category', "Filters installed extensions by provided category, when using --list-extensions."), args: 'category' },
 	'install-extension': { type: 'string[]', cat: 'e', args: 'ext-id | path', description: localize('installExtension', "Installs or updates an extension. The argument is either an extension id or a path to a VSIX. The identifier of an extension is '${publisher}.${name}'. Use '--force' argument to update to latest version. To install a specific version provide '@${version}'. For example: 'vscode.csharp@1.2.3'.") },
+	'pre-release': { type: 'boolean', cat: 'e', description: localize('install prerelease', "Installs the pre-release version of the extension, when using --install-extension") },
 	'uninstall-extension': { type: 'string[]', cat: 'e', args: 'ext-id', description: localize('uninstallExtension', "Uninstalls an extension.") },
 	'update-extensions': { type: 'boolean', cat: 'e', description: localize('updateExtensions', "Update the installed extensions.") },
 	'enable-proposed-api': { type: 'string[]', allowEmptyValue: true, cat: 'e', args: 'ext-id', description: localize('experimentalApis', "Enables proposed API features for extensions. Can receive one or more extension IDs to enable individually.") },
+
+	'version': { type: 'boolean', cat: 't', alias: 'v', description: localize('version', "Print version.") },
+	'verbose': { type: 'boolean', cat: 't', global: true, description: localize('verbose', "Print verbose output (implies --wait).") },
+	'log': { type: 'string[]', cat: 't', args: 'level', global: true, description: localize('log', "Log level to use. Default is 'info'. Allowed values are 'critical', 'error', 'warn', 'info', 'debug', 'trace', 'off'. You can also configure the log level of an extension by passing extension id and log level in the following format: '${publisher}.${name}:${logLevel}'. For example: 'vscode.csharp:trace'. Can receive one or more such entries.") },
+	'status': { type: 'boolean', alias: 's', cat: 't', description: localize('status', "Print process usage and diagnostics information.") },
+	'prof-startup': { type: 'boolean', cat: 't', description: localize('prof-startup', "Run CPU profiler during startup.") },
+	'prof-append-timers': { type: 'string' },
+	'prof-duration-markers': { type: 'string[]' },
+	'prof-duration-markers-file': { type: 'string' },
+	'no-cached-data': { type: 'boolean' },
+	'prof-startup-prefix': { type: 'string' },
+	'prof-v8-extensions': { type: 'boolean' },
 	'disable-extensions': { type: 'boolean', deprecates: ['disableExtensions'], cat: 't', description: localize('disableExtensions', "Disable all installed extensions. This option is not persisted and is effective only when the command opens a new window.") },
 	'disable-extension': { type: 'string[]', cat: 't', args: 'ext-id', description: localize('disableExtension', "Disable the provided extension. This option is not persisted and is effective only when the command opens a new window.") },
+	'sync': { type: 'string', cat: 't', description: localize('turn sync', "Turn sync on or off."), args: ['on | off'] },
+
 	'inspect-extensions': { type: 'string', allowEmptyValue: true, deprecates: ['debugPluginHost'], args: 'port', cat: 't', description: localize('inspect-extensions', "Allow debugging and profiling of extensions. Check the developer tools for the connection URI.") },
 	'inspect-brk-extensions': { type: 'string', allowEmptyValue: true, deprecates: ['debugBrkPluginHost'], args: 'port', cat: 't', description: localize('inspect-brk-extensions', "Allow debugging and profiling of extensions with the extension host being paused after start. Check the developer tools for the connection URI.") },
+	'disable-lcd-text': { type: 'boolean', cat: 't', description: localize('disableLCDText', "Disable LCD font rendering.") },
+	'disable-gpu': { type: 'boolean', cat: 't', description: localize('disableGPU', "Disable GPU hardware acceleration.") },
+	'disable-chromium-sandbox': { type: 'boolean', cat: 't', description: localize('disableChromiumSandbox', "Use this option only when there is requirement to launch the application as sudo user on Linux or when running as an elevated user in an applocker environment on Windows.") },
+	'sandbox': { type: 'boolean' },
+	'telemetry': { type: 'boolean', cat: 't', description: localize('telemetry', "Shows all telemetry events which VS code collects.") },
+
+	'remote': { type: 'string', allowEmptyValue: true },
+	'folder-uri': { type: 'string[]', cat: 'o', args: 'uri' },
+	'file-uri': { type: 'string[]', cat: 'o', args: 'uri' },
+
 	'locate-extension': { type: 'string[]' },
 	'extensionDevelopmentPath': { type: 'string[]' },
 	'extensionDevelopmentKind': { type: 'string[]' },
 	'extensionTestsPath': { type: 'string' },
 	'extensionEnvironment': { type: 'string' },
-	'install-builtin-extension': { type: 'string[]' },
-	'logExtensionHostCommunication': { type: 'boolean' },
 	'debugId': { type: 'string' },
+	'debugRenderer': { type: 'boolean' },
+	'inspect-ptyhost': { type: 'string', allowEmptyValue: true },
+	'inspect-brk-ptyhost': { type: 'string', allowEmptyValue: true },
+	'inspect-search': { type: 'string', deprecates: ['debugSearch'], allowEmptyValue: true },
+	'inspect-brk-search': { type: 'string', deprecates: ['debugBrkSearch'], allowEmptyValue: true },
+	'inspect-sharedprocess': { type: 'string', allowEmptyValue: true },
+	'inspect-brk-sharedprocess': { type: 'string', allowEmptyValue: true },
+	'export-default-configuration': { type: 'string' },
+	'install-source': { type: 'string' },
+	'enable-smoke-test-driver': { type: 'boolean' },
+	'logExtensionHostCommunication': { type: 'boolean' },
+	'skip-release-notes': { type: 'boolean' },
+	'skip-welcome': { type: 'boolean' },
+	'disable-telemetry': { type: 'boolean' },
+	'disable-updates': { type: 'boolean' },
+	'use-inmemory-secretstorage': { type: 'boolean', deprecates: ['disable-keytar'] },
+	'password-store': { type: 'string' },
+	'disable-workspace-trust': { type: 'boolean' },
+	'disable-crash-reporter': { type: 'boolean' },
+	'crash-reporter-directory': { type: 'string' },
+	'crash-reporter-id': { type: 'string' },
+	'skip-add-to-recently-opened': { type: 'boolean' },
+	'open-url': { type: 'boolean' },
+	'file-write': { type: 'boolean' },
+	'file-chmod': { type: 'boolean' },
+	'install-builtin-extension': { type: 'string[]' },
+	'force': { type: 'boolean' },
+	'do-not-sync': { type: 'boolean' },
+	'do-not-include-pack-dependencies': { type: 'boolean' },
+	'trace': { type: 'boolean' },
+	'trace-category-filter': { type: 'string' },
+	'trace-options': { type: 'string' },
+	'preserve-env': { type: 'boolean' },
+	'force-user-env': { type: 'boolean' },
+	'force-disable-user-env': { type: 'boolean' },
+	'open-devtools': { type: 'boolean' },
+	'disable-gpu-sandbox': { type: 'boolean' },
+	'logsPath': { type: 'string' },
+	'__enable-file-policy': { type: 'boolean' },
+	'editSessionId': { type: 'string' },
+	'continueOn': { type: 'string' },
+	'locate-shell-integration-path': { type: 'string', args: ['bash', 'pwsh', 'zsh', 'fish'] },
+
+	'enable-coi': { type: 'boolean' },
 
 	// chromium flags
+	'no-proxy-server': { type: 'boolean' },
 	// Minimist incorrectly parses keys that start with `--no`
 	// https://github.com/substack/minimist/blob/aeb3e27dae0412de5c0494e9563a5f10c82cc7a9/index.js#L118-L121
 	// If --no-sandbox is passed via cli wrapper it will be treated as --sandbox which is incorrect, we use
 	// the alias here to make sure --no-sandbox is always respected.
 	// For https://github.com/microsoft/vscode/issues/128279
 	'no-sandbox': { type: 'boolean', alias: 'sandbox' },
+	'proxy-server': { type: 'string' },
+	'proxy-bypass-list': { type: 'string' },
+	'proxy-pac-url': { type: 'string' },
 	'js-flags': { type: 'string' }, // chrome js flags
+	'inspect': { type: 'string', allowEmptyValue: true },
+	'inspect-brk': { type: 'string', allowEmptyValue: true },
+	'nolazy': { type: 'boolean' }, // node inspect
+	'force-device-scale-factor': { type: 'string' },
+	'force-renderer-accessibility': { type: 'boolean' },
+	'ignore-certificate-errors': { type: 'boolean' },
+	'allow-insecure-localhost': { type: 'boolean' },
+	'log-net-log': { type: 'string' },
+	'vmodule': { type: 'string' },
+	'_urls': { type: 'string[]' },
+	'disable-dev-shm-usage': { type: 'boolean' },
+	'profile-temp': { type: 'boolean' },
+	'ozone-platform': { type: 'string' },
+	'enable-tracing': { type: 'string' },
+	'trace-startup-format': { type: 'string' },
+	'trace-startup-file': { type: 'string' },
+	'trace-startup-duration': { type: 'string' },
 
 	_: { type: 'string[]' } // main arguments
-
 };
 
 export interface ErrorReporter {
