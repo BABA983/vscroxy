@@ -15,6 +15,7 @@ import { FileType } from '../../files/common/files.js';
 import { ILoggerResource, LogLevel } from '../../log/common/log.js';
 import product from '../../product/common/product.js';
 import { IPartsSplash } from '../../theme/common/themeService.js';
+import { IUserDataProfile } from '../../userDataProfile/common/userDataProfile.js';
 
 export const WindowMinimumSize = {
 	WIDTH: 400,
@@ -357,6 +358,12 @@ export interface INativeWindowConfiguration extends IWindowConfiguration, Native
 	handle?: VSBuffer;
 
 	execPath: string;
+
+	profiles: {
+		home: UriComponents;
+		all: readonly UriDto<IUserDataProfile>[];
+		profile: UriDto<IUserDataProfile>;
+	};
 
 	homeDir: string;
 	tmpDir: string;

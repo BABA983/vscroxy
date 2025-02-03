@@ -26,6 +26,7 @@ import { IProxyWindow, UnloadReason } from '../../window/electron-main/window.js
 import { ProxyWindow } from './windowImpl.js';
 import { getLastFocused, IOpenConfiguration, IOpenEmptyConfiguration, IWindowsCountChangedEvent, IWindowsMainService } from './windows.js';
 import { ICSSDevelopmentService } from '../../cssDev/node/cssDevService.js';
+import { IUserDataProfilesMainService } from '../../userDataProfile/electron-main/userDataProfile.js';
 
 //#region Helper Interfaces
 
@@ -89,8 +90,8 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IProtocolMainService private readonly protocolMainService: IProtocolMainService,
-		@ICSSDevelopmentService private readonly cssDevelopmentService: ICSSDevelopmentService
-
+		@ICSSDevelopmentService private readonly cssDevelopmentService: ICSSDevelopmentService,
+		@IUserDataProfilesMainService private readonly userDataProfilesMainService: IUserDataProfilesMainService,
 	) {
 		super();
 
@@ -153,6 +154,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 	private async openInBrowserWindow(options: IOpenBrowserWindowOptions): Promise<IProxyWindow> {
 		const lastActiveWindow = this.getLastActiveWindow();
+		const defaultProfile = this.userDataProfilesMainService.defaultProfile;
 
 		let window: IProxyWindow | undefined;
 		if (!options.forceNewWindow && !options.forceNewTabbedWindow) {
@@ -177,6 +179,14 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			appRoot: this.environmentMainService.appRoot,
 			execPath: process.execPath,
 
+			profiles: {
+				home: this.userDataProfilesMainService.profilesHome,
+				all: this.userDataProfilesMainService.profiles,
+				// Set to default profile first and resolve and update the profile
+				// only after the workspace-backup is registered.
+				// Because, workspace identifier of an empty window is known only then.
+				profile: defaultProfile
+			},
 
 			homeDir: this.environmentMainService.userHome.with({ scheme: Schemas.file }).fsPath,
 			tmpDir: this.environmentMainService.tmpDir.with({ scheme: Schemas.file }).fsPath,

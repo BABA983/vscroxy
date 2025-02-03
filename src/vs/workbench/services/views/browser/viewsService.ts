@@ -58,7 +58,7 @@ export class ViewsService extends Disposable implements IViewsService {
 		@IPaneCompositePartService private readonly paneCompositeService: IPaneCompositePartService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
-		@IEditorService private readonly editorService: IEditorService
+		// @IEditorService private readonly editorService: IEditorService
 	) {
 		super();
 
@@ -292,8 +292,10 @@ export class ViewsService extends Disposable implements IViewsService {
 	}
 
 	getFocusedViewName(): string {
-		const textEditorFocused = this.editorService.activeTextEditorControl?.hasTextFocus() ? localize('editor', "Text Editor") : undefined;
-		return this.getFocusedView()?.name?.value ?? textEditorFocused ?? '';
+		// TODO: @BABA
+		return '';
+		// const textEditorFocused = this.editorService.activeTextEditorControl?.hasTextFocus() ? localize('editor', "Text Editor") : undefined;
+		// return this.getFocusedView()?.name?.value ?? textEditorFocused ?? '';
 	}
 
 	async openView<T extends IView>(id: string, focus?: boolean): Promise<T | null> {

@@ -91,4 +91,5 @@ export class PaneCompositePartService extends Disposable implements IPaneComposi
 
 }
 
-registerSingleton(IPaneCompositePartService, PaneCompositePartService, InstantiationType.Delayed);
+// TODO: Switch to Delayed
+registerSingleton(IPaneCompositePartService, PaneCompositePartService, InstantiationType.Eager);

@@ -135,7 +135,9 @@ export class PanelPart extends AbstractPaneCompositePart {
 			pinnedViewContainersKey: 'workbench.panel.pinnedPanels',
 			placeholderViewContainersKey: 'workbench.panel.placeholderPanels',
 			viewContainersWorkspaceStateKey: 'workbench.panel.viewContainersWorkspaceState',
-			icon: this.configurationService.getValue('workbench.panel.showLabels') === false,
+			icon: false,
+			// TODO: @BABA
+			// icon: this.configurationService.getValue('workbench.panel.showLabels') === false,
 			orientation: ActionsOrientation.HORIZONTAL,
 			recomputeSizes: true,
 			activityHoverOptions: {
@@ -173,7 +175,9 @@ export class PanelPart extends AbstractPaneCompositePart {
 		const positionActions = getContextMenuActions(panelPositionMenu).secondary;
 		const alignActions = getContextMenuActions(panelAlignMenu).secondary;
 
-		const panelShowLabels = this.configurationService.getValue<boolean | undefined>('workbench.panel.showLabels');
+		// TODO: @BABA
+		// const panelShowLabels = this.configurationService.getValue<boolean | undefined>('workbench.panel.showLabels');
+		const panelShowLabels = false;
 		const toggleShowLabelsAction = toAction({
 			id: 'workbench.action.panel.toggleShowLabels',
 			label: panelShowLabels ? localize('showIcons', "Show Icons") : localize('showLabels', "Show Labels"),

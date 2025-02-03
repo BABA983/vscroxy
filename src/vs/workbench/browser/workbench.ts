@@ -17,6 +17,8 @@ import { ILogService } from '../../platform/log/common/log.js';
 import { IWorkbenchLayoutService, Parts } from '../services/layout/browser/layoutService.js';
 import { ILifecycleService, LifecyclePhase, WillShutdownEvent } from '../services/lifecycle/common/lifecycle.js';
 import { Layout } from './layout.js';
+import { Registry } from '../../platform/registry/common/platform.js';
+import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from '../common/contributions.js';
 
 export interface IWorkbenchOptions {
 
@@ -97,6 +99,9 @@ export class Workbench extends Layout {
 
 				// Layout
 				this.initLayout(accessor);
+
+				// Registries
+				Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).start(accessor);
 
 				this.registerListeners(lifecycleService);
 
@@ -202,7 +207,7 @@ export class Workbench extends Layout {
 			{ id: Parts.SIDEBAR_PART, role: 'none', classes: ['sidebar', 'left'] },
 			// { id: Parts.EDITOR_PART, role: 'main', classes: ['editor'], options: { restorePreviousState: false } },
 			// TODO: read from config
-			// { id: Parts.PANEL_PART, role: 'none', classes: ['panel', 'basepanel', 'bottom'] },
+			{ id: Parts.PANEL_PART, role: 'none', classes: ['panel', 'basepanel', 'bottom'] },
 			// { id: Parts.AUXILIARYBAR_PART, role: 'none', classes: ['auxiliarybar', 'basepanel', 'right'] },
 			{ id: Parts.STATUSBAR_PART, role: 'status', classes: ['statusbar'] }
 		]) {

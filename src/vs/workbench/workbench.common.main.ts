@@ -24,6 +24,7 @@ import './services/commands/common/commandService.js';
 import './services/notification/common/notificationService.js';
 import '../editor/browser/services/hoverService/hoverService.js';
 import './services/views/browser/viewDescriptorService.js';
+import './services/views/browser/viewsService.js';
 
 import { InstantiationType, registerSingleton } from '../platform/instantiation/common/extensions.js';
 import { ContextKeyService } from '../platform/contextkey/browser/contextKeyService.js';
