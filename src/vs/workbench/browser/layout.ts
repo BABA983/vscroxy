@@ -418,10 +418,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.titleBarPartView = titleBar;
 		this.bannerPartView = statusBar;
 		this.sideBarPartView = sideBar;
-		this.activityBarPartView = statusBar;
-		this.editorPartView = statusBar;
+		this.activityBarPartView = sideBar;
+		this.editorPartView = sideBar;
 		this.panelPartView = panelPart;
-		this.auxiliaryBarPartView = statusBar;
+		this.auxiliaryBarPartView = sideBar;
 		this.statusBarPartView = statusBar;
 
 		const viewMap = {

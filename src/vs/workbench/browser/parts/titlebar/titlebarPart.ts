@@ -1,6 +1,6 @@
 import './media/titlebarpart.css';
 import { getWCOTitlebarAreaRect, getZoomFactor, isWCOEnabled } from '../../../../base/browser/browser.js';
-import { $, append, getWindow, prepend, reset } from '../../../../base/browser/dom.js';
+import { $, append, Dimension, getWindow, prepend, reset } from '../../../../base/browser/dom.js';
 import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.js';
 import { createInstantHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { CodeWindow, mainWindow } from '../../../../base/browser/window.js';
@@ -56,6 +56,8 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 	private readonly hoverDelegate: IHoverDelegate;
 
 	private isInactive: boolean = false;
+
+	private lastLayoutDimensions: Dimension | undefined;
 
 
 	constructor(
@@ -140,6 +142,16 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 			const titleBorder = this.getColor(TITLE_BAR_BORDER);
 			this.element.style.borderBottom = titleBorder ? `1px solid ${titleBorder}` : '';
 		}
+	}
+
+	override layout(width: number, height: number): void {
+		this.updateLayout(new Dimension(width, height));
+
+		super.layoutContents(width, height);
+	}
+
+	private updateLayout(dimension: Dimension): void {
+		this.lastLayoutDimensions = dimension;
 	}
 
 	toJSON(): object {

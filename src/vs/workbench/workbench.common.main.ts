@@ -11,6 +11,7 @@ import './browser/actions/quickAccessActions.js';
 
 import './browser/parts/paneCompositePartService.js';
 import './browser/parts/statusbar/statusbarPart.js';
+// import './browser/parts/editor/editorParts2.js';
 
 //#endregion
 
