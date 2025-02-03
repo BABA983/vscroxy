@@ -1,4 +1,4 @@
-import { app, crashReporter, protocol } from 'electron';
+import { app, crashReporter, Menu, protocol } from 'electron';
 import minimist from 'minimist';
 import * as fs from 'original-fs';
 import * as path from 'path';
@@ -12,8 +12,6 @@ import { getUserDataPath } from './vs/platform/environment/node/userDataPath.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-console.log(product);
-
 perf.mark('code/didStartMain');
 
 perf.mark('code/willLoadMainBundle', {
@@ -23,7 +21,6 @@ perf.mark('code/willLoadMainBundle', {
 	startTime: Math.floor(performance.timeOrigin)
 });
 perf.mark('code/didLoadMainBundle');
-
 
 const args = parseCLIArgs();
 
@@ -46,6 +43,9 @@ if (args['sandbox'] &&
 // Set userData path before app 'ready' event
 const userDataPath = getUserDataPath(args, product.nameShort ?? 'vscroxy-dev');
 app.setPath('userData', userDataPath);
+
+// Disable default menu (https://github.com/electron/electron/issues/35512)
+Menu.setApplicationMenu(null);
 
 // Configure crash reporter
 perf.mark('code/willStartCrashReporter');

@@ -13,6 +13,7 @@ const migrateEslintPluginLocal = process.argv.includes('--eslint-plugin-local');
 const migrateBaseCommon = process.argv.includes('--base-common');
 const migrateBaseCommonTest = process.argv.includes('--base-common-test');
 const migrateBaseBrowser = process.argv.includes('--base-browser');
+const migrateCodeEditor = process.argv.includes('--vs-editor');
 const migrateSelfHostTestProvider = process.argv.includes('--self-host-test-provider');
 const migrateBuildLib = process.argv.includes('--build-lib');
 
@@ -144,6 +145,18 @@ if (migrateBaseCommonTest) {
 
 if (migrateBaseBrowser) {
 	const srcFolder = path.join(vscodeFolder, 'src', 'vs', 'base', 'browser');
+
+	readdir(srcFolder, files);
+
+	const files2 = files.filter(file => !ignores.some(ignore => minimatch(file, ignore)));
+	for (const filePath of files2) {
+		const content = readFileSync(filePath);
+		writeDestFile(filePath, content);
+	}
+}
+
+if (migrateCodeEditor) {
+	const srcFolder = path.join(vscodeFolder, 'src', 'vs', 'editor');
 
 	readdir(srcFolder, files);
 

@@ -4,7 +4,7 @@
 		"esModuleInterop": true,
 		"removeComments": false,
 		"preserveConstEnums": true,
-		"sourceMap": false,
+		"sourceMap": true,
 		"allowJs": true,
 		"resolveJsonModule": true,
 		"isolatedModules": false,
@@ -15,6 +15,7 @@
 			// WTF?
 			"node",
 			"trusted-types",
+			"wicg-file-system-access"
 		]
 	},
 	"include": [

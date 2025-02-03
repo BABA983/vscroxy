@@ -25,6 +25,7 @@ import { INativeWindowConfiguration, IOpenEmptyWindowOptions, titlebarStyleDefau
 import { IProxyWindow, UnloadReason } from '../../window/electron-main/window.js';
 import { ProxyWindow } from './windowImpl.js';
 import { getLastFocused, IOpenConfiguration, IOpenEmptyConfiguration, IWindowsCountChangedEvent, IWindowsMainService } from './windows.js';
+import { ICSSDevelopmentService } from '../../cssDev/node/cssDevService.js';
 
 //#region Helper Interfaces
 
@@ -88,6 +89,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IProtocolMainService private readonly protocolMainService: IProtocolMainService,
+		@ICSSDevelopmentService private readonly cssDevelopmentService: ICSSDevelopmentService
 
 	) {
 		super();
@@ -204,7 +206,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			// TODO: themeService
 			colorScheme: { dark: false, highContrast: false },
 
-			cssModules: undefined
+			cssModules: this.cssDevelopmentService.isEnabled ? await this.cssDevelopmentService.getCssModules() : undefined
 		};
 
 		// New window

@@ -80,7 +80,13 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 	}
 
 	@memoize
+	get sync(): 'on' | 'off' | undefined { return this.args.sync; }
+
+	@memoize
 	get machineSettingsResource(): URI { return joinPath(URI.file(join(this.userDataPath, 'Machine')), 'settings.json'); }
+
+	@memoize
+	get workspaceStorageHome(): URI { return joinPath(this.appSettingsHome, 'workspaceStorage'); }
 
 	@memoize
 	get localHistoryHome(): URI { return joinPath(this.appSettingsHome, 'History'); }
@@ -100,6 +106,9 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 
 	@memoize
 	get isExtensionDevelopment(): boolean { return !!this.args.extensionDevelopmentPath; }
+
+	@memoize
+	get untitledWorkspacesHome(): URI { return URI.file(join(this.userDataPath, 'Workspaces')); }
 
 	@memoize
 	get builtinExtensionsPath(): string {
@@ -196,6 +205,7 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 
 	@memoize
 	get debugExtensionHost(): IExtensionHostDebugParams { return parseExtensionHostDebugPort(this.args, this.isBuilt); }
+	get debugRenderer(): boolean { return !!this.args.debugRenderer; }
 
 	get isBuilt(): boolean { return !env['VSCODE_DEV']; }
 	get verbose(): boolean { return !!this.args.verbose; }
@@ -220,6 +230,37 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 	get crashReporterId(): string | undefined { return this.args['crash-reporter-id']; }
 	get crashReporterDirectory(): string | undefined { return this.args['crash-reporter-directory']; }
 
+	@memoize
+	get disableTelemetry(): boolean { return !!this.args['disable-telemetry']; }
+
+	@memoize
+	get disableWorkspaceTrust(): boolean { return !!this.args['disable-workspace-trust']; }
+
+	@memoize
+	get useInMemorySecretStorage(): boolean { return !!this.args['use-inmemory-secretstorage']; }
+
+	@memoize
+	get policyFile(): URI | undefined {
+		if (this.args['__enable-file-policy']) {
+			const vscodePortable = env['VSCODE_PORTABLE'];
+			if (vscodePortable) {
+				return URI.file(join(vscodePortable, 'policy.json'));
+			}
+
+			return joinPath(this.userHome, this.productService.dataFolderName, 'policy.json');
+		}
+		return undefined;
+	}
+
+	editSessionId: string | undefined = this.args['editSessionId'];
+
+	get continueOn(): string | undefined {
+		return this.args['continueOn'];
+	}
+
+	set continueOn(value: string | undefined) {
+		this.args['continueOn'] = value;
+	}
 
 	get args(): NativeParsedArgs { return this._args; }
 
