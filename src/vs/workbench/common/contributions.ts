@@ -248,7 +248,8 @@ export class WorkbenchContributionsRegistry extends Disposable implements IWorkb
 		const lifecycleService = this.lifecycleService = accessor.get(ILifecycleService);
 		const logService = this.logService = accessor.get(ILogService);
 		const environmentService = this.environmentService = accessor.get(IEnvironmentService);
-		const editorPaneService = this.editorPaneService = accessor.get(IEditorPaneService);
+		// TODO:
+		// const editorPaneService = this.editorPaneService = accessor.get(IEditorPaneService);
 
 		// Dispose contributions on shutdown
 		this._register(lifecycleService.onDidShutdown(() => {
@@ -261,12 +262,12 @@ export class WorkbenchContributionsRegistry extends Disposable implements IWorkb
 		}
 
 		// Instantiate contributions by editor when they are created or have been
-		for (const editorTypeId of this.contributionsByEditor.keys()) {
-			if (editorPaneService.didInstantiateEditorPane(editorTypeId)) {
-				this.onEditor(editorTypeId, instantiationService, lifecycleService, logService, environmentService);
-			}
-		}
-		this._register(editorPaneService.onWillInstantiateEditorPane(e => this.onEditor(e.typeId, instantiationService, lifecycleService, logService, environmentService)));
+		// for (const editorTypeId of this.contributionsByEditor.keys()) {
+		// 	if (editorPaneService.didInstantiateEditorPane(editorTypeId)) {
+		// 		this.onEditor(editorTypeId, instantiationService, lifecycleService, logService, environmentService);
+		// 	}
+		// }
+		// this._register(editorPaneService.onWillInstantiateEditorPane(e => this.onEditor(e.typeId, instantiationService, lifecycleService, logService, environmentService)));
 	}
 
 	private onEditor(editorTypeId: string, instantiationService: IInstantiationService, lifecycleService: ILifecycleService, logService: ILogService, environmentService: IEnvironmentService): void {

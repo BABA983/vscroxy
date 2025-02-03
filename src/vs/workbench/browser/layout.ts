@@ -13,6 +13,7 @@ import { ServicesAccessor } from '../../platform/instantiation/common/instantiat
 import { ILogService } from '../../platform/log/common/log.js';
 import { StorageScope, StorageTarget } from '../../platform/storage/common/storage.js';
 import { useWindowControlsOverlay } from '../../platform/window/common/window.js';
+import { IViewDescriptorService } from '../common/views.js';
 import { IBrowserWorkbenchEnvironmentService } from '../services/environment/browser/environmentService.js';
 import { isHorizontal, IWorkbenchLayoutService, MULTI_WINDOW_PARTS, PanelAlignment, Parts, Position, positionFromString, SINGLE_WINDOW_PARTS } from '../services/layout/browser/layoutService.js';
 import { ILifecycleService } from '../services/lifecycle/common/lifecycle.js';
@@ -118,6 +119,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	private titleService!: ITitleService;
 	private statusBarService!: ITitleService;
 	private paneCompositeService!: IPaneCompositePartService;
+	private viewDescriptorService!: IViewDescriptorService;
 
 	private state!: ILayoutState;
 	private stateModel!: LayoutStateModel;
@@ -194,13 +196,13 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		throw new Error('Method not implemented.');
 	}
 	getSideBarPosition(): Position {
-		throw new Error('Method not implemented.');
+		return this.stateModel.getRuntimeValue(LayoutStateKeys.SIDEBAR_POSITON);
 	}
 	toggleMenuBar(): void {
 		throw new Error('Method not implemented.');
 	}
 	getPanelPosition(): Position {
-		throw new Error('Method not implemented.');
+		return this.stateModel.getRuntimeValue(LayoutStateKeys.PANEL_POSITION);
 	}
 	setPanelPosition(position: Position): void {
 		throw new Error('Method not implemented.');
@@ -250,6 +252,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.titleService = accessor.get(ITitleService);
 		this.statusBarService = accessor.get(IStatusbarService);
 		this.paneCompositeService = accessor.get(IPaneCompositePartService);
+		this.viewDescriptorService = accessor.get(IViewDescriptorService);
 
 		// Listeners
 		this.registerLayoutListeners();
@@ -406,7 +409,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		// const bannerPart = this.getPart(Parts.BANNER_PART);
 		// const editorPart = this.getPart(Parts.EDITOR_PART);
 		// const activityBar = this.getPart(Parts.ACTIVITYBAR_PART);
-		// const panelPart = this.getPart(Parts.PANEL_PART);
+		const panelPart = this.getPart(Parts.PANEL_PART);
 		// const auxiliaryBarPart = this.getPart(Parts.AUXILIARYBAR_PART);
 		const sideBar = this.getPart(Parts.SIDEBAR_PART);
 		const statusBar = this.getPart(Parts.STATUSBAR_PART);
@@ -417,7 +420,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.sideBarPartView = sideBar;
 		this.activityBarPartView = statusBar;
 		this.editorPartView = statusBar;
-		this.panelPartView = statusBar;
+		this.panelPartView = panelPart;
 		this.auxiliaryBarPartView = statusBar;
 		this.statusBarPartView = statusBar;
 

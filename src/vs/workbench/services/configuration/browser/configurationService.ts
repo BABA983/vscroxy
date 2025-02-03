@@ -5,6 +5,11 @@ import { IAnyWorkspaceIdentifier } from '../../../../platform/workspace/common/w
 import { IWorkbenchConfigurationService, RestrictedSettings } from '../common/configuration.js';
 
 export class WorkbenchConfigurationService extends Disposable implements IWorkbenchConfigurationService {
+	_serviceBrand: undefined;
+
+	constructor() {
+		super();
+	}
 	restrictedSettings: RestrictedSettings;
 	onDidChangeRestrictedSettings: Event<RestrictedSettings>;
 	whenRemoteConfigurationLoaded(): Promise<void> {
@@ -16,7 +21,6 @@ export class WorkbenchConfigurationService extends Disposable implements IWorkbe
 	isSettingAppliedForAllProfiles(setting: string): boolean {
 		throw new Error('Method not implemented.');
 	}
-	_serviceBrand: undefined;
 	private _onDidChangeConfiguration = new Emitter<IConfigurationChangeEvent>()
 	onDidChangeConfiguration = this._onDidChangeConfiguration.event;
 	getConfigurationData(): IConfigurationData | null {
@@ -26,7 +30,7 @@ export class WorkbenchConfigurationService extends Disposable implements IWorkbe
 	getValue<T>(section: string): T;
 	getValue<T>(overrides: IConfigurationOverrides): T;
 	getValue<T>(section: string, overrides: IConfigurationOverrides): T;
-	getValue(section?: unknown, overrides?: unknown): T | T | T | T {
+	getValue(arg1?: any, arg2?: any): any {
 		throw new Error('Method not implemented.');
 	}
 	updateValue(key: string, value: any): Promise<void>;

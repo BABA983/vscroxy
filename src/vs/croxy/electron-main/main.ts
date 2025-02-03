@@ -30,6 +30,14 @@ import { promises } from 'fs';
 import { ServicesAccessor } from '../../platform/instantiation/common/instantiation.js';
 import { ProxyApplication } from './app.js';
 import { ILifecycleMainService, LifecycleMainService } from '../../platform/lifecycle/electron-main/lifecycleMainService.js';
+import { SaveStrategy, StateService } from '../../platform/state/node/stateService.js';
+import { IStateReadService, IStateService } from '../../platform/state/node/state.js';
+import { IUserDataProfilesMainService, UserDataProfilesMainService } from '../../platform/userDataProfile/electron-main/userDataProfile.js';
+import { IUriIdentityService } from '../../platform/uriIdentity/common/uriIdentity.js';
+import { UriIdentityService } from '../../platform/uriIdentity/common/uriIdentityService.js';
+import { FileService } from '../../platform/files/common/fileService.js';
+import { IFileService } from '../../platform/files/common/files.js';
+import { DiskFileSystemProvider } from '../../platform/files/node/diskFileSystemProvider.js';
 
 class AppMain {
 	main(): void {
@@ -103,6 +111,25 @@ class AppMain {
 		const bufferLogger = new BufferLogger(loggerService.getLogLevel());
 		const logService = disposables.add(new LogService(bufferLogger, [new ConsoleMainLogger(loggerService.getLogLevel())]));
 		services.set(ILogService, logService);
+
+		// Files
+		const fileService = new FileService(logService);
+		services.set(IFileService, fileService);
+		const diskFileSystemProvider = new DiskFileSystemProvider(logService);
+		fileService.registerProvider(Schemas.file, diskFileSystemProvider);
+
+		// URI Identity
+		const uriIdentityService = new UriIdentityService(fileService);
+		services.set(IUriIdentityService, uriIdentityService);
+
+		// State
+		const stateService = new StateService(SaveStrategy.DELAYED, environmentMainService, logService, fileService);
+		services.set(IStateReadService, stateService);
+		services.set(IStateService, stateService);
+
+		// User Data Profiles
+		const userDataProfilesMainService = new UserDataProfilesMainService(stateService, uriIdentityService, environmentMainService, fileService, logService);
+		services.set(IUserDataProfilesMainService, userDataProfilesMainService);
 
 		// Lifecycle
 		services.set(ILifecycleMainService, new SyncDescriptor(LifecycleMainService, undefined, false));

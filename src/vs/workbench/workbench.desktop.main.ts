@@ -37,6 +37,7 @@ import './services/host/electron-sandbox/nativeHostService.js';
 import './services/title/electron-sandbox/titleService.js';
 import './services/contextmenu/electron-sandbox/contextmenuService.js';
 import './services/accessibility/electron-sandbox/accessibilityService.js';
+import '../platform/userDataProfile/electron-sandbox/userDataProfileStorageService.js';
 
 //#endregion
 

@@ -206,8 +206,10 @@ export class SidebarPart extends AbstractPaneCompositePart {
 	}
 
 	protected shouldShowCompositeBar(): boolean {
-		const activityBarPosition = this.configurationService.getValue<ActivityBarPosition>(LayoutSettings.ACTIVITY_BAR_LOCATION);
-		return activityBarPosition === ActivityBarPosition.TOP || activityBarPosition === ActivityBarPosition.BOTTOM;
+		// TODO: @BABA
+		return true;
+		// const activityBarPosition = this.configurationService.getValue<ActivityBarPosition>(LayoutSettings.ACTIVITY_BAR_LOCATION);
+		// return activityBarPosition === ActivityBarPosition.TOP || activityBarPosition === ActivityBarPosition.BOTTOM;
 	}
 
 	private shouldShowActivityBar(): boolean {
@@ -219,6 +221,8 @@ export class SidebarPart extends AbstractPaneCompositePart {
 	}
 
 	protected getCompositeBarPosition(): CompositeBarPosition {
+		// TODO: @BABA
+		return CompositeBarPosition.TITLE;
 		const activityBarPosition = this.configurationService.getValue<ActivityBarPosition>(LayoutSettings.ACTIVITY_BAR_LOCATION);
 		switch (activityBarPosition) {
 			case ActivityBarPosition.TOP: return CompositeBarPosition.TOP;
@@ -230,10 +234,11 @@ export class SidebarPart extends AbstractPaneCompositePart {
 	}
 
 	private rememberActivityBarVisiblePosition(): void {
-		const activityBarPosition = this.configurationService.getValue<string>(LayoutSettings.ACTIVITY_BAR_LOCATION);
-		if (activityBarPosition !== ActivityBarPosition.HIDDEN) {
-			this.storageService.store(LayoutSettings.ACTIVITY_BAR_LOCATION, activityBarPosition, StorageScope.PROFILE, StorageTarget.USER);
-		}
+		// TODO
+		// const activityBarPosition = this.configurationService.getValue<string>(LayoutSettings.ACTIVITY_BAR_LOCATION);
+		// if (activityBarPosition !== ActivityBarPosition.HIDDEN) {
+		// 	this.storageService.store(LayoutSettings.ACTIVITY_BAR_LOCATION, activityBarPosition, StorageScope.PROFILE, StorageTarget.USER);
+		// }
 	}
 
 	private getRememberedActivityBarVisiblePosition(): ActivityBarPosition {
@@ -261,11 +266,11 @@ export class SidebarPart extends AbstractPaneCompositePart {
 	}
 
 	async focusActivityBar(): Promise<void> {
-		if (this.configurationService.getValue(LayoutSettings.ACTIVITY_BAR_LOCATION) === ActivityBarPosition.HIDDEN) {
-			await this.configurationService.updateValue(LayoutSettings.ACTIVITY_BAR_LOCATION, this.getRememberedActivityBarVisiblePosition());
+		// if (this.configurationService.getValue(LayoutSettings.ACTIVITY_BAR_LOCATION) === ActivityBarPosition.HIDDEN) {
+		// 	await this.configurationService.updateValue(LayoutSettings.ACTIVITY_BAR_LOCATION, this.getRememberedActivityBarVisiblePosition());
 
-			this.onDidChangeActivityBarLocation();
-		}
+		// 	this.onDidChangeActivityBarLocation();
+		// }
 
 		if (this.shouldShowCompositeBar()) {
 			this.focusCompositeBar();

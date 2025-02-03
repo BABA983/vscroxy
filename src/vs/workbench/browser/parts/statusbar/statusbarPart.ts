@@ -728,7 +728,7 @@ export class AuxiliaryStatusbarPart extends StatusbarPart implements IAuxiliaryS
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		const id = AuxiliaryStatusbarPart.COUNTER++;
-		super(`workbench.parts.auxiliaryStatus.${id}`, instantiationService, themeService, contextService, storageService, layoutService, contextMenuService, contextKeyService);
+		super(`workbench.parts.auxiliaryStatus.${id}`, instantiationService, themeService, storageService, layoutService, contextMenuService, contextKeyService);
 	}
 }
 

@@ -14,6 +14,8 @@ import { LoggerChannelClient } from '../../platform/log/common/logIpc.js';
 import product from '../../platform/product/common/product.js';
 import { IProductService } from '../../platform/product/common/productService.js';
 import { IStorageService } from '../../platform/storage/common/storage.js';
+import { IUserDataProfilesService, reviveProfile } from '../../platform/userDataProfile/common/userDataProfile.js';
+import { UserDataProfilesService } from '../../platform/userDataProfile/common/userDataProfileIpc.js';
 import { INativeWindowConfiguration } from '../../platform/window/common/window.js';
 import { IAnyWorkspaceIdentifier, UNKNOWN_EMPTY_WINDOW_WORKSPACE } from '../../platform/workspace/common/workspace.js';
 import { Workbench } from '../browser/workbench.js';
@@ -22,6 +24,8 @@ import { IWorkbenchConfigurationService } from '../services/configuration/common
 import { INativeWorkbenchEnvironmentService, NativeWorkbenchEnvironmentService } from '../services/environment/electron-sandbox/environmentService.js';
 import { NativeLogService } from '../services/log/electron-sandbox/logService.js';
 import { BrowserStorageService } from '../services/storage/browser/storageService.js';
+import { IUserDataProfileService } from '../services/userDataProfile/common/userDataProfile.js';
+import { UserDataProfileService } from '../services/userDataProfile/common/userDataProfileService.js';
 
 export class DesktopMain extends Disposable {
 	constructor(private readonly configuration: INativeWindowConfiguration) {
@@ -96,6 +100,12 @@ export class DesktopMain extends Disposable {
 			logService.trace('workbench#open(): with configuration', safeStringify({ ...this.configuration, nls: undefined /* exclude large property */ }));
 		}
 
+		// User Data Profiles
+		const userDataProfilesService = new UserDataProfilesService(this.configuration.profiles.all, URI.revive(this.configuration.profiles.home).with({ scheme: environmentService.userRoamingDataHome.scheme }), mainProcessService.getChannel('userDataProfiles'));
+		serviceCollection.set(IUserDataProfilesService, userDataProfilesService);
+		const userDataProfileService = new UserDataProfileService(reviveProfile(this.configuration.profiles.profile, userDataProfilesService.profilesHome.scheme));
+		serviceCollection.set(IUserDataProfileService, userDataProfileService);
+
 		const workspace = this.resolveWorkspaceIdentifier(environmentService);
 		await Promise.all([
 			this.createWorkbenchConfigurationService(workspace).then(service => {
@@ -104,7 +114,7 @@ export class DesktopMain extends Disposable {
 
 				return service;
 			}),
-			this.createStorageService(workspace, logService).then(service => {
+			this.createStorageService(workspace, userDataProfileService, logService).then(service => {
 				// Storage
 				serviceCollection.set(IStorageService, service);
 
@@ -139,8 +149,8 @@ export class DesktopMain extends Disposable {
 		}
 	}
 
-	private async createStorageService(workspace: IAnyWorkspaceIdentifier, logService: ILogService) {
-		const storageService = new BrowserStorageService(workspace, logService);
+	private async createStorageService(workspace: IAnyWorkspaceIdentifier, userDataProfileService: IUserDataProfileService, logService: ILogService) {
+		const storageService = new BrowserStorageService(workspace, userDataProfileService, logService);
 		try {
 			await storageService.initialize();
 
