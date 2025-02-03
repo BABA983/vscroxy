@@ -5,11 +5,16 @@
 
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { PerformanceMark } from '../../../base/common/performance.js';
-import { isMacintosh, isWeb } from '../../../base/common/platform.js';
+import { isLinux, isMacintosh, isNative, isWeb } from '../../../base/common/platform.js';
 import { URI, UriComponents, UriDto } from '../../../base/common/uri.js';
 import { ISandboxConfiguration } from '../../../base/parts/sandbox/common/sandboxTypes.js';
+import { IConfigurationService } from '../../configuration/common/configuration.js';
+import { IEditorOptions } from '../../editor/common/editor.js';
 import { NativeParsedArgs } from '../../environment/common/argv.js';
+import { FileType } from '../../files/common/files.js';
 import { ILoggerResource, LogLevel } from '../../log/common/log.js';
+import product from '../../product/common/product.js';
+import { IPartsSplash } from '../../theme/common/themeService.js';
 
 export const WindowMinimumSize = {
 	WIDTH: 400,
@@ -74,16 +79,8 @@ interface IOpenedWindow {
 	readonly filename?: string;
 }
 
-export interface IOpenedMainWindow extends IOpenedWindow {
-	readonly dirty: boolean;
-}
-
 export interface IOpenedAuxiliaryWindow extends IOpenedWindow {
 	readonly parentId: number;
-}
-
-export function isOpenedAuxiliaryWindow(candidate: IOpenedMainWindow | IOpenedAuxiliaryWindow): candidate is IOpenedAuxiliaryWindow {
-	return typeof (candidate as IOpenedAuxiliaryWindow).parentId === 'number';
 }
 
 export interface IOpenEmptyWindowOptions extends IBaseOpenWindowsOptions { }
@@ -119,6 +116,17 @@ export function isFileToOpen(uriToOpen: IWindowOpenable): uriToOpen is IFileToOp
 }
 
 export type MenuBarVisibility = 'classic' | 'visible' | 'toggle' | 'hidden' | 'compact';
+
+export function getMenuBarVisibility(configurationService: IConfigurationService): MenuBarVisibility {
+	const nativeTitleBarEnabled = hasNativeTitlebar(configurationService);
+	const menuBarVisibility = configurationService.getValue<MenuBarVisibility | 'default'>('window.menuBarVisibility');
+
+	if (menuBarVisibility === 'default' || (nativeTitleBarEnabled && menuBarVisibility === 'compact') || (isMacintosh && isNative)) {
+		return 'classic';
+	} else {
+		return menuBarVisibility;
+	}
+}
 
 export interface IWindowsConfiguration {
 	readonly window: IWindowSettings;
@@ -171,18 +179,149 @@ export function overrideDefaultTitlebarStyle(style: 'custom'): void {
 	titlebarStyleDefaultOverride = style;
 }
 
+export function hasCustomTitlebar(configurationService: IConfigurationService, titleBarStyle?: TitlebarStyle): boolean {
+	// Returns if it possible to have a custom title bar in the curren session
+	// Does not imply that the title bar is visible
+	return true;
+}
+
+export function hasNativeTitlebar(configurationService: IConfigurationService, titleBarStyle?: TitlebarStyle): boolean {
+	if (!titleBarStyle) {
+		titleBarStyle = getTitleBarStyle(configurationService);
+	}
+
+	return titleBarStyle === TitlebarStyle.NATIVE;
+}
+
+export function getTitleBarStyle(configurationService: IConfigurationService): TitlebarStyle {
+	if (isWeb) {
+		return TitlebarStyle.CUSTOM;
+	}
+
+	const configuration = configurationService.getValue<IWindowSettings | undefined>('window');
+	if (configuration) {
+		const useNativeTabs = isMacintosh && configuration.nativeTabs === true;
+		if (useNativeTabs) {
+			return TitlebarStyle.NATIVE; // native tabs on sierra do not work with custom title style
+		}
+
+		const useSimpleFullScreen = isMacintosh && configuration.nativeFullScreen === false;
+		if (useSimpleFullScreen) {
+			return TitlebarStyle.NATIVE; // simple fullscreen does not work well with custom title style (https://github.com/microsoft/vscode/issues/63291)
+		}
+
+		const style = configuration.titleBarStyle;
+		if (style === TitlebarStyle.NATIVE || style === TitlebarStyle.CUSTOM) {
+			return style;
+		}
+	}
+
+	if (titlebarStyleDefaultOverride === 'custom') {
+		return TitlebarStyle.CUSTOM;
+	}
+
+	return isLinux && product.quality === 'stable' ? TitlebarStyle.NATIVE : TitlebarStyle.CUSTOM; // default to custom on all OS except Linux stable (for now)
+}
 
 export const DEFAULT_CUSTOM_TITLEBAR_HEIGHT = 35; // includes space for command center
 
-export function useWindowControlsOverlay(): boolean {
+export function useWindowControlsOverlay(configurationService: IConfigurationService): boolean {
 	if (isMacintosh || isWeb) {
 		return false; // only supported on a Windows/Linux desktop instances
+	}
+
+	if (hasNativeTitlebar(configurationService)) {
+		return false; // only supported when title bar is custom
+	}
+
+	if (isLinux) {
+		const setting = configurationService.getValue('window.experimentalControlOverlay');
+		if (typeof setting === 'boolean') {
+			return setting;
+		}
 	}
 
 	// Default to true.
 	return true;
 }
 
+export function useNativeFullScreen(configurationService: IConfigurationService): boolean {
+	const windowConfig = configurationService.getValue<IWindowSettings | undefined>('window');
+	if (!windowConfig || typeof windowConfig.nativeFullScreen !== 'boolean') {
+		return true; // default
+	}
+
+	if (windowConfig.nativeTabs) {
+		return true; // https://github.com/electron/electron/issues/16142
+	}
+
+	return windowConfig.nativeFullScreen !== false;
+}
+
+
+export interface IPath<T = IEditorOptions> extends IPathData<T> {
+
+	/**
+	 * The file path to open within the instance
+	 */
+	fileUri?: URI;
+}
+
+export interface IPathData<T = IEditorOptions> {
+
+	/**
+	 * The file path to open within the instance
+	 */
+	readonly fileUri?: UriComponents;
+
+	/**
+	 * Optional editor options to apply in the file
+	 */
+	readonly options?: T;
+
+	/**
+	 * A hint that the file exists. if true, the
+	 * file exists, if false it does not. with
+	 * `undefined` the state is unknown.
+	 */
+	readonly exists?: boolean;
+
+	/**
+	 * A hint about the file type of this path.
+	 * with `undefined` the type is unknown.
+	 */
+	readonly type?: FileType;
+
+	/**
+	 * Specifies if the file should be only be opened
+	 * if it exists.
+	 */
+	readonly openOnlyIfExists?: boolean;
+}
+
+export interface IPathsToWaitFor extends IPathsToWaitForData {
+	paths: IPath[];
+	waitMarkerFileUri: URI;
+}
+
+interface IPathsToWaitForData {
+	readonly paths: IPathData[];
+	readonly waitMarkerFileUri: UriComponents;
+}
+
+export interface IOpenFileRequest {
+	readonly filesToOpenOrCreate?: IPathData[];
+	readonly filesToDiff?: IPathData[];
+	readonly filesToMerge?: IPathData[];
+}
+
+/**
+ * Additional context for the request on native only.
+ */
+export interface INativeOpenFileRequest extends IOpenFileRequest {
+	readonly termProgram?: string;
+	readonly filesToWait?: IPathsToWaitForData;
+}
 
 export interface INativeRunActionInWindowRequest {
 	readonly id: string;
@@ -199,6 +338,13 @@ export interface IColorScheme {
 	readonly highContrast: boolean;
 }
 
+export interface IWindowConfiguration {
+	remoteAuthority?: string;
+
+	filesToOpenOrCreate?: IPath[];
+	filesToDiff?: IPath[];
+	filesToMerge?: IPath[];
+}
 
 export interface IOSConfiguration {
 	readonly release: string;
@@ -206,7 +352,7 @@ export interface IOSConfiguration {
 	readonly arch: string;
 }
 
-export interface INativeWindowConfiguration extends NativeParsedArgs, ISandboxConfiguration {
+export interface INativeWindowConfiguration extends IWindowConfiguration, NativeParsedArgs, ISandboxConfiguration {
 	mainPid: number;
 	handle?: VSBuffer;
 
@@ -216,6 +362,7 @@ export interface INativeWindowConfiguration extends NativeParsedArgs, ISandboxCo
 	tmpDir: string;
 	userDataDir: string;
 
+	partsSplash?: IPartsSplash;
 
 	isInitialStartup?: boolean;
 	logLevel: LogLevel;

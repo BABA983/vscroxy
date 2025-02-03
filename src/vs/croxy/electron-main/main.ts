@@ -21,7 +21,7 @@ import { coalesce } from '../../base/common/arrays.js';
 import { toErrorMessage } from '../../base/common/errorMessage.js';
 import { getPathLabel } from '../../base/common/labels.js';
 import { URI } from '../../base/common/uri.js';
-import { massageMessageBoxOptions } from '../../platform/dialog/common/dialogs.js';
+import { massageMessageBoxOptions } from '../../platform/dialogs/common/dialogs.js';
 import { XDG_RUNTIME_DIR } from '../../base/parts/ipc/node/ipc.net.js';
 import { Promises } from '../../base/common/async.js';
 import { addUNCHostToAllowlist, getUNCHost } from '../../base/node/unc.js';

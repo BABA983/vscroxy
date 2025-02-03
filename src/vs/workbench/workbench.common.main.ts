@@ -1,0 +1,40 @@
+import '../base/common/codicons.js'
+import '../base/browser/ui/codicons/codiconStyles.js'
+
+//#region --- workbench actions
+
+import './browser/actions/quickAccessActions.js';
+
+//#endregion
+
+//#region --- workbench parts
+
+import './browser/parts/paneCompositePartService.js';
+import './browser/parts/statusbar/statusbarPart.js';
+
+//#endregion
+
+
+//#region --- workbench services
+
+import '../platform/actions/common/actions.contribution.js';
+import './services/themes/browser/workbenchThemeService.js';
+import './services/keybinding/browser/keybindingService.js';
+import './services/commands/common/commandService.js';
+import './services/notification/common/notificationService.js';
+import '../editor/browser/services/hoverService/hoverService.js';
+import './services/views/browser/viewDescriptorService.js';
+
+import { InstantiationType, registerSingleton } from '../platform/instantiation/common/extensions.js';
+import { ContextKeyService } from '../platform/contextkey/browser/contextKeyService.js';
+import { IContextKeyService } from '../platform/contextkey/common/contextkey.js';
+import { ContextViewService } from '../platform/contextview/browser/contextViewService.js';
+import { IContextViewService } from '../platform/contextview/browser/contextView.js';
+
+registerSingleton(IContextKeyService, ContextKeyService, InstantiationType.Delayed);
+registerSingleton(IContextViewService, ContextViewService, InstantiationType.Delayed);
+
+
+//#endregion
+
+

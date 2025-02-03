@@ -8,6 +8,7 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "compile": "rimraf out && tsc -p ./src/tsconfig.json",
     "watch": "rimraf out && tsc --watch -p ./src/tsconfig.json",
+    "copy-html": "./build/node_modules/.bin/gulp copy-html",
     "eslint": "node build/eslint",
     "vitest": "vitest",
     "electron": "tsx build/lib/electron",
@@ -32,9 +33,12 @@
     "@types/eslint": "^9.6.1",
     "@types/estree": "^1.0.6",
     "@types/minimist": "^1.2.5",
+    "@types/mocha": "^10.0.10",
     "@types/node": "20.x",
     "@types/semver": "^7.5.8",
+    "@types/sinon": "^17.0.3",
     "@types/trusted-types": "^1.0.6",
+    "@types/wicg-file-system-access": "2020",
     "electron": "32.2.7",
     "eslint": "^9.18.0",
     "eslint-plugin-jsdoc": "^50.6.2",
@@ -42,13 +46,16 @@
     "glob": "^11.0.1",
     "husky": "^9.1.7",
     "minimatch": "^10.0.1",
+    "mocha": "^11.1.0",
     "rimraf": "^2.7.1",
+    "sinon": "^19.0.2",
     "tsx": "^4.19.2",
     "typescript": "^5.7.3",
     "typescript-eslint": "^8.20.0",
     "vitest": "^2.1.8"
   },
   "dependencies": {
+    "@vscode/ripgrep": "^1.15.10",
     "@vscode/spdlog": "^0.15.1",
     "minimist": "^1.2.8"
   }

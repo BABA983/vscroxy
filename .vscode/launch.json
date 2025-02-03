@@ -1,0 +1,96 @@
+{
+	"version": "0.2.0",
+	"configurations": [
+		{
+			"type": "node",
+			"request": "launch",
+			"name": "Launch Electron",
+			// "port": 9222,
+			"timeout": 0,
+			// "cleanUp": "wholeBrowser",
+			"windows": {
+				"runtimeExecutable": "${workspaceFolder}/scripts/code.bat"
+			},
+			"osx": {
+				"runtimeExecutable": "${workspaceFolder}/scripts/code.sh"
+			},
+			"linux": {
+				"runtimeExecutable": "${workspaceFolder}/scripts/code.sh"
+			},
+			"env": {
+				"VSCODE_DEV": "1"
+			},
+			"runtimeArgs": [
+				"--inspect-brk=5875",
+				"--no-cached-data",
+				"--preserve-symlinks",
+				"--remote-debugging-port=9223",
+				"--log=trace",
+				"--open-devtools"
+			],
+			"pauseForSourceMap": false,
+			"outFiles": [
+				"${workspaceFolder}/out/**/*.js",
+			],
+			"presentation": {
+				"hidden": true
+			}
+		},
+		{
+			"type": "node",
+			"request": "attach",
+			"name": "Attach to Main Process",
+			"timeout": 30000,
+			"port": 5875,
+			"continueOnAttach": true,
+			"outFiles": [
+				"${workspaceFolder}/out/**/*.js",
+			],
+			// "presentation": {
+			// 	"hidden": true
+			// }
+		},
+		{
+			"type": "chrome",
+			"request": "attach",
+			"name": "Attach to Renderer Process",
+			"port": 9223,
+			"outFiles": [
+				"${workspaceFolder}/out/**/*.js",
+			],
+			"timeout": 0,
+			"webRoot": "${workspaceFolder}",
+			"restart": true
+		},
+		{
+			"type": "node",
+			"request": "attach",
+			"restart": true,
+			"name": "Attach to Whistle Process",
+			"timeout": 0,
+			"port": 5879,
+			"outFiles": [
+				"${workspaceFolder}/out/**/*.js",
+			],
+			// "presentation": {
+			//     "hidden": true,
+			// }
+		}
+	],
+	"compounds": [
+		{
+			"name": "Electron",
+			"stopAll": true,
+			"configurations": [
+				"Launch Electron",
+				"Attach to Renderer Process",
+				"Attach to Main Process",
+				"Attach to Whistle Process"
+			],
+			"presentation": {
+				"group": "0_vscode",
+				"order": 1
+			}
+		}
+	]
+}
