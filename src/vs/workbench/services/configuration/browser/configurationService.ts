@@ -31,6 +31,8 @@ export class WorkbenchConfigurationService extends Disposable implements IWorkbe
 	getValue<T>(overrides: IConfigurationOverrides): T;
 	getValue<T>(section: string, overrides: IConfigurationOverrides): T;
 	getValue(arg1?: any, arg2?: any): any {
+		// TODO: @BABA
+		return undefined;
 		throw new Error('Method not implemented.');
 	}
 	updateValue(key: string, value: any): Promise<void>;

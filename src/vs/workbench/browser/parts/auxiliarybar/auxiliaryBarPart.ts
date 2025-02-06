@@ -23,7 +23,7 @@ import { IAction, Separator, SubmenuAction, toAction } from '../../../../base/co
 import { ToggleAuxiliaryBarAction } from './auxiliaryBarActions.js';
 import { assertIsDefined } from '../../../../base/common/types.js';
 import { LayoutPriority } from '../../../../base/browser/ui/splitview/splitview.js';
-import { ToggleSidebarPositionAction } from '../../actions/layoutActions.js';
+// import { ToggleSidebarPositionAction } from '../../actions/layoutActions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { AbstractPaneCompositePart, CompositeBarPosition } from '../paneCompositePart.js';
 import { ActionsOrientation, IActionViewItem, prepareActions } from '../../../../base/browser/ui/actionbar/actionbar.js';
@@ -201,17 +201,21 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 		actions.push(...[
 			new Separator(),
 			new SubmenuAction('workbench.action.panel.position', localize('activity bar position', "Activity Bar Position"), positionActions),
-			toAction({ id: ToggleSidebarPositionAction.ID, label: currentPositionRight ? localize('move second side bar left', "Move Secondary Side Bar Left") : localize('move second side bar right', "Move Secondary Side Bar Right"), run: () => this.commandService.executeCommand(ToggleSidebarPositionAction.ID) }),
+			// toAction({ id: ToggleSidebarPositionAction.ID, label: currentPositionRight ? localize('move second side bar left', "Move Secondary Side Bar Left") : localize('move second side bar right', "Move Secondary Side Bar Right"), run: () => this.commandService.executeCommand(ToggleSidebarPositionAction.ID) }),
 			toAction({ id: ToggleAuxiliaryBarAction.ID, label: localize('hide second side bar', "Hide Secondary Side Bar"), run: () => this.commandService.executeCommand(ToggleAuxiliaryBarAction.ID) })
 		]);
 	}
 
 	protected shouldShowCompositeBar(): boolean {
+		// TODO: @BABA
+		return true;
 		return this.configurationService.getValue<ActivityBarPosition>(LayoutSettings.ACTIVITY_BAR_LOCATION) !== ActivityBarPosition.HIDDEN;
 	}
 
 	// TODO@benibenj chache this
 	protected getCompositeBarPosition(): CompositeBarPosition {
+		// TODO: @BABA
+		return CompositeBarPosition.TITLE;
 		const activityBarPosition = this.configurationService.getValue<ActivityBarPosition>(LayoutSettings.ACTIVITY_BAR_LOCATION);
 		switch (activityBarPosition) {
 			case ActivityBarPosition.TOP: return CompositeBarPosition.TOP;

@@ -407,10 +407,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	protected createWorkbenchLayout(): void {
 		const titleBar = this.getPart(Parts.TITLEBAR_PART);
 		// const bannerPart = this.getPart(Parts.BANNER_PART);
-		// const editorPart = this.getPart(Parts.EDITOR_PART);
-		// const activityBar = this.getPart(Parts.ACTIVITYBAR_PART);
+		const editorPart = this.getPart(Parts.EDITOR_PART);
+		const activityBar = this.getPart(Parts.ACTIVITYBAR_PART);
 		const panelPart = this.getPart(Parts.PANEL_PART);
-		// const auxiliaryBarPart = this.getPart(Parts.AUXILIARYBAR_PART);
+		const auxiliaryBarPart = this.getPart(Parts.AUXILIARYBAR_PART);
 		const sideBar = this.getPart(Parts.SIDEBAR_PART);
 		const statusBar = this.getPart(Parts.STATUSBAR_PART);
 
@@ -418,10 +418,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.titleBarPartView = titleBar;
 		this.bannerPartView = statusBar;
 		this.sideBarPartView = sideBar;
-		this.activityBarPartView = sideBar;
-		this.editorPartView = sideBar;
+		this.activityBarPartView = activityBar;
+		this.editorPartView = editorPart;
 		this.panelPartView = panelPart;
-		this.auxiliaryBarPartView = sideBar;
+		this.auxiliaryBarPartView = auxiliaryBarPart;
 		this.statusBarPartView = statusBar;
 
 		const viewMap = {

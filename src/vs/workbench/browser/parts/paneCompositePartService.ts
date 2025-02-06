@@ -9,7 +9,7 @@ import { InstantiationType, registerSingleton } from '../../../platform/instanti
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { IProgressIndicator } from '../../../platform/progress/common/progress.js';
 import { PaneCompositeDescriptor } from '../panecomposite.js';
-// import { AuxiliaryBarPart } from './auxiliarybar/auxiliaryBarPart.js';
+import { AuxiliaryBarPart } from './auxiliarybar/auxiliaryBarPart.js';
 import { PanelPart } from './panel/panelPart.js';
 import { SidebarPart } from './sidebar/sidebarPart.js';
 import { IPaneComposite } from '../../common/panecomposite.js';
@@ -17,6 +17,7 @@ import { ViewContainerLocation, ViewContainerLocations } from '../../common/view
 import { IPaneCompositePartService } from '../../services/panecomposite/browser/panecomposite.js';
 import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
 import { IPaneCompositePart } from './paneCompositePart.js';
+import { MainEditorPart } from './editor/editorPart2.js';
 
 export class PaneCompositePartService extends Disposable implements IPaneCompositePartService {
 
@@ -34,11 +35,14 @@ export class PaneCompositePartService extends Disposable implements IPaneComposi
 
 		const panelPart = instantiationService.createInstance(PanelPart);
 		const sideBarPart = instantiationService.createInstance(SidebarPart);
-		// const auxiliaryBarPart = instantiationService.createInstance(AuxiliaryBarPart);
+		const auxiliaryBarPart = instantiationService.createInstance(AuxiliaryBarPart);
+
+		//TODO: @BABA remove this
+		const editorPart = instantiationService.createInstance(MainEditorPart);
 
 		this.paneCompositeParts.set(ViewContainerLocation.Panel, panelPart);
 		this.paneCompositeParts.set(ViewContainerLocation.Sidebar, sideBarPart);
-		// this.paneCompositeParts.set(ViewContainerLocation.AuxiliaryBar, auxiliaryBarPart);
+		this.paneCompositeParts.set(ViewContainerLocation.AuxiliaryBar, auxiliaryBarPart);
 
 		const eventDisposables = this._register(new DisposableStore());
 		this.onDidPaneCompositeOpen = Event.any(...ViewContainerLocations.map(loc => Event.map(this.paneCompositeParts.get(loc)?.onDidPaneCompositeOpen || Event.None, composite => { return { composite, viewContainerLocation: loc }; }, eventDisposables)));

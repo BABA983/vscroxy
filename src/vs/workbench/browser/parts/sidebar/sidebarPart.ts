@@ -23,6 +23,7 @@ import { assertIsDefined } from '../../../../base/common/types.js';
 import { IViewDescriptorService } from '../../../common/views.js';
 import { AbstractPaneCompositePart, CompositeBarPosition } from '../paneCompositePart.js';
 // import { ActivityBarCompositeBar, ActivitybarPart } from '../activitybar/activitybarPart.js';
+import { ActivitybarPart } from '../activitybar/activitybarPart2.js';
 import { ActionsOrientation } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { IPaneCompositeBarOptions } from '../paneCompositeBar.js';
@@ -62,7 +63,7 @@ export class SidebarPart extends AbstractPaneCompositePart {
 		return Math.max(width, 300);
 	}
 
-	// private readonly activityBarPart = this._register(this.instantiationService.createInstance(ActivitybarPart, this));
+	private readonly activityBarPart = this._register(this.instantiationService.createInstance(ActivitybarPart, this));
 
 	//#endregion
 

@@ -203,12 +203,12 @@ export class Workbench extends Layout {
 			{ id: Parts.TITLEBAR_PART, role: 'none', classes: ['titlebar'] },
 			// { id: Parts.BANNER_PART, role: 'banner', classes: ['banner'] },
 			// TODO: read from configuration
-			// { id: Parts.ACTIVITYBAR_PART, role: 'none', classes: ['activitybar', 'left'] }, // Use role 'none' for some parts to make screen readers less chatty #114892
+			{ id: Parts.ACTIVITYBAR_PART, role: 'none', classes: ['activitybar', 'left'] }, // Use role 'none' for some parts to make screen readers less chatty #114892
 			{ id: Parts.SIDEBAR_PART, role: 'none', classes: ['sidebar', 'left'] },
-			// { id: Parts.EDITOR_PART, role: 'main', classes: ['editor'], options: { restorePreviousState: false } },
+			{ id: Parts.EDITOR_PART, role: 'main', classes: ['editor'], options: { restorePreviousState: false } },
 			// TODO: read from config
 			{ id: Parts.PANEL_PART, role: 'none', classes: ['panel', 'basepanel', 'bottom'] },
-			// { id: Parts.AUXILIARYBAR_PART, role: 'none', classes: ['auxiliarybar', 'basepanel', 'right'] },
+			{ id: Parts.AUXILIARYBAR_PART, role: 'none', classes: ['auxiliarybar', 'basepanel', 'right'] },
 			{ id: Parts.STATUSBAR_PART, role: 'status', classes: ['statusbar'] }
 		]) {
 			const partContainer = this.createPart(id, role, classes);
