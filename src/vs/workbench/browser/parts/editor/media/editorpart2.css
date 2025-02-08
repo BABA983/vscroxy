@@ -1,0 +1,20 @@
+.network-traffic-table-container .monaco-table .monaco-table-th {
+	display: flex;
+	font-weight: 600;
+	align-items: center;
+	padding-left: 10px;
+}
+
+.network-traffic-table-container .monaco-table .monaco-list-row .monaco-table-tr > .monaco-table-td {
+    align-items: center;
+    display: flex;
+    padding-left: 10px;
+}
+
+.network-traffic-table-container .monaco-table .monaco-list-row .monaco-table-tr > .monaco-table-td > .method,
+.network-traffic-table-container .monaco-table .monaco-list-row .monaco-table-tr > .monaco-table-td > .url,
+.network-traffic-table-container .monaco-table .monaco-list-row .monaco-table-tr > .monaco-table-td > .code,
+.network-traffic-table-container .monaco-table .monaco-list-row .monaco-table-tr > .monaco-table-td > .duration {
+	overflow: hidden;
+	text-overflow: ellipsis;
+}

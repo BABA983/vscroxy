@@ -51,7 +51,7 @@ export class WindowTitle extends Disposable {
 	readonly onDidChange = this.onDidChangeEmitter.event;
 
 	get value() { return this.title ?? ''; }
-	get workspaceName() { return 'TODO: workspaceName'; }
+	get workspaceName() { return 'Listening on 127.0.0.1:7890'; }
 	get fileName() {
 		// const activeEditor = this.editorService.activeEditor;
 		// if (!activeEditor) {

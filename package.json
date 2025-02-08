@@ -7,7 +7,7 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "compile": "rimraf out && tsc -p ./src/tsconfig.json",
-    "watch": "rimraf out && tsc --watch -p ./src/tsconfig.json",
+    "watch": "rimraf out && npm run copy-html && tsc --watch -p ./src/tsconfig.json",
     "copy-html": "./build/node_modules/.bin/gulp copy-html",
     "eslint": "node build/eslint",
     "vitest": "vitest",
