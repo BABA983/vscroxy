@@ -21,6 +21,10 @@ export class NetworkTrafficTableItem {
 	constructor(
 		public readonly method: string,
 		public readonly url: string,
+		public readonly remoteIP: string,
+		public readonly duration: number,
+		public readonly statusCode?: number,
+		public readonly size?: number,
 	) {
 
 	}
@@ -42,8 +46,8 @@ class NetworkTrafficMethodColumnRenderer implements ITableRenderer<NetworkTraffi
 	}
 	renderElement(element: NetworkTrafficTableItem, index: number, templateData: IMarkerHighlightedLabelColumnTemplateData, height: number | undefined): void {
 		templateData.columnElement.title = element.method;
-		templateData.highlightedLabel.element.textContent = element.method;
-		// templateData.highlightedLabel.set(element.method, element.method);
+		// templateData.highlightedLabel.element.textContent = element.method;
+		templateData.highlightedLabel.set(element.method, undefined);
 	}
 
 	disposeTemplate(templateData: IMarkerHighlightedLabelColumnTemplateData): void {
@@ -63,6 +67,94 @@ class NetworkTrafficUrlColumnRenderer implements ITableRenderer<NetworkTrafficTa
 	renderElement(element: NetworkTrafficTableItem, index: number, templateData: IMarkerHighlightedLabelColumnTemplateData, height: number | undefined): void {
 		templateData.columnElement.title = element.url;
 		templateData.highlightedLabel.set(element.url, undefined);
+		// templateData.highlightedLabel.element.textContent = element.url;
+		// templateData.highlightedLabel.set(element.method, element.method);
+	}
+
+	disposeTemplate(templateData: IMarkerHighlightedLabelColumnTemplateData): void {
+		templateData.highlightedLabel.dispose();
+	}
+
+}
+
+class NetworkTrafficIpColumnRenderer implements ITableRenderer<NetworkTrafficTableItem, IMarkerHighlightedLabelColumnTemplateData> {
+	static readonly TEMPLATE_ID = 'remoteIP';
+
+	readonly templateId: string = NetworkTrafficIpColumnRenderer.TEMPLATE_ID;
+	renderTemplate(container: HTMLElement) {
+		const columnElement = append(container, $('.remote-ip'));
+		const highlightedLabel = new HighlightedLabel(columnElement);
+		return { columnElement, highlightedLabel };
+	}
+	renderElement(element: NetworkTrafficTableItem, index: number, templateData: IMarkerHighlightedLabelColumnTemplateData, height: number | undefined): void {
+		templateData.columnElement.title = element.remoteIP;
+		templateData.highlightedLabel.set(element.remoteIP, undefined);
+		// templateData.highlightedLabel.element.textContent = element.url;
+		// templateData.highlightedLabel.set(element.method, element.method);
+	}
+
+	disposeTemplate(templateData: IMarkerHighlightedLabelColumnTemplateData): void {
+		templateData.highlightedLabel.dispose();
+	}
+
+}
+
+class NetworkTrafficDurationColumnRenderer implements ITableRenderer<NetworkTrafficTableItem, IMarkerHighlightedLabelColumnTemplateData> {
+	static readonly TEMPLATE_ID = 'duration';
+
+	readonly templateId: string = NetworkTrafficDurationColumnRenderer.TEMPLATE_ID;
+	renderTemplate(container: HTMLElement) {
+		const columnElement = append(container, $('.duration'));
+		const highlightedLabel = new HighlightedLabel(columnElement);
+		return { columnElement, highlightedLabel };
+	}
+	renderElement(element: NetworkTrafficTableItem, index: number, templateData: IMarkerHighlightedLabelColumnTemplateData, height: number | undefined): void {
+		templateData.columnElement.title = element.duration.toString() || '-';
+		templateData.highlightedLabel.set(element.duration.toString() || '-', undefined);
+		// templateData.highlightedLabel.element.textContent = element.url;
+		// templateData.highlightedLabel.set(element.method, element.method);
+	}
+
+	disposeTemplate(templateData: IMarkerHighlightedLabelColumnTemplateData): void {
+		templateData.highlightedLabel.dispose();
+	}
+
+}
+
+class NetworkTrafficStatusCodeColumnRenderer implements ITableRenderer<NetworkTrafficTableItem, IMarkerHighlightedLabelColumnTemplateData> {
+	static readonly TEMPLATE_ID = 'statusCode';
+
+	readonly templateId: string = NetworkTrafficStatusCodeColumnRenderer.TEMPLATE_ID;
+	renderTemplate(container: HTMLElement) {
+		const columnElement = append(container, $('.statusCode'));
+		const highlightedLabel = new HighlightedLabel(columnElement);
+		return { columnElement, highlightedLabel };
+	}
+	renderElement(element: NetworkTrafficTableItem, index: number, templateData: IMarkerHighlightedLabelColumnTemplateData, height: number | undefined): void {
+		templateData.columnElement.title = element.statusCode?.toString() || '-';
+		templateData.highlightedLabel.set(element.statusCode?.toString() || '-', undefined);
+		// templateData.highlightedLabel.element.textContent = element.url;
+		// templateData.highlightedLabel.set(element.method, element.method);
+	}
+
+	disposeTemplate(templateData: IMarkerHighlightedLabelColumnTemplateData): void {
+		templateData.highlightedLabel.dispose();
+	}
+
+}
+
+class NetworkTrafficSizeColumnRenderer implements ITableRenderer<NetworkTrafficTableItem, IMarkerHighlightedLabelColumnTemplateData> {
+	static readonly TEMPLATE_ID = 'size';
+
+	readonly templateId: string = NetworkTrafficSizeColumnRenderer.TEMPLATE_ID;
+	renderTemplate(container: HTMLElement) {
+		const columnElement = append(container, $('.size'));
+		const highlightedLabel = new HighlightedLabel(columnElement);
+		return { columnElement, highlightedLabel };
+	}
+	renderElement(element: NetworkTrafficTableItem, index: number, templateData: IMarkerHighlightedLabelColumnTemplateData, height: number | undefined): void {
+		templateData.columnElement.title = element.size?.toString() || '-';
+		templateData.highlightedLabel.set(element.size?.toString() || '-', undefined);
 		// templateData.highlightedLabel.element.textContent = element.url;
 		// templateData.highlightedLabel.set(element.method, element.method);
 	}
@@ -99,23 +191,60 @@ class NetworkTrafficTable extends Disposable {
 			[
 				{
 					label: localize('method', 'Method'),
-					weight: 1,
-					minimumWidth: 100,
-					maximumWidth: 200,
+					weight: 0,
+					minimumWidth: 60,
+					maximumWidth: 60,
 					templateId: NetworkTrafficMethodColumnRenderer.TEMPLATE_ID,
 					project(row) { return row; },
 				},
 				{
 					label: localize('url', 'URL'),
-					weight: 1,
+					weight: 2,
 					templateId: NetworkTrafficUrlColumnRenderer.TEMPLATE_ID,
+					project(row) { return row; },
+				},
+				{
+					label: localize('remoteIP', 'Remote IP'),
+					weight: 1,
+					templateId: NetworkTrafficIpColumnRenderer.TEMPLATE_ID,
+					project(row) { return row; },
+				},
+				{
+					label: localize('duration', 'Duration'),
+					weight: 1,
+					minimumWidth: 80,
+					maximumWidth: 80,
+					templateId: NetworkTrafficDurationColumnRenderer.TEMPLATE_ID,
+					project(row) { return row; },
+				},
+				{
+					label: localize('statusCode', 'Code'),
+					weight: 0,
+					minimumWidth: 50,
+					maximumWidth: 50,
+					templateId: NetworkTrafficStatusCodeColumnRenderer.TEMPLATE_ID,
+					project(row) { return row; },
+				},
+				{
+					label: localize('size', 'Size'),
+					weight: 0,
+					minimumWidth: 50,
+					maximumWidth: 50,
+					templateId: NetworkTrafficSizeColumnRenderer.TEMPLATE_ID,
 					project(row) { return row; },
 				},
 			],
 			[
 				this.instantiationService.createInstance(NetworkTrafficMethodColumnRenderer),
 				this.instantiationService.createInstance(NetworkTrafficUrlColumnRenderer),
-			]
+				this.instantiationService.createInstance(NetworkTrafficIpColumnRenderer),
+				this.instantiationService.createInstance(NetworkTrafficDurationColumnRenderer),
+				this.instantiationService.createInstance(NetworkTrafficStatusCodeColumnRenderer),
+				this.instantiationService.createInstance(NetworkTrafficSizeColumnRenderer),
+			],
+			{
+				horizontalScrolling: true,
+			}
 		);
 
 		this.table.style(defaultListStyles);
@@ -123,7 +252,7 @@ class NetworkTrafficTable extends Disposable {
 		// this.table.splice(0, Number.POSITIVE_INFINITY, [
 		// 	new NetworkTrafficTableItem('GET', 'https://github.com/BABA983/vscroxy')
 		// ]);
-		this.table.splice(0, Number.POSITIVE_INFINITY, Array.from({ length: 1000 }, (_, i) => new NetworkTrafficTableItem('GET', 'https://github.com/BABA983/vscroxy')));
+		this.table.splice(0, Number.POSITIVE_INFINITY, Array.from({ length: 1000 }, (_, i) => new NetworkTrafficTableItem('GET', 'https://github.com/BABA983/vscroxy', '127.0.0.1', 1000, 200, 1000)));
 	}
 
 	layout(width: number, height: number) {
