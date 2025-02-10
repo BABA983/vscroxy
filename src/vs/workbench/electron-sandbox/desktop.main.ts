@@ -26,6 +26,7 @@ import { NativeLogService } from '../services/log/electron-sandbox/logService.js
 import { BrowserStorageService } from '../services/storage/browser/storageService.js';
 import { IUserDataProfileService } from '../services/userDataProfile/common/userDataProfile.js';
 import { UserDataProfileService } from '../services/userDataProfile/common/userDataProfileService.js';
+import { NativeWindow } from './window.js';
 
 export class DesktopMain extends Disposable {
 	constructor(private readonly configuration: INativeWindowConfiguration) {
@@ -47,6 +48,9 @@ export class DesktopMain extends Disposable {
 
 		// Startup
 		const instantiationService = workbench.startup();
+
+		// Window
+		this._register(instantiationService.createInstance(NativeWindow));
 	}
 
 	private getExtraClasses(): string[] {
