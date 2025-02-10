@@ -4,7 +4,7 @@
 		{
 			"type": "node",
 			"request": "launch",
-			"name": "Launch Electron",
+			"name": "Launch VSCroxy",
 			// "port": 9222,
 			"timeout": 0,
 			// "cleanUp": "wholeBrowser",
@@ -79,10 +79,10 @@
 	],
 	"compounds": [
 		{
-			"name": "Electron",
+			"name": "VSCroxy",
 			"stopAll": true,
 			"configurations": [
-				"Launch Electron",
+				"Launch VSCroxy",
 				"Attach to Renderer Process",
 				"Attach to Main Process",
 				"Attach to Whistle Process"
