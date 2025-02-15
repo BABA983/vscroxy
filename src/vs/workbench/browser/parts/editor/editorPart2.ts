@@ -242,9 +242,6 @@ class NetworkTrafficTable extends Disposable {
 				this.instantiationService.createInstance(NetworkTrafficStatusCodeColumnRenderer),
 				this.instantiationService.createInstance(NetworkTrafficSizeColumnRenderer),
 			],
-			{
-				horizontalScrolling: true,
-			}
 		);
 
 		this.table.style(defaultListStyles);
@@ -318,6 +315,8 @@ export class EditorPart extends Part {
 		super.layoutContents(width, height);
 
 		this.table.layout(width, height);
+
+		this.doLayout(new Dimension(width, height));
 	}
 
 	private doLayout(dimension: Dimension) {

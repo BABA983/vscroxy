@@ -7,6 +7,13 @@ import { Part } from '../../part.js';
 import { IPaneCompositePart } from '../paneCompositePart.js';
 
 export class ActivitybarPart extends Part {
+
+	static readonly ACTION_HEIGHT = 48;
+
+	static readonly pinnedViewContainersKey = 'workbench.activity.pinnedViewlets2';
+	static readonly placeholderViewContainersKey = 'workbench.activity.placeholderViewlets';
+	static readonly viewContainersWorkspaceStateKey = 'workbench.activity.viewletsWorkspaceState';
+
 	override minimumWidth = 0;
 	override maximumWidth = 0;
 	override minimumHeight = 0;

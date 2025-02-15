@@ -110,7 +110,8 @@ export class OpenerService implements IOpenerService {
 	private readonly _externalOpeners = new LinkedList<IExternalOpener>();
 
 	constructor(
-		@ICodeEditorService editorService: ICodeEditorService,
+		// TODO: @BABA983 editorService
+		// @ICodeEditorService editorService: ICodeEditorService,
 		@ICommandService commandService: ICommandService
 	) {
 		// Default external opener is going through window.open()
@@ -141,7 +142,7 @@ export class OpenerService implements IOpenerService {
 			}
 		});
 		this._openers.push(new CommandOpener(commandService));
-		this._openers.push(new EditorOpener(editorService));
+		// this._openers.push(new EditorOpener(editorService));
 	}
 
 	registerOpener(opener: IOpener): IDisposable {

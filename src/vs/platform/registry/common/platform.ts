@@ -6,6 +6,11 @@
 import * as Assert from '../../../base/common/assert.js';
 import * as Types from '../../../base/common/types.js';
 
+export namespace Extensions {
+	export const ViewContainersRegistry = 'workbench.registry.view.containers';
+	export const ViewsRegistry = 'workbench.registry.view';
+}
+
 export interface IRegistry {
 
 	/**

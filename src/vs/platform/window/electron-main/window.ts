@@ -8,7 +8,7 @@ import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Event } from '../../../base/common/event.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
 import { NativeParsedArgs } from '../../environment/common/argv.js';
-import { INativeWindowConfiguration } from '../common/window.js';
+import { DEFAULT_AUX_WINDOW_SIZE, DEFAULT_WINDOW_SIZE, INativeWindowConfiguration } from '../common/window.js';
 
 export interface IBaseWindow extends IDisposable {
 
@@ -121,8 +121,8 @@ export interface IWindowState {
 
 export const defaultWindowState = function (mode = WindowMode.Normal): IWindowState {
 	return {
-		width: 1200,
-		height: 800,
+		width: DEFAULT_WINDOW_SIZE.width,
+		height: DEFAULT_WINDOW_SIZE.height,
 		mode
 	};
 };
@@ -136,8 +136,8 @@ export const defaultAuxWindowState = function (): IWindowState {
 	// we need to set not only width and height but also x and y to
 	// a good location on the primary display.
 
-	const width = 1024;
-	const height = 768;
+	const width = DEFAULT_AUX_WINDOW_SIZE.width;
+	const height = DEFAULT_AUX_WINDOW_SIZE.height;
 	const workArea = electron.screen.getPrimaryDisplay().workArea;
 	const x = Math.max(workArea.x + (workArea.width / 2) - (width / 2), 0);
 	const y = Math.max(workArea.y + (workArea.height / 2) - (height / 2), 0);

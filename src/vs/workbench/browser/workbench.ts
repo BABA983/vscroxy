@@ -19,6 +19,7 @@ import { ILifecycleService, LifecyclePhase, WillShutdownEvent } from '../service
 import { Layout } from './layout.js';
 import { Registry } from '../../platform/registry/common/platform.js';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from '../common/contributions.js';
+import { WorkbenchContextKeysHandler } from './contextKeys.js';
 
 export interface IWorkbenchOptions {
 
@@ -103,6 +104,10 @@ export class Workbench extends Layout {
 				// Registries
 				Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).start(accessor);
 
+				// Context Keys
+				this._register(instantiationService.createInstance(WorkbenchContextKeysHandler));
+
+				// Register Listeners
 				this.registerListeners(lifecycleService);
 
 				// Render Workbench
