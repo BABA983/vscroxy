@@ -113,6 +113,8 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'inspect-brk-search': { type: 'string', deprecates: ['debugBrkSearch'], allowEmptyValue: true },
 	'inspect-sharedprocess': { type: 'string', allowEmptyValue: true },
 	'inspect-brk-sharedprocess': { type: 'string', allowEmptyValue: true },
+	'inspect-whistleprocess': { type: 'string', allowEmptyValue: true },
+	'inspect-brk-whistleprocess': { type: 'string', allowEmptyValue: true },
 	'export-default-configuration': { type: 'string' },
 	'install-source': { type: 'string' },
 	'enable-smoke-test-driver': { type: 'boolean' },

@@ -1,12 +1,14 @@
 import { app, BrowserWindow, session, WebFrameMain } from 'electron';
 import { isSigPipeError, onUnexpectedError, setUnexpectedErrorHandler } from '../../base/common/errors.js';
 import { Event } from '../../base/common/event.js';
-import { Disposable, DisposableStore } from '../../base/common/lifecycle.js';
+import { Disposable } from '../../base/common/lifecycle.js';
 import { Schemas, VSCODE_AUTHORITY } from '../../base/common/network.js';
 import { IProcessEnvironment, isMacintosh } from '../../base/common/platform.js';
 import { URI } from '../../base/common/uri.js';
 import { Server as ElectronIPCServer } from '../../base/parts/ipc/electron-main/ipc.electron.js';
+import { Client as MessagePortClient } from '../../base/parts/ipc/electron-main/ipc.mp.js';
 import { validatedIpcMain } from '../../base/parts/ipc/electron-main/ipcMain.js';
+import { CSSDevelopmentService, ICSSDevelopmentService } from '../../platform/cssDev/node/cssDevService.js';
 import { NativeParsedArgs } from '../../platform/environment/common/argv.js';
 import { IEnvironmentMainService } from '../../platform/environment/electron-main/environmentMainService.js';
 import { isLaunchedFromCli } from '../../platform/environment/node/argvHelper.js';
@@ -15,11 +17,11 @@ import { IInstantiationService, ServicesAccessor } from '../../platform/instanti
 import { ServiceCollection } from '../../platform/instantiation/common/serviceCollection.js';
 import { ILifecycleMainService, LifecycleMainPhase, ShutdownReason } from '../../platform/lifecycle/electron-main/lifecycleMainService.js';
 import { ILogService } from '../../platform/log/common/log.js';
-import { IWindowsMainService, OpenContext } from '../../platform/windows/electron-main/windows.js';
-import { WindowsMainService } from '../../platform/windows/electron-main/windowsMainService.js';
 import { ILoggerMainService } from '../../platform/log/electron-main/loggerService.js';
 import { LoggerChannel } from '../../platform/log/electron-main/logIpc.js';
-import { CSSDevelopmentService, ICSSDevelopmentService } from '../../platform/cssDev/node/cssDevService.js';
+import { WhistleProcess } from '../../platform/whistleProcess/electron-main/whistleProcess.js';
+import { IWindowsMainService, OpenContext } from '../../platform/windows/electron-main/windows.js';
+import { WindowsMainService } from '../../platform/windows/electron-main/windowsMainService.js';
 
 export class ProxyApplication extends Disposable {
 
@@ -378,6 +380,9 @@ export class ProxyApplication extends Disposable {
 			}
 		});
 
+		// Whistle process
+		this.setupWhistleProcess();
+
 		// Services
 		const appInstantiationService = await this.initServices();
 
@@ -406,6 +411,30 @@ export class ProxyApplication extends Disposable {
 		services.set(ICSSDevelopmentService, new SyncDescriptor(CSSDevelopmentService, undefined, true));
 
 		return this.mainInstantiationService.createChild(services);
+	}
+
+	private setupWhistleProcess() {
+		const whistleProcess = this._register(this.mainInstantiationService.createInstance(WhistleProcess));
+
+		this._register(whistleProcess.onDidCrash(() => this.windowsMainService?.sendToFocused('vscode:reportWhistleProcessCrash')));
+
+		const whistleProcessClient = (async () => {
+			this.logService.trace('Main->WhistleProcess#connect');
+
+			const port = await whistleProcess.connect();
+
+			this.logService.trace('Main->WhistleProcess#connect: connection established');
+
+			return new MessagePortClient(port, 'main');
+		})();
+
+		const whistleProcessReady = (async () => {
+			await whistleProcess.whenReady();
+
+			return whistleProcessClient;
+		})();
+
+		return { whistleProcessReady, whistleProcessClient };
 	}
 
 	private initChannels(accessor: ServicesAccessor, mainProcessElectronServer: ElectronIPCServer) {

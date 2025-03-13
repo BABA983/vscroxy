@@ -57,6 +57,7 @@
   "dependencies": {
     "@vscode/ripgrep": "^1.15.10",
     "@vscode/spdlog": "^0.15.1",
-    "minimist": "^1.2.8"
+    "minimist": "^1.2.8",
+    "whistle": "^2.9.94"
   }
 }

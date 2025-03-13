@@ -26,7 +26,8 @@
 				"--preserve-symlinks",
 				"--remote-debugging-port=9223",
 				"--log=trace",
-				"--open-devtools"
+				"--open-devtools",
+				"--inspect-brk-whistleprocess=5880"
 			],
 			"pauseForSourceMap": false,
 			"outFiles": [
@@ -68,7 +69,7 @@
 			"restart": true,
 			"name": "Attach to Whistle Process",
 			"timeout": 0,
-			"port": 5879,
+			"port": 5880,
 			"outFiles": [
 				"${workspaceFolder}/out/**/*.js",
 			],

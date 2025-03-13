@@ -59,6 +59,9 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 	get tmpDir(): URI { return URI.file(this.paths.tmpDir); }
 
 	@memoize
+	get whistleAppDataPath(): URI { return URI.file(join(this.userDataPath, '.WhistleAppData')); }
+
+	@memoize
 	get cacheHome(): URI { return URI.file(this.userDataPath); }
 
 	@memoize

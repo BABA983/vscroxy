@@ -113,6 +113,7 @@ export interface INativeEnvironmentService extends IEnvironmentService {
 	userHome: URI;
 	appSettingsHome: URI;
 	tmpDir: URI;
+	whistleAppDataPath: URI;
 	userDataPath: string;
 
 	// --- logging

@@ -9,6 +9,7 @@ import { URI } from '../../base/common/uri.js';
 import { ServiceCollection } from '../../platform/instantiation/common/serviceCollection.js';
 import { IMainProcessService } from '../../platform/ipc/common/mainProcessService.js';
 import { ElectronIPCMainProcessService } from '../../platform/ipc/electron-sandbox/mainProcessService.js';
+import { IWhistleProcessService } from '../../platform/ipc/electron-sandbox/services.js';
 import { ILoggerService, ILogService, LogLevel } from '../../platform/log/common/log.js';
 import { LoggerChannelClient } from '../../platform/log/common/logIpc.js';
 import product from '../../platform/product/common/product.js';
@@ -26,6 +27,7 @@ import { NativeLogService } from '../services/log/electron-sandbox/logService.js
 import { BrowserStorageService } from '../services/storage/browser/storageService.js';
 import { IUserDataProfileService } from '../services/userDataProfile/common/userDataProfile.js';
 import { UserDataProfileService } from '../services/userDataProfile/common/userDataProfileService.js';
+import { WhistleProcessService } from '../services/whistleProcess/electron-sandbox/whistleProcessService.js';
 import { NativeWindow } from './window.js';
 
 export class DesktopMain extends Disposable {
@@ -87,10 +89,7 @@ export class DesktopMain extends Disposable {
 		serviceCollection.set(INativeWorkbenchEnvironmentService, environmentService);
 
 		// Logger
-		const loggers = [
-			...this.configuration.loggers.global.map(loggerResource => ({ ...loggerResource, resource: URI.revive(loggerResource.resource) })),
-			...this.configuration.loggers.window.map(loggerResource => ({ ...loggerResource, resource: URI.revive(loggerResource.resource), hidden: true })),
-		];
+		const loggers = this.configuration.loggers.map(loggerResource => ({ ...loggerResource, resource: URI.revive(loggerResource.resource) }));
 		const loggerService = new LoggerChannelClient(this.configuration.windowId, this.configuration.logLevel, environmentService.windowLogsPath, loggers, mainProcessService.getChannel('logger'));
 		serviceCollection.set(ILoggerService, loggerService);
 
@@ -103,6 +102,10 @@ export class DesktopMain extends Disposable {
 		if (logService.getLevel() === LogLevel.Trace) {
 			logService.trace('workbench#open(): with configuration', safeStringify({ ...this.configuration, nls: undefined /* exclude large property */ }));
 		}
+
+		// Whistle Process
+		const whistleProcessService = new WhistleProcessService(this.configuration.windowId, logService);
+		serviceCollection.set(IWhistleProcessService, whistleProcessService);
 
 		// User Data Profiles
 		const userDataProfilesService = new UserDataProfilesService(this.configuration.profiles.all, URI.revive(this.configuration.profiles.home).with({ scheme: environmentService.userRoamingDataHome.scheme }), mainProcessService.getChannel('userDataProfiles'));
