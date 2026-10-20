@@ -1370,6 +1370,9 @@ func (a *app) rowMenu(c *ui.Context, f flow) func(*ui.Menu) {
 		if m.Item("Edit in Compose").Chosen() {
 			a.composeFrom(f)
 		}
+		if m.Item("Save as request").Chosen() {
+			a.saveFlowAsRequest(f)
+		}
 		if m.Item("Replay").Chosen() {
 			go a.replay(f)
 		}
@@ -1962,4 +1965,35 @@ func (a *app) saveHistory() {
 			a.setMessage("History: " + err.Error())
 		}
 	}()
+}
+
+// saveFlowAsRequest keeps a captured request in the saved ones, under a name
+// that says what it is.
+func (a *app) saveFlowAsRequest(f flow) {
+	name := strings.TrimSpace(f.method + " " + f.host + f.path)
+	if f.path == "" {
+		name = strings.TrimSpace(f.method + " " + f.host)
+	}
+	// A second save of the same request takes a name of its own, rather
+	// than replacing the first.
+	name = uniqueRequestName(a.requests, name)
+	r := savedRequest{
+		Name:    name,
+		Method:  cmp.Or(f.method, "GET"),
+		URL:     f.url,
+		Headers: headerBlock(f.reqHeader),
+		Body:    f.body(false),
+	}
+	a.requests = upsertRequest(a.requests, r)
+	if a.requestsPath != "" {
+		if err := os.MkdirAll(filepath.Dir(a.requestsPath), 0o755); err != nil {
+			a.setMessage("Save request: " + err.Error())
+			return
+		}
+		if err := saveRequests(a.requestsPath, a.requests); err != nil {
+			a.setMessage("Save request: " + err.Error())
+			return
+		}
+	}
+	a.setMessage("Saved " + name)
 }

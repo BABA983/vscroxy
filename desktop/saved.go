@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"encoding/json/v2"
 	"errors"
+	"fmt"
 	"io/fs"
 	"os"
 	"slices"
@@ -70,4 +71,26 @@ func groupRequests(list []savedRequest) map[string][]savedRequest {
 		groups[r.Collection] = append(groups[r.Collection], r)
 	}
 	return groups
+}
+
+// uniqueRequestName returns name, or name with a count in brackets when the
+// list already holds it.
+func uniqueRequestName(list []savedRequest, name string) string {
+	taken := func(candidate string) bool {
+		for _, r := range list {
+			if r.Name == candidate {
+				return true
+			}
+		}
+		return false
+	}
+	if !taken(name) {
+		return name
+	}
+	for n := 2; ; n++ {
+		candidate := fmt.Sprintf("%s (%d)", name, n)
+		if !taken(candidate) {
+			return candidate
+		}
+	}
 }

@@ -68,6 +68,12 @@ WebSocket and SSE by kind, and JSON, images or HTML by the response's content
 type. They narrow what the sidebar's filters and the search show, and the
 status bar counts the flows, the bytes captured and the last message.
 
+A row's menu carries what a captured request is worth outside the table:
+**Copy URL**, **Copy as cURL** (its headers, body and URL as a shell
+command), **Open in browser**, **Copy response body**, **Pin to the top**,
+**Edit in Compose**, **Save as request** (into the saved ones, under a name of
+its own, so a second save does not replace the first), and **Replay**.
+
 ## Rules
 
 Rules live in `~/.vscroxy/rules.json` and apply to new requests in order,

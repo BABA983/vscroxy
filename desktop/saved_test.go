@@ -47,6 +47,20 @@ func TestGroupRequests(t *testing.T) {
 	}
 }
 
+func TestUniqueRequestName(t *testing.T) {
+	list := []savedRequest{{Name: "GET example.com/"}}
+	if got := uniqueRequestName(list, "GET example.com/"); got != "GET example.com/ (2)" {
+		t.Errorf("name = %q, want the count", got)
+	}
+	if got := uniqueRequestName(list, "POST example.com/"); got != "POST example.com/" {
+		t.Errorf("name = %q, want it as it is", got)
+	}
+	list = append(list, savedRequest{Name: "GET example.com/ (2)"})
+	if got := uniqueRequestName(list, "GET example.com/"); got != "GET example.com/ (3)" {
+		t.Errorf("name = %q, want the next count", got)
+	}
+}
+
 func TestSaveAndLoadRequests(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "requests.json")
 	want := []savedRequest{
