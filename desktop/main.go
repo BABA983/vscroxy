@@ -405,6 +405,7 @@ func (a *app) drain() {
 			respHeader: f.ResponseHeader,
 			at:         f.At,
 			kind:       kind,
+			process:    f.Process,
 		})
 	}
 	if len(a.flows) > maxFlows {
@@ -734,6 +735,7 @@ func (a *app) table(c *ui.Context) {
 		{Title: "Proto", Width: 66, Fixed: true},
 		{Title: "Status", Width: 72, Fixed: true, Align: ui.End},
 		{Title: "Host", Width: 190, Fixed: true},
+		{Title: "Client", Width: 120, Fixed: true},
 		{Title: "Path"},
 		{Title: "Size", Width: 86, Align: ui.End},
 		{Title: "Time", Width: 74, Align: ui.End},
@@ -772,10 +774,12 @@ func (a *app) table(c *ui.Context) {
 		case 3:
 			text(f.host).TextColor(rowColor(chosen, t, t.Text))
 		case 4:
-			text(f.path).TextColor(rowColor(chosen, t, t.Text))
+			text(f.process).TextColor(rowColor(chosen, t, t.TextMuted))
 		case 5:
-			text(humanBytes(f.bytes)).TextColor(rowColor(chosen, t, t.TextMuted))
+			text(f.path).TextColor(rowColor(chosen, t, t.Text))
 		case 6:
+			text(humanBytes(f.bytes)).TextColor(rowColor(chosen, t, t.TextMuted))
+		case 7:
 			text(fmt.Sprintf("%d ms", f.millis)).TextColor(rowColor(chosen, t, t.TextMuted))
 		}
 	}).Grow(1)
@@ -792,6 +796,9 @@ func (a *app) detail(c *ui.Context) {
 			}
 			ui.Text(c, fmt.Sprintf("%s %s://%s%s", f.method, f.scheme, f.host, f.path)).
 				FontSize(12).TextColor(t.Text).SingleLine().Grow(1)
+			if f.process != "" {
+				ui.Text(c, f.process).FontSize(12).TextColor(t.TextMuted)
+			}
 			if ui.Button(c, "Replay").Disabled(f.url == "" || f.kind != "").Clicked() {
 				go a.replay(f)
 			}

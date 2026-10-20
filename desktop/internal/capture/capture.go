@@ -28,6 +28,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/lqqyt2423/go-mitmproxy/proxy"
+
+	"github.com/baba983/vscroxy/desktop/internal/procinfo"
 )
 
 const (
@@ -91,6 +93,9 @@ type Flow struct {
 	// last two.
 	Kind   string
 	Frames []Frame
+
+	// Process is the app the connection came from, when it could be told.
+	Process string
 }
 
 // FrameEvent is a frame that arrived after its flow was published.
@@ -171,6 +176,7 @@ type Server struct {
 	mu        sync.Mutex
 	started   map[uuid.UUID]time.Time
 	original  map[uuid.UUID]url.URL
+	clients   map[string]string
 	closeOnce sync.Once
 
 	rulesMu sync.RWMutex
@@ -206,6 +212,7 @@ func New(addr, caRootPath string) (*Server, error) {
 		out:         make(chan Flow, queue),
 		started:     make(map[uuid.UUID]time.Time),
 		original:    make(map[uuid.UUID]url.URL),
+		clients:     make(map[string]string),
 		bpWait:      make(map[int]chan Decision),
 		breakpoints: make(chan Breakpoint, 16),
 		frames:      make(chan FrameEvent, queue),
@@ -506,6 +513,14 @@ type addon struct {
 	server *Server
 }
 
+func (a *addon) ClientConnected(client *proxy.ClientConn) {
+	a.server.noteClient(client, true)
+}
+
+func (a *addon) ClientDisconnected(client *proxy.ClientConn) {
+	a.server.noteClient(client, false)
+}
+
 func (a *addon) Requestheaders(f *proxy.Flow) {
 	a.server.mu.Lock()
 	a.server.started[f.Id] = time.Now()
@@ -769,6 +784,43 @@ func contentType(path string) string {
 	return "application/octet-stream"
 }
 
+// noteClient records which process opened or closed a client connection, so
+// each flow on it can be attributed without another scan.
+func (s *Server) noteClient(client *proxy.ClientConn, connected bool) {
+	if client == nil || client.Conn == nil {
+		return
+	}
+	addr := client.Conn.RemoteAddr().String()
+	if !connected {
+		s.mu.Lock()
+		delete(s.clients, addr)
+		s.mu.Unlock()
+		return
+	}
+	name := procinfo.Lookup(addr)
+	s.mu.Lock()
+	if len(s.clients) > 1024 {
+		clear(s.clients)
+	}
+	s.clients[addr] = name
+	s.mu.Unlock()
+}
+
+// clientName returns the process behind the connection a flow arrived on.
+func (s *Server) clientName(f *proxy.Flow) string {
+	if f.ConnContext == nil || f.ConnContext.ClientConn == nil || f.ConnContext.ClientConn.Conn == nil {
+		return ""
+	}
+	addr := f.ConnContext.ClientConn.Conn.RemoteAddr().String()
+	s.mu.Lock()
+	name, ok := s.clients[addr]
+	s.mu.Unlock()
+	if ok {
+		return name
+	}
+	return procinfo.Lookup(addr)
+}
+
 func (s *Server) publish(f *proxy.Flow) {
 	s.publishFlow(f, "http", nil, 0)
 }
@@ -843,6 +895,7 @@ func (s *Server) publishFlow(f *proxy.Flow, kind string, frames []Frame, status 
 		At:              now,
 		Kind:            kind,
 		Frames:          clipFrames(frames),
+		Process:         s.clientName(f),
 	}
 	s.mu.Lock()
 	if len(s.flowIDs) > 4096 {

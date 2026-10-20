@@ -46,6 +46,8 @@ go tool mygo dev
   imports this package, never the engine.
 - `internal/system`: the per-platform proxy and trust-store helpers behind the
   System menu.
+- `internal/procinfo`: which local process owns a connection, for the Client
+  column.
 - `mygo.json`: the app's name, identifier and version for `mygo package`.
 
 The layout is the Proxyman one: filters and domains on the left, the request
@@ -183,8 +185,16 @@ lacks permission reports the command to run instead of failing silently. The
 CA exists only after the first HTTPS exchange, so install it after capturing
 one request.
 
+## Client attribution
+
+The **Client** column names the app a connection came from. When a connection
+opens, the proxy finds the socket that the client holds on the other end and
+reads the process that owns it: `/proc/net/tcp` and the descriptor tables on
+Linux, `lsof` on macOS, `netstat` and `tasklist` on Windows. A request from
+another machine has no local process, so the column stays empty.
+
 ## Next
 
 - Image and rendered HTML previews, and bodies spilled to disk instead of
   held in memory.
-- App attribution: which process a connection came from.
+- App icons next to the client name, and filtering by client.

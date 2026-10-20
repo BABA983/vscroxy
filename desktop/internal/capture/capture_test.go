@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -78,6 +79,30 @@ func waitFlow(t *testing.T, s *Server) Flow {
 	case <-time.After(5 * time.Second):
 		t.Fatal("no flow captured")
 		return Flow{}
+	}
+}
+
+func TestFlowNamesClientProcess(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("process attribution reads /proc, which only exists on Linux")
+	}
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	defer upstream.Close()
+
+	s, _ := startServer(t)
+	resp, err := clientFor(t, s, nil).Get(upstream.URL + "/who")
+	if err != nil {
+		t.Fatalf("request through proxy: %v", err)
+	}
+	_ = resp.Body.Close()
+
+	f := waitFlow(t, s)
+	exe, err := os.Executable()
+	if err != nil {
+		t.Fatalf("executable path: %v", err)
+	}
+	if want := filepath.Base(exe); f.Process != want {
+		t.Fatalf("process = %q, want %q", f.Process, want)
 	}
 }
 

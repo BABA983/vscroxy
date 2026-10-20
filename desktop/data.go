@@ -27,6 +27,7 @@ type flow struct {
 	respHeader http.Header
 	at         time.Time
 	kind       string
+	process    string
 }
 
 var (
