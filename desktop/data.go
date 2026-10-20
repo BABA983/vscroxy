@@ -1,0 +1,193 @@
+package main
+
+import (
+	"fmt"
+	"math/rand"
+	"strings"
+)
+
+// flow is one captured request/response pair, the unit the table shows and the
+// detail panes inspect. It stands in for what the capture core will produce.
+type flow struct {
+	id      int
+	method  string
+	host    string
+	path    string
+	status  int
+	bytes   int
+	millis  int
+	reqBody string
+	resBody string
+}
+
+var (
+	methods = []string{"GET", "GET", "GET", "POST", "PUT", "DELETE", "PATCH"}
+	hosts   = []string{
+		"api.github.com",
+		"github.com",
+		"raw.githubusercontent.com",
+		"registry.npmjs.org",
+		"api.openai.com",
+		"cdn.jsdelivr.net",
+		"fonts.gstatic.com",
+		"api.stripe.com",
+	}
+	paths = []string{
+		"/v1/user/repos",
+		"/v1/repos/baba983/vscroxy",
+		"/v1/repos/baba983/vscroxy/pulls",
+		"/-/ping?write=true",
+		"/v1/chat/completions",
+		"/npm/v1/security/advisories/bulk",
+		"/ajax/libs/react/19.2.0/umd/react.production.min.js",
+		"/css2?family=Inter:wght@400;600",
+		"/v1/payment_intents",
+		"/v1/customers/cus_QN1",
+		"/api/v3/commit/31ee1d1",
+		"/search?q=mygo&type=repositories",
+	}
+	statuses = []int{200, 200, 200, 200, 200, 201, 204, 301, 304, 400, 401, 404, 429, 500, 502}
+)
+
+// seedFlows makes n plausible flows so the table, the filters and the diff have
+// something to work on before the proxy engine is wired in.
+func seedFlows(n int) []flow {
+	r := rand.New(rand.NewSource(7))
+	out := make([]flow, 0, n)
+	for i := range n {
+		method := methods[r.Intn(len(methods))]
+		status := statuses[r.Intn(len(statuses))]
+		host := hosts[r.Intn(len(hosts))]
+		path := paths[r.Intn(len(paths))]
+		f := flow{
+			id:     i + 1,
+			method: method,
+			host:   host,
+			path:   path,
+			status: status,
+			bytes:  int(r.ExpFloat64() * 24000),
+			millis: int(r.ExpFloat64() * 180),
+		}
+		if method == "GET" && r.Intn(2) == 0 {
+			f.bytes = 0
+		}
+		f.reqBody = requestBody(f)
+		f.resBody = responseBody(f)
+		out = append(out, f)
+	}
+	return out
+}
+
+func requestBody(f flow) string {
+	if f.method == "GET" || f.method == "DELETE" {
+		return ""
+	}
+	return fmt.Sprintf(`{
+  "name": "vscroxy",
+  "private": false,
+  "owner": "baba983",
+  "description": "A native HTTP debugging proxy",
+  "topics": ["proxy", "debugging", "go"],
+  "has_issues": true
+}`)
+}
+
+func responseBody(f flow) string {
+	if f.status == 204 || f.status == 304 {
+		return ""
+	}
+	return fmt.Sprintf(`{
+  "id": %d,
+  "method": %q,
+  "url": "https://%s%s",
+  "status": %d,
+  "ok": %t,
+  "size": %d,
+  "duration_ms": %d,
+  "owner": {
+    "login": "baba983",
+    "id": 1024,
+    "type": "User"
+  },
+  "meta": {
+    "cached": %t,
+    "region": "ap-southeast-1",
+    "request_id": "req_%06x"
+  }
+}`, f.id, f.method, f.host, f.path, f.status, f.status < 400, f.bytes, f.millis, f.status == 304, f.id*7919)
+}
+
+// previousBody is what the diff tab compares the response against: the same
+// document with a few fields moved, as a saved example or an earlier replay
+// would be.
+func previousBody(f flow) string {
+	body := f.resBody
+	body = strings.Replace(body, `"status": `+fmt.Sprint(f.status), `"status": `+fmt.Sprint(f.status), 1)
+	body = strings.Replace(body, `"region": "ap-southeast-1"`, `"region": "us-east-1"`, 1)
+	body = strings.Replace(body, `"cached": false`, `"cached": true`, 1)
+	body = strings.Replace(body, fmt.Sprintf(`"size": %d`, f.bytes), fmt.Sprintf(`"size": %d`, f.bytes+512), 1)
+	return body
+}
+
+func requestHeaders(f flow) string {
+	return fmt.Sprintf(`%s %s HTTP/1.1
+Host: %s
+User-Agent: vscroxy/0.1 (darwin; arm64)
+Accept: application/json
+Accept-Encoding: gzip, br
+Authorization: Bearer ••••••••
+X-Request-Id: %06x
+Connection: keep-alive`, f.method, f.path, f.host, f.id)
+}
+
+func responseHeaders(f flow) string {
+	return fmt.Sprintf(`HTTP/1.1 %d %s
+Content-Type: application/json; charset=utf-8
+Content-Length: %d
+Cache-Control: private, max-age=60
+X-RateLimit-Remaining: 4983
+X-GitHub-Request-Id: %06x
+Server: github.com
+Date: Tue, 20 Oct 2026 08:12:44 GMT`, f.status, statusText(f.status), f.bytes, f.id*31)
+}
+
+func statusText(code int) string {
+	switch code {
+	case 200:
+		return "OK"
+	case 201:
+		return "Created"
+	case 204:
+		return "No Content"
+	case 301:
+		return "Moved Permanently"
+	case 304:
+		return "Not Modified"
+	case 400:
+		return "Bad Request"
+	case 401:
+		return "Unauthorized"
+	case 404:
+		return "Not Found"
+	case 429:
+		return "Too Many Requests"
+	case 500:
+		return "Internal Server Error"
+	case 502:
+		return "Bad Gateway"
+	}
+	return "Unknown"
+}
+
+func humanBytes(n int) string {
+	switch {
+	case n == 0:
+		return "—"
+	case n < 1024:
+		return fmt.Sprintf("%d B", n)
+	case n < 1024*1024:
+		return fmt.Sprintf("%.1f KB", float64(n)/1024)
+	default:
+		return fmt.Sprintf("%.1f MB", float64(n)/(1024*1024))
+	}
+}
