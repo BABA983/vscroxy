@@ -111,6 +111,9 @@ type app struct {
 	sslHosts string
 	sslOpen  bool
 
+	// dark draws the window in the dark theme.
+	dark bool
+
 	// ignore keeps noise out of the table without stopping it at the proxy.
 	ignorePath string
 	ignoreText string
@@ -630,6 +633,9 @@ func (a *app) syncDetail() {
 }
 
 func (a *app) view(c *ui.Context) {
+	if a.dark {
+		c.SetTheme(ui.DarkTheme())
+	}
 	a.drain()
 	if a.sort != a.sortApplied {
 		a.sortApplied = a.sort
@@ -787,6 +793,10 @@ func (a *app) toolbar(c *ui.Context, t *ui.Theme) {
 			}
 			if m.Item("Reveal certificate").Chosen() {
 				a.revealCA()
+			}
+			m.Separator()
+			if m.Item("Dark mode").Checked(a.dark).Chosen() {
+				a.dark = !a.dark
 			}
 		})
 		if ui.Button(c, "Reload config").Clicked() {
