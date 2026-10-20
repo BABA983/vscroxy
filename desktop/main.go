@@ -1,20 +1,26 @@
 // Command desktop is the vscroxy desktop app: a native UI over the capture
-// core. This first cut draws the inspector shell with seeded flows, so the
-// layout, the table and the diff viewer can be judged before the proxy engine
-// is wired in.
+// core. The UI reads flows from internal/capture and never imports the proxy
+// engine itself.
 package main
 
 import (
 	"cmp"
 	"fmt"
 	"log"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 
+	"github.com/baba983/vscroxy/desktop/internal/capture"
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/editor"
 )
+
+// maxFlows bounds what the UI keeps; older flows are dropped from the front.
+const maxFlows = 5000
 
 // app is the state the window shows; view reads it and the controls write it.
 type app struct {
@@ -39,6 +45,18 @@ type app struct {
 	headers   string
 	body      string
 	diff      *editor.DiffState
+
+	srv     *capture.Server
+	win     *mygo.Window
+	caPath  string
+	errText string
+	dropped int64
+
+	// mu guards what the capture goroutine hands to the view: the flows not
+	// yet drained, and a startup error.
+	mu      sync.Mutex
+	pending []capture.Flow
+	err     error
 }
 
 type domain struct {
@@ -48,18 +66,91 @@ type domain struct {
 
 func newApp() *app {
 	a := &app{
-		flows:        seedFlows(2000),
 		filter:       "all",
-		picked:       0,
 		sidebarWidth: 220,
 		tablePercent: 62,
 		trafficOpen:  true,
 		domainsOpen:  true,
 		detailFor:    -1,
 	}
+	srv, err := capture.New("127.0.0.1:7890", "")
+	if err != nil {
+		// Keep the window usable when the port is taken: show seeded flows
+		// and the error, rather than an empty app.
+		a.errText = err.Error()
+		a.flows = seedFlows(2000)
+	} else {
+		a.srv = srv
+		if home, err := os.UserHomeDir(); err == nil {
+			a.caPath = filepath.Join(home, ".mitmproxy", "mitmproxy-ca-cert.pem")
+		}
+	}
 	a.countDomains()
 	a.applyFilter()
 	return a
+}
+
+// startCapture listens and hands captured flows to the view.
+func (a *app) startCapture() {
+	if a.srv == nil {
+		return
+	}
+	if err := a.srv.Start(); err != nil {
+		a.mu.Lock()
+		a.err = err
+		a.mu.Unlock()
+		a.win.Invalidate()
+		return
+	}
+	for f := range a.srv.Flows() {
+		a.mu.Lock()
+		a.pending = append(a.pending, f)
+		a.mu.Unlock()
+		a.win.Invalidate()
+	}
+}
+
+// drain moves the flows the capture goroutine collected into the table.
+func (a *app) drain() {
+	a.mu.Lock()
+	pending := a.pending
+	a.pending = nil
+	err := a.err
+	a.mu.Unlock()
+
+	if err != nil {
+		a.errText = err.Error()
+		a.err = nil
+	}
+	if len(pending) == 0 {
+		return
+	}
+	for _, f := range pending {
+		a.flows = append(a.flows, flow{
+			id:         f.ID,
+			method:     f.Method,
+			scheme:     f.Scheme,
+			host:       f.Host,
+			path:       f.Path,
+			status:     f.Status,
+			bytes:      f.Bytes,
+			millis:     f.Millis,
+			reqHeaders: f.RequestHeaders,
+			resHeaders: f.ResponseHeaders,
+			reqBody:    f.RequestBody,
+			resBody:    f.ResponseBody,
+		})
+	}
+	if len(a.flows) > maxFlows {
+		cut := len(a.flows) - maxFlows
+		a.flows = a.flows[cut:]
+		a.detailFor = -1
+	}
+	a.countDomains()
+	a.applyFilter()
+	if a.srv != nil {
+		a.dropped = a.srv.Dropped()
+	}
 }
 
 func (a *app) countDomains() {
@@ -111,6 +202,23 @@ func (a *app) current() (flow, bool) {
 	return a.flows[a.visible[a.picked]], true
 }
 
+// previousResponse is the last response for the same method and URL, the
+// other side of the diff. Empty when this is the first one.
+func (a *app) previousResponse() string {
+	if len(a.visible) == 0 || a.picked < 0 || a.picked >= len(a.visible) {
+		return ""
+	}
+	at := a.visible[a.picked]
+	f := a.flows[at]
+	for i := at - 1; i >= 0; i-- {
+		prev := a.flows[i]
+		if prev.method == f.method && prev.scheme == f.scheme && prev.host == f.host && prev.path == f.path && prev.resBody != "" {
+			return prev.resBody
+		}
+	}
+	return ""
+}
+
 // syncDetail rebuilds the text and the diff when the choice moves.
 func (a *app) syncDetail() {
 	f, ok := a.current()
@@ -118,10 +226,10 @@ func (a *app) syncDetail() {
 		return
 	}
 	a.detailFor = f.id
-	a.headers = requestHeaders(f) + "\n\n" + responseHeaders(f)
+	a.headers = f.reqHeaders + "\n\n" + f.resHeaders
 	a.body = f.resBody
 	a.diff = &editor.DiffState{
-		Old:    editor.NewBuffer(previousBody(f)),
+		Old:    editor.NewBuffer(a.previousResponse()),
 		New:    editor.NewBuffer(f.resBody),
 		Layout: editor.DiffSplit,
 	}
@@ -130,6 +238,7 @@ func (a *app) syncDetail() {
 }
 
 func (a *app) view(c *ui.Context) {
+	a.drain()
 	a.syncDetail()
 	t := c.Theme()
 	ui.Column(c).Fill().Background(t.Background).Children(func() {
@@ -148,17 +257,33 @@ func (a *app) view(c *ui.Context) {
 }
 
 func (a *app) toolbar(c *ui.Context, t *ui.Theme) {
+	live := a.srv != nil && a.errText == ""
+	dot := ui.Hex("#dc2626")
+	label := "Capture stopped"
+	if live {
+		dot = ui.Hex("#22c55e")
+		label = "Listening on " + a.srv.Addr()
+	}
 	ui.Row(c).Height(46).Padding(0, 14).Gap(10).AlignItems(ui.Center).Children(func() {
-		ui.Box(c).Size(8, 8).Radius(4).Background(ui.Hex("#22c55e"))
-		ui.Text(c, "Listening on 127.0.0.1:7890").FontSize(12).TextColor(t.TextMuted)
+		ui.Box(c).Size(8, 8).Radius(4).Background(dot)
+		ui.Text(c, label).FontSize(12).TextColor(t.TextMuted)
 		ui.Spacer(c)
 		if ui.SearchField(c, &a.query).Width(320).Changed() {
 			a.applyFilter()
 		}
+		if ui.Button(c, "Latest").Clicked() && len(a.visible) > 0 {
+			a.picked = len(a.visible) - 1
+		}
 		if ui.Button(c, "Clear").Clicked() {
+			a.mu.Lock()
+			a.pending = nil
+			a.mu.Unlock()
+			a.flows = nil
+			a.visible = nil
+			a.picked = 0
+			a.detailFor = -1
 			a.query = ""
 			a.filter = "all"
-			a.applyFilter()
 		}
 	})
 	ui.Divider(c)
@@ -200,10 +325,18 @@ func (a *app) count(match func(flow) bool) int {
 
 func (a *app) table(c *ui.Context) {
 	t := c.Theme()
+	if len(a.visible) == 0 {
+		ui.Column(c).Fill().Center().Gap(8).Children(func() {
+			ui.Text(c, "Waiting for traffic").FontSize(14).TextColor(t.Text)
+			ui.Text(c, "Set your HTTP proxy to 127.0.0.1:7890").FontSize(12).TextColor(t.TextMuted)
+		})
+		return
+	}
 	cols := []ui.TableColumn{
-		{Title: "Method", Width: 88, Fixed: true},
-		{Title: "Status", Width: 76, Fixed: true, Align: ui.End},
-		{Title: "Host", Width: 196, Fixed: true},
+		{Title: "Method", Width: 84, Fixed: true},
+		{Title: "Proto", Width: 66, Fixed: true},
+		{Title: "Status", Width: 72, Fixed: true, Align: ui.End},
+		{Title: "Host", Width: 190, Fixed: true},
 		{Title: "Path"},
 		{Title: "Size", Width: 86, Align: ui.End},
 		{Title: "Time", Width: 74, Align: ui.End},
@@ -211,7 +344,7 @@ func (a *app) table(c *ui.Context) {
 	}
 	state := &ui.ListState{
 		Selected: &a.picked,
-		Key:      func(row int) any { return a.visible[row] },
+		Key:      func(row int) any { return a.flows[a.visible[row]].id },
 	}
 	ui.Table(c, state, cols, len(a.visible), func(row, col int) {
 		f := a.flows[a.visible[row]]
@@ -225,18 +358,27 @@ func (a *app) table(c *ui.Context) {
 			}
 			text(f.method).TextColor(color)
 		case 1:
+			color := ui.Hex("#71717a")
+			if f.scheme == "https" {
+				color = ui.Hex("#0891b2")
+			}
+			if chosen {
+				color = t.AccentText
+			}
+			text(f.scheme).TextColor(color)
+		case 2:
 			color := statusColor(f.status, t)
 			if chosen {
 				color = t.AccentText
 			}
 			text(fmt.Sprint(f.status)).TextColor(color)
-		case 2:
-			text(f.host).TextColor(rowColor(chosen, t, t.Text))
 		case 3:
-			text(f.path).TextColor(rowColor(chosen, t, t.Text))
+			text(f.host).TextColor(rowColor(chosen, t, t.Text))
 		case 4:
-			text(humanBytes(f.bytes)).TextColor(rowColor(chosen, t, t.TextMuted))
+			text(f.path).TextColor(rowColor(chosen, t, t.Text))
 		case 5:
+			text(humanBytes(f.bytes)).TextColor(rowColor(chosen, t, t.TextMuted))
+		case 6:
 			text(fmt.Sprintf("%d ms", f.millis)).TextColor(rowColor(chosen, t, t.TextMuted))
 		}
 	}).Grow(1)
@@ -251,7 +393,7 @@ func (a *app) detail(c *ui.Context) {
 				ui.Text(c, "No request chosen").FontSize(12).TextColor(t.TextMuted)
 				return
 			}
-			ui.Text(c, fmt.Sprintf("%s https://%s%s", f.method, f.host, f.path)).
+			ui.Text(c, fmt.Sprintf("%s %s://%s%s", f.method, f.scheme, f.host, f.path)).
 				FontSize(12).TextColor(t.Text).SingleLine().Grow(1)
 			ui.Text(c, fmt.Sprintf("%d · %s · %d ms", f.status, humanBytes(f.bytes), f.millis)).
 				FontSize(12).TextColor(statusColor(f.status, t))
@@ -283,9 +425,24 @@ func (a *app) statusBar(c *ui.Context, t *ui.Theme) {
 	ui.Row(c).Height(28).Padding(0, 14).Gap(16).AlignItems(ui.Center).Children(func() {
 		ui.Text(c, fmt.Sprintf("%d flows · %d shown", len(a.flows), len(a.visible))).
 			FontSize(11).TextColor(t.TextMuted)
+		if a.dropped > 0 {
+			ui.Text(c, fmt.Sprintf("%d dropped", a.dropped)).FontSize(11).TextColor(ui.Hex("#d97706"))
+		}
 		ui.Spacer(c)
-		ui.Text(c, "HTTP/1.1 · TLS 1.3 · MITM off").FontSize(11).TextColor(t.TextMuted)
+		if a.caPath != "" {
+			ui.Text(c, "CA "+shortenHome(a.caPath)).FontSize(11).TextColor(t.TextMuted)
+		}
+		ui.Text(c, "HTTP/1.1 · HTTP/2 · TLS 1.3").FontSize(11).TextColor(t.TextMuted)
 	})
+}
+
+func shortenHome(path string) string {
+	if home, err := os.UserHomeDir(); err == nil {
+		if rest, ok := strings.CutPrefix(path, home); ok {
+			return "~" + rest
+		}
+	}
+	return path
 }
 
 func rowColor(chosen bool, t *ui.Theme, normal ui.Color) ui.Color {
@@ -313,6 +470,8 @@ func methodColor(method string) ui.Color {
 
 func statusColor(status int, t *ui.Theme) ui.Color {
 	switch {
+	case status == 0:
+		return t.TextMuted
 	case status == 304:
 		return t.TextMuted
 	case status < 300:
@@ -329,7 +488,7 @@ func statusColor(status int, t *ui.Theme) ui.Color {
 func main() {
 	a := newApp()
 	mygo.App.WhenReady(func() {
-		mygo.NewWindow(mygo.WindowOptions{
+		a.win = mygo.NewWindow(mygo.WindowOptions{
 			Title:     "vscroxy",
 			Width:     1280,
 			Height:    800,
@@ -337,6 +496,7 @@ func main() {
 			MinHeight: 600,
 			Content:   ui.View(a.view),
 		})
+		go a.startCapture()
 	})
 	if err := mygo.App.Run(); err != nil {
 		log.Fatal(err)

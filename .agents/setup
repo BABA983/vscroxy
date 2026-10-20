@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Prepares an Amp orb to build, test and run the Go desktop app in desktop/.
+# Idempotent: a warm orb skips downloads and installs.
+
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+go_version="1.27.3"
+go_root="/usr/local/go"
+
+step() { printf '\n==> %s\n' "$*"; }
+
+if ! "$go_root/bin/go" version 2>/dev/null | grep -q "go${go_version}"; then
+	step "installing Go ${go_version}"
+	tmp="$(mktemp -d)"
+	curl -fsSL "https://go.dev/dl/go${go_version}.linux-amd64.tar.gz" -o "$tmp/go.tgz"
+	sudo rm -rf "$go_root"
+	sudo tar -C /usr/local -xzf "$tmp/go.tgz"
+	rm -rf "$tmp"
+else
+	step "Go ${go_version} already installed"
+fi
+
+if ! grep -Fq 'export PATH=/usr/local/go/bin:$PATH' "$HOME/.bash_profile" 2>/dev/null; then
+	printf '\nexport PATH=/usr/local/go/bin:$PATH\n' >>"$HOME/.bash_profile"
+fi
+export PATH="$go_root/bin:$PATH"
+
+# GTK is what a native UI window draws on in Linux; Xvfb is for running it
+# without a display while developing in an orb.
+missing=()
+for pkg in libgtk-3-0 libgl1 xvfb; do
+	dpkg -s "$pkg" >/dev/null 2>&1 || missing+=("$pkg")
+done
+if ((${#missing[@]})); then
+	step "installing ${missing[*]}"
+	sudo apt-get update -qq
+	sudo apt-get install -y -qq "${missing[@]}"
+else
+	step "system libraries already installed"
+fi
+
+step "downloading Go modules"
+cd "$repo_root/desktop"
+go mod download
+
+step "vetting the desktop app"
+go vet ./...

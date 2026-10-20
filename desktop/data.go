@@ -3,21 +3,23 @@ package main
 import (
 	"fmt"
 	"math/rand"
-	"strings"
 )
 
 // flow is one captured request/response pair, the unit the table shows and the
 // detail panes inspect. It stands in for what the capture core will produce.
 type flow struct {
-	id      int
-	method  string
-	host    string
-	path    string
-	status  int
-	bytes   int
-	millis  int
-	reqBody string
-	resBody string
+	id         int
+	method     string
+	scheme     string
+	host       string
+	path       string
+	status     int
+	bytes      int
+	millis     int
+	reqHeaders string
+	resHeaders string
+	reqBody    string
+	resBody    string
 }
 
 var (
@@ -62,6 +64,7 @@ func seedFlows(n int) []flow {
 		f := flow{
 			id:     i + 1,
 			method: method,
+			scheme: "https",
 			host:   host,
 			path:   path,
 			status: status,
@@ -71,6 +74,8 @@ func seedFlows(n int) []flow {
 		if method == "GET" && r.Intn(2) == 0 {
 			f.bytes = 0
 		}
+		f.reqHeaders = requestHeaders(f)
+		f.resHeaders = responseHeaders(f)
 		f.reqBody = requestBody(f)
 		f.resBody = responseBody(f)
 		out = append(out, f)
@@ -115,18 +120,6 @@ func responseBody(f flow) string {
     "request_id": "req_%06x"
   }
 }`, f.id, f.method, f.host, f.path, f.status, f.status < 400, f.bytes, f.millis, f.status == 304, f.id*7919)
-}
-
-// previousBody is what the diff tab compares the response against: the same
-// document with a few fields moved, as a saved example or an earlier replay
-// would be.
-func previousBody(f flow) string {
-	body := f.resBody
-	body = strings.Replace(body, `"status": `+fmt.Sprint(f.status), `"status": `+fmt.Sprint(f.status), 1)
-	body = strings.Replace(body, `"region": "ap-southeast-1"`, `"region": "us-east-1"`, 1)
-	body = strings.Replace(body, `"cached": false`, `"cached": true`, 1)
-	body = strings.Replace(body, fmt.Sprintf(`"size": %d`, f.bytes), fmt.Sprintf(`"size": %d`, f.bytes+512), 1)
-	return body
 }
 
 func requestHeaders(f flow) string {
