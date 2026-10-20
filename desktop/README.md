@@ -52,11 +52,78 @@ MyGo's own `ui/editor` diff viewer, not Monaco, so it stays native and can be
 reused on mobile later. It compares a response with the previous response for
 the same method, scheme and URL.
 
+## Rules
+
+Rules live in `~/.vscroxy/rules.json` and apply to new requests in order,
+first match wins. `match` is a substring of the full URL.
+
+```json
+[
+  {"type": "map_local", "match": "/missing", "target": "/tmp/mock.json"},
+  {"type": "map_remote", "match": "http://example.com/api", "target": "http://127.0.0.1:8081"},
+  {"type": "block", "match": "/telemetry"},
+  {"type": "break", "match": "/checkout"},
+  {"type": "break_response", "match": "/v1/orders"}
+]
+```
+
+- `map_local` answers from a file, without calling an upstream.
+- `map_remote` sends the request to another scheme and host, keeping the path
+  and query; the table keeps showing the URL the client asked for.
+- `block` answers `403`.
+- `break` pauses the request until you decide, and `break_response` pauses
+  the response (see below).
+
+The toolbar's **Reload rules** button rereads the file. A missing file means
+no rules.
+
+## Breakpoints
+
+Turn on **Break** in the toolbar. A request matching a `break` rule pauses
+with its method, URL and body; edit them and press **Continue**, or
+**Abort** to answer `502`. A response matching `break_response` pauses with
+its status and body; the response script, when there is one, runs first.
+
+The flow's duration is the exchange's, not the time you spent at the
+breakpoint.
+
+## Scripts
+
+`~/.vscroxy/script.js` may define `onRequest(req)` and `onResponse(res)`.
+`req` has `method`, `url`, `headers` and `body`; `res` has `status`, `headers`
+and `body`. Edits are written back before the request goes upstream and before
+the response reaches the client.
+
+```js
+function onRequest(req) {
+  if (req.url.includes("/v1/old")) req.url = req.url.replace("/v1/old", "/v1/new");
+  req.headers["X-Debug"] = "1";
+}
+
+function onResponse(res) {
+  if (res.status === 404) {
+    res.status = 200;
+    res.body = JSON.stringify({ ok: true });
+    res.headers["Content-Type"] = "application/json";
+  }
+}
+```
+
+Each hook runs in a fresh sandbox with a 250 ms limit and no files or
+network; a hook that loops is interrupted and counted in the status bar.
+Streaming and SSE responses skip the response hook. **Reload config** rereads
+both the rules and the script.
+
+## Replay
+
+Select a flow and press **Replay**: the request goes out again through the
+proxy, so the new exchange is captured like any other and can be diffed
+against the original (same method, scheme and URL).
+
 ## Next
 
-- Rules and breakpoints on top of the capture hooks (map local, map remote,
-  rewrite, pause).
-- Turn a flow into a request template, then replay it and keep the history.
+- Response breakpoints, which need the same stream hook the response script
+  uses.
 - A real body inspector: JSON tree, hex, image and rendered previews, with
   search, and bodies spilled to disk instead of held in memory.
-- Pre-request and post-response scripts over the same flow model.
+- Session export: HAR and a saved session that reopens with its flows.

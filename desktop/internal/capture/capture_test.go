@@ -146,3 +146,414 @@ func TestCapturesHTTPS(t *testing.T) {
 		t.Fatalf("decrypted body = %q", f.ResponseBody)
 	}
 }
+
+func startServerWithRules(t *testing.T, rules ...Rule) (*Server, string) {
+	t.Helper()
+	dir := t.TempDir()
+	s, err := New(freeAddr(t), dir)
+	if err != nil {
+		t.Fatalf("new server: %v", err)
+	}
+	s.SetRules(rules)
+	if err := s.Start(); err != nil {
+		t.Fatalf("start server: %v", err)
+	}
+	t.Cleanup(func() { _ = s.Close() })
+	return s, filepath.Join(dir, "mitmproxy-ca-cert.pem")
+}
+
+func TestMapRemote(t *testing.T) {
+	first := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, "first")
+	}))
+	defer first.Close()
+	second := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, "second")
+	}))
+	defer second.Close()
+
+	s, _ := startServerWithRules(t, Rule{Type: RuleMapRemote, Match: first.URL, Target: second.URL})
+	resp, err := clientFor(t, s, nil).Get(first.URL + "/path?q=1")
+	if err != nil {
+		t.Fatalf("request through proxy: %v", err)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	_ = resp.Body.Close()
+	if string(body) != "second" {
+		t.Fatalf("body = %q, want the mapped upstream", body)
+	}
+	f := waitFlow(t, s)
+	if !strings.HasPrefix(f.URL, first.URL) {
+		t.Fatalf("flow URL = %q, want the URL the client asked for", f.URL)
+	}
+}
+
+func TestMapLocal(t *testing.T) {
+	called := 0
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called++
+		fmt.Fprint(w, "upstream")
+	}))
+	defer upstream.Close()
+
+	file := filepath.Join(t.TempDir(), "mock.json")
+	if err := os.WriteFile(file, []byte(`{"mocked":true}`), 0o600); err != nil {
+		t.Fatalf("write mock: %v", err)
+	}
+	s, _ := startServerWithRules(t, Rule{Type: RuleMapLocal, Match: "/mocked", Target: file})
+	resp, err := clientFor(t, s, nil).Get(upstream.URL + "/mocked")
+	if err != nil {
+		t.Fatalf("request through proxy: %v", err)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	_ = resp.Body.Close()
+	if string(body) != `{"mocked":true}` {
+		t.Fatalf("body = %q", body)
+	}
+	if called != 0 {
+		t.Fatalf("upstream was called %d times, want 0", called)
+	}
+	f := waitFlow(t, s)
+	if f.Status != 200 {
+		t.Fatalf("flow status = %d", f.Status)
+	}
+}
+
+func TestBlock(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, "upstream")
+	}))
+	defer upstream.Close()
+
+	s, _ := startServerWithRules(t, Rule{Type: RuleBlock, Match: "/blocked"})
+	resp, err := clientFor(t, s, nil).Get(upstream.URL + "/blocked")
+	if err != nil {
+		t.Fatalf("request through proxy: %v", err)
+	}
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("status = %d, want 403", resp.StatusCode)
+	}
+}
+
+func TestReplay(t *testing.T) {
+	calls := 0
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		fmt.Fprintf(w, `{"call":%d}`, calls)
+	}))
+	defer upstream.Close()
+
+	s, _ := startServer(t)
+	resp, err := clientFor(t, s, nil).Get(upstream.URL + "/replay")
+	if err != nil {
+		t.Fatalf("request through proxy: %v", err)
+	}
+	_ = resp.Body.Close()
+	first := waitFlow(t, s)
+
+	if err := s.Replay(t.Context(), first); err != nil {
+		t.Fatalf("replay: %v", err)
+	}
+	second := waitFlow(t, s)
+	if second.URL != first.URL || second.Method != first.Method {
+		t.Fatalf("replayed %s %s, want %s %s", second.Method, second.URL, first.Method, first.URL)
+	}
+	if calls != 2 {
+		t.Fatalf("upstream calls = %d, want 2", calls)
+	}
+}
+
+func TestBreakpointEditsRequest(t *testing.T) {
+	first := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, "first")
+	}))
+	defer first.Close()
+	second := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, "second")
+	}))
+	defer second.Close()
+
+	s, _ := startServerWithRules(t, Rule{Type: RuleBreak, Match: first.URL})
+	s.SetBreak(true)
+	client := clientFor(t, s, nil)
+
+	type result struct {
+		body string
+		err  error
+	}
+	done := make(chan result, 1)
+	go func() {
+		resp, err := client.Get(first.URL + "/bp")
+		if err != nil {
+			done <- result{err: err}
+			return
+		}
+		body, err := io.ReadAll(resp.Body)
+		_ = resp.Body.Close()
+		done <- result{body: string(body), err: err}
+	}()
+
+	var bp Breakpoint
+	select {
+	case bp = <-s.Breakpoints():
+	case <-time.After(5 * time.Second):
+		t.Fatal("no breakpoint")
+	}
+	if bp.Method != "GET" || !strings.HasPrefix(bp.URL, first.URL) {
+		t.Fatalf("breakpoint = %+v", bp)
+	}
+	if !s.Resume(bp.ID, Decision{Method: "GET", URL: second.URL + "/bp"}) {
+		t.Fatal("resume found no waiter")
+	}
+	r := <-done
+	if r.err != nil {
+		t.Fatalf("request: %v", r.err)
+	}
+	if r.body != "second" {
+		t.Fatalf("body = %q, want the edited URL's upstream", r.body)
+	}
+}
+
+func TestBreakpointAborts(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, "upstream")
+	}))
+	defer upstream.Close()
+
+	s, _ := startServerWithRules(t, Rule{Type: RuleBreak, Match: upstream.URL})
+	s.SetBreak(true)
+	client := clientFor(t, s, nil)
+
+	status := make(chan int, 1)
+	go func() {
+		resp, err := client.Get(upstream.URL + "/abort")
+		if err != nil {
+			status <- 0
+			return
+		}
+		_ = resp.Body.Close()
+		status <- resp.StatusCode
+	}()
+
+	select {
+	case bp := <-s.Breakpoints():
+		s.Resume(bp.ID, Decision{Abort: true})
+	case <-time.After(5 * time.Second):
+		t.Fatal("no breakpoint")
+	}
+	if got := <-status; got != http.StatusBadGateway {
+		t.Fatalf("status = %d, want 502", got)
+	}
+}
+
+func TestBreakpointDurationExcludesPause(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, "ok")
+	}))
+	defer upstream.Close()
+
+	s, _ := startServerWithRules(t, Rule{Type: RuleBreak, Match: upstream.URL})
+	s.SetBreak(true)
+	client := clientFor(t, s, nil)
+
+	go func() {
+		resp, err := client.Get(upstream.URL + "/slow-human")
+		if err == nil {
+			_ = resp.Body.Close()
+		}
+	}()
+	select {
+	case bp := <-s.Breakpoints():
+		time.Sleep(500 * time.Millisecond)
+		s.Resume(bp.ID, Decision{Method: "GET", URL: bp.URL})
+	case <-time.After(5 * time.Second):
+		t.Fatal("no breakpoint")
+	}
+
+	f := waitFlow(t, s)
+	if f.Millis >= 400 {
+		t.Fatalf("flow took %d ms: the pause is counted as network time", f.Millis)
+	}
+}
+
+func startServerWithScript(t *testing.T, source string) *Server {
+	t.Helper()
+	s, _ := startServer(t)
+	path := filepath.Join(t.TempDir(), "script.js")
+	if err := os.WriteFile(path, []byte(source), 0o600); err != nil {
+		t.Fatalf("write script: %v", err)
+	}
+	sc, err := LoadScript(path)
+	if err != nil {
+		t.Fatalf("load script: %v", err)
+	}
+	s.SetScript(sc)
+	return s
+}
+
+func TestScriptRequest(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("X-From-Script") != "yes" {
+			t.Errorf("script header missing: %v", r.Header)
+		}
+		if r.URL.Path != "/new" {
+			t.Errorf("path = %q, want /new", r.URL.Path)
+		}
+		fmt.Fprint(w, "ok")
+	}))
+	defer upstream.Close()
+
+	s := startServerWithScript(t, `
+function onRequest(req) {
+  req.headers["X-From-Script"] = "yes"
+  req.url = req.url.replace("/old", "/new")
+}`)
+	resp, err := clientFor(t, s, nil).Get(upstream.URL + "/old")
+	if err != nil {
+		t.Fatalf("request: %v", err)
+	}
+	_ = resp.Body.Close()
+
+	f := waitFlow(t, s)
+	if !strings.HasSuffix(f.URL, "/new") {
+		t.Fatalf("flow URL = %q, want the scripted URL", f.URL)
+	}
+}
+
+func TestScriptResponse(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		fmt.Fprint(w, "original")
+	}))
+	defer upstream.Close()
+
+	s := startServerWithScript(t, `
+function onResponse(res) {
+  res.status = 201
+  res.body = JSON.stringify({scripted: true})
+  res.headers["X-Script"] = "1"
+}`)
+	resp, err := clientFor(t, s, nil).Get(upstream.URL + "/boom")
+	if err != nil {
+		t.Fatalf("request: %v", err)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	_ = resp.Body.Close()
+	if resp.StatusCode != 201 || string(body) != `{"scripted":true}` || resp.Header.Get("X-Script") != "1" {
+		t.Fatalf("client got %d %q %q", resp.StatusCode, body, resp.Header.Get("X-Script"))
+	}
+
+	f := waitFlow(t, s)
+	if f.Status != 201 || !strings.Contains(f.ResponseBody, "scripted") {
+		t.Fatalf("flow = %d %q", f.Status, f.ResponseBody)
+	}
+}
+
+func TestScriptTimeout(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, "ok")
+	}))
+	defer upstream.Close()
+
+	s := startServerWithScript(t, `
+function onRequest(req) { while (true) {} }`)
+	start := time.Now()
+	resp, err := clientFor(t, s, nil).Get(upstream.URL + "/loop")
+	if err != nil {
+		t.Fatalf("request: %v", err)
+	}
+	_ = resp.Body.Close()
+	if elapsed := time.Since(start); elapsed > 3*time.Second {
+		t.Fatalf("script held the request for %v", elapsed)
+	}
+	if s.ScriptErrors() == 0 {
+		t.Fatal("the interrupted script was not counted")
+	}
+}
+
+func TestResponseBreakpointEdits(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		fmt.Fprint(w, "original")
+	}))
+	defer upstream.Close()
+
+	s, _ := startServerWithRules(t, Rule{Type: RuleBreakResponse, Match: upstream.URL})
+	s.SetBreak(true)
+	client := clientFor(t, s, nil)
+
+	type result struct {
+		status int
+		body   string
+		err    error
+	}
+	done := make(chan result, 1)
+	go func() {
+		resp, err := client.Get(upstream.URL + "/edit")
+		if err != nil {
+			done <- result{err: err}
+			return
+		}
+		body, err := io.ReadAll(resp.Body)
+		_ = resp.Body.Close()
+		done <- result{status: resp.StatusCode, body: string(body), err: err}
+	}()
+
+	var bp Breakpoint
+	select {
+	case bp = <-s.Breakpoints():
+	case <-time.After(5 * time.Second):
+		t.Fatal("no response breakpoint")
+	}
+	if bp.Phase != PhaseResponse || bp.Status != http.StatusInternalServerError || bp.Body != "original" {
+		t.Fatalf("breakpoint = %+v", bp)
+	}
+	if !s.Resume(bp.ID, Decision{Status: 201, Body: `{"edited":true}`}) {
+		t.Fatal("resume found no waiter")
+	}
+	r := <-done
+	if r.err != nil {
+		t.Fatalf("request: %v", r.err)
+	}
+	if r.status != 201 || r.body != `{"edited":true}` {
+		t.Fatalf("client got %d %q", r.status, r.body)
+	}
+
+	f := waitFlow(t, s)
+	if f.Status != 201 || !strings.Contains(f.ResponseBody, "edited") {
+		t.Fatalf("flow = %d %q", f.Status, f.ResponseBody)
+	}
+}
+
+func TestResponseBreakpointAborts(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, "original")
+	}))
+	defer upstream.Close()
+
+	s, _ := startServerWithRules(t, Rule{Type: RuleBreakResponse, Match: upstream.URL})
+	s.SetBreak(true)
+	client := clientFor(t, s, nil)
+
+	status := make(chan int, 1)
+	go func() {
+		resp, err := client.Get(upstream.URL + "/abort")
+		if err != nil {
+			status <- 0
+			return
+		}
+		_ = resp.Body.Close()
+		status <- resp.StatusCode
+	}()
+
+	select {
+	case bp := <-s.Breakpoints():
+		s.Resume(bp.ID, Decision{Abort: true})
+	case <-time.After(5 * time.Second):
+		t.Fatal("no response breakpoint")
+	}
+	if got := <-status; got != http.StatusBadGateway {
+		t.Fatalf("status = %d, want 502", got)
+	}
+}
