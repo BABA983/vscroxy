@@ -42,6 +42,11 @@ type app struct {
 	picked int
 	tab    int
 
+	// sort is the column the table is sorted by, and sortApplied what the
+	// rows were sorted with, so a header click sorts on the next frame.
+	sort        ui.SortOrder
+	sortApplied ui.SortOrder
+
 	sidebarWidth float32
 	tablePercent float32
 
@@ -506,6 +511,7 @@ func (a *app) applyFilter() {
 		}
 		a.visible = append(a.visible, i)
 	}
+	a.sortVisible()
 	if a.picked >= len(a.visible) {
 		a.picked = len(a.visible) - 1
 	}
@@ -565,6 +571,10 @@ func (a *app) syncDetail() {
 
 func (a *app) view(c *ui.Context) {
 	a.drain()
+	if a.sort != a.sortApplied {
+		a.sortApplied = a.sort
+		a.applyFilter()
+	}
 	a.syncDetail()
 	t := c.Theme()
 	ui.Column(c).Fill().Background(t.Background).Children(func() {
@@ -800,19 +810,20 @@ func (a *app) table(c *ui.Context) {
 		return
 	}
 	cols := []ui.TableColumn{
-		{Title: "Method", Width: 84, Fixed: true},
-		{Title: "Proto", Width: 66, Fixed: true},
-		{Title: "Status", Width: 72, Fixed: true, Align: ui.End},
-		{Title: "Host", Width: 190, Fixed: true},
-		{Title: "Client", Width: 120, Fixed: true},
-		{Title: "Path"},
-		{Title: "Size", Width: 86, Align: ui.End},
-		{Title: "Time", Width: 74, Align: ui.End},
+		{ID: "method", Title: "Method", Width: 84, Fixed: true, Sortable: true},
+		{ID: "proto", Title: "Proto", Width: 66, Fixed: true, Sortable: true},
+		{ID: "status", Title: "Status", Width: 72, Fixed: true, Align: ui.End, Sortable: true},
+		{ID: "host", Title: "Host", Width: 190, Fixed: true, Sortable: true},
+		{ID: "client", Title: "Client", Width: 120, Fixed: true, Sortable: true},
+		{ID: "path", Title: "Path", Sortable: true},
+		{ID: "size", Title: "Size", Width: 86, Align: ui.End, Sortable: true},
+		{ID: "time", Title: "Time", Width: 74, Align: ui.End, Sortable: true},
 		{Title: "", ID: "filler", Width: 14, Fixed: true},
 	}
 	state := &ui.ListState{
 		Selected: &a.picked,
 		Key:      func(row int) any { return a.flows[a.visible[row]].id },
+		Sort:     &a.sort,
 	}
 	ui.Table(c, state, cols, len(a.visible), func(row, col int) {
 		f := a.flows[a.visible[row]]
@@ -1204,4 +1215,58 @@ func (a *app) sendComposed() {
 			a.setMessage("Compose: " + err.Error())
 		}
 	}()
+}
+
+// sortVisible orders the shown rows by the chosen column, keeping the chosen
+// flow chosen.
+func (a *app) sortVisible() {
+	if a.sort.Column == "" || len(a.visible) < 2 {
+		return
+	}
+	chosen := -1
+	if a.picked >= 0 && a.picked < len(a.visible) {
+		chosen = a.flows[a.visible[a.picked]].id
+	}
+	less := a.sortOrder()
+	slices.SortStableFunc(a.visible, less)
+	if chosen < 0 {
+		return
+	}
+	for i, at := range a.visible {
+		if a.flows[at].id == chosen {
+			a.picked = i
+			return
+		}
+	}
+}
+
+// sortOrder compares two flows by the chosen column.
+func (a *app) sortOrder() func(x, y int) int {
+	desc := a.sort.Descending
+	return func(x, y int) int {
+		fx, fy := a.flows[x], a.flows[y]
+		var c int
+		switch a.sort.Column {
+		case "method":
+			c = cmp.Compare(fx.method, fy.method)
+		case "proto":
+			c = cmp.Compare(fx.scheme, fy.scheme)
+		case "status":
+			c = cmp.Compare(fx.status, fy.status)
+		case "host":
+			c = cmp.Compare(fx.host, fy.host)
+		case "client":
+			c = cmp.Compare(fx.process, fy.process)
+		case "path":
+			c = cmp.Compare(fx.path, fy.path)
+		case "size":
+			c = cmp.Compare(fx.bytes, fy.bytes)
+		case "time":
+			c = cmp.Compare(fx.millis, fy.millis)
+		}
+		if desc {
+			return -c
+		}
+		return c
+	}
 }
