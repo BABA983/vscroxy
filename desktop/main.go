@@ -5,6 +5,7 @@ package main
 
 import (
 	"cmp"
+	"context"
 	"fmt"
 	"log"
 	"os"
@@ -12,6 +13,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/baba983/vscroxy/desktop/internal/capture"
 	"github.com/egoist/mygo"
@@ -46,17 +48,20 @@ type app struct {
 	body      string
 	diff      *editor.DiffState
 
-	srv     *capture.Server
-	win     *mygo.Window
-	caPath  string
-	errText string
-	dropped int64
+	srv       *capture.Server
+	win       *mygo.Window
+	caPath    string
+	rulesPath string
+	rules     []capture.Rule
+	errText   string
+	dropped   int64
 
 	// mu guards what the capture goroutine hands to the view: the flows not
 	// yet drained, and a startup error.
 	mu      sync.Mutex
 	pending []capture.Flow
 	err     error
+	message string
 }
 
 type domain struct {
@@ -83,7 +88,9 @@ func newApp() *app {
 		a.srv = srv
 		if home, err := os.UserHomeDir(); err == nil {
 			a.caPath = filepath.Join(home, ".mitmproxy", "mitmproxy-ca-cert.pem")
+			a.rulesPath = filepath.Join(home, ".vscroxy", "rules.json")
 		}
+		a.reloadRules()
 	}
 	a.countDomains()
 	a.applyFilter()
@@ -91,6 +98,57 @@ func newApp() *app {
 }
 
 // startCapture listens and hands captured flows to the view.
+// reloadRules reads the rules file and hands it to the proxy. It runs on the
+// main thread, from startup or the Reload button.
+func (a *app) reloadRules() {
+	if a.rulesPath == "" {
+		return
+	}
+	rules, err := capture.LoadRules(a.rulesPath)
+	if err != nil {
+		a.errText = err.Error()
+		return
+	}
+	a.rules = rules
+	if a.srv != nil {
+		a.srv.SetRules(rules)
+	}
+}
+
+// setMessage records a short status line, from any goroutine.
+func (a *app) setMessage(msg string) {
+	a.mu.Lock()
+	a.message = msg
+	a.mu.Unlock()
+	if a.win != nil {
+		a.win.Invalidate()
+	}
+}
+
+// replay sends the flow's request again through the proxy, so the result is
+// captured like any other exchange.
+func (a *app) replay(f flow) {
+	if a.srv == nil || f.url == "" {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	err := a.srv.Replay(ctx, capture.Flow{
+		Method:        f.method,
+		Scheme:        f.scheme,
+		Host:          f.host,
+		Path:          f.path,
+		URL:           f.url,
+		RequestHeader: f.reqHeader,
+		RequestBody:   f.reqBody,
+	})
+	if err != nil {
+		a.setMessage("Replay failed: " + err.Error())
+		return
+	}
+	a.setMessage("Replayed " + f.method + " " + f.path)
+}
+
 func (a *app) startCapture() {
 	if a.srv == nil {
 		return
@@ -132,6 +190,7 @@ func (a *app) drain() {
 			scheme:     f.Scheme,
 			host:       f.Host,
 			path:       f.Path,
+			url:        f.URL,
 			status:     f.Status,
 			bytes:      f.Bytes,
 			millis:     f.Millis,
@@ -139,6 +198,7 @@ func (a *app) drain() {
 			resHeaders: f.ResponseHeaders,
 			reqBody:    f.RequestBody,
 			resBody:    f.ResponseBody,
+			reqHeader:  f.RequestHeader,
 		})
 	}
 	if len(a.flows) > maxFlows {
@@ -271,6 +331,9 @@ func (a *app) toolbar(c *ui.Context, t *ui.Theme) {
 		if ui.SearchField(c, &a.query).Width(320).Changed() {
 			a.applyFilter()
 		}
+		if ui.Button(c, "Reload rules").Clicked() {
+			a.reloadRules()
+		}
 		if ui.Button(c, "Latest").Clicked() && len(a.visible) > 0 {
 			a.picked = len(a.visible) - 1
 		}
@@ -395,6 +458,9 @@ func (a *app) detail(c *ui.Context) {
 			}
 			ui.Text(c, fmt.Sprintf("%s %s://%s%s", f.method, f.scheme, f.host, f.path)).
 				FontSize(12).TextColor(t.Text).SingleLine().Grow(1)
+			if ui.Button(c, "Replay").Disabled(f.url == "").Clicked() {
+				go a.replay(f)
+			}
 			ui.Text(c, fmt.Sprintf("%d · %s · %d ms", f.status, humanBytes(f.bytes), f.millis)).
 				FontSize(12).TextColor(statusColor(f.status, t))
 		})
@@ -429,6 +495,15 @@ func (a *app) statusBar(c *ui.Context, t *ui.Theme) {
 			ui.Text(c, fmt.Sprintf("%d dropped", a.dropped)).FontSize(11).TextColor(ui.Hex("#d97706"))
 		}
 		ui.Spacer(c)
+		if len(a.rules) > 0 {
+			ui.Text(c, fmt.Sprintf("%d rules", len(a.rules))).FontSize(11).TextColor(t.TextMuted)
+		}
+		a.mu.Lock()
+		message := a.message
+		a.mu.Unlock()
+		if message != "" {
+			ui.Text(c, message).FontSize(11).TextColor(t.TextMuted)
+		}
 		if a.caPath != "" {
 			ui.Text(c, "CA "+shortenHome(a.caPath)).FontSize(11).TextColor(t.TextMuted)
 		}

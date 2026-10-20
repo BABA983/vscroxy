@@ -52,11 +52,36 @@ MyGo's own `ui/editor` diff viewer, not Monaco, so it stays native and can be
 reused on mobile later. It compares a response with the previous response for
 the same method, scheme and URL.
 
+## Rules
+
+Rules live in `~/.vscroxy/rules.json` and apply to new requests in order,
+first match wins. `match` is a substring of the full URL.
+
+```json
+[
+  {"type": "map_local", "match": "/missing", "target": "/tmp/mock.json"},
+  {"type": "map_remote", "match": "http://example.com/api", "target": "http://127.0.0.1:8081"},
+  {"type": "block", "match": "/telemetry"}
+]
+```
+
+- `map_local` answers from a file, without calling an upstream.
+- `map_remote` sends the request to another scheme and host, keeping the path
+  and query; the table keeps showing the URL the client asked for.
+- `block` answers `403`.
+
+The toolbar's **Reload rules** button rereads the file. A missing file means
+no rules.
+
+## Replay
+
+Select a flow and press **Replay**: the request goes out again through the
+proxy, so the new exchange is captured like any other and can be diffed
+against the original (same method, scheme and URL).
+
 ## Next
 
-- Rules and breakpoints on top of the capture hooks (map local, map remote,
-  rewrite, pause).
-- Turn a flow into a request template, then replay it and keep the history.
+- Breakpoints: pause a flow mid-flight, edit it, and let it go.
+- Pre-request and post-response scripts over the same flow model.
 - A real body inspector: JSON tree, hex, image and rendered previews, with
   search, and bodies spilled to disk instead of held in memory.
-- Pre-request and post-response scripts over the same flow model.

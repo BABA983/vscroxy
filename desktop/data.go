@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"math/rand"
+	"net/http"
 )
 
 // flow is one captured request/response pair, the unit the table shows and the
@@ -13,6 +14,7 @@ type flow struct {
 	scheme     string
 	host       string
 	path       string
+	url        string
 	status     int
 	bytes      int
 	millis     int
@@ -20,6 +22,7 @@ type flow struct {
 	resHeaders string
 	reqBody    string
 	resBody    string
+	reqHeader  http.Header
 }
 
 var (
@@ -67,6 +70,7 @@ func seedFlows(n int) []flow {
 			scheme: "https",
 			host:   host,
 			path:   path,
+			url:    "https://" + host + path,
 			status: status,
 			bytes:  int(r.ExpFloat64() * 24000),
 			millis: int(r.ExpFloat64() * 180),

@@ -146,3 +146,120 @@ func TestCapturesHTTPS(t *testing.T) {
 		t.Fatalf("decrypted body = %q", f.ResponseBody)
 	}
 }
+
+func startServerWithRules(t *testing.T, rules ...Rule) (*Server, string) {
+	t.Helper()
+	dir := t.TempDir()
+	s, err := New(freeAddr(t), dir)
+	if err != nil {
+		t.Fatalf("new server: %v", err)
+	}
+	s.SetRules(rules)
+	if err := s.Start(); err != nil {
+		t.Fatalf("start server: %v", err)
+	}
+	t.Cleanup(func() { _ = s.Close() })
+	return s, filepath.Join(dir, "mitmproxy-ca-cert.pem")
+}
+
+func TestMapRemote(t *testing.T) {
+	first := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, "first")
+	}))
+	defer first.Close()
+	second := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, "second")
+	}))
+	defer second.Close()
+
+	s, _ := startServerWithRules(t, Rule{Type: RuleMapRemote, Match: first.URL, Target: second.URL})
+	resp, err := clientFor(t, s, nil).Get(first.URL + "/path?q=1")
+	if err != nil {
+		t.Fatalf("request through proxy: %v", err)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	_ = resp.Body.Close()
+	if string(body) != "second" {
+		t.Fatalf("body = %q, want the mapped upstream", body)
+	}
+	f := waitFlow(t, s)
+	if !strings.HasPrefix(f.URL, first.URL) {
+		t.Fatalf("flow URL = %q, want the URL the client asked for", f.URL)
+	}
+}
+
+func TestMapLocal(t *testing.T) {
+	called := 0
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called++
+		fmt.Fprint(w, "upstream")
+	}))
+	defer upstream.Close()
+
+	file := filepath.Join(t.TempDir(), "mock.json")
+	if err := os.WriteFile(file, []byte(`{"mocked":true}`), 0o600); err != nil {
+		t.Fatalf("write mock: %v", err)
+	}
+	s, _ := startServerWithRules(t, Rule{Type: RuleMapLocal, Match: "/mocked", Target: file})
+	resp, err := clientFor(t, s, nil).Get(upstream.URL + "/mocked")
+	if err != nil {
+		t.Fatalf("request through proxy: %v", err)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	_ = resp.Body.Close()
+	if string(body) != `{"mocked":true}` {
+		t.Fatalf("body = %q", body)
+	}
+	if called != 0 {
+		t.Fatalf("upstream was called %d times, want 0", called)
+	}
+	f := waitFlow(t, s)
+	if f.Status != 200 {
+		t.Fatalf("flow status = %d", f.Status)
+	}
+}
+
+func TestBlock(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, "upstream")
+	}))
+	defer upstream.Close()
+
+	s, _ := startServerWithRules(t, Rule{Type: RuleBlock, Match: "/blocked"})
+	resp, err := clientFor(t, s, nil).Get(upstream.URL + "/blocked")
+	if err != nil {
+		t.Fatalf("request through proxy: %v", err)
+	}
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("status = %d, want 403", resp.StatusCode)
+	}
+}
+
+func TestReplay(t *testing.T) {
+	calls := 0
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		fmt.Fprintf(w, `{"call":%d}`, calls)
+	}))
+	defer upstream.Close()
+
+	s, _ := startServer(t)
+	resp, err := clientFor(t, s, nil).Get(upstream.URL + "/replay")
+	if err != nil {
+		t.Fatalf("request through proxy: %v", err)
+	}
+	_ = resp.Body.Close()
+	first := waitFlow(t, s)
+
+	if err := s.Replay(t.Context(), first); err != nil {
+		t.Fatalf("replay: %v", err)
+	}
+	second := waitFlow(t, s)
+	if second.URL != first.URL || second.Method != first.Method {
+		t.Fatalf("replayed %s %s, want %s %s", second.Method, second.URL, first.Method, first.URL)
+	}
+	if calls != 2 {
+		t.Fatalf("upstream calls = %d, want 2", calls)
+	}
+}

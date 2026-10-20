@@ -4,10 +4,19 @@
 package capture
 
 import (
+	"context"
+	"encoding/json/v2"
+	"errors"
 	"fmt"
+	"io"
+	"io/fs"
 	"maps"
+	"mime"
 	"net"
 	"net/http"
+	"net/url"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
@@ -22,19 +31,36 @@ const (
 	// maxBody bounds what one flow keeps in memory. A larger body is cut and
 	// marked, and the full body stays with the capture engine for now.
 	maxBody = 1 << 20
+	// maxRuleBody bounds what a map local rule serves from a file.
+	maxRuleBody = 8 << 20
 	// queue bounds the flows waiting for the UI. A burst past it is dropped
 	// and counted instead of growing without limit.
 	queue = 1024
 )
 
-// Flow is one captured exchange: what the UI shows and what a replay would
-// rebuild. It is the boundary type of the capture core.
+// hopHeaders are per-connection headers: they belong to the connection a
+// message came on, so a replay must not send them again.
+var hopHeaders = []string{
+	"Connection",
+	"Proxy-Connection",
+	"Keep-Alive",
+	"Proxy-Authenticate",
+	"Proxy-Authorization",
+	"Te",
+	"Trailer",
+	"Transfer-Encoding",
+	"Upgrade",
+}
+
+// Flow is one captured exchange: what the UI shows and what a replay
+// rebuilds. It is the boundary type of the capture core.
 type Flow struct {
 	ID     int
 	Method string
 	Scheme string
 	Host   string
 	Path   string
+	URL    string
 	Status int
 	Bytes  int
 	Millis int
@@ -43,6 +69,30 @@ type Flow struct {
 	ResponseHeaders string
 	RequestBody     string
 	ResponseBody    string
+
+	// RequestHeader is the structured request headers, for a replay.
+	RequestHeader http.Header
+}
+
+// RuleType is what a rule does to a request that matches it.
+type RuleType string
+
+const (
+	// RuleMapRemote sends the request to another host or URL.
+	RuleMapRemote RuleType = "map_remote"
+	// RuleMapLocal answers the request from a file, without an upstream.
+	RuleMapLocal RuleType = "map_local"
+	// RuleBlock answers the request with a refusal.
+	RuleBlock RuleType = "block"
+)
+
+// Rule rewrites requests whose URL contains Match, in order, first match
+// wins. Target is a base URL for map_remote and a file for map_local.
+type Rule struct {
+	Type   RuleType `json:"type"`
+	Match  string   `json:"match"`
+	Target string   `json:"target,omitempty"`
+	Status int      `json:"status,omitempty"`
 }
 
 // Server is the running MITM proxy. Start it once; Flows drains what it
@@ -56,7 +106,11 @@ type Server struct {
 
 	mu        sync.Mutex
 	started   map[uuid.UUID]time.Time
+	original  map[uuid.UUID]url.URL
 	closeOnce sync.Once
+
+	rulesMu sync.RWMutex
+	rules   []Rule
 }
 
 // New builds a proxy listening on addr, with its CA under caRootPath, or in
@@ -66,9 +120,10 @@ func New(addr, caRootPath string) (*Server, error) {
 		addr = "127.0.0.1:7890"
 	}
 	s := &Server{
-		addr:    addr,
-		out:     make(chan Flow, queue),
-		started: make(map[uuid.UUID]time.Time),
+		addr:     addr,
+		out:      make(chan Flow, queue),
+		started:  make(map[uuid.UUID]time.Time),
+		original: make(map[uuid.UUID]url.URL),
 	}
 	p, err := proxy.NewProxy(&proxy.Options{
 		Addr:              addr,
@@ -92,6 +147,49 @@ func (s *Server) Flows() <-chan Flow { return s.out }
 
 // Dropped counts the flows the UI could not keep up with.
 func (s *Server) Dropped() int64 { return s.dropped.Load() }
+
+// SetRules replaces the rules the proxy applies to new requests.
+func (s *Server) SetRules(rules []Rule) {
+	s.rulesMu.Lock()
+	s.rules = slices.Clone(rules)
+	s.rulesMu.Unlock()
+}
+
+// Rules returns the rules in force.
+func (s *Server) Rules() []Rule {
+	s.rulesMu.RLock()
+	defer s.rulesMu.RUnlock()
+	return slices.Clone(s.rules)
+}
+
+// LoadRules reads a rules file. A missing file is no rules, not an error.
+func LoadRules(path string) ([]Rule, error) {
+	data, err := os.ReadFile(path)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	var rules []Rule
+	if err := json.Unmarshal(data, &rules); err != nil {
+		return nil, fmt.Errorf("%s: %w", path, err)
+	}
+	for i, r := range rules {
+		switch r.Type {
+		case RuleMapRemote, RuleMapLocal, RuleBlock:
+		default:
+			return nil, fmt.Errorf("%s: rule %d has unknown type %q", path, i, r.Type)
+		}
+		if r.Match == "" {
+			return nil, fmt.Errorf("%s: rule %d has no match", path, i)
+		}
+		if r.Type != RuleBlock && r.Target == "" {
+			return nil, fmt.Errorf("%s: rule %d has no target", path, i)
+		}
+	}
+	return rules, nil
+}
 
 // Start listens and serves in the background, and returns once the address
 // accepts connections.
@@ -123,8 +221,48 @@ func (s *Server) Close() error {
 	return err
 }
 
-// addon records when a request started and publishes it once its response is
-// complete.
+// Replay sends the flow's request again through this proxy, so the exchange
+// is captured like any other and can be compared with the original.
+func (s *Server) Replay(ctx context.Context, f Flow) error {
+	rawURL := f.URL
+	if rawURL == "" {
+		rawURL = f.Scheme + "://" + f.Host + f.Path
+	}
+	var body io.Reader
+	if f.RequestBody != "" {
+		body = strings.NewReader(f.RequestBody)
+	}
+	req, err := http.NewRequestWithContext(ctx, f.Method, rawURL, body)
+	if err != nil {
+		return err
+	}
+	for key, values := range f.RequestHeader {
+		for _, value := range values {
+			req.Header.Add(key, value)
+		}
+	}
+	for _, header := range hopHeaders {
+		req.Header.Del(header)
+	}
+
+	proxyURL := &url.URL{Scheme: "http", Host: s.addr}
+	client := &http.Client{
+		Timeout: 30 * time.Second,
+		Transport: &http.Transport{
+			Proxy: http.ProxyURL(proxyURL),
+		},
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	_, err = io.Copy(io.Discard, resp.Body)
+	return err
+}
+
+// addon records when a request started, applies the rules, and publishes it
+// once its response is complete.
 type addon struct {
 	proxy.BaseAddon
 	server *Server
@@ -134,6 +272,18 @@ func (a *addon) Requestheaders(f *proxy.Flow) {
 	a.server.mu.Lock()
 	a.server.started[f.Id] = time.Now()
 	a.server.mu.Unlock()
+}
+
+func (a *addon) Request(f *proxy.Flow) {
+	if f.Request == nil {
+		return
+	}
+	if resp := a.server.applyRules(f); resp != nil {
+		f.Response = resp
+		// A rule that answers the request itself short-circuits the engine,
+		// which then never calls Response: publish it here instead.
+		a.server.publish(f)
+	}
 }
 
 func (a *addon) Response(f *proxy.Flow) {
@@ -150,6 +300,98 @@ func (a *addon) HTTPConnectError(f *proxy.Flow, err error) {
 	a.server.publish(f)
 }
 
+// applyRules runs the first matching rule. It returns a response for a rule
+// that answers the request itself, and nil when the request goes upstream,
+// with its URL rewritten for map_remote.
+func (s *Server) applyRules(f *proxy.Flow) *proxy.Response {
+	s.rulesMu.RLock()
+	rules := s.rules
+	s.rulesMu.RUnlock()
+	if len(rules) == 0 || f.Request.URL == nil {
+		return nil
+	}
+	raw := f.Request.URL.String()
+	for _, r := range rules {
+		if !strings.Contains(raw, r.Match) {
+			continue
+		}
+		switch r.Type {
+		case RuleBlock:
+			return &proxy.Response{
+				StatusCode: http.StatusForbidden,
+				Header:     http.Header{"Content-Type": {"text/plain; charset=utf-8"}},
+				Body:       []byte("blocked by vscroxy\n"),
+			}
+		case RuleMapLocal:
+			body, err := os.ReadFile(r.Target)
+			if err != nil {
+				return &proxy.Response{
+					StatusCode: http.StatusBadGateway,
+					Header:     http.Header{"Content-Type": {"text/plain; charset=utf-8"}},
+					Body:       []byte("map local: " + err.Error() + "\n"),
+				}
+			}
+			if len(body) > maxRuleBody {
+				body = body[:maxRuleBody]
+			}
+			status := r.Status
+			if status == 0 {
+				status = http.StatusOK
+			}
+			return &proxy.Response{
+				StatusCode: status,
+				Header: http.Header{
+					"Content-Type":   {contentType(r.Target)},
+					"Content-Length": {fmt.Sprint(len(body))},
+				},
+				Body: body,
+			}
+		case RuleMapRemote:
+			u, err := mapURL(f.Request.URL, r.Target)
+			if err != nil {
+				return nil
+			}
+			// Keep the URL the client asked for: the table shows that one,
+			// and a replay sends it again.
+			s.mu.Lock()
+			s.original[f.Id] = *f.Request.URL
+			s.mu.Unlock()
+			f.Request.URL = u
+			return nil
+		}
+	}
+	return nil
+}
+
+// mapURL points a URL at another base, keeping its path and query unless the
+// base has a path of its own to put in front.
+func mapURL(orig *url.URL, target string) (*url.URL, error) {
+	t, err := url.Parse(target)
+	if err != nil {
+		return nil, err
+	}
+	if t.Scheme == "" || t.Host == "" {
+		return nil, fmt.Errorf("map remote target %q needs a scheme and a host", target)
+	}
+	u := *orig
+	u.Scheme = t.Scheme
+	u.Host = t.Host
+	if t.Path != "" && t.Path != "/" {
+		u.Path = strings.TrimRight(t.Path, "/") + orig.Path
+	}
+	if t.RawQuery != "" {
+		u.RawQuery = t.RawQuery
+	}
+	return &u, nil
+}
+
+func contentType(path string) string {
+	if ct := mime.TypeByExtension(filepath.Ext(path)); ct != "" {
+		return ct
+	}
+	return "application/octet-stream"
+}
+
 func (s *Server) publish(f *proxy.Flow) {
 	if f.Request == nil {
 		return
@@ -158,30 +400,38 @@ func (s *Server) publish(f *proxy.Flow) {
 	s.mu.Lock()
 	start, ok := s.started[f.Id]
 	delete(s.started, f.Id)
+	display := f.Request.URL
+	if orig, mapped := s.original[f.Id]; mapped {
+		display = &orig
+		delete(s.original, f.Id)
+	}
 	s.mu.Unlock()
 	if !ok {
 		start = f.StartTime
 	}
 
-	status, respHeaders, respBody := 0, "", ""
+	status, size, respHeaders, respBody := 0, 0, "", ""
 	if f.Response != nil {
 		status = f.Response.StatusCode
+		size = len(f.Response.Body)
 		respHeaders = formatResponse(f.Response)
 		respBody = bodyText(f.Response.DecodedBody())
 	}
 	flow := Flow{
 		ID:              int(s.nextID.Add(1)),
 		Method:          f.Request.Method,
-		Scheme:          f.Request.URL.Scheme,
-		Host:            f.Request.URL.Host,
-		Path:            f.Request.URL.RequestURI(),
+		Scheme:          display.Scheme,
+		Host:            display.Host,
+		Path:            display.RequestURI(),
+		URL:             display.String(),
 		Status:          status,
-		Bytes:           len(f.Response.Body),
+		Bytes:           size,
 		Millis:          int(now.Sub(start).Milliseconds()),
-		RequestHeaders:  formatRequest(f.Request),
+		RequestHeaders:  formatRequest(f.Request, display),
 		ResponseHeaders: respHeaders,
 		RequestBody:     bodyText(f.Request.DecodedBody()),
 		ResponseBody:    respBody,
+		RequestHeader:   f.Request.Header.Clone(),
 	}
 	select {
 	case s.out <- flow:
@@ -200,10 +450,10 @@ func bodyText(b []byte, err error) string {
 	return string(b)
 }
 
-func formatRequest(r *proxy.Request) string {
+func formatRequest(r *proxy.Request, u *url.URL) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "%s %s %s\n", r.Method, r.URL.RequestURI(), r.Proto)
-	fmt.Fprintf(&b, "Host: %s\n", r.URL.Host)
+	fmt.Fprintf(&b, "%s %s %s\n", r.Method, u.RequestURI(), r.Proto)
+	fmt.Fprintf(&b, "Host: %s\n", u.Host)
 	writeHeaders(&b, r.Header)
 	return strings.TrimRight(b.String(), "\n")
 }
