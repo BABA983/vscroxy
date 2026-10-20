@@ -1,0 +1,59 @@
+package main
+
+import (
+	"cmp"
+	"encoding/json/v2"
+	"errors"
+	"io/fs"
+	"os"
+	"slices"
+)
+
+// savedRequest is a request kept by name, the first half of a collection.
+type savedRequest struct {
+	Name    string `json:"name"`
+	Method  string `json:"method"`
+	URL     string `json:"url"`
+	Headers string `json:"headers,omitempty"`
+	Body    string `json:"body,omitempty"`
+}
+
+// loadRequests reads the saved requests, an empty list when there is no file.
+func loadRequests(path string) ([]savedRequest, error) {
+	if path == "" {
+		return nil, nil
+	}
+	data, err := os.ReadFile(path)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	var list []savedRequest
+	if err := json.Unmarshal(data, &list); err != nil {
+		return nil, err
+	}
+	return list, nil
+}
+
+// saveRequests writes the list, sorted by name.
+func saveRequests(path string, list []savedRequest) error {
+	slices.SortFunc(list, func(x, y savedRequest) int { return cmp.Compare(x.Name, y.Name) })
+	data, err := json.Marshal(list)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(path, append(data, '\n'), 0o644)
+}
+
+// upsertRequest adds r, replacing the request of the same name.
+func upsertRequest(list []savedRequest, r savedRequest) []savedRequest {
+	for i, existing := range list {
+		if existing.Name == r.Name {
+			list[i] = r
+			return list
+		}
+	}
+	return append(list, r)
+}

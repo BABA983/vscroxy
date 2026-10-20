@@ -53,6 +53,7 @@ type app struct {
 	trafficOpen bool
 	domainsOpen bool
 	clientsOpen bool
+	savedOpen   bool
 
 	// icons caches the app icon per process name; a nil entry means the
 	// process has none.
@@ -104,9 +105,14 @@ type app struct {
 	exclusionsText string
 	exclusionsOpen bool
 
+	// requests are the saved requests, the Compose direction's kept half.
+	requests     []savedRequest
+	requestsPath string
+
 	// compose is the request being written: what Compose sends through the
 	// proxy so the exchange is captured like any other.
 	composeOpen    bool
+	composeName    string
 	composeMethod  string
 	composeURL     string
 	composeHeaders string
@@ -151,6 +157,7 @@ func newApp() *app {
 		trafficOpen:  true,
 		domainsOpen:  true,
 		clientsOpen:  true,
+		savedOpen:    true,
 		detailFor:    -1,
 		frames:       make(map[int][]frame),
 		throttle:     capture.Presets[0],
@@ -167,9 +174,15 @@ func newApp() *app {
 			a.caPath = filepath.Join(home, ".mitmproxy", "mitmproxy-ca-cert.pem")
 			a.rulesPath = filepath.Join(home, ".vscroxy", "rules.json")
 			a.exclusionsPath = filepath.Join(home, ".vscroxy", "exclusions.txt")
+			a.requestsPath = filepath.Join(home, ".vscroxy", "requests.json")
 			a.scriptPath = filepath.Join(home, ".vscroxy", "script.js")
 		}
 		a.reloadConfig()
+	}
+	if a.requestsPath != "" {
+		if list, err := loadRequests(a.requestsPath); err == nil {
+			a.requests = list
+		}
 	}
 	a.countDomains()
 	a.countClients()
@@ -797,6 +810,13 @@ func (a *app) sidebar(c *ui.Context) {
 					})
 				}
 			})
+			if len(a.requests) > 0 {
+				ui.SidebarSection(c, "Saved", &a.savedOpen, func() {
+					for _, r := range a.requests {
+						ui.SidebarItem(c, "saved:"+r.Name, nil, r.Name)
+					}
+				})
+			}
 			if len(a.clients) > 0 {
 				ui.SidebarSection(c, "Clients", &a.clientsOpen, func() {
 					for _, d := range a.clients {
@@ -808,7 +828,12 @@ func (a *app) sidebar(c *ui.Context) {
 			}
 		}).Fill()
 		if chosen.Changed() {
-			a.applyFilter()
+			if name, ok := strings.CutPrefix(a.filter, "saved:"); ok {
+				a.openSaved(name)
+				a.filter = "all"
+			} else {
+				a.applyFilter()
+			}
 		}
 	})
 }
@@ -1135,6 +1160,7 @@ func (a *app) rowMenu(c *ui.Context, f flow) func(*ui.Menu) {
 
 // openCompose shows the request editor with an empty request.
 func (a *app) openCompose() {
+	a.composeName = ""
 	a.composeMethod = "GET"
 	a.composeURL = "https://"
 	a.composeHeaders = ""
@@ -1145,6 +1171,7 @@ func (a *app) openCompose() {
 // composeFrom fills the request editor with a captured request, the step from
 // traffic to a request worth keeping.
 func (a *app) composeFrom(f flow) {
+	a.composeName = ""
 	a.composeMethod = cmp.Or(f.method, "GET")
 	a.composeURL = f.url
 	a.composeHeaders = headerBlock(f.reqHeader)
@@ -1193,6 +1220,7 @@ func (a *app) composeModal(c *ui.Context, t *ui.Theme) {
 	ui.Modal(c, &a.composeOpen, func() {
 		ui.Column(c).Width(640).Gap(10).Children(func() {
 			ui.Text(c, "Compose").FontSize(14).Bold()
+			ui.TextInput(c, &a.composeName).Label("Name")
 			ui.Row(c).Gap(8).Children(func() {
 				ui.TextInput(c, &a.composeMethod).Width(90).Label("Method")
 				ui.TextInput(c, &a.composeURL).Grow(1).Label("URL")
@@ -1204,6 +1232,9 @@ func (a *app) composeModal(c *ui.Context, t *ui.Theme) {
 			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
 				if ui.Button(c, "Cancel").Clicked() {
 					a.composeOpen = false
+				}
+				if ui.Button(c, "Save").Clicked() {
+					a.saveComposed()
 				}
 				if ui.PrimaryButton(c, "Send").Clicked() {
 					a.sendComposed()
@@ -1349,4 +1380,53 @@ func (a *app) saveExclusions() {
 	}
 	a.exclusionsOpen = false
 	a.setMessage(fmt.Sprintf("SSL exclusions: %d hosts", len(patterns)))
+}
+
+// saveComposed keeps the editor's request under its name, replacing one of
+// the same name.
+func (a *app) saveComposed() {
+	name := strings.TrimSpace(a.composeName)
+	if name == "" {
+		name = strings.TrimSpace(a.composeMethod + " " + a.composeURL)
+	}
+	if name == "" {
+		a.setMessage("Save: the request has no name")
+		return
+	}
+	r := savedRequest{
+		Name:    name,
+		Method:  strings.ToUpper(strings.TrimSpace(cmp.Or(a.composeMethod, "GET"))),
+		URL:     strings.TrimSpace(a.composeURL),
+		Headers: a.composeHeaders,
+		Body:    a.composeBody,
+	}
+	a.requests = upsertRequest(a.requests, r)
+	if a.requestsPath != "" {
+		if err := os.MkdirAll(filepath.Dir(a.requestsPath), 0o755); err != nil {
+			a.setMessage("Save: " + err.Error())
+			return
+		}
+		if err := saveRequests(a.requestsPath, a.requests); err != nil {
+			a.setMessage("Save: " + err.Error())
+			return
+		}
+	}
+	a.composeName = name
+	a.setMessage("Saved " + name)
+}
+
+// openSaved fills the request editor from a saved request.
+func (a *app) openSaved(name string) {
+	for _, r := range a.requests {
+		if r.Name != name {
+			continue
+		}
+		a.composeName = r.Name
+		a.composeMethod = cmp.Or(r.Method, "GET")
+		a.composeURL = r.URL
+		a.composeHeaders = r.Headers
+		a.composeBody = r.Body
+		a.composeOpen = true
+		return
+	}
 }
