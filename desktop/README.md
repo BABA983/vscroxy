@@ -259,6 +259,14 @@ The **Apps** section of the sidebar filters by app. Windows shows a badge
 only: an app's icon lives in its executable's resources, which are not read
 yet.
 
+## Settings
+
+What you set stays between launches: the dark theme, the sidebar's width, how
+the table and the detail pane share the window, and the columns' order and
+widths, in `~/.vscroxy/settings.json`. The window's position and size are
+MyGo's own, kept in `window-state.json` under the app's config directory and
+restored when they would still show on a connected display.
+
 ## Next
 
 - Collections with folders, and a request history beside the saved ones.

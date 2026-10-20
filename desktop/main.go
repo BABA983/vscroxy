@@ -114,6 +114,13 @@ type app struct {
 	// dark draws the window in the dark theme.
 	dark bool
 
+	// settings are what the window keeps between launches, besides its
+	// bounds, which MyGo saves with the window's StateKey.
+	settingsPath string
+	saved        settings
+	lastSave     time.Time
+	columns      ui.TableLayout
+
 	// ignore keeps noise out of the table without stopping it at the proxy.
 	ignorePath string
 	ignoreText string
@@ -189,10 +196,27 @@ func newApp() *app {
 			a.rulesPath = filepath.Join(home, ".vscroxy", "rules.json")
 			a.sslPath = filepath.Join(home, ".vscroxy", "ssl.json")
 			a.requestsPath = filepath.Join(home, ".vscroxy", "requests.json")
+			a.settingsPath = filepath.Join(home, ".vscroxy", "settings.json")
 			a.ignorePath = filepath.Join(home, ".vscroxy", "ignore.txt")
 			a.scriptPath = filepath.Join(home, ".vscroxy", "script.js")
 		}
 		a.reloadConfig()
+	}
+	if a.settingsPath != "" {
+		saved, err := loadSettings(a.settingsPath)
+		if err != nil {
+			a.errText = err.Error()
+		} else {
+			a.saved = saved
+			a.dark = saved.Dark
+			if saved.SidebarWidth > 0 {
+				a.sidebarWidth = saved.SidebarWidth
+			}
+			if saved.TablePercent > 0 {
+				a.tablePercent = saved.TablePercent
+			}
+			a.columns = saved.Columns.layout()
+		}
 	}
 	if a.requestsPath != "" {
 		if list, err := loadRequests(a.requestsPath); err == nil {
@@ -656,6 +680,7 @@ func (a *app) view(c *ui.Context) {
 		}).Grow(1)
 		a.statusBar(c, t)
 	})
+	a.persistSettings()
 	a.breakpointModal(c, t)
 	a.upstreamModal(c, t)
 	a.sslModal(c, t)
@@ -744,11 +769,26 @@ func (a *app) toolbar(c *ui.Context, t *ui.Theme) {
 		dot = ui.Hex("#22c55e")
 		label = "Live · " + a.srv.Addr()
 	}
+	// A narrow window keeps the controls and drops what explains them.
+	width := 0
+	if a.win != nil {
+		width, _ = a.win.Size()
+	}
+	narrow := width > 0 && width < 1100
+	searchWidth := float32(240)
+	switch {
+	case width > 0 && width < 1200:
+		searchWidth = 150
+	case width > 0 && width < 1360:
+		searchWidth = 180
+	}
 	ui.Row(c).Height(46).Padding(0, 14).Gap(10).AlignItems(ui.Center).Children(func() {
 		ui.Box(c).Size(8, 8).Radius(4).Background(dot)
-		ui.Text(c, label).FontSize(12).TextColor(t.TextMuted).SingleLine()
+		if !narrow {
+			ui.Text(c, label).FontSize(12).TextColor(t.TextMuted).SingleLine().Shrink(0)
+		}
 		ui.Spacer(c)
-		if ui.SearchField(c, &a.query).Width(240).Changed() {
+		if ui.SearchField(c, &a.query).Width(searchWidth).Shrink(1).Changed() {
 			a.applyFilter()
 		}
 		ui.MenuButton(c, "Network", func(m *ui.Menu) {
@@ -799,7 +839,7 @@ func (a *app) toolbar(c *ui.Context, t *ui.Theme) {
 				a.dark = !a.dark
 			}
 		})
-		if ui.Button(c, "Reload config").Clicked() {
+		if ui.Button(c, "Reload").Clicked() {
 			a.reloadConfig()
 		}
 		ui.MenuButton(c, "Session", func(m *ui.Menu) {
@@ -915,10 +955,10 @@ func (a *app) table(c *ui.Context) {
 		return
 	}
 	cols := []ui.TableColumn{
-		{ID: "method", Title: "Method", Width: 80, Fixed: true, Sortable: true},
-		{ID: "status", Title: "Status", Width: 78, Fixed: true, Align: ui.End, Sortable: true},
+		{ID: "method", Title: "Method", Width: 80, Sortable: true},
+		{ID: "status", Title: "Status", Width: 78, Align: ui.End, Sortable: true},
 		{ID: "url", Title: "URL", Sortable: true},
-		{ID: "client", Title: "Client", Width: 132, Fixed: true, Sortable: true},
+		{ID: "client", Title: "Client", Width: 132, Sortable: true},
 		{ID: "duration", Title: "Duration", Width: 96, Align: ui.End, Sortable: true},
 		{ID: "size", Title: "Size", Width: 86, Align: ui.End, Sortable: true},
 		{Title: "", ID: "filler", Width: 14, Fixed: true},
@@ -927,6 +967,7 @@ func (a *app) table(c *ui.Context) {
 		Selected: &a.picked,
 		Key:      func(row int) any { return a.flows[a.visible[row]].id },
 		Sort:     &a.sort,
+		Columns:  a.columns,
 	}
 	ui.Table(c, state, cols, len(a.visible), func(row, col int) {
 		f := a.flows[a.visible[row]]
@@ -979,6 +1020,7 @@ func (a *app) table(c *ui.Context) {
 			text(humanBytes(f.bytes)).TextColor(rowColor(chosen, t, t.TextMuted))
 		}
 	}).Grow(1)
+	a.columns = state.Columns
 }
 
 func (a *app) detail(c *ui.Context) {
@@ -1154,7 +1196,9 @@ func main() {
 			Height:    800,
 			MinWidth:  960,
 			MinHeight: 600,
-			Content:   ui.View(a.view),
+			// MyGo keeps the window's bounds under this key.
+			StateKey: "vscroxy",
+			Content:  ui.View(a.view),
 		})
 		go a.startCapture()
 	})
@@ -1495,6 +1539,22 @@ func (a *app) saveComposed() {
 		Body:    a.composeBody,
 	}
 	a.requests = upsertRequest(a.requests, r)
+	if a.settingsPath != "" {
+		saved, err := loadSettings(a.settingsPath)
+		if err != nil {
+			a.errText = err.Error()
+		} else {
+			a.saved = saved
+			a.dark = saved.Dark
+			if saved.SidebarWidth > 0 {
+				a.sidebarWidth = saved.SidebarWidth
+			}
+			if saved.TablePercent > 0 {
+				a.tablePercent = saved.TablePercent
+			}
+			a.columns = saved.Columns.layout()
+		}
+	}
 	if a.requestsPath != "" {
 		if err := os.MkdirAll(filepath.Dir(a.requestsPath), 0o755); err != nil {
 			a.setMessage("Save: " + err.Error())
@@ -1632,4 +1692,33 @@ func (a *app) connectPanel(c *ui.Context, f flow) {
 			a.saveSSL(capture.SSLConfig{All: true})
 		}
 	})
+}
+
+// persistSettings writes what changed since the last write, at most every
+// 400ms, so dragging a divider does not write a file a frame.
+func (a *app) persistSettings() {
+	now := settings{
+		Dark:         a.dark,
+		SidebarWidth: a.sidebarWidth,
+		TablePercent: a.tablePercent,
+		Columns:      savedLayout(a.columns),
+	}
+	if sameSettings(now, a.saved) || time.Since(a.lastSave) < 400*time.Millisecond {
+		return
+	}
+	a.saved = now
+	a.lastSave = time.Now()
+	if a.settingsPath == "" {
+		return
+	}
+	path := a.settingsPath
+	go func() {
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			a.setMessage("Settings: " + err.Error())
+			return
+		}
+		if err := writeSettings(path, now); err != nil {
+			a.setMessage("Settings: " + err.Error())
+		}
+	}()
 }
