@@ -57,6 +57,17 @@ MyGo's own `ui/editor` diff viewer, not Monaco, so it stays native and can be
 reused on mobile later. It compares a response with the previous response for
 the same method, scheme and URL.
 
+## The table
+
+The table is laid out like a proxy tool's: method, status, the whole URL with
+its scheme, the app and its icon, the duration and the size. A click on a
+header sorts by that column.
+
+The chips above it keep one kind of traffic in view: HTTP or HTTPS by scheme,
+WebSocket and SSE by kind, and JSON, images or HTML by the response's content
+type. They narrow what the sidebar's filters and the search show, and the
+status bar counts the flows, the bytes captured and the last message.
+
 ## Rules
 
 Rules live in `~/.vscroxy/rules.json` and apply to new requests in order,
@@ -197,17 +208,20 @@ one request.
 ## Client attribution
 
 The **Client** column names the app a connection came from, with its icon.
+The icon comes from the app itself: the `.desktop` entry's icon on Linux, an
+icon theme's for the app's name, or the logo a bundled app keeps beside its
+executable, as Chrome does; on macOS, the PNG inside the `.icns` of the `.app`
+bundle. An app with none gets a badge in its color with its initial, so every
+row still reads at a glance.
 When a connection opens, the proxy finds the socket that the client holds on
 the other end and reads the process that owns it: `/proc/net/tcp` and the
 descriptor tables on Linux, `lsof` on macOS, `netstat` and `tasklist` on
 Windows. A request from another machine has no local process, so the column
 stays empty.
 
-The **Clients** section of the sidebar filters by app. On Linux the icon comes
-from the process's `.desktop` entry: the executable matches `Exec` or
-`TryExec`, and the entry's `Icon` resolves to a PNG or SVG in the icon themes
-or `/usr/share/pixmaps`. macOS and Windows show no icon yet, since theirs live
-in the app bundle and the executable's resources.
+The **Apps** section of the sidebar filters by app. Windows shows a badge
+only: an app's icon lives in its executable's resources, which are not read
+yet.
 
 ## Next
 

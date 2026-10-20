@@ -7,6 +7,7 @@ import (
 	"cmp"
 	"context"
 	"fmt"
+	"hash/fnv"
 	"log"
 	"maps"
 	"net/http"
@@ -39,6 +40,7 @@ type app struct {
 
 	query  string
 	filter string
+	chip   int
 	picked int
 	tab    int
 
@@ -49,6 +51,8 @@ type app struct {
 
 	sidebarWidth float32
 	tablePercent float32
+
+	totalBytes int64
 
 	trafficOpen bool
 	domainsOpen bool
@@ -467,31 +471,35 @@ func (a *app) drain() {
 			kind = ""
 		}
 		a.flows = append(a.flows, flow{
-			id:         f.ID,
-			method:     f.Method,
-			scheme:     f.Scheme,
-			host:       f.Host,
-			path:       f.Path,
-			url:        f.URL,
-			status:     f.Status,
-			bytes:      f.Bytes,
-			millis:     f.Millis,
-			reqHeaders: f.RequestHeaders,
-			resHeaders: f.ResponseHeaders,
-			reqBody:    f.RequestBody,
-			reqFile:    f.RequestBodyFile,
-			reqSize:    f.RequestBodySize,
-			resBody:    f.ResponseBody,
-			resFile:    f.ResponseBodyFile,
-			resSize:    f.ResponseBodySize,
-			reqHeader:  f.RequestHeader,
-			respHeader: f.ResponseHeader,
-			at:         f.At,
-			kind:       kind,
-			process:    f.Process,
-			wait:       f.Wait,
-			download:   f.Download,
+			id:          f.ID,
+			method:      f.Method,
+			scheme:      f.Scheme,
+			host:        f.Host,
+			path:        f.Path,
+			url:         f.URL,
+			status:      f.Status,
+			bytes:       f.Bytes,
+			millis:      f.Millis,
+			reqHeaders:  f.RequestHeaders,
+			resHeaders:  f.ResponseHeaders,
+			reqBody:     f.RequestBody,
+			reqFile:     f.RequestBodyFile,
+			reqSize:     f.RequestBodySize,
+			resBody:     f.ResponseBody,
+			resFile:     f.ResponseBodyFile,
+			resSize:     f.ResponseBodySize,
+			reqHeader:   f.RequestHeader,
+			respHeader:  f.ResponseHeader,
+			at:          f.At,
+			kind:        kind,
+			process:     f.Process,
+			processPath: f.ProcessPath,
+			wait:        f.Wait,
+			download:    f.Download,
 		})
+	}
+	for _, f := range a.flows[len(a.flows)-len(pending):] {
+		a.totalBytes += int64(f.bytes)
 	}
 	if len(a.flows) > maxFlows {
 		cut := len(a.flows) - maxFlows
@@ -540,6 +548,9 @@ func (a *app) applyFilter() {
 	q := strings.ToLower(strings.TrimSpace(a.query))
 	a.visible = a.visible[:0]
 	for i, f := range a.flows {
+		if !a.matchesChip(f) {
+			continue
+		}
 		if a.filter == "errors" && f.status < 400 {
 			continue
 		}
@@ -816,6 +827,14 @@ func (a *app) toolbar(c *ui.Context, t *ui.Theme) {
 			a.detailFor = -1
 			a.query = ""
 			a.filter = "all"
+			a.chip = 0
+			a.totalBytes = 0
+		}
+	})
+	ui.Divider(c)
+	ui.Row(c).Height(36).Padding(0, 14).AlignItems(ui.Center).Children(func() {
+		if ui.Segmented(c, &a.chip, "All", "HTTP", "HTTPS", "WebSocket", "SSE", "JSON", "Images", "HTML").Changed() {
+			a.applyFilter()
 		}
 	})
 	ui.Divider(c)
@@ -849,7 +868,7 @@ func (a *app) sidebar(c *ui.Context) {
 				})
 			}
 			if len(a.clients) > 0 {
-				ui.SidebarSection(c, "Clients", &a.clientsOpen, func() {
+				ui.SidebarSection(c, "Apps", &a.clientsOpen, func() {
 					for _, d := range a.clients {
 						ui.SidebarItem(c, "client:"+d.name, nil, d.name).Children(func() {
 							ui.Badge(c, fmt.Sprint(d.n))
@@ -889,14 +908,12 @@ func (a *app) table(c *ui.Context) {
 		return
 	}
 	cols := []ui.TableColumn{
-		{ID: "method", Title: "Method", Width: 84, Fixed: true, Sortable: true},
-		{ID: "proto", Title: "Proto", Width: 66, Fixed: true, Sortable: true},
-		{ID: "status", Title: "Status", Width: 72, Fixed: true, Align: ui.End, Sortable: true},
-		{ID: "host", Title: "Host", Width: 190, Fixed: true, Sortable: true},
-		{ID: "client", Title: "Client", Width: 120, Fixed: true, Sortable: true},
-		{ID: "path", Title: "Path", Sortable: true},
+		{ID: "method", Title: "Method", Width: 80, Fixed: true, Sortable: true},
+		{ID: "status", Title: "Status", Width: 78, Fixed: true, Align: ui.End, Sortable: true},
+		{ID: "url", Title: "URL", Sortable: true},
+		{ID: "client", Title: "Client", Width: 132, Fixed: true, Sortable: true},
+		{ID: "duration", Title: "Duration", Width: 96, Align: ui.End, Sortable: true},
 		{ID: "size", Title: "Size", Width: 86, Align: ui.End, Sortable: true},
-		{ID: "time", Title: "Time", Width: 74, Align: ui.End, Sortable: true},
 		{Title: "", ID: "filler", Width: 14, Fixed: true},
 	}
 	state := &ui.ListState{
@@ -916,33 +933,35 @@ func (a *app) table(c *ui.Context) {
 			}
 			text(f.method).TextColor(color)
 		case 1:
-			color := ui.Hex("#71717a")
-			if f.scheme == "https" {
-				color = ui.Hex("#0891b2")
-			}
-			if chosen {
-				color = t.AccentText
-			}
-			text(f.scheme).TextColor(color)
-		case 2:
 			color := statusColor(f.status, t)
 			if chosen {
 				color = t.AccentText
 			}
 			text(fmt.Sprint(f.status)).TextColor(color)
+		case 2:
+			scheme := ui.Hex("#71717a")
+			if f.scheme == "https" {
+				scheme = ui.Hex("#0891b2")
+			}
+			rest := rowColor(chosen, t, t.Text)
+			if chosen {
+				scheme = t.AccentText
+			}
+			ui.Row(c).Gap(1).Children(func() {
+				text(f.scheme + "://").Shrink(0).TextColor(scheme).ContextMenu(a.rowMenu(c, f))
+				text(f.host + f.path).TextColor(rest).ContextMenu(a.rowMenu(c, f))
+			})
 		case 3:
-			text(f.host).ContextMenu(a.rowMenu(c, f)).TextColor(rowColor(chosen, t, t.Text))
-		case 4:
-			if src, ok := a.clientIcon(f.process); ok {
+			if src, ok := a.clientIcon(f.process, f.processPath); ok {
 				ui.Image(c, src).Size(16, 16)
+			} else {
+				clientBadge(c, f.process)
 			}
 			text(f.process).Padding(0, 0, 0, 6).ContextMenu(a.rowMenu(c, f)).TextColor(rowColor(chosen, t, t.TextMuted))
-		case 5:
-			text(f.path).ContextMenu(a.rowMenu(c, f)).TextColor(rowColor(chosen, t, t.Text))
-		case 6:
-			text(humanBytes(f.bytes)).TextColor(rowColor(chosen, t, t.TextMuted))
-		case 7:
+		case 4:
 			text(fmt.Sprintf("%d ms", f.millis)).TextColor(rowColor(chosen, t, t.TextMuted))
+		case 5:
+			text(humanBytes(f.bytes)).TextColor(rowColor(chosen, t, t.TextMuted))
 		}
 	}).Grow(1)
 }
@@ -1022,6 +1041,11 @@ func (a *app) statusBar(c *ui.Context, t *ui.Theme) {
 	ui.Row(c).Height(28).Padding(0, 14).Gap(16).AlignItems(ui.Center).Children(func() {
 		ui.Text(c, fmt.Sprintf("%d flows · %d shown", len(a.flows), len(a.visible))).
 			FontSize(11).TextColor(t.TextMuted)
+		captured := humanBytes(int(a.totalBytes))
+		if a.totalBytes == 0 {
+			captured = "0 B"
+		}
+		ui.Text(c, captured+" captured").FontSize(11).TextColor(t.TextMuted)
 		if a.dropped > 0 {
 			ui.Text(c, fmt.Sprintf("%d dropped", a.dropped)).FontSize(11).TextColor(ui.Hex("#d97706"))
 		}
@@ -1121,42 +1145,59 @@ func main() {
 }
 
 // clientIcon returns the app's icon, loading it the first time it is asked
-// for. A process with no icon gets none.
-func (a *app) clientIcon(process string) (ui.ImageSource, bool) {
-	if process == "" {
+// for. A process with no icon gets none, and the table shows a badge.
+func (a *app) clientIcon(process, path string) (ui.ImageSource, bool) {
+	if process == "" && path == "" {
 		return nil, false
 	}
-	if src, ok := a.icons[process]; ok {
+	key := cmp.Or(path, process)
+	if src, ok := a.icons[key]; ok {
 		return src, src != nil
 	}
-	src := loadIcon(process)
-	a.icons[process] = src
+	src := loadIcon(process, path)
+	a.icons[key] = src
 	return src, src != nil
 }
 
-// loadIcon reads the icon file of a process: an SVG as an SVG, anything else
-// as a bitmap.
-func loadIcon(process string) ui.ImageSource {
-	path := appicon.Lookup(process)
-	if path == "" {
+// loadIcon decodes an app's icon: an SVG as an SVG, anything else as a
+// bitmap.
+func loadIcon(process, path string) ui.ImageSource {
+	icon, ok := appicon.Lookup(process, path)
+	if !ok {
 		return nil
 	}
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil
-	}
-	if strings.HasSuffix(path, ".svg") {
-		svg, err := ui.ParseSVG(data)
+	if icon.SVG {
+		svg, err := ui.ParseSVG(icon.Data)
 		if err != nil {
 			return nil
 		}
 		return svg
 	}
-	bmp, err := ui.DecodeBitmap(data)
+	bmp, err := ui.DecodeBitmap(icon.Data)
 	if err != nil {
 		return nil
 	}
 	return bmp
+}
+
+// clientBadge draws the app's initial in its color, for an app whose icon the
+// system does not have.
+func clientBadge(c *ui.Context, name string) {
+	letter := "?"
+	if runes := []rune(name); len(runes) > 0 {
+		letter = strings.ToUpper(string(runes[0]))
+	}
+	ui.Box(c).Size(16, 16).Radius(4).Background(badgeColor(name)).Center().Children(func() {
+		ui.Text(c, letter).FontSize(9).Bold().TextColor(ui.Hex("#ffffff"))
+	})
+}
+
+// badgeColor is a stable color per app name.
+func badgeColor(name string) ui.Color {
+	h := fnv.New32a()
+	_, _ = h.Write([]byte(name))
+	palette := []string{"#2563eb", "#7c3aed", "#db2777", "#ea580c", "#0891b2", "#16a34a", "#ca8a04"}
+	return ui.Hex(palette[int(h.Sum32())%len(palette)])
 }
 
 // rowMenu is the context menu of a flow's row: what a captured request is
@@ -1340,15 +1381,15 @@ func (a *app) sortOrder() func(x, y int) int {
 			c = cmp.Compare(fx.scheme, fy.scheme)
 		case "status":
 			c = cmp.Compare(fx.status, fy.status)
-		case "host":
-			c = cmp.Compare(fx.host, fy.host)
+		case "host", "url":
+			c = cmp.Compare(fx.url, fy.url)
 		case "client":
 			c = cmp.Compare(fx.process, fy.process)
 		case "path":
 			c = cmp.Compare(fx.path, fy.path)
 		case "size":
 			c = cmp.Compare(fx.bytes, fy.bytes)
-		case "time":
+		case "time", "duration":
 			c = cmp.Compare(fx.millis, fy.millis)
 		}
 		if desc {
@@ -1463,4 +1504,27 @@ func (a *app) openSaved(name string) {
 		a.composeOpen = true
 		return
 	}
+}
+
+// matchesChip reports whether the flow belongs to the chip chosen above the
+// table: a protocol, or a kind of body.
+func (a *app) matchesChip(f flow) bool {
+	json := strings.Contains(f.contentType(true), "json")
+	switch a.chip {
+	case 1: // HTTP
+		return f.kind == "" && f.scheme == "http"
+	case 2: // HTTPS
+		return f.kind == "" && f.scheme == "https"
+	case 3: // WebSocket
+		return f.kind == "ws"
+	case 4: // SSE
+		return f.kind == "sse"
+	case 5: // JSON
+		return json
+	case 6: // Images
+		return strings.HasPrefix(f.contentType(true), "image/")
+	case 7: // HTML
+		return strings.Contains(f.contentType(true), "html")
+	}
+	return true
 }

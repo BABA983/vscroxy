@@ -13,10 +13,10 @@ import (
 // lookupPort finds the socket whose local port is port, then the process that
 // holds it. The server side of the connection listens on the proxy port, so
 // the matching socket belongs to the client.
-func lookupPort(port string) string {
+func lookupPort(port string) Process {
 	inode := socketInode(port)
 	if inode == "" {
-		return ""
+		return Process{}
 	}
 	return processOf(inode)
 }
@@ -48,12 +48,12 @@ func socketInode(port string) string {
 }
 
 // processOf walks the open file descriptors of every process for the socket
-// inode and returns the executable's name.
-func processOf(inode string) string {
+// inode and returns the process behind it.
+func processOf(inode string) Process {
 	target := "socket:[" + inode + "]"
 	procs, err := os.ReadDir("/proc")
 	if err != nil {
-		return ""
+		return Process{}
 	}
 	for _, proc := range procs {
 		pid := proc.Name()
@@ -70,13 +70,13 @@ func processOf(inode string) string {
 				continue
 			}
 			if exe, err := os.Readlink(filepath.Join("/proc", pid, "exe")); err == nil {
-				return filepath.Base(exe)
+				return Process{Name: filepath.Base(exe), Path: exe}
 			}
 			if comm, err := os.ReadFile(filepath.Join("/proc", pid, "comm")); err == nil {
-				return strings.TrimSpace(string(comm))
+				return Process{Name: strings.TrimSpace(string(comm))}
 			}
-			return ""
+			return Process{}
 		}
 	}
-	return ""
+	return Process{}
 }

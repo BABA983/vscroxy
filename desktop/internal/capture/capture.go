@@ -105,8 +105,10 @@ type Flow struct {
 	Kind   string
 	Frames []Frame
 
-	// Process is the app the connection came from, when it could be told.
-	Process string
+	// Process is the app the connection came from, when it could be told,
+	// and ProcessPath its executable's path.
+	Process     string
+	ProcessPath string
 
 	// Wait is how long the request took to reach its first response byte,
 	// and Download the rest of Millis: the two phases a waterfall shows.
@@ -194,7 +196,7 @@ type Server struct {
 	started   map[uuid.UUID]time.Time
 	firstByte map[uuid.UUID]time.Time
 	original  map[uuid.UUID]url.URL
-	clients   map[string]string
+	clients   map[string]procinfo.Process
 	closeOnce sync.Once
 
 	// bodyDir holds the bodies too large to keep in memory. It is removed
@@ -242,7 +244,7 @@ func New(addr, caRootPath string) (*Server, error) {
 		started:     make(map[uuid.UUID]time.Time),
 		firstByte:   make(map[uuid.UUID]time.Time),
 		original:    make(map[uuid.UUID]url.URL),
-		clients:     make(map[string]string),
+		clients:     make(map[string]procinfo.Process),
 		bpWait:      make(map[int]chan Decision),
 		breakpoints: make(chan Breakpoint, 16),
 		frames:      make(chan FrameEvent, queue),
@@ -961,26 +963,26 @@ func (s *Server) noteClient(client *proxy.ClientConn, connected bool) {
 		s.mu.Unlock()
 		return
 	}
-	name := procinfo.Lookup(addr)
+	process := procinfo.Lookup(addr)
 	s.mu.Lock()
 	if len(s.clients) > 1024 {
 		clear(s.clients)
 	}
-	s.clients[addr] = name
+	s.clients[addr] = process
 	s.mu.Unlock()
 }
 
-// clientName returns the process behind the connection a flow arrived on.
-func (s *Server) clientName(f *proxy.Flow) string {
+// clientProcess returns the process behind the connection a flow arrived on.
+func (s *Server) clientProcess(f *proxy.Flow) procinfo.Process {
 	if f.ConnContext == nil || f.ConnContext.ClientConn == nil || f.ConnContext.ClientConn.Conn == nil {
-		return ""
+		return procinfo.Process{}
 	}
 	addr := f.ConnContext.ClientConn.Conn.RemoteAddr().String()
 	s.mu.Lock()
-	name, ok := s.clients[addr]
+	process, ok := s.clients[addr]
 	s.mu.Unlock()
 	if ok {
-		return name
+		return process
 	}
 	return procinfo.Lookup(addr)
 }
@@ -1098,7 +1100,8 @@ func (s *Server) publishFlow(f *proxy.Flow, kind string, frames []Frame, status 
 		At:               now,
 		Kind:             kind,
 		Frames:           clipFrames(frames),
-		Process:          s.clientName(f),
+		Process:          s.clientProcess(f).Name,
+		ProcessPath:      s.clientProcess(f).Path,
 	}
 	s.mu.Lock()
 	if len(s.flowIDs) > 4096 {
