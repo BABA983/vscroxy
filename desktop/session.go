@@ -100,6 +100,15 @@ func harFromFlows(flows []flow) harFile {
 		started = started.Add(-time.Duration(f.millis) * time.Millisecond)
 		reqHeaders := headerPairs(f.reqHeaders, f.reqHeader)
 		respHeaders := headerPairs(f.resHeaders, f.respHeader)
+		reqText := f.body(false)
+		respText := f.body(true)
+		reqSize, respSize := f.reqSize, f.resSize
+		if reqSize == 0 {
+			reqSize = len(reqText)
+		}
+		if respSize == 0 {
+			respSize = len(respText)
+		}
 		entry := harEntry{
 			StartedDateTime: started.Format(time.RFC3339Nano),
 			Time:            float64(f.millis),
@@ -110,7 +119,7 @@ func harFromFlows(flows []flow) harFile {
 				Headers:     reqHeaders,
 				QueryString: queryPairs(f.url),
 				HeadersSize: -1,
-				BodySize:    len(f.reqBody),
+				BodySize:    reqSize,
 			},
 			Response: harResponse{
 				Status:      f.status,
@@ -118,19 +127,19 @@ func harFromFlows(flows []flow) harFile {
 				HTTPVersion: "HTTP/1.1",
 				Headers:     respHeaders,
 				Content: harContent{
-					Size:     len(f.resBody),
+					Size:     respSize,
 					MimeType: headerValue(respHeaders, "Content-Type"),
-					Text:     f.resBody,
+					Text:     respText,
 				},
 				HeadersSize: -1,
-				BodySize:    len(f.resBody),
+				BodySize:    respSize,
 			},
 			Timings: harTimings{Wait: float64(f.millis)},
 		}
-		if f.reqBody != "" {
+		if reqText != "" {
 			entry.Request.PostData = &harPostData{
 				MimeType: headerValue(reqHeaders, "Content-Type"),
-				Text:     f.reqBody,
+				Text:     reqText,
 			}
 		}
 		entries = append(entries, entry)
@@ -240,7 +249,7 @@ func sessionFrom(flows []flow, frames map[int][]frame) sessionFile {
 			ID: f.id, Method: f.method, Scheme: f.scheme, Host: f.host, Path: f.path, URL: f.url,
 			Status: f.status, Bytes: f.bytes, Millis: f.millis,
 			ReqHeaders: f.reqHeaders, ResHeaders: f.resHeaders,
-			ReqBody: f.reqBody, ResBody: f.resBody,
+			ReqBody: f.body(false), ResBody: f.body(true),
 			ReqHeader: f.reqHeader, RespHeader: f.respHeader,
 			At: f.at, Kind: f.kind,
 		})

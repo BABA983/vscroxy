@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"math/rand"
 	"net/http"
+	"os"
+	"strings"
 	"time"
 )
 
@@ -22,11 +24,59 @@ type flow struct {
 	reqHeaders string
 	resHeaders string
 	reqBody    string
+	reqFile    string
+	reqSize    int
 	resBody    string
+	resFile    string
+	resSize    int
 	reqHeader  http.Header
 	respHeader http.Header
 	at         time.Time
 	kind       string
+	process    string
+}
+
+// maxBodyView bounds how much of a spilled body the Body tab reads back.
+const maxBodyView = 8 << 20
+
+// body returns the body to show: the head the flow holds in memory, or the
+// whole body from the spill file when the capture core wrote it out.
+func (f flow) body(response bool) string {
+	head, file, size := f.reqBody, f.reqFile, f.reqSize
+	if response {
+		head, file, size = f.resBody, f.resFile, f.resSize
+	}
+	if file == "" {
+		return head
+	}
+	data, err := os.ReadFile(file)
+	if err != nil {
+		return head + fmt.Sprintf("\n\n… the spilled body is gone: %v", err)
+	}
+	if len(data) > maxBodyView {
+		return string(data[:maxBodyView]) + fmt.Sprintf("\n\n… truncated: %d of %d bytes shown", maxBodyView, size)
+	}
+	return string(data)
+}
+
+// contentType is the media type of the body on the side shown, taken from the
+// structured headers or the formatted block.
+func (f flow) contentType(response bool) string {
+	h, block := f.reqHeader, f.reqHeaders
+	if response {
+		h, block = f.respHeader, f.resHeaders
+	}
+	ct := h.Get("Content-Type")
+	if ct == "" {
+		for _, line := range strings.Split(block, "\n") {
+			if name, value, ok := strings.Cut(line, ": "); ok && strings.EqualFold(name, "Content-Type") {
+				ct = value
+				break
+			}
+		}
+	}
+	ct, _, _ = strings.Cut(ct, ";")
+	return strings.ToLower(strings.TrimSpace(ct))
 }
 
 var (

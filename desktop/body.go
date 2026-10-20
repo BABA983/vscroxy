@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cmp"
 	"encoding/json/v2"
 	"fmt"
 	"maps"
@@ -9,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/egoist/mygo/ui"
+	"github.com/egoist/mygo/ui/richtext"
 )
 
 // jsonNode is one value of a parsed body, with the children of an object or
@@ -162,13 +164,19 @@ func hexRows(body, query string) []int {
 // JSON tree, or as a hex dump, with a search that filters what shows.
 func (a *app) bodyView(c *ui.Context, f flow) {
 	t := c.Theme()
-	body := f.resBody
+	if a.detailFor != f.id {
+		// The table took the click after the detail was synced, so the body
+		// still belongs to the previous flow: show it next frame, when
+		// syncDetail has caught up, and never cache it under this flow.
+		return
+	}
+	body := a.body
 	if a.bodySide == 1 {
-		body = f.reqBody
+		body = a.reqBody
 	}
 	ui.Row(c).Padding(8, 12).Gap(10).AlignItems(ui.Center).Children(func() {
 		ui.Segmented(c, &a.bodySide, "Response", "Request")
-		ui.Segmented(c, &a.bodyMode, "Pretty", "JSON", "Hex")
+		ui.Segmented(c, &a.bodyMode, "Pretty", "JSON", "Hex", "Preview")
 		ui.SearchField(c, &a.bodyQuery).Width(220)
 	})
 	if body == "" {
@@ -199,9 +207,65 @@ func (a *app) bodyView(c *ui.Context, f flow) {
 		a.jsonBody(c)
 	case 2:
 		a.hexBody(c, body)
+	case 3:
+		a.previewBody(c, f, body)
 	default:
 		a.prettyBody(c, body)
 	}
+}
+
+// previewBody shows a body the way it is meant to be seen: an image at its
+// size, or HTML as rich text.
+func (a *app) previewBody(c *ui.Context, f flow, body string) {
+	t := c.Theme()
+	ct := f.contentType(a.bodySide == 0)
+	key := fmt.Sprintf("%d:%d", f.id, a.bodySide)
+	switch {
+	case strings.HasPrefix(ct, "image/"):
+		a.imagePreview(c, key, body)
+	case ct == "text/html" || ct == "application/xhtml+xml":
+		a.htmlPreview(c, key, body)
+	default:
+		ui.Text(c, "No preview for "+cmp.Or(ct, "this body")).FontSize(12).TextColor(t.TextMuted).Padding(16)
+	}
+}
+
+// imagePreview decodes the body once and shows it, scaled to the pane.
+func (a *app) imagePreview(c *ui.Context, key, body string) {
+	t := c.Theme()
+	if a.imageFor != key {
+		a.imageFor, a.imageErr, a.imageBmp = key, "", nil
+		bmp, err := ui.DecodeBitmap([]byte(body))
+		if err != nil {
+			a.imageErr = err.Error()
+		} else {
+			a.imageBmp = bmp
+		}
+	}
+	if a.imageErr != "" {
+		ui.Text(c, "Cannot decode image: "+a.imageErr).FontSize(12).TextColor(t.TextMuted).Padding(16)
+		return
+	}
+	if a.imageBmp == nil {
+		return
+	}
+	w, h := a.imageBmp.Size()
+	ui.Scroll(c).Grow(1).Children(func() {
+		ui.Column(c).Padding(16).Gap(6).Children(func() {
+			ui.Text(c, fmt.Sprintf("%d × %d px", w, h)).FontSize(11).TextColor(t.TextMuted)
+			ui.Image(c, a.imageBmp).MaxWidthPercent(100)
+		})
+	})
+}
+
+// htmlPreview renders the body as rich text, read-only, keeping the parsed
+// document so the pane keeps its scroll.
+func (a *app) htmlPreview(c *ui.Context, key, body string) {
+	if a.htmlFor != key {
+		a.htmlFor = key
+		a.htmlDoc = richtext.NewDocument(richtext.ParseHTML(body))
+	}
+	richtext.EditorBase(c, a.htmlDoc, richtext.EditorOptions{ReadOnly: true}).Grow(1)
 }
 
 func (a *app) prettyBody(c *ui.Context, body string) {

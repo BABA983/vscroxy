@@ -28,12 +28,15 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/lqqyt2423/go-mitmproxy/proxy"
+
+	"github.com/baba983/vscroxy/desktop/internal/procinfo"
 )
 
 const (
-	// maxBody bounds what one flow keeps in memory. A larger body is cut and
-	// marked, and the full body stays with the capture engine for now.
-	maxBody = 1 << 20
+	// maxBody bounds what one flow keeps in memory. A larger body is written
+	// to the spill directory and the flow keeps only its head, so a capture
+	// with many large responses does not grow without limit.
+	maxBody = 64 << 10
 	// maxRuleBody bounds what a map local rule serves from a file.
 	maxRuleBody = 8 << 20
 	// maxScriptBody bounds what a response script reads.
@@ -76,8 +79,15 @@ type Flow struct {
 
 	RequestHeaders  string
 	ResponseHeaders string
-	RequestBody     string
-	ResponseBody    string
+
+	// RequestBody and ResponseBody are the whole body, or its head when the
+	// body was spilled: then the file holds all of it and Size its length.
+	RequestBody      string
+	RequestBodyFile  string
+	RequestBodySize  int
+	ResponseBody     string
+	ResponseBodyFile string
+	ResponseBodySize int
 
 	// At is when the exchange finished; ResponseHeader the structured
 	// response headers, for an export.
@@ -91,6 +101,9 @@ type Flow struct {
 	// last two.
 	Kind   string
 	Frames []Frame
+
+	// Process is the app the connection came from, when it could be told.
+	Process string
 }
 
 // FrameEvent is a frame that arrived after its flow was published.
@@ -171,7 +184,12 @@ type Server struct {
 	mu        sync.Mutex
 	started   map[uuid.UUID]time.Time
 	original  map[uuid.UUID]url.URL
+	clients   map[string]string
 	closeOnce sync.Once
+
+	// bodyDir holds the bodies too large to keep in memory. It is removed
+	// when the server closes.
+	bodyDir string
 
 	rulesMu sync.RWMutex
 	rules   []Rule
@@ -206,6 +224,7 @@ func New(addr, caRootPath string) (*Server, error) {
 		out:         make(chan Flow, queue),
 		started:     make(map[uuid.UUID]time.Time),
 		original:    make(map[uuid.UUID]url.URL),
+		clients:     make(map[string]string),
 		bpWait:      make(map[int]chan Decision),
 		breakpoints: make(chan Breakpoint, 16),
 		frames:      make(chan FrameEvent, queue),
@@ -229,6 +248,9 @@ func New(addr, caRootPath string) (*Server, error) {
 		return url.Parse(raw)
 	})
 	s.proxy = p
+	if dir, err := os.MkdirTemp("", "vscroxy-bodies-"); err == nil {
+		s.bodyDir = dir
+	}
 	return s, nil
 }
 
@@ -455,7 +477,12 @@ func (s *Server) Start() error {
 // Close stops the proxy and closes Flows.
 func (s *Server) Close() error {
 	err := s.proxy.Close()
-	s.closeOnce.Do(func() { close(s.out) })
+	s.closeOnce.Do(func() {
+		close(s.out)
+		if s.bodyDir != "" {
+			_ = os.RemoveAll(s.bodyDir)
+		}
+	})
 	return err
 }
 
@@ -467,8 +494,14 @@ func (s *Server) Replay(ctx context.Context, f Flow) error {
 		rawURL = f.Scheme + "://" + f.Host + f.Path
 	}
 	var body io.Reader
-	if f.RequestBody != "" {
-		body = strings.NewReader(f.RequestBody)
+	raw := f.RequestBody
+	if f.RequestBodyFile != "" {
+		if spilled, err := os.ReadFile(f.RequestBodyFile); err == nil {
+			raw = string(spilled)
+		}
+	}
+	if raw != "" {
+		body = strings.NewReader(raw)
 	}
 	req, err := http.NewRequestWithContext(ctx, f.Method, rawURL, body)
 	if err != nil {
@@ -504,6 +537,14 @@ func (s *Server) Replay(ctx context.Context, f Flow) error {
 type addon struct {
 	proxy.BaseAddon
 	server *Server
+}
+
+func (a *addon) ClientConnected(client *proxy.ClientConn) {
+	a.server.noteClient(client, true)
+}
+
+func (a *addon) ClientDisconnected(client *proxy.ClientConn) {
+	a.server.noteClient(client, false)
 }
 
 func (a *addon) Requestheaders(f *proxy.Flow) {
@@ -769,6 +810,43 @@ func contentType(path string) string {
 	return "application/octet-stream"
 }
 
+// noteClient records which process opened or closed a client connection, so
+// each flow on it can be attributed without another scan.
+func (s *Server) noteClient(client *proxy.ClientConn, connected bool) {
+	if client == nil || client.Conn == nil {
+		return
+	}
+	addr := client.Conn.RemoteAddr().String()
+	if !connected {
+		s.mu.Lock()
+		delete(s.clients, addr)
+		s.mu.Unlock()
+		return
+	}
+	name := procinfo.Lookup(addr)
+	s.mu.Lock()
+	if len(s.clients) > 1024 {
+		clear(s.clients)
+	}
+	s.clients[addr] = name
+	s.mu.Unlock()
+}
+
+// clientName returns the process behind the connection a flow arrived on.
+func (s *Server) clientName(f *proxy.Flow) string {
+	if f.ConnContext == nil || f.ConnContext.ClientConn == nil || f.ConnContext.ClientConn.Conn == nil {
+		return ""
+	}
+	addr := f.ConnContext.ClientConn.Conn.RemoteAddr().String()
+	s.mu.Lock()
+	name, ok := s.clients[addr]
+	s.mu.Unlock()
+	if ok {
+		return name
+	}
+	return procinfo.Lookup(addr)
+}
+
 func (s *Server) publish(f *proxy.Flow) {
 	s.publishFlow(f, "http", nil, 0)
 }
@@ -793,11 +871,21 @@ func (s *Server) publishFlow(f *proxy.Flow, kind string, frames []Frame, status 
 		start = f.StartTime
 	}
 
-	size, respHeaders, respBody := 0, "", ""
+	reqData, err := f.Request.DecodedBody()
+	if err != nil {
+		reqData = nil
+	}
+	reqBody, reqFile, reqSize := s.keepBody(f.Id, "req", reqData)
+	size, respHeaders := 0, ""
+	respBody, respFile, respSize := "", "", 0
 	if f.Response != nil {
 		size = len(f.Response.Body)
 		respHeaders = formatResponse(f.Response)
-		respBody = bodyText(f.Response.DecodedBody())
+		respData, err := f.Response.DecodedBody()
+		if err != nil {
+			respData = nil
+		}
+		respBody, respFile, respSize = s.keepBody(f.Id, "res", respData)
 	}
 	if status == 0 && f.Response != nil {
 		status = f.Response.StatusCode
@@ -825,24 +913,29 @@ func (s *Server) publishFlow(f *proxy.Flow, kind string, frames []Frame, status 
 		}
 	}
 	flow := Flow{
-		ID:              int(s.nextID.Add(1)),
-		Method:          method,
-		Scheme:          display.Scheme,
-		Host:            display.Host,
-		Path:            display.RequestURI(),
-		URL:             display.String(),
-		Status:          status,
-		Bytes:           size,
-		Millis:          millis,
-		RequestHeaders:  formatRequest(f.Request, display),
-		ResponseHeaders: respHeaders,
-		RequestBody:     bodyText(f.Request.DecodedBody()),
-		ResponseBody:    respBody,
-		RequestHeader:   f.Request.Header.Clone(),
-		ResponseHeader:  responseHeader(f.Response),
-		At:              now,
-		Kind:            kind,
-		Frames:          clipFrames(frames),
+		ID:               int(s.nextID.Add(1)),
+		Method:           method,
+		Scheme:           display.Scheme,
+		Host:             display.Host,
+		Path:             display.RequestURI(),
+		URL:              display.String(),
+		Status:           status,
+		Bytes:            size,
+		Millis:           millis,
+		RequestHeaders:   formatRequest(f.Request, display),
+		ResponseHeaders:  respHeaders,
+		RequestBody:      reqBody,
+		RequestBodyFile:  reqFile,
+		RequestBodySize:  reqSize,
+		ResponseBody:     respBody,
+		ResponseBodyFile: respFile,
+		ResponseBodySize: respSize,
+		RequestHeader:    f.Request.Header.Clone(),
+		ResponseHeader:   responseHeader(f.Response),
+		At:               now,
+		Kind:             kind,
+		Frames:           clipFrames(frames),
+		Process:          s.clientName(f),
 	}
 	s.mu.Lock()
 	if len(s.flowIDs) > 4096 {
@@ -856,6 +949,27 @@ func (s *Server) publishFlow(f *proxy.Flow, kind string, frames []Frame, status 
 		s.dropped.Add(1)
 	}
 	return flow.ID
+}
+
+// keepBody returns the body a flow keeps in memory, the file that holds the
+// whole body when it was spilled, and the body's size. A spilled body keeps
+// its head inline so search and the table work without touching the disk.
+func (s *Server) keepBody(id uuid.UUID, kind string, body []byte) (head, file string, size int) {
+	size = len(body)
+	if size <= maxBody {
+		return string(body), "", size
+	}
+	head = string(body[:maxBody])
+	if s.bodyDir != "" {
+		file = filepath.Join(s.bodyDir, kind+"-"+id.String()+".bin")
+		if err := os.WriteFile(file, body, 0o600); err != nil {
+			file = ""
+		}
+	}
+	if file == "" {
+		head += fmt.Sprintf("\n\n… truncated: %d of %d bytes shown", maxBody, size)
+	}
+	return head, file, size
 }
 
 // emitFrame sends a message that belongs to an already published flow.
