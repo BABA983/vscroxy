@@ -114,6 +114,17 @@ network; a hook that loops is interrupted and counted in the status bar.
 Streaming and SSE responses skip the response hook. **Reload config** rereads
 both the rules and the script.
 
+## WebSocket and SSE
+
+A WebSocket connection appears as a `WS` row with status `101`, and an SSE
+response as its request with the `Messages` tab. Frames stream in as they
+arrive: the arrow is the direction, then the kind (`text`, `binary`, `event`,
+`tick`, …), then the payload. Frames are kept per flow, the last 200 of them,
+each clipped at 4 KB.
+
+The WebSocket row shows the host of the tunnel and `/` for the path: the
+engine hands the hook the CONNECT flow, not the upgraded request.
+
 ## Replay
 
 Select a flow and press **Replay**: the request goes out again through the
@@ -122,8 +133,8 @@ against the original (same method, scheme and URL).
 
 ## Next
 
-- Response breakpoints, which need the same stream hook the response script
-  uses.
 - A real body inspector: JSON tree, hex, image and rendered previews, with
   search, and bodies spilled to disk instead of held in memory.
 - Session export: HAR and a saved session that reopens with its flows.
+- Network conditions, an upstream proxy, and the system proxy and
+  certificate helpers.

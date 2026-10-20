@@ -5,6 +5,7 @@ package capture
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"encoding/json/v2"
 	"errors"
@@ -37,6 +38,10 @@ const (
 	maxRuleBody = 8 << 20
 	// maxScriptBody bounds what a response script reads.
 	maxScriptBody = 1 << 20
+	// maxFrames bounds the messages kept for one WebSocket or SSE flow, and
+	// maxFrameBytes what one message keeps.
+	maxFrames     = 200
+	maxFrameBytes = 4 << 10
 	// queue bounds the flows waiting for the UI. A burst past it is dropped
 	// and counted instead of growing without limit.
 	queue = 1024
@@ -76,6 +81,25 @@ type Flow struct {
 
 	// RequestHeader is the structured request headers, for a replay.
 	RequestHeader http.Header
+
+	// Kind is "http", "ws" or "sse"; Frames carries the messages of the
+	// last two.
+	Kind   string
+	Frames []Frame
+}
+
+// FrameEvent is a frame that arrived after its flow was published.
+type FrameEvent struct {
+	FlowID int
+	Frame  Frame
+}
+
+// Frame is one WebSocket message or SSE event of a flow.
+type Frame struct {
+	Direction string // "out" for client to server, "in" for server to client
+	Kind      string // "text", "binary", "event" or the WebSocket frame type
+	Data      string
+	At        time.Time
 }
 
 // RuleType is what a rule does to a request that matches it.
@@ -147,6 +171,9 @@ type Server struct {
 	rulesMu sync.RWMutex
 	rules   []Rule
 
+	frames  chan FrameEvent
+	flowIDs map[uuid.UUID]int
+
 	scriptMu     sync.RWMutex
 	script       *Script
 	scriptErrors atomic.Int64
@@ -171,6 +198,8 @@ func New(addr, caRootPath string) (*Server, error) {
 		original:    make(map[uuid.UUID]url.URL),
 		bpWait:      make(map[int]chan Decision),
 		breakpoints: make(chan Breakpoint, 16),
+		frames:      make(chan FrameEvent, queue),
+		flowIDs:     make(map[uuid.UUID]int),
 	}
 	p, err := proxy.NewProxy(&proxy.Options{
 		Addr:              addr,
@@ -230,6 +259,9 @@ func (s *Server) SetBreak(on bool) { s.breakOn.Store(on) }
 
 // Breaking reports whether breakpoints are on.
 func (s *Server) Breaking() bool { return s.breakOn.Load() }
+
+// Frames is the stream of WebSocket messages and SSE events, by flow.
+func (s *Server) Frames() <-chan FrameEvent { return s.frames }
 
 // Breakpoints is the stream of paused exchanges waiting for a decision.
 func (s *Server) Breakpoints() <-chan Breakpoint { return s.breakpoints }
@@ -474,6 +506,48 @@ func (a *addon) Request(f *proxy.Flow) {
 	}
 }
 
+func (a *addon) WebSocketStart(f *proxy.Flow) {
+	a.server.publishFlow(f, "ws", nil, http.StatusSwitchingProtocols)
+}
+
+func (a *addon) WebSocketMessage(f *proxy.Flow) {
+	if f.WebSocket == nil || len(f.WebSocket.Messages) == 0 {
+		return
+	}
+	m := f.WebSocket.Messages[len(f.WebSocket.Messages)-1]
+	direction := "in"
+	if m.FromClient {
+		direction = "out"
+	}
+	a.server.emitFrame(f, Frame{
+		Direction: direction,
+		Kind:      wsFrameKind(m.Type),
+		Data:      clipFrame(m.Content),
+		At:        m.Timestamp,
+	})
+}
+
+func (a *addon) SSEStart(f *proxy.Flow) {
+	a.server.publishFlow(f, "sse", nil, 0)
+}
+
+func (a *addon) SSEMessage(f *proxy.Flow) {
+	if f.SSE == nil || len(f.SSE.Events) == 0 {
+		return
+	}
+	e := f.SSE.Events[len(f.SSE.Events)-1]
+	data := e.Data
+	if data == "" {
+		data = e.Raw
+	}
+	a.server.emitFrame(f, Frame{
+		Direction: "in",
+		Kind:      cmp.Or(e.Event, "event"),
+		Data:      clipFrame([]byte(data)),
+		At:        e.Time,
+	})
+}
+
 func (a *addon) Response(f *proxy.Flow) {
 	if f.Response == nil || f.Stream || isSSE(f.Response) {
 		a.server.publish(f)
@@ -650,8 +724,14 @@ func contentType(path string) string {
 }
 
 func (s *Server) publish(f *proxy.Flow) {
+	s.publishFlow(f, "http", nil, 0)
+}
+
+// publishFlow turns one exchange into the boundary Flow the UI shows. kind is
+// "http", "ws" or "sse"; status overrides the response's when non-zero.
+func (s *Server) publishFlow(f *proxy.Flow, kind string, frames []Frame, status int) int {
 	if f.Request == nil {
-		return
+		return 0
 	}
 	now := time.Now()
 	s.mu.Lock()
@@ -667,16 +747,28 @@ func (s *Server) publish(f *proxy.Flow) {
 		start = f.StartTime
 	}
 
-	status, size, respHeaders, respBody := 0, 0, "", ""
+	size, respHeaders, respBody := 0, "", ""
 	if f.Response != nil {
-		status = f.Response.StatusCode
 		size = len(f.Response.Body)
 		respHeaders = formatResponse(f.Response)
 		respBody = bodyText(f.Response.DecodedBody())
 	}
+	if status == 0 && f.Response != nil {
+		status = f.Response.StatusCode
+	}
+	if len(frames) > 0 {
+		size = 0
+		for _, frame := range frames {
+			size += len(frame.Data)
+		}
+	}
+	method := f.Request.Method
+	if kind == "ws" {
+		method = "WS"
+	}
 	flow := Flow{
 		ID:              int(s.nextID.Add(1)),
-		Method:          f.Request.Method,
+		Method:          method,
 		Scheme:          display.Scheme,
 		Host:            display.Host,
 		Path:            display.RequestURI(),
@@ -689,12 +781,66 @@ func (s *Server) publish(f *proxy.Flow) {
 		RequestBody:     bodyText(f.Request.DecodedBody()),
 		ResponseBody:    respBody,
 		RequestHeader:   f.Request.Header.Clone(),
+		Kind:            kind,
+		Frames:          clipFrames(frames),
 	}
+	s.mu.Lock()
+	if len(s.flowIDs) > 4096 {
+		clear(s.flowIDs)
+	}
+	s.flowIDs[f.Id] = flow.ID
+	s.mu.Unlock()
 	select {
 	case s.out <- flow:
 	default:
 		s.dropped.Add(1)
 	}
+	return flow.ID
+}
+
+// emitFrame sends a message that belongs to an already published flow.
+func (s *Server) emitFrame(f *proxy.Flow, frame Frame) {
+	s.mu.Lock()
+	id, ok := s.flowIDs[f.Id]
+	s.mu.Unlock()
+	if !ok {
+		return
+	}
+	select {
+	case s.frames <- FrameEvent{FlowID: id, Frame: frame}:
+	default:
+		s.dropped.Add(1)
+	}
+}
+
+func wsFrameKind(t int) string {
+	switch t {
+	case 1:
+		return "text"
+	case 2:
+		return "binary"
+	case 8:
+		return "close"
+	case 9:
+		return "ping"
+	case 10:
+		return "pong"
+	}
+	return "frame"
+}
+
+func clipFrame(b []byte) string {
+	if len(b) > maxFrameBytes {
+		return string(b[:maxFrameBytes]) + "…"
+	}
+	return string(b)
+}
+
+func clipFrames(frames []Frame) []Frame {
+	if len(frames) > maxFrames {
+		frames = frames[len(frames)-maxFrames:]
+	}
+	return frames
 }
 
 func bodyText(b []byte, err error) string {

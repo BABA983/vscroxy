@@ -23,6 +23,7 @@ type flow struct {
 	reqBody    string
 	resBody    string
 	reqHeader  http.Header
+	kind       string
 }
 
 var (

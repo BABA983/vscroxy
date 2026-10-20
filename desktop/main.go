@@ -48,6 +48,7 @@ type app struct {
 	headers   string
 	body      string
 	diff      *editor.DiffState
+	frames    map[int][]frame
 
 	srv        *capture.Server
 	win        *mygo.Window
@@ -69,16 +70,24 @@ type app struct {
 
 	// mu guards what the capture goroutine hands to the view: the flows not
 	// yet drained, and a startup error.
-	mu      sync.Mutex
-	pending []capture.Flow
-	bps     []capture.Breakpoint
-	err     error
-	message string
+	mu            sync.Mutex
+	pending       []capture.Flow
+	pendingFrames []capture.FrameEvent
+	bps           []capture.Breakpoint
+	err           error
+	message       string
 }
 
 type domain struct {
 	name string
 	n    int
+}
+
+// frame is one WebSocket message or SSE event the detail pane lists.
+type frame struct {
+	direction string
+	kind      string
+	data      string
 }
 
 func newApp() *app {
@@ -89,6 +98,7 @@ func newApp() *app {
 		trafficOpen:  true,
 		domainsOpen:  true,
 		detailFor:    -1,
+		frames:       make(map[int][]frame),
 	}
 	srv, err := capture.New("127.0.0.1:7890", "")
 	if err != nil {
@@ -184,9 +194,20 @@ func (a *app) startCapture() {
 		return
 	}
 	go a.collectBreakpoints()
+	go a.collectFrames()
 	for f := range a.srv.Flows() {
 		a.mu.Lock()
 		a.pending = append(a.pending, f)
+		a.mu.Unlock()
+		a.win.Invalidate()
+	}
+}
+
+// collectFrames queues the WebSocket messages and SSE events.
+func (a *app) collectFrames() {
+	for ev := range a.srv.Frames() {
+		a.mu.Lock()
+		a.pendingFrames = append(a.pendingFrames, ev)
 		a.mu.Unlock()
 		a.win.Invalidate()
 	}
@@ -242,6 +263,21 @@ func (a *app) drain() {
 		a.errText = err.Error()
 		a.err = nil
 	}
+	a.mu.Lock()
+	pendingFrames := a.pendingFrames
+	a.pendingFrames = nil
+	a.mu.Unlock()
+	for _, ev := range pendingFrames {
+		list := append(a.frames[ev.FlowID], frame{
+			direction: ev.Frame.Direction,
+			kind:      ev.Frame.Kind,
+			data:      ev.Frame.Data,
+		})
+		if len(list) > 200 {
+			list = list[len(list)-200:]
+		}
+		a.frames[ev.FlowID] = list
+	}
 	if a.bp == nil {
 		a.mu.Lock()
 		var next *capture.Breakpoint
@@ -282,6 +318,7 @@ func (a *app) drain() {
 			reqBody:    f.RequestBody,
 			resBody:    f.ResponseBody,
 			reqHeader:  f.RequestHeader,
+			kind:       f.Kind,
 		})
 	}
 	if len(a.flows) > maxFlows {
@@ -370,6 +407,9 @@ func (a *app) syncDetail() {
 		return
 	}
 	a.detailFor = f.id
+	if f.kind == "" && a.tab == 3 {
+		a.tab = 0
+	}
 	a.headers = f.reqHeaders + "\n\n" + f.resHeaders
 	a.body = f.resBody
 	a.diff = &editor.DiffState{
@@ -470,6 +510,7 @@ func (a *app) toolbar(c *ui.Context, t *ui.Theme) {
 			a.mu.Unlock()
 			a.flows = nil
 			a.visible = nil
+			a.frames = make(map[int][]frame)
 			a.picked = 0
 			a.detailFor = -1
 			a.query = ""
@@ -585,13 +626,17 @@ func (a *app) detail(c *ui.Context) {
 			}
 			ui.Text(c, fmt.Sprintf("%s %s://%s%s", f.method, f.scheme, f.host, f.path)).
 				FontSize(12).TextColor(t.Text).SingleLine().Grow(1)
-			if ui.Button(c, "Replay").Disabled(f.url == "").Clicked() {
+			if ui.Button(c, "Replay").Disabled(f.url == "" || f.kind != "").Clicked() {
 				go a.replay(f)
 			}
 			ui.Text(c, fmt.Sprintf("%d · %s · %d ms", f.status, humanBytes(f.bytes), f.millis)).
 				FontSize(12).TextColor(statusColor(f.status, t))
 		})
-		ui.Tabs(c, &a.tab, "Headers", "Body", "Diff").Padding(0, 8)
+		labels := []string{"Headers", "Body", "Diff"}
+		if f.kind != "" {
+			labels = append(labels, "Messages")
+		}
+		ui.Tabs(c, &a.tab, labels...).Padding(0, 8)
 		if !ok {
 			ui.Text(c, "Capture a request to inspect it.").FontSize(12).TextColor(t.TextMuted).Padding(16)
 			return
@@ -609,8 +654,32 @@ func (a *app) detail(c *ui.Context) {
 			if a.diff != nil {
 				editor.DiffView(c, a.diff).Grow(1).FillWidth()
 			}
+		case 3:
+			a.messages(c, f)
 		}
 	})
+}
+
+// messages lists the WebSocket messages or SSE events of a flow.
+func (a *app) messages(c *ui.Context, f flow) {
+	t := c.Theme()
+	list := a.frames[f.id]
+	if len(list) == 0 {
+		ui.Text(c, "No messages yet").FontSize(12).TextColor(t.TextMuted).Padding(16)
+		return
+	}
+	ui.List(c, nil, len(list), func(i int) {
+		m := list[i]
+		arrow, color := "→", ui.Hex("#3b82f6")
+		if m.direction == "in" {
+			arrow, color = "←", ui.Hex("#16a34a")
+		}
+		ui.Row(c).Gap(10).Padding(4, 12).Children(func() {
+			ui.Text(c, arrow).FontSize(12).TextColor(color).Width(16)
+			ui.Text(c, m.kind).FontSize(11).TextColor(t.TextMuted).Width(52)
+			ui.Text(c, m.data).FontSize(12).Font("monospace").TextColor(t.Text).SingleLine().Grow(1)
+		})
+	}).Grow(1)
 }
 
 func (a *app) statusBar(c *ui.Context, t *ui.Theme) {
@@ -669,6 +738,8 @@ func methodColor(method string) ui.Color {
 		return ui.Hex("#dc2626")
 	case "PATCH":
 		return ui.Hex("#7c3aed")
+	case "WS":
+		return ui.Hex("#0891b2")
 	}
 	return ui.Hex("#71717a")
 }

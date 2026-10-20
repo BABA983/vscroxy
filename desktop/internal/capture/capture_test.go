@@ -14,6 +14,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/gorilla/websocket"
 )
 
 // freeAddr reserves an address the proxy can listen on.
@@ -55,6 +57,17 @@ func clientFor(t *testing.T, s *Server, roots *x509.CertPool) *http.Client {
 		tr.TLSClientConfig = &tls.Config{RootCAs: roots}
 	}
 	return &http.Client{Transport: tr, Timeout: 5 * time.Second}
+}
+
+func waitFrame(t *testing.T, s *Server) FrameEvent {
+	t.Helper()
+	select {
+	case fe := <-s.Frames():
+		return fe
+	case <-time.After(5 * time.Second):
+		t.Fatal("no frame captured")
+		return FrameEvent{}
+	}
 }
 
 func waitFlow(t *testing.T, s *Server) Flow {
@@ -555,5 +568,99 @@ func TestResponseBreakpointAborts(t *testing.T) {
 	}
 	if got := <-status; got != http.StatusBadGateway {
 		t.Fatalf("status = %d, want 502", got)
+	}
+}
+
+func TestWebSocketFrames(t *testing.T) {
+	upgrader := websocket.Upgrader{CheckOrigin: func(*http.Request) bool { return true }}
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		conn, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+		defer conn.Close()
+		for {
+			kind, msg, err := conn.ReadMessage()
+			if err != nil {
+				return
+			}
+			_ = conn.WriteMessage(kind, append([]byte("echo:"), msg...))
+		}
+	}))
+	defer upstream.Close()
+
+	s, _ := startServer(t)
+	u, err := url.Parse(upstream.URL)
+	if err != nil {
+		t.Fatalf("parse upstream: %v", err)
+	}
+	proxyURL, err := url.Parse("http://" + s.Addr())
+	if err != nil {
+		t.Fatalf("parse proxy: %v", err)
+	}
+	dialer := websocket.Dialer{Proxy: http.ProxyURL(proxyURL)}
+	conn, _, err := dialer.Dial("ws://"+u.Host+"/ws", nil)
+	if err != nil {
+		t.Fatalf("dial websocket: %v", err)
+	}
+	if err := conn.WriteMessage(websocket.TextMessage, []byte("hello")); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	_, msg, err := conn.ReadMessage()
+	if err != nil {
+		t.Fatalf("read: %v", err)
+	}
+	if string(msg) != "echo:hello" {
+		t.Fatalf("message = %q", msg)
+	}
+	_ = conn.Close()
+
+	f := waitFlow(t, s)
+	if f.Kind != "ws" || f.Status != http.StatusSwitchingProtocols {
+		t.Fatalf("flow = kind %q status %d", f.Kind, f.Status)
+	}
+	out := waitFrame(t, s)
+	if out.FlowID != f.ID || out.Frame.Direction != "out" || out.Frame.Data != "hello" {
+		t.Fatalf("first frame = %+v", out)
+	}
+	in := waitFrame(t, s)
+	if in.Frame.Direction != "in" || !strings.Contains(in.Frame.Data, "echo:hello") {
+		t.Fatalf("second frame = %+v", in)
+	}
+}
+
+func TestSSEEvents(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprint(w, "event: tick\ndata: one\n\n")
+		w.(http.Flusher).Flush()
+		fmt.Fprint(w, "data: two\n\n")
+		w.(http.Flusher).Flush()
+	}))
+	defer upstream.Close()
+
+	s, _ := startServer(t)
+	resp, err := clientFor(t, s, nil).Get(upstream.URL + "/events")
+	if err != nil {
+		t.Fatalf("request: %v", err)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	_ = resp.Body.Close()
+	if !strings.Contains(string(body), "one") || !strings.Contains(string(body), "two") {
+		t.Fatalf("body = %q", body)
+	}
+
+	f := waitFlow(t, s)
+	if f.Kind != "sse" {
+		t.Fatalf("flow = kind %q", f.Kind)
+	}
+	first := waitFrame(t, s)
+	if first.FlowID != f.ID || first.Frame.Data != "one" || first.Frame.Kind != "tick" {
+		t.Fatalf("first event = %+v", first)
+	}
+	second := waitFrame(t, s)
+	if second.Frame.Data != "two" {
+		t.Fatalf("second event = %+v", second)
 	}
 }
