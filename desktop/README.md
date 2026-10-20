@@ -48,6 +48,7 @@ go tool mygo dev
   System menu.
 - `internal/procinfo`: which local process owns a connection, for the Client
   column.
+- `internal/appicon`: the app's icon, from its `.desktop` entry on Linux.
 - `mygo.json`: the app's name, identifier and version for `mygo package`.
 
 The layout is the Proxyman one: filters and domains on the left, the request
@@ -193,11 +194,18 @@ one request.
 
 ## Client attribution
 
-The **Client** column names the app a connection came from. When a connection
-opens, the proxy finds the socket that the client holds on the other end and
-reads the process that owns it: `/proc/net/tcp` and the descriptor tables on
-Linux, `lsof` on macOS, `netstat` and `tasklist` on Windows. A request from
-another machine has no local process, so the column stays empty.
+The **Client** column names the app a connection came from, with its icon.
+When a connection opens, the proxy finds the socket that the client holds on
+the other end and reads the process that owns it: `/proc/net/tcp` and the
+descriptor tables on Linux, `lsof` on macOS, `netstat` and `tasklist` on
+Windows. A request from another machine has no local process, so the column
+stays empty.
+
+The **Clients** section of the sidebar filters by app. On Linux the icon comes
+from the process's `.desktop` entry: the executable matches `Exec` or
+`TryExec`, and the entry's `Icon` resolves to a PNG or SVG in the icon themes
+or `/usr/share/pixmaps`. macOS and Windows show no icon yet, since theirs live
+in the app bundle and the executable's resources.
 
 ## Next
 

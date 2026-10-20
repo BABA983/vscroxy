@@ -8,6 +8,8 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"maps"
+	"net/http"
 	"os"
 	"path/filepath"
 	"slices"
@@ -16,6 +18,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/baba983/vscroxy/desktop/internal/appicon"
 	"github.com/baba983/vscroxy/desktop/internal/capture"
 	"github.com/baba983/vscroxy/desktop/internal/system"
 	"github.com/egoist/mygo"
@@ -32,17 +35,28 @@ type app struct {
 	flows   []flow
 	visible []int
 	domains []domain
+	clients []domain
 
 	query  string
 	filter string
 	picked int
 	tab    int
 
+	// sort is the column the table is sorted by, and sortApplied what the
+	// rows were sorted with, so a header click sorts on the next frame.
+	sort        ui.SortOrder
+	sortApplied ui.SortOrder
+
 	sidebarWidth float32
 	tablePercent float32
 
 	trafficOpen bool
 	domainsOpen bool
+	clientsOpen bool
+
+	// icons caches the app icon per process name; a nil entry means the
+	// process has none.
+	icons map[string]ui.ImageSource
 
 	// detailFor is the flow the detail panes were built from, so the text and
 	// the diff buffers are rebuilt only when the choice changes.
@@ -84,6 +98,14 @@ type app struct {
 	upstreamOpen bool
 	upstreamAddr string
 
+	// compose is the request being written: what Compose sends through the
+	// proxy so the exchange is captured like any other.
+	composeOpen    bool
+	composeMethod  string
+	composeURL     string
+	composeHeaders string
+	composeBody    string
+
 	breakOn  bool
 	bp       *capture.Breakpoint
 	bpOpen   bool
@@ -117,10 +139,12 @@ type frame struct {
 func newApp() *app {
 	a := &app{
 		filter:       "all",
+		icons:        make(map[string]ui.ImageSource),
 		sidebarWidth: 220,
 		tablePercent: 62,
 		trafficOpen:  true,
 		domainsOpen:  true,
+		clientsOpen:  true,
 		detailFor:    -1,
 		frames:       make(map[int][]frame),
 		throttle:     capture.Presets[0],
@@ -141,6 +165,7 @@ func newApp() *app {
 		a.reloadConfig()
 	}
 	a.countDomains()
+	a.countClients()
 	a.applyFilter()
 	return a
 }
@@ -428,11 +453,27 @@ func (a *app) drain() {
 		a.detailFor = -1
 	}
 	a.countDomains()
+	a.countClients()
 	a.applyFilter()
 	if a.srv != nil {
 		a.dropped = a.srv.Dropped()
 		a.scriptErrs = a.srv.ScriptErrors()
 	}
+}
+
+// countClients counts the flows per app, the Clients section of the sidebar.
+func (a *app) countClients() {
+	counts := make(map[string]int, len(a.flows))
+	for _, f := range a.flows {
+		if f.process != "" {
+			counts[f.process]++
+		}
+	}
+	a.clients = a.clients[:0]
+	for name, n := range counts {
+		a.clients = append(a.clients, domain{name: name, n: n})
+	}
+	slices.SortFunc(a.clients, func(x, y domain) int { return cmp.Compare(y.n, x.n) })
 }
 
 func (a *app) countDomains() {
@@ -462,11 +503,15 @@ func (a *app) applyFilter() {
 		if host, ok := strings.CutPrefix(a.filter, "host:"); ok && f.host != host {
 			continue
 		}
+		if client, ok := strings.CutPrefix(a.filter, "client:"); ok && f.process != client {
+			continue
+		}
 		if q != "" && !strings.Contains(strings.ToLower(f.host+f.path), q) {
 			continue
 		}
 		a.visible = append(a.visible, i)
 	}
+	a.sortVisible()
 	if a.picked >= len(a.visible) {
 		a.picked = len(a.visible) - 1
 	}
@@ -526,6 +571,10 @@ func (a *app) syncDetail() {
 
 func (a *app) view(c *ui.Context) {
 	a.drain()
+	if a.sort != a.sortApplied {
+		a.sortApplied = a.sort
+		a.applyFilter()
+	}
 	a.syncDetail()
 	t := c.Theme()
 	ui.Column(c).Fill().Background(t.Background).Children(func() {
@@ -543,6 +592,7 @@ func (a *app) view(c *ui.Context) {
 	})
 	a.breakpointModal(c, t)
 	a.upstreamModal(c, t)
+	a.composeModal(c, t)
 }
 
 // upstreamModal edits the proxy every request goes through.
@@ -618,11 +668,11 @@ func (a *app) toolbar(c *ui.Context, t *ui.Theme) {
 	label := "Capture stopped"
 	if live {
 		dot = ui.Hex("#22c55e")
-		label = "Listening on " + a.srv.Addr()
+		label = "Live · " + a.srv.Addr()
 	}
 	ui.Row(c).Height(46).Padding(0, 14).Gap(10).AlignItems(ui.Center).Children(func() {
 		ui.Box(c).Size(8, 8).Radius(4).Background(dot)
-		ui.Text(c, label).FontSize(12).TextColor(t.TextMuted)
+		ui.Text(c, label).FontSize(12).TextColor(t.TextMuted).SingleLine()
 		ui.Spacer(c)
 		if ui.SearchField(c, &a.query).Width(240).Changed() {
 			a.applyFilter()
@@ -678,6 +728,9 @@ func (a *app) toolbar(c *ui.Context, t *ui.Theme) {
 				a.openSession()
 			}
 		})
+		if ui.Button(c, "Compose").Clicked() {
+			a.openCompose()
+		}
 		if ui.Button(c, "Latest").Clicked() && len(a.visible) > 0 {
 			a.picked = len(a.visible) - 1
 		}
@@ -704,7 +757,7 @@ func (a *app) toolbar(c *ui.Context, t *ui.Theme) {
 func (a *app) sidebar(c *ui.Context) {
 	t := c.Theme()
 	ui.Column(c).Fill().Background(t.Surface).Children(func() {
-		ui.Sidebar(c, &a.filter, func() {
+		chosen := ui.Sidebar(c, &a.filter, func() {
 			ui.SidebarSection(c, "Traffic", &a.trafficOpen, func() {
 				ui.SidebarItem(c, "all", nil, "All requests")
 				ui.SidebarItem(c, "errors", nil, "Errors").Children(func() {
@@ -721,7 +774,19 @@ func (a *app) sidebar(c *ui.Context) {
 					})
 				}
 			})
-		}).Fill().Changed()
+			if len(a.clients) > 0 {
+				ui.SidebarSection(c, "Clients", &a.clientsOpen, func() {
+					for _, d := range a.clients {
+						ui.SidebarItem(c, "client:"+d.name, nil, d.name).Children(func() {
+							ui.Badge(c, fmt.Sprint(d.n))
+						})
+					}
+				})
+			}
+		}).Fill()
+		if chosen.Changed() {
+			a.applyFilter()
+		}
 	})
 }
 
@@ -745,19 +810,20 @@ func (a *app) table(c *ui.Context) {
 		return
 	}
 	cols := []ui.TableColumn{
-		{Title: "Method", Width: 84, Fixed: true},
-		{Title: "Proto", Width: 66, Fixed: true},
-		{Title: "Status", Width: 72, Fixed: true, Align: ui.End},
-		{Title: "Host", Width: 190, Fixed: true},
-		{Title: "Client", Width: 120, Fixed: true},
-		{Title: "Path"},
-		{Title: "Size", Width: 86, Align: ui.End},
-		{Title: "Time", Width: 74, Align: ui.End},
+		{ID: "method", Title: "Method", Width: 84, Fixed: true, Sortable: true},
+		{ID: "proto", Title: "Proto", Width: 66, Fixed: true, Sortable: true},
+		{ID: "status", Title: "Status", Width: 72, Fixed: true, Align: ui.End, Sortable: true},
+		{ID: "host", Title: "Host", Width: 190, Fixed: true, Sortable: true},
+		{ID: "client", Title: "Client", Width: 120, Fixed: true, Sortable: true},
+		{ID: "path", Title: "Path", Sortable: true},
+		{ID: "size", Title: "Size", Width: 86, Align: ui.End, Sortable: true},
+		{ID: "time", Title: "Time", Width: 74, Align: ui.End, Sortable: true},
 		{Title: "", ID: "filler", Width: 14, Fixed: true},
 	}
 	state := &ui.ListState{
 		Selected: &a.picked,
 		Key:      func(row int) any { return a.flows[a.visible[row]].id },
+		Sort:     &a.sort,
 	}
 	ui.Table(c, state, cols, len(a.visible), func(row, col int) {
 		f := a.flows[a.visible[row]]
@@ -786,11 +852,14 @@ func (a *app) table(c *ui.Context) {
 			}
 			text(fmt.Sprint(f.status)).TextColor(color)
 		case 3:
-			text(f.host).TextColor(rowColor(chosen, t, t.Text))
+			text(f.host).ContextMenu(a.rowMenu(c, f)).TextColor(rowColor(chosen, t, t.Text))
 		case 4:
-			text(f.process).TextColor(rowColor(chosen, t, t.TextMuted))
+			if src, ok := a.clientIcon(f.process); ok {
+				ui.Image(c, src).Size(16, 16)
+			}
+			text(f.process).Padding(0, 0, 0, 6).ContextMenu(a.rowMenu(c, f)).TextColor(rowColor(chosen, t, t.TextMuted))
 		case 5:
-			text(f.path).TextColor(rowColor(chosen, t, t.Text))
+			text(f.path).ContextMenu(a.rowMenu(c, f)).TextColor(rowColor(chosen, t, t.Text))
 		case 6:
 			text(humanBytes(f.bytes)).TextColor(rowColor(chosen, t, t.TextMuted))
 		case 7:
@@ -967,5 +1036,237 @@ func main() {
 	})
 	if err := mygo.App.Run(); err != nil {
 		log.Fatal(err)
+	}
+}
+
+// clientIcon returns the app's icon, loading it the first time it is asked
+// for. A process with no icon gets none.
+func (a *app) clientIcon(process string) (ui.ImageSource, bool) {
+	if process == "" {
+		return nil, false
+	}
+	if src, ok := a.icons[process]; ok {
+		return src, src != nil
+	}
+	src := loadIcon(process)
+	a.icons[process] = src
+	return src, src != nil
+}
+
+// loadIcon reads the icon file of a process: an SVG as an SVG, anything else
+// as a bitmap.
+func loadIcon(process string) ui.ImageSource {
+	path := appicon.Lookup(process)
+	if path == "" {
+		return nil
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil
+	}
+	if strings.HasSuffix(path, ".svg") {
+		svg, err := ui.ParseSVG(data)
+		if err != nil {
+			return nil
+		}
+		return svg
+	}
+	bmp, err := ui.DecodeBitmap(data)
+	if err != nil {
+		return nil
+	}
+	return bmp
+}
+
+// rowMenu is the context menu of a flow's row: what a captured request is
+// worth once it leaves the table.
+func (a *app) rowMenu(c *ui.Context, f flow) func(*ui.Menu) {
+	services := c.Services()
+	return func(m *ui.Menu) {
+		if m.Item("Copy URL").Chosen() {
+			services.WriteClipboard(f.url)
+			a.setMessage("Copied URL")
+		}
+		if m.Item("Copy as cURL").Chosen() {
+			services.WriteClipboard(curlCommand(f))
+			a.setMessage("Copied cURL command")
+		}
+		if f.kind == "" && f.url != "" && m.Item("Open in browser").Chosen() {
+			services.OpenURL(f.url)
+		}
+		if f.resBody != "" && m.Item("Copy response body").Chosen() {
+			services.WriteClipboard(f.body(true))
+			a.setMessage("Copied response body")
+		}
+		m.Separator()
+		if m.Item("Edit in Compose").Chosen() {
+			a.composeFrom(f)
+		}
+		if m.Item("Replay").Chosen() {
+			go a.replay(f)
+		}
+	}
+}
+
+// openCompose shows the request editor with an empty request.
+func (a *app) openCompose() {
+	a.composeMethod = "GET"
+	a.composeURL = "https://"
+	a.composeHeaders = ""
+	a.composeBody = ""
+	a.composeOpen = true
+}
+
+// composeFrom fills the request editor with a captured request, the step from
+// traffic to a request worth keeping.
+func (a *app) composeFrom(f flow) {
+	a.composeMethod = cmp.Or(f.method, "GET")
+	a.composeURL = f.url
+	a.composeHeaders = headerBlock(f.reqHeader)
+	a.composeBody = f.body(false)
+	a.composeOpen = true
+}
+
+// headerBlock writes headers the way the editor takes them back.
+func headerBlock(h http.Header) string {
+	var b strings.Builder
+	for _, key := range slices.Sorted(maps.Keys(h)) {
+		for _, value := range h[key] {
+			b.WriteString(key + ": " + value + "\n")
+		}
+	}
+	return strings.TrimSuffix(b.String(), "\n")
+}
+
+// parseHeaderBlock reads the editor's headers, one "Key: Value" per line.
+func parseHeaderBlock(text string) http.Header {
+	h := http.Header{}
+	for _, line := range strings.Split(text, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		key, value, ok := strings.Cut(line, ":")
+		if !ok {
+			continue
+		}
+		key = strings.TrimSpace(key)
+		if key == "" {
+			continue
+		}
+		h.Add(key, strings.TrimSpace(value))
+	}
+	return h
+}
+
+// composeModal draws the request editor and sends what it holds through the
+// proxy.
+func (a *app) composeModal(c *ui.Context, t *ui.Theme) {
+	if !a.composeOpen {
+		return
+	}
+	ui.Modal(c, &a.composeOpen, func() {
+		ui.Column(c).Width(640).Gap(10).Children(func() {
+			ui.Text(c, "Compose").FontSize(14).Bold()
+			ui.Row(c).Gap(8).Children(func() {
+				ui.TextInput(c, &a.composeMethod).Width(90).Label("Method")
+				ui.TextInput(c, &a.composeURL).Grow(1).Label("URL")
+			})
+			ui.Text(c, "Headers").FontSize(11).TextColor(t.TextMuted)
+			ui.TextArea(c, &a.composeHeaders).Height(96).Label("Headers")
+			ui.Text(c, "Body").FontSize(11).TextColor(t.TextMuted)
+			ui.TextArea(c, &a.composeBody).Height(160).Label("Body")
+			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
+				if ui.Button(c, "Cancel").Clicked() {
+					a.composeOpen = false
+				}
+				if ui.PrimaryButton(c, "Send").Clicked() {
+					a.sendComposed()
+				}
+			})
+		})
+	})
+}
+
+// sendComposed sends the editor's request through the proxy, so the result
+// lands in the table with the rest of the traffic.
+func (a *app) sendComposed() {
+	if a.srv == nil {
+		a.setMessage("Compose: no proxy running")
+		return
+	}
+	url := strings.TrimSpace(a.composeURL)
+	if url == "" {
+		a.setMessage("Compose: the URL is empty")
+		return
+	}
+	f := capture.Flow{
+		Method:        strings.ToUpper(strings.TrimSpace(cmp.Or(a.composeMethod, "GET"))),
+		URL:           url,
+		RequestHeader: parseHeaderBlock(a.composeHeaders),
+		RequestBody:   a.composeBody,
+	}
+	a.composeOpen = false
+	a.setMessage("Sent " + f.Method + " " + url)
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		if err := a.srv.Replay(ctx, f); err != nil {
+			a.setMessage("Compose: " + err.Error())
+		}
+	}()
+}
+
+// sortVisible orders the shown rows by the chosen column, keeping the chosen
+// flow chosen.
+func (a *app) sortVisible() {
+	if a.sort.Column == "" || len(a.visible) < 2 {
+		return
+	}
+	chosen := -1
+	if a.picked >= 0 && a.picked < len(a.visible) {
+		chosen = a.flows[a.visible[a.picked]].id
+	}
+	less := a.sortOrder()
+	slices.SortStableFunc(a.visible, less)
+	if chosen < 0 {
+		return
+	}
+	for i, at := range a.visible {
+		if a.flows[at].id == chosen {
+			a.picked = i
+			return
+		}
+	}
+}
+
+// sortOrder compares two flows by the chosen column.
+func (a *app) sortOrder() func(x, y int) int {
+	desc := a.sort.Descending
+	return func(x, y int) int {
+		fx, fy := a.flows[x], a.flows[y]
+		var c int
+		switch a.sort.Column {
+		case "method":
+			c = cmp.Compare(fx.method, fy.method)
+		case "proto":
+			c = cmp.Compare(fx.scheme, fy.scheme)
+		case "status":
+			c = cmp.Compare(fx.status, fy.status)
+		case "host":
+			c = cmp.Compare(fx.host, fy.host)
+		case "client":
+			c = cmp.Compare(fx.process, fy.process)
+		case "path":
+			c = cmp.Compare(fx.path, fy.path)
+		case "size":
+			c = cmp.Compare(fx.bytes, fy.bytes)
+		case "time":
+			c = cmp.Compare(fx.millis, fy.millis)
+		}
+		if desc {
+			return -c
+		}
+		return c
 	}
 }
