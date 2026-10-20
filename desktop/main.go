@@ -827,14 +827,14 @@ func (a *app) table(c *ui.Context) {
 			}
 			text(fmt.Sprint(f.status)).TextColor(color)
 		case 3:
-			text(f.host).TextColor(rowColor(chosen, t, t.Text))
+			text(f.host).ContextMenu(a.rowMenu(c, f)).TextColor(rowColor(chosen, t, t.Text))
 		case 4:
 			if src, ok := a.clientIcon(f.process); ok {
 				ui.Image(c, src).Size(16, 16)
 			}
-			text(f.process).Padding(0, 0, 0, 6).TextColor(rowColor(chosen, t, t.TextMuted))
+			text(f.process).Padding(0, 0, 0, 6).ContextMenu(a.rowMenu(c, f)).TextColor(rowColor(chosen, t, t.TextMuted))
 		case 5:
-			text(f.path).TextColor(rowColor(chosen, t, t.Text))
+			text(f.path).ContextMenu(a.rowMenu(c, f)).TextColor(rowColor(chosen, t, t.Text))
 		case 6:
 			text(humanBytes(f.bytes)).TextColor(rowColor(chosen, t, t.TextMuted))
 		case 7:
@@ -1051,4 +1051,31 @@ func loadIcon(process string) ui.ImageSource {
 		return nil
 	}
 	return bmp
+}
+
+// rowMenu is the context menu of a flow's row: what a captured request is
+// worth once it leaves the table.
+func (a *app) rowMenu(c *ui.Context, f flow) func(*ui.Menu) {
+	services := c.Services()
+	return func(m *ui.Menu) {
+		if m.Item("Copy URL").Chosen() {
+			services.WriteClipboard(f.url)
+			a.setMessage("Copied URL")
+		}
+		if m.Item("Copy as cURL").Chosen() {
+			services.WriteClipboard(curlCommand(f))
+			a.setMessage("Copied cURL command")
+		}
+		if f.kind == "" && f.url != "" && m.Item("Open in browser").Chosen() {
+			services.OpenURL(f.url)
+		}
+		if f.resBody != "" && m.Item("Copy response body").Chosen() {
+			services.WriteClipboard(f.body(true))
+			a.setMessage("Copied response body")
+		}
+		m.Separator()
+		if m.Item("Replay").Chosen() {
+			go a.replay(f)
+		}
+	}
 }
