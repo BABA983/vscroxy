@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/baba983/vscroxy/desktop/internal/capture"
+	"github.com/baba983/vscroxy/desktop/internal/system"
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/editor"
@@ -166,11 +167,75 @@ func (a *app) reloadConfig() {
 // setMessage records a short status line, from any goroutine.
 func (a *app) setMessage(msg string) {
 	a.mu.Lock()
-	a.message = msg
+	a.message = clamp(msg, 72)
 	a.mu.Unlock()
 	if a.win != nil {
 		a.win.Invalidate()
 	}
+}
+
+// clamp keeps a status message on one line.
+func clamp(msg string, max int) string {
+	r := []rune(msg)
+	if len(r) <= max {
+		return msg
+	}
+	return string(r[:max-1]) + "…"
+}
+
+// setSystemProxy turns the machine's proxy on or off. The platform helpers
+// may block on a password prompt, so they run off the UI thread.
+func (a *app) setSystemProxy(on bool) {
+	go func() {
+		var err error
+		if on {
+			err = system.SetProxy(system.ProxyAddr)
+		} else {
+			err = system.ClearProxy()
+		}
+		if err != nil {
+			a.setMessage("System proxy: " + err.Error())
+			return
+		}
+		if on {
+			a.setMessage("System proxy: " + system.ProxyAddr)
+		} else {
+			a.setMessage("System proxy: off")
+		}
+	}()
+}
+
+// installCA trusts the CA that the proxy uses to sign intercepted TLS.
+func (a *app) installCA() {
+	if a.caPath == "" {
+		a.setMessage("Certificate: no path known")
+		return
+	}
+	path := a.caPath
+	go func() {
+		if _, err := os.Stat(path); err != nil {
+			a.setMessage("Certificate not found; capture one request first")
+			return
+		}
+		if err := system.InstallCA(path); err != nil {
+			a.setMessage("Install certificate: " + err.Error())
+			return
+		}
+		a.setMessage("Certificate trusted")
+	}()
+}
+
+func (a *app) revealCA() {
+	if a.caPath == "" {
+		a.setMessage("Certificate: no path known")
+		return
+	}
+	path := a.caPath
+	go func() {
+		if err := system.RevealCA(path); err != nil {
+			a.setMessage("Reveal certificate: " + err.Error())
+		}
+	}()
 }
 
 // replay sends the flow's request again through the proxy, so the result is
@@ -567,6 +632,21 @@ func (a *app) toolbar(c *ui.Context, t *ui.Theme) {
 				}
 				a.upstream = ""
 				a.setMessage("Upstream: off")
+			}
+		})
+		ui.MenuButton(c, "System", func(m *ui.Menu) {
+			if m.Item("Enable system proxy").Chosen() {
+				a.setSystemProxy(true)
+			}
+			if m.Item("Disable system proxy").Chosen() {
+				a.setSystemProxy(false)
+			}
+			m.Separator()
+			if m.Item("Install certificate…").Chosen() {
+				a.installCA()
+			}
+			if m.Item("Reveal certificate").Chosen() {
+				a.revealCA()
 			}
 		})
 		if ui.Button(c, "Reload config").Clicked() {

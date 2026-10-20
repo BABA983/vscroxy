@@ -44,6 +44,8 @@ go tool mygo dev
   formatting helpers.
 - `internal/capture`: the MITM proxy and the `Flow` boundary type. The UI
   imports this package, never the engine.
+- `internal/system`: the per-platform proxy and trust-store helpers behind the
+  System menu.
 - `mygo.json`: the app's name, identifier and version for `mygo package`.
 
 The layout is the Proxyman one: filters and domains on the left, the request
@@ -158,8 +160,31 @@ Select a flow and press **Replay**: the request goes out again through the
 proxy, so the new exchange is captured like any other and can be diffed
 against the original (same method, scheme and URL).
 
+## System proxy and certificate
+
+The **System** menu points the machine at the proxy and installs the CA, so a
+client needs no manual setup:
+
+- **Enable system proxy** sets the proxy to `127.0.0.1:7890`; **Disable system
+  proxy** turns it off again. Linux writes the GNOME proxy settings with
+  `gsettings`, macOS sets every enabled service with `networksetup`, Windows
+  writes the per-user WinINet settings with `reg`.
+- **Install certificate…** trusts `~/.mitmproxy/mitmproxy-ca-cert.pem`. Linux
+  copies it to `/usr/local/share/ca-certificates` and runs
+  `update-ca-certificates` through `pkexec`; macOS adds it to the System
+  keychain through `osascript` with an admin prompt; Windows runs
+  `certutil -addstore Root`, which needs an elevated process.
+- **Reveal certificate** opens the folder that holds the CA, for clients that
+  want the file itself.
+
+Each helper runs off the UI thread because the platform may prompt for a
+password, and its result lands in the status bar. A helper that is missing or
+lacks permission reports the command to run instead of failing silently. The
+CA exists only after the first HTTPS exchange, so install it after capturing
+one request.
+
 ## Next
 
 - Image and rendered HTML previews, and bodies spilled to disk instead of
   held in memory.
-- The system proxy and certificate helpers, and app attribution.
+- App attribution: which process a connection came from.
