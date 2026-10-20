@@ -16,6 +16,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/baba983/vscroxy/desktop/internal/appicon"
 	"github.com/baba983/vscroxy/desktop/internal/capture"
 	"github.com/baba983/vscroxy/desktop/internal/system"
 	"github.com/egoist/mygo"
@@ -32,6 +33,7 @@ type app struct {
 	flows   []flow
 	visible []int
 	domains []domain
+	clients []domain
 
 	query  string
 	filter string
@@ -43,6 +45,11 @@ type app struct {
 
 	trafficOpen bool
 	domainsOpen bool
+	clientsOpen bool
+
+	// icons caches the app icon per process name; a nil entry means the
+	// process has none.
+	icons map[string]ui.ImageSource
 
 	// detailFor is the flow the detail panes were built from, so the text and
 	// the diff buffers are rebuilt only when the choice changes.
@@ -117,10 +124,12 @@ type frame struct {
 func newApp() *app {
 	a := &app{
 		filter:       "all",
+		icons:        make(map[string]ui.ImageSource),
 		sidebarWidth: 220,
 		tablePercent: 62,
 		trafficOpen:  true,
 		domainsOpen:  true,
+		clientsOpen:  true,
 		detailFor:    -1,
 		frames:       make(map[int][]frame),
 		throttle:     capture.Presets[0],
@@ -141,6 +150,7 @@ func newApp() *app {
 		a.reloadConfig()
 	}
 	a.countDomains()
+	a.countClients()
 	a.applyFilter()
 	return a
 }
@@ -428,11 +438,27 @@ func (a *app) drain() {
 		a.detailFor = -1
 	}
 	a.countDomains()
+	a.countClients()
 	a.applyFilter()
 	if a.srv != nil {
 		a.dropped = a.srv.Dropped()
 		a.scriptErrs = a.srv.ScriptErrors()
 	}
+}
+
+// countClients counts the flows per app, the Clients section of the sidebar.
+func (a *app) countClients() {
+	counts := make(map[string]int, len(a.flows))
+	for _, f := range a.flows {
+		if f.process != "" {
+			counts[f.process]++
+		}
+	}
+	a.clients = a.clients[:0]
+	for name, n := range counts {
+		a.clients = append(a.clients, domain{name: name, n: n})
+	}
+	slices.SortFunc(a.clients, func(x, y domain) int { return cmp.Compare(y.n, x.n) })
 }
 
 func (a *app) countDomains() {
@@ -460,6 +486,9 @@ func (a *app) applyFilter() {
 			continue
 		}
 		if host, ok := strings.CutPrefix(a.filter, "host:"); ok && f.host != host {
+			continue
+		}
+		if client, ok := strings.CutPrefix(a.filter, "client:"); ok && f.process != client {
 			continue
 		}
 		if q != "" && !strings.Contains(strings.ToLower(f.host+f.path), q) {
@@ -704,7 +733,7 @@ func (a *app) toolbar(c *ui.Context, t *ui.Theme) {
 func (a *app) sidebar(c *ui.Context) {
 	t := c.Theme()
 	ui.Column(c).Fill().Background(t.Surface).Children(func() {
-		ui.Sidebar(c, &a.filter, func() {
+		chosen := ui.Sidebar(c, &a.filter, func() {
 			ui.SidebarSection(c, "Traffic", &a.trafficOpen, func() {
 				ui.SidebarItem(c, "all", nil, "All requests")
 				ui.SidebarItem(c, "errors", nil, "Errors").Children(func() {
@@ -721,7 +750,19 @@ func (a *app) sidebar(c *ui.Context) {
 					})
 				}
 			})
-		}).Fill().Changed()
+			if len(a.clients) > 0 {
+				ui.SidebarSection(c, "Clients", &a.clientsOpen, func() {
+					for _, d := range a.clients {
+						ui.SidebarItem(c, "client:"+d.name, nil, d.name).Children(func() {
+							ui.Badge(c, fmt.Sprint(d.n))
+						})
+					}
+				})
+			}
+		}).Fill()
+		if chosen.Changed() {
+			a.applyFilter()
+		}
 	})
 }
 
@@ -788,7 +829,10 @@ func (a *app) table(c *ui.Context) {
 		case 3:
 			text(f.host).TextColor(rowColor(chosen, t, t.Text))
 		case 4:
-			text(f.process).TextColor(rowColor(chosen, t, t.TextMuted))
+			if src, ok := a.clientIcon(f.process); ok {
+				ui.Image(c, src).Size(16, 16)
+			}
+			text(f.process).Padding(0, 0, 0, 6).TextColor(rowColor(chosen, t, t.TextMuted))
 		case 5:
 			text(f.path).TextColor(rowColor(chosen, t, t.Text))
 		case 6:
@@ -968,4 +1012,43 @@ func main() {
 	if err := mygo.App.Run(); err != nil {
 		log.Fatal(err)
 	}
+}
+
+// clientIcon returns the app's icon, loading it the first time it is asked
+// for. A process with no icon gets none.
+func (a *app) clientIcon(process string) (ui.ImageSource, bool) {
+	if process == "" {
+		return nil, false
+	}
+	if src, ok := a.icons[process]; ok {
+		return src, src != nil
+	}
+	src := loadIcon(process)
+	a.icons[process] = src
+	return src, src != nil
+}
+
+// loadIcon reads the icon file of a process: an SVG as an SVG, anything else
+// as a bitmap.
+func loadIcon(process string) ui.ImageSource {
+	path := appicon.Lookup(process)
+	if path == "" {
+		return nil
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil
+	}
+	if strings.HasSuffix(path, ".svg") {
+		svg, err := ui.ParseSVG(data)
+		if err != nil {
+			return nil
+		}
+		return svg
+	}
+	bmp, err := ui.DecodeBitmap(data)
+	if err != nil {
+		return nil
+	}
+	return bmp
 }
