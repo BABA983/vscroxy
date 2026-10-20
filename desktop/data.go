@@ -5,6 +5,7 @@ import (
 	"math/rand"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -56,6 +57,26 @@ func (f flow) body(response bool) string {
 		return string(data[:maxBodyView]) + fmt.Sprintf("\n\n… truncated: %d of %d bytes shown", maxBodyView, size)
 	}
 	return string(data)
+}
+
+// contentType is the media type of the body on the side shown, taken from the
+// structured headers or the formatted block.
+func (f flow) contentType(response bool) string {
+	h, block := f.reqHeader, f.reqHeaders
+	if response {
+		h, block = f.respHeader, f.resHeaders
+	}
+	ct := h.Get("Content-Type")
+	if ct == "" {
+		for _, line := range strings.Split(block, "\n") {
+			if name, value, ok := strings.Cut(line, ": "); ok && strings.EqualFold(name, "Content-Type") {
+				ct = value
+				break
+			}
+		}
+	}
+	ct, _, _ = strings.Cut(ct, ";")
+	return strings.ToLower(strings.TrimSpace(ct))
 }
 
 var (

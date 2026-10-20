@@ -21,6 +21,7 @@ import (
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/editor"
+	"github.com/egoist/mygo/ui/richtext"
 )
 
 // maxFlows bounds what the UI keeps; older flows are dropped from the front.
@@ -52,8 +53,16 @@ type app struct {
 	diff      *editor.DiffState
 	frames    map[int][]frame
 
-	bodySide     int
-	bodyMode     int
+	bodySide int
+	bodyMode int
+
+	// htmlDoc and imageBmp cache the preview of the body shown, so a frame
+	// does not parse or decode it again.
+	htmlDoc      *richtext.Document
+	htmlFor      string
+	imageBmp     *ui.Bitmap
+	imageFor     string
+	imageErr     string
 	bodyQuery    string
 	jsonRoots    []*jsonNode
 	jsonExpanded map[string]bool
