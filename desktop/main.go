@@ -58,7 +58,9 @@ type app struct {
 	trafficOpen bool
 	domainsOpen bool
 	clientsOpen bool
-	savedOpen   bool
+	// collectionOpen keeps each saved collection's section open or shut,
+	// by name, the empty name for the requests outside one.
+	collectionOpen map[string]*bool
 
 	// icons caches the app icon per process name; a nil entry means the
 	// process has none.
@@ -132,12 +134,13 @@ type app struct {
 
 	// compose is the request being written: what Compose sends through the
 	// proxy so the exchange is captured like any other.
-	composeOpen    bool
-	composeName    string
-	composeMethod  string
-	composeURL     string
-	composeHeaders string
-	composeBody    string
+	composeOpen       bool
+	composeName       string
+	composeCollection string
+	composeMethod     string
+	composeURL        string
+	composeHeaders    string
+	composeBody       string
 
 	breakOn  bool
 	bp       *capture.Breakpoint
@@ -171,17 +174,17 @@ type frame struct {
 
 func newApp() *app {
 	a := &app{
-		filter:       "all",
-		icons:        make(map[string]ui.ImageSource),
-		sidebarWidth: 220,
-		tablePercent: 62,
-		trafficOpen:  true,
-		domainsOpen:  true,
-		clientsOpen:  true,
-		savedOpen:    true,
-		detailFor:    -1,
-		frames:       make(map[int][]frame),
-		throttle:     capture.Presets[0],
+		filter:         "all",
+		icons:          make(map[string]ui.ImageSource),
+		sidebarWidth:   220,
+		tablePercent:   62,
+		trafficOpen:    true,
+		domainsOpen:    true,
+		clientsOpen:    true,
+		collectionOpen: make(map[string]*bool),
+		detailFor:      -1,
+		frames:         make(map[int][]frame),
+		throttle:       capture.Presets[0],
 	}
 	srv, err := capture.New("127.0.0.1:7890", "")
 	if err != nil {
@@ -852,6 +855,13 @@ func (a *app) toolbar(c *ui.Context, t *ui.Theme) {
 			if m.Item("Open session…").Chosen() {
 				a.openSession()
 			}
+			m.Separator()
+			if m.Item("Export requests…").Chosen() {
+				a.exportRequests()
+			}
+			if m.Item("Import requests…").Chosen() {
+				a.importRequests()
+			}
 		})
 		if ui.Button(c, "Compose").Clicked() {
 			a.openCompose()
@@ -914,11 +924,18 @@ func (a *app) sidebar(c *ui.Context) {
 				}
 			})
 			if len(a.requests) > 0 {
-				ui.SidebarSection(c, "Saved", &a.savedOpen, func() {
-					for _, r := range a.requests {
-						ui.SidebarItem(c, "saved:"+r.Name, nil, r.Name)
+				groups := groupRequests(a.requests)
+				for _, name := range slices.Sorted(maps.Keys(groups)) {
+					label := name
+					if label == "" {
+						label = "Saved"
 					}
-				})
+					ui.SidebarSection(c, label, a.collectionShown(name), func() {
+						for _, r := range groups[name] {
+							ui.SidebarItem(c, "saved:"+r.Collection+"/"+r.Name, nil, r.Name)
+						}
+					})
+				}
 			}
 			if len(a.clients) > 0 {
 				ui.SidebarSection(c, "Apps", &a.clientsOpen, func() {
@@ -931,8 +948,9 @@ func (a *app) sidebar(c *ui.Context) {
 			}
 		}).Fill()
 		if chosen.Changed() {
-			if name, ok := strings.CutPrefix(a.filter, "saved:"); ok {
-				a.openSaved(name)
+			if key, ok := strings.CutPrefix(a.filter, "saved:"); ok {
+				collection, name, _ := strings.Cut(key, "/")
+				a.openSaved(collection, name)
 				a.filter = "all"
 			} else {
 				a.applyFilter()
@@ -1308,6 +1326,7 @@ func (a *app) rowMenu(c *ui.Context, f flow) func(*ui.Menu) {
 // openCompose shows the request editor with an empty request.
 func (a *app) openCompose() {
 	a.composeName = ""
+	a.composeCollection = ""
 	a.composeMethod = "GET"
 	a.composeURL = "https://"
 	a.composeHeaders = ""
@@ -1319,6 +1338,7 @@ func (a *app) openCompose() {
 // traffic to a request worth keeping.
 func (a *app) composeFrom(f flow) {
 	a.composeName = ""
+	a.composeCollection = ""
 	a.composeMethod = cmp.Or(f.method, "GET")
 	a.composeURL = f.url
 	a.composeHeaders = headerBlock(f.reqHeader)
@@ -1367,7 +1387,10 @@ func (a *app) composeModal(c *ui.Context, t *ui.Theme) {
 	ui.Modal(c, &a.composeOpen, func() {
 		ui.Column(c).Width(640).Gap(10).Children(func() {
 			ui.Text(c, "Compose").FontSize(14).Bold()
-			ui.TextInput(c, &a.composeName).Label("Name")
+			ui.Row(c).Gap(8).Children(func() {
+				ui.TextInput(c, &a.composeName).Grow(1).Placeholder("Name").Label("Name")
+				ui.TextInput(c, &a.composeCollection).Width(200).Placeholder("Collection").Label("Collection")
+			})
 			ui.Row(c).Gap(8).Children(func() {
 				ui.TextInput(c, &a.composeMethod).Width(90).Label("Method")
 				ui.TextInput(c, &a.composeURL).Grow(1).Label("URL")
@@ -1554,11 +1577,12 @@ func (a *app) saveComposed() {
 		return
 	}
 	r := savedRequest{
-		Name:    name,
-		Method:  strings.ToUpper(strings.TrimSpace(cmp.Or(a.composeMethod, "GET"))),
-		URL:     strings.TrimSpace(a.composeURL),
-		Headers: a.composeHeaders,
-		Body:    a.composeBody,
+		Name:       name,
+		Collection: strings.TrimSpace(a.composeCollection),
+		Method:     strings.ToUpper(strings.TrimSpace(cmp.Or(a.composeMethod, "GET"))),
+		URL:        strings.TrimSpace(a.composeURL),
+		Headers:    a.composeHeaders,
+		Body:       a.composeBody,
 	}
 	a.requests = upsertRequest(a.requests, r)
 	if a.settingsPath != "" {
@@ -1592,12 +1616,13 @@ func (a *app) saveComposed() {
 }
 
 // openSaved fills the request editor from a saved request.
-func (a *app) openSaved(name string) {
+func (a *app) openSaved(collection, name string) {
 	for _, r := range a.requests {
-		if r.Name != name {
+		if r.Name != name || r.Collection != collection {
 			continue
 		}
 		a.composeName = r.Name
+		a.composeCollection = r.Collection
 		a.composeMethod = cmp.Or(r.Method, "GET")
 		a.composeURL = r.URL
 		a.composeHeaders = r.Headers
@@ -1773,3 +1798,70 @@ func (a *app) togglePin(f flow) {
 
 // pinIcon marks a pinned flow in the table.
 var pinIcon = ui.MustParseSVG([]byte(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M10.3 1.2 14.8 5.7 13.2 7.3 11.4 7.1 8.8 9.7 9 11.5 7.6 12.9 3.1 8.4 4.5 7 6.3 7.2 8.9 4.6 8.7 2.8z"/></svg>`))
+
+// collectionShown returns the open state of a collection's section, making it
+// open the first time it is drawn.
+func (a *app) collectionShown(name string) *bool {
+	if open, ok := a.collectionOpen[name]; ok {
+		return open
+	}
+	open := true
+	a.collectionOpen[name] = &open
+	return &open
+}
+
+// exportRequests writes the saved requests to a file the user picks.
+func (a *app) exportRequests() {
+	list := slices.Clone(a.requests)
+	go func() {
+		path, err := mygo.Dialog.Save(mygo.SaveDialogOptions{
+			Title:       "Export requests",
+			DefaultPath: "vscroxy-requests.json",
+			Filters:     []mygo.FileFilter{{Name: "Requests", Extensions: []string{"json"}}},
+		})
+		if err != nil || path == "" {
+			return
+		}
+		if err := saveRequests(path, list); err != nil {
+			a.setMessage("Export requests: " + err.Error())
+			return
+		}
+		a.setMessage(fmt.Sprintf("Exported %d requests to %s", len(list), path))
+	}()
+}
+
+// importRequests adds the requests of a file the user picks, keeping the ones
+// already saved.
+func (a *app) importRequests() {
+	go func() {
+		paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{
+			Title:   "Import requests",
+			Filters: []mygo.FileFilter{{Name: "Requests", Extensions: []string{"json"}}},
+		})
+		if err != nil || len(paths) == 0 {
+			return
+		}
+		path := paths[0]
+		list, err := loadRequests(path)
+		if err != nil {
+			a.setMessage("Import requests: " + err.Error())
+			return
+		}
+		a.win.Update(func() {
+			for _, r := range list {
+				if r.Name != "" {
+					a.requests = upsertRequest(a.requests, r)
+				}
+			}
+			if a.requestsPath != "" {
+				if err := os.MkdirAll(filepath.Dir(a.requestsPath), 0o755); err == nil {
+					if err := saveRequests(a.requestsPath, a.requests); err != nil {
+						a.setMessage("Import requests: " + err.Error())
+						return
+					}
+				}
+			}
+			a.setMessage(fmt.Sprintf("Imported %d requests", len(list)))
+		})
+	}()
+}

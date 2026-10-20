@@ -208,8 +208,9 @@ editor with what was captured, the step from traffic to a request worth
 keeping.
 
 **Save** keeps the editor's request under its name in
-`~/.vscroxy/requests.json`, replacing one of the same name; the sidebar's
-**Saved** section opens it back in the editor.
+`~/.vscroxy/requests.json`, replacing one of the same name in the same
+collection; the sidebar groups the saved requests by collection, and the
+**Session** menu exports and imports them as a file.
 
 ## Timing
 
