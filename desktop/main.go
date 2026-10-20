@@ -66,9 +66,13 @@ type app struct {
 	scriptPath string
 	rules      []capture.Rule
 	throttle   capture.Throttle
+	upstream   string
 	errText    string
 	dropped    int64
 	scriptErrs int64
+
+	upstreamOpen bool
+	upstreamAddr string
 
 	breakOn  bool
 	bp       *capture.Breakpoint
@@ -458,6 +462,36 @@ func (a *app) view(c *ui.Context) {
 		a.statusBar(c, t)
 	})
 	a.breakpointModal(c, t)
+	a.upstreamModal(c, t)
+}
+
+// upstreamModal edits the proxy every request goes through.
+func (a *app) upstreamModal(c *ui.Context, t *ui.Theme) {
+	if !a.upstreamOpen {
+		return
+	}
+	ui.Modal(c, &a.upstreamOpen, func() {
+		ui.Column(c).Width(480).Gap(10).Children(func() {
+			ui.Text(c, "Upstream proxy").FontSize(14).Bold()
+			ui.TextInput(c, &a.upstreamAddr).Placeholder("http://127.0.0.1:8080").Label("Address")
+			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
+				if ui.Button(c, "Cancel").Clicked() {
+					a.upstreamOpen = false
+				}
+				if ui.PrimaryButton(c, "Save").Clicked() {
+					if a.srv != nil {
+						if err := a.srv.SetUpstream(strings.TrimSpace(a.upstreamAddr)); err != nil {
+							a.setMessage("Upstream: " + err.Error())
+						} else {
+							a.upstream = a.srv.Upstream()
+							a.setMessage("Upstream: " + cmp.Or(a.upstream, "off"))
+						}
+					}
+					a.upstreamOpen = false
+				}
+			})
+		})
+	})
 }
 
 // breakpointModal edits the request the proxy paused, and lets it continue.
@@ -521,6 +555,18 @@ func (a *app) toolbar(c *ui.Context, t *ui.Theme) {
 						a.srv.SetThrottle(preset)
 					}
 				}
+			}
+			m.Separator()
+			if m.Item("Upstream…").Chosen() {
+				a.upstreamAddr = a.upstream
+				a.upstreamOpen = true
+			}
+			if m.Item("Upstream off").Chosen() {
+				if a.srv != nil {
+					_ = a.srv.SetUpstream("")
+				}
+				a.upstream = ""
+				a.setMessage("Upstream: off")
 			}
 		})
 		if ui.Button(c, "Reload config").Clicked() {
@@ -734,6 +780,9 @@ func (a *app) statusBar(c *ui.Context, t *ui.Theme) {
 		ui.Spacer(c)
 		if a.throttle.Name != "" && a.throttle.Name != "Off" {
 			ui.Text(c, "Network: "+a.throttle.Name).FontSize(11).TextColor(t.TextMuted)
+		}
+		if a.upstream != "" {
+			ui.Text(c, "Upstream: "+a.upstream).FontSize(11).TextColor(t.TextMuted)
 		}
 		if len(a.rules) > 0 {
 			ui.Text(c, fmt.Sprintf("%d rules", len(a.rules))).FontSize(11).TextColor(t.TextMuted)

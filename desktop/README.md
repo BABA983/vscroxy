@@ -129,6 +129,11 @@ The throttle paces both directions and adds the preset's latency; a flow's
 time includes the transfer it will take, so it matches what the client sees.
 **Off** leaves traffic alone.
 
+**Network → Upstream…** sends every request through another proxy, such as
+`http://127.0.0.1:8080`; **Upstream off** clears it. The engine tunnels to the
+upstream with CONNECT, so HTTPS targets chain through it; a plain HTTP target
+depends on the upstream accepting CONNECT to port 80.
+
 ## Export and sessions
 
 The **Session** menu exports a HAR 1.2 file (HTTP flows; WebSocket and SSE
@@ -157,4 +162,4 @@ against the original (same method, scheme and URL).
 
 - Image and rendered HTML previews, and bodies spilled to disk instead of
   held in memory.
-- An upstream proxy, and the system proxy and certificate helpers.
+- The system proxy and certificate helpers, and app attribution.

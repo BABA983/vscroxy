@@ -186,6 +186,8 @@ type Server struct {
 	throttleMu sync.RWMutex
 	throttle   Throttle
 
+	upstream atomic.Value // string
+
 	breakOn     atomic.Bool
 	bpNext      atomic.Int64
 	bpMu        sync.Mutex
@@ -219,6 +221,13 @@ func New(addr, caRootPath string) (*Server, error) {
 		return nil, err
 	}
 	p.AddAddon(&addon{server: s})
+	p.SetUpstreamProxy(func(*http.Request) (*url.URL, error) {
+		raw, _ := s.upstream.Load().(string)
+		if raw == "" {
+			return nil, nil
+		}
+		return url.Parse(raw)
+	})
 	s.proxy = p
 	return s, nil
 }
@@ -257,6 +266,31 @@ func (s *Server) currentScript() *Script {
 	s.scriptMu.RLock()
 	defer s.scriptMu.RUnlock()
 	return s.script
+}
+
+// SetUpstream sends every request through another proxy, as an empty string
+// turns that off. The address needs a scheme and a host, such as
+// http://127.0.0.1:8080.
+func (s *Server) SetUpstream(raw string) error {
+	if raw == "" {
+		s.upstream.Store("")
+		return nil
+	}
+	u, err := url.Parse(raw)
+	if err != nil {
+		return err
+	}
+	if u.Scheme == "" || u.Host == "" {
+		return fmt.Errorf("upstream %q needs a scheme and a host", raw)
+	}
+	s.upstream.Store(u.String())
+	return nil
+}
+
+// Upstream is the proxy every request goes through, or empty.
+func (s *Server) Upstream() string {
+	raw, _ := s.upstream.Load().(string)
+	return raw
 }
 
 // ScriptErrors counts the hooks that failed or timed out.
