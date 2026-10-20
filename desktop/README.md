@@ -173,6 +173,10 @@ after decrypting a domain.
 proxying them, for the traffic a browser makes that no one reads. The list is
 kept in `~/.vscroxy/ignore.txt` and matched like the SSL list.
 
+**Ignored apps…** does the same by app, with the names the **Apps** section
+shows, in `~/.vscroxy/ignore-apps.txt`: a browser's background traffic stays
+out of the table while another app's does not.
+
 ## Export and sessions
 
 The **Session** menu exports a HAR 1.2 file (HTTP flows; WebSocket and SSE

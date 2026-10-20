@@ -128,6 +128,11 @@ type app struct {
 	ignoreText string
 	ignoreOpen bool
 
+	// ignoreApps does the same by app, for a browser's background traffic.
+	ignoreAppsPath string
+	ignoreAppsText string
+	ignoreAppsOpen bool
+
 	// requests are the saved requests, the Compose direction's kept half.
 	requests     []savedRequest
 	requestsPath string
@@ -201,6 +206,7 @@ func newApp() *app {
 			a.requestsPath = filepath.Join(home, ".vscroxy", "requests.json")
 			a.settingsPath = filepath.Join(home, ".vscroxy", "settings.json")
 			a.ignorePath = filepath.Join(home, ".vscroxy", "ignore.txt")
+			a.ignoreAppsPath = filepath.Join(home, ".vscroxy", "ignore-apps.txt")
 			a.scriptPath = filepath.Join(home, ".vscroxy", "script.js")
 		}
 		a.reloadConfig()
@@ -236,6 +242,15 @@ func newApp() *app {
 // reloadConfig reads the rules and the script and hands them to the proxy.
 // It runs on the main thread, from startup or the Reload button.
 func (a *app) reloadConfig() {
+	if a.ignoreAppsPath != "" && a.srv != nil {
+		apps, err := capture.LoadIgnore(a.ignoreAppsPath)
+		if err != nil {
+			a.errText = err.Error()
+		} else {
+			a.srv.SetIgnoreApps(apps)
+			a.ignoreAppsText = strings.Join(apps, "\n")
+		}
+	}
 	if a.ignorePath != "" && a.srv != nil {
 		patterns, err := capture.LoadIgnore(a.ignorePath)
 		if err != nil {
@@ -687,6 +702,13 @@ func (a *app) view(c *ui.Context) {
 	a.breakpointModal(c, t)
 	a.upstreamModal(c, t)
 	a.sslModal(c, t)
+	a.hostListModal(c, t, &a.ignoreAppsOpen, "Ignored apps",
+		"Apps whose flows stay out of the table, one name per line, as the Apps section spells them. They are still proxied.",
+		a.ignoreAppsPath, &a.ignoreAppsText, func(apps []string) {
+			if a.srv != nil {
+				a.srv.SetIgnoreApps(apps)
+			}
+		})
 	a.hostListModal(c, t, &a.ignoreOpen, "Ignored hosts",
 		"Hosts whose flows stay out of the table, one per line. They are still proxied, so the client sees no difference.",
 		a.ignorePath, &a.ignoreText, func(patterns []string) {
@@ -821,6 +843,9 @@ func (a *app) toolbar(c *ui.Context, t *ui.Theme) {
 			}
 			if m.Item("Ignored hosts…").Chosen() {
 				a.ignoreOpen = true
+			}
+			if m.Item("Ignored apps…").Chosen() {
+				a.ignoreAppsOpen = true
 			}
 		})
 		ui.MenuButton(c, "System", func(m *ui.Menu) {
@@ -1532,7 +1557,7 @@ func (a *app) hostListModal(c *ui.Context, t *ui.Theme, open *bool, title, hint,
 					}
 					apply(patterns)
 					*open = false
-					a.setMessage(fmt.Sprintf("%s: %d hosts", title, len(patterns)))
+					a.setMessage(fmt.Sprintf("%s: %d", title, len(patterns)))
 				}
 			})
 		})

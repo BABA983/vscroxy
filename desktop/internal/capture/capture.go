@@ -224,6 +224,7 @@ type Server struct {
 	upstream   atomic.Value // string
 	ssl        atomic.Value // SSLConfig
 	ignoreList atomic.Value // []string
+	ignoreApps atomic.Value // []string
 
 	breakOn     atomic.Bool
 	bpNext      atomic.Int64
@@ -348,6 +349,36 @@ func (s *Server) Ignore() []string {
 // ignored reports whether host is one whose flows are dropped.
 func (s *Server) ignored(host string) bool {
 	return hostMatches(host, s.Ignore())
+}
+
+// SetIgnoreApps sets the apps whose flows the table does not show, for a
+// browser's background traffic.
+func (s *Server) SetIgnoreApps(apps []string) {
+	s.ignoreApps.Store(slices.Clone(apps))
+}
+
+// IgnoreApps lists the apps whose flows are not shown.
+func (s *Server) IgnoreApps() []string {
+	apps, _ := s.ignoreApps.Load().([]string)
+	return apps
+}
+
+// ignoredApp reports whether the flow of an app is dropped.
+func (s *Server) ignoredApp(name string) bool {
+	name = strings.ToLower(strings.TrimSpace(name))
+	if name == "" {
+		return false
+	}
+	for _, app := range s.IgnoreApps() {
+		app = strings.ToLower(strings.TrimSpace(app))
+		if app == "" || strings.HasPrefix(app, "#") {
+			continue
+		}
+		if ok, _ := path.Match(app, name); ok {
+			return true
+		}
+	}
+	return false
 }
 
 // hostMatches reports whether host matches one of the patterns: a host with
@@ -1089,6 +1120,10 @@ func (s *Server) publishFlow(f *proxy.Flow, kind string, frames []Frame, status 
 	if s.ignored(display.Hostname()) {
 		return 0
 	}
+	client := s.clientProcess(f)
+	if s.ignoredApp(client.Name) {
+		return 0
+	}
 	reqBody, reqFile, reqSize := s.keepBody(f.Id, "req", reqData)
 	size, respHeaders := 0, ""
 	respBody, respFile, respSize := "", "", 0
@@ -1156,8 +1191,8 @@ func (s *Server) publishFlow(f *proxy.Flow, kind string, frames []Frame, status 
 		At:               now,
 		Kind:             kind,
 		Frames:           clipFrames(frames),
-		Process:          s.clientProcess(f).Name,
-		ProcessPath:      s.clientProcess(f).Path,
+		Process:          client.Name,
+		ProcessPath:      client.Path,
 	}
 	s.mu.Lock()
 	if len(s.flowIDs) > 4096 {

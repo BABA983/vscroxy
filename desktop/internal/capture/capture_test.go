@@ -163,6 +163,30 @@ func TestFailedRequestShowsAnError(t *testing.T) {
 	}
 }
 
+func TestIgnoredAppsAreNotShown(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, "noise")
+	}))
+	defer upstream.Close()
+
+	s, _ := startServer(t)
+	exe, err := os.Executable()
+	if err != nil {
+		t.Fatalf("executable path: %v", err)
+	}
+	s.SetIgnoreApps([]string{filepath.Base(exe)})
+	resp, err := clientFor(t, s, nil).Get(upstream.URL + "/noise")
+	if err != nil {
+		t.Fatalf("request through proxy: %v", err)
+	}
+	_ = resp.Body.Close()
+	select {
+	case f := <-s.Flows():
+		t.Fatalf("ignored app's flow was published: %+v", f)
+	case <-time.After(300 * time.Millisecond):
+	}
+}
+
 func TestTimingSplitsWaitAndDownload(t *testing.T) {
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		time.Sleep(40 * time.Millisecond)
