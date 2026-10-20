@@ -84,6 +84,166 @@ func waitFlow(t *testing.T, s *Server) Flow {
 	}
 }
 
+func TestReplayTrustsTheProxyCA(t *testing.T) {
+	upstream := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, "replayed")
+	}))
+	defer upstream.Close()
+
+	s, caPath := startServer(t)
+	pem, err := os.ReadFile(caPath)
+	if err != nil {
+		t.Fatalf("read proxy CA: %v", err)
+	}
+	roots := x509.NewCertPool()
+	if !roots.AppendCertsFromPEM(pem) {
+		t.Fatal("proxy CA is not PEM")
+	}
+	u, err := url.Parse(upstream.URL)
+	if err != nil {
+		t.Fatalf("parse upstream url: %v", err)
+	}
+	u.Host = "localhost:" + u.Port()
+	resp, err := clientFor(t, s, roots).Get(u.String() + "/replay")
+	if err != nil {
+		t.Fatalf("request through proxy: %v", err)
+	}
+	_ = resp.Body.Close()
+	f := waitFlow(t, s)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := s.Replay(ctx, f); err != nil {
+		t.Fatalf("replay of an HTTPS flow: %v", err)
+	}
+	if again := waitFlow(t, s); again.ResponseBody != "replayed" {
+		t.Fatalf("replayed body = %q", again.ResponseBody)
+	}
+}
+
+func TestIgnoredHostsAreNotShown(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, "noise")
+	}))
+	defer upstream.Close()
+
+	s, _ := startServer(t)
+	s.SetIgnore([]string{"127.0.0.1"})
+	resp, err := clientFor(t, s, nil).Get(upstream.URL + "/noise")
+	if err != nil {
+		t.Fatalf("request through proxy: %v", err)
+	}
+	body, err := io.ReadAll(resp.Body)
+	_ = resp.Body.Close()
+	if err != nil || string(body) != "noise" {
+		t.Fatalf("body = %q, %v; want the response untouched", body, err)
+	}
+	select {
+	case f := <-s.Flows():
+		t.Fatalf("ignored flow was published: %+v", f)
+	case <-time.After(300 * time.Millisecond):
+	}
+}
+
+func TestFailedRequestShowsAnError(t *testing.T) {
+	s, _ := startServer(t)
+	dead := freeAddr(t) // reserved and released, so nothing listens there
+	resp, err := clientFor(t, s, nil).Get("http://" + dead + "/gone")
+	if err == nil {
+		_ = resp.Body.Close()
+	}
+
+	f := waitFlow(t, s)
+	if f.Status != http.StatusBadGateway {
+		t.Fatalf("status = %d, want 502", f.Status)
+	}
+	if !strings.Contains(f.ResponseBody, "vscroxy:") {
+		t.Fatalf("body = %q, want the reason", f.ResponseBody)
+	}
+}
+
+func TestTimingSplitsWaitAndDownload(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(40 * time.Millisecond)
+		_, _ = w.Write([]byte("ok"))
+	}))
+	defer upstream.Close()
+
+	s, _ := startServer(t)
+	resp, err := clientFor(t, s, nil).Get(upstream.URL + "/slow")
+	if err != nil {
+		t.Fatalf("request through proxy: %v", err)
+	}
+	_ = resp.Body.Close()
+
+	f := waitFlow(t, s)
+	if f.Wait < 20 {
+		t.Fatalf("wait = %d ms, want at least 20", f.Wait)
+	}
+	if f.Wait+f.Download != f.Millis {
+		t.Fatalf("wait %d + download %d != total %d", f.Wait, f.Download, f.Millis)
+	}
+}
+
+func TestExclusionsTunnelWithoutDecrypting(t *testing.T) {
+	upstream := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	defer upstream.Close()
+
+	s, caPath := startServer(t)
+	pem, err := os.ReadFile(caPath)
+	if err != nil {
+		t.Fatalf("read proxy CA: %v", err)
+	}
+	roots := x509.NewCertPool()
+	if !roots.AppendCertsFromPEM(pem) {
+		t.Fatal("proxy CA is not PEM")
+	}
+	u, err := url.Parse(upstream.URL)
+	if err != nil {
+		t.Fatalf("parse upstream url: %v", err)
+	}
+	u.Host = "localhost:" + u.Port()
+	client := clientFor(t, s, roots)
+
+	// Decrypted by default: the client trusts the proxy's CA, not the
+	// upstream's own certificate.
+	resp, err := client.Get(u.String() + "/before")
+	if err != nil {
+		t.Fatalf("request before the exclusion: %v", err)
+	}
+	_ = resp.Body.Close()
+
+	// Tunnelled now: the client sees the upstream's certificate, which it
+	// does not trust, so the handshake fails.
+	s.SetExclusions([]string{"localhost"})
+	// A new client, so the request opens a connection of its own rather than
+	// reusing the decrypted one.
+	if _, err := clientFor(t, s, roots).Get(u.String() + "/after"); err == nil {
+		t.Fatal("request after the exclusion succeeded, want a TLS error")
+	}
+}
+
+func TestExcluded(t *testing.T) {
+	s, _ := startServer(t)
+	s.SetExclusions([]string{"example.com", "*.internal.test", "# comment", ".corp.test"})
+	cases := map[string]bool{
+		"example.com":       true,
+		"api.example.com":   true,
+		"EXAMPLE.COM":       true,
+		"api.internal.test": true,
+		"internal.test":     false,
+		"corp.test":         true,
+		"deep.corp.test":    true,
+		"example.org":       false,
+		"notexample.com":    false,
+	}
+	for host, want := range cases {
+		if got := s.excluded(host); got != want {
+			t.Errorf("excluded(%q) = %v, want %v", host, got, want)
+		}
+	}
+}
+
 func TestSpillsLargeBodiesToDisk(t *testing.T) {
 	big := bytes.Repeat([]byte("x"), 200<<10)
 	sizes := make(chan int, 4)

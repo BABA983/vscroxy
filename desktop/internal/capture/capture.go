@@ -7,6 +7,8 @@ import (
 	"bytes"
 	"cmp"
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json/v2"
 	"errors"
 	"fmt"
@@ -18,6 +20,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path"
 	"path/filepath"
 	"slices"
 	"strconv"
@@ -104,6 +107,12 @@ type Flow struct {
 
 	// Process is the app the connection came from, when it could be told.
 	Process string
+
+	// Wait is how long the request took to reach its first response byte,
+	// and Download the rest of Millis: the two phases a waterfall shows.
+	// Both are zero when the exchange never reached a server.
+	Wait     int
+	Download int
 }
 
 // FrameEvent is a frame that arrived after its flow was published.
@@ -183,6 +192,7 @@ type Server struct {
 
 	mu        sync.Mutex
 	started   map[uuid.UUID]time.Time
+	firstByte map[uuid.UUID]time.Time
 	original  map[uuid.UUID]url.URL
 	clients   map[string]string
 	closeOnce sync.Once
@@ -190,6 +200,11 @@ type Server struct {
 	// bodyDir holds the bodies too large to keep in memory. It is removed
 	// when the server closes.
 	bodyDir string
+
+	// roots are the CAs a replay trusts: the system's and this proxy's, so
+	// a replay of an HTTPS flow succeeds without trusting the CA machine
+	// wide.
+	roots *x509.CertPool
 
 	rulesMu sync.RWMutex
 	rules   []Rule
@@ -204,7 +219,9 @@ type Server struct {
 	throttleMu sync.RWMutex
 	throttle   Throttle
 
-	upstream atomic.Value // string
+	upstream   atomic.Value // string
+	exclusions atomic.Value // []string
+	ignoreList atomic.Value // []string
 
 	breakOn     atomic.Bool
 	bpNext      atomic.Int64
@@ -223,6 +240,7 @@ func New(addr, caRootPath string) (*Server, error) {
 		addr:        addr,
 		out:         make(chan Flow, queue),
 		started:     make(map[uuid.UUID]time.Time),
+		firstByte:   make(map[uuid.UUID]time.Time),
 		original:    make(map[uuid.UUID]url.URL),
 		clients:     make(map[string]string),
 		bpWait:      make(map[int]chan Decision),
@@ -240,6 +258,9 @@ func New(addr, caRootPath string) (*Server, error) {
 		return nil, err
 	}
 	p.AddAddon(&addon{server: s})
+	p.SetShouldInterceptRule(func(req *http.Request) bool {
+		return !s.excluded(requestHost(req))
+	})
 	p.SetUpstreamProxy(func(*http.Request) (*url.URL, error) {
 		raw, _ := s.upstream.Load().(string)
 		if raw == "" {
@@ -248,6 +269,11 @@ func New(addr, caRootPath string) (*Server, error) {
 		return url.Parse(raw)
 	})
 	s.proxy = p
+	if pool, err := x509.SystemCertPool(); err == nil {
+		ca := p.GetCertificate()
+		pool.AddCert(&ca)
+		s.roots = pool
+	}
 	if dir, err := os.MkdirTemp("", "vscroxy-bodies-"); err == nil {
 		s.bodyDir = dir
 	}
@@ -262,6 +288,110 @@ func (s *Server) Flows() <-chan Flow { return s.out }
 
 // Dropped counts the flows the UI could not keep up with.
 func (s *Server) Dropped() int64 { return s.dropped.Load() }
+
+// SetExclusions sets the hosts the proxy tunnels without decrypting them, so
+// an app that pins its certificates keeps working. A pattern is a host, a
+// host with a leading dot or a path.Match pattern such as *.example.com.
+func (s *Server) SetExclusions(patterns []string) {
+	s.exclusions.Store(slices.Clone(patterns))
+}
+
+// Exclusions lists the hosts the proxy does not decrypt.
+func (s *Server) Exclusions() []string {
+	patterns, _ := s.exclusions.Load().([]string)
+	return patterns
+}
+
+// excluded reports whether host is one the proxy tunnels.
+func (s *Server) excluded(host string) bool {
+	return hostMatches(host, s.Exclusions())
+}
+
+// SetIgnore sets the hosts whose flows the table does not show, for traffic
+// that is noise: they are still proxied.
+func (s *Server) SetIgnore(patterns []string) {
+	s.ignoreList.Store(slices.Clone(patterns))
+}
+
+// Ignore lists the hosts whose flows are not shown.
+func (s *Server) Ignore() []string {
+	patterns, _ := s.ignoreList.Load().([]string)
+	return patterns
+}
+
+// ignored reports whether host is one whose flows are dropped.
+func (s *Server) ignored(host string) bool {
+	return hostMatches(host, s.Ignore())
+}
+
+// hostMatches reports whether host matches one of the patterns: a host with
+// its subdomains, a leading dot for subdomains only, or a path.Match glob.
+func hostMatches(host string, patterns []string) bool {
+	host = strings.ToLower(strings.TrimSuffix(host, "."))
+	if host == "" {
+		return false
+	}
+	for _, pattern := range patterns {
+		pattern = strings.ToLower(strings.TrimSpace(pattern))
+		if pattern == "" || strings.HasPrefix(pattern, "#") {
+			continue
+		}
+		if ok, _ := path.Match(pattern, host); ok {
+			return true
+		}
+		if rest, ok := strings.CutPrefix(pattern, "."); ok {
+			if host == rest || strings.HasSuffix(host, pattern) {
+				return true
+			}
+			continue
+		}
+		if !strings.ContainsAny(pattern, "*?[") && (host == pattern || strings.HasSuffix(host, "."+pattern)) {
+			return true
+		}
+	}
+	return false
+}
+
+// LoadIgnore reads the hosts to keep out of the table, one per line.
+func LoadIgnore(path string) ([]string, error) {
+	return LoadExclusions(path)
+}
+
+// requestHost is the host a request goes to, without its port.
+func requestHost(req *http.Request) string {
+	if req == nil {
+		return ""
+	}
+	if host := req.URL.Hostname(); host != "" {
+		return host
+	}
+	host, _, err := net.SplitHostPort(req.Host)
+	if err != nil {
+		return req.Host
+	}
+	return host
+}
+
+// LoadExclusions reads the hosts to tunnel from a file, one per line, where a
+// line starting with # is a comment.
+func LoadExclusions(path string) ([]string, error) {
+	data, err := os.ReadFile(path)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	var patterns []string
+	for _, line := range strings.Split(string(data), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		patterns = append(patterns, line)
+	}
+	return patterns, nil
+}
 
 // SetRules replaces the rules the proxy applies to new requests.
 func (s *Server) SetRules(rules []Rule) {
@@ -520,7 +650,8 @@ func (s *Server) Replay(ctx context.Context, f Flow) error {
 	client := &http.Client{
 		Timeout: 30 * time.Second,
 		Transport: &http.Transport{
-			Proxy: http.ProxyURL(proxyURL),
+			Proxy:           http.ProxyURL(proxyURL),
+			TLSClientConfig: &tls.Config{RootCAs: s.roots},
 		},
 	}
 	resp, err := client.Do(req)
@@ -550,6 +681,13 @@ func (a *addon) ClientDisconnected(client *proxy.ClientConn) {
 func (a *addon) Requestheaders(f *proxy.Flow) {
 	a.server.mu.Lock()
 	a.server.started[f.Id] = time.Now()
+	a.server.mu.Unlock()
+}
+
+// Responseheaders notes when the response started, the end of the wait.
+func (a *addon) Responseheaders(f *proxy.Flow) {
+	a.server.mu.Lock()
+	a.server.firstByte[f.Id] = time.Now()
 	a.server.mu.Unlock()
 }
 
@@ -711,11 +849,11 @@ func isSSE(r *proxy.Response) bool {
 // RequestError and HTTPConnectError keep failed exchanges visible, since a
 // refused connection is what the user is often looking for.
 func (a *addon) RequestError(f *proxy.Flow, err error) {
-	a.server.publish(f)
+	a.server.publishError(f, err)
 }
 
 func (a *addon) HTTPConnectError(f *proxy.Flow, err error) {
-	a.server.publish(f)
+	a.server.publishError(f, err)
 }
 
 // applyRules runs the first matching rule. It returns a response for a rule
@@ -851,6 +989,19 @@ func (s *Server) publish(f *proxy.Flow) {
 	s.publishFlow(f, "http", nil, 0)
 }
 
+// publishError shows a request that never reached its server as the gateway
+// error the client got, with the reason in the body.
+func (s *Server) publishError(f *proxy.Flow, err error) {
+	if f.Response == nil {
+		f.Response = &proxy.Response{
+			StatusCode: http.StatusBadGateway,
+			Header:     http.Header{"Content-Type": {"text/plain; charset=utf-8"}},
+			Body:       []byte("vscroxy: " + err.Error() + "\n"),
+		}
+	}
+	s.publish(f)
+}
+
 // publishFlow turns one exchange into the boundary Flow the UI shows. kind is
 // "http", "ws" or "sse"; status overrides the response's when non-zero.
 func (s *Server) publishFlow(f *proxy.Flow, kind string, frames []Frame, status int) int {
@@ -861,6 +1012,8 @@ func (s *Server) publishFlow(f *proxy.Flow, kind string, frames []Frame, status 
 	s.mu.Lock()
 	start, ok := s.started[f.Id]
 	delete(s.started, f.Id)
+	first, hasFirst := s.firstByte[f.Id]
+	delete(s.firstByte, f.Id)
 	display := f.Request.URL
 	if orig, mapped := s.original[f.Id]; mapped {
 		display = &orig
@@ -874,6 +1027,9 @@ func (s *Server) publishFlow(f *proxy.Flow, kind string, frames []Frame, status 
 	reqData, err := f.Request.DecodedBody()
 	if err != nil {
 		reqData = nil
+	}
+	if s.ignored(display.Hostname()) {
+		return 0
 	}
 	reqBody, reqFile, reqSize := s.keepBody(f.Id, "req", reqData)
 	size, respHeaders := 0, ""
@@ -912,6 +1068,11 @@ func (s *Server) publishFlow(f *proxy.Flow, kind string, frames []Frame, status 
 			millis += int(float64(len(f.Request.Body)) / float64(t.UpPerSec) * 1000)
 		}
 	}
+	wait, download := 0, 0
+	if hasFirst {
+		wait = int(first.Sub(start).Milliseconds())
+		download = millis - wait
+	}
 	flow := Flow{
 		ID:               int(s.nextID.Add(1)),
 		Method:           method,
@@ -922,6 +1083,8 @@ func (s *Server) publishFlow(f *proxy.Flow, kind string, frames []Frame, status 
 		Status:           status,
 		Bytes:            size,
 		Millis:           millis,
+		Wait:             wait,
+		Download:         download,
 		RequestHeaders:   formatRequest(f.Request, display),
 		ResponseHeaders:  respHeaders,
 		RequestBody:      reqBody,

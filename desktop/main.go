@@ -53,6 +53,7 @@ type app struct {
 	trafficOpen bool
 	domainsOpen bool
 	clientsOpen bool
+	savedOpen   bool
 
 	// icons caches the app icon per process name; a nil entry means the
 	// process has none.
@@ -98,9 +99,25 @@ type app struct {
 	upstreamOpen bool
 	upstreamAddr string
 
+	// exclusions are the hosts the proxy tunnels without decrypting, edited
+	// as text and kept in a file.
+	exclusionsPath string
+	exclusionsText string
+	exclusionsOpen bool
+
+	// ignore keeps noise out of the table without stopping it at the proxy.
+	ignorePath string
+	ignoreText string
+	ignoreOpen bool
+
+	// requests are the saved requests, the Compose direction's kept half.
+	requests     []savedRequest
+	requestsPath string
+
 	// compose is the request being written: what Compose sends through the
 	// proxy so the exchange is captured like any other.
 	composeOpen    bool
+	composeName    string
 	composeMethod  string
 	composeURL     string
 	composeHeaders string
@@ -145,6 +162,7 @@ func newApp() *app {
 		trafficOpen:  true,
 		domainsOpen:  true,
 		clientsOpen:  true,
+		savedOpen:    true,
 		detailFor:    -1,
 		frames:       make(map[int][]frame),
 		throttle:     capture.Presets[0],
@@ -160,9 +178,17 @@ func newApp() *app {
 		if home, err := os.UserHomeDir(); err == nil {
 			a.caPath = filepath.Join(home, ".mitmproxy", "mitmproxy-ca-cert.pem")
 			a.rulesPath = filepath.Join(home, ".vscroxy", "rules.json")
+			a.exclusionsPath = filepath.Join(home, ".vscroxy", "exclusions.txt")
+			a.requestsPath = filepath.Join(home, ".vscroxy", "requests.json")
+			a.ignorePath = filepath.Join(home, ".vscroxy", "ignore.txt")
 			a.scriptPath = filepath.Join(home, ".vscroxy", "script.js")
 		}
 		a.reloadConfig()
+	}
+	if a.requestsPath != "" {
+		if list, err := loadRequests(a.requestsPath); err == nil {
+			a.requests = list
+		}
 	}
 	a.countDomains()
 	a.countClients()
@@ -174,6 +200,24 @@ func newApp() *app {
 // reloadConfig reads the rules and the script and hands them to the proxy.
 // It runs on the main thread, from startup or the Reload button.
 func (a *app) reloadConfig() {
+	if a.ignorePath != "" && a.srv != nil {
+		patterns, err := capture.LoadIgnore(a.ignorePath)
+		if err != nil {
+			a.errText = err.Error()
+		} else {
+			a.srv.SetIgnore(patterns)
+			a.ignoreText = strings.Join(patterns, "\n")
+		}
+	}
+	if a.exclusionsPath != "" && a.srv != nil {
+		patterns, err := capture.LoadExclusions(a.exclusionsPath)
+		if err != nil {
+			a.errText = err.Error()
+		} else {
+			a.srv.SetExclusions(patterns)
+			a.exclusionsText = strings.Join(patterns, "\n")
+		}
+	}
 	if a.rulesPath != "" {
 		rules, err := capture.LoadRules(a.rulesPath)
 		if err != nil {
@@ -445,6 +489,8 @@ func (a *app) drain() {
 			at:         f.At,
 			kind:       kind,
 			process:    f.Process,
+			wait:       f.Wait,
+			download:   f.Download,
 		})
 	}
 	if len(a.flows) > maxFlows {
@@ -553,7 +599,7 @@ func (a *app) syncDetail() {
 		return
 	}
 	a.detailFor = f.id
-	if f.kind == "" && a.tab == 3 {
+	if f.kind == "" && a.tab == 4 {
 		a.tab = 0
 	}
 	a.headers = f.reqHeaders + "\n\n" + f.resHeaders
@@ -592,6 +638,20 @@ func (a *app) view(c *ui.Context) {
 	})
 	a.breakpointModal(c, t)
 	a.upstreamModal(c, t)
+	a.hostListModal(c, t, &a.exclusionsOpen, "SSL exclusions",
+		"Hosts the proxy tunnels without decrypting, one per line. A host matches its subdomains; *.example.com matches one level.",
+		a.exclusionsPath, &a.exclusionsText, func(patterns []string) {
+			if a.srv != nil {
+				a.srv.SetExclusions(patterns)
+			}
+		})
+	a.hostListModal(c, t, &a.ignoreOpen, "Ignored hosts",
+		"Hosts whose flows stay out of the table, one per line. They are still proxied, so the client sees no difference.",
+		a.ignorePath, &a.ignoreText, func(patterns []string) {
+			if a.srv != nil {
+				a.srv.SetIgnore(patterns)
+			}
+		})
 	a.composeModal(c, t)
 }
 
@@ -698,6 +758,13 @@ func (a *app) toolbar(c *ui.Context, t *ui.Theme) {
 				a.upstream = ""
 				a.setMessage("Upstream: off")
 			}
+			m.Separator()
+			if m.Item("SSL exclusions…").Chosen() {
+				a.exclusionsOpen = true
+			}
+			if m.Item("Ignored hosts…").Chosen() {
+				a.ignoreOpen = true
+			}
 		})
 		ui.MenuButton(c, "System", func(m *ui.Menu) {
 			if m.Item("Enable system proxy").Chosen() {
@@ -774,6 +841,13 @@ func (a *app) sidebar(c *ui.Context) {
 					})
 				}
 			})
+			if len(a.requests) > 0 {
+				ui.SidebarSection(c, "Saved", &a.savedOpen, func() {
+					for _, r := range a.requests {
+						ui.SidebarItem(c, "saved:"+r.Name, nil, r.Name)
+					}
+				})
+			}
 			if len(a.clients) > 0 {
 				ui.SidebarSection(c, "Clients", &a.clientsOpen, func() {
 					for _, d := range a.clients {
@@ -785,7 +859,12 @@ func (a *app) sidebar(c *ui.Context) {
 			}
 		}).Fill()
 		if chosen.Changed() {
-			a.applyFilter()
+			if name, ok := strings.CutPrefix(a.filter, "saved:"); ok {
+				a.openSaved(name)
+				a.filter = "all"
+			} else {
+				a.applyFilter()
+			}
 		}
 	})
 }
@@ -888,7 +967,7 @@ func (a *app) detail(c *ui.Context) {
 			ui.Text(c, fmt.Sprintf("%d · %s · %d ms", f.status, humanBytes(f.bytes), f.millis)).
 				FontSize(12).TextColor(statusColor(f.status, t))
 		})
-		labels := []string{"Headers", "Body", "Diff"}
+		labels := []string{"Headers", "Body", "Diff", "Timing"}
 		if f.kind != "" {
 			labels = append(labels, "Messages")
 		}
@@ -909,6 +988,8 @@ func (a *app) detail(c *ui.Context) {
 				editor.DiffView(c, a.diff).Grow(1).FillWidth()
 			}
 		case 3:
+			a.timingView(c, f)
+		case 4:
 			a.messages(c, f)
 		}
 	})
@@ -1110,6 +1191,7 @@ func (a *app) rowMenu(c *ui.Context, f flow) func(*ui.Menu) {
 
 // openCompose shows the request editor with an empty request.
 func (a *app) openCompose() {
+	a.composeName = ""
 	a.composeMethod = "GET"
 	a.composeURL = "https://"
 	a.composeHeaders = ""
@@ -1120,6 +1202,7 @@ func (a *app) openCompose() {
 // composeFrom fills the request editor with a captured request, the step from
 // traffic to a request worth keeping.
 func (a *app) composeFrom(f flow) {
+	a.composeName = ""
 	a.composeMethod = cmp.Or(f.method, "GET")
 	a.composeURL = f.url
 	a.composeHeaders = headerBlock(f.reqHeader)
@@ -1168,6 +1251,7 @@ func (a *app) composeModal(c *ui.Context, t *ui.Theme) {
 	ui.Modal(c, &a.composeOpen, func() {
 		ui.Column(c).Width(640).Gap(10).Children(func() {
 			ui.Text(c, "Compose").FontSize(14).Bold()
+			ui.TextInput(c, &a.composeName).Label("Name")
 			ui.Row(c).Gap(8).Children(func() {
 				ui.TextInput(c, &a.composeMethod).Width(90).Label("Method")
 				ui.TextInput(c, &a.composeURL).Grow(1).Label("URL")
@@ -1179,6 +1263,9 @@ func (a *app) composeModal(c *ui.Context, t *ui.Theme) {
 			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
 				if ui.Button(c, "Cancel").Clicked() {
 					a.composeOpen = false
+				}
+				if ui.Button(c, "Save").Clicked() {
+					a.saveComposed()
 				}
 				if ui.PrimaryButton(c, "Send").Clicked() {
 					a.sendComposed()
@@ -1268,5 +1355,112 @@ func (a *app) sortOrder() func(x, y int) int {
 			return -c
 		}
 		return c
+	}
+}
+
+// hostListModal edits a list of hosts, one per line, and keeps it in a file
+// the next start reads.
+func (a *app) hostListModal(c *ui.Context, t *ui.Theme, open *bool, title, hint, path string, text *string, apply func([]string)) {
+	if !*open {
+		return
+	}
+	ui.Modal(c, open, func() {
+		ui.Column(c).Width(520).Gap(10).Children(func() {
+			ui.Text(c, title).FontSize(14).Bold()
+			ui.Text(c, hint).FontSize(11).TextColor(t.TextMuted)
+			ui.TextArea(c, text).Height(140).Label(title)
+			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
+				if ui.Button(c, "Cancel").Clicked() {
+					*open = false
+				}
+				if ui.PrimaryButton(c, "Save").Clicked() {
+					patterns := splitHosts(*text)
+					if path != "" {
+						if err := writeHosts(path, patterns); err != nil {
+							a.setMessage(title + ": " + err.Error())
+							return
+						}
+					}
+					apply(patterns)
+					*open = false
+					a.setMessage(fmt.Sprintf("%s: %d hosts", title, len(patterns)))
+				}
+			})
+		})
+	})
+}
+
+// splitHosts reads a list of hosts, one per line, where a line starting with #
+// is a comment.
+func splitHosts(text string) []string {
+	var patterns []string
+	for _, line := range strings.Split(text, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		patterns = append(patterns, line)
+	}
+	return patterns
+}
+
+// writeHosts writes the list where the next start reads it.
+func writeHosts(path string, patterns []string) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
+	text := strings.Join(patterns, "\n")
+	if text != "" {
+		text += "\n"
+	}
+	return os.WriteFile(path, []byte(text), 0o644)
+}
+
+// saveComposed keeps the editor's request under its name, replacing one of
+// the same name.
+func (a *app) saveComposed() {
+	name := strings.TrimSpace(a.composeName)
+	if name == "" {
+		name = strings.TrimSpace(a.composeMethod + " " + a.composeURL)
+	}
+	if name == "" {
+		a.setMessage("Save: the request has no name")
+		return
+	}
+	r := savedRequest{
+		Name:    name,
+		Method:  strings.ToUpper(strings.TrimSpace(cmp.Or(a.composeMethod, "GET"))),
+		URL:     strings.TrimSpace(a.composeURL),
+		Headers: a.composeHeaders,
+		Body:    a.composeBody,
+	}
+	a.requests = upsertRequest(a.requests, r)
+	if a.requestsPath != "" {
+		if err := os.MkdirAll(filepath.Dir(a.requestsPath), 0o755); err != nil {
+			a.setMessage("Save: " + err.Error())
+			return
+		}
+		if err := saveRequests(a.requestsPath, a.requests); err != nil {
+			a.setMessage("Save: " + err.Error())
+			return
+		}
+	}
+	a.composeName = name
+	a.setMessage("Saved " + name)
+}
+
+// openSaved fills the request editor from a saved request.
+func (a *app) openSaved(name string) {
+	for _, r := range a.requests {
+		if r.Name != name {
+			continue
+		}
+		a.composeName = r.Name
+		a.composeMethod = cmp.Or(r.Method, "GET")
+		a.composeURL = r.URL
+		a.composeHeaders = r.Headers
+		a.composeBody = r.Body
+		a.composeOpen = true
+		return
 	}
 }

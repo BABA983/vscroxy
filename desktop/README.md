@@ -167,7 +167,9 @@ engine hands the hook the CONNECT flow, not the upgraded request.
 
 Select a flow and press **Replay**: the request goes out again through the
 proxy, so the new exchange is captured like any other and can be diffed
-against the original (same method, scheme and URL).
+against the original (same method, scheme and URL). A replay trusts the
+system's CAs and the proxy's own, so an HTTPS flow replays without the CA
+being trusted machine wide.
 
 ## System proxy and certificate
 

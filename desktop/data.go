@@ -34,6 +34,8 @@ type flow struct {
 	at         time.Time
 	kind       string
 	process    string
+	wait       int
+	download   int
 }
 
 // maxBodyView bounds how much of a spilled body the Body tab reads back.
@@ -129,6 +131,8 @@ func seedFlows(n int) []flow {
 			bytes:  int(r.ExpFloat64() * 24000),
 			millis: int(r.ExpFloat64() * 180),
 		}
+		f.wait = f.millis / 2
+		f.download = f.millis - f.wait
 		if method == "GET" && r.Intn(2) == 0 {
 			f.bytes = 0
 		}
