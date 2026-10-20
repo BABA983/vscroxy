@@ -133,9 +133,13 @@ type app struct {
 	ignoreAppsText string
 	ignoreAppsOpen bool
 
-	// requests are the saved requests, the Compose direction's kept half.
+	// requests are the saved requests, the Compose direction's kept half,
+	// and history what Compose sent.
 	requests     []savedRequest
 	requestsPath string
+	history      []historyEntry
+	historyPath  string
+	historyOpen  bool
 
 	// compose is the request being written: what Compose sends through the
 	// proxy so the exchange is captured like any other.
@@ -186,6 +190,7 @@ func newApp() *app {
 		trafficOpen:    true,
 		domainsOpen:    true,
 		clientsOpen:    true,
+		historyOpen:    true,
 		collectionOpen: make(map[string]*bool),
 		detailFor:      -1,
 		frames:         make(map[int][]frame),
@@ -204,12 +209,18 @@ func newApp() *app {
 			a.rulesPath = filepath.Join(home, ".vscroxy", "rules.json")
 			a.sslPath = filepath.Join(home, ".vscroxy", "ssl.json")
 			a.requestsPath = filepath.Join(home, ".vscroxy", "requests.json")
+			a.historyPath = filepath.Join(home, ".vscroxy", "history.json")
 			a.settingsPath = filepath.Join(home, ".vscroxy", "settings.json")
 			a.ignorePath = filepath.Join(home, ".vscroxy", "ignore.txt")
 			a.ignoreAppsPath = filepath.Join(home, ".vscroxy", "ignore-apps.txt")
 			a.scriptPath = filepath.Join(home, ".vscroxy", "script.js")
 		}
 		a.reloadConfig()
+	}
+	if a.historyPath != "" {
+		if list, err := loadHistory(a.historyPath); err == nil {
+			a.history = list
+		}
 	}
 	if a.settingsPath != "" {
 		saved, err := loadSettings(a.settingsPath)
@@ -880,6 +891,11 @@ func (a *app) toolbar(c *ui.Context, t *ui.Theme) {
 			if m.Item("Open session…").Chosen() {
 				a.openSession()
 			}
+			if len(a.history) > 0 && m.Item("Clear history").Chosen() {
+				a.history = nil
+				a.saveHistory()
+				a.setMessage("History cleared")
+			}
 			m.Separator()
 			if m.Item("Export requests…").Chosen() {
 				a.exportRequests()
@@ -948,6 +964,13 @@ func (a *app) sidebar(c *ui.Context) {
 					})
 				}
 			})
+			if len(a.history) > 0 {
+				ui.SidebarSection(c, "History", &a.historyOpen, func() {
+					for i, e := range a.history {
+						ui.SidebarItem(c, "history:"+strconv.Itoa(i), nil, e.label())
+					}
+				})
+			}
 			if len(a.requests) > 0 {
 				groups := groupRequests(a.requests)
 				for _, name := range slices.Sorted(maps.Keys(groups)) {
@@ -973,7 +996,12 @@ func (a *app) sidebar(c *ui.Context) {
 			}
 		}).Fill()
 		if chosen.Changed() {
-			if key, ok := strings.CutPrefix(a.filter, "saved:"); ok {
+			if at, ok := strings.CutPrefix(a.filter, "history:"); ok {
+				if i, err := strconv.Atoi(at); err == nil {
+					a.openHistory(i)
+				}
+				a.filter = "all"
+			} else if key, ok := strings.CutPrefix(a.filter, "saved:"); ok {
 				collection, name, _ := strings.Cut(key, "/")
 				a.openSaved(collection, name)
 				a.filter = "all"
@@ -1458,6 +1486,14 @@ func (a *app) sendComposed() {
 		RequestBody:   a.composeBody,
 	}
 	a.composeOpen = false
+	a.history = pushHistory(a.history, historyEntry{
+		Method:  f.Method,
+		URL:     url,
+		Headers: a.composeHeaders,
+		Body:    a.composeBody,
+		At:      time.Now(),
+	})
+	a.saveHistory()
 	a.setMessage("Sent " + f.Method + " " + url)
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -1610,6 +1646,11 @@ func (a *app) saveComposed() {
 		Body:       a.composeBody,
 	}
 	a.requests = upsertRequest(a.requests, r)
+	if a.historyPath != "" {
+		if list, err := loadHistory(a.historyPath); err == nil {
+			a.history = list
+		}
+	}
 	if a.settingsPath != "" {
 		saved, err := loadSettings(a.settingsPath)
 		if err != nil {
@@ -1888,5 +1929,37 @@ func (a *app) importRequests() {
 			}
 			a.setMessage(fmt.Sprintf("Imported %d requests", len(list)))
 		})
+	}()
+}
+
+// openHistory fills the request editor from a sent request.
+func (a *app) openHistory(i int) {
+	if i < 0 || i >= len(a.history) {
+		return
+	}
+	e := a.history[i]
+	a.composeName = ""
+	a.composeCollection = ""
+	a.composeMethod = cmp.Or(e.Method, "GET")
+	a.composeURL = e.URL
+	a.composeHeaders = e.Headers
+	a.composeBody = e.Body
+	a.composeOpen = true
+}
+
+// saveHistory keeps the sent requests for the next launch.
+func (a *app) saveHistory() {
+	if a.historyPath == "" {
+		return
+	}
+	list := a.history
+	go func() {
+		if err := os.MkdirAll(filepath.Dir(a.historyPath), 0o755); err != nil {
+			a.setMessage("History: " + err.Error())
+			return
+		}
+		if err := saveHistory(a.historyPath, list); err != nil {
+			a.setMessage("History: " + err.Error())
+		}
 	}()
 }

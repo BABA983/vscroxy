@@ -216,6 +216,10 @@ keeping.
 collection; the sidebar groups the saved requests by collection, and the
 **Session** menu exports and imports them as a file.
 
+**History** lists what Compose sent, newest first, without repeats of the
+same method and URL, in `~/.vscroxy/history.json`; clicking one fills the
+editor with it again, and **Session → Clear history** empties the list.
+
 ## Timing
 
 The **Timing** tab splits a flow's time into the wait for the server's first
