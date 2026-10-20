@@ -331,6 +331,8 @@ func (a *app) drain() {
 			reqBody:    f.RequestBody,
 			resBody:    f.ResponseBody,
 			reqHeader:  f.RequestHeader,
+			respHeader: f.ResponseHeader,
+			at:         f.At,
 			kind:       kind,
 		})
 	}
@@ -506,12 +508,23 @@ func (a *app) toolbar(c *ui.Context, t *ui.Theme) {
 		ui.Box(c).Size(8, 8).Radius(4).Background(dot)
 		ui.Text(c, label).FontSize(12).TextColor(t.TextMuted)
 		ui.Spacer(c)
-		if ui.SearchField(c, &a.query).Width(320).Changed() {
+		if ui.SearchField(c, &a.query).Width(280).Changed() {
 			a.applyFilter()
 		}
 		if ui.Button(c, "Reload config").Clicked() {
 			a.reloadConfig()
 		}
+		ui.MenuButton(c, "Session", func(m *ui.Menu) {
+			if m.Item("Export HAR…").Chosen() {
+				a.exportHAR()
+			}
+			if m.Item("Save session…").Chosen() {
+				a.saveSession()
+			}
+			if m.Item("Open session…").Chosen() {
+				a.openSession()
+			}
+		})
 		if ui.Button(c, "Latest").Clicked() && len(a.visible) > 0 {
 			a.picked = len(a.visible) - 1
 		}

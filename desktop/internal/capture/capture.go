@@ -79,6 +79,11 @@ type Flow struct {
 	RequestBody     string
 	ResponseBody    string
 
+	// At is when the exchange finished; ResponseHeader the structured
+	// response headers, for an export.
+	At             time.Time
+	ResponseHeader http.Header
+
 	// RequestHeader is the structured request headers, for a replay.
 	RequestHeader http.Header
 
@@ -781,6 +786,8 @@ func (s *Server) publishFlow(f *proxy.Flow, kind string, frames []Frame, status 
 		RequestBody:     bodyText(f.Request.DecodedBody()),
 		ResponseBody:    respBody,
 		RequestHeader:   f.Request.Header.Clone(),
+		ResponseHeader:  responseHeader(f.Response),
+		At:              now,
 		Kind:            kind,
 		Frames:          clipFrames(frames),
 	}
@@ -811,6 +818,13 @@ func (s *Server) emitFrame(f *proxy.Flow, frame Frame) {
 	default:
 		s.dropped.Add(1)
 	}
+}
+
+func responseHeader(r *proxy.Response) http.Header {
+	if r == nil {
+		return nil
+	}
+	return r.Header.Clone()
 }
 
 func wsFrameKind(t int) string {

@@ -122,6 +122,13 @@ offsets and text. The search field filters what shows: matching lines in
 Pretty and Hex, matching leaves in JSON. A body that is not JSON falls back
 to text.
 
+## Export and sessions
+
+The **Session** menu exports a HAR 1.2 file (HTTP flows; WebSocket and SSE
+messages have no place in HAR), saves the table and its frames as a JSON
+session, and opens one back. The native save and open dialogs choose the
+path.
+
 ## WebSocket and SSE
 
 A WebSocket connection appears as a `WS` row with status `101`, and an SSE
@@ -143,6 +150,5 @@ against the original (same method, scheme and URL).
 
 - Image and rendered HTML previews, and bodies spilled to disk instead of
   held in memory.
-- Session export: HAR and a saved session that reopens with its flows.
 - Network conditions, an upstream proxy, and the system proxy and
   certificate helpers.
