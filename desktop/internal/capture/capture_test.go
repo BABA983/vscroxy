@@ -121,6 +121,30 @@ func TestReplayTrustsTheProxyCA(t *testing.T) {
 	}
 }
 
+func TestIgnoredHostsAreNotShown(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, "noise")
+	}))
+	defer upstream.Close()
+
+	s, _ := startServer(t)
+	s.SetIgnore([]string{"127.0.0.1"})
+	resp, err := clientFor(t, s, nil).Get(upstream.URL + "/noise")
+	if err != nil {
+		t.Fatalf("request through proxy: %v", err)
+	}
+	body, err := io.ReadAll(resp.Body)
+	_ = resp.Body.Close()
+	if err != nil || string(body) != "noise" {
+		t.Fatalf("body = %q, %v; want the response untouched", body, err)
+	}
+	select {
+	case f := <-s.Flows():
+		t.Fatalf("ignored flow was published: %+v", f)
+	case <-time.After(300 * time.Millisecond):
+	}
+}
+
 func TestTimingSplitsWaitAndDownload(t *testing.T) {
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		time.Sleep(40 * time.Millisecond)

@@ -221,6 +221,7 @@ type Server struct {
 
 	upstream   atomic.Value // string
 	exclusions atomic.Value // []string
+	ignoreList atomic.Value // []string
 
 	breakOn     atomic.Bool
 	bpNext      atomic.Int64
@@ -303,11 +304,34 @@ func (s *Server) Exclusions() []string {
 
 // excluded reports whether host is one the proxy tunnels.
 func (s *Server) excluded(host string) bool {
+	return hostMatches(host, s.Exclusions())
+}
+
+// SetIgnore sets the hosts whose flows the table does not show, for traffic
+// that is noise: they are still proxied.
+func (s *Server) SetIgnore(patterns []string) {
+	s.ignoreList.Store(slices.Clone(patterns))
+}
+
+// Ignore lists the hosts whose flows are not shown.
+func (s *Server) Ignore() []string {
+	patterns, _ := s.ignoreList.Load().([]string)
+	return patterns
+}
+
+// ignored reports whether host is one whose flows are dropped.
+func (s *Server) ignored(host string) bool {
+	return hostMatches(host, s.Ignore())
+}
+
+// hostMatches reports whether host matches one of the patterns: a host with
+// its subdomains, a leading dot for subdomains only, or a path.Match glob.
+func hostMatches(host string, patterns []string) bool {
 	host = strings.ToLower(strings.TrimSuffix(host, "."))
 	if host == "" {
 		return false
 	}
-	for _, pattern := range s.Exclusions() {
+	for _, pattern := range patterns {
 		pattern = strings.ToLower(strings.TrimSpace(pattern))
 		if pattern == "" || strings.HasPrefix(pattern, "#") {
 			continue
@@ -326,6 +350,11 @@ func (s *Server) excluded(host string) bool {
 		}
 	}
 	return false
+}
+
+// LoadIgnore reads the hosts to keep out of the table, one per line.
+func LoadIgnore(path string) ([]string, error) {
+	return LoadExclusions(path)
 }
 
 // requestHost is the host a request goes to, without its port.
@@ -985,6 +1014,9 @@ func (s *Server) publishFlow(f *proxy.Flow, kind string, frames []Frame, status 
 	reqData, err := f.Request.DecodedBody()
 	if err != nil {
 		reqData = nil
+	}
+	if s.ignored(display.Hostname()) {
+		return 0
 	}
 	reqBody, reqFile, reqSize := s.keepBody(f.Id, "req", reqData)
 	size, respHeaders := 0, ""

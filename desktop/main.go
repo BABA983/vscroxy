@@ -105,6 +105,11 @@ type app struct {
 	exclusionsText string
 	exclusionsOpen bool
 
+	// ignore keeps noise out of the table without stopping it at the proxy.
+	ignorePath string
+	ignoreText string
+	ignoreOpen bool
+
 	// requests are the saved requests, the Compose direction's kept half.
 	requests     []savedRequest
 	requestsPath string
@@ -175,6 +180,7 @@ func newApp() *app {
 			a.rulesPath = filepath.Join(home, ".vscroxy", "rules.json")
 			a.exclusionsPath = filepath.Join(home, ".vscroxy", "exclusions.txt")
 			a.requestsPath = filepath.Join(home, ".vscroxy", "requests.json")
+			a.ignorePath = filepath.Join(home, ".vscroxy", "ignore.txt")
 			a.scriptPath = filepath.Join(home, ".vscroxy", "script.js")
 		}
 		a.reloadConfig()
@@ -194,6 +200,15 @@ func newApp() *app {
 // reloadConfig reads the rules and the script and hands them to the proxy.
 // It runs on the main thread, from startup or the Reload button.
 func (a *app) reloadConfig() {
+	if a.ignorePath != "" && a.srv != nil {
+		patterns, err := capture.LoadIgnore(a.ignorePath)
+		if err != nil {
+			a.errText = err.Error()
+		} else {
+			a.srv.SetIgnore(patterns)
+			a.ignoreText = strings.Join(patterns, "\n")
+		}
+	}
 	if a.exclusionsPath != "" && a.srv != nil {
 		patterns, err := capture.LoadExclusions(a.exclusionsPath)
 		if err != nil {
@@ -623,7 +638,20 @@ func (a *app) view(c *ui.Context) {
 	})
 	a.breakpointModal(c, t)
 	a.upstreamModal(c, t)
-	a.exclusionsModal(c, t)
+	a.hostListModal(c, t, &a.exclusionsOpen, "SSL exclusions",
+		"Hosts the proxy tunnels without decrypting, one per line. A host matches its subdomains; *.example.com matches one level.",
+		a.exclusionsPath, &a.exclusionsText, func(patterns []string) {
+			if a.srv != nil {
+				a.srv.SetExclusions(patterns)
+			}
+		})
+	a.hostListModal(c, t, &a.ignoreOpen, "Ignored hosts",
+		"Hosts whose flows stay out of the table, one per line. They are still proxied, so the client sees no difference.",
+		a.ignorePath, &a.ignoreText, func(patterns []string) {
+			if a.srv != nil {
+				a.srv.SetIgnore(patterns)
+			}
+		})
 	a.composeModal(c, t)
 }
 
@@ -733,6 +761,9 @@ func (a *app) toolbar(c *ui.Context, t *ui.Theme) {
 			m.Separator()
 			if m.Item("SSL exclusions…").Chosen() {
 				a.exclusionsOpen = true
+			}
+			if m.Item("Ignored hosts…").Chosen() {
+				a.ignoreOpen = true
 			}
 		})
 		ui.MenuButton(c, "System", func(m *ui.Menu) {
@@ -1327,59 +1358,62 @@ func (a *app) sortOrder() func(x, y int) int {
 	}
 }
 
-// exclusionsModal edits the hosts the proxy tunnels without decrypting, one
-// per line, and keeps them in a file the next start reads.
-func (a *app) exclusionsModal(c *ui.Context, t *ui.Theme) {
-	if !a.exclusionsOpen {
+// hostListModal edits a list of hosts, one per line, and keeps it in a file
+// the next start reads.
+func (a *app) hostListModal(c *ui.Context, t *ui.Theme, open *bool, title, hint, path string, text *string, apply func([]string)) {
+	if !*open {
 		return
 	}
-	ui.Modal(c, &a.exclusionsOpen, func() {
+	ui.Modal(c, open, func() {
 		ui.Column(c).Width(520).Gap(10).Children(func() {
-			ui.Text(c, "SSL exclusions").FontSize(14).Bold()
-			ui.Text(c, "Hosts the proxy tunnels without decrypting, one per line. A host matches its subdomains; *.example.com matches one level.").
-				FontSize(11).TextColor(t.TextMuted)
-			ui.TextArea(c, &a.exclusionsText).Height(140).Label("Excluded hosts")
+			ui.Text(c, title).FontSize(14).Bold()
+			ui.Text(c, hint).FontSize(11).TextColor(t.TextMuted)
+			ui.TextArea(c, text).Height(140).Label(title)
 			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
 				if ui.Button(c, "Cancel").Clicked() {
-					a.exclusionsOpen = false
+					*open = false
 				}
 				if ui.PrimaryButton(c, "Save").Clicked() {
-					a.saveExclusions()
+					patterns := splitHosts(*text)
+					if path != "" {
+						if err := writeHosts(path, patterns); err != nil {
+							a.setMessage(title + ": " + err.Error())
+							return
+						}
+					}
+					apply(patterns)
+					*open = false
+					a.setMessage(fmt.Sprintf("%s: %d hosts", title, len(patterns)))
 				}
 			})
 		})
 	})
 }
 
-// saveExclusions writes the list and hands it to the proxy.
-func (a *app) saveExclusions() {
+// splitHosts reads a list of hosts, one per line, where a line starting with #
+// is a comment.
+func splitHosts(text string) []string {
 	var patterns []string
-	for _, line := range strings.Split(a.exclusionsText, "\n") {
+	for _, line := range strings.Split(text, "\n") {
 		line = strings.TrimSpace(line)
 		if line == "" || strings.HasPrefix(line, "#") {
 			continue
 		}
 		patterns = append(patterns, line)
 	}
-	if a.exclusionsPath != "" {
-		if err := os.MkdirAll(filepath.Dir(a.exclusionsPath), 0o755); err != nil {
-			a.setMessage("Exclusions: " + err.Error())
-			return
-		}
-		text := strings.Join(patterns, "\n")
-		if text != "" {
-			text += "\n"
-		}
-		if err := os.WriteFile(a.exclusionsPath, []byte(text), 0o644); err != nil {
-			a.setMessage("Exclusions: " + err.Error())
-			return
-		}
+	return patterns
+}
+
+// writeHosts writes the list where the next start reads it.
+func writeHosts(path string, patterns []string) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
 	}
-	if a.srv != nil {
-		a.srv.SetExclusions(patterns)
+	text := strings.Join(patterns, "\n")
+	if text != "" {
+		text += "\n"
 	}
-	a.exclusionsOpen = false
-	a.setMessage(fmt.Sprintf("SSL exclusions: %d hosts", len(patterns)))
+	return os.WriteFile(path, []byte(text), 0o644)
 }
 
 // saveComposed keeps the editor's request under its name, replacing one of
