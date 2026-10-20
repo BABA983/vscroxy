@@ -867,8 +867,8 @@ func (a *app) toolbar(c *ui.Context, t *ui.Theme) {
 			a.mu.Lock()
 			a.pending = nil
 			a.mu.Unlock()
-			a.flows = nil
-			a.visible = nil
+			// A pinned flow stays, the reason it was pinned.
+			a.flows = slices.DeleteFunc(a.flows, func(f flow) bool { return !f.pinned })
 			a.frames = make(map[int][]frame)
 			a.picked = 0
 			a.detailFor = -1
@@ -876,6 +876,12 @@ func (a *app) toolbar(c *ui.Context, t *ui.Theme) {
 			a.filter = "all"
 			a.chip = 0
 			a.totalBytes = 0
+			for _, f := range a.flows {
+				a.totalBytes += int64(f.bytes)
+			}
+			a.countDomains()
+			a.countClients()
+			a.applyFilter()
 		}
 	})
 	ui.Divider(c)
@@ -978,6 +984,9 @@ func (a *app) table(c *ui.Context) {
 			color := methodColor(f.method)
 			if chosen {
 				color = t.AccentText
+			}
+			if f.pinned {
+				ui.Icon(c, pinIcon).Size(11, 11).Padding(0, 4, 0, 0).TextColor(color)
 			}
 			text(f.method).TextColor(color)
 		case 1:
@@ -1284,6 +1293,9 @@ func (a *app) rowMenu(c *ui.Context, f flow) func(*ui.Menu) {
 			a.setMessage("Copied response body")
 		}
 		m.Separator()
+		if m.Item(cmp.Or(pinLabel(f), "Pin")).Chosen() {
+			a.togglePin(f)
+		}
 		if m.Item("Edit in Compose").Chosen() {
 			a.composeFrom(f)
 		}
@@ -1411,7 +1423,7 @@ func (a *app) sendComposed() {
 // sortVisible orders the shown rows by the chosen column, keeping the chosen
 // flow chosen.
 func (a *app) sortVisible() {
-	if a.sort.Column == "" || len(a.visible) < 2 {
+	if len(a.visible) < 2 {
 		return
 	}
 	chosen := -1
@@ -1419,7 +1431,17 @@ func (a *app) sortVisible() {
 		chosen = a.flows[a.visible[a.picked]].id
 	}
 	less := a.sortOrder()
-	slices.SortStableFunc(a.visible, less)
+	// Pinned flows stay at the top, whatever the column says.
+	slices.SortStableFunc(a.visible, func(x, y int) int {
+		px, py := a.flows[x].pinned, a.flows[y].pinned
+		if px != py {
+			if px {
+				return -1
+			}
+			return 1
+		}
+		return less(x, y)
+	})
 	if chosen < 0 {
 		return
 	}
@@ -1722,3 +1744,32 @@ func (a *app) persistSettings() {
 		}
 	}()
 }
+
+// pinLabel is what the row menu says about pinning a flow.
+func pinLabel(f flow) string {
+	if f.pinned {
+		return "Unpin"
+	}
+	return "Pin to the top"
+}
+
+// togglePin pins a flow to the top of the table, or unpins it. A pinned flow
+// stays when the table is cleared.
+func (a *app) togglePin(f flow) {
+	for i := range a.flows {
+		if a.flows[i].id != f.id {
+			continue
+		}
+		a.flows[i].pinned = !a.flows[i].pinned
+		if a.flows[i].pinned {
+			a.setMessage("Pinned " + f.method + " " + f.path)
+		} else {
+			a.setMessage("Unpinned " + f.method + " " + f.path)
+		}
+		a.applyFilter()
+		return
+	}
+}
+
+// pinIcon marks a pinned flow in the table.
+var pinIcon = ui.MustParseSVG([]byte(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M10.3 1.2 14.8 5.7 13.2 7.3 11.4 7.1 8.8 9.7 9 11.5 7.6 12.9 3.1 8.4 4.5 7 6.3 7.2 8.9 4.6 8.7 2.8z"/></svg>`))
