@@ -849,11 +849,11 @@ func isSSE(r *proxy.Response) bool {
 // RequestError and HTTPConnectError keep failed exchanges visible, since a
 // refused connection is what the user is often looking for.
 func (a *addon) RequestError(f *proxy.Flow, err error) {
-	a.server.publish(f)
+	a.server.publishError(f, err)
 }
 
 func (a *addon) HTTPConnectError(f *proxy.Flow, err error) {
-	a.server.publish(f)
+	a.server.publishError(f, err)
 }
 
 // applyRules runs the first matching rule. It returns a response for a rule
@@ -987,6 +987,19 @@ func (s *Server) clientName(f *proxy.Flow) string {
 
 func (s *Server) publish(f *proxy.Flow) {
 	s.publishFlow(f, "http", nil, 0)
+}
+
+// publishError shows a request that never reached its server as the gateway
+// error the client got, with the reason in the body.
+func (s *Server) publishError(f *proxy.Flow, err error) {
+	if f.Response == nil {
+		f.Response = &proxy.Response{
+			StatusCode: http.StatusBadGateway,
+			Header:     http.Header{"Content-Type": {"text/plain; charset=utf-8"}},
+			Body:       []byte("vscroxy: " + err.Error() + "\n"),
+		}
+	}
+	s.publish(f)
 }
 
 // publishFlow turns one exchange into the boundary Flow the UI shows. kind is

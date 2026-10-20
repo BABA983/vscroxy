@@ -145,6 +145,23 @@ func TestIgnoredHostsAreNotShown(t *testing.T) {
 	}
 }
 
+func TestFailedRequestShowsAnError(t *testing.T) {
+	s, _ := startServer(t)
+	dead := freeAddr(t) // reserved and released, so nothing listens there
+	resp, err := clientFor(t, s, nil).Get("http://" + dead + "/gone")
+	if err == nil {
+		_ = resp.Body.Close()
+	}
+
+	f := waitFlow(t, s)
+	if f.Status != http.StatusBadGateway {
+		t.Fatalf("status = %d, want 502", f.Status)
+	}
+	if !strings.Contains(f.ResponseBody, "vscroxy:") {
+		t.Fatalf("body = %q, want the reason", f.ResponseBody)
+	}
+}
+
 func TestTimingSplitsWaitAndDownload(t *testing.T) {
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		time.Sleep(40 * time.Millisecond)
