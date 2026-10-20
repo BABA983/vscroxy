@@ -7,6 +7,8 @@ import (
 	"bytes"
 	"cmp"
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json/v2"
 	"errors"
 	"fmt"
@@ -199,6 +201,11 @@ type Server struct {
 	// when the server closes.
 	bodyDir string
 
+	// roots are the CAs a replay trusts: the system's and this proxy's, so
+	// a replay of an HTTPS flow succeeds without trusting the CA machine
+	// wide.
+	roots *x509.CertPool
+
 	rulesMu sync.RWMutex
 	rules   []Rule
 
@@ -261,6 +268,11 @@ func New(addr, caRootPath string) (*Server, error) {
 		return url.Parse(raw)
 	})
 	s.proxy = p
+	if pool, err := x509.SystemCertPool(); err == nil {
+		ca := p.GetCertificate()
+		pool.AddCert(&ca)
+		s.roots = pool
+	}
 	if dir, err := os.MkdirTemp("", "vscroxy-bodies-"); err == nil {
 		s.bodyDir = dir
 	}
@@ -609,7 +621,8 @@ func (s *Server) Replay(ctx context.Context, f Flow) error {
 	client := &http.Client{
 		Timeout: 30 * time.Second,
 		Transport: &http.Transport{
-			Proxy: http.ProxyURL(proxyURL),
+			Proxy:           http.ProxyURL(proxyURL),
+			TLSClientConfig: &tls.Config{RootCAs: s.roots},
 		},
 	}
 	resp, err := client.Do(req)

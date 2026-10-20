@@ -84,6 +84,43 @@ func waitFlow(t *testing.T, s *Server) Flow {
 	}
 }
 
+func TestReplayTrustsTheProxyCA(t *testing.T) {
+	upstream := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, "replayed")
+	}))
+	defer upstream.Close()
+
+	s, caPath := startServer(t)
+	pem, err := os.ReadFile(caPath)
+	if err != nil {
+		t.Fatalf("read proxy CA: %v", err)
+	}
+	roots := x509.NewCertPool()
+	if !roots.AppendCertsFromPEM(pem) {
+		t.Fatal("proxy CA is not PEM")
+	}
+	u, err := url.Parse(upstream.URL)
+	if err != nil {
+		t.Fatalf("parse upstream url: %v", err)
+	}
+	u.Host = "localhost:" + u.Port()
+	resp, err := clientFor(t, s, roots).Get(u.String() + "/replay")
+	if err != nil {
+		t.Fatalf("request through proxy: %v", err)
+	}
+	_ = resp.Body.Close()
+	f := waitFlow(t, s)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := s.Replay(ctx, f); err != nil {
+		t.Fatalf("replay of an HTTPS flow: %v", err)
+	}
+	if again := waitFlow(t, s); again.ResponseBody != "replayed" {
+		t.Fatalf("replayed body = %q", again.ResponseBody)
+	}
+}
+
 func TestTimingSplitsWaitAndDownload(t *testing.T) {
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		time.Sleep(40 * time.Millisecond)
