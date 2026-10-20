@@ -56,10 +56,18 @@ type app struct {
 	errText   string
 	dropped   int64
 
+	breakOn  bool
+	bp       *capture.Breakpoint
+	bpOpen   bool
+	bpMethod string
+	bpURL    string
+	bpBody   string
+
 	// mu guards what the capture goroutine hands to the view: the flows not
 	// yet drained, and a startup error.
 	mu      sync.Mutex
 	pending []capture.Flow
+	bps     []capture.Breakpoint
 	err     error
 	message string
 }
@@ -160,12 +168,46 @@ func (a *app) startCapture() {
 		a.win.Invalidate()
 		return
 	}
+	go a.collectBreakpoints()
 	for f := range a.srv.Flows() {
 		a.mu.Lock()
 		a.pending = append(a.pending, f)
 		a.mu.Unlock()
 		a.win.Invalidate()
 	}
+}
+
+// collectBreakpoints queues the exchanges the proxy paused for the UI.
+func (a *app) collectBreakpoints() {
+	for bp := range a.srv.Breakpoints() {
+		a.mu.Lock()
+		a.bps = append(a.bps, bp)
+		a.mu.Unlock()
+		a.win.Invalidate()
+	}
+}
+
+// resolveBreak answers the paused exchange and lets the proxy go on.
+func (a *app) resolveBreak(abort bool) {
+	bp := a.bp
+	if bp == nil {
+		return
+	}
+	if a.srv != nil {
+		a.srv.Resume(bp.ID, capture.Decision{
+			Abort:  abort,
+			Method: a.bpMethod,
+			URL:    a.bpURL,
+			Body:   a.bpBody,
+		})
+	}
+	a.bp = nil
+	a.bpOpen = false
+	if abort {
+		a.setMessage("Aborted " + bp.Method + " " + bp.URL)
+		return
+	}
+	a.setMessage("Continued " + bp.Method + " " + bp.URL)
 }
 
 // drain moves the flows the capture goroutine collected into the table.
@@ -179,6 +221,23 @@ func (a *app) drain() {
 	if err != nil {
 		a.errText = err.Error()
 		a.err = nil
+	}
+	if a.bp == nil {
+		a.mu.Lock()
+		var next *capture.Breakpoint
+		if len(a.bps) > 0 {
+			bp := a.bps[0]
+			a.bps = a.bps[1:]
+			next = &bp
+		}
+		a.mu.Unlock()
+		if next != nil {
+			a.bp = next
+			a.bpOpen = true
+			a.bpMethod = next.Method
+			a.bpURL = next.URL
+			a.bpBody = next.Body
+		}
 	}
 	if len(pending) == 0 {
 		return
@@ -314,6 +373,34 @@ func (a *app) view(c *ui.Context) {
 		}).Grow(1)
 		a.statusBar(c, t)
 	})
+	a.breakpointModal(c, t)
+}
+
+// breakpointModal edits the request the proxy paused, and lets it continue.
+func (a *app) breakpointModal(c *ui.Context, t *ui.Theme) {
+	if a.bp == nil {
+		return
+	}
+	if ui.Modal(c, &a.bpOpen, func() {
+		ui.Column(c).Width(640).Gap(10).Children(func() {
+			ui.Text(c, "Breakpoint · request paused").FontSize(14).Bold()
+			ui.Row(c).Gap(8).Children(func() {
+				ui.TextInput(c, &a.bpMethod).Width(90).Label("Method")
+				ui.TextInput(c, &a.bpURL).Grow(1).Label("URL")
+			})
+			ui.TextArea(c, &a.bpBody).Height(200).Label("Body")
+			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
+				if ui.Button(c, "Abort").Clicked() {
+					a.resolveBreak(true)
+				}
+				if ui.PrimaryButton(c, "Continue").Clicked() {
+					a.resolveBreak(false)
+				}
+			})
+		})
+	}).Dismissed() {
+		a.resolveBreak(true)
+	}
 }
 
 func (a *app) toolbar(c *ui.Context, t *ui.Theme) {
@@ -336,6 +423,10 @@ func (a *app) toolbar(c *ui.Context, t *ui.Theme) {
 		}
 		if ui.Button(c, "Latest").Clicked() && len(a.visible) > 0 {
 			a.picked = len(a.visible) - 1
+		}
+		ui.Text(c, "Break").FontSize(11).TextColor(t.TextMuted)
+		if ui.Switch(c, &a.breakOn).Changed() && a.srv != nil {
+			a.srv.SetBreak(a.breakOn)
 		}
 		if ui.Button(c, "Clear").Clicked() {
 			a.mu.Lock()

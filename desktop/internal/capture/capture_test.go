@@ -263,3 +263,116 @@ func TestReplay(t *testing.T) {
 		t.Fatalf("upstream calls = %d, want 2", calls)
 	}
 }
+
+func TestBreakpointEditsRequest(t *testing.T) {
+	first := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, "first")
+	}))
+	defer first.Close()
+	second := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, "second")
+	}))
+	defer second.Close()
+
+	s, _ := startServerWithRules(t, Rule{Type: RuleBreak, Match: first.URL})
+	s.SetBreak(true)
+	client := clientFor(t, s, nil)
+
+	type result struct {
+		body string
+		err  error
+	}
+	done := make(chan result, 1)
+	go func() {
+		resp, err := client.Get(first.URL + "/bp")
+		if err != nil {
+			done <- result{err: err}
+			return
+		}
+		body, err := io.ReadAll(resp.Body)
+		_ = resp.Body.Close()
+		done <- result{body: string(body), err: err}
+	}()
+
+	var bp Breakpoint
+	select {
+	case bp = <-s.Breakpoints():
+	case <-time.After(5 * time.Second):
+		t.Fatal("no breakpoint")
+	}
+	if bp.Method != "GET" || !strings.HasPrefix(bp.URL, first.URL) {
+		t.Fatalf("breakpoint = %+v", bp)
+	}
+	if !s.Resume(bp.ID, Decision{Method: "GET", URL: second.URL + "/bp"}) {
+		t.Fatal("resume found no waiter")
+	}
+	r := <-done
+	if r.err != nil {
+		t.Fatalf("request: %v", r.err)
+	}
+	if r.body != "second" {
+		t.Fatalf("body = %q, want the edited URL's upstream", r.body)
+	}
+}
+
+func TestBreakpointAborts(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, "upstream")
+	}))
+	defer upstream.Close()
+
+	s, _ := startServerWithRules(t, Rule{Type: RuleBreak, Match: upstream.URL})
+	s.SetBreak(true)
+	client := clientFor(t, s, nil)
+
+	status := make(chan int, 1)
+	go func() {
+		resp, err := client.Get(upstream.URL + "/abort")
+		if err != nil {
+			status <- 0
+			return
+		}
+		_ = resp.Body.Close()
+		status <- resp.StatusCode
+	}()
+
+	select {
+	case bp := <-s.Breakpoints():
+		s.Resume(bp.ID, Decision{Abort: true})
+	case <-time.After(5 * time.Second):
+		t.Fatal("no breakpoint")
+	}
+	if got := <-status; got != http.StatusBadGateway {
+		t.Fatalf("status = %d, want 502", got)
+	}
+}
+
+func TestBreakpointDurationExcludesPause(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, "ok")
+	}))
+	defer upstream.Close()
+
+	s, _ := startServerWithRules(t, Rule{Type: RuleBreak, Match: upstream.URL})
+	s.SetBreak(true)
+	client := clientFor(t, s, nil)
+
+	go func() {
+		resp, err := client.Get(upstream.URL + "/slow-human")
+		if err == nil {
+			_ = resp.Body.Close()
+		}
+	}()
+	select {
+	case bp := <-s.Breakpoints():
+		time.Sleep(500 * time.Millisecond)
+		s.Resume(bp.ID, Decision{Method: "GET", URL: bp.URL})
+	case <-time.After(5 * time.Second):
+		t.Fatal("no breakpoint")
+	}
+
+	f := waitFlow(t, s)
+	if f.Millis >= 400 {
+		t.Fatalf("flow took %d ms: the pause is counted as network time", f.Millis)
+	}
+}

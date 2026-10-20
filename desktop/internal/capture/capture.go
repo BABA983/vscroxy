@@ -84,6 +84,8 @@ const (
 	RuleMapLocal RuleType = "map_local"
 	// RuleBlock answers the request with a refusal.
 	RuleBlock RuleType = "block"
+	// RuleBreak pauses a matching request until the UI decides what to do.
+	RuleBreak RuleType = "break"
 )
 
 // Rule rewrites requests whose URL contains Match, in order, first match
@@ -93,6 +95,30 @@ type Rule struct {
 	Match  string   `json:"match"`
 	Target string   `json:"target,omitempty"`
 	Status int      `json:"status,omitempty"`
+}
+
+// Phase is where a breakpoint paused an exchange.
+type Phase int
+
+const (
+	PhaseRequest Phase = iota
+)
+
+// Breakpoint is an exchange paused for the UI to edit.
+type Breakpoint struct {
+	ID     int
+	Phase  Phase
+	Method string
+	URL    string
+	Body   string
+}
+
+// Decision is what the UI does with a paused exchange.
+type Decision struct {
+	Abort  bool
+	Method string
+	URL    string
+	Body   string
 }
 
 // Server is the running MITM proxy. Start it once; Flows drains what it
@@ -111,6 +137,12 @@ type Server struct {
 
 	rulesMu sync.RWMutex
 	rules   []Rule
+
+	breakOn     atomic.Bool
+	bpNext      atomic.Int64
+	bpMu        sync.Mutex
+	bpWait      map[int]chan Decision
+	breakpoints chan Breakpoint
 }
 
 // New builds a proxy listening on addr, with its CA under caRootPath, or in
@@ -120,10 +152,12 @@ func New(addr, caRootPath string) (*Server, error) {
 		addr = "127.0.0.1:7890"
 	}
 	s := &Server{
-		addr:     addr,
-		out:      make(chan Flow, queue),
-		started:  make(map[uuid.UUID]time.Time),
-		original: make(map[uuid.UUID]url.URL),
+		addr:        addr,
+		out:         make(chan Flow, queue),
+		started:     make(map[uuid.UUID]time.Time),
+		original:    make(map[uuid.UUID]url.URL),
+		bpWait:      make(map[int]chan Decision),
+		breakpoints: make(chan Breakpoint, 16),
 	}
 	p, err := proxy.NewProxy(&proxy.Options{
 		Addr:              addr,
@@ -162,6 +196,92 @@ func (s *Server) Rules() []Rule {
 	return slices.Clone(s.rules)
 }
 
+// SetBreak turns breakpoints on or off. With them off, no request pauses.
+func (s *Server) SetBreak(on bool) { s.breakOn.Store(on) }
+
+// Breaking reports whether breakpoints are on.
+func (s *Server) Breaking() bool { return s.breakOn.Load() }
+
+// Breakpoints is the stream of paused exchanges waiting for a decision.
+func (s *Server) Breakpoints() <-chan Breakpoint { return s.breakpoints }
+
+// Resume answers a paused exchange. It reports false when the breakpoint is
+// no longer waiting, as after a timeout.
+func (s *Server) Resume(id int, d Decision) bool {
+	s.bpMu.Lock()
+	ch, ok := s.bpWait[id]
+	delete(s.bpWait, id)
+	s.bpMu.Unlock()
+	if !ok {
+		return false
+	}
+	ch <- d
+	return true
+}
+
+// maybeBreak pauses the flow when breakpoints are on and a break rule matches,
+// and applies what the UI decided. It returns the decision, or nil when the
+// exchange should go on unchanged.
+func (s *Server) maybeBreak(f *proxy.Flow) *Decision {
+	if !s.breakOn.Load() || f.Request == nil {
+		return nil
+	}
+	raw := f.Request.URL.String()
+	if !s.matchesBreak(raw) {
+		return nil
+	}
+	id := int(s.bpNext.Add(1))
+	ch := make(chan Decision, 1)
+	s.bpMu.Lock()
+	s.bpWait[id] = ch
+	s.bpMu.Unlock()
+
+	bp := Breakpoint{
+		ID:     id,
+		Phase:  PhaseRequest,
+		Method: f.Request.Method,
+		URL:    raw,
+		Body:   bodyText(f.Request.DecodedBody()),
+	}
+	select {
+	case s.breakpoints <- bp:
+	default:
+		s.bpMu.Lock()
+		delete(s.bpWait, id)
+		s.bpMu.Unlock()
+		return nil
+	}
+	pausedAt := time.Now()
+	var d *Decision
+	select {
+	case decided := <-ch:
+		d = &decided
+	case <-time.After(2 * time.Minute):
+		s.bpMu.Lock()
+		delete(s.bpWait, id)
+		s.bpMu.Unlock()
+	}
+	// The user's time at the breakpoint is not network time: move the start
+	// forward so the flow's duration stays the exchange's.
+	s.mu.Lock()
+	if start, ok := s.started[f.Id]; ok {
+		s.started[f.Id] = start.Add(time.Since(pausedAt))
+	}
+	s.mu.Unlock()
+	return d
+}
+
+func (s *Server) matchesBreak(raw string) bool {
+	s.rulesMu.RLock()
+	defer s.rulesMu.RUnlock()
+	for _, r := range s.rules {
+		if r.Type == RuleBreak && strings.Contains(raw, r.Match) {
+			return true
+		}
+	}
+	return false
+}
+
 // LoadRules reads a rules file. A missing file is no rules, not an error.
 func LoadRules(path string) ([]Rule, error) {
 	data, err := os.ReadFile(path)
@@ -177,14 +297,14 @@ func LoadRules(path string) ([]Rule, error) {
 	}
 	for i, r := range rules {
 		switch r.Type {
-		case RuleMapRemote, RuleMapLocal, RuleBlock:
+		case RuleMapRemote, RuleMapLocal, RuleBlock, RuleBreak:
 		default:
 			return nil, fmt.Errorf("%s: rule %d has unknown type %q", path, i, r.Type)
 		}
 		if r.Match == "" {
 			return nil, fmt.Errorf("%s: rule %d has no match", path, i)
 		}
-		if r.Type != RuleBlock && r.Target == "" {
+		if r.Type != RuleBlock && r.Type != RuleBreak && r.Target == "" {
 			return nil, fmt.Errorf("%s: rule %d has no target", path, i)
 		}
 	}
@@ -277,6 +397,27 @@ func (a *addon) Requestheaders(f *proxy.Flow) {
 func (a *addon) Request(f *proxy.Flow) {
 	if f.Request == nil {
 		return
+	}
+	if d := a.server.maybeBreak(f); d != nil {
+		if d.Abort {
+			f.Response = &proxy.Response{
+				StatusCode: http.StatusBadGateway,
+				Header:     http.Header{"Content-Type": {"text/plain; charset=utf-8"}},
+				Body:       []byte("aborted at a breakpoint\n"),
+			}
+			a.server.publish(f)
+			return
+		}
+		if d.Method != "" {
+			f.Request.Method = d.Method
+		}
+		if d.URL != "" {
+			if u, err := url.Parse(d.URL); err == nil {
+				f.Request.URL = u
+			}
+		}
+		f.Request.Body = []byte(d.Body)
+		f.Request.Header.Del("Content-Length")
 	}
 	if resp := a.server.applyRules(f); resp != nil {
 		f.Response = resp

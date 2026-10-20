@@ -61,7 +61,8 @@ first match wins. `match` is a substring of the full URL.
 [
   {"type": "map_local", "match": "/missing", "target": "/tmp/mock.json"},
   {"type": "map_remote", "match": "http://example.com/api", "target": "http://127.0.0.1:8081"},
-  {"type": "block", "match": "/telemetry"}
+  {"type": "block", "match": "/telemetry"},
+  {"type": "break", "match": "/checkout"}
 ]
 ```
 
@@ -69,9 +70,17 @@ first match wins. `match` is a substring of the full URL.
 - `map_remote` sends the request to another scheme and host, keeping the path
   and query; the table keeps showing the URL the client asked for.
 - `block` answers `403`.
+- `break` pauses the request until you decide (see below).
 
 The toolbar's **Reload rules** button rereads the file. A missing file means
 no rules.
+
+## Breakpoints
+
+Turn on **Break** in the toolbar, and a request matching a `break` rule
+pauses: a dialog shows its method, URL and body. Edit them and press
+**Continue** to send it on, or **Abort** to answer `502`. The flow's duration
+is the exchange's, not the time you spent at the breakpoint.
 
 ## Replay
 
