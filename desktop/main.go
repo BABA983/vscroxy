@@ -65,6 +65,7 @@ type app struct {
 	rulesPath  string
 	scriptPath string
 	rules      []capture.Rule
+	throttle   capture.Throttle
 	errText    string
 	dropped    int64
 	scriptErrs int64
@@ -108,6 +109,7 @@ func newApp() *app {
 		domainsOpen:  true,
 		detailFor:    -1,
 		frames:       make(map[int][]frame),
+		throttle:     capture.Presets[0],
 	}
 	srv, err := capture.New("127.0.0.1:7890", "")
 	if err != nil {
@@ -508,9 +510,19 @@ func (a *app) toolbar(c *ui.Context, t *ui.Theme) {
 		ui.Box(c).Size(8, 8).Radius(4).Background(dot)
 		ui.Text(c, label).FontSize(12).TextColor(t.TextMuted)
 		ui.Spacer(c)
-		if ui.SearchField(c, &a.query).Width(280).Changed() {
+		if ui.SearchField(c, &a.query).Width(240).Changed() {
 			a.applyFilter()
 		}
+		ui.MenuButton(c, "Network", func(m *ui.Menu) {
+			for _, preset := range capture.Presets {
+				if m.Item(preset.Name).Checked(a.throttle.Name == preset.Name).Chosen() {
+					a.throttle = preset
+					if a.srv != nil {
+						a.srv.SetThrottle(preset)
+					}
+				}
+			}
+		})
 		if ui.Button(c, "Reload config").Clicked() {
 			a.reloadConfig()
 		}
@@ -720,6 +732,9 @@ func (a *app) statusBar(c *ui.Context, t *ui.Theme) {
 			ui.Text(c, fmt.Sprintf("%d script errors", a.scriptErrs)).FontSize(11).TextColor(ui.Hex("#d97706"))
 		}
 		ui.Spacer(c)
+		if a.throttle.Name != "" && a.throttle.Name != "Off" {
+			ui.Text(c, "Network: "+a.throttle.Name).FontSize(11).TextColor(t.TextMuted)
+		}
 		if len(a.rules) > 0 {
 			ui.Text(c, fmt.Sprintf("%d rules", len(a.rules))).FontSize(11).TextColor(t.TextMuted)
 		}

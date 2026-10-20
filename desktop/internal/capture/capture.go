@@ -183,6 +183,9 @@ type Server struct {
 	script       *Script
 	scriptErrors atomic.Int64
 
+	throttleMu sync.RWMutex
+	throttle   Throttle
+
 	breakOn     atomic.Bool
 	bpNext      atomic.Int64
 	bpMu        sync.Mutex
@@ -569,20 +572,24 @@ func (a *addon) Response(f *proxy.Flow) {
 
 // StreamResponseModifier runs the response script on the body before the
 // client gets it, and publishes the flow after the edit.
+func (a *addon) StreamRequestModifier(f *proxy.Flow, in io.Reader) io.Reader {
+	return a.server.throttleUp(in)
+}
+
 func (a *addon) StreamResponseModifier(f *proxy.Flow, in io.Reader) io.Reader {
 	if f.Response == nil || f.Stream || isSSE(f.Response) {
-		return in
+		return a.server.throttleDown(in)
 	}
 	sc := a.server.currentScript()
 	scripted := sc.HasResponse()
 	breaking := a.server.willBreakResponse(f)
 	if !scripted && !breaking {
-		return in
+		return a.server.throttleDown(in)
 	}
 	body, err := f.Response.DecodedBody()
 	if err != nil || len(body) > maxScriptBody {
 		a.server.publish(f)
-		return in
+		return a.server.throttleDown(in)
 	}
 	f.Response.Body = body
 	if scripted {
@@ -602,7 +609,7 @@ func (a *addon) StreamResponseModifier(f *proxy.Flow, in io.Reader) io.Reader {
 	// reader, which carries the edit, and clear the field.
 	body = f.Response.Body
 	f.Response.Body = nil
-	return bytes.NewReader(body)
+	return a.server.throttleDown(bytes.NewReader(body))
 }
 
 // applyResponseDecision writes what the user chose at a response breakpoint.
@@ -771,6 +778,18 @@ func (s *Server) publishFlow(f *proxy.Flow, kind string, frames []Frame, status 
 	if kind == "ws" {
 		method = "WS"
 	}
+	millis := int(now.Sub(start).Milliseconds())
+	if kind == "http" {
+		// The throttle paces the body after this hook, so add what the
+		// transfer will take: the flow's time should match the client's.
+		t := s.Throttle()
+		if t.DownPerSec > 0 && size > 0 {
+			millis += int(float64(size) / float64(t.DownPerSec) * 1000)
+		}
+		if t.UpPerSec > 0 && len(f.Request.Body) > 0 {
+			millis += int(float64(len(f.Request.Body)) / float64(t.UpPerSec) * 1000)
+		}
+	}
 	flow := Flow{
 		ID:              int(s.nextID.Add(1)),
 		Method:          method,
@@ -780,7 +799,7 @@ func (s *Server) publishFlow(f *proxy.Flow, kind string, frames []Frame, status 
 		URL:             display.String(),
 		Status:          status,
 		Bytes:           size,
-		Millis:          int(now.Sub(start).Milliseconds()),
+		Millis:          millis,
 		RequestHeaders:  formatRequest(f.Request, display),
 		ResponseHeaders: respHeaders,
 		RequestBody:     bodyText(f.Request.DecodedBody()),

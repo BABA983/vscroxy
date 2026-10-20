@@ -122,6 +122,13 @@ offsets and text. The search field filters what shows: matching lines in
 Pretty and Hex, matching leaves in JSON. A body that is not JSON falls back
 to text.
 
+## Network conditions
+
+The **Network** menu slows traffic to a preset: **3G**, **4G** or **DSL**.
+The throttle paces both directions and adds the preset's latency; a flow's
+time includes the transfer it will take, so it matches what the client sees.
+**Off** leaves traffic alone.
+
 ## Export and sessions
 
 The **Session** menu exports a HAR 1.2 file (HTTP flows; WebSocket and SSE
@@ -150,5 +157,4 @@ against the original (same method, scheme and URL).
 
 - Image and rendered HTML previews, and bodies spilled to disk instead of
   held in memory.
-- Network conditions, an upstream proxy, and the system proxy and
-  certificate helpers.
+- An upstream proxy, and the system proxy and certificate helpers.
