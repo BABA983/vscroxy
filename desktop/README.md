@@ -126,6 +126,12 @@ offsets and text. The search field filters what shows: matching lines in
 Pretty and Hex, matching leaves in JSON. A body that is not JSON falls back
 to text.
 
+A body above 64 KiB is not held in memory: the capture core writes it to a
+spill file under a temporary directory and the flow keeps the first 64 KiB
+plus the file's path and the body's size. The Body tab, the diff, HAR export
+and session save read the file back, and a replay sends it, so only viewing a
+large body costs memory. The directory is removed when the app closes.
+
 ## Network conditions
 
 The **Network** menu slows traffic to a preset: **3G**, **4G** or **DSL**.

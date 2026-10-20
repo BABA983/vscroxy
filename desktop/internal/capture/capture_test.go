@@ -1,6 +1,8 @@
 package capture
 
 import (
+	"bytes"
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
@@ -79,6 +81,68 @@ func waitFlow(t *testing.T, s *Server) Flow {
 	case <-time.After(5 * time.Second):
 		t.Fatal("no flow captured")
 		return Flow{}
+	}
+}
+
+func TestSpillsLargeBodiesToDisk(t *testing.T) {
+	big := bytes.Repeat([]byte("x"), 200<<10)
+	sizes := make(chan int, 4)
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Errorf("read upstream body: %v", err)
+		}
+		sizes <- len(body)
+		_, _ = w.Write(big)
+	}))
+	defer upstream.Close()
+
+	s, _ := startServer(t)
+	resp, err := clientFor(t, s, nil).Post(upstream.URL+"/big", "text/plain", bytes.NewReader(big))
+	if err != nil {
+		t.Fatalf("request through proxy: %v", err)
+	}
+	_ = resp.Body.Close()
+	if got := <-sizes; got != len(big) {
+		t.Fatalf("upstream got %d bytes, want %d", got, len(big))
+	}
+
+	f := waitFlow(t, s)
+	if f.RequestBodySize != len(big) || f.ResponseBodySize != len(big) {
+		t.Fatalf("sizes = %d, %d; want %d", f.RequestBodySize, f.ResponseBodySize, len(big))
+	}
+	if len(f.RequestBody) != maxBody || len(f.ResponseBody) != maxBody {
+		t.Fatalf("inline bodies = %d, %d; want the %d-byte head", len(f.RequestBody), len(f.ResponseBody), maxBody)
+	}
+	for _, path := range []string{f.RequestBodyFile, f.ResponseBodyFile} {
+		if path == "" {
+			t.Fatalf("body was not spilled: %+v", f)
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("read spilled body: %v", err)
+		}
+		if len(data) != len(big) {
+			t.Fatalf("spilled body = %d bytes, want %d", len(data), len(big))
+		}
+	}
+
+	// A replay must send the whole body, not the head the flow kept.
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := s.Replay(ctx, f); err != nil {
+		t.Fatalf("replay: %v", err)
+	}
+	if got := <-sizes; got != len(big) {
+		t.Fatalf("replayed body = %d bytes, want %d", got, len(big))
+	}
+
+	dir := filepath.Dir(f.ResponseBodyFile)
+	if err := s.Close(); err != nil {
+		t.Fatalf("close: %v", err)
+	}
+	if _, err := os.Stat(dir); !os.IsNotExist(err) {
+		t.Fatalf("spill directory survived close: %v", err)
 	}
 }
 

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math/rand"
 	"net/http"
+	"os"
 	"time"
 )
 
@@ -22,12 +23,39 @@ type flow struct {
 	reqHeaders string
 	resHeaders string
 	reqBody    string
+	reqFile    string
+	reqSize    int
 	resBody    string
+	resFile    string
+	resSize    int
 	reqHeader  http.Header
 	respHeader http.Header
 	at         time.Time
 	kind       string
 	process    string
+}
+
+// maxBodyView bounds how much of a spilled body the Body tab reads back.
+const maxBodyView = 8 << 20
+
+// body returns the body to show: the head the flow holds in memory, or the
+// whole body from the spill file when the capture core wrote it out.
+func (f flow) body(response bool) string {
+	head, file, size := f.reqBody, f.reqFile, f.reqSize
+	if response {
+		head, file, size = f.resBody, f.resFile, f.resSize
+	}
+	if file == "" {
+		return head
+	}
+	data, err := os.ReadFile(file)
+	if err != nil {
+		return head + fmt.Sprintf("\n\n… the spilled body is gone: %v", err)
+	}
+	if len(data) > maxBodyView {
+		return string(data[:maxBodyView]) + fmt.Sprintf("\n\n… truncated: %d of %d bytes shown", maxBodyView, size)
+	}
+	return string(data)
 }
 
 var (

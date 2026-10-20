@@ -162,9 +162,9 @@ func hexRows(body, query string) []int {
 // JSON tree, or as a hex dump, with a search that filters what shows.
 func (a *app) bodyView(c *ui.Context, f flow) {
 	t := c.Theme()
-	body := f.resBody
+	body := a.body
 	if a.bodySide == 1 {
-		body = f.reqBody
+		body = a.reqBody
 	}
 	ui.Row(c).Padding(8, 12).Gap(10).AlignItems(ui.Center).Children(func() {
 		ui.Segmented(c, &a.bodySide, "Response", "Request")

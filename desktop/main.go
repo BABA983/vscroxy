@@ -247,13 +247,14 @@ func (a *app) replay(f flow) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	err := a.srv.Replay(ctx, capture.Flow{
-		Method:        f.method,
-		Scheme:        f.scheme,
-		Host:          f.host,
-		Path:          f.path,
-		URL:           f.url,
-		RequestHeader: f.reqHeader,
-		RequestBody:   f.reqBody,
+		Method:          f.method,
+		Scheme:          f.scheme,
+		Host:            f.host,
+		Path:            f.path,
+		URL:             f.url,
+		RequestHeader:   f.reqHeader,
+		RequestBody:     f.reqBody,
+		RequestBodyFile: f.reqFile,
 	})
 	if err != nil {
 		a.setMessage("Replay failed: " + err.Error())
@@ -400,7 +401,11 @@ func (a *app) drain() {
 			reqHeaders: f.RequestHeaders,
 			resHeaders: f.ResponseHeaders,
 			reqBody:    f.RequestBody,
+			reqFile:    f.RequestBodyFile,
+			reqSize:    f.RequestBodySize,
 			resBody:    f.ResponseBody,
+			resFile:    f.ResponseBodyFile,
+			resSize:    f.ResponseBodySize,
 			reqHeader:  f.RequestHeader,
 			respHeader: f.ResponseHeader,
 			at:         f.At,
@@ -481,7 +486,7 @@ func (a *app) previousResponse() string {
 	for i := at - 1; i >= 0; i-- {
 		prev := a.flows[i]
 		if prev.method == f.method && prev.scheme == f.scheme && prev.host == f.host && prev.path == f.path && prev.resBody != "" {
-			return prev.resBody
+			return prev.body(true)
 		}
 	}
 	return ""
@@ -498,12 +503,12 @@ func (a *app) syncDetail() {
 		a.tab = 0
 	}
 	a.headers = f.reqHeaders + "\n\n" + f.resHeaders
-	a.body = f.resBody
-	a.reqBody = f.reqBody
+	a.body = f.body(true)
+	a.reqBody = f.body(false)
 	a.jsonFor = ""
 	a.diff = &editor.DiffState{
 		Old:    editor.NewBuffer(a.previousResponse()),
-		New:    editor.NewBuffer(f.resBody),
+		New:    editor.NewBuffer(a.body),
 		Layout: editor.DiffSplit,
 	}
 	a.diff.Old.SetLanguage(editor.LanguageFor("response.json"))
