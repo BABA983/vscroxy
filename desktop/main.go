@@ -8,6 +8,8 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"maps"
+	"net/http"
 	"os"
 	"path/filepath"
 	"slices"
@@ -90,6 +92,14 @@ type app struct {
 
 	upstreamOpen bool
 	upstreamAddr string
+
+	// compose is the request being written: what Compose sends through the
+	// proxy so the exchange is captured like any other.
+	composeOpen    bool
+	composeMethod  string
+	composeURL     string
+	composeHeaders string
+	composeBody    string
 
 	breakOn  bool
 	bp       *capture.Breakpoint
@@ -572,6 +582,7 @@ func (a *app) view(c *ui.Context) {
 	})
 	a.breakpointModal(c, t)
 	a.upstreamModal(c, t)
+	a.composeModal(c, t)
 }
 
 // upstreamModal edits the proxy every request goes through.
@@ -647,11 +658,11 @@ func (a *app) toolbar(c *ui.Context, t *ui.Theme) {
 	label := "Capture stopped"
 	if live {
 		dot = ui.Hex("#22c55e")
-		label = "Listening on " + a.srv.Addr()
+		label = "Live · " + a.srv.Addr()
 	}
 	ui.Row(c).Height(46).Padding(0, 14).Gap(10).AlignItems(ui.Center).Children(func() {
 		ui.Box(c).Size(8, 8).Radius(4).Background(dot)
-		ui.Text(c, label).FontSize(12).TextColor(t.TextMuted)
+		ui.Text(c, label).FontSize(12).TextColor(t.TextMuted).SingleLine()
 		ui.Spacer(c)
 		if ui.SearchField(c, &a.query).Width(240).Changed() {
 			a.applyFilter()
@@ -707,6 +718,9 @@ func (a *app) toolbar(c *ui.Context, t *ui.Theme) {
 				a.openSession()
 			}
 		})
+		if ui.Button(c, "Compose").Clicked() {
+			a.openCompose()
+		}
 		if ui.Button(c, "Latest").Clicked() && len(a.visible) > 0 {
 			a.picked = len(a.visible) - 1
 		}
@@ -1074,8 +1088,120 @@ func (a *app) rowMenu(c *ui.Context, f flow) func(*ui.Menu) {
 			a.setMessage("Copied response body")
 		}
 		m.Separator()
+		if m.Item("Edit in Compose").Chosen() {
+			a.composeFrom(f)
+		}
 		if m.Item("Replay").Chosen() {
 			go a.replay(f)
 		}
 	}
+}
+
+// openCompose shows the request editor with an empty request.
+func (a *app) openCompose() {
+	a.composeMethod = "GET"
+	a.composeURL = "https://"
+	a.composeHeaders = ""
+	a.composeBody = ""
+	a.composeOpen = true
+}
+
+// composeFrom fills the request editor with a captured request, the step from
+// traffic to a request worth keeping.
+func (a *app) composeFrom(f flow) {
+	a.composeMethod = cmp.Or(f.method, "GET")
+	a.composeURL = f.url
+	a.composeHeaders = headerBlock(f.reqHeader)
+	a.composeBody = f.body(false)
+	a.composeOpen = true
+}
+
+// headerBlock writes headers the way the editor takes them back.
+func headerBlock(h http.Header) string {
+	var b strings.Builder
+	for _, key := range slices.Sorted(maps.Keys(h)) {
+		for _, value := range h[key] {
+			b.WriteString(key + ": " + value + "\n")
+		}
+	}
+	return strings.TrimSuffix(b.String(), "\n")
+}
+
+// parseHeaderBlock reads the editor's headers, one "Key: Value" per line.
+func parseHeaderBlock(text string) http.Header {
+	h := http.Header{}
+	for _, line := range strings.Split(text, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		key, value, ok := strings.Cut(line, ":")
+		if !ok {
+			continue
+		}
+		key = strings.TrimSpace(key)
+		if key == "" {
+			continue
+		}
+		h.Add(key, strings.TrimSpace(value))
+	}
+	return h
+}
+
+// composeModal draws the request editor and sends what it holds through the
+// proxy.
+func (a *app) composeModal(c *ui.Context, t *ui.Theme) {
+	if !a.composeOpen {
+		return
+	}
+	ui.Modal(c, &a.composeOpen, func() {
+		ui.Column(c).Width(640).Gap(10).Children(func() {
+			ui.Text(c, "Compose").FontSize(14).Bold()
+			ui.Row(c).Gap(8).Children(func() {
+				ui.TextInput(c, &a.composeMethod).Width(90).Label("Method")
+				ui.TextInput(c, &a.composeURL).Grow(1).Label("URL")
+			})
+			ui.Text(c, "Headers").FontSize(11).TextColor(t.TextMuted)
+			ui.TextArea(c, &a.composeHeaders).Height(96).Label("Headers")
+			ui.Text(c, "Body").FontSize(11).TextColor(t.TextMuted)
+			ui.TextArea(c, &a.composeBody).Height(160).Label("Body")
+			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
+				if ui.Button(c, "Cancel").Clicked() {
+					a.composeOpen = false
+				}
+				if ui.PrimaryButton(c, "Send").Clicked() {
+					a.sendComposed()
+				}
+			})
+		})
+	})
+}
+
+// sendComposed sends the editor's request through the proxy, so the result
+// lands in the table with the rest of the traffic.
+func (a *app) sendComposed() {
+	if a.srv == nil {
+		a.setMessage("Compose: no proxy running")
+		return
+	}
+	url := strings.TrimSpace(a.composeURL)
+	if url == "" {
+		a.setMessage("Compose: the URL is empty")
+		return
+	}
+	f := capture.Flow{
+		Method:        strings.ToUpper(strings.TrimSpace(cmp.Or(a.composeMethod, "GET"))),
+		URL:           url,
+		RequestHeader: parseHeaderBlock(a.composeHeaders),
+		RequestBody:   a.composeBody,
+	}
+	a.composeOpen = false
+	a.setMessage("Sent " + f.Method + " " + url)
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		if err := a.srv.Replay(ctx, f); err != nil {
+			a.setMessage("Compose: " + err.Error())
+		}
+	}()
 }
