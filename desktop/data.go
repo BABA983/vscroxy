@@ -12,30 +12,31 @@ import (
 // flow is one captured request/response pair, the unit the table shows and the
 // detail panes inspect. It stands in for what the capture core will produce.
 type flow struct {
-	id         int
-	method     string
-	scheme     string
-	host       string
-	path       string
-	url        string
-	status     int
-	bytes      int
-	millis     int
-	reqHeaders string
-	resHeaders string
-	reqBody    string
-	reqFile    string
-	reqSize    int
-	resBody    string
-	resFile    string
-	resSize    int
-	reqHeader  http.Header
-	respHeader http.Header
-	at         time.Time
-	kind       string
-	process    string
-	wait       int
-	download   int
+	id          int
+	method      string
+	scheme      string
+	host        string
+	path        string
+	url         string
+	status      int
+	bytes       int
+	millis      int
+	reqHeaders  string
+	resHeaders  string
+	reqBody     string
+	reqFile     string
+	reqSize     int
+	resBody     string
+	resFile     string
+	resSize     int
+	reqHeader   http.Header
+	respHeader  http.Header
+	at          time.Time
+	kind        string
+	process     string
+	processPath string
+	wait        int
+	download    int
 }
 
 // maxBodyView bounds how much of a spilled body the Body tab reads back.

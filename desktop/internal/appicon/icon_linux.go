@@ -5,6 +5,7 @@ package appicon
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 )
 
@@ -24,9 +25,10 @@ var iconRoots = []string{
 // sizes are tried in the order an icon looks best at a small size.
 var sizes = []string{"128x128", "64x64", "96x96", "48x48", "256x256", "32x32", "512x512"}
 
-// lookup matches the process to a .desktop entry by its executable, then
-// resolves the entry's Icon to a file.
-func lookup(process string) string {
+// lookup finds the icon of the app: the one its .desktop entry names, an icon
+// theme's for its name, or a logo beside the executable, which is what an app
+// without an entry, such as a bundled Chrome, ships.
+func lookup(name, path string) (Icon, bool) {
 	for _, dir := range userDirs(desktopDirs, ".local/share/applications") {
 		entries, err := os.ReadDir(dir)
 		if err != nil {
@@ -36,22 +38,47 @@ func lookup(process string) string {
 			if !strings.HasSuffix(entry.Name(), ".desktop") {
 				continue
 			}
-			path := filepath.Join(dir, entry.Name())
-			icon, ok := desktopIcon(path, process)
+			icon, ok := desktopIcon(filepath.Join(dir, entry.Name()), name, path)
 			if !ok {
 				continue
 			}
 			if resolved := resolve(icon); resolved != "" {
-				return resolved
+				return read(resolved)
 			}
 		}
 	}
-	return ""
+	for _, candidate := range iconNames(name, path) {
+		if resolved := resolve(candidate); resolved != "" {
+			return read(resolved)
+		}
+	}
+	if path != "" {
+		dir := filepath.Dir(path)
+		for _, candidate := range []string{"product_logo_48.png", "product_logo_128.png", "product_logo.png", "icon.png"} {
+			if icon, ok := read(filepath.Join(dir, candidate)); ok {
+				return icon, true
+			}
+		}
+	}
+	return Icon{}, false
+}
+
+// iconNames are the names an icon theme may hold the app's icon under.
+func iconNames(name, path string) []string {
+	var names []string
+	base := strings.ToLower(strings.TrimSuffix(filepath.Base(path), ".exe"))
+	if base != "" {
+		names = append(names, base)
+	}
+	if name != "" && !slices.Contains(names, strings.ToLower(name)) {
+		names = append(names, strings.ToLower(name))
+	}
+	return names
 }
 
 // desktopIcon reads a .desktop entry and reports its Icon when its Exec or
 // TryExec runs the process.
-func desktopIcon(path, process string) (string, bool) {
+func desktopIcon(path, name, exe string) (string, bool) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return "", false
@@ -83,22 +110,26 @@ func desktopIcon(path, process string) (string, bool) {
 	if icon == "" {
 		return "", false
 	}
-	if runsProcess(exec, process) || runsProcess(tryExec, process) {
+	if runsProcess(exec, name, exe) || runsProcess(tryExec, name, exe) {
 		return icon, true
 	}
 	return "", false
 }
 
 // runsProcess reports whether a command line starts the process: its first
-// word's name is the process name.
-func runsProcess(command, process string) bool {
+// word's name is the process name or its executable's.
+func runsProcess(command, name, exe string) bool {
 	command = strings.TrimSpace(command)
 	if command == "" {
 		return false
 	}
 	word, _, _ := strings.Cut(command, " ")
 	word = strings.Trim(word, `"'`)
-	return filepath.Base(word) == process
+	base := filepath.Base(word)
+	if exe != "" && (word == exe || base == filepath.Base(exe)) {
+		return true
+	}
+	return base != "" && base == name
 }
 
 // resolve turns an Icon value into a file: an absolute path as it is, or a
@@ -112,11 +143,10 @@ func resolve(icon string) string {
 	}
 	for _, root := range userDirs(iconRoots, ".local/share/icons") {
 		for _, size := range sizes {
-			if path := filepath.Join(root, "hicolor", size, "apps", icon+".png"); exists(path) {
-				return path
-			}
-			if path := filepath.Join(root, "Adwaita", size, "apps", icon+".png"); exists(path) {
-				return path
+			for _, theme := range []string{"hicolor", "Adwaita"} {
+				if path := filepath.Join(root, theme, size, "apps", icon+".png"); exists(path) {
+					return path
+				}
 			}
 		}
 		for _, theme := range []string{"hicolor", "Adwaita"} {

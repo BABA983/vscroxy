@@ -105,8 +105,10 @@ type Flow struct {
 	Kind   string
 	Frames []Frame
 
-	// Process is the app the connection came from, when it could be told.
-	Process string
+	// Process is the app the connection came from, when it could be told,
+	// and ProcessPath its executable's path.
+	Process     string
+	ProcessPath string
 
 	// Wait is how long the request took to reach its first response byte,
 	// and Download the rest of Millis: the two phases a waterfall shows.
@@ -194,7 +196,7 @@ type Server struct {
 	started   map[uuid.UUID]time.Time
 	firstByte map[uuid.UUID]time.Time
 	original  map[uuid.UUID]url.URL
-	clients   map[string]string
+	clients   map[string]procinfo.Process
 	closeOnce sync.Once
 
 	// bodyDir holds the bodies too large to keep in memory. It is removed
@@ -220,7 +222,7 @@ type Server struct {
 	throttle   Throttle
 
 	upstream   atomic.Value // string
-	exclusions atomic.Value // []string
+	ssl        atomic.Value // SSLConfig
 	ignoreList atomic.Value // []string
 
 	breakOn     atomic.Bool
@@ -242,7 +244,7 @@ func New(addr, caRootPath string) (*Server, error) {
 		started:     make(map[uuid.UUID]time.Time),
 		firstByte:   make(map[uuid.UUID]time.Time),
 		original:    make(map[uuid.UUID]url.URL),
-		clients:     make(map[string]string),
+		clients:     make(map[string]procinfo.Process),
 		bpWait:      make(map[int]chan Decision),
 		breakpoints: make(chan Breakpoint, 16),
 		frames:      make(chan FrameEvent, queue),
@@ -259,7 +261,7 @@ func New(addr, caRootPath string) (*Server, error) {
 	}
 	p.AddAddon(&addon{server: s})
 	p.SetShouldInterceptRule(func(req *http.Request) bool {
-		return !s.excluded(requestHost(req))
+		return s.decrypts(requestHost(req))
 	})
 	p.SetUpstreamProxy(func(*http.Request) (*url.URL, error) {
 		raw, _ := s.upstream.Load().(string)
@@ -289,22 +291,46 @@ func (s *Server) Flows() <-chan Flow { return s.out }
 // Dropped counts the flows the UI could not keep up with.
 func (s *Server) Dropped() int64 { return s.dropped.Load() }
 
-// SetExclusions sets the hosts the proxy tunnels without decrypting them, so
-// an app that pins its certificates keeps working. A pattern is a host, a
-// host with a leading dot or a path.Match pattern such as *.example.com.
-func (s *Server) SetExclusions(patterns []string) {
-	s.exclusions.Store(slices.Clone(patterns))
+// SSLConfig says which domains the proxy decrypts. Nothing is decrypted until
+// a domain is listed, or All is set: a tunnel shows as a CONNECT flow, and the
+// detail pane offers to decrypt it.
+type SSLConfig struct {
+	All   bool     `json:"all"`
+	Hosts []string `json:"hosts,omitempty"`
 }
 
-// Exclusions lists the hosts the proxy does not decrypt.
-func (s *Server) Exclusions() []string {
-	patterns, _ := s.exclusions.Load().([]string)
-	return patterns
+// SetSSL sets what the proxy decrypts.
+func (s *Server) SetSSL(c SSLConfig) {
+	c.Hosts = slices.Clone(c.Hosts)
+	s.ssl.Store(c)
 }
 
-// excluded reports whether host is one the proxy tunnels.
-func (s *Server) excluded(host string) bool {
-	return hostMatches(host, s.Exclusions())
+// SSL is what the proxy decrypts.
+func (s *Server) SSL() SSLConfig {
+	c, _ := s.ssl.Load().(SSLConfig)
+	return c
+}
+
+// decrypts reports whether the proxy decrypts host.
+func (s *Server) decrypts(host string) bool {
+	c := s.SSL()
+	return c.All || hostMatches(host, c.Hosts)
+}
+
+// LoadSSL reads the SSL proxying settings; a missing file decrypts nothing.
+func LoadSSL(path string) (SSLConfig, error) {
+	data, err := os.ReadFile(path)
+	if errors.Is(err, fs.ErrNotExist) {
+		return SSLConfig{}, nil
+	}
+	if err != nil {
+		return SSLConfig{}, err
+	}
+	var c SSLConfig
+	if err := json.Unmarshal(data, &c); err != nil {
+		return SSLConfig{}, fmt.Errorf("%s: %w", path, err)
+	}
+	return c, nil
 }
 
 // SetIgnore sets the hosts whose flows the table does not show, for traffic
@@ -354,27 +380,6 @@ func hostMatches(host string, patterns []string) bool {
 
 // LoadIgnore reads the hosts to keep out of the table, one per line.
 func LoadIgnore(path string) ([]string, error) {
-	return LoadExclusions(path)
-}
-
-// requestHost is the host a request goes to, without its port.
-func requestHost(req *http.Request) string {
-	if req == nil {
-		return ""
-	}
-	if host := req.URL.Hostname(); host != "" {
-		return host
-	}
-	host, _, err := net.SplitHostPort(req.Host)
-	if err != nil {
-		return req.Host
-	}
-	return host
-}
-
-// LoadExclusions reads the hosts to tunnel from a file, one per line, where a
-// line starting with # is a comment.
-func LoadExclusions(path string) ([]string, error) {
 	data, err := os.ReadFile(path)
 	if errors.Is(err, fs.ErrNotExist) {
 		return nil, nil
@@ -391,6 +396,21 @@ func LoadExclusions(path string) ([]string, error) {
 		patterns = append(patterns, line)
 	}
 	return patterns, nil
+}
+
+// requestHost is the host a request goes to, without its port.
+func requestHost(req *http.Request) string {
+	if req == nil {
+		return ""
+	}
+	if host := req.URL.Hostname(); host != "" {
+		return host
+	}
+	host, _, err := net.SplitHostPort(req.Host)
+	if err != nil {
+		return req.Host
+	}
+	return host
 }
 
 // SetRules replaces the rules the proxy applies to new requests.
@@ -679,6 +699,15 @@ func (a *addon) ClientDisconnected(client *proxy.ClientConn) {
 }
 
 func (a *addon) Requestheaders(f *proxy.Flow) {
+	if f.Request == nil {
+		return
+	}
+	if f.Request.Method == "CONNECT" {
+		// A CONNECT the proxy does not decrypt ends here: show the tunnel so
+		// the table says what went through it.
+		a.server.publishConnect(f)
+		return
+	}
 	a.server.mu.Lock()
 	a.server.started[f.Id] = time.Now()
 	a.server.mu.Unlock()
@@ -956,33 +985,49 @@ func (s *Server) noteClient(client *proxy.ClientConn, connected bool) {
 	}
 	addr := client.Conn.RemoteAddr().String()
 	if !connected {
-		s.mu.Lock()
-		delete(s.clients, addr)
-		s.mu.Unlock()
+		// Keep the entry: a flow published after the client hung up, as a
+		// tunnel that failed, still names the app.
 		return
 	}
-	name := procinfo.Lookup(addr)
+	process := procinfo.Lookup(addr)
+	if process.Name == "" {
+		// The client's socket may not be listed yet when the proxy accepts
+		// it: leave it uncached, so the flow looks again.
+		return
+	}
 	s.mu.Lock()
 	if len(s.clients) > 1024 {
 		clear(s.clients)
 	}
-	s.clients[addr] = name
+	s.clients[addr] = process
 	s.mu.Unlock()
 }
 
-// clientName returns the process behind the connection a flow arrived on.
-func (s *Server) clientName(f *proxy.Flow) string {
+// clientProcess returns the process behind the connection a flow arrived on.
+func (s *Server) clientProcess(f *proxy.Flow) procinfo.Process {
 	if f.ConnContext == nil || f.ConnContext.ClientConn == nil || f.ConnContext.ClientConn.Conn == nil {
-		return ""
+		return procinfo.Process{}
 	}
 	addr := f.ConnContext.ClientConn.Conn.RemoteAddr().String()
 	s.mu.Lock()
-	name, ok := s.clients[addr]
+	process, ok := s.clients[addr]
 	s.mu.Unlock()
 	if ok {
-		return name
+		return process
 	}
 	return procinfo.Lookup(addr)
+}
+
+// publishConnect shows a CONNECT the proxy tunnels without decrypting it.
+func (s *Server) publishConnect(f *proxy.Flow) {
+	host := f.Request.URL.Hostname()
+	if host == "" || s.decrypts(host) {
+		return
+	}
+	if s.ignored(host) {
+		return
+	}
+	s.publishFlow(f, "connect", nil, 0)
 }
 
 func (s *Server) publish(f *proxy.Flow) {
@@ -992,6 +1037,10 @@ func (s *Server) publish(f *proxy.Flow) {
 // publishError shows a request that never reached its server as the gateway
 // error the client got, with the reason in the body.
 func (s *Server) publishError(f *proxy.Flow, err error) {
+	kind := "http"
+	if f.Request != nil && f.Request.Method == "CONNECT" {
+		kind = "connect"
+	}
 	if f.Response == nil {
 		f.Response = &proxy.Response{
 			StatusCode: http.StatusBadGateway,
@@ -999,7 +1048,7 @@ func (s *Server) publishError(f *proxy.Flow, err error) {
 			Body:       []byte("vscroxy: " + err.Error() + "\n"),
 		}
 	}
-	s.publish(f)
+	s.publishFlow(f, kind, nil, 0)
 }
 
 // publishFlow turns one exchange into the boundary Flow the UI shows. kind is
@@ -1018,6 +1067,15 @@ func (s *Server) publishFlow(f *proxy.Flow, kind string, frames []Frame, status 
 	if orig, mapped := s.original[f.Id]; mapped {
 		display = &orig
 		delete(s.original, f.Id)
+	}
+	if kind == "connect" {
+		// A tunnel's URL is its host, with the scheme HTTPS implies.
+		host := f.Request.URL.Hostname()
+		port := f.Request.URL.Port()
+		if port != "" && port != "443" {
+			host = net.JoinHostPort(host, port)
+		}
+		display = &url.URL{Scheme: "https", Host: host}
 	}
 	s.mu.Unlock()
 	if !ok {
@@ -1098,7 +1156,8 @@ func (s *Server) publishFlow(f *proxy.Flow, kind string, frames []Frame, status 
 		At:               now,
 		Kind:             kind,
 		Frames:           clipFrames(frames),
-		Process:          s.clientName(f),
+		Process:          s.clientProcess(f).Name,
+		ProcessPath:      s.clientProcess(f).Path,
 	}
 	s.mu.Lock()
 	if len(s.flowIDs) > 4096 {

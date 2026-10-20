@@ -6,7 +6,9 @@ package main
 import (
 	"cmp"
 	"context"
+	"encoding/json/v2"
 	"fmt"
+	"hash/fnv"
 	"log"
 	"maps"
 	"net/http"
@@ -39,6 +41,7 @@ type app struct {
 
 	query  string
 	filter string
+	chip   int
 	picked int
 	tab    int
 
@@ -49,6 +52,8 @@ type app struct {
 
 	sidebarWidth float32
 	tablePercent float32
+
+	totalBytes int64
 
 	trafficOpen bool
 	domainsOpen bool
@@ -99,11 +104,22 @@ type app struct {
 	upstreamOpen bool
 	upstreamAddr string
 
-	// exclusions are the hosts the proxy tunnels without decrypting, edited
-	// as text and kept in a file.
-	exclusionsPath string
-	exclusionsText string
-	exclusionsOpen bool
+	// ssl is what the proxy decrypts: every domain, or those listed. It is
+	// edited as text and kept in a file.
+	sslPath  string
+	sslAll   bool
+	sslHosts string
+	sslOpen  bool
+
+	// dark draws the window in the dark theme.
+	dark bool
+
+	// settings are what the window keeps between launches, besides its
+	// bounds, which MyGo saves with the window's StateKey.
+	settingsPath string
+	saved        settings
+	lastSave     time.Time
+	columns      ui.TableLayout
 
 	// ignore keeps noise out of the table without stopping it at the proxy.
 	ignorePath string
@@ -178,12 +194,29 @@ func newApp() *app {
 		if home, err := os.UserHomeDir(); err == nil {
 			a.caPath = filepath.Join(home, ".mitmproxy", "mitmproxy-ca-cert.pem")
 			a.rulesPath = filepath.Join(home, ".vscroxy", "rules.json")
-			a.exclusionsPath = filepath.Join(home, ".vscroxy", "exclusions.txt")
+			a.sslPath = filepath.Join(home, ".vscroxy", "ssl.json")
 			a.requestsPath = filepath.Join(home, ".vscroxy", "requests.json")
+			a.settingsPath = filepath.Join(home, ".vscroxy", "settings.json")
 			a.ignorePath = filepath.Join(home, ".vscroxy", "ignore.txt")
 			a.scriptPath = filepath.Join(home, ".vscroxy", "script.js")
 		}
 		a.reloadConfig()
+	}
+	if a.settingsPath != "" {
+		saved, err := loadSettings(a.settingsPath)
+		if err != nil {
+			a.errText = err.Error()
+		} else {
+			a.saved = saved
+			a.dark = saved.Dark
+			if saved.SidebarWidth > 0 {
+				a.sidebarWidth = saved.SidebarWidth
+			}
+			if saved.TablePercent > 0 {
+				a.tablePercent = saved.TablePercent
+			}
+			a.columns = saved.Columns.layout()
+		}
 	}
 	if a.requestsPath != "" {
 		if list, err := loadRequests(a.requestsPath); err == nil {
@@ -209,13 +242,14 @@ func (a *app) reloadConfig() {
 			a.ignoreText = strings.Join(patterns, "\n")
 		}
 	}
-	if a.exclusionsPath != "" && a.srv != nil {
-		patterns, err := capture.LoadExclusions(a.exclusionsPath)
+	if a.sslPath != "" && a.srv != nil {
+		cfg, err := capture.LoadSSL(a.sslPath)
 		if err != nil {
 			a.errText = err.Error()
 		} else {
-			a.srv.SetExclusions(patterns)
-			a.exclusionsText = strings.Join(patterns, "\n")
+			a.srv.SetSSL(cfg)
+			a.sslAll = cfg.All
+			a.sslHosts = strings.Join(cfg.Hosts, "\n")
 		}
 	}
 	if a.rulesPath != "" {
@@ -467,31 +501,35 @@ func (a *app) drain() {
 			kind = ""
 		}
 		a.flows = append(a.flows, flow{
-			id:         f.ID,
-			method:     f.Method,
-			scheme:     f.Scheme,
-			host:       f.Host,
-			path:       f.Path,
-			url:        f.URL,
-			status:     f.Status,
-			bytes:      f.Bytes,
-			millis:     f.Millis,
-			reqHeaders: f.RequestHeaders,
-			resHeaders: f.ResponseHeaders,
-			reqBody:    f.RequestBody,
-			reqFile:    f.RequestBodyFile,
-			reqSize:    f.RequestBodySize,
-			resBody:    f.ResponseBody,
-			resFile:    f.ResponseBodyFile,
-			resSize:    f.ResponseBodySize,
-			reqHeader:  f.RequestHeader,
-			respHeader: f.ResponseHeader,
-			at:         f.At,
-			kind:       kind,
-			process:    f.Process,
-			wait:       f.Wait,
-			download:   f.Download,
+			id:          f.ID,
+			method:      f.Method,
+			scheme:      f.Scheme,
+			host:        f.Host,
+			path:        f.Path,
+			url:         f.URL,
+			status:      f.Status,
+			bytes:       f.Bytes,
+			millis:      f.Millis,
+			reqHeaders:  f.RequestHeaders,
+			resHeaders:  f.ResponseHeaders,
+			reqBody:     f.RequestBody,
+			reqFile:     f.RequestBodyFile,
+			reqSize:     f.RequestBodySize,
+			resBody:     f.ResponseBody,
+			resFile:     f.ResponseBodyFile,
+			resSize:     f.ResponseBodySize,
+			reqHeader:   f.RequestHeader,
+			respHeader:  f.ResponseHeader,
+			at:          f.At,
+			kind:        kind,
+			process:     f.Process,
+			processPath: f.ProcessPath,
+			wait:        f.Wait,
+			download:    f.Download,
 		})
+	}
+	for _, f := range a.flows[len(a.flows)-len(pending):] {
+		a.totalBytes += int64(f.bytes)
 	}
 	if len(a.flows) > maxFlows {
 		cut := len(a.flows) - maxFlows
@@ -540,6 +578,9 @@ func (a *app) applyFilter() {
 	q := strings.ToLower(strings.TrimSpace(a.query))
 	a.visible = a.visible[:0]
 	for i, f := range a.flows {
+		if !a.matchesChip(f) {
+			continue
+		}
 		if a.filter == "errors" && f.status < 400 {
 			continue
 		}
@@ -616,6 +657,9 @@ func (a *app) syncDetail() {
 }
 
 func (a *app) view(c *ui.Context) {
+	if a.dark {
+		c.SetTheme(ui.DarkTheme())
+	}
 	a.drain()
 	if a.sort != a.sortApplied {
 		a.sortApplied = a.sort
@@ -636,15 +680,10 @@ func (a *app) view(c *ui.Context) {
 		}).Grow(1)
 		a.statusBar(c, t)
 	})
+	a.persistSettings()
 	a.breakpointModal(c, t)
 	a.upstreamModal(c, t)
-	a.hostListModal(c, t, &a.exclusionsOpen, "SSL exclusions",
-		"Hosts the proxy tunnels without decrypting, one per line. A host matches its subdomains; *.example.com matches one level.",
-		a.exclusionsPath, &a.exclusionsText, func(patterns []string) {
-			if a.srv != nil {
-				a.srv.SetExclusions(patterns)
-			}
-		})
+	a.sslModal(c, t)
 	a.hostListModal(c, t, &a.ignoreOpen, "Ignored hosts",
 		"Hosts whose flows stay out of the table, one per line. They are still proxied, so the client sees no difference.",
 		a.ignorePath, &a.ignoreText, func(patterns []string) {
@@ -730,11 +769,26 @@ func (a *app) toolbar(c *ui.Context, t *ui.Theme) {
 		dot = ui.Hex("#22c55e")
 		label = "Live · " + a.srv.Addr()
 	}
+	// A narrow window keeps the controls and drops what explains them.
+	width := 0
+	if a.win != nil {
+		width, _ = a.win.Size()
+	}
+	narrow := width > 0 && width < 1100
+	searchWidth := float32(240)
+	switch {
+	case width > 0 && width < 1200:
+		searchWidth = 150
+	case width > 0 && width < 1360:
+		searchWidth = 180
+	}
 	ui.Row(c).Height(46).Padding(0, 14).Gap(10).AlignItems(ui.Center).Children(func() {
 		ui.Box(c).Size(8, 8).Radius(4).Background(dot)
-		ui.Text(c, label).FontSize(12).TextColor(t.TextMuted).SingleLine()
+		if !narrow {
+			ui.Text(c, label).FontSize(12).TextColor(t.TextMuted).SingleLine().Shrink(0)
+		}
 		ui.Spacer(c)
-		if ui.SearchField(c, &a.query).Width(240).Changed() {
+		if ui.SearchField(c, &a.query).Width(searchWidth).Shrink(1).Changed() {
 			a.applyFilter()
 		}
 		ui.MenuButton(c, "Network", func(m *ui.Menu) {
@@ -759,8 +813,8 @@ func (a *app) toolbar(c *ui.Context, t *ui.Theme) {
 				a.setMessage("Upstream: off")
 			}
 			m.Separator()
-			if m.Item("SSL exclusions…").Chosen() {
-				a.exclusionsOpen = true
+			if m.Item("SSL proxying…").Chosen() {
+				a.sslOpen = true
 			}
 			if m.Item("Ignored hosts…").Chosen() {
 				a.ignoreOpen = true
@@ -780,8 +834,12 @@ func (a *app) toolbar(c *ui.Context, t *ui.Theme) {
 			if m.Item("Reveal certificate").Chosen() {
 				a.revealCA()
 			}
+			m.Separator()
+			if m.Item("Dark mode").Checked(a.dark).Chosen() {
+				a.dark = !a.dark
+			}
 		})
-		if ui.Button(c, "Reload config").Clicked() {
+		if ui.Button(c, "Reload").Clicked() {
 			a.reloadConfig()
 		}
 		ui.MenuButton(c, "Session", func(m *ui.Menu) {
@@ -816,6 +874,14 @@ func (a *app) toolbar(c *ui.Context, t *ui.Theme) {
 			a.detailFor = -1
 			a.query = ""
 			a.filter = "all"
+			a.chip = 0
+			a.totalBytes = 0
+		}
+	})
+	ui.Divider(c)
+	ui.Row(c).Height(36).Padding(0, 14).AlignItems(ui.Center).Children(func() {
+		if ui.Segmented(c, &a.chip, "All", "HTTP", "HTTPS", "WebSocket", "SSE", "JSON", "Images", "HTML").Changed() {
+			a.applyFilter()
 		}
 	})
 	ui.Divider(c)
@@ -849,7 +915,7 @@ func (a *app) sidebar(c *ui.Context) {
 				})
 			}
 			if len(a.clients) > 0 {
-				ui.SidebarSection(c, "Clients", &a.clientsOpen, func() {
+				ui.SidebarSection(c, "Apps", &a.clientsOpen, func() {
 					for _, d := range a.clients {
 						ui.SidebarItem(c, "client:"+d.name, nil, d.name).Children(func() {
 							ui.Badge(c, fmt.Sprint(d.n))
@@ -889,20 +955,19 @@ func (a *app) table(c *ui.Context) {
 		return
 	}
 	cols := []ui.TableColumn{
-		{ID: "method", Title: "Method", Width: 84, Fixed: true, Sortable: true},
-		{ID: "proto", Title: "Proto", Width: 66, Fixed: true, Sortable: true},
-		{ID: "status", Title: "Status", Width: 72, Fixed: true, Align: ui.End, Sortable: true},
-		{ID: "host", Title: "Host", Width: 190, Fixed: true, Sortable: true},
-		{ID: "client", Title: "Client", Width: 120, Fixed: true, Sortable: true},
-		{ID: "path", Title: "Path", Sortable: true},
+		{ID: "method", Title: "Method", Width: 80, Sortable: true},
+		{ID: "status", Title: "Status", Width: 78, Align: ui.End, Sortable: true},
+		{ID: "url", Title: "URL", Sortable: true},
+		{ID: "client", Title: "Client", Width: 132, Sortable: true},
+		{ID: "duration", Title: "Duration", Width: 96, Align: ui.End, Sortable: true},
 		{ID: "size", Title: "Size", Width: 86, Align: ui.End, Sortable: true},
-		{ID: "time", Title: "Time", Width: 74, Align: ui.End, Sortable: true},
 		{Title: "", ID: "filler", Width: 14, Fixed: true},
 	}
 	state := &ui.ListState{
 		Selected: &a.picked,
 		Key:      func(row int) any { return a.flows[a.visible[row]].id },
 		Sort:     &a.sort,
+		Columns:  a.columns,
 	}
 	ui.Table(c, state, cols, len(a.visible), func(row, col int) {
 		f := a.flows[a.visible[row]]
@@ -916,35 +981,46 @@ func (a *app) table(c *ui.Context) {
 			}
 			text(f.method).TextColor(color)
 		case 1:
-			color := ui.Hex("#71717a")
-			if f.scheme == "https" {
-				color = ui.Hex("#0891b2")
+			if f.kind == "connect" && f.status == 0 {
+				color := ui.Hex("#d97706")
+				if chosen {
+					color = t.AccentText
+				}
+				text("Tunnel").TextColor(color)
+				return
 			}
-			if chosen {
-				color = t.AccentText
-			}
-			text(f.scheme).TextColor(color)
-		case 2:
 			color := statusColor(f.status, t)
 			if chosen {
 				color = t.AccentText
 			}
 			text(fmt.Sprint(f.status)).TextColor(color)
+		case 2:
+			scheme := ui.Hex("#71717a")
+			if f.scheme == "https" {
+				scheme = ui.Hex("#0891b2")
+			}
+			rest := rowColor(chosen, t, t.Text)
+			if chosen {
+				scheme = t.AccentText
+			}
+			ui.Row(c).Gap(1).Children(func() {
+				text(f.scheme + "://").Shrink(0).TextColor(scheme).ContextMenu(a.rowMenu(c, f))
+				text(f.host + f.path).TextColor(rest).ContextMenu(a.rowMenu(c, f))
+			})
 		case 3:
-			text(f.host).ContextMenu(a.rowMenu(c, f)).TextColor(rowColor(chosen, t, t.Text))
-		case 4:
-			if src, ok := a.clientIcon(f.process); ok {
+			if src, ok := a.clientIcon(f.process, f.processPath); ok {
 				ui.Image(c, src).Size(16, 16)
+			} else {
+				clientBadge(c, f.process)
 			}
 			text(f.process).Padding(0, 0, 0, 6).ContextMenu(a.rowMenu(c, f)).TextColor(rowColor(chosen, t, t.TextMuted))
-		case 5:
-			text(f.path).ContextMenu(a.rowMenu(c, f)).TextColor(rowColor(chosen, t, t.Text))
-		case 6:
-			text(humanBytes(f.bytes)).TextColor(rowColor(chosen, t, t.TextMuted))
-		case 7:
+		case 4:
 			text(fmt.Sprintf("%d ms", f.millis)).TextColor(rowColor(chosen, t, t.TextMuted))
+		case 5:
+			text(humanBytes(f.bytes)).TextColor(rowColor(chosen, t, t.TextMuted))
 		}
 	}).Grow(1)
+	a.columns = state.Columns
 }
 
 func (a *app) detail(c *ui.Context) {
@@ -967,8 +1043,12 @@ func (a *app) detail(c *ui.Context) {
 			ui.Text(c, fmt.Sprintf("%d · %s · %d ms", f.status, humanBytes(f.bytes), f.millis)).
 				FontSize(12).TextColor(statusColor(f.status, t))
 		})
+		if f.kind == "connect" {
+			a.connectPanel(c, f)
+			return
+		}
 		labels := []string{"Headers", "Body", "Diff", "Timing"}
-		if f.kind != "" {
+		if f.kind == "ws" || f.kind == "sse" {
 			labels = append(labels, "Messages")
 		}
 		ui.Tabs(c, &a.tab, labels...).Padding(0, 8)
@@ -1022,6 +1102,11 @@ func (a *app) statusBar(c *ui.Context, t *ui.Theme) {
 	ui.Row(c).Height(28).Padding(0, 14).Gap(16).AlignItems(ui.Center).Children(func() {
 		ui.Text(c, fmt.Sprintf("%d flows · %d shown", len(a.flows), len(a.visible))).
 			FontSize(11).TextColor(t.TextMuted)
+		captured := humanBytes(int(a.totalBytes))
+		if a.totalBytes == 0 {
+			captured = "0 B"
+		}
+		ui.Text(c, captured+" captured").FontSize(11).TextColor(t.TextMuted)
 		if a.dropped > 0 {
 			ui.Text(c, fmt.Sprintf("%d dropped", a.dropped)).FontSize(11).TextColor(ui.Hex("#d97706"))
 		}
@@ -1111,7 +1196,9 @@ func main() {
 			Height:    800,
 			MinWidth:  960,
 			MinHeight: 600,
-			Content:   ui.View(a.view),
+			// MyGo keeps the window's bounds under this key.
+			StateKey: "vscroxy",
+			Content:  ui.View(a.view),
 		})
 		go a.startCapture()
 	})
@@ -1121,42 +1208,59 @@ func main() {
 }
 
 // clientIcon returns the app's icon, loading it the first time it is asked
-// for. A process with no icon gets none.
-func (a *app) clientIcon(process string) (ui.ImageSource, bool) {
-	if process == "" {
+// for. A process with no icon gets none, and the table shows a badge.
+func (a *app) clientIcon(process, path string) (ui.ImageSource, bool) {
+	if process == "" && path == "" {
 		return nil, false
 	}
-	if src, ok := a.icons[process]; ok {
+	key := cmp.Or(path, process)
+	if src, ok := a.icons[key]; ok {
 		return src, src != nil
 	}
-	src := loadIcon(process)
-	a.icons[process] = src
+	src := loadIcon(process, path)
+	a.icons[key] = src
 	return src, src != nil
 }
 
-// loadIcon reads the icon file of a process: an SVG as an SVG, anything else
-// as a bitmap.
-func loadIcon(process string) ui.ImageSource {
-	path := appicon.Lookup(process)
-	if path == "" {
+// loadIcon decodes an app's icon: an SVG as an SVG, anything else as a
+// bitmap.
+func loadIcon(process, path string) ui.ImageSource {
+	icon, ok := appicon.Lookup(process, path)
+	if !ok {
 		return nil
 	}
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil
-	}
-	if strings.HasSuffix(path, ".svg") {
-		svg, err := ui.ParseSVG(data)
+	if icon.SVG {
+		svg, err := ui.ParseSVG(icon.Data)
 		if err != nil {
 			return nil
 		}
 		return svg
 	}
-	bmp, err := ui.DecodeBitmap(data)
+	bmp, err := ui.DecodeBitmap(icon.Data)
 	if err != nil {
 		return nil
 	}
 	return bmp
+}
+
+// clientBadge draws the app's initial in its color, for an app whose icon the
+// system does not have.
+func clientBadge(c *ui.Context, name string) {
+	letter := "?"
+	if runes := []rune(name); len(runes) > 0 {
+		letter = strings.ToUpper(string(runes[0]))
+	}
+	ui.Box(c).Size(16, 16).Radius(4).Background(badgeColor(name)).Center().Children(func() {
+		ui.Text(c, letter).FontSize(9).Bold().TextColor(ui.Hex("#ffffff"))
+	})
+}
+
+// badgeColor is a stable color per app name.
+func badgeColor(name string) ui.Color {
+	h := fnv.New32a()
+	_, _ = h.Write([]byte(name))
+	palette := []string{"#2563eb", "#7c3aed", "#db2777", "#ea580c", "#0891b2", "#16a34a", "#ca8a04"}
+	return ui.Hex(palette[int(h.Sum32())%len(palette)])
 }
 
 // rowMenu is the context menu of a flow's row: what a captured request is
@@ -1340,15 +1444,15 @@ func (a *app) sortOrder() func(x, y int) int {
 			c = cmp.Compare(fx.scheme, fy.scheme)
 		case "status":
 			c = cmp.Compare(fx.status, fy.status)
-		case "host":
-			c = cmp.Compare(fx.host, fy.host)
+		case "host", "url":
+			c = cmp.Compare(fx.url, fy.url)
 		case "client":
 			c = cmp.Compare(fx.process, fy.process)
 		case "path":
 			c = cmp.Compare(fx.path, fy.path)
 		case "size":
 			c = cmp.Compare(fx.bytes, fy.bytes)
-		case "time":
+		case "time", "duration":
 			c = cmp.Compare(fx.millis, fy.millis)
 		}
 		if desc {
@@ -1435,6 +1539,22 @@ func (a *app) saveComposed() {
 		Body:    a.composeBody,
 	}
 	a.requests = upsertRequest(a.requests, r)
+	if a.settingsPath != "" {
+		saved, err := loadSettings(a.settingsPath)
+		if err != nil {
+			a.errText = err.Error()
+		} else {
+			a.saved = saved
+			a.dark = saved.Dark
+			if saved.SidebarWidth > 0 {
+				a.sidebarWidth = saved.SidebarWidth
+			}
+			if saved.TablePercent > 0 {
+				a.tablePercent = saved.TablePercent
+			}
+			a.columns = saved.Columns.layout()
+		}
+	}
 	if a.requestsPath != "" {
 		if err := os.MkdirAll(filepath.Dir(a.requestsPath), 0o755); err != nil {
 			a.setMessage("Save: " + err.Error())
@@ -1463,4 +1583,142 @@ func (a *app) openSaved(name string) {
 		a.composeOpen = true
 		return
 	}
+}
+
+// matchesChip reports whether the flow belongs to the chip chosen above the
+// table: a protocol, or a kind of body.
+func (a *app) matchesChip(f flow) bool {
+	json := strings.Contains(f.contentType(true), "json")
+	switch a.chip {
+	case 1: // HTTP
+		return f.kind == "" && f.scheme == "http"
+	case 2: // HTTPS
+		return f.kind == "connect" || (f.kind == "" && f.scheme == "https")
+	case 3: // WebSocket
+		return f.kind == "ws"
+	case 4: // SSE
+		return f.kind == "sse"
+	case 5: // JSON
+		return json
+	case 6: // Images
+		return strings.HasPrefix(f.contentType(true), "image/")
+	case 7: // HTML
+		return strings.Contains(f.contentType(true), "html")
+	}
+	return true
+}
+
+// sslModal edits what the proxy decrypts.
+func (a *app) sslModal(c *ui.Context, t *ui.Theme) {
+	if !a.sslOpen {
+		return
+	}
+	ui.Modal(c, &a.sslOpen, func() {
+		ui.Column(c).Width(520).Gap(10).Children(func() {
+			ui.Text(c, "SSL proxying").FontSize(14).Bold()
+			ui.Text(c, "HTTPS is tunnelled untouched until a domain is listed. Its CONNECT shows in the table, and Decrypt this domain adds it; a domain matches its subdomains.").
+				FontSize(11).TextColor(t.TextMuted)
+			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+				ui.Switch(c, &a.sslAll)
+				ui.Text(c, "Decrypt every domain").FontSize(12).TextColor(t.Text)
+			})
+			ui.TextArea(c, &a.sslHosts).Height(120).Label("Domains")
+			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
+				if ui.Button(c, "Cancel").Clicked() {
+					a.sslOpen = false
+				}
+				if ui.PrimaryButton(c, "Save").Clicked() {
+					a.saveSSL(capture.SSLConfig{All: a.sslAll, Hosts: splitHosts(a.sslHosts)})
+					a.sslOpen = false
+				}
+			})
+		})
+	})
+}
+
+// saveSSL keeps the SSL proxying settings and hands them to the proxy. A
+// connection already open keeps the choice it was made with.
+func (a *app) saveSSL(cfg capture.SSLConfig) {
+	if a.srv != nil {
+		a.srv.SetSSL(cfg)
+	}
+	a.sslAll, a.sslHosts = cfg.All, strings.Join(cfg.Hosts, "\n")
+	if a.sslPath != "" {
+		if err := os.MkdirAll(filepath.Dir(a.sslPath), 0o755); err != nil {
+			a.setMessage("SSL proxying: " + err.Error())
+			return
+		}
+		data, err := json.Marshal(cfg)
+		if err != nil {
+			a.setMessage("SSL proxying: " + err.Error())
+			return
+		}
+		if err := os.WriteFile(a.sslPath, append(data, '\n'), 0o644); err != nil {
+			a.setMessage("SSL proxying: " + err.Error())
+			return
+		}
+	}
+	if cfg.All {
+		a.setMessage("SSL proxying: every domain")
+	} else {
+		a.setMessage(fmt.Sprintf("SSL proxying: %d domains", len(cfg.Hosts)))
+	}
+}
+
+// decryptHost adds a domain to what the proxy decrypts, the button under a
+// tunnel.
+func (a *app) decryptHost(host string) {
+	cfg := capture.SSLConfig{All: a.sslAll, Hosts: splitHosts(a.sslHosts)}
+	if host != "" && !slices.Contains(cfg.Hosts, host) {
+		cfg.Hosts = append(cfg.Hosts, host)
+	}
+	a.saveSSL(cfg)
+	a.setMessage("Decrypting " + host + "; reload the page")
+}
+
+// connectPanel explains a tunnel and offers to decrypt it, as a proxy that
+// leaves HTTPS alone must.
+func (a *app) connectPanel(c *ui.Context, f flow) {
+	t := c.Theme()
+	host := f.host
+	ui.Column(c).Fill().Center().Gap(10).Children(func() {
+		ui.Text(c, "HTTPS is not decrypted").FontSize(15).TextColor(t.Text)
+		ui.Text(c, host+" goes through untouched, so its content stays encrypted.").
+			FontSize(12).TextColor(t.TextMuted)
+		if ui.PrimaryButton(c, "Decrypt this domain").Clicked() {
+			a.decryptHost(host)
+		}
+		if ui.Button(c, "Decrypt every domain").Clicked() {
+			a.saveSSL(capture.SSLConfig{All: true})
+		}
+	})
+}
+
+// persistSettings writes what changed since the last write, at most every
+// 400ms, so dragging a divider does not write a file a frame.
+func (a *app) persistSettings() {
+	now := settings{
+		Dark:         a.dark,
+		SidebarWidth: a.sidebarWidth,
+		TablePercent: a.tablePercent,
+		Columns:      savedLayout(a.columns),
+	}
+	if sameSettings(now, a.saved) || time.Since(a.lastSave) < 400*time.Millisecond {
+		return
+	}
+	a.saved = now
+	a.lastSave = time.Now()
+	if a.settingsPath == "" {
+		return
+	}
+	path := a.settingsPath
+	go func() {
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			a.setMessage("Settings: " + err.Error())
+			return
+		}
+		if err := writeSettings(path, now); err != nil {
+			a.setMessage("Settings: " + err.Error())
+		}
+	}()
 }

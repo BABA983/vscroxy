@@ -91,6 +91,7 @@ func TestReplayTrustsTheProxyCA(t *testing.T) {
 	defer upstream.Close()
 
 	s, caPath := startServer(t)
+	s.SetSSL(SSLConfig{All: true})
 	pem, err := os.ReadFile(caPath)
 	if err != nil {
 		t.Fatalf("read proxy CA: %v", err)
@@ -185,7 +186,7 @@ func TestTimingSplitsWaitAndDownload(t *testing.T) {
 	}
 }
 
-func TestExclusionsTunnelWithoutDecrypting(t *testing.T) {
+func TestTunnelsUntilADomainIsDecrypted(t *testing.T) {
 	upstream := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
 	defer upstream.Close()
 
@@ -203,29 +204,31 @@ func TestExclusionsTunnelWithoutDecrypting(t *testing.T) {
 		t.Fatalf("parse upstream url: %v", err)
 	}
 	u.Host = "localhost:" + u.Port()
-	client := clientFor(t, s, roots)
 
-	// Decrypted by default: the client trusts the proxy's CA, not the
-	// upstream's own certificate.
-	resp, err := client.Get(u.String() + "/before")
+	// Nothing is decrypted yet: the client sees the upstream's certificate,
+	// which it does not trust, and the tunnel shows as a CONNECT flow.
+	if _, err := clientFor(t, s, roots).Get(u.String() + "/before"); err == nil {
+		t.Fatal("request succeeded, want a TLS error before decryption")
+	}
+	tunnel := waitFlow(t, s)
+	if tunnel.Method != "CONNECT" || tunnel.Kind != "connect" {
+		t.Fatalf("tunnel = %+v, want a CONNECT flow", tunnel)
+	}
+
+	// Decrypted now: the proxy's CA is what the client sees.
+	s.SetSSL(SSLConfig{Hosts: []string{"localhost"}})
+	resp, err := clientFor(t, s, roots).Get(u.String() + "/after")
 	if err != nil {
-		t.Fatalf("request before the exclusion: %v", err)
+		t.Fatalf("request after decryption: %v", err)
 	}
 	_ = resp.Body.Close()
-
-	// Tunnelled now: the client sees the upstream's certificate, which it
-	// does not trust, so the handshake fails.
-	s.SetExclusions([]string{"localhost"})
-	// A new client, so the request opens a connection of its own rather than
-	// reusing the decrypted one.
-	if _, err := clientFor(t, s, roots).Get(u.String() + "/after"); err == nil {
-		t.Fatal("request after the exclusion succeeded, want a TLS error")
+	if f := waitFlow(t, s); f.Status != 200 || f.Kind != "http" {
+		t.Fatalf("flow = %+v, want a decrypted 200", f)
 	}
 }
 
-func TestExcluded(t *testing.T) {
-	s, _ := startServer(t)
-	s.SetExclusions([]string{"example.com", "*.internal.test", "# comment", ".corp.test"})
+func TestHostMatches(t *testing.T) {
+	patterns := []string{"example.com", "*.internal.test", "# comment", ".corp.test"}
 	cases := map[string]bool{
 		"example.com":       true,
 		"api.example.com":   true,
@@ -238,8 +241,8 @@ func TestExcluded(t *testing.T) {
 		"notexample.com":    false,
 	}
 	for host, want := range cases {
-		if got := s.excluded(host); got != want {
-			t.Errorf("excluded(%q) = %v, want %v", host, got, want)
+		if got := hostMatches(host, patterns); got != want {
+			t.Errorf("hostMatches(%q) = %v, want %v", host, got, want)
 		}
 	}
 }
@@ -373,6 +376,7 @@ func TestCapturesHTTPS(t *testing.T) {
 	defer upstream.Close()
 
 	s, caPath := startServer(t)
+	s.SetSSL(SSLConfig{All: true})
 	pem, err := os.ReadFile(caPath)
 	if err != nil {
 		t.Fatalf("read proxy CA: %v", err)
@@ -839,6 +843,7 @@ func TestWebSocketFrames(t *testing.T) {
 	defer upstream.Close()
 
 	s, _ := startServer(t)
+	s.SetSSL(SSLConfig{All: true})
 	u, err := url.Parse(upstream.URL)
 	if err != nil {
 		t.Fatalf("parse upstream: %v", err)
@@ -922,6 +927,7 @@ func TestUpstreamProxy(t *testing.T) {
 
 	inner, _ := startServer(t)
 	outer, caPath := startServer(t)
+	outer.SetSSL(SSLConfig{All: true})
 	if err := outer.SetUpstream("http://" + inner.Addr()); err != nil {
 		t.Fatalf("set upstream: %v", err)
 	}
@@ -951,9 +957,10 @@ func TestUpstreamProxy(t *testing.T) {
 	if string(body) != "hello" {
 		t.Fatalf("body = %q", body)
 	}
-	f := waitFlow(t, inner)
-	if f.Path != "/chain" {
-		t.Fatalf("inner flow = %+v", f)
+	// The inner proxy leaves HTTPS alone, so what it sees is the tunnel the
+	// outer proxy opened through it.
+	if f := waitFlow(t, inner); f.Kind != "connect" || f.Host == "" {
+		t.Fatalf("inner flow = %+v, want the tunnel", f)
 	}
 
 	if err := outer.SetUpstream("not a proxy"); err == nil {
