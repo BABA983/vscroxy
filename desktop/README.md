@@ -114,6 +114,14 @@ network; a hook that loops is interrupted and counted in the status bar.
 Streaming and SSE responses skip the response hook. **Reload config** rereads
 both the rules and the script.
 
+## Bodies
+
+The Body tab shows the response or the request, as **Pretty** text, as a
+**JSON** tree with collapsible objects and arrays, or as a **Hex** dump with
+offsets and text. The search field filters what shows: matching lines in
+Pretty and Hex, matching leaves in JSON. A body that is not JSON falls back
+to text.
+
 ## WebSocket and SSE
 
 A WebSocket connection appears as a `WS` row with status `101`, and an SSE
@@ -133,8 +141,8 @@ against the original (same method, scheme and URL).
 
 ## Next
 
-- A real body inspector: JSON tree, hex, image and rendered previews, with
-  search, and bodies spilled to disk instead of held in memory.
+- Image and rendered HTML previews, and bodies spilled to disk instead of
+  held in memory.
 - Session export: HAR and a saved session that reopens with its flows.
 - Network conditions, an upstream proxy, and the system proxy and
   certificate helpers.

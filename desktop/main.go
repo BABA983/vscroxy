@@ -47,8 +47,17 @@ type app struct {
 	detailFor int
 	headers   string
 	body      string
+	reqBody   string
 	diff      *editor.DiffState
 	frames    map[int][]frame
+
+	bodySide     int
+	bodyMode     int
+	bodyQuery    string
+	jsonRoots    []*jsonNode
+	jsonExpanded map[string]bool
+	jsonFor      string
+	jsonOK       bool
 
 	srv        *capture.Server
 	win        *mygo.Window
@@ -303,6 +312,10 @@ func (a *app) drain() {
 		return
 	}
 	for _, f := range pending {
+		kind := f.Kind
+		if kind == "http" {
+			kind = ""
+		}
 		a.flows = append(a.flows, flow{
 			id:         f.ID,
 			method:     f.Method,
@@ -318,7 +331,7 @@ func (a *app) drain() {
 			reqBody:    f.RequestBody,
 			resBody:    f.ResponseBody,
 			reqHeader:  f.RequestHeader,
-			kind:       f.Kind,
+			kind:       kind,
 		})
 	}
 	if len(a.flows) > maxFlows {
@@ -412,6 +425,8 @@ func (a *app) syncDetail() {
 	}
 	a.headers = f.reqHeaders + "\n\n" + f.resHeaders
 	a.body = f.resBody
+	a.reqBody = f.reqBody
+	a.jsonFor = ""
 	a.diff = &editor.DiffState{
 		Old:    editor.NewBuffer(a.previousResponse()),
 		New:    editor.NewBuffer(f.resBody),
@@ -647,9 +662,7 @@ func (a *app) detail(c *ui.Context) {
 				ui.Text(c, a.headers).FontSize(12).Font("monospace").TextColor(t.Text)
 			})
 		case 1:
-			ui.Scroll(c).Grow(1).Padding(12).Children(func() {
-				ui.Text(c, a.body).FontSize(12).Font("monospace").TextColor(t.Text)
-			})
+			a.bodyView(c, f)
 		case 2:
 			if a.diff != nil {
 				editor.DiffView(c, a.diff).Grow(1).FillWidth()
