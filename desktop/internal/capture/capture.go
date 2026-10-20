@@ -104,6 +104,12 @@ type Flow struct {
 
 	// Process is the app the connection came from, when it could be told.
 	Process string
+
+	// Wait is how long the request took to reach its first response byte,
+	// and Download the rest of Millis: the two phases a waterfall shows.
+	// Both are zero when the exchange never reached a server.
+	Wait     int
+	Download int
 }
 
 // FrameEvent is a frame that arrived after its flow was published.
@@ -183,6 +189,7 @@ type Server struct {
 
 	mu        sync.Mutex
 	started   map[uuid.UUID]time.Time
+	firstByte map[uuid.UUID]time.Time
 	original  map[uuid.UUID]url.URL
 	clients   map[string]string
 	closeOnce sync.Once
@@ -223,6 +230,7 @@ func New(addr, caRootPath string) (*Server, error) {
 		addr:        addr,
 		out:         make(chan Flow, queue),
 		started:     make(map[uuid.UUID]time.Time),
+		firstByte:   make(map[uuid.UUID]time.Time),
 		original:    make(map[uuid.UUID]url.URL),
 		clients:     make(map[string]string),
 		bpWait:      make(map[int]chan Decision),
@@ -553,6 +561,13 @@ func (a *addon) Requestheaders(f *proxy.Flow) {
 	a.server.mu.Unlock()
 }
 
+// Responseheaders notes when the response started, the end of the wait.
+func (a *addon) Responseheaders(f *proxy.Flow) {
+	a.server.mu.Lock()
+	a.server.firstByte[f.Id] = time.Now()
+	a.server.mu.Unlock()
+}
+
 func (a *addon) Request(f *proxy.Flow) {
 	if f.Request == nil {
 		return
@@ -861,6 +876,8 @@ func (s *Server) publishFlow(f *proxy.Flow, kind string, frames []Frame, status 
 	s.mu.Lock()
 	start, ok := s.started[f.Id]
 	delete(s.started, f.Id)
+	first, hasFirst := s.firstByte[f.Id]
+	delete(s.firstByte, f.Id)
 	display := f.Request.URL
 	if orig, mapped := s.original[f.Id]; mapped {
 		display = &orig
@@ -912,6 +929,11 @@ func (s *Server) publishFlow(f *proxy.Flow, kind string, frames []Frame, status 
 			millis += int(float64(len(f.Request.Body)) / float64(t.UpPerSec) * 1000)
 		}
 	}
+	wait, download := 0, 0
+	if hasFirst {
+		wait = int(first.Sub(start).Milliseconds())
+		download = millis - wait
+	}
 	flow := Flow{
 		ID:               int(s.nextID.Add(1)),
 		Method:           method,
@@ -922,6 +944,8 @@ func (s *Server) publishFlow(f *proxy.Flow, kind string, frames []Frame, status 
 		Status:           status,
 		Bytes:            size,
 		Millis:           millis,
+		Wait:             wait,
+		Download:         download,
 		RequestHeaders:   formatRequest(f.Request, display),
 		ResponseHeaders:  respHeaders,
 		RequestBody:      reqBody,

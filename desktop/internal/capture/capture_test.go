@@ -84,6 +84,29 @@ func waitFlow(t *testing.T, s *Server) Flow {
 	}
 }
 
+func TestTimingSplitsWaitAndDownload(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(40 * time.Millisecond)
+		_, _ = w.Write([]byte("ok"))
+	}))
+	defer upstream.Close()
+
+	s, _ := startServer(t)
+	resp, err := clientFor(t, s, nil).Get(upstream.URL + "/slow")
+	if err != nil {
+		t.Fatalf("request through proxy: %v", err)
+	}
+	_ = resp.Body.Close()
+
+	f := waitFlow(t, s)
+	if f.Wait < 20 {
+		t.Fatalf("wait = %d ms, want at least 20", f.Wait)
+	}
+	if f.Wait+f.Download != f.Millis {
+		t.Fatalf("wait %d + download %d != total %d", f.Wait, f.Download, f.Millis)
+	}
+}
+
 func TestSpillsLargeBodiesToDisk(t *testing.T) {
 	big := bytes.Repeat([]byte("x"), 200<<10)
 	sizes := make(chan int, 4)

@@ -445,6 +445,8 @@ func (a *app) drain() {
 			at:         f.At,
 			kind:       kind,
 			process:    f.Process,
+			wait:       f.Wait,
+			download:   f.Download,
 		})
 	}
 	if len(a.flows) > maxFlows {
@@ -553,7 +555,7 @@ func (a *app) syncDetail() {
 		return
 	}
 	a.detailFor = f.id
-	if f.kind == "" && a.tab == 3 {
+	if f.kind == "" && a.tab == 4 {
 		a.tab = 0
 	}
 	a.headers = f.reqHeaders + "\n\n" + f.resHeaders
@@ -888,7 +890,7 @@ func (a *app) detail(c *ui.Context) {
 			ui.Text(c, fmt.Sprintf("%d · %s · %d ms", f.status, humanBytes(f.bytes), f.millis)).
 				FontSize(12).TextColor(statusColor(f.status, t))
 		})
-		labels := []string{"Headers", "Body", "Diff"}
+		labels := []string{"Headers", "Body", "Diff", "Timing"}
 		if f.kind != "" {
 			labels = append(labels, "Messages")
 		}
@@ -909,6 +911,8 @@ func (a *app) detail(c *ui.Context) {
 				editor.DiffView(c, a.diff).Grow(1).FillWidth()
 			}
 		case 3:
+			a.timingView(c, f)
+		case 4:
 			a.messages(c, f)
 		}
 	})
