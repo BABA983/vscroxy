@@ -48,13 +48,15 @@ type app struct {
 	body      string
 	diff      *editor.DiffState
 
-	srv       *capture.Server
-	win       *mygo.Window
-	caPath    string
-	rulesPath string
-	rules     []capture.Rule
-	errText   string
-	dropped   int64
+	srv        *capture.Server
+	win        *mygo.Window
+	caPath     string
+	rulesPath  string
+	scriptPath string
+	rules      []capture.Rule
+	errText    string
+	dropped    int64
+	scriptErrs int64
 
 	breakOn  bool
 	bp       *capture.Breakpoint
@@ -97,8 +99,9 @@ func newApp() *app {
 		if home, err := os.UserHomeDir(); err == nil {
 			a.caPath = filepath.Join(home, ".mitmproxy", "mitmproxy-ca-cert.pem")
 			a.rulesPath = filepath.Join(home, ".vscroxy", "rules.json")
+			a.scriptPath = filepath.Join(home, ".vscroxy", "script.js")
 		}
-		a.reloadRules()
+		a.reloadConfig()
 	}
 	a.countDomains()
 	a.applyFilter()
@@ -106,20 +109,30 @@ func newApp() *app {
 }
 
 // startCapture listens and hands captured flows to the view.
-// reloadRules reads the rules file and hands it to the proxy. It runs on the
-// main thread, from startup or the Reload button.
-func (a *app) reloadRules() {
-	if a.rulesPath == "" {
+// reloadConfig reads the rules and the script and hands them to the proxy.
+// It runs on the main thread, from startup or the Reload button.
+func (a *app) reloadConfig() {
+	if a.rulesPath != "" {
+		rules, err := capture.LoadRules(a.rulesPath)
+		if err != nil {
+			a.errText = err.Error()
+		} else {
+			a.rules = rules
+			if a.srv != nil {
+				a.srv.SetRules(rules)
+			}
+		}
+	}
+	if a.scriptPath == "" {
 		return
 	}
-	rules, err := capture.LoadRules(a.rulesPath)
+	script, err := capture.LoadScript(a.scriptPath)
 	if err != nil {
 		a.errText = err.Error()
 		return
 	}
-	a.rules = rules
 	if a.srv != nil {
-		a.srv.SetRules(rules)
+		a.srv.SetScript(script)
 	}
 }
 
@@ -269,6 +282,7 @@ func (a *app) drain() {
 	a.applyFilter()
 	if a.srv != nil {
 		a.dropped = a.srv.Dropped()
+		a.scriptErrs = a.srv.ScriptErrors()
 	}
 }
 
@@ -418,8 +432,8 @@ func (a *app) toolbar(c *ui.Context, t *ui.Theme) {
 		if ui.SearchField(c, &a.query).Width(320).Changed() {
 			a.applyFilter()
 		}
-		if ui.Button(c, "Reload rules").Clicked() {
-			a.reloadRules()
+		if ui.Button(c, "Reload config").Clicked() {
+			a.reloadConfig()
 		}
 		if ui.Button(c, "Latest").Clicked() && len(a.visible) > 0 {
 			a.picked = len(a.visible) - 1
@@ -584,6 +598,9 @@ func (a *app) statusBar(c *ui.Context, t *ui.Theme) {
 			FontSize(11).TextColor(t.TextMuted)
 		if a.dropped > 0 {
 			ui.Text(c, fmt.Sprintf("%d dropped", a.dropped)).FontSize(11).TextColor(ui.Hex("#d97706"))
+		}
+		if a.scriptErrs > 0 {
+			ui.Text(c, fmt.Sprintf("%d script errors", a.scriptErrs)).FontSize(11).TextColor(ui.Hex("#d97706"))
 		}
 		ui.Spacer(c)
 		if len(a.rules) > 0 {

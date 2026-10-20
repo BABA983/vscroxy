@@ -376,3 +376,98 @@ func TestBreakpointDurationExcludesPause(t *testing.T) {
 		t.Fatalf("flow took %d ms: the pause is counted as network time", f.Millis)
 	}
 }
+
+func startServerWithScript(t *testing.T, source string) *Server {
+	t.Helper()
+	s, _ := startServer(t)
+	path := filepath.Join(t.TempDir(), "script.js")
+	if err := os.WriteFile(path, []byte(source), 0o600); err != nil {
+		t.Fatalf("write script: %v", err)
+	}
+	sc, err := LoadScript(path)
+	if err != nil {
+		t.Fatalf("load script: %v", err)
+	}
+	s.SetScript(sc)
+	return s
+}
+
+func TestScriptRequest(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("X-From-Script") != "yes" {
+			t.Errorf("script header missing: %v", r.Header)
+		}
+		if r.URL.Path != "/new" {
+			t.Errorf("path = %q, want /new", r.URL.Path)
+		}
+		fmt.Fprint(w, "ok")
+	}))
+	defer upstream.Close()
+
+	s := startServerWithScript(t, `
+function onRequest(req) {
+  req.headers["X-From-Script"] = "yes"
+  req.url = req.url.replace("/old", "/new")
+}`)
+	resp, err := clientFor(t, s, nil).Get(upstream.URL + "/old")
+	if err != nil {
+		t.Fatalf("request: %v", err)
+	}
+	_ = resp.Body.Close()
+
+	f := waitFlow(t, s)
+	if !strings.HasSuffix(f.URL, "/new") {
+		t.Fatalf("flow URL = %q, want the scripted URL", f.URL)
+	}
+}
+
+func TestScriptResponse(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		fmt.Fprint(w, "original")
+	}))
+	defer upstream.Close()
+
+	s := startServerWithScript(t, `
+function onResponse(res) {
+  res.status = 201
+  res.body = JSON.stringify({scripted: true})
+  res.headers["X-Script"] = "1"
+}`)
+	resp, err := clientFor(t, s, nil).Get(upstream.URL + "/boom")
+	if err != nil {
+		t.Fatalf("request: %v", err)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	_ = resp.Body.Close()
+	if resp.StatusCode != 201 || string(body) != `{"scripted":true}` || resp.Header.Get("X-Script") != "1" {
+		t.Fatalf("client got %d %q %q", resp.StatusCode, body, resp.Header.Get("X-Script"))
+	}
+
+	f := waitFlow(t, s)
+	if f.Status != 201 || !strings.Contains(f.ResponseBody, "scripted") {
+		t.Fatalf("flow = %d %q", f.Status, f.ResponseBody)
+	}
+}
+
+func TestScriptTimeout(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, "ok")
+	}))
+	defer upstream.Close()
+
+	s := startServerWithScript(t, `
+function onRequest(req) { while (true) {} }`)
+	start := time.Now()
+	resp, err := clientFor(t, s, nil).Get(upstream.URL + "/loop")
+	if err != nil {
+		t.Fatalf("request: %v", err)
+	}
+	_ = resp.Body.Close()
+	if elapsed := time.Since(start); elapsed > 3*time.Second {
+		t.Fatalf("script held the request for %v", elapsed)
+	}
+	if s.ScriptErrors() == 0 {
+		t.Fatal("the interrupted script was not counted")
+	}
+}

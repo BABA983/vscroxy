@@ -4,6 +4,7 @@
 package capture
 
 import (
+	"bytes"
 	"context"
 	"encoding/json/v2"
 	"errors"
@@ -18,6 +19,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -33,6 +35,8 @@ const (
 	maxBody = 1 << 20
 	// maxRuleBody bounds what a map local rule serves from a file.
 	maxRuleBody = 8 << 20
+	// maxScriptBody bounds what a response script reads.
+	maxScriptBody = 1 << 20
 	// queue bounds the flows waiting for the UI. A burst past it is dropped
 	// and counted instead of growing without limit.
 	queue = 1024
@@ -138,6 +142,10 @@ type Server struct {
 	rulesMu sync.RWMutex
 	rules   []Rule
 
+	scriptMu     sync.RWMutex
+	script       *Script
+	scriptErrors atomic.Int64
+
 	breakOn     atomic.Bool
 	bpNext      atomic.Int64
 	bpMu        sync.Mutex
@@ -195,6 +203,22 @@ func (s *Server) Rules() []Rule {
 	defer s.rulesMu.RUnlock()
 	return slices.Clone(s.rules)
 }
+
+// SetScript replaces the script the proxy runs. A nil script runs nothing.
+func (s *Server) SetScript(script *Script) {
+	s.scriptMu.Lock()
+	s.script = script
+	s.scriptMu.Unlock()
+}
+
+func (s *Server) currentScript() *Script {
+	s.scriptMu.RLock()
+	defer s.scriptMu.RUnlock()
+	return s.script
+}
+
+// ScriptErrors counts the hooks that failed or timed out.
+func (s *Server) ScriptErrors() int64 { return s.scriptErrors.Load() }
 
 // SetBreak turns breakpoints on or off. With them off, no request pauses.
 func (s *Server) SetBreak(on bool) { s.breakOn.Store(on) }
@@ -398,6 +422,9 @@ func (a *addon) Request(f *proxy.Flow) {
 	if f.Request == nil {
 		return
 	}
+	if err := a.server.currentScript().applyRequest(f); err != nil {
+		a.server.scriptErrors.Add(1)
+	}
 	if d := a.server.maybeBreak(f); d != nil {
 		if d.Abort {
 			f.Response = &proxy.Response{
@@ -428,7 +455,43 @@ func (a *addon) Request(f *proxy.Flow) {
 }
 
 func (a *addon) Response(f *proxy.Flow) {
+	// A response script edits the body in StreamResponseModifier, which is
+	// the only place the proxy still lets the reader be replaced: publish
+	// there, once the edits are in.
+	if sc := a.server.currentScript(); sc.HasResponse() && !f.Stream && f.Response != nil && !isSSE(f.Response) {
+		return
+	}
 	a.server.publish(f)
+}
+
+// StreamResponseModifier runs the response script on the body before the
+// client gets it, and publishes the flow after the edit.
+func (a *addon) StreamResponseModifier(f *proxy.Flow, in io.Reader) io.Reader {
+	sc := a.server.currentScript()
+	if !sc.HasResponse() || f.Stream || f.Response == nil || isSSE(f.Response) {
+		return in
+	}
+	body, err := f.Response.DecodedBody()
+	if err != nil || len(body) > maxScriptBody {
+		a.server.publish(f)
+		return in
+	}
+	f.Response.Body = body
+	if err := sc.applyResponse(f); err != nil {
+		a.server.scriptErrors.Add(1)
+	}
+	f.Response.Header.Del("Content-Encoding")
+	f.Response.Header.Set("Content-Length", strconv.Itoa(len(f.Response.Body)))
+	a.server.publish(f)
+	// reply writes the returned reader and response.Body both: keep the
+	// reader, which carries the edit, and clear the field.
+	body = f.Response.Body
+	f.Response.Body = nil
+	return bytes.NewReader(body)
+}
+
+func isSSE(r *proxy.Response) bool {
+	return strings.Contains(r.Header.Get("Content-Type"), "text/event-stream")
 }
 
 // RequestError and HTTPConnectError keep failed exchanges visible, since a

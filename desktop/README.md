@@ -82,6 +82,33 @@ pauses: a dialog shows its method, URL and body. Edit them and press
 **Continue** to send it on, or **Abort** to answer `502`. The flow's duration
 is the exchange's, not the time you spent at the breakpoint.
 
+## Scripts
+
+`~/.vscroxy/script.js` may define `onRequest(req)` and `onResponse(res)`.
+`req` has `method`, `url`, `headers` and `body`; `res` has `status`, `headers`
+and `body`. Edits are written back before the request goes upstream and before
+the response reaches the client.
+
+```js
+function onRequest(req) {
+  if (req.url.includes("/v1/old")) req.url = req.url.replace("/v1/old", "/v1/new");
+  req.headers["X-Debug"] = "1";
+}
+
+function onResponse(res) {
+  if (res.status === 404) {
+    res.status = 200;
+    res.body = JSON.stringify({ ok: true });
+    res.headers["Content-Type"] = "application/json";
+  }
+}
+```
+
+Each hook runs in a fresh sandbox with a 250 ms limit and no files or
+network; a hook that loops is interrupted and counted in the status bar.
+Streaming and SSE responses skip the response hook. **Reload config** rereads
+both the rules and the script.
+
 ## Replay
 
 Select a flow and press **Replay**: the request goes out again through the
@@ -90,7 +117,8 @@ against the original (same method, scheme and URL).
 
 ## Next
 
-- Breakpoints: pause a flow mid-flight, edit it, and let it go.
-- Pre-request and post-response scripts over the same flow model.
+- Response breakpoints, which need the same stream hook the response script
+  uses.
 - A real body inspector: JSON tree, hex, image and rendered previews, with
   search, and bodies spilled to disk instead of held in memory.
+- Session export: HAR and a saved session that reopens with its flows.
