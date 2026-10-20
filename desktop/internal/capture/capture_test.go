@@ -471,3 +471,89 @@ function onRequest(req) { while (true) {} }`)
 		t.Fatal("the interrupted script was not counted")
 	}
 }
+
+func TestResponseBreakpointEdits(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		fmt.Fprint(w, "original")
+	}))
+	defer upstream.Close()
+
+	s, _ := startServerWithRules(t, Rule{Type: RuleBreakResponse, Match: upstream.URL})
+	s.SetBreak(true)
+	client := clientFor(t, s, nil)
+
+	type result struct {
+		status int
+		body   string
+		err    error
+	}
+	done := make(chan result, 1)
+	go func() {
+		resp, err := client.Get(upstream.URL + "/edit")
+		if err != nil {
+			done <- result{err: err}
+			return
+		}
+		body, err := io.ReadAll(resp.Body)
+		_ = resp.Body.Close()
+		done <- result{status: resp.StatusCode, body: string(body), err: err}
+	}()
+
+	var bp Breakpoint
+	select {
+	case bp = <-s.Breakpoints():
+	case <-time.After(5 * time.Second):
+		t.Fatal("no response breakpoint")
+	}
+	if bp.Phase != PhaseResponse || bp.Status != http.StatusInternalServerError || bp.Body != "original" {
+		t.Fatalf("breakpoint = %+v", bp)
+	}
+	if !s.Resume(bp.ID, Decision{Status: 201, Body: `{"edited":true}`}) {
+		t.Fatal("resume found no waiter")
+	}
+	r := <-done
+	if r.err != nil {
+		t.Fatalf("request: %v", r.err)
+	}
+	if r.status != 201 || r.body != `{"edited":true}` {
+		t.Fatalf("client got %d %q", r.status, r.body)
+	}
+
+	f := waitFlow(t, s)
+	if f.Status != 201 || !strings.Contains(f.ResponseBody, "edited") {
+		t.Fatalf("flow = %d %q", f.Status, f.ResponseBody)
+	}
+}
+
+func TestResponseBreakpointAborts(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, "original")
+	}))
+	defer upstream.Close()
+
+	s, _ := startServerWithRules(t, Rule{Type: RuleBreakResponse, Match: upstream.URL})
+	s.SetBreak(true)
+	client := clientFor(t, s, nil)
+
+	status := make(chan int, 1)
+	go func() {
+		resp, err := client.Get(upstream.URL + "/abort")
+		if err != nil {
+			status <- 0
+			return
+		}
+		_ = resp.Body.Close()
+		status <- resp.StatusCode
+	}()
+
+	select {
+	case bp := <-s.Breakpoints():
+		s.Resume(bp.ID, Decision{Abort: true})
+	case <-time.After(5 * time.Second):
+		t.Fatal("no response breakpoint")
+	}
+	if got := <-status; got != http.StatusBadGateway {
+		t.Fatalf("status = %d, want 502", got)
+	}
+}

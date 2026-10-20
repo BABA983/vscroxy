@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -63,6 +64,7 @@ type app struct {
 	bpOpen   bool
 	bpMethod string
 	bpURL    string
+	bpStatus string
 	bpBody   string
 
 	// mu guards what the capture goroutine hands to the view: the flows not
@@ -207,10 +209,15 @@ func (a *app) resolveBreak(abort bool) {
 		return
 	}
 	if a.srv != nil {
+		status := 0
+		if bp.Phase == capture.PhaseResponse {
+			status, _ = strconv.Atoi(strings.TrimSpace(a.bpStatus))
+		}
 		a.srv.Resume(bp.ID, capture.Decision{
 			Abort:  abort,
 			Method: a.bpMethod,
 			URL:    a.bpURL,
+			Status: status,
 			Body:   a.bpBody,
 		})
 	}
@@ -249,6 +256,10 @@ func (a *app) drain() {
 			a.bpOpen = true
 			a.bpMethod = next.Method
 			a.bpURL = next.URL
+			a.bpStatus = ""
+			if next.Status > 0 {
+				a.bpStatus = strconv.Itoa(next.Status)
+			}
 			a.bpBody = next.Body
 		}
 	}
@@ -397,11 +408,22 @@ func (a *app) breakpointModal(c *ui.Context, t *ui.Theme) {
 	}
 	if ui.Modal(c, &a.bpOpen, func() {
 		ui.Column(c).Width(640).Gap(10).Children(func() {
-			ui.Text(c, "Breakpoint · request paused").FontSize(14).Bold()
-			ui.Row(c).Gap(8).Children(func() {
-				ui.TextInput(c, &a.bpMethod).Width(90).Label("Method")
-				ui.TextInput(c, &a.bpURL).Grow(1).Label("URL")
-			})
+			title := "Breakpoint · request paused"
+			if a.bp.Phase == capture.PhaseResponse {
+				title = "Breakpoint · response paused"
+			}
+			ui.Text(c, title).FontSize(14).Bold()
+			if a.bp.Phase == capture.PhaseResponse {
+				ui.Row(c).Gap(8).Children(func() {
+					ui.TextInput(c, &a.bpStatus).Width(90).Label("Status")
+					ui.Text(c, a.bp.URL).FontSize(12).TextColor(t.TextMuted).SingleLine().Grow(1)
+				})
+			} else {
+				ui.Row(c).Gap(8).Children(func() {
+					ui.TextInput(c, &a.bpMethod).Width(90).Label("Method")
+					ui.TextInput(c, &a.bpURL).Grow(1).Label("URL")
+				})
+			}
 			ui.TextArea(c, &a.bpBody).Height(200).Label("Body")
 			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
 				if ui.Button(c, "Abort").Clicked() {

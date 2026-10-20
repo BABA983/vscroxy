@@ -90,6 +90,8 @@ const (
 	RuleBlock RuleType = "block"
 	// RuleBreak pauses a matching request until the UI decides what to do.
 	RuleBreak RuleType = "break"
+	// RuleBreakResponse pauses a matching response until the UI decides.
+	RuleBreakResponse RuleType = "break_response"
 )
 
 // Rule rewrites requests whose URL contains Match, in order, first match
@@ -106,6 +108,7 @@ type Phase int
 
 const (
 	PhaseRequest Phase = iota
+	PhaseResponse
 )
 
 // Breakpoint is an exchange paused for the UI to edit.
@@ -114,6 +117,7 @@ type Breakpoint struct {
 	Phase  Phase
 	Method string
 	URL    string
+	Status int
 	Body   string
 }
 
@@ -122,6 +126,7 @@ type Decision struct {
 	Abort  bool
 	Method string
 	URL    string
+	Status int
 	Body   string
 }
 
@@ -246,12 +251,12 @@ func (s *Server) Resume(id int, d Decision) bool {
 // maybeBreak pauses the flow when breakpoints are on and a break rule matches,
 // and applies what the UI decided. It returns the decision, or nil when the
 // exchange should go on unchanged.
-func (s *Server) maybeBreak(f *proxy.Flow) *Decision {
+func (s *Server) maybeBreak(f *proxy.Flow, phase Phase) *Decision {
 	if !s.breakOn.Load() || f.Request == nil {
 		return nil
 	}
 	raw := f.Request.URL.String()
-	if !s.matchesBreak(raw) {
+	if !s.matchesBreak(raw, phase) {
 		return nil
 	}
 	id := int(s.bpNext.Add(1))
@@ -262,10 +267,15 @@ func (s *Server) maybeBreak(f *proxy.Flow) *Decision {
 
 	bp := Breakpoint{
 		ID:     id,
-		Phase:  PhaseRequest,
+		Phase:  phase,
 		Method: f.Request.Method,
 		URL:    raw,
-		Body:   bodyText(f.Request.DecodedBody()),
+	}
+	if phase == PhaseResponse && f.Response != nil {
+		bp.Status = f.Response.StatusCode
+		bp.Body = bodyText(f.Response.DecodedBody())
+	} else {
+		bp.Body = bodyText(f.Request.DecodedBody())
 	}
 	select {
 	case s.breakpoints <- bp:
@@ -295,15 +305,25 @@ func (s *Server) maybeBreak(f *proxy.Flow) *Decision {
 	return d
 }
 
-func (s *Server) matchesBreak(raw string) bool {
+func (s *Server) matchesBreak(raw string, phase Phase) bool {
+	want := RuleBreak
+	if phase == PhaseResponse {
+		want = RuleBreakResponse
+	}
 	s.rulesMu.RLock()
 	defer s.rulesMu.RUnlock()
 	for _, r := range s.rules {
-		if r.Type == RuleBreak && strings.Contains(raw, r.Match) {
+		if r.Type == want && strings.Contains(raw, r.Match) {
 			return true
 		}
 	}
 	return false
+}
+
+// willBreakResponse reports whether a response for this flow will pause, so
+// the Response hook leaves publishing to the stream modifier.
+func (s *Server) willBreakResponse(f *proxy.Flow) bool {
+	return s.breakOn.Load() && f.Request != nil && s.matchesBreak(f.Request.URL.String(), PhaseResponse)
 }
 
 // LoadRules reads a rules file. A missing file is no rules, not an error.
@@ -321,14 +341,14 @@ func LoadRules(path string) ([]Rule, error) {
 	}
 	for i, r := range rules {
 		switch r.Type {
-		case RuleMapRemote, RuleMapLocal, RuleBlock, RuleBreak:
+		case RuleMapRemote, RuleMapLocal, RuleBlock, RuleBreak, RuleBreakResponse:
 		default:
 			return nil, fmt.Errorf("%s: rule %d has unknown type %q", path, i, r.Type)
 		}
 		if r.Match == "" {
 			return nil, fmt.Errorf("%s: rule %d has no match", path, i)
 		}
-		if r.Type != RuleBlock && r.Type != RuleBreak && r.Target == "" {
+		if r.Type != RuleBlock && r.Type != RuleBreak && r.Type != RuleBreakResponse && r.Target == "" {
 			return nil, fmt.Errorf("%s: rule %d has no target", path, i)
 		}
 	}
@@ -425,7 +445,7 @@ func (a *addon) Request(f *proxy.Flow) {
 	if err := a.server.currentScript().applyRequest(f); err != nil {
 		a.server.scriptErrors.Add(1)
 	}
-	if d := a.server.maybeBreak(f); d != nil {
+	if d := a.server.maybeBreak(f, PhaseRequest); d != nil {
 		if d.Abort {
 			f.Response = &proxy.Response{
 				StatusCode: http.StatusBadGateway,
@@ -455,10 +475,14 @@ func (a *addon) Request(f *proxy.Flow) {
 }
 
 func (a *addon) Response(f *proxy.Flow) {
-	// A response script edits the body in StreamResponseModifier, which is
-	// the only place the proxy still lets the reader be replaced: publish
-	// there, once the edits are in.
-	if sc := a.server.currentScript(); sc.HasResponse() && !f.Stream && f.Response != nil && !isSSE(f.Response) {
+	if f.Response == nil || f.Stream || isSSE(f.Response) {
+		a.server.publish(f)
+		return
+	}
+	// A response script or breakpoint edits the body in
+	// StreamResponseModifier, the only place the proxy still lets the reader
+	// be replaced: publish there, once the edits are in.
+	if a.server.currentScript().HasResponse() || a.server.willBreakResponse(f) {
 		return
 	}
 	a.server.publish(f)
@@ -467,8 +491,13 @@ func (a *addon) Response(f *proxy.Flow) {
 // StreamResponseModifier runs the response script on the body before the
 // client gets it, and publishes the flow after the edit.
 func (a *addon) StreamResponseModifier(f *proxy.Flow, in io.Reader) io.Reader {
+	if f.Response == nil || f.Stream || isSSE(f.Response) {
+		return in
+	}
 	sc := a.server.currentScript()
-	if !sc.HasResponse() || f.Stream || f.Response == nil || isSSE(f.Response) {
+	scripted := sc.HasResponse()
+	breaking := a.server.willBreakResponse(f)
+	if !scripted && !breaking {
 		return in
 	}
 	body, err := f.Response.DecodedBody()
@@ -477,8 +506,15 @@ func (a *addon) StreamResponseModifier(f *proxy.Flow, in io.Reader) io.Reader {
 		return in
 	}
 	f.Response.Body = body
-	if err := sc.applyResponse(f); err != nil {
-		a.server.scriptErrors.Add(1)
+	if scripted {
+		if err := sc.applyResponse(f); err != nil {
+			a.server.scriptErrors.Add(1)
+		}
+	}
+	if breaking {
+		if d := a.server.maybeBreak(f, PhaseResponse); d != nil {
+			applyResponseDecision(f, d)
+		}
 	}
 	f.Response.Header.Del("Content-Encoding")
 	f.Response.Header.Set("Content-Length", strconv.Itoa(len(f.Response.Body)))
@@ -488,6 +524,23 @@ func (a *addon) StreamResponseModifier(f *proxy.Flow, in io.Reader) io.Reader {
 	body = f.Response.Body
 	f.Response.Body = nil
 	return bytes.NewReader(body)
+}
+
+// applyResponseDecision writes what the user chose at a response breakpoint.
+func applyResponseDecision(f *proxy.Flow, d *Decision) {
+	if f.Response == nil {
+		return
+	}
+	if d.Abort {
+		f.Response.StatusCode = http.StatusBadGateway
+		f.Response.Header = http.Header{"Content-Type": {"text/plain; charset=utf-8"}}
+		f.Response.Body = []byte("aborted at a breakpoint\n")
+		return
+	}
+	if d.Status > 0 {
+		f.Response.StatusCode = d.Status
+	}
+	f.Response.Body = []byte(d.Body)
 }
 
 func isSSE(r *proxy.Response) bool {
