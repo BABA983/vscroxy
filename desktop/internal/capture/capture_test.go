@@ -664,3 +664,53 @@ func TestSSEEvents(t *testing.T) {
 		t.Fatalf("second event = %+v", second)
 	}
 }
+
+func TestUpstreamProxy(t *testing.T) {
+	upstream := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, "hello")
+	}))
+	defer upstream.Close()
+
+	inner, _ := startServer(t)
+	outer, caPath := startServer(t)
+	if err := outer.SetUpstream("http://" + inner.Addr()); err != nil {
+		t.Fatalf("set upstream: %v", err)
+	}
+	if got := outer.Upstream(); got != "http://"+inner.Addr() {
+		t.Fatalf("upstream = %q", got)
+	}
+
+	pem, err := os.ReadFile(caPath)
+	if err != nil {
+		t.Fatalf("read CA: %v", err)
+	}
+	roots := x509.NewCertPool()
+	if !roots.AppendCertsFromPEM(pem) {
+		t.Fatal("CA is not PEM")
+	}
+	u, err := url.Parse(upstream.URL)
+	if err != nil {
+		t.Fatalf("parse upstream: %v", err)
+	}
+	u.Host = "localhost:" + u.Port()
+	resp, err := clientFor(t, outer, roots).Get(u.String() + "/chain")
+	if err != nil {
+		t.Fatalf("request: %v", err)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	_ = resp.Body.Close()
+	if string(body) != "hello" {
+		t.Fatalf("body = %q", body)
+	}
+	f := waitFlow(t, inner)
+	if f.Path != "/chain" {
+		t.Fatalf("inner flow = %+v", f)
+	}
+
+	if err := outer.SetUpstream("not a proxy"); err == nil {
+		t.Fatal("an address without a scheme was accepted")
+	}
+	if err := outer.SetUpstream(""); err != nil || outer.Upstream() != "" {
+		t.Fatalf("clearing upstream: %v, %q", err, outer.Upstream())
+	}
+}

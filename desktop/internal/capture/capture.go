@@ -79,6 +79,11 @@ type Flow struct {
 	RequestBody     string
 	ResponseBody    string
 
+	// At is when the exchange finished; ResponseHeader the structured
+	// response headers, for an export.
+	At             time.Time
+	ResponseHeader http.Header
+
 	// RequestHeader is the structured request headers, for a replay.
 	RequestHeader http.Header
 
@@ -178,6 +183,11 @@ type Server struct {
 	script       *Script
 	scriptErrors atomic.Int64
 
+	throttleMu sync.RWMutex
+	throttle   Throttle
+
+	upstream atomic.Value // string
+
 	breakOn     atomic.Bool
 	bpNext      atomic.Int64
 	bpMu        sync.Mutex
@@ -211,6 +221,13 @@ func New(addr, caRootPath string) (*Server, error) {
 		return nil, err
 	}
 	p.AddAddon(&addon{server: s})
+	p.SetUpstreamProxy(func(*http.Request) (*url.URL, error) {
+		raw, _ := s.upstream.Load().(string)
+		if raw == "" {
+			return nil, nil
+		}
+		return url.Parse(raw)
+	})
 	s.proxy = p
 	return s, nil
 }
@@ -249,6 +266,31 @@ func (s *Server) currentScript() *Script {
 	s.scriptMu.RLock()
 	defer s.scriptMu.RUnlock()
 	return s.script
+}
+
+// SetUpstream sends every request through another proxy, as an empty string
+// turns that off. The address needs a scheme and a host, such as
+// http://127.0.0.1:8080.
+func (s *Server) SetUpstream(raw string) error {
+	if raw == "" {
+		s.upstream.Store("")
+		return nil
+	}
+	u, err := url.Parse(raw)
+	if err != nil {
+		return err
+	}
+	if u.Scheme == "" || u.Host == "" {
+		return fmt.Errorf("upstream %q needs a scheme and a host", raw)
+	}
+	s.upstream.Store(u.String())
+	return nil
+}
+
+// Upstream is the proxy every request goes through, or empty.
+func (s *Server) Upstream() string {
+	raw, _ := s.upstream.Load().(string)
+	return raw
 }
 
 // ScriptErrors counts the hooks that failed or timed out.
@@ -564,20 +606,24 @@ func (a *addon) Response(f *proxy.Flow) {
 
 // StreamResponseModifier runs the response script on the body before the
 // client gets it, and publishes the flow after the edit.
+func (a *addon) StreamRequestModifier(f *proxy.Flow, in io.Reader) io.Reader {
+	return a.server.throttleUp(in)
+}
+
 func (a *addon) StreamResponseModifier(f *proxy.Flow, in io.Reader) io.Reader {
 	if f.Response == nil || f.Stream || isSSE(f.Response) {
-		return in
+		return a.server.throttleDown(in)
 	}
 	sc := a.server.currentScript()
 	scripted := sc.HasResponse()
 	breaking := a.server.willBreakResponse(f)
 	if !scripted && !breaking {
-		return in
+		return a.server.throttleDown(in)
 	}
 	body, err := f.Response.DecodedBody()
 	if err != nil || len(body) > maxScriptBody {
 		a.server.publish(f)
-		return in
+		return a.server.throttleDown(in)
 	}
 	f.Response.Body = body
 	if scripted {
@@ -597,7 +643,7 @@ func (a *addon) StreamResponseModifier(f *proxy.Flow, in io.Reader) io.Reader {
 	// reader, which carries the edit, and clear the field.
 	body = f.Response.Body
 	f.Response.Body = nil
-	return bytes.NewReader(body)
+	return a.server.throttleDown(bytes.NewReader(body))
 }
 
 // applyResponseDecision writes what the user chose at a response breakpoint.
@@ -766,6 +812,18 @@ func (s *Server) publishFlow(f *proxy.Flow, kind string, frames []Frame, status 
 	if kind == "ws" {
 		method = "WS"
 	}
+	millis := int(now.Sub(start).Milliseconds())
+	if kind == "http" {
+		// The throttle paces the body after this hook, so add what the
+		// transfer will take: the flow's time should match the client's.
+		t := s.Throttle()
+		if t.DownPerSec > 0 && size > 0 {
+			millis += int(float64(size) / float64(t.DownPerSec) * 1000)
+		}
+		if t.UpPerSec > 0 && len(f.Request.Body) > 0 {
+			millis += int(float64(len(f.Request.Body)) / float64(t.UpPerSec) * 1000)
+		}
+	}
 	flow := Flow{
 		ID:              int(s.nextID.Add(1)),
 		Method:          method,
@@ -775,12 +833,14 @@ func (s *Server) publishFlow(f *proxy.Flow, kind string, frames []Frame, status 
 		URL:             display.String(),
 		Status:          status,
 		Bytes:           size,
-		Millis:          int(now.Sub(start).Milliseconds()),
+		Millis:          millis,
 		RequestHeaders:  formatRequest(f.Request, display),
 		ResponseHeaders: respHeaders,
 		RequestBody:     bodyText(f.Request.DecodedBody()),
 		ResponseBody:    respBody,
 		RequestHeader:   f.Request.Header.Clone(),
+		ResponseHeader:  responseHeader(f.Response),
+		At:              now,
 		Kind:            kind,
 		Frames:          clipFrames(frames),
 	}
@@ -811,6 +871,13 @@ func (s *Server) emitFrame(f *proxy.Flow, frame Frame) {
 	default:
 		s.dropped.Add(1)
 	}
+}
+
+func responseHeader(r *proxy.Response) http.Header {
+	if r == nil {
+		return nil
+	}
+	return r.Header.Clone()
 }
 
 func wsFrameKind(t int) string {

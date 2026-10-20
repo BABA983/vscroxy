@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math/rand"
 	"net/http"
+	"time"
 )
 
 // flow is one captured request/response pair, the unit the table shows and the
@@ -23,6 +24,8 @@ type flow struct {
 	reqBody    string
 	resBody    string
 	reqHeader  http.Header
+	respHeader http.Header
+	at         time.Time
 	kind       string
 }
 

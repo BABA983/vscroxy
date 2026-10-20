@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/baba983/vscroxy/desktop/internal/capture"
+	"github.com/baba983/vscroxy/desktop/internal/system"
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/editor"
@@ -65,9 +66,14 @@ type app struct {
 	rulesPath  string
 	scriptPath string
 	rules      []capture.Rule
+	throttle   capture.Throttle
+	upstream   string
 	errText    string
 	dropped    int64
 	scriptErrs int64
+
+	upstreamOpen bool
+	upstreamAddr string
 
 	breakOn  bool
 	bp       *capture.Breakpoint
@@ -108,6 +114,7 @@ func newApp() *app {
 		domainsOpen:  true,
 		detailFor:    -1,
 		frames:       make(map[int][]frame),
+		throttle:     capture.Presets[0],
 	}
 	srv, err := capture.New("127.0.0.1:7890", "")
 	if err != nil {
@@ -160,11 +167,75 @@ func (a *app) reloadConfig() {
 // setMessage records a short status line, from any goroutine.
 func (a *app) setMessage(msg string) {
 	a.mu.Lock()
-	a.message = msg
+	a.message = clamp(msg, 72)
 	a.mu.Unlock()
 	if a.win != nil {
 		a.win.Invalidate()
 	}
+}
+
+// clamp keeps a status message on one line.
+func clamp(msg string, max int) string {
+	r := []rune(msg)
+	if len(r) <= max {
+		return msg
+	}
+	return string(r[:max-1]) + "…"
+}
+
+// setSystemProxy turns the machine's proxy on or off. The platform helpers
+// may block on a password prompt, so they run off the UI thread.
+func (a *app) setSystemProxy(on bool) {
+	go func() {
+		var err error
+		if on {
+			err = system.SetProxy(system.ProxyAddr)
+		} else {
+			err = system.ClearProxy()
+		}
+		if err != nil {
+			a.setMessage("System proxy: " + err.Error())
+			return
+		}
+		if on {
+			a.setMessage("System proxy: " + system.ProxyAddr)
+		} else {
+			a.setMessage("System proxy: off")
+		}
+	}()
+}
+
+// installCA trusts the CA that the proxy uses to sign intercepted TLS.
+func (a *app) installCA() {
+	if a.caPath == "" {
+		a.setMessage("Certificate: no path known")
+		return
+	}
+	path := a.caPath
+	go func() {
+		if _, err := os.Stat(path); err != nil {
+			a.setMessage("Certificate not found; capture one request first")
+			return
+		}
+		if err := system.InstallCA(path); err != nil {
+			a.setMessage("Install certificate: " + err.Error())
+			return
+		}
+		a.setMessage("Certificate trusted")
+	}()
+}
+
+func (a *app) revealCA() {
+	if a.caPath == "" {
+		a.setMessage("Certificate: no path known")
+		return
+	}
+	path := a.caPath
+	go func() {
+		if err := system.RevealCA(path); err != nil {
+			a.setMessage("Reveal certificate: " + err.Error())
+		}
+	}()
 }
 
 // replay sends the flow's request again through the proxy, so the result is
@@ -331,6 +402,8 @@ func (a *app) drain() {
 			reqBody:    f.RequestBody,
 			resBody:    f.ResponseBody,
 			reqHeader:  f.RequestHeader,
+			respHeader: f.ResponseHeader,
+			at:         f.At,
 			kind:       kind,
 		})
 	}
@@ -454,6 +527,36 @@ func (a *app) view(c *ui.Context) {
 		a.statusBar(c, t)
 	})
 	a.breakpointModal(c, t)
+	a.upstreamModal(c, t)
+}
+
+// upstreamModal edits the proxy every request goes through.
+func (a *app) upstreamModal(c *ui.Context, t *ui.Theme) {
+	if !a.upstreamOpen {
+		return
+	}
+	ui.Modal(c, &a.upstreamOpen, func() {
+		ui.Column(c).Width(480).Gap(10).Children(func() {
+			ui.Text(c, "Upstream proxy").FontSize(14).Bold()
+			ui.TextInput(c, &a.upstreamAddr).Placeholder("http://127.0.0.1:8080").Label("Address")
+			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
+				if ui.Button(c, "Cancel").Clicked() {
+					a.upstreamOpen = false
+				}
+				if ui.PrimaryButton(c, "Save").Clicked() {
+					if a.srv != nil {
+						if err := a.srv.SetUpstream(strings.TrimSpace(a.upstreamAddr)); err != nil {
+							a.setMessage("Upstream: " + err.Error())
+						} else {
+							a.upstream = a.srv.Upstream()
+							a.setMessage("Upstream: " + cmp.Or(a.upstream, "off"))
+						}
+					}
+					a.upstreamOpen = false
+				}
+			})
+		})
+	})
 }
 
 // breakpointModal edits the request the proxy paused, and lets it continue.
@@ -506,12 +609,60 @@ func (a *app) toolbar(c *ui.Context, t *ui.Theme) {
 		ui.Box(c).Size(8, 8).Radius(4).Background(dot)
 		ui.Text(c, label).FontSize(12).TextColor(t.TextMuted)
 		ui.Spacer(c)
-		if ui.SearchField(c, &a.query).Width(320).Changed() {
+		if ui.SearchField(c, &a.query).Width(240).Changed() {
 			a.applyFilter()
 		}
+		ui.MenuButton(c, "Network", func(m *ui.Menu) {
+			for _, preset := range capture.Presets {
+				if m.Item(preset.Name).Checked(a.throttle.Name == preset.Name).Chosen() {
+					a.throttle = preset
+					if a.srv != nil {
+						a.srv.SetThrottle(preset)
+					}
+				}
+			}
+			m.Separator()
+			if m.Item("Upstream…").Chosen() {
+				a.upstreamAddr = a.upstream
+				a.upstreamOpen = true
+			}
+			if m.Item("Upstream off").Chosen() {
+				if a.srv != nil {
+					_ = a.srv.SetUpstream("")
+				}
+				a.upstream = ""
+				a.setMessage("Upstream: off")
+			}
+		})
+		ui.MenuButton(c, "System", func(m *ui.Menu) {
+			if m.Item("Enable system proxy").Chosen() {
+				a.setSystemProxy(true)
+			}
+			if m.Item("Disable system proxy").Chosen() {
+				a.setSystemProxy(false)
+			}
+			m.Separator()
+			if m.Item("Install certificate…").Chosen() {
+				a.installCA()
+			}
+			if m.Item("Reveal certificate").Chosen() {
+				a.revealCA()
+			}
+		})
 		if ui.Button(c, "Reload config").Clicked() {
 			a.reloadConfig()
 		}
+		ui.MenuButton(c, "Session", func(m *ui.Menu) {
+			if m.Item("Export HAR…").Chosen() {
+				a.exportHAR()
+			}
+			if m.Item("Save session…").Chosen() {
+				a.saveSession()
+			}
+			if m.Item("Open session…").Chosen() {
+				a.openSession()
+			}
+		})
 		if ui.Button(c, "Latest").Clicked() && len(a.visible) > 0 {
 			a.picked = len(a.visible) - 1
 		}
@@ -707,6 +858,12 @@ func (a *app) statusBar(c *ui.Context, t *ui.Theme) {
 			ui.Text(c, fmt.Sprintf("%d script errors", a.scriptErrs)).FontSize(11).TextColor(ui.Hex("#d97706"))
 		}
 		ui.Spacer(c)
+		if a.throttle.Name != "" && a.throttle.Name != "Off" {
+			ui.Text(c, "Network: "+a.throttle.Name).FontSize(11).TextColor(t.TextMuted)
+		}
+		if a.upstream != "" {
+			ui.Text(c, "Upstream: "+a.upstream).FontSize(11).TextColor(t.TextMuted)
+		}
 		if len(a.rules) > 0 {
 			ui.Text(c, fmt.Sprintf("%d rules", len(a.rules))).FontSize(11).TextColor(t.TextMuted)
 		}
