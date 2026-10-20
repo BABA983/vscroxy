@@ -18,6 +18,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path"
 	"path/filepath"
 	"slices"
 	"strconv"
@@ -211,7 +212,8 @@ type Server struct {
 	throttleMu sync.RWMutex
 	throttle   Throttle
 
-	upstream atomic.Value // string
+	upstream   atomic.Value // string
+	exclusions atomic.Value // []string
 
 	breakOn     atomic.Bool
 	bpNext      atomic.Int64
@@ -248,6 +250,9 @@ func New(addr, caRootPath string) (*Server, error) {
 		return nil, err
 	}
 	p.AddAddon(&addon{server: s})
+	p.SetShouldInterceptRule(func(req *http.Request) bool {
+		return !s.excluded(requestHost(req))
+	})
 	p.SetUpstreamProxy(func(*http.Request) (*url.URL, error) {
 		raw, _ := s.upstream.Load().(string)
 		if raw == "" {
@@ -270,6 +275,82 @@ func (s *Server) Flows() <-chan Flow { return s.out }
 
 // Dropped counts the flows the UI could not keep up with.
 func (s *Server) Dropped() int64 { return s.dropped.Load() }
+
+// SetExclusions sets the hosts the proxy tunnels without decrypting them, so
+// an app that pins its certificates keeps working. A pattern is a host, a
+// host with a leading dot or a path.Match pattern such as *.example.com.
+func (s *Server) SetExclusions(patterns []string) {
+	s.exclusions.Store(slices.Clone(patterns))
+}
+
+// Exclusions lists the hosts the proxy does not decrypt.
+func (s *Server) Exclusions() []string {
+	patterns, _ := s.exclusions.Load().([]string)
+	return patterns
+}
+
+// excluded reports whether host is one the proxy tunnels.
+func (s *Server) excluded(host string) bool {
+	host = strings.ToLower(strings.TrimSuffix(host, "."))
+	if host == "" {
+		return false
+	}
+	for _, pattern := range s.Exclusions() {
+		pattern = strings.ToLower(strings.TrimSpace(pattern))
+		if pattern == "" || strings.HasPrefix(pattern, "#") {
+			continue
+		}
+		if ok, _ := path.Match(pattern, host); ok {
+			return true
+		}
+		if rest, ok := strings.CutPrefix(pattern, "."); ok {
+			if host == rest || strings.HasSuffix(host, pattern) {
+				return true
+			}
+			continue
+		}
+		if !strings.ContainsAny(pattern, "*?[") && (host == pattern || strings.HasSuffix(host, "."+pattern)) {
+			return true
+		}
+	}
+	return false
+}
+
+// requestHost is the host a request goes to, without its port.
+func requestHost(req *http.Request) string {
+	if req == nil {
+		return ""
+	}
+	if host := req.URL.Hostname(); host != "" {
+		return host
+	}
+	host, _, err := net.SplitHostPort(req.Host)
+	if err != nil {
+		return req.Host
+	}
+	return host
+}
+
+// LoadExclusions reads the hosts to tunnel from a file, one per line, where a
+// line starting with # is a comment.
+func LoadExclusions(path string) ([]string, error) {
+	data, err := os.ReadFile(path)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	var patterns []string
+	for _, line := range strings.Split(string(data), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		patterns = append(patterns, line)
+	}
+	return patterns, nil
+}
 
 // SetRules replaces the rules the proxy applies to new requests.
 func (s *Server) SetRules(rules []Rule) {

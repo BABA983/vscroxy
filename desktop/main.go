@@ -98,6 +98,12 @@ type app struct {
 	upstreamOpen bool
 	upstreamAddr string
 
+	// exclusions are the hosts the proxy tunnels without decrypting, edited
+	// as text and kept in a file.
+	exclusionsPath string
+	exclusionsText string
+	exclusionsOpen bool
+
 	// compose is the request being written: what Compose sends through the
 	// proxy so the exchange is captured like any other.
 	composeOpen    bool
@@ -160,6 +166,7 @@ func newApp() *app {
 		if home, err := os.UserHomeDir(); err == nil {
 			a.caPath = filepath.Join(home, ".mitmproxy", "mitmproxy-ca-cert.pem")
 			a.rulesPath = filepath.Join(home, ".vscroxy", "rules.json")
+			a.exclusionsPath = filepath.Join(home, ".vscroxy", "exclusions.txt")
 			a.scriptPath = filepath.Join(home, ".vscroxy", "script.js")
 		}
 		a.reloadConfig()
@@ -174,6 +181,15 @@ func newApp() *app {
 // reloadConfig reads the rules and the script and hands them to the proxy.
 // It runs on the main thread, from startup or the Reload button.
 func (a *app) reloadConfig() {
+	if a.exclusionsPath != "" && a.srv != nil {
+		patterns, err := capture.LoadExclusions(a.exclusionsPath)
+		if err != nil {
+			a.errText = err.Error()
+		} else {
+			a.srv.SetExclusions(patterns)
+			a.exclusionsText = strings.Join(patterns, "\n")
+		}
+	}
 	if a.rulesPath != "" {
 		rules, err := capture.LoadRules(a.rulesPath)
 		if err != nil {
@@ -594,6 +610,7 @@ func (a *app) view(c *ui.Context) {
 	})
 	a.breakpointModal(c, t)
 	a.upstreamModal(c, t)
+	a.exclusionsModal(c, t)
 	a.composeModal(c, t)
 }
 
@@ -699,6 +716,10 @@ func (a *app) toolbar(c *ui.Context, t *ui.Theme) {
 				}
 				a.upstream = ""
 				a.setMessage("Upstream: off")
+			}
+			m.Separator()
+			if m.Item("SSL exclusions…").Chosen() {
+				a.exclusionsOpen = true
 			}
 		})
 		ui.MenuButton(c, "System", func(m *ui.Menu) {
@@ -1273,4 +1294,59 @@ func (a *app) sortOrder() func(x, y int) int {
 		}
 		return c
 	}
+}
+
+// exclusionsModal edits the hosts the proxy tunnels without decrypting, one
+// per line, and keeps them in a file the next start reads.
+func (a *app) exclusionsModal(c *ui.Context, t *ui.Theme) {
+	if !a.exclusionsOpen {
+		return
+	}
+	ui.Modal(c, &a.exclusionsOpen, func() {
+		ui.Column(c).Width(520).Gap(10).Children(func() {
+			ui.Text(c, "SSL exclusions").FontSize(14).Bold()
+			ui.Text(c, "Hosts the proxy tunnels without decrypting, one per line. A host matches its subdomains; *.example.com matches one level.").
+				FontSize(11).TextColor(t.TextMuted)
+			ui.TextArea(c, &a.exclusionsText).Height(140).Label("Excluded hosts")
+			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
+				if ui.Button(c, "Cancel").Clicked() {
+					a.exclusionsOpen = false
+				}
+				if ui.PrimaryButton(c, "Save").Clicked() {
+					a.saveExclusions()
+				}
+			})
+		})
+	})
+}
+
+// saveExclusions writes the list and hands it to the proxy.
+func (a *app) saveExclusions() {
+	var patterns []string
+	for _, line := range strings.Split(a.exclusionsText, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		patterns = append(patterns, line)
+	}
+	if a.exclusionsPath != "" {
+		if err := os.MkdirAll(filepath.Dir(a.exclusionsPath), 0o755); err != nil {
+			a.setMessage("Exclusions: " + err.Error())
+			return
+		}
+		text := strings.Join(patterns, "\n")
+		if text != "" {
+			text += "\n"
+		}
+		if err := os.WriteFile(a.exclusionsPath, []byte(text), 0o644); err != nil {
+			a.setMessage("Exclusions: " + err.Error())
+			return
+		}
+	}
+	if a.srv != nil {
+		a.srv.SetExclusions(patterns)
+	}
+	a.exclusionsOpen = false
+	a.setMessage(fmt.Sprintf("SSL exclusions: %d hosts", len(patterns)))
 }

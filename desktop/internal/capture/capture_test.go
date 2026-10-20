@@ -107,6 +107,65 @@ func TestTimingSplitsWaitAndDownload(t *testing.T) {
 	}
 }
 
+func TestExclusionsTunnelWithoutDecrypting(t *testing.T) {
+	upstream := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	defer upstream.Close()
+
+	s, caPath := startServer(t)
+	pem, err := os.ReadFile(caPath)
+	if err != nil {
+		t.Fatalf("read proxy CA: %v", err)
+	}
+	roots := x509.NewCertPool()
+	if !roots.AppendCertsFromPEM(pem) {
+		t.Fatal("proxy CA is not PEM")
+	}
+	u, err := url.Parse(upstream.URL)
+	if err != nil {
+		t.Fatalf("parse upstream url: %v", err)
+	}
+	u.Host = "localhost:" + u.Port()
+	client := clientFor(t, s, roots)
+
+	// Decrypted by default: the client trusts the proxy's CA, not the
+	// upstream's own certificate.
+	resp, err := client.Get(u.String() + "/before")
+	if err != nil {
+		t.Fatalf("request before the exclusion: %v", err)
+	}
+	_ = resp.Body.Close()
+
+	// Tunnelled now: the client sees the upstream's certificate, which it
+	// does not trust, so the handshake fails.
+	s.SetExclusions([]string{"localhost"})
+	// A new client, so the request opens a connection of its own rather than
+	// reusing the decrypted one.
+	if _, err := clientFor(t, s, roots).Get(u.String() + "/after"); err == nil {
+		t.Fatal("request after the exclusion succeeded, want a TLS error")
+	}
+}
+
+func TestExcluded(t *testing.T) {
+	s, _ := startServer(t)
+	s.SetExclusions([]string{"example.com", "*.internal.test", "# comment", ".corp.test"})
+	cases := map[string]bool{
+		"example.com":       true,
+		"api.example.com":   true,
+		"EXAMPLE.COM":       true,
+		"api.internal.test": true,
+		"internal.test":     false,
+		"corp.test":         true,
+		"deep.corp.test":    true,
+		"example.org":       false,
+		"notexample.com":    false,
+	}
+	for host, want := range cases {
+		if got := s.excluded(host); got != want {
+			t.Errorf("excluded(%q) = %v, want %v", host, got, want)
+		}
+	}
+}
+
 func TestSpillsLargeBodiesToDisk(t *testing.T) {
 	big := bytes.Repeat([]byte("x"), 200<<10)
 	sizes := make(chan int, 4)
