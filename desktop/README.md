@@ -156,6 +156,23 @@ time includes the transfer it will take, so it matches what the client sees.
 upstream with CONNECT, so HTTPS targets chain through it; a plain HTTP target
 depends on the upstream accepting CONNECT to port 80.
 
+## SSL proxying
+
+HTTPS is tunnelled untouched until a domain is decrypted: the table shows its
+CONNECT as a `Tunnel` row, and the detail pane offers **Decrypt this domain**
+and **Decrypt every domain**. **Network → SSL proxying…** edits the same list,
+kept in `~/.vscroxy/ssl.json`; a domain matches its subdomains. Nothing is
+decrypted out of the box, as a proxy that installs a CA must.
+
+A connection already open keeps the choice it was made with: reload the page
+after decrypting a domain.
+
+## Ignored hosts
+
+**Network → Ignored hosts…** keeps a host's flows out of the table while still
+proxying them, for the traffic a browser makes that no one reads. The list is
+kept in `~/.vscroxy/ignore.txt` and matched like the SSL list.
+
 ## Export and sessions
 
 The **Session** menu exports a HAR 1.2 file (HTTP flows; WebSocket and SSE
@@ -181,6 +198,25 @@ proxy, so the new exchange is captured like any other and can be diffed
 against the original (same method, scheme and URL). A replay trusts the
 system's CAs and the proxy's own, so an HTTPS flow replays without the CA
 being trusted machine wide.
+
+## Compose
+
+**Compose** writes a request by hand: method, URL, headers as `Key: Value`
+lines, and a body. **Send** runs it through the proxy, so the exchange lands in
+the table with the rest of the traffic. A row's **Edit in Compose** fills the
+editor with what was captured, the step from traffic to a request worth
+keeping.
+
+**Save** keeps the editor's request under its name in
+`~/.vscroxy/requests.json`, replacing one of the same name; the sidebar's
+**Saved** section opens it back in the editor.
+
+## Timing
+
+The **Timing** tab splits a flow's time into the wait for the server's first
+response byte and the download after it, as a bar and as numbers. A flow that
+never reached a server has no timing; the total in the table includes what the
+throttle adds, so it matches what the client saw.
 
 ## System proxy and certificate
 
@@ -225,6 +261,6 @@ yet.
 
 ## Next
 
-- Image and rendered HTML previews, and bodies spilled to disk instead of
-  held in memory.
-- App icons next to the client name, and filtering by client.
+- Collections with folders, and a request history beside the saved ones.
+- Pinned requests, and the request and response sizes apart.
+- A per-app capture filter, so a browser's noise can be dropped by client.

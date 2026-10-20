@@ -6,6 +6,7 @@ package main
 import (
 	"cmp"
 	"context"
+	"encoding/json/v2"
 	"fmt"
 	"hash/fnv"
 	"log"
@@ -103,11 +104,12 @@ type app struct {
 	upstreamOpen bool
 	upstreamAddr string
 
-	// exclusions are the hosts the proxy tunnels without decrypting, edited
-	// as text and kept in a file.
-	exclusionsPath string
-	exclusionsText string
-	exclusionsOpen bool
+	// ssl is what the proxy decrypts: every domain, or those listed. It is
+	// edited as text and kept in a file.
+	sslPath  string
+	sslAll   bool
+	sslHosts string
+	sslOpen  bool
 
 	// ignore keeps noise out of the table without stopping it at the proxy.
 	ignorePath string
@@ -182,7 +184,7 @@ func newApp() *app {
 		if home, err := os.UserHomeDir(); err == nil {
 			a.caPath = filepath.Join(home, ".mitmproxy", "mitmproxy-ca-cert.pem")
 			a.rulesPath = filepath.Join(home, ".vscroxy", "rules.json")
-			a.exclusionsPath = filepath.Join(home, ".vscroxy", "exclusions.txt")
+			a.sslPath = filepath.Join(home, ".vscroxy", "ssl.json")
 			a.requestsPath = filepath.Join(home, ".vscroxy", "requests.json")
 			a.ignorePath = filepath.Join(home, ".vscroxy", "ignore.txt")
 			a.scriptPath = filepath.Join(home, ".vscroxy", "script.js")
@@ -213,13 +215,14 @@ func (a *app) reloadConfig() {
 			a.ignoreText = strings.Join(patterns, "\n")
 		}
 	}
-	if a.exclusionsPath != "" && a.srv != nil {
-		patterns, err := capture.LoadExclusions(a.exclusionsPath)
+	if a.sslPath != "" && a.srv != nil {
+		cfg, err := capture.LoadSSL(a.sslPath)
 		if err != nil {
 			a.errText = err.Error()
 		} else {
-			a.srv.SetExclusions(patterns)
-			a.exclusionsText = strings.Join(patterns, "\n")
+			a.srv.SetSSL(cfg)
+			a.sslAll = cfg.All
+			a.sslHosts = strings.Join(cfg.Hosts, "\n")
 		}
 	}
 	if a.rulesPath != "" {
@@ -649,13 +652,7 @@ func (a *app) view(c *ui.Context) {
 	})
 	a.breakpointModal(c, t)
 	a.upstreamModal(c, t)
-	a.hostListModal(c, t, &a.exclusionsOpen, "SSL exclusions",
-		"Hosts the proxy tunnels without decrypting, one per line. A host matches its subdomains; *.example.com matches one level.",
-		a.exclusionsPath, &a.exclusionsText, func(patterns []string) {
-			if a.srv != nil {
-				a.srv.SetExclusions(patterns)
-			}
-		})
+	a.sslModal(c, t)
 	a.hostListModal(c, t, &a.ignoreOpen, "Ignored hosts",
 		"Hosts whose flows stay out of the table, one per line. They are still proxied, so the client sees no difference.",
 		a.ignorePath, &a.ignoreText, func(patterns []string) {
@@ -770,8 +767,8 @@ func (a *app) toolbar(c *ui.Context, t *ui.Theme) {
 				a.setMessage("Upstream: off")
 			}
 			m.Separator()
-			if m.Item("SSL exclusions…").Chosen() {
-				a.exclusionsOpen = true
+			if m.Item("SSL proxying…").Chosen() {
+				a.sslOpen = true
 			}
 			if m.Item("Ignored hosts…").Chosen() {
 				a.ignoreOpen = true
@@ -933,6 +930,14 @@ func (a *app) table(c *ui.Context) {
 			}
 			text(f.method).TextColor(color)
 		case 1:
+			if f.kind == "connect" && f.status == 0 {
+				color := ui.Hex("#d97706")
+				if chosen {
+					color = t.AccentText
+				}
+				text("Tunnel").TextColor(color)
+				return
+			}
 			color := statusColor(f.status, t)
 			if chosen {
 				color = t.AccentText
@@ -986,8 +991,12 @@ func (a *app) detail(c *ui.Context) {
 			ui.Text(c, fmt.Sprintf("%d · %s · %d ms", f.status, humanBytes(f.bytes), f.millis)).
 				FontSize(12).TextColor(statusColor(f.status, t))
 		})
+		if f.kind == "connect" {
+			a.connectPanel(c, f)
+			return
+		}
 		labels := []string{"Headers", "Body", "Diff", "Timing"}
-		if f.kind != "" {
+		if f.kind == "ws" || f.kind == "sse" {
 			labels = append(labels, "Messages")
 		}
 		ui.Tabs(c, &a.tab, labels...).Padding(0, 8)
@@ -1514,7 +1523,7 @@ func (a *app) matchesChip(f flow) bool {
 	case 1: // HTTP
 		return f.kind == "" && f.scheme == "http"
 	case 2: // HTTPS
-		return f.kind == "" && f.scheme == "https"
+		return f.kind == "connect" || (f.kind == "" && f.scheme == "https")
 	case 3: // WebSocket
 		return f.kind == "ws"
 	case 4: // SSE
@@ -1527,4 +1536,90 @@ func (a *app) matchesChip(f flow) bool {
 		return strings.Contains(f.contentType(true), "html")
 	}
 	return true
+}
+
+// sslModal edits what the proxy decrypts.
+func (a *app) sslModal(c *ui.Context, t *ui.Theme) {
+	if !a.sslOpen {
+		return
+	}
+	ui.Modal(c, &a.sslOpen, func() {
+		ui.Column(c).Width(520).Gap(10).Children(func() {
+			ui.Text(c, "SSL proxying").FontSize(14).Bold()
+			ui.Text(c, "HTTPS is tunnelled untouched until a domain is listed. Its CONNECT shows in the table, and Decrypt this domain adds it; a domain matches its subdomains.").
+				FontSize(11).TextColor(t.TextMuted)
+			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+				ui.Switch(c, &a.sslAll)
+				ui.Text(c, "Decrypt every domain").FontSize(12).TextColor(t.Text)
+			})
+			ui.TextArea(c, &a.sslHosts).Height(120).Label("Domains")
+			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
+				if ui.Button(c, "Cancel").Clicked() {
+					a.sslOpen = false
+				}
+				if ui.PrimaryButton(c, "Save").Clicked() {
+					a.saveSSL(capture.SSLConfig{All: a.sslAll, Hosts: splitHosts(a.sslHosts)})
+					a.sslOpen = false
+				}
+			})
+		})
+	})
+}
+
+// saveSSL keeps the SSL proxying settings and hands them to the proxy. A
+// connection already open keeps the choice it was made with.
+func (a *app) saveSSL(cfg capture.SSLConfig) {
+	if a.srv != nil {
+		a.srv.SetSSL(cfg)
+	}
+	a.sslAll, a.sslHosts = cfg.All, strings.Join(cfg.Hosts, "\n")
+	if a.sslPath != "" {
+		if err := os.MkdirAll(filepath.Dir(a.sslPath), 0o755); err != nil {
+			a.setMessage("SSL proxying: " + err.Error())
+			return
+		}
+		data, err := json.Marshal(cfg)
+		if err != nil {
+			a.setMessage("SSL proxying: " + err.Error())
+			return
+		}
+		if err := os.WriteFile(a.sslPath, append(data, '\n'), 0o644); err != nil {
+			a.setMessage("SSL proxying: " + err.Error())
+			return
+		}
+	}
+	if cfg.All {
+		a.setMessage("SSL proxying: every domain")
+	} else {
+		a.setMessage(fmt.Sprintf("SSL proxying: %d domains", len(cfg.Hosts)))
+	}
+}
+
+// decryptHost adds a domain to what the proxy decrypts, the button under a
+// tunnel.
+func (a *app) decryptHost(host string) {
+	cfg := capture.SSLConfig{All: a.sslAll, Hosts: splitHosts(a.sslHosts)}
+	if host != "" && !slices.Contains(cfg.Hosts, host) {
+		cfg.Hosts = append(cfg.Hosts, host)
+	}
+	a.saveSSL(cfg)
+	a.setMessage("Decrypting " + host + "; reload the page")
+}
+
+// connectPanel explains a tunnel and offers to decrypt it, as a proxy that
+// leaves HTTPS alone must.
+func (a *app) connectPanel(c *ui.Context, f flow) {
+	t := c.Theme()
+	host := f.host
+	ui.Column(c).Fill().Center().Gap(10).Children(func() {
+		ui.Text(c, "HTTPS is not decrypted").FontSize(15).TextColor(t.Text)
+		ui.Text(c, host+" goes through untouched, so its content stays encrypted.").
+			FontSize(12).TextColor(t.TextMuted)
+		if ui.PrimaryButton(c, "Decrypt this domain").Clicked() {
+			a.decryptHost(host)
+		}
+		if ui.Button(c, "Decrypt every domain").Clicked() {
+			a.saveSSL(capture.SSLConfig{All: true})
+		}
+	})
 }
