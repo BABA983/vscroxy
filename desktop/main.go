@@ -11,6 +11,7 @@ import (
 	"hash/fnv"
 	"log"
 	"maps"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -136,6 +137,14 @@ type app struct {
 	dnsPath string
 	dnsText string
 	dnsOpen bool
+
+	// dnsRule is the dialog a flow opens to map its host: the app that sent
+	// it is known there, so nobody has to spell an app's name.
+	dnsRuleOpen  bool
+	dnsRuleHost  string
+	dnsRuleAddr  string
+	dnsRuleScope string
+	dnsRuleApps  []string
 
 	// ignoreApps does the same by app, for a browser's background traffic.
 	ignoreAppsPath string
@@ -742,6 +751,7 @@ func (a *app) view(c *ui.Context) {
 	a.upstreamModal(c, t)
 	a.sslModal(c, t)
 	a.dnsModal(c, t)
+	a.dnsRuleModal(c, t)
 	a.hostListModal(c, t, &a.ignoreAppsOpen, "Ignored apps",
 		"Apps whose flows stay out of the table, one name per line, as the Apps section spells them. They are still proxied.",
 		a.ignoreAppsPath, &a.ignoreAppsText, func(apps []string) {
@@ -1435,6 +1445,9 @@ func (a *app) rowMenu(c *ui.Context, f flow) func(*ui.Menu) {
 		m.Separator()
 		if m.Item(cmp.Or(pinLabel(f), "Pin")).Chosen() {
 			a.togglePin(f)
+		}
+		if m.Item("Map this host…").Chosen() {
+			a.openDNSRule(f)
 		}
 		if m.Item("Edit & resend").Chosen() {
 			a.composeFrom(f)
@@ -2158,7 +2171,7 @@ func (a *app) dnsModal(c *ui.Context, t *ui.Theme) {
 	ui.Modal(c, &a.dnsOpen, func() {
 		ui.Column(c).Width(560).Gap(10).Children(func() {
 			ui.Text(c, "DNS mapping").FontSize(14).Bold()
-			ui.Text(c, "Names the proxy resolves itself, one \"name = address\" a line. The request keeps its name and Host header, so a device pointed at this proxy reaches the machine you map: example.com = 192.168.1.50. Add \"@ Chrome, com.example.app\" to map the name for those apps only. A name matches its subdomains; *.example.com matches one level. Flows that hit a mapping carry a DNS tag in the table.").
+			ui.Text(c, "Names the proxy resolves itself, one \"name = address\" a line. The request keeps its name and Host header, so a device pointed at this proxy reaches the machine you map: example.com = 192.168.1.50. Add \"@ Chrome, com.example.app\" to map the name for those apps only, or right-click a request and pick \"Map this host…\" to choose the app there. A name matches its subdomains; *.example.com matches one level. Flows that hit a mapping carry a DNS tag in the table.").
 				FontSize(11).TextColor(t.TextMuted)
 			ui.TextArea(c, &a.dnsText).Height(140).Label("DNS mappings")
 			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
@@ -2171,6 +2184,100 @@ func (a *app) dnsModal(c *ui.Context, t *ui.Theme) {
 			})
 		})
 	})
+}
+
+// dnsRuleModal maps one host, opened from a flow: the host and the app that
+// sent it come from the row, so the scope is a picker over the apps seen
+// rather than a name to spell.
+func (a *app) dnsRuleModal(c *ui.Context, t *ui.Theme) {
+	if !a.dnsRuleOpen {
+		return
+	}
+	ui.Modal(c, &a.dnsRuleOpen, func() {
+		ui.Column(c).Width(460).Gap(10).Children(func() {
+			ui.Text(c, "Map a host").FontSize(14).Bold()
+			ui.Text(c, "The request keeps its name, URL, Host header and SNI; the proxy dials the address instead.").
+				FontSize(11).TextColor(t.TextMuted)
+			ui.TextInput(c, &a.dnsRuleHost).Label("Host")
+			ui.TextInput(c, &a.dnsRuleAddr).Label("Address")
+			ui.Text(c, "Applies to").FontSize(11).TextColor(t.TextMuted)
+			ui.Select(c, &a.dnsRuleScope, a.dnsRuleApps)
+			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
+				if ui.Button(c, "Cancel").Clicked() {
+					a.dnsRuleOpen = false
+				}
+				if ui.PrimaryButton(c, "Save").Clicked() {
+					a.saveDNSRule()
+				}
+			})
+		})
+	})
+}
+
+// openDNSRule fills the dialog from a flow: its host, and the app it came
+// from as the scope, since that is what the row already says.
+func (a *app) openDNSRule(f flow) {
+	a.dnsRuleHost = hostOnly(f.host)
+	a.dnsRuleAddr = ""
+	a.dnsRuleScope = "Any app"
+	a.dnsRuleApps = []string{"Any app"}
+	for _, d := range a.clients {
+		if d.name != "" && !slices.Contains(a.dnsRuleApps, d.name) {
+			a.dnsRuleApps = append(a.dnsRuleApps, d.name)
+		}
+	}
+	if f.process != "" {
+		if !slices.Contains(a.dnsRuleApps, f.process) {
+			a.dnsRuleApps = append(a.dnsRuleApps, f.process)
+		}
+		a.dnsRuleScope = f.process
+	}
+	a.dnsRuleOpen = true
+}
+
+// saveDNSRule appends the dialog's rule to the mappings and hands them to the
+// proxy; a rule for the same host and scope replaces the one before it.
+func (a *app) saveDNSRule() {
+	host := strings.TrimSpace(a.dnsRuleHost)
+	addr := strings.TrimSpace(a.dnsRuleAddr)
+	if host == "" || addr == "" {
+		a.setMessage("DNS mapping: a host and an address")
+		return
+	}
+	line := host + " = " + addr
+	if a.dnsRuleScope != "" && a.dnsRuleScope != "Any app" {
+		line += " @ " + a.dnsRuleScope
+	}
+	var lines []string
+	for _, old := range splitHosts(a.dnsText) {
+		if old != line {
+			lines = append(lines, old)
+		}
+	}
+	lines = append(lines, line)
+	a.dnsText = strings.Join(lines, "\n")
+	if a.srv != nil {
+		if err := a.srv.SetDNS(lines); err != nil {
+			a.setMessage("DNS mapping: " + err.Error())
+			return
+		}
+	}
+	if a.dnsPath != "" {
+		if err := writeHosts(a.dnsPath, lines); err != nil {
+			a.setMessage("DNS mapping: " + err.Error())
+			return
+		}
+	}
+	a.dnsRuleOpen = false
+	a.setMessage("DNS mapping: " + line)
+}
+
+// hostOnly drops the port from a host the table shows, for a rule's name.
+func hostOnly(host string) string {
+	if name, _, err := net.SplitHostPort(host); err == nil {
+		return name
+	}
+	return host
 }
 
 // saveDNS keeps the mappings and hands them to the proxy.
