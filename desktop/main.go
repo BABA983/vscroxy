@@ -148,6 +148,16 @@ type app struct {
 	// connOpen shows the connection panel of the chosen flow.
 	connOpen bool
 
+	// headerColumn is the header the table shows as a column of its own, and
+	// the filter fields narrow what it shows beyond the search box.
+	headerColumn string
+	filterOpen   bool
+	filterStatus string
+	filterHeader string
+	filterBody   string
+	columnOpen   bool
+	columnName   string
+
 	// mark edits what a flow is marked with: a color and a note.
 	markOpen  bool
 	markID    int
@@ -297,6 +307,7 @@ func newApp() *app {
 				a.tablePercent = saved.TablePercent
 			}
 			a.columns = saved.Columns.layout()
+			a.headerColumn = saved.HeaderColumn
 		}
 	}
 	if a.requestsPath != "" {
@@ -721,6 +732,15 @@ func (a *app) applyFilter() {
 		if q != "" && !strings.Contains(strings.ToLower(f.host+f.path), q) {
 			continue
 		}
+		if a.filterStatus != "" && !statusMatches(a.filterStatus, f.status) {
+			continue
+		}
+		if a.filterHeader != "" && !headerMatches(f, a.filterHeader) {
+			continue
+		}
+		if a.filterBody != "" && !strings.Contains(strings.ToLower(f.reqBody+f.resBody), strings.ToLower(a.filterBody)) {
+			continue
+		}
 		a.visible = append(a.visible, i)
 	}
 	a.sortVisible()
@@ -830,6 +850,8 @@ func (a *app) view(c *ui.Context) {
 	// after it and over it.
 	a.varsModal(c, t)
 	a.markModal(c, t)
+	a.filterModal(c, t)
+	a.columnModal(c, t)
 }
 
 // upstreamModal edits the proxy every request goes through.
@@ -1024,6 +1046,21 @@ func (a *app) toolbar(c *ui.Context, t *ui.Theme) {
 				a.importRequests()
 			}
 		})
+		ui.MenuButton(c, "View", func(m *ui.Menu) {
+			if m.Item("Filter…").Chosen() {
+				a.openFilter()
+			}
+			if a.filtersActive() && m.Item("Clear filters").Chosen() {
+				a.clearFilters()
+			}
+			m.Separator()
+			if m.Item("Column from header…").Chosen() {
+				a.openColumn()
+			}
+			if a.headerColumn != "" && m.Item("Hide the "+a.headerColumn+" column").Chosen() {
+				a.setHeaderColumn("")
+			}
+		})
 		if ui.Button(c, "Compose").Clicked() {
 			a.openCompose()
 		}
@@ -1162,11 +1199,20 @@ func (a *app) table(c *ui.Context) {
 		{ID: "method", Title: "Method", Width: 80, Sortable: true},
 		{ID: "status", Title: "Status", Width: 78, Align: ui.End, Sortable: true},
 		{ID: "url", Title: "URL", Sortable: true},
-		{ID: "client", Title: "Client", Width: 132, Sortable: true},
-		{ID: "duration", Title: "Duration", Width: 96, Align: ui.End, Sortable: true},
-		{ID: "size", Title: "Size", Width: 86, Align: ui.End, Sortable: true},
-		{Title: "", ID: "filler", Width: 14, Fixed: true},
 	}
+	headerCol := -1
+	if a.headerColumn != "" {
+		headerCol = len(cols)
+		cols = append(cols, ui.TableColumn{ID: "header", Title: a.headerColumn, Width: 150, Sortable: true})
+	}
+	clientCol := len(cols)
+	cols = append(cols,
+		ui.TableColumn{ID: "client", Title: "Client", Width: 132, Sortable: true},
+		ui.TableColumn{ID: "duration", Title: "Duration", Width: 96, Align: ui.End, Sortable: true},
+		ui.TableColumn{ID: "size", Title: "Size", Width: 86, Align: ui.End, Sortable: true},
+		ui.TableColumn{Title: "", ID: "filler", Width: 14, Fixed: true},
+	)
+	durationCol, sizeCol := clientCol+1, clientCol+2
 	state := &ui.ListState{
 		Selected:  &a.picked,
 		Selection: &a.chosen,
@@ -1230,16 +1276,26 @@ func (a *app) table(c *ui.Context) {
 				text(f.scheme + "://").Shrink(0).TextColor(scheme).ContextMenu(a.rowMenu(c, f))
 				text(f.host + f.path).TextColor(rest).ContextMenu(a.rowMenu(c, f))
 			})
-		case 3:
+		case headerCol:
+			value := f.respHeader.Get(a.headerColumn)
+			if value == "" {
+				value = f.reqHeader.Get(a.headerColumn)
+			}
+			if value == "" {
+				text("—").TextColor(rowColor(chosen, t, t.TextMuted))
+				return
+			}
+			text(value).TextColor(rowColor(chosen, t, t.Text)).Tooltip(value)
+		case clientCol:
 			if src, ok := a.clientIcon(f.process, f.processPath); ok {
 				ui.Image(c, src).Size(16, 16)
 			} else {
 				clientBadge(c, f.process)
 			}
 			text(f.process).Padding(0, 0, 0, 6).ContextMenu(a.rowMenu(c, f)).TextColor(rowColor(chosen, t, t.TextMuted))
-		case 4:
+		case durationCol:
 			text(fmt.Sprintf("%d ms", f.millis)).TextColor(rowColor(chosen, t, t.TextMuted))
-		case 5:
+		case sizeCol:
 			text(humanBytes(f.bytes)).TextColor(rowColor(chosen, t, t.TextMuted))
 		}
 	}).Grow(1)
@@ -1519,48 +1575,54 @@ func (a *app) messages(c *ui.Context, f flow) {
 func (a *app) statusBar(c *ui.Context, t *ui.Theme) {
 	ui.Divider(c)
 	ui.Row(c).Height(28).Padding(0, 14).Gap(16).AlignItems(ui.Center).Children(func() {
-		ui.Text(c, fmt.Sprintf("%d flows · %d shown", len(a.flows), len(a.visible))).
-			FontSize(11).TextColor(t.TextMuted)
+		// Each item stays on one line: the bar narrows as things are turned
+		// on, and a wrapped bar reads worse than a short one.
+		label := func(s string, color ui.Color) ui.Element {
+			return ui.Text(c, s).FontSize(11).TextColor(color).SingleLine()
+		}
+		label(fmt.Sprintf("%d flows · %d shown", len(a.flows), len(a.visible)), t.TextMuted)
 		captured := humanBytes(int(a.totalBytes))
 		if a.totalBytes == 0 {
 			captured = "0 B"
 		}
-		ui.Text(c, captured+" captured").FontSize(11).TextColor(t.TextMuted)
+		label(captured+" captured", t.TextMuted)
 		if n := a.chosen.Len(); n > 0 {
-			ui.Text(c, fmt.Sprintf("%d chosen", n)).FontSize(11).TextColor(t.Text)
+			label(fmt.Sprintf("%d chosen", n), t.Text)
+		}
+		if a.filtersActive() {
+			summary := "filtered: " + a.filterSummary()
+			ui.Text(c, summary).FontSize(11).TextColor(t.Text).Width(240).SingleLine().Tooltip(summary)
 		}
 		if a.dropped > 0 {
-			ui.Text(c, fmt.Sprintf("%d dropped", a.dropped)).FontSize(11).TextColor(ui.Hex("#d97706"))
+			label(fmt.Sprintf("%d dropped", a.dropped), ui.Hex("#d97706"))
 		}
 		if a.scriptErrs > 0 {
-			ui.Text(c, fmt.Sprintf("%d script errors", a.scriptErrs)).FontSize(11).TextColor(ui.Hex("#d97706"))
+			label(fmt.Sprintf("%d script errors", a.scriptErrs), ui.Hex("#d97706"))
 		}
 		ui.Spacer(c)
 		if a.throttle.Name != "" && a.throttle.Name != "Off" {
-			ui.Text(c, "Network: "+a.throttle.Name).FontSize(11).TextColor(t.TextMuted)
+			label("Network: "+a.throttle.Name, t.TextMuted)
 		}
 		if a.upstream != "" {
-			ui.Text(c, "Upstream: "+a.upstream).FontSize(11).TextColor(t.TextMuted)
+			label("Upstream: "+a.upstream, t.TextMuted)
 		}
 		if a.srv != nil {
 			if hit, ok := a.srv.LastDNSMatch(); ok {
-				ui.Text(c, fmt.Sprintf("DNS %s → %s", hit.Name, hit.IP)).
-					FontSize(11).TextColor(t.TextMuted)
+				label(fmt.Sprintf("DNS %s → %s", hit.Name, hit.IP), t.TextMuted)
 			}
 		}
 		if len(a.rules) > 0 {
-			ui.Text(c, fmt.Sprintf("%d rules", len(a.rules))).FontSize(11).TextColor(t.TextMuted)
+			label(fmt.Sprintf("%d rules", len(a.rules)), t.TextMuted)
 		}
 		a.mu.Lock()
 		message := a.message
 		a.mu.Unlock()
 		if message != "" {
-			ui.Text(c, message).FontSize(11).TextColor(t.TextMuted)
+			ui.Text(c, message).FontSize(11).TextColor(t.TextMuted).Width(320).SingleLine().Tooltip(message)
 		}
 		if a.caPath != "" {
-			ui.Text(c, "CA "+shortenHome(a.caPath)).FontSize(11).TextColor(t.TextMuted)
+			label("CA "+shortenHome(a.caPath), t.TextMuted)
 		}
-		ui.Text(c, "HTTP/1.1 · HTTP/2 · TLS 1.3").FontSize(11).TextColor(t.TextMuted)
 	})
 }
 
@@ -2096,6 +2158,186 @@ func (a *app) waitComposed(before int, method, url string) (flow, bool) {
 	}
 }
 
+// filtersActive says whether a content filter narrows the table.
+func (a *app) filtersActive() bool {
+	return a.filterStatus != "" || a.filterHeader != "" || a.filterBody != ""
+}
+
+// filterSummary is what the status bar says about the filters in use.
+func (a *app) filterSummary() string {
+	var parts []string
+	if a.filterStatus != "" {
+		parts = append(parts, "status "+a.filterStatus)
+	}
+	if a.filterHeader != "" {
+		parts = append(parts, "header "+a.filterHeader)
+	}
+	if a.filterBody != "" {
+		parts = append(parts, "body "+a.filterBody)
+	}
+	return strings.Join(parts, " · ")
+}
+
+// openFilter shows the content filter with what it already holds.
+func (a *app) openFilter() {
+	a.filterOpen = true
+}
+
+// clearFilters drops the content filter.
+func (a *app) clearFilters() {
+	a.filterStatus, a.filterHeader, a.filterBody = "", "", ""
+	a.applyFilter()
+	a.setMessage("Filters cleared")
+}
+
+// filterModal narrows the table by status, header and body, beside the search
+// box which matches the URL.
+func (a *app) filterModal(c *ui.Context, t *ui.Theme) {
+	if !a.filterOpen {
+		return
+	}
+	ui.Modal(c, &a.filterOpen, func() {
+		ui.Column(c).Width(480).Gap(10).Children(func() {
+			ui.Text(c, "Filter").FontSize(14).Bold()
+			ui.Text(c, "Status takes 404, 4xx, 200-299 or >=400. A header is a name, or \"name: value\" to match the value too. The body matches either side.").
+				FontSize(11).TextColor(t.TextMuted)
+			ui.TextInput(c, &a.filterStatus).Label("Status")
+			ui.TextInput(c, &a.filterHeader).Placeholder("content-type: json").Label("Header")
+			ui.TextInput(c, &a.filterBody).Placeholder("\"error\":").Label("Body")
+			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
+				if ui.Button(c, "Clear").Clicked() {
+					a.filterStatus, a.filterHeader, a.filterBody = "", "", ""
+					a.applyFilter()
+					a.filterOpen = false
+				}
+				if ui.Button(c, "Cancel").Clicked() {
+					a.filterOpen = false
+				}
+				if ui.PrimaryButton(c, "Apply").Clicked() {
+					a.applyFilter()
+					a.filterOpen = false
+				}
+			})
+		})
+	})
+}
+
+// openColumn asks which header the table should show as a column.
+func (a *app) openColumn() {
+	a.columnName = a.headerColumn
+	a.columnOpen = true
+}
+
+// columnModal adds a column from a request or response header.
+func (a *app) columnModal(c *ui.Context, t *ui.Theme) {
+	if !a.columnOpen {
+		return
+	}
+	ui.Modal(c, &a.columnOpen, func() {
+		ui.Column(c).Width(440).Gap(10).Children(func() {
+			ui.Text(c, "Column from a header").FontSize(14).Bold()
+			ui.Text(c, "The table shows the response header's value, or the request's when the response has none. Keep it to one that says something about the exchange, such as x-request-id or content-type.").
+				FontSize(11).TextColor(t.TextMuted)
+			ui.TextInput(c, &a.columnName).Placeholder("x-request-id").Label("Header")
+			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
+				if ui.Button(c, "Cancel").Clicked() {
+					a.columnOpen = false
+				}
+				if ui.PrimaryButton(c, "Show").Clicked() {
+					a.setHeaderColumn(strings.TrimSpace(a.columnName))
+					a.columnOpen = false
+				}
+			})
+		})
+	})
+}
+
+// setHeaderColumn puts a header in the table, or takes it out with an empty
+// name, and keeps the choice.
+func (a *app) setHeaderColumn(name string) {
+	a.headerColumn = name
+	a.applyFilter()
+	if name == "" {
+		a.setMessage("Column removed")
+	} else {
+		a.setMessage("Column: " + name)
+	}
+	a.persistSettings()
+	a.invalidate()
+}
+
+// headerValue is what the header column shows for a flow: the response's
+// header, or the request's when the response has none.
+func (a *app) headerValue(f flow) string {
+	if a.headerColumn == "" {
+		return ""
+	}
+	if value := f.respHeader.Get(a.headerColumn); value != "" {
+		return value
+	}
+	return f.reqHeader.Get(a.headerColumn)
+}
+
+// statusMatches reports whether a status code answers a filter such as "404",
+// "4xx", ">=400" or "200-299".
+func statusMatches(expr string, status int) bool {
+	expr = strings.TrimSpace(strings.ToLower(expr))
+	switch {
+	case expr == "":
+		return true
+	case strings.HasPrefix(expr, ">="):
+		n, err := strconv.Atoi(strings.TrimSpace(expr[2:]))
+		return err == nil && status >= n
+	case strings.HasPrefix(expr, "<="):
+		n, err := strconv.Atoi(strings.TrimSpace(expr[2:]))
+		return err == nil && status <= n
+	case strings.HasPrefix(expr, ">"):
+		n, err := strconv.Atoi(strings.TrimSpace(expr[1:]))
+		return err == nil && status > n
+	case strings.HasPrefix(expr, "<"):
+		n, err := strconv.Atoi(strings.TrimSpace(expr[1:]))
+		return err == nil && status < n
+	case strings.HasSuffix(expr, "xx"):
+		n, err := strconv.Atoi(strings.TrimSuffix(expr, "xx"))
+		return err == nil && status/100 == n
+	case strings.Contains(expr, "-"):
+		low, high, ok := strings.Cut(expr, "-")
+		if !ok {
+			return false
+		}
+		lo, errLow := strconv.Atoi(strings.TrimSpace(low))
+		hi, errHigh := strconv.Atoi(strings.TrimSpace(high))
+		return errLow == nil && errHigh == nil && status >= lo && status <= hi
+	default:
+		n, err := strconv.Atoi(expr)
+		return err == nil && status == n
+	}
+}
+
+// headerMatches reports whether a flow carries the header a filter names, as
+// "name" alone or "name: value" to match the value too.
+func headerMatches(f flow, expr string) bool {
+	name, value, hasValue := strings.Cut(expr, ":")
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return true
+	}
+	values := append(f.reqHeader.Values(name), f.respHeader.Values(name)...)
+	if len(values) == 0 {
+		return false
+	}
+	if !hasValue {
+		return true
+	}
+	value = strings.ToLower(strings.TrimSpace(value))
+	for _, have := range values {
+		if strings.Contains(strings.ToLower(have), value) {
+			return true
+		}
+	}
+	return false
+}
+
 // sortVisible orders the shown rows by the chosen column, keeping the chosen
 // flow chosen.
 func (a *app) sortVisible() {
@@ -2152,6 +2394,8 @@ func (a *app) sortOrder() func(x, y int) int {
 			c = cmp.Compare(fx.bytes, fy.bytes)
 		case "time", "duration":
 			c = cmp.Compare(fx.millis, fy.millis)
+		case "header":
+			c = cmp.Compare(a.headerValue(fx), a.headerValue(fy))
 		}
 		if desc {
 			return -c
@@ -2259,6 +2503,7 @@ func (a *app) saveComposed() {
 				a.tablePercent = saved.TablePercent
 			}
 			a.columns = saved.Columns.layout()
+			a.headerColumn = saved.HeaderColumn
 		}
 	}
 	if a.requestsPath != "" {
@@ -2414,6 +2659,7 @@ func (a *app) persistSettings() {
 		SidebarWidth: a.sidebarWidth,
 		TablePercent: a.tablePercent,
 		Columns:      savedLayout(a.columns),
+		HeaderColumn: a.headerColumn,
 	}
 	if sameSettings(now, a.saved) || time.Since(a.lastSave) < 400*time.Millisecond {
 		return

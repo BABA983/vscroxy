@@ -18,6 +18,9 @@ type settings struct {
 	SidebarWidth float32      `json:"sidebarWidth,omitempty"`
 	TablePercent float32      `json:"tablePercent,omitempty"`
 	Columns      columnLayout `json:"columns,omitempty"`
+	// HeaderColumn is the request or response header the table shows as a
+	// column of its own, empty for none.
+	HeaderColumn string `json:"headerColumn,omitempty"`
 }
 
 // columnLayout is a table's columns as the user arranged them, saved with
