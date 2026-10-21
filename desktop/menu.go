@@ -17,6 +17,10 @@ func (a *app) menu() *mygo.Menu {
 			a.openCompose()
 			a.invalidate()
 		}},
+		{Label: "Import cURL…", Click: func(_ *mygo.MenuItem, _ *mygo.Window) {
+			a.openCurlImport()
+			a.invalidate()
+		}},
 		mygo.Separator(),
 		{Role: mygo.RoleClose},
 	}}

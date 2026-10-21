@@ -49,6 +49,9 @@ type app struct {
 	requestChoice string
 	settingsOpen  bool
 	settingsTab   int
+	curlOpen      bool
+	curlInput     string
+	curlProblem   string
 
 	apis            []*apiDocument
 	apisPath        string
@@ -894,6 +897,7 @@ func (a *app) view(c *ui.Context) {
 	a.keyLogModal(c, t)
 	a.closeRequestModal(c, t)
 	a.apiGenerationModal(c, t)
+	a.curlImportModal(c, t)
 }
 
 // upstreamModal edits the proxy every request goes through.
@@ -1061,6 +1065,9 @@ func (a *app) toolbar(c *ui.Context, t *ui.Theme) {
 			}
 			if m.Item("Import requests…").Chosen() {
 				a.importRequests()
+			}
+			if m.Item("Import cURL…").Chosen() {
+				a.openCurlImport()
 			}
 			m.Separator()
 			if m.Item("Generate OpenAPI…").Disabled(len(a.requests) == 0).Chosen() {
@@ -1230,6 +1237,11 @@ func (a *app) requestSidebar(c *ui.Context, t *ui.Theme) {
 				}
 			}
 		}
+		ui.Column(c).Padding(12).Children(func() {
+			if ui.Button(c, "Import cURL…").FillWidth().Clicked() {
+				a.openCurlImport()
+			}
+		})
 	})
 }
 
@@ -1828,8 +1840,7 @@ func (a *app) rowMenu(c *ui.Context, f flow) func(*ui.Menu) {
 			a.setMessage("Copied URL")
 		}
 		if m.Item("Copy as cURL").Chosen() {
-			services.WriteClipboard(curlCommand(f))
-			a.setMessage("Copied cURL command")
+			a.copyCurl(c, f)
 		}
 		if f.kind == "" && f.url != "" && m.Item("Open in browser").Chosen() {
 			services.OpenURL(f.url)

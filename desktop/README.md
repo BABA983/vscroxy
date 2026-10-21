@@ -269,6 +269,35 @@ collection; the sidebar groups the saved requests by collection, and the
 same method and URL, in `~/.vscroxy/history.json`; clicking one fills the
 editor with it again, and **Session → Clear history** empties the list.
 
+### cURL
+
+**Import cURL…** is available at the bottom of the Requests sidebar, in
+**Session**, and in the native **File** menu. Paste one Bash/POSIX command to
+open a new, unsent tab without replacing another draft or saving it automatically.
+Single/double quotes, escaped newlines, Bash `$'…'` strings, inline short options
+and `--option=value` are supported. Import reads literal request data only:
+URL, method, repeated headers, cookies, Basic credentials, user agent, referer,
+JSON/raw/form-encoded bodies and `--get` query data. Shell/environment/glob
+expansion is never run. `{{variables}}` remain placeholders.
+
+The importer never executes curl or reads local files/stdin. It rejects pipelines,
+substitutions, redirects, assignments, multiple URLs, `@file` bodies/headers,
+multipart file uploads and unsupported options. Connection/security/redirect
+options such as `--insecure`, `--location` and `--config` are rejected rather than
+silently changing behavior. Output flags and `--compressed` are accepted but not
+applied; sending uses this app's proxy/client, not curl's transfer settings.
+PowerShell and Windows CMD quoting are not supported. Commands are limited to
+16 MiB.
+
+**Copy cURL** beside **Send** copies the active draft; **Copy as cURL** in a
+captured row's menu copies that exchange. Variables stay unexpanded and scripts
+are not run. GET bodies keep an explicit GET method; quotes are escaped, empty
+headers preserved, and stale Host/Content-Length/connection headers omitted.
+Captured spilled bodies are read in full rather than copying just the 64 KiB
+head; missing files, binary/NUL bodies or commands over 16 MiB produce an error
+and leave the clipboard untouched. This is a text-body export, not a multipart
+file exporter. Credentials/cookies are included when present: review before sharing.
+
 ## APIs / OpenAPI
 
 The third workspace holds contracts independently of the request library.
@@ -370,6 +399,16 @@ restored when they would still show on a connected display.
 
 ## Next
 
-- Collections with folders, and a request history beside the saved ones.
-- Pinned requests, and the request and response sizes apart.
-- A per-app capture filter, so a browser's noise can be dropped by client.
+- Device onboarding: explicit LAN listener opt-in, access control, reachable-IP
+  display and Android/iOS certificate/proxy instructions. The listener is still
+  loopback-only; mobile clients cannot connect to it directly yet.
+- Rule management UI: create/edit/enable/reorder Map Local/Remote and breakpoint
+  rules from captured flows, instead of editing `rules.json`.
+- Structured query/auth/form-data editors, cookie management, collection folders
+  and a runner with per-request assertions.
+- Named capture filters and independent traffic views; complete-body search
+  rather than searching only the in-memory capture head.
+- WebSocket/SSE message search and detail views, correct upgraded request paths,
+  and spill-backed message retention instead of silent truncation.
+- Descriptor-aware protobuf/gRPC inspection, trailers/status, and protocol
+  compatibility verification before promising full HTTP/2/gRPC support.

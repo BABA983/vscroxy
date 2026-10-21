@@ -253,6 +253,9 @@ func (a *app) composeView(c *ui.Context, t *ui.Theme) {
 			ui.Row(c).Height(56).Padding(8, 18).Gap(8).AlignItems(ui.Center).Children(func() {
 				ui.TextInput(c, &d.composeMethod).Width(86).Height(36).Label("Method").FontSize(12).FontWeight(600).TextColor(methodColor(d.composeMethod))
 				ui.TextInput(c, &d.composeURL).Grow(1).Height(36).Label("URL").Placeholder("https://api.example.com/v1/resource").Font("monospace").FontSize(12)
+				if ui.Button(c, "Copy cURL").Width(100).Height(36).FontSize(11).Label("Copy as cURL").Tooltip("Copy this draft; variable placeholders are preserved and scripts are not run").Clicked() {
+					a.copyCurl(c, flow{method: d.composeMethod, url: d.composeURL, reqHeader: parseHeaderBlock(d.composeHeaders), reqBody: d.composeBody})
+				}
 				if ui.PrimaryButton(c, "Send").Width(84).Height(36).Disabled(d.composeWaiting).Clicked() {
 					a.sendComposed()
 				}

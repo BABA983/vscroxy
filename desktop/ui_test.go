@@ -448,3 +448,64 @@ func TestAPIWorkflowPreservesIndependentContracts(t *testing.T) {
 		t.Fatal("following the source link changed the original YAML")
 	}
 }
+
+func TestCurlImportAndCopyKeepExistingDrafts(t *testing.T) {
+	a := workspaceApp()
+	tt := ui.NewTester(a.view, 960, 600)
+	click := func(label string) {
+		t.Helper()
+		if err := tt.Click(label); err != nil {
+			t.Fatal(err)
+		}
+	}
+	read := func(label string) string {
+		t.Helper()
+		click(label)
+		tt.Key(ui.Cmd, ui.KeyA)
+		tt.Key(ui.Cmd, ui.KeyC)
+		return tt.Clipboard()
+	}
+	paste := func(command string) {
+		t.Helper()
+		click("cURL command")
+		tt.Key(ui.Cmd, ui.KeyA)
+		tt.SetClipboard(command)
+		tt.Key(ui.Cmd, ui.KeyV)
+		click("Import request")
+	}
+	click("Requests")
+	click("List projects")
+	click("Import cURL…")
+	paste("curl https://example.test --data @private.txt")
+	if !tt.HasText("@files and stdin are not read") {
+		t.Fatal("file-backed input was not explained or was imported")
+	}
+	click("Cancel")
+	if read("URL") != "https://api.example.com/projects" {
+		t.Fatal("failed import replaced the existing draft")
+	}
+	click("Import cURL…")
+	paste(`curl 'https://example.test/api?x=7' -H 'X-Count: 19' --json '{"name":"it'\''s","count":7}'`)
+	if read("Method") != "POST" || read("URL") != "https://example.test/api?x=7" || !strings.Contains(read("Request headers"), "X-Count: 19") {
+		t.Fatal("imported request fields were not shown in a new tab")
+	}
+	click("Body")
+	if read("Request body") != `{"name":"it's","count":7}` {
+		t.Fatal("import changed the body quoting")
+	}
+	click("Copy as cURL")
+	command := tt.Clipboard()
+	if !strings.Contains(command, "--data-raw") || !strings.Contains(command, "X-Count: 19") {
+		t.Fatal("copy did not use the active draft")
+	}
+	click("List projects")
+	if read("URL") != "https://api.example.com/projects" {
+		t.Fatal("successful import overwrote another document")
+	}
+	click("Import cURL…")
+	paste(command)
+	click("Body")
+	if read("Request body") != `{"name":"it's","count":7}` || read("URL") != "https://example.test/api?x=7" {
+		t.Fatal("copied cURL did not round-trip through the import UI")
+	}
+}
