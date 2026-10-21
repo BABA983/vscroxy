@@ -213,7 +213,10 @@ being trusted machine wide.
 
 **Compose** writes a request by hand: method, URL, headers as `Key: Value`
 lines, and a body. **Send** runs it through the proxy, so the exchange lands in
-the table with the rest of the traffic. A row's **Edit in Compose** fills the
+the table with the rest of the traffic, and the editor stays open under a
+line saying what came back (`200 · 577 B · 48 ms`), so a request can be
+changed and sent again without opening it anew. A row's **Edit & resend**
+fills the editor with what was captured. A row's **Edit in Compose** fills the
 editor with what was captured, the step from traffic to a request worth
 keeping.
 

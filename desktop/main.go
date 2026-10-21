@@ -146,10 +146,16 @@ type app struct {
 	composeOpen       bool
 	composeName       string
 	composeCollection string
-	composeMethod     string
-	composeURL        string
-	composeHeaders    string
-	composeBody       string
+	// composeTitle says what the editor is for, and the send's result shows
+	// under its buttons so a request can be sent again after a change.
+	composeTitle   string
+	composeResult  string
+	composeWaiting bool
+	composeBefore  int
+	composeMethod  string
+	composeURL     string
+	composeHeaders string
+	composeBody    string
 
 	breakOn  bool
 	bp       *capture.Breakpoint
@@ -560,6 +566,7 @@ func (a *app) drain() {
 	for _, f := range a.flows[len(a.flows)-len(pending):] {
 		a.totalBytes += int64(f.bytes)
 	}
+	a.noteComposed()
 	if len(a.flows) > maxFlows {
 		cut := len(a.flows) - maxFlows
 		a.flows = a.flows[cut:]
@@ -1367,7 +1374,7 @@ func (a *app) rowMenu(c *ui.Context, f flow) func(*ui.Menu) {
 		if m.Item(cmp.Or(pinLabel(f), "Pin")).Chosen() {
 			a.togglePin(f)
 		}
-		if m.Item("Edit in Compose").Chosen() {
+		if m.Item("Edit & resend").Chosen() {
 			a.composeFrom(f)
 		}
 		if m.Item("Save as request").Chosen() {
@@ -1381,6 +1388,8 @@ func (a *app) rowMenu(c *ui.Context, f flow) func(*ui.Menu) {
 
 // openCompose shows the request editor with an empty request.
 func (a *app) openCompose() {
+	a.composeTitle = "Compose"
+	a.composeResult = ""
 	a.composeName = ""
 	a.composeCollection = ""
 	a.composeMethod = "GET"
@@ -1393,6 +1402,8 @@ func (a *app) openCompose() {
 // composeFrom fills the request editor with a captured request, the step from
 // traffic to a request worth keeping.
 func (a *app) composeFrom(f flow) {
+	a.composeTitle = "Edit & resend"
+	a.composeResult = ""
 	a.composeName = ""
 	a.composeCollection = ""
 	a.composeMethod = cmp.Or(f.method, "GET")
@@ -1442,7 +1453,7 @@ func (a *app) composeModal(c *ui.Context, t *ui.Theme) {
 	}
 	ui.Modal(c, &a.composeOpen, func() {
 		ui.Column(c).Width(640).Gap(10).Children(func() {
-			ui.Text(c, "Compose").FontSize(14).Bold()
+			ui.Text(c, cmp.Or(a.composeTitle, "Compose")).FontSize(14).Bold()
 			ui.Row(c).Gap(8).Children(func() {
 				ui.TextInput(c, &a.composeName).Grow(1).Placeholder("Name").Label("Name")
 				ui.TextInput(c, &a.composeCollection).Width(200).Placeholder("Collection").Label("Collection")
@@ -1466,6 +1477,9 @@ func (a *app) composeModal(c *ui.Context, t *ui.Theme) {
 					a.sendComposed()
 				}
 			})
+			if a.composeResult != "" {
+				ui.Text(c, a.composeResult).FontSize(11).TextColor(t.TextMuted)
+			}
 		})
 	})
 }
@@ -1488,7 +1502,12 @@ func (a *app) sendComposed() {
 		RequestHeader: parseHeaderBlock(a.composeHeaders),
 		RequestBody:   a.composeBody,
 	}
-	a.composeOpen = false
+	a.composeBefore = 0
+	if n := len(a.flows); n > 0 {
+		a.composeBefore = a.flows[n-1].id
+	}
+	a.composeWaiting = true
+	a.composeResult = "Sending…"
 	a.history = pushHistory(a.history, historyEntry{
 		Method:  f.Method,
 		URL:     url,
@@ -1502,6 +1521,10 @@ func (a *app) sendComposed() {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 		if err := a.srv.Replay(ctx, f); err != nil {
+			a.mu.Lock()
+			a.composeWaiting = false
+			a.composeResult = "Failed: " + err.Error()
+			a.mu.Unlock()
 			a.setMessage("Compose: " + err.Error())
 		}
 	}()
@@ -1941,6 +1964,8 @@ func (a *app) openHistory(i int) {
 		return
 	}
 	e := a.history[i]
+	a.composeTitle = "Compose"
+	a.composeResult = ""
 	a.composeName = ""
 	a.composeCollection = ""
 	a.composeMethod = cmp.Or(e.Method, "GET")
@@ -1996,4 +2021,31 @@ func (a *app) saveFlowAsRequest(f flow) {
 		}
 	}
 	a.setMessage("Saved " + name)
+}
+
+// noteComposed reports the flow a send from the editor produced, so the editor
+// says what came back before the next change.
+func (a *app) noteComposed() {
+	a.mu.Lock()
+	waiting, before := a.composeWaiting, a.composeBefore
+	a.mu.Unlock()
+	if !waiting {
+		return
+	}
+	url := strings.TrimSpace(a.composeURL)
+	method := strings.ToUpper(strings.TrimSpace(cmp.Or(a.composeMethod, "GET")))
+	for i := len(a.flows) - 1; i >= 0; i-- {
+		f := a.flows[i]
+		if f.id <= before {
+			break
+		}
+		if f.method != method || f.url != url {
+			continue
+		}
+		a.mu.Lock()
+		a.composeWaiting = false
+		a.composeResult = fmt.Sprintf("%d · %s · %d ms", f.status, humanBytes(f.bytes), f.millis)
+		a.mu.Unlock()
+		return
+	}
 }
