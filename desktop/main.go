@@ -195,10 +195,11 @@ type app struct {
 
 	// composeTab picks which script the editor shows: the body, the script
 	// that runs before the send, or the one that runs after the response.
-	composeTab   int
-	composePre   string
-	composePost  string
-	composeTests []testResult
+	composeTab     int
+	composePre     string
+	composePost    string
+	composeTests   []testResult
+	composeReplies []string
 	// composeSent is what a send resolved to once variables and the
 	// pre-request script had their say, so the table's row is found.
 	composeSentMethod string
@@ -1809,6 +1810,7 @@ func (a *app) openCompose() {
 	a.composePost = ""
 	a.composeTab = 0
 	a.composeTests = nil
+	a.composeReplies = nil
 	a.composeSentMethod, a.composeSentURL = "", ""
 	a.composeOpen = true
 }
@@ -1828,6 +1830,7 @@ func (a *app) composeFrom(f flow) {
 	a.composePost = ""
 	a.composeTab = 0
 	a.composeTests = nil
+	a.composeReplies = nil
 	a.composeSentMethod, a.composeSentURL = "", ""
 	a.composeOpen = true
 }
@@ -1896,6 +1899,8 @@ func (a *app) composeModal(c *ui.Context, t *ui.Theme) {
 			switch a.composeTab {
 			case 0:
 				ui.TextArea(c, &a.composeBody).Height(140).Label("Body")
+				ui.Text(c, "A ws:// or wss:// URL sends this body as one text message, through the proxy, and shows what comes back.").
+					FontSize(11).TextColor(t.TextMuted)
 			case 1:
 				ui.TextArea(c, &a.composePre).Height(140).Label("Pre-request script")
 				ui.Text(c, "req.method, req.url, req.body; req.get/set/remove(\"Header\", value); vars.get/set(name, value); test(name, pass); log(…)").
@@ -1926,6 +1931,9 @@ func (a *app) composeModal(c *ui.Context, t *ui.Theme) {
 			})
 			if a.composeResult != "" {
 				ui.Text(c, a.composeResult).FontSize(11).TextColor(t.TextMuted)
+			}
+			for _, reply := range a.composeReplies {
+				ui.Text(c, "← "+reply).FontSize(11).Font("monospace").TextColor(t.Text).SingleLine().Tooltip(reply)
 			}
 		})
 	})
@@ -2063,6 +2071,10 @@ func (a *app) sendComposed() {
 	if !maps.Equal(run.vars, vars) {
 		a.applyVars(run.vars)
 	}
+	if isWebSocket(req.URL) {
+		a.sendWebSocket(req)
+		return
+	}
 	f := capture.Flow{
 		Method:        req.Method,
 		URL:           req.URL,
@@ -2133,6 +2145,47 @@ func (a *app) sendComposed() {
 		a.mu.Unlock()
 		a.invalidate()
 	}()
+}
+
+// sendWebSocket sends the editor's body as one WebSocket message, through the
+// proxy so the frames are captured, and reports what came back.
+func (a *app) sendWebSocket(req *jsRequest) {
+	message := req.Body
+	a.mu.Lock()
+	a.composeWaiting = true
+	a.composeResult = "Connecting…"
+	a.composeTests = nil
+	a.composeReplies = nil
+	a.composeSentMethod, a.composeSentURL = "WS", req.URL
+	a.mu.Unlock()
+	a.setMessage("WebSocket " + req.URL)
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		replies, err := wsSend(ctx, a.srv.Addr(), req.URL, message, 2*time.Second)
+		a.mu.Lock()
+		a.composeWaiting = false
+		if err != nil {
+			a.composeResult = "WebSocket failed: " + err.Error()
+		} else {
+			a.composeResult = fmt.Sprintf("WebSocket: sent %s, %d %s",
+				humanBytes(len(message)), len(replies), plural(len(replies), "reply", "replies"))
+			if len(replies) == 0 {
+				a.composeResult += " (nothing came back in 2 s)"
+			}
+			a.composeReplies = replies
+		}
+		a.mu.Unlock()
+		a.invalidate()
+	}()
+}
+
+// plural picks the word for a count.
+func plural(n int, one, many string) string {
+	if n == 1 {
+		return one
+	}
+	return many
 }
 
 // waitComposed is the flow a send produced, once the table has it.
@@ -2795,6 +2848,7 @@ func (a *app) openHistory(i int) {
 	a.composePost = ""
 	a.composeTab = 0
 	a.composeTests = nil
+	a.composeReplies = nil
 	a.composeSentMethod, a.composeSentURL = "", ""
 	a.composeOpen = true
 }
