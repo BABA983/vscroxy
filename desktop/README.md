@@ -186,6 +186,21 @@ kept in `~/.vscroxy/ignore.txt` and matched like the SSL list.
 shows, in `~/.vscroxy/ignore-apps.txt`: a browser's background traffic stays
 out of the table while another app's does not.
 
+## DNS mapping
+
+**Network → DNS mapping…** lists names the proxy resolves itself, a line of
+`name = address` each, kept in `~/.vscroxy/dns.txt`. The proxy dials the
+address while the request keeps its name, its URL and its `Host` header, so a
+phone or emulator pointed at this proxy reaches another machine as if the name
+pointed there — the DNS spoofing a proxy needs, without editing the hosts file
+or rooting the device. A name matches its subdomains and `*.example.com`
+matches one level; the status bar shows the last name a rule answered.
+
+The proxy resolves on the machine it runs on, so a hosts file entry already
+applies to a device's traffic; this list is for the mappings kept with the
+tool. Two things bypass it: traffic the app sends over QUIC (UDP 443) never
+reaches the proxy, and an app that connects to an address it already has.
+
 ## Export and sessions
 
 The **Session** menu exports a HAR 1.2 file (HTTP flows; WebSocket and SSE

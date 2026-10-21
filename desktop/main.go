@@ -131,6 +131,12 @@ type app struct {
 	ignoreText string
 	ignoreOpen bool
 
+	// dns maps names to addresses the proxy dials instead, so a device's
+	// traffic reaches another machine as if the name pointed there.
+	dnsPath string
+	dnsText string
+	dnsOpen bool
+
 	// ignoreApps does the same by app, for a browser's background traffic.
 	ignoreAppsPath string
 	ignoreAppsText string
@@ -222,6 +228,7 @@ func newApp() *app {
 			a.settingsPath = filepath.Join(home, ".vscroxy", "settings.json")
 			a.ignorePath = filepath.Join(home, ".vscroxy", "ignore.txt")
 			a.ignoreAppsPath = filepath.Join(home, ".vscroxy", "ignore-apps.txt")
+			a.dnsPath = filepath.Join(home, ".vscroxy", "dns.txt")
 			a.scriptPath = filepath.Join(home, ".vscroxy", "script.js")
 		}
 		a.reloadConfig()
@@ -262,6 +269,16 @@ func newApp() *app {
 // reloadConfig reads the rules and the script and hands them to the proxy.
 // It runs on the main thread, from startup or the Reload button.
 func (a *app) reloadConfig() {
+	if a.dnsPath != "" && a.srv != nil {
+		lines, err := capture.LoadIgnore(a.dnsPath)
+		if err != nil {
+			a.errText = err.Error()
+		} else if err := a.srv.SetDNS(lines); err != nil {
+			a.errText = err.Error()
+		} else {
+			a.dnsText = strings.Join(lines, "\n")
+		}
+	}
 	if a.ignoreAppsPath != "" && a.srv != nil {
 		apps, err := capture.LoadIgnore(a.ignoreAppsPath)
 		if err != nil {
@@ -723,6 +740,7 @@ func (a *app) view(c *ui.Context) {
 	a.breakpointModal(c, t)
 	a.upstreamModal(c, t)
 	a.sslModal(c, t)
+	a.dnsModal(c, t)
 	a.hostListModal(c, t, &a.ignoreAppsOpen, "Ignored apps",
 		"Apps whose flows stay out of the table, one name per line, as the Apps section spells them. They are still proxied.",
 		a.ignoreAppsPath, &a.ignoreAppsText, func(apps []string) {
@@ -867,6 +885,9 @@ func (a *app) toolbar(c *ui.Context, t *ui.Theme) {
 			}
 			if m.Item("Ignored apps…").Chosen() {
 				a.ignoreAppsOpen = true
+			}
+			if m.Item("DNS mapping…").Chosen() {
+				a.dnsOpen = true
 			}
 		})
 		ui.MenuButton(c, "System", func(m *ui.Menu) {
@@ -1226,6 +1247,12 @@ func (a *app) statusBar(c *ui.Context, t *ui.Theme) {
 		}
 		if a.upstream != "" {
 			ui.Text(c, "Upstream: "+a.upstream).FontSize(11).TextColor(t.TextMuted)
+		}
+		if a.srv != nil {
+			if hit, ok := a.srv.LastDNSMatch(); ok {
+				ui.Text(c, fmt.Sprintf("DNS %s → %s", hit.Name, hit.IP)).
+					FontSize(11).TextColor(t.TextMuted)
+			}
 		}
 		if len(a.rules) > 0 {
 			ui.Text(c, fmt.Sprintf("%d rules", len(a.rules))).FontSize(11).TextColor(t.TextMuted)
@@ -2106,4 +2133,46 @@ func (a *app) exportChosen() {
 		}
 		a.setMessage(fmt.Sprintf("Exported %d flows to %s", len(flows), path))
 	}()
+}
+
+// dnsModal edits the names the proxy resolves itself.
+func (a *app) dnsModal(c *ui.Context, t *ui.Theme) {
+	if !a.dnsOpen {
+		return
+	}
+	ui.Modal(c, &a.dnsOpen, func() {
+		ui.Column(c).Width(560).Gap(10).Children(func() {
+			ui.Text(c, "DNS mapping").FontSize(14).Bold()
+			ui.Text(c, "Names the proxy resolves itself, one \"name = address\" a line. The request keeps its name and Host header, so a device pointed at this proxy reaches the machine you map: example.com = 192.168.1.50. A name matches its subdomains; *.example.com matches one level.").
+				FontSize(11).TextColor(t.TextMuted)
+			ui.TextArea(c, &a.dnsText).Height(140).Label("DNS mappings")
+			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
+				if ui.Button(c, "Cancel").Clicked() {
+					a.dnsOpen = false
+				}
+				if ui.PrimaryButton(c, "Save").Clicked() {
+					a.saveDNS()
+				}
+			})
+		})
+	})
+}
+
+// saveDNS keeps the mappings and hands them to the proxy.
+func (a *app) saveDNS() {
+	lines := splitHosts(a.dnsText)
+	if a.srv != nil {
+		if err := a.srv.SetDNS(lines); err != nil {
+			a.setMessage("DNS mapping: " + err.Error())
+			return
+		}
+	}
+	if a.dnsPath != "" {
+		if err := writeHosts(a.dnsPath, lines); err != nil {
+			a.setMessage("DNS mapping: " + err.Error())
+			return
+		}
+	}
+	a.dnsOpen = false
+	a.setMessage(fmt.Sprintf("DNS mapping: %d names", len(lines)))
 }

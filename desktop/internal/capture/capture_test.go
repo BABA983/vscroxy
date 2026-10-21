@@ -163,6 +163,49 @@ func TestFailedRequestShowsAnError(t *testing.T) {
 	}
 }
 
+func TestDNSMappingsResolveTheNameElsewhere(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintf(w, "host=%s", r.Host)
+	}))
+	defer upstream.Close()
+	_, port, err := net.SplitHostPort(strings.TrimPrefix(upstream.URL, "http://"))
+	if err != nil {
+		t.Fatalf("parse upstream address: %v", err)
+	}
+
+	s, _ := startServer(t)
+	// Nothing resolves this name before the mapping: the proxy answers the
+	// gateway error it gives a request whose server it cannot reach.
+	before, err := clientFor(t, s, nil).Get("http://mapped.test:" + port + "/x")
+	if err != nil {
+		t.Fatalf("request before the mapping: %v", err)
+	}
+	_ = before.Body.Close()
+	if before.StatusCode != http.StatusBadGateway {
+		t.Fatalf("status before the mapping = %d, want 502", before.StatusCode)
+	}
+	if err := s.SetDNS([]string{"mapped.test = 127.0.0.1"}); err != nil {
+		t.Fatalf("set dns: %v", err)
+	}
+
+	resp, err := clientFor(t, s, nil).Get("http://mapped.test:" + port + "/x")
+	if err != nil {
+		t.Fatalf("request through the mapping: %v", err)
+	}
+	body, err := io.ReadAll(resp.Body)
+	_ = resp.Body.Close()
+	if err != nil {
+		t.Fatalf("read body: %v", err)
+	}
+	// The address is the mapping's, the Host header still the name.
+	if want := "host=mapped.test:" + port; string(body) != want {
+		t.Fatalf("body = %q, want %q", body, want)
+	}
+	if hit, ok := s.LastDNSMatch(); !ok || hit.Name != "mapped.test" || hit.IP.String() != "127.0.0.1" {
+		t.Fatalf("last match = %+v, %v", hit, ok)
+	}
+}
+
 func TestIgnoredAppsAreNotShown(t *testing.T) {
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprint(w, "noise")

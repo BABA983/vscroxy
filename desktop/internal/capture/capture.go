@@ -32,6 +32,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/lqqyt2423/go-mitmproxy/proxy"
 
+	"github.com/baba983/vscroxy/desktop/internal/dnsmap"
 	"github.com/baba983/vscroxy/desktop/internal/procinfo"
 )
 
@@ -203,6 +204,10 @@ type Server struct {
 	// when the server closes.
 	bodyDir string
 
+	// dns answers the names mapped to an address and forwards the rest, so
+	// the proxy resolves through the mappings.
+	dns *dnsmap.Server
+
 	// roots are the CAs a replay trusts: the system's and this proxy's, so
 	// a replay of an HTTPS flow succeeds without trusting the CA machine
 	// wide.
@@ -272,6 +277,10 @@ func New(addr, caRootPath string) (*Server, error) {
 		return url.Parse(raw)
 	})
 	s.proxy = p
+	if resolver, err := dnsmap.Start(net.DefaultResolver); err == nil {
+		s.dns = resolver
+		resolver.Install()
+	}
 	if pool, err := x509.SystemCertPool(); err == nil {
 		ca := p.GetCertificate()
 		pool.AddCert(&ca)
@@ -298,6 +307,38 @@ func (s *Server) Dropped() int64 { return s.dropped.Load() }
 type SSLConfig struct {
 	All   bool     `json:"all"`
 	Hosts []string `json:"hosts,omitempty"`
+}
+
+// SetDNS sets the names the proxy resolves itself, as "name = address" lines:
+// the proxy dials the address while the request keeps its name and Host
+// header, so a device's traffic reaches another machine as if the name
+// pointed there.
+func (s *Server) SetDNS(lines []string) error {
+	rules, err := dnsmap.Parse(lines)
+	if err != nil {
+		return err
+	}
+	if s.dns == nil {
+		return errors.New("the DNS server did not start")
+	}
+	s.dns.SetRules(rules)
+	return nil
+}
+
+// DNSRules lists the names the proxy resolves itself.
+func (s *Server) DNSRules() []dnsmap.Rule {
+	if s.dns == nil {
+		return nil
+	}
+	return s.dns.Rules()
+}
+
+// LastDNSMatch is the last name a rule answered, for the UI to show.
+func (s *Server) LastDNSMatch() (dnsmap.Hit, bool) {
+	if s.dns == nil {
+		return dnsmap.Hit{}, false
+	}
+	return s.dns.LastMatch()
 }
 
 // SetSSL sets what the proxy decrypts.
@@ -658,6 +699,9 @@ func (s *Server) Start() error {
 // Close stops the proxy and closes Flows.
 func (s *Server) Close() error {
 	err := s.proxy.Close()
+	if s.dns != nil {
+		_ = s.dns.Close()
+	}
 	s.closeOnce.Do(func() {
 		close(s.out)
 		if s.bodyDir != "" {
