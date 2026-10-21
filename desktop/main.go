@@ -11,6 +11,7 @@ import (
 	"hash/fnv"
 	"log"
 	"maps"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -42,6 +43,9 @@ type app struct {
 	query  string
 	filter string
 	chip   int
+
+	// chosen are the rows chosen for a bulk action, by flow id.
+	chosen ui.Selection[int]
 	picked int
 	tab    int
 
@@ -127,6 +131,20 @@ type app struct {
 	ignorePath string
 	ignoreText string
 	ignoreOpen bool
+
+	// dns maps names to addresses the proxy dials instead, so a device's
+	// traffic reaches another machine as if the name pointed there.
+	dnsPath string
+	dnsText string
+	dnsOpen bool
+
+	// dnsRule is the dialog a flow opens to map its host: the app that sent
+	// it is known there, so nobody has to spell an app's name.
+	dnsRuleOpen  bool
+	dnsRuleHost  string
+	dnsRuleAddr  string
+	dnsRuleScope string
+	dnsRuleApps  []string
 
 	// ignoreApps does the same by app, for a browser's background traffic.
 	ignoreAppsPath string
@@ -219,6 +237,7 @@ func newApp() *app {
 			a.settingsPath = filepath.Join(home, ".vscroxy", "settings.json")
 			a.ignorePath = filepath.Join(home, ".vscroxy", "ignore.txt")
 			a.ignoreAppsPath = filepath.Join(home, ".vscroxy", "ignore-apps.txt")
+			a.dnsPath = filepath.Join(home, ".vscroxy", "dns.txt")
 			a.scriptPath = filepath.Join(home, ".vscroxy", "script.js")
 		}
 		a.reloadConfig()
@@ -259,6 +278,16 @@ func newApp() *app {
 // reloadConfig reads the rules and the script and hands them to the proxy.
 // It runs on the main thread, from startup or the Reload button.
 func (a *app) reloadConfig() {
+	if a.dnsPath != "" && a.srv != nil {
+		lines, err := capture.LoadIgnore(a.dnsPath)
+		if err != nil {
+			a.errText = err.Error()
+		} else if err := a.srv.SetDNS(lines); err != nil {
+			a.errText = err.Error()
+		} else {
+			a.dnsText = strings.Join(lines, "\n")
+		}
+	}
 	if a.ignoreAppsPath != "" && a.srv != nil {
 		apps, err := capture.LoadIgnore(a.ignoreAppsPath)
 		if err != nil {
@@ -559,6 +588,7 @@ func (a *app) drain() {
 			kind:        kind,
 			process:     f.Process,
 			processPath: f.ProcessPath,
+			dns:         f.DNSMapped,
 			wait:        f.Wait,
 			download:    f.Download,
 		})
@@ -720,6 +750,8 @@ func (a *app) view(c *ui.Context) {
 	a.breakpointModal(c, t)
 	a.upstreamModal(c, t)
 	a.sslModal(c, t)
+	a.dnsModal(c, t)
+	a.dnsRuleModal(c, t)
 	a.hostListModal(c, t, &a.ignoreAppsOpen, "Ignored apps",
 		"Apps whose flows stay out of the table, one name per line, as the Apps section spells them. They are still proxied.",
 		a.ignoreAppsPath, &a.ignoreAppsText, func(apps []string) {
@@ -865,6 +897,9 @@ func (a *app) toolbar(c *ui.Context, t *ui.Theme) {
 			if m.Item("Ignored apps…").Chosen() {
 				a.ignoreAppsOpen = true
 			}
+			if m.Item("DNS mapping…").Chosen() {
+				a.dnsOpen = true
+			}
 		})
 		ui.MenuButton(c, "System", func(m *ui.Menu) {
 			if m.Item("Enable system proxy").Chosen() {
@@ -891,6 +926,18 @@ func (a *app) toolbar(c *ui.Context, t *ui.Theme) {
 		ui.MenuButton(c, "Session", func(m *ui.Menu) {
 			if m.Item("Export HAR…").Chosen() {
 				a.exportHAR()
+			}
+			if m.Item("Export chosen HAR…").Chosen() {
+				a.exportChosen()
+			}
+			if m.Item("Choose all shown").Chosen() {
+				for _, at := range a.visible {
+					a.chosen.Add(a.flows[at].id)
+				}
+				a.setMessage(fmt.Sprintf("%d chosen", a.chosen.Len()))
+			}
+			if m.Item("Clear choice").Chosen() {
+				a.chosen.Clear()
 			}
 			if m.Item("Save session…").Chosen() {
 				a.saveSession()
@@ -928,6 +975,7 @@ func (a *app) toolbar(c *ui.Context, t *ui.Theme) {
 			// A pinned flow stays, the reason it was pinned.
 			a.flows = slices.DeleteFunc(a.flows, func(f flow) bool { return !f.pinned })
 			a.frames = make(map[int][]frame)
+			a.chosen.Clear()
 			a.picked = 0
 			a.detailFor = -1
 			a.query = ""
@@ -995,9 +1043,15 @@ func (a *app) sidebar(c *ui.Context) {
 			if len(a.clients) > 0 {
 				ui.SidebarSection(c, "Apps", &a.clientsOpen, func() {
 					for _, d := range a.clients {
-						ui.SidebarItem(c, "client:"+d.name, nil, d.name).Children(func() {
-							ui.Badge(c, fmt.Sprint(d.n))
-						})
+						ui.SidebarItem(c, "client:"+d.name, nil, d.name).
+							ContextMenu(func(m *ui.Menu) {
+								if m.Item("Map a host for " + d.name + "…").Chosen() {
+									a.openDNSRule("", d.name)
+								}
+							}).
+							Children(func() {
+								ui.Badge(c, fmt.Sprint(d.n))
+							})
 					}
 				})
 			}
@@ -1048,10 +1102,11 @@ func (a *app) table(c *ui.Context) {
 		{Title: "", ID: "filler", Width: 14, Fixed: true},
 	}
 	state := &ui.ListState{
-		Selected: &a.picked,
-		Key:      func(row int) any { return a.flows[a.visible[row]].id },
-		Sort:     &a.sort,
-		Columns:  a.columns,
+		Selected:  &a.picked,
+		Selection: &a.chosen,
+		Key:       func(row int) any { return a.flows[a.visible[row]].id },
+		Sort:      &a.sort,
+		Columns:   a.columns,
 	}
 	ui.Table(c, state, cols, len(a.visible), func(row, col int) {
 		f := a.flows[a.visible[row]]
@@ -1091,6 +1146,13 @@ func (a *app) table(c *ui.Context) {
 				scheme = t.AccentText
 			}
 			ui.Row(c).Gap(1).Children(func() {
+				if f.dns != "" {
+					ui.Box(c).Size(28, 14).Radius(3).Background(ui.Hex("#d97706")).Center().MarginEnd(4).
+						Tooltip("DNS mapping " + f.dns).
+						Children(func() {
+							ui.Text(c, "DNS").FontSize(9).Bold().TextColor(ui.Hex("#ffffff"))
+						})
+				}
 				text(f.scheme + "://").Shrink(0).TextColor(scheme).ContextMenu(a.rowMenu(c, f))
 				text(f.host + f.path).TextColor(rest).ContextMenu(a.rowMenu(c, f))
 			})
@@ -1123,6 +1185,13 @@ func (a *app) detail(c *ui.Context) {
 				FontSize(12).TextColor(t.Text).SingleLine().Grow(1)
 			if f.process != "" {
 				ui.Text(c, f.process).FontSize(12).TextColor(t.TextMuted)
+			}
+			if f.dns != "" {
+				ui.Box(c).Size(28, 14).Radius(3).Background(ui.Hex("#d97706")).Center().Children(func() {
+					ui.Text(c, "DNS").FontSize(9).Bold().TextColor(ui.Hex("#ffffff"))
+				})
+				ui.Text(c, f.dns).FontSize(12).TextColor(t.TextMuted).
+					Tooltip("The proxy dialled this address; the request kept its name, Host header and SNI")
 			}
 			if ui.Button(c, "Replay").Disabled(f.url == "" || f.kind != "").Clicked() {
 				go a.replay(f)
@@ -1194,6 +1263,9 @@ func (a *app) statusBar(c *ui.Context, t *ui.Theme) {
 			captured = "0 B"
 		}
 		ui.Text(c, captured+" captured").FontSize(11).TextColor(t.TextMuted)
+		if n := a.chosen.Len(); n > 0 {
+			ui.Text(c, fmt.Sprintf("%d chosen", n)).FontSize(11).TextColor(t.Text)
+		}
 		if a.dropped > 0 {
 			ui.Text(c, fmt.Sprintf("%d dropped", a.dropped)).FontSize(11).TextColor(ui.Hex("#d97706"))
 		}
@@ -1206,6 +1278,12 @@ func (a *app) statusBar(c *ui.Context, t *ui.Theme) {
 		}
 		if a.upstream != "" {
 			ui.Text(c, "Upstream: "+a.upstream).FontSize(11).TextColor(t.TextMuted)
+		}
+		if a.srv != nil {
+			if hit, ok := a.srv.LastDNSMatch(); ok {
+				ui.Text(c, fmt.Sprintf("DNS %s → %s", hit.Name, hit.IP)).
+					FontSize(11).TextColor(t.TextMuted)
+			}
 		}
 		if len(a.rules) > 0 {
 			ui.Text(c, fmt.Sprintf("%d rules", len(a.rules))).FontSize(11).TextColor(t.TextMuted)
@@ -1373,6 +1451,9 @@ func (a *app) rowMenu(c *ui.Context, f flow) func(*ui.Menu) {
 		m.Separator()
 		if m.Item(cmp.Or(pinLabel(f), "Pin")).Chosen() {
 			a.togglePin(f)
+		}
+		if m.Item("Map this host…").Chosen() {
+			a.openDNSRule(hostOnly(f.host), f.process)
 		}
 		if m.Item("Edit & resend").Chosen() {
 			a.composeFrom(f)
@@ -2048,4 +2129,178 @@ func (a *app) noteComposed() {
 		a.mu.Unlock()
 		return
 	}
+}
+
+// selectedFlows are the flows chosen in the table, in the order captured.
+func (a *app) selectedFlows() []flow {
+	if a.chosen.Len() == 0 {
+		return nil
+	}
+	var out []flow
+	for _, f := range a.flows {
+		if a.chosen.Has(f.id) {
+			out = append(out, f)
+		}
+	}
+	return out
+}
+
+// exportChosen writes the chosen flows to a HAR file the user picks.
+func (a *app) exportChosen() {
+	flows := a.selectedFlows()
+	if len(flows) == 0 {
+		a.setMessage("Export chosen: no flow chosen")
+		return
+	}
+	go func() {
+		path, err := mygo.Dialog.Save(mygo.SaveDialogOptions{
+			Title:       "Export chosen flows",
+			DefaultPath: "vscroxy-chosen.har",
+			Filters:     []mygo.FileFilter{{Name: "HAR", Extensions: []string{"har"}}},
+		})
+		if err != nil || path == "" {
+			return
+		}
+		if err := writeHAR(path, flows); err != nil {
+			a.setMessage("HAR: " + err.Error())
+			return
+		}
+		a.setMessage(fmt.Sprintf("Exported %d flows to %s", len(flows), path))
+	}()
+}
+
+// dnsModal edits the names the proxy resolves itself.
+func (a *app) dnsModal(c *ui.Context, t *ui.Theme) {
+	if !a.dnsOpen {
+		return
+	}
+	ui.Modal(c, &a.dnsOpen, func() {
+		ui.Column(c).Width(560).Gap(10).Children(func() {
+			ui.Text(c, "DNS mapping").FontSize(14).Bold()
+			ui.Text(c, "Names the proxy resolves itself, one \"name = address\" a line. The request keeps its name and Host header, so a device pointed at this proxy reaches the machine you map: example.com = 192.168.1.50. Add \"@ Chrome, com.example.app\" to map the name for those apps only, or right-click a request and pick \"Map this host…\" to choose the app there. A name matches its subdomains; *.example.com matches one level. Flows that hit a mapping carry a DNS tag in the table.").
+				FontSize(11).TextColor(t.TextMuted)
+			ui.TextArea(c, &a.dnsText).Height(140).Label("DNS mappings")
+			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
+				if ui.Button(c, "Cancel").Clicked() {
+					a.dnsOpen = false
+				}
+				if ui.PrimaryButton(c, "Save").Clicked() {
+					a.saveDNS()
+				}
+			})
+		})
+	})
+}
+
+// dnsRuleModal maps one host, opened from a flow: the host and the app that
+// sent it come from the row, so the scope is a picker over the apps seen
+// rather than a name to spell.
+func (a *app) dnsRuleModal(c *ui.Context, t *ui.Theme) {
+	if !a.dnsRuleOpen {
+		return
+	}
+	ui.Modal(c, &a.dnsRuleOpen, func() {
+		ui.Column(c).Width(460).Gap(10).Children(func() {
+			ui.Text(c, "Map a host").FontSize(14).Bold()
+			ui.Text(c, "The request keeps its name, URL, Host header and SNI; the proxy dials the address instead.").
+				FontSize(11).TextColor(t.TextMuted)
+			ui.TextInput(c, &a.dnsRuleHost).Label("Host")
+			ui.TextInput(c, &a.dnsRuleAddr).Label("Address")
+			ui.Text(c, "Applies to").FontSize(11).TextColor(t.TextMuted)
+			ui.Select(c, &a.dnsRuleScope, a.dnsRuleApps)
+			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
+				if ui.Button(c, "Cancel").Clicked() {
+					a.dnsRuleOpen = false
+				}
+				if ui.PrimaryButton(c, "Save").Clicked() {
+					a.saveDNSRule()
+				}
+			})
+		})
+	})
+}
+
+// openDNSRule fills the dialog from a flow's host and app, or from an app in
+// the sidebar that has no host yet, so the app is picked rather than spelled.
+func (a *app) openDNSRule(host, app string) {
+	a.dnsRuleHost = host
+	a.dnsRuleAddr = ""
+	a.dnsRuleScope = "Any app"
+	a.dnsRuleApps = []string{"Any app"}
+	for _, d := range a.clients {
+		if d.name != "" && !slices.Contains(a.dnsRuleApps, d.name) {
+			a.dnsRuleApps = append(a.dnsRuleApps, d.name)
+		}
+	}
+	if app != "" {
+		if !slices.Contains(a.dnsRuleApps, app) {
+			a.dnsRuleApps = append(a.dnsRuleApps, app)
+		}
+		a.dnsRuleScope = app
+	}
+	a.dnsRuleOpen = true
+}
+
+// saveDNSRule appends the dialog's rule to the mappings and hands them to the
+// proxy; a rule for the same host and scope replaces the one before it.
+func (a *app) saveDNSRule() {
+	host := strings.TrimSpace(a.dnsRuleHost)
+	addr := strings.TrimSpace(a.dnsRuleAddr)
+	if host == "" || addr == "" {
+		a.setMessage("DNS mapping: a host and an address")
+		return
+	}
+	line := host + " = " + addr
+	if a.dnsRuleScope != "" && a.dnsRuleScope != "Any app" {
+		line += " @ " + a.dnsRuleScope
+	}
+	var lines []string
+	for _, old := range splitHosts(a.dnsText) {
+		if old != line {
+			lines = append(lines, old)
+		}
+	}
+	lines = append(lines, line)
+	a.dnsText = strings.Join(lines, "\n")
+	if a.srv != nil {
+		if err := a.srv.SetDNS(lines); err != nil {
+			a.setMessage("DNS mapping: " + err.Error())
+			return
+		}
+	}
+	if a.dnsPath != "" {
+		if err := writeHosts(a.dnsPath, lines); err != nil {
+			a.setMessage("DNS mapping: " + err.Error())
+			return
+		}
+	}
+	a.dnsRuleOpen = false
+	a.setMessage("DNS mapping: " + line)
+}
+
+// hostOnly drops the port from a host the table shows, for a rule's name.
+func hostOnly(host string) string {
+	if name, _, err := net.SplitHostPort(host); err == nil {
+		return name
+	}
+	return host
+}
+
+// saveDNS keeps the mappings and hands them to the proxy.
+func (a *app) saveDNS() {
+	lines := splitHosts(a.dnsText)
+	if a.srv != nil {
+		if err := a.srv.SetDNS(lines); err != nil {
+			a.setMessage("DNS mapping: " + err.Error())
+			return
+		}
+	}
+	if a.dnsPath != "" {
+		if err := writeHosts(a.dnsPath, lines); err != nil {
+			a.setMessage("DNS mapping: " + err.Error())
+			return
+		}
+	}
+	a.dnsOpen = false
+	a.setMessage(fmt.Sprintf("DNS mapping: %d names", len(lines)))
 }

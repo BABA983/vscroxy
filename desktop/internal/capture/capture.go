@@ -32,6 +32,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/lqqyt2423/go-mitmproxy/proxy"
 
+	"github.com/baba983/vscroxy/desktop/internal/dnsmap"
 	"github.com/baba983/vscroxy/desktop/internal/procinfo"
 )
 
@@ -109,6 +110,10 @@ type Flow struct {
 	// and ProcessPath its executable's path.
 	Process     string
 	ProcessPath string
+
+	// DNSMapped says what a DNS mapping did to the dial, as
+	// "name → address"; empty when none did.
+	DNSMapped string
 
 	// Wait is how long the request took to reach its first response byte,
 	// and Download the rest of Millis: the two phases a waterfall shows.
@@ -203,6 +208,14 @@ type Server struct {
 	// when the server closes.
 	bodyDir string
 
+	// dns answers the names mapped to an address and forwards the rest, so
+	// the proxy dials a mapping without changing the URL or Host header.
+	dns *dnsmap.Server
+
+	// dnsHits are the flows whose target a mapping changed, for the table.
+	lastDNS atomic.Value // DNSHit
+	dnsHits map[uuid.UUID]DNSHit
+
 	// roots are the CAs a replay trusts: the system's and this proxy's, so
 	// a replay of an HTTPS flow succeeds without trusting the CA machine
 	// wide.
@@ -246,6 +259,7 @@ func New(addr, caRootPath string) (*Server, error) {
 		firstByte:   make(map[uuid.UUID]time.Time),
 		original:    make(map[uuid.UUID]url.URL),
 		clients:     make(map[string]procinfo.Process),
+		dnsHits:     make(map[uuid.UUID]DNSHit),
 		bpWait:      make(map[int]chan Decision),
 		breakpoints: make(chan Breakpoint, 16),
 		frames:      make(chan FrameEvent, queue),
@@ -280,6 +294,10 @@ func New(addr, caRootPath string) (*Server, error) {
 	if dir, err := os.MkdirTemp("", "vscroxy-bodies-"); err == nil {
 		s.bodyDir = dir
 	}
+	if resolver, err := dnsmap.Start(net.DefaultResolver); err == nil {
+		s.dns = resolver
+		s.dns.Install()
+	}
 	return s, nil
 }
 
@@ -298,6 +316,68 @@ func (s *Server) Dropped() int64 { return s.dropped.Load() }
 type SSLConfig struct {
 	All   bool     `json:"all"`
 	Hosts []string `json:"hosts,omitempty"`
+}
+
+// SetDNS sets the names the proxy dials elsewhere, as "name = address" lines
+// with an optional "@ app1, app2" limiting a rule to those apps: the request
+// keeps its name, URL and Host header, and the proxy connects to the address,
+// so a device's traffic reaches another machine as if the name pointed there.
+func (s *Server) SetDNS(lines []string) error {
+	rules, err := dnsmap.Parse(lines)
+	if err != nil {
+		return err
+	}
+	if s.dns == nil {
+		return errors.New("the DNS server did not start")
+	}
+	s.dns.SetRules(rules)
+	return nil
+}
+
+// DNSRules lists the mappings the proxy dials.
+func (s *Server) DNSRules() []dnsmap.Rule {
+	if s.dns == nil {
+		return nil
+	}
+	return s.dns.Rules()
+}
+
+// DNSHit is a flow whose target the DNS mappings changed.
+type DNSHit struct {
+	Name string
+	IP   net.IP
+	At   time.Time
+}
+
+// LastDNSMatch is the last flow a mapping changed, for the UI to show.
+func (s *Server) LastDNSMatch() (DNSHit, bool) {
+	hit, ok := s.lastDNS.Load().(DNSHit)
+	return hit, ok
+}
+
+// noteDNS records the mapping a flow's dial goes through, for the app the flow
+// came from, and hands an app-scoped rule's address to the dial that follows:
+// the server answers a name, not an app, so the flow scopes it.
+func (s *Server) noteDNS(f *proxy.Flow) {
+	if s.dns == nil || f.Request == nil || f.Request.URL == nil {
+		return
+	}
+	host := f.Request.URL.Hostname()
+	if host == "" {
+		return
+	}
+	rule, ok := dnsmap.Lookup(s.dns.Rules(), host, s.clientProcess(f).Name)
+	if !ok {
+		return
+	}
+	hit := DNSHit{Name: host, IP: rule.IP, At: time.Now()}
+	s.mu.Lock()
+	s.dnsHits[f.Id] = hit
+	s.mu.Unlock()
+	s.lastDNS.Store(hit)
+	if len(rule.Apps) > 0 {
+		s.dns.SetPending(host, rule.IP, 2*time.Second)
+	}
 }
 
 // SetSSL sets what the proxy decrypts.
@@ -658,6 +738,9 @@ func (s *Server) Start() error {
 // Close stops the proxy and closes Flows.
 func (s *Server) Close() error {
 	err := s.proxy.Close()
+	if s.dns != nil {
+		_ = s.dns.Close()
+	}
 	s.closeOnce.Do(func() {
 		close(s.out)
 		if s.bodyDir != "" {
@@ -736,9 +819,11 @@ func (a *addon) Requestheaders(f *proxy.Flow) {
 	if f.Request.Method == "CONNECT" {
 		// A CONNECT the proxy does not decrypt ends here: show the tunnel so
 		// the table says what went through it.
+		a.server.noteDNS(f)
 		a.server.publishConnect(f)
 		return
 	}
+	a.server.noteDNS(f)
 	a.server.mu.Lock()
 	a.server.started[f.Id] = time.Now()
 	a.server.mu.Unlock()
@@ -1052,10 +1137,11 @@ func (s *Server) clientProcess(f *proxy.Flow) procinfo.Process {
 // publishConnect shows a CONNECT the proxy tunnels without decrypting it.
 func (s *Server) publishConnect(f *proxy.Flow) {
 	host := f.Request.URL.Hostname()
-	if host == "" || s.decrypts(host) {
-		return
-	}
-	if s.ignored(host) {
+	if host == "" || s.decrypts(host) || s.ignored(host) {
+		// The tunnel gets no row of its own, so there is nothing to mark.
+		s.mu.Lock()
+		delete(s.dnsHits, f.Id)
+		s.mu.Unlock()
 		return
 	}
 	s.publishFlow(f, "connect", nil, 0)
@@ -1101,8 +1187,8 @@ func (s *Server) publishFlow(f *proxy.Flow, kind string, frames []Frame, status 
 	}
 	if kind == "connect" {
 		// A tunnel's URL is its host, with the scheme HTTPS implies.
-		host := f.Request.URL.Hostname()
-		port := f.Request.URL.Port()
+		host := display.Hostname()
+		port := display.Port()
 		if port != "" && port != "443" {
 			host = net.JoinHostPort(host, port)
 		}
@@ -1193,6 +1279,7 @@ func (s *Server) publishFlow(f *proxy.Flow, kind string, frames []Frame, status 
 		Frames:           clipFrames(frames),
 		Process:          client.Name,
 		ProcessPath:      client.Path,
+		DNSMapped:        s.dnsMapped(f),
 	}
 	s.mu.Lock()
 	if len(s.flowIDs) > 4096 {
@@ -1312,4 +1399,16 @@ func writeHeaders(b *strings.Builder, h http.Header) {
 			fmt.Fprintf(b, "%s: %s\n", key, value)
 		}
 	}
+}
+
+// dnsMapped is the mapping a flow's dial went through, once.
+func (s *Server) dnsMapped(f *proxy.Flow) string {
+	s.mu.Lock()
+	hit, ok := s.dnsHits[f.Id]
+	delete(s.dnsHits, f.Id)
+	s.mu.Unlock()
+	if !ok {
+		return ""
+	}
+	return hit.Name + " → " + hit.IP.String()
 }

@@ -62,3 +62,16 @@ func TestSessionRoundTrip(t *testing.T) {
 		t.Fatalf("frames = %+v", gotFrames)
 	}
 }
+
+func TestSelectedFlows(t *testing.T) {
+	a := &app{flows: []flow{{id: 1, path: "/a"}, {id: 2, path: "/b"}, {id: 3, path: "/c"}}}
+	a.chosen.Add(3)
+	a.chosen.Add(1)
+	got := a.selectedFlows()
+	if len(got) != 2 || got[0].id != 1 || got[1].id != 3 {
+		t.Fatalf("selected = %+v, want 1 then 3 in capture order", got)
+	}
+	if all := (&app{flows: a.flows}).selectedFlows(); all != nil {
+		t.Fatalf("selected with nothing chosen = %+v, want none", all)
+	}
+}

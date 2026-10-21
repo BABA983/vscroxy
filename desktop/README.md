@@ -61,7 +61,10 @@ the same method, scheme and URL.
 
 The table is laid out like a proxy tool's: method, status, the whole URL with
 its scheme, the app and its icon, the duration and the size. A click on a
-header sorts by that column.
+header sorts by that column. Ctrl-click adds a row to the choice and
+Shift-click chooses a range, which **Session → Choose all shown** and
+**Clear choice** also do without the keys; the status bar counts the rows
+chosen, and **Export chosen HAR…** writes just those.
 
 The chips above it keep one kind of traffic in view: HTTP or HTTPS by scheme,
 WebSocket and SSE by kind, and JSON, images or HTML by the response's content
@@ -182,6 +185,21 @@ kept in `~/.vscroxy/ignore.txt` and matched like the SSL list.
 **Ignored apps…** does the same by app, with the names the **Apps** section
 shows, in `~/.vscroxy/ignore-apps.txt`: a browser's background traffic stays
 out of the table while another app's does not.
+
+## DNS mapping
+
+**Network → DNS mapping…** lists names the proxy resolves itself, a line of
+`name = address` each, kept in `~/.vscroxy/dns.txt`. The proxy dials the
+address while the request keeps its name, its URL and its `Host` header, so a
+phone or emulator pointed at this proxy reaches another machine as if the name
+pointed there — the DNS spoofing a proxy needs, without editing the hosts file
+or rooting the device. A name matches its subdomains and `*.example.com`
+matches one level; the status bar shows the last name a rule answered.
+
+The proxy resolves on the machine it runs on, so a hosts file entry already
+applies to a device's traffic; this list is for the mappings kept with the
+tool. Two things bypass it: traffic the app sends over QUIC (UDP 443) never
+reaches the proxy, and an app that connects to an address it already has.
 
 ## Export and sessions
 
