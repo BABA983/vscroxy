@@ -68,6 +68,12 @@ WebSocket and SSE by kind, and JSON, images or HTML by the response's content
 type. They narrow what the sidebar's filters and the search show, and the
 status bar counts the flows, the bytes captured and the last message.
 
+A row's menu carries what a captured request is worth outside the table:
+**Copy URL**, **Copy as cURL** (its headers, body and URL as a shell
+command), **Open in browser**, **Copy response body**, **Pin to the top**,
+**Edit in Compose**, **Save as request** (into the saved ones, under a name of
+its own, so a second save does not replace the first), and **Replay**.
+
 ## Rules
 
 Rules live in `~/.vscroxy/rules.json` and apply to new requests in order,
@@ -173,6 +179,10 @@ after decrypting a domain.
 proxying them, for the traffic a browser makes that no one reads. The list is
 kept in `~/.vscroxy/ignore.txt` and matched like the SSL list.
 
+**Ignored apps…** does the same by app, with the names the **Apps** section
+shows, in `~/.vscroxy/ignore-apps.txt`: a browser's background traffic stays
+out of the table while another app's does not.
+
 ## Export and sessions
 
 The **Session** menu exports a HAR 1.2 file (HTTP flows; WebSocket and SSE
@@ -203,13 +213,21 @@ being trusted machine wide.
 
 **Compose** writes a request by hand: method, URL, headers as `Key: Value`
 lines, and a body. **Send** runs it through the proxy, so the exchange lands in
-the table with the rest of the traffic. A row's **Edit in Compose** fills the
+the table with the rest of the traffic, and the editor stays open under a
+line saying what came back (`200 · 577 B · 48 ms`), so a request can be
+changed and sent again without opening it anew. A row's **Edit & resend**
+fills the editor with what was captured. A row's **Edit in Compose** fills the
 editor with what was captured, the step from traffic to a request worth
 keeping.
 
 **Save** keeps the editor's request under its name in
-`~/.vscroxy/requests.json`, replacing one of the same name; the sidebar's
-**Saved** section opens it back in the editor.
+`~/.vscroxy/requests.json`, replacing one of the same name in the same
+collection; the sidebar groups the saved requests by collection, and the
+**Session** menu exports and imports them as a file.
+
+**History** lists what Compose sent, newest first, without repeats of the
+same method and URL, in `~/.vscroxy/history.json`; clicking one fills the
+editor with it again, and **Session → Clear history** empties the list.
 
 ## Timing
 

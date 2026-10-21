@@ -58,7 +58,9 @@ type app struct {
 	trafficOpen bool
 	domainsOpen bool
 	clientsOpen bool
-	savedOpen   bool
+	// collectionOpen keeps each saved collection's section open or shut,
+	// by name, the empty name for the requests outside one.
+	collectionOpen map[string]*bool
 
 	// icons caches the app icon per process name; a nil entry means the
 	// process has none.
@@ -126,14 +128,30 @@ type app struct {
 	ignoreText string
 	ignoreOpen bool
 
-	// requests are the saved requests, the Compose direction's kept half.
+	// ignoreApps does the same by app, for a browser's background traffic.
+	ignoreAppsPath string
+	ignoreAppsText string
+	ignoreAppsOpen bool
+
+	// requests are the saved requests, the Compose direction's kept half,
+	// and history what Compose sent.
 	requests     []savedRequest
 	requestsPath string
+	history      []historyEntry
+	historyPath  string
+	historyOpen  bool
 
 	// compose is the request being written: what Compose sends through the
 	// proxy so the exchange is captured like any other.
-	composeOpen    bool
-	composeName    string
+	composeOpen       bool
+	composeName       string
+	composeCollection string
+	// composeTitle says what the editor is for, and the send's result shows
+	// under its buttons so a request can be sent again after a change.
+	composeTitle   string
+	composeResult  string
+	composeWaiting bool
+	composeBefore  int
 	composeMethod  string
 	composeURL     string
 	composeHeaders string
@@ -171,17 +189,18 @@ type frame struct {
 
 func newApp() *app {
 	a := &app{
-		filter:       "all",
-		icons:        make(map[string]ui.ImageSource),
-		sidebarWidth: 220,
-		tablePercent: 62,
-		trafficOpen:  true,
-		domainsOpen:  true,
-		clientsOpen:  true,
-		savedOpen:    true,
-		detailFor:    -1,
-		frames:       make(map[int][]frame),
-		throttle:     capture.Presets[0],
+		filter:         "all",
+		icons:          make(map[string]ui.ImageSource),
+		sidebarWidth:   220,
+		tablePercent:   62,
+		trafficOpen:    true,
+		domainsOpen:    true,
+		clientsOpen:    true,
+		historyOpen:    true,
+		collectionOpen: make(map[string]*bool),
+		detailFor:      -1,
+		frames:         make(map[int][]frame),
+		throttle:       capture.Presets[0],
 	}
 	srv, err := capture.New("127.0.0.1:7890", "")
 	if err != nil {
@@ -196,11 +215,18 @@ func newApp() *app {
 			a.rulesPath = filepath.Join(home, ".vscroxy", "rules.json")
 			a.sslPath = filepath.Join(home, ".vscroxy", "ssl.json")
 			a.requestsPath = filepath.Join(home, ".vscroxy", "requests.json")
+			a.historyPath = filepath.Join(home, ".vscroxy", "history.json")
 			a.settingsPath = filepath.Join(home, ".vscroxy", "settings.json")
 			a.ignorePath = filepath.Join(home, ".vscroxy", "ignore.txt")
+			a.ignoreAppsPath = filepath.Join(home, ".vscroxy", "ignore-apps.txt")
 			a.scriptPath = filepath.Join(home, ".vscroxy", "script.js")
 		}
 		a.reloadConfig()
+	}
+	if a.historyPath != "" {
+		if list, err := loadHistory(a.historyPath); err == nil {
+			a.history = list
+		}
 	}
 	if a.settingsPath != "" {
 		saved, err := loadSettings(a.settingsPath)
@@ -233,6 +259,15 @@ func newApp() *app {
 // reloadConfig reads the rules and the script and hands them to the proxy.
 // It runs on the main thread, from startup or the Reload button.
 func (a *app) reloadConfig() {
+	if a.ignoreAppsPath != "" && a.srv != nil {
+		apps, err := capture.LoadIgnore(a.ignoreAppsPath)
+		if err != nil {
+			a.errText = err.Error()
+		} else {
+			a.srv.SetIgnoreApps(apps)
+			a.ignoreAppsText = strings.Join(apps, "\n")
+		}
+	}
 	if a.ignorePath != "" && a.srv != nil {
 		patterns, err := capture.LoadIgnore(a.ignorePath)
 		if err != nil {
@@ -531,6 +566,7 @@ func (a *app) drain() {
 	for _, f := range a.flows[len(a.flows)-len(pending):] {
 		a.totalBytes += int64(f.bytes)
 	}
+	a.noteComposed()
 	if len(a.flows) > maxFlows {
 		cut := len(a.flows) - maxFlows
 		a.flows = a.flows[cut:]
@@ -684,6 +720,13 @@ func (a *app) view(c *ui.Context) {
 	a.breakpointModal(c, t)
 	a.upstreamModal(c, t)
 	a.sslModal(c, t)
+	a.hostListModal(c, t, &a.ignoreAppsOpen, "Ignored apps",
+		"Apps whose flows stay out of the table, one name per line, as the Apps section spells them. They are still proxied.",
+		a.ignoreAppsPath, &a.ignoreAppsText, func(apps []string) {
+			if a.srv != nil {
+				a.srv.SetIgnoreApps(apps)
+			}
+		})
 	a.hostListModal(c, t, &a.ignoreOpen, "Ignored hosts",
 		"Hosts whose flows stay out of the table, one per line. They are still proxied, so the client sees no difference.",
 		a.ignorePath, &a.ignoreText, func(patterns []string) {
@@ -819,6 +862,9 @@ func (a *app) toolbar(c *ui.Context, t *ui.Theme) {
 			if m.Item("Ignored hosts…").Chosen() {
 				a.ignoreOpen = true
 			}
+			if m.Item("Ignored apps…").Chosen() {
+				a.ignoreAppsOpen = true
+			}
 		})
 		ui.MenuButton(c, "System", func(m *ui.Menu) {
 			if m.Item("Enable system proxy").Chosen() {
@@ -852,6 +898,18 @@ func (a *app) toolbar(c *ui.Context, t *ui.Theme) {
 			if m.Item("Open session…").Chosen() {
 				a.openSession()
 			}
+			if len(a.history) > 0 && m.Item("Clear history").Chosen() {
+				a.history = nil
+				a.saveHistory()
+				a.setMessage("History cleared")
+			}
+			m.Separator()
+			if m.Item("Export requests…").Chosen() {
+				a.exportRequests()
+			}
+			if m.Item("Import requests…").Chosen() {
+				a.importRequests()
+			}
 		})
 		if ui.Button(c, "Compose").Clicked() {
 			a.openCompose()
@@ -867,8 +925,8 @@ func (a *app) toolbar(c *ui.Context, t *ui.Theme) {
 			a.mu.Lock()
 			a.pending = nil
 			a.mu.Unlock()
-			a.flows = nil
-			a.visible = nil
+			// A pinned flow stays, the reason it was pinned.
+			a.flows = slices.DeleteFunc(a.flows, func(f flow) bool { return !f.pinned })
 			a.frames = make(map[int][]frame)
 			a.picked = 0
 			a.detailFor = -1
@@ -876,6 +934,12 @@ func (a *app) toolbar(c *ui.Context, t *ui.Theme) {
 			a.filter = "all"
 			a.chip = 0
 			a.totalBytes = 0
+			for _, f := range a.flows {
+				a.totalBytes += int64(f.bytes)
+			}
+			a.countDomains()
+			a.countClients()
+			a.applyFilter()
 		}
 	})
 	ui.Divider(c)
@@ -907,12 +971,26 @@ func (a *app) sidebar(c *ui.Context) {
 					})
 				}
 			})
-			if len(a.requests) > 0 {
-				ui.SidebarSection(c, "Saved", &a.savedOpen, func() {
-					for _, r := range a.requests {
-						ui.SidebarItem(c, "saved:"+r.Name, nil, r.Name)
+			if len(a.history) > 0 {
+				ui.SidebarSection(c, "History", &a.historyOpen, func() {
+					for i, e := range a.history {
+						ui.SidebarItem(c, "history:"+strconv.Itoa(i), nil, e.label())
 					}
 				})
+			}
+			if len(a.requests) > 0 {
+				groups := groupRequests(a.requests)
+				for _, name := range slices.Sorted(maps.Keys(groups)) {
+					label := name
+					if label == "" {
+						label = "Saved"
+					}
+					ui.SidebarSection(c, label, a.collectionShown(name), func() {
+						for _, r := range groups[name] {
+							ui.SidebarItem(c, "saved:"+r.Collection+"/"+r.Name, nil, r.Name)
+						}
+					})
+				}
 			}
 			if len(a.clients) > 0 {
 				ui.SidebarSection(c, "Apps", &a.clientsOpen, func() {
@@ -925,8 +1003,14 @@ func (a *app) sidebar(c *ui.Context) {
 			}
 		}).Fill()
 		if chosen.Changed() {
-			if name, ok := strings.CutPrefix(a.filter, "saved:"); ok {
-				a.openSaved(name)
+			if at, ok := strings.CutPrefix(a.filter, "history:"); ok {
+				if i, err := strconv.Atoi(at); err == nil {
+					a.openHistory(i)
+				}
+				a.filter = "all"
+			} else if key, ok := strings.CutPrefix(a.filter, "saved:"); ok {
+				collection, name, _ := strings.Cut(key, "/")
+				a.openSaved(collection, name)
 				a.filter = "all"
 			} else {
 				a.applyFilter()
@@ -978,6 +1062,9 @@ func (a *app) table(c *ui.Context) {
 			color := methodColor(f.method)
 			if chosen {
 				color = t.AccentText
+			}
+			if f.pinned {
+				ui.Icon(c, pinIcon).Size(11, 11).Padding(0, 4, 0, 0).TextColor(color)
 			}
 			text(f.method).TextColor(color)
 		case 1:
@@ -1284,8 +1371,14 @@ func (a *app) rowMenu(c *ui.Context, f flow) func(*ui.Menu) {
 			a.setMessage("Copied response body")
 		}
 		m.Separator()
-		if m.Item("Edit in Compose").Chosen() {
+		if m.Item(cmp.Or(pinLabel(f), "Pin")).Chosen() {
+			a.togglePin(f)
+		}
+		if m.Item("Edit & resend").Chosen() {
 			a.composeFrom(f)
+		}
+		if m.Item("Save as request").Chosen() {
+			a.saveFlowAsRequest(f)
 		}
 		if m.Item("Replay").Chosen() {
 			go a.replay(f)
@@ -1295,7 +1388,10 @@ func (a *app) rowMenu(c *ui.Context, f flow) func(*ui.Menu) {
 
 // openCompose shows the request editor with an empty request.
 func (a *app) openCompose() {
+	a.composeTitle = "Compose"
+	a.composeResult = ""
 	a.composeName = ""
+	a.composeCollection = ""
 	a.composeMethod = "GET"
 	a.composeURL = "https://"
 	a.composeHeaders = ""
@@ -1306,7 +1402,10 @@ func (a *app) openCompose() {
 // composeFrom fills the request editor with a captured request, the step from
 // traffic to a request worth keeping.
 func (a *app) composeFrom(f flow) {
+	a.composeTitle = "Edit & resend"
+	a.composeResult = ""
 	a.composeName = ""
+	a.composeCollection = ""
 	a.composeMethod = cmp.Or(f.method, "GET")
 	a.composeURL = f.url
 	a.composeHeaders = headerBlock(f.reqHeader)
@@ -1354,8 +1453,11 @@ func (a *app) composeModal(c *ui.Context, t *ui.Theme) {
 	}
 	ui.Modal(c, &a.composeOpen, func() {
 		ui.Column(c).Width(640).Gap(10).Children(func() {
-			ui.Text(c, "Compose").FontSize(14).Bold()
-			ui.TextInput(c, &a.composeName).Label("Name")
+			ui.Text(c, cmp.Or(a.composeTitle, "Compose")).FontSize(14).Bold()
+			ui.Row(c).Gap(8).Children(func() {
+				ui.TextInput(c, &a.composeName).Grow(1).Placeholder("Name").Label("Name")
+				ui.TextInput(c, &a.composeCollection).Width(200).Placeholder("Collection").Label("Collection")
+			})
 			ui.Row(c).Gap(8).Children(func() {
 				ui.TextInput(c, &a.composeMethod).Width(90).Label("Method")
 				ui.TextInput(c, &a.composeURL).Grow(1).Label("URL")
@@ -1375,6 +1477,9 @@ func (a *app) composeModal(c *ui.Context, t *ui.Theme) {
 					a.sendComposed()
 				}
 			})
+			if a.composeResult != "" {
+				ui.Text(c, a.composeResult).FontSize(11).TextColor(t.TextMuted)
+			}
 		})
 	})
 }
@@ -1397,12 +1502,29 @@ func (a *app) sendComposed() {
 		RequestHeader: parseHeaderBlock(a.composeHeaders),
 		RequestBody:   a.composeBody,
 	}
-	a.composeOpen = false
+	a.composeBefore = 0
+	if n := len(a.flows); n > 0 {
+		a.composeBefore = a.flows[n-1].id
+	}
+	a.composeWaiting = true
+	a.composeResult = "Sending…"
+	a.history = pushHistory(a.history, historyEntry{
+		Method:  f.Method,
+		URL:     url,
+		Headers: a.composeHeaders,
+		Body:    a.composeBody,
+		At:      time.Now(),
+	})
+	a.saveHistory()
 	a.setMessage("Sent " + f.Method + " " + url)
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 		if err := a.srv.Replay(ctx, f); err != nil {
+			a.mu.Lock()
+			a.composeWaiting = false
+			a.composeResult = "Failed: " + err.Error()
+			a.mu.Unlock()
 			a.setMessage("Compose: " + err.Error())
 		}
 	}()
@@ -1411,7 +1533,7 @@ func (a *app) sendComposed() {
 // sortVisible orders the shown rows by the chosen column, keeping the chosen
 // flow chosen.
 func (a *app) sortVisible() {
-	if a.sort.Column == "" || len(a.visible) < 2 {
+	if len(a.visible) < 2 {
 		return
 	}
 	chosen := -1
@@ -1419,7 +1541,17 @@ func (a *app) sortVisible() {
 		chosen = a.flows[a.visible[a.picked]].id
 	}
 	less := a.sortOrder()
-	slices.SortStableFunc(a.visible, less)
+	// Pinned flows stay at the top, whatever the column says.
+	slices.SortStableFunc(a.visible, func(x, y int) int {
+		px, py := a.flows[x].pinned, a.flows[y].pinned
+		if px != py {
+			if px {
+				return -1
+			}
+			return 1
+		}
+		return less(x, y)
+	})
 	if chosen < 0 {
 		return
 	}
@@ -1487,7 +1619,7 @@ func (a *app) hostListModal(c *ui.Context, t *ui.Theme, open *bool, title, hint,
 					}
 					apply(patterns)
 					*open = false
-					a.setMessage(fmt.Sprintf("%s: %d hosts", title, len(patterns)))
+					a.setMessage(fmt.Sprintf("%s: %d", title, len(patterns)))
 				}
 			})
 		})
@@ -1532,13 +1664,19 @@ func (a *app) saveComposed() {
 		return
 	}
 	r := savedRequest{
-		Name:    name,
-		Method:  strings.ToUpper(strings.TrimSpace(cmp.Or(a.composeMethod, "GET"))),
-		URL:     strings.TrimSpace(a.composeURL),
-		Headers: a.composeHeaders,
-		Body:    a.composeBody,
+		Name:       name,
+		Collection: strings.TrimSpace(a.composeCollection),
+		Method:     strings.ToUpper(strings.TrimSpace(cmp.Or(a.composeMethod, "GET"))),
+		URL:        strings.TrimSpace(a.composeURL),
+		Headers:    a.composeHeaders,
+		Body:       a.composeBody,
 	}
 	a.requests = upsertRequest(a.requests, r)
+	if a.historyPath != "" {
+		if list, err := loadHistory(a.historyPath); err == nil {
+			a.history = list
+		}
+	}
 	if a.settingsPath != "" {
 		saved, err := loadSettings(a.settingsPath)
 		if err != nil {
@@ -1570,12 +1708,13 @@ func (a *app) saveComposed() {
 }
 
 // openSaved fills the request editor from a saved request.
-func (a *app) openSaved(name string) {
+func (a *app) openSaved(collection, name string) {
 	for _, r := range a.requests {
-		if r.Name != name {
+		if r.Name != name || r.Collection != collection {
 			continue
 		}
 		a.composeName = r.Name
+		a.composeCollection = r.Collection
 		a.composeMethod = cmp.Or(r.Method, "GET")
 		a.composeURL = r.URL
 		a.composeHeaders = r.Headers
@@ -1721,4 +1860,192 @@ func (a *app) persistSettings() {
 			a.setMessage("Settings: " + err.Error())
 		}
 	}()
+}
+
+// pinLabel is what the row menu says about pinning a flow.
+func pinLabel(f flow) string {
+	if f.pinned {
+		return "Unpin"
+	}
+	return "Pin to the top"
+}
+
+// togglePin pins a flow to the top of the table, or unpins it. A pinned flow
+// stays when the table is cleared.
+func (a *app) togglePin(f flow) {
+	for i := range a.flows {
+		if a.flows[i].id != f.id {
+			continue
+		}
+		a.flows[i].pinned = !a.flows[i].pinned
+		if a.flows[i].pinned {
+			a.setMessage("Pinned " + f.method + " " + f.path)
+		} else {
+			a.setMessage("Unpinned " + f.method + " " + f.path)
+		}
+		a.applyFilter()
+		return
+	}
+}
+
+// pinIcon marks a pinned flow in the table.
+var pinIcon = ui.MustParseSVG([]byte(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M10.3 1.2 14.8 5.7 13.2 7.3 11.4 7.1 8.8 9.7 9 11.5 7.6 12.9 3.1 8.4 4.5 7 6.3 7.2 8.9 4.6 8.7 2.8z"/></svg>`))
+
+// collectionShown returns the open state of a collection's section, making it
+// open the first time it is drawn.
+func (a *app) collectionShown(name string) *bool {
+	if open, ok := a.collectionOpen[name]; ok {
+		return open
+	}
+	open := true
+	a.collectionOpen[name] = &open
+	return &open
+}
+
+// exportRequests writes the saved requests to a file the user picks.
+func (a *app) exportRequests() {
+	list := slices.Clone(a.requests)
+	go func() {
+		path, err := mygo.Dialog.Save(mygo.SaveDialogOptions{
+			Title:       "Export requests",
+			DefaultPath: "vscroxy-requests.json",
+			Filters:     []mygo.FileFilter{{Name: "Requests", Extensions: []string{"json"}}},
+		})
+		if err != nil || path == "" {
+			return
+		}
+		if err := saveRequests(path, list); err != nil {
+			a.setMessage("Export requests: " + err.Error())
+			return
+		}
+		a.setMessage(fmt.Sprintf("Exported %d requests to %s", len(list), path))
+	}()
+}
+
+// importRequests adds the requests of a file the user picks, keeping the ones
+// already saved.
+func (a *app) importRequests() {
+	go func() {
+		paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{
+			Title:   "Import requests",
+			Filters: []mygo.FileFilter{{Name: "Requests", Extensions: []string{"json"}}},
+		})
+		if err != nil || len(paths) == 0 {
+			return
+		}
+		path := paths[0]
+		list, err := loadRequests(path)
+		if err != nil {
+			a.setMessage("Import requests: " + err.Error())
+			return
+		}
+		a.win.Update(func() {
+			for _, r := range list {
+				if r.Name != "" {
+					a.requests = upsertRequest(a.requests, r)
+				}
+			}
+			if a.requestsPath != "" {
+				if err := os.MkdirAll(filepath.Dir(a.requestsPath), 0o755); err == nil {
+					if err := saveRequests(a.requestsPath, a.requests); err != nil {
+						a.setMessage("Import requests: " + err.Error())
+						return
+					}
+				}
+			}
+			a.setMessage(fmt.Sprintf("Imported %d requests", len(list)))
+		})
+	}()
+}
+
+// openHistory fills the request editor from a sent request.
+func (a *app) openHistory(i int) {
+	if i < 0 || i >= len(a.history) {
+		return
+	}
+	e := a.history[i]
+	a.composeTitle = "Compose"
+	a.composeResult = ""
+	a.composeName = ""
+	a.composeCollection = ""
+	a.composeMethod = cmp.Or(e.Method, "GET")
+	a.composeURL = e.URL
+	a.composeHeaders = e.Headers
+	a.composeBody = e.Body
+	a.composeOpen = true
+}
+
+// saveHistory keeps the sent requests for the next launch.
+func (a *app) saveHistory() {
+	if a.historyPath == "" {
+		return
+	}
+	list := a.history
+	go func() {
+		if err := os.MkdirAll(filepath.Dir(a.historyPath), 0o755); err != nil {
+			a.setMessage("History: " + err.Error())
+			return
+		}
+		if err := saveHistory(a.historyPath, list); err != nil {
+			a.setMessage("History: " + err.Error())
+		}
+	}()
+}
+
+// saveFlowAsRequest keeps a captured request in the saved ones, under a name
+// that says what it is.
+func (a *app) saveFlowAsRequest(f flow) {
+	name := strings.TrimSpace(f.method + " " + f.host + f.path)
+	if f.path == "" {
+		name = strings.TrimSpace(f.method + " " + f.host)
+	}
+	// A second save of the same request takes a name of its own, rather
+	// than replacing the first.
+	name = uniqueRequestName(a.requests, name)
+	r := savedRequest{
+		Name:    name,
+		Method:  cmp.Or(f.method, "GET"),
+		URL:     f.url,
+		Headers: headerBlock(f.reqHeader),
+		Body:    f.body(false),
+	}
+	a.requests = upsertRequest(a.requests, r)
+	if a.requestsPath != "" {
+		if err := os.MkdirAll(filepath.Dir(a.requestsPath), 0o755); err != nil {
+			a.setMessage("Save request: " + err.Error())
+			return
+		}
+		if err := saveRequests(a.requestsPath, a.requests); err != nil {
+			a.setMessage("Save request: " + err.Error())
+			return
+		}
+	}
+	a.setMessage("Saved " + name)
+}
+
+// noteComposed reports the flow a send from the editor produced, so the editor
+// says what came back before the next change.
+func (a *app) noteComposed() {
+	a.mu.Lock()
+	waiting, before := a.composeWaiting, a.composeBefore
+	a.mu.Unlock()
+	if !waiting {
+		return
+	}
+	url := strings.TrimSpace(a.composeURL)
+	method := strings.ToUpper(strings.TrimSpace(cmp.Or(a.composeMethod, "GET")))
+	for i := len(a.flows) - 1; i >= 0; i-- {
+		f := a.flows[i]
+		if f.id <= before {
+			break
+		}
+		if f.method != method || f.url != url {
+			continue
+		}
+		a.mu.Lock()
+		a.composeWaiting = false
+		a.composeResult = fmt.Sprintf("%d · %s · %d ms", f.status, humanBytes(f.bytes), f.millis)
+		a.mu.Unlock()
+		return
+	}
 }
