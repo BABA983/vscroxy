@@ -1001,6 +1001,9 @@ func (a *app) toolbar(c *ui.Context, t *ui.Theme) {
 			if m.Item("Open session…").Chosen() {
 				a.openSession()
 			}
+			if m.Item("Import HAR…").Chosen() {
+				a.importHAR()
+			}
 			if len(a.history) > 0 && m.Item("Clear history").Chosen() {
 				a.history = nil
 				a.saveHistory()
