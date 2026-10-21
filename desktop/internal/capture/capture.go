@@ -115,6 +115,11 @@ type Flow struct {
 	// "name → address"; empty when none did.
 	DNSMapped string
 
+	// Conn is what the exchange ran over: the addresses at both ends, the
+	// HTTP version, the addresses the name resolved to, and the TLS the
+	// upstream negotiated.
+	Conn ConnInfo
+
 	// Wait is how long the request took to reach its first response byte,
 	// and Download the rest of Millis: the two phases a waterfall shows.
 	// Both are zero when the exchange never reached a server.
@@ -1280,6 +1285,7 @@ func (s *Server) publishFlow(f *proxy.Flow, kind string, frames []Frame, status 
 		Process:          client.Name,
 		ProcessPath:      client.Path,
 		DNSMapped:        s.dnsMapped(f),
+		Conn:             s.connInfo(f, start),
 	}
 	s.mu.Lock()
 	if len(s.flowIDs) > 4096 {
@@ -1293,6 +1299,69 @@ func (s *Server) publishFlow(f *proxy.Flow, kind string, frames []Frame, status 
 		s.dropped.Add(1)
 	}
 	return flow.ID
+}
+
+// ConnInfo is the connection an exchange ran over, as the detail pane shows
+// it: who talked to the proxy, where the proxy dialled, and what it negotiated.
+type ConnInfo struct {
+	Proto     string // HTTP version the client spoke, such as HTTP/2.0
+	Client    string // the client end of the connection to the proxy
+	Proxy     string // the proxy end of that connection
+	Server    string // the address the proxy dialled
+	Resolved  string // the addresses the name resolved to
+	LookupMs  int    // how long that answer took
+	Flows     int    // how many requests this connection carried before this one
+	TLS       string // TLS version the upstream agreed on
+	Cipher    string // cipher suite the upstream agreed on
+	CertCN    string // the upstream certificate's common name
+	Issuer    string // who issued that certificate
+	CertUntil string // when it expires, as a date
+
+	// Reused says the connection was already open, so this request spent no
+	// time on connect or TLS; DNSFresh says the lookup happened during it.
+	Reused   bool
+	DNSFresh bool
+}
+
+// connInfo reads the connection an exchange ran over.
+func (s *Server) connInfo(f *proxy.Flow, start time.Time) ConnInfo {
+	var ci ConnInfo
+	if f.Request != nil {
+		ci.Proto = f.Request.Proto
+	}
+	if cc := f.ConnContext; cc != nil {
+		if conn := cc.ClientConn; conn != nil && conn.Conn != nil {
+			ci.Client = conn.Conn.RemoteAddr().String()
+			ci.Proxy = conn.Conn.LocalAddr().String()
+		}
+		ci.Flows = int(cc.FlowCount.Load())
+		ci.Reused = ci.Flows > 1
+		if server := cc.ServerConn; server != nil {
+			ci.Server = server.Address
+			if state := server.TlsState(); state != nil {
+				ci.TLS = tls.VersionName(state.Version)
+				ci.Cipher = tls.CipherSuiteName(state.CipherSuite)
+				if len(state.PeerCertificates) > 0 {
+					leaf := state.PeerCertificates[0]
+					ci.CertCN = leaf.Subject.CommonName
+					ci.Issuer = leaf.Issuer.CommonName
+					ci.CertUntil = leaf.NotAfter.Format("2006-01-02")
+				}
+			}
+		}
+	}
+	if s.dns != nil && f.Request != nil && f.Request.URL != nil {
+		if lookup, ok := s.dns.Resolved(f.Request.URL.Hostname()); ok {
+			ips := make([]string, len(lookup.IPs))
+			for i, ip := range lookup.IPs {
+				ips[i] = ip.String()
+			}
+			ci.Resolved = strings.Join(ips, ", ")
+			ci.LookupMs = int(lookup.Took.Milliseconds())
+			ci.DNSFresh = !lookup.At.Before(start)
+		}
+	}
+	return ci
 }
 
 // keepBody returns the body a flow keeps in memory, the file that holds the

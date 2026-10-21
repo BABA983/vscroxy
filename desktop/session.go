@@ -1,6 +1,8 @@
 package main
 
 import (
+	"cmp"
+	"encoding/base64"
 	"encoding/json/v2"
 	"fmt"
 	"maps"
@@ -67,6 +69,9 @@ type harContent struct {
 	Size     int    `json:"size"`
 	MimeType string `json:"mimeType"`
 	Text     string `json:"text,omitempty"`
+	// Encoding is "base64" when Text is not plain text, as other tools write
+	// binary bodies.
+	Encoding string `json:"encoding,omitempty"`
 }
 
 type harPostData struct {
@@ -149,6 +154,93 @@ func harFromFlows(flows []flow) harFile {
 		Creator: harCreator{Name: "vscroxy", Version: "0.1.0"},
 		Entries: entries,
 	}}
+}
+
+// readHAR reads a HAR 1.2 file, so a capture another tool wrote can be
+// inspected here: the URL, the headers, both bodies and the time each took.
+func readHAR(path string) ([]flow, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	var doc harFile
+	if err := json.Unmarshal(data, &doc); err != nil {
+		return nil, fmt.Errorf("%s: %w", path, err)
+	}
+	if len(doc.Log.Entries) == 0 {
+		return nil, fmt.Errorf("%s: no entries", path)
+	}
+	flows := make([]flow, 0, len(doc.Log.Entries))
+	for _, entry := range doc.Log.Entries {
+		u, err := url.Parse(entry.Request.URL)
+		if err != nil || u.Host == "" {
+			continue
+		}
+		started, err := time.Parse(time.RFC3339Nano, entry.StartedDateTime)
+		if err != nil {
+			started = time.Time{}
+		}
+		reqHeader := harHeaders(entry.Request.Headers)
+		respHeader := harHeaders(entry.Response.Headers)
+		reqBody := ""
+		if entry.Request.PostData != nil {
+			reqBody = entry.Request.PostData.Text
+		}
+		resBody := harBody(entry.Response.Content)
+		size := entry.Response.Content.Size
+		if size == 0 {
+			size = len(resBody)
+		}
+		f := flow{
+			method:     strings.ToUpper(cmp.Or(entry.Request.Method, "GET")),
+			scheme:     u.Scheme,
+			host:       u.Host,
+			path:       u.RequestURI(),
+			url:        entry.Request.URL,
+			status:     entry.Response.Status,
+			bytes:      size,
+			millis:     int(entry.Time),
+			reqHeaders: headerBlock(reqHeader),
+			resHeaders: headerBlock(respHeader),
+			reqBody:    reqBody,
+			resBody:    resBody,
+			reqSize:    len(reqBody),
+			resSize:    len(resBody),
+			reqHeader:  reqHeader,
+			respHeader: respHeader,
+			at:         started,
+		}
+		f.wait = int(entry.Timings.Wait)
+		f.download = int(entry.Timings.Receive)
+		flows = append(flows, f)
+	}
+	if len(flows) == 0 {
+		return nil, fmt.Errorf("%s: no request with a URL", path)
+	}
+	return flows, nil
+}
+
+// harHeaders turns a HAR header list into the header map the app uses.
+func harHeaders(pairs []harNameValue) http.Header {
+	h := http.Header{}
+	for _, pair := range pairs {
+		if name := strings.TrimSpace(pair.Name); name != "" {
+			h.Add(name, pair.Value)
+		}
+	}
+	return h
+}
+
+// harBody is a response body, decoded when the file carries it as base64.
+func harBody(content harContent) string {
+	if !strings.EqualFold(content.Encoding, "base64") {
+		return content.Text
+	}
+	decoded, err := base64.StdEncoding.DecodeString(content.Text)
+	if err != nil {
+		return content.Text
+	}
+	return string(decoded)
 }
 
 func writeHAR(path string, flows []flow) error {
@@ -234,6 +326,9 @@ type sessionFlow struct {
 	RespHeader http.Header `json:"respHeader,omitempty"`
 	At         time.Time   `json:"at"`
 	Kind       string      `json:"kind,omitempty"`
+	// Color and Note are what a person marked the flow with.
+	Color string `json:"color,omitempty"`
+	Note  string `json:"note,omitempty"`
 }
 
 type sessionFrameData struct {
@@ -251,7 +346,7 @@ func sessionFrom(flows []flow, frames map[int][]frame) sessionFile {
 			ReqHeaders: f.reqHeaders, ResHeaders: f.resHeaders,
 			ReqBody: f.body(false), ResBody: f.body(true),
 			ReqHeader: f.reqHeader, RespHeader: f.respHeader,
-			At: f.at, Kind: f.kind,
+			At: f.at, Kind: f.kind, Color: f.color, Note: f.note,
 		})
 	}
 	if len(frames) > 0 {
@@ -294,7 +389,7 @@ func readSession(path string) ([]flow, map[int][]frame, error) {
 			reqHeaders: f.ReqHeaders, resHeaders: f.ResHeaders,
 			reqBody: f.ReqBody, resBody: f.ResBody,
 			reqHeader: f.ReqHeader, respHeader: f.RespHeader,
-			at: f.At, kind: f.Kind,
+			at: f.At, kind: f.Kind, color: f.Color, note: f.Note,
 		})
 	}
 	frames := make(map[int][]frame, len(s.Frames))
@@ -332,6 +427,40 @@ func (a *app) exportHAR() {
 			return
 		}
 		a.setMessage(fmt.Sprintf("Exported %d flows to %s", len(flows), path))
+	}()
+}
+
+// importHAR adds the flows of a HAR file another tool wrote to the table, so a
+// capture someone sent can be read the way a live one is.
+func (a *app) importHAR() {
+	go func() {
+		paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{
+			Title:   "Import HAR",
+			Filters: []mygo.FileFilter{{Name: "HAR", Extensions: []string{"har", "json"}}},
+		})
+		if err != nil || len(paths) == 0 {
+			return
+		}
+		flows, err := readHAR(paths[0])
+		if err != nil {
+			a.setMessage("HAR: " + err.Error())
+			return
+		}
+		a.win.Update(func() {
+			next := 0
+			if n := len(a.flows); n > 0 {
+				next = a.flows[n-1].id
+			}
+			for i := range flows {
+				flows[i].id = next + i + 1
+			}
+			a.flows = append(a.flows, flows...)
+			a.detailFor = -1
+			a.countDomains()
+			a.countClients()
+			a.applyFilter()
+		})
+		a.setMessage(fmt.Sprintf("Imported %d flows from %s", len(flows), paths[0]))
 	}()
 }
 

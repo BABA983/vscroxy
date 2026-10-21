@@ -23,6 +23,7 @@ func (s *Server) answer(query []byte) []byte {
 		return nil
 	}
 	name := strings.TrimSuffix(q.Name.String(), ".")
+	start := time.Now()
 
 	var ips []net.IP
 	switch q.Type {
@@ -37,7 +38,26 @@ func (s *Server) answer(query []byte) []byte {
 			ips = resolved
 		}
 	}
+	s.noteLookup(name, answeredFor(q.Type, ips), time.Since(start))
 	return build(hdr, q, ips)
+}
+
+// answeredFor keeps the addresses of the query's family, as build sends them.
+func answeredFor(kind dnsmessage.Type, ips []net.IP) []net.IP {
+	var out []net.IP
+	for _, ip := range ips {
+		switch kind {
+		case dnsmessage.TypeA:
+			if ip.To4() != nil {
+				out = append(out, ip)
+			}
+		case dnsmessage.TypeAAAA:
+			if ip.To4() == nil && ip.To16() != nil {
+				out = append(out, ip)
+			}
+		}
+	}
+	return out
 }
 
 // lookup asks the resolver the server started with.

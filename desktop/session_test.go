@@ -2,6 +2,7 @@ package main
 
 import (
 	"net/http"
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -41,6 +42,7 @@ func TestSessionRoundTrip(t *testing.T) {
 		id: 7, method: "WS", scheme: "ws", host: "example.com", path: "/",
 		url: "ws://example.com/", status: 101, kind: "ws",
 		reqHeaders: "CONNECT / HTTP/1.1", resHeaders: "HTTP/1.1 101",
+		color: "Red", note: "the frame that breaks it",
 	}}
 	frames := map[int][]frame{7: {
 		{direction: "out", kind: "text", data: "hi"},
@@ -58,6 +60,9 @@ func TestSessionRoundTrip(t *testing.T) {
 	if len(got) != 1 || got[0].id != 7 || got[0].kind != "ws" || got[0].status != 101 {
 		t.Fatalf("flows = %+v", got)
 	}
+	if got[0].color != "Red" || got[0].note != "the frame that breaks it" {
+		t.Fatalf("mark = %q / %q, want it kept", got[0].color, got[0].note)
+	}
 	if len(gotFrames[7]) != 2 || gotFrames[7][1].data != "hello" {
 		t.Fatalf("frames = %+v", gotFrames)
 	}
@@ -73,5 +78,79 @@ func TestSelectedFlows(t *testing.T) {
 	}
 	if all := (&app{flows: a.flows}).selectedFlows(); all != nil {
 		t.Fatalf("selected with nothing chosen = %+v, want none", all)
+	}
+}
+
+func TestReadHAR(t *testing.T) {
+	// What another tool writes: a JSON body, a base64 body, and timings.
+	const doc = `{"log":{"version":"1.2","creator":{"name":"other","version":"1"},"entries":[
+		{"startedDateTime":"2026-10-20T10:00:00.000Z","time":42,
+		 "request":{"method":"post","url":"https://api.test/v1/owners?page=2","httpVersion":"HTTP/2.0",
+			"headers":[{"name":"Content-Type","value":"application/json"},{"name":"X-Trace","value":"abc"}],
+			"postData":{"mimeType":"application/json","text":"{\"name\":\"vscroxy\"}"}},
+		 "response":{"status":201,"httpVersion":"HTTP/2.0",
+			"headers":[{"name":"Content-Type","value":"application/json"}],
+			"content":{"size":13,"mimeType":"application/json","text":"{\"id\":7}"}},
+		 "timings":{"wait":30,"receive":12}},
+		{"startedDateTime":"2026-10-20T10:00:01.000Z","time":5,
+		 "request":{"method":"GET","url":"https://api.test/logo.png","headers":[]},
+		 "response":{"status":200,"headers":[{"name":"Content-Type","value":"image/png"}],
+			"content":{"size":3,"mimeType":"image/png","text":"AAEC","encoding":"base64"}},
+		 "timings":{"wait":4,"receive":1}},
+		{"time":1,"request":{"method":"GET","url":"/relative"},"response":{"status":200}}
+	]}}`
+	path := filepath.Join(t.TempDir(), "other.har")
+	if err := os.WriteFile(path, []byte(doc), 0o644); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	flows, err := readHAR(path)
+	if err != nil {
+		t.Fatalf("read: %v", err)
+	}
+	// The entry without a host is not a request the table can show.
+	if len(flows) != 2 {
+		t.Fatalf("flows = %d, want 2", len(flows))
+	}
+	f := flows[0]
+	if f.method != "POST" || f.host != "api.test" || f.path != "/v1/owners?page=2" || f.status != 201 {
+		t.Errorf("first flow = %s %s%s %d", f.method, f.host, f.path, f.status)
+	}
+	if f.millis != 42 || f.wait != 30 || f.download != 12 {
+		t.Errorf("timings = %d/%d/%d, want 42/30/12", f.millis, f.wait, f.download)
+	}
+	if got := f.reqHeader.Get("X-Trace"); got != "abc" {
+		t.Errorf("X-Trace = %q", got)
+	}
+	if f.reqBody != `{"name":"vscroxy"}` || f.resBody != `{"id":7}` {
+		t.Errorf("bodies = %q / %q", f.reqBody, f.resBody)
+	}
+	if f.bytes != 13 {
+		t.Errorf("bytes = %d, want the content size", f.bytes)
+	}
+	if !f.at.Equal(time.Date(2026, 10, 20, 10, 0, 0, 0, time.UTC)) {
+		t.Errorf("at = %v", f.at)
+	}
+	// A body the file carries as base64 is decoded, so the Body tab shows
+	// the bytes the server sent.
+	if got := flows[1].resBody; got != "\x00\x01\x02" {
+		t.Errorf("base64 body = %q, want the decoded bytes", got)
+	}
+}
+
+func TestReadHARRejectsWhatItCannotUse(t *testing.T) {
+	dir := t.TempDir()
+	empty := filepath.Join(dir, "empty.har")
+	if err := os.WriteFile(empty, []byte(`{"log":{"entries":[]}}`), 0o644); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	if _, err := readHAR(empty); err == nil {
+		t.Error("a HAR with no entries was accepted")
+	}
+	broken := filepath.Join(dir, "broken.har")
+	if err := os.WriteFile(broken, []byte(`not json`), 0o644); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	if _, err := readHAR(broken); err == nil {
+		t.Error("a file that is not JSON was accepted")
 	}
 }

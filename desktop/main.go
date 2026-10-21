@@ -73,7 +73,6 @@ type app struct {
 	// detailFor is the flow the detail panes were built from, so the text and
 	// the diff buffers are rebuilt only when the choice changes.
 	detailFor int
-	headers   string
 	body      string
 	reqBody   string
 	diff      *editor.DiffState
@@ -146,6 +145,15 @@ type app struct {
 	dnsRuleScope string
 	dnsRuleApps  []string
 
+	// connOpen shows the connection panel of the chosen flow.
+	connOpen bool
+
+	// mark edits what a flow is marked with: a color and a note.
+	markOpen  bool
+	markID    int
+	markColor string
+	markNote  string
+
 	// ignoreApps does the same by app, for a browser's background traffic.
 	ignoreAppsPath string
 	ignoreAppsText string
@@ -174,6 +182,25 @@ type app struct {
 	composeURL     string
 	composeHeaders string
 	composeBody    string
+
+	// composeTab picks which script the editor shows: the body, the script
+	// that runs before the send, or the one that runs after the response.
+	composeTab   int
+	composePre   string
+	composePost  string
+	composeTests []testResult
+	// composeSent is what a send resolved to once variables and the
+	// pre-request script had their say, so the table's row is found.
+	composeSentMethod string
+	composeSentURL    string
+
+	// envs are the variables a request uses as {{name}}, one set in use.
+	envsPath  string
+	envs      []environment
+	activeEnv string
+	varsOpen  bool
+	varsName  string
+	varsText  string
 
 	breakOn  bool
 	bp       *capture.Breakpoint
@@ -239,8 +266,17 @@ func newApp() *app {
 			a.ignoreAppsPath = filepath.Join(home, ".vscroxy", "ignore-apps.txt")
 			a.dnsPath = filepath.Join(home, ".vscroxy", "dns.txt")
 			a.scriptPath = filepath.Join(home, ".vscroxy", "script.js")
+			a.envsPath = filepath.Join(home, ".vscroxy", "env.json")
 		}
 		a.reloadConfig()
+	}
+	if a.envsPath != "" {
+		if envs, active, err := loadEnvs(a.envsPath); err == nil {
+			a.envs, a.activeEnv = envs, active
+			if a.activeEnv == "" && len(envs) > 0 {
+				a.activeEnv = envs[0].Name
+			}
+		}
 	}
 	if a.historyPath != "" {
 		if list, err := loadHistory(a.historyPath); err == nil {
@@ -345,6 +381,13 @@ func (a *app) setMessage(msg string) {
 	a.mu.Lock()
 	a.message = clamp(msg, 72)
 	a.mu.Unlock()
+	if a.win != nil {
+		a.win.Invalidate()
+	}
+}
+
+// invalidate asks for a frame, so what a goroutine changed shows.
+func (a *app) invalidate() {
 	if a.win != nil {
 		a.win.Invalidate()
 	}
@@ -589,8 +632,24 @@ func (a *app) drain() {
 			process:     f.Process,
 			processPath: f.ProcessPath,
 			dns:         f.DNSMapped,
-			wait:        f.Wait,
-			download:    f.Download,
+			conn: conn{
+				proto:     f.Conn.Proto,
+				client:    f.Conn.Client,
+				proxy:     f.Conn.Proxy,
+				server:    f.Conn.Server,
+				resolved:  f.Conn.Resolved,
+				lookupMs:  f.Conn.LookupMs,
+				tls:       f.Conn.TLS,
+				cipher:    f.Conn.Cipher,
+				certCN:    f.Conn.CertCN,
+				issuer:    f.Conn.Issuer,
+				certUntil: f.Conn.CertUntil,
+				flows:     f.Conn.Flows,
+				reused:    f.Conn.Reused,
+				dnsFresh:  f.Conn.DNSFresh,
+			},
+			wait:     f.Wait,
+			download: f.Download,
 		})
 	}
 	for _, f := range a.flows[len(a.flows)-len(pending):] {
@@ -706,10 +765,10 @@ func (a *app) syncDetail() {
 		return
 	}
 	a.detailFor = f.id
+	a.connOpen = false
 	if f.kind == "" && a.tab == 4 {
 		a.tab = 0
 	}
-	a.headers = f.reqHeaders + "\n\n" + f.resHeaders
 	a.body = f.body(true)
 	a.reqBody = f.body(false)
 	a.jsonFor = ""
@@ -767,6 +826,10 @@ func (a *app) view(c *ui.Context) {
 			}
 		})
 	a.composeModal(c, t)
+	// The variables editor opens from the request editor, so it is drawn
+	// after it and over it.
+	a.varsModal(c, t)
+	a.markModal(c, t)
 }
 
 // upstreamModal edits the proxy every request goes through.
@@ -945,6 +1008,9 @@ func (a *app) toolbar(c *ui.Context, t *ui.Theme) {
 			if m.Item("Open session…").Chosen() {
 				a.openSession()
 			}
+			if m.Item("Import HAR…").Chosen() {
+				a.importHAR()
+			}
 			if len(a.history) > 0 && m.Item("Clear history").Chosen() {
 				a.history = nil
 				a.saveHistory()
@@ -1121,6 +1187,11 @@ func (a *app) table(c *ui.Context) {
 			if f.pinned {
 				ui.Icon(c, pinIcon).Size(11, 11).Padding(0, 4, 0, 0).TextColor(color)
 			}
+			if f.color != "" {
+				if dot, ok := highlightColor(f.color); ok {
+					ui.Box(c).Size(8, 8).Radius(4).Background(dot).MarginEnd(5)
+				}
+			}
 			text(f.method).TextColor(color)
 		case 1:
 			if f.kind == "connect" && f.status == 0 {
@@ -1146,6 +1217,9 @@ func (a *app) table(c *ui.Context) {
 				scheme = t.AccentText
 			}
 			ui.Row(c).Gap(1).Children(func() {
+				if f.note != "" {
+					ui.Icon(c, noteIcon).Size(11, 11).TextColor(ui.Hex("#a1a1aa")).MarginEnd(4).Tooltip(f.note)
+				}
 				if f.dns != "" {
 					ui.Box(c).Size(28, 14).Radius(3).Background(ui.Hex("#d97706")).Center().MarginEnd(4).
 						Tooltip("DNS mapping " + f.dns).
@@ -1193,11 +1267,22 @@ func (a *app) detail(c *ui.Context) {
 				ui.Text(c, f.dns).FontSize(12).TextColor(t.TextMuted).
 					Tooltip("The proxy dialled this address; the request kept its name, Host header and SNI")
 			}
+			if f.note != "" {
+				ui.Icon(c, noteIcon).Size(12, 12).TextColor(t.TextMuted)
+				ui.Text(c, f.note).FontSize(12).TextColor(t.TextMuted).SingleLine().Width(220).Tooltip(f.note)
+			}
 			if ui.Button(c, "Replay").Disabled(f.url == "" || f.kind != "").Clicked() {
 				go a.replay(f)
 			}
-			ui.Text(c, fmt.Sprintf("%d · %s · %d ms", f.status, humanBytes(f.bytes), f.millis)).
+			chip := ui.Text(c, fmt.Sprintf("%d · %s · %d ms", f.status, humanBytes(f.bytes), f.millis)).
 				FontSize(12).TextColor(statusColor(f.status, t))
+			if doc := statusDoc(f.status); doc != "" {
+				chip = chip.Tooltip(doc)
+			}
+			info := ui.Icon(c, infoIcon).Size(13, 13).TextColor(t.TextMuted).
+				Tooltip("Connection: addresses, DNS and TLS").
+				OnClick(func() { a.connOpen = !a.connOpen })
+			ui.Popover(c, info, &a.connOpen, func() { a.connPanel(c, t, f) })
 		})
 		if f.kind == "connect" {
 			a.connectPanel(c, f)
@@ -1214,9 +1299,7 @@ func (a *app) detail(c *ui.Context) {
 		}
 		switch a.tab {
 		case 0:
-			ui.Scroll(c).Grow(1).Padding(12).Children(func() {
-				ui.Text(c, a.headers).FontSize(12).Font("monospace").TextColor(t.Text)
-			})
+			a.headersView(c, f)
 		case 1:
 			a.bodyView(c, f)
 		case 2:
@@ -1229,6 +1312,186 @@ func (a *app) detail(c *ui.Context) {
 			a.messages(c, f)
 		}
 	})
+}
+
+// noteIcon marks a flow a person wrote a note on.
+var noteIcon = ui.MustParseSVG([]byte(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M8 1.5c-3.9 0-7 2.7-7 6 0 1.9 1 3.5 2.6 4.6L3 15.2l3-1.7c.6.1 1.3.2 2 .2 3.9 0 7-2.7 7-6s-3.1-6.2-7-6.2Z"/></svg>`))
+
+// highlightColors are the colors a flow can be marked with, in menu order.
+var highlightColors = []struct{ name, hex string }{
+	{"Red", "#dc2626"},
+	{"Orange", "#ea580c"},
+	{"Yellow", "#ca8a04"},
+	{"Green", "#16a34a"},
+	{"Blue", "#2563eb"},
+	{"Purple", "#7c3aed"},
+}
+
+// highlightColor is the color a flow is marked with.
+func highlightColor(name string) (ui.Color, bool) {
+	for _, c := range highlightColors {
+		if c.name == name {
+			return ui.Hex(c.hex), true
+		}
+	}
+	return ui.Color{}, false
+}
+
+// openMark fills the mark dialog from a flow.
+func (a *app) openMark(f flow) {
+	a.markID = f.id
+	a.markColor = f.color
+	a.markNote = f.note
+	a.markOpen = true
+}
+
+// markModal marks a flow with a color and a note, the two things a person adds
+// to traffic while looking for the request that misbehaves.
+func (a *app) markModal(c *ui.Context, t *ui.Theme) {
+	if !a.markOpen {
+		return
+	}
+	ui.Modal(c, &a.markOpen, func() {
+		ui.Column(c).Width(460).Gap(10).Children(func() {
+			ui.Text(c, "Mark the request").FontSize(14).Bold()
+			ui.Text(c, "A color shows in the table beside the method, and the note in the URL cell and the detail header.").
+				FontSize(11).TextColor(t.TextMuted)
+			ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
+				for _, color := range highlightColors {
+					selected := a.markColor == color.name
+					ui.Box(c).Size(24, 24).Radius(5).Background(ui.Hex(color.hex)).Center().
+						Tooltip(color.name).
+						OnClick(func() { a.markColor = color.name }).
+						Children(func() {
+							if selected {
+								ui.Text(c, "✓").FontSize(12).Bold().TextColor(ui.Hex("#ffffff"))
+							}
+						})
+				}
+				if ui.Button(c, "None").Clicked() {
+					a.markColor = ""
+				}
+			})
+			ui.TextArea(c, &a.markNote).Height(90).Label("Note")
+			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
+				if ui.Button(c, "Cancel").Clicked() {
+					a.markOpen = false
+				}
+				if ui.PrimaryButton(c, "Save").Clicked() {
+					a.saveMark()
+				}
+			})
+		})
+	})
+}
+
+// saveMark writes the dialog's color and note onto the flow.
+func (a *app) saveMark() {
+	for i := range a.flows {
+		if a.flows[i].id == a.markID {
+			a.flows[i].color = a.markColor
+			a.flows[i].note = strings.TrimSpace(a.markNote)
+			break
+		}
+	}
+	a.markOpen = false
+	a.detailFor = -1
+	a.invalidate()
+	a.setMessage("Marked")
+}
+
+// infoIcon marks a header the Headers tab can explain, or a connection detail
+// worth opening.
+var infoIcon = ui.MustParseSVG([]byte(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M8 1.3a6.7 6.7 0 1 0 0 13.4A6.7 6.7 0 0 0 8 1.3Zm0 1.5a5.2 5.2 0 1 1 0 10.4A5.2 5.2 0 0 1 8 2.8Zm0 1.6a.95.95 0 1 0 0 1.9.95.95 0 0 0 0-1.9Zm-.85 3.2v4h1.7v-4Z"/></svg>`))
+
+// connPanel is the connection behind a flow: who talked to the proxy, where it
+// dialled, the addresses the name resolved to, and what TLS agreed on.
+func (a *app) connPanel(c *ui.Context, t *ui.Theme, f flow) {
+	cn := f.conn
+	ui.Column(c).Width(440).Gap(2).Padding(4).Children(func() {
+		ui.Text(c, "Connection").FontSize(12).Bold().TextColor(t.Text).Padding(0, 0, 6, 0)
+		field(c, t, "HTTP version", cn.proto)
+		field(c, t, "Client", cn.client)
+		field(c, t, "Proxy", cn.proxy)
+		field(c, t, "Upstream", cn.server)
+		resolved := cn.resolved
+		if resolved != "" {
+			resolved = fmt.Sprintf("%s  (%d ms)", resolved, cn.lookupMs)
+		}
+		field(c, t, "Resolved", resolved)
+		tls := cn.tls
+		if cn.cipher != "" {
+			if tls != "" {
+				tls += " · "
+			}
+			tls += cn.cipher
+		}
+		field(c, t, "TLS", tls)
+		cert := cn.certCN
+		if cn.issuer != "" {
+			cert = fmt.Sprintf("%s, issued by %s", cert, cn.issuer)
+		}
+		if cn.certUntil != "" {
+			cert += ", until " + cn.certUntil
+		}
+		field(c, t, "Certificate", strings.TrimPrefix(cert, ", "))
+	})
+}
+
+// field is one label and value of the connection panel, left out when the flow
+// has nothing to say about it.
+func field(c *ui.Context, t *ui.Theme, label, value string) {
+	if value == "" {
+		return
+	}
+	ui.Row(c).Gap(10).Padding(2, 0).Children(func() {
+		ui.Text(c, label).FontSize(11).TextColor(t.TextMuted).Width(96)
+		ui.Text(c, value).FontSize(12).Font("monospace").TextColor(t.Text).Grow(1)
+	})
+}
+
+// headersView shows the request and the response headers row by row, each
+// standard one with a note on what it is for, and the status line with what
+// the code means.
+func (a *app) headersView(c *ui.Context, f flow) {
+	t := c.Theme()
+	ui.Scroll(c).Grow(1).Padding(12).Children(func() {
+		a.headerBlock(c, t, "Request", f.method+" "+f.path, "", f.reqHeader, f.reqHeaders)
+		line := "No response"
+		if f.status != 0 {
+			line = fmt.Sprintf("%d %s", f.status, http.StatusText(f.status))
+		}
+		a.headerBlock(c, t, "Response", line, statusDoc(f.status), f.respHeader, f.resHeaders)
+	})
+}
+
+// headerBlock is one side of the Headers tab: the line that starts the message
+// and then its headers, sorted by name.
+func (a *app) headerBlock(c *ui.Context, t *ui.Theme, title, line, note string, headers http.Header, raw string) {
+	ui.Text(c, title).FontSize(11).Bold().TextColor(t.TextMuted).Padding(0, 0, 2, 0)
+	start := ui.Text(c, line).FontSize(12).Font("monospace").TextColor(t.Text).SingleLine()
+	if note != "" {
+		start = start.Tooltip(note)
+	}
+	start.Padding(0, 0, 6, 0)
+	if len(headers) == 0 {
+		ui.Text(c, raw).FontSize(12).Font("monospace").TextColor(t.Text).Padding(0, 0, 14, 0)
+		return
+	}
+	for _, key := range slices.Sorted(maps.Keys(headers)) {
+		value := strings.Join(headers[key], ", ")
+		doc := headerDoc(key)
+		ui.Row(c).Gap(6).Padding(2, 0).AlignItems(ui.Start).Children(func() {
+			ui.Text(c, key).FontSize(12).Font("monospace").TextColor(ui.Hex("#a1a1aa")).Width(210).SingleLine()
+			ui.Box(c).Size(11, 11).Children(func() {
+				if doc != "" {
+					ui.Icon(c, infoIcon).Size(11, 11).TextColor(t.TextMuted).Tooltip(doc)
+				}
+			})
+			ui.Text(c, value).FontSize(12).Font("monospace").TextColor(t.Text).Grow(1)
+		})
+	}
+	ui.Box(c).Height(14)
 }
 
 // messages lists the WebSocket messages or SSE events of a flow.
@@ -1452,6 +1715,9 @@ func (a *app) rowMenu(c *ui.Context, f flow) func(*ui.Menu) {
 		if m.Item(cmp.Or(pinLabel(f), "Pin")).Chosen() {
 			a.togglePin(f)
 		}
+		if m.Item("Mark…").Chosen() {
+			a.openMark(f)
+		}
 		if m.Item("Map this host…").Chosen() {
 			a.openDNSRule(hostOnly(f.host), f.process)
 		}
@@ -1477,6 +1743,11 @@ func (a *app) openCompose() {
 	a.composeURL = "https://"
 	a.composeHeaders = ""
 	a.composeBody = ""
+	a.composePre = ""
+	a.composePost = ""
+	a.composeTab = 0
+	a.composeTests = nil
+	a.composeSentMethod, a.composeSentURL = "", ""
 	a.composeOpen = true
 }
 
@@ -1491,6 +1762,11 @@ func (a *app) composeFrom(f flow) {
 	a.composeURL = f.url
 	a.composeHeaders = headerBlock(f.reqHeader)
 	a.composeBody = f.body(false)
+	a.composePre = ""
+	a.composePost = ""
+	a.composeTab = 0
+	a.composeTests = nil
+	a.composeSentMethod, a.composeSentURL = "", ""
 	a.composeOpen = true
 }
 
@@ -1533,8 +1809,17 @@ func (a *app) composeModal(c *ui.Context, t *ui.Theme) {
 		return
 	}
 	ui.Modal(c, &a.composeOpen, func() {
-		ui.Column(c).Width(640).Gap(10).Children(func() {
-			ui.Text(c, cmp.Or(a.composeTitle, "Compose")).FontSize(14).Bold()
+		ui.Column(c).Width(680).Gap(10).Children(func() {
+			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+				ui.Text(c, cmp.Or(a.composeTitle, "Compose")).FontSize(14).Bold().Grow(1)
+				if names := a.envNames(); len(names) > 0 {
+					ui.Text(c, "Variables").FontSize(11).TextColor(t.TextMuted)
+					ui.Select(c, &a.activeEnv, names).Width(140)
+				}
+				if ui.Button(c, "Edit…").Clicked() {
+					a.openVars()
+				}
+			})
 			ui.Row(c).Gap(8).Children(func() {
 				ui.TextInput(c, &a.composeName).Grow(1).Placeholder("Name").Label("Name")
 				ui.TextInput(c, &a.composeCollection).Width(200).Placeholder("Collection").Label("Collection")
@@ -1544,9 +1829,28 @@ func (a *app) composeModal(c *ui.Context, t *ui.Theme) {
 				ui.TextInput(c, &a.composeURL).Grow(1).Label("URL")
 			})
 			ui.Text(c, "Headers").FontSize(11).TextColor(t.TextMuted)
-			ui.TextArea(c, &a.composeHeaders).Height(96).Label("Headers")
-			ui.Text(c, "Body").FontSize(11).TextColor(t.TextMuted)
-			ui.TextArea(c, &a.composeBody).Height(160).Label("Body")
+			ui.TextArea(c, &a.composeHeaders).Height(88).Label("Headers")
+			ui.Tabs(c, &a.composeTab, "Body", "Pre-request", "Tests")
+			switch a.composeTab {
+			case 0:
+				ui.TextArea(c, &a.composeBody).Height(140).Label("Body")
+			case 1:
+				ui.TextArea(c, &a.composePre).Height(140).Label("Pre-request script")
+				ui.Text(c, "req.method, req.url, req.body; req.get/set/remove(\"Header\", value); vars.get/set(name, value); test(name, pass); log(…)").
+					FontSize(11).TextColor(t.TextMuted)
+			case 2:
+				ui.TextArea(c, &a.composePost).Height(120).Label("Post-response script")
+				ui.Text(c, "res.status, res.body, res.get(\"Header\"), res.json(); test(name, pass); vars.set(name, value)").
+					FontSize(11).TextColor(t.TextMuted)
+				// The assertions belong beside the script that made them.
+				for _, result := range a.composeTests {
+					mark, color := "✓", t.Success
+					if !result.Pass {
+						mark, color = "✗", t.Danger
+					}
+					ui.Text(c, mark+" "+result.Name).FontSize(11).TextColor(color)
+				}
+			}
 			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
 				if ui.Button(c, "Cancel").Clicked() {
 					a.composeOpen = false
@@ -1565,39 +1869,164 @@ func (a *app) composeModal(c *ui.Context, t *ui.Theme) {
 	})
 }
 
+// envNames are the environments the editor offers, sorted.
+func (a *app) envNames() []string {
+	names := make([]string, 0, len(a.envs))
+	for _, e := range a.envs {
+		names = append(names, e.Name)
+	}
+	slices.Sort(names)
+	return names
+}
+
+// activeVars are the variables of the environment in use, which a request
+// fills its {{name}} from.
+func (a *app) activeVars() map[string]string {
+	for _, e := range a.envs {
+		if e.Name == a.activeEnv {
+			return maps.Clone(e.Vars)
+		}
+	}
+	return map[string]string{}
+}
+
+// applyVars keeps what a script set, in the environment in use.
+func (a *app) applyVars(vars map[string]string) {
+	name := cmp.Or(a.activeEnv, "default")
+	found := false
+	for i, e := range a.envs {
+		if e.Name == name {
+			a.envs[i].Vars = maps.Clone(vars)
+			found = true
+			break
+		}
+	}
+	if !found {
+		a.envs = append(a.envs, environment{Name: name, Vars: maps.Clone(vars)})
+	}
+	a.activeEnv = name
+	if err := saveEnvs(a.envsPath, a.envs, a.activeEnv); err != nil {
+		a.setMessage("Variables: " + err.Error())
+	}
+}
+
+// openVars fills the variables editor with the environment in use.
+func (a *app) openVars() {
+	a.varsName = cmp.Or(a.activeEnv, "default")
+	a.varsText = formatVars(a.activeVars())
+	a.varsOpen = true
+}
+
+// varsModal edits the variables of one environment, the one a request fills its
+// {{name}} from.
+func (a *app) varsModal(c *ui.Context, t *ui.Theme) {
+	if !a.varsOpen {
+		return
+	}
+	ui.Modal(c, &a.varsOpen, func() {
+		ui.Column(c).Width(520).Gap(10).Children(func() {
+			ui.Text(c, "Variables").FontSize(14).Bold()
+			ui.Text(c, "One \"name = value\" a line. A request uses them as {{name}}, in the URL, the headers, the body and the scripts.").
+				FontSize(11).TextColor(t.TextMuted)
+			ui.TextInput(c, &a.varsName).Label("Environment")
+			ui.TextArea(c, &a.varsText).Height(160).Label("Variables")
+			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
+				if ui.Button(c, "Cancel").Clicked() {
+					a.varsOpen = false
+				}
+				if ui.PrimaryButton(c, "Save").Clicked() {
+					a.saveVars()
+				}
+			})
+		})
+	})
+}
+
+// saveVars keeps the edited environment and puts it in use.
+func (a *app) saveVars() {
+	name := strings.TrimSpace(a.varsName)
+	if name == "" {
+		a.setMessage("Variables: the environment has no name")
+		return
+	}
+	vars := varLines(a.varsText)
+	found := false
+	for i, e := range a.envs {
+		if e.Name == name {
+			a.envs[i].Vars = vars
+			found = true
+			break
+		}
+	}
+	if !found {
+		a.envs = append(a.envs, environment{Name: name, Vars: vars})
+	}
+	a.activeEnv = name
+	if err := saveEnvs(a.envsPath, a.envs, a.activeEnv); err != nil {
+		a.setMessage("Variables: " + err.Error())
+		return
+	}
+	a.varsOpen = false
+	a.setMessage(fmt.Sprintf("Variables: %s, %d of them", name, len(vars)))
+}
+
 // sendComposed sends the editor's request through the proxy, so the result
-// lands in the table with the rest of the traffic.
+// lands in the table with the rest of the traffic. Variables fill it in, the
+// pre-request script may change it, and the post-response script sees what came
+// back and asserts on it.
 func (a *app) sendComposed() {
 	if a.srv == nil {
 		a.setMessage("Compose: no proxy running")
 		return
 	}
-	url := strings.TrimSpace(a.composeURL)
-	if url == "" {
+	vars := a.activeVars()
+	req := &jsRequest{
+		Method: strings.ToUpper(strings.TrimSpace(cmp.Or(expandVars(a.composeMethod, vars), "GET"))),
+		URL:    strings.TrimSpace(expandVars(a.composeURL, vars)),
+		Body:   expandVars(a.composeBody, vars),
+		header: parseHeaderBlock(expandVars(a.composeHeaders, vars)),
+	}
+	if req.URL == "" {
 		a.setMessage("Compose: the URL is empty")
 		return
 	}
+	run := &scriptRun{vars: maps.Clone(vars)}
+	if err := runScript(a.composePre, run, map[string]any{"req": req}); err != nil {
+		a.mu.Lock()
+		a.composeResult = "Pre-request script: " + err.Error()
+		a.composeTests = nil
+		a.mu.Unlock()
+		return
+	}
+	if !maps.Equal(run.vars, vars) {
+		a.applyVars(run.vars)
+	}
 	f := capture.Flow{
-		Method:        strings.ToUpper(strings.TrimSpace(cmp.Or(a.composeMethod, "GET"))),
-		URL:           url,
-		RequestHeader: parseHeaderBlock(a.composeHeaders),
-		RequestBody:   a.composeBody,
+		Method:        req.Method,
+		URL:           req.URL,
+		RequestHeader: req.header,
+		RequestBody:   req.Body,
 	}
-	a.composeBefore = 0
+	before := 0
 	if n := len(a.flows); n > 0 {
-		a.composeBefore = a.flows[n-1].id
+		before = a.flows[n-1].id
 	}
+	a.mu.Lock()
+	a.composeBefore = before
 	a.composeWaiting = true
 	a.composeResult = "Sending…"
+	a.composeTests = nil
+	a.composeSentMethod, a.composeSentURL = req.Method, req.URL
+	a.mu.Unlock()
 	a.history = pushHistory(a.history, historyEntry{
 		Method:  f.Method,
-		URL:     url,
+		URL:     req.URL,
 		Headers: a.composeHeaders,
 		Body:    a.composeBody,
 		At:      time.Now(),
 	})
 	a.saveHistory()
-	a.setMessage("Sent " + f.Method + " " + url)
+	a.setMessage("Sent " + f.Method + " " + req.URL)
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
@@ -1607,8 +2036,64 @@ func (a *app) sendComposed() {
 			a.composeResult = "Failed: " + err.Error()
 			a.mu.Unlock()
 			a.setMessage("Compose: " + err.Error())
+			return
 		}
+		got, ok := a.waitComposed(before, req.Method, req.URL)
+		if !ok {
+			a.mu.Lock()
+			a.composeWaiting = false
+			a.composeResult = "Sent, but the exchange is not in the table"
+			a.mu.Unlock()
+			a.invalidate()
+			return
+		}
+		res := &jsResponse{Status: got.status, Body: got.body(true), header: got.respHeader}
+		if err := runScript(a.composePost, run, map[string]any{"res": res}); err != nil {
+			a.mu.Lock()
+			a.composeWaiting = false
+			a.composeResult = "Post-response script: " + err.Error()
+			a.composeTests = nil
+			a.mu.Unlock()
+			a.invalidate()
+			return
+		}
+		if !maps.Equal(run.vars, vars) {
+			a.applyVars(run.vars)
+		}
+		summary := fmt.Sprintf("%d · %s · %d ms", got.status, humanBytes(got.bytes), got.millis)
+		if len(run.tests) > 0 {
+			summary += fmt.Sprintf(" · %d/%d tests", run.passed(), len(run.tests))
+		}
+		a.mu.Lock()
+		a.composeWaiting = false
+		a.composeResult = summary
+		a.composeTests = run.tests
+		a.mu.Unlock()
+		a.invalidate()
 	}()
+}
+
+// waitComposed is the flow a send produced, once the table has it.
+func (a *app) waitComposed(before int, method, url string) (flow, bool) {
+	deadline := time.Now().Add(3 * time.Second)
+	for {
+		a.mu.Lock()
+		for i := len(a.flows) - 1; i >= 0; i-- {
+			f := a.flows[i]
+			if f.id <= before {
+				break
+			}
+			if f.method == method && f.url == url {
+				a.mu.Unlock()
+				return f, true
+			}
+		}
+		a.mu.Unlock()
+		if time.Now().After(deadline) {
+			return flow{}, false
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
 }
 
 // sortVisible orders the shown rows by the chosen column, keeping the chosen
@@ -1751,6 +2236,8 @@ func (a *app) saveComposed() {
 		URL:        strings.TrimSpace(a.composeURL),
 		Headers:    a.composeHeaders,
 		Body:       a.composeBody,
+		Pre:        a.composePre,
+		Post:       a.composePost,
 	}
 	a.requests = upsertRequest(a.requests, r)
 	if a.historyPath != "" {
@@ -1800,6 +2287,11 @@ func (a *app) openSaved(collection, name string) {
 		a.composeURL = r.URL
 		a.composeHeaders = r.Headers
 		a.composeBody = r.Body
+		a.composePre = r.Pre
+		a.composePost = r.Post
+		a.composeTab = 0
+		a.composeTests = nil
+		a.composeSentMethod, a.composeSentURL = "", ""
 		a.composeOpen = true
 		return
 	}
@@ -2053,6 +2545,11 @@ func (a *app) openHistory(i int) {
 	a.composeURL = e.URL
 	a.composeHeaders = e.Headers
 	a.composeBody = e.Body
+	a.composePre = ""
+	a.composePost = ""
+	a.composeTab = 0
+	a.composeTests = nil
+	a.composeSentMethod, a.composeSentURL = "", ""
 	a.composeOpen = true
 }
 
@@ -2113,8 +2610,12 @@ func (a *app) noteComposed() {
 	if !waiting {
 		return
 	}
-	url := strings.TrimSpace(a.composeURL)
-	method := strings.ToUpper(strings.TrimSpace(cmp.Or(a.composeMethod, "GET")))
+	url := a.composeSentURL
+	method := a.composeSentMethod
+	if url == "" {
+		url = strings.TrimSpace(a.composeURL)
+		method = strings.ToUpper(strings.TrimSpace(cmp.Or(a.composeMethod, "GET")))
+	}
 	for i := len(a.flows) - 1; i >= 0; i-- {
 		f := a.flows[i]
 		if f.id <= before {

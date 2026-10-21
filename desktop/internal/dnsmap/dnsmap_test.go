@@ -121,6 +121,12 @@ func TestServerAnswersTheRules(t *testing.T) {
 	if ip := ask(t, s.Addr(), "localhost", dnsmessage.TypeA); ip != "127.0.0.1" {
 		t.Fatalf("localhost = %q, want the system resolver's", ip)
 	}
+	if resolved, ok := s.Resolved("localhost"); !ok || len(resolved.IPs) == 0 || resolved.IPs[0].String() != "127.0.0.1" {
+		t.Fatalf("resolved localhost = %+v, %v; want the addresses it answered", resolved, ok)
+	}
+	if resolved, ok := s.Resolved("mapped.test"); !ok || resolved.IPs[0].String() != "10.9.8.7" {
+		t.Fatalf("resolved mapped.test = %+v, %v; want the rule's address", resolved, ok)
+	}
 }
 
 // TestServerAnswersAPendingAddress covers the app-scoped rules: the flow that

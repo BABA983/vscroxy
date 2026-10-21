@@ -18,6 +18,9 @@ type savedRequest struct {
 	URL        string `json:"url"`
 	Headers    string `json:"headers,omitempty"`
 	Body       string `json:"body,omitempty"`
+	// Pre runs before the send and may change it; Post sees the response.
+	Pre  string `json:"pre,omitempty"`
+	Post string `json:"post,omitempty"`
 }
 
 // loadRequests reads the saved requests, an empty list when there is no file.
