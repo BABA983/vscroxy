@@ -579,6 +579,7 @@ func (a *app) drain() {
 			kind:        kind,
 			process:     f.Process,
 			processPath: f.ProcessPath,
+			dns:         f.DNSMapped,
 			wait:        f.Wait,
 			download:    f.Download,
 		})
@@ -1129,6 +1130,13 @@ func (a *app) table(c *ui.Context) {
 				scheme = t.AccentText
 			}
 			ui.Row(c).Gap(1).Children(func() {
+				if f.dns != "" {
+					ui.Box(c).Size(28, 14).Radius(3).Background(ui.Hex("#d97706")).Center().MarginEnd(4).
+						Tooltip("DNS mapping " + f.dns).
+						Children(func() {
+							ui.Text(c, "DNS").FontSize(9).Bold().TextColor(ui.Hex("#ffffff"))
+						})
+				}
 				text(f.scheme + "://").Shrink(0).TextColor(scheme).ContextMenu(a.rowMenu(c, f))
 				text(f.host + f.path).TextColor(rest).ContextMenu(a.rowMenu(c, f))
 			})
@@ -1161,6 +1169,13 @@ func (a *app) detail(c *ui.Context) {
 				FontSize(12).TextColor(t.Text).SingleLine().Grow(1)
 			if f.process != "" {
 				ui.Text(c, f.process).FontSize(12).TextColor(t.TextMuted)
+			}
+			if f.dns != "" {
+				ui.Box(c).Size(28, 14).Radius(3).Background(ui.Hex("#d97706")).Center().Children(func() {
+					ui.Text(c, "DNS").FontSize(9).Bold().TextColor(ui.Hex("#ffffff"))
+				})
+				ui.Text(c, f.dns).FontSize(12).TextColor(t.TextMuted).
+					Tooltip("The proxy dialled this address; the request kept its name, Host header and SNI")
 			}
 			if ui.Button(c, "Replay").Disabled(f.url == "" || f.kind != "").Clicked() {
 				go a.replay(f)
@@ -2143,7 +2158,7 @@ func (a *app) dnsModal(c *ui.Context, t *ui.Theme) {
 	ui.Modal(c, &a.dnsOpen, func() {
 		ui.Column(c).Width(560).Gap(10).Children(func() {
 			ui.Text(c, "DNS mapping").FontSize(14).Bold()
-			ui.Text(c, "Names the proxy resolves itself, one \"name = address\" a line. The request keeps its name and Host header, so a device pointed at this proxy reaches the machine you map: example.com = 192.168.1.50. A name matches its subdomains; *.example.com matches one level.").
+			ui.Text(c, "Names the proxy resolves itself, one \"name = address\" a line. The request keeps its name and Host header, so a device pointed at this proxy reaches the machine you map: example.com = 192.168.1.50. Add \"@ Chrome, com.example.app\" to map the name for those apps only. A name matches its subdomains; *.example.com matches one level. Flows that hit a mapping carry a DNS tag in the table.").
 				FontSize(11).TextColor(t.TextMuted)
 			ui.TextArea(c, &a.dnsText).Height(140).Label("DNS mappings")
 			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {

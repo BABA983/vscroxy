@@ -163,7 +163,7 @@ func TestFailedRequestShowsAnError(t *testing.T) {
 	}
 }
 
-func TestDNSMappingsResolveTheNameElsewhere(t *testing.T) {
+func TestDNSMappingAppliesToEveryApp(t *testing.T) {
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "host=%s", r.Host)
 	}))
@@ -174,21 +174,11 @@ func TestDNSMappingsResolveTheNameElsewhere(t *testing.T) {
 	}
 
 	s, _ := startServer(t)
-	// Nothing resolves this name before the mapping: the proxy answers the
-	// gateway error it gives a request whose server it cannot reach.
-	before, err := clientFor(t, s, nil).Get("http://mapped.test:" + port + "/x")
-	if err != nil {
-		t.Fatalf("request before the mapping: %v", err)
-	}
-	_ = before.Body.Close()
-	if before.StatusCode != http.StatusBadGateway {
-		t.Fatalf("status before the mapping = %d, want 502", before.StatusCode)
-	}
-	if err := s.SetDNS([]string{"mapped.test = 127.0.0.1"}); err != nil {
+	if err := s.SetDNS([]string{"every.test = 127.0.0.1"}); err != nil {
 		t.Fatalf("set dns: %v", err)
 	}
-
-	resp, err := clientFor(t, s, nil).Get("http://mapped.test:" + port + "/x")
+	target := "http://every.test:" + port + "/x"
+	resp, err := clientFor(t, s, nil).Get(target)
 	if err != nil {
 		t.Fatalf("request through the mapping: %v", err)
 	}
@@ -197,9 +187,94 @@ func TestDNSMappingsResolveTheNameElsewhere(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read body: %v", err)
 	}
-	// The address is the mapping's, the Host header still the name.
+	// The dial goes to the address the rule gives; the request keeps the name
+	// in its URL and Host header, which is what makes a virtual host work.
+	if want := "host=every.test:" + port; string(body) != want {
+		t.Fatalf("body = %q, want %q", body, want)
+	}
+
+	var mapped Flow
+	for mapped.URL == "" {
+		f := waitFlow(t, s)
+		if f.URL == target {
+			mapped = f
+		}
+	}
+	if want := "every.test → 127.0.0.1"; mapped.DNSMapped != want {
+		t.Fatalf("DNSMapped = %q, want %q", mapped.DNSMapped, want)
+	}
+}
+
+func TestDNSMappingsResolveTheNameElsewhere(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintf(w, "host=%s", r.Host)
+	}))
+	defer upstream.Close()
+	_, port, err := net.SplitHostPort(strings.TrimPrefix(upstream.URL, "http://"))
+	if err != nil {
+		t.Fatalf("parse upstream address: %v", err)
+	}
+	exe, err := os.Executable()
+	if err != nil {
+		t.Fatalf("executable path: %v", err)
+	}
+	app := filepath.Base(exe)
+
+	s, _ := startServer(t)
+	target := "http://mapped.test:" + port + "/x"
+	// Nothing resolves this name before the mapping: the proxy answers the
+	// gateway error it gives a request whose server it cannot reach.
+	before, err := clientFor(t, s, nil).Get(target)
+	if err != nil {
+		t.Fatalf("request before the mapping: %v", err)
+	}
+	_ = before.Body.Close()
+	if before.StatusCode != http.StatusBadGateway {
+		t.Fatalf("status before the mapping = %d, want 502", before.StatusCode)
+	}
+
+	// A rule for another app does not apply to this one.
+	if err := s.SetDNS([]string{"mapped.test = 127.0.0.1 @other-app"}); err != nil {
+		t.Fatalf("set dns: %v", err)
+	}
+	other, err := clientFor(t, s, nil).Get(target)
+	if err != nil {
+		t.Fatalf("request for another app: %v", err)
+	}
+	_ = other.Body.Close()
+	if other.StatusCode != http.StatusBadGateway {
+		t.Fatalf("status for another app = %d, want 502", other.StatusCode)
+	}
+
+	// The rule for this app points the dial at the address, and the request
+	// keeps the name it asked for.
+	if err := s.SetDNS([]string{"mapped.test = 127.0.0.1 @" + app}); err != nil {
+		t.Fatalf("set dns: %v", err)
+	}
+	resp, err := clientFor(t, s, nil).Get(target)
+	if err != nil {
+		t.Fatalf("request through the mapping: %v", err)
+	}
+	body, err := io.ReadAll(resp.Body)
+	_ = resp.Body.Close()
+	if err != nil {
+		t.Fatalf("read body: %v", err)
+	}
 	if want := "host=mapped.test:" + port; string(body) != want {
 		t.Fatalf("body = %q, want %q", body, want)
+	}
+
+	var mapped Flow
+	for mapped.URL == "" {
+		f := waitFlow(t, s)
+		// The requests the mapping did not apply to were published too, as
+		// the gateway error the proxy gives an unreachable server.
+		if f.URL == target && f.Status == http.StatusOK {
+			mapped = f
+		}
+	}
+	if want := "mapped.test → 127.0.0.1"; mapped.DNSMapped != want {
+		t.Fatalf("DNSMapped = %q, want %q", mapped.DNSMapped, want)
 	}
 	if hit, ok := s.LastDNSMatch(); !ok || hit.Name != "mapped.test" || hit.IP.String() != "127.0.0.1" {
 		t.Fatalf("last match = %+v, %v", hit, ok)

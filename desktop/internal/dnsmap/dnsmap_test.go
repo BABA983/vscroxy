@@ -3,23 +3,66 @@ package dnsmap
 import (
 	"net"
 	"testing"
+	"time"
 
 	"golang.org/x/net/dns/dnsmessage"
 )
 
 func TestParse(t *testing.T) {
-	rules, err := Parse([]string{"api.example.com = 10.0.0.5", "  # a comment", "", "*.internal.test = 192.168.1.2"})
+	rules, err := Parse([]string{"api.example.com = 10.0.0.5", "  # a comment", "", "*.internal.test = 192.168.1.2", "dev.test = 10.0.0.7 @Chrome, /usr/bin/firefox"})
 	if err != nil {
 		t.Fatalf("parse: %v", err)
 	}
-	if len(rules) != 2 || rules[0].Name != "api.example.com" || rules[1].IP.String() != "192.168.1.2" {
+	if len(rules) != 3 || rules[0].Name != "api.example.com" || rules[1].IP.String() != "192.168.1.2" {
 		t.Fatalf("rules = %+v", rules)
+	}
+	if apps := rules[2].Apps; len(apps) != 2 || apps[0] != "Chrome" || apps[1] != "/usr/bin/firefox" {
+		t.Fatalf("apps = %q, want the two listed", apps)
+	}
+	if len(rules[0].Apps) != 0 {
+		t.Fatalf("a rule without @ has apps %q", rules[0].Apps)
 	}
 	if _, err := Parse([]string{"no address here"}); err == nil {
 		t.Error("a line without = was accepted")
 	}
 	if _, err := Parse([]string{"name = not-an-address"}); err == nil {
 		t.Error("a line without an address was accepted")
+	}
+}
+
+func TestLookupLimitsARuleToItsApps(t *testing.T) {
+	rules, err := Parse([]string{
+		"api.test = 10.0.0.1 @chrome, Safari",
+		"api.test = 10.0.0.2 @other",
+		"*.svc.test = 10.0.0.3",
+	})
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	cases := []struct {
+		name, app, want string
+	}{
+		{"api.test", "chrome", "10.0.0.1"},
+		{"api.test", "Safari", "10.0.0.1"},
+		{"api.test", "other", "10.0.0.2"},
+		{"api.test", "firefox", ""},                                                // no rule for this app
+		{"api.test", "/Applications/Safari.app/Contents/MacOS/Safari", "10.0.0.1"}, // the executable's name counts
+		{"a.svc.test", "firefox", "10.0.0.3"},                                      // a rule without apps applies to every app
+		{"nothing.test", "chrome", ""},
+	}
+	for _, c := range cases {
+		rule, ok := Lookup(rules, c.name, c.app)
+		switch {
+		case c.want == "" && ok:
+			t.Errorf("Lookup(%q, %q) = %v, want none", c.name, c.app, rule.IP)
+		case c.want != "" && (!ok || rule.IP.String() != c.want):
+			t.Errorf("Lookup(%q, %q) = %v, %v; want %s", c.name, c.app, rule.IP, ok, c.want)
+		}
+	}
+	// The server answers names, not apps: an app-scoped rule is not one of
+	// the names it answers for everyone.
+	if ip, ok := Match(rules, "api.test"); ok {
+		t.Errorf("Match(api.test) = %v, want none", ip)
 	}
 }
 
@@ -77,6 +120,42 @@ func TestServerAnswersTheRules(t *testing.T) {
 	// localhost from the hosts file.
 	if ip := ask(t, s.Addr(), "localhost", dnsmessage.TypeA); ip != "127.0.0.1" {
 		t.Fatalf("localhost = %q, want the system resolver's", ip)
+	}
+}
+
+// TestServerAnswersAPendingAddress covers the app-scoped rules: the flow that
+// matched hands the address to the dial that follows, because the server only
+// sees the name.
+func TestServerAnswersAPendingAddress(t *testing.T) {
+	s, err := Start(net.DefaultResolver)
+	if err != nil {
+		t.Fatalf("start: %v", err)
+	}
+	defer s.Close()
+	rules, err := Parse([]string{"mapped.test = 10.9.8.7 @chrome"})
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	s.SetRules(rules)
+	// The name alone is not answered: the rule belongs to an app.
+	if ip := ask(t, s.Addr(), "mapped.test", dnsmessage.TypeA); ip != "" {
+		t.Fatalf("mapped.test = %q, want no answer before a flow registers it", ip)
+	}
+	s.SetPending("mapped.test", net.ParseIP("10.9.8.7"), time.Minute)
+	if ip := ask(t, s.Addr(), "mapped.test", dnsmessage.TypeA); ip != "10.9.8.7" {
+		t.Fatalf("mapped.test = %q, want the pending address", ip)
+	}
+	// The address is kept for the second family of the same lookup.
+	if ip := ask(t, s.Addr(), "mapped.test", dnsmessage.TypeA); ip != "10.9.8.7" {
+		t.Fatalf("mapped.test = %q, want the pending address again", ip)
+	}
+	if hit, ok := s.LastMatch(); !ok || hit.Name != "mapped.test" || hit.IP.String() != "10.9.8.7" {
+		t.Fatalf("last match = %+v, %v", hit, ok)
+	}
+	// An expired address does not outlive the dial it was registered for.
+	s.SetPending("expired.test", net.ParseIP("10.9.8.8"), -time.Second)
+	if ip := ask(t, s.Addr(), "expired.test", dnsmessage.TypeA); ip != "" {
+		t.Fatalf("expired.test = %q, want no answer", ip)
 	}
 }
 

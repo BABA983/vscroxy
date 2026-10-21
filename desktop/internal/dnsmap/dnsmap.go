@@ -18,12 +18,15 @@ import (
 
 // Rule maps a name to an address. The name is a host, a host with a leading
 // dot for its subdomains only, or a path.Match pattern such as *.example.com.
+// Apps limits the rule to those apps; empty means every app.
 type Rule struct {
 	Name string
 	IP   net.IP
+	Apps []string
 }
 
-// Parse reads "name = address" lines; a line starting with # is a comment.
+// Parse reads "name = address" lines with an optional "@ app1, app2" limiting
+// the rule to those apps; a line starting with # is a comment.
 func Parse(lines []string) ([]Rule, error) {
 	var rules []Rule
 	for _, line := range lines {
@@ -31,7 +34,8 @@ func Parse(lines []string) ([]Rule, error) {
 		if line == "" || strings.HasPrefix(line, "#") {
 			continue
 		}
-		name, address, ok := strings.Cut(line, "=")
+		spec, apps, _ := strings.Cut(line, "@")
+		name, address, ok := strings.Cut(spec, "=")
 		if !ok {
 			return nil, fmt.Errorf("%q: want \"name = address\"", line)
 		}
@@ -43,12 +47,46 @@ func Parse(lines []string) ([]Rule, error) {
 		if ip == nil {
 			return nil, fmt.Errorf("%q: %q is not an address", line, strings.TrimSpace(address))
 		}
-		rules = append(rules, Rule{Name: name, IP: ip})
+		rule := Rule{Name: name, IP: ip}
+		for _, app := range strings.Split(apps, ",") {
+			if app = strings.TrimSpace(app); app != "" {
+				rule.Apps = append(rule.Apps, app)
+			}
+		}
+		rules = append(rules, rule)
 	}
 	return rules, nil
 }
 
-// Match returns the address a name maps to, the last rule for it winning.
+// Lookup returns the rule that maps a name for an app, the last rule winning.
+// A rule without apps applies to every app, so a name-scoped rule written
+// after an app-scoped one overrides it for everyone.
+func Lookup(rules []Rule, name, app string) (Rule, bool) {
+	name = strings.ToLower(strings.TrimSuffix(name, "."))
+	if name == "" {
+		return Rule{}, false
+	}
+	app = strings.ToLower(strings.TrimSpace(app))
+	for i := len(rules) - 1; i >= 0; i-- {
+		rule := rules[i]
+		if !nameMatches(rule.Name, name) {
+			continue
+		}
+		if len(rule.Apps) == 0 {
+			return rule, true
+		}
+		for _, want := range rule.Apps {
+			if strings.EqualFold(want, app) || strings.EqualFold(want, base(app)) {
+				return rule, true
+			}
+		}
+	}
+	return Rule{}, false
+}
+
+// Match returns the address a name maps to for every app, the last rule for
+// it winning: the DNS server answers these, while app-scoped rules apply to
+// the flows their app sends.
 func Match(rules []Rule, name string) (net.IP, bool) {
 	name = strings.ToLower(strings.TrimSuffix(name, "."))
 	if name == "" {
@@ -56,20 +94,33 @@ func Match(rules []Rule, name string) (net.IP, bool) {
 	}
 	for i := len(rules) - 1; i >= 0; i-- {
 		rule := rules[i]
-		if ok, _ := path.Match(rule.Name, name); ok {
-			return rule.IP, true
-		}
-		if rest, ok := strings.CutPrefix(rule.Name, "."); ok {
-			if name == rest || strings.HasSuffix(name, rule.Name) {
-				return rule.IP, true
-			}
-			continue
-		}
-		if !strings.ContainsAny(rule.Name, "*?[") && (name == rule.Name || strings.HasSuffix(name, "."+rule.Name)) {
+		if len(rule.Apps) == 0 && nameMatches(rule.Name, name) {
 			return rule.IP, true
 		}
 	}
 	return nil, false
+}
+
+// nameMatches reports whether a rule's name covers a host.
+func nameMatches(pattern, name string) bool {
+	if ok, _ := path.Match(pattern, name); ok {
+		return true
+	}
+	if rest, ok := strings.CutPrefix(pattern, "."); ok {
+		return name == rest || strings.HasSuffix(name, pattern)
+	}
+	if !strings.ContainsAny(pattern, "*?[") && (name == pattern || strings.HasSuffix(name, "."+pattern)) {
+		return true
+	}
+	return false
+}
+
+// base is the executable's name in a process path.
+func base(path string) string {
+	if i := strings.LastIndexAny(path, `/\`); i >= 0 {
+		return path[i+1:]
+	}
+	return path
 }
 
 // Hit is a name the server answered from the rules.
@@ -90,6 +141,17 @@ type Server struct {
 	last     atomic.Value // Hit
 	done     chan struct{}
 	stopOnce sync.Once
+
+	// pending are the addresses an app-scoped rule gives a name: the server
+	// cannot see which app asks, so the flow that matched registers the
+	// address for the dial that follows.
+	pendingMu sync.Mutex
+	pending   map[string]pending
+}
+
+type pending struct {
+	ip    net.IP
+	until time.Time
 }
 
 // Start listens on a free loopback port. upstream is the resolver to forward
@@ -102,7 +164,7 @@ func Start(upstream *net.Resolver) (*Server, error) {
 	if err != nil {
 		return nil, err
 	}
-	s := &Server{udp: udp, upstream: upstream, done: make(chan struct{})}
+	s := &Server{udp: udp, upstream: upstream, done: make(chan struct{}), pending: make(map[string]pending)}
 	s.rules.Store([]Rule(nil))
 	if tcp, err := net.Listen("tcp", udp.LocalAddr().String()); err == nil {
 		s.tcp = tcp
@@ -128,6 +190,39 @@ func (s *Server) Rules() []Rule {
 func (s *Server) LastMatch() (Hit, bool) {
 	m, ok := s.last.Load().(Hit)
 	return m, ok
+}
+
+// SetPending answers name with ip for the next d: an app-scoped rule cannot be
+// answered by name alone, so the flow that matched hands the address to the
+// dial it is about to make. The server keeps the address for a moment because
+// a lookup asks for both families, and lets it expire so a later request from
+// another app resolves the name normally.
+func (s *Server) SetPending(name string, ip net.IP, d time.Duration) {
+	name = strings.ToLower(strings.TrimSuffix(name, "."))
+	if name == "" || ip == nil {
+		return
+	}
+	s.pendingMu.Lock()
+	defer s.pendingMu.Unlock()
+	now := time.Now()
+	for key, p := range s.pending {
+		if !now.Before(p.until) {
+			delete(s.pending, key)
+		}
+	}
+	s.pending[name] = pending{ip: ip, until: now.Add(d)}
+}
+
+// pendingIP is the address a flow registered for a name, if it has not expired.
+func (s *Server) pendingIP(name string) (net.IP, bool) {
+	s.pendingMu.Lock()
+	defer s.pendingMu.Unlock()
+	p, ok := s.pending[name]
+	if !ok || !time.Now().Before(p.until) {
+		delete(s.pending, name)
+		return nil, false
+	}
+	return p.ip, true
 }
 
 // Close stops the server. It may be called more than once.

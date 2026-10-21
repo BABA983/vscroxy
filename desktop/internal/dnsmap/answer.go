@@ -27,7 +27,10 @@ func (s *Server) answer(query []byte) []byte {
 	var ips []net.IP
 	switch q.Type {
 	case dnsmessage.TypeA, dnsmessage.TypeAAAA:
-		if ip, ok := Match(s.Rules(), name); ok {
+		if ip, ok := s.pendingIP(name); ok {
+			s.last.Store(Hit{Name: name, IP: ip, At: time.Now()})
+			ips = []net.IP{ip}
+		} else if ip, ok := Match(s.Rules(), name); ok {
 			s.last.Store(Hit{Name: name, IP: ip, At: time.Now()})
 			ips = []net.IP{ip}
 		} else if resolved, err := s.lookup(name); err == nil {
