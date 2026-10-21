@@ -1,10 +1,16 @@
 package main
 
 import (
+	"crypto/sha256"
+	"crypto/tls"
+	"crypto/x509"
+	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -13,6 +19,7 @@ import (
 
 	"github.com/baba983/vscroxy/desktop/internal/capture"
 	"github.com/egoist/mygo/ui"
+	"github.com/gorilla/websocket"
 )
 
 func workspaceApp() *app {
@@ -584,5 +591,187 @@ func TestRuleEditorPersistsOrderingTogglesAndCapturedMock(t *testing.T) {
 	click("Save rule")
 	if a.rules[0].Name != "Development API" || a.ruleUI.problem == "" {
 		t.Fatal("failed persistence changed the active rules or hid the error")
+	}
+}
+
+func TestDeviceOnboardingCertificateHTTPSAndLiveTunnelRevocation(t *testing.T) {
+	upstream := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/socket" {
+			fmt.Fprint(w, `{"source":"real TLS upstream","count":19}`)
+			return
+		}
+		ws, err := (&websocket.Upgrader{}).Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+		defer ws.Close()
+		for {
+			kind, data, err := ws.ReadMessage()
+			if err != nil {
+				return
+			}
+			if err := ws.WriteMessage(kind, data); err != nil {
+				return
+			}
+		}
+	}))
+	defer upstream.Close()
+	// The pinned MITM engine issues DNS SANs, not IP SANs. Keep certificate
+	// verification on and exercise a DNS hostname, as a real API would use.
+	target, _ := url.Parse(upstream.URL)
+	target.Host = net.JoinHostPort("localhost", target.Port())
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	addr := listener.Addr().String()
+	listener.Close()
+	srv, err := capture.New(addr, t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv.SetSSL(capture.SSLConfig{All: true})
+	if err := srv.Start(); err != nil {
+		t.Fatal(err)
+	}
+	defer srv.Close()
+	a := workspaceApp()
+	a.srv = srv
+	defer a.disableDevices()
+	tt := ui.NewTester(a.view, 1100, 650)
+	click := func(label string) {
+		t.Helper()
+		if err := tt.Click(label); err != nil {
+			t.Fatal(err)
+		}
+	}
+	click("Settings")
+	click("Proxy")
+	click("Connect a device…")
+	if !tt.HasText("LAN off") {
+		t.Fatal("LAN access was not off by default")
+	}
+	// Reserve an adjacent pair while selecting ports; the product intentionally
+	// requires explicit ports, whereas backend tests may use port zero.
+	var port int
+	for range 32 {
+		first, err := net.Listen("tcp", "127.0.0.1:0")
+		if err != nil {
+			t.Fatal(err)
+		}
+		p := first.Addr().(*net.TCPAddr).Port
+		second, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", p+1))
+		first.Close()
+		if err == nil {
+			second.Close()
+			port = p
+			break
+		}
+	}
+	if port == 0 {
+		t.Fatal("no adjacent ports available")
+	}
+	a.deviceUI.ips, a.deviceUI.ip, a.deviceUI.port = []string{"127.0.0.1"}, "127.0.0.1", fmt.Sprint(port)
+	tt.Frame()
+	click("Enable device access")
+	if !tt.HasText("LAN off") {
+		t.Fatal("access was enabled without an allowlist and consent")
+	}
+	click("Allowed device addresses")
+	tt.Type("127.0.0.1")
+	click("I trust this network and the allowed devices")
+	click("Enable device access")
+	if !tt.HasText("LAN enabled") {
+		t.Fatalf("enable failed: %s", a.deviceUI.problem)
+	}
+	click("Copy proxy address")
+	gatewayURL, _ := url.Parse("http://" + tt.Clipboard())
+	click("Copy certificate URL")
+	certificateURL := tt.Clipboard()
+	resp, err := (&http.Client{Timeout: 5 * time.Second}).Get(certificateURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	der, err := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if err != nil || resp.StatusCode != 200 {
+		t.Fatalf("certificate download: status %d: %v", resp.StatusCode, err)
+	}
+	ca, err := x509.ParseCertificate(der)
+	if err != nil || !ca.IsCA {
+		t.Fatalf("download was not a public CA: %v", err)
+	}
+	click("Checks")
+	click("Copy CA fingerprint")
+	if tt.Clipboard() != fmt.Sprintf("%X", sha256.Sum256(der)) {
+		t.Fatal("displayed fingerprint does not match the downloaded certificate")
+	}
+	pool := x509.NewCertPool()
+	pool.AddCert(ca)
+	client := &http.Client{Timeout: 5 * time.Second, Transport: &http.Transport{Proxy: http.ProxyURL(gatewayURL), TLSClientConfig: &tls.Config{RootCAs: pool}}}
+	defer client.CloseIdleConnections()
+	resp, err = client.Get(target.String() + "/projects?limit=7")
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, err := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if err != nil || string(body) != `{"source":"real TLS upstream","count":19}` {
+		t.Fatalf("HTTPS through device gateway: %q: %v", body, err)
+	}
+	dial := func(proxyURL *url.URL) *websocket.Conn {
+		t.Helper()
+		d := websocket.Dialer{Proxy: http.ProxyURL(proxyURL), TLSClientConfig: &tls.Config{RootCAs: pool}, HandshakeTimeout: 5 * time.Second}
+		ws, _, err := d.DialContext(t.Context(), "wss"+strings.TrimPrefix(target.String(), "https")+"/socket", nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { ws.Close() })
+		ws.SetReadDeadline(time.Now().Add(5 * time.Second))
+		return ws
+	}
+	localURL, _ := url.Parse("http://" + srv.Addr())
+	local, mobile := dial(localURL), dial(gatewayURL)
+	echo := func(ws *websocket.Conn, message string) {
+		t.Helper()
+		if err := ws.WriteMessage(websocket.TextMessage, []byte(message)); err != nil {
+			t.Fatal(err)
+		}
+		_, data, err := ws.ReadMessage()
+		if err != nil || string(data) != message {
+			t.Fatalf("WebSocket echo %q: %v", data, err)
+		}
+	}
+	echo(mobile, "device tunnel before disable")
+	click("Close")
+	click("Network · LAN")
+	if err := tt.ChooseMenuItem("Connect a device…"); err != nil {
+		t.Fatal(err)
+	}
+	if !tt.HasText("LAN enabled") {
+		t.Fatal("closing the guide unexpectedly disabled access")
+	}
+	click("Android")
+	if !tt.HasText("Set up Android") {
+		t.Fatal("platform instructions did not switch")
+	}
+	click("Disable device access")
+	if !tt.HasText("LAN off") {
+		t.Fatal("disable did not update the guide")
+	}
+	_, _, err = mobile.ReadMessage()
+	if err == nil {
+		t.Fatal("existing device tunnel survived disabling access")
+	}
+	if networkErr, ok := errors.AsType[net.Error](err); ok && networkErr.Timeout() {
+		t.Fatal("device tunnel timed out instead of being revoked")
+	}
+	if _, err := (&http.Client{Timeout: 5 * time.Second}).Get(certificateURL); err == nil {
+		t.Fatal("certificate endpoint survived disabling access")
+	}
+	echo(local, "local tunnel survives LAN revocation")
+	reply, err := srv.Replay(t.Context(), capture.Flow{Method: "GET", URL: target.String() + "/after-disable"})
+	if err != nil || reply.Status != 200 || reply.ResponseBody != `{"source":"real TLS upstream","count":19}` {
+		t.Fatalf("local proxy cannot send a new request after LAN revocation: %+v: %v", reply, err)
 	}
 }

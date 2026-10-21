@@ -89,10 +89,16 @@ func (a *app) settingsModal(c *ui.Context, t *ui.Theme) {
 					})
 					ui.Divider(c)
 					ui.Text(c, "Upstream: "+cmp.Or(a.upstream, "Direct connection")).FontSize(12).TextColor(t.TextMuted).SingleLine()
-					if ui.Button(c, "Configure upstream…").Clicked() {
-						a.settingsOpen = false
-						a.upstreamAddr, a.upstreamOpen = a.upstream, true
-					}
+					ui.Row(c).Gap(8).Children(func() {
+						if ui.Button(c, "Configure upstream…").Clicked() {
+							a.settingsOpen = false
+							a.upstreamAddr, a.upstreamOpen = a.upstream, true
+						}
+						if ui.Button(c, "Connect a device…").Clicked() {
+							a.settingsOpen = false
+							a.openDevices()
+						}
+					})
 				case 2:
 					ui.Text(c, "HTTPS inspection").Bold()
 					ui.Text(c, "Trust the local CA on the client to inspect encrypted traffic. Installing a certificate may require system permission.").FontSize(12).TextColor(t.TextMuted)

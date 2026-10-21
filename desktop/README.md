@@ -36,12 +36,57 @@ curl --cacert ~/.mitmproxy/mitmproxy-ca-cert.pem -x http://127.0.0.1:7890 https:
 go tool mygo dev
 ```
 
+## Connect a phone or another device
+
+Open **Network → Connect a device** or **Settings → Proxy → Connect a device**.
+Device access is **off on every launch**; consent and listeners are not persisted.
+
+1. Put the computer and device on the same trusted network. Select the computer's
+   device-facing IP (not a wildcard); the default proxy port is 7891 and the public
+   certificate service uses the next port, 7892. Allow both ports in your firewall.
+2. Enter the device's IP from its Wi-Fi details in the allowlist. Exact IPs are
+   preferable; a CIDR admits the entire range. Empty lists and `/0` are refused.
+   The same source-IP gate protects both listeners, before any proxy dial or HTTP
+   parsing; forwarded headers cannot bypass it.
+3. Confirm that you trust the network/devices, then enable access. Configure the
+   device's manual HTTP proxy using the displayed address. No proxy authentication
+   is configured; this is restricted by source IP, not user identity.
+4. Open the displayed certificate URL on the device. It serves only the public
+   CA certificate as DER, never a directory or signing key. Compare the CA's
+   SHA-256 fingerprint under **Checks**; obtain it over a trusted network.
+5. Follow the guide's **iOS** or **Android** tab. On iOS, install the downloaded
+   profile and explicitly enable full trust under General → About → Certificate
+   Trust Settings. On Android, install it as a CA certificate; many Android 7+
+   apps need a debug Network Security Configuration that trusts user CAs.
+6. Enable **Configure HTTPS inspection** for the desired hosts, then make an
+   HTTPS request from the device and inspect its decrypted path/body in Capture.
+
+**Checks** distinguishes local proxy reachability and last admitted TCP clients
+at each port. A TCP connection does **not** prove that a certificate was installed,
+that HTTPS decrypted, or that the remote network path is reachable. No traffic?
+Check DHCP changes, the selected interface, VPN, firewall and Wi-Fi isolation.
+Certificate pinning and clients that ignore the OS proxy are not bypassed. The
+pinned MITM engine generates DNS SANs, not IP SANs: intercepted HTTPS using a
+numeric-IP URL can fail certificate verification; use a DNS hostname when testing.
+
+The local proxy stays at `127.0.0.1:7890`. The gateway forwards raw TCP to that
+same core, keeping capture IDs, rules and pending local requests/tunnels. Closing
+the guide keeps access enabled (the Network menu shows **LAN**); **Disable device
+access** closes both LAN listeners and all their active connections, including
+CONNECT/WebSocket tunnels, without stopping local capture. Disable before editing
+the address/allowlist. Turn off the device's manual proxy and remove the CA trust
+when finished debugging. Mobile application process attribution is unavailable;
+the capture's Client column may identify the desktop gateway instead.
+
 ## What is here
 
 - `main.go`: the app state, the three-pane layout, the toolbar, the traffic
   table, the detail tabs and the status bar.
 - `requests.go`: independent request documents, their tabs, draft-close
   confirmation and the inline response viewer.
+- `rules.go`: visual rule management and captured-response mock creation.
+- `devices.go` / `internal/lan`: opt-in, source-restricted device gateway and
+  public certificate onboarding without restarting the local proxy.
 - `apis.go` / `openapi.go`: the APIs workspace, local specification storage,
   OpenAPI validation, collection-to-contract drafts and endpoint-to-request conversion.
 - `data.go`: seeded flows for the case where the proxy cannot start, and
@@ -418,9 +463,6 @@ restored when they would still show on a connected display.
 
 ## Next
 
-- Device onboarding: explicit LAN listener opt-in, access control, reachable-IP
-  display and Android/iOS certificate/proxy instructions. The listener is still
-  loopback-only; mobile clients cannot connect to it directly yet.
 - Structured query/auth/form-data editors, cookie management, collection folders
   and a runner with per-request assertions.
 - Named capture filters and independent traffic views; complete-body search

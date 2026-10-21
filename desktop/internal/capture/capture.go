@@ -314,6 +314,13 @@ func New(addr, caRootPath string) (*Server, error) {
 // Addr is the address the proxy listens on.
 func (s *Server) Addr() string { return s.addr }
 
+// CACertificate returns only the public CA certificate, in DER form. It never
+// reads a CA bundle or exposes the signing key.
+func (s *Server) CACertificate() []byte {
+	ca := s.proxy.GetCertificate()
+	return bytes.Clone(ca.Raw)
+}
+
 // Flows is the stream of captured exchanges. It closes when the server does.
 func (s *Server) Flows() <-chan Flow { return s.out }
 

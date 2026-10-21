@@ -52,6 +52,7 @@ type app struct {
 	curlOpen      bool
 	curlInput     string
 	curlProblem   string
+	deviceUI      deviceSetup
 
 	apis            []*apiDocument
 	apisPath        string
@@ -900,6 +901,7 @@ func (a *app) view(c *ui.Context) {
 	a.apiGenerationModal(c, t)
 	a.curlImportModal(c, t)
 	a.rulesModal(c, t)
+	a.devicesModal(c, t)
 }
 
 // upstreamModal edits the proxy every request goes through.
@@ -999,7 +1001,15 @@ func (a *app) toolbar(c *ui.Context, t *ui.Theme) {
 		if ui.Button(c, "Rules").FontSize(11).Height(28).Clicked() {
 			a.openRules()
 		}
-		ui.MenuButton(c, "Network", func(m *ui.Menu) {
+		networkLabel := "Network"
+		if a.deviceUI.gateway != nil {
+			networkLabel = "Network · LAN"
+		}
+		ui.MenuButton(c, networkLabel, func(m *ui.Menu) {
+			if m.Item("Connect a device…").Checked(a.deviceUI.gateway != nil).Chosen() {
+				a.openDevices()
+			}
+			m.Separator()
 			for _, preset := range capture.Presets {
 				if m.Item(preset.Name).Checked(a.throttle.Name == preset.Name).Chosen() {
 					a.throttle = preset
@@ -1760,6 +1770,7 @@ func statusColor(status int, t *ui.Theme) ui.Color {
 func main() {
 	a := newApp()
 	defer a.discardRuleDraft()
+	defer a.disableDevices()
 	mygo.App.WhenReady(func() {
 		a.win = mygo.NewWindow(mygo.WindowOptions{
 			Title:           "vscroxy",
