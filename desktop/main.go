@@ -92,6 +92,9 @@ type app struct {
 	jsonRoots    []*jsonNode
 	jsonExpanded map[string]bool
 	jsonFor      string
+	protoFor     string
+	protoOK      bool
+	protoFields  []pbField
 	jsonOK       bool
 
 	srv        *capture.Server

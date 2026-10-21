@@ -174,9 +174,27 @@ func (a *app) bodyView(c *ui.Context, f flow) {
 	if a.bodySide == 1 {
 		body = a.reqBody
 	}
+	// A body that reads as a protobuf message gets a mode of its own: the
+	// numbers and values are on the wire, the field names are not.
+	key := fmt.Sprintf("%d:%d", f.id, a.bodySide)
+	if key != a.protoFor {
+		a.protoFor = key
+		a.protoFields, a.protoOK = nil, false
+		ct := f.contentType(a.bodySide == 0)
+		if len(body) <= 512<<10 || strings.Contains(ct, "grpc") || strings.Contains(ct, "protobuf") {
+			a.protoFields, a.protoOK = protoBody([]byte(body))
+		}
+	}
+	modes := []string{"Pretty", "JSON", "Hex", "Preview"}
+	if a.protoOK {
+		modes = append(modes, "Protobuf")
+	}
+	if a.bodyMode >= len(modes) {
+		a.bodyMode = 0
+	}
 	ui.Row(c).Padding(8, 12).Gap(10).AlignItems(ui.Center).Children(func() {
 		ui.Segmented(c, &a.bodySide, "Response", "Request")
-		ui.Segmented(c, &a.bodyMode, "Pretty", "JSON", "Hex", "Preview")
+		ui.Segmented(c, &a.bodyMode, modes...)
 		ui.SearchField(c, &a.bodyQuery).Width(220)
 	})
 	if body == "" {
@@ -184,7 +202,6 @@ func (a *app) bodyView(c *ui.Context, f flow) {
 		return
 	}
 
-	key := fmt.Sprintf("%d:%d", f.id, a.bodySide)
 	if key != a.jsonFor {
 		a.jsonFor = key
 		a.jsonRoots, a.jsonOK = parseJSON(body)
@@ -209,9 +226,26 @@ func (a *app) bodyView(c *ui.Context, f flow) {
 		a.hexBody(c, body)
 	case 3:
 		a.previewBody(c, f, body)
+	case 4:
+		a.protoView(c)
 	default:
 		a.prettyBody(c, body)
 	}
+}
+
+// protoView shows a protobuf message as a tree of field numbers and values.
+func (a *app) protoView(c *ui.Context) {
+	t := c.Theme()
+	if len(a.protoFields) == 0 {
+		ui.Text(c, "This body does not read as a protobuf message").FontSize(12).TextColor(t.TextMuted).Padding(16)
+		return
+	}
+	ui.Column(c).Gap(6).Padding(12).Children(func() {
+		ui.Text(c, "Decoded without a schema: field numbers, not names.").FontSize(11).TextColor(t.TextMuted)
+		ui.Scroll(c).Grow(1).Children(func() {
+			ui.Text(c, protoText(a.protoFields)).FontSize(12).Font("monospace").TextColor(t.Text)
+		})
+	})
 }
 
 // previewBody shows a body the way it is meant to be seen: an image at its
