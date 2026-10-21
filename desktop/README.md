@@ -86,8 +86,17 @@ its own, so a second save does not replace the first), and **Replay**.
 
 ## Rules
 
-Rules live in `~/.vscroxy/rules.json` and apply to new requests in order,
-first match wins. `match` is a substring of the full URL.
+Open **Rules** in the toolbar (or **Settings → General → Manage rules**) to
+create, edit, enable, delete and move rules up/down. Save applies changes to
+new requests only, without restarting capture. A failed save leaves the running
+rules unchanged. Closing the editor discards unsaved field edits.
+
+Rules live in `~/.vscroxy/rules.json`. Enabled Map Local, Map Remote and Block
+rules apply in order, first match wins. Breakpoints match independently at their
+request/response phase and also require the toolbar's **Break** switch. `match`
+is a literal substring of the full URL, not a regex/glob; optional `method`
+restricts the HTTP method. `disabled: true` turns a rule off; old files without
+this field remain enabled.
 
 ```json
 [
@@ -99,7 +108,9 @@ first match wins. `match` is a substring of the full URL.
 ]
 ```
 
-- `map_local` answers from a file, without calling an upstream.
+- `map_local` answers from a file, without calling an upstream. Optional `status`
+  and `headers` customize the response; connection headers are removed and length
+  is recalculated. Files over 8 MiB fail with 502 instead of being truncated.
 - `map_remote` sends the request to another scheme and host, keeping the path
   and query; the table keeps showing the URL the client asked for.
 - `block` answers `403`.
@@ -108,6 +119,14 @@ first match wins. `match` is a substring of the full URL.
 
 **Settings → General → Reload configuration** rereads the file. A missing
 file means no rules.
+
+A captured flow's **Create rule** context submenu pre-fills its URL and method
+for mapping, blocking or breakpoints. **Mock this response** copies the complete
+response to `~/.vscroxy/mocks/`, retaining status and response headers (except
+wire framing, compressed-body metadata and stale validators). Binary and spilled
+bodies are supported up to 8 MiB; missing/partial bodies and stream previews are
+rejected. Review captured headers for secrets before sharing the rule. Canceling
+an unsaved mock removes its file; deleting a saved rule keeps its file for reuse.
 
 ## Breakpoints
 
@@ -402,8 +421,6 @@ restored when they would still show on a connected display.
 - Device onboarding: explicit LAN listener opt-in, access control, reachable-IP
   display and Android/iOS certificate/proxy instructions. The listener is still
   loopback-only; mobile clients cannot connect to it directly yet.
-- Rule management UI: create/edit/enable/reorder Map Local/Remote and breakpoint
-  rules from captured flows, instead of editing `rules.json`.
 - Structured query/auth/form-data editors, cookie management, collection folders
   and a runner with per-request assertions.
 - Named capture filters and independent traffic views; complete-body search

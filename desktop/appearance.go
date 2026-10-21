@@ -63,9 +63,15 @@ func (a *app) settingsModal(c *ui.Context, t *ui.Theme) {
 					ui.Divider(c)
 					ui.Text(c, "Rules & scripts").Bold()
 					ui.Text(c, "Reload proxy rules, DNS mappings, ignore lists and the capture script from disk.").FontSize(12).TextColor(t.TextMuted)
-					if ui.Button(c, "Reload configuration").Clicked() {
-						a.reloadConfig()
-					}
+					ui.Row(c).Gap(8).Children(func() {
+						if ui.Button(c, "Manage rules…").Clicked() {
+							a.settingsOpen = false
+							a.openRules()
+						}
+						if ui.Button(c, "Reload configuration").Clicked() {
+							a.reloadConfig()
+						}
+					})
 				case 1:
 					addr := "Capture is not running"
 					if a.srv != nil {

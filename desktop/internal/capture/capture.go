@@ -157,13 +157,18 @@ const (
 	RuleBreakResponse RuleType = "break_response"
 )
 
-// Rule rewrites requests whose URL contains Match, in order, first match
-// wins. Target is a base URL for map_remote and a file for map_local.
+// Rule rewrites requests whose URL contains Match. Mapping/block rules use
+// first-match order; breakpoints match independently at their own phase.
+// An empty Method matches all methods. Old files remain enabled by default.
 type Rule struct {
-	Type   RuleType `json:"type"`
-	Match  string   `json:"match"`
-	Target string   `json:"target,omitempty"`
-	Status int      `json:"status,omitempty"`
+	Name     string      `json:"name,omitempty"`
+	Type     RuleType    `json:"type"`
+	Match    string      `json:"match"`
+	Method   string      `json:"method,omitempty"`
+	Target   string      `json:"target,omitempty"`
+	Status   int         `json:"status,omitzero"`
+	Headers  http.Header `json:"headers,omitempty"`
+	Disabled bool        `json:"disabled,omitzero"`
 }
 
 // Phase is where a breakpoint paused an exchange.
@@ -532,7 +537,7 @@ func requestHost(req *http.Request) string {
 // SetRules replaces the rules the proxy applies to new requests.
 func (s *Server) SetRules(rules []Rule) {
 	s.rulesMu.Lock()
-	s.rules = slices.Clone(rules)
+	s.rules = cloneRules(rules)
 	s.rulesMu.Unlock()
 }
 
@@ -540,7 +545,7 @@ func (s *Server) SetRules(rules []Rule) {
 func (s *Server) Rules() []Rule {
 	s.rulesMu.RLock()
 	defer s.rulesMu.RUnlock()
-	return slices.Clone(s.rules)
+	return cloneRules(s.rules)
 }
 
 // SetScript replaces the script the proxy runs. A nil script runs nothing.
@@ -618,7 +623,7 @@ func (s *Server) maybeBreak(f *proxy.Flow, phase Phase) *Decision {
 		return nil
 	}
 	raw := f.Request.URL.String()
-	if !s.matchesBreak(raw, phase) {
+	if !s.matchesBreak(raw, f.Request.Method, phase) {
 		return nil
 	}
 	id := int(s.bpNext.Add(1))
@@ -667,7 +672,7 @@ func (s *Server) maybeBreak(f *proxy.Flow, phase Phase) *Decision {
 	return d
 }
 
-func (s *Server) matchesBreak(raw string, phase Phase) bool {
+func (s *Server) matchesBreak(raw, method string, phase Phase) bool {
 	want := RuleBreak
 	if phase == PhaseResponse {
 		want = RuleBreakResponse
@@ -675,7 +680,7 @@ func (s *Server) matchesBreak(raw string, phase Phase) bool {
 	s.rulesMu.RLock()
 	defer s.rulesMu.RUnlock()
 	for _, r := range s.rules {
-		if r.Type == want && strings.Contains(raw, r.Match) {
+		if r.Type == want && r.matches(raw, method) {
 			return true
 		}
 	}
@@ -685,7 +690,7 @@ func (s *Server) matchesBreak(raw string, phase Phase) bool {
 // willBreakResponse reports whether a response for this flow will pause, so
 // the Response hook leaves publishing to the stream modifier.
 func (s *Server) willBreakResponse(f *proxy.Flow) bool {
-	return s.breakOn.Load() && f.Request != nil && s.matchesBreak(f.Request.URL.String(), PhaseResponse)
+	return s.breakOn.Load() && f.Request != nil && s.matchesBreak(f.Request.URL.String(), f.Request.Method, PhaseResponse)
 }
 
 // LoadRules reads a rules file. A missing file is no rules, not an error.
@@ -701,18 +706,8 @@ func LoadRules(path string) ([]Rule, error) {
 	if err := json.Unmarshal(data, &rules); err != nil {
 		return nil, fmt.Errorf("%s: %w", path, err)
 	}
-	for i, r := range rules {
-		switch r.Type {
-		case RuleMapRemote, RuleMapLocal, RuleBlock, RuleBreak, RuleBreakResponse:
-		default:
-			return nil, fmt.Errorf("%s: rule %d has unknown type %q", path, i, r.Type)
-		}
-		if r.Match == "" {
-			return nil, fmt.Errorf("%s: rule %d has no match", path, i)
-		}
-		if r.Type != RuleBlock && r.Type != RuleBreak && r.Type != RuleBreakResponse && r.Target == "" {
-			return nil, fmt.Errorf("%s: rule %d has no target", path, i)
-		}
+	if err := ValidateRules(rules); err != nil {
+		return nil, fmt.Errorf("%s: %w", path, err)
 	}
 	return rules, nil
 }
@@ -1034,7 +1029,7 @@ func (s *Server) applyRules(f *proxy.Flow) *proxy.Response {
 	}
 	raw := f.Request.URL.String()
 	for _, r := range rules {
-		if !strings.Contains(raw, r.Match) {
+		if !r.matches(raw, f.Request.Method) {
 			continue
 		}
 		switch r.Type {
@@ -1045,7 +1040,7 @@ func (s *Server) applyRules(f *proxy.Flow) *proxy.Response {
 				Body:       []byte("blocked by vscroxy\n"),
 			}
 		case RuleMapLocal:
-			body, err := os.ReadFile(r.Target)
+			body, err := readMockBody(r.Target)
 			if err != nil {
 				return &proxy.Response{
 					StatusCode: http.StatusBadGateway,
@@ -1053,20 +1048,23 @@ func (s *Server) applyRules(f *proxy.Flow) *proxy.Response {
 					Body:       []byte("map local: " + err.Error() + "\n"),
 				}
 			}
-			if len(body) > maxRuleBody {
-				body = body[:maxRuleBody]
-			}
 			status := r.Status
 			if status == 0 {
 				status = http.StatusOK
 			}
+			headers := r.Headers.Clone()
+			if headers == nil {
+				headers = make(http.Header)
+			}
+			stripHopHeaders(headers)
+			if headers.Get("Content-Type") == "" {
+				headers.Set("Content-Type", contentType(r.Target))
+			}
+			headers.Set("Content-Length", strconv.Itoa(len(body)))
 			return &proxy.Response{
 				StatusCode: status,
-				Header: http.Header{
-					"Content-Type":   {contentType(r.Target)},
-					"Content-Length": {fmt.Sprint(len(body))},
-				},
-				Body: body,
+				Header:     headers,
+				Body:       body,
 			}
 		case RuleMapRemote:
 			u, err := mapURL(f.Request.URL, r.Target)

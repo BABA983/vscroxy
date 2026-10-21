@@ -1128,3 +1128,92 @@ func TestUpstreamProxy(t *testing.T) {
 		t.Fatalf("clearing upstream: %v, %q", err, outer.Upstream())
 	}
 }
+
+func TestSavedRulesAndCompleteCapturedMock(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(202)
+		fmt.Fprint(w, "real upstream")
+	}))
+	defer upstream.Close()
+	dir := t.TempDir()
+	body := bytes.Repeat([]byte{'a', 0, 'z', 255}, 20003)
+	spill := filepath.Join(dir, "capture.bin")
+	if err := os.WriteFile(spill, body, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	rule, err := NewMockRule(filepath.Join(dir, "mocks"), Flow{
+		Method: "GET", URL: upstream.URL + "/asset", Status: 201,
+		ResponseBody: string(body[:64]), ResponseBodyFile: spill, ResponseBodySize: len(body),
+		ResponseHeader: http.Header{"Content-Type": {"application/custom"}, "Content-Encoding": {"gzip"}, "Content-Length": {"7"}, "Connection": {"X-Hop"}, "X-Hop": {"remove"}, "Set-Cookie": {"a=7", "b=19"}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(spill); err != nil {
+		t.Fatal(err)
+	}
+	rules := []Rule{{Type: RuleBlock, Match: "/asset", Disabled: true}, rule, {Type: RuleBlock, Match: "/asset"}}
+	path := filepath.Join(dir, "rules.json")
+	if err := SaveRules(path, rules); err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := LoadRules(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s, _ := startServerWithRules(t, loaded...)
+	// The running proxy owns its configuration, not the editor's maps.
+	loaded[1].Headers.Set("Content-Type", "wrong")
+	snapshot := s.Rules()
+	snapshot[1].Headers.Set("Content-Type", "also wrong")
+	client := clientFor(t, s, nil)
+	check := func(method string, status int, want []byte) {
+		t.Helper()
+		req, _ := http.NewRequestWithContext(t.Context(), method, upstream.URL+"/asset", nil)
+		resp, err := client.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		got, err := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if err != nil || resp.StatusCode != status || !bytes.Equal(got, want) {
+			t.Fatalf("%s: status %d body length %d, want %d/%d: %v", method, resp.StatusCode, len(got), status, len(want), err)
+		}
+		if status == 201 && (resp.Header.Get("Content-Type") != "application/custom" || resp.Header.Get("Content-Encoding") != "" || resp.Header.Get("X-Hop") != "" || len(resp.Cookies()) != 2) {
+			t.Fatalf("mock headers = %v", resp.Header)
+		}
+	}
+	check("GET", 201, body)
+	check("POST", 403, []byte("blocked by vscroxy\n")) // method-scoped mock must not handle POST
+	rules[0].Disabled = false
+	s.SetRules(rules)
+	check("GET", 403, []byte("blocked by vscroxy\n")) // first enabled mapping/block wins
+	rules[0], rules[1] = rules[1], rules[0]
+	s.SetRules(rules)
+	check("GET", 201, body) // reordering changes the winner
+	before, _ := os.ReadFile(path)
+	if err := SaveRules(path, []Rule{{Type: RuleMapRemote, Match: "x", Target: "file:///etc/passwd"}}); err == nil {
+		t.Fatal("invalid target accepted")
+	}
+	after, _ := os.ReadFile(path)
+	if !bytes.Equal(before, after) {
+		t.Fatal("failed save changed the existing rules")
+	}
+}
+
+func TestMockRefusesPartialOrStreamingResponse(t *testing.T) {
+	dir := t.TempDir()
+	for _, f := range []Flow{
+		{Method: "GET", URL: "http://example.test", Status: 200, ResponseBody: "head", ResponseBodySize: 65537},
+		{Method: "GET", URL: "http://example.test", Status: 200, ResponseBodyFile: filepath.Join(dir, "gone")},
+		{Method: "GET", URL: "http://example.test", Status: 200, Kind: "sse"},
+		{Method: "GET", URL: "http://example.test", Status: 200, ResponseBody: strings.Repeat("x", maxRuleBody+1)},
+	} {
+		if _, err := NewMockRule(filepath.Join(dir, "mocks"), f); err == nil {
+			t.Fatalf("incomplete/streaming response accepted: size %d kind %q", f.ResponseBodySize, f.Kind)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(dir, "mocks")); !os.IsNotExist(err) {
+		t.Fatal("rejected mocks left response files behind")
+	}
+}

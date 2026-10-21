@@ -509,3 +509,80 @@ func TestCurlImportAndCopyKeepExistingDrafts(t *testing.T) {
 		t.Fatal("copied cURL did not round-trip through the import UI")
 	}
 }
+
+func TestRuleEditorPersistsOrderingTogglesAndCapturedMock(t *testing.T) {
+	a := workspaceApp()
+	a.rulesPath = filepath.Join(t.TempDir(), "rules.json")
+	tt := ui.NewTester(a.view, 1100, 650)
+	click := func(label string) {
+		t.Helper()
+		if err := tt.Click(label); err != nil {
+			t.Fatal(err)
+		}
+	}
+	edit := func(label, value string) {
+		t.Helper()
+		click(label)
+		tt.Key(ui.Cmd, ui.KeyA)
+		tt.Type(value)
+	}
+	load := func() []capture.Rule {
+		t.Helper()
+		rules, err := capture.LoadRules(a.rulesPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return rules
+	}
+	click("Rules")
+	click("Save rule")
+	if !tt.HasText("rule 1: enter a URL substring to match") || len(load()) != 0 {
+		t.Fatal("invalid rule was saved or validation was hidden")
+	}
+	edit("Rule name", "Development API")
+	edit("URL contains", "/projects")
+	edit("Target base URL", "http://127.0.0.1:8081")
+	click("Save rule")
+	click("+ New rule")
+	click("Rule type")
+	click("Block")
+	edit("Rule name", "Block projects")
+	edit("URL contains", "/projects")
+	click("Save rule")
+	click("Move up")
+	click("Enable rule 1")
+	rules := load()
+	if len(rules) != 2 || rules[0].Type != capture.RuleBlock || !rules[0].Disabled || rules[1].Name != "Development API" {
+		t.Fatalf("order/toggle not persisted: %+v", rules)
+	}
+	click("Delete rule…")
+	click("Delete")
+	if rules = load(); len(rules) != 1 || rules[0].Name != "Development API" {
+		t.Fatalf("delete not persisted: %+v", rules)
+	}
+	click("Close")
+	if err := tt.RightClick("api.example.com/projects"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.ChooseMenuItem("Create rule", "Mock this response…"); err != nil {
+		t.Fatal(err)
+	}
+	edit("Response status", "201")
+	click("Save rule")
+	rules = load()
+	if len(rules) != 2 || rules[1].Type != capture.RuleMapLocal || rules[1].Status != 201 || rules[1].Method != "GET" || rules[1].Headers.Get("Content-Type") != "application/json" {
+		t.Fatalf("captured mock was not saved faithfully: %+v", rules)
+	}
+	body, err := os.ReadFile(rules[1].Target)
+	if err != nil || string(body) != `{"projects":[]}` {
+		t.Fatalf("mock body %q: %v", body, err)
+	}
+	click("Close")
+	click("Rules")
+	edit("Rule name", "Should not apply")
+	a.rulesPath = t.TempDir() // a directory cannot be replaced by a rule file
+	click("Save rule")
+	if a.rules[0].Name != "Development API" || a.ruleUI.problem == "" {
+		t.Fatal("failed persistence changed the active rules or hid the error")
+	}
+}

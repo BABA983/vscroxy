@@ -118,6 +118,7 @@ type app struct {
 	rulesPath  string
 	scriptPath string
 	rules      []capture.Rule
+	ruleUI     ruleEditor
 	throttle   capture.Throttle
 	upstream   string
 	errText    string
@@ -898,6 +899,7 @@ func (a *app) view(c *ui.Context) {
 	a.closeRequestModal(c, t)
 	a.apiGenerationModal(c, t)
 	a.curlImportModal(c, t)
+	a.rulesModal(c, t)
 }
 
 // upstreamModal edits the proxy every request goes through.
@@ -994,6 +996,9 @@ func (a *app) toolbar(c *ui.Context, t *ui.Theme) {
 			a.openCompose()
 		}
 		ui.Spacer(c)
+		if ui.Button(c, "Rules").FontSize(11).Height(28).Clicked() {
+			a.openRules()
+		}
 		ui.MenuButton(c, "Network", func(m *ui.Menu) {
 			for _, preset := range capture.Presets {
 				if m.Item(preset.Name).Checked(a.throttle.Name == preset.Name).Chosen() {
@@ -1754,6 +1759,7 @@ func statusColor(status int, t *ui.Theme) ui.Color {
 
 func main() {
 	a := newApp()
+	defer a.discardRuleDraft()
 	mygo.App.WhenReady(func() {
 		a.win = mygo.NewWindow(mygo.WindowOptions{
 			Title:           "vscroxy",
@@ -1865,6 +1871,17 @@ func (a *app) rowMenu(c *ui.Context, f flow) func(*ui.Menu) {
 		if m.Item("Save as request").Chosen() {
 			a.saveFlowAsRequest(f)
 		}
+		m.Submenu("Create rule", func(m *ui.Menu) {
+			for _, kind := range ruleTypes {
+				label := ruleLabel(kind) + "…"
+				if kind == capture.RuleMapLocal {
+					label = "Mock this response…"
+				}
+				if m.Item(label).Disabled(f.url == "" || f.method == "CONNECT").Chosen() {
+					a.ruleFromFlow(f, kind)
+				}
+			}
+		})
 		if m.Item("Replay").Chosen() {
 			go a.replay(f)
 		}
