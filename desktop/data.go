@@ -37,6 +37,8 @@ type flow struct {
 	processPath string
 	dns         string
 	conn        conn
+	color       string
+	note        string
 	pinned      bool
 	wait        int
 	download    int

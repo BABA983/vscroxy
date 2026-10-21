@@ -148,6 +148,12 @@ type app struct {
 	// connOpen shows the connection panel of the chosen flow.
 	connOpen bool
 
+	// mark edits what a flow is marked with: a color and a note.
+	markOpen  bool
+	markID    int
+	markColor string
+	markNote  string
+
 	// ignoreApps does the same by app, for a browser's background traffic.
 	ignoreAppsPath string
 	ignoreAppsText string
@@ -823,6 +829,7 @@ func (a *app) view(c *ui.Context) {
 	// The variables editor opens from the request editor, so it is drawn
 	// after it and over it.
 	a.varsModal(c, t)
+	a.markModal(c, t)
 }
 
 // upstreamModal edits the proxy every request goes through.
@@ -1180,6 +1187,11 @@ func (a *app) table(c *ui.Context) {
 			if f.pinned {
 				ui.Icon(c, pinIcon).Size(11, 11).Padding(0, 4, 0, 0).TextColor(color)
 			}
+			if f.color != "" {
+				if dot, ok := highlightColor(f.color); ok {
+					ui.Box(c).Size(8, 8).Radius(4).Background(dot).MarginEnd(5)
+				}
+			}
 			text(f.method).TextColor(color)
 		case 1:
 			if f.kind == "connect" && f.status == 0 {
@@ -1205,6 +1217,9 @@ func (a *app) table(c *ui.Context) {
 				scheme = t.AccentText
 			}
 			ui.Row(c).Gap(1).Children(func() {
+				if f.note != "" {
+					ui.Icon(c, noteIcon).Size(11, 11).TextColor(ui.Hex("#a1a1aa")).MarginEnd(4).Tooltip(f.note)
+				}
 				if f.dns != "" {
 					ui.Box(c).Size(28, 14).Radius(3).Background(ui.Hex("#d97706")).Center().MarginEnd(4).
 						Tooltip("DNS mapping " + f.dns).
@@ -1252,6 +1267,10 @@ func (a *app) detail(c *ui.Context) {
 				ui.Text(c, f.dns).FontSize(12).TextColor(t.TextMuted).
 					Tooltip("The proxy dialled this address; the request kept its name, Host header and SNI")
 			}
+			if f.note != "" {
+				ui.Icon(c, noteIcon).Size(12, 12).TextColor(t.TextMuted)
+				ui.Text(c, f.note).FontSize(12).TextColor(t.TextMuted).SingleLine().Width(220).Tooltip(f.note)
+			}
 			if ui.Button(c, "Replay").Disabled(f.url == "" || f.kind != "").Clicked() {
 				go a.replay(f)
 			}
@@ -1293,6 +1312,92 @@ func (a *app) detail(c *ui.Context) {
 			a.messages(c, f)
 		}
 	})
+}
+
+// noteIcon marks a flow a person wrote a note on.
+var noteIcon = ui.MustParseSVG([]byte(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M8 1.5c-3.9 0-7 2.7-7 6 0 1.9 1 3.5 2.6 4.6L3 15.2l3-1.7c.6.1 1.3.2 2 .2 3.9 0 7-2.7 7-6s-3.1-6.2-7-6.2Z"/></svg>`))
+
+// highlightColors are the colors a flow can be marked with, in menu order.
+var highlightColors = []struct{ name, hex string }{
+	{"Red", "#dc2626"},
+	{"Orange", "#ea580c"},
+	{"Yellow", "#ca8a04"},
+	{"Green", "#16a34a"},
+	{"Blue", "#2563eb"},
+	{"Purple", "#7c3aed"},
+}
+
+// highlightColor is the color a flow is marked with.
+func highlightColor(name string) (ui.Color, bool) {
+	for _, c := range highlightColors {
+		if c.name == name {
+			return ui.Hex(c.hex), true
+		}
+	}
+	return ui.Color{}, false
+}
+
+// openMark fills the mark dialog from a flow.
+func (a *app) openMark(f flow) {
+	a.markID = f.id
+	a.markColor = f.color
+	a.markNote = f.note
+	a.markOpen = true
+}
+
+// markModal marks a flow with a color and a note, the two things a person adds
+// to traffic while looking for the request that misbehaves.
+func (a *app) markModal(c *ui.Context, t *ui.Theme) {
+	if !a.markOpen {
+		return
+	}
+	ui.Modal(c, &a.markOpen, func() {
+		ui.Column(c).Width(460).Gap(10).Children(func() {
+			ui.Text(c, "Mark the request").FontSize(14).Bold()
+			ui.Text(c, "A color shows in the table beside the method, and the note in the URL cell and the detail header.").
+				FontSize(11).TextColor(t.TextMuted)
+			ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
+				for _, color := range highlightColors {
+					selected := a.markColor == color.name
+					ui.Box(c).Size(24, 24).Radius(5).Background(ui.Hex(color.hex)).Center().
+						Tooltip(color.name).
+						OnClick(func() { a.markColor = color.name }).
+						Children(func() {
+							if selected {
+								ui.Text(c, "✓").FontSize(12).Bold().TextColor(ui.Hex("#ffffff"))
+							}
+						})
+				}
+				if ui.Button(c, "None").Clicked() {
+					a.markColor = ""
+				}
+			})
+			ui.TextArea(c, &a.markNote).Height(90).Label("Note")
+			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
+				if ui.Button(c, "Cancel").Clicked() {
+					a.markOpen = false
+				}
+				if ui.PrimaryButton(c, "Save").Clicked() {
+					a.saveMark()
+				}
+			})
+		})
+	})
+}
+
+// saveMark writes the dialog's color and note onto the flow.
+func (a *app) saveMark() {
+	for i := range a.flows {
+		if a.flows[i].id == a.markID {
+			a.flows[i].color = a.markColor
+			a.flows[i].note = strings.TrimSpace(a.markNote)
+			break
+		}
+	}
+	a.markOpen = false
+	a.detailFor = -1
+	a.invalidate()
+	a.setMessage("Marked")
 }
 
 // infoIcon marks a header the Headers tab can explain, or a connection detail
@@ -1609,6 +1714,9 @@ func (a *app) rowMenu(c *ui.Context, f flow) func(*ui.Menu) {
 		m.Separator()
 		if m.Item(cmp.Or(pinLabel(f), "Pin")).Chosen() {
 			a.togglePin(f)
+		}
+		if m.Item("Mark…").Chosen() {
+			a.openMark(f)
 		}
 		if m.Item("Map this host…").Chosen() {
 			a.openDNSRule(hostOnly(f.host), f.process)

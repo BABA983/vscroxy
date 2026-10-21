@@ -326,6 +326,9 @@ type sessionFlow struct {
 	RespHeader http.Header `json:"respHeader,omitempty"`
 	At         time.Time   `json:"at"`
 	Kind       string      `json:"kind,omitempty"`
+	// Color and Note are what a person marked the flow with.
+	Color string `json:"color,omitempty"`
+	Note  string `json:"note,omitempty"`
 }
 
 type sessionFrameData struct {
@@ -343,7 +346,7 @@ func sessionFrom(flows []flow, frames map[int][]frame) sessionFile {
 			ReqHeaders: f.reqHeaders, ResHeaders: f.resHeaders,
 			ReqBody: f.body(false), ResBody: f.body(true),
 			ReqHeader: f.reqHeader, RespHeader: f.respHeader,
-			At: f.at, Kind: f.kind,
+			At: f.at, Kind: f.kind, Color: f.color, Note: f.note,
 		})
 	}
 	if len(frames) > 0 {
@@ -386,7 +389,7 @@ func readSession(path string) ([]flow, map[int][]frame, error) {
 			reqHeaders: f.ReqHeaders, resHeaders: f.ResHeaders,
 			reqBody: f.ReqBody, resBody: f.ResBody,
 			reqHeader: f.ReqHeader, respHeader: f.RespHeader,
-			at: f.At, kind: f.Kind,
+			at: f.At, kind: f.Kind, color: f.Color, note: f.Note,
 		})
 	}
 	frames := make(map[int][]frame, len(s.Frames))

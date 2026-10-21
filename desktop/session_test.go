@@ -42,6 +42,7 @@ func TestSessionRoundTrip(t *testing.T) {
 		id: 7, method: "WS", scheme: "ws", host: "example.com", path: "/",
 		url: "ws://example.com/", status: 101, kind: "ws",
 		reqHeaders: "CONNECT / HTTP/1.1", resHeaders: "HTTP/1.1 101",
+		color: "Red", note: "the frame that breaks it",
 	}}
 	frames := map[int][]frame{7: {
 		{direction: "out", kind: "text", data: "hi"},
@@ -58,6 +59,9 @@ func TestSessionRoundTrip(t *testing.T) {
 	}
 	if len(got) != 1 || got[0].id != 7 || got[0].kind != "ws" || got[0].status != 101 {
 		t.Fatalf("flows = %+v", got)
+	}
+	if got[0].color != "Red" || got[0].note != "the frame that breaks it" {
+		t.Fatalf("mark = %q / %q, want it kept", got[0].color, got[0].note)
 	}
 	if len(gotFrames[7]) != 2 || gotFrames[7][1].data != "hello" {
 		t.Fatalf("frames = %+v", gotFrames)
