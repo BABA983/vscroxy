@@ -177,6 +177,25 @@ type app struct {
 	composeHeaders string
 	composeBody    string
 
+	// composeTab picks which script the editor shows: the body, the script
+	// that runs before the send, or the one that runs after the response.
+	composeTab   int
+	composePre   string
+	composePost  string
+	composeTests []testResult
+	// composeSent is what a send resolved to once variables and the
+	// pre-request script had their say, so the table's row is found.
+	composeSentMethod string
+	composeSentURL    string
+
+	// envs are the variables a request uses as {{name}}, one set in use.
+	envsPath  string
+	envs      []environment
+	activeEnv string
+	varsOpen  bool
+	varsName  string
+	varsText  string
+
 	breakOn  bool
 	bp       *capture.Breakpoint
 	bpOpen   bool
@@ -241,8 +260,17 @@ func newApp() *app {
 			a.ignoreAppsPath = filepath.Join(home, ".vscroxy", "ignore-apps.txt")
 			a.dnsPath = filepath.Join(home, ".vscroxy", "dns.txt")
 			a.scriptPath = filepath.Join(home, ".vscroxy", "script.js")
+			a.envsPath = filepath.Join(home, ".vscroxy", "env.json")
 		}
 		a.reloadConfig()
+	}
+	if a.envsPath != "" {
+		if envs, active, err := loadEnvs(a.envsPath); err == nil {
+			a.envs, a.activeEnv = envs, active
+			if a.activeEnv == "" && len(envs) > 0 {
+				a.activeEnv = envs[0].Name
+			}
+		}
 	}
 	if a.historyPath != "" {
 		if list, err := loadHistory(a.historyPath); err == nil {
@@ -347,6 +375,13 @@ func (a *app) setMessage(msg string) {
 	a.mu.Lock()
 	a.message = clamp(msg, 72)
 	a.mu.Unlock()
+	if a.win != nil {
+		a.win.Invalidate()
+	}
+}
+
+// invalidate asks for a frame, so what a goroutine changed shows.
+func (a *app) invalidate() {
 	if a.win != nil {
 		a.win.Invalidate()
 	}
@@ -785,6 +820,9 @@ func (a *app) view(c *ui.Context) {
 			}
 		})
 	a.composeModal(c, t)
+	// The variables editor opens from the request editor, so it is drawn
+	// after it and over it.
+	a.varsModal(c, t)
 }
 
 // upstreamModal edits the proxy every request goes through.
@@ -1594,6 +1632,11 @@ func (a *app) openCompose() {
 	a.composeURL = "https://"
 	a.composeHeaders = ""
 	a.composeBody = ""
+	a.composePre = ""
+	a.composePost = ""
+	a.composeTab = 0
+	a.composeTests = nil
+	a.composeSentMethod, a.composeSentURL = "", ""
 	a.composeOpen = true
 }
 
@@ -1608,6 +1651,11 @@ func (a *app) composeFrom(f flow) {
 	a.composeURL = f.url
 	a.composeHeaders = headerBlock(f.reqHeader)
 	a.composeBody = f.body(false)
+	a.composePre = ""
+	a.composePost = ""
+	a.composeTab = 0
+	a.composeTests = nil
+	a.composeSentMethod, a.composeSentURL = "", ""
 	a.composeOpen = true
 }
 
@@ -1650,8 +1698,17 @@ func (a *app) composeModal(c *ui.Context, t *ui.Theme) {
 		return
 	}
 	ui.Modal(c, &a.composeOpen, func() {
-		ui.Column(c).Width(640).Gap(10).Children(func() {
-			ui.Text(c, cmp.Or(a.composeTitle, "Compose")).FontSize(14).Bold()
+		ui.Column(c).Width(680).Gap(10).Children(func() {
+			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+				ui.Text(c, cmp.Or(a.composeTitle, "Compose")).FontSize(14).Bold().Grow(1)
+				if names := a.envNames(); len(names) > 0 {
+					ui.Text(c, "Variables").FontSize(11).TextColor(t.TextMuted)
+					ui.Select(c, &a.activeEnv, names).Width(140)
+				}
+				if ui.Button(c, "Edit…").Clicked() {
+					a.openVars()
+				}
+			})
 			ui.Row(c).Gap(8).Children(func() {
 				ui.TextInput(c, &a.composeName).Grow(1).Placeholder("Name").Label("Name")
 				ui.TextInput(c, &a.composeCollection).Width(200).Placeholder("Collection").Label("Collection")
@@ -1661,9 +1718,28 @@ func (a *app) composeModal(c *ui.Context, t *ui.Theme) {
 				ui.TextInput(c, &a.composeURL).Grow(1).Label("URL")
 			})
 			ui.Text(c, "Headers").FontSize(11).TextColor(t.TextMuted)
-			ui.TextArea(c, &a.composeHeaders).Height(96).Label("Headers")
-			ui.Text(c, "Body").FontSize(11).TextColor(t.TextMuted)
-			ui.TextArea(c, &a.composeBody).Height(160).Label("Body")
+			ui.TextArea(c, &a.composeHeaders).Height(88).Label("Headers")
+			ui.Tabs(c, &a.composeTab, "Body", "Pre-request", "Tests")
+			switch a.composeTab {
+			case 0:
+				ui.TextArea(c, &a.composeBody).Height(140).Label("Body")
+			case 1:
+				ui.TextArea(c, &a.composePre).Height(140).Label("Pre-request script")
+				ui.Text(c, "req.method, req.url, req.body; req.get/set/remove(\"Header\", value); vars.get/set(name, value); test(name, pass); log(…)").
+					FontSize(11).TextColor(t.TextMuted)
+			case 2:
+				ui.TextArea(c, &a.composePost).Height(120).Label("Post-response script")
+				ui.Text(c, "res.status, res.body, res.get(\"Header\"), res.json(); test(name, pass); vars.set(name, value)").
+					FontSize(11).TextColor(t.TextMuted)
+				// The assertions belong beside the script that made them.
+				for _, result := range a.composeTests {
+					mark, color := "✓", t.Success
+					if !result.Pass {
+						mark, color = "✗", t.Danger
+					}
+					ui.Text(c, mark+" "+result.Name).FontSize(11).TextColor(color)
+				}
+			}
 			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
 				if ui.Button(c, "Cancel").Clicked() {
 					a.composeOpen = false
@@ -1682,39 +1758,164 @@ func (a *app) composeModal(c *ui.Context, t *ui.Theme) {
 	})
 }
 
+// envNames are the environments the editor offers, sorted.
+func (a *app) envNames() []string {
+	names := make([]string, 0, len(a.envs))
+	for _, e := range a.envs {
+		names = append(names, e.Name)
+	}
+	slices.Sort(names)
+	return names
+}
+
+// activeVars are the variables of the environment in use, which a request
+// fills its {{name}} from.
+func (a *app) activeVars() map[string]string {
+	for _, e := range a.envs {
+		if e.Name == a.activeEnv {
+			return maps.Clone(e.Vars)
+		}
+	}
+	return map[string]string{}
+}
+
+// applyVars keeps what a script set, in the environment in use.
+func (a *app) applyVars(vars map[string]string) {
+	name := cmp.Or(a.activeEnv, "default")
+	found := false
+	for i, e := range a.envs {
+		if e.Name == name {
+			a.envs[i].Vars = maps.Clone(vars)
+			found = true
+			break
+		}
+	}
+	if !found {
+		a.envs = append(a.envs, environment{Name: name, Vars: maps.Clone(vars)})
+	}
+	a.activeEnv = name
+	if err := saveEnvs(a.envsPath, a.envs, a.activeEnv); err != nil {
+		a.setMessage("Variables: " + err.Error())
+	}
+}
+
+// openVars fills the variables editor with the environment in use.
+func (a *app) openVars() {
+	a.varsName = cmp.Or(a.activeEnv, "default")
+	a.varsText = formatVars(a.activeVars())
+	a.varsOpen = true
+}
+
+// varsModal edits the variables of one environment, the one a request fills its
+// {{name}} from.
+func (a *app) varsModal(c *ui.Context, t *ui.Theme) {
+	if !a.varsOpen {
+		return
+	}
+	ui.Modal(c, &a.varsOpen, func() {
+		ui.Column(c).Width(520).Gap(10).Children(func() {
+			ui.Text(c, "Variables").FontSize(14).Bold()
+			ui.Text(c, "One \"name = value\" a line. A request uses them as {{name}}, in the URL, the headers, the body and the scripts.").
+				FontSize(11).TextColor(t.TextMuted)
+			ui.TextInput(c, &a.varsName).Label("Environment")
+			ui.TextArea(c, &a.varsText).Height(160).Label("Variables")
+			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
+				if ui.Button(c, "Cancel").Clicked() {
+					a.varsOpen = false
+				}
+				if ui.PrimaryButton(c, "Save").Clicked() {
+					a.saveVars()
+				}
+			})
+		})
+	})
+}
+
+// saveVars keeps the edited environment and puts it in use.
+func (a *app) saveVars() {
+	name := strings.TrimSpace(a.varsName)
+	if name == "" {
+		a.setMessage("Variables: the environment has no name")
+		return
+	}
+	vars := varLines(a.varsText)
+	found := false
+	for i, e := range a.envs {
+		if e.Name == name {
+			a.envs[i].Vars = vars
+			found = true
+			break
+		}
+	}
+	if !found {
+		a.envs = append(a.envs, environment{Name: name, Vars: vars})
+	}
+	a.activeEnv = name
+	if err := saveEnvs(a.envsPath, a.envs, a.activeEnv); err != nil {
+		a.setMessage("Variables: " + err.Error())
+		return
+	}
+	a.varsOpen = false
+	a.setMessage(fmt.Sprintf("Variables: %s, %d of them", name, len(vars)))
+}
+
 // sendComposed sends the editor's request through the proxy, so the result
-// lands in the table with the rest of the traffic.
+// lands in the table with the rest of the traffic. Variables fill it in, the
+// pre-request script may change it, and the post-response script sees what came
+// back and asserts on it.
 func (a *app) sendComposed() {
 	if a.srv == nil {
 		a.setMessage("Compose: no proxy running")
 		return
 	}
-	url := strings.TrimSpace(a.composeURL)
-	if url == "" {
+	vars := a.activeVars()
+	req := &jsRequest{
+		Method: strings.ToUpper(strings.TrimSpace(cmp.Or(expandVars(a.composeMethod, vars), "GET"))),
+		URL:    strings.TrimSpace(expandVars(a.composeURL, vars)),
+		Body:   expandVars(a.composeBody, vars),
+		header: parseHeaderBlock(expandVars(a.composeHeaders, vars)),
+	}
+	if req.URL == "" {
 		a.setMessage("Compose: the URL is empty")
 		return
 	}
+	run := &scriptRun{vars: maps.Clone(vars)}
+	if err := runScript(a.composePre, run, map[string]any{"req": req}); err != nil {
+		a.mu.Lock()
+		a.composeResult = "Pre-request script: " + err.Error()
+		a.composeTests = nil
+		a.mu.Unlock()
+		return
+	}
+	if !maps.Equal(run.vars, vars) {
+		a.applyVars(run.vars)
+	}
 	f := capture.Flow{
-		Method:        strings.ToUpper(strings.TrimSpace(cmp.Or(a.composeMethod, "GET"))),
-		URL:           url,
-		RequestHeader: parseHeaderBlock(a.composeHeaders),
-		RequestBody:   a.composeBody,
+		Method:        req.Method,
+		URL:           req.URL,
+		RequestHeader: req.header,
+		RequestBody:   req.Body,
 	}
-	a.composeBefore = 0
+	before := 0
 	if n := len(a.flows); n > 0 {
-		a.composeBefore = a.flows[n-1].id
+		before = a.flows[n-1].id
 	}
+	a.mu.Lock()
+	a.composeBefore = before
 	a.composeWaiting = true
 	a.composeResult = "Sending…"
+	a.composeTests = nil
+	a.composeSentMethod, a.composeSentURL = req.Method, req.URL
+	a.mu.Unlock()
 	a.history = pushHistory(a.history, historyEntry{
 		Method:  f.Method,
-		URL:     url,
+		URL:     req.URL,
 		Headers: a.composeHeaders,
 		Body:    a.composeBody,
 		At:      time.Now(),
 	})
 	a.saveHistory()
-	a.setMessage("Sent " + f.Method + " " + url)
+	a.setMessage("Sent " + f.Method + " " + req.URL)
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
@@ -1724,8 +1925,64 @@ func (a *app) sendComposed() {
 			a.composeResult = "Failed: " + err.Error()
 			a.mu.Unlock()
 			a.setMessage("Compose: " + err.Error())
+			return
 		}
+		got, ok := a.waitComposed(before, req.Method, req.URL)
+		if !ok {
+			a.mu.Lock()
+			a.composeWaiting = false
+			a.composeResult = "Sent, but the exchange is not in the table"
+			a.mu.Unlock()
+			a.invalidate()
+			return
+		}
+		res := &jsResponse{Status: got.status, Body: got.body(true), header: got.respHeader}
+		if err := runScript(a.composePost, run, map[string]any{"res": res}); err != nil {
+			a.mu.Lock()
+			a.composeWaiting = false
+			a.composeResult = "Post-response script: " + err.Error()
+			a.composeTests = nil
+			a.mu.Unlock()
+			a.invalidate()
+			return
+		}
+		if !maps.Equal(run.vars, vars) {
+			a.applyVars(run.vars)
+		}
+		summary := fmt.Sprintf("%d · %s · %d ms", got.status, humanBytes(got.bytes), got.millis)
+		if len(run.tests) > 0 {
+			summary += fmt.Sprintf(" · %d/%d tests", run.passed(), len(run.tests))
+		}
+		a.mu.Lock()
+		a.composeWaiting = false
+		a.composeResult = summary
+		a.composeTests = run.tests
+		a.mu.Unlock()
+		a.invalidate()
 	}()
+}
+
+// waitComposed is the flow a send produced, once the table has it.
+func (a *app) waitComposed(before int, method, url string) (flow, bool) {
+	deadline := time.Now().Add(3 * time.Second)
+	for {
+		a.mu.Lock()
+		for i := len(a.flows) - 1; i >= 0; i-- {
+			f := a.flows[i]
+			if f.id <= before {
+				break
+			}
+			if f.method == method && f.url == url {
+				a.mu.Unlock()
+				return f, true
+			}
+		}
+		a.mu.Unlock()
+		if time.Now().After(deadline) {
+			return flow{}, false
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
 }
 
 // sortVisible orders the shown rows by the chosen column, keeping the chosen
@@ -1868,6 +2125,8 @@ func (a *app) saveComposed() {
 		URL:        strings.TrimSpace(a.composeURL),
 		Headers:    a.composeHeaders,
 		Body:       a.composeBody,
+		Pre:        a.composePre,
+		Post:       a.composePost,
 	}
 	a.requests = upsertRequest(a.requests, r)
 	if a.historyPath != "" {
@@ -1917,6 +2176,11 @@ func (a *app) openSaved(collection, name string) {
 		a.composeURL = r.URL
 		a.composeHeaders = r.Headers
 		a.composeBody = r.Body
+		a.composePre = r.Pre
+		a.composePost = r.Post
+		a.composeTab = 0
+		a.composeTests = nil
+		a.composeSentMethod, a.composeSentURL = "", ""
 		a.composeOpen = true
 		return
 	}
@@ -2170,6 +2434,11 @@ func (a *app) openHistory(i int) {
 	a.composeURL = e.URL
 	a.composeHeaders = e.Headers
 	a.composeBody = e.Body
+	a.composePre = ""
+	a.composePost = ""
+	a.composeTab = 0
+	a.composeTests = nil
+	a.composeSentMethod, a.composeSentURL = "", ""
 	a.composeOpen = true
 }
 
@@ -2230,8 +2499,12 @@ func (a *app) noteComposed() {
 	if !waiting {
 		return
 	}
-	url := strings.TrimSpace(a.composeURL)
-	method := strings.ToUpper(strings.TrimSpace(cmp.Or(a.composeMethod, "GET")))
+	url := a.composeSentURL
+	method := a.composeSentMethod
+	if url == "" {
+		url = strings.TrimSpace(a.composeURL)
+		method = strings.ToUpper(strings.TrimSpace(cmp.Or(a.composeMethod, "GET")))
+	}
 	for i := len(a.flows) - 1; i >= 0; i-- {
 		f := a.flows[i]
 		if f.id <= before {
