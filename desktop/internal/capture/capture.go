@@ -1285,7 +1285,7 @@ func (s *Server) publishFlow(f *proxy.Flow, kind string, frames []Frame, status 
 		Process:          client.Name,
 		ProcessPath:      client.Path,
 		DNSMapped:        s.dnsMapped(f),
-		Conn:             s.connInfo(f),
+		Conn:             s.connInfo(f, start),
 	}
 	s.mu.Lock()
 	if len(s.flowIDs) > 4096 {
@@ -1310,15 +1310,21 @@ type ConnInfo struct {
 	Server    string // the address the proxy dialled
 	Resolved  string // the addresses the name resolved to
 	LookupMs  int    // how long that answer took
+	Flows     int    // how many requests this connection carried before this one
 	TLS       string // TLS version the upstream agreed on
 	Cipher    string // cipher suite the upstream agreed on
 	CertCN    string // the upstream certificate's common name
 	Issuer    string // who issued that certificate
 	CertUntil string // when it expires, as a date
+
+	// Reused says the connection was already open, so this request spent no
+	// time on connect or TLS; DNSFresh says the lookup happened during it.
+	Reused   bool
+	DNSFresh bool
 }
 
 // connInfo reads the connection an exchange ran over.
-func (s *Server) connInfo(f *proxy.Flow) ConnInfo {
+func (s *Server) connInfo(f *proxy.Flow, start time.Time) ConnInfo {
 	var ci ConnInfo
 	if f.Request != nil {
 		ci.Proto = f.Request.Proto
@@ -1328,6 +1334,8 @@ func (s *Server) connInfo(f *proxy.Flow) ConnInfo {
 			ci.Client = conn.Conn.RemoteAddr().String()
 			ci.Proxy = conn.Conn.LocalAddr().String()
 		}
+		ci.Flows = int(cc.FlowCount.Load())
+		ci.Reused = ci.Flows > 1
 		if server := cc.ServerConn; server != nil {
 			ci.Server = server.Address
 			if state := server.TlsState(); state != nil {
@@ -1350,6 +1358,7 @@ func (s *Server) connInfo(f *proxy.Flow) ConnInfo {
 			}
 			ci.Resolved = strings.Join(ips, ", ")
 			ci.LookupMs = int(lookup.Took.Milliseconds())
+			ci.DNSFresh = !lookup.At.Before(start)
 		}
 	}
 	return ci

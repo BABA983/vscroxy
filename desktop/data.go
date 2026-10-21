@@ -55,6 +55,9 @@ type conn struct {
 	certCN    string
 	issuer    string
 	certUntil string
+	flows     int
+	reused    bool
+	dnsFresh  bool
 }
 
 // maxBodyView bounds how much of a spilled body the Body tab reads back.
