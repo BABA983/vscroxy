@@ -44,5 +44,16 @@ step "downloading Go modules"
 cd "$repo_root/desktop"
 go mod download
 
+# MyGo's source, its docs (the website's markdown) and its examples come with
+# the module, pinned to the version the app builds against. A stable path makes
+# them easy to read instead of guessing the library's API.
+mygo_dir="$(go list -m -f '{{.Dir}}' github.com/egoist/mygo)"
+if [[ -n "$mygo_dir" ]]; then
+	mygo_version="$(go list -m -f '{{.Version}}' github.com/egoist/mygo)"
+	mkdir -p "$HOME/.cache"
+	ln -sfn "$mygo_dir" "$HOME/.cache/mygo"
+	step "mygo ${mygo_version}: source, docs and examples at ~/.cache/mygo"
+fi
+
 step "vetting the desktop app"
 go vet ./...
