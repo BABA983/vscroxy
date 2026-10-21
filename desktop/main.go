@@ -1043,9 +1043,15 @@ func (a *app) sidebar(c *ui.Context) {
 			if len(a.clients) > 0 {
 				ui.SidebarSection(c, "Apps", &a.clientsOpen, func() {
 					for _, d := range a.clients {
-						ui.SidebarItem(c, "client:"+d.name, nil, d.name).Children(func() {
-							ui.Badge(c, fmt.Sprint(d.n))
-						})
+						ui.SidebarItem(c, "client:"+d.name, nil, d.name).
+							ContextMenu(func(m *ui.Menu) {
+								if m.Item("Map a host for " + d.name + "…").Chosen() {
+									a.openDNSRule("", d.name)
+								}
+							}).
+							Children(func() {
+								ui.Badge(c, fmt.Sprint(d.n))
+							})
 					}
 				})
 			}
@@ -1447,7 +1453,7 @@ func (a *app) rowMenu(c *ui.Context, f flow) func(*ui.Menu) {
 			a.togglePin(f)
 		}
 		if m.Item("Map this host…").Chosen() {
-			a.openDNSRule(f)
+			a.openDNSRule(hostOnly(f.host), f.process)
 		}
 		if m.Item("Edit & resend").Chosen() {
 			a.composeFrom(f)
@@ -2214,10 +2220,10 @@ func (a *app) dnsRuleModal(c *ui.Context, t *ui.Theme) {
 	})
 }
 
-// openDNSRule fills the dialog from a flow: its host, and the app it came
-// from as the scope, since that is what the row already says.
-func (a *app) openDNSRule(f flow) {
-	a.dnsRuleHost = hostOnly(f.host)
+// openDNSRule fills the dialog from a flow's host and app, or from an app in
+// the sidebar that has no host yet, so the app is picked rather than spelled.
+func (a *app) openDNSRule(host, app string) {
+	a.dnsRuleHost = host
 	a.dnsRuleAddr = ""
 	a.dnsRuleScope = "Any app"
 	a.dnsRuleApps = []string{"Any app"}
@@ -2226,11 +2232,11 @@ func (a *app) openDNSRule(f flow) {
 			a.dnsRuleApps = append(a.dnsRuleApps, d.name)
 		}
 	}
-	if f.process != "" {
-		if !slices.Contains(a.dnsRuleApps, f.process) {
-			a.dnsRuleApps = append(a.dnsRuleApps, f.process)
+	if app != "" {
+		if !slices.Contains(a.dnsRuleApps, app) {
+			a.dnsRuleApps = append(a.dnsRuleApps, app)
 		}
-		a.dnsRuleScope = f.process
+		a.dnsRuleScope = app
 	}
 	a.dnsRuleOpen = true
 }
