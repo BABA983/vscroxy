@@ -61,7 +61,10 @@ the same method, scheme and URL.
 
 The table is laid out like a proxy tool's: method, status, the whole URL with
 its scheme, the app and its icon, the duration and the size. A click on a
-header sorts by that column.
+header sorts by that column. Ctrl-click adds a row to the choice and
+Shift-click chooses a range, which **Session → Choose all shown** and
+**Clear choice** also do without the keys; the status bar counts the rows
+chosen, and **Export chosen HAR…** writes just those.
 
 The chips above it keep one kind of traffic in view: HTTP or HTTPS by scheme,
 WebSocket and SSE by kind, and JSON, images or HTML by the response's content

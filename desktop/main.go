@@ -42,6 +42,9 @@ type app struct {
 	query  string
 	filter string
 	chip   int
+
+	// chosen are the rows chosen for a bulk action, by flow id.
+	chosen ui.Selection[int]
 	picked int
 	tab    int
 
@@ -892,6 +895,18 @@ func (a *app) toolbar(c *ui.Context, t *ui.Theme) {
 			if m.Item("Export HAR…").Chosen() {
 				a.exportHAR()
 			}
+			if m.Item("Export chosen HAR…").Chosen() {
+				a.exportChosen()
+			}
+			if m.Item("Choose all shown").Chosen() {
+				for _, at := range a.visible {
+					a.chosen.Add(a.flows[at].id)
+				}
+				a.setMessage(fmt.Sprintf("%d chosen", a.chosen.Len()))
+			}
+			if m.Item("Clear choice").Chosen() {
+				a.chosen.Clear()
+			}
 			if m.Item("Save session…").Chosen() {
 				a.saveSession()
 			}
@@ -928,6 +943,7 @@ func (a *app) toolbar(c *ui.Context, t *ui.Theme) {
 			// A pinned flow stays, the reason it was pinned.
 			a.flows = slices.DeleteFunc(a.flows, func(f flow) bool { return !f.pinned })
 			a.frames = make(map[int][]frame)
+			a.chosen.Clear()
 			a.picked = 0
 			a.detailFor = -1
 			a.query = ""
@@ -1048,10 +1064,11 @@ func (a *app) table(c *ui.Context) {
 		{Title: "", ID: "filler", Width: 14, Fixed: true},
 	}
 	state := &ui.ListState{
-		Selected: &a.picked,
-		Key:      func(row int) any { return a.flows[a.visible[row]].id },
-		Sort:     &a.sort,
-		Columns:  a.columns,
+		Selected:  &a.picked,
+		Selection: &a.chosen,
+		Key:       func(row int) any { return a.flows[a.visible[row]].id },
+		Sort:      &a.sort,
+		Columns:   a.columns,
 	}
 	ui.Table(c, state, cols, len(a.visible), func(row, col int) {
 		f := a.flows[a.visible[row]]
@@ -1194,6 +1211,9 @@ func (a *app) statusBar(c *ui.Context, t *ui.Theme) {
 			captured = "0 B"
 		}
 		ui.Text(c, captured+" captured").FontSize(11).TextColor(t.TextMuted)
+		if n := a.chosen.Len(); n > 0 {
+			ui.Text(c, fmt.Sprintf("%d chosen", n)).FontSize(11).TextColor(t.Text)
+		}
 		if a.dropped > 0 {
 			ui.Text(c, fmt.Sprintf("%d dropped", a.dropped)).FontSize(11).TextColor(ui.Hex("#d97706"))
 		}
@@ -2048,4 +2068,42 @@ func (a *app) noteComposed() {
 		a.mu.Unlock()
 		return
 	}
+}
+
+// selectedFlows are the flows chosen in the table, in the order captured.
+func (a *app) selectedFlows() []flow {
+	if a.chosen.Len() == 0 {
+		return nil
+	}
+	var out []flow
+	for _, f := range a.flows {
+		if a.chosen.Has(f.id) {
+			out = append(out, f)
+		}
+	}
+	return out
+}
+
+// exportChosen writes the chosen flows to a HAR file the user picks.
+func (a *app) exportChosen() {
+	flows := a.selectedFlows()
+	if len(flows) == 0 {
+		a.setMessage("Export chosen: no flow chosen")
+		return
+	}
+	go func() {
+		path, err := mygo.Dialog.Save(mygo.SaveDialogOptions{
+			Title:       "Export chosen flows",
+			DefaultPath: "vscroxy-chosen.har",
+			Filters:     []mygo.FileFilter{{Name: "HAR", Extensions: []string{"har"}}},
+		})
+		if err != nil || path == "" {
+			return
+		}
+		if err := writeHAR(path, flows); err != nil {
+			a.setMessage("HAR: " + err.Error())
+			return
+		}
+		a.setMessage(fmt.Sprintf("Exported %d flows to %s", len(flows), path))
+	}()
 }
