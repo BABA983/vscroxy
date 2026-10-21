@@ -12,6 +12,8 @@ func TestSettingsRoundTrip(t *testing.T) {
 		SidebarWidth: 264,
 		TablePercent: 55,
 		Columns:      columnLayout{Order: []string{"status", "url"}, Widths: map[string]float32{"url": 320}},
+		HeaderColumn: "x-request-id",
+		KeyLogPath:   "/tmp/keys.log",
 	}
 	if err := writeSettings(path, want); err != nil {
 		t.Fatalf("write: %v", err)
