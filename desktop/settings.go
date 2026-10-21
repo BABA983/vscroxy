@@ -21,6 +21,9 @@ type settings struct {
 	// HeaderColumn is the request or response header the table shows as a
 	// column of its own, empty for none.
 	HeaderColumn string `json:"headerColumn,omitempty"`
+	// KeyLogPath is where the TLS secrets go for Wireshark, empty when the
+	// key log is off.
+	KeyLogPath string `json:"keyLogPath,omitempty"`
 }
 
 // columnLayout is a table's columns as the user arranged them, saved with
@@ -73,6 +76,8 @@ func sameSettings(x, y settings) bool {
 	return x.Dark == y.Dark &&
 		x.SidebarWidth == y.SidebarWidth &&
 		x.TablePercent == y.TablePercent &&
+		x.HeaderColumn == y.HeaderColumn &&
+		x.KeyLogPath == y.KeyLogPath &&
 		slices.Equal(x.Columns.Order, y.Columns.Order) &&
 		maps.Equal(x.Columns.Widths, y.Columns.Widths)
 }

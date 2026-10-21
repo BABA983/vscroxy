@@ -148,6 +148,11 @@ type app struct {
 	dnsRuleScope string
 	dnsRuleApps  []string
 
+	// keyLogPath is the file the TLS secrets go to, which Wireshark reads.
+	keyLogPath  string
+	keyLogOpen  bool
+	keyLogInput string
+
 	// connOpen shows the connection panel of the chosen flow.
 	connOpen bool
 
@@ -260,6 +265,15 @@ func newApp() *app {
 		detailFor:      -1,
 		frames:         make(map[int][]frame),
 		throttle:       capture.Presets[0],
+	}
+	// The engine reads SSLKEYLOGFILE on its first handshake, so a key log the
+	// settings ask for has to be in the environment before it starts.
+	if home, err := os.UserHomeDir(); err == nil {
+		a.settingsPath = filepath.Join(home, ".vscroxy", "settings.json")
+		if saved, err := loadSettings(a.settingsPath); err == nil && saved.KeyLogPath != "" {
+			_ = os.Setenv("SSLKEYLOGFILE", saved.KeyLogPath)
+			a.keyLogPath = saved.KeyLogPath
+		}
 	}
 	srv, err := capture.New("127.0.0.1:7890", "")
 	if err != nil {
@@ -856,6 +870,7 @@ func (a *app) view(c *ui.Context) {
 	a.markModal(c, t)
 	a.filterModal(c, t)
 	a.columnModal(c, t)
+	a.keyLogModal(c, t)
 }
 
 // upstreamModal edits the proxy every request goes through.
@@ -1003,6 +1018,9 @@ func (a *app) toolbar(c *ui.Context, t *ui.Theme) {
 			}
 			if m.Item("Reveal certificate").Chosen() {
 				a.revealCA()
+			}
+			if m.Item("TLS key log…").Chosen() {
+				a.openKeyLog()
 			}
 			m.Separator()
 			if m.Item("Dark mode").Checked(a.dark).Chosen() {
@@ -2214,6 +2232,63 @@ func (a *app) waitComposed(before int, method, url string) (flow, bool) {
 	}
 }
 
+// openKeyLog fills the key log dialog with what is set now.
+func (a *app) openKeyLog() {
+	a.keyLogInput = a.keyLogPath
+	a.keyLogOpen = true
+}
+
+// keyLogModal turns the TLS key log on or off: the secrets go to a file
+// Wireshark reads, which is how it decrypts what this app captured.
+func (a *app) keyLogModal(c *ui.Context, t *ui.Theme) {
+	if !a.keyLogOpen {
+		return
+	}
+	ui.Modal(c, &a.keyLogOpen, func() {
+		ui.Column(c).Width(520).Gap(10).Children(func() {
+			ui.Text(c, "TLS key log").FontSize(14).Bold()
+			ui.Text(c, "The secrets go to a file Wireshark reads (SSLKEYLOGFILE), so it can decrypt this capture. The engine reads the variable once, when it first handshakes, so a change here takes effect from the next launch.").
+				FontSize(11).TextColor(t.TextMuted)
+			ui.TextInput(c, &a.keyLogInput).Placeholder("~/.vscroxy/keys.log").Label("File")
+			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
+				if a.keyLogPath != "" && ui.Button(c, "Turn off").Clicked() {
+					a.setKeyLog("")
+					a.keyLogOpen = false
+				}
+				if ui.Button(c, "Cancel").Clicked() {
+					a.keyLogOpen = false
+				}
+				if ui.PrimaryButton(c, "Save").Clicked() {
+					a.setKeyLog(strings.TrimSpace(a.keyLogInput))
+					a.keyLogOpen = false
+				}
+			})
+		})
+	})
+}
+
+// setKeyLog keeps the file the secrets go to, and sets the variable the engine
+// reads, which is too late for this run.
+func (a *app) setKeyLog(path string) {
+	if path != "" {
+		if home, err := os.UserHomeDir(); err == nil {
+			if rest, ok := strings.CutPrefix(path, "~/"); ok {
+				path = filepath.Join(home, rest)
+			}
+		}
+	}
+	a.keyLogPath = path
+	if path == "" {
+		_ = os.Unsetenv("SSLKEYLOGFILE")
+		a.setMessage("TLS key log off")
+	} else {
+		_ = os.Setenv("SSLKEYLOGFILE", path)
+		a.setMessage("TLS keys go to " + path + " from the next launch")
+	}
+	a.persistSettings()
+	a.invalidate()
+}
+
 // filtersActive says whether a content filter narrows the table.
 func (a *app) filtersActive() bool {
 	return a.filterStatus != "" || a.filterHeader != "" || a.filterBody != ""
@@ -2716,6 +2791,7 @@ func (a *app) persistSettings() {
 		TablePercent: a.tablePercent,
 		Columns:      savedLayout(a.columns),
 		HeaderColumn: a.headerColumn,
+		KeyLogPath:   a.keyLogPath,
 	}
 	if sameSettings(now, a.saved) || time.Since(a.lastSave) < 400*time.Millisecond {
 		return
