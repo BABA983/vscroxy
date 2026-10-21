@@ -4,7 +4,7 @@ go 1.27.3
 
 require (
 	github.com/dop251/goja v0.0.0-20261019185110-cf7b1419c9c0
-	github.com/egoist/mygo v0.5.5
+	github.com/egoist/mygo v0.6.2
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/websocket v1.5.3
 	github.com/lqqyt2423/go-mitmproxy v1.9.4
