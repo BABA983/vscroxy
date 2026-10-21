@@ -1,0 +1,120 @@
+package main
+
+import (
+	"cmp"
+
+	"github.com/egoist/mygo/ui"
+)
+
+var (
+	captureIcon  = ui.MustParseSVG([]byte(`<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12h5l3-8 4 16 3-8h5"/></svg>`))
+	requestIcon  = ui.MustParseSVG([]byte(`<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M8 13l-2 2 2 2m8-4 2 2-2 2m-3-5-2 6"/></svg>`))
+	settingsIcon = ui.MustParseSVG([]byte(`<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m9 3-.6 3-2 .9L3.6 6 2 9l2.3 2v2L2 15l1.6 3 2.8-.9 2 .9.6 3h6l.6-3 2-.9 2.8.9 1.6-3-2.3-2v-2L22 9l-1.6-3-2.8.9-2-.9L15 3Z"/><circle cx="12" cy="12" r="3"/></svg>`))
+	plusIcon     = ui.MustParseSVG([]byte(`<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>`))
+)
+
+// appTheme keeps content quiet and gives navigation and controls a separate
+// surface. Both appearances use the same typography and spacing.
+func appTheme(dark bool) *ui.Theme {
+	t := ui.LightTheme()
+	if dark {
+		t = ui.DarkTheme()
+		t.Background = ui.Hex("#171a21")
+		t.Surface = ui.Hex("#20242e")
+		t.SurfaceHover = ui.Hex("#2b3140")
+		t.SurfacePressed = ui.Hex("#343d50")
+		t.Border = ui.Hex("#343b49")
+		t.Text = ui.Hex("#e5e9f0")
+		t.TextMuted = ui.Hex("#a3adbd")
+	} else {
+		t.Background = ui.Hex("#ffffff")
+		t.Surface = ui.Hex("#f2f4f8")
+		t.SurfaceHover = ui.Hex("#e8ecf3")
+		t.SurfacePressed = ui.Hex("#dce3ee")
+		t.Border = ui.Hex("#dce1e9")
+		t.Text = ui.Hex("#202939")
+		t.TextMuted = ui.Hex("#667387")
+	}
+	t.FontSize = 13
+	t.Radius = 7
+	return t
+}
+
+// settingsModal groups infrequent system actions away from capture controls.
+// The existing editors still own their values and persistence.
+func (a *app) settingsModal(c *ui.Context, t *ui.Theme) {
+	if !a.settingsOpen {
+		return
+	}
+	ui.Modal(c, &a.settingsOpen, func() {
+		ui.Column(c).Width(620).Height(372).Gap(16).Children(func() {
+			ui.Text(c, "Settings").FontSize(18).Bold()
+			ui.Tabs(c, &a.settingsTab, "General", "Proxy", "Certificates")
+			ui.Column(c).Grow(1).Gap(14).Padding(8, 0).Children(func() {
+				switch a.settingsTab {
+				case 0:
+					ui.Row(c).AlignItems(ui.Center).Children(func() {
+						ui.Column(c).Grow(1).Gap(4).Children(func() {
+							ui.Text(c, "Dark appearance").Bold()
+							ui.Text(c, "Use a low-glare palette for traffic and editors.").FontSize(12).TextColor(t.TextMuted)
+						})
+						ui.Switch(c, &a.dark).Label("Dark appearance")
+					})
+					ui.Divider(c)
+					ui.Text(c, "Rules & scripts").Bold()
+					ui.Text(c, "Reload proxy rules, DNS mappings, ignore lists and the capture script from disk.").FontSize(12).TextColor(t.TextMuted)
+					if ui.Button(c, "Reload configuration").Clicked() {
+						a.reloadConfig()
+					}
+				case 1:
+					addr := "Capture is not running"
+					if a.srv != nil {
+						addr = "Proxy address: " + a.srv.Addr()
+					}
+					ui.Text(c, addr).Bold()
+					ui.Text(c, "System proxy changes affect other applications. You can also configure a client to use this address manually.").FontSize(12).TextColor(t.TextMuted)
+					ui.Row(c).Gap(8).Children(func() {
+						if ui.Button(c, "Enable system proxy").Disabled(a.srv == nil).Clicked() {
+							a.setSystemProxy(true)
+						}
+						if ui.Button(c, "Disable system proxy").Clicked() {
+							a.setSystemProxy(false)
+						}
+					})
+					ui.Divider(c)
+					ui.Text(c, "Upstream: "+cmp.Or(a.upstream, "Direct connection")).FontSize(12).TextColor(t.TextMuted).SingleLine()
+					if ui.Button(c, "Configure upstream…").Clicked() {
+						a.settingsOpen = false
+						a.upstreamAddr, a.upstreamOpen = a.upstream, true
+					}
+				case 2:
+					ui.Text(c, "HTTPS inspection").Bold()
+					ui.Text(c, "Trust the local CA on the client to inspect encrypted traffic. Installing a certificate may require system permission.").FontSize(12).TextColor(t.TextMuted)
+					ui.Text(c, cmp.Or(shortenHome(a.caPath), "No local CA available")).FontSize(12).TextColor(t.TextMuted).SingleLine().Tooltip(a.caPath)
+					ui.Row(c).Gap(8).Children(func() {
+						if ui.Button(c, "Install certificate…").Disabled(a.caPath == "").Clicked() {
+							a.installCA()
+						}
+						if ui.Button(c, "Reveal certificate").Disabled(a.caPath == "").Clicked() {
+							a.revealCA()
+						}
+					})
+					ui.Row(c).Gap(8).Children(func() {
+						if ui.Button(c, "SSL proxying…").Clicked() {
+							a.settingsOpen, a.sslOpen = false, true
+						}
+						if ui.Button(c, "TLS key log…").Clicked() {
+							a.settingsOpen = false
+							a.openKeyLog()
+						}
+					})
+				}
+			})
+			ui.Row(c).Justify(ui.End).Children(func() {
+				if ui.Button(c, "Done").Clicked() {
+					a.settingsOpen = false
+				}
+			})
+		})
+	})
+}

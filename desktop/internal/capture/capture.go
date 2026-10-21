@@ -755,9 +755,11 @@ func (s *Server) Close() error {
 	return err
 }
 
-// Replay sends the flow's request again through this proxy, so the exchange
-// is captured like any other and can be compared with the original.
-func (s *Server) Replay(ctx context.Context, f Flow) error {
+// Replay sends the flow's request again through this proxy. It returns the
+// response to this send, independently of the capture queue, so concurrent
+// sends of the same URL cannot pick up each other's responses. The preview
+// keeps at most 8 MiB; the capture still keeps the complete exchange.
+func (s *Server) Replay(ctx context.Context, f Flow) (Flow, error) {
 	rawURL := f.URL
 	if rawURL == "" {
 		rawURL = f.Scheme + "://" + f.Host + f.Path
@@ -774,7 +776,7 @@ func (s *Server) Replay(ctx context.Context, f Flow) error {
 	}
 	req, err := http.NewRequestWithContext(ctx, f.Method, rawURL, body)
 	if err != nil {
-		return err
+		return Flow{}, err
 	}
 	for key, values := range f.RequestHeader {
 		for _, value := range values {
@@ -793,13 +795,27 @@ func (s *Server) Replay(ctx context.Context, f Flow) error {
 			TLSClientConfig: &tls.Config{RootCAs: s.roots},
 		},
 	}
+	defer client.CloseIdleConnections()
+	started := time.Now()
 	resp, err := client.Do(req)
 	if err != nil {
-		return err
+		return Flow{}, err
 	}
 	defer resp.Body.Close()
-	_, err = io.Copy(io.Discard, resp.Body)
-	return err
+	preview, err := io.ReadAll(io.LimitReader(resp.Body, 8<<20))
+	if err != nil {
+		return Flow{}, err
+	}
+	rest, err := io.Copy(io.Discard, resp.Body)
+	if err != nil {
+		return Flow{}, err
+	}
+	return Flow{
+		Method: req.Method, URL: rawURL, Status: resp.StatusCode,
+		ResponseHeader: resp.Header.Clone(), ResponseBody: string(preview),
+		ResponseBodySize: len(preview) + int(rest), Bytes: len(preview) + int(rest),
+		Millis: int(time.Since(started).Milliseconds()), At: time.Now(),
+	}, nil
 }
 
 // addon records when a request started, applies the rules, and publishes it

@@ -40,19 +40,26 @@ go tool mygo dev
 
 - `main.go`: the app state, the three-pane layout, the toolbar, the traffic
   table, the detail tabs and the status bar.
+- `requests.go`: independent request documents, their tabs, draft-close
+  confirmation and the inline response viewer.
+- `apis.go` / `openapi.go`: the APIs workspace, local specification storage,
+  OpenAPI validation, collection-to-contract drafts and endpoint-to-request conversion.
 - `data.go`: seeded flows for the case where the proxy cannot start, and
   formatting helpers.
 - `internal/capture`: the MITM proxy and the `Flow` boundary type. The UI
   imports this package, never the engine.
 - `internal/system`: the per-platform proxy and trust-store helpers behind the
-  System menu.
+  Settings dialog.
 - `internal/procinfo`: which local process owns a connection, for the Client
   column.
 - `internal/appicon`: the app's icon, from its `.desktop` entry on Linux.
 - `mygo.json`: the app's name, identifier and version for `mygo package`.
 
-The layout is the Proxyman one: filters and domains on the left, the request
-table in the middle, and Headers / Body / Diff under it. The diff pane is
+The **Capture** workspace has filters, domains and apps on the left, the
+traffic table above, and Headers / Body / Diff below it. Request and response
+headers scroll independently side by side. **Requests** has its own collection
+and history sidebar and a tabbed editor; switching workspaces preserves the
+capture filters and all open drafts and responses. The diff pane is
 MyGo's own `ui/editor` diff viewer, not Monaco, so it stays native and can be
 reused on mobile later. It compares a response with the previous response for
 the same method, scheme and URL.
@@ -74,7 +81,7 @@ status bar counts the flows, the bytes captured and the last message.
 A row's menu carries what a captured request is worth outside the table:
 **Copy URL**, **Copy as cURL** (its headers, body and URL as a shell
 command), **Open in browser**, **Copy response body**, **Pin to the top**,
-**Edit in Compose**, **Save as request** (into the saved ones, under a name of
+**Edit & resend**, **Save as request** (into the saved ones, under a name of
 its own, so a second save does not replace the first), and **Replay**.
 
 ## Rules
@@ -99,8 +106,8 @@ first match wins. `match` is a substring of the full URL.
 - `break` pauses the request until you decide, and `break_response` pauses
   the response (see below).
 
-The toolbar's **Reload rules** button rereads the file. A missing file means
-no rules.
+**Settings → General → Reload configuration** rereads the file. A missing
+file means no rules.
 
 ## Breakpoints
 
@@ -136,8 +143,8 @@ function onResponse(res) {
 
 Each hook runs in a fresh sandbox with a 250 ms limit and no files or
 network; a hook that loops is interrupted and counted in the status bar.
-Streaming and SSE responses skip the response hook. **Reload config** rereads
-both the rules and the script.
+Streaming and SSE responses skip the response hook. **Reload configuration**
+rereads both the rules and the script.
 
 ## Bodies
 
@@ -227,18 +234,33 @@ against the original (same method, scheme and URL). A replay trusts the
 system's CAs and the proxy's own, so an HTTPS flow replays without the CA
 being trusted machine wide.
 
-## Compose
+## Requests
 
-**Compose** writes a request by hand: method, URL, headers as `Key: Value`
-lines, and a body. **Send** runs it through the proxy, so the exchange lands in
-the table with the rest of the traffic, and the editor stays open under a
-line saying what came back (`200 · 577 B · 48 ms`), so a request can be
-changed and sent again without opening it anew. A row's **Edit & resend**
-fills the editor with what was captured. A row's **Edit in Compose** fills the
-editor with what was captured, the step from traffic to a request worth
-keeping.
+**New request** opens a document tab in **Requests**. Method, URL and **Send**
+are the main action row; **Headers**, **Body** and **Scripts** select what is
+being edited. Headers remain `Key: Value` lines, and Scripts contains separate
+pre-request and post-response editors. **Send** runs through the proxy and
+shows the response body (formatted and highlighted for JSON), headers,
+status, duration, size and test results below the editor. The exchange also
+lands in Capture. The inline response preview is limited to 8 MiB; Capture
+retains the complete body.
 
-**Save** keeps the editor's request under its name in
+Each tab owns its draft, editor selection, pending send and response. Concurrent
+sends, even to the same URL, retain their own results and run the script that
+was present when sent. Script variable updates go to the originating environment
+without overwriting unrelated variables changed by another tab. Reopening a
+saved request focuses its existing tab instead of replacing unsaved edits.
+A dot marks unsaved changes; closing offers **Cancel**, **Discard** or
+**Save & close**. A failed save leaves the draft open. Sending tabs cannot be
+closed until the send finishes. Open tabs are session-local, not restored on
+restart.
+
+A captured row's **Edit & resend** creates a new draft and links back to its
+source flow while that flow remains in the capture session. This is the step
+from traffic to a request worth keeping; saved collections can then become
+independent contracts in **APIs**.
+
+**Save request** keeps the editor's request under its name in
 `~/.vscroxy/requests.json`, replacing one of the same name in the same
 collection; the sidebar groups the saved requests by collection, and the
 **Session** menu exports and imports them as a file.
@@ -246,6 +268,46 @@ collection; the sidebar groups the saved requests by collection, and the
 **History** lists what Compose sent, newest first, without repeats of the
 same method and URL, in `~/.vscroxy/history.json`; clicking one fills the
 editor with it again, and **Session → Clear history** empties the list.
+
+## APIs / OpenAPI
+
+The third workspace holds contracts independently of the request library.
+**From collection…** (also **Session → Generate OpenAPI…**) generates a new
+OpenAPI 3.0.3 draft from the selected saved collection, not unsaved request tabs.
+It merges equal method/path operations and retains their observed servers.
+`{{id}}` in a path becomes an OpenAPI path parameter; literal IDs stay literal.
+The generator omits query/header/body values, URL credentials, request titles
+and scripts. Review literal paths and parameter names for sensitive data before
+sharing. Authentication, parameter types, body schemas and response status codes
+still need human review: a captured example is not a complete API contract.
+**Review notes** explains these limits beside the draft.
+
+**New** creates a standalone specification; **Import…** opens OpenAPI 3.0/3.1
+JSON or YAML, including internal `#/` references and 3.1 schemas. External files
+and URLs are not fetched. Documents are limited to 16 MiB. **OpenAPI** is a native
+syntax-highlighted editor; **Validate** checks the structure with kin-openapi.
+Edited source must be validated before its endpoints can be used or exported.
+**Save API** validates and persists only that specification, leaving other
+unsaved editors untouched. Invalid source or a failed save never replaces the
+saved version. **Export…** writes the current validated source, preserving
+comments, formatting and extensions rather than rebuilding the document.
+
+**Endpoints → Open in Requests** opens an unsent draft with a link back to the
+API editor. It uses the first server at operation, path or document scope,
+substitutes declared server defaults, and creates `{{name}}` placeholders for
+path and required query/header parameters. Without a server it uses
+`{{base_url}}`; configure that environment variable before sending. JSON body
+examples are used when supplied; schemas are not converted into invented
+payloads. Review authentication, parameter serialization and the body before
+sending; no runtime authentication or scripts are inferred from the specification.
+
+Specifications live in `~/.vscroxy/apis.json`. Saving requests does not update
+them. A generated specification tracks its source collection and shows a warning
+when saved requests change; **Generate new draft** creates another specification,
+never overwriting hand edits. There is no automatic/bidirectional sync, multi-file
+bundling, Swagger 2 import or schema inference yet. Unsaved API editors and source
+links are session-local; saved contracts are restored after restart. Cmd/Ctrl+3
+opens the workspace.
 
 ## Timing
 
@@ -256,8 +318,11 @@ throttle adds, so it matches what the client saw.
 
 ## System proxy and certificate
 
-The **System** menu points the machine at the proxy and installs the CA, so a
-client needs no manual setup:
+**Settings → Proxy** controls the system proxy; **Settings → Certificates**
+contains the CA and TLS inspection actions. The native menu also opens
+Settings with Cmd/Ctrl+,; Cmd/Ctrl+1 and Cmd/Ctrl+2 switch workspaces, and
+Cmd/Ctrl+N starts a request. On Linux and Windows, Alt reveals the native
+menu bar.
 
 - **Enable system proxy** sets the proxy to `127.0.0.1:7890`; **Disable system
   proxy** turns it off again. Linux writes the GNOME proxy settings with

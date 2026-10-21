@@ -114,7 +114,7 @@ func TestReplayTrustsTheProxyCA(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	if err := s.Replay(ctx, f); err != nil {
+	if _, err := s.Replay(ctx, f); err != nil {
 		t.Fatalf("replay of an HTTPS flow: %v", err)
 	}
 	if again := waitFlow(t, s); again.ResponseBody != "replayed" {
@@ -447,7 +447,7 @@ func TestSpillsLargeBodiesToDisk(t *testing.T) {
 	// A replay must send the whole body, not the head the flow kept.
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	if err := s.Replay(ctx, f); err != nil {
+	if _, err := s.Replay(ctx, f); err != nil {
 		t.Fatalf("replay: %v", err)
 	}
 	if got := <-sizes; got != len(big) {
@@ -672,8 +672,12 @@ func TestReplay(t *testing.T) {
 	_ = resp.Body.Close()
 	first := waitFlow(t, s)
 
-	if err := s.Replay(t.Context(), first); err != nil {
+	reply, err := s.Replay(t.Context(), first)
+	if err != nil {
 		t.Fatalf("replay: %v", err)
+	}
+	if reply.Status != 200 || reply.ResponseBody != `{"call":2}` || reply.Bytes != 10 {
+		t.Fatalf("send returned the wrong response: %+v", reply)
 	}
 	second := waitFlow(t, s)
 	if second.URL != first.URL || second.Method != first.Method {
