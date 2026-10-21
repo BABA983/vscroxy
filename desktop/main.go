@@ -73,7 +73,6 @@ type app struct {
 	// detailFor is the flow the detail panes were built from, so the text and
 	// the diff buffers are rebuilt only when the choice changes.
 	detailFor int
-	headers   string
 	body      string
 	reqBody   string
 	diff      *editor.DiffState
@@ -145,6 +144,9 @@ type app struct {
 	dnsRuleAddr  string
 	dnsRuleScope string
 	dnsRuleApps  []string
+
+	// connOpen shows the connection panel of the chosen flow.
+	connOpen bool
 
 	// ignoreApps does the same by app, for a browser's background traffic.
 	ignoreAppsPath string
@@ -589,8 +591,21 @@ func (a *app) drain() {
 			process:     f.Process,
 			processPath: f.ProcessPath,
 			dns:         f.DNSMapped,
-			wait:        f.Wait,
-			download:    f.Download,
+			conn: conn{
+				proto:     f.Conn.Proto,
+				client:    f.Conn.Client,
+				proxy:     f.Conn.Proxy,
+				server:    f.Conn.Server,
+				resolved:  f.Conn.Resolved,
+				lookupMs:  f.Conn.LookupMs,
+				tls:       f.Conn.TLS,
+				cipher:    f.Conn.Cipher,
+				certCN:    f.Conn.CertCN,
+				issuer:    f.Conn.Issuer,
+				certUntil: f.Conn.CertUntil,
+			},
+			wait:     f.Wait,
+			download: f.Download,
 		})
 	}
 	for _, f := range a.flows[len(a.flows)-len(pending):] {
@@ -706,10 +721,10 @@ func (a *app) syncDetail() {
 		return
 	}
 	a.detailFor = f.id
+	a.connOpen = false
 	if f.kind == "" && a.tab == 4 {
 		a.tab = 0
 	}
-	a.headers = f.reqHeaders + "\n\n" + f.resHeaders
 	a.body = f.body(true)
 	a.reqBody = f.body(false)
 	a.jsonFor = ""
@@ -1196,8 +1211,15 @@ func (a *app) detail(c *ui.Context) {
 			if ui.Button(c, "Replay").Disabled(f.url == "" || f.kind != "").Clicked() {
 				go a.replay(f)
 			}
-			ui.Text(c, fmt.Sprintf("%d · %s · %d ms", f.status, humanBytes(f.bytes), f.millis)).
+			chip := ui.Text(c, fmt.Sprintf("%d · %s · %d ms", f.status, humanBytes(f.bytes), f.millis)).
 				FontSize(12).TextColor(statusColor(f.status, t))
+			if doc := statusDoc(f.status); doc != "" {
+				chip = chip.Tooltip(doc)
+			}
+			info := ui.Icon(c, infoIcon).Size(13, 13).TextColor(t.TextMuted).
+				Tooltip("Connection: addresses, DNS and TLS").
+				OnClick(func() { a.connOpen = !a.connOpen })
+			ui.Popover(c, info, &a.connOpen, func() { a.connPanel(c, t, f) })
 		})
 		if f.kind == "connect" {
 			a.connectPanel(c, f)
@@ -1214,9 +1236,7 @@ func (a *app) detail(c *ui.Context) {
 		}
 		switch a.tab {
 		case 0:
-			ui.Scroll(c).Grow(1).Padding(12).Children(func() {
-				ui.Text(c, a.headers).FontSize(12).Font("monospace").TextColor(t.Text)
-			})
+			a.headersView(c, f)
 		case 1:
 			a.bodyView(c, f)
 		case 2:
@@ -1229,6 +1249,100 @@ func (a *app) detail(c *ui.Context) {
 			a.messages(c, f)
 		}
 	})
+}
+
+// infoIcon marks a header the Headers tab can explain, or a connection detail
+// worth opening.
+var infoIcon = ui.MustParseSVG([]byte(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M8 1.3a6.7 6.7 0 1 0 0 13.4A6.7 6.7 0 0 0 8 1.3Zm0 1.5a5.2 5.2 0 1 1 0 10.4A5.2 5.2 0 0 1 8 2.8Zm0 1.6a.95.95 0 1 0 0 1.9.95.95 0 0 0 0-1.9Zm-.85 3.2v4h1.7v-4Z"/></svg>`))
+
+// connPanel is the connection behind a flow: who talked to the proxy, where it
+// dialled, the addresses the name resolved to, and what TLS agreed on.
+func (a *app) connPanel(c *ui.Context, t *ui.Theme, f flow) {
+	cn := f.conn
+	ui.Column(c).Width(440).Gap(2).Padding(4).Children(func() {
+		ui.Text(c, "Connection").FontSize(12).Bold().TextColor(t.Text).Padding(0, 0, 6, 0)
+		field(c, t, "HTTP version", cn.proto)
+		field(c, t, "Client", cn.client)
+		field(c, t, "Proxy", cn.proxy)
+		field(c, t, "Upstream", cn.server)
+		resolved := cn.resolved
+		if resolved != "" {
+			resolved = fmt.Sprintf("%s  (%d ms)", resolved, cn.lookupMs)
+		}
+		field(c, t, "Resolved", resolved)
+		tls := cn.tls
+		if cn.cipher != "" {
+			if tls != "" {
+				tls += " · "
+			}
+			tls += cn.cipher
+		}
+		field(c, t, "TLS", tls)
+		cert := cn.certCN
+		if cn.issuer != "" {
+			cert = fmt.Sprintf("%s, issued by %s", cert, cn.issuer)
+		}
+		if cn.certUntil != "" {
+			cert += ", until " + cn.certUntil
+		}
+		field(c, t, "Certificate", strings.TrimPrefix(cert, ", "))
+	})
+}
+
+// field is one label and value of the connection panel, left out when the flow
+// has nothing to say about it.
+func field(c *ui.Context, t *ui.Theme, label, value string) {
+	if value == "" {
+		return
+	}
+	ui.Row(c).Gap(10).Padding(2, 0).Children(func() {
+		ui.Text(c, label).FontSize(11).TextColor(t.TextMuted).Width(96)
+		ui.Text(c, value).FontSize(12).Font("monospace").TextColor(t.Text).Grow(1)
+	})
+}
+
+// headersView shows the request and the response headers row by row, each
+// standard one with a note on what it is for, and the status line with what
+// the code means.
+func (a *app) headersView(c *ui.Context, f flow) {
+	t := c.Theme()
+	ui.Scroll(c).Grow(1).Padding(12).Children(func() {
+		a.headerBlock(c, t, "Request", f.method+" "+f.path, "", f.reqHeader, f.reqHeaders)
+		line := "No response"
+		if f.status != 0 {
+			line = fmt.Sprintf("%d %s", f.status, http.StatusText(f.status))
+		}
+		a.headerBlock(c, t, "Response", line, statusDoc(f.status), f.respHeader, f.resHeaders)
+	})
+}
+
+// headerBlock is one side of the Headers tab: the line that starts the message
+// and then its headers, sorted by name.
+func (a *app) headerBlock(c *ui.Context, t *ui.Theme, title, line, note string, headers http.Header, raw string) {
+	ui.Text(c, title).FontSize(11).Bold().TextColor(t.TextMuted).Padding(0, 0, 2, 0)
+	start := ui.Text(c, line).FontSize(12).Font("monospace").TextColor(t.Text).SingleLine()
+	if note != "" {
+		start = start.Tooltip(note)
+	}
+	start.Padding(0, 0, 6, 0)
+	if len(headers) == 0 {
+		ui.Text(c, raw).FontSize(12).Font("monospace").TextColor(t.Text).Padding(0, 0, 14, 0)
+		return
+	}
+	for _, key := range slices.Sorted(maps.Keys(headers)) {
+		value := strings.Join(headers[key], ", ")
+		doc := headerDoc(key)
+		ui.Row(c).Gap(6).Padding(2, 0).AlignItems(ui.Start).Children(func() {
+			ui.Text(c, key).FontSize(12).Font("monospace").TextColor(ui.Hex("#a1a1aa")).Width(210).SingleLine()
+			ui.Box(c).Size(11, 11).Children(func() {
+				if doc != "" {
+					ui.Icon(c, infoIcon).Size(11, 11).TextColor(t.TextMuted).Tooltip(doc)
+				}
+			})
+			ui.Text(c, value).FontSize(12).Font("monospace").TextColor(t.Text).Grow(1)
+		})
+	}
+	ui.Box(c).Height(14)
 }
 
 // messages lists the WebSocket messages or SSE events of a flow.

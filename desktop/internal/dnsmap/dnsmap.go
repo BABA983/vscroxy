@@ -10,6 +10,7 @@ import (
 	"io"
 	"net"
 	"path"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -130,6 +131,15 @@ type Hit struct {
 	At   time.Time
 }
 
+// Resolution is a name the server resolved: the addresses it answered, and how
+// long the answer took.
+type Resolution struct {
+	Name string
+	IPs  []net.IP
+	At   time.Time
+	Took time.Duration
+}
+
 // Server is a DNS server on the loopback interface that the proxy's dials go
 // through: it answers the rules' names and forwards the others to the
 // resolver it started with.
@@ -147,6 +157,11 @@ type Server struct {
 	// address for the dial that follows.
 	pendingMu sync.Mutex
 	pending   map[string]pending
+
+	// lookups are the names the server resolved lately, for the connection
+	// panel: the proxy dials through it, so it sees every lookup.
+	lookupMu sync.Mutex
+	lookups  map[string]Resolution
 }
 
 type pending struct {
@@ -164,7 +179,7 @@ func Start(upstream *net.Resolver) (*Server, error) {
 	if err != nil {
 		return nil, err
 	}
-	s := &Server{udp: udp, upstream: upstream, done: make(chan struct{}), pending: make(map[string]pending)}
+	s := &Server{udp: udp, upstream: upstream, done: make(chan struct{}), pending: make(map[string]pending), lookups: make(map[string]Resolution)}
 	s.rules.Store([]Rule(nil))
 	if tcp, err := net.Listen("tcp", udp.LocalAddr().String()); err == nil {
 		s.tcp = tcp
@@ -223,6 +238,55 @@ func (s *Server) pendingIP(name string) (net.IP, bool) {
 		return nil, false
 	}
 	return p.ip, true
+}
+
+// Resolved is what the server last resolved a name to, so the UI can say which
+// address a host went to and how long the answer took.
+func (s *Server) Resolved(name string) (Resolution, bool) {
+	name = strings.ToLower(strings.TrimSuffix(name, "."))
+	s.lookupMu.Lock()
+	defer s.lookupMu.Unlock()
+	l, ok := s.lookups[name]
+	return l, ok
+}
+
+// noteLookup records an answer the server gave: a newer answer replaces the
+// addresses of the same family, so both families stay in view.
+func (s *Server) noteLookup(name string, ips []net.IP, took time.Duration) {
+	if name == "" || len(ips) == 0 {
+		return
+	}
+	s.lookupMu.Lock()
+	defer s.lookupMu.Unlock()
+	if len(s.lookups) >= 1024 {
+		clear(s.lookups)
+	}
+	entry := s.lookups[name]
+	kept := entry.IPs[:0]
+	for _, old := range entry.IPs {
+		stale := false
+		for _, ip := range ips {
+			if (ip.To4() != nil) == (old.To4() != nil) {
+				stale = true
+				break
+			}
+		}
+		if !stale {
+			kept = append(kept, old)
+		}
+	}
+	entry.IPs = append(kept, ips...)
+	slices.SortStableFunc(entry.IPs, func(a, b net.IP) int {
+		switch {
+		case a.To4() != nil && b.To4() == nil:
+			return -1
+		case a.To4() == nil && b.To4() != nil:
+			return 1
+		}
+		return 0
+	})
+	entry.Name, entry.At, entry.Took = name, time.Now(), took
+	s.lookups[name] = entry
 }
 
 // Close stops the server. It may be called more than once.

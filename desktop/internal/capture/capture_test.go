@@ -203,6 +203,18 @@ func TestDNSMappingAppliesToEveryApp(t *testing.T) {
 	if want := "every.test → 127.0.0.1"; mapped.DNSMapped != want {
 		t.Fatalf("DNSMapped = %q, want %q", mapped.DNSMapped, want)
 	}
+	if mapped.Conn.Proto == "" {
+		t.Fatal("Conn.Proto is empty, want the HTTP version the client spoke")
+	}
+	if want := "every.test:" + port; mapped.Conn.Server != want {
+		t.Fatalf("Conn.Server = %q, want %q", mapped.Conn.Server, want)
+	}
+	if mapped.Conn.Client == "" || mapped.Conn.Proxy == "" {
+		t.Fatalf("client %q, proxy %q; want both addresses", mapped.Conn.Client, mapped.Conn.Proxy)
+	}
+	if want := "127.0.0.1"; mapped.Conn.Resolved != want {
+		t.Fatalf("Conn.Resolved = %q, want %q", mapped.Conn.Resolved, want)
+	}
 }
 
 func TestDNSMappingsResolveTheNameElsewhere(t *testing.T) {
