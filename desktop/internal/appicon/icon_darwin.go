@@ -10,43 +10,35 @@ import (
 	"strings"
 )
 
-// lookup reads the icon of the app bundle the executable belongs to: the
-// .icns its Info.plist names, whose PNG representations macOS 10.7 and later
-// store inside it.
+// lookup reads the icon of the app the executable belongs to: the .icns its
+// bundle's Info.plist names, whose PNG representations macOS 10.7 and later
+// store inside it. The bundle nearest the executable wins; a helper bundle,
+// such as the Chrome process that owns a connection, has no icon of its own,
+// so the bundles that enclose it are tried too.
 func lookup(name, path string) (Icon, bool) {
-	bundle := appBundle(path)
-	if bundle == "" {
-		return Icon{}, false
-	}
-	icon := plistIcon(filepath.Join(bundle, "Contents", "Info.plist"))
-	if icon == "" {
-		icon = "AppIcon"
-	}
-	for _, candidate := range []string{icon, icon + ".icns", "AppIcon"} {
-		file := filepath.Join(bundle, "Contents", "Resources", candidate)
-		if !strings.HasSuffix(file, ".icns") {
-			file += ".icns"
-		}
-		data, err := os.ReadFile(file)
-		if err != nil {
+	for bundle := filepath.Clean(path); bundle != "/" && bundle != "."; bundle = filepath.Dir(bundle) {
+		if !strings.HasSuffix(bundle, ".app") {
 			continue
 		}
-		if png, ok := icnsPNG(data); ok {
-			return Icon{Data: png}, true
+		icon := plistIcon(filepath.Join(bundle, "Contents", "Info.plist"))
+		if icon == "" {
+			icon = "AppIcon"
+		}
+		for _, candidate := range []string{icon, icon + ".icns", "AppIcon"} {
+			file := filepath.Join(bundle, "Contents", "Resources", candidate)
+			if !strings.HasSuffix(file, ".icns") {
+				file += ".icns"
+			}
+			data, err := os.ReadFile(file)
+			if err != nil {
+				continue
+			}
+			if png, ok := icnsPNG(data); ok {
+				return Icon{Data: png}, true
+			}
 		}
 	}
 	return Icon{}, false
-}
-
-// appBundle walks up from the executable to the .app directory that holds it.
-func appBundle(path string) string {
-	path = filepath.Clean(path)
-	for dir := path; dir != "/" && dir != "."; dir = filepath.Dir(dir) {
-		if strings.HasSuffix(dir, ".app") {
-			return dir
-		}
-	}
-	return ""
 }
 
 // plistIcon reads CFBundleIconFile from an Info.plist.

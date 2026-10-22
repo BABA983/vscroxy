@@ -413,6 +413,12 @@ type SSLConfig struct {
 	Hosts []string `json:"hosts,omitempty"`
 }
 
+// Decrypts reports whether the current rules enable HTTPS inspection for host.
+// Existing connections keep the rules they were opened with.
+func (c SSLConfig) Decrypts(host string) bool {
+	return c.All || hostMatches(host, c.Hosts)
+}
+
 // SetDNS sets the names the proxy dials elsewhere, as "name = address" lines
 // with an optional "@ app1, app2" limiting a rule to those apps: the request
 // keeps its name, URL and Host header, and the proxy connects to the address,
@@ -489,8 +495,7 @@ func (s *Server) SSL() SSLConfig {
 
 // decrypts reports whether the proxy decrypts host.
 func (s *Server) decrypts(host string) bool {
-	c := s.SSL()
-	return c.All || hostMatches(host, c.Hosts)
+	return s.SSL().Decrypts(host)
 }
 
 // LoadSSL reads the SSL proxying settings; a missing file decrypts nothing.

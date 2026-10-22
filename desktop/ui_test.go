@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/baba983/vscroxy/desktop/internal/capture"
+	"github.com/baba983/vscroxy/desktop/internal/system"
 	"github.com/egoist/mygo/ui"
 	"github.com/gorilla/websocket"
 )
@@ -39,6 +40,52 @@ func workspaceApp() *app {
 	a.countClients()
 	a.applyFilter()
 	return a
+}
+
+func TestCaptureTableScrollsAndKeepsEachViewsPlace(t *testing.T) {
+	a := workspaceApp()
+	a.flows = nil
+	for i := range maxFlows {
+		path := fmt.Sprintf("/capture/%04d", i+1)
+		a.flows = append(a.flows, flow{id: i + 1, method: "GET", scheme: "https", host: "api.example.com", path: path, url: "https://api.example.com" + path, status: 200})
+	}
+	a.applyFilter()
+	tt := ui.NewTester(a.view, 1280, 800)
+	row := "api.example.com/capture/0001"
+	box, ok := tt.Find(row)
+	if !ok {
+		t.Fatal("first request not shown")
+	}
+	x, y := box.X+10, box.Y+10
+	tt.Scroll(x, y, 0, 640)
+	if !tt.HasText("api.example.com/capture/0021") {
+		t.Fatalf("scrolling did not reveal later requests: %q", tt.Texts())
+	}
+	tt.Frame()
+	if !tt.HasText("api.example.com/capture/0021") {
+		t.Fatal("a redraw reset the scroll position")
+	}
+	if err := tt.Click("New view"); err != nil {
+		t.Fatal(err)
+	}
+	if !tt.HasText(row) || tt.HasText("api.example.com/capture/0021") {
+		t.Fatal("a new capture view must start at its own position")
+	}
+	if err := tt.Click("Capture view: View 1"); err != nil {
+		t.Fatal(err)
+	}
+	if !tt.HasText("api.example.com/capture/0021") {
+		t.Fatal("returning to a capture view lost its scroll position")
+	}
+	tt.Scroll(x, y, 0, 1e6)
+	if !tt.HasText("api.example.com/capture/5000") {
+		t.Fatal("cannot reach the final retained request")
+	}
+	tt.Wheel(x, y, 0, -1e6)
+	tt.Advance(time.Second)
+	if !tt.HasText(row) {
+		t.Fatal("mouse wheel cannot return to the first request")
+	}
 }
 
 func TestWorkspaceKeepsCaptureAndDraftIndependent(t *testing.T) {
@@ -150,13 +197,137 @@ func TestSettingsOpensExistingEditors(t *testing.T) {
 	if err := tt.Click("Cancel"); err != nil {
 		t.Fatal(err)
 	}
-	for _, label := range []string{"Settings", "Certificates", "TLS key log…"} {
+	for _, label := range []string{"Settings", "Proxy"} {
 		if err := tt.Click(label); err != nil {
 			t.Fatal(err)
 		}
 	}
+	tt.Key(0, ui.KeyRight) // HTTPS tab, not Capture's HTTPS filter chip.
+	tt.Scroll(480, 300, 0, 500)
+	if err := tt.Click("TLS key log…"); err != nil {
+		t.Fatal(err)
+	}
 	if !tt.HasText("TLS key log") {
 		t.Fatal("settings did not open the TLS key log editor")
+	}
+}
+
+func TestHTTPSSetupExplainsTunnelsAndEnablesOnlyTheSelectedDomain(t *testing.T) {
+	dir := t.TempDir()
+	srv, err := capture.New("127.0.0.1:0", dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer srv.Close()
+	if err := srv.Start(); err != nil {
+		t.Fatal(err)
+	}
+	a := workspaceApp()
+	a.srv, a.caPath, a.sslPath = srv, filepath.Join(dir, "mitmproxy-ca-cert.pem"), filepath.Join(dir, "ssl.json")
+	a.flows = []flow{{id: 1, method: "CONNECT", scheme: "https", host: "dc.dlife.cn", url: "https://dc.dlife.cn", kind: "connect", status: 200}}
+	a.applyFilter()
+	tt := ui.NewTester(a.view, 1280, 800)
+	click := func(label string) {
+		t.Helper()
+		if err := tt.Click(label); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// Wait for the real, read-only system check, not for an arbitrary delay.
+	waitCertificate := func() {
+		t.Helper()
+		if a.certificate.checking {
+			select {
+			case result := <-a.certificate.pending:
+				a.certificate.pending <- result
+			case <-t.Context().Done():
+				t.Fatal("certificate check did not complete")
+			}
+		}
+		tt.Frame()
+	}
+	waitCertificate()
+	if !tt.HasText("Encrypted tunnel — not individual requests") || !tt.HasText("3  Domain decryption disabled") || !tt.HasText("2  Trust not verified on this system") {
+		t.Fatalf("tunnel setup missing or an uninstalled CA was reported trusted: %q", tt.Texts())
+	}
+	click("Enable for dc.dlife.cn")
+	if !tt.HasText("3  Domain decryption is now enabled") || !tt.HasText("Encrypted tunnel — not individual requests") {
+		t.Fatal("enabling a domain must not make the old CONNECT appear decrypted")
+	}
+	cfg, err := capture.LoadSSL(a.sslPath)
+	if err != nil || !cfg.Decrypts("api.dc.dlife.cn") || cfg.Decrypts("other.dlife.cn") || cfg.All || !srv.SSL().Decrypts("dc.dlife.cn") || srv.SSL().All {
+		t.Fatalf("domain selection was not saved with the correct scope: %+v, %v", cfg, err)
+	}
+	click("Set up certificate…")
+	waitCertificate()
+	if !tt.HasText("HTTPS inspection") || !tt.HasText("Trust not verified on this system") || !tt.HasText("Proxy listening · "+srv.Addr()) || !tt.HasText("dc.dlife.cn") {
+		t.Fatalf("settings did not show scoped trust and domain state: %q", tt.Texts())
+	}
+	// A missing/replaced certificate must not leave the previous result cached.
+	if err := os.Remove(a.caPath); err != nil {
+		t.Fatal(err)
+	}
+	a.certificate.installErr = errors.New("authorization could not finish")
+	tt.Frame()
+	click("Check again")
+	waitCertificate()
+	if !tt.HasText("Local CA unavailable") || !tt.HasText("CA file not found. Start capture, then check again.") || !tt.HasText("Installation failed: authorization could not finish") {
+		t.Fatalf("checking again must refresh trust without hiding an unresolved installation error: %q", tt.Texts())
+	}
+	click("Manage domains…")
+	if !tt.HasText("SSL proxying") {
+		t.Fatal("HTTPS settings did not open the domain editor")
+	}
+	click("Decryption domains")
+	tt.Key(ui.Cmd, ui.KeyA)
+	tt.Type("dlife.cn")
+	click("Save")
+	cfg, err = capture.LoadSSL(a.sslPath)
+	if err != nil || !cfg.Decrypts("other.dlife.cn") || cfg.Decrypts("notdlife.cn") || !tt.HasText("3  Domain decryption is now enabled") {
+		t.Fatal("a parent-domain rule must enable its subdomains in the inspector too")
+	}
+}
+
+func TestHTTPSInstallationShowsAuthorizationAndVerifiedOutcome(t *testing.T) {
+	untrusted := errors.New("test CA is not trusted")
+	for _, tc := range []struct {
+		name       string
+		trustError error
+		installErr error
+		want       string
+	}{
+		{"trusted", nil, nil, "Trusted by this system"},
+		{"not-yet-trusted", untrusted, nil, "Trust not verified on this system"},
+		{"cancelled", untrusted, system.ErrInstallCancelled, "Installation cancelled. You can try again when ready."},
+		{"failed", untrusted, errors.New("authorization unavailable"), "Installation failed: authorization unavailable"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			a := workspaceApp()
+			a.settingsOpen, a.settingsTab = true, 2
+			a.certificate = certificateSetup{
+				cert: &x509.Certificate{}, err: untrusted,
+				checked: true, checking: true, installing: true,
+				pending: make(chan certificateResult, 1),
+			}
+			tt := ui.NewTester(a.view, 1280, 800)
+			if !tt.HasText("Installing certificate…") || !tt.HasText("Trust will be checked afterwards.") {
+				t.Fatal("pending installation must explain the system authorization step")
+			}
+			a.certificate.pending <- certificateResult{cert: &x509.Certificate{}, err: tc.trustError, installErr: tc.installErr}
+			tt.Frame()
+			if !tt.HasText(tc.want) || tt.HasText("Installing certificate…") {
+				t.Fatalf("wrong installation outcome: %q", tt.Texts())
+			}
+			if tc.trustError != nil && tt.HasText("Trusted by this system") {
+				t.Fatal("completing installation without verified trust must not report success")
+			}
+			if tc.trustError == nil {
+				_ = tt.Click("Install & Trust…")
+				if a.certificate.checking {
+					t.Fatal("an already trusted CA must not request installation again")
+				}
+			}
+		})
 	}
 }
 

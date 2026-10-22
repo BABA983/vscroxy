@@ -3,7 +3,11 @@
 package system
 
 import (
+	"crypto/x509"
+	"encoding/pem"
+	"errors"
 	"fmt"
+	"os"
 	"os/exec"
 )
 
@@ -25,13 +29,29 @@ func ClearProxy() error {
 	return run("reg", "add", inetSettings, "/v", "ProxyEnable", "/t", "REG_DWORD", "/d", "0", "/f")
 }
 
-// InstallCA adds the CA to the machine root store. This needs an elevated
-// process, so the error explains what to do when it fails.
+// InstallCA trusts the public CA for the current user, without running the
+// capture app as administrator. Other accounts/services need their own setup.
 func InstallCA(path string) error {
-	if err := run("certutil", "-addstore", "-f", "Root", path); err != nil {
-		return fmt.Errorf("%w (run vscroxy as administrator to trust the certificate)", err)
+	cert, err := readCA(path)
+	if err != nil {
+		return err
 	}
-	return nil
+	snapshot, err := snapshotCA(pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: cert.Raw}))
+	if err != nil {
+		return err
+	}
+	defer os.Remove(snapshot)
+	err = run("certutil", "-user", "-addstore", "-f", "Root", snapshot)
+	if exit, ok := errors.AsType[*exec.ExitError](err); ok && (uint32(exit.ExitCode()) == 1223 || uint32(exit.ExitCode()) == 0x800704c7) {
+		return ErrInstallCancelled // ERROR_CANCELLED / HRESULT_FROM_WIN32
+	}
+	return err
+}
+
+func verifyCA(_ string, cert *x509.Certificate) error {
+	// With nil Roots, x509 uses the current Windows system verifier.
+	_, err := cert.Verify(x509.VerifyOptions{KeyUsages: []x509.ExtKeyUsage{x509.ExtKeyUsageAny}})
+	return err
 }
 
 // RevealCA selects the CA in Explorer.

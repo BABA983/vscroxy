@@ -48,14 +48,21 @@ func (a *app) settingsModal(c *ui.Context, t *ui.Theme) {
 		return
 	}
 	height := float32(372)
-	if a.settingsTab == 1 {
+	if a.settingsTab == 1 || a.settingsTab == 2 {
 		height = 520
 	}
+	if a.settingsTab == 2 {
+		height = 600
+	}
+	width, windowHeight := c.Size()
+	height = min(height, windowHeight-80)
 	ui.Modal(c, &a.settingsOpen, func() {
-		ui.Column(c).Width(620).Height(height).Gap(16).Children(func() {
+		ui.Column(c).Width(min(620, width-80)).Height(height).Gap(16).Children(func() {
 			ui.Text(c, "Settings").FontSize(18).Bold()
-			ui.Tabs(c, &a.settingsTab, "General", "Proxy", "Certificates")
-			ui.Column(c).Grow(1).Gap(14).Padding(8, 0).Children(func() {
+			if ui.Tabs(c, &a.settingsTab, "General", "Proxy", "HTTPS").Changed() && a.settingsTab == 2 {
+				a.checkCertificate(false)
+			}
+			ui.Scroll(c).Grow(1).Gap(14).Padding(8, 20, 8, 0).Children(func() {
 				switch a.settingsTab {
 				case 0:
 					ui.Row(c).AlignItems(ui.Center).Children(func() {
@@ -124,26 +131,7 @@ func (a *app) settingsModal(c *ui.Context, t *ui.Theme) {
 						}
 					})
 				case 2:
-					ui.Text(c, "HTTPS inspection").Bold()
-					ui.Text(c, "Trust the local CA on the client to inspect encrypted traffic. Installing a certificate may require system permission.").FontSize(12).TextColor(t.TextMuted)
-					ui.Text(c, cmp.Or(shortenHome(a.caPath), "No local CA available")).FontSize(12).TextColor(t.TextMuted).SingleLine().Tooltip(a.caPath)
-					ui.Row(c).Gap(8).Children(func() {
-						if ui.Button(c, "Install certificate…").Disabled(a.caPath == "").Clicked() {
-							a.installCA()
-						}
-						if ui.Button(c, "Reveal certificate").Disabled(a.caPath == "").Clicked() {
-							a.revealCA()
-						}
-					})
-					ui.Row(c).Gap(8).Children(func() {
-						if ui.Button(c, "SSL proxying…").Clicked() {
-							a.settingsOpen, a.sslOpen = false, true
-						}
-						if ui.Button(c, "TLS key log…").Clicked() {
-							a.settingsOpen = false
-							a.openKeyLog()
-						}
-					})
+					a.httpsSettings(c, t)
 				}
 			})
 			ui.Row(c).Justify(ui.End).Children(func() {

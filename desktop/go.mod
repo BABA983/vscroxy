@@ -9,6 +9,7 @@ require (
 	github.com/andybalholm/brotli v1.2.1
 	github.com/bufbuild/protocompile v0.14.1
 	github.com/dop251/goja v0.0.0-20261019185110-cf7b1419c9c0
+	github.com/ebitengine/purego v0.11.1
 	github.com/egoist/mygo v0.6.2
 	github.com/getkin/kin-openapi v0.151.0
 	github.com/google/uuid v1.6.0
@@ -24,7 +25,6 @@ require (
 
 require (
 	github.com/dlclark/regexp2/v2 v2.8.1 // indirect
-	github.com/ebitengine/purego v0.11.1 // indirect
 	github.com/go-openapi/jsonpointer v0.22.5 // indirect
 	github.com/go-openapi/swag/jsonname v0.25.5 // indirect
 	github.com/go-sourcemap/sourcemap v2.1.3+incompatible // indirect

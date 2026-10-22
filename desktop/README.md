@@ -536,8 +536,8 @@ throttle adds, so it matches what the client saw.
 
 ## System proxy and certificate
 
-**Settings → Proxy** controls the system proxy; **Settings → Certificates**
-contains the CA and TLS inspection actions. The native menu also opens
+**Settings → Proxy** controls the system proxy; **Settings → HTTPS**
+shows the local CA, system trust and domain decryption rules. The native menu also opens
 Settings with Cmd/Ctrl+,; Cmd/Ctrl+1 and Cmd/Ctrl+2 switch workspaces, and
 Cmd/Ctrl+N starts a request. On Linux and Windows, Alt reveals the native
 menu bar.
@@ -547,19 +547,53 @@ menu bar.
   proxy settings automatically. Linux writes the GNOME proxy settings with
   `gsettings`, macOS sets every enabled service with `networksetup`, Windows
   writes the per-user WinINet settings with `reg`.
-- **Install certificate…** trusts `~/.mitmproxy/mitmproxy-ca-cert.pem`. Linux
-  copies it to `/usr/local/share/ca-certificates` and runs
-  `update-ca-certificates` through `pkexec`; macOS adds it to the System
-  keychain through `osascript` with an admin prompt; Windows runs
-  `certutil -addstore Root`, which needs an elevated process.
-- **Reveal certificate** opens the folder that holds the CA, for clients that
+- **Install & Trust…** trusts `~/.mitmproxy/mitmproxy-ca-cert.pem`. Linux
+  detects `update-ca-certificates` (Debian/Ubuntu) or `update-ca-trust`
+  (Fedora/Arch), installs the public CA in the matching anchor directory,
+  and refreshes trust through one `pkexec` authorization. Missing helpers
+  or unsupported distributions get a manual-import explanation. macOS checks
+  the exact public certificate in the System keychain first, skipping import
+  if it is already there. Otherwise it elevates only `security add-certificates`, using a
+  temporary copy of the validated public certificate, never the private key.
+  After confirming the import, the normal, non-elevated GUI app requests
+  trust through the native Security framework. Trust is never configured
+  from the elevated shell. Approve the macOS authorization prompts (import
+  and trust may prompt separately); the entire app does not need `sudo`.
+  Windows runs `certutil -user -addstore Root` to trust the CA for the current
+  user, without running the capture app as administrator. Other Windows
+  accounts and services need their own trust setup. All platforms validate
+  the root and import a temporary public-only snapshot, never a private key.
+- **Show certificate** opens the folder that holds the CA, for clients that
   want the file itself.
+- **Check again** re-reads the certificate and checks the current system trust
+  store without changing it. The page also shows the CA name, validity dates
+  and SHA-256 fingerprint. macOS uses `security verify-cert`, Windows uses the
+  native system verifier, and Linux requires `openssl` for a fresh check.
+- **Manage domains…** opens the SSL proxying editor. Trusting the CA and
+  enabling domain decryption are separate steps; neither enables the other.
 
 Each helper runs off the UI thread because the platform may prompt for a
-password, and its result lands in the status bar. A helper that is missing or
-lacks permission reports the command to run instead of failing silently. The
-CA exists only after the first HTTPS exchange, so install it after capturing
-one request.
+password. Installation is followed by a new trust check; failures remain
+visible on the HTTPS page, including after **Check again** until trust is
+verified or installation is retried. Cancelling authorization is shown
+separately from an installation failure; an already trusted CA cannot be
+installed again from this page. macOS installation requires a graphical
+login session; unsigned or invalidly signed builds may be denied before
+an authorization prompt appears. If automatic installation fails on macOS, use
+**Show certificate** to locate the public CA, import it in Keychain Access,
+and set **Trust → When using this certificate → Always Trust**, then check
+again. Never import or share `mitmproxy-ca.pem`, which contains the private key.
+A missing helper or insufficient permission is reported rather than treated
+as proof that a certificate is uninstalled.
+System trust only describes this machine: remote devices, separate application
+trust stores and certificate pinning may require client-side configuration.
+
+An undecrypted **CONNECT** detail explains that it is an encrypted tunnel, not
+one HTTPS request. It links to certificate setup and can enable just that
+domain. If current rules already enable the domain, the detail says so rather
+than claiming the old tunnel has been decrypted. After changing HTTPS setup,
+establish a new connection and retry the request; existing tunnels and their
+CONNECT records stay encrypted.
 
 ## Client attribution
 
@@ -567,8 +601,9 @@ The **Client** column names the app a connection came from, with its icon.
 The icon comes from the app itself: the `.desktop` entry's icon on Linux, an
 icon theme's for the app's name, or the logo a bundled app keeps beside its
 executable, as Chrome does; on macOS, the PNG inside the `.icns` of the `.app`
-bundle. An app with none gets a badge in its color with its initial, so every
-row still reads at a glance.
+bundle that encloses the process, so a helper process such as Chrome's shows
+Chrome's icon. An app with none gets a badge in its color with its initial, so
+every row still reads at a glance.
 When a connection opens, the proxy finds the socket that the client holds on
 the other end and reads the process that owns it: `/proc/net/tcp` and the
 descriptor tables on Linux, `lsof` on macOS, `netstat` and `tasklist` on

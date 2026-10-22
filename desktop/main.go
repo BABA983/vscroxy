@@ -116,18 +116,19 @@ type app struct {
 	protobuf     protoInspector
 	jsonOK       bool
 
-	srv        *capture.Server
-	win        *mygo.Window
-	caPath     string
-	rulesPath  string
-	scriptPath string
-	rules      []capture.Rule
-	ruleUI     ruleEditor
-	throttle   capture.Throttle
-	upstream   string
-	errText    string
-	dropped    int64
-	scriptErrs int64
+	srv         *capture.Server
+	win         *mygo.Window
+	caPath      string
+	certificate certificateSetup
+	rulesPath   string
+	scriptPath  string
+	rules       []capture.Rule
+	ruleUI      ruleEditor
+	throttle    capture.Throttle
+	upstream    string
+	errText     string
+	dropped     int64
+	scriptErrs  int64
 
 	upstreamOpen bool
 	upstreamAddr string
@@ -478,26 +479,6 @@ func (a *app) setSystemProxy(on bool) {
 		} else {
 			a.setMessage("System proxy: off")
 		}
-	}()
-}
-
-// installCA trusts the CA that the proxy uses to sign intercepted TLS.
-func (a *app) installCA() {
-	if a.caPath == "" {
-		a.setMessage("Certificate: no path known")
-		return
-	}
-	path := a.caPath
-	go func() {
-		if _, err := os.Stat(path); err != nil {
-			a.setMessage("Certificate not found; capture one request first")
-			return
-		}
-		if err := system.InstallCA(path); err != nil {
-			a.setMessage("Install certificate: " + err.Error())
-			return
-		}
-		a.setMessage("Certificate trusted")
 	}()
 }
 
@@ -875,6 +856,7 @@ func (a *app) syncDetail() {
 func (a *app) view(c *ui.Context) {
 	c.SetTheme(appTheme(a.dark))
 	a.drain()
+	a.drainCertificate()
 	a.drainRunner()
 	if a.sort != a.sortApplied {
 		a.sortApplied = a.sort
@@ -1358,13 +1340,12 @@ func (a *app) table(c *ui.Context) {
 		ui.TableColumn{Title: "", ID: "filler", Width: 14, Fixed: true},
 	)
 	durationCol, sizeCol := clientCol+1, clientCol+2
-	state := &ui.ListState{
-		Selected:  &a.picked,
-		Selection: &a.chosen,
-		Key:       func(row int) any { return a.flows[a.visible[row]].id },
-		Sort:      &a.sort,
-		Columns:   a.columns,
-	}
+	state := &a.views.activeView().list
+	state.Selected = &a.picked
+	state.Selection = &a.chosen
+	state.Key = func(row int) any { return a.flows[a.visible[row]].id }
+	state.Sort = &a.sort
+	state.Columns = a.columns
 	ui.Table(c, state, cols, len(a.visible), func(row, col int) {
 		f := a.flows[a.visible[row]]
 		chosen := a.chosen.Has(f.id)
@@ -2611,13 +2592,13 @@ func (a *app) sslModal(c *ui.Context, t *ui.Theme) {
 	ui.Modal(c, &a.sslOpen, func() {
 		ui.Column(c).Width(520).Gap(10).Children(func() {
 			ui.Text(c, "SSL proxying").FontSize(14).Bold()
-			ui.Text(c, "HTTPS is tunnelled untouched until a domain is listed. Its CONNECT shows in the table, and Decrypt this domain adds it; a domain matches its subdomains.").
+			ui.Text(c, "HTTPS stays encrypted until a domain is enabled and the client trusts the CA. A domain also matches its subdomains. Changes apply to new connections; reconnect the client and retry.").
 				FontSize(11).TextColor(t.TextMuted)
 			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 				ui.Switch(c, &a.sslAll)
 				ui.Text(c, "Decrypt every domain").FontSize(12).TextColor(t.Text)
 			})
-			ui.TextArea(c, &a.sslHosts).Height(120).Label("Domains")
+			ui.TextArea(c, &a.sslHosts).Height(120).Label("Decryption domains")
 			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
 				if ui.Button(c, "Cancel").Clicked() {
 					a.sslOpen = false
@@ -2668,25 +2649,7 @@ func (a *app) decryptHost(host string) {
 		cfg.Hosts = append(cfg.Hosts, host)
 	}
 	a.saveSSL(cfg)
-	a.setMessage("Decrypting " + host + "; reload the page")
-}
-
-// connectPanel explains a tunnel and offers to decrypt it, as a proxy that
-// leaves HTTPS alone must.
-func (a *app) connectPanel(c *ui.Context, f flow) {
-	t := c.Theme()
-	host := f.host
-	ui.Column(c).Fill().Center().Gap(10).Children(func() {
-		ui.Text(c, "HTTPS is not decrypted").FontSize(15).TextColor(t.Text)
-		ui.Text(c, host+" goes through untouched, so its content stays encrypted.").
-			FontSize(12).TextColor(t.TextMuted)
-		if ui.PrimaryButton(c, "Decrypt this domain").Clicked() {
-			a.decryptHost(host)
-		}
-		if ui.Button(c, "Decrypt every domain").Clicked() {
-			a.saveSSL(capture.SSLConfig{All: true})
-		}
-	})
+	a.setMessage("Decrypting " + host + "; reconnect the client and retry")
 }
 
 // persistSettings writes what changed since the last write, at most every

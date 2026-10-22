@@ -3,6 +3,7 @@
 package system
 
 import (
+	"crypto/x509"
 	"fmt"
 	"os/exec"
 	"strings"
@@ -55,10 +56,11 @@ func ClearProxy() error {
 	return nil
 }
 
-// InstallCA adds the CA to the system keychain, asking for an admin password.
-func InstallCA(path string) error {
-	script := fmt.Sprintf(`do shell script "security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain %s" with administrator privileges`, shellQuote(path))
-	return run("osascript", "-e", script)
+func verifyCA(path string, _ *x509.Certificate) error {
+	// Check CA trust, not TLS leaf policy (which requires a server leaf's EKU).
+	// Query the current keychains without network access or adding
+	// the certificate as an explicit trust anchor (which would prove nothing).
+	return run("security", "verify-cert", "-L", "-l", "-p", "basic", "-c", path)
 }
 
 // RevealCA selects the CA in Finder.
@@ -86,8 +88,4 @@ func services() ([]string, error) {
 		list = append(list, line)
 	}
 	return list, nil
-}
-
-func shellQuote(s string) string {
-	return `"` + strings.ReplaceAll(s, `"`, `\"`) + `"`
 }

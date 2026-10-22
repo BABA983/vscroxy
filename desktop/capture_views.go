@@ -113,6 +113,8 @@ type captureView struct {
 	// the 64 KiB heads of the bodies, so the view owns the deep one.
 	body   string
 	picked int
+	// list keeps this view's scroll position across redraws and tab changes.
+	list ui.ListState
 	// reveal scrolls the tab into view once, when the view is new or chosen.
 	reveal bool
 }
