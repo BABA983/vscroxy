@@ -123,6 +123,20 @@ WebSocket and SSE by kind, and JSON, images or HTML by the response's content
 type. They narrow what the sidebar's filters and the search show, and the
 status bar counts the flows, the bytes captured and the last message.
 
+**New view** opens another live tab over the same captured traffic, not a new
+proxy or capture session. Each tab retains its own search, sidebar/chip filter,
+status/header/body conditions, sorting and selection. **Filters…** edits content
+conditions; **Saved filters…** saves, reapplies, renames or deletes a named set in
+`~/.vscroxy/views.json`. Saving conditions persists them; live view tabs themselves
+are session-local. Applying a saved filter changes only the active view.
+
+Body conditions search both request and response independently, including whole
+spill files beyond the 8 MiB preview. Searches are case-insensitive, chunked,
+cancellable and off the UI thread (at most four readers); pending rows remain
+hidden until matched. Progress and unreadable/incomplete-body warnings appear
+above the table. Missing or incomplete bodies never silently match just their
+preview. URL/header/status filtering remains immediate.
+
 A row's menu carries what a captured request is worth outside the table:
 **Copy URL**, **Copy as cURL** (its headers, body and URL as a shell
 command), **Open in browser**, **Copy response body**, **Pin to the top**,

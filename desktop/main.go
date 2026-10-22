@@ -176,10 +176,10 @@ type app struct {
 	// headerColumn is the header the table shows as a column of its own, and
 	// the filter fields narrow what it shows beyond the search box.
 	headerColumn string
-	filterOpen   bool
 	filterStatus string
 	filterHeader string
 	filterBody   string
+	views        captureViews
 	columnOpen   bool
 	columnName   string
 
@@ -346,6 +346,9 @@ func newApp() *app {
 	a.countDomains()
 	a.countClients()
 	a.applyFilter()
+	if home, err := os.UserHomeDir(); err == nil {
+		a.views.init(a, filepath.Join(home, ".vscroxy", "views.json"))
+	}
 	return a
 }
 
@@ -798,6 +801,7 @@ func (a *app) applyFilter() {
 		a.picked = 0
 	}
 	a.detailFor = -1
+	a.views.narrow(a)
 }
 
 // current is the flow the detail panes show, if any.
@@ -856,6 +860,8 @@ func (a *app) view(c *ui.Context) {
 		a.sortApplied = a.sort
 		a.applyFilter()
 	}
+	a.views.drain(a)
+	a.views.sync(a)
 	a.syncDetail()
 	t := c.Theme()
 	ui.Column(c).Fill().Background(t.Background).Children(func() {
@@ -902,7 +908,7 @@ func (a *app) view(c *ui.Context) {
 		})
 	a.varsModal(c, t)
 	a.markModal(c, t)
-	a.filterModal(c, t)
+	a.views.modals(c, t, a)
 	a.columnModal(c, t)
 	a.keyLogModal(c, t)
 	a.closeRequestModal(c, t)
@@ -912,6 +918,7 @@ func (a *app) view(c *ui.Context) {
 	a.devicesModal(c, t)
 	a.runnerModal(c, t)
 	a.cookiesModal(c, t)
+	a.views.capture(a)
 }
 
 // upstreamModal edits the proxy every request goes through.
@@ -1171,6 +1178,7 @@ func (a *app) toolbar(c *ui.Context, t *ui.Theme) {
 		}
 	})
 	ui.Divider(c)
+	a.views.controls(c, t, a)
 }
 
 func (a *app) sidebar(c *ui.Context) {
@@ -1789,6 +1797,7 @@ func main() {
 	a := newApp()
 	defer a.discardRuleDraft()
 	defer a.disableDevices()
+	defer a.views.stopSearch()
 	defer func() {
 		if a.runner.cancel != nil {
 			a.runner.cancel()
@@ -2177,7 +2186,7 @@ func (a *app) setKeyLog(path string) {
 
 // filtersActive says whether a content filter narrows the table.
 func (a *app) filtersActive() bool {
-	return a.filterStatus != "" || a.filterHeader != "" || a.filterBody != ""
+	return a.filterStatus != "" || a.filterHeader != "" || a.views.bodyFilter() != ""
 }
 
 // filterSummary is what the status bar says about the filters in use.
@@ -2189,54 +2198,20 @@ func (a *app) filterSummary() string {
 	if a.filterHeader != "" {
 		parts = append(parts, "header "+a.filterHeader)
 	}
-	if a.filterBody != "" {
-		parts = append(parts, "body "+a.filterBody)
+	if body := a.views.bodyFilter(); body != "" {
+		parts = append(parts, "body "+body)
 	}
 	return strings.Join(parts, " · ")
 }
 
 // openFilter shows the content filter with what it already holds.
 func (a *app) openFilter() {
-	a.filterOpen = true
+	a.views.openFilter(a)
 }
 
 // clearFilters drops the content filter.
 func (a *app) clearFilters() {
-	a.filterStatus, a.filterHeader, a.filterBody = "", "", ""
-	a.applyFilter()
-	a.setMessage("Filters cleared")
-}
-
-// filterModal narrows the table by status, header and body, beside the search
-// box which matches the URL.
-func (a *app) filterModal(c *ui.Context, t *ui.Theme) {
-	if !a.filterOpen {
-		return
-	}
-	ui.Modal(c, &a.filterOpen, func() {
-		ui.Column(c).Width(480).Gap(10).Children(func() {
-			ui.Text(c, "Filter").FontSize(14).Bold()
-			ui.Text(c, "Status takes 404, 4xx, 200-299 or >=400. A header is a name, or \"name: value\" to match the value too. The body matches either side.").
-				FontSize(11).TextColor(t.TextMuted)
-			ui.TextInput(c, &a.filterStatus).Label("Status")
-			ui.TextInput(c, &a.filterHeader).Placeholder("content-type: json").Label("Header")
-			ui.TextInput(c, &a.filterBody).Placeholder("\"error\":").Label("Body")
-			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
-				if ui.Button(c, "Clear").Clicked() {
-					a.filterStatus, a.filterHeader, a.filterBody = "", "", ""
-					a.applyFilter()
-					a.filterOpen = false
-				}
-				if ui.Button(c, "Cancel").Clicked() {
-					a.filterOpen = false
-				}
-				if ui.PrimaryButton(c, "Apply").Clicked() {
-					a.applyFilter()
-					a.filterOpen = false
-				}
-			})
-		})
-	})
+	a.views.clearFilters(a)
 }
 
 // openColumn asks which header the table should show as a column.
