@@ -157,13 +157,18 @@ const (
 	RuleBreakResponse RuleType = "break_response"
 )
 
-// Rule rewrites requests whose URL contains Match, in order, first match
-// wins. Target is a base URL for map_remote and a file for map_local.
+// Rule rewrites requests whose URL contains Match. Mapping/block rules use
+// first-match order; breakpoints match independently at their own phase.
+// An empty Method matches all methods. Old files remain enabled by default.
 type Rule struct {
-	Type   RuleType `json:"type"`
-	Match  string   `json:"match"`
-	Target string   `json:"target,omitempty"`
-	Status int      `json:"status,omitempty"`
+	Name     string      `json:"name,omitempty"`
+	Type     RuleType    `json:"type"`
+	Match    string      `json:"match"`
+	Method   string      `json:"method,omitempty"`
+	Target   string      `json:"target,omitempty"`
+	Status   int         `json:"status,omitzero"`
+	Headers  http.Header `json:"headers,omitempty"`
+	Disabled bool        `json:"disabled,omitzero"`
 }
 
 // Phase is where a breakpoint paused an exchange.
@@ -308,6 +313,13 @@ func New(addr, caRootPath string) (*Server, error) {
 
 // Addr is the address the proxy listens on.
 func (s *Server) Addr() string { return s.addr }
+
+// CACertificate returns only the public CA certificate, in DER form. It never
+// reads a CA bundle or exposes the signing key.
+func (s *Server) CACertificate() []byte {
+	ca := s.proxy.GetCertificate()
+	return bytes.Clone(ca.Raw)
+}
 
 // Flows is the stream of captured exchanges. It closes when the server does.
 func (s *Server) Flows() <-chan Flow { return s.out }
@@ -532,7 +544,7 @@ func requestHost(req *http.Request) string {
 // SetRules replaces the rules the proxy applies to new requests.
 func (s *Server) SetRules(rules []Rule) {
 	s.rulesMu.Lock()
-	s.rules = slices.Clone(rules)
+	s.rules = cloneRules(rules)
 	s.rulesMu.Unlock()
 }
 
@@ -540,7 +552,7 @@ func (s *Server) SetRules(rules []Rule) {
 func (s *Server) Rules() []Rule {
 	s.rulesMu.RLock()
 	defer s.rulesMu.RUnlock()
-	return slices.Clone(s.rules)
+	return cloneRules(s.rules)
 }
 
 // SetScript replaces the script the proxy runs. A nil script runs nothing.
@@ -618,7 +630,7 @@ func (s *Server) maybeBreak(f *proxy.Flow, phase Phase) *Decision {
 		return nil
 	}
 	raw := f.Request.URL.String()
-	if !s.matchesBreak(raw, phase) {
+	if !s.matchesBreak(raw, f.Request.Method, phase) {
 		return nil
 	}
 	id := int(s.bpNext.Add(1))
@@ -667,7 +679,7 @@ func (s *Server) maybeBreak(f *proxy.Flow, phase Phase) *Decision {
 	return d
 }
 
-func (s *Server) matchesBreak(raw string, phase Phase) bool {
+func (s *Server) matchesBreak(raw, method string, phase Phase) bool {
 	want := RuleBreak
 	if phase == PhaseResponse {
 		want = RuleBreakResponse
@@ -675,7 +687,7 @@ func (s *Server) matchesBreak(raw string, phase Phase) bool {
 	s.rulesMu.RLock()
 	defer s.rulesMu.RUnlock()
 	for _, r := range s.rules {
-		if r.Type == want && strings.Contains(raw, r.Match) {
+		if r.Type == want && r.matches(raw, method) {
 			return true
 		}
 	}
@@ -685,7 +697,7 @@ func (s *Server) matchesBreak(raw string, phase Phase) bool {
 // willBreakResponse reports whether a response for this flow will pause, so
 // the Response hook leaves publishing to the stream modifier.
 func (s *Server) willBreakResponse(f *proxy.Flow) bool {
-	return s.breakOn.Load() && f.Request != nil && s.matchesBreak(f.Request.URL.String(), PhaseResponse)
+	return s.breakOn.Load() && f.Request != nil && s.matchesBreak(f.Request.URL.String(), f.Request.Method, PhaseResponse)
 }
 
 // LoadRules reads a rules file. A missing file is no rules, not an error.
@@ -701,18 +713,8 @@ func LoadRules(path string) ([]Rule, error) {
 	if err := json.Unmarshal(data, &rules); err != nil {
 		return nil, fmt.Errorf("%s: %w", path, err)
 	}
-	for i, r := range rules {
-		switch r.Type {
-		case RuleMapRemote, RuleMapLocal, RuleBlock, RuleBreak, RuleBreakResponse:
-		default:
-			return nil, fmt.Errorf("%s: rule %d has unknown type %q", path, i, r.Type)
-		}
-		if r.Match == "" {
-			return nil, fmt.Errorf("%s: rule %d has no match", path, i)
-		}
-		if r.Type != RuleBlock && r.Type != RuleBreak && r.Type != RuleBreakResponse && r.Target == "" {
-			return nil, fmt.Errorf("%s: rule %d has no target", path, i)
-		}
+	if err := ValidateRules(rules); err != nil {
+		return nil, fmt.Errorf("%s: %w", path, err)
 	}
 	return rules, nil
 }
@@ -755,9 +757,17 @@ func (s *Server) Close() error {
 	return err
 }
 
-// Replay sends the flow's request again through this proxy, so the exchange
-// is captured like any other and can be compared with the original.
-func (s *Server) Replay(ctx context.Context, f Flow) error {
+// Replay sends the flow's request again through this proxy. It returns the
+// response to this send, independently of the capture queue, so concurrent
+// sends of the same URL cannot pick up each other's responses. The preview
+// keeps at most 8 MiB; the capture still keeps the complete exchange.
+func (s *Server) Replay(ctx context.Context, f Flow) (Flow, error) {
+	return s.ReplayWithCookies(ctx, f, nil)
+}
+
+// ReplayWithCookies uses the request workspace's cookie jar, including across
+// redirects. Ordinary capture replay deliberately does not inherit login state.
+func (s *Server) ReplayWithCookies(ctx context.Context, f Flow, jar http.CookieJar) (Flow, error) {
 	rawURL := f.URL
 	if rawURL == "" {
 		rawURL = f.Scheme + "://" + f.Host + f.Path
@@ -774,7 +784,7 @@ func (s *Server) Replay(ctx context.Context, f Flow) error {
 	}
 	req, err := http.NewRequestWithContext(ctx, f.Method, rawURL, body)
 	if err != nil {
-		return err
+		return Flow{}, err
 	}
 	for key, values := range f.RequestHeader {
 		for _, value := range values {
@@ -788,18 +798,33 @@ func (s *Server) Replay(ctx context.Context, f Flow) error {
 	proxyURL := &url.URL{Scheme: "http", Host: s.addr}
 	client := &http.Client{
 		Timeout: 30 * time.Second,
+		Jar: jar,
 		Transport: &http.Transport{
 			Proxy:           http.ProxyURL(proxyURL),
 			TLSClientConfig: &tls.Config{RootCAs: s.roots},
 		},
 	}
+	defer client.CloseIdleConnections()
+	started := time.Now()
 	resp, err := client.Do(req)
 	if err != nil {
-		return err
+		return Flow{}, err
 	}
 	defer resp.Body.Close()
-	_, err = io.Copy(io.Discard, resp.Body)
-	return err
+	preview, err := io.ReadAll(io.LimitReader(resp.Body, 8<<20))
+	if err != nil {
+		return Flow{}, err
+	}
+	rest, err := io.Copy(io.Discard, resp.Body)
+	if err != nil {
+		return Flow{}, err
+	}
+	return Flow{
+		Method: req.Method, URL: rawURL, Status: resp.StatusCode,
+		ResponseHeader: resp.Header.Clone(), ResponseBody: string(preview),
+		ResponseBodySize: len(preview) + int(rest), Bytes: len(preview) + int(rest),
+		Millis: int(time.Since(started).Milliseconds()), At: time.Now(),
+	}, nil
 }
 
 // addon records when a request started, applies the rules, and publishes it
@@ -1018,7 +1043,7 @@ func (s *Server) applyRules(f *proxy.Flow) *proxy.Response {
 	}
 	raw := f.Request.URL.String()
 	for _, r := range rules {
-		if !strings.Contains(raw, r.Match) {
+		if !r.matches(raw, f.Request.Method) {
 			continue
 		}
 		switch r.Type {
@@ -1029,7 +1054,7 @@ func (s *Server) applyRules(f *proxy.Flow) *proxy.Response {
 				Body:       []byte("blocked by vscroxy\n"),
 			}
 		case RuleMapLocal:
-			body, err := os.ReadFile(r.Target)
+			body, err := readMockBody(r.Target)
 			if err != nil {
 				return &proxy.Response{
 					StatusCode: http.StatusBadGateway,
@@ -1037,20 +1062,23 @@ func (s *Server) applyRules(f *proxy.Flow) *proxy.Response {
 					Body:       []byte("map local: " + err.Error() + "\n"),
 				}
 			}
-			if len(body) > maxRuleBody {
-				body = body[:maxRuleBody]
-			}
 			status := r.Status
 			if status == 0 {
 				status = http.StatusOK
 			}
+			headers := r.Headers.Clone()
+			if headers == nil {
+				headers = make(http.Header)
+			}
+			stripHopHeaders(headers)
+			if headers.Get("Content-Type") == "" {
+				headers.Set("Content-Type", contentType(r.Target))
+			}
+			headers.Set("Content-Length", strconv.Itoa(len(body)))
 			return &proxy.Response{
 				StatusCode: status,
-				Header: http.Header{
-					"Content-Type":   {contentType(r.Target)},
-					"Content-Length": {fmt.Sprint(len(body))},
-				},
-				Body: body,
+				Header:     headers,
+				Body:       body,
 			}
 		case RuleMapRemote:
 			u, err := mapURL(f.Request.URL, r.Target)

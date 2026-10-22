@@ -16,11 +16,12 @@ const maxHistory = 100
 
 // historyEntry is a request Compose sent.
 type historyEntry struct {
-	Method  string    `json:"method"`
-	URL     string    `json:"url"`
-	Headers string    `json:"headers,omitempty"`
-	Body    string    `json:"body,omitempty"`
-	At      time.Time `json:"at"`
+	Method  string        `json:"method"`
+	URL     string        `json:"url"`
+	Headers string        `json:"headers,omitempty"`
+	Body    string        `json:"body,omitempty"`
+	At      time.Time     `json:"at"`
+	Draft   *savedRequest `json:"draft,omitempty"`
 }
 
 // loadHistory reads the sent requests, newest first.
@@ -48,7 +49,7 @@ func saveHistory(path string, list []historyEntry) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(path, append(data, '\n'), 0o644)
+	return writePrivateFile(path, append(data, '\n'))
 }
 
 // pushHistory puts e first, dropping an earlier send of the same method and

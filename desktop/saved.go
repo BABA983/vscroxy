@@ -7,17 +7,21 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"path/filepath"
 	"slices"
 )
 
 // savedRequest is a request kept by name, the first half of a collection.
 type savedRequest struct {
-	Name       string `json:"name"`
-	Collection string `json:"collection,omitempty"`
-	Method     string `json:"method"`
-	URL        string `json:"url"`
-	Headers    string `json:"headers,omitempty"`
-	Body       string `json:"body,omitempty"`
+	Name       string         `json:"name"`
+	Collection string         `json:"collection,omitempty"`
+	Method     string         `json:"method"`
+	URL        string         `json:"url"`
+	Headers    string         `json:"headers,omitempty"`
+	Body       string         `json:"body,omitempty"`
+	Auth       requestAuth    `json:"auth,omitzero"`
+	BodyMode   string         `json:"bodyMode,omitempty"`
+	Form       []requestField `json:"form,omitempty"`
 	// Pre runs before the send and may change it; Post sees the response.
 	Pre  string `json:"pre,omitempty"`
 	Post string `json:"post,omitempty"`
@@ -51,7 +55,26 @@ func saveRequests(path string, list []savedRequest) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(path, append(data, '\n'), 0o644)
+	return writePrivateFile(path, append(data, '\n'))
+}
+
+// Request assets may contain credentials. Replace atomically with a private
+// file, including when an older version created a world-readable destination.
+func writePrivateFile(path string, data []byte) error {
+	f, err := os.CreateTemp(filepath.Dir(path), ".request-*")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(f.Name())
+	_, err = f.Write(data)
+	closed := f.Close()
+	if err != nil {
+		return err
+	}
+	if closed != nil {
+		return closed
+	}
+	return os.Rename(f.Name(), path)
 }
 
 // upsertRequest adds r, replacing the request of the same name in the same

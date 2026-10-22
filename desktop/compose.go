@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json/v2"
 	"errors"
 	"fmt"
@@ -11,6 +12,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/dop251/goja"
 )
@@ -59,7 +61,7 @@ func saveEnvs(path string, envs []environment, active string) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(path, append(data, '\n'), 0o644)
+	return writePrivateFile(path, append(data, '\n'))
 }
 
 // expandVars replaces {{name}} with a variable's value, leaving a name it does
@@ -173,6 +175,12 @@ type scriptRun struct {
 // runScript executes src with the objects given, which are the globals the
 // script sees beside vars, test and log.
 func runScript(src string, run *scriptRun, objects map[string]any) error {
+	return runScriptContext(context.Background(), src, run, objects)
+}
+
+// Bound user scripts as well as network I/O. Interrupt also lets Runner cancel
+// a script loop without leaving a goroutine (or the UI thread) stuck in Goja.
+func runScriptContext(ctx context.Context, src string, run *scriptRun, objects map[string]any) error {
 	src = strings.TrimSpace(src)
 	if src == "" {
 		return nil
@@ -181,6 +189,10 @@ func runScript(src string, run *scriptRun, objects map[string]any) error {
 		run.vars = map[string]string{}
 	}
 	vm := goja.New()
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+	stop := context.AfterFunc(ctx, func() { vm.Interrupt(ctx.Err()) })
+	defer stop()
 	vm.SetFieldNameMapper(goja.TagFieldNameMapper("json", true))
 	vm.Set("vars", map[string]any{
 		"get": func(name string) string { return run.vars[name] },
