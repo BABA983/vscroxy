@@ -1,6 +1,7 @@
 package capture
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"crypto/tls"
@@ -19,6 +20,7 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 // freeAddr reserves an address the proxy can listen on.
@@ -656,6 +658,20 @@ func TestBlock(t *testing.T) {
 	}
 }
 
+func TestBlockStillAppliesToGRPC(t *testing.T) {
+	s, conn := startGRPCThroughProxy(t)
+	s.SetRules([]Rule{{Type: RuleBlock, Match: grpcMethod("Echo")}})
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+	defer cancel()
+	if err := conn.Invoke(ctx, grpcMethod("Echo"), wrapperspb.String("blocked"), new(wrapperspb.StringValue)); err == nil {
+		t.Fatal("a blocked gRPC call reached the upstream")
+	}
+	f := waitFlowFor(t, s, "/Echo")
+	if f.Status != http.StatusForbidden || f.ResponseBody != "blocked by vscroxy\n" || f.ResponseHeader.Get("X-Server-Header") != "" {
+		t.Fatalf("gRPC block response: status %d, body %q, headers %v", f.Status, f.ResponseBody, f.ResponseHeader)
+	}
+}
+
 func TestReplay(t *testing.T) {
 	calls := 0
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -1045,7 +1061,7 @@ func TestSSEEvents(t *testing.T) {
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/event-stream")
 		w.WriteHeader(http.StatusOK)
-		fmt.Fprint(w, "event: tick\ndata: one\n\n")
+		fmt.Fprint(w, "id: 7\nevent: tick\ndata: one\n\n")
 		w.(http.Flusher).Flush()
 		fmt.Fprint(w, "data: two\n\n")
 		w.(http.Flusher).Flush()
@@ -1068,12 +1084,315 @@ func TestSSEEvents(t *testing.T) {
 		t.Fatalf("flow = kind %q", f.Kind)
 	}
 	first := waitFrame(t, s)
-	if first.FlowID != f.ID || first.Frame.Data != "one" || first.Frame.Kind != "tick" {
-		t.Fatalf("first event = %+v", first)
+	if first.FlowID != f.ID || first.Frame.Data != "one" || first.Frame.Kind != "event" {
+		t.Fatalf("first event = %+v, want an SSE event", first)
+	}
+	if first.Frame.Seq != 1 || first.Frame.Direction != "in" {
+		t.Errorf("first event = %+v, want the first the server sent", first.Frame)
+	}
+	// The engine parses the event's own name and id, and the frame keeps them:
+	// the kind says what the message is, not what the server called it.
+	if first.Frame.EventName != "tick" || first.Frame.EventID != "7" {
+		t.Errorf("first event = name %q id %q, want tick and 7", first.Frame.EventName, first.Frame.EventID)
+	}
+	if first.Frame.Size != 3 || first.Frame.Kept != 3 || first.Frame.File != "" {
+		t.Errorf("first event = size %d kept %d file %q, want the three bytes inline", first.Frame.Size, first.Frame.Kept, first.Frame.File)
 	}
 	second := waitFrame(t, s)
 	if second.Frame.Data != "two" {
 		t.Fatalf("second event = %+v", second)
+	}
+	if second.Frame.EventName != "message" {
+		t.Errorf("second event = name %q, want the engine's default name", second.Frame.EventName)
+	}
+	if second.Frame.Seq != 2 {
+		t.Errorf("second event = seq %d, want 2", second.Frame.Seq)
+	}
+}
+
+// wsEchoServer answers every message with the same bytes, so a test can send
+// one and see both frames the proxy captured.
+func wsEchoServer(t *testing.T) (*httptest.Server, *string) {
+	t.Helper()
+	var seen string
+	upgrader := websocket.Upgrader{CheckOrigin: func(*http.Request) bool { return true }}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		seen = r.URL.RequestURI()
+		conn, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+		defer conn.Close()
+		for {
+			kind, msg, err := conn.ReadMessage()
+			if err != nil {
+				return
+			}
+			if err := conn.WriteMessage(kind, msg); err != nil {
+				return
+			}
+		}
+	}))
+	t.Cleanup(server.Close)
+	return server, &seen
+}
+
+// dialWS opens a WebSocket through the proxy, as a client library does: a
+// CONNECT tunnel the proxy decrypts when the host is decrypted, then the
+// handshake inside it.
+func dialWS(t *testing.T, s *Server, target string) *websocket.Conn {
+	t.Helper()
+	proxyURL, err := url.Parse("http://" + s.Addr())
+	if err != nil {
+		t.Fatalf("parse proxy: %v", err)
+	}
+	conn, _, err := (&websocket.Dialer{Proxy: http.ProxyURL(proxyURL)}).Dial(target, nil)
+	if err != nil {
+		t.Fatalf("dial %s: %v", target, err)
+	}
+	t.Cleanup(func() { _ = conn.Close() })
+	return conn
+}
+
+// dialWSS opens a wss:// WebSocket through the proxy the way a browser does:
+// CONNECT, TLS the proxy decrypts with its own certificate, then the handshake
+// on that connection. Each step waits for the one before it, so no hello races
+// the response to the CONNECT.
+func dialWSS(t *testing.T, s *Server, caPath, target, path string) *websocket.Conn {
+	t.Helper()
+	host, port, ok := strings.Cut(target, ":")
+	if !ok {
+		t.Fatalf("target %q has no port", target)
+	}
+	raw, err := net.Dial("tcp", s.Addr())
+	if err != nil {
+		t.Fatalf("dial proxy: %v", err)
+	}
+	t.Cleanup(func() { _ = raw.Close() })
+	fmt.Fprintf(raw, "CONNECT %s HTTP/1.1\r\nHost: %s\r\n\r\n", target, target)
+	resp, err := http.ReadResponse(bufio.NewReader(raw), &http.Request{Method: http.MethodConnect})
+	if err != nil {
+		t.Fatalf("connect: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("connect = %s", resp.Status)
+	}
+	pem, err := os.ReadFile(caPath)
+	if err != nil {
+		t.Fatalf("read proxy CA: %v", err)
+	}
+	roots := x509.NewCertPool()
+	if !roots.AppendCertsFromPEM(pem) {
+		t.Fatal("proxy CA is not PEM")
+	}
+	conn := tls.Client(raw, &tls.Config{RootCAs: roots, ServerName: host})
+	if err := conn.HandshakeContext(t.Context()); err != nil {
+		t.Fatalf("handshake: %v", err)
+	}
+	dialer := websocket.Dialer{
+		// The TLS handshake is done: gorilla speaks the WebSocket handshake
+		// on this connection as it is.
+		NetDialTLSContext: func(context.Context, string, string) (net.Conn, error) { return conn, nil },
+	}
+	ws, _, err := dialer.Dial("wss://"+net.JoinHostPort(host, port)+path, nil)
+	if err != nil {
+		t.Fatalf("handshake: %v", err)
+	}
+	t.Cleanup(func() { _ = ws.Close() })
+	return ws
+}
+
+// TestWebSocketKeepsLongMessagesWhole covers a message past the inline
+// preview: the frame says how long it was, keeps its head in memory and the
+// whole of it in the spill file, so the UI can show and save all of it.
+func TestWebSocketKeepsLongMessagesWhole(t *testing.T) {
+	upstream, _ := wsEchoServer(t)
+	s, _ := startServer(t)
+	s.SetSSL(SSLConfig{All: true})
+	conn := dialWS(t, s, "ws"+strings.TrimPrefix(upstream.URL, "http")+"/stream")
+
+	long := strings.Repeat("0123456789abcdef", 2560) // 40 KiB
+	if err := conn.WriteMessage(websocket.TextMessage, []byte(long)); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	if _, msg, err := conn.ReadMessage(); err != nil || string(msg) != long {
+		t.Fatalf("echo = %d bytes, %v; want the whole message", len(msg), err)
+	}
+	flow := waitFlow(t, s)
+	if flow.Kind != "ws" {
+		t.Fatalf("flow = kind %q", flow.Kind)
+	}
+	sent := waitFrame(t, s)
+	if sent.FlowID != flow.ID || sent.Frame.Direction != "out" || sent.Frame.Kind != "text" {
+		t.Fatalf("frame = %+v", sent)
+	}
+	frame := sent.Frame
+	if frame.Seq != 1 {
+		t.Errorf("seq = %d, want the first message numbered 1", frame.Seq)
+	}
+	if frame.Size != len(long) || frame.Kept != len(long) {
+		t.Errorf("size = %d, kept = %d, want the whole %d", frame.Size, frame.Kept, len(long))
+	}
+	if len(frame.Data) != maxFrameBytes || !strings.HasPrefix(long, frame.Data) {
+		t.Errorf("data = %d bytes, want the head of the message inline", len(frame.Data))
+	}
+	if frame.File == "" {
+		t.Fatal("the message was not spilled")
+	}
+	spilled, err := os.ReadFile(frame.File)
+	if err != nil {
+		t.Fatalf("read spill: %v", err)
+	}
+	if string(spilled) != long {
+		t.Errorf("spill = %d bytes, want the whole %d", len(spilled), len(long))
+	}
+	echo := waitFrame(t, s)
+	if echo.Frame.Seq != 2 || echo.Frame.Direction != "in" || echo.Frame.Data != long[:maxFrameBytes] {
+		t.Errorf("echo = %+v, want the message back", echo.Frame)
+	}
+}
+
+// The patched engine exposes the real upgrade request, including escaped path
+// and query, rather than the CONNECT envelope.
+func TestWebSocketKeepsThePathAndQuery(t *testing.T) {
+	upstream, seen := wsEchoServer(t)
+	s, _ := startServer(t)
+	s.SetSSL(SSLConfig{All: true})
+	target := "ws" + strings.TrimPrefix(upstream.URL, "http")
+	conn := dialWS(t, s, target+"/deep/path%2Fseg?q=%2F")
+	if err := conn.WriteMessage(websocket.TextMessage, []byte("hi")); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	if _, _, err := conn.ReadMessage(); err != nil {
+		t.Fatalf("read: %v", err)
+	}
+	flow := waitFlow(t, s)
+	if want := target + "/deep/path%2Fseg?q=%2F"; flow.URL != want {
+		t.Errorf("url = %q, want %q", flow.URL, want)
+	}
+	if flow.Scheme != "ws" || flow.Path != "/deep/path%2Fseg?q=%2F" {
+		t.Errorf("flow = scheme %q path %q, want the actual upgrade URL", flow.Scheme, flow.Path)
+	}
+	if *seen != "/deep/path%2Fseg?q=%2F" {
+		t.Errorf("upstream saw %q, want the path the client asked for", *seen)
+	}
+	if frame := waitFrame(t, s); frame.Frame.Data != "hi" {
+		t.Errorf("frame = %+v, want the message", frame.Frame)
+	}
+}
+
+// TestWSSKeepsThePathAndQuery covers a decrypted wss:// URL with a path and
+// query that do not look like the host: the row shows the request the client
+// made, escapes and all, and the frames of that connection are captured.
+func TestWSSKeepsThePathAndQuery(t *testing.T) {
+	upgrader := websocket.Upgrader{CheckOrigin: func(*http.Request) bool { return true }}
+	var seen string
+	upstream := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		seen = r.URL.RequestURI()
+		conn, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+		defer conn.Close()
+		for {
+			kind, msg, err := conn.ReadMessage()
+			if err != nil {
+				return
+			}
+			if err := conn.WriteMessage(kind, msg); err != nil {
+				return
+			}
+		}
+	}))
+	defer upstream.Close()
+
+	s, caPath := startServer(t)
+	s.SetSSL(SSLConfig{All: true})
+	u, err := url.Parse(upstream.URL)
+	if err != nil {
+		t.Fatalf("parse upstream: %v", err)
+	}
+	const path = "/deep/path%2Fseg?q=%2F&z=a+b"
+	conn := dialWSS(t, s, caPath, "localhost:"+u.Port(), path)
+	if err := conn.WriteMessage(websocket.TextMessage, []byte("hi")); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	if _, _, err := conn.ReadMessage(); err != nil {
+		t.Fatalf("read: %v", err)
+	}
+	if seen != path {
+		t.Errorf("upstream saw %q, want %q", seen, path)
+	}
+	flow := waitFlow(t, s)
+	if want := "wss://localhost:" + u.Port() + path; flow.URL != want {
+		t.Errorf("url = %q, want %q", flow.URL, want)
+	}
+	if flow.Scheme != "wss" || flow.Path != path || flow.Kind != "ws" {
+		t.Errorf("flow = scheme %q path %q kind %q", flow.Scheme, flow.Path, flow.Kind)
+	}
+	if frame := waitFrame(t, s); frame.Frame.Data != "hi" {
+		t.Errorf("frame = %+v, want the message", frame.Frame)
+	}
+}
+
+// TestFrameQueueLossIsVisible covers a stream the UI cannot keep up with: the
+// frames a full queue could not take leave gaps in the sequence numbers the UI
+// shows, and the server counts them, so a lost message never passes for one
+// that never happened.
+func TestFrameQueueLossIsVisible(t *testing.T) {
+	upstream, _ := wsEchoServer(t)
+	s, _ := startServer(t)
+	s.SetSSL(SSLConfig{All: true})
+	conn := dialWS(t, s, "ws"+strings.TrimPrefix(upstream.URL, "http")+"/burst")
+	roundTrip := func(msg string) {
+		t.Helper()
+		if err := conn.WriteMessage(websocket.TextMessage, []byte(msg)); err != nil {
+			t.Fatalf("write %q: %v", msg, err)
+		}
+		if _, _, err := conn.ReadMessage(); err != nil {
+			t.Fatalf("read %q: %v", msg, err)
+		}
+	}
+	roundTrip("first")
+	waitFlow(t, s)
+
+	// Nothing reads the frames while the burst runs, so the queue fills and
+	// what follows is dropped rather than kept without limit.
+	for i := range queue + 200 {
+		roundTrip(fmt.Sprintf("message %d", i))
+	}
+	if dropped := s.FrameDropped(); dropped == 0 {
+		t.Fatal("the queue dropped frames without counting them")
+	}
+	var seqs []int
+	for {
+		select {
+		case ev := <-s.Frames():
+			seqs = append(seqs, ev.Frame.Seq)
+			continue
+		case <-time.After(200 * time.Millisecond):
+		}
+		break
+	}
+	if len(seqs) == 0 {
+		t.Fatal("no frame was captured")
+	}
+	if len(seqs) >= 2*(queue+201) {
+		t.Fatalf("frames = %d, want the queue to have dropped some", len(seqs))
+	}
+
+	// A message after the burst is numbered past what was dropped, so the gap
+	// says how many the UI never saw.
+	roundTrip("after the burst")
+	last := waitFrame(t, s)
+	if last.Frame.Data != "after the burst" {
+		t.Fatalf("frame = %q, want the message after the burst", last.Frame.Data)
+	}
+	if last.Frame.Seq <= seqs[len(seqs)-1]+1 {
+		t.Errorf("seq = %d after %d, want the numbering to count the dropped ones", last.Frame.Seq, seqs[len(seqs)-1])
+	}
+	if gaps := last.Frame.Seq - seqs[len(seqs)-1] - 1; gaps < int(s.FrameDropped()) {
+		t.Errorf("gap = %d, counted drops = %d, want the gap to show them", gaps, s.FrameDropped())
 	}
 }
 

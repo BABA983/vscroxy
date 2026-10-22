@@ -5,7 +5,6 @@ package capture
 
 import (
 	"bytes"
-	"cmp"
 	"context"
 	"crypto/tls"
 	"crypto/x509"
@@ -46,9 +45,12 @@ const (
 	// maxScriptBody bounds what a response script reads.
 	maxScriptBody = 1 << 20
 	// maxFrames bounds the messages kept for one WebSocket or SSE flow, and
-	// maxFrameBytes what one message keeps.
+	// maxFrameBytes what one message keeps in memory.
 	maxFrames     = 200
 	maxFrameBytes = 4 << 10
+	// maxFrameSpill bounds what one message keeps on disk: a larger message
+	// is written out up to this many bytes and reports the rest as cut.
+	maxFrameSpill = 256 << 10
 	// queue bounds the flows waiting for the UI. A burst past it is dropped
 	// and counted instead of growing without limit.
 	queue = 1024
@@ -93,6 +95,13 @@ type Flow struct {
 	ResponseBodyFile string
 	ResponseBodySize int
 
+	// RequestBodyError and ResponseBodyError say why a body is not the whole
+	// one the exchange carried: the transfer stopped before its end, the body
+	// could not be kept, or its encoding is not one the capture decodes. Empty
+	// means the body beside it is complete.
+	RequestBodyError  string
+	ResponseBodyError string
+
 	// At is when the exchange finished; ResponseHeader the structured
 	// response headers, for an export.
 	At             time.Time
@@ -100,6 +109,16 @@ type Flow struct {
 
 	// RequestHeader is the structured request headers, for a replay.
 	RequestHeader http.Header
+
+	// RequestTrailer and ResponseTrailer are the trailer blocks the
+	// exchange ended with, kept apart from the headers: a gRPC status and
+	// its binary details live there, and a trailer may repeat a name the
+	// headers also carried, with other values. ResponseProto is the HTTP
+	// version the server answered with, such as "HTTP/2.0"; empty when the
+	// response never came from a server.
+	RequestTrailer  http.Header
+	ResponseTrailer http.Header
+	ResponseProto   string
 
 	// Kind is "http", "ws" or "sse"; Frames carries the messages of the
 	// last two.
@@ -127,18 +146,38 @@ type Flow struct {
 	Download int
 }
 
-// FrameEvent is a frame that arrived after its flow was published.
+// FrameEvent is a frame that arrived after its flow was published. A frame the
+// UI was too slow to take is not sent at all: the next one's Seq shows the gap.
 type FrameEvent struct {
 	FlowID int
 	Frame  Frame
 }
 
-// Frame is one WebSocket message or SSE event of a flow.
+// Frame is one WebSocket message or SSE event of a flow. The whole message is
+// kept: a large one is written to the spill directory and only its head stays
+// in memory, so a stream of long messages does not grow without limit.
 type Frame struct {
+	// Seq numbers the messages of a flow from 1, so a gap says how many the
+	// capture or the UI could not keep.
+	Seq       int
 	Direction string // "out" for client to server, "in" for server to client
-	Kind      string // "text", "binary", "event" or the WebSocket frame type
-	Data      string
-	At        time.Time
+	// Kind is "text", "binary", "close", "ping" or "pong" for a WebSocket
+	// message, and "event" for an SSE event, whose EventName says which one.
+	Kind string
+	// Data is the message, or its head when File holds the rest.
+	Data string
+	// File holds the message, or its first Kept bytes when it was larger
+	// than the spill cap. It is empty for a message kept whole inline.
+	File string
+	// Size is the message's length in bytes, and Kept how much of it is here:
+	// Kept below Size means the message was cut, and by how much.
+	Size int
+	Kept int
+	At   time.Time
+	// EventID and EventName are the SSE "id" and "event" fields; the engine
+	// names an event that had none "message".
+	EventID   string
+	EventName string
 }
 
 // RuleType is what a rule does to a request that matches it.
@@ -218,6 +257,21 @@ type Server struct {
 	// when the server closes.
 	bodyDir string
 
+	// streams holds the bodies the engine streams past its buffered path,
+	// until their flow is published or done.
+	streams map[uuid.UUID]*streamBodies
+
+	// trailers holds the trailer block each side of a flow ended with,
+	// until the flow is published.
+	trailers map[uuid.UUID]*flowTrailers
+
+	// closed is closed when the server does, so a watcher waiting on a flow
+	// never outlives it; sendMu and sendClosed keep a publish off a closed
+	// Flows.
+	closed     chan struct{}
+	sendMu     sync.RWMutex
+	sendClosed bool
+
 	// dns answers the names mapped to an address and forwards the rest, so
 	// the proxy dials a mapping without changing the URL or Host header.
 	dns *dnsmap.Server
@@ -236,6 +290,10 @@ type Server struct {
 
 	frames  chan FrameEvent
 	flowIDs map[uuid.UUID]int
+	// frameSeq numbers the messages of each flow, and frameDrops counts the
+	// ones a full queue took.
+	frameSeq   map[uuid.UUID]int
+	frameDrops atomic.Int64
 
 	scriptMu     sync.RWMutex
 	script       *Script
@@ -274,6 +332,10 @@ func New(addr, caRootPath string) (*Server, error) {
 		breakpoints: make(chan Breakpoint, 16),
 		frames:      make(chan FrameEvent, queue),
 		flowIDs:     make(map[uuid.UUID]int),
+		frameSeq:    make(map[uuid.UUID]int),
+		streams:     make(map[uuid.UUID]*streamBodies),
+		trailers:    make(map[uuid.UUID]*flowTrailers),
+		closed:      make(chan struct{}),
 	}
 	p, err := proxy.NewProxy(&proxy.Options{
 		Addr:              addr,
@@ -605,6 +667,10 @@ func (s *Server) Breaking() bool { return s.breakOn.Load() }
 // Frames is the stream of WebSocket messages and SSE events, by flow.
 func (s *Server) Frames() <-chan FrameEvent { return s.frames }
 
+// FrameDropped counts the messages a full queue took, which the sequence
+// numbers of the frames that did arrive also show as gaps.
+func (s *Server) FrameDropped() int64 { return s.frameDrops.Load() }
+
 // Breakpoints is the stream of paused exchanges waiting for a decision.
 func (s *Server) Breakpoints() <-chan Breakpoint { return s.breakpoints }
 
@@ -749,7 +815,20 @@ func (s *Server) Close() error {
 		_ = s.dns.Close()
 	}
 	s.closeOnce.Do(func() {
+		close(s.closed)
+		// Nothing may publish into Flows once it is closed.
+		s.sendMu.Lock()
+		s.sendClosed = true
 		close(s.out)
+		s.sendMu.Unlock()
+		s.mu.Lock()
+		streams := s.streams
+		s.streams = make(map[uuid.UUID]*streamBodies)
+		s.trailers = make(map[uuid.UUID]*flowTrailers)
+		s.mu.Unlock()
+		for _, st := range streams {
+			st.release()
+		}
 		if s.bodyDir != "" {
 			_ = os.RemoveAll(s.bodyDir)
 		}
@@ -798,7 +877,7 @@ func (s *Server) ReplayWithCookies(ctx context.Context, f Flow, jar http.CookieJ
 	proxyURL := &url.URL{Scheme: "http", Host: s.addr}
 	client := &http.Client{
 		Timeout: 30 * time.Second,
-		Jar: jar,
+		Jar:     jar,
 		Transport: &http.Transport{
 			Proxy:           http.ProxyURL(proxyURL),
 			TLSClientConfig: &tls.Config{RootCAs: s.roots},
@@ -823,6 +902,7 @@ func (s *Server) ReplayWithCookies(ctx context.Context, f Flow, jar http.CookieJ
 		Method: req.Method, URL: rawURL, Status: resp.StatusCode,
 		ResponseHeader: resp.Header.Clone(), ResponseBody: string(preview),
 		ResponseBodySize: len(preview) + int(rest), Bytes: len(preview) + int(rest),
+		ResponseTrailer: resp.Trailer.Clone(), ResponseProto: resp.Proto,
 		Millis: int(time.Since(started).Milliseconds()), At: time.Now(),
 	}, nil
 }
@@ -857,6 +937,17 @@ func (a *addon) Requestheaders(f *proxy.Flow) {
 	a.server.mu.Lock()
 	a.server.started[f.Id] = time.Now()
 	a.server.mu.Unlock()
+	// The engine streams a gRPC call instead of buffering it (it sets Stream
+	// before this hook), so it never calls Request for one: apply the rules
+	// here, while the URL and the headers are still the proxy's to change and
+	// a rule may answer the call itself. A breakpoint or a script that edits
+	// the body cannot, since the client is still sending it.
+	if f.Stream {
+		if resp := a.server.applyRules(f); resp != nil {
+			f.Response = resp
+			a.server.publish(f)
+		}
+	}
 }
 
 // Responseheaders notes when the response started, the end of the wait.
@@ -870,6 +961,9 @@ func (a *addon) Request(f *proxy.Flow) {
 	if f.Request == nil {
 		return
 	}
+	// The buffered body and its trailers are complete before a breakpoint
+	// or a rule can publish a local response and short-circuit the exchange.
+	a.server.keepTrailers(f, "req", f.Request.Trailers())
 	if err := a.server.currentScript().applyRequest(f); err != nil {
 		a.server.scriptErrors.Add(1)
 	}
@@ -915,13 +1009,15 @@ func (a *addon) WebSocketMessage(f *proxy.Flow) {
 	if m.FromClient {
 		direction = "out"
 	}
-	a.server.emitFrame(f, Frame{
+	a.server.emitFrame(f, frameInput{
 		Direction: direction,
 		Kind:      wsFrameKind(m.Type),
-		Data:      clipFrame(m.Content),
+		Data:      m.Content,
 		At:        m.Timestamp,
 	})
 }
+
+func (a *addon) WebSocketEnd(f *proxy.Flow) { a.server.endFrames(f) }
 
 func (a *addon) SSEStart(f *proxy.Flow) {
 	a.server.publishFlow(f, "sse", nil, 0)
@@ -936,19 +1032,25 @@ func (a *addon) SSEMessage(f *proxy.Flow) {
 	if data == "" {
 		data = e.Raw
 	}
-	a.server.emitFrame(f, Frame{
+	a.server.emitFrame(f, frameInput{
 		Direction: "in",
-		Kind:      cmp.Or(e.Event, "event"),
-		Data:      clipFrame([]byte(data)),
+		Kind:      "event",
+		Data:      []byte(data),
 		At:        e.Time,
+		EventID:   e.ID,
+		EventName: e.Event,
 	})
 }
+
+func (a *addon) SSEEnd(f *proxy.Flow) { a.server.endFrames(f) }
 
 func (a *addon) Response(f *proxy.Flow) {
 	if f.Response == nil || f.Stream || isSSE(f.Response) {
 		a.server.publish(f)
 		return
 	}
+	// The engine buffered the response body, so its trailer block is complete.
+	a.server.keepTrailers(f, "res", f.Response.Trailers())
 	// A response script or breakpoint edits the body in
 	// StreamResponseModifier, the only place the proxy still lets the reader
 	// be replaced: publish there, once the edits are in.
@@ -958,14 +1060,30 @@ func (a *addon) Response(f *proxy.Flow) {
 	a.server.publish(f)
 }
 
-// StreamResponseModifier runs the response script on the body before the
-// client gets it, and publishes the flow after the edit.
+// StreamRequestModifier keeps a request body the engine streams instead of
+// buffering, and paces what goes upstream.
 func (a *addon) StreamRequestModifier(f *proxy.Flow, in io.Reader) io.Reader {
+	// The engine skipped Request for a body past the buffering threshold, so
+	// this reader is all of it, the buffered prefix included: keep it.
+	if f.Stream && f.Request != nil && f.Request.Body == nil {
+		in = a.server.captureStream(f, "req", in, contentEncoding(f.Request.Header), requestLength(f.Request))
+	}
 	return a.server.throttleUp(in)
 }
 
+// StreamResponseModifier runs the response script on the body before the
+// client gets it, and publishes the flow after the edit.
 func (a *addon) StreamResponseModifier(f *proxy.Flow, in io.Reader) io.Reader {
-	if f.Response == nil || f.Stream || isSSE(f.Response) {
+	if f.Response == nil {
+		return a.server.throttleDown(in)
+	}
+	if f.Stream {
+		// An SSE stream publishes its own flow and events; any other streamed
+		// response is a body the engine never buffered, so keep it here and
+		// publish the flow when it ends.
+		if !isSSE(f.Response) {
+			in = a.server.captureStream(f, "res", in, contentEncoding(f.Response.Header), declaredLength(f.Response.Header))
+		}
 		return a.server.throttleDown(in)
 	}
 	sc := a.server.currentScript()
@@ -1184,6 +1302,42 @@ func (s *Server) publish(f *proxy.Flow) {
 	s.publishFlow(f, "http", nil, 0)
 }
 
+// flowTrailers is the trailer block one flow ended each of its sides with. The
+// side that finishes its body writes here, and the publisher reads once, under
+// the same lock, so the map the transport owns is never read while it fills it.
+type flowTrailers struct {
+	req, res http.Header
+}
+
+// keepTrailers keeps the trailers a side of a flow ended with. It is called
+// once that side's body has ended, so the transport has finished the block it
+// passes in.
+func (s *Server) keepTrailers(f *proxy.Flow, side string, trailer http.Header) {
+	if f == nil || len(trailer) == 0 {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, active := s.started[f.Id]; !active {
+		return // A late request EOF must not recreate state after publication.
+	}
+	select {
+	case <-s.closed:
+		return
+	default:
+	}
+	t := s.trailers[f.Id]
+	if t == nil {
+		t = &flowTrailers{}
+		s.trailers[f.Id] = t
+	}
+	if side == "req" {
+		t.req = trailer.Clone()
+	} else {
+		t.res = trailer.Clone()
+	}
+}
+
 // publishError shows a request that never reached its server as the gateway
 // error the client got, with the reason in the body.
 func (s *Server) publishError(f *proxy.Flow, err error) {
@@ -1202,15 +1356,29 @@ func (s *Server) publishError(f *proxy.Flow, err error) {
 }
 
 // publishFlow turns one exchange into the boundary Flow the UI shows. kind is
-// "http", "ws" or "sse"; status overrides the response's when non-zero.
-func (s *Server) publishFlow(f *proxy.Flow, kind string, frames []Frame, status int) int {
+// "http", "ws" or "sse"; status overrides the response's when non-zero. A
+// streamed exchange passes its kept bodies in, since they never reached the
+// flow; every other caller leaves them out and publishFlow takes what the
+// capture kept, if anything.
+func (s *Server) publishFlow(f *proxy.Flow, kind string, frames []Frame, status int, bodies ...*streamBodies) int {
 	if f.Request == nil {
 		return 0
 	}
+	var streamed *streamBodies
+	if len(bodies) > 0 {
+		streamed = bodies[0]
+	} else {
+		streamed = s.takeStream(f)
+	}
+	var reqTrailer, resTrailer http.Header
 	now := time.Now()
 	s.mu.Lock()
 	start, ok := s.started[f.Id]
 	delete(s.started, f.Id)
+	if trailers := s.trailers[f.Id]; trailers != nil {
+		reqTrailer, resTrailer = trailers.req, trailers.res
+		delete(s.trailers, f.Id)
+	}
 	first, hasFirst := s.firstByte[f.Id]
 	delete(s.firstByte, f.Id)
 	display := f.Request.URL
@@ -1237,23 +1405,45 @@ func (s *Server) publishFlow(f *proxy.Flow, kind string, frames []Frame, status 
 		reqData = nil
 	}
 	if s.ignored(display.Hostname()) {
+		streamed.release()
 		return 0
 	}
 	client := s.clientProcess(f)
 	if s.ignoredApp(client.Name) {
+		streamed.release()
 		return 0
 	}
-	reqBody, reqFile, reqSize := s.keepBody(f.Id, "req", reqData)
-	size, respHeaders := 0, ""
+	reqBody, reqFile, reqSize, reqErr := s.keepBody(f.Id, "req", reqData)
+	if err != nil {
+		reqErr = "request body could not be decoded: " + err.Error()
+	}
+	streamReq, streamRes := streamed.sides()
+	if streamReq != nil {
+		r := streamReq.finish()
+		reqBody, reqFile, reqSize, reqErr = r.Head, r.File, r.Size, r.Err
+	}
+	size, respHeaders, respProto := 0, "", ""
 	respBody, respFile, respSize := "", "", 0
+	respErr := ""
 	if f.Response != nil {
 		size = len(f.Response.Body)
 		respHeaders = formatResponse(f.Response)
+		respProto = f.Response.Proto
 		respData, err := f.Response.DecodedBody()
 		if err != nil {
 			respData = nil
 		}
-		respBody, respFile, respSize = s.keepBody(f.Id, "res", respData)
+		respBody, respFile, respSize, respErr = s.keepBody(f.Id, "res", respData)
+		if err != nil {
+			respErr = "response body could not be decoded: " + err.Error()
+		}
+	}
+	if streamRes != nil {
+		r := streamRes.finish()
+		respBody, respFile, respSize, respErr = r.Head, r.File, r.Size, r.Err
+		if r.Wire > 0 {
+			size = r.Wire
+		}
 	}
 	if status == 0 && f.Response != nil {
 		status = f.Response.StatusCode
@@ -1268,10 +1458,14 @@ func (s *Server) publishFlow(f *proxy.Flow, kind string, frames []Frame, status 
 	if kind == "ws" {
 		method = "WS"
 	}
+	// Both WS and WSS carry the actual upgrade request, including its path
+	// and escaped query, rather than the CONNECT envelope.
+	shown, shownPath := display, display.RequestURI()
 	millis := int(now.Sub(start).Milliseconds())
-	if kind == "http" {
+	if kind == "http" && streamed == nil {
 		// The throttle paces the body after this hook, so add what the
-		// transfer will take: the flow's time should match the client's.
+		// transfer will take: the flow's time should match the client's. A
+		// streamed body is published as it ends, so its time is already in.
 		t := s.Throttle()
 		if t.DownPerSec > 0 && size > 0 {
 			millis += int(float64(size) / float64(t.DownPerSec) * 1000)
@@ -1286,34 +1480,39 @@ func (s *Server) publishFlow(f *proxy.Flow, kind string, frames []Frame, status 
 		download = millis - wait
 	}
 	flow := Flow{
-		ID:               int(s.nextID.Add(1)),
-		Method:           method,
-		Scheme:           display.Scheme,
-		Host:             display.Host,
-		Path:             display.RequestURI(),
-		URL:              display.String(),
-		Status:           status,
-		Bytes:            size,
-		Millis:           millis,
-		Wait:             wait,
-		Download:         download,
-		RequestHeaders:   formatRequest(f.Request, display),
-		ResponseHeaders:  respHeaders,
-		RequestBody:      reqBody,
-		RequestBodyFile:  reqFile,
-		RequestBodySize:  reqSize,
-		ResponseBody:     respBody,
-		ResponseBodyFile: respFile,
-		ResponseBodySize: respSize,
-		RequestHeader:    f.Request.Header.Clone(),
-		ResponseHeader:   responseHeader(f.Response),
-		At:               now,
-		Kind:             kind,
-		Frames:           clipFrames(frames),
-		Process:          client.Name,
-		ProcessPath:      client.Path,
-		DNSMapped:        s.dnsMapped(f),
-		Conn:             s.connInfo(f, start),
+		ID:                int(s.nextID.Add(1)),
+		Method:            method,
+		Scheme:            shown.Scheme,
+		Host:              shown.Host,
+		Path:              shownPath,
+		URL:               shown.String(),
+		Status:            status,
+		Bytes:             size,
+		Millis:            millis,
+		Wait:              wait,
+		Download:          download,
+		RequestHeaders:    formatRequest(f.Request, display),
+		ResponseHeaders:   respHeaders,
+		RequestBody:       reqBody,
+		RequestBodyFile:   reqFile,
+		RequestBodySize:   reqSize,
+		ResponseBody:      respBody,
+		ResponseBodyFile:  respFile,
+		ResponseBodySize:  respSize,
+		RequestBodyError:  reqErr,
+		ResponseBodyError: respErr,
+		RequestHeader:     f.Request.Header.Clone(),
+		ResponseHeader:    responseHeader(f.Response),
+		RequestTrailer:    reqTrailer,
+		ResponseTrailer:   resTrailer,
+		ResponseProto:     respProto,
+		At:                now,
+		Kind:              kind,
+		Frames:            clipFrames(frames),
+		Process:           client.Name,
+		ProcessPath:       client.Path,
+		DNSMapped:         s.dnsMapped(f),
+		Conn:              s.connInfo(f, start),
 	}
 	s.mu.Lock()
 	if len(s.flowIDs) > 4096 {
@@ -1321,12 +1520,23 @@ func (s *Server) publishFlow(f *proxy.Flow, kind string, frames []Frame, status 
 	}
 	s.flowIDs[f.Id] = flow.ID
 	s.mu.Unlock()
+	s.send(flow)
+	return flow.ID
+}
+
+// send hands a flow to the UI, counting it as dropped when the queue is full or
+// the server has closed, so a publish never writes to a closed channel.
+func (s *Server) send(flow Flow) {
+	s.sendMu.RLock()
+	defer s.sendMu.RUnlock()
+	if s.sendClosed {
+		return
+	}
 	select {
 	case s.out <- flow:
 	default:
 		s.dropped.Add(1)
 	}
-	return flow.ID
 }
 
 // ConnInfo is the connection an exchange ran over, as the detail pane shows
@@ -1395,37 +1605,101 @@ func (s *Server) connInfo(f *proxy.Flow, start time.Time) ConnInfo {
 // keepBody returns the body a flow keeps in memory, the file that holds the
 // whole body when it was spilled, and the body's size. A spilled body keeps
 // its head inline so search and the table work without touching the disk.
-func (s *Server) keepBody(id uuid.UUID, kind string, body []byte) (head, file string, size int) {
+func (s *Server) keepBody(id uuid.UUID, kind string, body []byte) (head, file string, size int, problem string) {
 	size = len(body)
 	if size <= maxBody {
-		return string(body), "", size
+		return string(body), "", size, ""
 	}
 	head = string(body[:maxBody])
 	if s.bodyDir != "" {
 		file = filepath.Join(s.bodyDir, kind+"-"+id.String()+".bin")
 		if err := os.WriteFile(file, body, 0o600); err != nil {
 			file = ""
+			problem = "the body could not be kept: " + err.Error()
 		}
 	}
-	if file == "" {
-		head += fmt.Sprintf("\n\n… truncated: %d of %d bytes shown", maxBody, size)
+	if file == "" && problem == "" {
+		problem = "the body could not be kept: no spill directory"
 	}
-	return head, file, size
+	return head, file, size, problem
 }
 
-// emitFrame sends a message that belongs to an already published flow.
-func (s *Server) emitFrame(f *proxy.Flow, frame Frame) {
+// frameInput is one message the engine reported, before the capture keeps it.
+type frameInput struct {
+	Direction string
+	Kind      string
+	Data      []byte
+	At        time.Time
+	EventID   string
+	EventName string
+}
+
+// emitFrame sends a message that belongs to an already published flow. It
+// numbers the message, so a frame the queue could not take leaves a gap the UI
+// shows rather than a message that vanishes. A flow the table never saw keeps
+// no messages at all.
+func (s *Server) emitFrame(f *proxy.Flow, in frameInput) {
 	s.mu.Lock()
 	id, ok := s.flowIDs[f.Id]
+	seq := 0
+	if ok {
+		s.frameSeq[f.Id]++
+		seq = s.frameSeq[f.Id]
+	}
 	s.mu.Unlock()
 	if !ok {
 		return
 	}
+	frame := s.keepFrame(f, in, seq)
 	select {
 	case s.frames <- FrameEvent{FlowID: id, Frame: frame}:
 	default:
-		s.dropped.Add(1)
+		if frame.File != "" {
+			_ = os.Remove(frame.File)
+		}
+		s.frameDrops.Add(1)
 	}
+}
+
+// endFrames forgets a stream that is over. The UI keeps what it was given; the
+// capture keeps only the next flow's numbering.
+func (s *Server) endFrames(f *proxy.Flow) {
+	s.mu.Lock()
+	delete(s.frameSeq, f.Id)
+	s.mu.Unlock()
+}
+
+// keepFrame returns the frame the UI gets: the whole message, or its head with
+// the rest in the spill directory. Kept says how much of the message is here,
+// so a message past the spill cap reads as cut instead of silently short.
+func (s *Server) keepFrame(f *proxy.Flow, in frameInput, seq int) Frame {
+	frame := Frame{
+		Seq:       seq,
+		Direction: in.Direction,
+		Kind:      in.Kind,
+		Size:      len(in.Data),
+		At:        in.At,
+		EventID:   in.EventID,
+		EventName: in.EventName,
+	}
+	kept := in.Data[:min(len(in.Data), maxFrameSpill)]
+	if len(kept) > maxFrameBytes {
+		// The head stays inline, so the list and a search read it without
+		// the disk; the rest goes to a file that Close removes with the
+		// bodies.
+		if s.bodyDir != "" {
+			file := filepath.Join(s.bodyDir, "frame-"+f.Id.String()+"-"+strconv.Itoa(seq)+".bin")
+			if err := os.WriteFile(file, kept, 0o600); err == nil {
+				frame.File = file
+			}
+		}
+		if frame.File == "" {
+			kept = kept[:maxFrameBytes]
+		}
+	}
+	frame.Kept = len(kept)
+	frame.Data = string(kept[:min(len(kept), maxFrameBytes)])
+	return frame
 }
 
 func responseHeader(r *proxy.Response) http.Header {
@@ -1435,6 +1709,9 @@ func responseHeader(r *proxy.Response) http.Header {
 	return r.Header.Clone()
 }
 
+// wsFrameKind names the WebSocket frame type the engine reported. The engine
+// reads data messages only, so the control types are what a flow saved by
+// another tool may carry.
 func wsFrameKind(t int) string {
 	switch t {
 	case 1:
@@ -1449,13 +1726,6 @@ func wsFrameKind(t int) string {
 		return "pong"
 	}
 	return "frame"
-}
-
-func clipFrame(b []byte) string {
-	if len(b) > maxFrameBytes {
-		return string(b[:maxFrameBytes]) + "…"
-	}
-	return string(b)
 }
 
 func clipFrames(frames []Frame) []Frame {
@@ -1484,8 +1754,12 @@ func formatRequest(r *proxy.Request, u *url.URL) string {
 }
 
 func formatResponse(r *proxy.Response) string {
+	proto := r.Proto
+	if proto == "" {
+		proto = "HTTP/1.1"
+	}
 	var b strings.Builder
-	fmt.Fprintf(&b, "HTTP/1.1 %d %s\n", r.StatusCode, http.StatusText(r.StatusCode))
+	fmt.Fprintf(&b, "%s %d %s\n", proto, r.StatusCode, http.StatusText(r.StatusCode))
 	writeHeaders(&b, r.Header)
 	return strings.TrimRight(b.String(), "\n")
 }

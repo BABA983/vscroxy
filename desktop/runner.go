@@ -41,7 +41,7 @@ func executeRequest(ctx context.Context, srv *capture.Server, r savedRequest, va
 		return out
 	}
 	if isWebSocket(req.URL) {
-		out.replies, out.err = wsSend(ctx, srv.Addr(), req.URL, req.Body, 2*time.Second)
+		out.replies, out.err = wsSend(ctx, srv.Addr(), req, srv.CACertificate(), jar, 2*time.Second)
 		if r.Post != "" && out.err == nil {
 			out.err = fmt.Errorf("post-response scripts require an HTTP response")
 		}

@@ -123,6 +123,27 @@ WebSocket and SSE by kind, and JSON, images or HTML by the response's content
 type. They narrow what the sidebar's filters and the search show, and the
 status bar counts the flows, the bytes captured and the last message.
 
+**New view** opens another live tab over the same captured traffic, not a new
+proxy or capture session. Each tab retains its own search, sidebar/chip filter,
+status/header/body conditions, sorting and selection. **Filters…** edits content
+conditions; **Saved filters…** saves, reapplies, renames or deletes a named set in
+`~/.vscroxy/views.json`. Saving conditions persists them; live view tabs themselves
+are session-local. Applying a saved filter changes only the active view.
+
+Body conditions search both request and response independently, including whole
+spill files beyond the 8 MiB preview. Searches are case-insensitive, chunked,
+cancellable and off the UI thread (at most four readers); pending rows remain
+hidden until matched. Progress and unreadable/incomplete-body warnings appear
+above the table. Missing or incomplete bodies never silently match just their
+preview. URL/header/status filtering remains immediate.
+
+Large HTTP uploads and downloads are kept from the actual streaming path,
+including chunked transfers. Capture decodes gzip, deflate, Brotli and Zstandard
+on disk without changing forwarded bytes. Aborted transfers, decode failures
+and spill failures are marked incomplete rather than searched as empty bodies.
+Body previews stay limited to 8 MiB; saved JSON sessions retain the complete
+captured bodies and their incomplete-state metadata.
+
 A row's menu carries what a captured request is worth outside the table:
 **Copy URL**, **Copy as cURL** (its headers, body and URL as a shell
 command), **Open in browser**, **Copy response body**, **Pin to the top**,
@@ -282,13 +303,73 @@ path.
 ## WebSocket and SSE
 
 A WebSocket connection appears as a `WS` row with status `101`, and an SSE
-response as its request with the `Messages` tab. Frames stream in as they
-arrive: the arrow is the direction, then the kind (`text`, `binary`, `event`,
-`tick`, …), then the payload. Frames are kept per flow, the last 200 of them,
-each clipped at 4 KB.
+response as its request with the **Messages** tab. Search metadata and retained
+payloads (including spill files), filter **All / In / Out**, and select a row
+to inspect or copy its payload. Rows show direction, time, kind and size; SSE
+keeps event name and ID separately. JSON is indented; binary opens as hex, and
+**Text / Hex** switches views. Text layout previews at most 64 KiB; Hex and Copy
+use the whole retained payload.
 
-The WebSocket row shows the host of the tunnel and `/` for the path: the
-engine hands the hook the CONNECT flow, not the upgraded request.
+The last 200 messages per flow are retained: at most 4 KiB each inline, with
+longer payloads spilled to disk up to 256 KiB each. Larger messages explicitly
+show retained/original lengths. Sequence gaps report dropped/evicted messages;
+global queue losses appear in the status bar, including a loss at stream end.
+Spill files are temporary and removed when capture closes; there is no total
+disk quota for a long capture session yet.
+Sessions save retained payloads and metadata, not temporary spill paths, and
+older session files still load.
+
+Both plain WS and decrypted WSS retain the actual escaped path/query. A small
+documented local patch to go-mitmproxy fixes plain WS's discarded handshake
+headers and CONNECT-only capture metadata (see `third_party/go-mitmproxy/VSCROXY.md`).
+Composed WS requests use structured auth, custom headers and session cookies;
+WSS verifies the system/proxy CAs rather than disabling certificate checks.
+The one-shot sender waits up to two seconds for five replies, capped at 1 MiB
+each; cancellation closes the socket. Post-response scripts require HTTP.
+
+## Protobuf and gRPC
+
+**Body → Protobuf** inspects raw protobuf and native gRPC envelopes. Explicit
+protobuf/gRPC content types select it automatically, even for an empty or broken
+body. Without a schema it shows field numbers and wire values, not guessed field
+names. **Schema…** (also **View → Protobuf schema…**) imports a `.proto` source
+or a binary `FileDescriptorSet` (`.pb` / `.protoset` / `.desc`). Source imports
+resolve relative to the source directory and optional include roots; standard
+Google imports are bundled, and no installed `protoc` is required. Descriptor
+sets must include their dependencies (`protoc --include_imports`). A successful
+load replaces the local registry in `~/.vscroxy/protobuf.pb`; a failed load leaves
+the previous registry intact.
+
+**Auto** resolves `/package.Service/Method` to the request's input or response's
+output message type. For raw protobuf, select its fully qualified message type.
+The decoder displays names, signed values, enums, nested messages, maps, repeated
+fields and unknown wire fields. gRPC bodies show every framed message, including
+empty messages and per-message gzip compression. Search filters decoded messages;
+select one to inspect it or **Copy decoded**. A broken later frame reports its
+message number without hiding earlier valid messages. Inspection reads complete
+retained spill files, not the 8 MiB Body preview, off the UI thread. Limits are
+32 MiB encoded/decoded per body, 16 MiB decoded per message and 1000 messages;
+text rendering previews 64 KiB, while Copy keeps the full decoded text.
+
+**Headers** keeps trailers separate from initial headers and displays the actual
+request/response HTTP versions. gRPC status prefers final `grpc-status` and
+percent-decodes `grpc-message`, with initial-header fallback for trailers-only
+responses. HTTP 200 alone is not success: a missing gRPC status is explicitly
+unknown; a nonzero status appears in **Errors** and colors the HTTP code as a
+failure without changing that code. JSON sessions preserve both trailer blocks
+(including binary metadata) and protocols; HAR has no trailer representation.
+
+The inspected TLS/HTTP/2 path forwards unary, server-streaming, client-streaming
+and interactive bidirectional gRPC, including gzip, metadata, trailers-only
+errors, deadlines and cancellation. The client must use the HTTP proxy and trust
+its CA; enable HTTPS inspection for the target host. Messages are forwarded as
+they arrive, but the capture's Body inspector receives the completed exchange,
+not a live RPC timeline. This is an inspector, not a reflection-driven RPC client.
+gRPC-Web, h2c and HTTP/3/QUIC are not supported inspection modes; compressed
+message encodings other than gzip are reported as unsupported. The current Replay
+sender uses HTTP/1.1, so native gRPC replay is not supported. Body-editing request
+and response scripts/breakpoints are unavailable for streaming RPCs; Block,
+Map Local and Map Remote rules still apply before forwarding.
 
 ## Replay
 
@@ -493,5 +574,3 @@ restored when they would still show on a connected display.
   rather than searching only the in-memory capture head.
 - WebSocket/SSE message search and detail views, correct upgraded request paths,
   and spill-backed message retention instead of silent truncation.
-- Descriptor-aware protobuf/gRPC inspection, trailers/status, and protocol
-  compatibility verification before promising full HTTP/2/gRPC support.

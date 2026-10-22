@@ -174,15 +174,18 @@ func (a *app) bodyView(c *ui.Context, f flow) {
 	if a.bodySide == 1 {
 		body = a.reqBody
 	}
-	// A body that reads as a protobuf message gets a mode of its own: the
-	// numbers and values are on the wire, the field names are not.
+	// Explicit protocol content types keep the inspector available even for
+	// malformed/empty bodies, so framing errors and trailers-only statuses show.
 	key := fmt.Sprintf("%d:%d", f.id, a.bodySide)
 	if key != a.protoFor {
 		a.protoFor = key
-		a.protoFields, a.protoOK = nil, false
 		ct := f.contentType(a.bodySide == 0)
-		if len(body) <= 512<<10 || strings.Contains(ct, "grpc") || strings.Contains(ct, "protobuf") {
-			a.protoFields, a.protoOK = protoBody([]byte(body))
+		a.protoOK = grpcContentType(ct) || strings.Contains(ct, "protobuf")
+		if a.protoOK {
+			a.bodyMode = 4
+		} else if len(body) > 0 && len(body) <= 512<<10 {
+			_, err := decodeProto([]byte(body))
+			a.protoOK = err == nil
 		}
 	}
 	modes := []string{"Pretty", "JSON", "Hex", "Preview"}
@@ -195,8 +198,14 @@ func (a *app) bodyView(c *ui.Context, f flow) {
 	ui.Row(c).Padding(8, 12).Gap(10).AlignItems(ui.Center).Children(func() {
 		ui.Segmented(c, &a.bodySide, "Response", "Request")
 		ui.Segmented(c, &a.bodyMode, modes...)
-		ui.SearchField(c, &a.bodyQuery).Width(220)
+		if a.bodyMode != 4 {
+			ui.SearchField(c, &a.bodyQuery).Width(220)
+		}
 	})
+	if a.bodyMode == 4 {
+		a.protobuf.view(c, a, f)
+		return
+	}
 	if body == "" {
 		ui.Text(c, "Empty body").FontSize(12).TextColor(t.TextMuted).Padding(16)
 		return
@@ -226,26 +235,9 @@ func (a *app) bodyView(c *ui.Context, f flow) {
 		a.hexBody(c, body)
 	case 3:
 		a.previewBody(c, f, body)
-	case 4:
-		a.protoView(c)
 	default:
 		a.prettyBody(c, body)
 	}
-}
-
-// protoView shows a protobuf message as a tree of field numbers and values.
-func (a *app) protoView(c *ui.Context) {
-	t := c.Theme()
-	if len(a.protoFields) == 0 {
-		ui.Text(c, "This body does not read as a protobuf message").FontSize(12).TextColor(t.TextMuted).Padding(16)
-		return
-	}
-	ui.Column(c).Gap(6).Padding(12).Children(func() {
-		ui.Text(c, "Decoded without a schema: field numbers, not names.").FontSize(11).TextColor(t.TextMuted)
-		ui.Scroll(c).Grow(1).Children(func() {
-			ui.Text(c, protoText(a.protoFields)).FontSize(12).Font("monospace").TextColor(t.Text)
-		})
-	})
 }
 
 // previewBody shows a body the way it is meant to be seen: an image at its
