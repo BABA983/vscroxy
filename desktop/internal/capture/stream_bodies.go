@@ -487,9 +487,22 @@ func (r *streamReader) Close() error {
 // flow; the end of a request only finishes that side, since its response is
 // still to come.
 func (s *Server) streamEnded(f *proxy.Flow, side string) {
+	// The body has ended, so the transport has finished the trailer block of
+	// this side: keep it before the flow is published, which the end of a
+	// response does right here.
+	s.keepTrailers(f, side, sideTrailer(f, side))
 	if side == "res" {
 		s.publishStreamed(f)
 	}
+}
+
+// sideTrailer is the trailer block one side of a flow ended with, as the
+// engine's flow holds it.
+func sideTrailer(f *proxy.Flow, side string) http.Header {
+	if side == "req" {
+		return f.Request.Trailers()
+	}
+	return f.Response.Trailers()
 }
 
 // publishStreamed publishes the flow of a streamed exchange, once: the end of

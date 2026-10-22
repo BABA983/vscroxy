@@ -34,6 +34,9 @@ type flow struct {
 	resError    string
 	reqHeader   http.Header
 	respHeader  http.Header
+	reqTrailer  http.Header
+	resTrailer  http.Header
+	resProto    string
 	at          time.Time
 	kind        string
 	process     string

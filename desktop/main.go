@@ -113,7 +113,7 @@ type app struct {
 	jsonFor      string
 	protoFor     string
 	protoOK      bool
-	protoFields  []pbField
+	protobuf     protoInspector
 	jsonOK       bool
 
 	srv        *capture.Server
@@ -344,6 +344,7 @@ func newApp() *app {
 	a.applyFilter()
 	if home, err := os.UserHomeDir(); err == nil {
 		a.views.init(a, filepath.Join(home, ".vscroxy", "views.json"))
+		a.protobuf.init(filepath.Join(home, ".vscroxy", "protobuf.pb"))
 	}
 	return a
 }
@@ -683,6 +684,9 @@ func (a *app) drain() {
 			resError:    f.ResponseBodyError,
 			reqHeader:   f.RequestHeader,
 			respHeader:  f.ResponseHeader,
+			reqTrailer:  f.RequestTrailer,
+			resTrailer:  f.ResponseTrailer,
+			resProto:    f.ResponseProto,
 			at:          f.At,
 			kind:        kind,
 			process:     f.Process,
@@ -762,7 +766,7 @@ func (a *app) applyFilter() {
 		if !a.matchesChip(f) {
 			continue
 		}
-		if a.filter == "errors" && f.status < 400 {
+		if a.filter == "errors" && !f.failed() {
 			continue
 		}
 		if a.filter == "slow" && f.millis < 120 {
@@ -838,6 +842,8 @@ func (a *app) syncDetail() {
 	a.body = f.body(true)
 	a.reqBody = f.body(false)
 	a.jsonFor = ""
+	a.protoFor = ""
+	a.protobuf.stop()
 	a.diff = &editor.DiffState{
 		Old:    editor.NewBuffer(a.previousResponse()),
 		New:    editor.NewBuffer(a.body),
@@ -913,9 +919,13 @@ func (a *app) view(c *ui.Context) {
 	a.devicesModal(c, t)
 	a.runnerModal(c, t)
 	a.cookiesModal(c, t)
+	a.protobuf.modal(c, a)
 	a.views.capture(a)
 	if a.workspace != 0 || a.tab != 4 {
 		a.messageUI.stopSearch()
+	}
+	if a.workspace != 0 || a.tab != 1 || a.bodyMode != 4 {
+		a.protobuf.stop()
 	}
 }
 
@@ -1118,6 +1128,10 @@ func (a *app) toolbar(c *ui.Context, t *ui.Theme) {
 			if a.headerColumn != "" && m.Item("Hide the "+a.headerColumn+" column").Chosen() {
 				a.setHeaderColumn("")
 			}
+			m.Separator()
+			if m.Item("Protobuf schema…").Chosen() {
+				a.protobuf.open = true
+			}
 		}).FontSize(11).Height(28).TextColor(t.TextMuted).Border(0, t.Border)
 		if ui.ButtonBase(c).Size(30, 30).Radius(6).Label("Settings").Tooltip("Settings · Ctrl/Cmd+,").Children(func() {
 			ui.Icon(c, settingsIcon).Size(17, 17).TextColor(t.TextMuted)
@@ -1194,7 +1208,7 @@ func (a *app) sidebar(c *ui.Context) {
 			ui.SidebarSection(c, "Traffic", &a.trafficOpen, func() {
 				ui.SidebarItem(c, "all", nil, "All requests")
 				ui.SidebarItem(c, "errors", nil, "Errors").Children(func() {
-					ui.Badge(c, fmt.Sprint(a.count(func(f flow) bool { return f.status >= 400 })))
+					ui.Badge(c, fmt.Sprint(a.count(flow.failed)))
 				})
 				ui.SidebarItem(c, "slow", nil, "Slow").Children(func() {
 					ui.Badge(c, fmt.Sprint(a.count(func(f flow) bool { return f.millis >= 120 })))
@@ -1356,7 +1370,7 @@ func (a *app) table(c *ui.Context) {
 				text("Tunnel").TextColor(color)
 				return
 			}
-			color := statusColor(f.status, t)
+			color := f.statusColor(t)
 			if chosen {
 				color = t.AccentText
 			}
@@ -1439,7 +1453,7 @@ func (a *app) detail(c *ui.Context) {
 				go a.replay(f)
 			}
 			chip := ui.Text(c, fmt.Sprintf("%d · %s · %d ms", f.status, humanBytes(f.bytes), f.millis)).
-				FontSize(12).TextColor(statusColor(f.status, t))
+				FontSize(12).TextColor(f.statusColor(t))
 			if doc := statusDoc(f.status); doc != "" {
 				chip = chip.Tooltip(doc)
 			}
@@ -1619,24 +1633,30 @@ func field(c *ui.Context, t *ui.Theme, label, value string) {
 // the code means.
 func (a *app) headersView(c *ui.Context, f flow) {
 	t := c.Theme()
+	if grpcContentType(f.contentType(true)) {
+		ui.Text(c, grpcStatus(f)).FontSize(12).TextColor(t.Text).Padding(8, 16, 0, 16)
+	}
 	ui.Row(c).Grow(1).Children(func() {
 		ui.Column(c).WidthPercent(50).FillHeight().Padding(16).Children(func() {
-			a.headerBlock(c, t, "Request", f.method+" "+f.path, "", f.reqHeader, f.reqHeaders)
+			a.headerBlock(c, t, "Request", strings.TrimSpace(f.conn.proto+" "+f.method+" "+f.path), "", f.reqHeader, f.reqHeaders, f.reqTrailer)
 		})
 		ui.Box(c).Width(1).FillHeight().Background(t.Border)
 		line := "No response"
 		if f.status != 0 {
 			line = fmt.Sprintf("%d %s", f.status, http.StatusText(f.status))
+			if f.resProto != "" {
+				line = f.resProto + " " + line
+			}
 		}
 		ui.Column(c).Grow(1).FillHeight().Padding(16).Children(func() {
-			a.headerBlock(c, t, "Response", line, statusDoc(f.status), f.respHeader, f.resHeaders)
+			a.headerBlock(c, t, "Response", line, statusDoc(f.status), f.respHeader, f.resHeaders, f.resTrailer)
 		})
 	})
 }
 
 // headerBlock is one side of the Headers tab: the line that starts the message
 // and then its headers, sorted by name.
-func (a *app) headerBlock(c *ui.Context, t *ui.Theme, title, line, note string, headers http.Header, raw string) {
+func (a *app) headerBlock(c *ui.Context, t *ui.Theme, title, line, note string, headers http.Header, raw string, trailers http.Header) {
 	ui.Text(c, title).FontSize(11).Bold().TextColor(t.TextMuted).Padding(0, 0, 2, 0)
 	start := ui.Text(c, line).FontSize(12).Font("monospace").TextColor(t.Text).SingleLine()
 	if note != "" {
@@ -1644,22 +1664,26 @@ func (a *app) headerBlock(c *ui.Context, t *ui.Theme, title, line, note string, 
 	}
 	start.Padding(0, 0, 6, 0)
 	ui.Scroll(c).Grow(1).Children(func() {
-		if len(headers) == 0 {
-			ui.Text(c, raw).FontSize(12).Font("monospace").TextColor(t.Text)
-			return
-		}
-		for _, key := range slices.Sorted(maps.Keys(headers)) {
-			value := strings.Join(headers[key], ", ")
-			doc := headerDoc(key)
-			ui.Row(c).Gap(6).Padding(4, 0).AlignItems(ui.Start).Children(func() {
-				ui.Text(c, key).FontSize(11).Font("monospace").TextColor(t.TextMuted).Width(140).SingleLine().Tooltip(key)
-				ui.Box(c).Size(11, 11).Children(func() {
-					if doc != "" {
-						ui.Icon(c, infoIcon).Size(11, 11).TextColor(t.TextMuted).Tooltip(doc)
-					}
+		for i, block := range []http.Header{headers, trailers} {
+			if i == 1 && len(block) > 0 {
+				ui.Text(c, "Trailers").FontSize(11).Bold().TextColor(t.TextMuted).Padding(10, 0, 4, 0)
+			}
+			if i == 0 && len(block) == 0 {
+				ui.Text(c, raw).FontSize(12).Font("monospace").TextColor(t.Text)
+			}
+			for _, key := range slices.Sorted(maps.Keys(block)) {
+				value := strings.Join(block[key], ", ")
+				doc := headerDoc(key)
+				ui.Row(c).Gap(6).Padding(4, 0).AlignItems(ui.Start).Children(func() {
+					ui.Text(c, key).FontSize(11).Font("monospace").TextColor(t.TextMuted).Width(140).SingleLine().Tooltip(key)
+					ui.Box(c).Size(11, 11).Children(func() {
+						if doc != "" {
+							ui.Icon(c, infoIcon).Size(11, 11).TextColor(t.TextMuted).Tooltip(doc)
+						}
+					})
+					ui.Text(c, value).FontSize(12).Font("monospace").TextColor(t.Text).Grow(1)
 				})
-				ui.Text(c, value).FontSize(12).Font("monospace").TextColor(t.Text).Grow(1)
-			})
+			}
 		}
 	})
 }
@@ -1764,6 +1788,13 @@ func methodColor(method string) ui.Color {
 	return ui.Hex("#71717a")
 }
 
+func (f flow) statusColor(t *ui.Theme) ui.Color {
+	if f.status < 400 && f.failed() {
+		return t.Danger
+	}
+	return statusColor(f.status, t)
+}
+
 func statusColor(status int, t *ui.Theme) ui.Color {
 	switch {
 	case status == 0:
@@ -1787,6 +1818,7 @@ func main() {
 	defer a.disableDevices()
 	defer a.views.stopSearch()
 	defer a.messageUI.stopSearch()
+	defer a.protobuf.stop()
 	defer func() {
 		if a.runner.cancel != nil {
 			a.runner.cancel()

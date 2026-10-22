@@ -1,12 +1,23 @@
 package main
 
 import (
+	"bytes"
+	"compress/gzip"
+	"context"
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"io"
 	"math"
+	"net/url"
+	"strconv"
 	"strings"
 	"unicode/utf8"
+
+	"google.golang.org/protobuf/encoding/prototext"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/reflect/protoreflect"
+	"google.golang.org/protobuf/types/dynamicpb"
 )
 
 // pbField is one field of a protobuf message as the wire carries it: the
@@ -159,33 +170,177 @@ func hexBytes(data []byte) string {
 	return b.String()
 }
 
-// grpcPayload is the message a gRPC frame carries, without its five-byte
-// prefix: a compressed flag and the length that follows.
-func grpcPayload(data []byte) ([]byte, bool) {
-	if len(data) < 5 || data[0] != 0 {
-		return nil, false
-	}
-	length := int(binary.BigEndian.Uint32(data[1:5]))
-	if length <= 0 || length > len(data)-5 {
-		return nil, false
-	}
-	return data[5 : 5+length], true
+type protoMessage struct {
+	text       string
+	size       int
+	compressed bool
 }
 
-// protoBody is the message a body holds, and whether it reads as one: a gRPC
-// frame when the body is one, the body itself otherwise. A frame whose length
-// runs past the body is not read as a message at all: its header is not one.
-func protoBody(body []byte) ([]pbField, bool) {
-	if len(body) >= 5 && body[0] == 0 {
-		payload, ok := grpcPayload(body)
-		if !ok {
-			return nil, false
+type protoResult struct {
+	messages []protoMessage
+	typeName string
+	problem  string
+}
+
+func grpcContentType(ct string) bool { return strings.HasPrefix(ct, "application/grpc") }
+
+// inspectProto reads the complete retained body, not the formatted Body preview.
+// A gRPC envelope is parsed only for a gRPC content type, never guessed from a
+// leading zero byte. Every frame is accounted for, including empty messages.
+func inspectProto(ctx context.Context, f flow, response bool, schema *protoSchema, name string) protoResult {
+	var result protoResult
+	head, file, size, problem, header := f.reqBody, f.reqFile, f.reqSize, f.reqError, f.reqHeader
+	if response {
+		head, file, size, problem, header = f.resBody, f.resFile, f.resSize, f.resError, f.respHeader
+	}
+	if problem != "" {
+		result.problem = "Incomplete body: " + problem
+		return result
+	}
+	if file != "" {
+		data, err := readProtoFile(file)
+		if err != nil {
+			result.problem = err.Error()
+			return result
 		}
-		body = payload
+		head = string(data)
 	}
-	fields, err := decodeProto(body)
+	if size > len(head) {
+		result.problem = fmt.Sprintf("Incomplete body: %d of %d bytes retained", len(head), size)
+		return result
+	}
+	if len(head) > maxProtoBytes {
+		result.problem = fmt.Sprintf("Protobuf inspection is limited to %s per body", humanBytes(maxProtoBytes))
+		return result
+	}
+	desc, err := schema.message(name, f.path, response)
 	if err != nil {
-		return nil, false
+		result.problem = err.Error()
+		return result
 	}
-	return fields, true
+	if desc != nil {
+		result.typeName = string(desc.FullName())
+	}
+	ct := f.contentType(response)
+	if strings.HasPrefix(ct, "application/grpc-web") {
+		result.problem = "gRPC-Web framing is not supported; use native gRPC over inspected HTTP/2"
+		return result
+	}
+	data := []byte(head)
+	remaining := maxProtoBytes
+	for index := 1; ; index++ {
+		if err := ctx.Err(); err != nil {
+			result.problem = err.Error()
+			return result
+		}
+		if index > 1000 {
+			result.problem = "Inspection is limited to 1000 messages per body"
+			return result
+		}
+		payload, compressed := data, false
+		if grpcContentType(ct) {
+			if len(data) == 0 {
+				return result
+			}
+			if len(data) < 5 {
+				result.problem = fmt.Sprintf("Message %d: incomplete gRPC frame header (%d of 5 bytes)", index, len(data))
+				return result
+			}
+			length := uint64(binary.BigEndian.Uint32(data[1:5]))
+			if data[0] > 1 || length > uint64(len(data)-5) {
+				result.problem = fmt.Sprintf("Message %d: invalid flag or incomplete gRPC payload (declared %d, available %d)", index, length, len(data)-5)
+				return result
+			}
+			compressed = data[0] == 1
+			payload, data = data[5:5+length], data[5+length:]
+		}
+		limit := min(16<<20, remaining)
+		if compressed {
+			if !strings.EqualFold(header.Get("Grpc-Encoding"), "gzip") {
+				result.problem = fmt.Sprintf("Message %d: unsupported grpc-encoding %q (gzip supported)", index, header.Get("Grpc-Encoding"))
+				return result
+			}
+			reader, err := gzip.NewReader(bytes.NewReader(payload))
+			if err == nil {
+				payload, err = io.ReadAll(io.LimitReader(reader, int64(limit)+1))
+				reader.Close()
+			}
+			if err != nil {
+				result.problem = fmt.Sprintf("Message %d: invalid gzip payload: %v", index, err)
+				return result
+			}
+		}
+		if len(payload) > limit {
+			result.problem = fmt.Sprintf("Message %d exceeds the 16 MiB message / 32 MiB decoded body limit", index)
+			return result
+		}
+		remaining -= len(payload)
+		text, err := protoMessageText(payload, schema, desc)
+		if err != nil {
+			result.problem = fmt.Sprintf("Message %d: %v", index, err)
+			return result
+		}
+		result.messages = append(result.messages, protoMessage{text: text, size: len(payload), compressed: compressed})
+		if !grpcContentType(ct) || len(data) == 0 {
+			return result
+		}
+	}
+}
+
+func protoMessageText(data []byte, schema *protoSchema, desc protoreflect.MessageDescriptor) (string, error) {
+	if len(data) == 0 {
+		return "(empty message)", nil
+	}
+	if desc != nil {
+		message := dynamicpb.NewMessage(desc)
+		if err := (proto.UnmarshalOptions{Resolver: schema.types, RecursionLimit: 64}).Unmarshal(data, message); err != nil {
+			return "", err
+		}
+		text, err := (prototext.MarshalOptions{Multiline: true, Indent: "  ", EmitUnknown: true, Resolver: schema.types}).Marshal(message)
+		return string(text), err
+	}
+	fields, err := decodeProto(data)
+	if err != nil {
+		return "", err
+	}
+	return protoText(fields), nil
+}
+
+// grpcOutcome prefers final trailers, with initial-header fallback for
+// trailers-only responses.
+func grpcOutcome(f flow) (code, message string) {
+	code, message = f.resTrailer.Get("Grpc-Status"), f.resTrailer.Get("Grpc-Message")
+	if code == "" {
+		code, message = f.respHeader.Get("Grpc-Status"), f.respHeader.Get("Grpc-Message")
+	}
+	return code, message
+}
+
+func (f flow) failed() bool {
+	if f.status >= 400 {
+		return true
+	}
+	code, _ := grpcOutcome(f)
+	return grpcContentType(f.contentType(true)) && code != "" && code != "0"
+}
+
+// grpc-message is percent-encoded, not a query string: '+' remains a plus.
+func grpcStatus(f flow) string {
+	code, message := grpcOutcome(f)
+	if code == "" {
+		return "gRPC status missing (HTTP 200 alone does not mean success)"
+	}
+	names := [...]string{"OK", "Cancelled", "Unknown", "InvalidArgument", "DeadlineExceeded", "NotFound", "AlreadyExists", "PermissionDenied", "ResourceExhausted", "FailedPrecondition", "Aborted", "OutOfRange", "Unimplemented", "Internal", "Unavailable", "DataLoss", "Unauthenticated"}
+	name := "Invalid status"
+	if n, err := strconv.Atoi(code); err == nil && n >= 0 && n < len(names) {
+		name = names[n]
+	}
+	if decoded, err := url.PathUnescape(message); err == nil {
+		message = decoded
+	}
+	text := "gRPC " + code + " · " + name
+	if message != "" {
+		text += " · " + message
+	}
+	return text
 }

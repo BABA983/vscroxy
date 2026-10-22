@@ -327,6 +327,50 @@ WSS verifies the system/proxy CAs rather than disabling certificate checks.
 The one-shot sender waits up to two seconds for five replies, capped at 1 MiB
 each; cancellation closes the socket. Post-response scripts require HTTP.
 
+## Protobuf and gRPC
+
+**Body → Protobuf** inspects raw protobuf and native gRPC envelopes. Explicit
+protobuf/gRPC content types select it automatically, even for an empty or broken
+body. Without a schema it shows field numbers and wire values, not guessed field
+names. **Schema…** (also **View → Protobuf schema…**) imports a `.proto` source
+or a binary `FileDescriptorSet` (`.pb` / `.protoset` / `.desc`). Source imports
+resolve relative to the source directory and optional include roots; standard
+Google imports are bundled, and no installed `protoc` is required. Descriptor
+sets must include their dependencies (`protoc --include_imports`). A successful
+load replaces the local registry in `~/.vscroxy/protobuf.pb`; a failed load leaves
+the previous registry intact.
+
+**Auto** resolves `/package.Service/Method` to the request's input or response's
+output message type. For raw protobuf, select its fully qualified message type.
+The decoder displays names, signed values, enums, nested messages, maps, repeated
+fields and unknown wire fields. gRPC bodies show every framed message, including
+empty messages and per-message gzip compression. Search filters decoded messages;
+select one to inspect it or **Copy decoded**. A broken later frame reports its
+message number without hiding earlier valid messages. Inspection reads complete
+retained spill files, not the 8 MiB Body preview, off the UI thread. Limits are
+32 MiB encoded/decoded per body, 16 MiB decoded per message and 1000 messages;
+text rendering previews 64 KiB, while Copy keeps the full decoded text.
+
+**Headers** keeps trailers separate from initial headers and displays the actual
+request/response HTTP versions. gRPC status prefers final `grpc-status` and
+percent-decodes `grpc-message`, with initial-header fallback for trailers-only
+responses. HTTP 200 alone is not success: a missing gRPC status is explicitly
+unknown; a nonzero status appears in **Errors** and colors the HTTP code as a
+failure without changing that code. JSON sessions preserve both trailer blocks
+(including binary metadata) and protocols; HAR has no trailer representation.
+
+The inspected TLS/HTTP/2 path forwards unary, server-streaming, client-streaming
+and interactive bidirectional gRPC, including gzip, metadata, trailers-only
+errors, deadlines and cancellation. The client must use the HTTP proxy and trust
+its CA; enable HTTPS inspection for the target host. Messages are forwarded as
+they arrive, but the capture's Body inspector receives the completed exchange,
+not a live RPC timeline. This is an inspector, not a reflection-driven RPC client.
+gRPC-Web, h2c and HTTP/3/QUIC are not supported inspection modes; compressed
+message encodings other than gzip are reported as unsupported. The current Replay
+sender uses HTTP/1.1, so native gRPC replay is not supported. Body-editing request
+and response scripts/breakpoints are unavailable for streaming RPCs; Block,
+Map Local and Map Remote rules still apply before forwarding.
+
 ## Replay
 
 Select a flow and press **Replay**: the request goes out again through the
@@ -530,5 +574,3 @@ restored when they would still show on a connected display.
   rather than searching only the in-memory capture head.
 - WebSocket/SSE message search and detail views, correct upgraded request paths,
   and spill-backed message retention instead of silent truncation.
-- Descriptor-aware protobuf/gRPC inspection, trailers/status, and protocol
-  compatibility verification before promising full HTTP/2/gRPC support.

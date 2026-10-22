@@ -333,6 +333,10 @@ type sessionFlow struct {
 	ResError   string      `json:"resError,omitempty"`
 	ReqHeader  http.Header `json:"reqHeader,omitempty"`
 	RespHeader http.Header `json:"respHeader,omitempty"`
+	ReqTrailer http.Header `json:"reqTrailer,omitempty"`
+	ResTrailer http.Header `json:"resTrailer,omitempty"`
+	ReqProto   string      `json:"reqProto,omitempty"`
+	ResProto   string      `json:"resProto,omitempty"`
 	At         time.Time   `json:"at"`
 	Kind       string      `json:"kind,omitempty"`
 	// Color and Note are what a person marked the flow with.
@@ -382,6 +386,8 @@ func sessionFrom(flows []flow, frames map[int][]frame) sessionFile {
 			ReqSize: f.reqSize, ResSize: f.resSize,
 			ReqError: f.reqError, ResError: f.resError,
 			ReqHeader: f.reqHeader, RespHeader: f.respHeader,
+			ReqTrailer: f.reqTrailer, ResTrailer: f.resTrailer,
+			ReqProto: f.conn.proto, ResProto: f.resProto,
 			At: f.at, Kind: f.kind, Color: f.color, Note: f.note,
 		}
 		// JSON strings require UTF-8; byte fields use JSON's base64 encoding.
@@ -458,6 +464,8 @@ func readSession(path string) ([]flow, map[int][]frame, error) {
 			reqSize: max(f.ReqSize, len(f.ReqBody)), resSize: max(f.ResSize, len(f.ResBody)),
 			reqError: f.ReqError, resError: f.ResError,
 			reqHeader: f.ReqHeader, respHeader: f.RespHeader,
+			reqTrailer: f.ReqTrailer, resTrailer: f.ResTrailer,
+			conn: conn{proto: f.ReqProto}, resProto: f.ResProto,
 			at: f.At, kind: f.Kind, color: f.Color, note: f.Note,
 		})
 	}

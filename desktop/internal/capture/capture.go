@@ -110,6 +110,16 @@ type Flow struct {
 	// RequestHeader is the structured request headers, for a replay.
 	RequestHeader http.Header
 
+	// RequestTrailer and ResponseTrailer are the trailer blocks the
+	// exchange ended with, kept apart from the headers: a gRPC status and
+	// its binary details live there, and a trailer may repeat a name the
+	// headers also carried, with other values. ResponseProto is the HTTP
+	// version the server answered with, such as "HTTP/2.0"; empty when the
+	// response never came from a server.
+	RequestTrailer  http.Header
+	ResponseTrailer http.Header
+	ResponseProto   string
+
 	// Kind is "http", "ws" or "sse"; Frames carries the messages of the
 	// last two.
 	Kind   string
@@ -251,6 +261,10 @@ type Server struct {
 	// until their flow is published or done.
 	streams map[uuid.UUID]*streamBodies
 
+	// trailers holds the trailer block each side of a flow ended with,
+	// until the flow is published.
+	trailers map[uuid.UUID]*flowTrailers
+
 	// closed is closed when the server does, so a watcher waiting on a flow
 	// never outlives it; sendMu and sendClosed keep a publish off a closed
 	// Flows.
@@ -320,6 +334,7 @@ func New(addr, caRootPath string) (*Server, error) {
 		flowIDs:     make(map[uuid.UUID]int),
 		frameSeq:    make(map[uuid.UUID]int),
 		streams:     make(map[uuid.UUID]*streamBodies),
+		trailers:    make(map[uuid.UUID]*flowTrailers),
 		closed:      make(chan struct{}),
 	}
 	p, err := proxy.NewProxy(&proxy.Options{
@@ -809,6 +824,7 @@ func (s *Server) Close() error {
 		s.mu.Lock()
 		streams := s.streams
 		s.streams = make(map[uuid.UUID]*streamBodies)
+		s.trailers = make(map[uuid.UUID]*flowTrailers)
 		s.mu.Unlock()
 		for _, st := range streams {
 			st.release()
@@ -886,6 +902,7 @@ func (s *Server) ReplayWithCookies(ctx context.Context, f Flow, jar http.CookieJ
 		Method: req.Method, URL: rawURL, Status: resp.StatusCode,
 		ResponseHeader: resp.Header.Clone(), ResponseBody: string(preview),
 		ResponseBodySize: len(preview) + int(rest), Bytes: len(preview) + int(rest),
+		ResponseTrailer: resp.Trailer.Clone(), ResponseProto: resp.Proto,
 		Millis: int(time.Since(started).Milliseconds()), At: time.Now(),
 	}, nil
 }
@@ -920,6 +937,17 @@ func (a *addon) Requestheaders(f *proxy.Flow) {
 	a.server.mu.Lock()
 	a.server.started[f.Id] = time.Now()
 	a.server.mu.Unlock()
+	// The engine streams a gRPC call instead of buffering it (it sets Stream
+	// before this hook), so it never calls Request for one: apply the rules
+	// here, while the URL and the headers are still the proxy's to change and
+	// a rule may answer the call itself. A breakpoint or a script that edits
+	// the body cannot, since the client is still sending it.
+	if f.Stream {
+		if resp := a.server.applyRules(f); resp != nil {
+			f.Response = resp
+			a.server.publish(f)
+		}
+	}
 }
 
 // Responseheaders notes when the response started, the end of the wait.
@@ -933,6 +961,9 @@ func (a *addon) Request(f *proxy.Flow) {
 	if f.Request == nil {
 		return
 	}
+	// The buffered body and its trailers are complete before a breakpoint
+	// or a rule can publish a local response and short-circuit the exchange.
+	a.server.keepTrailers(f, "req", f.Request.Trailers())
 	if err := a.server.currentScript().applyRequest(f); err != nil {
 		a.server.scriptErrors.Add(1)
 	}
@@ -1018,6 +1049,8 @@ func (a *addon) Response(f *proxy.Flow) {
 		a.server.publish(f)
 		return
 	}
+	// The engine buffered the response body, so its trailer block is complete.
+	a.server.keepTrailers(f, "res", f.Response.Trailers())
 	// A response script or breakpoint edits the body in
 	// StreamResponseModifier, the only place the proxy still lets the reader
 	// be replaced: publish there, once the edits are in.
@@ -1269,6 +1302,42 @@ func (s *Server) publish(f *proxy.Flow) {
 	s.publishFlow(f, "http", nil, 0)
 }
 
+// flowTrailers is the trailer block one flow ended each of its sides with. The
+// side that finishes its body writes here, and the publisher reads once, under
+// the same lock, so the map the transport owns is never read while it fills it.
+type flowTrailers struct {
+	req, res http.Header
+}
+
+// keepTrailers keeps the trailers a side of a flow ended with. It is called
+// once that side's body has ended, so the transport has finished the block it
+// passes in.
+func (s *Server) keepTrailers(f *proxy.Flow, side string, trailer http.Header) {
+	if f == nil || len(trailer) == 0 {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, active := s.started[f.Id]; !active {
+		return // A late request EOF must not recreate state after publication.
+	}
+	select {
+	case <-s.closed:
+		return
+	default:
+	}
+	t := s.trailers[f.Id]
+	if t == nil {
+		t = &flowTrailers{}
+		s.trailers[f.Id] = t
+	}
+	if side == "req" {
+		t.req = trailer.Clone()
+	} else {
+		t.res = trailer.Clone()
+	}
+}
+
 // publishError shows a request that never reached its server as the gateway
 // error the client got, with the reason in the body.
 func (s *Server) publishError(f *proxy.Flow, err error) {
@@ -1301,10 +1370,15 @@ func (s *Server) publishFlow(f *proxy.Flow, kind string, frames []Frame, status 
 	} else {
 		streamed = s.takeStream(f)
 	}
+	var reqTrailer, resTrailer http.Header
 	now := time.Now()
 	s.mu.Lock()
 	start, ok := s.started[f.Id]
 	delete(s.started, f.Id)
+	if trailers := s.trailers[f.Id]; trailers != nil {
+		reqTrailer, resTrailer = trailers.req, trailers.res
+		delete(s.trailers, f.Id)
+	}
 	first, hasFirst := s.firstByte[f.Id]
 	delete(s.firstByte, f.Id)
 	display := f.Request.URL
@@ -1348,12 +1422,13 @@ func (s *Server) publishFlow(f *proxy.Flow, kind string, frames []Frame, status 
 		r := streamReq.finish()
 		reqBody, reqFile, reqSize, reqErr = r.Head, r.File, r.Size, r.Err
 	}
-	size, respHeaders := 0, ""
+	size, respHeaders, respProto := 0, "", ""
 	respBody, respFile, respSize := "", "", 0
 	respErr := ""
 	if f.Response != nil {
 		size = len(f.Response.Body)
 		respHeaders = formatResponse(f.Response)
+		respProto = f.Response.Proto
 		respData, err := f.Response.DecodedBody()
 		if err != nil {
 			respData = nil
@@ -1428,6 +1503,9 @@ func (s *Server) publishFlow(f *proxy.Flow, kind string, frames []Frame, status 
 		ResponseBodyError: respErr,
 		RequestHeader:     f.Request.Header.Clone(),
 		ResponseHeader:    responseHeader(f.Response),
+		RequestTrailer:    reqTrailer,
+		ResponseTrailer:   resTrailer,
+		ResponseProto:     respProto,
 		At:                now,
 		Kind:              kind,
 		Frames:            clipFrames(frames),
@@ -1676,8 +1754,12 @@ func formatRequest(r *proxy.Request, u *url.URL) string {
 }
 
 func formatResponse(r *proxy.Response) string {
+	proto := r.Proto
+	if proto == "" {
+		proto = "HTTP/1.1"
+	}
 	var b strings.Builder
-	fmt.Fprintf(&b, "HTTP/1.1 %d %s\n", r.StatusCode, http.StatusText(r.StatusCode))
+	fmt.Fprintf(&b, "%s %d %s\n", proto, r.StatusCode, http.StatusText(r.StatusCode))
 	writeHeaders(&b, r.Header)
 	return strings.TrimRight(b.String(), "\n")
 }

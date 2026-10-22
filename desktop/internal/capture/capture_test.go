@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 // freeAddr reserves an address the proxy can listen on.
@@ -654,6 +655,20 @@ func TestBlock(t *testing.T) {
 	_ = resp.Body.Close()
 	if resp.StatusCode != http.StatusForbidden {
 		t.Fatalf("status = %d, want 403", resp.StatusCode)
+	}
+}
+
+func TestBlockStillAppliesToGRPC(t *testing.T) {
+	s, conn := startGRPCThroughProxy(t)
+	s.SetRules([]Rule{{Type: RuleBlock, Match: grpcMethod("Echo")}})
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+	defer cancel()
+	if err := conn.Invoke(ctx, grpcMethod("Echo"), wrapperspb.String("blocked"), new(wrapperspb.StringValue)); err == nil {
+		t.Fatal("a blocked gRPC call reached the upstream")
+	}
+	f := waitFlowFor(t, s, "/Echo")
+	if f.Status != http.StatusForbidden || f.ResponseBody != "blocked by vscroxy\n" || f.ResponseHeader.Get("X-Server-Header") != "" {
+		t.Fatalf("gRPC block response: status %d, body %q, headers %v", f.Status, f.ResponseBody, f.ResponseHeader)
 	}
 }
 

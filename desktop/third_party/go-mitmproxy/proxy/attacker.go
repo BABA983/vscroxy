@@ -7,6 +7,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"slices"
 	"strings"
 
 	"github.com/lqqyt2423/go-mitmproxy/cert"
@@ -40,6 +41,11 @@ type attacker struct {
 	ca       cert.CA
 	server   *http.Server
 	h2Server *http2.Server
+	// h2Base holds the settings the HTTP/2 server takes from an http.Server.
+	// It is never served itself: ServeConn copies it once per connection and
+	// net/http fills such a copy in as it starts, so serving this one too
+	// would leave two goroutines reading and writing the same fields.
+	h2Base   *http.Server
 	client   *http.Client
 	listener *attackerListener
 }
@@ -82,6 +88,9 @@ func newAttacker(proxy *Proxy) (*attacker, error) {
 
 	a.h2Server = &http2.Server{
 		MaxConcurrentStreams: 100, // todo: wait for remote server setting
+	}
+	a.h2Base = &http.Server{
+		Handler: a,
 	}
 
 	return a, nil
@@ -126,7 +135,7 @@ func (a *attacker) serveConn(clientTlsConn *tls.Conn, connCtx *ConnContext) {
 			a.h2Server.ServeConn(clientTlsConn, &http2.ServeConnOpts{
 				Context:    ctx,
 				Handler:    a,
-				BaseConfig: a.server,
+				BaseConfig: a.h2Base,
 			})
 		}()
 		return
@@ -447,12 +456,28 @@ func (a *attacker) attack(res http.ResponseWriter, req *http.Request) {
 		"method": req.Method,
 	})
 
-	reply := func(response *Response, body io.Reader) {
+	reply := func(response *Response, body io.Reader, streamed bool) {
 		if response.Header != nil {
 			for key, value := range response.Header {
 				for _, v := range value {
 					res.Header().Add(key, v)
 				}
+			}
+		}
+		if trailers := response.Trailers(); len(trailers) > 0 {
+			// Trailers follow the body, so a response that carries them
+			// cannot also declare its length. An HTTP/1.1 client reads them
+			// only from a chunked response, so the names are announced
+			// before the headers go out; HTTP/2 has a frame for them and
+			// needs nothing.
+			res.Header().Del("Content-Length")
+			if req.ProtoMajor < 2 {
+				names := make([]string, 0, len(trailers))
+				for name := range trailers {
+					names = append(names, name)
+				}
+				slices.Sort(names)
+				res.Header().Add("Trailer", strings.Join(names, ", "))
 			}
 		}
 		if response.close {
@@ -461,6 +486,13 @@ func (a *attacker) attack(res http.ResponseWriter, req *http.Request) {
 		res.WriteHeader(response.StatusCode)
 
 		flusher, _ := res.(http.Flusher)
+		if streamed && flusher != nil {
+			// A streamed response must reach the client before its body
+			// ends: a gRPC server stream or a bidirectional call sends
+			// nothing until the headers are through, and the client waits
+			// for them before it sends the rest of its own stream.
+			flusher.Flush()
+		}
 
 		copyStream := func(r io.Reader) error {
 			if r == nil {
@@ -503,6 +535,16 @@ func (a *attacker) attack(res http.ResponseWriter, req *http.Request) {
 				logErr(log, err)
 			}
 		}
+		// The trailer block goes after the body, as HTTP/1.1 chunked
+		// trailers or an HTTP/2 trailers frame: never as ordinary headers,
+		// since a name may repeat there with another value. The transport
+		// fills it while the body is read, so it is read here, once.
+		response.Trailer = response.Trailers()
+		for key, values := range response.Trailer {
+			for _, v := range values {
+				res.Header().Add(http.TrailerPrefix+key, v)
+			}
+		}
 	}
 
 	// when addons panic
@@ -519,6 +561,15 @@ func (a *attacker) attack(res http.ResponseWriter, req *http.Request) {
 
 	f.ConnContext.FlowCount.Add(1)
 
+	// A gRPC call is a stream, not a message: a client-streaming or
+	// bidirectional call sends no end of body until the server has answered,
+	// so buffering the request would deadlock the call, and the response must
+	// go out as it arrives for the same reason. The capture keeps both bodies
+	// through StreamRequestModifier and StreamResponseModifier instead.
+	if isGRPC(f.Request.Header) {
+		f.Stream = true
+	}
+
 	rawReqUrlHost := f.Request.URL.Host
 	rawReqUrlScheme := f.Request.URL.Scheme
 
@@ -526,7 +577,7 @@ func (a *attacker) attack(res http.ResponseWriter, req *http.Request) {
 	for _, addon := range proxy.Addons {
 		addon.Requestheaders(f)
 		if f.Response != nil {
-			reply(f.Response, nil)
+			reply(f.Response, nil, false)
 			return
 		}
 	}
@@ -554,7 +605,7 @@ func (a *attacker) attack(res http.ResponseWriter, req *http.Request) {
 			for _, addon := range proxy.Addons {
 				addon.Request(f)
 				if f.Response != nil {
-					reply(f.Response, nil)
+					reply(f.Response, nil, false)
 					return
 				}
 			}
@@ -580,6 +631,14 @@ func (a *attacker) attack(res http.ResponseWriter, req *http.Request) {
 		for _, v := range value {
 			proxyReq.Header.Add(key, v)
 		}
+	}
+	// A request that ended with trailers keeps them: the body is complete
+	// here, buffered or streamed, so the transport sends them after it. An
+	// HTTP/1.1 upstream sends them only with a chunked body, which a declared
+	// length rules out.
+	if trailers := f.Request.Trailers(); len(trailers) > 0 {
+		proxyReq.Trailer = trailers
+		proxyReq.ContentLength = -1
 	}
 
 	useSeparateClient := f.UseSeparateClient
@@ -627,14 +686,24 @@ func (a *attacker) attack(res http.ResponseWriter, req *http.Request) {
 	f.Response = &Response{
 		StatusCode: proxyRes.StatusCode,
 		Header:     proxyRes.Header,
+		Trailer:    proxyRes.Trailer,
+		Proto:      proxyRes.Proto,
 		close:      proxyRes.Close,
+		raw:        proxyRes,
+	}
+	// A gRPC server may end a call in the header block itself, with its
+	// status there and no body at all: a client reads that frame as the
+	// trailers. Hand the status over as trailers so the call keeps its
+	// shape and its status reaches the client as a status, not as metadata.
+	if isGRPC(f.Response.Header) && f.Response.Header.Get("Grpc-Status") != "" {
+		moveGRPCStatusToTrailer(f.Response)
 	}
 
 	// trigger addon event Responseheaders
 	for _, addon := range proxy.Addons {
 		addon.Responseheaders(f)
 		if f.Response.Body != nil {
-			reply(f.Response, nil)
+			reply(f.Response, nil, false)
 			return
 		}
 	}
@@ -687,5 +756,39 @@ func (a *attacker) attack(res http.ResponseWriter, req *http.Request) {
 		resBody = addon.StreamResponseModifier(f, resBody)
 	}
 
-	reply(f.Response, resBody)
+	reply(f.Response, resBody, f.Stream)
+}
+
+// isGRPC reports whether a message is gRPC, whose bodies are streams of
+// length-prefixed messages: a call may end its request only after the server
+// has answered, so neither side can be buffered.
+//
+// The gRPC-Web content types are not gRPC here: a browser sends gRPC-Web as an
+// ordinary request whose body is complete, and the proxy already buffers and
+// shows those.
+func isGRPC(h http.Header) bool {
+	contentType := strings.ToLower(strings.TrimSpace(h.Get("Content-Type")))
+	if mediaType, _, found := strings.Cut(contentType, ";"); found {
+		contentType = strings.TrimSpace(mediaType)
+	}
+	if strings.HasPrefix(contentType, "application/grpc-web") {
+		return false
+	}
+	return contentType == "application/grpc" || strings.HasPrefix(contentType, "application/grpc+")
+}
+
+// moveGRPCStatusToTrailer moves the status a trailers-only gRPC response
+// carries in its header block into the trailers, where a gRPC client looks for
+// it, keeping every value of every repeated field.
+func moveGRPCStatusToTrailer(r *Response) {
+	if r.Trailer == nil {
+		r.Trailer = make(http.Header)
+	}
+	for key, values := range r.Header {
+		if !strings.HasPrefix(strings.ToLower(key), "grpc-") {
+			continue
+		}
+		r.Trailer[key] = append(r.Trailer[key], values...)
+		delete(r.Header, key)
+	}
 }
