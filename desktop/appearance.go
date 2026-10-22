@@ -2,6 +2,7 @@ package main
 
 import (
 	"cmp"
+	"strconv"
 
 	"github.com/egoist/mygo/ui"
 )
@@ -46,8 +47,12 @@ func (a *app) settingsModal(c *ui.Context, t *ui.Theme) {
 	if !a.settingsOpen {
 		return
 	}
+	height := float32(372)
+	if a.settingsTab == 1 {
+		height = 520
+	}
 	ui.Modal(c, &a.settingsOpen, func() {
-		ui.Column(c).Width(620).Height(372).Gap(16).Children(func() {
+		ui.Column(c).Width(620).Height(height).Gap(16).Children(func() {
 			ui.Text(c, "Settings").FontSize(18).Bold()
 			ui.Tabs(c, &a.settingsTab, "General", "Proxy", "Certificates")
 			ui.Column(c).Grow(1).Gap(14).Padding(8, 0).Children(func() {
@@ -78,6 +83,25 @@ func (a *app) settingsModal(c *ui.Context, t *ui.Theme) {
 						addr = "Proxy address: " + a.srv.Addr()
 					}
 					ui.Text(c, addr).Bold()
+					ui.Column(c).Gap(6).Children(func() {
+						ui.Text(c, "Listening port").FontSize(12).Bold()
+						ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+							ui.TextInput(c, &a.proxyPortInput).Label("Proxy port").Placeholder("Automatic").Width(120)
+							if ui.Button(c, "Save for next launch").Clicked() {
+								a.saveProxyPort()
+							}
+						})
+						ui.Text(c, "Blank = automatic (prefers 7890). Fixed port: 1024–65535, no fallback.").FontSize(12).TextColor(t.TextMuted)
+						next := "Next launch: Automatic · restart the app to apply"
+						if a.proxyPort != 0 {
+							next = "Next launch: 127.0.0.1:" + strconv.Itoa(a.proxyPort) + " · restart the app to apply"
+						}
+						ui.Text(c, next).FontSize(12).TextColor(t.TextMuted)
+						if a.proxyPortProblem != "" {
+							ui.Text(c, a.proxyPortProblem).FontSize(12).TextColor(t.Danger).SingleLine().Tooltip(a.proxyPortProblem)
+						}
+					})
+					ui.Divider(c)
 					ui.Text(c, "System proxy changes affect other applications. You can also configure a client to use this address manually.").FontSize(12).TextColor(t.TextMuted)
 					ui.Row(c).Gap(8).Children(func() {
 						if ui.Button(c, "Enable system proxy").Disabled(a.srv == nil || !a.srv.Running()).Clicked() {

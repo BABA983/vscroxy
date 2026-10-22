@@ -144,10 +144,13 @@ type app struct {
 
 	// settings are what the window keeps between launches, besides its
 	// bounds, which MyGo saves with the window's StateKey.
-	settingsPath string
-	saved        settings
-	lastSave     time.Time
-	columns      ui.TableLayout
+	settingsPath     string
+	saved            settings
+	lastSave         time.Time
+	columns          ui.TableLayout
+	proxyPort        int
+	proxyPortInput   string
+	proxyPortProblem string
 
 	// ignore keeps noise out of the table without stopping it at the proxy.
 	ignorePath string
@@ -266,14 +269,26 @@ func newApp() *app {
 	// settings ask for has to be in the environment before it starts.
 	if home, err := os.UserHomeDir(); err == nil {
 		a.settingsPath = filepath.Join(home, ".vscroxy", "settings.json")
-		if saved, err := loadSettings(a.settingsPath); err == nil && saved.KeyLogPath != "" {
-			_ = os.Setenv("SSLKEYLOGFILE", saved.KeyLogPath)
-			a.keyLogPath = saved.KeyLogPath
+		if saved, err := loadSettings(a.settingsPath); err != nil {
+			a.errText = err.Error()
+		} else {
+			a.saved, a.proxyPort = saved, saved.ProxyPort
+			if saved.ProxyPort != 0 {
+				a.proxyPortInput = strconv.Itoa(saved.ProxyPort)
+			}
+			if saved.KeyLogPath != "" {
+				_ = os.Setenv("SSLKEYLOGFILE", saved.KeyLogPath)
+				a.keyLogPath = saved.KeyLogPath
+			}
 		}
 	}
-	srv, err := capture.New("", "")
+	addr, err := a.saved.proxyAddr()
+	var srv *capture.Server
+	if err == nil {
+		srv, err = capture.New(addr, "")
+	}
 	if err != nil {
-		// Keep the window usable when the port is taken: show seeded flows
+		// Keep the window usable when initialization fails: show seeded flows
 		// and the error, rather than an empty app.
 		a.errText = err.Error()
 		a.flows = seedFlows(2000)
@@ -308,21 +323,16 @@ func newApp() *app {
 		}
 	}
 	if a.settingsPath != "" {
-		saved, err := loadSettings(a.settingsPath)
-		if err != nil {
-			a.errText = err.Error()
-		} else {
-			a.saved = saved
-			a.dark = saved.Dark
-			if saved.SidebarWidth > 0 {
-				a.sidebarWidth = saved.SidebarWidth
-			}
-			if saved.TablePercent > 0 {
-				a.tablePercent = saved.TablePercent
-			}
-			a.columns = saved.Columns.layout()
-			a.headerColumn = saved.HeaderColumn
+		saved := a.saved
+		a.dark = saved.Dark
+		if saved.SidebarWidth > 0 {
+			a.sidebarWidth = saved.SidebarWidth
 		}
+		if saved.TablePercent > 0 {
+			a.tablePercent = saved.TablePercent
+		}
+		a.columns = saved.Columns.layout()
+		a.headerColumn = saved.HeaderColumn
 	}
 	if a.requestsPath != "" {
 		if list, err := loadRequests(a.requestsPath); err == nil {
@@ -2681,7 +2691,7 @@ func (a *app) connectPanel(c *ui.Context, f flow) {
 
 // persistSettings writes what changed since the last write, at most every
 // 400ms, so dragging a divider does not write a file a frame.
-func (a *app) persistSettings() {
+func (a *app) persistSettings() error {
 	now := settings{
 		Dark:         a.dark,
 		SidebarWidth: a.sidebarWidth,
@@ -2689,25 +2699,28 @@ func (a *app) persistSettings() {
 		Columns:      savedLayout(a.columns),
 		HeaderColumn: a.headerColumn,
 		KeyLogPath:   a.keyLogPath,
+		ProxyPort:    a.proxyPort,
 	}
 	if sameSettings(now, a.saved) || time.Since(a.lastSave) < 400*time.Millisecond {
-		return
+		return nil
 	}
-	a.saved = now
 	a.lastSave = time.Now()
 	if a.settingsPath == "" {
-		return
+		a.saved = now
+		return nil
 	}
-	path := a.settingsPath
-	go func() {
-		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-			a.setMessage("Settings: " + err.Error())
-			return
-		}
-		if err := writeSettings(path, now); err != nil {
-			a.setMessage("Settings: " + err.Error())
-		}
-	}()
+	// Serialize these small, debounced writes on the UI thread so an older
+	// layout snapshot cannot overwrite a port explicitly saved after it.
+	err := os.MkdirAll(filepath.Dir(a.settingsPath), 0o755)
+	if err == nil {
+		err = writeSettings(a.settingsPath, now)
+	}
+	if err != nil {
+		a.setMessage("Settings: " + err.Error())
+		return err
+	}
+	a.saved = now
+	return nil
 }
 
 // pinLabel is what the row menu says about pinning a flow.

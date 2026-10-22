@@ -25,6 +25,15 @@ ephemeral pool and respects its reserved/excluded-port configuration; the app
 does not scan low ports or change those settings. The assigned port may differ
 on the next launch.
 
+For a stable port, open **Settings → Proxy → Listening port**, enter a number
+from **1024 to 65535**, and click **Save for next launch**. Restart the app to
+apply it; current capture connections and system-proxy settings are not changed
+by saving. A fixed port never falls back silently: if it is unavailable, capture
+stays stopped and reports the bind error. Leave the field blank and save to
+restore automatic selection. The value is kept in `~/.vscroxy/settings.json`
+(`proxyPort`, zero or absent for automatic). The panel distinguishes the current
+listening address from the next-launch configuration.
+
 **Live**, the empty traffic list and **Settings → Proxy** show the actual bound
 address. Only a successfully bound proxy appears Live; failed startup leaves
 system-proxy enablement disabled. The examples below use the preferred port;

@@ -160,6 +160,74 @@ func TestSettingsOpensExistingEditors(t *testing.T) {
 	}
 }
 
+func TestProxyPortEditorSavesWithoutInterruptingCapture(t *testing.T) {
+	srv, err := capture.New("127.0.0.1:0", t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer srv.Close()
+	if err := srv.Start(); err != nil {
+		t.Fatal(err)
+	}
+	addr := srv.Addr()
+	a := workspaceApp()
+	a.srv, a.settingsPath = srv, filepath.Join(t.TempDir(), "settings.json")
+	tt := ui.NewTester(a.view, 960, 600)
+	for _, label := range []string{"Settings", "Proxy"} {
+		if err := tt.Click(label); err != nil {
+			t.Fatal(err)
+		}
+	}
+	edit := func(value string) {
+		t.Helper()
+		if err := tt.Click("Proxy port"); err != nil {
+			t.Fatal(err)
+		}
+		tt.Key(ui.Cmd, ui.KeyA)
+		tt.Key(0, ui.KeyBackspace)
+		tt.Type(value)
+		if err := tt.Click("Save for next launch"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, invalid := range []string{"0", "80", "1023", "65536", "not a port"} {
+		edit(invalid)
+		got, err := loadSettings(a.settingsPath)
+		if err != nil || got.ProxyPort != 0 || !tt.HasText("Enter a port from 1024 to 65535, or leave empty for automatic selection") {
+			t.Fatalf("invalid input %q was not rejected: saved %+v, error %v", invalid, got, err)
+		}
+	}
+	for _, port := range []int{1024, 65535, 9091} {
+		edit(fmt.Sprint(port))
+		got, err := loadSettings(a.settingsPath)
+		if err != nil || got.ProxyPort != port || !tt.HasText(fmt.Sprintf("Next launch: 127.0.0.1:%d · restart the app to apply", port)) {
+			t.Fatalf("port %d not saved: %+v, error %v", port, got, err)
+		}
+		if !srv.Running() || srv.Addr() != addr || !tt.HasText("Proxy address: "+addr) {
+			t.Fatal("saving next launch's port interrupted the current capture")
+		}
+	}
+	// Other settings must not overwrite the newly saved port.
+	a.dark, a.lastSave = true, time.Time{}
+	tt.Frame()
+	got, err := loadSettings(a.settingsPath)
+	if err != nil || !got.Dark || got.ProxyPort != 9091 {
+		t.Fatalf("subsequent settings save lost the port: %+v, %v", got, err)
+	}
+	path := a.settingsPath
+	a.settingsPath = t.TempDir() // a directory cannot be replaced by the settings file
+	edit("9092")
+	if a.proxyPort != 9091 || !strings.Contains(a.proxyPortProblem, "Port was not saved") {
+		t.Fatal("write failure must not claim that the new port was saved")
+	}
+	a.settingsPath = path
+	edit("")
+	got, err = loadSettings(path)
+	if err != nil || got.ProxyPort != 0 || !tt.HasText("Next launch: Automatic · restart the app to apply") {
+		t.Fatalf("clearing the port must restore automatic selection: %+v, %v", got, err)
+	}
+}
+
 func TestRequestTabsKeepDraftsAndConfirmClose(t *testing.T) {
 	a := workspaceApp()
 	a.requestsPath = filepath.Join(t.TempDir(), "requests.json")

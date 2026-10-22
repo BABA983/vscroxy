@@ -3,10 +3,14 @@ package main
 import (
 	"encoding/json/v2"
 	"errors"
+	"fmt"
 	"io/fs"
 	"maps"
 	"os"
 	"slices"
+	"strconv"
+	"strings"
+	"time"
 
 	"github.com/egoist/mygo/ui"
 )
@@ -24,6 +28,46 @@ type settings struct {
 	// KeyLogPath is where the TLS secrets go for Wireshark, empty when the
 	// key log is off.
 	KeyLogPath string `json:"keyLogPath,omitempty"`
+	// ProxyPort is the fixed loopback port, or zero for automatic selection.
+	ProxyPort int `json:"proxyPort,omitzero"`
+}
+
+func (s settings) proxyAddr() (string, error) {
+	if s.ProxyPort == 0 {
+		return "", nil
+	}
+	if s.ProxyPort < 1024 || s.ProxyPort > 65535 {
+		return "", errors.New("Proxy port must be between 1024 and 65535, or empty for automatic selection")
+	}
+	return fmt.Sprintf("127.0.0.1:%d", s.ProxyPort), nil
+}
+
+// saveProxyPort saves only a validated draft. The running listener is not
+// touched: clients, the system proxy and device gateways keep their address.
+func (a *app) saveProxyPort() {
+	a.proxyPortProblem = ""
+	port := 0
+	if input := strings.TrimSpace(a.proxyPortInput); input != "" {
+		n, err := strconv.Atoi(input)
+		if err != nil || n < 1024 || n > 65535 {
+			a.proxyPortProblem = "Enter a port from 1024 to 65535, or leave empty for automatic selection"
+			return
+		}
+		port = n
+	}
+	if a.settingsPath == "" {
+		a.proxyPortProblem = "Settings location is unavailable; port was not saved"
+		return
+	}
+	previous := a.proxyPort
+	a.proxyPort = port
+	a.lastSave = time.Time{} // explicit save must not wait for the layout debounce
+	if err := a.persistSettings(); err != nil {
+		a.proxyPort = previous
+		a.proxyPortProblem = "Port was not saved: " + err.Error()
+		return
+	}
+	a.setMessage("Proxy port saved · restart the app to apply")
 }
 
 // columnLayout is a table's columns as the user arranged them, saved with
@@ -78,6 +122,7 @@ func sameSettings(x, y settings) bool {
 		x.TablePercent == y.TablePercent &&
 		x.HeaderColumn == y.HeaderColumn &&
 		x.KeyLogPath == y.KeyLogPath &&
+		x.ProxyPort == y.ProxyPort &&
 		slices.Equal(x.Columns.Order, y.Columns.Order) &&
 		maps.Equal(x.Columns.Widths, y.Columns.Widths)
 }
