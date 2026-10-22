@@ -17,7 +17,8 @@ go test ./...
 ```
 
 The app runs with `go run .` in `desktop/`, or a binary built there; it listens on
-127.0.0.1:7890 and reads its settings from `~/.vscroxy`.
+127.0.0.1:7890 when available, otherwise an OS-assigned loopback port shown in
+the UI, and reads its settings from `~/.vscroxy`.
 
 ## MyGo
 

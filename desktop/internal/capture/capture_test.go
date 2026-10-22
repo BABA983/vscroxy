@@ -6,6 +6,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -15,6 +16,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -83,6 +85,134 @@ func waitFlow(t *testing.T, s *Server) Flow {
 	case <-time.After(5 * time.Second):
 		t.Fatal("no flow captured")
 		return Flow{}
+	}
+}
+
+func TestStartRejectsAnOccupiedExplicitAddress(t *testing.T) {
+	busy, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer busy.Close()
+	s, err := New(busy.Addr().String(), t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	if err := s.Start(); err == nil {
+		t.Fatal("Start reported success on another application's listener")
+	}
+	if s.Running() {
+		t.Fatal("failed startup reported a running proxy")
+	}
+}
+
+func TestDefaultProxyFallsBackToAnOwnedPort(t *testing.T) {
+	// Keep the competing listener bound for the entire test. If a real app
+	// already owns 7890, leave it alone and still exercise the fallback.
+	busy, err := net.Listen("tcp", "127.0.0.1:7890")
+	if err == nil {
+		other := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			fmt.Fprint(w, "existing application")
+		})}
+		go other.Serve(busy)
+		t.Cleanup(func() { _ = other.Close() })
+	} else {
+		t.Logf("preferred port already unavailable: %v", err)
+	}
+	s, err := New("", t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = s.Close() })
+	if s.Running() {
+		t.Fatal("proxy reported running before Start")
+	}
+	if err := s.Start(); err != nil {
+		t.Fatal(err)
+	}
+	addr := s.Addr()
+	host, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	n, err := strconv.Atoi(port)
+	if err != nil || host != "127.0.0.1" || n < 1024 || n == 7890 || !s.Running() {
+		t.Fatalf("fallback listener = %q, running = %v", addr, s.Running())
+	}
+	t.Logf("occupied 127.0.0.1:7890 → bound %s", addr)
+	if err := s.Start(); err == nil || s.Addr() != addr {
+		t.Fatal("a second Start must not acquire another port")
+	}
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, "through our proxy")
+	}))
+	defer upstream.Close()
+	resp, err := clientFor(t, s, nil).Get(upstream.URL + "/fallback")
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, err := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if err != nil || string(body) != "through our proxy" {
+		t.Fatalf("forwarded body = %q, error = %v", body, err)
+	}
+	f := waitFlow(t, s)
+	if f.URL != upstream.URL+"/fallback" || f.ResponseBody != "through our proxy" {
+		t.Fatalf("wrong captured exchange: %+v", f)
+	}
+	replayed, err := s.Replay(t.Context(), f)
+	if err != nil || replayed.ResponseBody != "through our proxy" {
+		t.Fatalf("replay on actual port: body = %q, error = %v", replayed.ResponseBody, err)
+	}
+	if busy != nil {
+		client := &http.Client{Transport: &http.Transport{}, Timeout: 5 * time.Second}
+		resp, err := client.Get("http://" + busy.Addr().String())
+		if err != nil {
+			t.Fatal(err)
+		}
+		body, err := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if err != nil || string(body) != "existing application" {
+			t.Fatalf("competing application was affected: %q, %v", body, err)
+		}
+	}
+	if err := s.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if s.Running() {
+		t.Fatal("closed proxy still reported running")
+	}
+	ln, err := net.Listen("tcp", addr)
+	if err != nil {
+		t.Fatalf("Close did not release %s: %v", addr, err)
+	}
+	defer ln.Close()
+	if err := s.Start(); !errors.Is(err, net.ErrClosed) {
+		t.Fatalf("Start after Close = %v", err)
+	}
+}
+
+func TestCloseImmediatelyAfterStartReleasesThePort(t *testing.T) {
+	s, err := New("127.0.0.1:0", t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = s.Close() })
+	if err := s.Start(); err != nil {
+		t.Fatal(err)
+	}
+	addr := s.Addr()
+	if err := s.Close(); err != nil {
+		t.Fatal(err)
+	}
+	ln, err := net.Listen("tcp", addr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ln.Close()
+	if s.Running() {
+		t.Fatal("closed proxy reported running")
 	}
 }
 

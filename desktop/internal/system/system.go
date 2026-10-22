@@ -9,9 +9,6 @@ import (
 	"strings"
 )
 
-// ProxyAddr is the address a client should use.
-const ProxyAddr = "127.0.0.1:7890"
-
 // splitAddr splits "host:port" as the dialogs give it.
 func splitAddr(addr string) (host, port string, ok bool) {
 	host, port, ok = strings.Cut(addr, ":")

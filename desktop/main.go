@@ -271,7 +271,7 @@ func newApp() *app {
 			a.keyLogPath = saved.KeyLogPath
 		}
 	}
-	srv, err := capture.New("127.0.0.1:7890", "")
+	srv, err := capture.New("", "")
 	if err != nil {
 		// Keep the window usable when the port is taken: show seeded flows
 		// and the error, rather than an empty app.
@@ -444,10 +444,18 @@ func clamp(msg string, max int) string {
 // setSystemProxy turns the machine's proxy on or off. The platform helpers
 // may block on a password prompt, so they run off the UI thread.
 func (a *app) setSystemProxy(on bool) {
+	var addr string
+	if on {
+		if a.srv == nil || !a.srv.Running() {
+			a.setMessage("System proxy: start capture successfully first")
+			return
+		}
+		addr = a.srv.Addr()
+	}
 	go func() {
 		var err error
 		if on {
-			err = system.SetProxy(system.ProxyAddr)
+			err = system.SetProxy(addr)
 		} else {
 			err = system.ClearProxy()
 		}
@@ -456,7 +464,7 @@ func (a *app) setSystemProxy(on bool) {
 			return
 		}
 		if on {
-			a.setMessage("System proxy: " + system.ProxyAddr)
+			a.setMessage("System proxy: " + addr)
 		} else {
 			a.setMessage("System proxy: off")
 		}
@@ -499,7 +507,7 @@ func (a *app) revealCA() {
 // replay sends the flow's request again through the proxy, so the result is
 // captured like any other exchange.
 func (a *app) replay(f flow) {
-	if a.srv == nil || f.url == "" {
+	if a.srv == nil || !a.srv.Running() || f.url == "" {
 		return
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -529,9 +537,10 @@ func (a *app) startCapture() {
 		a.mu.Lock()
 		a.err = err
 		a.mu.Unlock()
-		a.win.Invalidate()
+		a.invalidate()
 		return
 	}
+	a.invalidate()
 	go a.collectBreakpoints()
 	go a.collectFrames()
 	for f := range a.srv.Flows() {
@@ -997,7 +1006,7 @@ func (a *app) breakpointModal(c *ui.Context, t *ui.Theme) {
 }
 
 func (a *app) toolbar(c *ui.Context, t *ui.Theme) {
-	live := a.srv != nil && a.errText == ""
+	live := a.srv != nil && a.srv.Running()
 	dot := ui.Hex("#dc2626")
 	label := "Capture stopped"
 	if live {
@@ -1313,7 +1322,11 @@ func (a *app) table(c *ui.Context) {
 	if len(a.visible) == 0 {
 		ui.Column(c).Fill().Center().Gap(8).Children(func() {
 			ui.Text(c, "Waiting for traffic").FontSize(14).TextColor(t.Text)
-			ui.Text(c, "Set your HTTP proxy to 127.0.0.1:7890").FontSize(12).TextColor(t.TextMuted)
+			hint := "Start capture successfully before configuring a client"
+			if a.srv != nil && a.srv.Running() {
+				hint = "Set your HTTP proxy to " + a.srv.Addr()
+			}
+			ui.Text(c, hint).FontSize(12).TextColor(t.TextMuted)
 		})
 		return
 	}
@@ -1814,6 +1827,9 @@ func statusColor(status int, t *ui.Theme) ui.Color {
 
 func main() {
 	a := newApp()
+	if a.srv != nil {
+		defer a.srv.Close()
+	}
 	defer a.discardRuleDraft()
 	defer a.disableDevices()
 	defer a.views.stopSearch()
@@ -2118,7 +2134,7 @@ func (a *app) sendComposed() {
 	d.composeReplies = nil
 	d.response = nil
 	d.responseEditor = nil
-	if a.srv == nil {
+	if a.srv == nil || !a.srv.Running() {
 		d.composeResult = "No proxy running. Start capture before sending."
 		a.setMessage("Compose: no proxy running")
 		return

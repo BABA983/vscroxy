@@ -74,13 +74,13 @@ func (a *app) settingsModal(c *ui.Context, t *ui.Theme) {
 					})
 				case 1:
 					addr := "Capture is not running"
-					if a.srv != nil {
+					if a.srv != nil && a.srv.Running() {
 						addr = "Proxy address: " + a.srv.Addr()
 					}
 					ui.Text(c, addr).Bold()
 					ui.Text(c, "System proxy changes affect other applications. You can also configure a client to use this address manually.").FontSize(12).TextColor(t.TextMuted)
 					ui.Row(c).Gap(8).Children(func() {
-						if ui.Button(c, "Enable system proxy").Disabled(a.srv == nil).Clicked() {
+						if ui.Button(c, "Enable system proxy").Disabled(a.srv == nil || !a.srv.Running()).Clicked() {
 							a.setSystemProxy(true)
 						}
 						if ui.Button(c, "Disable system proxy").Clicked() {

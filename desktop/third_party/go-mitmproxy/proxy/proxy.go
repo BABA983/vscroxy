@@ -72,12 +72,26 @@ func (proxy *Proxy) AddAddon(addon Addon) {
 }
 
 func (proxy *Proxy) Start() error {
+	addr := proxy.Opts.Addr
+	if addr == "" {
+		addr = ":http"
+	}
+	ln, err := net.Listen("tcp", addr)
+	if err != nil {
+		return err
+	}
+	return proxy.Serve(ln)
+}
+
+// Serve serves on an already bound listener and closes it when serving ends.
+// This lets callers reserve an OS-assigned port without a close/rebind race.
+func (proxy *Proxy) Serve(ln net.Listener) error {
 	go func() {
 		if err := proxy.attacker.start(); err != nil {
 			log.Error(err)
 		}
 	}()
-	return proxy.entry.start()
+	return proxy.entry.serve(ln)
 }
 
 func (proxy *Proxy) Close() error {

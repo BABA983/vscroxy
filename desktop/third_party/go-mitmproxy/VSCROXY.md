@@ -5,8 +5,20 @@ Runtime packages copied verbatim from `github.com/lqqyt2423/go-mitmproxy v1.9.4`
 metadata. Upstream tests, examples, commands and unrelated addons are not copied.
 This is the existing capture engine, not another proxy implementation.
 
-The source patches are in `proxy/websocket.go`, `proxy/flow.go` and
-`proxy/attacker.go`. Everything else is upstream.
+The source patches are in `proxy/websocket.go`, `proxy/flow.go`,
+`proxy/attacker.go`, `proxy/proxy.go` and `proxy/entry.go`. Everything else is upstream.
+
+## `proxy/proxy.go` and `proxy/entry.go`, listener ownership
+
+`Proxy.Serve(net.Listener)` accepts an already bound listener. `Start` still
+binds the configured address, then delegates to `Serve`; the entry wraps and
+serves that same socket and logs its actual address. The desktop capture can
+therefore bind its preferred loopback port synchronously, fall back to an
+OS-assigned port if unavailable, and pass ownership straight to the engine.
+There is no probe/close/rebind gap, and a competing application's open port can
+never be mistaken for successful startup. Regression coverage lives in
+`TestStartRejectsAnOccupiedExplicitAddress`, `TestDefaultProxyFallsBackToAnOwnedPort`
+and `TestCloseImmediatelyAfterStartReleasesThePort`.
 
 ## `proxy/websocket.go`, `webSocketHandler.handle`
 

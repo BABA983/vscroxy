@@ -5,7 +5,7 @@ native UI: no webview, no HTML, no JavaScript in the app itself. MyGo draws
 the widgets on the GPU and takes text, input methods and accessibility from
 the platform.
 
-The app captures real traffic: it runs a MITM proxy on `127.0.0.1:7890` with
+The app captures real traffic: it runs a loopback MITM proxy with
 [go-mitmproxy](https://github.com/lqqyt2423/go-mitmproxy) and shows every
 exchange as it arrives.
 
@@ -17,7 +17,18 @@ Go 1.27 or later. On Linux the app needs GTK 3 at run time; nothing else.
 go run .
 ```
 
-Then point a client at the proxy:
+The proxy prefers `127.0.0.1:7890`. If that address is unavailable (for example,
+Clash already owns it), it binds an OS-assigned loopback port instead. It holds
+that socket throughout startup, without probing another application's listener
+or closing/rebinding a candidate port. The OS chooses from its configured
+ephemeral pool and respects its reserved/excluded-port configuration; the app
+does not scan low ports or change those settings. The assigned port may differ
+on the next launch.
+
+**Live**, the empty traffic list and **Settings → Proxy** show the actual bound
+address. Only a successfully bound proxy appears Live; failed startup leaves
+system-proxy enablement disabled. The examples below use the preferred port;
+replace `7890` with the displayed port if it changed. Then point a client at it:
 
 ```sh
 curl -x http://127.0.0.1:7890 http://example.com/
@@ -69,9 +80,9 @@ Certificate pinning and clients that ignore the OS proxy are not bypassed. The
 pinned MITM engine generates DNS SANs, not IP SANs: intercepted HTTPS using a
 numeric-IP URL can fail certificate verification; use a DNS hostname when testing.
 
-The local proxy stays at `127.0.0.1:7890`. The gateway forwards raw TCP to that
-same core, keeping capture IDs, rules and pending local requests/tunnels. Closing
-the guide keeps access enabled (the Network menu shows **LAN**); **Disable device
+The local proxy stays on loopback. The gateway forwards raw TCP to the core's
+actual listening port, keeping capture IDs, rules and pending local requests/tunnels.
+Closing the guide keeps access enabled (the Network menu shows **LAN**); **Disable device
 access** closes both LAN listeners and all their active connections, including
 CONNECT/WebSocket tunnels, without stopping local capture. Disable before editing
 the address/allowlist. Turn off the device's manual proxy and remove the CA trust
@@ -522,8 +533,9 @@ Settings with Cmd/Ctrl+,; Cmd/Ctrl+1 and Cmd/Ctrl+2 switch workspaces, and
 Cmd/Ctrl+N starts a request. On Linux and Windows, Alt reveals the native
 menu bar.
 
-- **Enable system proxy** sets the proxy to `127.0.0.1:7890`; **Disable system
-  proxy** turns it off again. Linux writes the GNOME proxy settings with
+- **Enable system proxy** sets the proxy to the actual address displayed above;
+  **Disable system proxy** turns it off again. Startup never changes system
+  proxy settings automatically. Linux writes the GNOME proxy settings with
   `gsettings`, macOS sets every enabled service with `networksetup`, Windows
   writes the per-user WinINet settings with `reg`.
 - **Install certificate…** trusts `~/.mitmproxy/mitmproxy-ca-cert.pem`. Linux

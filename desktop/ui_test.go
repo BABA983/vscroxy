@@ -96,6 +96,46 @@ func TestWorkspaceKeepsCaptureAndDraftIndependent(t *testing.T) {
 	}
 }
 
+func TestCaptureUIUsesOnlyTheRunningListener(t *testing.T) {
+	srv, err := capture.New("127.0.0.1:0", t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer srv.Close()
+	a := workspaceApp()
+	a.srv, a.flows, a.visible = srv, nil, nil
+	tt := ui.NewTester(a.view, 1240, 800)
+	if !tt.HasText("Capture stopped") || tt.HasText("Live · "+srv.Addr()) {
+		t.Fatal("an unstarted server must not appear live")
+	}
+	a.setSystemProxy(true)
+	if a.message != "System proxy: start capture successfully first" {
+		t.Fatal("an unstarted proxy must not change system settings")
+	}
+	if err := srv.Start(); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if !tt.HasText("Live · "+srv.Addr()) || !tt.HasText("Set your HTTP proxy to "+srv.Addr()) {
+		t.Fatalf("capture must show its actual bound address, texts: %q", tt.Texts())
+	}
+	for _, label := range []string{"Settings", "Proxy"} {
+		if err := tt.Click(label); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if !tt.HasText("Proxy address: " + srv.Addr()) {
+		t.Fatal("settings did not use the actual bound address")
+	}
+	if err := srv.Close(); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if !tt.HasText("Capture is not running") || tt.HasText("Proxy address: "+srv.Addr()) {
+		t.Fatal("closed proxy must not advertise its old address")
+	}
+}
+
 func TestSettingsOpensExistingEditors(t *testing.T) {
 	a := workspaceApp()
 	tt := ui.NewTester(a.view, 960, 600)
