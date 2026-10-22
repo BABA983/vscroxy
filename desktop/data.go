@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"math/rand"
 	"net/http"
 	"os"
@@ -26,9 +27,11 @@ type flow struct {
 	reqBody     string
 	reqFile     string
 	reqSize     int
+	reqError    string
 	resBody     string
 	resFile     string
 	resSize     int
+	resError    string
 	reqHeader   http.Header
 	respHeader  http.Header
 	at          time.Time
@@ -68,21 +71,29 @@ const maxBodyView = 8 << 20
 // body returns the body to show: the head the flow holds in memory, or the
 // whole body from the spill file when the capture core wrote it out.
 func (f flow) body(response bool) string {
-	head, file, size := f.reqBody, f.reqFile, f.reqSize
+	head, file, size, problem := f.reqBody, f.reqFile, f.reqSize, f.reqError
 	if response {
-		head, file, size = f.resBody, f.resFile, f.resSize
+		head, file, size, problem = f.resBody, f.resFile, f.resSize, f.resError
 	}
-	if file == "" {
-		return head
+	if file != "" {
+		reader, err := os.Open(file)
+		if err != nil {
+			return head + fmt.Sprintf("\n\n… the spilled body is gone: %v", err)
+		}
+		defer reader.Close()
+		data, err := io.ReadAll(io.LimitReader(reader, maxBodyView+1))
+		head = string(data)
+		if err != nil {
+			problem = err.Error()
+		}
 	}
-	data, err := os.ReadFile(file)
-	if err != nil {
-		return head + fmt.Sprintf("\n\n… the spilled body is gone: %v", err)
+	if len(head) > maxBodyView {
+		head = head[:maxBodyView] + fmt.Sprintf("\n\n… truncated: %d bytes shown (recorded size: %d)", maxBodyView, size)
 	}
-	if len(data) > maxBodyView {
-		return string(data[:maxBodyView]) + fmt.Sprintf("\n\n… truncated: %d of %d bytes shown", maxBodyView, size)
+	if problem != "" {
+		head += "\n\n… incomplete body: " + problem
 	}
-	return string(data)
+	return head
 }
 
 // contentType is the media type of the body on the side shown, taken from the

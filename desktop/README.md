@@ -137,6 +137,13 @@ hidden until matched. Progress and unreadable/incomplete-body warnings appear
 above the table. Missing or incomplete bodies never silently match just their
 preview. URL/header/status filtering remains immediate.
 
+Large HTTP uploads and downloads are kept from the actual streaming path,
+including chunked transfers. Capture decodes gzip, deflate, Brotli and Zstandard
+on disk without changing forwarded bytes. Aborted transfers, decode failures
+and spill failures are marked incomplete rather than searched as empty bodies.
+Body previews stay limited to 8 MiB; saved JSON sessions retain the complete
+captured bodies and their incomplete-state metadata.
+
 A row's menu carries what a captured request is worth outside the table:
 **Copy URL**, **Copy as cURL** (its headers, body and URL as a shell
 command), **Open in browser**, **Copy response body**, **Pin to the top**,
@@ -296,13 +303,29 @@ path.
 ## WebSocket and SSE
 
 A WebSocket connection appears as a `WS` row with status `101`, and an SSE
-response as its request with the `Messages` tab. Frames stream in as they
-arrive: the arrow is the direction, then the kind (`text`, `binary`, `event`,
-`tick`, …), then the payload. Frames are kept per flow, the last 200 of them,
-each clipped at 4 KB.
+response as its request with the **Messages** tab. Search metadata and retained
+payloads (including spill files), filter **All / In / Out**, and select a row
+to inspect or copy its payload. Rows show direction, time, kind and size; SSE
+keeps event name and ID separately. JSON is indented; binary opens as hex, and
+**Text / Hex** switches views. Text layout previews at most 64 KiB; Hex and Copy
+use the whole retained payload.
 
-The WebSocket row shows the host of the tunnel and `/` for the path: the
-engine hands the hook the CONNECT flow, not the upgraded request.
+The last 200 messages per flow are retained: at most 4 KiB each inline, with
+longer payloads spilled to disk up to 256 KiB each. Larger messages explicitly
+show retained/original lengths. Sequence gaps report dropped/evicted messages;
+global queue losses appear in the status bar, including a loss at stream end.
+Spill files are temporary and removed when capture closes; there is no total
+disk quota for a long capture session yet.
+Sessions save retained payloads and metadata, not temporary spill paths, and
+older session files still load.
+
+Both plain WS and decrypted WSS retain the actual escaped path/query. A small
+documented local patch to go-mitmproxy fixes plain WS's discarded handshake
+headers and CONNECT-only capture metadata (see `third_party/go-mitmproxy/VSCROXY.md`).
+Composed WS requests use structured auth, custom headers and session cookies;
+WSS verifies the system/proxy CAs rather than disabling certificate checks.
+The one-shot sender waits up to two seconds for five replies, capped at 1 MiB
+each; cancellation closes the socket. Post-response scripts require HTTP.
 
 ## Replay
 

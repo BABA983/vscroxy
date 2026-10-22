@@ -12,6 +12,7 @@ import (
 	"slices"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/egoist/mygo"
 )
@@ -301,7 +302,9 @@ func queryPairs(raw string) []harNameValue {
 }
 
 // sessionFile is the saved session: the flows and their WebSocket or SSE
-// frames, enough to reopen the table later.
+// messages, enough to reopen the table later. A message keeps the whole of
+// what the capture retained, spilled or not, so a reopened session shows the
+// same payload the live one did.
 type sessionFile struct {
 	Version int                        `json:"version"`
 	Flows   []sessionFlow              `json:"flows"`
@@ -322,6 +325,12 @@ type sessionFlow struct {
 	ResHeaders string      `json:"resHeaders"`
 	ReqBody    string      `json:"reqBody"`
 	ResBody    string      `json:"resBody"`
+	ReqBytes   []byte      `json:"reqBytes,omitempty"`
+	ResBytes   []byte      `json:"resBytes,omitempty"`
+	ReqSize    int         `json:"reqSize,omitzero"`
+	ResSize    int         `json:"resSize,omitzero"`
+	ReqError   string      `json:"reqError,omitempty"`
+	ResError   string      `json:"resError,omitempty"`
 	ReqHeader  http.Header `json:"reqHeader,omitempty"`
 	RespHeader http.Header `json:"respHeader,omitempty"`
 	At         time.Time   `json:"at"`
@@ -331,29 +340,81 @@ type sessionFlow struct {
 	Note  string `json:"note,omitempty"`
 }
 
+// sessionFrameData is one message of a saved session: the whole of what the
+// capture retained of it, and what says what it is and where it came in the
+// stream. A file another version wrote has only the first three fields.
 type sessionFrameData struct {
-	Direction string `json:"direction"`
-	Kind      string `json:"kind"`
-	Data      string `json:"data"`
+	Seq       int       `json:"seq,omitzero"`
+	Direction string    `json:"direction"`
+	Kind      string    `json:"kind"`
+	Data      string    `json:"data"`
+	Payload   []byte    `json:"payload,omitempty"`
+	Size      int       `json:"size,omitzero"`
+	At        time.Time `json:"at,omitzero"`
+	EventID   string    `json:"eventId,omitempty"`
+	EventName string    `json:"eventName,omitempty"`
 }
 
 func sessionFrom(flows []flow, frames map[int][]frame) sessionFile {
 	s := sessionFile{Version: 1, Flows: make([]sessionFlow, 0, len(flows))}
 	for _, f := range flows {
-		s.Flows = append(s.Flows, sessionFlow{
+		// Save payloads, not the UI's bounded preview or its display notices.
+		for _, side := range []struct {
+			body    *string
+			file    string
+			problem *string
+		}{{&f.reqBody, f.reqFile, &f.reqError}, {&f.resBody, f.resFile, &f.resError}} {
+			if side.file == "" {
+				continue
+			}
+			data, err := os.ReadFile(side.file)
+			if err != nil {
+				*side.problem = "read spilled body: " + err.Error()
+				continue
+			}
+			*side.body = string(data)
+		}
+		saved := sessionFlow{
 			ID: f.id, Method: f.method, Scheme: f.scheme, Host: f.host, Path: f.path, URL: f.url,
 			Status: f.status, Bytes: f.bytes, Millis: f.millis,
 			ReqHeaders: f.reqHeaders, ResHeaders: f.resHeaders,
-			ReqBody: f.body(false), ResBody: f.body(true),
+			ReqBody: f.reqBody, ResBody: f.resBody,
+			ReqSize: f.reqSize, ResSize: f.resSize,
+			ReqError: f.reqError, ResError: f.resError,
 			ReqHeader: f.reqHeader, RespHeader: f.respHeader,
 			At: f.at, Kind: f.kind, Color: f.color, Note: f.note,
-		})
+		}
+		// JSON strings require UTF-8; byte fields use JSON's base64 encoding.
+		if !utf8.ValidString(saved.ReqBody) {
+			saved.ReqBytes, saved.ReqBody = []byte(saved.ReqBody), ""
+		}
+		if !utf8.ValidString(saved.ResBody) {
+			saved.ResBytes, saved.ResBody = []byte(saved.ResBody), ""
+		}
+		s.Flows = append(s.Flows, saved)
 	}
 	if len(frames) > 0 {
 		s.Frames = make(map[int][]sessionFrameData, len(frames))
 		for id, list := range frames {
 			for _, fr := range list {
-				s.Frames[id] = append(s.Frames[id], sessionFrameData{Direction: fr.direction, Kind: fr.kind, Data: fr.data})
+				// The spill file holds what the message kept: read it now, so
+				// the session carries the payload rather than a path to a
+				// directory the capture removes when it closes.
+				data := fr.payload()
+				saved := sessionFrameData{
+					Seq:       fr.seq,
+					Direction: fr.direction,
+					Kind:      fr.kind,
+					Data:      data,
+					Size:      max(fr.size, len(data)),
+					At:        fr.at,
+					EventID:   fr.eventID,
+					EventName: fr.eventName,
+				}
+				if !utf8.ValidString(data) {
+					saved.Payload, saved.Data = []byte(data), ""
+				}
+				s.Frames[id] = append(s.Frames[id], saved)
 			}
 		}
 	}
@@ -383,11 +444,19 @@ func readSession(path string) ([]flow, map[int][]frame, error) {
 	}
 	flows := make([]flow, 0, len(s.Flows))
 	for _, f := range s.Flows {
+		if len(f.ReqBytes) > 0 {
+			f.ReqBody = string(f.ReqBytes)
+		}
+		if len(f.ResBytes) > 0 {
+			f.ResBody = string(f.ResBytes)
+		}
 		flows = append(flows, flow{
 			id: f.ID, method: f.Method, scheme: f.Scheme, host: f.Host, path: f.Path, url: f.URL,
 			status: f.Status, bytes: f.Bytes, millis: f.Millis,
 			reqHeaders: f.ReqHeaders, resHeaders: f.ResHeaders,
 			reqBody: f.ReqBody, resBody: f.ResBody,
+			reqSize: max(f.ReqSize, len(f.ReqBody)), resSize: max(f.ResSize, len(f.ResBody)),
+			reqError: f.ReqError, resError: f.ResError,
 			reqHeader: f.ReqHeader, respHeader: f.RespHeader,
 			at: f.At, kind: f.Kind, color: f.Color, note: f.Note,
 		})
@@ -395,7 +464,22 @@ func readSession(path string) ([]flow, map[int][]frame, error) {
 	frames := make(map[int][]frame, len(s.Frames))
 	for id, list := range s.Frames {
 		for _, fr := range list {
-			frames[id] = append(frames[id], frame{direction: fr.Direction, kind: fr.Kind, data: fr.Data})
+			if len(fr.Payload) > 0 {
+				fr.Data = string(fr.Payload)
+			}
+			// A file written before messages carried a size or a time reads
+			// as one that knows only what it holds.
+			frames[id] = append(frames[id], frame{
+				seq:       fr.Seq,
+				direction: fr.Direction,
+				kind:      fr.Kind,
+				data:      fr.Data,
+				size:      max(fr.Size, len(fr.Data)),
+				kept:      len(fr.Data),
+				at:        fr.At,
+				eventID:   fr.EventID,
+				eventName: fr.EventName,
+			})
 		}
 	}
 	return flows, frames, nil

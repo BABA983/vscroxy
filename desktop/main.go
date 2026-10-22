@@ -19,6 +19,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/baba983/vscroxy/desktop/internal/appicon"
@@ -93,6 +94,8 @@ type app struct {
 	reqBody   string
 	diff      *editor.DiffState
 	frames    map[int][]frame
+	messageUI messagePanel
+	frameLost atomic.Int64
 
 	bodySide int
 	bodyMode int
@@ -242,13 +245,6 @@ type app struct {
 type domain struct {
 	name string
 	n    int
-}
-
-// frame is one WebSocket message or SSE event the detail pane lists.
-type frame struct {
-	direction string
-	kind      string
-	data      string
 }
 
 func newApp() *app {
@@ -549,7 +545,11 @@ func (a *app) startCapture() {
 func (a *app) collectFrames() {
 	for ev := range a.srv.Frames() {
 		a.mu.Lock()
-		a.pendingFrames = append(a.pendingFrames, ev)
+		if len(a.pendingFrames) < 1024 {
+			a.pendingFrames = append(a.pendingFrames, ev)
+		} else {
+			a.frameLost.Add(1)
+		}
 		a.mu.Unlock()
 		a.win.Invalidate()
 	}
@@ -630,15 +630,7 @@ func (a *app) drain() {
 	a.pendingFrames = nil
 	a.mu.Unlock()
 	for _, ev := range pendingFrames {
-		list := append(a.frames[ev.FlowID], frame{
-			direction: ev.Frame.Direction,
-			kind:      ev.Frame.Kind,
-			data:      ev.Frame.Data,
-		})
-		if len(list) > 200 {
-			list = list[len(list)-200:]
-		}
-		a.frames[ev.FlowID] = list
+		a.addFrame(ev)
 	}
 	if a.bp == nil {
 		a.mu.Lock()
@@ -684,9 +676,11 @@ func (a *app) drain() {
 			reqBody:     f.RequestBody,
 			reqFile:     f.RequestBodyFile,
 			reqSize:     f.RequestBodySize,
+			reqError:    f.RequestBodyError,
 			resBody:     f.ResponseBody,
 			resFile:     f.ResponseBodyFile,
 			resSize:     f.ResponseBodySize,
+			resError:    f.ResponseBodyError,
 			reqHeader:   f.RequestHeader,
 			respHeader:  f.ResponseHeader,
 			at:          f.At,
@@ -720,6 +714,7 @@ func (a *app) drain() {
 	if len(a.flows) > maxFlows {
 		cut := len(a.flows) - maxFlows
 		a.flows = a.flows[cut:]
+		a.frames = pruneMessages(a.frames, a.flows)
 		a.detailFor = -1
 	}
 	a.countDomains()
@@ -919,6 +914,9 @@ func (a *app) view(c *ui.Context) {
 	a.runnerModal(c, t)
 	a.cookiesModal(c, t)
 	a.views.capture(a)
+	if a.workspace != 0 || a.tab != 4 {
+		a.messageUI.stopSearch()
+	}
 }
 
 // upstreamModal edits the proxy every request goes through.
@@ -1668,24 +1666,7 @@ func (a *app) headerBlock(c *ui.Context, t *ui.Theme, title, line, note string, 
 
 // messages lists the WebSocket messages or SSE events of a flow.
 func (a *app) messages(c *ui.Context, f flow) {
-	t := c.Theme()
-	list := a.frames[f.id]
-	if len(list) == 0 {
-		ui.Text(c, "No messages yet").FontSize(12).TextColor(t.TextMuted).Padding(16)
-		return
-	}
-	ui.List(c, nil, len(list), func(i int) {
-		m := list[i]
-		arrow, color := "→", ui.Hex("#3b82f6")
-		if m.direction == "in" {
-			arrow, color = "←", ui.Hex("#16a34a")
-		}
-		ui.Row(c).Gap(10).Padding(4, 12).Children(func() {
-			ui.Text(c, arrow).FontSize(12).TextColor(color).Width(16)
-			ui.Text(c, m.kind).FontSize(11).TextColor(t.TextMuted).Width(52)
-			ui.Text(c, m.data).FontSize(12).Font("monospace").TextColor(t.Text).SingleLine().Grow(1)
-		})
-	}).Grow(1)
+	a.messageUI.view(c, a, f, a.frames[f.id])
 }
 
 func (a *app) statusBar(c *ui.Context, t *ui.Theme) {
@@ -1711,6 +1692,13 @@ func (a *app) statusBar(c *ui.Context, t *ui.Theme) {
 		}
 		if a.dropped > 0 {
 			label(fmt.Sprintf("%d dropped", a.dropped), ui.Hex("#d97706"))
+		}
+		lost := a.frameLost.Load()
+		if a.srv != nil {
+			lost += a.srv.FrameDropped()
+		}
+		if lost > 0 {
+			label(fmt.Sprintf("%d messages dropped", lost), ui.Hex("#d97706"))
 		}
 		if a.scriptErrs > 0 {
 			label(fmt.Sprintf("%d script errors", a.scriptErrs), ui.Hex("#d97706"))
@@ -1798,6 +1786,7 @@ func main() {
 	defer a.discardRuleDraft()
 	defer a.disableDevices()
 	defer a.views.stopSearch()
+	defer a.messageUI.stopSearch()
 	defer func() {
 		if a.runner.cancel != nil {
 			a.runner.cancel()

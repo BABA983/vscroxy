@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -65,6 +66,89 @@ func TestSessionRoundTrip(t *testing.T) {
 	}
 	if len(gotFrames[7]) != 2 || gotFrames[7][1].data != "hello" {
 		t.Fatalf("frames = %+v", gotFrames)
+	}
+}
+
+func TestSessionKeepsFullBodiesAndIncompleteState(t *testing.T) {
+	large := strings.Repeat("x", 9<<20) + "session-tail-marker"
+	spill := filepath.Join(t.TempDir(), "body")
+	if err := os.WriteFile(spill, []byte(large), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(t.TempDir(), "session.json")
+	flows := []flow{
+		{id: 1, resBody: "head", resFile: spill, resSize: len(large)},
+		{id: 2, reqBody: "partial", reqSize: 100, reqError: "transfer aborted"},
+		{id: 3, resBody: "head", resFile: spill + ".missing", resSize: 100},
+		{id: 4, reqBody: "\xff\x00upload", resBody: "\x80\x00download"},
+	}
+	if err := writeSession(path, flows, nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(spill); err != nil {
+		t.Fatal(err)
+	}
+	got, _, err := readSession(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 4 || got[0].resBody != large || got[0].resSize != len(large) {
+		t.Fatal("session did not preserve the entire spilled body")
+	}
+	if ok, err := searchBody(t.Context(), bodyJobOf(got[0]), "session-tail-marker"); err != nil || !ok {
+		t.Fatalf("reopened full-body search = %v, %v", ok, err)
+	}
+	if got[1].reqBody != "partial" || got[1].reqSize != 100 || got[1].reqError != "transfer aborted" {
+		t.Fatalf("lost incomplete state: %+v", got[1])
+	}
+	if ok, err := searchBody(t.Context(), bodyJobOf(got[1]), "partial"); ok || err == nil {
+		t.Fatalf("partial capture treated as complete: %v, %v", ok, err)
+	}
+	if got[2].resBody != "head" || got[2].resError == "" || strings.Contains(got[2].resBody, "gone") {
+		t.Fatal("missing spill must preserve the head and a separate error, not a display notice")
+	}
+	if got[3].reqBody != "\xff\x00upload" || got[3].resBody != "\x80\x00download" {
+		t.Fatal("session changed non-UTF-8 body bytes")
+	}
+}
+
+// TestSessionLoadsAnOlderFile covers a session written before messages carried
+// their number, length and time: it opens with what it has.
+func TestSessionLoadsAnOlderFile(t *testing.T) {
+	const doc = `{"version":1,
+		"flows":[{"id":4,"method":"WS","scheme":"ws","host":"example.com","path":"/stream",
+			"url":"ws://example.com/stream","status":101,"kind":"ws"}],
+		"frames":{"4":[{"direction":"out","kind":"text","data":"hi"},
+			{"direction":"in","kind":"tick","data":"one"}]}}`
+	path := filepath.Join(t.TempDir(), "older.json")
+	if err := os.WriteFile(path, []byte(doc), 0o644); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	flows, frames, err := readSession(path)
+	if err != nil {
+		t.Fatalf("read: %v", err)
+	}
+	if len(flows) != 1 || flows[0].url != "ws://example.com/stream" {
+		t.Fatalf("flows = %+v", flows)
+	}
+	list := frames[4]
+	if len(list) != 2 {
+		t.Fatalf("messages = %d, want 2", len(list))
+	}
+	if list[0].data != "hi" || list[0].direction != "out" || list[1].kind != "tick" {
+		t.Fatalf("messages = %+v, want what the file holds", list)
+	}
+	if got := list[1].payload(); got != "one" {
+		t.Errorf("payload = %q, want the data the file has", got)
+	}
+	if list[1].size != 3 || list[1].cut() != 0 {
+		t.Errorf("size = %d, cut = %d, want the data it has and nothing missing", list[1].size, list[1].cut())
+	}
+	if !list[0].at.IsZero() {
+		t.Errorf("at = %v, want none, as the file has none", list[0].at)
+	}
+	if note := messagesNote(list); note != "2 messages" {
+		t.Errorf("note = %q, want no loss claimed", note)
 	}
 }
 

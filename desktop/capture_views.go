@@ -120,13 +120,15 @@ type captureView struct {
 // bodyJob is what a body search needs from a flow, copied on the UI thread so
 // the workers never read the flow list while a frame writes it.
 type bodyJob struct {
-	id      int
-	reqHead string
-	reqFile string
-	reqSize int
-	resHead string
-	resFile string
-	resSize int
+	id       int
+	reqHead  string
+	reqFile  string
+	reqSize  int
+	reqError string
+	resHead  string
+	resFile  string
+	resSize  int
+	resError string
 }
 
 // bodyJobOf takes one flow's bodies, the files they spilled to and how long
@@ -136,6 +138,7 @@ func bodyJobOf(f flow) bodyJob {
 		id:      f.id,
 		reqHead: f.reqBody, reqFile: f.reqFile, reqSize: f.reqSize,
 		resHead: f.resBody, resFile: f.resFile, resSize: f.resSize,
+		reqError: f.reqError, resError: f.resError,
 	}
 }
 
@@ -597,6 +600,9 @@ func (v *captureViews) read(ctx context.Context, job bodyJob, needle string, slo
 // sides are searched one after the other, never joined: a needle that straddles
 // the end of the request and the start of the response does not match.
 func searchBody(ctx context.Context, job bodyJob, needle string) (bool, error) {
+	if job.reqError != "" || job.resError != "" {
+		return false, fmt.Errorf("incomplete body: request %q; response %q", job.reqError, job.resError)
+	}
 	sides := [2]struct {
 		head string
 		file string
@@ -915,7 +921,7 @@ func (v *captureViews) commitFilter(a *app) {
 	v.bind(a)
 	v.applyFilter(a)
 	if strings.TrimSpace(view.body) != "" {
-		a.setMessage("Searching bodies for " + strconv.Quote(strings.TrimSpace(view.body)))
+		a.setMessage("Body filter: " + strconv.Quote(strings.TrimSpace(view.body)))
 	}
 }
 
@@ -937,15 +943,15 @@ func (v *captureViews) savedModal(c *ui.Context, t *ui.Theme, a *app) {
 			for _, f := range v.filters {
 				name := f.Name
 				ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-					ui.Text(c, name).FontSize(12).Grow(1).SingleLine().MaxWidth(220)
-					if ui.Button(c, "Apply "+strconv.Quote(name)).FontSize(11).Clicked() {
+					ui.Text(c, name).FontSize(12).Grow(1).SingleLine().Tooltip(name)
+					if ui.Button(c, "Apply").Label("Apply " + strconv.Quote(name)).FontSize(11).Clicked() {
 						v.applySaved(a, name)
 					}
-					if ui.Button(c, "Rename "+strconv.Quote(name)).FontSize(11).Clicked() {
+					if ui.Button(c, "Rename").Label("Rename " + strconv.Quote(name)).FontSize(11).Clicked() {
 						v.renaming = name
 						v.savedName = name
 					}
-					if ui.Button(c, "Delete "+strconv.Quote(name)).FontSize(11).Clicked() {
+					if ui.Button(c, "Delete").Label("Delete " + strconv.Quote(name)).FontSize(11).Clicked() {
 						v.deleteSaved(a, name)
 					}
 				})
