@@ -301,13 +301,37 @@ being trusted machine wide.
 ## Requests
 
 **New request** opens a document tab in **Requests**. Method, URL and **Send**
-are the main action row; **Headers**, **Body** and **Scripts** select what is
-being edited. Headers remain `Key: Value` lines, and Scripts contains separate
+are the main action row; **Params**, **Auth**, **Headers**, **Body** and **Scripts**
+select what is being edited. Params edits the URL's query, retaining duplicate
+keys. Auth supports Bearer, Basic and API keys in a header or query parameter;
+explicit auth replaces that header and pre-request scripts run last.
+Body supports raw text, URL-encoded fields and multipart text/file parts with
+duplicate keys, disabled rows and a 16 MiB total form limit. File paths are
+stored, not file contents; sending or exporting reads the selected local files.
+Headers remain `Key: Value` lines, and Scripts contains separate
 pre-request and post-response editors. **Send** runs through the proxy and
 shows the response body (formatted and highlighted for JSON), headers,
 status, duration, size and test results below the editor. The exchange also
 lands in Capture. The inline response preview is limited to 8 MiB; Capture
 retains the complete body.
+
+**Cookies…** manages the in-memory cookie jar shared by Requests and Runner.
+Set-Cookie, redirects, domain/path restrictions, expiry and Secure are respected.
+Cookies can be inspected, added, deleted or cleared; they are not persisted and
+raw capture Replay does not use this jar. Saved auth, environment variables and
+request history may contain credentials: local files are private (0600), not
+encrypted. Prefer `{{variables}}` and review exports before sharing. OpenAPI
+draft generation explicitly warns that structured forms and auth need manual
+schema/security definitions; it does not copy their secrets or file paths.
+
+**Runner…** executes a saved collection, including its subfolders, sequentially.
+Select/reorder steps, set 1–1000 iterations, and optionally stop on HTTP errors,
+failed assertions or execution errors. Each step has a 30-second deadline;
+scripts have a 2-second limit and cancellation interrupts both scripts and I/O.
+The starting environment is snapshotted; script variables and session cookies
+carry into later steps. Results show status, timing and assertions (latest 1000
+rows, with cumulative totals). Closing the dialog leaves the run active;
+**Cancel run** stops it. Unsaved request tabs are not run or modified.
 
 Each tab owns its draft, editor selection, pending send and response. Concurrent
 sends, even to the same URL, retain their own results and run the script that

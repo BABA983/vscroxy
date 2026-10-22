@@ -339,6 +339,7 @@ func TestConcurrentRequestTabsOwnTheirResponses(t *testing.T) {
 	click("Pre-request script")
 	tt.Type(`throw new Error("cannot send")`)
 	click("Send")
+	waitFor("cannot send")
 	if !tt.HasText("Pre-request script:") || !tt.HasText("cannot send") || tt.HasText("201 Created") {
 		t.Fatal("a failed send hid its error behind an old response")
 	}

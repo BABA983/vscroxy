@@ -5,6 +5,7 @@ import (
 	"encoding/json/jsontext"
 	"fmt"
 	"net/http"
+	"reflect"
 	"slices"
 	"strings"
 
@@ -29,6 +30,12 @@ type requestDocument struct {
 	composeURL        string
 	composeHeaders    string
 	composeBody       string
+	auth              requestAuth
+	bodyMode          string
+	formFields        []requestField
+	queryRows         []requestField
+	querySource       string
+	queryError        string
 	composePre        string
 	composePost       string
 	composeTab        int
@@ -54,17 +61,26 @@ type requestResult struct {
 	environment string
 	varsBefore  map[string]string
 	vars        map[string]string
+	history     *historyEntry
 }
 
 func (d *requestDocument) value() savedRequest {
-	return savedRequest{
+	r := savedRequest{
 		Name: d.composeName, Collection: d.composeCollection,
 		Method: d.composeMethod, URL: d.composeURL, Headers: d.composeHeaders,
 		Body: d.composeBody, Pre: d.composePre, Post: d.composePost,
+		Auth: d.auth, BodyMode: d.bodyMode, Form: slices.Clone(d.formFields),
 	}
+	if r.Auth.Type == "None" {
+		r.Auth = requestAuth{}
+	}
+	if r.BodyMode == "Raw" {
+		r.BodyMode = ""
+	}
+	return r
 }
 
-func (d *requestDocument) dirty() bool { return d.value() != d.baseline }
+func (d *requestDocument) dirty() bool { return !reflect.DeepEqual(d.value(), d.baseline) }
 
 func (d *requestDocument) title() string {
 	return cmp.Or(d.composeName, "Untitled request")
@@ -73,12 +89,18 @@ func (d *requestDocument) title() string {
 func (a *app) addDocument(r savedRequest, key string) {
 	a.nextDocument++
 	d := &requestDocument{
-		id: a.nextDocument, revealTab: true, savedKey: key, requestPercent: 43,
+		id: a.nextDocument, revealTab: true, savedKey: key, requestPercent: 55,
 		composeName: r.Name, composeCollection: r.Collection,
 		composeMethod: cmp.Or(r.Method, "GET"), composeURL: r.URL,
 		composeHeaders: r.Headers, composeBody: r.Body,
 		composePre: r.Pre, composePost: r.Post,
+		auth: r.Auth, bodyMode: cmp.Or(r.BodyMode, "Raw"), formFields: slices.Clone(r.Form), composeTab: 2,
 		baseline: savedRequest{Method: "GET", URL: "https://"},
+	}
+	d.auth.Type = cmp.Or(d.auth.Type, "None")
+	d.auth.Location = cmp.Or(d.auth.Location, "Header")
+	if d.bodyMode != "Raw" {
+		d.requestPercent = 65
 	}
 	if key != "" {
 		d.baseline = d.value()
@@ -254,7 +276,12 @@ func (a *app) composeView(c *ui.Context, t *ui.Theme) {
 				ui.TextInput(c, &d.composeMethod).Width(86).Height(36).Label("Method").FontSize(12).FontWeight(600).TextColor(methodColor(d.composeMethod))
 				ui.TextInput(c, &d.composeURL).Grow(1).Height(36).Label("URL").Placeholder("https://api.example.com/v1/resource").Font("monospace").FontSize(12)
 				if ui.Button(c, "Copy cURL").Width(100).Height(36).FontSize(11).Label("Copy as cURL").Tooltip("Copy this draft; variable placeholders are preserved and scripts are not run").Clicked() {
-					a.copyCurl(c, flow{method: d.composeMethod, url: d.composeURL, reqHeader: parseHeaderBlock(d.composeHeaders), reqBody: d.composeBody})
+					req, err := prepareRequest(d.value(), nil)
+					if err != nil {
+						a.setMessage("Copy cURL: " + err.Error())
+					} else {
+						a.copyCurl(c, flow{method: req.Method, url: req.URL, reqHeader: req.header, reqBody: req.Body})
+					}
 				}
 				if ui.PrimaryButton(c, "Send").Width(84).Height(36).Disabled(d.composeWaiting).Clicked() {
 					a.sendComposed()
@@ -262,17 +289,20 @@ func (a *app) composeView(c *ui.Context, t *ui.Theme) {
 			})
 			ui.SplitVerticalPercent(c, &d.requestPercent, func() {
 				ui.Column(c).Fill().Children(func() {
-					ui.Tabs(c, &d.composeTab, "Headers", "Body", "Scripts").Padding(0, 14)
+					ui.Tabs(c, &d.composeTab, "Params", "Auth", "Headers", "Body", "Scripts").Padding(0, 14)
 					ui.Divider(c)
 					ui.Column(c).Grow(1).Padding(12, 18).Gap(8).Children(func() {
 						switch d.composeTab {
 						case 0:
+							a.paramsEditor(c, d, t)
+						case 1:
+							a.authEditor(c, d, t)
+						case 2:
 							ui.Text(c, "REQUEST HEADERS · one Key: Value per line").FontSize(10).TextColor(t.TextMuted)
 							ui.TextArea(c.Key("headers"), &d.composeHeaders).Grow(1).Font("monospace").FontSize(12).Label("Request headers").Placeholder("Accept: application/json")
-						case 1:
-							ui.Text(c, "RAW BODY · also used as the WebSocket text message").FontSize(10).TextColor(t.TextMuted)
-							ui.TextArea(c.Key("body"), &d.composeBody).Grow(1).Font("monospace").FontSize(12).Label("Request body")
-						case 2:
+						case 3:
+							a.requestBodyEditor(c, d, t)
+						case 4:
 							ui.Segmented(c, &d.scriptTab, "Pre-request", "Post-response")
 							if d.scriptTab == 0 {
 								ui.TextArea(c.Key("pre"), &d.composePre).Grow(1).Font("monospace").FontSize(12).Label("Pre-request script").Placeholder("req.set(\"Accept\", \"application/json\")")

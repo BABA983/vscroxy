@@ -185,7 +185,12 @@ func generateOpenAPI(requests []savedRequest, collection string) (apiSpec, error
 			}
 			addParameter("header", name)
 		}
-		if r.Body != "" {
+		if r.Auth.Type != "" && r.Auth.Type != "None" {
+			notes = append(notes, label+": structured authentication is omitted; define the security scheme and requirements manually. Credentials were not copied.")
+		}
+		if r.BodyMode != "" && r.BodyMode != "Raw" {
+			notes = append(notes, label+": structured form body is omitted; define its media type and schema manually. Form values and local file paths were not copied.")
+		} else if r.Body != "" {
 			media, _, err := mime.ParseMediaType(headers.Get("Content-Type"))
 			if err != nil {
 				media = "application/octet-stream"

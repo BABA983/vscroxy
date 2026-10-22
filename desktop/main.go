@@ -209,6 +209,9 @@ type app struct {
 	nextDocument    int
 	closingDocument *requestDocument
 	requestResults  []requestResult
+	runner          collectionRunner
+	cookies         *cookieStore
+	cookieUI        cookieEditor
 
 	// envs are the variables a request uses as {{name}}, one set in use.
 	envsPath  string
@@ -606,8 +609,12 @@ func (a *app) drain() {
 			d.response = result.response
 			d.responseEditor = nil
 		}
-		if result.vars != nil {
+		if result.vars != nil && !maps.Equal(result.varsBefore, result.vars) {
 			a.applyVars(result.environment, result.varsBefore, result.vars)
+		}
+		if result.history != nil {
+			a.history = pushHistory(a.history, *result.history)
+			a.saveHistory()
 		}
 	}
 
@@ -844,6 +851,7 @@ func (a *app) syncDetail() {
 func (a *app) view(c *ui.Context) {
 	c.SetTheme(appTheme(a.dark))
 	a.drain()
+	a.drainRunner()
 	if a.sort != a.sortApplied {
 		a.sortApplied = a.sort
 		a.applyFilter()
@@ -902,6 +910,8 @@ func (a *app) view(c *ui.Context) {
 	a.curlImportModal(c, t)
 	a.rulesModal(c, t)
 	a.devicesModal(c, t)
+	a.runnerModal(c, t)
+	a.cookiesModal(c, t)
 }
 
 // upstreamModal edits the proxy every request goes through.
@@ -1252,10 +1262,18 @@ func (a *app) requestSidebar(c *ui.Context, t *ui.Theme) {
 				}
 			}
 		}
-		ui.Column(c).Padding(12).Children(func() {
+		ui.Column(c).Padding(12).Gap(6).Children(func() {
 			if ui.Button(c, "Import cURL…").FillWidth().Clicked() {
 				a.openCurlImport()
 			}
+			ui.Row(c).Gap(6).Children(func() {
+				if ui.Button(c, "Runner…").Grow(1).Clicked() {
+					a.openRunner()
+				}
+				if ui.Button(c, "Cookies…").Grow(1).Clicked() {
+					a.openCookies()
+				}
+			})
 		})
 	})
 }
@@ -1771,6 +1789,11 @@ func main() {
 	a := newApp()
 	defer a.discardRuleDraft()
 	defer a.disableDevices()
+	defer func() {
+		if a.runner.cancel != nil {
+			a.runner.cancel()
+		}
+	}()
 	mygo.App.WhenReady(func() {
 		a.win = mygo.NewWindow(mygo.WindowOptions{
 			Title:           "vscroxy",
@@ -2070,110 +2093,15 @@ func (a *app) sendComposed() {
 		a.setMessage("Compose: no proxy running")
 		return
 	}
-	env := a.activeEnv
-	vars := a.activeVars()
-	req := &jsRequest{
-		Method: strings.ToUpper(strings.TrimSpace(cmp.Or(expandVars(a.composeMethod, vars), "GET"))),
-		URL:    strings.TrimSpace(expandVars(a.composeURL, vars)),
-		Body:   expandVars(a.composeBody, vars),
-		header: parseHeaderBlock(expandVars(a.composeHeaders, vars)),
-	}
-	if req.URL == "" {
-		d.composeResult = "The URL is empty"
-		a.setMessage("Compose: the URL is empty")
-		return
-	}
-	run := &scriptRun{vars: maps.Clone(vars)}
-	if err := runScript(a.composePre, run, map[string]any{"req": req}); err != nil {
-		a.composeResult = "Pre-request script: " + err.Error()
-		a.composeTests = nil
-		return
-	}
-	if !maps.Equal(run.vars, vars) {
-		a.applyVars(env, vars, run.vars)
-	}
-	if isWebSocket(req.URL) {
-		a.sendWebSocket(req)
-		return
-	}
-	f := capture.Flow{
-		Method:        req.Method,
-		URL:           req.URL,
-		RequestHeader: req.header,
-		RequestBody:   req.Body,
-	}
-	a.composeWaiting = true
-	a.composeResult = "Sending…"
-	post := d.composePost
-	postVars := maps.Clone(run.vars)
-	a.history = pushHistory(a.history, historyEntry{
-		Method:  f.Method,
-		URL:     req.URL,
-		Headers: a.composeHeaders,
-		Body:    a.composeBody,
-		At:      time.Now(),
-	})
-	a.saveHistory()
-	a.setMessage("Sent " + f.Method + " " + req.URL)
+	d.composeWaiting, d.composeResult = true, "Sending…"
+	r, env, vars, srv, jar := d.value(), a.activeEnv, a.activeVars(), a.srv, a.requestCookies()
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
-		result := requestResult{document: d, environment: env}
-		defer func() {
-			a.mu.Lock()
-			a.requestResults = append(a.requestResults, result)
-			a.mu.Unlock()
-			a.invalidate()
-		}()
-		got, err := a.srv.Replay(ctx, f)
-		if err != nil {
-			result.summary = "Failed: " + err.Error()
-			return
-		}
-		result.response = &got
-		res := &jsResponse{Status: got.Status, Body: got.ResponseBody, header: got.ResponseHeader}
-		if err := runScript(post, run, map[string]any{"res": res}); err != nil {
-			result.summary = "Post-response script: " + err.Error()
-			result.tests = run.tests
-			return
-		}
-		if !maps.Equal(run.vars, postVars) {
-			result.vars = run.vars
-			result.varsBefore = postVars
-		}
-		result.summary = fmt.Sprintf("%d · %s · %d ms", got.Status, humanBytes(got.Bytes), got.Millis)
-		if len(run.tests) > 0 {
-			result.summary += fmt.Sprintf(" · %d/%d tests", run.passed(), len(run.tests))
-		}
-		result.tests = run.tests
-	}()
-}
-
-// sendWebSocket sends the editor's body as one WebSocket message, through the
-// proxy so the frames are captured, and reports what came back.
-func (a *app) sendWebSocket(req *jsRequest) {
-	d := a.requestDocument
-	message := req.Body
-	a.composeWaiting = true
-	a.composeResult = "Connecting…"
-	a.composeTests = nil
-	a.composeReplies = nil
-	d.response = nil
-	d.responseEditor = nil
-	a.setMessage("WebSocket " + req.URL)
-	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		defer cancel()
-		replies, err := wsSend(ctx, a.srv.Addr(), req.URL, message, 2*time.Second)
-		result := requestResult{document: d, replies: replies}
-		if err != nil {
-			result.summary = "WebSocket failed: " + err.Error()
-		} else {
-			result.summary = fmt.Sprintf("WebSocket: sent %s, %d %s",
-				humanBytes(len(message)), len(replies), plural(len(replies), "reply", "replies"))
-			if len(replies) == 0 {
-				result.summary += " (nothing came back in 2 s)"
-			}
+		got := executeRequest(ctx, srv, r, vars, jar)
+		result := requestResult{document: d, environment: env, summary: got.summary(), response: got.response, tests: got.tests, replies: got.replies, varsBefore: vars, vars: got.vars}
+		if got.request != nil {
+			result.history = &historyEntry{Method: got.request.Method, URL: got.request.URL, Headers: r.Headers, Body: r.Body, Draft: &r, At: time.Now()}
 		}
 		a.mu.Lock()
 		a.requestResults = append(a.requestResults, result)
@@ -2562,16 +2490,9 @@ func (a *app) saveComposed() bool {
 		a.setMessage("Save: the request has no name")
 		return false
 	}
-	r := savedRequest{
-		Name:       name,
-		Collection: strings.TrimSpace(a.composeCollection),
-		Method:     strings.ToUpper(strings.TrimSpace(cmp.Or(a.composeMethod, "GET"))),
-		URL:        strings.TrimSpace(a.composeURL),
-		Headers:    a.composeHeaders,
-		Body:       a.composeBody,
-		Pre:        a.composePre,
-		Post:       a.composePost,
-	}
+	r := a.requestDocument.value()
+	r.Name, r.Collection = name, strings.TrimSpace(r.Collection)
+	r.Method, r.URL = strings.ToUpper(strings.TrimSpace(cmp.Or(r.Method, "GET"))), strings.TrimSpace(r.URL)
 	list := upsertRequest(slices.Clone(a.requests), r)
 	if a.historyPath != "" {
 		if list, err := loadHistory(a.historyPath); err == nil {
@@ -2879,6 +2800,10 @@ func (a *app) openHistory(i int) {
 		return
 	}
 	e := a.history[i]
+	if e.Draft != nil {
+		a.addDocument(*e.Draft, "")
+		return
+	}
 	a.addDocument(savedRequest{
 		Method: cmp.Or(e.Method, "GET"), URL: e.URL, Headers: e.Headers, Body: e.Body,
 	}, "")
@@ -2889,7 +2814,7 @@ func (a *app) saveHistory() {
 	if a.historyPath == "" {
 		return
 	}
-	list := a.history
+	list := slices.Clone(a.history)
 	go func() {
 		if err := os.MkdirAll(filepath.Dir(a.historyPath), 0o755); err != nil {
 			a.setMessage("History: " + err.Error())

@@ -1,8 +1,10 @@
 package main
 
 import (
+	"context"
 	"net/http"
 	"testing"
+	"time"
 )
 
 func TestParseHeaderBlock(t *testing.T) {
@@ -184,5 +186,28 @@ func TestScriptErrorIsReported(t *testing.T) {
 	// An empty script is fine and asserts nothing.
 	if err := runScript("   \n", run, nil); err != nil || len(run.tests) != 0 {
 		t.Errorf("empty script = %v, %+v", err, run.tests)
+	}
+}
+
+func TestCancellingRunningScriptStopsItsLoop(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	entered, done := make(chan struct{}), make(chan error, 1)
+	go func() {
+		done <- runScriptContext(ctx, `entered(); for (;;) {}`, &scriptRun{}, map[string]any{"entered": func() { close(entered) }})
+	}()
+	select {
+	case <-entered:
+	case <-time.After(3 * time.Second):
+		t.Fatal("script did not start")
+	}
+	cancel()
+	select {
+	case err := <-done:
+		if err == nil {
+			t.Fatal("interrupted script reported success")
+		}
+	case <-time.After(time.Second):
+		t.Fatal("script ignored cancellation")
 	}
 }

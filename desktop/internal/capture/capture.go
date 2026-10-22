@@ -762,6 +762,12 @@ func (s *Server) Close() error {
 // sends of the same URL cannot pick up each other's responses. The preview
 // keeps at most 8 MiB; the capture still keeps the complete exchange.
 func (s *Server) Replay(ctx context.Context, f Flow) (Flow, error) {
+	return s.ReplayWithCookies(ctx, f, nil)
+}
+
+// ReplayWithCookies uses the request workspace's cookie jar, including across
+// redirects. Ordinary capture replay deliberately does not inherit login state.
+func (s *Server) ReplayWithCookies(ctx context.Context, f Flow, jar http.CookieJar) (Flow, error) {
 	rawURL := f.URL
 	if rawURL == "" {
 		rawURL = f.Scheme + "://" + f.Host + f.Path
@@ -792,6 +798,7 @@ func (s *Server) Replay(ctx context.Context, f Flow) (Flow, error) {
 	proxyURL := &url.URL{Scheme: "http", Host: s.addr}
 	client := &http.Client{
 		Timeout: 30 * time.Second,
+		Jar: jar,
 		Transport: &http.Transport{
 			Proxy:           http.ProxyURL(proxyURL),
 			TLSClientConfig: &tls.Config{RootCAs: s.roots},
