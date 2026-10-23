@@ -10,25 +10,28 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 )
 
-const caName = "vscroxy.crt"
+const (
+	caName      = "vscroxy.crt"
+	proxySchema = "org.gnome.system.proxy"
+)
 
-// SetProxy points the GNOME desktop proxy settings at addr.
-func SetProxy(addr string) error {
+// applyProxy points the GNOME desktop proxy settings at addr after journaling.
+func (proxySnapshot) applyProxy(addr string) error {
 	host, port, ok := splitAddr(addr)
 	if !ok {
 		return fmt.Errorf("bad proxy address %q", addr)
 	}
-	cmds := [][]string{
-		{"set", "org.gnome.system.proxy", "mode", "manual"},
-		{"set", "org.gnome.system.proxy.http", "host", host},
-		{"set", "org.gnome.system.proxy.http", "port", port},
-		{"set", "org.gnome.system.proxy.https", "host", host},
-		{"set", "org.gnome.system.proxy.https", "port", port},
-		{"set", "org.gnome.system.proxy", "ignore-hosts", "['localhost', '127.0.0.1', '::1']"},
-	}
-	for _, args := range cmds {
+	for _, args := range [][]string{
+		{"set", proxySchema + ".http", "host", host},
+		{"set", proxySchema + ".http", "port", port},
+		{"set", proxySchema + ".https", "host", host},
+		{"set", proxySchema + ".https", "port", port},
+		{"set", proxySchema, "ignore-hosts", "['localhost', '127.0.0.1', '::1']"},
+		{"set", proxySchema, "mode", "manual"},
+	} {
 		if err := run("gsettings", args...); err != nil {
 			return err
 		}
@@ -38,7 +41,62 @@ func SetProxy(addr string) error {
 
 // ClearProxy turns the desktop proxy off.
 func ClearProxy() error {
-	return run("gsettings", "set", "org.gnome.system.proxy", "mode", "none")
+	return run("gsettings", "set", proxySchema, "mode", "none")
+}
+
+// readProxy reads the desktop proxy settings. It reports what the desktop
+// applies: a manual mode uses the fixed servers, an automatic mode uses the
+// configuration URL, and use-same-proxy makes HTTPS follow HTTP.
+func readProxy(out outputFunc) ([]ProxyConfig, error) {
+	get := func(section, key string) (string, error) {
+		raw, err := out("gsettings", "get", section, key)
+		if err != nil {
+			return "", err
+		}
+		return gvariant(string(raw)), nil
+	}
+	mode, err := get(proxySchema, "mode")
+	if err != nil {
+		return nil, err
+	}
+	cfg := ProxyConfig{Scope: "Desktop"}
+	switch mode {
+	case "manual":
+		cfg.Mode = ProxyModeManual
+	case "auto":
+		cfg.Mode = ProxyModeAutomatic
+		if cfg.PAC, err = get(proxySchema, "autoconfig-url"); err != nil {
+			return nil, err
+		}
+	}
+	if cfg.Mode != ProxyModeManual {
+		return []ProxyConfig{cfg}, nil
+	}
+	if cfg.HTTP, err = readEndpoint(get, proxySchema+".http"); err != nil {
+		return nil, err
+	}
+	same, err := get(proxySchema, "use-same-proxy")
+	if err != nil {
+		return nil, err
+	}
+	if same == "true" {
+		cfg.HTTPS = cfg.HTTP
+	} else if cfg.HTTPS, err = readEndpoint(get, proxySchema+".https"); err != nil {
+		return nil, err
+	}
+	return []ProxyConfig{cfg}, nil
+}
+
+// gvariant reads a value as gsettings prints it: strings are quoted, numbers
+// and booleans are bare.
+func gvariant(raw string) string {
+	s := strings.TrimSpace(raw)
+	if len(s) < 2 || s[0] != '\'' || s[len(s)-1] != '\'' {
+		return s
+	}
+	body := s[1 : len(s)-1]
+	body = strings.ReplaceAll(body, `\'`, `'`)
+	return strings.ReplaceAll(body, `\\`, `\`)
 }
 
 // InstallCA copies the CA into the system trust store and refreshes it.

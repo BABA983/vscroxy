@@ -79,6 +79,34 @@ func splitAddr(addr string) (host, port string, ok bool) {
 	return host, port, true
 }
 
+// outputFunc runs a platform helper and returns its standard output, so a
+// readback can be tested against fake output instead of the machine.
+type outputFunc func(name string, args ...string) ([]byte, error)
+
+// commandOutput reads a helper's standard output.
+func commandOutput(name string, args ...string) ([]byte, error) {
+	bin, err := exec.LookPath(name)
+	if err != nil {
+		return nil, fmt.Errorf("%s not found", name)
+	}
+	out, err := exec.Command(bin, args...).Output()
+	if err != nil {
+		if msg := trim(string(exitOutput(err))); msg != "" {
+			return nil, fmt.Errorf("%s: %s: %w", name, msg, err)
+		}
+		return nil, fmt.Errorf("%s: %w", name, err)
+	}
+	return out, nil
+}
+
+// exitOutput is what a failed helper wrote to standard error.
+func exitOutput(err error) []byte {
+	if exit, ok := errors.AsType[*exec.ExitError](err); ok {
+		return exit.Stderr
+	}
+	return nil
+}
+
 // run executes a platform helper and turns its output into an error message.
 func run(name string, args ...string) error {
 	bin, err := exec.LookPath(name)

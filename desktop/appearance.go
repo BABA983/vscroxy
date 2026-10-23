@@ -44,6 +44,9 @@ func appTheme(dark bool) *ui.Theme {
 // settingsModal groups infrequent system actions away from capture controls.
 // The existing editors still own their values and persistence.
 func (a *app) settingsModal(c *ui.Context, t *ui.Theme) {
+	// Closing Settings or leaving the Proxy tab makes the next visit read the
+	// OS again.
+	defer func() { a.systemProxy.shown = a.settingsOpen && a.settingsTab == 1 }()
 	if !a.settingsOpen {
 		return
 	}
@@ -59,8 +62,13 @@ func (a *app) settingsModal(c *ui.Context, t *ui.Theme) {
 	ui.Modal(c, &a.settingsOpen, func() {
 		ui.Column(c).Width(min(620, width-80)).Height(height).Gap(16).Children(func() {
 			ui.Text(c, "Settings").FontSize(18).Bold()
-			if ui.Tabs(c, &a.settingsTab, "General", "Proxy", "HTTPS").Changed() && a.settingsTab == 2 {
-				a.checkCertificate(false)
+			if ui.Tabs(c, &a.settingsTab, "General", "Proxy", "HTTPS").Changed() {
+				switch a.settingsTab {
+				case 1:
+					a.checkSystemProxy()
+				case 2:
+					a.checkCertificate(false)
+				}
 			}
 			ui.Scroll(c).Grow(1).Gap(14).Padding(8, 20, 8, 0).Children(func() {
 				switch a.settingsTab {
@@ -109,15 +117,7 @@ func (a *app) settingsModal(c *ui.Context, t *ui.Theme) {
 						}
 					})
 					ui.Divider(c)
-					ui.Text(c, "System proxy changes affect other applications. You can also configure a client to use this address manually.").FontSize(12).TextColor(t.TextMuted)
-					ui.Row(c).Gap(8).Children(func() {
-						if ui.Button(c, "Enable system proxy").Disabled(a.srv == nil || !a.srv.Running()).Clicked() {
-							a.setSystemProxy(true)
-						}
-						if ui.Button(c, "Disable system proxy").Clicked() {
-							a.setSystemProxy(false)
-						}
-					})
+					a.systemProxySettings(c, t)
 					ui.Divider(c)
 					ui.Text(c, "Upstream: "+cmp.Or(a.upstream, "Direct connection")).FontSize(12).TextColor(t.TextMuted).SingleLine()
 					ui.Row(c).Gap(8).Children(func() {

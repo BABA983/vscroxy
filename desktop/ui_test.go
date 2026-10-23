@@ -186,10 +186,14 @@ func TestCaptureUIUsesOnlyTheRunningListener(t *testing.T) {
 func TestSettingsOpensExistingEditors(t *testing.T) {
 	a := workspaceApp()
 	tt := ui.NewTester(a.view, 960, 600)
-	for _, label := range []string{"Settings", "Proxy", "Configure upstream…"} {
+	for _, label := range []string{"Settings", "Proxy"} {
 		if err := tt.Click(label); err != nil {
 			t.Fatal(err)
 		}
+	}
+	tt.Scroll(480, 300, 0, 500)
+	if err := tt.Click("Configure upstream…"); err != nil {
+		t.Fatal(err)
 	}
 	if !tt.HasText("Upstream proxy") {
 		t.Fatal("settings did not open the upstream editor")

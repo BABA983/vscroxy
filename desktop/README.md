@@ -568,10 +568,46 @@ Cmd/Ctrl+N starts a request. On Linux and Windows, Alt reveals the native
 menu bar.
 
 - **Enable system proxy** sets the proxy to the actual address displayed above;
-  **Disable system proxy** turns it off again. Startup never changes system
-  proxy settings automatically. Linux writes the GNOME proxy settings with
+  it first saves the previous settings and starts a separate recovery process.
+  **Disable system proxy** restores this session's saved settings; without an
+  owned session it explicitly turns the system proxy off. Startup never enables
+  a proxy automatically, but retries an interrupted, recorded recovery.
+  Linux writes the GNOME proxy settings with
   `gsettings`, macOS sets every enabled service with `networksetup`, Windows
-  writes the per-user WinINet settings with `reg`.
+  reads/writes the current user's default LAN settings through WinINet and
+  notifies applications of changes. macOS/Windows retain PAC/discovery and bypass
+  settings; automatic configuration is reported as a conflict. Linux temporarily
+  selects manual mode and loopback bypasses, then restores the previous mode and
+  bypass list. Windows services using WinHTTP need separate configuration.
+- Normal quit (including closing the window) waits for a pending proxy write,
+  then restores the settings this instance replaced before closing capture.
+  Each protocol is checked first: replacement proxies installed by another app
+  are left alone, including a mixed HTTP/HTTPS configuration.
+  If cleanup fails, quit is cancelled and capture stays running while you repair
+  the settings and retry.
+- The recovery process owns both the enable operation and rollback. Its pipe
+  closes when the main process dies (including SIGKILL), so it restores without
+  waiting for the app to reopen, even if the owner died during enable. It ignores
+  a broken reply pipe rather than exiting before rollback. A file lock prevents
+  another running instance from restoring or replacing the active session.
+  The private `~/.vscroxy/proxy-recovery.json` journal is saved before OS writes
+  and removed only after restoration is checked; failed recovery retains it.
+  Errors go to `proxy-recovery.json.log`, with several automatic retry attempts.
+  Startup and **Check again** retry an orphaned record, never an unowned proxy.
+- This is a same-user helper, not an installed privileged service or login item.
+  It cannot guarantee immediate recovery if the helper is also killed, the whole
+  process tree is terminated, or OS permissions deny restoration. In those cases
+  reopen the app to retry; if necessary remove only its stale loopback proxy in
+  OS network settings. macOS refuses automatic takeover of authenticated proxies:
+  `networksetup` cannot safely read back and restore their credentials. Proxy
+  passwords are not requested or written to the journal.
+- **System proxy** reads back the OS configuration on opening the Proxy page
+  and after an operation; **Check again** refreshes it. The page keeps the
+  HTTP/HTTPS targets, working state, read/write errors, mismatches and automatic
+  proxy configuration conflicts visible instead of treating a successful helper
+  exit as proof. Controls are disabled while an operation is pending. This checks
+  OS settings, not whether every application honors them; clients with their own
+  proxy settings, bypass lists, or separate trust stores still need configuration.
 - **Install & Trust…** trusts `~/.mitmproxy/mitmproxy-ca-cert.pem`. Linux
   detects `update-ca-certificates` (Debian/Ubuntu) or `update-ca-trust`
   (Fedora/Arch), installs the public CA in the matching anchor directory,

@@ -120,6 +120,7 @@ type app struct {
 	win         *mygo.Window
 	caPath      string
 	certificate certificateSetup
+	systemProxy proxySetup
 	rulesPath   string
 	scriptPath  string
 	rules       []capture.Rule
@@ -450,36 +451,6 @@ func clamp(msg string, max int) string {
 		return msg
 	}
 	return string(r[:max-1]) + "…"
-}
-
-// setSystemProxy turns the machine's proxy on or off. The platform helpers
-// may block on a password prompt, so they run off the UI thread.
-func (a *app) setSystemProxy(on bool) {
-	var addr string
-	if on {
-		if a.srv == nil || !a.srv.Running() {
-			a.setMessage("System proxy: start capture successfully first")
-			return
-		}
-		addr = a.srv.Addr()
-	}
-	go func() {
-		var err error
-		if on {
-			err = system.SetProxy(addr)
-		} else {
-			err = system.ClearProxy()
-		}
-		if err != nil {
-			a.setMessage("System proxy: " + err.Error())
-			return
-		}
-		if on {
-			a.setMessage("System proxy: " + addr)
-		} else {
-			a.setMessage("System proxy: off")
-		}
-	}()
 }
 
 func (a *app) revealCA() {
@@ -857,6 +828,7 @@ func (a *app) view(c *ui.Context) {
 	c.SetTheme(appTheme(a.dark))
 	a.drain()
 	a.drainCertificate()
+	a.drainSystemProxy()
 	a.drainRunner()
 	if a.sort != a.sortApplied {
 		a.sortApplied = a.sort
@@ -1817,10 +1789,30 @@ func statusColor(status int, t *ui.Theme) ui.Color {
 }
 
 func main() {
+	if len(os.Args) == 4 && os.Args[1] == "--proxy-guard" {
+		if err := system.GuardProxy(os.Args[2], os.Args[3], os.Stdin, os.Stdout); err != nil {
+			log.Fatal(err)
+		}
+		return
+	}
+	if err := runDesktop(); err != nil {
+		log.Fatal(err)
+	}
+}
+
+func runDesktop() error {
 	a := newApp()
 	if a.srv != nil {
 		defer a.srv.Close()
 	}
+	cleanupProxy := func() {
+		if err := a.systemProxy.close(); err != nil {
+			log.Printf("release system proxy: %v", err)
+		}
+	}
+	defer cleanupProxy() // before the listener closes, even if Run returns an error
+	mygo.App.OnBeforeQuit(a.beforeProxyQuit)
+	mygo.App.OnQuit(cleanupProxy) // native termination may not return from Run
 	defer a.discardRuleDraft()
 	defer a.disableDevices()
 	defer a.views.stopSearch()
@@ -1843,12 +1835,17 @@ func main() {
 			StateKey: "vscroxy",
 			Content:  ui.View(a.view),
 		})
+		a.win.OnClose(func(e *mygo.CloseEvent) {
+			if !a.systemProxy.quitReady {
+				e.PreventDefault()
+				mygo.App.Quit()
+			}
+		})
 		mygo.App.SetMenu(a.menu())
+		a.checkSystemProxy() // retry only a recorded, interrupted proxy session
 		go a.startCapture()
 	})
-	if err := mygo.App.Run(); err != nil {
-		log.Fatal(err)
-	}
+	return mygo.App.Run()
 }
 
 // clientIcon returns the app's icon, loading it the first time it is asked
