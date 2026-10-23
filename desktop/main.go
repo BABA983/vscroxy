@@ -65,8 +65,10 @@ type app struct {
 
 	// chosen are the rows chosen for a bulk action, by flow id.
 	chosen ui.Selection[int]
-	picked int
-	tab    int
+	// picked bridges the table's row-index API; pickedID survives row rebuilds.
+	picked   int
+	pickedID int
+	tab      int
 
 	// sort is the column the table is sorted by, and sortApplied what the
 	// rows were sorted with, so a header click sorts on the next frame.
@@ -704,7 +706,6 @@ func (a *app) drain() {
 		cut := len(a.flows) - maxFlows
 		a.flows = a.flows[cut:]
 		a.frames = pruneMessages(a.frames, a.flows)
-		a.detailFor = -1
 	}
 	a.countDomains()
 	a.countClients()
@@ -778,14 +779,25 @@ func (a *app) applyFilter() {
 		a.visible = append(a.visible, i)
 	}
 	a.sortVisible()
-	if a.picked >= len(a.visible) {
-		a.picked = len(a.visible) - 1
-	}
-	if a.picked < 0 {
-		a.picked = 0
-	}
-	a.detailFor = -1
 	a.views.narrow(a)
+	a.restoreSelection()
+}
+
+// restoreSelection maps the stable choice to the table's current row index.
+func (a *app) restoreSelection() {
+	// Resolve the identity only after all filters and sorting have finished.
+	// If it disappeared, choose the nearest surviving row, or none.
+	for row, at := range a.visible {
+		if a.flows[at].id == a.pickedID {
+			a.picked = row
+			return
+		}
+	}
+	a.pickedID = 0
+	a.picked = min(max(a.picked, 0), len(a.visible)-1)
+	if f, ok := a.current(); ok {
+		a.pickedID = f.id
+	}
 }
 
 // current is the flow the detail panes show, if any.
@@ -816,7 +828,13 @@ func (a *app) previousResponse() (string, bool) {
 // syncDetail rebuilds the text and the diff when the choice moves.
 func (a *app) syncDetail() {
 	f, ok := a.current()
-	if !ok || a.detailFor == f.id {
+	if !ok {
+		a.detailFor = -1
+		a.connOpen = false
+		a.protobuf.stop()
+		return
+	}
+	if a.detailFor == f.id {
 		return
 	}
 	a.detailFor = f.id
@@ -824,10 +842,10 @@ func (a *app) syncDetail() {
 	if f.kind == "" && a.tab == 4 {
 		a.tab = 0
 	}
-	a.body = f.body(true)
-	a.reqBody = f.body(false)
-	a.jsonFor = ""
-	a.protoFor = ""
+	a.body, a.reqBody = f.body(true), f.body(false)
+	a.bodyMode, a.bodyQuery = 0, ""
+	a.jsonFor, a.protoFor, a.htmlFor, a.imageFor = "", "", "", ""
+	a.htmlDoc, a.imageBmp, a.imageErr = nil, nil, ""
 	a.protobuf.stop()
 	previous, baseline := a.previousResponse()
 	a.diffBaseline = baseline
@@ -893,7 +911,6 @@ func (a *app) view(c *ui.Context) {
 			}
 		}
 	}
-	a.syncDetail()
 	t := c.Theme()
 	ui.Column(c).Fill().Background(t.Background).Children(func() {
 		a.toolbar(c, t)
@@ -1236,7 +1253,6 @@ func (a *app) clearCaptured() {
 	a.flows = slices.DeleteFunc(a.flows, func(f flow) bool { return !f.pinned })
 	a.frames = pruneMessages(a.frames, a.flows)
 	a.chosen.Clear()
-	a.picked, a.detailFor = 0, -1
 	a.totalBytes = 0
 	for _, f := range a.flows {
 		a.totalBytes += int64(f.bytes)
@@ -1493,6 +1509,9 @@ func (a *app) table(c *ui.Context) {
 }
 
 func (a *app) detail(c *ui.Context) {
+	// The table may change the choice during this frame. Sync after it draws,
+	// so all detail widgets see the same selected request immediately.
+	a.syncDetail()
 	t := c.Theme()
 	ui.Column(c).Fill().Background(t.Background).Children(func() {
 		f, ok := a.current()
@@ -1526,6 +1545,7 @@ func (a *app) detail(c *ui.Context) {
 				chip = chip.Tooltip(doc)
 			}
 			info := ui.Icon(c, infoIcon).Size(13, 13).TextColor(t.TextMuted).
+				Label("Connection details").
 				Tooltip("Connection: addresses, DNS and TLS").
 				OnClick(func() { a.connOpen = !a.connOpen })
 			ui.Popover(c, info, &a.connOpen, func() { a.connPanel(c, t, f) })
@@ -1649,7 +1669,6 @@ func (a *app) saveMark() {
 		}
 	}
 	a.markOpen = false
-	a.detailFor = -1
 	a.invalidate()
 	a.setMessage("Marked")
 }
@@ -2466,15 +2485,10 @@ func headerMatches(f flow, expr string) bool {
 	return false
 }
 
-// sortVisible orders the shown rows by the chosen column, keeping the chosen
-// flow chosen.
+// sortVisible orders the shown rows; applyFilter restores selection by ID.
 func (a *app) sortVisible() {
 	if len(a.visible) < 2 {
 		return
-	}
-	chosen := -1
-	if a.picked >= 0 && a.picked < len(a.visible) {
-		chosen = a.flows[a.visible[a.picked]].id
 	}
 	less := a.sortOrder()
 	// Pinned flows stay at the top, whatever the column says.
@@ -2488,15 +2502,6 @@ func (a *app) sortVisible() {
 		}
 		return less(x, y)
 	})
-	if chosen < 0 {
-		return
-	}
-	for i, at := range a.visible {
-		if a.flows[at].id == chosen {
-			a.picked = i
-			return
-		}
-	}
 }
 
 // sortOrder compares two flows by the chosen column.

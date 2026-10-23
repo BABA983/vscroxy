@@ -111,8 +111,9 @@ type captureView struct {
 	captureConditions
 	// body is this view's body condition. The app's own filter only ever saw
 	// the 64 KiB heads of the bodies, so the view owns the deep one.
-	body   string
-	picked int
+	body     string
+	picked   int
+	pickedID int
 	// list keeps this view's scroll position across redraws and tab changes.
 	list ui.ListState
 	// reveal scrolls the tab into view once, when the view is new or chosen.
@@ -331,6 +332,7 @@ func (v *captureViews) bind(a *app) {
 	a.query, a.filter, a.chip = view.query, view.filter, view.chip
 	a.filterStatus, a.filterHeader = view.status, view.header
 	a.sort, a.picked = view.sort, view.picked
+	a.pickedID = view.pickedID
 	// The app's own body filter would match the 64 KiB heads only: the view
 	// owns the deep one.
 	a.filterBody = ""
@@ -365,6 +367,7 @@ func (v *captureViews) sync(a *app) {
 	}
 	if !changed {
 		view.sort, view.picked = a.sort, a.picked
+		view.pickedID = a.pickedID
 		return
 	}
 	view.captureConditions = now
@@ -372,6 +375,7 @@ func (v *captureViews) sync(a *app) {
 	v.wrote = now
 	v.applyFilter(a)
 	view.picked = a.picked
+	view.pickedID = a.pickedID
 }
 
 // capture keeps what the widgets show in the active view, after the frame has
@@ -383,6 +387,12 @@ func (v *captureViews) capture(a *app) {
 	}
 	view.captureConditions = conditionsOf(a)
 	view.sort, view.picked = a.sort, a.picked
+	if f, ok := a.current(); ok {
+		a.pickedID = f.id
+	} else {
+		a.pickedID = 0
+	}
+	view.pickedID = a.pickedID
 }
 
 // activate makes view i the one the app's fields belong to.
@@ -443,6 +453,7 @@ func (v *captureViews) applyFilter(a *app) {
 	a.filterBody = ""
 	a.applyFilter()
 	v.narrow(a)
+	a.restoreSelection()
 }
 
 // narrow drops the rows the active view's body condition rules out from the
@@ -465,9 +476,6 @@ func (v *captureViews) narrow(a *app) {
 		v.stopSearch()
 		v.cache = bodyCache{query: body, matches: make(map[int]bool), errs: make(map[int]string)}
 	}
-	// The panes keep the flow they show when it is still chosen, so a search
-	// does not read its body again every frame.
-	shown := a.detailFor
 	kept := a.visible[:0]
 	var jobs []bodyJob
 	for _, at := range a.visible {
@@ -484,16 +492,6 @@ func (v *captureViews) narrow(a *app) {
 		jobs = append(jobs, bodyJobOf(f))
 	}
 	a.visible = kept
-	if a.picked >= len(a.visible) {
-		a.picked = len(a.visible) - 1
-	}
-	if a.picked < 0 {
-		a.picked = 0
-	}
-	a.detailFor = -1
-	if f, ok := a.current(); ok && f.id == shown {
-		a.detailFor = shown
-	}
 	v.rows = len(a.visible)
 	v.startSearch(a, body, jobs)
 }

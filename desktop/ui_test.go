@@ -372,12 +372,220 @@ func TestBodyAutomaticallyChoosesAUsableMode(t *testing.T) {
 	if !tt.HasText("Showing: Hex") {
 		t.Fatal("binary body must not default to text")
 	}
+	if err := tt.Click("Hex"); err != nil {
+		t.Fatal(err)
+	}
 	a.flows[1].respHeader = http.Header{"Content-Type": {"application/json"}}
 	a.flows[1].resBody = `{"answer":42}`
 	a.picked = 1
 	tt.Frame()
 	if !tt.HasText("Showing: Pretty") || tt.HasText("Showing: Hex") {
 		t.Fatal("switching requests kept an unusable body mode")
+	}
+}
+
+func TestBodyModeSurvivesIncomingTraffic(t *testing.T) {
+	a := workspaceApp()
+	a.tab = 1
+	tt := ui.NewTester(a.view, 1280, 800)
+	// Hex renders differently from Auto's Pretty, so a reset is observable.
+	if err := tt.Click("Hex"); err != nil {
+		t.Fatal(err)
+	}
+	if !tt.HasText("Showing: Hex") {
+		t.Fatal("manual body mode was not selected")
+	}
+	a.pending = []capture.Flow{{ID: 3, Method: "GET", Scheme: "https", Host: "other.example.com", Path: "/new", Status: 200, Kind: "http"}}
+	tt.Frame()
+	if !tt.HasText("Showing: Hex") {
+		t.Fatal("new traffic reset the manually selected body mode")
+	}
+	a.pending = []capture.Flow{{ID: 4, Method: "GET", Scheme: "https", Host: "other.example.com", Path: "/another", Status: 200, Kind: "http"}}
+	tt.Frame()
+	if !tt.HasText("Showing: Hex") {
+		t.Fatal("new traffic changed the body mode while inspecting the same request")
+	}
+	if err := tt.Click("Request"); err != nil {
+		t.Fatal(err)
+	}
+	if !tt.HasText("Showing: Pretty") || tt.HasText("Showing: Hex") {
+		t.Fatal("switching body sides must still reset to Auto")
+	}
+}
+
+func TestJSONExpansionSurvivesIncomingTraffic(t *testing.T) {
+	a := workspaceApp()
+	a.tab = 1
+	a.flows[0].resBody = `{"collapsed":{"hidden":"hidden-value"},"data":{"nested":{"leaf":"expanded-value"}}}`
+	tt := ui.NewTester(a.view, 1280, 800)
+	if err := tt.Click("Pretty"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Key(0, ui.KeyRight) // Body's JSON mode, not Capture's JSON filter.
+	if !tt.HasText("Showing: JSON") {
+		t.Fatal("JSON mode was not selected")
+	}
+	if err := tt.Click("▸"); err != nil {
+		t.Fatal(err)
+	}
+	box, ok := tt.Find("collapsed")
+	if !ok {
+		t.Fatal("missing object to collapse")
+	}
+	tt.ClickAt(box.X-16, box.Y+box.H/2)
+	if !tt.HasText(`"expanded-value"`) || tt.HasText(`"hidden-value"`) {
+		t.Fatal("JSON nodes did not expand and collapse")
+	}
+	for _, id := range []int{3, 4} {
+		a.pending = []capture.Flow{{ID: id, Method: "GET", Scheme: "https", Host: "other.example.com", Path: "/new", Status: 200, Kind: "http"}}
+		tt.Frame()
+		if !tt.HasText(`"expanded-value"`) || tt.HasText(`"hidden-value"`) {
+			t.Fatal("incoming traffic reset the JSON expansion state")
+		}
+	}
+	// Replacing a session can reuse a flow ID with different content. It must
+	// refresh the tree rather than preserving stale parsed values.
+	a.flows[0].resBody = `{"replacement":"new-value"}`
+	a.replaceSession(a.flows, a.frames)
+	tt.Frame()
+	if !tt.HasText(`{"replacement":"new-value"}`) || tt.HasText(`"expanded-value"`) {
+		t.Fatal("changed body content did not refresh the JSON tree")
+	}
+}
+
+func TestCaptureKeepsSelectionAcrossListChanges(t *testing.T) {
+	a := workspaceApp()
+	a.flows = nil
+	for id := 1; id <= maxFlows; id++ {
+		path := fmt.Sprintf("/capture/%04d", id)
+		a.flows = append(a.flows, flow{id: id, method: "GET", scheme: "https", host: "api.example.com", path: path, status: 200})
+	}
+	a.applyFilter()
+	tt := ui.NewTester(a.view, 1280, 800)
+	if err := tt.Click("api.example.com/capture/4998"); err != nil {
+		t.Fatal(err)
+	}
+	selected := "GET https://api.example.com/capture/4998"
+	if !tt.HasText(selected) {
+		t.Fatal("request was not selected")
+	}
+	a.pending = []capture.Flow{{ID: 5001, Method: "GET", Scheme: "https", Host: "api.example.com", Path: "/capture/5001", Status: 200, Kind: "http"}}
+	tt.Frame()
+	if !tt.HasText(selected) {
+		t.Fatal("evicting the oldest request changed the inspected request")
+	}
+	if err := tt.Click("URL"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.Click("URL"); err != nil {
+		t.Fatal(err)
+	}
+	if !tt.HasText(selected) {
+		t.Fatal("sorting changed the inspected request")
+	}
+	tt.Key(ui.Cmd, ui.KeyF)
+	tt.Type("/capture/499")
+	if !tt.HasText(selected) {
+		t.Fatal("filtering preceding rows changed the inspected request")
+	}
+	if err := tt.Click("New view"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.Click("Capture view: View 1"); err != nil {
+		t.Fatal(err)
+	}
+	if !tt.HasText(selected) {
+		t.Fatal("returning to a view lost its selected request")
+	}
+	tt.Key(ui.Cmd, ui.KeyF)
+	tt.Key(ui.Cmd, ui.KeyA)
+	tt.Type("/capture/4997")
+	if !tt.HasText("GET https://api.example.com/capture/4997") {
+		t.Fatal("hiding the selected request did not choose a surviving row")
+	}
+	tt.Key(ui.Cmd, ui.KeyA)
+	tt.Type("no-match")
+	if !tt.HasText("No request chosen") {
+		t.Fatal("an empty list still inspected a removed request")
+	}
+	// A replacement dataset may reuse an ID remembered by an inactive view.
+	// Equal URLs keep the sort stable, so the first new request is unambiguous.
+	a.replaceSession([]flow{
+		{id: 1, method: "POST", scheme: "https", host: "api.example.com", path: "/replacement", status: 200},
+		{id: 5001, method: "GET", scheme: "https", host: "api.example.com", path: "/replacement", status: 200},
+	}, nil)
+	tt.Frame()
+	if err := tt.Click("Capture view: View 2"); err != nil {
+		t.Fatal(err)
+	}
+	if !tt.HasText("POST https://api.example.com/replacement") {
+		t.Fatal("an inactive view restored a selection from the replaced session")
+	}
+}
+
+func TestCaptureDetailSurvivesUnrelatedTraffic(t *testing.T) {
+	a := workspaceApp()
+	var before, after strings.Builder
+	for line := range 60 {
+		fmt.Fprintf(&before, "line %02d\n", line)
+		if line == 2 || line == 50 {
+			fmt.Fprintf(&after, "changed %02d\n", line)
+		} else {
+			fmt.Fprintf(&after, "line %02d\n", line)
+		}
+	}
+	first := a.flows[0]
+	first.resBody = before.String()
+	second := first
+	second.id, second.resBody, second.conn.proto = 3, after.String(), "HTTP/2"
+	a.flows = []flow{first, second}
+	a.tab = 2
+	a.applyFilter()
+	tt := ui.NewTester(a.view, 1280, 800)
+	if err := tt.Click("api.example.com/projects"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Key(0, ui.KeyDown)
+	a.diff.GoToHunk(1)
+	tt.Frame()
+	position := a.diff.CursorPos()
+	if position.Line < 40 {
+		t.Fatal("diff did not move to the later change")
+	}
+	appendFlow := func(id int) {
+		t.Helper()
+		a.pending = []capture.Flow{{ID: id, Method: "GET", Host: "other.example.com", Path: "/new", Kind: "http"}}
+		tt.Frame()
+	}
+	appendFlow(4)
+	if a.diff.CursorPos() != position {
+		t.Fatal("incoming traffic reset the diff reading position")
+	}
+	if err := tt.Click("Connection details"); err != nil {
+		t.Fatal(err)
+	}
+	appendFlow(5)
+	if !tt.HasText("HTTP/2") {
+		t.Fatal("incoming traffic closed the connection popover")
+	}
+	if err := tt.Click("Connection details"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.Click("Body"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.Click("Search body"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Type("changed")
+	appendFlow(6)
+	if !tt.Focused("Search body") {
+		t.Fatal("incoming traffic took focus from the body search")
+	}
+	tt.Key(ui.Cmd, ui.KeyA)
+	tt.Key(ui.Cmd, ui.KeyC)
+	if tt.Clipboard() != "changed" {
+		t.Fatal("incoming traffic reset the body search text")
 	}
 }
 
