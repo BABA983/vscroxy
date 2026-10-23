@@ -222,6 +222,18 @@ func TestCaptureTableScrollsAndKeepsEachViewsPlace(t *testing.T) {
 	if !tt.HasText("api.example.com/capture/0021") {
 		t.Fatal("a redraw reset the scroll position")
 	}
+	if err := tt.Click("api.example.com/capture/0021"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.Click("Edit & replay"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.Click("Back to traffic"); err != nil {
+		t.Fatal(err)
+	}
+	if !tt.HasText("api.example.com/capture/0021") || !tt.HasText("GET https://api.example.com/capture/0021") || !tt.HasText("Paused · Latest") {
+		t.Fatal("the editing round trip changed the list position, follow state or inspected request")
+	}
 	if err := tt.Click("New view"); err != nil {
 		t.Fatal(err)
 	}
@@ -603,6 +615,15 @@ func TestJSONExpansionSurvivesIncomingTraffic(t *testing.T) {
 	tt.ClickAt(box.X-16, box.Y+box.H/2)
 	if !tt.HasText(`"expanded-value"`) || tt.HasText(`"hidden-value"`) {
 		t.Fatal("JSON nodes did not expand and collapse")
+	}
+	if err := tt.Click("Edit & replay"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.Click("Traffic tab"); err != nil {
+		t.Fatal(err)
+	}
+	if !tt.HasText(`"expanded-value"`) || tt.HasText(`"hidden-value"`) || !tt.HasText("Showing: JSON") {
+		t.Fatal("returning from editing lost the reader's mode or expanded JSON nodes")
 	}
 	for _, id := range []int{3, 4} {
 		a.pending = []capture.Flow{{ID: id, Method: "GET", Scheme: "https", Host: "other.example.com", Path: "/new", Status: 200, Kind: "http"}}
@@ -1062,6 +1083,122 @@ func TestRequestTabsKeepDraftsAndConfirmClose(t *testing.T) {
 	click("Close Endpoint 8 with a longer name")
 	if !tt.HasText("Save changes?") {
 		t.Fatal("the renamed tab's close button was hidden beyond the scroll area")
+	}
+}
+
+func TestCaptureDraftComparisonKeepsTheTrafficContextAndLastSend(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		fmt.Fprintf(w, "variant=%s; marker=%s; body=%s", r.URL.Query().Get("variant"), r.Header.Get("X-Marker"), body)
+	}))
+	defer upstream.Close()
+	srv, err := capture.New("127.0.0.1:0", t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer srv.Close()
+	if err := srv.Start(); err != nil {
+		t.Fatal(err)
+	}
+	a := workspaceApp()
+	a.srv = srv
+	a.flows[0] = flow{id: 1, method: "POST", scheme: "http", host: strings.TrimPrefix(upstream.URL, "http://"), path: "/items?variant=original", url: upstream.URL + "/items?variant=original", status: 200,
+		reqBody: "original-body", reqHeader: http.Header{"X-Marker": {"before"}}, reqHeaders: "X-Marker: before", resBody: "original response"}
+	a.views.init(a, "")
+	a.query, a.filterStatus, a.chip, a.tablePercent = "original", "200", 1, 35
+	a.applyFilter()
+	tt := ui.NewTester(a.view, 960, 600)
+	click := func(label string) {
+		t.Helper()
+		if err := tt.Click(label); err != nil {
+			t.Fatal(err)
+		}
+	}
+	edit := func(label, value string) {
+		t.Helper()
+		click(label)
+		tt.Key(ui.Cmd, ui.KeyA)
+		tt.Type(value)
+	}
+	copyText := func(label string) string {
+		t.Helper()
+		click(label)
+		tt.Key(ui.Cmd, ui.KeyA)
+		tt.Key(ui.Cmd, ui.KeyC)
+		return tt.Clipboard()
+	}
+	waitForResponse := func() {
+		t.Helper()
+		deadline := time.Now().Add(5 * time.Second)
+		for !tt.HasText("200 OK") && time.Now().Before(deadline) {
+			time.Sleep(10 * time.Millisecond)
+			tt.Frame()
+		}
+		if !tt.HasText("200 OK") {
+			t.Fatalf("send did not complete: %v", tt.Texts())
+		}
+	}
+	click("Edit & replay")
+	edit("URL", upstream.URL+"/items?variant=edited")
+	click("Scripts")
+	edit("Pre-request script", `req.set("X-Marker", "from-script"); req.body = "sent-body"`)
+	click("Post-response")
+	edit("Post-response script", `req.set("X-Marker", "after-send"); req.body = "after-send"`)
+	click("Send")
+	waitForResponse()
+	if !tt.HasText("Capture filters kept · new traffic may be hidden") {
+		t.Fatal("filtered traffic can hide the send without explanation")
+	}
+	// Later edits must not change what the last send actually compared.
+	edit("URL", upstream.URL+"/items?variant=not-sent")
+	click("Compare source")
+	if got := copyText("Old text"); got != "original response" {
+		t.Fatalf("source baseline = %q", got)
+	}
+	if got := copyText("New text"); got != "variant=edited; marker=from-script; body=sent-body" {
+		t.Fatalf("comparison did not use this send: %q", got)
+	}
+	click("Compare content")
+	click("Request body")
+	if got := copyText("New text"); got != "sent-body" {
+		t.Fatalf("compared current draft or post-response script instead of sent body: %q", got)
+	}
+	click("Compare content")
+	click("Request headers")
+	if got := copyText("New text"); !strings.Contains(got, "X-Marker: from-script") || strings.Contains(got, "after-send") {
+		t.Fatalf("compared mutated headers: %q", got)
+	}
+	click("Back to traffic")
+	if !tt.HasText("URL: original ×") || !tt.HasText("Status: 200 ×") || !tt.HasText("HTTP ×") || !tt.HasText("POST http://"+a.flows[0].host+"/items?variant=original") {
+		t.Fatalf("return changed capture conditions or inspected source: %v", tt.Texts())
+	}
+	click("Request tab: /items?variant=original")
+	if !tt.HasText("Compare source") || !strings.Contains(copyText("New text"), "X-Marker: from-script") {
+		t.Fatal("returning to the draft lost its comparison")
+	}
+	click("Response")
+	if got := copyText("URL"); got != upstream.URL+"/items?variant=not-sent" {
+		t.Fatalf("switching workspaces lost unsent edits: %q", got)
+	}
+	click("Send")
+	waitForResponse()
+	click("Compare source")
+	click("Compare content")
+	click("Response body")
+	if got := copyText("New text"); got != "variant=not-sent; marker=from-script; body=sent-body" {
+		t.Fatalf("second send kept a stale comparison: %q", got)
+	}
+	click("Traffic tab")
+	if !tt.HasText("URL: original ×") || !tt.HasText("Status: 200 ×") {
+		t.Fatal("Traffic tab reset the live view")
+	}
+	click("New view")
+	click("Close view: View 1")
+	click("Request tab: /items?variant=original")
+	click("Back to traffic")
+	tt.Frame()
+	if !tt.HasText("Original capture view is no longer open; returned to the current traffic view") || !tt.HasText("2 flows · 2 shown") {
+		t.Fatal("closed source view was silently resurrected or the fallback was unexplained")
 	}
 }
 
@@ -1797,6 +1934,12 @@ func TestReplayLinksRevealFilteredSourceAndCompareWithoutGuessingURL(t *testing.
 	}
 	if !tt.HasText("Replay of #1") {
 		t.Fatal("could not navigate back to replay")
+	}
+	if err := tt.Click("Capture view: View 1"); err != nil {
+		t.Fatal(err)
+	}
+	if !tt.HasText("URL: redirected ×") || !tt.HasText("Replay of #1") {
+		t.Fatal("following a hidden relationship erased the original view")
 	}
 }
 

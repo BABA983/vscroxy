@@ -529,7 +529,9 @@ Captured replays have a **Replay of #N** link and **Compare with source** action
 The original lists its **Replays (N)**, including redirect exchanges. Links use
 the sending connection, not URL matching or an extra upstream request header;
 concurrent sends of the same URL keep their own sources. JSON sessions retain
-these links (HAR does not); a removed source is shown as unavailable.
+these links (HAR does not); a removed source is shown as unavailable. Following
+a linked capture hidden by filters opens a separate capture view instead of
+erasing the original view's conditions and list position.
 
 ### Multi-request analysis
 
@@ -904,6 +906,35 @@ Use arrows and Enter to choose, Escape to dismiss. Unavailable actions are dimme
 Cmd/Ctrl+F searches URLs, Cmd/Ctrl+R opens replay settings for the selection,
 and Cmd/Ctrl+Alt+C copies the inspected request as cURL. These entry points share
 their enabled states with the contextual inspector buttons.
+
+### Continuous debugging
+
+**Edit & replay** opens a named request tab beside **Traffic**. The same tab strip
+stays visible in Capture and Requests, so a draft and its response remain one
+click away while traffic continues arriving. Unsaved tabs still require save or
+discard before closing. These open debugging contexts are session-only, not
+automatically saved requests.
+
+**Back to traffic** returns to the draft's original capture view without clearing
+search, protocol, header/body or triage conditions, changing its chosen request,
+or resuming a paused list. **Traffic** returns to the currently active live view.
+If the original view was closed, Back to traffic returns to the current view
+and explains the fallback instead of recreating it.
+Header, text-body, JSON and hex reading positions survive leaving Capture;
+choosing a different request resets those readers.
+
+After sending, **Compare source** uses the captured source and this document's
+last send, not the next matching URL or the current unsent edits. Each document
+keeps its own comparison part, side order, split/unified layout and reader state.
+Comparison fills the remaining work area; returning to Response restores the
+request editor's divider. A subsequent send refreshes the comparison.
+
+The last-send side represents the initial client request and final HTTP response.
+Request headers include client-side processing, but proxy rules can still change
+the forwarded exchange; followed redirects can return a response from another
+URL. Capture remains the source for individual wire exchanges. Previews are
+bounded to 8 MiB and explicitly mark incomplete text. Sending is a real network
+operation and is not undone by returning to Traffic or closing a tab.
 
 ## Next
 

@@ -25,11 +25,13 @@ func (a *app) inspectCapture(id int) {
 		a.setMessage("Capture is no longer in this session")
 		return
 	}
-	// Navigating a relationship is explicit: reveal even a filtered source.
+	// Reveal a hidden relationship in a separate view, never by erasing the
+	// reader's existing search, filters and list position.
 	if !slices.ContainsFunc(a.visible, func(i int) bool { return a.flows[i].id == id }) {
-		a.query, a.filter, a.chip = "", "all", 0
 		a.views.capture(a)
-		a.clearFilters()
+		a.views.newView(a)
+		a.views.activeView().preset = fmt.Sprintf("Capture #%d", id)
+		a.setMessage("Opened linked capture in a new view; previous filters preserved")
 	}
 	a.chosen.Clear()
 	a.chosen.Add(id)
@@ -141,9 +143,14 @@ func (a *app) analysisDetail(c *ui.Context, selected []flow) {
 }
 
 func (a *app) compareCaptures(c *ui.Context, left, right flow) {
-	s := &a.analysis
+	a.analysis.compare(c, left, right, [2]string{fmt.Sprintf("#%d", left.id), fmt.Sprintf("#%d", right.id)})
+}
+
+// Each reader owns its diff buffers and position, including request documents.
+func (s *captureAnalysis) compare(c *ui.Context, left, right flow, labels [2]string) {
 	if s.swapped {
 		left, right = right, left
+		labels[0], labels[1] = labels[1], labels[0]
 	}
 	if s.part == "" {
 		s.part = "Response body"
@@ -153,6 +160,7 @@ func (a *app) compareCaptures(c *ui.Context, left, right flow) {
 		if ui.Button(c, "Swap sides").FontSize(11).Clicked() {
 			s.swapped = !s.swapped
 			left, right = right, left
+			labels[0], labels[1] = labels[1], labels[0]
 		}
 		if ui.Button(c, "Split").FontSize(11).Clicked() && s.diff != nil {
 			s.diff.Layout = editor.DiffSplit
@@ -188,9 +196,9 @@ func (a *app) compareCaptures(c *ui.Context, left, right flow) {
 			if i == 1 {
 				label = "Right"
 			}
-			ui.Text(c, fmt.Sprintf("%s #%d · %s %s · %d · %d ms", label, f.id, f.method, f.path, f.status, f.millis)).FontSize(11).SingleLine().Grow(1).Tooltip(f.url)
+			ui.Text(c, fmt.Sprintf("%s %s · %s %s · %d · %d ms", label, labels[i], f.method, f.path, f.status, f.millis)).FontSize(11).SingleLine().Grow(1).Tooltip(f.url)
 		}
 	})
-	ui.Text(c, "Read-only captured text · bodies limited to 8 MiB; truncation/incomplete notices are included").FontSize(10).TextColor(c.Theme().TextMuted).Padding(2, 12)
+	ui.Text(c, "Read-only comparison · bodies limited to 8 MiB; truncation/incomplete notices are included").FontSize(10).TextColor(c.Theme().TextMuted).Padding(2, 12)
 	editor.DiffView(c, s.diff).Grow(1).FillWidth()
 }

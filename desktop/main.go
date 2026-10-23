@@ -110,6 +110,11 @@ type app struct {
 
 	bodySide int
 	bodyMode int
+	// Readers survive leaving Capture to edit or compare a request.
+	headerScroll [2]ui.ScrollState
+	bodyScroll   [2]ui.ScrollState
+	jsonScroll   [2]ui.ListState
+	hexScroll    [2]ui.ListState
 
 	// htmlDoc and imageBmp cache the preview of the body shown, so a frame
 	// does not parse or decode it again.
@@ -664,6 +669,7 @@ func (a *app) drain() {
 		if result.response != nil {
 			d.response = result.response
 			d.responseEditor = nil
+			d.comparison.diffPart = "" // even an identical URL is a new send
 		}
 		if result.vars != nil && !maps.Equal(result.varsBefore, result.vars) {
 			a.applyVars(result.environment, result.varsBefore, result.vars)
@@ -923,6 +929,8 @@ func (a *app) syncDetail() {
 	}
 	a.body, a.reqBody = f.body(true), f.body(false)
 	a.bodyMode, a.bodyQuery = 0, ""
+	a.headerScroll, a.bodyScroll = [2]ui.ScrollState{}, [2]ui.ScrollState{}
+	a.jsonScroll, a.hexScroll = [2]ui.ListState{}, [2]ui.ListState{}
 	a.jsonFor, a.protoFor, a.htmlFor, a.imageFor = "", "", "", ""
 	a.htmlDoc, a.imageBmp, a.imageErr = nil, nil, ""
 	a.protobuf.stop()
@@ -981,6 +989,9 @@ func (a *app) view(c *ui.Context) {
 	t := c.Theme()
 	ui.Column(c).Fill().Background(t.Background).Children(func() {
 		a.toolbar(c, t)
+		if a.workspace == 1 || a.workspace == 0 && len(a.documents) > 0 {
+			a.documentTabs(c, t)
+		}
 		if a.workspace == 0 {
 			a.captureToolbar(c, t)
 		}
@@ -1981,7 +1992,11 @@ func (a *app) headerBlock(c *ui.Context, t *ui.Theme, title, line, note string, 
 		start = start.Tooltip(note)
 	}
 	start.Padding(0, 0, 6, 0)
-	ui.Scroll(c).Grow(1).Children(func() {
+	side := 0
+	if title == "Response" {
+		side = 1
+	}
+	ui.Scroll(c).TrackScroll(&a.headerScroll[side]).Grow(1).Children(func() {
 		for i, block := range []http.Header{headers, trailers} {
 			if i == 1 && len(block) > 0 {
 				ui.Text(c, "Trailers").FontSize(11).Bold().TextColor(t.TextMuted).Padding(10, 0, 4, 0)
@@ -2310,11 +2325,13 @@ func (a *app) openCompose() {
 // composeFrom fills the request editor with a captured request, the step from
 // traffic to a request worth keeping.
 func (a *app) composeFrom(f flow) {
+	a.views.capture(a)
 	a.addDocument(savedRequest{
+		Name:   cmp.Or(f.path, f.url),
 		Method: cmp.Or(f.method, "GET"), URL: f.url,
 		Headers: headerBlock(f.reqHeader), Body: f.body(false),
 	}, "")
-	a.sourceFlow = f.id
+	a.sourceFlow, a.source, a.sourceView = f.id, &f, a.views.activeView()
 }
 
 // headerBlock writes headers the way the editor takes them back.

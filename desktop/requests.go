@@ -23,6 +23,9 @@ type requestDocument struct {
 	savedKey          string
 	baseline          savedRequest
 	sourceFlow        int
+	source            *flow
+	sourceView        *captureView
+	comparison        captureAnalysis
 	sourceAPI         string
 	composeName       string
 	composeCollection string
@@ -168,19 +171,27 @@ func (a *app) documentTabs(c *ui.Context, t *ui.Theme) {
 	var closing *requestDocument
 	ui.Row(c).Height(40).Background(t.Surface).Children(func() {
 		ui.ScrollHorizontal(c).Grow(1).FillHeight().Children(func() {
-			selected := slices.Index(a.documents, a.requestDocument)
-			tabs := ui.TabsBase(c, &selected, len(a.documents))
+			selected := 0
+			if a.workspace == 1 {
+				selected = slices.Index(a.documents, a.requestDocument) + 1
+			}
+			tabs := ui.TabsBase(c, &selected, len(a.documents)+1)
 			tabs.List.Gap(1).Padding(4, 6, 0, 6).Children(func() {
+				traffic := tabs.Tab(0).Label("Traffic tab").Height(36).Padding(0, 12).AlignItems(ui.Center).Radius(6, 6, 0, 0)
+				if a.workspace == 0 {
+					traffic.Background(t.Background)
+				}
+				traffic.Children(func() { ui.Text(c, "Traffic").FontSize(12).Bold() })
 				for i, d := range a.documents {
 					c.Key(d.id)
-					tab := tabs.Tab(i).Label("Request tab: "+d.title()).Height(36).Padding(0, 10).Gap(8).AlignItems(ui.Center).Radius(6, 6, 0, 0).TextColor(t.TextMuted)
+					tab := tabs.Tab(i+1).Label("Request tab: "+d.title()).Height(36).Padding(0, 10).Gap(8).AlignItems(ui.Center).Radius(6, 6, 0, 0).TextColor(t.TextMuted)
 					label := fmt.Sprintf("%s %s %t", d.composeMethod, d.title(), d.dirty())
-					if d.revealTab || d == a.requestDocument && d.tabLabel != label {
+					if a.workspace == 1 && (d.revealTab || d == a.requestDocument && d.tabLabel != label) {
 						tab.ScrollIntoView()
 						d.revealTab = false
 					}
 					d.tabLabel = label
-					if d == a.requestDocument {
+					if a.workspace == 1 && d == a.requestDocument {
 						tab.Background(t.Background).TextColor(t.Text).Border(1, t.Border).BorderWidth(1, 1, 0, 1)
 					}
 					tab.Children(func() {
@@ -197,9 +208,13 @@ func (a *app) documentTabs(c *ui.Context, t *ui.Theme) {
 					})
 				}
 			})
-			if tabs.List.Changed() && selected >= 0 && selected < len(a.documents) {
-				a.requestDocument = a.documents[selected]
-				a.requestChoice = a.savedKey
+			if tabs.List.Changed() {
+				if selected == 0 {
+					a.workspace = 0
+				} else if selected <= len(a.documents) {
+					a.requestDocument = a.documents[selected-1]
+					a.requestChoice, a.workspace = a.savedKey, 1
+				}
 			}
 		})
 		if ui.ButtonBase(c).Size(34, 34).Label("Add request tab").Tooltip("New request").Children(func() {
@@ -222,7 +237,6 @@ func (a *app) documentTabs(c *ui.Context, t *ui.Theme) {
 
 func (a *app) composeView(c *ui.Context, t *ui.Theme) {
 	ui.Column(c).Fill().Children(func() {
-		a.documentTabs(c, t)
 		d := a.requestDocument
 		if d == nil {
 			ui.Column(c).Grow(1).Center().Gap(12).Children(func() {
@@ -259,19 +273,19 @@ func (a *app) composeView(c *ui.Context, t *ui.Theme) {
 			})
 			if d.sourceFlow != 0 {
 				ui.Row(c).Height(24).Padding(0, 18).Gap(8).AlignItems(ui.Center).Children(func() {
-					if ui.ButtonBase(c).Label("Source capture").Children(func() {
-						ui.Text(c, fmt.Sprintf("Source: Capture #%d", d.sourceFlow)).FontSize(11).TextColor(t.Accent)
-					}).Clicked() {
-						a.clearFilters()
-						for i, at := range a.visible {
-							if a.flows[at].id == d.sourceFlow {
-								a.picked, a.workspace = i, 0
-								return
-							}
+					ui.Text(c, fmt.Sprintf("Source: Capture #%d · editable draft", d.sourceFlow)).FontSize(11).TextColor(t.TextMuted)
+					if ui.Button(c, "Back to traffic").FontSize(11).Height(22).Tooltip("Return to the original view without changing its filters, selection or scroll position").Clicked() {
+						a.views.capture(a)
+						if i := slices.Index(a.views.views, d.sourceView); i >= 0 {
+							a.views.activate(a, i)
+						} else {
+							a.setMessage("Original capture view is no longer open; returned to the current traffic view")
 						}
-						a.setMessage("Source capture is no longer in this session")
+						a.workspace = 0
 					}
-					ui.Text(c, "· editable draft").FontSize(11).TextColor(t.TextMuted)
+					if d.response != nil && (a.query != "" || a.filter != "all" || a.chip != 0 || a.filtersActive()) {
+						ui.Text(c, "Capture filters kept · new traffic may be hidden").FontSize(10).TextColor(t.TextMuted)
+					}
 				})
 			}
 			if d.sourceAPI != "" {
@@ -298,6 +312,12 @@ func (a *app) composeView(c *ui.Context, t *ui.Theme) {
 					a.sendComposed()
 				}
 			})
+			// A comparison needs the full remaining height, especially on laptops.
+			// Returning to Response restores the editor's own split position.
+			if d.source != nil && d.responseTab == 3 {
+				ui.Column(c).Grow(1).Children(func() { a.requestResponse(c, t, d) })
+				return
+			}
 			ui.SplitVerticalPercent(c, &d.requestPercent, func() {
 				ui.Column(c).Fill().Children(func() {
 					ui.Tabs(c, &d.composeTab, "Params", "Auth", "Headers", "Body", "Scripts", "Checks").Padding(0, 14)
@@ -335,7 +355,11 @@ func (a *app) composeView(c *ui.Context, t *ui.Theme) {
 func (a *app) requestResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 	ui.Column(c).Fill().Children(func() {
 		ui.Row(c).Height(40).Padding(0, 14).Gap(12).AlignItems(ui.Center).Children(func() {
-			ui.Tabs(c, &d.responseTab, "Response", "Response headers", "Test results")
+			labels := []string{"Response", "Response headers", "Test results"}
+			if d.source != nil {
+				labels = append(labels, "Compare source")
+			}
+			ui.Tabs(c, &d.responseTab, labels...)
 			ui.Spacer(c)
 			if r := d.response; r != nil {
 				ui.Text(c, fmt.Sprintf("%d %s", r.Status, http.StatusText(r.Status))).FontSize(11).Bold().TextColor(statusColor(r.Status, t))
@@ -407,6 +431,21 @@ func (a *app) requestResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 					ui.Text(c, mark+" "+result.Name).FontSize(12).TextColor(color)
 				}
 			})
+		case 3:
+			if d.source != nil && d.response != nil {
+				r := d.response
+				right := flow{method: r.Method, path: r.URL, url: r.URL, status: r.Status, millis: r.Millis,
+					reqBody: r.RequestBody, reqSize: r.RequestBodySize, reqHeaders: headerBlock(r.RequestHeader),
+					resBody: r.ResponseBody, resSize: r.ResponseBodySize, resHeaders: headerBlock(r.ResponseHeader)}
+				if r.RequestBodySize > len(r.RequestBody) {
+					right.reqError = "preview limited to 8 MiB"
+				}
+				if r.ResponseBodySize > len(r.ResponseBody) {
+					right.resError = "preview limited to 8 MiB"
+				}
+				ui.Text(c, "Last send: initial client request and final response; redirects, cookies and proxy rules may change the on-wire exchange. Inspect Capture for wire details.").FontSize(10).TextColor(t.TextMuted).Padding(4, 12)
+				d.comparison.compare(c, *d.source, right, [2]string{fmt.Sprintf("Source #%d", d.sourceFlow), "Last send"})
+			}
 		}
 	})
 }

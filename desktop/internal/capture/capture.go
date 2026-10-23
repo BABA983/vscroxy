@@ -1024,7 +1024,9 @@ func (s *Server) ReplayWithCookies(ctx context.Context, f Flow, jar http.CookieJ
 	}
 	return Flow{
 		Method: req.Method, URL: rawURL, Status: resp.StatusCode,
-		ResponseHeader: resp.Header.Clone(), ResponseBody: string(preview),
+		RequestHeader: req.Header.Clone(), RequestBody: strings.Clone(raw[:min(len(raw), 8<<20)]),
+		RequestBodySize: len(raw),
+		ResponseHeader:  resp.Header.Clone(), ResponseBody: string(preview),
 		ResponseBodySize: len(preview) + int(rest), Bytes: len(preview) + int(rest),
 		ResponseTrailer: resp.Trailer.Clone(), ResponseProto: resp.Proto,
 		Millis: int(time.Since(started).Milliseconds()), At: time.Now(),

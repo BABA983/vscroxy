@@ -316,7 +316,7 @@ func (a *app) htmlPreview(c *ui.Context, key, body string) {
 func (a *app) prettyBody(c *ui.Context, body string) {
 	t := c.Theme()
 	text := filterLines(body, a.bodyQuery)
-	ui.Scroll(c).Grow(1).Padding(12).Children(func() {
+	ui.Scroll(c).TrackScroll(&a.bodyScroll[a.bodySide]).Grow(1).Padding(12).Children(func() {
 		ui.Text(c, text).FontSize(12).Font("monospace").TextColor(t.Text)
 	})
 }
@@ -333,7 +333,7 @@ func (a *app) jsonBody(c *ui.Context) {
 		ui.Text(c, "No matches").FontSize(12).TextColor(t.TextMuted).Padding(16)
 		return
 	}
-	ui.List(c, nil, len(rows), func(i int) {
+	ui.List(c, &a.jsonScroll[a.bodySide], len(rows), func(i int) {
 		row := rows[i]
 		ui.Row(c).Gap(6).Padding(3, 12).AlignItems(ui.Center).Children(func() {
 			ui.Box(c).Width(float32(row.depth) * 16)
@@ -371,7 +371,7 @@ func (a *app) hexBody(c *ui.Context, body string) {
 		ui.Text(c, "No matches").FontSize(12).TextColor(t.TextMuted).Padding(16)
 		return
 	}
-	ui.List(c, nil, len(rows), func(i int) {
+	ui.List(c, &a.hexScroll[a.bodySide], len(rows), func(i int) {
 		ui.Text(c, hexLine(body, rows[i])).FontSize(11).Font("monospace").TextColor(t.Text).Padding(3, 12).SingleLine()
 	}).Grow(1)
 }
