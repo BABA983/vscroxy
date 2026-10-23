@@ -13,6 +13,7 @@ import (
 	"maps"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"slices"
@@ -29,6 +30,7 @@ import (
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/editor"
 	"github.com/egoist/mygo/ui/richtext"
+	"golang.org/x/net/http/httpguts"
 )
 
 // maxFlows bounds what the UI keeps; older flows are dropped from the front.
@@ -234,13 +236,15 @@ type app struct {
 	varsName  string
 	varsText  string
 
-	breakOn  bool
-	bp       *capture.Breakpoint
-	bpOpen   bool
-	bpMethod string
-	bpURL    string
-	bpStatus string
-	bpBody   string
+	breakOn   bool
+	bp        *capture.Breakpoint
+	bpOpen    bool
+	bpMethod  string
+	bpURL     string
+	bpStatus  string
+	bpBody    string
+	bpHeaders string
+	bpAbort   string
 
 	// mu guards what the capture goroutine hands to the view: the flows not
 	// yet drained, and a startup error.
@@ -554,23 +558,37 @@ func (a *app) collectBreakpoints() {
 }
 
 // resolveBreak answers the paused exchange and lets the proxy go on.
-func (a *app) resolveBreak(abort bool) {
+func (a *app) resolveBreak(abort, original bool) {
 	bp := a.bp
 	if bp == nil {
 		return
 	}
 	if a.srv != nil {
+		if !abort && !original && a.breakpointError() != "" {
+			return
+		}
 		status := 0
 		if bp.Phase == capture.PhaseResponse {
 			status, _ = strconv.Atoi(strings.TrimSpace(a.bpStatus))
 		}
-		a.srv.Resume(bp.ID, capture.Decision{
-			Abort:  abort,
-			Method: a.bpMethod,
-			URL:    a.bpURL,
-			Status: status,
-			Body:   a.bpBody,
+		abortCode, _, _ := strings.Cut(a.bpAbort, " ")
+		abortStatus, _ := strconv.Atoi(abortCode)
+		resumed := a.srv.Resume(bp.ID, capture.Decision{
+			Abort:       abort,
+			AbortStatus: abortStatus,
+			Original:    original,
+			Method:      a.bpMethod,
+			URL:         a.bpURL,
+			Status:      status,
+			Body:        a.bpBody,
+			Header:      parseHeaderBlock(a.bpHeaders),
+			KeepBody:    bp.BodyReadOnly || a.bpBody == bp.Body,
 		})
+		if !resumed {
+			a.bp, a.bpOpen = nil, false
+			a.setMessage("Breakpoint expired; the exchange is no longer paused")
+			return
+		}
 	}
 	a.bp = nil
 	a.bpOpen = false
@@ -578,7 +596,43 @@ func (a *app) resolveBreak(abort bool) {
 		a.setMessage("Aborted " + bp.Method + " " + bp.URL)
 		return
 	}
+	if original {
+		a.setMessage("Continued original " + bp.Method + " " + bp.URL)
+		return
+	}
 	a.setMessage("Continued " + bp.Method + " " + bp.URL)
+}
+
+// Validate before parsing so a malformed line cannot silently delete a header.
+func (a *app) breakpointError() string {
+	if a.bp == nil {
+		return ""
+	}
+	if a.bp.Phase == capture.PhaseResponse {
+		n, err := strconv.Atoi(strings.TrimSpace(a.bpStatus))
+		if err != nil || n < 200 || n > 599 {
+			return "Enter a final response status from 200 to 599."
+		}
+	} else {
+		if !httpguts.ValidHeaderFieldName(a.bpMethod) {
+			return "Enter a valid HTTP method."
+		}
+		u, err := url.Parse(a.bpURL)
+		if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Hostname() == "" {
+			return "Enter an absolute http:// or https:// URL."
+		}
+	}
+	for i, line := range strings.Split(a.bpHeaders, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		key, value, ok := strings.Cut(line, ":")
+		if !ok || !httpguts.ValidHeaderFieldName(strings.TrimSpace(key)) || !httpguts.ValidHeaderFieldValue(value) {
+			return fmt.Sprintf("Header line %d must be a valid Name: Value pair.", i+1)
+		}
+	}
+	return ""
 }
 
 // drain moves the flows the capture goroutine collected into the table.
@@ -639,6 +693,8 @@ func (a *app) drain() {
 				a.bpStatus = strconv.Itoa(next.Status)
 			}
 			a.bpBody = next.Body
+			a.bpHeaders = headerBlock(next.Header)
+			a.bpAbort = "502 Bad Gateway"
 		}
 	}
 	if len(pending) == 0 {
@@ -680,20 +736,23 @@ func (a *app) drain() {
 			processPath: f.ProcessPath,
 			dns:         f.DNSMapped,
 			conn: conn{
-				proto:     f.Conn.Proto,
-				client:    f.Conn.Client,
-				proxy:     f.Conn.Proxy,
-				server:    f.Conn.Server,
-				resolved:  f.Conn.Resolved,
-				lookupMs:  f.Conn.LookupMs,
-				tls:       f.Conn.TLS,
-				cipher:    f.Conn.Cipher,
-				certCN:    f.Conn.CertCN,
-				issuer:    f.Conn.Issuer,
-				certUntil: f.Conn.CertUntil,
-				flows:     f.Conn.Flows,
-				reused:    f.Conn.Reused,
-				dnsFresh:  f.Conn.DNSFresh,
+				proto:      f.Conn.Proto,
+				client:     f.Conn.Client,
+				proxy:      f.Conn.Proxy,
+				server:     f.Conn.Server,
+				resolved:   f.Conn.Resolved,
+				lookupMs:   f.Conn.LookupMs,
+				tls:        f.Conn.TLS,
+				cipher:     f.Conn.Cipher,
+				certCN:     f.Conn.CertCN,
+				issuer:     f.Conn.Issuer,
+				certUntil:  f.Conn.CertUntil,
+				flows:      f.Conn.Flows,
+				reused:     f.Conn.Reused,
+				dnsFresh:   f.Conn.DNSFresh,
+				log:        f.Conn.Log,
+				error:      f.Conn.Error,
+				errorStage: f.Conn.ErrorStage,
 			},
 			wait:     f.Wait,
 			download: f.Download,
@@ -839,8 +898,11 @@ func (a *app) syncDetail() {
 	}
 	a.detailFor = f.id
 	a.connOpen = false
-	if f.kind == "" && a.tab == 4 {
+	if f.kind == "" && a.tab == 5 {
 		a.tab = 0
+	}
+	if f.kind == "connect" && f.conn.error != "" {
+		a.tab = 1 // open the failure evidence, not tunnel-only setup instructions
 	}
 	a.body, a.reqBody = f.body(true), f.body(false)
 	a.bodyMode, a.bodyQuery = 0, ""
@@ -983,7 +1045,7 @@ func (a *app) view(c *ui.Context) {
 	a.cookiesModal(c, t)
 	a.protobuf.modal(c, a)
 	a.views.capture(a)
-	if a.workspace != 0 || a.tab != 4 {
+	if a.workspace != 0 || a.tab != 5 {
 		a.messageUI.stopSearch()
 	}
 	f, ok := a.current()
@@ -1027,36 +1089,62 @@ func (a *app) breakpointModal(c *ui.Context, t *ui.Theme) {
 	if a.bp == nil {
 		return
 	}
+	// Feedback from a previous decision must not cover this pause's footer,
+	// especially when queued breakpoints open in a small window.
+	c.CloseToast("")
+	width, height := c.Size()
 	if ui.Modal(c, &a.bpOpen, func() {
-		ui.Column(c).Width(640).Gap(10).Children(func() {
+		ui.Column(c).Width(min(720, width-64)).Height(min(640, height-64)).Gap(10).Children(func() {
 			title := "Breakpoint · request paused"
 			if a.bp.Phase == capture.PhaseResponse {
 				title = "Breakpoint · response paused"
 			}
 			ui.Text(c, title).FontSize(14).Bold()
-			if a.bp.Phase == capture.PhaseResponse {
-				ui.Row(c).Gap(8).Children(func() {
-					ui.TextInput(c, &a.bpStatus).Width(90).Label("Status")
-					ui.Text(c, a.bp.URL).FontSize(12).TextColor(t.TextMuted).SingleLine().Grow(1)
-				})
-			} else {
-				ui.Row(c).Gap(8).Children(func() {
-					ui.TextInput(c, &a.bpMethod).Width(90).Label("Method")
-					ui.TextInput(c, &a.bpURL).Grow(1).Label("URL")
-				})
-			}
-			ui.TextArea(c, &a.bpBody).Height(200).Label("Body")
-			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
-				if ui.Button(c, "Abort").Clicked() {
-					a.resolveBreak(true)
+			a.mu.Lock()
+			waiting := len(a.bps) + 1
+			a.mu.Unlock()
+			ui.Text(c, fmt.Sprintf("%d paused · changes apply only to this exchange", waiting)).FontSize(11).TextColor(t.TextMuted)
+			ui.Scroll(c).Grow(1).FillWidth().Gap(8).Children(func() {
+				if a.bp.Phase == capture.PhaseResponse {
+					ui.Row(c).Gap(8).Children(func() {
+						ui.TextInput(c, &a.bpStatus).Width(90).Label("Status")
+						ui.Text(c, a.bp.URL).FontSize(12).TextColor(t.TextMuted).SingleLine().Grow(1)
+					})
+				} else {
+					ui.Row(c).Gap(8).Children(func() {
+						ui.TextInput(c, &a.bpMethod).Width(90).Label("Method")
+						ui.TextInput(c, &a.bpURL).Grow(1).Label("URL")
+					})
 				}
-				if ui.PrimaryButton(c, "Continue").Clicked() {
-					a.resolveBreak(false)
+				ui.Text(c, "Headers · one Name: Value per line; repeat a name for multiple values").FontSize(11).TextColor(t.TextMuted)
+				ui.TextArea(c, &a.bpHeaders).Height(130).Label("Breakpoint headers")
+				if a.bp.BodyReadOnly {
+					ui.Text(c, "Binary, undecodable or large body: preserved unchanged; headers can still be edited.").FontSize(12).TextColor(t.TextMuted)
+				} else {
+					ui.TextArea(c, &a.bpBody).Height(160).Label("Body")
+					ui.Text(c, "Body edits use decoded bytes; encoding, digest and length headers are recalculated or removed.").FontSize(11).TextColor(t.TextMuted)
+				}
+			})
+			validation := a.breakpointError()
+			if validation != "" {
+				ui.Text(c, validation).FontSize(12).TextColor(t.Danger)
+			}
+			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
+				ui.Select(c, &a.bpAbort, []string{"502 Bad Gateway", "429 Too Many Requests", "503 Service Unavailable"}).Width(200).Label("Abort status")
+				if ui.Button(c, "Abort").Clicked() {
+					a.resolveBreak(true, false)
+				}
+				if ui.Button(c, "Continue original").Clicked() {
+					a.resolveBreak(false, true)
+				}
+				if ui.PrimaryButton(c, "Apply & continue").Disabled(validation != "").Clicked() {
+					a.resolveBreak(false, false)
 				}
 			})
 		})
 	}).Dismissed() {
-		a.resolveBreak(true)
+		// Escape or an accidental outside click must not abort a live request.
+		a.bpOpen = true
 	}
 }
 
@@ -1446,6 +1534,10 @@ func (a *app) table(c *ui.Context) {
 			}
 			text(f.method).TextColor(color)
 		case 1:
+			if f.conn.error != "" {
+				text("Failed").TextColor(rowColor(chosen, t, t.Danger)).Tooltip(f.conn.errorStage + ": " + f.conn.error)
+				return
+			}
 			if f.kind == "connect" && f.status == 0 {
 				color := ui.Hex("#d97706")
 				if chosen {
@@ -1539,8 +1631,17 @@ func (a *app) detail(c *ui.Context) {
 			if ui.Button(c, "Replay").Disabled(f.url == "" || f.kind != "").Clicked() {
 				go a.replay(f)
 			}
-			chip := ui.Text(c, fmt.Sprintf("%d · %s · %d ms", f.status, humanBytes(f.bytes), f.millis)).
-				FontSize(12).TextColor(f.statusColor(t))
+			status := strconv.Itoa(f.status)
+			color := f.statusColor(t)
+			if f.conn.error != "" {
+				status = "Failed"
+				color = t.Danger
+				if f.kind == "connect" && f.status == 200 {
+					status = "CONNECT 200 · failed"
+				}
+			}
+			chip := ui.Text(c, fmt.Sprintf("%s · %s · %d ms", status, humanBytes(f.bytes), f.millis)).
+				FontSize(12).TextColor(color)
 			if doc := statusDoc(f.status); doc != "" {
 				chip = chip.Tooltip(doc)
 			}
@@ -1551,12 +1652,26 @@ func (a *app) detail(c *ui.Context) {
 			ui.Popover(c, info, &a.connOpen, func() { a.connPanel(c, t, f) })
 		})
 		if f.kind == "connect" {
-			a.connectPanel(c, f)
+			if a.tab > 1 {
+				a.tab = 0
+			}
+			ui.Tabs(c, &a.tab, "HTTPS setup", "Connection").Padding(0, 8)
+			if a.tab == 1 {
+				a.connectionView(c, f)
+			} else {
+				if f.conn.error != "" {
+					ui.Text(c, f.conn.errorStage+" failed: "+f.conn.error).FontSize(12).TextColor(t.Danger).Padding(8, 12)
+				}
+				a.connectPanel(c, f)
+			}
 			return
 		}
-		labels := []string{"Headers", "Body", "Diff", "Timing"}
+		labels := []string{"Headers", "Body", "Diff", "Timing", "Connection"}
 		if f.kind == "ws" || f.kind == "sse" {
 			labels = append(labels, "Messages")
+		}
+		if a.tab >= len(labels) {
+			a.tab = 0
 		}
 		ui.Tabs(c, &a.tab, labels...).Padding(0, 8)
 		if !ok {
@@ -1583,6 +1698,8 @@ func (a *app) detail(c *ui.Context) {
 		case 3:
 			a.timingView(c, f)
 		case 4:
+			a.connectionView(c, f)
+		case 5:
 			a.messages(c, f)
 		}
 	})
@@ -1677,6 +1794,25 @@ func (a *app) saveMark() {
 // worth opening.
 var infoIcon = ui.MustParseSVG([]byte(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M8 1.3a6.7 6.7 0 1 0 0 13.4A6.7 6.7 0 0 0 8 1.3Zm0 1.5a5.2 5.2 0 1 1 0 10.4A5.2 5.2 0 0 1 8 2.8Zm0 1.6a.95.95 0 1 0 0 1.9.95.95 0 0 0 0-1.9Zm-.85 3.2v4h1.7v-4Z"/></svg>`))
 
+// connectionView makes transport failures inspectable and copyable, including
+// failures after a successful CONNECT but before any HTTP request was received.
+func (a *app) connectionView(c *ui.Context, f flow) {
+	t := c.Theme()
+	ui.Row(c).Padding(8, 12).Gap(8).Children(func() {
+		if f.conn.error != "" {
+			ui.Text(c, f.conn.errorStage+" failed").FontSize(12).TextColor(t.Danger).Grow(1)
+		} else {
+			ui.Text(c, "Connection log · snapshot at capture time").FontSize(12).TextColor(t.TextMuted).Grow(1)
+		}
+		if ui.Button(c, "Copy connection log").Disabled(f.conn.log == "").Clicked() {
+			c.Services().WriteClipboard(f.conn.log)
+			a.setMessage("Copied connection log")
+		}
+	})
+	text := cmp.Or(f.conn.log, "No connection history was recorded for this exchange (for example, an older or imported session).")
+	ui.TextArea(c, &text).ReadOnly(true).Label("Connection log").Font("monospace").FontSize(12).Grow(1).FillWidth()
+}
+
 // connPanel is the connection behind a flow: who talked to the proxy, where it
 // dialled, the addresses the name resolved to, and what TLS agreed on.
 func (a *app) connPanel(c *ui.Context, t *ui.Theme, f flow) {
@@ -1687,6 +1823,12 @@ func (a *app) connPanel(c *ui.Context, t *ui.Theme, f flow) {
 		field(c, t, "Client", cn.client)
 		field(c, t, "Proxy", cn.proxy)
 		field(c, t, "Upstream", cn.server)
+		if cn.error != "" {
+			field(c, t, "Failed at", cn.errorStage+": "+cn.error)
+		}
+		if cn.flows > 0 {
+			field(c, t, "Connection use", fmt.Sprintf("request #%d · reused: %t", cn.flows, cn.reused))
+		}
 		resolved := cn.resolved
 		if resolved != "" {
 			resolved = fmt.Sprintf("%s  (%d ms)", resolved, cn.lookupMs)

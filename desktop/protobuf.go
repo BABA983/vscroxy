@@ -317,7 +317,7 @@ func grpcOutcome(f flow) (code, message string) {
 }
 
 func (f flow) failed() bool {
-	if f.status >= 400 {
+	if f.status >= 400 || f.conn.error != "" {
 		return true
 	}
 	code, _ := grpcOutcome(f)

@@ -4,8 +4,10 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"errors"
 	"net"
 	"net/http"
+	"net/http/httptrace"
 	"net/url"
 
 	"github.com/lqqyt2423/go-mitmproxy/cert"
@@ -137,16 +139,33 @@ func (proxy *Proxy) getUpstreamProxyUrl(req *http.Request) (*url.URL, error) {
 }
 
 func (proxy *Proxy) getUpstreamConn(ctx context.Context, req *http.Request) (net.Conn, error) {
+	cc := req.Context().Value(connContextKey).(*ConnContext)
+	ctx = httptrace.WithClientTrace(ctx, cc.trace())
 	proxyUrl, err := proxy.getUpstreamProxyUrl(req)
 	if err != nil {
+		cc.RecordEvent("TCP", "Upstream proxy configuration", err)
 		return nil, err
 	}
 	var conn net.Conn
 	address := helper.CanonicalAddr(req.URL)
+	target := address
+	if proxyUrl != nil {
+		target += " via proxy " + proxyUrl.Host
+	}
+	cc.RecordEvent("TCP", "Connecting to "+target, nil)
 	if proxyUrl != nil {
 		conn, err = helper.GetProxyConn(ctx, proxyUrl, address, proxy.Opts.SslInsecure)
 	} else {
 		conn, err = (&net.Dialer{}).DialContext(ctx, "tcp", address)
+	}
+	if err != nil {
+		stage := "TCP"
+		if _, ok := errors.AsType[*net.DNSError](err); ok {
+			stage = "DNS"
+		}
+		cc.RecordEvent(stage, "Could not connect to "+target, err)
+	} else {
+		cc.RecordEvent("TCP", "Connected to "+conn.RemoteAddr().String(), nil)
 	}
 	return conn, err
 }

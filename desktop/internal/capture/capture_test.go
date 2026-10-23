@@ -3,6 +3,7 @@ package capture
 import (
 	"bufio"
 	"bytes"
+	"compress/gzip"
 	"context"
 	"crypto/tls"
 	"crypto/x509"
@@ -292,6 +293,89 @@ func TestFailedRequestShowsAnError(t *testing.T) {
 	}
 	if !strings.Contains(f.ResponseBody, "vscroxy:") {
 		t.Fatalf("body = %q, want the reason", f.ResponseBody)
+	}
+	if f.Conn.ErrorStage != "TCP" || f.Conn.Error == "" || !strings.Contains(f.Conn.Log, dead) {
+		t.Fatalf("connection failure was not diagnosed: %+v", f.Conn)
+	}
+}
+
+func TestConnectionLogDistinguishesTLSFailuresAndReuse(t *testing.T) {
+	upstream := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, "secure result")
+	}))
+	defer upstream.Close()
+	s, caPath := startServer(t)
+	s.SetSSL(SSLConfig{All: true})
+	// The client deliberately does NOT trust the proxy's CA.
+	if resp, err := clientFor(t, s, nil).Get(upstream.URL); err == nil {
+		resp.Body.Close()
+		t.Fatal("untrusted intercepted certificate was accepted")
+	}
+	failed := waitFlow(t, s)
+	if failed.Method != "CONNECT" || failed.Status != 200 || failed.Conn.ErrorStage != "TLS client" || failed.Conn.Error == "" {
+		t.Fatalf("TLS rejection should remain distinct from CONNECT 200: %+v", failed)
+	}
+	if !strings.Contains(failed.Conn.Log, "No HTTP response from the target") {
+		t.Fatalf("misleading connection log: %s", failed.Conn.Log)
+	}
+	pem, err := os.ReadFile(caPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	roots := x509.NewCertPool()
+	if !roots.AppendCertsFromPEM(pem) {
+		t.Fatal("invalid CA")
+	}
+	client := clientFor(t, s, roots)
+	defer client.CloseIdleConnections()
+	for i := range 2 {
+		resp, err := client.Get(upstream.URL)
+		if err != nil {
+			t.Fatal(err)
+		}
+		body, err := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if err != nil || string(body) != "secure result" {
+			t.Fatalf("body %q: %v", body, err)
+		}
+		f := waitFlow(t, s)
+		if f.Conn.Error != "" || f.Conn.Reused != (i == 1) {
+			t.Fatalf("connection: %+v", f.Conn)
+		}
+		for _, want := range []string{"[TCP]", "[TLS upstream]", "[TLS client]", "SAN:", "127.0.0.1", "ALPN:", "verification: skipped"} {
+			if !strings.Contains(f.Conn.Log, want) {
+				t.Fatalf("missing %q in %s", want, f.Conn.Log)
+			}
+		}
+	}
+	// A TLS URL aimed at a plaintext HTTP server fails on the OTHER TLS side.
+	plain := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	defer plain.Close()
+	if resp, err := client.Get(strings.Replace(plain.URL, "http:", "https:", 1)); err == nil {
+		resp.Body.Close()
+		t.Fatal("plaintext server accepted as TLS")
+	}
+	f := waitFlow(t, s)
+	if f.Conn.ErrorStage != "TLS upstream" || f.Conn.Error == "" {
+		t.Fatalf("upstream failure: %+v", f.Conn)
+	}
+}
+
+func TestConnectionLogDNSFailure(t *testing.T) {
+	previous := net.DefaultResolver
+	net.DefaultResolver = &net.Resolver{PreferGo: true, Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
+		return nil, &net.DNSError{Name: "failure.test", Err: "fixture name not found", IsNotFound: true}
+	}}
+	t.Cleanup(func() { net.DefaultResolver = previous })
+	s, _ := startServer(t)
+	resp, err := clientFor(t, s, nil).Get("http://failure.test/diagnostic")
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	f := waitFlow(t, s)
+	if f.Status != 502 || f.Conn.ErrorStage != "DNS" || !strings.Contains(f.Conn.Log, "failure.test") {
+		t.Fatalf("DNS failure misclassified: %+v", f.Conn)
 	}
 }
 
@@ -884,7 +968,8 @@ func TestBreakpointEditsRequest(t *testing.T) {
 	}))
 	defer first.Close()
 	second := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprint(w, "second")
+		body, _ := io.ReadAll(r.Body)
+		fmt.Fprintf(w, "second|%s|%s|%s|%s|%s|%s", r.Method, r.Host, r.Header.Get("Authorization"), r.Header.Get("Cookie"), strings.Join(r.Header.Values("X-Multi"), ","), body)
 	}))
 	defer second.Close()
 
@@ -917,15 +1002,19 @@ func TestBreakpointEditsRequest(t *testing.T) {
 	if bp.Method != "GET" || !strings.HasPrefix(bp.URL, first.URL) {
 		t.Fatalf("breakpoint = %+v", bp)
 	}
-	if !s.Resume(bp.ID, Decision{Method: "GET", URL: second.URL + "/bp"}) {
+	if !s.Resume(bp.ID, Decision{Method: "POST", URL: second.URL + "/bp", Body: "edited payload", Header: http.Header{"Host": {"virtual.test"}, "Authorization": {"Bearer changed"}, "Cookie": {"session=new"}, "X-Multi": {"one", "two"}}}) {
 		t.Fatal("resume found no waiter")
 	}
 	r := <-done
 	if r.err != nil {
 		t.Fatalf("request: %v", r.err)
 	}
-	if r.body != "second" {
+	if r.body != "second|POST|virtual.test|Bearer changed|session=new|one,two|edited payload" {
 		t.Fatalf("body = %q, want the edited URL's upstream", r.body)
+	}
+	f := waitFlow(t, s)
+	if f.Conn.Error != "" || !strings.Contains(f.Conn.Log, "separate upstream transport") || !strings.Contains(f.Conn.Log, strings.TrimPrefix(second.URL, "http://")) {
+		t.Fatalf("rewritten URL's real transport missing: %+v", f.Conn)
 	}
 }
 
@@ -1088,6 +1177,7 @@ function onRequest(req) { while (true) {} }`)
 
 func TestResponseBreakpointEdits(t *testing.T) {
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Add("Set-Cookie", "old=1")
 		w.WriteHeader(http.StatusInternalServerError)
 		fmt.Fprint(w, "original")
 	}))
@@ -1101,6 +1191,7 @@ func TestResponseBreakpointEdits(t *testing.T) {
 		status int
 		body   string
 		err    error
+		header http.Header
 	}
 	done := make(chan result, 1)
 	go func() {
@@ -1111,7 +1202,7 @@ func TestResponseBreakpointEdits(t *testing.T) {
 		}
 		body, err := io.ReadAll(resp.Body)
 		_ = resp.Body.Close()
-		done <- result{status: resp.StatusCode, body: string(body), err: err}
+		done <- result{status: resp.StatusCode, body: string(body), err: err, header: resp.Header}
 	}()
 
 	var bp Breakpoint
@@ -1123,7 +1214,10 @@ func TestResponseBreakpointEdits(t *testing.T) {
 	if bp.Phase != PhaseResponse || bp.Status != http.StatusInternalServerError || bp.Body != "original" {
 		t.Fatalf("breakpoint = %+v", bp)
 	}
-	if !s.Resume(bp.ID, Decision{Status: 201, Body: `{"edited":true}`}) {
+	if bp.Header.Get("Set-Cookie") != "old=1" {
+		t.Fatalf("missing response headers: %+v", bp)
+	}
+	if !s.Resume(bp.ID, Decision{Status: 201, Body: `{"edited":true}`, Header: http.Header{"Set-Cookie": {"session=new; HttpOnly", "locale=zh"}, "Content-Type": {"application/json"}}}) {
 		t.Fatal("resume found no waiter")
 	}
 	r := <-done
@@ -1132,6 +1226,9 @@ func TestResponseBreakpointEdits(t *testing.T) {
 	}
 	if r.status != 201 || r.body != `{"edited":true}` {
 		t.Fatalf("client got %d %q", r.status, r.body)
+	}
+	if got := strings.Join(r.header.Values("Set-Cookie"), "|"); got != "session=new; HttpOnly|locale=zh" {
+		t.Fatalf("Set-Cookie = %q", got)
 	}
 
 	f := waitFlow(t, s)
@@ -1169,6 +1266,113 @@ func TestResponseBreakpointAborts(t *testing.T) {
 	}
 	if got := <-status; got != http.StatusBadGateway {
 		t.Fatalf("status = %d, want 502", got)
+	}
+}
+
+func TestBreakpointOriginalPreservesWireMessage(t *testing.T) {
+	var wire bytes.Buffer
+	gz := gzip.NewWriter(&wire)
+	gz.Write([]byte("payload\x00\xff"))
+	if err := gz.Close(); err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		phase    RuleType
+		original bool
+	}{{RuleBreak, true}, {RuleBreakResponse, true}, {RuleBreak, false}, {RuleBreakResponse, false}} {
+		t.Run(fmt.Sprintf("%s/original=%t", tc.phase, tc.original), func(t *testing.T) {
+			upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				body, _ := io.ReadAll(r.Body)
+				if !bytes.Equal(body, wire.Bytes()) || r.Header.Get("Content-Encoding") != "gzip" || r.Header.Get("Authorization") != "Bearer original" || r.Header.Get("X-Leak") != "" {
+					t.Errorf("request was changed: %q, %v", body, r.Header)
+				}
+				if tc.phase == RuleBreak && !tc.original && r.Header.Get("X-Edited") != "yes" {
+					t.Error("request header-only edit did not reach upstream")
+				}
+				w.Header().Set("Content-Encoding", "gzip")
+				w.Header().Add("Set-Cookie", "a=1")
+				w.Header().Add("Set-Cookie", "b=2")
+				w.WriteHeader(201)
+				w.Write(wire.Bytes())
+			}))
+			defer upstream.Close()
+			s, _ := startServerWithRules(t, Rule{Type: tc.phase, Match: upstream.URL})
+			s.SetBreak(true)
+			client := clientFor(t, s, nil)
+			client.Transport.(*http.Transport).DisableCompression = true
+			done := make(chan error, 1)
+			go func() {
+				req, _ := http.NewRequestWithContext(t.Context(), "POST", upstream.URL, bytes.NewReader(wire.Bytes()))
+				req.Header.Set("Content-Encoding", "gzip")
+				req.Header.Set("Authorization", "Bearer original")
+				resp, err := client.Do(req)
+				if err != nil {
+					done <- err
+					return
+				}
+				defer resp.Body.Close()
+				body, err := io.ReadAll(resp.Body)
+				if err == nil && (resp.StatusCode != 201 || !bytes.Equal(body, wire.Bytes()) || resp.Header.Get("Content-Encoding") != "gzip" || len(resp.Header.Values("Set-Cookie")) != 2) {
+					err = fmt.Errorf("response was changed: %d %q %v", resp.StatusCode, body, resp.Header)
+				}
+				if tc.phase == RuleBreakResponse && !tc.original && resp.Header.Get("X-Edited") != "yes" {
+					err = fmt.Errorf("response header-only edit was lost")
+				}
+				done <- err
+			}()
+			select {
+			case bp := <-s.Breakpoints():
+				if !bp.BodyReadOnly {
+					t.Fatal("binary body offered as editable text")
+				}
+				header := bp.Header.Clone()
+				bp.Header.Set("X-Leak", "must not mutate the live exchange")
+				d := Decision{Original: true, Method: "DELETE", URL: "http://wrong.invalid/", Status: 503, Header: http.Header{}, Body: "discard me"}
+				if !tc.original {
+					header.Set("X-Edited", "yes")
+					d = Decision{Header: header, KeepBody: true}
+				}
+				s.Resume(bp.ID, d)
+			case <-t.Context().Done():
+				t.Fatal("no breakpoint")
+			}
+			if err := <-done; err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+
+func TestBreakpointAbortStatuses(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { fmt.Fprint(w, "upstream") }))
+	defer upstream.Close()
+	for _, phase := range []RuleType{RuleBreak, RuleBreakResponse} {
+		for _, status := range []int{429, 503} {
+			t.Run(fmt.Sprintf("%s/%d", phase, status), func(t *testing.T) {
+				s, _ := startServerWithRules(t, Rule{Type: phase, Match: upstream.URL})
+				s.SetBreak(true)
+				client := clientFor(t, s, nil)
+				done := make(chan int, 1)
+				go func() {
+					resp, err := client.Get(upstream.URL)
+					if err != nil {
+						done <- 0
+						return
+					}
+					resp.Body.Close()
+					done <- resp.StatusCode
+				}()
+				select {
+				case bp := <-s.Breakpoints():
+					s.Resume(bp.ID, Decision{Abort: true, AbortStatus: status})
+				case <-t.Context().Done():
+					t.Fatal("no breakpoint")
+				}
+				if got := <-done; got != status {
+					t.Fatalf("got %d, want %d", got, status)
+				}
+			})
+		}
 	}
 }
 

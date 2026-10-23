@@ -158,6 +158,7 @@ type Flow struct {
 	Response    *Response
 	WebSocket   *WebSocketData
 	SSE         *SSEData // Server-Sent Events data
+	Error       error    // exchange failure, not individual failed dial attempts
 
 	// https://docs.mitmproxy.org/stable/overview-features/#streaming
 	// 如果为 true，则不缓冲 Request.Body 和 Response.Body，且不进入之后的 Addon.Request 和 Addon.Response

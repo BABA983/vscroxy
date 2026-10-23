@@ -230,12 +230,45 @@ bodies are supported up to 8 MiB; missing/partial bodies and stream previews are
 rejected. Review captured headers for secrets before sharing the rule. Canceling
 an unsaved mock removes its file; deleting a saved rule keeps its file for reuse.
 
+## Connection diagnostics
+
+Select **Connection** in a captured exchange's detail to inspect and copy its
+connection log: DNS lookup, TCP dial attempts, upstream/client TLS handshakes,
+connection reuse, ALPN and the upstream certificate's SANs and expiry. The log
+explicitly distinguishes verified certificates from verification skipped by the
+debugging proxy. It is a capture-time snapshot with at most 64 connection events,
+not a packet trace; a reused connection includes its setup history.
+
+Transport failures appear as **Failed** and are included in **Errors**. A
+successful CONNECT can still be followed by a failed TLS handshake: its original
+status is retained, while the log identifies the failed stage and underlying
+error. A client-side TLS error suggests checking that client's CA trust or
+certificate pinning; it does not prove either is the cause. Logs and failure
+details survive saving/reopening a session; older/imported sessions may have no
+connection history. Review hostnames, addresses and certificate details before
+sharing logs.
+
 ## Breakpoints
 
 Turn on **Break** in the toolbar. A request matching a `break` rule pauses
-with its method, URL and body; edit them and press **Continue**, or
-**Abort** to answer `502`. A response matching `break_response` pauses with
-its status and body; the response script, when there is one, runs first.
+with its method, URL, headers and body. A response matching `break_response`
+pauses with its status, headers and body; the response script, when there is
+one, runs first. Repeat a header name on separate lines to keep multiple values
+(for example, `Set-Cookie`). Invalid method/URL/status/header edits are reported
+inline and cannot be applied.
+
+- **Apply & continue** sends the edits. Body edits use decoded bytes and remove
+  stale content-encoding, digest and framing headers. Unchanged bodies retain
+  their original bytes and encoding, including header-only edits.
+- **Continue original** discards edits in the dialog and preserves the message
+  as it reached that breakpoint, including any earlier script changes.
+- **Abort** answers with the selected `502`, `429` or `503` status. Escape or an
+  outside click does not abort a live exchange.
+
+Binary, undecodable and text bodies over 1 MiB are preserved read-only; their
+headers can still be edited. Streamed exchanges do not offer body breakpoints.
+The dialog shows the pending count; queued pauses appear in turn. The existing
+two-minute pause timeout continues the exchange unchanged if no decision arrives.
 
 The flow's duration is the exchange's, not the time you spent at the
 breakpoint.

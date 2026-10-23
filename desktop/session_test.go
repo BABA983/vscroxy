@@ -44,6 +44,7 @@ func TestSessionRoundTrip(t *testing.T) {
 		url: "ws://example.com/", status: 101, kind: "ws",
 		reqHeaders: "CONNECT / HTTP/1.1", resHeaders: "HTTP/1.1 101",
 		color: "Red", note: "the frame that breaks it",
+		conn: conn{log: "[TLS client] FAILED: certificate rejected\n", error: "certificate rejected", errorStage: "TLS client"},
 	}}
 	frames := map[int][]frame{7: {
 		{direction: "out", kind: "text", data: "hi"},
@@ -63,6 +64,9 @@ func TestSessionRoundTrip(t *testing.T) {
 	}
 	if got[0].color != "Red" || got[0].note != "the frame that breaks it" {
 		t.Fatalf("mark = %q / %q, want it kept", got[0].color, got[0].note)
+	}
+	if got[0].conn.log != flows[0].conn.log || got[0].conn.error != "certificate rejected" || got[0].conn.errorStage != "TLS client" {
+		t.Fatalf("connection diagnosis lost: %+v", got[0].conn)
 	}
 	if len(gotFrames[7]) != 2 || gotFrames[7][1].data != "hello" {
 		t.Fatalf("frames = %+v", gotFrames)

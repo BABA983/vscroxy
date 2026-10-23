@@ -52,20 +52,23 @@ type flow struct {
 
 // conn is what an exchange ran over, as the connection panel shows it.
 type conn struct {
-	proto     string
-	client    string
-	proxy     string
-	server    string
-	resolved  string
-	lookupMs  int
-	tls       string
-	cipher    string
-	certCN    string
-	issuer    string
-	certUntil string
-	flows     int
-	reused    bool
-	dnsFresh  bool
+	proto      string
+	client     string
+	proxy      string
+	server     string
+	resolved   string
+	lookupMs   int
+	tls        string
+	cipher     string
+	certCN     string
+	issuer     string
+	certUntil  string
+	flows      int
+	reused     bool
+	dnsFresh   bool
+	log        string
+	error      string
+	errorStage string
 }
 
 // maxBodyView bounds how much of a spilled body the Body tab reads back.

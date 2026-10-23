@@ -42,6 +42,67 @@ func workspaceApp() *app {
 	return a
 }
 
+func TestBreakpointDialogValidatesEditsAndKeepsOriginalActionReachable(t *testing.T) {
+	a := workspaceApp()
+	a.bp = &capture.Breakpoint{ID: 1, Method: "POST", URL: "https://api.example.com/login"}
+	a.bpOpen, a.bpMethod, a.bpURL = true, "POST", a.bp.URL
+	a.bpHeaders, a.bpAbort = "Authorization: Bearer old", "502 Bad Gateway"
+	a.setMessage("Previous breakpoint continued")
+	tt := ui.NewTester(a.view, 960, 600)
+	if err := tt.Click("Breakpoint headers"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Key(ui.Ctrl, ui.KeyA)
+	tt.Type("broken header")
+	if !tt.HasText("Header line 1 must be a valid Name: Value pair.") {
+		t.Fatalf("missing validation: %q", tt.Texts())
+	}
+	if err := tt.Click("Apply & continue"); err != nil {
+		t.Fatal(err)
+	}
+	if a.bp == nil {
+		t.Fatal("invalid headers were silently applied")
+	}
+	tt.Key(0, ui.KeyEscape)
+	if a.bp == nil || !a.bpOpen {
+		t.Fatal("Escape aborted a live request")
+	}
+	if err := tt.Click("Continue original"); err != nil {
+		t.Fatal(err)
+	}
+	if a.bp != nil {
+		t.Fatal("could not discard invalid edits and continue original")
+	}
+}
+
+func TestConnectionFailureCanBeFoundAndCopiedWithoutInventingAnHTTPError(t *testing.T) {
+	a := workspaceApp()
+	a.flows = []flow{{id: 10, method: "CONNECT", scheme: "https", host: "api.example.com:443", url: "https://api.example.com:443", status: 200, kind: "connect", conn: conn{error: "remote error: tls: unknown certificate authority", errorStage: "TLS client", log: "CONNECT succeeded\n[TLS client] FAILED: remote error: tls: unknown certificate authority\n"}}}
+	a.applyFilter()
+	tt := ui.NewTester(a.view, 960, 600)
+	if !tt.HasText("Failed") {
+		t.Fatalf("failure hidden behind CONNECT 200: %q", tt.Texts())
+	}
+	if err := tt.Click("Connection"); err != nil {
+		t.Fatal(err)
+	}
+	if !tt.HasText("TLS client failed") {
+		t.Fatal("missing TLS side")
+	}
+	if err := tt.Click("Copy connection log"); err != nil {
+		t.Fatal(err)
+	}
+	if tt.Clipboard() != a.flows[0].conn.log {
+		t.Fatalf("clipboard = %q", tt.Clipboard())
+	}
+	if err := tt.Click("Errors"); err != nil {
+		t.Fatal(err)
+	}
+	if len(a.visible) != 1 {
+		t.Fatal("TLS failure missing from Errors filter")
+	}
+}
+
 func TestCaptureTableScrollsAndKeepsEachViewsPlace(t *testing.T) {
 	a := workspaceApp()
 	a.flows = nil

@@ -5,6 +5,7 @@ package capture
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"crypto/tls"
 	"crypto/x509"
@@ -27,6 +28,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 	"github.com/lqqyt2423/go-mitmproxy/proxy"
@@ -220,21 +222,27 @@ const (
 
 // Breakpoint is an exchange paused for the UI to edit.
 type Breakpoint struct {
-	ID     int
-	Phase  Phase
-	Method string
-	URL    string
-	Status int
-	Body   string
+	ID           int
+	Phase        Phase
+	Method       string
+	URL          string
+	Status       int
+	Body         string
+	Header       http.Header
+	BodyReadOnly bool // binary, undecodable or too large for the text editor
 }
 
 // Decision is what the UI does with a paused exchange.
 type Decision struct {
-	Abort  bool
-	Method string
-	URL    string
-	Status int
-	Body   string
+	Abort       bool
+	AbortStatus int  // 502 by default; the UI also offers 429 and 503
+	Original    bool // discard edits and preserve the message at the breakpoint
+	Method      string
+	URL         string
+	Status      int
+	Body        string
+	Header      http.Header // nil preserves headers; an empty map removes them
+	KeepBody    bool        // header-only edit of a body the text editor cannot represent
 }
 
 // Server is the running MITM proxy. Start it once; Flows drains what it
@@ -756,9 +764,17 @@ func (s *Server) maybeBreak(f *proxy.Flow, phase Phase) *Decision {
 	}
 	if phase == PhaseResponse && f.Response != nil {
 		bp.Status = f.Response.StatusCode
-		bp.Body = bodyText(f.Response.DecodedBody())
+		bp.Header = f.Response.Header.Clone()
 	} else {
-		bp.Body = bodyText(f.Request.DecodedBody())
+		bp.Header = f.Request.Header.Clone()
+	}
+	body, err := f.Request.DecodedBody()
+	if phase == PhaseResponse && f.Response != nil {
+		body, err = f.Response.DecodedBody()
+	}
+	bp.BodyReadOnly = err != nil || len(body) > maxScriptBody || !utf8.Valid(body) || bytes.ContainsRune(body, 0)
+	if !bp.BodyReadOnly {
+		bp.Body = string(body)
 	}
 	select {
 	case s.breakpoints <- bp:
@@ -772,12 +788,15 @@ func (s *Server) maybeBreak(f *proxy.Flow, phase Phase) *Decision {
 	var d *Decision
 	select {
 	case decided := <-ch:
-		d = &decided
+		if !decided.Original {
+			d = &decided
+		}
+	case <-s.closed:
 	case <-time.After(2 * time.Minute):
-		s.bpMu.Lock()
-		delete(s.bpWait, id)
-		s.bpMu.Unlock()
 	}
+	s.bpMu.Lock()
+	delete(s.bpWait, id)
+	s.bpMu.Unlock()
 	// The user's time at the breakpoint is not network time: move the start
 	// forward so the flow's duration stays the exchange's.
 	s.mu.Lock()
@@ -1031,11 +1050,7 @@ func (a *addon) Request(f *proxy.Flow) {
 	}
 	if d := a.server.maybeBreak(f, PhaseRequest); d != nil {
 		if d.Abort {
-			f.Response = &proxy.Response{
-				StatusCode: http.StatusBadGateway,
-				Header:     http.Header{"Content-Type": {"text/plain; charset=utf-8"}},
-				Body:       []byte("aborted at a breakpoint\n"),
-			}
+			f.Response = breakpointAbort(d.AbortStatus)
 			a.server.publish(f)
 			return
 		}
@@ -1047,8 +1062,13 @@ func (a *addon) Request(f *proxy.Flow) {
 				f.Request.URL = u
 			}
 		}
-		f.Request.Body = []byte(d.Body)
-		f.Request.Header.Del("Content-Length")
+		if d.Header != nil {
+			f.Request.Header = d.Header.Clone()
+		}
+		if !d.KeepBody {
+			f.Request.Body = []byte(d.Body)
+			clearBodyEncoding(f.Request.Header)
+		}
 	}
 	if resp := a.server.applyRules(f); resp != nil {
 		f.Response = resp
@@ -1155,22 +1175,30 @@ func (a *addon) StreamResponseModifier(f *proxy.Flow, in io.Reader) io.Reader {
 		return a.server.throttleDown(in)
 	}
 	body, err := f.Response.DecodedBody()
-	if err != nil || len(body) > maxScriptBody {
-		a.server.publish(f)
-		return a.server.throttleDown(in)
-	}
-	f.Response.Body = body
+	scripted = scripted && err == nil && len(body) <= maxScriptBody
 	if scripted {
+		f.Response.Body = body
 		if err := sc.applyResponse(f); err != nil {
 			a.server.scriptErrors.Add(1)
 		}
+		clearBodyEncoding(f.Response.Header)
 	}
+	edited := scripted
+	bodyEdited := scripted
 	if breaking {
 		if d := a.server.maybeBreak(f, PhaseResponse); d != nil {
 			applyResponseDecision(f, d)
+			edited = true
+			bodyEdited = bodyEdited || d.Abort || !d.KeepBody
 		}
 	}
-	f.Response.Header.Del("Content-Encoding")
+	if !edited {
+		a.server.publish(f)
+		return a.server.throttleDown(in)
+	}
+	if bodyEdited {
+		clearBodyEncoding(f.Response.Header)
+	}
 	f.Response.Header.Set("Content-Length", strconv.Itoa(len(f.Response.Body)))
 	a.server.publish(f)
 	// reply writes the returned reader and response.Body both: keep the
@@ -1186,15 +1214,37 @@ func applyResponseDecision(f *proxy.Flow, d *Decision) {
 		return
 	}
 	if d.Abort {
-		f.Response.StatusCode = http.StatusBadGateway
-		f.Response.Header = http.Header{"Content-Type": {"text/plain; charset=utf-8"}}
-		f.Response.Body = []byte("aborted at a breakpoint\n")
+		f.Response = breakpointAbort(d.AbortStatus)
 		return
 	}
 	if d.Status > 0 {
 		f.Response.StatusCode = d.Status
 	}
-	f.Response.Body = []byte(d.Body)
+	if d.Header != nil {
+		f.Response.Header = d.Header.Clone()
+	}
+	if !d.KeepBody {
+		f.Response.Body = []byte(d.Body)
+	}
+}
+
+func breakpointAbort(status int) *proxy.Response {
+	if status != http.StatusTooManyRequests && status != http.StatusServiceUnavailable {
+		status = http.StatusBadGateway
+	}
+	return &proxy.Response{
+		StatusCode: status,
+		Header:     http.Header{"Content-Type": {"text/plain; charset=utf-8"}},
+		Body:       []byte("aborted at a breakpoint\n"),
+	}
+}
+
+// The editor holds decoded bytes, so edited messages need fresh framing and
+// must not retain the original encoding or integrity fields.
+func clearBodyEncoding(h http.Header) {
+	for _, name := range []string{"Content-Length", "Transfer-Encoding", "Content-Encoding", "Content-MD5", "Digest", "Content-Digest", "Repr-Digest"} {
+		h.Del(name)
+	}
 }
 
 func isSSE(r *proxy.Response) bool {
@@ -1403,9 +1453,20 @@ func (s *Server) keepTrailers(f *proxy.Flow, side string, trailer http.Header) {
 // publishError shows a request that never reached its server as the gateway
 // error the client got, with the reason in the body.
 func (s *Server) publishError(f *proxy.Flow, err error) {
+	f.Error = err
 	kind := "http"
 	if f.Request != nil && f.Request.Method == "CONNECT" {
 		kind = "connect"
+	}
+	if cc := f.ConnContext; cc != nil {
+		events := cc.ConnectionEvents()
+		if len(events) == 0 || events[len(events)-1].Error == "" || events[len(events)-1].At.Before(f.StartTime) {
+			stage := "HTTP"
+			if kind == "connect" {
+				stage = "CONNECT"
+			}
+			cc.RecordEvent(stage, "Exchange failed", err)
+		}
 	}
 	if f.Response == nil {
 		f.Response = &proxy.Response{
@@ -1619,33 +1680,71 @@ type ConnInfo struct {
 
 	// Reused says the connection was already open, so this request spent no
 	// time on connect or TLS; DNSFresh says the lookup happened during it.
-	Reused   bool
-	DNSFresh bool
+	Reused     bool
+	DNSFresh   bool
+	Log        string // immutable connection history and metadata, also saved in sessions
+	Error      string // transport failure, independent of an HTTP/CONNECT status
+	ErrorStage string
 }
 
 // connInfo reads the connection an exchange ran over.
 func (s *Server) connInfo(f *proxy.Flow, start time.Time) ConnInfo {
 	var ci ConnInfo
+	var log strings.Builder
 	if f.Request != nil {
 		ci.Proto = f.Request.Proto
 	}
+	if f.Error != nil {
+		ci.Error, ci.ErrorStage = f.Error.Error(), "HTTP"
+	}
 	if cc := f.ConnContext; cc != nil {
+		fmt.Fprintf(&log, "Connection %s\n", cc.Id())
 		if conn := cc.ClientConn; conn != nil && conn.Conn != nil {
 			ci.Client = conn.Conn.RemoteAddr().String()
 			ci.Proxy = conn.Conn.LocalAddr().String()
 		}
 		ci.Flows = int(cc.FlowCount.Load())
 		ci.Reused = ci.Flows > 1
-		if server := cc.ServerConn; server != nil {
+		if ci.Reused {
+			fmt.Fprintf(&log, "Reused connection · request #%d (includes connection setup history)\n", ci.Flows)
+		} else {
+			fmt.Fprintln(&log, "New connection")
+		}
+		events := cc.ConnectionEvents()
+		if f.Error != nil && len(events) > 0 {
+			ci.ErrorStage = events[len(events)-1].Stage
+		}
+		for _, event := range events {
+			fmt.Fprintf(&log, "%s  [%s] %s", event.At.Format("15:04:05.000"), event.Stage, event.Message)
+			if event.Error != "" {
+				fmt.Fprintf(&log, " · FAILED: %s", event.Error)
+			}
+			fmt.Fprintln(&log)
+		}
+		if f.UseSeparateClient {
+			fmt.Fprintln(&log, "Target changed: upstream details are in the separate transport events above, not the original connection's certificate.")
+		}
+		if server := cc.ServerConn; server != nil && !f.UseSeparateClient {
 			ci.Server = server.Address
 			if state := server.TlsState(); state != nil {
 				ci.TLS = tls.VersionName(state.Version)
 				ci.Cipher = tls.CipherSuiteName(state.CipherSuite)
+				fmt.Fprintf(&log, "TLS: %s · %s\nALPN: %s\n", ci.TLS, ci.Cipher, cmp.Or(state.NegotiatedProtocol, "none"))
+				if len(state.VerifiedChains) > 0 {
+					fmt.Fprintln(&log, "Upstream certificate verification: verified")
+				} else {
+					fmt.Fprintln(&log, "Upstream certificate verification: skipped (debugging proxy accepts untrusted certificates)")
+				}
 				if len(state.PeerCertificates) > 0 {
 					leaf := state.PeerCertificates[0]
 					ci.CertCN = leaf.Subject.CommonName
 					ci.Issuer = leaf.Issuer.CommonName
 					ci.CertUntil = leaf.NotAfter.Format("2006-01-02")
+					sans := slices.Clone(leaf.DNSNames)
+					for _, ip := range leaf.IPAddresses {
+						sans = append(sans, ip.String())
+					}
+					fmt.Fprintf(&log, "Certificate: %s · issuer %s · expires %s\nSAN: %s\n", ci.CertCN, ci.Issuer, ci.CertUntil, strings.Join(sans, ", "))
 				}
 			}
 		}
@@ -1661,6 +1760,16 @@ func (s *Server) connInfo(f *proxy.Flow, start time.Time) ConnInfo {
 			ci.DNSFresh = !lookup.At.Before(start)
 		}
 	}
+	if ci.Client != "" {
+		fmt.Fprintf(&log, "Client: %s → proxy %s\n", ci.Client, ci.Proxy)
+	}
+	if ci.Resolved != "" {
+		fmt.Fprintf(&log, "Resolved: %s (%d ms; fresh lookup: %t)\n", ci.Resolved, ci.LookupMs, ci.DNSFresh)
+	}
+	if ci.Error != "" && f.Request != nil && f.Request.Method == "CONNECT" && f.Response != nil && f.Response.StatusCode == 200 {
+		fmt.Fprintln(&log, "CONNECT succeeded, but the subsequent connection failed. No HTTP response from the target was received.")
+	}
+	ci.Log = log.String()
 	return ci
 }
 
