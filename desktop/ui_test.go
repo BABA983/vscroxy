@@ -1674,3 +1674,116 @@ func TestCaptureRegressionCanBeSavedAndSharedOnlyAfterReview(t *testing.T) {
 		t.Fatal("import should open only an unsent, parameterized draft")
 	}
 }
+
+func TestCaptureSelectionSummarizesAndComparesArbitraryRequests(t *testing.T) {
+	a := workspaceApp()
+	a.tablePercent = 35
+	a.flows[0].bytes, a.flows[0].millis = 11, 10
+	a.flows[0].reqHeaders, a.flows[0].resBody = "X-Case: first", "first response"
+	a.flows[1].bytes, a.flows[1].millis, a.flows[1].status = 37, 90, 500
+	third := a.flows[0]
+	third.id, third.path, third.url = 3, "/other", "https://api.example.com/other"
+	third.bytes, third.millis, third.resError = 5, 30, "transfer stopped"
+	third.reqHeaders, third.resBody = "X-Case: third", "third response"
+	a.flows = append(a.flows, third)
+	a.applyFilter()
+	tt := ui.NewTester(a.view, 960, 600)
+	click := func(label string) {
+		t.Helper()
+		if err := tt.Click(label); err != nil {
+			t.Fatal(err)
+		}
+	}
+	click("api.example.com/projects")
+	if err := tt.ClickWith(ui.Shift, "api.example.com/other"); err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"3 requests selected", "Response bytes: 53 B", "Errors: 2", "Incomplete bodies: 1", "Average: 43.3 ms · P50: 30 ms · Max: 90 ms"} {
+		if !tt.HasText(want) {
+			t.Fatalf("missing summary %q in %q", want, tt.Texts())
+		}
+	}
+	click("Compare two") // Disabled for three requests.
+	if tt.HasText("Swap sides") {
+		t.Fatal("compared an ambiguous subset of three requests")
+	}
+	click("api.example.com/projects")
+	if err := tt.ClickWith(ui.Cmd, "api.example.com/other"); err != nil {
+		t.Fatal(err)
+	}
+	if !tt.HasText("Average: 20.0 ms · P50: 10 ms · Max: 30 ms") {
+		t.Fatal("two-item P50 was not nearest rank")
+	}
+	click("Compare two")
+	if !tt.HasText("Left #1 · GET /projects · 200 · 10 ms") || !tt.HasText("Right #3 · GET /other · 200 · 30 ms") {
+		t.Fatalf("different URLs could not be compared: %q", tt.Texts())
+	}
+	copySide := func(side string) string {
+		t.Helper()
+		click(side)
+		tt.Key(ui.Cmd, ui.KeyA)
+		tt.Key(ui.Cmd, ui.KeyC)
+		return tt.Clipboard()
+	}
+	if got := copySide("Old text"); got != "first response" {
+		t.Fatalf("wrong left body: %q", got)
+	}
+	if got := copySide("New text"); got != "third response\n\n… incomplete body: transfer stopped" {
+		t.Fatalf("incomplete body was presented as complete: %q", got)
+	}
+	click("Compare content")
+	click("Request headers")
+	if got := copySide("New text"); got != "X-Case: third" {
+		t.Fatalf("wrong request header comparison: %q", got)
+	}
+	click("Swap sides")
+	click("Unified")
+	if !tt.HasText("Left #3 · GET /other · 200 · 30 ms") || copySide("New text") != "X-Case: first" {
+		t.Fatal("swap/unified lost comparison direction")
+	}
+	a.pending = []capture.Flow{{ID: 4, Method: "GET", Host: "new.example.com", Path: "/incoming", Kind: "http"}}
+	tt.Frame()
+	if !tt.HasText("2 requests selected") || copySide("New text") != "X-Case: first" {
+		t.Fatal("incoming traffic changed the comparison")
+	}
+	click("Inspect focused")
+	if tt.HasText("2 requests selected") {
+		t.Fatal("could not return from summary to one request")
+	}
+}
+
+func TestReplayLinksRevealFilteredSourceAndCompareWithoutGuessingURL(t *testing.T) {
+	a := workspaceApp()
+	a.tablePercent = 35
+	replay := a.flows[0]
+	replay.id, replay.replayOf, replay.path, replay.url = 3, 1, "/redirected", "https://api.example.com/redirected"
+	a.flows = append(a.flows, replay)
+	a.applyFilter()
+	tt := ui.NewTester(a.view, 960, 600)
+	tt.Key(ui.Cmd, ui.KeyF)
+	tt.Type("redirected")
+	if !tt.HasText("Replay of #1") {
+		t.Fatalf("replay source link missing: %q", tt.Texts())
+	}
+	if err := tt.Click("Compare with source"); err != nil {
+		t.Fatal(err)
+	}
+	if !tt.HasText("2 requests selected") || !tt.HasText("Left #1 · GET /projects · 200 · 0 ms") {
+		t.Fatalf("hidden source was not revealed for comparison: %q", tt.Texts())
+	}
+	if err := tt.Click("Summary"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.Click("Inspect #1"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.Click("Replays (1)"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.ChooseMenuItem("#3 · /redirected · 200 · 0 ms"); err != nil {
+		t.Fatal(err)
+	}
+	if !tt.HasText("Replay of #1") {
+		t.Fatal("could not navigate back to replay")
+	}
+}

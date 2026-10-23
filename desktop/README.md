@@ -462,7 +462,7 @@ Map Local and Map Remote rules still apply before forwarding.
 
 Select a flow and press **Replay**: the request goes out again through the
 proxy, so the new exchange is captured like any other and can be diffed
-against the original (same method, scheme and URL). A replay trusts the
+against the original. A replay trusts the
 system's CAs and the proxy's own, so an HTTPS flow replays without the CA
 being trusted machine wide.
 
@@ -471,6 +471,30 @@ Replay completion reports the source and response status with **Inspect replay**
 which opens the exact result in Requests without stealing focus on arrival.
 Diff labels the previous/current sides and explains when no baseline exists;
 an empty previous response is still a valid baseline.
+
+Captured replays have a **Replay of #N** link and **Compare with source** action.
+The original lists its **Replays (N)**, including redirect exchanges. Links use
+the sending connection, not URL matching or an extra upstream request header;
+concurrent sends of the same URL keep their own sources. JSON sessions retain
+these links (HAR does not); a removed source is shown as unavailable.
+
+### Multi-request analysis
+
+Ctrl/Cmd-click or Shift-click to choose requests. Two or more choices replace
+the detail pane with a **Summary**: recorded response bytes, error/incomplete
+counts, average/P50/maximum duration, and the five slowest requests with inspect
+links. P50 uses nearest rank; durations are per captured exchange, not total
+elapsed session time. Errors include HTTP 4xx/5xx, connection failures and
+incomplete bodies. Filters remove hidden requests from the selection.
+
+Choose exactly two rows and press **Compare two**, regardless of their URLs.
+Compare request/response bodies or header blocks, **Swap sides**, and choose
+**Split** or **Unified**. Left starts with the earlier capture; labels identify
+both captures. Bodies use the same bounded 8 MiB preview and incomplete-body
+notices as the inspector. Comparisons are read-only and keep their position
+when unrelated traffic arrives. **Inspect focused** returns to one request.
+The single-request Diff tab still compares with the previous same-method/URL
+response.
 
 ## Requests
 

@@ -73,6 +73,18 @@ func TestSessionRoundTrip(t *testing.T) {
 	}
 }
 
+func TestSessionRetainsReplaySources(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "session.json")
+	flows := []flow{{id: 17, method: "GET", status: 200}, {id: 41, replayOf: 17, method: "GET", status: 201}}
+	if err := writeSession(path, flows, nil); err != nil {
+		t.Fatal(err)
+	}
+	got, _, err := readSession(path)
+	if err != nil || len(got) != 2 || got[0].replayOf != 0 || got[1].replayOf != 17 {
+		t.Fatalf("lost replay relationship: %+v %v", got, err)
+	}
+}
+
 func TestSessionKeepsFullBodiesAndIncompleteState(t *testing.T) {
 	large := strings.Repeat("x", 9<<20) + "session-tail-marker"
 	spill := filepath.Join(t.TempDir(), "body")

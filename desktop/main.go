@@ -100,6 +100,7 @@ type app struct {
 	reqBody      string
 	diff         *editor.DiffState
 	diffBaseline bool
+	analysis     captureAnalysis
 	frames       map[int][]frame
 	messageUI    messagePanel
 	frameLost    atomic.Int64
@@ -494,6 +495,7 @@ func (a *app) replay(f flow) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	reply, err := a.srv.Replay(ctx, capture.Flow{
+		ID:              f.id,
 		Method:          f.method,
 		Scheme:          f.scheme,
 		Host:            f.host,
@@ -709,6 +711,7 @@ func (a *app) drain() {
 		}
 		a.flows = append(a.flows, flow{
 			id:          f.ID,
+			replayOf:    f.ReplayOf,
 			method:      f.Method,
 			scheme:      f.Scheme,
 			host:        f.Host,
@@ -1610,6 +1613,10 @@ func (a *app) detail(c *ui.Context) {
 	// The table may change the choice during this frame. Sync after it draws,
 	// so all detail widgets see the same selected request immediately.
 	a.syncDetail()
+	if selected := a.selectedFlows(); len(selected) > 1 {
+		a.analysisDetail(c, selected)
+		return
+	}
 	t := c.Theme()
 	ui.Column(c).Fill().Background(t.Background).Children(func() {
 		f, ok := a.current()
@@ -1668,6 +1675,9 @@ func (a *app) detail(c *ui.Context) {
 				OnClick(func() { a.connOpen = !a.connOpen })
 			ui.Popover(c, info, &a.connOpen, func() { a.connPanel(c, t, f) })
 		})
+		if ok {
+			a.replayLinks(c, f)
+		}
 		if f.kind == "connect" {
 			if a.tab > 1 {
 				a.tab = 0

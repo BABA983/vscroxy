@@ -19,6 +19,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -954,11 +955,57 @@ func TestReplay(t *testing.T) {
 		t.Fatalf("send returned the wrong response: %+v", reply)
 	}
 	second := waitFlow(t, s)
-	if second.URL != first.URL || second.Method != first.Method {
+	if second.URL != first.URL || second.Method != first.Method || second.ReplayOf != first.ID || first.ReplayOf != 0 {
 		t.Fatalf("replayed %s %s, want %s %s", second.Method, second.URL, first.Method, first.URL)
 	}
 	if calls != 2 {
 		t.Fatalf("upstream calls = %d, want 2", calls)
+	}
+}
+
+func TestConcurrentReplayLineageSurvivesHTTPSRedirects(t *testing.T) {
+	upstream := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/start" {
+			http.Redirect(w, r, "/finish", http.StatusFound)
+			return
+		}
+		fmt.Fprint(w, r.Header.Get("X-Test-Case"))
+	}))
+	defer upstream.Close()
+	s, _ := startServer(t)
+	s.SetSSL(SSLConfig{All: true})
+	var wg sync.WaitGroup
+	for _, source := range []int{17, 41} {
+		wg.Go(func() {
+			r, err := s.Replay(t.Context(), Flow{ID: source, Method: "GET", URL: upstream.URL + "/start", RequestHeader: http.Header{"X-Test-Case": {strconv.Itoa(source)}}})
+			if err != nil || r.ResponseBody != strconv.Itoa(source) {
+				t.Errorf("source %d got %+v: %v", source, r, err)
+			}
+		})
+	}
+	wg.Go(func() {
+		client := clientFor(t, s, s.roots)
+		defer client.CloseIdleConnections()
+		r, err := client.Get(upstream.URL + "/finish")
+		if err != nil {
+			t.Error(err)
+			return
+		}
+		defer r.Body.Close()
+		io.Copy(io.Discard, r.Body)
+	})
+	wg.Wait()
+	seen := map[int]int{}
+	for range 5 {
+		f := waitFlow(t, s)
+		want, _ := strconv.Atoi(f.RequestHeader.Get("X-Test-Case"))
+		if f.ReplayOf != want {
+			t.Fatalf("concurrent replay/redirect mixed its source: %+v", f)
+		}
+		seen[f.ReplayOf]++
+	}
+	if seen[17] != 2 || seen[41] != 2 || seen[0] != 1 {
+		t.Fatalf("redirect lineage = %v", seen)
 	}
 }
 

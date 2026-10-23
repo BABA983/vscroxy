@@ -75,15 +75,17 @@ var hopHeaders = []string{
 // Flow is one captured exchange: what the UI shows and what a replay
 // rebuilds. It is the boundary type of the capture core.
 type Flow struct {
-	ID     int
-	Method string
-	Scheme string
-	Host   string
-	Path   string
-	URL    string
-	Status int
-	Bytes  int
-	Millis int
+	ID int
+	// ReplayOf identifies the original capture; zero for ordinary traffic.
+	ReplayOf int
+	Method   string
+	Scheme   string
+	Host     string
+	Path     string
+	URL      string
+	Status   int
+	Bytes    int
+	Millis   int
 
 	RequestHeaders  string
 	ResponseHeaders string
@@ -259,12 +261,13 @@ type Server struct {
 	autoPort bool
 	running  atomic.Bool
 
-	mu        sync.Mutex
-	started   map[uuid.UUID]time.Time
-	firstByte map[uuid.UUID]time.Time
-	original  map[uuid.UUID]url.URL
-	clients   map[string]procinfo.Process
-	closeOnce sync.Once
+	mu            sync.Mutex
+	started       map[uuid.UUID]time.Time
+	firstByte     map[uuid.UUID]time.Time
+	original      map[uuid.UUID]url.URL
+	clients       map[string]procinfo.Process
+	replayClients map[string]int // replay socket address -> source capture
+	closeOnce     sync.Once
 
 	// bodyDir holds the bodies too large to keep in memory. It is removed
 	// when the server closes.
@@ -337,22 +340,23 @@ func New(addr, caRootPath string) (*Server, error) {
 		addr = "127.0.0.1:7890"
 	}
 	s := &Server{
-		addr:        addr,
-		autoPort:    autoPort,
-		out:         make(chan Flow, queue),
-		started:     make(map[uuid.UUID]time.Time),
-		firstByte:   make(map[uuid.UUID]time.Time),
-		original:    make(map[uuid.UUID]url.URL),
-		clients:     make(map[string]procinfo.Process),
-		dnsHits:     make(map[uuid.UUID]DNSHit),
-		bpWait:      make(map[int]chan Decision),
-		breakpoints: make(chan Breakpoint, 16),
-		frames:      make(chan FrameEvent, queue),
-		flowIDs:     make(map[uuid.UUID]int),
-		frameSeq:    make(map[uuid.UUID]int),
-		streams:     make(map[uuid.UUID]*streamBodies),
-		trailers:    make(map[uuid.UUID]*flowTrailers),
-		closed:      make(chan struct{}),
+		addr:          addr,
+		autoPort:      autoPort,
+		out:           make(chan Flow, queue),
+		started:       make(map[uuid.UUID]time.Time),
+		firstByte:     make(map[uuid.UUID]time.Time),
+		original:      make(map[uuid.UUID]url.URL),
+		clients:       make(map[string]procinfo.Process),
+		replayClients: make(map[string]int),
+		dnsHits:       make(map[uuid.UUID]DNSHit),
+		bpWait:        make(map[int]chan Decision),
+		breakpoints:   make(chan Breakpoint, 16),
+		frames:        make(chan FrameEvent, queue),
+		flowIDs:       make(map[uuid.UUID]int),
+		frameSeq:      make(map[uuid.UUID]int),
+		streams:       make(map[uuid.UUID]*streamBodies),
+		trailers:      make(map[uuid.UUID]*flowTrailers),
+		closed:        make(chan struct{}),
 	}
 	p, err := proxy.NewProxy(&proxy.Options{
 		Addr:              addr,
@@ -925,6 +929,8 @@ func (s *Server) Replay(ctx context.Context, f Flow) (Flow, error) {
 	return s.ReplayWithCookies(ctx, f, nil, true)
 }
 
+type replaySourceKey struct{}
+
 // ReplayWithCookies uses the request workspace's cookie jar, including across
 // redirects. Ordinary capture replay deliberately does not inherit login state.
 // Regression checks stop at the original response instead of following redirects.
@@ -957,12 +963,37 @@ func (s *Server) ReplayWithCookies(ctx context.Context, f Flow, jar http.CookieJ
 	}
 
 	proxyURL := &url.URL{Scheme: "http", Host: s.Addr()}
+	var addresses []string
+	finished := false // guarded by s.mu, including late transport dials
+	defer func() {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		finished = true
+		for _, addr := range addresses {
+			delete(s.replayClients, addr)
+		}
+	}()
 	client := &http.Client{
 		Timeout: 30 * time.Second,
 		Jar:     jar,
 		Transport: &http.Transport{
 			Proxy:           http.ProxyURL(proxyURL),
 			TLSClientConfig: &tls.Config{RootCAs: s.roots},
+			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+				conn, err := (&net.Dialer{}).DialContext(ctx, network, addr)
+				if err == nil && f.ID != 0 {
+					// Register before the transport can send anything. Each send
+					// owns its transport, so concurrent identical URLs cannot mix.
+					s.mu.Lock()
+					if !finished {
+						local := conn.LocalAddr().String()
+						s.replayClients[local] = f.ID
+						addresses = append(addresses, local)
+					}
+					s.mu.Unlock()
+				}
+				return conn, err
+			},
 		},
 	}
 	if !followRedirects {
@@ -1010,6 +1041,16 @@ func (a *addon) ClientDisconnected(client *proxy.ClientConn) {
 func (a *addon) Requestheaders(f *proxy.Flow) {
 	if f.Request == nil {
 		return
+	}
+	if raw := f.Request.Raw(); raw != nil && f.ConnContext != nil && f.ConnContext.ClientConn != nil && f.ConnContext.ClientConn.Conn != nil {
+		a.server.mu.Lock()
+		source := a.server.replayClients[f.ConnContext.ClientConn.Conn.RemoteAddr().String()]
+		a.server.mu.Unlock()
+		if source != 0 {
+			// Keep the link on the exchange even if its socket closes before
+			// capture finishes. No correlation header reaches the upstream.
+			*raw = *raw.WithContext(context.WithValue(raw.Context(), replaySourceKey{}, source))
+		}
 	}
 	if f.Request.Method == "CONNECT" {
 		// A CONNECT the proxy does not decrypt ends here: show the tunnel so
@@ -1640,6 +1681,9 @@ func (s *Server) publishFlow(f *proxy.Flow, kind string, frames []Frame, status 
 		ProcessPath:       client.Path,
 		DNSMapped:         s.dnsMapped(f),
 		Conn:              s.connInfo(f, start),
+	}
+	if raw := f.Request.Raw(); raw != nil {
+		flow.ReplayOf, _ = raw.Context().Value(replaySourceKey{}).(int)
 	}
 	s.mu.Lock()
 	if len(s.flowIDs) > 4096 {
