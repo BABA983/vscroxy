@@ -38,6 +38,7 @@ type requestDocument struct {
 	queryError        string
 	composePre        string
 	composePost       string
+	checks            responseChecks
 	composeTab        int
 	scriptTab         int
 	composeResult     string
@@ -70,6 +71,7 @@ func (d *requestDocument) value() savedRequest {
 		Method: d.composeMethod, URL: d.composeURL, Headers: d.composeHeaders,
 		Body: d.composeBody, Pre: d.composePre, Post: d.composePost,
 		Auth: d.auth, BodyMode: d.bodyMode, Form: slices.Clone(d.formFields),
+		Checks: d.checks,
 	}
 	if r.Auth.Type == "None" {
 		r.Auth = requestAuth{}
@@ -94,7 +96,8 @@ func (a *app) addDocument(r savedRequest, key string) {
 		composeMethod: cmp.Or(r.Method, "GET"), composeURL: r.URL,
 		composeHeaders: r.Headers, composeBody: r.Body,
 		composePre: r.Pre, composePost: r.Post,
-		auth: r.Auth, bodyMode: cmp.Or(r.BodyMode, "Raw"), formFields: slices.Clone(r.Form), composeTab: 2,
+		checks: r.Checks,
+		auth:   r.Auth, bodyMode: cmp.Or(r.BodyMode, "Raw"), formFields: slices.Clone(r.Form), composeTab: 2,
 		baseline: savedRequest{Method: "GET", URL: "https://"},
 	}
 	d.auth.Type = cmp.Or(d.auth.Type, "None")
@@ -245,6 +248,14 @@ func (a *app) composeView(c *ui.Context, t *ui.Theme) {
 				if ui.Button(c, "Save request").FontSize(11).Clicked() {
 					a.saveComposed()
 				}
+				ui.MenuButton(c, "Case", func(m *ui.Menu) {
+					if m.Item("Share regression…").Chosen() {
+						a.openRegressionShare(d.value())
+					}
+					if m.Item("Import regression…").Chosen() {
+						a.importRegression()
+					}
+				}).FontSize(11)
 			})
 			if d.sourceFlow != 0 {
 				ui.Row(c).Height(24).Padding(0, 18).Gap(8).AlignItems(ui.Center).Children(func() {
@@ -289,7 +300,7 @@ func (a *app) composeView(c *ui.Context, t *ui.Theme) {
 			})
 			ui.SplitVerticalPercent(c, &d.requestPercent, func() {
 				ui.Column(c).Fill().Children(func() {
-					ui.Tabs(c, &d.composeTab, "Params", "Auth", "Headers", "Body", "Scripts").Padding(0, 14)
+					ui.Tabs(c, &d.composeTab, "Params", "Auth", "Headers", "Body", "Scripts", "Checks").Padding(0, 14)
 					ui.Divider(c)
 					ui.Column(c).Grow(1).Padding(12, 18).Gap(8).Children(func() {
 						switch d.composeTab {
@@ -309,6 +320,8 @@ func (a *app) composeView(c *ui.Context, t *ui.Theme) {
 							} else {
 								ui.TextArea(c.Key("post"), &d.composePost).Grow(1).Font("monospace").FontSize(12).Label("Post-response script").Placeholder("test(\"status is OK\", res.status === 200)")
 							}
+						case 5:
+							a.checksEditor(c, d, t)
 						}
 					})
 				})
@@ -327,6 +340,19 @@ func (a *app) requestResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 			if r := d.response; r != nil {
 				ui.Text(c, fmt.Sprintf("%d %s", r.Status, http.StatusText(r.Status))).FontSize(11).Bold().TextColor(statusColor(r.Status, t))
 				ui.Text(c, fmt.Sprintf("%d ms · %s", r.Millis, humanBytes(r.Bytes))).FontSize(11).TextColor(t.TextMuted)
+			}
+			if len(d.composeTests) > 0 {
+				passed := 0
+				for _, check := range d.composeTests {
+					if check.Pass {
+						passed++
+					}
+				}
+				color := t.Success
+				if passed != len(d.composeTests) {
+					color = t.Danger
+				}
+				ui.Text(c, fmt.Sprintf("%d/%d passed", passed, len(d.composeTests))).FontSize(11).Bold().TextColor(color)
 			}
 		})
 		ui.Divider(c)
@@ -371,7 +397,7 @@ func (a *app) requestResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 		case 2:
 			ui.Scroll(c).Grow(1).Padding(14, 18).Gap(8).Children(func() {
 				if len(d.composeTests) == 0 {
-					ui.Text(c, "No assertions. Add test(name, pass) in a script.").FontSize(12).TextColor(t.TextMuted)
+					ui.Text(c, "No assertions. Add response Checks or test(name, pass) in a script.").FontSize(12).TextColor(t.TextMuted)
 				}
 				for _, result := range d.composeTests {
 					mark, color := "✓", t.Success

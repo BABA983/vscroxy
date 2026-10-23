@@ -23,8 +23,9 @@ type savedRequest struct {
 	BodyMode   string         `json:"bodyMode,omitempty"`
 	Form       []requestField `json:"form,omitempty"`
 	// Pre runs before the send and may change it; Post sees the response.
-	Pre  string `json:"pre,omitempty"`
-	Post string `json:"post,omitempty"`
+	Pre    string         `json:"pre,omitempty"`
+	Post   string         `json:"post,omitempty"`
+	Checks responseChecks `json:"checks,omitzero"`
 }
 
 // loadRequests reads the saved requests, an empty list when there is no file.

@@ -475,7 +475,7 @@ an empty previous response is still a valid baseline.
 ## Requests
 
 **New request** opens a document tab in **Requests**. Method, URL and **Send**
-are the main action row; **Params**, **Auth**, **Headers**, **Body** and **Scripts**
+are the main action row; **Params**, **Auth**, **Headers**, **Body**, **Scripts** and **Checks**
 select what is being edited. Params edits the URL's query, retaining duplicate
 keys. Auth supports Bearer, Basic and API keys in a header or query parameter;
 explicit auth replaces that header and pre-request scripts run last.
@@ -530,6 +530,53 @@ collection; the sidebar groups the saved requests by collection, and the
 **History** lists what Compose sent, newest first, without repeats of the
 same method and URL, in `~/.vscroxy/history.json`; clicking one fills the
 editor with it again, and **Session → Clear history** empties the list.
+
+### Regression cases
+
+Right-click an HTTP capture and choose **Save as regression…**. This opens an
+unsent Requests draft linked to that capture, with its status as the first
+assertion. Review/edit the request, use `{{base_url}}` and other variables for
+targets/credentials, then **Save request**. The initial capture conversion uses
+the same validated cURL conversion as clipboard export/import: incomplete bodies,
+trailers, tunnels, binary/control-byte bodies and bodies requiring a stdin
+pipeline (roughly 32 KiB) are refused rather than silently changed.
+
+**Checks** supports an optional exact status, exact response header values
+(one `Name: Value` per line; any repeated value can match), and JSON scalar fields
+using RFC 6901 pointers, for example `/items/0/id = 73` or `/ok = true`.
+Use `~1` for `/` and `~0` for `~` in object keys. JSON strings must be quoted;
+missing is not null, numbers are not strings, and large integer IDs are not
+rounded to float64. Numeric comparisons support up to 1024 characters and
+exponents from -10000 to 10000. JSON checks fail for invalid/truncated responses;
+the inline response limit is 8 MiB. All checks must pass.
+
+**Send** and **Runner…** execute these same checks and show pass/fail results.
+An explicitly expected 4xx/5xx is not a Runner failure. Requests with Checks stop
+at redirects to assert the original response; ordinary requests still follow
+redirects. Missing required variables stop the case before sending. Rerunning is
+not a dry run: POST/PUT/DELETE and other requests can change server data, and the
+existing Requests/Runner session cookie jar still applies locally.
+
+**Case → Share regression…** makes a separate, editable preview. It replaces
+the origin with `{{base_url}}`, query values with `{{query_N}}` (supply URL-encoded
+values), non-content-negotiation header values with placeholders and the entire
+request body with `{{request_body}}`. It drops Host/wire-framing/proxy headers,
+URL userinfo/fragments, scripts, local environment values, session cookie-jar
+contents and responses. Explicit Cookie/Authorization headers become variables.
+The name/collection become generic. Paths, parameter names, Accept/Content-Type
+and assertion literals still need manual review; automatic replacement is **not**
+a guarantee of anonymization. Confirm review to copy/export; changing the preview
+requires review again. This affects only the shared copy, not the saved original.
+
+**Case / Session → Import regression…** accepts a versioned `vscroxy-regression`
+JSON file (up to 1 MiB), shows a review gate, then opens an **unsent** draft.
+No scripts, local form files or unknown schema members/versions are accepted.
+Supply your own Variables and verify the target before sending or saving.
+Portable exports currently support raw HTTP text bodies, not file-backed forms,
+WebSocket/SSE conversations, diagnostic archives or CLI/CI execution. Ordinary
+**Export requests**, HAR/session exports and cURL copies are **not** sanitized by
+this feature and may still contain credentials. Case files are written privately
+(0600 on Unix), atomically, but are not encrypted.
 
 ### cURL
 

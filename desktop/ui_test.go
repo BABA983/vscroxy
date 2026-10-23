@@ -571,6 +571,9 @@ func TestBodyModeSurvivesIncomingTraffic(t *testing.T) {
 func TestJSONExpansionSurvivesIncomingTraffic(t *testing.T) {
 	a := workspaceApp()
 	a.tab = 1
+	// Keep the nested disclosure in the visible detail pane. Tester.Click
+	// cannot expand an offscreen row without scrolling it into view first.
+	a.tablePercent = 25
 	a.flows[0].resBody = `{"collapsed":{"hidden":"hidden-value"},"data":{"nested":{"leaf":"expanded-value"}}}`
 	tt := ui.NewTester(a.view, 1280, 800)
 	if err := tt.Click("Pretty"); err != nil {
@@ -1607,5 +1610,67 @@ func TestDeviceOnboardingCertificateHTTPSAndLiveTunnelRevocation(t *testing.T) {
 	reply, err := srv.Replay(t.Context(), capture.Flow{Method: "GET", URL: target.String() + "/after-disable"})
 	if err != nil || reply.Status != 200 || reply.ResponseBody != `{"source":"real TLS upstream","count":19}` {
 		t.Fatalf("local proxy cannot send a new request after LAN revocation: %+v: %v", reply, err)
+	}
+}
+
+func TestCaptureRegressionCanBeSavedAndSharedOnlyAfterReview(t *testing.T) {
+	a := workspaceApp()
+	a.requestsPath = filepath.Join(t.TempDir(), "requests.json")
+	tt := ui.NewTester(a.view, 960, 600)
+	click := func(label string) {
+		t.Helper()
+		if err := tt.Click(label); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := tt.RightClick("api.example.com/projects"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.ChooseMenuItem("Save as regression…"); err != nil {
+		t.Fatal(err)
+	}
+	if a.workspace != 1 || !tt.HasText("RESPONSE CHECKS") || a.sourceFlow != 1 || a.composeWaiting {
+		t.Fatal("capture did not become an unsent regression draft")
+	}
+	click("Save request")
+	loaded, err := loadRequests(a.requestsPath)
+	if err != nil || len(loaded) != 2 || loaded[0].Checks.Status != "200" {
+		t.Fatalf("checks not saved: %+v %v", loaded, err)
+	}
+	click("Case")
+	if err := tt.ChooseMenuItem("Share regression…"); err != nil {
+		t.Fatal(err)
+	}
+	click("Copy case JSON")
+	if tt.Clipboard() != "" {
+		t.Fatal("unreviewed case copied")
+	}
+	click("Confirm regression review")
+	click("Copy case JSON")
+	shared := tt.Clipboard()
+	if _, err := decodeRegression([]byte(shared)); err != nil || strings.Contains(shared, "api.example.com") {
+		t.Fatalf("reviewed clipboard not a sanitized case: %s %v", shared, err)
+	}
+	click("Regression JSON preview")
+	tt.Key(ui.Cmd, ui.KeyA)
+	tt.SetClipboard(shared + "\n")
+	tt.Key(ui.Cmd, ui.KeyV)
+	tt.SetClipboard("not copied")
+	click("Copy case JSON")
+	if tt.Clipboard() != "not copied" {
+		t.Fatal("editing the preview did not revoke review approval")
+	}
+	click("Cancel")
+	a.regressionUI = regressionShare{open: true, importing: true, preview: shared}
+	tt.Frame()
+	count := len(a.documents)
+	click("Open unsent case")
+	if len(a.documents) != count {
+		t.Fatal("unreviewed import opened")
+	}
+	click("Confirm regression review")
+	click("Open unsent case")
+	if len(a.documents) != count+1 || a.composeWaiting || a.response != nil || a.composeURL != "{{base_url}}/projects" {
+		t.Fatal("import should open only an unsent, parameterized draft")
 	}
 }

@@ -228,6 +228,7 @@ type app struct {
 	runner          collectionRunner
 	cookies         *cookieStore
 	cookieUI        cookieEditor
+	regressionUI    regressionShare
 
 	// envs are the variables a request uses as {{name}}, one set in use.
 	envsPath  string
@@ -1044,6 +1045,7 @@ func (a *app) view(c *ui.Context) {
 	a.devicesModal(c, t)
 	a.runnerModal(c, t)
 	a.cookiesModal(c, t)
+	a.regressionModal(c, t)
 	a.protobuf.modal(c, a)
 	a.views.capture(a)
 	if a.workspace != 0 || a.tab != 5 {
@@ -1258,6 +1260,9 @@ func (a *app) toolbar(c *ui.Context, t *ui.Theme) {
 			}
 			if m.Item("Import requests…").Chosen() {
 				a.importRequests()
+			}
+			if m.Item("Import regression…").Chosen() {
+				a.importRegression()
 			}
 			if m.Item("Import cURL…").Chosen() {
 				a.openCurlImport()
@@ -2243,6 +2248,9 @@ func (a *app) rowMenu(c *ui.Context, f flow) func(*ui.Menu) {
 		if m.Item("Save as request").Chosen() {
 			a.saveFlowAsRequest(f)
 		}
+		if m.Item("Save as regression…").Disabled(f.status == 0 || f.method == "CONNECT" || f.kind == "ws").Chosen() {
+			a.regressionFrom(f)
+		}
 		m.Submenu("Create rule", func(m *ui.Menu) {
 			for _, kind := range ruleTypes {
 				label := ruleLabel(kind) + "…"
@@ -2433,6 +2441,9 @@ func (a *app) sendComposed() {
 	}
 	d.composeWaiting, d.composeResult = true, "Sending…"
 	r, env, vars, srv, jar := d.value(), a.activeEnv, a.activeVars(), a.srv, a.requestCookies()
+	if r.Checks != (responseChecks{}) {
+		d.responseTab = 2
+	}
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
@@ -2796,6 +2807,10 @@ func (a *app) saveComposed() bool {
 		return false
 	}
 	r := a.requestDocument.value()
+	if _, _, _, err := r.Checks.parse(); err != nil {
+		a.setMessage("Save: " + err.Error())
+		return false
+	}
 	r.Name, r.Collection = name, strings.TrimSpace(r.Collection)
 	r.Method, r.URL = strings.ToUpper(strings.TrimSpace(cmp.Or(r.Method, "GET"))), strings.TrimSpace(r.URL)
 	list := upsertRequest(slices.Clone(a.requests), r)
