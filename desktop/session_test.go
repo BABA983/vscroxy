@@ -44,7 +44,8 @@ func TestSessionRoundTrip(t *testing.T) {
 		url: "ws://example.com/", status: 101, kind: "ws",
 		reqHeaders: "CONNECT / HTTP/1.1", resHeaders: "HTTP/1.1 101",
 		color: "Red", note: "the frame that breaks it",
-		conn: conn{log: "[TLS client] FAILED: certificate rejected\n", error: "certificate rejected", errorStage: "TLS client"},
+		actions: []string{"No Caching", "Map Remote · /api → https://staging.test/api"},
+		conn:    conn{log: "[TLS client] FAILED: certificate rejected\n", error: "certificate rejected", errorStage: "TLS client"},
 	}}
 	frames := map[int][]frame{7: {
 		{direction: "out", kind: "text", data: "hi"},
@@ -65,11 +66,26 @@ func TestSessionRoundTrip(t *testing.T) {
 	if got[0].color != "Red" || got[0].note != "the frame that breaks it" {
 		t.Fatalf("mark = %q / %q, want it kept", got[0].color, got[0].note)
 	}
+	if strings.Join(got[0].actions, "\n") != strings.Join(flows[0].actions, "\n") {
+		t.Fatal("session lost applied interventions")
+	}
 	if got[0].conn.log != flows[0].conn.log || got[0].conn.error != "certificate rejected" || got[0].conn.errorStage != "TLS client" {
 		t.Fatalf("connection diagnosis lost: %+v", got[0].conn)
 	}
 	if len(gotFrames[7]) != 2 || gotFrames[7][1].data != "hello" {
 		t.Fatalf("frames = %+v", gotFrames)
+	}
+}
+
+func TestSessionRetainsReplaySources(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "session.json")
+	flows := []flow{{id: 17, method: "GET", status: 200}, {id: 41, replayOf: 17, method: "GET", status: 201}}
+	if err := writeSession(path, flows, nil); err != nil {
+		t.Fatal(err)
+	}
+	got, _, err := readSession(path)
+	if err != nil || len(got) != 2 || got[0].replayOf != 0 || got[1].replayOf != 17 {
+		t.Fatalf("lost replay relationship: %+v %v", got, err)
 	}
 }
 

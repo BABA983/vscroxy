@@ -16,12 +16,13 @@ import (
 )
 
 type requestExecution struct {
-	request  *jsRequest
-	response *capture.Flow
-	replies  []string
-	tests    []testResult
-	vars     map[string]string
-	err      error
+	request        *jsRequest
+	response       *capture.Flow
+	replies        []string
+	tests          []testResult
+	vars           map[string]string
+	err            error
+	expectedStatus int
 }
 
 // A single execution is also a runner step. Both use the same encoder,
@@ -29,12 +30,34 @@ type requestExecution struct {
 func executeRequest(ctx context.Context, srv *capture.Server, r savedRequest, vars map[string]string, jar http.CookieJar) requestExecution {
 	run := &scriptRun{vars: maps.Clone(vars)}
 	out := requestExecution{vars: run.vars}
+	status, _, _, err := r.Checks.parse()
+	if err != nil {
+		out.err = err
+		return out
+	}
+	out.expectedStatus = status
+	if r.Checks != (responseChecks{}) {
+		var missing []string
+		for _, name := range requestVariables(r) {
+			if _, ok := vars[name]; !ok {
+				missing = append(missing, name)
+			}
+		}
+		if len(missing) > 0 {
+			out.err = fmt.Errorf("Set environment variables before running: %s", strings.Join(missing, ", "))
+			return out
+		}
+	}
 	req, err := prepareRequest(r, vars)
 	if err != nil {
 		out.err = err
 		return out
 	}
 	out.request = req
+	if isWebSocket(req.URL) && r.Checks != (responseChecks{}) {
+		out.err = fmt.Errorf("response checks require an HTTP(S) request, not a WebSocket exchange")
+		return out
+	}
 	if err := runScriptContext(ctx, r.Pre, run, map[string]any{"req": req}); err != nil {
 		out.err = fmt.Errorf("Pre-request script: %w", err)
 		out.tests, out.vars = run.tests, run.vars
@@ -46,10 +69,11 @@ func executeRequest(ctx context.Context, srv *capture.Server, r savedRequest, va
 			out.err = fmt.Errorf("post-response scripts require an HTTP response")
 		}
 	} else {
-		got, err := srv.ReplayWithCookies(ctx, capture.Flow{Method: req.Method, URL: req.URL, RequestHeader: req.header, RequestBody: req.Body}, jar)
+		got, err := srv.ReplayWithCookies(ctx, capture.Flow{Method: req.Method, URL: req.URL, RequestHeader: req.header, RequestBody: req.Body}, jar, r.Checks == (responseChecks{}))
 		out.err = err
 		if err == nil {
 			out.response = &got
+			run.tests = append(run.tests, r.Checks.evaluate(got)...)
 			res := &jsResponse{Status: got.Status, Body: got.ResponseBody, header: got.ResponseHeader}
 			if err := runScriptContext(ctx, r.Post, run, map[string]any{"res": res, "req": req}); err != nil {
 				out.err = fmt.Errorf("Post-response script: %w", err)
@@ -77,7 +101,7 @@ func (r requestExecution) summary() string {
 }
 
 func (r requestExecution) failed() bool {
-	if r.err != nil || r.response != nil && r.response.Status >= 400 {
+	if r.err != nil || r.response != nil && r.response.Status >= 400 && r.response.Status != r.expectedStatus {
 		return true
 	}
 	return slices.ContainsFunc(r.tests, func(t testResult) bool { return !t.Pass })

@@ -314,6 +314,8 @@ type sessionFile struct {
 
 type sessionFlow struct {
 	ID              int         `json:"id"`
+	ReplayOf        int         `json:"replayOf,omitzero"`
+	Actions         []string    `json:"actions,omitempty"`
 	Method          string      `json:"method"`
 	Scheme          string      `json:"scheme"`
 	Host            string      `json:"host"`
@@ -384,7 +386,9 @@ func sessionFrom(flows []flow, frames map[int][]frame) sessionFile {
 		}
 		saved := sessionFlow{
 			ID: f.id, Method: f.method, Scheme: f.scheme, Host: f.host, Path: f.path, URL: f.url,
-			Status: f.status, Bytes: f.bytes, Millis: f.millis,
+			ReplayOf: f.replayOf,
+			Actions:  f.actions,
+			Status:   f.status, Bytes: f.bytes, Millis: f.millis,
 			ReqHeaders: f.reqHeaders, ResHeaders: f.resHeaders,
 			ReqBody: f.reqBody, ResBody: f.resBody,
 			ReqSize: f.reqSize, ResSize: f.resSize,
@@ -463,7 +467,9 @@ func readSession(path string) ([]flow, map[int][]frame, error) {
 		}
 		flows = append(flows, flow{
 			id: f.ID, method: f.Method, scheme: f.Scheme, host: f.Host, path: f.Path, url: f.URL,
-			status: f.Status, bytes: f.Bytes, millis: f.Millis,
+			replayOf: f.ReplayOf,
+			actions:  f.Actions,
+			status:   f.Status, bytes: f.Bytes, millis: f.Millis,
 			reqHeaders: f.ReqHeaders, resHeaders: f.ResHeaders,
 			reqBody: f.ReqBody, resBody: f.ResBody,
 			reqSize: max(f.ReqSize, len(f.ReqBody)), resSize: max(f.ResSize, len(f.ResBody)),
@@ -603,6 +609,7 @@ func (a *app) openSession() {
 func (a *app) replaceSession(flows []flow, frames map[int][]frame) {
 	a.flows, a.frames = flows, frames
 	a.picked, a.pickedID, a.detailFor = 0, 0, -1
+	a.analysis = captureAnalysis{}
 	a.chosen.Clear()
 	a.views.stopSearch()
 	a.views.cache = bodyCache{}

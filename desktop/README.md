@@ -161,10 +161,17 @@ necessarily the most recently captured request.
 
 **New view** opens another live tab over the same captured traffic, not a new
 proxy or capture session. Each tab retains its own search, sidebar/chip filter,
-status/header/body conditions, sorting and selection. **Filters…** edits content
+status/header/body and triage conditions, sorting and selection. **Filters…** edits content
 conditions; **Saved filters…** saves, reapplies, renames or deletes a named set in
 `~/.vscroxy/views.json`. Saving conditions persists them; live view tabs themselves
 are session-local. Applying a saved filter changes only the active view.
+Saved filters also appear as one-click buttons above the table; click an active
+button again to show all requests in that view. Filters supports comma-separated
+methods, duration in milliseconds, captured response-body bytes, color/marked
+state and case-insensitive note text. Numeric fields accept `<`, `<=`, `=`, `>=`
+or `>` with a non-negative integer. Conditions combine with AND; methods and
+status alternatives combine with OR. The active filter button and footer summary
+make narrowing visible, including when no requests match.
 
 Body conditions search both request and response independently, including whole
 spill files beyond the 8 MiB preview. Searches are case-insensitive, chunked,
@@ -462,20 +469,57 @@ Map Local and Map Remote rules still apply before forwarding.
 
 Select a flow and press **Replay**: the request goes out again through the
 proxy, so the new exchange is captured like any other and can be diffed
-against the original (same method, scheme and URL). A replay trusts the
+against the original. A replay trusts the
 system's CAs and the proxy's own, so an HTTPS flow replays without the CA
 being trusted machine wide.
 
-Ctrl/Cmd+R replays the inspected request; Ctrl/Cmd+Alt+C copies it as cURL.
+Ctrl/Cmd+R opens replay options for the inspected request; Ctrl/Cmd+Alt+C copies it as cURL.
+**Session → Replay chosen…** snapshots the selected HTTP requests and sends them
+in capture order after confirmation. Choose a per-request timeout (30 seconds by
+default, 0 for no timeout), watch sent/failed counts, or stop the batch. Replaying
+can mutate server data; streams and tunnels are excluded.
+
+**Network → No Caching** is a session-only switch, also visible in the status
+bar. New exchanges strip conditional cache headers, send no-cache request
+headers, and remove response validators while forbidding response storage.
+Each exchange snapshots the switch; changes do not rewrite historical captures.
+The detail header's **Applied** line records cache bypass, scripts, edited
+breakpoints and the matching Block/Map Local/Map Remote rule. JSON sessions
+retain this evidence even if the active rules later change.
+
 Replay completion reports the source and response status with **Inspect replay**,
 which opens the exact result in Requests without stealing focus on arrival.
 Diff labels the previous/current sides and explains when no baseline exists;
 an empty previous response is still a valid baseline.
 
+Captured replays have a **Replay of #N** link and **Compare with source** action.
+The original lists its **Replays (N)**, including redirect exchanges. Links use
+the sending connection, not URL matching or an extra upstream request header;
+concurrent sends of the same URL keep their own sources. JSON sessions retain
+these links (HAR does not); a removed source is shown as unavailable.
+
+### Multi-request analysis
+
+Ctrl/Cmd-click or Shift-click to choose requests. Two or more choices replace
+the detail pane with a **Summary**: recorded response bytes, error/incomplete
+counts, average/P50/maximum duration, and the five slowest requests with inspect
+links. P50 uses nearest rank; durations are per captured exchange, not total
+elapsed session time. Errors include HTTP 4xx/5xx, connection failures and
+incomplete bodies. Filters remove hidden requests from the selection.
+
+Choose exactly two rows and press **Compare two**, regardless of their URLs.
+Compare request/response bodies or header blocks, **Swap sides**, and choose
+**Split** or **Unified**. Left starts with the earlier capture; labels identify
+both captures. Bodies use the same bounded 8 MiB preview and incomplete-body
+notices as the inspector. Comparisons are read-only and keep their position
+when unrelated traffic arrives. **Inspect focused** returns to one request.
+The single-request Diff tab still compares with the previous same-method/URL
+response.
+
 ## Requests
 
 **New request** opens a document tab in **Requests**. Method, URL and **Send**
-are the main action row; **Params**, **Auth**, **Headers**, **Body** and **Scripts**
+are the main action row; **Params**, **Auth**, **Headers**, **Body**, **Scripts** and **Checks**
 select what is being edited. Params edits the URL's query, retaining duplicate
 keys. Auth supports Bearer, Basic and API keys in a header or query parameter;
 explicit auth replaces that header and pre-request scripts run last.
@@ -530,6 +574,53 @@ collection; the sidebar groups the saved requests by collection, and the
 **History** lists what Compose sent, newest first, without repeats of the
 same method and URL, in `~/.vscroxy/history.json`; clicking one fills the
 editor with it again, and **Session → Clear history** empties the list.
+
+### Regression cases
+
+Right-click an HTTP capture and choose **Save as regression…**. This opens an
+unsent Requests draft linked to that capture, with its status as the first
+assertion. Review/edit the request, use `{{base_url}}` and other variables for
+targets/credentials, then **Save request**. The initial capture conversion uses
+the same validated cURL conversion as clipboard export/import: incomplete bodies,
+trailers, tunnels, binary/control-byte bodies and bodies requiring a stdin
+pipeline (roughly 32 KiB) are refused rather than silently changed.
+
+**Checks** supports an optional exact status, exact response header values
+(one `Name: Value` per line; any repeated value can match), and JSON scalar fields
+using RFC 6901 pointers, for example `/items/0/id = 73` or `/ok = true`.
+Use `~1` for `/` and `~0` for `~` in object keys. JSON strings must be quoted;
+missing is not null, numbers are not strings, and large integer IDs are not
+rounded to float64. Numeric comparisons support up to 1024 characters and
+exponents from -10000 to 10000. JSON checks fail for invalid/truncated responses;
+the inline response limit is 8 MiB. All checks must pass.
+
+**Send** and **Runner…** execute these same checks and show pass/fail results.
+An explicitly expected 4xx/5xx is not a Runner failure. Requests with Checks stop
+at redirects to assert the original response; ordinary requests still follow
+redirects. Missing required variables stop the case before sending. Rerunning is
+not a dry run: POST/PUT/DELETE and other requests can change server data, and the
+existing Requests/Runner session cookie jar still applies locally.
+
+**Case → Share regression…** makes a separate, editable preview. It replaces
+the origin with `{{base_url}}`, query values with `{{query_N}}` (supply URL-encoded
+values), non-content-negotiation header values with placeholders and the entire
+request body with `{{request_body}}`. It drops Host/wire-framing/proxy headers,
+URL userinfo/fragments, scripts, local environment values, session cookie-jar
+contents and responses. Explicit Cookie/Authorization headers become variables.
+The name/collection become generic. Paths, parameter names, Accept/Content-Type
+and assertion literals still need manual review; automatic replacement is **not**
+a guarantee of anonymization. Confirm review to copy/export; changing the preview
+requires review again. This affects only the shared copy, not the saved original.
+
+**Case / Session → Import regression…** accepts a versioned `vscroxy-regression`
+JSON file (up to 1 MiB), shows a review gate, then opens an **unsent** draft.
+No scripts, local form files or unknown schema members/versions are accepted.
+Supply your own Variables and verify the target before sending or saving.
+Portable exports currently support raw HTTP text bodies, not file-backed forms,
+WebSocket/SSE conversations, diagnostic archives or CLI/CI execution. Ordinary
+**Export requests**, HAR/session exports and cURL copies are **not** sanitized by
+this feature and may still contain credentials. Case files are written privately
+(0600 on Unix), atomically, but are not encrypted.
 
 ### cURL
 

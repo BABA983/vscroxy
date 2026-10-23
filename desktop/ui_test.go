@@ -497,7 +497,7 @@ func TestCaptureSearchAndFilterFailuresAreRecoverable(t *testing.T) {
 	}
 	a.openFilter()
 	tt.Frame()
-	if err := tt.Click("Status"); err != nil {
+	if err := tt.Click("Filter status"); err != nil {
 		t.Fatal(err)
 	}
 	tt.Type("4xx, nonsense")
@@ -507,7 +507,7 @@ func TestCaptureSearchAndFilterFailuresAreRecoverable(t *testing.T) {
 	if !tt.HasText("Use HTTP status codes (100–599), ranges, comparisons or comma-separated alternatives.") {
 		t.Fatal("invalid status expression has no visible validation")
 	}
-	tt.Click("Status")
+	tt.Click("Filter status")
 	tt.Key(ui.Cmd, ui.KeyA)
 	tt.Type("4xx, 5xx")
 	if err := tt.Click("Apply"); err != nil {
@@ -571,6 +571,9 @@ func TestBodyModeSurvivesIncomingTraffic(t *testing.T) {
 func TestJSONExpansionSurvivesIncomingTraffic(t *testing.T) {
 	a := workspaceApp()
 	a.tab = 1
+	// Keep the nested disclosure in the visible detail pane. Tester.Click
+	// cannot expand an offscreen row without scrolling it into view first.
+	a.tablePercent = 25
 	a.flows[0].resBody = `{"collapsed":{"hidden":"hidden-value"},"data":{"nested":{"leaf":"expanded-value"}}}`
 	tt := ui.NewTester(a.view, 1280, 800)
 	if err := tt.Click("Pretty"); err != nil {
@@ -810,7 +813,9 @@ func TestReplayResultDoesNotStealFocusAndKeepsItsSource(t *testing.T) {
 	a.srv = srv
 	source := a.flows[0]
 	source.url = upstream.URL + "/replay"
-	a.replay(source)
+	if err := a.replay(t.Context(), source); err != nil {
+		t.Fatal(err)
+	}
 	tt := ui.NewTester(a.view, 1280, 800)
 	if a.workspace != 0 || !tt.HasText("Inspect replay") {
 		t.Fatal("replay stole focus or gave no route to its result")
@@ -1607,5 +1612,298 @@ func TestDeviceOnboardingCertificateHTTPSAndLiveTunnelRevocation(t *testing.T) {
 	reply, err := srv.Replay(t.Context(), capture.Flow{Method: "GET", URL: target.String() + "/after-disable"})
 	if err != nil || reply.Status != 200 || reply.ResponseBody != `{"source":"real TLS upstream","count":19}` {
 		t.Fatalf("local proxy cannot send a new request after LAN revocation: %+v: %v", reply, err)
+	}
+}
+
+func TestCaptureRegressionCanBeSavedAndSharedOnlyAfterReview(t *testing.T) {
+	a := workspaceApp()
+	a.requestsPath = filepath.Join(t.TempDir(), "requests.json")
+	tt := ui.NewTester(a.view, 960, 600)
+	click := func(label string) {
+		t.Helper()
+		if err := tt.Click(label); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := tt.RightClick("api.example.com/projects"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.ChooseMenuItem("Save as regression…"); err != nil {
+		t.Fatal(err)
+	}
+	if a.workspace != 1 || !tt.HasText("RESPONSE CHECKS") || a.sourceFlow != 1 || a.composeWaiting {
+		t.Fatal("capture did not become an unsent regression draft")
+	}
+	click("Save request")
+	loaded, err := loadRequests(a.requestsPath)
+	if err != nil || len(loaded) != 2 || loaded[0].Checks.Status != "200" {
+		t.Fatalf("checks not saved: %+v %v", loaded, err)
+	}
+	click("Case")
+	if err := tt.ChooseMenuItem("Share regression…"); err != nil {
+		t.Fatal(err)
+	}
+	click("Copy case JSON")
+	if tt.Clipboard() != "" {
+		t.Fatal("unreviewed case copied")
+	}
+	click("Confirm regression review")
+	click("Copy case JSON")
+	shared := tt.Clipboard()
+	if _, err := decodeRegression([]byte(shared)); err != nil || strings.Contains(shared, "api.example.com") {
+		t.Fatalf("reviewed clipboard not a sanitized case: %s %v", shared, err)
+	}
+	click("Regression JSON preview")
+	tt.Key(ui.Cmd, ui.KeyA)
+	tt.SetClipboard(shared + "\n")
+	tt.Key(ui.Cmd, ui.KeyV)
+	tt.SetClipboard("not copied")
+	click("Copy case JSON")
+	if tt.Clipboard() != "not copied" {
+		t.Fatal("editing the preview did not revoke review approval")
+	}
+	click("Cancel")
+	a.regressionUI = regressionShare{open: true, importing: true, preview: shared}
+	tt.Frame()
+	count := len(a.documents)
+	click("Open unsent case")
+	if len(a.documents) != count {
+		t.Fatal("unreviewed import opened")
+	}
+	click("Confirm regression review")
+	click("Open unsent case")
+	if len(a.documents) != count+1 || a.composeWaiting || a.response != nil || a.composeURL != "{{base_url}}/projects" {
+		t.Fatal("import should open only an unsent, parameterized draft")
+	}
+}
+
+func TestCaptureSelectionSummarizesAndComparesArbitraryRequests(t *testing.T) {
+	a := workspaceApp()
+	a.tablePercent = 35
+	a.flows[0].bytes, a.flows[0].millis = 11, 10
+	a.flows[0].reqHeaders, a.flows[0].resBody = "X-Case: first", "first response"
+	a.flows[1].bytes, a.flows[1].millis, a.flows[1].status = 37, 90, 500
+	third := a.flows[0]
+	third.id, third.path, third.url = 3, "/other", "https://api.example.com/other"
+	third.bytes, third.millis, third.resError = 5, 30, "transfer stopped"
+	third.reqHeaders, third.resBody = "X-Case: third", "third response"
+	a.flows = append(a.flows, third)
+	a.applyFilter()
+	tt := ui.NewTester(a.view, 960, 600)
+	click := func(label string) {
+		t.Helper()
+		if err := tt.Click(label); err != nil {
+			t.Fatal(err)
+		}
+	}
+	click("api.example.com/projects")
+	if err := tt.ClickWith(ui.Shift, "api.example.com/other"); err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"3 requests selected", "Response bytes: 53 B", "Errors: 2", "Incomplete bodies: 1", "Average: 43.3 ms · P50: 30 ms · Max: 90 ms"} {
+		if !tt.HasText(want) {
+			t.Fatalf("missing summary %q in %q", want, tt.Texts())
+		}
+	}
+	click("Compare two") // Disabled for three requests.
+	if tt.HasText("Swap sides") {
+		t.Fatal("compared an ambiguous subset of three requests")
+	}
+	click("api.example.com/projects")
+	if err := tt.ClickWith(ui.Cmd, "api.example.com/other"); err != nil {
+		t.Fatal(err)
+	}
+	if !tt.HasText("Average: 20.0 ms · P50: 10 ms · Max: 30 ms") {
+		t.Fatal("two-item P50 was not nearest rank")
+	}
+	click("Compare two")
+	if !tt.HasText("Left #1 · GET /projects · 200 · 10 ms") || !tt.HasText("Right #3 · GET /other · 200 · 30 ms") {
+		t.Fatalf("different URLs could not be compared: %q", tt.Texts())
+	}
+	copySide := func(side string) string {
+		t.Helper()
+		click(side)
+		tt.Key(ui.Cmd, ui.KeyA)
+		tt.Key(ui.Cmd, ui.KeyC)
+		return tt.Clipboard()
+	}
+	if got := copySide("Old text"); got != "first response" {
+		t.Fatalf("wrong left body: %q", got)
+	}
+	if got := copySide("New text"); got != "third response\n\n… incomplete body: transfer stopped" {
+		t.Fatalf("incomplete body was presented as complete: %q", got)
+	}
+	click("Compare content")
+	click("Request headers")
+	if got := copySide("New text"); got != "X-Case: third" {
+		t.Fatalf("wrong request header comparison: %q", got)
+	}
+	click("Swap sides")
+	click("Unified")
+	if !tt.HasText("Left #3 · GET /other · 200 · 30 ms") || copySide("New text") != "X-Case: first" {
+		t.Fatal("swap/unified lost comparison direction")
+	}
+	a.pending = []capture.Flow{{ID: 4, Method: "GET", Host: "new.example.com", Path: "/incoming", Kind: "http"}}
+	tt.Frame()
+	if !tt.HasText("2 requests selected") || copySide("New text") != "X-Case: first" {
+		t.Fatal("incoming traffic changed the comparison")
+	}
+	click("Inspect focused")
+	if tt.HasText("2 requests selected") {
+		t.Fatal("could not return from summary to one request")
+	}
+}
+
+func TestReplayLinksRevealFilteredSourceAndCompareWithoutGuessingURL(t *testing.T) {
+	a := workspaceApp()
+	a.tablePercent = 35
+	replay := a.flows[0]
+	replay.id, replay.replayOf, replay.path, replay.url = 3, 1, "/redirected", "https://api.example.com/redirected"
+	a.flows = append(a.flows, replay)
+	a.applyFilter()
+	tt := ui.NewTester(a.view, 960, 600)
+	tt.Key(ui.Cmd, ui.KeyF)
+	tt.Type("redirected")
+	if !tt.HasText("Replay of #1") {
+		t.Fatalf("replay source link missing: %q", tt.Texts())
+	}
+	if err := tt.Click("Compare with source"); err != nil {
+		t.Fatal(err)
+	}
+	if !tt.HasText("2 requests selected") || !tt.HasText("Left #1 · GET /projects · 200 · 0 ms") {
+		t.Fatalf("hidden source was not revealed for comparison: %q", tt.Texts())
+	}
+	if err := tt.Click("Summary"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.Click("Inspect #1"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.Click("Replays (1)"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.ChooseMenuItem("#3 · /redirected · 200 · 0 ms"); err != nil {
+		t.Fatal(err)
+	}
+	if !tt.HasText("Replay of #1") {
+		t.Fatal("could not navigate back to replay")
+	}
+}
+
+func TestBatchReplaySendsChosenRequestsInOrder(t *testing.T) {
+	paths := make(chan string, 3)
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		paths <- r.Method + " " + r.URL.Path
+		io.WriteString(w, "replayed")
+	}))
+	defer upstream.Close()
+	srv, err := capture.New("127.0.0.1:0", t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer srv.Close()
+	if err := srv.Start(); err != nil {
+		t.Fatal(err)
+	}
+	a := workspaceApp()
+	a.srv = srv
+	a.flows[0].url, a.flows[1].url = upstream.URL+"/first", upstream.URL+"/second"
+	a.chosen.Add(1)
+	a.chosen.Add(2)
+	tt := ui.NewTester(a.view, 960, 600)
+	tt.Click("Session")
+	if err := tt.ChooseMenuItem("Replay chosen…"); err != nil {
+		t.Fatal(err)
+	}
+	if !tt.HasText("Replay 2 requests") {
+		t.Fatal("chosen requests were not snapshotted")
+	}
+	tt.Click("Replay timeout")
+	tt.Key(ui.Ctrl, ui.KeyA)
+	tt.Type("0")
+	if err := tt.Click("Send replays"); err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for a.replayUI.updates != nil && time.Now().Before(deadline) {
+		time.Sleep(time.Millisecond)
+		tt.Frame()
+	}
+	if !tt.HasText("2/2 sent · 0 failed") || a.workspace != 0 {
+		t.Fatalf("batch incomplete or stole focus: %v", tt.Texts())
+	}
+	if first, second := <-paths, <-paths; first != "GET /first" || second != "POST /second" {
+		t.Fatalf("replay order: %q %q", first, second)
+	}
+}
+
+func TestTriageFiltersAndQuickPresetsStayWithTheirView(t *testing.T) {
+	a := workspaceApp()
+	a.views.init(a, filepath.Join(t.TempDir(), "views.json"))
+	base := flow{id: 1, method: "POST", status: 503, millis: 501, resSize: 99, color: "Red", note: "Checkout regression"}
+	a.flows = []flow{base}
+	for i := range 5 {
+		other := base
+		other.id = i + 2
+		switch i {
+		case 0:
+			other.method = "GET"
+		case 1:
+			other.millis = 500
+		case 2:
+			other.resSize = 100
+		case 3:
+			other.color = "Blue"
+		case 4:
+			other.note = "Unrelated"
+		}
+		a.flows = append(a.flows, other)
+	}
+	a.applyFilter()
+	tt := ui.NewTester(a.view, 960, 600)
+	tt.Click("Filters…")
+	for _, field := range []struct{ label, value string }{
+		{"Filter method", "post, put"}, {"Duration (ms)", ">500"}, {"Response size (bytes)", "<100"}, {"Filter note", "CHECKOUT"},
+	} {
+		if err := tt.Click(field.label); err != nil {
+			t.Fatal(err)
+		}
+		tt.Type(field.value)
+	}
+	tt.Click("Filter color")
+	tt.Key(0, ui.KeyDown)
+	tt.Key(0, ui.KeyDown)
+	tt.Key(0, ui.KeyEnter) // Any → Marked → Red
+	tt.Click("Apply")
+	if len(a.visible) != 1 || a.flows[a.visible[0]].id != 1 {
+		t.Fatalf("AND conditions or strict boundaries are wrong: %v", visibleIDs(a))
+	}
+	tt.Click("Saved filters…")
+	tt.Click("Filter name")
+	tt.Key(ui.Ctrl, ui.KeyA)
+	tt.Type("Checkout failures")
+	tt.Click("Save filter")
+	tt.Click("Close")
+	filters, err := loadCaptureFilters(a.views.path)
+	if err != nil || len(filters) != 1 || filters[0].Triage.Color != "Red" || filters[0].Triage.Duration != ">500" {
+		t.Fatalf("triage conditions not saved: %+v %v", filters, err)
+	}
+	tt.Click("New view")
+	if len(a.visible) != 6 {
+		t.Fatal("new view inherited triage")
+	}
+	if err := tt.Click("Quick filter: Checkout failures"); err != nil {
+		t.Fatal(err)
+	}
+	if len(a.visible) != 1 {
+		t.Fatal("one-click filter not applied")
+	}
+	tt.Click("Quick filter: Checkout failures")
+	if len(a.visible) != 6 {
+		t.Fatal("one-click filter could not be toggled off")
+	}
+	a.views.activate(a, 0)
+	if len(a.visible) != 1 {
+		t.Fatal("quick filter altered the other view")
 	}
 }

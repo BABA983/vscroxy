@@ -100,6 +100,8 @@ type app struct {
 	reqBody      string
 	diff         *editor.DiffState
 	diffBaseline bool
+	analysis     captureAnalysis
+	replayUI     replaySetup
 	frames       map[int][]frame
 	messageUI    messagePanel
 	frameLost    atomic.Int64
@@ -195,6 +197,7 @@ type app struct {
 	filterStatus string
 	filterHeader string
 	filterBody   string
+	filterTriage captureTriage
 	views        captureViews
 	columnOpen   bool
 	columnName   string
@@ -228,6 +231,7 @@ type app struct {
 	runner          collectionRunner
 	cookies         *cookieStore
 	cookieUI        cookieEditor
+	regressionUI    regressionShare
 
 	// envs are the variables a request uses as {{name}}, one set in use.
 	envsPath  string
@@ -486,13 +490,12 @@ func (a *app) revealCA() {
 
 // replay sends the flow's request again through the proxy, so the result is
 // captured like any other exchange.
-func (a *app) replay(f flow) {
+func (a *app) replay(ctx context.Context, f flow) error {
 	if a.srv == nil || !a.srv.Running() || f.url == "" {
-		return
+		return fmt.Errorf("capture proxy is not available")
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
 	reply, err := a.srv.Replay(ctx, capture.Flow{
+		ID:              f.id,
 		Method:          f.method,
 		Scheme:          f.scheme,
 		Host:            f.host,
@@ -503,13 +506,13 @@ func (a *app) replay(f flow) {
 		RequestBodyFile: f.reqFile,
 	})
 	if err != nil {
-		a.setMessage("Replay failed: " + err.Error())
-		return
+		return err
 	}
 	a.mu.Lock()
 	a.replayResults = append(a.replayResults, replayResult{source: f, reply: reply})
 	a.mu.Unlock()
 	a.invalidate()
+	return nil
 }
 
 func (a *app) startCapture() {
@@ -708,6 +711,8 @@ func (a *app) drain() {
 		}
 		a.flows = append(a.flows, flow{
 			id:          f.ID,
+			replayOf:    f.ReplayOf,
+			actions:     f.Actions,
 			method:      f.Method,
 			scheme:      f.Scheme,
 			host:        f.Host,
@@ -833,6 +838,9 @@ func (a *app) applyFilter() {
 		if a.filterHeader != "" && !headerMatches(f, a.filterHeader) {
 			continue
 		}
+		if !a.filterTriage.matches(f) {
+			continue
+		}
 		if a.filterBody != "" && !strings.Contains(strings.ToLower(f.reqBody+f.resBody), strings.ToLower(a.filterBody)) {
 			continue
 		}
@@ -952,7 +960,7 @@ func (a *app) view(c *ui.Context) {
 		})
 		c.OnShortcut(ui.Cmd, ui.KeyR, func() {
 			if f, ok := a.current(); ok && f.kind == "" {
-				go a.replay(f)
+				a.openReplay([]flow{f})
 			}
 		})
 	}
@@ -1044,6 +1052,8 @@ func (a *app) view(c *ui.Context) {
 	a.devicesModal(c, t)
 	a.runnerModal(c, t)
 	a.cookiesModal(c, t)
+	a.regressionModal(c, t)
+	a.replayModal(c, t)
 	a.protobuf.modal(c, a)
 	a.views.capture(a)
 	if a.workspace != 0 || a.tab != 5 {
@@ -1184,6 +1194,10 @@ func (a *app) toolbar(c *ui.Context, t *ui.Theme) {
 			networkLabel = "Network · LAN"
 		}
 		ui.MenuButton(c, networkLabel, func(m *ui.Menu) {
+			if m.Item("No Caching").Checked(a.srv != nil && a.srv.NoCaching()).Disabled(a.srv == nil).Chosen() {
+				a.srv.SetNoCaching(!a.srv.NoCaching())
+			}
+			m.Separator()
 			if m.Item("Connect a device…").Checked(a.deviceUI.gateway != nil).Chosen() {
 				a.openDevices()
 			}
@@ -1223,6 +1237,16 @@ func (a *app) toolbar(c *ui.Context, t *ui.Theme) {
 			}
 		}).FontSize(11).Height(28).TextColor(t.TextMuted).Border(0, t.Border)
 		ui.MenuButton(c, "Session", func(m *ui.Menu) {
+			if m.Item("Replay chosen…").Disabled(a.chosen.Len() == 0).Chosen() {
+				var selected []flow
+				for _, f := range a.flows {
+					if a.chosen.Has(f.id) {
+						selected = append(selected, f)
+					}
+				}
+				a.openReplay(selected)
+			}
+			m.Separator()
 			if m.Item("Export HAR…").Chosen() {
 				a.exportHAR()
 			}
@@ -1258,6 +1282,9 @@ func (a *app) toolbar(c *ui.Context, t *ui.Theme) {
 			}
 			if m.Item("Import requests…").Chosen() {
 				a.importRequests()
+			}
+			if m.Item("Import regression…").Chosen() {
+				a.importRegression()
 			}
 			if m.Item("Import cURL…").Chosen() {
 				a.openCurlImport()
@@ -1605,6 +1632,10 @@ func (a *app) detail(c *ui.Context) {
 	// The table may change the choice during this frame. Sync after it draws,
 	// so all detail widgets see the same selected request immediately.
 	a.syncDetail()
+	if selected := a.selectedFlows(); len(selected) > 1 {
+		a.analysisDetail(c, selected)
+		return
+	}
 	t := c.Theme()
 	ui.Column(c).Fill().Background(t.Background).Children(func() {
 		f, ok := a.current()
@@ -1630,7 +1661,7 @@ func (a *app) detail(c *ui.Context) {
 				ui.Text(c, f.note).FontSize(12).TextColor(t.TextMuted).SingleLine().Width(220).Tooltip(f.note)
 			}
 			if ui.Button(c, "Replay").Disabled(f.url == "" || f.kind != "").Clicked() {
-				go a.replay(f)
+				a.openReplay([]flow{f})
 			}
 			status := strconv.Itoa(f.status)
 			color := f.statusColor(t)
@@ -1663,6 +1694,13 @@ func (a *app) detail(c *ui.Context) {
 				OnClick(func() { a.connOpen = !a.connOpen })
 			ui.Popover(c, info, &a.connOpen, func() { a.connPanel(c, t, f) })
 		})
+		if ok {
+			a.replayLinks(c, f)
+			if len(f.actions) > 0 {
+				ui.Text(c, "Applied: "+strings.Join(f.actions, " · ")).FontSize(11).TextColor(t.Accent).
+					Padding(4, 12).SingleLine().Tooltip(strings.Join(f.actions, "\n"))
+			}
+		}
 		if f.kind == "connect" {
 			if a.tab > 1 {
 				a.tab = 0
@@ -1798,6 +1836,7 @@ func (a *app) saveMark() {
 		}
 	}
 	a.markOpen = false
+	a.applyFilter()
 	a.invalidate()
 	a.setMessage("Marked")
 }
@@ -1986,6 +2025,11 @@ func (a *app) statusBar(c *ui.Context, t *ui.Theme) {
 			return ui.Text(c, s).FontSize(11).TextColor(color).SingleLine()
 		}
 		label(fmt.Sprintf("%d flows · %d shown", len(a.flows), len(a.visible)), t.TextMuted)
+		if a.srv != nil && a.srv.NoCaching() {
+			if ui.Button(c, "No Caching · on").FontSize(11).Height(22).Tooltip("Click to restore normal caching for new requests").Clicked() {
+				a.srv.SetNoCaching(false)
+			}
+		}
 		captured := humanBytes(int(a.totalBytes))
 		if a.totalBytes == 0 {
 			captured = "0 B"
@@ -2243,6 +2287,9 @@ func (a *app) rowMenu(c *ui.Context, f flow) func(*ui.Menu) {
 		if m.Item("Save as request").Chosen() {
 			a.saveFlowAsRequest(f)
 		}
+		if m.Item("Save as regression…").Disabled(f.status == 0 || f.method == "CONNECT" || f.kind == "ws").Chosen() {
+			a.regressionFrom(f)
+		}
 		m.Submenu("Create rule", func(m *ui.Menu) {
 			for _, kind := range ruleTypes {
 				label := ruleLabel(kind) + "…"
@@ -2255,7 +2302,7 @@ func (a *app) rowMenu(c *ui.Context, f flow) func(*ui.Menu) {
 			}
 		})
 		if m.Item("Replay").Chosen() {
-			go a.replay(f)
+			a.openReplay([]flow{f})
 		}
 	}
 }
@@ -2433,6 +2480,9 @@ func (a *app) sendComposed() {
 	}
 	d.composeWaiting, d.composeResult = true, "Sending…"
 	r, env, vars, srv, jar := d.value(), a.activeEnv, a.activeVars(), a.srv, a.requestCookies()
+	if r.Checks != (responseChecks{}) {
+		d.responseTab = 2
+	}
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
@@ -2515,7 +2565,7 @@ func (a *app) setKeyLog(path string) {
 
 // filtersActive says whether a content filter narrows the table.
 func (a *app) filtersActive() bool {
-	return a.filterStatus != "" || a.filterHeader != "" || a.views.bodyFilter() != ""
+	return a.filterStatus != "" || a.filterHeader != "" || a.views.bodyFilter() != "" || a.filterTriage != (captureTriage{})
 }
 
 // filterSummary is what the status bar says about the filters in use.
@@ -2530,6 +2580,7 @@ func (a *app) filterSummary() string {
 	if body := a.views.bodyFilter(); body != "" {
 		parts = append(parts, "body "+body)
 	}
+	parts = append(parts, a.filterTriage.summary()...)
 	return strings.Join(parts, " · ")
 }
 
@@ -2796,6 +2847,10 @@ func (a *app) saveComposed() bool {
 		return false
 	}
 	r := a.requestDocument.value()
+	if _, _, _, err := r.Checks.parse(); err != nil {
+		a.setMessage("Save: " + err.Error())
+		return false
+	}
 	r.Name, r.Collection = name, strings.TrimSpace(r.Collection)
 	r.Method, r.URL = strings.ToUpper(strings.TrimSpace(cmp.Or(r.Method, "GET"))), strings.TrimSpace(r.URL)
 	list := upsertRequest(slices.Clone(a.requests), r)

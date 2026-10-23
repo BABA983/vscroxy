@@ -75,15 +75,19 @@ var hopHeaders = []string{
 // Flow is one captured exchange: what the UI shows and what a replay
 // rebuilds. It is the boundary type of the capture core.
 type Flow struct {
-	ID     int
-	Method string
-	Scheme string
-	Host   string
-	Path   string
-	URL    string
-	Status int
-	Bytes  int
-	Millis int
+	ID int
+	// ReplayOf identifies the original capture; zero for ordinary traffic.
+	ReplayOf int
+	// Actions records interventions applied to this exchange, not today's rules.
+	Actions []string
+	Method  string
+	Scheme  string
+	Host    string
+	Path    string
+	URL     string
+	Status  int
+	Bytes   int
+	Millis  int
 
 	RequestHeaders  string
 	ResponseHeaders string
@@ -259,12 +263,13 @@ type Server struct {
 	autoPort bool
 	running  atomic.Bool
 
-	mu        sync.Mutex
-	started   map[uuid.UUID]time.Time
-	firstByte map[uuid.UUID]time.Time
-	original  map[uuid.UUID]url.URL
-	clients   map[string]procinfo.Process
-	closeOnce sync.Once
+	mu            sync.Mutex
+	started       map[uuid.UUID]time.Time
+	firstByte     map[uuid.UUID]time.Time
+	original      map[uuid.UUID]url.URL
+	clients       map[string]procinfo.Process
+	replayClients map[string]int // replay socket address -> source capture
+	closeOnce     sync.Once
 
 	// bodyDir holds the bodies too large to keep in memory. It is removed
 	// when the server closes.
@@ -321,6 +326,7 @@ type Server struct {
 	ignoreApps atomic.Value // []string
 
 	breakOn     atomic.Bool
+	noCaching   atomic.Bool
 	bpNext      atomic.Int64
 	bpMu        sync.Mutex
 	bpWait      map[int]chan Decision
@@ -337,22 +343,23 @@ func New(addr, caRootPath string) (*Server, error) {
 		addr = "127.0.0.1:7890"
 	}
 	s := &Server{
-		addr:        addr,
-		autoPort:    autoPort,
-		out:         make(chan Flow, queue),
-		started:     make(map[uuid.UUID]time.Time),
-		firstByte:   make(map[uuid.UUID]time.Time),
-		original:    make(map[uuid.UUID]url.URL),
-		clients:     make(map[string]procinfo.Process),
-		dnsHits:     make(map[uuid.UUID]DNSHit),
-		bpWait:      make(map[int]chan Decision),
-		breakpoints: make(chan Breakpoint, 16),
-		frames:      make(chan FrameEvent, queue),
-		flowIDs:     make(map[uuid.UUID]int),
-		frameSeq:    make(map[uuid.UUID]int),
-		streams:     make(map[uuid.UUID]*streamBodies),
-		trailers:    make(map[uuid.UUID]*flowTrailers),
-		closed:      make(chan struct{}),
+		addr:          addr,
+		autoPort:      autoPort,
+		out:           make(chan Flow, queue),
+		started:       make(map[uuid.UUID]time.Time),
+		firstByte:     make(map[uuid.UUID]time.Time),
+		original:      make(map[uuid.UUID]url.URL),
+		clients:       make(map[string]procinfo.Process),
+		replayClients: make(map[string]int),
+		dnsHits:       make(map[uuid.UUID]DNSHit),
+		bpWait:        make(map[int]chan Decision),
+		breakpoints:   make(chan Breakpoint, 16),
+		frames:        make(chan FrameEvent, queue),
+		flowIDs:       make(map[uuid.UUID]int),
+		frameSeq:      make(map[uuid.UUID]int),
+		streams:       make(map[uuid.UUID]*streamBodies),
+		trailers:      make(map[uuid.UUID]*flowTrailers),
+		closed:        make(chan struct{}),
 	}
 	p, err := proxy.NewProxy(&proxy.Options{
 		Addr:              addr,
@@ -922,12 +929,15 @@ func (s *Server) Close() error {
 // sends of the same URL cannot pick up each other's responses. The preview
 // keeps at most 8 MiB; the capture still keeps the complete exchange.
 func (s *Server) Replay(ctx context.Context, f Flow) (Flow, error) {
-	return s.ReplayWithCookies(ctx, f, nil)
+	return s.ReplayWithCookies(ctx, f, nil, true)
 }
+
+type replaySourceKey struct{}
 
 // ReplayWithCookies uses the request workspace's cookie jar, including across
 // redirects. Ordinary capture replay deliberately does not inherit login state.
-func (s *Server) ReplayWithCookies(ctx context.Context, f Flow, jar http.CookieJar) (Flow, error) {
+// Regression checks stop at the original response instead of following redirects.
+func (s *Server) ReplayWithCookies(ctx context.Context, f Flow, jar http.CookieJar, followRedirects bool) (Flow, error) {
 	rawURL := f.URL
 	if rawURL == "" {
 		rawURL = f.Scheme + "://" + f.Host + f.Path
@@ -956,13 +966,40 @@ func (s *Server) ReplayWithCookies(ctx context.Context, f Flow, jar http.CookieJ
 	}
 
 	proxyURL := &url.URL{Scheme: "http", Host: s.Addr()}
+	var addresses []string
+	finished := false // guarded by s.mu, including late transport dials
+	defer func() {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		finished = true
+		for _, addr := range addresses {
+			delete(s.replayClients, addr)
+		}
+	}()
 	client := &http.Client{
-		Timeout: 30 * time.Second,
-		Jar:     jar,
+		Jar: jar,
 		Transport: &http.Transport{
 			Proxy:           http.ProxyURL(proxyURL),
 			TLSClientConfig: &tls.Config{RootCAs: s.roots},
+			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+				conn, err := (&net.Dialer{}).DialContext(ctx, network, addr)
+				if err == nil && f.ID != 0 {
+					// Register before the transport can send anything. Each send
+					// owns its transport, so concurrent identical URLs cannot mix.
+					s.mu.Lock()
+					if !finished {
+						local := conn.LocalAddr().String()
+						s.replayClients[local] = f.ID
+						addresses = append(addresses, local)
+					}
+					s.mu.Unlock()
+				}
+				return conn, err
+			},
 		},
+	}
+	if !followRedirects {
+		client.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
 	}
 	defer client.CloseIdleConnections()
 	started := time.Now()
@@ -1007,6 +1044,16 @@ func (a *addon) Requestheaders(f *proxy.Flow) {
 	if f.Request == nil {
 		return
 	}
+	if raw := f.Request.Raw(); raw != nil && f.ConnContext != nil && f.ConnContext.ClientConn != nil && f.ConnContext.ClientConn.Conn != nil {
+		a.server.mu.Lock()
+		source := a.server.replayClients[f.ConnContext.ClientConn.Conn.RemoteAddr().String()]
+		a.server.mu.Unlock()
+		if source != 0 {
+			// Keep the link on the exchange even if its socket closes before
+			// capture finishes. No correlation header reaches the upstream.
+			*raw = *raw.WithContext(context.WithValue(raw.Context(), replaySourceKey{}, source))
+		}
+	}
 	if f.Request.Method == "CONNECT" {
 		// A CONNECT the proxy does not decrypt ends here: show the tunnel so
 		// the table says what went through it.
@@ -1018,6 +1065,8 @@ func (a *addon) Requestheaders(f *proxy.Flow) {
 	a.server.mu.Lock()
 	a.server.started[f.Id] = time.Now()
 	a.server.mu.Unlock()
+	a.server.startDebug(f)
+	noCacheRequest(f)
 	// The engine streams a gRPC call instead of buffering it (it sets Stream
 	// before this hook), so it never calls Request for one: apply the rules
 	// here, while the URL and the headers are still the proxy's to change and
@@ -1033,6 +1082,7 @@ func (a *addon) Requestheaders(f *proxy.Flow) {
 
 // Responseheaders notes when the response started, the end of the wait.
 func (a *addon) Responseheaders(f *proxy.Flow) {
+	noCacheResponse(f)
 	a.server.mu.Lock()
 	a.server.firstByte[f.Id] = time.Now()
 	a.server.mu.Unlock()
@@ -1045,10 +1095,14 @@ func (a *addon) Request(f *proxy.Flow) {
 	// The buffered body and its trailers are complete before a breakpoint
 	// or a rule can publish a local response and short-circuit the exchange.
 	a.server.keepTrailers(f, "req", f.Request.Trailers())
-	if err := a.server.currentScript().applyRequest(f); err != nil {
+	script := a.server.currentScript()
+	if err := script.applyRequest(f); err != nil {
 		a.server.scriptErrors.Add(1)
+	} else if script != nil && script.hasRequest {
+		recordAction(f, "Request script")
 	}
 	if d := a.server.maybeBreak(f, PhaseRequest); d != nil {
+		recordAction(f, "Request breakpoint applied")
 		if d.Abort {
 			f.Response = breakpointAbort(d.AbortStatus)
 			a.server.publish(f)
@@ -1070,6 +1124,7 @@ func (a *addon) Request(f *proxy.Flow) {
 			clearBodyEncoding(f.Request.Header)
 		}
 	}
+	noCacheRequest(f)
 	if resp := a.server.applyRules(f); resp != nil {
 		f.Response = resp
 		// A rule that answers the request itself short-circuits the engine,
@@ -1145,6 +1200,7 @@ func (a *addon) Response(f *proxy.Flow) {
 // StreamRequestModifier keeps a request body the engine streams instead of
 // buffering, and paces what goes upstream.
 func (a *addon) StreamRequestModifier(f *proxy.Flow, in io.Reader) io.Reader {
+	noCacheRequest(f)
 	// The engine skipped Request for a body past the buffering threshold, so
 	// this reader is all of it, the buffered prefix included: keep it.
 	if f.Stream && f.Request != nil && f.Request.Body == nil {
@@ -1156,6 +1212,7 @@ func (a *addon) StreamRequestModifier(f *proxy.Flow, in io.Reader) io.Reader {
 // StreamResponseModifier runs the response script on the body before the
 // client gets it, and publishes the flow after the edit.
 func (a *addon) StreamResponseModifier(f *proxy.Flow, in io.Reader) io.Reader {
+	noCacheResponse(f)
 	if f.Response == nil {
 		return a.server.throttleDown(in)
 	}
@@ -1180,6 +1237,8 @@ func (a *addon) StreamResponseModifier(f *proxy.Flow, in io.Reader) io.Reader {
 		f.Response.Body = body
 		if err := sc.applyResponse(f); err != nil {
 			a.server.scriptErrors.Add(1)
+		} else {
+			recordAction(f, "Response script")
 		}
 		clearBodyEncoding(f.Response.Header)
 	}
@@ -1187,6 +1246,7 @@ func (a *addon) StreamResponseModifier(f *proxy.Flow, in io.Reader) io.Reader {
 	bodyEdited := scripted
 	if breaking {
 		if d := a.server.maybeBreak(f, PhaseResponse); d != nil {
+			recordAction(f, "Response breakpoint applied")
 			applyResponseDecision(f, d)
 			edited = true
 			bodyEdited = bodyEdited || d.Abort || !d.KeepBody
@@ -1278,12 +1338,14 @@ func (s *Server) applyRules(f *proxy.Flow) *proxy.Response {
 		}
 		switch r.Type {
 		case RuleBlock:
+			recordAction(f, "Block · "+r.Match)
 			return &proxy.Response{
 				StatusCode: http.StatusForbidden,
 				Header:     http.Header{"Content-Type": {"text/plain; charset=utf-8"}},
 				Body:       []byte("blocked by vscroxy\n"),
 			}
 		case RuleMapLocal:
+			recordAction(f, "Map Local · "+r.Match+" → "+r.Target)
 			body, err := readMockBody(r.Target)
 			if err != nil {
 				return &proxy.Response{
@@ -1315,6 +1377,7 @@ func (s *Server) applyRules(f *proxy.Flow) *proxy.Response {
 			if err != nil {
 				return nil
 			}
+			recordAction(f, "Map Remote · "+r.Match+" → "+u.String())
 			// Keep the URL the client asked for: the table shows that one,
 			// and a replay sends it again.
 			s.mu.Lock()
@@ -1487,6 +1550,7 @@ func (s *Server) publishFlow(f *proxy.Flow, kind string, frames []Frame, status 
 	if f.Request == nil {
 		return 0
 	}
+	noCacheResponse(f)
 	var streamed *streamBodies
 	if len(bodies) > 0 {
 		streamed = bodies[0]
@@ -1604,6 +1668,7 @@ func (s *Server) publishFlow(f *proxy.Flow, kind string, frames []Frame, status 
 	}
 	flow := Flow{
 		ID:                int(s.nextID.Add(1)),
+		Actions:           debugActions(f),
 		Method:            method,
 		Scheme:            shown.Scheme,
 		Host:              shown.Host,
@@ -1636,6 +1701,9 @@ func (s *Server) publishFlow(f *proxy.Flow, kind string, frames []Frame, status 
 		ProcessPath:       client.Path,
 		DNSMapped:         s.dnsMapped(f),
 		Conn:              s.connInfo(f, start),
+	}
+	if raw := f.Request.Raw(); raw != nil {
+		flow.ReplayOf, _ = raw.Context().Value(replaySourceKey{}).(int)
 	}
 	s.mu.Lock()
 	if len(s.flowIDs) > 4096 {

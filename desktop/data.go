@@ -15,6 +15,8 @@ import (
 // detail panes inspect. It stands in for what the capture core will produce.
 type flow struct {
 	id          int
+	replayOf    int
+	actions     []string
 	method      string
 	scheme      string
 	host        string
