@@ -480,12 +480,37 @@ PowerShell and Windows CMD quoting are not supported. Commands are limited to
 
 **Copy cURL** beside **Send** copies the active draft; **Copy as cURL** in a
 captured row's menu copies that exchange. Variables stay unexpanded and scripts
-are not run. GET bodies keep an explicit GET method; quotes are escaped, empty
-headers preserved, and stale Host/Content-Length/connection headers omitted.
-Captured spilled bodies are read in full rather than copying just the 64 KiB
-head; missing files, binary/NUL bodies or commands over 16 MiB produce an error
-and leave the clipboard untouched. This is a text-body export, not a multipart
-file exporter. Credentials/cookies are included when present: review before sharing.
+are not run. Commands target Bash/POSIX shells, not PowerShell or CMD. GET bodies
+keep an explicit GET method; HEAD uses curl's head mode. Quotes, duplicate/empty
+headers and an explicit Host are preserved; wire framing and connection-only
+headers are removed. Captured decoded bodies omit stale content-encoding/digest
+headers, while drafts retain their authored encodings. Curl's default Accept,
+User-Agent and Content-Type are suppressed when absent, and a captured
+Accept-Encoding also enables response decompression. TLS verification stays on;
+the command ignores `.curlrc` but still uses curl's normal proxy environment.
+
+Captured spill files are read in full. Small text bodies use `--data-raw` (a
+leading `@` stays literal). Binary/NUL bodies and text whose shell-quoted form
+exceeds 32 KiB use a base64 here-document piped into `curl --data-binary @-`;
+paste the **whole** multiline command into a shell with `base64 -d`, or save it
+as a script and run `sh script.sh`. This avoids OS argument-length limits and
+does not reference capture-machine temporary files. This generated pipeline
+cannot be re-imported by the intentionally restricted cURL importer.
+
+Missing/incomplete bodies, request trailers, CONNECT/WebSocket rows, oversized
+header/URL arguments, HEAD with a body, and commands over 16 MiB produce an
+error without replacing the clipboard. Multipart drafts read their selected
+files and export the assembled bytes, including binary parts. Credentials and
+cookies are included: review before sharing. Expired credentials, body-sensitive
+signatures and application-specific client certificates may still require manual
+changes; copying a request cannot guarantee a remote server will authorize it.
+
+The exporter remains local rather than using `moul/http2curl`: that library
+inlines bodies with `-d`, cannot represent NUL/large arguments, joins repeated
+headers, and unconditionally disables HTTPS verification. Replay tests execute
+the copied command with real curl against a local server, including a compressed
+upload captured through the actual proxy, rather than relying on import/export
+round trips alone.
 
 ## APIs / OpenAPI
 

@@ -5,12 +5,14 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"io"
 	"maps"
 	"net/http"
 	"net/url"
 	"os"
 	"slices"
 	"strings"
+	"unicode"
 	"unicode/utf8"
 
 	"github.com/egoist/mygo/ui"
@@ -19,60 +21,145 @@ import (
 	"mvdan.cc/sh/v3/syntax"
 )
 
-// curlSkip are the headers curl sets itself, so a copied command does not
-// send them twice or with a stale value.
+// curlSkip removes wire framing and hop-by-hop headers. Host is retained:
+// virtual hosts need not match the URL's authority.
 var curlSkip = map[string]bool{
-	"connection":       true,
-	"proxy-connection": true,
-	"content-length":   true,
-	"host":             true,
+	"connection":          true,
+	"proxy-connection":    true,
+	"content-length":      true,
+	"transfer-encoding":   true,
+	"keep-alive":          true,
+	"te":                  true,
+	"trailer":             true,
+	"upgrade":             true,
+	"proxy-authorization": true,
 }
 
 // curlCommand writes the flow's request as a curl command line, the way it
 // would be run from a terminal.
 func curlCommand(f flow) (string, error) {
+	if f.kind == "connect" || f.kind == "ws" || len(f.reqTrailer) > 0 {
+		return "", errors.New("cURL export requires an HTTP request without request trailers; tunnels and WebSocket exchanges are not replayable this way")
+	}
+	if f.reqError != "" {
+		return "", fmt.Errorf("request body is incomplete: %s", f.reqError)
+	}
 	if f.reqSize > 16<<20 {
 		return "", errors.New("cURL clipboard export is limited to 16 MiB")
 	}
 	body := f.reqBody
 	if f.reqFile != "" {
-		data, err := os.ReadFile(f.reqFile)
+		file, err := os.Open(f.reqFile)
+		if err != nil {
+			return "", fmt.Errorf("read request body: %w", err)
+		}
+		defer file.Close()
+		data, err := io.ReadAll(io.LimitReader(file, 16<<20+1))
 		if err != nil {
 			return "", fmt.Errorf("read request body: %w", err)
 		}
 		body = string(data)
 	}
-	if len(body) > 16<<20 || !utf8.ValidString(body) || strings.ContainsRune(body, 0) {
-		return "", errors.New("cURL clipboard export requires a UTF-8 text body up to 16 MiB without NUL bytes")
+	if len(body) > 16<<20 {
+		return "", errors.New("cURL clipboard export is limited to 16 MiB")
 	}
+	if f.reqSize > len(body) {
+		return "", errors.New("request body is incomplete; refusing to copy a truncated request")
+	}
+	headers := http.Header{}
+	for key, values := range f.reqHeader {
+		if !httpguts.ValidHeaderFieldName(key) {
+			return "", fmt.Errorf("invalid request header name %q", key)
+		}
+		for _, value := range values {
+			if !httpguts.ValidHeaderFieldValue(value) {
+				return "", fmt.Errorf("invalid value for request header %s", key)
+			}
+			headers.Add(key, value)
+		}
+	}
+	skip := maps.Clone(curlSkip)
+	for _, value := range headers.Values("Connection") {
+		for token := range strings.SplitSeq(value, ",") {
+			skip[strings.ToLower(strings.TrimSpace(token))] = true
+		}
+	}
+	// Capture stores decoded bodies but original wire headers. Drafts (id 0)
+	// already contain the bytes their author intends to send.
+	if f.id != 0 && headers.Get("Content-Encoding") != "" {
+		for _, name := range []string{"content-encoding", "content-md5", "digest"} {
+			skip[name] = true
+		}
+	}
+	// Encode control bytes as well: terminals can translate literal CRs and
+	// interpret escape sequences when a command is pasted, even inside quotes.
+	stdinBody := len(body)+3*strings.Count(body, "'")+2 > 32<<10 || !utf8.ValidString(body) || strings.IndexFunc(body, func(r rune) bool {
+		return unicode.IsControl(r) && r != '\n' && r != '\t'
+	}) >= 0
 	var b strings.Builder
-	b.WriteString("curl")
+	if stdinBody {
+		b.WriteString("base64 -d <<'VSCROXY_BODY' | ")
+	}
+	b.WriteString("curl -q --path-as-is")
 	if strings.ContainsAny(f.url, "{}[]") {
 		b.WriteString(" --globoff")
 	}
 	method := cmp.Or(strings.TrimSpace(f.method), "GET")
-	if method != "GET" || body != "" {
+	hasBody := body != "" || method != "HEAD" && headers.Get("Content-Length") != ""
+	if !httpguts.ValidHeaderFieldName(method) {
+		return "", errors.New("invalid HTTP method")
+	}
+	if method == "HEAD" {
+		if body != "" {
+			return "", errors.New("cURL HEAD export with a body is not supported")
+		}
+		b.WriteString(" --head")
+	} else if method != "GET" || hasBody {
 		b.WriteString(" -X " + shellQuote(method))
 	}
-	for _, key := range slices.Sorted(maps.Keys(f.reqHeader)) {
-		if curlSkip[strings.ToLower(key)] {
+	for _, key := range slices.Sorted(maps.Keys(headers)) {
+		if skip[strings.ToLower(key)] {
 			continue
 		}
-		for _, value := range f.reqHeader[key] {
+		for _, value := range headers[key] {
 			line := key + ": " + value
 			if value == "" {
 				line = key + ";"
 			}
+			if len(line) > 32<<10 {
+				return "", errors.New("request header exceeds the portable cURL argument limit (32 KiB)")
+			}
 			b.WriteString(" -H " + shellQuote(line))
 		}
 	}
-	if body != "" {
-		if _, exists := f.reqHeader["Content-Type"]; !exists {
-			b.WriteString(" -H 'Content-Type:'")
-		}
-		b.WriteString(" --data-raw " + shellQuote(body))
+	if headers.Get("Accept-Encoding") != "" && !skip["accept-encoding"] {
+		b.WriteString(" --compressed")
 	}
-	b.WriteString(" " + shellQuote(f.url))
+	for _, name := range []string{"Accept", "User-Agent", "Content-Type"} {
+		if len(headers.Values(name)) == 0 || skip[strings.ToLower(name)] {
+			b.WriteString(" -H " + shellQuote(name+":"))
+		}
+	}
+	if hasBody {
+		if stdinBody {
+			b.WriteString(" --data-binary @-")
+		} else {
+			b.WriteString(" --data-raw " + shellQuote(body))
+		}
+	}
+	if len(f.url) > 32<<10 || b.Len() > 128<<10 {
+		return "", errors.New("request URL or headers exceed the portable cURL argument limit")
+	}
+	b.WriteString(" --url " + shellQuote(f.url))
+	if stdinBody {
+		encoded := base64.StdEncoding.EncodeToString([]byte(body))
+		for len(encoded) > 0 {
+			n := min(len(encoded), 76)
+			b.WriteString("\n" + encoded[:n])
+			encoded = encoded[n:]
+		}
+		b.WriteString("\nVSCROXY_BODY\n")
+	}
 	if b.Len() > 16<<20 {
 		return "", errors.New("cURL clipboard export is limited to 16 MiB")
 	}
@@ -139,7 +226,7 @@ func parseCurl(source string) (savedRequest, error) {
 			option, value, attached = arg[:2], arg[2:], true
 		}
 		switch option {
-		case "-G", "--get", "-I", "--head", "--compressed", "-g", "--globoff", "-s", "--silent", "-S", "--show-error", "-sS", "-v", "--verbose", "-i", "--include":
+		case "-G", "--get", "-I", "--head", "--compressed", "-g", "--globoff", "-q", "--disable", "--path-as-is", "-s", "--silent", "-S", "--show-error", "-sS", "-v", "--verbose", "-i", "--include":
 			if attached {
 				return r, fmt.Errorf("%s takes no value", option)
 			}
