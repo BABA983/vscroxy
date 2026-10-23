@@ -9,6 +9,8 @@ import (
 	"os"
 	"strings"
 	"time"
+
+	"github.com/baba983/vscroxy/desktop/internal/capture"
 )
 
 // flow is one captured request/response pair, the unit the table shows and the
@@ -43,6 +45,7 @@ type flow struct {
 	resProto    string
 	at          time.Time
 	kind        string
+	streamEnd   capture.StreamEnd
 	process     string
 	processPath string
 	dns         string

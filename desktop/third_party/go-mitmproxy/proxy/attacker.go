@@ -760,6 +760,13 @@ func (a *attacker) attack(res http.ResponseWriter, req *http.Request) {
 		for _, addon := range proxy.Addons {
 			addon.SSEStart(f)
 		}
+		// Observe termination even for an empty body or a downstream write
+		// failure: the SSE reader may never get another Read returning EOF.
+		defer func() {
+			for _, addon := range proxy.Addons {
+				addon.SSEEnd(f)
+			}
+		}()
 
 		log.Debugf("SSE stream detected for %s", f.Request.URL.String())
 	}

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json/v2"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -287,7 +288,8 @@ func TestMessagesSurviveASessionRoundTrip(t *testing.T) {
 		Seq: 6, Direction: "in", Kind: "binary", Data: "\xff\x00\x80bytes", Size: 8, Kept: 8, At: at,
 	}})
 	flows := []flow{{id: 7, method: "WS", scheme: "wss", host: "api.example.com", path: "/stream",
-		url: "wss://api.example.com/stream", status: 101, kind: "ws"}}
+		url: "wss://api.example.com/stream", status: 101, kind: "ws",
+		streamEnd: capture.StreamEnd{At: at.Add(time.Second), Messages: 6}}}
 	path := filepath.Join(t.TempDir(), "session.json")
 	if err := writeSession(path, flows, map[int][]frame{7: list}); err != nil {
 		t.Fatalf("write: %v", err)
@@ -298,6 +300,9 @@ func TestMessagesSurviveASessionRoundTrip(t *testing.T) {
 	}
 	if len(got) != 1 || got[0].kind != "ws" || got[0].url != "wss://api.example.com/stream" {
 		t.Fatalf("flows = %+v", got)
+	}
+	if got[0].streamEnd != flows[0].streamEnd {
+		t.Fatal("session lost stream completion evidence")
 	}
 	saved := gotFrames[7]
 	if len(saved) != 3 {
@@ -321,5 +326,83 @@ func TestMessagesSurviveASessionRoundTrip(t *testing.T) {
 	}
 	if dropped := messagesDropped(saved); dropped != 3 {
 		t.Errorf("dropped = %d, want the 3 before #4", dropped)
+	}
+}
+
+func TestMessagesPauseSurvivesLiveWindowEviction(t *testing.T) {
+	a := messagesApp(map[int][]frame{1: {{seq: 1, kind: "text", direction: "in", data: "original payload", size: 16, kept: 16}}})
+	t.Cleanup(a.messageUI.stopSearch)
+	tt := ui.NewTester(a.view, 1100, 760)
+	for _, label := range []string{"Messages", "Pause view"} {
+		if err := tt.Click(label); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// More than a full window: appendMessage compacts the backing array, so
+	// retaining the old slice instead of cloning it corrupts the paused view.
+	for i := 2; i <= 205; i++ {
+		a.addFrame(capture.FrameEvent{FlowID: 1, Frame: capture.Frame{
+			Seq: i, Kind: "text", Direction: "in", Data: fmt.Sprintf("new payload %d", i), Size: 15, Kept: 15,
+		}})
+	}
+	tt.Frame()
+	if !tt.HasText("204 newer messages") || !tt.HasText("original payload") || tt.HasText("new payload 205") {
+		t.Fatalf("paused view changed while capture continued: %q", tt.Texts())
+	}
+	if err := tt.Click("Copy"); err != nil {
+		t.Fatal(err)
+	}
+	if tt.Clipboard() != "original payload" {
+		t.Fatal("paused selection did not preserve its payload")
+	}
+	if err := tt.Click("Export messages…"); err != nil {
+		t.Fatal(err)
+	}
+	if !tt.HasText("1 matching messages") || !tt.HasText("credentials") {
+		t.Fatal("export did not describe the frozen window and sensitivity")
+	}
+	if err := tt.Click("Cancel"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.Click("Resume"); err != nil {
+		t.Fatal(err)
+	}
+	if !tt.HasText("new payload 205") || !tt.HasText("200 messages · 5 dropped") || tt.HasText("original payload") {
+		t.Fatalf("resume did not return to the newest retained messages: %q", tt.Texts())
+	}
+}
+
+func TestMessageExportKeepsBinarySpillAndMissingPayloadEvidence(t *testing.T) {
+	head, whole, file := longMessage(t)
+	at := time.Date(2026, 10, 23, 11, 12, 13, 0, time.UTC)
+	list := []messageView{
+		{seq: 4, direction: "in", kind: "event", data: head, file: file, size: len(whole), kept: len(whole), at: at, eventID: "price-7", eventName: "price"},
+		{seq: 5, direction: "out", kind: "binary", data: "\xff\x00\x80", size: 3, kept: 3},
+		{seq: 8, direction: "in", kind: "text", data: "head", file: file + ".gone", size: 300, kept: 300},
+	}
+	path := filepath.Join(t.TempDir(), "messages.json")
+	archive := messageExport{URL: "wss://example.com/prices", Protocol: "ws", Paused: true, Retained: 3, NotRetained: 5, Direction: "all", End: capture.StreamEnd{At: at, Messages: 8}}
+	if err := archive.write(path, list); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var saved messageExport
+	if err := json.Unmarshal(data, &saved); err != nil {
+		t.Fatal(err)
+	}
+	if saved.Version != 1 || !saved.Paused || saved.NotRetained != 5 || saved.End.Messages != 8 || len(saved.Messages) != 3 {
+		t.Fatalf("missing scope/completion metadata: %+v", saved)
+	}
+	if m := saved.Messages[0]; m.Data != whole || m.Seq != 4 || m.EventID != "price-7" || m.EventName != "price" || !m.At.Equal(at) || m.Kept != len(whole) || m.Error != "" {
+		t.Fatalf("export lost full spilled payload or event metadata: %+v", m)
+	}
+	if string(saved.Messages[1].Payload) != "\xff\x00\x80" || saved.Messages[1].Direction != "out" {
+		t.Fatal("binary bytes or direction changed during JSON export")
+	}
+	if m := saved.Messages[2]; m.Data != "head" || m.Kept != 4 || m.Size != 300 || m.Error == "" {
+		t.Fatal("missing spill file silently exported as a complete payload")
 	}
 }

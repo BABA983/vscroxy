@@ -312,6 +312,12 @@ type Server struct {
 	// ones a full queue took.
 	frameSeq   map[uuid.UUID]int
 	frameDrops atomic.Int64
+	// Retain completion evidence beyond the UI's 5000-flow window, without
+	// putting terminal updates into the lossy message queue. IDs are monotonic.
+	streamEnds [8192]struct {
+		id  int
+		end StreamEnd
+	}
 
 	scriptMu     sync.RWMutex
 	script       *Script
@@ -1900,10 +1906,39 @@ func (s *Server) emitFrame(f *proxy.Flow, in frameInput) {
 	}
 }
 
-// endFrames forgets a stream that is over. The UI keeps what it was given; the
-// capture keeps only the next flow's numbering.
+// StreamEnd is the end the engine observed, not a WebSocket close code or an
+// error classification: the underlying hooks supply neither.
+type StreamEnd struct {
+	At       time.Time `json:"at,omitzero"`
+	Messages int       `json:"messages,omitzero"`
+}
+
+// StreamEnd returns bounded completion evidence. A zero time means no end was
+// recorded, not proof that the socket is still open.
+func (s *Server) StreamEnd(id int) StreamEnd {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if id <= 0 {
+		return StreamEnd{}
+	}
+	slot := s.streamEnds[id%len(s.streamEnds)]
+	if slot.id == id {
+		return slot.end
+	}
+	return StreamEnd{}
+}
+
+// endFrames forgets active numbering but keeps bounded completion evidence,
+// including messages dropped at the very end of a full queue.
 func (s *Server) endFrames(f *proxy.Flow) {
 	s.mu.Lock()
+	if id, ok := s.flowIDs[f.Id]; ok {
+		slot := &s.streamEnds[id%len(s.streamEnds)]
+		if slot.id <= id {
+			slot.id = id
+			slot.end = StreamEnd{At: time.Now(), Messages: s.frameSeq[f.Id]}
+		}
+	}
 	delete(s.frameSeq, f.Id)
 	s.mu.Unlock()
 }

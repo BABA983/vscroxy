@@ -416,6 +416,24 @@ keeps event name and ID separately. JSON is indented; binary opens as hex, and
 **Text / Hex** switches views. Text layout previews at most 64 KiB; Hex and Copy
 use the whole retained payload.
 
+**Pause view** freezes an independent message window while capture continues;
+new arrivals are counted. Search, direction filters and export use that frozen
+window. **Resume** returns to the latest retained messages, not an unbounded
+backlog. **Latest** follows the newest message without pausing capture.
+
+The pane records start and observed end times, including empty SSE streams.
+An unrecorded end is not proof that a connection is still open; imported sessions
+are labelled historical. The engine does not expose WebSocket close codes or
+end reasons, so the pane does not guess them. End evidence survives saving a
+session. Completion totals also expose messages lost at the tail of a full queue.
+
+**Export messages…** saves matching retained messages as JSON after a sensitive
+data warning, with direction, sequence, timestamps, SSE name/ID, full retained
+payloads and explicit missing/truncated-payload metadata. Binary bytes use the
+session format's lossless base64 payload field when they are not valid UTF-8.
+The file records query, direction, pause state and window/loss counts; it is not
+an export of the entire conversation. File reads run off the UI thread.
+
 The last 200 messages per flow are retained: at most 4 KiB each inline, with
 longer payloads spilled to disk up to 256 KiB each. Larger messages explicitly
 show retained/original lengths. Sequence gaps report dropped/evicted messages;

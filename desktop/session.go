@@ -14,6 +14,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/baba983/vscroxy/desktop/internal/capture"
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 )
@@ -313,38 +314,39 @@ type sessionFile struct {
 }
 
 type sessionFlow struct {
-	ID              int         `json:"id"`
-	ReplayOf        int         `json:"replayOf,omitzero"`
-	Actions         []string    `json:"actions,omitempty"`
-	Method          string      `json:"method"`
-	Scheme          string      `json:"scheme"`
-	Host            string      `json:"host"`
-	Path            string      `json:"path"`
-	URL             string      `json:"url"`
-	Status          int         `json:"status"`
-	Bytes           int         `json:"bytes"`
-	Millis          int         `json:"millis"`
-	ReqHeaders      string      `json:"reqHeaders"`
-	ResHeaders      string      `json:"resHeaders"`
-	ReqBody         string      `json:"reqBody"`
-	ResBody         string      `json:"resBody"`
-	ReqBytes        []byte      `json:"reqBytes,omitempty"`
-	ResBytes        []byte      `json:"resBytes,omitempty"`
-	ReqSize         int         `json:"reqSize,omitzero"`
-	ResSize         int         `json:"resSize,omitzero"`
-	ReqError        string      `json:"reqError,omitempty"`
-	ResError        string      `json:"resError,omitempty"`
-	ReqHeader       http.Header `json:"reqHeader,omitempty"`
-	RespHeader      http.Header `json:"respHeader,omitempty"`
-	ReqTrailer      http.Header `json:"reqTrailer,omitempty"`
-	ResTrailer      http.Header `json:"resTrailer,omitempty"`
-	ReqProto        string      `json:"reqProto,omitempty"`
-	ResProto        string      `json:"resProto,omitempty"`
-	ConnectionLog   string      `json:"connectionLog,omitempty"`
-	ConnectionError string      `json:"connectionError,omitempty"`
-	ConnectionStage string      `json:"connectionStage,omitempty"`
-	At              time.Time   `json:"at"`
-	Kind            string      `json:"kind,omitempty"`
+	ID              int               `json:"id"`
+	ReplayOf        int               `json:"replayOf,omitzero"`
+	Actions         []string          `json:"actions,omitempty"`
+	Method          string            `json:"method"`
+	Scheme          string            `json:"scheme"`
+	Host            string            `json:"host"`
+	Path            string            `json:"path"`
+	URL             string            `json:"url"`
+	Status          int               `json:"status"`
+	Bytes           int               `json:"bytes"`
+	Millis          int               `json:"millis"`
+	ReqHeaders      string            `json:"reqHeaders"`
+	ResHeaders      string            `json:"resHeaders"`
+	ReqBody         string            `json:"reqBody"`
+	ResBody         string            `json:"resBody"`
+	ReqBytes        []byte            `json:"reqBytes,omitempty"`
+	ResBytes        []byte            `json:"resBytes,omitempty"`
+	ReqSize         int               `json:"reqSize,omitzero"`
+	ResSize         int               `json:"resSize,omitzero"`
+	ReqError        string            `json:"reqError,omitempty"`
+	ResError        string            `json:"resError,omitempty"`
+	ReqHeader       http.Header       `json:"reqHeader,omitempty"`
+	RespHeader      http.Header       `json:"respHeader,omitempty"`
+	ReqTrailer      http.Header       `json:"reqTrailer,omitempty"`
+	ResTrailer      http.Header       `json:"resTrailer,omitempty"`
+	ReqProto        string            `json:"reqProto,omitempty"`
+	ResProto        string            `json:"resProto,omitempty"`
+	ConnectionLog   string            `json:"connectionLog,omitempty"`
+	ConnectionError string            `json:"connectionError,omitempty"`
+	ConnectionStage string            `json:"connectionStage,omitempty"`
+	At              time.Time         `json:"at"`
+	Kind            string            `json:"kind,omitempty"`
+	StreamEnd       capture.StreamEnd `json:"streamEnd,omitzero"`
 	// Color and Note are what a person marked the flow with.
 	Color string `json:"color,omitempty"`
 	Note  string `json:"note,omitempty"`
@@ -398,6 +400,7 @@ func sessionFrom(flows []flow, frames map[int][]frame) sessionFile {
 			ReqProto: f.conn.proto, ResProto: f.resProto,
 			ConnectionLog: f.conn.log, ConnectionError: f.conn.error, ConnectionStage: f.conn.errorStage,
 			At: f.at, Kind: f.kind, Color: f.color, Note: f.note,
+			StreamEnd: f.streamEnd,
 		}
 		// JSON strings require UTF-8; byte fields use JSON's base64 encoding.
 		if !utf8.ValidString(saved.ReqBody) {
@@ -478,6 +481,7 @@ func readSession(path string) ([]flow, map[int][]frame, error) {
 			reqTrailer: f.ReqTrailer, resTrailer: f.ResTrailer,
 			conn: conn{proto: f.ReqProto, log: f.ConnectionLog, error: f.ConnectionError, errorStage: f.ConnectionStage}, resProto: f.ResProto,
 			at: f.At, kind: f.Kind, color: f.Color, note: f.Note,
+			streamEnd: f.StreamEnd,
 		})
 	}
 	frames := make(map[int][]frame, len(s.Frames))
@@ -507,6 +511,9 @@ func readSession(path string) ([]flow, map[int][]frame, error) {
 // snapshot copies the table's state for a goroutine that writes it out.
 func (a *app) snapshot() ([]flow, map[int][]frame) {
 	flows := slices.Clone(a.flows)
+	for i := range flows {
+		flows[i].streamEnd = a.streamEnd(flows[i])
+	}
 	frames := make(map[int][]frame, len(a.frames))
 	for id, list := range a.frames {
 		frames[id] = slices.Clone(list)
