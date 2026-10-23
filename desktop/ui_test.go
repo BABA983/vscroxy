@@ -813,7 +813,9 @@ func TestReplayResultDoesNotStealFocusAndKeepsItsSource(t *testing.T) {
 	a.srv = srv
 	source := a.flows[0]
 	source.url = upstream.URL + "/replay"
-	a.replay(source)
+	if err := a.replay(t.Context(), source); err != nil {
+		t.Fatal(err)
+	}
 	tt := ui.NewTester(a.view, 1280, 800)
 	if a.workspace != 0 || !tt.HasText("Inspect replay") {
 		t.Fatal("replay stole focus or gave no route to its result")
@@ -1785,5 +1787,52 @@ func TestReplayLinksRevealFilteredSourceAndCompareWithoutGuessingURL(t *testing.
 	}
 	if !tt.HasText("Replay of #1") {
 		t.Fatal("could not navigate back to replay")
+	}
+}
+
+func TestBatchReplaySendsChosenRequestsInOrder(t *testing.T) {
+	paths := make(chan string, 3)
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		paths <- r.Method + " " + r.URL.Path
+		io.WriteString(w, "replayed")
+	}))
+	defer upstream.Close()
+	srv, err := capture.New("127.0.0.1:0", t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer srv.Close()
+	if err := srv.Start(); err != nil {
+		t.Fatal(err)
+	}
+	a := workspaceApp()
+	a.srv = srv
+	a.flows[0].url, a.flows[1].url = upstream.URL+"/first", upstream.URL+"/second"
+	a.chosen.Add(1)
+	a.chosen.Add(2)
+	tt := ui.NewTester(a.view, 960, 600)
+	tt.Click("Session")
+	if err := tt.ChooseMenuItem("Replay chosen…"); err != nil {
+		t.Fatal(err)
+	}
+	if !tt.HasText("Replay 2 requests") {
+		t.Fatal("chosen requests were not snapshotted")
+	}
+	tt.Click("Replay timeout")
+	tt.Key(ui.Ctrl, ui.KeyA)
+	tt.Type("0")
+	if err := tt.Click("Send replays"); err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for a.replayUI.updates != nil && time.Now().Before(deadline) {
+		time.Sleep(time.Millisecond)
+		tt.Frame()
+	}
+	if !tt.HasText("2/2 sent · 0 failed") || a.workspace != 0 {
+		t.Fatalf("batch incomplete or stole focus: %v", tt.Texts())
+	}
+	if first, second := <-paths, <-paths; first != "GET /first" || second != "POST /second" {
+		t.Fatalf("replay order: %q %q", first, second)
 	}
 }

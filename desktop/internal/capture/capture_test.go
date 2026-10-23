@@ -1961,3 +1961,53 @@ func TestMockRefusesPartialOrStreamingResponse(t *testing.T) {
 		t.Fatal("rejected mocks left response files behind")
 	}
 }
+
+func TestNoCachingAndAppliedRules(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("ETag", `"v1"`)
+		w.Header().Set("Last-Modified", "Wed, 21 Oct 2015 07:28:00 GMT")
+		w.Header().Set("Cache-Control", "max-age=3600")
+		if r.Header.Get("If-None-Match") != "" || r.Header.Get("If-Modified-Since") != "" {
+			w.WriteHeader(304)
+			return
+		}
+		io.WriteString(w, r.Header.Get("Cache-Control")+" / "+r.Header.Get("Pragma"))
+	}))
+	defer upstream.Close()
+	s, _ := startServer(t)
+	client := clientFor(t, s, nil)
+	defer client.CloseIdleConnections()
+	for _, on := range []bool{false, true, false} {
+		s.SetNoCaching(on)
+		req, _ := http.NewRequestWithContext(t.Context(), "GET", upstream.URL, nil)
+		req.Header.Set("If-None-Match", `"v1"`)
+		req.Header.Set("If-Modified-Since", "Wed, 21 Oct 2015 07:28:00 GMT")
+		resp, err := client.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		body, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		f := waitFlow(t, s)
+		if on {
+			if resp.StatusCode != 200 || string(body) != "no-cache / no-cache" || resp.Header.Get("ETag") != "" || resp.Header.Get("Last-Modified") != "" || !strings.Contains(resp.Header.Get("Cache-Control"), "no-store") || len(f.Actions) != 1 || f.Actions[0] != "No Caching" {
+				t.Fatalf("cache bypass failed: %d %s %v %+v", resp.StatusCode, body, resp.Header, f.Actions)
+			}
+		} else if resp.StatusCode != 304 || resp.Header.Get("ETag") != `"v1"` || len(f.Actions) != 0 {
+			t.Fatalf("normal cache semantics changed: %d %v %+v", resp.StatusCode, resp.Header, f.Actions)
+		}
+	}
+	s.SetNoCaching(true)
+	s.SetRules([]Rule{{Type: RuleBlock, Match: "/blocked"}})
+	resp, err := client.Get(upstream.URL + "/blocked")
+	if err != nil {
+		t.Fatal(err)
+	}
+	io.Copy(io.Discard, resp.Body)
+	resp.Body.Close()
+	f := waitFlow(t, s)
+	s.SetRules(nil)
+	if resp.StatusCode != 403 || !strings.Contains(resp.Header.Get("Cache-Control"), "no-store") || len(f.Actions) != 2 || f.Actions[1] != "Block · /blocked" {
+		t.Fatalf("local response lost cache policy or historical evidence: %+v %v", f.Actions, resp.Header)
+	}
+}

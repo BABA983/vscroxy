@@ -466,7 +466,20 @@ against the original. A replay trusts the
 system's CAs and the proxy's own, so an HTTPS flow replays without the CA
 being trusted machine wide.
 
-Ctrl/Cmd+R replays the inspected request; Ctrl/Cmd+Alt+C copies it as cURL.
+Ctrl/Cmd+R opens replay options for the inspected request; Ctrl/Cmd+Alt+C copies it as cURL.
+**Session → Replay chosen…** snapshots the selected HTTP requests and sends them
+in capture order after confirmation. Choose a per-request timeout (30 seconds by
+default, 0 for no timeout), watch sent/failed counts, or stop the batch. Replaying
+can mutate server data; streams and tunnels are excluded.
+
+**Network → No Caching** is a session-only switch, also visible in the status
+bar. New exchanges strip conditional cache headers, send no-cache request
+headers, and remove response validators while forbidding response storage.
+Each exchange snapshots the switch; changes do not rewrite historical captures.
+The detail header's **Applied** line records cache bypass, scripts, edited
+breakpoints and the matching Block/Map Local/Map Remote rule. JSON sessions
+retain this evidence even if the active rules later change.
+
 Replay completion reports the source and response status with **Inspect replay**,
 which opens the exact result in Requests without stealing focus on arrival.
 Diff labels the previous/current sides and explains when no baseline exists;

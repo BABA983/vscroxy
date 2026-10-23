@@ -16,6 +16,7 @@ import (
 type flow struct {
 	id          int
 	replayOf    int
+	actions     []string
 	method      string
 	scheme      string
 	host        string
