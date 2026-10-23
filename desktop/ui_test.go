@@ -497,7 +497,7 @@ func TestCaptureSearchAndFilterFailuresAreRecoverable(t *testing.T) {
 	}
 	a.openFilter()
 	tt.Frame()
-	if err := tt.Click("Status"); err != nil {
+	if err := tt.Click("Filter status"); err != nil {
 		t.Fatal(err)
 	}
 	tt.Type("4xx, nonsense")
@@ -507,7 +507,7 @@ func TestCaptureSearchAndFilterFailuresAreRecoverable(t *testing.T) {
 	if !tt.HasText("Use HTTP status codes (100–599), ranges, comparisons or comma-separated alternatives.") {
 		t.Fatal("invalid status expression has no visible validation")
 	}
-	tt.Click("Status")
+	tt.Click("Filter status")
 	tt.Key(ui.Cmd, ui.KeyA)
 	tt.Type("4xx, 5xx")
 	if err := tt.Click("Apply"); err != nil {
@@ -1834,5 +1834,76 @@ func TestBatchReplaySendsChosenRequestsInOrder(t *testing.T) {
 	}
 	if first, second := <-paths, <-paths; first != "GET /first" || second != "POST /second" {
 		t.Fatalf("replay order: %q %q", first, second)
+	}
+}
+
+func TestTriageFiltersAndQuickPresetsStayWithTheirView(t *testing.T) {
+	a := workspaceApp()
+	a.views.init(a, filepath.Join(t.TempDir(), "views.json"))
+	base := flow{id: 1, method: "POST", status: 503, millis: 501, resSize: 99, color: "Red", note: "Checkout regression"}
+	a.flows = []flow{base}
+	for i := range 5 {
+		other := base
+		other.id = i + 2
+		switch i {
+		case 0:
+			other.method = "GET"
+		case 1:
+			other.millis = 500
+		case 2:
+			other.resSize = 100
+		case 3:
+			other.color = "Blue"
+		case 4:
+			other.note = "Unrelated"
+		}
+		a.flows = append(a.flows, other)
+	}
+	a.applyFilter()
+	tt := ui.NewTester(a.view, 960, 600)
+	tt.Click("Filters…")
+	for _, field := range []struct{ label, value string }{
+		{"Filter method", "post, put"}, {"Duration (ms)", ">500"}, {"Response size (bytes)", "<100"}, {"Filter note", "CHECKOUT"},
+	} {
+		if err := tt.Click(field.label); err != nil {
+			t.Fatal(err)
+		}
+		tt.Type(field.value)
+	}
+	tt.Click("Filter color")
+	tt.Key(0, ui.KeyDown)
+	tt.Key(0, ui.KeyDown)
+	tt.Key(0, ui.KeyEnter) // Any → Marked → Red
+	tt.Click("Apply")
+	if len(a.visible) != 1 || a.flows[a.visible[0]].id != 1 {
+		t.Fatalf("AND conditions or strict boundaries are wrong: %v", visibleIDs(a))
+	}
+	tt.Click("Saved filters…")
+	tt.Click("Filter name")
+	tt.Key(ui.Ctrl, ui.KeyA)
+	tt.Type("Checkout failures")
+	tt.Click("Save filter")
+	tt.Click("Close")
+	filters, err := loadCaptureFilters(a.views.path)
+	if err != nil || len(filters) != 1 || filters[0].Triage.Color != "Red" || filters[0].Triage.Duration != ">500" {
+		t.Fatalf("triage conditions not saved: %+v %v", filters, err)
+	}
+	tt.Click("New view")
+	if len(a.visible) != 6 {
+		t.Fatal("new view inherited triage")
+	}
+	if err := tt.Click("Quick filter: Checkout failures"); err != nil {
+		t.Fatal(err)
+	}
+	if len(a.visible) != 1 {
+		t.Fatal("one-click filter not applied")
+	}
+	tt.Click("Quick filter: Checkout failures")
+	if len(a.visible) != 6 {
+		t.Fatal("one-click filter could not be toggled off")
+	}
+	a.views.activate(a, 0)
+	if len(a.visible) != 1 {
+		t.Fatal("quick filter altered the other view")
 	}
 }

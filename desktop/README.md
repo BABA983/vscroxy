@@ -161,10 +161,17 @@ necessarily the most recently captured request.
 
 **New view** opens another live tab over the same captured traffic, not a new
 proxy or capture session. Each tab retains its own search, sidebar/chip filter,
-status/header/body conditions, sorting and selection. **Filters…** edits content
+status/header/body and triage conditions, sorting and selection. **Filters…** edits content
 conditions; **Saved filters…** saves, reapplies, renames or deletes a named set in
 `~/.vscroxy/views.json`. Saving conditions persists them; live view tabs themselves
 are session-local. Applying a saved filter changes only the active view.
+Saved filters also appear as one-click buttons above the table; click an active
+button again to show all requests in that view. Filters supports comma-separated
+methods, duration in milliseconds, captured response-body bytes, color/marked
+state and case-insensitive note text. Numeric fields accept `<`, `<=`, `=`, `>=`
+or `>` with a non-negative integer. Conditions combine with AND; methods and
+status alternatives combine with OR. The active filter button and footer summary
+make narrowing visible, including when no requests match.
 
 Body conditions search both request and response independently, including whole
 spill files beyond the 8 MiB preview. Searches are case-insensitive, chunked,

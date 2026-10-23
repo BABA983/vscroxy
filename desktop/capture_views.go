@@ -44,13 +44,82 @@ const (
 // savedCaptureFilter is a named capture filter kept in views.json: the
 // conditions of a view, without the row it had chosen.
 type savedCaptureFilter struct {
-	Name   string `json:"name"`
-	Query  string `json:"query,omitempty"`
-	Filter string `json:"filter,omitempty"`
-	Chip   int    `json:"chip,omitzero"`
-	Status string `json:"status,omitempty"`
-	Header string `json:"header,omitempty"`
-	Body   string `json:"body,omitempty"`
+	Name   string        `json:"name"`
+	Query  string        `json:"query,omitempty"`
+	Filter string        `json:"filter,omitempty"`
+	Chip   int           `json:"chip,omitzero"`
+	Status string        `json:"status,omitempty"`
+	Header string        `json:"header,omitempty"`
+	Body   string        `json:"body,omitempty"`
+	Triage captureTriage `json:"triage,omitzero"`
+}
+
+// captureTriage is shared by live views and portable saved filters. Numeric
+// conditions name their units in the UI; there are no implicit KiB conversions.
+type captureTriage struct {
+	Method   string `json:"method,omitempty"`
+	Duration string `json:"duration,omitempty"`
+	Size     string `json:"size,omitempty"`
+	Color    string `json:"color,omitempty"`
+	Note     string `json:"note,omitempty"`
+}
+
+func numericCondition(value int, expression string) (bool, bool) {
+	expression = strings.TrimSpace(expression)
+	if expression == "" {
+		return true, true
+	}
+	op := "="
+	for _, prefix := range []string{">=", "<=", ">", "<", "="} {
+		if rest, ok := strings.CutPrefix(expression, prefix); ok {
+			op, expression = prefix, strings.TrimSpace(rest)
+			break
+		}
+	}
+	n, err := strconv.Atoi(expression)
+	if err != nil || n < 0 {
+		return false, false
+	}
+	switch op {
+	case ">=":
+		return value >= n, true
+	case "<=":
+		return value <= n, true
+	case ">":
+		return value > n, true
+	case "<":
+		return value < n, true
+	default:
+		return value == n, true
+	}
+}
+
+func (q captureTriage) matches(f flow) bool {
+	if q.Method != "" {
+		matched := false
+		for method := range strings.SplitSeq(q.Method, ",") {
+			matched = matched || strings.EqualFold(strings.TrimSpace(method), f.method)
+		}
+		if !matched {
+			return false
+		}
+	}
+	duration, _ := numericCondition(f.millis, q.Duration)
+	size, _ := numericCondition(f.resSize, q.Size)
+	return duration && size && (q.Color == "" || q.Color == f.color || q.Color == "Marked" && f.color != "") &&
+		strings.Contains(strings.ToLower(f.note), strings.ToLower(q.Note))
+}
+
+func (q captureTriage) summary() []string {
+	var parts []string
+	for _, field := range []struct{ name, value string }{
+		{"method", q.Method}, {"duration ms", q.Duration}, {"response bytes", q.Size}, {"color", q.Color}, {"note", q.Note},
+	} {
+		if field.value != "" {
+			parts = append(parts, field.name+" "+field.value)
+		}
+	}
+	return parts
 }
 
 // loadCaptureFilters reads the saved filters, an empty list when there is no
@@ -99,6 +168,7 @@ type captureConditions struct {
 	chip   int
 	status string
 	header string
+	triage captureTriage
 	sort   ui.SortOrder
 }
 
@@ -253,6 +323,7 @@ type captureViews struct {
 	editStatus string
 	editHeader string
 	editBody   string
+	editTriage captureTriage
 
 	// savedOpen edits the filters saved by name.
 	savedOpen bool
@@ -319,6 +390,7 @@ func conditionsOf(a *app) captureConditions {
 	return captureConditions{
 		query: a.query, filter: a.filter, chip: a.chip,
 		status: a.filterStatus, header: a.filterHeader, sort: a.sort,
+		triage: a.filterTriage,
 	}
 }
 
@@ -331,6 +403,7 @@ func (v *captureViews) bind(a *app) {
 	}
 	a.query, a.filter, a.chip = view.query, view.filter, view.chip
 	a.filterStatus, a.filterHeader = view.status, view.header
+	a.filterTriage = view.triage
 	a.sort, a.picked = view.sort, view.picked
 	a.pickedID = view.pickedID
 	// The app's own body filter would match the 64 KiB heads only: the view
@@ -751,6 +824,7 @@ func (v *captureViews) clearFilters(a *app) {
 		return
 	}
 	view.status, view.header, view.body = "", "", ""
+	view.triage = captureTriage{}
 	v.bind(a)
 	v.applyFilter(a)
 	a.setMessage("Filters cleared")
@@ -776,6 +850,7 @@ func (v *captureViews) openFilter(a *app) {
 		return
 	}
 	v.editStatus, v.editHeader, v.editBody = view.status, view.header, view.body
+	v.editTriage = view.triage
 	v.filterOpen = true
 }
 
@@ -838,7 +913,11 @@ func (v *captureViews) controls(c *ui.Context, t *ui.Theme, a *app) {
 			}
 			ui.Text(c, note).FontSize(11).TextColor(color).SingleLine().MaxWidth(240).Tooltip(v.statusDetail())
 		}
-		if ui.Button(c, "Filters…").FontSize(11).Height(26).Tooltip("Status, header and body conditions of this view").Clicked() {
+		filterButton := ui.Button(c, "Filters…").FontSize(11).Height(26).Tooltip("Method, status, duration, response size, marks, header and body conditions")
+		if a.filtersActive() {
+			filterButton = filterButton.Background(t.Accent.Alpha(0.12)).TextColor(t.Accent)
+		}
+		if filterButton.Clicked() {
 			v.openFilter(a)
 		}
 		if ui.Button(c, "Saved filters…").FontSize(11).Height(26).Tooltip("Apply, rename or delete a filter saved by name").Clicked() {
@@ -849,6 +928,30 @@ func (v *captureViews) controls(c *ui.Context, t *ui.Theme, a *app) {
 			v.newView(a)
 		}
 	})
+	if len(v.filters) > 0 {
+		ui.ScrollHorizontal(c).Height(34).FillWidth().Children(func() {
+			ui.Row(c).Padding(2, 16).Gap(6).AlignItems(ui.Center).Children(func() {
+				ui.Text(c, "Saved").FontSize(11).TextColor(t.TextMuted)
+				for _, f := range v.filters {
+					active := v.activeView().saved(f.Name) == f
+					b := ui.Button(c, f.Name).Label("Quick filter: " + f.Name).FontSize(11).Height(26)
+					if active {
+						b = b.Background(t.Accent.Alpha(0.12)).TextColor(t.Accent)
+					}
+					if b.Clicked() {
+						if active {
+							a.query, a.filter, a.chip = "", "all", 0
+							v.capture(a)
+							v.clearFilters(a)
+						} else {
+							v.applySaved(a, f.Name)
+							break
+						}
+					}
+				}
+			})
+		})
+	}
 	ui.Divider(c)
 	if closing >= 0 {
 		v.closeView(a, closing)
@@ -871,11 +974,44 @@ func (v *captureViews) filterModal(c *ui.Context, t *ui.Theme, a *app) {
 		return
 	}
 	ui.Modal(c, &v.filterOpen, func() {
-		ui.Column(c).Width(500).Gap(10).Children(func() {
+		ui.Column(c).Width(560).Gap(8).Children(func() {
 			ui.Text(c, "Filter "+v.label(v.active)).FontSize(14).Bold()
 			ui.Text(c, "Status takes 404, 4xx, 200-299 or >=400; separate alternatives with commas (4xx, 5xx). A header is a name, or \"name: value\". Body searches both sides in full, including spilled files.").
 				FontSize(11).TextColor(t.TextMuted)
 			problem := ""
+			ui.Row(c).Gap(12).Children(func() {
+				ui.Field(c, "Method (comma-separated)", func() {
+					ui.TextInput(c, &v.editTriage.Method).Label("Filter method").Placeholder("GET, POST")
+				}).Grow(1)
+				ui.Field(c, "Color", func() {
+					colors := []string{"Any", "Marked"}
+					for _, color := range highlightColors {
+						colors = append(colors, color.name)
+					}
+					color := cmp.Or(v.editTriage.Color, "Any")
+					if ui.Select(c, &color, colors).Label("Filter color").Changed() {
+						v.editTriage.Color = color
+						if color == "Any" {
+							v.editTriage.Color = ""
+						}
+					}
+				}).Width(150)
+			})
+			ui.Row(c).Gap(12).Children(func() {
+				for _, field := range []struct {
+					label string
+					value *string
+				}{
+					{"Duration (ms)", &v.editTriage.Duration}, {"Response size (bytes)", &v.editTriage.Size},
+				} {
+					if _, valid := numericCondition(0, *field.value); !valid {
+						problem = "Use a non-negative integer, optionally prefixed with <, <=, =, >= or >."
+					}
+					ui.Field(c, field.label, func() {
+						ui.TextInput(c, field.value).Label(field.label).Placeholder(">=500")
+					}).Grow(1)
+				}
+			})
 			if strings.TrimSpace(v.editStatus) != "" {
 				for part := range strings.SplitSeq(v.editStatus, ",") {
 					if _, _, ok := statusBounds(part); !ok {
@@ -884,15 +1020,25 @@ func (v *captureViews) filterModal(c *ui.Context, t *ui.Theme, a *app) {
 					}
 				}
 			}
-			ui.Field(c, "Status", func() {
-				ui.TextInput(c, &v.editStatus).Label("Status").Placeholder("4xx, 5xx")
-			}).Error(problem)
-			ui.Field(c, "Header", func() {
-				ui.TextInput(c, &v.editHeader).Placeholder("content-type: json")
+			ui.Row(c).Gap(12).Children(func() {
+				ui.Field(c, "Status", func() {
+					ui.TextInput(c, &v.editStatus).Label("Filter status").Placeholder("4xx, 5xx")
+				}).Grow(1)
+				ui.Field(c, "Header", func() {
+					ui.TextInput(c, &v.editHeader).Placeholder("content-type: json")
+				}).Grow(1)
 			})
-			ui.Field(c, "Body", func() {
-				ui.TextInput(c, &v.editBody).Label("Body contains").Placeholder("\"error\":")
+			ui.Row(c).Gap(12).Children(func() {
+				ui.Field(c, "Note contains", func() {
+					ui.TextInput(c, &v.editTriage.Note).Label("Filter note").Placeholder("case-insensitive text")
+				}).Grow(1)
+				ui.Field(c, "Body", func() {
+					ui.TextInput(c, &v.editBody).Label("Body contains").Placeholder("\"error\":")
+				}).Grow(1)
 			})
+			if problem != "" {
+				ui.Text(c, problem).FontSize(11).TextColor(t.Danger)
+			}
 			if note, failure := v.status(); note != "" {
 				color := t.TextMuted
 				if failure {
@@ -903,6 +1049,7 @@ func (v *captureViews) filterModal(c *ui.Context, t *ui.Theme, a *app) {
 			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
 				if ui.Button(c, "Clear").Clicked() {
 					v.editStatus, v.editHeader, v.editBody = "", "", ""
+					v.editTriage = captureTriage{}
 					v.commitFilter(a)
 					v.filterOpen = false
 				}
@@ -927,6 +1074,8 @@ func (v *captureViews) commitFilter(a *app) {
 	view.status = strings.TrimSpace(v.editStatus)
 	view.header = strings.TrimSpace(v.editHeader)
 	view.body = v.editBody
+	view.triage = v.editTriage
+	view.triage.Method = strings.TrimSpace(view.triage.Method)
 	v.bind(a)
 	v.applyFilter(a)
 	if strings.TrimSpace(view.body) != "" {
@@ -944,7 +1093,7 @@ func (v *captureViews) savedModal(c *ui.Context, t *ui.Theme, a *app) {
 	ui.Modal(c, &v.savedOpen, func() {
 		ui.Column(c).Width(560).Gap(10).Children(func() {
 			ui.Text(c, "Saved capture filters").FontSize(14).Bold()
-			ui.Text(c, "A filter keeps a view's search, chip, status, header and body conditions. Applying one changes this view; the other views keep their own.").
+			ui.Text(c, "A filter keeps this view's URL, content and triage conditions. Applying one changes this view; the other views keep their own.").
 				FontSize(11).TextColor(t.TextMuted)
 			if len(v.filters) == 0 {
 				ui.Text(c, "No saved filters yet.").FontSize(11).TextColor(t.TextMuted)
@@ -1011,6 +1160,7 @@ func (v *captureViews) applySaved(a *app, name string) {
 	v.capture(a)
 	view.query, view.filter, view.chip = f.Query, f.Filter, f.Chip
 	view.status, view.header, view.body = f.Status, f.Header, f.Body
+	view.triage = f.Triage
 	view.preset = f.Name
 	view.reveal = true
 	v.bind(a)
@@ -1032,10 +1182,7 @@ func (v *captureViews) saveCurrent(a *app) {
 		v.problem = "A saved filter needs a name."
 		return
 	}
-	f := savedCaptureFilter{
-		Name: name, Query: view.query, Filter: view.filter, Chip: view.chip,
-		Status: view.status, Header: view.header, Body: view.body,
-	}
+	f := view.saved(name)
 	list := slices.Clone(v.filters)
 	replaced := false
 	for i := range list {
@@ -1055,6 +1202,11 @@ func (v *captureViews) saveCurrent(a *app) {
 	view.preset = name
 	v.note = "Saved " + strconv.Quote(name) + "."
 	a.setMessage("Saved capture filter " + name)
+}
+
+func (v *captureView) saved(name string) savedCaptureFilter {
+	return savedCaptureFilter{Name: name, Query: v.query, Filter: v.filter, Chip: v.chip,
+		Status: v.status, Header: v.header, Body: v.body, Triage: v.triage}
 }
 
 // renameSaved renames the filter the dialog is renaming to the name typed.

@@ -197,6 +197,7 @@ type app struct {
 	filterStatus string
 	filterHeader string
 	filterBody   string
+	filterTriage captureTriage
 	views        captureViews
 	columnOpen   bool
 	columnName   string
@@ -835,6 +836,9 @@ func (a *app) applyFilter() {
 			continue
 		}
 		if a.filterHeader != "" && !headerMatches(f, a.filterHeader) {
+			continue
+		}
+		if !a.filterTriage.matches(f) {
 			continue
 		}
 		if a.filterBody != "" && !strings.Contains(strings.ToLower(f.reqBody+f.resBody), strings.ToLower(a.filterBody)) {
@@ -1832,6 +1836,7 @@ func (a *app) saveMark() {
 		}
 	}
 	a.markOpen = false
+	a.applyFilter()
 	a.invalidate()
 	a.setMessage("Marked")
 }
@@ -2560,7 +2565,7 @@ func (a *app) setKeyLog(path string) {
 
 // filtersActive says whether a content filter narrows the table.
 func (a *app) filtersActive() bool {
-	return a.filterStatus != "" || a.filterHeader != "" || a.views.bodyFilter() != ""
+	return a.filterStatus != "" || a.filterHeader != "" || a.views.bodyFilter() != "" || a.filterTriage != (captureTriage{})
 }
 
 // filterSummary is what the status bar says about the filters in use.
@@ -2575,6 +2580,7 @@ func (a *app) filterSummary() string {
 	if body := a.views.bodyFilter(); body != "" {
 		parts = append(parts, "body "+body)
 	}
+	parts = append(parts, a.filterTriage.summary()...)
 	return strings.Join(parts, " · ")
 }
 
