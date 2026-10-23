@@ -82,7 +82,7 @@ func (a *app) openDevices() {
 
 func (a *app) enableDevices() {
 	d := &a.deviceUI
-	if a.srv == nil || a.errText != "" {
+	if a.srv == nil || !a.srv.Running() {
 		d.problem = "Start the local capture proxy successfully before enabling device access"
 		return
 	}

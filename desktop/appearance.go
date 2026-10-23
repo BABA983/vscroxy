@@ -2,6 +2,7 @@ package main
 
 import (
 	"cmp"
+	"strconv"
 
 	"github.com/egoist/mygo/ui"
 )
@@ -43,14 +44,33 @@ func appTheme(dark bool) *ui.Theme {
 // settingsModal groups infrequent system actions away from capture controls.
 // The existing editors still own their values and persistence.
 func (a *app) settingsModal(c *ui.Context, t *ui.Theme) {
+	// Closing Settings or leaving the Proxy tab makes the next visit read the
+	// OS again.
+	defer func() { a.systemProxy.shown = a.settingsOpen && a.settingsTab == 1 }()
 	if !a.settingsOpen {
 		return
 	}
+	height := float32(372)
+	if a.settingsTab == 1 || a.settingsTab == 2 {
+		height = 520
+	}
+	if a.settingsTab == 2 {
+		height = 600
+	}
+	width, windowHeight := c.Size()
+	height = min(height, windowHeight-80)
 	ui.Modal(c, &a.settingsOpen, func() {
-		ui.Column(c).Width(620).Height(372).Gap(16).Children(func() {
+		ui.Column(c).Width(min(620, width-80)).Height(height).Gap(16).Children(func() {
 			ui.Text(c, "Settings").FontSize(18).Bold()
-			ui.Tabs(c, &a.settingsTab, "General", "Proxy", "Certificates")
-			ui.Column(c).Grow(1).Gap(14).Padding(8, 0).Children(func() {
+			if ui.Tabs(c, &a.settingsTab, "General", "Proxy", "HTTPS").Changed() {
+				switch a.settingsTab {
+				case 1:
+					a.checkSystemProxy()
+				case 2:
+					a.checkCertificate(false)
+				}
+			}
+			ui.Scroll(c).Grow(1).Gap(14).Padding(8, 20, 8, 0).Children(func() {
 				switch a.settingsTab {
 				case 0:
 					ui.Row(c).AlignItems(ui.Center).Children(func() {
@@ -74,19 +94,30 @@ func (a *app) settingsModal(c *ui.Context, t *ui.Theme) {
 					})
 				case 1:
 					addr := "Capture is not running"
-					if a.srv != nil {
+					if a.srv != nil && a.srv.Running() {
 						addr = "Proxy address: " + a.srv.Addr()
 					}
 					ui.Text(c, addr).Bold()
-					ui.Text(c, "System proxy changes affect other applications. You can also configure a client to use this address manually.").FontSize(12).TextColor(t.TextMuted)
-					ui.Row(c).Gap(8).Children(func() {
-						if ui.Button(c, "Enable system proxy").Disabled(a.srv == nil).Clicked() {
-							a.setSystemProxy(true)
+					ui.Column(c).Gap(6).Children(func() {
+						ui.Text(c, "Listening port").FontSize(12).Bold()
+						ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+							ui.TextInput(c, &a.proxyPortInput).Label("Proxy port").Placeholder("Automatic").Width(120)
+							if ui.Button(c, "Save for next launch").Clicked() {
+								a.saveProxyPort()
+							}
+						})
+						ui.Text(c, "Blank = automatic (prefers 7890). Fixed port: 1024–65535, no fallback.").FontSize(12).TextColor(t.TextMuted)
+						next := "Next launch: Automatic · restart the app to apply"
+						if a.proxyPort != 0 {
+							next = "Next launch: 127.0.0.1:" + strconv.Itoa(a.proxyPort) + " · restart the app to apply"
 						}
-						if ui.Button(c, "Disable system proxy").Clicked() {
-							a.setSystemProxy(false)
+						ui.Text(c, next).FontSize(12).TextColor(t.TextMuted)
+						if a.proxyPortProblem != "" {
+							ui.Text(c, a.proxyPortProblem).FontSize(12).TextColor(t.Danger).SingleLine().Tooltip(a.proxyPortProblem)
 						}
 					})
+					ui.Divider(c)
+					a.systemProxySettings(c, t)
 					ui.Divider(c)
 					ui.Text(c, "Upstream: "+cmp.Or(a.upstream, "Direct connection")).FontSize(12).TextColor(t.TextMuted).SingleLine()
 					ui.Row(c).Gap(8).Children(func() {
@@ -100,26 +131,7 @@ func (a *app) settingsModal(c *ui.Context, t *ui.Theme) {
 						}
 					})
 				case 2:
-					ui.Text(c, "HTTPS inspection").Bold()
-					ui.Text(c, "Trust the local CA on the client to inspect encrypted traffic. Installing a certificate may require system permission.").FontSize(12).TextColor(t.TextMuted)
-					ui.Text(c, cmp.Or(shortenHome(a.caPath), "No local CA available")).FontSize(12).TextColor(t.TextMuted).SingleLine().Tooltip(a.caPath)
-					ui.Row(c).Gap(8).Children(func() {
-						if ui.Button(c, "Install certificate…").Disabled(a.caPath == "").Clicked() {
-							a.installCA()
-						}
-						if ui.Button(c, "Reveal certificate").Disabled(a.caPath == "").Clicked() {
-							a.revealCA()
-						}
-					})
-					ui.Row(c).Gap(8).Children(func() {
-						if ui.Button(c, "SSL proxying…").Clicked() {
-							a.settingsOpen, a.sslOpen = false, true
-						}
-						if ui.Button(c, "TLS key log…").Clicked() {
-							a.settingsOpen = false
-							a.openKeyLog()
-						}
-					})
+					a.httpsSettings(c, t)
 				}
 			})
 			ui.Row(c).Justify(ui.End).Children(func() {

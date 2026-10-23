@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/richtext"
@@ -179,30 +180,48 @@ func (a *app) bodyView(c *ui.Context, f flow) {
 	key := fmt.Sprintf("%d:%d", f.id, a.bodySide)
 	if key != a.protoFor {
 		a.protoFor = key
+		// Display choices belong to this request side; a previous image or
+		// binary response must not leave the next JSON response unreadable.
+		a.bodyMode = 0
 		ct := f.contentType(a.bodySide == 0)
 		a.protoOK = grpcContentType(ct) || strings.Contains(ct, "protobuf")
-		if a.protoOK {
-			a.bodyMode = 4
-		} else if len(body) > 0 && len(body) <= 512<<10 {
+		if !a.protoOK && len(body) > 0 && len(body) <= 512<<10 {
 			_, err := decodeProto([]byte(body))
 			a.protoOK = err == nil
 		}
 	}
-	modes := []string{"Pretty", "JSON", "Hex", "Preview"}
+	modes := []string{"Auto", "Pretty", "JSON", "Hex", "Preview"}
 	if a.protoOK {
 		modes = append(modes, "Protobuf")
 	}
 	if a.bodyMode >= len(modes) {
 		a.bodyMode = 0
 	}
-	ui.Row(c).Padding(8, 12).Gap(10).AlignItems(ui.Center).Children(func() {
+	ui.Row(c).Padding(8, 12).Gap(10).Wrap().AlignItems(ui.Center).Children(func() {
 		ui.Segmented(c, &a.bodySide, "Response", "Request")
 		ui.Segmented(c, &a.bodyMode, modes...)
-		if a.bodyMode != 4 {
-			ui.SearchField(c, &a.bodyQuery).Width(220)
+	})
+	mode := a.bodyMode
+	if mode == 0 {
+		ct := f.contentType(a.bodySide == 0)
+		switch {
+		case grpcContentType(ct) || strings.Contains(ct, "protobuf"):
+			mode = 5
+		case strings.HasPrefix(ct, "image/"), strings.Contains(ct, "html"):
+			mode = 4
+		case ct == "application/octet-stream", !utf8.ValidString(body), strings.ContainsRune(body, 0):
+			mode = 3
+		default:
+			mode = 1
+		}
+	}
+	ui.Row(c).Padding(0, 12, 8).Gap(12).Children(func() {
+		ui.Text(c, "Showing: "+modes[mode]).FontSize(11).TextColor(t.TextMuted)
+		if mode != 5 {
+			ui.TextInput(c, &a.bodyQuery).Label("Search body").Placeholder("Search body…").Grow(1)
 		}
 	})
-	if a.bodyMode == 4 {
+	if mode == 5 {
 		a.protobuf.view(c, a, f)
 		return
 	}
@@ -223,17 +242,17 @@ func (a *app) bodyView(c *ui.Context, f flow) {
 		}
 	}
 
-	switch a.bodyMode {
-	case 1:
+	switch mode {
+	case 2:
 		if !a.jsonOK {
 			ui.Text(c, "Body is not JSON; showing it as text").FontSize(11).TextColor(t.TextMuted).Padding(12)
 			a.prettyBody(c, body)
 			return
 		}
 		a.jsonBody(c)
-	case 2:
-		a.hexBody(c, body)
 	case 3:
+		a.hexBody(c, body)
+	case 4:
 		a.previewBody(c, f, body)
 	default:
 		a.prettyBody(c, body)

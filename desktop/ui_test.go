@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/baba983/vscroxy/desktop/internal/capture"
+	"github.com/baba983/vscroxy/desktop/internal/system"
 	"github.com/egoist/mygo/ui"
 	"github.com/gorilla/websocket"
 )
@@ -39,6 +40,86 @@ func workspaceApp() *app {
 	a.countClients()
 	a.applyFilter()
 	return a
+}
+
+func TestCaptureTableScrollsAndKeepsEachViewsPlace(t *testing.T) {
+	a := workspaceApp()
+	a.flows = nil
+	for i := range maxFlows {
+		path := fmt.Sprintf("/capture/%04d", i+1)
+		a.flows = append(a.flows, flow{id: i + 1, method: "GET", scheme: "https", host: "api.example.com", path: path, url: "https://api.example.com" + path, status: 200})
+	}
+	a.applyFilter()
+	tt := ui.NewTester(a.view, 1280, 800)
+	row := "api.example.com/capture/0001"
+	box, ok := tt.Find("api.example.com/capture/5000")
+	if !ok {
+		t.Fatal("a capture view must start at the latest request")
+	}
+	x, y := box.X+10, box.Y+10
+	tt.Scroll(x, y, 0, -1e6)
+	tt.Scroll(x, y, 0, 640)
+	if !tt.HasText("api.example.com/capture/0021") {
+		t.Fatalf("scrolling did not reveal later requests: %q", tt.Texts())
+	}
+	tt.Frame()
+	if !tt.HasText("api.example.com/capture/0021") {
+		t.Fatal("a redraw reset the scroll position")
+	}
+	if err := tt.Click("New view"); err != nil {
+		t.Fatal(err)
+	}
+	if !tt.HasText("api.example.com/capture/5000") || tt.HasText("api.example.com/capture/0021") {
+		t.Fatal("a new capture view must follow latest without inheriting another view's position")
+	}
+	if err := tt.Click("Capture view: View 1"); err != nil {
+		t.Fatal(err)
+	}
+	if !tt.HasText("api.example.com/capture/0021") {
+		t.Fatal("returning to a capture view lost its scroll position")
+	}
+	tt.Scroll(x, y, 0, 1e6)
+	if !tt.HasText("api.example.com/capture/5000") {
+		t.Fatal("cannot reach the final retained request")
+	}
+	tt.Wheel(x, y, 0, -1e6)
+	tt.Advance(time.Second)
+	if !tt.HasText(row) {
+		t.Fatal("mouse wheel cannot return to the first request")
+	}
+	appendFlow := func(id int) {
+		t.Helper()
+		path := fmt.Sprintf("/capture/%04d", id)
+		a.flows = append(a.flows, flow{id: id, method: "GET", scheme: "https", host: "api.example.com", path: path, url: "https://api.example.com" + path, status: 200})
+		a.applyFilter()
+		tt.Frame()
+	}
+	appendFlow(5001)
+	if !tt.HasText(row) || tt.HasText("api.example.com/capture/5001") {
+		t.Fatal("new traffic pulled the reader away from older requests")
+	}
+	if err := tt.Click("Latest"); err != nil {
+		t.Fatal(err)
+	}
+	if !tt.HasText("api.example.com/capture/5001") {
+		t.Fatal("Latest must scroll, not only change the selection")
+	}
+	appendFlow(5002)
+	if !tt.HasText("api.example.com/capture/5002") {
+		t.Fatal("Latest did not resume following new traffic")
+	}
+	tt.Scroll(x, y, 0, -1e6)
+	tt.Scroll(x, y, 0, 1e6)
+	appendFlow(5003)
+	if !tt.HasText("api.example.com/capture/5003") {
+		t.Fatal("scrolling back to the bottom did not resume following")
+	}
+	// The capture cap drops the oldest row even when the row count stays fixed.
+	a.flows = a.flows[1:]
+	appendFlow(5004)
+	if !tt.HasText("api.example.com/capture/5004") {
+		t.Fatal("following stopped when an old row was evicted")
+	}
 }
 
 func TestWorkspaceKeepsCaptureAndDraftIndependent(t *testing.T) {
@@ -96,13 +177,57 @@ func TestWorkspaceKeepsCaptureAndDraftIndependent(t *testing.T) {
 	}
 }
 
-func TestSettingsOpensExistingEditors(t *testing.T) {
+func TestCaptureUIUsesOnlyTheRunningListener(t *testing.T) {
+	srv, err := capture.New("127.0.0.1:0", t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer srv.Close()
 	a := workspaceApp()
-	tt := ui.NewTester(a.view, 960, 600)
-	for _, label := range []string{"Settings", "Proxy", "Configure upstream…"} {
+	a.srv, a.flows, a.visible = srv, nil, nil
+	tt := ui.NewTester(a.view, 1240, 800)
+	if !tt.HasText("Capture stopped") || tt.HasText("Live · "+srv.Addr()) {
+		t.Fatal("an unstarted server must not appear live")
+	}
+	a.setSystemProxy(true)
+	if a.message != "System proxy: start capture successfully first" {
+		t.Fatal("an unstarted proxy must not change system settings")
+	}
+	if err := srv.Start(); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if !tt.HasText("Live · "+srv.Addr()) || !tt.HasText("Set your HTTP proxy to "+srv.Addr()) {
+		t.Fatalf("capture must show its actual bound address, texts: %q", tt.Texts())
+	}
+	for _, label := range []string{"Settings", "Proxy"} {
 		if err := tt.Click(label); err != nil {
 			t.Fatal(err)
 		}
+	}
+	if !tt.HasText("Proxy address: " + srv.Addr()) {
+		t.Fatal("settings did not use the actual bound address")
+	}
+	if err := srv.Close(); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if !tt.HasText("Capture is not running") || tt.HasText("Proxy address: "+srv.Addr()) {
+		t.Fatal("closed proxy must not advertise its old address")
+	}
+}
+
+func TestSettingsOpensExistingEditors(t *testing.T) {
+	a := workspaceApp()
+	tt := ui.NewTester(a.view, 960, 600)
+	for _, label := range []string{"Settings", "Proxy"} {
+		if err := tt.Click(label); err != nil {
+			t.Fatal(err)
+		}
+	}
+	tt.Scroll(480, 300, 0, 500)
+	if err := tt.Click("Configure upstream…"); err != nil {
+		t.Fatal(err)
 	}
 	if !tt.HasText("Upstream proxy") {
 		t.Fatal("settings did not open the upstream editor")
@@ -110,13 +235,566 @@ func TestSettingsOpensExistingEditors(t *testing.T) {
 	if err := tt.Click("Cancel"); err != nil {
 		t.Fatal(err)
 	}
-	for _, label := range []string{"Settings", "Certificates", "TLS key log…"} {
+	for _, label := range []string{"Settings", "Proxy"} {
 		if err := tt.Click(label); err != nil {
 			t.Fatal(err)
 		}
 	}
+	tt.Key(0, ui.KeyRight) // HTTPS tab, not Capture's HTTPS filter chip.
+	tt.Scroll(480, 300, 0, 500)
+	if err := tt.Click("TLS key log…"); err != nil {
+		t.Fatal(err)
+	}
 	if !tt.HasText("TLS key log") {
 		t.Fatal("settings did not open the TLS key log editor")
+	}
+}
+
+func TestHTTPSSetupExplainsTunnelsAndEnablesOnlyTheSelectedDomain(t *testing.T) {
+	dir := t.TempDir()
+	srv, err := capture.New("127.0.0.1:0", dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer srv.Close()
+	if err := srv.Start(); err != nil {
+		t.Fatal(err)
+	}
+	a := workspaceApp()
+	a.srv, a.caPath, a.sslPath = srv, filepath.Join(dir, "mitmproxy-ca-cert.pem"), filepath.Join(dir, "ssl.json")
+	a.flows = []flow{{id: 1, method: "CONNECT", scheme: "https", host: "dc.dlife.cn:18443", url: "https://dc.dlife.cn:18443", kind: "connect", status: 200}}
+	a.applyFilter()
+	tt := ui.NewTester(a.view, 1280, 800)
+	click := func(label string) {
+		t.Helper()
+		if err := tt.Click(label); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// Wait for the real, read-only system check, not for an arbitrary delay.
+	waitCertificate := func() {
+		t.Helper()
+		if a.certificate.checking {
+			select {
+			case result := <-a.certificate.pending:
+				a.certificate.pending <- result
+			case <-t.Context().Done():
+				t.Fatal("certificate check did not complete")
+			}
+		}
+		tt.Frame()
+	}
+	waitCertificate()
+	if !tt.HasText("Encrypted tunnel — not individual requests") || !tt.HasText("3  Domain decryption disabled") || !tt.HasText("2  Trust not verified on this system") {
+		t.Fatalf("tunnel setup missing or an uninstalled CA was reported trusted: %q", tt.Texts())
+	}
+	click("Enable for dc.dlife.cn:18443")
+	if !tt.HasText("3  Domain decryption is now enabled") || !tt.HasText("Encrypted tunnel — not individual requests") {
+		t.Fatal("enabling a domain must not make the old CONNECT appear decrypted")
+	}
+	cfg, err := capture.LoadSSL(a.sslPath)
+	if err != nil || !cfg.Decrypts("api.dc.dlife.cn") || cfg.Decrypts("other.dlife.cn") || cfg.All || !srv.SSL().Decrypts("dc.dlife.cn") || srv.SSL().All {
+		t.Fatalf("domain selection was not saved with the correct scope: %+v, %v", cfg, err)
+	}
+	click("Set up certificate…")
+	waitCertificate()
+	if !tt.HasText("HTTPS inspection") || !tt.HasText("Trust not verified on this system") || !tt.HasText("Proxy listening · "+srv.Addr()) || !tt.HasText("dc.dlife.cn") {
+		t.Fatalf("settings did not show scoped trust and domain state: %q", tt.Texts())
+	}
+	// A missing/replaced certificate must not leave the previous result cached.
+	if err := os.Remove(a.caPath); err != nil {
+		t.Fatal(err)
+	}
+	a.certificate.installErr = errors.New("authorization could not finish")
+	tt.Frame()
+	click("Check again")
+	waitCertificate()
+	if !tt.HasText("Local CA unavailable") || !tt.HasText("CA file not found. Start capture, then check again.") || !tt.HasText("Installation failed: authorization could not finish") {
+		t.Fatalf("checking again must refresh trust without hiding an unresolved installation error: %q", tt.Texts())
+	}
+	click("Manage domains…")
+	if !tt.HasText("SSL proxying") {
+		t.Fatal("HTTPS settings did not open the domain editor")
+	}
+	click("Decryption domains")
+	tt.Key(ui.Cmd, ui.KeyA)
+	tt.Type("dlife.cn")
+	click("Save")
+	cfg, err = capture.LoadSSL(a.sslPath)
+	if err != nil || !cfg.Decrypts("other.dlife.cn") || cfg.Decrypts("notdlife.cn") || !tt.HasText("3  Domain decryption is now enabled") {
+		t.Fatal("a parent-domain rule must enable its subdomains in the inspector too")
+	}
+}
+
+func TestCaptureSearchAndFilterFailuresAreRecoverable(t *testing.T) {
+	a := workspaceApp()
+	tt := ui.NewTester(a.view, 960, 600)
+	tt.Key(ui.Cmd, ui.KeyF)
+	tt.Type("no-such-host")
+	if !tt.HasText("No matching requests") || tt.HasText("Waiting for traffic") {
+		t.Fatalf("search hid captured traffic without explaining why: %q", tt.Texts())
+	}
+	if err := tt.Click("Show all requests"); err != nil {
+		t.Fatal(err)
+	}
+	if !tt.HasText("2 flows · 2 shown") {
+		t.Fatal("reset did not restore the captured requests")
+	}
+	a.openFilter()
+	tt.Frame()
+	if err := tt.Click("Status"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Type("4xx, nonsense")
+	if err := tt.Click("Apply"); err == nil && !a.views.filterOpen {
+		t.Fatal("invalid status expression silently applied")
+	}
+	if !tt.HasText("Use HTTP status codes (100–599), ranges, comparisons or comma-separated alternatives.") {
+		t.Fatal("invalid status expression has no visible validation")
+	}
+	tt.Click("Status")
+	tt.Key(ui.Cmd, ui.KeyA)
+	tt.Type("4xx, 5xx")
+	if err := tt.Click("Apply"); err != nil {
+		t.Fatal(err)
+	}
+	if !tt.HasText("2 flows · 1 shown") {
+		t.Fatalf("comma-separated alternatives did not match the 401 response: %q", tt.Texts())
+	}
+}
+
+func TestBodyAutomaticallyChoosesAUsableMode(t *testing.T) {
+	a := workspaceApp()
+	a.flows[0].respHeader.Set("Content-Type", "application/octet-stream")
+	a.flows[0].resBody = "\x00\xffbinary"
+	a.tab = 1
+	tt := ui.NewTester(a.view, 1280, 800)
+	if !tt.HasText("Showing: Hex") {
+		t.Fatal("binary body must not default to text")
+	}
+	if err := tt.Click("Hex"); err != nil {
+		t.Fatal(err)
+	}
+	a.flows[1].respHeader = http.Header{"Content-Type": {"application/json"}}
+	a.flows[1].resBody = `{"answer":42}`
+	a.picked = 1
+	tt.Frame()
+	if !tt.HasText("Showing: Pretty") || tt.HasText("Showing: Hex") {
+		t.Fatal("switching requests kept an unusable body mode")
+	}
+}
+
+func TestBodyModeSurvivesIncomingTraffic(t *testing.T) {
+	a := workspaceApp()
+	a.tab = 1
+	tt := ui.NewTester(a.view, 1280, 800)
+	// Hex renders differently from Auto's Pretty, so a reset is observable.
+	if err := tt.Click("Hex"); err != nil {
+		t.Fatal(err)
+	}
+	if !tt.HasText("Showing: Hex") {
+		t.Fatal("manual body mode was not selected")
+	}
+	a.pending = []capture.Flow{{ID: 3, Method: "GET", Scheme: "https", Host: "other.example.com", Path: "/new", Status: 200, Kind: "http"}}
+	tt.Frame()
+	if !tt.HasText("Showing: Hex") {
+		t.Fatal("new traffic reset the manually selected body mode")
+	}
+	a.pending = []capture.Flow{{ID: 4, Method: "GET", Scheme: "https", Host: "other.example.com", Path: "/another", Status: 200, Kind: "http"}}
+	tt.Frame()
+	if !tt.HasText("Showing: Hex") {
+		t.Fatal("new traffic changed the body mode while inspecting the same request")
+	}
+	if err := tt.Click("Request"); err != nil {
+		t.Fatal(err)
+	}
+	if !tt.HasText("Showing: Pretty") || tt.HasText("Showing: Hex") {
+		t.Fatal("switching body sides must still reset to Auto")
+	}
+}
+
+func TestJSONExpansionSurvivesIncomingTraffic(t *testing.T) {
+	a := workspaceApp()
+	a.tab = 1
+	a.flows[0].resBody = `{"collapsed":{"hidden":"hidden-value"},"data":{"nested":{"leaf":"expanded-value"}}}`
+	tt := ui.NewTester(a.view, 1280, 800)
+	if err := tt.Click("Pretty"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Key(0, ui.KeyRight) // Body's JSON mode, not Capture's JSON filter.
+	if !tt.HasText("Showing: JSON") {
+		t.Fatal("JSON mode was not selected")
+	}
+	if err := tt.Click("▸"); err != nil {
+		t.Fatal(err)
+	}
+	box, ok := tt.Find("collapsed")
+	if !ok {
+		t.Fatal("missing object to collapse")
+	}
+	tt.ClickAt(box.X-16, box.Y+box.H/2)
+	if !tt.HasText(`"expanded-value"`) || tt.HasText(`"hidden-value"`) {
+		t.Fatal("JSON nodes did not expand and collapse")
+	}
+	for _, id := range []int{3, 4} {
+		a.pending = []capture.Flow{{ID: id, Method: "GET", Scheme: "https", Host: "other.example.com", Path: "/new", Status: 200, Kind: "http"}}
+		tt.Frame()
+		if !tt.HasText(`"expanded-value"`) || tt.HasText(`"hidden-value"`) {
+			t.Fatal("incoming traffic reset the JSON expansion state")
+		}
+	}
+	// Replacing a session can reuse a flow ID with different content. It must
+	// refresh the tree rather than preserving stale parsed values.
+	a.flows[0].resBody = `{"replacement":"new-value"}`
+	a.replaceSession(a.flows, a.frames)
+	tt.Frame()
+	if !tt.HasText(`{"replacement":"new-value"}`) || tt.HasText(`"expanded-value"`) {
+		t.Fatal("changed body content did not refresh the JSON tree")
+	}
+}
+
+func TestCaptureKeepsSelectionAcrossListChanges(t *testing.T) {
+	a := workspaceApp()
+	a.flows = nil
+	for id := 1; id <= maxFlows; id++ {
+		path := fmt.Sprintf("/capture/%04d", id)
+		a.flows = append(a.flows, flow{id: id, method: "GET", scheme: "https", host: "api.example.com", path: path, status: 200})
+	}
+	a.applyFilter()
+	tt := ui.NewTester(a.view, 1280, 800)
+	if err := tt.Click("api.example.com/capture/4998"); err != nil {
+		t.Fatal(err)
+	}
+	selected := "GET https://api.example.com/capture/4998"
+	if !tt.HasText(selected) {
+		t.Fatal("request was not selected")
+	}
+	a.pending = []capture.Flow{{ID: 5001, Method: "GET", Scheme: "https", Host: "api.example.com", Path: "/capture/5001", Status: 200, Kind: "http"}}
+	tt.Frame()
+	if !tt.HasText(selected) {
+		t.Fatal("evicting the oldest request changed the inspected request")
+	}
+	if err := tt.Click("URL"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.Click("URL"); err != nil {
+		t.Fatal(err)
+	}
+	if !tt.HasText(selected) {
+		t.Fatal("sorting changed the inspected request")
+	}
+	tt.Key(ui.Cmd, ui.KeyF)
+	tt.Type("/capture/499")
+	if !tt.HasText(selected) {
+		t.Fatal("filtering preceding rows changed the inspected request")
+	}
+	if err := tt.Click("New view"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.Click("Capture view: View 1"); err != nil {
+		t.Fatal(err)
+	}
+	if !tt.HasText(selected) {
+		t.Fatal("returning to a view lost its selected request")
+	}
+	tt.Key(ui.Cmd, ui.KeyF)
+	tt.Key(ui.Cmd, ui.KeyA)
+	tt.Type("/capture/4997")
+	if !tt.HasText("GET https://api.example.com/capture/4997") {
+		t.Fatal("hiding the selected request did not choose a surviving row")
+	}
+	tt.Key(ui.Cmd, ui.KeyA)
+	tt.Type("no-match")
+	if !tt.HasText("No request chosen") {
+		t.Fatal("an empty list still inspected a removed request")
+	}
+	// A replacement dataset may reuse an ID remembered by an inactive view.
+	// Equal URLs keep the sort stable, so the first new request is unambiguous.
+	a.replaceSession([]flow{
+		{id: 1, method: "POST", scheme: "https", host: "api.example.com", path: "/replacement", status: 200},
+		{id: 5001, method: "GET", scheme: "https", host: "api.example.com", path: "/replacement", status: 200},
+	}, nil)
+	tt.Frame()
+	if err := tt.Click("Capture view: View 2"); err != nil {
+		t.Fatal(err)
+	}
+	if !tt.HasText("POST https://api.example.com/replacement") {
+		t.Fatal("an inactive view restored a selection from the replaced session")
+	}
+}
+
+func TestCaptureDetailSurvivesUnrelatedTraffic(t *testing.T) {
+	a := workspaceApp()
+	var before, after strings.Builder
+	for line := range 60 {
+		fmt.Fprintf(&before, "line %02d\n", line)
+		if line == 2 || line == 50 {
+			fmt.Fprintf(&after, "changed %02d\n", line)
+		} else {
+			fmt.Fprintf(&after, "line %02d\n", line)
+		}
+	}
+	first := a.flows[0]
+	first.resBody = before.String()
+	second := first
+	second.id, second.resBody, second.conn.proto = 3, after.String(), "HTTP/2"
+	a.flows = []flow{first, second}
+	a.tab = 2
+	a.applyFilter()
+	tt := ui.NewTester(a.view, 1280, 800)
+	if err := tt.Click("api.example.com/projects"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Key(0, ui.KeyDown)
+	a.diff.GoToHunk(1)
+	tt.Frame()
+	position := a.diff.CursorPos()
+	if position.Line < 40 {
+		t.Fatal("diff did not move to the later change")
+	}
+	appendFlow := func(id int) {
+		t.Helper()
+		a.pending = []capture.Flow{{ID: id, Method: "GET", Host: "other.example.com", Path: "/new", Kind: "http"}}
+		tt.Frame()
+	}
+	appendFlow(4)
+	if a.diff.CursorPos() != position {
+		t.Fatal("incoming traffic reset the diff reading position")
+	}
+	if err := tt.Click("Connection details"); err != nil {
+		t.Fatal(err)
+	}
+	appendFlow(5)
+	if !tt.HasText("HTTP/2") {
+		t.Fatal("incoming traffic closed the connection popover")
+	}
+	if err := tt.Click("Connection details"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.Click("Body"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.Click("Search body"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Type("changed")
+	appendFlow(6)
+	if !tt.Focused("Search body") {
+		t.Fatal("incoming traffic took focus from the body search")
+	}
+	tt.Key(ui.Cmd, ui.KeyA)
+	tt.Key(ui.Cmd, ui.KeyC)
+	if tt.Clipboard() != "changed" {
+		t.Fatal("incoming traffic reset the body search text")
+	}
+}
+
+func TestCaptureFeedbackIsTransientAndComplete(t *testing.T) {
+	a := workspaceApp()
+	tt := ui.NewTester(a.view, 960, 600)
+	message := "Copied cURL command; review credentials before sharing it with another person or service."
+	a.setMessage(message)
+	tt.Frame()
+	if !tt.HasText(message) {
+		t.Fatal("feedback was truncated")
+	}
+	tt.Advance(6 * time.Second)
+	if tt.HasText(message) {
+		t.Fatal("feedback stayed visible after its timeout")
+	}
+}
+
+func TestCaptureSelectionFollowsKeysAndExcludesHiddenRows(t *testing.T) {
+	a := workspaceApp()
+	tt := ui.NewTester(a.view, 960, 600)
+	if err := tt.Click("api.example.com/projects"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Key(0, ui.KeyDown)
+	tt.Frame()
+	if f, ok := a.current(); !ok || f.id != 2 || !a.chosen.Has(2) || a.chosen.Has(1) {
+		t.Fatal("keyboard navigation left a different request selected for export")
+	}
+	tt.Key(ui.Cmd|ui.Alt, ui.KeyC)
+	if !strings.HasPrefix(tt.Clipboard(), "curl ") || !strings.Contains(tt.Clipboard(), "https://api.example.com/login") {
+		t.Fatal("copy cURL shortcut did not copy the focused request")
+	}
+	tt.Key(ui.Cmd, ui.KeyA)
+	tt.Key(ui.Cmd, ui.KeyF)
+	tt.Type("projects")
+	if !tt.HasText("2 flows · 1 shown") || a.chosen.Has(2) {
+		t.Fatal("filtered-out requests remained selected for bulk export")
+	}
+	if err := tt.Click("Clear"); err != nil {
+		t.Fatal(err)
+	}
+	if len(a.flows) != 2 || !tt.HasText("Clear captured requests?") {
+		t.Fatal("Clear removed traffic before confirmation")
+	}
+	tt.Click("Cancel")
+	if len(a.flows) != 2 {
+		t.Fatal("Cancel removed captured traffic")
+	}
+}
+
+func TestReplayResultDoesNotStealFocusAndKeepsItsSource(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusCreated)
+		io.WriteString(w, "result of this replay")
+	}))
+	defer upstream.Close()
+	srv, err := capture.New("127.0.0.1:0", t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer srv.Close()
+	if err := srv.Start(); err != nil {
+		t.Fatal(err)
+	}
+	a := workspaceApp()
+	a.srv = srv
+	source := a.flows[0]
+	source.url = upstream.URL + "/replay"
+	a.replay(source)
+	tt := ui.NewTester(a.view, 1280, 800)
+	if a.workspace != 0 || !tt.HasText("Inspect replay") {
+		t.Fatal("replay stole focus or gave no route to its result")
+	}
+	if err := tt.Click("Inspect replay"); err != nil {
+		t.Fatal(err)
+	}
+	if !tt.HasText("Source: Capture #1") || a.response == nil || a.response.Status != 201 || a.response.ResponseBody != "result of this replay" {
+		t.Fatal("inspect did not retain the exact replay response and source")
+	}
+}
+
+func TestDiffDistinguishesAnEmptyBaselineFromNoBaseline(t *testing.T) {
+	a := workspaceApp()
+	a.tab = 2
+	tt := ui.NewTester(a.view, 960, 600)
+	missing := "No previous response for this method and URL. Replay the request to compare responses."
+	if !tt.HasText(missing) {
+		t.Fatal("first response was presented as a meaningful diff")
+	}
+	a.flows = []flow{a.flows[0], a.flows[0]}
+	a.flows[0].resBody, a.flows[0].status = "", 204
+	a.flows[1].id = 3
+	a.applyFilter()
+	a.picked = 1
+	tt.Frame()
+	if tt.HasText(missing) || !tt.HasText("Previous response (left)") || !tt.HasText("Current response (right)") {
+		t.Fatal("an empty HTTP response was incorrectly treated as no baseline")
+	}
+}
+
+func TestHTTPSInstallationShowsAuthorizationAndVerifiedOutcome(t *testing.T) {
+	untrusted := errors.New("test CA is not trusted")
+	for _, tc := range []struct {
+		name       string
+		trustError error
+		installErr error
+		want       string
+	}{
+		{"trusted", nil, nil, "Trusted by this system"},
+		{"not-yet-trusted", untrusted, nil, "Trust not verified on this system"},
+		{"cancelled", untrusted, system.ErrInstallCancelled, "Installation cancelled. You can try again when ready."},
+		{"failed", untrusted, errors.New("authorization unavailable"), "Installation failed: authorization unavailable"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			a := workspaceApp()
+			a.settingsOpen, a.settingsTab = true, 2
+			a.certificate = certificateSetup{
+				cert: &x509.Certificate{}, err: untrusted,
+				checked: true, checking: true, installing: true,
+				pending: make(chan certificateResult, 1),
+			}
+			tt := ui.NewTester(a.view, 1280, 800)
+			if !tt.HasText("Installing certificate…") || !tt.HasText("Trust will be checked afterwards.") {
+				t.Fatal("pending installation must explain the system authorization step")
+			}
+			a.certificate.pending <- certificateResult{cert: &x509.Certificate{}, err: tc.trustError, installErr: tc.installErr}
+			tt.Frame()
+			if !tt.HasText(tc.want) || tt.HasText("Installing certificate…") {
+				t.Fatalf("wrong installation outcome: %q", tt.Texts())
+			}
+			if tc.trustError != nil && tt.HasText("Trusted by this system") {
+				t.Fatal("completing installation without verified trust must not report success")
+			}
+			if tc.trustError == nil {
+				_ = tt.Click("Install & Trust…")
+				if a.certificate.checking {
+					t.Fatal("an already trusted CA must not request installation again")
+				}
+			}
+		})
+	}
+}
+
+func TestProxyPortEditorSavesWithoutInterruptingCapture(t *testing.T) {
+	srv, err := capture.New("127.0.0.1:0", t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer srv.Close()
+	if err := srv.Start(); err != nil {
+		t.Fatal(err)
+	}
+	addr := srv.Addr()
+	a := workspaceApp()
+	a.srv, a.settingsPath = srv, filepath.Join(t.TempDir(), "settings.json")
+	tt := ui.NewTester(a.view, 960, 600)
+	for _, label := range []string{"Settings", "Proxy"} {
+		if err := tt.Click(label); err != nil {
+			t.Fatal(err)
+		}
+	}
+	edit := func(value string) {
+		t.Helper()
+		if err := tt.Click("Proxy port"); err != nil {
+			t.Fatal(err)
+		}
+		tt.Key(ui.Cmd, ui.KeyA)
+		tt.Key(0, ui.KeyBackspace)
+		tt.Type(value)
+		if err := tt.Click("Save for next launch"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, invalid := range []string{"0", "80", "1023", "65536", "not a port"} {
+		edit(invalid)
+		got, err := loadSettings(a.settingsPath)
+		if err != nil || got.ProxyPort != 0 || !tt.HasText("Enter a port from 1024 to 65535, or leave empty for automatic selection") {
+			t.Fatalf("invalid input %q was not rejected: saved %+v, error %v", invalid, got, err)
+		}
+	}
+	for _, port := range []int{1024, 65535, 9091} {
+		edit(fmt.Sprint(port))
+		got, err := loadSettings(a.settingsPath)
+		if err != nil || got.ProxyPort != port || !tt.HasText(fmt.Sprintf("Next launch: 127.0.0.1:%d · restart the app to apply", port)) {
+			t.Fatalf("port %d not saved: %+v, error %v", port, got, err)
+		}
+		if !srv.Running() || srv.Addr() != addr || !tt.HasText("Proxy address: "+addr) {
+			t.Fatal("saving next launch's port interrupted the current capture")
+		}
+	}
+	// Other settings must not overwrite the newly saved port.
+	a.dark, a.lastSave = true, time.Time{}
+	tt.Frame()
+	got, err := loadSettings(a.settingsPath)
+	if err != nil || !got.Dark || got.ProxyPort != 9091 {
+		t.Fatalf("subsequent settings save lost the port: %+v, %v", got, err)
+	}
+	path := a.settingsPath
+	a.settingsPath = t.TempDir() // a directory cannot be replaced by the settings file
+	edit("9092")
+	if a.proxyPort != 9091 || !strings.Contains(a.proxyPortProblem, "Port was not saved") {
+		t.Fatal("write failure must not claim that the new port was saved")
+	}
+	a.settingsPath = path
+	edit("")
+	got, err = loadSettings(path)
+	if err != nil || got.ProxyPort != 0 || !tt.HasText("Next launch: Automatic · restart the app to apply") {
+		t.Fatalf("clearing the port must restore automatic selection: %+v, %v", got, err)
 	}
 }
 

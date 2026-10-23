@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/baba983/vscroxy/desktop/internal/capture"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -315,10 +316,21 @@ func TestProtobufInspectorLoadsSchemaAndSelectsMessages(t *testing.T) {
 	if text := strings.Join(strings.Fields(tt.Clipboard()), " "); text != `title: "beta"` {
 		t.Fatalf("copied selected named message: %q", text)
 	}
+	a.pending = []capture.Flow{{ID: 5, Method: "GET", Host: "other.example.com", Path: "/new", Kind: "http"}}
+	tt.Frame()
+	click("Copy decoded")
+	if text := strings.Join(strings.Fields(tt.Clipboard()), " "); text != `title: "beta"` {
+		t.Fatalf("incoming traffic changed the selected protobuf message: %q", text)
+	}
 	click("Search protobuf messages")
 	tt.Type("alpha")
 	if !tt.HasText("1 of 2 messages") || !tt.HasText("alpha") {
 		t.Fatal("search must keep the matching message and safely remap selection")
+	}
+	a.pending = []capture.Flow{{ID: 6, Method: "GET", Host: "other.example.com", Path: "/another", Kind: "http"}}
+	tt.Frame()
+	if !tt.HasText("1 of 2 messages") || !tt.HasText("alpha") {
+		t.Fatal("incoming traffic reset protobuf search")
 	}
 	click("Request")
 	wait("Message type: api.Input")
@@ -329,7 +341,7 @@ func TestProtobufInspectorLoadsSchemaAndSelectsMessages(t *testing.T) {
 	// Opening another session may replace a flow without changing its ID.
 	// The old async result must not stay cached under that reused ID.
 	a.flows[0].reqBody = string(pbMessage(pbBytes(1, []byte("replacement"))))
-	a.applyFilter()
+	a.replaceSession(a.flows, a.frames)
 	tt.Frame()
 	wait("query:")
 	click("Copy decoded")

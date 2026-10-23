@@ -246,6 +246,11 @@ type Server struct {
 	dropped atomic.Int64
 	nextID  atomic.Int64
 
+	listenMu sync.Mutex // owns addr and listener across Start/Close
+	listener net.Listener
+	autoPort bool
+	running  atomic.Bool
+
 	mu        sync.Mutex
 	started   map[uuid.UUID]time.Time
 	firstByte map[uuid.UUID]time.Time
@@ -314,14 +319,18 @@ type Server struct {
 	breakpoints chan Breakpoint
 }
 
-// New builds a proxy listening on addr, with its CA under caRootPath, or in
-// ~/.mitmproxy when that is empty as mitmproxy does.
+// New builds a proxy to listen on addr, with its CA under caRootPath, or in
+// ~/.mitmproxy when that is empty as mitmproxy does. An empty addr prefers
+// 127.0.0.1:7890 and falls back to an OS-assigned port if it cannot be bound.
+// An explicit addr is used as-is; port 0 requests an OS-assigned port directly.
 func New(addr, caRootPath string) (*Server, error) {
+	autoPort := addr == ""
 	if addr == "" {
 		addr = "127.0.0.1:7890"
 	}
 	s := &Server{
 		addr:        addr,
+		autoPort:    autoPort,
 		out:         make(chan Flow, queue),
 		started:     make(map[uuid.UUID]time.Time),
 		firstByte:   make(map[uuid.UUID]time.Time),
@@ -373,8 +382,15 @@ func New(addr, caRootPath string) (*Server, error) {
 	return s, nil
 }
 
-// Addr is the address the proxy listens on.
-func (s *Server) Addr() string { return s.addr }
+// Addr is the requested address before Start and the actual bound address after.
+func (s *Server) Addr() string {
+	s.listenMu.Lock()
+	defer s.listenMu.Unlock()
+	return s.addr
+}
+
+// Running reports whether this server owns an active proxy listener.
+func (s *Server) Running() bool { return s.running.Load() }
 
 // CACertificate returns only the public CA certificate, in DER form. It never
 // reads a CA bundle or exposes the signing key.
@@ -395,6 +411,34 @@ func (s *Server) Dropped() int64 { return s.dropped.Load() }
 type SSLConfig struct {
 	All   bool     `json:"all"`
 	Hosts []string `json:"hosts,omitempty"`
+}
+
+// Decrypts reports whether the current rules enable HTTPS inspection for host.
+// Existing connections keep the rules they were opened with.
+func (c SSLConfig) Decrypts(host string) bool {
+	if c.All {
+		return true
+	}
+	host = sslHostname(host)
+	for _, pattern := range c.Hosts {
+		if hostMatches(host, []string{sslHostname(pattern)}) {
+			return true
+		}
+	}
+	return false
+}
+
+// SSL rules describe domains, not ports. Accept authorities written by older
+// versions of the UI as well as bare hostnames and bracketed IPv6 literals.
+func sslHostname(host string) string {
+	host = strings.TrimSpace(host)
+	if name, _, err := net.SplitHostPort(host); err == nil {
+		host = name
+	}
+	if strings.HasPrefix(host, "[") && strings.HasSuffix(host, "]") {
+		host = host[1 : len(host)-1]
+	}
+	return strings.TrimSuffix(host, ".")
 }
 
 // SetDNS sets the names the proxy dials elsewhere, as "name = address" lines
@@ -473,8 +517,7 @@ func (s *Server) SSL() SSLConfig {
 
 // decrypts reports whether the proxy decrypts host.
 func (s *Server) decrypts(host string) bool {
-	c := s.SSL()
-	return c.All || hostMatches(host, c.Hosts)
+	return s.SSL().Decrypts(host)
 }
 
 // LoadSSL reads the SSL proxying settings; a missing file decrypts nothing.
@@ -785,37 +828,56 @@ func LoadRules(path string) ([]Rule, error) {
 	return rules, nil
 }
 
-// Start listens and serves in the background, and returns once the address
-// accepts connections.
+// Start binds its own listener synchronously, then serves it in the background.
+// It never mistakes another application's listener for this proxy.
 func (s *Server) Start() error {
-	done := make(chan error, 1)
-	go func() { done <- s.proxy.Start() }()
-
-	deadline := time.Now().Add(3 * time.Second)
-	for time.Now().Before(deadline) {
-		select {
-		case err := <-done:
-			return err
-		default:
-		}
-		conn, err := net.DialTimeout("tcp", s.addr, 200*time.Millisecond)
-		if err == nil {
-			_ = conn.Close()
-			return nil
-		}
-		time.Sleep(50 * time.Millisecond)
+	s.listenMu.Lock()
+	defer s.listenMu.Unlock()
+	select {
+	case <-s.closed:
+		return net.ErrClosed
+	default:
 	}
-	return fmt.Errorf("proxy did not listen on %s", s.addr)
+	if s.listener != nil {
+		return errors.New("proxy already started")
+	}
+	ln, err := net.Listen("tcp", s.addr)
+	if err != nil && s.autoPort {
+		var fallbackErr error
+		ln, fallbackErr = net.Listen("tcp", "127.0.0.1:0")
+		if fallbackErr != nil {
+			return fmt.Errorf("preferred proxy address: %w; automatic port: %w", err, fallbackErr)
+		}
+	} else if err != nil {
+		return err
+	}
+	s.listener, s.addr = ln, ln.Addr().String()
+	s.running.Store(true)
+	go func() {
+		_ = s.proxy.Serve(ln)
+		s.running.Store(false)
+	}()
+	return nil
 }
 
 // Close stops the proxy and closes Flows.
 func (s *Server) Close() error {
-	err := s.proxy.Close()
-	if s.dns != nil {
-		_ = s.dns.Close()
-	}
+	var err error
 	s.closeOnce.Do(func() {
+		s.listenMu.Lock()
 		close(s.closed)
+		s.running.Store(false)
+		// Close the listener too: Serve may not have registered it yet.
+		if s.listener != nil {
+			if e := s.listener.Close(); !errors.Is(e, net.ErrClosed) {
+				err = e
+			}
+		}
+		err = errors.Join(err, s.proxy.Close())
+		s.listenMu.Unlock()
+		if s.dns != nil {
+			_ = s.dns.Close()
+		}
 		// Nothing may publish into Flows once it is closed.
 		s.sendMu.Lock()
 		s.sendClosed = true
@@ -874,7 +936,7 @@ func (s *Server) ReplayWithCookies(ctx context.Context, f Flow, jar http.CookieJ
 		req.Header.Del(header)
 	}
 
-	proxyURL := &url.URL{Scheme: "http", Host: s.addr}
+	proxyURL := &url.URL{Scheme: "http", Host: s.Addr()}
 	client := &http.Client{
 		Timeout: 30 * time.Second,
 		Jar:     jar,

@@ -5,8 +5,20 @@ Runtime packages copied verbatim from `github.com/lqqyt2423/go-mitmproxy v1.9.4`
 metadata. Upstream tests, examples, commands and unrelated addons are not copied.
 This is the existing capture engine, not another proxy implementation.
 
-The source patches are in `proxy/websocket.go`, `proxy/flow.go` and
-`proxy/attacker.go`. Everything else is upstream.
+The source patches are in `proxy/websocket.go`, `proxy/flow.go`,
+`proxy/attacker.go`, `proxy/proxy.go` and `proxy/entry.go`. Everything else is upstream.
+
+## `proxy/proxy.go` and `proxy/entry.go`, listener ownership
+
+`Proxy.Serve(net.Listener)` accepts an already bound listener. `Start` still
+binds the configured address, then delegates to `Serve`; the entry wraps and
+serves that same socket and logs its actual address. The desktop capture can
+therefore bind its preferred loopback port synchronously, fall back to an
+OS-assigned port if unavailable, and pass ownership straight to the engine.
+There is no probe/close/rebind gap, and a competing application's open port can
+never be mistaken for successful startup. Regression coverage lives in
+`TestStartRejectsAnOccupiedExplicitAddress`, `TestDefaultProxyFallsBackToAnOwnedPort`
+and `TestCloseImmediatelyAfterStartReleasesThePort`.
 
 ## `proxy/websocket.go`, `webSocketHandler.handle`
 
@@ -37,6 +49,16 @@ the transport learned about a message survives into the addon hooks:
   ended, which is why the capture snapshots them at that point.
 
 ## `proxy/attacker.go`
+
+### Clients without SNI
+
+When a TLS client omits SNI (normal for IP-literal URLs), certificate issuance
+falls back to the original CONNECT hostname, without its port. Previously the
+engine signed a certificate for the empty string, so a client trusting the CA
+still rejected an inspected IP request. Both eager and lazy handshakes use the
+fallback; an explicit SNI name is unchanged. Regression coverage is in
+`TestTunnelsUntilADomainIsDecrypted`, using a verified TLS client and a local
+upstream on an OS-assigned nonstandard port.
 
 ### gRPC is a stream, not a message
 

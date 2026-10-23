@@ -15,6 +15,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/egoist/mygo"
+	"github.com/egoist/mygo/ui"
 )
 
 // harFile is the HAR 1.2 document the Export HAR command writes.
@@ -547,7 +548,6 @@ func (a *app) importHAR() {
 				flows[i].id = next + i + 1
 			}
 			a.flows = append(a.flows, flows...)
-			a.detailFor = -1
 			a.countDomains()
 			a.countClients()
 			a.applyFilter()
@@ -589,16 +589,28 @@ func (a *app) openSession() {
 			a.setMessage("Session: " + err.Error())
 			return
 		}
-		a.win.Update(func() {
-			a.flows = flows
-			a.frames = frames
-			a.picked = 0
-			a.detailFor = -1
-			a.query = ""
-			a.filter = "all"
-			a.countDomains()
-			a.applyFilter()
-		})
+		a.win.Update(func() { a.replaceSession(flows, frames) })
 		a.setMessage(fmt.Sprintf("Opened %d flows from %s", len(flows), paths[0]))
 	}()
+}
+
+// replaceSession is a data replacement, not a list refresh. IDs may be reused,
+// so discard old selections, body-search answers and detail caches explicitly.
+func (a *app) replaceSession(flows []flow, frames map[int][]frame) {
+	a.flows, a.frames = flows, frames
+	a.picked, a.pickedID, a.detailFor = 0, 0, -1
+	a.chosen.Clear()
+	a.views.stopSearch()
+	a.views.cache = bodyCache{}
+	for _, view := range a.views.views {
+		view.picked, view.pickedID = 0, 0
+		view.list = ui.ListState{}
+	}
+	a.messageUI.stopSearch()
+	a.messageUI = messagePanel{}
+	a.protobuf.stop()
+	a.query, a.filter = "", "all"
+	a.countDomains()
+	a.countClients()
+	a.applyFilter()
 }

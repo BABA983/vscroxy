@@ -23,6 +23,15 @@ func TestStatusMatches(t *testing.T) {
 		{"<300", 301, false},
 		{"200-299", 204, true},
 		{"200-299", 300, false},
+		{"4xx, 5xx", 401, true},
+		{"4xx, 5xx", 503, true},
+		{"4xx, 5xx", 302, false},
+		{"201, 404", 202, false},
+		{"201, 404", 404, true},
+		{"4xx, nonsense", 401, false},
+		{"4xx,", 401, false},
+		{"599-200", 300, false},
+		{"6xx", 600, false},
 		// Something that is not a status filter keeps nothing, rather than
 		// showing everything as if the field were empty.
 		{"nonsense", 200, false},

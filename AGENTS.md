@@ -16,8 +16,10 @@ go vet ./...
 go test ./...
 ```
 
-The app runs with `go run .` in `desktop/`, or a binary built there; it listens on
-127.0.0.1:7890 and reads its settings from `~/.vscroxy`.
+The app runs with `go run .` in `desktop/`, or a binary built there. It reads its
+settings from `~/.vscroxy`. By default it prefers 127.0.0.1:7890, falling back to
+an OS-assigned loopback port shown in the UI. Settings → Proxy can save a fixed
+port (1024–65535) for the next launch; a fixed port never falls back on conflict.
 
 ## MyGo
 

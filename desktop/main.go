@@ -41,9 +41,11 @@ type app struct {
 	domains []domain
 	clients []domain
 
-	query  string
-	filter string
-	chip   int
+	query     string
+	filter    string
+	chip      int
+	search    ui.Handle
+	clearOpen bool
 
 	// Capture filters and the request library have independent selections.
 	workspace     int
@@ -63,8 +65,10 @@ type app struct {
 
 	// chosen are the rows chosen for a bulk action, by flow id.
 	chosen ui.Selection[int]
-	picked int
-	tab    int
+	// picked bridges the table's row-index API; pickedID survives row rebuilds.
+	picked   int
+	pickedID int
+	tab      int
 
 	// sort is the column the table is sorted by, and sortApplied what the
 	// rows were sorted with, so a header click sorts on the next frame.
@@ -89,13 +93,14 @@ type app struct {
 
 	// detailFor is the flow the detail panes were built from, so the text and
 	// the diff buffers are rebuilt only when the choice changes.
-	detailFor int
-	body      string
-	reqBody   string
-	diff      *editor.DiffState
-	frames    map[int][]frame
-	messageUI messagePanel
-	frameLost atomic.Int64
+	detailFor    int
+	body         string
+	reqBody      string
+	diff         *editor.DiffState
+	diffBaseline bool
+	frames       map[int][]frame
+	messageUI    messagePanel
+	frameLost    atomic.Int64
 
 	bodySide int
 	bodyMode int
@@ -116,18 +121,20 @@ type app struct {
 	protobuf     protoInspector
 	jsonOK       bool
 
-	srv        *capture.Server
-	win        *mygo.Window
-	caPath     string
-	rulesPath  string
-	scriptPath string
-	rules      []capture.Rule
-	ruleUI     ruleEditor
-	throttle   capture.Throttle
-	upstream   string
-	errText    string
-	dropped    int64
-	scriptErrs int64
+	srv         *capture.Server
+	win         *mygo.Window
+	caPath      string
+	certificate certificateSetup
+	systemProxy proxySetup
+	rulesPath   string
+	scriptPath  string
+	rules       []capture.Rule
+	ruleUI      ruleEditor
+	throttle    capture.Throttle
+	upstream    string
+	errText     string
+	dropped     int64
+	scriptErrs  int64
 
 	upstreamOpen bool
 	upstreamAddr string
@@ -144,10 +151,13 @@ type app struct {
 
 	// settings are what the window keeps between launches, besides its
 	// bounds, which MyGo saves with the window's StateKey.
-	settingsPath string
-	saved        settings
-	lastSave     time.Time
-	columns      ui.TableLayout
+	settingsPath     string
+	saved            settings
+	lastSave         time.Time
+	columns          ui.TableLayout
+	proxyPort        int
+	proxyPortInput   string
+	proxyPortProblem string
 
 	// ignore keeps noise out of the table without stopping it at the proxy.
 	ignorePath string
@@ -234,12 +244,19 @@ type app struct {
 
 	// mu guards what the capture goroutine hands to the view: the flows not
 	// yet drained, and a startup error.
-	mu            sync.Mutex
-	pending       []capture.Flow
-	pendingFrames []capture.FrameEvent
-	bps           []capture.Breakpoint
-	err           error
-	message       string
+	mu             sync.Mutex
+	pending        []capture.Flow
+	pendingFrames  []capture.FrameEvent
+	bps            []capture.Breakpoint
+	err            error
+	message        string
+	messagePending bool
+	replayResults  []replayResult
+}
+
+type replayResult struct {
+	source flow
+	reply  capture.Flow
 }
 
 type domain struct {
@@ -252,7 +269,7 @@ func newApp() *app {
 		filter:         "all",
 		icons:          make(map[string]ui.ImageSource),
 		sidebarWidth:   220,
-		tablePercent:   56,
+		tablePercent:   44,
 		trafficOpen:    true,
 		domainsOpen:    true,
 		clientsOpen:    true,
@@ -266,14 +283,26 @@ func newApp() *app {
 	// settings ask for has to be in the environment before it starts.
 	if home, err := os.UserHomeDir(); err == nil {
 		a.settingsPath = filepath.Join(home, ".vscroxy", "settings.json")
-		if saved, err := loadSettings(a.settingsPath); err == nil && saved.KeyLogPath != "" {
-			_ = os.Setenv("SSLKEYLOGFILE", saved.KeyLogPath)
-			a.keyLogPath = saved.KeyLogPath
+		if saved, err := loadSettings(a.settingsPath); err != nil {
+			a.errText = err.Error()
+		} else {
+			a.saved, a.proxyPort = saved, saved.ProxyPort
+			if saved.ProxyPort != 0 {
+				a.proxyPortInput = strconv.Itoa(saved.ProxyPort)
+			}
+			if saved.KeyLogPath != "" {
+				_ = os.Setenv("SSLKEYLOGFILE", saved.KeyLogPath)
+				a.keyLogPath = saved.KeyLogPath
+			}
 		}
 	}
-	srv, err := capture.New("127.0.0.1:7890", "")
+	addr, err := a.saved.proxyAddr()
+	var srv *capture.Server
+	if err == nil {
+		srv, err = capture.New(addr, "")
+	}
 	if err != nil {
-		// Keep the window usable when the port is taken: show seeded flows
+		// Keep the window usable when initialization fails: show seeded flows
 		// and the error, rather than an empty app.
 		a.errText = err.Error()
 		a.flows = seedFlows(2000)
@@ -308,21 +337,16 @@ func newApp() *app {
 		}
 	}
 	if a.settingsPath != "" {
-		saved, err := loadSettings(a.settingsPath)
-		if err != nil {
-			a.errText = err.Error()
-		} else {
-			a.saved = saved
-			a.dark = saved.Dark
-			if saved.SidebarWidth > 0 {
-				a.sidebarWidth = saved.SidebarWidth
-			}
-			if saved.TablePercent > 0 {
-				a.tablePercent = saved.TablePercent
-			}
-			a.columns = saved.Columns.layout()
-			a.headerColumn = saved.HeaderColumn
+		saved := a.saved
+		a.dark = saved.Dark
+		if saved.SidebarWidth > 0 {
+			a.sidebarWidth = saved.SidebarWidth
 		}
+		if saved.TablePercent > 0 {
+			a.tablePercent = saved.TablePercent
+		}
+		a.columns = saved.Columns.layout()
+		a.headerColumn = saved.HeaderColumn
 	}
 	if a.requestsPath != "" {
 		if list, err := loadRequests(a.requestsPath); err == nil {
@@ -415,10 +439,11 @@ func (a *app) reloadConfig() {
 	}
 }
 
-// setMessage records a short status line, from any goroutine.
+// setMessage queues feedback for the UI thread, from any goroutine.
 func (a *app) setMessage(msg string) {
 	a.mu.Lock()
-	a.message = clamp(msg, 72)
+	a.message = msg
+	a.messagePending = true
 	a.mu.Unlock()
 	if a.win != nil {
 		a.win.Invalidate()
@@ -432,55 +457,13 @@ func (a *app) invalidate() {
 	}
 }
 
-// clamp keeps a status message on one line.
+// clamp shortens a label where its full text is available separately.
 func clamp(msg string, max int) string {
 	r := []rune(msg)
 	if len(r) <= max {
 		return msg
 	}
 	return string(r[:max-1]) + "…"
-}
-
-// setSystemProxy turns the machine's proxy on or off. The platform helpers
-// may block on a password prompt, so they run off the UI thread.
-func (a *app) setSystemProxy(on bool) {
-	go func() {
-		var err error
-		if on {
-			err = system.SetProxy(system.ProxyAddr)
-		} else {
-			err = system.ClearProxy()
-		}
-		if err != nil {
-			a.setMessage("System proxy: " + err.Error())
-			return
-		}
-		if on {
-			a.setMessage("System proxy: " + system.ProxyAddr)
-		} else {
-			a.setMessage("System proxy: off")
-		}
-	}()
-}
-
-// installCA trusts the CA that the proxy uses to sign intercepted TLS.
-func (a *app) installCA() {
-	if a.caPath == "" {
-		a.setMessage("Certificate: no path known")
-		return
-	}
-	path := a.caPath
-	go func() {
-		if _, err := os.Stat(path); err != nil {
-			a.setMessage("Certificate not found; capture one request first")
-			return
-		}
-		if err := system.InstallCA(path); err != nil {
-			a.setMessage("Install certificate: " + err.Error())
-			return
-		}
-		a.setMessage("Certificate trusted")
-	}()
 }
 
 func (a *app) revealCA() {
@@ -499,12 +482,12 @@ func (a *app) revealCA() {
 // replay sends the flow's request again through the proxy, so the result is
 // captured like any other exchange.
 func (a *app) replay(f flow) {
-	if a.srv == nil || f.url == "" {
+	if a.srv == nil || !a.srv.Running() || f.url == "" {
 		return
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	_, err := a.srv.Replay(ctx, capture.Flow{
+	reply, err := a.srv.Replay(ctx, capture.Flow{
 		Method:          f.method,
 		Scheme:          f.scheme,
 		Host:            f.host,
@@ -518,7 +501,10 @@ func (a *app) replay(f flow) {
 		a.setMessage("Replay failed: " + err.Error())
 		return
 	}
-	a.setMessage("Replayed " + f.method + " " + f.path)
+	a.mu.Lock()
+	a.replayResults = append(a.replayResults, replayResult{source: f, reply: reply})
+	a.mu.Unlock()
+	a.invalidate()
 }
 
 func (a *app) startCapture() {
@@ -529,9 +515,10 @@ func (a *app) startCapture() {
 		a.mu.Lock()
 		a.err = err
 		a.mu.Unlock()
-		a.win.Invalidate()
+		a.invalidate()
 		return
 	}
+	a.invalidate()
 	go a.collectBreakpoints()
 	go a.collectFrames()
 	for f := range a.srv.Flows() {
@@ -719,7 +706,6 @@ func (a *app) drain() {
 		cut := len(a.flows) - maxFlows
 		a.flows = a.flows[cut:]
 		a.frames = pruneMessages(a.frames, a.flows)
-		a.detailFor = -1
 	}
 	a.countDomains()
 	a.countClients()
@@ -793,14 +779,25 @@ func (a *app) applyFilter() {
 		a.visible = append(a.visible, i)
 	}
 	a.sortVisible()
-	if a.picked >= len(a.visible) {
-		a.picked = len(a.visible) - 1
-	}
-	if a.picked < 0 {
-		a.picked = 0
-	}
-	a.detailFor = -1
 	a.views.narrow(a)
+	a.restoreSelection()
+}
+
+// restoreSelection maps the stable choice to the table's current row index.
+func (a *app) restoreSelection() {
+	// Resolve the identity only after all filters and sorting have finished.
+	// If it disappeared, choose the nearest surviving row, or none.
+	for row, at := range a.visible {
+		if a.flows[at].id == a.pickedID {
+			a.picked = row
+			return
+		}
+	}
+	a.pickedID = 0
+	a.picked = min(max(a.picked, 0), len(a.visible)-1)
+	if f, ok := a.current(); ok {
+		a.pickedID = f.id
+	}
 }
 
 // current is the flow the detail panes show, if any.
@@ -812,26 +809,32 @@ func (a *app) current() (flow, bool) {
 }
 
 // previousResponse is the last response for the same method and URL, the
-// other side of the diff. Empty when this is the first one.
-func (a *app) previousResponse() string {
+// other side of the diff. An empty response is still a valid baseline.
+func (a *app) previousResponse() (string, bool) {
 	if len(a.visible) == 0 || a.picked < 0 || a.picked >= len(a.visible) {
-		return ""
+		return "", false
 	}
 	at := a.visible[a.picked]
 	f := a.flows[at]
 	for i := at - 1; i >= 0; i-- {
 		prev := a.flows[i]
-		if prev.method == f.method && prev.scheme == f.scheme && prev.host == f.host && prev.path == f.path && prev.resBody != "" {
-			return prev.body(true)
+		if prev.method == f.method && prev.scheme == f.scheme && prev.host == f.host && prev.path == f.path && prev.status > 0 {
+			return prev.body(true), true
 		}
 	}
-	return ""
+	return "", false
 }
 
 // syncDetail rebuilds the text and the diff when the choice moves.
 func (a *app) syncDetail() {
 	f, ok := a.current()
-	if !ok || a.detailFor == f.id {
+	if !ok {
+		a.detailFor = -1
+		a.connOpen = false
+		a.protobuf.stop()
+		return
+	}
+	if a.detailFor == f.id {
 		return
 	}
 	a.detailFor = f.id
@@ -839,13 +842,15 @@ func (a *app) syncDetail() {
 	if f.kind == "" && a.tab == 4 {
 		a.tab = 0
 	}
-	a.body = f.body(true)
-	a.reqBody = f.body(false)
-	a.jsonFor = ""
-	a.protoFor = ""
+	a.body, a.reqBody = f.body(true), f.body(false)
+	a.bodyMode, a.bodyQuery = 0, ""
+	a.jsonFor, a.protoFor, a.htmlFor, a.imageFor = "", "", "", ""
+	a.htmlDoc, a.imageBmp, a.imageErr = nil, nil, ""
 	a.protobuf.stop()
+	previous, baseline := a.previousResponse()
+	a.diffBaseline = baseline
 	a.diff = &editor.DiffState{
-		Old:    editor.NewBuffer(a.previousResponse()),
+		Old:    editor.NewBuffer(previous),
 		New:    editor.NewBuffer(a.body),
 		Layout: editor.DiffSplit,
 	}
@@ -856,14 +861,56 @@ func (a *app) syncDetail() {
 func (a *app) view(c *ui.Context) {
 	c.SetTheme(appTheme(a.dark))
 	a.drain()
+	a.drainCertificate()
+	a.drainSystemProxy()
 	a.drainRunner()
+	a.mu.Lock()
+	if a.messagePending {
+		c.Toast(a.message)
+		a.messagePending = false
+	}
+	replays := a.replayResults
+	a.replayResults = nil
+	a.mu.Unlock()
+	for _, result := range replays {
+		c.ToastAction(fmt.Sprintf("Replayed Capture #%d · %s %s → %d", result.source.id, result.source.method, result.source.path, result.reply.Status), "Inspect replay", func() {
+			// The response belongs to this exact send, not the next capture of
+			// the same URL. Never move the reader until they ask to inspect it.
+			a.composeFrom(result.source)
+			a.response = &result.reply
+		})
+	}
+	if a.workspace == 0 {
+		c.OnShortcut(ui.Cmd, ui.KeyF, func() { a.search.Focus(c) })
+		c.OnShortcut(ui.Cmd|ui.Alt, ui.KeyC, func() {
+			if f, ok := a.current(); ok {
+				a.copyCurl(c, f)
+			}
+		})
+		c.OnShortcut(ui.Cmd, ui.KeyR, func() {
+			if f, ok := a.current(); ok && f.kind == "" {
+				go a.replay(f)
+			}
+		})
+	}
 	if a.sort != a.sortApplied {
 		a.sortApplied = a.sort
 		a.applyFilter()
 	}
 	a.views.drain(a)
 	a.views.sync(a)
-	a.syncDetail()
+	// Bulk actions must never include requests hidden by this view's filters.
+	if a.chosen.Len() > 0 {
+		visibleIDs := make(map[int]bool, len(a.visible))
+		for _, i := range a.visible {
+			visibleIDs[a.flows[i].id] = true
+		}
+		for id := range a.chosen.All() {
+			if !visibleIDs[id] {
+				a.chosen.Remove(id)
+			}
+		}
+	}
 	t := c.Theme()
 	ui.Column(c).Fill().Background(t.Background).Children(func() {
 		a.toolbar(c, t)
@@ -887,6 +934,21 @@ func (a *app) view(c *ui.Context) {
 		a.statusBar(c, t)
 	})
 	a.persistSettings()
+	ui.Modal(c, &a.clearOpen, func() {
+		ui.Column(c).Width(360).Gap(12).Children(func() {
+			ui.Text(c, "Clear captured requests?").Bold()
+			ui.Text(c, "Unpinned requests will be removed from this session. Export any traffic you want to keep first.")
+			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
+				if ui.Button(c, "Cancel").Clicked() {
+					a.clearOpen = false
+				}
+				if ui.PrimaryButton(c, "Clear unpinned requests").Clicked() {
+					a.clearCaptured()
+					a.clearOpen = false
+				}
+			})
+		})
+	})
 	a.settingsModal(c, t)
 	a.breakpointModal(c, t)
 	a.upstreamModal(c, t)
@@ -924,7 +986,9 @@ func (a *app) view(c *ui.Context) {
 	if a.workspace != 0 || a.tab != 4 {
 		a.messageUI.stopSearch()
 	}
-	if a.workspace != 0 || a.tab != 1 || a.bodyMode != 4 {
+	f, ok := a.current()
+	ct := f.contentType(a.bodySide == 0)
+	if a.workspace != 0 || a.tab != 1 || !ok || !(a.bodyMode == 5 || a.bodyMode == 0 && (grpcContentType(ct) || strings.Contains(ct, "protobuf"))) {
 		a.protobuf.stop()
 	}
 }
@@ -997,7 +1061,7 @@ func (a *app) breakpointModal(c *ui.Context, t *ui.Theme) {
 }
 
 func (a *app) toolbar(c *ui.Context, t *ui.Theme) {
-	live := a.srv != nil && a.errText == ""
+	live := a.srv != nil && a.srv.Running()
 	dot := ui.Hex("#dc2626")
 	label := "Capture stopped"
 	if live {
@@ -1150,37 +1214,24 @@ func (a *app) toolbar(c *ui.Context, t *ui.Theme) {
 	}
 	ui.Row(c).Height(48).Padding(0, 16).Gap(12).AlignItems(ui.Center).Children(func() {
 		ui.Box(c).Size(7, 7).Radius(4).Background(dot)
-		ui.Text(c, label).FontSize(11).TextColor(t.TextMuted).SingleLine().Width(156).Tooltip(label)
-		if ui.SearchField(c, &a.query).Placeholder("Filter host or path…").Grow(1).Changed() {
+		if ui.Button(c, label).FontSize(11).SingleLine().Width(156).Tooltip("Open Proxy settings · " + label).Clicked() {
+			a.settingsTab, a.settingsOpen = 1, true
+		}
+		if ui.TextInput(c, &a.query).Bind(&a.search).Label("Search host or path").Placeholder("Search host or path…").Tooltip("Search host and path only · Ctrl/Cmd+F. Use Filters for headers and bodies.").Grow(1).Changed() {
 			a.applyFilter()
 		}
 		if ui.Button(c, "Latest").Clicked() && len(a.visible) > 0 {
 			a.picked = len(a.visible) - 1
+			a.chosen.Clear()
+			a.chosen.Add(a.flows[a.visible[a.picked]].id)
+			a.views.activeView().list.ScrollToEnd()
 		}
 		ui.Text(c, "Break").FontSize(11).TextColor(t.TextMuted)
 		if ui.Switch(c, &a.breakOn).Changed() && a.srv != nil {
 			a.srv.SetBreak(a.breakOn)
 		}
 		if ui.Button(c, "Clear").Clicked() {
-			a.mu.Lock()
-			a.pending = nil
-			a.mu.Unlock()
-			// A pinned flow stays, the reason it was pinned.
-			a.flows = slices.DeleteFunc(a.flows, func(f flow) bool { return !f.pinned })
-			a.frames = make(map[int][]frame)
-			a.chosen.Clear()
-			a.picked = 0
-			a.detailFor = -1
-			a.query = ""
-			a.filter = "all"
-			a.chip = 0
-			a.totalBytes = 0
-			for _, f := range a.flows {
-				a.totalBytes += int64(f.bytes)
-			}
-			a.countDomains()
-			a.countClients()
-			a.applyFilter()
+			a.clearOpen = true
 		}
 	})
 	ui.Divider(c)
@@ -1191,6 +1242,25 @@ func (a *app) toolbar(c *ui.Context, t *ui.Theme) {
 	})
 	ui.Divider(c)
 	a.views.controls(c, t, a)
+}
+
+// clearCaptured runs only after confirmation. Pinned exchanges, including
+// their streaming messages, remain available for inspection.
+func (a *app) clearCaptured() {
+	a.mu.Lock()
+	a.pending = nil
+	a.mu.Unlock()
+	a.flows = slices.DeleteFunc(a.flows, func(f flow) bool { return !f.pinned })
+	a.frames = pruneMessages(a.frames, a.flows)
+	a.chosen.Clear()
+	a.totalBytes = 0
+	for _, f := range a.flows {
+		a.totalBytes += int64(f.bytes)
+	}
+	a.countDomains()
+	a.countClients()
+	a.applyFilter()
+	a.setMessage("Unpinned requests cleared")
 }
 
 func (a *app) sidebar(c *ui.Context) {
@@ -1312,8 +1382,22 @@ func (a *app) table(c *ui.Context) {
 	t := c.Theme()
 	if len(a.visible) == 0 {
 		ui.Column(c).Fill().Center().Gap(8).Children(func() {
+			if len(a.flows) > 0 {
+				ui.Text(c, "No matching requests").FontSize(14).TextColor(t.Text)
+				ui.Text(c, fmt.Sprintf("%d captured requests are hidden by this view's search or filters.", len(a.flows))).FontSize(12).TextColor(t.TextMuted)
+				if ui.Button(c, "Show all requests").Clicked() {
+					a.query, a.filter, a.chip = "", "all", 0
+					a.views.capture(a)
+					a.clearFilters()
+				}
+				return
+			}
 			ui.Text(c, "Waiting for traffic").FontSize(14).TextColor(t.Text)
-			ui.Text(c, "Set your HTTP proxy to 127.0.0.1:7890").FontSize(12).TextColor(t.TextMuted)
+			hint := "Start capture successfully before configuring a client"
+			if a.srv != nil && a.srv.Running() {
+				hint = "Set your HTTP proxy to " + a.srv.Addr()
+			}
+			ui.Text(c, hint).FontSize(12).TextColor(t.TextMuted)
 		})
 		return
 	}
@@ -1335,13 +1419,13 @@ func (a *app) table(c *ui.Context) {
 		ui.TableColumn{Title: "", ID: "filler", Width: 14, Fixed: true},
 	)
 	durationCol, sizeCol := clientCol+1, clientCol+2
-	state := &ui.ListState{
-		Selected:  &a.picked,
-		Selection: &a.chosen,
-		Key:       func(row int) any { return a.flows[a.visible[row]].id },
-		Sort:      &a.sort,
-		Columns:   a.columns,
-	}
+	state := &a.views.activeView().list
+	state.FollowEnd = true
+	state.Selected = &a.picked
+	state.Selection = &a.chosen
+	state.Key = func(row int) any { return a.flows[a.visible[row]].id }
+	state.Sort = &a.sort
+	state.Columns = a.columns
 	ui.Table(c, state, cols, len(a.visible), func(row, col int) {
 		f := a.flows[a.visible[row]]
 		chosen := a.chosen.Has(f.id)
@@ -1396,7 +1480,7 @@ func (a *app) table(c *ui.Context) {
 						})
 				}
 				text(f.scheme + "://").Shrink(0).TextColor(scheme).ContextMenu(a.rowMenu(c, f))
-				text(f.host + f.path).TextColor(rest).ContextMenu(a.rowMenu(c, f))
+				text(f.host + f.path).TextColor(rest).Tooltip(f.url).ContextMenu(a.rowMenu(c, f))
 			})
 		case headerCol:
 			value := f.respHeader.Get(a.headerColumn)
@@ -1425,6 +1509,9 @@ func (a *app) table(c *ui.Context) {
 }
 
 func (a *app) detail(c *ui.Context) {
+	// The table may change the choice during this frame. Sync after it draws,
+	// so all detail widgets see the same selected request immediately.
+	a.syncDetail()
 	t := c.Theme()
 	ui.Column(c).Fill().Background(t.Background).Children(func() {
 		f, ok := a.current()
@@ -1434,7 +1521,7 @@ func (a *app) detail(c *ui.Context) {
 				return
 			}
 			ui.Text(c, fmt.Sprintf("%s %s://%s%s", f.method, f.scheme, f.host, f.path)).
-				FontSize(12).TextColor(t.Text).SingleLine().Grow(1)
+				FontSize(12).TextColor(t.Text).SingleLine().Grow(1).Tooltip(f.url)
 			if f.process != "" {
 				ui.Text(c, f.process).FontSize(12).TextColor(t.TextMuted)
 			}
@@ -1458,6 +1545,7 @@ func (a *app) detail(c *ui.Context) {
 				chip = chip.Tooltip(doc)
 			}
 			info := ui.Icon(c, infoIcon).Size(13, 13).TextColor(t.TextMuted).
+				Label("Connection details").
 				Tooltip("Connection: addresses, DNS and TLS").
 				OnClick(func() { a.connOpen = !a.connOpen })
 			ui.Popover(c, info, &a.connOpen, func() { a.connPanel(c, t, f) })
@@ -1481,6 +1569,14 @@ func (a *app) detail(c *ui.Context) {
 		case 1:
 			a.bodyView(c, f)
 		case 2:
+			if !a.diffBaseline {
+				ui.Text(c, "No previous response for this method and URL. Replay the request to compare responses.").FontSize(12).TextColor(t.TextMuted).Padding(16)
+				return
+			}
+			ui.Row(c).Padding(8, 12).Children(func() {
+				ui.Text(c, "Previous response (left)").Grow(1).FontSize(11).TextColor(t.TextMuted)
+				ui.Text(c, "Current response (right)").Grow(1).FontSize(11).TextColor(t.TextMuted)
+			})
 			if a.diff != nil {
 				editor.DiffView(c, a.diff).Grow(1).FillWidth()
 			}
@@ -1573,7 +1669,6 @@ func (a *app) saveMark() {
 		}
 	}
 	a.markOpen = false
-	a.detailFor = -1
 	a.invalidate()
 	a.setMessage("Marked")
 }
@@ -1742,14 +1837,10 @@ func (a *app) statusBar(c *ui.Context, t *ui.Theme) {
 		if len(a.rules) > 0 {
 			label(fmt.Sprintf("%d rules", len(a.rules)), t.TextMuted)
 		}
-		a.mu.Lock()
-		message := a.message
-		a.mu.Unlock()
-		if message != "" {
-			ui.Text(c, message).FontSize(11).TextColor(t.TextMuted).Width(320).SingleLine().Tooltip(message)
-		}
 		if a.caPath != "" {
-			label("CA "+shortenHome(a.caPath), t.TextMuted)
+			if ui.Button(c, "HTTPS setup").Height(22).FontSize(11).Tooltip("Certificate and decryption settings · " + shortenHome(a.caPath)).Clicked() {
+				a.settingsTab, a.settingsOpen = 2, true
+			}
 		}
 	})
 }
@@ -1813,7 +1904,30 @@ func statusColor(status int, t *ui.Theme) ui.Color {
 }
 
 func main() {
+	if len(os.Args) == 4 && os.Args[1] == "--proxy-guard" {
+		if err := system.GuardProxy(os.Args[2], os.Args[3], os.Stdin, os.Stdout); err != nil {
+			log.Fatal(err)
+		}
+		return
+	}
+	if err := runDesktop(); err != nil {
+		log.Fatal(err)
+	}
+}
+
+func runDesktop() error {
 	a := newApp()
+	if a.srv != nil {
+		defer a.srv.Close()
+	}
+	cleanupProxy := func() {
+		if err := a.systemProxy.close(); err != nil {
+			log.Printf("release system proxy: %v", err)
+		}
+	}
+	defer cleanupProxy() // before the listener closes, even if Run returns an error
+	mygo.App.OnBeforeQuit(a.beforeProxyQuit)
+	mygo.App.OnQuit(cleanupProxy) // native termination may not return from Run
 	defer a.discardRuleDraft()
 	defer a.disableDevices()
 	defer a.views.stopSearch()
@@ -1836,12 +1950,17 @@ func main() {
 			StateKey: "vscroxy",
 			Content:  ui.View(a.view),
 		})
+		a.win.OnClose(func(e *mygo.CloseEvent) {
+			if !a.systemProxy.quitReady {
+				e.PreventDefault()
+				mygo.App.Quit()
+			}
+		})
 		mygo.App.SetMenu(a.menu())
+		a.checkSystemProxy() // retry only a recorded, interrupted proxy session
 		go a.startCapture()
 	})
-	if err := mygo.App.Run(); err != nil {
-		log.Fatal(err)
-	}
+	return mygo.App.Run()
 }
 
 // clientIcon returns the app's icon, loading it the first time it is asked
@@ -2118,7 +2237,7 @@ func (a *app) sendComposed() {
 	d.composeReplies = nil
 	d.response = nil
 	d.responseEditor = nil
-	if a.srv == nil {
+	if a.srv == nil || !a.srv.Running() {
 		d.composeResult = "No proxy running. Start capture before sending."
 		a.setMessage("Compose: no proxy running")
 		return
@@ -2291,39 +2410,54 @@ func (a *app) headerValue(f flow) string {
 	return f.reqHeader.Get(a.headerColumn)
 }
 
-// statusMatches reports whether a status code answers a filter such as "404",
-// "4xx", ">=400" or "200-299".
+// statusMatches accepts comma-separated alternatives; invalid input never
+// silently turns into a partial filter.
 func statusMatches(expr string, status int) bool {
-	expr = strings.TrimSpace(strings.ToLower(expr))
-	switch {
-	case expr == "":
+	if strings.TrimSpace(expr) == "" {
 		return true
-	case strings.HasPrefix(expr, ">="):
-		n, err := strconv.Atoi(strings.TrimSpace(expr[2:]))
-		return err == nil && status >= n
-	case strings.HasPrefix(expr, "<="):
-		n, err := strconv.Atoi(strings.TrimSpace(expr[2:]))
-		return err == nil && status <= n
-	case strings.HasPrefix(expr, ">"):
-		n, err := strconv.Atoi(strings.TrimSpace(expr[1:]))
-		return err == nil && status > n
-	case strings.HasPrefix(expr, "<"):
-		n, err := strconv.Atoi(strings.TrimSpace(expr[1:]))
-		return err == nil && status < n
-	case strings.HasSuffix(expr, "xx"):
-		n, err := strconv.Atoi(strings.TrimSuffix(expr, "xx"))
-		return err == nil && status/100 == n
-	case strings.Contains(expr, "-"):
-		low, high, ok := strings.Cut(expr, "-")
+	}
+	matched := false
+	for part := range strings.SplitSeq(expr, ",") {
+		lo, hi, ok := statusBounds(part)
 		if !ok {
 			return false
 		}
-		lo, errLow := strconv.Atoi(strings.TrimSpace(low))
-		hi, errHigh := strconv.Atoi(strings.TrimSpace(high))
-		return errLow == nil && errHigh == nil && status >= lo && status <= hi
+		matched = matched || status >= lo && status <= hi
+	}
+	return matched
+}
+
+// statusBounds is shared by the filter validator and matcher.
+func statusBounds(expr string) (lo, hi int, valid bool) {
+	expr = strings.ToLower(strings.TrimSpace(expr))
+	code := func(s string) (int, bool) {
+		n, err := strconv.Atoi(strings.TrimSpace(s))
+		return n, err == nil && n >= 100 && n <= 599
+	}
+	switch {
+	case strings.HasPrefix(expr, ">="):
+		n, ok := code(expr[2:])
+		return n, 599, ok
+	case strings.HasPrefix(expr, "<="):
+		n, ok := code(expr[2:])
+		return 100, n, ok
+	case strings.HasPrefix(expr, ">"):
+		n, ok := code(expr[1:])
+		return n + 1, 599, ok
+	case strings.HasPrefix(expr, "<"):
+		n, ok := code(expr[1:])
+		return 100, n - 1, ok
+	case strings.HasSuffix(expr, "xx"):
+		n, err := strconv.Atoi(strings.TrimSuffix(expr, "xx"))
+		return n * 100, n*100 + 99, err == nil && n >= 1 && n <= 5
+	case strings.Contains(expr, "-"):
+		low, high, _ := strings.Cut(expr, "-")
+		lo, a := code(low)
+		hi, b := code(high)
+		return lo, hi, a && b && lo <= hi
 	default:
-		n, err := strconv.Atoi(expr)
-		return err == nil && status == n
+		n, ok := code(expr)
+		return n, n, ok
 	}
 }
 
@@ -2351,15 +2485,10 @@ func headerMatches(f flow, expr string) bool {
 	return false
 }
 
-// sortVisible orders the shown rows by the chosen column, keeping the chosen
-// flow chosen.
+// sortVisible orders the shown rows; applyFilter restores selection by ID.
 func (a *app) sortVisible() {
 	if len(a.visible) < 2 {
 		return
-	}
-	chosen := -1
-	if a.picked >= 0 && a.picked < len(a.visible) {
-		chosen = a.flows[a.visible[a.picked]].id
 	}
 	less := a.sortOrder()
 	// Pinned flows stay at the top, whatever the column says.
@@ -2373,15 +2502,6 @@ func (a *app) sortVisible() {
 		}
 		return less(x, y)
 	})
-	if chosen < 0 {
-		return
-	}
-	for i, at := range a.visible {
-		if a.flows[at].id == chosen {
-			a.picked = i
-			return
-		}
-	}
 }
 
 // sortOrder compares two flows by the chosen column.
@@ -2585,13 +2705,13 @@ func (a *app) sslModal(c *ui.Context, t *ui.Theme) {
 	ui.Modal(c, &a.sslOpen, func() {
 		ui.Column(c).Width(520).Gap(10).Children(func() {
 			ui.Text(c, "SSL proxying").FontSize(14).Bold()
-			ui.Text(c, "HTTPS is tunnelled untouched until a domain is listed. Its CONNECT shows in the table, and Decrypt this domain adds it; a domain matches its subdomains.").
+			ui.Text(c, "HTTPS stays encrypted until a domain is enabled and the client trusts the CA. A domain also matches its subdomains. Changes apply to new connections; reconnect the client and retry.").
 				FontSize(11).TextColor(t.TextMuted)
 			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 				ui.Switch(c, &a.sslAll)
 				ui.Text(c, "Decrypt every domain").FontSize(12).TextColor(t.Text)
 			})
-			ui.TextArea(c, &a.sslHosts).Height(120).Label("Domains")
+			ui.TextArea(c, &a.sslHosts).Height(120).Label("Decryption domains")
 			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
 				if ui.Button(c, "Cancel").Clicked() {
 					a.sslOpen = false
@@ -2607,65 +2727,50 @@ func (a *app) sslModal(c *ui.Context, t *ui.Theme) {
 
 // saveSSL keeps the SSL proxying settings and hands them to the proxy. A
 // connection already open keeps the choice it was made with.
-func (a *app) saveSSL(cfg capture.SSLConfig) {
-	if a.srv != nil {
-		a.srv.SetSSL(cfg)
-	}
-	a.sslAll, a.sslHosts = cfg.All, strings.Join(cfg.Hosts, "\n")
+func (a *app) saveSSL(cfg capture.SSLConfig) bool {
 	if a.sslPath != "" {
 		if err := os.MkdirAll(filepath.Dir(a.sslPath), 0o755); err != nil {
 			a.setMessage("SSL proxying: " + err.Error())
-			return
+			return false
 		}
 		data, err := json.Marshal(cfg)
 		if err != nil {
 			a.setMessage("SSL proxying: " + err.Error())
-			return
+			return false
 		}
 		if err := os.WriteFile(a.sslPath, append(data, '\n'), 0o644); err != nil {
 			a.setMessage("SSL proxying: " + err.Error())
-			return
+			return false
 		}
 	}
+	if a.srv != nil {
+		a.srv.SetSSL(cfg)
+	}
+	a.sslAll, a.sslHosts = cfg.All, strings.Join(cfg.Hosts, "\n")
 	if cfg.All {
 		a.setMessage("SSL proxying: every domain")
 	} else {
 		a.setMessage(fmt.Sprintf("SSL proxying: %d domains", len(cfg.Hosts)))
 	}
+	return true
 }
 
 // decryptHost adds a domain to what the proxy decrypts, the button under a
 // tunnel.
 func (a *app) decryptHost(host string) {
+	host = strings.ToLower(strings.TrimSuffix(strings.Trim(hostOnly(host), "[]"), "."))
 	cfg := capture.SSLConfig{All: a.sslAll, Hosts: splitHosts(a.sslHosts)}
 	if host != "" && !slices.Contains(cfg.Hosts, host) {
 		cfg.Hosts = append(cfg.Hosts, host)
 	}
-	a.saveSSL(cfg)
-	a.setMessage("Decrypting " + host + "; reload the page")
-}
-
-// connectPanel explains a tunnel and offers to decrypt it, as a proxy that
-// leaves HTTPS alone must.
-func (a *app) connectPanel(c *ui.Context, f flow) {
-	t := c.Theme()
-	host := f.host
-	ui.Column(c).Fill().Center().Gap(10).Children(func() {
-		ui.Text(c, "HTTPS is not decrypted").FontSize(15).TextColor(t.Text)
-		ui.Text(c, host+" goes through untouched, so its content stays encrypted.").
-			FontSize(12).TextColor(t.TextMuted)
-		if ui.PrimaryButton(c, "Decrypt this domain").Clicked() {
-			a.decryptHost(host)
-		}
-		if ui.Button(c, "Decrypt every domain").Clicked() {
-			a.saveSSL(capture.SSLConfig{All: true})
-		}
-	})
+	if a.saveSSL(cfg) {
+		a.setMessage("Inspection enabled for " + host + " on all ports; reconnect the client and retry")
+	}
 }
 
 // persistSettings writes what changed since the last write, at most every
 // 400ms, so dragging a divider does not write a file a frame.
-func (a *app) persistSettings() {
+func (a *app) persistSettings() error {
 	now := settings{
 		Dark:         a.dark,
 		SidebarWidth: a.sidebarWidth,
@@ -2673,25 +2778,28 @@ func (a *app) persistSettings() {
 		Columns:      savedLayout(a.columns),
 		HeaderColumn: a.headerColumn,
 		KeyLogPath:   a.keyLogPath,
+		ProxyPort:    a.proxyPort,
 	}
 	if sameSettings(now, a.saved) || time.Since(a.lastSave) < 400*time.Millisecond {
-		return
+		return nil
 	}
-	a.saved = now
 	a.lastSave = time.Now()
 	if a.settingsPath == "" {
-		return
+		a.saved = now
+		return nil
 	}
-	path := a.settingsPath
-	go func() {
-		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-			a.setMessage("Settings: " + err.Error())
-			return
-		}
-		if err := writeSettings(path, now); err != nil {
-			a.setMessage("Settings: " + err.Error())
-		}
-	}()
+	// Serialize these small, debounced writes on the UI thread so an older
+	// layout snapshot cannot overwrite a port explicitly saved after it.
+	err := os.MkdirAll(filepath.Dir(a.settingsPath), 0o755)
+	if err == nil {
+		err = writeSettings(a.settingsPath, now)
+	}
+	if err != nil {
+		a.setMessage("Settings: " + err.Error())
+		return err
+	}
+	a.saved = now
+	return nil
 }
 
 // pinLabel is what the row menu says about pinning a flow.

@@ -6,6 +6,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -15,6 +16,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -83,6 +85,134 @@ func waitFlow(t *testing.T, s *Server) Flow {
 	case <-time.After(5 * time.Second):
 		t.Fatal("no flow captured")
 		return Flow{}
+	}
+}
+
+func TestStartRejectsAnOccupiedExplicitAddress(t *testing.T) {
+	busy, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer busy.Close()
+	s, err := New(busy.Addr().String(), t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	if err := s.Start(); err == nil {
+		t.Fatal("Start reported success on another application's listener")
+	}
+	if s.Running() {
+		t.Fatal("failed startup reported a running proxy")
+	}
+}
+
+func TestDefaultProxyFallsBackToAnOwnedPort(t *testing.T) {
+	// Keep the competing listener bound for the entire test. If a real app
+	// already owns 7890, leave it alone and still exercise the fallback.
+	busy, err := net.Listen("tcp", "127.0.0.1:7890")
+	if err == nil {
+		other := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			fmt.Fprint(w, "existing application")
+		})}
+		go other.Serve(busy)
+		t.Cleanup(func() { _ = other.Close() })
+	} else {
+		t.Logf("preferred port already unavailable: %v", err)
+	}
+	s, err := New("", t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = s.Close() })
+	if s.Running() {
+		t.Fatal("proxy reported running before Start")
+	}
+	if err := s.Start(); err != nil {
+		t.Fatal(err)
+	}
+	addr := s.Addr()
+	host, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	n, err := strconv.Atoi(port)
+	if err != nil || host != "127.0.0.1" || n < 1024 || n == 7890 || !s.Running() {
+		t.Fatalf("fallback listener = %q, running = %v", addr, s.Running())
+	}
+	t.Logf("occupied 127.0.0.1:7890 → bound %s", addr)
+	if err := s.Start(); err == nil || s.Addr() != addr {
+		t.Fatal("a second Start must not acquire another port")
+	}
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, "through our proxy")
+	}))
+	defer upstream.Close()
+	resp, err := clientFor(t, s, nil).Get(upstream.URL + "/fallback")
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, err := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if err != nil || string(body) != "through our proxy" {
+		t.Fatalf("forwarded body = %q, error = %v", body, err)
+	}
+	f := waitFlow(t, s)
+	if f.URL != upstream.URL+"/fallback" || f.ResponseBody != "through our proxy" {
+		t.Fatalf("wrong captured exchange: %+v", f)
+	}
+	replayed, err := s.Replay(t.Context(), f)
+	if err != nil || replayed.ResponseBody != "through our proxy" {
+		t.Fatalf("replay on actual port: body = %q, error = %v", replayed.ResponseBody, err)
+	}
+	if busy != nil {
+		client := &http.Client{Transport: &http.Transport{}, Timeout: 5 * time.Second}
+		resp, err := client.Get("http://" + busy.Addr().String())
+		if err != nil {
+			t.Fatal(err)
+		}
+		body, err := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if err != nil || string(body) != "existing application" {
+			t.Fatalf("competing application was affected: %q, %v", body, err)
+		}
+	}
+	if err := s.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if s.Running() {
+		t.Fatal("closed proxy still reported running")
+	}
+	ln, err := net.Listen("tcp", addr)
+	if err != nil {
+		t.Fatalf("Close did not release %s: %v", addr, err)
+	}
+	defer ln.Close()
+	if err := s.Start(); !errors.Is(err, net.ErrClosed) {
+		t.Fatalf("Start after Close = %v", err)
+	}
+}
+
+func TestCloseImmediatelyAfterStartReleasesThePort(t *testing.T) {
+	s, err := New("127.0.0.1:0", t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = s.Close() })
+	if err := s.Start(); err != nil {
+		t.Fatal(err)
+	}
+	addr := s.Addr()
+	if err := s.Close(); err != nil {
+		t.Fatal(err)
+	}
+	ln, err := net.Listen("tcp", addr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ln.Close()
+	if s.Running() {
+		t.Fatal("closed proxy reported running")
 	}
 }
 
@@ -343,7 +473,11 @@ func TestTimingSplitsWaitAndDownload(t *testing.T) {
 }
 
 func TestTunnelsUntilADomainIsDecrypted(t *testing.T) {
-	upstream := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	const body = `{"source":"decrypted HTTPS","items":[3,7]}`
+	upstream := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		io.WriteString(w, body)
+	}))
 	defer upstream.Close()
 
 	s, caPath := startServer(t)
@@ -372,14 +506,54 @@ func TestTunnelsUntilADomainIsDecrypted(t *testing.T) {
 	}
 
 	// Decrypted now: the proxy's CA is what the client sees.
-	s.SetSSL(SSLConfig{Hosts: []string{"localhost"}})
+	// Older UI versions stored the CONNECT authority, including its port.
+	s.SetSSL(SSLConfig{Hosts: []string{u.Host}})
 	resp, err := clientFor(t, s, roots).Get(u.String() + "/after")
 	if err != nil {
 		t.Fatalf("request after decryption: %v", err)
 	}
+	data, err := io.ReadAll(resp.Body)
 	_ = resp.Body.Close()
-	if f := waitFlow(t, s); f.Status != 200 || f.Kind != "http" {
-		t.Fatalf("flow = %+v, want a decrypted 200", f)
+	if err != nil || string(data) != body {
+		t.Fatalf("HTTPS response = %q, %v", data, err)
+	}
+	if f := waitFlow(t, s); f.Status != 200 || f.Kind != "http" || f.Path != "/after" || f.ResponseBody != body {
+		t.Fatalf("flow = %+v, want the decrypted path and complete JSON response", f)
+	}
+	// IP clients send no SNI. Trust must still verify the certificate against
+	// the CONNECT target, without disabling TLS verification in the client.
+	u, _ = url.Parse(upstream.URL)
+	s.SetSSL(SSLConfig{Hosts: []string{u.Host}})
+	resp, err = clientFor(t, s, roots).Get(u.String() + "/ip-without-sni")
+	if err != nil {
+		t.Fatalf("verified IP request without SNI: %v", err)
+	}
+	data, err = io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if err != nil || string(data) != body {
+		t.Fatalf("IP response = %q, %v", data, err)
+	}
+	if f := waitFlow(t, s); f.Path != "/ip-without-sni" || f.ResponseBody != body {
+		t.Fatalf("IP capture = %+v", f)
+	}
+}
+
+func TestSSLDomainRulesIgnorePorts(t *testing.T) {
+	for _, tc := range []struct {
+		rule, host string
+		want       bool
+	}{
+		{"Example.COM.:8443", "api.example.com:9443", true},
+		{"example.com:8443", "notexample.com:8443", false},
+		{"127.0.0.1:18443", "127.0.0.1", true},
+		{"[2001:db8::1]:8443", "[2001:db8::1]:9443", true},
+		{"2001:db8::1", "[2001:db8::1]", true},
+		{"[2001:db8::1]:8443", "2001:db8::2", false},
+		{"[ab].example.com", "a.example.com:8443", true},
+	} {
+		if got := (SSLConfig{Hosts: []string{tc.rule}}).Decrypts(tc.host); got != tc.want {
+			t.Errorf("rule %q for %q = %v, want %v", tc.rule, tc.host, got, tc.want)
+		}
 	}
 }
 

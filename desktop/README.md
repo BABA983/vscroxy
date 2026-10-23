@@ -5,7 +5,7 @@ native UI: no webview, no HTML, no JavaScript in the app itself. MyGo draws
 the widgets on the GPU and takes text, input methods and accessibility from
 the platform.
 
-The app captures real traffic: it runs a MITM proxy on `127.0.0.1:7890` with
+The app captures real traffic: it runs a loopback MITM proxy with
 [go-mitmproxy](https://github.com/lqqyt2423/go-mitmproxy) and shows every
 exchange as it arrives.
 
@@ -17,7 +17,27 @@ Go 1.27 or later. On Linux the app needs GTK 3 at run time; nothing else.
 go run .
 ```
 
-Then point a client at the proxy:
+The proxy prefers `127.0.0.1:7890`. If that address is unavailable (for example,
+Clash already owns it), it binds an OS-assigned loopback port instead. It holds
+that socket throughout startup, without probing another application's listener
+or closing/rebinding a candidate port. The OS chooses from its configured
+ephemeral pool and respects its reserved/excluded-port configuration; the app
+does not scan low ports or change those settings. The assigned port may differ
+on the next launch.
+
+For a stable port, open **Settings → Proxy → Listening port**, enter a number
+from **1024 to 65535**, and click **Save for next launch**. Restart the app to
+apply it; current capture connections and system-proxy settings are not changed
+by saving. A fixed port never falls back silently: if it is unavailable, capture
+stays stopped and reports the bind error. Leave the field blank and save to
+restore automatic selection. The value is kept in `~/.vscroxy/settings.json`
+(`proxyPort`, zero or absent for automatic). The panel distinguishes the current
+listening address from the next-launch configuration.
+
+**Live**, the empty traffic list and **Settings → Proxy** show the actual bound
+address. Only a successfully bound proxy appears Live; failed startup leaves
+system-proxy enablement disabled. The examples below use the preferred port;
+replace `7890` with the displayed port if it changed. Then point a client at it:
 
 ```sh
 curl -x http://127.0.0.1:7890 http://example.com/
@@ -69,9 +89,9 @@ Certificate pinning and clients that ignore the OS proxy are not bypassed. The
 pinned MITM engine generates DNS SANs, not IP SANs: intercepted HTTPS using a
 numeric-IP URL can fail certificate verification; use a DNS hostname when testing.
 
-The local proxy stays at `127.0.0.1:7890`. The gateway forwards raw TCP to that
-same core, keeping capture IDs, rules and pending local requests/tunnels. Closing
-the guide keeps access enabled (the Network menu shows **LAN**); **Disable device
+The local proxy stays on loopback. The gateway forwards raw TCP to the core's
+actual listening port, keeping capture IDs, rules and pending local requests/tunnels.
+Closing the guide keeps access enabled (the Network menu shows **LAN**); **Disable device
 access** closes both LAN listeners and all their active connections, including
 CONNECT/WebSocket tunnels, without stopping local capture. Disable before editing
 the address/allowlist. Turn off the device's manual proxy and remove the CA trust
@@ -121,7 +141,23 @@ chosen, and **Export chosen HAR…** writes just those.
 The chips above it keep one kind of traffic in view: HTTP or HTTPS by scheme,
 WebSocket and SSE by kind, and JSON, images or HTML by the response's content
 type. They narrow what the sidebar's filters and the search show, and the
-status bar counts the flows, the bytes captured and the last message.
+status bar counts the flows and bytes captured. Feedback appears in full in
+temporary toasts rather than staying in the status bar indefinitely. **Live**
+opens Proxy settings; **HTTPS setup** opens certificate and decryption settings.
+
+The search field matches **host and path only**; Ctrl/Cmd+F focuses it. Use
+**Filters…** for headers, bodies and status codes. Status accepts comma-separated
+alternatives (for example `4xx, 5xx`) and validates malformed expressions before
+applying them. A filtered-out list explains that captured traffic is hidden and
+offers **Show all requests**. Hidden rows are removed from the bulk selection.
+**Clear** asks for confirmation and keeps pinned exchanges.
+
+Each capture view follows new rows while scrolled to the bottom. Scrolling up
+pauses following without changing the request being inspected; scrolling back
+to the bottom resumes it. **Latest** selects the last displayed row, scrolls it
+into view and resumes following. Views keep their own scroll positions. With a
+custom column sort, the bottom means the end of that displayed order, not
+necessarily the most recently captured request.
 
 **New view** opens another live tab over the same captured traffic, not a new
 proxy or capture session. Each tab retains its own search, sidebar/chip filter,
@@ -239,6 +275,11 @@ offsets and text. The search field filters what shows: matching lines in
 Pretty and Hex, matching leaves in JSON. A body that is not JSON falls back
 to text.
 
+**Auto** is the default: images/HTML use Preview, binary bodies use Hex,
+explicit protobuf/gRPC uses Protobuf, and text/JSON uses Pretty. A manual mode
+applies to the current request side; changing requests or sides resets to Auto
+instead of leaving the next response in an incompatible display mode.
+
 A body above 64 KiB is not held in memory: the capture core writes it to a
 spill file under a temporary directory and the flow keeps the first 64 KiB
 plus the file's path and the body's size. The Body tab, the diff, HAR export
@@ -260,10 +301,13 @@ depends on the upstream accepting CONNECT to port 80.
 ## SSL proxying
 
 HTTPS is tunnelled untouched until a domain is decrypted: the table shows its
-CONNECT as a `Tunnel` row, and the detail pane offers **Decrypt this domain**
-and **Decrypt every domain**. **Network → SSL proxying…** edits the same list,
-kept in `~/.vscroxy/ssl.json`; a domain matches its subdomains. Nothing is
-decrypted out of the box, as a proxy that installs a CA must.
+CONNECT as a `Tunnel` row. The detail pane keeps **Set up certificate…** and
+**Enable for <host>** above its scrollable explanation, including in small
+windows. **Settings → HTTPS → Manage domains…** edits the same list, kept in
+`~/.vscroxy/ssl.json`; a domain matches its subdomains on all ports. Old rules
+containing a port are also understood as hostname rules. IP clients without TLS
+SNI receive a certificate for their CONNECT target, not an empty name. Nothing
+is decrypted out of the box.
 
 A connection already open keeps the choice it was made with: reload the page
 after decrypting a domain.
@@ -379,6 +423,12 @@ against the original (same method, scheme and URL). A replay trusts the
 system's CAs and the proxy's own, so an HTTPS flow replays without the CA
 being trusted machine wide.
 
+Ctrl/Cmd+R replays the inspected request; Ctrl/Cmd+Alt+C copies it as cURL.
+Replay completion reports the source and response status with **Inspect replay**,
+which opens the exact result in Requests without stealing focus on arrival.
+Diff labels the previous/current sides and explains when no baseline exists;
+an empty previous response is still a valid baseline.
+
 ## Requests
 
 **New request** opens a document tab in **Requests**. Method, URL and **Send**
@@ -460,12 +510,37 @@ PowerShell and Windows CMD quoting are not supported. Commands are limited to
 
 **Copy cURL** beside **Send** copies the active draft; **Copy as cURL** in a
 captured row's menu copies that exchange. Variables stay unexpanded and scripts
-are not run. GET bodies keep an explicit GET method; quotes are escaped, empty
-headers preserved, and stale Host/Content-Length/connection headers omitted.
-Captured spilled bodies are read in full rather than copying just the 64 KiB
-head; missing files, binary/NUL bodies or commands over 16 MiB produce an error
-and leave the clipboard untouched. This is a text-body export, not a multipart
-file exporter. Credentials/cookies are included when present: review before sharing.
+are not run. Commands target Bash/POSIX shells, not PowerShell or CMD. GET bodies
+keep an explicit GET method; HEAD uses curl's head mode. Quotes, duplicate/empty
+headers and an explicit Host are preserved; wire framing and connection-only
+headers are removed. Captured decoded bodies omit stale content-encoding/digest
+headers, while drafts retain their authored encodings. Curl's default Accept,
+User-Agent and Content-Type are suppressed when absent, and a captured
+Accept-Encoding also enables response decompression. TLS verification stays on;
+the command ignores `.curlrc` but still uses curl's normal proxy environment.
+
+Captured spill files are read in full. Small text bodies use `--data-raw` (a
+leading `@` stays literal). Binary/NUL bodies and text whose shell-quoted form
+exceeds 32 KiB use a base64 here-document piped into `curl --data-binary @-`;
+paste the **whole** multiline command into a shell with `base64 -d`, or save it
+as a script and run `sh script.sh`. This avoids OS argument-length limits and
+does not reference capture-machine temporary files. This generated pipeline
+cannot be re-imported by the intentionally restricted cURL importer.
+
+Missing/incomplete bodies, request trailers, CONNECT/WebSocket rows, oversized
+header/URL arguments, HEAD with a body, and commands over 16 MiB produce an
+error without replacing the clipboard. Multipart drafts read their selected
+files and export the assembled bytes, including binary parts. Credentials and
+cookies are included: review before sharing. Expired credentials, body-sensitive
+signatures and application-specific client certificates may still require manual
+changes; copying a request cannot guarantee a remote server will authorize it.
+
+The exporter remains local rather than using `moul/http2curl`: that library
+inlines bodies with `-d`, cannot represent NUL/large arguments, joins repeated
+headers, and unconditionally disables HTTPS verification. Replay tests execute
+the copied command with real curl against a local server, including a compressed
+upload captured through the actual proxy, rather than relying on import/export
+round trips alone.
 
 ## APIs / OpenAPI
 
@@ -516,29 +591,102 @@ throttle adds, so it matches what the client saw.
 
 ## System proxy and certificate
 
-**Settings → Proxy** controls the system proxy; **Settings → Certificates**
-contains the CA and TLS inspection actions. The native menu also opens
+**Settings → Proxy** controls the system proxy; **Settings → HTTPS**
+shows the local CA, system trust and domain decryption rules. The native menu also opens
 Settings with Cmd/Ctrl+,; Cmd/Ctrl+1 and Cmd/Ctrl+2 switch workspaces, and
 Cmd/Ctrl+N starts a request. On Linux and Windows, Alt reveals the native
 menu bar.
 
-- **Enable system proxy** sets the proxy to `127.0.0.1:7890`; **Disable system
-  proxy** turns it off again. Linux writes the GNOME proxy settings with
+- **Enable system proxy** sets the proxy to the actual address displayed above;
+  it first saves the previous settings and starts a separate recovery process.
+  **Disable system proxy** restores this session's saved settings; without an
+  owned session it explicitly turns the system proxy off. Startup never enables
+  a proxy automatically, but retries an interrupted, recorded recovery.
+  Linux writes the GNOME proxy settings with
   `gsettings`, macOS sets every enabled service with `networksetup`, Windows
-  writes the per-user WinINet settings with `reg`.
-- **Install certificate…** trusts `~/.mitmproxy/mitmproxy-ca-cert.pem`. Linux
-  copies it to `/usr/local/share/ca-certificates` and runs
-  `update-ca-certificates` through `pkexec`; macOS adds it to the System
-  keychain through `osascript` with an admin prompt; Windows runs
-  `certutil -addstore Root`, which needs an elevated process.
-- **Reveal certificate** opens the folder that holds the CA, for clients that
+  reads/writes the current user's default LAN settings through WinINet and
+  notifies applications of changes. macOS/Windows retain PAC/discovery and bypass
+  settings; automatic configuration is reported as a conflict. Linux temporarily
+  selects manual mode and loopback bypasses, then restores the previous mode and
+  bypass list. Windows services using WinHTTP need separate configuration.
+- Normal quit (including closing the window) waits for a pending proxy write,
+  then restores the settings this instance replaced before closing capture.
+  Each protocol is checked first: replacement proxies installed by another app
+  are left alone, including a mixed HTTP/HTTPS configuration.
+  If cleanup fails, quit is cancelled and capture stays running while you repair
+  the settings and retry.
+- The recovery process owns both the enable operation and rollback. Its pipe
+  closes when the main process dies (including SIGKILL), so it restores without
+  waiting for the app to reopen, even if the owner died during enable. It ignores
+  a broken reply pipe rather than exiting before rollback. A file lock prevents
+  another running instance from restoring or replacing the active session.
+  The private `~/.vscroxy/proxy-recovery.json` journal is saved before OS writes
+  and removed only after restoration is checked; failed recovery retains it.
+  Errors go to `proxy-recovery.json.log`, with several automatic retry attempts.
+  Startup and **Check again** retry an orphaned record, never an unowned proxy.
+- This is a same-user helper, not an installed privileged service or login item.
+  It cannot guarantee immediate recovery if the helper is also killed, the whole
+  process tree is terminated, or OS permissions deny restoration. In those cases
+  reopen the app to retry; if necessary remove only its stale loopback proxy in
+  OS network settings. macOS refuses automatic takeover of authenticated proxies:
+  `networksetup` cannot safely read back and restore their credentials. Proxy
+  passwords are not requested or written to the journal.
+- **System proxy** reads back the OS configuration on opening the Proxy page
+  and after an operation; **Check again** refreshes it. The page keeps the
+  HTTP/HTTPS targets, working state, read/write errors, mismatches and automatic
+  proxy configuration conflicts visible instead of treating a successful helper
+  exit as proof. Controls are disabled while an operation is pending. This checks
+  OS settings, not whether every application honors them; clients with their own
+  proxy settings, bypass lists, or separate trust stores still need configuration.
+- **Install & Trust…** trusts `~/.mitmproxy/mitmproxy-ca-cert.pem`. Linux
+  detects `update-ca-certificates` (Debian/Ubuntu) or `update-ca-trust`
+  (Fedora/Arch), installs the public CA in the matching anchor directory,
+  and refreshes trust through one `pkexec` authorization. Missing helpers
+  or unsupported distributions get a manual-import explanation. macOS checks
+  the exact public certificate in the System keychain first, skipping import
+  if it is already there. Otherwise it elevates only `security add-certificates`, using a
+  temporary copy of the validated public certificate, never the private key.
+  After confirming the import, the normal, non-elevated GUI app requests
+  trust through the native Security framework. Trust is never configured
+  from the elevated shell. Approve the macOS authorization prompts (import
+  and trust may prompt separately); the entire app does not need `sudo`.
+  Windows runs `certutil -user -addstore Root` to trust the CA for the current
+  user, without running the capture app as administrator. Other Windows
+  accounts and services need their own trust setup. All platforms validate
+  the root and import a temporary public-only snapshot, never a private key.
+- **Show certificate** opens the folder that holds the CA, for clients that
   want the file itself.
+- **Check again** re-reads the certificate and checks the current system trust
+  store without changing it. The page also shows the CA name, validity dates
+  and SHA-256 fingerprint. macOS uses `security verify-cert`, Windows uses the
+  native system verifier, and Linux requires `openssl` for a fresh check.
+- **Manage domains…** opens the SSL proxying editor. Trusting the CA and
+  enabling domain decryption are separate steps; neither enables the other.
 
 Each helper runs off the UI thread because the platform may prompt for a
-password, and its result lands in the status bar. A helper that is missing or
-lacks permission reports the command to run instead of failing silently. The
-CA exists only after the first HTTPS exchange, so install it after capturing
-one request.
+password. Installation is followed by a new trust check; failures remain
+visible on the HTTPS page, including after **Check again** until trust is
+verified or installation is retried. Cancelling authorization is shown
+separately from an installation failure; an already trusted CA cannot be
+installed again from this page. macOS installation requires a graphical
+login session; unsigned or invalidly signed builds may be denied before
+an authorization prompt appears. If automatic installation fails on macOS, use
+**Show certificate** to locate the public CA, import it in Keychain Access,
+and set **Trust → When using this certificate → Always Trust**, then check
+again. Never import or share `mitmproxy-ca.pem`, which contains the private key.
+A missing helper or insufficient permission is reported rather than treated
+as proof that a certificate is uninstalled.
+System trust only describes this machine: remote devices, separate application
+trust stores and certificate pinning may require client-side configuration.
+
+An undecrypted **CONNECT** detail explains that it is an encrypted tunnel, not
+one HTTPS request. HTTPS encrypts request/response headers (including Cookie and
+Set-Cookie) as well as bodies; trusting the CA alone does not expose them.
+The detail links to certificate setup and can enable just that
+domain. If current rules already enable the domain, the detail says so rather
+than claiming the old tunnel has been decrypted. After changing HTTPS setup,
+establish a new connection and retry the request; existing tunnels and their
+CONNECT records stay encrypted.
 
 ## Client attribution
 
@@ -546,8 +694,9 @@ The **Client** column names the app a connection came from, with its icon.
 The icon comes from the app itself: the `.desktop` entry's icon on Linux, an
 icon theme's for the app's name, or the logo a bundled app keeps beside its
 executable, as Chrome does; on macOS, the PNG inside the `.icns` of the `.app`
-bundle. An app with none gets a badge in its color with its initial, so every
-row still reads at a glance.
+bundle that encloses the process, so a helper process such as Chrome's shows
+Chrome's icon. An app with none gets a badge in its color with its initial, so
+every row still reads at a glance.
 When a connection opens, the proxy finds the socket that the client holds on
 the other end and reads the process that owns it: `/proc/net/tcp` and the
 descriptor tables on Linux, `lsof` on macOS, `netstat` and `tasklist` on

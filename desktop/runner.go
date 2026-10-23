@@ -146,7 +146,7 @@ func (a *app) startRunner() {
 		r.status = "Iterations must be between 1 and 1000"
 		return
 	}
-	if a.srv == nil {
+	if a.srv == nil || !a.srv.Running() {
 		r.status = "Start the local proxy first"
 		return
 	}
