@@ -248,6 +248,16 @@ details survive saving/reopening a session; older/imported sessions may have no
 connection history. Review hostnames, addresses and certificate details before
 sharing logs.
 
+For a transport failure, **Explain** in the detail header shows the recorded
+stage and raw error, possible causes (not confirmed), and stage-specific checks.
+Client and upstream TLS failures have different guidance; unknown stages do not
+guess a cause. **Copy diagnostics** combines the request, recorded status, error,
+guidance and available connection log, even for a session with no log. The
+existing **Copy connection log** action still copies only the original log.
+Explanations are local guidance: opening them does not retry requests, change
+certificate trust or send diagnostics to an external service. Review URLs,
+addresses and raw errors before sharing the copied report.
+
 ## Breakpoints
 
 Turn on **Break** in the toolbar. A request matching a `break` rule pauses

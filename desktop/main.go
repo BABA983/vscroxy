@@ -185,8 +185,9 @@ type app struct {
 	keyLogOpen  bool
 	keyLogInput string
 
-	// connOpen shows the connection panel of the chosen flow.
-	connOpen bool
+	// Connection overlays belong to the inspected request, not the list.
+	connOpen    bool
+	explainOpen bool
 
 	// headerColumn is the header the table shows as a column of its own, and
 	// the filter fields narrow what it shows beyond the search box.
@@ -889,7 +890,7 @@ func (a *app) syncDetail() {
 	f, ok := a.current()
 	if !ok {
 		a.detailFor = -1
-		a.connOpen = false
+		a.connOpen, a.explainOpen = false, false
 		a.protobuf.stop()
 		return
 	}
@@ -897,7 +898,7 @@ func (a *app) syncDetail() {
 		return
 	}
 	a.detailFor = f.id
-	a.connOpen = false
+	a.connOpen, a.explainOpen = false, false
 	if f.kind == "" && a.tab == 5 {
 		a.tab = 0
 	}
@@ -1642,7 +1643,18 @@ func (a *app) detail(c *ui.Context) {
 			}
 			chip := ui.Text(c, fmt.Sprintf("%s · %s · %d ms", status, humanBytes(f.bytes), f.millis)).
 				FontSize(12).TextColor(color)
-			if doc := statusDoc(f.status); doc != "" {
+			if f.conn.error != "" {
+				chip = chip.Tooltip(cmp.Or(f.conn.errorStage, "Connection") + ": " + f.conn.error)
+				explain := ui.Button(c, "Explain").FontSize(11).Tooltip("Explain the recorded connection failure")
+				if explain.Clicked() {
+					a.explainOpen = !a.explainOpen
+				}
+				ui.PopoverBase(c, explain, &a.explainOpen, func(panel ui.Element) {
+					panel.Margin(8, 0, 0, 0).Padding(0).Radius(10).Background(t.Background).
+						Border(1, t.Border).Shadow(0, 8, 24, 0, ui.RGBA(0, 0, 0, 0.22)).
+						Children(func() { a.explainConnection(c, f) })
+				})
+			} else if doc := statusDoc(f.status); doc != "" {
 				chip = chip.Tooltip(doc)
 			}
 			info := ui.Icon(c, infoIcon).Size(13, 13).TextColor(t.TextMuted).
@@ -1794,13 +1806,45 @@ func (a *app) saveMark() {
 // worth opening.
 var infoIcon = ui.MustParseSVG([]byte(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M8 1.3a6.7 6.7 0 1 0 0 13.4A6.7 6.7 0 0 0 8 1.3Zm0 1.5a5.2 5.2 0 1 1 0 10.4A5.2 5.2 0 0 1 8 2.8Zm0 1.6a.95.95 0 1 0 0 1.9.95.95 0 0 0 0-1.9Zm-.85 3.2v4h1.7v-4Z"/></svg>`))
 
+func (a *app) explainConnection(c *ui.Context, f flow) {
+	t := c.Theme()
+	e := f.conn.explanation()
+	width, height := c.Size()
+	ui.Column(c).Width(min(480, width-40)).Children(func() {
+		ui.Text(c, e.title).FontSize(16).Bold().Padding(16, 16, 12, 16)
+		ui.Scroll(c).Height(min(270, height-220)).Padding(0, 16, 14, 16).Gap(16).Selectable().Children(func() {
+			ui.Text(c, e.summary).FontSize(12).TextColor(t.TextMuted)
+			ui.Column(c).Padding(12).Gap(6).Radius(7).Background(t.Danger.Alpha(0.06)).Border(1, t.Danger.Alpha(0.2)).Children(func() {
+				ui.Text(c, "Observed failure · "+cmp.Or(f.conn.errorStage, "unknown stage")).FontSize(11).Bold().TextColor(t.TextMuted)
+				ui.Text(c, f.conn.error).Font("monospace").FontSize(11).TextColor(t.Danger)
+			})
+			ui.Column(c).Gap(6).Children(func() {
+				ui.Text(c, "Possible causes · not confirmed").FontSize(12).Bold()
+				ui.Text(c, e.causes).FontSize(12).TextColor(t.TextMuted)
+			})
+			ui.Column(c).Gap(6).Children(func() {
+				ui.Text(c, "What to try").FontSize(12).Bold()
+				ui.Text(c, e.steps).FontSize(12)
+			})
+		})
+		ui.Divider(c)
+		ui.Row(c).Padding(12, 16).Gap(16).Children(func() {
+			ui.Text(c, "Review URLs, addresses and raw errors before sharing.").FontSize(11).TextColor(t.TextMuted).Grow(1)
+			if ui.Button(c, "Copy diagnostics").FontSize(12).Height(30).Clicked() {
+				c.Services().WriteClipboard(f.connectionDiagnostics())
+				a.setMessage("Copied connection diagnostics")
+			}
+		})
+	})
+}
+
 // connectionView makes transport failures inspectable and copyable, including
 // failures after a successful CONNECT but before any HTTP request was received.
 func (a *app) connectionView(c *ui.Context, f flow) {
 	t := c.Theme()
 	ui.Row(c).Padding(8, 12).Gap(8).Children(func() {
 		if f.conn.error != "" {
-			ui.Text(c, f.conn.errorStage+" failed").FontSize(12).TextColor(t.Danger).Grow(1)
+			ui.Text(c, cmp.Or(f.conn.errorStage, "Connection")+" failed").FontSize(12).TextColor(t.Danger).Grow(1)
 		} else {
 			ui.Text(c, "Connection log · snapshot at capture time").FontSize(12).TextColor(t.TextMuted).Grow(1)
 		}
@@ -1809,6 +1853,9 @@ func (a *app) connectionView(c *ui.Context, f flow) {
 			a.setMessage("Copied connection log")
 		}
 	})
+	if f.conn.error != "" {
+		ui.Text(c, f.conn.error).Selectable().MaxLines(3).Tooltip(f.conn.error).FontSize(12).TextColor(t.Danger).Padding(0, 12, 8)
+	}
 	text := cmp.Or(f.conn.log, "No connection history was recorded for this exchange (for example, an older or imported session).")
 	ui.TextArea(c, &text).ReadOnly(true).Label("Connection log").Font("monospace").FontSize(12).Grow(1).FillWidth()
 }
