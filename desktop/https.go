@@ -110,6 +110,7 @@ func (a *app) httpsSettings(c *ui.Context, t *ui.Theme) {
 	} else {
 		ui.Text(c, "Capture is not running").FontSize(12).TextColor(t.TextMuted)
 	}
+	ui.Text(c, "Trusting the CA only makes decryption possible. For an enabled domain, decryption exposes request and response headers — including Cookie and Set-Cookie — and request and response bodies. Hosts you do not enable stay encrypted CONNECT tunnels.").FontSize(12).TextColor(t.TextMuted)
 	ui.Divider(c)
 	ui.Column(c).Gap(6).Children(func() {
 		ui.Row(c).Gap(8).Wrap().Children(func() {
@@ -167,13 +168,21 @@ func (a *app) httpsSettings(c *ui.Context, t *ui.Theme) {
 	ui.Column(c).Gap(6).Children(func() {
 		ui.Text(c, "Domain decryption").Bold()
 		domains := splitHosts(a.sslHosts)
-		summary := "No domains enabled"
+		summary := "No domains enabled — HTTPS stays an encrypted tunnel"
 		if a.sslAll {
 			summary = "Every domain enabled"
 		} else if len(domains) > 0 {
 			summary = strings.Join(domains, ", ")
 		}
 		ui.Text(c, summary).FontSize(12).MaxLines(2).Tooltip(summary)
+		switch {
+		case a.sslAll:
+			ui.Text(c, "Every domain is decrypted. Turn every-domain decryption off to inspect only the listed domains.").FontSize(12).TextColor(t.TextMuted)
+		case len(domains) > 0:
+			ui.Text(c, "Only these domains and their subdomains are decrypted. Every other host stays an encrypted tunnel.").FontSize(12).TextColor(t.TextMuted)
+		default:
+			ui.Text(c, "Enable a domain here, or every domain explicitly, to inspect its headers, cookies, and bodies.").FontSize(12).TextColor(t.TextMuted)
+		}
 		ui.Text(c, "Trusting the CA and enabling domain decryption are separate steps.").FontSize(12).TextColor(t.TextMuted)
 		ui.Row(c).Gap(8).Children(func() {
 			if ui.Button(c, "Manage domains…").Clicked() {
@@ -193,9 +202,20 @@ func (a *app) connectPanel(c *ui.Context, f flow) {
 	t := c.Theme()
 	status, color := a.certificateStatus(t)
 	enabled := (capture.SSLConfig{All: a.sslAll, Hosts: splitHosts(a.sslHosts)}).Decrypts(f.host)
+	// Keep the repair actions visible even when the detail pane is short.
+	ui.Row(c).Padding(8, 12).Gap(8).Wrap().Children(func() {
+		if ui.Button(c, "Set up certificate…").Clicked() {
+			a.settingsTab, a.settingsOpen = 2, true
+			a.checkCertificate(false)
+		}
+		if !enabled && ui.PrimaryButton(c, "Enable for "+f.host).Tooltip("Inspect this hostname on all ports, including its subdomains").Clicked() {
+			a.decryptHost(f.host)
+		}
+		ui.Text(c, "Setup details below ↓").FontSize(11).TextColor(t.TextMuted)
+	})
 	ui.Scroll(c).Grow(1).FillWidth().Padding(16).Gap(10).Children(func() {
 		ui.Text(c, "Encrypted tunnel — not individual requests").FontSize(15).Bold()
-		ui.Text(c, "This connection was forwarded without decryption. Its HTTPS requests and responses are not visible.").FontSize(12).TextColor(t.TextMuted)
+		ui.Text(c, "This connection was forwarded without decryption, so only the CONNECT record exists. Request and response headers, cookies, and bodies stayed encrypted.").FontSize(12).TextColor(t.TextMuted)
 		ui.Divider(c)
 		ui.Row(c).Gap(12).Wrap().Children(func() {
 			ui.Text(c, "1  Proxy connection received").FontSize(12).Bold().TextColor(t.Success)
@@ -204,28 +224,22 @@ func (a *app) connectPanel(c *ui.Context, f flow) {
 		ui.Row(c).Gap(12).Children(func() {
 			ui.Column(c).Grow(1).Gap(4).Children(func() {
 				ui.Text(c, "2  "+status).FontSize(12).Bold().TextColor(color)
-				ui.Text(c, "The requesting device or application must trust this CA. System trust does not verify other clients.").FontSize(11).TextColor(t.TextMuted)
+				ui.Text(c, "The requesting device or application must trust this CA. Trust alone does not decrypt traffic; system trust does not verify other clients.").FontSize(11).TextColor(t.TextMuted)
 			})
-			if ui.Button(c, "Set up certificate…").Shrink(0).Clicked() {
-				a.settingsTab, a.settingsOpen = 2, true
-				a.checkCertificate(false)
-			}
 		})
 		ui.Row(c).Gap(12).Children(func() {
 			ui.Column(c).Grow(1).Gap(4).Children(func() {
 				if enabled {
 					ui.Text(c, "3  Domain decryption is now enabled").FontSize(12).Bold().TextColor(t.Success)
-					ui.Text(c, "Existing tunnels stay encrypted. New connections use the current rules.").FontSize(11).TextColor(t.TextMuted)
+					ui.Text(c, "Existing tunnels stay encrypted. New connections expose request and response headers — including Cookie and Set-Cookie — and bodies.").FontSize(11).TextColor(t.TextMuted)
 				} else {
 					ui.Text(c, "3  Domain decryption disabled").FontSize(12).Bold().TextColor(t.Warning)
-					ui.Text(c, "Enable inspection for this domain and its subdomains.").FontSize(11).TextColor(t.TextMuted)
+					ui.Text(c, "This host stays an encrypted tunnel; only the CONNECT host is visible.").FontSize(11).TextColor(t.TextMuted)
+					ui.Text(c, "Enable inspection for this domain and its subdomains to see headers, Cookie and Set-Cookie, and bodies on new connections.").FontSize(11).TextColor(t.TextMuted)
 				}
 			})
-			if !enabled && ui.PrimaryButton(c, "Enable for "+f.host).Shrink(0).Clicked() {
-				a.decryptHost(f.host)
-			}
 		})
 		ui.Divider(c)
-		ui.Text(c, "After setup, establish a new connection and retry the request. This CONNECT record will remain a tunnel.").FontSize(11).TextColor(t.TextMuted)
+		ui.Text(c, "After setup, reconnect the client and retry the request. This CONNECT record will remain a tunnel.").FontSize(11).TextColor(t.TextMuted)
 	})
 }

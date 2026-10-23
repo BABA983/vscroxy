@@ -52,11 +52,12 @@ func TestCaptureTableScrollsAndKeepsEachViewsPlace(t *testing.T) {
 	a.applyFilter()
 	tt := ui.NewTester(a.view, 1280, 800)
 	row := "api.example.com/capture/0001"
-	box, ok := tt.Find(row)
+	box, ok := tt.Find("api.example.com/capture/5000")
 	if !ok {
-		t.Fatal("first request not shown")
+		t.Fatal("a capture view must start at the latest request")
 	}
 	x, y := box.X+10, box.Y+10
+	tt.Scroll(x, y, 0, -1e6)
 	tt.Scroll(x, y, 0, 640)
 	if !tt.HasText("api.example.com/capture/0021") {
 		t.Fatalf("scrolling did not reveal later requests: %q", tt.Texts())
@@ -68,8 +69,8 @@ func TestCaptureTableScrollsAndKeepsEachViewsPlace(t *testing.T) {
 	if err := tt.Click("New view"); err != nil {
 		t.Fatal(err)
 	}
-	if !tt.HasText(row) || tt.HasText("api.example.com/capture/0021") {
-		t.Fatal("a new capture view must start at its own position")
+	if !tt.HasText("api.example.com/capture/5000") || tt.HasText("api.example.com/capture/0021") {
+		t.Fatal("a new capture view must follow latest without inheriting another view's position")
 	}
 	if err := tt.Click("Capture view: View 1"); err != nil {
 		t.Fatal(err)
@@ -85,6 +86,39 @@ func TestCaptureTableScrollsAndKeepsEachViewsPlace(t *testing.T) {
 	tt.Advance(time.Second)
 	if !tt.HasText(row) {
 		t.Fatal("mouse wheel cannot return to the first request")
+	}
+	appendFlow := func(id int) {
+		t.Helper()
+		path := fmt.Sprintf("/capture/%04d", id)
+		a.flows = append(a.flows, flow{id: id, method: "GET", scheme: "https", host: "api.example.com", path: path, url: "https://api.example.com" + path, status: 200})
+		a.applyFilter()
+		tt.Frame()
+	}
+	appendFlow(5001)
+	if !tt.HasText(row) || tt.HasText("api.example.com/capture/5001") {
+		t.Fatal("new traffic pulled the reader away from older requests")
+	}
+	if err := tt.Click("Latest"); err != nil {
+		t.Fatal(err)
+	}
+	if !tt.HasText("api.example.com/capture/5001") {
+		t.Fatal("Latest must scroll, not only change the selection")
+	}
+	appendFlow(5002)
+	if !tt.HasText("api.example.com/capture/5002") {
+		t.Fatal("Latest did not resume following new traffic")
+	}
+	tt.Scroll(x, y, 0, -1e6)
+	tt.Scroll(x, y, 0, 1e6)
+	appendFlow(5003)
+	if !tt.HasText("api.example.com/capture/5003") {
+		t.Fatal("scrolling back to the bottom did not resume following")
+	}
+	// The capture cap drops the oldest row even when the row count stays fixed.
+	a.flows = a.flows[1:]
+	appendFlow(5004)
+	if !tt.HasText("api.example.com/capture/5004") {
+		t.Fatal("following stopped when an old row was evicted")
 	}
 }
 
@@ -228,7 +262,7 @@ func TestHTTPSSetupExplainsTunnelsAndEnablesOnlyTheSelectedDomain(t *testing.T) 
 	}
 	a := workspaceApp()
 	a.srv, a.caPath, a.sslPath = srv, filepath.Join(dir, "mitmproxy-ca-cert.pem"), filepath.Join(dir, "ssl.json")
-	a.flows = []flow{{id: 1, method: "CONNECT", scheme: "https", host: "dc.dlife.cn", url: "https://dc.dlife.cn", kind: "connect", status: 200}}
+	a.flows = []flow{{id: 1, method: "CONNECT", scheme: "https", host: "dc.dlife.cn:18443", url: "https://dc.dlife.cn:18443", kind: "connect", status: 200}}
 	a.applyFilter()
 	tt := ui.NewTester(a.view, 1280, 800)
 	click := func(label string) {
@@ -254,7 +288,7 @@ func TestHTTPSSetupExplainsTunnelsAndEnablesOnlyTheSelectedDomain(t *testing.T) 
 	if !tt.HasText("Encrypted tunnel — not individual requests") || !tt.HasText("3  Domain decryption disabled") || !tt.HasText("2  Trust not verified on this system") {
 		t.Fatalf("tunnel setup missing or an uninstalled CA was reported trusted: %q", tt.Texts())
 	}
-	click("Enable for dc.dlife.cn")
+	click("Enable for dc.dlife.cn:18443")
 	if !tt.HasText("3  Domain decryption is now enabled") || !tt.HasText("Encrypted tunnel — not individual requests") {
 		t.Fatal("enabling a domain must not make the old CONNECT appear decrypted")
 	}
@@ -289,6 +323,159 @@ func TestHTTPSSetupExplainsTunnelsAndEnablesOnlyTheSelectedDomain(t *testing.T) 
 	cfg, err = capture.LoadSSL(a.sslPath)
 	if err != nil || !cfg.Decrypts("other.dlife.cn") || cfg.Decrypts("notdlife.cn") || !tt.HasText("3  Domain decryption is now enabled") {
 		t.Fatal("a parent-domain rule must enable its subdomains in the inspector too")
+	}
+}
+
+func TestCaptureSearchAndFilterFailuresAreRecoverable(t *testing.T) {
+	a := workspaceApp()
+	tt := ui.NewTester(a.view, 960, 600)
+	tt.Key(ui.Cmd, ui.KeyF)
+	tt.Type("no-such-host")
+	if !tt.HasText("No matching requests") || tt.HasText("Waiting for traffic") {
+		t.Fatalf("search hid captured traffic without explaining why: %q", tt.Texts())
+	}
+	if err := tt.Click("Show all requests"); err != nil {
+		t.Fatal(err)
+	}
+	if !tt.HasText("2 flows · 2 shown") {
+		t.Fatal("reset did not restore the captured requests")
+	}
+	a.openFilter()
+	tt.Frame()
+	if err := tt.Click("Status"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Type("4xx, nonsense")
+	if err := tt.Click("Apply"); err == nil && !a.views.filterOpen {
+		t.Fatal("invalid status expression silently applied")
+	}
+	if !tt.HasText("Use HTTP status codes (100–599), ranges, comparisons or comma-separated alternatives.") {
+		t.Fatal("invalid status expression has no visible validation")
+	}
+	tt.Click("Status")
+	tt.Key(ui.Cmd, ui.KeyA)
+	tt.Type("4xx, 5xx")
+	if err := tt.Click("Apply"); err != nil {
+		t.Fatal(err)
+	}
+	if !tt.HasText("2 flows · 1 shown") {
+		t.Fatalf("comma-separated alternatives did not match the 401 response: %q", tt.Texts())
+	}
+}
+
+func TestBodyAutomaticallyChoosesAUsableMode(t *testing.T) {
+	a := workspaceApp()
+	a.flows[0].respHeader.Set("Content-Type", "application/octet-stream")
+	a.flows[0].resBody = "\x00\xffbinary"
+	a.tab = 1
+	tt := ui.NewTester(a.view, 1280, 800)
+	if !tt.HasText("Showing: Hex") {
+		t.Fatal("binary body must not default to text")
+	}
+	a.flows[1].respHeader = http.Header{"Content-Type": {"application/json"}}
+	a.flows[1].resBody = `{"answer":42}`
+	a.picked = 1
+	tt.Frame()
+	if !tt.HasText("Showing: Pretty") || tt.HasText("Showing: Hex") {
+		t.Fatal("switching requests kept an unusable body mode")
+	}
+}
+
+func TestCaptureFeedbackIsTransientAndComplete(t *testing.T) {
+	a := workspaceApp()
+	tt := ui.NewTester(a.view, 960, 600)
+	message := "Copied cURL command; review credentials before sharing it with another person or service."
+	a.setMessage(message)
+	tt.Frame()
+	if !tt.HasText(message) {
+		t.Fatal("feedback was truncated")
+	}
+	tt.Advance(6 * time.Second)
+	if tt.HasText(message) {
+		t.Fatal("feedback stayed visible after its timeout")
+	}
+}
+
+func TestCaptureSelectionFollowsKeysAndExcludesHiddenRows(t *testing.T) {
+	a := workspaceApp()
+	tt := ui.NewTester(a.view, 960, 600)
+	if err := tt.Click("api.example.com/projects"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Key(0, ui.KeyDown)
+	tt.Frame()
+	if f, ok := a.current(); !ok || f.id != 2 || !a.chosen.Has(2) || a.chosen.Has(1) {
+		t.Fatal("keyboard navigation left a different request selected for export")
+	}
+	tt.Key(ui.Cmd|ui.Alt, ui.KeyC)
+	if !strings.HasPrefix(tt.Clipboard(), "curl ") || !strings.Contains(tt.Clipboard(), "https://api.example.com/login") {
+		t.Fatal("copy cURL shortcut did not copy the focused request")
+	}
+	tt.Key(ui.Cmd, ui.KeyA)
+	tt.Key(ui.Cmd, ui.KeyF)
+	tt.Type("projects")
+	if !tt.HasText("2 flows · 1 shown") || a.chosen.Has(2) {
+		t.Fatal("filtered-out requests remained selected for bulk export")
+	}
+	if err := tt.Click("Clear"); err != nil {
+		t.Fatal(err)
+	}
+	if len(a.flows) != 2 || !tt.HasText("Clear captured requests?") {
+		t.Fatal("Clear removed traffic before confirmation")
+	}
+	tt.Click("Cancel")
+	if len(a.flows) != 2 {
+		t.Fatal("Cancel removed captured traffic")
+	}
+}
+
+func TestReplayResultDoesNotStealFocusAndKeepsItsSource(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusCreated)
+		io.WriteString(w, "result of this replay")
+	}))
+	defer upstream.Close()
+	srv, err := capture.New("127.0.0.1:0", t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer srv.Close()
+	if err := srv.Start(); err != nil {
+		t.Fatal(err)
+	}
+	a := workspaceApp()
+	a.srv = srv
+	source := a.flows[0]
+	source.url = upstream.URL + "/replay"
+	a.replay(source)
+	tt := ui.NewTester(a.view, 1280, 800)
+	if a.workspace != 0 || !tt.HasText("Inspect replay") {
+		t.Fatal("replay stole focus or gave no route to its result")
+	}
+	if err := tt.Click("Inspect replay"); err != nil {
+		t.Fatal(err)
+	}
+	if !tt.HasText("Source: Capture #1") || a.response == nil || a.response.Status != 201 || a.response.ResponseBody != "result of this replay" {
+		t.Fatal("inspect did not retain the exact replay response and source")
+	}
+}
+
+func TestDiffDistinguishesAnEmptyBaselineFromNoBaseline(t *testing.T) {
+	a := workspaceApp()
+	a.tab = 2
+	tt := ui.NewTester(a.view, 960, 600)
+	missing := "No previous response for this method and URL. Replay the request to compare responses."
+	if !tt.HasText(missing) {
+		t.Fatal("first response was presented as a meaningful diff")
+	}
+	a.flows = []flow{a.flows[0], a.flows[0]}
+	a.flows[0].resBody, a.flows[0].status = "", 204
+	a.flows[1].id = 3
+	a.applyFilter()
+	a.picked = 1
+	tt.Frame()
+	if tt.HasText(missing) || !tt.HasText("Previous response (left)") || !tt.HasText("Current response (right)") {
+		t.Fatal("an empty HTTP response was incorrectly treated as no baseline")
 	}
 }
 

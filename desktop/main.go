@@ -41,9 +41,11 @@ type app struct {
 	domains []domain
 	clients []domain
 
-	query  string
-	filter string
-	chip   int
+	query     string
+	filter    string
+	chip      int
+	search    ui.Handle
+	clearOpen bool
 
 	// Capture filters and the request library have independent selections.
 	workspace     int
@@ -89,13 +91,14 @@ type app struct {
 
 	// detailFor is the flow the detail panes were built from, so the text and
 	// the diff buffers are rebuilt only when the choice changes.
-	detailFor int
-	body      string
-	reqBody   string
-	diff      *editor.DiffState
-	frames    map[int][]frame
-	messageUI messagePanel
-	frameLost atomic.Int64
+	detailFor    int
+	body         string
+	reqBody      string
+	diff         *editor.DiffState
+	diffBaseline bool
+	frames       map[int][]frame
+	messageUI    messagePanel
+	frameLost    atomic.Int64
 
 	bodySide int
 	bodyMode int
@@ -239,12 +242,19 @@ type app struct {
 
 	// mu guards what the capture goroutine hands to the view: the flows not
 	// yet drained, and a startup error.
-	mu            sync.Mutex
-	pending       []capture.Flow
-	pendingFrames []capture.FrameEvent
-	bps           []capture.Breakpoint
-	err           error
-	message       string
+	mu             sync.Mutex
+	pending        []capture.Flow
+	pendingFrames  []capture.FrameEvent
+	bps            []capture.Breakpoint
+	err            error
+	message        string
+	messagePending bool
+	replayResults  []replayResult
+}
+
+type replayResult struct {
+	source flow
+	reply  capture.Flow
 }
 
 type domain struct {
@@ -257,7 +267,7 @@ func newApp() *app {
 		filter:         "all",
 		icons:          make(map[string]ui.ImageSource),
 		sidebarWidth:   220,
-		tablePercent:   56,
+		tablePercent:   44,
 		trafficOpen:    true,
 		domainsOpen:    true,
 		clientsOpen:    true,
@@ -427,10 +437,11 @@ func (a *app) reloadConfig() {
 	}
 }
 
-// setMessage records a short status line, from any goroutine.
+// setMessage queues feedback for the UI thread, from any goroutine.
 func (a *app) setMessage(msg string) {
 	a.mu.Lock()
-	a.message = clamp(msg, 72)
+	a.message = msg
+	a.messagePending = true
 	a.mu.Unlock()
 	if a.win != nil {
 		a.win.Invalidate()
@@ -444,7 +455,7 @@ func (a *app) invalidate() {
 	}
 }
 
-// clamp keeps a status message on one line.
+// clamp shortens a label where its full text is available separately.
 func clamp(msg string, max int) string {
 	r := []rune(msg)
 	if len(r) <= max {
@@ -474,7 +485,7 @@ func (a *app) replay(f flow) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	_, err := a.srv.Replay(ctx, capture.Flow{
+	reply, err := a.srv.Replay(ctx, capture.Flow{
 		Method:          f.method,
 		Scheme:          f.scheme,
 		Host:            f.host,
@@ -488,7 +499,10 @@ func (a *app) replay(f flow) {
 		a.setMessage("Replay failed: " + err.Error())
 		return
 	}
-	a.setMessage("Replayed " + f.method + " " + f.path)
+	a.mu.Lock()
+	a.replayResults = append(a.replayResults, replayResult{source: f, reply: reply})
+	a.mu.Unlock()
+	a.invalidate()
 }
 
 func (a *app) startCapture() {
@@ -783,20 +797,20 @@ func (a *app) current() (flow, bool) {
 }
 
 // previousResponse is the last response for the same method and URL, the
-// other side of the diff. Empty when this is the first one.
-func (a *app) previousResponse() string {
+// other side of the diff. An empty response is still a valid baseline.
+func (a *app) previousResponse() (string, bool) {
 	if len(a.visible) == 0 || a.picked < 0 || a.picked >= len(a.visible) {
-		return ""
+		return "", false
 	}
 	at := a.visible[a.picked]
 	f := a.flows[at]
 	for i := at - 1; i >= 0; i-- {
 		prev := a.flows[i]
-		if prev.method == f.method && prev.scheme == f.scheme && prev.host == f.host && prev.path == f.path && prev.resBody != "" {
-			return prev.body(true)
+		if prev.method == f.method && prev.scheme == f.scheme && prev.host == f.host && prev.path == f.path && prev.status > 0 {
+			return prev.body(true), true
 		}
 	}
-	return ""
+	return "", false
 }
 
 // syncDetail rebuilds the text and the diff when the choice moves.
@@ -815,8 +829,10 @@ func (a *app) syncDetail() {
 	a.jsonFor = ""
 	a.protoFor = ""
 	a.protobuf.stop()
+	previous, baseline := a.previousResponse()
+	a.diffBaseline = baseline
 	a.diff = &editor.DiffState{
-		Old:    editor.NewBuffer(a.previousResponse()),
+		Old:    editor.NewBuffer(previous),
 		New:    editor.NewBuffer(a.body),
 		Layout: editor.DiffSplit,
 	}
@@ -830,12 +846,53 @@ func (a *app) view(c *ui.Context) {
 	a.drainCertificate()
 	a.drainSystemProxy()
 	a.drainRunner()
+	a.mu.Lock()
+	if a.messagePending {
+		c.Toast(a.message)
+		a.messagePending = false
+	}
+	replays := a.replayResults
+	a.replayResults = nil
+	a.mu.Unlock()
+	for _, result := range replays {
+		c.ToastAction(fmt.Sprintf("Replayed Capture #%d · %s %s → %d", result.source.id, result.source.method, result.source.path, result.reply.Status), "Inspect replay", func() {
+			// The response belongs to this exact send, not the next capture of
+			// the same URL. Never move the reader until they ask to inspect it.
+			a.composeFrom(result.source)
+			a.response = &result.reply
+		})
+	}
+	if a.workspace == 0 {
+		c.OnShortcut(ui.Cmd, ui.KeyF, func() { a.search.Focus(c) })
+		c.OnShortcut(ui.Cmd|ui.Alt, ui.KeyC, func() {
+			if f, ok := a.current(); ok {
+				a.copyCurl(c, f)
+			}
+		})
+		c.OnShortcut(ui.Cmd, ui.KeyR, func() {
+			if f, ok := a.current(); ok && f.kind == "" {
+				go a.replay(f)
+			}
+		})
+	}
 	if a.sort != a.sortApplied {
 		a.sortApplied = a.sort
 		a.applyFilter()
 	}
 	a.views.drain(a)
 	a.views.sync(a)
+	// Bulk actions must never include requests hidden by this view's filters.
+	if a.chosen.Len() > 0 {
+		visibleIDs := make(map[int]bool, len(a.visible))
+		for _, i := range a.visible {
+			visibleIDs[a.flows[i].id] = true
+		}
+		for id := range a.chosen.All() {
+			if !visibleIDs[id] {
+				a.chosen.Remove(id)
+			}
+		}
+	}
 	a.syncDetail()
 	t := c.Theme()
 	ui.Column(c).Fill().Background(t.Background).Children(func() {
@@ -860,6 +917,21 @@ func (a *app) view(c *ui.Context) {
 		a.statusBar(c, t)
 	})
 	a.persistSettings()
+	ui.Modal(c, &a.clearOpen, func() {
+		ui.Column(c).Width(360).Gap(12).Children(func() {
+			ui.Text(c, "Clear captured requests?").Bold()
+			ui.Text(c, "Unpinned requests will be removed from this session. Export any traffic you want to keep first.")
+			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
+				if ui.Button(c, "Cancel").Clicked() {
+					a.clearOpen = false
+				}
+				if ui.PrimaryButton(c, "Clear unpinned requests").Clicked() {
+					a.clearCaptured()
+					a.clearOpen = false
+				}
+			})
+		})
+	})
 	a.settingsModal(c, t)
 	a.breakpointModal(c, t)
 	a.upstreamModal(c, t)
@@ -897,7 +969,9 @@ func (a *app) view(c *ui.Context) {
 	if a.workspace != 0 || a.tab != 4 {
 		a.messageUI.stopSearch()
 	}
-	if a.workspace != 0 || a.tab != 1 || a.bodyMode != 4 {
+	f, ok := a.current()
+	ct := f.contentType(a.bodySide == 0)
+	if a.workspace != 0 || a.tab != 1 || !ok || !(a.bodyMode == 5 || a.bodyMode == 0 && (grpcContentType(ct) || strings.Contains(ct, "protobuf"))) {
 		a.protobuf.stop()
 	}
 }
@@ -1123,37 +1197,24 @@ func (a *app) toolbar(c *ui.Context, t *ui.Theme) {
 	}
 	ui.Row(c).Height(48).Padding(0, 16).Gap(12).AlignItems(ui.Center).Children(func() {
 		ui.Box(c).Size(7, 7).Radius(4).Background(dot)
-		ui.Text(c, label).FontSize(11).TextColor(t.TextMuted).SingleLine().Width(156).Tooltip(label)
-		if ui.SearchField(c, &a.query).Placeholder("Filter host or path…").Grow(1).Changed() {
+		if ui.Button(c, label).FontSize(11).SingleLine().Width(156).Tooltip("Open Proxy settings · " + label).Clicked() {
+			a.settingsTab, a.settingsOpen = 1, true
+		}
+		if ui.TextInput(c, &a.query).Bind(&a.search).Label("Search host or path").Placeholder("Search host or path…").Tooltip("Search host and path only · Ctrl/Cmd+F. Use Filters for headers and bodies.").Grow(1).Changed() {
 			a.applyFilter()
 		}
 		if ui.Button(c, "Latest").Clicked() && len(a.visible) > 0 {
 			a.picked = len(a.visible) - 1
+			a.chosen.Clear()
+			a.chosen.Add(a.flows[a.visible[a.picked]].id)
+			a.views.activeView().list.ScrollToEnd()
 		}
 		ui.Text(c, "Break").FontSize(11).TextColor(t.TextMuted)
 		if ui.Switch(c, &a.breakOn).Changed() && a.srv != nil {
 			a.srv.SetBreak(a.breakOn)
 		}
 		if ui.Button(c, "Clear").Clicked() {
-			a.mu.Lock()
-			a.pending = nil
-			a.mu.Unlock()
-			// A pinned flow stays, the reason it was pinned.
-			a.flows = slices.DeleteFunc(a.flows, func(f flow) bool { return !f.pinned })
-			a.frames = make(map[int][]frame)
-			a.chosen.Clear()
-			a.picked = 0
-			a.detailFor = -1
-			a.query = ""
-			a.filter = "all"
-			a.chip = 0
-			a.totalBytes = 0
-			for _, f := range a.flows {
-				a.totalBytes += int64(f.bytes)
-			}
-			a.countDomains()
-			a.countClients()
-			a.applyFilter()
+			a.clearOpen = true
 		}
 	})
 	ui.Divider(c)
@@ -1164,6 +1225,26 @@ func (a *app) toolbar(c *ui.Context, t *ui.Theme) {
 	})
 	ui.Divider(c)
 	a.views.controls(c, t, a)
+}
+
+// clearCaptured runs only after confirmation. Pinned exchanges, including
+// their streaming messages, remain available for inspection.
+func (a *app) clearCaptured() {
+	a.mu.Lock()
+	a.pending = nil
+	a.mu.Unlock()
+	a.flows = slices.DeleteFunc(a.flows, func(f flow) bool { return !f.pinned })
+	a.frames = pruneMessages(a.frames, a.flows)
+	a.chosen.Clear()
+	a.picked, a.detailFor = 0, -1
+	a.totalBytes = 0
+	for _, f := range a.flows {
+		a.totalBytes += int64(f.bytes)
+	}
+	a.countDomains()
+	a.countClients()
+	a.applyFilter()
+	a.setMessage("Unpinned requests cleared")
 }
 
 func (a *app) sidebar(c *ui.Context) {
@@ -1285,6 +1366,16 @@ func (a *app) table(c *ui.Context) {
 	t := c.Theme()
 	if len(a.visible) == 0 {
 		ui.Column(c).Fill().Center().Gap(8).Children(func() {
+			if len(a.flows) > 0 {
+				ui.Text(c, "No matching requests").FontSize(14).TextColor(t.Text)
+				ui.Text(c, fmt.Sprintf("%d captured requests are hidden by this view's search or filters.", len(a.flows))).FontSize(12).TextColor(t.TextMuted)
+				if ui.Button(c, "Show all requests").Clicked() {
+					a.query, a.filter, a.chip = "", "all", 0
+					a.views.capture(a)
+					a.clearFilters()
+				}
+				return
+			}
 			ui.Text(c, "Waiting for traffic").FontSize(14).TextColor(t.Text)
 			hint := "Start capture successfully before configuring a client"
 			if a.srv != nil && a.srv.Running() {
@@ -1313,6 +1404,7 @@ func (a *app) table(c *ui.Context) {
 	)
 	durationCol, sizeCol := clientCol+1, clientCol+2
 	state := &a.views.activeView().list
+	state.FollowEnd = true
 	state.Selected = &a.picked
 	state.Selection = &a.chosen
 	state.Key = func(row int) any { return a.flows[a.visible[row]].id }
@@ -1372,7 +1464,7 @@ func (a *app) table(c *ui.Context) {
 						})
 				}
 				text(f.scheme + "://").Shrink(0).TextColor(scheme).ContextMenu(a.rowMenu(c, f))
-				text(f.host + f.path).TextColor(rest).ContextMenu(a.rowMenu(c, f))
+				text(f.host + f.path).TextColor(rest).Tooltip(f.url).ContextMenu(a.rowMenu(c, f))
 			})
 		case headerCol:
 			value := f.respHeader.Get(a.headerColumn)
@@ -1410,7 +1502,7 @@ func (a *app) detail(c *ui.Context) {
 				return
 			}
 			ui.Text(c, fmt.Sprintf("%s %s://%s%s", f.method, f.scheme, f.host, f.path)).
-				FontSize(12).TextColor(t.Text).SingleLine().Grow(1)
+				FontSize(12).TextColor(t.Text).SingleLine().Grow(1).Tooltip(f.url)
 			if f.process != "" {
 				ui.Text(c, f.process).FontSize(12).TextColor(t.TextMuted)
 			}
@@ -1457,6 +1549,14 @@ func (a *app) detail(c *ui.Context) {
 		case 1:
 			a.bodyView(c, f)
 		case 2:
+			if !a.diffBaseline {
+				ui.Text(c, "No previous response for this method and URL. Replay the request to compare responses.").FontSize(12).TextColor(t.TextMuted).Padding(16)
+				return
+			}
+			ui.Row(c).Padding(8, 12).Children(func() {
+				ui.Text(c, "Previous response (left)").Grow(1).FontSize(11).TextColor(t.TextMuted)
+				ui.Text(c, "Current response (right)").Grow(1).FontSize(11).TextColor(t.TextMuted)
+			})
 			if a.diff != nil {
 				editor.DiffView(c, a.diff).Grow(1).FillWidth()
 			}
@@ -1718,14 +1818,10 @@ func (a *app) statusBar(c *ui.Context, t *ui.Theme) {
 		if len(a.rules) > 0 {
 			label(fmt.Sprintf("%d rules", len(a.rules)), t.TextMuted)
 		}
-		a.mu.Lock()
-		message := a.message
-		a.mu.Unlock()
-		if message != "" {
-			ui.Text(c, message).FontSize(11).TextColor(t.TextMuted).Width(320).SingleLine().Tooltip(message)
-		}
 		if a.caPath != "" {
-			label("CA "+shortenHome(a.caPath), t.TextMuted)
+			if ui.Button(c, "HTTPS setup").Height(22).FontSize(11).Tooltip("Certificate and decryption settings · " + shortenHome(a.caPath)).Clicked() {
+				a.settingsTab, a.settingsOpen = 2, true
+			}
 		}
 	})
 }
@@ -2295,39 +2391,54 @@ func (a *app) headerValue(f flow) string {
 	return f.reqHeader.Get(a.headerColumn)
 }
 
-// statusMatches reports whether a status code answers a filter such as "404",
-// "4xx", ">=400" or "200-299".
+// statusMatches accepts comma-separated alternatives; invalid input never
+// silently turns into a partial filter.
 func statusMatches(expr string, status int) bool {
-	expr = strings.TrimSpace(strings.ToLower(expr))
-	switch {
-	case expr == "":
+	if strings.TrimSpace(expr) == "" {
 		return true
-	case strings.HasPrefix(expr, ">="):
-		n, err := strconv.Atoi(strings.TrimSpace(expr[2:]))
-		return err == nil && status >= n
-	case strings.HasPrefix(expr, "<="):
-		n, err := strconv.Atoi(strings.TrimSpace(expr[2:]))
-		return err == nil && status <= n
-	case strings.HasPrefix(expr, ">"):
-		n, err := strconv.Atoi(strings.TrimSpace(expr[1:]))
-		return err == nil && status > n
-	case strings.HasPrefix(expr, "<"):
-		n, err := strconv.Atoi(strings.TrimSpace(expr[1:]))
-		return err == nil && status < n
-	case strings.HasSuffix(expr, "xx"):
-		n, err := strconv.Atoi(strings.TrimSuffix(expr, "xx"))
-		return err == nil && status/100 == n
-	case strings.Contains(expr, "-"):
-		low, high, ok := strings.Cut(expr, "-")
+	}
+	matched := false
+	for part := range strings.SplitSeq(expr, ",") {
+		lo, hi, ok := statusBounds(part)
 		if !ok {
 			return false
 		}
-		lo, errLow := strconv.Atoi(strings.TrimSpace(low))
-		hi, errHigh := strconv.Atoi(strings.TrimSpace(high))
-		return errLow == nil && errHigh == nil && status >= lo && status <= hi
+		matched = matched || status >= lo && status <= hi
+	}
+	return matched
+}
+
+// statusBounds is shared by the filter validator and matcher.
+func statusBounds(expr string) (lo, hi int, valid bool) {
+	expr = strings.ToLower(strings.TrimSpace(expr))
+	code := func(s string) (int, bool) {
+		n, err := strconv.Atoi(strings.TrimSpace(s))
+		return n, err == nil && n >= 100 && n <= 599
+	}
+	switch {
+	case strings.HasPrefix(expr, ">="):
+		n, ok := code(expr[2:])
+		return n, 599, ok
+	case strings.HasPrefix(expr, "<="):
+		n, ok := code(expr[2:])
+		return 100, n, ok
+	case strings.HasPrefix(expr, ">"):
+		n, ok := code(expr[1:])
+		return n + 1, 599, ok
+	case strings.HasPrefix(expr, "<"):
+		n, ok := code(expr[1:])
+		return 100, n - 1, ok
+	case strings.HasSuffix(expr, "xx"):
+		n, err := strconv.Atoi(strings.TrimSuffix(expr, "xx"))
+		return n * 100, n*100 + 99, err == nil && n >= 1 && n <= 5
+	case strings.Contains(expr, "-"):
+		low, high, _ := strings.Cut(expr, "-")
+		lo, a := code(low)
+		hi, b := code(high)
+		return lo, hi, a && b && lo <= hi
 	default:
-		n, err := strconv.Atoi(expr)
-		return err == nil && status == n
+		n, ok := code(expr)
+		return n, n, ok
 	}
 }
 
@@ -2611,42 +2722,45 @@ func (a *app) sslModal(c *ui.Context, t *ui.Theme) {
 
 // saveSSL keeps the SSL proxying settings and hands them to the proxy. A
 // connection already open keeps the choice it was made with.
-func (a *app) saveSSL(cfg capture.SSLConfig) {
-	if a.srv != nil {
-		a.srv.SetSSL(cfg)
-	}
-	a.sslAll, a.sslHosts = cfg.All, strings.Join(cfg.Hosts, "\n")
+func (a *app) saveSSL(cfg capture.SSLConfig) bool {
 	if a.sslPath != "" {
 		if err := os.MkdirAll(filepath.Dir(a.sslPath), 0o755); err != nil {
 			a.setMessage("SSL proxying: " + err.Error())
-			return
+			return false
 		}
 		data, err := json.Marshal(cfg)
 		if err != nil {
 			a.setMessage("SSL proxying: " + err.Error())
-			return
+			return false
 		}
 		if err := os.WriteFile(a.sslPath, append(data, '\n'), 0o644); err != nil {
 			a.setMessage("SSL proxying: " + err.Error())
-			return
+			return false
 		}
 	}
+	if a.srv != nil {
+		a.srv.SetSSL(cfg)
+	}
+	a.sslAll, a.sslHosts = cfg.All, strings.Join(cfg.Hosts, "\n")
 	if cfg.All {
 		a.setMessage("SSL proxying: every domain")
 	} else {
 		a.setMessage(fmt.Sprintf("SSL proxying: %d domains", len(cfg.Hosts)))
 	}
+	return true
 }
 
 // decryptHost adds a domain to what the proxy decrypts, the button under a
 // tunnel.
 func (a *app) decryptHost(host string) {
+	host = strings.ToLower(strings.TrimSuffix(strings.Trim(hostOnly(host), "[]"), "."))
 	cfg := capture.SSLConfig{All: a.sslAll, Hosts: splitHosts(a.sslHosts)}
 	if host != "" && !slices.Contains(cfg.Hosts, host) {
 		cfg.Hosts = append(cfg.Hosts, host)
 	}
-	a.saveSSL(cfg)
-	a.setMessage("Decrypting " + host + "; reconnect the client and retry")
+	if a.saveSSL(cfg) {
+		a.setMessage("Inspection enabled for " + host + " on all ports; reconnect the client and retry")
+	}
 }
 
 // persistSettings writes what changed since the last write, at most every

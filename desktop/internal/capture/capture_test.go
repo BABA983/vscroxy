@@ -473,7 +473,11 @@ func TestTimingSplitsWaitAndDownload(t *testing.T) {
 }
 
 func TestTunnelsUntilADomainIsDecrypted(t *testing.T) {
-	upstream := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	const body = `{"source":"decrypted HTTPS","items":[3,7]}`
+	upstream := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		io.WriteString(w, body)
+	}))
 	defer upstream.Close()
 
 	s, caPath := startServer(t)
@@ -502,14 +506,54 @@ func TestTunnelsUntilADomainIsDecrypted(t *testing.T) {
 	}
 
 	// Decrypted now: the proxy's CA is what the client sees.
-	s.SetSSL(SSLConfig{Hosts: []string{"localhost"}})
+	// Older UI versions stored the CONNECT authority, including its port.
+	s.SetSSL(SSLConfig{Hosts: []string{u.Host}})
 	resp, err := clientFor(t, s, roots).Get(u.String() + "/after")
 	if err != nil {
 		t.Fatalf("request after decryption: %v", err)
 	}
+	data, err := io.ReadAll(resp.Body)
 	_ = resp.Body.Close()
-	if f := waitFlow(t, s); f.Status != 200 || f.Kind != "http" {
-		t.Fatalf("flow = %+v, want a decrypted 200", f)
+	if err != nil || string(data) != body {
+		t.Fatalf("HTTPS response = %q, %v", data, err)
+	}
+	if f := waitFlow(t, s); f.Status != 200 || f.Kind != "http" || f.Path != "/after" || f.ResponseBody != body {
+		t.Fatalf("flow = %+v, want the decrypted path and complete JSON response", f)
+	}
+	// IP clients send no SNI. Trust must still verify the certificate against
+	// the CONNECT target, without disabling TLS verification in the client.
+	u, _ = url.Parse(upstream.URL)
+	s.SetSSL(SSLConfig{Hosts: []string{u.Host}})
+	resp, err = clientFor(t, s, roots).Get(u.String() + "/ip-without-sni")
+	if err != nil {
+		t.Fatalf("verified IP request without SNI: %v", err)
+	}
+	data, err = io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if err != nil || string(data) != body {
+		t.Fatalf("IP response = %q, %v", data, err)
+	}
+	if f := waitFlow(t, s); f.Path != "/ip-without-sni" || f.ResponseBody != body {
+		t.Fatalf("IP capture = %+v", f)
+	}
+}
+
+func TestSSLDomainRulesIgnorePorts(t *testing.T) {
+	for _, tc := range []struct {
+		rule, host string
+		want       bool
+	}{
+		{"Example.COM.:8443", "api.example.com:9443", true},
+		{"example.com:8443", "notexample.com:8443", false},
+		{"127.0.0.1:18443", "127.0.0.1", true},
+		{"[2001:db8::1]:8443", "[2001:db8::1]:9443", true},
+		{"2001:db8::1", "[2001:db8::1]", true},
+		{"[2001:db8::1]:8443", "2001:db8::2", false},
+		{"[ab].example.com", "a.example.com:8443", true},
+	} {
+		if got := (SSLConfig{Hosts: []string{tc.rule}}).Decrypts(tc.host); got != tc.want {
+			t.Errorf("rule %q for %q = %v, want %v", tc.rule, tc.host, got, tc.want)
+		}
 	}
 }
 

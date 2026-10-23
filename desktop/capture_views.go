@@ -875,11 +875,20 @@ func (v *captureViews) filterModal(c *ui.Context, t *ui.Theme, a *app) {
 	ui.Modal(c, &v.filterOpen, func() {
 		ui.Column(c).Width(500).Gap(10).Children(func() {
 			ui.Text(c, "Filter "+v.label(v.active)).FontSize(14).Bold()
-			ui.Text(c, "Status takes 404, 4xx, 200-299 or >=400. A header is a name, or \"name: value\" to match the value too. The body matches either side, read whole even when it spilled to a file; a body still being read shows its progress above the table.").
+			ui.Text(c, "Status takes 404, 4xx, 200-299 or >=400; separate alternatives with commas (4xx, 5xx). A header is a name, or \"name: value\". Body searches both sides in full, including spilled files.").
 				FontSize(11).TextColor(t.TextMuted)
+			problem := ""
+			if strings.TrimSpace(v.editStatus) != "" {
+				for part := range strings.SplitSeq(v.editStatus, ",") {
+					if _, _, ok := statusBounds(part); !ok {
+						problem = "Use HTTP status codes (100–599), ranges, comparisons or comma-separated alternatives."
+						break
+					}
+				}
+			}
 			ui.Field(c, "Status", func() {
-				ui.TextInput(c, &v.editStatus).Placeholder("404, 4xx, 200-299")
-			})
+				ui.TextInput(c, &v.editStatus).Label("Status").Placeholder("4xx, 5xx")
+			}).Error(problem)
 			ui.Field(c, "Header", func() {
 				ui.TextInput(c, &v.editHeader).Placeholder("content-type: json")
 			})
@@ -902,7 +911,7 @@ func (v *captureViews) filterModal(c *ui.Context, t *ui.Theme, a *app) {
 				if ui.Button(c, "Cancel").Clicked() {
 					v.filterOpen = false
 				}
-				if ui.PrimaryButton(c, "Apply").Clicked() {
+				if ui.PrimaryButton(c, "Apply").Disabled(problem != "").Clicked() {
 					v.commitFilter(a)
 					v.filterOpen = false
 				}

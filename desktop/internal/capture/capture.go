@@ -416,7 +416,29 @@ type SSLConfig struct {
 // Decrypts reports whether the current rules enable HTTPS inspection for host.
 // Existing connections keep the rules they were opened with.
 func (c SSLConfig) Decrypts(host string) bool {
-	return c.All || hostMatches(host, c.Hosts)
+	if c.All {
+		return true
+	}
+	host = sslHostname(host)
+	for _, pattern := range c.Hosts {
+		if hostMatches(host, []string{sslHostname(pattern)}) {
+			return true
+		}
+	}
+	return false
+}
+
+// SSL rules describe domains, not ports. Accept authorities written by older
+// versions of the UI as well as bare hostnames and bracketed IPv6 literals.
+func sslHostname(host string) string {
+	host = strings.TrimSpace(host)
+	if name, _, err := net.SplitHostPort(host); err == nil {
+		host = name
+	}
+	if strings.HasPrefix(host, "[") && strings.HasSuffix(host, "]") {
+		host = host[1 : len(host)-1]
+	}
+	return strings.TrimSuffix(host, ".")
 }
 
 // SetDNS sets the names the proxy dials elsewhere, as "name = address" lines

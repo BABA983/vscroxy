@@ -50,6 +50,16 @@ the transport learned about a message survives into the addon hooks:
 
 ## `proxy/attacker.go`
 
+### Clients without SNI
+
+When a TLS client omits SNI (normal for IP-literal URLs), certificate issuance
+falls back to the original CONNECT hostname, without its port. Previously the
+engine signed a certificate for the empty string, so a client trusting the CA
+still rejected an inspected IP request. Both eager and lazy handshakes use the
+fallback; an explicit SNI name is unchanged. Regression coverage is in
+`TestTunnelsUntilADomainIsDecrypted`, using a verified TLS client and a local
+upstream on an OS-assigned nonstandard port.
+
 ### gRPC is a stream, not a message
 
 `attack` sets `f.Stream = true` for `application/grpc` and `application/grpc+*`

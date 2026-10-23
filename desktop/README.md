@@ -141,7 +141,23 @@ chosen, and **Export chosen HAR…** writes just those.
 The chips above it keep one kind of traffic in view: HTTP or HTTPS by scheme,
 WebSocket and SSE by kind, and JSON, images or HTML by the response's content
 type. They narrow what the sidebar's filters and the search show, and the
-status bar counts the flows, the bytes captured and the last message.
+status bar counts the flows and bytes captured. Feedback appears in full in
+temporary toasts rather than staying in the status bar indefinitely. **Live**
+opens Proxy settings; **HTTPS setup** opens certificate and decryption settings.
+
+The search field matches **host and path only**; Ctrl/Cmd+F focuses it. Use
+**Filters…** for headers, bodies and status codes. Status accepts comma-separated
+alternatives (for example `4xx, 5xx`) and validates malformed expressions before
+applying them. A filtered-out list explains that captured traffic is hidden and
+offers **Show all requests**. Hidden rows are removed from the bulk selection.
+**Clear** asks for confirmation and keeps pinned exchanges.
+
+Each capture view follows new rows while scrolled to the bottom. Scrolling up
+pauses following without changing the request being inspected; scrolling back
+to the bottom resumes it. **Latest** selects the last displayed row, scrolls it
+into view and resumes following. Views keep their own scroll positions. With a
+custom column sort, the bottom means the end of that displayed order, not
+necessarily the most recently captured request.
 
 **New view** opens another live tab over the same captured traffic, not a new
 proxy or capture session. Each tab retains its own search, sidebar/chip filter,
@@ -259,6 +275,11 @@ offsets and text. The search field filters what shows: matching lines in
 Pretty and Hex, matching leaves in JSON. A body that is not JSON falls back
 to text.
 
+**Auto** is the default: images/HTML use Preview, binary bodies use Hex,
+explicit protobuf/gRPC uses Protobuf, and text/JSON uses Pretty. A manual mode
+applies to the current request side; changing requests or sides resets to Auto
+instead of leaving the next response in an incompatible display mode.
+
 A body above 64 KiB is not held in memory: the capture core writes it to a
 spill file under a temporary directory and the flow keeps the first 64 KiB
 plus the file's path and the body's size. The Body tab, the diff, HAR export
@@ -280,10 +301,13 @@ depends on the upstream accepting CONNECT to port 80.
 ## SSL proxying
 
 HTTPS is tunnelled untouched until a domain is decrypted: the table shows its
-CONNECT as a `Tunnel` row, and the detail pane offers **Decrypt this domain**
-and **Decrypt every domain**. **Network → SSL proxying…** edits the same list,
-kept in `~/.vscroxy/ssl.json`; a domain matches its subdomains. Nothing is
-decrypted out of the box, as a proxy that installs a CA must.
+CONNECT as a `Tunnel` row. The detail pane keeps **Set up certificate…** and
+**Enable for <host>** above its scrollable explanation, including in small
+windows. **Settings → HTTPS → Manage domains…** edits the same list, kept in
+`~/.vscroxy/ssl.json`; a domain matches its subdomains on all ports. Old rules
+containing a port are also understood as hostname rules. IP clients without TLS
+SNI receive a certificate for their CONNECT target, not an empty name. Nothing
+is decrypted out of the box.
 
 A connection already open keeps the choice it was made with: reload the page
 after decrypting a domain.
@@ -398,6 +422,12 @@ proxy, so the new exchange is captured like any other and can be diffed
 against the original (same method, scheme and URL). A replay trusts the
 system's CAs and the proxy's own, so an HTTPS flow replays without the CA
 being trusted machine wide.
+
+Ctrl/Cmd+R replays the inspected request; Ctrl/Cmd+Alt+C copies it as cURL.
+Replay completion reports the source and response status with **Inspect replay**,
+which opens the exact result in Requests without stealing focus on arrival.
+Diff labels the previous/current sides and explains when no baseline exists;
+an empty previous response is still a valid baseline.
 
 ## Requests
 
@@ -650,7 +680,9 @@ System trust only describes this machine: remote devices, separate application
 trust stores and certificate pinning may require client-side configuration.
 
 An undecrypted **CONNECT** detail explains that it is an encrypted tunnel, not
-one HTTPS request. It links to certificate setup and can enable just that
+one HTTPS request. HTTPS encrypts request/response headers (including Cookie and
+Set-Cookie) as well as bodies; trusting the CA alone does not expose them.
+The detail links to certificate setup and can enable just that
 domain. If current rules already enable the domain, the detail says so rather
 than claiming the old tunnel has been decrypted. After changing HTTPS setup,
 establish a new connection and retry the request; existing tunnels and their
