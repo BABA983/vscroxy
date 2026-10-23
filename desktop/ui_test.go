@@ -42,6 +42,161 @@ func workspaceApp() *app {
 	return a
 }
 
+func TestBreakpointDialogValidatesEditsAndKeepsOriginalActionReachable(t *testing.T) {
+	a := workspaceApp()
+	a.bp = &capture.Breakpoint{ID: 1, Method: "POST", URL: "https://api.example.com/login"}
+	a.bpOpen, a.bpMethod, a.bpURL = true, "POST", a.bp.URL
+	a.bpHeaders, a.bpAbort = "Authorization: Bearer old", "502 Bad Gateway"
+	a.setMessage("Previous breakpoint continued")
+	tt := ui.NewTester(a.view, 960, 600)
+	if err := tt.Click("Breakpoint headers"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Key(ui.Ctrl, ui.KeyA)
+	tt.Type("broken header")
+	if !tt.HasText("Header line 1 must be a valid Name: Value pair.") {
+		t.Fatalf("missing validation: %q", tt.Texts())
+	}
+	if err := tt.Click("Apply & continue"); err != nil {
+		t.Fatal(err)
+	}
+	if a.bp == nil {
+		t.Fatal("invalid headers were silently applied")
+	}
+	tt.Key(0, ui.KeyEscape)
+	if a.bp == nil || !a.bpOpen {
+		t.Fatal("Escape aborted a live request")
+	}
+	if err := tt.Click("Continue original"); err != nil {
+		t.Fatal(err)
+	}
+	if a.bp != nil {
+		t.Fatal("could not discard invalid edits and continue original")
+	}
+}
+
+func TestConnectionFailureCanBeFoundAndCopiedWithoutInventingAnHTTPError(t *testing.T) {
+	a := workspaceApp()
+	a.flows = []flow{{id: 10, method: "CONNECT", scheme: "https", host: "api.example.com:443", url: "https://api.example.com:443", status: 200, kind: "connect", conn: conn{error: "remote error: tls: unknown certificate authority", errorStage: "TLS client", log: "CONNECT succeeded\n[TLS client] FAILED: remote error: tls: unknown certificate authority\n"}}}
+	a.applyFilter()
+	tt := ui.NewTester(a.view, 960, 600)
+	if !tt.HasText("Failed") {
+		t.Fatalf("failure hidden behind CONNECT 200: %q", tt.Texts())
+	}
+	if err := tt.Click("Connection"); err != nil {
+		t.Fatal(err)
+	}
+	if !tt.HasText("TLS client failed") {
+		t.Fatal("missing TLS side")
+	}
+	if err := tt.Click("Copy connection log"); err != nil {
+		t.Fatal(err)
+	}
+	if tt.Clipboard() != a.flows[0].conn.log {
+		t.Fatalf("clipboard = %q", tt.Clipboard())
+	}
+	if err := tt.Click("Explain"); err != nil {
+		t.Fatal(err)
+	}
+	if !tt.HasText("Client TLS handshake failed") || !tt.HasText("Possible causes · not confirmed") {
+		t.Fatal("missing stage-specific explanation or uncertainty")
+	}
+	if err := tt.Click("Copy diagnostics"); err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"CONNECT https://api.example.com:443", "Recorded status: 200", "Failed stage: TLS client", "Raw error: remote error: tls: unknown certificate authority", "CONNECT 200 acknowledges tunnel setup", "What to try", a.flows[0].conn.log} {
+		if !strings.Contains(tt.Clipboard(), want) {
+			t.Fatalf("diagnostics missing %q: %s", want, tt.Clipboard())
+		}
+	}
+	a.pending = []capture.Flow{{ID: 11, Method: "GET", Scheme: "https", Host: "other.example.com", Path: "/gateway", Status: 502, Kind: "http"}}
+	tt.Frame()
+	if !tt.HasText("Client TLS handshake failed") {
+		t.Fatal("new traffic closed the explanation for the inspected request")
+	}
+	tt.Key(0, ui.KeyEscape)
+	if err := tt.Click("Errors"); err != nil {
+		t.Fatal(err)
+	}
+	if len(a.visible) != 2 {
+		t.Fatal("TLS failure missing from Errors filter")
+	}
+	if err := tt.Click("Explain"); err != nil {
+		t.Fatal(err)
+	}
+	// The popover can cover the URL column; use the exposed method cell.
+	if err := tt.Click("GET"); err != nil {
+		t.Fatal(err)
+	}
+	if tt.HasText("Client TLS handshake failed") || tt.HasText("Explain") || !tt.HasText("502 · — · 0 ms") {
+		t.Fatalf("a real HTTP 502 inherited the previous transport failure: %q", tt.Texts())
+	}
+}
+
+func TestConnectionExplanationsUseCapturedStageWithoutNeedingALog(t *testing.T) {
+	for _, tc := range []struct{ stage, title, advice string }{
+		{"DNS", "DNS lookup failed", "DNS mappings"},
+		{"TCP", "Could not establish a connection", "host and port"},
+		{"TLS client", "Client TLS handshake failed", "specific client's CA trust"},
+		{"TLS upstream", "Upstream TLS handshake failed", "client-certificate requirement"},
+		{"CONNECT", "Tunnel setup failed", "tunnel permissions"},
+		{"HTTP", "HTTP exchange failed", "safe to repeat"},
+		{"", "Connection failed", "does not establish a specific cause"},
+		{"future stage", "Connection failed", "does not establish a specific cause"},
+	} {
+		t.Run(tc.stage, func(t *testing.T) {
+			a := workspaceApp()
+			// Identical TLS-looking text must not override the captured stage.
+			const raw = "fixture failure: tls: unknown certificate authority"
+			a.flows = []flow{{id: 10, method: "GET", scheme: "https", host: "example.test", path: "/failure", status: 502, conn: conn{errorStage: tc.stage, error: raw}}}
+			a.applyFilter()
+			tt := ui.NewTester(a.view, 960, 600)
+			if err := tt.Click("Explain"); err != nil {
+				t.Fatal(err)
+			}
+			if !tt.HasText(tc.title) || !tt.HasText(raw) {
+				t.Fatalf("wrong explanation for stage %q: %q", tc.stage, tt.Texts())
+			}
+			if box, ok := tt.Find("Possible causes · not confirmed"); !ok || box.H <= 0 {
+				t.Fatal("explanation content is clipped out of the popover")
+			}
+			if err := tt.Click("Copy diagnostics"); err != nil {
+				t.Fatal(err)
+			}
+			for _, want := range []string{"GET https://example.test/failure", raw, tc.advice, "Possible causes (not confirmed)", "No connection history was recorded."} {
+				if !strings.Contains(tt.Clipboard(), want) {
+					t.Fatalf("diagnostics missing %q: %s", want, tt.Clipboard())
+				}
+			}
+		})
+	}
+}
+
+func TestConnectionExplanationScrollsLongErrorsWithoutTruncatingDiagnostics(t *testing.T) {
+	a := workspaceApp()
+	raw := strings.Repeat("upstream.example.test: connect: connection refused; ", 60)
+	a.flows = []flow{{id: 10, method: "CONNECT", scheme: "https", host: "example.test:443", status: 502, kind: "connect", conn: conn{errorStage: "TCP", error: raw}}}
+	a.applyFilter()
+	tt := ui.NewTester(a.view, 960, 600)
+	if err := tt.Click("Explain"); err != nil {
+		t.Fatal(err)
+	}
+	box, ok := tt.Find("Observed failure · TCP")
+	if !ok || box.H <= 0 {
+		t.Fatal("failure evidence is not visible")
+	}
+	tt.Scroll(box.X+20, box.Y+20, 0, 1e6)
+	if box, ok := tt.Find("What to try"); !ok || box.H <= 0 {
+		t.Fatal("cannot scroll past a long error to reach the advice")
+	}
+	if err := tt.Click("Copy diagnostics"); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(tt.Clipboard(), raw) {
+		t.Fatal("copied diagnostics truncated the original error")
+	}
+}
+
 func TestCaptureTableScrollsAndKeepsEachViewsPlace(t *testing.T) {
 	a := workspaceApp()
 	a.flows = nil

@@ -214,8 +214,13 @@ func (a *app) connectPanel(c *ui.Context, f flow) {
 		ui.Text(c, "Setup details below ↓").FontSize(11).TextColor(t.TextMuted)
 	})
 	ui.Scroll(c).Grow(1).FillWidth().Padding(16).Gap(10).Children(func() {
-		ui.Text(c, "Encrypted tunnel — not individual requests").FontSize(15).Bold()
-		ui.Text(c, "This connection was forwarded without decryption, so only the CONNECT record exists. Request and response headers, cookies, and bodies stayed encrypted.").FontSize(12).TextColor(t.TextMuted)
+		if f.conn.error != "" {
+			ui.Text(c, "Connection failed before an HTTP exchange").FontSize(15).Bold()
+			ui.Text(c, "The Connection tab records the failed stage and underlying error. A successful CONNECT status does not mean the later TLS handshake succeeded. For client TLS failures, check this client's CA trust and certificate pinning; an upstream TLS failure needs a server-side investigation.").FontSize(12).TextColor(t.TextMuted)
+		} else {
+			ui.Text(c, "Encrypted tunnel — not individual requests").FontSize(15).Bold()
+			ui.Text(c, "This connection was forwarded without decryption, so only the CONNECT record exists. Request and response headers, cookies, and bodies stayed encrypted.").FontSize(12).TextColor(t.TextMuted)
+		}
 		ui.Divider(c)
 		ui.Row(c).Gap(12).Wrap().Children(func() {
 			ui.Text(c, "1  Proxy connection received").FontSize(12).Bold().TextColor(t.Success)
@@ -240,6 +245,6 @@ func (a *app) connectPanel(c *ui.Context, f flow) {
 			})
 		})
 		ui.Divider(c)
-		ui.Text(c, "After setup, reconnect the client and retry the request. This CONNECT record will remain a tunnel.").FontSize(11).TextColor(t.TextMuted)
+		ui.Text(c, "After setup, reconnect the client and retry the request. This historical CONNECT record will not change.").FontSize(11).TextColor(t.TextMuted)
 	})
 }

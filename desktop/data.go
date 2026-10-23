@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cmp"
 	"fmt"
 	"io"
 	"math/rand"
@@ -52,20 +53,97 @@ type flow struct {
 
 // conn is what an exchange ran over, as the connection panel shows it.
 type conn struct {
-	proto     string
-	client    string
-	proxy     string
-	server    string
-	resolved  string
-	lookupMs  int
-	tls       string
-	cipher    string
-	certCN    string
-	issuer    string
-	certUntil string
-	flows     int
-	reused    bool
-	dnsFresh  bool
+	proto      string
+	client     string
+	proxy      string
+	server     string
+	resolved   string
+	lookupMs   int
+	tls        string
+	cipher     string
+	certCN     string
+	issuer     string
+	certUntil  string
+	flows      int
+	reused     bool
+	dnsFresh   bool
+	log        string
+	error      string
+	errorStage string
+}
+
+// connectionExplanation interprets the recorded stage, not error-message
+// substrings. Causes are possibilities, never a diagnosis of the remote host.
+type connectionExplanation struct {
+	title, summary, causes, steps string
+}
+
+func (cn conn) explanation() connectionExplanation {
+	switch cn.errorStage {
+	case "DNS":
+		return connectionExplanation{
+			"DNS lookup failed",
+			"The proxy could not resolve a name needed for this connection.",
+			"The hostname may be incorrect, the DNS resolver unavailable, or a VPN or DNS mapping may affect resolution.",
+			"Check the hostname and DNS mappings. Compare name resolution with and without the VPN, and check whether an upstream proxy resolves the target itself.",
+		}
+	case "TCP":
+		return connectionExplanation{
+			"Could not establish a connection",
+			"The TCP connection failed. The endpoint may be the target server or a configured upstream proxy; check the connection log.",
+			"The endpoint may be unavailable, its port closed, or a firewall, VPN or upstream proxy may block the connection.",
+			"Verify the host and port, then compare access directly and through the proxy. Check VPN, firewall and upstream proxy settings before changing TLS trust.",
+		}
+	case "TLS client":
+		return connectionExplanation{
+			"Client TLS handshake failed",
+			"TLS negotiation between the client and vscroxy failed. This does not prove a certificate-trust or pinning problem.",
+			"The client may not trust this proxy's CA, may use certificate pinning, or may have incompatible TLS settings. A disconnected client can also interrupt negotiation.",
+			"Check this specific client's CA trust and TLS settings. System trust alone does not cover every app. If the app pins certificates, leave it as an encrypted tunnel or use an authorized debug build; do not disable TLS verification globally.",
+		}
+	case "TLS upstream":
+		return connectionExplanation{
+			"Upstream TLS handshake failed",
+			"TLS negotiation from vscroxy toward the target or upstream proxy failed, not the client's TLS connection to vscroxy.",
+			"Server TLS settings, mutual TLS requirements, an upstream proxy or a network interruption may be involved.",
+			"Check the target hostname, SNI, server TLS configuration and any client-certificate requirement. Compare a direct connection with the upstream-proxy path; installing vscroxy's CA on the client does not repair this leg.",
+		}
+	case "CONNECT":
+		return connectionExplanation{
+			"Tunnel setup failed",
+			"The proxy could not complete CONNECT tunnel setup. This is not a normal, successfully forwarded encrypted tunnel.",
+			"An upstream proxy may reject the tunnel, or the client or remote endpoint may disconnect during setup.",
+			"Inspect the raw error and connection log, verify the destination host and port, and check upstream proxy authentication and tunnel permissions.",
+		}
+	case "HTTP":
+		return connectionExplanation{
+			"HTTP exchange failed",
+			"A transport error interrupted the HTTP exchange. A transport failure is separate from an HTTP error response returned by the target.",
+			"The connection may have closed or timed out, or the peer may have sent an invalid HTTP response.",
+			"Inspect the raw error and the last connection events. Compare direct and proxied access, and check server logs and upstream proxy settings. Retry only when it is safe to repeat this request.",
+		}
+	default:
+		return connectionExplanation{
+			"Connection failed",
+			"An error was recorded, but its failure stage is unavailable or unrecognized. The raw error and connection log are the evidence.",
+			"The recorded information does not establish a specific cause.",
+			"Inspect the raw error and available log. Capture a new connection to collect more evidence, and compare direct and proxied access. Do not assume this is a certificate problem.",
+		}
+	}
+}
+
+// connectionDiagnostics stays useful for older sessions with an error but no
+// log. Keep the raw log separately copyable; this report adds context and advice.
+func (f flow) connectionDiagnostics() string {
+	e := f.conn.explanation()
+	var out strings.Builder
+	fmt.Fprintf(&out, "vscroxy connection diagnostics\nRequest: %s %s\nClient app: %s\nRecorded status: %d\nFailed stage: %s\nRaw error: %s\n\n%s\n%s\n",
+		f.method, cmp.Or(f.url, f.scheme+"://"+f.host+f.path), cmp.Or(f.process, "unknown"), f.status, cmp.Or(f.conn.errorStage, "unknown"), f.conn.error, e.title, e.summary)
+	if f.kind == "connect" && f.status == 200 {
+		fmt.Fprintln(&out, "CONNECT 200 acknowledges tunnel setup; it does not mean the later TLS handshake or target HTTP request succeeded.")
+	}
+	fmt.Fprintf(&out, "\nPossible causes (not confirmed)\n%s\n\nWhat to try\n%s\n\nConnection log\n%s\n", e.causes, e.steps, cmp.Or(f.conn.log, "No connection history was recorded."))
+	return out.String()
 }
 
 // maxBodyView bounds how much of a spilled body the Body tab reads back.

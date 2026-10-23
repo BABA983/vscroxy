@@ -2,11 +2,13 @@ package proxy
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"crypto/tls"
 	"io"
 	"net"
 	"net/http"
+	"net/http/httptrace"
 	"slices"
 	"strings"
 
@@ -265,11 +267,18 @@ func (a *attacker) serverTlsHandshake(ctx context.Context, connCtx *ConnContext)
 	}
 	serverTlsConn := tls.Client(serverConn.Conn, serverTlsConfig)
 	serverConn.tlsConn = serverTlsConn
+	connCtx.RecordEvent("TLS upstream", "Starting handshake with "+serverConn.Address, nil)
 	if err := serverTlsConn.HandshakeContext(ctx); err != nil {
+		connCtx.RecordEvent("TLS upstream", "Upstream handshake failed", err)
 		return err
 	}
 	serverTlsState := serverTlsConn.ConnectionState()
 	serverConn.tlsState = &serverTlsState
+	verification := "certificate verified"
+	if proxy.Opts.SslInsecure {
+		verification = "certificate verification skipped by proxy"
+	}
+	connCtx.RecordEvent("TLS upstream", tls.VersionName(serverTlsState.Version)+" · ALPN "+cmp.Or(serverTlsState.NegotiatedProtocol, "none")+" · "+verification, nil)
 	for _, addon := range proxy.Addons {
 		addon.TlsEstablishedServer(connCtx)
 	}
@@ -330,7 +339,7 @@ func (a *attacker) httpsDial(ctx context.Context, req *http.Request) (net.Conn, 
 	return serverConn.Conn, nil
 }
 
-func (a *attacker) httpsTlsDial(ctx context.Context, cconn net.Conn, conn net.Conn) {
+func (a *attacker) httpsTlsDial(ctx context.Context, cconn net.Conn, conn net.Conn, f *Flow) {
 	connCtx := cconn.(*wrapClientConn).connCtx
 	log := log.WithFields(log.Fields{
 		"in":   "Proxy.attacker.httpsTlsDial",
@@ -343,6 +352,7 @@ func (a *attacker) httpsTlsDial(ctx context.Context, cconn net.Conn, conn net.Co
 	errChan1 := make(chan error, 1)
 	errChan2 := make(chan error, 1)
 	clientHandshakeDoneChan := make(chan struct{})
+	connCtx.RecordEvent("TLS client", "Starting intercepted client handshake", nil)
 
 	clientTlsConn := tls.Server(cconn, &tls.Config{
 		SessionTicketsDisabled: true, // 设置此值为 true ，确保每次都会调用下面的 GetConfigForClient 方法
@@ -388,6 +398,7 @@ func (a *attacker) httpsTlsDial(ctx context.Context, cconn net.Conn, conn net.Co
 	// get clientHello from client
 	select {
 	case err := <-errChan1:
+		a.clientTLSError(f, err)
 		cconn.Close()
 		conn.Close()
 		log.Error(err)
@@ -397,6 +408,9 @@ func (a *attacker) httpsTlsDial(ctx context.Context, cconn net.Conn, conn net.Co
 	connCtx.ClientConn.clientHello = clientHello
 
 	if err := a.serverTlsHandshake(ctx, connCtx); err != nil {
+		for _, addon := range a.proxy.Addons {
+			addon.HTTPConnectError(f, err)
+		}
 		cconn.Close()
 		conn.Close()
 		errChan2 <- err
@@ -408,18 +422,20 @@ func (a *attacker) httpsTlsDial(ctx context.Context, cconn net.Conn, conn net.Co
 	// wait client handshake finish
 	select {
 	case err := <-errChan1:
+		a.clientTLSError(f, err)
 		cconn.Close()
 		conn.Close()
 		log.Error(err)
 		return
 	case <-clientHandshakeDoneChan:
 	}
+	connCtx.RecordEvent("TLS client", "Client handshake completed", nil)
 
 	// will go to attacker.ServeHTTP
 	a.serveConn(clientTlsConn, connCtx)
 }
 
-func (a *attacker) httpsLazyAttack(ctx context.Context, cconn net.Conn, req *http.Request) {
+func (a *attacker) httpsLazyAttack(ctx context.Context, cconn net.Conn, req *http.Request, f *Flow) {
 	connCtx := cconn.(*wrapClientConn).connCtx
 	log := log.WithFields(log.Fields{
 		"in":   "Proxy.attacker.httpsLazyAttack",
@@ -445,15 +461,25 @@ func (a *attacker) httpsLazyAttack(ctx context.Context, cconn net.Conn, req *htt
 			}, nil
 		},
 	})
+	connCtx.RecordEvent("TLS client", "Starting intercepted client handshake", nil)
 	if err := clientTlsConn.HandshakeContext(ctx); err != nil {
+		a.clientTLSError(f, err)
 		cconn.Close()
 		log.Error(err)
 		return
 	}
+	connCtx.RecordEvent("TLS client", "Client handshake completed", nil)
 
 	// will go to attacker.ServeHTTP
 	a.initHttpsDialFn(req)
 	a.serveConn(clientTlsConn, connCtx)
+}
+
+func (a *attacker) clientTLSError(f *Flow, err error) {
+	f.ConnContext.RecordEvent("TLS client", "Client handshake failed; check CA trust, client certificates or certificate pinning", err)
+	for _, addon := range a.proxy.Addons {
+		addon.HTTPConnectError(f, err)
+	}
 }
 
 func (a *attacker) attack(res http.ResponseWriter, req *http.Request) {
@@ -637,6 +663,10 @@ func (a *attacker) attack(res http.ResponseWriter, req *http.Request) {
 	}
 
 	for key, value := range f.Request.Header {
+		if strings.EqualFold(key, "Host") {
+			proxyReq.Host = f.Request.Header.Get(key)
+			continue
+		}
 		for _, v := range value {
 			proxyReq.Header.Add(key, v)
 		}
@@ -659,6 +689,9 @@ func (a *attacker) attack(res http.ResponseWriter, req *http.Request) {
 
 	var proxyRes *http.Response
 	if useSeparateClient {
+		f.UseSeparateClient = true
+		f.ConnContext.RecordEvent("HTTP", "Using a separate upstream transport for "+f.Request.URL.Host, nil)
+		proxyReq = proxyReq.WithContext(httptrace.WithClientTrace(proxyReq.Context(), f.ConnContext.trace()))
 		proxyRes, err = a.client.Do(proxyReq)
 	} else {
 		if f.ConnContext.ServerConn == nil && f.ConnContext.dialFn != nil {

@@ -324,6 +324,10 @@ func (e *entry) httpsDialFirstAttack(res http.ResponseWriter, req *http.Request,
 
 	peek, err := cconn.(*wrapClientConn).Peek(3)
 	if err != nil {
+		f.ConnContext.RecordEvent("Client", "Could not read handshake after CONNECT", err)
+		for _, addon := range proxy.Addons {
+			addon.HTTPConnectError(f, err)
+		}
 		cconn.Close()
 		conn.Close()
 		log.Error(err)
@@ -332,7 +336,7 @@ func (e *entry) httpsDialFirstAttack(res http.ResponseWriter, req *http.Request,
 
 	if helper.IsTls(peek) {
 		f.ConnContext.ClientConn.Tls = true
-		proxy.attacker.httpsTlsDial(req.Context(), cconn, conn)
+		proxy.attacker.httpsTlsDial(req.Context(), cconn, conn, f)
 		return
 	}
 
@@ -377,6 +381,10 @@ func (e *entry) httpsDialLazyAttack(res http.ResponseWriter, req *http.Request, 
 
 	peek, err := cconn.(*wrapClientConn).Peek(3)
 	if err != nil {
+		f.ConnContext.RecordEvent("Client", "Could not read handshake after CONNECT", err)
+		for _, addon := range proxy.Addons {
+			addon.HTTPConnectError(f, err)
+		}
 		cconn.Close()
 		log.Error(err)
 		return
@@ -384,7 +392,7 @@ func (e *entry) httpsDialLazyAttack(res http.ResponseWriter, req *http.Request, 
 
 	if helper.IsTls(peek) {
 		f.ConnContext.ClientConn.Tls = true
-		proxy.attacker.httpsLazyAttack(req.Context(), cconn, req)
+		proxy.attacker.httpsLazyAttack(req.Context(), cconn, req, f)
 		return
 	}
 

@@ -6,7 +6,26 @@ metadata. Upstream tests, examples, commands and unrelated addons are not copied
 This is the existing capture engine, not another proxy implementation.
 
 The source patches are in `proxy/websocket.go`, `proxy/flow.go`,
-`proxy/attacker.go`, `proxy/proxy.go` and `proxy/entry.go`. Everything else is upstream.
+`proxy/attacker.go`, `proxy/proxy.go`, `proxy/entry.go` and `proxy/connection.go`.
+Everything else is upstream.
+
+## Connection diagnostics
+
+`ConnContext` keeps a mutex-protected, bounded history of 64 observed connection
+events. The normal dial and the separate transport used after URL rewrites attach
+`httptrace` hooks for DNS/TCP and transport TLS. The manual MITM handshake records
+upstream and client TLS separately. `Flow.Error` holds the exchange's actual
+failure; a failed individual dial attempt followed by a successful fallback must
+not mark the exchange failed.
+
+`entry.go` and `attacker.go` report failures after CONNECT through
+`HTTPConnectError`, including client certificate rejection and failure to read
+the handshake. Previously those paths only logged to the process console.
+Capture addons can now publish the failed CONNECT without inventing a target
+HTTP response or replacing its already-successful CONNECT status.
+
+The desktop's real-socket tests cover DNS/TCP failures, both TLS sides, successful
+TLS metadata and connection reuse, plus a rewritten target's separate transport.
 
 ## `proxy/proxy.go` and `proxy/entry.go`, listener ownership
 
@@ -49,6 +68,14 @@ the transport learned about a message survives into the addon hooks:
   ended, which is why the capture snapshots them at that point.
 
 ## `proxy/attacker.go`
+
+### Edited Host headers
+
+When building the upstream request, a `Host` header supplied by an addon sets
+`http.Request.Host`; Go's transport ignores `Header["Host"]`. This makes a Host
+edit at a breakpoint reach the upstream rather than silently using the URL's
+host. `TestBreakpointEditsRequest` checks the received Host alongside URL,
+Authorization, Cookie and duplicate-header edits.
 
 ### Clients without SNI
 
