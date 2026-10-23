@@ -12,6 +12,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -1905,5 +1906,49 @@ func TestTriageFiltersAndQuickPresetsStayWithTheirView(t *testing.T) {
 	a.views.activate(a, 0)
 	if len(a.visible) != 1 {
 		t.Fatal("quick filter altered the other view")
+	}
+}
+
+func TestClientSetupCopiedCommandProducesLiveDecryptionEvidence(t *testing.T) {
+	upstream := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, "verified setup result")
+	}))
+	defer upstream.Close()
+	dir := t.TempDir()
+	srv, err := capture.New("127.0.0.1:0", dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer srv.Close()
+	srv.SetSSL(capture.SSLConfig{All: true})
+	if err := srv.Start(); err != nil {
+		t.Fatal(err)
+	}
+	a := workspaceApp()
+	a.srv, a.caPath, a.sslAll = srv, filepath.Join(dir, "mitmproxy-ca-cert.pem"), true
+	a.openClientSetup()
+	a.clientUI.url = upstream.URL
+	// An imported capture with the same URL must never prove live setup.
+	a.flows = []flow{{id: 9, scheme: "https", url: upstream.URL, at: time.Now(), reqHeaders: "GET /"}}
+	tt := ui.NewTester(a.view, 960, 600)
+	if !tt.HasText("Decrypted HTTPS: not observed for this host since opening setup.") {
+		t.Fatal("imported traffic was mistaken for setup evidence")
+	}
+	if err := tt.Click("Copy client example"); err != nil {
+		t.Fatal(err)
+	}
+	output, err := exec.CommandContext(t.Context(), "sh", "-c", tt.Clipboard()).CombinedOutput()
+	if err != nil || !strings.Contains(string(output), "verified setup result") {
+		t.Fatalf("copied example did not make a trusted HTTPS request: %s %v", output, err)
+	}
+	select {
+	case f := <-srv.Flows():
+		a.pending = append(a.pending, f)
+	case <-time.After(5 * time.Second):
+		t.Fatal("example was not captured")
+	}
+	tt.Frame()
+	if !tt.HasText("Decrypted HTTPS observed · #1 · / · 200") || !tt.HasText("Client CA trust: not verified here. A captured request can also come from a client that skips verification.") {
+		t.Fatalf("capture evidence missing or overstated trust: %v", tt.Texts())
 	}
 }

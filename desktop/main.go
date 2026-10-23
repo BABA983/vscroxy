@@ -58,6 +58,7 @@ type app struct {
 	curlInput     string
 	curlProblem   string
 	deviceUI      deviceSetup
+	clientUI      clientSetup
 
 	apis            []*apiDocument
 	apisPath        string
@@ -711,6 +712,7 @@ func (a *app) drain() {
 		}
 		a.flows = append(a.flows, flow{
 			id:          f.ID,
+			live:        true,
 			replayOf:    f.ReplayOf,
 			actions:     f.Actions,
 			method:      f.Method,
@@ -1050,6 +1052,7 @@ func (a *app) view(c *ui.Context) {
 	a.curlImportModal(c, t)
 	a.rulesModal(c, t)
 	a.devicesModal(c, t)
+	a.clientSetupModal(c, t)
 	a.runnerModal(c, t)
 	a.cookiesModal(c, t)
 	a.regressionModal(c, t)
@@ -1194,6 +1197,9 @@ func (a *app) toolbar(c *ui.Context, t *ui.Theme) {
 			networkLabel = "Network · LAN"
 		}
 		ui.MenuButton(c, networkLabel, func(m *ui.Menu) {
+			if m.Item("Set up a local client…").Chosen() {
+				a.openClientSetup()
+			}
 			if m.Item("No Caching").Checked(a.srv != nil && a.srv.NoCaching()).Disabled(a.srv == nil).Chosen() {
 				a.srv.SetNoCaching(!a.srv.NoCaching())
 			}

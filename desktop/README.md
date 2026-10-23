@@ -58,6 +58,14 @@ go tool mygo dev
 
 ## Connect a phone or another device
 
+For a local process, **Network → Set up a local client…** provides copyable cURL,
+Node.js (`https-proxy-agent`), Python (`requests`) and Go examples. They set the
+proxy and trust the public CA for that process only; they do not change the OS
+proxy, install a system CA or skip TLS verification. cURL uses POSIX shell syntax.
+Choose an HTTPS URL, enable inspection for its host, then run the example yourself.
+The guide separates a listening/reachable proxy, the decryption rule and newly
+observed decrypted traffic, with an action to inspect that capture.
+
 Open **Network → Connect a device** or **Settings → Proxy → Connect a device**.
 Device access is **off on every launch**; consent and listeners are not persisted.
 
@@ -82,7 +90,11 @@ Device access is **off on every launch**; consent and listeners are not persiste
    HTTPS request from the device and inspect its decrypted path/body in Capture.
 
 **Checks** distinguishes local proxy reachability and last admitted TCP clients
-at each port. A TCP connection does **not** prove that a certificate was installed,
+at each port. Set the target HTTPS URL to see the current host rule and decrypted
+traffic observed since opening setup. Imported captures never count as evidence.
+Evidence is session-wide, not attributed to a specific phone or runtime, and
+client CA trust remains explicitly unverified: a client could skip verification.
+A TCP connection does **not** prove that a certificate was installed,
 that HTTPS decrypted, or that the remote network path is reachable. No traffic?
 Check DHCP changes, the selected interface, VPN, firewall and Wi-Fi isolation.
 Certificate pinning and clients that ignore the OS proxy are not bypassed. The

@@ -15,6 +15,7 @@ import (
 // detail panes inspect. It stands in for what the capture core will produce.
 type flow struct {
 	id          int
+	live        bool // only new proxy events; imported captures are not setup evidence
 	replayOf    int
 	actions     []string
 	method      string
