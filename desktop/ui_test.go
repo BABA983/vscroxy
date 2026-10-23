@@ -254,11 +254,20 @@ func TestCaptureTableScrollsAndKeepsEachViewsPlace(t *testing.T) {
 	if !tt.HasText(row) || tt.HasText("api.example.com/capture/5001") {
 		t.Fatal("new traffic pulled the reader away from older requests")
 	}
+	if !tt.HasText("Paused · Latest") {
+		t.Fatal("the paused follow state is not visible")
+	}
+	if err := tt.Click(row); err != nil {
+		t.Fatal(err)
+	}
 	if err := tt.Click("Latest"); err != nil {
 		t.Fatal(err)
 	}
 	if !tt.HasText("api.example.com/capture/5001") {
 		t.Fatal("Latest must scroll, not only change the selection")
+	}
+	if f, ok := a.current(); !ok || f.id != 1 || !a.chosen.Has(1) || a.chosen.Len() != 1 {
+		t.Fatal("following the list replaced the inspected request or bulk choice")
 	}
 	appendFlow(5002)
 	if !tt.HasText("api.example.com/capture/5002") {
@@ -1819,6 +1828,18 @@ func TestBatchReplaySendsChosenRequestsInOrder(t *testing.T) {
 	if !tt.HasText("Replay 2 requests") {
 		t.Fatal("chosen requests were not snapshotted")
 	}
+	if err := tt.Click("Close"); err != nil {
+		t.Fatal(err)
+	}
+	if !tt.HasText("2 selected") {
+		t.Fatal("bulk actions are not visible beside the table selection")
+	}
+	if err := tt.Click("Replay…"); err != nil {
+		t.Fatal(err)
+	}
+	if !tt.HasText("Replay 2 requests") {
+		t.Fatal("contextual replay did not snapshot the full selection")
+	}
 	tt.Click("Replay timeout")
 	tt.Key(ui.Ctrl, ui.KeyA)
 	tt.Type("0")
@@ -1950,5 +1971,130 @@ func TestClientSetupCopiedCommandProducesLiveDecryptionEvidence(t *testing.T) {
 	tt.Frame()
 	if !tt.HasText("Decrypted HTTPS observed · #1 · / · 200") || !tt.HasText("Client CA trust: not verified here. A captured request can also come from a client that skips verification.") {
 		t.Fatalf("capture evidence missing or overstated trust: %v", tt.Texts())
+	}
+}
+
+func TestDesktopLayoutAdaptsAndFocusPreservesCaptureContext(t *testing.T) {
+	a := workspaceApp()
+	tt := ui.NewTester(a.view, 1440, 860)
+	click := func(label string) {
+		t.Helper()
+		if err := tt.Click(label); err != nil {
+			t.Fatal(err)
+		}
+	}
+	click("api.example.com/login")
+	click("Body")
+	check := func(right bool) {
+		t.Helper()
+		method, ok := tt.Find("Method")
+		title, found := tt.Find("POST https://api.example.com/login")
+		if !ok || !found || title.H == 0 || title.Y >= 600 || (title.X > method.X+300) != right {
+			t.Fatalf("inspector not reachable in expected layout: method %v, title %v, right %t", method, title, right)
+		}
+		if f, ok := a.current(); !ok || f.id != 2 || !a.chosen.Has(2) || !tt.HasText("Pretty") {
+			t.Fatal("layout transition lost the inspected request, selection or Body tab")
+		}
+	}
+	check(true)
+	tt.SetSize(960, 600)
+	check(false)
+	click("Focus")
+	if !tt.HasText("Back to list") || tt.HasText("All requests") {
+		t.Fatal("focus did not give the inspector the content area")
+	}
+	tt.Key(ui.Cmd|ui.Shift, ui.KeyEnter)
+	check(false)
+	tt.SetSize(1440, 860)
+	check(true)
+	click("View")
+	if err := tt.ChooseMenuItem("Inspector: Bottom"); err != nil {
+		t.Fatal(err)
+	}
+	check(false)
+	tt.Key(ui.Cmd, ui.KeyB)
+	if tt.HasText("All requests") {
+		t.Fatal("sidebar shortcut did not hide the sidebar")
+	}
+	tt.Key(ui.Cmd, ui.KeyB)
+	if !tt.HasText("All requests") {
+		t.Fatal("sidebar shortcut did not restore the sidebar")
+	}
+}
+
+func TestCommandPaletteKeyboardAndDisabledActions(t *testing.T) {
+	a := workspaceApp()
+	tt := ui.NewTester(a.view, 960, 600)
+	tt.Key(ui.Cmd, ui.KeyK)
+	if !tt.Focused("Find command") {
+		t.Fatal("palette search did not take focus")
+	}
+	tt.Type("Inspector:")
+	tt.Key(0, ui.KeyDown)
+	tt.Key(0, ui.KeyDown)
+	tt.Key(0, ui.KeyEnter)
+	if tt.HasText("Find command") {
+		t.Fatal("executing a command did not close the palette")
+	}
+	// Check the visible effect on a wide window, not the command's storage.
+	tt.SetSize(1440, 860)
+	method, _ := tt.Find("Method")
+	title, _ := tt.Find("GET https://api.example.com/projects")
+	if title.Y <= method.Y+100 {
+		t.Fatalf("arrow navigation did not choose Inspector: Bottom: layout %q, command %d, method %v, title %v", a.workbench.layout, a.workbench.command, method, title)
+	}
+	tt.Key(ui.Cmd, ui.KeyK)
+	tt.Type("not a command")
+	if !tt.HasText("No matching commands") {
+		t.Fatal("empty command results were not explained")
+	}
+	tt.Key(0, ui.KeyEscape)
+	if err := tt.Click("Requests"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Key(ui.Cmd, ui.KeyK)
+	tt.Type("Replay selected")
+	tt.Key(0, ui.KeyEnter)
+	if !tt.HasText("Find command") || tt.HasText("Replay requests") {
+		t.Fatal("unavailable capture action executed in Requests workspace")
+	}
+	tt.Key(0, ui.KeyEscape)
+	if tt.HasText("Find command") {
+		t.Fatal("Escape did not dismiss the palette")
+	}
+}
+
+func TestFilterTokensRemoveOnlyTheirOwnCondition(t *testing.T) {
+	a := workspaceApp()
+	a.views.init(a, "")
+	a.query, a.filterStatus = "login", "4xx"
+	a.filterTriage.Method = "POST"
+	a.applyFilter()
+	tt := ui.NewTester(a.view, 960, 600)
+	if err := tt.Click("Status: 4xx ×"); err != nil {
+		t.Fatal(err)
+	}
+	if !tt.HasText("URL: login ×") || !tt.HasText("Method: POST ×") || tt.HasText("Status: 4xx ×") || len(a.visible) != 1 {
+		t.Fatal("removing status cleared other conditions or left a stale token")
+	}
+	if err := tt.Click("Reset all"); err != nil {
+		t.Fatal(err)
+	}
+	if len(a.visible) != 2 || tt.HasText("URL: login ×") || tt.HasText("Method: POST ×") {
+		t.Fatal("reset did not remove all capture conditions")
+	}
+	// Full-body conditions live on the view, not the URL search model.
+	a.views.activeView().body = "projects"
+	a.views.applyFilter(a)
+	settle(t, a, &a.views)
+	tt.Frame()
+	if len(a.visible) != 1 {
+		t.Fatal("body fixture did not narrow the view")
+	}
+	if err := tt.Click("Body: projects ×"); err != nil {
+		t.Fatal(err)
+	}
+	if len(a.visible) != 2 || a.filtersActive() {
+		t.Fatal("body token did not remove the full-body search condition")
 	}
 }

@@ -865,93 +865,69 @@ func (v *captureViews) openSaved(a *app) {
 	}
 }
 
-// controls draws the views' tabs and the buttons that add a view or open a
-// saved filter, with what the body search is doing.
+// controls lives in the sidebar: views and saved conditions never take
+// vertical space away from the request table and inspector.
 func (v *captureViews) controls(c *ui.Context, t *ui.Theme, a *app) {
 	if v.activeView() == nil {
 		v.init(a, v.path)
 	}
 	closing := -1
-	ui.Row(c).Height(36).Padding(0, 16).Gap(8).AlignItems(ui.Center).Children(func() {
-		ui.ScrollHorizontal(c).Grow(1).FillHeight().Children(func() {
-			selected := v.active
-			tabs := ui.TabsBase(c, &selected, len(v.views))
-			tabs.List.Gap(1).Children(func() {
-				for i, view := range v.views {
-					c.Key(view.id)
-					name := v.label(i)
-					tab := tabs.Tab(i).Height(30).Padding(0, 10).Gap(6).AlignItems(ui.Center).Radius(6).TextColor(t.TextMuted)
-					tab.Label("Capture view: " + name)
-					if i == v.active {
-						tab.Background(t.Accent.Alpha(0.12)).TextColor(t.Accent)
-					}
-					if view.reveal {
-						tab.ScrollIntoView()
-						view.reveal = false
-					}
-					tab.Children(func() {
-						ui.Text(c, name).FontSize(11).SingleLine().MaxWidth(160)
-						if len(v.views) > 1 {
-							if ui.ButtonBase(c).Size(18, 18).Radius(4).Label("Close view: " + name).Tooltip("Close this view").Children(func() {
-								ui.Text(c, "×").FontSize(13).TextColor(t.TextMuted)
-							}).Clicked() {
-								closing = i
-							}
-						}
-					})
-				}
-			})
-			if tabs.List.Changed() {
+	ui.Column(c).Gap(4).FillWidth().Children(func() {
+		ui.Row(c).AlignItems(ui.Center).Children(func() {
+			ui.Text(c, "VIEWS").FontSize(10).Bold().TextColor(t.TextMuted).Grow(1)
+			if ui.Button(c, "+").Label("New view").Tooltip("Independent filters, selection and scroll position").Height(24).Clicked() {
 				v.capture(a)
-				v.activate(a, selected)
+				v.newView(a)
 			}
 		})
+		for i, view := range v.views {
+			name := v.label(i)
+			ui.Row(c.Key(view.id)).Gap(4).AlignItems(ui.Center).Children(func() {
+				b := ui.Button(c, name).Label("Capture view: " + name).FontSize(12).SingleLine().Height(28).Grow(1)
+				if i == v.active {
+					b = b.Background(t.Accent.Alpha(0.12)).TextColor(t.Accent)
+				}
+				if b.Clicked() {
+					v.capture(a)
+					v.activate(a, i)
+				}
+				if view.reveal {
+					b.ScrollIntoView()
+					view.reveal = false
+				}
+				if len(v.views) > 1 && ui.Button(c, "×").Label("Close view: "+name).Height(24).Clicked() {
+					closing = i
+				}
+			})
+		}
 		if note, failure := v.status(); note != "" {
 			color := t.TextMuted
 			if failure {
 				color = t.Danger
 			}
-			ui.Text(c, note).FontSize(11).TextColor(color).SingleLine().MaxWidth(240).Tooltip(v.statusDetail())
+			ui.Text(c, note).FontSize(11).TextColor(color).Tooltip(v.statusDetail())
 		}
-		filterButton := ui.Button(c, "Filters…").FontSize(11).Height(26).Tooltip("Method, status, duration, response size, marks, header and body conditions")
-		if a.filtersActive() {
-			filterButton = filterButton.Background(t.Accent.Alpha(0.12)).TextColor(t.Accent)
+		ui.Text(c, "SAVED FILTERS").FontSize(10).Bold().TextColor(t.TextMuted).Padding(12, 0, 4, 0)
+		for _, f := range v.filters {
+			active := v.activeView().saved(f.Name) == f
+			b := ui.Button(c, f.Name).Label("Quick filter: " + f.Name).FontSize(11).Height(28).FillWidth()
+			if active {
+				b = b.Background(t.Accent.Alpha(0.12)).TextColor(t.Accent)
+			}
+			if b.Clicked() {
+				if active {
+					a.query, a.filter, a.chip = "", "all", 0
+					v.capture(a)
+					v.clearFilters(a)
+				} else {
+					v.applySaved(a, f.Name)
+				}
+			}
 		}
-		if filterButton.Clicked() {
-			v.openFilter(a)
-		}
-		if ui.Button(c, "Saved filters…").FontSize(11).Height(26).Tooltip("Apply, rename or delete a filter saved by name").Clicked() {
+		if ui.Button(c, "Saved filters…").FontSize(11).Height(26).FillWidth().Tooltip("Save current conditions, apply, rename or delete a saved filter").Clicked() {
 			v.openSaved(a)
 		}
-		if ui.Button(c, "New view").FontSize(11).Height(26).Tooltip("Another tab over the same traffic").Clicked() {
-			v.capture(a)
-			v.newView(a)
-		}
 	})
-	if len(v.filters) > 0 {
-		ui.ScrollHorizontal(c).Height(34).FillWidth().Children(func() {
-			ui.Row(c).Padding(2, 16).Gap(6).AlignItems(ui.Center).Children(func() {
-				ui.Text(c, "Saved").FontSize(11).TextColor(t.TextMuted)
-				for _, f := range v.filters {
-					active := v.activeView().saved(f.Name) == f
-					b := ui.Button(c, f.Name).Label("Quick filter: " + f.Name).FontSize(11).Height(26)
-					if active {
-						b = b.Background(t.Accent.Alpha(0.12)).TextColor(t.Accent)
-					}
-					if b.Clicked() {
-						if active {
-							a.query, a.filter, a.chip = "", "all", 0
-							v.capture(a)
-							v.clearFilters(a)
-						} else {
-							v.applySaved(a, f.Name)
-							break
-						}
-					}
-				}
-			})
-		})
-	}
 	ui.Divider(c)
 	if closing >= 0 {
 		v.closeView(a, closing)

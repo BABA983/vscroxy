@@ -22,6 +22,11 @@ type settings struct {
 	SidebarWidth float32      `json:"sidebarWidth,omitempty"`
 	TablePercent float32      `json:"tablePercent,omitempty"`
 	Columns      columnLayout `json:"columns,omitempty"`
+	// InspectorLayout is empty for adaptive, or right/bottom for an explicit
+	// preference. Each orientation keeps its own divider position.
+	InspectorLayout  string  `json:"inspectorLayout,omitempty"`
+	SideTablePercent float32 `json:"sideTablePercent,omitzero"`
+	SidebarHidden    bool    `json:"sidebarHidden,omitzero"`
 	// HeaderColumn is the request or response header the table shows as a
 	// column of its own, empty for none.
 	HeaderColumn string `json:"headerColumn,omitempty"`
@@ -120,6 +125,9 @@ func sameSettings(x, y settings) bool {
 	return x.Dark == y.Dark &&
 		x.SidebarWidth == y.SidebarWidth &&
 		x.TablePercent == y.TablePercent &&
+		x.InspectorLayout == y.InspectorLayout &&
+		x.SideTablePercent == y.SideTablePercent &&
+		x.SidebarHidden == y.SidebarHidden &&
 		x.HeaderColumn == y.HeaderColumn &&
 		x.KeyLogPath == y.KeyLogPath &&
 		x.ProxyPort == y.ProxyPort &&

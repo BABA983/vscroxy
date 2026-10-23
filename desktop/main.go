@@ -80,6 +80,7 @@ type app struct {
 
 	sidebarWidth float32
 	tablePercent float32
+	workbench    desktopWorkbench
 
 	totalBytes int64
 
@@ -354,6 +355,11 @@ func newApp() *app {
 		}
 		if saved.TablePercent > 0 {
 			a.tablePercent = saved.TablePercent
+		}
+		a.workbench.layout = saved.InspectorLayout
+		a.workbench.sidebarHidden = saved.SidebarHidden
+		if saved.SideTablePercent > 0 {
+			a.workbench.sidePercent = saved.SideTablePercent
 		}
 		a.columns = saved.Columns.layout()
 		a.headerColumn = saved.HeaderColumn
@@ -953,19 +959,7 @@ func (a *app) view(c *ui.Context) {
 			a.response = &result.reply
 		})
 	}
-	if a.workspace == 0 {
-		c.OnShortcut(ui.Cmd, ui.KeyF, func() { a.search.Focus(c) })
-		c.OnShortcut(ui.Cmd|ui.Alt, ui.KeyC, func() {
-			if f, ok := a.current(); ok {
-				a.copyCurl(c, f)
-			}
-		})
-		c.OnShortcut(ui.Cmd, ui.KeyR, func() {
-			if f, ok := a.current(); ok && f.kind == "" {
-				a.openReplay([]flow{f})
-			}
-		})
-	}
+	a.desktopShortcuts(c)
 	if a.sort != a.sortApplied {
 		a.sortApplied = a.sort
 		a.applyFilter()
@@ -987,26 +981,14 @@ func (a *app) view(c *ui.Context) {
 	t := c.Theme()
 	ui.Column(c).Fill().Background(t.Background).Children(func() {
 		a.toolbar(c, t)
-		ui.Split(c, &a.sidebarWidth, func() {
-			a.sidebar(c)
-		}, func() {
-			if a.workspace == 1 {
-				a.composeView(c, t)
-				return
-			}
-			if a.workspace == 2 {
-				a.apiView(c, t)
-				return
-			}
-			ui.SplitVerticalPercent(c, &a.tablePercent, func() {
-				a.table(c)
-			}, func() {
-				a.detail(c)
-			}).Fill()
-		}).Grow(1)
+		if a.workspace == 0 {
+			a.captureToolbar(c, t)
+		}
+		a.desktopContent(c)
 		a.statusBar(c, t)
 	})
 	a.persistSettings()
+	a.commandPalette(c)
 	ui.Modal(c, &a.clearOpen, func() {
 		ui.Column(c).Width(360).Gap(12).Children(func() {
 			ui.Text(c, "Clear captured requests?").Bold()
@@ -1163,15 +1145,8 @@ func (a *app) breakpointModal(c *ui.Context, t *ui.Theme) {
 }
 
 func (a *app) toolbar(c *ui.Context, t *ui.Theme) {
-	live := a.srv != nil && a.srv.Running()
-	dot := ui.Hex("#dc2626")
-	label := "Capture stopped"
-	if live {
-		dot = ui.Hex("#22c55e")
-		label = "Live · " + a.srv.Addr()
-	}
-	ui.Row(c).Height(52).Padding(0, 16).Gap(8).AlignItems(ui.Center).Background(t.Surface).Children(func() {
-		ui.Text(c, "vscroxy").FontSize(15).Bold().Width(120)
+	ui.Row(c).Height(44).Padding(0, 12).Gap(6).AlignItems(ui.Center).Background(t.Surface).Children(func() {
+		ui.Text(c, "vscroxy").FontSize(14).Bold().Width(80)
 		nav := ui.TabsBase(c, &a.workspace, 3)
 		nav.List.Gap(4).Children(func() {
 			for i, label := range []string{"Capture", "Requests", "APIs"} {
@@ -1301,6 +1276,14 @@ func (a *app) toolbar(c *ui.Context, t *ui.Theme) {
 			}
 		}).FontSize(11).Height(28).TextColor(t.TextMuted).Border(0, t.Border)
 		ui.MenuButton(c, "View", func(m *ui.Menu) {
+			for _, action := range a.desktopActions(c) {
+				if strings.HasPrefix(action.id, "layout-") || action.id == "sidebar" || action.id == "focus" {
+					if m.Item(action.label).Disabled(!action.enabled).Chosen() {
+						action.run()
+					}
+				}
+			}
+			m.Separator()
 			if m.Item("Filter…").Chosen() {
 				a.openFilter()
 			}
@@ -1319,6 +1302,9 @@ func (a *app) toolbar(c *ui.Context, t *ui.Theme) {
 				a.protobuf.open = true
 			}
 		}).FontSize(11).Height(28).TextColor(t.TextMuted).Border(0, t.Border)
+		if ui.Button(c, "Commands").Height(28).FontSize(11).Tooltip("Search actions · Ctrl/Cmd+K").Clicked() {
+			a.workbench.openPalette()
+		}
 		if ui.ButtonBase(c).Size(30, 30).Radius(6).Label("Settings").Tooltip("Settings · Ctrl/Cmd+,").Children(func() {
 			ui.Icon(c, settingsIcon).Size(17, 17).TextColor(t.TextMuted)
 		}).Clicked() {
@@ -1331,39 +1317,6 @@ func (a *app) toolbar(c *ui.Context, t *ui.Theme) {
 		}
 	})
 	ui.Divider(c)
-	if a.workspace != 0 {
-		return
-	}
-	ui.Row(c).Height(48).Padding(0, 16).Gap(12).AlignItems(ui.Center).Children(func() {
-		ui.Box(c).Size(7, 7).Radius(4).Background(dot)
-		if ui.Button(c, label).FontSize(11).SingleLine().Width(156).Tooltip("Open Proxy settings · " + label).Clicked() {
-			a.settingsTab, a.settingsOpen = 1, true
-		}
-		if ui.TextInput(c, &a.query).Bind(&a.search).Label("Search host or path").Placeholder("Search host or path…").Tooltip("Search host and path only · Ctrl/Cmd+F. Use Filters for headers and bodies.").Grow(1).Changed() {
-			a.applyFilter()
-		}
-		if ui.Button(c, "Latest").Clicked() && len(a.visible) > 0 {
-			a.picked = len(a.visible) - 1
-			a.chosen.Clear()
-			a.chosen.Add(a.flows[a.visible[a.picked]].id)
-			a.views.activeView().list.ScrollToEnd()
-		}
-		ui.Text(c, "Break").FontSize(11).TextColor(t.TextMuted)
-		if ui.Switch(c, &a.breakOn).Changed() && a.srv != nil {
-			a.srv.SetBreak(a.breakOn)
-		}
-		if ui.Button(c, "Clear").Clicked() {
-			a.clearOpen = true
-		}
-	})
-	ui.Divider(c)
-	ui.Row(c).Height(38).Padding(0, 16).AlignItems(ui.Center).Children(func() {
-		if ui.Segmented(c, &a.chip, "All", "HTTP", "HTTPS", "WebSocket", "SSE", "JSON", "Images", "HTML").Changed() {
-			a.applyFilter()
-		}
-	})
-	ui.Divider(c)
-	a.views.controls(c, t, a)
 }
 
 // clearCaptured runs only after confirmation. Pinned exchanges, including
@@ -1397,6 +1350,7 @@ func (a *app) sidebar(c *ui.Context) {
 	}
 	ui.Column(c).Fill().Background(t.Surface).Children(func() {
 		chosen := ui.Sidebar(c, &a.filter, func() {
+			a.views.controls(c, t, a)
 			ui.SidebarSection(c, "Traffic", &a.trafficOpen, func() {
 				ui.SidebarItem(c, "all", nil, "All requests")
 				ui.SidebarItem(c, "errors", nil, "Errors").Children(func() {
@@ -1526,21 +1480,25 @@ func (a *app) table(c *ui.Context) {
 	cols := []ui.TableColumn{
 		{ID: "method", Title: "Method", Width: 80, Sortable: true},
 		{ID: "status", Title: "Status", Width: 78, Align: ui.End, Sortable: true},
-		{ID: "url", Title: "URL", Sortable: true},
+		{ID: "url", Title: "URL", MinWidth: 180, Sortable: true},
 	}
 	headerCol := -1
 	if a.headerColumn != "" {
 		headerCol = len(cols)
 		cols = append(cols, ui.TableColumn{ID: "header", Title: a.headerColumn, Width: 150, Sortable: true})
 	}
-	clientCol := len(cols)
-	cols = append(cols,
-		ui.TableColumn{ID: "client", Title: "Client", Width: 132, Sortable: true},
-		ui.TableColumn{ID: "duration", Title: "Duration", Width: 96, Align: ui.End, Sortable: true},
-		ui.TableColumn{ID: "size", Title: "Size", Width: 86, Align: ui.End, Sortable: true},
-		ui.TableColumn{Title: "", ID: "filler", Width: 14, Fixed: true},
-	)
-	durationCol, sizeCol := clientCol+1, clientCol+2
+	clientCol, sizeCol := -2, -3
+	if !a.workbench.sideBySide {
+		clientCol = len(cols)
+		cols = append(cols, ui.TableColumn{ID: "client", Title: "Client", Width: 132, Sortable: true})
+	}
+	durationCol := len(cols)
+	cols = append(cols, ui.TableColumn{ID: "duration", Title: "Duration", Width: 96, Align: ui.End, Sortable: true})
+	if !a.workbench.sideBySide {
+		sizeCol = len(cols)
+		cols = append(cols, ui.TableColumn{ID: "size", Title: "Size", Width: 86, Align: ui.End, Sortable: true})
+	}
+	cols = append(cols, ui.TableColumn{Title: "", ID: "filler", Width: 14, Fixed: true})
 	state := &a.views.activeView().list
 	state.FollowEnd = true
 	state.Selected = &a.picked
@@ -1645,15 +1603,26 @@ func (a *app) detail(c *ui.Context) {
 	t := c.Theme()
 	ui.Column(c).Fill().Background(t.Background).Children(func() {
 		f, ok := a.current()
-		ui.Row(c).Height(38).Padding(0, 12).Gap(10).AlignItems(ui.Center).Children(func() {
+		ui.Row(c).Height(34).Padding(0, 12).Gap(8).AlignItems(ui.Center).Children(func() {
+			if ok {
+				ui.Text(c, fmt.Sprintf("%s %s://%s%s", f.method, f.scheme, f.host, f.path)).
+					FontSize(12).Bold().TextColor(t.Text).SingleLine().Grow(1).Tooltip(f.url)
+			} else {
+				ui.Text(c, "No request chosen").FontSize(12).TextColor(t.TextMuted).Grow(1)
+			}
+			if !a.workbench.focused {
+				a.desktopButton(c, "focus", "Focus").Tooltip("Focus inspector · Ctrl/Cmd+Shift+Enter")
+			}
+		})
+		ui.Row(c).Padding(2, 12).Gap(8).Wrap().AlignItems(ui.Center).Children(func() {
 			if !ok {
-				ui.Text(c, "No request chosen").FontSize(12).TextColor(t.TextMuted)
 				return
 			}
-			ui.Text(c, fmt.Sprintf("%s %s://%s%s", f.method, f.scheme, f.host, f.path)).
-				FontSize(12).TextColor(t.Text).SingleLine().Grow(1).Tooltip(f.url)
+			a.desktopButton(c, "edit", "Edit & replay")
+			a.desktopButton(c, "replay", "Replay")
+			a.desktopButton(c, "copy", "cURL")
 			if f.process != "" {
-				ui.Text(c, f.process).FontSize(12).TextColor(t.TextMuted)
+				ui.Text(c, f.process).FontSize(11).TextColor(t.TextMuted).SingleLine().MaxWidth(100).Tooltip(f.process)
 			}
 			if f.dns != "" {
 				ui.Box(c).Size(28, 14).Radius(3).Background(ui.Hex("#d97706")).Center().Children(func() {
@@ -1664,10 +1633,7 @@ func (a *app) detail(c *ui.Context) {
 			}
 			if f.note != "" {
 				ui.Icon(c, noteIcon).Size(12, 12).TextColor(t.TextMuted)
-				ui.Text(c, f.note).FontSize(12).TextColor(t.TextMuted).SingleLine().Width(220).Tooltip(f.note)
-			}
-			if ui.Button(c, "Replay").Disabled(f.url == "" || f.kind != "").Clicked() {
-				a.openReplay([]flow{f})
+				ui.Text(c, f.note).FontSize(11).TextColor(t.TextMuted).SingleLine().MaxWidth(100).Tooltip(f.note)
 			}
 			status := strconv.Itoa(f.status)
 			color := f.statusColor(t)
@@ -1965,11 +1931,28 @@ func (a *app) headersView(c *ui.Context, f flow) {
 	if grpcContentType(f.contentType(true)) {
 		ui.Text(c, grpcStatus(f)).FontSize(12).TextColor(t.Text).Padding(8, 16, 0, 16)
 	}
-	ui.Row(c).Grow(1).Children(func() {
-		ui.Column(c).WidthPercent(50).FillHeight().Padding(16).Children(func() {
+	stacked := a.workbench.sideBySide && !a.workbench.focused
+	var panes ui.Element
+	if stacked {
+		panes = ui.Column(c)
+	} else {
+		panes = ui.Row(c)
+	}
+	panes.Grow(1).Children(func() {
+		request := ui.Column(c).Padding(16)
+		if stacked {
+			request.FillWidth().Grow(1)
+		} else {
+			request.WidthPercent(50).FillHeight()
+		}
+		request.Children(func() {
 			a.headerBlock(c, t, "Request", strings.TrimSpace(f.conn.proto+" "+f.method+" "+f.path), "", f.reqHeader, f.reqHeaders, f.reqTrailer)
 		})
-		ui.Box(c).Width(1).FillHeight().Background(t.Border)
+		if stacked {
+			ui.Divider(c)
+		} else {
+			ui.Box(c).Width(1).FillHeight().Background(t.Border)
+		}
 		line := "No response"
 		if f.status != 0 {
 			line = fmt.Sprintf("%d %s", f.status, http.StatusText(f.status))
@@ -1977,7 +1960,13 @@ func (a *app) headersView(c *ui.Context, f flow) {
 				line = f.resProto + " " + line
 			}
 		}
-		ui.Column(c).Grow(1).FillHeight().Padding(16).Children(func() {
+		response := ui.Column(c).Grow(1).Padding(16)
+		if stacked {
+			response.FillWidth()
+		} else {
+			response.FillHeight()
+		}
+		response.Children(func() {
 			a.headerBlock(c, t, "Response", line, statusDoc(f.status), f.respHeader, f.resHeaders, f.resTrailer)
 		})
 	})
@@ -2046,7 +2035,7 @@ func (a *app) statusBar(c *ui.Context, t *ui.Theme) {
 		}
 		if a.filtersActive() {
 			summary := "filtered: " + a.filterSummary()
-			ui.Text(c, summary).FontSize(11).TextColor(t.Text).Width(240).SingleLine().Tooltip(summary)
+			ui.Text(c, "Filtered").FontSize(11).TextColor(t.Accent).SingleLine().Tooltip(summary)
 		}
 		if a.dropped > 0 {
 			label(fmt.Sprintf("%d dropped", a.dropped), ui.Hex("#d97706"))
@@ -3022,13 +3011,16 @@ func (a *app) decryptHost(host string) {
 // 400ms, so dragging a divider does not write a file a frame.
 func (a *app) persistSettings() error {
 	now := settings{
-		Dark:         a.dark,
-		SidebarWidth: a.sidebarWidth,
-		TablePercent: a.tablePercent,
-		Columns:      savedLayout(a.columns),
-		HeaderColumn: a.headerColumn,
-		KeyLogPath:   a.keyLogPath,
-		ProxyPort:    a.proxyPort,
+		Dark:             a.dark,
+		SidebarWidth:     a.sidebarWidth,
+		TablePercent:     a.tablePercent,
+		InspectorLayout:  a.workbench.layout,
+		SideTablePercent: a.workbench.sidePercent,
+		SidebarHidden:    a.workbench.sidebarHidden,
+		Columns:          savedLayout(a.columns),
+		HeaderColumn:     a.headerColumn,
+		KeyLogPath:       a.keyLogPath,
+		ProxyPort:        a.proxyPort,
 	}
 	if sameSettings(now, a.saved) || time.Since(a.lastSave) < 400*time.Millisecond {
 		return nil

@@ -166,8 +166,9 @@ offers **Show all requests**. Hidden rows are removed from the bulk selection.
 
 Each capture view follows new rows while scrolled to the bottom. Scrolling up
 pauses following without changing the request being inspected; scrolling back
-to the bottom resumes it. **Latest** selects the last displayed row, scrolls it
-into view and resumes following. Views keep their own scroll positions. With a
+to the bottom resumes it. The toolbar shows **Following** or **Paused**;
+**Latest** scrolls to the end and resumes following without changing the
+inspected request or selection. Views keep their own scroll positions. With a
 custom column sort, the bottom means the end of that displayed order, not
 necessarily the most recently captured request.
 
@@ -177,19 +178,21 @@ status/header/body and triage conditions, sorting and selection. **Filters…** 
 conditions; **Saved filters…** saves, reapplies, renames or deletes a named set in
 `~/.vscroxy/views.json`. Saving conditions persists them; live view tabs themselves
 are session-local. Applying a saved filter changes only the active view.
-Saved filters also appear as one-click buttons above the table; click an active
+Views and saved filters live in the sidebar, with a **+** for a new view.
+Saved filters appear as one-click buttons there; click an active
 button again to show all requests in that view. Filters supports comma-separated
 methods, duration in milliseconds, captured response-body bytes, color/marked
 state and case-insensitive note text. Numeric fields accept `<`, `<=`, `=`, `>=`
 or `>` with a non-negative integer. Conditions combine with AND; methods and
-status alternatives combine with OR. The active filter button and footer summary
-make narrowing visible, including when no requests match.
+status alternatives combine with OR. A removable token strip shows every active
+condition (URL, source, protocol and content filters); **Reset all** clears them.
+It appears only while conditions are active, keeping the normal toolbar to two rows.
 
 Body conditions search both request and response independently, including whole
 spill files beyond the 8 MiB preview. Searches are case-insensitive, chunked,
 cancellable and off the UI thread (at most four readers); pending rows remain
 hidden until matched. Progress and unreadable/incomplete-body warnings appear
-above the table. Missing or incomplete bodies never silently match just their
+with the views in the sidebar. Missing or incomplete bodies never silently match just their
 preview. URL/header/status filtering remains immediate.
 
 Large HTTP uploads and downloads are kept from the actual streaming path,
@@ -874,10 +877,33 @@ yet.
 ## Settings
 
 What you set stays between launches: the dark theme, the sidebar's width, how
-the table and the detail pane share the window, and the columns' order and
-widths, in `~/.vscroxy/settings.json`. The window's position and size are
+the table and the detail pane share the window, the inspector layout and sidebar
+visibility, and the columns' order and widths, in `~/.vscroxy/settings.json`.
+The window's position and size are
 MyGo's own, kept in `window-state.json` under the app's config directory and
 restored when they would still show on a connected display.
+
+### Desktop workbench
+
+**View → Inspector: Adaptive** puts details on the right when the content area
+has at least 1160 DIPs, and below the table on smaller windows. Choose **Bottom**
+to keep the stacked layout, or **Right** to use a side inspector from 1000 DIPs
+of content width. Even Right yields at small widths; both orientations keep
+their own divider positions. In the side layout, the table prioritizes URL,
+method, status and duration, and header blocks stack rather than squeezing values
+into two narrow columns. Client and size remain visible in the inspector.
+
+**Focus** (Cmd/Ctrl+Shift+Enter) temporarily gives the inspector the full content
+area. **Back to list** restores the layout and inspected request. Cmd/Ctrl+B
+toggles the sidebar. **View → Reset desktop layout** restores the defaults.
+Selecting multiple requests reveals **Replay**, **Export HAR** and **Clear
+selection** directly above the table; replay settings snapshot the entire choice.
+
+**Commands** (Cmd/Ctrl+K) searches capture actions, layouts, setup and settings.
+Use arrows and Enter to choose, Escape to dismiss. Unavailable actions are dimmed.
+Cmd/Ctrl+F searches URLs, Cmd/Ctrl+R opens replay settings for the selection,
+and Cmd/Ctrl+Alt+C copies the inspected request as cURL. These entry points share
+their enabled states with the contextual inspector buttons.
 
 ## Next
 

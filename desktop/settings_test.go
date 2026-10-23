@@ -17,13 +17,16 @@ import (
 func TestSettingsRoundTrip(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "settings.json")
 	want := settings{
-		Dark:         true,
-		SidebarWidth: 264,
-		TablePercent: 55,
-		Columns:      columnLayout{Order: []string{"status", "url"}, Widths: map[string]float32{"url": 320}},
-		HeaderColumn: "x-request-id",
-		KeyLogPath:   "/tmp/keys.log",
-		ProxyPort:    9091,
+		Dark:             true,
+		SidebarWidth:     264,
+		TablePercent:     55,
+		InspectorLayout:  "right",
+		SideTablePercent: 61,
+		SidebarHidden:    true,
+		Columns:          columnLayout{Order: []string{"status", "url"}, Widths: map[string]float32{"url": 320}},
+		HeaderColumn:     "x-request-id",
+		KeyLogPath:       "/tmp/keys.log",
+		ProxyPort:        9091,
 	}
 	if err := writeSettings(path, want); err != nil {
 		t.Fatalf("write: %v", err)
@@ -132,5 +135,14 @@ func TestSameSettingsSeesColumnChanges(t *testing.T) {
 	}
 	if !sameSettings(base, base) {
 		t.Error("the same settings compared different")
+	}
+	for _, changed := range []settings{
+		{InspectorLayout: "bottom", Columns: base.Columns},
+		{SideTablePercent: 61, Columns: base.Columns},
+		{SidebarHidden: true, Columns: base.Columns},
+	} {
+		if sameSettings(base, changed) {
+			t.Error("a desktop layout change compared equal")
+		}
 	}
 }
