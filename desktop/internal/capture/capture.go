@@ -214,6 +214,11 @@ type Rule struct {
 	Status   int         `json:"status,omitzero"`
 	Headers  http.Header `json:"headers,omitempty"`
 	Disabled bool        `json:"disabled,omitzero"`
+	// Scenario groups response-affecting rules; empty is always global.
+	// Every member of a group has the same ScenarioActive value, and at most
+	// one group is active. Disabled remains an independent per-rule choice.
+	Scenario       string `json:"scenario,omitempty"`
+	ScenarioActive bool   `json:"scenarioActive,omitzero"`
 }
 
 // Phase is where a breakpoint paused an exchange.
@@ -667,11 +672,16 @@ func requestHost(req *http.Request) string {
 	return host
 }
 
-// SetRules replaces the rules the proxy applies to new requests.
-func (s *Server) SetRules(rules []Rule) {
+// SetRules replaces the rules the proxy applies to new requests. Invalid
+// snapshots leave the running configuration unchanged, just as SaveRules does.
+func (s *Server) SetRules(rules []Rule) error {
+	if err := ValidateRules(rules); err != nil {
+		return err
+	}
 	s.rulesMu.Lock()
 	s.rules = cloneRules(rules)
 	s.rulesMu.Unlock()
+	return nil
 }
 
 // Rules returns the rules in force.
@@ -1340,9 +1350,10 @@ func (s *Server) applyRules(f *proxy.Flow) *proxy.Response {
 		return nil
 	}
 	raw := f.Request.URL.String()
-	for _, r := range rules {
-		if !r.matches(raw, f.Request.Method) {
-			continue
+	if i := firstResponseRule(rules, raw, f.Request.Method); i >= 0 {
+		r := rules[i]
+		if r.Scenario != "" {
+			recordAction(f, "Scenario · "+r.Scenario)
 		}
 		switch r.Type {
 		case RuleBlock:

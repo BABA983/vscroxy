@@ -222,6 +222,25 @@ is a literal substring of the full URL, not a regex/glob; optional `method`
 restricts the HTTP method. `disabled: true` turns a rule off; old files without
 this field remain enabled.
 
+**Scenario** groups Map Local, Map Remote and Block rules into named cases such
+as an empty account, server error or alternate upstream. Save a rule with a
+scenario name, then explicitly **Activate scenario**; choosing a name alone does
+not activate it. At most one named scenario is active. **Deactivate scenario**
+leaves only global (blank-scenario) rules eligible. Global rules keep their place
+in first-match order, including ahead of scenario rules; switching never changes
+individual enabled switches. Breakpoints remain global and independent.
+
+Selection lives in the same `rules.json` snapshot (`scenario` and matching
+`scenarioActive` fields on every member), not a second settings store. Mixed
+selection states and multiple active groups are rejected on load/save/apply.
+Changes affect new requests, never an in-flight response. Captured **Applied**
+evidence includes the scenario that actually won, so later switches do not
+rewrite its provenance. **Test URL + method** previews saved rules without
+sending: winner, shadowed rules, disabled/inactive groups, URL/method mismatches
+and independent breakpoints. It does not simulate unsaved edits, scripts or
+missing response-file errors. Mock payload files stay local; this is not a
+portable scenario export or a delay/fault-injection engine.
+
 ```json
 [
   {"type": "map_local", "match": "/missing", "target": "/tmp/mock.json"},

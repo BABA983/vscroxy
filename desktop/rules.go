@@ -3,6 +3,7 @@ package main
 import (
 	"cmp"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"slices"
@@ -12,6 +13,7 @@ import (
 	"github.com/baba983/vscroxy/desktop/internal/capture"
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
+	"golang.org/x/net/http/httpguts"
 )
 
 type ruleEditor struct {
@@ -23,6 +25,10 @@ type ruleEditor struct {
 	headers        string
 	problem        string
 	unsavedMock    string
+	scenarioChoice string
+	preview        bool
+	previewURL     string
+	previewMethod  string
 }
 
 var ruleTypes = []capture.RuleType{capture.RuleMapLocal, capture.RuleMapRemote, capture.RuleBlock, capture.RuleBreak, capture.RuleBreakResponse}
@@ -44,7 +50,9 @@ func (a *app) discardRuleDraft() {
 
 func (a *app) editRule(index int, r capture.Rule) {
 	a.discardRuleDraft()
-	a.ruleUI = ruleEditor{open: true, index: index, draft: r, kind: ruleLabel(r.Type), status: strconv.Itoa(cmp.Or(r.Status, 200)), headers: headerBlock(r.Headers)}
+	previous := a.ruleUI
+	a.ruleUI = ruleEditor{open: true, index: index, draft: r, kind: ruleLabel(r.Type), status: strconv.Itoa(cmp.Or(r.Status, 200)), headers: headerBlock(r.Headers),
+		scenarioChoice: previous.scenarioChoice, previewURL: previous.previewURL, previewMethod: cmp.Or(previous.previewMethod, "GET")}
 }
 
 func (a *app) openRules() {
@@ -102,6 +110,12 @@ func (a *app) saveRule() {
 	r.Type = ruleTypes[slices.Index(ruleLabels, e.kind)]
 	r.Match, r.Method = strings.TrimSpace(r.Match), strings.ToUpper(strings.TrimSpace(r.Method))
 	r.Target = strings.TrimSpace(r.Target)
+	r.Scenario = strings.TrimSpace(r.Scenario)
+	if r.Type == capture.RuleBreak || r.Type == capture.RuleBreakResponse {
+		r.Scenario = ""
+	}
+	// Joining an active group inherits its group state, never its Disabled flags.
+	r.ScenarioActive = r.Scenario != "" && r.Scenario == capture.ActiveScenario(a.rules)
 	r.Status, r.Headers = 0, nil
 	if r.Type == capture.RuleMapLocal {
 		status, err := strconv.Atoi(e.status)
@@ -162,19 +176,93 @@ func (a *app) browseRuleFile() {
 	}()
 }
 
+func (a *app) selectRuleScenario(name string) {
+	next, err := capture.SelectScenario(a.rules, name)
+	if err != nil {
+		a.ruleUI.problem = err.Error()
+		return
+	}
+	if a.applyRuleChanges(next) {
+		// Keep unsaved editor content, but do not retain stale selection metadata.
+		r := &a.ruleUI.draft
+		r.ScenarioActive = r.Scenario != "" && r.Scenario == name
+	}
+}
+
+func (a *app) ruleScenarios(c *ui.Context, t *ui.Theme) {
+	e := &a.ruleUI
+	active := capture.ActiveScenario(a.rules)
+	options := []string{}
+	for _, r := range a.rules {
+		if r.Scenario != "" && !slices.Contains(options, r.Scenario) {
+			options = append(options, r.Scenario)
+		}
+	}
+	if !slices.Contains(options, e.scenarioChoice) {
+		e.scenarioChoice = active
+		if e.scenarioChoice == "" && len(options) > 0 {
+			e.scenarioChoice = options[0]
+		}
+	}
+	ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+		ui.Text(c, "Active: "+cmp.Or(active, "none · global rules only")).FontSize(12).Bold().Grow(1)
+		if len(options) > 0 {
+			ui.Select(c, &e.scenarioChoice, options).Label("Scenario to activate").Width(180)
+			if ui.Button(c, "Activate scenario").Disabled(e.scenarioChoice == active).Clicked() {
+				a.selectRuleScenario(e.scenarioChoice)
+			}
+		}
+		if ui.Button(c, "Deactivate scenario").Disabled(active == "").Clicked() {
+			a.selectRuleScenario("")
+		}
+	})
+	ui.Text(c, "Scenario changes affect new requests only. Global rules keep their order; individual enabled states are preserved.").FontSize(11).TextColor(t.TextMuted)
+}
+
+func (a *app) previewRuleMatches(c *ui.Context, t *ui.Theme) {
+	e := &a.ruleUI
+	ui.Text(c, "Test saved rules · no request is sent").Bold()
+	ui.Text(c, "Shows the first response rule, not unsaved edits. Breakpoints are independent; scripts and response-file errors are not simulated.").FontSize(11).TextColor(t.TextMuted)
+	ui.Row(c).Gap(8).Children(func() {
+		ui.TextInput(c, &e.previewMethod).Label("Test method").Width(85)
+		ui.TextInput(c, &e.previewURL).Label("Test URL").Placeholder("https://api.example.com/v1/").Grow(1)
+	})
+	u, err := url.Parse(strings.TrimSpace(e.previewURL))
+	method := strings.TrimSpace(e.previewMethod)
+	if err != nil || u.Hostname() == "" || (u.Scheme != "http" && u.Scheme != "https") || u.User != nil || u.Fragment != "" || !httpguts.ValidHeaderFieldName(method) {
+		ui.Text(c, "Enter an http(s) URL without credentials or fragment and an HTTP method.").FontSize(12).TextColor(t.TextMuted)
+		return
+	}
+	winner := false
+	for _, p := range capture.PreviewRules(a.rules, u.String(), method) {
+		r := a.rules[p.Index]
+		color := t.TextMuted
+		if p.Reason == "winner" {
+			winner = true
+			color = t.Accent
+		}
+		ui.Text(c, fmt.Sprintf("%d · %s · %s — %s", p.Index+1, cmp.Or(r.Name, r.Match), ruleLabel(r.Type), p.Reason)).FontSize(12).TextColor(color)
+	}
+	if !winner {
+		ui.Text(c, "No response rule wins · request goes upstream.").FontSize(12)
+	}
+}
+
 func (a *app) rulesModal(c *ui.Context, t *ui.Theme) {
 	e := &a.ruleUI
 	if !e.open {
 		return
 	}
 	if ui.Modal(c, &e.open, func() {
-		ui.Column(c).Width(840).Height(510).Gap(12).Children(func() {
+		ui.Column(c).Width(840).Height(560).Gap(12).Children(func() {
 			ui.Row(c).AlignItems(ui.Center).Children(func() {
 				ui.Text(c, "Rules").FontSize(18).Bold()
 				ui.Spacer(c)
+				ui.Checkbox(c, &e.preview, "Test URL + method")
 				ui.Badge(c, fmt.Sprintf("%d rules", len(a.rules)))
 			})
-			ui.Text(c, "Map / Block: first enabled match wins. Breakpoints match independently; turn on Break in the toolbar.").FontSize(11).TextColor(t.TextMuted)
+			ui.Text(c, "Map / Block: first eligible match wins. Breakpoints match independently; turn on Break in the toolbar.").FontSize(11).TextColor(t.TextMuted)
+			a.ruleScenarios(c, t)
 			ui.Row(c).Grow(1).Gap(18).AlignItems(ui.Stretch).Children(func() {
 				ui.Column(c).Width(260).Gap(8).Children(func() {
 					if ui.Button(c, "+ New rule").Clicked() {
@@ -198,7 +286,7 @@ func (a *app) rulesModal(c *ui.Context, t *ui.Theme) {
 								button.Children(func() {
 									ui.Column(c).Gap(3).Children(func() {
 										ui.Text(c, cmp.Or(r.Name, r.Match)).FontSize(12).Bold().SingleLine()
-										ui.Text(c, fmt.Sprintf("%d · %s", i+1, ruleLabel(r.Type))).FontSize(11).TextColor(t.TextMuted).SingleLine()
+										ui.Text(c, fmt.Sprintf("%d · %s · %s", i+1, ruleLabel(r.Type), cmp.Or(r.Scenario, "global"))).FontSize(11).TextColor(t.TextMuted).SingleLine()
 									})
 								})
 								if button.Clicked() {
@@ -220,8 +308,17 @@ func (a *app) rulesModal(c *ui.Context, t *ui.Theme) {
 					})
 				})
 				ui.Scroll(c).Grow(1).Gap(8).Children(func() {
-					ui.Text(c, "Name").FontSize(11).TextColor(t.TextMuted)
-					ui.TextInput(c, &e.draft.Name).Label("Rule name").Placeholder("A descriptive name")
+					if e.preview {
+						a.previewRuleMatches(c, t)
+						return
+					}
+					ui.Text(c, "Name / scenario (blank means global)").FontSize(11).TextColor(t.TextMuted)
+					ui.Row(c).Gap(8).Children(func() {
+						ui.TextInput(c, &e.draft.Name).Label("Rule name").Placeholder("A descriptive name").Grow(1)
+						if e.kind != "Request breakpoint" && e.kind != "Response breakpoint" {
+							ui.TextInput(c, &e.draft.Scenario).Label("Rule scenario").Placeholder("Named scenario").Width(180)
+						}
+					})
 					ui.Text(c, "Type / HTTP method").FontSize(11).TextColor(t.TextMuted)
 					ui.Row(c).Gap(10).Children(func() {
 						ui.Select(c, &e.kind, ruleLabels).Label("Rule type").Grow(1)
@@ -270,7 +367,7 @@ func (a *app) rulesModal(c *ui.Context, t *ui.Theme) {
 					a.discardRuleDraft()
 					e.open = false
 				}
-				if ui.PrimaryButton(c, "Save rule").Clicked() {
+				if ui.PrimaryButton(c, "Save rule").Disabled(e.preview).Clicked() {
 					a.saveRule()
 				}
 			})

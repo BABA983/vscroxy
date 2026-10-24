@@ -12,12 +12,99 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	"golang.org/x/net/http/httpguts"
 )
 
 func (r Rule) matches(raw, method string) bool {
-	return !r.Disabled && (r.Method == "" || r.Method == method) && strings.Contains(raw, r.Match)
+	return r.matchReason(raw, method) == ""
+}
+
+func (r Rule) matchReason(raw, method string) string {
+	var reasons []string
+	if r.Disabled {
+		reasons = append(reasons, "disabled")
+	}
+	if r.Scenario != "" && !r.ScenarioActive {
+		reasons = append(reasons, fmt.Sprintf("inactive scenario %q", r.Scenario))
+	}
+	if r.Method != "" && r.Method != method {
+		reasons = append(reasons, "method does not match")
+	}
+	if !strings.Contains(raw, r.Match) {
+		reasons = append(reasons, "URL does not match")
+	}
+	return strings.Join(reasons, "; ")
+}
+
+func responseRule(kind RuleType) bool {
+	return kind == RuleMapLocal || kind == RuleMapRemote || kind == RuleBlock
+}
+
+func firstResponseRule(rules []Rule, raw, method string) int {
+	return slices.IndexFunc(rules, func(r Rule) bool {
+		return responseRule(r.Type) && r.matches(raw, method)
+	})
+}
+
+// RulePreview explains a saved rule's eligibility in its original order.
+type RulePreview struct {
+	Index  int
+	Reason string
+}
+
+// PreviewRules uses the proxy's exact URL/method and first-match selection.
+// It does not read response files, contact upstreams, or run breakpoints/scripts.
+func PreviewRules(rules []Rule, raw, method string) []RulePreview {
+	winner := firstResponseRule(rules, raw, method)
+	preview := make([]RulePreview, len(rules))
+	for i, r := range rules {
+		reason := r.matchReason(raw, method)
+		if reason == "" {
+			switch {
+			case !responseRule(r.Type):
+				reason = "independent breakpoint (requires Break)"
+			case i == winner:
+				reason = "winner"
+			default:
+				reason = fmt.Sprintf("shadowed by rule %d", winner+1)
+			}
+		}
+		preview[i] = RulePreview{Index: i, Reason: reason}
+	}
+	return preview
+}
+
+// ActiveScenario returns the selection embedded in a validated rules snapshot.
+// Empty means only ungrouped rules apply. Individual Disabled flags are separate.
+func ActiveScenario(rules []Rule) string {
+	for _, r := range rules {
+		if r.ScenarioActive {
+			return r.Scenario
+		}
+	}
+	return ""
+}
+
+// SelectScenario returns a new snapshot with exactly one named group active,
+// or none for an empty name. SaveRules and SetRules consume this same snapshot.
+// All members carry the same group state; switching never changes Disabled.
+func SelectScenario(rules []Rule, name string) ([]Rule, error) {
+	next := cloneRules(rules)
+	found := name == ""
+	for i := range next {
+		next[i].ScenarioActive = name != "" && next[i].Scenario == name
+		found = found || next[i].ScenarioActive
+	}
+	if !found {
+		return nil, fmt.Errorf("unknown scenario %q", name)
+	}
+	if err := ValidateRules(next); err != nil {
+		return nil, err
+	}
+	return next, nil
 }
 
 func cloneRules(rules []Rule) []Rule {
@@ -36,8 +123,32 @@ func cloneRules(rules []Rule) []Rule {
 // ValidateRules checks the same contract for disk files and the rule editor.
 // Local files need not exist yet: they may be produced by a build later.
 func ValidateRules(rules []Rule) error {
+	groups := make(map[string]bool)
+	active := ""
 	for i, r := range rules {
 		fail := func(message string) error { return fmt.Errorf("rule %d: %s", i+1, message) }
+		if r.Scenario == "" {
+			if r.ScenarioActive {
+				return fail("an ungrouped rule cannot activate a scenario")
+			}
+		} else {
+			if !responseRule(r.Type) {
+				return fail("only Map Local, Map Remote and Block rules can belong to a scenario")
+			}
+			if r.Scenario != strings.TrimSpace(r.Scenario) || !utf8.ValidString(r.Scenario) || strings.ContainsFunc(r.Scenario, unicode.IsControl) {
+				return fail("scenario names must be trimmed text without control characters")
+			}
+			if enabled, exists := groups[r.Scenario]; exists && enabled != r.ScenarioActive {
+				return fail("all rules in a scenario must share its active state")
+			}
+			groups[r.Scenario] = r.ScenarioActive
+			if r.ScenarioActive {
+				if active != "" && active != r.Scenario {
+					return fail("only one scenario can be active")
+				}
+				active = r.Scenario
+			}
+		}
 		if strings.TrimSpace(r.Match) == "" {
 			return fail("enter a URL substring to match")
 		}

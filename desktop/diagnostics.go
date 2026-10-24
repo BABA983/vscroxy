@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/baba983/vscroxy/desktop/internal/capture"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -153,11 +154,12 @@ func (a *app) diagnosticsModal(c *ui.Context, t *ui.Theme) {
 					rules := a.srv.Rules()
 					enabled := 0
 					for _, rule := range rules {
-						if !rule.Disabled {
+						if !rule.Disabled && (rule.Scenario == "" || rule.ScenarioActive) {
 							enabled++
 						}
 					}
 					ui.Text(c, fmt.Sprintf("Engine: %d enabled rules · No Caching %t · Break requests %t · Upstream configured %t", enabled, a.srv.NoCaching(), a.srv.Breaking(), a.srv.Upstream() != "")).FontSize(11)
+					ui.Text(c, "Active scenario: "+cmp.Or(capture.ActiveScenario(rules), "none · global rules only")).FontSize(11)
 					ui.Text(c, fmt.Sprintf("Ignored hosts: %d · Ignored apps: %d · Dropped capture events: %d", len(a.srv.Ignore()), len(a.srv.IgnoreApps()), a.srv.Dropped())).FontSize(11)
 				}
 				ui.Text(c, "Ignored traffic is still proxied but not retained. Current rules do not explain past exchanges; inspect their recorded actions and Connection log. No match is predicted from configuration alone.").FontSize(11).TextColor(t.TextMuted)
