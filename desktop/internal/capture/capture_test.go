@@ -79,6 +79,21 @@ func waitFrame(t *testing.T, s *Server) FrameEvent {
 	}
 }
 
+func waitStreamEnd(t *testing.T, s *Server, id, messages int) {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		if end := s.StreamEnd(id); !end.At.IsZero() {
+			if end.Messages != messages {
+				t.Fatalf("ended with %d messages, want %d", end.Messages, messages)
+			}
+			return
+		}
+		time.Sleep(time.Millisecond)
+	}
+	t.Fatal("no stream completion recorded")
+}
+
 func waitFlow(t *testing.T, s *Server) Flow {
 	t.Helper()
 	select {
@@ -1480,6 +1495,7 @@ func TestWebSocketFrames(t *testing.T) {
 	if in.Frame.Direction != "in" || !strings.Contains(in.Frame.Data, "echo:hello") {
 		t.Fatalf("second frame = %+v", in)
 	}
+	waitStreamEnd(t, s, f.ID, 2)
 }
 
 func TestSSEEvents(t *testing.T) {
@@ -1532,6 +1548,40 @@ func TestSSEEvents(t *testing.T) {
 	}
 	if second.Frame.Seq != 2 {
 		t.Errorf("second event = seq %d, want 2", second.Frame.Seq)
+	}
+	waitStreamEnd(t, s, f.ID, 2)
+}
+
+func TestSSECompletionWithoutMessagesAndWithFullQueue(t *testing.T) {
+	for _, count := range []int{0, queue + 3} {
+		t.Run(strconv.Itoa(count), func(t *testing.T) {
+			upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "text/event-stream")
+				w.WriteHeader(200)
+				w.(http.Flusher).Flush()
+				for i := range count {
+					fmt.Fprintf(w, "data: %d\n\n", i)
+				}
+			}))
+			defer upstream.Close()
+			s, _ := startServer(t)
+			resp, err := clientFor(t, s, nil).Get(upstream.URL)
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, err = io.Copy(io.Discard, resp.Body)
+			resp.Body.Close()
+			if err != nil {
+				t.Fatal(err)
+			}
+			f := waitFlow(t, s)
+			// No frame consumer: completion must survive a saturated queue,
+			// and the final sequence must include the three dropped messages.
+			waitStreamEnd(t, s, f.ID, count)
+			if got := s.FrameDropped(); got != int64(max(count-queue, 0)) {
+				t.Fatalf("dropped %d messages", got)
+			}
+		})
 	}
 }
 

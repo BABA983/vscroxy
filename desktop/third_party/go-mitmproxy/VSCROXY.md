@@ -5,7 +5,7 @@ Runtime packages copied verbatim from `github.com/lqqyt2423/go-mitmproxy v1.9.4`
 metadata. Upstream tests, examples, commands and unrelated addons are not copied.
 This is the existing capture engine, not another proxy implementation.
 
-The source patches are in `proxy/websocket.go`, `proxy/flow.go`,
+The source patches are in `proxy/websocket.go`, `proxy/sse.go`, `proxy/flow.go`,
 `proxy/attacker.go`, `proxy/proxy.go`, `proxy/entry.go` and `proxy/connection.go`.
 Everything else is upstream.
 
@@ -26,6 +26,15 @@ HTTP response or replacing its already-successful CONNECT status.
 
 The desktop's real-socket tests cover DNS/TCP failures, both TLS sides, successful
 TLS metadata and connection reuse, plus a rewritten target's separate transport.
+
+## SSE completion
+
+`attacker.go` pairs `SSEStart` with a deferred `SSEEnd` when the request handler
+returns. `sse.go` no longer emits that hook from its reader: an empty response
+or a downstream write failure can end without the reader observing EOF. The
+hook supplies completion time only, not a normal/error classification.
+`TestSSECompletionWithoutMessagesAndWithFullQueue` covers empty streams and
+completion evidence independent of the bounded message queue.
 
 ## `proxy/proxy.go` and `proxy/entry.go`, listener ownership
 

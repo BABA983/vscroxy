@@ -28,6 +28,8 @@ type deviceSetup struct {
 	gateway   *lan.Gateway
 	check     string
 	checkDone chan string
+	since     time.Time
+	target    string
 }
 
 func deviceIPs() []string {
@@ -67,6 +69,8 @@ func deviceIPs() []string {
 
 func (a *app) openDevices() {
 	d := &a.deviceUI
+	d.since = time.Now()
+	d.target = cmp.Or(d.target, "https://example.com/")
 	if d.gateway == nil {
 		d.ips = deviceIPs()
 		if !slices.Contains(d.ips, d.ip) {
@@ -225,6 +229,14 @@ func (a *app) devicesModal(c *ui.Context, t *ui.Theme) {
 							ui.Text(c, "Many Android 7+ apps do not trust user-installed CAs. Certificate pinning and apps that ignore the system proxy need app-side changes; installing this CA does not bypass them.").FontSize(12).TextColor(t.TextMuted)
 						case 2:
 							ui.Text(c, "Connection checks").FontSize(14).Bold()
+							if a.srv != nil {
+								fingerprint := fmt.Sprintf("%X", sha256.Sum256(a.srv.CACertificate()))
+								ui.Text(c, "CA SHA-256\n"+fingerprint[:32]+"\n"+fingerprint[32:]).Font("monospace").FontSize(11)
+								if ui.Button(c, "Copy CA fingerprint").Clicked() {
+									c.Services().WriteClipboard(fingerprint)
+								}
+							}
+							ui.TextInput(c, &d.target).Label("Device HTTPS URL").Placeholder("https://example.com/")
 							if ui.Button(c, "Check local proxy").Disabled(a.srv == nil || d.checkDone != nil).Clicked() {
 								a.checkDeviceProxy()
 							}
@@ -237,13 +249,7 @@ func (a *app) devicesModal(c *ui.Context, t *ui.Theme) {
 								ui.Text(c, "Certificate port client: "+cmp.Or(status.LastCertificateClient, "not seen yet")).FontSize(12)
 							}
 							ui.Text(c, "A TCP connection is not proof of HTTPS trust. Verify the decrypted host, path and response in Capture. Mobile app identity is not available through this gateway.").FontSize(11).TextColor(t.TextMuted)
-							if a.srv != nil {
-								fingerprint := fmt.Sprintf("%X", sha256.Sum256(a.srv.CACertificate()))
-								ui.Text(c, "CA SHA-256\n"+fingerprint[:32]+"\n"+fingerprint[32:]).Font("monospace").FontSize(11)
-								if ui.Button(c, "Copy CA fingerprint").Clicked() {
-									c.Services().WriteClipboard(fingerprint)
-								}
-							}
+							a.setupEvidence(c, t, d.target, d.since)
 							ui.Text(c, "No device seen? Check the source IP / DHCP changes, selected interface, VPN, firewall and Wi-Fi client isolation. HTTP works but HTTPS fails? Check CA trust, SSL host rules and pinning.").FontSize(11).TextColor(t.TextMuted)
 						}
 					})
@@ -262,6 +268,10 @@ func (a *app) devicesModal(c *ui.Context, t *ui.Theme) {
 					ui.Text(c, "Closing this dialog keeps access on. Disable when finished.").FontSize(11).TextColor(t.TextMuted)
 				}
 				ui.Spacer(c)
+				if ui.Button(c, "Local client setup…").Clicked() {
+					d.open = false
+					a.openClientSetup()
+				}
 				if ui.Button(c, "Close").Clicked() {
 					d.open = false
 				}

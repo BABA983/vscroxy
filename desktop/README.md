@@ -58,6 +58,14 @@ go tool mygo dev
 
 ## Connect a phone or another device
 
+For a local process, **Network → Set up a local client…** provides copyable cURL,
+Node.js (`https-proxy-agent`), Python (`requests`) and Go examples. They set the
+proxy and trust the public CA for that process only; they do not change the OS
+proxy, install a system CA or skip TLS verification. cURL uses POSIX shell syntax.
+Choose an HTTPS URL, enable inspection for its host, then run the example yourself.
+The guide separates a listening/reachable proxy, the decryption rule and newly
+observed decrypted traffic, with an action to inspect that capture.
+
 Open **Network → Connect a device** or **Settings → Proxy → Connect a device**.
 Device access is **off on every launch**; consent and listeners are not persisted.
 
@@ -82,7 +90,11 @@ Device access is **off on every launch**; consent and listeners are not persiste
    HTTPS request from the device and inspect its decrypted path/body in Capture.
 
 **Checks** distinguishes local proxy reachability and last admitted TCP clients
-at each port. A TCP connection does **not** prove that a certificate was installed,
+at each port. Set the target HTTPS URL to see the current host rule and decrypted
+traffic observed since opening setup. Imported captures never count as evidence.
+Evidence is session-wide, not attributed to a specific phone or runtime, and
+client CA trust remains explicitly unverified: a client could skip verification.
+A TCP connection does **not** prove that a certificate was installed,
 that HTTPS decrypted, or that the remote network path is reachable. No traffic?
 Check DHCP changes, the selected interface, VPN, firewall and Wi-Fi isolation.
 Certificate pinning and clients that ignore the OS proxy are not bypassed. The
@@ -154,8 +166,9 @@ offers **Show all requests**. Hidden rows are removed from the bulk selection.
 
 Each capture view follows new rows while scrolled to the bottom. Scrolling up
 pauses following without changing the request being inspected; scrolling back
-to the bottom resumes it. **Latest** selects the last displayed row, scrolls it
-into view and resumes following. Views keep their own scroll positions. With a
+to the bottom resumes it. The toolbar shows **Following** or **Paused**;
+**Latest** scrolls to the end and resumes following without changing the
+inspected request or selection. Views keep their own scroll positions. With a
 custom column sort, the bottom means the end of that displayed order, not
 necessarily the most recently captured request.
 
@@ -165,19 +178,21 @@ status/header/body and triage conditions, sorting and selection. **Filters…** 
 conditions; **Saved filters…** saves, reapplies, renames or deletes a named set in
 `~/.vscroxy/views.json`. Saving conditions persists them; live view tabs themselves
 are session-local. Applying a saved filter changes only the active view.
-Saved filters also appear as one-click buttons above the table; click an active
+Views and saved filters live in the sidebar, with a **+** for a new view.
+Saved filters appear as one-click buttons there; click an active
 button again to show all requests in that view. Filters supports comma-separated
 methods, duration in milliseconds, captured response-body bytes, color/marked
 state and case-insensitive note text. Numeric fields accept `<`, `<=`, `=`, `>=`
 or `>` with a non-negative integer. Conditions combine with AND; methods and
-status alternatives combine with OR. The active filter button and footer summary
-make narrowing visible, including when no requests match.
+status alternatives combine with OR. A removable token strip shows every active
+condition (URL, source, protocol and content filters); **Reset all** clears them.
+It appears only while conditions are active, keeping the normal toolbar to two rows.
 
 Body conditions search both request and response independently, including whole
 spill files beyond the 8 MiB preview. Searches are case-insensitive, chunked,
 cancellable and off the UI thread (at most four readers); pending rows remain
 hidden until matched. Progress and unreadable/incomplete-body warnings appear
-above the table. Missing or incomplete bodies never silently match just their
+with the views in the sidebar. Missing or incomplete bodies never silently match just their
 preview. URL/header/status filtering remains immediate.
 
 Large HTTP uploads and downloads are kept from the actual streaming path,
@@ -321,9 +336,21 @@ rereads both the rules and the script.
 
 The Body tab shows the response or the request, as **Pretty** text, as a
 **JSON** tree with collapsible objects and arrays, or as a **Hex** dump with
-offsets and text. The search field filters what shows: matching lines in
-Pretty and Hex, matching leaves in JSON. A body that is not JSON falls back
-to text.
+offsets and text. Pretty is a read-only, selectable code reader with line
+numbers, wrapping and JSON highlighting/formatting. **Find in text…**, or
+Cmd/Ctrl+F while reading, highlights matches without hiding surrounding lines;
+Enter / Shift+Enter and the arrow buttons move between matches. Esc closes
+search. JSON and Hex instead filter matching paths/values or hex rows, as their
+search placeholders explain. The JSON tree preserves object order and exact
+number spellings, including large integer IDs. Invalid JSON falls back to text.
+
+Each side shows its content type and preview byte count. **Copy shown body**
+copies retained preview text, not pretty formatting or warning text. Binary
+bodies disable text clipboard copying; HAR/session export retains their bytes. Display
+limits, incomplete transfers and missing spill files are separate warnings;
+they remain visible in every display mode and are still included in comparisons.
+An empty response for HEAD, 204 or 304 is explained as expected, not a capture
+failure. Unsupported previews offer direct text and hex alternatives.
 
 **Auto** is the default: images/HTML use Preview, binary bodies use Hex,
 explicit protobuf/gRPC uses Protobuf, and text/JSON uses Pretty. A manual mode
@@ -403,6 +430,24 @@ to inspect or copy its payload. Rows show direction, time, kind and size; SSE
 keeps event name and ID separately. JSON is indented; binary opens as hex, and
 **Text / Hex** switches views. Text layout previews at most 64 KiB; Hex and Copy
 use the whole retained payload.
+
+**Pause view** freezes an independent message window while capture continues;
+new arrivals are counted. Search, direction filters and export use that frozen
+window. **Resume** returns to the latest retained messages, not an unbounded
+backlog. **Latest** follows the newest message without pausing capture.
+
+The pane records start and observed end times, including empty SSE streams.
+An unrecorded end is not proof that a connection is still open; imported sessions
+are labelled historical. The engine does not expose WebSocket close codes or
+end reasons, so the pane does not guess them. End evidence survives saving a
+session. Completion totals also expose messages lost at the tail of a full queue.
+
+**Export messages…** saves matching retained messages as JSON after a sensitive
+data warning, with direction, sequence, timestamps, SSE name/ID, full retained
+payloads and explicit missing/truncated-payload metadata. Binary bytes use the
+session format's lossless base64 payload field when they are not valid UTF-8.
+The file records query, direction, pause state and window/loss counts; it is not
+an export of the entire conversation. File reads run off the UI thread.
 
 The last 200 messages per flow are retained: at most 4 KiB each inline, with
 longer payloads spilled to disk up to 256 KiB each. Larger messages explicitly
@@ -496,7 +541,9 @@ Captured replays have a **Replay of #N** link and **Compare with source** action
 The original lists its **Replays (N)**, including redirect exchanges. Links use
 the sending connection, not URL matching or an extra upstream request header;
 concurrent sends of the same URL keep their own sources. JSON sessions retain
-these links (HAR does not); a removed source is shown as unavailable.
+these links (HAR does not); a removed source is shown as unavailable. Following
+a linked capture hidden by filters opens a separate capture view instead of
+erasing the original view's conditions and list position.
 
 ### Multi-request analysis
 
@@ -844,10 +891,100 @@ yet.
 ## Settings
 
 What you set stays between launches: the dark theme, the sidebar's width, how
-the table and the detail pane share the window, and the columns' order and
-widths, in `~/.vscroxy/settings.json`. The window's position and size are
+the table and the detail pane share the window, the inspector layout and sidebar
+visibility, and the columns' order and widths, in `~/.vscroxy/settings.json`.
+The window's position and size are
 MyGo's own, kept in `window-state.json` under the app's config directory and
 restored when they would still show on a connected display.
+
+### Desktop workbench
+
+**View → Inspector: Adaptive** puts details on the right when the content area
+has at least 1160 DIPs, and below the table on smaller windows. Choose **Bottom**
+to keep the stacked layout, or **Right** to use a side inspector from 1000 DIPs
+of content width. Even Right yields at small widths; both orientations keep
+their own divider positions. In the side layout, the table prioritizes URL,
+method, status and duration, and header blocks stack rather than squeezing values
+into two narrow columns. Client and size remain visible in the inspector.
+
+**Focus** (Cmd/Ctrl+Shift+Enter) temporarily gives the inspector the full content
+area. **Back to list** restores the layout and inspected request. Cmd/Ctrl+B
+toggles the sidebar. **View → Reset desktop layout** restores the defaults.
+Selecting multiple requests reveals **Replay**, **Export HAR** and **Clear
+selection** directly above the table; replay settings snapshot the entire choice.
+
+**Commands** (Cmd/Ctrl+K) searches capture actions, layouts, setup and settings.
+Use arrows and Enter to choose, Escape to dismiss and restore the previous focus.
+Commands show their shortcut and current target; unavailable actions explain why.
+Cmd/Ctrl+F searches URLs, Cmd/Ctrl+R opens replay settings for the selection,
+and Cmd/Ctrl+Alt+C copies the inspected request (or current draft) as cURL.
+Toolbar buttons, row menus, native menus, palette and shortcuts share request
+availability and target rules. A multi-selection replays the whole choice;
+single-request edit/cURL actions are disabled rather than choosing an arbitrary
+row. A choice containing tunnels or live streams cannot be replayed as HTTP.
+
+### Keyboard debugging
+
+`Cmd/Ctrl` means Command on macOS, Control on Windows/Linux. `Ctrl+Tab` uses
+Control on every platform. These are vscroxy's bindings, not a claim that
+Proxyman or Postman use identical Windows/Linux defaults.
+
+| Action | Shortcut and scope |
+| --- | --- |
+| Search traffic | Cmd/Ctrl+F in Capture; Enter or ↓ moves to the list |
+| Navigate / inspect / return | ↑/↓ in the list; Enter focuses the inspector; Esc returns to the list |
+| Focus primary input | Cmd/Ctrl+L: request list in Capture, URL in Requests |
+| Edit captured request | Cmd/Ctrl+Alt+Enter; opens an unsent draft and focuses its URL |
+| Replay options | Cmd/Ctrl+R in Capture; never sends without the replay dialog's Send action |
+| Send current draft | Cmd/Ctrl+Enter in Requests; unavailable while sending or capture is stopped |
+| Save current draft | Cmd/Ctrl+S |
+| Compare exact last send with source | Cmd/Ctrl+Shift+D after sending a draft opened from Capture |
+| Back to original traffic view | Cmd/Ctrl+[; preserves the draft and original capture conditions |
+| Cycle Traffic and request tabs | Ctrl+Tab / Ctrl+Shift+Tab |
+| Close current request tab | Cmd/Ctrl+W; asks about unsaved changes; unavailable while sending |
+| Close window | Cmd/Ctrl+Shift+W (separate from closing a request) |
+
+Plain Enter in the URL input never sends. Dialogs own their shortcuts: sending,
+opening drafts and workspace commands cannot act through a modal. Local response
+editors keep their own Find commands. Cmd/Ctrl+1–3 still select workspaces, not
+individual drafts.
+
+The design takes **Edit and Repeat** from [Proxyman](https://docs.proxyman.com/advanced-features/edit-and-repeat)
+and the explicit **Send** chord documented by [Postman](https://blog.postman.com/boost-your-productivity-in-postman-with-these-4-keyboard-shortcuts/).
+Unlike [Proxyman's Repeat](https://docs.proxyman.com/advanced-features/repeat),
+Cmd/Ctrl+Enter in Capture does not immediately replay traffic. Cmd/Ctrl+K retains
+our existing command palette; it is not Postman's resource search. Some official
+references are macOS-only or historical, so we deliberately define one consistent
+vscroxy mapping instead of silently inheriting conflicting shortcuts.
+
+### Continuous debugging
+
+**Edit & replay** opens a named request tab beside **Traffic**. The same tab strip
+stays visible in Capture and Requests, so a draft and its response remain one
+click away while traffic continues arriving. Unsaved tabs still require save or
+discard before closing. These open debugging contexts are session-only, not
+automatically saved requests.
+
+**Back to traffic** returns to the draft's original capture view without clearing
+search, protocol, header/body or triage conditions, changing its chosen request,
+or resuming a paused list. **Traffic** returns to the currently active live view.
+If the original view was closed, Back to traffic returns to the current view
+and explains the fallback instead of recreating it.
+Header, text-body, JSON and hex reading positions survive leaving Capture;
+choosing a different request resets those readers.
+
+After sending, **Compare source** uses the captured source and this document's
+last send, not the next matching URL or the current unsent edits. Each document
+keeps its own comparison part, side order, split/unified layout and reader state.
+Comparison fills the remaining work area; returning to Response restores the
+request editor's divider. A subsequent send refreshes the comparison.
+
+The last-send side represents the initial client request and final HTTP response.
+Request headers include client-side processing, but proxy rules can still change
+the forwarded exchange; followed redirects can return a response from another
+URL. Capture remains the source for individual wire exchanges. Previews are
+bounded to 8 MiB and explicitly mark incomplete text. Sending is a real network
+operation and is not undone by returning to Traffic or closing a tab.
 
 ## Next
 

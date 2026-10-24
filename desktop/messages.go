@@ -13,6 +13,7 @@ import (
 	"cmp"
 	"context"
 	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"fmt"
 	"maps"
 	"os"
@@ -22,6 +23,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/baba983/vscroxy/desktop/internal/capture"
+	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -403,15 +405,18 @@ func indentJSON(text string) (string, bool) {
 // methods reaching into the app.
 type messagePanel struct {
 	// flowID is the flow the state belongs to; a new flow starts clean.
-	flowID    int
-	query     string
-	direction int // 0 all, 1 server to client, 2 client to server
-	selected  int // the row chosen, an index into the filtered list
-	follow    bool
-	mode      int // 0 text, 1 hex
-	modeFor   int
-	split     float32
-	list      ui.ListState
+	flowID     int
+	query      string
+	direction  int // 0 all, 1 server to client, 2 client to server
+	selected   int // the row chosen, an index into the filtered list
+	follow     bool
+	mode       int // 0 text, 1 hex
+	modeFor    int
+	split      float32
+	list       ui.ListState
+	paused     bool
+	frozen     []messageView
+	exportOpen bool
 
 	// loaded caches the chosen message's payload, so a spilled one is read
 	// once rather than every frame.
@@ -439,19 +444,62 @@ func (p *messagePanel) view(c *ui.Context, a *app, f flow, list []messageView) {
 		p.follow = true
 		p.modeFor = 0
 		p.loadedSeq = 0
+		p.paused, p.frozen, p.exportOpen = false, nil, false
 	}
 	if p.split <= 0 {
 		p.split = 360
 	}
-	if len(list) == 0 {
-		ui.Text(c, "No messages yet").FontSize(12).TextColor(t.TextMuted).Padding(16)
-		return
+	f.streamEnd = a.streamEnd(f)
+	if f.live && f.streamEnd.At.IsZero() && a.srv != nil {
+		c.After(250 * time.Millisecond)
+	}
+	ui.Row(c).Padding(6, 12, 0, 12).Gap(8).AlignItems(ui.Center).Children(func() {
+		state := "End not yet observed"
+		if !f.live {
+			state = "Historical · no end recorded"
+		}
+		if !f.streamEnd.At.IsZero() {
+			state = "Ended " + f.streamEnd.At.Format("15:04:05.000")
+		}
+		if !f.at.IsZero() {
+			state = "Started " + f.at.Format("15:04:05.000") + " · " + state
+		}
+		ui.Text(c, state).FontSize(11).TextColor(t.TextMuted).Grow(1).SingleLine().Tooltip(state + ". The engine does not provide close codes or an end reason.")
+		pauseLabel := "Pause view"
+		if p.paused {
+			pauseLabel = "Resume"
+		}
+		if ui.Button(c, pauseLabel).Clicked() {
+			p.paused = !p.paused
+			if p.paused {
+				p.frozen = slices.Clone(list)
+				p.follow = false
+			} else {
+				p.frozen = nil
+				p.follow = true
+			}
+		}
+		if ui.Button(c, "Export messages…").Clicked() {
+			p.exportOpen = true
+		}
+	})
+	if p.paused {
+		newer := 0
+		if len(list) > 0 {
+			newer = list[len(list)-1].seq
+		}
+		if len(p.frozen) > 0 {
+			newer -= p.frozen[len(p.frozen)-1].seq
+		}
+		note := fmt.Sprintf("Paused view · %d newer messages · capture continues; Resume shows the latest retained window", max(newer, 0))
+		ui.Text(c, note).FontSize(11).TextColor(t.Accent).Padding(4, 12).SingleLine().Tooltip(note)
+		list = p.frozen
 	}
 	// The search and the direction filter are built first: they change what
 	// the list shows, and the line after them reads it.
 	var visible []messageView
 	ui.Row(c).Padding(8, 12).Gap(10).AlignItems(ui.Center).Children(func() {
-		search := ui.SearchField(c, &p.query).Placeholder("Search messages…").Label("Search messages").Width(220)
+		search := ui.SearchField(c, &p.query).Placeholder("Search messages…").Label("Search messages").Width(180)
 		search.Tooltip("Searches metadata and the full retained payload; spill files are read off the UI thread")
 		if search.Changed() {
 			p.follow = true
@@ -462,6 +510,15 @@ func (p *messagePanel) view(c *ui.Context, a *app, f flow, list []messageView) {
 		p.searchMessages(a, list)
 		visible = p.matching(list)
 		note := p.note(list, visible)
+		if !p.paused {
+			last := 0
+			if len(list) > 0 {
+				last = list[len(list)-1].seq
+			}
+			if lost := f.streamEnd.Messages - last; lost > 0 {
+				note += fmt.Sprintf(" · %d lost at end", lost)
+			}
+		}
 		if len(p.searchPending) > 0 {
 			note += " · searching…"
 			c.After(100 * time.Millisecond)
@@ -498,7 +555,11 @@ func (p *messagePanel) view(c *ui.Context, a *app, f flow, list []messageView) {
 		}
 		rows.Children(func() {
 			if len(visible) == 0 {
-				ui.Text(c, "No message matches").FontSize(12).TextColor(t.TextMuted).Padding(16)
+				text := "No message matches"
+				if len(list) == 0 {
+					text = "No messages retained"
+				}
+				ui.Text(c, text).FontSize(12).TextColor(t.TextMuted).Padding(16)
 			}
 		})
 	}, func() {
@@ -512,6 +573,116 @@ func (p *messagePanel) view(c *ui.Context, a *app, f flow, list []messageView) {
 		}
 		visible[p.selected].detail(c, a, f, p)
 	}).Grow(1)
+	if p.exportOpen {
+		p.exportModal(c, a, f, list, visible)
+	}
+}
+
+func (a *app) streamEnd(f flow) capture.StreamEnd {
+	if f.live && a.srv != nil && (f.kind == "ws" || f.kind == "sse") {
+		return a.srv.StreamEnd(f.id)
+	}
+	return f.streamEnd
+}
+
+type messageExport struct {
+	Version     int               `json:"version"`
+	URL         string            `json:"url"`
+	Protocol    string            `json:"protocol"`
+	StartedAt   time.Time         `json:"startedAt,omitzero"`
+	End         capture.StreamEnd `json:"end,omitzero"`
+	Paused      bool              `json:"paused"`
+	Query       string            `json:"query"`
+	Direction   string            `json:"direction"`
+	Retained    int               `json:"retained"`
+	NotRetained int               `json:"notRetained"`
+	Messages    []exportMessage   `json:"messages"`
+}
+
+type exportMessage struct {
+	sessionFrameData
+	Kept  int    `json:"kept"`
+	Error string `json:"error,omitempty"`
+}
+
+// write reads spill files off the UI thread. Missing bytes remain explicit,
+// and binary payloads use the same lossless representation as saved sessions.
+func (e messageExport) write(path string, list []messageView) error {
+	e.Version = 1
+	e.Messages = make([]exportMessage, 0, len(list))
+	for _, m := range list {
+		data, problem := m.data, ""
+		if m.file != "" {
+			payload, err := os.ReadFile(m.file)
+			if err != nil {
+				problem = err.Error()
+			} else {
+				data = string(payload)
+			}
+		}
+		if len(data) < m.size && problem == "" {
+			problem = "payload retention limit or incomplete spill file"
+		}
+		saved := exportMessage{
+			Seq: m.seq, Direction: m.direction, Kind: m.kind,
+			Data: data, Size: m.size, At: m.at, EventID: m.eventID, EventName: m.eventName,
+			Kept: len(data), Error: problem,
+		}
+		if !utf8.ValidString(data) {
+			saved.Payload, saved.Data = []byte(data), ""
+		}
+		e.Messages = append(e.Messages, saved)
+	}
+	data, err := json.Marshal(e)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(path, append(data, '\n'), 0o600)
+}
+
+func (p *messagePanel) exportModal(c *ui.Context, a *app, f flow, list, visible []messageView) {
+	ui.Modal(c, &p.exportOpen, func() {
+		ui.Column(c).Width(470).Gap(12).Children(func() {
+			ui.Text(c, "Export retained messages").FontSize(16).Bold()
+			ui.Text(c, fmt.Sprintf("Exports %d matching messages from this %d-message window, not the complete conversation. Pause freezes the view, not capture. Saving is available once the payload search finishes.", len(visible), len(list))).FontSize(12)
+			ui.Text(c, "Payloads and URLs can contain credentials or personal data. Review before sharing.").FontSize(12).TextColor(c.Theme().Danger)
+			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
+				if ui.Button(c, "Cancel").Clicked() {
+					p.exportOpen = false
+				}
+				if ui.PrimaryButton(c, "Save messages JSON…").Disabled(len(p.searchPending) > 0).Clicked() {
+					archive := messageExport{
+						URL: f.url, Protocol: f.kind, StartedAt: f.at, End: f.streamEnd,
+						Paused: p.paused, Query: p.query, Direction: []string{"all", "in", "out"}[p.direction],
+						Retained: len(list), NotRetained: messagesDropped(list),
+					}
+					if !p.paused {
+						last := 0
+						if len(list) > 0 {
+							last = list[len(list)-1].seq
+						}
+						archive.NotRetained += max(f.streamEnd.Messages-last, 0)
+					}
+					chosen := slices.Clone(visible)
+					p.exportOpen = false
+					go func() {
+						path, err := mygo.Dialog.Save(mygo.SaveDialogOptions{
+							Title: "Export retained messages", DefaultPath: "vscroxy-messages.json",
+							Filters: []mygo.FileFilter{{Name: "JSON", Extensions: []string{"json"}}},
+						})
+						if err != nil || path == "" {
+							return
+						}
+						if err := archive.write(path, chosen); err != nil {
+							a.setMessage("Message export: " + err.Error())
+							return
+						}
+						a.setMessage(fmt.Sprintf("Exported %d retained messages", len(chosen)))
+					}()
+				}
+			})
+		})
+	})
 }
 
 // matching lists the messages the search and the direction filter keep, in the

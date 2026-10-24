@@ -12,8 +12,10 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -221,6 +223,18 @@ func TestCaptureTableScrollsAndKeepsEachViewsPlace(t *testing.T) {
 	if !tt.HasText("api.example.com/capture/0021") {
 		t.Fatal("a redraw reset the scroll position")
 	}
+	if err := tt.Click("api.example.com/capture/0021"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.Click("Edit & replay"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.Click("Back to traffic"); err != nil {
+		t.Fatal(err)
+	}
+	if !tt.HasText("api.example.com/capture/0021") || !tt.HasText("GET https://api.example.com/capture/0021") || !tt.HasText("Paused · Latest") {
+		t.Fatal("the editing round trip changed the list position, follow state or inspected request")
+	}
 	if err := tt.Click("New view"); err != nil {
 		t.Fatal(err)
 	}
@@ -253,11 +267,20 @@ func TestCaptureTableScrollsAndKeepsEachViewsPlace(t *testing.T) {
 	if !tt.HasText(row) || tt.HasText("api.example.com/capture/5001") {
 		t.Fatal("new traffic pulled the reader away from older requests")
 	}
+	if !tt.HasText("Paused · Latest") {
+		t.Fatal("the paused follow state is not visible")
+	}
+	if err := tt.Click(row); err != nil {
+		t.Fatal(err)
+	}
 	if err := tt.Click("Latest"); err != nil {
 		t.Fatal(err)
 	}
 	if !tt.HasText("api.example.com/capture/5001") {
 		t.Fatal("Latest must scroll, not only change the selection")
+	}
+	if f, ok := a.current(); !ok || f.id != 1 || !a.chosen.Has(1) || a.chosen.Len() != 1 {
+		t.Fatal("following the list replaced the inspected request or bulk choice")
 	}
 	appendFlow(5002)
 	if !tt.HasText("api.example.com/capture/5002") {
@@ -539,6 +562,77 @@ func TestBodyAutomaticallyChoosesAUsableMode(t *testing.T) {
 	}
 }
 
+func TestBodyTextFindKeepsContextAndCannotEditCapture(t *testing.T) {
+	a := workspaceApp()
+	a.tab, a.tablePercent = 1, 25
+	body := "before\nneedle first\nbetween\nneedle last\nafter"
+	a.flows[0].resBody = body
+	a.flows[0].respHeader.Set("Content-Type", "text/plain")
+	tt := ui.NewTester(a.view, 960, 600)
+	if err := tt.Click("Body text"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Key(ui.Cmd, ui.KeyF)
+	if !tt.Focused("Search body") {
+		t.Fatal("Find in the body reader searched traffic instead")
+	}
+	tt.Type("needle")
+	tt.Frame()
+	if !tt.HasText("1 of 2") {
+		t.Fatalf("search did not count matches: %q", tt.Texts())
+	}
+	tt.Key(0, ui.KeyEnter)
+	if !tt.HasText("2 of 2") {
+		t.Fatal("Enter did not move to the next body match")
+	}
+	tt.Key(ui.Shift, ui.KeyEnter)
+	if !tt.HasText("1 of 2") {
+		t.Fatal("Shift+Enter did not move to the previous body match")
+	}
+	tt.Key(ui.Cmd, ui.KeyA)
+	tt.Type("absent")
+	tt.Frame()
+	if !tt.HasText("No results") {
+		t.Fatal("an empty search failed to explain no matches")
+	}
+	tt.Key(0, ui.KeyEscape)
+	tt.Key(ui.Cmd, ui.KeyA)
+	tt.Type("must not overwrite the capture")
+	tt.Key(ui.Cmd, ui.KeyC)
+	if tt.Clipboard() != body {
+		t.Fatalf("read-only reader changed or lost body bytes: %q", tt.Clipboard())
+	}
+}
+
+func TestBodyWarningsStayOutsideStructuredPayloadAndClipboard(t *testing.T) {
+	a := workspaceApp()
+	a.tab, a.tablePercent = 1, 25
+	a.flows[0].resBody, a.flows[0].resError = `{"z":9007199254740993,"a":false}`, "transfer stopped"
+	tt := ui.NewTester(a.view, 960, 600)
+	if !tt.HasText("… incomplete body: transfer stopped") {
+		t.Fatal("capture error was hidden")
+	}
+	if err := tt.Click("Pretty"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Key(0, ui.KeyRight)
+	if tt.HasText("Body is not JSON; showing it as text") || !tt.HasText("9007199254740993") {
+		t.Fatal("warning text corrupted the JSON reader or it rounded the captured ID")
+	}
+	if err := tt.Click("Copy shown body"); err != nil {
+		t.Fatal(err)
+	}
+	if tt.Clipboard() != `{"z":9007199254740993,"a":false}` {
+		t.Fatal("copy included display warnings or reformatted the captured bytes")
+	}
+	if err := tt.Click("Request"); err != nil {
+		t.Fatal(err)
+	}
+	if tt.HasText("… incomplete body: transfer stopped") {
+		t.Fatal("response warning leaked into the request side")
+	}
+}
+
 func TestBodyModeSurvivesIncomingTraffic(t *testing.T) {
 	a := workspaceApp()
 	a.tab = 1
@@ -594,6 +688,15 @@ func TestJSONExpansionSurvivesIncomingTraffic(t *testing.T) {
 	if !tt.HasText(`"expanded-value"`) || tt.HasText(`"hidden-value"`) {
 		t.Fatal("JSON nodes did not expand and collapse")
 	}
+	if err := tt.Click("Edit & replay"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.Click("Traffic tab"); err != nil {
+		t.Fatal(err)
+	}
+	if !tt.HasText(`"expanded-value"`) || tt.HasText(`"hidden-value"`) || !tt.HasText("Showing: JSON") {
+		t.Fatal("returning from editing lost the reader's mode or expanded JSON nodes")
+	}
 	for _, id := range []int{3, 4} {
 		a.pending = []capture.Flow{{ID: id, Method: "GET", Scheme: "https", Host: "other.example.com", Path: "/new", Status: 200, Kind: "http"}}
 		tt.Frame()
@@ -606,7 +709,10 @@ func TestJSONExpansionSurvivesIncomingTraffic(t *testing.T) {
 	a.flows[0].resBody = `{"replacement":"new-value"}`
 	a.replaceSession(a.flows, a.frames)
 	tt.Frame()
-	if !tt.HasText(`{"replacement":"new-value"}`) || tt.HasText(`"expanded-value"`) {
+	if err := tt.Click("Copy shown body"); err != nil {
+		t.Fatal(err)
+	}
+	if tt.Clipboard() != `{"replacement":"new-value"}` || tt.HasText(`"expanded-value"`) {
 		t.Fatal("changed body content did not refresh the JSON tree")
 	}
 }
@@ -732,9 +838,13 @@ func TestCaptureDetailSurvivesUnrelatedTraffic(t *testing.T) {
 	if err := tt.Click("Body"); err != nil {
 		t.Fatal(err)
 	}
+	if err := tt.Click("Find in text…"); err != nil {
+		t.Fatal(err)
+	}
 	if err := tt.Click("Search body"); err != nil {
 		t.Fatal(err)
 	}
+	tt.Key(ui.Cmd, ui.KeyA) // replace the word prefilled by the editor's Find
 	tt.Type("changed")
 	appendFlow(6)
 	if !tt.Focused("Search body") {
@@ -743,7 +853,7 @@ func TestCaptureDetailSurvivesUnrelatedTraffic(t *testing.T) {
 	tt.Key(ui.Cmd, ui.KeyA)
 	tt.Key(ui.Cmd, ui.KeyC)
 	if tt.Clipboard() != "changed" {
-		t.Fatal("incoming traffic reset the body search text")
+		t.Fatalf("incoming traffic reset the body search text: %q", tt.Clipboard())
 	}
 }
 
@@ -1052,6 +1162,122 @@ func TestRequestTabsKeepDraftsAndConfirmClose(t *testing.T) {
 	click("Close Endpoint 8 with a longer name")
 	if !tt.HasText("Save changes?") {
 		t.Fatal("the renamed tab's close button was hidden beyond the scroll area")
+	}
+}
+
+func TestCaptureDraftComparisonKeepsTheTrafficContextAndLastSend(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		fmt.Fprintf(w, "variant=%s; marker=%s; body=%s", r.URL.Query().Get("variant"), r.Header.Get("X-Marker"), body)
+	}))
+	defer upstream.Close()
+	srv, err := capture.New("127.0.0.1:0", t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer srv.Close()
+	if err := srv.Start(); err != nil {
+		t.Fatal(err)
+	}
+	a := workspaceApp()
+	a.srv = srv
+	a.flows[0] = flow{id: 1, method: "POST", scheme: "http", host: strings.TrimPrefix(upstream.URL, "http://"), path: "/items?variant=original", url: upstream.URL + "/items?variant=original", status: 200,
+		reqBody: "original-body", reqHeader: http.Header{"X-Marker": {"before"}}, reqHeaders: "X-Marker: before", resBody: "original response"}
+	a.views.init(a, "")
+	a.query, a.filterStatus, a.chip, a.tablePercent = "original", "200", 1, 35
+	a.applyFilter()
+	tt := ui.NewTester(a.view, 960, 600)
+	click := func(label string) {
+		t.Helper()
+		if err := tt.Click(label); err != nil {
+			t.Fatal(err)
+		}
+	}
+	edit := func(label, value string) {
+		t.Helper()
+		click(label)
+		tt.Key(ui.Cmd, ui.KeyA)
+		tt.Type(value)
+	}
+	copyText := func(label string) string {
+		t.Helper()
+		click(label)
+		tt.Key(ui.Cmd, ui.KeyA)
+		tt.Key(ui.Cmd, ui.KeyC)
+		return tt.Clipboard()
+	}
+	waitForResponse := func() {
+		t.Helper()
+		deadline := time.Now().Add(5 * time.Second)
+		for !tt.HasText("200 OK") && time.Now().Before(deadline) {
+			time.Sleep(10 * time.Millisecond)
+			tt.Frame()
+		}
+		if !tt.HasText("200 OK") {
+			t.Fatalf("send did not complete: %v", tt.Texts())
+		}
+	}
+	click("Edit & replay")
+	edit("URL", upstream.URL+"/items?variant=edited")
+	click("Scripts")
+	edit("Pre-request script", `req.set("X-Marker", "from-script"); req.body = "sent-body"`)
+	click("Post-response")
+	edit("Post-response script", `req.set("X-Marker", "after-send"); req.body = "after-send"`)
+	click("Send")
+	waitForResponse()
+	if !tt.HasText("Capture filters kept · new traffic may be hidden") {
+		t.Fatal("filtered traffic can hide the send without explanation")
+	}
+	// Later edits must not change what the last send actually compared.
+	edit("URL", upstream.URL+"/items?variant=not-sent")
+	click("Compare source")
+	if got := copyText("Old text"); got != "original response" {
+		t.Fatalf("source baseline = %q", got)
+	}
+	if got := copyText("New text"); got != "variant=edited; marker=from-script; body=sent-body" {
+		t.Fatalf("comparison did not use this send: %q", got)
+	}
+	click("Compare content")
+	click("Request body")
+	if got := copyText("New text"); got != "sent-body" {
+		t.Fatalf("compared current draft or post-response script instead of sent body: %q", got)
+	}
+	click("Compare content")
+	click("Request headers")
+	if got := copyText("New text"); !strings.Contains(got, "X-Marker: from-script") || strings.Contains(got, "after-send") {
+		t.Fatalf("compared mutated headers: %q", got)
+	}
+	click("Back to traffic")
+	if !tt.HasText("URL: original ×") || !tt.HasText("Status: 200 ×") || !tt.HasText("HTTP ×") || !tt.HasText("POST http://"+a.flows[0].host+"/items?variant=original") {
+		t.Fatalf("return changed capture conditions or inspected source: %v", tt.Texts())
+	}
+	click("Request tab: /items?variant=original")
+	if !tt.HasText("Compare source") || !strings.Contains(copyText("New text"), "X-Marker: from-script") {
+		t.Fatal("returning to the draft lost its comparison")
+	}
+	click("Response")
+	if got := copyText("URL"); got != upstream.URL+"/items?variant=not-sent" {
+		t.Fatalf("switching workspaces lost unsent edits: %q", got)
+	}
+	click("Send")
+	waitForResponse()
+	click("Compare source")
+	click("Compare content")
+	click("Response body")
+	if got := copyText("New text"); got != "variant=not-sent; marker=from-script; body=sent-body" {
+		t.Fatalf("second send kept a stale comparison: %q", got)
+	}
+	click("Traffic tab")
+	if !tt.HasText("URL: original ×") || !tt.HasText("Status: 200 ×") {
+		t.Fatal("Traffic tab reset the live view")
+	}
+	click("New view")
+	click("Close view: View 1")
+	click("Request tab: /items?variant=original")
+	click("Back to traffic")
+	tt.Frame()
+	if !tt.HasText("Original capture view is no longer open; returned to the current traffic view") || !tt.HasText("2 flows · 2 shown") {
+		t.Fatal("closed source view was silently resurrected or the fallback was unexplained")
 	}
 }
 
@@ -1788,6 +2014,12 @@ func TestReplayLinksRevealFilteredSourceAndCompareWithoutGuessingURL(t *testing.
 	if !tt.HasText("Replay of #1") {
 		t.Fatal("could not navigate back to replay")
 	}
+	if err := tt.Click("Capture view: View 1"); err != nil {
+		t.Fatal(err)
+	}
+	if !tt.HasText("URL: redirected ×") || !tt.HasText("Replay of #1") {
+		t.Fatal("following a hidden relationship erased the original view")
+	}
 }
 
 func TestBatchReplaySendsChosenRequestsInOrder(t *testing.T) {
@@ -1817,6 +2049,18 @@ func TestBatchReplaySendsChosenRequestsInOrder(t *testing.T) {
 	}
 	if !tt.HasText("Replay 2 requests") {
 		t.Fatal("chosen requests were not snapshotted")
+	}
+	if err := tt.Click("Close"); err != nil {
+		t.Fatal(err)
+	}
+	if !tt.HasText("2 selected") {
+		t.Fatal("bulk actions are not visible beside the table selection")
+	}
+	if err := tt.Click("Replay…"); err != nil {
+		t.Fatal(err)
+	}
+	if !tt.HasText("Replay 2 requests") {
+		t.Fatal("contextual replay did not snapshot the full selection")
 	}
 	tt.Click("Replay timeout")
 	tt.Key(ui.Ctrl, ui.KeyA)
@@ -1905,5 +2149,382 @@ func TestTriageFiltersAndQuickPresetsStayWithTheirView(t *testing.T) {
 	a.views.activate(a, 0)
 	if len(a.visible) != 1 {
 		t.Fatal("quick filter altered the other view")
+	}
+}
+
+func TestClientSetupCopiedCommandProducesLiveDecryptionEvidence(t *testing.T) {
+	upstream := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, "verified setup result")
+	}))
+	defer upstream.Close()
+	dir := t.TempDir()
+	srv, err := capture.New("127.0.0.1:0", dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer srv.Close()
+	srv.SetSSL(capture.SSLConfig{All: true})
+	if err := srv.Start(); err != nil {
+		t.Fatal(err)
+	}
+	a := workspaceApp()
+	a.srv, a.caPath, a.sslAll = srv, filepath.Join(dir, "mitmproxy-ca-cert.pem"), true
+	a.openClientSetup()
+	a.clientUI.url = upstream.URL
+	// An imported capture with the same URL must never prove live setup.
+	a.flows = []flow{{id: 9, scheme: "https", url: upstream.URL, at: time.Now(), reqHeaders: "GET /"}}
+	tt := ui.NewTester(a.view, 960, 600)
+	if !tt.HasText("Decrypted HTTPS: not observed for this host since opening setup.") {
+		t.Fatal("imported traffic was mistaken for setup evidence")
+	}
+	if err := tt.Click("Copy client example"); err != nil {
+		t.Fatal(err)
+	}
+	output, err := exec.CommandContext(t.Context(), "sh", "-c", tt.Clipboard()).CombinedOutput()
+	if err != nil || !strings.Contains(string(output), "verified setup result") {
+		t.Fatalf("copied example did not make a trusted HTTPS request: %s %v", output, err)
+	}
+	select {
+	case f := <-srv.Flows():
+		a.pending = append(a.pending, f)
+	case <-time.After(5 * time.Second):
+		t.Fatal("example was not captured")
+	}
+	tt.Frame()
+	if !tt.HasText("Decrypted HTTPS observed · #1 · / · 200") || !tt.HasText("Client CA trust: not verified here. A captured request can also come from a client that skips verification.") {
+		t.Fatalf("capture evidence missing or overstated trust: %v", tt.Texts())
+	}
+}
+
+func TestDesktopLayoutAdaptsAndFocusPreservesCaptureContext(t *testing.T) {
+	a := workspaceApp()
+	tt := ui.NewTester(a.view, 1440, 860)
+	click := func(label string) {
+		t.Helper()
+		if err := tt.Click(label); err != nil {
+			t.Fatal(err)
+		}
+	}
+	click("api.example.com/login")
+	click("Body")
+	check := func(right bool) {
+		t.Helper()
+		method, ok := tt.Find("Method")
+		title, found := tt.Find("POST https://api.example.com/login")
+		if !ok || !found || title.H == 0 || title.Y >= 600 || (title.X > method.X+300) != right {
+			t.Fatalf("inspector not reachable in expected layout: method %v, title %v, right %t", method, title, right)
+		}
+		if f, ok := a.current(); !ok || f.id != 2 || !a.chosen.Has(2) || !tt.HasText("Pretty") {
+			t.Fatal("layout transition lost the inspected request, selection or Body tab")
+		}
+	}
+	check(true)
+	tt.SetSize(960, 600)
+	check(false)
+	click("Focus")
+	if !tt.HasText("Back to list") || tt.HasText("All requests") {
+		t.Fatal("focus did not give the inspector the content area")
+	}
+	tt.Key(ui.Cmd|ui.Shift, ui.KeyEnter)
+	check(false)
+	tt.SetSize(1440, 860)
+	check(true)
+	click("View")
+	if err := tt.ChooseMenuItem("Inspector: Bottom"); err != nil {
+		t.Fatal(err)
+	}
+	check(false)
+	tt.Key(ui.Cmd, ui.KeyB)
+	if tt.HasText("All requests") {
+		t.Fatal("sidebar shortcut did not hide the sidebar")
+	}
+	tt.Key(ui.Cmd, ui.KeyB)
+	if !tt.HasText("All requests") {
+		t.Fatal("sidebar shortcut did not restore the sidebar")
+	}
+}
+
+func TestCommandPaletteKeyboardAndDisabledActions(t *testing.T) {
+	a := workspaceApp()
+	tt := ui.NewTester(a.view, 960, 600)
+	tt.Key(ui.Cmd, ui.KeyK)
+	if !tt.Focused("Find command") {
+		t.Fatal("palette search did not take focus")
+	}
+	tt.Type("Inspector:")
+	tt.Key(0, ui.KeyDown)
+	tt.Key(0, ui.KeyDown)
+	tt.Key(0, ui.KeyEnter)
+	if tt.HasText("Find command") {
+		t.Fatal("executing a command did not close the palette")
+	}
+	// Check the visible effect on a wide window, not the command's storage.
+	tt.SetSize(1440, 860)
+	method, _ := tt.Find("Method")
+	title, _ := tt.Find("GET https://api.example.com/projects")
+	if title.Y <= method.Y+100 {
+		t.Fatalf("arrow navigation did not choose Inspector: Bottom: layout %q, command %d, method %v, title %v", a.workbench.layout, a.workbench.command, method, title)
+	}
+	tt.Key(ui.Cmd, ui.KeyK)
+	tt.Type("not a command")
+	if !tt.HasText("No matching commands") {
+		t.Fatal("empty command results were not explained")
+	}
+	tt.Key(0, ui.KeyEscape)
+	if err := tt.Click("Requests"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Key(ui.Cmd, ui.KeyK)
+	tt.Type("Replay selected")
+	tt.Key(0, ui.KeyEnter)
+	if !tt.HasText("Find command") || tt.HasText("Replay requests") {
+		t.Fatal("unavailable capture action executed in Requests workspace")
+	}
+	tt.Key(0, ui.KeyEscape)
+	if tt.HasText("Find command") {
+		t.Fatal("Escape did not dismiss the palette")
+	}
+}
+
+func TestKeyboardDebuggingLoopDoesNotSendThroughDialogsOrRepeatWhileWaiting(t *testing.T) {
+	var sends atomic.Int32
+	started, release := make(chan string, 2), make(chan struct{})
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		sends.Add(1)
+		started <- r.Method + " " + r.URL.Path
+		select {
+		case <-release:
+		case <-r.Context().Done():
+			return
+		}
+		fmt.Fprint(w, "keyboard response")
+	}))
+	defer upstream.Close()
+	defer close(release)
+	srv, err := capture.New("127.0.0.1:0", t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer srv.Close()
+	if err := srv.Start(); err != nil {
+		t.Fatal(err)
+	}
+	a := workspaceApp()
+	a.srv = srv
+	tt := ui.NewTester(a.view, 1100, 720)
+	tt.Key(ui.Cmd, ui.KeyF)
+	tt.Type("api.example.com")
+	tt.Key(0, ui.KeyEnter)
+	if !tt.Focused("Captured requests") {
+		t.Fatal("search submission did not move focus to the request list")
+	}
+	tt.Key(0, ui.KeyHome)
+	tt.Key(0, ui.KeyDown)
+	tt.Key(0, ui.KeyEnter)
+	if !tt.Focused("Request inspector") || !tt.HasText("POST https://api.example.com/login") {
+		t.Fatal("list Enter did not inspect the focused request")
+	}
+	tt.Key(0, ui.KeyEscape)
+	if !tt.Focused("Captured requests") {
+		t.Fatal("inspector Escape did not restore list focus")
+	}
+	tt.Key(ui.Cmd|ui.Alt, ui.KeyEnter)
+	if !tt.Focused("URL") {
+		t.Fatal("editing a capture did not focus the draft URL")
+	}
+	tt.Key(ui.Cmd, ui.KeyA)
+	tt.Type(upstream.URL + "/keyboard")
+	tt.Key(0, ui.KeyEnter)
+	tt.Key(ui.Cmd, ui.KeyK)
+	tt.Type("Compare source")
+	tt.Key(0, ui.KeyEnter)
+	if !tt.HasText("Send a draft opened from Capture before comparing it with its source") {
+		t.Fatal("unavailable comparison did not explain its prerequisite")
+	}
+	tt.Key(ui.Cmd, ui.KeyEnter)
+	if sends.Load() != 0 || !tt.Focused("Find command") {
+		t.Fatal("Enter or a shortcut through the palette sent a request")
+	}
+	tt.Key(0, ui.KeyEscape)
+	if !tt.Focused("URL") {
+		t.Fatal("dismissing the palette lost the editor's focus")
+	}
+	for range 20 {
+		if tt.Focused("Request headers") {
+			break
+		}
+		tt.Key(0, ui.KeyTab)
+	}
+	if !tt.Focused("Request headers") {
+		t.Fatal("request headers were not keyboard accessible")
+	}
+	tt.Key(ui.Cmd, ui.KeyEnter)
+	select {
+	case got := <-started:
+		if got != "POST /keyboard" {
+			t.Fatalf("sent the wrong draft: %s", got)
+		}
+	case <-time.After(time.Minute):
+		t.Fatal("send never reached the server")
+	}
+	tt.Key(ui.Cmd, ui.KeyEnter)
+	tt.Key(ui.Cmd, ui.KeyW)
+	if !tt.HasText("Sending…") || tt.HasText("Save changes?") || sends.Load() != 1 {
+		t.Fatal("in-flight send could be repeated or its document closed")
+	}
+	release <- struct{}{}
+	deadline := time.Now().Add(time.Minute)
+	for !tt.HasText("200 OK") && time.Now().Before(deadline) {
+		time.Sleep(time.Millisecond)
+		tt.Frame()
+	}
+	if !tt.HasText("200 OK") || sends.Load() != 1 {
+		t.Fatalf("send did not complete once: %v", tt.Texts())
+	}
+	tt.Key(ui.Cmd|ui.Shift, ui.KeyD)
+	if !tt.HasText("Left Source #2") || !tt.HasText("Right Last send") {
+		t.Fatal("keyboard comparison did not show the exact source and send")
+	}
+	tt.Key(ui.Cmd, ui.KeyBracketLeft)
+	if !tt.Focused("Captured requests") || !tt.HasText("URL: api.example.com ×") || !tt.HasText("POST https://api.example.com/login") {
+		t.Fatal("keyboard return lost capture focus, filter or source selection")
+	}
+	tt.Key(ui.Ctrl|ui.Shift, ui.KeyTab)
+	if !tt.Focused("URL") || !tt.HasText("Right Last send") {
+		t.Fatal("cycling back to the draft lost its comparison")
+	}
+	tt.Key(ui.Cmd, ui.KeyW)
+	if !tt.HasText("Save changes?") {
+		t.Fatal("keyboard close discarded unsaved changes")
+	}
+	tt.Key(0, ui.KeyEscape)
+	if !tt.Focused("URL") || !tt.HasText("Right Last send") {
+		t.Fatal("cancelling close lost the draft or editor focus")
+	}
+}
+
+func TestReplayTargetsAndUnavailableActionsAreConsistentAcrossEntries(t *testing.T) {
+	a := workspaceApp()
+	tt := ui.NewTester(a.view, 1100, 720)
+	if err := tt.Click("api.example.com/projects"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Key(ui.Shift, ui.KeyDown)
+	open := func(entry string) {
+		t.Helper()
+		switch entry {
+		case "keyboard":
+			tt.Key(ui.Cmd, ui.KeyR)
+		case "palette":
+			tt.Key(ui.Cmd, ui.KeyK)
+			tt.Type("Replay selected")
+			tt.Key(0, ui.KeyEnter)
+		case "row":
+			if err := tt.RightClick("api.example.com/projects"); err != nil {
+				t.Fatal(err)
+			}
+			if err := tt.ChooseMenuItem("Replay"); err != nil {
+				t.Fatal(err)
+			}
+		case "toolbar":
+			if err := tt.Click("Replay…"); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if !tt.HasText("Replay 2 requests") {
+			t.Fatalf("%s did not target the whole selection: %v", entry, tt.Texts())
+		}
+		tt.Key(0, ui.KeyEscape)
+	}
+	for _, entry := range []string{"keyboard", "palette", "row", "toolbar"} {
+		open(entry)
+	}
+	tt.Key(ui.Cmd|ui.Alt, ui.KeyEnter)
+	if tt.HasText("Source: Capture") {
+		t.Fatal("bulk edit silently chose a single request")
+	}
+	a.flows[1].kind = "connect"
+	tt.Frame()
+	tt.Key(ui.Cmd, ui.KeyR)
+	if tt.HasText("Replay 2 requests") {
+		t.Fatal("mixed tunnel selection silently replayed only the HTTP subset")
+	}
+	tt.Key(ui.Cmd, ui.KeyK)
+	tt.Type("Replay selected")
+	if !tt.HasText("Choose HTTP requests only; tunnels and streams cannot be replayed") {
+		t.Fatal("mixed selection did not explain why replay is unavailable")
+	}
+}
+
+func TestNativeCommandsRespectModalScopeAndDraftCloseProtection(t *testing.T) {
+	a := workspaceApp()
+	menu := a.menu()
+	tt := ui.NewTester(a.view, 1100, 720)
+	choose := func(id string) {
+		t.Helper()
+		item := menu.ItemByID(id)
+		if item == nil || !item.IsEnabled() {
+			t.Fatalf("native command %s unavailable", id)
+		}
+		item.Click(item, nil)
+		tt.Frame()
+	}
+	choose("edit")
+	if !tt.Focused("URL") {
+		t.Fatal("native edit did not open the focused capture")
+	}
+	choose("close-request")
+	if !tt.HasText("Save changes?") {
+		t.Fatal("native close bypassed unsaved draft protection")
+	}
+	// A native callback queued before the focus changed must be rejected too.
+	item := menu.ItemByID("new-request")
+	item.Click(item, nil)
+	tt.Frame()
+	if tt.HasText("Request tab: Untitled request") || !tt.HasText("Save changes?") {
+		t.Fatal("native command escaped the modal scope")
+	}
+	tt.Key(0, ui.KeyEscape)
+	if !tt.Focused("URL") {
+		t.Fatal("native close cancellation did not restore draft focus")
+	}
+	choose("back")
+	if !tt.Focused("Captured requests") {
+		t.Fatal("native Back did not restore capture focus")
+	}
+}
+
+func TestFilterTokensRemoveOnlyTheirOwnCondition(t *testing.T) {
+	a := workspaceApp()
+	a.views.init(a, "")
+	a.query, a.filterStatus = "login", "4xx"
+	a.filterTriage.Method = "POST"
+	a.applyFilter()
+	tt := ui.NewTester(a.view, 960, 600)
+	if err := tt.Click("Status: 4xx ×"); err != nil {
+		t.Fatal(err)
+	}
+	if !tt.HasText("URL: login ×") || !tt.HasText("Method: POST ×") || tt.HasText("Status: 4xx ×") || len(a.visible) != 1 {
+		t.Fatal("removing status cleared other conditions or left a stale token")
+	}
+	if err := tt.Click("Reset all"); err != nil {
+		t.Fatal(err)
+	}
+	if len(a.visible) != 2 || tt.HasText("URL: login ×") || tt.HasText("Method: POST ×") {
+		t.Fatal("reset did not remove all capture conditions")
+	}
+	// Full-body conditions live on the view, not the URL search model.
+	a.views.activeView().body = "projects"
+	a.views.applyFilter(a)
+	settle(t, a, &a.views)
+	tt.Frame()
+	if len(a.visible) != 1 {
+		t.Fatal("body fixture did not narrow the view")
+	}
+	if err := tt.Click("Body: projects ×"); err != nil {
+		t.Fatal(err)
+	}
+	if len(a.visible) != 2 || a.filtersActive() {
+		t.Fatal("body token did not remove the full-body search condition")
 	}
 }

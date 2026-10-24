@@ -13,13 +13,13 @@ import (
 
 // sseReader wraps an io.Reader to parse SSE events and trigger hooks
 type sseReader struct {
-	flow     *Flow
-	proxy    *Proxy
-	reader   *bufio.Reader
-	buffer   []byte      // 当前事件累积的数据
-	started  bool
-	ended    bool
-	mu       sync.Mutex
+	flow    *Flow
+	proxy   *Proxy
+	reader  *bufio.Reader
+	buffer  []byte // 当前事件累积的数据
+	started bool
+	ended   bool
+	mu      sync.Mutex
 }
 
 // newSSEReader creates a new SSE reader wrapper
@@ -189,7 +189,7 @@ func (sr *sseReader) parseEvent(text string) *SSEEvent {
 	return event
 }
 
-// triggerEnd 触发 SSE 结束 hook
+// triggerEnd marks this reader exhausted; the request handler emits SSEEnd.
 func (sr *sseReader) triggerEnd() {
 	if sr.ended {
 		return
@@ -197,9 +197,7 @@ func (sr *sseReader) triggerEnd() {
 
 	sr.ended = true
 
-	for _, addon := range sr.proxy.Addons {
-		addon.SSEEnd(sr.flow)
-	}
-
+	// The request handler owns SSEEnd, including downstream disconnects
+	// that prevent this reader from observing EOF.
 	log.Debugf("SSE stream ended for %s", sr.flow.Request.URL.String())
 }
