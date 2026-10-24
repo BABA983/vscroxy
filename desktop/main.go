@@ -230,6 +230,7 @@ type app struct {
 	history      []historyEntry
 	historyPath  string
 	historyOpen  bool
+	experiments  experimentWorkbench
 
 	// The active document is embedded so the editor's fields always belong
 	// to that tab. Workers return results to their originating document.
@@ -393,6 +394,7 @@ func newApp() *app {
 	if home, err := os.UserHomeDir(); err == nil {
 		a.views.init(a, filepath.Join(home, ".vscroxy", "views.json"))
 		a.protobuf.init(filepath.Join(home, ".vscroxy", "protobuf.pb"))
+		a.loadExperiments(filepath.Join(home, ".vscroxy", "experiments.json"))
 	}
 	return a
 }
@@ -680,6 +682,13 @@ func (a *app) drain() {
 		if result.history != nil {
 			a.history = pushHistory(a.history, *result.history)
 			a.saveHistory()
+		}
+		if result.experiment != nil {
+			if err := a.experiments.log.retain(*result.experiment); err != nil {
+				a.experiments.problem = "Experiment not retained: " + err.Error()
+			} else {
+				a.experiments.persist()
+			}
 		}
 	}
 
@@ -1004,6 +1013,7 @@ func (a *app) view(c *ui.Context) {
 		a.statusBar(c, t)
 	})
 	a.persistSettings()
+	a.checkpointExperiments(c)
 	a.commandPalette(c)
 	ui.Modal(c, &a.clearOpen, func() {
 		ui.Column(c).Width(360).Gap(12).Children(func() {
@@ -1052,6 +1062,7 @@ func (a *app) view(c *ui.Context) {
 	a.devicesModal(c, t)
 	a.clientSetupModal(c, t)
 	a.diagnosticsModal(c, t)
+	a.experimentsModal(c, t)
 	a.runnerModal(c, t)
 	a.cookiesModal(c, t)
 	a.regressionModal(c, t)
@@ -2178,6 +2189,8 @@ func runDesktop() error {
 	defer cleanupProxy() // before the listener closes, even if Run returns an error
 	mygo.App.OnBeforeQuit(a.beforeProxyQuit)
 	mygo.App.OnQuit(cleanupProxy) // native termination may not return from Run
+	mygo.App.OnQuit(a.experiments.close)
+	defer a.experiments.close()
 	defer a.discardRuleDraft()
 	defer a.disableDevices()
 	defer a.views.stopSearch()
@@ -2493,6 +2506,7 @@ func (a *app) sendComposed() {
 		return
 	}
 	d.composeWaiting, d.composeResult = true, "Sending…"
+	d.experimentID = 0
 	r, env, vars, srv, jar := d.value(), a.activeEnv, a.activeVars(), a.srv, a.requestCookies()
 	if r.Checks != (responseChecks{}) {
 		d.responseTab = 2
@@ -2502,6 +2516,8 @@ func (a *app) sendComposed() {
 		defer cancel()
 		got := executeRequest(ctx, srv, r, vars, jar)
 		result := requestResult{document: d, environment: env, summary: got.summary(), response: got.response, tests: got.tests, replies: got.replies, varsBefore: vars, vars: got.vars}
+		record := snapshotExperiment(0, r, env, got)
+		result.experiment = &record
 		if got.request != nil {
 			result.history = &historyEntry{Method: got.request.Method, URL: got.request.URL, Headers: r.Headers, Body: r.Body, Draft: &r, At: time.Now()}
 		}

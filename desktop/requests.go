@@ -23,6 +23,7 @@ type requestDocument struct {
 	savedKey          string
 	baseline          savedRequest
 	sourceFlow        int
+	experimentID      int
 	source            *flow
 	sourceView        *captureView
 	comparison        captureAnalysis
@@ -67,6 +68,7 @@ type requestResult struct {
 	varsBefore  map[string]string
 	vars        map[string]string
 	history     *historyEntry
+	experiment  *experimentRecord
 }
 
 func (d *requestDocument) value() savedRequest {
@@ -290,6 +292,9 @@ func (a *app) composeView(c *ui.Context, t *ui.Theme) {
 				if ui.Button(c, "Variables…").FontSize(11).Clicked() {
 					a.openVars()
 				}
+				if ui.Button(c, "Experiments…").FontSize(11).Clicked() {
+					a.experiments.open = true
+				}
 				a.desktopButton(c, "save-request", "Save request")
 				ui.MenuButton(c, "Case", func(m *ui.Menu) {
 					if m.Item("Share regression…").Chosen() {
@@ -300,6 +305,9 @@ func (a *app) composeView(c *ui.Context, t *ui.Theme) {
 					}
 				}).FontSize(11)
 			})
+			if d.experimentID != 0 {
+				ui.Text(c, fmt.Sprintf("Recorded experiment #%d · opening did not send a request", d.experimentID)).FontSize(11).TextColor(t.TextMuted).Padding(4, 18)
+			}
 			if d.sourceFlow != 0 {
 				ui.Row(c).Height(24).Padding(0, 18).Gap(8).AlignItems(ui.Center).Children(func() {
 					ui.Text(c, fmt.Sprintf("Source: Capture #%d · editable draft", d.sourceFlow)).FontSize(11).TextColor(t.TextMuted)

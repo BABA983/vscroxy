@@ -2606,3 +2606,83 @@ func TestCaptureDiagnosticsEmptyAndInvalidTargetsDoNotClaimProxyFailure(t *testi
 		t.Fatal("Escape did not return to the unchanged capture view")
 	}
 }
+
+func TestExperimentWorkbenchComparesIndependentRunsAndReopensWithoutSending(t *testing.T) {
+	a := workspaceApp()
+	draft := savedRequest{Method: "POST", URL: "https://example.test/items", Body: "original"}
+	for i, body := range []string{`{"value":1,"timestamp":10}`, `{"value":2,"timestamp":20}`} {
+		draft.Body = fmt.Sprintf("attempt %d", i+1)
+		if err := a.experiments.log.retain(snapshotExperiment(0, draft, "staging", requestExecution{response: &capture.Flow{Method: "POST", URL: draft.URL, Status: 200, RequestBody: draft.Body, ResponseBody: body}})); err != nil {
+			t.Fatal(err)
+		}
+	}
+	tt := ui.NewTester(a.view, 1440, 900)
+	click := func(label string) {
+		t.Helper()
+		if err := tt.Click(label); err != nil {
+			t.Fatal(err)
+		}
+	}
+	copyText := func(label string) string {
+		t.Helper()
+		click(label)
+		tt.Key(ui.Cmd, ui.KeyA)
+		tt.Key(ui.Cmd, ui.KeyC)
+		return tt.Clipboard()
+	}
+	tt.Key(ui.Cmd, ui.KeyK)
+	tt.Type("Experiment workbench")
+	tt.Key(0, ui.KeyEnter)
+	click("Experiment #1")
+	click("Set baseline")
+	click("Experiment #2")
+	click("Compare with left")
+	if got := copyText("Old text"); got != `{"value":1,"timestamp":10}` {
+		t.Fatalf("old run = %q", got)
+	}
+	if got := copyText("New text"); got != `{"value":2,"timestamp":20}` {
+		t.Fatalf("new run = %q", got)
+	}
+	click("Ignore JSON keys")
+	tt.Type("timestamp")
+	if got := copyText("Old text"); got != `{"value":1}` {
+		t.Fatalf("filtered old run = %q", got)
+	}
+	if got := copyText("New text"); got != `{"value":2}` {
+		t.Fatalf("filtered new run = %q", got)
+	}
+	click("Experiment #1")
+	click("Recorded result")
+	if got := copyText("Experiment result"); !strings.Contains(got, `"timestamp":10`) {
+		t.Fatal("comparison rewrote the original snapshot")
+	}
+	click("Open as draft")
+	if !tt.HasText("Recorded experiment #1") || a.composeWaiting || a.composeBody != "attempt 1" || a.response.ResponseBody != `{"value":1,"timestamp":10}` {
+		t.Fatal("opening a historical run sent it, chose the wrong snapshot, or lost its result")
+	}
+}
+
+func TestExperimentDraftCheckpointRestoresUnsavedEditsAndCloseFlushes(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "experiments.json")
+	a := workspaceApp()
+	a.loadExperiments(path)
+	a.addDocument(savedRequest{Name: "Draft A", Method: "POST", URL: "https://example.test/a", Body: "unsaved body"}, "")
+	a.addDocument(savedRequest{Name: "Draft B", Method: "GET", URL: "https://example.test/b"}, "")
+	tt := ui.NewTester(a.view, 960, 600)
+	if err := tt.Click("URL"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Key(ui.Cmd, ui.KeyA)
+	tt.Type("https://example.test/edited")
+	// Closing immediately, without waiting for the debounce, must save the last edit.
+	a.experiments.close()
+	b := workspaceApp()
+	b.loadExperiments(path)
+	defer b.experiments.close()
+	if len(b.documents) != 2 || b.documents[0].composeBody != "unsaved body" || b.composeURL != "https://example.test/edited" || !b.documents[0].dirty() || b.composeWaiting {
+		t.Fatal("restart lost drafts/active tab/dirty state or sent a request")
+	}
+	if len(b.experiments.log.Records) != 0 {
+		t.Fatal("restoring drafts invented an experiment")
+	}
+}

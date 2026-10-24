@@ -975,8 +975,9 @@ vscroxy mapping instead of silently inheriting conflicting shortcuts.
 **Edit & replay** opens a named request tab beside **Traffic**. The same tab strip
 stays visible in Capture and Requests, so a draft and its response remain one
 click away while traffic continues arriving. Unsaved tabs still require save or
-discard before closing. These open debugging contexts are session-only, not
-automatically saved requests.
+discard before closing. Open request drafts, their active tab and saved/unsaved
+baseline are checkpointed privately for restart; they are not automatically
+added to the saved request library and never send on restore.
 
 **Back to traffic** returns to the draft's original capture view without clearing
 search, protocol, header/body or triage conditions, changing its chosen request,
@@ -998,6 +999,32 @@ the forwarded exchange; followed redirects can return a response from another
 URL. Capture remains the source for individual wire exchanges. Previews are
 bounded to 8 MiB and explicitly mark incomplete text. Sending is a real network
 operation and is not undone by returning to Traffic or closing a tab.
+
+### Experiment workbench
+
+**Experiments…** in Requests or **Commands → Experiment workbench…** retains
+independent snapshots of each completed send, including failed attempts: authored
+draft, environment name (not its variables), prepared request/final response,
+checks, summary and notes. Repeated method/URL attempts remain separate. Choose
+a baseline or **Use as left**, then compare any other attempt using the existing
+body/header diff. **Ignore JSON keys** removes comma-separated top-level response
+keys only in the comparison; invalid or incomplete JSON is never normalized.
+Original snapshots stay unchanged. **Open as draft** restores the original
+editable request and recorded result without sending or running scripts.
+
+`~/.vscroxy/experiments.json` is an atomic, private (0600), unencrypted checkpoint.
+It may contain credentials and bodies. It keeps at most 100 attempts / 32 MiB,
+evicting oldest non-baseline attempts, and at most 256 KiB per request/response
+payload with explicit truncation/missing-body warnings. Binary payloads survive
+restart losslessly and never depend on temporary capture spill files. Open drafts
+retain their full authored content within the same 32 MiB budget; an oversized
+checkpoint reports an error rather than silently discarding draft data. Corrupt
+or unsupported archives are left untouched and reported read-only. Notes and
+baseline persist; comparison layout and ignored-key choices are session-local.
+**Clear experiments…** asks before removing records; it leaves open drafts,
+saved requests and captured traffic alone. This is a debugging notebook, not a
+complete wire archive: redirect hops remain in Capture and cookies/variables may
+have changed since a run.
 
 ## Next
 
