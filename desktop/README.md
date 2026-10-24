@@ -1073,6 +1073,34 @@ saved requests and captured traffic alone. This is a debugging notebook, not a
 complete wire archive: redirect hops remain in Capture and cookies/variables may
 have changed since a run.
 
+### Cross-session investigations
+
+**Session / Commands → Investigate saved sessions…** opens historical session or
+evidence JSON files without replacing Capture, changing rules, running scripts
+or sending requests. Choose sources in the two panes, select exchanges across
+files and **Compare selected two** using the existing header/body comparison.
+Identical request IDs in different files remain independent. Search is a literal,
+case-insensitive match on URL, numeric status, exchange/source notes and errors;
+it does not scan headers, bodies or messages. Selections survive filtering and
+source changes, including hidden matches; **Clear selection** removes them.
+
+Add an evidence title and notes, then **Review selected evidence…**. The editable
+JSON contains only the selected exchanges and their associated messages, with
+source labels, binary payloads, trailers and incomplete-capture diagnostics.
+**This is raw evidence, not automatically sanitized:** credentials, cookies,
+URL secrets, bodies, base64 payloads and private notes may remain. Review all
+fields and manually remove secrets before sharing. Export requires explicit
+confirmation; any subsequent edit clears that confirmation. The atomic, private
+(0600) export preserves exactly the reviewed JSON and can be reopened here.
+
+Opening files is bounded to 8 sources / 48 MiB of canonical JSON in memory,
+16 MiB per file, 2,000 exchanges and 10,000 messages per source. Evidence export
+is limited to 64 exchanges / 4 MiB. Oversized inputs/selections report an error
+rather than silently dropping evidence. Files are read off the UI thread and
+never autosaved or reopened on launch; **Forget opened files** releases the
+reader's sources without deleting the originals. Imported evidence remains
+historical data, not verified current network or certificate state.
+
 ## Next
 
 - Structured query/auth/form-data editors, cookie management, collection folders

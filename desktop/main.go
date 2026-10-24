@@ -225,13 +225,14 @@ type app struct {
 
 	// requests are the saved requests, the Compose direction's kept half,
 	// and history what Compose sent.
-	requests     []savedRequest
-	requestsPath string
-	history      []historyEntry
-	historyPath  string
-	historyOpen  bool
-	experiments  experimentWorkbench
-	socket       websocketWorkbench
+	requests       []savedRequest
+	requestsPath   string
+	history        []historyEntry
+	historyPath    string
+	historyOpen    bool
+	experiments    experimentWorkbench
+	socket         websocketWorkbench
+	investigations investigationWorkbench
 
 	// The active document is embedded so the editor's fields always belong
 	// to that tab. Workers return results to their originating document.
@@ -1065,6 +1066,7 @@ func (a *app) view(c *ui.Context) {
 	a.diagnosticsModal(c, t)
 	a.experimentsModal(c, t)
 	a.socketModal(c, t)
+	a.investigations.modal(c, a)
 	a.runnerModal(c, t)
 	a.cookiesModal(c, t)
 	a.regressionModal(c, t)
@@ -1273,6 +1275,7 @@ func (a *app) toolbar(c *ui.Context, t *ui.Theme) {
 			if m.Item("Open session…").Chosen() {
 				a.openSession()
 			}
+			a.desktopMenuItem(c, m, "investigations", "Investigate saved sessions…")
 			if m.Item("Import HAR…").Chosen() {
 				a.importHAR()
 			}
@@ -2196,6 +2199,8 @@ func runDesktop() error {
 	defer a.experiments.close()
 	mygo.App.OnQuit(func() { a.socket.session.disconnect() })
 	defer func() { a.socket.session.disconnect() }()
+	mygo.App.OnQuit(a.investigations.close)
+	defer a.investigations.close()
 	defer a.discardRuleDraft()
 	defer a.disableDevices()
 	defer a.views.stopSearch()
