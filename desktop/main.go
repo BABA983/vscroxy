@@ -154,12 +154,15 @@ type app struct {
 	upstreamOpen bool
 	upstreamAddr string
 
-	// ssl is what the proxy decrypts: every domain, or those listed. It is
-	// edited as text and kept in a file.
-	sslPath  string
-	sslAll   bool
-	sslHosts string
-	sslOpen  bool
+	// ssl keeps the active domain/executable rules and an isolated editor
+	// draft. Cancelling the editor never changes active inspection.
+	sslPath       string
+	sslAll        bool
+	sslHosts      string
+	sslApps       []capture.SSLApp
+	sslOpen       bool
+	sslDraft      *capture.SSLConfig
+	sslDraftHosts string
 
 	// dark draws the window in the dark theme.
 	dark bool
@@ -442,6 +445,7 @@ func (a *app) reloadConfig() {
 			a.srv.SetSSL(cfg)
 			a.sslAll = cfg.All
 			a.sslHosts = strings.Join(cfg.Hosts, "\n")
+			a.sslApps = slices.Clone(cfg.Apps)
 		}
 	}
 	if a.rulesPath != "" {
@@ -1044,9 +1048,6 @@ func (a *app) view(c *ui.Context) {
 		if a.workspace == 1 || a.workspace == 0 && len(a.documents) > 0 {
 			a.documentTabs(c, t)
 		}
-		if a.workspace == 0 {
-			a.captureToolbar(c, t)
-		}
 		a.desktopContent(c)
 		a.statusBar(c, t)
 	})
@@ -1213,7 +1214,7 @@ func (a *app) breakpointModal(c *ui.Context, t *ui.Theme) {
 }
 
 func (a *app) toolbar(c *ui.Context, t *ui.Theme) {
-	ui.Row(c).Height(44).Padding(0, 12).Gap(6).AlignItems(ui.Center).Background(t.Surface).Children(func() {
+	ui.Toolbar(c, func() {
 		ui.Text(c, "vscroxy").FontSize(14).Bold().Width(80)
 		nav := ui.TabsBase(c, &a.workspace, 3)
 		nav.List.Gap(4).Children(func() {
@@ -1341,7 +1342,12 @@ func (a *app) toolbar(c *ui.Context, t *ui.Theme) {
 		ui.MenuButton(c, "View", func(m *ui.Menu) {
 			for _, action := range a.desktopActions(c) {
 				if strings.HasPrefix(action.id, "layout-") || action.id == "sidebar" || action.id == "focus" {
-					if m.Item(action.label).Shortcut(action.mods, action.key).Disabled(!action.enabled).Chosen() {
+					item := m.Item(action.label).Shortcut(action.mods, action.key).Disabled(!action.enabled)
+					if action.id == "layout-bottom" || action.id == "layout-right" || action.id == "layout-auto" {
+						layout := cmp.Or(a.workbench.layout, "bottom")
+						item.Checked(action.id == "layout-"+layout || action.id == "layout-auto" && layout == "adaptive")
+					}
+					if item.Chosen() {
 						action.run()
 					}
 				}
@@ -1378,7 +1384,7 @@ func (a *app) toolbar(c *ui.Context, t *ui.Theme) {
 		}).Clicked() {
 			a.openCompose()
 		}
-	})
+	}).Label("Workbench").Height(44).Padding(0, 12).Gap(6).Background(t.Surface)
 	ui.Divider(c)
 }
 
@@ -1423,18 +1429,28 @@ func (a *app) sidebar(c *ui.Context) {
 					ui.Badge(c, fmt.Sprint(a.count(func(f flow) bool { return f.millis >= 120 })))
 				})
 			})
-			ui.SidebarSection(c, "Domains", &a.domainsOpen, func() {
-				for _, d := range a.domains {
-					ui.SidebarItem(c, "host:"+d.name, nil, d.name).Children(func() {
-						ui.Badge(c, fmt.Sprint(d.n))
-					})
-				}
-			})
 			if len(a.clients) > 0 {
 				ui.SidebarSection(c, "Apps", &a.clientsOpen, func() {
 					for _, d := range a.clients {
+						apps := a.capturedApps(d.name)
 						ui.SidebarItem(c, "client:"+d.name, nil, d.name).
 							ContextMenu(func(m *ui.Menu) {
+								if len(apps) == 1 {
+									a.appInspectionMenu(m, apps[0])
+								} else {
+									m.Submenu("HTTPS inspection by executable", func(m *ui.Menu) {
+										if len(apps) == 0 {
+											m.Item("Local executable identity unavailable").Disabled(true)
+										}
+										for _, app := range apps {
+											m.Submenu(app.Path, func(m *ui.Menu) { a.appInspectionMenu(m, app) })
+										}
+									})
+								}
+								if m.Item("View HTTPS rules…").Chosen() {
+									a.sslOpen = true
+								}
+								m.Separator()
 								if m.Item("Map a host for " + d.name + "…").Chosen() {
 									a.openDNSRule("", d.name)
 								}
@@ -1445,10 +1461,24 @@ func (a *app) sidebar(c *ui.Context) {
 					}
 				})
 			}
-		}).Fill()
+			ui.SidebarSection(c, "Domains", &a.domainsOpen, func() {
+				for _, d := range a.domains {
+					ui.SidebarItem(c, "host:"+d.name, nil, d.name).Children(func() {
+						ui.Badge(c, fmt.Sprint(d.n))
+					})
+				}
+			})
+		}).Grow(1)
 		if chosen.Changed() {
 			a.applyFilter()
 		}
+		ui.Toolbar(c, func() {
+			if ui.Button(c, "HTTPS rules").Label("Manage HTTPS rules").Children(func() {
+				ui.Icon(c, lockIcon).Size(14, 14)
+			}).FillWidth().Height(30).FontSize(12).Clicked() {
+				a.sslOpen = true
+			}
+		}).Padding(8).FillWidth()
 	})
 }
 
@@ -1544,7 +1574,7 @@ func (a *app) table(c *ui.Context) {
 		return
 	}
 	cols := []ui.TableColumn{
-		{ID: "method", Title: "Method", Width: 80, Sortable: true},
+		{ID: "method", Title: "Method", Width: 92, Sortable: true},
 		{ID: "status", Title: "Status", Width: 78, Align: ui.End, Sortable: true},
 		{ID: "url", Title: "URL", MinWidth: 180, Sortable: true},
 	}
@@ -1590,7 +1620,7 @@ func (a *app) table(c *ui.Context) {
 					ui.Box(c).Size(8, 8).Radius(4).Background(dot).MarginEnd(5)
 				}
 			}
-			text(f.method).TextColor(color)
+			text(f.method).TextColor(color).Padding(2, 5).Radius(3).Background(color.Alpha(0.10))
 		case 1:
 			if f.conn.error != "" {
 				text("Failed").TextColor(rowColor(chosen, t, t.Danger)).Tooltip(f.conn.errorStage + ": " + f.conn.error)
@@ -1608,7 +1638,7 @@ func (a *app) table(c *ui.Context) {
 			if chosen {
 				color = t.AccentText
 			}
-			text(fmt.Sprint(f.status)).TextColor(color)
+			text(fmt.Sprint(f.status)).TextColor(color).Padding(2, 5).Radius(3).Background(color.Alpha(0.10))
 		case 2:
 			scheme := ui.Hex("#71717a")
 			if f.scheme == "https" {
@@ -1619,6 +1649,9 @@ func (a *app) table(c *ui.Context) {
 				scheme = t.AccentText
 			}
 			ui.Row(c).Gap(1).Children(func() {
+				if f.kind == "connect" {
+					ui.Icon(c, lockIcon).Size(11, 11).TextColor(rest).MarginEnd(5).Tooltip("Encrypted tunnel; CONNECT success is not a decrypted response")
+				}
 				if f.note != "" {
 					ui.Icon(c, noteIcon).Size(11, 11).TextColor(ui.Hex("#a1a1aa")).MarginEnd(4).Tooltip(f.note)
 				}
@@ -1629,8 +1662,8 @@ func (a *app) table(c *ui.Context) {
 							ui.Text(c, "DNS").FontSize(9).Bold().TextColor(ui.Hex("#ffffff"))
 						})
 				}
-				text(f.scheme + "://").Shrink(0).TextColor(scheme).ContextMenu(a.rowMenu(c, f))
-				text(f.host + f.path).TextColor(rest).Tooltip(f.url).ContextMenu(a.rowMenu(c, f))
+				text(f.scheme + "://").Font("monospace").Shrink(0).TextColor(scheme).ContextMenu(a.rowMenu(c, f))
+				text(f.host + f.path).Font("monospace").TextColor(rest).Tooltip(f.url).ContextMenu(a.rowMenu(c, f))
 			})
 		case headerCol:
 			value := f.respHeader.Get(a.headerColumn)
@@ -1677,7 +1710,7 @@ func (a *app) detail(c *ui.Context) {
 		ui.Row(c).Height(34).Padding(0, 12).Gap(8).AlignItems(ui.Center).Children(func() {
 			if ok {
 				ui.Text(c, fmt.Sprintf("%s %s://%s%s", f.method, f.scheme, f.host, f.path)).
-					FontSize(12).Bold().TextColor(t.Text).SingleLine().Grow(1).Tooltip(f.url)
+					FontSize(12).Font("monospace").TextColor(t.Text).SingleLine().Grow(1).Tooltip(f.url)
 			} else {
 				ui.Text(c, "No request chosen").FontSize(12).TextColor(t.TextMuted).Grow(1)
 			}
@@ -2092,6 +2125,16 @@ func (a *app) messages(c *ui.Context, f flow) {
 func (a *app) statusBar(c *ui.Context, t *ui.Theme) {
 	ui.Divider(c)
 	ui.Row(c).Height(28).Padding(0, 14).Gap(16).AlignItems(ui.Center).Children(func() {
+		proxyLabel, proxyColor := "Capture stopped", t.TextMuted
+		if a.srv != nil && a.srv.Running() {
+			proxyLabel, proxyColor = "Live · "+a.srv.Addr(), t.Success
+		}
+		if ui.ButtonBase(c).Label("Proxy status").Height(22).Gap(6).AlignItems(ui.Center).Tooltip("Proxy settings · listener status, not HTTPS decryption status").Children(func() {
+			ui.Box(c).Size(6, 6).Radius(3).Background(proxyColor)
+			ui.Text(c, proxyLabel).FontSize(11).TextColor(t.TextMuted).SingleLine()
+		}).Clicked() {
+			a.settingsTab, a.settingsOpen = 1, true
+		}
 		// Each item stays on one line: the bar narrows as things are turned
 		// on, and a wrapped bar reads worse than a short one.
 		label := func(s string, color ui.Color) ui.Element {
@@ -2359,6 +2402,12 @@ func (a *app) rowMenu(c *ui.Context, f flow) func(*ui.Menu) {
 		if m.Item("Map this host…").Chosen() {
 			a.openDNSRule(hostOnly(f.host), f.process)
 		}
+		m.Submenu("HTTPS inspection", func(m *ui.Menu) {
+			a.appInspectionMenu(m, capture.SSLApp{Name: f.process, Path: f.processPath})
+			if m.Item("View HTTPS rules…").Chosen() {
+				a.sslOpen = true
+			}
+		})
 		desktopMenuItem(m, actions, "edit", "Edit & resend")
 		if m.Item("Save as request").Chosen() {
 			a.saveFlowAsRequest(f)
@@ -3027,25 +3076,61 @@ func (a *app) matchesChip(f flow) bool {
 // sslModal edits what the proxy decrypts.
 func (a *app) sslModal(c *ui.Context, t *ui.Theme) {
 	if !a.sslOpen {
+		a.sslDraft = nil
 		return
 	}
+	if a.sslDraft == nil {
+		// The enable-rule toast must not cover this editor's Save/Cancel
+		// buttons in a small window. Later save errors still remain visible.
+		c.CloseToast("")
+		cfg := a.inspectionConfig()
+		a.sslDraft, a.sslDraftHosts = &cfg, a.sslHosts
+	}
+	draft := a.sslDraft
+	width, height := c.Size()
 	ui.Modal(c, &a.sslOpen, func() {
-		ui.Column(c).Width(520).Gap(10).Children(func() {
+		ui.Column(c).Width(min(580, width-64)).Height(min(510, height-80)).Gap(12).Children(func() {
 			ui.Text(c, "SSL proxying").FontSize(14).Bold()
-			ui.Text(c, "HTTPS stays encrypted until a domain is enabled and the client trusts the CA. A domain also matches its subdomains. Changes apply to new connections; reconnect the client and retry.").
+			ui.Text(c, "Enable a domain or a local executable. New connections only; clients must trust the CA. Enabling a rule does not prove decryption succeeded.").
 				FontSize(11).TextColor(t.TextMuted)
-			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-				ui.Switch(c, &a.sslAll)
-				ui.Text(c, "Decrypt every domain").FontSize(12).TextColor(t.Text)
+			ui.Scroll(c).Grow(1).FillWidth().Gap(10).Children(func() {
+				ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+					ui.Switch(c, &draft.All).Label("Decrypt every domain")
+					ui.Text(c, "Decrypt every domain").FontSize(12).TextColor(t.Text)
+				})
+				ui.Text(c, "Domains and subdomains").FontSize(12).Bold()
+				ui.TextArea(c, &a.sslDraftHosts).Height(100).Label("Decryption domains")
+				ui.Divider(c)
+				ui.Text(c, "Local apps").FontSize(12).Bold()
+				ui.Text(c, "Exact executable paths, not app names or parent/Helper groups. Add from a captured request or an App's context menu.").FontSize(11).TextColor(t.TextMuted)
+				if len(draft.Apps) == 0 {
+					ui.Text(c, "No app rules enabled.").FontSize(12).TextColor(t.TextMuted)
+				}
+				remove := -1
+				for i, app := range draft.Apps {
+					ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+						ui.Column(c).Grow(1).Gap(2).Children(func() {
+							ui.Text(c, app.Name).FontSize(12)
+							ui.Text(c, app.Path).FontSize(10).TextColor(t.TextMuted).SingleLine().Tooltip(app.Path)
+						})
+						if ui.Button(c, "Remove").Label("Remove HTTPS app: " + app.Path).FontSize(11).Clicked() {
+							remove = i
+						}
+					})
+				}
+				if remove >= 0 {
+					draft.Apps = slices.Delete(draft.Apps, remove, remove+1)
+				}
 			})
-			ui.TextArea(c, &a.sslHosts).Height(120).Label("Decryption domains")
 			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
 				if ui.Button(c, "Cancel").Clicked() {
 					a.sslOpen = false
 				}
 				if ui.PrimaryButton(c, "Save").Clicked() {
-					a.saveSSL(capture.SSLConfig{All: a.sslAll, Hosts: splitHosts(a.sslHosts)})
-					a.sslOpen = false
+					draft.Hosts = splitHosts(a.sslDraftHosts)
+					if a.saveSSL(*draft) {
+						a.sslOpen = false
+					}
 				}
 			})
 		})
@@ -3074,10 +3159,11 @@ func (a *app) saveSSL(cfg capture.SSLConfig) bool {
 		a.srv.SetSSL(cfg)
 	}
 	a.sslAll, a.sslHosts = cfg.All, strings.Join(cfg.Hosts, "\n")
+	a.sslApps = slices.Clone(cfg.Apps)
 	if cfg.All {
 		a.setMessage("SSL proxying: every domain")
 	} else {
-		a.setMessage(fmt.Sprintf("SSL proxying: %d domains", len(cfg.Hosts)))
+		a.setMessage(fmt.Sprintf("SSL proxying: %d domains, %d local apps · new connections only", len(cfg.Hosts), len(cfg.Apps)))
 	}
 	return true
 }
@@ -3086,7 +3172,7 @@ func (a *app) saveSSL(cfg capture.SSLConfig) bool {
 // tunnel.
 func (a *app) decryptHost(host string) {
 	host = strings.ToLower(strings.TrimSuffix(strings.Trim(hostOnly(host), "[]"), "."))
-	cfg := capture.SSLConfig{All: a.sslAll, Hosts: splitHosts(a.sslHosts)}
+	cfg := a.inspectionConfig()
 	if host != "" && !slices.Contains(cfg.Hosts, host) {
 		cfg.Hosts = append(cfg.Hosts, host)
 	}

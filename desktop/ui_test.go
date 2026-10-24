@@ -463,11 +463,11 @@ func TestHTTPSSetupExplainsTunnelsAndEnablesOnlyTheSelectedDomain(t *testing.T) 
 		tt.Frame()
 	}
 	waitCertificate()
-	if !tt.HasText("Encrypted tunnel — not individual requests") || !tt.HasText("3  Domain decryption disabled") || !tt.HasText("2  Trust not verified on this system") {
+	if !tt.HasText("Encrypted tunnel — not individual requests") || !tt.HasText("Domain decryption disabled") || !tt.HasText("Trust not verified on this system") {
 		t.Fatalf("tunnel setup missing or an uninstalled CA was reported trusted: %q", tt.Texts())
 	}
 	click("Enable for dc.dlife.cn:18443")
-	if !tt.HasText("3  Domain decryption is now enabled") || !tt.HasText("Encrypted tunnel — not individual requests") {
+	if !tt.HasText("Domain rule enabled · reconnect to inspect new requests") || !tt.HasText("Encrypted tunnel — not individual requests") {
 		t.Fatal("enabling a domain must not make the old CONNECT appear decrypted")
 	}
 	cfg, err := capture.LoadSSL(a.sslPath)
@@ -499,8 +499,75 @@ func TestHTTPSSetupExplainsTunnelsAndEnablesOnlyTheSelectedDomain(t *testing.T) 
 	tt.Type("dlife.cn")
 	click("Save")
 	cfg, err = capture.LoadSSL(a.sslPath)
-	if err != nil || !cfg.Decrypts("other.dlife.cn") || cfg.Decrypts("notdlife.cn") || !tt.HasText("3  Domain decryption is now enabled") {
+	if err != nil || !cfg.Decrypts("other.dlife.cn") || cfg.Decrypts("notdlife.cn") || !tt.HasText("Domain rule enabled · reconnect to inspect new requests") {
 		t.Fatal("a parent-domain rule must enable its subdomains in the inspector too")
+	}
+}
+
+func TestHTTPSAppRuleCanBeScopedEditedAndCancelled(t *testing.T) {
+	a := workspaceApp()
+	a.sslPath = filepath.Join(t.TempDir(), "ssl.json")
+	a.sslHosts = "existing.test"
+	a.certificate.checked = true
+	path := filepath.Join(t.TempDir(), "client")
+	a.flows = []flow{
+		{id: 1, method: "CONNECT", scheme: "https", host: "one.test:8443", kind: "connect", status: 200, process: "client", processPath: path},
+		{id: 2, method: "CONNECT", scheme: "https", host: "two.test:443", kind: "connect", status: 200, process: "client"},
+	}
+	a.applyFilter()
+	tt := ui.NewTester(a.view, 960, 600)
+	click := func(label string) {
+		t.Helper()
+		if err := tt.Click(label); err != nil {
+			t.Fatal(err)
+		}
+	}
+	load := func() capture.SSLConfig {
+		t.Helper()
+		cfg, err := capture.LoadSSL(a.sslPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return cfg
+	}
+	click("Enable HTTPS for client")
+	cfg := load()
+	if cfg.All || len(cfg.Apps) != 1 || cfg.Apps[0].Path != path || !cfg.Decrypts("existing.test") || !cfg.DecryptsProcess("another.test:9443", path) || cfg.DecryptsProcess("another.test", "") {
+		t.Fatalf("app rule changed domain/global scope or lost its executable: %+v", cfg)
+	}
+	if !tt.HasText("App rule enabled · reconnect to inspect new requests") || !tt.HasText("Encrypted tunnel — not individual requests") {
+		t.Fatal("enabling an app incorrectly claimed this historical tunnel was decrypted")
+	}
+	click("Manage HTTPS rules")
+	click("Decryption domains")
+	tt.Key(ui.Cmd, ui.KeyA)
+	tt.Type("edited.test")
+	click("Save")
+	cfg = load()
+	if !cfg.Decrypts("edited.test") || cfg.Decrypts("existing.test") || len(cfg.Apps) != 1 || cfg.Apps[0].Path != path {
+		t.Fatalf("editing domains lost the independent app rule: %+v", cfg)
+	}
+	click("Manage HTTPS rules")
+	box, ok := tt.Find("Decryption domains")
+	if !ok {
+		t.Fatal("rule editor did not open")
+	}
+	tt.Scroll(box.X+10, box.Y+10, 0, 1e6)
+	click("Remove HTTPS app: " + path)
+	click("Cancel")
+	click("Manage HTTPS rules")
+	tt.Scroll(box.X+10, box.Y+10, 0, 1e6)
+	if !tt.HasText(path) || len(load().Apps) != 1 {
+		t.Fatal("cancelling a removal changed the enabled app rule")
+	}
+	click("Remove HTTPS app: " + path)
+	click("Save")
+	if len(load().Apps) != 0 || !load().Decrypts("edited.test") {
+		t.Fatal("saving an app removal affected the independent domain rule")
+	}
+	click("two.test:443")
+	if tt.HasText("Enable HTTPS for client") || !tt.HasText("App rule unavailable · local executable identity not recorded") {
+		t.Fatal("an unidentified client was offered a same-name app permission")
 	}
 }
 
@@ -2196,7 +2263,7 @@ func TestClientSetupCopiedCommandProducesLiveDecryptionEvidence(t *testing.T) {
 	}
 }
 
-func TestDesktopLayoutAdaptsAndFocusPreservesCaptureContext(t *testing.T) {
+func TestDesktopLayoutDefaultsBelowAndSwitchesWithoutLosingCaptureContext(t *testing.T) {
 	a := workspaceApp()
 	tt := ui.NewTester(a.view, 1440, 860)
 	click := func(label string) {
@@ -2217,6 +2284,11 @@ func TestDesktopLayoutAdaptsAndFocusPreservesCaptureContext(t *testing.T) {
 		if f, ok := a.current(); !ok || f.id != 2 || !a.chosen.Has(2) || !tt.HasText("Pretty") {
 			t.Fatal("layout transition lost the inspected request, selection or Body tab")
 		}
+	}
+	check(false) // A: bottom inspector is the default even on wide windows.
+	click("View")
+	if err := tt.ChooseMenuItem("Inspector: Right (wide windows)"); err != nil {
+		t.Fatal(err)
 	}
 	check(true)
 	tt.SetSize(960, 600)

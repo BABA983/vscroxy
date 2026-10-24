@@ -12,6 +12,7 @@ var (
 	requestIcon  = ui.MustParseSVG([]byte(`<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M8 13l-2 2 2 2m8-4 2 2-2 2m-3-5-2 6"/></svg>`))
 	settingsIcon = ui.MustParseSVG([]byte(`<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m9 3-.6 3-2 .9L3.6 6 2 9l2.3 2v2L2 15l1.6 3 2.8-.9 2 .9.6 3h6l.6-3 2-.9 2.8.9 1.6-3-2.3-2v-2L22 9l-1.6-3-2.8.9-2-.9L15 3Z"/><circle cx="12" cy="12" r="3"/></svg>`))
 	plusIcon     = ui.MustParseSVG([]byte(`<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>`))
+	lockIcon     = ui.MustParseSVG([]byte(`<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3m-4 5v2"/></svg>`))
 )
 
 // appTheme keeps content quiet and gives navigation and controls a separate
@@ -20,24 +21,24 @@ func appTheme(dark bool) *ui.Theme {
 	t := ui.LightTheme()
 	if dark {
 		t = ui.DarkTheme()
-		t.Background = ui.Hex("#171a21")
-		t.Surface = ui.Hex("#20242e")
-		t.SurfaceHover = ui.Hex("#2b3140")
-		t.SurfacePressed = ui.Hex("#343d50")
-		t.Border = ui.Hex("#343b49")
-		t.Text = ui.Hex("#e5e9f0")
-		t.TextMuted = ui.Hex("#a3adbd")
+		t.Background = ui.Hex("#1c1d20")
+		t.Surface = ui.Hex("#252629")
+		t.SurfaceHover = ui.Hex("#303237")
+		t.SurfacePressed = ui.Hex("#3b3d43")
+		t.Border = ui.Hex("#37393f")
+		t.Text = ui.Hex("#e9eaec")
+		t.TextMuted = ui.Hex("#a5a8b0")
 	} else {
 		t.Background = ui.Hex("#ffffff")
-		t.Surface = ui.Hex("#f2f4f8")
-		t.SurfaceHover = ui.Hex("#e8ecf3")
-		t.SurfacePressed = ui.Hex("#dce3ee")
-		t.Border = ui.Hex("#dce1e9")
-		t.Text = ui.Hex("#202939")
-		t.TextMuted = ui.Hex("#667387")
+		t.Surface = ui.Hex("#f3f3f5")
+		t.SurfaceHover = ui.Hex("#e9eaed")
+		t.SurfacePressed = ui.Hex("#dedfe4")
+		t.Border = ui.Hex("#dedfe4")
+		t.Text = ui.Hex("#24262c")
+		t.TextMuted = ui.Hex("#686c76")
 	}
 	t.FontSize = 13
-	t.Radius = 7
+	t.Radius = 6
 	return t
 }
 

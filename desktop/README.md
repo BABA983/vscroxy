@@ -409,17 +409,30 @@ depends on the upstream accepting CONNECT to port 80.
 
 ## SSL proxying
 
-HTTPS is tunnelled untouched until a domain is decrypted: the table shows its
-CONNECT as a `Tunnel` row. The detail pane keeps **Set up certificate…** and
-**Enable for <host>** above its scrollable explanation, including in small
-windows. **Settings → HTTPS → Manage domains…** edits the same list, kept in
+HTTPS is tunnelled untouched until a domain or app rule enables inspection:
+the table shows its CONNECT as a `Tunnel` row. The detail pane keeps
+**Set up certificate…** and **Enable for <host>** above its scrollable explanation,
+including in small windows. **Settings → HTTPS → Manage domains…** edits the same list, kept in
 `~/.vscroxy/ssl.json`; a domain matches its subdomains on all ports. Old rules
 containing a port are also understood as hostname rules. IP clients without TLS
 SNI receive a certificate for their CONNECT target, not an empty name. Nothing
 is decrypted out of the box.
 
+For a locally attributed connection, **Enable HTTPS for <app>** inspects all
+hosts contacted by that exact executable on new connections. The **Apps**
+sidebar context menu offers the same action; same-name executables at different
+paths require an explicit choice. Names, parent applications and Helper groups
+do not grant permission. Remote devices, non-loopback proxy connections and
+unreadable or ambiguous process owners cannot use app rules. Domain/global rules
+still apply independently. Client CA trust is still required.
+
+**HTTPS rules** at the bottom of the sidebar manages domain and executable rules.
+Removing an app rule takes effect only on Save; Cancel discards rule edits.
+An enabled rule is not evidence that TLS succeeded, and old CONNECT records
+never become decrypted requests retroactively.
+
 A connection already open keeps the choice it was made with: reload the page
-after decrypting a domain.
+after enabling inspection.
 
 ## Ignored hosts
 
@@ -923,11 +936,11 @@ trust stores and certificate pinning may require client-side configuration.
 An undecrypted **CONNECT** detail explains that it is an encrypted tunnel, not
 one HTTPS request. HTTPS encrypts request/response headers (including Cookie and
 Set-Cookie) as well as bodies; trusting the CA alone does not expose them.
-The detail links to certificate setup and can enable just that
-domain. If current rules already enable the domain, the detail says so rather
-than claiming the old tunnel has been decrypted. After changing HTTPS setup,
-establish a new connection and retry the request; existing tunnels and their
-CONNECT records stay encrypted.
+The detail links to certificate setup and can enable just that domain or its
+identified local executable. If current rules already enable inspection, the
+detail says so rather than claiming the old tunnel has been decrypted. After
+changing HTTPS setup, establish a new connection and retry the request; existing
+tunnels and their CONNECT records stay encrypted.
 
 ## Client attribution
 
@@ -941,7 +954,9 @@ every row still reads at a glance.
 When a connection opens, the proxy finds the socket that the client holds on
 the other end and reads the process that owns it: `/proc/net/tcp` and the
 descriptor tables on Linux, `lsof` on macOS, `netstat` and `tasklist` on
-Windows. A request from another machine has no local process, so the column
+Windows (with the executable path read through the Windows process API).
+Both client and proxy socket endpoints must match a unique local owner.
+A request from another machine has no local process, so the column
 stays empty.
 
 The **Apps** section of the sidebar filters by app. Windows shows a badge
@@ -959,10 +974,10 @@ restored when they would still show on a connected display.
 
 ### Desktop workbench
 
-**View → Inspector: Adaptive** puts details on the right when the content area
-has at least 1160 DIPs, and below the table on smaller windows. Choose **Bottom**
-to keep the stacked layout, or **Right** to use a side inspector from 1000 DIPs
-of content width. Even Right yields at small widths; both orientations keep
+The default is **Bottom**: requests above, inspector below, even on wide windows.
+Choose **View → Inspector: Right (wide windows)** to use a side inspector from
+1000 DIPs of content width, or **Adaptive** to move it right from 1160 DIPs.
+Even Right yields at small widths; both orientations keep
 their own divider positions. In the side layout, the table prioritizes URL,
 method, status and duration, and header blocks stack rather than squeezing values
 into two narrow columns. Client and size remain visible in the inspector.

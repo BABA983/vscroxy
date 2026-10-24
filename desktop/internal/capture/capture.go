@@ -275,8 +275,8 @@ type Server struct {
 	started       map[uuid.UUID]time.Time
 	firstByte     map[uuid.UUID]time.Time
 	original      map[uuid.UUID]url.URL
-	clients       map[string]procinfo.Process
-	replayClients map[string]replayOrigin // replay socket address -> local send
+	clients       map[clientSocket]clientIdentity // active socket -> immutable ownership
+	replayClients map[string]replayOrigin         // replay socket address -> local send
 	closeOnce     sync.Once
 
 	// bodyDir holds the bodies too large to keep in memory. It is removed
@@ -363,7 +363,7 @@ func New(addr, caRootPath string) (*Server, error) {
 		started:       make(map[uuid.UUID]time.Time),
 		firstByte:     make(map[uuid.UUID]time.Time),
 		original:      make(map[uuid.UUID]url.URL),
-		clients:       make(map[string]procinfo.Process),
+		clients:       make(map[clientSocket]clientIdentity),
 		replayClients: make(map[string]replayOrigin),
 		dnsHits:       make(map[uuid.UUID]DNSHit),
 		bpWait:        make(map[int]chan Decision),
@@ -386,7 +386,21 @@ func New(addr, caRootPath string) (*Server, error) {
 	}
 	p.AddAddon(&addon{server: s})
 	p.SetShouldInterceptRule(func(req *http.Request) bool {
-		return s.decrypts(requestHost(req))
+		// RemoteAddr is supplied by the proxy's HTTP server, never a header.
+		// Ownership was resolved from both ends of this accepted socket.
+		var process procinfo.Process
+		if local, ok := req.Context().Value(http.LocalAddrContextKey).(*net.TCPAddr); ok {
+			addr := clientSocket{req.RemoteAddr, local.String()}
+			s.mu.Lock()
+			client := s.clients[addr].client
+			s.mu.Unlock()
+			// net/http retains this accepted TCP socket's LocalAddr object.
+			// Equal address text alone could refer to a recycled connection.
+			if client != nil && client.Conn.LocalAddr() == local {
+				process = s.socketProcess(addr, client)
+			}
+		}
+		return s.SSL().DecryptsProcess(requestHost(req), process.Path)
 	})
 	p.SetUpstreamProxy(func(*http.Request) (*url.URL, error) {
 		raw, _ := s.upstream.Load().(string)
@@ -434,12 +448,19 @@ func (s *Server) Flows() <-chan Flow { return s.out }
 // Dropped counts the flows the UI could not keep up with.
 func (s *Server) Dropped() int64 { return s.dropped.Load() }
 
-// SSLConfig says which domains the proxy decrypts. Nothing is decrypted until
-// a domain is listed, or All is set: a tunnel shows as a CONNECT flow, and the
-// detail pane offers to decrypt it.
+// SSLApp selects an executable for HTTPS inspection. Name is display-only;
+// only an exact, nonempty Path can authorize inspection.
+type SSLApp struct {
+	Name string `json:"name"`
+	Path string `json:"path"`
+}
+
+// SSLConfig says which domains or local executables the proxy decrypts.
+// Nothing is decrypted until a domain/app is listed, or All is set.
 type SSLConfig struct {
 	All   bool     `json:"all"`
 	Hosts []string `json:"hosts,omitempty"`
+	Apps  []SSLApp `json:"apps,omitempty"`
 }
 
 // Decrypts reports whether the current rules enable HTTPS inspection for host.
@@ -455,6 +476,17 @@ func (c SSLConfig) Decrypts(host string) bool {
 		}
 	}
 	return false
+}
+
+// DecryptsProcess adds opt-in executable rules to the host/global rules.
+// Names, parent apps, path prefixes and unidentified clients never match.
+func (c SSLConfig) DecryptsProcess(host, path string) bool {
+	if c.Decrypts(host) {
+		return true
+	}
+	return path != "" && slices.ContainsFunc(c.Apps, func(app SSLApp) bool {
+		return app.Path != "" && app.Path == path
+	})
 }
 
 // SSL rules describe domains, not ports. Accept authorities written by older
@@ -535,18 +567,16 @@ func (s *Server) noteDNS(f *proxy.Flow) {
 // SetSSL sets what the proxy decrypts.
 func (s *Server) SetSSL(c SSLConfig) {
 	c.Hosts = slices.Clone(c.Hosts)
+	c.Apps = slices.Clone(c.Apps)
 	s.ssl.Store(c)
 }
 
 // SSL is what the proxy decrypts.
 func (s *Server) SSL() SSLConfig {
 	c, _ := s.ssl.Load().(SSLConfig)
+	c.Hosts = slices.Clone(c.Hosts)
+	c.Apps = slices.Clone(c.Apps)
 	return c
-}
-
-// decrypts reports whether the proxy decrypts host.
-func (s *Server) decrypts(host string) bool {
-	return s.SSL().Decrypts(host)
 }
 
 // LoadSSL reads the SSL proxying settings; a missing file decrypts nothing.
@@ -1070,6 +1100,12 @@ func (a *addon) Requestheaders(f *proxy.Flow) {
 	if f.Request == nil {
 		return
 	}
+	if raw := f.Request.Raw(); raw != nil {
+		// Keep the socket's identity on the exchange before it disconnects.
+		// A later connection reusing its address must not change history.
+		process := a.server.clientProcess(f)
+		*raw = *raw.WithContext(context.WithValue(raw.Context(), clientProcessKey{}, process))
+	}
 	if raw := f.Request.Raw(); raw != nil && f.ConnContext != nil && f.ConnContext.ClientConn != nil && f.ConnContext.ClientConn.Conn != nil {
 		a.server.mu.Lock()
 		source := a.server.replayClients[f.ConnContext.ClientConn.Conn.RemoteAddr().String()]
@@ -1446,51 +1482,85 @@ func contentType(path string) string {
 	return "application/octet-stream"
 }
 
-// noteClient records which process opened or closed a client connection, so
-// each flow on it can be attributed without another scan.
+type clientSocket struct {
+	remote, local string
+}
+
+func socketOf(conn net.Conn) clientSocket {
+	return clientSocket{conn.RemoteAddr().String(), conn.LocalAddr().String()}
+}
+
+type clientIdentity struct {
+	client  *proxy.ClientConn
+	process procinfo.Process
+}
+
+type clientProcessKey struct{}
+
+// noteClient resolves ownership using the full accepted socket. Unknown
+// identities fail closed, rather than borrowing a process from a recycled port.
 func (s *Server) noteClient(client *proxy.ClientConn, connected bool) {
 	if client == nil || client.Conn == nil {
 		return
 	}
-	addr := client.Conn.RemoteAddr().String()
+	addr := socketOf(client.Conn)
 	if !connected {
-		// Keep the entry: a flow published after the client hung up, as a
-		// tunnel that failed, still names the app.
+		s.mu.Lock()
+		if s.clients[addr].client == client {
+			delete(s.clients, addr)
+		}
+		s.mu.Unlock()
 		return
 	}
-	process := procinfo.Lookup(addr)
-	if process.Name == "" {
-		// The client's socket may not be listed yet when the proxy accepts
-		// it: leave it uncached, so the flow looks again.
-		return
-	}
+	process := procinfo.Lookup(addr.remote, addr.local)
 	s.mu.Lock()
-	if len(s.clients) > 1024 {
-		clear(s.clients)
-	}
-	s.clients[addr] = process
+	s.clients[addr] = clientIdentity{client: client, process: process}
 	s.mu.Unlock()
+}
+
+// socketProcess retries an unreadable owner only while the exact accepted
+// connection is still active. The OS may not list its socket at accept time.
+func (s *Server) socketProcess(addr clientSocket, client *proxy.ClientConn) procinfo.Process {
+	s.mu.Lock()
+	identity := s.clients[addr]
+	s.mu.Unlock()
+	if client == nil || identity.client != client {
+		return procinfo.Process{}
+	}
+	if identity.process.Path != "" {
+		return identity.process
+	}
+	process := procinfo.Lookup(addr.remote, addr.local)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.clients[addr].client != identity.client {
+		return procinfo.Process{}
+	}
+	identity.process = process
+	s.clients[addr] = identity
+	return process
 }
 
 // clientProcess returns the process behind the connection a flow arrived on.
 func (s *Server) clientProcess(f *proxy.Flow) procinfo.Process {
+	if f.Request != nil {
+		if raw := f.Request.Raw(); raw != nil {
+			if process, ok := raw.Context().Value(clientProcessKey{}).(procinfo.Process); ok {
+				return process
+			}
+		}
+	}
 	if f.ConnContext == nil || f.ConnContext.ClientConn == nil || f.ConnContext.ClientConn.Conn == nil {
 		return procinfo.Process{}
 	}
-	addr := f.ConnContext.ClientConn.Conn.RemoteAddr().String()
-	s.mu.Lock()
-	process, ok := s.clients[addr]
-	s.mu.Unlock()
-	if ok {
-		return process
-	}
-	return procinfo.Lookup(addr)
+	client := f.ConnContext.ClientConn
+	return s.socketProcess(socketOf(client.Conn), client)
 }
 
 // publishConnect shows a CONNECT the proxy tunnels without decrypting it.
 func (s *Server) publishConnect(f *proxy.Flow) {
 	host := f.Request.URL.Hostname()
-	if host == "" || s.decrypts(host) || s.ignored(host) {
+	if host == "" || (f.ConnContext != nil && f.ConnContext.Intercept) || s.ignored(host) {
 		// The tunnel gets no row of its own, so there is nothing to mark.
 		s.mu.Lock()
 		delete(s.dnsHits, f.Id)
