@@ -185,6 +185,7 @@ func investigationFlow(f sessionFlow) flow {
 	}
 	return flow{
 		id: f.ID, replayOf: f.ReplayOf, actions: f.Actions,
+		debugKey: f.DebugKey, debugRun: f.DebugRun,
 		method: f.Method, scheme: f.Scheme, host: f.Host, path: f.Path, url: f.URL,
 		status: f.Status, bytes: f.Bytes, millis: f.Millis,
 		reqHeaders: f.ReqHeaders, resHeaders: f.ResHeaders, reqBody: req, resBody: res,

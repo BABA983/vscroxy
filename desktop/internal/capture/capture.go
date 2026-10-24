@@ -78,6 +78,9 @@ type Flow struct {
 	ID int
 	// ReplayOf identifies the original capture; zero for ordinary traffic.
 	ReplayOf int
+	// DebugRun correlates a local editor send with its exact wire exchanges.
+	// It travels through socket ownership, never through an HTTP header.
+	DebugRun string
 	// Actions records interventions applied to this exchange, not today's rules.
 	Actions []string
 	Method  string
@@ -273,7 +276,7 @@ type Server struct {
 	firstByte     map[uuid.UUID]time.Time
 	original      map[uuid.UUID]url.URL
 	clients       map[string]procinfo.Process
-	replayClients map[string]int // replay socket address -> source capture
+	replayClients map[string]replayOrigin // replay socket address -> local send
 	closeOnce     sync.Once
 
 	// bodyDir holds the bodies too large to keep in memory. It is removed
@@ -361,7 +364,7 @@ func New(addr, caRootPath string) (*Server, error) {
 		firstByte:     make(map[uuid.UUID]time.Time),
 		original:      make(map[uuid.UUID]url.URL),
 		clients:       make(map[string]procinfo.Process),
-		replayClients: make(map[string]int),
+		replayClients: make(map[string]replayOrigin),
 		dnsHits:       make(map[uuid.UUID]DNSHit),
 		bpWait:        make(map[int]chan Decision),
 		breakpoints:   make(chan Breakpoint, 16),
@@ -950,6 +953,11 @@ func (s *Server) Replay(ctx context.Context, f Flow) (Flow, error) {
 
 type replaySourceKey struct{}
 
+type replayOrigin struct {
+	source int
+	run    string
+}
+
 // ReplayWithCookies uses the request workspace's cookie jar, including across
 // redirects. Ordinary capture replay deliberately does not inherit login state.
 // Regression checks stop at the original response instead of following redirects.
@@ -999,13 +1007,13 @@ func (s *Server) ReplayWithCookies(ctx context.Context, f Flow, jar http.CookieJ
 			TLSClientConfig: &tls.Config{RootCAs: s.roots},
 			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
 				conn, err := (&net.Dialer{}).DialContext(ctx, network, addr)
-				if err == nil && f.ID != 0 {
+				if err == nil && (f.ID != 0 || f.DebugRun != "") {
 					// Register before the transport can send anything. Each send
 					// owns its transport, so concurrent identical URLs cannot mix.
 					s.mu.Lock()
 					if !finished {
 						local := conn.LocalAddr().String()
-						s.replayClients[local] = f.ID
+						s.replayClients[local] = replayOrigin{source: f.ID, run: f.DebugRun}
 						addresses = append(addresses, local)
 					}
 					s.mu.Unlock()
@@ -1066,7 +1074,7 @@ func (a *addon) Requestheaders(f *proxy.Flow) {
 		a.server.mu.Lock()
 		source := a.server.replayClients[f.ConnContext.ClientConn.Conn.RemoteAddr().String()]
 		a.server.mu.Unlock()
-		if source != 0 {
+		if source != (replayOrigin{}) {
 			// Keep the link on the exchange even if its socket closes before
 			// capture finishes. No correlation header reaches the upstream.
 			*raw = *raw.WithContext(context.WithValue(raw.Context(), replaySourceKey{}, source))
@@ -1722,7 +1730,8 @@ func (s *Server) publishFlow(f *proxy.Flow, kind string, frames []Frame, status 
 		Conn:              s.connInfo(f, start),
 	}
 	if raw := f.Request.Raw(); raw != nil {
-		flow.ReplayOf, _ = raw.Context().Value(replaySourceKey{}).(int)
+		origin, _ := raw.Context().Value(replaySourceKey{}).(replayOrigin)
+		flow.ReplayOf, flow.DebugRun = origin.source, origin.run
 	}
 	s.mu.Lock()
 	if len(s.flowIDs) > 4096 {

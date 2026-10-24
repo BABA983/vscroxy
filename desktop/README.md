@@ -1073,6 +1073,31 @@ saved requests and captured traffic alone. This is a debugging notebook, not a
 complete wire archive: redirect hops remain in Capture and cookies/variables may
 have changed since a run.
 
+### Request debug history
+
+**Debug history** on a captured exchange or its editable draft opens the existing
+workbench scoped to that capture's linked open drafts and retained experiments.
+Links use stable identities, not method/URL or reusable capture IDs. The immutable
+source snapshot, draft identity and run links survive restart; reopening the
+original saved session restores **Inspect source capture**. If the source is no
+longer in Capture, that button is disabled and the retained snapshot remains
+available. **Origin draft** returns to the exact originating tab without replacing
+unsent edits; **Open as draft** creates a new editable branch without sending.
+
+**Compare source** compares the original capture snapshot against the experiment's
+client request/final response. **Recorded interventions** shows actual captured
+scenario/rule actions for the selected wire exchange, never inferred from today's
+configuration. Each HTTP(S) editor send has a local correlation identity, including
+across redirect hops; it is not sent as an HTTP header. Up to 16 separate wire
+exchanges are retained per run. Legacy runs and missing wire evidence are labeled
+explicitly and do not imply that no rule ran. Interactive WebSocket sends are not
+linked into this HTTP(S) history.
+
+Source/wire snapshots share the experiment checkpoint's 100-run / 32 MiB budget
+and 256 KiB-per-body limit, with explicit incomplete-body diagnostics. They may
+contain credentials, private URLs and rule details; this is local, unencrypted
+debugging history, not sanitized evidence for sharing.
+
 ### Cross-session investigations
 
 **Session / Commands → Investigate saved sessions…** opens historical session or

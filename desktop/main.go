@@ -22,6 +22,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+	"uuid"
 
 	"github.com/baba983/vscroxy/desktop/internal/appicon"
 	"github.com/baba983/vscroxy/desktop/internal/capture"
@@ -686,9 +687,15 @@ func (a *app) drain() {
 			a.saveHistory()
 		}
 		if result.experiment != nil {
+			for _, f := range a.flows {
+				if f.live {
+					result.experiment.keepWire(f)
+				}
+			}
 			if err := a.experiments.log.retain(*result.experiment); err != nil {
 				a.experiments.problem = "Experiment not retained: " + err.Error()
 			} else {
+				d.experimentID = a.experiments.log.NextID
 				a.experiments.persist()
 			}
 		}
@@ -738,6 +745,8 @@ func (a *app) drain() {
 		}
 		a.flows = append(a.flows, flow{
 			id:          f.ID,
+			debugKey:    uuid.New().String(),
+			debugRun:    f.DebugRun,
 			live:        true,
 			replayOf:    f.ReplayOf,
 			actions:     f.Actions,
@@ -792,8 +801,31 @@ func (a *app) drain() {
 			download: f.Download,
 		})
 	}
+	checkpoint := a.experiments.log
+	wireChanged := false
 	for _, f := range a.flows[len(a.flows)-len(pending):] {
 		a.totalBytes += int64(f.bytes)
+		if f.debugRun == "" {
+			continue
+		}
+		for i := range checkpoint.Records {
+			record := checkpoint.Records[i]
+			if record.keepWire(f) {
+				if !wireChanged {
+					checkpoint.Records = slices.Clone(checkpoint.Records)
+				}
+				checkpoint.Records[i] = record
+				wireChanged = true
+			}
+		}
+	}
+	if wireChanged {
+		if _, err := encodeExperiments(checkpoint); err != nil {
+			a.experiments.problem = "Wire evidence not retained: " + err.Error()
+		} else {
+			a.experiments.log = checkpoint
+			a.experiments.persist()
+		}
 	}
 	if len(a.flows) > maxFlows {
 		cut := len(a.flows) - maxFlows
@@ -842,6 +874,10 @@ func (a *app) applyFilter() {
 	q := strings.ToLower(strings.TrimSpace(a.query))
 	a.visible = a.visible[:0]
 	for i, f := range a.flows {
+		if f.debugKey == "" {
+			f.debugKey = uuid.New().String()
+			a.flows[i].debugKey = f.debugKey
+		}
 		if !a.matchesChip(f) {
 			continue
 		}
@@ -1656,6 +1692,9 @@ func (a *app) detail(c *ui.Context) {
 			a.desktopButton(c, "edit", "Edit & replay")
 			a.desktopButton(c, "replay", "Replay")
 			a.desktopButton(c, "copy", "cURL")
+			if ui.Button(c, "Debug history").FontSize(11).Clicked() {
+				a.openDebugHistory(newDebugSource(f))
+			}
 			if f.process != "" {
 				ui.Text(c, f.process).FontSize(11).TextColor(t.TextMuted).SingleLine().MaxWidth(100).Tooltip(f.process)
 			}
@@ -2356,7 +2395,8 @@ func (a *app) composeFrom(f flow) {
 		Method: cmp.Or(f.method, "GET"), URL: f.url,
 		Headers: headerBlock(f.reqHeader), Body: f.body(false),
 	}, "")
-	a.sourceFlow, a.source, a.sourceView = f.id, &f, a.views.activeView()
+	a.setDebugSource(newDebugSource(f))
+	a.sourceView = a.views.activeView()
 }
 
 // headerBlock writes headers the way the editor takes them back.
@@ -2518,15 +2558,18 @@ func (a *app) sendComposed() {
 	d.composeWaiting, d.composeResult = true, "Sending…"
 	d.experimentID = 0
 	r, env, vars, srv, jar := d.value(), a.activeEnv, a.activeVars(), a.srv, a.requestCookies()
+	runKey, draftKey, origin := uuid.New().String(), d.debugKey, d.origin
 	if r.Checks != (responseChecks{}) {
 		d.responseTab = 2
 	}
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
+		ctx = context.WithValue(ctx, debugRunKey{}, runKey)
 		got := executeRequest(ctx, srv, r, vars, jar)
 		result := requestResult{document: d, environment: env, summary: got.summary(), response: got.response, tests: got.tests, replies: got.replies, varsBefore: vars, vars: got.vars}
 		record := snapshotExperiment(0, r, env, got)
+		record.RunKey, record.DraftKey, record.Source = runKey, draftKey, origin
 		result.experiment = &record
 		if got.request != nil {
 			result.history = &historyEntry{Method: got.request.Method, URL: got.request.URL, Headers: r.Headers, Body: r.Body, Draft: &r, At: time.Now()}

@@ -22,6 +22,10 @@ const (
 
 type experimentRecord struct {
 	ID           int
+	RunKey       string        `json:",omitempty"`
+	DraftKey     string        `json:",omitempty"`
+	Source       *debugSource  `json:",omitempty"`
+	Wire         []sessionFlow `json:",omitempty"`
 	At           time.Time
 	Draft        savedRequest
 	Environment  string
@@ -35,6 +39,8 @@ type experimentRecord struct {
 }
 
 type experimentDraft struct {
+	Key      string       `json:",omitempty"`
+	Source   *debugSource `json:",omitempty"`
 	Value    savedRequest
 	Baseline savedRequest
 	SavedKey string

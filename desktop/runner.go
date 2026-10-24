@@ -25,6 +25,8 @@ type requestExecution struct {
 	expectedStatus int
 }
 
+type debugRunKey struct{}
+
 // A single execution is also a runner step. Both use the same encoder,
 // scripts, proxy and session cookie jar; no request tab is borrowed by Runner.
 func executeRequest(ctx context.Context, srv *capture.Server, r savedRequest, vars map[string]string, jar http.CookieJar) requestExecution {
@@ -69,7 +71,8 @@ func executeRequest(ctx context.Context, srv *capture.Server, r savedRequest, va
 			out.err = fmt.Errorf("post-response scripts require an HTTP response")
 		}
 	} else {
-		got, err := srv.ReplayWithCookies(ctx, capture.Flow{Method: req.Method, URL: req.URL, RequestHeader: req.header, RequestBody: req.Body}, jar, r.Checks == (responseChecks{}))
+		runKey, _ := ctx.Value(debugRunKey{}).(string)
+		got, err := srv.ReplayWithCookies(ctx, capture.Flow{DebugRun: runKey, Method: req.Method, URL: req.URL, RequestHeader: req.header, RequestBody: req.Body}, jar, r.Checks == (responseChecks{}))
 		out.err = err
 		if err == nil {
 			out.response = &got

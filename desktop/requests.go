@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"slices"
 	"strings"
+	"uuid"
 
 	"github.com/baba983/vscroxy/desktop/internal/capture"
 	"github.com/egoist/mygo/ui"
@@ -18,6 +19,8 @@ import (
 // borrowed from the selected capture row or another request tab.
 type requestDocument struct {
 	id                int
+	debugKey          string
+	origin            *debugSource
 	revealTab         bool
 	tabLabel          string
 	savedKey          string
@@ -97,7 +100,7 @@ func (d *requestDocument) title() string {
 func (a *app) addDocument(r savedRequest, key string) {
 	a.nextDocument++
 	d := &requestDocument{
-		id: a.nextDocument, revealTab: true, savedKey: key, requestPercent: 55,
+		id: a.nextDocument, debugKey: uuid.New().String(), revealTab: true, savedKey: key, requestPercent: 55,
 		composeName: r.Name, composeCollection: r.Collection,
 		composeMethod: cmp.Or(r.Method, "GET"), composeURL: r.URL,
 		composeHeaders: r.Headers, composeBody: r.Body,
@@ -306,11 +309,14 @@ func (a *app) composeView(c *ui.Context, t *ui.Theme) {
 				}).FontSize(11)
 			})
 			if d.experimentID != 0 {
-				ui.Text(c, fmt.Sprintf("Recorded experiment #%d · opening did not send a request", d.experimentID)).FontSize(11).TextColor(t.TextMuted).Padding(4, 18)
+				ui.Text(c, fmt.Sprintf("Recorded experiment #%d · retained result", d.experimentID)).FontSize(11).TextColor(t.TextMuted).Padding(4, 18)
 			}
 			if d.sourceFlow != 0 {
 				ui.Row(c).Height(24).Padding(0, 18).Gap(8).AlignItems(ui.Center).Children(func() {
 					ui.Text(c, fmt.Sprintf("Source: Capture #%d · editable draft", d.sourceFlow)).FontSize(11).TextColor(t.TextMuted)
+					if ui.Button(c, "Debug history").Height(22).Clicked() {
+						a.openDebugHistory(d.origin)
+					}
 					a.desktopButton(c, "back", "Back to traffic").Height(22)
 					if d.response != nil && (a.query != "" || a.filter != "all" || a.chip != 0 || a.filtersActive()) {
 						ui.Text(c, "Capture filters kept · new traffic may be hidden").FontSize(10).TextColor(t.TextMuted)

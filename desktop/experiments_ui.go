@@ -25,6 +25,9 @@ type experimentWorkbench struct {
 	note, ignore                     string
 	reader                           *editor.State
 	comparison                       captureAnalysis
+	sourceComparison                 captureAnalysis
+	scope                            *debugSource
+	wire                             int
 	changed                          time.Time
 	jobs                             chan experimentLog
 	results                          chan error
@@ -45,6 +48,10 @@ func (a *app) loadExperiments(path string) {
 	for _, draft := range log.Drafts {
 		a.addDocument(draft.Value, draft.SavedKey)
 		a.baseline = draft.Baseline
+		if draft.Key != "" {
+			a.debugKey = draft.Key
+		}
+		a.setDebugSource(draft.Source)
 	}
 	if len(a.documents) > 0 {
 		a.requestDocument = a.documents[min(max(log.Active, 0), len(a.documents)-1)]
@@ -116,7 +123,7 @@ func (a *app) checkpointExperiments(c *ui.Context) {
 	for _, d := range a.documents {
 		baseline := d.baseline
 		baseline.Form = slices.Clone(baseline.Form)
-		drafts = append(drafts, experimentDraft{Value: d.value(), Baseline: baseline, SavedKey: d.savedKey})
+		drafts = append(drafts, experimentDraft{Key: d.debugKey, Source: d.origin, Value: d.value(), Baseline: baseline, SavedKey: d.savedKey})
 	}
 	active := max(0, slices.Index(a.documents, a.requestDocument))
 	if !reflect.DeepEqual(s.log.Drafts, drafts) || s.log.Active != active {
@@ -144,6 +151,7 @@ func (s *experimentWorkbench) record(id int) *experimentRecord {
 
 func (s *experimentWorkbench) pick(id int) {
 	s.picked, s.reader, s.comparison.diff = id, nil, nil
+	s.sourceComparison, s.wire = captureAnalysis{}, 0
 	if r := s.record(id); r != nil {
 		s.note = r.Note
 	}
@@ -181,8 +189,14 @@ func (a *app) experimentsModal(c *ui.Context, t *ui.Theme) {
 	if !s.open {
 		return
 	}
-	if s.record(s.picked) == nil && len(s.log.Records) > 0 {
-		s.pick(s.log.Records[0].ID)
+	if selected := s.record(s.picked); selected == nil || !s.includes(*selected) {
+		s.picked = 0
+		for _, r := range s.log.Records {
+			if s.includes(r) {
+				s.pick(r.ID)
+				break
+			}
+		}
 	}
 	width, height := c.Size()
 	ui.Modal(c, &s.open, func() {
@@ -202,10 +216,14 @@ func (a *app) experimentsModal(c *ui.Context, t *ui.Theme) {
 			}
 			ui.Row(c).Grow(1).Gap(12).AlignItems(ui.Stretch).Children(func() {
 				ui.Scroll(c).Width(220).Gap(4).Children(func() {
+					a.debugDrafts(c)
 					if len(s.log.Records) == 0 {
 						ui.Text(c, "Send a request to record an experiment.").FontSize(12).TextColor(t.TextMuted)
 					}
 					for _, r := range s.log.Records {
+						if !s.includes(r) {
+							continue
+						}
 						label := fmt.Sprintf("#%d · %s", r.ID, r.At.Local().Format("01-02 15:04:05"))
 						if r.ID == s.log.Baseline {
 							label += " · Baseline"
@@ -222,16 +240,39 @@ func (a *app) experimentsModal(c *ui.Context, t *ui.Theme) {
 				ui.Column(c).Grow(1).Gap(8).Children(func() {
 					r := s.record(s.picked)
 					if r == nil {
-						ui.Spacer(c)
+						message := "Send a request to record an experiment."
+						if s.scope != nil {
+							message = "No retained experiments for this source. Open a linked draft to continue; opening never sends."
+						}
+						ui.Text(c, message).FontSize(12)
+						if s.scope != nil {
+							f := investigationFlow(s.scope.Exchange)
+							ui.Text(c, fmt.Sprintf("Source #%d · %s %s · %d", f.id, f.method, f.url, f.status)).FontSize(12).SingleLine().Tooltip(f.url)
+							if s.reader == nil {
+								s.reader = &editor.State{Buffer: editor.NewBuffer(f.body(true)), ReadOnly: true, Label: "Source snapshot", NoScrollPastEnd: true}
+							}
+							editor.View(c, s.reader).Grow(1)
+						}
 						return
 					}
-					ui.Text(c, fmt.Sprintf("#%d · %s %s", r.ID, r.Draft.Method, r.Draft.URL)).FontSize(12).Bold().SingleLine().Tooltip(r.Draft.URL)
+					ui.Text(c, fmt.Sprintf("Experiment #%d · %s %s", r.ID, r.Draft.Method, r.Draft.URL)).FontSize(12).Bold().SingleLine().Tooltip(r.Draft.URL)
 					ui.Text(c, r.Summary+" · Environment: "+cmp.Or(r.Environment, "none")).FontSize(11).TextColor(t.TextMuted)
 					ui.Row(c).Gap(6).Wrap().Children(func() {
 						if ui.Button(c, "Open as draft").FontSize(11).Clicked() {
 							a.addDocument(r.Draft, "")
+							a.setDebugSource(r.Source)
 							a.experimentID, a.response, a.composeTests, a.composeResult = r.ID, r.response(), slices.Clone(r.Tests), r.Summary
 							s.open = false
+						}
+						if ui.Button(c, "Trace source").FontSize(11).Disabled(r.Source == nil).Clicked() {
+							a.openDebugHistory(r.Source)
+						}
+						origin := slices.IndexFunc(a.documents, func(d *requestDocument) bool { return r.DraftKey != "" && d.debugKey == r.DraftKey })
+						if ui.Button(c, "Origin draft").Label("Open originating draft").FontSize(11).Disabled(origin < 0).Tooltip("Return to the original editable tab without overwriting its current edits: " + r.Draft.Name).Clicked() {
+							d := a.documents[origin]
+							a.requestDocument, a.requestChoice, a.workspace = d, d.savedKey, 1
+							d.revealTab, s.open = true, false
+							d.urlInput.Focus()
 						}
 						if ui.Button(c, "Set baseline").FontSize(11).Clicked() {
 							s.log.Baseline, s.left = r.ID, r.ID
@@ -253,7 +294,12 @@ func (a *app) experimentsModal(c *ui.Context, t *ui.Theme) {
 							s.persist()
 						}
 					})
-					ui.Tabs(c, &s.tab, "Recorded result", "Compare experiments")
+					a.debugWire(c, *r)
+					ui.Tabs(c, &s.tab, "Recorded result", "Compare experiments", "Compare source")
+					if s.tab == 2 {
+						s.compareSource(c, *r)
+						return
+					}
 					if s.tab == 1 {
 						if ui.TextInput(c, &s.ignore).Label("Ignore JSON keys").Placeholder("Ignore top-level response JSON keys: timestamp, traceId").Changed() {
 							s.comparison.diffPart = ""
