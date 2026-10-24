@@ -231,6 +231,7 @@ type app struct {
 	historyPath  string
 	historyOpen  bool
 	experiments  experimentWorkbench
+	socket       websocketWorkbench
 
 	// The active document is embedded so the editor's fields always belong
 	// to that tab. Workers return results to their originating document.
@@ -1063,6 +1064,7 @@ func (a *app) view(c *ui.Context) {
 	a.clientSetupModal(c, t)
 	a.diagnosticsModal(c, t)
 	a.experimentsModal(c, t)
+	a.socketModal(c, t)
 	a.runnerModal(c, t)
 	a.cookiesModal(c, t)
 	a.regressionModal(c, t)
@@ -1206,6 +1208,7 @@ func (a *app) toolbar(c *ui.Context, t *ui.Theme) {
 			if m.Item("Set up a local client…").Chosen() {
 				a.openClientSetup()
 			}
+			a.desktopMenuItem(c, m, "websocket", "WebSocket session…")
 			if m.Item("No Caching").Checked(a.srv != nil && a.srv.NoCaching()).Disabled(a.srv == nil).Chosen() {
 				a.srv.SetNoCaching(!a.srv.NoCaching())
 			}
@@ -2191,6 +2194,8 @@ func runDesktop() error {
 	mygo.App.OnQuit(cleanupProxy) // native termination may not return from Run
 	mygo.App.OnQuit(a.experiments.close)
 	defer a.experiments.close()
+	mygo.App.OnQuit(func() { a.socket.session.disconnect() })
+	defer func() { a.socket.session.disconnect() }()
 	defer a.discardRuleDraft()
 	defer a.disableDevices()
 	defer a.views.stopSearch()

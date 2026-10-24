@@ -498,6 +498,34 @@ WSS verifies the system/proxy CAs rather than disabling certificate checks.
 The one-shot sender waits up to two seconds for five replies, capped at 1 MiB
 each; cancellation closes the socket. Post-response scripts require HTTP.
 
+### Interactive WebSocket sessions
+
+**Network / Commands → WebSocket session…** opens a separate live client. If
+the active request draft has a WS URL, it prepares that draft's URL, auth,
+headers and body using current variables, without running scripts or sending.
+Otherwise enter a `ws://` or `wss://` target and handshake headers. **Connect**
+performs the handshake through the capture proxy using the Requests cookie jar
+and verified TLS. It sends no message until **Send text**. Send repeatedly on
+the same connection, search retained payloads/events and filter In/Out/Events.
+Select a message to read/copy text or binary hex; copying includes any truncation
+notice and copies displayed text/hex, not a binary clipboard format.
+
+The timeline keeps the latest 200 events, at most 64 KiB per payload, original
+byte counts and an eviction count. Messages over 1 MiB end the receive stream;
+sends are also limited to 1 MiB. It follows the bottom until scrolled away;
+**Latest message** resumes following without changing the inspected payload.
+An actual peer close includes its code/reason; an empty close frame is distinct
+from TCP loss, local disconnect and handshake failure. These are client-observed
+events, not inferred close codes on passive captures. Proxy-captured messages
+still appear in Capture with its existing retention/export capabilities.
+
+**Disconnect**, Escape, clicking outside or closing the panel disconnects; a
+new **Connect** starts a fresh timeline. No automatic reconnect or restart
+restore occurs. The timeline is session-local, not an experiment or a saved
+conversation. HTTP Requests/Runner's one-shot WS sender remains available.
+Interactive binary sending, subprotocol negotiation, automatic SSE reconnect
+and live gRPC timelines are not provided by this panel.
+
 ## Protobuf and gRPC
 
 **Body → Protobuf** inspects raw protobuf and native gRPC envelopes. Explicit

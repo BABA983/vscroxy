@@ -37,6 +37,36 @@ func isWebSocket(rawURL string) bool {
 // collects what comes back until wait is over. The exchange is captured like
 // any other, so the frames show in the table too.
 func wsSend(ctx context.Context, proxyAddr string, req *jsRequest, ca []byte, jar http.CookieJar, wait time.Duration) ([]string, error) {
+	conn, err := dialWebSocket(ctx, proxyAddr, req, ca, jar)
+	if err != nil {
+		return nil, err
+	}
+	defer conn.Close()
+	stop := context.AfterFunc(ctx, func() { conn.Close() })
+	defer stop()
+	conn.SetReadLimit(1 << 20)
+	if err := conn.WriteMessage(websocket.TextMessage, []byte(req.Body)); err != nil {
+		return nil, err
+	}
+	var replies []string
+	_ = conn.SetReadDeadline(time.Now().Add(wait))
+	for len(replies) < maxWSReplies {
+		_, data, err := conn.ReadMessage()
+		if err != nil {
+			if ctx.Err() != nil {
+				return replies, ctx.Err()
+			}
+			if timeout, ok := errors.AsType[net.Error](err); ok && timeout.Timeout() || websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway) {
+				break
+			}
+			return replies, err
+		}
+		replies = append(replies, string(data))
+	}
+	return replies, nil
+}
+
+func dialWebSocket(ctx context.Context, proxyAddr string, req *jsRequest, ca []byte, jar http.CookieJar) (*websocket.Conn, error) {
 	roots, err := x509.SystemCertPool()
 	if err != nil {
 		roots = x509.NewCertPool()
@@ -63,27 +93,5 @@ func wsSend(ctx context.Context, proxyAddr string, req *jsRequest, ca []byte, ja
 		}
 		return nil, err
 	}
-	defer conn.Close()
-	stop := context.AfterFunc(ctx, func() { conn.Close() })
-	defer stop()
-	conn.SetReadLimit(1 << 20)
-	if err := conn.WriteMessage(websocket.TextMessage, []byte(req.Body)); err != nil {
-		return nil, err
-	}
-	var replies []string
-	_ = conn.SetReadDeadline(time.Now().Add(wait))
-	for len(replies) < maxWSReplies {
-		_, data, err := conn.ReadMessage()
-		if err != nil {
-			if ctx.Err() != nil {
-				return replies, ctx.Err()
-			}
-			if timeout, ok := errors.AsType[net.Error](err); ok && timeout.Timeout() || websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway) {
-				break
-			}
-			return replies, err
-		}
-		replies = append(replies, string(data))
-	}
-	return replies, nil
+	return conn, nil
 }
