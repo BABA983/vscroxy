@@ -52,6 +52,7 @@ type requestDocument struct {
 	responseTab       int
 	responseEditor    *editor.State
 	requestPercent    float32
+	urlInput          ui.Handle
 }
 
 // requestResult is handed back to the UI thread; workers never mutate tabs,
@@ -115,6 +116,7 @@ func (a *app) addDocument(r savedRequest, key string) {
 	a.requestDocument = d
 	a.requestChoice = key
 	a.workspace = 1
+	d.urlInput.Focus()
 }
 
 func (a *app) closeDocument(d *requestDocument) {
@@ -130,8 +132,43 @@ func (a *app) closeDocument(d *requestDocument) {
 			a.requestDocument = a.documents[min(at, len(a.documents)-1)]
 			a.revealTab = true
 			a.requestChoice = a.savedKey
+			a.urlInput.Focus()
+		} else {
+			a.workbench.content.Focus()
 		}
 	}
+}
+
+func (a *app) requestClose(d *requestDocument) {
+	if d.composeWaiting {
+		return
+	}
+	if d.dirty() {
+		a.requestDocument, a.requestChoice, a.workspace = d, d.savedKey, 1
+		a.closingDocument = d
+	} else {
+		a.closeDocument(d)
+	}
+}
+
+// Traffic and request drafts are one cyclic tab strip; workspace shortcuts
+// remain independent, so Cmd/Ctrl+1–3 never unexpectedly select draft tabs.
+func (a *app) cycleDocument(step int) {
+	index := 0
+	if a.workspace == 1 {
+		index = slices.Index(a.documents, a.requestDocument) + 1
+	}
+	index = (index + step + len(a.documents) + 1) % (len(a.documents) + 1)
+	if index == 0 {
+		a.workspace = 0
+		if view := a.views.activeView(); view != nil {
+			view.list.Handle.Focus()
+		}
+		return
+	}
+	a.requestDocument = a.documents[index-1]
+	a.requestChoice, a.workspace, a.revealTab = a.savedKey, 1, true
+	a.urlInput.Focus()
 }
 
 func (a *app) closeRequestModal(c *ui.Context, t *ui.Theme) {
@@ -225,13 +262,7 @@ func (a *app) documentTabs(c *ui.Context, t *ui.Theme) {
 	})
 	ui.Divider(c)
 	if closing != nil {
-		if closing.dirty() {
-			a.requestDocument = closing
-			a.requestChoice = closing.savedKey
-			a.closingDocument = closing
-		} else {
-			a.closeDocument(closing)
-		}
+		a.requestClose(closing)
 	}
 }
 
@@ -259,9 +290,7 @@ func (a *app) composeView(c *ui.Context, t *ui.Theme) {
 				if ui.Button(c, "Variables…").FontSize(11).Clicked() {
 					a.openVars()
 				}
-				if ui.Button(c, "Save request").FontSize(11).Clicked() {
-					a.saveComposed()
-				}
+				a.desktopButton(c, "save-request", "Save request")
 				ui.MenuButton(c, "Case", func(m *ui.Menu) {
 					if m.Item("Share regression…").Chosen() {
 						a.openRegressionShare(d.value())
@@ -274,15 +303,7 @@ func (a *app) composeView(c *ui.Context, t *ui.Theme) {
 			if d.sourceFlow != 0 {
 				ui.Row(c).Height(24).Padding(0, 18).Gap(8).AlignItems(ui.Center).Children(func() {
 					ui.Text(c, fmt.Sprintf("Source: Capture #%d · editable draft", d.sourceFlow)).FontSize(11).TextColor(t.TextMuted)
-					if ui.Button(c, "Back to traffic").FontSize(11).Height(22).Tooltip("Return to the original view without changing its filters, selection or scroll position").Clicked() {
-						a.views.capture(a)
-						if i := slices.Index(a.views.views, d.sourceView); i >= 0 {
-							a.views.activate(a, i)
-						} else {
-							a.setMessage("Original capture view is no longer open; returned to the current traffic view")
-						}
-						a.workspace = 0
-					}
+					a.desktopButton(c, "back", "Back to traffic").Height(22)
 					if d.response != nil && (a.query != "" || a.filter != "all" || a.chip != 0 || a.filtersActive()) {
 						ui.Text(c, "Capture filters kept · new traffic may be hidden").FontSize(10).TextColor(t.TextMuted)
 					}
@@ -299,18 +320,13 @@ func (a *app) composeView(c *ui.Context, t *ui.Theme) {
 			}
 			ui.Row(c).Height(56).Padding(8, 18).Gap(8).AlignItems(ui.Center).Children(func() {
 				ui.TextInput(c, &d.composeMethod).Width(86).Height(36).Label("Method").FontSize(12).FontWeight(600).TextColor(methodColor(d.composeMethod))
-				ui.TextInput(c, &d.composeURL).Grow(1).Height(36).Label("URL").Placeholder("https://api.example.com/v1/resource").Font("monospace").FontSize(12)
-				if ui.Button(c, "Copy cURL").Width(100).Height(36).FontSize(11).Label("Copy as cURL").Tooltip("Copy this draft; variable placeholders are preserved and scripts are not run").Clicked() {
-					req, err := prepareRequest(d.value(), nil)
-					if err != nil {
-						a.setMessage("Copy cURL: " + err.Error())
-					} else {
-						a.copyCurl(c, flow{method: req.Method, url: req.URL, reqHeader: req.header, reqBody: req.Body})
-					}
+				ui.TextInput(c, &d.composeURL).Bind(&d.urlInput).Grow(1).Height(36).Label("URL").Placeholder("https://api.example.com/v1/resource").Font("monospace").FontSize(12)
+				a.desktopButton(c, "copy", "Copy cURL").Width(100).Height(36).Label("Copy as cURL")
+				sendLabel := "Send"
+				if d.composeWaiting {
+					sendLabel = "Sending…"
 				}
-				if ui.PrimaryButton(c, "Send").Width(84).Height(36).Disabled(d.composeWaiting).Clicked() {
-					a.sendComposed()
-				}
+				a.desktopButton(c, "send", sendLabel).Width(100).Height(36).Background(t.Accent).TextColor(t.AccentText)
 			})
 			// A comparison needs the full remaining height, especially on laptops.
 			// Returning to Response restores the editor's own split position.

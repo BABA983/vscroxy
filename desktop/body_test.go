@@ -45,7 +45,7 @@ func TestBodyReadsSpillFile(t *testing.T) {
 }
 
 func TestParseJSON(t *testing.T) {
-	roots, ok := parseJSON(`{"a":[1,2],"b":true}`)
+	roots, ok := parseJSON(`{"z":[9007199254740993,1.2300e+09],"a":true}`)
 	if !ok || len(roots) != 1 {
 		t.Fatalf("parse = %v, %v", roots, ok)
 	}
@@ -53,14 +53,19 @@ func TestParseJSON(t *testing.T) {
 	if root.kind != "object" || len(root.children) != 2 {
 		t.Fatalf("root = %+v", root)
 	}
-	if root.children[0].key != "a" || root.children[0].kind != "array" || len(root.children[0].children) != 2 {
+	if root.children[0].key != "z" || root.children[0].kind != "array" || len(root.children[0].children) != 2 {
 		t.Fatalf("first child = %+v", root.children[0])
 	}
-	if root.children[1].key != "b" || root.children[1].value != "true" {
+	if root.children[0].children[0].value != "9007199254740993" || root.children[0].children[1].value != "1.2300e+09" {
+		t.Fatal("JSON tree rounded or reformatted the original numbers")
+	}
+	if root.children[1].key != "a" || root.children[1].value != "true" {
 		t.Fatalf("second child = %+v", root.children[1])
 	}
-	if _, ok := parseJSON("not json"); ok {
-		t.Fatal("plain text parsed as JSON")
+	for _, invalid := range []string{"not json", `{"a":1`, `[1,]`, `{} {}`, `{"a":1,"a":2}`} {
+		if _, ok := parseJSON(invalid); ok {
+			t.Fatalf("invalid body %q parsed as JSON", invalid)
+		}
 	}
 }
 
@@ -76,13 +81,22 @@ func TestHexLine(t *testing.T) {
 	}
 }
 
-func TestFilterLines(t *testing.T) {
-	got := filterLines("alpha\nbeta\nalphabet", "alpha")
-	want := "    1  alpha\n    3  alphabet\n"
-	if got != want {
-		t.Fatalf("filtered = %q, want %q", got, want)
+// Display limits are independent of capture errors and must not inject
+// warning text into payload bytes used by JSON/image/hex readers.
+func TestBodyPreviewLimitAndWarnings(t *testing.T) {
+	for _, size := range []int{maxBodyView, maxBodyView + 1} {
+		f := flow{resBody: strings.Repeat("x", size), resSize: size}
+		body, notice := f.bodyPreview(true)
+		if len(body) != maxBodyView || strings.Contains(body, "truncated") {
+			t.Fatal("display limit changed the retained payload bytes")
+		}
+		if (notice != "") != (size > maxBodyView) {
+			t.Fatalf("size %d has incorrect limit notice: %q", size, notice)
+		}
 	}
-	if got := filterLines("alpha", "zzz"); got != "No matches" {
-		t.Fatalf("no matches = %q", got)
+	f := flow{resBody: `{"ok":true}`, resError: "transfer stopped"}
+	body, notice := f.bodyPreview(true)
+	if body != `{"ok":true}` || !strings.Contains(notice, "transfer stopped") || f.body(true) != body+notice {
+		t.Fatal("capture warning was lost or mixed into the payload")
 	}
 }

@@ -336,9 +336,21 @@ rereads both the rules and the script.
 
 The Body tab shows the response or the request, as **Pretty** text, as a
 **JSON** tree with collapsible objects and arrays, or as a **Hex** dump with
-offsets and text. The search field filters what shows: matching lines in
-Pretty and Hex, matching leaves in JSON. A body that is not JSON falls back
-to text.
+offsets and text. Pretty is a read-only, selectable code reader with line
+numbers, wrapping and JSON highlighting/formatting. **Find in text…**, or
+Cmd/Ctrl+F while reading, highlights matches without hiding surrounding lines;
+Enter / Shift+Enter and the arrow buttons move between matches. Esc closes
+search. JSON and Hex instead filter matching paths/values or hex rows, as their
+search placeholders explain. The JSON tree preserves object order and exact
+number spellings, including large integer IDs. Invalid JSON falls back to text.
+
+Each side shows its content type and preview byte count. **Copy shown body**
+copies retained preview text, not pretty formatting or warning text. Binary
+bodies disable text clipboard copying; HAR/session export retains their bytes. Display
+limits, incomplete transfers and missing spill files are separate warnings;
+they remain visible in every display mode and are still included in comparisons.
+An empty response for HEAD, 204 or 304 is explained as expected, not a capture
+failure. Unsupported previews offer direct text and hex alternatives.
 
 **Auto** is the default: images/HTML use Preview, binary bodies use Hex,
 explicit protobuf/gRPC uses Protobuf, and text/JSON uses Pretty. A manual mode
@@ -902,10 +914,48 @@ Selecting multiple requests reveals **Replay**, **Export HAR** and **Clear
 selection** directly above the table; replay settings snapshot the entire choice.
 
 **Commands** (Cmd/Ctrl+K) searches capture actions, layouts, setup and settings.
-Use arrows and Enter to choose, Escape to dismiss. Unavailable actions are dimmed.
+Use arrows and Enter to choose, Escape to dismiss and restore the previous focus.
+Commands show their shortcut and current target; unavailable actions explain why.
 Cmd/Ctrl+F searches URLs, Cmd/Ctrl+R opens replay settings for the selection,
-and Cmd/Ctrl+Alt+C copies the inspected request as cURL. These entry points share
-their enabled states with the contextual inspector buttons.
+and Cmd/Ctrl+Alt+C copies the inspected request (or current draft) as cURL.
+Toolbar buttons, row menus, native menus, palette and shortcuts share request
+availability and target rules. A multi-selection replays the whole choice;
+single-request edit/cURL actions are disabled rather than choosing an arbitrary
+row. A choice containing tunnels or live streams cannot be replayed as HTTP.
+
+### Keyboard debugging
+
+`Cmd/Ctrl` means Command on macOS, Control on Windows/Linux. `Ctrl+Tab` uses
+Control on every platform. These are vscroxy's bindings, not a claim that
+Proxyman or Postman use identical Windows/Linux defaults.
+
+| Action | Shortcut and scope |
+| --- | --- |
+| Search traffic | Cmd/Ctrl+F in Capture; Enter or ↓ moves to the list |
+| Navigate / inspect / return | ↑/↓ in the list; Enter focuses the inspector; Esc returns to the list |
+| Focus primary input | Cmd/Ctrl+L: request list in Capture, URL in Requests |
+| Edit captured request | Cmd/Ctrl+Alt+Enter; opens an unsent draft and focuses its URL |
+| Replay options | Cmd/Ctrl+R in Capture; never sends without the replay dialog's Send action |
+| Send current draft | Cmd/Ctrl+Enter in Requests; unavailable while sending or capture is stopped |
+| Save current draft | Cmd/Ctrl+S |
+| Compare exact last send with source | Cmd/Ctrl+Shift+D after sending a draft opened from Capture |
+| Back to original traffic view | Cmd/Ctrl+[; preserves the draft and original capture conditions |
+| Cycle Traffic and request tabs | Ctrl+Tab / Ctrl+Shift+Tab |
+| Close current request tab | Cmd/Ctrl+W; asks about unsaved changes; unavailable while sending |
+| Close window | Cmd/Ctrl+Shift+W (separate from closing a request) |
+
+Plain Enter in the URL input never sends. Dialogs own their shortcuts: sending,
+opening drafts and workspace commands cannot act through a modal. Local response
+editors keep their own Find commands. Cmd/Ctrl+1–3 still select workspaces, not
+individual drafts.
+
+The design takes **Edit and Repeat** from [Proxyman](https://docs.proxyman.com/advanced-features/edit-and-repeat)
+and the explicit **Send** chord documented by [Postman](https://blog.postman.com/boost-your-productivity-in-postman-with-these-4-keyboard-shortcuts/).
+Unlike [Proxyman's Repeat](https://docs.proxyman.com/advanced-features/repeat),
+Cmd/Ctrl+Enter in Capture does not immediately replay traffic. Cmd/Ctrl+K retains
+our existing command palette; it is not Postman's resource search. Some official
+references are macOS-only or historical, so we deliberately define one consistent
+vscroxy mapping instead of silently inheriting conflicting shortcuts.
 
 ### Continuous debugging
 

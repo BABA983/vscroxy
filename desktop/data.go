@@ -158,6 +158,13 @@ const maxBodyView = 8 << 20
 // body returns the body to show: the head the flow holds in memory, or the
 // whole body from the spill file when the capture core wrote it out.
 func (f flow) body(response bool) string {
+	body, notice := f.bodyPreview(response)
+	return body + notice
+}
+
+// bodyPreview keeps capture/display warnings out of the payload parsed by
+// structured readers. Comparisons still include them through body.
+func (f flow) bodyPreview(response bool) (body, notice string) {
 	head, file, size, problem := f.reqBody, f.reqFile, f.reqSize, f.reqError
 	if response {
 		head, file, size, problem = f.resBody, f.resFile, f.resSize, f.resError
@@ -165,22 +172,26 @@ func (f flow) body(response bool) string {
 	if file != "" {
 		reader, err := os.Open(file)
 		if err != nil {
-			return head + fmt.Sprintf("\n\n… the spilled body is gone: %v", err)
-		}
-		defer reader.Close()
-		data, err := io.ReadAll(io.LimitReader(reader, maxBodyView+1))
-		head = string(data)
-		if err != nil {
-			problem = err.Error()
+			notice = fmt.Sprintf("\n\n… the spilled body is gone: %v", err)
+		} else {
+			defer reader.Close()
+			data, err := io.ReadAll(io.LimitReader(reader, maxBodyView+1))
+			head = string(data)
+			if err != nil {
+				problem = err.Error()
+			}
 		}
 	}
 	if len(head) > maxBodyView {
-		head = head[:maxBodyView] + fmt.Sprintf("\n\n… truncated: %d bytes shown (recorded size: %d)", maxBodyView, size)
+		head = head[:maxBodyView]
+		notice += fmt.Sprintf("\n\n… truncated: %d bytes shown (recorded size: %d)", maxBodyView, size)
+	} else if size > len(head) && problem == "" && notice == "" {
+		notice = fmt.Sprintf("\n\n… incomplete body: %d of %d bytes retained", len(head), size)
 	}
 	if problem != "" {
-		head += "\n\n… incomplete body: " + problem
+		notice += "\n\n… incomplete body: " + problem
 	}
-	return head
+	return head, notice
 }
 
 // contentType is the media type of the body on the side shown, taken from the

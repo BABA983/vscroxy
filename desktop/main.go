@@ -112,7 +112,9 @@ type app struct {
 	bodyMode int
 	// Readers survive leaving Capture to edit or compare a request.
 	headerScroll [2]ui.ScrollState
-	bodyScroll   [2]ui.ScrollState
+	bodyText     [2]*editor.State
+	bodyReader   [2]ui.Handle
+	bodyNotice   [2]string
 	jsonScroll   [2]ui.ListState
 	hexScroll    [2]ui.ListState
 
@@ -927,9 +929,10 @@ func (a *app) syncDetail() {
 	if f.kind == "connect" && f.conn.error != "" {
 		a.tab = 1 // open the failure evidence, not tunnel-only setup instructions
 	}
-	a.body, a.reqBody = f.body(true), f.body(false)
+	a.body, a.bodyNotice[0] = f.bodyPreview(true)
+	a.reqBody, a.bodyNotice[1] = f.bodyPreview(false)
 	a.bodyMode, a.bodyQuery = 0, ""
-	a.headerScroll, a.bodyScroll = [2]ui.ScrollState{}, [2]ui.ScrollState{}
+	a.headerScroll, a.bodyText = [2]ui.ScrollState{}, [2]*editor.State{}
 	a.jsonScroll, a.hexScroll = [2]ui.ListState{}, [2]ui.ListState{}
 	a.jsonFor, a.protoFor, a.htmlFor, a.imageFor = "", "", "", ""
 	a.htmlDoc, a.imageBmp, a.imageErr = nil, nil, ""
@@ -938,7 +941,7 @@ func (a *app) syncDetail() {
 	a.diffBaseline = baseline
 	a.diff = &editor.DiffState{
 		Old:    editor.NewBuffer(previous),
-		New:    editor.NewBuffer(a.body),
+		New:    editor.NewBuffer(a.body + a.bodyNotice[0]),
 		Layout: editor.DiffSplit,
 	}
 	a.diff.Old.SetLanguage(editor.LanguageFor("response.json"))
@@ -986,8 +989,9 @@ func (a *app) view(c *ui.Context) {
 			}
 		}
 	}
+	a.desktopNativeMenu(c)
 	t := c.Theme()
-	ui.Column(c).Fill().Background(t.Background).Children(func() {
+	ui.Column(c).Bind(&a.workbench.content).Focusable().AutoFocus().Fill().Background(t.Background).Children(func() {
 		a.toolbar(c, t)
 		if a.workspace == 1 || a.workspace == 0 && len(a.documents) > 0 {
 			a.documentTabs(c, t)
@@ -1229,22 +1233,12 @@ func (a *app) toolbar(c *ui.Context, t *ui.Theme) {
 			}
 		}).FontSize(11).Height(28).TextColor(t.TextMuted).Border(0, t.Border)
 		ui.MenuButton(c, "Session", func(m *ui.Menu) {
-			if m.Item("Replay chosen…").Disabled(a.chosen.Len() == 0).Chosen() {
-				var selected []flow
-				for _, f := range a.flows {
-					if a.chosen.Has(f.id) {
-						selected = append(selected, f)
-					}
-				}
-				a.openReplay(selected)
-			}
+			a.desktopMenuItem(c, m, "replay", "Replay chosen…")
 			m.Separator()
 			if m.Item("Export HAR…").Chosen() {
 				a.exportHAR()
 			}
-			if m.Item("Export chosen HAR…").Chosen() {
-				a.exportChosen()
-			}
+			a.desktopMenuItem(c, m, "export-selection", "Export chosen HAR…")
 			if m.Item("Choose all shown").Chosen() {
 				for _, at := range a.visible {
 					a.chosen.Add(a.flows[at].id)
@@ -1289,7 +1283,7 @@ func (a *app) toolbar(c *ui.Context, t *ui.Theme) {
 		ui.MenuButton(c, "View", func(m *ui.Menu) {
 			for _, action := range a.desktopActions(c) {
 				if strings.HasPrefix(action.id, "layout-") || action.id == "sidebar" || action.id == "focus" {
-					if m.Item(action.label).Disabled(!action.enabled).Chosen() {
+					if m.Item(action.label).Shortcut(action.mods, action.key).Disabled(!action.enabled).Chosen() {
 						action.run()
 					}
 				}
@@ -1517,7 +1511,7 @@ func (a *app) table(c *ui.Context) {
 	state.Key = func(row int) any { return a.flows[a.visible[row]].id }
 	state.Sort = &a.sort
 	state.Columns = a.columns
-	ui.Table(c, state, cols, len(a.visible), func(row, col int) {
+	table := ui.Table(c, state, cols, len(a.visible), func(row, col int) {
 		f := a.flows[a.visible[row]]
 		chosen := a.chosen.Has(f.id)
 		text := func(s string) ui.Element { return ui.Text(c, s).FontSize(12).SingleLine() }
@@ -1599,7 +1593,10 @@ func (a *app) table(c *ui.Context) {
 		case sizeCol:
 			text(humanBytes(f.bytes)).TextColor(rowColor(chosen, t, t.TextMuted))
 		}
-	}).Grow(1)
+	}).Label("Captured requests").Grow(1)
+	if table.Submitted() {
+		a.workbench.inspector.Focus(c)
+	}
 	a.columns = state.Columns
 }
 
@@ -1607,12 +1604,14 @@ func (a *app) detail(c *ui.Context) {
 	// The table may change the choice during this frame. Sync after it draws,
 	// so all detail widgets see the same selected request immediately.
 	a.syncDetail()
-	if selected := a.selectedFlows(); len(selected) > 1 {
-		a.analysisDetail(c, selected)
-		return
-	}
 	t := c.Theme()
-	ui.Column(c).Fill().Background(t.Background).Children(func() {
+	ui.Column(c).Bind(&a.workbench.inspector).Focusable().Label("Request inspector").
+		OnShortcut(0, ui.KeyEscape, func() { a.focusTraffic(c) }).
+		Fill().Background(t.Background).Children(func() {
+		if selected := a.selectedFlows(); len(selected) > 1 {
+			a.analysisDetail(c, selected)
+			return
+		}
 		f, ok := a.current()
 		ui.Row(c).Height(34).Padding(0, 12).Gap(8).AlignItems(ui.Center).Children(func() {
 			if ok {
@@ -2267,13 +2266,12 @@ func badgeColor(name string) ui.Color {
 func (a *app) rowMenu(c *ui.Context, f flow) func(*ui.Menu) {
 	services := c.Services()
 	return func(m *ui.Menu) {
+		actions := a.requestActions(c, f, true)
 		if m.Item("Copy URL").Chosen() {
 			services.WriteClipboard(f.url)
 			a.setMessage("Copied URL")
 		}
-		if m.Item("Copy as cURL").Chosen() {
-			a.copyCurl(c, f)
-		}
+		desktopMenuItem(m, actions, "copy", "")
 		if f.kind == "" && f.url != "" && m.Item("Open in browser").Chosen() {
 			services.OpenURL(f.url)
 		}
@@ -2291,9 +2289,7 @@ func (a *app) rowMenu(c *ui.Context, f flow) func(*ui.Menu) {
 		if m.Item("Map this host…").Chosen() {
 			a.openDNSRule(hostOnly(f.host), f.process)
 		}
-		if m.Item("Edit & resend").Chosen() {
-			a.composeFrom(f)
-		}
+		desktopMenuItem(m, actions, "edit", "Edit & resend")
 		if m.Item("Save as request").Chosen() {
 			a.saveFlowAsRequest(f)
 		}
@@ -2311,9 +2307,7 @@ func (a *app) rowMenu(c *ui.Context, f flow) func(*ui.Menu) {
 				}
 			}
 		})
-		if m.Item("Replay").Chosen() {
-			a.openReplay([]flow{f})
-		}
+		desktopMenuItem(m, actions, "replay", "Replay")
 	}
 }
 
