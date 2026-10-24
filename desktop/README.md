@@ -254,6 +254,19 @@ an unsaved mock removes its file; deleting a saved rule keeps its file for reuse
 
 ## Connection diagnostics
 
+**Network → Capture diagnostics…**, the command palette, or **Diagnose capture…**
+in the empty list opens read-only checks for the listener, OS proxy readback,
+target traffic and engine configuration. Enter an HTTP(S) URL: evidence matches
+its scheme, hostname and port (default ports are equivalent), not its path.
+Counts include retained live traffic from any client, not imported sessions;
+the panel distinguishes decrypted requests, CONNECT records and records hidden
+by the current capture view. **Inspect latest evidence** opens hidden records in
+a new view without erasing existing filters. An absent record is not a confirmed
+failure; ignored traffic is proxied without being retained. Current rules and
+decryption settings are not proof of past execution or client CA trust. Opening
+or refreshing checks does not restore an interrupted system-proxy session,
+change proxy settings, install a CA, send requests or expose a LAN listener.
+
 Select **Connection** in a captured exchange's detail to inspect and copy its
 connection log: DNS lookup, TCP dial attempts, upstream/client TLS handshakes,
 connection reuse, ALPN and the upstream certificate's SANs and expiry. The log

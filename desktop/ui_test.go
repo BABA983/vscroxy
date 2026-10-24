@@ -2528,3 +2528,81 @@ func TestFilterTokensRemoveOnlyTheirOwnCondition(t *testing.T) {
 		t.Fatal("body token did not remove the full-body search condition")
 	}
 }
+
+func TestCaptureDiagnosticsSeparateConfigurationLiveEvidenceAndViewVisibility(t *testing.T) {
+	fake := &fakeSystemProxy{check: system.ProxyCheck{Status: system.ProxyMatches}}
+	a := proxyTestApp(t, fake)
+	a.flows = []flow{
+		{id: 1, live: true, method: "CONNECT", scheme: "https", url: "https://API.example.com:443/", kind: "connect", status: 200},
+		{id: 2, live: true, method: "GET", scheme: "https", url: "https://api.example.com/items", kind: "http", status: 502, reqHeaders: "Accept: */*", conn: conn{errorStage: "TCP", error: "fixture connection refused"}, actions: []string{"Map Remote · fixture"}},
+		{id: 3, live: false, method: "GET", scheme: "https", url: "https://api.example.com/imported", status: 200, reqHeaders: "Accept: */*"},
+		{id: 4, live: true, method: "GET", scheme: "https", url: "https://api.example.com:8443/other-port", status: 200, reqHeaders: "Accept: */*"},
+		{id: 5, live: true, method: "GET", scheme: "http", url: "http://api.example.com:443/other-scheme", status: 200},
+	}
+	a.views.init(a, "")
+	a.query = "no-match"
+	a.views.applyFilter(a)
+	tt := ui.NewTester(a.view, 960, 600)
+	tt.Key(ui.Cmd, ui.KeyK)
+	tt.Type("Capture diagnostics")
+	tt.Key(0, ui.KeyEnter)
+	settleProxy(t, a, tt)
+	if err := tt.Click("Target URL"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Key(ui.Ctrl, ui.KeyA)
+	tt.Type("https://api.example.com/")
+	for _, want := range []string{
+		"HTTP and HTTPS point at this app",
+		"2 live records · 0 shown · 2 hidden in the current capture view",
+		"Observed HTTPS: 1 decrypted request records · 1 CONNECT records",
+		"HTTPS policy: Disabled for new connections",
+		"TCP failed: fixture connection refused",
+		"Recorded actions on this exchange: Map Remote · fixture",
+	} {
+		if !tt.HasText(want) {
+			t.Fatalf("missing %q: %q", want, tt.Texts())
+		}
+	}
+	if fake.writes != 0 || a.deviceUI.gateway != nil {
+		t.Fatal("opening diagnostics changed the proxy or exposed a device gateway")
+	}
+	// Inspecting hidden evidence must preserve the original filter tab.
+	tt.Scroll(480, 300, 0, 220)
+	if err := tt.Click("Inspect latest evidence"); err != nil {
+		t.Fatal(err)
+	}
+	if a.pickedID != 2 || len(a.views.views) != 2 || a.views.views[0].query != "no-match" || tt.HasText("Capture diagnostics") {
+		t.Fatal("inspecting evidence lost the old filter or selected imported/other-origin traffic")
+	}
+}
+
+func TestCaptureDiagnosticsEmptyAndInvalidTargetsDoNotClaimProxyFailure(t *testing.T) {
+	a := workspaceApp()
+	a.flows, a.visible = nil, nil
+	a.systemProxy.read = func(target string) system.ProxyCheck {
+		return system.ProxyCheck{Target: target, Status: system.ProxyOff}
+	}
+	tt := ui.NewTester(a.view, 960, 600)
+	if err := tt.Click("Diagnose capture…"); err != nil {
+		t.Fatal(err)
+	}
+	settleProxy(t, a, tt)
+	if !tt.HasText("No system proxy is set") || !tt.HasText("No retained live evidence for this origin.") {
+		t.Fatalf("no-traffic state not explained: %q", tt.Texts())
+	}
+	for _, target := range []string{"not a URL", "ftp://example.com", "https://user:secret@example.com"} {
+		if err := tt.Click("Target URL"); err != nil {
+			t.Fatal(err)
+		}
+		tt.Key(ui.Ctrl, ui.KeyA)
+		tt.Type(target)
+		if !tt.HasText("Enter an HTTP or HTTPS URL without embedded credentials.") || tt.HasText("0 live records") {
+			t.Fatalf("invalid target %q received a diagnosis", target)
+		}
+	}
+	tt.Key(0, ui.KeyEscape)
+	if tt.HasText("Target URL") || !tt.HasText("Waiting for traffic") {
+		t.Fatal("Escape did not return to the unchanged capture view")
+	}
+}

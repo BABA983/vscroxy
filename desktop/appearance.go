@@ -65,7 +65,7 @@ func (a *app) settingsModal(c *ui.Context, t *ui.Theme) {
 			if ui.Tabs(c, &a.settingsTab, "General", "Proxy", "HTTPS").Changed() {
 				switch a.settingsTab {
 				case 1:
-					a.checkSystemProxy()
+					a.checkSystemProxy(true)
 				case 2:
 					a.checkCertificate(false)
 				}

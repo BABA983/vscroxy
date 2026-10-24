@@ -59,9 +59,9 @@ func (a *app) systemProxyTarget() string {
 	return a.srv.Addr()
 }
 
-// checkSystemProxy reads the machine's proxy configuration off the UI thread, so
-// the panel shows what the OS holds rather than what this app asked for.
-func (a *app) checkSystemProxy() {
+// checkSystemProxy reads the machine's proxy configuration off the UI thread.
+// Diagnostics pass false: observing settings must not restore a prior session.
+func (a *app) checkSystemProxy(recoverInterrupted bool) {
 	s := &a.systemProxy
 	if s.checking || s.applying {
 		return
@@ -71,7 +71,7 @@ func (a *app) checkSystemProxy() {
 	}
 	target, read, pending := a.systemProxyTarget(), s.read, s.pending
 	path := a.proxyRecoveryPath()
-	recover := read == nil
+	recover := recoverInterrupted && read == nil
 	if read == nil {
 		read = system.CheckProxy
 	}
@@ -360,7 +360,7 @@ func (a *app) systemProxySettings(c *ui.Context, t *ui.Theme) {
 	entered := !s.shown
 	s.shown = true
 	if !s.checking && !s.applying && (entered || !s.checked || s.check.Target != target) {
-		a.checkSystemProxy()
+		a.checkSystemProxy(true)
 	}
 	running := a.srv != nil && a.srv.Running()
 	busy := s.checking || s.applying || s.quitting
@@ -387,7 +387,7 @@ func (a *app) systemProxySettings(c *ui.Context, t *ui.Theme) {
 				a.setSystemProxy(false)
 			}
 			if ui.Button(c, "Check again").Disabled(busy).Clicked() {
-				a.checkSystemProxy()
+				a.checkSystemProxy(true)
 			}
 		})
 		ui.Text(c, "Read from this computer's OS settings. Applications with their own proxy settings, or that ignore the system proxy, still connect directly; captured traffic does not prove they use it.").FontSize(11).TextColor(t.TextMuted)

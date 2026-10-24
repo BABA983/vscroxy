@@ -59,6 +59,7 @@ type app struct {
 	curlProblem   string
 	deviceUI      deviceSetup
 	clientUI      clientSetup
+	diagnostics   captureDiagnostics
 
 	apis            []*apiDocument
 	apisPath        string
@@ -1050,6 +1051,7 @@ func (a *app) view(c *ui.Context) {
 	a.rulesModal(c, t)
 	a.devicesModal(c, t)
 	a.clientSetupModal(c, t)
+	a.diagnosticsModal(c, t)
 	a.runnerModal(c, t)
 	a.cookiesModal(c, t)
 	a.regressionModal(c, t)
@@ -1187,6 +1189,9 @@ func (a *app) toolbar(c *ui.Context, t *ui.Theme) {
 			networkLabel = "Network · LAN"
 		}
 		ui.MenuButton(c, networkLabel, func(m *ui.Menu) {
+			if m.Item("Capture diagnostics…").Chosen() {
+				a.openDiagnostics()
+			}
 			if m.Item("Set up a local client…").Chosen() {
 				a.openClientSetup()
 			}
@@ -1479,6 +1484,9 @@ func (a *app) table(c *ui.Context) {
 				hint = "Set your HTTP proxy to " + a.srv.Addr()
 			}
 			ui.Text(c, hint).FontSize(12).TextColor(t.TextMuted)
+			if ui.Button(c, "Diagnose capture…").Clicked() {
+				a.openDiagnostics()
+			}
 		})
 		return
 	}
@@ -2199,7 +2207,7 @@ func runDesktop() error {
 			}
 		})
 		mygo.App.SetMenu(a.menu())
-		a.checkSystemProxy() // retry only a recorded, interrupted proxy session
+		a.checkSystemProxy(true) // retry only a recorded, interrupted proxy session
 		go a.startCapture()
 	})
 	return mygo.App.Run()

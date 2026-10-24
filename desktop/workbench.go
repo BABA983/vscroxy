@@ -297,6 +297,7 @@ func (a *app) desktopActions(c *ui.Context) []desktopAction {
 			a.sidebarWidth, a.tablePercent = 220, 44
 		}},
 		{"https", "HTTPS certificate & decryption setup…", true, 0, 0, func() { a.settingsTab, a.settingsOpen = 2, true }},
+		{"diagnostics", "Capture diagnostics…", true, 0, 0, a.openDiagnostics},
 		{"client", "Set up a local client…", a.srv != nil, 0, 0, a.openClientSetup},
 		{"devices", "Connect a device…", a.srv != nil, 0, 0, a.openDevices},
 		{"rules", "Manage debugging rules…", true, 0, 0, a.openRules},
