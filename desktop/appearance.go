@@ -5,44 +5,89 @@ import (
 	"strconv"
 
 	"github.com/egoist/mygo/ui"
+	"github.com/oneo-me/onevra/source/icons/lucide"
 )
 
+// Icons are outline glyphs from one set, always sized by the place that uses
+// them, so the whole app shares one drawing weight.
 var (
-	captureIcon  = ui.MustParseSVG([]byte(`<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12h5l3-8 4 16 3-8h5"/></svg>`))
-	requestIcon  = ui.MustParseSVG([]byte(`<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M8 13l-2 2 2 2m8-4 2 2-2 2m-3-5-2 6"/></svg>`))
-	settingsIcon = ui.MustParseSVG([]byte(`<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m9 3-.6 3-2 .9L3.6 6 2 9l2.3 2v2L2 15l1.6 3 2.8-.9 2 .9.6 3h6l.6-3 2-.9 2.8.9 1.6-3-2.3-2v-2L22 9l-1.6-3-2.8.9-2-.9L15 3Z"/><circle cx="12" cy="12" r="3"/></svg>`))
-	plusIcon     = ui.MustParseSVG([]byte(`<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>`))
-	lockIcon     = ui.MustParseSVG([]byte(`<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3m-4 5v2"/></svg>`))
-	appIcon      = ui.MustParseSVG([]byte(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="4"/><path d="M3 9h18M7 6h.01M10 6h.01M8 13l-2 2 2 2m4-4h5"/></svg>`))
-	trafficIcon  = ui.MustParseSVG([]byte(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 9v12M12 13h6m-6 4h6"/></svg>`))
-	domainIcon   = ui.MustParseSVG([]byte(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="9"/><ellipse cx="12" cy="12" rx="4" ry="9"/><path d="M3 12h18M5 6h14M5 18h14"/></svg>`))
+	// Icons come from the Lucide set pinned by onevra, so the whole app draws
+	// one stroke family instead of hand-traced paths.
+	captureIcon     = lucide.Activity()
+	requestIcon     = lucide.SquarePen()
+	settingsIcon    = lucide.Settings()
+	plusIcon        = lucide.Plus()
+	lockIcon        = lucide.Lock()
+	appIcon         = lucide.AppWindow()
+	trafficIcon     = lucide.LayoutList()
+	domainIcon      = lucide.Globe()
+	pinIcon         = lucide.Pin()
+	filterIcon      = lucide.Funnel()
+	breakIcon       = lucide.CirclePause()
+	clockIcon       = lucide.Clock()
+	backIcon        = lucide.ArrowLeft()
+	commandIcon     = lucide.Command()
+	monitorIcon     = lucide.Monitor()
+	layersIcon      = lucide.Layers()
+	closeIcon       = lucide.X()
+	brandIcon       = lucide.Route()
+	sendHistoryIcon = lucide.RotateCcwClock()
+	compareIcon     = lucide.Columns2()
+	errorIcon       = lucide.CircleAlert()
+	fileInputIcon   = lucide.FileInput()
+	copyIcon        = lucide.Copy()
+	formatIcon      = lucide.Braces()
+	eyeIcon         = lucide.Eye()
+	moreIcon        = lucide.Ellipsis()
+	chevronIcon     = lucide.ChevronDown()
 )
 
-// appTheme keeps content quiet and gives navigation and controls a separate
-// surface. Both appearances use the same typography and spacing.
+// appTheme is one neutral, flat palette for both workspaces: quiet chrome,
+// a single accent for the focused table and the primary action, and no
+// decoration that competes with traffic or bodies.
 func appTheme(dark bool) *ui.Theme {
 	t := ui.LightTheme()
 	if dark {
 		t = ui.DarkTheme()
-		t.Background = ui.Hex("#191d20")
-		t.Surface = ui.Hex("#202529")
-		t.SurfaceHover = ui.Hex("#2b3238")
-		t.SurfacePressed = ui.Hex("#333b43")
-		t.Border = ui.Hex("#343c43")
-		t.Text = ui.Hex("#e7edf3")
-		t.TextMuted = ui.Hex("#9da8b3")
-		t.Accent = ui.Hex("#087bff")
+		t.Background = ui.Hex("#1e1e1e")
+		t.Surface = ui.Hex("#252525")
+		t.SurfaceHover = ui.Hex("#303030")
+		t.SurfacePressed = ui.Hex("#3a3a3a")
+		t.Border = ui.Hex("#383838")
+		t.Text = ui.Hex("#ededed")
+		t.TextMuted = ui.Hex("#9a9a9a")
+		t.Accent = ui.Hex("#0a84ff")
+		t.AccentHover = ui.Hex("#2f95ff")
+		t.AccentPressed = ui.Hex("#0071e3")
+		t.AccentText = ui.Hex("#ffffff")
+		t.Danger = ui.Hex("#ff453a")
+		t.Warning = ui.Hex("#ff9f0a")
+		t.Success = ui.Hex("#32d74b")
+		t.Inverse = ui.Hex("#3a3a3a")
+		t.InverseText = ui.Hex("#f5f5f5")
 	} else {
 		t.Background = ui.Hex("#ffffff")
-		t.Surface = ui.Hex("#f3f3f5")
-		t.SurfaceHover = ui.Hex("#e9eaed")
-		t.SurfacePressed = ui.Hex("#dedfe4")
-		t.Border = ui.Hex("#dedfe4")
-		t.Text = ui.Hex("#24262c")
-		t.TextMuted = ui.Hex("#686c76")
+		t.Surface = ui.Hex("#f5f5f7")
+		t.SurfaceHover = ui.Hex("#ebebed")
+		t.SurfacePressed = ui.Hex("#e0e0e3")
+		t.Border = ui.Hex("#d9d9de")
+		t.Text = ui.Hex("#1d1d1f")
+		t.TextMuted = ui.Hex("#6e6e73")
+		t.Accent = ui.Hex("#007aff")
+		t.AccentHover = ui.Hex("#2492ff")
+		t.AccentPressed = ui.Hex("#0063d1")
+		t.AccentText = ui.Hex("#ffffff")
+		t.Danger = ui.Hex("#d70015")
+		t.Warning = ui.Hex("#b25000")
+		t.Success = ui.Hex("#248a3d")
+		t.Inverse = ui.Hex("#e8e8ec")
+		t.InverseText = ui.Hex("#1d1d1f")
 	}
 	t.FontSize = 13
 	t.Radius = 6
+	t.Spacing = 4
+	t.Selection = t.Accent.Alpha(0.3)
+	t.Focus = t.Accent
 	return t
 }
 
@@ -52,35 +97,39 @@ func appModal(c *ui.Context, open *bool, content func()) ui.Element {
 	t := c.Theme()
 	width, height := c.Size()
 	return ui.DialogBase(c, open, func(backdrop, panel ui.Element) {
-		backdrop.Background(ui.RGBA(0, 0, 0, 0.48))
-		panel.Padding(20).Gap(12).Radius(8).Background(t.Background).Border(1, t.Border).
-			MaxWidth(width-40).MaxHeight(height-40).Shadow(0, 12, 32, 0, ui.RGBA(0, 0, 0, 0.28))
+		backdrop.Background(ui.RGBA(0, 0, 0, 0.45))
+		panel.Padding(20).Gap(12).Radius(10).Background(t.Background).Border(1, t.Border).
+			MaxWidth(width-40).MaxHeight(height-40).Shadow(0, 16, 40, 0, ui.RGBA(0, 0, 0, 0.3))
 		content()
 	})
 }
 
 func dialogTitle(c *ui.Context, title string) ui.Element {
-	return ui.Text(c, title).FontSize(16).Bold().TextColor(c.Theme().Text)
+	return ui.Text(c, title).FontSize(15).Bold().TextColor(c.Theme().Text)
 }
 
-// Body modes and request/response share the same quiet, keyboard-native track.
-func inspectorSegments(c *ui.Context, selected *int, labels ...string) ui.Element {
+// flatTabs is a row of plain text tabs with an underline under the chosen
+// one. The prefix names each tab for assistive technology, so a screen with
+// two tab rows of the same labels can name the one it means.
+func flatTabs(c *ui.Context, selected *int, prefix string, labels ...string) ui.Element {
 	t := c.Theme()
-	group := ui.SegmentedBase(c, selected, len(labels))
-	group.Track.Padding(2).Radius(6).Border(1, t.Border).Background(t.Surface).Children(func() {
+	group := ui.TabsBase(c, selected, len(labels))
+	group.List.Gap(2).Children(func() {
 		for i, label := range labels {
-			segment := group.Segment(i).Height(24).Padding(0, 9).Radius(4).AlignItems(ui.Center).Label(label).TextColor(t.TextMuted)
-			if *selected == i {
-				segment.Background(t.Background).TextColor(t.Text)
-			} else if segment.Pressed() {
-				segment.Background(t.SurfacePressed)
-			} else if segment.Hovered() {
-				segment.Background(t.SurfaceHover).TextColor(t.Text)
+			name := label
+			if prefix != "" {
+				name = prefix + ": " + label
 			}
-			segment.Children(func() { ui.Text(c, label).FontSize(11) })
+			tab := group.Tab(i).Label(name).Height(32).Padding(0, 7).Radius(0).AlignItems(ui.Center).TextColor(t.TextMuted)
+			if i == *selected {
+				tab.TextColor(t.Text).Border(0, t.Border).BorderWidth(0, 0, 2, 0)
+			} else if tab.Hovered() {
+				tab.TextColor(t.Text)
+			}
+			tab.Children(func() { ui.Text(c, label).FontSize(12) })
 		}
 	})
-	return group.Track
+	return group.List
 }
 
 // settingsModal groups infrequent system actions away from capture controls.
