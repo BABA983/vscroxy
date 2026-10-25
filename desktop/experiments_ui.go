@@ -199,10 +199,10 @@ func (a *app) experimentsModal(c *ui.Context, t *ui.Theme) {
 		}
 	}
 	width, height := c.Size()
-	ui.Modal(c, &s.open, func() {
+	appModal(c, &s.open, func() {
 		ui.Column(c).Width(min(1200, width-80)).Height(height - 100).Gap(10).Children(func() {
 			ui.Row(c).Gap(8).Children(func() {
-				ui.Text(c, "Experiments").FontSize(18).Bold().Grow(1)
+				dialogTitle(c, "Experiments").Grow(1)
 				if ui.Button(c, "Clear experiments…").Disabled(s.readOnly || len(s.log.Records) == 0).Clicked() {
 					s.clearing = true
 				}
@@ -328,9 +328,9 @@ func (a *app) experimentsModal(c *ui.Context, t *ui.Theme) {
 			})
 		})
 	})
-	ui.Modal(c, &s.clearing, func() {
+	appModal(c, &s.clearing, func() {
 		ui.Column(c).Width(420).Gap(12).Children(func() {
-			ui.Text(c, "Clear all experiment records?").Bold()
+			dialogTitle(c, "Clear all experiment records?")
 			ui.Text(c, "This removes the retained runs and baseline, not open drafts, captured traffic or saved requests.")
 			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
 				if ui.Button(c, "Cancel").Clicked() {

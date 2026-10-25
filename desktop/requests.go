@@ -182,9 +182,9 @@ func (a *app) closeRequestModal(c *ui.Context, t *ui.Theme) {
 		return
 	}
 	open := true
-	ui.Modal(c, &open, func() {
+	appModal(c, &open, func() {
 		ui.Column(c).Width(440).Gap(16).Children(func() {
-			ui.Text(c, "Save changes?").FontSize(17).Bold()
+			dialogTitle(c, "Save changes?")
 			ui.Text(c, d.title()+" has unsaved changes. Closing it without saving will discard this draft.").TextColor(t.TextMuted)
 			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
 				if ui.Button(c, "Cancel").Clicked() {

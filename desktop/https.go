@@ -259,53 +259,89 @@ func (a *app) appInspectionMenu(m *ui.Menu, app capture.SSLApp) {
 // connectPanel describes this historical tunnel separately from today's rules.
 func (a *app) connectPanel(c *ui.Context, f flow) {
 	t := c.Theme()
+	width, height := c.Size()
 	status, color := a.certificateStatus(t)
 	domainEnabled := a.inspectionConfig().Decrypts(f.host)
 	inspection := func() {
-		ui.Row(c).Padding(10, 12).Gap(8).AlignItems(ui.Center).Children(func() {
-			ui.Icon(c, lockIcon).Size(18, 18).TextColor(t.TextMuted)
-			ui.Text(c, "Encrypted tunnel — not individual requests").FontSize(14).Grow(1)
-		})
-		// Actions stay outside the scrolling explanation, including at 960×600.
-		ui.Row(c).Padding(0, 12).Gap(6).Wrap().Children(func() {
-			if !domainEnabled && ui.PrimaryButton(c, "Enable for "+f.host).FontSize(11).Tooltip("Enable inspection of this hostname and its subdomains on new connections; client trust is still required").Clicked() {
-				a.decryptHost(f.host)
+		padding, gap := float32(16), float32(10)
+		if height <= 650 {
+			padding, gap = 8, 6
+		}
+		ui.Column(c).Fill().Padding(padding, 20).Gap(gap).Children(func() {
+			ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
+				ui.Icon(c, lockIcon).Size(20, 20).TextColor(t.Text)
+				ui.Text(c, "Encrypted tunnel").Label("Encrypted tunnel — not individual requests").FontSize(15).Bold()
+			})
+			ui.Text(c, "This connection is encrypted. CONNECT is not a decrypted HTTP response.").FontSize(12).TextColor(t.TextMuted)
+			if a.workbench.sideBySide {
+				ui.Column(c).FillWidth().Padding(10).Gap(7).Radius(6).Border(1, t.Border).Background(t.Surface).Children(func() {
+					state := "Encrypted tunnel"
+					if f.conn.error != "" {
+						state = "Connection failed"
+					}
+					for _, field := range []struct{ label, value string }{
+						{"URL", f.url},
+						{"Method", f.method},
+						{"State", state},
+						{"Client", cmp.Or(f.process, "Unidentified")},
+						{"Duration", fmt.Sprintf("%d ms", f.millis)},
+					} {
+						ui.Row(c).Gap(8).Children(func() {
+							ui.Text(c, field.label).Width(64).FontSize(11).TextColor(t.TextMuted)
+							ui.Text(c, field.value).Grow(1).FontSize(11).Font("monospace").SingleLine().Tooltip(field.value)
+						})
+					}
+				})
+			}
+			// Keep the narrow domain action primary and the broader executable
+			// permission secondary. Both remain outside the scrolling notes.
+			if !domainEnabled {
+				domain := ui.PrimaryButton(c, "Inspect "+hostOnly(f.host)).Label("Enable for " + f.host).Height(30).FontSize(12).FillWidth().Tooltip("Enable this hostname and subdomains on new connections; client CA trust is still required")
+				if !a.workbench.sideBySide {
+					domain.MaxWidth(260)
+				}
+				if domain.Clicked() {
+					a.decryptHost(f.host)
+				}
 			}
 			if !a.appInspectionEnabled(f.processPath) && !a.sslAll && filepath.IsAbs(f.processPath) {
-				if ui.Button(c, "Enable HTTPS for "+f.process).FontSize(11).Tooltip("All new HTTPS connections from this exact executable: " + f.processPath).Clicked() {
+				if ui.Button(c, "Inspect all domains from \""+f.process+"\"").Label("Enable HTTPS for " + f.process).Height(30).FontSize(12).FillWidth().MaxWidth(440).Tooltip("Exact executable only: " + f.processPath).Clicked() {
 					a.setAppInspection(capture.SSLApp{Name: f.process, Path: f.processPath}, true)
 				}
 			}
-			if ui.Button(c, "Set up certificate…").FontSize(11).Clicked() {
-				a.settingsTab, a.settingsOpen = 2, true
-				a.checkCertificate(false)
-			}
-		})
-		ui.Scroll(c).Grow(1).FillWidth().Padding(10, 12).Gap(7).Children(func() {
-			ui.Text(c, "A CONNECT record is not a decrypted HTTP response. Enabling a rule does not reveal this historical tunnel's contents.").FontSize(11).TextColor(t.TextMuted)
-			if f.conn.error != "" {
-				ui.Text(c, "Connection failed before an HTTP exchange").FontSize(12).TextColor(t.Danger)
-				ui.Text(c, "See Connection for the recorded failure. Client trust and certificate pinning may require changes in that client.").FontSize(11).TextColor(t.TextMuted)
-			}
-			if domainEnabled {
-				ui.Text(c, "Domain rule enabled · reconnect to inspect new requests").FontSize(11).TextColor(t.Text)
-			} else {
-				ui.Text(c, "Domain decryption disabled").FontSize(11).TextColor(t.TextMuted)
-			}
-			if a.appInspectionEnabled(f.processPath) {
-				ui.Text(c, "App rule enabled · reconnect to inspect new requests").FontSize(11).Tooltip(f.processPath)
-			} else if !filepath.IsAbs(f.processPath) {
-				ui.Text(c, "App rule unavailable · local executable identity not recorded").FontSize(11).TextColor(t.TextMuted)
-			}
-			ui.Text(c, status).FontSize(11).TextColor(color)
-			ui.Text(c, "Client CA trust may differ from system trust. Rules apply to new connections only; enabling is not proof of successful decryption.").FontSize(11).TextColor(t.TextMuted)
+			ui.Row(c).Gap(6).Wrap().AlignItems(ui.Center).Children(func() {
+				ui.Text(c, "New connections only · Client must trust the local CA").FontSize(11).TextColor(t.TextMuted)
+				if ui.ButtonBase(c).Label("Set up certificate…").Height(22).Tooltip("Certificate setup and system trust").Children(func() {
+					ui.Text(c, "Certificate setup ↗").FontSize(11).TextColor(t.Accent)
+				}).Clicked() {
+					a.settingsTab, a.settingsOpen = 2, true
+					a.checkCertificate(false)
+				}
+			})
+			ui.Scroll(c).Grow(1).FillWidth().Gap(6).Children(func() {
+				if f.conn.error != "" {
+					ui.Text(c, "Connection failed before an HTTP exchange").FontSize(12).TextColor(t.Danger)
+					ui.Text(c, "See Connection for the recorded failure; client trust or pinning may require client-side changes.").FontSize(11).TextColor(t.TextMuted)
+				}
+				if domainEnabled {
+					ui.Text(c, "Domain rule enabled · reconnect to inspect new requests").FontSize(11).TextColor(t.Text)
+				} else {
+					ui.Text(c, "Domain decryption disabled").FontSize(11).TextColor(t.TextMuted)
+				}
+				if a.appInspectionEnabled(f.processPath) {
+					ui.Text(c, "App rule enabled · reconnect to inspect new requests").FontSize(11).Tooltip(f.processPath)
+				} else if !filepath.IsAbs(f.processPath) {
+					ui.Text(c, "App rule unavailable · local executable identity not recorded").FontSize(11).TextColor(t.TextMuted)
+				}
+				ui.Text(c, status).FontSize(11).TextColor(color)
+				ui.Text(c, "Rules do not reveal this historical tunnel. Enabled is not proof of successful decryption.").FontSize(11).TextColor(t.TextMuted)
+			})
 		})
 	}
-	width, _ := c.Size()
 	if !a.workbench.sideBySide && width >= 1100 {
 		ui.Row(c).Grow(1).Children(func() {
-			ui.Column(c).WidthPercent(40).FillHeight().Padding(12).Children(func() {
-				a.headerBlock(c, t, "Request", "CONNECT "+f.host, "", f.reqHeader, f.reqHeaders, nil)
+			ui.Column(c).WidthPercent(44).FillHeight().Padding(18, 20).Children(func() {
+				a.headerBlock(c, t, "Request", strings.TrimSpace("CONNECT "+f.host+" "+f.conn.proto), "", f.reqHeader, f.reqHeaders, nil)
 			})
 			ui.Box(c).Width(1).FillHeight().Background(t.Border)
 			ui.Column(c).Grow(1).FillHeight().Children(inspection)

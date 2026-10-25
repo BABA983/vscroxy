@@ -1054,9 +1054,9 @@ func (a *app) view(c *ui.Context) {
 	a.persistSettings()
 	a.checkpointExperiments(c)
 	a.commandPalette(c)
-	ui.Modal(c, &a.clearOpen, func() {
+	appModal(c, &a.clearOpen, func() {
 		ui.Column(c).Width(360).Gap(12).Children(func() {
-			ui.Text(c, "Clear captured requests?").Bold()
+			dialogTitle(c, "Clear captured requests?")
 			ui.Text(c, "Unpinned requests will be removed from this session. Export any traffic you want to keep first.")
 			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
 				if ui.Button(c, "Cancel").Clicked() {
@@ -1125,9 +1125,9 @@ func (a *app) upstreamModal(c *ui.Context, t *ui.Theme) {
 	if !a.upstreamOpen {
 		return
 	}
-	ui.Modal(c, &a.upstreamOpen, func() {
+	appModal(c, &a.upstreamOpen, func() {
 		ui.Column(c).Width(480).Gap(10).Children(func() {
-			ui.Text(c, "Upstream proxy").FontSize(14).Bold()
+			dialogTitle(c, "Upstream proxy")
 			ui.TextInput(c, &a.upstreamAddr).Placeholder("http://127.0.0.1:8080").Label("Address")
 			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
 				if ui.Button(c, "Cancel").Clicked() {
@@ -1158,13 +1158,13 @@ func (a *app) breakpointModal(c *ui.Context, t *ui.Theme) {
 	// especially when queued breakpoints open in a small window.
 	c.CloseToast("")
 	width, height := c.Size()
-	if ui.Modal(c, &a.bpOpen, func() {
+	if appModal(c, &a.bpOpen, func() {
 		ui.Column(c).Width(min(720, width-64)).Height(min(640, height-64)).Gap(10).Children(func() {
 			title := "Breakpoint · request paused"
 			if a.bp.Phase == capture.PhaseResponse {
 				title = "Breakpoint · response paused"
 			}
-			ui.Text(c, title).FontSize(14).Bold()
+			dialogTitle(c, title)
 			a.mu.Lock()
 			waiting := len(a.bps) + 1
 			a.mu.Unlock()
@@ -1214,165 +1214,192 @@ func (a *app) breakpointModal(c *ui.Context, t *ui.Theme) {
 }
 
 func (a *app) toolbar(c *ui.Context, t *ui.Theme) {
-	ui.Toolbar(c, func() {
-		ui.Text(c, "vscroxy").FontSize(14).Bold().Width(80)
-		nav := ui.TabsBase(c, &a.workspace, 3)
-		nav.List.Gap(4).Children(func() {
-			for i, label := range []string{"Capture", "Requests", "APIs"} {
-				tab := nav.Tab(i).Height(32).Padding(0, 12).Gap(7).AlignItems(ui.Center).Radius(6).TextColor(t.TextMuted)
-				if a.workspace == i {
-					tab.Background(t.Accent.Alpha(0.12)).TextColor(t.Accent)
+	ui.Row(c).Children(func() {
+		ui.Toolbar(c, func() {
+			brandWidth := float32(88)
+			if !a.workbench.sidebarHidden && !a.workbench.focused {
+				brandWidth = a.sidebarWidth - 18
+			}
+			ui.Text(c, "vscroxy").FontSize(15).Bold().Width(brandWidth)
+			nav := ui.TabsBase(c, &a.workspace, 3)
+			nav.List.Gap(4).Children(func() {
+				for i, label := range []string{"Capture", "Requests", "APIs"} {
+					tab := nav.Tab(i).Height(32).Padding(0, 12).Gap(7).AlignItems(ui.Center).Radius(6).TextColor(t.TextMuted)
+					if a.workspace == i {
+						tab.Background(t.Accent.Alpha(0.12)).TextColor(t.Accent)
+					}
+					tab.Children(func() {
+						ui.Icon(c, []*ui.SVG{captureIcon, requestIcon, apiIcon}[i]).Size(15, 15)
+						ui.Text(c, label).FontSize(12).Bold()
+					})
 				}
-				tab.Children(func() {
-					ui.Icon(c, []*ui.SVG{captureIcon, requestIcon, apiIcon}[i]).Size(15, 15)
-					ui.Text(c, label).FontSize(12).Bold()
-				})
+			})
+			if nav.List.Changed() && a.workspace == 1 && a.requestDocument == nil {
+				a.openCompose()
 			}
-		})
-		if nav.List.Changed() && a.workspace == 1 && a.requestDocument == nil {
-			a.openCompose()
-		}
-		ui.Spacer(c)
-		if ui.Button(c, "Rules").FontSize(11).Height(28).Clicked() {
-			a.openRules()
-		}
-		networkLabel := "Network"
-		if a.deviceUI.gateway != nil {
-			networkLabel = "Network · LAN"
-		}
-		ui.MenuButton(c, networkLabel, func(m *ui.Menu) {
-			if m.Item("Capture diagnostics…").Chosen() {
-				a.openDiagnostics()
+			ui.Spacer(c)
+			if ui.Button(c, "Rules").FontSize(11).Height(28).Clicked() {
+				a.openRules()
 			}
-			if m.Item("Set up a local client…").Chosen() {
-				a.openClientSetup()
+			networkLabel := "Network"
+			if a.deviceUI.gateway != nil {
+				networkLabel = "Network · LAN"
 			}
-			a.desktopMenuItem(c, m, "websocket", "WebSocket session…")
-			if m.Item("No Caching").Checked(a.srv != nil && a.srv.NoCaching()).Disabled(a.srv == nil).Chosen() {
-				a.srv.SetNoCaching(!a.srv.NoCaching())
-			}
-			m.Separator()
-			if m.Item("Connect a device…").Checked(a.deviceUI.gateway != nil).Chosen() {
-				a.openDevices()
-			}
-			m.Separator()
-			for _, preset := range capture.Presets {
-				if m.Item(preset.Name).Checked(a.throttle.Name == preset.Name).Chosen() {
-					a.throttle = preset
+			ui.MenuButton(c, networkLabel, func(m *ui.Menu) {
+				if m.Item("Capture diagnostics…").Chosen() {
+					a.openDiagnostics()
+				}
+				if m.Item("Set up a local client…").Chosen() {
+					a.openClientSetup()
+				}
+				a.desktopMenuItem(c, m, "websocket", "WebSocket session…")
+				if m.Item("No Caching").Checked(a.srv != nil && a.srv.NoCaching()).Disabled(a.srv == nil).Chosen() {
+					a.srv.SetNoCaching(!a.srv.NoCaching())
+				}
+				m.Separator()
+				if m.Item("Connect a device…").Checked(a.deviceUI.gateway != nil).Chosen() {
+					a.openDevices()
+				}
+				m.Separator()
+				for _, preset := range capture.Presets {
+					if m.Item(preset.Name).Checked(a.throttle.Name == preset.Name).Chosen() {
+						a.throttle = preset
+						if a.srv != nil {
+							a.srv.SetThrottle(preset)
+						}
+					}
+				}
+				m.Separator()
+				if m.Item("Upstream…").Chosen() {
+					a.upstreamAddr = a.upstream
+					a.upstreamOpen = true
+				}
+				if m.Item("Upstream off").Chosen() {
 					if a.srv != nil {
-						a.srv.SetThrottle(preset)
+						_ = a.srv.SetUpstream("")
+					}
+					a.upstream = ""
+					a.setMessage("Upstream: off")
+				}
+				m.Separator()
+				if m.Item("SSL proxying…").Chosen() {
+					a.sslOpen = true
+				}
+				if m.Item("Ignored hosts…").Chosen() {
+					a.ignoreOpen = true
+				}
+				if m.Item("Ignored apps…").Chosen() {
+					a.ignoreAppsOpen = true
+				}
+				if m.Item("DNS mapping…").Chosen() {
+					a.dnsOpen = true
+				}
+			}).FontSize(11).Height(28).TextColor(t.TextMuted).Border(0, t.Border)
+			ui.MenuButton(c, "Session", func(m *ui.Menu) {
+				a.desktopMenuItem(c, m, "replay", "Replay chosen…")
+				m.Separator()
+				if m.Item("Export HAR…").Chosen() {
+					a.exportHAR()
+				}
+				a.desktopMenuItem(c, m, "export-selection", "Export chosen HAR…")
+				if m.Item("Choose all shown").Chosen() {
+					for _, at := range a.visible {
+						a.chosen.Add(a.flows[at].id)
+					}
+					a.setMessage(fmt.Sprintf("%d chosen", a.chosen.Len()))
+				}
+				if m.Item("Clear choice").Chosen() {
+					a.chosen.Clear()
+				}
+				if m.Item("Save session…").Chosen() {
+					a.saveSession()
+				}
+				if m.Item("Open session…").Chosen() {
+					a.openSession()
+				}
+				a.desktopMenuItem(c, m, "investigations", "Investigate saved sessions…")
+				if m.Item("Import HAR…").Chosen() {
+					a.importHAR()
+				}
+				if len(a.history) > 0 && m.Item("Clear history").Chosen() {
+					a.history = nil
+					a.saveHistory()
+					a.setMessage("History cleared")
+				}
+				m.Separator()
+				if m.Item("Export requests…").Chosen() {
+					a.exportRequests()
+				}
+				if m.Item("Import requests…").Chosen() {
+					a.importRequests()
+				}
+				if m.Item("Import regression…").Chosen() {
+					a.importRegression()
+				}
+				if m.Item("Import cURL…").Chosen() {
+					a.openCurlImport()
+				}
+				m.Separator()
+				if m.Item("Generate OpenAPI…").Disabled(len(a.requests) == 0).Chosen() {
+					a.openAPIGeneration()
+				}
+			}).FontSize(11).Height(28).TextColor(t.TextMuted).Border(0, t.Border)
+			ui.MenuButton(c, "View", func(m *ui.Menu) {
+				for _, action := range a.desktopActions(c) {
+					if strings.HasPrefix(action.id, "layout-") || action.id == "sidebar" || action.id == "focus" {
+						item := m.Item(action.label).Shortcut(action.mods, action.key).Disabled(!action.enabled)
+						if action.id == "layout-bottom" || action.id == "layout-right" || action.id == "layout-auto" {
+							layout := cmp.Or(a.workbench.layout, "bottom")
+							item.Checked(action.id == "layout-"+layout || action.id == "layout-auto" && layout == "adaptive")
+						}
+						if item.Chosen() {
+							action.run()
+						}
 					}
 				}
-			}
-			m.Separator()
-			if m.Item("Upstream…").Chosen() {
-				a.upstreamAddr = a.upstream
-				a.upstreamOpen = true
-			}
-			if m.Item("Upstream off").Chosen() {
-				if a.srv != nil {
-					_ = a.srv.SetUpstream("")
+				m.Separator()
+				if m.Item("Filter…").Chosen() {
+					a.openFilter()
 				}
-				a.upstream = ""
-				a.setMessage("Upstream: off")
-			}
-			m.Separator()
-			if m.Item("SSL proxying…").Chosen() {
-				a.sslOpen = true
-			}
-			if m.Item("Ignored hosts…").Chosen() {
-				a.ignoreOpen = true
-			}
-			if m.Item("Ignored apps…").Chosen() {
-				a.ignoreAppsOpen = true
-			}
-			if m.Item("DNS mapping…").Chosen() {
-				a.dnsOpen = true
-			}
-		}).FontSize(11).Height(28).TextColor(t.TextMuted).Border(0, t.Border)
-		ui.MenuButton(c, "Session", func(m *ui.Menu) {
-			a.desktopMenuItem(c, m, "replay", "Replay chosen…")
-			m.Separator()
-			if m.Item("Export HAR…").Chosen() {
-				a.exportHAR()
-			}
-			a.desktopMenuItem(c, m, "export-selection", "Export chosen HAR…")
-			if m.Item("Choose all shown").Chosen() {
-				for _, at := range a.visible {
-					a.chosen.Add(a.flows[at].id)
+				if a.filtersActive() && m.Item("Clear filters").Chosen() {
+					a.clearFilters()
 				}
-				a.setMessage(fmt.Sprintf("%d chosen", a.chosen.Len()))
-			}
-			if m.Item("Clear choice").Chosen() {
-				a.chosen.Clear()
-			}
-			if m.Item("Save session…").Chosen() {
-				a.saveSession()
-			}
-			if m.Item("Open session…").Chosen() {
-				a.openSession()
-			}
-			a.desktopMenuItem(c, m, "investigations", "Investigate saved sessions…")
-			if m.Item("Import HAR…").Chosen() {
-				a.importHAR()
-			}
-			if len(a.history) > 0 && m.Item("Clear history").Chosen() {
-				a.history = nil
-				a.saveHistory()
-				a.setMessage("History cleared")
-			}
-			m.Separator()
-			if m.Item("Export requests…").Chosen() {
-				a.exportRequests()
-			}
-			if m.Item("Import requests…").Chosen() {
-				a.importRequests()
-			}
-			if m.Item("Import regression…").Chosen() {
-				a.importRegression()
-			}
-			if m.Item("Import cURL…").Chosen() {
-				a.openCurlImport()
-			}
-			m.Separator()
-			if m.Item("Generate OpenAPI…").Disabled(len(a.requests) == 0).Chosen() {
-				a.openAPIGeneration()
-			}
-		}).FontSize(11).Height(28).TextColor(t.TextMuted).Border(0, t.Border)
-		ui.MenuButton(c, "View", func(m *ui.Menu) {
-			for _, action := range a.desktopActions(c) {
-				if strings.HasPrefix(action.id, "layout-") || action.id == "sidebar" || action.id == "focus" {
-					item := m.Item(action.label).Shortcut(action.mods, action.key).Disabled(!action.enabled)
-					if action.id == "layout-bottom" || action.id == "layout-right" || action.id == "layout-auto" {
-						layout := cmp.Or(a.workbench.layout, "bottom")
-						item.Checked(action.id == "layout-"+layout || action.id == "layout-auto" && layout == "adaptive")
-					}
-					if item.Chosen() {
-						action.run()
-					}
+				m.Separator()
+				if m.Item("Column from header…").Chosen() {
+					a.openColumn()
 				}
+				if a.headerColumn != "" && m.Item("Hide the "+a.headerColumn+" column").Chosen() {
+					a.setHeaderColumn("")
+				}
+				m.Separator()
+				if m.Item("Protobuf schema…").Chosen() {
+					a.protobuf.open = true
+				}
+			}).FontSize(11).Height(28).TextColor(t.TextMuted).Border(0, t.Border)
+			if ui.Button(c, "Commands").Height(28).FontSize(11).Tooltip("Search actions · Ctrl/Cmd+K").Clicked() {
+				a.workbench.openPalette()
 			}
-			m.Separator()
-			if m.Item("Filter…").Chosen() {
-				a.openFilter()
-			}
-			if a.filtersActive() && m.Item("Clear filters").Chosen() {
-				a.clearFilters()
-			}
-			m.Separator()
-			if m.Item("Column from header…").Chosen() {
-				a.openColumn()
-			}
-			if a.headerColumn != "" && m.Item("Hide the "+a.headerColumn+" column").Chosen() {
-				a.setHeaderColumn("")
-			}
-			m.Separator()
-			if m.Item("Protobuf schema…").Chosen() {
-				a.protobuf.open = true
-			}
-		}).FontSize(11).Height(28).TextColor(t.TextMuted).Border(0, t.Border)
-		if ui.Button(c, "Commands").Height(28).FontSize(11).Tooltip("Search actions · Ctrl/Cmd+K").Clicked() {
-			a.workbench.openPalette()
+		}).Grow(1).Padding(0).Gap(6)
+		listener := "Capture stopped"
+		if a.srv != nil && a.srv.Running() {
+			listener = "Listening " + a.srv.Addr()
+		}
+		width, _ := c.Size()
+		caption := listener
+		if width < 1100 {
+			caption = "Listener"
+		}
+		if ui.ButtonBase(c).Label("Listener settings").Height(28).Padding(0, 10).Radius(6).Border(1, t.Border).Tooltip(listener + " · Proxy settings; listening is not proof of HTTPS inspection").Children(func() {
+			ui.Row(c).Gap(7).AlignItems(ui.Center).Children(func() {
+				color := t.TextMuted
+				if a.srv != nil && a.srv.Running() {
+					color = t.Success
+				}
+				ui.Box(c).Size(7, 7).Radius(4).Background(color)
+				ui.Text(c, caption).FontSize(11).TextColor(t.TextMuted)
+			})
+		}).Clicked() {
+			a.settingsTab, a.settingsOpen = 1, true
 		}
 		if ui.ButtonBase(c).Size(30, 30).Radius(6).Label("Settings").Tooltip("Settings · Ctrl/Cmd+,").Children(func() {
 			ui.Icon(c, settingsIcon).Size(17, 17).TextColor(t.TextMuted)
@@ -1419,21 +1446,22 @@ func (a *app) sidebar(c *ui.Context) {
 	}
 	ui.Column(c).Fill().Background(t.Surface).Children(func() {
 		chosen := ui.Sidebar(c, &a.filter, func() {
-			a.views.controls(c, t, a)
 			ui.SidebarSection(c, "Traffic", &a.trafficOpen, func() {
-				ui.SidebarItem(c, "all", nil, "All requests")
-				ui.SidebarItem(c, "errors", nil, "Errors").Children(func() {
-					ui.Badge(c, fmt.Sprint(a.count(flow.failed)))
+				ui.SidebarItem(c, "all", trafficIcon, "All requests").FontSize(12).Padding(5, 8).Children(func() {
+					ui.Text(c, fmt.Sprint(len(a.flows))).FontSize(11).TextColor(t.TextMuted)
 				})
-				ui.SidebarItem(c, "slow", nil, "Slow").Children(func() {
-					ui.Badge(c, fmt.Sprint(a.count(func(f flow) bool { return f.millis >= 120 })))
+				ui.SidebarItem(c, "errors", infoIcon, "Errors").FontSize(12).Padding(5, 8).Children(func() {
+					ui.Text(c, fmt.Sprint(a.count(flow.failed))).FontSize(11).TextColor(t.TextMuted)
+				})
+				ui.SidebarItem(c, "slow", captureIcon, "Slow").FontSize(12).Padding(5, 8).Children(func() {
+					ui.Text(c, fmt.Sprint(a.count(func(f flow) bool { return f.millis >= 120 }))).FontSize(11).TextColor(t.TextMuted)
 				})
 			})
 			if len(a.clients) > 0 {
 				ui.SidebarSection(c, "Apps", &a.clientsOpen, func() {
 					for _, d := range a.clients {
 						apps := a.capturedApps(d.name)
-						ui.SidebarItem(c, "client:"+d.name, nil, d.name).
+						ui.SidebarItem(c, "client:"+d.name, appIcon, d.name).FontSize(12).Padding(5, 8).
 							ContextMenu(func(m *ui.Menu) {
 								if len(apps) == 1 {
 									a.appInspectionMenu(m, apps[0])
@@ -1456,26 +1484,33 @@ func (a *app) sidebar(c *ui.Context) {
 								}
 							}).
 							Children(func() {
-								ui.Badge(c, fmt.Sprint(d.n))
+								if slices.ContainsFunc(apps, func(app capture.SSLApp) bool { return a.appInspectionEnabled(app.Path) }) {
+									ui.Icon(c, lockIcon).Size(12, 12).Tooltip("An exact executable rule is enabled; client CA trust is still required")
+								}
+								ui.Text(c, fmt.Sprint(d.n)).FontSize(11).TextColor(t.TextMuted)
 							})
 					}
 				})
 			}
 			ui.SidebarSection(c, "Domains", &a.domainsOpen, func() {
 				for _, d := range a.domains {
-					ui.SidebarItem(c, "host:"+d.name, nil, d.name).Children(func() {
-						ui.Badge(c, fmt.Sprint(d.n))
+					ui.SidebarItem(c, "host:"+d.name, domainIcon, d.name).FontSize(12).Padding(5, 8).Children(func() {
+						ui.Text(c, fmt.Sprint(d.n)).FontSize(11).TextColor(t.TextMuted)
 					})
 				}
 			})
+			ui.Divider(c).Margin(10, 0)
+			a.views.controls(c, t, a)
 		}).Grow(1)
 		if chosen.Changed() {
 			a.applyFilter()
 		}
 		ui.Toolbar(c, func() {
-			if ui.Button(c, "HTTPS rules").Label("Manage HTTPS rules").Children(func() {
+			if ui.Button(c, "").Label("Manage HTTPS rules").Children(func() {
 				ui.Icon(c, lockIcon).Size(14, 14)
-			}).FillWidth().Height(30).FontSize(12).Clicked() {
+				ui.Text(c, "HTTPS rules").Grow(1).FontSize(12)
+				ui.Text(c, "›").TextColor(t.TextMuted)
+			}).FillWidth().Height(34).Padding(0, 10).Border(1, t.Border).Radius(6).Clicked() {
 				a.sslOpen = true
 			}
 		}).Padding(8).FillWidth()
@@ -1574,25 +1609,22 @@ func (a *app) table(c *ui.Context) {
 		return
 	}
 	cols := []ui.TableColumn{
-		{ID: "method", Title: "Method", Width: 92, Sortable: true},
-		{ID: "status", Title: "Status", Width: 78, Align: ui.End, Sortable: true},
-		{ID: "url", Title: "URL", MinWidth: 180, Sortable: true},
+		{ID: "id", Title: "#", Width: 48, Sortable: true},
+		{ID: "url", Title: "URL", MinWidth: 200, Sortable: true},
+		{ID: "client", Title: "Client", Width: 140, Sortable: true},
+		{ID: "method", Title: "Method", Width: 84, Sortable: true},
+		{ID: "status", Title: "Status", Width: 72, Sortable: true},
+		{ID: "duration", Title: "Duration", Width: 110, Align: ui.End, Sortable: true},
 	}
-	headerCol := -1
+	if a.workbench.sideBySide {
+		cols[2].Width = 100
+	}
 	if a.headerColumn != "" {
-		headerCol = len(cols)
 		cols = append(cols, ui.TableColumn{ID: "header", Title: a.headerColumn, Width: 150, Sortable: true})
 	}
-	clientCol, sizeCol := -2, -3
 	if !a.workbench.sideBySide {
-		clientCol = len(cols)
-		cols = append(cols, ui.TableColumn{ID: "client", Title: "Client", Width: 132, Sortable: true})
-	}
-	durationCol := len(cols)
-	cols = append(cols, ui.TableColumn{ID: "duration", Title: "Duration", Width: 96, Align: ui.End, Sortable: true})
-	if !a.workbench.sideBySide {
-		sizeCol = len(cols)
-		cols = append(cols, ui.TableColumn{ID: "size", Title: "Size", Width: 86, Align: ui.End, Sortable: true})
+		cols = append(cols, ui.TableColumn{ID: "size", Title: "Size", Width: 72, Align: ui.End, Sortable: true},
+			ui.TableColumn{ID: "captured", Title: "Time", Width: 84, Sortable: true})
 	}
 	cols = append(cols, ui.TableColumn{Title: "", ID: "filler", Width: 14, Fixed: true})
 	state := &a.views.activeView().list
@@ -1606,44 +1638,21 @@ func (a *app) table(c *ui.Context) {
 		f := a.flows[a.visible[row]]
 		chosen := a.chosen.Has(f.id)
 		text := func(s string) ui.Element { return ui.Text(c, s).FontSize(12).SingleLine() }
-		switch col {
-		case 0:
-			color := methodColor(f.method)
-			if chosen {
-				color = t.AccentText
-			}
+		switch cols[col].ID {
+		case "id":
+			text(fmt.Sprint(f.id)).Font("monospace").TextColor(rowColor(chosen, t, t.TextMuted))
+		case "method":
+			text(f.method).TextColor(rowColor(chosen, t, t.Text)).Tooltip(f.method)
+		case "url":
 			if f.pinned {
-				ui.Icon(c, pinIcon).Size(11, 11).Padding(0, 4, 0, 0).TextColor(color)
+				ui.Icon(c, pinIcon).Size(11, 11).MarginEnd(4).TextColor(rowColor(chosen, t, t.TextMuted))
 			}
 			if f.color != "" {
 				if dot, ok := highlightColor(f.color); ok {
 					ui.Box(c).Size(8, 8).Radius(4).Background(dot).MarginEnd(5)
 				}
 			}
-			text(f.method).TextColor(color).Padding(2, 5).Radius(3).Background(color.Alpha(0.10))
-		case 1:
-			if f.conn.error != "" {
-				text("Failed").TextColor(rowColor(chosen, t, t.Danger)).Tooltip(f.conn.errorStage + ": " + f.conn.error)
-				return
-			}
-			if f.kind == "connect" && f.status == 0 {
-				color := ui.Hex("#d97706")
-				if chosen {
-					color = t.AccentText
-				}
-				text("Tunnel").TextColor(color)
-				return
-			}
-			color := f.statusColor(t)
-			if chosen {
-				color = t.AccentText
-			}
-			text(fmt.Sprint(f.status)).TextColor(color).Padding(2, 5).Radius(3).Background(color.Alpha(0.10))
-		case 2:
-			scheme := ui.Hex("#71717a")
-			if f.scheme == "https" {
-				scheme = ui.Hex("#0891b2")
-			}
+			scheme := t.TextMuted
 			rest := rowColor(chosen, t, t.Text)
 			if chosen {
 				scheme = t.AccentText
@@ -1665,7 +1674,16 @@ func (a *app) table(c *ui.Context) {
 				text(f.scheme + "://").Font("monospace").Shrink(0).TextColor(scheme).ContextMenu(a.rowMenu(c, f))
 				text(f.host + f.path).Font("monospace").TextColor(rest).Tooltip(f.url).ContextMenu(a.rowMenu(c, f))
 			})
-		case headerCol:
+		case "status":
+			if f.conn.error != "" {
+				text("Failed").TextColor(rowColor(chosen, t, t.Danger)).Tooltip(f.conn.errorStage + ": " + f.conn.error)
+			} else if f.kind == "connect" {
+				text("Tunnel").TextColor(rowColor(chosen, t, t.TextMuted)).Tooltip(fmt.Sprintf("CONNECT %d · encrypted tunnel, not an HTTP response", f.status))
+			} else {
+				color := f.statusColor(t)
+				text(fmt.Sprint(f.status)).Font("monospace").TextColor(color).Padding(2, 5).Radius(3).Background(color.Alpha(0.15))
+			}
+		case "header":
 			value := f.respHeader.Get(a.headerColumn)
 			if value == "" {
 				value = f.reqHeader.Get(a.headerColumn)
@@ -1675,17 +1693,23 @@ func (a *app) table(c *ui.Context) {
 				return
 			}
 			text(value).TextColor(rowColor(chosen, t, t.Text)).Tooltip(value)
-		case clientCol:
+		case "client":
 			if src, ok := a.clientIcon(f.process, f.processPath); ok {
 				ui.Image(c, src).Size(16, 16)
 			} else {
 				clientBadge(c, f.process)
 			}
 			text(f.process).Padding(0, 0, 0, 6).ContextMenu(a.rowMenu(c, f)).TextColor(rowColor(chosen, t, t.TextMuted))
-		case durationCol:
+		case "duration":
 			text(fmt.Sprintf("%d ms", f.millis)).TextColor(rowColor(chosen, t, t.TextMuted))
-		case sizeCol:
+		case "size":
 			text(humanBytes(f.bytes)).TextColor(rowColor(chosen, t, t.TextMuted))
+		case "captured":
+			at := "—"
+			if !f.at.IsZero() {
+				at = f.at.Local().Format("15:04:05")
+			}
+			text(at).Font("monospace").TextColor(rowColor(chosen, t, t.TextMuted))
 		}
 	}).Label("Captured requests").Grow(1)
 	if table.Submitted() {
@@ -1707,71 +1731,108 @@ func (a *app) detail(c *ui.Context) {
 			return
 		}
 		f, ok := a.current()
-		ui.Row(c).Height(34).Padding(0, 12).Gap(8).AlignItems(ui.Center).Children(func() {
-			if ok {
-				ui.Text(c, fmt.Sprintf("%s %s://%s%s", f.method, f.scheme, f.host, f.path)).
-					FontSize(12).Font("monospace").TextColor(t.Text).SingleLine().Grow(1).Tooltip(f.url)
-			} else {
-				ui.Text(c, "No request chosen").FontSize(12).TextColor(t.TextMuted).Grow(1)
-			}
-			if !a.workbench.focused {
-				a.desktopButton(c, "focus", "Focus").Tooltip("Focus inspector · Ctrl/Cmd+Shift+Enter")
-			}
-		})
-		ui.Row(c).Padding(2, 12).Gap(8).Wrap().AlignItems(ui.Center).Children(func() {
-			if !ok {
-				return
-			}
-			a.desktopButton(c, "edit", "Edit & replay")
-			a.desktopButton(c, "replay", "Replay")
-			a.desktopButton(c, "copy", "cURL")
-			if ui.Button(c, "Debug history").FontSize(11).Clicked() {
-				a.openDebugHistory(newDebugSource(f))
-			}
-			if f.process != "" {
-				ui.Text(c, f.process).FontSize(11).TextColor(t.TextMuted).SingleLine().MaxWidth(100).Tooltip(f.process)
-			}
-			if f.dns != "" {
-				ui.Box(c).Size(28, 14).Radius(3).Background(ui.Hex("#d97706")).Center().Children(func() {
-					ui.Text(c, "DNS").FontSize(9).Bold().TextColor(ui.Hex("#ffffff"))
-				})
-				ui.Text(c, f.dns).FontSize(12).TextColor(t.TextMuted).
-					Tooltip("The proxy dialled this address; the request kept its name, Host header and SNI")
-			}
-			if f.note != "" {
-				ui.Icon(c, noteIcon).Size(12, 12).TextColor(t.TextMuted)
-				ui.Text(c, f.note).FontSize(11).TextColor(t.TextMuted).SingleLine().MaxWidth(100).Tooltip(f.note)
-			}
-			status := strconv.Itoa(f.status)
-			color := f.statusColor(t)
-			if f.conn.error != "" {
-				status = "Failed"
-				color = t.Danger
-				if f.kind == "connect" && f.status == 200 {
-					status = "CONNECT 200 · failed"
+		if ok && f.kind == "connect" && a.workbench.sideBySide {
+			ui.Row(c).Height(66).Padding(10, 16).Gap(10).AlignItems(ui.Center).Children(func() {
+				if src, found := a.clientIcon(f.process, f.processPath); found {
+					ui.Image(c, src).Size(32, 32)
+				} else {
+					ui.Icon(c, appIcon).Size(32, 32).TextColor(t.TextMuted)
 				}
-			}
-			chip := ui.Text(c, fmt.Sprintf("%s · %s · %d ms", status, humanBytes(f.bytes), f.millis)).
-				FontSize(12).TextColor(color)
-			if f.conn.error != "" {
-				chip = chip.Tooltip(cmp.Or(f.conn.errorStage, "Connection") + ": " + f.conn.error)
-				explain := ui.Button(c, "Explain").FontSize(11).Tooltip("Explain the recorded connection failure")
-				if explain.Clicked() {
-					a.explainOpen = !a.explainOpen
-				}
-				ui.PopoverBase(c, explain, &a.explainOpen, func(panel ui.Element) {
-					panel.Margin(8, 0, 0, 0).Padding(0).Radius(10).Background(t.Background).
-						Border(1, t.Border).Shadow(0, 8, 24, 0, ui.RGBA(0, 0, 0, 0.22)).
-						Children(func() { a.explainConnection(c, f) })
+				ui.Column(c).Grow(1).Gap(4).Children(func() {
+					ui.Text(c, cmp.Or(f.process, "Unidentified client")).FontSize(15).Bold().SingleLine().Tooltip(f.processPath)
+					ui.Text(c, f.host).FontSize(12).Font("monospace").TextColor(t.TextMuted).SingleLine().Tooltip(f.url)
 				})
-			} else if doc := statusDoc(f.status); doc != "" {
-				chip = chip.Tooltip(doc)
+			})
+		} else if f.kind != "connect" {
+			ui.Row(c).Height(34).Padding(0, 12).Gap(8).AlignItems(ui.Center).Children(func() {
+				if ok {
+					ui.Text(c, fmt.Sprintf("%s %s://%s%s", f.method, f.scheme, f.host, f.path)).
+						FontSize(12).Font("monospace").TextColor(t.Text).SingleLine().Grow(1).Tooltip(f.url)
+				} else {
+					ui.Text(c, "No request chosen").FontSize(12).TextColor(t.TextMuted).Grow(1)
+				}
+				if !a.workbench.focused {
+					a.desktopButton(c, "focus", "Focus").Tooltip("Focus inspector · Ctrl/Cmd+Shift+Enter")
+				}
+			})
+		}
+		width, _ := c.Size()
+		inlineSetupTabs := f.kind == "connect" && f.conn.error == "" && width >= 1100 && !a.workbench.sideBySide
+		ui.Row(c).Height(34).Children(func() {
+			if inlineSetupTabs {
+				if a.tab > 1 {
+					a.tab = 0
+				}
+				ui.Tabs(c, &a.tab, "HTTPS setup", "Connection").Width(240).Padding(0, 8)
 			}
-			info := ui.Icon(c, infoIcon).Size(13, 13).TextColor(t.TextMuted).
-				Label("Connection details").
-				Tooltip("Connection: addresses, DNS and TLS").
-				OnClick(func() { a.connOpen = !a.connOpen })
-			ui.Popover(c, info, &a.connOpen, func() { a.connPanel(c, t, f) })
+			bar := ui.Toolbar(c, func() {
+				if !ok {
+					return
+				}
+				a.desktopButton(c, "edit", "Edit & replay")
+				if f.kind != "connect" {
+					a.desktopButton(c, "replay", "Replay")
+					a.desktopButton(c, "copy", "cURL")
+				}
+				if ui.Button(c, "Debug history").FontSize(11).Clicked() {
+					a.openDebugHistory(newDebugSource(f))
+				}
+				if f.process != "" {
+					ui.Text(c, f.process).FontSize(11).TextColor(t.TextMuted).SingleLine().MaxWidth(100).Tooltip(f.process)
+				}
+				if f.dns != "" {
+					ui.Box(c).Size(28, 14).Radius(3).Background(ui.Hex("#d97706")).Center().Children(func() {
+						ui.Text(c, "DNS").FontSize(9).Bold().TextColor(ui.Hex("#ffffff"))
+					})
+					ui.Text(c, f.dns).FontSize(12).TextColor(t.TextMuted).
+						Tooltip("The proxy dialled this address; the request kept its name, Host header and SNI")
+				}
+				if f.note != "" {
+					ui.Icon(c, noteIcon).Size(12, 12).TextColor(t.TextMuted)
+					ui.Text(c, f.note).FontSize(11).TextColor(t.TextMuted).SingleLine().MaxWidth(100).Tooltip(f.note)
+				}
+				if f.kind == "connect" {
+					if !a.workbench.focused {
+						a.desktopButton(c, "focus", "Focus")
+					}
+				}
+				status := strconv.Itoa(f.status)
+				color := f.statusColor(t)
+				if f.kind == "connect" {
+					status, color = "Tunnel", t.TextMuted
+				}
+				if f.conn.error != "" {
+					status = "Failed"
+					color = t.Danger
+					if f.kind == "connect" && f.status == 200 {
+						status = "CONNECT 200 · failed"
+					}
+				}
+				chip := ui.Text(c, fmt.Sprintf("%s · %s · %d ms", status, humanBytes(f.bytes), f.millis)).
+					FontSize(12).TextColor(color)
+				if f.conn.error != "" {
+					chip = chip.Tooltip(cmp.Or(f.conn.errorStage, "Connection") + ": " + f.conn.error)
+					explain := ui.Button(c, "Explain").FontSize(11).Tooltip("Explain the recorded connection failure")
+					if explain.Clicked() {
+						a.explainOpen = !a.explainOpen
+					}
+					ui.PopoverBase(c, explain, &a.explainOpen, func(panel ui.Element) {
+						panel.Margin(8, 0, 0, 0).Padding(0).Radius(10).Background(t.Background).
+							Border(1, t.Border).Shadow(0, 8, 24, 0, ui.RGBA(0, 0, 0, 0.22)).
+							Children(func() { a.explainConnection(c, f) })
+					})
+				} else if doc := statusDoc(f.status); doc != "" {
+					chip = chip.Tooltip(doc)
+				}
+				info := ui.Icon(c, infoIcon).Size(13, 13).TextColor(t.TextMuted).
+					Label("Connection details").
+					Tooltip("Connection: addresses, DNS and TLS").
+					OnClick(func() { a.connOpen = !a.connOpen })
+				ui.Popover(c, info, &a.connOpen, func() { a.connPanel(c, t, f) })
+			}).Height(30).Padding(0, 12).Gap(8).Grow(1)
+			if inlineSetupTabs {
+				bar.Justify(ui.End)
+			}
 		})
 		if ok {
 			a.replayLinks(c, f)
@@ -1784,7 +1845,9 @@ func (a *app) detail(c *ui.Context) {
 			if a.tab > 1 {
 				a.tab = 0
 			}
-			ui.Tabs(c, &a.tab, "HTTPS setup", "Connection").Padding(0, 8)
+			if !inlineSetupTabs {
+				ui.Tabs(c, &a.tab, "HTTPS setup", "Connection").Padding(0, 8)
+			}
 			if a.tab == 1 {
 				a.connectionView(c, f)
 			} else {
@@ -1871,9 +1934,9 @@ func (a *app) markModal(c *ui.Context, t *ui.Theme) {
 	if !a.markOpen {
 		return
 	}
-	ui.Modal(c, &a.markOpen, func() {
+	appModal(c, &a.markOpen, func() {
 		ui.Column(c).Width(460).Gap(10).Children(func() {
-			ui.Text(c, "Mark the request").FontSize(14).Bold()
+			dialogTitle(c, "Mark the request")
 			ui.Text(c, "A color shows in the table beside the method, and the note in the URL cell and the detail header.").
 				FontSize(11).TextColor(t.TextMuted)
 			ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
@@ -2046,7 +2109,7 @@ func (a *app) headersView(c *ui.Context, f flow) {
 		panes = ui.Row(c)
 	}
 	panes.Grow(1).Children(func() {
-		request := ui.Column(c).Padding(16)
+		request := ui.Column(c)
 		if stacked {
 			request.FillWidth().Grow(1)
 		} else {
@@ -2067,7 +2130,7 @@ func (a *app) headersView(c *ui.Context, f flow) {
 				line = f.resProto + " " + line
 			}
 		}
-		response := ui.Column(c).Grow(1).Padding(16)
+		response := ui.Column(c).Grow(1)
 		if stacked {
 			response.FillWidth()
 		} else {
@@ -2082,36 +2145,40 @@ func (a *app) headersView(c *ui.Context, f flow) {
 // headerBlock is one side of the Headers tab: the line that starts the message
 // and then its headers, sorted by name.
 func (a *app) headerBlock(c *ui.Context, t *ui.Theme, title, line, note string, headers http.Header, raw string, trailers http.Header) {
-	ui.Text(c, title).FontSize(11).Bold().TextColor(t.TextMuted).Padding(0, 0, 2, 0)
-	start := ui.Text(c, line).FontSize(12).Font("monospace").TextColor(t.Text).SingleLine()
-	if note != "" {
-		start = start.Tooltip(note)
-	}
-	start.Padding(0, 0, 6, 0)
+	ui.Column(c).FillWidth().Padding(10, 12).Gap(6).Background(t.Surface).Children(func() {
+		ui.Row(c).AlignItems(ui.Center).Children(func() {
+			ui.Text(c, title).FontSize(12).Bold()
+			ui.Spacer(c)
+			if len(headers) > 0 {
+				ui.Text(c, fmt.Sprintf("%d headers", len(headers))).FontSize(10).TextColor(t.TextMuted)
+			}
+		})
+		ui.Text(c, line).FontSize(11).Font("monospace").TextColor(t.TextMuted).SingleLine().Selectable().Tooltip(strings.TrimSpace(line + "\n" + note))
+	})
+	ui.Divider(c)
 	side := 0
 	if title == "Response" {
 		side = 1
 	}
-	ui.Scroll(c).TrackScroll(&a.headerScroll[side]).Grow(1).Children(func() {
+	ui.Scroll(c).TrackScroll(&a.headerScroll[side]).Grow(1).FillWidth().Children(func() {
 		for i, block := range []http.Header{headers, trailers} {
 			if i == 1 && len(block) > 0 {
-				ui.Text(c, "Trailers").FontSize(11).Bold().TextColor(t.TextMuted).Padding(10, 0, 4, 0)
+				ui.Text(c, "Trailers").FontSize(11).Bold().TextColor(t.TextMuted).Padding(10, 12, 6).FillWidth().Background(t.Surface)
 			}
 			if i == 0 && len(block) == 0 {
-				ui.Text(c, raw).FontSize(12).Font("monospace").TextColor(t.Text)
+				if raw == "" {
+					ui.Text(c, "No headers recorded").FontSize(12).TextColor(t.TextMuted).Padding(12)
+				} else {
+					ui.Text(c, raw).FontSize(12).Font("monospace").TextColor(t.Text).Selectable().Padding(12)
+				}
 			}
 			for _, key := range slices.Sorted(maps.Keys(block)) {
-				value := strings.Join(block[key], ", ")
-				doc := headerDoc(key)
-				ui.Row(c).Gap(6).Padding(4, 0).AlignItems(ui.Start).Children(func() {
-					ui.Text(c, key).FontSize(11).Font("monospace").TextColor(t.TextMuted).Width(140).SingleLine().Tooltip(key)
-					ui.Box(c).Size(11, 11).Children(func() {
-						if doc != "" {
-							ui.Icon(c, infoIcon).Size(11, 11).TextColor(t.TextMuted).Tooltip(doc)
-						}
-					})
-					ui.Text(c, value).FontSize(12).Font("monospace").TextColor(t.Text).Grow(1)
+				value := strings.Join(block[key], "\n")
+				ui.Row(c).Gap(12).Padding(7, 12).AlignItems(ui.Start).FillWidth().Children(func() {
+					ui.Text(c, key).FontSize(11).Font("monospace").TextColor(t.TextMuted).Width(124).SingleLine().Tooltip(strings.TrimSpace(key + "\n" + headerDoc(key)))
+					ui.Text(c, value).FontSize(12).Font("monospace").TextColor(t.Text).Grow(1).Selectable()
 				})
+				ui.Divider(c).Background(t.Border.Alpha(0.45))
 			}
 		}
 	})
@@ -2539,9 +2606,9 @@ func (a *app) varsModal(c *ui.Context, t *ui.Theme) {
 	if !a.varsOpen {
 		return
 	}
-	ui.Modal(c, &a.varsOpen, func() {
+	appModal(c, &a.varsOpen, func() {
 		ui.Column(c).Width(520).Gap(10).Children(func() {
-			ui.Text(c, "Variables").FontSize(14).Bold()
+			dialogTitle(c, "Variables")
 			ui.Text(c, "One \"name = value\" a line. A request uses them as {{name}}, in the URL, the headers, the body and the scripts.").
 				FontSize(11).TextColor(t.TextMuted)
 			ui.TextInput(c, &a.varsName).Label("Environment")
@@ -2650,9 +2717,9 @@ func (a *app) keyLogModal(c *ui.Context, t *ui.Theme) {
 	if !a.keyLogOpen {
 		return
 	}
-	ui.Modal(c, &a.keyLogOpen, func() {
+	appModal(c, &a.keyLogOpen, func() {
 		ui.Column(c).Width(520).Gap(10).Children(func() {
-			ui.Text(c, "TLS key log").FontSize(14).Bold()
+			dialogTitle(c, "TLS key log")
 			ui.Text(c, "The secrets go to a file Wireshark reads (SSLKEYLOGFILE), so it can decrypt this capture. The engine reads the variable once, when it first handshakes, so a change here takes effect from the next launch.").
 				FontSize(11).TextColor(t.TextMuted)
 			ui.TextInput(c, &a.keyLogInput).Placeholder("~/.vscroxy/keys.log").Label("File")
@@ -2737,9 +2804,9 @@ func (a *app) columnModal(c *ui.Context, t *ui.Theme) {
 	if !a.columnOpen {
 		return
 	}
-	ui.Modal(c, &a.columnOpen, func() {
+	appModal(c, &a.columnOpen, func() {
 		ui.Column(c).Width(440).Gap(10).Children(func() {
-			ui.Text(c, "Column from a header").FontSize(14).Bold()
+			dialogTitle(c, "Column from a header")
 			ui.Text(c, "The table shows the response header's value, or the request's when the response has none. Keep it to one that says something about the exchange, such as x-request-id or content-type.").
 				FontSize(11).TextColor(t.TextMuted)
 			ui.TextInput(c, &a.columnName).Placeholder("x-request-id").Label("Header")
@@ -2883,6 +2950,10 @@ func (a *app) sortOrder() func(x, y int) int {
 		fx, fy := a.flows[x], a.flows[y]
 		var c int
 		switch a.sort.Column {
+		case "id":
+			c = cmp.Compare(fx.id, fy.id)
+		case "captured":
+			c = fx.at.Compare(fy.at)
 		case "method":
 			c = cmp.Compare(fx.method, fy.method)
 		case "proto":
@@ -2915,9 +2986,9 @@ func (a *app) hostListModal(c *ui.Context, t *ui.Theme, open *bool, title, hint,
 	if !*open {
 		return
 	}
-	ui.Modal(c, open, func() {
+	appModal(c, open, func() {
 		ui.Column(c).Width(520).Gap(10).Children(func() {
-			ui.Text(c, title).FontSize(14).Bold()
+			dialogTitle(c, title)
 			ui.Text(c, hint).FontSize(11).TextColor(t.TextMuted)
 			ui.TextArea(c, text).Height(140).Label(title)
 			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
@@ -3088,9 +3159,9 @@ func (a *app) sslModal(c *ui.Context, t *ui.Theme) {
 	}
 	draft := a.sslDraft
 	width, height := c.Size()
-	ui.Modal(c, &a.sslOpen, func() {
+	appModal(c, &a.sslOpen, func() {
 		ui.Column(c).Width(min(580, width-64)).Height(min(510, height-80)).Gap(12).Children(func() {
-			ui.Text(c, "SSL proxying").FontSize(14).Bold()
+			dialogTitle(c, "SSL proxying")
 			ui.Text(c, "Enable a domain or a local executable. New connections only; clients must trust the CA. Enabling a rule does not prove decryption succeeded.").
 				FontSize(11).TextColor(t.TextMuted)
 			ui.Scroll(c).Grow(1).FillWidth().Gap(10).Children(func() {
@@ -3420,9 +3491,9 @@ func (a *app) dnsModal(c *ui.Context, t *ui.Theme) {
 	if !a.dnsOpen {
 		return
 	}
-	ui.Modal(c, &a.dnsOpen, func() {
+	appModal(c, &a.dnsOpen, func() {
 		ui.Column(c).Width(560).Gap(10).Children(func() {
-			ui.Text(c, "DNS mapping").FontSize(14).Bold()
+			dialogTitle(c, "DNS mapping")
 			ui.Text(c, "Names the proxy resolves itself, one \"name = address\" a line. The request keeps its name and Host header, so a device pointed at this proxy reaches the machine you map: example.com = 192.168.1.50. Add \"@ Chrome, com.example.app\" to map the name for those apps only, or right-click a request and pick \"Map this host…\" to choose the app there. A name matches its subdomains; *.example.com matches one level. Flows that hit a mapping carry a DNS tag in the table.").
 				FontSize(11).TextColor(t.TextMuted)
 			ui.TextArea(c, &a.dnsText).Height(140).Label("DNS mappings")
@@ -3445,9 +3516,9 @@ func (a *app) dnsRuleModal(c *ui.Context, t *ui.Theme) {
 	if !a.dnsRuleOpen {
 		return
 	}
-	ui.Modal(c, &a.dnsRuleOpen, func() {
+	appModal(c, &a.dnsRuleOpen, func() {
 		ui.Column(c).Width(460).Gap(10).Children(func() {
-			ui.Text(c, "Map a host").FontSize(14).Bold()
+			dialogTitle(c, "Map a host")
 			ui.Text(c, "The request keeps its name, URL, Host header and SNI; the proxy dials the address instead.").
 				FontSize(11).TextColor(t.TextMuted)
 			ui.TextInput(c, &a.dnsRuleHost).Label("Host")

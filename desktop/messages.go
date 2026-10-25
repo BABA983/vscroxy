@@ -641,9 +641,9 @@ func (e messageExport) write(path string, list []messageView) error {
 }
 
 func (p *messagePanel) exportModal(c *ui.Context, a *app, f flow, list, visible []messageView) {
-	ui.Modal(c, &p.exportOpen, func() {
+	appModal(c, &p.exportOpen, func() {
 		ui.Column(c).Width(470).Gap(12).Children(func() {
-			ui.Text(c, "Export retained messages").FontSize(16).Bold()
+			dialogTitle(c, "Export retained messages")
 			ui.Text(c, fmt.Sprintf("Exports %d matching messages from this %d-message window, not the complete conversation. Pause freezes the view, not capture. Saving is available once the payload search finishes.", len(visible), len(list))).FontSize(12)
 			ui.Text(c, "Payloads and URLs can contain credentials or personal data. Review before sharing.").FontSize(12).TextColor(c.Theme().Danger)
 			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {

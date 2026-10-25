@@ -81,9 +81,9 @@ func (a *app) clientSetupModal(c *ui.Context, t *ui.Theme) {
 	if !s.open {
 		return
 	}
-	ui.Modal(c, &s.open, func() {
+	appModal(c, &s.open, func() {
 		ui.Column(c).Width(800).Height(500).Gap(10).Children(func() {
-			ui.Text(c, "Set up a local client").FontSize(17).Bold()
+			dialogTitle(c, "Set up a local client")
 			ui.Row(c).Gap(12).Children(func() {
 				ui.Select(c, &s.runtime, []string{"cURL", "Node.js", "Python", "Go"}).Label("Client runtime").Width(150)
 				ui.TextInput(c, &s.url).Label("Setup HTTPS URL").Grow(1)

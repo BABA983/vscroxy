@@ -126,8 +126,8 @@ func TestConnectionFailureCanBeFoundAndCopiedWithoutInventingAnHTTPError(t *test
 	if err := tt.Click("Explain"); err != nil {
 		t.Fatal(err)
 	}
-	// The popover can cover the URL column; use the exposed method cell.
-	if err := tt.Click("GET"); err != nil {
+	// The popover can cover content columns; use the exposed request ID.
+	if err := tt.Click("11"); err != nil {
 		t.Fatal(err)
 	}
 	if tt.HasText("Client TLS handshake failed") || tt.HasText("Explain") || !tt.HasText("502 · — · 0 ms") {
@@ -781,6 +781,42 @@ func TestJSONExpansionSurvivesIncomingTraffic(t *testing.T) {
 	}
 	if tt.Clipboard() != `{"replacement":"new-value"}` || tt.HasText(`"expanded-value"`) {
 		t.Fatal("changed body content did not refresh the JSON tree")
+	}
+}
+
+func TestCaptureOrdersRequestsByNumberAndCaptureTime(t *testing.T) {
+	a := workspaceApp()
+	start := time.Date(2026, 10, 25, 10, 0, 0, 0, time.UTC)
+	a.flows = []flow{
+		{id: 41, method: "GET", scheme: "https", host: "api.example.com", path: "/first", status: 200, at: start, millis: 90},
+		{id: 7, method: "GET", scheme: "https", host: "api.example.com", path: "/last", status: 200, at: start.Add(2 * time.Second), millis: 40},
+		{id: 19, method: "GET", scheme: "https", host: "api.example.com", path: "/middle", status: 200, at: start.Add(time.Second), millis: 10},
+	}
+	a.applyFilter()
+	tt := ui.NewTester(a.view, 1440, 860)
+	for _, order := range []struct {
+		column string
+		paths  []string
+	}{
+		{"#", []string{"/last", "/middle", "/first"}},
+		{"Time", []string{"/first", "/middle", "/last"}},
+		{"Time", []string{"/last", "/middle", "/first"}},
+	} {
+		if err := tt.Click(order.column); err != nil {
+			t.Fatal(err)
+		}
+		tt.Frame()
+		previous := float32(-1)
+		for _, path := range order.paths {
+			row, ok := tt.Find("api.example.com" + path)
+			if !ok || row.Y <= previous {
+				t.Fatalf("%s did not order rows as %v", order.column, order.paths)
+			}
+			previous = row.Y
+		}
+		if !tt.HasText("GET https://api.example.com/first") {
+			t.Fatal("sorting changed the inspected request")
+		}
 	}
 }
 
@@ -1674,6 +1710,14 @@ func TestRuleEditorPersistsOrderingTogglesAndCapturedMock(t *testing.T) {
 		return rules
 	}
 	click("Rules")
+	tt.SetSize(960, 600)
+	for _, label := range []string{"Close", "Save rule"} {
+		bounds, ok := tt.Find(label)
+		if !ok || bounds.Y < 20 || bounds.Y+bounds.H > 580 {
+			t.Fatalf("rule action %q outside the compact dialog: %v", label, bounds)
+		}
+	}
+	tt.SetSize(1100, 650)
 	click("Save rule")
 	if !tt.HasText("rule 1: enter a URL substring to match") || len(load()) != 0 {
 		t.Fatal("invalid rule was saved or validation was hidden")
@@ -1935,6 +1979,12 @@ func TestCaptureRegressionCanBeSavedAndSharedOnlyAfterReview(t *testing.T) {
 	click("Case")
 	if err := tt.ChooseMenuItem("Share regression…"); err != nil {
 		t.Fatal(err)
+	}
+	for _, label := range []string{"Cancel", "Copy case JSON"} {
+		bounds, ok := tt.Find(label)
+		if !ok || bounds.Y < 20 || bounds.Y+bounds.H > 580 {
+			t.Fatalf("review action %q outside the compact dialog: %v", label, bounds)
+		}
 	}
 	click("Copy case JSON")
 	if tt.Clipboard() != "" {
@@ -2265,6 +2315,7 @@ func TestClientSetupCopiedCommandProducesLiveDecryptionEvidence(t *testing.T) {
 
 func TestDesktopLayoutDefaultsBelowAndSwitchesWithoutLosingCaptureContext(t *testing.T) {
 	a := workspaceApp()
+	a.columns.Order = []string{"method", "url", "id"}
 	tt := ui.NewTester(a.view, 1440, 860)
 	click := func(label string) {
 		t.Helper()
@@ -2276,10 +2327,10 @@ func TestDesktopLayoutDefaultsBelowAndSwitchesWithoutLosingCaptureContext(t *tes
 	click("Body")
 	check := func(right bool) {
 		t.Helper()
-		method, ok := tt.Find("Method")
+		table, ok := tt.Find("Captured requests")
 		title, found := tt.Find("POST https://api.example.com/login")
-		if !ok || !found || title.H == 0 || title.Y >= 600 || (title.X > method.X+300) != right {
-			t.Fatalf("inspector not reachable in expected layout: method %v, title %v, right %t", method, title, right)
+		if !ok || !found || title.H == 0 || title.Y >= 600 || (title.X >= table.X+table.W) != right {
+			t.Fatalf("inspector not reachable in expected layout: table %v, title %v, right %t", table, title, right)
 		}
 		if f, ok := a.current(); !ok || f.id != 2 || !a.chosen.Has(2) || !tt.HasText("Pretty") {
 			t.Fatal("layout transition lost the inspected request, selection or Body tab")
@@ -2313,6 +2364,16 @@ func TestDesktopLayoutDefaultsBelowAndSwitchesWithoutLosingCaptureContext(t *tes
 	tt.Key(ui.Cmd, ui.KeyB)
 	if !tt.HasText("All requests") {
 		t.Fatal("sidebar shortcut did not restore the sidebar")
+	}
+	tt.Key(ui.Cmd, ui.KeyK)
+	tt.Type("Reset desktop layout")
+	tt.Key(0, ui.KeyEnter)
+	check(false)
+	number, _ := tt.Find("#")
+	url, _ := tt.Find("URL")
+	method, _ := tt.Find("Method")
+	if number.X >= url.X || url.X >= method.X {
+		t.Fatal("reset layout did not restore the URL-first default columns")
 	}
 }
 

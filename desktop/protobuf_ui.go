@@ -243,9 +243,9 @@ func (p *protoInspector) modal(c *ui.Context, a *app) {
 		return
 	}
 	t := c.Theme()
-	ui.Modal(c, &p.open, func() {
+	appModal(c, &p.open, func() {
 		ui.Column(c).Width(560).Gap(10).Children(func() {
-			ui.Text(c, "Protobuf schema").Bold().FontSize(15)
+			dialogTitle(c, "Protobuf schema")
 			ui.Text(c, "Import a .proto source or a binary FileDescriptorSet (.pb / .protoset). gRPC methods select input/output types automatically; raw protobuf needs a message type. A successful load replaces the current registry.").FontSize(11).TextColor(t.TextMuted)
 			if p.schema != nil {
 				ui.Text(c, fmt.Sprintf("Loaded: %d message types", len(p.schema.names))).FontSize(11).TextColor(t.TextMuted)

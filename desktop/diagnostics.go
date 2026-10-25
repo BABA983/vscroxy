@@ -46,10 +46,10 @@ func (a *app) diagnosticsModal(c *ui.Context, t *ui.Theme) {
 		return
 	}
 	width, height := c.Size()
-	ui.Modal(c, &d.open, func() {
+	appModal(c, &d.open, func() {
 		ui.Column(c).Width(min(800, width-80)).Height(min(680, height-80)).Gap(12).Children(func() {
 			ui.Row(c).Gap(12).AlignItems(ui.Center).Children(func() {
-				ui.Text(c, "Capture diagnostics").FontSize(18).Bold().Grow(1)
+				dialogTitle(c, "Capture diagnostics").Grow(1)
 				if ui.Button(c, "Refresh checks").Disabled(a.systemProxy.checking || a.systemProxy.applying || a.certificate.checking).Clicked() {
 					a.checkSystemProxy(false)
 					a.checkCertificate(false)

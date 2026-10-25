@@ -300,9 +300,9 @@ func (a *app) apiGenerationModal(c *ui.Context, t *ui.Theme) {
 	if !a.apiGenerateOpen {
 		return
 	}
-	ui.Modal(c, &a.apiGenerateOpen, func() {
+	appModal(c, &a.apiGenerateOpen, func() {
 		ui.Column(c).Width(520).Gap(16).Children(func() {
-			ui.Text(c, "Generate OpenAPI draft").FontSize(18).Bold()
+			dialogTitle(c, "Generate OpenAPI draft")
 			ui.Text(c, "Choose a saved collection. Unsaved request tabs are not included.").FontSize(12).TextColor(t.TextMuted)
 			ui.MenuButton(c, cmp.Or(a.apiCollection, "Saved (ungrouped)"), func(m *ui.Menu) {
 				for _, name := range slices.Sorted(maps.Keys(groupRequests(a.requests))) {

@@ -45,7 +45,7 @@ func (a *app) desktopContent(c *ui.Context) {
 	// It returns, with its own divider position, when there is room again.
 	w.sideBySide = w.layout == "right" && available >= 1000 || w.layout == "adaptive" && available >= 1160
 	if w.sidePercent == 0 {
-		w.sidePercent = 54
+		w.sidePercent = 64
 	}
 	content := func() {
 		switch a.workspace {
@@ -63,9 +63,9 @@ func (a *app) desktopContent(c *ui.Context) {
 					a.detail(c)
 					return
 				}
-				a.captureToolbar(c, c.Theme())
 				table := func() {
 					ui.Column(c).Fill().Children(func() {
+						a.captureToolbar(c, c.Theme())
 						if a.chosen.Len() > 1 {
 							ui.Row(c).Height(34).Padding(0, 10).Gap(8).AlignItems(ui.Center).Children(func() {
 								ui.Text(c, fmt.Sprintf("%d selected", a.chosen.Len())).FontSize(11).Bold().Grow(1)
@@ -287,8 +287,9 @@ func (a *app) desktopActions(c *ui.Context) []desktopAction {
 		{"layout-bottom", "Inspector: Bottom", capturing, 0, 0, func() { w.layout, w.focused = "bottom", false }},
 		{"sidebar", "Toggle sidebar", true, ui.Cmd, ui.KeyB, func() { w.sidebarHidden = !w.sidebarHidden }},
 		{"layout-reset", "Reset desktop layout", true, 0, 0, func() {
-			w.layout, w.sidebarHidden, w.focused, w.sidePercent = "bottom", false, false, 54
+			w.layout, w.sidebarHidden, w.focused, w.sidePercent = "bottom", false, false, 64
 			a.sidebarWidth, a.tablePercent = 220, 44
+			a.columns = ui.TableLayout{}
 		}},
 		{"https", "HTTPS certificate & decryption setup…", true, 0, 0, func() { a.settingsTab, a.settingsOpen = 2, true }},
 		{"diagnostics", "Capture diagnostics…", true, 0, 0, a.openDiagnostics},
@@ -471,10 +472,10 @@ func (a *app) commandPalette(c *ui.Context) {
 	if !w.paletteOpen {
 		return
 	}
-	ui.Modal(c, &w.paletteOpen, func() {
+	appModal(c, &w.paletteOpen, func() {
 		width, _ := c.Size()
 		ui.Column(c).Width(min(560, width-48)).Gap(10).Children(func() {
-			ui.Text(c, "Commands").FontSize(15).Bold()
+			dialogTitle(c, "Commands")
 			// Modal focuses its first input after remembering the opener. An
 			// explicit AutoFocus here would replace that remembered focus.
 			input := ui.TextInput(c, &w.query).Label("Find command").Placeholder("Search actions…").FillWidth()

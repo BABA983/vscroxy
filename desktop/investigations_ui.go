@@ -284,10 +284,10 @@ func (s *investigationWorkbench) modal(c *ui.Context, a *app) {
 		return
 	}
 	w, h := c.Size()
-	ui.Modal(c, &s.open, func() {
+	appModal(c, &s.open, func() {
 		ui.Column(c).Width(min(1120, w-80)).Height(min(800, h-100)).Gap(8).Children(func() {
 			ui.Row(c).Gap(10).Children(func() {
-				ui.Text(c, "Investigations · historical evidence").FontSize(16).Bold().Grow(1)
+				dialogTitle(c, "Investigations · historical evidence").Grow(1)
 				if ui.Button(c, "Close").Clicked() {
 					s.open = false
 				}

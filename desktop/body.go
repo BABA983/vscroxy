@@ -206,10 +206,11 @@ func (a *app) bodyView(c *ui.Context, f flow) {
 	if a.bodyMode >= len(modes) {
 		a.bodyMode = 0
 	}
-	ui.Row(c).Padding(8, 12).Gap(10).Wrap().AlignItems(ui.Center).Children(func() {
-		ui.Segmented(c, &a.bodySide, "Response", "Request")
-		ui.Segmented(c, &a.bodyMode, modes...)
+	ui.Row(c).Padding(8, 12).Gap(8).Wrap().AlignItems(ui.Center).Background(t.Surface).Children(func() {
+		inspectorSegments(c, &a.bodySide, "Response", "Request").Label("Body side")
+		inspectorSegments(c, &a.bodyMode, modes...).Label("Body representation")
 	})
+	ui.Divider(c)
 	if key != fmt.Sprintf("%d:%d", f.id, a.bodySide) {
 		c.Invalidate()
 		return // rebuild the chosen side before parsing or copying its bytes
@@ -228,8 +229,8 @@ func (a *app) bodyView(c *ui.Context, f flow) {
 			mode = 1
 		}
 	}
-	ui.Row(c).Padding(0, 12, 8).Gap(12).Children(func() {
-		ui.Text(c, "Showing: "+modes[mode]).FontSize(11).TextColor(t.TextMuted)
+	ui.Row(c).Padding(6, 12).Gap(8).AlignItems(ui.Center).Children(func() {
+		ui.Text(c, "Showing: "+modes[mode]).FontSize(10).TextColor(t.TextMuted)
 		size := humanBytes(len(body))
 		if body == "" {
 			size = "0 B"
@@ -241,7 +242,7 @@ func (a *app) bodyView(c *ui.Context, f flow) {
 		if binary {
 			tip = "Binary bytes cannot be copied to a text clipboard; use HAR or session export to retain them"
 		}
-		if ui.Button(c, "Copy shown body").FontSize(11).Disabled(body == "" || binary).Tooltip(tip).Clicked() {
+		if ui.Button(c, "Copy shown body").Height(24).FontSize(11).Disabled(body == "" || binary).Tooltip(tip).Clicked() {
 			c.Services().WriteClipboard(body)
 			a.setMessage("Copied shown body; review credentials before sharing")
 		}
@@ -375,9 +376,13 @@ func (a *app) prettyBody(c *ui.Context, body string) {
 		reader = &editor.State{Buffer: buf, ReadOnly: true, NoScrollPastEnd: true, SoftWrap: true, Label: "Body text", RenderFindBar: bodyFindBar}
 		a.bodyText[a.bodySide] = reader
 	}
-	if ui.Button(c, "Find in text…").FontSize(11).Margin(0, 12, 6).Tooltip("Search this body without hiding surrounding lines · Ctrl/Cmd+F in the reader").Clicked() {
-		reader.Run(editor.Find)
-	}
+	ui.Toolbar(c, func() {
+		if ui.Button(c, "Find in text…").FontSize(11).Tooltip("Search this body without hiding surrounding lines · Ctrl/Cmd+F in the reader").Clicked() {
+			reader.Run(editor.Find)
+		}
+		ui.Spacer(c)
+		ui.Text(c, "Read only").FontSize(10).TextColor(c.Theme().TextMuted)
+	}).Height(28).Padding(0, 12)
 	editor.View(c, reader).Bind(&a.bodyReader[a.bodySide]).Grow(1)
 }
 
@@ -402,6 +407,7 @@ func bodyFindBar(c *ui.Context, bar ui.Element, find *editor.FindBar) {
 
 func (a *app) jsonBody(c *ui.Context) {
 	t := c.Theme()
+	keyColor := editor.DefaultTheme(t).Tokens[editor.TokenProperty].Color
 	var rows []jsonRow
 	if a.bodyQuery != "" {
 		rows = matchingJSON(a.jsonRoots, a.bodyQuery)
@@ -428,7 +434,7 @@ func (a *app) jsonBody(c *ui.Context) {
 				ui.Box(c).Width(20)
 			}
 			if row.node.key != "" {
-				ui.Text(c, row.node.key).FontSize(12).TextColor(ui.Hex("#7c3aed")).SingleLine()
+				ui.Text(c, row.node.key).FontSize(12).Font("monospace").TextColor(keyColor).SingleLine().Tooltip(row.node.path)
 				ui.Text(c, ":").FontSize(12).TextColor(t.TextMuted)
 			}
 			switch row.node.kind {

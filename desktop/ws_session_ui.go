@@ -55,10 +55,10 @@ func (a *app) socketModal(c *ui.Context, t *ui.Theme) {
 	state, events, evicted := s.session.snapshot()
 	active := state == "Connected" || state == "Connecting" || state == "Disconnecting"
 	w, h := c.Size()
-	if ui.Modal(c, &s.open, func() {
+	if appModal(c, &s.open, func() {
 		ui.Column(c).Width(min(1150, w-80)).Height(h - 100).Gap(8).Children(func() {
 			ui.Row(c).Gap(8).Children(func() {
-				ui.Text(c, "WebSocket session · "+state).Bold().Grow(1)
+				dialogTitle(c, "WebSocket session · "+state).Grow(1)
 				if ui.Button(c, "Disconnect & close").Clicked() {
 					s.session.disconnect()
 					s.open = false

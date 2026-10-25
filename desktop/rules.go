@@ -253,10 +253,11 @@ func (a *app) rulesModal(c *ui.Context, t *ui.Theme) {
 	if !e.open {
 		return
 	}
-	if ui.Modal(c, &e.open, func() {
-		ui.Column(c).Width(840).Height(560).Gap(12).Children(func() {
+	width, height := c.Size()
+	if appModal(c, &e.open, func() {
+		ui.Column(c).Width(min(840, width-80)).Height(min(560, height-80)).Gap(12).Children(func() {
 			ui.Row(c).AlignItems(ui.Center).Children(func() {
-				ui.Text(c, "Rules").FontSize(18).Bold()
+				dialogTitle(c, "Rules")
 				ui.Spacer(c)
 				ui.Checkbox(c, &e.preview, "Test URL + method")
 				ui.Badge(c, fmt.Sprintf("%d rules", len(a.rules)))

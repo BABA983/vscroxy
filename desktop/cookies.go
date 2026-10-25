@@ -191,9 +191,9 @@ func (a *app) cookiesModal(c *ui.Context, t *ui.Theme) {
 	if !e.open {
 		return
 	}
-	ui.Modal(c, &e.open, func() {
+	appModal(c, &e.open, func() {
 		ui.Column(c).Width(760).Height(480).Gap(12).Children(func() {
-			ui.Text(c, "Session Cookies").FontSize(18).Bold()
+			dialogTitle(c, "Session Cookies")
 			ui.Text(c, "Shared by Requests and Runner, including Set-Cookie on redirects. Memory only: cleared when the app exits. Capture replay does not use this jar.").FontSize(11).TextColor(t.TextMuted)
 			ui.Scroll(c).Grow(1).Gap(8).Children(func() {
 				items := a.requestCookies().snapshot()
