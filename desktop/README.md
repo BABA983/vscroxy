@@ -7,7 +7,9 @@ the platform.
 
 The app captures real traffic: it runs a loopback MITM proxy with
 [go-mitmproxy](https://github.com/lqqyt2423/go-mitmproxy) and shows every
-exchange as it arrives.
+exchange as it arrives. Icons come from the Lucide set pinned by
+[onevra](https://github.com/oneo-me/onevra) (`source/icons/lucide`); its
+licenses and the Feather-derived icons' are in `THIRD_PARTY_NOTICES.md`.
 
 ## Run
 
@@ -103,7 +105,7 @@ numeric-IP URL can fail certificate verification; use a DNS hostname when testin
 
 The local proxy stays on loopback. The gateway forwards raw TCP to the core's
 actual listening port, keeping capture IDs, rules and pending local requests/tunnels.
-Closing the guide keeps access enabled (the Network menu shows **LAN**); **Disable device
+Closing the guide keeps access enabled (the proxy indicator shows **LAN**); **Disable device
 access** closes both LAN listeners and all their active connections, including
 CONNECT/WebSocket tunnels, without stopping local capture. Disable before editing
 the address/allowlist. Turn off the device's manual proxy and remove the CA trust
@@ -112,14 +114,24 @@ the capture's Client column may identify the desktop gateway instead.
 
 ## What is here
 
-- `main.go`: the app state, the three-pane layout, the toolbar, the traffic
-  table, the detail tabs and the status bar.
+- `main.go`: the app state, the workspace content, the traffic table, the
+  sidebar and the footer.
+- `appearance.go`: the palette, the Lucide icons the app uses, and the shared
+  dialog and tab chrome.
+- `shell.go`: the window's own title bar, the workspace switch, the proxy
+  indicator, the rare menus and the footer each workspace shares.
+- `inspector.go`: the inspector under the traffic: one summary line, then the
+  request and the response side by side, each with its own tabs, and the
+  exchange-wide Diff, Connection and Messages views one click away.
+- `investigation_board.go` / `investigation_board_ui.go`: the investigation
+  board — named investigations of immutable exchange snapshots, notes,
+  comparison, layered failure evidence and evidence export.
 - `requests.go`: independent request documents, their tabs, draft-close
   confirmation and the inline response viewer.
 - `rules.go`: visual rule management and captured-response mock creation.
 - `devices.go` / `internal/lan`: opt-in, source-restricted device gateway and
   public certificate onboarding without restarting the local proxy.
-- `apis.go` / `openapi.go`: the APIs workspace, local specification storage,
+- `apis.go` / `openapi.go`: API contracts, local specification storage,
   OpenAPI validation, collection-to-contract drafts and endpoint-to-request conversion.
 - `data.go`: seeded flows for the case where the proxy cannot start, and
   formatting helpers.
@@ -132,14 +144,30 @@ the capture's Client column may identify the desktop gateway instead.
 - `internal/appicon`: the app's icon, from its `.desktop` entry on Linux.
 - `mygo.json`: the app's name, identifier and version for `mygo package`.
 
-The **Capture** workspace has filters, domains and apps on the left, the
-traffic table above, and Headers / Body / Diff below it. Request and response
-headers scroll independently side by side. **Requests** has its own collection
-and history sidebar and a tabbed editor; switching workspaces preserves the
-capture filters and all open drafts and responses. The diff pane is
-MyGo's own `ui/editor` diff viewer, not Monaco, so it stays native and can be
-reused on mobile later. It compares a response with the previous response for
-the same method, scheme and URL.
+The window draws its own title bar under the macOS traffic lights: the name,
+the two workspaces — **Capture** and **Requests** — the proxy address,
+**Commands** and **Settings**, with the rest in the **⋯** menu. It is a native
+window, not a frameless one, so resizing, full screen and the system window
+menu still work. The switch names how you work; what you work on lives in each
+workspace's sidebar: **Investigations** in Capture, **API contracts** in
+Requests.
+
+The **Capture** sidebar groups **Traffic** (all requests, errors, slow), a
+**Pinned** row of its own, apps, domains, one **Views** area holding opened
+views and saved filters, whose create and manage actions are two compact
+buttons under the list, and the investigations. Its traffic table sits above
+the inspector. The inspector shows the request and the response **beside each
+other**, each with its own Headers / Params / Body / Raw (request) or
+Headers / Body / Raw / Timing (response) tabs, so a body comparison never needs
+a tab switch. Its **⋯** menu holds the exchange-wide views — Diff, Connection
+and, for WebSocket and SSE, Messages — and the layout choices. Request and
+response headers scroll independently. **Requests** has its own collection and
+history sidebar, a tabbed editor whose document tabs stay in the content pane,
+and an inline response viewer. Switching workspaces preserves the capture
+filters, all open drafts and responses, and the board. The diff pane is MyGo's
+own `ui/editor` diff viewer, not Monaco, so it stays native and can be reused on
+mobile later. It compares a response with the previous response for the same
+method, scheme and URL.
 
 ## The table
 
@@ -150,12 +178,13 @@ Shift-click chooses a range, which **Session → Choose all shown** and
 **Clear choice** also do without the keys; the status bar counts the rows
 chosen, and **Export chosen HAR…** writes just those.
 
-The chips above it keep one kind of traffic in view: HTTP or HTTPS by scheme,
-WebSocket and SSE by kind, and JSON, images or HTML by the response's content
-type. They narrow what the sidebar's filters and the search show, and the
-status bar counts the flows and bytes captured. Feedback appears in full in
-temporary toasts rather than staying in the status bar indefinitely. **Live**
-opens Proxy settings; **HTTPS setup** opens certificate and decryption settings.
+The protocol tabs beside the search keep one kind of traffic in view: HTTP or
+HTTPS by scheme, WebSocket and SSE by kind, and JSON, images or HTML by the
+response's content type (the last two live in the toolbar's **⋯**). They narrow
+what the sidebar's filters and the search show, and the footer counts the
+captured and shown rows. Feedback appears in full in temporary toasts rather
+than staying in the footer indefinitely. The proxy indicator in the title bar
+opens Proxy settings.
 
 The search field matches **host and path only**; Ctrl/Cmd+F focuses it. Use
 **Filters…** for headers, bodies and status codes. Status accepts comma-separated
@@ -166,9 +195,11 @@ offers **Show all requests**. Hidden rows are removed from the bulk selection.
 
 Each capture view follows new rows while scrolled to the bottom. Scrolling up
 pauses following without changing the request being inspected; scrolling back
-to the bottom resumes it. The toolbar shows **Following** or **Paused**;
-**Latest** scrolls to the end and resumes following without changing the
-inspected request or selection. Views keep their own scroll positions. With a
+to the bottom resumes it. The footer says **Auto-follow on** or **Auto-follow
+off · 12 new ↓**; clicking it scrolls to the end and resumes following without
+changing the inspected request or selection. Following the list, the proxy
+running and breakpoints are three independent states and never imply each
+other. Views keep their own scroll positions. With a
 custom column sort, the bottom means the end of that displayed order, not
 necessarily the most recently captured request.
 
@@ -210,7 +241,7 @@ its own, so a second save does not replace the first), and **Replay**.
 
 ## Rules
 
-Open **Rules** in the toolbar (or **Settings → General → Manage rules**) to
+Open **⋯ → Debugging rules…** (or **Settings → General → Manage rules**) to
 create, edit, enable, delete and move rules up/down. Save applies changes to
 new requests only, without restarting capture. A failed save leaves the running
 rules unchanged. Closing the editor discards unsaved field edits.
@@ -314,7 +345,7 @@ addresses and raw errors before sharing the copied report.
 
 ## Breakpoints
 
-Turn on **Break** in the toolbar. A request matching a `break` rule pauses
+Turn on **Breakpoints** in the capture toolbar. A request matching a `break` rule pauses
 with its method, URL, headers and body. A response matching `break_response`
 pauses with its status, headers and body; the response script, when there is
 one, runs first. Repeat a header name on separate lines to keep multiple values
@@ -638,20 +669,54 @@ response.
 
 ## Requests
 
-**New request** opens a document tab in **Requests**. Method, URL and **Send**
-are the main action row; **Params**, **Auth**, **Headers**, **Body**, **Scripts** and **Checks**
-select what is being edited. Params edits the URL's query, retaining duplicate
-keys. Auth supports Bearer, Basic and API keys in a header or query parameter;
-explicit auth replaces that header and pre-request scripts run last.
-Body supports raw text, URL-encoded fields and multipart text/file parts with
-duplicate keys, disabled rows and a 16 MiB total form limit. File paths are
+**New request** opens a document tab in **Requests**. The document tabs stay in
+the content pane, so the sidebar runs up to the title bar and only the
+workspace switch sits above them. The breadcrumb keeps a back button to the
+traffic or to the capture the draft came from (**Source #N**), then the
+collection and name as quiet text: clicking it renames the request and moves it
+between collections, so neither needs a permanent input. The environment,
+**Save** and the request's **⋯** menu — Copy as cURL, Variables, Experiments,
+Send history, regression import/export and environment management — sit at the
+right. Method, URL and **Send** are the main action row; the method is an
+editable dropdown with its own chevron, so the common verbs are a click away and
+one the list lacks is still typed and kept. **Params**,
+**Headers**, **Auth**, **Body**, **Scripts** and **Checks** select what is being
+edited. **Params** and **Headers** are tables of an enable box, a key and a
+value under **KEY** and **VALUE** titles, so order, duplicate names, empty
+values and switched-off rows survive; a cell keeps a quiet border until the
+pointer or the keyboard is on it. Header values whose name is a credential
+(`Authorization`, `Cookie`, `X-Api-Key`, anything with `token`, `secret` or
+`password`) are masked by default and show in plain text only when that row's
+eye reveals them: moving the keyboard through the table never reveals one, and
+a revealed cell is tinted with an accent border so the plain text is obvious.
+**Bulk edit** swaps a table for the `Key: Value` block when pasting several at
+once, and its text replaces the table when you switch back; switched-off rows
+wait outside the block and come back with the table. Because the block writes
+every value in plain text, switching to it asks first when a credential is in
+the table. Disabled rows stay in the request file
+(`headerList`) but never in the block that is sent, copied or exported. Params
+edits the URL's query the same way, and only enabled rows reach it. Auth supports Bearer, Basic and API keys in a header or query
+parameter; explicit auth replaces that header and pre-request scripts run last.
+Body supports a raw editor with line numbers, JSON highlighting, undo and
+**Format**, plus URL-encoded fields and multipart text/file parts with duplicate
+keys, disabled rows and a 16 MiB total form limit. The body's type and **Format**
+share the Body tab's row instead of a toolbar of their own. File paths are
 stored, not file contents; sending or exporting reads the selected local files.
-Headers remain `Key: Value` lines, and Scripts contains separate
-pre-request and post-response editors. **Send** runs through the proxy and
-shows the response body (formatted and highlighted for JSON), headers,
-status, duration, size and test results below the editor. The exchange also
-lands in Capture. The inline response preview is limited to 8 MiB; Capture
-retains the complete body.
+**Scripts** edits the pre-request and post-response scripts in the same reader as
+the body, with JavaScript highlighting, find and undo. **Send** runs through the
+proxy and shows the response body (Pretty, Raw or Hex, with JSON highlighting),
+headers, cookies, timing and test results below the editor. While nothing has
+come back the request editor keeps most of the height, so a handful of header
+rows and their row action fit without scrolling; the first response pulls the
+divider back to about a third, unless the reader moved it themselves. Until something comes back the
+response area is only its empty state and **Send history** waits, disabled, for a
+first send. **Compare with source** replaces the response with the comparison and
+offers **Back to response**; there is no second comparison tab. The quiet footer
+under the editor says whether the draft on screen is **Matches last send · time**
+or **Edited since last send · not yet sent**; the response always names the send
+it came from and that the source capture is unchanged. The exchange also lands
+in Capture. The inline response preview is limited to 8 MiB; Capture retains the
+complete body.
 
 **Cookies…** manages the in-memory cookie jar shared by Requests and Runner.
 Set-Cookie, redirects, domain/path restrictions, expiry and Secure are respected.
@@ -798,7 +863,12 @@ round trips alone.
 
 ## APIs / OpenAPI
 
-The third workspace holds contracts independently of the request library.
+Contracts live in the **API contracts** section of the Requests sidebar, beside
+the collection they were generated from but independent of it. The section folds
+shut, and while it holds nothing it stays two short entries — **New contract**
+and **From collection…** — so the collections and the send history keep their
+room.
+
 **From collection…** (also **Session → Generate OpenAPI…**) generates a new
 OpenAPI 3.0.3 draft from the selected saved collection, not unsaved request tabs.
 It merges equal method/path operations and retains their observed servers.
@@ -834,7 +904,7 @@ when saved requests change; **Generate new draft** creates another specification
 never overwriting hand edits. There is no automatic/bidirectional sync, multi-file
 bundling, Swagger 2 import or schema inference yet. Unsaved API editors and source
 links are session-local; saved contracts are restored after restart. Cmd/Ctrl+3
-opens the workspace.
+opens **Requests** on its contracts; Cmd/Ctrl+4 opens the investigations.
 
 ## Timing
 
@@ -936,11 +1006,20 @@ trust stores and certificate pinning may require client-side configuration.
 An undecrypted **CONNECT** detail explains that it is an encrypted tunnel, not
 one HTTPS request. HTTPS encrypts request/response headers (including Cookie and
 Set-Cookie) as well as bodies; trusting the CA alone does not expose them.
-The detail links to certificate setup and can enable just that domain or its
-identified local executable. If current rules already enable inspection, the
-detail says so rather than claiming the old tunnel has been decrypted. After
-changing HTTPS setup, establish a new connection and retry the request; existing
-tunnels and their CONNECT records stay encrypted.
+The detail reads in three layers and scrolls as one at a short window.
+**What happened** is the title of the recorded failure stage — client TLS
+handshake, upstream TLS handshake, tunnel setup, DNS, TCP or HTTP — with one line
+saying what that stage means and what it does not prove, then the raw error,
+copyable. **Next steps** lead with **View connection record** when a failure was
+recorded: the evidence is read before anything is reconfigured, and enabling
+inspection for the host stays a secondary configuration action. A tunnel that
+did not fail still leads with enabling inspection for its host. **Known configuration** lists the
+domain rule, the app rule and this system's trust as secondary lines, with the
+reminder that today's rules never reveal a tunnel recorded earlier. Widening
+inspection to everything an executable opens is a quiet link below, not a fix
+for the failure on screen. After changing HTTPS setup, establish a new
+connection and retry the request; existing tunnels and their CONNECT records stay
+encrypted.
 
 ## Client attribution
 
@@ -975,7 +1054,7 @@ restored when they would still show on a connected display.
 ### Desktop workbench
 
 The default is **Bottom**: requests above, inspector below, even on wide windows.
-Choose **View → Inspector: Right (wide windows)** to use a side inspector from
+Choose **⋯ → View → Inspector: Right (wide windows)** to use a side inspector from
 1000 DIPs of content width, or **Adaptive** to move it right from 1160 DIPs.
 Even Right yields at small widths; both orientations keep
 their own divider positions. In the side layout, the table prioritizes URL,
@@ -1015,14 +1094,14 @@ Proxyman or Postman use identical Windows/Linux defaults.
 | Save current draft | Cmd/Ctrl+S |
 | Compare exact last send with source | Cmd/Ctrl+Shift+D after sending a draft opened from Capture |
 | Back to original traffic view | Cmd/Ctrl+[; preserves the draft and original capture conditions |
-| Cycle Traffic and request tabs | Ctrl+Tab / Ctrl+Shift+Tab |
+| Cycle request tabs | Ctrl+Tab / Ctrl+Shift+Tab |
 | Close current request tab | Cmd/Ctrl+W; asks about unsaved changes; unavailable while sending |
 | Close window | Cmd/Ctrl+Shift+W (separate from closing a request) |
 
 Plain Enter in the URL input never sends. Dialogs own their shortcuts: sending,
 opening drafts and workspace commands cannot act through a modal. Local response
-editors keep their own Find commands. Cmd/Ctrl+1–3 still select workspaces, not
-individual drafts.
+editors keep their own Find commands. Cmd/Ctrl+1–4 still select workspaces and
+their sections, not individual drafts.
 
 The design takes **Edit and Repeat** from [Proxyman](https://docs.proxyman.com/advanced-features/edit-and-repeat)
 and the explicit **Send** chord documented by [Postman](https://blog.postman.com/boost-your-productivity-in-postman-with-these-4-keyboard-shortcuts/).
@@ -1034,33 +1113,35 @@ vscroxy mapping instead of silently inheriting conflicting shortcuts.
 
 ### Continuous debugging
 
-**Edit & replay** opens a named request tab beside **Traffic**. The same tab strip
-stays visible in Capture and Requests, so a draft and its response remain one
-click away while traffic continues arriving. Unsaved tabs still require save or
+**Edit & replay** opens a named request tab in **Requests**. The document tabs
+stay in the content pane, so a draft and its response remain one click away
+while traffic continues arriving. Unsaved tabs still require save or
 discard before closing. Open request drafts, their active tab and saved/unsaved
 baseline are checkpointed privately for restart; they are not automatically
 added to the saved request library and never send on restore.
 
 **Back to traffic** returns to the draft's original capture view without clearing
 search, protocol, header/body or triage conditions, changing its chosen request,
-or resuming a paused list. **Traffic** returns to the currently active live view.
+or resuming a paused list. **Capture → All requests** returns to the currently
+active live view.
 If the original view was closed, Back to traffic returns to the current view
 and explains the fallback instead of recreating it.
 Header, text-body, JSON and hex reading positions survive leaving Capture;
 choosing a different request resets those readers.
 
-After sending, **Compare source** uses the captured source and this document's
-last send, not the next matching URL or the current unsent edits. Each document
-keeps its own comparison part, side order, split/unified layout and reader state.
-Comparison fills the remaining work area; returning to Response restores the
-request editor's divider. A subsequent send refreshes the comparison.
+After sending, **Compare with source** uses the captured source and this
+document's last send, not the next matching URL or the current unsent edits. Each
+document keeps its own comparison part, side order, split/unified layout and
+reader state. Comparison fills the work area and **Back to response** returns to
+the response tab that was open; a subsequent send leaves the comparison and
+shows the new response.
 
 The last-send side represents the initial client request and final HTTP response.
 Request headers include client-side processing, but proxy rules can still change
 the forwarded exchange; followed redirects can return a response from another
 URL. Capture remains the source for individual wire exchanges. Previews are
 bounded to 8 MiB and explicitly mark incomplete text. Sending is a real network
-operation and is not undone by returning to Traffic or closing a tab.
+operation and is not undone by returning to Capture or closing a tab.
 
 ### Experiment workbench
 
@@ -1113,11 +1194,38 @@ and 256 KiB-per-body limit, with explicit incomplete-body diagnostics. They may
 contain credentials, private URLs and rule details; this is local, unencrypted
 debugging history, not sanitized evidence for sharing.
 
-### Cross-session investigations
+### Investigations
 
-**Session / Commands → Investigate saved sessions…** opens historical session or
-evidence JSON files without replacing Capture, changing rules, running scripts
-or sending requests. Choose sources in the two panes, select exchanges across
+The **Investigations** section of the Capture sidebar (Ctrl/Cmd+4) is where
+evidence outlives the traffic list. Each investigation has a name, one line of
+notes that expands when clicked, and a list of exchanges. **Add to investigation…**
+in a capture's inspector or row menu snapshots that exchange — bodies, headers,
+connection evidence and notes as they are now — into the investigation on
+screen, starting one when the board is empty. Later live traffic and edits never
+change a snapshot; the same flow can be inspected and added again as a separate
+exchange. Investigations live in `~/.vscroxy/investigations.json` (private,
+0600), up to 20 investigations of 64 exchanges and 32 MiB; adding past a limit
+reports it instead of dropping evidence.
+
+Reading one exchange shows the request and the response beside each other when
+the pane is wide enough; below that a **Request / Response** switch shows one at
+a time, with the same Headers and Body reading as Capture.
+Credentials are masked until **Reveal credentials**; the export review shows the
+raw bytes, not the masked reading. A failed exchange layers its evidence:
+the recorded stage and raw error first, then **Possible causes · not confirmed**
+and **What to try** — never a single inferred diagnosis. A successful replay is
+one exchange in the list, not proof that the original problem is gone.
+
+Choose two exchanges and **Compare two** to read their headers or bodies side by
+side. **Export evidence…** turns the chosen exchanges into one bundle (one source
+per exchange, so labels stay attached) and opens the review below; nothing is
+written before that confirmation. **⋯ → Delete investigation…** asks first.
+
+### Historical sessions
+
+**Historical sessions…** in the Capture sidebar's Investigations section, or
+**Commands → Historical sessions & evidence…**, opens historical session or evidence JSON files without replacing
+Capture, changing rules, running scripts or sending requests. Choose sources in the two panes, select exchanges across
 files and **Compare selected two** using the existing header/body comparison.
 Identical request IDs in different files remain independent. Search is a literal,
 case-insensitive match on URL, numeric status, exchange/source notes and errors;
