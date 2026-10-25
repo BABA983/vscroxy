@@ -26,6 +26,7 @@ type investigationWorkbench struct {
 	comparison                    captureAnalysis
 	title, notes, preview         string
 	reviewing, reviewed           bool
+	origin                        string
 	reviewCode                    *editor.State
 	reviewVersion                 uint64
 	result                        chan investigationResult
@@ -44,6 +45,7 @@ type investigationResult struct {
 func (s *investigationWorkbench) show() {
 	if !s.closed {
 		s.open = true
+		s.origin = ""
 	}
 }
 
@@ -51,6 +53,7 @@ func (s *investigationWorkbench) show() {
 // main thread. A finite worker can finish into its buffered channel safely.
 func (s *investigationWorkbench) close() {
 	s.closed, s.open = true, false
+	s.origin = ""
 	s.sources, s.matches, s.picks = nil, nil, nil
 	s.preview, s.notes, s.title = "", "", ""
 	s.reviewCode = nil
@@ -276,6 +279,18 @@ func (s *investigationWorkbench) exportReviewed(a *app) {
 	})
 }
 
+// showReview opens the evidence review on a bundle the investigation board
+// built. Consent and the editable raw JSON stay in one place.
+func (s *investigationWorkbench) showReview(data []byte) {
+	if s.closed {
+		return
+	}
+	s.open, s.reviewing, s.reviewed = true, true, false
+	s.preview, s.reviewCode = string(data), nil
+	s.problem, s.feedback = "", ""
+	s.origin = "board"
+}
+
 // modal must be called every frame, including when hidden, to collect worker
 // results. Parent integration needs only a field, show(), modal(c,a), and close().
 func (s *investigationWorkbench) modal(c *ui.Context, a *app) {
@@ -287,7 +302,7 @@ func (s *investigationWorkbench) modal(c *ui.Context, a *app) {
 	appModal(c, &s.open, func() {
 		ui.Column(c).Width(min(1120, w-80)).Height(min(800, h-100)).Gap(8).Children(func() {
 			ui.Row(c).Gap(10).Children(func() {
-				dialogTitle(c, "Investigations · historical evidence").Grow(1)
+				dialogTitle(c, "Historical sessions & evidence").Grow(1)
 				if ui.Button(c, "Close").Clicked() {
 					s.open = false
 				}
@@ -377,9 +392,16 @@ func (s *investigationWorkbench) review(c *ui.Context, a *app) {
 	}
 	ui.Checkbox(c, &s.reviewed, "I reviewed the complete raw evidence and accept responsibility for sharing it").Label("Confirm full evidence review").Disabled(s.busy)
 	ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
-		if ui.Button(c, "Back without exporting").Disabled(s.busy).Clicked() {
+		back := "Back without exporting"
+		if s.origin == "board" {
+			back = "Close without exporting"
+		}
+		if ui.Button(c, back).Disabled(s.busy).Clicked() {
 			s.reviewing, s.reviewed, s.preview = false, false, ""
 			s.reviewCode = nil
+			if s.origin == "board" {
+				s.open, s.origin = false, ""
+			}
 		}
 		if ui.PrimaryButton(c, "Export reviewed evidence…").Disabled(s.busy || !s.reviewed).Clicked() {
 			s.exportReviewed(a)
