@@ -25,6 +25,8 @@ type requestExecution struct {
 	expectedStatus int
 }
 
+type debugRunKey struct{}
+
 // A single execution is also a runner step. Both use the same encoder,
 // scripts, proxy and session cookie jar; no request tab is borrowed by Runner.
 func executeRequest(ctx context.Context, srv *capture.Server, r savedRequest, vars map[string]string, jar http.CookieJar) requestExecution {
@@ -69,7 +71,8 @@ func executeRequest(ctx context.Context, srv *capture.Server, r savedRequest, va
 			out.err = fmt.Errorf("post-response scripts require an HTTP response")
 		}
 	} else {
-		got, err := srv.ReplayWithCookies(ctx, capture.Flow{Method: req.Method, URL: req.URL, RequestHeader: req.header, RequestBody: req.Body}, jar, r.Checks == (responseChecks{}))
+		runKey, _ := ctx.Value(debugRunKey{}).(string)
+		got, err := srv.ReplayWithCookies(ctx, capture.Flow{DebugRun: runKey, Method: req.Method, URL: req.URL, RequestHeader: req.header, RequestBody: req.Body}, jar, r.Checks == (responseChecks{}))
 		out.err = err
 		if err == nil {
 			out.response = &got
@@ -260,9 +263,9 @@ func (a *app) runnerModal(c *ui.Context, t *ui.Theme) {
 	if !r.open {
 		return
 	}
-	ui.Modal(c, &r.open, func() {
+	appModal(c, &r.open, func() {
 		ui.Column(c).Width(820).Height(510).Gap(12).Children(func() {
-			ui.Text(c, "Collection Runner").FontSize(18).Bold()
+			dialogTitle(c, "Collection Runner")
 			ui.Text(c, "Saved requests only · sequential, including subfolders · environment snapshot at start · shared session cookies · 30 s per request").FontSize(11).TextColor(t.TextMuted)
 			ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
 				names := slices.Sorted(maps.Keys(groupRequests(a.requests)))

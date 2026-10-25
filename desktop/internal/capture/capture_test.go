@@ -980,6 +980,9 @@ func TestReplay(t *testing.T) {
 
 func TestConcurrentReplayLineageSurvivesHTTPSRedirects(t *testing.T) {
 	upstream := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.Contains(fmt.Sprint(r.Header), "local-run-") {
+			t.Error("local correlation leaked into upstream headers")
+		}
 		if r.URL.Path == "/start" {
 			http.Redirect(w, r, "/finish", http.StatusFound)
 			return
@@ -990,9 +993,9 @@ func TestConcurrentReplayLineageSurvivesHTTPSRedirects(t *testing.T) {
 	s, _ := startServer(t)
 	s.SetSSL(SSLConfig{All: true})
 	var wg sync.WaitGroup
-	for _, source := range []int{17, 41} {
+	for _, source := range []int{17, 41, 0} {
 		wg.Go(func() {
-			r, err := s.Replay(t.Context(), Flow{ID: source, Method: "GET", URL: upstream.URL + "/start", RequestHeader: http.Header{"X-Test-Case": {strconv.Itoa(source)}}})
+			r, err := s.Replay(t.Context(), Flow{ID: source, DebugRun: fmt.Sprintf("local-run-%d", source), Method: "GET", URL: upstream.URL + "/start", RequestHeader: http.Header{"X-Test-Case": {strconv.Itoa(source)}}})
 			if err != nil || r.ResponseBody != strconv.Itoa(source) {
 				t.Errorf("source %d got %+v: %v", source, r, err)
 			}
@@ -1011,15 +1014,22 @@ func TestConcurrentReplayLineageSurvivesHTTPSRedirects(t *testing.T) {
 	})
 	wg.Wait()
 	seen := map[int]int{}
-	for range 5 {
+	for range 7 {
 		f := waitFlow(t, s)
 		want, _ := strconv.Atoi(f.RequestHeader.Get("X-Test-Case"))
 		if f.ReplayOf != want {
 			t.Fatalf("concurrent replay/redirect mixed its source: %+v", f)
 		}
+		wantRun := ""
+		if f.RequestHeader.Get("X-Test-Case") != "" {
+			wantRun = fmt.Sprintf("local-run-%d", want)
+		}
+		if f.DebugRun != wantRun {
+			t.Fatalf("wire exchange from %d has run %q, want %q", want, f.DebugRun, wantRun)
+		}
 		seen[f.ReplayOf]++
 	}
-	if seen[17] != 2 || seen[41] != 2 || seen[0] != 1 {
+	if seen[17] != 2 || seen[41] != 2 || seen[0] != 3 {
 		t.Fatalf("redirect lineage = %v", seen)
 	}
 }

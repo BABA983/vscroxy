@@ -22,8 +22,8 @@ type settings struct {
 	SidebarWidth float32      `json:"sidebarWidth,omitempty"`
 	TablePercent float32      `json:"tablePercent,omitempty"`
 	Columns      columnLayout `json:"columns,omitempty"`
-	// InspectorLayout is empty for adaptive, or right/bottom for an explicit
-	// preference. Each orientation keeps its own divider position.
+	// InspectorLayout defaults to bottom (also for older empty values).
+	// Right and adaptive are opt-in; each orientation keeps its own divider.
 	InspectorLayout  string  `json:"inspectorLayout,omitempty"`
 	SideTablePercent float32 `json:"sideTablePercent,omitzero"`
 	SidebarHidden    bool    `json:"sidebarHidden,omitzero"`

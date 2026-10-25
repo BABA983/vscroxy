@@ -949,9 +949,9 @@ func (v *captureViews) filterModal(c *ui.Context, t *ui.Theme, a *app) {
 	if !v.filterOpen {
 		return
 	}
-	ui.Modal(c, &v.filterOpen, func() {
+	appModal(c, &v.filterOpen, func() {
 		ui.Column(c).Width(560).Gap(8).Children(func() {
-			ui.Text(c, "Filter "+v.label(v.active)).FontSize(14).Bold()
+			dialogTitle(c, "Filter "+v.label(v.active))
 			ui.Text(c, "Status takes 404, 4xx, 200-299 or >=400; separate alternatives with commas (4xx, 5xx). A header is a name, or \"name: value\". Body searches both sides in full, including spilled files.").
 				FontSize(11).TextColor(t.TextMuted)
 			problem := ""
@@ -1066,9 +1066,9 @@ func (v *captureViews) savedModal(c *ui.Context, t *ui.Theme, a *app) {
 	if !v.savedOpen {
 		return
 	}
-	ui.Modal(c, &v.savedOpen, func() {
+	appModal(c, &v.savedOpen, func() {
 		ui.Column(c).Width(560).Gap(10).Children(func() {
-			ui.Text(c, "Saved capture filters").FontSize(14).Bold()
+			dialogTitle(c, "Saved capture filters")
 			ui.Text(c, "A filter keeps this view's URL, content and triage conditions. Applying one changes this view; the other views keep their own.").
 				FontSize(11).TextColor(t.TextMuted)
 			if len(v.filters) == 0 {

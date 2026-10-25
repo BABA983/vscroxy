@@ -84,13 +84,13 @@ func (a *app) regressionModal(c *ui.Context, t *ui.Theme) {
 	// Capture/save feedback must not cover the review gate in a small window.
 	c.CloseToast("")
 	width, height := c.Size()
-	ui.Modal(c, &s.open, func() {
-		ui.Column(c).Width(min(760, width-64)).Height(min(660, height-64)).Gap(10).Children(func() {
+	appModal(c, &s.open, func() {
+		ui.Column(c).Width(min(760, width-80)).Height(min(660, height-80)).Gap(10).Children(func() {
 			title := "Share regression · review sanitized copy"
 			if s.importing {
 				title = "Import regression · review before opening"
 			}
-			ui.Text(c, title).FontSize(16).Bold()
+			dialogTitle(c, title)
 			ui.Scroll(c).Grow(1).Gap(8).Children(func() {
 				for _, change := range s.changes {
 					ui.Text(c, "• "+change).FontSize(11).TextColor(t.TextMuted)

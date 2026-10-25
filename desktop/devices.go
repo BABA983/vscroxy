@@ -160,10 +160,10 @@ func (a *app) devicesModal(c *ui.Context, t *ui.Theme) {
 	if d.gateway != nil {
 		c.After(time.Second)
 	}
-	ui.Modal(c, &d.open, func() {
+	appModal(c, &d.open, func() {
 		ui.Column(c).Width(820).Height(510).Gap(14).Children(func() {
 			ui.Row(c).AlignItems(ui.Center).Children(func() {
-				ui.Text(c, "Connect a device").FontSize(18).Bold()
+				dialogTitle(c, "Connect a device")
 				ui.Spacer(c)
 				if d.gateway == nil {
 					ui.Badge(c, "LAN off")

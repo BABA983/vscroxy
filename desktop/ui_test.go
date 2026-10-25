@@ -126,8 +126,8 @@ func TestConnectionFailureCanBeFoundAndCopiedWithoutInventingAnHTTPError(t *test
 	if err := tt.Click("Explain"); err != nil {
 		t.Fatal(err)
 	}
-	// The popover can cover the URL column; use the exposed method cell.
-	if err := tt.Click("GET"); err != nil {
+	// The popover can cover content columns; use the exposed request ID.
+	if err := tt.Click("11"); err != nil {
 		t.Fatal(err)
 	}
 	if tt.HasText("Client TLS handshake failed") || tt.HasText("Explain") || !tt.HasText("502 · — · 0 ms") {
@@ -463,11 +463,11 @@ func TestHTTPSSetupExplainsTunnelsAndEnablesOnlyTheSelectedDomain(t *testing.T) 
 		tt.Frame()
 	}
 	waitCertificate()
-	if !tt.HasText("Encrypted tunnel — not individual requests") || !tt.HasText("3  Domain decryption disabled") || !tt.HasText("2  Trust not verified on this system") {
+	if !tt.HasText("Encrypted tunnel — not individual requests") || !tt.HasText("Domain decryption disabled") || !tt.HasText("Trust not verified on this system") {
 		t.Fatalf("tunnel setup missing or an uninstalled CA was reported trusted: %q", tt.Texts())
 	}
 	click("Enable for dc.dlife.cn:18443")
-	if !tt.HasText("3  Domain decryption is now enabled") || !tt.HasText("Encrypted tunnel — not individual requests") {
+	if !tt.HasText("Domain rule enabled · reconnect to inspect new requests") || !tt.HasText("Encrypted tunnel — not individual requests") {
 		t.Fatal("enabling a domain must not make the old CONNECT appear decrypted")
 	}
 	cfg, err := capture.LoadSSL(a.sslPath)
@@ -499,8 +499,75 @@ func TestHTTPSSetupExplainsTunnelsAndEnablesOnlyTheSelectedDomain(t *testing.T) 
 	tt.Type("dlife.cn")
 	click("Save")
 	cfg, err = capture.LoadSSL(a.sslPath)
-	if err != nil || !cfg.Decrypts("other.dlife.cn") || cfg.Decrypts("notdlife.cn") || !tt.HasText("3  Domain decryption is now enabled") {
+	if err != nil || !cfg.Decrypts("other.dlife.cn") || cfg.Decrypts("notdlife.cn") || !tt.HasText("Domain rule enabled · reconnect to inspect new requests") {
 		t.Fatal("a parent-domain rule must enable its subdomains in the inspector too")
+	}
+}
+
+func TestHTTPSAppRuleCanBeScopedEditedAndCancelled(t *testing.T) {
+	a := workspaceApp()
+	a.sslPath = filepath.Join(t.TempDir(), "ssl.json")
+	a.sslHosts = "existing.test"
+	a.certificate.checked = true
+	path := filepath.Join(t.TempDir(), "client")
+	a.flows = []flow{
+		{id: 1, method: "CONNECT", scheme: "https", host: "one.test:8443", kind: "connect", status: 200, process: "client", processPath: path},
+		{id: 2, method: "CONNECT", scheme: "https", host: "two.test:443", kind: "connect", status: 200, process: "client"},
+	}
+	a.applyFilter()
+	tt := ui.NewTester(a.view, 960, 600)
+	click := func(label string) {
+		t.Helper()
+		if err := tt.Click(label); err != nil {
+			t.Fatal(err)
+		}
+	}
+	load := func() capture.SSLConfig {
+		t.Helper()
+		cfg, err := capture.LoadSSL(a.sslPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return cfg
+	}
+	click("Enable HTTPS for client")
+	cfg := load()
+	if cfg.All || len(cfg.Apps) != 1 || cfg.Apps[0].Path != path || !cfg.Decrypts("existing.test") || !cfg.DecryptsProcess("another.test:9443", path) || cfg.DecryptsProcess("another.test", "") {
+		t.Fatalf("app rule changed domain/global scope or lost its executable: %+v", cfg)
+	}
+	if !tt.HasText("App rule enabled · reconnect to inspect new requests") || !tt.HasText("Encrypted tunnel — not individual requests") {
+		t.Fatal("enabling an app incorrectly claimed this historical tunnel was decrypted")
+	}
+	click("Manage HTTPS rules")
+	click("Decryption domains")
+	tt.Key(ui.Cmd, ui.KeyA)
+	tt.Type("edited.test")
+	click("Save")
+	cfg = load()
+	if !cfg.Decrypts("edited.test") || cfg.Decrypts("existing.test") || len(cfg.Apps) != 1 || cfg.Apps[0].Path != path {
+		t.Fatalf("editing domains lost the independent app rule: %+v", cfg)
+	}
+	click("Manage HTTPS rules")
+	box, ok := tt.Find("Decryption domains")
+	if !ok {
+		t.Fatal("rule editor did not open")
+	}
+	tt.Scroll(box.X+10, box.Y+10, 0, 1e6)
+	click("Remove HTTPS app: " + path)
+	click("Cancel")
+	click("Manage HTTPS rules")
+	tt.Scroll(box.X+10, box.Y+10, 0, 1e6)
+	if !tt.HasText(path) || len(load().Apps) != 1 {
+		t.Fatal("cancelling a removal changed the enabled app rule")
+	}
+	click("Remove HTTPS app: " + path)
+	click("Save")
+	if len(load().Apps) != 0 || !load().Decrypts("edited.test") {
+		t.Fatal("saving an app removal affected the independent domain rule")
+	}
+	click("two.test:443")
+	if tt.HasText("Enable HTTPS for client") || !tt.HasText("App rule unavailable · local executable identity not recorded") {
+		t.Fatal("an unidentified client was offered a same-name app permission")
 	}
 }
 
@@ -714,6 +781,42 @@ func TestJSONExpansionSurvivesIncomingTraffic(t *testing.T) {
 	}
 	if tt.Clipboard() != `{"replacement":"new-value"}` || tt.HasText(`"expanded-value"`) {
 		t.Fatal("changed body content did not refresh the JSON tree")
+	}
+}
+
+func TestCaptureOrdersRequestsByNumberAndCaptureTime(t *testing.T) {
+	a := workspaceApp()
+	start := time.Date(2026, 10, 25, 10, 0, 0, 0, time.UTC)
+	a.flows = []flow{
+		{id: 41, method: "GET", scheme: "https", host: "api.example.com", path: "/first", status: 200, at: start, millis: 90},
+		{id: 7, method: "GET", scheme: "https", host: "api.example.com", path: "/last", status: 200, at: start.Add(2 * time.Second), millis: 40},
+		{id: 19, method: "GET", scheme: "https", host: "api.example.com", path: "/middle", status: 200, at: start.Add(time.Second), millis: 10},
+	}
+	a.applyFilter()
+	tt := ui.NewTester(a.view, 1440, 860)
+	for _, order := range []struct {
+		column string
+		paths  []string
+	}{
+		{"#", []string{"/last", "/middle", "/first"}},
+		{"Time", []string{"/first", "/middle", "/last"}},
+		{"Time", []string{"/last", "/middle", "/first"}},
+	} {
+		if err := tt.Click(order.column); err != nil {
+			t.Fatal(err)
+		}
+		tt.Frame()
+		previous := float32(-1)
+		for _, path := range order.paths {
+			row, ok := tt.Find("api.example.com" + path)
+			if !ok || row.Y <= previous {
+				t.Fatalf("%s did not order rows as %v", order.column, order.paths)
+			}
+			previous = row.Y
+		}
+		if !tt.HasText("GET https://api.example.com/first") {
+			t.Fatal("sorting changed the inspected request")
+		}
 	}
 }
 
@@ -1607,6 +1710,14 @@ func TestRuleEditorPersistsOrderingTogglesAndCapturedMock(t *testing.T) {
 		return rules
 	}
 	click("Rules")
+	tt.SetSize(960, 600)
+	for _, label := range []string{"Close", "Save rule"} {
+		bounds, ok := tt.Find(label)
+		if !ok || bounds.Y < 20 || bounds.Y+bounds.H > 580 {
+			t.Fatalf("rule action %q outside the compact dialog: %v", label, bounds)
+		}
+	}
+	tt.SetSize(1100, 650)
 	click("Save rule")
 	if !tt.HasText("rule 1: enter a URL substring to match") || len(load()) != 0 {
 		t.Fatal("invalid rule was saved or validation was hidden")
@@ -1868,6 +1979,12 @@ func TestCaptureRegressionCanBeSavedAndSharedOnlyAfterReview(t *testing.T) {
 	click("Case")
 	if err := tt.ChooseMenuItem("Share regression…"); err != nil {
 		t.Fatal(err)
+	}
+	for _, label := range []string{"Cancel", "Copy case JSON"} {
+		bounds, ok := tt.Find(label)
+		if !ok || bounds.Y < 20 || bounds.Y+bounds.H > 580 {
+			t.Fatalf("review action %q outside the compact dialog: %v", label, bounds)
+		}
 	}
 	click("Copy case JSON")
 	if tt.Clipboard() != "" {
@@ -2196,8 +2313,9 @@ func TestClientSetupCopiedCommandProducesLiveDecryptionEvidence(t *testing.T) {
 	}
 }
 
-func TestDesktopLayoutAdaptsAndFocusPreservesCaptureContext(t *testing.T) {
+func TestDesktopLayoutDefaultsBelowAndSwitchesWithoutLosingCaptureContext(t *testing.T) {
 	a := workspaceApp()
+	a.columns.Order = []string{"method", "url", "id"}
 	tt := ui.NewTester(a.view, 1440, 860)
 	click := func(label string) {
 		t.Helper()
@@ -2209,14 +2327,19 @@ func TestDesktopLayoutAdaptsAndFocusPreservesCaptureContext(t *testing.T) {
 	click("Body")
 	check := func(right bool) {
 		t.Helper()
-		method, ok := tt.Find("Method")
+		table, ok := tt.Find("Captured requests")
 		title, found := tt.Find("POST https://api.example.com/login")
-		if !ok || !found || title.H == 0 || title.Y >= 600 || (title.X > method.X+300) != right {
-			t.Fatalf("inspector not reachable in expected layout: method %v, title %v, right %t", method, title, right)
+		if !ok || !found || title.H == 0 || title.Y >= 600 || (title.X >= table.X+table.W) != right {
+			t.Fatalf("inspector not reachable in expected layout: table %v, title %v, right %t", table, title, right)
 		}
 		if f, ok := a.current(); !ok || f.id != 2 || !a.chosen.Has(2) || !tt.HasText("Pretty") {
 			t.Fatal("layout transition lost the inspected request, selection or Body tab")
 		}
+	}
+	check(false) // A: bottom inspector is the default even on wide windows.
+	click("View")
+	if err := tt.ChooseMenuItem("Inspector: Right (wide windows)"); err != nil {
+		t.Fatal(err)
 	}
 	check(true)
 	tt.SetSize(960, 600)
@@ -2241,6 +2364,16 @@ func TestDesktopLayoutAdaptsAndFocusPreservesCaptureContext(t *testing.T) {
 	tt.Key(ui.Cmd, ui.KeyB)
 	if !tt.HasText("All requests") {
 		t.Fatal("sidebar shortcut did not restore the sidebar")
+	}
+	tt.Key(ui.Cmd, ui.KeyK)
+	tt.Type("Reset desktop layout")
+	tt.Key(0, ui.KeyEnter)
+	check(false)
+	number, _ := tt.Find("#")
+	url, _ := tt.Find("URL")
+	method, _ := tt.Find("Method")
+	if number.X >= url.X || url.X >= method.X {
+		t.Fatal("reset layout did not restore the URL-first default columns")
 	}
 }
 
@@ -2526,5 +2659,163 @@ func TestFilterTokensRemoveOnlyTheirOwnCondition(t *testing.T) {
 	}
 	if len(a.visible) != 2 || a.filtersActive() {
 		t.Fatal("body token did not remove the full-body search condition")
+	}
+}
+
+func TestCaptureDiagnosticsSeparateConfigurationLiveEvidenceAndViewVisibility(t *testing.T) {
+	fake := &fakeSystemProxy{check: system.ProxyCheck{Status: system.ProxyMatches}}
+	a := proxyTestApp(t, fake)
+	a.flows = []flow{
+		{id: 1, live: true, method: "CONNECT", scheme: "https", url: "https://API.example.com:443/", kind: "connect", status: 200},
+		{id: 2, live: true, method: "GET", scheme: "https", url: "https://api.example.com/items", kind: "http", status: 502, reqHeaders: "Accept: */*", conn: conn{errorStage: "TCP", error: "fixture connection refused"}, actions: []string{"Map Remote · fixture"}},
+		{id: 3, live: false, method: "GET", scheme: "https", url: "https://api.example.com/imported", status: 200, reqHeaders: "Accept: */*"},
+		{id: 4, live: true, method: "GET", scheme: "https", url: "https://api.example.com:8443/other-port", status: 200, reqHeaders: "Accept: */*"},
+		{id: 5, live: true, method: "GET", scheme: "http", url: "http://api.example.com:443/other-scheme", status: 200},
+	}
+	a.views.init(a, "")
+	a.query = "no-match"
+	a.views.applyFilter(a)
+	tt := ui.NewTester(a.view, 960, 600)
+	tt.Key(ui.Cmd, ui.KeyK)
+	tt.Type("Capture diagnostics")
+	tt.Key(0, ui.KeyEnter)
+	settleProxy(t, a, tt)
+	if err := tt.Click("Target URL"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Key(ui.Ctrl, ui.KeyA)
+	tt.Type("https://api.example.com/")
+	for _, want := range []string{
+		"HTTP and HTTPS point at this app",
+		"2 live records · 0 shown · 2 hidden in the current capture view",
+		"Observed HTTPS: 1 decrypted request records · 1 CONNECT records",
+		"HTTPS policy: Disabled for new connections",
+		"TCP failed: fixture connection refused",
+		"Recorded actions on this exchange: Map Remote · fixture",
+	} {
+		if !tt.HasText(want) {
+			t.Fatalf("missing %q: %q", want, tt.Texts())
+		}
+	}
+	if fake.writes != 0 || a.deviceUI.gateway != nil {
+		t.Fatal("opening diagnostics changed the proxy or exposed a device gateway")
+	}
+	// Inspecting hidden evidence must preserve the original filter tab.
+	tt.Scroll(480, 300, 0, 220)
+	if err := tt.Click("Inspect latest evidence"); err != nil {
+		t.Fatal(err)
+	}
+	if a.pickedID != 2 || len(a.views.views) != 2 || a.views.views[0].query != "no-match" || tt.HasText("Capture diagnostics") {
+		t.Fatal("inspecting evidence lost the old filter or selected imported/other-origin traffic")
+	}
+}
+
+func TestCaptureDiagnosticsEmptyAndInvalidTargetsDoNotClaimProxyFailure(t *testing.T) {
+	a := workspaceApp()
+	a.flows, a.visible = nil, nil
+	a.systemProxy.read = func(target string) system.ProxyCheck {
+		return system.ProxyCheck{Target: target, Status: system.ProxyOff}
+	}
+	tt := ui.NewTester(a.view, 960, 600)
+	if err := tt.Click("Diagnose capture…"); err != nil {
+		t.Fatal(err)
+	}
+	settleProxy(t, a, tt)
+	if !tt.HasText("No system proxy is set") || !tt.HasText("No retained live evidence for this origin.") {
+		t.Fatalf("no-traffic state not explained: %q", tt.Texts())
+	}
+	for _, target := range []string{"not a URL", "ftp://example.com", "https://user:secret@example.com"} {
+		if err := tt.Click("Target URL"); err != nil {
+			t.Fatal(err)
+		}
+		tt.Key(ui.Ctrl, ui.KeyA)
+		tt.Type(target)
+		if !tt.HasText("Enter an HTTP or HTTPS URL without embedded credentials.") || tt.HasText("0 live records") {
+			t.Fatalf("invalid target %q received a diagnosis", target)
+		}
+	}
+	tt.Key(0, ui.KeyEscape)
+	if tt.HasText("Target URL") || !tt.HasText("Waiting for traffic") {
+		t.Fatal("Escape did not return to the unchanged capture view")
+	}
+}
+
+func TestExperimentWorkbenchComparesIndependentRunsAndReopensWithoutSending(t *testing.T) {
+	a := workspaceApp()
+	draft := savedRequest{Method: "POST", URL: "https://example.test/items", Body: "original"}
+	for i, body := range []string{`{"value":1,"timestamp":10}`, `{"value":2,"timestamp":20}`} {
+		draft.Body = fmt.Sprintf("attempt %d", i+1)
+		if err := a.experiments.log.retain(snapshotExperiment(0, draft, "staging", requestExecution{response: &capture.Flow{Method: "POST", URL: draft.URL, Status: 200, RequestBody: draft.Body, ResponseBody: body}})); err != nil {
+			t.Fatal(err)
+		}
+	}
+	tt := ui.NewTester(a.view, 1440, 900)
+	click := func(label string) {
+		t.Helper()
+		if err := tt.Click(label); err != nil {
+			t.Fatal(err)
+		}
+	}
+	copyText := func(label string) string {
+		t.Helper()
+		click(label)
+		tt.Key(ui.Cmd, ui.KeyA)
+		tt.Key(ui.Cmd, ui.KeyC)
+		return tt.Clipboard()
+	}
+	tt.Key(ui.Cmd, ui.KeyK)
+	tt.Type("Experiment workbench")
+	tt.Key(0, ui.KeyEnter)
+	click("Experiment #1")
+	click("Set baseline")
+	click("Experiment #2")
+	click("Compare with left")
+	if got := copyText("Old text"); got != `{"value":1,"timestamp":10}` {
+		t.Fatalf("old run = %q", got)
+	}
+	if got := copyText("New text"); got != `{"value":2,"timestamp":20}` {
+		t.Fatalf("new run = %q", got)
+	}
+	click("Ignore JSON keys")
+	tt.Type("timestamp")
+	if got := copyText("Old text"); got != `{"value":1}` {
+		t.Fatalf("filtered old run = %q", got)
+	}
+	if got := copyText("New text"); got != `{"value":2}` {
+		t.Fatalf("filtered new run = %q", got)
+	}
+	click("Experiment #1")
+	click("Recorded result")
+	if got := copyText("Experiment result"); !strings.Contains(got, `"timestamp":10`) {
+		t.Fatal("comparison rewrote the original snapshot")
+	}
+	click("Open as draft")
+	if !tt.HasText("Recorded experiment #1") || a.composeWaiting || a.composeBody != "attempt 1" || a.response.ResponseBody != `{"value":1,"timestamp":10}` {
+		t.Fatal("opening a historical run sent it, chose the wrong snapshot, or lost its result")
+	}
+}
+
+func TestExperimentDraftCheckpointRestoresUnsavedEditsAndCloseFlushes(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "experiments.json")
+	a := workspaceApp()
+	a.loadExperiments(path)
+	a.addDocument(savedRequest{Name: "Draft A", Method: "POST", URL: "https://example.test/a", Body: "unsaved body"}, "")
+	a.addDocument(savedRequest{Name: "Draft B", Method: "GET", URL: "https://example.test/b"}, "")
+	tt := ui.NewTester(a.view, 960, 600)
+	if err := tt.Click("URL"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Key(ui.Cmd, ui.KeyA)
+	tt.Type("https://example.test/edited")
+	// Closing immediately, without waiting for the debounce, must save the last edit.
+	a.experiments.close()
+	b := workspaceApp()
+	b.loadExperiments(path)
+	defer b.experiments.close()
+	if len(b.documents) != 2 || b.documents[0].composeBody != "unsaved body" || b.composeURL != "https://example.test/edited" || !b.documents[0].dirty() || b.composeWaiting {
+		t.Fatal("restart lost drafts/active tab/dirty state or sent a request")
+	}
+	if len(b.experiments.log.Records) != 0 {
+		t.Fatal("restoring drafts invented an experiment")
 	}
 }

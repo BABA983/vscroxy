@@ -43,9 +43,9 @@ func (a *app) desktopContent(c *ui.Context) {
 	}
 	// Even an explicitly requested side inspector yields on small windows.
 	// It returns, with its own divider position, when there is room again.
-	w.sideBySide = (available >= 1160 || w.layout == "right" && available >= 1000) && w.layout != "bottom"
+	w.sideBySide = w.layout == "right" && available >= 1000 || w.layout == "adaptive" && available >= 1160
 	if w.sidePercent == 0 {
-		w.sidePercent = 54
+		w.sidePercent = 64
 	}
 	content := func() {
 		switch a.workspace {
@@ -65,6 +65,7 @@ func (a *app) desktopContent(c *ui.Context) {
 				}
 				table := func() {
 					ui.Column(c).Fill().Children(func() {
+						a.captureToolbar(c, c.Theme())
 						if a.chosen.Len() > 1 {
 							ui.Row(c).Height(34).Padding(0, 10).Gap(8).AlignItems(ui.Center).Children(func() {
 								ui.Text(c, fmt.Sprintf("%d selected", a.chosen.Len())).FontSize(11).Bold().Grow(1)
@@ -96,14 +97,7 @@ func (a *app) desktopContent(c *ui.Context) {
 var captureKinds = []string{"All", "HTTP", "HTTPS", "WebSocket", "SSE", "JSON", "Images", "HTML"}
 
 func (a *app) captureToolbar(c *ui.Context, t *ui.Theme) {
-	ui.Row(c).Height(44).Padding(0, 12).Gap(8).AlignItems(ui.Center).Children(func() {
-		label := "Capture stopped"
-		if a.srv != nil && a.srv.Running() {
-			label = "Live · " + a.srv.Addr()
-		}
-		if ui.Button(c, label).FontSize(11).SingleLine().Width(156).Tooltip("Open Proxy settings · " + label).Clicked() {
-			a.settingsTab, a.settingsOpen = 1, true
-		}
+	ui.Row(c).Height(40).Padding(0, 10).Gap(6).AlignItems(ui.Center).Children(func() {
 		search := ui.TextInput(c, &a.query).Bind(&a.search).Label("Search host or path").Placeholder("Search host or path…").Tooltip("URL host and path only · Ctrl/Cmd+F · Enter or ↓ moves to requests. Filters search headers and full bodies.").Grow(1)
 		search.OnShortcut(0, ui.KeyDown, func() { a.focusTraffic(c) })
 		if search.Changed() {
@@ -288,15 +282,20 @@ func (a *app) desktopActions(c *ui.Context) []desktopAction {
 			a.breakOn = !a.breakOn
 			a.srv.SetBreak(a.breakOn)
 		}},
-		{"layout-auto", "Inspector: Adaptive", capturing, 0, 0, func() { w.layout, w.focused = "", false }},
+		{"layout-auto", "Inspector: Adaptive", capturing, 0, 0, func() { w.layout, w.focused = "adaptive", false }},
 		{"layout-right", "Inspector: Right (wide windows)", capturing, 0, 0, func() { w.layout, w.focused = "right", false }},
 		{"layout-bottom", "Inspector: Bottom", capturing, 0, 0, func() { w.layout, w.focused = "bottom", false }},
 		{"sidebar", "Toggle sidebar", true, ui.Cmd, ui.KeyB, func() { w.sidebarHidden = !w.sidebarHidden }},
 		{"layout-reset", "Reset desktop layout", true, 0, 0, func() {
-			w.layout, w.sidebarHidden, w.focused, w.sidePercent = "", false, false, 54
+			w.layout, w.sidebarHidden, w.focused, w.sidePercent = "bottom", false, false, 64
 			a.sidebarWidth, a.tablePercent = 220, 44
+			a.columns = ui.TableLayout{}
 		}},
 		{"https", "HTTPS certificate & decryption setup…", true, 0, 0, func() { a.settingsTab, a.settingsOpen = 2, true }},
+		{"diagnostics", "Capture diagnostics…", true, 0, 0, a.openDiagnostics},
+		{"experiments", "Experiment workbench…", true, 0, 0, func() { a.experiments.open = true }},
+		{"websocket", "WebSocket session…", true, 0, 0, a.openSocket},
+		{"investigations", "Investigate saved sessions…", true, 0, 0, a.investigations.show},
 		{"client", "Set up a local client…", a.srv != nil, 0, 0, a.openClientSetup},
 		{"devices", "Connect a device…", a.srv != nil, 0, 0, a.openDevices},
 		{"rules", "Manage debugging rules…", true, 0, 0, a.openRules},
@@ -473,10 +472,10 @@ func (a *app) commandPalette(c *ui.Context) {
 	if !w.paletteOpen {
 		return
 	}
-	ui.Modal(c, &w.paletteOpen, func() {
+	appModal(c, &w.paletteOpen, func() {
 		width, _ := c.Size()
 		ui.Column(c).Width(min(560, width-48)).Gap(10).Children(func() {
-			ui.Text(c, "Commands").FontSize(15).Bold()
+			dialogTitle(c, "Commands")
 			// Modal focuses its first input after remembering the opener. An
 			// explicit AutoFocus here would replace that remembered focus.
 			input := ui.TextInput(c, &w.query).Label("Find command").Placeholder("Search actions…").FillWidth()

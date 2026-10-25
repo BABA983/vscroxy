@@ -78,6 +78,9 @@ type Flow struct {
 	ID int
 	// ReplayOf identifies the original capture; zero for ordinary traffic.
 	ReplayOf int
+	// DebugRun correlates a local editor send with its exact wire exchanges.
+	// It travels through socket ownership, never through an HTTP header.
+	DebugRun string
 	// Actions records interventions applied to this exchange, not today's rules.
 	Actions []string
 	Method  string
@@ -214,6 +217,11 @@ type Rule struct {
 	Status   int         `json:"status,omitzero"`
 	Headers  http.Header `json:"headers,omitempty"`
 	Disabled bool        `json:"disabled,omitzero"`
+	// Scenario groups response-affecting rules; empty is always global.
+	// Every member of a group has the same ScenarioActive value, and at most
+	// one group is active. Disabled remains an independent per-rule choice.
+	Scenario       string `json:"scenario,omitempty"`
+	ScenarioActive bool   `json:"scenarioActive,omitzero"`
 }
 
 // Phase is where a breakpoint paused an exchange.
@@ -267,8 +275,8 @@ type Server struct {
 	started       map[uuid.UUID]time.Time
 	firstByte     map[uuid.UUID]time.Time
 	original      map[uuid.UUID]url.URL
-	clients       map[string]procinfo.Process
-	replayClients map[string]int // replay socket address -> source capture
+	clients       map[clientSocket]clientIdentity // active socket -> immutable ownership
+	replayClients map[string]replayOrigin         // replay socket address -> local send
 	closeOnce     sync.Once
 
 	// bodyDir holds the bodies too large to keep in memory. It is removed
@@ -355,8 +363,8 @@ func New(addr, caRootPath string) (*Server, error) {
 		started:       make(map[uuid.UUID]time.Time),
 		firstByte:     make(map[uuid.UUID]time.Time),
 		original:      make(map[uuid.UUID]url.URL),
-		clients:       make(map[string]procinfo.Process),
-		replayClients: make(map[string]int),
+		clients:       make(map[clientSocket]clientIdentity),
+		replayClients: make(map[string]replayOrigin),
 		dnsHits:       make(map[uuid.UUID]DNSHit),
 		bpWait:        make(map[int]chan Decision),
 		breakpoints:   make(chan Breakpoint, 16),
@@ -378,7 +386,21 @@ func New(addr, caRootPath string) (*Server, error) {
 	}
 	p.AddAddon(&addon{server: s})
 	p.SetShouldInterceptRule(func(req *http.Request) bool {
-		return s.decrypts(requestHost(req))
+		// RemoteAddr is supplied by the proxy's HTTP server, never a header.
+		// Ownership was resolved from both ends of this accepted socket.
+		var process procinfo.Process
+		if local, ok := req.Context().Value(http.LocalAddrContextKey).(*net.TCPAddr); ok {
+			addr := clientSocket{req.RemoteAddr, local.String()}
+			s.mu.Lock()
+			client := s.clients[addr].client
+			s.mu.Unlock()
+			// net/http retains this accepted TCP socket's LocalAddr object.
+			// Equal address text alone could refer to a recycled connection.
+			if client != nil && client.Conn.LocalAddr() == local {
+				process = s.socketProcess(addr, client)
+			}
+		}
+		return s.SSL().DecryptsProcess(requestHost(req), process.Path)
 	})
 	p.SetUpstreamProxy(func(*http.Request) (*url.URL, error) {
 		raw, _ := s.upstream.Load().(string)
@@ -426,12 +448,19 @@ func (s *Server) Flows() <-chan Flow { return s.out }
 // Dropped counts the flows the UI could not keep up with.
 func (s *Server) Dropped() int64 { return s.dropped.Load() }
 
-// SSLConfig says which domains the proxy decrypts. Nothing is decrypted until
-// a domain is listed, or All is set: a tunnel shows as a CONNECT flow, and the
-// detail pane offers to decrypt it.
+// SSLApp selects an executable for HTTPS inspection. Name is display-only;
+// only an exact, nonempty Path can authorize inspection.
+type SSLApp struct {
+	Name string `json:"name"`
+	Path string `json:"path"`
+}
+
+// SSLConfig says which domains or local executables the proxy decrypts.
+// Nothing is decrypted until a domain/app is listed, or All is set.
 type SSLConfig struct {
 	All   bool     `json:"all"`
 	Hosts []string `json:"hosts,omitempty"`
+	Apps  []SSLApp `json:"apps,omitempty"`
 }
 
 // Decrypts reports whether the current rules enable HTTPS inspection for host.
@@ -447,6 +476,17 @@ func (c SSLConfig) Decrypts(host string) bool {
 		}
 	}
 	return false
+}
+
+// DecryptsProcess adds opt-in executable rules to the host/global rules.
+// Names, parent apps, path prefixes and unidentified clients never match.
+func (c SSLConfig) DecryptsProcess(host, path string) bool {
+	if c.Decrypts(host) {
+		return true
+	}
+	return path != "" && slices.ContainsFunc(c.Apps, func(app SSLApp) bool {
+		return app.Path != "" && app.Path == path
+	})
 }
 
 // SSL rules describe domains, not ports. Accept authorities written by older
@@ -527,18 +567,16 @@ func (s *Server) noteDNS(f *proxy.Flow) {
 // SetSSL sets what the proxy decrypts.
 func (s *Server) SetSSL(c SSLConfig) {
 	c.Hosts = slices.Clone(c.Hosts)
+	c.Apps = slices.Clone(c.Apps)
 	s.ssl.Store(c)
 }
 
 // SSL is what the proxy decrypts.
 func (s *Server) SSL() SSLConfig {
 	c, _ := s.ssl.Load().(SSLConfig)
+	c.Hosts = slices.Clone(c.Hosts)
+	c.Apps = slices.Clone(c.Apps)
 	return c
-}
-
-// decrypts reports whether the proxy decrypts host.
-func (s *Server) decrypts(host string) bool {
-	return s.SSL().Decrypts(host)
 }
 
 // LoadSSL reads the SSL proxying settings; a missing file decrypts nothing.
@@ -667,11 +705,16 @@ func requestHost(req *http.Request) string {
 	return host
 }
 
-// SetRules replaces the rules the proxy applies to new requests.
-func (s *Server) SetRules(rules []Rule) {
+// SetRules replaces the rules the proxy applies to new requests. Invalid
+// snapshots leave the running configuration unchanged, just as SaveRules does.
+func (s *Server) SetRules(rules []Rule) error {
+	if err := ValidateRules(rules); err != nil {
+		return err
+	}
 	s.rulesMu.Lock()
 	s.rules = cloneRules(rules)
 	s.rulesMu.Unlock()
+	return nil
 }
 
 // Rules returns the rules in force.
@@ -940,6 +983,11 @@ func (s *Server) Replay(ctx context.Context, f Flow) (Flow, error) {
 
 type replaySourceKey struct{}
 
+type replayOrigin struct {
+	source int
+	run    string
+}
+
 // ReplayWithCookies uses the request workspace's cookie jar, including across
 // redirects. Ordinary capture replay deliberately does not inherit login state.
 // Regression checks stop at the original response instead of following redirects.
@@ -989,13 +1037,13 @@ func (s *Server) ReplayWithCookies(ctx context.Context, f Flow, jar http.CookieJ
 			TLSClientConfig: &tls.Config{RootCAs: s.roots},
 			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
 				conn, err := (&net.Dialer{}).DialContext(ctx, network, addr)
-				if err == nil && f.ID != 0 {
+				if err == nil && (f.ID != 0 || f.DebugRun != "") {
 					// Register before the transport can send anything. Each send
 					// owns its transport, so concurrent identical URLs cannot mix.
 					s.mu.Lock()
 					if !finished {
 						local := conn.LocalAddr().String()
-						s.replayClients[local] = f.ID
+						s.replayClients[local] = replayOrigin{source: f.ID, run: f.DebugRun}
 						addresses = append(addresses, local)
 					}
 					s.mu.Unlock()
@@ -1052,11 +1100,17 @@ func (a *addon) Requestheaders(f *proxy.Flow) {
 	if f.Request == nil {
 		return
 	}
+	if raw := f.Request.Raw(); raw != nil {
+		// Keep the socket's identity on the exchange before it disconnects.
+		// A later connection reusing its address must not change history.
+		process := a.server.clientProcess(f)
+		*raw = *raw.WithContext(context.WithValue(raw.Context(), clientProcessKey{}, process))
+	}
 	if raw := f.Request.Raw(); raw != nil && f.ConnContext != nil && f.ConnContext.ClientConn != nil && f.ConnContext.ClientConn.Conn != nil {
 		a.server.mu.Lock()
 		source := a.server.replayClients[f.ConnContext.ClientConn.Conn.RemoteAddr().String()]
 		a.server.mu.Unlock()
-		if source != 0 {
+		if source != (replayOrigin{}) {
 			// Keep the link on the exchange even if its socket closes before
 			// capture finishes. No correlation header reaches the upstream.
 			*raw = *raw.WithContext(context.WithValue(raw.Context(), replaySourceKey{}, source))
@@ -1340,9 +1394,10 @@ func (s *Server) applyRules(f *proxy.Flow) *proxy.Response {
 		return nil
 	}
 	raw := f.Request.URL.String()
-	for _, r := range rules {
-		if !r.matches(raw, f.Request.Method) {
-			continue
+	if i := firstResponseRule(rules, raw, f.Request.Method); i >= 0 {
+		r := rules[i]
+		if r.Scenario != "" {
+			recordAction(f, "Scenario · "+r.Scenario)
 		}
 		switch r.Type {
 		case RuleBlock:
@@ -1427,51 +1482,85 @@ func contentType(path string) string {
 	return "application/octet-stream"
 }
 
-// noteClient records which process opened or closed a client connection, so
-// each flow on it can be attributed without another scan.
+type clientSocket struct {
+	remote, local string
+}
+
+func socketOf(conn net.Conn) clientSocket {
+	return clientSocket{conn.RemoteAddr().String(), conn.LocalAddr().String()}
+}
+
+type clientIdentity struct {
+	client  *proxy.ClientConn
+	process procinfo.Process
+}
+
+type clientProcessKey struct{}
+
+// noteClient resolves ownership using the full accepted socket. Unknown
+// identities fail closed, rather than borrowing a process from a recycled port.
 func (s *Server) noteClient(client *proxy.ClientConn, connected bool) {
 	if client == nil || client.Conn == nil {
 		return
 	}
-	addr := client.Conn.RemoteAddr().String()
+	addr := socketOf(client.Conn)
 	if !connected {
-		// Keep the entry: a flow published after the client hung up, as a
-		// tunnel that failed, still names the app.
+		s.mu.Lock()
+		if s.clients[addr].client == client {
+			delete(s.clients, addr)
+		}
+		s.mu.Unlock()
 		return
 	}
-	process := procinfo.Lookup(addr)
-	if process.Name == "" {
-		// The client's socket may not be listed yet when the proxy accepts
-		// it: leave it uncached, so the flow looks again.
-		return
-	}
+	process := procinfo.Lookup(addr.remote, addr.local)
 	s.mu.Lock()
-	if len(s.clients) > 1024 {
-		clear(s.clients)
-	}
-	s.clients[addr] = process
+	s.clients[addr] = clientIdentity{client: client, process: process}
 	s.mu.Unlock()
+}
+
+// socketProcess retries an unreadable owner only while the exact accepted
+// connection is still active. The OS may not list its socket at accept time.
+func (s *Server) socketProcess(addr clientSocket, client *proxy.ClientConn) procinfo.Process {
+	s.mu.Lock()
+	identity := s.clients[addr]
+	s.mu.Unlock()
+	if client == nil || identity.client != client {
+		return procinfo.Process{}
+	}
+	if identity.process.Path != "" {
+		return identity.process
+	}
+	process := procinfo.Lookup(addr.remote, addr.local)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.clients[addr].client != identity.client {
+		return procinfo.Process{}
+	}
+	identity.process = process
+	s.clients[addr] = identity
+	return process
 }
 
 // clientProcess returns the process behind the connection a flow arrived on.
 func (s *Server) clientProcess(f *proxy.Flow) procinfo.Process {
+	if f.Request != nil {
+		if raw := f.Request.Raw(); raw != nil {
+			if process, ok := raw.Context().Value(clientProcessKey{}).(procinfo.Process); ok {
+				return process
+			}
+		}
+	}
 	if f.ConnContext == nil || f.ConnContext.ClientConn == nil || f.ConnContext.ClientConn.Conn == nil {
 		return procinfo.Process{}
 	}
-	addr := f.ConnContext.ClientConn.Conn.RemoteAddr().String()
-	s.mu.Lock()
-	process, ok := s.clients[addr]
-	s.mu.Unlock()
-	if ok {
-		return process
-	}
-	return procinfo.Lookup(addr)
+	client := f.ConnContext.ClientConn
+	return s.socketProcess(socketOf(client.Conn), client)
 }
 
 // publishConnect shows a CONNECT the proxy tunnels without decrypting it.
 func (s *Server) publishConnect(f *proxy.Flow) {
 	host := f.Request.URL.Hostname()
-	if host == "" || s.decrypts(host) || s.ignored(host) {
+	if host == "" || (f.ConnContext != nil && f.ConnContext.Intercept) || s.ignored(host) {
 		// The tunnel gets no row of its own, so there is nothing to mark.
 		s.mu.Lock()
 		delete(s.dnsHits, f.Id)
@@ -1711,7 +1800,8 @@ func (s *Server) publishFlow(f *proxy.Flow, kind string, frames []Frame, status 
 		Conn:              s.connInfo(f, start),
 	}
 	if raw := f.Request.Raw(); raw != nil {
-		flow.ReplayOf, _ = raw.Context().Value(replaySourceKey{}).(int)
+		origin, _ := raw.Context().Value(replaySourceKey{}).(replayOrigin)
+		flow.ReplayOf, flow.DebugRun = origin.source, origin.run
 	}
 	s.mu.Lock()
 	if len(s.flowIDs) > 4096 {

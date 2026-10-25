@@ -89,9 +89,9 @@ drained:
 	if !r.open {
 		return
 	}
-	ui.Modal(c, &r.open, func() {
+	appModal(c, &r.open, func() {
 		ui.Column(c).Width(500).Gap(12).Children(func() {
-			ui.Text(c, fmt.Sprintf("Replay %d requests", len(r.flows))).FontSize(16).Bold()
+			dialogTitle(c, fmt.Sprintf("Replay %d requests", len(r.flows)))
 			ui.Text(c, "Sends in capture order through the current rules. POST, PUT, PATCH and DELETE can change server data. WebSocket, SSE and tunnels are excluded.").FontSize(12).TextColor(t.TextMuted)
 			seconds, err := strconv.Atoi(strings.TrimSpace(r.timeout))
 			valid := err == nil && seconds >= 0 && seconds <= 86400

@@ -315,6 +315,8 @@ type sessionFile struct {
 
 type sessionFlow struct {
 	ID              int               `json:"id"`
+	DebugKey        string            `json:"debugKey,omitempty"`
+	DebugRun        string            `json:"debugRun,omitempty"`
 	ReplayOf        int               `json:"replayOf,omitzero"`
 	Actions         []string          `json:"actions,omitempty"`
 	Method          string            `json:"method"`
@@ -388,6 +390,7 @@ func sessionFrom(flows []flow, frames map[int][]frame) sessionFile {
 		}
 		saved := sessionFlow{
 			ID: f.id, Method: f.method, Scheme: f.scheme, Host: f.host, Path: f.path, URL: f.url,
+			DebugKey: f.debugKey, DebugRun: f.debugRun,
 			ReplayOf: f.replayOf,
 			Actions:  f.actions,
 			Status:   f.status, Bytes: f.bytes, Millis: f.millis,
@@ -470,6 +473,7 @@ func readSession(path string) ([]flow, map[int][]frame, error) {
 		}
 		flows = append(flows, flow{
 			id: f.ID, method: f.Method, scheme: f.Scheme, host: f.Host, path: f.Path, url: f.URL,
+			debugKey: f.DebugKey, debugRun: f.DebugRun,
 			replayOf: f.ReplayOf,
 			actions:  f.Actions,
 			status:   f.Status, bytes: f.Bytes, millis: f.Millis,

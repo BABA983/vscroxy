@@ -222,6 +222,25 @@ is a literal substring of the full URL, not a regex/glob; optional `method`
 restricts the HTTP method. `disabled: true` turns a rule off; old files without
 this field remain enabled.
 
+**Scenario** groups Map Local, Map Remote and Block rules into named cases such
+as an empty account, server error or alternate upstream. Save a rule with a
+scenario name, then explicitly **Activate scenario**; choosing a name alone does
+not activate it. At most one named scenario is active. **Deactivate scenario**
+leaves only global (blank-scenario) rules eligible. Global rules keep their place
+in first-match order, including ahead of scenario rules; switching never changes
+individual enabled switches. Breakpoints remain global and independent.
+
+Selection lives in the same `rules.json` snapshot (`scenario` and matching
+`scenarioActive` fields on every member), not a second settings store. Mixed
+selection states and multiple active groups are rejected on load/save/apply.
+Changes affect new requests, never an in-flight response. Captured **Applied**
+evidence includes the scenario that actually won, so later switches do not
+rewrite its provenance. **Test URL + method** previews saved rules without
+sending: winner, shadowed rules, disabled/inactive groups, URL/method mismatches
+and independent breakpoints. It does not simulate unsaved edits, scripts or
+missing response-file errors. Mock payload files stay local; this is not a
+portable scenario export or a delay/fault-injection engine.
+
 ```json
 [
   {"type": "map_local", "match": "/missing", "target": "/tmp/mock.json"},
@@ -253,6 +272,19 @@ rejected. Review captured headers for secrets before sharing the rule. Canceling
 an unsaved mock removes its file; deleting a saved rule keeps its file for reuse.
 
 ## Connection diagnostics
+
+**Network → Capture diagnostics…**, the command palette, or **Diagnose capture…**
+in the empty list opens read-only checks for the listener, OS proxy readback,
+target traffic and engine configuration. Enter an HTTP(S) URL: evidence matches
+its scheme, hostname and port (default ports are equivalent), not its path.
+Counts include retained live traffic from any client, not imported sessions;
+the panel distinguishes decrypted requests, CONNECT records and records hidden
+by the current capture view. **Inspect latest evidence** opens hidden records in
+a new view without erasing existing filters. An absent record is not a confirmed
+failure; ignored traffic is proxied without being retained. Current rules and
+decryption settings are not proof of past execution or client CA trust. Opening
+or refreshing checks does not restore an interrupted system-proxy session,
+change proxy settings, install a CA, send requests or expose a LAN listener.
 
 Select **Connection** in a captured exchange's detail to inspect and copy its
 connection log: DNS lookup, TCP dial attempts, upstream/client TLS handshakes,
@@ -377,17 +409,30 @@ depends on the upstream accepting CONNECT to port 80.
 
 ## SSL proxying
 
-HTTPS is tunnelled untouched until a domain is decrypted: the table shows its
-CONNECT as a `Tunnel` row. The detail pane keeps **Set up certificate…** and
-**Enable for <host>** above its scrollable explanation, including in small
-windows. **Settings → HTTPS → Manage domains…** edits the same list, kept in
+HTTPS is tunnelled untouched until a domain or app rule enables inspection:
+the table shows its CONNECT as a `Tunnel` row. The detail pane keeps
+**Set up certificate…** and **Enable for <host>** above its scrollable explanation,
+including in small windows. **Settings → HTTPS → Manage domains…** edits the same list, kept in
 `~/.vscroxy/ssl.json`; a domain matches its subdomains on all ports. Old rules
 containing a port are also understood as hostname rules. IP clients without TLS
 SNI receive a certificate for their CONNECT target, not an empty name. Nothing
 is decrypted out of the box.
 
+For a locally attributed connection, **Enable HTTPS for <app>** inspects all
+hosts contacted by that exact executable on new connections. The **Apps**
+sidebar context menu offers the same action; same-name executables at different
+paths require an explicit choice. Names, parent applications and Helper groups
+do not grant permission. Remote devices, non-loopback proxy connections and
+unreadable or ambiguous process owners cannot use app rules. Domain/global rules
+still apply independently. Client CA trust is still required.
+
+**HTTPS rules** at the bottom of the sidebar manages domain and executable rules.
+Removing an app rule takes effect only on Save; Cancel discards rule edits.
+An enabled rule is not evidence that TLS succeeded, and old CONNECT records
+never become decrypted requests retroactively.
+
 A connection already open keeps the choice it was made with: reload the page
-after decrypting a domain.
+after enabling inspection.
 
 ## Ignored hosts
 
@@ -465,6 +510,34 @@ Composed WS requests use structured auth, custom headers and session cookies;
 WSS verifies the system/proxy CAs rather than disabling certificate checks.
 The one-shot sender waits up to two seconds for five replies, capped at 1 MiB
 each; cancellation closes the socket. Post-response scripts require HTTP.
+
+### Interactive WebSocket sessions
+
+**Network / Commands → WebSocket session…** opens a separate live client. If
+the active request draft has a WS URL, it prepares that draft's URL, auth,
+headers and body using current variables, without running scripts or sending.
+Otherwise enter a `ws://` or `wss://` target and handshake headers. **Connect**
+performs the handshake through the capture proxy using the Requests cookie jar
+and verified TLS. It sends no message until **Send text**. Send repeatedly on
+the same connection, search retained payloads/events and filter In/Out/Events.
+Select a message to read/copy text or binary hex; copying includes any truncation
+notice and copies displayed text/hex, not a binary clipboard format.
+
+The timeline keeps the latest 200 events, at most 64 KiB per payload, original
+byte counts and an eviction count. Messages over 1 MiB end the receive stream;
+sends are also limited to 1 MiB. It follows the bottom until scrolled away;
+**Latest message** resumes following without changing the inspected payload.
+An actual peer close includes its code/reason; an empty close frame is distinct
+from TCP loss, local disconnect and handshake failure. These are client-observed
+events, not inferred close codes on passive captures. Proxy-captured messages
+still appear in Capture with its existing retention/export capabilities.
+
+**Disconnect**, Escape, clicking outside or closing the panel disconnects; a
+new **Connect** starts a fresh timeline. No automatic reconnect or restart
+restore occurs. The timeline is session-local, not an experiment or a saved
+conversation. HTTP Requests/Runner's one-shot WS sender remains available.
+Interactive binary sending, subprotocol negotiation, automatic SSE reconnect
+and live gRPC timelines are not provided by this panel.
 
 ## Protobuf and gRPC
 
@@ -863,11 +936,11 @@ trust stores and certificate pinning may require client-side configuration.
 An undecrypted **CONNECT** detail explains that it is an encrypted tunnel, not
 one HTTPS request. HTTPS encrypts request/response headers (including Cookie and
 Set-Cookie) as well as bodies; trusting the CA alone does not expose them.
-The detail links to certificate setup and can enable just that
-domain. If current rules already enable the domain, the detail says so rather
-than claiming the old tunnel has been decrypted. After changing HTTPS setup,
-establish a new connection and retry the request; existing tunnels and their
-CONNECT records stay encrypted.
+The detail links to certificate setup and can enable just that domain or its
+identified local executable. If current rules already enable inspection, the
+detail says so rather than claiming the old tunnel has been decrypted. After
+changing HTTPS setup, establish a new connection and retry the request; existing
+tunnels and their CONNECT records stay encrypted.
 
 ## Client attribution
 
@@ -881,7 +954,9 @@ every row still reads at a glance.
 When a connection opens, the proxy finds the socket that the client holds on
 the other end and reads the process that owns it: `/proc/net/tcp` and the
 descriptor tables on Linux, `lsof` on macOS, `netstat` and `tasklist` on
-Windows. A request from another machine has no local process, so the column
+Windows (with the executable path read through the Windows process API).
+Both client and proxy socket endpoints must match a unique local owner.
+A request from another machine has no local process, so the column
 stays empty.
 
 The **Apps** section of the sidebar filters by app. Windows shows a badge
@@ -899,10 +974,10 @@ restored when they would still show on a connected display.
 
 ### Desktop workbench
 
-**View → Inspector: Adaptive** puts details on the right when the content area
-has at least 1160 DIPs, and below the table on smaller windows. Choose **Bottom**
-to keep the stacked layout, or **Right** to use a side inspector from 1000 DIPs
-of content width. Even Right yields at small widths; both orientations keep
+The default is **Bottom**: requests above, inspector below, even on wide windows.
+Choose **View → Inspector: Right (wide windows)** to use a side inspector from
+1000 DIPs of content width, or **Adaptive** to move it right from 1160 DIPs.
+Even Right yields at small widths; both orientations keep
 their own divider positions. In the side layout, the table prioritizes URL,
 method, status and duration, and header blocks stack rather than squeezing values
 into two narrow columns. Client and size remain visible in the inspector.
@@ -962,8 +1037,9 @@ vscroxy mapping instead of silently inheriting conflicting shortcuts.
 **Edit & replay** opens a named request tab beside **Traffic**. The same tab strip
 stays visible in Capture and Requests, so a draft and its response remain one
 click away while traffic continues arriving. Unsaved tabs still require save or
-discard before closing. These open debugging contexts are session-only, not
-automatically saved requests.
+discard before closing. Open request drafts, their active tab and saved/unsaved
+baseline are checkpointed privately for restart; they are not automatically
+added to the saved request library and never send on restore.
 
 **Back to traffic** returns to the draft's original capture view without clearing
 search, protocol, header/body or triage conditions, changing its chosen request,
@@ -985,6 +1061,85 @@ the forwarded exchange; followed redirects can return a response from another
 URL. Capture remains the source for individual wire exchanges. Previews are
 bounded to 8 MiB and explicitly mark incomplete text. Sending is a real network
 operation and is not undone by returning to Traffic or closing a tab.
+
+### Experiment workbench
+
+**Experiments…** in Requests or **Commands → Experiment workbench…** retains
+independent snapshots of each completed send, including failed attempts: authored
+draft, environment name (not its variables), prepared request/final response,
+checks, summary and notes. Repeated method/URL attempts remain separate. Choose
+a baseline or **Use as left**, then compare any other attempt using the existing
+body/header diff. **Ignore JSON keys** removes comma-separated top-level response
+keys only in the comparison; invalid or incomplete JSON is never normalized.
+Original snapshots stay unchanged. **Open as draft** restores the original
+editable request and recorded result without sending or running scripts.
+
+`~/.vscroxy/experiments.json` is an atomic, private (0600), unencrypted checkpoint.
+It may contain credentials and bodies. It keeps at most 100 attempts / 32 MiB,
+evicting oldest non-baseline attempts, and at most 256 KiB per request/response
+payload with explicit truncation/missing-body warnings. Binary payloads survive
+restart losslessly and never depend on temporary capture spill files. Open drafts
+retain their full authored content within the same 32 MiB budget; an oversized
+checkpoint reports an error rather than silently discarding draft data. Corrupt
+or unsupported archives are left untouched and reported read-only. Notes and
+baseline persist; comparison layout and ignored-key choices are session-local.
+**Clear experiments…** asks before removing records; it leaves open drafts,
+saved requests and captured traffic alone. This is a debugging notebook, not a
+complete wire archive: redirect hops remain in Capture and cookies/variables may
+have changed since a run.
+
+### Request debug history
+
+**Debug history** on a captured exchange or its editable draft opens the existing
+workbench scoped to that capture's linked open drafts and retained experiments.
+Links use stable identities, not method/URL or reusable capture IDs. The immutable
+source snapshot, draft identity and run links survive restart; reopening the
+original saved session restores **Inspect source capture**. If the source is no
+longer in Capture, that button is disabled and the retained snapshot remains
+available. **Origin draft** returns to the exact originating tab without replacing
+unsent edits; **Open as draft** creates a new editable branch without sending.
+
+**Compare source** compares the original capture snapshot against the experiment's
+client request/final response. **Recorded interventions** shows actual captured
+scenario/rule actions for the selected wire exchange, never inferred from today's
+configuration. Each HTTP(S) editor send has a local correlation identity, including
+across redirect hops; it is not sent as an HTTP header. Up to 16 separate wire
+exchanges are retained per run. Legacy runs and missing wire evidence are labeled
+explicitly and do not imply that no rule ran. Interactive WebSocket sends are not
+linked into this HTTP(S) history.
+
+Source/wire snapshots share the experiment checkpoint's 100-run / 32 MiB budget
+and 256 KiB-per-body limit, with explicit incomplete-body diagnostics. They may
+contain credentials, private URLs and rule details; this is local, unencrypted
+debugging history, not sanitized evidence for sharing.
+
+### Cross-session investigations
+
+**Session / Commands → Investigate saved sessions…** opens historical session or
+evidence JSON files without replacing Capture, changing rules, running scripts
+or sending requests. Choose sources in the two panes, select exchanges across
+files and **Compare selected two** using the existing header/body comparison.
+Identical request IDs in different files remain independent. Search is a literal,
+case-insensitive match on URL, numeric status, exchange/source notes and errors;
+it does not scan headers, bodies or messages. Selections survive filtering and
+source changes, including hidden matches; **Clear selection** removes them.
+
+Add an evidence title and notes, then **Review selected evidence…**. The editable
+JSON contains only the selected exchanges and their associated messages, with
+source labels, binary payloads, trailers and incomplete-capture diagnostics.
+**This is raw evidence, not automatically sanitized:** credentials, cookies,
+URL secrets, bodies, base64 payloads and private notes may remain. Review all
+fields and manually remove secrets before sharing. Export requires explicit
+confirmation; any subsequent edit clears that confirmation. The atomic, private
+(0600) export preserves exactly the reviewed JSON and can be reopened here.
+
+Opening files is bounded to 8 sources / 48 MiB of canonical JSON in memory,
+16 MiB per file, 2,000 exchanges and 10,000 messages per source. Evidence export
+is limited to 64 exchanges / 4 MiB. Oversized inputs/selections report an error
+rather than silently dropping evidence. Files are read off the UI thread and
+never autosaved or reopened on launch; **Forget opened files** releases the
+reader's sources without deleting the originals. Imported evidence remains
+historical data, not verified current network or certificate state.
 
 ## Next
 
