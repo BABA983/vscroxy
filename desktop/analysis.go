@@ -38,7 +38,9 @@ func (a *app) inspectCapture(id int) {
 	a.pickedID, a.workspace = id, 0
 	a.restoreSelection()
 	if view := a.views.activeView(); view != nil {
-		view.list.ScrollTo(a.picked, ui.Center)
+		// Show the row without centering it: a centered offset can leave a
+		// sliver of the row above cut by the header.
+		view.list.ScrollIntoView(a.picked)
 	}
 }
 

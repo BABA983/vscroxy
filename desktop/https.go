@@ -256,89 +256,140 @@ func (a *app) appInspectionMenu(m *ui.Menu, app capture.SSLApp) {
 	}
 }
 
-// connectPanel describes this historical tunnel separately from today's rules.
+// connectPanel describes this historical tunnel separately from today's rules:
+// what happened, what is configured, and what to do next, in that order.
 func (a *app) connectPanel(c *ui.Context, f flow) {
 	t := c.Theme()
 	width, height := c.Size()
-	status, color := a.certificateStatus(t)
+	trust, trustColor := a.certificateStatus(t)
 	domainEnabled := a.inspectionConfig().Decrypts(f.host)
+	appEnabled := a.appInspectionEnabled(f.processPath)
+	e := f.conn.explanation()
+	failed := f.conn.error != ""
+	// The broader executable permission widens inspection; it never repairs
+	// the failure on screen, so it stays a quiet link below the actions.
+	broadScope := !appEnabled && !a.sslAll && filepath.IsAbs(f.processPath)
 	inspection := func() {
 		padding, gap := float32(16), float32(10)
-		if height <= 650 {
-			padding, gap = 8, 6
+		if height <= 760 {
+			padding, gap = 10, 6
 		}
-		ui.Column(c).Fill().Padding(padding, 20).Gap(gap).Children(func() {
-			ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
-				ui.Icon(c, lockIcon).Size(20, 20).TextColor(t.Text)
-				ui.Text(c, "Encrypted tunnel").Label("Encrypted tunnel — not individual requests").FontSize(15).Bold()
-			})
-			ui.Text(c, "This connection is encrypted. CONNECT is not a decrypted HTTP response.").FontSize(12).TextColor(t.TextMuted)
-			if a.workbench.sideBySide {
-				ui.Column(c).FillWidth().Padding(10).Gap(7).Radius(6).Border(1, t.Border).Background(t.Surface).Children(func() {
-					state := "Encrypted tunnel"
-					if f.conn.error != "" {
-						state = "Connection failed"
-					}
-					for _, field := range []struct{ label, value string }{
-						{"URL", f.url},
-						{"Method", f.method},
-						{"State", state},
-						{"Client", cmp.Or(f.process, "Unidentified")},
-						{"Duration", fmt.Sprintf("%d ms", f.millis)},
-					} {
-						ui.Row(c).Gap(8).Children(func() {
-							ui.Text(c, field.label).Width(64).FontSize(11).TextColor(t.TextMuted)
-							ui.Text(c, field.value).Grow(1).FontSize(11).Font("monospace").SingleLine().Tooltip(field.value)
+		// One scroll: at a short window the whole explanation moves, rather
+		// than a sliver of configuration scrolling inside it. A detail panel
+		// reads in a column of a comfortable measure, not the full width of a
+		// wide window.
+		ui.Scroll(c).Grow(1).FillWidth().Children(func() {
+			ui.Column(c).MaxWidth(880).Padding(padding, 20).Gap(gap).Children(func() {
+				title := "Encrypted tunnel"
+				if failed {
+					title = e.title
+				}
+				ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
+					ui.Icon(c, lockIcon).Size(20, 20).TextColor(t.Text)
+					ui.Text(c, title).Label(title + " — not individual requests").FontSize(15).Bold()
+				})
+				summary := "This connection is encrypted. CONNECT is not a decrypted HTTP response."
+				if failed {
+					summary = e.summary
+				}
+				ui.Text(c, summary).FontSize(12).TextColor(t.TextMuted)
+				if failed {
+					// What happened: the stage and the raw error, copyable.
+					ui.Column(c).FillWidth().Padding(8, 10).Gap(3).Radius(6).Background(t.Danger.Alpha(0.06)).Border(1, t.Danger.Alpha(0.2)).Children(func() {
+						ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+							ui.Text(c, "Recorded failure · "+cmp.Or(f.conn.errorStage, "unknown stage")).FontSize(11).Bold().TextColor(t.TextMuted).Grow(1)
+							if ui.ButtonBase(c).Label("Copy error").Height(22).Padding(0, 6).Gap(5).Radius(4).AlignItems(ui.Center).TextColor(t.TextMuted).Children(func() {
+								ui.Icon(c, copyIcon).Size(12, 12)
+								ui.Text(c, "Copy").FontSize(11)
+							}).Clicked() {
+								c.Services().WriteClipboard(f.conn.error)
+								a.setMessage("Copied the recorded error")
+							}
 						})
+						ui.Text(c, f.conn.error).Font("monospace").FontSize(11).TextColor(t.Danger).Selectable().SingleLine().Tooltip(f.conn.error)
+					})
+				}
+				// What to do next. A failure is read before anything is
+				// reconfigured, so the record leads and enabling inspection
+				// is an independent configuration step; a healthy tunnel
+				// still leads with the rule that would decrypt it.
+				ui.Row(c).Gap(8).Wrap().AlignItems(ui.Center).Children(func() {
+					record := func(primary bool) {
+						const tip = "Open this exchange's Connection tab: the recorded log and addresses"
+						var button ui.Element
+						if primary {
+							button = ui.PrimaryButton(c, "View connection record").Height(30).FontSize(12).Tooltip(tip)
+						} else {
+							button = ui.Button(c, "View connection record").Height(28).FontSize(12).Tooltip(tip)
+						}
+						if button.Clicked() {
+							a.inspect.pane = inspectorConnection
+						}
+					}
+					enable := func(primary bool) {
+						var button ui.Element
+						if primary {
+							button = ui.PrimaryButton(c, "Inspect "+hostOnly(f.host)).Label("Enable for " + f.host).Height(30).FontSize(12).
+								Tooltip("Enable this hostname and subdomains on new connections; client CA trust is still required")
+							if !a.workbench.sideBySide {
+								button.MaxWidth(260)
+							}
+						} else {
+							button = ui.Button(c, "Inspect "+hostOnly(f.host)).Label("Enable for " + f.host).Height(28).FontSize(12).
+								Tooltip("Configuration for new connections; a recorded failure stays as it was")
+						}
+						if button.Clicked() {
+							a.decryptHost(f.host)
+						}
+					}
+					switch {
+					case failed:
+						// Read the evidence first; enabling inspection is a
+						// configuration step, not the fix for this failure.
+						record(true)
+						if !domainEnabled {
+							enable(false)
+						}
+					default:
+						if !domainEnabled {
+							enable(true)
+						}
+						record(false)
+					}
+					if ui.Button(c, "Certificate setup…").Height(28).FontSize(12).Tooltip("Check or install the local CA; this client may still need its own trust or a debug build").Clicked() {
+						a.settingsTab, a.settingsOpen = 2, true
+						a.checkCertificate(false)
 					}
 				})
-			}
-			// Keep the narrow domain action primary and the broader executable
-			// permission secondary. Both remain outside the scrolling notes.
-			if !domainEnabled {
-				domain := ui.PrimaryButton(c, "Inspect "+hostOnly(f.host)).Label("Enable for " + f.host).Height(30).FontSize(12).FillWidth().Tooltip("Enable this hostname and subdomains on new connections; client CA trust is still required")
-				if !a.workbench.sideBySide {
-					domain.MaxWidth(260)
-				}
-				if domain.Clicked() {
-					a.decryptHost(f.host)
-				}
-			}
-			if !a.appInspectionEnabled(f.processPath) && !a.sslAll && filepath.IsAbs(f.processPath) {
-				if ui.Button(c, "Inspect all domains from \""+f.process+"\"").Label("Enable HTTPS for " + f.process).Height(30).FontSize(12).FillWidth().MaxWidth(440).Tooltip("Exact executable only: " + f.processPath).Clicked() {
-					a.setAppInspection(capture.SSLApp{Name: f.process, Path: f.processPath}, true)
-				}
-			}
-			ui.Row(c).Gap(6).Wrap().AlignItems(ui.Center).Children(func() {
-				ui.Text(c, "New connections only · Client must trust the local CA").FontSize(11).TextColor(t.TextMuted)
-				if ui.ButtonBase(c).Label("Set up certificate…").Height(22).Tooltip("Certificate setup and system trust").Children(func() {
-					ui.Text(c, "Certificate setup ↗").FontSize(11).TextColor(t.Accent)
-				}).Clicked() {
-					a.settingsTab, a.settingsOpen = 2, true
-					a.checkCertificate(false)
-				}
-			})
-			ui.Scroll(c).Grow(1).FillWidth().Gap(6).Children(func() {
-				if f.conn.error != "" {
-					ui.Text(c, "Connection failed before an HTTP exchange").FontSize(12).TextColor(t.Danger)
-					ui.Text(c, "See Connection for the recorded failure; client trust or pinning may require client-side changes.").FontSize(11).TextColor(t.TextMuted)
-				}
+				// Known configuration, secondary: today's rules never
+				// explain a tunnel that was recorded earlier.
+				ui.Text(c, "Known configuration").FontSize(11).Bold().TextColor(t.TextMuted)
 				if domainEnabled {
 					ui.Text(c, "Domain rule enabled · reconnect to inspect new requests").FontSize(11).TextColor(t.Text)
 				} else {
 					ui.Text(c, "Domain decryption disabled").FontSize(11).TextColor(t.TextMuted)
 				}
-				if a.appInspectionEnabled(f.processPath) {
+				if appEnabled {
 					ui.Text(c, "App rule enabled · reconnect to inspect new requests").FontSize(11).Tooltip(f.processPath)
 				} else if !filepath.IsAbs(f.processPath) {
 					ui.Text(c, "App rule unavailable · local executable identity not recorded").FontSize(11).TextColor(t.TextMuted)
 				}
-				ui.Text(c, status).FontSize(11).TextColor(color)
-				ui.Text(c, "Rules do not reveal this historical tunnel. Enabled is not proof of successful decryption.").FontSize(11).TextColor(t.TextMuted)
+				ui.Text(c, trust).FontSize(11).TextColor(trustColor).
+					Tooltip("System trust is not proof that this client accepts the proxy's CA")
+				if broadScope {
+					ui.Row(c).Children(func() {
+						if ui.ButtonBase(c).Label("Inspect all domains from "+f.process).Height(24).Padding(0, 4).Radius(4).AlignItems(ui.Center).Children(func() {
+							ui.Text(c, "Inspect all domains from \""+f.process+"\"…").FontSize(11).TextColor(t.TextMuted)
+						}).Tooltip("Wider scope for new connections from " + f.processPath + "; not a fix for this failure").Clicked() {
+							a.setAppInspection(capture.SSLApp{Name: f.process, Path: f.processPath}, true)
+						}
+						ui.Spacer(c)
+					})
+				}
 			})
 		})
 	}
-	if !a.workbench.sideBySide && width >= 1100 {
+	if !a.workbench.sideBySide && width >= 1100 && (len(f.reqHeader) > 0 || f.reqHeaders != "") {
 		ui.Row(c).Grow(1).Children(func() {
 			ui.Column(c).WidthPercent(44).FillHeight().Padding(18, 20).Children(func() {
 				a.headerBlock(c, t, "Request", strings.TrimSpace("CONNECT "+f.host+" "+f.conn.proto), "", f.reqHeader, f.reqHeaders, nil)

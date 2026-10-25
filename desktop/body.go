@@ -93,18 +93,18 @@ func readJSON(dec *jsontext.Decoder, key, path string, depth int) (*jsonNode, er
 }
 
 // visibleJSON flattens the tree to the rows the current expansion shows.
-func (a *app) visibleJSON() []jsonRow {
+func (a *app) visibleJSON(side int) []jsonRow {
 	var out []jsonRow
 	var walk func(nodes []*jsonNode, depth int)
 	walk = func(nodes []*jsonNode, depth int) {
 		for _, n := range nodes {
 			out = append(out, jsonRow{node: n, depth: depth})
-			if len(n.children) > 0 && a.jsonExpanded[n.path] {
+			if len(n.children) > 0 && a.jsonExpanded[side][n.path] {
 				walk(n.children, depth+1)
 			}
 		}
 	}
-	walk(a.jsonRoots, 0)
+	walk(a.jsonRoots[side], 0)
 	return out
 }
 
@@ -170,9 +170,75 @@ func hexRows(body, query string) []int {
 	return all
 }
 
-// bodyView draws the Body tab: the request or the response, as text, as a
-// JSON tree, or as a hex dump, with a search that filters what shows.
-func (a *app) bodyView(c *ui.Context, f flow) {
+// bodyModes lists how this side's bytes can be read, and caches whether they
+// look like protobuf. The cache is per side, so two visible panes do not
+// rebuild each other's decision every frame.
+func (a *app) bodyModes(f flow, side int) []string {
+	body := a.body
+	if side == 1 {
+		body = a.reqBody
+	}
+	key := fmt.Sprintf("%d:%d", f.id, side)
+	if key != a.protoFor[side] {
+		a.protoFor[side] = key
+		a.bodyMode[side] = 0
+		ct := f.contentType(side == 0)
+		a.protoOK[side] = grpcContentType(ct) || strings.Contains(ct, "protobuf")
+		if !a.protoOK[side] && len(body) > 0 && len(body) <= 512<<10 {
+			_, err := decodeProto([]byte(body))
+			a.protoOK[side] = err == nil
+		}
+	}
+	modes := []string{"Auto", "Pretty", "JSON", "Hex", "Preview"}
+	if a.protoOK[side] {
+		modes = append(modes, "Protobuf")
+	}
+	return modes
+}
+
+// protobufOwner is the side whose protobuf inspector is live: the pane the
+// reader chose, then the other one, so two panes never drive one schema and
+// one message choice.
+func (a *app) protobufOwner(f flow) int {
+	for _, side := range []int{a.inspect.focus, 1 - a.inspect.focus} {
+		modes := a.bodyModes(f, side)
+		if len(modes) < 6 {
+			continue
+		}
+		mode := a.bodyMode[side]
+		if mode == 0 {
+			body := a.body
+			if side == 1 {
+				body = a.reqBody
+			}
+			mode = a.autoBodyMode(f, side, body)
+		}
+		if mode == 5 {
+			return side
+		}
+	}
+	return -1
+}
+
+// autoBodyMode picks the representation a body reads best in, without
+// trusting the Content-Type alone.
+func (a *app) autoBodyMode(f flow, side int, body string) int {
+	ct := f.contentType(side == 0)
+	switch {
+	case grpcContentType(ct) || strings.Contains(ct, "protobuf"):
+		return 5
+	case strings.HasPrefix(ct, "image/"), strings.Contains(ct, "html"):
+		return 4
+	case ct == "application/octet-stream", !utf8.ValidString(body), strings.ContainsRune(body, 0):
+		return 3
+	default:
+		return 1
+	}
+}
+
+// bodySideView shows one side's body: its own representation, its own
+// warnings, and the bytes exactly as captured.
+func (a *app) bodySideView(c *ui.Context, f flow, side int) {
 	t := c.Theme()
 	if a.detailFor != f.id {
 		// The table took the click after the detail was synced, so the body
@@ -181,188 +247,149 @@ func (a *app) bodyView(c *ui.Context, f flow) {
 		return
 	}
 	body := a.body
-	if a.bodySide == 1 {
+	if side == 1 {
 		body = a.reqBody
 	}
-	// Explicit protocol content types keep the inspector available even for
-	// malformed/empty bodies, so framing errors and trailers-only statuses show.
-	key := fmt.Sprintf("%d:%d", f.id, a.bodySide)
-	if key != a.protoFor {
-		a.protoFor = key
-		// Display choices belong to this request side; a previous image or
-		// binary response must not leave the next JSON response unreadable.
-		a.bodyMode = 0
-		ct := f.contentType(a.bodySide == 0)
-		a.protoOK = grpcContentType(ct) || strings.Contains(ct, "protobuf")
-		if !a.protoOK && len(body) > 0 && len(body) <= 512<<10 {
-			_, err := decodeProto([]byte(body))
-			a.protoOK = err == nil
-		}
+	modes := a.bodyModes(f, side)
+	if a.bodyMode[side] >= len(modes) {
+		a.bodyMode[side] = 0
 	}
-	modes := []string{"Auto", "Pretty", "JSON", "Hex", "Preview"}
-	if a.protoOK {
-		modes = append(modes, "Protobuf")
-	}
-	if a.bodyMode >= len(modes) {
-		a.bodyMode = 0
-	}
-	ui.Row(c).Padding(8, 12).Gap(8).Wrap().AlignItems(ui.Center).Background(t.Surface).Children(func() {
-		inspectorSegments(c, &a.bodySide, "Response", "Request").Label("Body side")
-		inspectorSegments(c, &a.bodyMode, modes...).Label("Body representation")
-	})
-	ui.Divider(c)
-	if key != fmt.Sprintf("%d:%d", f.id, a.bodySide) {
-		c.Invalidate()
-		return // rebuild the chosen side before parsing or copying its bytes
-	}
-	mode := a.bodyMode
+	mode := a.bodyMode[side]
 	if mode == 0 {
-		ct := f.contentType(a.bodySide == 0)
-		switch {
-		case grpcContentType(ct) || strings.Contains(ct, "protobuf"):
-			mode = 5
-		case strings.HasPrefix(ct, "image/"), strings.Contains(ct, "html"):
-			mode = 4
-		case ct == "application/octet-stream", !utf8.ValidString(body), strings.ContainsRune(body, 0):
-			mode = 3
-		default:
+		mode = a.autoBodyMode(f, side, body)
+		if mode >= len(modes) {
 			mode = 1
 		}
 	}
-	ui.Row(c).Padding(6, 12).Gap(8).AlignItems(ui.Center).Children(func() {
-		ui.Text(c, "Showing: "+modes[mode]).FontSize(10).TextColor(t.TextMuted)
-		size := humanBytes(len(body))
-		if body == "" {
-			size = "0 B"
-		}
-		meta := fmt.Sprintf("%s · %s shown", cmp.Or(f.contentType(a.bodySide == 0), "No Content-Type"), size)
-		ui.Text(c, meta).FontSize(10).TextColor(t.TextMuted).SingleLine().Grow(1).Tooltip(meta)
-		binary := !utf8.ValidString(body) || strings.ContainsRune(body, 0)
-		tip := "Copy captured preview text, without formatting or warning text. A limited preview is not the whole body."
-		if binary {
-			tip = "Binary bytes cannot be copied to a text clipboard; use HAR or session export to retain them"
-		}
-		if ui.Button(c, "Copy shown body").Height(24).FontSize(11).Disabled(body == "" || binary).Tooltip(tip).Clicked() {
-			c.Services().WriteClipboard(body)
-			a.setMessage("Copied shown body; review credentials before sharing")
-		}
-	})
-	if notice := strings.TrimSpace(a.bodyNotice[a.bodySide]); notice != "" {
-		ui.Text(c, notice).FontSize(11).TextColor(t.Warning).Padding(6, 12).Tooltip(notice)
+	key := fmt.Sprintf("%d:%d", f.id, side)
+	if key != a.protoFor[side] {
+		c.Invalidate()
+		return // rebuild the chosen side before parsing or copying its bytes
+	}
+	if notice := strings.TrimSpace(a.bodyNotice[side]); notice != "" {
+		ui.Text(c, notice).FontSize(11).TextColor(t.Warning).Padding(4, 12).Tooltip(notice)
 	}
 	if mode == 5 {
-		a.protobuf.view(c, a, f)
+		// One inspector reads one side: when both sides are protobuf, the
+		// response owns it and the request says where to read.
+		if owner := a.protobufOwner(f); owner != side && owner >= 0 {
+			name := "response"
+			if owner == 1 {
+				name = "request"
+			}
+			ui.Text(c, "Protobuf is read in the "+name+" pane.").FontSize(12).TextColor(t.TextMuted).Padding(16)
+			return
+		}
+		a.protobuf.view(c, a, f, side)
 		return
 	}
 	if body == "" {
 		message := "Empty body"
-		if a.bodyNotice[a.bodySide] != "" {
+		if a.bodyNotice[side] != "" {
 			message = "No body bytes available; see the capture warning above"
-		} else if a.bodySide == 0 && (f.method == "HEAD" || f.status == 204 || f.status == 304) {
+		} else if side == 0 && (f.method == "HEAD" || f.status == 204 || f.status == 304) {
 			message = "No response body expected for " + f.method + " / " + strconv.Itoa(f.status)
 		}
 		ui.Text(c, message).FontSize(12).TextColor(t.TextMuted).Padding(16)
 		return
 	}
-
 	if mode == 2 || mode == 3 {
 		placeholder := "Filter JSON paths and values…"
 		if mode == 3 {
 			placeholder = "Filter hex rows (hex bytes or text)…"
 		}
-		ui.TextInput(c, &a.bodyQuery).Label("Search body").Placeholder(placeholder).Tooltip(placeholder).Margin(0, 12, 8).FillWidth()
+		ui.TextInput(c, &a.bodyQuery[side]).Label("Search body").Placeholder(placeholder).Tooltip(placeholder).Margin(0, 12, 6).FillWidth()
 	}
-
 	switch mode {
 	case 2:
-		if key != a.jsonFor {
-			a.jsonFor = key
-			a.jsonRoots, a.jsonOK = parseJSON(body)
-			a.jsonExpanded = make(map[string]bool)
-			for _, n := range a.jsonRoots {
-				a.jsonExpanded[n.path] = true
+		if key != a.jsonFor[side] {
+			a.jsonFor[side] = key
+			a.jsonRoots[side], a.jsonOK[side] = parseJSON(body)
+			a.jsonExpanded[side] = make(map[string]bool)
+			for _, n := range a.jsonRoots[side] {
+				a.jsonExpanded[side][n.path] = true
 				for _, child := range n.children {
-					a.jsonExpanded[child.path] = true
+					a.jsonExpanded[side][child.path] = true
 				}
 			}
 		}
-		if !a.jsonOK {
+		if !a.jsonOK[side] {
 			ui.Text(c, "Body is not JSON; showing it as text").FontSize(11).TextColor(t.TextMuted).Padding(12)
-			a.prettyBody(c, body)
+			a.prettyBody(c, body, side)
 			return
 		}
-		a.jsonBody(c)
+		a.jsonBody(c, side)
 	case 3:
-		a.hexBody(c, body)
+		a.hexBody(c, body, side)
 	case 4:
-		a.previewBody(c, f, body)
+		a.previewBody(c, f, body, side)
 	default:
-		a.prettyBody(c, body)
+		a.prettyBody(c, body, side)
 	}
 }
 
 // previewBody shows a body the way it is meant to be seen: an image at its
 // size, or HTML as rich text.
-func (a *app) previewBody(c *ui.Context, f flow, body string) {
+func (a *app) previewBody(c *ui.Context, f flow, body string, side int) {
 	t := c.Theme()
-	ct := f.contentType(a.bodySide == 0)
-	key := fmt.Sprintf("%d:%d", f.id, a.bodySide)
+	ct := f.contentType(side == 0)
+	key := fmt.Sprintf("%d:%d", f.id, side)
 	switch {
 	case strings.HasPrefix(ct, "image/"):
-		a.imagePreview(c, key, body)
+		a.imagePreview(c, key, body, side)
 	case ct == "text/html" || ct == "application/xhtml+xml":
-		a.htmlPreview(c, key, body)
+		a.htmlPreview(c, key, body, side)
 	default:
 		ui.Text(c, "No preview for "+cmp.Or(ct, "this body")).FontSize(12).TextColor(t.TextMuted).Padding(16)
 		if ui.Button(c, "Show as text").Margin(0, 12).Clicked() {
-			a.bodyMode = 1
+			a.bodyMode[side] = 1
 		}
 		if ui.Button(c, "Show as hex").Margin(0, 12).Clicked() {
-			a.bodyMode = 3
+			a.bodyMode[side] = 3
 		}
 	}
 }
 
 // imagePreview decodes the body once and shows it, scaled to the pane.
-func (a *app) imagePreview(c *ui.Context, key, body string) {
+func (a *app) imagePreview(c *ui.Context, key, body string, side int) {
 	t := c.Theme()
-	if a.imageFor != key {
-		a.imageFor, a.imageErr, a.imageBmp = key, "", nil
+	if a.imageFor[side] != key {
+		a.imageFor[side], a.imageErr[side], a.imageBmp[side] = key, "", nil
 		bmp, err := ui.DecodeBitmap([]byte(body))
 		if err != nil {
-			a.imageErr = err.Error()
+			a.imageErr[side] = err.Error()
 		} else {
-			a.imageBmp = bmp
+			a.imageBmp[side] = bmp
 		}
 	}
-	if a.imageErr != "" {
-		ui.Text(c, "Cannot decode image: "+a.imageErr).FontSize(12).TextColor(t.TextMuted).Padding(16)
+	if a.imageErr[side] != "" {
+		ui.Text(c, "Cannot decode image: "+a.imageErr[side]).FontSize(12).TextColor(t.TextMuted).Padding(16)
 		return
 	}
-	if a.imageBmp == nil {
+	if a.imageBmp[side] == nil {
 		return
 	}
-	w, h := a.imageBmp.Size()
+	w, h := a.imageBmp[side].Size()
 	ui.Scroll(c).Grow(1).Children(func() {
 		ui.Column(c).Padding(16).Gap(6).Children(func() {
 			ui.Text(c, fmt.Sprintf("%d × %d px", w, h)).FontSize(11).TextColor(t.TextMuted)
-			ui.Image(c, a.imageBmp).MaxWidthPercent(100)
+			ui.Image(c, a.imageBmp[side]).MaxWidthPercent(100)
 		})
 	})
 }
 
 // htmlPreview renders the body as rich text, read-only, keeping the parsed
 // document so the pane keeps its scroll.
-func (a *app) htmlPreview(c *ui.Context, key, body string) {
-	if a.htmlFor != key {
-		a.htmlFor = key
-		a.htmlDoc = richtext.NewDocument(richtext.ParseHTML(body))
+func (a *app) htmlPreview(c *ui.Context, key, body string, side int) {
+	if a.htmlFor[side] != key {
+		a.htmlFor[side] = key
+		a.htmlDoc[side] = richtext.NewDocument(richtext.ParseHTML(body))
 	}
-	richtext.EditorBase(c, a.htmlDoc, richtext.EditorOptions{ReadOnly: true}).Grow(1)
+	richtext.EditorBase(c, a.htmlDoc[side], richtext.EditorOptions{ReadOnly: true}).Grow(1)
 }
 
-func (a *app) prettyBody(c *ui.Context, body string) {
-	reader := a.bodyText[a.bodySide]
+func (a *app) prettyBody(c *ui.Context, body string, side int) {
+	reader := a.bodyText[side]
 	if reader == nil {
 		value := jsontext.Value(body)
 		isJSON := value.Indent(jsontext.WithIndent("  ")) == nil
@@ -374,16 +401,9 @@ func (a *app) prettyBody(c *ui.Context, body string) {
 			buf.SetLanguage(editor.LanguageNamed("json"))
 		}
 		reader = &editor.State{Buffer: buf, ReadOnly: true, NoScrollPastEnd: true, SoftWrap: true, Label: "Body text", RenderFindBar: bodyFindBar}
-		a.bodyText[a.bodySide] = reader
+		a.bodyText[side] = reader
 	}
-	ui.Toolbar(c, func() {
-		if ui.Button(c, "Find in text…").FontSize(11).Tooltip("Search this body without hiding surrounding lines · Ctrl/Cmd+F in the reader").Clicked() {
-			reader.Run(editor.Find)
-		}
-		ui.Spacer(c)
-		ui.Text(c, "Read only").FontSize(10).TextColor(c.Theme().TextMuted)
-	}).Height(28).Padding(0, 12)
-	editor.View(c, reader).Bind(&a.bodyReader[a.bodySide]).Grow(1)
+	editor.View(c, reader).Bind(&a.bodyReader[side]).Grow(1)
 }
 
 // Keep the library's search semantics, with controls that fit a side inspector.
@@ -405,30 +425,30 @@ func bodyFindBar(c *ui.Context, bar ui.Element, find *editor.FindBar) {
 	})
 }
 
-func (a *app) jsonBody(c *ui.Context) {
+func (a *app) jsonBody(c *ui.Context, side int) {
 	t := c.Theme()
 	keyColor := editor.DefaultTheme(t).Tokens[editor.TokenProperty].Color
 	var rows []jsonRow
-	if a.bodyQuery != "" {
-		rows = matchingJSON(a.jsonRoots, a.bodyQuery)
+	if a.bodyQuery[side] != "" {
+		rows = matchingJSON(a.jsonRoots[side], a.bodyQuery[side])
 	} else {
-		rows = a.visibleJSON()
+		rows = a.visibleJSON(side)
 	}
 	if len(rows) == 0 {
 		ui.Text(c, "No matches").FontSize(12).TextColor(t.TextMuted).Padding(16)
 		return
 	}
-	ui.List(c, &a.jsonScroll[a.bodySide], len(rows), func(i int) {
+	ui.List(c, &a.jsonScroll[side], len(rows), func(i int) {
 		row := rows[i]
 		ui.Row(c).Gap(6).Padding(3, 12).AlignItems(ui.Center).Children(func() {
 			ui.Box(c).Width(float32(row.depth) * 16)
-			if len(row.node.children) > 0 && a.bodyQuery == "" {
+			if len(row.node.children) > 0 && a.bodyQuery[side] == "" {
 				arrow := "▸"
-				if a.jsonExpanded[row.node.path] {
+				if a.jsonExpanded[side][row.node.path] {
 					arrow = "▾"
 				}
 				if ui.Button(c, arrow).Width(20).Height(20).Padding(0).Clicked() {
-					a.jsonExpanded[row.node.path] = !a.jsonExpanded[row.node.path]
+					a.jsonExpanded[side][row.node.path] = !a.jsonExpanded[side][row.node.path]
 				}
 			} else {
 				ui.Box(c).Width(20)
@@ -449,14 +469,14 @@ func (a *app) jsonBody(c *ui.Context) {
 	}).Grow(1)
 }
 
-func (a *app) hexBody(c *ui.Context, body string) {
+func (a *app) hexBody(c *ui.Context, body string, side int) {
 	t := c.Theme()
-	rows := hexRows(body, a.bodyQuery)
+	rows := hexRows(body, a.bodyQuery[side])
 	if len(rows) == 0 {
 		ui.Text(c, "No matches").FontSize(12).TextColor(t.TextMuted).Padding(16)
 		return
 	}
-	ui.List(c, &a.hexScroll[a.bodySide], len(rows), func(i int) {
+	ui.List(c, &a.hexScroll[side], len(rows), func(i int) {
 		ui.Text(c, hexLine(body, rows[i])).FontSize(11).Font("monospace").TextColor(t.Text).Padding(3, 12).SingleLine()
 	}).Grow(1)
 }

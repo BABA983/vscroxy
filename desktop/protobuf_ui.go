@@ -93,9 +93,9 @@ func (p *protoInspector) inspect(c *ui.Context, a *app, f flow, response bool) {
 	}
 }
 
-func (p *protoInspector) view(c *ui.Context, a *app, f flow) {
+func (p *protoInspector) view(c *ui.Context, a *app, f flow, side int) {
 	t := c.Theme()
-	response := a.bodySide == 0
+	response := side == 0
 	ui.Row(c).Padding(0, 12, 8, 12).Gap(8).AlignItems(ui.Center).Children(func() {
 		options := []string{"Auto"}
 		if p.schema != nil {
