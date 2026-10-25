@@ -22,6 +22,10 @@ type savedRequest struct {
 	Auth       requestAuth    `json:"auth,omitzero"`
 	BodyMode   string         `json:"bodyMode,omitempty"`
 	Form       []requestField `json:"form,omitempty"`
+	// HeaderList keeps the header table's rows: order, duplicates, empty
+	// values and disabled rows. Headers stays the Key: Value block the send,
+	// export and script paths read, written from the enabled rows.
+	HeaderList []requestField `json:"headerList,omitempty"`
 	// Pre runs before the send and may change it; Post sees the response.
 	Pre    string         `json:"pre,omitempty"`
 	Post   string         `json:"post,omitempty"`
