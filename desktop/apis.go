@@ -14,9 +14,10 @@ import (
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/editor"
 	"github.com/getkin/kin-openapi/openapi3"
+	"github.com/oneo-me/onevra/source/icons/lucide"
 )
 
-var apiIcon = ui.MustParseSVG([]byte(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 3h12l4 4v14H4zM15 3v5h5M8 12h8M8 16h5"/></svg>`))
+var apiIcon = lucide.FileCode()
 
 type apiDocument struct {
 	spec       apiSpec
@@ -117,40 +118,12 @@ func (a *app) saveAPI(d *apiDocument) {
 	a.setMessage("Saved API " + d.title())
 }
 
-func (a *app) apiSidebar(c *ui.Context, t *ui.Theme) {
-	ui.Column(c).Fill().Background(t.Surface).Children(func() {
-		ui.Text(c, "API CONTRACTS").FontSize(10).Bold().TextColor(t.TextMuted).Padding(18, 16, 8, 16)
-		ui.Sidebar(c, &a.apiChoice, func() {
-			for _, d := range a.apis {
-				ui.SidebarItem(c, d.spec.ID, apiIcon, d.title()).Label("API: " + d.title()).Children(func() {
-					if d.dirty() {
-						ui.Box(c).Size(5, 5).Radius(3).Background(t.Accent).Label("Unsaved API")
-					}
-				})
-			}
-		}).Grow(1)
-		ui.Column(c).Padding(12).Gap(8).Children(func() {
-			ui.Row(c).Gap(8).Children(func() {
-				if ui.Button(c, "New").Label("New API").Grow(1).Clicked() {
-					a.newAPI()
-				}
-				if ui.Button(c, "Import…").Label("Import OpenAPI").Grow(1).Clicked() {
-					a.importOpenAPI()
-				}
-			})
-			if ui.Button(c, "From collection…").Label("Generate from collection").FillWidth().Disabled(len(a.requests) == 0).Clicked() {
-				a.openAPIGeneration()
-			}
-		})
-	})
-}
-
 func (a *app) apiView(c *ui.Context, t *ui.Theme) {
 	d := a.activeAPI()
 	if d == nil {
-		ui.Column(c).Fill().Center().Gap(12).Children(func() {
-			ui.Icon(c, apiIcon).Size(32, 32).TextColor(t.TextMuted)
-			ui.Text(c, "From traffic to an API contract").FontSize(18).Bold()
+		ui.Column(c).Fill().Center().Gap(10).Children(func() {
+			ui.Icon(c, apiIcon).Size(28, 28).TextColor(t.TextMuted)
+			ui.Text(c, "From traffic to an API contract").FontSize(15).Bold()
 			ui.Text(c, "Save captured requests in a collection, then generate an OpenAPI draft.").FontSize(12).TextColor(t.TextMuted)
 			ui.Text(c, "Or create or import a standalone OpenAPI 3.0 / 3.1 specification.").FontSize(12).TextColor(t.TextMuted)
 			if ui.PrimaryButton(c, "Create API").Clicked() {
@@ -162,16 +135,16 @@ func (a *app) apiView(c *ui.Context, t *ui.Theme) {
 	current := d.code.Buffer.String() == d.checked
 	valid := current && d.parsed != nil
 	ui.Column(c).Key(d.spec.ID).Fill().Children(func() {
-		ui.Row(c).Height(56).Padding(0, 18).Gap(8).AlignItems(ui.Center).Children(func() {
-			ui.Text(c, d.title()).FontSize(17).Bold().Grow(1).SingleLine()
-			if ui.Button(c, "Validate").Clicked() {
+		ui.Row(c).Height(44).Padding(0, 12).Gap(8).AlignItems(ui.Center).Children(func() {
+			ui.Text(c, d.title()).FontSize(13).Bold().Grow(1).SingleLine()
+			if ui.Button(c, "Validate").Height(26).FontSize(11).Clicked() {
 				d.validate()
 			}
-			if ui.PrimaryButton(c, "Save API").Clicked() {
-				a.saveAPI(d)
-			}
-			if ui.Button(c, "Export…").Label("Export OpenAPI").Disabled(!valid).Clicked() {
+			if ui.Button(c, "Export…").Height(26).FontSize(11).Label("Export OpenAPI").Disabled(!valid).Clicked() {
 				a.exportOpenAPI(d)
+			}
+			if ui.PrimaryButton(c, "Save API").Height(26).FontSize(11).Clicked() {
+				a.saveAPI(d)
 			}
 		})
 		status, color := "Unvalidated changes — validate before using endpoints or exporting.", t.TextMuted
@@ -184,10 +157,10 @@ func (a *app) apiView(c *ui.Context, t *ui.Theme) {
 			}
 			status = fmt.Sprintf("%s  ·  OpenAPI %s  ·  Endpoints: %d", state, d.parsed.OpenAPI, len(apiOperations(d.parsed)))
 		}
-		ui.Text(c, status).FontSize(11).TextColor(color).Padding(0, 18, 10, 18)
+		ui.Text(c, status).FontSize(11).TextColor(color).Padding(0, 12, 8, 12)
 		if d.spec.Fingerprint != "" {
 			changed := d.spec.Fingerprint != collectionFingerprint(collectionRequests(a.requests, d.spec.Collection))
-			ui.Row(c).Padding(8, 18).Gap(10).AlignItems(ui.Center).Background(t.Surface).Children(func() {
+			ui.Row(c).Padding(6, 12).Gap(10).AlignItems(ui.Center).Background(t.Surface).Children(func() {
 				message := "Source: " + cmp.Or(d.spec.Collection, "Saved") + " · independent draft"
 				if changed {
 					message = "Source collection changed — review before updating this contract."
@@ -198,8 +171,10 @@ func (a *app) apiView(c *ui.Context, t *ui.Theme) {
 				}
 			})
 		}
-		ui.Tabs(c, &d.tab, "Endpoints", "OpenAPI", "Review notes").Padding(0, 14)
-		ui.Divider(c)
+		ui.Row(c).Height(34).Padding(0, 6).AlignItems(ui.Center).
+			Border(0, t.Border).BorderWidth(0, 0, 1, 0).Children(func() {
+			flatTabs(c, &d.tab, "API", "Endpoints", "OpenAPI", "Review notes")
+		})
 		switch d.tab {
 		case 0:
 			if valid {
@@ -332,7 +307,7 @@ func (a *app) generateAPI(collection string) {
 		return
 	}
 	a.addAPI(spec, false)
-	a.workspace = 2
+	a.workspace, a.requestsSection = 1, 1
 	a.setMessage("Generated independent OpenAPI draft; review notes before publishing")
 }
 
@@ -357,7 +332,7 @@ func (a *app) importOpenAPI() {
 		}
 		a.win.Update(func() {
 			a.addAPI(apiSpec{Source: string(data)}, false)
-			a.workspace = 2
+			a.workspace, a.requestsSection = 1, 1
 		})
 	}()
 }

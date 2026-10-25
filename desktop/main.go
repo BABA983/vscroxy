@@ -1,6 +1,3 @@
-// Command desktop is the vscroxy desktop app: a native UI over the capture
-// core. The UI reads flows from internal/capture and never imports the proxy
-// engine itself.
 package main
 
 import (
@@ -31,6 +28,7 @@ import (
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/editor"
 	"github.com/egoist/mygo/ui/richtext"
+	"github.com/oneo-me/onevra/source/icons/lucide"
 	"golang.org/x/net/http/httpguts"
 )
 
@@ -51,16 +49,24 @@ type app struct {
 	clearOpen bool
 
 	// Capture filters and the request library have independent selections.
-	workspace     int
-	requestChoice string
-	settingsOpen  bool
-	settingsTab   int
-	curlOpen      bool
-	curlInput     string
-	curlProblem   string
-	deviceUI      deviceSetup
-	clientUI      clientSetup
-	diagnostics   captureDiagnostics
+	// Each workspace has two sections, chosen in its sidebar: live traffic or
+	// an investigation, and request documents or API contracts.
+	workspace       int
+	captureSection  int
+	requestsSection int
+	sidebarChoice   string
+	requestChoice   string
+	requestSide     int // 0 collections, 1 history
+	requestQuery    string
+	renameOpen      bool
+	settingsOpen    bool
+	settingsTab     int
+	curlOpen        bool
+	curlInput       string
+	curlProblem     string
+	deviceUI        deviceSetup
+	clientUI        clientSetup
+	diagnostics     captureDiagnostics
 
 	apis            []*apiDocument
 	apisPath        string
@@ -89,6 +95,8 @@ type app struct {
 	trafficOpen bool
 	domainsOpen bool
 	clientsOpen bool
+	// contractsOpen keeps the Requests sidebar's contract group open or shut.
+	contractsOpen bool
 	// collectionOpen keeps each saved collection's section open or shut,
 	// by name, the empty name for the requests outside one.
 	collectionOpen map[string]*bool
@@ -110,31 +118,44 @@ type app struct {
 	messageUI    messagePanel
 	frameLost    atomic.Int64
 
-	bodySide int
-	bodyMode int
-	// Readers survive leaving Capture to edit or compare a request.
+	// inspect is the inspector's own view, so the request and the response
+	// keep independent tabs and body representations while both are on
+	// screen, and the exchange-wide views stay one click away.
+	inspect inspectorState
+
+	// The body panes are indexed the way the rest of the inspector is: 0 is
+	// the response, 1 the request. Readers survive leaving Capture to edit or
+	// compare a request.
+	bodyMode     [2]int
+	bodyQuery    [2]string
 	headerScroll [2]ui.ScrollState
 	bodyText     [2]*editor.State
 	bodyReader   [2]ui.Handle
 	bodyNotice   [2]string
 	jsonScroll   [2]ui.ListState
 	hexScroll    [2]ui.ListState
+	// The wire text and its reader are built once per exchange, not per frame.
+	rawText   [2]string
+	rawEditor [2]*editor.State
 
-	// htmlDoc and imageBmp cache the preview of the body shown, so a frame
-	// does not parse or decode it again.
-	htmlDoc      *richtext.Document
-	htmlFor      string
-	imageBmp     *ui.Bitmap
-	imageFor     string
-	imageErr     string
-	bodyQuery    string
-	jsonRoots    []*jsonNode
-	jsonExpanded map[string]bool
-	jsonFor      string
-	protoFor     string
-	protoOK      bool
+	// The parsed and decoded previews are cached per side, so two visible
+	// panes do not rebuild each other's tree on every frame.
+	htmlDoc      [2]*richtext.Document
+	htmlFor      [2]string
+	imageBmp     [2]*ui.Bitmap
+	imageFor     [2]string
+	imageErr     [2]string
+	jsonRoots    [2][]*jsonNode
+	jsonExpanded [2]map[string]bool
+	jsonFor      [2]string
+	jsonOK       [2]bool
+	protoFor     [2]string
+	protoOK      [2]bool
 	protobuf     protoInspector
-	jsonOK       bool
+
+	// newRows counts traffic that arrived while the list was paused, so the
+	// footer can offer to resume following without moving the reader.
+	newRows int
 
 	srv         *capture.Server
 	win         *mygo.Window
@@ -237,6 +258,7 @@ type app struct {
 	experiments    experimentWorkbench
 	socket         websocketWorkbench
 	investigations investigationWorkbench
+	board          investigationBoard
 
 	// The active document is embedded so the editor's fields always belong
 	// to that tab. Workers return results to their originating document.
@@ -293,12 +315,14 @@ type domain struct {
 func newApp() *app {
 	a := &app{
 		filter:         "all",
+		sidebarChoice:  "all",
 		icons:          make(map[string]ui.ImageSource),
 		sidebarWidth:   220,
 		tablePercent:   44,
 		trafficOpen:    true,
 		domainsOpen:    true,
 		clientsOpen:    true,
+		contractsOpen:  true,
 		historyOpen:    true,
 		collectionOpen: make(map[string]*bool),
 		detailFor:      -1,
@@ -401,6 +425,9 @@ func newApp() *app {
 		a.views.init(a, filepath.Join(home, ".vscroxy", "views.json"))
 		a.protobuf.init(filepath.Join(home, ".vscroxy", "protobuf.pb"))
 		a.loadExperiments(filepath.Join(home, ".vscroxy", "experiments.json"))
+		if err := a.board.load(filepath.Join(home, ".vscroxy", "investigations.json")); err != nil {
+			a.setMessage("Investigations: " + err.Error())
+		}
 	}
 	return a
 }
@@ -679,9 +706,15 @@ func (a *app) drain() {
 		d.composeTests = result.tests
 		d.composeReplies = result.replies
 		if result.response != nil {
+			first := d.response == nil
 			d.response = result.response
 			d.responseEditor = nil
 			d.comparison.diffPart = "" // even an identical URL is a new send
+			// The first response is what the reader came for; a divider they
+			// set themselves stays where they put it.
+			if first {
+				d.responseArrived()
+			}
 		}
 		if result.vars != nil && !maps.Equal(result.varsBefore, result.vars) {
 			a.applyVars(result.environment, result.varsBefore, result.vars)
@@ -741,6 +774,12 @@ func (a *app) drain() {
 	}
 	if len(pending) == 0 {
 		return
+	}
+	// New traffic arriving while the reader is away from the end is counted,
+	// not scrolled to: the footer offers to resume following instead.
+	paused := false
+	if view := a.views.activeView(); view != nil && len(a.visible) > 0 && !view.list.AtEnd() {
+		paused = true
 	}
 	for _, f := range pending {
 		kind := f.Kind
@@ -839,6 +878,11 @@ func (a *app) drain() {
 	a.countDomains()
 	a.countClients()
 	a.applyFilter()
+	if paused {
+		a.newRows += len(pending)
+	} else {
+		a.newRows = 0
+	}
 	if a.srv != nil {
 		a.dropped = a.srv.Dropped()
 		a.scriptErrs = a.srv.ScriptErrors()
@@ -883,6 +927,9 @@ func (a *app) applyFilter() {
 			a.flows[i].debugKey = f.debugKey
 		}
 		if !a.matchesChip(f) {
+			continue
+		}
+		if a.filter == "pinned" && !f.pinned {
 			continue
 		}
 		if a.filter == "errors" && !f.failed() {
@@ -975,19 +1022,33 @@ func (a *app) syncDetail() {
 	}
 	a.detailFor = f.id
 	a.connOpen, a.explainOpen = false, false
-	if f.kind == "" && a.tab == 5 {
+	if f.kind == "" && a.inspect.pane == inspectorMessages {
+		a.inspect.pane = inspectorSplit
+	}
+	if f.kind == "connect" {
+		if f.conn.error != "" {
+			a.tab = 1 // open the failure evidence, not tunnel-only setup instructions
+		}
+	} else if a.tab != 0 {
 		a.tab = 0
 	}
-	if f.kind == "connect" && f.conn.error != "" {
-		a.tab = 1 // open the failure evidence, not tunnel-only setup instructions
+	if (f.kind == "ws" || f.kind == "sse") && a.inspect.pane == inspectorSplit {
+		a.inspect.pane = inspectorMessages
+	}
+	if f.kind != "ws" && f.kind != "sse" && a.inspect.pane == inspectorMessages {
+		a.inspect.pane = inspectorSplit
 	}
 	a.body, a.bodyNotice[0] = f.bodyPreview(true)
 	a.reqBody, a.bodyNotice[1] = f.bodyPreview(false)
-	a.bodyMode, a.bodyQuery = 0, ""
+	a.rawText[0], a.rawText[1] = rawMessage(f, 0), rawMessage(f, 1)
+	a.rawEditor = [2]*editor.State{}
+	a.inspect.reveal = [2]bool{}
+	a.bodyMode, a.bodyQuery = [2]int{}, [2]string{}
 	a.headerScroll, a.bodyText = [2]ui.ScrollState{}, [2]*editor.State{}
 	a.jsonScroll, a.hexScroll = [2]ui.ListState{}, [2]ui.ListState{}
-	a.jsonFor, a.protoFor, a.htmlFor, a.imageFor = "", "", "", ""
-	a.htmlDoc, a.imageBmp, a.imageErr = nil, nil, ""
+	a.jsonFor, a.protoFor, a.htmlFor, a.imageFor = [2]string{}, [2]string{}, [2]string{}, [2]string{}
+	a.jsonOK, a.protoOK = [2]bool{}, [2]bool{}
+	a.htmlDoc, a.imageBmp, a.imageErr = [2]*richtext.Document{}, [2]*ui.Bitmap{}, [2]string{}
 	a.protobuf.stop()
 	previous, baseline := a.previousResponse()
 	a.diffBaseline = baseline
@@ -1043,15 +1104,14 @@ func (a *app) view(c *ui.Context) {
 	}
 	a.desktopNativeMenu(c)
 	t := c.Theme()
+	a.syncSections()
 	ui.Column(c).Bind(&a.workbench.content).Focusable().AutoFocus().Fill().Background(t.Background).Children(func() {
-		a.toolbar(c, t)
-		if a.workspace == 1 || a.workspace == 0 && len(a.documents) > 0 {
-			a.documentTabs(c, t)
-		}
+		a.shell(c, t)
 		a.desktopContent(c)
-		a.statusBar(c, t)
+		a.footer(c, t)
 	})
 	a.persistSettings()
+	a.board.persist()
 	a.checkpointExperiments(c)
 	a.commandPalette(c)
 	appModal(c, &a.clearOpen, func() {
@@ -1104,18 +1164,28 @@ func (a *app) view(c *ui.Context) {
 	a.experimentsModal(c, t)
 	a.socketModal(c, t)
 	a.investigations.modal(c, a)
+	a.boardConfirmModal(c, t)
+	a.requestRenameModal(c, t)
+	a.headerWarnModal(c, t)
 	a.runnerModal(c, t)
 	a.cookiesModal(c, t)
 	a.regressionModal(c, t)
 	a.replayModal(c, t)
 	a.protobuf.modal(c, a)
 	a.views.capture(a)
-	if a.workspace != 0 || a.tab != 5 {
+	if a.workspace != 0 || a.inspect.pane != inspectorMessages {
 		a.messageUI.stopSearch()
 	}
 	f, ok := a.current()
-	ct := f.contentType(a.bodySide == 0)
-	if a.workspace != 0 || a.tab != 1 || !ok || !(a.bodyMode == 5 || a.bodyMode == 0 && (grpcContentType(ct) || strings.Contains(ct, "protobuf"))) {
+	bodyShowing := a.workspace == 0 && ok && (a.inspect.tab[0] == reqTabBody || a.inspect.tab[1] == resTabBody)
+	protobufShowing := false
+	for side := range 2 {
+		ct := f.contentType(side == 0)
+		if a.bodyMode[side] == 5 || a.bodyMode[side] == 0 && (grpcContentType(ct) || strings.Contains(ct, "protobuf")) {
+			protobufShowing = true
+		}
+	}
+	if !bodyShowing || !protobufShowing {
 		a.protobuf.stop()
 	}
 }
@@ -1213,208 +1283,6 @@ func (a *app) breakpointModal(c *ui.Context, t *ui.Theme) {
 	}
 }
 
-func (a *app) toolbar(c *ui.Context, t *ui.Theme) {
-	ui.Row(c).Children(func() {
-		ui.Toolbar(c, func() {
-			brandWidth := float32(88)
-			if !a.workbench.sidebarHidden && !a.workbench.focused {
-				brandWidth = a.sidebarWidth - 18
-			}
-			ui.Text(c, "vscroxy").FontSize(15).Bold().Width(brandWidth)
-			nav := ui.TabsBase(c, &a.workspace, 3)
-			nav.List.Gap(4).Children(func() {
-				for i, label := range []string{"Capture", "Requests", "APIs"} {
-					tab := nav.Tab(i).Height(32).Padding(0, 12).Gap(7).AlignItems(ui.Center).Radius(6).TextColor(t.TextMuted)
-					if a.workspace == i {
-						tab.Background(t.Accent.Alpha(0.12)).TextColor(t.Accent)
-					}
-					tab.Children(func() {
-						ui.Icon(c, []*ui.SVG{captureIcon, requestIcon, apiIcon}[i]).Size(15, 15)
-						ui.Text(c, label).FontSize(12).Bold()
-					})
-				}
-			})
-			if nav.List.Changed() && a.workspace == 1 && a.requestDocument == nil {
-				a.openCompose()
-			}
-			ui.Spacer(c)
-			if ui.Button(c, "Rules").FontSize(11).Height(28).Clicked() {
-				a.openRules()
-			}
-			networkLabel := "Network"
-			if a.deviceUI.gateway != nil {
-				networkLabel = "Network · LAN"
-			}
-			ui.MenuButton(c, networkLabel, func(m *ui.Menu) {
-				if m.Item("Capture diagnostics…").Chosen() {
-					a.openDiagnostics()
-				}
-				if m.Item("Set up a local client…").Chosen() {
-					a.openClientSetup()
-				}
-				a.desktopMenuItem(c, m, "websocket", "WebSocket session…")
-				if m.Item("No Caching").Checked(a.srv != nil && a.srv.NoCaching()).Disabled(a.srv == nil).Chosen() {
-					a.srv.SetNoCaching(!a.srv.NoCaching())
-				}
-				m.Separator()
-				if m.Item("Connect a device…").Checked(a.deviceUI.gateway != nil).Chosen() {
-					a.openDevices()
-				}
-				m.Separator()
-				for _, preset := range capture.Presets {
-					if m.Item(preset.Name).Checked(a.throttle.Name == preset.Name).Chosen() {
-						a.throttle = preset
-						if a.srv != nil {
-							a.srv.SetThrottle(preset)
-						}
-					}
-				}
-				m.Separator()
-				if m.Item("Upstream…").Chosen() {
-					a.upstreamAddr = a.upstream
-					a.upstreamOpen = true
-				}
-				if m.Item("Upstream off").Chosen() {
-					if a.srv != nil {
-						_ = a.srv.SetUpstream("")
-					}
-					a.upstream = ""
-					a.setMessage("Upstream: off")
-				}
-				m.Separator()
-				if m.Item("SSL proxying…").Chosen() {
-					a.sslOpen = true
-				}
-				if m.Item("Ignored hosts…").Chosen() {
-					a.ignoreOpen = true
-				}
-				if m.Item("Ignored apps…").Chosen() {
-					a.ignoreAppsOpen = true
-				}
-				if m.Item("DNS mapping…").Chosen() {
-					a.dnsOpen = true
-				}
-			}).FontSize(11).Height(28).TextColor(t.TextMuted).Border(0, t.Border)
-			ui.MenuButton(c, "Session", func(m *ui.Menu) {
-				a.desktopMenuItem(c, m, "replay", "Replay chosen…")
-				m.Separator()
-				if m.Item("Export HAR…").Chosen() {
-					a.exportHAR()
-				}
-				a.desktopMenuItem(c, m, "export-selection", "Export chosen HAR…")
-				if m.Item("Choose all shown").Chosen() {
-					for _, at := range a.visible {
-						a.chosen.Add(a.flows[at].id)
-					}
-					a.setMessage(fmt.Sprintf("%d chosen", a.chosen.Len()))
-				}
-				if m.Item("Clear choice").Chosen() {
-					a.chosen.Clear()
-				}
-				if m.Item("Save session…").Chosen() {
-					a.saveSession()
-				}
-				if m.Item("Open session…").Chosen() {
-					a.openSession()
-				}
-				a.desktopMenuItem(c, m, "investigations", "Investigate saved sessions…")
-				if m.Item("Import HAR…").Chosen() {
-					a.importHAR()
-				}
-				if len(a.history) > 0 && m.Item("Clear history").Chosen() {
-					a.history = nil
-					a.saveHistory()
-					a.setMessage("History cleared")
-				}
-				m.Separator()
-				if m.Item("Export requests…").Chosen() {
-					a.exportRequests()
-				}
-				if m.Item("Import requests…").Chosen() {
-					a.importRequests()
-				}
-				if m.Item("Import regression…").Chosen() {
-					a.importRegression()
-				}
-				if m.Item("Import cURL…").Chosen() {
-					a.openCurlImport()
-				}
-				m.Separator()
-				if m.Item("Generate OpenAPI…").Disabled(len(a.requests) == 0).Chosen() {
-					a.openAPIGeneration()
-				}
-			}).FontSize(11).Height(28).TextColor(t.TextMuted).Border(0, t.Border)
-			ui.MenuButton(c, "View", func(m *ui.Menu) {
-				for _, action := range a.desktopActions(c) {
-					if strings.HasPrefix(action.id, "layout-") || action.id == "sidebar" || action.id == "focus" {
-						item := m.Item(action.label).Shortcut(action.mods, action.key).Disabled(!action.enabled)
-						if action.id == "layout-bottom" || action.id == "layout-right" || action.id == "layout-auto" {
-							layout := cmp.Or(a.workbench.layout, "bottom")
-							item.Checked(action.id == "layout-"+layout || action.id == "layout-auto" && layout == "adaptive")
-						}
-						if item.Chosen() {
-							action.run()
-						}
-					}
-				}
-				m.Separator()
-				if m.Item("Filter…").Chosen() {
-					a.openFilter()
-				}
-				if a.filtersActive() && m.Item("Clear filters").Chosen() {
-					a.clearFilters()
-				}
-				m.Separator()
-				if m.Item("Column from header…").Chosen() {
-					a.openColumn()
-				}
-				if a.headerColumn != "" && m.Item("Hide the "+a.headerColumn+" column").Chosen() {
-					a.setHeaderColumn("")
-				}
-				m.Separator()
-				if m.Item("Protobuf schema…").Chosen() {
-					a.protobuf.open = true
-				}
-			}).FontSize(11).Height(28).TextColor(t.TextMuted).Border(0, t.Border)
-			if ui.Button(c, "Commands").Height(28).FontSize(11).Tooltip("Search actions · Ctrl/Cmd+K").Clicked() {
-				a.workbench.openPalette()
-			}
-		}).Grow(1).Padding(0).Gap(6)
-		listener := "Capture stopped"
-		if a.srv != nil && a.srv.Running() {
-			listener = "Listening " + a.srv.Addr()
-		}
-		width, _ := c.Size()
-		caption := listener
-		if width < 1100 {
-			caption = "Listener"
-		}
-		if ui.ButtonBase(c).Label("Listener settings").Height(28).Padding(0, 10).Radius(6).Border(1, t.Border).Tooltip(listener + " · Proxy settings; listening is not proof of HTTPS inspection").Children(func() {
-			ui.Row(c).Gap(7).AlignItems(ui.Center).Children(func() {
-				color := t.TextMuted
-				if a.srv != nil && a.srv.Running() {
-					color = t.Success
-				}
-				ui.Box(c).Size(7, 7).Radius(4).Background(color)
-				ui.Text(c, caption).FontSize(11).TextColor(t.TextMuted)
-			})
-		}).Clicked() {
-			a.settingsTab, a.settingsOpen = 1, true
-		}
-		if ui.ButtonBase(c).Size(30, 30).Radius(6).Label("Settings").Tooltip("Settings · Ctrl/Cmd+,").Children(func() {
-			ui.Icon(c, settingsIcon).Size(17, 17).TextColor(t.TextMuted)
-		}).Clicked() {
-			a.settingsOpen = true
-		}
-		if ui.ButtonBase(c).Size(30, 30).Radius(6).Label("New request").Tooltip("New request · Ctrl/Cmd+N").Children(func() {
-			ui.Icon(c, plusIcon).Size(17, 17).TextColor(t.TextMuted)
-		}).Clicked() {
-			a.openCompose()
-		}
-	}).Label("Workbench").Height(44).Padding(0, 12).Gap(6).Background(t.Surface)
-	ui.Divider(c)
-}
-
 // clearCaptured runs only after confirmation. Pinned exchanges, including
 // their streaming messages, remain available for inspection.
 func (a *app) clearCaptured() {
@@ -1434,28 +1302,30 @@ func (a *app) clearCaptured() {
 	a.setMessage("Unpinned requests cleared")
 }
 
+// sidebar is the capture workspace's source list: the traffic itself, the
+// apps and hosts it came from, the views that narrow it, and the
+// investigations that keep evidence beyond it.
 func (a *app) sidebar(c *ui.Context) {
 	t := c.Theme()
 	if a.workspace == 1 {
 		a.requestSidebar(c, t)
 		return
 	}
-	if a.workspace == 2 {
-		a.apiSidebar(c, t)
-		return
-	}
 	ui.Column(c).Fill().Background(t.Surface).Children(func() {
-		chosen := ui.Sidebar(c, &a.filter, func() {
+		chosen := ui.Sidebar(c, &a.sidebarChoice, func() {
 			ui.SidebarSection(c, "Traffic", &a.trafficOpen, func() {
 				ui.SidebarItem(c, "all", trafficIcon, "All requests").FontSize(12).Padding(5, 8).Children(func() {
 					ui.Text(c, fmt.Sprint(len(a.flows))).FontSize(11).TextColor(t.TextMuted)
 				})
-				ui.SidebarItem(c, "errors", infoIcon, "Errors").FontSize(12).Padding(5, 8).Children(func() {
+				ui.SidebarItem(c, "errors", errorIcon, "Errors").FontSize(12).Padding(5, 8).Children(func() {
 					ui.Text(c, fmt.Sprint(a.count(flow.failed))).FontSize(11).TextColor(t.TextMuted)
 				})
 				ui.SidebarItem(c, "slow", captureIcon, "Slow").FontSize(12).Padding(5, 8).Children(func() {
 					ui.Text(c, fmt.Sprint(a.count(func(f flow) bool { return f.millis >= 120 }))).FontSize(11).TextColor(t.TextMuted)
 				})
+			})
+			ui.SidebarItem(c, "pinned", pinIcon, "Pinned").FontSize(12).Padding(5, 8).Children(func() {
+				ui.Text(c, fmt.Sprint(a.count(func(f flow) bool { return f.pinned }))).FontSize(11).TextColor(t.TextMuted)
 			})
 			if len(a.clients) > 0 {
 				ui.SidebarSection(c, "Apps", &a.clientsOpen, func() {
@@ -1499,75 +1369,230 @@ func (a *app) sidebar(c *ui.Context) {
 					})
 				}
 			})
-			ui.Divider(c).Margin(10, 0)
-			a.views.controls(c, t, a)
+			ui.SidebarSection(c, "Views", nil, func() {
+				a.views.sidebar(c, t, a)
+			})
+			ui.SidebarSection(c, "Investigations", nil, func() {
+				for _, inv := range a.board.items {
+					ui.SidebarItem(c, "investigation:"+inv.ID, layersIcon, inv.Title).FontSize(12).Padding(5, 8).Children(func() {
+						ui.Text(c, fmt.Sprint(len(inv.Items))).FontSize(11).TextColor(t.TextMuted)
+					})
+				}
+				if len(a.board.items) == 0 {
+					ui.Text(c, "Add a capture from its inspector to keep evidence.").FontSize(11).TextColor(t.TextMuted).Padding(6, 10)
+				}
+				if ui.ButtonBase(c).Label("New investigation").Height(26).Padding(0, 6).Gap(6).Radius(5).FillWidth().
+					AlignItems(ui.Center).TextColor(t.TextMuted).Children(func() {
+					ui.Icon(c, plusIcon).Size(13, 13)
+					ui.Text(c, "New investigation").FontSize(12)
+				}).Clicked() {
+					a.board.create("")
+					a.board.list = ui.ListState{}
+					a.captureSection = 1
+				}
+				if ui.ButtonBase(c).Label("Historical sessions…").Height(26).Padding(0, 6).Gap(6).Radius(5).FillWidth().
+					AlignItems(ui.Center).TextColor(t.TextMuted).Tooltip("Read saved sessions and exported evidence, read-only").Children(func() {
+					ui.Icon(c, clockIcon).Size(13, 13)
+					ui.Text(c, "Historical sessions…").FontSize(12)
+				}).Clicked() {
+					a.investigations.show()
+				}
+			})
 		}).Grow(1)
 		if chosen.Changed() {
-			a.applyFilter()
+			if id, ok := strings.CutPrefix(a.sidebarChoice, "investigation:"); ok {
+				a.captureSection = 1
+				a.board.active = id
+				a.board.list = ui.ListState{}
+			} else {
+				a.captureSection = 0
+				a.filter = cmp.Or(a.sidebarChoice, "all")
+				a.applyFilter()
+			}
 		}
-		ui.Toolbar(c, func() {
-			if ui.Button(c, "").Label("Manage HTTPS rules").Children(func() {
+		ui.Divider(c)
+		ui.Column(c).Padding(8).Gap(2).Children(func() {
+			if ui.ButtonBase(c).Label("Client setup").Height(28).Padding(0, 6).Gap(8).Radius(5).FillWidth().
+				AlignItems(ui.Center).Tooltip("Copy a process-scoped proxy and CA example").TextColor(t.TextMuted).Children(func() {
+				ui.Icon(c, monitorIcon).Size(14, 14)
+				ui.Text(c, "Client setup").FontSize(12).Grow(1)
+				ui.Text(c, "›").FontSize(12)
+			}).Clicked() {
+				a.openClientSetup()
+			}
+			if ui.ButtonBase(c).Label("Manage HTTPS rules").Height(28).Padding(0, 6).Gap(8).Radius(5).FillWidth().
+				AlignItems(ui.Center).Tooltip("HTTPS inspection rules").TextColor(t.TextMuted).Children(func() {
 				ui.Icon(c, lockIcon).Size(14, 14)
-				ui.Text(c, "HTTPS rules").Grow(1).FontSize(12)
-				ui.Text(c, "›").TextColor(t.TextMuted)
-			}).FillWidth().Height(34).Padding(0, 10).Border(1, t.Border).Radius(6).Clicked() {
+				ui.Text(c, "HTTPS rules").FontSize(12).Grow(1)
+				ui.Text(c, "›").FontSize(12)
+			}).Clicked() {
 				a.sslOpen = true
 			}
-		}).Padding(8).FillWidth()
+		})
 	})
 }
 
+// requestSidebar is the library a debugging screen needs: the collections,
+// the history of sends, the API contracts edited here, and the way to manage
+// environments. It is not the traffic list, so capture filters never appear.
 func (a *app) requestSidebar(c *ui.Context, t *ui.Theme) {
 	ui.Column(c).Fill().Background(t.Surface).Children(func() {
-		ui.Text(c, "REQUEST LIBRARY").FontSize(10).Bold().TextColor(t.TextMuted).Padding(18, 16, 8, 16)
-		if len(a.requests) == 0 && len(a.history) == 0 {
-			ui.Text(c, "Save a request here, or edit a captured flow to start.").FontSize(12).TextColor(t.TextMuted).Padding(8, 16)
-		}
-		chosen := ui.Sidebar(c, &a.requestChoice, func() {
-			groups := groupRequests(a.requests)
-			for _, name := range slices.Sorted(maps.Keys(groups)) {
-				ui.SidebarSection(c, cmp.Or(name, "Saved"), a.collectionShown(name), func() {
-					for _, r := range groups[name] {
-						ui.SidebarItem(c, "saved:"+r.Collection+"\x00"+r.Name, requestIcon, r.Name).Children(func() {
-							ui.Text(c, r.Method).FontSize(9).Bold().TextColor(methodColor(r.Method)).Width(38)
-						})
+		ui.Column(c).Padding(10, 10).Gap(8).Children(func() {
+			seg := ui.SegmentedBase(c, &a.requestSide, 2)
+			seg.Track.Padding(2).Radius(7).Border(1, t.Border).Background(t.Background).Children(func() {
+				for i, name := range []string{"Collections", "History"} {
+					s := seg.Segment(i).Label(name).Height(24).Padding(0, 10).Radius(5).AlignItems(ui.Center).TextColor(t.TextMuted)
+					if i == a.requestSide {
+						s.Background(t.SurfaceHover).TextColor(t.Text)
 					}
-				})
-			}
-			if len(a.history) > 0 {
-				ui.SidebarSection(c, "History", &a.historyOpen, func() {
-					for i, e := range a.history {
-						ui.SidebarItem(c, "history:"+strconv.Itoa(i), nil, e.label())
-					}
-				})
-			}
-		}).Grow(1)
-		if chosen.Changed() {
-			if value, ok := strings.CutPrefix(a.requestChoice, "history:"); ok {
-				if i, err := strconv.Atoi(value); err == nil {
-					a.openHistory(i)
-				}
-			} else {
-				for _, r := range a.requests {
-					if a.requestChoice == "saved:"+r.Collection+"\x00"+r.Name {
-						a.openSaved(r.Collection, r.Name)
-						break
-					}
-				}
-			}
-		}
-		ui.Column(c).Padding(12).Gap(6).Children(func() {
-			if ui.Button(c, "Import cURL…").FillWidth().Clicked() {
-				a.openCurlImport()
-			}
-			ui.Row(c).Gap(6).Children(func() {
-				if ui.Button(c, "Runner…").Grow(1).Clicked() {
-					a.openRunner()
-				}
-				if ui.Button(c, "Cookies…").Grow(1).Clicked() {
-					a.openCookies()
+					s.Children(func() { ui.Text(c, name).FontSize(12) })
 				}
 			})
+			placeholder, label := "Search collections…", "Search collections"
+			if a.requestSide == 1 {
+				placeholder, label = "Search history…", "Search history"
+			}
+			ui.TextInput(c, &a.requestQuery).Label(label).Placeholder(placeholder).FontSize(11)
+		})
+		chosen := ui.Sidebar(c, &a.requestChoice, func() {
+			query := strings.ToLower(strings.TrimSpace(a.requestQuery))
+			if a.requestSide == 0 {
+				groups := groupRequests(a.requests)
+				for _, name := range slices.Sorted(maps.Keys(groups)) {
+					shown := slices.DeleteFunc(slices.Clone(groups[name]), func(r savedRequest) bool {
+						return query != "" && !strings.Contains(strings.ToLower(r.Name+" "+r.URL+" "+r.Method), query)
+					})
+					if len(shown) == 0 {
+						continue
+					}
+					ui.SidebarSection(c, cmp.Or(name, "Saved"), a.collectionShown(name), func() {
+						for _, r := range shown {
+							ui.SidebarItem(c, "saved:"+r.Collection+"\x00"+r.Name, requestIcon, r.Name).FontSize(12).Padding(5, 8).Children(func() {
+								ui.Text(c, r.Method).FontSize(9).Bold().TextColor(methodColor(r.Method)).Width(38)
+							})
+						}
+					})
+				}
+				if len(a.requests) == 0 {
+					ui.Text(c, "Save a request here, or edit a captured flow to start.").FontSize(12).TextColor(t.TextMuted).Padding(8, 12)
+				}
+			} else {
+				entries := a.history
+				if query != "" {
+					entries = slices.DeleteFunc(slices.Clone(entries), func(e historyEntry) bool {
+						return !strings.Contains(strings.ToLower(e.Method+" "+e.URL), query)
+					})
+				}
+				ui.SidebarSection(c, "History", nil, func() {
+					for i, e := range entries {
+						index := slices.Index(a.history, e)
+						if index < 0 {
+							index = i
+						}
+						ui.SidebarItem(c, "history:"+strconv.Itoa(index), clockIcon, e.label()).FontSize(12).Padding(5, 8)
+					}
+				})
+				if len(entries) == 0 {
+					ui.Text(c, "Nothing sent yet.").FontSize(12).TextColor(t.TextMuted).Padding(8, 12)
+				}
+			}
+			ui.SidebarSection(c, "API contracts", &a.contractsOpen, func() {
+				for _, d := range a.apis {
+					ui.SidebarItem(c, "contract:"+d.spec.ID, apiIcon, d.title()).Label("API: "+d.title()).FontSize(12).Padding(5, 8).Children(func() {
+						if d.dirty() {
+							ui.Box(c).Size(5, 5).Radius(3).Background(t.Accent).Label("Unsaved API")
+						}
+					})
+				}
+				// A group with nothing in it stays two short entries, so the
+				// history and the collections keep their room.
+				if len(a.apis) == 0 {
+					if ui.ButtonBase(c).Label("New API").Height(26).Padding(0, 6).Gap(6).Radius(5).FillWidth().
+						AlignItems(ui.Center).TextColor(t.TextMuted).Tooltip("Create a contract, or import OpenAPI from the editor").Children(func() {
+						ui.Icon(c, plusIcon).Size(13, 13)
+						ui.Text(c, "New contract").FontSize(12)
+					}).Clicked() {
+						a.newAPI()
+						a.requestsSection = 1
+					}
+					if ui.ButtonBase(c).Label("Generate from collection").Height(26).Padding(0, 6).Gap(6).Radius(5).FillWidth().
+						AlignItems(ui.Center).TextColor(t.TextMuted).Disabled(len(a.requests) == 0).Children(func() {
+						ui.Icon(c, layersIcon).Size(13, 13)
+						ui.Text(c, "From collection…").FontSize(12)
+					}).Clicked() {
+						a.openAPIGeneration()
+					}
+					return
+				}
+				if ui.ButtonBase(c).Label("New API").Height(26).Padding(0, 6).Gap(6).Radius(5).FillWidth().
+					AlignItems(ui.Center).TextColor(t.TextMuted).Children(func() {
+					ui.Icon(c, plusIcon).Size(13, 13)
+					ui.Text(c, "New contract").FontSize(12)
+				}).Clicked() {
+					a.newAPI()
+					a.requestsSection = 1
+				}
+				if ui.ButtonBase(c).Label("Import OpenAPI").Height(26).Padding(0, 6).Gap(6).Radius(5).FillWidth().
+					AlignItems(ui.Center).TextColor(t.TextMuted).Children(func() {
+					ui.Icon(c, fileInputIcon).Size(13, 13)
+					ui.Text(c, "Import OpenAPI…").FontSize(12)
+				}).Clicked() {
+					a.importOpenAPI()
+				}
+				if ui.ButtonBase(c).Label("Generate from collection").Height(26).Padding(0, 6).Gap(6).Radius(5).FillWidth().
+					AlignItems(ui.Center).TextColor(t.TextMuted).Disabled(len(a.requests) == 0).Children(func() {
+					ui.Icon(c, layersIcon).Size(13, 13)
+					ui.Text(c, "From collection…").FontSize(12)
+				}).Clicked() {
+					a.openAPIGeneration()
+				}
+			})
+		}).Grow(1)
+		if chosen.Changed() {
+			if id, ok := strings.CutPrefix(a.requestChoice, "contract:"); ok {
+				a.requestsSection, a.apiChoice = 1, id
+			} else {
+				a.requestsSection = 0
+				if value, ok := strings.CutPrefix(a.requestChoice, "history:"); ok {
+					if i, err := strconv.Atoi(value); err == nil {
+						a.openHistory(i)
+					}
+				} else {
+					for _, r := range a.requests {
+						if a.requestChoice == "saved:"+r.Collection+"\x00"+r.Name {
+							a.openSaved(r.Collection, r.Name)
+							break
+						}
+					}
+				}
+			}
+		}
+		ui.Divider(c)
+		ui.Column(c).Padding(8).Gap(2).Children(func() {
+			if ui.ButtonBase(c).Label("Import cURL…").Height(26).Padding(0, 6).Gap(8).Radius(5).FillWidth().
+				AlignItems(ui.Center).TextColor(t.TextMuted).Children(func() {
+				ui.Icon(c, plusIcon).Size(13, 13)
+				ui.Text(c, "Import cURL…").FontSize(12).Grow(1)
+			}).Clicked() {
+				a.openCurlImport()
+			}
+			for _, item := range []struct {
+				label string
+				run   func()
+			}{
+				{"Manage environments…", a.openVars},
+				{"Runner…", a.openRunner},
+				{"Cookies…", a.openCookies},
+			} {
+				run := item.run
+				if ui.ButtonBase(c).Label(item.label).Height(26).Padding(0, 6).Gap(8).Radius(5).FillWidth().
+					AlignItems(ui.Center).TextColor(t.TextMuted).Children(func() {
+					ui.Text(c, item.label).FontSize(12).Grow(1)
+					ui.Text(c, "›").FontSize(12)
+				}).Clicked() {
+					run()
+				}
+			}
 		})
 	})
 }
@@ -1610,21 +1635,33 @@ func (a *app) table(c *ui.Context) {
 	}
 	cols := []ui.TableColumn{
 		{ID: "id", Title: "#", Width: 48, Sortable: true},
+		{ID: "method", Title: "Method", Width: 80, Sortable: true},
 		{ID: "url", Title: "URL", MinWidth: 200, Sortable: true},
-		{ID: "client", Title: "Client", Width: 140, Sortable: true},
-		{ID: "method", Title: "Method", Width: 84, Sortable: true},
-		{ID: "status", Title: "Status", Width: 72, Sortable: true},
-		{ID: "duration", Title: "Duration", Width: 110, Align: ui.End, Sortable: true},
+		{ID: "client", Title: "Client", Width: 132, Sortable: true},
+		{ID: "status", Title: "Status", Width: 78, Sortable: true},
+		{ID: "duration", Title: "Duration", Width: 84, Align: ui.End, Sortable: true},
+		{ID: "size", Title: "Size", Width: 78, Align: ui.End, Sortable: true},
+		{ID: "captured", Title: "Time", Width: 84, Sortable: true},
+	}
+	width, _ := c.Size()
+	available := width
+	if !a.workbench.sidebarHidden {
+		available -= a.sidebarWidth + 6
 	}
 	if a.workbench.sideBySide {
-		cols[2].Width = 100
+		available = available * a.workbench.sidePercent / 100
+	}
+	// A narrow list keeps what identifies a request and what it returned;
+	// the columns that only repeat the inspector's numbers give way.
+	if available < 900 {
+		cols[3].Width = 100
+		cols = slices.Delete(cols, 6, 8)
+	}
+	if available < 700 {
+		cols = slices.DeleteFunc(cols, func(col ui.TableColumn) bool { return col.ID == "client" })
 	}
 	if a.headerColumn != "" {
 		cols = append(cols, ui.TableColumn{ID: "header", Title: a.headerColumn, Width: 150, Sortable: true})
-	}
-	if !a.workbench.sideBySide {
-		cols = append(cols, ui.TableColumn{ID: "size", Title: "Size", Width: 72, Align: ui.End, Sortable: true},
-			ui.TableColumn{ID: "captured", Title: "Time", Width: 84, Sortable: true})
 	}
 	cols = append(cols, ui.TableColumn{Title: "", ID: "filler", Width: 14, Fixed: true})
 	state := &a.views.activeView().list
@@ -1642,7 +1679,7 @@ func (a *app) table(c *ui.Context) {
 		case "id":
 			text(fmt.Sprint(f.id)).Font("monospace").TextColor(rowColor(chosen, t, t.TextMuted))
 		case "method":
-			text(f.method).TextColor(rowColor(chosen, t, t.Text)).Tooltip(f.method)
+			text(f.method).Font("monospace").TextColor(rowColor(chosen, t, t.Text)).Tooltip(f.method)
 		case "url":
 			if f.pinned {
 				ui.Icon(c, pinIcon).Size(11, 11).MarginEnd(4).TextColor(rowColor(chosen, t, t.TextMuted))
@@ -1680,8 +1717,7 @@ func (a *app) table(c *ui.Context) {
 			} else if f.kind == "connect" {
 				text("Tunnel").TextColor(rowColor(chosen, t, t.TextMuted)).Tooltip(fmt.Sprintf("CONNECT %d · encrypted tunnel, not an HTTP response", f.status))
 			} else {
-				color := f.statusColor(t)
-				text(fmt.Sprint(f.status)).Font("monospace").TextColor(color).Padding(2, 5).Radius(3).Background(color.Alpha(0.15))
+				text(fmt.Sprint(f.status)).TextColor(rowColor(chosen, t, f.statusColor(t)))
 			}
 		case "header":
 			value := f.respHeader.Get(a.headerColumn)
@@ -1718,187 +1754,7 @@ func (a *app) table(c *ui.Context) {
 	a.columns = state.Columns
 }
 
-func (a *app) detail(c *ui.Context) {
-	// The table may change the choice during this frame. Sync after it draws,
-	// so all detail widgets see the same selected request immediately.
-	a.syncDetail()
-	t := c.Theme()
-	ui.Column(c).Bind(&a.workbench.inspector).Focusable().Label("Request inspector").
-		OnShortcut(0, ui.KeyEscape, func() { a.focusTraffic(c) }).
-		Fill().Background(t.Background).Children(func() {
-		if selected := a.selectedFlows(); len(selected) > 1 {
-			a.analysisDetail(c, selected)
-			return
-		}
-		f, ok := a.current()
-		if ok && f.kind == "connect" && a.workbench.sideBySide {
-			ui.Row(c).Height(66).Padding(10, 16).Gap(10).AlignItems(ui.Center).Children(func() {
-				if src, found := a.clientIcon(f.process, f.processPath); found {
-					ui.Image(c, src).Size(32, 32)
-				} else {
-					ui.Icon(c, appIcon).Size(32, 32).TextColor(t.TextMuted)
-				}
-				ui.Column(c).Grow(1).Gap(4).Children(func() {
-					ui.Text(c, cmp.Or(f.process, "Unidentified client")).FontSize(15).Bold().SingleLine().Tooltip(f.processPath)
-					ui.Text(c, f.host).FontSize(12).Font("monospace").TextColor(t.TextMuted).SingleLine().Tooltip(f.url)
-				})
-			})
-		} else if f.kind != "connect" {
-			ui.Row(c).Height(34).Padding(0, 12).Gap(8).AlignItems(ui.Center).Children(func() {
-				if ok {
-					ui.Text(c, fmt.Sprintf("%s %s://%s%s", f.method, f.scheme, f.host, f.path)).
-						FontSize(12).Font("monospace").TextColor(t.Text).SingleLine().Grow(1).Tooltip(f.url)
-				} else {
-					ui.Text(c, "No request chosen").FontSize(12).TextColor(t.TextMuted).Grow(1)
-				}
-				if !a.workbench.focused {
-					a.desktopButton(c, "focus", "Focus").Tooltip("Focus inspector · Ctrl/Cmd+Shift+Enter")
-				}
-			})
-		}
-		width, _ := c.Size()
-		inlineSetupTabs := f.kind == "connect" && f.conn.error == "" && width >= 1100 && !a.workbench.sideBySide
-		ui.Row(c).Height(34).Children(func() {
-			if inlineSetupTabs {
-				if a.tab > 1 {
-					a.tab = 0
-				}
-				ui.Tabs(c, &a.tab, "HTTPS setup", "Connection").Width(240).Padding(0, 8)
-			}
-			bar := ui.Toolbar(c, func() {
-				if !ok {
-					return
-				}
-				a.desktopButton(c, "edit", "Edit & replay")
-				if f.kind != "connect" {
-					a.desktopButton(c, "replay", "Replay")
-					a.desktopButton(c, "copy", "cURL")
-				}
-				if ui.Button(c, "Debug history").FontSize(11).Clicked() {
-					a.openDebugHistory(newDebugSource(f))
-				}
-				if f.process != "" {
-					ui.Text(c, f.process).FontSize(11).TextColor(t.TextMuted).SingleLine().MaxWidth(100).Tooltip(f.process)
-				}
-				if f.dns != "" {
-					ui.Box(c).Size(28, 14).Radius(3).Background(ui.Hex("#d97706")).Center().Children(func() {
-						ui.Text(c, "DNS").FontSize(9).Bold().TextColor(ui.Hex("#ffffff"))
-					})
-					ui.Text(c, f.dns).FontSize(12).TextColor(t.TextMuted).
-						Tooltip("The proxy dialled this address; the request kept its name, Host header and SNI")
-				}
-				if f.note != "" {
-					ui.Icon(c, noteIcon).Size(12, 12).TextColor(t.TextMuted)
-					ui.Text(c, f.note).FontSize(11).TextColor(t.TextMuted).SingleLine().MaxWidth(100).Tooltip(f.note)
-				}
-				if f.kind == "connect" {
-					if !a.workbench.focused {
-						a.desktopButton(c, "focus", "Focus")
-					}
-				}
-				status := strconv.Itoa(f.status)
-				color := f.statusColor(t)
-				if f.kind == "connect" {
-					status, color = "Tunnel", t.TextMuted
-				}
-				if f.conn.error != "" {
-					status = "Failed"
-					color = t.Danger
-					if f.kind == "connect" && f.status == 200 {
-						status = "CONNECT 200 · failed"
-					}
-				}
-				chip := ui.Text(c, fmt.Sprintf("%s · %s · %d ms", status, humanBytes(f.bytes), f.millis)).
-					FontSize(12).TextColor(color)
-				if f.conn.error != "" {
-					chip = chip.Tooltip(cmp.Or(f.conn.errorStage, "Connection") + ": " + f.conn.error)
-					explain := ui.Button(c, "Explain").FontSize(11).Tooltip("Explain the recorded connection failure")
-					if explain.Clicked() {
-						a.explainOpen = !a.explainOpen
-					}
-					ui.PopoverBase(c, explain, &a.explainOpen, func(panel ui.Element) {
-						panel.Margin(8, 0, 0, 0).Padding(0).Radius(10).Background(t.Background).
-							Border(1, t.Border).Shadow(0, 8, 24, 0, ui.RGBA(0, 0, 0, 0.22)).
-							Children(func() { a.explainConnection(c, f) })
-					})
-				} else if doc := statusDoc(f.status); doc != "" {
-					chip = chip.Tooltip(doc)
-				}
-				info := ui.Icon(c, infoIcon).Size(13, 13).TextColor(t.TextMuted).
-					Label("Connection details").
-					Tooltip("Connection: addresses, DNS and TLS").
-					OnClick(func() { a.connOpen = !a.connOpen })
-				ui.Popover(c, info, &a.connOpen, func() { a.connPanel(c, t, f) })
-			}).Height(30).Padding(0, 12).Gap(8).Grow(1)
-			if inlineSetupTabs {
-				bar.Justify(ui.End)
-			}
-		})
-		if ok {
-			a.replayLinks(c, f)
-			if len(f.actions) > 0 {
-				ui.Text(c, "Applied: "+strings.Join(f.actions, " · ")).FontSize(11).TextColor(t.Accent).
-					Padding(4, 12).SingleLine().Tooltip(strings.Join(f.actions, "\n"))
-			}
-		}
-		if f.kind == "connect" {
-			if a.tab > 1 {
-				a.tab = 0
-			}
-			if !inlineSetupTabs {
-				ui.Tabs(c, &a.tab, "HTTPS setup", "Connection").Padding(0, 8)
-			}
-			if a.tab == 1 {
-				a.connectionView(c, f)
-			} else {
-				if f.conn.error != "" {
-					ui.Text(c, f.conn.errorStage+" failed: "+f.conn.error).FontSize(12).TextColor(t.Danger).Padding(8, 12)
-				}
-				a.connectPanel(c, f)
-			}
-			return
-		}
-		labels := []string{"Headers", "Body", "Diff", "Timing", "Connection"}
-		if f.kind == "ws" || f.kind == "sse" {
-			labels = append(labels, "Messages")
-		}
-		if a.tab >= len(labels) {
-			a.tab = 0
-		}
-		ui.Tabs(c, &a.tab, labels...).Padding(0, 8)
-		if !ok {
-			ui.Text(c, "Capture a request to inspect it.").FontSize(12).TextColor(t.TextMuted).Padding(16)
-			return
-		}
-		switch a.tab {
-		case 0:
-			a.headersView(c, f)
-		case 1:
-			a.bodyView(c, f)
-		case 2:
-			if !a.diffBaseline {
-				ui.Text(c, "No previous response for this method and URL. Replay the request to compare responses.").FontSize(12).TextColor(t.TextMuted).Padding(16)
-				return
-			}
-			ui.Row(c).Padding(8, 12).Children(func() {
-				ui.Text(c, "Previous response (left)").Grow(1).FontSize(11).TextColor(t.TextMuted)
-				ui.Text(c, "Current response (right)").Grow(1).FontSize(11).TextColor(t.TextMuted)
-			})
-			if a.diff != nil {
-				editor.DiffView(c, a.diff).Grow(1).FillWidth()
-			}
-		case 3:
-			a.timingView(c, f)
-		case 4:
-			a.connectionView(c, f)
-		case 5:
-			a.messages(c, f)
-		}
-	})
-}
-
-// noteIcon marks a flow a person wrote a note on.
-var noteIcon = ui.MustParseSVG([]byte(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M8 1.5c-3.9 0-7 2.7-7 6 0 1.9 1 3.5 2.6 4.6L3 15.2l3-1.7c.6.1 1.3.2 2 .2 3.9 0 7-2.7 7-6s-3.1-6.2-7-6.2Z"/></svg>`))
+var noteIcon = lucide.MessageSquare()
 
 // highlightColors are the colors a flow can be marked with, in menu order.
 var highlightColors = []struct{ name, hex string }{
@@ -1985,7 +1841,7 @@ func (a *app) saveMark() {
 
 // infoIcon marks a header the Headers tab can explain, or a connection detail
 // worth opening.
-var infoIcon = ui.MustParseSVG([]byte(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M8 1.3a6.7 6.7 0 1 0 0 13.4A6.7 6.7 0 0 0 8 1.3Zm0 1.5a5.2 5.2 0 1 1 0 10.4A5.2 5.2 0 0 1 8 2.8Zm0 1.6a.95.95 0 1 0 0 1.9.95.95 0 0 0 0-1.9Zm-.85 3.2v4h1.7v-4Z"/></svg>`))
+var infoIcon = lucide.Info()
 
 func (a *app) explainConnection(c *ui.Context, f flow) {
 	t := c.Theme()
@@ -2096,52 +1952,6 @@ func field(c *ui.Context, t *ui.Theme, label, value string) {
 // headersView shows the request and the response headers row by row, each
 // standard one with a note on what it is for, and the status line with what
 // the code means.
-func (a *app) headersView(c *ui.Context, f flow) {
-	t := c.Theme()
-	if grpcContentType(f.contentType(true)) {
-		ui.Text(c, grpcStatus(f)).FontSize(12).TextColor(t.Text).Padding(8, 16, 0, 16)
-	}
-	stacked := a.workbench.sideBySide && !a.workbench.focused
-	var panes ui.Element
-	if stacked {
-		panes = ui.Column(c)
-	} else {
-		panes = ui.Row(c)
-	}
-	panes.Grow(1).Children(func() {
-		request := ui.Column(c)
-		if stacked {
-			request.FillWidth().Grow(1)
-		} else {
-			request.WidthPercent(50).FillHeight()
-		}
-		request.Children(func() {
-			a.headerBlock(c, t, "Request", strings.TrimSpace(f.conn.proto+" "+f.method+" "+f.path), "", f.reqHeader, f.reqHeaders, f.reqTrailer)
-		})
-		if stacked {
-			ui.Divider(c)
-		} else {
-			ui.Box(c).Width(1).FillHeight().Background(t.Border)
-		}
-		line := "No response"
-		if f.status != 0 {
-			line = fmt.Sprintf("%d %s", f.status, http.StatusText(f.status))
-			if f.resProto != "" {
-				line = f.resProto + " " + line
-			}
-		}
-		response := ui.Column(c).Grow(1)
-		if stacked {
-			response.FillWidth()
-		} else {
-			response.FillHeight()
-		}
-		response.Children(func() {
-			a.headerBlock(c, t, "Response", line, statusDoc(f.status), f.respHeader, f.resHeaders, f.resTrailer)
-		})
-	})
-}
-
 // headerBlock is one side of the Headers tab: the line that starts the message
 // and then its headers, sorted by name.
 func (a *app) headerBlock(c *ui.Context, t *ui.Theme, title, line, note string, headers http.Header, raw string, trailers http.Header) {
@@ -2187,78 +1997,6 @@ func (a *app) headerBlock(c *ui.Context, t *ui.Theme, title, line, note string, 
 // messages lists the WebSocket messages or SSE events of a flow.
 func (a *app) messages(c *ui.Context, f flow) {
 	a.messageUI.view(c, a, f, a.frames[f.id])
-}
-
-func (a *app) statusBar(c *ui.Context, t *ui.Theme) {
-	ui.Divider(c)
-	ui.Row(c).Height(28).Padding(0, 14).Gap(16).AlignItems(ui.Center).Children(func() {
-		proxyLabel, proxyColor := "Capture stopped", t.TextMuted
-		if a.srv != nil && a.srv.Running() {
-			proxyLabel, proxyColor = "Live · "+a.srv.Addr(), t.Success
-		}
-		if ui.ButtonBase(c).Label("Proxy status").Height(22).Gap(6).AlignItems(ui.Center).Tooltip("Proxy settings · listener status, not HTTPS decryption status").Children(func() {
-			ui.Box(c).Size(6, 6).Radius(3).Background(proxyColor)
-			ui.Text(c, proxyLabel).FontSize(11).TextColor(t.TextMuted).SingleLine()
-		}).Clicked() {
-			a.settingsTab, a.settingsOpen = 1, true
-		}
-		// Each item stays on one line: the bar narrows as things are turned
-		// on, and a wrapped bar reads worse than a short one.
-		label := func(s string, color ui.Color) ui.Element {
-			return ui.Text(c, s).FontSize(11).TextColor(color).SingleLine()
-		}
-		label(fmt.Sprintf("%d flows · %d shown", len(a.flows), len(a.visible)), t.TextMuted)
-		if a.srv != nil && a.srv.NoCaching() {
-			if ui.Button(c, "No Caching · on").FontSize(11).Height(22).Tooltip("Click to restore normal caching for new requests").Clicked() {
-				a.srv.SetNoCaching(false)
-			}
-		}
-		captured := humanBytes(int(a.totalBytes))
-		if a.totalBytes == 0 {
-			captured = "0 B"
-		}
-		label(captured+" captured", t.TextMuted)
-		if n := a.chosen.Len(); n > 0 {
-			label(fmt.Sprintf("%d chosen", n), t.Text)
-		}
-		if a.filtersActive() {
-			summary := "filtered: " + a.filterSummary()
-			ui.Text(c, "Filtered").FontSize(11).TextColor(t.Accent).SingleLine().Tooltip(summary)
-		}
-		if a.dropped > 0 {
-			label(fmt.Sprintf("%d dropped", a.dropped), ui.Hex("#d97706"))
-		}
-		lost := a.frameLost.Load()
-		if a.srv != nil {
-			lost += a.srv.FrameDropped()
-		}
-		if lost > 0 {
-			label(fmt.Sprintf("%d messages dropped", lost), ui.Hex("#d97706"))
-		}
-		if a.scriptErrs > 0 {
-			label(fmt.Sprintf("%d script errors", a.scriptErrs), ui.Hex("#d97706"))
-		}
-		ui.Spacer(c)
-		if a.throttle.Name != "" && a.throttle.Name != "Off" {
-			label("Network: "+a.throttle.Name, t.TextMuted)
-		}
-		if a.upstream != "" {
-			label("Upstream: "+a.upstream, t.TextMuted)
-		}
-		if a.srv != nil {
-			if hit, ok := a.srv.LastDNSMatch(); ok {
-				label(fmt.Sprintf("DNS %s → %s", hit.Name, hit.IP), t.TextMuted)
-			}
-		}
-		if len(a.rules) > 0 {
-			label(fmt.Sprintf("%d rules", len(a.rules)), t.TextMuted)
-		}
-		if a.caPath != "" {
-			if ui.Button(c, "HTTPS setup").Height(22).FontSize(11).Tooltip("Certificate and decryption settings · " + shortenHome(a.caPath)).Clicked() {
-				a.settingsTab, a.settingsOpen = 2, true
-			}
-		}
-	})
 }
 
 func shortenHome(path string) string {
@@ -2349,7 +2087,9 @@ func runDesktop() error {
 	mygo.App.OnQuit(func() { a.socket.session.disconnect() })
 	defer func() { a.socket.session.disconnect() }()
 	mygo.App.OnQuit(a.investigations.close)
+	mygo.App.OnQuit(a.board.flush)
 	defer a.investigations.close()
+	defer a.board.flush()
 	defer a.discardRuleDraft()
 	defer a.disableDevices()
 	defer a.views.stopSearch()
@@ -2368,6 +2108,10 @@ func runDesktop() error {
 			MinWidth:        960,
 			MinHeight:       600,
 			AutoHideMenuBar: true,
+			// The view draws the title bar under the window controls, so the
+			// toolbar and the traffic share one continuous surface.
+			TitleBarStyle:        mygo.TitleBarHidden,
+			TrafficLightPosition: &mygo.Point{X: 16, Y: 17},
 			// MyGo keeps the window's bounds under this key.
 			StateKey: "vscroxy",
 			Content:  ui.View(a.view),
@@ -2478,6 +2222,9 @@ func (a *app) rowMenu(c *ui.Context, f flow) func(*ui.Menu) {
 		desktopMenuItem(m, actions, "edit", "Edit & resend")
 		if m.Item("Save as request").Chosen() {
 			a.saveFlowAsRequest(f)
+		}
+		if m.Item("Add to investigation…").Chosen() {
+			a.addToInvestigation(f)
 		}
 		if m.Item("Save as regression…").Disabled(f.status == 0 || f.method == "CONNECT" || f.kind == "ws").Chosen() {
 			a.regressionFrom(f)
@@ -2666,6 +2413,9 @@ func (a *app) sendComposed() {
 	d.composeReplies = nil
 	d.response = nil
 	d.responseEditor = nil
+	// A send replaces the response, so the comparison of the previous one
+	// has nothing left to stand on.
+	d.comparing = false
 	if a.srv == nil || !a.srv.Running() {
 		d.composeResult = "No proxy running. Start capture before sending."
 		a.setMessage("Compose: no proxy running")
@@ -2674,9 +2424,10 @@ func (a *app) sendComposed() {
 	d.composeWaiting, d.composeResult = true, "Sending…"
 	d.experimentID = 0
 	r, env, vars, srv, jar := d.value(), a.activeEnv, a.activeVars(), a.srv, a.requestCookies()
+	d.sent, d.sentAt, d.sentSet = r, time.Now(), true
 	runKey, draftKey, origin := uuid.New().String(), d.debugKey, d.origin
 	if r.Checks != (responseChecks{}) {
-		d.responseTab = 2
+		d.responseTab = resViewTests
 	}
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -3314,9 +3065,6 @@ func (a *app) togglePin(f flow) {
 		return
 	}
 }
-
-// pinIcon marks a pinned flow in the table.
-var pinIcon = ui.MustParseSVG([]byte(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M10.3 1.2 14.8 5.7 13.2 7.3 11.4 7.1 8.8 9.7 9 11.5 7.6 12.9 3.1 8.4 4.5 7 6.3 7.2 8.9 4.6 8.7 2.8z"/></svg>`))
 
 // collectionShown returns the open state of a collection's section, making it
 // open the first time it is drawn.

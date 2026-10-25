@@ -867,25 +867,24 @@ func (v *captureViews) openSaved(a *app) {
 
 // controls lives in the sidebar: views and saved conditions never take
 // vertical space away from the request table and inspector.
-func (v *captureViews) controls(c *ui.Context, t *ui.Theme, a *app) {
+// rows is the saved-views part of the sidebar: the views of this session,
+// the filters saved by name, and the two actions that manage them. It sits
+// inside a SidebarSection, so the section's title opens and closes it.
+func (v *captureViews) sidebar(c *ui.Context, t *ui.Theme, a *app) {
 	if v.activeView() == nil {
 		v.init(a, v.path)
 	}
 	closing := -1
-	ui.Column(c).Gap(4).FillWidth().Children(func() {
-		ui.Row(c).AlignItems(ui.Center).Children(func() {
-			ui.Text(c, "VIEWS").FontSize(10).Bold().TextColor(t.TextMuted).Grow(1)
-			if ui.Button(c, "+").Label("New view").Tooltip("Independent filters, selection and scroll position").Height(24).Clicked() {
-				v.capture(a)
-				v.newView(a)
-			}
-		})
+	ui.Column(c).Gap(1).FillWidth().Children(func() {
 		for i, view := range v.views {
 			name := v.label(i)
-			ui.Row(c.Key(view.id)).Gap(4).AlignItems(ui.Center).Children(func() {
-				b := ui.Button(c, name).Label("Capture view: " + name).FontSize(12).SingleLine().Height(28).Grow(1)
+			ui.Row(c.Key(view.id)).AlignItems(ui.Center).Children(func() {
+				b := ui.ButtonBase(c).Label("Capture view: "+name).Height(26).Padding(0, 6).Gap(6).Radius(5).FillWidth().
+					AlignItems(ui.Center).TextColor(t.TextMuted).Tooltip("Independent filters, selection and scroll position")
 				if i == v.active {
-					b = b.Background(t.Accent.Alpha(0.12)).TextColor(t.Accent)
+					b.Background(t.SurfaceHover).TextColor(t.Text)
+				} else if b.Hovered() {
+					b.Background(t.SurfaceHover).TextColor(t.Text)
 				}
 				if b.Clicked() {
 					v.capture(a)
@@ -895,24 +894,47 @@ func (v *captureViews) controls(c *ui.Context, t *ui.Theme, a *app) {
 					b.ScrollIntoView()
 					view.reveal = false
 				}
-				if len(v.views) > 1 && ui.Button(c, "×").Label("Close view: "+name).Height(24).Clicked() {
-					closing = i
-				}
+				b.Children(func() {
+					ui.Icon(c, layersIcon).Size(13, 13)
+					ui.Text(c, name).FontSize(12).SingleLine().Grow(1)
+					if len(v.views) > 1 {
+						if ui.ButtonBase(c).Size(18, 18).Radius(4).Label("Close view: " + name).Tooltip("Close this view").
+							TextColor(t.TextMuted).Children(func() {
+							ui.Icon(c, closeIcon).Size(11, 11)
+						}).Clicked() {
+							closing = i
+						}
+					}
+				})
 			})
 		}
-		if note, failure := v.status(); note != "" {
-			color := t.TextMuted
-			if failure {
-				color = t.Danger
+		// Create and manage live in one compact row under the views, so the
+		// list itself is what the section shows first.
+		ui.Row(c).Gap(2).Padding(0, 4, 0, 2).Children(func() {
+			if ui.ButtonBase(c).Label("New view").Size(22, 22).Radius(4).AlignItems(ui.Center).
+				TextColor(t.TextMuted).Tooltip("A new view with its own filters, selection and scroll position").Children(func() {
+				ui.Icon(c, plusIcon).Size(13, 13)
+			}).Clicked() {
+				v.capture(a)
+				v.newView(a)
 			}
-			ui.Text(c, note).FontSize(11).TextColor(color).Tooltip(v.statusDetail())
+			if ui.ButtonBase(c).Label("Saved filters…").Size(22, 22).Radius(4).AlignItems(ui.Center).
+				TextColor(t.TextMuted).Tooltip("Save current conditions, apply, rename or delete a saved filter").Children(func() {
+				ui.Icon(c, moreIcon).Size(13, 13)
+			}).Clicked() {
+				v.openSaved(a)
+			}
+			ui.Spacer(c)
+		})
+		if len(v.filters) > 0 {
+			ui.Text(c, "SAVED FILTERS").FontSize(10).Bold().TextColor(t.TextMuted).Padding(12, 6, 4, 6)
 		}
-		ui.Text(c, "SAVED FILTERS").FontSize(10).Bold().TextColor(t.TextMuted).Padding(12, 0, 4, 0)
 		for _, f := range v.filters {
 			active := v.activeView().saved(f.Name) == f
-			b := ui.Button(c, f.Name).Label("Quick filter: " + f.Name).FontSize(11).Height(28).FillWidth()
+			b := ui.ButtonBase(c).Label("Quick filter: "+f.Name).Height(26).Padding(0, 6).Radius(5).FillWidth().
+				AlignItems(ui.Center).TextColor(t.TextMuted)
 			if active {
-				b = b.Background(t.Accent.Alpha(0.12)).TextColor(t.Accent)
+				b.Background(t.SurfaceHover).TextColor(t.Text)
 			}
 			if b.Clicked() {
 				if active {
@@ -923,12 +945,19 @@ func (v *captureViews) controls(c *ui.Context, t *ui.Theme, a *app) {
 					v.applySaved(a, f.Name)
 				}
 			}
+			b.Children(func() {
+				ui.Icon(c, filterIcon).Size(13, 13)
+				ui.Text(c, f.Name).FontSize(12).SingleLine()
+			})
 		}
-		if ui.Button(c, "Saved filters…").FontSize(11).Height(26).FillWidth().Tooltip("Save current conditions, apply, rename or delete a saved filter").Clicked() {
-			v.openSaved(a)
+		if note, failure := v.status(); note != "" {
+			color := t.TextMuted
+			if failure {
+				color = t.Danger
+			}
+			ui.Text(c, note).FontSize(11).TextColor(color).Tooltip(v.statusDetail())
 		}
 	})
-	ui.Divider(c)
 	if closing >= 0 {
 		v.closeView(a, closing)
 	}

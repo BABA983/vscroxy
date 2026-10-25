@@ -34,13 +34,18 @@ func (w *desktopWorkbench) openPalette() {
 	w.commands.ScrollTo(0, ui.Start)
 }
 
+// contentWidth is the room the main pane has beside the sidebar.
+func (a *app) contentWidth(c *ui.Context) float32 {
+	width, _ := c.Size()
+	if !a.workbench.sidebarHidden {
+		width -= a.sidebarWidth + 6
+	}
+	return width
+}
+
 func (a *app) desktopContent(c *ui.Context) {
 	w := &a.workbench
-	width, _ := c.Size()
-	available := width
-	if !w.sidebarHidden {
-		available -= a.sidebarWidth + 6
-	}
+	available := a.contentWidth(c)
 	// Even an explicitly requested side inspector yields on small windows.
 	// It returns, with its own divider position, when there is room again.
 	w.sideBySide = w.layout == "right" && available >= 1000 || w.layout == "adaptive" && available >= 1160
@@ -50,10 +55,19 @@ func (a *app) desktopContent(c *ui.Context) {
 	content := func() {
 		switch a.workspace {
 		case 1:
-			a.composeView(c, c.Theme())
-		case 2:
-			a.apiView(c, c.Theme())
+			if a.requestsSection == 1 {
+				a.apiView(c, c.Theme())
+				return
+			}
+			ui.Column(c).Fill().Children(func() {
+				a.documentTabs(c, c.Theme())
+				a.composeView(c, c.Theme())
+			})
 		default:
+			if a.captureSection == 1 {
+				a.boardView(c, c.Theme())
+				return
+			}
 			ui.Column(c).Fill().Children(func() {
 				if w.focused {
 					ui.Row(c).Height(32).Padding(0, 12).AlignItems(ui.Center).Children(func() {
@@ -96,9 +110,18 @@ func (a *app) desktopContent(c *ui.Context) {
 
 var captureKinds = []string{"All", "HTTP", "HTTPS", "WebSocket", "SSE", "JSON", "Images", "HTML"}
 
+// captureProtocols are the filters the toolbar shows; the rest live in its
+// overflow menu.
+var captureProtocols = captureKinds[:6]
+
 func (a *app) captureToolbar(c *ui.Context, t *ui.Theme) {
-	ui.Row(c).Height(40).Padding(0, 10).Gap(6).AlignItems(ui.Center).Children(func() {
-		search := ui.TextInput(c, &a.query).Bind(&a.search).Label("Search host or path").Placeholder("Search host or path…").Tooltip("URL host and path only · Ctrl/Cmd+F · Enter or ↓ moves to requests. Filters search headers and full bodies.").Grow(1)
+	width, _ := c.Size()
+	// The search field is the reason this bar exists; the labels beside it
+	// shorten to icons before it gives up room.
+	tight := width < 1100
+	ui.Row(c).Height(42).Padding(0, 10).Gap(8).AlignItems(ui.Center).Children(func() {
+		search := ui.TextInput(c, &a.query).Bind(&a.search).Label("Search host or path").Placeholder("Search host or path…").
+			Tooltip("URL host and path only · Ctrl/Cmd+F · Enter or ↓ moves to requests. Filters search headers and full bodies.").Grow(1)
 		search.OnShortcut(0, ui.KeyDown, func() { a.focusTraffic(c) })
 		if search.Changed() {
 			a.applyFilter()
@@ -106,33 +129,77 @@ func (a *app) captureToolbar(c *ui.Context, t *ui.Theme) {
 		if search.Submitted() {
 			a.focusTraffic(c)
 		}
-		ui.MenuButton(c, captureKinds[a.chip], func(m *ui.Menu) {
-			for i, kind := range captureKinds {
-				if m.Item(kind).Checked(a.chip == i).Chosen() {
-					a.chip = i
+		if ui.ButtonBase(c).Label("Filters…").Height(26).Padding(0, 8).Gap(6).Radius(5).AlignItems(ui.Center).
+			TextColor(t.TextMuted).Tooltip("Status, header, body, method, duration and notes").Children(func() {
+			ui.Icon(c, filterIcon).Size(14, 14)
+			if !tight {
+				ui.Text(c, "Filters").FontSize(12)
+			}
+		}).Clicked() {
+			a.openFilter()
+		}
+		ui.Box(c).Width(1).Height(18).Background(t.Border)
+		for i := 0; i < len(captureProtocols); i++ {
+			index := i
+			b := ui.ButtonBase(c).Label("Protocol and content type: "+captureProtocols[index]).Height(24).Padding(0, 8).Radius(4).
+				AlignItems(ui.Center).TextColor(t.TextMuted)
+			if a.chip == index {
+				b.Background(t.SurfaceHover).TextColor(t.Text)
+			} else if b.Hovered() {
+				b.TextColor(t.Text)
+			}
+			if b.Clicked() {
+				a.chip = index
+				a.applyFilter()
+			}
+			b.Children(func() { ui.Text(c, captureProtocols[index]).FontSize(11) })
+		}
+		ui.Box(c).Width(1).Height(18).Background(t.Border)
+		breakButton := ui.ButtonBase(c).Label("Breakpoints").Height(26).Padding(0, 8).Gap(6).Radius(5).AlignItems(ui.Center).
+			Tooltip("Pause each matching request or response before it continues")
+		if a.breakOn {
+			breakButton.Background(t.SurfaceHover).TextColor(t.Text)
+		} else {
+			breakButton.TextColor(t.TextMuted)
+		}
+		if breakButton.Clicked() && a.srv != nil {
+			a.breakOn = !a.breakOn
+			a.srv.SetBreak(a.breakOn)
+		}
+		breakButton.Children(func() {
+			ui.Icon(c, breakIcon).Size(12, 12)
+			if !tight {
+				ui.Text(c, "Breakpoints").FontSize(12)
+			}
+			if a.breakOn {
+				ui.Box(c).Size(5, 5).Radius(3).Background(t.Warning)
+			}
+		})
+		ui.MenuButton(c, "⋯", func(m *ui.Menu) {
+			for _, index := range []int{6, 7} {
+				if m.Item(captureKinds[index]).Checked(a.chip == index).Chosen() {
+					a.chip = index
 					a.applyFilter()
 				}
 			}
-		}).Label("Protocol and content type").FontSize(11).Height(28)
-		b := ui.Button(c, "Filters…").Height(28).FontSize(11)
-		if a.filtersActive() {
-			b.Background(t.Accent.Alpha(0.12)).TextColor(t.Accent)
-		}
-		if b.Clicked() {
-			a.openFilter()
-		}
-		follow := "Following · Latest"
-		if view := a.views.activeView(); view != nil && !view.list.AtEnd() && len(a.visible) > 0 {
-			follow = "Paused · Latest"
-		}
-		a.desktopButton(c, "latest", follow).Label("Latest").Tooltip("Scroll to the end of the current sort order and resume following. Does not change the inspected request.")
-		ui.Text(c, "Break").FontSize(11).TextColor(t.TextMuted)
-		if ui.Switch(c, &a.breakOn).Label("Break requests").Changed() && a.srv != nil {
-			a.srv.SetBreak(a.breakOn)
-		}
-		if ui.Button(c, "Clear").Height(28).FontSize(11).Clicked() {
-			a.clearOpen = true
-		}
+			m.Separator()
+			if m.Item("Filter…").Chosen() {
+				a.openFilter()
+			}
+			if a.filtersActive() && m.Item("Reset all conditions").Chosen() {
+				a.query, a.filter, a.chip = "", "all", 0
+				a.views.capture(a)
+				a.clearFilters()
+			}
+			m.Separator()
+			if m.Item("Column from header…").Chosen() {
+				a.openColumn()
+			}
+			m.Separator()
+			if m.Item("Clear unpinned requests…").Chosen() {
+				a.clearOpen = true
+			}
+		}).Label("More capture options").Height(26).Padding(0, 6).FontSize(14).TextColor(t.TextMuted).Border(0, t.Border)
 	})
 	ui.Divider(c)
 	if a.query == "" && a.filter == "all" && a.chip == 0 && !a.filtersActive() {
@@ -172,7 +239,14 @@ func (a *app) captureToolbar(c *ui.Context, t *ui.Theme) {
 				}
 			})
 		})
-		a.desktopButton(c, "clear-filters", "Reset all")
+		if ui.ButtonBase(c).Label("Reset all").Height(22).Padding(0, 6).Radius(4).AlignItems(ui.Center).
+			TextColor(t.TextMuted).Children(func() {
+			ui.Text(c, "Reset all").FontSize(11)
+		}).Clicked() {
+			a.query, a.filter, a.chip = "", "all", 0
+			a.views.capture(a)
+			a.clearFilters()
+		}
 	})
 	ui.Divider(c)
 }
@@ -235,9 +309,11 @@ func (a *app) desktopActions(c *ui.Context) []desktopAction {
 	}
 	search := "Search host or path"
 	find := func() { a.search.Focus(c) }
-	if c != nil && capturing && a.tab == 1 && a.bodyText[a.bodySide] != nil && a.bodyReader[a.bodySide].FocusWithin(c) {
-		search = "Find in body"
-		find = func() { a.bodyText[a.bodySide].Run(editor.Find) }
+	for side := range 2 {
+		if c != nil && capturing && a.bodyText[side] != nil && a.bodyReader[side].FocusWithin(c) {
+			search = "Find in body"
+			find = func() { a.bodyText[side].Run(editor.Find) }
+		}
 	}
 	actions := a.requestActions(c, f, capturing && current)
 	actions = append(actions, []desktopAction{
@@ -252,11 +328,11 @@ func (a *app) desktopActions(c *ui.Context) []desktopAction {
 		}},
 		{"send", "Send request", editing && !d.composeWaiting && a.srv != nil && a.srv.Running(), ui.Cmd, ui.KeyEnter, a.sendComposed},
 		{"save-request", "Save request", editing, ui.Cmd, ui.KeyS, func() { a.saveComposed() }},
-		{"compare-source", "Compare source", editing && d.source != nil && d.response != nil && !d.composeWaiting, ui.Cmd | ui.Shift, ui.KeyD, func() { d.responseTab = 3 }},
+		{"compare-source", "Compare with source", editing && d.source != nil && d.response != nil && !d.composeWaiting, ui.Cmd | ui.Shift, ui.KeyD, func() { d.comparing = true }},
 		{"back", "Back to traffic", editing, ui.Cmd, ui.KeyBracketLeft, func() { a.backToTraffic(c) }},
 		{"close-request", "Close request tab", editing && !d.composeWaiting, ui.Cmd, ui.KeyW, func() { a.requestClose(d) }},
-		{"next-tab", "Next debugging tab", a.workspace != 2 && len(a.documents) > 0, ui.Ctrl, ui.KeyTab, func() { a.cycleDocument(1) }},
-		{"previous-tab", "Previous debugging tab", a.workspace != 2 && len(a.documents) > 0, ui.Ctrl | ui.Shift, ui.KeyTab, func() { a.cycleDocument(-1) }},
+		{"next-tab", "Next debugging tab", len(a.documents) > 0, ui.Ctrl, ui.KeyTab, func() { a.cycleDocument(1) }},
+		{"previous-tab", "Previous debugging tab", len(a.documents) > 0, ui.Ctrl | ui.Shift, ui.KeyTab, func() { a.cycleDocument(-1) }},
 		{"export-selection", "Export selected HAR…", capturing && a.chosen.Len() > 0, 0, 0, a.exportChosen},
 		{"focus", focus, capturing && current, ui.Cmd | ui.Shift, ui.KeyEnter, func() {
 			w.focused = !w.focused
@@ -295,22 +371,37 @@ func (a *app) desktopActions(c *ui.Context) []desktopAction {
 		{"diagnostics", "Capture diagnostics…", true, 0, 0, a.openDiagnostics},
 		{"experiments", "Experiment workbench…", true, 0, 0, func() { a.experiments.open = true }},
 		{"websocket", "WebSocket session…", true, 0, 0, a.openSocket},
-		{"investigations", "Investigate saved sessions…", true, 0, 0, a.investigations.show},
+		{"investigations", "Historical sessions & evidence…", true, 0, 0, a.investigations.show},
 		{"client", "Set up a local client…", a.srv != nil, 0, 0, a.openClientSetup},
 		{"devices", "Connect a device…", a.srv != nil, 0, 0, a.openDevices},
 		{"rules", "Manage debugging rules…", true, 0, 0, a.openRules},
 		{"new-request", "New request", true, ui.Cmd, ui.KeyN, a.openCompose},
 		{"import-curl", "Import cURL…", true, 0, 0, a.openCurlImport},
 		{"settings", "Open settings…", true, ui.Cmd, ui.KeyComma, func() { a.settingsOpen = true }},
-		{"capture-workspace", "Capture", true, ui.Cmd, ui.Key1, func() { a.workspace = 0; a.focusTraffic(c) }},
+		{"capture-workspace", "Capture", true, ui.Cmd, ui.Key1, func() {
+			a.workspace, a.captureSection = 0, 0
+			a.sidebarChoice = cmpOr(a.filter, "all")
+			a.focusTraffic(c)
+		}},
 		{"requests-workspace", "Requests", true, ui.Cmd, ui.Key2, func() {
 			if a.requestDocument == nil {
 				a.openCompose()
 			}
-			a.workspace = 1
+			a.workspace, a.requestsSection = 1, 0
 			a.urlInput.Focus(c)
 		}},
-		{"apis-workspace", "APIs", true, ui.Cmd, ui.Key3, func() { a.workspace = 2 }},
+		{"apis-workspace", "API contracts", true, ui.Cmd, ui.Key3, func() {
+			a.workspace, a.requestsSection = 1, 1
+			if a.apiChoice == "" && len(a.apis) > 0 {
+				a.apiChoice = a.apis[0].spec.ID
+			}
+		}},
+		{"investigate-workspace", "Investigations", true, ui.Cmd, ui.Key4, func() {
+			a.workspace, a.captureSection = 0, 1
+		}},
+		{"add-investigation", "Add inspected request to investigation", capturing && current && f.kind == "", 0, 0, func() {
+			a.addToInvestigation(f)
+		}},
 	}...)
 	return actions
 }
@@ -445,7 +536,8 @@ func (a *app) backToTraffic(c *ui.Context) {
 			a.setMessage("Original capture view is no longer open; returned to the current traffic view")
 		}
 	}
-	a.workspace = 0
+	a.workspace, a.captureSection = 0, 0
+	a.sidebarChoice = cmpOr(a.filter, "all")
 	a.focusTraffic(c)
 }
 

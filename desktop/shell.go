@@ -1,0 +1,386 @@
+package main
+
+import (
+	"fmt"
+	"runtime"
+	"strings"
+
+	"github.com/baba983/vscroxy/desktop/internal/capture"
+	"github.com/egoist/mygo/ui"
+)
+
+// shell draws the window's own title bar and the footer of the workspace
+// below it. The bar carries only what is true everywhere — where capture is
+// listening, the two workspaces, and the rare commands — so the screen under
+// it belongs to traffic or to a request.
+func (a *app) shell(c *ui.Context, t *ui.Theme) {
+	bar := c.TitleBar()
+	height := max(bar.Height, 50)
+	ui.Row(c).Height(height).Padding(0, 12, 0, max(bar.Left, 12)).Gap(14).AlignItems(ui.Center).
+		Background(t.Surface).Border(0, t.Border).BorderWidth(0, 0, 1, 0).DragWindow().Children(func() {
+		ui.Row(c).Gap(7).AlignItems(ui.Center).Children(func() {
+			ui.Icon(c, brandIcon).Size(17, 17).TextColor(t.Text)
+			ui.Text(c, "vscroxy").FontSize(13).Bold().TextColor(t.Text)
+		})
+		a.workspaceSwitch(c, t)
+		ui.Spacer(c)
+		a.proxyIndicator(c, t)
+		ui.Box(c).Width(1).Height(18).Background(t.Border)
+		if ui.ButtonBase(c).Label("Commands").Height(26).Padding(0, 8).Gap(6).Radius(5).AlignItems(ui.Center).
+			Tooltip("Search every action · Ctrl/Cmd+K").TextColor(t.TextMuted).Children(func() {
+			ui.Icon(c, commandIcon).Size(14, 14)
+			ui.Text(c, "Commands").FontSize(12)
+		}).Clicked() {
+			a.workbench.openPalette()
+		}
+		if ui.ButtonBase(c).Label("Settings").Height(26).Padding(0, 8).Gap(6).Radius(5).AlignItems(ui.Center).
+			Tooltip("Settings · Ctrl/Cmd+,").TextColor(t.TextMuted).Children(func() {
+			ui.Icon(c, settingsIcon).Size(14, 14)
+			ui.Text(c, "Settings").FontSize(12)
+		}).Clicked() {
+			a.settingsOpen = true
+		}
+		ui.MenuButton(c, "⋯", func(m *ui.Menu) {
+			a.moreMenu(c, m)
+		}).Label("More").Height(26).Padding(0, 6).FontSize(14).TextColor(t.TextMuted).Border(0, t.Border)
+	})
+}
+
+// workspaceSwitch is a quiet segmented control: the chosen workspace is a
+// lighter gray, not an accent-colored tab. There are two: traffic is one
+// place, and requests and contracts are another.
+func (a *app) workspaceSwitch(c *ui.Context, t *ui.Theme) {
+	names := []string{"Capture", "Requests"}
+	seg := ui.SegmentedBase(c, &a.workspace, len(names))
+	seg.Track.Padding(2).Radius(7).Border(1, t.Border).Background(t.Background).Children(func() {
+		for i, name := range names {
+			s := seg.Segment(i).Label(name).Height(26).Padding(0, 14).Radius(5).AlignItems(ui.Center).TextColor(t.TextMuted)
+			if i == a.workspace {
+				s.Background(t.SurfaceHover).TextColor(t.Text)
+			} else if s.Hovered() {
+				s.TextColor(t.Text)
+			}
+			s.Children(func() { ui.Text(c, name).FontSize(12) })
+		}
+	})
+	if seg.Track.Changed() {
+		switch a.workspace {
+		case 1:
+			if a.requestsSection == 0 && a.requestDocument == nil {
+				a.openCompose()
+			}
+			if a.requestsSection == 0 {
+				a.urlInput.Focus(c)
+			}
+		case 0:
+			if a.captureSection == 0 {
+				a.focusTraffic(c)
+			}
+		}
+	}
+}
+
+// proxyIndicator is plain secondary text with a small green dot. It reports
+// the listener, never HTTPS inspection or list following.
+func (a *app) proxyIndicator(c *ui.Context, t *ui.Theme) {
+	running := a.srv != nil && a.srv.Running()
+	label, color := "Proxy stopped", t.TextMuted
+	if running {
+		label, color = "Proxy running · "+a.srv.Addr(), t.TextMuted
+	}
+	if a.deviceUI.gateway != nil {
+		label += " · LAN"
+	}
+	b := ui.ButtonBase(c).Label("Proxy status").Height(26).Padding(0, 8).Gap(7).Radius(5).AlignItems(ui.Center).
+		Tooltip("Listening address · proxy settings; listening is not proof of HTTPS inspection")
+	if b.Hovered() {
+		b.Background(t.SurfaceHover)
+	}
+	b.Children(func() {
+		dot := t.TextMuted
+		if running {
+			dot = t.Success
+		}
+		ui.Box(c).Size(7, 7).Radius(4).Background(dot)
+		ui.Text(c, label).FontSize(12).TextColor(color).SingleLine()
+	})
+	if b.Clicked() {
+		a.settingsTab, a.settingsOpen = 1, true
+	}
+}
+
+// moreMenu keeps the less frequent menus one step away without hiding them:
+// the same items stay where they were, grouped as they were.
+func (a *app) moreMenu(c *ui.Context, m *ui.Menu) {
+	if m.Item("Debugging rules…").Chosen() {
+		a.openRules()
+	}
+	m.Submenu("Network", func(m *ui.Menu) {
+		if m.Item("Capture diagnostics…").Chosen() {
+			a.openDiagnostics()
+		}
+		if m.Item("Set up a local client…").Chosen() {
+			a.openClientSetup()
+		}
+		a.desktopMenuItem(c, m, "websocket", "WebSocket session…")
+		if m.Item("No Caching").Checked(a.srv != nil && a.srv.NoCaching()).Disabled(a.srv == nil).Chosen() {
+			a.srv.SetNoCaching(!a.srv.NoCaching())
+		}
+		m.Separator()
+		if m.Item("Connect a device…").Checked(a.deviceUI.gateway != nil).Chosen() {
+			a.openDevices()
+		}
+		m.Separator()
+		for _, preset := range capture.Presets {
+			if m.Item(preset.Name).Checked(a.throttle.Name == preset.Name).Chosen() {
+				a.throttle = preset
+				if a.srv != nil {
+					a.srv.SetThrottle(preset)
+				}
+			}
+		}
+		m.Separator()
+		if m.Item("Upstream…").Chosen() {
+			a.upstreamAddr = a.upstream
+			a.upstreamOpen = true
+		}
+		if m.Item("Upstream off").Chosen() {
+			if a.srv != nil {
+				_ = a.srv.SetUpstream("")
+			}
+			a.upstream = ""
+			a.setMessage("Upstream: off")
+		}
+		m.Separator()
+		if m.Item("SSL proxying…").Chosen() {
+			a.sslOpen = true
+		}
+		if m.Item("Ignored hosts…").Chosen() {
+			a.ignoreOpen = true
+		}
+		if m.Item("Ignored apps…").Chosen() {
+			a.ignoreAppsOpen = true
+		}
+		if m.Item("DNS mapping…").Chosen() {
+			a.dnsOpen = true
+		}
+	})
+	m.Submenu("Session", func(m *ui.Menu) {
+		a.desktopMenuItem(c, m, "replay", "Replay chosen…")
+		m.Separator()
+		if m.Item("Export HAR…").Chosen() {
+			a.exportHAR()
+		}
+		a.desktopMenuItem(c, m, "export-selection", "Export chosen HAR…")
+		if m.Item("Choose all shown").Chosen() {
+			for _, at := range a.visible {
+				a.chosen.Add(a.flows[at].id)
+			}
+			a.setMessage(fmt.Sprintf("%d chosen", a.chosen.Len()))
+		}
+		if m.Item("Clear choice").Chosen() {
+			a.chosen.Clear()
+		}
+		if m.Item("Save session…").Chosen() {
+			a.saveSession()
+		}
+		if m.Item("Open session…").Chosen() {
+			a.openSession()
+		}
+		a.desktopMenuItem(c, m, "investigations", "Historical sessions & evidence…")
+		if m.Item("Import HAR…").Chosen() {
+			a.importHAR()
+		}
+		if len(a.history) > 0 && m.Item("Clear history").Chosen() {
+			a.history = nil
+			a.saveHistory()
+			a.setMessage("History cleared")
+		}
+		m.Separator()
+		if m.Item("Export requests…").Chosen() {
+			a.exportRequests()
+		}
+		if m.Item("Import requests…").Chosen() {
+			a.importRequests()
+		}
+		if m.Item("Import regression…").Chosen() {
+			a.importRegression()
+		}
+		if m.Item("Import cURL…").Chosen() {
+			a.openCurlImport()
+		}
+		m.Separator()
+		if m.Item("Generate OpenAPI…").Disabled(len(a.requests) == 0).Chosen() {
+			a.openAPIGeneration()
+		}
+	})
+	m.Submenu("View", func(m *ui.Menu) {
+		for _, action := range a.desktopActions(c) {
+			if action.id == "layout-bottom" || action.id == "layout-right" || action.id == "layout-auto" ||
+				action.id == "sidebar" || action.id == "focus" {
+				item := m.Item(action.label).Shortcut(action.mods, action.key).Disabled(!action.enabled)
+				if action.id == "layout-bottom" || action.id == "layout-right" || action.id == "layout-auto" {
+					layout := cmpOr(a.workbench.layout, "bottom")
+					item.Checked(action.id == "layout-"+layout || action.id == "layout-auto" && layout == "adaptive")
+				}
+				if item.Chosen() {
+					action.run()
+				}
+			}
+		}
+		m.Separator()
+		if m.Item("Filter…").Chosen() {
+			a.openFilter()
+		}
+		if a.filtersActive() && m.Item("Clear filters").Chosen() {
+			a.clearFilters()
+		}
+		m.Separator()
+		if m.Item("Column from header…").Chosen() {
+			a.openColumn()
+		}
+		if a.headerColumn != "" && m.Item("Hide the "+a.headerColumn+" column").Chosen() {
+			a.setHeaderColumn("")
+		}
+		m.Separator()
+		if m.Item("Protobuf schema…").Chosen() {
+			a.protobuf.open = true
+		}
+	})
+}
+
+// syncSections keeps each sidebar's choice and the section on screen in step
+// when another part of the app changes them: a filter reset, a new
+// investigation, a contract or a request opened from elsewhere.
+func (a *app) syncSections() {
+	if a.workspace == 1 {
+		if a.requestsSection == 1 {
+			if a.apiChoice == "" && len(a.apis) > 0 {
+				a.apiChoice = a.apis[0].spec.ID
+			}
+			if a.apiChoice == "" {
+				a.requestsSection = 0
+			} else {
+				a.requestChoice = "contract:" + a.apiChoice
+				return
+			}
+		}
+		if strings.HasPrefix(a.requestChoice, "contract:") {
+			a.requestChoice = ""
+		}
+		return
+	}
+	if a.captureSection == 1 {
+		if a.board.active != "" {
+			a.sidebarChoice = "investigation:" + a.board.active
+			return
+		}
+		a.captureSection = 0
+	}
+	if !strings.HasPrefix(a.sidebarChoice, "investigation:") && a.sidebarChoice != cmpOr(a.filter, "all") {
+		a.sidebarChoice = cmpOr(a.filter, "all")
+	}
+}
+
+// footer is the one line under every workspace: what this screen counts on
+// the left, and the workspace's own quiet state on the right.
+func (a *app) footer(c *ui.Context, t *ui.Theme) {
+	ui.Row(c).Height(27).Padding(0, 12).Gap(10).AlignItems(ui.Center).
+		Background(t.Surface).Border(0, t.Border).BorderWidth(1, 0, 0, 0).Children(func() {
+		text := func(s string) ui.Element { return ui.Text(c, s).FontSize(11).TextColor(t.TextMuted).SingleLine() }
+		switch {
+		case a.workspace == 0 && a.captureSection == 1:
+			text(a.boardSummary())
+			ui.Spacer(c)
+			text("Read-only evidence · live traffic unchanged")
+			return
+		case a.workspace == 1 && a.requestsSection == 1:
+			counts := fmt.Sprintf("%d contracts", len(a.apis))
+			if len(a.apis) == 1 {
+				counts = "1 contract"
+			}
+			text(counts)
+			ui.Spacer(c)
+			for _, doc := range a.apis {
+				if doc.spec.ID == a.apiChoice {
+					text(doc.title())
+				}
+			}
+			return
+		case a.workspace == 1:
+			env := "No environment"
+			if a.activeEnv != "" {
+				env = a.activeEnv + " environment"
+			}
+			text(env)
+			ui.Spacer(c)
+			if key := sendShortcut(); key != "" {
+				text(key + "  Send")
+			}
+			return
+		}
+		counts := fmt.Sprintf("%d captured · %d shown", len(a.flows), len(a.visible))
+		if n := a.chosen.Len(); n > 0 {
+			counts += fmt.Sprintf(" · %d selected", n)
+		}
+		text(counts)
+		if a.filtersActive() {
+			ui.Text(c, "Filtered").FontSize(11).TextColor(t.Text).SingleLine().Tooltip("filtered: " + a.filterSummary())
+		}
+		if a.dropped > 0 {
+			ui.Text(c, fmt.Sprintf("%d dropped", a.dropped)).FontSize(11).TextColor(t.Warning).SingleLine()
+		}
+		if a.scriptErrs > 0 {
+			ui.Text(c, fmt.Sprintf("%d script errors", a.scriptErrs)).FontSize(11).TextColor(t.Warning).SingleLine()
+		}
+		ui.Spacer(c)
+		if a.workspace != 0 {
+			return
+		}
+		if a.throttle.Name != "" && a.throttle.Name != "Off" {
+			text("Network: " + a.throttle.Name)
+		}
+		if a.upstream != "" {
+			text("Upstream: " + a.upstream)
+		}
+		view := a.views.activeView()
+		if view == nil || len(a.visible) == 0 {
+			return
+		}
+		newRows := a.newRows
+		label, tip := "Auto-follow on · latest ↓", "The list follows new traffic. Click to jump to the newest request."
+		if !view.list.AtEnd() {
+			label = "Auto-follow off · latest ↓"
+			tip = "The list stays where you are reading. Click to jump to the newest request and follow again."
+		}
+		if newRows > 0 {
+			label = fmt.Sprintf("Auto-follow off · %d new ↓", newRows)
+		}
+		if ui.ButtonBase(c).Label("Auto-follow").Height(20).Padding(0, 4).Gap(5).Radius(4).AlignItems(ui.Center).
+			Tooltip(tip).TextColor(t.Text).Children(func() {
+			if newRows > 0 {
+				ui.Icon(c, breakIcon).Size(10, 10).TextColor(t.TextMuted)
+			}
+			ui.Text(c, label).FontSize(11).SingleLine()
+		}).Clicked() {
+			a.workbench.focused = false
+			a.newRows = 0
+			view.list.ScrollToEnd()
+		}
+	})
+}
+
+// sendShortcut spells the Send shortcut for the footer.
+func sendShortcut() string {
+	if runtime.GOOS == "darwin" {
+		return "⌘ Enter"
+	}
+	return "Ctrl Enter"
+}
+
+func cmpOr(value, fallback string) string {
+	if value == "" {
+		return fallback
+	}
+	return value
+}
