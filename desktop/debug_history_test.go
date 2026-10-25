@@ -74,9 +74,10 @@ func TestDebugHistoryLinksExactSendsAndSurvivesRestartAndReusedIDs(t *testing.T)
 			runtime.Gosched()
 		}
 	}
-	click("Name")
+	click("Rename request")
 	tt.Key(ui.Cmd, ui.KeyA)
 	tt.Type("Draft A")
+	click("Done")
 	click("Send")
 	waitRuns(1)
 	// Deliver the wire event after the client result, and change today's rules.
@@ -91,7 +92,10 @@ func TestDebugHistoryLinksExactSendsAndSurvivesRestartAndReusedIDs(t *testing.T)
 		t.Fatal(err)
 	}
 	tt.Frame()
-	click("Debug history")
+	click("Request options")
+	if err := tt.ChooseMenuItem("Send history"); err != nil {
+		t.Fatal(err)
+	}
 	if !tt.HasText("Recorded interventions: Scenario · Empty account · Map Local") {
 		t.Fatalf("lost the applied scenario: %v", tt.Texts())
 	}
@@ -106,15 +110,19 @@ func TestDebugHistoryLinksExactSendsAndSurvivesRestartAndReusedIDs(t *testing.T)
 	waitRuns(2)
 	a.composeFrom(a.flows[1])
 	tt.Frame()
-	click("Name")
+	click("Rename request")
 	tt.Key(ui.Cmd, ui.KeyA)
 	tt.Type("Draft B")
+	click("Done")
 	click("Send")
 	waitRuns(3)
 	// Same URL, different capture: neither its draft nor run belongs to A.
 	a.requestDocument = a.documents[0]
 	tt.Frame()
-	click("Debug history")
+	click("Request options")
+	if err := tt.ChooseMenuItem("Send history"); err != nil {
+		t.Fatal(err)
+	}
 	if tt.HasText("Experiment #3") || !tt.HasText("Experiment #1") || !tt.HasText("Experiment #2") || tt.HasText("Open linked draft 2") {
 		t.Fatal("same-URL sources mixed their debugging histories")
 	}
@@ -128,7 +136,10 @@ func TestDebugHistoryLinksExactSendsAndSurvivesRestartAndReusedIDs(t *testing.T)
 	if copyText("Pre-request script") != `throw new Error("intentional preflight failure")` {
 		t.Fatal("returning to the originating draft overwrote its unsent edits")
 	}
-	click("Debug history")
+	click("Request options")
+	if err := tt.ChooseMenuItem("Send history"); err != nil {
+		t.Fatal(err)
+	}
 	click("Experiment #1")
 	a.replaceSession([]flow{{id: 1, method: "GET", url: upstream.URL + "/same", resBody: "unrelated reused ID"}}, nil)
 	tt.Frame()
@@ -143,7 +154,10 @@ func TestDebugHistoryLinksExactSendsAndSurvivesRestartAndReusedIDs(t *testing.T)
 	defer b.experiments.close()
 	tt = ui.NewTester(b.view, 960, 600)
 	click("Request tab: Draft A")
-	click("Debug history")
+	click("Request options")
+	if err := tt.ChooseMenuItem("Send history"); err != nil {
+		t.Fatal(err)
+	}
 	click("Experiment #1")
 	if copyText("Old text") != "baseline A" || copyText("New text") != "mocked result" || tt.HasText("Experiment #3") {
 		t.Fatal("restart lost source snapshots or history membership")

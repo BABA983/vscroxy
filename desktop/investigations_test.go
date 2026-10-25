@@ -295,7 +295,7 @@ func TestInvestigationNativeCrossSessionComparePreservesLiveTraffic(t *testing.T
 	s.result <- loadInvestigationFiles(paths, 0, 0)
 	tt := ui.NewTester(a.view, 960, 600)
 	tt.Key(ui.Cmd, ui.KeyK)
-	tt.Type("Investigate saved sessions")
+	tt.Type("Historical sessions")
 	tt.Key(0, ui.KeyEnter)
 	if s.problem != "" {
 		t.Fatal(s.problem)

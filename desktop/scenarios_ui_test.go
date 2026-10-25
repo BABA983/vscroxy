@@ -102,7 +102,10 @@ func TestScenarioRulesUIControlsSavedAndRunningConfiguration(t *testing.T) {
 		}
 		return loaded
 	}
-	click("Rules")
+	click("More")
+	if err := tt.ChooseMenuItem("Debugging rules…"); err != nil {
+		t.Fatal(err)
+	}
 	click("Test URL + method")
 	edit("Test URL", upstream.URL+"/projects")
 	for _, want := range []string{

@@ -25,10 +25,32 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+// openResponseBody makes the response pane's body the visible inspector tab, as
+// a person gets it by choosing Body.
+func openResponseBody(a *app) {
+	a.inspect.tab[1] = resTabBody
+	a.inspect.ready = true
+}
+
+// chooseBodyFormat picks a representation from the pane's format menu.
+func chooseBodyFormat(t *testing.T, tt *ui.Tester, side, mode string) {
+	t.Helper()
+	label := "Response body format"
+	if side == "request" {
+		label = "Request body format"
+	}
+	if err := tt.Click(label); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.ChooseMenuItem(mode); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func workspaceApp() *app {
 	a := &app{
 		filter: "all", sidebarWidth: 220, tablePercent: 56,
-		trafficOpen: true, domainsOpen: true, clientsOpen: true, historyOpen: true,
+		trafficOpen: true, domainsOpen: true, clientsOpen: true, contractsOpen: true, historyOpen: true,
 		collectionOpen: make(map[string]*bool), icons: make(map[string]ui.ImageSource),
 		detailFor: -1, frames: make(map[int][]frame),
 		flows: []flow{
@@ -130,7 +152,7 @@ func TestConnectionFailureCanBeFoundAndCopiedWithoutInventingAnHTTPError(t *test
 	if err := tt.Click("11"); err != nil {
 		t.Fatal(err)
 	}
-	if tt.HasText("Client TLS handshake failed") || tt.HasText("Explain") || !tt.HasText("502 · — · 0 ms") {
+	if tt.HasText("Client TLS handshake failed") || tt.HasText("Explain") || !tt.HasText("GET https://other.example.com/gateway") {
 		t.Fatalf("a real HTTP 502 inherited the previous transport failure: %q", tt.Texts())
 	}
 }
@@ -232,7 +254,7 @@ func TestCaptureTableScrollsAndKeepsEachViewsPlace(t *testing.T) {
 	if err := tt.Click("Back to traffic"); err != nil {
 		t.Fatal(err)
 	}
-	if !tt.HasText("api.example.com/capture/0021") || !tt.HasText("GET https://api.example.com/capture/0021") || !tt.HasText("Paused · Latest") {
+	if !tt.HasText("api.example.com/capture/0021") || !tt.HasText("GET https://api.example.com/capture/0021") || !tt.HasText("Auto-follow off · latest ↓") {
 		t.Fatal("the editing round trip changed the list position, follow state or inspected request")
 	}
 	if err := tt.Click("New view"); err != nil {
@@ -267,13 +289,13 @@ func TestCaptureTableScrollsAndKeepsEachViewsPlace(t *testing.T) {
 	if !tt.HasText(row) || tt.HasText("api.example.com/capture/5001") {
 		t.Fatal("new traffic pulled the reader away from older requests")
 	}
-	if !tt.HasText("Paused · Latest") {
-		t.Fatal("the paused follow state is not visible")
+	if !tt.HasText("Auto-follow off · latest ↓") {
+		t.Fatalf("the paused follow state is not visible: %q", tt.Texts())
 	}
 	if err := tt.Click(row); err != nil {
 		t.Fatal(err)
 	}
-	if err := tt.Click("Latest"); err != nil {
+	if err := tt.Click("Auto-follow"); err != nil {
 		t.Fatal(err)
 	}
 	if !tt.HasText("api.example.com/capture/5001") {
@@ -326,7 +348,7 @@ func TestWorkspaceKeepsCaptureAndDraftIndependent(t *testing.T) {
 	if err := tt.ChooseMenuItem("Edit & resend"); err != nil {
 		t.Fatal(err)
 	}
-	if value("URL") != "https://api.example.com/login" || !tt.HasText("Save request") {
+	if value("URL") != "https://api.example.com/login" || !tt.HasText("Save") {
 		t.Fatal("captured request did not open in the Requests workspace")
 	}
 	click("List projects")
@@ -349,6 +371,7 @@ func TestWorkspaceKeepsCaptureAndDraftIndependent(t *testing.T) {
 	if url, script := value("URL"), value("Pre-request script"); url != "https://api.example.com/projects?limit=7" || a.composeMethod != "" || script != `req.set("Accept", "application/json")` {
 		t.Fatalf("switching workspaces changed the draft: URL %q, method %q, script %q", url, a.composeMethod, script)
 	}
+	click("History")
 	click(a.history[0].label())
 	if value("URL") != "https://api.example.com/login" {
 		t.Fatal("history did not open in the request editor")
@@ -364,7 +387,7 @@ func TestCaptureUIUsesOnlyTheRunningListener(t *testing.T) {
 	a := workspaceApp()
 	a.srv, a.flows, a.visible = srv, nil, nil
 	tt := ui.NewTester(a.view, 1240, 800)
-	if !tt.HasText("Capture stopped") || tt.HasText("Live · "+srv.Addr()) {
+	if !tt.HasText("Proxy stopped") || tt.HasText("Proxy running · "+srv.Addr()) {
 		t.Fatal("an unstarted server must not appear live")
 	}
 	a.setSystemProxy(true)
@@ -375,7 +398,7 @@ func TestCaptureUIUsesOnlyTheRunningListener(t *testing.T) {
 		t.Fatal(err)
 	}
 	tt.Frame()
-	if !tt.HasText("Live · "+srv.Addr()) || !tt.HasText("Set your HTTP proxy to "+srv.Addr()) {
+	if !tt.HasText("Proxy running · "+srv.Addr()) || !tt.HasText("Set your HTTP proxy to "+srv.Addr()) {
 		t.Fatalf("capture must show its actual bound address, texts: %q", tt.Texts())
 	}
 	for _, label := range []string{"Settings", "Proxy"} {
@@ -468,13 +491,13 @@ func TestHTTPSSetupExplainsTunnelsAndEnablesOnlyTheSelectedDomain(t *testing.T) 
 	}
 	click("Enable for dc.dlife.cn:18443")
 	if !tt.HasText("Domain rule enabled · reconnect to inspect new requests") || !tt.HasText("Encrypted tunnel — not individual requests") {
-		t.Fatal("enabling a domain must not make the old CONNECT appear decrypted")
+		t.Fatalf("enabling a domain must not make the old CONNECT appear decrypted: %q", tt.Texts())
 	}
 	cfg, err := capture.LoadSSL(a.sslPath)
 	if err != nil || !cfg.Decrypts("api.dc.dlife.cn") || cfg.Decrypts("other.dlife.cn") || cfg.All || !srv.SSL().Decrypts("dc.dlife.cn") || srv.SSL().All {
 		t.Fatalf("domain selection was not saved with the correct scope: %+v, %v", cfg, err)
 	}
-	click("Set up certificate…")
+	click("Certificate setup…")
 	waitCertificate()
 	if !tt.HasText("HTTPS inspection") || !tt.HasText("Trust not verified on this system") || !tt.HasText("Proxy listening · "+srv.Addr()) || !tt.HasText("dc.dlife.cn") {
 		t.Fatalf("settings did not show scoped trust and domain state: %q", tt.Texts())
@@ -530,7 +553,7 @@ func TestHTTPSAppRuleCanBeScopedEditedAndCancelled(t *testing.T) {
 		}
 		return cfg
 	}
-	click("Enable HTTPS for client")
+	click("Inspect all domains from client")
 	cfg := load()
 	if cfg.All || len(cfg.Apps) != 1 || cfg.Apps[0].Path != path || !cfg.Decrypts("existing.test") || !cfg.DecryptsProcess("another.test:9443", path) || cfg.DecryptsProcess("another.test", "") {
 		t.Fatalf("app rule changed domain/global scope or lost its executable: %+v", cfg)
@@ -582,7 +605,7 @@ func TestCaptureSearchAndFilterFailuresAreRecoverable(t *testing.T) {
 	if err := tt.Click("Show all requests"); err != nil {
 		t.Fatal(err)
 	}
-	if !tt.HasText("2 flows · 2 shown") {
+	if !tt.HasText("2 captured · 2 shown") {
 		t.Fatal("reset did not restore the captured requests")
 	}
 	a.openFilter()
@@ -603,8 +626,54 @@ func TestCaptureSearchAndFilterFailuresAreRecoverable(t *testing.T) {
 	if err := tt.Click("Apply"); err != nil {
 		t.Fatal(err)
 	}
-	if !tt.HasText("2 flows · 1 shown") {
+	if !tt.HasText("2 captured · 1 shown") {
 		t.Fatalf("comma-separated alternatives did not match the 401 response: %q", tt.Texts())
+	}
+}
+
+func TestRequestBodyEditorKeepsTheDraftInSync(t *testing.T) {
+	a := workspaceApp()
+	tt := ui.NewTester(a.view, 1280, 800)
+	a.openCompose()
+	d := a.requestDocument
+	d.composeTab = composeTabBody
+	tt.Frame()
+	if err := tt.Click("Request body"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Key(ui.Cmd, ui.KeyA)
+	tt.Type(`{"quantity": 2}`)
+	if d.composeBody != `{"quantity": 2}` {
+		t.Fatalf("the editor did not write the draft: %q", d.composeBody)
+	}
+	// A draft restored from elsewhere replaces the editor instead of being
+	// overwritten by it.
+	d.composeBody = `{"quantity": 0}`
+	tt.Frame()
+	if d.composeBody != `{"quantity": 0}` || d.bodyEditor.Buffer.String() != `{"quantity": 0}` {
+		t.Fatalf("an external body change was lost: %q / %q", d.composeBody, d.bodyEditor.Buffer.String())
+	}
+}
+
+func TestCredentialsAreMaskedUntilRevealed(t *testing.T) {
+	a := workspaceApp()
+	a.flows[0].reqHeader.Set("Authorization", "Bearer super-secret-token")
+	a.inspect.tab[0], a.inspect.ready = reqTabHeaders, true
+	tt := ui.NewTester(a.view, 1280, 800)
+	if tt.HasText("Bearer super-secret-token") || !tt.HasText("••••••••  masked") {
+		t.Fatalf("a credential was readable before it was revealed: %q", tt.Texts())
+	}
+	if err := tt.Click("Reveal credentials"); err != nil {
+		t.Fatal(err)
+	}
+	if !tt.HasText("Bearer super-secret-token") {
+		t.Fatal("reveal did not show the captured header")
+	}
+	// Another exchange masks its own credentials again.
+	a.picked = 1
+	tt.Frame()
+	if tt.HasText("Bearer super-secret-token") {
+		t.Fatal("the previous exchange's reveal carried over")
 	}
 }
 
@@ -612,14 +681,12 @@ func TestBodyAutomaticallyChoosesAUsableMode(t *testing.T) {
 	a := workspaceApp()
 	a.flows[0].respHeader.Set("Content-Type", "application/octet-stream")
 	a.flows[0].resBody = "\x00\xffbinary"
-	a.tab = 1
+	openResponseBody(a)
 	tt := ui.NewTester(a.view, 1280, 800)
 	if !tt.HasText("Showing: Hex") {
 		t.Fatal("binary body must not default to text")
 	}
-	if err := tt.Click("Hex"); err != nil {
-		t.Fatal(err)
-	}
+	chooseBodyFormat(t, tt, "response", "Hex")
 	a.flows[1].respHeader = http.Header{"Content-Type": {"application/json"}}
 	a.flows[1].resBody = `{"answer":42}`
 	a.picked = 1
@@ -631,7 +698,8 @@ func TestBodyAutomaticallyChoosesAUsableMode(t *testing.T) {
 
 func TestBodyTextFindKeepsContextAndCannotEditCapture(t *testing.T) {
 	a := workspaceApp()
-	a.tab, a.tablePercent = 1, 25
+	a.tablePercent = 25
+	openResponseBody(a)
 	body := "before\nneedle first\nbetween\nneedle last\nafter"
 	a.flows[0].resBody = body
 	a.flows[0].respHeader.Set("Content-Type", "text/plain")
@@ -673,41 +741,46 @@ func TestBodyTextFindKeepsContextAndCannotEditCapture(t *testing.T) {
 
 func TestBodyWarningsStayOutsideStructuredPayloadAndClipboard(t *testing.T) {
 	a := workspaceApp()
-	a.tab, a.tablePercent = 1, 25
+	a.tablePercent = 25
+	openResponseBody(a)
 	a.flows[0].resBody, a.flows[0].resError = `{"z":9007199254740993,"a":false}`, "transfer stopped"
 	tt := ui.NewTester(a.view, 960, 600)
 	if !tt.HasText("… incomplete body: transfer stopped") {
 		t.Fatal("capture error was hidden")
 	}
-	if err := tt.Click("Pretty"); err != nil {
-		t.Fatal(err)
-	}
-	tt.Key(0, ui.KeyRight)
+	chooseBodyFormat(t, tt, "response", "Pretty")
+	chooseBodyFormat(t, tt, "response", "JSON")
 	if tt.HasText("Body is not JSON; showing it as text") || !tt.HasText("9007199254740993") {
 		t.Fatal("warning text corrupted the JSON reader or it rounded the captured ID")
 	}
-	if err := tt.Click("Copy shown body"); err != nil {
+	if err := tt.Click("Response pane options"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.ChooseMenuItem("Copy shown body"); err != nil {
 		t.Fatal(err)
 	}
 	if tt.Clipboard() != `{"z":9007199254740993,"a":false}` {
 		t.Fatal("copy included display warnings or reformatted the captured bytes")
 	}
-	if err := tt.Click("Request"); err != nil {
-		t.Fatal(err)
+	// The warning belongs to the response pane; the request pane beside it
+	// must not inherit it.
+	shown := 0
+	for _, text := range tt.Texts() {
+		if strings.Contains(text, "… incomplete body: transfer stopped") {
+			shown++
+		}
 	}
-	if tt.HasText("… incomplete body: transfer stopped") {
-		t.Fatal("response warning leaked into the request side")
+	if shown != 1 {
+		t.Fatalf("the response warning appeared %d times beside the request", shown)
 	}
 }
 
 func TestBodyModeSurvivesIncomingTraffic(t *testing.T) {
 	a := workspaceApp()
-	a.tab = 1
+	openResponseBody(a)
 	tt := ui.NewTester(a.view, 1280, 800)
 	// Hex renders differently from Auto's Pretty, so a reset is observable.
-	if err := tt.Click("Hex"); err != nil {
-		t.Fatal(err)
-	}
+	chooseBodyFormat(t, tt, "response", "Hex")
 	if !tt.HasText("Showing: Hex") {
 		t.Fatal("manual body mode was not selected")
 	}
@@ -721,26 +794,24 @@ func TestBodyModeSurvivesIncomingTraffic(t *testing.T) {
 	if !tt.HasText("Showing: Hex") {
 		t.Fatal("new traffic changed the body mode while inspecting the same request")
 	}
-	if err := tt.Click("Request"); err != nil {
-		t.Fatal(err)
-	}
-	if !tt.HasText("Showing: Pretty") || tt.HasText("Showing: Hex") {
-		t.Fatal("switching body sides must still reset to Auto")
+	// Each side keeps its own representation: the request still reads as
+	// Pretty while the response stays in the hex dump the reader chose.
+	a.inspect.tab[0] = reqTabBody
+	tt.Frame()
+	if !tt.HasText("Showing: Pretty") || !tt.HasText("Showing: Hex") {
+		t.Fatalf("the two sides did not keep independent representations: %q", tt.Texts())
 	}
 }
 
 func TestJSONExpansionSurvivesIncomingTraffic(t *testing.T) {
 	a := workspaceApp()
-	a.tab = 1
+	openResponseBody(a)
 	// Keep the nested disclosure in the visible detail pane. Tester.Click
 	// cannot expand an offscreen row without scrolling it into view first.
 	a.tablePercent = 25
 	a.flows[0].resBody = `{"collapsed":{"hidden":"hidden-value"},"data":{"nested":{"leaf":"expanded-value"}}}`
 	tt := ui.NewTester(a.view, 1280, 800)
-	if err := tt.Click("Pretty"); err != nil {
-		t.Fatal(err)
-	}
-	tt.Key(0, ui.KeyRight) // Body's JSON mode, not Capture's JSON filter.
+	chooseBodyFormat(t, tt, "response", "JSON") // Body's JSON mode, not Capture's JSON filter.
 	if !tt.HasText("Showing: JSON") {
 		t.Fatal("JSON mode was not selected")
 	}
@@ -758,7 +829,7 @@ func TestJSONExpansionSurvivesIncomingTraffic(t *testing.T) {
 	if err := tt.Click("Edit & replay"); err != nil {
 		t.Fatal(err)
 	}
-	if err := tt.Click("Traffic tab"); err != nil {
+	if err := tt.Click("Capture"); err != nil {
 		t.Fatal(err)
 	}
 	if !tt.HasText(`"expanded-value"`) || tt.HasText(`"hidden-value"`) || !tt.HasText("Showing: JSON") {
@@ -776,7 +847,10 @@ func TestJSONExpansionSurvivesIncomingTraffic(t *testing.T) {
 	a.flows[0].resBody = `{"replacement":"new-value"}`
 	a.replaceSession(a.flows, a.frames)
 	tt.Frame()
-	if err := tt.Click("Copy shown body"); err != nil {
+	if err := tt.Click("Response pane options"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.ChooseMenuItem("Copy shown body"); err != nil {
 		t.Fatal(err)
 	}
 	if tt.Clipboard() != `{"replacement":"new-value"}` || tt.HasText(`"expanded-value"`) {
@@ -906,7 +980,7 @@ func TestCaptureDetailSurvivesUnrelatedTraffic(t *testing.T) {
 	second := first
 	second.id, second.resBody, second.conn.proto = 3, after.String(), "HTTP/2"
 	a.flows = []flow{first, second}
-	a.tab = 2
+	a.inspect.pane, a.inspect.ready = inspectorDiff, true
 	a.applyFilter()
 	tt := ui.NewTester(a.view, 1280, 800)
 	if err := tt.Click("api.example.com/projects"); err != nil {
@@ -938,10 +1012,16 @@ func TestCaptureDetailSurvivesUnrelatedTraffic(t *testing.T) {
 	if err := tt.Click("Connection details"); err != nil {
 		t.Fatal(err)
 	}
-	if err := tt.Click("Body"); err != nil {
+	if err := tt.Click("Back to request and response"); err != nil {
 		t.Fatal(err)
 	}
-	if err := tt.Click("Find in text…"); err != nil {
+	if err := tt.Click("Response pane: Body"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.Click("Response pane options"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.ChooseMenuItem("Find in text…"); err != nil {
 		t.Fatal(err)
 	}
 	if err := tt.Click("Search body"); err != nil {
@@ -993,10 +1073,13 @@ func TestCaptureSelectionFollowsKeysAndExcludesHiddenRows(t *testing.T) {
 	tt.Key(ui.Cmd, ui.KeyA)
 	tt.Key(ui.Cmd, ui.KeyF)
 	tt.Type("projects")
-	if !tt.HasText("2 flows · 1 shown") || a.chosen.Has(2) {
+	if !tt.HasText("2 captured · 1 shown") || a.chosen.Has(2) {
 		t.Fatal("filtered-out requests remained selected for bulk export")
 	}
-	if err := tt.Click("Clear"); err != nil {
+	if err := tt.Click("More capture options"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.ChooseMenuItem("Clear unpinned requests…"); err != nil {
 		t.Fatal(err)
 	}
 	if len(a.flows) != 2 || !tt.HasText("Clear captured requests?") {
@@ -1036,14 +1119,14 @@ func TestReplayResultDoesNotStealFocusAndKeepsItsSource(t *testing.T) {
 	if err := tt.Click("Inspect replay"); err != nil {
 		t.Fatal(err)
 	}
-	if !tt.HasText("Source: Capture #1") || a.response == nil || a.response.Status != 201 || a.response.ResponseBody != "result of this replay" {
+	if !tt.HasText("Source #1") || a.response == nil || a.response.Status != 201 || a.response.ResponseBody != "result of this replay" {
 		t.Fatal("inspect did not retain the exact replay response and source")
 	}
 }
 
 func TestDiffDistinguishesAnEmptyBaselineFromNoBaseline(t *testing.T) {
 	a := workspaceApp()
-	a.tab = 2
+	a.inspect.pane, a.inspect.ready = inspectorDiff, true
 	tt := ui.NewTester(a.view, 960, 600)
 	missing := "No previous response for this method and URL. Replay the request to compare responses."
 	if !tt.HasText(missing) {
@@ -1188,12 +1271,16 @@ func TestRequestTabsKeepDraftsAndConfirmClose(t *testing.T) {
 		tt.Type(text)
 	}
 	click("Requests")
+	click("Rename request")
 	edit("Name", "Draft A")
+	click("Done")
 	edit("URL", "https://example.test/a?limit=7")
 	click("Body")
 	edit("Request body", `{"side":"A"}`)
 	click("Add request tab")
+	click("Rename request")
 	edit("Name", "Draft B")
+	click("Done")
 	edit("URL", "https://example.test/b")
 	click("Request tab: Draft A")
 	click("URL")
@@ -1259,9 +1346,13 @@ func TestRequestTabsKeepDraftsAndConfirmClose(t *testing.T) {
 	}
 	for i := range 8 {
 		click("Add request tab")
+		click("Rename request")
 		edit("Name", fmt.Sprintf("Extra %d", i))
+		click("Done")
 	}
+	click("Rename request")
 	edit("Name", "Endpoint 8 with a longer name")
+	click("Done")
 	click("Close Endpoint 8 with a longer name")
 	if !tt.HasText("Save changes?") {
 		t.Fatal("the renamed tab's close button was hidden beyond the scroll area")
@@ -1333,7 +1424,7 @@ func TestCaptureDraftComparisonKeepsTheTrafficContextAndLastSend(t *testing.T) {
 	}
 	// Later edits must not change what the last send actually compared.
 	edit("URL", upstream.URL+"/items?variant=not-sent")
-	click("Compare source")
+	click("Compare with source")
 	if got := copyText("Old text"); got != "original response" {
 		t.Fatalf("source baseline = %q", got)
 	}
@@ -1354,8 +1445,9 @@ func TestCaptureDraftComparisonKeepsTheTrafficContextAndLastSend(t *testing.T) {
 	if !tt.HasText("URL: original ×") || !tt.HasText("Status: 200 ×") || !tt.HasText("HTTP ×") || !tt.HasText("POST http://"+a.flows[0].host+"/items?variant=original") {
 		t.Fatalf("return changed capture conditions or inspected source: %v", tt.Texts())
 	}
+	click("Requests")
 	click("Request tab: /items?variant=original")
-	if !tt.HasText("Compare source") || !strings.Contains(copyText("New text"), "X-Marker: from-script") {
+	if !tt.HasText("Back to response") || !strings.Contains(copyText("New text"), "X-Marker: from-script") {
 		t.Fatal("returning to the draft lost its comparison")
 	}
 	click("Response")
@@ -1364,22 +1456,23 @@ func TestCaptureDraftComparisonKeepsTheTrafficContextAndLastSend(t *testing.T) {
 	}
 	click("Send")
 	waitForResponse()
-	click("Compare source")
+	click("Compare with source")
 	click("Compare content")
 	click("Response body")
 	if got := copyText("New text"); got != "variant=not-sent; marker=from-script; body=sent-body" {
 		t.Fatalf("second send kept a stale comparison: %q", got)
 	}
-	click("Traffic tab")
+	click("Capture")
 	if !tt.HasText("URL: original ×") || !tt.HasText("Status: 200 ×") {
-		t.Fatal("Traffic tab reset the live view")
+		t.Fatal("switching to Capture reset the live view")
 	}
 	click("New view")
 	click("Close view: View 1")
+	click("Requests")
 	click("Request tab: /items?variant=original")
 	click("Back to traffic")
 	tt.Frame()
-	if !tt.HasText("Original capture view is no longer open; returned to the current traffic view") || !tt.HasText("2 flows · 2 shown") {
+	if !tt.HasText("Original capture view is no longer open; returned to the current traffic view") || !tt.HasText("2 captured · 2 shown") {
 		t.Fatal("closed source view was silently resurrected or the fallback was unexplained")
 	}
 }
@@ -1459,7 +1552,7 @@ func TestConcurrentRequestTabsOwnTheirResponses(t *testing.T) {
 	click("Fast request")
 	click("Send")
 	waitFor("201 Created")
-	click("Test results")
+	click("Tests")
 	if !tt.HasText("✓ fast owns response") {
 		t.Fatal("fast request ran another tab's script or saw its response")
 	}
@@ -1468,11 +1561,11 @@ func TestConcurrentRequestTabsOwnTheirResponses(t *testing.T) {
 	releaseSlow <- struct{}{}
 	click("Request tab: Slow request")
 	waitFor("200 OK")
-	click("Test results")
+	click("Tests")
 	if !tt.HasText("✓ slow owns response") || tt.HasText("wrong script") {
 		t.Fatal("slow result used the active tab or a script edited after sending")
 	}
-	click("Response")
+	click("Response tab: Body")
 	click("Response body")
 	tt.Key(ui.Cmd, ui.KeyA)
 	tt.Key(ui.Cmd, ui.KeyC)
@@ -1483,7 +1576,10 @@ func TestConcurrentRequestTabsOwnTheirResponses(t *testing.T) {
 	if !tt.HasText("201 Created") || tt.HasText("200 OK") || !tt.HasText("✓ fast owns response") {
 		t.Fatal("slow completion overwrote the fast tab")
 	}
-	click("Variables…")
+	click("Request options")
+	if err := tt.ChooseMenuItem("Manage environments…"); err != nil {
+		t.Fatal(err)
+	}
 	click("Environment variables")
 	tt.Key(ui.Cmd, ui.KeyA)
 	tt.Key(ui.Cmd, ui.KeyC)
@@ -1493,7 +1589,10 @@ func TestConcurrentRequestTabsOwnTheirResponses(t *testing.T) {
 	click("Cancel")
 	click("Active environment")
 	click("Local")
-	click("Variables…")
+	click("Request options")
+	if err := tt.ChooseMenuItem("Manage environments…"); err != nil {
+		t.Fatal(err)
+	}
 	click("Environment variables")
 	tt.Key(ui.Cmd, ui.KeyA)
 	tt.Key(ui.Cmd, ui.KeyC)
@@ -1543,10 +1642,12 @@ func TestAPIWorkflowPreservesIndependentContracts(t *testing.T) {
 	if err := tt.ChooseMenuItem("Edit & resend"); err != nil {
 		t.Fatal(err)
 	}
+	click("Rename request")
 	edit("Collection", "Captured API")
 	edit("Name", "Captured projects")
-	click("Save request")
-	click("APIs")
+	click("Done")
+	click("Save")
+	click("Requests")
 	click("Generate from collection")
 	click("Generate draft")
 	if !tt.HasText("Unsaved draft") || !tt.HasText("Endpoint: GET /projects") {
@@ -1589,8 +1690,8 @@ func TestAPIWorkflowPreservesIndependentContracts(t *testing.T) {
 	}
 	click("Captured projects")
 	edit("URL", "https://api.example.com/projects-v2")
-	click("Save request")
-	click("APIs")
+	click("Save")
+	click("API: Captured API")
 	if !tt.HasText("Source collection changed") {
 		t.Fatal("changed requests silently diverged from their generated contract")
 	}
@@ -1661,14 +1762,32 @@ func TestCurlImportAndCopyKeepExistingDrafts(t *testing.T) {
 	}
 	click("Import cURL…")
 	paste(`curl 'https://example.test/api?x=7' -H 'X-Count: 19' --json '{"name":"it'\''s","count":7}'`)
-	if read("Method") != "POST" || read("URL") != "https://example.test/api?x=7" || !strings.Contains(read("Request headers"), "X-Count: 19") {
+	if read("Method") != "POST" || read("URL") != "https://example.test/api?x=7" {
 		t.Fatal("imported request fields were not shown in a new tab")
 	}
-	click("Body")
+	click("Request editor: Headers")
+	rows := a.requestDocument.headerRows
+	imported := false
+	for _, row := range rows {
+		if row.Name == "X-Count" && row.Value == "19" {
+			imported = true
+		}
+	}
+	if !imported || len(rows) != 3 {
+		t.Fatalf("imported headers were not shown as table rows: %+v", rows)
+	}
+	click("Toggle header editing mode")
+	if !strings.Contains(read("Request headers"), "X-Count: 19") {
+		t.Fatal("bulk edit did not show the imported header block")
+	}
+	click("Request editor: Body")
 	if read("Request body") != `{"name":"it's","count":7}` {
 		t.Fatal("import changed the body quoting")
 	}
-	click("Copy as cURL")
+	click("Request options")
+	if err := tt.ChooseMenuItem("Copy as cURL"); err != nil {
+		t.Fatal(err)
+	}
 	command := tt.Clipboard()
 	if !strings.Contains(command, "--data-raw") || !strings.Contains(command, "X-Count: 19") {
 		t.Fatal("copy did not use the active draft")
@@ -1683,6 +1802,230 @@ func TestCurlImportAndCopyKeepExistingDrafts(t *testing.T) {
 	if read("Request body") != `{"name":"it's","count":7}` || read("URL") != "https://example.test/api?x=7" {
 		t.Fatal("copied cURL did not round-trip through the import UI")
 	}
+}
+
+func TestBodyTabFormatIndentsTheDraftBody(t *testing.T) {
+	a := workspaceApp()
+	tt := ui.NewTester(a.view, 1200, 700)
+	click := func(label string) {
+		t.Helper()
+		if err := tt.Click(label); err != nil {
+			t.Fatal(err)
+		}
+	}
+	read := func(label string) string {
+		t.Helper()
+		click(label)
+		tt.Key(ui.Cmd, ui.KeyA)
+		tt.Key(ui.Cmd, ui.KeyC)
+		return tt.Clipboard()
+	}
+	click("Requests")
+	click("List projects")
+	click("Request editor: Body")
+	click("Request body")
+	tt.Key(ui.Cmd, ui.KeyA)
+	tt.Type(`{"b":1,"a":[2,3]}`)
+	if got := read("Request body"); got != `{"b":1,"a":[2,3]}` {
+		t.Fatalf("typing into the body editor changed the bytes: %q", got)
+	}
+	click("Format body")
+	formatted := read("Request body")
+	if !strings.Contains(formatted, "\n  \"b\": 1") || a.requestDocument.composeBody != formatted {
+		t.Fatalf("Format did not indent the draft body: %q", formatted)
+	}
+	// The body type shares the same row and still switches what is edited.
+	click("Request body type")
+	click("Multipart")
+	if !tt.HasText("FORM DATA · duplicate names supported") || a.requestDocument.bodyMode != "Multipart" {
+		t.Fatalf("body type did not switch to form fields: %v", tt.Texts())
+	}
+}
+
+func TestHeaderTableKeepsOrderDuplicatesAndDisabledRows(t *testing.T) {
+	a := workspaceApp()
+	a.requestsPath = filepath.Join(t.TempDir(), "requests.json")
+	tt := ui.NewTester(a.view, 1200, 1000)
+	click := func(label string) {
+		t.Helper()
+		if err := tt.Click(label); err != nil {
+			t.Fatal(err)
+		}
+	}
+	edit := func(label, value string) {
+		t.Helper()
+		click(label)
+		tt.Key(ui.Cmd, ui.KeyA)
+		tt.Type(value)
+	}
+	read := func(label string) string {
+		t.Helper()
+		click(label)
+		tt.Key(ui.Cmd, ui.KeyA)
+		tt.Key(ui.Cmd, ui.KeyC)
+		return tt.Clipboard()
+	}
+	click("Requests")
+	click("List projects")
+	click("Request editor: Headers")
+	edit("header key 1", "X-Tag")
+	edit("header value 1", "first")
+	click("Add header")
+	edit("header key 2", "X-Tag")
+	edit("header value 2", "second")
+	click("Add header")
+	edit("header key 3", "X-Skip")
+	edit("header value 3", "not sent")
+	click("Enable header 3")
+	d := a.requestDocument
+	if d.composeHeaders != "X-Tag: first\nX-Tag: second" {
+		t.Fatalf("the header block lost order, duplicates or kept a disabled row: %q", d.composeHeaders)
+	}
+	kept := d.value().HeaderList
+	if len(kept) != 3 || kept[2].Name != "X-Skip" || !kept[2].Disabled {
+		t.Fatalf("a disabled row was dropped from the saved request: %+v", kept)
+	}
+	// Bulk edit shows what is sent, and its text replaces the table.
+	click("Toggle header editing mode")
+	if got := read("Request headers"); got != "X-Tag: first\nX-Tag: second" {
+		t.Fatalf("bulk edit did not show the enabled rows: %q", got)
+	}
+	edit("Request headers", "Accept: text/plain")
+	click("Toggle header editing mode")
+	if d.composeHeaders != "Accept: text/plain" || len(d.headerRows) != 2 || !d.headerRows[1].Disabled || d.headerRows[1].Name != "X-Skip" {
+		t.Fatalf("bulk text replaced the table but lost a switched-off row: %q %+v", d.composeHeaders, d.headerRows)
+	}
+	// Saving keeps both the block and the rows, disabled ones included.
+	click("Save")
+	if _, err := os.Stat(a.requestsPath); err != nil {
+		t.Fatal(err)
+	}
+	stored, err := loadRequests(a.requestsPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var saved *savedRequest
+	for i := range stored {
+		if stored[i].Name == "List projects" {
+			saved = &stored[i]
+		}
+	}
+	if saved == nil || saved.Headers != "Accept: text/plain" || len(saved.HeaderList) != 2 || !saved.HeaderList[1].Disabled {
+		t.Fatalf("saved headers lost their block, rows or a switched-off row: %+v", stored)
+	}
+}
+
+func TestHeaderRowKeyboardRevealAndCustomMethod(t *testing.T) {
+	a := workspaceApp()
+	a.requests[0].Headers = "Authorization: Bearer sk_live_123\nX-Trace: 9f2c"
+	tt := ui.NewTester(a.view, 1200, 900)
+	click := func(label string) {
+		t.Helper()
+		if err := tt.Click(label); err != nil {
+			t.Fatal(err)
+		}
+	}
+	click("Requests")
+	click("List projects")
+	click("Request editor: Headers")
+	// Tab reaches a header key and then its value, so a row is edited from
+	// the keyboard alone.
+	click("header key 2")
+	tt.Key(0, ui.KeyTab)
+	if !tt.Focused("header value 2") {
+		t.Fatalf("Tab from a header key did not reach its value: %q", tt.Texts())
+	}
+	// A credential is masked until the reader reveals that row.
+	click("Reveal header 1")
+	if _, ok := tt.Find("Hide header 1"); !ok {
+		t.Fatal("revealing a credential row left it masked")
+	}
+	if got := readField(t, tt, "header value 1"); got != "Bearer sk_live_123" {
+		t.Fatalf("revealed value changed: %q", got)
+	}
+	// The method is an editable dropdown: a method it lacks still sticks.
+	click("Method")
+	tt.Key(ui.Cmd, ui.KeyA)
+	tt.Type("PURGE")
+	tt.Key(0, ui.KeyEnter)
+	tt.Frame()
+	if a.requestDocument.composeMethod != "PURGE" {
+		t.Fatalf("a typed method was reverted: %q", a.requestDocument.composeMethod)
+	}
+}
+
+func TestFirstResponseMovesOnlyAnUntouchedDivider(t *testing.T) {
+	a := workspaceApp()
+	tt := ui.NewTester(a.view, 1200, 800)
+	click := func(label string) {
+		t.Helper()
+		if err := tt.Click(label); err != nil {
+			t.Fatal(err)
+		}
+	}
+	click("Requests")
+	click("List projects")
+	d := a.requestDocument
+	if d.requestPercent != draftPercent {
+		t.Fatalf("an unsent draft opened with %v%% for the request", d.requestPercent)
+	}
+	// Untouched: the first response takes the room back.
+	d.responseArrived()
+	if d.requestPercent != responsePercent {
+		t.Fatalf("the first response left the request %v%%", d.requestPercent)
+	}
+	// A divider the reader moved stays where they put it.
+	d.requestPercent = 70
+	tt.Frame()
+	d.responseArrived()
+	if d.requestPercent != 70 || !d.splitTouched {
+		t.Fatalf("a moved divider was reset to %v%% (touched %t)", d.requestPercent, d.splitTouched)
+	}
+}
+
+func TestBulkEditAsksBeforeShowingCredentials(t *testing.T) {
+	a := workspaceApp()
+	a.requests[0].Headers = "Authorization: Bearer sk_live_123"
+	tt := ui.NewTester(a.view, 1200, 900)
+	click := func(label string) {
+		t.Helper()
+		if err := tt.Click(label); err != nil {
+			t.Fatal(err)
+		}
+	}
+	click("Requests")
+	click("List projects")
+	click("Request editor: Headers")
+	click("Toggle header editing mode")
+	if !tt.HasText("Bulk edit shows credentials") {
+		t.Fatalf("bulk edit opened without warning about credentials: %q", tt.Texts())
+	}
+	click("Cancel")
+	if a.requestDocument.headerBulk || !tt.HasText("header key 1") {
+		t.Fatal("cancelling the warning still switched to the block")
+	}
+	click("Toggle header editing mode")
+	click("Show values")
+	if !a.requestDocument.headerBulk {
+		t.Fatal("confirming the warning did not switch to the block")
+	}
+	click("Request headers")
+	tt.Key(ui.Cmd, ui.KeyA)
+	tt.Key(ui.Cmd, ui.KeyC)
+	if !strings.Contains(tt.Clipboard(), "Authorization: Bearer sk_live_123") {
+		t.Fatalf("the block did not show the values it warned about: %q", tt.Clipboard())
+	}
+}
+
+// readField copies a text input's value.
+func readField(t *testing.T, tt *ui.Tester, label string) string {
+	t.Helper()
+	if err := tt.Click(label); err != nil {
+		t.Fatal(err)
+	}
+	tt.Key(ui.Cmd, ui.KeyA)
+	tt.Key(ui.Cmd, ui.KeyC)
+	return tt.Clipboard()
 }
 
 func TestRuleEditorPersistsOrderingTogglesAndCapturedMock(t *testing.T) {
@@ -1709,7 +2052,10 @@ func TestRuleEditorPersistsOrderingTogglesAndCapturedMock(t *testing.T) {
 		}
 		return rules
 	}
-	click("Rules")
+	click("More")
+	if err := tt.ChooseMenuItem("Debugging rules…"); err != nil {
+		t.Fatal(err)
+	}
 	tt.SetSize(960, 600)
 	for _, label := range []string{"Close", "Save rule"} {
 		bounds, ok := tt.Find(label)
@@ -1761,7 +2107,10 @@ func TestRuleEditorPersistsOrderingTogglesAndCapturedMock(t *testing.T) {
 		t.Fatalf("mock body %q: %v", body, err)
 	}
 	click("Close")
-	click("Rules")
+	click("More")
+	if err := tt.ChooseMenuItem("Debugging rules…"); err != nil {
+		t.Fatal(err)
+	}
 	edit("Rule name", "Should not apply")
 	a.rulesPath = t.TempDir() // a directory cannot be replaced by a rule file
 	click("Save rule")
@@ -1920,8 +2269,8 @@ func TestDeviceOnboardingCertificateHTTPSAndLiveTunnelRevocation(t *testing.T) {
 	}
 	echo(mobile, "device tunnel before disable")
 	click("Close")
-	click("Network · LAN")
-	if err := tt.ChooseMenuItem("Connect a device…"); err != nil {
+	click("More")
+	if err := tt.ChooseMenuItem("Network", "Connect a device…"); err != nil {
 		t.Fatal(err)
 	}
 	if !tt.HasText("LAN enabled") {
@@ -1971,12 +2320,12 @@ func TestCaptureRegressionCanBeSavedAndSharedOnlyAfterReview(t *testing.T) {
 	if a.workspace != 1 || !tt.HasText("RESPONSE CHECKS") || a.sourceFlow != 1 || a.composeWaiting {
 		t.Fatal("capture did not become an unsent regression draft")
 	}
-	click("Save request")
+	click("Save")
 	loaded, err := loadRequests(a.requestsPath)
 	if err != nil || len(loaded) != 2 || loaded[0].Checks.Status != "200" {
 		t.Fatalf("checks not saved: %+v %v", loaded, err)
 	}
-	click("Case")
+	click("Request options")
 	if err := tt.ChooseMenuItem("Share regression…"); err != nil {
 		t.Fatal(err)
 	}
@@ -2160,8 +2509,8 @@ func TestBatchReplaySendsChosenRequestsInOrder(t *testing.T) {
 	a.chosen.Add(1)
 	a.chosen.Add(2)
 	tt := ui.NewTester(a.view, 960, 600)
-	tt.Click("Session")
-	if err := tt.ChooseMenuItem("Replay chosen…"); err != nil {
+	tt.Click("More")
+	if err := tt.ChooseMenuItem("Session", "Replay chosen…"); err != nil {
 		t.Fatal(err)
 	}
 	if !tt.HasText("Replay 2 requests") {
@@ -2241,7 +2590,7 @@ func TestTriageFiltersAndQuickPresetsStayWithTheirView(t *testing.T) {
 	}
 	tt.Click("Saved filters…")
 	tt.Click("Filter name")
-	tt.Key(ui.Ctrl, ui.KeyA)
+	tt.Key(ui.Cmd, ui.KeyA)
 	tt.Type("Checkout failures")
 	tt.Click("Save filter")
 	tt.Click("Close")
@@ -2254,7 +2603,7 @@ func TestTriageFiltersAndQuickPresetsStayWithTheirView(t *testing.T) {
 		t.Fatal("new view inherited triage")
 	}
 	if err := tt.Click("Quick filter: Checkout failures"); err != nil {
-		t.Fatal(err)
+		t.Fatalf("%v; texts %q; filters %+v", err, tt.Texts(), a.views.filters)
 	}
 	if len(a.visible) != 1 {
 		t.Fatal("one-click filter not applied")
@@ -2337,14 +2686,14 @@ func TestDesktopLayoutDefaultsBelowAndSwitchesWithoutLosingCaptureContext(t *tes
 		}
 	}
 	check(false) // A: bottom inspector is the default even on wide windows.
-	click("View")
-	if err := tt.ChooseMenuItem("Inspector: Right (wide windows)"); err != nil {
+	click("More")
+	if err := tt.ChooseMenuItem("View", "Inspector: Right (wide windows)"); err != nil {
 		t.Fatal(err)
 	}
 	check(true)
 	tt.SetSize(960, 600)
 	check(false)
-	click("Focus")
+	tt.Key(ui.Cmd|ui.Shift, ui.KeyEnter)
 	if !tt.HasText("Back to list") || tt.HasText("All requests") {
 		t.Fatal("focus did not give the inspector the content area")
 	}
@@ -2352,8 +2701,8 @@ func TestDesktopLayoutDefaultsBelowAndSwitchesWithoutLosingCaptureContext(t *tes
 	check(false)
 	tt.SetSize(1440, 860)
 	check(true)
-	click("View")
-	if err := tt.ChooseMenuItem("Inspector: Bottom"); err != nil {
+	click("More")
+	if err := tt.ChooseMenuItem("View", "Inspector: Bottom"); err != nil {
 		t.Fatal(err)
 	}
 	check(false)
@@ -2372,8 +2721,8 @@ func TestDesktopLayoutDefaultsBelowAndSwitchesWithoutLosingCaptureContext(t *tes
 	number, _ := tt.Find("#")
 	url, _ := tt.Find("URL")
 	method, _ := tt.Find("Method")
-	if number.X >= url.X || url.X >= method.X {
-		t.Fatal("reset layout did not restore the URL-first default columns")
+	if number.X >= method.X || method.X >= url.X {
+		t.Fatal("reset layout did not restore the method-before-URL default columns")
 	}
 }
 
@@ -2469,7 +2818,7 @@ func TestKeyboardDebuggingLoopDoesNotSendThroughDialogsOrRepeatWhileWaiting(t *t
 	tt.Type(upstream.URL + "/keyboard")
 	tt.Key(0, ui.KeyEnter)
 	tt.Key(ui.Cmd, ui.KeyK)
-	tt.Type("Compare source")
+	tt.Type("Compare with source")
 	tt.Key(0, ui.KeyEnter)
 	if !tt.HasText("Send a draft opened from Capture before comparing it with its source") {
 		t.Fatal("unavailable comparison did not explain its prerequisite")
@@ -2483,12 +2832,12 @@ func TestKeyboardDebuggingLoopDoesNotSendThroughDialogsOrRepeatWhileWaiting(t *t
 		t.Fatal("dismissing the palette lost the editor's focus")
 	}
 	for range 20 {
-		if tt.Focused("Request headers") {
+		if tt.Focused("header key 1") {
 			break
 		}
 		tt.Key(0, ui.KeyTab)
 	}
-	if !tt.Focused("Request headers") {
+	if !tt.Focused("header key 1") {
 		t.Fatal("request headers were not keyboard accessible")
 	}
 	tt.Key(ui.Cmd, ui.KeyEnter)

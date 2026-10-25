@@ -40,7 +40,7 @@ func captureViewsFrame(a *app, v *captureViews) func(*ui.Context) {
 		v.drain(a)
 		v.sync(a)
 		ui.Column(c).Fill().Background(t.Background).Children(func() {
-			v.controls(c, t, a)
+			v.sidebar(c, t, a)
 			ui.Text(c, fmt.Sprintf("rows: %d", len(a.visible)))
 			ui.Text(c, "search: "+a.query)
 			ui.Text(c, "filter: "+a.filter)
