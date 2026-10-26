@@ -27,6 +27,7 @@ type experimentWorkbench struct {
 	comparison                       captureAnalysis
 	sourceComparison                 captureAnalysis
 	scope                            *debugSource
+	draftKey                         string
 	wire                             int
 	changed                          time.Time
 	jobs                             chan experimentLog
@@ -202,7 +203,11 @@ func (a *app) experimentsModal(c *ui.Context, t *ui.Theme) {
 	appModal(c, &s.open, func() {
 		ui.Column(c).Width(min(1200, width-80)).Height(height - 100).Gap(10).Children(func() {
 			ui.Row(c).Gap(8).Children(func() {
-				dialogTitle(c, "Experiments").Grow(1)
+				title := "Experiments"
+				if s.scope != nil || s.draftKey != "" {
+					title = "Send history"
+				}
+				dialogTitle(c, title).Grow(1)
 				if ui.Button(c, "Clear experiments…").Disabled(s.readOnly || len(s.log.Records) == 0).Clicked() {
 					s.clearing = true
 				}
@@ -243,6 +248,8 @@ func (a *app) experimentsModal(c *ui.Context, t *ui.Theme) {
 						message := "Send a request to record an experiment."
 						if s.scope != nil {
 							message = "No retained experiments for this source. Open a linked draft to continue; opening never sends."
+						} else if s.draftKey != "" {
+							message = "No retained sends for this draft. Opening history never sends."
 						}
 						ui.Text(c, message).FontSize(12)
 						if s.scope != nil {
@@ -257,11 +264,20 @@ func (a *app) experimentsModal(c *ui.Context, t *ui.Theme) {
 					}
 					ui.Text(c, fmt.Sprintf("Experiment #%d · %s %s", r.ID, r.Draft.Method, r.Draft.URL)).FontSize(12).Bold().SingleLine().Tooltip(r.Draft.URL)
 					ui.Text(c, r.Summary+" · Environment: "+cmp.Or(r.Environment, "none")).FontSize(11).TextColor(t.TextMuted)
+					if r.Outcome != "" {
+						ui.Text(c, r.Outcome).FontSize(11).TextColor(t.TextMuted)
+					}
 					ui.Row(c).Gap(6).Wrap().Children(func() {
 						if ui.Button(c, "Open as draft").FontSize(11).Clicked() {
 							a.addDocument(r.Draft, "")
 							a.setDebugSource(r.Source)
 							a.experimentID, a.response, a.composeTests, a.composeResult = r.ID, r.response(), slices.Clone(r.Tests), r.Summary
+							a.composeReplies = slices.Clone(r.Replies)
+							a.sent, a.sentAt, a.sentSet, a.sentRun = a.value(), r.At, true, r.RunKey
+							a.sendOutcome = cmp.Or(r.Outcome, "Retained attempt")
+							if a.response != nil {
+								a.responseArrived()
+							}
 							s.open = false
 						}
 						if ui.Button(c, "Trace source").FontSize(11).Disabled(r.Source == nil).Clicked() {
@@ -295,7 +311,24 @@ func (a *app) experimentsModal(c *ui.Context, t *ui.Theme) {
 						}
 					})
 					a.debugWire(c, *r)
-					ui.Tabs(c, &s.tab, "Recorded result", "Compare experiments", "Compare source")
+					if ui.Tabs(c, &s.tab, "Recorded result", "Compare experiments", "Compare source", "Sent request").Changed() {
+						s.reader = nil
+					}
+					if s.tab == 3 {
+						ui.Text(c, "Initial client request after variables and pre-request script; redirect hops and proxy interventions are separate wire exchanges.").FontSize(10).TextColor(t.TextMuted)
+						if s.reader == nil {
+							text := "Request was not prepared. The editable draft snapshot is retained."
+							if f := r.Exchange; f != nil {
+								text = f.Method + " " + f.URL + "\n" + headerBlock(f.RequestHeader) + "\n\n" + string(r.RequestBody)
+								if f.RequestBodyError != "" {
+									text += "\n\n" + f.RequestBodyError
+								}
+							}
+							s.reader = &editor.State{Buffer: editor.NewBuffer(text), ReadOnly: true, NoScrollPastEnd: true, SoftWrap: true, Label: "Sent request snapshot"}
+						}
+						editor.View(c, s.reader).Grow(1)
+						return
+					}
 					if s.tab == 2 {
 						s.compareSource(c, *r)
 						return

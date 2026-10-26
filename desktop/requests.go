@@ -2,6 +2,7 @@ package main
 
 import (
 	"cmp"
+	"context"
 	"encoding/json/jsontext"
 	"fmt"
 	"net/http"
@@ -65,6 +66,10 @@ type requestDocument struct {
 	scriptTab      int
 	composeResult  string
 	composeWaiting bool
+	sendCancel     context.CancelFunc
+	sendCancelling bool
+	sendOutcome    string
+	sentRun        string
 	// bodyEditor is the raw request body's editor. bodyFor is the text it
 	// last held, so an import or a restored draft resets it while typing
 	// never does. The scripts use the same reader, each with its own state.
@@ -104,6 +109,7 @@ type requestDocument struct {
 type requestResult struct {
 	document    *requestDocument
 	summary     string
+	outcome     string
 	response    *capture.Flow
 	tests       []testResult
 	replies     []string
@@ -135,6 +141,13 @@ func (d *requestDocument) value() savedRequest {
 }
 
 func (d *requestDocument) dirty() bool { return !reflect.DeepEqual(d.value(), d.baseline) }
+
+func (d *requestDocument) cancelSend() {
+	if d.composeWaiting && d.sendCancel != nil && !d.sendCancelling {
+		d.sendCancelling = true
+		d.sendCancel()
+	}
+}
 
 func (d *requestDocument) title() string {
 	return cmp.Or(d.composeName, "Untitled request")
@@ -394,7 +407,7 @@ func (a *app) headerWarnModal(c *ui.Context, t *ui.Theme) {
 		ui.Column(c).Width(460).Gap(12).Children(func() {
 			dialogTitle(c, "Bulk edit shows credentials")
 			ui.Text(c, "The Key: Value block writes every header value in plain text, including tokens, cookies and passwords. The table masks them one row at a time.").FontSize(12).TextColor(t.TextMuted)
-			ui.Text(c, "Values stay in this app; reveal rows in the table if the screen is being shared.").FontSize(11).TextColor(t.TextMuted)
+			ui.Text(c, "Switching modes does not send a request. All enabled header values will be visible; be careful when sharing your screen.").FontSize(12).TextColor(t.TextMuted)
 			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
 				if ui.Button(c, "Cancel").Clicked() {
 					d.headerWarn = false
@@ -472,7 +485,7 @@ func (a *app) requestBreadcrumb(c *ui.Context, t *ui.Theme, d *requestDocument) 
 			a.renameOpen = true
 		}
 		rename.Children(func() { ui.Text(c, name).FontSize(12).SingleLine().MaxWidth(320) })
-		if d.experimentID != 0 {
+		if d.experimentID != 0 && !d.composeWaiting {
 			ui.Text(c, fmt.Sprintf("Recorded experiment #%d · retained result", d.experimentID)).FontSize(11).TextColor(t.TextMuted).SingleLine()
 		}
 		if d.sourceFlow != 0 && (a.query != "" || a.filter != "all" || a.chip != 0 || a.filtersActive()) {
@@ -497,14 +510,11 @@ func (a *app) requestBreadcrumb(c *ui.Context, t *ui.Theme, d *requestDocument) 
 				a.copyCurl(c, flow{method: d.composeMethod, url: d.composeURL, reqHeader: parseHeaderBlock(d.composeHeaders), reqBody: d.composeBody})
 			}
 			if m.Item("Experiments…").Chosen() {
+				a.experiments.scope, a.experiments.draftKey = nil, ""
 				a.experiments.open = true
 			}
 			if m.Item("Send history").Chosen() {
-				if d.origin != nil {
-					a.openDebugHistory(d.origin)
-				} else {
-					a.setMessage("Send this request to start its history")
-				}
+				a.openSendHistory(d)
 			}
 			m.Separator()
 			if m.Item("Share regression…").Chosen() {
@@ -584,6 +594,14 @@ func (a *app) requestBar(c *ui.Context, t *ui.Theme, d *requestDocument) {
 			sendLabel = "Sending…"
 		}
 		a.desktopButton(c, "send", sendLabel).Width(96).Height(34).Background(t.Accent).TextColor(t.AccentText)
+		if d.composeWaiting {
+			label := "Cancel"
+			if d.sendCancelling {
+				label = "Cancelling…"
+			}
+			a.desktopButton(c, "cancel-send", label).Label("Cancel send").Width(96).Height(34).
+				Tooltip("Stop waiting; cancelling does not undo server-side changes")
+		}
 	})
 	ui.Divider(c)
 }
@@ -644,11 +662,11 @@ func (a *app) requestSentState(c *ui.Context, t *ui.Theme, d *requestDocument) {
 	switch {
 	case d.composeWaiting:
 		ui.Text(c, "Sending…").FontSize(11).TextColor(t.TextMuted)
-	case d.response == nil:
+	case !d.sentSet:
 		ui.Text(c, "Not sent yet").FontSize(11).TextColor(t.TextMuted)
-	case d.sentSet && reflect.DeepEqual(d.value(), d.sent):
-		ui.Text(c, "Matches last send · "+d.sentAt.Local().Format("15:04:05")).FontSize(11).TextColor(t.TextMuted).
-			Tooltip("The draft on screen is exactly what was sent")
+	case reflect.DeepEqual(d.value(), d.sent):
+		ui.Text(c, "Draft matches last attempt · "+d.sentAt.Local().Format("15:04:05")).FontSize(11).TextColor(t.TextMuted).
+			Tooltip("The draft snapshot matches; variables, scripts, redirects and rules may change the wire request")
 	default:
 		ui.Text(c, "Edited since last send · not yet sent").FontSize(11).TextColor(t.Warning).
 			Tooltip("The response below belongs to the previous send, not to this draft")
@@ -659,17 +677,28 @@ func (a *app) requestSentState(c *ui.Context, t *ui.Theme, d *requestDocument) {
 // its own format, headers, cookies and timing, tied to the send that produced
 // it.
 func (a *app) requestResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
+	outcome, detail := d.sendOutcome, d.composeResult
+	if r := a.experiments.record(d.experimentID); r != nil && r.RunKey == d.sentRun && r.Outcome == "Network error" {
+		outcome, detail = r.Outcome, r.Summary
+	}
 	ui.Column(c).Fill().Children(func() {
-		ui.Row(c).Height(40).Padding(0, 12).Gap(10).AlignItems(ui.Center).Children(func() {
+		ui.Row(c).MinHeight(40).Padding(6, 12).Gap(8).Wrap().AlignItems(ui.Center).Children(func() {
 			ui.Text(c, "Response").FontSize(12).Bold().TextColor(t.Text)
 			if r := d.response; r != nil {
-				ui.Text(c, fmt.Sprintf("%d %s", r.Status, http.StatusText(r.Status))).FontSize(12).Bold().TextColor(statusColor(r.Status, t))
+				status := fmt.Sprintf("%d %s", r.Status, http.StatusText(r.Status))
+				if outcome == "Network error" {
+					status = fmt.Sprintf("%d · proxy response", r.Status)
+				}
+				ui.Text(c, status).FontSize(12).Bold().TextColor(statusColor(r.Status, t))
 				ui.Text(c, "·").FontSize(12).TextColor(t.Border)
 				ui.Text(c, fmt.Sprintf("%d ms", r.Millis)).FontSize(12).TextColor(t.TextMuted)
 				ui.Text(c, "·").FontSize(12).TextColor(t.Border)
 				ui.Text(c, humanBytes(r.Bytes)).FontSize(12).TextColor(t.TextMuted)
 			} else if d.composeWaiting {
 				ui.Text(c, "Sending…").FontSize(12).TextColor(t.TextMuted)
+			}
+			if !d.composeWaiting && outcome != "" && outcome != "Response received" {
+				ui.Text(c, outcome).FontSize(11).TextColor(t.Warning)
 			}
 			if len(d.composeTests) > 0 {
 				passed := 0
@@ -697,16 +726,26 @@ func (a *app) requestResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 			// Without a retained send there is nothing to read, so the entry
 			// waits rather than opening an empty list.
 			if ui.ButtonBase(c).Label("Send history").Height(26).Padding(0, 8).Gap(6).Radius(5).AlignItems(ui.Center).
-				TextColor(t.TextMuted).Disabled(d.origin == nil).
-				Tooltip("Retained sends of this request; send it once to start the history").Children(func() {
+				TextColor(t.TextMuted).Disabled(d.origin == nil && d.experimentID == 0).
+				Tooltip("Inspect the exact request and result of each retained attempt; opening never sends").Children(func() {
 				ui.Icon(c, sendHistoryIcon).Size(13, 13)
 				ui.Text(c, "Send history").FontSize(11)
 			}).Clicked() {
-				if d.origin != nil {
-					a.openDebugHistory(d.origin)
-				}
+				a.openSendHistory(d)
 			}
 		})
+		if d.sentSet {
+			ui.Row(c).Height(26).Padding(0, 12).Gap(10).AlignItems(ui.Center).Children(func() {
+				label := "Last attempt · " + d.sentAt.Local().Format("15:04:05") + " · " + d.sent.Method + " " + d.sent.URL
+				ui.Text(c, label).FontSize(11).TextColor(t.TextMuted).SingleLine().Grow(1).Tooltip(label + "\nDraft snapshot; inspect Send history for prepared request and wire evidence")
+				if !reflect.DeepEqual(d.value(), d.sent) {
+					ui.Text(c, "Draft changed · not sent").FontSize(11).TextColor(t.Warning)
+				}
+			})
+		}
+		if outcome == "Network error" && d.response != nil || outcome == "Post-response script failed" || outcome == "Cancelled" && d.response != nil || outcome == "Timed out" && d.response != nil {
+			ui.Text(c, outcome+": "+detail).FontSize(11).TextColor(t.Danger).Padding(6, 12).Selectable()
+		}
 		if d.response == nil && len(d.composeReplies) == 0 {
 			// Nothing has come back yet: the empty state says what to do, and
 			// the tabs wait for something to read.
@@ -714,9 +753,6 @@ func (a *app) requestResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 			return
 		}
 		if d.comparing {
-			if strings.HasPrefix(d.composeResult, "Post-response script:") {
-				ui.Text(c, d.composeResult).FontSize(11).TextColor(t.Danger).Padding(6, 12)
-			}
 			a.responseBody(c, t, d)
 			a.responseProvenance(c, t, d)
 			return
@@ -747,9 +783,6 @@ func (a *app) requestResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 				}
 			}
 		})
-		if strings.HasPrefix(d.composeResult, "Post-response script:") {
-			ui.Text(c, d.composeResult).FontSize(11).TextColor(t.Danger).Padding(6, 12)
-		}
 		a.responseBody(c, t, d)
 		a.responseProvenance(c, t, d)
 	})
@@ -772,9 +805,23 @@ func (a *app) responseProvenance(c *ui.Context, t *ui.Theme, d *requestDocument)
 // responseBody shows the chosen view of the last response.
 func (a *app) responseBody(c *ui.Context, t *ui.Theme, d *requestDocument) {
 	if d.response == nil && len(d.composeReplies) == 0 {
-		ui.Column(c).Grow(1).Center().Gap(8).Children(func() {
-			ui.Text(c, cmp.Or(d.composeResult, "Send a request to see its response")).FontSize(12).TextColor(t.TextMuted)
-			ui.Text(c, "The exchange will also appear in Capture.").FontSize(11).TextColor(t.TextMuted)
+		ui.Scroll(c).Grow(1).FillWidth().Padding(16).Children(func() {
+			ui.Column(c).FillWidth().AlignItems(ui.Center).Gap(8).Children(func() {
+				if d.composeWaiting {
+					ui.Spinner(c).Label("Waiting for request result")
+					ui.Text(c, "Waiting for response… · 30 s timeout").FontSize(12).TextColor(t.TextMuted)
+				} else if d.sendOutcome != "" {
+					ui.Text(c, d.sendOutcome).FontSize(13).TextColor(t.Warning)
+					ui.Text(c, d.composeResult).FontSize(12).TextColor(t.Text).Selectable().FillWidth()
+					ui.Text(c, "Edit the draft and send again. No automatic retry.").FontSize(11).TextColor(t.TextMuted)
+				} else {
+					ui.Text(c, cmp.Or(d.composeResult, "Send a request to see its response")).FontSize(12).TextColor(t.TextMuted)
+					ui.Text(c, "The exchange will also appear in Capture.").FontSize(11).TextColor(t.TextMuted)
+				}
+				if d.composeWaiting || d.sendOutcome == "Cancelled" || d.sendOutcome == "Timed out" {
+					ui.Text(c, "Cancelling does not undo server-side changes.").FontSize(11).TextColor(t.TextMuted)
+				}
+			})
 		})
 		return
 	}
@@ -831,10 +878,17 @@ func (a *app) responseBody(c *ui.Context, t *ui.Theme, d *requestDocument) {
 			}
 			ui.Text(c, fmt.Sprintf("Total %d ms · %s", d.response.Millis, humanBytes(d.response.Bytes))).FontSize(12)
 			ui.Text(c, "Per-phase timing (DNS, connect, TLS, wait, download) is recorded on the capture in Capture → Timing.").FontSize(11).TextColor(t.TextMuted)
-			if ui.Button(c, "Inspect timing in Capture").FontSize(11).Clicked() {
-				if index := a.sourceFlowIndex(); index >= 0 {
-					a.inspectCapture(index)
+			index := a.sentFlowIndex(d)
+			if ui.Button(c, "Inspect timing in Capture").FontSize(11).Disabled(index < 0).Clicked() {
+				if index >= 0 {
+					a.inspectCapture(a.flows[index].id)
+					a.syncDetail()
+					a.inspect.pane, a.inspect.ready = inspectorSplit, true
+					a.inspect.tab[1] = resTabTiming
 				}
+			}
+			if index < 0 {
+				ui.Text(c, "This send's wire capture is not available in this session. Send history may retain its snapshot.").FontSize(11).TextColor(t.TextMuted)
 			}
 		})
 	case resViewTests:
@@ -914,16 +968,13 @@ func (a *app) responseHex(c *ui.Context, d *requestDocument, body string) {
 	}).Grow(1)
 }
 
-// sourceFlowIndex finds the capture this draft came from, if it is still in
-// the session.
-func (a *app) sourceFlowIndex() int {
-	d := a.requestDocument
-	if d == nil || d.sourceFlow == 0 {
-		return -1
-	}
-	for _, f := range a.flows {
-		if f.id == d.sourceFlow {
-			return f.id
+// Only a run key links this send's final wire hop, never its URL or source ID.
+func (a *app) sentFlowIndex(d *requestDocument) int {
+	if d.sentRun != "" {
+		for i := len(a.flows) - 1; i >= 0; i-- {
+			if a.flows[i].debugRun == d.sentRun && a.flows[i].kind != "connect" {
+				return i
+			}
 		}
 	}
 	return -1

@@ -57,6 +57,8 @@ type savedCaptureFilter struct {
 // captureTriage is shared by live views and portable saved filters. Numeric
 // conditions name their units in the UI; there are no implicit KiB conversions.
 type captureTriage struct {
+	Host     string `json:"host,omitempty"`
+	Client   string `json:"client,omitempty"`
 	Method   string `json:"method,omitempty"`
 	Duration string `json:"duration,omitempty"`
 	Size     string `json:"size,omitempty"`
@@ -95,6 +97,9 @@ func numericCondition(value int, expression string) (bool, bool) {
 }
 
 func (q captureTriage) matches(f flow) bool {
+	if q.Host != "" && q.Host != f.host || q.Client != "" && q.Client != f.process {
+		return false
+	}
 	if q.Method != "" {
 		matched := false
 		for method := range strings.SplitSeq(q.Method, ",") {
@@ -113,6 +118,7 @@ func (q captureTriage) matches(f flow) bool {
 func (q captureTriage) summary() []string {
 	var parts []string
 	for _, field := range []struct{ name, value string }{
+		{"host", q.Host}, {"app", q.Client},
 		{"method", q.Method}, {"duration ms", q.Duration}, {"response bytes", q.Size}, {"color", q.Color}, {"note", q.Note},
 	} {
 		if field.value != "" {
@@ -138,6 +144,15 @@ func loadCaptureFilters(path string) ([]savedCaptureFilter, error) {
 	var list []savedCaptureFilter
 	if err := json.Unmarshal(data, &list); err != nil {
 		return nil, err
+	}
+	// Earlier versions kept host/app in the single sidebar choice.
+	for i := range list {
+		f := &list[i]
+		if host, ok := strings.CutPrefix(f.Filter, "host:"); ok {
+			f.Triage.Host, f.Filter = host, "all"
+		} else if client, ok := strings.CutPrefix(f.Filter, "client:"); ok {
+			f.Triage.Client, f.Filter = client, "all"
+		}
 	}
 	return list, nil
 }
@@ -830,6 +845,37 @@ func (v *captureViews) clearFilters(a *app) {
 	a.setMessage("Filters cleared")
 }
 
+// resetFilters clears every condition in this view, not in other views or
+// in the saved filter library. Sorting and the view itself stay in place.
+func (v *captureViews) resetFilters(a *app) {
+	a.query, a.filter, a.chip = "", "all", 0
+	v.capture(a)
+	v.clearFilters(a)
+}
+
+// Header filtering has the same case-insensitive contains contract as the
+// dialog. Never move a credential into the always-visible, saveable chips.
+func (a *app) headerFilterMenu(c *ui.Context, name string, values []string) func(*ui.Menu) {
+	return func(m *ui.Menu) {
+		m.EditItems()
+		m.Item("Matches request or response headers").Disabled(true)
+		if m.Item("Header exists: " + name).Chosen() {
+			a.filterHeader = name
+			c.AnimationFrame()
+		}
+		if sensitiveHeader(name) {
+			m.Item("Credential values are not added to filters").Disabled(true)
+			return
+		}
+		for i, value := range values {
+			if m.Item(fmt.Sprintf("Contains value %d: %s", i+1, clamp(value, 50))).Chosen() {
+				a.filterHeader = name + ": " + value
+				c.AnimationFrame()
+			}
+		}
+	}
+}
+
 // statusDetail says why a body could not be read, for a tooltip.
 func (v *captureViews) statusDetail() string {
 	var parts []string
@@ -856,6 +902,7 @@ func (v *captureViews) openFilter(a *app) {
 
 // openSaved shows the saved filters, and the name they are saved under.
 func (v *captureViews) openSaved(a *app) {
+	v.capture(a)
 	v.savedOpen = true
 	v.problem = ""
 	v.note = ""
@@ -931,16 +978,14 @@ func (v *captureViews) sidebar(c *ui.Context, t *ui.Theme, a *app) {
 		}
 		for _, f := range v.filters {
 			active := v.activeView().saved(f.Name) == f
-			b := ui.ButtonBase(c).Label("Quick filter: "+f.Name).Height(26).Padding(0, 6).Radius(5).FillWidth().
+			b := ui.ButtonBase(c).Label("Quick filter: "+f.Name).Height(26).Padding(0, 6).Gap(6).Radius(5).FillWidth().
 				AlignItems(ui.Center).TextColor(t.TextMuted)
 			if active {
 				b.Background(t.SurfaceHover).TextColor(t.Text)
 			}
 			if b.Clicked() {
 				if active {
-					a.query, a.filter, a.chip = "", "all", 0
-					v.capture(a)
-					v.clearFilters(a)
+					v.resetFilters(a)
 				} else {
 					v.applySaved(a, f.Name)
 				}
@@ -981,9 +1026,17 @@ func (v *captureViews) filterModal(c *ui.Context, t *ui.Theme, a *app) {
 	appModal(c, &v.filterOpen, func() {
 		ui.Column(c).Width(560).Gap(8).Children(func() {
 			dialogTitle(c, "Filter "+v.label(v.active))
-			ui.Text(c, "Status takes 404, 4xx, 200-299 or >=400; separate alternatives with commas (4xx, 5xx). A header is a name, or \"name: value\". Body searches both sides in full, including spilled files.").
+			ui.Text(c, "All fields combine with AND. Host and app match exactly. Status takes 404, 4xx, 200-299 or >=400; commas mean OR. Header values use case-insensitive contains on either side. Body searches both sides in full, including spilled files.").
 				FontSize(11).TextColor(t.TextMuted)
 			problem := ""
+			ui.Row(c).Gap(12).Children(func() {
+				ui.Field(c, "Host (exact, including port)", func() {
+					ui.TextInput(c, &v.editTriage.Host).Label("Filter host").Placeholder("api.example.com")
+				}).Grow(1)
+				ui.Field(c, "App (exact name)", func() {
+					ui.TextInput(c, &v.editTriage.Client).Label("Filter app").Placeholder("Browser")
+				}).Grow(1)
+			})
 			ui.Row(c).Gap(12).Children(func() {
 				ui.Field(c, "Method (comma-separated)", func() {
 					ui.TextInput(c, &v.editTriage.Method).Label("Filter method").Placeholder("GET, POST")
@@ -1080,6 +1133,8 @@ func (v *captureViews) commitFilter(a *app) {
 	view.header = strings.TrimSpace(v.editHeader)
 	view.body = v.editBody
 	view.triage = v.editTriage
+	view.triage.Host = strings.TrimSpace(view.triage.Host)
+	view.triage.Client = strings.TrimSpace(view.triage.Client)
 	view.triage.Method = strings.TrimSpace(view.triage.Method)
 	v.bind(a)
 	v.applyFilter(a)

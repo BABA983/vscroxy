@@ -30,6 +30,7 @@ type experimentRecord struct {
 	Draft        savedRequest
 	Environment  string
 	Summary      string
+	Outcome      string `json:",omitempty"`
 	Tests        []testResult
 	Replies      []string
 	Exchange     *capture.Flow
@@ -61,7 +62,7 @@ func snapshotExperiment(id int, draft savedRequest, environment string, got requ
 	draft.Form = slices.Clone(draft.Form)
 	r := experimentRecord{
 		ID: id, At: time.Now(), Draft: draft, Environment: environment,
-		Summary: got.summary(), Tests: slices.Clone(got.tests), Replies: slices.Clone(got.replies),
+		Summary: got.summary(), Outcome: got.outcome(), Tests: slices.Clone(got.tests), Replies: slices.Clone(got.replies),
 	}
 	f := got.response
 	if f == nil && got.request != nil {

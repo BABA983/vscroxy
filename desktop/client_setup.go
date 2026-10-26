@@ -4,9 +4,9 @@ import (
 	"cmp"
 	"fmt"
 	"net/url"
+	"strings"
 	"time"
 
-	"github.com/baba983/vscroxy/desktop/internal/capture"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -15,6 +15,7 @@ type clientSetup struct {
 	runtime string
 	url     string
 	since   time.Time
+	scroll  ui.ScrollState
 }
 
 func (a *app) openClientSetup() {
@@ -40,12 +41,46 @@ func clientExample(runtime, addr, ca, target string) string {
 // Evidence is deliberately session-wide, not attributed to the selected device
 // or runtime: gateways do not preserve a device identity in the capture core.
 func (a *app) setupEvidence(c *ui.Context, t *ui.Theme, target string, since time.Time) {
-	u, err := url.Parse(target)
+	u, err := url.Parse(strings.TrimSpace(target))
 	if err != nil || u.Scheme != "https" || u.Hostname() == "" || u.User != nil {
 		ui.Text(c, "Enter an HTTPS URL without embedded credentials.").FontSize(12).TextColor(t.Warning)
 		return
 	}
-	enabled := (capture.SSLConfig{All: a.sslAll, Hosts: splitHosts(a.sslHosts)}).Decrypts(u.Hostname())
+	var observed, latest *flow
+	requests, tunnels := 0, 0
+	for i := range a.flows {
+		f := &a.flows[i]
+		capturedURL, parseErr := url.Parse(f.url)
+		if !f.live || f.at.Before(since) || parseErr != nil || diagnosticOrigin(capturedURL) != diagnosticOrigin(u) {
+			continue
+		}
+		latest = f
+		if f.kind == "connect" {
+			tunnels++
+		} else if f.reqHeaders != "" {
+			requests++
+			observed = f
+		}
+	}
+	ui.Text(c, "Target traffic · since opening setup").FontSize(12).Bold()
+	ui.Text(c, fmt.Sprintf("%d decrypted HTTPS requests · %d CONNECT records", requests, tunnels)).FontSize(12)
+	if latest == nil {
+		ui.Text(c, "No retained live traffic for this origin yet. Check the client's proxy address, bypass rules and ignored hosts/apps.").FontSize(12).TextColor(t.TextMuted)
+	} else {
+		if latest.conn.error != "" {
+			ui.Text(c, latest.conn.explanation().title).FontSize(12).TextColor(t.Warning)
+			ui.Text(c, latest.conn.error).FontSize(12).Selectable()
+			ui.Text(c, "This is a recorded failure, not a confirmed certificate diagnosis.").FontSize(11).TextColor(t.TextMuted)
+		} else if latest.kind == "connect" {
+			ui.Text(c, "The client reached the proxy, but this CONNECT record is an encrypted tunnel, not a decrypted request.").FontSize(12).TextColor(t.Warning)
+		}
+		if ui.Button(c, "Inspect latest connection").FontSize(11).Tooltip("Inspect the recorded exchange without clearing the current view's filters").Clicked() {
+			a.clientUI.open, a.deviceUI.open = false, false
+			a.inspectCapture(latest.id)
+		}
+	}
+	ui.Divider(c)
+	enabled := a.inspectionConfig().Decrypts(u.Hostname())
 	rule := "Disabled — new connections stay encrypted"
 	if enabled {
 		rule = "Enabled for new connections (not proof of decryption)"
@@ -55,15 +90,6 @@ func (a *app) setupEvidence(c *ui.Context, t *ui.Theme, target string, since tim
 		a.decryptHost(u.Hostname())
 	}
 	ui.Text(c, "Client CA trust: not verified here. A captured request can also come from a client that skips verification.").FontSize(11).TextColor(t.TextMuted)
-	var observed *flow
-	for i := len(a.flows) - 1; i >= 0; i-- {
-		f := &a.flows[i]
-		capturedURL, parseErr := url.Parse(f.url)
-		if f.live && !f.at.Before(since) && parseErr == nil && capturedURL.Host == u.Host && f.scheme == "https" && f.kind != "connect" && f.reqHeaders != "" {
-			observed = f
-			break
-		}
-	}
 	if observed == nil {
 		ui.Text(c, "Decrypted HTTPS: not observed for this host since opening setup.").FontSize(12).TextColor(t.Warning)
 	} else {
@@ -86,7 +112,9 @@ func (a *app) clientSetupModal(c *ui.Context, t *ui.Theme) {
 			dialogTitle(c, "Set up a local client")
 			ui.Row(c).Gap(12).Children(func() {
 				ui.Select(c, &s.runtime, []string{"cURL", "Node.js", "Python", "Go"}).Label("Client runtime").Width(150)
-				ui.TextInput(c, &s.url).Label("Setup HTTPS URL").Grow(1)
+				if ui.TextInput(c, &s.url).Label("Setup HTTPS URL").Grow(1).Changed() {
+					s.scroll.Y = 0
+				}
 			})
 			ui.Row(c).Grow(1).Gap(16).AlignItems(ui.Stretch).Children(func() {
 				ui.Scroll(c).Grow(1).Gap(8).Children(func() {
@@ -104,22 +132,32 @@ func (a *app) clientSetupModal(c *ui.Context, t *ui.Theme) {
 					}
 					ui.Text(c, example).Font("monospace").FontSize(11).Selectable()
 				})
-				ui.Scroll(c).Width(310).Gap(8).Children(func() {
+				ui.Column(c).Width(310).Gap(8).Children(func() {
 					ui.Text(c, "2  Observe, then inspect").Bold()
-					if ui.Button(c, "Check local proxy").Disabled(a.srv == nil || a.deviceUI.checkDone != nil).Clicked() {
-						a.checkDeviceProxy()
+					ui.Scroll(c).TrackScroll(&s.scroll).Grow(1).Gap(8).Padding(0, 8, 8, 0).Children(func() {
+						if ui.Button(c, "Check local proxy").Disabled(a.srv == nil || !a.srv.Running() || a.deviceUI.checkDone != nil).Clicked() {
+							a.checkDeviceProxy()
+						}
+						if a.deviceUI.check != "" {
+							ui.Text(c, a.deviceUI.check).FontSize(11)
+						}
+						a.setupEvidence(c, t, s.url, s.since)
+						ui.Text(c, "Run the example yourself after enabling the host. Reconnect after setup changes. Pinning or a private runtime trust store needs client-side changes.").FontSize(11).TextColor(t.TextMuted)
+					})
+					if s.scroll.Y < s.scroll.MaxY-1 {
+						ui.Text(c, "More HTTPS checks below ↓").FontSize(11).TextColor(t.TextMuted)
 					}
-					if a.deviceUI.check != "" {
-						ui.Text(c, a.deviceUI.check).FontSize(11)
-					}
-					a.setupEvidence(c, t, s.url, s.since)
-					ui.Text(c, "Run the example yourself after enabling the host. Reconnect after setup changes. Pinning or a private runtime trust store needs client-side changes.").FontSize(11).TextColor(t.TextMuted)
 				})
 			})
 			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
 				if ui.Button(c, "Phone / tablet setup…").Clicked() {
 					s.open = false
 					a.openDevices()
+				}
+				if ui.Button(c, "Capture diagnostics…").Clicked() {
+					s.open = false
+					a.openDiagnostics()
+					a.diagnostics.target = s.url
 				}
 				if ui.Button(c, "Close").Clicked() {
 					s.open = false

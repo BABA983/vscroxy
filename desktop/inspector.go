@@ -542,8 +542,8 @@ func (a *app) headersSide(c *ui.Context, f flow, side int) {
 				}
 				ui.Row(c).Gap(12).Padding(6, 12).AlignItems(ui.Start).FillWidth().Children(func() {
 					ui.Text(c, key).FontSize(11).Font("monospace").TextColor(t.TextMuted).Width(124).SingleLine().
-						Tooltip(strings.TrimSpace(key + "\n" + headerDoc(key)))
-					ui.Text(c, value).FontSize(12).Font("monospace").TextColor(t.Text).Grow(1).Selectable()
+						Tooltip(strings.TrimSpace(key + "\n" + headerDoc(key))).ContextMenu(a.headerFilterMenu(c, key, headers[key]))
+					ui.Text(c, value).FontSize(12).Font("monospace").TextColor(t.Text).Grow(1).Selectable().ContextMenu(a.headerFilterMenu(c, key, headers[key]))
 				})
 				ui.Divider(c).Background(t.Border.Alpha(0.45))
 			}

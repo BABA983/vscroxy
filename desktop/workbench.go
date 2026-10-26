@@ -187,9 +187,7 @@ func (a *app) captureToolbar(c *ui.Context, t *ui.Theme) {
 				a.openFilter()
 			}
 			if a.filtersActive() && m.Item("Reset all conditions").Chosen() {
-				a.query, a.filter, a.chip = "", "all", 0
-				a.views.capture(a)
-				a.clearFilters()
+				a.views.resetFilters(a)
 			}
 			m.Separator()
 			if m.Item("Column from header…").Chosen() {
@@ -202,15 +200,16 @@ func (a *app) captureToolbar(c *ui.Context, t *ui.Theme) {
 		}).Label("More capture options").Height(26).Padding(0, 6).FontSize(14).TextColor(t.TextMuted).Border(0, t.Border)
 	})
 	ui.Divider(c)
-	if a.query == "" && a.filter == "all" && a.chip == 0 && !a.filtersActive() {
+	if !a.filtersActive() {
 		return
 	}
 	// Every condition is visible and removable without opening a dialog.
 	ui.Row(c).Height(32).Padding(0, 12).Gap(8).AlignItems(ui.Center).Children(func() {
+		ui.Text(c, "Match all").FontSize(11).TextColor(t.TextMuted).Tooltip("Conditions combine with AND; comma-separated status and method alternatives use OR")
 		ui.ScrollHorizontal(c).Grow(1).FillHeight().Children(func() {
 			ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
 				token := func(label string, clear func()) {
-					if ui.Button(c, label+" ×").FontSize(10).Height(24).TextColor(t.Accent).Tooltip("Remove condition: " + label).Clicked() {
+					if ui.Button(c, clamp(label, 30)+" ×").Label(label + " ×").FontSize(12).Height(24).TextColor(t.Accent).Tooltip("Remove condition: " + label).Clicked() {
 						clear()
 						a.views.capture(a)
 						a.applyFilter()
@@ -220,7 +219,13 @@ func (a *app) captureToolbar(c *ui.Context, t *ui.Theme) {
 					token("URL: "+a.query, func() { a.query = "" })
 				}
 				if a.filter != "all" {
-					token(a.filter, func() { a.filter = "all" })
+					label := "Traffic: " + a.filter
+					if host, ok := strings.CutPrefix(a.filter, "host:"); ok {
+						label = "Host: " + host
+					} else if client, ok := strings.CutPrefix(a.filter, "client:"); ok {
+						label = "App: " + client
+					}
+					token(label, func() { a.filter = "all" })
 				}
 				if a.chip != 0 {
 					token(captureKinds[a.chip], func() { a.chip = 0 })
@@ -229,6 +234,7 @@ func (a *app) captureToolbar(c *ui.Context, t *ui.Theme) {
 					label string
 					value *string
 				}{
+					{"App", &a.filterTriage.Client}, {"Host", &a.filterTriage.Host},
 					{"Status", &a.filterStatus}, {"Header", &a.filterHeader}, {"Body", &a.views.activeView().body},
 					{"Method", &a.filterTriage.Method}, {"Duration ms", &a.filterTriage.Duration},
 					{"Response bytes", &a.filterTriage.Size}, {"Color", &a.filterTriage.Color}, {"Note", &a.filterTriage.Note},
@@ -239,13 +245,14 @@ func (a *app) captureToolbar(c *ui.Context, t *ui.Theme) {
 				}
 			})
 		})
+		if ui.Button(c, "Save filter…").FontSize(12).Height(24).Tooltip("Save all current conditions for reuse in any capture view").Clicked() {
+			a.views.openSaved(a)
+		}
 		if ui.ButtonBase(c).Label("Reset all").Height(22).Padding(0, 6).Radius(4).AlignItems(ui.Center).
 			TextColor(t.TextMuted).Children(func() {
 			ui.Text(c, "Reset all").FontSize(11)
 		}).Clicked() {
-			a.query, a.filter, a.chip = "", "all", 0
-			a.views.capture(a)
-			a.clearFilters()
+			a.views.resetFilters(a)
 		}
 	})
 	ui.Divider(c)
@@ -327,6 +334,7 @@ func (a *app) desktopActions(c *ui.Context) []desktopAction {
 			}
 		}},
 		{"send", "Send request", editing && !d.composeWaiting && a.srv != nil && a.srv.Running(), ui.Cmd, ui.KeyEnter, a.sendComposed},
+		{"cancel-send", "Cancel send", editing && d.composeWaiting && d.sendCancel != nil && !d.sendCancelling, 0, 0, func() { d.cancelSend() }},
 		{"save-request", "Save request", editing, ui.Cmd, ui.KeyS, func() { a.saveComposed() }},
 		{"compare-source", "Compare with source", editing && d.source != nil && d.response != nil && !d.composeWaiting, ui.Cmd | ui.Shift, ui.KeyD, func() { d.comparing = true }},
 		{"back", "Back to traffic", editing, ui.Cmd, ui.KeyBracketLeft, func() { a.backToTraffic(c) }},
@@ -350,9 +358,7 @@ func (a *app) desktopActions(c *ui.Context) []desktopAction {
 		{"saved", "Manage saved filters…", capturing, 0, 0, func() { a.views.openSaved(a) }},
 		{"new-view", "New capture view", capturing, 0, 0, func() { a.views.capture(a); a.views.newView(a) }},
 		{"clear-filters", "Reset all capture conditions", capturing, 0, 0, func() {
-			a.query, a.filter, a.chip = "", "all", 0
-			a.views.capture(a)
-			a.clearFilters()
+			a.views.resetFilters(a)
 		}},
 		{"break", fmt.Sprintf("Break requests · %t", a.breakOn), a.srv != nil, 0, 0, func() {
 			a.breakOn = !a.breakOn
@@ -369,7 +375,9 @@ func (a *app) desktopActions(c *ui.Context) []desktopAction {
 		}},
 		{"https", "HTTPS certificate & decryption setup…", true, 0, 0, func() { a.settingsTab, a.settingsOpen = 2, true }},
 		{"diagnostics", "Capture diagnostics…", true, 0, 0, a.openDiagnostics},
-		{"experiments", "Experiment workbench…", true, 0, 0, func() { a.experiments.open = true }},
+		{"experiments", "Experiment workbench…", true, 0, 0, func() {
+			a.experiments.scope, a.experiments.draftKey, a.experiments.open = nil, "", true
+		}},
 		{"websocket", "WebSocket session…", true, 0, 0, a.openSocket},
 		{"investigations", "Historical sessions & evidence…", true, 0, 0, a.investigations.show},
 		{"client", "Set up a local client…", a.srv != nil, 0, 0, a.openClientSetup},

@@ -14,6 +14,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -398,7 +399,7 @@ func TestCaptureUIUsesOnlyTheRunningListener(t *testing.T) {
 		t.Fatal(err)
 	}
 	tt.Frame()
-	if !tt.HasText("Proxy running · "+srv.Addr()) || !tt.HasText("Set your HTTP proxy to "+srv.Addr()) {
+	if !tt.HasText("Proxy running · "+srv.Addr()) || !tt.HasText("Listening at "+srv.Addr()+" · no retained requests yet") {
 		t.Fatalf("capture must show its actual bound address, texts: %q", tt.Texts())
 	}
 	for _, label := range []string{"Settings", "Proxy"} {
@@ -1928,6 +1929,24 @@ func TestHeaderRowKeyboardRevealAndCustomMethod(t *testing.T) {
 	click("Requests")
 	click("List projects")
 	click("Request editor: Headers")
+	// Ordinary and credential values occupy the same columns, including
+	// after resizing; the reveal control must not move the value's start.
+	for _, width := range []int{1200, 960} {
+		tt.SetSize(width, 900)
+		secret, secretOK := tt.Find("header value 1")
+		ordinary, ordinaryOK := tt.Find("header value 2")
+		if !secretOK || !ordinaryOK || secret.X != ordinary.X || secret.W != ordinary.W {
+			t.Fatalf("header columns diverge at width %d: %v %v", width, secret, ordinary)
+		}
+	}
+	click("header key 1")
+	tt.Key(0, ui.KeyTab)
+	if !tt.Focused("header value 1") {
+		t.Fatal("Tab did not reach the credential value")
+	}
+	if _, ok := tt.Find("Hide header 1"); ok {
+		t.Fatal("keyboard focus revealed a credential")
+	}
 	// Tab reaches a header key and then its value, so a row is edited from
 	// the keyboard alone.
 	click("header key 2")
@@ -2662,6 +2681,86 @@ func TestClientSetupCopiedCommandProducesLiveDecryptionEvidence(t *testing.T) {
 	}
 }
 
+func TestCaptureEmptyStateOffersSetupWithoutConfusingFilteredTraffic(t *testing.T) {
+	a := workspaceApp()
+	a.flows = nil
+	a.applyFilter()
+	tt := ui.NewTester(a.view, 960, 600)
+	if !tt.HasText("Capture is stopped") {
+		t.Fatal("stopped listener presented as waiting for clients")
+	}
+	if err := tt.Click("Set up a local client…"); err == nil && a.clientUI.open {
+		t.Fatal("stopped listener offered a working client configuration")
+	}
+	a.srv = requestProxy(t)
+	tt.Frame()
+	if !tt.HasText("Listening at " + a.srv.Addr() + " · no retained requests yet") {
+		t.Fatal("empty state omitted the actual bound address")
+	}
+	if err := tt.Click("Set up a local client…"); err != nil || !a.clientUI.open {
+		t.Fatalf("client setup is not reachable: %v", err)
+	}
+	tt.Key(0, ui.KeyEscape)
+	if err := tt.Click("Connect a device…"); err != nil || !a.deviceUI.open {
+		t.Fatalf("device setup is not reachable: %v", err)
+	}
+	tt.Key(0, ui.KeyEscape)
+	if err := tt.Click("Check HTTPS…"); err != nil || !a.settingsOpen || a.settingsTab != 2 {
+		t.Fatalf("HTTPS settings are not reachable: %v", err)
+	}
+	tt.Key(0, ui.KeyEscape)
+	a.flows = []flow{{id: 1, method: "GET", url: "http://example.test/"}}
+	a.query = "no-match"
+	a.applyFilter()
+	tt.Frame()
+	if !tt.HasText("No matching requests") || tt.HasText("Connect a client to start capturing") {
+		t.Fatal("filtered traffic was presented as a client setup problem")
+	}
+}
+
+func TestClientSetupSeparatesTunnelsFailuresAndDecryptedRequests(t *testing.T) {
+	a := workspaceApp()
+	a.srv = requestProxy(t)
+	a.openClientSetup()
+	a.clientUI.url = "https://EXAMPLE.test/path"
+	since := a.clientUI.since
+	a.flows = []flow{
+		{id: 1, live: false, at: since, url: "https://example.test/", reqHeaders: "GET /"},
+		{id: 2, live: true, at: since.Add(-time.Second), url: "https://example.test/", reqHeaders: "GET /"},
+		{id: 3, live: true, at: since, url: "https://example.test:8443/", reqHeaders: "GET /"},
+		{id: 4, live: true, at: since, url: "http://example.test/", reqHeaders: "GET /"},
+		{id: 5, live: true, at: since, url: "https://example.test:443", scheme: "https", kind: "connect"},
+	}
+	a.views.init(a, "")
+	a.query = "keep-this-filter"
+	a.applyFilter()
+	tt := ui.NewTester(a.view, 960, 600)
+	if !tt.HasText("0 decrypted HTTPS requests · 1 CONNECT records") || !tt.HasText("The client reached the proxy, but this CONNECT record is an encrypted tunnel, not a decrypted request.") {
+		t.Fatalf("tunnel evidence missing or unrelated traffic counted: %q", tt.Texts())
+	}
+	a.flows[4].conn = conn{errorStage: "TLS client", error: "EOF"}
+	tt.Frame()
+	if !tt.HasText("Client TLS handshake failed") || !tt.HasText("This is a recorded failure, not a confirmed certificate diagnosis.") {
+		t.Fatal("recorded stage or diagnostic uncertainty omitted")
+	}
+	if err := tt.Click("Inspect latest connection"); err != nil {
+		t.Fatal(err)
+	}
+	if f, ok := a.current(); !ok || f.id != 5 || a.clientUI.open {
+		t.Fatal("inspect did not open the exact connection")
+	}
+	a.views.activate(a, 0)
+	if a.query != "keep-this-filter" {
+		t.Fatal("inspecting hidden setup evidence cleared the original filters")
+	}
+	a.clientUI.open = true
+	a.flows = append(a.flows, flow{id: 6, live: true, at: since, url: "https://example.test/new", scheme: "https", reqHeaders: "GET /new", path: "/new", status: 401})
+	tt.Frame()
+	if !tt.HasText("1 decrypted HTTPS requests · 1 CONNECT records") || !tt.HasText("Decrypted HTTPS observed · #6 · /new · 401") || tt.HasText("Client TLS handshake failed") {
+		t.Fatal("new decrypted traffic did not supersede the old failure, or HTTP error hid successful decryption")
+	}
+}
+
 func TestDesktopLayoutDefaultsBelowAndSwitchesWithoutLosingCaptureContext(t *testing.T) {
 	a := workspaceApp()
 	a.columns.Order = []string{"method", "url", "id"}
@@ -3084,7 +3183,7 @@ func TestCaptureDiagnosticsEmptyAndInvalidTargetsDoNotClaimProxyFailure(t *testi
 		}
 	}
 	tt.Key(0, ui.KeyEscape)
-	if tt.HasText("Target URL") || !tt.HasText("Waiting for traffic") {
+	if tt.HasText("Target URL") || !tt.HasText("Capture is stopped") {
 		t.Fatal("Escape did not return to the unchanged capture view")
 	}
 }
@@ -3166,5 +3265,290 @@ func TestExperimentDraftCheckpointRestoresUnsavedEditsAndCloseFlushes(t *testing
 	}
 	if len(b.experiments.log.Records) != 0 {
 		t.Fatal("restoring drafts invented an experiment")
+	}
+}
+
+func TestCaptureFacetsIntersectAndResetOnlyTheActiveView(t *testing.T) {
+	a := workspaceApp()
+	a.flows = append(a.flows,
+		flow{id: 3, method: "GET", host: "other.test", path: "/other", process: "Browser", status: 401},
+		flow{id: 4, method: "GET", host: "api.example.com", path: "/cli", process: "CLI", status: 401},
+	)
+	a.countDomains()
+	a.countClients()
+	a.applyFilter()
+	tt := ui.NewTester(a.view, 1280, 800)
+	click := func(label string) {
+		t.Helper()
+		if err := tt.Click(label); err != nil {
+			t.Fatal(err)
+		}
+	}
+	click("Browser")
+	click("api.example.com")
+	if got := fmt.Sprint(visibleIDs(a)); got != "[1 2]" {
+		t.Fatalf("app and host did not intersect: %s", got)
+	}
+	if err := tt.RightClick("api.example.com/login"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.ChooseMenuItem("Filter captures", "Status: 401"); err != nil {
+		t.Fatal(err)
+	}
+	if got := fmt.Sprint(visibleIDs(a)); got != "[2]" {
+		t.Fatalf("row filter replaced a facet: %s", got)
+	}
+	click("App: Browser ×")
+	if got := fmt.Sprint(visibleIDs(a)); got != "[2 4]" || a.filterTriage.Host != "api.example.com" || a.filterStatus != "401" {
+		t.Fatalf("removing app changed other conditions: %s", got)
+	}
+	click("New view")
+	// A URL-only condition must also make the overflow reset available.
+	a.query = "other"
+	tt.Frame()
+	click("More capture options")
+	if err := tt.ChooseMenuItem("Reset all conditions"); err != nil {
+		t.Fatal(err)
+	}
+	if len(a.visible) != 4 || a.filtersActive() {
+		t.Fatal("overflow reset did not clear the URL-only condition")
+	}
+	click("Capture view: View 1")
+	if got := fmt.Sprint(visibleIDs(a)); got != "[2 4]" {
+		t.Fatalf("reset modified the other view: %s", got)
+	}
+	a.filterStatus = "503"
+	tt.Frame()
+	if !tt.HasText("No matching requests") {
+		t.Fatal("empty intersection has no filter recovery state")
+	}
+	click("Show all requests")
+	if len(a.visible) != 4 || a.filtersActive() {
+		t.Fatal("empty-result reset left hidden conditions")
+	}
+}
+
+func TestHeaderContextFilterUsesEitherSideContainsWithoutLeakingCredentials(t *testing.T) {
+	a := workspaceApp()
+	a.flows[0].reqHeader = http.Header{"X-Format": {"text", "JSON"}, "Authorization": {"Bearer private-fixture"}}
+	a.flows[1].respHeader = http.Header{"X-Format": {"application/json; charset=utf-8"}}
+	a.flows = append(a.flows, flow{id: 3, host: "other.test", respHeader: http.Header{"X-Format": {"text/plain"}}})
+	a.applyFilter()
+	tt := ui.NewTester(a.view, 1280, 800)
+	if err := tt.RightClick("X-Format"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.ChooseMenuItem("Contains value 2: JSON"); err != nil {
+		t.Fatal(err)
+	}
+	if got := fmt.Sprint(visibleIDs(a)); got != "[1 2]" {
+		t.Fatalf("header condition did not use case-insensitive contains on both sides: %s", got)
+	}
+	if err := tt.RightClick("Authorization"); err != nil {
+		t.Fatal(err)
+	}
+	if menu := strings.Join(tt.Menu(), "\n"); strings.Contains(menu, "private-fixture") || strings.Contains(menu, "Contains value") {
+		t.Fatalf("credential escaped into the filter menu: %s", menu)
+	}
+	if err := tt.ChooseMenuItem("Header exists: Authorization"); err != nil {
+		t.Fatal(err)
+	}
+	if got := fmt.Sprint(visibleIDs(a)); got != "[1]" || a.filterHeader != "Authorization" {
+		t.Fatalf("header existence filter = %q, rows %s", a.filterHeader, got)
+	}
+}
+
+func TestSendCancellationKeepsTheSentSnapshotAndDoesNotRetry(t *testing.T) {
+	started, release := make(chan struct{}), make(chan struct{})
+	var hits atomic.Int32
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hits.Add(1)
+		close(started)
+		select {
+		case <-release:
+		case <-r.Context().Done():
+		}
+		fmt.Fprint(w, "finished")
+	}))
+	defer upstream.Close()
+	defer close(release)
+	a := workspaceApp()
+	a.srv = requestProxy(t)
+	a.addDocument(savedRequest{Name: "Slow checkout", Method: "POST", URL: upstream.URL + "/checkout", Body: "original"}, "")
+	tt := ui.NewTester(a.view, 960, 600)
+	if err := tt.Click("Send"); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-started:
+	case <-time.After(time.Minute):
+		t.Fatal("send never reached upstream")
+	}
+	// Editing is allowed while sending; cancellation belongs to the snapshot,
+	// not these new edits, and repeated shortcuts must not send a second POST.
+	if err := tt.Click("URL"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Key(ui.Cmd, ui.KeyA)
+	tt.Type(upstream.URL + "/unsent")
+	tt.Key(ui.Cmd, ui.KeyEnter)
+	if err := tt.Click("Cancel send"); err != nil {
+		t.Fatal(err)
+	}
+	guard := time.NewTimer(time.Minute)
+	defer guard.Stop()
+	for a.composeWaiting {
+		select {
+		case <-guard.C:
+			t.Fatal("cancel did not finish")
+		default:
+		}
+		tt.Frame()
+		runtime.Gosched()
+	}
+	if !tt.HasText("Cancelled") || !tt.HasText("Cancelling does not undo server-side changes.") || tt.HasText("Not sent yet") || hits.Load() != 1 {
+		t.Fatalf("cancel state or duplicate-send protection failed: %v; hits %d", tt.Texts(), hits.Load())
+	}
+	if a.composeURL != upstream.URL+"/unsent" {
+		t.Fatal("cancelling overwrote in-flight edits")
+	}
+	if err := tt.Click("Send history"); err != nil {
+		t.Fatal(err)
+	}
+	if !tt.HasText("Cancelled") || !tt.HasText("Experiment #1") {
+		t.Fatal("a sourceless cancelled send was not retained in send history")
+	}
+	if err := tt.Click("Open as draft"); err != nil {
+		t.Fatal(err)
+	}
+	if a.composeURL != upstream.URL+"/checkout" || a.documents[0].composeURL != upstream.URL+"/unsent" || !tt.HasText("Cancelled") || tt.HasText("Not sent yet") || hits.Load() != 1 {
+		t.Fatalf("history restoration sent or replaced edits: %v", tt.Texts())
+	}
+	// An independent draft using the identical URL must not inherit this
+	// cancelled attempt. A pre-script failure records it without another POST.
+	a.addDocument(savedRequest{Name: "Independent checkout", Method: "POST", URL: upstream.URL + "/checkout", Pre: `throw new Error("not ready")`}, "")
+	tt.Frame()
+	if err := tt.Click("Send"); err != nil {
+		t.Fatal(err)
+	}
+	for a.composeWaiting {
+		select {
+		case <-guard.C:
+			t.Fatal("independent attempt did not finish")
+		default:
+		}
+		tt.Frame()
+		runtime.Gosched()
+	}
+	if err := tt.Click("Send history"); err != nil {
+		t.Fatal(err)
+	}
+	if _, found := tt.Find("Experiment #1"); found || !tt.HasText("Pre-request script failed") || hits.Load() != 1 {
+		t.Fatal("same URL mixed independent send histories")
+	}
+}
+
+func TestSendResultsSeparateFailuresAndLinkTheExactAttempt(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/502" {
+			w.WriteHeader(502)
+		}
+		fmt.Fprint(w, "vscroxy: fixture response, not evidence of a network error")
+	}))
+	defer upstream.Close()
+	dead, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	deadURL := "http://" + dead.Addr().String()
+	dead.Close()
+	for _, tc := range []struct {
+		name, outcome  string
+		request        savedRequest
+		wire, snapshot bool
+	}{
+		{"setup", "Request setup failed", savedRequest{Method: "GET", URL: "bad-url"}, false, false},
+		{"pre-script", "Pre-request script failed", savedRequest{Method: "GET", URL: upstream.URL, Pre: `throw new Error("before sending")`}, false, false},
+		{"http", "HTTP error response", savedRequest{Method: "GET", URL: upstream.URL + "/502"}, true, false},
+		{"network", "Network error", savedRequest{Method: "GET", URL: deadURL}, true, false},
+		{"checks", "Checks failed", savedRequest{Method: "POST", URL: upstream.URL, Body: "draft-only-body", Pre: `req.body = "actual-sent-body"; req.set("X-Prepared", "yes")`, Checks: responseChecks{Status: "201"}}, true, true},
+		{"post-script", "Post-response script failed", savedRequest{Method: "GET", URL: upstream.URL, Post: `throw new Error("after response")`}, true, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			a := workspaceApp()
+			a.flows = []flow{{id: 900, method: "GET", url: tc.request.URL, host: "source.test", status: 200}}
+			a.applyFilter()
+			a.srv = requestProxy(t)
+			a.addDocument(tc.request, "")
+			tt := ui.NewTester(a.view, 960, 600)
+			if err := tt.Click("Send"); err != nil {
+				t.Fatal(err)
+			}
+			guard := time.NewTimer(time.Minute)
+			defer guard.Stop()
+			for a.composeWaiting {
+				select {
+				case <-guard.C:
+					t.Fatal("send did not finish")
+				default:
+				}
+				tt.Frame()
+				runtime.Gosched()
+			}
+			if tc.wire {
+				select {
+				case f := <-a.srv.Flows():
+					a.pending = append(a.pending, f)
+				case <-guard.C:
+					t.Fatal("missing wire evidence")
+				}
+				tt.Frame()
+			}
+			if !tt.HasText(tc.outcome) || tt.HasText("Not sent yet") {
+				t.Fatalf("wrong attempt state: %q", tt.Texts())
+			}
+			if tc.name == "http" && tt.HasText("Network error") || tc.name == "network" && tt.HasText("HTTP error response") {
+				t.Fatalf("network and upstream HTTP502 mixed: %q", tt.Texts())
+			}
+			if tc.name == "network" && !tt.HasText("502 · proxy response") || tc.name == "http" && !tt.HasText("502 Bad Gateway") {
+				t.Fatalf("response origin is ambiguous: %q", tt.Texts())
+			}
+			if err := tt.Click("Send history"); err != nil {
+				t.Fatal(err)
+			}
+			if !tt.HasText(tc.outcome) {
+				t.Fatal("history lost the outcome")
+			}
+			if !tc.snapshot {
+				return
+			}
+			if err := tt.Click("Sent request"); err != nil {
+				t.Fatal(err)
+			}
+			text := readField(t, tt, "Sent request snapshot")
+			if !strings.Contains(text, "actual-sent-body") || !strings.Contains(text, "X-Prepared: yes") || strings.Contains(text, "draft-only-body") {
+				t.Fatalf("history confused editable draft and prepared request: %s", text)
+			}
+			if err := tt.Click("Close"); err != nil {
+				t.Fatal(err)
+			}
+			if err := tt.Click("URL"); err != nil {
+				t.Fatal(err)
+			}
+			tt.Key(ui.Cmd, ui.KeyA)
+			tt.Type(upstream.URL + "/unsent")
+			if !tt.HasText("Draft changed · not sent") {
+				t.Fatal("old response was attributed to current edits")
+			}
+			if err := tt.Click("Response tab: Timing"); err != nil {
+				t.Fatal(err)
+			}
+			if err := tt.Click("Inspect timing in Capture"); err != nil {
+				t.Fatal(err)
+			}
+			if a.workspace != 0 || a.pickedID == 900 || !tt.HasText("request sent, first byte back") && !tt.HasText("No timing for this flow") {
+				t.Fatalf("timing target: workspace %d, capture %d, tab %d", a.workspace, a.pickedID, a.inspect.tab[1])
+			}
+		})
 	}
 }

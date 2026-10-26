@@ -42,7 +42,34 @@ func (r *experimentRecord) keepWire(f flow) bool {
 	}
 	// A checkpoint writer may still be reading the preceding slice.
 	r.Wire = append(slices.Clone(r.Wire), snapshotDebugFlow(f))
+	// A proxy-generated 502 is not an upstream HTTP error. Only the exact
+	// run's connection evidence can distinguish it from a genuine 502.
+	if f.conn.error != "" && (r.Outcome == "Response received" || r.Outcome == "HTTP error response" || r.Outcome == "Checks failed") {
+		r.Outcome, r.Summary = "Network error", f.conn.errorStage+": "+f.conn.error
+	}
 	return true
+}
+
+func (a *app) openSendHistory(d *requestDocument) {
+	if d.origin != nil {
+		a.openDebugHistory(d.origin)
+		return
+	}
+	s := &a.experiments
+	s.scope, s.draftKey, s.open = nil, d.debugKey, true
+	s.picked, s.reader, s.tab = 0, nil, 0
+	for _, r := range s.log.Records {
+		if s.includes(r) {
+			s.pick(r.ID)
+			break
+		}
+	}
+	// A historical send opened as a new draft keeps its exact result link,
+	// even though future sends belong to the new draft's history.
+	if r := s.record(d.experimentID); r != nil && r.DraftKey != "" {
+		s.draftKey = r.DraftKey
+		s.pick(d.experimentID)
+	}
 }
 
 func (a *app) openDebugHistory(source *debugSource) {
@@ -50,6 +77,7 @@ func (a *app) openDebugHistory(source *debugSource) {
 		return
 	}
 	s := &a.experiments
+	s.draftKey = ""
 	s.scope, s.open, s.picked = source, true, 0
 	s.reader, s.sourceComparison = nil, captureAnalysis{}
 	s.tab = 2
@@ -62,12 +90,20 @@ func (a *app) openDebugHistory(source *debugSource) {
 }
 
 func (s *experimentWorkbench) includes(r experimentRecord) bool {
-	return s.scope == nil || r.Source != nil && r.Source.Key == s.scope.Key
+	return s.scope == nil && (s.draftKey == "" || r.DraftKey == s.draftKey) ||
+		s.scope != nil && r.Source != nil && r.Source.Key == s.scope.Key
 }
 
 func (a *app) debugDrafts(c *ui.Context) {
 	s := &a.experiments
 	if s.scope == nil {
+		if s.draftKey != "" {
+			ui.Text(c, "Only sends linked to this draft; never matched by URL.").FontSize(11).TextColor(c.Theme().TextMuted)
+			if ui.Button(c, "Show all experiments").FillWidth().Clicked() {
+				s.draftKey = ""
+			}
+			ui.Divider(c)
+		}
 		return
 	}
 	ui.Text(c, fmt.Sprintf("Source snapshot · Capture #%d", s.scope.Exchange.ID)).FontSize(12).Bold()
@@ -81,7 +117,7 @@ func (a *app) debugDrafts(c *ui.Context) {
 		ui.Text(c, "Original capture unavailable; snapshot retained.").FontSize(10).TextColor(c.Theme().TextMuted)
 	}
 	if ui.Button(c, "Show all experiments").FillWidth().Clicked() {
-		s.scope = nil
+		s.scope, s.draftKey = nil, ""
 	}
 	ui.Divider(c)
 	ui.Text(c, "Open drafts").FontSize(12).Bold()

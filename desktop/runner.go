@@ -3,9 +3,11 @@ package main
 import (
 	"cmp"
 	"context"
+	"errors"
 	"fmt"
 	"maps"
 	"net/http"
+	"net/url"
 	"slices"
 	"strconv"
 	"strings"
@@ -22,6 +24,7 @@ type requestExecution struct {
 	tests          []testResult
 	vars           map[string]string
 	err            error
+	stage          string
 	expectedStatus int
 }
 
@@ -31,7 +34,7 @@ type debugRunKey struct{}
 // scripts, proxy and session cookie jar; no request tab is borrowed by Runner.
 func executeRequest(ctx context.Context, srv *capture.Server, r savedRequest, vars map[string]string, jar http.CookieJar) requestExecution {
 	run := &scriptRun{vars: maps.Clone(vars)}
-	out := requestExecution{vars: run.vars}
+	out := requestExecution{vars: run.vars, stage: "Request setup failed"}
 	status, _, _, err := r.Checks.parse()
 	if err != nil {
 		out.err = err
@@ -60,14 +63,23 @@ func executeRequest(ctx context.Context, srv *capture.Server, r savedRequest, va
 		out.err = fmt.Errorf("response checks require an HTTP(S) request, not a WebSocket exchange")
 		return out
 	}
+	out.stage = "Pre-request script failed"
 	if err := runScriptContext(ctx, r.Pre, run, map[string]any{"req": req}); err != nil {
 		out.err = fmt.Errorf("Pre-request script: %w", err)
 		out.tests, out.vars = run.tests, run.vars
 		return out
 	}
+	u, err := url.Parse(req.URL)
+	if err != nil || u.Hostname() == "" || u.Scheme != "http" && u.Scheme != "https" && u.Scheme != "ws" && u.Scheme != "wss" {
+		out.stage, out.err = "Request setup failed", fmt.Errorf("use an absolute HTTP(S) or WebSocket URL with a host")
+		out.tests, out.vars = run.tests, run.vars
+		return out
+	}
+	out.stage = "Network error"
 	if isWebSocket(req.URL) {
 		out.replies, out.err = wsSend(ctx, srv.Addr(), req, srv.CACertificate(), jar, 2*time.Second)
 		if r.Post != "" && out.err == nil {
+			out.stage = "Post-response script failed"
 			out.err = fmt.Errorf("post-response scripts require an HTTP response")
 		}
 	} else {
@@ -78,6 +90,7 @@ func executeRequest(ctx context.Context, srv *capture.Server, r savedRequest, va
 			out.response = &got
 			run.tests = append(run.tests, r.Checks.evaluate(got)...)
 			res := &jsResponse{Status: got.Status, Body: got.ResponseBody, header: got.ResponseHeader}
+			out.stage = "Post-response script failed"
 			if err := runScriptContext(ctx, r.Post, run, map[string]any{"res": res, "req": req}); err != nil {
 				out.err = fmt.Errorf("Post-response script: %w", err)
 			}
@@ -85,6 +98,27 @@ func executeRequest(ctx context.Context, srv *capture.Server, r savedRequest, va
 	}
 	out.tests, out.vars = run.tests, run.vars
 	return out
+}
+
+// Outcome separates transport/setup failures from HTTP responses and checks.
+// A failed assertion never turns a received response into a network failure.
+func (r requestExecution) outcome() string {
+	switch {
+	case errors.Is(r.err, context.Canceled):
+		return "Cancelled"
+	case errors.Is(r.err, context.DeadlineExceeded):
+		return "Timed out"
+	case r.err != nil:
+		return r.stage
+	case r.response != nil && r.response.Status >= 400:
+		return "HTTP error response"
+	case slices.ContainsFunc(r.tests, func(t testResult) bool { return !t.Pass }):
+		return "Checks failed"
+	case r.response == nil:
+		return "WebSocket completed"
+	default:
+		return "Response received"
+	}
 }
 
 func (r requestExecution) summary() string {

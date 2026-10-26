@@ -202,8 +202,11 @@ func requestFieldsEditor(c *ui.Context, rows *[]requestField, opts fieldsOptions
 		// reads as a column rather than its own form.
 		ui.Row(c).Gap(6).Padding(0, 8, 2, 0).Children(func() {
 			ui.Box(c).Width(16)
-			ui.Text(c, "KEY").WidthPercent(33).FontSize(10).Bold().TextColor(t.TextMuted)
-			ui.Text(c, "VALUE").Grow(1).FontSize(10).Bold().TextColor(t.TextMuted)
+			ui.Text(c, "KEY").Grow(1).FontSize(10).Bold().TextColor(t.TextMuted)
+			ui.Text(c, "VALUE").Grow(2).FontSize(10).Bold().TextColor(t.TextMuted)
+			if opts.secret {
+				ui.Box(c).Width(24)
+			}
 			if opts.file {
 				ui.Text(c, "FILE").Width(46).FontSize(10).Bold().TextColor(t.TextMuted)
 			}
@@ -251,6 +254,10 @@ func requestFieldsEditor(c *ui.Context, rows *[]requestField, opts fieldsOptions
 						if reveal.Children(func() { ui.Icon(c, eyeIcon).Size(13, 13) }).Clicked() {
 							r.reveal = !r.reveal
 						}
+					} else if opts.secret {
+						// Every header keeps the same action column, even when
+						// its value does not need an explicit reveal control.
+						ui.Box(c).Width(24)
 					}
 					if opts.file {
 						if ui.Checkbox(c, &r.File, "File").Label(fmt.Sprintf("File part %d", i+1)).Changed() {

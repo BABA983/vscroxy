@@ -702,9 +702,12 @@ func (a *app) drain() {
 	for _, result := range results {
 		d := result.document
 		d.composeWaiting = false
+		d.sendCancel, d.sendCancelling = nil, false
+		d.sendOutcome = result.outcome
 		d.composeResult = result.summary
 		d.composeTests = result.tests
 		d.composeReplies = result.replies
+		d.experimentID = 0
 		if result.response != nil {
 			first := d.response == nil
 			d.response = result.response
@@ -1354,6 +1357,9 @@ func (a *app) sidebar(c *ui.Context) {
 								}
 							}).
 							Children(func() {
+								if a.filterTriage.Client == d.name {
+									ui.Text(c, "✓").FontSize(11).TextColor(t.Accent).Tooltip("App filter is active; remove it in the condition bar")
+								}
 								if slices.ContainsFunc(apps, func(app capture.SSLApp) bool { return a.appInspectionEnabled(app.Path) }) {
 									ui.Icon(c, lockIcon).Size(12, 12).Tooltip("An exact executable rule is enabled; client CA trust is still required")
 								}
@@ -1365,6 +1371,9 @@ func (a *app) sidebar(c *ui.Context) {
 			ui.SidebarSection(c, "Domains", &a.domainsOpen, func() {
 				for _, d := range a.domains {
 					ui.SidebarItem(c, "host:"+d.name, domainIcon, d.name).FontSize(12).Padding(5, 8).Children(func() {
+						if a.filterTriage.Host == d.name {
+							ui.Text(c, "✓").FontSize(11).TextColor(t.Accent).Tooltip("Host filter is active; remove it in the condition bar")
+						}
 						ui.Text(c, fmt.Sprint(d.n)).FontSize(11).TextColor(t.TextMuted)
 					})
 				}
@@ -1406,7 +1415,13 @@ func (a *app) sidebar(c *ui.Context) {
 				a.board.list = ui.ListState{}
 			} else {
 				a.captureSection = 0
-				a.filter = cmp.Or(a.sidebarChoice, "all")
+				if host, ok := strings.CutPrefix(a.sidebarChoice, "host:"); ok {
+					a.filterTriage.Host = host
+				} else if client, ok := strings.CutPrefix(a.sidebarChoice, "client:"); ok {
+					a.filterTriage.Client = client
+				} else {
+					a.filter = cmp.Or(a.sidebarChoice, "all")
+				}
 				a.applyFilter()
 			}
 		}
@@ -1612,21 +1627,53 @@ func (a *app) table(c *ui.Context) {
 	if len(a.visible) == 0 {
 		ui.Column(c).Fill().Center().Gap(8).Children(func() {
 			if len(a.flows) > 0 {
-				ui.Text(c, "No matching requests").FontSize(14).TextColor(t.Text)
-				ui.Text(c, fmt.Sprintf("%d captured requests are hidden by this view's search or filters.", len(a.flows))).FontSize(12).TextColor(t.TextMuted)
+				note, failure := a.views.status()
+				title := "No matching requests"
+				hint := fmt.Sprintf("%d captured requests are hidden by this view's search or filters.", len(a.flows))
+				if note != "" {
+					title, hint = "Searching captured bodies…", "Results are not final until the body search finishes."
+					if failure {
+						title, hint = "No matches in searchable traffic", "Some bodies could not be searched in full; matches may be missing."
+					}
+				}
+				ui.Text(c, title).FontSize(14).TextColor(t.Text)
+				ui.Text(c, hint).FontSize(12).TextColor(t.TextMuted)
+				ui.Text(c, "All conditions must match. Remove a condition above or edit the filters.").FontSize(12).TextColor(t.TextMuted)
+				if note != "" {
+					color := t.TextMuted
+					if failure {
+						color = t.Warning
+					}
+					ui.Text(c, note).FontSize(12).TextColor(color).Tooltip(a.views.statusDetail())
+				}
+				if ui.Button(c, "Edit filters…").Clicked() {
+					a.openFilter()
+				}
 				if ui.Button(c, "Show all requests").Clicked() {
-					a.query, a.filter, a.chip = "", "all", 0
-					a.views.capture(a)
-					a.clearFilters()
+					a.views.resetFilters(a)
 				}
 				return
 			}
-			ui.Text(c, "Waiting for traffic").FontSize(14).TextColor(t.Text)
-			hint := "Start capture successfully before configuring a client"
-			if a.srv != nil && a.srv.Running() {
-				hint = "Set your HTTP proxy to " + a.srv.Addr()
+			running := a.srv != nil && a.srv.Running()
+			if running {
+				ui.Text(c, "Connect a client to start capturing").FontSize(14).TextColor(t.Text)
+				ui.Text(c, "Listening at "+a.srv.Addr()+" · no retained requests yet").FontSize(12).TextColor(t.TextMuted)
+			} else {
+				ui.Text(c, "Capture is stopped").FontSize(14).TextColor(t.Text)
+				ui.Text(c, "Check the listener before configuring a client.").FontSize(12).TextColor(t.TextMuted)
 			}
-			ui.Text(c, hint).FontSize(12).TextColor(t.TextMuted)
+			ui.Row(c).Gap(8).Wrap().Justify(ui.Center).Children(func() {
+				if ui.Button(c, "Set up a local client…").Disabled(!running).Clicked() {
+					a.openClientSetup()
+				}
+				if ui.Button(c, "Connect a device…").Disabled(!running).Clicked() {
+					a.openDevices()
+				}
+				if ui.Button(c, "Check HTTPS…").Clicked() {
+					a.settingsTab, a.settingsOpen = 2, true
+				}
+			})
+			ui.Text(c, "Listening does not verify client access or HTTPS decryption.").FontSize(12).TextColor(t.TextMuted)
 			if ui.Button(c, "Diagnose capture…").Clicked() {
 				a.openDiagnostics()
 			}
@@ -1679,7 +1726,7 @@ func (a *app) table(c *ui.Context) {
 		case "id":
 			text(fmt.Sprint(f.id)).Font("monospace").TextColor(rowColor(chosen, t, t.TextMuted))
 		case "method":
-			text(f.method).Font("monospace").TextColor(rowColor(chosen, t, t.Text)).Tooltip(f.method)
+			text(f.method).Font("monospace").TextColor(rowColor(chosen, t, t.Text)).Tooltip(f.method).ContextMenu(a.rowMenu(c, f))
 		case "url":
 			if f.pinned {
 				ui.Icon(c, pinIcon).Size(11, 11).MarginEnd(4).TextColor(rowColor(chosen, t, t.TextMuted))
@@ -1713,11 +1760,11 @@ func (a *app) table(c *ui.Context) {
 			})
 		case "status":
 			if f.conn.error != "" {
-				text("Failed").TextColor(rowColor(chosen, t, t.Danger)).Tooltip(f.conn.errorStage + ": " + f.conn.error)
+				text("Failed").TextColor(rowColor(chosen, t, t.Danger)).Tooltip(f.conn.errorStage + ": " + f.conn.error).ContextMenu(a.rowMenu(c, f))
 			} else if f.kind == "connect" {
-				text("Tunnel").TextColor(rowColor(chosen, t, t.TextMuted)).Tooltip(fmt.Sprintf("CONNECT %d · encrypted tunnel, not an HTTP response", f.status))
+				text("Tunnel").TextColor(rowColor(chosen, t, t.TextMuted)).Tooltip(fmt.Sprintf("CONNECT %d · encrypted tunnel, not an HTTP response", f.status)).ContextMenu(a.rowMenu(c, f))
 			} else {
-				text(fmt.Sprint(f.status)).TextColor(rowColor(chosen, t, f.statusColor(t)))
+				text(fmt.Sprint(f.status)).TextColor(rowColor(chosen, t, f.statusColor(t))).ContextMenu(a.rowMenu(c, f))
 			}
 		case "header":
 			value := f.respHeader.Get(a.headerColumn)
@@ -1728,7 +1775,7 @@ func (a *app) table(c *ui.Context) {
 				text("—").TextColor(rowColor(chosen, t, t.TextMuted))
 				return
 			}
-			text(value).TextColor(rowColor(chosen, t, t.Text)).Tooltip(value)
+			text(value).TextColor(rowColor(chosen, t, t.Text)).Tooltip(value).ContextMenu(a.headerFilterMenu(c, a.headerColumn, []string{value}))
 		case "client":
 			if src, ok := a.clientIcon(f.process, f.processPath); ok {
 				ui.Image(c, src).Size(16, 16)
@@ -2084,6 +2131,13 @@ func runDesktop() error {
 	mygo.App.OnQuit(cleanupProxy) // native termination may not return from Run
 	mygo.App.OnQuit(a.experiments.close)
 	defer a.experiments.close()
+	cancelRequests := func() {
+		for _, d := range a.documents {
+			d.cancelSend()
+		}
+	}
+	mygo.App.OnQuit(cancelRequests)
+	defer cancelRequests()
 	mygo.App.OnQuit(func() { a.socket.session.disconnect() })
 	defer func() { a.socket.session.disconnect() }()
 	mygo.App.OnQuit(a.investigations.close)
@@ -2203,6 +2257,30 @@ func (a *app) rowMenu(c *ui.Context, f flow) func(*ui.Menu) {
 			services.WriteClipboard(f.body(true))
 			a.setMessage("Copied response body")
 		}
+		m.Submenu("Filter captures", func(m *ui.Menu) {
+			// Sync the conditions on the next frame; changing visible rows
+			// while the table is building would invalidate its row indices.
+			if m.Item("Host: " + f.host).Disabled(f.host == "").Chosen() {
+				a.filterTriage.Host = f.host
+				c.AnimationFrame()
+			}
+			if m.Item("App: " + cmp.Or(f.process, "unidentified")).Disabled(f.process == "").Chosen() {
+				a.filterTriage.Client = f.process
+				c.AnimationFrame()
+			}
+			if m.Item("Method: " + f.method).Disabled(f.method == "").Chosen() {
+				a.filterTriage.Method = f.method
+				c.AnimationFrame()
+			}
+			// A CONNECT status acknowledges a tunnel; it is not the status
+			// of an HTTP response from the destination.
+			if f.kind != "connect" && f.conn.error == "" && f.status >= 100 && f.status <= 599 {
+				if m.Item(fmt.Sprintf("Status: %d", f.status)).Chosen() {
+					a.filterStatus = strconv.Itoa(f.status)
+					c.AnimationFrame()
+				}
+			}
+		})
 		m.Separator()
 		if m.Item(cmp.Or(pinLabel(f), "Pin")).Chosen() {
 			a.togglePin(f)
@@ -2409,6 +2487,10 @@ func (a *app) sendComposed() {
 	if d == nil || d.composeWaiting {
 		return
 	}
+	if a.srv == nil || !a.srv.Running() {
+		a.setMessage("No proxy running. Start capture before sending; previous result kept.")
+		return
+	}
 	d.composeTests = nil
 	d.composeReplies = nil
 	d.response = nil
@@ -2416,25 +2498,22 @@ func (a *app) sendComposed() {
 	// A send replaces the response, so the comparison of the previous one
 	// has nothing left to stand on.
 	d.comparing = false
-	if a.srv == nil || !a.srv.Running() {
-		d.composeResult = "No proxy running. Start capture before sending."
-		a.setMessage("Compose: no proxy running")
-		return
-	}
+	d.sendOutcome, d.sendCancelling = "", false
 	d.composeWaiting, d.composeResult = true, "Sending…"
-	d.experimentID = 0
 	r, env, vars, srv, jar := d.value(), a.activeEnv, a.activeVars(), a.srv, a.requestCookies()
 	d.sent, d.sentAt, d.sentSet = r, time.Now(), true
 	runKey, draftKey, origin := uuid.New().String(), d.debugKey, d.origin
+	d.sentRun = runKey
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	d.sendCancel = cancel
+	ctx = context.WithValue(ctx, debugRunKey{}, runKey)
 	if r.Checks != (responseChecks{}) {
 		d.responseTab = resViewTests
 	}
 	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
-		ctx = context.WithValue(ctx, debugRunKey{}, runKey)
 		got := executeRequest(ctx, srv, r, vars, jar)
-		result := requestResult{document: d, environment: env, summary: got.summary(), response: got.response, tests: got.tests, replies: got.replies, varsBefore: vars, vars: got.vars}
+		result := requestResult{document: d, environment: env, summary: got.summary(), outcome: got.outcome(), response: got.response, tests: got.tests, replies: got.replies, varsBefore: vars, vars: got.vars}
 		record := snapshotExperiment(0, r, env, got)
 		record.RunKey, record.DraftKey, record.Source = runKey, draftKey, origin
 		result.experiment = &record
@@ -2513,14 +2592,24 @@ func (a *app) setKeyLog(path string) {
 	a.invalidate()
 }
 
-// filtersActive says whether a content filter narrows the table.
+// filtersActive includes every condition that can hide captured requests.
 func (a *app) filtersActive() bool {
-	return a.filterStatus != "" || a.filterHeader != "" || a.views.bodyFilter() != "" || a.filterTriage != (captureTriage{})
+	return a.query != "" || a.filter != "" && a.filter != "all" || a.chip != 0 ||
+		a.filterStatus != "" || a.filterHeader != "" || a.views.bodyFilter() != "" || a.filterTriage != (captureTriage{})
 }
 
 // filterSummary is what the status bar says about the filters in use.
 func (a *app) filterSummary() string {
 	var parts []string
+	if a.query != "" {
+		parts = append(parts, "URL "+a.query)
+	}
+	if a.filter != "" && a.filter != "all" {
+		parts = append(parts, a.filter)
+	}
+	if a.chip != 0 {
+		parts = append(parts, captureKinds[a.chip])
+	}
 	if a.filterStatus != "" {
 		parts = append(parts, "status "+a.filterStatus)
 	}
