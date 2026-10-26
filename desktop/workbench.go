@@ -392,11 +392,10 @@ func (a *app) desktopActions(c *ui.Context) []desktopAction {
 			a.focusTraffic(c)
 		}},
 		{"requests-workspace", "Requests", true, ui.Cmd, ui.Key2, func() {
-			if a.requestDocument == nil {
-				a.openCompose()
-			}
 			a.workspace, a.requestsSection = 1, 0
-			a.urlInput.Focus(c)
+			if a.requestDocument != nil {
+				a.urlInput.Focus(c)
+			}
 		}},
 		{"apis-workspace", "API contracts", true, ui.Cmd, ui.Key3, func() {
 			a.workspace, a.requestsSection = 1, 1

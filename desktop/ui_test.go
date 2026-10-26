@@ -1272,6 +1272,7 @@ func TestRequestTabsKeepDraftsAndConfirmClose(t *testing.T) {
 		tt.Type(text)
 	}
 	click("Requests")
+	click("Create request")
 	click("Rename request")
 	edit("Name", "Draft A")
 	click("Done")
@@ -2659,7 +2660,7 @@ func TestClientSetupCopiedCommandProducesLiveDecryptionEvidence(t *testing.T) {
 	// An imported capture with the same URL must never prove live setup.
 	a.flows = []flow{{id: 9, scheme: "https", url: upstream.URL, at: time.Now(), reqHeaders: "GET /"}}
 	tt := ui.NewTester(a.view, 960, 600)
-	if !tt.HasText("Decrypted HTTPS: not observed for this host since opening setup.") {
+	if !tt.HasText("No target traffic observed yet.") || tt.HasText("Evidence is from any client") {
 		t.Fatal("imported traffic was mistaken for setup evidence")
 	}
 	if err := tt.Click("Copy client example"); err != nil {
@@ -2676,8 +2677,15 @@ func TestClientSetupCopiedCommandProducesLiveDecryptionEvidence(t *testing.T) {
 		t.Fatal("example was not captured")
 	}
 	tt.Frame()
-	if !tt.HasText("Decrypted HTTPS observed · #1 · / · 200") || !tt.HasText("Client CA trust: not verified here. A captured request can also come from a client that skips verification.") {
+	if !tt.HasText("Decrypted HTTPS observed · #1 · / · 200") || !tt.HasText("Client CA trust is not verified here.") {
 		t.Fatalf("capture evidence missing or overstated trust: %v", tt.Texts())
+	}
+	if err := tt.Click("Evidence and limitations"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Advance(time.Second)
+	if !tt.HasText("Client CA trust: not verified here. A captured request can also come from a client that skips verification.") || !tt.HasText("Enabled for new connections (not proof of decryption)") {
+		t.Fatal("condensing setup lost its trust and rule limitations")
 	}
 }
 
@@ -2735,7 +2743,14 @@ func TestClientSetupSeparatesTunnelsFailuresAndDecryptedRequests(t *testing.T) {
 	a.query = "keep-this-filter"
 	a.applyFilter()
 	tt := ui.NewTester(a.view, 960, 600)
-	if !tt.HasText("0 decrypted HTTPS requests · 1 CONNECT records") || !tt.HasText("The client reached the proxy, but this CONNECT record is an encrypted tunnel, not a decrypted request.") {
+	if !tt.HasText("Encrypted tunnel observed; no decrypted request yet.") || tt.HasText("0 decrypted HTTPS requests · 1 CONNECT records") {
+		t.Fatalf("tunnel summary is missing or details were not collapsed: %q", tt.Texts())
+	}
+	if err := tt.Click("Evidence and limitations"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Advance(time.Second)
+	if !tt.HasText("0 decrypted HTTPS requests · 1 CONNECT records") {
 		t.Fatalf("tunnel evidence missing or unrelated traffic counted: %q", tt.Texts())
 	}
 	a.flows[4].conn = conn{errorStage: "TLS client", error: "EOF"}
@@ -2758,6 +2773,18 @@ func TestClientSetupSeparatesTunnelsFailuresAndDecryptedRequests(t *testing.T) {
 	tt.Frame()
 	if !tt.HasText("1 decrypted HTTPS requests · 1 CONNECT records") || !tt.HasText("Decrypted HTTPS observed · #6 · /new · 401") || tt.HasText("Client TLS handshake failed") {
 		t.Fatal("new decrypted traffic did not supersede the old failure, or HTTP error hid successful decryption")
+	}
+	a.flows = append(a.flows, flow{id: 7, live: true, at: since, url: "https://example.test:443", scheme: "https", kind: "connect", conn: conn{errorStage: "TLS client", error: "EOF"}})
+	tt.Frame()
+	if !tt.HasText("Client TLS handshake failed") || !tt.HasText("Earlier decrypted request · #6 · /new · 401") {
+		t.Fatal("a later failure hid the earlier decryption evidence")
+	}
+	tt.Scroll(700, 440, 0, 300)
+	if err := tt.Click("Inspect observed request"); err != nil {
+		t.Fatal(err)
+	}
+	if f, ok := a.current(); !ok || f.id != 6 {
+		t.Fatalf("the earlier decrypted request was no longer inspectable: selected #%d, present %t", f.id, ok)
 	}
 }
 
@@ -3406,8 +3433,18 @@ func TestSendCancellationKeepsTheSentSnapshotAndDoesNotRetry(t *testing.T) {
 		tt.Frame()
 		runtime.Gosched()
 	}
-	if !tt.HasText("Cancelled") || !tt.HasText("Cancelling does not undo server-side changes.") || tt.HasText("Not sent yet") || hits.Load() != 1 {
+	if !tt.HasText("Cancelled") || tt.HasText("Not sent yet") || hits.Load() != 1 {
 		t.Fatalf("cancel state or duplicate-send protection failed: %v; hits %d", tt.Texts(), hits.Load())
+	}
+	if tt.HasText("Edit the draft and send again.") || tt.HasText("context canceled") || !tt.HasText("The server may still be processing") {
+		t.Fatalf("cancellation was presented as an editable request failure: %q", tt.Texts())
+	}
+	if err := tt.Click("Technical details"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Advance(time.Second)
+	if !tt.HasText("context canceled") {
+		t.Fatal("cancellation technical evidence was lost")
 	}
 	if a.composeURL != upstream.URL+"/unsent" {
 		t.Fatal("cancelling overwrote in-flight edits")
@@ -3445,6 +3482,44 @@ func TestSendCancellationKeepsTheSentSnapshotAndDoesNotRetry(t *testing.T) {
 	}
 	if _, found := tt.Find("Experiment #1"); found || !tt.HasText("Pre-request script failed") || hits.Load() != 1 {
 		t.Fatal("same URL mixed independent send histories")
+	}
+}
+
+func TestRequestsWorkspaceDoesNotCreateUnrequestedDrafts(t *testing.T) {
+	a := workspaceApp()
+	tt := ui.NewTester(a.view, 960, 650)
+	click := func(label string) {
+		t.Helper()
+		if err := tt.Click(label); err != nil {
+			t.Fatal(err)
+		}
+	}
+	tt.Key(ui.Cmd, ui.Key2)
+	if !tt.HasText("Open a saved request or create a new one") {
+		t.Fatal("the workspace shortcut silently created an empty draft")
+	}
+	click("Capture")
+	click("Requests")
+	if !tt.HasText("Open a saved request or create a new one") {
+		t.Fatal("entering Requests silently created an empty draft")
+	}
+	click("List projects")
+	if _, found := tt.Find("Request tab: Untitled request"); found {
+		t.Fatal("opening a saved request left an automatic blank tab")
+	}
+	click("Add request tab")
+	click("List projects")
+	click("Request tab: Untitled request")
+	if readField(t, tt, "URL") != "https://" {
+		t.Fatal("opening a saved request discarded a user-created blank draft")
+	}
+	click("URL")
+	tt.Key(ui.Cmd, ui.KeyA)
+	tt.Type("https://example.test/unsaved")
+	click("Capture")
+	tt.Key(ui.Cmd, ui.Key2)
+	if readField(t, tt, "URL") != "https://example.test/unsaved" {
+		t.Fatal("workspace shortcut lost the edited draft")
 	}
 }
 

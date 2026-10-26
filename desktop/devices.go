@@ -30,6 +30,7 @@ type deviceSetup struct {
 	checkDone chan string
 	since     time.Time
 	target    string
+	details   bool
 }
 
 func deviceIPs() []string {
@@ -70,6 +71,7 @@ func deviceIPs() []string {
 func (a *app) openDevices() {
 	d := &a.deviceUI
 	d.since = time.Now()
+	d.details = false
 	d.target = cmp.Or(d.target, "https://example.com/")
 	if d.gateway == nil {
 		d.ips = deviceIPs()
@@ -249,7 +251,7 @@ func (a *app) devicesModal(c *ui.Context, t *ui.Theme) {
 								ui.Text(c, "Certificate port client: "+cmp.Or(status.LastCertificateClient, "not seen yet")).FontSize(12)
 							}
 							ui.Text(c, "A TCP connection is not proof of HTTPS trust. Verify the decrypted host, path and response in Capture. Mobile app identity is not available through this gateway.").FontSize(11).TextColor(t.TextMuted)
-							a.setupEvidence(c, t, d.target, d.since)
+							a.setupEvidence(c, t, d.target, d.since, &d.details)
 							ui.Text(c, "No device seen? Check the source IP / DHCP changes, selected interface, VPN, firewall and Wi-Fi client isolation. HTTP works but HTTPS fails? Check CA trust, SSL host rules and pinning.").FontSize(11).TextColor(t.TextMuted)
 						}
 					})

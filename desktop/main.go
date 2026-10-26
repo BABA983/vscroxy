@@ -2498,7 +2498,7 @@ func (a *app) sendComposed() {
 	// A send replaces the response, so the comparison of the previous one
 	// has nothing left to stand on.
 	d.comparing = false
-	d.sendOutcome, d.sendCancelling = "", false
+	d.sendOutcome, d.sendCancelling, d.sendDetails = "", false, false
 	d.composeWaiting, d.composeResult = true, "Sending…"
 	r, env, vars, srv, jar := d.value(), a.activeEnv, a.activeVars(), a.srv, a.requestCookies()
 	d.sent, d.sentAt, d.sentSet = r, time.Now(), true

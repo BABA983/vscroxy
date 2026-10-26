@@ -66,10 +66,7 @@ func (a *app) workspaceSwitch(c *ui.Context, t *ui.Theme) {
 	if seg.Track.Changed() {
 		switch a.workspace {
 		case 1:
-			if a.requestsSection == 0 && a.requestDocument == nil {
-				a.openCompose()
-			}
-			if a.requestsSection == 0 {
+			if a.requestsSection == 0 && a.requestDocument != nil {
 				a.urlInput.Focus(c)
 			}
 		case 0:

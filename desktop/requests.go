@@ -69,6 +69,7 @@ type requestDocument struct {
 	sendCancel     context.CancelFunc
 	sendCancelling bool
 	sendOutcome    string
+	sendDetails    bool
 	sentRun        string
 	// bodyEditor is the raw request body's editor. bodyFor is the text it
 	// last held, so an import or a restored draft resets it while typing
@@ -743,7 +744,9 @@ func (a *app) requestResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 				}
 			})
 		}
-		if outcome == "Network error" && d.response != nil || outcome == "Post-response script failed" || outcome == "Cancelled" && d.response != nil || outcome == "Timed out" && d.response != nil {
+		if outcome == "Cancelled" && (d.response != nil || len(d.composeReplies) > 0) {
+			ui.Column(c).Padding(8, 12).Gap(8).Children(func() { a.cancelledResult(c, t, d) })
+		} else if outcome == "Network error" && d.response != nil || outcome == "Post-response script failed" || outcome == "Timed out" && d.response != nil {
 			ui.Text(c, outcome+": "+detail).FontSize(11).TextColor(t.Danger).Padding(6, 12).Selectable()
 		}
 		if d.response == nil && len(d.composeReplies) == 0 {
@@ -788,6 +791,13 @@ func (a *app) requestResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 	})
 }
 
+func (a *app) cancelledResult(c *ui.Context, t *ui.Theme, d *requestDocument) {
+	ui.Text(c, "Waiting cancelled. The server may still be processing; check whether sending again would repeat the operation.").FontSize(12).TextColor(t.Text)
+	ui.Collapsible(c, "Technical details", &d.sendDetails, func() {
+		ui.Text(c, d.composeResult).FontSize(11).TextColor(t.TextMuted).Selectable().FillWidth()
+	}).FontSize(12)
+}
+
 // responseProvenance says when the response arrived and whether the capture it
 // came from was rewritten by sending it again.
 func (a *app) responseProvenance(c *ui.Context, t *ui.Theme, d *requestDocument) {
@@ -810,6 +820,8 @@ func (a *app) responseBody(c *ui.Context, t *ui.Theme, d *requestDocument) {
 				if d.composeWaiting {
 					ui.Spinner(c).Label("Waiting for request result")
 					ui.Text(c, "Waiting for response… · 30 s timeout").FontSize(12).TextColor(t.TextMuted)
+				} else if d.sendOutcome == "Cancelled" {
+					a.cancelledResult(c, t, d)
 				} else if d.sendOutcome != "" {
 					ui.Text(c, d.sendOutcome).FontSize(13).TextColor(t.Warning)
 					ui.Text(c, d.composeResult).FontSize(12).TextColor(t.Text).Selectable().FillWidth()
@@ -818,7 +830,7 @@ func (a *app) responseBody(c *ui.Context, t *ui.Theme, d *requestDocument) {
 					ui.Text(c, cmp.Or(d.composeResult, "Send a request to see its response")).FontSize(12).TextColor(t.TextMuted)
 					ui.Text(c, "The exchange will also appear in Capture.").FontSize(11).TextColor(t.TextMuted)
 				}
-				if d.composeWaiting || d.sendOutcome == "Cancelled" || d.sendOutcome == "Timed out" {
+				if d.composeWaiting || d.sendOutcome == "Timed out" {
 					ui.Text(c, "Cancelling does not undo server-side changes.").FontSize(11).TextColor(t.TextMuted)
 				}
 			})

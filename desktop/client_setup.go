@@ -16,6 +16,7 @@ type clientSetup struct {
 	url     string
 	since   time.Time
 	scroll  ui.ScrollState
+	details bool
 }
 
 func (a *app) openClientSetup() {
@@ -40,7 +41,7 @@ func clientExample(runtime, addr, ca, target string) string {
 
 // Evidence is deliberately session-wide, not attributed to the selected device
 // or runtime: gateways do not preserve a device identity in the capture core.
-func (a *app) setupEvidence(c *ui.Context, t *ui.Theme, target string, since time.Time) {
+func (a *app) setupEvidence(c *ui.Context, t *ui.Theme, target string, since time.Time, details *bool) {
 	u, err := url.Parse(strings.TrimSpace(target))
 	if err != nil || u.Scheme != "https" || u.Hostname() == "" || u.User != nil {
 		ui.Text(c, "Enter an HTTPS URL without embedded credentials.").FontSize(12).TextColor(t.Warning)
@@ -62,44 +63,69 @@ func (a *app) setupEvidence(c *ui.Context, t *ui.Theme, target string, since tim
 			observed = f
 		}
 	}
-	ui.Text(c, "Target traffic · since opening setup").FontSize(12).Bold()
-	ui.Text(c, fmt.Sprintf("%d decrypted HTTPS requests · %d CONNECT records", requests, tunnels)).FontSize(12)
-	if latest == nil {
-		ui.Text(c, "No retained live traffic for this origin yet. Check the client's proxy address, bypass rules and ignored hosts/apps.").FontSize(12).TextColor(t.TextMuted)
-	} else {
-		if latest.conn.error != "" {
-			ui.Text(c, latest.conn.explanation().title).FontSize(12).TextColor(t.Warning)
-			ui.Text(c, latest.conn.error).FontSize(12).Selectable()
-			ui.Text(c, "This is a recorded failure, not a confirmed certificate diagnosis.").FontSize(11).TextColor(t.TextMuted)
-		} else if latest.kind == "connect" {
-			ui.Text(c, "The client reached the proxy, but this CONNECT record is an encrypted tunnel, not a decrypted request.").FontSize(12).TextColor(t.Warning)
-		}
-		if ui.Button(c, "Inspect latest connection").FontSize(11).Tooltip("Inspect the recorded exchange without clearing the current view's filters").Clicked() {
-			a.clientUI.open, a.deviceUI.open = false, false
-			a.inspectCapture(latest.id)
-		}
-	}
-	ui.Divider(c)
 	enabled := a.inspectionConfig().Decrypts(u.Hostname())
-	rule := "Disabled — new connections stay encrypted"
-	if enabled {
-		rule = "Enabled for new connections (not proof of decryption)"
-	}
-	ui.Text(c, "Decryption rule: "+rule).FontSize(12)
-	if !enabled && ui.Button(c, "Enable inspection for "+u.Hostname()).FontSize(11).Clicked() {
-		a.decryptHost(u.Hostname())
-	}
-	ui.Text(c, "Client CA trust: not verified here. A captured request can also come from a client that skips verification.").FontSize(11).TextColor(t.TextMuted)
-	if observed == nil {
-		ui.Text(c, "Decrypted HTTPS: not observed for this host since opening setup.").FontSize(12).TextColor(t.Warning)
-	} else {
+	failed := latest != nil && latest.conn.error != ""
+	ui.Text(c, "Observed · since opening setup").FontSize(12).Bold()
+	switch {
+	case latest == nil:
+		ui.Text(c, "No target traffic observed yet.").FontSize(12).TextColor(t.TextMuted)
+	case failed:
+		ui.Text(c, latest.conn.explanation().title).FontSize(12).TextColor(t.Warning)
+		ui.Text(c, "This is a recorded failure, not a confirmed certificate diagnosis.").FontSize(11).TextColor(t.TextMuted)
+	case observed != nil:
 		ui.Text(c, fmt.Sprintf("Decrypted HTTPS observed · #%d · %s · %d", observed.id, observed.path, observed.status)).FontSize(12).TextColor(t.Success)
-		if ui.Button(c, "Inspect observed request").FontSize(11).Clicked() {
-			a.clientUI.open, a.deviceUI.open = false, false
-			a.inspectCapture(observed.id)
-		}
+	default:
+		ui.Text(c, "Encrypted tunnel observed; no decrypted request yet.").FontSize(12).TextColor(t.Warning)
 	}
-	ui.Text(c, "Evidence is from any client in this live session, not necessarily this device or runtime. Imported sessions do not count.").FontSize(11).TextColor(t.TextMuted)
+	ui.Text(c, "Client CA trust is not verified here.").FontSize(11).TextColor(t.TextMuted)
+	ui.Text(c, "Next step").FontSize(12).Bold()
+	switch {
+	case failed:
+		ui.Text(c, "Inspect the recorded failure before changing trust or rules.").FontSize(12)
+	case !enabled:
+		ui.Text(c, "Enable inspection, then run the client request on a new connection.").FontSize(12)
+		if ui.Button(c, "Enable inspection for "+u.Hostname()).FontSize(11).Clicked() {
+			a.decryptHost(u.Hostname())
+		}
+	case observed != nil:
+		ui.Text(c, "Inspect the decrypted request.").FontSize(12)
+	case latest != nil:
+		ui.Text(c, "Verify this client's CA trust, then reconnect and send an HTTPS request.").FontSize(12)
+	default:
+		ui.Text(c, "Run the client request. If nothing appears, check proxy and bypass settings.").FontSize(12)
+	}
+	inspect, label := latest, "Inspect latest connection"
+	if observed != nil && !failed {
+		inspect, label = observed, "Inspect observed request"
+	}
+	if inspect != nil && ui.Button(c, label).FontSize(11).Tooltip("Inspect the recorded exchange without clearing the current view's filters").Clicked() {
+		a.clientUI.open, a.deviceUI.open = false, false
+		a.inspectCapture(inspect.id)
+	}
+	ui.Collapsible(c, "Evidence and limitations", details, func() {
+		ui.Text(c, fmt.Sprintf("%d decrypted HTTPS requests · %d CONNECT records", requests, tunnels)).FontSize(12)
+		if failed {
+			ui.Text(c, latest.conn.error).FontSize(12).Selectable()
+			if observed != nil {
+				ui.Text(c, fmt.Sprintf("Earlier decrypted request · #%d · %s · %d", observed.id, observed.path, observed.status)).FontSize(12)
+				if ui.Button(c, "Inspect observed request").FontSize(11).Clicked() {
+					a.clientUI.open, a.deviceUI.open = false, false
+					a.inspectCapture(observed.id)
+				}
+			}
+		}
+		rule := "Disabled — new connections stay encrypted"
+		if enabled {
+			rule = "Enabled for new connections (not proof of decryption)"
+		}
+		ui.Text(c, "Decryption rule: "+rule).FontSize(12)
+		if failed && !enabled && ui.Button(c, "Enable inspection for "+u.Hostname()).FontSize(11).Clicked() {
+			a.decryptHost(u.Hostname())
+		}
+		ui.Text(c, "Client CA trust: not verified here. A captured request can also come from a client that skips verification.").FontSize(11).TextColor(t.TextMuted)
+		ui.Text(c, "Evidence is from any client in this live session, not necessarily this device or runtime. Imported sessions do not count.").FontSize(11).TextColor(t.TextMuted)
+		ui.Text(c, "No traffic? Check proxy address, bypass rules and ignored hosts/apps. Reconnect after setup changes. Pinning or a private runtime trust store needs client-side changes.").FontSize(11).TextColor(t.TextMuted)
+	}).FontSize(12)
 }
 
 func (a *app) clientSetupModal(c *ui.Context, t *ui.Theme) {
@@ -141,11 +167,10 @@ func (a *app) clientSetupModal(c *ui.Context, t *ui.Theme) {
 						if a.deviceUI.check != "" {
 							ui.Text(c, a.deviceUI.check).FontSize(11)
 						}
-						a.setupEvidence(c, t, s.url, s.since)
-						ui.Text(c, "Run the example yourself after enabling the host. Reconnect after setup changes. Pinning or a private runtime trust store needs client-side changes.").FontSize(11).TextColor(t.TextMuted)
+						a.setupEvidence(c, t, s.url, s.since, &s.details)
 					})
 					if s.scroll.Y < s.scroll.MaxY-1 {
-						ui.Text(c, "More HTTPS checks below ↓").FontSize(11).TextColor(t.TextMuted)
+						ui.Text(c, "More evidence below ↓").FontSize(11).TextColor(t.TextMuted)
 					}
 				})
 			})
