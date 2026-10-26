@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Prepares an Amp orb to build, test and run the Go desktop app in desktop/.
+# Prepares an Amp orb to build, test and run the Go desktop app.
 # Idempotent: a warm orb skips downloads and installs.
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -41,7 +41,7 @@ else
 fi
 
 step "downloading Go modules"
-cd "$repo_root/desktop"
+cd "$repo_root"
 go mod download
 
 # MyGo's source, its docs (the website's markdown) and its examples come with
