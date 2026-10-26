@@ -10,8 +10,8 @@ Use Go 1.27.3 or later. Linux needs GTK 3 and OpenGL runtime libraries; on Debia
 or Ubuntu, install `libgtk-3-0` and `libgl1`. Run commands from the repository root:
 
 ```sh
-go run .
-go build -o bin/vscroxy .
+go run ./cmd/vscroxy
+go build -o bin/vscroxy ./cmd/vscroxy
 go vet ./...
 go test ./...
 ```
@@ -33,9 +33,10 @@ JavaScript request/response hooks run in Goja inside the Go process, not Node.js
 
 ## Source layout
 
-- The root Go package owns the native app and its UI tests.
-- `internal/` contains capture, system-proxy integration, device access, DNS and
-  process/icon lookup packages.
+- `cmd/vscroxy/` is the executable entry point, including proxy-guard mode.
+- `internal/app/` owns the native UI, application state and UI tests.
+- The other `internal/` packages contain capture, system-proxy integration,
+  device access, DNS and process/icon lookup.
 - `third_party/go-mitmproxy/` is the locally patched capture engine. Its
   [patch notes](third_party/go-mitmproxy/VSCROXY.md) explain why it is retained.
 - `mygo.json` configures development and packaging; `.agents/setup` prepares an

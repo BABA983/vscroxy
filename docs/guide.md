@@ -18,7 +18,7 @@ Go 1.27.3 or later. On Linux the app needs GTK 3 and OpenGL runtime libraries.
 Run this from the repository root:
 
 ```sh
-go run .
+go run ./cmd/vscroxy
 ```
 
 The proxy prefers `127.0.0.1:7890`. If that address is unavailable (for example,
