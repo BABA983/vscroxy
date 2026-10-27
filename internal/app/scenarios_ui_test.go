@@ -6,13 +6,123 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
+	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/baba983/vscroxy/internal/capture"
 	"github.com/egoist/mygo/ui"
 )
+
+func TestCapturePromotionPreviewConfirmsExactBytesWithoutSending(t *testing.T) {
+	for _, width := range []int{1280, 960} {
+		t.Run(fmt.Sprint(width), func(t *testing.T) {
+			a := workspaceApp()
+			body := strings.Repeat("中x", 5000) + "tail"
+			spill := filepath.Join(t.TempDir(), "request.body")
+			if err := os.WriteFile(spill, []byte(body), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			a.flows[0].reqHeader = http.Header{"Content-Encoding": {"gzip"}, "Content-Length": {"123"}, "X-Tag": {"one", "two"}}
+			a.flows[0].reqFile, a.flows[0].reqSize = spill, len(body)
+			tt := ui.NewTester(a.view, width, 600)
+			click := func(label string) {
+				t.Helper()
+				if err := tt.Click(label); err != nil {
+					t.Fatal(err)
+				}
+			}
+			click("Edit & replay")
+			tt.Key(ui.Cmd, ui.KeyEnter)
+			if !tt.HasText("Capture → Request") || len(a.documents) != 0 || len(a.requests) != 1 {
+				t.Fatal("preview created or sent a draft")
+			}
+			click("Cancel")
+			if len(a.documents) != 0 {
+				t.Fatal("cancel created a draft")
+			}
+			click("Edit & replay")
+			click("Replace origin with {{base_url}}")
+			if err := os.Remove(spill); err != nil {
+				t.Fatal(err)
+			}
+			click("Create draft")
+			if a.composeBody != body || a.composeURL != "{{base_url}}/projects" || a.composeWaiting || a.response != nil || a.activeEnv != "" {
+				t.Fatal("confirmation reread lost spill bytes, sent traffic, or changed the environment")
+			}
+			if got := parseHeaderBlock(a.composeHeaders); len(got.Values("X-Tag")) != 2 || got.Get("Content-Encoding") != "" || a.flows[0].reqHeader.Get("Content-Encoding") != "gzip" {
+				t.Fatal("conversion changed source or duplicate/encoding headers")
+			}
+			click("Request variables")
+			if !tt.HasText("Unresolved") || !tt.HasText("base_url") {
+				t.Fatal("generated template lacks visible missing-variable state")
+			}
+			a.requestsPath = filepath.Join(t.TempDir(), "requests.json")
+			if !a.saveComposed() {
+				t.Fatal(a.message)
+			}
+			originalID := a.assetID
+			click("Request options")
+			if err := tt.ChooseMenuItem("Duplicate as new request"); err != nil {
+				t.Fatal(err)
+			}
+			if !a.saveComposed() || a.assetID == originalID || len(a.requests) != 3 {
+				t.Fatal("duplicate reused a saved identity")
+			}
+		})
+	}
+}
+
+func TestRequestConsoleAndRunsAreVisibleWithoutReexecution(t *testing.T) {
+	var sends atomic.Int32
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		sends.Add(1)
+		fmt.Fprint(w, "response")
+	}))
+	defer upstream.Close()
+	a := workspaceApp()
+	a.srv = requestProxy(t)
+	a.addDocument(savedRequest{Name: "Console request", Method: "GET", URL: upstream.URL, Pre: `log("pre-output");`, Post: `log("post-output"); throw new Error("diagnostic");`}, "")
+	tt := ui.NewTester(a.view, 960, 600)
+	click := func(label string) {
+		t.Helper()
+		if err := tt.Click(label); err != nil {
+			t.Fatal(err)
+		}
+	}
+	click("Send")
+	guard := time.NewTimer(time.Minute)
+	defer guard.Stop()
+	for a.composeWaiting {
+		select {
+		case <-guard.C:
+			t.Fatal("send did not finish")
+		default:
+		}
+		tt.Frame()
+		runtime.Gosched()
+	}
+	click("Response tab: Console")
+	if !tt.HasText("pre-request · log · pre-output") || !tt.HasText("post-response · log · post-output") || !tt.HasText("post-response.js:1:") {
+		t.Fatal("visible console lost logs or error location")
+	}
+	click("Runs")
+	click("All retained runs…")
+	click("Variables")
+	tt.Key(0, ui.KeyLeft)
+	if a.experiments.tab != 4 || !tt.HasText("post-response · log · post-output") {
+		t.Fatal("retained run lost console")
+	}
+	click("Open as draft")
+	if sends.Load() != 1 || a.composeWaiting {
+		t.Fatal("opening a run reexecuted the request")
+	}
+}
 
 func TestScenarioRulesUIControlsSavedAndRunningConfiguration(t *testing.T) {
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

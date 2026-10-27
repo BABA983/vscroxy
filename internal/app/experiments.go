@@ -33,6 +33,8 @@ type experimentRecord struct {
 	Outcome      string `json:",omitempty"`
 	Tests        []testResult
 	Replies      []string
+	Console      []runMessage       `json:",omitempty"`
+	Variables    []resolvedVariable `json:",omitempty"`
 	Exchange     *capture.Flow
 	RequestBody  []byte
 	ResponseBody []byte
@@ -60,9 +62,12 @@ type experimentLog struct {
 
 func snapshotExperiment(id int, draft savedRequest, environment string, got requestExecution) experimentRecord {
 	draft.Form = slices.Clone(draft.Form)
+	draft.HeaderList = slices.Clone(draft.HeaderList)
 	r := experimentRecord{
-		ID: id, At: time.Now(), Draft: draft, Environment: environment,
+		ID: id, At: time.Now(), Draft: draft, Source: draft.Source, Environment: environment,
 		Summary: got.summary(), Outcome: got.outcome(), Tests: slices.Clone(got.tests), Replies: slices.Clone(got.replies),
+		Console:   slices.Clone(got.console),
+		Variables: slices.Clone(got.variables),
 	}
 	f := got.response
 	if f == nil && got.request != nil {

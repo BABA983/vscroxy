@@ -294,7 +294,7 @@ func (a *app) requestActions(c *ui.Context, f flow, current bool) []desktopActio
 		}
 	}
 	return []desktopAction{
-		{"edit", "Edit & replay", current && !bulk && f.kind == "", ui.Cmd | ui.Alt, ui.KeyEnter, func() { a.composeFrom(f) }},
+		{"edit", "Edit & replay", current && !bulk && f.kind == "", ui.Cmd | ui.Alt, ui.KeyEnter, func() { a.previewCapture(f, false) }},
 		{"replay", "Replay selected…", replayable, ui.Cmd, ui.KeyR, func() { a.openReplay(selected) }},
 		{"copy", "Copy as cURL", copyable, ui.Cmd | ui.Alt, ui.KeyC, copyRequest},
 	}
@@ -375,7 +375,7 @@ func (a *app) desktopActions(c *ui.Context) []desktopAction {
 		}},
 		{"https", "HTTPS certificate & decryption setup…", true, 0, 0, func() { a.settingsTab, a.settingsOpen = 2, true }},
 		{"diagnostics", "Capture diagnostics…", true, 0, 0, a.openDiagnostics},
-		{"experiments", "Experiment workbench…", true, 0, 0, func() {
+		{"experiments", "Run records…", true, 0, 0, func() {
 			a.experiments.scope, a.experiments.draftKey, a.experiments.open = nil, "", true
 		}},
 		{"websocket", "WebSocket session…", true, 0, 0, a.openSocket},

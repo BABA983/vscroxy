@@ -252,6 +252,9 @@ func TestCaptureTableScrollsAndKeepsEachViewsPlace(t *testing.T) {
 	if err := tt.Click("Edit & replay"); err != nil {
 		t.Fatal(err)
 	}
+	if err := tt.Click("Create draft"); err != nil {
+		t.Fatal(err)
+	}
 	if err := tt.Click("Back to traffic"); err != nil {
 		t.Fatal(err)
 	}
@@ -349,6 +352,7 @@ func TestWorkspaceKeepsCaptureAndDraftIndependent(t *testing.T) {
 	if err := tt.ChooseMenuItem("Edit & resend"); err != nil {
 		t.Fatal(err)
 	}
+	click("Create draft")
 	if value("URL") != "https://api.example.com/login" || !tt.HasText("Save") {
 		t.Fatal("captured request did not open in the Requests workspace")
 	}
@@ -372,7 +376,7 @@ func TestWorkspaceKeepsCaptureAndDraftIndependent(t *testing.T) {
 	if url, script := value("URL"), value("Pre-request script"); url != "https://api.example.com/projects?limit=7" || a.composeMethod != "" || script != `req.set("Accept", "application/json")` {
 		t.Fatalf("switching workspaces changed the draft: URL %q, method %q, script %q", url, a.composeMethod, script)
 	}
-	click("History")
+	click("Runs")
 	click(a.history[0].label())
 	if value("URL") != "https://api.example.com/login" {
 		t.Fatal("history did not open in the request editor")
@@ -1414,6 +1418,7 @@ func TestCaptureDraftComparisonKeepsTheTrafficContextAndLastSend(t *testing.T) {
 		}
 	}
 	click("Edit & replay")
+	click("Create draft")
 	edit("URL", upstream.URL+"/items?variant=edited")
 	click("Scripts")
 	edit("Pre-request script", `req.set("X-Marker", "from-script"); req.body = "sent-body"`)
@@ -1582,10 +1587,11 @@ func TestConcurrentRequestTabsOwnTheirResponses(t *testing.T) {
 	if err := tt.ChooseMenuItem("Manage environments…"); err != nil {
 		t.Fatal(err)
 	}
-	click("Environment variables")
+	click("Reveal variable 1")
+	click("Variable value 1")
 	tt.Key(ui.Cmd, ui.KeyA)
 	tt.Key(ui.Cmd, ui.KeyC)
-	if tt.Clipboard() != "keep = staging" {
+	if tt.Clipboard() != "staging" {
 		t.Fatal("completion wrote variables to the newly selected environment")
 	}
 	click("Cancel")
@@ -1595,11 +1601,14 @@ func TestConcurrentRequestTabsOwnTheirResponses(t *testing.T) {
 	if err := tt.ChooseMenuItem("Manage environments…"); err != nil {
 		t.Fatal(err)
 	}
-	click("Environment variables")
-	tt.Key(ui.Cmd, ui.KeyA)
-	tt.Key(ui.Cmd, ui.KeyC)
-	if tt.Clipboard() != "fastDone = yes\nkeep = original\nslowDone = yes" {
-		t.Fatalf("concurrent script updates lost variables: %q", tt.Clipboard())
+	for i, want := range []string{"yes", "original", "yes"} {
+		click(fmt.Sprintf("Reveal variable %d", i+1))
+		click(fmt.Sprintf("Variable value %d", i+1))
+		tt.Key(ui.Cmd, ui.KeyA)
+		tt.Key(ui.Cmd, ui.KeyC)
+		if tt.Clipboard() != want {
+			t.Fatalf("concurrent script updates lost variable %d: %q", i, tt.Clipboard())
+		}
 	}
 	click("Cancel")
 	click("Scripts")
@@ -1644,6 +1653,7 @@ func TestAPIWorkflowPreservesIndependentContracts(t *testing.T) {
 	if err := tt.ChooseMenuItem("Edit & resend"); err != nil {
 		t.Fatal(err)
 	}
+	click("Create draft")
 	click("Rename request")
 	edit("Collection", "Captured API")
 	edit("Name", "Captured projects")
@@ -2937,6 +2947,9 @@ func TestKeyboardDebuggingLoopDoesNotSendThroughDialogsOrRepeatWhileWaiting(t *t
 		t.Fatal("inspector Escape did not restore list focus")
 	}
 	tt.Key(ui.Cmd|ui.Alt, ui.KeyEnter)
+	if err := tt.Click("Create draft"); err != nil {
+		t.Fatal(err)
+	}
 	if !tt.Focused("URL") {
 		t.Fatal("editing a capture did not focus the draft URL")
 	}
@@ -3078,6 +3091,9 @@ func TestNativeCommandsRespectModalScopeAndDraftCloseProtection(t *testing.T) {
 		tt.Frame()
 	}
 	choose("edit")
+	if err := tt.Click("Create draft"); err != nil {
+		t.Fatal(err)
+	}
 	if !tt.Focused("URL") {
 		t.Fatal("native edit did not open the focused capture")
 	}
@@ -3239,7 +3255,7 @@ func TestExperimentWorkbenchComparesIndependentRunsAndReopensWithoutSending(t *t
 		return tt.Clipboard()
 	}
 	tt.Key(ui.Cmd, ui.KeyK)
-	tt.Type("Experiment workbench")
+	tt.Type("Run records")
 	tt.Key(0, ui.KeyEnter)
 	click("Experiment #1")
 	click("Set baseline")

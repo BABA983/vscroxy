@@ -697,7 +697,7 @@ workspace switch sits above them. The breadcrumb keeps a back button to the
 traffic or to the capture the draft came from (**Source #N**), then the
 collection and name as quiet text: clicking it renames the request and moves it
 between collections, so neither needs a permanent input. The environment,
-**Save** and the request's **⋯** menu — Copy as cURL, Variables, Experiments,
+**Save** and the request's **⋯** menu — Copy as cURL, Variables, Run records,
 Send history, regression import/export and environment management — sit at the
 right. Method, URL and **Send** are the main action row; the method is an
 editable dropdown with its own chevron, so the common verbs are a click away and
@@ -761,6 +761,23 @@ forms, and `req.set/remove` overrides generated headers. Expansion happens
 once with the final variables. cURL export encodes the draft without executing
 scripts.
 
+**Console** in the response area shows phase-tagged `log(...)` output,
+variable-write names (not their values), and setup/network/script errors,
+including script filename and line when available. It remains available when
+pre-script/setup fails before a response exists. Output is bounded to 200
+messages / 4096 bytes per message; truncation is explicit. Scripts can still
+log secrets: Console and retained records are not automatically redacted.
+
+**Variables** edits environments as name/value rows, with add/remove, masked
+values and explicit reveal. Empty values and whitespace are preserved; duplicate
+or invalid names block saving. Only one environment is active. This is plaintext
+local storage, not Vault. **Request variables** beside the target origin expands
+the draft's referenced names, environment source and unresolved state; pre-scripts
+may supply missing values later. Retained runs show the referenced values after
+pre-script and before expansion, distinguishing run input (environment snapshot
+or a preceding Runner step) from pre-script writes. Post-script changes do not
+rewrite this snapshot. Values stay masked until revealed.
+
 If `requests.json` or `env.json` cannot be read, its error and path remain
 visible and writes to that asset are blocked, including script variable saves
 and library imports. Repair the affected file or move it aside as a backup,
@@ -777,6 +794,9 @@ The starting environment is snapshotted; script variables and session cookies
 carry into later steps. Results show status, timing and assertions (latest 1000
 rows, with cumulative totals). Closing the dialog leaves the run active;
 **Cancel run** stops it. Unsaved request tabs are not run or modified.
+Each delivered attempt also appears in **Run records**, including failures and
+in-flight cancellation; **Inspect retained run** opens its immutable snapshot
+and Console. Runner results are not the deduplicated recent-request list.
 
 Each tab owns its draft, editor selection, pending send and response. Concurrent
 sends, even to the same URL, retain their own results and run the script that
@@ -785,22 +805,33 @@ without overwriting unrelated variables changed by another tab. Reopening a
 saved request focuses its existing tab instead of replacing unsaved edits.
 A dot marks unsaved changes; closing offers **Cancel**, **Discard** or
 **Save & close**. A failed save leaves the draft open. Sending tabs cannot be
-closed until the send finishes. Open tabs are session-local, not restored on
-restart.
+closed until the send finishes. Open drafts are restored from the private
+experiment checkpoint described below; editor selection and layout are session-local.
 
-A captured row's **Edit & resend** creates a new draft and links back to its
-source flow while that flow remains in the capture session. This is the step
-from traffic to a request worth keeping; saved collections can then become
-independent contracts in **APIs**.
+A captured row's **Edit & replay** first opens **Capture → Request**. Review the
+complete decoded UTF-8 payload, duplicate headers, and removed encoding/framing
+headers before creating a draft. The optional origin replacement uses
+`{{base_url}}`; configure it in the intended environment yourself. The preview
+shows at most 16 KiB but confirmation keeps the full frozen payload, not a
+re-read of a possibly removed spill file. Missing/incomplete content, non-UTF-8,
+trailers and CONNECT/tunnels block conversion explicitly. Cancel creates nothing;
+confirmation never sends and never edits the original capture. Source identity
+and bounded source evidence accompany the saved request across restart.
 
-**Save request** keeps the editor's request under its name in
-`~/.vscroxy/requests.json`, replacing one of the same name in the same
-collection; the sidebar groups the saved requests by collection, and the
+**Save request** keeps the editor's request in `~/.vscroxy/requests.json` with
+a stable ID: renaming or moving it updates the same asset. Unrelated same-name
+assets are not silently overwritten. **Duplicate as new request** creates a new
+identity. Legacy assets gain deterministic IDs in memory without a load-time
+rewrite; the next explicit save persists them. Imports update matching IDs and
+rename unrelated name collisions. The sidebar groups requests by collection; the
 **Session** menu exports and imports them as a file.
 
-**History** lists what Compose sent, newest first, without repeats of the
-same method and URL, in `~/.vscroxy/history.json`; clicking one fills the
-editor with it again, and **Session → Clear history** empties the list.
+**Runs → All retained runs…** opens the retained records for choosing an individual
+immutable attempt. **Send history** scopes the same view to a draft (or its source),
+and **Debug history** scopes it to capture provenance. **Recent requests** beneath
+these records retains the older `~/.vscroxy/history.json` meaning: sent requests
+deduplicated by method + URL, not an execution audit log. Opening one creates an
+unsent copy. **Session → Clear history** clears only this recent-request list.
 
 ### Regression cases
 
@@ -1185,12 +1216,14 @@ URL. Capture remains the source for individual wire exchanges. Previews are
 bounded to 8 MiB and explicitly mark incomplete text. Sending is a real network
 operation and is not undone by returning to Capture or closing a tab.
 
-### Experiment workbench
+### Run records (experiment snapshots)
 
-**Experiments…** in Requests or **Commands → Experiment workbench…** retains
-independent snapshots of each completed send, including failed attempts: authored
-draft, environment name (not its variables), prepared request/final response,
-checks, summary and notes. Repeated method/URL attempts remain separate. Choose
+**Run records…** in Requests or Commands opens the same retained experiment store
+as the sidebar's **Runs**. It retains independent snapshots of Send and Runner
+attempts, including failures: authored draft, environment name, referenced-variable
+snapshot, Console, prepared request/final response, checks, summary and notes.
+Only referenced variables are retained, not the entire environment. Repeated
+method/URL attempts remain separate. Choose
 a baseline or **Use as left**, then compare any other attempt using the existing
 body/header diff. **Ignore JSON keys** removes comma-separated top-level response
 keys only in the comparison; invalid or incomplete JSON is never normalized.
@@ -1225,7 +1258,7 @@ unsent edits; **Open as draft** creates a new editable branch without sending.
 **Compare source** compares the original capture snapshot against the experiment's
 client request/final response. **Recorded interventions** shows actual captured
 scenario/rule actions for the selected wire exchange, never inferred from today's
-configuration. Each HTTP(S) editor send has a local correlation identity, including
+configuration. Each HTTP(S) Send or Runner attempt has a local correlation identity, including
 across redirect hops; it is not sent as an HTTP header. Up to 16 separate wire
 exchanges are retained per run. Legacy runs and missing wire evidence are labeled
 explicitly and do not imply that no rule ran. Interactive WebSocket sends are not

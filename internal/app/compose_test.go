@@ -82,7 +82,8 @@ func TestCapturedDraftUsesCompleteDecodedPayload(t *testing.T) {
 		t.Fatalf("replay failed: %+v, response %+v", got, got.response)
 	}
 	a.requests = nil
-	a.saveFlowAsRequest(f)
+	a.previewCapture(f, true)
+	a.confirmCaptureRequest()
 	if len(a.requests) != 1 || a.requests[0].Body != body || parseHeaderBlock(a.requests[0].Headers).Get("Content-Encoding") != "" {
 		t.Fatal("save captured request bypassed conversion contract")
 	}
@@ -106,7 +107,8 @@ func TestCapturedDraftRejectsUnavailablePayload(t *testing.T) {
 		a.requests = nil
 		a.composeFrom(f)
 		a.regressionFrom(f)
-		a.saveFlowAsRequest(f)
+		a.previewCapture(f, true)
+		a.confirmCaptureRequest()
 		if len(a.documents) != 0 || len(a.requests) != 0 || a.message == "" {
 			t.Fatalf("unreplayable capture silently converted: %+v", f)
 		}
@@ -170,20 +172,21 @@ func TestExpandVars(t *testing.T) {
 	}
 }
 
-func TestVarLines(t *testing.T) {
-	text := "# a comment\nbase = http://a.test\ntoken=abc\n  spaced  =  v  \nno equals sign\n= nameless\n"
-	vars := varLines(text)
-	want := map[string]string{"base": "http://a.test", "token": "abc", "spaced": "v"}
-	if len(vars) != len(want) {
-		t.Fatalf("vars = %v, want %v", vars, want)
+func TestEnvironmentTablePreservesValuesAndRejectsDuplicateKeys(t *testing.T) {
+	a := workspaceApp()
+	a.envsPath = filepath.Join(t.TempDir(), "env.json")
+	a.openVars()
+	a.varsRows = []requestField{{Name: "base", Value: "http://a.test"}, {Name: "empty"}, {Name: "spaced", Value: "  = x  "}}
+	a.saveVars()
+	envs, _, err := loadEnvs(a.envsPath)
+	if err != nil || len(envs) != 1 || envs[0].Vars["spaced"] != "  = x  " || len(envs[0].Vars) != 3 {
+		t.Fatalf("environment table lost literal values: %+v %v", envs, err)
 	}
-	for name, value := range want {
-		if vars[name] != value {
-			t.Errorf("%s = %q, want %q", name, vars[name], value)
-		}
-	}
-	if got, want := formatVars(vars), "base = http://a.test\nspaced = v\ntoken = abc"; got != want {
-		t.Errorf("formatVars = %q, want %q", got, want)
+	a.openVars()
+	a.varsRows = append(a.varsRows, requestField{Name: " base ", Value: "replacement"})
+	a.saveVars()
+	if !a.varsOpen || a.varsProblem == "" || a.activeVars()["base"] != "http://a.test" {
+		t.Fatal("duplicate key silently replaced a value")
 	}
 }
 

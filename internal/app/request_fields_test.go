@@ -112,7 +112,7 @@ func TestStructuredRequestSurvivesSavingAndSendsBinaryMultipart(t *testing.T) {
 		fmt.Fprint(w, `{"upload":"complete"}`)
 	}))
 	defer upstream.Close()
-	r := savedRequest{Name: "Upload", Collection: "Demo", Method: "POST", URL: upstream.URL + "/upload?tag=a%2Fb&tag=two+words",
+	r := savedRequest{ID: "multipart-asset", Name: "Upload", Collection: "Demo", Method: "POST", URL: upstream.URL + "/upload?tag=a%2Fb&tag=two+words",
 		Headers: "Content-Type: stale/type\nContent-Length: 1\nAuthorization: stale",
 		Auth:    requestAuth{Type: "Bearer", Token: "{{token}}"}, BodyMode: "Multipart",
 		Form: []requestField{{Name: "label", Value: "中文 & ="}, {Name: "label", Value: "second"}, {Name: "upload", Value: file, File: true}, {Name: "disabled", Value: "not sent", Disabled: true}},
@@ -322,6 +322,48 @@ func waitRunner(t *testing.T, a *app) {
 	}
 }
 
+func TestRequestDiagnosticsKeepPhasesErrorsAndSentVariables(t *testing.T) {
+	headers := make(chan string, 4)
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		headers <- r.Header.Get("Authorization")
+		fmt.Fprint(w, `{"ok":true}`)
+	}))
+	defer upstream.Close()
+	srv := requestProxy(t)
+	r := savedRequest{Method: "GET", URL: upstream.URL, Auth: requestAuth{Type: "Bearer", Token: "{{token}}"},
+		Pre:  `log("preparing"); vars.set("token","sent-token");`,
+		Post: "log('received', res.status); vars.set('token','next-token');\nthrow new Error('post failed');"}
+	got := executeRequest(t.Context(), srv, r, map[string]string{"token": "old-token"}, nil)
+	if <-headers != "Bearer sent-token" || got.response == nil || got.response.Status != 200 || got.outcome() != "Post-response script failed" {
+		t.Fatalf("wrong observable request/result: %s", got.summary())
+	}
+	if len(got.console) != 5 || got.console[0].Phase != "pre-request" || got.console[2].Phase != "post-response" || got.console[4].Kind != "error" || !strings.Contains(got.console[4].Text, "post-response.js:2:") {
+		t.Fatalf("console lost phase or error position: %+v", got.console)
+	}
+	if got.vars["token"] != "next-token" || len(got.variables) != 1 || got.variables[0].Value != "sent-token" || got.variables[0].Source != "Pre-request script" {
+		t.Fatalf("post-script rewrote send-time variable evidence: %+v", got.variables)
+	}
+	var log experimentLog
+	if err := log.retain(snapshotExperiment(0, r, "staging", got)); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(t.TempDir(), "experiments.json")
+	if err := saveExperiments(path, log); err != nil {
+		t.Fatal(err)
+	}
+	restored, err := loadExperiments(path)
+	if err != nil || !reflect.DeepEqual(restored.Records[0].Console, got.console) || !reflect.DeepEqual(restored.Records[0].Variables, got.variables) {
+		t.Fatal("diagnostics did not survive restart", err)
+	}
+	for _, src := range []string{"\n\nthrow new Error('before send');", "\n\nlet = ;"} {
+		r.Pre = src
+		failed := executeRequest(t.Context(), nil, r, nil, nil)
+		if failed.response != nil || failed.outcome() != "Pre-request script failed" || len(failed.console) == 0 || !strings.Contains(failed.summary(), "pre-request.js") || !strings.Contains(failed.summary(), "3") {
+			t.Fatalf("pre-script error lacks stage/location or sent traffic: %+v", failed)
+		}
+	}
+}
+
 func TestCollectionRunnerChainsVariablesCookiesAssertionsAndStops(t *testing.T) {
 	paths := make(chan string, 16)
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -346,7 +388,7 @@ func TestCollectionRunnerChainsVariablesCookiesAssertionsAndStops(t *testing.T) 
 	a.envs = []environment{{Name: "Local", Vars: map[string]string{"base": upstream.URL}}}
 	a.activeEnv = "Local"
 	a.requests = []savedRequest{
-		{Name: "01 Login", Collection: "Demo", Method: "GET", URL: "{{base}}/login", Post: `vars.set("id",String(res.json().id));test("login",res.status===200)`},
+		{Name: "01 Login", Collection: "Demo", Method: "GET", URL: "{{base}}/login", Post: `log("login received");vars.set("id",String(res.json().id));test("login",res.status===200)`},
 		{Name: "02 Detail", Collection: "Demo/nested", Method: "GET", URL: "{{base}}/api/{{id}}", Post: `test("cookie and variable",res.status===200 && res.json().ok===true)`},
 		{Name: "03 Failure", Collection: "Demo/nested", Method: "GET", URL: "{{base}}/fail", Post: `test("deliberate failure",false)`},
 		{Name: "04 Never", Collection: "Demo/nested", Method: "GET", URL: "{{base}}/never"},
@@ -364,6 +406,9 @@ func TestCollectionRunnerChainsVariablesCookiesAssertionsAndStops(t *testing.T) 
 	}
 	if a.activeVars()["id"] != "27" || a.composeURL != "{{base}}/login" || a.dirty() {
 		t.Fatal("runner did not merge variables or mutated the request tab")
+	}
+	if len(a.experiments.log.Records) != 3 || len(a.experiments.log.Records[2].Console) != 2 || a.experiments.log.Records[2].Console[0].Text != "login received" || a.runner.rows[0].recordID == 0 {
+		t.Fatal("Runner diagnostics were not retained alongside Send records")
 	}
 	// Rerun without stop-on-failure and verify every iteration executes.
 	a.runner.stopOnFailure = false
@@ -402,5 +447,8 @@ func TestCollectionRunnerCancellationRevokesInFlightRequest(t *testing.T) {
 	waitRunner(t, a)
 	if a.runner.status != "Cancelled" {
 		t.Fatalf("status %q", a.runner.status)
+	}
+	if len(a.experiments.log.Records) != 1 || a.experiments.log.Records[0].Outcome != "Cancelled" || a.runner.completed != 1 {
+		t.Fatal("the cancelled attempt disappeared from run records")
 	}
 }

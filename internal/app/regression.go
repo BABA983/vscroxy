@@ -293,10 +293,10 @@ func (a *app) regressionFrom(f flow) {
 		a.setMessage("Save regression: " + err.Error())
 		return
 	}
+	r.Source = newDebugSource(f)
 	r.Name = uniqueRequestName(a.requests, f.method+" "+hostOnly(f.host)+" regression")
 	r.Collection, r.Checks.Status = "Regressions", strconv.Itoa(f.status)
 	a.addDocument(r, "")
-	a.setDebugSource(newDebugSource(f))
 	a.sourceFlow, a.composeTab = f.id, 5
 	a.setMessage("Review checks and variables, then Save request; nothing has been sent")
 }

@@ -1,16 +1,15 @@
 package app
 
 import (
+	"cmp"
 	"context"
 	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"io/fs"
-	"maps"
 	"net/http"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 	"time"
 
@@ -93,34 +92,6 @@ func expandVars(s string, vars map[string]string) string {
 	}
 }
 
-// varLines reads the editor's variables, one "name = value" per line.
-func varLines(text string) map[string]string {
-	vars := map[string]string{}
-	for _, line := range strings.Split(text, "\n") {
-		line = strings.TrimSpace(line)
-		if line == "" || strings.HasPrefix(line, "#") {
-			continue
-		}
-		name, value, ok := strings.Cut(line, "=")
-		if !ok {
-			continue
-		}
-		if name = strings.TrimSpace(name); name != "" {
-			vars[name] = strings.TrimSpace(value)
-		}
-	}
-	return vars
-}
-
-// formatVars writes variables the way the editor takes them back.
-func formatVars(vars map[string]string) string {
-	var lines []string
-	for _, name := range slices.Sorted(maps.Keys(vars)) {
-		lines = append(lines, name+" = "+vars[name])
-	}
-	return strings.Join(lines, "\n")
-}
-
 // testResult is one assertion a request script made.
 type testResult struct {
 	Name string
@@ -180,9 +151,31 @@ func (r *jsResponse) Json() any {
 // scriptRun is one execution of a request script: the variables it changed,
 // the assertions it made and what it logged.
 type scriptRun struct {
-	vars  map[string]string
-	tests []testResult
-	logs  []string
+	vars    map[string]string
+	written map[string]bool
+	tests   []testResult
+	logs    []string
+	phase   string
+	console []runMessage
+}
+
+// Console output is bounded independently of the retained response payload.
+// Variable changes name the key, not its potentially secret value.
+type runMessage struct {
+	Phase string
+	Kind  string
+	Text  string
+}
+
+func (r *scriptRun) message(kind, text string) {
+	if len(r.console) < 200 {
+		if len(text) > 4096 {
+			text = strings.ToValidUTF8(text[:4096], "�") + "… [truncated]"
+		}
+		r.console = append(r.console, runMessage{r.phase, kind, text})
+	} else if len(r.console) == 200 {
+		r.console = append(r.console, runMessage{r.phase, "warning", "Console output truncated (200 entries, 4096 bytes per entry)."})
+	}
 }
 
 // runScript executes src with the objects given, which are the globals the
@@ -194,8 +187,7 @@ func runScript(src string, run *scriptRun, objects map[string]any) error {
 // Bound user scripts as well as network I/O. Interrupt also lets Runner cancel
 // a script loop without leaving a goroutine (or the UI thread) stuck in Goja.
 func runScriptContext(ctx context.Context, src string, run *scriptRun, objects map[string]any) error {
-	src = strings.TrimSpace(src)
-	if src == "" {
+	if strings.TrimSpace(src) == "" {
 		return nil
 	}
 	if run.vars == nil {
@@ -209,7 +201,14 @@ func runScriptContext(ctx context.Context, src string, run *scriptRun, objects m
 	vm.SetFieldNameMapper(goja.TagFieldNameMapper("json", true))
 	vm.Set("vars", map[string]any{
 		"get": func(name string) string { return run.vars[name] },
-		"set": func(name, value string) { run.vars[name] = value },
+		"set": func(name, value string) {
+			run.vars[name] = value
+			if run.written == nil {
+				run.written = map[string]bool{}
+			}
+			run.written[name] = true
+			run.message("variable", "vars.set("+name+")")
+		},
 	})
 	vm.Set("test", func(name string, pass bool) {
 		run.tests = append(run.tests, testResult{Name: name, Pass: pass})
@@ -219,7 +218,11 @@ func runScriptContext(ctx context.Context, src string, run *scriptRun, objects m
 		for i, v := range values {
 			parts[i] = fmt.Sprint(v)
 		}
-		run.logs = append(run.logs, strings.Join(parts, " "))
+		text := strings.Join(parts, " ")
+		if len(run.logs) < 200 {
+			run.logs = append(run.logs, text[:min(len(text), 4096)])
+		}
+		run.message("log", text)
 	})
 	for name, value := range objects {
 		if req, ok := value.(*jsRequest); ok && req.editedHeaders != nil {
@@ -243,8 +246,28 @@ func runScriptContext(ctx context.Context, src string, run *scriptRun, objects m
 			return err
 		}
 	}
-	_, err := vm.RunString(src)
+	_, err := vm.RunScript(cmp.Or(run.phase, "request")+".js", src)
 	return err
+}
+
+type resolvedVariable struct {
+	Name, Value, Source string
+	Missing             bool
+}
+
+func resolveRequestVariables(r savedRequest, vars map[string]string, written map[string]bool) []resolvedVariable {
+	var rows []resolvedVariable
+	for _, name := range requestVariables(r) {
+		value, ok := vars[name]
+		source := "Run input"
+		if !ok {
+			source = "Missing"
+		} else if written[name] {
+			source = "Pre-request script"
+		}
+		rows = append(rows, resolvedVariable{Name: name, Value: value, Source: source, Missing: !ok})
+	}
+	return rows
 }
 
 // passed counts the assertions that held.

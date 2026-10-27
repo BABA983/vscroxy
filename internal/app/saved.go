@@ -2,6 +2,7 @@ package app
 
 import (
 	"cmp"
+	"crypto/sha256"
 	"encoding/json/v2"
 	"errors"
 	"fmt"
@@ -9,10 +10,13 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"uuid"
 )
 
-// savedRequest is a request kept by name, the first half of a collection.
+// Names and collection paths are editable labels, not asset identities.
 type savedRequest struct {
+	ID         string         `json:"id,omitempty"`
+	Source     *debugSource   `json:"source,omitempty"`
 	Name       string         `json:"name"`
 	Collection string         `json:"collection,omitempty"`
 	Method     string         `json:"method"`
@@ -48,7 +52,26 @@ func loadRequests(path string) ([]savedRequest, error) {
 	if err := json.Unmarshal(data, &list); err != nil {
 		return nil, err
 	}
+	seen := map[string]bool{}
+	for i := range list {
+		if list[i].ID == "" {
+			// Deterministic until the next explicit save: loading an old file
+			// never writes it, yet repeated loads/imports keep the same identity.
+			list[i].ID = fmt.Sprintf("legacy-%x", sha256.Sum256([]byte(list[i].Collection+"\x00"+list[i].Name)))
+		}
+		if seen[list[i].ID] {
+			return nil, fmt.Errorf("duplicate request identity %q", list[i].ID)
+		}
+		seen[list[i].ID] = true
+	}
 	return list, nil
+}
+
+func (r savedRequest) key() string {
+	if r.ID != "" {
+		return "saved:" + r.ID
+	}
+	return "saved:" + r.Collection + "\x00" + r.Name // Unsaved/legacy in-memory callers.
 }
 
 // persistRequests is the app's guarded library write; exports use saveRequests
@@ -97,16 +120,44 @@ func writePrivateFile(path string, data []byte) error {
 	return os.Rename(f.Name(), path)
 }
 
-// upsertRequest adds r, replacing the request of the same name in the same
-// collection.
+// Explicit identities update only that asset. ID-less legacy callers retain
+// name-based updates, adopting an existing identity rather than replacing it.
 func upsertRequest(list []savedRequest, r savedRequest) []savedRequest {
 	for i, existing := range list {
-		if existing.Name == r.Name && existing.Collection == r.Collection {
+		if r.ID != "" && existing.ID == r.ID || r.ID == "" && existing.Name == r.Name && existing.Collection == r.Collection {
+			if r.ID == "" {
+				r.ID = existing.ID
+			}
+			if r.ID == "" {
+				r.ID = uuid.New().String()
+			}
 			list[i] = r
 			return list
 		}
 	}
+	if r.ID == "" {
+		r.ID = uuid.New().String()
+	}
 	return append(list, r)
+}
+
+// Imports update matching IDs. An unrelated same-name asset is kept under a
+// distinct label; repeated imports still update the same imported identity.
+func mergeRequests(list, incoming []savedRequest) []savedRequest {
+	list = slices.Clone(list)
+	for _, r := range incoming {
+		if r.Name == "" {
+			continue
+		}
+		if slices.ContainsFunc(list, func(old savedRequest) bool {
+			return old.ID != r.ID && old.Collection == r.Collection && old.Name == r.Name
+		}) {
+			peers := slices.DeleteFunc(slices.Clone(list), func(old savedRequest) bool { return old.ID == r.ID })
+			r.Name = uniqueRequestName(peers, r.Name)
+		}
+		list = upsertRequest(list, r)
+	}
+	return list
 }
 
 // groupRequests collects the requests by collection, the names sorted, the

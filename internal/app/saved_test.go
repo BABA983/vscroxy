@@ -1,9 +1,66 @@
 package app
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 )
+
+func TestRequestIdentitySurvivesLegacyLoadRenameMoveAndImport(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "requests.json")
+	legacy := []byte(`[{"name":"Login","collection":"Dev","method":"POST","url":"https://example.test/login"}]`)
+	if err := os.WriteFile(path, legacy, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	first, err := loadRequests(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := loadRequests(path)
+	if err != nil || first[0].ID == "" || first[0].ID != second[0].ID {
+		t.Fatal("legacy loads changed identity", err)
+	}
+	data, _ := os.ReadFile(path)
+	if string(data) != string(legacy) {
+		t.Fatal("loading rewrote the legacy file")
+	}
+	a := workspaceApp()
+	a.requests, a.requestsPath = first, path
+	a.openSaved(first[0].key())
+	id, document := a.assetID, a.requestDocument
+	a.setDebugSource(newDebugSource(a.flows[0]))
+	sourceKey := a.origin.Key
+	a.composeName, a.composeCollection = "Authenticate", "Staging/Auth"
+	if !a.saveComposed() {
+		t.Fatal(a.message)
+	}
+	if len(a.requests) != 1 || a.assetID != id {
+		t.Fatal("rename/move duplicated or replaced asset identity")
+	}
+	a.openSaved(a.requests[0].key())
+	if a.requestDocument != document {
+		t.Fatal("rename opened a second tab for the same asset")
+	}
+	loaded, err := loadRequests(path)
+	if err != nil || loaded[0].ID != id || loaded[0].Name != "Authenticate" {
+		t.Fatalf("restart lost identity: %+v %v", loaded, err)
+	}
+	if loaded[0].Source == nil || loaded[0].Source.Key != sourceKey || loaded[0].Source.Exchange.URL != "https://api.example.com/projects" {
+		t.Fatal("saved asset lost its immutable capture provenance on restart")
+	}
+	foreign := savedRequest{ID: "another-asset", Name: "Authenticate", Collection: "Staging/Auth", URL: "https://other.test"}
+	merged := mergeRequests(loaded, []savedRequest{foreign})
+	merged = mergeRequests(merged, []savedRequest{foreign})
+	if len(merged) != 2 || merged[0].ID != id || merged[0].URL != "https://example.test/login" || merged[1].Name != "Authenticate (2)" || merged[1].ID != foreign.ID {
+		t.Fatalf("import conflated identities or was not idempotent: %+v", merged)
+	}
+	if err := os.WriteFile(path, []byte(`[{"id":"same","name":"one"},{"id":"same","name":"two"}]`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := loadRequests(path); err == nil {
+		t.Fatal("ambiguous identities accepted")
+	}
+}
 
 func TestUpsertRequest(t *testing.T) {
 	list := upsertRequest(nil, savedRequest{Name: "B", URL: "http://b/"})

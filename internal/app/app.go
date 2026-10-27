@@ -257,6 +257,7 @@ type app struct {
 	historyPath     string
 	historyOpen     bool
 	experiments     experimentWorkbench
+	promotion       capturePromotion
 	socket          websocketWorkbench
 	investigations  investigationWorkbench
 	board           investigationBoard
@@ -280,7 +281,9 @@ type app struct {
 	activeEnv   string
 	varsOpen    bool
 	varsName    string
-	varsText    string
+	varsChoice  string
+	varsRows    []requestField
+	varsProblem string
 
 	breakOn   bool
 	bp        *capture.Breakpoint
@@ -710,6 +713,12 @@ func (a *app) drain() {
 		d.composeResult = result.summary
 		d.composeTests = result.tests
 		d.composeReplies = result.replies
+		d.console = result.console
+		if result.outcome == "Cancelled" {
+			d.responseTab = resViewBody
+		} else if result.response == nil && len(result.console) > 0 {
+			d.responseTab = resViewConsole
+		}
 		d.experimentID = 0
 		if result.response != nil {
 			first := d.response == nil
@@ -1175,6 +1184,7 @@ func (a *app) view(c *ui.Context) {
 			}
 		})
 	a.varsModal(c, t)
+	a.captureRequestModal(c, t)
 	a.markModal(c, t)
 	a.views.modals(c, t, a)
 	a.columnModal(c, t)
@@ -1477,7 +1487,7 @@ func (a *app) requestSidebar(c *ui.Context, t *ui.Theme) {
 		ui.Column(c).Padding(10, 10).Gap(8).Children(func() {
 			seg := ui.SegmentedBase(c, &a.requestSide, 2)
 			seg.Track.Padding(2).Radius(7).Border(1, t.Border).Background(t.Background).Children(func() {
-				for i, name := range []string{"Collections", "History"} {
+				for i, name := range []string{"Collections", "Runs"} {
 					s := seg.Segment(i).Label(name).Height(24).Padding(0, 10).Radius(5).AlignItems(ui.Center).TextColor(t.TextMuted)
 					if i == a.requestSide {
 						s.Background(t.SurfaceHover).TextColor(t.Text)
@@ -1504,7 +1514,7 @@ func (a *app) requestSidebar(c *ui.Context, t *ui.Theme) {
 					}
 					ui.SidebarSection(c, cmp.Or(name, "Saved"), a.collectionShown(name), func() {
 						for _, r := range shown {
-							ui.SidebarItem(c, "saved:"+r.Collection+"\x00"+r.Name, requestIcon, r.Name).FontSize(12).Padding(5, 8).Children(func() {
+							ui.SidebarItem(c, r.key(), requestIcon, r.Name).FontSize(12).Padding(5, 8).Children(func() {
 								ui.Text(c, r.Method).FontSize(9).Bold().TextColor(methodColor(r.Method)).Width(38)
 							})
 						}
@@ -1514,13 +1524,18 @@ func (a *app) requestSidebar(c *ui.Context, t *ui.Theme) {
 					ui.Text(c, "Save a request here, or edit a captured flow to start.").FontSize(12).TextColor(t.TextMuted).Padding(8, 12)
 				}
 			} else {
+				if ui.Button(c, "All retained runs…").FillWidth().Clicked() {
+					a.experiments.scope, a.experiments.draftKey, a.experiments.open = nil, "", true
+				}
+				ui.Text(c, "Send + Runner snapshots; source-linked history is a filtered view.").FontSize(10).TextColor(t.TextMuted).Padding(6, 12)
+				ui.Text(c, "Recent requests below are deduplicated by method + URL; open as an unsent copy.").FontSize(10).TextColor(t.TextMuted).Padding(6, 12)
 				entries := a.history
 				if query != "" {
 					entries = slices.DeleteFunc(slices.Clone(entries), func(e historyEntry) bool {
 						return !strings.Contains(strings.ToLower(e.Method+" "+e.URL), query)
 					})
 				}
-				ui.SidebarSection(c, "History", nil, func() {
+				ui.SidebarSection(c, "Recent requests", nil, func() {
 					for i, e := range entries {
 						index := slices.Index(a.history, e)
 						if index < 0 {
@@ -1596,8 +1611,8 @@ func (a *app) requestSidebar(c *ui.Context, t *ui.Theme) {
 					}
 				} else {
 					for _, r := range a.requests {
-						if a.requestChoice == "saved:"+r.Collection+"\x00"+r.Name {
-							a.openSaved(r.Collection, r.Name)
+						if a.requestChoice == r.key() {
+							a.openSaved(r.key())
 							break
 						}
 					}
@@ -2310,7 +2325,7 @@ func (a *app) rowMenu(c *ui.Context, f flow) func(*ui.Menu) {
 		})
 		desktopMenuItem(m, actions, "edit", "Edit & resend")
 		if m.Item("Save as request").Chosen() {
-			a.saveFlowAsRequest(f)
+			a.previewCapture(f, true)
 		}
 		if m.Item("Add to investigation…").Chosen() {
 			a.addToInvestigation(f)
@@ -2436,9 +2451,19 @@ func (a *app) applyVars(name string, before, vars map[string]string) {
 
 // openVars fills the variables editor with the environment in use.
 func (a *app) openVars() {
-	a.varsName = cmp.Or(a.activeEnv, "default")
-	a.varsText = formatVars(a.activeVars())
+	a.editEnvironment(cmp.Or(a.activeEnv, "default"))
 	a.varsOpen = true
+}
+
+func (a *app) editEnvironment(name string) {
+	a.varsName, a.varsChoice, a.varsRows, a.varsProblem = name, name, nil, ""
+	for _, env := range a.envs {
+		if env.Name == name {
+			for _, key := range slices.Sorted(maps.Keys(env.Vars)) {
+				a.varsRows = append(a.varsRows, requestField{Name: key, Value: env.Vars[key]})
+			}
+		}
+	}
 }
 
 // varsModal edits the variables of one environment, the one a request fills its
@@ -2447,16 +2472,59 @@ func (a *app) varsModal(c *ui.Context, t *ui.Theme) {
 	if !a.varsOpen {
 		return
 	}
+	width, height := c.Size()
 	appModal(c, &a.varsOpen, func() {
-		ui.Column(c).Width(520).Gap(10).Children(func() {
+		ui.Column(c).Width(min(700, width-64)).Height(min(500, height-80)).Gap(10).Children(func() {
 			dialogTitle(c, "Variables")
 			if a.envsProblem != "" {
 				ui.Text(c, "Variables are read-only. Close this dialog, repair or move env.json aside, then reload local assets.").FontSize(11).TextColor(t.Danger)
 			}
-			ui.Text(c, "One \"name = value\" a line. A request uses them as {{name}}, in the URL, the headers, the body and the scripts.").
+			ui.Text(c, "One environment in use · {{name}} expands after the pre-request script. Values are stored locally in plaintext; masking is not Vault encryption.").
 				FontSize(11).TextColor(t.TextMuted)
-			ui.TextInput(c, &a.varsName).Label("Environment").ReadOnly(a.envsProblem != "")
-			ui.TextArea(c, &a.varsText).Height(160).Label("Environment variables").ReadOnly(a.envsProblem != "")
+			ui.Row(c).Gap(8).Children(func() {
+				if names := a.envNames(); len(names) > 0 {
+					if ui.Select(c, &a.varsChoice, names).Label("Edit environment").Grow(1).Changed() {
+						a.editEnvironment(a.varsChoice)
+					}
+				}
+				if ui.Button(c, "New environment").Clicked() {
+					a.editEnvironment("")
+				}
+			})
+			ui.TextInput(c, &a.varsName).Label("Environment")
+			ui.Row(c).Gap(8).Children(func() {
+				ui.Text(c, "NAME").Grow(1).FontSize(10).TextColor(t.TextMuted)
+				ui.Text(c, "VALUE").Grow(2).FontSize(10).TextColor(t.TextMuted)
+				ui.Box(c).Width(80)
+			})
+			ui.Scroll(c).Grow(1).FillWidth().Gap(6).Children(func() {
+				remove := -1
+				for i := range a.varsRows {
+					r := &a.varsRows[i]
+					ui.Row(c).Key(i).Gap(8).Children(func() {
+						ui.TextInput(c, &r.Name).Label(fmt.Sprintf("Variable name %d", i+1)).Placeholder("base_url").Grow(1).ReadOnly(a.envsProblem != "")
+						value := ui.TextInput(c, &r.Value).Label(fmt.Sprintf("Variable value %d", i+1)).Grow(2).ReadOnly(a.envsProblem != "")
+						if !r.reveal {
+							value.Password()
+						}
+						if ui.Button(c, "◉").Label(fmt.Sprintf("Reveal variable %d", i+1)).Width(32).Clicked() {
+							r.reveal = !r.reveal
+						}
+						if ui.Button(c, "×").Label(fmt.Sprintf("Remove variable %d", i+1)).Width(32).Disabled(a.envsProblem != "").Clicked() {
+							remove = i
+						}
+					})
+				}
+				if remove >= 0 {
+					a.varsRows = slices.Delete(a.varsRows, remove, remove+1)
+				}
+				if ui.Button(c, "Add variable").Disabled(a.envsProblem != "").Clicked() {
+					a.varsRows = append(a.varsRows, requestField{})
+				}
+			})
+			if a.varsProblem != "" {
+				ui.Text(c, a.varsProblem).FontSize(11).TextColor(t.Danger)
+			}
 			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
 				if ui.Button(c, "Cancel").Clicked() {
 					a.varsOpen = false
@@ -2477,10 +2545,21 @@ func (a *app) saveVars() {
 	}
 	name := strings.TrimSpace(a.varsName)
 	if name == "" {
-		a.setMessage("Variables: the environment has no name")
+		a.varsProblem = "The environment needs a name."
 		return
 	}
-	vars := varLines(a.varsText)
+	vars := map[string]string{}
+	for _, row := range a.varsRows {
+		key := strings.TrimSpace(row.Name)
+		if key == "" && row.Value == "" {
+			continue
+		}
+		if _, duplicate := vars[key]; key == "" || duplicate || strings.ContainsAny(key, "{}") {
+			a.varsProblem = "Variable names must be nonempty, unique and contain no braces."
+			return
+		}
+		vars[key] = row.Value // Empty and whitespace values are significant.
+	}
 	envs := slices.Clone(a.envs)
 	found := false
 	for i, e := range envs {
@@ -2494,7 +2573,7 @@ func (a *app) saveVars() {
 		envs = append(envs, environment{Name: name, Vars: vars})
 	}
 	if err := saveEnvs(a.envsPath, envs, name); err != nil {
-		a.setMessage("Variables: " + err.Error())
+		a.varsProblem = "Save failed: " + err.Error()
 		return
 	}
 	a.envs, a.activeEnv = envs, name
@@ -2517,6 +2596,7 @@ func (a *app) sendComposed() {
 	}
 	d.composeTests = nil
 	d.composeReplies = nil
+	d.console = nil
 	d.response = nil
 	d.responseEditor = nil
 	// A send replaces the response, so the comparison of the previous one
@@ -2537,7 +2617,7 @@ func (a *app) sendComposed() {
 	go func() {
 		defer cancel()
 		got := executeRequest(ctx, srv, r, vars, jar)
-		result := requestResult{document: d, environment: env, summary: got.summary(), outcome: got.outcome(), response: got.response, tests: got.tests, replies: got.replies, varsBefore: vars, vars: got.vars}
+		result := requestResult{document: d, environment: env, summary: got.summary(), outcome: got.outcome(), response: got.response, tests: got.tests, replies: got.replies, console: got.console, varsBefore: vars, vars: got.vars}
 		record := snapshotExperiment(0, r, env, got)
 		record.RunKey, record.DraftKey, record.Source = runKey, draftKey, origin
 		result.experiment = &record
@@ -2920,7 +3000,19 @@ func (a *app) saveComposed() bool {
 	}
 	r.Name, r.Collection = name, strings.TrimSpace(r.Collection)
 	r.Method, r.URL = strings.ToUpper(strings.TrimSpace(cmp.Or(r.Method, "GET"))), strings.TrimSpace(r.URL)
+	for _, existing := range a.requests {
+		if existing.Name == r.Name && existing.Collection == r.Collection && !(r.ID != "" && existing.ID == r.ID) && existing.key() != a.savedKey {
+			a.setMessage("Save: another request has this name in this collection; rename it first. No asset replaced.")
+			return false
+		}
+	}
 	list := upsertRequest(slices.Clone(a.requests), r)
+	for _, saved := range list {
+		if saved.Name == r.Name && saved.Collection == r.Collection {
+			r.ID = saved.ID
+			break
+		}
+	}
 	if a.historyPath != "" {
 		if list, err := loadHistory(a.historyPath); err == nil {
 			a.history = list
@@ -2950,8 +3042,9 @@ func (a *app) saveComposed() bool {
 	a.requests = list
 	a.composeName = name
 	a.composeCollection, a.composeMethod, a.composeURL = r.Collection, r.Method, r.URL
+	a.assetID = r.ID
 	a.baseline = a.requestDocument.value()
-	a.savedKey = "saved:" + r.Collection + "\x00" + r.Name
+	a.savedKey = r.key()
 	a.requestChoice = a.savedKey
 	*a.collectionShown(r.Collection) = true
 	a.setMessage("Saved " + name)
@@ -2959,8 +3052,7 @@ func (a *app) saveComposed() bool {
 }
 
 // openSaved fills the request editor from a saved request.
-func (a *app) openSaved(collection, name string) {
-	key := "saved:" + collection + "\x00" + name
+func (a *app) openSaved(key string) {
 	for _, d := range a.documents {
 		if d.savedKey == key {
 			a.requestDocument = d
@@ -2970,11 +3062,15 @@ func (a *app) openSaved(collection, name string) {
 			return
 		}
 	}
-	for _, r := range a.requests {
-		if r.Name != name || r.Collection != collection {
+	for i, r := range a.requests {
+		if r.key() != key {
 			continue
 		}
-		a.addDocument(r, key)
+		if r.ID == "" {
+			r.ID = uuid.New().String()
+			a.requests[i] = r
+		}
+		a.addDocument(r, r.key())
 		return
 	}
 }
@@ -3222,12 +3318,7 @@ func (a *app) importRequests() {
 			return
 		}
 		a.win.Update(func() {
-			merged := slices.Clone(a.requests)
-			for _, r := range list {
-				if r.Name != "" {
-					merged = upsertRequest(merged, r)
-				}
-			}
+			merged := mergeRequests(a.requests, list)
 			if err := a.persistRequests(merged); err != nil {
 				a.setMessage("Import requests: " + err.Error())
 				return
@@ -3245,7 +3336,9 @@ func (a *app) openHistory(i int) {
 	}
 	e := a.history[i]
 	if e.Draft != nil {
-		a.addDocument(*e.Draft, "")
+		r := *e.Draft
+		r.ID = "" // History opens a copy, never an update to a saved asset.
+		a.addDocument(r, "")
 		return
 	}
 	a.addDocument(savedRequest{
@@ -3268,31 +3361,6 @@ func (a *app) saveHistory() {
 			a.setMessage("History: " + err.Error())
 		}
 	}()
-}
-
-// saveFlowAsRequest keeps a captured request in the saved ones, under a name
-// that says what it is.
-func (a *app) saveFlowAsRequest(f flow) {
-	r, err := f.requestDraft()
-	if err != nil {
-		a.setMessage("Save request: " + err.Error())
-		return
-	}
-	name := strings.TrimSpace(f.method + " " + f.host + f.path)
-	if f.path == "" {
-		name = strings.TrimSpace(f.method + " " + f.host)
-	}
-	// A second save of the same request takes a name of its own, rather
-	// than replacing the first.
-	name = uniqueRequestName(a.requests, name)
-	r.Name = name
-	list := upsertRequest(slices.Clone(a.requests), r)
-	if err := a.persistRequests(list); err != nil {
-		a.setMessage("Save request: " + err.Error())
-		return
-	}
-	a.requests = list
-	a.setMessage("Saved " + name)
 }
 
 // selectedFlows are the flows chosen in the table, in the order captured.

@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"uuid"
 
 	"github.com/baba983/vscroxy/internal/capture"
 	"github.com/egoist/mygo/ui"
@@ -26,15 +27,23 @@ type requestExecution struct {
 	err            error
 	stage          string
 	expectedStatus int
+	console        []runMessage
+	variables      []resolvedVariable
 }
 
 type debugRunKey struct{}
 
 // A single execution is also a runner step. Both use the same encoder,
 // scripts, proxy and session cookie jar; no request tab is borrowed by Runner.
-func executeRequest(ctx context.Context, srv *capture.Server, r savedRequest, vars map[string]string, jar http.CookieJar) requestExecution {
-	run := &scriptRun{vars: maps.Clone(vars)}
-	out := requestExecution{vars: run.vars, stage: "Request setup failed"}
+func executeRequest(ctx context.Context, srv *capture.Server, r savedRequest, vars map[string]string, jar http.CookieJar) (out requestExecution) {
+	run := &scriptRun{vars: maps.Clone(vars), phase: "setup"}
+	out = requestExecution{vars: run.vars, stage: "Request setup failed"}
+	defer func() {
+		out.console = slices.Clone(run.console)
+		if out.err != nil {
+			out.console = append(out.console, runMessage{run.phase, "error", out.err.Error()})
+		}
+	}()
 	status, _, _, err := r.Checks.parse()
 	if err != nil {
 		out.err = err
@@ -46,6 +55,7 @@ func executeRequest(ctx context.Context, srv *capture.Server, r savedRequest, va
 	template := &jsRequest{Method: r.Method, URL: r.URL, Body: r.Body,
 		header: parseHeaderBlock(r.Headers), editedHeaders: map[string]bool{}}
 	out.stage = "Pre-request script failed"
+	run.phase = "pre-request"
 	if err := runScriptContext(ctx, r.Pre, run, map[string]any{"req": template}); err != nil {
 		out.err = fmt.Errorf("Pre-request script: %w", err)
 		out.tests, out.vars = run.tests, run.vars
@@ -63,8 +73,9 @@ func executeRequest(ctx context.Context, srv *capture.Server, r savedRequest, va
 	if template.editedHeaders[http.CanonicalHeaderKey(authHeader)] && (r.Auth.Type != "API key" || r.Auth.Location != "Query") {
 		r.Auth = requestAuth{}
 	}
-	out.stage = "Request setup failed"
+	out.stage, run.phase = "Request setup failed", "setup"
 	out.tests, out.vars = run.tests, run.vars
+	out.variables = resolveRequestVariables(r, run.vars, run.written)
 	if r.Checks != (responseChecks{}) {
 		var missing []string
 		for _, name := range requestVariables(r) {
@@ -100,7 +111,7 @@ func executeRequest(ctx context.Context, srv *capture.Server, r savedRequest, va
 		out.tests, out.vars = run.tests, run.vars
 		return out
 	}
-	out.stage = "Network error"
+	out.stage, run.phase = "Network error", "network"
 	if isWebSocket(req.URL) {
 		out.replies, out.err = wsSend(ctx, srv.Addr(), req, srv.CACertificate(), jar, 2*time.Second)
 		if r.Post != "" && out.err == nil {
@@ -116,6 +127,7 @@ func executeRequest(ctx context.Context, srv *capture.Server, r savedRequest, va
 			run.tests = append(run.tests, r.Checks.evaluate(got)...)
 			res := &jsResponse{Status: got.Status, Body: got.ResponseBody, header: got.ResponseHeader}
 			out.stage = "Post-response script failed"
+			run.phase = "post-response"
 			if err := runScriptContext(ctx, r.Post, run, map[string]any{"res": res, "req": req}); err != nil {
 				out.err = fmt.Errorf("Post-response script: %w", err)
 			}
@@ -179,10 +191,13 @@ type runnerRow struct {
 	summary   string
 	failed    bool
 	tests     []testResult
+	console   []runMessage
+	recordID  int
 }
 type runnerEvent struct {
 	row          runnerRow
 	before, vars map[string]string
+	record       experimentRecord
 }
 type collectionRunner struct {
 	open, running, cancelled                    bool
@@ -252,7 +267,7 @@ func (a *app) startRunner() {
 	r.environment, r.status = a.activeEnv, "Running…"
 	events := make(chan runnerEvent, 16)
 	r.events = events
-	vars, stop, srv := a.activeVars(), r.stopOnFailure, a.srv
+	vars, stop, srv, env := a.activeVars(), r.stopOnFailure, a.srv, r.environment
 	jar := a.requestCookies()
 	go func() {
 		defer close(events)
@@ -265,16 +280,26 @@ func (a *app) startRunner() {
 				}
 				before := maps.Clone(vars)
 				stepCtx, stepCancel := context.WithTimeout(ctx, 30*time.Second)
+				runKey := uuid.New().String()
+				stepCtx = context.WithValue(stepCtx, debugRunKey{}, runKey)
 				got := executeRequest(stepCtx, srv, req, vars, jar)
 				stepCancel()
 				vars = got.vars
-				event := runnerEvent{row: runnerRow{name: req.Name, iteration: iteration, summary: got.summary(), failed: got.failed(), tests: got.tests}, before: before, vars: maps.Clone(vars)}
+				record := snapshotExperiment(0, req, env, got)
+				record.RunKey = runKey
+				event := runnerEvent{row: runnerRow{name: req.Name, iteration: iteration, summary: got.summary(), failed: got.failed(), tests: got.tests, console: got.console}, before: before, vars: maps.Clone(vars), record: record}
 				select {
 				case events <- event:
-					a.invalidate()
-				case <-ctx.Done():
-					return
+				default:
+					// Prefer retaining an already completed/cancelled attempt. Only
+					// abandon delivery on cancellation if the UI is not draining.
+					select {
+					case events <- event:
+					case <-ctx.Done():
+						return
+					}
 				}
+				a.invalidate()
 				if stop && got.failed() {
 					return
 				}
@@ -297,6 +322,17 @@ func (a *app) drainRunner() {
 				return
 			}
 			r.completed++
+			for _, f := range a.flows {
+				if f.live {
+					event.record.keepWire(f)
+				}
+			}
+			if err := a.experiments.log.retain(event.record); err != nil {
+				a.experiments.problem = "Runner record not retained: " + err.Error()
+			} else {
+				event.row.recordID = a.experiments.log.NextID
+				a.experiments.persist()
+			}
 			if event.row.failed {
 				r.failures++
 			}
@@ -373,14 +409,23 @@ func (a *app) runnerModal(c *ui.Context, t *ui.Theme) {
 							ui.Text(c, row.summary).FontSize(11).TextColor(color).SingleLine()
 						})
 					}).Grow(1)
-					ui.Scroll(c).Height(85).Gap(3).Children(func() {
+					ui.Scroll(c).Height(125).Gap(3).Children(func() {
 						if r.picked >= 0 && r.picked < len(r.rows) {
+							row := r.rows[r.picked]
+							if ui.Button(c, "Inspect retained run").Disabled(row.recordID == 0).Clicked() {
+								a.experiments.scope, a.experiments.draftKey = nil, ""
+								a.experiments.pick(row.recordID)
+								a.experiments.open, r.open = true, false
+							}
 							for _, test := range r.rows[r.picked].tests {
 								mark, color := "✓", t.Success
 								if !test.Pass {
 									mark, color = "✗", t.Danger
 								}
 								ui.Text(c, mark+" "+test.Name).FontSize(11).TextColor(color)
+							}
+							for _, entry := range row.console {
+								ui.Text(c, entry.Phase+" · "+entry.Kind+" · "+entry.Text).FontSize(11).Selectable()
 							}
 						}
 					})

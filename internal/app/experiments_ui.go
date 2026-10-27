@@ -29,6 +29,7 @@ type experimentWorkbench struct {
 	scope                            *debugSource
 	draftKey                         string
 	wire                             int
+	revealVars                       bool
 	changed                          time.Time
 	jobs                             chan experimentLog
 	results                          chan error
@@ -47,12 +48,23 @@ func (a *app) loadExperiments(path string) {
 	}
 	s.log = log
 	for _, draft := range log.Drafts {
+		if draft.Value.ID == "" && draft.SavedKey != "" {
+			for _, asset := range a.requests {
+				if draft.SavedKey == "saved:"+asset.Collection+"\x00"+asset.Name {
+					draft.Value.ID, draft.Baseline.ID, draft.SavedKey = asset.ID, asset.ID, asset.key()
+					break
+				}
+			}
+		}
 		a.addDocument(draft.Value, draft.SavedKey)
 		a.baseline = draft.Baseline
 		if draft.Key != "" {
 			a.debugKey = draft.Key
 		}
 		a.setDebugSource(draft.Source)
+		// Older checkpoints kept provenance beside the request, not inside it.
+		// Restoring that metadata must not make an otherwise unchanged draft dirty.
+		a.baseline.Source = draft.Source
 	}
 	if len(a.documents) > 0 {
 		a.requestDocument = a.documents[min(max(log.Active, 0), len(a.documents)-1)]
@@ -152,6 +164,7 @@ func (s *experimentWorkbench) record(id int) *experimentRecord {
 
 func (s *experimentWorkbench) pick(id int) {
 	s.picked, s.reader, s.comparison.diff = id, nil, nil
+	s.revealVars = false
 	s.sourceComparison, s.wire = captureAnalysis{}, 0
 	if r := s.record(id); r != nil {
 		s.note = r.Note
@@ -203,9 +216,11 @@ func (a *app) experimentsModal(c *ui.Context, t *ui.Theme) {
 	appModal(c, &s.open, func() {
 		ui.Column(c).Width(min(1200, width-80)).Height(height - 100).Gap(10).Children(func() {
 			ui.Row(c).Gap(8).Children(func() {
-				title := "Experiments"
-				if s.scope != nil || s.draftKey != "" {
-					title = "Send history"
+				title := "Run records"
+				if s.scope != nil {
+					title += " · Source"
+				} else if s.draftKey != "" {
+					title += " · Draft"
 				}
 				dialogTitle(c, title).Grow(1)
 				if ui.Button(c, "Clear experiments…").Disabled(s.readOnly || len(s.log.Records) == 0).Clicked() {
@@ -269,10 +284,13 @@ func (a *app) experimentsModal(c *ui.Context, t *ui.Theme) {
 					}
 					ui.Row(c).Gap(6).Wrap().Children(func() {
 						if ui.Button(c, "Open as draft").FontSize(11).Clicked() {
-							a.addDocument(r.Draft, "")
+							draft := r.Draft
+							draft.ID = "" // Restoring an attempt creates a copy, not a library update.
+							a.addDocument(draft, "")
 							a.setDebugSource(r.Source)
 							a.experimentID, a.response, a.composeTests, a.composeResult = r.ID, r.response(), slices.Clone(r.Tests), r.Summary
 							a.composeReplies = slices.Clone(r.Replies)
+							a.console = slices.Clone(r.Console)
 							a.sent, a.sentAt, a.sentSet, a.sentRun = a.value(), r.At, true, r.RunKey
 							a.sendOutcome = cmp.Or(r.Outcome, "Retained attempt")
 							if a.response != nil {
@@ -311,8 +329,20 @@ func (a *app) experimentsModal(c *ui.Context, t *ui.Theme) {
 						}
 					})
 					a.debugWire(c, *r)
-					if ui.Tabs(c, &s.tab, "Recorded result", "Compare experiments", "Compare source", "Sent request").Changed() {
+					if ui.Tabs(c, &s.tab, "Recorded result", "Compare experiments", "Compare source", "Sent request", "Console", "Variables").FillWidth().Wrap().Changed() {
 						s.reader = nil
+					}
+					if s.tab == 5 {
+						ui.Text(c, "Referenced values after pre-script, before expansion · run input = environment snapshot or preceding Runner step · post-script changes do not rewrite this snapshot.").FontSize(11).TextColor(t.TextMuted)
+						if r.Variables == nil {
+							ui.Text(c, "No variable snapshot retained (older records may not include it).").FontSize(11)
+						}
+						variableRows(c, r.Variables, &s.revealVars)
+						return
+					}
+					if s.tab == 4 {
+						runConsole(c, r.Console)
+						return
 					}
 					if s.tab == 3 {
 						ui.Text(c, "Initial client request after variables and pre-request script; redirect hops and proxy interventions are separate wire exchanges.").FontSize(10).TextColor(t.TextMuted)

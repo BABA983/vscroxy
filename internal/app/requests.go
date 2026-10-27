@@ -6,6 +6,7 @@ import (
 	"encoding/json/jsontext"
 	"fmt"
 	"net/http"
+	"net/url"
 	"reflect"
 	"slices"
 	"strings"
@@ -25,6 +26,7 @@ type requestDocument struct {
 	origin            *debugSource
 	revealTab         bool
 	tabLabel          string
+	assetID           string
 	savedKey          string
 	baseline          savedRequest
 	sourceFlow        int
@@ -50,27 +52,29 @@ type requestDocument struct {
 	headerWarn bool
 	// headerOff are the switched-off rows while the bulk editor shows the
 	// block, which has no way to say a row is disabled.
-	headerOff      []requestField
-	bulkEditor     *editor.State
-	bulkFor        string
-	auth           requestAuth
-	bodyMode       string
-	formFields     []requestField
-	queryRows      []requestField
-	querySource    string
-	queryError     string
-	composePre     string
-	composePost    string
-	checks         responseChecks
-	composeTab     int
-	scriptTab      int
-	composeResult  string
-	composeWaiting bool
-	sendCancel     context.CancelFunc
-	sendCancelling bool
-	sendOutcome    string
-	sendDetails    bool
-	sentRun        string
+	headerOff       []requestField
+	bulkEditor      *editor.State
+	bulkFor         string
+	auth            requestAuth
+	bodyMode        string
+	formFields      []requestField
+	queryRows       []requestField
+	querySource     string
+	queryError      string
+	composePre      string
+	composePost     string
+	checks          responseChecks
+	composeTab      int
+	scriptTab       int
+	composeResult   string
+	composeWaiting  bool
+	sendCancel      context.CancelFunc
+	sendCancelling  bool
+	sendOutcome     string
+	sendDetails     bool
+	sentRun         string
+	variablesOpen   bool
+	variablesReveal bool
 	// bodyEditor is the raw request body's editor. bodyFor is the text it
 	// last held, so an import or a restored draft resets it while typing
 	// never does. The scripts use the same reader, each with its own state.
@@ -82,6 +86,7 @@ type requestDocument struct {
 	postFor        string
 	composeTests   []testResult
 	composeReplies []string
+	console        []runMessage
 	response       *capture.Flow
 	// responseTab is the response tab the reader chose. Comparing with the
 	// source capture is not a tab: it replaces the whole response area and
@@ -114,6 +119,7 @@ type requestResult struct {
 	response    *capture.Flow
 	tests       []testResult
 	replies     []string
+	console     []runMessage
 	environment string
 	varsBefore  map[string]string
 	vars        map[string]string
@@ -123,6 +129,7 @@ type requestResult struct {
 
 func (d *requestDocument) value() savedRequest {
 	r := savedRequest{
+		ID: d.assetID, Source: d.origin,
 		Name: d.composeName, Collection: d.composeCollection,
 		Method: d.composeMethod, URL: d.composeURL, Headers: d.composeHeaders,
 		Body: d.composeBody, Pre: d.composePre, Post: d.composePost,
@@ -158,6 +165,7 @@ func (a *app) addDocument(r savedRequest, key string) {
 	a.nextDocument++
 	d := &requestDocument{
 		id: a.nextDocument, debugKey: uuid.New().String(), revealTab: true, savedKey: key, requestPercent: draftPercent,
+		assetID:     r.ID,
 		composeName: r.Name, composeCollection: r.Collection,
 		composeMethod: cmp.Or(r.Method, "GET"), composeURL: r.URL,
 		composeHeaders: r.Headers, composeBody: r.Body,
@@ -172,6 +180,7 @@ func (a *app) addDocument(r savedRequest, key string) {
 	}
 	d.auth.Type = cmp.Or(d.auth.Type, "None")
 	d.auth.Location = cmp.Or(d.auth.Location, "Header")
+	d.setDebugSource(r.Source)
 	if key != "" {
 		d.baseline = d.value()
 	}
@@ -348,6 +357,7 @@ const (
 	resViewCookies
 	resViewTiming
 	resViewTests
+	resViewConsole
 )
 
 // composeView is the debugging screen: the request as it will be sent on top,
@@ -367,6 +377,7 @@ func (a *app) composeView(c *ui.Context, t *ui.Theme) {
 	ui.Column(c).Key(d.id).Fill().Children(func() {
 		a.requestBreadcrumb(c, t, d)
 		a.requestBar(c, t, d)
+		a.requestVariablesPanel(c, t, d)
 		if d.comparing {
 			ui.Column(c).Grow(1).Children(func() { a.requestResponse(c, t, d) })
 			return
@@ -507,10 +518,15 @@ func (a *app) requestBreadcrumb(c *ui.Context, t *ui.Theme, d *requestDocument) 
 		}
 		a.desktopButton(c, "save-request", "Save")
 		ui.MenuButton(c, "⋯", func(m *ui.Menu) {
+			if m.Item("Duplicate as new request").Chosen() {
+				r := d.value()
+				r.ID, r.Name = "", uniqueRequestName(a.requests, r.Name+" copy")
+				a.addDocument(r, "")
+			}
 			if m.Item("Copy as cURL").Chosen() {
 				a.copyCurl(c, flow{method: d.composeMethod, url: d.composeURL, reqHeader: parseHeaderBlock(d.composeHeaders), reqBody: d.composeBody})
 			}
-			if m.Item("Experiments…").Chosen() {
+			if m.Item("Run records…").Chosen() {
 				a.experiments.scope, a.experiments.draftKey = nil, ""
 				a.experiments.open = true
 			}
@@ -531,6 +547,68 @@ func (a *app) requestBreadcrumb(c *ui.Context, t *ui.Theme, d *requestDocument) 
 		}).Label("Request options").Height(26).Padding(0, 6).FontSize(14).TextColor(t.TextMuted).Border(0, t.Border)
 	})
 	ui.Divider(c)
+}
+
+func (a *app) requestVariablesPanel(c *ui.Context, t *ui.Theme, d *requestDocument) {
+	vars := a.activeVars()
+	rows := resolveRequestVariables(d.value(), vars, nil)
+	missing := 0
+	for i := range rows {
+		if rows[i].Missing {
+			missing++
+		} else {
+			rows[i].Source = "Environment: " + cmp.Or(a.activeEnv, "none")
+		}
+	}
+	target := "unresolved (review variables)"
+	if u, err := url.Parse(expandVars(d.composeURL, vars)); err == nil && u.Hostname() != "" {
+		target = u.Scheme + "://" + u.Host // Do not reveal query tokens or userinfo.
+	}
+	ui.Row(c).Height(30).Padding(0, 12).Gap(8).AlignItems(ui.Center).Children(func() {
+		if ui.Button(c, fmt.Sprintf("Variables · %d unresolved", missing)).Label("Request variables").FontSize(11).Clicked() {
+			d.variablesOpen = !d.variablesOpen
+		}
+		ui.Text(c, "Target before scripts: "+target).FontSize(11).TextColor(t.TextMuted).SingleLine().Grow(1)
+	})
+	if !d.variablesOpen {
+		return
+	}
+	ui.Column(c).Height(160).Padding(8, 12).Gap(6).Background(t.Surface).Children(func() {
+		ui.Row(c).Gap(8).Children(func() {
+			ui.Text(c, "Draft context · pre-script may generate or replace values").FontSize(11).TextColor(t.TextMuted).Grow(1)
+			if ui.Button(c, "Edit environments").FontSize(11).Clicked() {
+				a.openVars()
+			}
+		})
+		variableRows(c, rows, &d.variablesReveal)
+	})
+	ui.Divider(c)
+}
+
+func variableRows(c *ui.Context, rows []resolvedVariable, reveal *bool) {
+	t := c.Theme()
+	ui.Checkbox(c, reveal, "Reveal values (plaintext)").FontSize(11)
+	ui.Scroll(c).Grow(1).FillWidth().Gap(6).Children(func() {
+		if len(rows) == 0 {
+			ui.Text(c, "No referenced variables in this snapshot.").FontSize(11).TextColor(t.TextMuted)
+		}
+		for _, row := range rows {
+			ui.Row(c).Gap(8).Children(func() {
+				ui.Text(c, row.Name).Width(140).Font("monospace").FontSize(11)
+				value, color := "••••••", t.Text
+				if row.Missing {
+					value, color = "Unresolved", t.Warning
+				} else if *reveal {
+					value = row.Value
+					if value == "" {
+						value = "(empty value)"
+					}
+				}
+				ui.Text(c, value).FontSize(11).TextColor(color).Grow(1).Selectable()
+				ui.Text(c, row.Source).Width(180).FontSize(10).TextColor(t.TextMuted)
+			})
+		}
+	})
 }
 
 // draftPercent is the share of the debugging screen the request editor gets
@@ -744,12 +822,12 @@ func (a *app) requestResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 				}
 			})
 		}
-		if outcome == "Cancelled" && (d.response != nil || len(d.composeReplies) > 0) {
+		if outcome == "Cancelled" && (d.response != nil || len(d.composeReplies) > 0 || d.responseTab == resViewConsole) {
 			ui.Column(c).Padding(8, 12).Gap(8).Children(func() { a.cancelledResult(c, t, d) })
 		} else if outcome == "Network error" && d.response != nil || outcome == "Post-response script failed" || outcome == "Timed out" && d.response != nil {
 			ui.Text(c, outcome+": "+detail).FontSize(11).TextColor(t.Danger).Padding(6, 12).Selectable()
 		}
-		if d.response == nil && len(d.composeReplies) == 0 {
+		if d.response == nil && len(d.composeReplies) == 0 && len(d.console) == 0 {
 			// Nothing has come back yet: the empty state says what to do, and
 			// the tabs wait for something to read.
 			a.responseBody(c, t, d)
@@ -762,7 +840,7 @@ func (a *app) requestResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 		}
 		ui.Row(c).Height(34).Padding(0, 6).Gap(4).AlignItems(ui.Center).
 			Border(0, t.Border).BorderWidth(0, 0, 1, 0).Children(func() {
-			labels := []string{"Body", "Headers", "Cookies", "Timing", "Tests"}
+			labels := []string{"Body", "Headers", "Cookies", "Timing", "Tests", "Console"}
 			if d.responseTab >= len(labels) {
 				d.responseTab = resViewBody
 			}
@@ -814,6 +892,10 @@ func (a *app) responseProvenance(c *ui.Context, t *ui.Theme, d *requestDocument)
 
 // responseBody shows the chosen view of the last response.
 func (a *app) responseBody(c *ui.Context, t *ui.Theme, d *requestDocument) {
+	if d.responseTab == resViewConsole {
+		runConsole(c, d.console)
+		return
+	}
 	if d.response == nil && len(d.composeReplies) == 0 {
 		ui.Scroll(c).Grow(1).FillWidth().Padding(16).Children(func() {
 			ui.Column(c).FillWidth().AlignItems(ui.Center).Gap(8).Children(func() {
@@ -917,6 +999,23 @@ func (a *app) responseBody(c *ui.Context, t *ui.Theme, d *requestDocument) {
 			}
 		})
 	}
+}
+
+func runConsole(c *ui.Context, entries []runMessage) {
+	t := c.Theme()
+	ui.Scroll(c).Grow(1).FillWidth().Padding(10, 12).Gap(8).Children(func() {
+		ui.Text(c, "This attempt only · log(...) output may contain secrets · no Postman pm.* API").FontSize(11).TextColor(t.TextMuted)
+		if len(entries) == 0 {
+			ui.Text(c, "No script output for this attempt. Use log(...) in pre-request or post-response scripts.").FontSize(12).TextColor(t.TextMuted)
+		}
+		for _, entry := range entries {
+			color := t.Text
+			if entry.Kind == "error" {
+				color = t.Danger
+			}
+			ui.Text(c, entry.Phase+" · "+entry.Kind+" · "+entry.Text).Font("monospace").FontSize(12).TextColor(color).Selectable().FillWidth()
+		}
+	})
 }
 
 // responseCompare fills the response area with the last send beside the

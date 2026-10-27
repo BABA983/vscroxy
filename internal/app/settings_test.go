@@ -149,7 +149,7 @@ func TestStartupFailureKeepsLocalAssetsUsable(t *testing.T) {
 	if a.srv != nil || len(a.requests) != 1 || a.activeVars()["host"] != "local" || len(a.flows) != 0 {
 		t.Fatalf("failed proxy hid assets or fabricated traffic: requests %v, vars %v, flows %d", a.requests, a.activeVars(), len(a.flows))
 	}
-	a.openSaved(a.requests[0].Collection, a.requests[0].Name)
+	a.openSaved(a.requests[0].key())
 	a.composeName = "edited offline"
 	if !a.saveComposed() {
 		t.Fatal("offline request editing is unavailable")
@@ -179,9 +179,11 @@ func TestDamagedAssetsStayUntouchedUntilExplicitReload(t *testing.T) {
 	if a.saveComposed() {
 		t.Fatal("saving must be refused after a request library load error")
 	}
-	a.saveFlowAsRequest(flow{method: "GET", url: "https://example.test"})
+	a.previewCapture(flow{method: "GET", url: "https://example.test"}, true)
+	a.confirmCaptureRequest()
+	a.promotion.open = false
 	a.openVars()
-	a.varsText = "token = new"
+	a.varsRows = []requestField{{Name: "token", Value: "new"}}
 	a.saveVars()
 	a.applyVars("dev", nil, map[string]string{"token": "from-script"})
 	a.varsOpen = false
@@ -209,7 +211,7 @@ func TestDamagedAssetsStayUntouchedUntilExplicitReload(t *testing.T) {
 		t.Fatal("explicit reload did not restore saving after files were moved aside")
 	}
 	a.openVars()
-	a.varsText = "token = recovered"
+	a.varsRows = []requestField{{Name: "token", Value: "recovered"}}
 	a.saveVars()
 	envs, _, err := loadEnvs(filepath.Join(dir, "env.json"))
 	if err != nil || len(envs) != 1 || envs[0].Vars["token"] != "recovered" {
