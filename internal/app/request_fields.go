@@ -1,143 +1,16 @@
 package app
 
 import (
-	"bytes"
-	"cmp"
-	"encoding/base64"
 	"fmt"
-	"io"
-	"mime/multipart"
 	"net/url"
-	"os"
-	"path/filepath"
 	"slices"
 	"strings"
 
+	"github.com/baba983/vscroxy/internal/request"
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/editor"
 )
-
-type requestAuth struct {
-	Type     string `json:"type,omitempty"`
-	Token    string `json:"token,omitempty"`
-	Username string `json:"username,omitempty"`
-	Password string `json:"password,omitempty"`
-	Key      string `json:"key,omitempty"`
-	Value    string `json:"value,omitempty"`
-	Location string `json:"location,omitempty"`
-}
-
-type requestField struct {
-	Name     string `json:"name"`
-	Value    string `json:"value"`
-	File     bool   `json:"file,omitzero"`
-	Disabled bool   `json:"disabled,omitzero"`
-	// reveal is the table's own state, never saved: a masked credential shows
-	// in plain text only when the reader asks for this row.
-	reveal bool
-}
-
-// prepareRequest is the encoder shared by Send, Runner and cURL export.
-// Send/Runner run pre-scripts on templates first, then encode with final vars.
-func prepareRequest(r savedRequest, vars map[string]string) (*jsRequest, error) {
-	req := &jsRequest{
-		Method: strings.ToUpper(strings.TrimSpace(cmp.Or(expandVars(r.Method, vars), "GET"))),
-		URL:    strings.TrimSpace(expandVars(r.URL, vars)), Body: expandVars(r.Body, vars),
-		header: parseHeaderBlock(expandVars(r.Headers, vars)),
-	}
-	if req.URL == "" {
-		return nil, fmt.Errorf("the URL is empty")
-	}
-	switch r.Auth.Type {
-	case "", "None":
-	case "Bearer":
-		req.Set("Authorization", "Bearer "+expandVars(r.Auth.Token, vars))
-	case "Basic":
-		value := expandVars(r.Auth.Username, vars) + ":" + expandVars(r.Auth.Password, vars)
-		req.Set("Authorization", "Basic "+base64.StdEncoding.EncodeToString([]byte(value)))
-	case "API key":
-		key, value := expandVars(r.Auth.Key, vars), expandVars(r.Auth.Value, vars)
-		if key == "" {
-			return nil, fmt.Errorf("API key name is empty")
-		}
-		if r.Auth.Location == "Query" {
-			u, err := url.Parse(req.URL)
-			if err != nil {
-				return nil, err
-			}
-			q, err := url.ParseQuery(u.RawQuery)
-			if err != nil {
-				return nil, err
-			}
-			q.Set(key, value)
-			u.RawQuery = q.Encode()
-			req.URL = u.String()
-		} else {
-			req.Set(key, value)
-		}
-	default:
-		return nil, fmt.Errorf("unsupported auth type %q", r.Auth.Type)
-	}
-	switch r.BodyMode {
-	case "", "Raw":
-	case "URL encoded", "Multipart":
-		var body bytes.Buffer
-		writer := multipart.NewWriter(&body)
-		values := url.Values{}
-		for _, field := range r.Form {
-			if field.Disabled || field.Name == "" && field.Value == "" {
-				continue
-			}
-			name, value := expandVars(field.Name, vars), expandVars(field.Value, vars)
-			if r.BodyMode == "URL encoded" {
-				if field.File {
-					return nil, fmt.Errorf("URL encoded bodies cannot contain files")
-				}
-				values.Add(name, value)
-			} else if field.File {
-				info, err := os.Stat(value)
-				if err != nil || !info.Mode().IsRegular() || info.Size() > 16<<20 {
-					return nil, fmt.Errorf("form files must be regular files up to 16 MiB")
-				}
-				file, err := os.Open(value)
-				if err != nil {
-					return nil, fmt.Errorf("open form file: %w", err)
-				}
-				part, err := writer.CreateFormFile(name, filepath.Base(value))
-				if err == nil {
-					_, err = io.Copy(part, io.LimitReader(file, (16<<20)+1))
-				}
-				file.Close()
-				if err != nil {
-					return nil, err
-				}
-			} else if err := writer.WriteField(name, value); err != nil {
-				return nil, err
-			}
-			if body.Len() > 16<<20 {
-				return nil, fmt.Errorf("form body exceeds 16 MiB")
-			}
-		}
-		if r.BodyMode == "URL encoded" {
-			req.Body = values.Encode()
-			req.Set("Content-Type", "application/x-www-form-urlencoded")
-		} else {
-			if err := writer.Close(); err != nil {
-				return nil, err
-			}
-			req.Body = body.String()
-			req.Set("Content-Type", writer.FormDataContentType())
-		}
-		if len(req.Body) > 16<<20 {
-			return nil, fmt.Errorf("form body exceeds 16 MiB")
-		}
-		req.Remove("Content-Length")
-	default:
-		return nil, fmt.Errorf("unsupported body type %q", r.BodyMode)
-	}
-	return req, nil
-}
 
 func (a *app) paramsEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
 	if d.querySource != d.composeURL {
@@ -157,7 +30,7 @@ func (a *app) paramsEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
 				if err != nil {
 					break
 				}
-				d.queryRows = append(d.queryRows, requestField{Name: key, Value: value})
+				d.queryRows = append(d.queryRows, request.Field{Name: key, Value: value})
 			}
 		}
 		if err != nil {
@@ -194,7 +67,7 @@ type fieldsOptions struct {
 
 // Fields are rows rather than a map: duplicate names, disabled entries and file
 // parts all survive saving. Only Send/export reads a selected file.
-func requestFieldsEditor(c *ui.Context, rows *[]requestField, opts fieldsOptions, noun string, actions ...func()) bool {
+func requestFieldsEditor(c *ui.Context, rows *[]request.Field, opts fieldsOptions, noun string, actions ...func()) bool {
 	t := c.Theme()
 	changed, remove := false, -1
 	ui.Column(c).Grow(1).Children(func() {
@@ -228,11 +101,11 @@ func requestFieldsEditor(c *ui.Context, rows *[]requestField, opts fieldsOptions
 					// keyboard alone never shows a credential, so tabbing
 					// through a table cannot put one on a shared screen.
 					secret := opts.secret && sensitiveHeader(r.Name)
-					masked := secret && !r.reveal
+					masked := secret && !r.Revealed
 					if masked {
 						value.Password()
 					}
-					cellBorder(t, value, masked, secret && r.reveal)
+					cellBorder(t, value, masked, secret && r.Revealed)
 					if !masked && len(r.Value) > 40 {
 						// A long value reads in full on hover, without the click
 						// that would move the keyboard into it.
@@ -243,16 +116,16 @@ func requestFieldsEditor(c *ui.Context, rows *[]requestField, opts fieldsOptions
 					}
 					if opts.secret && sensitiveHeader(r.Name) {
 						label := fmt.Sprintf("Reveal %s %d", noun, i+1)
-						if r.reveal {
+						if r.Revealed {
 							label = fmt.Sprintf("Hide %s %d", noun, i+1)
 						}
 						reveal := ui.ButtonBase(c).Label(label).Size(24, 24).Radius(4).AlignItems(ui.Center).
 							TextColor(t.TextMuted).Tooltip("Credentials are masked by default; reveal this row to read it in plain text")
-						if r.reveal {
+						if r.Revealed {
 							reveal.TextColor(t.Accent)
 						}
 						if reveal.Children(func() { ui.Icon(c, eyeIcon).Size(13, 13) }).Clicked() {
-							r.reveal = !r.reveal
+							r.Revealed = !r.Revealed
 						}
 					} else if opts.secret {
 						// Every header keeps the same action column, even when
@@ -277,7 +150,7 @@ func requestFieldsEditor(c *ui.Context, rows *[]requestField, opts fieldsOptions
 					ui.Icon(c, plusIcon).Size(12, 12)
 					ui.Text(c, "Add "+noun).FontSize(12)
 				}).Clicked() {
-					*rows = append(*rows, requestField{})
+					*rows = append(*rows, request.Field{})
 					changed = true
 				}
 				for _, action := range actions {
@@ -314,13 +187,13 @@ func cellBorder(t *ui.Theme, field ui.Element, masked, revealed bool) {
 
 // mergeHeaderRows puts the rows the block cannot carry back under the ones it
 // does, so switching to bulk edit and back keeps switched-off headers.
-func mergeHeaderRows(rows, off []requestField) []requestField {
+func mergeHeaderRows(rows, off []request.Field) []request.Field {
 	return append(rows, off...)
 }
 
 // hasSecretHeader reports whether a table holds a value worth masking.
-func hasSecretHeader(rows []requestField) bool {
-	return slices.ContainsFunc(rows, func(row requestField) bool {
+func hasSecretHeader(rows []request.Field) bool {
+	return slices.ContainsFunc(rows, func(row request.Field) bool {
 		return !row.Disabled && row.Value != "" && sensitiveHeader(row.Name)
 	})
 }
@@ -331,7 +204,7 @@ func toggleHeaderMode(d *requestDocument) {
 	if d.headerBulk {
 		d.headerRows, d.headerFor = mergeHeaderRows(parseHeaderRows(d.composeHeaders), d.headerOff), d.composeHeaders
 	} else {
-		d.headerOff = slices.DeleteFunc(slices.Clone(d.headerRows), func(row requestField) bool { return !row.Disabled })
+		d.headerOff = slices.DeleteFunc(slices.Clone(d.headerRows), func(row request.Field) bool { return !row.Disabled })
 		d.composeHeaders, d.headerFor = headerRowsText(d.headerRows), headerRowsText(d.headerRows)
 	}
 	d.headerBulk = !d.headerBulk
@@ -339,7 +212,7 @@ func toggleHeaderMode(d *requestDocument) {
 
 // headerRowsText is the Key: Value block saved, sent and copied: the enabled
 // rows in their order, duplicates included.
-func headerRowsText(rows []requestField) string {
+func headerRowsText(rows []request.Field) string {
 	var b strings.Builder
 	for _, row := range rows {
 		if row.Disabled || row.Name == "" {
@@ -352,15 +225,15 @@ func headerRowsText(rows []requestField) string {
 
 // headerRowsKept drops the blank row a new table starts with, so an empty
 // table never makes a document look edited.
-func headerRowsKept(rows []requestField) []requestField {
-	return slices.DeleteFunc(slices.Clone(rows), func(row requestField) bool {
+func headerRowsKept(rows []request.Field) []request.Field {
+	return slices.DeleteFunc(slices.Clone(rows), func(row request.Field) bool {
 		return row.Name == "" && row.Value == "" && !row.Disabled
 	})
 }
 
 // parseHeaderRows reads that block back into rows, keeping order and repeats.
-func parseHeaderRows(text string) []requestField {
-	var rows []requestField
+func parseHeaderRows(text string) []request.Field {
+	var rows []request.Field
 	for _, line := range strings.Split(text, "\n") {
 		line = strings.TrimSpace(line)
 		if line == "" || strings.HasPrefix(line, "#") {
@@ -370,7 +243,7 @@ func parseHeaderRows(text string) []requestField {
 		if !ok || strings.TrimSpace(key) == "" {
 			continue
 		}
-		rows = append(rows, requestField{Name: strings.TrimSpace(key), Value: strings.TrimSpace(value)})
+		rows = append(rows, request.Field{Name: strings.TrimSpace(key), Value: strings.TrimSpace(value)})
 	}
 	return rows
 }
@@ -416,7 +289,7 @@ func (a *app) headerEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
 		return
 	}
 	if len(d.headerRows) == 0 {
-		d.headerRows = []requestField{{}}
+		d.headerRows = []request.Field{{}}
 	}
 	if requestFieldsEditor(c, &d.headerRows, fieldsOptions{secret: true}, "header") {
 		d.composeHeaders = headerRowsText(d.headerRows)
@@ -460,7 +333,7 @@ func (a *app) requestBodyEditor(c *ui.Context, d *requestDocument, t *ui.Theme) 
 				go func() {
 					paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Title: "Attach request file"})
 					if err == nil && len(paths) > 0 {
-						a.win.Update(func() { d.formFields = append(d.formFields, requestField{Name: "file", Value: paths[0], File: true}) })
+						a.win.Update(func() { d.formFields = append(d.formFields, request.Field{Name: "file", Value: paths[0], File: true}) })
 					}
 				}()
 			}

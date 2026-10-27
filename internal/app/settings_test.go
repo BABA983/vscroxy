@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/baba983/vscroxy/internal/capture"
+	"github.com/baba983/vscroxy/internal/request"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -181,7 +182,7 @@ func TestDamagedAssetsStayUntouchedUntilExplicitReload(t *testing.T) {
 	}
 	a.saveCapture(flow{method: "GET", url: "https://example.test"})
 	a.openVars()
-	a.varsRows = []requestField{{Name: "token", Value: "new"}}
+	a.varsRows = []request.Field{{Name: "token", Value: "new"}}
 	a.saveVars()
 	a.applyVars("dev", nil, map[string]string{"token": "from-script"})
 	a.varsOpen = false
@@ -209,7 +210,7 @@ func TestDamagedAssetsStayUntouchedUntilExplicitReload(t *testing.T) {
 		t.Fatal("explicit reload did not restore saving after files were moved aside")
 	}
 	a.openVars()
-	a.varsRows = []requestField{{Name: "token", Value: "recovered"}}
+	a.varsRows = []request.Field{{Name: "token", Value: "recovered"}}
 	a.saveVars()
 	envs, _, err := loadEnvs(filepath.Join(dir, "env.json"))
 	if err != nil || len(envs) != 1 || envs[0].Vars["token"] != "recovered" {

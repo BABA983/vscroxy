@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/baba983/vscroxy/internal/request"
 	"github.com/egoist/mygo/ui"
 	"golang.org/x/net/idna"
 	"golang.org/x/net/publicsuffix"
@@ -152,7 +153,7 @@ func (a *app) openCookies() {
 	e := &a.cookieUI
 	e.open = true
 	if a.requestDocument != nil {
-		e.url = expandVars(a.composeURL, a.activeVars())
+		e.url = request.ExpandVars(a.composeURL, a.activeVars())
 	}
 	if e.path == "" {
 		e.path = "/"

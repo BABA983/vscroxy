@@ -11,6 +11,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/baba983/vscroxy/internal/request"
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/editor"
 )
@@ -646,7 +647,7 @@ func rawMessage(f flow, side int) string {
 	var b strings.Builder
 	if side == 1 {
 		fmt.Fprintf(&b, "%s %s HTTP/1.1\r\nHost: %s\r\n", cmp.Or(f.method, "GET"), cmp.Or(f.path, "/"), f.host)
-		b.WriteString(headerBlock(f.reqHeader))
+		b.WriteString(request.HeaderBlock(f.reqHeader))
 		b.WriteString("\r\n\r\n")
 		b.WriteString(f.body(false))
 		return b.String()
@@ -657,7 +658,7 @@ func rawMessage(f flow, side int) string {
 		status = fmt.Sprintf("%d %s", f.status, http.StatusText(f.status))
 	}
 	fmt.Fprintf(&b, "%s %s\r\n", proto, status)
-	b.WriteString(headerBlock(f.respHeader))
+	b.WriteString(request.HeaderBlock(f.respHeader))
 	b.WriteString("\r\n\r\n")
 	b.WriteString(f.body(true))
 	return b.String()

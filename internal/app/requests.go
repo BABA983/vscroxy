@@ -14,6 +14,7 @@ import (
 	"uuid"
 
 	"github.com/baba983/vscroxy/internal/capture"
+	"github.com/baba983/vscroxy/internal/request"
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/editor"
 )
@@ -44,7 +45,7 @@ type requestDocument struct {
 	// headerRows is the header table. composeHeaders stays the Key: Value
 	// block for scripts, cURL and the bulk editor, written from the enabled
 	// rows; headerFor is the block the rows were last built from.
-	headerRows []requestField
+	headerRows []request.Field
 	headerFor  string
 	headerBulk bool
 	// headerWarn is the confirmation shown before the block displays
@@ -52,18 +53,18 @@ type requestDocument struct {
 	headerWarn bool
 	// headerOff are the switched-off rows while the bulk editor shows the
 	// block, which has no way to say a row is disabled.
-	headerOff       []requestField
+	headerOff       []request.Field
 	bulkEditor      *editor.State
 	bulkFor         string
-	auth            requestAuth
+	auth            request.Auth
 	bodyMode        string
-	formFields      []requestField
-	queryRows       []requestField
+	formFields      []request.Field
+	queryRows       []request.Field
 	querySource     string
 	queryError      string
 	composePre      string
 	composePost     string
-	checks          responseChecks
+	checks          request.Checks
 	composeTab      int
 	scriptTab       int
 	composeResult   string
@@ -84,9 +85,9 @@ type requestDocument struct {
 	preFor         string
 	postEditor     *editor.State
 	postFor        string
-	composeTests   []testResult
+	composeTests   []request.TestResult
 	composeReplies []string
-	console        []runMessage
+	console        []request.ConsoleMessage
 	response       *capture.Flow
 	// responseTab is the response tab the reader chose. Comparing with the
 	// source capture is not a tab: it replaces the whole response area and
@@ -117,9 +118,9 @@ type requestResult struct {
 	summary     string
 	outcome     string
 	response    *capture.Flow
-	tests       []testResult
+	tests       []request.TestResult
 	replies     []string
-	console     []runMessage
+	console     []request.ConsoleMessage
 	environment string
 	varsBefore  map[string]string
 	vars        map[string]string
@@ -140,7 +141,7 @@ func (d *requestDocument) value() savedRequest {
 		r.Headers = headerRowsText(d.headerRows)
 	}
 	if r.Auth.Type == "None" {
-		r.Auth = requestAuth{}
+		r.Auth = request.Auth{}
 	}
 	if r.BodyMode == "Raw" {
 		r.BodyMode = ""
@@ -524,7 +525,7 @@ func (a *app) requestBreadcrumb(c *ui.Context, t *ui.Theme, d *requestDocument) 
 				a.addDocument(r, "")
 			}
 			if m.Item("Copy as cURL").Chosen() {
-				a.copyCurl(c, flow{method: d.composeMethod, url: d.composeURL, reqHeader: parseHeaderBlock(d.composeHeaders), reqBody: d.composeBody})
+				a.copyCurl(c, flow{method: d.composeMethod, url: d.composeURL, reqHeader: request.ParseHeaderBlock(d.composeHeaders), reqBody: d.composeBody})
 			}
 			if m.Item("Run records…").Chosen() {
 				a.experiments.scope, a.experiments.draftKey = nil, ""
@@ -551,7 +552,7 @@ func (a *app) requestBreadcrumb(c *ui.Context, t *ui.Theme, d *requestDocument) 
 
 func (a *app) requestVariablesPanel(c *ui.Context, t *ui.Theme, d *requestDocument) {
 	vars := a.activeVars()
-	rows := resolveRequestVariables(d.value(), vars, nil)
+	rows := d.value().ResolveVariables(vars, nil)
 	missing := 0
 	for i := range rows {
 		if rows[i].Missing {
@@ -561,7 +562,7 @@ func (a *app) requestVariablesPanel(c *ui.Context, t *ui.Theme, d *requestDocume
 		}
 	}
 	target := "unresolved (review variables)"
-	if u, err := url.Parse(expandVars(d.composeURL, vars)); err == nil && u.Hostname() != "" {
+	if u, err := url.Parse(request.ExpandVars(d.composeURL, vars)); err == nil && u.Hostname() != "" {
 		target = u.Scheme + "://" + u.Host // Do not reveal query tokens or userinfo.
 	}
 	ui.Row(c).Height(30).Padding(0, 12).Gap(8).AlignItems(ui.Center).Children(func() {
@@ -585,7 +586,7 @@ func (a *app) requestVariablesPanel(c *ui.Context, t *ui.Theme, d *requestDocume
 	ui.Divider(c)
 }
 
-func variableRows(c *ui.Context, rows []resolvedVariable, reveal *bool) {
+func variableRows(c *ui.Context, rows []request.ResolvedVariable, reveal *bool) {
 	t := c.Theme()
 	ui.Checkbox(c, reveal, "Reveal values (plaintext)").FontSize(11)
 	ui.Scroll(c).Grow(1).FillWidth().Gap(6).Children(func() {
@@ -956,7 +957,7 @@ func (a *app) responseBody(c *ui.Context, t *ui.Theme, d *requestDocument) {
 	case resViewHeaders:
 		ui.Scroll(c).Grow(1).Padding(10, 12).Children(func() {
 			if d.response != nil {
-				ui.Text(c, headerBlock(d.response.ResponseHeader)).Font("monospace").FontSize(12)
+				ui.Text(c, request.HeaderBlock(d.response.ResponseHeader)).Font("monospace").FontSize(12)
 			}
 		})
 	case resViewCookies:
@@ -998,7 +999,7 @@ func (a *app) responseBody(c *ui.Context, t *ui.Theme, d *requestDocument) {
 	}
 }
 
-func runConsole(c *ui.Context, entries []runMessage) {
+func runConsole(c *ui.Context, entries []request.ConsoleMessage) {
 	t := c.Theme()
 	ui.Scroll(c).Grow(1).FillWidth().Padding(10, 12).Gap(8).Children(func() {
 		if len(entries) == 0 {
@@ -1033,8 +1034,8 @@ func (a *app) responseCompare(c *ui.Context, t *ui.Theme, d *requestDocument) {
 	}
 	r := d.response
 	right := flow{method: r.Method, path: r.URL, url: r.URL, status: r.Status, millis: r.Millis,
-		reqBody: r.RequestBody, reqSize: r.RequestBodySize, reqHeaders: headerBlock(r.RequestHeader),
-		resBody: r.ResponseBody, resSize: r.ResponseBodySize, resHeaders: headerBlock(r.ResponseHeader)}
+		reqBody: r.RequestBody, reqSize: r.RequestBodySize, reqHeaders: request.HeaderBlock(r.RequestHeader),
+		resBody: r.ResponseBody, resSize: r.ResponseBodySize, resHeaders: request.HeaderBlock(r.ResponseHeader)}
 	if r.RequestBodySize > len(r.RequestBody) {
 		right.reqError = "preview limited to 8 MiB"
 	}

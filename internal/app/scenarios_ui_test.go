@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/baba983/vscroxy/internal/capture"
+	"github.com/baba983/vscroxy/internal/request"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -44,7 +45,7 @@ func TestEditReplayOpensExactBytesWithoutSending(t *testing.T) {
 			if a.composeBody != body || !strings.HasSuffix(a.composeURL, "/projects") {
 				t.Fatal("the draft lost spilled body bytes or its URL")
 			}
-			if got := parseHeaderBlock(a.composeHeaders); len(got.Values("X-Tag")) != 2 || got.Get("Content-Encoding") != "" || a.flows[0].reqHeader.Get("Content-Encoding") != "gzip" {
+			if got := request.ParseHeaderBlock(a.composeHeaders); len(got.Values("X-Tag")) != 2 || got.Get("Content-Encoding") != "" || a.flows[0].reqHeader.Get("Content-Encoding") != "gzip" {
 				t.Fatal("conversion changed source or duplicate/encoding headers")
 			}
 			a.requestsPath = filepath.Join(t.TempDir(), "requests.json")

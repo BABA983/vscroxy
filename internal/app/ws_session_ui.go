@@ -7,6 +7,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/baba983/vscroxy/internal/request"
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/editor"
 	"github.com/gorilla/websocket"
@@ -27,12 +28,12 @@ func (a *app) openSocket() {
 	s := &a.socket
 	state, _, _ := s.session.snapshot()
 	if state == "Not connected" || state == "Disconnected" {
-		if d := a.requestDocument; d != nil && isWebSocket(d.composeURL) {
-			r, err := prepareRequest(d.value(), a.activeVars())
+		if d := a.requestDocument; d != nil && request.IsWebSocket(d.composeURL) {
+			r, err := d.value().Prepare(a.activeVars())
 			if err != nil {
 				s.problem = err.Error()
 			} else {
-				s.url, s.headers, s.message = r.URL, headerBlock(r.header), r.Body
+				s.url, s.headers, s.message = r.URL, request.HeaderBlock(r.Header), r.Body
 			}
 		}
 	}
@@ -67,8 +68,8 @@ func (a *app) socketModal(c *ui.Context, t *ui.Theme) {
 			ui.Text(c, "Connect starts a fresh timeline. No automatic reconnect, scripts or restore. Closing this panel disconnects. Auth and cookies may contain secrets.").FontSize(11).TextColor(t.TextMuted)
 			ui.Row(c).Gap(8).Children(func() {
 				ui.TextInput(c, &s.url).Label("WebSocket URL").Placeholder("ws://127.0.0.1:8080/socket").Grow(1).Disabled(active)
-				if ui.Button(c, "Connect").Disabled(active || a.srv == nil || !a.srv.Running() || !isWebSocket(s.url)).Clicked() {
-					s.session = openWSSession(a.srv.Addr(), &jsRequest{Method: "GET", URL: s.url, header: parseHeaderBlock(s.headers)}, a.srv.CACertificate(), a.requestCookies(), a.invalidate)
+				if ui.Button(c, "Connect").Disabled(active || a.srv == nil || !a.srv.Running() || !request.IsWebSocket(s.url)).Clicked() {
+					s.session = openWSSession(a.srv.Addr(), &request.Prepared{Method: "GET", URL: s.url, Header: request.ParseHeaderBlock(s.headers)}, a.srv.CACertificate(), a.requestCookies(), a.invalidate)
 					s.problem = ""
 					s.picked = 0
 					s.reader = nil

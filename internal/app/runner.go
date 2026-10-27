@@ -3,182 +3,33 @@ package app
 import (
 	"cmp"
 	"context"
-	"errors"
 	"fmt"
 	"maps"
-	"net/http"
-	"net/url"
 	"slices"
 	"strconv"
 	"strings"
 	"time"
 	"uuid"
 
-	"github.com/baba983/vscroxy/internal/capture"
+	"github.com/baba983/vscroxy/internal/request"
 	"github.com/egoist/mygo/ui"
 )
 
-type requestExecution struct {
-	request        *jsRequest
-	response       *capture.Flow
-	replies        []string
-	tests          []testResult
-	vars           map[string]string
-	err            error
-	stage          string
-	expectedStatus int
-	console        []runMessage
-	variables      []resolvedVariable
-}
-
-type debugRunKey struct{}
-
-// A single execution is also a runner step. Both use the same encoder,
-// scripts, proxy and session cookie jar; no request tab is borrowed by Runner.
-func executeRequest(ctx context.Context, srv *capture.Server, r savedRequest, vars map[string]string, jar http.CookieJar) (out requestExecution) {
-	run := &scriptRun{vars: maps.Clone(vars), phase: "setup"}
-	out = requestExecution{vars: run.vars, stage: "Request setup failed"}
-	defer func() {
-		out.console = slices.Clone(run.console)
-		if out.err != nil {
-			out.console = append(out.console, runMessage{run.phase, "error", out.err.Error()})
-		}
-	}()
-	status, _, _, err := r.Checks.parse()
-	if err != nil {
-		out.err = err
-		return out
+// runSummary is one line for a run: its error, or status, size, time and checks.
+func runSummary(r request.Execution) string {
+	if r.Err != nil {
+		return r.Err.Error()
 	}
-	out.expectedStatus = status
-	// Pre-scripts edit authored templates, not an already encoded request.
-	// Generate variables first; expand and encode exactly once afterwards.
-	template := &jsRequest{Method: r.Method, URL: r.URL, Body: r.Body,
-		header: parseHeaderBlock(r.Headers), editedHeaders: map[string]bool{}}
-	out.stage = "Pre-request script failed"
-	run.phase = "pre-request"
-	if err := runScriptContext(ctx, r.Pre, run, map[string]any{"req": template}); err != nil {
-		out.err = fmt.Errorf("Pre-request script: %w", err)
-		out.tests, out.vars = run.tests, run.vars
-		return out
-	}
-	r.Method, r.URL, r.Headers = template.Method, template.URL, headerBlock(template.header)
-	if template.editedBody {
-		r.BodyMode = "Raw" // Explicit script bodies override structured forms.
-	}
-	r.Body = template.Body
-	authHeader := "Authorization"
-	if r.Auth.Type == "API key" {
-		authHeader = expandVars(r.Auth.Key, run.vars)
-	}
-	if template.editedHeaders[http.CanonicalHeaderKey(authHeader)] && (r.Auth.Type != "API key" || r.Auth.Location != "Query") {
-		r.Auth = requestAuth{}
-	}
-	out.stage, run.phase = "Request setup failed", "setup"
-	out.tests, out.vars = run.tests, run.vars
-	out.variables = resolveRequestVariables(r, run.vars, run.written)
-	if r.Checks != (responseChecks{}) {
-		var missing []string
-		for _, name := range requestVariables(r) {
-			if _, ok := run.vars[name]; !ok {
-				missing = append(missing, name)
-			}
-		}
-		if len(missing) > 0 {
-			out.err = fmt.Errorf("Set environment variables before running: %s", strings.Join(missing, ", "))
-			return out
-		}
-	}
-	req, err := prepareRequest(r, run.vars)
-	if err != nil {
-		out.err = err
-		return out
-	}
-	// Generated Content-Type/auth must not undo explicit set/remove calls.
-	for name := range template.editedHeaders {
-		req.Remove(name)
-		for _, value := range template.header.Values(name) {
-			req.header.Add(name, expandVars(value, run.vars))
-		}
-	}
-	out.request = req
-	if isWebSocket(req.URL) && r.Checks != (responseChecks{}) {
-		out.err = fmt.Errorf("response checks require an HTTP(S) request, not a WebSocket exchange")
-		return out
-	}
-	u, err := url.Parse(req.URL)
-	if err != nil || u.Hostname() == "" || u.Scheme != "http" && u.Scheme != "https" && u.Scheme != "ws" && u.Scheme != "wss" {
-		out.stage, out.err = "Request setup failed", fmt.Errorf("use an absolute HTTP(S) or WebSocket URL with a host")
-		out.tests, out.vars = run.tests, run.vars
-		return out
-	}
-	out.stage, run.phase = "Network error", "network"
-	if isWebSocket(req.URL) {
-		out.replies, out.err = wsSend(ctx, srv.Addr(), req, srv.CACertificate(), jar, 2*time.Second)
-		if r.Post != "" && out.err == nil {
-			out.stage = "Post-response script failed"
-			out.err = fmt.Errorf("post-response scripts require an HTTP response")
-		}
-	} else {
-		runKey, _ := ctx.Value(debugRunKey{}).(string)
-		got, err := srv.ReplayWithCookies(ctx, capture.Flow{DebugRun: runKey, Method: req.Method, URL: req.URL, RequestHeader: req.header, RequestBody: req.Body}, jar, r.Checks == (responseChecks{}))
-		out.err = err
-		if err == nil {
-			out.response = &got
-			run.tests = append(run.tests, r.Checks.evaluate(got)...)
-			res := &jsResponse{Status: got.Status, Body: got.ResponseBody, header: got.ResponseHeader}
-			out.stage = "Post-response script failed"
-			run.phase = "post-response"
-			if err := runScriptContext(ctx, r.Post, run, map[string]any{"res": res, "req": req}); err != nil {
-				out.err = fmt.Errorf("Post-response script: %w", err)
-			}
-		}
-	}
-	out.tests, out.vars = run.tests, run.vars
-	return out
-}
-
-// Outcome separates transport/setup failures from HTTP responses and checks.
-// A failed assertion never turns a received response into a network failure.
-func (r requestExecution) outcome() string {
-	switch {
-	case errors.Is(r.err, context.Canceled):
-		return "Cancelled"
-	case errors.Is(r.err, context.DeadlineExceeded):
-		return "Timed out"
-	case r.err != nil:
-		return r.stage
-	case r.response != nil && r.response.Status >= 400:
-		return "HTTP error response"
-	case slices.ContainsFunc(r.tests, func(t testResult) bool { return !t.Pass }):
-		return "Checks failed"
-	case r.response == nil:
-		return "WebSocket completed"
-	default:
-		return "Response received"
-	}
-}
-
-func (r requestExecution) summary() string {
-	if r.err != nil {
-		return r.err.Error()
-	}
-	if r.response == nil {
-		return fmt.Sprintf("WebSocket: %d replies", len(r.replies))
+	if r.Response == nil {
+		return fmt.Sprintf("WebSocket: %d replies", len(r.Replies))
 	}
 	passed := 0
-	for _, t := range r.tests {
+	for _, t := range r.Tests {
 		if t.Pass {
 			passed++
 		}
 	}
-	return fmt.Sprintf("%d · %s · %d ms · %d/%d tests", r.response.Status, humanBytes(r.response.Bytes), r.response.Millis, passed, len(r.tests))
-}
-
-func (r requestExecution) failed() bool {
-	if r.err != nil || r.response != nil && r.response.Status >= 400 && r.response.Status != r.expectedStatus {
-		return true
-	}
-	return slices.ContainsFunc(r.tests, func(t testResult) bool { return !t.Pass })
+	return fmt.Sprintf("%d · %s · %d ms · %d/%d tests", r.Response.Status, humanBytes(r.Response.Bytes), r.Response.Millis, passed, len(r.Tests))
 }
 
 type runnerStep struct {
@@ -190,8 +41,8 @@ type runnerRow struct {
 	iteration int
 	summary   string
 	failed    bool
-	tests     []testResult
-	console   []runMessage
+	tests     []request.TestResult
+	console   []request.ConsoleMessage
 	recordID  int
 }
 type runnerEvent struct {
@@ -281,13 +132,13 @@ func (a *app) startRunner() {
 				before := maps.Clone(vars)
 				stepCtx, stepCancel := context.WithTimeout(ctx, 30*time.Second)
 				runKey := uuid.New().String()
-				stepCtx = context.WithValue(stepCtx, debugRunKey{}, runKey)
-				got := executeRequest(stepCtx, srv, req, vars, jar)
+				stepCtx = request.WithRunKey(stepCtx, runKey)
+				got := req.Execute(stepCtx, srv, vars, jar)
 				stepCancel()
-				vars = got.vars
+				vars = got.Vars
 				record := snapshotExperiment(0, req, env, got)
 				record.RunKey = runKey
-				event := runnerEvent{row: runnerRow{name: req.Name, iteration: iteration, summary: got.summary(), failed: got.failed(), tests: got.tests, console: got.console}, before: before, vars: maps.Clone(vars), record: record}
+				event := runnerEvent{row: runnerRow{name: req.Name, iteration: iteration, summary: runSummary(got), failed: got.Failed(), tests: got.Tests, console: got.Console}, before: before, vars: maps.Clone(vars), record: record}
 				select {
 				case events <- event:
 				default:
@@ -300,7 +151,7 @@ func (a *app) startRunner() {
 					}
 				}
 				a.invalidate()
-				if stop && got.failed() {
+				if stop && got.Failed() {
 					return
 				}
 			}

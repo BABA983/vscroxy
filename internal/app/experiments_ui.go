@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/baba983/vscroxy/internal/request"
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/editor"
 )
@@ -175,8 +176,8 @@ func (r experimentRecord) compared(ignore string) flow {
 	f := flow{id: r.ID, method: r.Draft.Method, url: r.Draft.URL, path: r.Draft.URL}
 	if reply := r.Exchange; reply != nil {
 		f.method, f.url, f.path, f.status, f.millis = reply.Method, reply.URL, reply.URL, reply.Status, reply.Millis
-		f.reqBody, f.reqSize, f.reqError, f.reqHeaders = string(r.RequestBody), reply.RequestBodySize, reply.RequestBodyError, headerBlock(reply.RequestHeader)
-		f.resBody, f.resSize, f.resError, f.resHeaders = string(r.ResponseBody), reply.ResponseBodySize, reply.ResponseBodyError, headerBlock(reply.ResponseHeader)
+		f.reqBody, f.reqSize, f.reqError, f.reqHeaders = string(r.RequestBody), reply.RequestBodySize, reply.RequestBodyError, request.HeaderBlock(reply.RequestHeader)
+		f.resBody, f.resSize, f.resError, f.resHeaders = string(r.ResponseBody), reply.ResponseBodySize, reply.ResponseBodyError, request.HeaderBlock(reply.ResponseHeader)
 	}
 	if r.Exchange == nil || r.Exchange.Status == 0 {
 		f.resError = "No HTTP response: " + r.Summary
@@ -349,7 +350,7 @@ func (a *app) experimentsModal(c *ui.Context, t *ui.Theme) {
 						if s.reader == nil {
 							text := "Request was not prepared. The editable draft snapshot is retained."
 							if f := r.Exchange; f != nil {
-								text = f.Method + " " + f.URL + "\n" + headerBlock(f.RequestHeader) + "\n\n" + string(r.RequestBody)
+								text = f.Method + " " + f.URL + "\n" + request.HeaderBlock(f.RequestHeader) + "\n\n" + string(r.RequestBody)
 								if f.RequestBodyError != "" {
 									text += "\n\n" + f.RequestBodyError
 								}

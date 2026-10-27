@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/baba983/vscroxy/internal/request"
 	"github.com/egoist/mygo/ui"
 	"github.com/gorilla/websocket"
 )
@@ -51,7 +52,7 @@ func TestWebSocketSessionKeepsConnectionAndRecordsPeerClose(t *testing.T) {
 	defer upstream.Close()
 	proxy := requestProxy(t)
 	changed := make(chan struct{}, 1)
-	s := openWSSession(proxy.Addr(), &jsRequest{URL: "ws" + strings.TrimPrefix(upstream.URL, "http"), header: http.Header{"Authorization": {"Bearer session-token"}}}, proxy.CACertificate(), nil, func() {
+	s := openWSSession(proxy.Addr(), &request.Prepared{URL: "ws" + strings.TrimPrefix(upstream.URL, "http"), Header: http.Header{"Authorization": {"Bearer session-token"}}}, proxy.CACertificate(), nil, func() {
 		select {
 		case changed <- struct{}{}:
 		default:
@@ -129,7 +130,7 @@ func TestWebSocketSessionDisconnectCancelsConnectingHandshake(t *testing.T) {
 	defer upstream.Close()
 	defer close(release)
 	proxy := requestProxy(t)
-	s := openWSSession(proxy.Addr(), &jsRequest{URL: "ws" + strings.TrimPrefix(upstream.URL, "http")}, proxy.CACertificate(), nil, nil)
+	s := openWSSession(proxy.Addr(), &request.Prepared{URL: "ws" + strings.TrimPrefix(upstream.URL, "http")}, proxy.CACertificate(), nil, nil)
 	guard := time.NewTimer(time.Minute)
 	defer guard.Stop()
 	select {
@@ -168,7 +169,7 @@ func TestWebSocketSessionDistinguishesEmptyCloseFrameFromDroppedTCP(t *testing.T
 			}))
 			defer upstream.Close()
 			proxy := requestProxy(t)
-			s := openWSSession(proxy.Addr(), &jsRequest{URL: "ws" + strings.TrimPrefix(upstream.URL, "http")}, proxy.CACertificate(), nil, nil)
+			s := openWSSession(proxy.Addr(), &request.Prepared{URL: "ws" + strings.TrimPrefix(upstream.URL, "http")}, proxy.CACertificate(), nil, nil)
 			guard := time.NewTimer(time.Minute)
 			defer guard.Stop()
 			select {

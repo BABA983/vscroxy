@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/baba983/vscroxy/internal/capture"
+	"github.com/baba983/vscroxy/internal/request"
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 	"golang.org/x/net/http/httpguts"
@@ -51,7 +52,7 @@ func (a *app) discardRuleDraft() {
 func (a *app) editRule(index int, r capture.Rule) {
 	a.discardRuleDraft()
 	previous := a.ruleUI
-	a.ruleUI = ruleEditor{open: true, index: index, draft: r, kind: ruleLabel(r.Type), status: strconv.Itoa(cmp.Or(r.Status, 200)), headers: headerBlock(r.Headers),
+	a.ruleUI = ruleEditor{open: true, index: index, draft: r, kind: ruleLabel(r.Type), status: strconv.Itoa(cmp.Or(r.Status, 200)), headers: request.HeaderBlock(r.Headers),
 		scenarioChoice: previous.scenarioChoice, previewURL: previous.previewURL, previewMethod: cmp.Or(previous.previewMethod, "GET")}
 }
 
@@ -132,7 +133,7 @@ func (a *app) saveRule() {
 				return
 			}
 		}
-		r.Headers = parseHeaderBlock(e.headers)
+		r.Headers = request.ParseHeaderBlock(e.headers)
 	} else {
 		if r.Type != capture.RuleMapRemote {
 			r.Target = ""

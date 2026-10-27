@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/baba983/vscroxy/internal/capture"
+	"github.com/baba983/vscroxy/internal/request"
 )
 
 const (
@@ -31,10 +32,10 @@ type experimentRecord struct {
 	Environment  string
 	Summary      string
 	Outcome      string `json:",omitempty"`
-	Tests        []testResult
+	Tests        []request.TestResult
 	Replies      []string
-	Console      []runMessage       `json:",omitempty"`
-	Variables    []resolvedVariable `json:",omitempty"`
+	Console      []request.ConsoleMessage   `json:",omitempty"`
+	Variables    []request.ResolvedVariable `json:",omitempty"`
 	Exchange     *capture.Flow
 	RequestBody  []byte
 	ResponseBody []byte
@@ -60,21 +61,21 @@ type experimentLog struct {
 	Active   int
 }
 
-func snapshotExperiment(id int, draft savedRequest, environment string, got requestExecution) experimentRecord {
+func snapshotExperiment(id int, draft savedRequest, environment string, got request.Execution) experimentRecord {
 	draft.Form = slices.Clone(draft.Form)
 	draft.HeaderList = slices.Clone(draft.HeaderList)
 	r := experimentRecord{
 		ID: id, At: time.Now(), Draft: draft, Source: draft.Source, Environment: environment,
-		Summary: got.summary(), Outcome: got.outcome(), Tests: slices.Clone(got.tests), Replies: slices.Clone(got.replies),
-		Console:   slices.Clone(got.console),
-		Variables: slices.Clone(got.variables),
+		Summary: runSummary(got), Outcome: got.Outcome(), Tests: slices.Clone(got.Tests), Replies: slices.Clone(got.Replies),
+		Console:   slices.Clone(got.Console),
+		Variables: slices.Clone(got.Variables),
 	}
-	f := got.response
-	if f == nil && got.request != nil {
+	f := got.Response
+	if f == nil && got.Request != nil {
 		// A transport or script failure can still have a prepared request.
-		f = &capture.Flow{Method: got.request.Method, URL: got.request.URL,
-			RequestHeader: got.request.header, RequestBody: got.request.Body,
-			RequestBodySize: len(got.request.Body)}
+		f = &capture.Flow{Method: got.Request.Method, URL: got.Request.URL,
+			RequestHeader: got.Request.Header, RequestBody: got.Request.Body,
+			RequestBodySize: len(got.Request.Body)}
 	}
 	if f != nil {
 		r.Exchange = experimentMetadata(f)

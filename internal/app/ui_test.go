@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/baba983/vscroxy/internal/capture"
+	"github.com/baba983/vscroxy/internal/request"
 	"github.com/baba983/vscroxy/internal/system"
 	"github.com/egoist/mygo/ui"
 	"github.com/gorilla/websocket"
@@ -3224,7 +3225,7 @@ func TestExperimentWorkbenchComparesIndependentRunsAndReopensWithoutSending(t *t
 	draft := savedRequest{Method: "POST", URL: "https://example.test/items", Body: "original"}
 	for i, body := range []string{`{"value":1,"timestamp":10}`, `{"value":2,"timestamp":20}`} {
 		draft.Body = fmt.Sprintf("attempt %d", i+1)
-		if err := a.experiments.log.retain(snapshotExperiment(0, draft, "staging", requestExecution{response: &capture.Flow{Method: "POST", URL: draft.URL, Status: 200, RequestBody: draft.Body, ResponseBody: body}})); err != nil {
+		if err := a.experiments.log.retain(snapshotExperiment(0, draft, "staging", request.Execution{Response: &capture.Flow{Method: "POST", URL: draft.URL, Status: 200, RequestBody: draft.Body, ResponseBody: body}})); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -3550,7 +3551,7 @@ func TestSendResultsSeparateFailuresAndLinkTheExactAttempt(t *testing.T) {
 		{"pre-script", "Pre-request script failed", savedRequest{Method: "GET", URL: upstream.URL, Pre: `throw new Error("before sending")`}, false, false},
 		{"http", "HTTP error response", savedRequest{Method: "GET", URL: upstream.URL + "/502"}, true, false},
 		{"network", "Network error", savedRequest{Method: "GET", URL: deadURL}, true, false},
-		{"checks", "Checks failed", savedRequest{Method: "POST", URL: upstream.URL, Body: "draft-only-body", Pre: `req.body = "actual-sent-body"; req.set("X-Prepared", "yes")`, Checks: responseChecks{Status: "201"}}, true, true},
+		{"checks", "Checks failed", savedRequest{Method: "POST", URL: upstream.URL, Body: "draft-only-body", Pre: `req.body = "actual-sent-body"; req.set("X-Prepared", "yes")`, Checks: request.Checks{Status: "201"}}, true, true},
 		{"post-script", "Post-response script failed", savedRequest{Method: "GET", URL: upstream.URL, Post: `throw new Error("after response")`}, true, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

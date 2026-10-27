@@ -15,6 +15,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/baba983/vscroxy/internal/capture"
+	"github.com/baba983/vscroxy/internal/request"
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 )
@@ -203,8 +204,8 @@ func readHAR(path string) ([]flow, error) {
 			status:     entry.Response.Status,
 			bytes:      size,
 			millis:     int(entry.Time),
-			reqHeaders: headerBlock(reqHeader),
-			resHeaders: headerBlock(respHeader),
+			reqHeaders: request.HeaderBlock(reqHeader),
+			resHeaders: request.HeaderBlock(respHeader),
 			reqBody:    reqBody,
 			resBody:    resBody,
 			reqSize:    len(reqBody),

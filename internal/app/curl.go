@@ -15,6 +15,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/baba983/vscroxy/internal/request"
 	"github.com/egoist/mygo/ui"
 	"golang.org/x/net/http/httpguts"
 	"mvdan.cc/sh/v3/expand"
@@ -359,7 +360,7 @@ func parseCurl(source string) (savedRequest, error) {
 			}
 		}
 	}
-	r.Headers = headerBlock(headers)
+	r.Headers = request.HeaderBlock(headers)
 	return r, nil
 }
 

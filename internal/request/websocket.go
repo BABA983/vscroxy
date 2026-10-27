@@ -1,4 +1,4 @@
-package app
+package request
 
 import (
 	"context"
@@ -19,9 +19,9 @@ import (
 // whether the endpoint works.
 const maxWSReplies = 5
 
-// isWebSocket reports whether a URL asks for a WebSocket, so the editor sends
+// IsWebSocket reports whether a URL asks for a WebSocket, so the editor sends
 // a message instead of a request.
-func isWebSocket(rawURL string) bool {
+func IsWebSocket(rawURL string) bool {
 	scheme, _, ok := strings.Cut(rawURL, "://")
 	if !ok {
 		return false
@@ -36,8 +36,8 @@ func isWebSocket(rawURL string) bool {
 // wsSend opens a WebSocket through the proxy, sends one text message and
 // collects what comes back until wait is over. The exchange is captured like
 // any other, so the frames show in the table too.
-func wsSend(ctx context.Context, proxyAddr string, req *jsRequest, ca []byte, jar http.CookieJar, wait time.Duration) ([]string, error) {
-	conn, err := dialWebSocket(ctx, proxyAddr, req, ca, jar)
+func wsSend(ctx context.Context, proxyAddr string, req *Prepared, ca []byte, jar http.CookieJar, wait time.Duration) ([]string, error) {
+	conn, err := DialWebSocket(ctx, proxyAddr, req, ca, jar)
 	if err != nil {
 		return nil, err
 	}
@@ -66,7 +66,7 @@ func wsSend(ctx context.Context, proxyAddr string, req *jsRequest, ca []byte, ja
 	return replies, nil
 }
 
-func dialWebSocket(ctx context.Context, proxyAddr string, req *jsRequest, ca []byte, jar http.CookieJar) (*websocket.Conn, error) {
+func DialWebSocket(ctx context.Context, proxyAddr string, req *Prepared, ca []byte, jar http.CookieJar) (*websocket.Conn, error) {
 	roots, err := x509.SystemCertPool()
 	if err != nil {
 		roots = x509.NewCertPool()
@@ -86,7 +86,7 @@ func dialWebSocket(ctx context.Context, proxyAddr string, req *jsRequest, ca []b
 			return url.Parse("http://" + proxyAddr)
 		},
 	}
-	conn, resp, err := dialer.DialContext(ctx, req.URL, req.header)
+	conn, resp, err := dialer.DialContext(ctx, req.URL, req.Header)
 	if err != nil {
 		if resp != nil {
 			return nil, fmt.Errorf("%s: %w", resp.Status, err)

@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/baba983/vscroxy/internal/capture"
+	"github.com/baba983/vscroxy/internal/request"
 )
 
 func TestRegressionChecksRunThroughProxyAndRunner(t *testing.T) {
@@ -36,7 +37,7 @@ func TestRegressionChecksRunThroughProxyAndRunner(t *testing.T) {
 	defer upstream.Close()
 	r := savedRequest{Name: "Conflict", Collection: "Regressions", Method: "GET", URL: upstream.URL,
 		Headers: "Authorization: Bearer {{token}}", Pre: `vars.set("token", "generated-for-current-send"); req.set("X-Direct", "kept");`,
-		Checks: responseChecks{Status: "409", Headers: "x-revision: current", JSON: "/items/0/a~1b/~0id = 9007199254740993\n/ok = false\n/empty = null"}}
+		Checks: request.Checks{Status: "409", Headers: "x-revision: current", JSON: "/items/0/a~1b/~0id = 9007199254740993\n/ok = false\n/empty = null"}}
 	path := filepath.Join(t.TempDir(), "requests.json")
 	if err := saveRequests(path, []savedRequest{r}); err != nil {
 		t.Fatal(err)
@@ -61,10 +62,10 @@ func TestRegressionChecksRunThroughProxyAndRunner(t *testing.T) {
 		t.Fatalf("large integer changed by one but passed: %+v", a.runner.rows)
 	}
 	// Check the captured response itself, not a redirect target's response.
-	r.URL, r.Checks = upstream.URL+"/redirect", responseChecks{Status: "302"}
-	got := executeRequest(t.Context(), a.srv, r, nil, nil)
-	if got.failed() || got.response.Status != 302 {
-		t.Fatalf("redirect check: %s", got.summary())
+	r.URL, r.Checks = upstream.URL+"/redirect", request.Checks{Status: "302"}
+	got := r.Execute(t.Context(), a.srv, nil, nil)
+	if got.Failed() || got.Response.Status != 302 {
+		t.Fatalf("redirect check: %s", runSummary(got))
 	}
 }
 
@@ -84,21 +85,21 @@ func TestRegressionScalarChecksDistinguishTypesMissingAndNumericPrecision(t *tes
 		{`/a=b = "hello"`, true}, {"/object = null", false},
 	} {
 		t.Run(tc.check, func(t *testing.T) {
-			got := executeRequest(t.Context(), srv, savedRequest{Method: "GET", URL: upstream.URL, Checks: responseChecks{JSON: tc.check}}, nil, nil)
-			if got.err != nil || len(got.tests) != 1 || got.failed() == tc.pass {
-				t.Fatalf("want pass=%t, got %s %+v", tc.pass, got.summary(), got.tests)
+			got := savedRequest{Method: "GET", URL: upstream.URL, Checks: request.Checks{JSON: tc.check}}.Execute(t.Context(), srv, nil, nil)
+			if got.Err != nil || len(got.Tests) != 1 || got.Failed() == tc.pass {
+				t.Fatalf("want pass=%t, got %s %+v", tc.pass, runSummary(got), got.Tests)
 			}
 		})
 	}
 	// Invalid checks and missing variables must fail before sending traffic.
 	for _, r := range []savedRequest{
-		{URL: upstream.URL, Checks: responseChecks{JSON: "/broken~2pointer = 1"}},
-		{URL: upstream.URL, Checks: responseChecks{Headers: "missing-colon"}},
-		{URL: upstream.URL, Checks: responseChecks{Status: "999"}},
-		{URL: "{{base_url}}/test", Checks: responseChecks{Status: "200"}},
+		{URL: upstream.URL, Checks: request.Checks{JSON: "/broken~2pointer = 1"}},
+		{URL: upstream.URL, Checks: request.Checks{Headers: "missing-colon"}},
+		{URL: upstream.URL, Checks: request.Checks{Status: "999"}},
+		{URL: "{{base_url}}/test", Checks: request.Checks{Status: "200"}},
 	} {
-		got := executeRequest(t.Context(), nil, r, nil, nil)
-		if got.err == nil || got.response != nil || !got.failed() {
+		got := r.Execute(t.Context(), nil, nil, nil)
+		if got.Err == nil || got.Response != nil || !got.Failed() {
 			t.Fatalf("invalid regression was sent: %+v", got)
 		}
 	}
@@ -117,7 +118,7 @@ func TestPortableRegressionReplacesCredentialsAndRerunsWithRecipientsVariables(t
 	defer upstream.Close()
 	r := savedRequest{Name: "secret-name", Collection: "secret-folder", Method: "POST", URL: "https://user:secret-password@private.example/items?token=secret-query&tag=secret-tag#secret-fragment",
 		Headers: "Authorization: secret-auth\nCookie: session=secret-cookie\nX-Custom-Key: secret-custom\nContent-Type: application/json\nContent-Length: 9", Body: `{"input":"secret-body"}`,
-		Pre: `throw "secret-script"`, Checks: responseChecks{Status: "201", JSON: "/id = 73"}}
+		Pre: `throw "secret-script"`, Checks: request.Checks{Status: "201", JSON: "/id = 73"}}
 	text, _, err := portableRegression(r)
 	if err != nil {
 		t.Fatal(err)
@@ -142,9 +143,9 @@ func TestPortableRegressionReplacesCredentialsAndRerunsWithRecipientsVariables(t
 			vars[strings.TrimSuffix(strings.TrimPrefix(value, "{{"), "}}")] = replacement
 		}
 	}
-	got := executeRequest(t.Context(), requestProxy(t), shared, vars, nil)
-	if got.failed() || len(got.tests) != 2 {
-		t.Fatalf("recipient run: %s %+v", got.summary(), got.tests)
+	got := shared.Execute(t.Context(), requestProxy(t), vars, nil)
+	if got.Failed() || len(got.Tests) != 2 {
+		t.Fatalf("recipient run: %s %+v", runSummary(got), got.Tests)
 	}
 	if _, _, err := portableRegression(shared); err != nil {
 		t.Fatalf("sharing an imported template: %v", err)
@@ -169,8 +170,8 @@ func TestPortableRegressionReplacesCredentialsAndRerunsWithRecipientsVariables(t
 		}
 	}
 	// Truncation must not turn a JSON-prefix assertion into a pass.
-	checks := responseChecks{JSON: "/id = 73"}
-	if checks.evaluate(capture.Flow{ResponseBody: `{"id":73}`, ResponseBodySize: 999})[0].Pass {
+	checks := request.Checks{JSON: "/id = 73"}
+	if checks.Evaluate(capture.Flow{ResponseBody: `{"id":73}`, ResponseBodySize: 999})[0].Pass {
 		t.Fatal("incomplete response passed JSON check")
 	}
 }

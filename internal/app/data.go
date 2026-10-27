@@ -12,6 +12,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/baba983/vscroxy/internal/capture"
+	"github.com/baba983/vscroxy/internal/request"
 )
 
 // flow is one captured request/response pair, the unit the table shows and the
@@ -201,7 +202,7 @@ func (f flow) requestDraft() (savedRequest, error) {
 		h.Del("Authorization")
 	}
 	return savedRequest{Name: cmp.Or(f.path, f.url), Method: cmp.Or(f.method, "GET"), URL: f.url,
-		Headers: headerBlock(h), Body: body, Auth: auth}, nil
+		Headers: request.HeaderBlock(h), Body: body, Auth: auth}, nil
 }
 
 // authFromHeader moves a captured Authorization header into the Auth tab
@@ -209,22 +210,22 @@ func (f flow) requestDraft() (savedRequest, error) {
 // Basic credentials whose canonical base64 decodes to UTF-8 "user:password".
 // Anything else stays a plain header, so the draft still sends what was
 // captured.
-func authFromHeader(h http.Header) requestAuth {
+func authFromHeader(h http.Header) request.Auth {
 	values := h.Values("Authorization")
 	if len(values) != 1 {
-		return requestAuth{}
+		return request.Auth{}
 	}
 	if token, ok := strings.CutPrefix(values[0], "Bearer "); ok && token != "" && strings.TrimSpace(token) == token {
-		return requestAuth{Type: "Bearer", Token: token}
+		return request.Auth{Type: "Bearer", Token: token}
 	}
 	if encoded, ok := strings.CutPrefix(values[0], "Basic "); ok {
 		data, err := base64.StdEncoding.DecodeString(encoded)
 		user, password, found := strings.Cut(string(data), ":")
 		if err == nil && found && utf8.Valid(data) && base64.StdEncoding.EncodeToString(data) == encoded {
-			return requestAuth{Type: "Basic", Username: user, Password: password}
+			return request.Auth{Type: "Basic", Username: user, Password: password}
 		}
 	}
-	return requestAuth{}
+	return request.Auth{}
 }
 
 // body returns the body to show: the head the flow holds in memory, or the

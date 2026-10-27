@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/baba983/vscroxy/internal/capture"
+	"github.com/baba983/vscroxy/internal/request"
 )
 
 func TestCurlCommand(t *testing.T) {
@@ -71,8 +72,8 @@ func TestParseCurlRequestData(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if r.Method != tc.method || r.URL != tc.url || r.Body != tc.body || !reflect.DeepEqual(parseHeaderBlock(r.Headers), tc.headers) {
-				t.Fatalf("got %+v, headers %v; want %s %s body %q headers %v", r, parseHeaderBlock(r.Headers), tc.method, tc.url, tc.body, tc.headers)
+			if r.Method != tc.method || r.URL != tc.url || r.Body != tc.body || !reflect.DeepEqual(request.ParseHeaderBlock(r.Headers), tc.headers) {
+				t.Fatalf("got %+v, headers %v; want %s %s body %q headers %v", r, request.ParseHeaderBlock(r.Headers), tc.method, tc.url, tc.body, tc.headers)
 			}
 		})
 	}
@@ -114,7 +115,7 @@ func TestCurlCopyPreservesTextBodyAndMethod(t *testing.T) {
 		if f.reqFile != "" {
 			wantBody = body
 		}
-		if r.Method != f.method || r.URL != f.url || r.Body != wantBody || !reflect.DeepEqual(parseHeaderBlock(r.Headers), f.reqHeader) {
+		if r.Method != f.method || r.URL != f.url || r.Body != wantBody || !reflect.DeepEqual(request.ParseHeaderBlock(r.Headers), f.reqHeader) {
 			t.Fatalf("copy/import changed method, headers, URL or body: %+v", r)
 		}
 	}

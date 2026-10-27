@@ -19,6 +19,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/baba983/vscroxy/internal/request"
 	"github.com/getkin/kin-openapi/openapi3"
 )
 
@@ -177,7 +178,7 @@ func generateOpenAPI(requests []savedRequest, collection string) (apiSpec, error
 		for _, name := range slices.Sorted(maps.Keys(u.Query())) {
 			addParameter("query", name)
 		}
-		headers := parseHeaderBlock(r.Headers)
+		headers := request.ParseHeaderBlock(r.Headers)
 		for _, name := range slices.Sorted(maps.Keys(headers)) {
 			switch strings.ToLower(name) {
 			case "authorization", "proxy-authorization", "cookie", "set-cookie", "host", "content-type", "accept", "content-length", "connection", "accept-encoding", "user-agent":
@@ -313,6 +314,6 @@ func requestFromOperation(doc *openapi3.T, endpoint apiOperation) savedRequest {
 			}
 		}
 	}
-	r.Headers = headerBlock(headers)
+	r.Headers = request.HeaderBlock(headers)
 	return r
 }

@@ -29,10 +29,10 @@ func (a *app) checksEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
 		ui.TextArea(c.Key("check-headers"), &d.checks.Headers).Height(65).Font("monospace").FontSize(12).Label("Expected response headers").Placeholder("Content-Type: application/json")
 		ui.Text(c, "JSON scalar fields · RFC 6901 pointer = JSON value · one per line").FontSize(11).TextColor(t.TextMuted)
 		ui.TextArea(c.Key("check-json"), &d.checks.JSON).Height(90).Font("monospace").FontSize(12).Label("JSON response checks").Placeholder("/data/id = 42\n/items/0/name = \"example\"\n/ok = true")
-		if _, _, _, err := d.checks.parse(); err != nil {
+		if _, _, _, err := d.checks.Parse(); err != nil {
 			ui.Text(c, err.Error()).FontSize(11).TextColor(t.Danger)
 		}
-		if names := requestVariables(d.value()); len(names) > 0 {
+		if names := d.value().Variables(); len(names) > 0 {
 			ui.Text(c, "Required variables: "+strings.Join(names, ", ")+" · configure in Variables…").FontSize(11).TextColor(t.TextMuted)
 		}
 		ui.Text(c, "JSON types matter; missing is not null. Checks never run scripts. Rerunning sends real traffic and can change server data.").FontSize(11).TextColor(t.TextMuted)
@@ -104,7 +104,7 @@ func (a *app) regressionModal(c *ui.Context, t *ui.Theme) {
 			if err != nil {
 				ui.Text(c, err.Error()).FontSize(11).TextColor(t.Danger)
 			} else {
-				ui.Text(c, "Variables to supply locally: "+strings.Join(requestVariables(r), ", ")).FontSize(11).TextColor(t.TextMuted)
+				ui.Text(c, "Variables to supply locally: "+strings.Join(r.Variables(), ", ")).FontSize(11).TextColor(t.TextMuted)
 			}
 			ui.Checkbox(c, &s.reviewed, "I reviewed the full request and checks").Label("Confirm regression review")
 			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {

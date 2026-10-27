@@ -285,12 +285,12 @@ func (a *app) requestActions(c *ui.Context, f flow, current bool) []desktopActio
 	if d := a.requestDocument; a.workspace == 1 && d != nil {
 		copyable = true
 		copyRequest = func() {
-			req, err := prepareRequest(d.value(), nil)
+			req, err := d.value().Prepare(nil)
 			if err != nil {
 				a.setMessage("Copy cURL: " + err.Error())
 				return
 			}
-			a.copyCurl(c, flow{method: req.Method, url: req.URL, reqHeader: req.header, reqBody: req.Body})
+			a.copyCurl(c, flow{method: req.Method, url: req.URL, reqHeader: req.Header, reqBody: req.Body})
 		}
 	}
 	return []desktopAction{

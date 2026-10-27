@@ -15,22 +15,23 @@ import (
 	"time"
 
 	"github.com/baba983/vscroxy/internal/capture"
+	"github.com/baba983/vscroxy/internal/request"
 )
 
 func TestExperimentsIndependentSends(t *testing.T) {
 	var log experimentLog
 	draft := savedRequest{Method: "POST", URL: "https://example.test/same", Body: "first"}
 	flow := &capture.Flow{Status: 200, RequestBody: "first", ResponseBody: "reply one"}
-	first := snapshotExperiment(0, draft, "staging", requestExecution{response: flow})
+	first := snapshotExperiment(0, draft, "staging", request.Execution{Response: flow})
 	if err := log.retain(first); err != nil {
 		t.Fatal(err)
 	}
 	draft.Body, flow.RequestBody, flow.ResponseBody = "second", "second", "reply two"
-	if err := log.retain(snapshotExperiment(0, draft, "production", requestExecution{response: flow})); err != nil {
+	if err := log.retain(snapshotExperiment(0, draft, "production", request.Execution{Response: flow})); err != nil {
 		t.Fatal(err)
 	}
-	failed := snapshotExperiment(0, draft, "offline", requestExecution{
-		request: &jsRequest{Method: "POST", URL: draft.URL, Body: "attempted"}, err: errors.New("dial failed"),
+	failed := snapshotExperiment(0, draft, "offline", request.Execution{
+		Request: &request.Prepared{Method: "POST", URL: draft.URL, Body: "attempted"}, Err: errors.New("dial failed"),
 	})
 	if err := log.retain(failed); err != nil {
 		t.Fatal(err)
@@ -44,10 +45,10 @@ func TestExperimentsIndependentSends(t *testing.T) {
 	if failed.response() != nil || failed.Summary != "dial failed" || string(failed.RequestBody) != "attempted" {
 		t.Fatalf("failed send = %+v", failed)
 	}
-	if got := snapshotExperiment(4, draft, "", requestExecution{err: errors.New("invalid draft")}); got.response() != nil || got.Summary != "invalid draft" {
+	if got := snapshotExperiment(4, draft, "", request.Execution{Err: errors.New("invalid draft")}); got.response() != nil || got.Summary != "invalid draft" {
 		t.Fatalf("failure before preparation = %+v", got)
 	}
-	if err := log.retain(snapshotExperiment(42, draft, "", requestExecution{replies: []string{"a", "b"}})); err != nil {
+	if err := log.retain(snapshotExperiment(42, draft, "", request.Execution{Replies: []string{"a", "b"}})); err != nil {
 		t.Fatal(err)
 	}
 	if log.NextID != 42 || log.Records[0].ID != 42 || log.Records[0].response() != nil || log.Records[0].Summary != "WebSocket: 2 replies" {
@@ -56,15 +57,15 @@ func TestExperimentsIndependentSends(t *testing.T) {
 }
 
 func TestExperimentMutationIsolation(t *testing.T) {
-	draft := savedRequest{Form: []requestField{{Name: "before", Value: "value"}}}
+	draft := savedRequest{Form: []request.Field{{Name: "before", Value: "value"}}}
 	f := &capture.Flow{Status: 201, Actions: []string{"rule"},
 		RequestHeader: http.Header{"X-Request": {"request"}}, ResponseHeader: http.Header{"X-Response": {"response"}},
 		RequestTrailer: http.Header{"X-Trailer": {"request trailer"}}, ResponseTrailer: http.Header{"X-Trailer": {"response trailer"}},
 		RequestBody: "request", ResponseBody: "response", Frames: []capture.Frame{{}},
 	}
-	got := requestExecution{response: f, tests: []testResult{{Name: "before", Pass: true}}, replies: []string{"before"}}
+	got := request.Execution{Response: f, Tests: []request.TestResult{{Name: "before", Pass: true}}, Replies: []string{"before"}}
 	r := snapshotExperiment(1, draft, "local", got)
-	draft.Form[0].Name, got.tests[0].Name, got.replies[0], f.Actions[0] = "changed", "changed", "changed", "changed"
+	draft.Form[0].Name, got.Tests[0].Name, got.Replies[0], f.Actions[0] = "changed", "changed", "changed", "changed"
 	for _, h := range []http.Header{f.RequestHeader, f.ResponseHeader, f.RequestTrailer, f.ResponseTrailer} {
 		for key := range h {
 			h[key][0] = "changed"
@@ -105,7 +106,7 @@ func TestExperimentPayloadRetention(t *testing.T) {
 			}
 			f := &capture.Flow{Status: 200, RequestBody: string(body), RequestBodySize: size,
 				ResponseBody: string(body[:min(size, 7)]), ResponseBodyFile: path, ResponseBodySize: size, ResponseBodyError: "original transfer error"}
-			r := snapshotExperiment(1, savedRequest{}, "", requestExecution{response: f})
+			r := snapshotExperiment(1, savedRequest{}, "", request.Execution{Response: f})
 			if err := os.Remove(path); err != nil {
 				t.Fatal(err)
 			}
@@ -133,7 +134,7 @@ func TestExperimentPayloadRetention(t *testing.T) {
 			}
 		})
 	}
-	missing := snapshotExperiment(1, savedRequest{}, "", requestExecution{response: &capture.Flow{
+	missing := snapshotExperiment(1, savedRequest{}, "", request.Execution{Response: &capture.Flow{
 		Status: 200, ResponseBody: "head", ResponseBodyFile: filepath.Join(t.TempDir(), "missing"), ResponseBodySize: 800,
 	}})
 	if string(missing.ResponseBody) != "head" || !strings.Contains(missing.Exchange.ResponseBodyError, "read:") || !strings.Contains(missing.Exchange.ResponseBodyError, "truncated") {
@@ -182,8 +183,8 @@ func TestExperimentsStorage(t *testing.T) {
 	if log, err := loadExperiments(path); err != nil || log.Version != 1 || log.NextID != 0 || len(log.Records) != 0 {
 		t.Fatalf("missing file: %+v, %v", log, err)
 	}
-	draft := savedRequest{Name: "unsaved", Body: strings.Repeat("exact body\x00\n", 30000), Form: []requestField{{Name: "file", Value: "/tmp/a", File: true}}}
-	r := snapshotExperiment(9, draft, "development", requestExecution{response: &capture.Flow{Status: 204}})
+	draft := savedRequest{Name: "unsaved", Body: strings.Repeat("exact body\x00\n", 30000), Form: []request.Field{{Name: "file", Value: "/tmp/a", File: true}}}
+	r := snapshotExperiment(9, draft, "development", request.Execution{Response: &capture.Flow{Status: 204}})
 	r.At, r.Note = time.Date(2026, 10, 24, 12, 0, 0, 0, time.UTC), "important baseline"
 	want := experimentLog{Version: 1, NextID: 9, Baseline: 9, Records: []experimentRecord{r}, Active: 1,
 		Drafts: []experimentDraft{{Value: draft, Baseline: savedRequest{Body: "saved original"}, SavedKey: "collection/name"}, {Value: savedRequest{URL: "https://another.test"}}}}

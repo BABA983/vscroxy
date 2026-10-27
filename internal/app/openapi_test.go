@@ -7,6 +7,8 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+
+	"github.com/baba983/vscroxy/internal/request"
 )
 
 func TestOpenAPIGenerationOmitsValuesAndMergesEndpoints(t *testing.T) {
@@ -103,7 +105,7 @@ func TestOpenAPIRequestUsesEffectiveServerParametersAndReferencedExample(t *test
 	if r.Method != "POST" || r.URL != "https://eu.example.test/v2/widgets/{{id}}?limit={{limit}}" || r.Name != "updateWidget" || r.Collection != "Referenced API" {
 		t.Fatalf("incorrect executable draft: %+v", r)
 	}
-	if h := parseHeaderBlock(r.Headers); h.Get("Content-Type") != "application/json" || h.Get("X-Trace") != "{{X-Trace}}" {
+	if h := request.ParseHeaderBlock(r.Headers); h.Get("Content-Type") != "application/json" || h.Get("X-Trace") != "{{X-Trace}}" {
 		t.Fatalf("required headers missing: %v", h)
 	}
 	var payload struct {

@@ -23,6 +23,7 @@ import (
 
 	"github.com/baba983/vscroxy/internal/appicon"
 	"github.com/baba983/vscroxy/internal/capture"
+	"github.com/baba983/vscroxy/internal/request"
 	"github.com/baba983/vscroxy/internal/system"
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
@@ -281,7 +282,7 @@ type app struct {
 	varsOpen    bool
 	varsName    string
 	varsChoice  string
-	varsRows    []requestField
+	varsRows    []request.Field
 	varsProblem string
 
 	breakOn   bool
@@ -641,7 +642,7 @@ func (a *app) resolveBreak(abort, original bool) {
 			URL:         a.bpURL,
 			Status:      status,
 			Body:        a.bpBody,
-			Header:      parseHeaderBlock(a.bpHeaders),
+			Header:      request.ParseHeaderBlock(a.bpHeaders),
 			KeepBody:    bp.BodyReadOnly || a.bpBody == bp.Body,
 		})
 		if !resumed {
@@ -782,7 +783,7 @@ func (a *app) drain() {
 				a.bpStatus = strconv.Itoa(next.Status)
 			}
 			a.bpBody = next.Body
-			a.bpHeaders = headerBlock(next.Header)
+			a.bpHeaders = request.HeaderBlock(next.Header)
 			a.bpAbort = "502 Bad Gateway"
 		}
 	}
@@ -2372,38 +2373,6 @@ func (a *app) composeFrom(f flow) {
 	a.sourceView = a.views.activeView()
 }
 
-// headerBlock writes headers the way the editor takes them back.
-func headerBlock(h http.Header) string {
-	var b strings.Builder
-	for _, key := range slices.Sorted(maps.Keys(h)) {
-		for _, value := range h[key] {
-			b.WriteString(key + ": " + value + "\n")
-		}
-	}
-	return strings.TrimSuffix(b.String(), "\n")
-}
-
-// parseHeaderBlock reads the editor's headers, one "Key: Value" per line.
-func parseHeaderBlock(text string) http.Header {
-	h := http.Header{}
-	for _, line := range strings.Split(text, "\n") {
-		line = strings.TrimSpace(line)
-		if line == "" || strings.HasPrefix(line, "#") {
-			continue
-		}
-		key, value, ok := strings.Cut(line, ":")
-		if !ok {
-			continue
-		}
-		key = strings.TrimSpace(key)
-		if key == "" {
-			continue
-		}
-		h.Add(key, strings.TrimSpace(value))
-	}
-	return h
-}
-
 // envNames are the environments the editor offers, sorted.
 func (a *app) envNames() []string {
 	names := make([]string, 0, len(a.envs))
@@ -2465,7 +2434,7 @@ func (a *app) editEnvironment(name string) {
 	for _, env := range a.envs {
 		if env.Name == name {
 			for _, key := range slices.Sorted(maps.Keys(env.Vars)) {
-				a.varsRows = append(a.varsRows, requestField{Name: key, Value: env.Vars[key]})
+				a.varsRows = append(a.varsRows, request.Field{Name: key, Value: env.Vars[key]})
 			}
 		}
 	}
@@ -2509,11 +2478,11 @@ func (a *app) varsModal(c *ui.Context, t *ui.Theme) {
 					ui.Row(c).Key(i).Gap(8).Children(func() {
 						ui.TextInput(c, &r.Name).Label(fmt.Sprintf("Variable name %d", i+1)).Placeholder("base_url").Grow(1).ReadOnly(a.envsProblem != "")
 						value := ui.TextInput(c, &r.Value).Label(fmt.Sprintf("Variable value %d", i+1)).Grow(2).ReadOnly(a.envsProblem != "")
-						if !r.reveal {
+						if !r.Revealed {
 							value.Password()
 						}
 						if ui.Button(c, "◉").Label(fmt.Sprintf("Reveal variable %d", i+1)).Width(32).Clicked() {
-							r.reveal = !r.reveal
+							r.Revealed = !r.Revealed
 						}
 						if ui.Button(c, "×").Label(fmt.Sprintf("Remove variable %d", i+1)).Width(32).Disabled(a.envsProblem != "").Clicked() {
 							remove = i
@@ -2524,7 +2493,7 @@ func (a *app) varsModal(c *ui.Context, t *ui.Theme) {
 					a.varsRows = slices.Delete(a.varsRows, remove, remove+1)
 				}
 				if ui.Button(c, "Add variable").Disabled(a.envsProblem != "").Clicked() {
-					a.varsRows = append(a.varsRows, requestField{})
+					a.varsRows = append(a.varsRows, request.Field{})
 				}
 			})
 			if a.varsProblem != "" {
@@ -2615,19 +2584,19 @@ func (a *app) sendComposed() {
 	d.sentRun = runKey
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	d.sendCancel = cancel
-	ctx = context.WithValue(ctx, debugRunKey{}, runKey)
-	if r.Checks != (responseChecks{}) {
+	ctx = request.WithRunKey(ctx, runKey)
+	if r.Checks != (request.Checks{}) {
 		d.responseTab = resViewTests
 	}
 	go func() {
 		defer cancel()
-		got := executeRequest(ctx, srv, r, vars, jar)
-		result := requestResult{document: d, environment: env, summary: got.summary(), outcome: got.outcome(), response: got.response, tests: got.tests, replies: got.replies, console: got.console, varsBefore: vars, vars: got.vars}
+		got := r.Execute(ctx, srv, vars, jar)
+		result := requestResult{document: d, environment: env, summary: runSummary(got), outcome: got.Outcome(), response: got.Response, tests: got.Tests, replies: got.Replies, console: got.Console, varsBefore: vars, vars: got.Vars}
 		record := snapshotExperiment(0, r, env, got)
 		record.RunKey, record.DraftKey, record.Source = runKey, draftKey, origin
 		result.experiment = &record
-		if got.request != nil {
-			result.history = &historyEntry{Method: got.request.Method, URL: got.request.URL, Headers: r.Headers, Body: r.Body, Draft: &r, At: time.Now()}
+		if got.Request != nil {
+			result.history = &historyEntry{Method: got.Request.Method, URL: got.Request.URL, Headers: r.Headers, Body: r.Body, Draft: &r, At: time.Now()}
 		}
 		a.mu.Lock()
 		a.requestResults = append(a.requestResults, result)
@@ -2999,7 +2968,7 @@ func (a *app) saveComposed() bool {
 		return false
 	}
 	r := a.requestDocument.value()
-	if _, _, _, err := r.Checks.parse(); err != nil {
+	if _, _, _, err := r.Checks.Parse(); err != nil {
 		a.setMessage("Save: " + err.Error())
 		return false
 	}

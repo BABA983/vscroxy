@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/baba983/vscroxy/internal/capture"
+	"github.com/baba983/vscroxy/internal/request"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -46,35 +47,35 @@ func TestPreRequestVariablesAndOverridesReachCurrentRequest(t *testing.T) {
 	defer upstream.Close()
 	srv := requestProxy(t)
 	for _, mode := range []string{"Raw", "URL encoded", "Multipart"} {
-		for _, auth := range []requestAuth{{}, {Type: "Bearer", Token: "{{token}}"}, {Type: "Basic", Username: "{{user}}", Password: "{{token}}"}} {
+		for _, auth := range []request.Auth{{}, {Type: "Bearer", Token: "{{token}}"}, {Type: "Basic", Username: "{{user}}", Password: "{{token}}"}} {
 			t.Run(mode+auth.Type, func(t *testing.T) {
 				r := savedRequest{Method: "POST", URL: upstream.URL + "?q={{generated}}", Headers: "Authorization: Bearer {{token}}", Auth: auth,
-					Body: "{{token}}", BodyMode: mode, Form: []requestField{{Name: "value", Value: "{{token}}"}},
-					Pre: `vars.set("token", "new-token"); vars.set("user", "alice"); vars.set("generated", "fresh"); req.set("X-Direct", "script");`, Checks: responseChecks{Status: "200"}}
-				got := executeRequest(t.Context(), srv, r, map[string]string{"token": "old-token"}, nil)
+					Body: "{{token}}", BodyMode: mode, Form: []request.Field{{Name: "value", Value: "{{token}}"}},
+					Pre: `vars.set("token", "new-token"); vars.set("user", "alice"); vars.set("generated", "fresh"); req.set("X-Direct", "script");`, Checks: request.Checks{Status: "200"}}
+				got := r.Execute(t.Context(), srv, map[string]string{"token": "old-token"}, nil)
 				wantAuth := "Bearer new-token"
 				if auth.Type == "Basic" {
 					wantAuth = "Basic YWxpY2U6bmV3LXRva2Vu"
 				}
-				if got.err != nil || got.response == nil || !strings.HasPrefix(got.response.ResponseBody, wantAuth+"|script|q=fresh|") || !strings.Contains(got.response.ResponseBody, "new-token") || strings.Contains(got.response.ResponseBody, "old-token") {
-					t.Fatalf("execution = %+v, response = %+v", got, got.response)
+				if got.Err != nil || got.Response == nil || !strings.HasPrefix(got.Response.ResponseBody, wantAuth+"|script|q=fresh|") || !strings.Contains(got.Response.ResponseBody, "new-token") || strings.Contains(got.Response.ResponseBody, "old-token") {
+					t.Fatalf("execution = %+v, response = %+v", got, got.Response)
 				}
-				r.Checks = responseChecks{}
-				got = executeRequest(t.Context(), srv, r, map[string]string{"token": "old-token"}, nil)
-				if got.err != nil || got.response == nil || !strings.HasPrefix(got.response.ResponseBody, wantAuth+"|script|q=fresh|") {
-					t.Fatalf("without Checks: %+v, response = %+v", got, got.response)
+				r.Checks = request.Checks{}
+				got = r.Execute(t.Context(), srv, map[string]string{"token": "old-token"}, nil)
+				if got.Err != nil || got.Response == nil || !strings.HasPrefix(got.Response.ResponseBody, wantAuth+"|script|q=fresh|") {
+					t.Fatalf("without Checks: %+v, response = %+v", got, got.Response)
 				}
 				// Direct request edits win over generated auth and form encoding.
 				r.Pre += `req.set("Authorization", "direct"); req.body = "direct-body"; req.url = req.url.replace("?q=", "/edited?q="); req.method = "PATCH";`
-				got = executeRequest(t.Context(), srv, r, nil, nil)
-				if got.err != nil || got.request.Method != "PATCH" || got.response.ResponseBody != "direct|script|q=fresh|direct-body" || !strings.Contains(got.request.URL, "/edited?") {
-					t.Fatalf("direct edits lost: %+v, response = %+v", got, got.response)
+				got = r.Execute(t.Context(), srv, nil, nil)
+				if got.Err != nil || got.Request.Method != "PATCH" || got.Response.ResponseBody != "direct|script|q=fresh|direct-body" || !strings.Contains(got.Request.URL, "/edited?") {
+					t.Fatalf("direct edits lost: %+v, response = %+v", got, got.Response)
 				}
 				r.Body = ""
 				r.Pre += `req.body = ""; req.remove("Authorization");`
-				got = executeRequest(t.Context(), srv, r, nil, nil)
-				if got.err != nil || got.response == nil || got.response.ResponseBody != "|script|q=fresh|" {
-					t.Fatalf("explicit empty body/header removal lost: %+v, response = %+v", got, got.response)
+				got = r.Execute(t.Context(), srv, nil, nil)
+				if got.Err != nil || got.Response == nil || got.Response.ResponseBody != "|script|q=fresh|" {
+					t.Fatalf("explicit empty body/header removal lost: %+v, response = %+v", got, got.Response)
 				}
 			})
 		}
@@ -114,8 +115,8 @@ func TestStructuredRequestSurvivesSavingAndSendsBinaryMultipart(t *testing.T) {
 	defer upstream.Close()
 	r := savedRequest{ID: "multipart-asset", Name: "Upload", Collection: "Demo", Method: "POST", URL: upstream.URL + "/upload?tag=a%2Fb&tag=two+words",
 		Headers: "Content-Type: stale/type\nContent-Length: 1\nAuthorization: stale",
-		Auth:    requestAuth{Type: "Bearer", Token: "{{token}}"}, BodyMode: "Multipart",
-		Form: []requestField{{Name: "label", Value: "中文 & ="}, {Name: "label", Value: "second"}, {Name: "upload", Value: file, File: true}, {Name: "disabled", Value: "not sent", Disabled: true}},
+		Auth:    request.Auth{Type: "Bearer", Token: "{{token}}"}, BodyMode: "Multipart",
+		Form: []request.Field{{Name: "label", Value: "中文 & ="}, {Name: "label", Value: "second"}, {Name: "upload", Value: file, File: true}, {Name: "disabled", Value: "not sent", Disabled: true}},
 		Post: `test("created",res.status===201); test("body",res.json().upload==="complete")`,
 	}
 	path := filepath.Join(t.TempDir(), "requests.json")
@@ -135,8 +136,8 @@ func TestStructuredRequestSurvivesSavingAndSendsBinaryMultipart(t *testing.T) {
 	if !a.dirty() || a.baseline.Form[0].Value != "中文 & =" || loaded[0].Form[0].Value != "中文 & =" {
 		t.Fatal("draft shares saved form fields")
 	}
-	got := executeRequest(t.Context(), requestProxy(t), r, map[string]string{"token": "token-19"}, &cookieStore{})
-	if got.err != nil || got.response == nil || got.response.Status != 201 || got.response.ResponseBody != `{"upload":"complete"}` || len(got.tests) != 2 || got.failed() {
+	got := r.Execute(t.Context(), requestProxy(t), map[string]string{"token": "token-19"}, &cookieStore{})
+	if got.Err != nil || got.Response == nil || got.Response.Status != 201 || got.Response.ResponseBody != `{"upload":"complete"}` || len(got.Tests) != 2 || got.Failed() {
 		t.Fatalf("send: %+v", got)
 	}
 }
@@ -184,11 +185,11 @@ func TestURLEncodedAuthAndCookiesFollowHTTPRules(t *testing.T) {
 	srv, jar := requestProxy(t), &cookieStore{}
 	for _, r := range []savedRequest{
 		{Method: "GET", URL: upstream.URL + "/login"},
-		{Method: "POST", URL: upstream.URL + "/api/form", Headers: "Content-Type: stale", Auth: requestAuth{Type: "Basic", Username: "{{user}}", Password: "p:a &"}, BodyMode: "URL encoded", Form: []requestField{{Name: "tag", Value: "a&b"}, {Name: "tag", Value: "=中文"}}},
+		{Method: "POST", URL: upstream.URL + "/api/form", Headers: "Content-Type: stale", Auth: request.Auth{Type: "Basic", Username: "{{user}}", Password: "p:a &"}, BodyMode: "URL encoded", Form: []request.Field{{Name: "tag", Value: "a&b"}, {Name: "tag", Value: "=中文"}}},
 		{Method: "GET", URL: upstream.URL + "/outside"},
 	} {
-		got := executeRequest(t.Context(), srv, r, map[string]string{"user": "user-19"}, jar)
-		if got.err != nil || got.response.Status != 200 {
+		got := r.Execute(t.Context(), srv, map[string]string{"user": "user-19"}, jar)
+		if got.Err != nil || got.Response.Status != 200 {
 			t.Fatalf("%s: %+v", r.URL, got)
 		}
 	}
@@ -201,13 +202,13 @@ func TestURLEncodedAuthAndCookiesFollowHTTPRules(t *testing.T) {
 	if len(jar.Cookies(u)) != 0 {
 		t.Fatal("deleting a path cookie left it active")
 	}
-	for _, auth := range []requestAuth{{Type: "API key", Key: "key", Value: "a & b", Location: "Query"}, {Type: "API key", Key: "X-Key", Value: "header-7", Location: "Header"}} {
-		got := executeRequest(t.Context(), srv, savedRequest{Method: "GET", URL: upstream.URL + "/key?tag=one&tag=two", Auth: auth}, nil, jar)
-		if got.err != nil || got.response.Status != 200 {
+	for _, auth := range []request.Auth{{Type: "API key", Key: "key", Value: "a & b", Location: "Query"}, {Type: "API key", Key: "X-Key", Value: "header-7", Location: "Header"}} {
+		got := savedRequest{Method: "GET", URL: upstream.URL + "/key?tag=one&tag=two", Auth: auth}.Execute(t.Context(), srv, nil, jar)
+		if got.Err != nil || got.Response.Status != 200 {
 			t.Fatalf("API key: %+v", got)
 		}
-		if auth.Location == "Query" && got.response.ResponseBody != "key=a+%26+b&tag=one&tag=two|" || auth.Location == "Header" && got.response.ResponseBody != "tag=one&tag=two|header-7" {
-			t.Fatalf("API key placement: %s", got.response.ResponseBody)
+		if auth.Location == "Query" && got.Response.ResponseBody != "key=a+%26+b&tag=one&tag=two|" || auth.Location == "Header" && got.Response.ResponseBody != "tag=one&tag=two|header-7" {
+			t.Fatalf("API key placement: %s", got.Response.ResponseBody)
 		}
 	}
 }
@@ -282,7 +283,7 @@ func TestCookieManagerRespectsDomainsSecureAndDeletion(t *testing.T) {
 }
 
 func TestStructuredOpenAPIDraftWarnsWithoutCopyingSecretsOrStaleRawBody(t *testing.T) {
-	spec, err := generateOpenAPI([]savedRequest{{Method: "POST", URL: "https://example.com/upload", Auth: requestAuth{Type: "Bearer", Token: "private-token-19"}, BodyMode: "Multipart", Body: "hidden stale body", Form: []requestField{{Name: "file", Value: "/private/local/path", File: true}}}}, "")
+	spec, err := generateOpenAPI([]savedRequest{{Method: "POST", URL: "https://example.com/upload", Auth: request.Auth{Type: "Bearer", Token: "private-token-19"}, BodyMode: "Multipart", Body: "hidden stale body", Form: []request.Field{{Name: "file", Value: "/private/local/path", File: true}}}}, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -299,11 +300,11 @@ func TestStructuredOpenAPIDraftWarnsWithoutCopyingSecretsOrStaleRawBody(t *testi
 
 func TestFormErrorsDoNotSilentlyFallBackToRawBody(t *testing.T) {
 	for _, r := range []savedRequest{
-		{URL: "http://example.com", BodyMode: "Multipart", Form: []requestField{{Name: "file", Value: filepath.Join(t.TempDir(), "missing"), File: true}}},
-		{URL: "http://example.com", BodyMode: "URL encoded", Form: []requestField{{Name: "file", Value: "unused", File: true}}},
-		{URL: "http://example.com", BodyMode: "URL encoded", Form: []requestField{{Name: "big", Value: strings.Repeat("&", 6<<20)}}},
+		{URL: "http://example.com", BodyMode: "Multipart", Form: []request.Field{{Name: "file", Value: filepath.Join(t.TempDir(), "missing"), File: true}}},
+		{URL: "http://example.com", BodyMode: "URL encoded", Form: []request.Field{{Name: "file", Value: "unused", File: true}}},
+		{URL: "http://example.com", BodyMode: "URL encoded", Form: []request.Field{{Name: "big", Value: strings.Repeat("&", 6<<20)}}},
 	} {
-		if _, err := prepareRequest(r, nil); err == nil {
+		if _, err := r.Prepare(nil); err == nil {
 			t.Fatal("invalid form was accepted")
 		}
 	}
@@ -330,18 +331,18 @@ func TestRequestDiagnosticsKeepPhasesErrorsAndSentVariables(t *testing.T) {
 	}))
 	defer upstream.Close()
 	srv := requestProxy(t)
-	r := savedRequest{Method: "GET", URL: upstream.URL, Auth: requestAuth{Type: "Bearer", Token: "{{token}}"},
+	r := savedRequest{Method: "GET", URL: upstream.URL, Auth: request.Auth{Type: "Bearer", Token: "{{token}}"},
 		Pre:  `log("preparing"); vars.set("token","sent-token");`,
 		Post: "log('received', res.status); vars.set('token','next-token');\nthrow new Error('post failed');"}
-	got := executeRequest(t.Context(), srv, r, map[string]string{"token": "old-token"}, nil)
-	if <-headers != "Bearer sent-token" || got.response == nil || got.response.Status != 200 || got.outcome() != "Post-response script failed" {
-		t.Fatalf("wrong observable request/result: %s", got.summary())
+	got := r.Execute(t.Context(), srv, map[string]string{"token": "old-token"}, nil)
+	if <-headers != "Bearer sent-token" || got.Response == nil || got.Response.Status != 200 || got.Outcome() != "Post-response script failed" {
+		t.Fatalf("wrong observable request/result: %s", runSummary(got))
 	}
-	if len(got.console) != 5 || got.console[0].Phase != "pre-request" || got.console[2].Phase != "post-response" || got.console[4].Kind != "error" || !strings.Contains(got.console[4].Text, "post-response.js:2:") {
-		t.Fatalf("console lost phase or error position: %+v", got.console)
+	if len(got.Console) != 5 || got.Console[0].Phase != "pre-request" || got.Console[2].Phase != "post-response" || got.Console[4].Kind != "error" || !strings.Contains(got.Console[4].Text, "post-response.js:2:") {
+		t.Fatalf("console lost phase or error position: %+v", got.Console)
 	}
-	if got.vars["token"] != "next-token" || len(got.variables) != 1 || got.variables[0].Value != "sent-token" || got.variables[0].Source != "Pre-request script" {
-		t.Fatalf("post-script rewrote send-time variable evidence: %+v", got.variables)
+	if got.Vars["token"] != "next-token" || len(got.Variables) != 1 || got.Variables[0].Value != "sent-token" || got.Variables[0].Source != "Pre-request script" {
+		t.Fatalf("post-script rewrote send-time variable evidence: %+v", got.Variables)
 	}
 	var log experimentLog
 	if err := log.retain(snapshotExperiment(0, r, "staging", got)); err != nil {
@@ -352,13 +353,13 @@ func TestRequestDiagnosticsKeepPhasesErrorsAndSentVariables(t *testing.T) {
 		t.Fatal(err)
 	}
 	restored, err := loadExperiments(path)
-	if err != nil || !reflect.DeepEqual(restored.Records[0].Console, got.console) || !reflect.DeepEqual(restored.Records[0].Variables, got.variables) {
+	if err != nil || !reflect.DeepEqual(restored.Records[0].Console, got.Console) || !reflect.DeepEqual(restored.Records[0].Variables, got.Variables) {
 		t.Fatal("diagnostics did not survive restart", err)
 	}
 	for _, src := range []string{"\n\nthrow new Error('before send');", "\n\nlet = ;"} {
 		r.Pre = src
-		failed := executeRequest(t.Context(), nil, r, nil, nil)
-		if failed.response != nil || failed.outcome() != "Pre-request script failed" || len(failed.console) == 0 || !strings.Contains(failed.summary(), "pre-request.js") || !strings.Contains(failed.summary(), "3") {
+		failed := r.Execute(t.Context(), nil, nil, nil)
+		if failed.Response != nil || failed.Outcome() != "Pre-request script failed" || len(failed.Console) == 0 || !strings.Contains(runSummary(failed), "pre-request.js") || !strings.Contains(runSummary(failed), "3") {
 			t.Fatalf("pre-script error lacks stage/location or sent traffic: %+v", failed)
 		}
 	}
