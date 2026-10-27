@@ -4,11 +4,11 @@ import (
 	"cmp"
 	"fmt"
 	"io"
-	"math/rand"
 	"net/http"
 	"os"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/baba983/vscroxy/internal/capture"
 )
@@ -157,6 +157,48 @@ func (f flow) connectionDiagnostics() string {
 // maxBodyView bounds how much of a spilled body the Body tab reads back.
 const maxBodyView = 8 << 20
 
+// requestDraft converts retained, decoded capture bytes, never display text.
+// The text editor/JSON store cannot round-trip arbitrary non-UTF-8 bytes or
+// request trailers; refuse those rather than silently changing the request.
+func (f flow) requestDraft() (savedRequest, error) {
+	if f.kind == "connect" || f.method == "CONNECT" {
+		return savedRequest{}, fmt.Errorf("an encrypted tunnel has no captured HTTP request")
+	}
+	if f.reqError != "" {
+		return savedRequest{}, fmt.Errorf("incomplete request body: %s", f.reqError)
+	}
+	body := f.reqBody
+	if f.reqFile != "" {
+		data, err := os.ReadFile(f.reqFile)
+		if err != nil {
+			return savedRequest{}, fmt.Errorf("request body unavailable: %w", err)
+		}
+		body = string(data)
+	}
+	if f.reqSize > 0 && len(body) != f.reqSize {
+		return savedRequest{}, fmt.Errorf("incomplete request body: retained %d of %d bytes", len(body), f.reqSize)
+	}
+	if !utf8.ValidString(body) {
+		return savedRequest{}, fmt.Errorf("non-UTF-8 request bodies cannot be opened in the text request editor")
+	}
+	h := f.reqHeader.Clone()
+	if h == nil {
+		h = make(http.Header)
+		for _, pair := range headerPairs(f.reqHeaders, nil) {
+			h.Add(pair.Name, pair.Value)
+		}
+	}
+	if len(f.reqTrailer) != 0 || h.Get("Trailer") != "" {
+		return savedRequest{}, fmt.Errorf("request trailers cannot be represented by the request editor")
+	}
+	// Capture stores decoded payloads but keeps original wire headers.
+	h.Del("Content-Encoding")
+	h.Del("Content-Length")
+	h.Del("Transfer-Encoding")
+	return savedRequest{Name: cmp.Or(f.path, f.url), Method: cmp.Or(f.method, "GET"), URL: f.url,
+		Headers: headerBlock(h), Body: body}, nil
+}
+
 // body returns the body to show: the head the flow holds in memory, or the
 // whole body from the spill file when the capture core wrote it out.
 func (f flow) body(response bool) string {
@@ -214,159 +256,6 @@ func (f flow) contentType(response bool) string {
 	}
 	ct, _, _ = strings.Cut(ct, ";")
 	return strings.ToLower(strings.TrimSpace(ct))
-}
-
-var (
-	methods = []string{"GET", "GET", "GET", "POST", "PUT", "DELETE", "PATCH"}
-	hosts   = []string{
-		"api.github.com",
-		"github.com",
-		"raw.githubusercontent.com",
-		"registry.npmjs.org",
-		"api.openai.com",
-		"cdn.jsdelivr.net",
-		"fonts.gstatic.com",
-		"api.stripe.com",
-	}
-	paths = []string{
-		"/v1/user/repos",
-		"/v1/repos/baba983/vscroxy",
-		"/v1/repos/baba983/vscroxy/pulls",
-		"/-/ping?write=true",
-		"/v1/chat/completions",
-		"/npm/v1/security/advisories/bulk",
-		"/ajax/libs/react/19.2.0/umd/react.production.min.js",
-		"/css2?family=Inter:wght@400;600",
-		"/v1/payment_intents",
-		"/v1/customers/cus_QN1",
-		"/api/v3/commit/31ee1d1",
-		"/search?q=mygo&type=repositories",
-	}
-	statuses = []int{200, 200, 200, 200, 200, 201, 204, 301, 304, 400, 401, 404, 429, 500, 502}
-)
-
-// seedFlows makes n plausible flows so the table, the filters and the diff have
-// something to work on before the proxy engine is wired in.
-func seedFlows(n int) []flow {
-	r := rand.New(rand.NewSource(7))
-	out := make([]flow, 0, n)
-	for i := range n {
-		method := methods[r.Intn(len(methods))]
-		status := statuses[r.Intn(len(statuses))]
-		host := hosts[r.Intn(len(hosts))]
-		path := paths[r.Intn(len(paths))]
-		f := flow{
-			id:     i + 1,
-			method: method,
-			scheme: "https",
-			host:   host,
-			path:   path,
-			url:    "https://" + host + path,
-			status: status,
-			bytes:  int(r.ExpFloat64() * 24000),
-			millis: int(r.ExpFloat64() * 180),
-		}
-		f.wait = f.millis / 2
-		f.download = f.millis - f.wait
-		if method == "GET" && r.Intn(2) == 0 {
-			f.bytes = 0
-		}
-		f.reqHeaders = requestHeaders(f)
-		f.resHeaders = responseHeaders(f)
-		f.reqBody = requestBody(f)
-		f.resBody = responseBody(f)
-		out = append(out, f)
-	}
-	return out
-}
-
-func requestBody(f flow) string {
-	if f.method == "GET" || f.method == "DELETE" {
-		return ""
-	}
-	return fmt.Sprintf(`{
-  "name": "vscroxy",
-  "private": false,
-  "owner": "baba983",
-  "description": "A native HTTP debugging proxy",
-  "topics": ["proxy", "debugging", "go"],
-  "has_issues": true
-}`)
-}
-
-func responseBody(f flow) string {
-	if f.status == 204 || f.status == 304 {
-		return ""
-	}
-	return fmt.Sprintf(`{
-  "id": %d,
-  "method": %q,
-  "url": "https://%s%s",
-  "status": %d,
-  "ok": %t,
-  "size": %d,
-  "duration_ms": %d,
-  "owner": {
-    "login": "baba983",
-    "id": 1024,
-    "type": "User"
-  },
-  "meta": {
-    "cached": %t,
-    "region": "ap-southeast-1",
-    "request_id": "req_%06x"
-  }
-}`, f.id, f.method, f.host, f.path, f.status, f.status < 400, f.bytes, f.millis, f.status == 304, f.id*7919)
-}
-
-func requestHeaders(f flow) string {
-	return fmt.Sprintf(`%s %s HTTP/1.1
-Host: %s
-User-Agent: vscroxy/0.1 (darwin; arm64)
-Accept: application/json
-Accept-Encoding: gzip, br
-Authorization: Bearer ••••••••
-X-Request-Id: %06x
-Connection: keep-alive`, f.method, f.path, f.host, f.id)
-}
-
-func responseHeaders(f flow) string {
-	return fmt.Sprintf(`HTTP/1.1 %d %s
-Content-Type: application/json; charset=utf-8
-Content-Length: %d
-Cache-Control: private, max-age=60
-X-RateLimit-Remaining: 4983
-X-GitHub-Request-Id: %06x
-Server: github.com
-Date: Tue, 20 Oct 2026 08:12:44 GMT`, f.status, statusText(f.status), f.bytes, f.id*31)
-}
-
-func statusText(code int) string {
-	switch code {
-	case 200:
-		return "OK"
-	case 201:
-		return "Created"
-	case 204:
-		return "No Content"
-	case 301:
-		return "Moved Permanently"
-	case 304:
-		return "Not Modified"
-	case 400:
-		return "Bad Request"
-	case 401:
-		return "Unauthorized"
-	case 404:
-		return "Not Found"
-	case 429:
-		return "Too Many Requests"
-	case 500:
-		return "Internal Server Error"
-	case 502:
-		return "Bad Gateway"
-	}
-	return "Unknown"
 }
 
 func humanBytes(n int) string {

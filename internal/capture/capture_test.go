@@ -1208,6 +1208,7 @@ function onResponse(res) {
   res.status = 201
   res.body = JSON.stringify({scripted: true})
   res.headers["X-Script"] = "1"
+  res.headers["Set-Cookie"] = ["session=from-script; Path=/", "csrf=separate; Path=/"]
 }`)
 	resp, err := clientFor(t, s, nil).Get(upstream.URL + "/boom")
 	if err != nil {
@@ -1218,10 +1219,53 @@ function onResponse(res) {
 	if resp.StatusCode != 201 || string(body) != `{"scripted":true}` || resp.Header.Get("X-Script") != "1" {
 		t.Fatalf("client got %d %q %q", resp.StatusCode, body, resp.Header.Get("X-Script"))
 	}
+	if cookies := resp.Cookies(); len(cookies) != 2 || cookies[0].Value != "from-script" || cookies[1].Value != "separate" {
+		t.Fatalf("scripted cookie array = %q", resp.Header.Values("Set-Cookie"))
+	}
 
 	f := waitFlow(t, s)
 	if f.Status != 201 || !strings.Contains(f.ResponseBody, "scripted") {
 		t.Fatalf("flow = %d %q", f.Status, f.ResponseBody)
+	}
+}
+
+func TestEmptyHooksPreserveRepeatedHeaders(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if got := r.Header.Values("X-Repeat"); len(got) != 2 || got[0] != "first" || got[1] != "second" {
+			t.Errorf("request headers = %q", got)
+		}
+		http.SetCookie(w, &http.Cookie{Name: "session", Value: "abc", Path: "/"})
+		http.SetCookie(w, &http.Cookie{Name: "csrf", Value: "xyz", Path: "/"})
+		fmt.Fprint(w, "ok")
+	}))
+	defer upstream.Close()
+	s := startServerWithScript(t, `function onRequest(req) {} function onResponse(res) {}`)
+	req, _ := http.NewRequestWithContext(t.Context(), "GET", upstream.URL, nil)
+	req.Header["X-Repeat"] = []string{"first", "second"}
+	resp, err := clientFor(t, s, nil).Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if cookies := resp.Cookies(); len(cookies) != 2 || cookies[0].Name != "session" || cookies[1].Name != "csrf" {
+		t.Fatalf("cookies = %+v, headers = %q", cookies, resp.Header.Values("Set-Cookie"))
+	}
+}
+
+func TestScriptLoadTimeout(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "script.js")
+	if err := os.WriteFile(path, []byte(`while (true) {}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan error, 1)
+	go func() { _, err := LoadScript(path); done <- err }()
+	select {
+	case err := <-done:
+		if err == nil || !strings.Contains(err.Error(), "timed out") {
+			t.Fatalf("load error = %v", err)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("top-level script execution was not interrupted")
 	}
 }
 

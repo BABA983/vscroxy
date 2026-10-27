@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/baba983/vscroxy/internal/capture"
+	"github.com/egoist/mygo/ui"
 )
 
 func TestSettingsRoundTrip(t *testing.T) {
@@ -119,7 +120,100 @@ func TestStartupRejectsInvalidSavedProxyPorts(t *testing.T) {
 			if !strings.Contains(a.errText, "1024 and 65535") {
 				t.Fatalf("invalid port error = %q", a.errText)
 			}
+			if len(a.flows) != 0 || a.requestsPath == "" || a.envsPath == "" {
+				t.Fatal("proxy failure must not seed traffic or hide local asset paths")
+			}
 		})
+	}
+}
+
+func TestStartupFailureKeepsLocalAssetsUsable(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	dir := filepath.Join(home, ".vscroxy")
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeSettings(filepath.Join(dir, "settings.json"), settings{ProxyPort: 80}); err != nil {
+		t.Fatal(err)
+	}
+	if err := saveRequests(filepath.Join(dir, "requests.json"), []savedRequest{{Name: "kept", Method: "GET", URL: "https://example.test"}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := saveEnvs(filepath.Join(dir, "env.json"), []environment{{Name: "dev", Vars: map[string]string{"host": "local"}}}, "dev"); err != nil {
+		t.Fatal(err)
+	}
+	a := newApp()
+	defer a.views.stopSearch()
+	if a.srv != nil || len(a.requests) != 1 || a.activeVars()["host"] != "local" || len(a.flows) != 0 {
+		t.Fatalf("failed proxy hid assets or fabricated traffic: requests %v, vars %v, flows %d", a.requests, a.activeVars(), len(a.flows))
+	}
+	a.openSaved(a.requests[0].Collection, a.requests[0].Name)
+	a.composeName = "edited offline"
+	if !a.saveComposed() {
+		t.Fatal("offline request editing is unavailable")
+	}
+}
+
+func TestDamagedAssetsStayUntouchedUntilExplicitReload(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	dir := filepath.Join(home, ".vscroxy")
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"requests.json", "env.json"} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte("{damaged"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	a := newApp()
+	defer a.views.stopSearch()
+	if a.srv != nil {
+		defer a.srv.Close()
+	}
+	a.openCompose()
+	a.composeName, a.composeURL = "new", "https://example.test"
+	if a.saveComposed() {
+		t.Fatal("saving must be refused after a request library load error")
+	}
+	a.saveFlowAsRequest(flow{method: "GET", url: "https://example.test"})
+	a.openVars()
+	a.varsText = "token = new"
+	a.saveVars()
+	a.applyVars("dev", nil, map[string]string{"token": "from-script"})
+	a.varsOpen = false
+	for _, name := range []string{"requests.json", "env.json"} {
+		data, err := os.ReadFile(filepath.Join(dir, name))
+		if err != nil || string(data) != "{damaged" {
+			t.Fatalf("%s overwritten: %q, %v", name, data, err)
+		}
+	}
+	tt := ui.NewTester(a.view, 1280, 800)
+	if !tt.HasText("Local assets protected · saving disabled") {
+		t.Fatal("load failure must remain visible")
+	}
+	// Recovery is external repair/move-aside plus a read-only retry, never an
+	// implicit overwrite or an automatic destructive reset.
+	for _, name := range []string{"requests.json", "env.json"} {
+		if err := os.Rename(filepath.Join(dir, name), filepath.Join(dir, name+".backup")); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := tt.Click("Reload local assets"); err != nil {
+		t.Fatal(err)
+	}
+	if tt.HasText("Local assets protected · saving disabled") || !a.saveComposed() {
+		t.Fatal("explicit reload did not restore saving after files were moved aside")
+	}
+	a.openVars()
+	a.varsText = "token = recovered"
+	a.saveVars()
+	envs, _, err := loadEnvs(filepath.Join(dir, "env.json"))
+	if err != nil || len(envs) != 1 || envs[0].Vars["token"] != "recovered" {
+		t.Fatalf("environment recovery: %v, %v", envs, err)
 	}
 }
 

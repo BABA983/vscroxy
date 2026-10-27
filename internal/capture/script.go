@@ -6,15 +6,16 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"strings"
+	"slices"
+	"strconv"
 	"time"
 
 	"github.com/dop251/goja"
 	"github.com/lqqyt2423/go-mitmproxy/proxy"
 )
 
-// scriptTimeout bounds one hook. A script that loops is interrupted rather
-// than holding the proxy.
+// scriptTimeout bounds top-level execution at load/reload and each hook.
+// A script that loops is interrupted rather than holding startup or the proxy.
 const scriptTimeout = 250 * time.Millisecond
 
 // Script is a JavaScript file with onRequest and onResponse hooks:
@@ -44,6 +45,8 @@ func LoadScript(path string) (*Script, error) {
 		return nil, err
 	}
 	vm := goja.New()
+	stop := time.AfterFunc(scriptTimeout, func() { vm.Interrupt("script timed out") })
+	defer stop.Stop()
 	if _, err := vm.RunProgram(prog); err != nil {
 		return nil, err
 	}
@@ -145,7 +148,13 @@ func present(v goja.Value) bool { return v != nil && !goja.IsUndefined(v) && !go
 func headersObject(vm *goja.Runtime, h http.Header) *goja.Object {
 	obj := vm.NewObject()
 	for key, values := range h {
-		obj.Set(key, strings.Join(values, ", "))
+		// Keep the convenient string API for single values. Repeated fields
+		// are arrays: comma-joining is not valid for fields like Set-Cookie.
+		if len(values) == 1 {
+			obj.Set(key, values[0])
+		} else {
+			obj.Set(key, slices.Clone(values))
+		}
 	}
 	return obj
 }
@@ -154,7 +163,18 @@ func readHeaders(vm *goja.Runtime, v goja.Value) http.Header {
 	h := make(http.Header)
 	obj := v.ToObject(vm)
 	for _, key := range obj.Keys() {
-		h.Set(key, obj.Get(key).String())
+		value := obj.Get(key)
+		if array, ok := value.(*goja.Object); ok && array.ClassName() == "Array" {
+			// Only populated indices are values; a sparse array's length can
+			// be enormous without containing that many headers.
+			for _, index := range array.Keys() {
+				if _, err := strconv.ParseUint(index, 10, 32); err == nil {
+					h.Add(key, array.Get(index).String())
+				}
+			}
+		} else if present(value) {
+			h.Set(key, value.String())
+		}
 	}
 	return h
 }

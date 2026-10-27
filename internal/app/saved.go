@@ -51,6 +51,21 @@ func loadRequests(path string) ([]savedRequest, error) {
 	return list, nil
 }
 
+// persistRequests is the app's guarded library write; exports use saveRequests
+// directly because a separate destination is not the protected library.
+func (a *app) persistRequests(list []savedRequest) error {
+	if a.requestsProblem != "" {
+		return fmt.Errorf("%s; original file left untouched; repair or move it aside and reload local assets", a.requestsProblem)
+	}
+	if a.requestsPath == "" {
+		return nil
+	}
+	if err := os.MkdirAll(filepath.Dir(a.requestsPath), 0o700); err != nil {
+		return err
+	}
+	return saveRequests(a.requestsPath, list)
+}
+
 // saveRequests writes the list, sorted by collection and name.
 func saveRequests(path string, list []savedRequest) error {
 	slices.SortFunc(list, func(x, y savedRequest) int {

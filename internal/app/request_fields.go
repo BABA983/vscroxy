@@ -38,8 +38,8 @@ type requestField struct {
 	reveal bool
 }
 
-// prepareRequest is shared by Send, Runner and cURL export. Scripts run after
-// encoding and may deliberately override the generated auth/header/body.
+// prepareRequest is the encoder shared by Send, Runner and cURL export.
+// Send/Runner run pre-scripts on templates first, then encode with final vars.
 func prepareRequest(r savedRequest, vars map[string]string) (*jsRequest, error) {
 	req := &jsRequest{
 		Method: strings.ToUpper(strings.TrimSpace(cmp.Or(expandVars(r.Method, vars), "GET"))),
@@ -427,7 +427,7 @@ func (a *app) headerEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
 func (a *app) authEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
 	ui.Scroll(c).Grow(1).Gap(8).Children(func() {
 		ui.Select(c, &d.auth.Type, []string{"None", "Bearer", "Basic", "API key"}).Label("Authorization type").Width(180)
-		ui.Text(c, "Use {{variables}} for secrets. Explicit auth overrides that header; scripts run last. Saving stores these fields locally.").FontSize(11).TextColor(t.TextMuted)
+		ui.Text(c, "Use {{variables}} for secrets. Auth uses variables after the pre-script; explicit req.set/remove overrides auth. Saving stores these fields locally.").FontSize(11).TextColor(t.TextMuted)
 		switch d.auth.Type {
 		case "Bearer":
 			ui.TextInput(c, &d.auth.Token).Label("Bearer token").Placeholder("{{token}}").Password()

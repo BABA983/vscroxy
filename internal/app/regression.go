@@ -12,7 +12,6 @@ import (
 	"slices"
 	"strconv"
 	"strings"
-	"unicode/utf8"
 
 	"github.com/baba983/vscroxy/internal/capture"
 	"golang.org/x/net/http/httpguts"
@@ -289,20 +288,15 @@ func portableRegression(r savedRequest) (string, []string, error) {
 }
 
 func (a *app) regressionFrom(f flow) {
-	// Use the proven cURL encoder/decoder contract to normalize captured wire
-	// framing and decoded content encoding, with the same completeness checks.
-	command, err := curlCommand(f)
-	var r savedRequest
-	if err == nil {
-		r, err = parseCurl(command)
-	}
-	if err != nil || !utf8.ValidString(r.Body) {
-		a.setMessage("Save regression: requires a complete, portable text HTTP request without trailers (up to 32 KiB body).")
+	r, err := f.requestDraft()
+	if err != nil {
+		a.setMessage("Save regression: " + err.Error())
 		return
 	}
 	r.Name = uniqueRequestName(a.requests, f.method+" "+hostOnly(f.host)+" regression")
 	r.Collection, r.Checks.Status = "Regressions", strconv.Itoa(f.status)
 	a.addDocument(r, "")
+	a.setDebugSource(newDebugSource(f))
 	a.sourceFlow, a.composeTab = f.id, 5
 	a.setMessage("Review checks and variables, then Save request; nothing has been sent")
 }

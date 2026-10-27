@@ -1,11 +1,117 @@
 package app
 
 import (
+	"bytes"
+	"compress/gzip"
 	"context"
+	"io"
 	"net/http"
+	"net/http/httptest"
+	"net/url"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
+
+	"github.com/baba983/vscroxy/internal/capture"
 )
+
+func TestCapturedDraftUsesCompleteDecodedPayload(t *testing.T) {
+	body := strings.Repeat("中文\x00x", (maxBodyView/8)+1)
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var reader io.Reader = r.Body
+		if r.Header.Get("Content-Encoding") == "gzip" {
+			zr, err := gzip.NewReader(r.Body)
+			if err != nil {
+				t.Error(err)
+				return
+			}
+			defer zr.Close()
+			reader = zr
+		}
+		got, _ := io.ReadAll(reader)
+		if string(got) != body || len(r.Header.Values("X-Repeat")) != 2 || r.URL.RawQuery != "q=one&q=two" {
+			http.Error(w, "payload or headers changed", 400)
+			return
+		}
+		w.WriteHeader(201)
+	}))
+	defer upstream.Close()
+	srv := requestProxy(t)
+	var compressed bytes.Buffer
+	zw := gzip.NewWriter(&compressed)
+	zw.Write([]byte(body))
+	zw.Close()
+	proxyURL, _ := url.Parse("http://" + srv.Addr())
+	tr := &http.Transport{Proxy: http.ProxyURL(proxyURL)}
+	defer tr.CloseIdleConnections()
+	req, _ := http.NewRequestWithContext(t.Context(), "POST", upstream.URL+"?q=one&q=two", &compressed)
+	req.Header = http.Header{"Content-Encoding": {"gzip"}, "X-Repeat": {"a", "b"}}
+	resp, err := (&http.Client{Transport: tr}).Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	a := workspaceApp()
+	a.flows = nil
+	select {
+	case captured := <-srv.Flows():
+		a.pending = []capture.Flow{captured}
+	case <-time.After(5 * time.Second):
+		t.Fatal("no captured request")
+	}
+	a.drain()
+	f := a.flows[0]
+	if f.reqFile == "" || f.reqSize != len(body) || f.reqHeader.Get("Content-Encoding") != "gzip" {
+		t.Fatal("test must exercise a real decoded, spilled gzip capture")
+	}
+	a.composeFrom(f)
+	if a.requestDocument == nil || a.composeBody != body {
+		t.Fatal("draft did not retain the full spilled body")
+	}
+	file := filepath.Join(t.TempDir(), "requests.json")
+	if err := saveRequests(file, []savedRequest{a.requestDocument.value()}); err != nil {
+		t.Fatal(err)
+	}
+	list, err := loadRequests(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := executeRequest(t.Context(), srv, list[0], nil, nil)
+	if got.err != nil || got.response == nil || got.response.Status != 201 {
+		t.Fatalf("replay failed: %+v, response %+v", got, got.response)
+	}
+	a.requests = nil
+	a.saveFlowAsRequest(f)
+	if len(a.requests) != 1 || a.requests[0].Body != body || parseHeaderBlock(a.requests[0].Headers).Get("Content-Encoding") != "" {
+		t.Fatal("save captured request bypassed conversion contract")
+	}
+	a.regressionFrom(f)
+	if a.composeBody != body || a.origin == nil || a.checks.Status != "201" || parseHeaderBlock(a.composeHeaders).Get("Content-Encoding") != "" {
+		t.Fatal("regression draft bypassed the complete decoded conversion contract")
+	}
+}
+
+func TestCapturedDraftRejectsUnavailablePayload(t *testing.T) {
+	for _, f := range []flow{
+		{reqBody: "abc", reqSize: 20},
+		{reqBody: "abc", reqError: "interrupted"},
+		{reqFile: filepath.Join(t.TempDir(), "missing")},
+		{reqBody: string([]byte{0xff, 0x00})},
+		{reqTrailer: http.Header{"X-Trailer": {"value"}}},
+		{kind: "connect"},
+		{method: "CONNECT"}, // Imported sessions may not carry a Kind.
+	} {
+		a := workspaceApp()
+		a.requests = nil
+		a.composeFrom(f)
+		a.regressionFrom(f)
+		a.saveFlowAsRequest(f)
+		if len(a.documents) != 0 || len(a.requests) != 0 || a.message == "" {
+			t.Fatalf("unreplayable capture silently converted: %+v", f)
+		}
+	}
+}
 
 func TestParseHeaderBlock(t *testing.T) {
 	h := parseHeaderBlock("Content-Type: application/json\nX-Empty: \n\n# a comment\nnot a header\nAccept: text/html, */*\n")

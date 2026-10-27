@@ -250,15 +250,16 @@ type app struct {
 
 	// requests are the saved requests, the Compose direction's kept half,
 	// and history what Compose sent.
-	requests       []savedRequest
-	requestsPath   string
-	history        []historyEntry
-	historyPath    string
-	historyOpen    bool
-	experiments    experimentWorkbench
-	socket         websocketWorkbench
-	investigations investigationWorkbench
-	board          investigationBoard
+	requests        []savedRequest
+	requestsPath    string
+	requestsProblem string
+	history         []historyEntry
+	historyPath     string
+	historyOpen     bool
+	experiments     experimentWorkbench
+	socket          websocketWorkbench
+	investigations  investigationWorkbench
+	board           investigationBoard
 
 	// The active document is embedded so the editor's fields always belong
 	// to that tab. Workers return results to their originating document.
@@ -273,12 +274,13 @@ type app struct {
 	regressionUI    regressionShare
 
 	// envs are the variables a request uses as {{name}}, one set in use.
-	envsPath  string
-	envs      []environment
-	activeEnv string
-	varsOpen  bool
-	varsName  string
-	varsText  string
+	envsPath    string
+	envsProblem string
+	envs        []environment
+	activeEnv   string
+	varsOpen    bool
+	varsName    string
+	varsText    string
 
 	breakOn   bool
 	bp        *capture.Breakpoint
@@ -333,6 +335,16 @@ func newApp() *app {
 	// settings ask for has to be in the environment before it starts.
 	if home, err := os.UserHomeDir(); err == nil {
 		a.settingsPath = filepath.Join(home, ".vscroxy", "settings.json")
+		a.caPath = filepath.Join(home, ".mitmproxy", "mitmproxy-ca-cert.pem")
+		a.rulesPath = filepath.Join(home, ".vscroxy", "rules.json")
+		a.sslPath = filepath.Join(home, ".vscroxy", "ssl.json")
+		a.requestsPath = filepath.Join(home, ".vscroxy", "requests.json")
+		a.historyPath = filepath.Join(home, ".vscroxy", "history.json")
+		a.ignorePath = filepath.Join(home, ".vscroxy", "ignore.txt")
+		a.ignoreAppsPath = filepath.Join(home, ".vscroxy", "ignore-apps.txt")
+		a.dnsPath = filepath.Join(home, ".vscroxy", "dns.txt")
+		a.scriptPath = filepath.Join(home, ".vscroxy", "script.js")
+		a.envsPath = filepath.Join(home, ".vscroxy", "env.json")
 		if saved, err := loadSettings(a.settingsPath); err != nil {
 			a.errText = err.Error()
 		} else {
@@ -352,35 +364,13 @@ func newApp() *app {
 		srv, err = capture.New(addr, "")
 	}
 	if err != nil {
-		// Keep the window usable when initialization fails: show seeded flows
-		// and the error, rather than an empty app.
+		// Keep local assets usable, but never present examples as captured data.
 		a.errText = err.Error()
-		a.flows = seedFlows(2000)
 	} else {
 		a.srv = srv
-		if home, err := os.UserHomeDir(); err == nil {
-			a.caPath = filepath.Join(home, ".mitmproxy", "mitmproxy-ca-cert.pem")
-			a.rulesPath = filepath.Join(home, ".vscroxy", "rules.json")
-			a.sslPath = filepath.Join(home, ".vscroxy", "ssl.json")
-			a.requestsPath = filepath.Join(home, ".vscroxy", "requests.json")
-			a.historyPath = filepath.Join(home, ".vscroxy", "history.json")
-			a.settingsPath = filepath.Join(home, ".vscroxy", "settings.json")
-			a.ignorePath = filepath.Join(home, ".vscroxy", "ignore.txt")
-			a.ignoreAppsPath = filepath.Join(home, ".vscroxy", "ignore-apps.txt")
-			a.dnsPath = filepath.Join(home, ".vscroxy", "dns.txt")
-			a.scriptPath = filepath.Join(home, ".vscroxy", "script.js")
-			a.envsPath = filepath.Join(home, ".vscroxy", "env.json")
-		}
 		a.reloadConfig()
 	}
-	if a.envsPath != "" {
-		if envs, active, err := loadEnvs(a.envsPath); err == nil {
-			a.envs, a.activeEnv = envs, active
-			if a.activeEnv == "" && len(envs) > 0 {
-				a.activeEnv = envs[0].Name
-			}
-		}
-	}
+	a.loadRequestAssets()
 	if a.historyPath != "" {
 		if list, err := loadHistory(a.historyPath); err == nil {
 			a.history = list
@@ -402,11 +392,6 @@ func newApp() *app {
 		}
 		a.columns = saved.Columns.layout()
 		a.headerColumn = saved.HeaderColumn
-	}
-	if a.requestsPath != "" {
-		if list, err := loadRequests(a.requestsPath); err == nil {
-			a.requests = list
-		}
 	}
 	if home, err := os.UserHomeDir(); err == nil {
 		a.apisPath = filepath.Join(home, ".vscroxy", "apis.json")
@@ -430,6 +415,24 @@ func newApp() *app {
 		}
 	}
 	return a
+}
+
+// A failed read protects that asset until the user repairs or moves the file
+// aside and explicitly retries. A missing file is a valid empty asset.
+func (a *app) loadRequestAssets() {
+	if list, err := loadRequests(a.requestsPath); err != nil {
+		a.requestsProblem = fmt.Sprintf("Requests (%s): %v", a.requestsPath, err)
+	} else {
+		a.requests, a.requestsProblem = list, ""
+	}
+	if envs, active, err := loadEnvs(a.envsPath); err != nil {
+		a.envsProblem = fmt.Sprintf("Variables (%s): %v", a.envsPath, err)
+	} else {
+		a.envs, a.activeEnv, a.envsProblem = envs, active, ""
+		if active == "" && len(envs) > 0 {
+			a.activeEnv = envs[0].Name
+		}
+	}
 }
 
 // startCapture listens and hands captured flows to the view.
@@ -1110,6 +1113,25 @@ func (a *app) view(c *ui.Context) {
 	a.syncSections()
 	ui.Column(c).Bind(&a.workbench.content).Focusable().AutoFocus().Fill().Background(t.Background).Children(func() {
 		a.shell(c, t)
+		if a.srv == nil && a.errText != "" {
+			ui.Text(c, "Proxy unavailable · "+a.errText+" · Local requests remain available").Padding(8, 12).FontSize(12).TextColor(t.Danger)
+		}
+		if a.requestsProblem != "" || a.envsProblem != "" {
+			ui.Column(c).Padding(8, 12).Gap(4).Children(func() {
+				ui.Row(c).Gap(12).AlignItems(ui.Center).Children(func() {
+					ui.Text(c, "Local assets protected · saving disabled").FontSize(12).Bold().TextColor(t.Danger).Grow(1)
+					if ui.Button(c, "Reload local assets").Clicked() {
+						a.loadRequestAssets()
+					}
+				})
+				for _, problem := range []string{a.requestsProblem, a.envsProblem} {
+					if problem != "" {
+						ui.Text(c, problem).FontSize(11).TextColor(t.Danger)
+					}
+				}
+				ui.Text(c, "Original files left untouched. Repair or move the affected file aside, then reload. Other local assets remain usable.").FontSize(11).TextColor(t.TextMuted)
+			})
+		}
 		a.desktopContent(c)
 		a.footer(c, t)
 	})
@@ -2319,12 +2341,13 @@ func (a *app) openCompose() {
 // composeFrom fills the request editor with a captured request, the step from
 // traffic to a request worth keeping.
 func (a *app) composeFrom(f flow) {
+	r, err := f.requestDraft()
+	if err != nil {
+		a.setMessage("Edit & replay: " + err.Error())
+		return
+	}
 	a.views.capture(a)
-	a.addDocument(savedRequest{
-		Name:   cmp.Or(f.path, f.url),
-		Method: cmp.Or(f.method, "GET"), URL: f.url,
-		Headers: headerBlock(f.reqHeader), Body: f.body(false),
-	}, "")
+	a.addDocument(r, "")
 	a.setDebugSource(newDebugSource(f))
 	a.sourceView = a.views.activeView()
 }
@@ -2385,6 +2408,10 @@ func (a *app) activeVars() map[string]string {
 // applyVars merges only the variables changed by this run. Another tab may
 // have completed or the user may have edited the environment in the meantime.
 func (a *app) applyVars(name string, before, vars map[string]string) {
+	if a.envsProblem != "" {
+		a.setMessage("Variables not saved: " + a.envsProblem)
+		return
+	}
 	name = cmp.Or(name, "default")
 	at := slices.IndexFunc(a.envs, func(e environment) bool { return e.Name == name })
 	if at < 0 {
@@ -2423,15 +2450,18 @@ func (a *app) varsModal(c *ui.Context, t *ui.Theme) {
 	appModal(c, &a.varsOpen, func() {
 		ui.Column(c).Width(520).Gap(10).Children(func() {
 			dialogTitle(c, "Variables")
+			if a.envsProblem != "" {
+				ui.Text(c, "Variables are read-only. Close this dialog, repair or move env.json aside, then reload local assets.").FontSize(11).TextColor(t.Danger)
+			}
 			ui.Text(c, "One \"name = value\" a line. A request uses them as {{name}}, in the URL, the headers, the body and the scripts.").
 				FontSize(11).TextColor(t.TextMuted)
-			ui.TextInput(c, &a.varsName).Label("Environment")
-			ui.TextArea(c, &a.varsText).Height(160).Label("Environment variables")
+			ui.TextInput(c, &a.varsName).Label("Environment").ReadOnly(a.envsProblem != "")
+			ui.TextArea(c, &a.varsText).Height(160).Label("Environment variables").ReadOnly(a.envsProblem != "")
 			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
 				if ui.Button(c, "Cancel").Clicked() {
 					a.varsOpen = false
 				}
-				if ui.PrimaryButton(c, "Save").Clicked() {
+				if ui.PrimaryButton(c, "Save").Disabled(a.envsProblem != "").Clicked() {
 					a.saveVars()
 				}
 			})
@@ -2441,28 +2471,33 @@ func (a *app) varsModal(c *ui.Context, t *ui.Theme) {
 
 // saveVars keeps the edited environment and puts it in use.
 func (a *app) saveVars() {
+	if a.envsProblem != "" {
+		a.setMessage("Variables not saved: " + a.envsProblem)
+		return
+	}
 	name := strings.TrimSpace(a.varsName)
 	if name == "" {
 		a.setMessage("Variables: the environment has no name")
 		return
 	}
 	vars := varLines(a.varsText)
+	envs := slices.Clone(a.envs)
 	found := false
-	for i, e := range a.envs {
+	for i, e := range envs {
 		if e.Name == name {
-			a.envs[i].Vars = vars
+			envs[i].Vars = vars
 			found = true
 			break
 		}
 	}
 	if !found {
-		a.envs = append(a.envs, environment{Name: name, Vars: vars})
+		envs = append(envs, environment{Name: name, Vars: vars})
 	}
-	a.activeEnv = name
-	if err := saveEnvs(a.envsPath, a.envs, a.activeEnv); err != nil {
+	if err := saveEnvs(a.envsPath, envs, name); err != nil {
 		a.setMessage("Variables: " + err.Error())
 		return
 	}
+	a.envs, a.activeEnv = envs, name
 	a.varsOpen = false
 	a.setMessage(fmt.Sprintf("Variables: %s, %d of them", name, len(vars)))
 }
@@ -2908,15 +2943,9 @@ func (a *app) saveComposed() bool {
 			a.headerColumn = saved.HeaderColumn
 		}
 	}
-	if a.requestsPath != "" {
-		if err := os.MkdirAll(filepath.Dir(a.requestsPath), 0o755); err != nil {
-			a.setMessage("Save: " + err.Error())
-			return false
-		}
-		if err := saveRequests(a.requestsPath, list); err != nil {
-			a.setMessage("Save: " + err.Error())
-			return false
-		}
+	if err := a.persistRequests(list); err != nil {
+		a.setMessage("Save: " + err.Error())
+		return false
 	}
 	a.requests = list
 	a.composeName = name
@@ -3193,19 +3222,17 @@ func (a *app) importRequests() {
 			return
 		}
 		a.win.Update(func() {
+			merged := slices.Clone(a.requests)
 			for _, r := range list {
 				if r.Name != "" {
-					a.requests = upsertRequest(a.requests, r)
+					merged = upsertRequest(merged, r)
 				}
 			}
-			if a.requestsPath != "" {
-				if err := os.MkdirAll(filepath.Dir(a.requestsPath), 0o755); err == nil {
-					if err := saveRequests(a.requestsPath, a.requests); err != nil {
-						a.setMessage("Import requests: " + err.Error())
-						return
-					}
-				}
+			if err := a.persistRequests(merged); err != nil {
+				a.setMessage("Import requests: " + err.Error())
+				return
 			}
+			a.requests = merged
 			a.setMessage(fmt.Sprintf("Imported %d requests", len(list)))
 		})
 	}()
@@ -3246,6 +3273,11 @@ func (a *app) saveHistory() {
 // saveFlowAsRequest keeps a captured request in the saved ones, under a name
 // that says what it is.
 func (a *app) saveFlowAsRequest(f flow) {
+	r, err := f.requestDraft()
+	if err != nil {
+		a.setMessage("Save request: " + err.Error())
+		return
+	}
 	name := strings.TrimSpace(f.method + " " + f.host + f.path)
 	if f.path == "" {
 		name = strings.TrimSpace(f.method + " " + f.host)
@@ -3253,24 +3285,13 @@ func (a *app) saveFlowAsRequest(f flow) {
 	// A second save of the same request takes a name of its own, rather
 	// than replacing the first.
 	name = uniqueRequestName(a.requests, name)
-	r := savedRequest{
-		Name:    name,
-		Method:  cmp.Or(f.method, "GET"),
-		URL:     f.url,
-		Headers: headerBlock(f.reqHeader),
-		Body:    f.body(false),
+	r.Name = name
+	list := upsertRequest(slices.Clone(a.requests), r)
+	if err := a.persistRequests(list); err != nil {
+		a.setMessage("Save request: " + err.Error())
+		return
 	}
-	a.requests = upsertRequest(a.requests, r)
-	if a.requestsPath != "" {
-		if err := os.MkdirAll(filepath.Dir(a.requestsPath), 0o755); err != nil {
-			a.setMessage("Save request: " + err.Error())
-			return
-		}
-		if err := saveRequests(a.requestsPath, a.requests); err != nil {
-			a.setMessage("Save request: " + err.Error())
-			return
-		}
-	}
+	a.requests = list
 	a.setMessage("Saved " + name)
 }
 

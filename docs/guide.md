@@ -241,6 +241,14 @@ command), **Open in browser**, **Copy response body**, **Pin to the top**,
 **Edit & resend**, **Save as request** (into the saved ones, under a name of
 its own, so a second save does not replace the first), and **Replay**.
 
+**Edit & replay** and **Save as request** use the complete retained, decoded
+request payload, not the Body preview. Repeated headers and query parameters
+are kept; stale content encoding/length and transfer framing are removed before
+sending decoded bytes. Incomplete or missing payloads, non-UTF-8 bodies,
+request trailers and encrypted tunnels are explicitly refused rather than
+silently converted to a different request. The text request editor does not yet
+provide arbitrary binary capture editing.
+
 ## Rules
 
 Open **⋯ → Debugging rules…** (or **Settings → General → Manage rules**) to
@@ -392,8 +400,16 @@ function onResponse(res) {
 }
 ```
 
+Single header values are strings; repeated values are arrays of strings.
+For example, `res.headers["Set-Cookie"] = ["session=abc; Path=/", "csrf=xyz; Path=/"]`
+keeps two independent cookies. Assign a string to replace a field, an array for
+multiple values, or delete the property to remove it. Empty hooks preserve
+repeated fields.
+
 Each hook runs in a fresh sandbox with a 250 ms limit and no files or
 network; a hook that loops is interrupted and counted in the status bar.
+Top-level execution during startup/reload has the same 250 ms limit; a failed
+load returns an error instead of blocking initialization or replacing the active script.
 Streaming and SSE responses skip the response hook. **Reload configuration**
 rereads both the rules and the script.
 
@@ -498,6 +514,10 @@ The **Session** menu exports a HAR 1.2 file (HTTP flows; WebSocket and SSE
 messages have no place in HAR), saves the table and its frames as a JSON
 session, and opens one back. The native save and open dialogs choose the
 path.
+
+HAR and session exports use private (0600 on Unix), atomic file replacement,
+including over an existing broadly readable file. They still contain original
+credentials and payloads: they are neither encrypted nor automatically redacted.
 
 ## WebSocket and SSE
 
@@ -698,7 +718,8 @@ every value in plain text, switching to it asks first when a credential is in
 the table. Disabled rows stay in the request file
 (`headerList`) but never in the block that is sent, copied or exported. Params
 edits the URL's query the same way, and only enabled rows reach it. Auth supports Bearer, Basic and API keys in a header or query
-parameter; explicit auth replaces that header and pre-request scripts run last.
+parameter; explicit auth replaces that header unless the pre-script explicitly
+sets/removes it.
 Body supports a raw editor with line numbers, JSON highlighting, undo and
 **Format**, plus URL-encoded fields and multipart text/file parts with duplicate
 keys, disabled rows and a 16 MiB total form limit. The body's type and **Format**
@@ -728,6 +749,25 @@ request history may contain credentials: local files are private (0600), not
 encrypted. Prefer `{{variables}}` and review exports before sharing. OpenAPI
 draft generation explicitly warns that structured forms and auth need manual
 schema/security definitions; it does not copy their secrets or file paths.
+
+Send and Runner use the same execution order: pre-script → variable validation
+(when Checks are enabled) → expansion and auth/form encoding → send → checks
+and post-script. Pre-scripts see authored templates (`req.url`, `req.body`,
+`req.get(...)` may still contain `{{names}}`), not the previously expanded
+request. Use `vars.get` to read variable values; `vars.set` affects this send's
+URL, headers, auth and form fields. Direct method/URL/body edits are retained;
+explicit `req.body` assignments, even an empty string, override structured
+forms, and `req.set/remove` overrides generated headers. Expansion happens
+once with the final variables. cURL export encodes the draft without executing
+scripts.
+
+If `requests.json` or `env.json` cannot be read, its error and path remain
+visible and writes to that asset are blocked, including script variable saves
+and library imports. Repair the affected file or move it aside as a backup,
+then choose **Reload local assets** to retry reading. This never deletes or
+resets the original file automatically. Missing files are valid empty assets.
+A proxy initialization failure shows the actual error and no sample traffic;
+local request/environment assets remain accessible for offline editing.
 
 **Runner…** executes a saved collection, including its subfolders, sequentially.
 Select/reorder steps, set 1–1000 iterations, and optionally stop on HTTP errors,
@@ -767,10 +807,10 @@ editor with it again, and **Session → Clear history** empties the list.
 Right-click an HTTP capture and choose **Save as regression…**. This opens an
 unsent Requests draft linked to that capture, with its status as the first
 assertion. Review/edit the request, use `{{base_url}}` and other variables for
-targets/credentials, then **Save request**. The initial capture conversion uses
-the same validated cURL conversion as clipboard export/import: incomplete bodies,
-trailers, tunnels, binary/control-byte bodies and bodies requiring a stdin
-pipeline (roughly 32 KiB) are refused rather than silently changed.
+targets/credentials, then **Save request**. Capture conversion uses the same full
+decoded request contract as **Edit & replay**, not a shell/cURL round-trip or UI
+body preview. Its body has no cURL size/control-character restriction; incomplete,
+missing or non-UTF-8 content, trailers and tunnels are refused explicitly.
 
 **Checks** supports an optional exact status, exact response header values
 (one `Name: Value` per line; any repeated value can match), and JSON scalar fields

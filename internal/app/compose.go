@@ -134,16 +134,29 @@ type jsRequest struct {
 	URL    string `json:"url"`
 	Body   string `json:"body"`
 	header http.Header
+	// Only pre-script templates record explicit overrides of generated fields.
+	editedHeaders map[string]bool
+	editedBody    bool
 }
 
 // Get is the request header named.
 func (r *jsRequest) Get(name string) string { return r.header.Get(name) }
 
 // Set sets a request header.
-func (r *jsRequest) Set(name, value string) { r.header.Set(name, value) }
+func (r *jsRequest) Set(name, value string) {
+	r.header.Set(name, value)
+	if r.editedHeaders != nil {
+		r.editedHeaders[http.CanonicalHeaderKey(name)] = true
+	}
+}
 
 // Remove drops a request header.
-func (r *jsRequest) Remove(name string) { r.header.Del(name) }
+func (r *jsRequest) Remove(name string) {
+	r.header.Del(name)
+	if r.editedHeaders != nil {
+		r.editedHeaders[http.CanonicalHeaderKey(name)] = true
+	}
+}
 
 // jsResponse is the res object a post-response script gets.
 type jsResponse struct {
@@ -209,6 +222,23 @@ func runScriptContext(ctx context.Context, src string, run *scriptRun, objects m
 		run.logs = append(run.logs, strings.Join(parts, " "))
 	})
 	for name, value := range objects {
+		if req, ok := value.(*jsRequest); ok && req.editedHeaders != nil {
+			obj := vm.NewObject()
+			obj.Set("get", req.Get)
+			obj.Set("set", req.Set)
+			obj.Set("remove", req.Remove)
+			for field, target := range map[string]*string{"method": &req.Method, "url": &req.URL, "body": &req.Body} {
+				if err := obj.DefineAccessorProperty(field, vm.ToValue(func() string { return *target }), vm.ToValue(func(v string) {
+					*target = v
+					if field == "body" {
+						req.editedBody = true
+					}
+				}), goja.FLAG_TRUE, goja.FLAG_TRUE); err != nil {
+					return err
+				}
+			}
+			value = obj
+		}
 		if err := vm.Set(name, value); err != nil {
 			return err
 		}

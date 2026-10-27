@@ -251,7 +251,7 @@ func writeHAR(path string, flows []flow) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(path, append(data, '\n'), 0o644)
+	return writePrivateFile(path, append(data, '\n'))
 }
 
 // headerPairs prefers the structured headers, and parses the formatted block
@@ -447,7 +447,7 @@ func writeSession(path string, flows []flow, frames map[int][]frame) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(path, append(data, '\n'), 0o644)
+	return writePrivateFile(path, append(data, '\n'))
 }
 
 // readSession parses a session file into the flows and frames the table shows.

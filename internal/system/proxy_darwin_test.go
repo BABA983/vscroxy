@@ -22,10 +22,11 @@ Wi-Fi
 Thunderbolt Bridge
 `
 
-// serviceReplies answers one service's fixed proxies and automatic setup.
+// serviceReplies describes one enabled service and all of its query replies.
+// Multi-service tests must extend both the list and the replies explicitly.
 func serviceReplies(service, webEnabled, secureEnabled, pacURL, pacEnabled, discovery string) networksetupReplies {
 	return networksetupReplies{
-		"networksetup -listallnetworkservices": serviceList,
+		"networksetup -listallnetworkservices": "An asterisk (*) denotes that a network service is disabled.\n" + service + "\n*Bluetooth PAN\n",
 		"networksetup -getwebproxy " + service: `Enabled: ` + webEnabled + `
 Server: 127.0.0.1
 Port: 7890
@@ -46,6 +47,7 @@ Enabled: ` + pacEnabled + `
 
 func TestReadProxyReadsEveryEnabledService(t *testing.T) {
 	replies := serviceReplies("Wi-Fi", "Yes", "Yes", "(null)", "No", "Off")
+	replies["networksetup -listallnetworkservices"] = serviceList
 	for key, value := range serviceReplies("Thunderbolt Bridge", "Yes", "Yes", "(null)", "No", "Off") {
 		if !strings.Contains(key, "listallnetworkservices") {
 			replies[key] = value
@@ -82,11 +84,13 @@ func TestReadProxyReportsAutomaticConfiguration(t *testing.T) {
 	}{
 		{
 			name: "script", pacURL: "http://pac.example/proxy.pac", pacOn: "Yes", discovery: "Off",
-			want: ProxyConfig{Scope: "Wi-Fi", Mode: ProxyModeAutomatic, PAC: "http://pac.example/proxy.pac"},
+			want: ProxyConfig{Scope: "Wi-Fi", Mode: ProxyModeAutomatic, PAC: "http://pac.example/proxy.pac",
+				HTTP: endpoint("127.0.0.1", 7890), HTTPS: endpoint("127.0.0.1", 7890)},
 		},
 		{
 			name: "discovery", pacURL: "(null)", pacOn: "No", discovery: "On",
-			want: ProxyConfig{Scope: "Wi-Fi", Mode: ProxyModeAutomatic},
+			want: ProxyConfig{Scope: "Wi-Fi", Mode: ProxyModeAutomatic,
+				HTTP: endpoint("127.0.0.1", 7890), HTTPS: endpoint("127.0.0.1", 7890)},
 		},
 		{
 			name: "disabled script is not a conflict", pacURL: "http://pac.example/proxy.pac", pacOn: "No", discovery: "Off",
@@ -100,6 +104,13 @@ func TestReadProxyReportsAutomaticConfiguration(t *testing.T) {
 			}
 			if len(configs) != 1 || configs[0] != tc.want {
 				t.Fatalf("configs = %+v, want %+v", configs, tc.want)
+			}
+			wantStatus := ProxyAutomatic
+			if tc.pacOn == "No" && tc.discovery == "Off" {
+				wantStatus = ProxyMatches
+			}
+			if got := checkProxy("127.0.0.1:7890", configs, nil).Status; got != wantStatus {
+				t.Fatalf("status = %v, want %v; automatic configuration must take precedence over stored manual endpoints", got, wantStatus)
 			}
 		})
 	}

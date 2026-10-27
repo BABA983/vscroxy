@@ -38,6 +38,49 @@ func requestProxy(t *testing.T) *capture.Server {
 	return srv
 }
 
+func TestPreRequestVariablesAndOverridesReachCurrentRequest(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		fmt.Fprintf(w, "%s|%s|%s|%s", r.Header.Get("Authorization"), r.Header.Get("X-Direct"), r.URL.RawQuery, body)
+	}))
+	defer upstream.Close()
+	srv := requestProxy(t)
+	for _, mode := range []string{"Raw", "URL encoded", "Multipart"} {
+		for _, auth := range []requestAuth{{}, {Type: "Bearer", Token: "{{token}}"}, {Type: "Basic", Username: "{{user}}", Password: "{{token}}"}} {
+			t.Run(mode+auth.Type, func(t *testing.T) {
+				r := savedRequest{Method: "POST", URL: upstream.URL + "?q={{generated}}", Headers: "Authorization: Bearer {{token}}", Auth: auth,
+					Body: "{{token}}", BodyMode: mode, Form: []requestField{{Name: "value", Value: "{{token}}"}},
+					Pre: `vars.set("token", "new-token"); vars.set("user", "alice"); vars.set("generated", "fresh"); req.set("X-Direct", "script");`, Checks: responseChecks{Status: "200"}}
+				got := executeRequest(t.Context(), srv, r, map[string]string{"token": "old-token"}, nil)
+				wantAuth := "Bearer new-token"
+				if auth.Type == "Basic" {
+					wantAuth = "Basic YWxpY2U6bmV3LXRva2Vu"
+				}
+				if got.err != nil || got.response == nil || !strings.HasPrefix(got.response.ResponseBody, wantAuth+"|script|q=fresh|") || !strings.Contains(got.response.ResponseBody, "new-token") || strings.Contains(got.response.ResponseBody, "old-token") {
+					t.Fatalf("execution = %+v, response = %+v", got, got.response)
+				}
+				r.Checks = responseChecks{}
+				got = executeRequest(t.Context(), srv, r, map[string]string{"token": "old-token"}, nil)
+				if got.err != nil || got.response == nil || !strings.HasPrefix(got.response.ResponseBody, wantAuth+"|script|q=fresh|") {
+					t.Fatalf("without Checks: %+v, response = %+v", got, got.response)
+				}
+				// Direct request edits win over generated auth and form encoding.
+				r.Pre += `req.set("Authorization", "direct"); req.body = "direct-body"; req.url = req.url.replace("?q=", "/edited?q="); req.method = "PATCH";`
+				got = executeRequest(t.Context(), srv, r, nil, nil)
+				if got.err != nil || got.request.Method != "PATCH" || got.response.ResponseBody != "direct|script|q=fresh|direct-body" || !strings.Contains(got.request.URL, "/edited?") {
+					t.Fatalf("direct edits lost: %+v, response = %+v", got, got.response)
+				}
+				r.Body = ""
+				r.Pre += `req.body = ""; req.remove("Authorization");`
+				got = executeRequest(t.Context(), srv, r, nil, nil)
+				if got.err != nil || got.response == nil || got.response.ResponseBody != "|script|q=fresh|" {
+					t.Fatalf("explicit empty body/header removal lost: %+v, response = %+v", got, got.response)
+				}
+			})
+		}
+	}
+}
+
 func TestStructuredRequestSurvivesSavingAndSendsBinaryMultipart(t *testing.T) {
 	payload := []byte{0, 255, 1, 10, 'a', '&'}
 	file := filepath.Join(t.TempDir(), "payload.bin")
@@ -198,7 +241,7 @@ func TestParamsEditorUpdatesURLWithoutLosingDuplicateKeysOrEscapedPath(t *testin
 	if err := tt.Click("Bearer"); err != nil {
 		t.Fatal(err)
 	}
-	if !tt.HasText("Use {{variables}} for secrets. Explicit auth overrides that header; scripts run last. Saving stores these fields locally.") {
+	if !tt.HasText("Use {{variables}} for secrets. Auth uses variables after the pre-script; explicit req.set/remove overrides auth. Saving stores these fields locally.") {
 		t.Fatal("missing auth storage warning")
 	}
 }

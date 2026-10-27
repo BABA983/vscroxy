@@ -4,10 +4,43 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
 )
+
+func TestSensitiveCaptureExportsReplacePrivately(t *testing.T) {
+	for _, format := range []string{"HAR", "session"} {
+		t.Run(format, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "export.json")
+			if err := os.WriteFile(path, []byte("old"), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			flows := []flow{{method: "POST", url: "http://example.test", reqBody: "secret", reqHeader: http.Header{"Authorization": {"Bearer private"}}}}
+			var err error
+			if format == "HAR" {
+				err = writeHAR(path, flows)
+			} else {
+				err = writeSession(path, flows, nil)
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			info, err := os.Stat(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if runtime.GOOS != "windows" && info.Mode().Perm() != 0o600 {
+				t.Fatalf("permissions = %o, want 600", info.Mode().Perm())
+			}
+			data, err := os.ReadFile(path)
+			if err != nil || !strings.Contains(string(data), "Bearer private") || !strings.Contains(string(data), "secret") {
+				t.Fatalf("export lost data: %s, %v", data, err)
+			}
+		})
+	}
+}
 
 func TestHARExport(t *testing.T) {
 	f := flow{

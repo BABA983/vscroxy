@@ -41,10 +41,34 @@ func executeRequest(ctx context.Context, srv *capture.Server, r savedRequest, va
 		return out
 	}
 	out.expectedStatus = status
+	// Pre-scripts edit authored templates, not an already encoded request.
+	// Generate variables first; expand and encode exactly once afterwards.
+	template := &jsRequest{Method: r.Method, URL: r.URL, Body: r.Body,
+		header: parseHeaderBlock(r.Headers), editedHeaders: map[string]bool{}}
+	out.stage = "Pre-request script failed"
+	if err := runScriptContext(ctx, r.Pre, run, map[string]any{"req": template}); err != nil {
+		out.err = fmt.Errorf("Pre-request script: %w", err)
+		out.tests, out.vars = run.tests, run.vars
+		return out
+	}
+	r.Method, r.URL, r.Headers = template.Method, template.URL, headerBlock(template.header)
+	if template.editedBody {
+		r.BodyMode = "Raw" // Explicit script bodies override structured forms.
+	}
+	r.Body = template.Body
+	authHeader := "Authorization"
+	if r.Auth.Type == "API key" {
+		authHeader = expandVars(r.Auth.Key, run.vars)
+	}
+	if template.editedHeaders[http.CanonicalHeaderKey(authHeader)] && (r.Auth.Type != "API key" || r.Auth.Location != "Query") {
+		r.Auth = requestAuth{}
+	}
+	out.stage = "Request setup failed"
+	out.tests, out.vars = run.tests, run.vars
 	if r.Checks != (responseChecks{}) {
 		var missing []string
 		for _, name := range requestVariables(r) {
-			if _, ok := vars[name]; !ok {
+			if _, ok := run.vars[name]; !ok {
 				missing = append(missing, name)
 			}
 		}
@@ -53,20 +77,21 @@ func executeRequest(ctx context.Context, srv *capture.Server, r savedRequest, va
 			return out
 		}
 	}
-	req, err := prepareRequest(r, vars)
+	req, err := prepareRequest(r, run.vars)
 	if err != nil {
 		out.err = err
 		return out
 	}
+	// Generated Content-Type/auth must not undo explicit set/remove calls.
+	for name := range template.editedHeaders {
+		req.Remove(name)
+		for _, value := range template.header.Values(name) {
+			req.header.Add(name, expandVars(value, run.vars))
+		}
+	}
 	out.request = req
 	if isWebSocket(req.URL) && r.Checks != (responseChecks{}) {
 		out.err = fmt.Errorf("response checks require an HTTP(S) request, not a WebSocket exchange")
-		return out
-	}
-	out.stage = "Pre-request script failed"
-	if err := runScriptContext(ctx, r.Pre, run, map[string]any{"req": req}); err != nil {
-		out.err = fmt.Errorf("Pre-request script: %w", err)
-		out.tests, out.vars = run.tests, run.vars
 		return out
 	}
 	u, err := url.Parse(req.URL)

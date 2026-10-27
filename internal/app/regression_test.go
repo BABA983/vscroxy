@@ -16,6 +16,10 @@ import (
 func TestRegressionChecksRunThroughProxyAndRunner(t *testing.T) {
 	var changed atomic.Bool
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "Bearer generated-for-current-send" || r.Header.Get("X-Direct") != "kept" {
+			http.Error(w, "pre-script changes did not reach current send", 400)
+			return
+		}
 		if r.URL.Path == "/redirect" {
 			http.Redirect(w, r, "/never", http.StatusFound)
 			return
@@ -31,6 +35,7 @@ func TestRegressionChecksRunThroughProxyAndRunner(t *testing.T) {
 	}))
 	defer upstream.Close()
 	r := savedRequest{Name: "Conflict", Collection: "Regressions", Method: "GET", URL: upstream.URL,
+		Headers: "Authorization: Bearer {{token}}", Pre: `vars.set("token", "generated-for-current-send"); req.set("X-Direct", "kept");`,
 		Checks: responseChecks{Status: "409", Headers: "x-revision: current", JSON: "/items/0/a~1b/~0id = 9007199254740993\n/ok = false\n/empty = null"}}
 	path := filepath.Join(t.TempDir(), "requests.json")
 	if err := saveRequests(path, []savedRequest{r}); err != nil {
