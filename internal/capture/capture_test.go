@@ -124,6 +124,54 @@ func TestStartRejectsAnOccupiedExplicitAddress(t *testing.T) {
 	}
 }
 
+func TestCloseStopsStartedProxy(t *testing.T) {
+	for _, inUse := range []bool{false, true} {
+		t.Run(fmt.Sprintf("in-use=%v", inUse), func(t *testing.T) {
+			upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				fmt.Fprint(w, "received")
+			}))
+			defer upstream.Close()
+			for range 20 {
+				s, err := New("127.0.0.1:0", t.TempDir())
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := s.Start(); err != nil {
+					t.Fatal(err)
+				}
+				if inUse {
+					client := clientFor(t, s, nil)
+					resp, err := client.Get(upstream.URL)
+					if err != nil {
+						t.Fatal(err)
+					}
+					_, _ = io.Copy(io.Discard, resp.Body)
+					_ = resp.Body.Close()
+					client.CloseIdleConnections()
+				}
+				if err := s.Close(); err != nil {
+					t.Fatal(err)
+				}
+				if s.Running() {
+					t.Fatal("closed proxy is still running")
+				}
+				if _, ok := <-s.Flows(); ok {
+					// Drain the one completed exchange, if present.
+					if _, ok := <-s.Flows(); ok {
+						t.Fatal("flow stream did not close")
+					}
+				}
+				if err := s.Close(); err != nil {
+					t.Fatal(err)
+				}
+				if err := s.Start(); !errors.Is(err, net.ErrClosed) {
+					t.Fatalf("restart closed proxy: %v", err)
+				}
+			}
+		})
+	}
+}
+
 func TestDefaultProxyFallsBackToAnOwnedPort(t *testing.T) {
 	// Keep the competing listener bound for the entire test. If a real app
 	// already owns 7890, leave it alone and still exercise the fallback.

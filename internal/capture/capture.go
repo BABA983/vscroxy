@@ -942,13 +942,17 @@ func (s *Server) Close() error {
 		s.listenMu.Lock()
 		close(s.closed)
 		s.running.Store(false)
-		// Close the listener too: Serve may not have registered it yet.
+		// Let net/http close its registered listener first. Closing the raw
+		// listener first races Serve's unregister with http.Server.Close,
+		// which can then report a duplicate close as a shutdown failure.
+		err = s.proxy.Close()
+		// Serve may not have registered it yet. Close marks net/http shut
+		// down, so a late Serve cannot register this fallback listener.
 		if s.listener != nil {
 			if e := s.listener.Close(); !errors.Is(e, net.ErrClosed) {
-				err = e
+				err = errors.Join(err, e)
 			}
 		}
-		err = errors.Join(err, s.proxy.Close())
 		s.listenMu.Unlock()
 		if s.dns != nil {
 			_ = s.dns.Close()
