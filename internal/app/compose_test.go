@@ -4,11 +4,13 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"encoding/base64"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -82,8 +84,7 @@ func TestCapturedDraftUsesCompleteDecodedPayload(t *testing.T) {
 		t.Fatalf("replay failed: %+v, response %+v", got, got.response)
 	}
 	a.requests = nil
-	a.previewCapture(f, true)
-	a.confirmCaptureRequest()
+	a.saveCapture(f)
 	if len(a.requests) != 1 || a.requests[0].Body != body || parseHeaderBlock(a.requests[0].Headers).Get("Content-Encoding") != "" {
 		t.Fatal("save captured request bypassed conversion contract")
 	}
@@ -107,11 +108,48 @@ func TestCapturedDraftRejectsUnavailablePayload(t *testing.T) {
 		a.requests = nil
 		a.composeFrom(f)
 		a.regressionFrom(f)
-		a.previewCapture(f, true)
-		a.confirmCaptureRequest()
+		a.saveCapture(f)
 		if len(a.documents) != 0 || len(a.requests) != 0 || a.message == "" {
 			t.Fatalf("unreplayable capture silently converted: %+v", f)
 		}
+	}
+}
+
+// A captured Authorization header moves to the Auth tab only when the tab
+// sends the same bytes again; anything else stays a plain header.
+func TestCapturedAuthorizationBecomesAuthOnlyWhenExact(t *testing.T) {
+	basic := base64.StdEncoding.EncodeToString([]byte("ann:pa:ss"))
+	for _, tc := range []struct {
+		values []string
+		auth   string
+	}{
+		{[]string{"Bearer abc.def"}, "Bearer"},
+		{[]string{"Basic " + basic}, "Basic"},
+		{[]string{"bearer abc"}, ""},                                   // scheme spelling would change
+		{[]string{"Bearer abc", "Bearer xyz"}, ""},                     // only one header survives an Auth tab
+		{[]string{"Basic " + strings.TrimRight(basic, "=") + "x"}, ""}, // not canonical base64
+		{[]string{"Basic " + base64.StdEncoding.EncodeToString([]byte("nocolon"))}, ""},
+		{[]string{"Digest username=ann"}, ""},
+	} {
+		f := flow{method: "GET", url: "https://api.example.test/me", reqHeader: http.Header{"Authorization": tc.values, "Accept": {"*/*"}}}
+		r, err := f.requestDraft()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if r.Auth.Type != tc.auth {
+			t.Errorf("%q: auth = %q, want %q", tc.values, r.Auth.Type, tc.auth)
+		}
+		req, err := prepareRequest(r, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := req.header.Values("Authorization"); !slices.Equal(got, tc.values) {
+			t.Errorf("%q: draft sends Authorization %q", tc.values, got)
+		}
+	}
+	r, _ := (flow{method: "GET", url: "https://x.test", reqHeader: http.Header{"Authorization": {"Basic " + basic}}}).requestDraft()
+	if r.Auth.Username != "ann" || r.Auth.Password != "pa:ss" {
+		t.Errorf("Basic split at the first colon: %+v", r.Auth)
 	}
 }
 

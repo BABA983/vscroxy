@@ -294,7 +294,7 @@ func (a *app) requestActions(c *ui.Context, f flow, current bool) []desktopActio
 		}
 	}
 	return []desktopAction{
-		{"edit", "Edit & replay", current && !bulk && f.kind == "", ui.Cmd | ui.Alt, ui.KeyEnter, func() { a.previewCapture(f, false) }},
+		{"edit", "Edit & replay", current && !bulk && f.kind == "", ui.Cmd | ui.Alt, ui.KeyEnter, func() { a.composeFrom(f) }},
 		{"replay", "Replay selected…", replayable, ui.Cmd, ui.KeyR, func() { a.openReplay(selected) }},
 		{"copy", "Copy as cURL", copyable, ui.Cmd | ui.Alt, ui.KeyC, copyRequest},
 	}
@@ -582,12 +582,21 @@ func (a *app) commandPalette(c *ui.Context) {
 				w.command = 0
 				w.commands.ScrollTo(0, ui.Start)
 			}
-			var matches []desktopAction
+			// An empty query lists what can run now. A search also finds
+			// unavailable commands, after the available ones, so asking for
+			// one explains why it cannot run instead of hiding it.
+			query := strings.ToLower(strings.TrimSpace(w.query))
+			var matches, unavailable []desktopAction
 			for _, action := range a.desktopActions(c) {
-				if action.id != "palette" && strings.Contains(strings.ToLower(action.label), strings.ToLower(strings.TrimSpace(w.query))) {
+				switch {
+				case action.id == "palette" || !strings.Contains(strings.ToLower(action.label), query):
+				case action.enabled:
 					matches = append(matches, action)
+				case query != "":
+					unavailable = append(unavailable, action)
 				}
 			}
+			matches = append(matches, unavailable...)
 			run := func() {
 				if w.command >= 0 && w.command < len(matches) && matches[w.command].enabled {
 					w.paletteOpen = false
@@ -655,7 +664,7 @@ func (a *app) commandPalette(c *ui.Context) {
 				}
 				ui.Text(c, message).FontSize(11).TextColor(c.Theme().TextMuted).SingleLine().Tooltip(message)
 			}
-			ui.Text(c, "↑ ↓ Choose · Enter Run · Esc Close · Unavailable actions are dimmed").FontSize(11).TextColor(c.Theme().TextMuted)
+			ui.Text(c, "↑ ↓ Choose · Enter Run · Esc Close").FontSize(11).TextColor(c.Theme().TextMuted)
 		})
 	})
 }

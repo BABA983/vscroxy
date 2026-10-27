@@ -241,7 +241,7 @@ func TestParamsEditorUpdatesURLWithoutLosingDuplicateKeysOrEscapedPath(t *testin
 	if err := tt.Click("Bearer"); err != nil {
 		t.Fatal(err)
 	}
-	if !tt.HasText("Use {{variables}} for secrets. Auth uses variables after the pre-script; explicit req.set/remove overrides auth. Saving stores these fields locally.") {
+	if !tt.HasText("Prefer {{variables}} for secrets; saved requests store these fields in plaintext.") {
 		t.Fatal("missing auth storage warning")
 	}
 }

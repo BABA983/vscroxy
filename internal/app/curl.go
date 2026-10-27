@@ -426,11 +426,10 @@ func (a *app) curlImportModal(c *ui.Context, t *ui.Theme) {
 	appModal(c, &a.curlOpen, func() {
 		ui.Column(c).Width(640).Gap(14).Children(func() {
 			dialogTitle(c, "Import cURL")
-			ui.Text(c, "Paste one Bash/POSIX curl command. Import creates an unsent request tab; it never runs shell commands or reads @files.").FontSize(12).TextColor(t.TextMuted)
+			ui.Text(c, "Paste one Bash/POSIX curl command. It opens an unsent request tab; nothing is executed.").FontSize(12).TextColor(t.TextMuted)
 			if ui.TextArea(c, &a.curlInput).Height(190).Font("monospace").FontSize(12).Label("cURL command").Placeholder("curl 'https://api.example.com/projects' \\\n  -H 'Accept: application/json'").AutoFocus().Changed() {
 				a.curlProblem = ""
 			}
-			ui.Text(c, "Only request data is imported. Output flags and --compressed are not applied. Unsupported options are rejected. Review credentials before sharing.").FontSize(11).TextColor(t.TextMuted)
 			if a.curlProblem != "" {
 				ui.Scroll(c).MaxHeight(70).Children(func() {
 					ui.Text(c, a.curlProblem).FontSize(12).TextColor(t.Danger)

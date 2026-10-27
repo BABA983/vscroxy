@@ -16,7 +16,7 @@ import (
 func (a *app) shell(c *ui.Context, t *ui.Theme) {
 	bar := c.TitleBar()
 	height := max(bar.Height, 50)
-	ui.Row(c).Height(height).Padding(0, 12, 0, max(bar.Left, 12)).Gap(14).AlignItems(ui.Center).
+	ui.Row(c).Height(height).Padding(0, max(bar.Right, 12), 0, max(bar.Left, 12)).Gap(14).AlignItems(ui.Center).
 		Background(t.Surface).Border(0, t.Border).BorderWidth(0, 0, 1, 0).DragWindow().Children(func() {
 		ui.Row(c).Gap(7).AlignItems(ui.Center).Children(func() {
 			ui.Icon(c, brandIcon).Size(17, 17).TextColor(t.Text)

@@ -19,7 +19,7 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-func TestCapturePromotionPreviewConfirmsExactBytesWithoutSending(t *testing.T) {
+func TestEditReplayOpensExactBytesWithoutSending(t *testing.T) {
 	for _, width := range []int{1280, 960} {
 		t.Run(fmt.Sprint(width), func(t *testing.T) {
 			a := workspaceApp()
@@ -38,29 +38,14 @@ func TestCapturePromotionPreviewConfirmsExactBytesWithoutSending(t *testing.T) {
 				}
 			}
 			click("Edit & replay")
-			tt.Key(ui.Cmd, ui.KeyEnter)
-			if !tt.HasText("Capture → Request") || len(a.documents) != 0 || len(a.requests) != 1 {
-				t.Fatal("preview created or sent a draft")
+			if len(a.documents) != 1 || len(a.requests) != 1 || a.composeWaiting || a.response != nil || a.activeEnv != "" {
+				t.Fatal("Edit & replay must open one unsent draft without saving it or changing the environment")
 			}
-			click("Cancel")
-			if len(a.documents) != 0 {
-				t.Fatal("cancel created a draft")
-			}
-			click("Edit & replay")
-			click("Replace origin with {{base_url}}")
-			if err := os.Remove(spill); err != nil {
-				t.Fatal(err)
-			}
-			click("Create draft")
-			if a.composeBody != body || a.composeURL != "{{base_url}}/projects" || a.composeWaiting || a.response != nil || a.activeEnv != "" {
-				t.Fatal("confirmation reread lost spill bytes, sent traffic, or changed the environment")
+			if a.composeBody != body || !strings.HasSuffix(a.composeURL, "/projects") {
+				t.Fatal("the draft lost spilled body bytes or its URL")
 			}
 			if got := parseHeaderBlock(a.composeHeaders); len(got.Values("X-Tag")) != 2 || got.Get("Content-Encoding") != "" || a.flows[0].reqHeader.Get("Content-Encoding") != "gzip" {
 				t.Fatal("conversion changed source or duplicate/encoding headers")
-			}
-			click("Request variables")
-			if !tt.HasText("Unresolved") || !tt.HasText("base_url") {
-				t.Fatal("generated template lacks visible missing-variable state")
 			}
 			a.requestsPath = filepath.Join(t.TempDir(), "requests.json")
 			if !a.saveComposed() {

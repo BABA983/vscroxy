@@ -383,7 +383,7 @@ func (a *app) headerEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
 		d.headerRows, d.headerFor = parseHeaderRows(d.composeHeaders), d.composeHeaders
 	}
 	ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-		ui.Text(c, "HEADERS · order, duplicates and empty values are kept; unchecked rows are not sent").FontSize(10).TextColor(t.TextMuted).Grow(1)
+		ui.Text(c, "HEADERS · unchecked rows are not sent").FontSize(10).TextColor(t.TextMuted).Grow(1)
 		label := "Bulk edit"
 		if d.headerBulk {
 			label = "Table"
@@ -427,7 +427,7 @@ func (a *app) headerEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
 func (a *app) authEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
 	ui.Scroll(c).Grow(1).Gap(8).Children(func() {
 		ui.Select(c, &d.auth.Type, []string{"None", "Bearer", "Basic", "API key"}).Label("Authorization type").Width(180)
-		ui.Text(c, "Use {{variables}} for secrets. Auth uses variables after the pre-script; explicit req.set/remove overrides auth. Saving stores these fields locally.").FontSize(11).TextColor(t.TextMuted)
+		ui.Text(c, "Prefer {{variables}} for secrets; saved requests store these fields in plaintext.").FontSize(11).TextColor(t.TextMuted)
 		switch d.auth.Type {
 		case "Bearer":
 			ui.TextInput(c, &d.auth.Token).Label("Bearer token").Placeholder("{{token}}").Password()
@@ -450,7 +450,7 @@ func (a *app) requestBodyEditor(c *ui.Context, d *requestDocument, t *ui.Theme) 
 	if d.bodyMode == "Raw" {
 		a.requestBodyText(c, d)
 	} else {
-		ui.Text(c, "FORM DATA · duplicate names supported; File values are local paths (16 MiB total limit)").FontSize(10).TextColor(t.TextMuted)
+		ui.Text(c, "FORM DATA · file values are local paths, 16 MiB in total").FontSize(10).TextColor(t.TextMuted)
 		requestFieldsEditor(c, &d.formFields, fieldsOptions{file: true}, "field", func() {
 			if ui.ButtonBase(c).Label("Attach file…").Height(26).Padding(0, 6).Gap(6).Radius(4).AlignItems(ui.Center).
 				TextColor(t.TextMuted).Tooltip("Add a file part; only the local path is stored").Children(func() {

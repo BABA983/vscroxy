@@ -235,11 +235,13 @@ and spill failures are marked incomplete rather than searched as empty bodies.
 Body previews stay limited to 8 MiB; saved JSON sessions retain the complete
 captured bodies and their incomplete-state metadata.
 
-A row's menu carries what a captured request is worth outside the table:
-**Copy URL**, **Copy as cURL** (its headers, body and URL as a shell
-command), **Open in browser**, **Copy response body**, **Pin to the top**,
-**Edit & resend**, **Save as request** (into the saved ones, under a name of
-its own, so a second save does not replace the first), and **Replay**.
+A row's menu starts with the request's next step: **Replay**, **Edit &
+resend** and **Save as request** (into the saved ones without sending, under a
+name of its own, so a second save does not replace the first). **Copy** holds
+the URL, cURL and response body; then come **Open in browser**, **Filter
+captures**, **Pin** and **Mark…**. **Tools** creates a rule from the request
+(breakpoints, Mock this response, Map Remote, Block), maps its host in DNS or
+changes its HTTPS inspection. Investigation and regression actions come last.
 
 **Edit & replay** and **Save as request** use the complete retained, decoded
 request payload, not the Body preview. Repeated headers and query parameters
@@ -247,7 +249,9 @@ are kept; stale content encoding/length and transfer framing are removed before
 sending decoded bytes. Incomplete or missing payloads, non-UTF-8 bodies,
 request trailers and encrypted tunnels are explicitly refused rather than
 silently converted to a different request. The text request editor does not yet
-provide arbitrary binary capture editing.
+provide arbitrary binary capture editing. A single `Authorization: Bearer …` or
+`Basic …` header moves to the draft's **Auth** tab when the tab sends exactly
+the same value again; any other form stays a header.
 
 ## Rules
 
@@ -304,7 +308,7 @@ portable scenario export or a delay/fault-injection engine.
 **Settings → General → Reload configuration** rereads the file. A missing
 file means no rules.
 
-A captured flow's **Create rule** context submenu pre-fills its URL and method
+A captured flow's **Tools** context submenu pre-fills its URL and method
 for mapping, blocking or breakpoints. **Mock this response** copies the complete
 response to `~/.vscroxy/mocks/`, retaining status and response headers (except
 wire framing, compressed-body metadata and stale validators). Binary and spilled
@@ -808,15 +812,12 @@ A dot marks unsaved changes; closing offers **Cancel**, **Discard** or
 closed until the send finishes. Open drafts are restored from the private
 experiment checkpoint described below; editor selection and layout are session-local.
 
-A captured row's **Edit & replay** first opens **Capture → Request**. Review the
-complete decoded UTF-8 payload, duplicate headers, and removed encoding/framing
-headers before creating a draft. The optional origin replacement uses
-`{{base_url}}`; configure it in the intended environment yourself. The preview
-shows at most 16 KiB but confirmation keeps the full frozen payload, not a
-re-read of a possibly removed spill file. Missing/incomplete content, non-UTF-8,
-trailers and CONNECT/tunnels block conversion explicitly. Cancel creates nothing;
-confirmation never sends and never edits the original capture. Source identity
-and bounded source evidence accompany the saved request across restart.
+A captured row's **Edit & replay** opens an unsent draft at once, with the
+complete decoded UTF-8 payload and duplicate headers; encoding/framing headers
+are removed. Missing/incomplete content, non-UTF-8, trailers and CONNECT/tunnels
+block conversion with a message. Opening a draft never sends and never edits
+the original capture. Source identity and bounded source evidence accompany the
+saved request across restart.
 
 **Save request** keeps the editor's request in `~/.vscroxy/requests.json` with
 a stable ID: renaming or moving it updates the same asset. Unrelated same-name
@@ -1142,7 +1143,9 @@ selection** directly above the table; replay settings snapshot the entire choice
 
 **Commands** (Cmd/Ctrl+K) searches capture actions, layouts, setup and settings.
 Use arrows and Enter to choose, Escape to dismiss and restore the previous focus.
-Commands show their shortcut and current target; unavailable actions explain why.
+With an empty search the list holds only what can run now; a search also lists
+unavailable matches last, each explaining why. Commands show their shortcut and
+current target.
 Cmd/Ctrl+F searches URLs, Cmd/Ctrl+R opens replay settings for the selection,
 and Cmd/Ctrl+Alt+C copies the inspected request (or current draft) as cURL.
 Toolbar buttons, row menus, native menus, palette and shortcuts share request

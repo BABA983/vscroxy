@@ -883,9 +883,6 @@ func (a *app) responseProvenance(c *ui.Context, t *ui.Theme, d *requestDocument)
 		return
 	}
 	provenance := "Response from " + d.response.At.Local().Format("15:04:05")
-	if d.sourceFlow != 0 {
-		provenance += fmt.Sprintf(" · Original capture #%d unchanged", d.sourceFlow)
-	}
 	ui.Text(c, provenance).FontSize(11).TextColor(t.TextMuted).Padding(6, 12).
 		Tooltip("Redirects, cookies and proxy rules may change the on-wire exchange; Capture has the wire details")
 }
@@ -1004,9 +1001,8 @@ func (a *app) responseBody(c *ui.Context, t *ui.Theme, d *requestDocument) {
 func runConsole(c *ui.Context, entries []runMessage) {
 	t := c.Theme()
 	ui.Scroll(c).Grow(1).FillWidth().Padding(10, 12).Gap(8).Children(func() {
-		ui.Text(c, "This attempt only · log(...) output may contain secrets · no Postman pm.* API").FontSize(11).TextColor(t.TextMuted)
 		if len(entries) == 0 {
-			ui.Text(c, "No script output for this attempt. Use log(...) in pre-request or post-response scripts.").FontSize(12).TextColor(t.TextMuted)
+			ui.Text(c, "No output. Call log(...) in a script to print here.").FontSize(12).TextColor(t.TextMuted)
 		}
 		for _, entry := range entries {
 			color := t.Text
@@ -1045,7 +1041,7 @@ func (a *app) responseCompare(c *ui.Context, t *ui.Theme, d *requestDocument) {
 	if r.ResponseBodySize > len(r.ResponseBody) {
 		right.resError = "preview limited to 8 MiB"
 	}
-	ui.Text(c, "Last send: initial client request and final response; redirects, cookies and proxy rules may change the on-wire exchange. Inspect Capture for wire details.").FontSize(10).TextColor(t.TextMuted).Padding(4, 12)
+	ui.Text(c, "Last send: client request and final response. Capture has the wire exchange.").FontSize(10).TextColor(t.TextMuted).Padding(4, 12)
 	d.comparison.compare(c, *d.source, right, [2]string{fmt.Sprintf("Source #%d", d.sourceFlow), "Last send"})
 }
 

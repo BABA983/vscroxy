@@ -361,7 +361,7 @@ func (a *app) runnerModal(c *ui.Context, t *ui.Theme) {
 	appModal(c, &r.open, func() {
 		ui.Column(c).Width(820).Height(510).Gap(12).Children(func() {
 			dialogTitle(c, "Collection Runner")
-			ui.Text(c, "Saved requests only · sequential, including subfolders · environment snapshot at start · shared session cookies · 30 s per request").FontSize(11).TextColor(t.TextMuted)
+			ui.Text(c, "Runs saved requests in order, 30 s per request").FontSize(11).TextColor(t.TextMuted)
 			ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
 				names := slices.Sorted(maps.Keys(groupRequests(a.requests)))
 				if len(names) == 0 {

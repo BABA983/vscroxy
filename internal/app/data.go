@@ -2,6 +2,7 @@ package app
 
 import (
 	"cmp"
+	"encoding/base64"
 	"fmt"
 	"io"
 	"net/http"
@@ -195,8 +196,35 @@ func (f flow) requestDraft() (savedRequest, error) {
 	h.Del("Content-Encoding")
 	h.Del("Content-Length")
 	h.Del("Transfer-Encoding")
+	auth := authFromHeader(h)
+	if auth.Type != "" {
+		h.Del("Authorization")
+	}
 	return savedRequest{Name: cmp.Or(f.path, f.url), Method: cmp.Or(f.method, "GET"), URL: f.url,
-		Headers: headerBlock(h), Body: body}, nil
+		Headers: headerBlock(h), Body: body, Auth: auth}, nil
+}
+
+// authFromHeader moves a captured Authorization header into the Auth tab
+// when the tab regenerates exactly the same value: one Bearer token, or
+// Basic credentials whose canonical base64 decodes to UTF-8 "user:password".
+// Anything else stays a plain header, so the draft still sends what was
+// captured.
+func authFromHeader(h http.Header) requestAuth {
+	values := h.Values("Authorization")
+	if len(values) != 1 {
+		return requestAuth{}
+	}
+	if token, ok := strings.CutPrefix(values[0], "Bearer "); ok && token != "" && strings.TrimSpace(token) == token {
+		return requestAuth{Type: "Bearer", Token: token}
+	}
+	if encoded, ok := strings.CutPrefix(values[0], "Basic "); ok {
+		data, err := base64.StdEncoding.DecodeString(encoded)
+		user, password, found := strings.Cut(string(data), ":")
+		if err == nil && found && utf8.Valid(data) && base64.StdEncoding.EncodeToString(data) == encoded {
+			return requestAuth{Type: "Basic", Username: user, Password: password}
+		}
+	}
+	return requestAuth{}
 }
 
 // body returns the body to show: the head the flow holds in memory, or the

@@ -257,7 +257,6 @@ type app struct {
 	historyPath     string
 	historyOpen     bool
 	experiments     experimentWorkbench
-	promotion       capturePromotion
 	socket          websocketWorkbench
 	investigations  investigationWorkbench
 	board           investigationBoard
@@ -1184,7 +1183,6 @@ func (a *app) view(c *ui.Context) {
 			}
 		})
 	a.varsModal(c, t)
-	a.captureRequestModal(c, t)
 	a.markModal(c, t)
 	a.views.modals(c, t, a)
 	a.columnModal(c, t)
@@ -1710,7 +1708,6 @@ func (a *app) table(c *ui.Context) {
 					a.settingsTab, a.settingsOpen = 2, true
 				}
 			})
-			ui.Text(c, "Listening does not verify client access or HTTPS decryption.").FontSize(12).TextColor(t.TextMuted)
 			if ui.Button(c, "Diagnose capture…").Clicked() {
 				a.openDiagnostics()
 			}
@@ -2270,18 +2267,29 @@ func badgeColor(name string) ui.Color {
 func (a *app) rowMenu(c *ui.Context, f flow) func(*ui.Menu) {
 	services := c.Services()
 	return func(m *ui.Menu) {
+		// The request's own next steps come first, then copying and finding
+		// related traffic, then how this row is kept, then the tools that
+		// change future traffic like it, as Proxyman's Tools submenu does.
 		actions := a.requestActions(c, f, true)
-		if m.Item("Copy URL").Chosen() {
-			services.WriteClipboard(f.url)
-			a.setMessage("Copied URL")
+		desktopMenuItem(m, actions, "replay", "Replay")
+		desktopMenuItem(m, actions, "edit", "Edit & resend")
+		if m.Item("Save as request").Disabled(f.kind == "connect" || f.method == "CONNECT").Chosen() {
+			a.saveCapture(f)
 		}
-		desktopMenuItem(m, actions, "copy", "")
+		m.Separator()
+		m.Submenu("Copy", func(m *ui.Menu) {
+			if m.Item("URL").Chosen() {
+				services.WriteClipboard(f.url)
+				a.setMessage("Copied URL")
+			}
+			desktopMenuItem(m, actions, "copy", "cURL")
+			if m.Item("Response body").Disabled(f.resBody == "").Chosen() {
+				services.WriteClipboard(f.body(true))
+				a.setMessage("Copied response body")
+			}
+		})
 		if f.kind == "" && f.url != "" && m.Item("Open in browser").Chosen() {
 			services.OpenURL(f.url)
-		}
-		if f.resBody != "" && m.Item("Copy response body").Chosen() {
-			services.WriteClipboard(f.body(true))
-			a.setMessage("Copied response body")
 		}
 		m.Submenu("Filter captures", func(m *ui.Menu) {
 			// Sync the conditions on the next frame; changing visible rows
@@ -2314,26 +2322,7 @@ func (a *app) rowMenu(c *ui.Context, f flow) func(*ui.Menu) {
 		if m.Item("Mark…").Chosen() {
 			a.openMark(f)
 		}
-		if m.Item("Map this host…").Chosen() {
-			a.openDNSRule(hostOnly(f.host), f.process)
-		}
-		m.Submenu("HTTPS inspection", func(m *ui.Menu) {
-			a.appInspectionMenu(m, capture.SSLApp{Name: f.process, Path: f.processPath})
-			if m.Item("View HTTPS rules…").Chosen() {
-				a.sslOpen = true
-			}
-		})
-		desktopMenuItem(m, actions, "edit", "Edit & resend")
-		if m.Item("Save as request").Chosen() {
-			a.previewCapture(f, true)
-		}
-		if m.Item("Add to investigation…").Chosen() {
-			a.addToInvestigation(f)
-		}
-		if m.Item("Save as regression…").Disabled(f.status == 0 || f.method == "CONNECT" || f.kind == "ws").Chosen() {
-			a.regressionFrom(f)
-		}
-		m.Submenu("Create rule", func(m *ui.Menu) {
+		m.Submenu("Tools", func(m *ui.Menu) {
 			for _, kind := range ruleTypes {
 				label := ruleLabel(kind) + "…"
 				if kind == capture.RuleMapLocal {
@@ -2343,8 +2332,24 @@ func (a *app) rowMenu(c *ui.Context, f flow) func(*ui.Menu) {
 					a.ruleFromFlow(f, kind)
 				}
 			}
+			m.Separator()
+			if m.Item("Map this host…").Chosen() {
+				a.openDNSRule(hostOnly(f.host), f.process)
+			}
+			m.Submenu("HTTPS inspection", func(m *ui.Menu) {
+				a.appInspectionMenu(m, capture.SSLApp{Name: f.process, Path: f.processPath})
+				if m.Item("View HTTPS rules…").Chosen() {
+					a.sslOpen = true
+				}
+			})
 		})
-		desktopMenuItem(m, actions, "replay", "Replay")
+		m.Separator()
+		if m.Item("Add to investigation…").Chosen() {
+			a.addToInvestigation(f)
+		}
+		if m.Item("Save as regression…").Disabled(f.status == 0 || f.method == "CONNECT" || f.kind == "ws").Chosen() {
+			a.regressionFrom(f)
+		}
 	}
 }
 
@@ -2479,7 +2484,7 @@ func (a *app) varsModal(c *ui.Context, t *ui.Theme) {
 			if a.envsProblem != "" {
 				ui.Text(c, "Variables are read-only. Close this dialog, repair or move env.json aside, then reload local assets.").FontSize(11).TextColor(t.Danger)
 			}
-			ui.Text(c, "One environment in use · {{name}} expands after the pre-request script. Values are stored locally in plaintext; masking is not Vault encryption.").
+			ui.Text(c, "Use {{name}} in requests. Values are stored locally in plaintext.").
 				FontSize(11).TextColor(t.TextMuted)
 			ui.Row(c).Gap(8).Children(func() {
 				if names := a.envNames(); len(names) > 0 {

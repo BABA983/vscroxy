@@ -179,9 +179,7 @@ func TestDamagedAssetsStayUntouchedUntilExplicitReload(t *testing.T) {
 	if a.saveComposed() {
 		t.Fatal("saving must be refused after a request library load error")
 	}
-	a.previewCapture(flow{method: "GET", url: "https://example.test"}, true)
-	a.confirmCaptureRequest()
-	a.promotion.open = false
+	a.saveCapture(flow{method: "GET", url: "https://example.test"})
 	a.openVars()
 	a.varsRows = []requestField{{Name: "token", Value: "new"}}
 	a.saveVars()

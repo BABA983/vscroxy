@@ -252,9 +252,6 @@ func TestCaptureTableScrollsAndKeepsEachViewsPlace(t *testing.T) {
 	if err := tt.Click("Edit & replay"); err != nil {
 		t.Fatal(err)
 	}
-	if err := tt.Click("Create draft"); err != nil {
-		t.Fatal(err)
-	}
 	if err := tt.Click("Back to traffic"); err != nil {
 		t.Fatal(err)
 	}
@@ -352,7 +349,6 @@ func TestWorkspaceKeepsCaptureAndDraftIndependent(t *testing.T) {
 	if err := tt.ChooseMenuItem("Edit & resend"); err != nil {
 		t.Fatal(err)
 	}
-	click("Create draft")
 	if value("URL") != "https://api.example.com/login" || !tt.HasText("Save") {
 		t.Fatal("captured request did not open in the Requests workspace")
 	}
@@ -1418,7 +1414,6 @@ func TestCaptureDraftComparisonKeepsTheTrafficContextAndLastSend(t *testing.T) {
 		}
 	}
 	click("Edit & replay")
-	click("Create draft")
 	edit("URL", upstream.URL+"/items?variant=edited")
 	click("Scripts")
 	edit("Pre-request script", `req.set("X-Marker", "from-script"); req.body = "sent-body"`)
@@ -1653,7 +1648,6 @@ func TestAPIWorkflowPreservesIndependentContracts(t *testing.T) {
 	if err := tt.ChooseMenuItem("Edit & resend"); err != nil {
 		t.Fatal(err)
 	}
-	click("Create draft")
 	click("Rename request")
 	edit("Collection", "Captured API")
 	edit("Name", "Captured projects")
@@ -1849,7 +1843,7 @@ func TestBodyTabFormatIndentsTheDraftBody(t *testing.T) {
 	// The body type shares the same row and still switches what is edited.
 	click("Request body type")
 	click("Multipart")
-	if !tt.HasText("FORM DATA · duplicate names supported") || a.requestDocument.bodyMode != "Multipart" {
+	if !tt.HasText("FORM DATA · file values are local paths, 16 MiB in total") || a.requestDocument.bodyMode != "Multipart" {
 		t.Fatalf("body type did not switch to form fields: %v", tt.Texts())
 	}
 }
@@ -2123,7 +2117,7 @@ func TestRuleEditorPersistsOrderingTogglesAndCapturedMock(t *testing.T) {
 	if err := tt.RightClick("api.example.com/projects"); err != nil {
 		t.Fatal(err)
 	}
-	if err := tt.ChooseMenuItem("Create rule", "Mock this response…"); err != nil {
+	if err := tt.ChooseMenuItem("Tools", "Mock this response…"); err != nil {
 		t.Fatal(err)
 	}
 	edit("Response status", "201")
@@ -2947,9 +2941,6 @@ func TestKeyboardDebuggingLoopDoesNotSendThroughDialogsOrRepeatWhileWaiting(t *t
 		t.Fatal("inspector Escape did not restore list focus")
 	}
 	tt.Key(ui.Cmd|ui.Alt, ui.KeyEnter)
-	if err := tt.Click("Create draft"); err != nil {
-		t.Fatal(err)
-	}
 	if !tt.Focused("URL") {
 		t.Fatal("editing a capture did not focus the draft URL")
 	}
@@ -3091,9 +3082,6 @@ func TestNativeCommandsRespectModalScopeAndDraftCloseProtection(t *testing.T) {
 		tt.Frame()
 	}
 	choose("edit")
-	if err := tt.Click("Create draft"); err != nil {
-		t.Fatal(err)
-	}
 	if !tt.Focused("URL") {
 		t.Fatal("native edit did not open the focused capture")
 	}

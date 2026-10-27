@@ -216,13 +216,11 @@ func (a *app) ruleScenarios(c *ui.Context, t *ui.Theme) {
 			a.selectRuleScenario("")
 		}
 	})
-	ui.Text(c, "Scenario changes affect new requests only. Global rules keep their order; individual enabled states are preserved.").FontSize(11).TextColor(t.TextMuted)
 }
 
 func (a *app) previewRuleMatches(c *ui.Context, t *ui.Theme) {
 	e := &a.ruleUI
 	ui.Text(c, "Test saved rules · no request is sent").Bold()
-	ui.Text(c, "Shows the first response rule, not unsaved edits. Breakpoints are independent; scripts and response-file errors are not simulated.").FontSize(11).TextColor(t.TextMuted)
 	ui.Row(c).Gap(8).Children(func() {
 		ui.TextInput(c, &e.previewMethod).Label("Test method").Width(85)
 		ui.TextInput(c, &e.previewURL).Label("Test URL").Placeholder("https://api.example.com/v1/").Grow(1)
@@ -262,7 +260,7 @@ func (a *app) rulesModal(c *ui.Context, t *ui.Theme) {
 				ui.Checkbox(c, &e.preview, "Test URL + method")
 				ui.Badge(c, fmt.Sprintf("%d rules", len(a.rules)))
 			})
-			ui.Text(c, "Map / Block: first eligible match wins. Breakpoints match independently; turn on Break in the toolbar.").FontSize(11).TextColor(t.TextMuted)
+			ui.Text(c, "The first matching Map or Block rule wins. Breakpoints pause only while Breakpoints is on.").FontSize(11).TextColor(t.TextMuted)
 			a.ruleScenarios(c, t)
 			ui.Row(c).Grow(1).Gap(18).AlignItems(ui.Stretch).Children(func() {
 				ui.Column(c).Width(260).Gap(8).Children(func() {
