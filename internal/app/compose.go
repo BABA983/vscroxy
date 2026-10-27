@@ -15,40 +15,40 @@ type environment struct {
 	Vars map[string]string `json:"vars,omitempty"`
 }
 
-// envFile is what the environments file holds.
+// envFile is what the environments file holds: the environments, the one in
+// use, and the global variables every environment sits above.
 type envFile struct {
-	Active string        `json:"active"`
-	Envs   []environment `json:"environments"`
+	Active  string            `json:"active"`
+	Envs    []environment     `json:"environments"`
+	Globals map[string]string `json:"globals,omitempty"`
 }
 
-// loadEnvs reads the environments and the one in use; a missing file has none.
-func loadEnvs(path string) ([]environment, string, error) {
+// loadEnvs reads the environments file; a missing file has none.
+func loadEnvs(path string) (envFile, error) {
+	var f envFile
 	if path == "" {
-		return nil, "", nil
+		return f, nil
 	}
 	data, err := os.ReadFile(path)
 	if errors.Is(err, fs.ErrNotExist) {
-		return nil, "", nil
+		return f, nil
 	}
 	if err != nil {
-		return nil, "", err
+		return f, err
 	}
-	var f envFile
-	if err := json.Unmarshal(data, &f); err != nil {
-		return nil, "", err
-	}
-	return f.Envs, f.Active, nil
+	err = json.Unmarshal(data, &f)
+	return f, err
 }
 
-// saveEnvs keeps the environments and which one is in use.
-func saveEnvs(path string, envs []environment, active string) error {
+// saveEnvs keeps the environments, which one is in use and the globals.
+func saveEnvs(path string, f envFile) error {
 	if path == "" {
 		return nil
 	}
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
 	}
-	data, err := json.Marshal(envFile{Active: active, Envs: envs})
+	data, err := json.Marshal(f)
 	if err != nil {
 		return err
 	}

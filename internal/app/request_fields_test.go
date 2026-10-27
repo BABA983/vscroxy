@@ -52,7 +52,7 @@ func TestPreRequestVariablesAndOverridesReachCurrentRequest(t *testing.T) {
 				r := savedRequest{Method: "POST", URL: upstream.URL + "?q={{generated}}", Headers: "Authorization: Bearer {{token}}", Auth: auth,
 					Body: "{{token}}", BodyMode: mode, Form: []request.Field{{Name: "value", Value: "{{token}}"}},
 					Pre: `vars.set("token", "new-token"); vars.set("user", "alice"); vars.set("generated", "fresh"); req.set("X-Direct", "script");`, Checks: request.Checks{Status: "200"}}
-				got := r.Execute(t.Context(), srv, map[string]string{"token": "old-token"}, nil)
+				got := r.Execute(t.Context(), srv, request.Context{}, map[string]string{"token": "old-token"}, nil)
 				wantAuth := "Bearer new-token"
 				if auth.Type == "Basic" {
 					wantAuth = "Basic YWxpY2U6bmV3LXRva2Vu"
@@ -61,19 +61,19 @@ func TestPreRequestVariablesAndOverridesReachCurrentRequest(t *testing.T) {
 					t.Fatalf("execution = %+v, response = %+v", got, got.Response)
 				}
 				r.Checks = request.Checks{}
-				got = r.Execute(t.Context(), srv, map[string]string{"token": "old-token"}, nil)
+				got = r.Execute(t.Context(), srv, request.Context{}, map[string]string{"token": "old-token"}, nil)
 				if got.Err != nil || got.Response == nil || !strings.HasPrefix(got.Response.ResponseBody, wantAuth+"|script|q=fresh|") {
 					t.Fatalf("without Checks: %+v, response = %+v", got, got.Response)
 				}
 				// Direct request edits win over generated auth and form encoding.
 				r.Pre += `req.set("Authorization", "direct"); req.body = "direct-body"; req.url = req.url.replace("?q=", "/edited?q="); req.method = "PATCH";`
-				got = r.Execute(t.Context(), srv, nil, nil)
+				got = r.Execute(t.Context(), srv, request.Context{}, nil, nil)
 				if got.Err != nil || got.Request.Method != "PATCH" || got.Response.ResponseBody != "direct|script|q=fresh|direct-body" || !strings.Contains(got.Request.URL, "/edited?") {
 					t.Fatalf("direct edits lost: %+v, response = %+v", got, got.Response)
 				}
 				r.Body = ""
 				r.Pre += `req.body = ""; req.remove("Authorization");`
-				got = r.Execute(t.Context(), srv, nil, nil)
+				got = r.Execute(t.Context(), srv, request.Context{}, nil, nil)
 				if got.Err != nil || got.Response == nil || got.Response.ResponseBody != "|script|q=fresh|" {
 					t.Fatalf("explicit empty body/header removal lost: %+v, response = %+v", got, got.Response)
 				}
@@ -136,7 +136,7 @@ func TestStructuredRequestSurvivesSavingAndSendsBinaryMultipart(t *testing.T) {
 	if !a.dirty() || a.baseline.Form[0].Value != "中文 & =" || loaded[0].Form[0].Value != "中文 & =" {
 		t.Fatal("draft shares saved form fields")
 	}
-	got := r.Execute(t.Context(), requestProxy(t), map[string]string{"token": "token-19"}, &cookieStore{})
+	got := r.Execute(t.Context(), requestProxy(t), request.Context{}, map[string]string{"token": "token-19"}, &cookieStore{})
 	if got.Err != nil || got.Response == nil || got.Response.Status != 201 || got.Response.ResponseBody != `{"upload":"complete"}` || len(got.Tests) != 2 || got.Failed() {
 		t.Fatalf("send: %+v", got)
 	}
@@ -188,7 +188,7 @@ func TestURLEncodedAuthAndCookiesFollowHTTPRules(t *testing.T) {
 		{Method: "POST", URL: upstream.URL + "/api/form", Headers: "Content-Type: stale", Auth: request.Auth{Type: "Basic", Username: "{{user}}", Password: "p:a &"}, BodyMode: "URL encoded", Form: []request.Field{{Name: "tag", Value: "a&b"}, {Name: "tag", Value: "=中文"}}},
 		{Method: "GET", URL: upstream.URL + "/outside"},
 	} {
-		got := r.Execute(t.Context(), srv, map[string]string{"user": "user-19"}, jar)
+		got := r.Execute(t.Context(), srv, request.Context{}, map[string]string{"user": "user-19"}, jar)
 		if got.Err != nil || got.Response.Status != 200 {
 			t.Fatalf("%s: %+v", r.URL, got)
 		}
@@ -203,7 +203,7 @@ func TestURLEncodedAuthAndCookiesFollowHTTPRules(t *testing.T) {
 		t.Fatal("deleting a path cookie left it active")
 	}
 	for _, auth := range []request.Auth{{Type: "API key", Key: "key", Value: "a & b", Location: "Query"}, {Type: "API key", Key: "X-Key", Value: "header-7", Location: "Header"}} {
-		got := savedRequest{Method: "GET", URL: upstream.URL + "/key?tag=one&tag=two", Auth: auth}.Execute(t.Context(), srv, nil, jar)
+		got := savedRequest{Method: "GET", URL: upstream.URL + "/key?tag=one&tag=two", Auth: auth}.Execute(t.Context(), srv, request.Context{}, nil, jar)
 		if got.Err != nil || got.Response.Status != 200 {
 			t.Fatalf("API key: %+v", got)
 		}
@@ -242,7 +242,7 @@ func TestParamsEditorUpdatesURLWithoutLosingDuplicateKeysOrEscapedPath(t *testin
 	if err := tt.Click("Bearer"); err != nil {
 		t.Fatal(err)
 	}
-	if !tt.HasText("Prefer {{variables}} for secrets; saved requests store these fields in plaintext.") {
+	if !tt.HasText("Prefer {{variables}} or {{vault:name}} for secrets; these fields are saved in plaintext.") {
 		t.Fatal("missing auth storage warning")
 	}
 }
@@ -334,7 +334,7 @@ func TestRequestDiagnosticsKeepPhasesErrorsAndSentVariables(t *testing.T) {
 	r := savedRequest{Method: "GET", URL: upstream.URL, Auth: request.Auth{Type: "Bearer", Token: "{{token}}"},
 		Pre:  `log("preparing"); vars.set("token","sent-token");`,
 		Post: "log('received', res.status); vars.set('token','next-token');\nthrow new Error('post failed');"}
-	got := r.Execute(t.Context(), srv, map[string]string{"token": "old-token"}, nil)
+	got := r.Execute(t.Context(), srv, request.Context{}, map[string]string{"token": "old-token"}, nil)
 	if <-headers != "Bearer sent-token" || got.Response == nil || got.Response.Status != 200 || got.Outcome() != "Post-response script failed" {
 		t.Fatalf("wrong observable request/result: %s", runSummary(got))
 	}
@@ -358,7 +358,7 @@ func TestRequestDiagnosticsKeepPhasesErrorsAndSentVariables(t *testing.T) {
 	}
 	for _, src := range []string{"\n\nthrow new Error('before send');", "\n\nlet = ;"} {
 		r.Pre = src
-		failed := r.Execute(t.Context(), nil, nil, nil)
+		failed := r.Execute(t.Context(), nil, request.Context{}, nil, nil)
 		if failed.Response != nil || failed.Outcome() != "Pre-request script failed" || len(failed.Console) == 0 || !strings.Contains(runSummary(failed), "pre-request.js") || !strings.Contains(runSummary(failed), "3") {
 			t.Fatalf("pre-script error lacks stage/location or sent traffic: %+v", failed)
 		}
@@ -451,5 +451,49 @@ func TestCollectionRunnerCancellationRevokesInFlightRequest(t *testing.T) {
 	}
 	if len(a.experiments.log.Records) != 1 || a.experiments.log.Records[0].Outcome != "Cancelled" || a.runner.completed != 1 {
 		t.Fatal("the cancelled attempt disappeared from run records")
+	}
+}
+
+// A collection's settings reach the requests filed under it: chosen from the
+// sidebar, saved to collections.json, and shown where a request inherits.
+func TestCollectionSettingsGiveRequestsTheirAuth(t *testing.T) {
+	a := workspaceApp()
+	a.foldersPath = filepath.Join(t.TempDir(), "collections.json")
+	a.workspace = 1
+	tt := ui.NewTester(a.view, 1280, 760)
+	click := func(label string) {
+		t.Helper()
+		if err := tt.Click(label); err != nil {
+			t.Fatal(err)
+		}
+	}
+	click("List projects")
+	if err := tt.RightClick("List projects"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.ChooseMenuItem("Folder “API” settings…"); err != nil {
+		t.Fatal(err)
+	}
+	if !tt.HasText("Folder · Workspace/API") {
+		t.Fatal("the folder's settings did not open")
+	}
+	click("Authorization type")
+	click("Bearer")
+	click("Bearer token")
+	tt.Type("{{vault:api}}")
+	click("Save settings")
+	data, err := os.ReadFile(a.foldersPath)
+	if err != nil || !strings.Contains(string(data), `"path":"Workspace/API"`) || !strings.Contains(string(data), `{{vault:api}}`) {
+		t.Fatalf("collections.json = %s, %v", data, err)
+	}
+	click("Auth")
+	click("Authorization type")
+	click("Inherit")
+	if !tt.HasText("Uses Bearer auth from Workspace/API.") {
+		t.Fatal("an inheriting request does not say whose auth it sends")
+	}
+	in := a.inheritance(a.requestDocument.value().Collection)
+	if auth, _ := in.InheritAuth(a.requestDocument.value().Auth); auth.Token != "{{vault:api}}" {
+		t.Fatalf("inherited %+v", auth)
 	}
 }

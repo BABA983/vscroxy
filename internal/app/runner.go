@@ -103,9 +103,11 @@ func (a *app) startRunner() {
 		return
 	}
 	var requests []savedRequest
+	var contexts []request.Context
 	for _, step := range r.steps {
 		if step.enabled {
 			requests = append(requests, step.request)
+			contexts = append(contexts, a.sendContext(step.request.Request))
 		}
 	}
 	if len(requests) == 0 {
@@ -125,7 +127,7 @@ func (a *app) startRunner() {
 		defer cancel()
 		defer a.invalidate()
 		for iteration := 1; iteration <= n; iteration++ {
-			for _, req := range requests {
+			for i, req := range requests {
 				if ctx.Err() != nil {
 					return
 				}
@@ -133,7 +135,7 @@ func (a *app) startRunner() {
 				stepCtx, stepCancel := context.WithTimeout(ctx, 30*time.Second)
 				runKey := uuid.New().String()
 				stepCtx = request.WithRunKey(stepCtx, runKey)
-				got := req.Execute(stepCtx, srv, vars, jar)
+				got := req.Execute(stepCtx, srv, contexts[i], vars, jar)
 				stepCancel()
 				vars = got.Vars
 				record := snapshotExperiment(0, req, env, got)

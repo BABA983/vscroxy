@@ -285,7 +285,9 @@ func (a *app) requestActions(c *ui.Context, f flow, current bool) []desktopActio
 	if d := a.requestDocument; a.workspace == 1 && d != nil {
 		copyable = true
 		copyRequest = func() {
-			req, err := d.value().Prepare(nil)
+			r := d.value()
+			r.Auth, _ = a.inheritance(r.Collection).InheritAuth(r.Auth)
+			req, err := r.Prepare(nil)
 			if err != nil {
 				a.setMessage("Copy cURL: " + err.Error())
 				return
@@ -383,6 +385,9 @@ func (a *app) desktopActions(c *ui.Context) []desktopAction {
 		{"client", "Set up a local client…", a.srv != nil, 0, 0, a.openClientSetup},
 		{"devices", "Connect a device…", a.srv != nil, 0, 0, a.openDevices},
 		{"rules", "Manage debugging rules…", true, 0, 0, a.openRules},
+		{"vault", "Vault…", true, 0, 0, a.openVault},
+		{"environments", "Manage environments…", true, 0, 0, a.openVars},
+		{"collection", "Collection settings…", editing && d.composeCollection != "", 0, 0, func() { a.openFolder(d.composeCollection) }},
 		{"new-request", "New request", true, ui.Cmd, ui.KeyN, a.openCompose},
 		{"import-curl", "Import cURL…", true, 0, 0, a.openCurlImport},
 		{"settings", "Open settings…", true, ui.Cmd, ui.KeyComma, func() { a.settingsOpen = true }},

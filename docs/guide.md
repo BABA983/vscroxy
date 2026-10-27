@@ -722,9 +722,12 @@ wait outside the block and come back with the table. Because the block writes
 every value in plain text, switching to it asks first when a credential is in
 the table. Disabled rows stay in the request file
 (`headerList`) but never in the block that is sent, copied or exported. Params
-edits the URL's query the same way, and only enabled rows reach it. Auth supports Bearer, Basic and API keys in a header or query
-parameter; explicit auth replaces that header unless the pre-script explicitly
-sets/removes it.
+edits the URL's query the same way, and only enabled rows reach it. Auth supports
+**Inherit**, Bearer, Basic and API keys in a header or query parameter; explicit
+auth replaces that header unless the pre-script explicitly sets/removes it.
+**Inherit** (the default for new requests) uses the nearest folder or collection
+auth and says which one it is; see [Collections, variables and the
+vault](#collections-variables-and-the-vault).
 Body supports a raw editor with line numbers, JSON highlighting, undo and
 **Format**, plus URL-encoded fields and multipart text/file parts with duplicate
 keys, disabled rows and a 16 MiB total form limit. The body's type and **Format**
@@ -755,9 +758,10 @@ encrypted. Prefer `{{variables}}` and review exports before sharing. OpenAPI
 draft generation explicitly warns that structured forms and auth need manual
 schema/security definitions; it does not copy their secrets or file paths.
 
-Send and Runner use the same execution order: pre-script → variable validation
-(when Checks are enabled) → expansion and auth/form encoding → send → checks
-and post-script. Pre-scripts see authored templates (`req.url`, `req.body`,
+Send and Runner use the same execution order: pre-scripts (collection, then each
+folder, then the request) → variable validation
+(when Checks are enabled) → expansion, vault secrets and auth/form encoding →
+send → checks and post-scripts in the same collection → folder → request order. Pre-scripts see authored templates (`req.url`, `req.body`,
 `req.get(...)` may still contain `{{names}}`), not the previously expanded
 request. Use `vars.get` to read variable values; `vars.set` affects this send's
 URL, headers, auth and form fields. Direct method/URL/body edits are retained;
@@ -775,8 +779,9 @@ log secrets: Console and retained records are not automatically redacted.
 
 **Variables** edits environments as name/value rows, with add/remove, masked
 values and explicit reveal. Empty values and whitespace are preserved; duplicate
-or invalid names block saving. Only one environment is active. This is plaintext
-local storage, not Vault. **Request variables** beside the target origin expands
+or invalid names block saving. Only one environment is active. **Globals** in the
+same dialog apply under every environment. Both are plaintext local storage;
+secrets belong in the vault. **Request variables** beside the target origin expands
 the draft's referenced names, environment source and unresolved state; pre-scripts
 may supply missing values later. Retained runs show the referenced values after
 pre-script and before expansion, distinguishing run input (environment snapshot
@@ -790,6 +795,47 @@ then choose **Reload local assets** to retry reading. This never deletes or
 resets the original file automatically. Missing files are valid empty assets.
 A proxy initialization failure shows the actual error and no sample traffic;
 local request/environment assets remain accessible for offline editing.
+
+### Collections, variables and the vault
+
+A request's collection path (`Shop/Orders`) is a chain of levels: the collection
+`Shop`, then the folder `Orders`. Right-click a request or a section in the
+sidebar, or open the request's **⋯** menu, to edit **Collection “Shop”
+settings…** or **Folder “Orders” settings…**. Each level has its own **Auth**,
+pre-request and post-response **Scripts**, **Variables** and a **Description**.
+They are kept in `~/.vscroxy/collections.json`, keyed by path, so renaming a
+collection leaves its settings under the old name until they are moved.
+
+- **Auth**: a request whose Auth is **Inherit** sends the nearest level's auth
+  that is not itself Inherit; if none has one, it sends no auth.
+- **Scripts** run from the collection down to the request, for the pre-request
+  and the post-response phase alike. Console lines name the level they came from.
+- **Variables** resolve narrowest first: script writes and run input (the active
+  environment or a preceding Runner step), then the nearest folder up to the
+  collection, then globals. Disabled rows are skipped. **Request variables**
+  names the source of each value.
+- **Dynamic variables** follow Postman's names and are generated for every
+  occurrence on every send: `$guid`, `$randomUUID`, `$timestamp`,
+  `$isoTimestamp`, `$randomInt`, `$randomBoolean`, `$randomAlphaNumeric`,
+  `$randomHexColor`, `$randomIP`, `$randomUserName`, `$randomEmail` and
+  `$randomPassword`, written as `{{$guid}}`. A variable with the same name
+  wins. Other `$random…` names stay unresolved.
+
+**Vault…** (sidebar footer, request **⋯** menu or command palette) keeps secrets
+as name, value and optional allowed domains. Reference one anywhere a variable
+works with `{{vault:name}}`. It is unlocked only for a send whose target host is
+allowed: `example.com` matches only that host, `*.example.com` only its
+subdomains, and a secret without domains goes to any host. A refused or missing
+secret fails the send before anything leaves. Vault values are never copied into
+environments, Request variables or script variables. Scripts cannot read
+the vault yet; the request that was sent, including the header that carried the
+secret, is still retained in Capture and Run records.
+
+The vault lives in `~/.vscroxy/vault.json`, sealed with AES-256-GCM. Its key is
+kept in the operating system's credential store; where there is none (headless
+Linux without a secret service), it falls back to `~/.vscroxy/vault.key` (0600)
+and the dialog says so. A vault whose key is missing is never replaced:
+**Reset vault…** deletes it only after confirmation.
 
 **Runner…** executes a saved collection, including its subfolders, sequentially.
 Select/reorder steps, set 1–1000 iterations, and optionally stop on HTTP errors,

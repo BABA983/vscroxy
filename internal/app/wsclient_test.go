@@ -50,7 +50,7 @@ func TestStructuredWebSocketSendsAuthHeadersAndCookiesWithVerifiedTLS(t *testing
 			jar := &cookieStore{}
 			jar.SetCookies(u, []*http.Cookie{{Name: "session", Value: "session-19", Path: "/deep", Secure: secure}})
 			target = "ws" + strings.TrimPrefix(target, "http")
-			got := savedRequest{Method: "GET", URL: target, Body: "hello", Auth: request.Auth{Type: "Bearer", Token: "{{token}}"}, Pre: `req.set("X-Client","script")`}.Execute(t.Context(), srv, map[string]string{"token": "token-27"}, jar)
+			got := savedRequest{Method: "GET", URL: target, Body: "hello", Auth: request.Auth{Type: "Bearer", Token: "{{token}}"}, Pre: `req.set("X-Client","script")`}.Execute(t.Context(), srv, request.Context{}, map[string]string{"token": "token-27"}, jar)
 			if got.Err != nil || len(got.Replies) != 1 || got.Replies[0] != "echo:hello" {
 				t.Fatalf("structured WS execution: %+v", got)
 			}

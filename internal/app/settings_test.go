@@ -142,7 +142,7 @@ func TestStartupFailureKeepsLocalAssetsUsable(t *testing.T) {
 	if err := saveRequests(filepath.Join(dir, "requests.json"), []savedRequest{{Name: "kept", Method: "GET", URL: "https://example.test"}}); err != nil {
 		t.Fatal(err)
 	}
-	if err := saveEnvs(filepath.Join(dir, "env.json"), []environment{{Name: "dev", Vars: map[string]string{"host": "local"}}}, "dev"); err != nil {
+	if err := saveEnvs(filepath.Join(dir, "env.json"), envFile{Active: "dev", Envs: []environment{{Name: "dev", Vars: map[string]string{"host": "local"}}}}); err != nil {
 		t.Fatal(err)
 	}
 	a := newApp()
@@ -212,7 +212,8 @@ func TestDamagedAssetsStayUntouchedUntilExplicitReload(t *testing.T) {
 	a.openVars()
 	a.varsRows = []request.Field{{Name: "token", Value: "recovered"}}
 	a.saveVars()
-	envs, _, err := loadEnvs(filepath.Join(dir, "env.json"))
+	f, err := loadEnvs(filepath.Join(dir, "env.json"))
+	envs := f.Envs
 	if err != nil || len(envs) != 1 || envs[0].Vars["token"] != "recovered" {
 		t.Fatalf("environment recovery: %v, %v", envs, err)
 	}

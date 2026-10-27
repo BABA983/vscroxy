@@ -37,6 +37,8 @@ JavaScript request/response hooks run in Goja inside the Go process, not Node.js
 - `internal/app/` owns the native UI, application state and UI tests.
 - `internal/request/` turns an authored request into traffic: variables,
   auth and form encoding, scripts, response checks and sending through the proxy.
+- `internal/vault/` seals request secrets with AES-256-GCM and limits them to
+  their allowed domains.
 - The other `internal/` packages contain capture, system-proxy integration,
   device access, DNS and process/icon lookup.
 - `third_party/go-mitmproxy/` is the locally patched capture engine. Its

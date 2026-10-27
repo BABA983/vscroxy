@@ -254,13 +254,19 @@ type app struct {
 	requests        []savedRequest
 	requestsPath    string
 	requestsProblem string
-	history         []historyEntry
-	historyPath     string
-	historyOpen     bool
-	experiments     experimentWorkbench
-	socket          websocketWorkbench
-	investigations  investigationWorkbench
-	board           investigationBoard
+	// folders are the collections' and folders' own settings, by path.
+	folders        []request.Folder
+	foldersPath    string
+	foldersProblem string
+	folderUI       folderEditor
+	vault          vaultState
+	history        []historyEntry
+	historyPath    string
+	historyOpen    bool
+	experiments    experimentWorkbench
+	socket         websocketWorkbench
+	investigations investigationWorkbench
+	board          investigationBoard
 
 	// The active document is embedded so the editor's fields always belong
 	// to that tab. Workers return results to their originating document.
@@ -279,6 +285,8 @@ type app struct {
 	envsProblem string
 	envs        []environment
 	activeEnv   string
+	globals     map[string]string
+	varsGlobals bool // the Variables dialog edits the globals
 	varsOpen    bool
 	varsName    string
 	varsChoice  string
@@ -348,6 +356,9 @@ func newApp() *app {
 		a.dnsPath = filepath.Join(home, ".vscroxy", "dns.txt")
 		a.scriptPath = filepath.Join(home, ".vscroxy", "script.js")
 		a.envsPath = filepath.Join(home, ".vscroxy", "env.json")
+		a.foldersPath = filepath.Join(home, ".vscroxy", "collections.json")
+		a.vault.path = filepath.Join(home, ".vscroxy", "vault.json")
+		a.vault.keyPath = filepath.Join(home, ".vscroxy", "vault.key")
 		if saved, err := loadSettings(a.settingsPath); err != nil {
 			a.errText = err.Error()
 		} else {
@@ -428,14 +439,15 @@ func (a *app) loadRequestAssets() {
 	} else {
 		a.requests, a.requestsProblem = list, ""
 	}
-	if envs, active, err := loadEnvs(a.envsPath); err != nil {
+	if f, err := loadEnvs(a.envsPath); err != nil {
 		a.envsProblem = fmt.Sprintf("Variables (%s): %v", a.envsPath, err)
 	} else {
-		a.envs, a.activeEnv, a.envsProblem = envs, active, ""
-		if active == "" && len(envs) > 0 {
-			a.activeEnv = envs[0].Name
+		a.envs, a.activeEnv, a.globals, a.envsProblem = f.Envs, f.Active, f.Globals, ""
+		if a.activeEnv == "" && len(a.envs) > 0 {
+			a.activeEnv = a.envs[0].Name
 		}
 	}
+	a.loadFolders()
 }
 
 // startCapture listens and hands captured flows to the view.
@@ -1184,6 +1196,8 @@ func (a *app) view(c *ui.Context) {
 			}
 		})
 	a.varsModal(c, t)
+	a.folderModal(c, t)
+	a.vaultModal(c, t)
 	a.markModal(c, t)
 	a.views.modals(c, t, a)
 	a.columnModal(c, t)
@@ -1511,13 +1525,14 @@ func (a *app) requestSidebar(c *ui.Context, t *ui.Theme) {
 					if len(shown) == 0 {
 						continue
 					}
+					settings := func(m *ui.Menu) { a.folderSettingsItems(m, name) }
 					ui.SidebarSection(c, cmp.Or(name, "Saved"), a.collectionShown(name), func() {
 						for _, r := range shown {
-							ui.SidebarItem(c, r.key(), requestIcon, r.Name).FontSize(12).Padding(5, 8).Children(func() {
+							ui.SidebarItem(c, r.key(), requestIcon, r.Name).FontSize(12).Padding(5, 8).ContextMenu(settings).Children(func() {
 								ui.Text(c, r.Method).FontSize(9).Bold().TextColor(methodColor(r.Method)).Width(38)
 							})
 						}
-					})
+					}).ContextMenu(settings)
 				}
 				if len(a.requests) == 0 {
 					ui.Text(c, "Save a request here, or edit a captured flow to start.").FontSize(12).TextColor(t.TextMuted).Padding(8, 12)
@@ -1632,6 +1647,7 @@ func (a *app) requestSidebar(c *ui.Context, t *ui.Theme) {
 				run   func()
 			}{
 				{"Manage environments…", a.openVars},
+				{"Vault…", a.openVault},
 				{"Runner…", a.openRunner},
 				{"Cookies…", a.openCookies},
 			} {
@@ -2356,7 +2372,7 @@ func (a *app) rowMenu(c *ui.Context, f flow) func(*ui.Menu) {
 
 // openCompose shows the request editor with an empty request.
 func (a *app) openCompose() {
-	a.addDocument(savedRequest{Method: "GET", URL: "https://"}, "")
+	a.addDocument(savedRequest{Method: "GET", URL: "https://", Auth: request.Auth{Type: request.AuthInherit}}, "")
 }
 
 // composeFrom fills the request editor with a captured request, the step from
@@ -2418,7 +2434,7 @@ func (a *app) applyVars(name string, before, vars map[string]string) {
 	if a.activeEnv == "" {
 		a.activeEnv = name
 	}
-	if err := saveEnvs(a.envsPath, a.envs, a.activeEnv); err != nil {
+	if err := saveEnvs(a.envsPath, envFile{Active: a.activeEnv, Envs: a.envs, Globals: a.globals}); err != nil {
 		a.setMessage("Variables: " + err.Error())
 	}
 }
@@ -2430,14 +2446,28 @@ func (a *app) openVars() {
 }
 
 func (a *app) editEnvironment(name string) {
-	a.varsName, a.varsChoice, a.varsRows, a.varsProblem = name, name, nil, ""
+	a.varsGlobals = false
+	a.varsName, a.varsChoice, a.varsProblem = name, name, ""
+	a.varsRows = nil
 	for _, env := range a.envs {
 		if env.Name == name {
-			for _, key := range slices.Sorted(maps.Keys(env.Vars)) {
-				a.varsRows = append(a.varsRows, request.Field{Name: key, Value: env.Vars[key]})
-			}
+			a.varsRows = fieldsOf(env.Vars)
 		}
 	}
+}
+
+// editGlobals puts the global variables, beneath every environment, in the
+// Variables dialog.
+func (a *app) editGlobals() {
+	a.varsGlobals, a.varsProblem, a.varsRows = true, "", fieldsOf(a.globals)
+}
+
+func fieldsOf(vars map[string]string) []request.Field {
+	var rows []request.Field
+	for _, key := range slices.Sorted(maps.Keys(vars)) {
+		rows = append(rows, request.Field{Name: key, Value: vars[key]})
+	}
+	return rows
 }
 
 // varsModal edits the variables of one environment, the one a request fills its
@@ -2453,19 +2483,35 @@ func (a *app) varsModal(c *ui.Context, t *ui.Theme) {
 			if a.envsProblem != "" {
 				ui.Text(c, "Variables are read-only. Close this dialog, repair or move env.json aside, then reload local assets.").FontSize(11).TextColor(t.Danger)
 			}
-			ui.Text(c, "Use {{name}} in requests. Values are stored locally in plaintext.").
-				FontSize(11).TextColor(t.TextMuted)
-			ui.Row(c).Gap(8).Children(func() {
-				if names := a.envNames(); len(names) > 0 {
-					if ui.Select(c, &a.varsChoice, names).Label("Edit environment").Grow(1).Changed() {
-						a.editEnvironment(a.varsChoice)
+			scope := 0
+			if a.varsGlobals {
+				scope = 1
+			}
+			if ui.Segmented(c, &scope, "Environments", "Globals").Changed() {
+				if scope == 1 {
+					a.editGlobals()
+				} else {
+					a.editEnvironment(cmp.Or(a.activeEnv, "default"))
+				}
+			}
+			if a.varsGlobals {
+				ui.Text(c, "Every request reads these, whatever the environment. Collection, folder and environment values override them. Stored locally in plaintext; keep secrets in the Vault.").
+					FontSize(11).TextColor(t.TextMuted)
+			} else {
+				ui.Text(c, "Use {{name}} in requests. Environment values override collection values and globals. Stored locally in plaintext; keep secrets in the Vault.").
+					FontSize(11).TextColor(t.TextMuted)
+				ui.Row(c).Gap(8).Children(func() {
+					if names := a.envNames(); len(names) > 0 {
+						if ui.Select(c, &a.varsChoice, names).Label("Edit environment").Grow(1).Changed() {
+							a.editEnvironment(a.varsChoice)
+						}
 					}
-				}
-				if ui.Button(c, "New environment").Clicked() {
-					a.editEnvironment("")
-				}
-			})
-			ui.TextInput(c, &a.varsName).Label("Environment")
+					if ui.Button(c, "New environment").Clicked() {
+						a.editEnvironment("")
+					}
+				})
+				ui.TextInput(c, &a.varsName).Label("Environment")
+			}
 			ui.Row(c).Gap(8).Children(func() {
 				ui.Text(c, "NAME").Grow(1).FontSize(10).TextColor(t.TextMuted)
 				ui.Text(c, "VALUE").Grow(2).FontSize(10).TextColor(t.TextMuted)
@@ -2518,7 +2564,7 @@ func (a *app) saveVars() {
 		return
 	}
 	name := strings.TrimSpace(a.varsName)
-	if name == "" {
+	if name == "" && !a.varsGlobals {
 		a.varsProblem = "The environment needs a name."
 		return
 	}
@@ -2534,6 +2580,15 @@ func (a *app) saveVars() {
 		}
 		vars[key] = row.Value // Empty and whitespace values are significant.
 	}
+	if a.varsGlobals {
+		if err := saveEnvs(a.envsPath, envFile{Active: a.activeEnv, Envs: a.envs, Globals: vars}); err != nil {
+			a.varsProblem = "Save failed: " + err.Error()
+			return
+		}
+		a.globals, a.varsOpen = vars, false
+		a.setMessage(fmt.Sprintf("Globals: %d of them", len(vars)))
+		return
+	}
 	envs := slices.Clone(a.envs)
 	found := false
 	for i, e := range envs {
@@ -2546,7 +2601,7 @@ func (a *app) saveVars() {
 	if !found {
 		envs = append(envs, environment{Name: name, Vars: vars})
 	}
-	if err := saveEnvs(a.envsPath, envs, name); err != nil {
+	if err := saveEnvs(a.envsPath, envFile{Active: name, Envs: envs, Globals: a.globals}); err != nil {
 		a.varsProblem = "Save failed: " + err.Error()
 		return
 	}
@@ -2579,6 +2634,7 @@ func (a *app) sendComposed() {
 	d.sendOutcome, d.sendCancelling, d.sendDetails = "", false, false
 	d.composeWaiting, d.composeResult = true, "Sending…"
 	r, env, vars, srv, jar := d.value(), a.activeEnv, a.activeVars(), a.srv, a.requestCookies()
+	in := a.sendContext(r.Request)
 	d.sent, d.sentAt, d.sentSet = r, time.Now(), true
 	runKey, draftKey, origin := uuid.New().String(), d.debugKey, d.origin
 	d.sentRun = runKey
@@ -2590,7 +2646,7 @@ func (a *app) sendComposed() {
 	}
 	go func() {
 		defer cancel()
-		got := r.Execute(ctx, srv, vars, jar)
+		got := r.Execute(ctx, srv, in, vars, jar)
 		result := requestResult{document: d, environment: env, summary: runSummary(got), outcome: got.Outcome(), response: got.Response, tests: got.Tests, replies: got.Replies, console: got.Console, varsBefore: vars, vars: got.Vars}
 		record := snapshotExperiment(0, r, env, got)
 		record.RunKey, record.DraftKey, record.Source = runKey, draftKey, origin

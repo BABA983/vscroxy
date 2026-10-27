@@ -38,11 +38,19 @@ func WithRunKey(ctx context.Context, key string) context.Context {
 	return context.WithValue(ctx, debugRunKey{}, key)
 }
 
-// Execute runs pre-request script, encoding, send through srv, checks and
-// post-response script, in that order. A single send and each Runner step
-// use it alike, with the same proxy and cookie jar.
-func (r Request) Execute(ctx context.Context, srv *capture.Server, vars map[string]string, jar http.CookieJar) (out Execution) {
-	run := &scriptRun{vars: maps.Clone(vars), phase: "setup"}
+// Execute runs the pre-request scripts, encoding, send through srv, checks
+// and post-response scripts, in that order. Scripts run collection first,
+// then each folder, then the request's own, as Postman runs them. A single
+// send and each Runner step use it alike, with the same proxy and cookie jar.
+//
+// vars are the environment's values; Execution.Vars returns them with the
+// scripts' writes, never the inherited, dynamic or vault values.
+func (r Request) Execute(ctx context.Context, srv *capture.Server, in Context, vars map[string]string, jar http.CookieJar) (out Execution) {
+	inherited, _ := in.inherited()
+	run := &scriptRun{vars: maps.Clone(vars), inherited: inherited, phase: "setup"}
+	if run.vars == nil {
+		run.vars = map[string]string{}
+	}
 	out = Execution{Vars: run.vars, Stage: "Request setup failed"}
 	defer func() {
 		out.Console = slices.Clone(run.console)
@@ -56,14 +64,14 @@ func (r Request) Execute(ctx context.Context, srv *capture.Server, vars map[stri
 		return out
 	}
 	out.ExpectedStatus = status
+	r.Auth, _ = in.InheritAuth(r.Auth)
 	// Pre-scripts edit authored templates, not an already encoded request.
 	// Generate variables first; expand and encode exactly once afterwards.
 	template := &Prepared{Method: r.Method, URL: r.URL, Body: r.Body,
 		Header: ParseHeaderBlock(r.Headers), editedHeaders: map[string]bool{}}
 	out.Stage = "Pre-request script failed"
-	run.phase = "pre-request"
-	if err := runScriptContext(ctx, r.Pre, run, map[string]any{"req": template}); err != nil {
-		out.Err = fmt.Errorf("Pre-request script: %w", err)
+	if err := run.scripts(ctx, "pre-request", in.Folders, func(f Folder) string { return f.Pre }, r.Pre, map[string]any{"req": template}); err != nil {
+		out.Err = err
 		out.Tests, out.Vars = run.tests, run.vars
 		return out
 	}
@@ -72,20 +80,22 @@ func (r Request) Execute(ctx context.Context, srv *capture.Server, vars map[stri
 		r.BodyMode = "Raw" // Explicit script bodies override structured forms.
 	}
 	r.Body = template.Body
+	effective := in.Values(run.vars)
 	authHeader := "Authorization"
 	if r.Auth.Type == "API key" {
-		authHeader = ExpandVars(r.Auth.Key, run.vars)
+		authHeader = ExpandVars(r.Auth.Key, effective)
 	}
 	if template.editedHeaders[http.CanonicalHeaderKey(authHeader)] && (r.Auth.Type != "API key" || r.Auth.Location != "Query") {
 		r.Auth = Auth{}
 	}
 	out.Stage, run.phase = "Request setup failed", "setup"
 	out.Tests, out.Vars = run.tests, run.vars
-	out.Variables = r.ResolveVariables(run.vars, run.written)
+	out.Variables = r.ResolveVariables(in, run.vars, run.written)
+	r = r.withDynamic(effective)
 	if r.Checks != (Checks{}) {
 		var missing []string
 		for _, name := range r.Variables() {
-			if _, ok := run.vars[name]; !ok {
+			if _, ok := effective[name]; !ok && !strings.HasPrefix(name, "vault:") {
 				missing = append(missing, name)
 			}
 		}
@@ -94,7 +104,11 @@ func (r Request) Execute(ctx context.Context, srv *capture.Server, vars map[stri
 			return out
 		}
 	}
-	req, err := r.Prepare(run.vars)
+	if err := in.unlock(r, effective); err != nil {
+		out.Err = err
+		return out
+	}
+	req, err := r.Prepare(effective)
 	if err != nil {
 		out.Err = err
 		return out
@@ -103,7 +117,7 @@ func (r Request) Execute(ctx context.Context, srv *capture.Server, vars map[stri
 	for name := range template.editedHeaders {
 		req.Remove(name)
 		for _, value := range template.Header.Values(name) {
-			req.Header.Add(name, ExpandVars(value, run.vars))
+			req.Header.Add(name, ExpandVars(expandDynamic(value, effective), effective))
 		}
 	}
 	out.Request = req
@@ -120,7 +134,7 @@ func (r Request) Execute(ctx context.Context, srv *capture.Server, vars map[stri
 	out.Stage, run.phase = "Network error", "network"
 	if IsWebSocket(req.URL) {
 		out.Replies, out.Err = wsSend(ctx, srv.Addr(), req, srv.CACertificate(), jar, 2*time.Second)
-		if r.Post != "" && out.Err == nil {
+		if out.Err == nil && (r.Post != "" || slices.ContainsFunc(in.Folders, func(f Folder) bool { return f.Post != "" })) {
 			out.Stage = "Post-response script failed"
 			out.Err = fmt.Errorf("post-response scripts require an HTTP response")
 		}
@@ -133,14 +147,52 @@ func (r Request) Execute(ctx context.Context, srv *capture.Server, vars map[stri
 			run.tests = append(run.tests, r.Checks.Evaluate(got)...)
 			res := &jsResponse{Status: got.Status, Body: got.ResponseBody, Header: got.ResponseHeader}
 			out.Stage = "Post-response script failed"
-			run.phase = "post-response"
-			if err := runScriptContext(ctx, r.Post, run, map[string]any{"res": res, "req": req}); err != nil {
-				out.Err = fmt.Errorf("Post-response script: %w", err)
-			}
+			out.Err = run.scripts(ctx, "post-response", in.Folders, func(f Folder) string { return f.Post }, r.Post, map[string]any{"res": res, "req": req})
 		}
 	}
 	out.Tests, out.Vars = run.tests, run.vars
 	return out
+}
+
+// scripts runs one phase's scripts: each folder's, the collection first,
+// then the request's own. The console tags folder output with its path.
+func (run *scriptRun) scripts(ctx context.Context, phase string, folders []Folder, src func(Folder) string, own string, objects map[string]any) error {
+	title := strings.ToUpper(phase[:1]) + phase[1:] + " script"
+	for _, f := range folders {
+		run.phase = phase + " · " + f.Path
+		if err := runScriptContext(ctx, src(f), run, objects); err != nil {
+			return fmt.Errorf("%s (%s): %w", title, f.Path, err)
+		}
+	}
+	run.phase = phase
+	if err := runScriptContext(ctx, own, run, objects); err != nil {
+		return fmt.Errorf("%s: %w", title, err)
+	}
+	return nil
+}
+
+// unlock adds the {{vault:name}} values r uses to vars, each read for the
+// host r is sent to, so a secret restricted to other domains stays locked.
+func (in Context) unlock(r Request, vars map[string]string) error {
+	var host string
+	if u, err := url.Parse(ExpandVars(r.URL, vars)); err == nil {
+		host = u.Hostname()
+	}
+	for _, variable := range r.Variables() {
+		name, ok := vaultName(variable)
+		if !ok {
+			continue
+		}
+		if in.Vault == nil {
+			return fmt.Errorf("{{%s}}: the vault is not available", variable)
+		}
+		value, err := in.Vault(name, host)
+		if err != nil {
+			return fmt.Errorf("{{%s}}: %w", variable, err)
+		}
+		vars[variable] = value
+	}
+	return nil
 }
 
 // Outcome separates transport/setup failures from HTTP responses and checks.

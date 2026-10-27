@@ -7,7 +7,8 @@ The Go module and MyGo configuration live at the repository root.
 `cmd/vscroxy/` is the thin executable entry, including `--proxy-guard` mode.
 `internal/app/` owns the UI and application state. `internal/request/` owns an
 authored request and how it becomes traffic (variables, encoding, scripts,
-checks, sending); it never imports MyGo. Keep the other `internal/`
+checks, sending); it never imports MyGo. `internal/vault/` seals secrets and
+decides which hosts may receive them. Keep the other `internal/`
 packages' existing responsibility boundaries; `third_party/go-mitmproxy/` is a
 locally patched dependency with its own license and patch notes.
 

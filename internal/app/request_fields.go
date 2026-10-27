@@ -1,6 +1,7 @@
 package app
 
 import (
+	"cmp"
 	"fmt"
 	"net/url"
 	"slices"
@@ -299,22 +300,46 @@ func (a *app) headerEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
 
 func (a *app) authEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
 	ui.Scroll(c).Grow(1).Gap(8).Children(func() {
-		ui.Select(c, &d.auth.Type, []string{"None", "Bearer", "Basic", "API key"}).Label("Authorization type").Width(180)
-		ui.Text(c, "Prefer {{variables}} for secrets; saved requests store these fields in plaintext.").FontSize(11).TextColor(t.TextMuted)
-		switch d.auth.Type {
-		case "Bearer":
-			ui.TextInput(c, &d.auth.Token).Label("Bearer token").Placeholder("{{token}}").Password()
-		case "Basic":
-			ui.TextInput(c, &d.auth.Username).Label("Username")
-			ui.TextInput(c, &d.auth.Password).Label("Password").Password()
-		case "API key":
-			ui.Row(c).Gap(8).Children(func() {
-				ui.TextInput(c, &d.auth.Key).Label("API key name").Grow(1)
-				ui.TextInput(c, &d.auth.Value).Label("API key value").Password().Grow(2)
-				ui.Select(c, &d.auth.Location, []string{"Header", "Query"}).Label("API key location").Width(120)
+		authFields(c, &d.auth, append([]string{request.AuthInherit}, authTypes...))
+		if d.auth.Type == request.AuthInherit {
+			resolved, from := a.inheritance(d.composeCollection).InheritAuth(d.auth)
+			text := "No collection or folder sets auth, so none is sent."
+			if from != "" {
+				text = "Uses " + resolved.Type + " auth from " + from + "."
+			}
+			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+				ui.Text(c, text).FontSize(12).TextColor(t.TextMuted)
+				if d.composeCollection != "" && ui.Button(c, "Collection settings…").FontSize(11).Clicked() {
+					a.openFolder(cmp.Or(from, d.composeCollection))
+				}
 			})
 		}
 	})
+}
+
+// authTypes are the auth a request or folder sets itself.
+var authTypes = []string{"None", "Bearer", "Basic", "API key"}
+
+// authFields edits one Auth, a request's or a folder's.
+func authFields(c *ui.Context, auth *request.Auth, types []string) {
+	t := c.Theme()
+	ui.Select(c, &auth.Type, types).Label("Authorization type").Width(180)
+	if auth.Type != request.AuthInherit {
+		ui.Text(c, "Prefer {{variables}} or {{vault:name}} for secrets; these fields are saved in plaintext.").FontSize(11).TextColor(t.TextMuted)
+	}
+	switch auth.Type {
+	case "Bearer":
+		ui.TextInput(c, &auth.Token).Label("Bearer token").Placeholder("{{token}}").Password()
+	case "Basic":
+		ui.TextInput(c, &auth.Username).Label("Username")
+		ui.TextInput(c, &auth.Password).Label("Password").Password()
+	case "API key":
+		ui.Row(c).Gap(8).Children(func() {
+			ui.TextInput(c, &auth.Key).Label("API key name").Grow(1)
+			ui.TextInput(c, &auth.Value).Label("API key value").Password().Grow(2)
+			ui.Select(c, &auth.Location, []string{"Header", "Query"}).Label("API key location").Width(120)
+		})
+	}
 }
 
 func (a *app) requestBodyEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
@@ -345,10 +370,16 @@ func (a *app) requestBodyEditor(c *ui.Context, d *requestDocument, t *ui.Theme) 
 // reader as the body: line numbers, JavaScript highlighting, find and undo.
 // The document's string stays the source of truth for running and saving.
 func (a *app) requestScriptText(c *ui.Context, d *requestDocument) {
-	text, state, seen, label := &d.composePre, &d.preEditor, &d.preFor, "Pre-request script"
 	if d.scriptTab == 1 {
-		text, state, seen, label = &d.composePost, &d.postEditor, &d.postFor, "Post-response script"
+		scriptText(c, &d.composePost, &d.postEditor, &d.postFor, "Post-response script")
+	} else {
+		scriptText(c, &d.composePre, &d.preEditor, &d.preFor, "Pre-request script")
 	}
+}
+
+// scriptText edits a script in the body's reader; *text stays the source of
+// truth, and seen is what the reader was last built from.
+func scriptText(c *ui.Context, text *string, state **editor.State, seen *string, label string) {
 	if *state == nil || *seen != *text {
 		buf := editor.NewBuffer(*text)
 		buf.SetLanguage(editor.LanguageNamed("JavaScript"))

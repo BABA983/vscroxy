@@ -71,12 +71,15 @@ func (r *jsResponse) Json() any {
 // scriptRun is one execution of a request script: the variables it changed,
 // the assertions it made and what it logged.
 type scriptRun struct {
-	vars    map[string]string
-	written map[string]bool
-	tests   []TestResult
-	logs    []string
-	phase   string
-	console []ConsoleMessage
+	// vars are the environment's and this run's values, what vars.set
+	// writes; inherited are the folder and global values beneath them.
+	vars      map[string]string
+	inherited map[string]string
+	written   map[string]bool
+	tests     []TestResult
+	logs      []string
+	phase     string
+	console   []ConsoleMessage
 }
 
 // Console output is bounded independently of the retained response payload.
@@ -120,7 +123,12 @@ func runScriptContext(ctx context.Context, src string, run *scriptRun, objects m
 	defer stop()
 	vm.SetFieldNameMapper(goja.TagFieldNameMapper("json", true))
 	vm.Set("vars", map[string]any{
-		"get": func(name string) string { return run.vars[name] },
+		"get": func(name string) string {
+			if value, ok := run.vars[name]; ok {
+				return value
+			}
+			return run.inherited[name]
+		},
 		"set": func(name, value string) {
 			run.vars[name] = value
 			if run.written == nil {
@@ -170,24 +178,11 @@ func runScriptContext(ctx context.Context, src string, run *scriptRun, objects m
 	return err
 }
 
+// ResolvedVariable is one {{name}} a request uses: its value, and the scope
+// it came from, or Missing. Vault values are never copied here.
 type ResolvedVariable struct {
 	Name, Value, Source string
 	Missing             bool
-}
-
-func (r Request) ResolveVariables(vars map[string]string, written map[string]bool) []ResolvedVariable {
-	var rows []ResolvedVariable
-	for _, name := range r.Variables() {
-		value, ok := vars[name]
-		source := "Run input"
-		if !ok {
-			source = "Missing"
-		} else if written[name] {
-			source = "Pre-request script"
-		}
-		rows = append(rows, ResolvedVariable{Name: name, Value: value, Source: source, Missing: !ok})
-	}
-	return rows
 }
 
 // passed counts the assertions that held.

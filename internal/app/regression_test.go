@@ -63,7 +63,7 @@ func TestRegressionChecksRunThroughProxyAndRunner(t *testing.T) {
 	}
 	// Check the captured response itself, not a redirect target's response.
 	r.URL, r.Checks = upstream.URL+"/redirect", request.Checks{Status: "302"}
-	got := r.Execute(t.Context(), a.srv, nil, nil)
+	got := r.Execute(t.Context(), a.srv, request.Context{}, nil, nil)
 	if got.Failed() || got.Response.Status != 302 {
 		t.Fatalf("redirect check: %s", runSummary(got))
 	}
@@ -85,7 +85,7 @@ func TestRegressionScalarChecksDistinguishTypesMissingAndNumericPrecision(t *tes
 		{`/a=b = "hello"`, true}, {"/object = null", false},
 	} {
 		t.Run(tc.check, func(t *testing.T) {
-			got := savedRequest{Method: "GET", URL: upstream.URL, Checks: request.Checks{JSON: tc.check}}.Execute(t.Context(), srv, nil, nil)
+			got := savedRequest{Method: "GET", URL: upstream.URL, Checks: request.Checks{JSON: tc.check}}.Execute(t.Context(), srv, request.Context{}, nil, nil)
 			if got.Err != nil || len(got.Tests) != 1 || got.Failed() == tc.pass {
 				t.Fatalf("want pass=%t, got %s %+v", tc.pass, runSummary(got), got.Tests)
 			}
@@ -98,7 +98,7 @@ func TestRegressionScalarChecksDistinguishTypesMissingAndNumericPrecision(t *tes
 		{URL: upstream.URL, Checks: request.Checks{Status: "999"}},
 		{URL: "{{base_url}}/test", Checks: request.Checks{Status: "200"}},
 	} {
-		got := r.Execute(t.Context(), nil, nil, nil)
+		got := r.Execute(t.Context(), nil, request.Context{}, nil, nil)
 		if got.Err == nil || got.Response != nil || !got.Failed() {
 			t.Fatalf("invalid regression was sent: %+v", got)
 		}
@@ -143,7 +143,7 @@ func TestPortableRegressionReplacesCredentialsAndRerunsWithRecipientsVariables(t
 			vars[strings.TrimSuffix(strings.TrimPrefix(value, "{{"), "}}")] = replacement
 		}
 	}
-	got := shared.Execute(t.Context(), requestProxy(t), vars, nil)
+	got := shared.Execute(t.Context(), requestProxy(t), request.Context{}, vars, nil)
 	if got.Failed() || len(got.Tests) != 2 {
 		t.Fatalf("recipient run: %s %+v", runSummary(got), got.Tests)
 	}

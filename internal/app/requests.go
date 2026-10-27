@@ -542,8 +542,14 @@ func (a *app) requestBreadcrumb(c *ui.Context, t *ui.Theme, d *requestDocument) 
 				a.importRegression()
 			}
 			m.Separator()
+			if m.Item("Collection settings…").Disabled(d.composeCollection == "").Chosen() {
+				a.openFolder(d.composeCollection)
+			}
 			if m.Item("Manage environments…").Chosen() {
 				a.openVars()
+			}
+			if m.Item("Vault…").Chosen() {
+				a.openVault()
 			}
 		}).Label("Request options").Height(26).Padding(0, 6).FontSize(14).TextColor(t.TextMuted).Border(0, t.Border)
 	})
@@ -552,17 +558,20 @@ func (a *app) requestBreadcrumb(c *ui.Context, t *ui.Theme, d *requestDocument) 
 
 func (a *app) requestVariablesPanel(c *ui.Context, t *ui.Theme, d *requestDocument) {
 	vars := a.activeVars()
-	rows := d.value().ResolveVariables(vars, nil)
+	r := d.value()
+	in := a.inheritance(r.Collection)
+	rows := r.ResolveVariables(in, vars, nil)
 	missing := 0
 	for i := range rows {
-		if rows[i].Missing {
+		switch rows[i].Source {
+		case "Missing":
 			missing++
-		} else {
+		case "Run input":
 			rows[i].Source = "Environment: " + cmp.Or(a.activeEnv, "none")
 		}
 	}
 	target := "unresolved (review variables)"
-	if u, err := url.Parse(request.ExpandVars(d.composeURL, vars)); err == nil && u.Hostname() != "" {
+	if u, err := url.Parse(request.ExpandVars(d.composeURL, in.Values(vars))); err == nil && u.Hostname() != "" {
 		target = u.Scheme + "://" + u.Host // Do not reveal query tokens or userinfo.
 	}
 	ui.Row(c).Height(30).Padding(0, 12).Gap(8).AlignItems(ui.Center).Children(func() {

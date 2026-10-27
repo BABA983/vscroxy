@@ -75,7 +75,7 @@ func (r Request) Prepare(vars map[string]string) (*Prepared, error) {
 		return nil, fmt.Errorf("the URL is empty")
 	}
 	switch r.Auth.Type {
-	case "", "None":
+	case "", "None", AuthInherit: // Execute resolves Inherit; without a Context there is no parent.
 	case "Bearer":
 		req.Set("Authorization", "Bearer "+ExpandVars(r.Auth.Token, vars))
 	case "Basic":
