@@ -245,8 +245,9 @@ changes its HTTPS inspection. Investigation and regression actions come last.
 
 **Edit & replay** and **Save as request** use the complete retained, decoded
 request payload, not the Body preview. Repeated headers and query parameters
-are kept; stale content encoding/length and transfer framing are removed before
-sending decoded bytes. Incomplete or missing payloads, non-UTF-8 bodies,
+are kept; stale content encoding/length, transfer framing and the client's
+connection headers (`Proxy-Connection`, `Proxy-Authorization`, `Keep-Alive`
+and any header `Connection` names) are removed before sending decoded bytes. Incomplete or missing payloads, non-UTF-8 bodies,
 request trailers and encrypted tunnels are explicitly refused rather than
 silently converted to a different request. The text request editor does not yet
 provide arbitrary binary capture editing. A single `Authorization: Bearer …` or

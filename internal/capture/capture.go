@@ -1429,7 +1429,7 @@ func (s *Server) applyRules(f *proxy.Flow) *proxy.Response {
 			if headers == nil {
 				headers = make(http.Header)
 			}
-			stripHopHeaders(headers)
+			StripHopHeaders(headers)
 			if headers.Get("Content-Type") == "" {
 				headers.Set("Content-Type", contentType(r.Target))
 			}

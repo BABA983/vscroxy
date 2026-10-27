@@ -230,7 +230,9 @@ func readMockBody(path string) ([]byte, error) {
 	return body, err
 }
 
-func stripHopHeaders(h http.Header) {
+// StripHopHeaders removes the headers that belong to the connection a message
+// came on, including any the Connection header names.
+func StripHopHeaders(h http.Header) {
 	for _, connection := range h.Values("Connection") {
 		for name := range strings.SplitSeq(connection, ",") {
 			h.Del(strings.TrimSpace(name))
@@ -264,7 +266,7 @@ func NewMockRule(dir string, f Flow) (Rule, error) {
 	if h == nil {
 		h = make(http.Header)
 	}
-	stripHopHeaders(h)
+	StripHopHeaders(h)
 	// Captures contain decoded bytes. Do not retain stale wire framing or
 	// validators for the compressed representation that was received.
 	for _, name := range []string{"Content-Encoding", "Content-Length", "Content-MD5", "Digest", "ETag"} {

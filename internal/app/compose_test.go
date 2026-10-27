@@ -115,6 +115,33 @@ func TestCapturedDraftRejectsUnavailablePayload(t *testing.T) {
 	}
 }
 
+// A draft is a new request on its own connection: the client's connection
+// headers, proxy credentials and headers Connection names never carry over.
+func TestCapturedDraftDropsConnectionHeaders(t *testing.T) {
+	f := flow{method: "GET", url: "http://api.example.test/", reqHeader: http.Header{
+		"Proxy-Connection":    {"Keep-Alive"},
+		"Proxy-Authorization": {"Basic cHJveHk6c2VjcmV0"},
+		"Connection":          {"keep-alive, X-Hop"},
+		"X-Hop":               {"1"},
+		"Keep-Alive":          {"timeout=5"},
+		"X-Kept":              {"a", "b"},
+		"Accept":              {"*/*"},
+	}}
+	r, err := f.requestDraft()
+	if err != nil {
+		t.Fatal(err)
+	}
+	h := request.ParseHeaderBlock(r.Headers)
+	for _, name := range []string{"Proxy-Connection", "Proxy-Authorization", "Connection", "X-Hop", "Keep-Alive"} {
+		if h.Get(name) != "" {
+			t.Errorf("draft kept %s", name)
+		}
+	}
+	if len(h.Values("X-Kept")) != 2 || h.Get("Accept") != "*/*" {
+		t.Errorf("draft lost end-to-end headers: %q", r.Headers)
+	}
+}
+
 // A captured Authorization header moves to the Auth tab only when the tab
 // sends the same bytes again; anything else stays a plain header.
 func TestCapturedAuthorizationBecomesAuthOnlyWhenExact(t *testing.T) {

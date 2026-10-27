@@ -193,10 +193,11 @@ func (f flow) requestDraft() (savedRequest, error) {
 	if len(f.reqTrailer) != 0 || h.Get("Trailer") != "" {
 		return savedRequest{}, fmt.Errorf("request trailers cannot be represented by the request editor")
 	}
-	// Capture stores decoded payloads but keeps original wire headers.
+	// Capture stores decoded payloads but keeps original wire headers, and a
+	// draft is a new request on its own connection.
 	h.Del("Content-Encoding")
 	h.Del("Content-Length")
-	h.Del("Transfer-Encoding")
+	capture.StripHopHeaders(h)
 	auth := authFromHeader(h)
 	if auth.Type != "" {
 		h.Del("Authorization")
