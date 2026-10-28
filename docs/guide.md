@@ -761,16 +761,58 @@ schema/security definitions; it does not copy their secrets or file paths.
 Send and Runner use the same execution order: pre-scripts (collection, then each
 folder, then the request) → variable validation
 (when Checks are enabled) → expansion, vault secrets and auth/form encoding →
-send → checks and post-scripts in the same collection → folder → request order. Pre-scripts see authored templates (`req.url`, `req.body`,
-`req.get(...)` may still contain `{{names}}`), not the previously expanded
-request. Use `vars.get` to read variable values; `vars.set` affects this send's
-URL, headers, auth and form fields. Direct method/URL/body edits are retained;
-explicit `req.body` assignments, even an empty string, override structured
-forms, and `req.set/remove` overrides generated headers. Expansion happens
-once with the final variables. cURL export encodes the draft without executing
-scripts.
+send → checks and post-scripts in the same collection → folder → request order. Pre-scripts see authored templates (`pm.request.url`,
+`pm.request.body` and headers may still contain `{{names}}`), not the
+previously expanded request, and variables they set affect this send's URL,
+headers, auth and form fields. Method/URL/body edits are retained; an explicit
+body assignment, even an empty string, overrides structured forms, and header
+changes override generated headers. Expansion happens once with the final
+variables. cURL export encodes the draft without executing scripts.
 
-**Console** in the response area shows phase-tagged `log(...)` output,
+### Postman scripts
+
+Request scripts use Postman's `pm` API, so scripts from an imported collection
+run as they are. Each runs as the body of an async function, so `await` works
+at the top level, with two seconds of run time (time spent waiting on
+`pm.sendRequest` does not count).
+
+- **Variables**: `pm.environment`, `pm.globals`, `pm.collectionVariables` and
+  `pm.variables` (`get`, `set`, `unset`, `has`, `clear`, `toObject`,
+  `replaceIn`). `pm.variables.get` reads the effective value; `pm.variables.set`
+  is local to the send, or to the rest of a Runner run. Environment, global and
+  collection writes are saved when the send finishes. Values are stored as
+  text: objects are JSON-encoded. `pm.iterationData` is always empty: Runner
+  data files are not supported yet.
+- **Request**: `pm.request.method`, `pm.request.url` (`toString()`, `getHost()`,
+  `getPath()`, `query.add/upsert/remove/get`), `pm.request.headers`
+  (`add`, `upsert`, `remove`, `get`, `has`, `toObject`) and `pm.request.body.raw`.
+- **Response**: `pm.response.code`, `status`, `responseTime`, `responseSize`,
+  `headers`, `text()`, `json()` and the Postman assertions under
+  `pm.response.to` (`have.status`, `have.header`, `have.body`, `have.jsonBody`,
+  `be.ok`, `be.success`, `be.error`, `be.json` and the rest, with `not`).
+  `have.jsonSchema` is not supported.
+- **Tests**: `pm.test(name, fn)`, including async functions and `done`
+  callbacks, `pm.test.skip`, and `pm.expect`, which is Chai 4's `expect`.
+  The **Tests** tab shows why a test failed.
+- **Flow**: `pm.sendRequest` (callback or `await`; sent through the proxy, so it
+  is captured too), `pm.execution.skipRequest()` in a pre-request script, and
+  `pm.execution.setNextRequest(name)` or `(null)` in the Runner. `pm.info`,
+  `pm.cookies` (the cookie jar's cookies for the request URL),
+  `console.log/info/warn/error`, `atob` and `btoa` are available.
+- **Vault**: `await pm.vault.get(name)`, `set` and `unset` work only after
+  **Let scripts use pm.vault** is turned on in **Vault…**. A read follows the
+  secret's allowed domains for the request's host; a secret a script adds has
+  none. Scripts can log what they read: Console output is not redacted.
+- **Legacy**: `tests["name"] = bool`, `postman.setEnvironmentVariable` and the
+  other `postman.*` variable calls, `responseBody`, `responseCode`,
+  `responseHeaders`, and this app's earlier `req`, `res`, `vars`, `test` and
+  `log` keep working.
+
+`require` only provides `chai`. Postman's other sandbox libraries (lodash,
+moment, crypto-js, cheerio and so on), `pm.visualizer` and timers are not
+available.
+
+**Console** in the response area shows phase-tagged `console.log(...)` output,
 variable-write names (not their values), and setup/network/script errors,
 including script filename and line when available. It remains available when
 pre-script/setup fails before a response exists. Output is bounded to 200
@@ -821,14 +863,38 @@ collection leaves its settings under the old name until they are moved.
   `$randomPassword`, written as `{{$guid}}`. A variable with the same name
   wins. Other `$random…` names stay unresolved.
 
+#### Postman import and export
+
+**Import Postman…** in the sidebar footer, **Session → Import requests or
+Postman…** and the command palette read a Postman Collection v2.0 or v2.1 file,
+an environment or a globals export, as well as this app's own request list.
+A collection becomes requests under its name, its folders become collection
+paths, and its auth, scripts, variables and descriptions become the
+collection and folder settings above. Requests without auth inherit it, as in
+Postman. Item IDs are kept, so importing the same file again updates those
+requests. Folder names containing `/` keep it as `∕`. An environment merges
+into the environment of the same name; globals merge into globals.
+
+What has no equivalent yet is listed after the import: saved examples, request
+descriptions, binary file bodies, auth other than Bearer, Basic and API key
+(imported as no auth), disabled query parameters and per-request settings.
+Raw bodies get the `Content-Type` Postman would send for their language.
+
+Right-click a request or collection and choose **Export “Shop” as Postman…**,
+or use the palette, to write the collection as Collection v2.1. Response
+Checks have no Postman form and are left out. **Export as Postman…** in
+**Variables** writes the environment or globals on screen. Exports contain auth
+fields and variable values as they are; `{{vault:name}}` references stay
+references.
+
 **Vault…** (sidebar footer, request **⋯** menu or command palette) keeps secrets
 as name, value and optional allowed domains. Reference one anywhere a variable
 works with `{{vault:name}}`. It is unlocked only for a send whose target host is
 allowed: `example.com` matches only that host, `*.example.com` only its
 subdomains, and a secret without domains goes to any host. A refused or missing
 secret fails the send before anything leaves. Vault values are never copied into
-environments, Request variables or script variables. Scripts cannot read
-the vault yet; the request that was sent, including the header that carried the
+environments, Request variables or script variables. Scripts reach it only
+through `pm.vault`, when allowed; the request that was sent, including the header that carried the
 secret, is still retained in Capture and Run records.
 
 The vault lives in `~/.vscroxy/vault.json`, sealed with AES-256-GCM. Its key is
@@ -838,6 +904,11 @@ and the dialog says so. A vault whose key is missing is never replaced:
 **Reset vault…** deletes it only after confirmation.
 
 **Runner…** executes a saved collection, including its subfolders, sequentially.
+`pm.execution.setNextRequest("name")` jumps to the request with that name (or
+ID) among the run's requests, so a request can repeat itself to poll;
+`setNextRequest(null)`, or a name the run does not have, ends the run.
+`pm.variables`, globals and collection variables a script sets are seen by the
+requests after it.
 Select/reorder steps, set 1–1000 iterations, and optionally stop on HTTP errors,
 failed assertions or execution errors. Each step has a 30-second deadline;
 scripts have a 2-second limit and cancellation interrupts both scripts and I/O.

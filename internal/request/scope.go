@@ -3,6 +3,7 @@ package request
 import (
 	"iter"
 	"maps"
+	"slices"
 	"strings"
 )
 
@@ -32,6 +33,92 @@ type Context struct {
 	Globals map[string]string
 	// Vault reads {{vault:name}} for a request to host; nil has no vault.
 	Vault func(name, host string) (string, error)
+	// ScriptVault lets scripts read and change the vault with pm.vault.
+	ScriptVault bool
+
+	// The run the request is part of: the active environment's name, the
+	// Runner iteration (from 0) of how many, and the pm.variables values
+	// earlier requests of the run set.
+	Environment           string
+	Iteration, Iterations int
+	Locals                map[string]string
+}
+
+// scriptRun is the scope state the scripts of r's send start from.
+func (c Context) scriptRun(r Request, vars map[string]string) *scriptRun {
+	run := &scriptRun{
+		vars: maps.Clone(vars), locals: maps.Clone(c.Locals), globals: maps.Clone(c.Globals),
+		collection: map[string]string{}, folders: map[string]string{}, phase: "setup",
+		info: scriptInfo{Iteration: c.Iteration, Iterations: c.Iterations, RequestName: r.Name, RequestID: r.ID, Environment: c.Environment},
+	}
+	if run.vars == nil {
+		run.vars = map[string]string{}
+	}
+	if run.locals == nil {
+		run.locals = map[string]string{}
+	}
+	for prefix := range pathPrefixes(r.Collection) {
+		run.root = prefix
+		break
+	}
+	for part := range strings.SplitSeq(strings.Trim(r.Collection, "/"), "/") {
+		if part != "" {
+			run.info.Location = append(run.info.Location, part)
+		}
+	}
+	run.info.Location = append(run.info.Location, r.Name)
+	for _, f := range c.Folders {
+		scope := run.folders
+		if f.Path == run.root {
+			scope = run.collection
+		}
+		for _, v := range f.Variables {
+			if name := strings.TrimSpace(v.Name); name != "" && !v.Disabled {
+				scope[name] = v.Value
+			}
+		}
+	}
+	if c.ScriptVault {
+		run.vault = c.Vault
+	}
+	return run
+}
+
+// Apply returns c as the next request of a run sees it after a script made
+// writes: changed globals, and changed variables of the collection a
+// request filed under collection lives in. Vault writes are the app's.
+func (c Context) Apply(writes []Write, collection string) Context {
+	var root string
+	for prefix := range pathPrefixes(collection) {
+		root = prefix
+		break
+	}
+	globals, folders := false, false
+	for _, w := range writes {
+		switch {
+		case w.Scope == "global":
+			if !globals {
+				c.Globals, globals = maps.Clone(c.Globals), true
+				if c.Globals == nil {
+					c.Globals = map[string]string{}
+				}
+			}
+			if w.Unset {
+				delete(c.Globals, w.Name)
+			} else {
+				c.Globals[w.Name] = w.Value
+			}
+		case w.Scope == "collection" && w.Path == root:
+			if !folders {
+				c.Folders, folders = slices.Clone(c.Folders), true
+			}
+			if len(c.Folders) == 0 || c.Folders[0].Path != root {
+				c.Folders = slices.Insert(c.Folders, 0, Folder{Path: root})
+			}
+			c.Folders[0].Variables = w.Fields(c.Folders[0].Variables)
+		}
+	}
+	return c
 }
 
 // Chain returns the folders a request filed under path lives in, the

@@ -124,6 +124,7 @@ type requestResult struct {
 	environment string
 	varsBefore  map[string]string
 	vars        map[string]string
+	writes      []request.Write
 	history     *historyEntry
 	experiment  *experimentRecord
 }
@@ -995,24 +996,43 @@ func (a *app) responseBody(c *ui.Context, t *ui.Theme, d *requestDocument) {
 	case resViewTests:
 		ui.Scroll(c).Grow(1).Padding(10, 12).Gap(8).Children(func() {
 			if len(d.composeTests) == 0 {
-				ui.Text(c, "No assertions. Add response Checks or test(name, pass) in a script.").FontSize(12).TextColor(t.TextMuted)
+				ui.Text(c, "No assertions. Add response Checks, or pm.test(name, fn) in a script.").FontSize(12).TextColor(t.TextMuted)
 			}
 			for _, result := range d.composeTests {
-				mark, color := "✓", t.Success
-				if !result.Pass {
-					mark, color = "✗", t.Danger
-				}
-				ui.Text(c, mark+" "+result.Name).FontSize(12).TextColor(color)
+				testResultRow(c, result, 12)
 			}
 		})
 	}
+}
+
+// testResultRow is one assertion: its mark and name, and why a failed one
+// failed beneath.
+func testResultRow(c *ui.Context, result request.TestResult, size float32) {
+	t := c.Theme()
+	mark, color := "✓", t.Success
+	switch {
+	case result.Skipped:
+		mark, color = "–", t.TextMuted
+	case !result.Pass:
+		mark, color = "✗", t.Danger
+	}
+	name := mark + " " + result.Name
+	if result.Skipped {
+		name += " · skipped"
+	}
+	ui.Column(c).Gap(2).Children(func() {
+		ui.Text(c, name).FontSize(size).TextColor(color)
+		if result.Error != "" {
+			ui.Text(c, result.Error).FontSize(size-1).TextColor(t.TextMuted).Padding(0, 0, 0, 14).Selectable()
+		}
+	})
 }
 
 func runConsole(c *ui.Context, entries []request.ConsoleMessage) {
 	t := c.Theme()
 	ui.Scroll(c).Grow(1).FillWidth().Padding(10, 12).Gap(8).Children(func() {
 		if len(entries) == 0 {
-			ui.Text(c, "No output. Call log(...) in a script to print here.").FontSize(12).TextColor(t.TextMuted)
+			ui.Text(c, "No output. Call console.log(...) in a script to print here.").FontSize(12).TextColor(t.TextMuted)
 		}
 		for _, entry := range entries {
 			color := t.Text

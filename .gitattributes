@@ -4,3 +4,5 @@
 *.cmd eol=crlf
 *.ps1 eol=lf
 *.sh eol=lf
+
+internal/request/js/chai.js linguist-vendored -diff

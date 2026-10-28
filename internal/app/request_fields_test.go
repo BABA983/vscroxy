@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -495,6 +496,91 @@ func TestCollectionSettingsGiveRequestsTheirAuth(t *testing.T) {
 	in := a.inheritance(a.requestDocument.value().Collection)
 	if auth, _ := in.InheritAuth(a.requestDocument.value().Auth); auth.Token != "{{vault:api}}" {
 		t.Fatalf("inherited %+v", auth)
+	}
+}
+
+// Postman's request workflows: setNextRequest loops and jumps, pm.variables
+// carry through the run, and global and collection writes are saved.
+func TestCollectionRunnerFollowsSetNextRequest(t *testing.T) {
+	paths := make(chan string, 16)
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		paths <- r.URL.RequestURI()
+	}))
+	defer upstream.Close()
+	a := workspaceApp()
+	a.srv = requestProxy(t)
+	a.envs = []environment{{Name: "Local", Vars: map[string]string{"base": upstream.URL}}}
+	a.activeEnv = "Local"
+	a.requests = []savedRequest{
+		{Request: request.Request{Name: "01 Start", Collection: "Loop", Method: "GET", URL: "{{base}}/start",
+			Post: `pm.variables.set("count", "0"); pm.globals.set("started", "yes")`}},
+		{Request: request.Request{Name: "02 Poll", Collection: "Loop", Method: "GET", URL: "{{base}}/poll?n={{count}}",
+			Post: `const n = Number(pm.variables.get("count")) + 1
+pm.variables.set("count", n)
+pm.collectionVariables.set("polls", n)
+pm.execution.setNextRequest(n < 3 ? "02 Poll" : "04 Done")`}},
+		{Request: request.Request{Name: "03 Jumped over", Collection: "Loop", Method: "GET", URL: "{{base}}/never"}},
+		{Request: request.Request{Name: "04 Done", Collection: "Loop", Method: "GET", URL: "{{base}}/done",
+			Pre:  `pm.test("globals from earlier requests", () => pm.expect(pm.globals.get("started")).to.equal("yes"))`,
+			Post: `pm.test("collection variables from earlier requests", () => pm.expect(pm.collectionVariables.get("polls")).to.equal("3")); pm.execution.setNextRequest(null)`}},
+		{Request: request.Request{Name: "05 After the stop", Collection: "Loop", Method: "GET", URL: "{{base}}/never"}},
+	}
+	a.runner.collection = "Loop"
+	a.openRunner()
+	a.runner.iterations = "2"
+	a.startRunner()
+	waitRunner(t, a)
+	var visited []string
+	for len(paths) > 0 {
+		visited = append(visited, <-paths)
+	}
+	if want := []string{"/start", "/poll?n=0", "/poll?n=1", "/poll?n=2", "/done"}; !reflect.DeepEqual(visited, want) {
+		t.Fatalf("visited %v, want %v", visited, want)
+	}
+	if a.runner.failures != 0 || len(a.runner.rows[4].tests) != 2 {
+		t.Fatalf("rows %+v", a.runner.rows)
+	}
+	if a.globals["started"] != "yes" || len(a.folders) != 1 || a.folders[0].Path != "Loop" ||
+		!reflect.DeepEqual(a.folders[0].Variables, []request.Field{{Name: "polls", Value: "3"}}) {
+		t.Errorf("saved globals %v, collections %+v", a.globals, a.folders)
+	}
+	if _, ok := a.activeVars()["count"]; ok {
+		t.Error("pm.variables must not be saved to the environment")
+	}
+}
+
+func TestImportPostmanCollectionAndEnvironment(t *testing.T) {
+	a := workspaceApp()
+	a.requests = nil
+	a.importData([]byte(`{"info":{"name":"Shop","schema":"https://schema.getpostman.com/json/collection/v2.1.0/collection.json"},
+"auth":{"type":"bearer","bearer":[{"key":"token","value":"{{vault:token}}"}]},
+"variable":[{"key":"base","value":"https://api.example.com"}],
+"item":[{"name":"Orders","item":[{"id":"r1","name":"List","request":{"method":"GET","url":"{{base}}/orders"},
+"event":[{"listen":"test","script":{"exec":["pm.test(\"ok\", () => pm.response.to.be.ok)"]}}],
+"response":[{"name":"example"}]}]}]}`), "shop.json")
+	if len(a.requests) != 1 || a.requests[0].ID != "r1" || a.requests[0].Collection != "Shop/Orders" || a.requests[0].Auth.Type != request.AuthInherit ||
+		a.requests[0].Post != `pm.test("ok", () => pm.response.to.be.ok)` {
+		t.Fatalf("requests %+v", a.requests)
+	}
+	if in := a.inheritance("Shop/Orders"); in.Values(nil)["base"] != "https://api.example.com" {
+		t.Errorf("collection variables did not arrive: %+v", a.folders)
+	}
+	if auth, from := a.inheritance("Shop/Orders").InheritAuth(a.requests[0].Auth); auth.Token != "{{vault:token}}" || from != "Shop" {
+		t.Errorf("inherited auth %+v from %q", auth, from)
+	}
+	if !a.importReport.open || !slices.ContainsFunc(a.importReport.lines, func(l string) bool { return strings.Contains(l, "example") }) {
+		t.Errorf("the dropped example was not reported: %+v", a.importReport)
+	}
+	// Importing it again updates the same request instead of adding a copy.
+	a.importData([]byte(`{"info":{"name":"Shop","schema":"https://schema.getpostman.com/json/collection/v2.1.0/collection.json"},
+"item":[{"name":"Orders","item":[{"id":"r1","name":"List","request":{"method":"POST","url":"{{base}}/orders"}}]}]}`), "shop.json")
+	if len(a.requests) != 1 || a.requests[0].Method != "POST" {
+		t.Errorf("re-import %+v", a.requests)
+	}
+	a.importData([]byte(`{"name":"Staging","values":[{"key":"base","value":"https://staging","enabled":true}],"_postman_variable_scope":"environment"}`), "staging.json")
+	a.importData([]byte(`{"name":"g","values":[{"key":"team","value":"core"}],"_postman_variable_scope":"globals"}`), "globals.json")
+	if !slices.ContainsFunc(a.envs, func(e environment) bool { return e.Name == "Staging" && e.Vars["base"] == "https://staging" }) || a.globals["team"] != "core" {
+		t.Errorf("envs %+v, globals %v", a.envs, a.globals)
 	}
 }
 

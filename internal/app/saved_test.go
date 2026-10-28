@@ -3,6 +3,7 @@ package app
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -121,8 +122,9 @@ func TestUniqueRequestName(t *testing.T) {
 func TestSaveAndLoadRequests(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "requests.json")
 	want := []savedRequest{
-		{Name: "second", Method: "POST", URL: "https://example.com/b", Headers: "A: 1", Body: `{"x":1}`},
-		{Name: "first", Method: "GET", URL: "https://example.com/a"},
+		{Name: "second", Collection: "B", Method: "POST", URL: "https://example.com/b", Headers: "A: 1", Body: `{"x":1}`},
+		{Name: "b-first", Collection: "A", Method: "GET", URL: "https://example.com/a"},
+		{Name: "a-second", Collection: "A", Method: "GET", URL: "https://example.com/c"},
 	}
 	if err := saveRequests(path, want); err != nil {
 		t.Fatalf("save: %v", err)
@@ -131,7 +133,13 @@ func TestSaveAndLoadRequests(t *testing.T) {
 	if err != nil {
 		t.Fatalf("load: %v", err)
 	}
-	if len(got) != 2 || got[0].Name != "first" || got[1].Body != `{"x":1}` {
+	// Grouped by collection; within one, the order they were saved in, which
+	// is the order an imported collection runs in.
+	var names []string
+	for _, r := range got {
+		names = append(names, r.Name)
+	}
+	if strings.Join(names, ",") != "b-first,a-second,second" || got[2].Body != `{"x":1}` {
 		t.Fatalf("loaded = %+v", got)
 	}
 }

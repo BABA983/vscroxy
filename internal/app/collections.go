@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/baba983/vscroxy/internal/request"
+	"github.com/baba983/vscroxy/internal/vault"
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/editor"
 )
@@ -69,6 +70,73 @@ func (a *app) openFolder(path string) {
 	f.draft.Auth.Location = cmp.Or(f.draft.Auth.Location, "Header")
 }
 
+// applyWrites saves what scripts changed beyond the environment: globals,
+// collection variables and vault secrets. Each store saves once.
+func (a *app) applyWrites(writes []request.Write) {
+	if len(writes) == 0 {
+		return
+	}
+	globals, folders, secrets := maps.Clone(a.globals), slices.Clone(a.folders), slices.Clone(a.vault.secrets)
+	var touched [3]bool
+	for _, w := range writes {
+		switch w.Scope {
+		case "global":
+			if globals == nil {
+				globals = map[string]string{}
+			}
+			if w.Unset {
+				delete(globals, w.Name)
+			} else {
+				globals[w.Name] = w.Value
+			}
+			touched[0] = true
+		case "collection":
+			at := slices.IndexFunc(folders, func(f request.Folder) bool { return f.Path == w.Path })
+			if at < 0 {
+				folders, at = append(folders, request.Folder{Path: w.Path}), len(folders)
+			}
+			folders[at].Variables = w.Fields(folders[at].Variables)
+			touched[1] = true
+		case "vault":
+			at := slices.IndexFunc(secrets, func(s vault.Secret) bool { return s.Name == w.Name })
+			switch {
+			case w.Unset && at >= 0:
+				secrets = slices.Delete(secrets, at, at+1)
+			case !w.Unset && at >= 0:
+				secrets[at].Value = w.Value
+			case !w.Unset:
+				secrets = append(secrets, vault.Secret{Name: w.Name, Value: w.Value})
+			}
+			touched[2] = true
+		}
+	}
+	var problems []string
+	if touched[0] {
+		if a.envsProblem != "" {
+			problems = append(problems, "globals: "+a.envsProblem)
+		} else if err := saveEnvs(a.envsPath, envFile{Active: a.activeEnv, Envs: a.envs, Globals: globals}); err != nil {
+			problems = append(problems, "globals: "+err.Error())
+		} else {
+			a.globals = globals
+		}
+	}
+	if touched[1] {
+		if err := a.writeFolders(folders); err != nil {
+			problems = append(problems, "collection variables: "+err.Error())
+		}
+	}
+	if touched[2] {
+		if !a.vault.loaded {
+			problems = append(problems, "vault: it is locked")
+		} else if err := a.writeVault(secrets); err != nil {
+			problems = append(problems, "vault: "+err.Error())
+		}
+	}
+	if len(problems) > 0 {
+		a.setMessage("Script changes not saved: " + strings.Join(problems, "; "))
+	}
+}
+
 // folderSettingsItems offers the settings of every level a request filed
 // under path lives in: its collection, then each folder down to path.
 func (a *app) folderSettingsItems(m *ui.Menu, path string) {
@@ -85,6 +153,16 @@ func (a *app) folderSettingsItems(m *ui.Menu, path string) {
 			a.openFolder(strings.Join(parts[:i+1], "/"))
 		}
 	}
+	m.Separator()
+	if m.Item("Export “" + parts[0] + "” as Postman…").Chosen() {
+		a.exportPostman(parts[0])
+	}
+}
+
+// collectionRoot is the collection a path is in: "Shop" for "Shop/Orders".
+func collectionRoot(path string) string {
+	root, _, _ := strings.Cut(strings.Trim(path, "/"), "/")
+	return root
 }
 
 // folderAuthTypes are a folder's choices: a folder inside a collection can
@@ -123,21 +201,35 @@ func (a *app) saveFolder() {
 		draft.Auth = request.Auth{Type: draft.Auth.Type}
 	}
 	folders := slices.DeleteFunc(slices.Clone(a.folders), func(folder request.Folder) bool { return folder.Path == draft.Path })
-	folders = append(folders, draft)
-	slices.SortFunc(folders, func(x, y request.Folder) int { return strings.Compare(x.Path, y.Path) })
-	data, err := json.Marshal(folders)
-	if err == nil {
-		err = os.MkdirAll(filepath.Dir(a.foldersPath), 0o755)
-	}
-	if err == nil {
-		err = writePrivateFile(a.foldersPath, append(data, '\n'))
-	}
-	if err != nil {
+	if err := a.writeFolders(append(folders, draft)); err != nil {
 		f.problem = "Save failed: " + err.Error()
 		return
 	}
-	a.folders, f.open = folders, false
+	f.open = false
 	a.setMessage("Saved " + draft.Path + " settings")
+}
+
+// writeFolders saves the collection and folder settings, sorted by path,
+// and makes them the ones in use.
+func (a *app) writeFolders(folders []request.Folder) error {
+	if a.foldersProblem != "" {
+		return errors.New(a.foldersProblem)
+	}
+	slices.SortFunc(folders, func(x, y request.Folder) int { return strings.Compare(x.Path, y.Path) })
+	if a.foldersPath != "" {
+		data, err := json.Marshal(folders)
+		if err == nil {
+			err = os.MkdirAll(filepath.Dir(a.foldersPath), 0o755)
+		}
+		if err == nil {
+			err = writePrivateFile(a.foldersPath, append(data, '\n'))
+		}
+		if err != nil {
+			return err
+		}
+	}
+	a.folders = folders
+	return nil
 }
 
 // folderModal edits what a collection or folder gives its requests: the

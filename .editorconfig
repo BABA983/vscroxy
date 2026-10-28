@@ -13,3 +13,9 @@ insert_final_newline = true
 [{*.yml,*.yaml,*.json}]
 indent_style = space
 indent_size = 2
+
+# Vendored, kept byte-for-byte as published.
+[internal/request/js/chai.js]
+indent_style = unset
+trim_trailing_whitespace = unset
+insert_final_newline = unset

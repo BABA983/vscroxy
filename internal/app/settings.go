@@ -35,6 +35,8 @@ type settings struct {
 	KeyLogPath string `json:"keyLogPath,omitempty"`
 	// ProxyPort is the fixed loopback port, or zero for automatic selection.
 	ProxyPort int `json:"proxyPort,omitzero"`
+	// VaultScripts lets request scripts use pm.vault.
+	VaultScripts bool `json:"vaultScripts,omitzero"`
 }
 
 func (s settings) proxyAddr() (string, error) {
@@ -131,6 +133,7 @@ func sameSettings(x, y settings) bool {
 		x.HeaderColumn == y.HeaderColumn &&
 		x.KeyLogPath == y.KeyLogPath &&
 		x.ProxyPort == y.ProxyPort &&
+		x.VaultScripts == y.VaultScripts &&
 		slices.Equal(x.Columns.Order, y.Columns.Order) &&
 		maps.Equal(x.Columns.Widths, y.Columns.Widths)
 }

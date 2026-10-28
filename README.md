@@ -37,6 +37,8 @@ JavaScript request/response hooks run in Goja inside the Go process, not Node.js
 - `internal/app/` owns the native UI, application state and UI tests.
 - `internal/request/` turns an authored request into traffic: variables,
   auth and form encoding, scripts, response checks and sending through the proxy.
+- `internal/postman/` converts Postman Collection v2.1 and environment files
+  to and from requests and collection settings.
 - `internal/vault/` seals request secrets with AES-256-GCM and limits them to
   their allowed domains.
 - The other `internal/` packages contain capture, system-proxy integration,

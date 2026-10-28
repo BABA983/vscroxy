@@ -197,7 +197,7 @@ func (a *app) moreMenu(c *ui.Context, m *ui.Menu) {
 		if m.Item("Export requests…").Chosen() {
 			a.exportRequests()
 		}
-		if m.Item("Import requests…").Chosen() {
+		if m.Item("Import requests or Postman…").Chosen() {
 			a.importRequests()
 		}
 		if m.Item("Import regression…").Chosen() {

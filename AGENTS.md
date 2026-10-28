@@ -8,7 +8,9 @@ The Go module and MyGo configuration live at the repository root.
 `internal/app/` owns the UI and application state. `internal/request/` owns an
 authored request and how it becomes traffic (variables, encoding, scripts,
 checks, sending); it never imports MyGo. `internal/vault/` seals secrets and
-decides which hosts may receive them. Keep the other `internal/`
+decides which hosts may receive them. `internal/postman/` converts Postman
+collections and environments. Request scripts are Postman's `pm` API, built in
+`internal/request/js/pm.js` on an embedded, unmodified Chai 4.5.0. Keep the other `internal/`
 packages' existing responsibility boundaries; `third_party/go-mitmproxy/` is a
 locally patched dependency with its own license and patch notes.
 

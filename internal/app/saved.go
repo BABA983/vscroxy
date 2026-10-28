@@ -34,6 +34,11 @@ func loadRequests(path string) ([]savedRequest, error) {
 	if err != nil {
 		return nil, err
 	}
+	return parseRequests(data)
+}
+
+// parseRequests reads a request list file's contents.
+func parseRequests(data []byte) ([]savedRequest, error) {
 	var list []savedRequest
 	if err := json.Unmarshal(data, &list); err != nil {
 		return nil, err
@@ -75,11 +80,10 @@ func (a *app) persistRequests(list []savedRequest) error {
 	return saveRequests(a.requestsPath, list)
 }
 
-// saveRequests writes the list, sorted by collection and name.
+// saveRequests writes the list grouped by collection. Within one, requests
+// keep their order: an imported collection's is the order its Runner uses.
 func saveRequests(path string, list []savedRequest) error {
-	slices.SortFunc(list, func(x, y savedRequest) int {
-		return cmp.Or(cmp.Compare(x.Collection, y.Collection), cmp.Compare(x.Name, y.Name))
-	})
+	slices.SortStableFunc(list, func(x, y savedRequest) int { return cmp.Compare(x.Collection, y.Collection) })
 	data, err := json.Marshal(list)
 	if err != nil {
 		return err

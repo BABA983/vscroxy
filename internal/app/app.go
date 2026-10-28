@@ -275,6 +275,7 @@ type app struct {
 	nextDocument    int
 	closingDocument *requestDocument
 	requestResults  []requestResult
+	importReport    importReport
 	runner          collectionRunner
 	cookies         *cookieStore
 	cookieUI        cookieEditor
@@ -362,7 +363,7 @@ func newApp() *app {
 		if saved, err := loadSettings(a.settingsPath); err != nil {
 			a.errText = err.Error()
 		} else {
-			a.saved, a.proxyPort = saved, saved.ProxyPort
+			a.saved, a.proxyPort, a.vault.scripts = saved, saved.ProxyPort, saved.VaultScripts
 			if saved.ProxyPort != 0 {
 				a.proxyPortInput = strconv.Itoa(saved.ProxyPort)
 			}
@@ -746,6 +747,7 @@ func (a *app) drain() {
 		if result.vars != nil && !maps.Equal(result.varsBefore, result.vars) {
 			a.applyVars(result.environment, result.varsBefore, result.vars)
 		}
+		a.applyWrites(result.writes)
 		if result.history != nil {
 			a.history = pushHistory(a.history, *result.history)
 			a.saveHistory()
@@ -1196,6 +1198,7 @@ func (a *app) view(c *ui.Context) {
 			}
 		})
 	a.varsModal(c, t)
+	a.importReportModal(c, t)
 	a.folderModal(c, t)
 	a.vaultModal(c, t)
 	a.markModal(c, t)
@@ -1635,12 +1638,17 @@ func (a *app) requestSidebar(c *ui.Context, t *ui.Theme) {
 		}
 		ui.Divider(c)
 		ui.Column(c).Padding(8).Gap(2).Children(func() {
-			if ui.ButtonBase(c).Label("Import cURL…").Height(26).Padding(0, 6).Gap(8).Radius(5).FillWidth().
-				AlignItems(ui.Center).TextColor(t.TextMuted).Children(func() {
-				ui.Icon(c, plusIcon).Size(13, 13)
-				ui.Text(c, "Import cURL…").FontSize(12).Grow(1)
-			}).Clicked() {
-				a.openCurlImport()
+			for _, item := range []struct {
+				label string
+				run   func()
+			}{{"Import cURL…", a.openCurlImport}, {"Import Postman…", a.importRequests}} {
+				if ui.ButtonBase(c).Label(item.label).Height(26).Padding(0, 6).Gap(8).Radius(5).FillWidth().
+					AlignItems(ui.Center).TextColor(t.TextMuted).Children(func() {
+					ui.Icon(c, plusIcon).Size(13, 13)
+					ui.Text(c, item.label).FontSize(12).Grow(1)
+				}).Clicked() {
+					item.run()
+				}
 			}
 			for _, item := range []struct {
 				label string
@@ -2431,6 +2439,11 @@ func (a *app) applyVars(name string, before, vars map[string]string) {
 			a.envs[at].Vars[key] = value
 		}
 	}
+	for key := range before {
+		if _, ok := vars[key]; !ok {
+			delete(a.envs[at].Vars, key) // pm.environment.unset
+		}
+	}
 	if a.activeEnv == "" {
 		a.activeEnv = name
 	}
@@ -2546,6 +2559,10 @@ func (a *app) varsModal(c *ui.Context, t *ui.Theme) {
 				ui.Text(c, a.varsProblem).FontSize(11).TextColor(t.Danger)
 			}
 			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
+				if ui.Button(c, "Export as Postman…").Tooltip("Writes the rows shown here, saved or not, in Postman's environment format").Clicked() {
+					a.exportPostmanVariables()
+				}
+				ui.Spacer(c)
 				if ui.Button(c, "Cancel").Clicked() {
 					a.varsOpen = false
 				}
@@ -2647,7 +2664,7 @@ func (a *app) sendComposed() {
 	go func() {
 		defer cancel()
 		got := r.Execute(ctx, srv, in, vars, jar)
-		result := requestResult{document: d, environment: env, summary: runSummary(got), outcome: got.Outcome(), response: got.Response, tests: got.Tests, replies: got.Replies, console: got.Console, varsBefore: vars, vars: got.Vars}
+		result := requestResult{document: d, environment: env, summary: runSummary(got), outcome: got.Outcome(), response: got.Response, tests: got.Tests, replies: got.Replies, console: got.Console, varsBefore: vars, vars: got.Vars, writes: got.Writes}
 		record := snapshotExperiment(0, r, env, got)
 		record.RunKey, record.DraftKey, record.Source = runKey, draftKey, origin
 		result.experiment = &record
@@ -3250,6 +3267,7 @@ func (a *app) persistSettings() error {
 		HeaderColumn:     a.headerColumn,
 		KeyLogPath:       a.keyLogPath,
 		ProxyPort:        a.proxyPort,
+		VaultScripts:     a.vault.scripts,
 	}
 	if sameSettings(now, a.saved) || time.Since(a.lastSave) < 400*time.Millisecond {
 		return nil
@@ -3327,35 +3345,6 @@ func (a *app) exportRequests() {
 			return
 		}
 		a.setMessage(fmt.Sprintf("Exported %d requests to %s", len(list), path))
-	}()
-}
-
-// importRequests adds the requests of a file the user picks, keeping the ones
-// already saved.
-func (a *app) importRequests() {
-	go func() {
-		paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{
-			Title:   "Import requests",
-			Filters: []mygo.FileFilter{{Name: "Requests", Extensions: []string{"json"}}},
-		})
-		if err != nil || len(paths) == 0 {
-			return
-		}
-		path := paths[0]
-		list, err := loadRequests(path)
-		if err != nil {
-			a.setMessage("Import requests: " + err.Error())
-			return
-		}
-		a.win.Update(func() {
-			merged := mergeRequests(a.requests, list)
-			if err := a.persistRequests(merged); err != nil {
-				a.setMessage("Import requests: " + err.Error())
-				return
-			}
-			a.requests = merged
-			a.setMessage(fmt.Sprintf("Imported %d requests", len(list)))
-		})
 	}()
 }
 

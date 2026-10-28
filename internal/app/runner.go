@@ -17,6 +17,9 @@ import (
 
 // runSummary is one line for a run: its error, or status, size, time and checks.
 func runSummary(r request.Execution) string {
+	if r.Skipped {
+		return "Skipped by its pre-request script"
+	}
 	if r.Err != nil {
 		return r.Err.Error()
 	}
@@ -48,6 +51,7 @@ type runnerRow struct {
 type runnerEvent struct {
 	row          runnerRow
 	before, vars map[string]string
+	writes       []request.Write
 	record       experimentRecord
 }
 type collectionRunner struct {
@@ -83,9 +87,7 @@ func (r *collectionRunner) load(requests []savedRequest) {
 			r.steps = append(r.steps, runnerStep{request: req, enabled: true})
 		}
 	}
-	slices.SortFunc(r.steps, func(a, b runnerStep) int {
-		return strings.Compare(a.request.Collection+"/"+a.request.Name, b.request.Collection+"/"+b.request.Name)
-	})
+	slices.SortStableFunc(r.steps, func(a, b runnerStep) int { return strings.Compare(a.request.Collection, b.request.Collection) })
 }
 
 func (a *app) startRunner() {
@@ -126,21 +128,37 @@ func (a *app) startRunner() {
 		defer close(events)
 		defer cancel()
 		defer a.invalidate()
+		var locals map[string]string
 		for iteration := 1; iteration <= n; iteration++ {
-			for i, req := range requests {
+			for i := 0; i < len(requests); {
 				if ctx.Err() != nil {
 					return
 				}
+				req, in := requests[i], contexts[i]
+				in.Iteration, in.Iterations, in.Locals = iteration-1, n, locals
 				before := maps.Clone(vars)
 				stepCtx, stepCancel := context.WithTimeout(ctx, 30*time.Second)
 				runKey := uuid.New().String()
 				stepCtx = request.WithRunKey(stepCtx, runKey)
-				got := req.Execute(stepCtx, srv, contexts[i], vars, jar)
+				got := req.Execute(stepCtx, srv, in, vars, jar)
 				stepCancel()
-				vars = got.Vars
+				vars, locals = got.Vars, got.Locals
+				// Later requests see the globals and collection variables
+				// this one's scripts changed, as the app is about to save them.
+				for j := range contexts {
+					contexts[j] = contexts[j].Apply(got.Writes, requests[j].Collection)
+				}
+				next, console := nextStep(requests, i, got.Next), got.Console
+				if got.Next != nil && next == len(requests) {
+					text := "pm.execution.setNextRequest(null) stopped the run"
+					if *got.Next != "" {
+						text = fmt.Sprintf("setNextRequest(%q): no such request in this run, so it stopped", *got.Next)
+					}
+					console = append(slices.Clone(console), request.ConsoleMessage{Phase: "runner", Kind: "warning", Text: text})
+				}
 				record := snapshotExperiment(0, req, env, got)
 				record.RunKey = runKey
-				event := runnerEvent{row: runnerRow{name: req.Name, iteration: iteration, summary: runSummary(got), failed: got.Failed(), tests: got.Tests, console: got.Console}, before: before, vars: maps.Clone(vars), record: record}
+				event := runnerEvent{row: runnerRow{name: req.Name, iteration: iteration, summary: runSummary(got), failed: got.Failed(), tests: got.Tests, console: console}, before: before, vars: maps.Clone(vars), writes: got.Writes, record: record}
 				select {
 				case events <- event:
 				default:
@@ -153,12 +171,39 @@ func (a *app) startRunner() {
 					}
 				}
 				a.invalidate()
-				if stop && got.Failed() {
+				if stop && got.Failed() || got.Next != nil && next == len(requests) {
 					return
 				}
+				i = next
 			}
 		}
 	}()
+}
+
+// runnableCollections are the paths a run can start from: every collection
+// and folder that holds requests, directly or below it.
+func runnableCollections(requests []savedRequest) []string {
+	seen := map[string]bool{}
+	for _, r := range requests {
+		path := ""
+		for part := range strings.SplitSeq(r.Collection, "/") {
+			path = strings.TrimPrefix(path+"/"+part, "/")
+			seen[path] = true
+		}
+	}
+	return slices.Sorted(maps.Keys(seen))
+}
+
+// nextStep is the index of the request after step i: the following one, or
+// the one pm.execution.setNextRequest named. len(requests) stops the run.
+func nextStep(requests []savedRequest, i int, next *string) int {
+	if next == nil {
+		return i + 1
+	}
+	if at := slices.IndexFunc(requests, func(r savedRequest) bool { return r.Name == *next || r.ID == *next }); at >= 0 && *next != "" {
+		return at
+	}
+	return len(requests)
 }
 
 func (a *app) drainRunner() {
@@ -197,6 +242,7 @@ func (a *app) drainRunner() {
 			if !maps.Equal(event.before, event.vars) {
 				a.applyVars(r.environment, event.before, event.vars)
 			}
+			a.applyWrites(event.writes)
 		default:
 			return
 		}
@@ -216,7 +262,7 @@ func (a *app) runnerModal(c *ui.Context, t *ui.Theme) {
 			dialogTitle(c, "Collection Runner")
 			ui.Text(c, "Runs saved requests in order, 30 s per request").FontSize(11).TextColor(t.TextMuted)
 			ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
-				names := slices.Sorted(maps.Keys(groupRequests(a.requests)))
+				names := runnableCollections(a.requests)
 				if len(names) == 0 {
 					names = []string{""}
 				}
@@ -271,11 +317,7 @@ func (a *app) runnerModal(c *ui.Context, t *ui.Theme) {
 								a.experiments.open, r.open = true, false
 							}
 							for _, test := range r.rows[r.picked].tests {
-								mark, color := "✓", t.Success
-								if !test.Pass {
-									mark, color = "✗", t.Danger
-								}
-								ui.Text(c, mark+" "+test.Name).FontSize(11).TextColor(color)
+								testResultRow(c, test, 11)
 							}
 							for _, entry := range row.console {
 								ui.Text(c, entry.Phase+" · "+entry.Kind+" · "+entry.Text).FontSize(11).Selectable()

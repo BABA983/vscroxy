@@ -28,6 +28,15 @@ type Execution struct {
 	ExpectedStatus int
 	Console        []ConsoleMessage
 	Variables      []ResolvedVariable
+	// Locals are pm.variables, which a Runner hands to the next request.
+	Locals map[string]string
+	// Writes are the scripts' global, collection and vault changes, in order.
+	Writes []Write
+	// Skipped is a pre-request script's pm.execution.skipRequest(): nothing
+	// was sent. Next is pm.execution.setNextRequest: nil keeps the Runner's
+	// order, "" stops the run, otherwise a request's name or ID.
+	Skipped bool
+	Next    *string
 }
 
 type debugRunKey struct{}
@@ -46,13 +55,23 @@ func WithRunKey(ctx context.Context, key string) context.Context {
 // vars are the environment's values; Execution.Vars returns them with the
 // scripts' writes, never the inherited, dynamic or vault values.
 func (r Request) Execute(ctx context.Context, srv *capture.Server, in Context, vars map[string]string, jar http.CookieJar) (out Execution) {
-	inherited, _ := in.inherited()
-	run := &scriptRun{vars: maps.Clone(vars), inherited: inherited, phase: "setup"}
-	if run.vars == nil {
-		run.vars = map[string]string{}
+	run := in.scriptRun(r, vars)
+	runKey, _ := ctx.Value(debugRunKey{}).(string)
+	run.send = func(req *Prepared) (capture.Flow, error) {
+		return srv.ReplayWithCookies(ctx, capture.Flow{DebugRun: runKey, Method: req.Method, URL: req.URL, RequestHeader: req.Header, RequestBody: req.Body}, jar, true)
+	}
+	if jar != nil {
+		run.cookies = func(target string) []*http.Cookie {
+			u, err := url.Parse(target)
+			if err != nil || u.Host == "" {
+				return nil
+			}
+			return jar.Cookies(u)
+		}
 	}
 	out = Execution{Vars: run.vars, Stage: "Request setup failed"}
 	defer func() {
+		out.Locals, out.Writes, out.Next = run.locals, run.writes, run.next
 		out.Console = slices.Clone(run.console)
 		if out.Err != nil {
 			out.Console = append(out.Console, ConsoleMessage{run.phase, "error", out.Err.Error()})
@@ -69,10 +88,15 @@ func (r Request) Execute(ctx context.Context, srv *capture.Server, in Context, v
 	// Generate variables first; expand and encode exactly once afterwards.
 	template := &Prepared{Method: r.Method, URL: r.URL, Body: r.Body,
 		Header: ParseHeaderBlock(r.Headers), editedHeaders: map[string]bool{}}
+	run.target = func() string { return ExpandVars(template.URL, run.effective()) }
 	out.Stage = "Pre-request script failed"
 	if err := run.scripts(ctx, "pre-request", in.Folders, func(f Folder) string { return f.Pre }, r.Pre, map[string]any{"req": template}); err != nil {
 		out.Err = err
 		out.Tests, out.Vars = run.tests, run.vars
+		return out
+	}
+	if run.skipped {
+		out.Stage, out.Skipped, out.Tests = "", true, run.tests
 		return out
 	}
 	r.Method, r.URL, r.Headers = template.Method, template.URL, HeaderBlock(template.Header)
@@ -80,7 +104,7 @@ func (r Request) Execute(ctx context.Context, srv *capture.Server, in Context, v
 		r.BodyMode = "Raw" // Explicit script bodies override structured forms.
 	}
 	r.Body = template.Body
-	effective := in.Values(run.vars)
+	effective := run.effective()
 	authHeader := "Authorization"
 	if r.Auth.Type == "API key" {
 		authHeader = ExpandVars(r.Auth.Key, effective)
@@ -90,7 +114,9 @@ func (r Request) Execute(ctx context.Context, srv *capture.Server, in Context, v
 	}
 	out.Stage, run.phase = "Request setup failed", "setup"
 	out.Tests, out.Vars = run.tests, run.vars
-	out.Variables = r.ResolveVariables(in, run.vars, run.written)
+	input := maps.Clone(run.vars)
+	maps.Copy(input, run.locals)
+	out.Variables = r.ResolveVariables(in.Apply(run.writes, r.Collection), input, run.written)
 	r = r.withDynamic(effective)
 	if r.Checks != (Checks{}) {
 		var missing []string
@@ -139,13 +165,13 @@ func (r Request) Execute(ctx context.Context, srv *capture.Server, in Context, v
 			out.Err = fmt.Errorf("post-response scripts require an HTTP response")
 		}
 	} else {
-		runKey, _ := ctx.Value(debugRunKey{}).(string)
 		got, err := srv.ReplayWithCookies(ctx, capture.Flow{DebugRun: runKey, Method: req.Method, URL: req.URL, RequestHeader: req.Header, RequestBody: req.Body}, jar, r.Checks == (Checks{}))
 		out.Err = err
 		if err == nil {
 			out.Response = &got
 			run.tests = append(run.tests, r.Checks.Evaluate(got)...)
-			res := &jsResponse{Status: got.Status, Body: got.ResponseBody, Header: got.ResponseHeader}
+			res := &jsResponse{Status: got.Status, Body: got.ResponseBody, Header: got.ResponseHeader, Millis: got.Millis, Bytes: got.Bytes}
+			run.target = func() string { return req.URL }
 			out.Stage = "Post-response script failed"
 			out.Err = run.scripts(ctx, "post-response", in.Folders, func(f Folder) string { return f.Post }, r.Post, map[string]any{"res": res, "req": req})
 		}
@@ -163,6 +189,9 @@ func (run *scriptRun) scripts(ctx context.Context, phase string, folders []Folde
 		if err := runScriptContext(ctx, src(f), run, objects); err != nil {
 			return fmt.Errorf("%s (%s): %w", title, f.Path, err)
 		}
+		if run.skipped {
+			return nil
+		}
 	}
 	run.phase = phase
 	if err := runScriptContext(ctx, own, run, objects); err != nil {
@@ -171,13 +200,19 @@ func (run *scriptRun) scripts(ctx context.Context, phase string, folders []Folde
 	return nil
 }
 
+// hostOf is the host a URL sends to, "" when it has none.
+func hostOf(target string) string {
+	u, err := url.Parse(target)
+	if err != nil {
+		return ""
+	}
+	return u.Hostname()
+}
+
 // unlock adds the {{vault:name}} values r uses to vars, each read for the
 // host r is sent to, so a secret restricted to other domains stays locked.
 func (in Context) unlock(r Request, vars map[string]string) error {
-	var host string
-	if u, err := url.Parse(ExpandVars(r.URL, vars)); err == nil {
-		host = u.Hostname()
-	}
+	host := hostOf(ExpandVars(r.URL, vars))
 	for _, variable := range r.Variables() {
 		name, ok := vaultName(variable)
 		if !ok {
@@ -199,6 +234,8 @@ func (in Context) unlock(r Request, vars map[string]string) error {
 // A failed assertion never turns a received response into a network failure.
 func (r Execution) Outcome() string {
 	switch {
+	case r.Skipped:
+		return "Skipped by script"
 	case errors.Is(r.Err, context.Canceled):
 		return "Cancelled"
 	case errors.Is(r.Err, context.DeadlineExceeded):
@@ -217,6 +254,9 @@ func (r Execution) Outcome() string {
 }
 
 func (r Execution) Failed() bool {
+	if r.Skipped {
+		return false
+	}
 	if r.Err != nil || r.Response != nil && r.Response.Status >= 400 && r.Response.Status != r.ExpectedStatus {
 		return true
 	}

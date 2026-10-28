@@ -380,6 +380,9 @@ func (a *app) experimentsModal(c *ui.Context, t *ui.Theme) {
 							text := f.resHeaders + "\n\n" + f.body(true)
 							for _, check := range r.Tests {
 								text += fmt.Sprintf("\nCheck %t: %s", check.Pass, check.Name)
+								if check.Error != "" {
+									text += " — " + check.Error
+								}
 							}
 							if len(r.Replies) > 0 {
 								text += "\nWebSocket replies:\n" + strings.Join(r.Replies, "\n")

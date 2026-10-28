@@ -37,6 +37,10 @@ type vaultState struct {
 	keyInFile bool
 	problem   string
 
+	// scripts lets request scripts use pm.vault; scriptsDraft is the
+	// dialog's unsaved choice.
+	scripts, scriptsDraft bool
+
 	open        bool
 	rows        []vaultRow
 	editProblem string
@@ -117,9 +121,10 @@ func (a *app) vaultKey(create bool) (key []byte, inFile bool, err error) {
 // send in flight is unaffected by later edits.
 func (a *app) sendContext(r request.Request) request.Context {
 	in := a.inheritance(r.Collection)
+	in.Environment, in.ScriptVault = a.activeEnv, a.vault.scripts
 	r.Auth, _ = in.InheritAuth(r.Auth)
 	reads := slices.ContainsFunc(r.Variables(), func(name string) bool { return strings.HasPrefix(name, "vault:") })
-	if reads {
+	if reads || in.ScriptVault {
 		if err := a.ensureVault(); err != nil {
 			in.Vault = func(string, string) (string, error) { return "", fmt.Errorf("the vault is locked: %w", err) }
 			return in
@@ -133,7 +138,7 @@ func (a *app) sendContext(r request.Request) request.Context {
 
 func (a *app) openVault() {
 	v := &a.vault
-	v.open, v.editProblem, v.resetting, v.rows = true, "", false, nil
+	v.open, v.editProblem, v.resetting, v.rows, v.scriptsDraft = true, "", false, nil, v.scripts
 	if a.ensureVault() != nil {
 		return
 	}
@@ -164,16 +169,26 @@ func (a *app) saveVault() {
 		}
 		secrets = append(secrets, vault.Secret{Name: name, Value: row.value, Domains: domains})
 	}
+	if err := a.writeVault(secrets); err != nil {
+		v.editProblem = "Save failed: " + err.Error()
+		return
+	}
+	v.open, v.scripts = false, v.scriptsDraft
+	a.persistSettings()
+	a.setMessage(fmt.Sprintf("Vault saved · %d %s", len(secrets), plural(len(secrets), "secret", "secrets")))
+}
+
+// writeVault seals and saves the secrets and makes them the ones in use.
+func (a *app) writeVault(secrets vault.Secrets) error {
+	v := &a.vault
 	data, err := vault.Seal(v.key, secrets)
 	if err == nil {
 		err = writePrivateFile(v.path, data)
 	}
-	if err != nil {
-		v.editProblem = "Save failed: " + err.Error()
-		return
+	if err == nil {
+		v.secrets = secrets
 	}
-	v.secrets, v.open = secrets, false
-	a.setMessage(fmt.Sprintf("Vault saved · %d %s", len(secrets), plural(len(secrets), "secret", "secrets")))
+	return err
 }
 
 // resetVault deletes a vault nobody can open, so a new one can start.
@@ -255,6 +270,8 @@ func (a *app) vaultModal(c *ui.Context, t *ui.Theme) {
 					v.rows = append(v.rows, vaultRow{})
 				}
 			})
+			ui.Checkbox(c, &v.scriptsDraft, "Let scripts use pm.vault").
+				Tooltip("Scripts can then read any secret allowed for their request's host, and add, change or remove secrets")
 			if v.editProblem != "" {
 				ui.Text(c, v.editProblem).FontSize(11).TextColor(t.Danger)
 			}

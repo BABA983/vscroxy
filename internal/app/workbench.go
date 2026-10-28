@@ -390,6 +390,8 @@ func (a *app) desktopActions(c *ui.Context) []desktopAction {
 		{"collection", "Collection settings…", editing && d.composeCollection != "", 0, 0, func() { a.openFolder(d.composeCollection) }},
 		{"new-request", "New request", true, ui.Cmd, ui.KeyN, a.openCompose},
 		{"import-curl", "Import cURL…", true, 0, 0, a.openCurlImport},
+		{"import-postman", "Import Postman collection or environment…", true, 0, 0, a.importRequests},
+		{"export-postman", "Export collection as Postman…", editing && d.composeCollection != "", 0, 0, func() { a.exportPostman(collectionRoot(d.composeCollection)) }},
 		{"settings", "Open settings…", true, ui.Cmd, ui.KeyComma, func() { a.settingsOpen = true }},
 		{"capture-workspace", "Capture", true, ui.Cmd, ui.Key1, func() {
 			a.workspace, a.captureSection = 0, 0
