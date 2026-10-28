@@ -830,10 +830,10 @@ pre-script and before expansion, distinguishing run input (environment snapshot
 or a preceding Runner step) from pre-script writes. Post-script changes do not
 rewrite this snapshot. Values stay masked until revealed.
 
-If `requests.json` or `env.json` cannot be read, its error and path remain
-visible and writes to that asset are blocked, including script variable saves
-and library imports. Repair the affected file or move it aside as a backup,
-then choose **Reload local assets** to retry reading. This never deletes or
+If a file of the request library (below) or `env.json` cannot be read, its
+error and path remain visible and writes to that asset are blocked, including
+script variable saves and library imports. Repair the affected file or move it
+aside as a backup, then choose **Reload local assets** to retry reading. This never deletes or
 resets the original file automatically. Missing files are valid empty assets.
 A proxy initialization failure shows the actual error and no sample traffic;
 local request/environment assets remain accessible for offline editing.
@@ -845,8 +845,8 @@ A request's collection path (`Shop/Orders`) is a chain of levels: the collection
 sidebar, or open the request's **⋯** menu, to edit **Collection “Shop”
 settings…** or **Folder “Orders” settings…**. Each level has its own **Auth**,
 pre-request and post-response **Scripts**, **Variables** and a **Description**.
-They are kept in `~/.vscroxy/collections.json`, keyed by path, so renaming a
-collection leaves its settings under the old name until they are moved.
+The **Name** at the top of the same dialog renames that collection or folder:
+its requests, folders and settings move together, and open tabs follow.
 
 - **Auth**: a request whose Auth is **Inherit** sends the nearest level's auth
   that is not itself Inherit; if none has one, it sends no auth.
@@ -937,13 +937,53 @@ block conversion with a message. Opening a draft never sends and never edits
 the original capture. Source identity and bounded source evidence accompany the
 saved request across restart.
 
-**Save request** keeps the editor's request in `~/.vscroxy/requests.json` with
+**Save request** keeps the editor's request in the request library with
 a stable ID: renaming or moving it updates the same asset. Unrelated same-name
 assets are not silently overwritten. **Duplicate as new request** creates a new
 identity. Legacy assets gain deterministic IDs in memory without a load-time
 rewrite; the next explicit save persists them. Imports update matching IDs and
 rename unrelated name collisions. The sidebar groups requests by collection; the
 **Session** menu exports and imports them as a file.
+
+#### The request library on disk
+
+The library is a directory tree in `~/.vscroxy/collections/`, so a collection
+can be kept in Git or edited by hand:
+
+```text
+collections/
+  folder.json                    order of the requests outside a collection
+  Shop/                          the collection “Shop”
+    folder.json                  its settings and the order of its requests
+    List products.request.json   one request: its ID, name and everything else
+    Orders/                      the folder “Shop/Orders”
+      folder.json
+      Get order.request.json
+```
+
+A directory's name is the collection or folder name; a request file's name
+follows the request's name, which the file holds. Characters a file system
+forbids (`/ \ : * ? " < > |`), `%`, a leading dot, trailing dots and spaces
+and Windows device names are written as `%XX`. Requests whose names differ only
+in letter case get a numbered file name; collections and folders that differ
+only in letter case are refused, because they would share a directory on macOS
+and Windows. Files are indented JSON, private to you (0600). Other files and
+names starting with a dot (such as `.git`) are not the library's and are left
+alone.
+
+The app reads the tree at start and with **Reload collections from disk** in
+the command palette. A request file added by hand is shown after the requests
+its `folder.json` lists, and gets a stable ID from its path until it is saved.
+Saving writes only the files that change. When a file was changed outside the
+app since it was read (by `git pull`, for example), the save is refused before
+anything is written, and the file is never overwritten or deleted: reload, then
+save again. Reloading shows the new contents in open tabs without unsaved
+changes; a tab with unsaved changes keeps them, and saving it replaces the file.
+
+The first start of this version moves `requests.json` and `collections.json`
+into the tree and keeps them as `requests.json.migrated` and
+`collections.json.migrated`. If either cannot be read, nothing is moved and
+saving stays blocked until the file is repaired.
 
 **Runs → All retained runs…** opens the retained records for choosing an individual
 immutable attempt. **Send history** scopes the same view to a draft (or its source),

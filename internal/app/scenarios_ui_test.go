@@ -48,7 +48,7 @@ func TestEditReplayOpensExactBytesWithoutSending(t *testing.T) {
 			if got := request.ParseHeaderBlock(a.composeHeaders); len(got.Values("X-Tag")) != 2 || got.Get("Content-Encoding") != "" || a.flows[0].reqHeader.Get("Content-Encoding") != "gzip" {
 				t.Fatal("conversion changed source or duplicate/encoding headers")
 			}
-			a.requestsPath = filepath.Join(t.TempDir(), "requests.json")
+			a.library.root = filepath.Join(t.TempDir(), "collections")
 			if !a.saveComposed() {
 				t.Fatal(a.message)
 			}

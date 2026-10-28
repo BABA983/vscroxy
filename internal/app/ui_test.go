@@ -1258,7 +1258,7 @@ func TestProxyPortEditorSavesWithoutInterruptingCapture(t *testing.T) {
 
 func TestRequestTabsKeepDraftsAndConfirmClose(t *testing.T) {
 	a := workspaceApp()
-	a.requestsPath = filepath.Join(t.TempDir(), "requests.json")
+	a.library.root = filepath.Join(t.TempDir(), "collections")
 	tt := ui.NewTester(a.view, 1100, 650)
 	click := func(label string) {
 		t.Helper()
@@ -1309,14 +1309,14 @@ func TestRequestTabsKeepDraftsAndConfirmClose(t *testing.T) {
 	if err := os.WriteFile(blocked, nil, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	a.requestsPath = filepath.Join(blocked, "requests.json")
+	a.library.root = filepath.Join(blocked, "collections")
 	click("Save & close")
 	if !tt.HasText("Save changes?") {
 		t.Fatal("failed save discarded the draft")
 	}
-	a.requestsPath = filepath.Join(t.TempDir(), "requests.json")
+	a.library.root = filepath.Join(t.TempDir(), "collections")
 	click("Save & close")
-	list, err := loadRequests(a.requestsPath)
+	list, err := loadLibraryRequests(a.library.root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1620,7 +1620,7 @@ func TestConcurrentRequestTabsOwnTheirResponses(t *testing.T) {
 
 func TestAPIWorkflowPreservesIndependentContracts(t *testing.T) {
 	a := workspaceApp()
-	a.requestsPath = filepath.Join(t.TempDir(), "requests.json")
+	a.library.root = filepath.Join(t.TempDir(), "collections")
 	a.apisPath = filepath.Join(t.TempDir(), "apis.json")
 	tt := ui.NewTester(a.view, 1100, 700)
 	click := func(label string) {
@@ -1851,7 +1851,7 @@ func TestBodyTabFormatIndentsTheDraftBody(t *testing.T) {
 
 func TestHeaderTableKeepsOrderDuplicatesAndDisabledRows(t *testing.T) {
 	a := workspaceApp()
-	a.requestsPath = filepath.Join(t.TempDir(), "requests.json")
+	a.library.root = filepath.Join(t.TempDir(), "collections")
 	tt := ui.NewTester(a.view, 1200, 1000)
 	click := func(label string) {
 		t.Helper()
@@ -1904,10 +1904,10 @@ func TestHeaderTableKeepsOrderDuplicatesAndDisabledRows(t *testing.T) {
 	}
 	// Saving keeps both the block and the rows, disabled ones included.
 	click("Save")
-	if _, err := os.Stat(a.requestsPath); err != nil {
+	if _, err := os.Stat(a.library.root); err != nil {
 		t.Fatal(err)
 	}
-	stored, err := loadRequests(a.requestsPath)
+	stored, err := loadLibraryRequests(a.library.root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2328,7 +2328,7 @@ func TestDeviceOnboardingCertificateHTTPSAndLiveTunnelRevocation(t *testing.T) {
 
 func TestCaptureRegressionCanBeSavedAndSharedOnlyAfterReview(t *testing.T) {
 	a := workspaceApp()
-	a.requestsPath = filepath.Join(t.TempDir(), "requests.json")
+	a.library.root = filepath.Join(t.TempDir(), "collections")
 	tt := ui.NewTester(a.view, 960, 600)
 	click := func(label string) {
 		t.Helper()
@@ -2346,7 +2346,7 @@ func TestCaptureRegressionCanBeSavedAndSharedOnlyAfterReview(t *testing.T) {
 		t.Fatal("capture did not become an unsent regression draft")
 	}
 	click("Save")
-	loaded, err := loadRequests(a.requestsPath)
+	loaded, err := loadLibraryRequests(a.library.root)
 	if err != nil || len(loaded) != 2 || loaded[0].Checks.Status != "200" {
 		t.Fatalf("checks not saved: %+v %v", loaded, err)
 	}

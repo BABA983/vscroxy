@@ -26,7 +26,7 @@ func TestRequestIdentitySurvivesLegacyLoadRenameMoveAndImport(t *testing.T) {
 		t.Fatal("loading rewrote the legacy file")
 	}
 	a := workspaceApp()
-	a.requests, a.requestsPath = first, path
+	a.requests, a.library.root = first, filepath.Join(t.TempDir(), "collections")
 	a.openSaved(first[0].key())
 	id, document := a.assetID, a.requestDocument
 	a.setDebugSource(newDebugSource(a.flows[0]))
@@ -42,7 +42,7 @@ func TestRequestIdentitySurvivesLegacyLoadRenameMoveAndImport(t *testing.T) {
 	if a.requestDocument != document {
 		t.Fatal("rename opened a second tab for the same asset")
 	}
-	loaded, err := loadRequests(path)
+	loaded, err := loadLibraryRequests(a.library.root)
 	if err != nil || loaded[0].ID != id || loaded[0].Name != "Authenticate" {
 		t.Fatalf("restart lost identity: %+v %v", loaded, err)
 	}

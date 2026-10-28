@@ -34,7 +34,9 @@ JavaScript request/response hooks run in Goja inside the Go process, not Node.js
 ## Source layout
 
 - `cmd/vscroxy/` is the executable entry point, including proxy-guard mode.
-- `internal/app/` owns the native UI, application state and UI tests.
+- `internal/app/` owns the native UI, application state and UI tests, and
+  keeps the request library as one directory per collection and one file per
+  request (`library.go`).
 - `internal/request/` turns an authored request into traffic: variables,
   auth and form encoding, scripts, response checks and sending through the proxy.
 - `internal/postman/` converts Postman Collection v2.1 and environment files

@@ -456,10 +456,10 @@ func TestCollectionRunnerCancellationRevokesInFlightRequest(t *testing.T) {
 }
 
 // A collection's settings reach the requests filed under it: chosen from the
-// sidebar, saved to collections.json, and shown where a request inherits.
+// sidebar, saved to the folder's folder.json, and shown where a request inherits.
 func TestCollectionSettingsGiveRequestsTheirAuth(t *testing.T) {
 	a := workspaceApp()
-	a.foldersPath = filepath.Join(t.TempDir(), "collections.json")
+	a.library.root = filepath.Join(t.TempDir(), "collections")
 	a.workspace = 1
 	tt := ui.NewTester(a.view, 1280, 760)
 	click := func(label string) {
@@ -483,9 +483,9 @@ func TestCollectionSettingsGiveRequestsTheirAuth(t *testing.T) {
 	click("Bearer token")
 	tt.Type("{{vault:api}}")
 	click("Save settings")
-	data, err := os.ReadFile(a.foldersPath)
-	if err != nil || !strings.Contains(string(data), `"path":"Workspace/API"`) || !strings.Contains(string(data), `{{vault:api}}`) {
-		t.Fatalf("collections.json = %s, %v", data, err)
+	data, err := os.ReadFile(filepath.Join(a.library.root, "Workspace", "API", "folder.json"))
+	if err != nil || !strings.Contains(string(data), `{{vault:api}}`) {
+		t.Fatalf("Workspace/API/folder.json = %s, %v", data, err)
 	}
 	click("Auth")
 	click("Authorization type")
@@ -593,5 +593,46 @@ func TestOpeningARequestWithoutHeadersLeavesItUnchanged(t *testing.T) {
 	ui.NewTester(a.view, 1100, 700).Frame()
 	if len(d.headerRows) != 1 || d.dirty() {
 		t.Fatalf("header rows %+v, dirty %v: the table's blank row must not count as an edit", d.headerRows, d.dirty())
+	}
+}
+
+// Renaming a folder from its settings moves its requests and settings; the
+// request's tab follows and still inherits.
+func TestRenamingAFolderFromItsSettings(t *testing.T) {
+	a := workspaceApp()
+	a.library.root = filepath.Join(t.TempDir(), "collections")
+	if err := a.writeLibrary(a.requests, []request.Folder{{Path: "Workspace/API", Auth: request.Auth{Type: "Bearer", Token: "t"}}}); err != nil {
+		t.Fatal(err)
+	}
+	a.workspace = 1
+	tt := ui.NewTester(a.view, 1280, 760)
+	if err := tt.Click("List projects"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.RightClick("List projects"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.ChooseMenuItem("Folder “API” settings…"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.Click("Folder name"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Key(ui.Cmd, ui.KeyA)
+	tt.Type("Public API")
+	if err := tt.Click("Save settings"); err != nil {
+		t.Fatal(err)
+	}
+	if a.folderUI.open || a.composeCollection != "Workspace/Public API" || a.dirty() {
+		t.Fatalf("dialog open %v (%s), tab collection %q, dirty %v", a.folderUI.open, a.folderUI.problem, a.composeCollection, a.dirty())
+	}
+	if _, err := os.Stat(filepath.Join(a.library.root, "Workspace", "Public API", "folder.json")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(a.library.root, "Workspace", "API")); err == nil {
+		t.Fatal("the old folder was left behind")
+	}
+	if auth, from := a.inheritance(a.composeCollection).InheritAuth(request.Auth{Type: request.AuthInherit}); auth.Token != "t" || from != "Workspace/Public API" {
+		t.Fatalf("inherited %+v from %q", auth, from)
 	}
 }

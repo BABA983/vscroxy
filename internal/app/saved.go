@@ -43,19 +43,24 @@ func parseRequests(data []byte) ([]savedRequest, error) {
 	if err := json.Unmarshal(data, &list); err != nil {
 		return nil, err
 	}
+	return list, assignIDs(list)
+}
+
+// assignIDs gives requests without an ID a deterministic one: loading an
+// old file never writes it, yet repeated loads and imports keep the same
+// identity until the next explicit save persists it. Duplicates are an error.
+func assignIDs(list []savedRequest) error {
 	seen := map[string]bool{}
 	for i := range list {
 		if list[i].ID == "" {
-			// Deterministic until the next explicit save: loading an old file
-			// never writes it, yet repeated loads/imports keep the same identity.
 			list[i].ID = fmt.Sprintf("legacy-%x", sha256.Sum256([]byte(list[i].Collection+"\x00"+list[i].Name)))
 		}
 		if seen[list[i].ID] {
-			return nil, fmt.Errorf("duplicate request identity %q", list[i].ID)
+			return fmt.Errorf("duplicate request identity %q", list[i].ID)
 		}
 		seen[list[i].ID] = true
 	}
-	return list, nil
+	return nil
 }
 
 func (r savedRequest) key() string {
@@ -68,16 +73,7 @@ func (r savedRequest) key() string {
 // persistRequests is the app's guarded library write; exports use saveRequests
 // directly because a separate destination is not the protected library.
 func (a *app) persistRequests(list []savedRequest) error {
-	if a.requestsProblem != "" {
-		return fmt.Errorf("%s; original file left untouched; repair or move it aside and reload local assets", a.requestsProblem)
-	}
-	if a.requestsPath == "" {
-		return nil
-	}
-	if err := os.MkdirAll(filepath.Dir(a.requestsPath), 0o700); err != nil {
-		return err
-	}
-	return saveRequests(a.requestsPath, list)
+	return a.writeLibrary(list, a.folders)
 }
 
 // saveRequests writes the list grouped by collection. Within one, requests

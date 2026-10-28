@@ -121,7 +121,7 @@ func TestStartupRejectsInvalidSavedProxyPorts(t *testing.T) {
 			if !strings.Contains(a.errText, "1024 and 65535") {
 				t.Fatalf("invalid port error = %q", a.errText)
 			}
-			if len(a.flows) != 0 || a.requestsPath == "" || a.envsPath == "" {
+			if len(a.flows) != 0 || a.library.root == "" || a.envsPath == "" {
 				t.Fatal("proxy failure must not seed traffic or hide local asset paths")
 			}
 		})

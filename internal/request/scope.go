@@ -16,7 +16,7 @@ const AuthInherit = "Inherit"
 // variables they read. Path is the collection label requests carry: "Shop"
 // for a collection and "Shop/Orders" for a folder in it.
 type Folder struct {
-	Path        string  `json:"path"`
+	Path        string  `json:"path,omitempty"`
 	Description string  `json:"description,omitempty"`
 	Auth        Auth    `json:"auth,omitzero"`
 	Pre         string  `json:"pre,omitempty"`

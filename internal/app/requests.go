@@ -166,17 +166,27 @@ func (d *requestDocument) title() string {
 func (a *app) addDocument(r savedRequest, key string) {
 	a.nextDocument++
 	d := &requestDocument{
-		id: a.nextDocument, debugKey: uuid.New().String(), revealTab: true, savedKey: key, requestPercent: draftPercent,
-		assetID:     r.ID,
-		composeName: r.Name, composeCollection: r.Collection,
-		composeMethod: cmp.Or(r.Method, "GET"), composeURL: r.URL,
-		composeHeaders: r.Headers, composeBody: r.Body,
-		headerRows: slices.Clone(r.HeaderList),
-		composePre: r.Pre, composePost: r.Post,
-		checks: r.Checks,
-		auth:   r.Auth, bodyMode: cmp.Or(r.BodyMode, "Raw"), formFields: slices.Clone(r.Form), composeTab: composeTabFor(r),
-		baseline: savedRequest{Method: "GET", URL: "https://"},
+		id: a.nextDocument, debugKey: uuid.New().String(), revealTab: true, requestPercent: draftPercent,
+		composeTab: composeTabFor(r), baseline: savedRequest{Method: "GET", URL: "https://"},
 	}
+	d.load(r, key)
+	a.documents = append(a.documents, d)
+	a.requestDocument = d
+	a.requestChoice = key
+	a.workspace, a.requestsSection = 1, 0
+	d.urlInput.Focus()
+}
+
+// load puts r in the editor; a key says it is that saved asset, which is
+// then the baseline its unsaved changes are measured against.
+func (d *requestDocument) load(r savedRequest, key string) {
+	d.savedKey, d.assetID = key, r.ID
+	d.composeName, d.composeCollection = r.Name, r.Collection
+	d.composeMethod, d.composeURL = cmp.Or(r.Method, "GET"), r.URL
+	d.composeHeaders, d.composeBody = r.Headers, r.Body
+	d.headerRows, d.headerFor = slices.Clone(r.HeaderList), ""
+	d.composePre, d.composePost, d.checks = r.Pre, r.Post, r.Checks
+	d.auth, d.bodyMode, d.formFields = r.Auth, cmp.Or(r.BodyMode, "Raw"), slices.Clone(r.Form)
 	if d.headerRows == nil && d.composeHeaders != "" {
 		d.headerRows, d.headerFor = parseHeaderRows(d.composeHeaders), d.composeHeaders
 	}
@@ -186,11 +196,6 @@ func (a *app) addDocument(r savedRequest, key string) {
 	if key != "" {
 		d.baseline = d.value()
 	}
-	a.documents = append(a.documents, d)
-	a.requestDocument = d
-	a.requestChoice = key
-	a.workspace, a.requestsSection = 1, 0
-	d.urlInput.Focus()
 }
 
 // The request editor's tabs, in the order they show.

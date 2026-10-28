@@ -2,13 +2,7 @@ package app
 
 import (
 	"cmp"
-	"encoding/json/v2"
-	"errors"
-	"fmt"
-	"io/fs"
 	"maps"
-	"os"
-	"path/filepath"
 	"slices"
 	"strings"
 
@@ -23,33 +17,12 @@ import (
 type folderEditor struct {
 	open            bool
 	draft           request.Folder
-	tab             int // auth, scripts, variables, description
-	script          int // pre-request, post-response
+	name            string // the last part of draft.Path, as edited
+	tab             int    // auth, scripts, variables, description
+	script          int    // pre-request, post-response
 	pre, post       *editor.State
 	preFor, postFor string
 	problem         string
-}
-
-// loadFolders reads the collection and folder settings; a missing file has
-// none. A damaged file is reported and never overwritten.
-func (a *app) loadFolders() {
-	if a.foldersPath == "" {
-		return
-	}
-	data, err := os.ReadFile(a.foldersPath)
-	if errors.Is(err, fs.ErrNotExist) {
-		a.folders, a.foldersProblem = nil, ""
-		return
-	}
-	var folders []request.Folder
-	if err == nil {
-		err = json.Unmarshal(data, &folders)
-	}
-	if err != nil {
-		a.foldersProblem = fmt.Sprintf("Collections (%s): %v", a.foldersPath, err)
-		return
-	}
-	a.folders, a.foldersProblem = folders, ""
 }
 
 // inheritance is what a request filed under path takes from its collection,
@@ -61,7 +34,7 @@ func (a *app) inheritance(path string) request.Context {
 // openFolder edits the settings of the collection or folder at path.
 func (a *app) openFolder(path string) {
 	f := &a.folderUI
-	*f = folderEditor{open: true, draft: request.Folder{Path: path}}
+	*f = folderEditor{open: true, draft: request.Folder{Path: path}, name: path[strings.LastIndex(path, "/")+1:]}
 	if i := slices.IndexFunc(a.folders, func(folder request.Folder) bool { return folder.Path == path }); i >= 0 {
 		f.draft = a.folders[i]
 		f.draft.Variables = slices.Clone(f.draft.Variables)
@@ -177,10 +150,6 @@ func (a *app) folderAuthTypes(path string) []string {
 // saveFolder keeps the draft, replacing the folder's saved settings.
 func (a *app) saveFolder() {
 	f := &a.folderUI
-	if a.foldersProblem != "" {
-		f.problem = "Not saved: " + a.foldersProblem
-		return
-	}
 	seen := map[string]bool{}
 	for _, v := range f.draft.Variables {
 		name := strings.TrimSpace(v.Name)
@@ -192,6 +161,14 @@ func (a *app) saveFolder() {
 			return
 		}
 		seen[name] = true
+	}
+	if name := strings.TrimSpace(f.name); name != f.draft.Path[strings.LastIndex(f.draft.Path, "/")+1:] {
+		from := f.draft.Path
+		if err := a.renameFolder(from, name); err != nil {
+			f.problem = "Not renamed: " + err.Error()
+			return
+		}
+		f.draft.Path = from[:strings.LastIndex(from, "/")+1] + name
 	}
 	draft := f.draft
 	draft.Variables = slices.DeleteFunc(slices.Clone(draft.Variables), func(v request.Field) bool {
@@ -212,24 +189,8 @@ func (a *app) saveFolder() {
 // writeFolders saves the collection and folder settings, sorted by path,
 // and makes them the ones in use.
 func (a *app) writeFolders(folders []request.Folder) error {
-	if a.foldersProblem != "" {
-		return errors.New(a.foldersProblem)
-	}
 	slices.SortFunc(folders, func(x, y request.Folder) int { return strings.Compare(x.Path, y.Path) })
-	if a.foldersPath != "" {
-		data, err := json.Marshal(folders)
-		if err == nil {
-			err = os.MkdirAll(filepath.Dir(a.foldersPath), 0o755)
-		}
-		if err == nil {
-			err = writePrivateFile(a.foldersPath, append(data, '\n'))
-		}
-		if err != nil {
-			return err
-		}
-	}
-	a.folders = folders
-	return nil
+	return a.writeLibrary(a.requests, folders)
 }
 
 // folderModal edits what a collection or folder gives its requests: the
@@ -248,6 +209,11 @@ func (a *app) folderModal(c *ui.Context, t *ui.Theme) {
 		ui.Column(c).Width(min(760, width-64)).Height(min(560, height-80)).Gap(10).Children(func() {
 			dialogTitle(c, kind+" · "+f.draft.Path)
 			ui.Text(c, "Every request saved under it inherits these settings; a folder's settings override its collection's.").FontSize(11).TextColor(t.TextMuted)
+			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+				ui.Text(c, "Name").FontSize(12).Width(48)
+				ui.TextInput(c, &f.name).Label(kind + " name").Grow(1)
+			})
+			ui.Text(c, "Renaming moves its requests, folders and settings together.").FontSize(11).TextColor(t.TextMuted)
 			ui.Tabs(c, &f.tab, "Auth", "Scripts", "Variables", "Description")
 			ui.Column(c).Grow(1).Gap(8).Children(func() {
 				switch f.tab {

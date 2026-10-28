@@ -252,12 +252,10 @@ type app struct {
 	// requests are the saved requests, the Compose direction's kept half,
 	// and history what Compose sent.
 	requests        []savedRequest
-	requestsPath    string
+	library         libraryState
 	requestsProblem string
 	// folders are the collections' and folders' own settings, by path.
 	folders        []request.Folder
-	foldersPath    string
-	foldersProblem string
 	folderUI       folderEditor
 	vault          vaultState
 	history        []historyEntry
@@ -350,14 +348,13 @@ func newApp() *app {
 		a.caPath = filepath.Join(home, ".mitmproxy", "mitmproxy-ca-cert.pem")
 		a.rulesPath = filepath.Join(home, ".vscroxy", "rules.json")
 		a.sslPath = filepath.Join(home, ".vscroxy", "ssl.json")
-		a.requestsPath = filepath.Join(home, ".vscroxy", "requests.json")
+		a.library.root = filepath.Join(home, ".vscroxy", "collections")
 		a.historyPath = filepath.Join(home, ".vscroxy", "history.json")
 		a.ignorePath = filepath.Join(home, ".vscroxy", "ignore.txt")
 		a.ignoreAppsPath = filepath.Join(home, ".vscroxy", "ignore-apps.txt")
 		a.dnsPath = filepath.Join(home, ".vscroxy", "dns.txt")
 		a.scriptPath = filepath.Join(home, ".vscroxy", "script.js")
 		a.envsPath = filepath.Join(home, ".vscroxy", "env.json")
-		a.foldersPath = filepath.Join(home, ".vscroxy", "collections.json")
 		a.vault.path = filepath.Join(home, ".vscroxy", "vault.json")
 		a.vault.keyPath = filepath.Join(home, ".vscroxy", "vault.key")
 		if saved, err := loadSettings(a.settingsPath); err != nil {
@@ -435,11 +432,8 @@ func newApp() *app {
 // A failed read protects that asset until the user repairs or moves the file
 // aside and explicitly retries. A missing file is a valid empty asset.
 func (a *app) loadRequestAssets() {
-	if list, err := loadRequests(a.requestsPath); err != nil {
-		a.requestsProblem = fmt.Sprintf("Requests (%s): %v", a.requestsPath, err)
-	} else {
-		a.requests, a.requestsProblem = list, ""
-	}
+	a.loadRequestLibrary()
+	a.refreshDocuments()
 	if f, err := loadEnvs(a.envsPath); err != nil {
 		a.envsProblem = fmt.Sprintf("Variables (%s): %v", a.envsPath, err)
 	} else {
@@ -448,7 +442,6 @@ func (a *app) loadRequestAssets() {
 			a.activeEnv = a.envs[0].Name
 		}
 	}
-	a.loadFolders()
 }
 
 // startCapture listens and hands captured flows to the view.
@@ -1521,15 +1514,27 @@ func (a *app) requestSidebar(c *ui.Context, t *ui.Theme) {
 			query := strings.ToLower(strings.TrimSpace(a.requestQuery))
 			if a.requestSide == 0 {
 				groups := groupRequests(a.requests)
+				// A collection or folder with settings but no requests stays
+				// visible, so its settings can still be found and renamed.
+				for _, f := range a.folders {
+					if !slices.ContainsFunc(a.requests, func(r savedRequest) bool {
+						return r.Collection == f.Path || strings.HasPrefix(r.Collection, f.Path+"/")
+					}) {
+						groups[f.Path] = nil
+					}
+				}
 				for _, name := range slices.Sorted(maps.Keys(groups)) {
 					shown := slices.DeleteFunc(slices.Clone(groups[name]), func(r savedRequest) bool {
 						return query != "" && !strings.Contains(strings.ToLower(r.Name+" "+r.URL+" "+r.Method), query)
 					})
-					if len(shown) == 0 {
+					if len(shown) == 0 && (query != "" || len(groups[name]) > 0) {
 						continue
 					}
 					settings := func(m *ui.Menu) { a.folderSettingsItems(m, name) }
 					ui.SidebarSection(c, cmp.Or(name, "Saved"), a.collectionShown(name), func() {
+						if len(shown) == 0 {
+							ui.Text(c, "No requests · right-click for settings").FontSize(11).TextColor(t.TextMuted).Padding(4, 12)
+						}
 						for _, r := range shown {
 							ui.SidebarItem(c, r.key(), requestIcon, r.Name).FontSize(12).Padding(5, 8).ContextMenu(settings).Children(func() {
 								ui.Text(c, r.Method).FontSize(9).Bold().TextColor(methodColor(r.Method)).Width(38)
@@ -3045,7 +3050,7 @@ func (a *app) saveComposed() bool {
 		a.setMessage("Save: " + err.Error())
 		return false
 	}
-	r.Name, r.Collection = name, strings.TrimSpace(r.Collection)
+	r.Name, r.Collection = name, cleanPath(r.Collection)
 	r.Method, r.URL = strings.ToUpper(strings.TrimSpace(cmp.Or(r.Method, "GET"))), strings.TrimSpace(r.URL)
 	for _, existing := range a.requests {
 		if existing.Name == r.Name && existing.Collection == r.Collection && !(r.ID != "" && existing.ID == r.ID) && existing.key() != a.savedKey {

@@ -390,6 +390,10 @@ func (a *app) desktopActions(c *ui.Context) []desktopAction {
 		{"collection", "Collection settings…", editing && d.composeCollection != "", 0, 0, func() { a.openFolder(d.composeCollection) }},
 		{"new-request", "New request", true, ui.Cmd, ui.KeyN, a.openCompose},
 		{"import-curl", "Import cURL…", true, 0, 0, a.openCurlImport},
+		{"reload-library", "Reload collections from disk", true, 0, 0, func() {
+			a.loadRequestAssets()
+			a.setMessage(fmt.Sprintf("Reloaded %d %s from %s", len(a.requests), plural(len(a.requests), "request", "requests"), a.library.root))
+		}},
 		{"import-postman", "Import Postman collection or environment…", true, 0, 0, a.importRequests},
 		{"export-postman", "Export collection as Postman…", editing && d.composeCollection != "", 0, 0, func() { a.exportPostman(collectionRoot(d.composeCollection)) }},
 		{"settings", "Open settings…", true, ui.Cmd, ui.KeyComma, func() { a.settingsOpen = true }},
