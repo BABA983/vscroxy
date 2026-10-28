@@ -8,6 +8,7 @@ import (
 	"encoding/json/v2"
 	"errors"
 	"fmt"
+	"net/url"
 	"strconv"
 	"strings"
 
@@ -209,11 +210,8 @@ func (r *reader) settings(values ...jsontext.Value) {
 func (r *reader) folder(path string, description, auth jsontext.Value, events []pmEvent, vars []pmVariable, authWarning string) {
 	f := request.Folder{Path: path, Description: describe(description), Variables: variables(vars)}
 	f.Pre, f.Post = r.scripts(events)
-	if a, set, unsupported := readAuth(auth); set {
+	if a, set := r.auth(auth, authWarning); set {
 		f.Auth = a
-		if unsupported != "" {
-			r.warn.add(authWarning, unsupported, 1)
-		}
 	}
 	if f.Description != "" || f.Auth.Type != "" || f.Pre != "" || f.Post != "" || len(f.Variables) > 0 {
 		r.out.Folders = append(r.out.Folders, f)
@@ -244,12 +242,9 @@ func (r *reader) request(it pmItem, parent string, ordinal int) error {
 		out.URL = r.url(req.URL)
 		out.HeaderList = readHeaders(req.Header)
 		r.body(&out, req.Body)
-		if a, set, unsupported := readAuth(req.Auth); set {
+		if a, set := r.auth(req.Auth, "request auth"); set {
 			if out.Auth = a; a.Type == "None" {
 				out.Auth = request.Auth{}
-			}
-			if unsupported != "" {
-				r.warn.add("request auth", unsupported, 1)
 			}
 		}
 		hasDescription = hasDescription || describe(req.Description) != ""
@@ -319,16 +314,16 @@ func (r *reader) scripts(events []pmEvent) (pre, post string) {
 	return strings.Join(pres, "\n"), strings.Join(posts, "\n")
 }
 
-// readAuth maps a Postman auth object. set is false when there is none.
-// No auth is Type "None"; a type the app cannot send is None too and named
-// by unsupported.
-func readAuth(v jsontext.Value) (auth request.Auth, set bool, unsupported string) {
+// auth maps a Postman auth object. set is false when there is none.
+// No auth is Type "None"; auth the app cannot send is None too, counted
+// under the warning named unsupported.
+func (r *reader) auth(v jsontext.Value, unsupported string) (auth request.Auth, set bool) {
 	if v.Kind() != '{' {
-		return request.Auth{}, false, ""
+		return request.Auth{}, false
 	}
 	var obj map[string]jsontext.Value
 	if json.Unmarshal(v, &obj) != nil {
-		return request.Auth{}, false, ""
+		return request.Auth{}, false
 	}
 	kind := text(obj["type"])
 	params := map[string]string{}
@@ -350,21 +345,74 @@ func readAuth(v jsontext.Value) (auth request.Auth, set bool, unsupported string
 	}
 	switch kind {
 	case "":
-		return request.Auth{}, false, ""
+		return request.Auth{}, false
 	case "noauth":
-		return request.Auth{Type: "None"}, true, ""
+		return request.Auth{Type: "None"}, true
 	case "bearer":
-		return request.Auth{Type: "Bearer", Token: params["token"]}, true, ""
+		return request.Auth{Type: "Bearer", Token: params["token"]}, true
 	case "basic":
-		return request.Auth{Type: "Basic", Username: params["username"], Password: params["password"]}, true, ""
+		return request.Auth{Type: "Basic", Username: params["username"], Password: params["password"]}, true
 	case "apikey":
 		location := "Header"
 		if strings.EqualFold(params["in"], "query") {
 			location = "Query"
 		}
-		return request.Auth{Type: "API key", Key: params["key"], Value: params["value"], Location: location}, true, ""
+		return request.Auth{Type: "API key", Key: params["key"], Value: params["value"], Location: location}, true
+	case "oauth2":
+		o, dropped := r.oauth2(params)
+		if dropped == "" {
+			return request.Auth{Type: request.AuthOAuth2, OAuth2: o}, true
+		}
+		r.warn.add(unsupported, dropped, 1)
+		return request.Auth{Type: "None"}, true
 	}
-	return request.Auth{Type: "None"}, true, kind
+	r.warn.add(unsupported, kind+" auth", 1)
+	return request.Auth{Type: "None"}, true
+}
+
+// oauth2Grants are the app's grants by Postman grant_type.
+var oauth2Grants = map[string]string{
+	"authorization_code_with_pkce": request.GrantAuthorizationCodePKCE,
+	"authorization_code":           request.GrantAuthorizationCode,
+	"client_credentials":           request.GrantClientCredentials,
+	"password_credentials":         request.GrantPassword,
+}
+
+// oauth2 maps Postman's oauth2 parameters. dropped names a grant the app
+// cannot get a token with. Postman's token manager data, the access token
+// among it, stays behind.
+func (r *reader) oauth2(params map[string]string) (o request.OAuth2, dropped string) {
+	grantType := cmp.Or(params["grant_type"], "authorization_code")
+	o.Grant = oauth2Grants[grantType]
+	if o.Grant == "" {
+		return o, "the OAuth 2.0 " + strings.ReplaceAll(grantType, "_", " ") + " grant"
+	}
+	o.AuthURL, o.TokenURL = params["authUrl"], params["accessTokenUrl"]
+	o.ClientID, o.ClientSecret, o.Scope = params["clientId"], params["clientSecret"], params["scope"]
+	o.Username, o.Password, o.HeaderPrefix = params["username"], params["password"], params["headerPrefix"]
+	if strings.EqualFold(params["client_authentication"], "body") {
+		o.ClientAuth = "Body"
+	}
+	if redirect := params["redirect_uri"]; loopback(redirect) {
+		o.RedirectURL = redirect
+	} else if redirect != "" && (o.Grant == request.GrantAuthorizationCodePKCE || o.Grant == request.GrantAuthorizationCode) {
+		r.warn.add("oauth2 callback", "", 1)
+	}
+	if params["addTokenTo"] == "queryParams" {
+		r.warn.add("oauth2 query", "", 1)
+	}
+	return o, ""
+}
+
+// loopback says whether raw is an http URL on 127.0.0.1, localhost or [::1],
+// the only callbacks the app can listen on.
+func loopback(raw string) bool {
+	u, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil || u.Scheme != "http" {
+		return false
+	}
+	host := u.Hostname()
+	return host == "127.0.0.1" || host == "::1" || strings.EqualFold(host, "localhost")
 }
 
 // readHeaders reads a header array, or the "Key: Value" block old exports use.

@@ -51,6 +51,7 @@ type Auth struct {
 	Key      string `json:"key,omitempty"`
 	Value    string `json:"value,omitempty"`
 	Location string `json:"location,omitempty"`
+	OAuth2   OAuth2 `json:"oauth2,omitzero"`
 }
 
 type Field struct {
@@ -81,6 +82,12 @@ func (r Request) Prepare(vars map[string]string) (*Prepared, error) {
 	case "Basic":
 		value := ExpandVars(r.Auth.Username, vars) + ":" + ExpandVars(r.Auth.Password, vars)
 		req.Set("Authorization", "Basic "+base64.StdEncoding.EncodeToString([]byte(value)))
+	case AuthOAuth2:
+		// Execute puts the access token in Token; cURL export, the kept one.
+		if r.Auth.Token == "" {
+			return nil, ErrSignInNeeded
+		}
+		req.Set("Authorization", cmp.Or(strings.TrimSpace(ExpandVars(r.Auth.OAuth2.HeaderPrefix, vars)), "Bearer")+" "+r.Auth.Token)
 	case "API key":
 		key, value := ExpandVars(r.Auth.Key, vars), ExpandVars(r.Auth.Value, vars)
 		if key == "" {

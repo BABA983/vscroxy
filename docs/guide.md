@@ -723,11 +723,31 @@ every value in plain text, switching to it asks first when a credential is in
 the table. Disabled rows stay in the request file
 (`headerList`) but never in the block that is sent, copied or exported. Params
 edits the URL's query the same way, and only enabled rows reach it. Auth supports
-**Inherit**, Bearer, Basic and API keys in a header or query parameter; explicit
-auth replaces that header unless the pre-script explicitly sets/removes it.
-**Inherit** (the default for new requests) uses the nearest folder or collection
-auth and says which one it is; see [Collections, variables and the
-vault](#collections-variables-and-the-vault).
+**Inherit**, Bearer, Basic, API keys in a header or query parameter and OAuth
+2.0; explicit auth replaces that header unless the pre-script explicitly
+sets/removes it. **Inherit** (the default for new requests) uses the nearest
+folder or collection auth and says which one it is; see [Collections, variables
+and the vault](#collections-variables-and-the-vault).
+
+**OAuth 2.0** gets an access token with the authorization code grant with PKCE
+(the default), the authorization code grant, client credentials or the
+password grant, and sends it as `Authorization: Bearer …` (or the header
+prefix you set). The implicit grant is not offered. The two authorization code
+grants open the sign-in in your browser, which returns to a loopback address
+this app listens on: `http://127.0.0.1` on a free port unless **Callback URL**
+names a `127.0.0.1`, `localhost` or `[::1]` address; register it with the
+provider. **Get new access token** in the Auth settings starts that; client
+credentials and the password grant need no click, as the first send gets a
+token. A token is reused until 30 seconds before it expires, then refreshed
+with its refresh token, or fetched again for the grants without a sign-in.
+Tokens live only in memory: after a restart, the authorization code grants need
+a new sign-in. **Clear token** forgets one; do that after changing a secret or
+password, which are not part of what identifies a token. Every field takes
+`{{variables}}`; a `{{vault:name}}` there is unlocked for the access token URL's
+host, the one that receives it. Token requests go through the proxy, so they
+are in Capture like any other exchange (decrypted only when SSL proxying covers
+the host). **Copy as cURL** includes the token this session holds.
+
 Body supports a raw editor with line numbers, JSON highlighting, undo and
 **Format**, plus URL-encoded fields and multipart text/file parts with duplicate
 keys, disabled rows and a 16 MiB total form limit. The body's type and **Format**
@@ -781,8 +801,9 @@ at the top level, with two seconds of run time (time spent waiting on
   `replaceIn`). `pm.variables.get` reads the effective value; `pm.variables.set`
   is local to the send, or to the rest of a Runner run. Environment, global and
   collection writes are saved when the send finishes. Values are stored as
-  text: objects are JSON-encoded. `pm.iterationData` is always empty: Runner
-  data files are not supported yet.
+  text: objects are JSON-encoded. `pm.iterationData` (`get`, `has`,
+  `toObject`) reads the Runner data file's current row and is read-only; it is
+  empty for a Send or a run without a data file.
 - **Request**: `pm.request.method`, `pm.request.url` (`toString()`, `getHost()`,
   `getPath()`, `query.add/upsert/remove/get`), `pm.request.headers`
   (`add`, `upsert`, `remove`, `get`, `has`, `toObject`) and `pm.request.body.raw`.
@@ -852,10 +873,10 @@ its requests, folders and settings move together, and open tabs follow.
   that is not itself Inherit; if none has one, it sends no auth.
 - **Scripts** run from the collection down to the request, for the pre-request
   and the post-response phase alike. Console lines name the level they came from.
-- **Variables** resolve narrowest first: script writes and run input (the active
-  environment or a preceding Runner step), then the nearest folder up to the
-  collection, then globals. Disabled rows are skipped. **Request variables**
-  names the source of each value.
+- **Variables** resolve narrowest first: script writes, then the Runner data
+  file's row, then run input (the active environment or a preceding Runner
+  step), then the nearest folder up to the collection, then globals. Disabled
+  rows are skipped. **Request variables** names the source of each value.
 - **Dynamic variables** follow Postman's names and are generated for every
   occurrence on every send: `$guid`, `$randomUUID`, `$timestamp`,
   `$isoTimestamp`, `$randomInt`, `$randomBoolean`, `$randomAlphaNumeric`,
@@ -876,8 +897,14 @@ requests. Folder names containing `/` keep it as `∕`. An environment merges
 into the environment of the same name; globals merge into globals.
 
 What has no equivalent yet is listed after the import: saved examples, request
-descriptions, binary file bodies, auth other than Bearer, Basic and API key
-(imported as no auth), disabled query parameters and per-request settings.
+descriptions, binary file bodies, auth other than Bearer, Basic, API key and
+OAuth 2.0 (imported as no auth), disabled query parameters and per-request
+settings. OAuth 2.0 keeps its grant, URLs, client, scope, client
+authentication and header prefix; the implicit grant becomes no auth, a
+callback that is not a loopback address (such as `oauth.pstmn.io`) is replaced
+by the loopback default, and a token Postman adds to the query is sent in the
+`Authorization` header. Postman's saved access tokens are never imported or
+exported.
 Raw bodies get the `Content-Type` Postman would send for their language.
 
 Right-click a request or collection and choose **Export “Shop” as Postman…**,
@@ -909,6 +936,12 @@ ID) among the run's requests, so a request can repeat itself to poll;
 `setNextRequest(null)`, or a name the run does not have, ends the run.
 `pm.variables`, globals and collection variables a script sets are seen by the
 requests after it.
+**Data file…** picks a CSV with a header row or a JSON array of objects (at most
+1000 rows; JSON values that are not strings become JSON text). Each iteration
+uses the next row as variables, readable as `{{column}}` and through
+`pm.iterationData`; choosing a file sets the iterations to its row count, and
+iterations past the last row reuse it, as in Postman. A row's values are never
+written to the environment. **Remove** goes back to running without one.
 Select/reorder steps, set 1–1000 iterations, and optionally stop on HTTP errors,
 failed assertions or execution errors. Each step has a 30-second deadline;
 scripts have a 2-second limit and cancellation interrupts both scripts and I/O.

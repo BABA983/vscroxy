@@ -35,6 +35,8 @@ type Context struct {
 	Vault func(name, host string) (string, error)
 	// ScriptVault lets scripts read and change the vault with pm.vault.
 	ScriptVault bool
+	// Tokens keeps OAuth 2.0 access tokens; nil keeps them for one send.
+	Tokens *Tokens
 
 	// The run the request is part of: the active environment's name, the
 	// Runner iteration (from 0) of how many, and the pm.variables values
@@ -42,12 +44,15 @@ type Context struct {
 	Environment           string
 	Iteration, Iterations int
 	Locals                map[string]string
+	// Data is the Runner data file's row for this iteration, over the
+	// environment and under pm.variables, as in Postman.
+	Data map[string]string
 }
 
 // scriptRun is the scope state the scripts of r's send start from.
 func (c Context) scriptRun(r Request, vars map[string]string) *scriptRun {
 	run := &scriptRun{
-		vars: maps.Clone(vars), locals: maps.Clone(c.Locals), globals: maps.Clone(c.Globals),
+		vars: maps.Clone(vars), locals: maps.Clone(c.Locals), globals: maps.Clone(c.Globals), data: c.Data,
 		collection: map[string]string{}, folders: map[string]string{}, phase: "setup",
 		info: scriptInfo{Iteration: c.Iteration, Iterations: c.Iterations, RequestName: r.Name, RequestID: r.ID, Environment: c.Environment},
 	}
@@ -209,13 +214,16 @@ func vaultName(variable string) (string, bool) {
 
 // sourceOf names the scope a variable of this request resolves from, or ""
 // when nothing defines it.
-func sourceOf(name string, vars, inherited, sources map[string]string, written map[string]bool) string {
+func sourceOf(name string, vars, data, inherited, sources map[string]string, written map[string]bool) string {
 	if _, ok := vaultName(name); ok {
 		return "Vault"
 	}
 	if _, ok := vars[name]; ok {
 		if written[name] {
 			return "Pre-request script"
+		}
+		if _, ok := data[name]; ok {
+			return "Data file"
 		}
 		return "Run input"
 	}
@@ -235,7 +243,7 @@ func (r Request) ResolveVariables(in Context, vars map[string]string, written ma
 	inherited, sources := in.inherited()
 	var rows []ResolvedVariable
 	for _, name := range r.Variables() {
-		row := ResolvedVariable{Name: name, Source: sourceOf(name, vars, inherited, sources, written)}
+		row := ResolvedVariable{Name: name, Source: sourceOf(name, vars, in.Data, inherited, sources, written)}
 		switch row.Source {
 		case "":
 			row.Source, row.Missing = "Missing", true

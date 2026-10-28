@@ -218,7 +218,9 @@ func (a *app) folderModal(c *ui.Context, t *ui.Theme) {
 			ui.Column(c).Grow(1).Gap(8).Children(func() {
 				switch f.tab {
 				case 0:
-					authFields(c, &f.draft.Auth, a.folderAuthTypes(f.draft.Path))
+					ui.Scroll(c).Grow(1).Gap(8).Children(func() {
+						a.authFields(c, &f.draft.Auth, a.folderAuthTypes(f.draft.Path), f.draft.Path)
+					})
 					ui.Text(c, "Requests whose Auth is Inherit send this.").FontSize(11).TextColor(t.TextMuted)
 				case 1:
 					ui.Segmented(c, &f.script, "Pre-request", "Post-response")

@@ -121,9 +121,13 @@ func (a *app) vaultKey(create bool) (key []byte, inFile bool, err error) {
 // send in flight is unaffected by later edits.
 func (a *app) sendContext(r request.Request) request.Context {
 	in := a.inheritance(r.Collection)
-	in.Environment, in.ScriptVault = a.activeEnv, a.vault.scripts
+	in.Environment, in.ScriptVault, in.Tokens = a.activeEnv, a.vault.scripts, &a.tokens
 	r.Auth, _ = in.InheritAuth(r.Auth)
-	reads := slices.ContainsFunc(r.Variables(), func(name string) bool { return strings.HasPrefix(name, "vault:") })
+	names := r.Variables()
+	if r.Auth.Type == request.AuthOAuth2 {
+		names = append(names, r.Auth.OAuth2.Variables()...)
+	}
+	reads := slices.ContainsFunc(names, func(name string) bool { return strings.HasPrefix(name, "vault:") })
 	if reads || in.ScriptVault {
 		if err := a.ensureVault(); err != nil {
 			in.Vault = func(string, string) (string, error) { return "", fmt.Errorf("the vault is locked: %w", err) }

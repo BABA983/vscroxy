@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/baba983/vscroxy/internal/request"
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/editor"
@@ -287,6 +288,13 @@ func (a *app) requestActions(c *ui.Context, f flow, current bool) []desktopActio
 		copyRequest = func() {
 			r := d.value()
 			r.Auth, _ = a.inheritance(r.Collection).InheritAuth(r.Auth)
+			if r.Auth.Type == request.AuthOAuth2 {
+				// The token this session holds, as a send would use it.
+				if in, cfg, err := a.oauthConfig(r.Auth, r.Collection); err == nil {
+					tok, _ := in.Tokens.Peek(cfg)
+					r.Auth.Token, r.Auth.OAuth2.HeaderPrefix = tok.Access, cfg.HeaderPrefix
+				}
+			}
 			req, err := r.Prepare(nil)
 			if err != nil {
 				a.setMessage("Copy cURL: " + err.Error())

@@ -1,6 +1,7 @@
 package request
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -115,6 +116,7 @@ func (r Request) Execute(ctx context.Context, srv *capture.Server, in Context, v
 	out.Stage, run.phase = "Request setup failed", "setup"
 	out.Tests, out.Vars = run.tests, run.vars
 	input := maps.Clone(run.vars)
+	maps.Copy(input, run.data)
 	maps.Copy(input, run.locals)
 	out.Variables = r.ResolveVariables(in.Apply(run.writes, r.Collection), input, run.written)
 	r = r.withDynamic(effective)
@@ -129,6 +131,20 @@ func (r Request) Execute(ctx context.Context, srv *capture.Server, in Context, v
 			out.Err = fmt.Errorf("Set environment variables before running: %s", strings.Join(missing, ", "))
 			return out
 		}
+	}
+	if r.Auth.Type == AuthOAuth2 {
+		out.Stage = "Access token failed"
+		o, err := in.OAuth2Config(r.Auth, effective)
+		var t Token
+		if err == nil {
+			t, err = cmp.Or(in.Tokens, &Tokens{}).get(o, ProxySender(ctx, srv))
+		}
+		if err != nil {
+			out.Err = err
+			return out
+		}
+		r.Auth.Token, r.Auth.OAuth2.HeaderPrefix = t.Access, o.HeaderPrefix
+		out.Stage = "Request setup failed"
 	}
 	if err := in.unlock(r, effective); err != nil {
 		out.Err = err

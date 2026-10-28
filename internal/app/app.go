@@ -274,10 +274,13 @@ type app struct {
 	closingDocument *requestDocument
 	requestResults  []requestResult
 	importReport    importReport
-	runner          collectionRunner
-	cookies         *cookieStore
-	cookieUI        cookieEditor
-	regressionUI    regressionShare
+	// tokens are the OAuth 2.0 access tokens of this session, never saved.
+	tokens       request.Tokens
+	oauth        oauthState
+	runner       collectionRunner
+	cookies      *cookieStore
+	cookieUI     cookieEditor
+	regressionUI regressionShare
 
 	// envs are the variables a request uses as {{name}}, one set in use.
 	envsPath    string

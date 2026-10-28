@@ -1,6 +1,7 @@
 package postman
 
 import (
+	"cmp"
 	"encoding/json/jsontext"
 	"encoding/json/v2"
 	"errors"
@@ -97,6 +98,7 @@ type outAuth struct {
 	Bearer []outKV `json:"bearer,omitempty"`
 	Basic  []outKV `json:"basic,omitempty"`
 	APIKey []outKV `json:"apikey,omitempty"`
+	OAuth2 []outKV `json:"oauth2,omitempty"`
 }
 
 type outKV struct {
@@ -272,8 +274,49 @@ func writeAuth(a request.Auth) *outAuth {
 			in = "query"
 		}
 		return &outAuth{Type: "apikey", APIKey: []outKV{{"key", a.Key, "string"}, {"value", a.Value, "string"}, {"in", in, "string"}}}
+	case request.AuthOAuth2:
+		return &outAuth{Type: "oauth2", OAuth2: writeOAuth2(a.OAuth2)}
 	}
 	return &outAuth{Type: "noauth"}
+}
+
+// postmanGrants are Postman's grant_type values by the app's grant.
+var postmanGrants = map[string]string{
+	"":                                 "authorization_code_with_pkce",
+	request.GrantAuthorizationCodePKCE: "authorization_code_with_pkce",
+	request.GrantAuthorizationCode:     "authorization_code",
+	request.GrantClientCredentials:     "client_credentials",
+	request.GrantPassword:              "password_credentials",
+}
+
+// writeOAuth2 is an OAuth 2.0 configuration as Postman's parameters. The
+// access token is the app's runtime state and is never written.
+func writeOAuth2(o request.OAuth2) []outKV {
+	grant := cmp.Or(postmanGrants[o.Grant], "authorization_code_with_pkce")
+	params := []outKV{{"grant_type", grant, "string"}}
+	add := func(key, value string, always bool) {
+		if always || value != "" {
+			params = append(params, outKV{key, value, "string"})
+		}
+	}
+	add("authUrl", o.AuthURL, false)
+	add("accessTokenUrl", o.TokenURL, true)
+	add("clientId", o.ClientID, true)
+	add("clientSecret", o.ClientSecret, false)
+	add("scope", o.Scope, false)
+	if grant == "password_credentials" {
+		add("username", o.Username, false)
+		add("password", o.Password, false)
+	}
+	add("redirect_uri", o.RedirectURL, false)
+	clientAuth := "header"
+	if o.ClientAuth == "Body" {
+		clientAuth = "body"
+	}
+	add("client_authentication", clientAuth, true)
+	add("headerPrefix", o.HeaderPrefix, false)
+	add("addTokenTo", "header", true)
+	return params
 }
 
 func writeEvents(pre, post string) []outEvent {

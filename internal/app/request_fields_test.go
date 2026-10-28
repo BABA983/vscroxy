@@ -2,6 +2,7 @@ package app
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -634,5 +635,43 @@ func TestRenamingAFolderFromItsSettings(t *testing.T) {
 	}
 	if auth, from := a.inheritance(a.composeCollection).InheritAuth(request.Auth{Type: request.AuthInherit}); auth.Token != "t" || from != "Workspace/Public API" {
 		t.Fatalf("inherited %+v from %q", auth, from)
+	}
+}
+
+// Each Runner iteration reads one data file row; more iterations than rows
+// repeat the last one, and data values never reach the environment.
+func TestCollectionRunnerIteratesOverDataRows(t *testing.T) {
+	queries := make(chan string, 8)
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { queries <- r.URL.RawQuery }))
+	defer upstream.Close()
+	a := workspaceApp()
+	a.srv = requestProxy(t)
+	a.envs = []environment{{Name: "Local", Vars: map[string]string{"base": upstream.URL, "sku": "env"}}}
+	a.activeEnv = "Local"
+	a.requests = []savedRequest{{Request: request.Request{Name: "Order", Collection: "Data", Method: "GET",
+		URL: "{{base}}/?sku={{sku}}&qty={{qty}}&i={{i}}", Pre: `pm.variables.set("i", pm.info.iteration + "/" + pm.info.iterationCount)`}}}
+	a.runner.collection = "Data"
+	a.openRunner()
+	rows, err := request.ReadIterationData("orders.csv", []byte("sku,qty\nA-1,2\nB-2,5\n"))
+	a.runner.useData("orders.csv", rows, err)
+	if a.runner.iterations != "2" {
+		t.Fatalf("iterations = %q, want the row count", a.runner.iterations)
+	}
+	a.runner.iterations = "3"
+	a.startRunner()
+	waitRunner(t, a)
+	var got []string
+	for len(queries) > 0 {
+		got = append(got, <-queries)
+	}
+	if want := []string{"sku=A-1&qty=2&i=0/3", "sku=B-2&qty=5&i=1/3", "sku=B-2&qty=5&i=2/3"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("queries %q, want %q", got, want)
+	}
+	if vars := a.activeVars(); vars["sku"] != "env" || vars["qty"] != "" || vars["i"] != "" {
+		t.Errorf("the environment after the run = %v", vars)
+	}
+	a.runner.useData("broken.csv", nil, errors.New("CSV: wrong number of fields"))
+	if a.runner.dataName != "orders.csv" || !strings.Contains(a.runner.dataProblem, "broken.csv") {
+		t.Errorf("a bad file must keep the loaded one and say why: %+v", a.runner.dataProblem)
 	}
 }

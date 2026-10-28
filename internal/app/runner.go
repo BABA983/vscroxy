@@ -5,6 +5,8 @@ import (
 	"context"
 	"fmt"
 	"maps"
+	"os"
+	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
@@ -12,6 +14,7 @@ import (
 	"uuid"
 
 	"github.com/baba983/vscroxy/internal/request"
+	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -62,8 +65,11 @@ type collectionRunner struct {
 	picked, completed, failures                 int
 	results                                     ui.ListState
 	stopOnFailure                               bool
-	cancel                                      context.CancelFunc
-	events                                      chan runnerEvent
+	// data are the data file's rows, one per iteration; dataName names it.
+	data                  []map[string]string
+	dataName, dataProblem string
+	cancel                context.CancelFunc
+	events                chan runnerEvent
 }
 
 func (a *app) openRunner() {
@@ -122,7 +128,7 @@ func (a *app) startRunner() {
 	r.environment, r.status = a.activeEnv, "Running…"
 	events := make(chan runnerEvent, 16)
 	r.events = events
-	vars, stop, srv, env := a.activeVars(), r.stopOnFailure, a.srv, r.environment
+	vars, stop, srv, env, data := a.activeVars(), r.stopOnFailure, a.srv, r.environment, r.data
 	jar := a.requestCookies()
 	go func() {
 		defer close(events)
@@ -136,6 +142,10 @@ func (a *app) startRunner() {
 				}
 				req, in := requests[i], contexts[i]
 				in.Iteration, in.Iterations, in.Locals = iteration-1, n, locals
+				if len(data) > 0 {
+					// Postman repeats the last row when there are more iterations.
+					in.Data = data[min(iteration, len(data))-1]
+				}
 				before := maps.Clone(vars)
 				stepCtx, stepCancel := context.WithTimeout(ctx, 30*time.Second)
 				runKey := uuid.New().String()
@@ -206,6 +216,33 @@ func nextStep(requests []savedRequest, i int, next *string) int {
 	return len(requests)
 }
 
+// chooseRunnerData reads a data file the user picks; its rows set the
+// iteration count.
+func (a *app) chooseRunnerData() {
+	go func() {
+		paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Title: "Runner data file",
+			Filters: []mygo.FileFilter{{Name: "CSV or JSON", Extensions: []string{"csv", "json"}}}})
+		if err != nil || len(paths) == 0 {
+			return
+		}
+		data, err := os.ReadFile(paths[0])
+		var rows []map[string]string
+		if err == nil {
+			rows, err = request.ReadIterationData(paths[0], data)
+		}
+		a.win.Update(func() { a.runner.useData(filepath.Base(paths[0]), rows, err) })
+	}()
+}
+
+func (r *collectionRunner) useData(name string, rows []map[string]string, err error) {
+	if err != nil {
+		r.dataProblem = name + ": " + err.Error()
+		return
+	}
+	r.data, r.dataName, r.dataProblem = rows, name, ""
+	r.iterations = strconv.Itoa(len(rows))
+}
+
 func (a *app) drainRunner() {
 	r := &a.runner
 	for r.events != nil {
@@ -271,6 +308,22 @@ func (a *app) runnerModal(c *ui.Context, t *ui.Theme) {
 				}
 				ui.TextInput(c, &r.iterations).Width(86).Label("Iterations").Disabled(r.running)
 				ui.Checkbox(c, &r.stopOnFailure, "Stop on failure").Disabled(r.running)
+			})
+			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+				text, color := "No data file: every iteration uses the same variables.", t.TextMuted
+				switch {
+				case r.dataProblem != "":
+					text, color = r.dataProblem, t.Danger
+				case len(r.data) > 0:
+					text, color = fmt.Sprintf("%s · %d %s · %s", r.dataName, len(r.data), plural(len(r.data), "row", "rows"), strings.Join(request.DataColumns(r.data), ", ")), t.Text
+				}
+				ui.Text(c, text).FontSize(11).TextColor(color).Grow(1).SingleLine()
+				if len(r.data) > 0 && ui.Button(c, "Remove").Label("Remove data file").Disabled(r.running).Clicked() {
+					r.data, r.dataName, r.iterations = nil, "", "1"
+				}
+				if ui.Button(c, "Data file…").Tooltip("CSV with a header row, or a JSON array of objects; each row is one iteration's pm.iterationData").Disabled(r.running).Clicked() {
+					a.chooseRunnerData()
+				}
 			})
 			ui.Row(c).Grow(1).Gap(16).AlignItems(ui.Stretch).Children(func() {
 				ui.Column(c).Width(310).Gap(8).Children(func() {

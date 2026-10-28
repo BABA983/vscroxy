@@ -304,7 +304,7 @@ func (a *app) headerEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
 
 func (a *app) authEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
 	ui.Scroll(c).Grow(1).Gap(8).Children(func() {
-		authFields(c, &d.auth, append([]string{request.AuthInherit}, authTypes...))
+		a.authFields(c, &d.auth, append([]string{request.AuthInherit}, authTypes...), d.composeCollection)
 		if d.auth.Type == request.AuthInherit {
 			resolved, from := a.inheritance(d.composeCollection).InheritAuth(d.auth)
 			text := "No collection or folder sets auth, so none is sent."
@@ -322,10 +322,11 @@ func (a *app) authEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
 }
 
 // authTypes are the auth a request or folder sets itself.
-var authTypes = []string{"None", "Bearer", "Basic", "API key"}
+var authTypes = []string{"None", "Bearer", "Basic", "API key", request.AuthOAuth2}
 
-// authFields edits one Auth, a request's or a folder's.
-func authFields(c *ui.Context, auth *request.Auth, types []string) {
+// authFields edits one Auth, a request's or a folder's; collection is where
+// it is used, for the variables an OAuth 2.0 token request expands.
+func (a *app) authFields(c *ui.Context, auth *request.Auth, types []string, collection string) {
 	t := c.Theme()
 	ui.Select(c, &auth.Type, types).Label("Authorization type").Width(180)
 	if auth.Type != request.AuthInherit {
@@ -343,6 +344,8 @@ func authFields(c *ui.Context, auth *request.Auth, types []string) {
 			ui.TextInput(c, &auth.Value).Label("API key value").Password().Grow(2)
 			ui.Select(c, &auth.Location, []string{"Header", "Query"}).Label("API key location").Width(120)
 		})
+	case request.AuthOAuth2:
+		a.oauthFields(c, auth, collection)
 	}
 }
 

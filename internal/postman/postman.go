@@ -153,12 +153,20 @@ func (k warning) text(n int) string {
 		return count(n, "form file field lists", "form file fields list") + " several files; imported the first"
 	case "body":
 		return count(n, "request uses", "requests use") + " a " + k.detail + " body; imported without a body"
+	// An auth warning's detail is what was dropped: "digest auth" or "the
+	// OAuth 2.0 implicit grant".
 	case "request auth":
-		return count(n, "request uses", "requests use") + " " + k.detail + " auth; imported as no auth"
+		return count(n, "request uses", "requests use") + " " + k.detail + "; imported as no auth"
 	case "folder auth":
-		return count(n, "folder uses", "folders use") + " " + k.detail + " auth; imported as no auth"
+		return count(n, "folder uses", "folders use") + " " + k.detail + "; imported as no auth"
 	case "collection auth":
-		return "The collection uses " + k.detail + " auth; imported as no auth"
+		return "The collection uses " + k.detail + "; imported as no auth"
+	case "oauth2 callback":
+		return count(n, "OAuth 2.0 callback URL is not a loopback address", "OAuth 2.0 callback URLs are not loopback addresses") +
+			"; vscroxy signs in through http://127.0.0.1 instead"
+	case "oauth2 query":
+		return count(n, "OAuth 2.0 configuration adds", "OAuth 2.0 configurations add") +
+			" the token to the query; vscroxy sends it in the Authorization header"
 	case "checks":
 		return "Declarative checks on " + count(n, "request are", "requests are") + " not exported"
 	}

@@ -137,6 +137,8 @@ type scriptRun struct {
 	// vars are the environment's and this run's values, what
 	// pm.environment.set and vars.set write; locals are pm.variables.
 	vars, locals map[string]string
+	// data is the Runner data file's row, pm.iterationData.
+	data map[string]string
 	// globals and collection are written through and reported as writes;
 	// folders are the values of the folders below the collection.
 	globals, collection, folders map[string]string
@@ -191,7 +193,7 @@ func (r *scriptRun) message(kind, text string) {
 // the nearest folder, over the collection, over globals.
 func (r *scriptRun) effective() map[string]string {
 	values := map[string]string{}
-	for _, scope := range []map[string]string{r.globals, r.collection, r.folders, r.vars, r.locals} {
+	for _, scope := range []map[string]string{r.globals, r.collection, r.folders, r.vars, r.data, r.locals} {
 		maps.Copy(values, scope)
 	}
 	return values
@@ -213,6 +215,8 @@ func (r *scriptRun) scope(name string) map[string]string {
 		return r.globals
 	case "collectionVariables":
 		return r.collection
+	case "iterationData":
+		return r.data
 	}
 	return nil
 }
@@ -222,7 +226,7 @@ func (r *scriptRun) set(scope, name, value string, unset bool) error {
 		return errors.New("variable names cannot be empty")
 	}
 	m := r.scope(scope)
-	if m == nil {
+	if m == nil || scope == "iterationData" {
 		return fmt.Errorf("pm.%s is read-only", scope)
 	}
 	if scope == "collectionVariables" && r.root == "" {

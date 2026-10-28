@@ -303,6 +303,142 @@ func TestReadCollectionV20(t *testing.T) {
 	}
 }
 
+func TestReadCollectionOAuth2(t *testing.T) {
+	got, err := postman.ReadCollection([]byte(`{
+  "info": {"name": "Identity", "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"},
+  "auth": {"type": "oauth2", "oauth2": [
+    {"key": "authUrl", "value": "https://id.example.com/authorize", "type": "string"},
+    {"key": "accessTokenUrl", "value": "https://id.example.com/token", "type": "string"},
+    {"key": "clientId", "value": "web", "type": "string"},
+    {"key": "redirect_uri", "value": "https://oauth.pstmn.io/v1/callback", "type": "string"},
+    {"key": "useBrowser", "value": true, "type": "boolean"},
+    {"key": "tokenName", "value": "web token", "type": "string"},
+    {"key": "addTokenTo", "value": "header", "type": "string"}
+  ]},
+  "item": [
+    {
+      "name": "Partners",
+      "auth": {"type": "oauth2", "oauth2": [
+        {"key": "grant_type", "value": "client_credentials", "type": "string"},
+        {"key": "accessTokenUrl", "value": "https://id.example.com/token", "type": "string"},
+        {"key": "clientId", "value": "partner", "type": "string"},
+        {"key": "clientSecret", "value": "{{partnerSecret}}", "type": "string"},
+        {"key": "scope", "value": "orders:read", "type": "string"},
+        {"key": "client_authentication", "value": "body", "type": "string"},
+        {"key": "redirect_uri", "value": "https://oauth.pstmn.io/v1/callback", "type": "string"},
+        {"key": "addTokenTo", "value": "queryParams", "type": "string"},
+        {"key": "tokenRequestParams", "value": [{"key": "audience", "value": "orders"}], "type": "any"}
+      ]},
+      "item": [{"id": "partner", "name": "Partner orders", "request": {"url": "https://api.example.com/partner"}}]
+    },
+    {
+      "name": "Legacy",
+      "auth": {"type": "oauth2", "oauth2": [{"key": "grant_type", "value": "implicit"}, {"key": "authUrl", "value": "https://id.example.com/authorize"}]},
+      "item": [{"id": "legacy", "name": "Legacy me", "request": {"url": "https://api.example.com/me"}}]
+    },
+    {
+      "id": "pkce", "name": "Me (PKCE)",
+      "request": {"url": "https://api.example.com/me", "auth": {"type": "oauth2", "oauth2": [
+        {"key": "grant_type", "value": "authorization_code_with_pkce", "type": "string"},
+        {"key": "authUrl", "value": "https://id.example.com/authorize", "type": "string"},
+        {"key": "accessTokenUrl", "value": "https://id.example.com/token", "type": "string"},
+        {"key": "clientId", "value": "cli", "type": "string"},
+        {"key": "clientSecret", "value": "", "type": "string"},
+        {"key": "scope", "value": "openid profile", "type": "string"},
+        {"key": "redirect_uri", "value": "http://localhost:8080/callback", "type": "string"},
+        {"key": "client_authentication", "value": "header", "type": "string"},
+        {"key": "headerPrefix", "value": "Token", "type": "string"},
+        {"key": "challengeAlgorithm", "value": "S256", "type": "string"},
+        {"key": "code_verifier", "value": "abc", "type": "string"},
+        {"key": "state", "value": "xyz", "type": "string"},
+        {"key": "accessToken", "value": "eyJ.leaked.token", "type": "string"}
+      ]}}
+    },
+    {
+      "id": "code-https", "name": "Me (code)",
+      "request": {"url": "https://api.example.com/me", "auth": {"type": "oauth2", "oauth2": [
+        {"key": "grant_type", "value": "authorization_code"},
+        {"key": "accessTokenUrl", "value": "https://id.example.com/token"},
+        {"key": "clientId", "value": "cli"},
+        {"key": "redirect_uri", "value": "https://127.0.0.1/callback"}
+      ]}}
+    },
+    {
+      "id": "password", "name": "Me (password, v2.0 object form)",
+      "request": {"url": "https://api.example.com/me", "auth": {"type": "oauth2", "oauth2": {
+        "grant_type": "password_credentials", "accessTokenUrl": "https://id.example.com/token", "clientId": "cli",
+        "username": "{{user}}", "password": "{{password}}", "redirect_uri": "http://[::1]:9000/cb"
+      }}}
+    },
+    {
+      "id": "implicit", "name": "Me (implicit)",
+      "request": {"url": "https://api.example.com/me", "auth": {"type": "oauth2", "oauth2": [{"key": "grant_type", "value": "implicit"}]}}
+    }
+  ]
+}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	oauth2 := func(o request.OAuth2) request.Auth { return request.Auth{Type: request.AuthOAuth2, OAuth2: o} }
+	wantFolders := []request.Folder{
+		{Path: "Identity", Auth: oauth2(request.OAuth2{
+			Grant: request.GrantAuthorizationCode, AuthURL: "https://id.example.com/authorize",
+			TokenURL: "https://id.example.com/token", ClientID: "web",
+		})},
+		{Path: "Identity/Partners", Auth: oauth2(request.OAuth2{
+			Grant: request.GrantClientCredentials, TokenURL: "https://id.example.com/token", ClientID: "partner",
+			ClientSecret: "{{partnerSecret}}", Scope: "orders:read", ClientAuth: "Body",
+		})},
+		{Path: "Identity/Legacy", Auth: request.Auth{Type: "None"}},
+	}
+	if !reflect.DeepEqual(got.Folders, wantFolders) {
+		t.Errorf("Folders:\n got %+v\nwant %+v", got.Folders, wantFolders)
+	}
+	wantAuth := map[string]request.Auth{
+		"partner": {Type: request.AuthInherit},
+		"legacy":  {Type: request.AuthInherit},
+		"pkce": oauth2(request.OAuth2{
+			Grant: request.GrantAuthorizationCodePKCE, AuthURL: "https://id.example.com/authorize",
+			TokenURL: "https://id.example.com/token", ClientID: "cli", Scope: "openid profile",
+			RedirectURL: "http://localhost:8080/callback", HeaderPrefix: "Token",
+		}),
+		"code-https": oauth2(request.OAuth2{Grant: request.GrantAuthorizationCode, TokenURL: "https://id.example.com/token", ClientID: "cli"}),
+		"password": oauth2(request.OAuth2{
+			Grant: request.GrantPassword, TokenURL: "https://id.example.com/token", ClientID: "cli",
+			Username: "{{user}}", Password: "{{password}}", RedirectURL: "http://[::1]:9000/cb",
+		}),
+		"implicit": {},
+	}
+	if len(got.Requests) != len(wantAuth) {
+		t.Fatalf("got %d requests, want %d", len(got.Requests), len(wantAuth))
+	}
+	for _, r := range got.Requests {
+		if want, ok := wantAuth[r.ID]; !ok || !reflect.DeepEqual(r.Auth, want) {
+			t.Errorf("request %s: Auth = %+v, want %+v", r.ID, r.Auth, want)
+		}
+	}
+	// The collection's and the code request's callbacks are not loopback
+	// addresses; the client credentials folder never opens a browser.
+	wantWarnings := []string{
+		"1 OAuth 2.0 configuration adds the token to the query; vscroxy sends it in the Authorization header",
+		"1 folder uses the OAuth 2.0 implicit grant; imported as no auth",
+		"1 request uses the OAuth 2.0 implicit grant; imported as no auth",
+		"2 OAuth 2.0 callback URLs are not loopback addresses; vscroxy signs in through http://127.0.0.1 instead",
+	}
+	if !slices.Equal(got.Warnings, wantWarnings) {
+		t.Errorf("Warnings:\n got %q\nwant %q", got.Warnings, wantWarnings)
+	}
+
+	collection, err := postman.ReadCollection([]byte(`{"info": {"name": "Old", "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"},
+  "auth": {"type": "oauth2", "oauth2": [{"key": "grant_type", "value": "implicit"}]}, "item": []}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{"The collection uses the OAuth 2.0 implicit grant; imported as no auth"}; !slices.Equal(collection.Warnings, want) {
+		t.Errorf("collection Warnings = %q, want %q", collection.Warnings, want)
+	}
+}
+
 func TestReadCollectionRejects(t *testing.T) {
 	for _, tt := range []struct{ name, data, want string }{
 		{"v1", `{"id": "x", "name": "Old", "order": [], "requests": [{"id": "r", "url": "https://example.com"}]}`, "v1 is not supported"},
@@ -327,6 +463,10 @@ func TestCollectionRoundTrip(t *testing.T) {
 		},
 		{Path: "Shop/Orders∕Returns", Auth: request.Auth{Type: "None"}, Post: "after();"},
 		{Path: "Shop/Orders∕Returns/Deep", Description: "Deep.", Auth: request.Auth{Type: "API key", Key: "X-Key", Value: "{{key}}", Location: "Header"}},
+		{Path: "Shop/Partners", Auth: request.Auth{Type: request.AuthOAuth2, OAuth2: request.OAuth2{
+			Grant: request.GrantClientCredentials, TokenURL: "https://id.example.com/token", ClientID: "svc",
+			ClientSecret: "{{vault:partner-secret}}", Scope: "read write", ClientAuth: "Body",
+		}}},
 		{Path: "Shopping", Description: "Another collection."},
 	}
 	requests := []request.Request{
@@ -363,6 +503,28 @@ func TestCollectionRoundTrip(t *testing.T) {
 			ID: "r6", Name: "Checked", Collection: "Shop", Method: "DELETE", URL: "{{base}}/x", Headers: "A: 1\nB: 2",
 			Checks: request.Checks{Status: "204"},
 		},
+		{ID: "r7", Name: "Partner orders", Collection: "Shop/Partners", Method: "GET", URL: "{{base}}/partner", Auth: request.Auth{Type: request.AuthInherit}},
+		{
+			ID: "r8", Name: "PKCE default", Collection: "Shop", Method: "GET", URL: "{{base}}/me",
+			Auth: request.Auth{Type: request.AuthOAuth2, Token: "transient-access-token", OAuth2: request.OAuth2{
+				AuthURL: "https://id.example.com/authorize", TokenURL: "https://id.example.com/token", ClientID: "app",
+				Scope: "openid", RedirectURL: "http://127.0.0.1:8765/callback", HeaderPrefix: "Token",
+			}},
+		},
+		{
+			ID: "r9", Name: "Code", Collection: "Shop", Method: "GET", URL: "{{base}}/me",
+			Auth: request.Auth{Type: request.AuthOAuth2, OAuth2: request.OAuth2{
+				Grant: request.GrantAuthorizationCode, AuthURL: "https://id.example.com/authorize", TokenURL: "https://id.example.com/token",
+				ClientID: "app", ClientSecret: "s3cret",
+			}},
+		},
+		{
+			ID: "r10", Name: "Password", Collection: "Shop", Method: "GET", URL: "{{base}}/me",
+			Auth: request.Auth{Type: request.AuthOAuth2, OAuth2: request.OAuth2{
+				Grant: request.GrantPassword, TokenURL: "https://id.example.com/token", ClientID: "app",
+				Username: "{{user}}", Password: "{{password}}", ClientAuth: "Body",
+			}},
+		},
 		{ID: "other", Name: "Elsewhere", Collection: "Shopping", Method: "GET", URL: "https://example.com"},
 	}
 	data, warnings, err := postman.WriteCollection("Shop", requests, folders)
@@ -376,6 +538,9 @@ func TestCollectionRoundTrip(t *testing.T) {
 		if !strings.Contains(string(data), s) {
 			t.Errorf("export lacks %q:\n%s", s, data)
 		}
+	}
+	if strings.Contains(string(data), "transient-access-token") {
+		t.Errorf("export contains the OAuth 2.0 access token:\n%s", data)
 	}
 	if postman.Detect(data) != postman.KindCollection {
 		t.Errorf("Detect(export) = %q", postman.Detect(data))
@@ -396,13 +561,17 @@ func TestCollectionRoundTrip(t *testing.T) {
 	for _, r := range got.Requests {
 		order = append(order, r.ID)
 	}
-	if want := []string{"r4", "r3", "r1", "r2", "r5", "r6"}; !slices.Equal(order, want) {
+	if want := []string{"r4", "r3", "r1", "r7", "r2", "r5", "r6", "r8", "r9", "r10"}; !slices.Equal(order, want) {
 		t.Errorf("request order = %q, want %q", order, want)
 	}
 	want := map[string]request.Request{}
-	for _, r := range requests[:6] {
+	for _, r := range requests[:10] {
 		want[r.ID] = r
 	}
+	// The access token is never exported, and the default grant comes back named.
+	r8 := want["r8"]
+	r8.Auth.Token, r8.Auth.OAuth2.Grant = "", request.GrantAuthorizationCodePKCE
+	want["r8"] = r8
 	r6 := want["r6"]
 	r6.HeaderList, r6.Checks = []request.Field{{Name: "A", Value: "1"}, {Name: "B", Value: "2"}}, request.Checks{}
 	want["r6"] = r6
@@ -411,8 +580,8 @@ func TestCollectionRoundTrip(t *testing.T) {
 			t.Errorf("request %s:\n got %+v\nwant %+v", r.ID, r, want[r.ID])
 		}
 	}
-	if !reflect.DeepEqual(got.Folders, folders[:3]) {
-		t.Errorf("Folders:\n got %+v\nwant %+v", got.Folders, folders[:3])
+	if !reflect.DeepEqual(got.Folders, folders[:4]) {
+		t.Errorf("Folders:\n got %+v\nwant %+v", got.Folders, folders[:4])
 	}
 }
 
