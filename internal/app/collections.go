@@ -132,6 +132,15 @@ func (a *app) folderSettingsItems(m *ui.Menu, path string) {
 	}
 }
 
+// settingsLabel names the settings of the level path is: its collection's
+// for "Shop", its folder's for "Shop/Orders".
+func settingsLabel(path string) string {
+	if strings.Contains(path, "/") {
+		return "Folder settings…"
+	}
+	return "Collection settings…"
+}
+
 // collectionRoot is the collection a path is in: "Shop" for "Shop/Orders".
 func collectionRoot(path string) string {
 	root, _, _ := strings.Cut(strings.Trim(path, "/"), "/")

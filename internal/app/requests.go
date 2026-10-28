@@ -548,7 +548,7 @@ func (a *app) requestBreadcrumb(c *ui.Context, t *ui.Theme, d *requestDocument) 
 				a.importRegression()
 			}
 			m.Separator()
-			if m.Item("Collection settings…").Disabled(d.composeCollection == "").Chosen() {
+			if m.Item(settingsLabel(d.composeCollection)).Disabled(d.composeCollection == "").Chosen() {
 				a.openFolder(d.composeCollection)
 			}
 			if m.Item("Manage environments…").Chosen() {

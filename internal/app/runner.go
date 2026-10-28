@@ -379,7 +379,11 @@ func (a *app) runnerModal(c *ui.Context, t *ui.Theme) {
 					})
 				})
 			})
-			ui.Text(c, r.status+" · displaying latest 1000 results; closing keeps a run active").FontSize(11).TextColor(t.TextMuted)
+			footer := "Displaying latest 1000 results; closing keeps a run active"
+			if r.status != "" {
+				footer = r.status + " · displaying latest 1000 results; closing keeps a run active"
+			}
+			ui.Text(c, footer).FontSize(11).TextColor(t.TextMuted)
 			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
 				if ui.Button(c, "Close").Clicked() {
 					r.open = false

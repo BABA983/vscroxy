@@ -313,8 +313,8 @@ func (a *app) authEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
 			}
 			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 				ui.Text(c, text).FontSize(12).TextColor(t.TextMuted)
-				if d.composeCollection != "" && ui.Button(c, "Collection settings…").FontSize(11).Clicked() {
-					a.openFolder(cmp.Or(from, d.composeCollection))
+				if path := cmp.Or(from, d.composeCollection); path != "" && ui.Button(c, settingsLabel(path)).FontSize(11).Clicked() {
+					a.openFolder(path)
 				}
 			})
 		}
