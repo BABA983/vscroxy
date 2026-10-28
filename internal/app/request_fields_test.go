@@ -497,3 +497,15 @@ func TestCollectionSettingsGiveRequestsTheirAuth(t *testing.T) {
 		t.Fatalf("inherited %+v", auth)
 	}
 }
+
+func TestOpeningARequestWithoutHeadersLeavesItUnchanged(t *testing.T) {
+	a := workspaceApp()
+	r := savedRequest{Request: request.Request{ID: "no-headers", Name: "No headers", Method: "GET", URL: "https://example.com"}}
+	a.addDocument(r, r.key())
+	d := a.requestDocument
+	d.composeTab = composeTabHeaders
+	ui.NewTester(a.view, 1100, 700).Frame()
+	if len(d.headerRows) != 1 || d.dirty() {
+		t.Fatalf("header rows %+v, dirty %v: the table's blank row must not count as an edit", d.headerRows, d.dirty())
+	}
+}

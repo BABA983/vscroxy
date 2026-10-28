@@ -227,9 +227,13 @@ func headerRowsText(rows []request.Field) string {
 // headerRowsKept drops the blank row a new table starts with, so an empty
 // table never makes a document look edited.
 func headerRowsKept(rows []request.Field) []request.Field {
-	return slices.DeleteFunc(slices.Clone(rows), func(row request.Field) bool {
+	kept := slices.DeleteFunc(slices.Clone(rows), func(row request.Field) bool {
 		return row.Name == "" && row.Value == "" && !row.Disabled
 	})
+	if len(kept) == 0 {
+		return nil // the table's blank row is not an edit of a request without headers
+	}
+	return kept
 }
 
 // parseHeaderRows reads that block back into rows, keeping order and repeats.
