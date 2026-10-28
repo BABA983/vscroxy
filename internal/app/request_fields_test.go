@@ -569,8 +569,8 @@ func TestImportPostmanCollectionAndEnvironment(t *testing.T) {
 	if auth, from := a.inheritance("Shop/Orders").InheritAuth(a.requests[0].Auth); auth.Token != "{{vault:token}}" || from != "Shop" {
 		t.Errorf("inherited auth %+v from %q", auth, from)
 	}
-	if !a.importReport.open || !slices.ContainsFunc(a.importReport.lines, func(l string) bool { return strings.Contains(l, "example") }) {
-		t.Errorf("the dropped example was not reported: %+v", a.importReport)
+	if len(a.requests[0].Examples) != 1 || a.requests[0].Examples[0].Name != "example" {
+		t.Errorf("the saved example was not imported: %+v", a.requests[0].Examples)
 	}
 	// Importing it again updates the same request instead of adding a copy.
 	a.importData([]byte(`{"info":{"name":"Shop","schema":"https://schema.getpostman.com/json/collection/v2.1.0/collection.json"},

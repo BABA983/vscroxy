@@ -110,7 +110,8 @@ func (r Request) Execute(ctx context.Context, srv *capture.Server, in Context, v
 	if r.Auth.Type == "API key" {
 		authHeader = ExpandVars(r.Auth.Key, effective)
 	}
-	if template.editedHeaders[http.CanonicalHeaderKey(authHeader)] && (r.Auth.Type != "API key" || r.Auth.Location != "Query") {
+	inQuery := r.Auth.Type == "API key" && r.Auth.Location == "Query" || r.Auth.Type == AuthJWT && r.Auth.JWT.AddTo == "Query"
+	if template.editedHeaders[http.CanonicalHeaderKey(authHeader)] && !inQuery {
 		r.Auth = Auth{}
 	}
 	out.Stage, run.phase = "Request setup failed", "setup"
@@ -162,6 +163,13 @@ func (r Request) Execute(ctx context.Context, srv *capture.Server, in Context, v
 			req.Header.Add(name, ExpandVars(expandDynamic(value, effective), effective))
 		}
 	}
+	if r.Auth.Type == AuthAWS {
+		// Sign again: the script's headers are part of what is signed.
+		if err := r.Auth.AWS.expand(effective).sign(req, now()); err != nil {
+			out.Err = err
+			return out
+		}
+	}
 	out.Request = req
 	if IsWebSocket(req.URL) && r.Checks != (Checks{}) {
 		out.Err = fmt.Errorf("response checks require an HTTP(S) request, not a WebSocket exchange")
@@ -181,7 +189,23 @@ func (r Request) Execute(ctx context.Context, srv *capture.Server, in Context, v
 			out.Err = fmt.Errorf("post-response scripts require an HTTP response")
 		}
 	} else {
-		got, err := srv.ReplayWithCookies(ctx, capture.Flow{DebugRun: runKey, Method: req.Method, URL: req.URL, RequestHeader: req.Header, RequestBody: req.Body}, jar, r.Checks == (Checks{}))
+		send := func() (capture.Flow, error) {
+			return srv.ReplayWithCookies(ctx, capture.Flow{DebugRun: runKey, Method: req.Method, URL: req.URL, RequestHeader: req.Header, RequestBody: req.Body}, jar, r.Checks == (Checks{}))
+		}
+		got, err := send()
+		if err == nil && r.Auth.Type == AuthDigest {
+			// The challenge is answered once; the answer's response is the result.
+			answer, failed := digestAnswer(got, req, ExpandVars(r.Auth.Username, effective), ExpandVars(r.Auth.Password, effective))
+			if failed != nil {
+				out.Response, out.Stage, out.Err = &got, "Digest authentication failed", failed
+				out.Tests, out.Vars = run.tests, run.vars
+				return out
+			}
+			if answer != "" {
+				req.Header.Set("Authorization", answer)
+				got, err = send()
+			}
+		}
 		out.Err = err
 		if err == nil {
 			out.Response = &got

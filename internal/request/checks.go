@@ -156,8 +156,16 @@ func (r Request) Variables() []string {
 	switch r.Auth.Type {
 	case "Bearer":
 		texts = append(texts, r.Auth.Token)
-	case "Basic":
+	case "Basic", AuthDigest:
 		texts = append(texts, r.Auth.Username, r.Auth.Password)
+	case AuthAWS:
+		for _, f := range r.Auth.AWS.fields() {
+			texts = append(texts, *f)
+		}
+	case AuthJWT:
+		for _, f := range r.Auth.JWT.fields() {
+			texts = append(texts, *f)
+		}
 	case "API key":
 		texts = append(texts, r.Auth.Key, r.Auth.Value)
 	}

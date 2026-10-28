@@ -322,7 +322,7 @@ func (a *app) authEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
 }
 
 // authTypes are the auth a request or folder sets itself.
-var authTypes = []string{"None", "Bearer", "Basic", "API key", request.AuthOAuth2}
+var authTypes = []string{"None", "Bearer", "Basic", "API key", request.AuthOAuth2, request.AuthDigest, request.AuthAWS, request.AuthJWT}
 
 // authFields edits one Auth, a request's or a folder's; collection is where
 // it is used, for the variables an OAuth 2.0 token request expands.
@@ -346,6 +346,58 @@ func (a *app) authFields(c *ui.Context, auth *request.Auth, types []string, coll
 		})
 	case request.AuthOAuth2:
 		a.oauthFields(c, auth, collection)
+	case request.AuthDigest:
+		ui.Form(c, func() {
+			ui.Field(c, "Username", func() { ui.TextInput(c, &auth.Username) })
+			ui.Field(c, "Password", func() { ui.TextInput(c, &auth.Password).Password() }).
+				Description("The first send gets the server's challenge; vscroxy answers it and sends again.")
+		})
+	case request.AuthAWS:
+		aws := &auth.AWS
+		ui.Form(c, func() {
+			ui.Field(c, "Access key", func() { ui.TextInput(c, &aws.AccessKey) })
+			ui.Field(c, "Secret key", func() { ui.TextInput(c, &aws.SecretKey).Placeholder("{{vault:aws_secret}}").Password() })
+			ui.Field(c, "Region", func() { ui.TextInput(c, &aws.Region).Placeholder("us-east-1").Width(260) })
+			ui.Field(c, "Service", func() { ui.TextInput(c, &aws.Service).Placeholder("e.g. execute-api or s3").Width(260) })
+			ui.Field(c, "Session token", func() { ui.TextInput(c, &aws.SessionToken).Placeholder("Optional").Password() })
+		})
+	case request.AuthJWT:
+		jwt := &auth.JWT
+		if jwt.Algorithm == "" {
+			jwt.Algorithm = request.JWTAlgorithms[0]
+		}
+		addTo := "Header"
+		if jwt.AddTo == "Query" {
+			addTo = "Query"
+		}
+		ui.Form(c, func() {
+			ui.Field(c, "Algorithm", func() { ui.Select(c, &jwt.Algorithm, request.JWTAlgorithms).Width(150) })
+			if strings.HasPrefix(jwt.Algorithm, "HS") {
+				ui.Field(c, "Secret", func() { ui.TextInput(c, &jwt.Secret).Placeholder("{{vault:jwt_secret}}").Password() })
+				ui.Field(c, "", func() { ui.Checkbox(c, &jwt.SecretBase64, "Secret is base64-encoded") })
+			} else {
+				ui.Field(c, "Private key", func() {
+					ui.TextArea(c, &jwt.PrivateKey).Height(72).Font("monospace").FontSize(11).Placeholder("-----BEGIN PRIVATE KEY----- … or {{vault:jwt_key}}")
+				})
+			}
+			ui.Field(c, "Payload", func() {
+				ui.TextArea(c, &jwt.Payload).Height(72).Font("monospace").FontSize(11).Placeholder(`{"sub": "{{user_id}}"}`)
+			})
+			ui.Field(c, "Extra header", func() { ui.TextInput(c, &jwt.Header).Placeholder(`Optional, e.g. {"kid": "key-1"}`).Font("monospace") })
+			ui.Field(c, "Add token to", func() {
+				if ui.Select(c, &addTo, []string{"Header", "Query"}).Width(150).Changed() {
+					jwt.AddTo = ""
+					if addTo == "Query" {
+						jwt.AddTo = "Query"
+					}
+				}
+			})
+			if jwt.AddTo == "Query" {
+				ui.Field(c, "Query parameter", func() { ui.TextInput(c, &jwt.QueryParam).Placeholder("token").Width(200) })
+			} else {
+				ui.Field(c, "Header prefix", func() { ui.TextInput(c, &jwt.Prefix).Placeholder("Bearer").Width(150) })
+			}
+		})
 	}
 }
 

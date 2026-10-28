@@ -143,6 +143,9 @@ func (a *app) apiView(c *ui.Context, t *ui.Theme) {
 			if ui.Button(c, "Export…").Height(26).FontSize(11).Label("Export OpenAPI").Disabled(!valid).Clicked() {
 				a.exportOpenAPI(d)
 			}
+			if ui.Button(c, "Create collection").Height(26).FontSize(11).Label("Create collection from OpenAPI").Disabled(!valid).Clicked() {
+				a.importOpenAPICollection(d.parsed, d.title())
+			}
 			if ui.PrimaryButton(c, "Save API").Height(26).FontSize(11).Clicked() {
 				a.saveAPI(d)
 			}

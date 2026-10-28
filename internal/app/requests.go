@@ -53,18 +53,24 @@ type requestDocument struct {
 	headerWarn bool
 	// headerOff are the switched-off rows while the bulk editor shows the
 	// block, which has no way to say a row is disabled.
-	headerOff       []request.Field
-	bulkEditor      *editor.State
-	bulkFor         string
-	auth            request.Auth
-	bodyMode        string
-	formFields      []request.Field
-	queryRows       []request.Field
-	querySource     string
-	queryError      string
-	composePre      string
-	composePost     string
-	checks          request.Checks
+	headerOff   []request.Field
+	bulkEditor  *editor.State
+	bulkFor     string
+	auth        request.Auth
+	bodyMode    string
+	formFields  []request.Field
+	queryRows   []request.Field
+	querySource string
+	queryError  string
+	composePre  string
+	composePost string
+	checks      request.Checks
+	// examples are the draft's kept responses; example is the one shown,
+	// exampleView its Body, Headers or Request view.
+	examples        []request.Example
+	example         int
+	exampleView     int
+	exampleEditor   *editor.State
 	composeTab      int
 	scriptTab       int
 	composeResult   string
@@ -137,6 +143,7 @@ func (d *requestDocument) value() savedRequest {
 		Body: d.composeBody, Pre: d.composePre, Post: d.composePost,
 		Auth: d.auth, BodyMode: d.bodyMode, Form: slices.Clone(d.formFields),
 		Checks: d.checks, HeaderList: headerRowsKept(d.headerRows),
+		Examples: slices.Clone(d.examples),
 	}
 	if len(d.headerRows) > 0 {
 		r.Headers = headerRowsText(d.headerRows)
@@ -147,6 +154,14 @@ func (d *requestDocument) value() savedRequest {
 	if r.BodyMode == "Raw" {
 		r.BodyMode = ""
 	}
+	return r
+}
+
+// draft is what a send carries: the request without its examples, which
+// stay with the request rather than with every attempt.
+func (d *requestDocument) draft() savedRequest {
+	r := d.value()
+	r.Examples = nil
 	return r
 }
 
@@ -186,6 +201,7 @@ func (d *requestDocument) load(r savedRequest, key string) {
 	d.composeHeaders, d.composeBody = r.Headers, r.Body
 	d.headerRows, d.headerFor = slices.Clone(r.HeaderList), ""
 	d.composePre, d.composePost, d.checks = r.Pre, r.Post, r.Checks
+	d.examples, d.example, d.exampleEditor = slices.Clone(r.Examples), 0, nil
 	d.auth, d.bodyMode, d.formFields = r.Auth, cmp.Or(r.BodyMode, "Raw"), slices.Clone(r.Form)
 	if d.headerRows == nil && d.composeHeaders != "" {
 		d.headerRows, d.headerFor = parseHeaderRows(d.composeHeaders), d.composeHeaders
@@ -206,6 +222,7 @@ const (
 	composeTabBody
 	composeTabScripts
 	composeTabChecks
+	composeTabExamples
 )
 
 // composeTabFor opens the tab a request is usually edited in: its body when
@@ -531,7 +548,10 @@ func (a *app) requestBreadcrumb(c *ui.Context, t *ui.Theme, d *requestDocument) 
 				a.addDocument(r, "")
 			}
 			if m.Item("Copy as cURL").Chosen() {
-				a.copyCurl(c, flow{method: d.composeMethod, url: d.composeURL, reqHeader: request.ParseHeaderBlock(d.composeHeaders), reqBody: d.composeBody})
+				a.copyDraftCurl(c, d)
+			}
+			if m.Item("Generate code…").Chosen() {
+				a.openCode()
 			}
 			if m.Item("Run records…").Chosen() {
 				a.experiments.scope, a.experiments.draftKey = nil, ""
@@ -707,7 +727,11 @@ func (a *app) requestEditor(c *ui.Context, t *ui.Theme, d *requestDocument) {
 	ui.Column(c).Fill().Children(func() {
 		ui.Row(c).Height(34).Padding(0, 6).Gap(4).AlignItems(ui.Center).
 			Border(0, t.Border).BorderWidth(0, 0, 1, 0).Children(func() {
-			flatTabs(c, &d.composeTab, "Request editor", "Params", "Headers", "Auth", "Body", "Scripts", "Checks")
+			examples := "Examples"
+			if len(d.examples) > 0 {
+				examples = fmt.Sprintf("Examples (%d)", len(d.examples))
+			}
+			flatTabs(c, &d.composeTab, "Request editor", "Params", "Headers", "Auth", "Body", "Scripts", "Checks", examples)
 			if d.composeTab == composeTabBody {
 				// The body's type and formatting belong to the Body tab, so
 				// they cost no row of their own.
@@ -743,6 +767,8 @@ func (a *app) requestEditor(c *ui.Context, t *ui.Theme, d *requestDocument) {
 				a.requestScriptText(c, d)
 			case composeTabChecks:
 				a.checksEditor(c, d, t)
+			case composeTabExamples:
+				a.examplesEditor(c, d, t)
 			}
 		})
 		ui.Row(c).Height(22).Padding(0, 12).AlignItems(ui.Center).Children(func() {
@@ -759,7 +785,7 @@ func (a *app) requestSentState(c *ui.Context, t *ui.Theme, d *requestDocument) {
 		ui.Text(c, "Sending…").FontSize(11).TextColor(t.TextMuted)
 	case !d.sentSet:
 		ui.Text(c, "Not sent yet").FontSize(11).TextColor(t.TextMuted)
-	case reflect.DeepEqual(d.value(), d.sent):
+	case reflect.DeepEqual(d.draft(), d.sent):
 		ui.Text(c, "Draft matches last attempt · "+d.sentAt.Local().Format("15:04:05")).FontSize(11).TextColor(t.TextMuted).
 			Tooltip("The draft snapshot matches; variables, scripts, redirects and rules may change the wire request")
 	default:
@@ -818,6 +844,15 @@ func (a *app) requestResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 					d.comparing = true
 				}
 			}
+			if d.response != nil && !d.composeWaiting && outcome != "Network error" && d.sentSet {
+				if ui.ButtonBase(c).Label("Save as example").Height(26).Padding(0, 8).Gap(6).Radius(5).AlignItems(ui.Center).
+					TextColor(t.TextMuted).Tooltip("Keep this response with the request, as a Postman example").Children(func() {
+					ui.Icon(c, exampleIcon).Size(13, 13)
+					ui.Text(c, "Save as example").FontSize(11)
+				}).Clicked() {
+					a.saveExample(d)
+				}
+			}
 			// Without a retained send there is nothing to read, so the entry
 			// waits rather than opening an empty list.
 			if ui.ButtonBase(c).Label("Send history").Height(26).Padding(0, 8).Gap(6).Radius(5).AlignItems(ui.Center).
@@ -833,7 +868,7 @@ func (a *app) requestResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 			ui.Row(c).Height(26).Padding(0, 12).Gap(10).AlignItems(ui.Center).Children(func() {
 				label := "Last attempt · " + d.sentAt.Local().Format("15:04:05") + " · " + d.sent.Method + " " + d.sent.URL
 				ui.Text(c, label).FontSize(11).TextColor(t.TextMuted).SingleLine().Grow(1).Tooltip(label + "\nDraft snapshot; inspect Send history for prepared request and wire evidence")
-				if !reflect.DeepEqual(d.value(), d.sent) {
+				if !reflect.DeepEqual(d.draft(), d.sent) {
 					ui.Text(c, "Draft changed · not sent").FontSize(11).TextColor(t.Warning)
 				}
 			})

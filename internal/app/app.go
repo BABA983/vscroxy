@@ -115,6 +115,7 @@ type app struct {
 	diffBaseline bool
 	analysis     captureAnalysis
 	replayUI     replaySetup
+	bulkSaveUI   collectionSave // saves the chosen rows into a collection
 	frames       map[int][]frame
 	messageUI    messagePanel
 	frameLost    atomic.Int64
@@ -257,6 +258,8 @@ type app struct {
 	// folders are the collections' and folders' own settings, by path.
 	folders        []request.Folder
 	folderUI       folderEditor
+	deleting       deletion
+	code           codeDialog
 	vault          vaultState
 	history        []historyEntry
 	historyPath    string
@@ -1196,6 +1199,8 @@ func (a *app) view(c *ui.Context) {
 	a.varsModal(c, t)
 	a.importReportModal(c, t)
 	a.folderModal(c, t)
+	a.deleteModal(c, t)
+	a.codeModal(c, t)
 	a.vaultModal(c, t)
 	a.markModal(c, t)
 	a.views.modals(c, t, a)
@@ -1218,6 +1223,7 @@ func (a *app) view(c *ui.Context) {
 	a.cookiesModal(c, t)
 	a.regressionModal(c, t)
 	a.replayModal(c, t)
+	a.collectionSaveModal(c, t)
 	a.protobuf.modal(c, a)
 	a.views.capture(a)
 	if a.workspace != 0 || a.inspect.pane != inspectorMessages {
@@ -1533,13 +1539,25 @@ func (a *app) requestSidebar(c *ui.Context, t *ui.Theme) {
 					if len(shown) == 0 && (query != "" || len(groups[name]) > 0) {
 						continue
 					}
-					settings := func(m *ui.Menu) { a.folderSettingsItems(m, name) }
+					settings := func(m *ui.Menu) {
+						a.folderSettingsItems(m, name)
+						if name != "" && m.Item("Delete “"+name+"”…").Chosen() {
+							a.confirmDeleteFolder(name)
+						}
+					}
 					ui.SidebarSection(c, cmp.Or(name, "Saved"), a.collectionShown(name), func() {
 						if len(shown) == 0 {
 							ui.Text(c, "No requests · right-click for settings").FontSize(11).TextColor(t.TextMuted).Padding(4, 12)
 						}
 						for _, r := range shown {
-							ui.SidebarItem(c, r.key(), requestIcon, r.Name).FontSize(12).Padding(5, 8).ContextMenu(settings).Children(func() {
+							menu := func(m *ui.Menu) {
+								if m.Item("Delete request…").Chosen() {
+									a.confirmDeleteRequest(r.key(), r.Name)
+								}
+								m.Separator()
+								settings(m)
+							}
+							ui.SidebarItem(c, r.key(), requestIcon, r.Name).FontSize(12).Padding(5, 8).ContextMenu(menu).Children(func() {
 								ui.Text(c, r.Method).FontSize(9).Bold().TextColor(methodColor(r.Method)).Width(38)
 							})
 						}
@@ -1649,7 +1667,7 @@ func (a *app) requestSidebar(c *ui.Context, t *ui.Theme) {
 			for _, item := range []struct {
 				label string
 				run   func()
-			}{{"Import cURL…", a.openCurlImport}, {"Import Postman…", a.importRequests}} {
+			}{{"Import cURL…", a.openCurlImport}, {"Import…", a.importRequests}} {
 				if ui.ButtonBase(c).Label(item.label).Height(26).Padding(0, 6).Gap(8).Radius(5).FillWidth().
 					AlignItems(ui.Center).TextColor(t.TextMuted).Children(func() {
 					ui.Icon(c, plusIcon).Size(13, 13)
@@ -2309,6 +2327,9 @@ func (a *app) rowMenu(c *ui.Context, f flow) func(*ui.Menu) {
 		if m.Item("Save as request").Disabled(f.kind == "connect" || f.method == "CONNECT").Chosen() {
 			a.saveCapture(f)
 		}
+		if chosen := a.selectedFlows(); len(chosen) > 1 && m.Item(fmt.Sprintf("Save %d requests to collection…", len(chosen))).Chosen() {
+			a.openCollectionSave(chosen)
+		}
 		m.Separator()
 		m.Submenu("Copy", func(m *ui.Menu) {
 			if m.Item("URL").Chosen() {
@@ -2658,7 +2679,7 @@ func (a *app) sendComposed() {
 	d.comparing = false
 	d.sendOutcome, d.sendCancelling, d.sendDetails = "", false, false
 	d.composeWaiting, d.composeResult = true, "Sending…"
-	r, env, vars, srv, jar := d.value(), a.activeEnv, a.activeVars(), a.srv, a.requestCookies()
+	r, env, vars, srv, jar := d.draft(), a.activeEnv, a.activeVars(), a.srv, a.requestCookies()
 	in := a.sendContext(r.Request)
 	d.sent, d.sentAt, d.sentSet = r, time.Now(), true
 	runKey, draftKey, origin := uuid.New().String(), d.debugKey, d.origin

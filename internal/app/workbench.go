@@ -6,7 +6,6 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/baba983/vscroxy/internal/request"
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/editor"
@@ -285,23 +284,7 @@ func (a *app) requestActions(c *ui.Context, f flow, current bool) []desktopActio
 	copyRequest := func() { a.copyCurl(c, f) }
 	if d := a.requestDocument; a.workspace == 1 && d != nil {
 		copyable = true
-		copyRequest = func() {
-			r := d.value()
-			r.Auth, _ = a.inheritance(r.Collection).InheritAuth(r.Auth)
-			if r.Auth.Type == request.AuthOAuth2 {
-				// The token this session holds, as a send would use it.
-				if in, cfg, err := a.oauthConfig(r.Auth, r.Collection); err == nil {
-					tok, _ := in.Tokens.Peek(cfg)
-					r.Auth.Token, r.Auth.OAuth2.HeaderPrefix = tok.Access, cfg.HeaderPrefix
-				}
-			}
-			req, err := r.Prepare(nil)
-			if err != nil {
-				a.setMessage("Copy cURL: " + err.Error())
-				return
-			}
-			a.copyCurl(c, flow{method: req.Method, url: req.URL, reqHeader: req.Header, reqBody: req.Body})
-		}
+		copyRequest = func() { a.copyDraftCurl(c, d) }
 	}
 	return []desktopAction{
 		{"edit", "Edit & replay", current && !bulk && f.kind == "", ui.Cmd | ui.Alt, ui.KeyEnter, func() { a.composeFrom(f) }},
@@ -395,6 +378,7 @@ func (a *app) desktopActions(c *ui.Context) []desktopAction {
 		{"rules", "Manage debugging rules…", true, 0, 0, a.openRules},
 		{"vault", "Vault…", true, 0, 0, a.openVault},
 		{"environments", "Manage environments…", true, 0, 0, a.openVars},
+		{"code", "Generate code…", editing, 0, 0, a.openCode},
 		{"collection", "Collection settings…", editing && d.composeCollection != "", 0, 0, func() { a.openFolder(d.composeCollection) }},
 		{"new-request", "New request", true, ui.Cmd, ui.KeyN, a.openCompose},
 		{"import-curl", "Import cURL…", true, 0, 0, a.openCurlImport},
@@ -402,7 +386,7 @@ func (a *app) desktopActions(c *ui.Context) []desktopAction {
 			a.loadRequestAssets()
 			a.setMessage(fmt.Sprintf("Reloaded %d %s from %s", len(a.requests), plural(len(a.requests), "request", "requests"), a.library.root))
 		}},
-		{"import-postman", "Import Postman collection or environment…", true, 0, 0, a.importRequests},
+		{"import-postman", "Import…", true, 0, 0, a.importRequests},
 		{"export-postman", "Export collection as Postman…", editing && d.composeCollection != "", 0, 0, func() { a.exportPostman(collectionRoot(d.composeCollection)) }},
 		{"settings", "Open settings…", true, ui.Cmd, ui.KeyComma, func() { a.settingsOpen = true }},
 		{"capture-workspace", "Capture", true, ui.Cmd, ui.Key1, func() {

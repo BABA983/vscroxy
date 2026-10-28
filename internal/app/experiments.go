@@ -64,6 +64,7 @@ type experimentLog struct {
 func snapshotExperiment(id int, draft savedRequest, environment string, got request.Execution) experimentRecord {
 	draft.Form = slices.Clone(draft.Form)
 	draft.HeaderList = slices.Clone(draft.HeaderList)
+	draft.Examples = nil // kept with the request, not with every attempt
 	r := experimentRecord{
 		ID: id, At: time.Now(), Draft: draft, Source: draft.Source, Environment: environment,
 		Summary: runSummary(got), Outcome: got.Outcome(), Tests: slices.Clone(got.Tests), Replies: slices.Clone(got.Replies),

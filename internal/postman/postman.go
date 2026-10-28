@@ -136,7 +136,7 @@ func (w tally) list() []string {
 func (k warning) text(n int) string {
 	switch k.what {
 	case "example":
-		return "Dropped " + count(n, "saved example", "saved examples")
+		return "Dropped " + count(n, "saved example that is unreadable or over 5 MiB", "saved examples that are unreadable or over 5 MiB")
 	case "description":
 		return "Dropped " + count(n, "request description", "request descriptions")
 	case "settings":
@@ -153,7 +153,7 @@ func (k warning) text(n int) string {
 		return count(n, "form file field lists", "form file fields list") + " several files; imported the first"
 	case "body":
 		return count(n, "request uses", "requests use") + " a " + k.detail + " body; imported without a body"
-	// An auth warning's detail is what was dropped: "digest auth" or "the
+	// An auth warning's detail is what was dropped: "hawk auth" or "the
 	// OAuth 2.0 implicit grant".
 	case "request auth":
 		return count(n, "request uses", "requests use") + " " + k.detail + "; imported as no auth"
@@ -167,6 +167,12 @@ func (k warning) text(n int) string {
 	case "oauth2 query":
 		return count(n, "OAuth 2.0 configuration adds", "OAuth 2.0 configurations add") +
 			" the token to the query; vscroxy sends it in the Authorization header"
+	case "digest retry":
+		return count(n, "Digest auth configuration does", "Digest auth configurations do") +
+			" not retry after the server's challenge; vscroxy always answers the challenge"
+	case "aws query":
+		return count(n, "AWS Signature configuration adds", "AWS Signature configurations add") +
+			" the signature to the query; vscroxy sends it in headers"
 	case "checks":
 		return "Declarative checks on " + count(n, "request are", "requests are") + " not exported"
 	}

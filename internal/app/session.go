@@ -81,6 +81,9 @@ type harContent struct {
 type harPostData struct {
 	MimeType string `json:"mimeType"`
 	Text     string `json:"text"`
+	// Encoding is "base64" when Text is not plain text, as some tools write
+	// binary request bodies.
+	Encoding string `json:"encoding,omitempty"`
 }
 
 type harNameValue struct {
@@ -176,52 +179,61 @@ func readHAR(path string) ([]flow, error) {
 	}
 	flows := make([]flow, 0, len(doc.Log.Entries))
 	for _, entry := range doc.Log.Entries {
-		u, err := url.Parse(entry.Request.URL)
-		if err != nil || u.Host == "" {
-			continue
+		if f, ok := harFlow(entry); ok {
+			flows = append(flows, f)
 		}
-		started, err := time.Parse(time.RFC3339Nano, entry.StartedDateTime)
-		if err != nil {
-			started = time.Time{}
-		}
-		reqHeader := harHeaders(entry.Request.Headers)
-		respHeader := harHeaders(entry.Response.Headers)
-		reqBody := ""
-		if entry.Request.PostData != nil {
-			reqBody = entry.Request.PostData.Text
-		}
-		resBody := harBody(entry.Response.Content)
-		size := entry.Response.Content.Size
-		if size == 0 {
-			size = len(resBody)
-		}
-		f := flow{
-			method:     strings.ToUpper(cmp.Or(entry.Request.Method, "GET")),
-			scheme:     u.Scheme,
-			host:       u.Host,
-			path:       u.RequestURI(),
-			url:        entry.Request.URL,
-			status:     entry.Response.Status,
-			bytes:      size,
-			millis:     int(entry.Time),
-			reqHeaders: request.HeaderBlock(reqHeader),
-			resHeaders: request.HeaderBlock(respHeader),
-			reqBody:    reqBody,
-			resBody:    resBody,
-			reqSize:    len(reqBody),
-			resSize:    len(resBody),
-			reqHeader:  reqHeader,
-			respHeader: respHeader,
-			at:         started,
-		}
-		f.wait = int(entry.Timings.Wait)
-		f.download = int(entry.Timings.Receive)
-		flows = append(flows, f)
 	}
 	if len(flows) == 0 {
 		return nil, fmt.Errorf("%s: no request with a URL", path)
 	}
 	return flows, nil
+}
+
+// harFlow is a HAR entry as a flow. It reports false when the entry's URL
+// has no host; the flow then holds only the method and the URL.
+func harFlow(entry harEntry) (flow, bool) {
+	method := strings.ToUpper(cmp.Or(entry.Request.Method, "GET"))
+	u, err := url.Parse(entry.Request.URL)
+	if err != nil || u.Host == "" {
+		return flow{method: method, url: entry.Request.URL}, false
+	}
+	started, err := time.Parse(time.RFC3339Nano, entry.StartedDateTime)
+	if err != nil {
+		started = time.Time{}
+	}
+	reqHeader := harHeaders(entry.Request.Headers)
+	respHeader := harHeaders(entry.Response.Headers)
+	reqBody := ""
+	if data := entry.Request.PostData; data != nil {
+		reqBody = harBody(harContent{Text: data.Text, Encoding: data.Encoding})
+	}
+	resBody := harBody(entry.Response.Content)
+	size := entry.Response.Content.Size
+	if size == 0 {
+		size = len(resBody)
+	}
+	f := flow{
+		method:     method,
+		scheme:     u.Scheme,
+		host:       u.Host,
+		path:       u.RequestURI(),
+		url:        entry.Request.URL,
+		status:     entry.Response.Status,
+		bytes:      size,
+		millis:     int(entry.Time),
+		reqHeaders: request.HeaderBlock(reqHeader),
+		resHeaders: request.HeaderBlock(respHeader),
+		reqBody:    reqBody,
+		resBody:    resBody,
+		reqSize:    len(reqBody),
+		resSize:    len(resBody),
+		reqHeader:  reqHeader,
+		respHeader: respHeader,
+		at:         started,
+	}
+	f.wait = int(entry.Timings.Wait)
+	f.download = int(entry.Timings.Receive)
+	return f, true
 }
 
 // harHeaders turns a HAR header list into the header map the app uses.

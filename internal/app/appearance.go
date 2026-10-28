@@ -40,6 +40,7 @@ var (
 	eyeIcon         = lucide.Eye()
 	moreIcon        = lucide.Ellipsis()
 	chevronIcon     = lucide.ChevronDown()
+	exampleIcon     = lucide.BookmarkPlus()
 )
 
 // appTheme is one neutral, flat palette for both workspaces: quiet chrome,

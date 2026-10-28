@@ -41,7 +41,33 @@ type Request struct {
 	Pre    string `json:"pre,omitempty"`
 	Post   string `json:"post,omitempty"`
 	Checks Checks `json:"checks,omitzero"`
+	// Examples are responses kept with the request, as Postman's are.
+	Examples []Example `json:"examples,omitempty"`
 }
+
+// Example is a response kept with a request, with the request that got it.
+type Example struct {
+	ID      string         `json:"id"`
+	Name    string         `json:"name"`
+	Request ExampleRequest `json:"request"`
+	Status  int            `json:"status"`
+	// Headers is the response's Key: Value block.
+	Headers string `json:"headers,omitempty"`
+	Body    string `json:"body,omitempty"`
+}
+
+// ExampleRequest is the request an example came from as authored, with its
+// {{variables}}, so no expanded secret is kept with it.
+type ExampleRequest struct {
+	Method  string `json:"method"`
+	URL     string `json:"url"`
+	Headers string `json:"headers,omitempty"`
+	Body    string `json:"body,omitempty"`
+}
+
+// MaxExampleBody is the largest response body an example keeps; Postman's
+// limit for an example is the same.
+const MaxExampleBody = 5 << 20
 
 type Auth struct {
 	Type     string `json:"type,omitempty"`
@@ -52,6 +78,10 @@ type Auth struct {
 	Value    string `json:"value,omitempty"`
 	Location string `json:"location,omitempty"`
 	OAuth2   OAuth2 `json:"oauth2,omitzero"`
+	// AWS and JWT configure the auth types of those names; Digest uses
+	// Username and Password.
+	AWS AWSAuth `json:"aws,omitzero"`
+	JWT JWTAuth `json:"jwt,omitzero"`
 }
 
 type Field struct {
@@ -107,6 +137,12 @@ func (r Request) Prepare(vars map[string]string) (*Prepared, error) {
 			req.URL = u.String()
 		} else {
 			req.Set(key, value)
+		}
+	case AuthDigest: // Execute answers the server's challenge; there is none yet.
+	case AuthAWS: // Signed below, after the body, as the last change.
+	case AuthJWT:
+		if err := r.Auth.JWT.expand(vars).apply(req); err != nil {
+			return nil, err
 		}
 	default:
 		return nil, fmt.Errorf("unsupported auth type %q", r.Auth.Type)
@@ -167,6 +203,11 @@ func (r Request) Prepare(vars map[string]string) (*Prepared, error) {
 		req.Remove("Content-Length")
 	default:
 		return nil, fmt.Errorf("unsupported body type %q", r.BodyMode)
+	}
+	if r.Auth.Type == AuthAWS {
+		if err := r.Auth.AWS.expand(vars).sign(req, now()); err != nil {
+			return nil, err
+		}
 	}
 	return req, nil
 }

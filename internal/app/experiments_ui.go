@@ -292,7 +292,7 @@ func (a *app) experimentsModal(c *ui.Context, t *ui.Theme) {
 							a.experimentID, a.response, a.composeTests, a.composeResult = r.ID, r.response(), slices.Clone(r.Tests), r.Summary
 							a.composeReplies = slices.Clone(r.Replies)
 							a.console = slices.Clone(r.Console)
-							a.sent, a.sentAt, a.sentSet, a.sentRun = a.value(), r.At, true, r.RunKey
+							a.sent, a.sentAt, a.sentSet, a.sentRun = a.draft(), r.At, true, r.RunKey
 							a.sendOutcome = cmp.Or(r.Outcome, "Retained attempt")
 							if a.response != nil {
 								a.responseArrived()

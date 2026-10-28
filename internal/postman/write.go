@@ -6,6 +6,7 @@ import (
 	"encoding/json/v2"
 	"errors"
 	"maps"
+	"net/http"
 	"slices"
 	"strings"
 	"uuid"
@@ -39,6 +40,20 @@ type outItem struct {
 	Auth        *outAuth      `json:"auth,omitempty"`
 	Event       []outEvent    `json:"event,omitempty"`
 	Variable    []outVariable `json:"variable,omitempty"`
+	Response    []outResponse `json:"response,omitempty"`
+}
+
+// outResponse is a saved example.
+type outResponse struct {
+	ID              string      `json:"id,omitempty"`
+	Name            string      `json:"name"`
+	OriginalRequest *outRequest `json:"originalRequest"`
+	Status          string      `json:"status"`
+	Code            int         `json:"code"`
+	PreviewLanguage string      `json:"_postman_previewlanguage"`
+	Header          []outHeader `json:"header"`
+	Cookie          []struct{}  `json:"cookie"`
+	Body            string      `json:"body"`
 }
 
 type outRequest struct {
@@ -99,11 +114,15 @@ type outAuth struct {
 	Basic  []outKV `json:"basic,omitempty"`
 	APIKey []outKV `json:"apikey,omitempty"`
 	OAuth2 []outKV `json:"oauth2,omitempty"`
+	Digest []outKV `json:"digest,omitempty"`
+	AWSv4  []outKV `json:"awsv4,omitempty"`
+	JWT    []outKV `json:"jwt,omitempty"`
 }
 
 type outKV struct {
-	Key   string `json:"key"`
-	Value string `json:"value"`
+	Key string `json:"key"`
+	// Value is a string, or a bool for a "boolean" parameter.
+	Value any    `json:"value"`
 	Type  string `json:"type"`
 }
 
@@ -200,7 +219,7 @@ func (n *node) items() []outItem {
 		})
 	}
 	for _, r := range n.requests {
-		items = append(items, outItem{ID: r.ID, Name: r.Name, Request: writeRequest(r), Event: writeEvents(r.Pre, r.Post)})
+		items = append(items, outItem{ID: r.ID, Name: r.Name, Request: writeRequest(r), Event: writeEvents(r.Pre, r.Post), Response: writeExamples(r.Examples)})
 	}
 	return items
 }
@@ -251,6 +270,36 @@ func writeRequest(r request.Request) *outRequest {
 	return out
 }
 
+// writeExamples writes a request's examples as Postman saved responses.
+func writeExamples(examples []request.Example) []outResponse {
+	var out []outResponse
+	for _, e := range examples {
+		res := outResponse{
+			ID: e.ID, Name: e.Name, Status: http.StatusText(e.Status), Code: e.Status, Header: []outHeader{}, Cookie: []struct{}{}, Body: e.Body,
+			OriginalRequest: writeRequest(request.Request{Method: e.Request.Method, URL: e.Request.URL, Headers: e.Request.Headers, Body: e.Request.Body, Auth: request.Auth{Type: request.AuthInherit}}),
+		}
+		contentType := ""
+		for _, h := range headerRows(e.Headers) {
+			res.Header = append(res.Header, outHeader{Key: h.Name, Value: h.Value, Type: "text"})
+			if strings.EqualFold(h.Name, "Content-Type") {
+				contentType = strings.ToLower(h.Value)
+			}
+		}
+		switch {
+		case jsontext.Value(e.Body).IsValid() && strings.TrimSpace(e.Body) != "":
+			res.PreviewLanguage = "json"
+		case strings.Contains(contentType, "html"):
+			res.PreviewLanguage = "html"
+		case strings.Contains(contentType, "xml"):
+			res.PreviewLanguage = "xml"
+		default:
+			res.PreviewLanguage = "text"
+		}
+		out = append(out, res)
+	}
+	return out
+}
+
 // folderAuth is a folder's auth, nil when it sets none.
 func folderAuth(a request.Auth) *outAuth {
 	switch a.Type {
@@ -276,6 +325,26 @@ func writeAuth(a request.Auth) *outAuth {
 		return &outAuth{Type: "apikey", APIKey: []outKV{{"key", a.Key, "string"}, {"value", a.Value, "string"}, {"in", in, "string"}}}
 	case request.AuthOAuth2:
 		return &outAuth{Type: "oauth2", OAuth2: writeOAuth2(a.OAuth2)}
+	case request.AuthDigest:
+		return &outAuth{Type: "digest", Digest: []outKV{{"username", a.Username, "string"}, {"password", a.Password, "string"}}}
+	case request.AuthAWS:
+		return &outAuth{Type: "awsv4", AWSv4: []outKV{
+			{"accessKey", a.AWS.AccessKey, "string"}, {"secretKey", a.AWS.SecretKey, "string"}, {"region", a.AWS.Region, "string"},
+			{"service", a.AWS.Service, "string"}, {"sessionToken", a.AWS.SessionToken, "string"},
+		}}
+	case request.AuthJWT:
+		// An empty field is vscroxy's default; it is written out so Postman uses it too.
+		addTo := "header"
+		if a.JWT.AddTo == "Query" {
+			addTo = "queryParam"
+		}
+		return &outAuth{Type: "jwt", JWT: []outKV{
+			{"algorithm", cmp.Or(a.JWT.Algorithm, "HS256"), "string"}, {"secret", a.JWT.Secret, "string"},
+			{"isSecretBase64Encoded", a.JWT.SecretBase64, "boolean"}, {"privateKey", a.JWT.PrivateKey, "string"},
+			{"payload", cmp.Or(a.JWT.Payload, "{}"), "string"}, {"addTokenTo", addTo, "string"},
+			{"headerPrefix", cmp.Or(a.JWT.Prefix, "Bearer"), "string"}, {"queryParamKey", cmp.Or(a.JWT.QueryParam, "token"), "string"},
+			{"header", cmp.Or(a.JWT.Header, "{}"), "string"},
+		}}
 	}
 	return &outAuth{Type: "noauth"}
 }

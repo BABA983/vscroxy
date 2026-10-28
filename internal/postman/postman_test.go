@@ -55,7 +55,16 @@ const shopCollection = `{
               "query": [{"key": "status", "value": "open"}, {"key": "page", "value": "2", "disabled": true}]
             }
           },
-          "response": [{"name": "200 OK", "status": "OK", "code": 200, "body": "[]"}]
+          "response": [
+            {
+              "id": "ex-open", "name": "Open orders", "status": "OK", "code": 200,
+              "originalRequest": {"method": "get", "header": [{"key": "Accept", "value": "application/json"}], "url": {"raw": "{{baseUrl}}/orders?status=open"}},
+              "header": [{"key": "Content-Type", "value": "application/json"}],
+              "body": "[]"
+            },
+            {"code": 404, "originalRequest": "{{baseUrl}}/orders?status=gone", "body": "missing"},
+            "not an example"
+          ]
         },
         {
           "name": "Archive",
@@ -109,7 +118,7 @@ const shopCollection = `{
               {"key": "scope", "value": "admin", "type": "text", "disabled": true}
             ]},
             "url": {"raw": "{{baseUrl}}/oauth/token"},
-            "auth": {"type": "digest", "digest": [{"key": "realm", "value": "shop"}]}
+            "auth": {"type": "hawk", "hawk": [{"key": "authId", "value": "shop"}]}
           }
         }
       ]
@@ -176,6 +185,13 @@ func TestReadCollection(t *testing.T) {
 			URL:        "{{baseUrl}}/orders?status=open",
 			HeaderList: []request.Field{{Name: "Accept", Value: "application/json"}, {Name: "X-Debug", Value: "1", Disabled: true}},
 			Headers:    "Accept: application/json", Auth: inherit,
+			Examples: []request.Example{
+				{
+					ID: "ex-open", Name: "Open orders", Status: 200, Headers: "Content-Type: application/json", Body: "[]",
+					Request: request.ExampleRequest{Method: "GET", URL: "{{baseUrl}}/orders?status=open", Headers: "Accept: application/json"},
+				},
+				{Name: "404 Not Found", Status: 404, Body: "missing", Request: request.ExampleRequest{Method: "GET", URL: "{{baseUrl}}/orders?status=gone"}},
+			},
 		},
 		{
 			Name: "Get order", Collection: orders + "/Archive", Method: "GET",
@@ -236,6 +252,15 @@ func TestReadCollection(t *testing.T) {
 			}
 			r.ID = ""
 		}
+		r.Examples = slices.Clone(r.Examples)
+		for j, e := range r.Examples {
+			if j < len(want[i].Examples) && want[i].Examples[j].ID == "" {
+				if hexID, ok := strings.CutPrefix(e.ID, "postman-"); !ok || len(hexID) != 64 || again.Requests[i].Examples[j].ID != e.ID {
+					t.Errorf("request %d example %d: generated ID %q is not stable postman-<sha256 hex>", i, j, e.ID)
+				}
+				r.Examples[j].ID = ""
+			}
+		}
 		if ids[got.Requests[i].ID] {
 			t.Errorf("request %d: duplicate ID %q", i, got.Requests[i].ID)
 		}
@@ -261,19 +286,18 @@ func TestReadCollection(t *testing.T) {
 			Path: orders, Description: "Order and return flows.", Auth: request.Auth{Type: "None"},
 			Pre: "console.log('orders');", Variables: []request.Field{{Name: "region", Value: "eu"}},
 		},
-		{Path: "Shop API/Auth", Auth: request.Auth{Type: "None"}},
+		{Path: "Shop API/Auth", Auth: request.Auth{Type: request.AuthDigest, Username: "shop"}},
 	}
 	if !reflect.DeepEqual(got.Folders, wantFolders) {
 		t.Errorf("Folders:\n got %+v\nwant %+v", got.Folders, wantFolders)
 	}
 
 	wantWarnings := []string{
-		"1 folder uses digest auth; imported as no auth",
 		"1 request uses a binary file body; imported without a body",
-		"1 request uses digest auth; imported as no auth",
+		"1 request uses hawk auth; imported as no auth",
 		"Dropped 1 request description",
 		"Dropped 1 request variable",
-		"Dropped 1 saved example",
+		"Dropped 1 saved example that is unreadable or over 5 MiB",
 		"Dropped 2 disabled query parameters",
 		"Dropped protocol profile, certificate or proxy settings on 1 item",
 		"Skipped 1 disabled script",
@@ -439,6 +463,126 @@ func TestReadCollectionOAuth2(t *testing.T) {
 	}
 }
 
+func TestReadCollectionDigestAWSJWT(t *testing.T) {
+	got, err := postman.ReadCollection([]byte(`{
+  "info": {"name": "Signed", "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"},
+  "auth": {"type": "jwt", "jwt": {"algorithm": "HS512", "secret": "c2VjcmV0", "isSecretBase64Encoded": true, "payload": "{\"sub\": \"{{user}}\"}"}},
+  "item": [
+    {
+      "name": "Legacy",
+      "auth": {"type": "digest", "digest": [
+        {"key": "username", "value": "{{user}}", "type": "string"},
+        {"key": "password", "value": "{{vault:pw}}", "type": "string"},
+        {"key": "realm", "value": "shop", "type": "string"},
+        {"key": "nonce", "value": "abc", "type": "string"},
+        {"key": "algorithm", "value": "SHA-256", "type": "string"},
+        {"key": "qop", "value": "auth", "type": "string"},
+        {"key": "nc", "value": "00000002", "type": "string"},
+        {"key": "cnonce", "value": "xyz", "type": "string"},
+        {"key": "opaque", "value": "op", "type": "string"},
+        {"key": "disableRetryRequest", "value": true, "type": "boolean"}
+      ]},
+      "item": [{"id": "digest", "name": "Who", "request": {"url": "https://example.com/who"}}]
+    },
+    {
+      "id": "aws", "name": "List", "request": {"url": "https://iam.amazonaws.com/?Action=ListUsers", "auth": {"type": "awsv4", "awsv4": [
+        {"key": "accessKey", "value": "{{awsKey}}", "type": "string"},
+        {"key": "secretKey", "value": "{{vault:aws}}", "type": "string"},
+        {"key": "region", "value": "eu-west-1", "type": "string"},
+        {"key": "service", "value": "iam", "type": "string"},
+        {"key": "sessionToken", "value": "tok", "type": "string"},
+        {"key": "addAuthDataToQuery", "value": true, "type": "boolean"}
+      ]}}
+    },
+    {
+      "id": "jwt", "name": "Token", "request": {"url": "https://example.com/me", "auth": {"type": "jwt", "jwt": [
+        {"key": "algorithm", "value": "RS256", "type": "string"},
+        {"key": "isSecretBase64Encoded", "value": false, "type": "boolean"},
+        {"key": "privateKey", "value": "{{key}}", "type": "string"},
+        {"key": "payload", "value": "{\"iss\": \"me\"}", "type": "string"},
+        {"key": "addTokenTo", "value": "queryParam", "type": "string"},
+        {"key": "headerPrefix", "value": "JWT", "type": "string"},
+        {"key": "queryParamKey", "value": "jwt", "type": "string"},
+        {"key": "header", "value": "{\"kid\": \"1\"}", "type": "string"}
+      ]}}
+    },
+    {"id": "eddsa", "name": "Ed", "request": {"url": "https://example.com/ed", "auth": {"type": "jwt", "jwt": [{"key": "algorithm", "value": "EdDSA"}]}}}
+  ]
+}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantFolders := []request.Folder{
+		{Path: "Signed", Auth: request.Auth{Type: request.AuthJWT, JWT: request.JWTAuth{Algorithm: "HS512", Secret: "c2VjcmV0", SecretBase64: true, Payload: `{"sub": "{{user}}"}`}}},
+		{Path: "Signed/Legacy", Auth: request.Auth{Type: request.AuthDigest, Username: "{{user}}", Password: "{{vault:pw}}"}},
+	}
+	if !reflect.DeepEqual(got.Folders, wantFolders) {
+		t.Errorf("Folders:\n got %+v\nwant %+v", got.Folders, wantFolders)
+	}
+	wantAuth := map[string]request.Auth{
+		"digest": {Type: request.AuthInherit},
+		"aws":    {Type: request.AuthAWS, AWS: request.AWSAuth{AccessKey: "{{awsKey}}", SecretKey: "{{vault:aws}}", Region: "eu-west-1", Service: "iam", SessionToken: "tok"}},
+		"jwt": {Type: request.AuthJWT, JWT: request.JWTAuth{Algorithm: "RS256", PrivateKey: "{{key}}", Payload: `{"iss": "me"}`,
+			Header: `{"kid": "1"}`, Prefix: "JWT", AddTo: "Query", QueryParam: "jwt"}},
+		"eddsa": {},
+	}
+	if len(got.Requests) != len(wantAuth) {
+		t.Fatalf("got %d requests, want %d", len(got.Requests), len(wantAuth))
+	}
+	for _, r := range got.Requests {
+		if want, ok := wantAuth[r.ID]; !ok || !reflect.DeepEqual(r.Auth, want) {
+			t.Errorf("request %s auth:\n got %+v\nwant %+v", r.ID, r.Auth, want)
+		}
+	}
+	wantWarnings := []string{
+		"1 AWS Signature configuration adds the signature to the query; vscroxy sends it in headers",
+		"1 Digest auth configuration does not retry after the server's challenge; vscroxy always answers the challenge",
+		"1 request uses a JWT signed with EdDSA; imported as no auth",
+	}
+	if !slices.Equal(got.Warnings, wantWarnings) {
+		t.Errorf("Warnings:\n got %q\nwant %q", got.Warnings, wantWarnings)
+	}
+}
+
+func TestDigestAWSJWTRoundTrip(t *testing.T) {
+	folders := []request.Folder{
+		{Path: "Signed", Auth: request.Auth{Type: request.AuthDigest, Username: "{{user}}", Password: "{{vault:pw}}"}},
+	}
+	jwt := request.JWTAuth{Algorithm: "ES384", Secret: "c2VjcmV0", SecretBase64: true, PrivateKey: "{{vault:jwt-key}}",
+		Payload: "{\n  \"sub\": \"{{user}}\"\n}", Header: `{"kid":"k1"}`, Prefix: "JWT", AddTo: "Query", QueryParam: "jwt"}
+	requests := []request.Request{
+		{ID: "aws", Name: "AWS", Collection: "Signed", Method: "GET", URL: "https://s3.amazonaws.com/b", Auth: request.Auth{Type: request.AuthAWS, AWS: request.AWSAuth{
+			AccessKey: "{{key}}", SecretKey: "{{vault:aws}}", Region: "eu-west-1", Service: "s3", SessionToken: "tok"}}},
+		{ID: "jwt", Name: "JWT", Collection: "Signed", Method: "GET", URL: "https://example.com/", Auth: request.Auth{Type: request.AuthJWT, JWT: jwt}},
+		// Empty JWT fields are written as the values they mean.
+		{ID: "jwt-defaults", Name: "JWT defaults", Collection: "Signed", Method: "GET", URL: "https://example.com/", Auth: request.Auth{Type: request.AuthJWT}},
+	}
+	data, warnings, err := postman.WriteCollection("Signed", requests, folders)
+	if err != nil || len(warnings) != 0 {
+		t.Fatalf("%v, warnings %q", err, warnings)
+	}
+	compact := strings.Join(strings.Fields(string(data)), "")
+	for _, s := range []string{`"type":"digest"`, `"type":"awsv4"`, `"key":"isSecretBase64Encoded","value":true,"type":"boolean"`, `"key":"addTokenTo","value":"queryParam"`} {
+		if !strings.Contains(compact, s) {
+			t.Errorf("export lacks %q:\n%s", s, data)
+		}
+	}
+	got, err := postman.ReadCollection(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Warnings) != 0 {
+		t.Errorf("re-import warnings = %q", got.Warnings)
+	}
+	if !reflect.DeepEqual(got.Folders, folders) {
+		t.Errorf("Folders:\n got %+v\nwant %+v", got.Folders, folders)
+	}
+	requests[2].Auth.JWT = request.JWTAuth{Algorithm: "HS256", Payload: "{}", Header: "{}", Prefix: "Bearer", QueryParam: "token"}
+	if !reflect.DeepEqual(got.Requests, requests) {
+		t.Errorf("Requests:\n got %+v\nwant %+v", got.Requests, requests)
+	}
+}
+
 func TestReadCollectionRejects(t *testing.T) {
 	for _, tt := range []struct{ name, data, want string }{
 		{"v1", `{"id": "x", "name": "Old", "order": [], "requests": [{"id": "r", "url": "https://example.com"}]}`, "v1 is not supported"},
@@ -481,6 +625,10 @@ func TestCollectionRoundTrip(t *testing.T) {
 			BodyMode: "Raw", Body: `{"a": 1}`,
 			HeaderList: []request.Field{{Name: "Content-Type", Value: "application/json"}},
 			Headers:    "Content-Type: application/json", Pre: "pre();", Post: "post();\ncheck();",
+			Examples: []request.Example{{
+				ID: "e1", Name: "Created", Status: 201, Headers: "Content-Type: application/json\nLocation: /orders/7", Body: `{"id":7}`,
+				Request: request.ExampleRequest{Method: "POST", URL: "{{base}}/orders", Headers: "Content-Type: application/json", Body: `{"a": 1}`},
+			}},
 		},
 		{
 			ID: "r3", Name: "Form", Collection: "Shop/Orders∕Returns/Deep", Method: "POST", URL: "{{base}}/form",

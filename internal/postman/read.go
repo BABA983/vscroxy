@@ -8,7 +8,9 @@ import (
 	"encoding/json/v2"
 	"errors"
 	"fmt"
+	"net/http"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -227,7 +229,7 @@ func (r *reader) request(it pmItem, parent string, ordinal int) error {
 		out.ID = "postman-" + hex.EncodeToString(sum[:])
 	}
 	out.Pre, out.Post = r.scripts(it.Event)
-	r.warn.add("example", "", len(it.Response))
+	out.Examples = r.examples(it.Response, out.ID)
 	r.warn.add("request variable", "", len(it.Variable))
 	hasDescription := describe(it.Description) != ""
 	if it.Request.Kind() == '"' {
@@ -256,6 +258,53 @@ func (r *reader) request(it pmItem, parent string, ordinal int) error {
 	out.Headers = headerBlock(out.HeaderList)
 	r.out.Requests = append(r.out.Requests, out)
 	return nil
+}
+
+// pmResponse is a saved example: a response and the request that got it.
+type pmResponse struct {
+	ID              string         `json:"id"`
+	Name            string         `json:"name"`
+	OriginalRequest jsontext.Value `json:"originalRequest"`
+	Code            int            `json:"code"`
+	Header          jsontext.Value `json:"header"`
+	Body            jsontext.Value `json:"body"`
+}
+
+// examples reads a request's saved examples. One that is not an example,
+// or whose body is over the size an example keeps, is dropped and counted.
+func (r *reader) examples(list []jsontext.Value, requestID string) []request.Example {
+	var out []request.Example
+	for i, v := range list {
+		var res pmResponse
+		if json.Unmarshal(v, &res) != nil || len(text(res.Body)) > request.MaxExampleBody {
+			r.warn.add("example", "", 1)
+			continue
+		}
+		e := request.Example{ID: res.ID, Name: res.Name, Status: res.Code, Headers: headerBlock(readHeaders(res.Header)), Body: text(res.Body)}
+		if e.ID == "" {
+			sum := sha256.Sum256([]byte(requestID + "\x00example\x00" + strconv.Itoa(i)))
+			e.ID = "postman-" + hex.EncodeToString(sum[:])
+		}
+		if e.Name == "" {
+			e.Name = strings.TrimSpace(strconv.Itoa(e.Status) + " " + http.StatusText(e.Status))
+		}
+		e.Request.Method = "GET"
+		if res.OriginalRequest.Kind() == '"' {
+			e.Request.URL = text(res.OriginalRequest)
+		} else if res.OriginalRequest.Kind() == '{' {
+			var req pmRequest
+			if json.Unmarshal(res.OriginalRequest, &req) == nil {
+				e.Request.Method = strings.ToUpper(cmp.Or(strings.TrimSpace(req.Method), "GET"))
+				e.Request.URL = r.url(req.URL)
+				e.Request.Headers = headerBlock(readHeaders(req.Header))
+				if req.Body != nil && req.Body.Mode == "raw" {
+					e.Request.Body = req.Body.Raw
+				}
+			}
+		}
+		out = append(out, e)
+	}
+	return out
 }
 
 // describe is a description's text, given as a string or {content, type}.
@@ -365,6 +414,35 @@ func (r *reader) auth(v jsontext.Value, unsupported string) (auth request.Auth, 
 		}
 		r.warn.add(unsupported, dropped, 1)
 		return request.Auth{Type: "None"}, true
+	case "digest":
+		// realm, nonce, algorithm, qop, nc, cnonce and opaque come from the
+		// server's challenge at each send.
+		if params["disableRetryRequest"] == "true" {
+			r.warn.add("digest retry", "", 1)
+		}
+		return request.Auth{Type: request.AuthDigest, Username: params["username"], Password: params["password"]}, true
+	case "awsv4":
+		if params["addAuthDataToQuery"] == "true" {
+			r.warn.add("aws query", "", 1)
+		}
+		return request.Auth{Type: request.AuthAWS, AWS: request.AWSAuth{
+			AccessKey: params["accessKey"], SecretKey: params["secretKey"], Region: params["region"],
+			Service: params["service"], SessionToken: params["sessionToken"],
+		}}, true
+	case "jwt":
+		if alg := params["algorithm"]; alg != "" && !slices.Contains(request.JWTAlgorithms, alg) {
+			r.warn.add(unsupported, "a JWT signed with "+alg, 1)
+			return request.Auth{Type: "None"}, true
+		}
+		j := request.JWTAuth{
+			Algorithm: params["algorithm"], Secret: params["secret"], SecretBase64: params["isSecretBase64Encoded"] == "true",
+			PrivateKey: params["privateKey"], Payload: params["payload"], Header: params["header"],
+			Prefix: params["headerPrefix"], QueryParam: params["queryParamKey"],
+		}
+		if params["addTokenTo"] == "queryParam" {
+			j.AddTo = "Query"
+		}
+		return request.Auth{Type: request.AuthJWT, JWT: j}, true
 	}
 	r.warn.add(unsupported, kind+" auth", 1)
 	return request.Auth{Type: "None"}, true

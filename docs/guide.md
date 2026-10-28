@@ -237,7 +237,11 @@ captured bodies and their incomplete-state metadata.
 
 A row's menu starts with the request's next step: **Replay**, **Edit &
 resend** and **Save as request** (into the saved ones without sending, under a
-name of its own, so a second save does not replace the first). **Copy** holds
+name of its own, so a second save does not replace the first). With several rows
+chosen, **Save N requests to collection…** files them, in capture order and
+unsent, under a new or existing collection, optionally one folder per host;
+tunnels, WebSocket connections and incomplete or non-UTF-8 bodies are skipped
+and listed. **Copy** holds
 the URL, cURL and response body; then come **Open in browser**, **Filter
 captures**, **Pin** and **Mark…**. **Tools** creates a rule from the request
 (breakpoints, Mock this response, Map Remote, Block), maps its host in DNS or
@@ -723,9 +727,24 @@ every value in plain text, switching to it asks first when a credential is in
 the table. Disabled rows stay in the request file
 (`headerList`) but never in the block that is sent, copied or exported. Params
 edits the URL's query the same way, and only enabled rows reach it. Auth supports
-**Inherit**, Bearer, Basic, API keys in a header or query parameter and OAuth
-2.0; explicit auth replaces that header unless the pre-script explicitly
-sets/removes it. **Inherit** (the default for new requests) uses the nearest
+**Inherit**, Bearer, Basic, API keys in a header or query parameter, OAuth
+2.0, Digest, AWS Signature and JWT Bearer; explicit auth replaces that header
+unless the pre-script explicitly sets/removes it. **Digest** sends once, and
+when the answer is a 401 with a Digest challenge (MD5, SHA-256 or their -sess
+forms, qop `auth` or none) sends again with the answer; both exchanges are in
+Capture, and checks and scripts see the second. A challenge it cannot answer,
+such as one offering only `auth-int`, fails as **Digest authentication
+failed**. Copied cURL and code carry no Digest header, since there is no
+challenge yet. **AWS Signature** signs with SigV4 as the last step before
+sending, after the pre-request script, so headers a script adds are signed:
+`host`, `content-type` and every `x-amz-*` header, with `X-Amz-Date`,
+`X-Amz-Content-Sha256` and the session token when given. Region defaults to
+`us-east-1`; S3 paths are signed without normalizing. **JWT Bearer** signs a
+token per send with HS256/384/512 (a secret, optionally base64), RS, PS or ES
+256/384/512 (a PEM private key), from a JSON payload and optional extra header
+fields, and sends it after a prefix (`Bearer`) or as a query parameter
+(`token`). Nothing is added to the payload, so set `exp` or `iat` yourself;
+`{{$timestamp}}` works there. **Inherit** (the default for new requests) uses the nearest
 folder or collection auth and says which one it is; see [Collections, variables
 and the vault](#collections-variables-and-the-vault).
 
@@ -884,22 +903,38 @@ its requests, folders and settings move together, and open tabs follow.
   `$randomPassword`, written as `{{$guid}}`. A variable with the same name
   wins. Other `$random…` names stay unresolved.
 
-#### Postman import and export
+#### Import and export
 
-**Import Postman…** in the sidebar footer, **Session → Import requests or
-Postman…** and the command palette read a Postman Collection v2.0 or v2.1 file,
-an environment or a globals export, as well as this app's own request list.
-A collection becomes requests under its name, its folders become collection
+**Import…** in the sidebar footer, **Session → Import…** and the command
+palette read a Postman Collection v2.0 or v2.1 file, an environment or a
+globals export, a HAR file, an OpenAPI 3.0 or 3.1 document (JSON or YAML), or
+this app's own request list, telling them apart by their contents.
+
+A **HAR** file becomes a collection named after the file: every HTTP(S) entry,
+in order, converted as **Save as request** converts a captured row, up to 1000
+entries. Tunnels, WebSocket connections and bodies the editor cannot hold are
+skipped and listed. An **OpenAPI** document becomes a collection named after
+its title, with a folder per operation's first tag; each request is the draft
+**Open in Requests** makes, ordered by path, then method. Without a server it
+uses `{{base_url}}`, and the collection gets an empty `base_url` variable to
+fill in. **Create collection** in the API editor does the same for an open,
+validated contract. A name already in use gets a number: “Pet Store 2”.
+
+A Postman collection
+becomes requests under its name, its folders become collection
 paths, and its auth, scripts, variables and descriptions become the
 collection and folder settings above. Requests without auth inherit it, as in
 Postman. Item IDs are kept, so importing the same file again updates those
 requests. Folder names containing `/` keep it as `∕`. An environment merges
 into the environment of the same name; globals merge into globals.
 
-What has no equivalent yet is listed after the import: saved examples, request
-descriptions, binary file bodies, auth other than Bearer, Basic, API key and
-OAuth 2.0 (imported as no auth), disabled query parameters and per-request
-settings. OAuth 2.0 keeps its grant, URLs, client, scope, client
+Saved examples become the requests' examples, both ways. What has no
+equivalent yet is listed after the import: request descriptions, binary file
+bodies, auth other than Bearer, Basic, API key, OAuth 2.0, Digest, AWS
+Signature and JWT Bearer (imported as no auth), disabled query parameters and
+per-request settings. Digest keeps only the username and password: the rest
+comes from the server's challenge. AWS Signature always signs in headers, and
+a JWT algorithm vscroxy cannot sign with (such as EdDSA) becomes no auth. OAuth 2.0 keeps its grant, URLs, client, scope, client
 authentication and header prefix; the implicit grant becomes no auth, a
 callback that is not a loopback address (such as `oauth.pstmn.io`) is replaced
 by the loopback default, and a token Postman adds to the query is sent in the
@@ -976,7 +1011,22 @@ assets are not silently overwritten. **Duplicate as new request** creates a new
 identity. Legacy assets gain deterministic IDs in memory without a load-time
 rewrite; the next explicit save persists them. Imports update matching IDs and
 rename unrelated name collisions. The sidebar groups requests by collection; the
-**Session** menu exports and imports them as a file.
+**Session** menu exports and imports them as a file. Right-click a request for
+**Delete request…**, or a collection or folder for **Delete “Shop/Orders”…**,
+which removes it with every request, folder and setting under it after a
+confirmation. A deleted request's open tab closes, unless it holds unsaved
+edits: then it stays open as a new, unsaved request.
+
+**Save as example** beside a response keeps it with the request, as Postman's
+examples are: the status, the response headers (without the encoding and
+framing headers, since the body is kept decoded), the body, and the request
+that got it as authored, `{{variables}}` unexpanded, so no secret is written
+with it. Text bodies up to 5 MiB can be kept. Examples are part of the draft:
+a saved request with no other unsaved edits is saved at once, otherwise the
+next **Save** keeps them. The **Examples** tab lists them, renames and deletes
+them, and shows each one's body, headers and request. They live in the
+request's file and travel through Postman import and export; sends and Run
+records leave them out.
 
 #### The request library on disk
 
@@ -1091,6 +1141,16 @@ silently changing behavior. Output flags and `--compressed` are accepted but not
 applied; sending uses this app's proxy/client, not curl's transfer settings.
 PowerShell and Windows CMD quoting are not supported. Commands are limited to
 16 MiB.
+
+**Generate code…** (request **⋯** menu or command palette) shows the draft as
+cURL, JavaScript `fetch`, Node.js axios, Python requests, Go `net/http` or
+HTTPie, with its auth and encoded body, and copies it. Like cURL, it leaves
+`{{variables}}` as written and runs no script. Each language is written to send
+the same method, URL, headers and body bytes; libraries still add their own
+defaults (`User-Agent`, `Accept`, `Accept-Encoding`), and `fetch` and requests
+join repeated headers into one. What a language cannot send exactly is refused
+with a reason instead: binary bodies (use cURL), `fetch` with a body on GET or
+a `Host` other than the URL's, and HTTPie with values it would alter.
 
 **Copy cURL** beside **Send** copies the active draft; **Copy as cURL** in a
 captured row's menu copies that exchange. Variables stay unexpanded and scripts
