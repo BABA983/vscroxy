@@ -233,11 +233,8 @@ func (a *app) moreMenu(c *ui.Context, m *ui.Menu) {
 			a.clearFilters()
 		}
 		m.Separator()
-		if m.Item("Column from header…").Chosen() {
+		if m.Item("Add column…").Chosen() {
 			a.openColumn()
-		}
-		if a.headerColumn != "" && m.Item("Hide the "+a.headerColumn+" column").Chosen() {
-			a.setHeaderColumn("")
 		}
 		m.Separator()
 		if m.Item("Protobuf schema…").Chosen() {

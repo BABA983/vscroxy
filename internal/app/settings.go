@@ -27,9 +27,13 @@ type settings struct {
 	InspectorLayout  string  `json:"inspectorLayout,omitempty"`
 	SideTablePercent float32 `json:"sideTablePercent,omitzero"`
 	SidebarHidden    bool    `json:"sidebarHidden,omitzero"`
-	// HeaderColumn is the request or response header the table shows as a
-	// column of its own, empty for none.
+	// HeaderColumn is the one header column older versions kept; it is read
+	// as the first custom column and no longer written.
 	HeaderColumn string `json:"headerColumn,omitempty"`
+	// CustomColumns are the table's added columns, HiddenColumns the IDs of
+	// the built-in ones taken out.
+	CustomColumns []customColumn `json:"customColumns,omitempty"`
+	HiddenColumns []string       `json:"hiddenColumns,omitempty"`
 	// KeyLogPath is where the TLS secrets go for Wireshark, empty when the
 	// key log is off.
 	KeyLogPath string `json:"keyLogPath,omitempty"`
@@ -112,6 +116,15 @@ func writeSettings(path string, s settings) error {
 	return os.WriteFile(path, append(data, '\n'), 0o644)
 }
 
+// customColumns are the saved custom columns, with an older file's header
+// column as the first.
+func (s settings) customColumns() []customColumn {
+	if s.HeaderColumn != "" && len(s.CustomColumns) == 0 {
+		return []customColumn{{Source: sourceHeader, Name: s.HeaderColumn}}
+	}
+	return slices.Clone(s.CustomColumns)
+}
+
 // layout turns the saved columns into the table's.
 func (c columnLayout) layout() ui.TableLayout {
 	return ui.TableLayout{Order: slices.Clone(c.Order), Widths: maps.Clone(c.Widths)}
@@ -131,6 +144,8 @@ func sameSettings(x, y settings) bool {
 		x.SideTablePercent == y.SideTablePercent &&
 		x.SidebarHidden == y.SidebarHidden &&
 		x.HeaderColumn == y.HeaderColumn &&
+		slices.Equal(x.CustomColumns, y.CustomColumns) &&
+		slices.Equal(x.HiddenColumns, y.HiddenColumns) &&
 		x.KeyLogPath == y.KeyLogPath &&
 		x.ProxyPort == y.ProxyPort &&
 		x.VaultScripts == y.VaultScripts &&

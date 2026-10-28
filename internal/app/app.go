@@ -228,16 +228,18 @@ type app struct {
 	connOpen    bool
 	explainOpen bool
 
-	// headerColumn is the header the table shows as a column of its own, and
-	// the filter fields narrow what it shows beyond the search box.
-	headerColumn string
-	filterStatus string
-	filterHeader string
-	filterBody   string
-	filterTriage captureTriage
-	views        captureViews
-	columnOpen   bool
-	columnName   string
+	// customColumns are the columns the user added to the table and
+	// hiddenColumns the built-in ones they took out; the filter fields narrow
+	// what it shows beyond the search box.
+	customColumns []customColumn
+	hiddenColumns []string
+	filterStatus  string
+	filterHeader  string
+	filterBody    string
+	filterTriage  captureTriage
+	views         captureViews
+	columnOpen    bool
+	columnDraft   customColumn
 
 	// mark edits what a flow is marked with: a color and a note.
 	markOpen  bool
@@ -409,7 +411,7 @@ func newApp() *app {
 			a.workbench.sidePercent = saved.SideTablePercent
 		}
 		a.columns = saved.Columns.layout()
-		a.headerColumn = saved.HeaderColumn
+		a.customColumns, a.hiddenColumns = saved.customColumns(), saved.HiddenColumns
 	}
 	if home, err := os.UserHomeDir(); err == nil {
 		a.apisPath = filepath.Join(home, ".vscroxy", "apis.json")
@@ -1792,8 +1794,9 @@ func (a *app) table(c *ui.Context) {
 	if available < 700 {
 		cols = slices.DeleteFunc(cols, func(col ui.TableColumn) bool { return col.ID == "client" })
 	}
-	if a.headerColumn != "" {
-		cols = append(cols, ui.TableColumn{ID: "header", Title: a.headerColumn, Width: 150, Sortable: true})
+	cols = slices.DeleteFunc(cols, func(col ui.TableColumn) bool { return slices.Contains(a.hiddenColumns, col.ID) })
+	for _, cc := range a.customColumns {
+		cols = append(cols, ui.TableColumn{ID: cc.id(), Title: cc.title(), Width: 150, Sortable: true})
 	}
 	cols = append(cols, ui.TableColumn{Title: "", ID: "filler", Width: 14, Fixed: true})
 	state := &a.views.activeView().list
@@ -1803,6 +1806,13 @@ func (a *app) table(c *ui.Context) {
 	state.Key = func(row int) any { return a.flows[a.visible[row]].id }
 	state.Sort = &a.sort
 	state.Columns = a.columns
+	state.HeaderMenu = func(m *ui.Menu, col int) {
+		id := ""
+		if col >= 0 {
+			id = cols[col].ID
+		}
+		a.columnsMenu(m, id)
+	}
 	table := ui.Table(c, state, cols, len(a.visible), func(row, col int) {
 		f := a.flows[a.visible[row]]
 		chosen := a.chosen.Has(f.id)
@@ -1851,16 +1861,6 @@ func (a *app) table(c *ui.Context) {
 			} else {
 				text(fmt.Sprint(f.status)).TextColor(rowColor(chosen, t, f.statusColor(t))).ContextMenu(a.rowMenu(c, f))
 			}
-		case "header":
-			value := f.respHeader.Get(a.headerColumn)
-			if value == "" {
-				value = f.reqHeader.Get(a.headerColumn)
-			}
-			if value == "" {
-				text("—").TextColor(rowColor(chosen, t, t.TextMuted))
-				return
-			}
-			text(value).TextColor(rowColor(chosen, t, t.Text)).Tooltip(value).ContextMenu(a.headerFilterMenu(c, a.headerColumn, []string{value}))
 		case "client":
 			if src, ok := a.clientIcon(f.process, f.processPath); ok {
 				ui.Image(c, src).Size(16, 16)
@@ -1878,6 +1878,20 @@ func (a *app) table(c *ui.Context) {
 				at = f.at.Local().Format("15:04:05")
 			}
 			text(at).Font("monospace").TextColor(rowColor(chosen, t, t.TextMuted))
+		default:
+			cc, ok := a.customColumnAt(cols[col].ID)
+			if !ok {
+				return
+			}
+			value := cc.value(f)
+			if value == "" {
+				text("—").TextColor(rowColor(chosen, t, t.TextMuted))
+				return
+			}
+			cell := text(value).TextColor(rowColor(chosen, t, t.Text)).Tooltip(value)
+			if cc.header() {
+				cell.ContextMenu(a.headerFilterMenu(c, cc.Name, []string{value}))
+			}
 		}
 	}).Label("Captured requests").Grow(1)
 	if table.Submitted() {
@@ -2813,62 +2827,6 @@ func (a *app) clearFilters() {
 	a.views.clearFilters(a)
 }
 
-// openColumn asks which header the table should show as a column.
-func (a *app) openColumn() {
-	a.columnName = a.headerColumn
-	a.columnOpen = true
-}
-
-// columnModal adds a column from a request or response header.
-func (a *app) columnModal(c *ui.Context, t *ui.Theme) {
-	if !a.columnOpen {
-		return
-	}
-	appModal(c, &a.columnOpen, func() {
-		ui.Column(c).Width(440).Gap(10).Children(func() {
-			dialogTitle(c, "Column from a header")
-			ui.Text(c, "The table shows the response header's value, or the request's when the response has none. Keep it to one that says something about the exchange, such as x-request-id or content-type.").
-				FontSize(11).TextColor(t.TextMuted)
-			ui.TextInput(c, &a.columnName).Placeholder("x-request-id").Label("Header")
-			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
-				if ui.Button(c, "Cancel").Clicked() {
-					a.columnOpen = false
-				}
-				if ui.PrimaryButton(c, "Show").Clicked() {
-					a.setHeaderColumn(strings.TrimSpace(a.columnName))
-					a.columnOpen = false
-				}
-			})
-		})
-	})
-}
-
-// setHeaderColumn puts a header in the table, or takes it out with an empty
-// name, and keeps the choice.
-func (a *app) setHeaderColumn(name string) {
-	a.headerColumn = name
-	a.applyFilter()
-	if name == "" {
-		a.setMessage("Column removed")
-	} else {
-		a.setMessage("Column: " + name)
-	}
-	a.persistSettings()
-	a.invalidate()
-}
-
-// headerValue is what the header column shows for a flow: the response's
-// header, or the request's when the response has none.
-func (a *app) headerValue(f flow) string {
-	if a.headerColumn == "" {
-		return ""
-	}
-	if value := f.respHeader.Get(a.headerColumn); value != "" {
-		return value
-	}
-	return f.reqHeader.Get(a.headerColumn)
-}
-
 // statusMatches accepts comma-separated alternatives; invalid input never
 // silently turns into a partial filter.
 func statusMatches(expr string, status int) bool {
@@ -2990,8 +2948,10 @@ func (a *app) sortOrder() func(x, y int) int {
 			c = cmp.Compare(fx.bytes, fy.bytes)
 		case "time", "duration":
 			c = cmp.Compare(fx.millis, fy.millis)
-		case "header":
-			c = cmp.Compare(a.headerValue(fx), a.headerValue(fy))
+		default:
+			if cc, ok := a.customColumnAt(a.sort.Column); ok {
+				c = cmp.Compare(cc.value(fx), cc.value(fy))
+			}
 		}
 		if desc {
 			return -c
@@ -3108,7 +3068,7 @@ func (a *app) saveComposed() bool {
 				a.tablePercent = saved.TablePercent
 			}
 			a.columns = saved.Columns.layout()
-			a.headerColumn = saved.HeaderColumn
+			a.customColumns, a.hiddenColumns = saved.customColumns(), saved.HiddenColumns
 		}
 	}
 	if err := a.persistRequests(list); err != nil {
@@ -3293,7 +3253,8 @@ func (a *app) persistSettings() error {
 		SideTablePercent: a.workbench.sidePercent,
 		SidebarHidden:    a.workbench.sidebarHidden,
 		Columns:          savedLayout(a.columns),
-		HeaderColumn:     a.headerColumn,
+		CustomColumns:    a.customColumns,
+		HiddenColumns:    a.hiddenColumns,
 		KeyLogPath:       a.keyLogPath,
 		ProxyPort:        a.proxyPort,
 		VaultScripts:     a.vault.scripts,

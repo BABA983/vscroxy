@@ -180,6 +180,14 @@ Shift-click chooses a range, which **Session → Choose all shown** and
 **Clear choice** also do without the keys; the status bar counts the rows
 chosen, and **Export chosen HAR…** writes just those.
 
+Right-click the table's header to hide or show the built-in columns (the URL
+always stays) or to **Add column…** from a header (the response's, or the
+request's when the response has none), a request or response header only, or
+a URL query parameter. Added columns sort like the others, a header cell's
+menu filters by its value, and the header menu removes them. The choice is
+kept in `settings.json`; an older single header column becomes the first
+added one.
+
 The protocol tabs beside the search keep one kind of traffic in view: HTTP or
 HTTPS by scheme, WebSocket and SSE by kind, and JSON, images or HTML by the
 response's content type (the last two live in the toolbar's **⋯**). They narrow

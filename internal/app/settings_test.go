@@ -26,7 +26,8 @@ func TestSettingsRoundTrip(t *testing.T) {
 		SideTablePercent: 61,
 		SidebarHidden:    true,
 		Columns:          columnLayout{Order: []string{"status", "url"}, Widths: map[string]float32{"url": 320}},
-		HeaderColumn:     "x-request-id",
+		CustomColumns:    []customColumn{{Source: sourceQuery, Name: "page"}},
+		HiddenColumns:    []string{"client"},
 		KeyLogPath:       "/tmp/keys.log",
 		ProxyPort:        9091,
 	}
@@ -240,5 +241,16 @@ func TestSameSettingsSeesColumnChanges(t *testing.T) {
 		if sameSettings(base, changed) {
 			t.Error("a desktop layout change compared equal")
 		}
+	}
+}
+
+// An older settings file's single header column becomes the first custom one.
+func TestLegacyHeaderColumnBecomesACustomColumn(t *testing.T) {
+	got := settings{HeaderColumn: "x-request-id"}.customColumns()
+	if len(got) != 1 || got[0] != (customColumn{Source: sourceHeader, Name: "x-request-id"}) {
+		t.Fatalf("customColumns = %+v", got)
+	}
+	if got := (settings{HeaderColumn: "x-old", CustomColumns: []customColumn{{Source: sourceQuery, Name: "q"}}}).customColumns(); len(got) != 1 || got[0].Name != "q" {
+		t.Fatalf("saved custom columns lost to the legacy field: %+v", got)
 	}
 }

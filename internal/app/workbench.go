@@ -190,7 +190,7 @@ func (a *app) captureToolbar(c *ui.Context, t *ui.Theme) {
 				a.views.resetFilters(a)
 			}
 			m.Separator()
-			if m.Item("Column from header…").Chosen() {
+			if m.Item("Add column…").Chosen() {
 				a.openColumn()
 			}
 			m.Separator()

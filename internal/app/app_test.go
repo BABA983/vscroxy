@@ -69,18 +69,26 @@ func TestHeaderMatches(t *testing.T) {
 	}
 }
 
-func TestHeaderValuePrefersTheResponse(t *testing.T) {
-	a := &app{headerColumn: "x-cache"}
+func TestCustomColumnValues(t *testing.T) {
 	f := flow{
-		reqHeader:  http.Header{"X-Cache": {"request"}},
+		url:        "https://api.example.com/items?page=2&tag=a&tag=b",
+		reqHeader:  http.Header{"X-Cache": {"request"}, "X-Only-Request": {"yes"}},
 		respHeader: http.Header{"X-Cache": {"HIT"}},
 	}
-	if got := a.headerValue(f); got != "HIT" {
-		t.Errorf("headerValue = %q, want the response's", got)
+	cases := []struct {
+		column customColumn
+		want   string
+	}{
+		{customColumn{Source: sourceHeader, Name: "x-cache"}, "HIT"},
+		{customColumn{Source: sourceHeader, Name: "x-only-request"}, "yes"},
+		{customColumn{Source: sourceRequestHeader, Name: "x-cache"}, "request"},
+		{customColumn{Source: sourceResponseHeader, Name: "x-only-request"}, ""},
+		{customColumn{Source: sourceQuery, Name: "tag"}, "a, b"},
+		{customColumn{Source: sourceQuery, Name: "Page"}, ""},
 	}
-	a.headerColumn = "x-only-request"
-	f = flow{reqHeader: http.Header{"X-Only-Request": {"yes"}}}
-	if got := a.headerValue(f); got != "yes" {
-		t.Errorf("headerValue = %q, want the request's", got)
+	for _, c := range cases {
+		if got := c.column.value(f); got != c.want {
+			t.Errorf("%+v = %q, want %q", c.column, got, c.want)
+		}
 	}
 }
