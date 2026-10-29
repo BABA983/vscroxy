@@ -403,6 +403,7 @@ func (a *app) prettyBody(c *ui.Context, body string, side int) {
 		reader = &editor.State{Buffer: buf, ReadOnly: true, NoScrollPastEnd: true, SoftWrap: true, Label: "Body text", RenderFindBar: bodyFindBar}
 		a.bodyText[side] = reader
 	}
+	reader.Theme = bodyEditorTheme(c.Theme())
 	editor.View(c, reader).Bind(&a.bodyReader[side]).Grow(1)
 }
 

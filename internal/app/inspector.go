@@ -158,7 +158,7 @@ func (a *app) inspectorSummary(c *ui.Context, t *ui.Theme, f flow, ok bool) {
 	// A narrow inspector keeps the name, the result and the one action that
 	// starts the next step; the rest stays in the overflow.
 	compact := a.inspectorWidth(c) < 1100
-	ui.Row(c).Height(40).Padding(0, 14).Gap(8).AlignItems(ui.Center).Children(func() {
+	ui.Row(c).Height(36).Padding(0, 12).Gap(8).AlignItems(ui.Center).Children(func() {
 		if !ok {
 			ui.Text(c, "No request chosen").FontSize(12).TextColor(t.TextMuted).Grow(1)
 			return
@@ -166,10 +166,9 @@ func (a *app) inspectorSummary(c *ui.Context, t *ui.Theme, f flow, ok bool) {
 		title := fmt.Sprintf("%s %s", f.method, cmp.Or(f.url, f.scheme+"://"+f.host+f.path))
 		ui.Text(c, title).FontSize(12).Font("monospace").TextColor(t.Text).SingleLine().MinWidth(80).Grow(1).Tooltip(title)
 		a.exchangeResult(c, t, f, compact)
-		ui.Spacer(c)
 		// One action stands out: starting the edit-and-replay loop. Copying
 		// and history are quiet beside it.
-		a.desktopButton(c, "edit", "Edit & replay")
+		a.desktopButton(c, "edit", "Edit & replay").Height(30).FontSize(12).Background(t.Accent).TextColor(t.AccentText)
 		if !compact {
 			copy := ui.ButtonBase(c).Label("Copy as cURL").Height(26).Padding(0, 8).Gap(6).Radius(5).AlignItems(ui.Center).TextColor(t.TextMuted)
 			if copy.Hovered() {
@@ -287,16 +286,6 @@ func (a *app) inspectorMenu(c *ui.Context, t *ui.Theme, f flow) {
 	}).Label("Inspector options").Height(26).Padding(0, 6).FontSize(14).TextColor(t.TextMuted).Border(0, t.Border)
 }
 
-// paneWidth is the room one side of the inspector has: the inspector's own
-// width, halved when the request and the response sit beside each other.
-func (a *app) paneWidth(c *ui.Context) float32 {
-	width := a.inspectorWidth(c)
-	if width >= 760 {
-		width /= 2
-	}
-	return width
-}
-
 // inspectorWidth is the room the inspector has, which is the window's when
 // it sits under the list and its share of the split when it sits beside it.
 func (a *app) inspectorWidth(c *ui.Context) float32 {
@@ -374,7 +363,7 @@ func (a *app) paneTabs(c *ui.Context, t *ui.Theme, side string, selected *int, l
 	if bodySide == 0 {
 		bodyTab = resTabBody
 	}
-	ui.Row(c).Height(34).Padding(0, 4).Gap(2).AlignItems(ui.Center).
+	ui.Row(c).Height(36).Padding(0, 8).Gap(4).AlignItems(ui.Center).
 		Border(0, t.Border).BorderWidth(0, 0, 1, 0).Children(func() {
 		title := ui.ButtonBase(c).Label(side+" pane").Height(24).Padding(0, 4).Radius(4).AlignItems(ui.Center).
 			TextColor(t.TextMuted).Tooltip("Read this side in shared readers")
@@ -384,28 +373,9 @@ func (a *app) paneTabs(c *ui.Context, t *ui.Theme, side string, selected *int, l
 		if title.Clicked() {
 			a.inspect.focus = bodySide
 		}
-		title.Children(func() { ui.Text(c, side).FontSize(11).Bold() })
-		flatTabs(c, selected, side+" pane", labels...)
+		title.Children(func() { ui.Text(c, side).FontSize(14).Bold() })
 		ui.Spacer(c)
 		if *selected == bodyTab {
-			if f, ok := a.current(); ok && a.paneWidth(c) >= 480 {
-				modes := a.bodyModes(f, bodySide)
-				mode := a.bodyMode[bodySide]
-				if mode >= len(modes) {
-					mode = 0
-				}
-				if mode == 0 {
-					body := a.body
-					if bodySide == 1 {
-						body = a.reqBody
-					}
-					mode = a.autoBodyMode(f, bodySide, body)
-					if mode >= len(modes) {
-						mode = 1
-					}
-				}
-				ui.Text(c, "Showing: "+modes[mode]).FontSize(10).TextColor(t.TextMuted).SingleLine()
-			}
 			a.bodyFormatMenu(c, t, bodySide)
 			ui.MenuButton(c, "⋯", func(m *ui.Menu) {
 				if m.Item("Find in text…").Chosen() {
@@ -418,6 +388,10 @@ func (a *app) paneTabs(c *ui.Context, t *ui.Theme, side string, selected *int, l
 				}
 			}).Label(side+" pane options").Height(22).Padding(0, 5).FontSize(13).TextColor(t.TextMuted).Border(0, t.Border)
 		}
+	})
+	ui.ScrollHorizontal(c).Height(36).Padding(0, 8).
+		Border(0, t.Border).BorderWidth(0, 0, 1, 0).Children(func() {
+		flatTabs(c, selected, side+" pane", labels...)
 	})
 }
 
@@ -451,7 +425,7 @@ func (a *app) bodyFormatMenu(c *ui.Context, t *ui.Theme, side int) {
 				a.bodyQuery[side] = ""
 			}
 		}
-	}).Label(bodyFormatLabel(side)).Height(22).Padding(0, 8).FontSize(11).TextColor(t.TextMuted).Border(0, t.Border)
+	}).Label(bodyFormatLabel(side)).Height(28).Padding(0, 8).FontSize(12).TextColor(t.TextMuted).Border(1, t.Border)
 }
 
 // copyPaneBody copies exactly the bytes the pane shows, without formatting

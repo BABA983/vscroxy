@@ -204,6 +204,12 @@ func (a *app) experimentsModal(c *ui.Context, t *ui.Theme) {
 	if !s.open {
 		return
 	}
+	appModal(c, &s.open, func() { a.experimentsView(c, t, false) })
+}
+
+// The retained-run reader is shared by the resource page and scoped history.
+func (a *app) experimentsView(c *ui.Context, t *ui.Theme, inline bool) {
+	s := &a.experiments
 	if selected := s.record(s.picked); selected == nil || !s.includes(*selected) {
 		s.picked = 0
 		for _, r := range s.log.Records {
@@ -214,184 +220,205 @@ func (a *app) experimentsModal(c *ui.Context, t *ui.Theme) {
 		}
 	}
 	width, height := c.Size()
-	appModal(c, &s.open, func() {
-		ui.Column(c).Width(min(1200, width-80)).Height(height - 100).Gap(10).Children(func() {
-			ui.Row(c).Gap(8).Children(func() {
-				title := "Run records"
-				if s.scope != nil {
-					title += " · Source"
-				} else if s.draftKey != "" {
-					title += " · Draft"
-				}
-				dialogTitle(c, title).Grow(1)
-				if ui.Button(c, "Clear experiments…").Disabled(s.readOnly || len(s.log.Records) == 0).Clicked() {
-					s.clearing = true
-				}
-				if ui.Button(c, "Close").Clicked() {
-					s.open = false
-				}
-			})
-			ui.Text(c, "Private local snapshots may contain credentials. Up to 100 runs / 32 MiB; baseline retained. Payloads keep up to 256 KiB per side. Opening or comparing never sends.").FontSize(11).TextColor(t.TextMuted)
-			if s.problem != "" {
-				ui.Text(c, s.problem).FontSize(11).TextColor(t.Danger)
+	panel := ui.Column(c).Gap(10)
+	if inline {
+		panel.Fill().Padding(12)
+	} else {
+		panel.Width(min(1200, width-80)).Height(height - 100)
+	}
+	panel.Children(func() {
+		ui.Row(c).Gap(8).Children(func() {
+			title := "Run records"
+			if s.scope != nil {
+				title += " · Source"
+			} else if s.draftKey != "" {
+				title += " · Draft"
 			}
-			ui.Row(c).Grow(1).Gap(12).AlignItems(ui.Stretch).Children(func() {
-				ui.Scroll(c).Width(220).Gap(4).Children(func() {
-					a.debugDrafts(c)
-					if len(s.log.Records) == 0 {
-						ui.Text(c, "Send a request to record an experiment.").FontSize(12).TextColor(t.TextMuted)
+			dialogTitle(c, title).Grow(1)
+			if ui.Button(c, "Clear experiments…").Disabled(s.readOnly || len(s.log.Records) == 0).Clicked() {
+				s.clearing = true
+			}
+			if ui.Button(c, "Close").Clicked() {
+				s.open = false
+				if inline {
+					a.requestsSection, a.requestSide = 0, 0
+				}
+			}
+		})
+		ui.Text(c, "Private local snapshots may contain credentials. Up to 100 runs / 32 MiB; baseline retained. Payloads keep up to 256 KiB per side. Opening or comparing never sends.").FontSize(11).TextColor(t.TextMuted)
+		if s.problem != "" {
+			ui.Text(c, s.problem).FontSize(11).TextColor(t.Danger)
+		}
+		ui.Row(c).Grow(1).Gap(12).AlignItems(ui.Stretch).Children(func() {
+			ui.Scroll(c).Width(220).Gap(4).Children(func() {
+				a.debugDrafts(c)
+				if len(s.log.Records) == 0 {
+					ui.Text(c, "Send a request to record an experiment.").FontSize(12).TextColor(t.TextMuted)
+				}
+				for _, r := range s.log.Records {
+					if !s.includes(r) {
+						continue
 					}
-					for _, r := range s.log.Records {
-						if !s.includes(r) {
+					label := fmt.Sprintf("#%d · %s", r.ID, r.At.Local().Format("01-02 15:04:05"))
+					if r.ID == s.log.Baseline {
+						label += " · Baseline"
+					}
+					button := ui.Button(c, label).Label(fmt.Sprintf("Experiment #%d", r.ID)).FillWidth().Height(50).Tooltip(r.Draft.Method + " " + r.Draft.URL + "\n" + r.Summary)
+					if r.ID == s.picked {
+						button.Background(t.Accent).TextColor(t.AccentText)
+					}
+					if button.Clicked() {
+						s.pick(r.ID)
+					}
+				}
+				if inline && len(a.history) > 0 {
+					ui.Divider(c)
+					ui.Text(c, "Recent requests").Bold()
+					ui.Text(c, "Unsent copies · deduplicated by method + URL").FontSize(10).TextColor(t.TextMuted)
+					ui.TextInput(c, &a.requestQuery).Label("Search history").Placeholder("Search history…").FontSize(11)
+					query := strings.ToLower(strings.TrimSpace(a.requestQuery))
+					for i, entry := range a.history {
+						if query != "" && !strings.Contains(strings.ToLower(entry.Method+" "+entry.URL), query) {
 							continue
 						}
-						label := fmt.Sprintf("#%d · %s", r.ID, r.At.Local().Format("01-02 15:04:05"))
-						if r.ID == s.log.Baseline {
-							label += " · Baseline"
-						}
-						button := ui.Button(c, label).Label(fmt.Sprintf("Experiment #%d", r.ID)).FillWidth().Height(50).Tooltip(r.Draft.Method + " " + r.Draft.URL + "\n" + r.Summary)
-						if r.ID == s.picked {
-							button.Background(t.Accent).TextColor(t.AccentText)
-						}
-						if button.Clicked() {
-							s.pick(r.ID)
-						}
+						ui.Button(c, entry.label()).FillWidth().FontSize(11).OnClick(func() { a.openHistory(i) })
 					}
-				})
-				ui.Column(c).Grow(1).Gap(8).Children(func() {
-					r := s.record(s.picked)
-					if r == nil {
-						message := "Send a request to record an experiment."
-						if s.scope != nil {
-							message = "No retained experiments for this source. Open a linked draft to continue; opening never sends."
-						} else if s.draftKey != "" {
-							message = "No retained sends for this draft. Opening history never sends."
-						}
-						ui.Text(c, message).FontSize(12)
-						if s.scope != nil {
-							f := investigationFlow(s.scope.Exchange)
-							ui.Text(c, fmt.Sprintf("Source #%d · %s %s · %d", f.id, f.method, f.url, f.status)).FontSize(12).SingleLine().Tooltip(f.url)
-							if s.reader == nil {
-								s.reader = &editor.State{Buffer: editor.NewBuffer(f.body(true)), ReadOnly: true, Label: "Source snapshot", NoScrollPastEnd: true}
-							}
-							editor.View(c, s.reader).Grow(1)
-						}
-						return
+				}
+			})
+			ui.Column(c).Grow(1).Gap(8).Children(func() {
+				r := s.record(s.picked)
+				if r == nil {
+					message := "Send a request to record an experiment."
+					if s.scope != nil {
+						message = "No retained experiments for this source. Open a linked draft to continue; opening never sends."
+					} else if s.draftKey != "" {
+						message = "No retained sends for this draft. Opening history never sends."
 					}
-					ui.Text(c, fmt.Sprintf("Experiment #%d · %s %s", r.ID, r.Draft.Method, r.Draft.URL)).FontSize(12).Bold().SingleLine().Tooltip(r.Draft.URL)
-					ui.Text(c, r.Summary+" · Environment: "+cmp.Or(r.Environment, "none")).FontSize(11).TextColor(t.TextMuted)
-					if r.Outcome != "" {
-						ui.Text(c, r.Outcome).FontSize(11).TextColor(t.TextMuted)
-					}
-					ui.Row(c).Gap(6).Wrap().Children(func() {
-						if ui.Button(c, "Open as draft").FontSize(11).Clicked() {
-							draft := r.Draft
-							draft.ID = "" // Restoring an attempt creates a copy, not a library update.
-							a.addDocument(draft, "")
-							a.setDebugSource(r.Source)
-							a.experimentID, a.response, a.composeTests, a.composeResult = r.ID, r.response(), slices.Clone(r.Tests), r.Summary
-							a.composeReplies = slices.Clone(r.Replies)
-							a.console = slices.Clone(r.Console)
-							a.sent, a.sentAt, a.sentSet, a.sentRun = a.draft(), r.At, true, r.RunKey
-							a.sendOutcome = cmp.Or(r.Outcome, "Retained attempt")
-							if a.response != nil {
-								a.responseArrived()
-							}
-							s.open = false
-						}
-						if ui.Button(c, "Trace source").FontSize(11).Disabled(r.Source == nil).Clicked() {
-							a.openDebugHistory(r.Source)
-						}
-						origin := slices.IndexFunc(a.documents, func(d *requestDocument) bool { return r.DraftKey != "" && d.debugKey == r.DraftKey })
-						if ui.Button(c, "Origin draft").Label("Open originating draft").FontSize(11).Disabled(origin < 0).Tooltip("Return to the original editable tab without overwriting its current edits: " + r.Draft.Name).Clicked() {
-							d := a.documents[origin]
-							a.requestDocument, a.requestChoice, a.workspace = d, d.savedKey, 1
-							d.revealTab, s.open = true, false
-							d.urlInput.Focus()
-						}
-						if ui.Button(c, "Set baseline").FontSize(11).Clicked() {
-							s.log.Baseline, s.left = r.ID, r.ID
-							s.persist()
-						}
-						if ui.Button(c, "Use as left").FontSize(11).Clicked() {
-							s.left = r.ID
-							s.comparison.diff = nil
-						}
-						if ui.Button(c, "Compare with left").FontSize(11).Disabled(s.record(cmp.Or(s.left, s.log.Baseline)) == nil || cmp.Or(s.left, s.log.Baseline) == r.ID).Clicked() {
-							s.tab = 1
-							s.comparison.diff = nil
-						}
-					})
-					ui.Row(c).Gap(6).Children(func() {
-						ui.TextInput(c, &s.note).Label("Experiment note").Placeholder("What did this attempt test?").Grow(1)
-						if ui.Button(c, "Save note").FontSize(11).Clicked() {
-							r.Note = s.note
-							s.persist()
-						}
-					})
-					a.debugWire(c, *r)
-					if ui.Tabs(c, &s.tab, "Recorded result", "Compare experiments", "Compare source", "Sent request", "Console", "Variables").FillWidth().Wrap().Changed() {
-						s.reader = nil
-					}
-					if s.tab == 5 {
-						ui.Text(c, "Referenced values after pre-script, before expansion · run input = environment snapshot or preceding Runner step · post-script changes do not rewrite this snapshot.").FontSize(11).TextColor(t.TextMuted)
-						if r.Variables == nil {
-							ui.Text(c, "No variable snapshot retained (older records may not include it).").FontSize(11)
-						}
-						variableRows(c, r.Variables, &s.revealVars)
-						return
-					}
-					if s.tab == 4 {
-						runConsole(c, r.Console)
-						return
-					}
-					if s.tab == 3 {
-						ui.Text(c, "Initial client request after variables and pre-request script; redirect hops and proxy interventions are separate wire exchanges.").FontSize(10).TextColor(t.TextMuted)
+					ui.Text(c, message).FontSize(12)
+					if s.scope != nil {
+						f := investigationFlow(s.scope.Exchange)
+						ui.Text(c, fmt.Sprintf("Source #%d · %s %s · %d", f.id, f.method, f.url, f.status)).FontSize(12).SingleLine().Tooltip(f.url)
 						if s.reader == nil {
-							text := "Request was not prepared. The editable draft snapshot is retained."
-							if f := r.Exchange; f != nil {
-								text = f.Method + " " + f.URL + "\n" + request.HeaderBlock(f.RequestHeader) + "\n\n" + string(r.RequestBody)
-								if f.RequestBodyError != "" {
-									text += "\n\n" + f.RequestBodyError
-								}
-							}
-							s.reader = &editor.State{Buffer: editor.NewBuffer(text), ReadOnly: true, NoScrollPastEnd: true, SoftWrap: true, Label: "Sent request snapshot"}
+							s.reader = &editor.State{Buffer: editor.NewBuffer(f.body(true)), ReadOnly: true, Label: "Source snapshot", NoScrollPastEnd: true}
 						}
 						editor.View(c, s.reader).Grow(1)
-						return
 					}
-					if s.tab == 2 {
-						s.compareSource(c, *r)
-						return
+					return
+				}
+				ui.Text(c, fmt.Sprintf("Experiment #%d · %s %s", r.ID, r.Draft.Method, r.Draft.URL)).FontSize(12).Bold().SingleLine().Tooltip(r.Draft.URL)
+				ui.Text(c, r.Summary+" · Environment: "+cmp.Or(r.Environment, "none")).FontSize(11).TextColor(t.TextMuted)
+				if r.Outcome != "" {
+					ui.Text(c, r.Outcome).FontSize(11).TextColor(t.TextMuted)
+				}
+				ui.Row(c).Gap(6).Wrap().Children(func() {
+					if ui.Button(c, "Open as draft").FontSize(11).Clicked() {
+						draft := r.Draft
+						draft.ID = "" // Restoring an attempt creates a copy, not a library update.
+						a.addDocument(draft, "")
+						a.setDebugSource(r.Source)
+						a.experimentID, a.response, a.composeTests, a.composeResult = r.ID, r.response(), slices.Clone(r.Tests), r.Summary
+						a.composeReplies = slices.Clone(r.Replies)
+						a.console = slices.Clone(r.Console)
+						a.sent, a.sentAt, a.sentSet, a.sentRun = a.draft(), r.At, true, r.RunKey
+						a.sendOutcome = cmp.Or(r.Outcome, "Retained attempt")
+						if a.response != nil {
+							a.responseArrived()
+						}
+						s.open = false
 					}
-					if s.tab == 1 {
-						if ui.TextInput(c, &s.ignore).Label("Ignore JSON keys").Placeholder("Ignore top-level response JSON keys: timestamp, traceId").Changed() {
-							s.comparison.diffPart = ""
+					if ui.Button(c, "Trace source").FontSize(11).Disabled(r.Source == nil).Clicked() {
+						a.openDebugHistory(r.Source)
+					}
+					origin := slices.IndexFunc(a.documents, func(d *requestDocument) bool { return r.DraftKey != "" && d.debugKey == r.DraftKey })
+					if ui.Button(c, "Origin draft").Label("Open originating draft").FontSize(11).Disabled(origin < 0).Tooltip("Return to the original editable tab without overwriting its current edits: " + r.Draft.Name).Clicked() {
+						d := a.documents[origin]
+						a.requestDocument, a.requestChoice, a.workspace = d, d.savedKey, 1
+						a.requestsSection, a.requestSide = 0, 0
+						d.revealTab, s.open = true, false
+						d.urlInput.Focus()
+					}
+					if ui.Button(c, "Set baseline").FontSize(11).Clicked() {
+						s.log.Baseline, s.left = r.ID, r.ID
+						s.persist()
+					}
+					if ui.Button(c, "Use as left").FontSize(11).Clicked() {
+						s.left = r.ID
+						s.comparison.diff = nil
+					}
+					if ui.Button(c, "Compare with left").FontSize(11).Disabled(s.record(cmp.Or(s.left, s.log.Baseline)) == nil || cmp.Or(s.left, s.log.Baseline) == r.ID).Clicked() {
+						s.tab = 1
+						s.comparison.diff = nil
+					}
+				})
+				ui.Row(c).Gap(6).Children(func() {
+					ui.TextInput(c, &s.note).Label("Experiment note").Placeholder("What did this attempt test?").Grow(1)
+					if ui.Button(c, "Save note").FontSize(11).Clicked() {
+						r.Note = s.note
+						s.persist()
+					}
+				})
+				a.debugWire(c, *r)
+				if ui.Tabs(c, &s.tab, "Recorded result", "Compare experiments", "Compare source", "Sent request", "Console", "Variables").FillWidth().Wrap().Changed() {
+					s.reader = nil
+				}
+				if s.tab == 5 {
+					ui.Text(c, "Referenced values after pre-script, before expansion · run input = environment snapshot or preceding Runner step · post-script changes do not rewrite this snapshot.").FontSize(11).TextColor(t.TextMuted)
+					if r.Variables == nil {
+						ui.Text(c, "No variable snapshot retained (older records may not include it).").FontSize(11)
+					}
+					variableRows(c, r.Variables, &s.revealVars)
+					return
+				}
+				if s.tab == 4 {
+					runConsole(c, r.Console)
+					return
+				}
+				if s.tab == 3 {
+					ui.Text(c, "Initial client request after variables and pre-request script; redirect hops and proxy interventions are separate wire exchanges.").FontSize(10).TextColor(t.TextMuted)
+					if s.reader == nil {
+						text := "Request was not prepared. The editable draft snapshot is retained."
+						if f := r.Exchange; f != nil {
+							text = f.Method + " " + f.URL + "\n" + request.HeaderBlock(f.RequestHeader) + "\n\n" + string(r.RequestBody)
+							if f.RequestBodyError != "" {
+								text += "\n\n" + f.RequestBodyError
+							}
 						}
-						ui.Text(c, "Comparison only; original snapshots remain unchanged. Ignores top-level response JSON keys, not headers or nested fields.").FontSize(10).TextColor(t.TextMuted)
-						if left := s.record(cmp.Or(s.left, s.log.Baseline)); left != nil && left.ID != r.ID {
-							s.comparison.compare(c, left.compared(s.ignore), r.compared(s.ignore), [2]string{fmt.Sprintf("Run #%d", left.ID), fmt.Sprintf("Run #%d", r.ID)})
-						} else {
-							ui.Text(c, "Choose another experiment as left, or set a baseline first.").TextColor(t.TextMuted)
-						}
+						s.reader = &editor.State{Buffer: editor.NewBuffer(text), ReadOnly: true, NoScrollPastEnd: true, SoftWrap: true, Label: "Sent request snapshot"}
+					}
+					editor.View(c, s.reader).Grow(1)
+					return
+				}
+				if s.tab == 2 {
+					s.compareSource(c, *r)
+					return
+				}
+				if s.tab == 1 {
+					if ui.TextInput(c, &s.ignore).Label("Ignore JSON keys").Placeholder("Ignore top-level response JSON keys: timestamp, traceId").Changed() {
+						s.comparison.diffPart = ""
+					}
+					ui.Text(c, "Comparison only; original snapshots remain unchanged. Ignores top-level response JSON keys, not headers or nested fields.").FontSize(10).TextColor(t.TextMuted)
+					if left := s.record(cmp.Or(s.left, s.log.Baseline)); left != nil && left.ID != r.ID {
+						s.comparison.compare(c, left.compared(s.ignore), r.compared(s.ignore), [2]string{fmt.Sprintf("Run #%d", left.ID), fmt.Sprintf("Run #%d", r.ID)})
 					} else {
-						if s.reader == nil {
-							f := r.compared("")
-							text := f.resHeaders + "\n\n" + f.body(true)
-							for _, check := range r.Tests {
-								text += fmt.Sprintf("\nCheck %t: %s", check.Pass, check.Name)
-								if check.Error != "" {
-									text += " — " + check.Error
-								}
-							}
-							if len(r.Replies) > 0 {
-								text += "\nWebSocket replies:\n" + strings.Join(r.Replies, "\n")
-							}
-							s.reader = &editor.State{Buffer: editor.NewBuffer(text), ReadOnly: true, NoScrollPastEnd: true, SoftWrap: true, Label: "Experiment result"}
-						}
-						editor.View(c, s.reader).Grow(1)
+						ui.Text(c, "Choose another experiment as left, or set a baseline first.").TextColor(t.TextMuted)
 					}
-				})
+				} else {
+					if s.reader == nil {
+						f := r.compared("")
+						text := f.resHeaders + "\n\n" + f.body(true)
+						for _, check := range r.Tests {
+							text += fmt.Sprintf("\nCheck %t: %s", check.Pass, check.Name)
+							if check.Error != "" {
+								text += " — " + check.Error
+							}
+						}
+						if len(r.Replies) > 0 {
+							text += "\nWebSocket replies:\n" + strings.Join(r.Replies, "\n")
+						}
+						s.reader = &editor.State{Buffer: editor.NewBuffer(text), ReadOnly: true, NoScrollPastEnd: true, SoftWrap: true, Label: "Experiment result"}
+					}
+					editor.View(c, s.reader).Grow(1)
+				}
 			})
 		})
 	})

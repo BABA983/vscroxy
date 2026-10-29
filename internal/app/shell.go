@@ -249,6 +249,7 @@ func (a *app) moreMenu(c *ui.Context, m *ui.Menu) {
 func (a *app) syncSections() {
 	if a.workspace == 1 {
 		if a.requestsSection == 1 {
+			a.requestSide = 3
 			if a.apiChoice == "" && len(a.apis) > 0 {
 				a.apiChoice = a.apis[0].spec.ID
 			}

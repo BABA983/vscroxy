@@ -98,7 +98,6 @@ func TestRequestConsoleAndRunsAreVisibleWithoutReexecution(t *testing.T) {
 		t.Fatal("visible console lost logs or error location")
 	}
 	click("Runs")
-	click("All retained runs…")
 	click("Variables")
 	tt.Key(0, ui.KeyLeft)
 	if a.experiments.tab != 4 || !tt.HasText("post-response · log · post-output") {

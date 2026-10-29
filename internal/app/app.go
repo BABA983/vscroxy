@@ -57,7 +57,7 @@ type app struct {
 	requestsSection int
 	sidebarChoice   string
 	requestChoice   string
-	requestSide     int // 0 collections, 1 history
+	requestSide     int // 0 collections, 1 runs, 2 environments, 3 contracts
 	requestQuery    string
 	renameOpen      bool
 	settingsOpen    bool
@@ -1503,98 +1503,60 @@ func (a *app) sidebar(c *ui.Context) {
 // the history of sends, the API contracts edited here, and the way to manage
 // environments. It is not the traffic list, so capture filters never appear.
 func (a *app) requestSidebar(c *ui.Context, t *ui.Theme) {
+	if a.requestSide == 2 {
+		a.environmentSidebar(c)
+		return
+	}
 	ui.Column(c).Fill().Background(t.Surface).Children(func() {
 		ui.Column(c).Padding(10, 10).Gap(8).Children(func() {
-			seg := ui.SegmentedBase(c, &a.requestSide, 2)
-			seg.Track.Padding(2).Radius(7).Border(1, t.Border).Background(t.Background).Children(func() {
-				for i, name := range []string{"Collections", "Runs"} {
-					s := seg.Segment(i).Label(name).Height(24).Padding(0, 10).Radius(5).AlignItems(ui.Center).TextColor(t.TextMuted)
-					if i == a.requestSide {
-						s.Background(t.SurfaceHover).TextColor(t.Text)
+			title := "Collections"
+			if a.requestSide == 1 {
+				title = "Runs"
+			} else if a.requestSide == 3 {
+				title = "APIs"
+			}
+			ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
+				ui.Text(c, title).FontSize(14).Bold().Grow(1)
+				newLabel := "New request"
+				if a.requestSide == 3 {
+					newLabel = "New API"
+				}
+				if ui.Button(c, "+").Label(newLabel).Size(26, 26).Padding(0).Clicked() {
+					if a.requestSide == 3 {
+						a.newAPI()
+					} else {
+						a.openCompose()
 					}
-					s.Children(func() { ui.Text(c, name).FontSize(12) })
+				}
+				if ui.Button(c, "Import…").Height(26).Padding(0, 8).FontSize(11).Clicked() {
+					if a.requestSide == 3 {
+						a.importOpenAPI()
+					} else {
+						a.importRequests()
+					}
 				}
 			})
 			placeholder, label := "Search collections…", "Search collections"
 			if a.requestSide == 1 {
 				placeholder, label = "Search history…", "Search history"
+			} else if a.requestSide == 3 {
+				placeholder, label = "Search APIs…", "Search APIs"
 			}
 			ui.TextInput(c, &a.requestQuery).Label(label).Placeholder(placeholder).FontSize(11)
 		})
 		chosen := ui.Sidebar(c, &a.requestChoice, func() {
 			query := strings.ToLower(strings.TrimSpace(a.requestQuery))
 			if a.requestSide == 0 {
-				groups := groupRequests(a.requests)
-				// A collection or folder with settings but no requests stays
-				// visible, so its settings can still be found and renamed.
-				for _, f := range a.folders {
-					if !slices.ContainsFunc(a.requests, func(r savedRequest) bool {
-						return r.Collection == f.Path || strings.HasPrefix(r.Collection, f.Path+"/")
-					}) {
-						groups[f.Path] = nil
-					}
-				}
-				for _, name := range slices.Sorted(maps.Keys(groups)) {
-					shown := slices.DeleteFunc(slices.Clone(groups[name]), func(r savedRequest) bool {
-						return query != "" && !strings.Contains(strings.ToLower(r.Name+" "+r.URL+" "+r.Method), query)
-					})
-					if len(shown) == 0 && (query != "" || len(groups[name]) > 0) {
-						continue
-					}
-					settings := func(m *ui.Menu) {
-						a.folderSettingsItems(m, name)
-						if name != "" && m.Item("Delete “"+name+"”…").Chosen() {
-							a.confirmDeleteFolder(name)
-						}
-					}
-					ui.SidebarSection(c, cmp.Or(name, "Saved"), a.collectionShown(name), func() {
-						if len(shown) == 0 {
-							ui.Text(c, "No requests · right-click for settings").FontSize(11).TextColor(t.TextMuted).Padding(4, 12)
-						}
-						for _, r := range shown {
-							menu := func(m *ui.Menu) {
-								if m.Item("Delete request…").Chosen() {
-									a.confirmDeleteRequest(r.key(), r.Name)
-								}
-								m.Separator()
-								settings(m)
-							}
-							ui.SidebarItem(c, r.key(), requestIcon, r.Name).FontSize(12).Padding(5, 8).ContextMenu(menu).Children(func() {
-								ui.Text(c, r.Method).FontSize(9).Bold().TextColor(methodColor(r.Method)).Width(38)
-							})
-						}
-					}).ContextMenu(settings)
-				}
-				if len(a.requests) == 0 {
-					ui.Text(c, "Save a request here, or edit a captured flow to start.").FontSize(12).TextColor(t.TextMuted).Padding(8, 12)
-				}
-			} else {
-				if ui.Button(c, "All retained runs…").FillWidth().Clicked() {
-					a.experiments.scope, a.experiments.draftKey, a.experiments.open = nil, "", true
-				}
-				ui.Text(c, "Send + Runner snapshots; source-linked history is a filtered view.").FontSize(10).TextColor(t.TextMuted).Padding(6, 12)
-				ui.Text(c, "Recent requests below are deduplicated by method + URL; open as an unsent copy.").FontSize(10).TextColor(t.TextMuted).Padding(6, 12)
-				entries := a.history
-				if query != "" {
-					entries = slices.DeleteFunc(slices.Clone(entries), func(e historyEntry) bool {
-						return !strings.Contains(strings.ToLower(e.Method+" "+e.URL), query)
-					})
-				}
-				ui.SidebarSection(c, "Recent requests", nil, func() {
-					for i, e := range entries {
-						index := slices.Index(a.history, e)
-						if index < 0 {
-							index = i
-						}
-						ui.SidebarItem(c, "history:"+strconv.Itoa(index), clockIcon, e.label()).FontSize(12).Padding(5, 8)
-					}
-				})
-				if len(entries) == 0 {
-					ui.Text(c, "Nothing sent yet.").FontSize(12).TextColor(t.TextMuted).Padding(8, 12)
-				}
+				a.collectionTree(c)
+			}
+			if a.requestSide != 3 {
+				return
 			}
 			ui.SidebarSection(c, "API contracts", &a.contractsOpen, func() {
 				for _, d := range a.apis {
+					if query != "" && !strings.Contains(strings.ToLower(d.title()), query) {
+						continue
+					}
 					ui.SidebarItem(c, "contract:"+d.spec.ID, apiIcon, d.title()).Label("API: "+d.title()).FontSize(12).Padding(5, 8).Children(func() {
 						if d.dirty() {
 							ui.Box(c).Size(5, 5).Radius(3).Background(t.Accent).Label("Unsaved API")
@@ -1665,33 +1627,20 @@ func (a *app) requestSidebar(c *ui.Context, t *ui.Theme) {
 			}
 		}
 		ui.Divider(c)
-		ui.Column(c).Padding(8).Gap(2).Children(func() {
-			for _, item := range []struct {
-				label string
-				run   func()
-			}{{"Import cURL…", a.openCurlImport}, {"Import…", a.importRequests}} {
-				if ui.ButtonBase(c).Label(item.label).Height(26).Padding(0, 6).Gap(8).Radius(5).FillWidth().
-					AlignItems(ui.Center).TextColor(t.TextMuted).Children(func() {
-					ui.Icon(c, plusIcon).Size(13, 13)
-					ui.Text(c, item.label).FontSize(12).Grow(1)
-				}).Clicked() {
-					item.run()
-				}
-			}
+		ui.Row(c).Padding(8).Gap(4).Wrap().Children(func() {
 			for _, item := range []struct {
 				label string
 				run   func()
 			}{
-				{"Manage environments…", a.openVars},
+				{"Import cURL…", a.openCurlImport},
 				{"Vault…", a.openVault},
 				{"Runner…", a.openRunner},
 				{"Cookies…", a.openCookies},
 			} {
 				run := item.run
-				if ui.ButtonBase(c).Label(item.label).Height(26).Padding(0, 6).Gap(8).Radius(5).FillWidth().
-					AlignItems(ui.Center).TextColor(t.TextMuted).Children(func() {
-					ui.Text(c, item.label).FontSize(12).Grow(1)
-					ui.Text(c, "›").FontSize(12)
+				if ui.ButtonBase(c).Label(item.label).Height(28).Padding(0, 6).Radius(5).Width((a.sidebarWidth - 20) / 2).
+					AlignItems(ui.Center).Justify(ui.Start).TextColor(t.TextMuted).Children(func() {
+					ui.Text(c, item.label).FontSize(11).SingleLine()
 				}).Clicked() {
 					run()
 				}
@@ -1769,8 +1718,8 @@ func (a *app) table(c *ui.Context) {
 	}
 	cols := []ui.TableColumn{
 		{ID: "id", Title: "#", Width: 48, Sortable: true},
-		{ID: "method", Title: "Method", Width: 80, Sortable: true},
 		{ID: "url", Title: "URL", MinWidth: 200, Sortable: true},
+		{ID: "method", Title: "Method", Width: 80, Sortable: true},
 		{ID: "client", Title: "Client", Width: 132, Sortable: true},
 		{ID: "status", Title: "Status", Width: 78, Sortable: true},
 		{ID: "duration", Title: "Duration", Width: 84, Align: ui.End, Sortable: true},
@@ -1816,12 +1765,12 @@ func (a *app) table(c *ui.Context) {
 	table := ui.Table(c, state, cols, len(a.visible), func(row, col int) {
 		f := a.flows[a.visible[row]]
 		chosen := a.chosen.Has(f.id)
-		text := func(s string) ui.Element { return ui.Text(c, s).FontSize(12).SingleLine() }
+		text := func(s string) ui.Element { return ui.Text(c, s).FontSize(13).SingleLine() }
 		switch cols[col].ID {
 		case "id":
 			text(fmt.Sprint(f.id)).Font("monospace").TextColor(rowColor(chosen, t, t.TextMuted))
 		case "method":
-			text(f.method).Font("monospace").TextColor(rowColor(chosen, t, t.Text)).Tooltip(f.method).ContextMenu(a.rowMenu(c, f))
+			text(f.method).Font("monospace").TextColor(rowColor(chosen, t, methodColor(f.method))).Tooltip(f.method).ContextMenu(a.rowMenu(c, f))
 		case "url":
 			if f.pinned {
 				ui.Icon(c, pinIcon).Size(11, 11).MarginEnd(4).TextColor(rowColor(chosen, t, t.TextMuted))
@@ -1850,8 +1799,8 @@ func (a *app) table(c *ui.Context) {
 							ui.Text(c, "DNS").FontSize(9).Bold().TextColor(ui.Hex("#ffffff"))
 						})
 				}
-				text(f.scheme + "://").Font("monospace").Shrink(0).TextColor(scheme).ContextMenu(a.rowMenu(c, f))
-				text(f.host + f.path).Font("monospace").TextColor(rest).Tooltip(f.url).ContextMenu(a.rowMenu(c, f))
+				text(f.scheme + "://").Shrink(0).TextColor(scheme).ContextMenu(a.rowMenu(c, f))
+				text(f.host + f.path).TextColor(rest).Tooltip(f.url).ContextMenu(a.rowMenu(c, f))
 			})
 		case "status":
 			if f.conn.error != "" {
@@ -3094,7 +3043,7 @@ func (a *app) openSaved(key string) {
 			a.requestDocument = d
 			d.revealTab = true
 			a.requestChoice = key
-			a.workspace = 1
+			a.workspace, a.requestsSection, a.requestSide = 1, 0, 0
 			return
 		}
 	}

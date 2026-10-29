@@ -161,20 +161,27 @@ buttons under the list, and the investigations. Its traffic table sits above
 the inspector. The inspector shows the request and the response **beside each
 other**, each with its own Headers / Params / Body / Raw (request) or
 Headers / Body / Raw / Timing (response) tabs, so a body comparison never needs
-a tab switch. Its **⋯** menu holds the exchange-wide views — Diff, Connection
+a tab switch. Each pane has a separate heading and format menu above its tabs.
+Its **⋯** menu holds the exchange-wide views — Diff, Connection
 and, for WebSocket and SSE, Messages — and the layout choices. Request and
-response headers scroll independently. **Requests** has its own collection and
-history sidebar, a tabbed editor whose document tabs stay in the content pane,
-and an inline response viewer. Switching workspaces preserves the capture
-filters, all open drafts and responses, and the board. The diff pane is MyGo's
+response headers scroll independently. **Requests** has a resource rail for
+**Collections**, **Envs**, **Runs** and **APIs**. Collections form a nested tree;
+search reveals matching ancestors without changing saved expansion choices.
+Runs opens retained attempts inline, without sending them again. Document tabs
+stay in the content pane above the editor and inline response viewer. Switching
+resources or workspaces preserves the capture filters, all open drafts and
+responses, and the board. The response's **Last attempt** disclosure shows the
+full sent draft URL and response time; the collapsed row still distinguishes
+an edited, unsent draft from the retained result. The diff pane is MyGo's
 own `ui/editor` diff viewer, not Monaco, so it stays native and can be reused on
 mobile later. It compares a response with the previous response for the same
 method, scheme and URL.
 
 ## The table
 
-The table is laid out like a proxy tool's: method, status, the whole URL with
-its scheme, the app and its icon, the duration and the size. A click on a
+The table starts with the capture number and whole URL, followed by method,
+app, status, duration and size. Search and protocol chips occupy separate rows;
+**Rules** and **Layout** are directly accessible in the toolbar. A click on a
 header sorts by that column. Ctrl-click adds a row to the choice and
 Shift-click chooses a range, which **Session → Choose all shown** and
 **Clear choice** also do without the keys; the status bar counts the rows
@@ -1196,11 +1203,10 @@ round trips alone.
 
 ## APIs / OpenAPI
 
-Contracts live in the **API contracts** section of the Requests sidebar, beside
-the collection they were generated from but independent of it. The section folds
-shut, and while it holds nothing it stays two short entries — **New contract**
-and **From collection…** — so the collections and the send history keep their
-room.
+Contracts live under **APIs** in the Requests resource rail, independently of
+the collection they were generated from. The sidebar offers **New contract**,
+OpenAPI import and **From collection…**. Switching back to **Collections**
+returns to the request editor without discarding its drafts.
 
 **From collection…** (also **Session → Generate OpenAPI…**) generates a new
 OpenAPI 3.0.3 draft from the selected saved collection, not unsaved request tabs.

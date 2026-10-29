@@ -105,10 +105,11 @@ type requestDocument struct {
 	responseList   ui.ListState
 	// sent is exactly what the last send carried, so the screen can say
 	// whether the draft on it is the one that produced the response.
-	sent           savedRequest
-	sentAt         time.Time
-	sentSet        bool
-	requestPercent float32
+	sent            savedRequest
+	sentAt          time.Time
+	sentSet         bool
+	lastAttemptOpen bool
+	requestPercent  float32
 	// splitSeen is the share the editor last laid out, so a divider the reader
 	// moved is never moved back by the app.
 	splitSeen float32
@@ -189,6 +190,7 @@ func (a *app) addDocument(r savedRequest, key string) {
 	a.requestDocument = d
 	a.requestChoice = key
 	a.workspace, a.requestsSection = 1, 0
+	a.requestSide = 0
 	d.urlInput.Focus()
 }
 
@@ -343,8 +345,8 @@ func (a *app) documentTabs(c *ui.Context, t *ui.Theme) {
 						tab.Background(t.SurfaceHover).TextColor(t.Text)
 					}
 					tab.Children(func() {
-						ui.Text(c, d.composeMethod).FontSize(9).Bold().TextColor(methodColor(d.composeMethod))
-						ui.Text(c, d.title()).FontSize(12).SingleLine().MaxWidth(165)
+						ui.Text(c, d.composeMethod).FontSize(11).Bold().TextColor(methodColor(d.composeMethod))
+						ui.Text(c, d.title()).FontSize(13).SingleLine().MaxWidth(165)
 						if d.dirty() {
 							ui.Box(c).Size(5, 5).Radius(3).Background(t.Accent).Label("Unsaved changes")
 						}
@@ -485,7 +487,7 @@ func (a *app) requestRenameModal(c *ui.Context, t *ui.Theme) {
 // requestBreadcrumb ties the draft to the capture it came from and holds the
 // environment and the save action.
 func (a *app) requestBreadcrumb(c *ui.Context, t *ui.Theme, d *requestDocument) {
-	ui.Row(c).Height(38).Padding(0, 12).Gap(8).AlignItems(ui.Center).Children(func() {
+	ui.Row(c).Height(36).Padding(0, 12).Gap(8).AlignItems(ui.Center).Children(func() {
 		label := "Back to traffic"
 		if d.sourceFlow != 0 {
 			label = fmt.Sprintf("Source #%d", d.sourceFlow)
@@ -500,7 +502,7 @@ func (a *app) requestBreadcrumb(c *ui.Context, t *ui.Theme, d *requestDocument) 
 		}
 		back.Children(func() {
 			ui.Icon(c, backIcon).Size(13, 13)
-			ui.Text(c, label).FontSize(12)
+			ui.Text(c, label).FontSize(13)
 		})
 		// The name and the collection are one quiet line: a click renames
 		// them, so neither needs a permanent input here. An unnamed draft
@@ -512,7 +514,7 @@ func (a *app) requestBreadcrumb(c *ui.Context, t *ui.Theme, d *requestDocument) 
 		if name == "" {
 			name = "Name this request…"
 		}
-		rename := ui.ButtonBase(c).Label("Rename request").Height(26).Padding(0, 6).Radius(5).AlignItems(ui.Center).
+		rename := ui.ButtonBase(c).Label("Rename request").Height(26).Padding(0, 6).Radius(5).AlignItems(ui.Center).Justify(ui.Start).
 			TextColor(t.TextMuted).Tooltip("Rename this request or move it to another collection")
 		if rename.Hovered() {
 			rename.TextColor(t.Text)
@@ -520,13 +522,13 @@ func (a *app) requestBreadcrumb(c *ui.Context, t *ui.Theme, d *requestDocument) 
 		if rename.Clicked() {
 			a.renameOpen = true
 		}
-		rename.Children(func() { ui.Text(c, name).FontSize(12).SingleLine().MaxWidth(320) })
-		if d.experimentID != 0 && !d.composeWaiting {
+		rename.Grow(1).MinWidth(0).Children(func() { ui.Text(c, name).FontSize(13).SingleLine().Tooltip(name) })
+		if d.experimentID != 0 && !d.composeWaiting && a.contentWidth(c) >= 1100 {
 			ui.Text(c, fmt.Sprintf("Recorded experiment #%d · retained result", d.experimentID)).FontSize(11).TextColor(t.TextMuted).SingleLine()
 		}
 		if d.sourceFlow != 0 && (a.query != "" || a.filter != "all" || a.chip != 0 || a.filtersActive()) {
-			ui.Text(c, "Capture filters kept · new traffic may be hidden").FontSize(10).TextColor(t.Warning).SingleLine().
-				Tooltip("Returning to Capture restores its filters, selection and position")
+			ui.Text(c, "Filtered source").Label("Capture filters kept · new traffic may be hidden").FontSize(10).TextColor(t.Warning).SingleLine().
+				Tooltip("Capture filters kept · new traffic may be hidden. Returning restores filters, selection and position.")
 		}
 		if d.sourceAPI != "" {
 			if ui.ButtonBase(c).Label("Source API").Height(24).Padding(0, 6).Radius(4).AlignItems(ui.Center).
@@ -534,9 +536,9 @@ func (a *app) requestBreadcrumb(c *ui.Context, t *ui.Theme, d *requestDocument) 
 				ui.Text(c, "Source: APIs · review contract").FontSize(11).TextColor(t.Accent)
 			}).Clicked() {
 				a.apiChoice, a.workspace, a.requestsSection = d.sourceAPI, 1, 1
+				a.requestSide = 3
 			}
 		}
-		ui.Spacer(c)
 		if names := a.envNames(); len(names) > 0 {
 			ui.Select(c, &a.activeEnv, names).Width(140).Label("Active environment").FontSize(11)
 		}
@@ -574,6 +576,9 @@ func (a *app) requestBreadcrumb(c *ui.Context, t *ui.Theme, d *requestDocument) 
 			if m.Item("Manage environments…").Chosen() {
 				a.openVars()
 			}
+			if m.Item("Request variables").Chosen() {
+				d.variablesOpen = !d.variablesOpen
+			}
 			if m.Item("Vault…").Chosen() {
 				a.openVault()
 			}
@@ -595,6 +600,9 @@ func (a *app) requestVariablesPanel(c *ui.Context, t *ui.Theme, d *requestDocume
 		case "Run input":
 			rows[i].Source = "Environment: " + cmp.Or(a.activeEnv, "none")
 		}
+	}
+	if len(rows) == 0 && !d.variablesOpen {
+		return
 	}
 	target := "unresolved (review variables)"
 	if u, err := url.Parse(request.ExpandVars(d.composeURL, in.Values(vars))); err == nil && u.Hostname() != "" {
@@ -671,7 +679,7 @@ func (a *app) requestBar(c *ui.Context, t *ui.Theme, d *requestDocument) {
 		}
 		control.Children(func() {
 			method := ui.ComboboxBase(c, &d.composeMethod)
-			method.Input.Width(78).Height(30).Label("Method").FontSize(12).FontWeight(600).
+			method.Input.Width(78).Height(32).Label("Method").FontSize(13).FontWeight(600).
 				TextColor(methodColor(d.composeMethod)).Border(0, t.Border)
 			if method.Input.Changed() {
 				d.composeMethod = strings.ToUpper(strings.TrimSpace(d.composeMethod))
@@ -703,12 +711,12 @@ func (a *app) requestBar(c *ui.Context, t *ui.Theme, d *requestDocument) {
 			}
 		})
 		ui.TextInput(c, &d.composeURL).Bind(&d.urlInput).Grow(1).Height(34).Label("URL").
-			Placeholder("https://api.example.com/v1/resource").Font("monospace").FontSize(12)
+			Placeholder("https://api.example.com/v1/resource").FontSize(13)
 		sendLabel := "Send"
 		if d.composeWaiting {
 			sendLabel = "Sending…"
 		}
-		a.desktopButton(c, "send", sendLabel).Width(96).Height(34).Background(t.Accent).TextColor(t.AccentText)
+		a.desktopButton(c, "send", sendLabel).Width(96).Height(34).FontSize(13).Background(t.Accent).TextColor(t.AccentText)
 		if d.composeWaiting {
 			label := "Cancel"
 			if d.sendCancelling {
@@ -724,33 +732,41 @@ func (a *app) requestBar(c *ui.Context, t *ui.Theme, d *requestDocument) {
 // requestEditor is the draft's own body: parameters, auth, headers, body and
 // scripts, each a tab of the same document.
 func (a *app) requestEditor(c *ui.Context, t *ui.Theme, d *requestDocument) {
+	wide := a.contentWidth(c) >= 900
+	bodyTools := func() {
+		ui.Select(c, &d.bodyMode, []string{"Raw", "URL encoded", "Multipart"}).Label("Request body type").Width(132).Height(26).FontSize(11)
+		formatted, isJSON := indentJSON(d.composeBody)
+		if ui.ButtonBase(c).Label("Format body").Height(26).Padding(0, 8).Gap(6).Radius(4).AlignItems(ui.Center).
+			TextColor(t.TextMuted).Disabled(!isJSON || d.bodyMode != "Raw").
+			Tooltip("Indent the JSON body; the bytes sent stay what the editor shows").Children(func() {
+			ui.Icon(c, formatIcon).Size(12, 12)
+			ui.Text(c, "Format").FontSize(11)
+		}).Clicked() {
+			// Rebuild the editor rather than writing its old buffer back.
+			d.composeBody, d.bodyFor = formatted, ""
+		}
+	}
 	ui.Column(c).Fill().Children(func() {
-		ui.Row(c).Height(34).Padding(0, 6).Gap(4).AlignItems(ui.Center).
+		ui.Row(c).Height(36).Padding(0, 12).Gap(8).AlignItems(ui.Center).
 			Border(0, t.Border).BorderWidth(0, 0, 1, 0).Children(func() {
 			examples := "Examples"
 			if len(d.examples) > 0 {
 				examples = fmt.Sprintf("Examples (%d)", len(d.examples))
 			}
-			flatTabs(c, &d.composeTab, "Request editor", "Params", "Headers", "Auth", "Body", "Scripts", "Checks", examples)
-			if d.composeTab == composeTabBody {
-				// The body's type and formatting belong to the Body tab, so
-				// they cost no row of their own.
-				ui.Spacer(c)
-				ui.Select(c, &d.bodyMode, []string{"Raw", "URL encoded", "Multipart"}).Label("Request body type").Width(132)
-				formatted, isJSON := indentJSON(d.composeBody)
-				if ui.ButtonBase(c).Label("Format body").Height(24).Padding(0, 7).Gap(5).Radius(4).AlignItems(ui.Center).
-					TextColor(t.TextMuted).Disabled(!isJSON || d.bodyMode != "Raw").
-					Tooltip("Indent the JSON body; the bytes sent stay what the editor shows").Children(func() {
-					ui.Icon(c, formatIcon).Size(12, 12)
-					ui.Text(c, "Format").FontSize(11)
-				}).Clicked() {
-					// Rebuild the editor from the formatted text instead of
-					// letting its buffer write the old bytes back.
-					d.composeBody, d.bodyFor = formatted, ""
-				}
+			ui.ScrollHorizontal(c).Grow(1).FillHeight().Children(func() {
+				flatTabs(c, &d.composeTab, "Request editor", "Params", "Headers", "Auth", "Body", "Scripts", "Checks", examples)
+			})
+			if wide && d.composeTab == composeTabBody {
+				bodyTools()
 			}
 		})
-		ui.Column(c).Grow(1).Padding(8, 12).Gap(8).Children(func() {
+		if !wide && d.composeTab == composeTabBody {
+			ui.Row(c).Height(32).Padding(0, 12).Gap(8).AlignItems(ui.Center).Children(func() {
+				ui.Spacer(c)
+				bodyTools()
+			})
+		}
+		ui.Column(c).Grow(1).Padding(4, 8).Gap(8).Children(func() {
 			switch d.composeTab {
 			case composeTabParams:
 				a.paramsEditor(c, d, t)
@@ -771,9 +787,12 @@ func (a *app) requestEditor(c *ui.Context, t *ui.Theme, d *requestDocument) {
 				a.examplesEditor(c, d, t)
 			}
 		})
-		ui.Row(c).Height(22).Padding(0, 12).AlignItems(ui.Center).Children(func() {
-			a.requestSentState(c, t, d)
-		})
+		// A visible response already names the last attempt and draft changes.
+		if d.response == nil || !d.sentSet || d.composeWaiting {
+			ui.Row(c).Height(24).Padding(0, 12).AlignItems(ui.Center).Children(func() {
+				a.requestSentState(c, t, d)
+			})
+		}
 	})
 }
 
@@ -803,8 +822,8 @@ func (a *app) requestResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 		outcome, detail = r.Outcome, r.Summary
 	}
 	ui.Column(c).Fill().Children(func() {
-		ui.Row(c).MinHeight(40).Padding(6, 12).Gap(8).Wrap().AlignItems(ui.Center).Children(func() {
-			ui.Text(c, "Response").FontSize(12).Bold().TextColor(t.Text)
+		ui.Row(c).MinHeight(32).Padding(2, 10).Gap(6).Wrap().AlignItems(ui.Center).Children(func() {
+			ui.Text(c, "Response").FontSize(14).Bold().TextColor(t.Text)
 			if r := d.response; r != nil {
 				status := fmt.Sprintf("%d %s", r.Status, http.StatusText(r.Status))
 				if outcome == "Network error" {
@@ -839,7 +858,9 @@ func (a *app) requestResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 				if ui.ButtonBase(c).Label("Compare with source").Height(26).Padding(0, 8).Gap(6).Radius(5).AlignItems(ui.Center).
 					TextColor(t.TextMuted).Tooltip("Compare this response with the capture it came from").Children(func() {
 					ui.Icon(c, compareIcon).Size(13, 13)
-					ui.Text(c, "Compare with source").FontSize(11)
+					if a.contentWidth(c) >= 800 {
+						ui.Text(c, "Compare with source").FontSize(11)
+					}
 				}).Clicked() {
 					d.comparing = true
 				}
@@ -848,7 +869,9 @@ func (a *app) requestResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 				if ui.ButtonBase(c).Label("Save as example").Height(26).Padding(0, 8).Gap(6).Radius(5).AlignItems(ui.Center).
 					TextColor(t.TextMuted).Tooltip("Keep this response with the request, as a Postman example").Children(func() {
 					ui.Icon(c, exampleIcon).Size(13, 13)
-					ui.Text(c, "Save as example").FontSize(11)
+					if a.contentWidth(c) >= 800 {
+						ui.Text(c, "Save as example").FontSize(11)
+					}
 				}).Clicked() {
 					a.saveExample(d)
 				}
@@ -865,13 +888,39 @@ func (a *app) requestResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 			}
 		})
 		if d.sentSet {
-			ui.Row(c).Height(26).Padding(0, 12).Gap(10).AlignItems(ui.Center).Children(func() {
-				label := "Last attempt · " + d.sentAt.Local().Format("15:04:05") + " · " + d.sent.Method + " " + d.sent.URL
-				ui.Text(c, label).FontSize(11).TextColor(t.TextMuted).SingleLine().Grow(1).Tooltip(label + "\nDraft snapshot; inspect Send history for prepared request and wire evidence")
+			ui.Row(c).Height(30).Padding(0, 12).Gap(10).AlignItems(ui.Center).Children(func() {
+				path := d.sent.URL
+				if u, err := url.Parse(path); err == nil && u.Host != "" {
+					path = cmp.Or(u.EscapedPath(), "/")
+				}
+				label := "Last attempt · " + d.sentAt.Local().Format("15:04:05") + " · " + d.sent.Method + " " + path
+				if ui.ButtonBase(c).Label("Last send details").Grow(1).MinWidth(0).Height(28).Gap(8).
+					AlignItems(ui.Center).Justify(ui.Start).TextColor(t.TextMuted).Tooltip("Show the full draft URL and response time").Children(func() {
+					arrow := "›"
+					if d.lastAttemptOpen {
+						arrow = "⌄"
+					}
+					ui.Text(c, arrow).FontSize(14)
+					ui.Text(c, label).FontSize(11).SingleLine()
+				}).Clicked() {
+					d.lastAttemptOpen = !d.lastAttemptOpen
+				}
 				if !reflect.DeepEqual(d.draft(), d.sent) {
 					ui.Text(c, "Draft changed · not sent").FontSize(11).TextColor(t.Warning)
+				} else if !d.composeWaiting {
+					ui.Text(c, "Draft matches last attempt").FontSize(11).TextColor(t.TextMuted).
+						Tooltip("The draft snapshot matches; variables, scripts, redirects and rules may change the wire request")
 				}
 			})
+			if d.lastAttemptOpen {
+				ui.Column(c).Padding(8, 12).Gap(6).Background(t.Surface).Children(func() {
+					ui.Text(c, d.sent.Method+" "+d.sent.URL).Label("Last sent draft URL").FontSize(12).Selectable()
+					ui.Text(c, "Draft snapshot · variables, scripts, redirects and proxy rules may change the wire request. Inspect Send history for retained wire evidence.").FontSize(11).TextColor(t.TextMuted)
+					if d.response != nil {
+						ui.Text(c, "Response from "+d.response.At.Local().Format("15:04:05")).FontSize(11).TextColor(t.TextMuted)
+					}
+				})
+			}
 		}
 		if outcome == "Cancelled" && (d.response != nil || len(d.composeReplies) > 0 || d.responseTab == resViewConsole) {
 			ui.Column(c).Padding(8, 12).Gap(8).Children(func() { a.cancelledResult(c, t, d) })
@@ -895,8 +944,9 @@ func (a *app) requestResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 			if d.responseTab >= len(labels) {
 				d.responseTab = resViewBody
 			}
-			flatTabs(c, &d.responseTab, "Response tab", labels...)
-			ui.Spacer(c)
+			ui.ScrollHorizontal(c).Grow(1).FillHeight().Children(func() {
+				flatTabs(c, &d.responseTab, "Response tab", labels...)
+			})
 			if d.responseTab == resViewBody && d.response != nil {
 				formats := []string{"Pretty", "Raw", "Hex"}
 				seg := ui.SegmentedBase(c, &d.responseView, len(formats))
@@ -930,7 +980,7 @@ func (a *app) cancelledResult(c *ui.Context, t *ui.Theme, d *requestDocument) {
 // responseProvenance says when the response arrived and whether the capture it
 // came from was rewritten by sending it again.
 func (a *app) responseProvenance(c *ui.Context, t *ui.Theme, d *requestDocument) {
-	if d.response == nil {
+	if d.response == nil || d.sentSet && !d.comparing {
 		return
 	}
 	provenance := "Response from " + d.response.At.Local().Format("15:04:05")
@@ -1002,6 +1052,7 @@ func (a *app) responseBody(c *ui.Context, t *ui.Theme, d *requestDocument) {
 				}
 				d.responseEditor = &editor.State{Buffer: buf, ReadOnly: true, NoScrollPastEnd: true, Label: "Response body"}
 			}
+			d.responseEditor.Theme = bodyEditorTheme(t)
 			editor.View(c, d.responseEditor).Grow(1)
 		}
 	case resViewHeaders:

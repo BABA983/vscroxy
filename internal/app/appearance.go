@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"github.com/egoist/mygo/ui"
+	"github.com/egoist/mygo/ui/editor"
 	"github.com/oneo-me/onevra/source/icons/lucide"
 )
 
@@ -92,6 +93,16 @@ func appTheme(dark bool) *ui.Theme {
 	return t
 }
 
+// Body readers and the authored body share syntax colors, not error colors.
+func bodyEditorTheme(t *ui.Theme) *editor.Theme {
+	theme := editor.DefaultTheme(t)
+	if !t.Dark {
+		theme.Tokens[editor.TokenProperty].Color = ui.Hex("#007e8a")
+		theme.Tokens[editor.TokenString].Color = ui.Hex("#a34516")
+	}
+	return theme
+}
+
 // DialogBase retains the library's modal focus and dismissal rules; only
 // the shared desktop chrome is ours.
 func appModal(c *ui.Context, open *bool, content func()) ui.Element {
@@ -121,13 +132,18 @@ func flatTabs(c *ui.Context, selected *int, prefix string, labels ...string) ui.
 			if prefix != "" {
 				name = prefix + ": " + label
 			}
-			tab := group.Tab(i).Label(name).Height(32).Padding(0, 7).Radius(0).AlignItems(ui.Center).TextColor(t.TextMuted)
+			tab := group.Tab(i).Label(name).Height(34).Padding(0, 9).Radius(0).AlignItems(ui.Center).TextColor(t.TextMuted)
 			if i == *selected {
-				tab.TextColor(t.Text).Border(0, t.Border).BorderWidth(0, 0, 2, 0)
+				tab.TextColor(t.Text).Border(0, t.Accent).BorderWidth(0, 0, 2, 0)
 			} else if tab.Hovered() {
 				tab.TextColor(t.Text)
 			}
-			tab.Children(func() { ui.Text(c, label).FontSize(12) })
+			tab.Children(func() {
+				text := ui.Text(c, label).FontSize(13)
+				if i == *selected {
+					text.Bold()
+				}
+			})
 		}
 	})
 	return group.List

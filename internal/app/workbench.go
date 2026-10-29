@@ -40,6 +40,9 @@ func (a *app) contentWidth(c *ui.Context) float32 {
 	if !a.workbench.sidebarHidden {
 		width -= a.sidebarWidth + 6
 	}
+	if a.workspace == 1 {
+		width -= requestRailWidth
+	}
 	return width
 }
 
@@ -55,6 +58,12 @@ func (a *app) desktopContent(c *ui.Context) {
 	content := func() {
 		switch a.workspace {
 		case 1:
+			if a.requestsSection == 2 {
+				if !a.experiments.open {
+					a.experimentsView(c, c.Theme(), true)
+				}
+				return
+			}
 			if a.requestsSection == 1 {
 				a.apiView(c, c.Theme())
 				return
@@ -101,11 +110,16 @@ func (a *app) desktopContent(c *ui.Context) {
 			})
 		}
 	}
-	if w.sidebarHidden || w.focused && a.workspace == 0 {
-		ui.Column(c).Grow(1).FillWidth().Children(content)
-	} else {
-		ui.Split(c, &a.sidebarWidth, func() { a.sidebar(c) }, content).Grow(1)
-	}
+	ui.Row(c).Grow(1).FillWidth().Children(func() {
+		if a.workspace == 1 {
+			a.requestRail(c)
+		}
+		if w.sidebarHidden || w.focused && a.workspace == 0 || a.workspace == 1 && a.requestsSection == 2 {
+			ui.Column(c).Grow(1).FillHeight().Children(content)
+		} else {
+			ui.Split(c, &a.sidebarWidth, func() { a.sidebar(c) }, content).Grow(1).FillHeight()
+		}
+	})
 }
 
 var captureKinds = []string{"All", "HTTP", "HTTPS", "WebSocket", "SSE", "JSON", "Images", "HTML"}
@@ -119,7 +133,7 @@ func (a *app) captureToolbar(c *ui.Context, t *ui.Theme) {
 	// The search field is the reason this bar exists; the labels beside it
 	// shorten to icons before it gives up room.
 	tight := width < 1100
-	ui.Row(c).Height(42).Padding(0, 10).Gap(8).AlignItems(ui.Center).Children(func() {
+	ui.Row(c).Height(44).Padding(0, 12).Gap(8).AlignItems(ui.Center).Children(func() {
 		search := ui.TextInput(c, &a.query).Bind(&a.search).Label("Search host or path").Placeholder("Search host or path…").
 			Tooltip("URL host and path only · Ctrl/Cmd+F · Enter or ↓ moves to requests. Filters search headers and full bodies.").Grow(1)
 		search.OnShortcut(0, ui.KeyDown, func() { a.focusTraffic(c) })
@@ -133,26 +147,13 @@ func (a *app) captureToolbar(c *ui.Context, t *ui.Theme) {
 			TextColor(t.TextMuted).Tooltip("Status, header, body, method, duration and notes").Children(func() {
 			ui.Icon(c, filterIcon).Size(14, 14)
 			if !tight {
-				ui.Text(c, "Filters").FontSize(12)
+				ui.Text(c, "Filters").FontSize(13)
 			}
 		}).Clicked() {
 			a.openFilter()
 		}
-		ui.Box(c).Width(1).Height(18).Background(t.Border)
-		for i := 0; i < len(captureProtocols); i++ {
-			index := i
-			b := ui.ButtonBase(c).Label("Protocol and content type: "+captureProtocols[index]).Height(24).Padding(0, 8).Radius(4).
-				AlignItems(ui.Center).TextColor(t.TextMuted)
-			if a.chip == index {
-				b.Background(t.SurfaceHover).TextColor(t.Text)
-			} else if b.Hovered() {
-				b.TextColor(t.Text)
-			}
-			if b.Clicked() {
-				a.chip = index
-				a.applyFilter()
-			}
-			b.Children(func() { ui.Text(c, captureProtocols[index]).FontSize(11) })
+		if ui.Button(c, "Rules…").Label("Debugging rules…").Height(26).Clicked() {
+			a.openRules()
 		}
 		ui.Box(c).Width(1).Height(18).Background(t.Border)
 		breakButton := ui.ButtonBase(c).Label("Breakpoints").Height(26).Padding(0, 8).Gap(6).Radius(5).AlignItems(ui.Center).
@@ -198,6 +199,23 @@ func (a *app) captureToolbar(c *ui.Context, t *ui.Theme) {
 				a.clearOpen = true
 			}
 		}).Label("More capture options").Height(26).Padding(0, 6).FontSize(14).TextColor(t.TextMuted).Border(0, t.Border)
+	})
+	ui.Row(c).Height(34).Padding(0, 12).Gap(6).AlignItems(ui.Center).Children(func() {
+		for i, name := range captureProtocols {
+			b := ui.ButtonBase(c).Label("Protocol and content type: "+name).Height(28).Padding(0, 8).Radius(4).
+				AlignItems(ui.Center).TextColor(t.TextMuted)
+			if a.chip == i {
+				b.Background(t.Accent.Alpha(0.10)).TextColor(t.Accent)
+			}
+			b.Children(func() { ui.Text(c, name).FontSize(12) })
+			b.OnClick(func() { a.chip = i; a.applyFilter() })
+		}
+		ui.Spacer(c)
+		ui.MenuButton(c, "Layout", func(m *ui.Menu) {
+			for _, id := range []string{"layout-bottom", "layout-right", "layout-auto", "focus"} {
+				a.desktopMenuItem(c, m, id, "")
+			}
+		}).Label("Inspector layout").Height(24).FontSize(11)
 	})
 	ui.Divider(c)
 	if !a.filtersActive() {
@@ -402,6 +420,7 @@ func (a *app) desktopActions(c *ui.Context) []desktopAction {
 		}},
 		{"apis-workspace", "API contracts", true, ui.Cmd, ui.Key3, func() {
 			a.workspace, a.requestsSection = 1, 1
+			a.requestSide = 3
 			if a.apiChoice == "" && len(a.apis) > 0 {
 				a.apiChoice = a.apis[0].spec.ID
 			}

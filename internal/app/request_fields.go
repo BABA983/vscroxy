@@ -463,6 +463,7 @@ func (a *app) requestBodyText(c *ui.Context, d *requestDocument) {
 		d.bodyEditor = &editor.State{Buffer: buf, NoScrollPastEnd: true, SoftWrap: true, Label: "Request body"}
 		d.bodyFor = d.composeBody
 	}
+	d.bodyEditor.Theme = bodyEditorTheme(c.Theme())
 	editor.View(c, d.bodyEditor).Grow(1)
 	if text := d.bodyEditor.Buffer.String(); text != d.composeBody {
 		d.composeBody = text

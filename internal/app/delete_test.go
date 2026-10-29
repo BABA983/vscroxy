@@ -30,7 +30,7 @@ func TestDeletingAFolderRemovesItsTreeOnly(t *testing.T) {
 	edited.composeURL = "https://shop.example/refunds"
 	tt := ui.NewTester(a.view, 1280, 760)
 
-	if err := tt.RightClick("Shop/Orders"); err != nil {
+	if err := tt.RightClick("Collection: Shop/Orders"); err != nil {
 		t.Fatal(err)
 	}
 	if err := tt.ChooseMenuItem("Delete “Shop/Orders”…"); err != nil {

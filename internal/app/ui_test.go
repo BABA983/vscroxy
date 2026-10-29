@@ -380,6 +380,50 @@ func TestWorkspaceKeepsCaptureAndDraftIndependent(t *testing.T) {
 	}
 }
 
+func TestRequestResourcesPreserveDraftAndTreeExpansion(t *testing.T) {
+	a := workspaceApp()
+	a.workspace = 1
+	a.requests = append(a.requests, savedRequest{Name: "Other request", Collection: "Other/API", Method: "POST", URL: "https://other.test"})
+	tt := ui.NewTester(a.view, 960, 600)
+	click := func(label string) {
+		t.Helper()
+		if err := tt.Click(label); err != nil {
+			t.Fatal(err)
+		}
+	}
+	click("Collection: Workspace")
+	tt.Key(0, ui.KeyLeft)
+	if tt.HasText("GET  List projects") || !tt.HasText("POST  Other request") {
+		t.Fatal("collapsing one collection affected the wrong branch")
+	}
+	click("Search collections")
+	tt.Type("projects")
+	if !tt.HasText("GET  List projects") || tt.HasText("POST  Other request") {
+		t.Fatal("search did not reveal only matching ancestors and requests")
+	}
+	click("List projects")
+	click("URL")
+	tt.Key(ui.Cmd, ui.KeyA)
+	tt.Type("https://api.example.com/unsent")
+	for _, resource := range []string{"Envs", "Runs", "APIs", "Collections"} {
+		click(resource)
+	}
+	click("URL")
+	tt.Key(ui.Cmd, ui.KeyA)
+	tt.Key(ui.Cmd, ui.KeyC)
+	if tt.Clipboard() != "https://api.example.com/unsent" {
+		t.Fatal("resource navigation discarded the unsent draft")
+	}
+	if tt.HasText("GET  List projects") || !tt.HasText("POST  Other request") {
+		t.Fatal("search rewrote the collection expansion state")
+	}
+	click("Collection: Workspace")
+	tt.Key(0, ui.KeyRight)
+	if !tt.HasText("GET  List projects") {
+		t.Fatal("collection cannot be expanded again with the keyboard")
+	}
+}
+
 func TestCaptureUIUsesOnlyTheRunningListener(t *testing.T) {
 	srv, err := capture.New("127.0.0.1:0", t.TempDir())
 	if err != nil {
@@ -685,7 +729,7 @@ func TestBodyAutomaticallyChoosesAUsableMode(t *testing.T) {
 	a.flows[0].resBody = "\x00\xffbinary"
 	openResponseBody(a)
 	tt := ui.NewTester(a.view, 1280, 800)
-	if !tt.HasText("Showing: Hex") {
+	if !tt.HasText("Hex") {
 		t.Fatal("binary body must not default to text")
 	}
 	chooseBodyFormat(t, tt, "response", "Hex")
@@ -693,7 +737,7 @@ func TestBodyAutomaticallyChoosesAUsableMode(t *testing.T) {
 	a.flows[1].resBody = `{"answer":42}`
 	a.picked = 1
 	tt.Frame()
-	if !tt.HasText("Showing: Pretty") || tt.HasText("Showing: Hex") {
+	if !tt.HasText("Pretty") || tt.HasText("Hex") {
 		t.Fatal("switching requests kept an unusable body mode")
 	}
 }
@@ -783,24 +827,24 @@ func TestBodyModeSurvivesIncomingTraffic(t *testing.T) {
 	tt := ui.NewTester(a.view, 1280, 800)
 	// Hex renders differently from Auto's Pretty, so a reset is observable.
 	chooseBodyFormat(t, tt, "response", "Hex")
-	if !tt.HasText("Showing: Hex") {
+	if !tt.HasText("Hex") {
 		t.Fatal("manual body mode was not selected")
 	}
 	a.pending = []capture.Flow{{ID: 3, Method: "GET", Scheme: "https", Host: "other.example.com", Path: "/new", Status: 200, Kind: "http"}}
 	tt.Frame()
-	if !tt.HasText("Showing: Hex") {
+	if !tt.HasText("Hex") {
 		t.Fatal("new traffic reset the manually selected body mode")
 	}
 	a.pending = []capture.Flow{{ID: 4, Method: "GET", Scheme: "https", Host: "other.example.com", Path: "/another", Status: 200, Kind: "http"}}
 	tt.Frame()
-	if !tt.HasText("Showing: Hex") {
+	if !tt.HasText("Hex") {
 		t.Fatal("new traffic changed the body mode while inspecting the same request")
 	}
 	// Each side keeps its own representation: the request still reads as
 	// Pretty while the response stays in the hex dump the reader chose.
 	a.inspect.tab[0] = reqTabBody
 	tt.Frame()
-	if !tt.HasText("Showing: Pretty") || !tt.HasText("Showing: Hex") {
+	if !tt.HasText("Pretty") || !tt.HasText("Hex") {
 		t.Fatalf("the two sides did not keep independent representations: %q", tt.Texts())
 	}
 }
@@ -814,7 +858,7 @@ func TestJSONExpansionSurvivesIncomingTraffic(t *testing.T) {
 	a.flows[0].resBody = `{"collapsed":{"hidden":"hidden-value"},"data":{"nested":{"leaf":"expanded-value"}}}`
 	tt := ui.NewTester(a.view, 1280, 800)
 	chooseBodyFormat(t, tt, "response", "JSON") // Body's JSON mode, not Capture's JSON filter.
-	if !tt.HasText("Showing: JSON") {
+	if !tt.HasText("collapsed") {
 		t.Fatal("JSON mode was not selected")
 	}
 	if err := tt.Click("▸"); err != nil {
@@ -834,7 +878,7 @@ func TestJSONExpansionSurvivesIncomingTraffic(t *testing.T) {
 	if err := tt.Click("Capture"); err != nil {
 		t.Fatal(err)
 	}
-	if !tt.HasText(`"expanded-value"`) || tt.HasText(`"hidden-value"`) || !tt.HasText("Showing: JSON") {
+	if !tt.HasText(`"expanded-value"`) || tt.HasText(`"hidden-value"`) || !tt.HasText("collapsed") {
 		t.Fatal("returning from editing lost the reader's mode or expanded JSON nodes")
 	}
 	for _, id := range []int{3, 4} {
@@ -1655,6 +1699,7 @@ func TestAPIWorkflowPreservesIndependentContracts(t *testing.T) {
 	click("Done")
 	click("Save")
 	click("Requests")
+	click("APIs")
 	click("Generate from collection")
 	click("Generate draft")
 	if !tt.HasText("Unsaved draft") || !tt.HasText("Endpoint: GET /projects") {
@@ -1698,6 +1743,7 @@ func TestAPIWorkflowPreservesIndependentContracts(t *testing.T) {
 	click("Captured projects")
 	edit("URL", "https://api.example.com/projects-v2")
 	click("Save")
+	click("APIs")
 	click("API: Captured API")
 	if !tt.HasText("Source collection changed") {
 		t.Fatal("changed requests silently diverged from their generated contract")
@@ -2396,7 +2442,7 @@ func TestCaptureRegressionCanBeSavedAndSharedOnlyAfterReview(t *testing.T) {
 
 func TestCaptureSelectionSummarizesAndComparesArbitraryRequests(t *testing.T) {
 	a := workspaceApp()
-	a.tablePercent = 35
+	a.tablePercent = 45 // Keep three rows visible below both capture toolbar rows.
 	a.flows[0].bytes, a.flows[0].millis = 11, 10
 	a.flows[0].reqHeaders, a.flows[0].resBody = "X-Case: first", "first response"
 	a.flows[1].bytes, a.flows[1].millis, a.flows[1].status = 37, 90, 500
@@ -2852,8 +2898,8 @@ func TestDesktopLayoutDefaultsBelowAndSwitchesWithoutLosingCaptureContext(t *tes
 	number, _ := tt.Find("#")
 	url, _ := tt.Find("URL")
 	method, _ := tt.Find("Method")
-	if number.X >= method.X || method.X >= url.X {
-		t.Fatal("reset layout did not restore the method-before-URL default columns")
+	if number.X >= url.X || url.X >= method.X {
+		t.Fatal("reset layout did not restore the URL-first default columns")
 	}
 }
 
@@ -3619,6 +3665,18 @@ func TestSendResultsSeparateFailuresAndLinkTheExactAttempt(t *testing.T) {
 			tt.Type(upstream.URL + "/unsent")
 			if !tt.HasText("Draft changed · not sent") {
 				t.Fatal("old response was attributed to current edits")
+			}
+			if err := tt.Click("Last send details"); err != nil {
+				t.Fatal(err)
+			}
+			if readField(t, tt, "Last sent draft URL") != "POST "+upstream.URL || !tt.HasText("Draft changed · not sent") {
+				t.Fatalf("expanded provenance lost the original URL or the unsent warning: %q", tt.Texts())
+			}
+			if err := tt.Click("Last send details"); err != nil {
+				t.Fatal(err)
+			}
+			if tt.HasText("Last sent draft URL") || readField(t, tt, "URL") != upstream.URL+"/unsent" {
+				t.Fatal("collapsing provenance changed the draft or left the detail open")
 			}
 			if err := tt.Click("Response tab: Timing"); err != nil {
 				t.Fatal(err)
