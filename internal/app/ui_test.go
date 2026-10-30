@@ -1317,7 +1317,7 @@ func TestProxyPortEditorSavesWithoutInterruptingCapture(t *testing.T) {
 func TestRequestTabsKeepDraftsAndConfirmClose(t *testing.T) {
 	a := workspaceApp()
 	a.library.root = filepath.Join(t.TempDir(), "collections")
-	tt := ui.NewTester(a.view, 1100, 650)
+	tt := ui.NewTester(a.view, 960, 650)
 	click := func(label string) {
 		t.Helper()
 		if err := tt.Click(label); err != nil {

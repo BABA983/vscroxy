@@ -322,9 +322,8 @@ func (a *app) closeRequestModal(c *ui.Context, t *ui.Theme) {
 	}
 }
 
-// documentTabs is the Requests workspace's own tab strip. It holds request
-// documents only: traffic is the other workspace, and the capture's
-// breadcrumb returns to it.
+// documentTabs keeps documents, source navigation and save actions together.
+// Only the documents scroll; the active draft's actions remain visible.
 func (a *app) documentTabs(c *ui.Context, t *ui.Theme) {
 	var closing *requestDocument
 	ui.Row(c).Height(38).Background(t.Surface).Children(func() {
@@ -368,8 +367,11 @@ func (a *app) documentTabs(c *ui.Context, t *ui.Theme) {
 		}).Clicked() {
 			a.openCompose()
 		}
+		if d := a.requestDocument; d != nil {
+			a.requestDocumentActions(c, t, d)
+		}
 		if names := a.envNames(); len(names) > 0 {
-			ui.Select(c, &a.activeEnv, names).Width(140).Height(28).Label("Active environment").FontSize(12).Margin(0, 8)
+			ui.Select(c, &a.activeEnv, names).Width(120).Height(28).Label("Active environment").FontSize(12).Margin(0, 8)
 		} else {
 			ui.ButtonBase(c).Label("Manage environments").Tooltip("Add an environment for request variables").Height(28).Padding(0, 8).
 				Children(func() { ui.Text(c, "No environment").FontSize(12).TextColor(t.TextMuted) }).OnClick(a.openVars)
@@ -407,7 +409,6 @@ func (a *app) composeView(c *ui.Context, t *ui.Theme) {
 		return
 	}
 	ui.Column(c).Key(d.id).Fill().Children(func() {
-		a.requestBreadcrumb(c, t, d)
 		a.requestBar(c, t, d)
 		a.requestVariablesPanel(c, t, d)
 		if d.comparing {
@@ -490,9 +491,9 @@ func (a *app) requestRenameModal(c *ui.Context, t *ui.Theme) {
 	})
 }
 
-// requestBreadcrumb ties the draft to its source and holds the save action.
-func (a *app) requestBreadcrumb(c *ui.Context, t *ui.Theme, d *requestDocument) {
-	ui.Row(c).Height(30).Padding(0, 12).Gap(8).AlignItems(ui.Center).Children(func() {
+// requestDocumentActions never scrolls away with a long document tab strip.
+func (a *app) requestDocumentActions(c *ui.Context, t *ui.Theme, d *requestDocument) {
+	ui.Row(c).Key(d.id).Gap(4).AlignItems(ui.Center).Children(func() {
 		label := "Back to traffic"
 		if d.sourceFlow != 0 {
 			label = fmt.Sprintf("Source #%d", d.sourceFlow)
@@ -507,11 +508,12 @@ func (a *app) requestBreadcrumb(c *ui.Context, t *ui.Theme, d *requestDocument) 
 		}
 		back.Children(func() {
 			ui.Icon(c, backIcon).Size(13, 13)
-			ui.Text(c, label).FontSize(13)
+			if d.sourceFlow != 0 {
+				ui.Text(c, label).FontSize(12)
+			}
 		})
-		// The name and the collection are one quiet line: a click renames
-		// them, so neither needs a permanent input here. An unnamed draft
-		// says so once, not twice: its tab already reads Untitled request.
+		// The tab already names the request. Keep its full collection path
+		// available at the rename action without reserving another row.
 		name := d.composeName
 		if d.composeCollection != "" {
 			name = d.composeCollection + " / " + cmp.Or(name, "Untitled request")
@@ -519,26 +521,23 @@ func (a *app) requestBreadcrumb(c *ui.Context, t *ui.Theme, d *requestDocument) 
 		if name == "" {
 			name = "Name this request…"
 		}
-		rename := ui.ButtonBase(c).Label("Rename request").Height(26).Padding(0, 6).Radius(5).AlignItems(ui.Center).Justify(ui.Start).
-			TextColor(t.TextMuted).Tooltip("Rename this request or move it to another collection")
+		rename := ui.ButtonBase(c).Label("Rename request").Size(26, 26).Radius(5).Center().
+			TextColor(t.TextMuted).Tooltip(name + "\nRename or move to another collection")
 		if rename.Hovered() {
 			rename.TextColor(t.Text)
 		}
 		if rename.Clicked() {
 			a.renameOpen = true
 		}
-		rename.Grow(1).MinWidth(0).Children(func() { ui.Text(c, name).FontSize(13).SingleLine().Tooltip(name) })
-		if d.experimentID != 0 && !d.composeWaiting && a.contentWidth(c) >= 1100 {
-			ui.Text(c, fmt.Sprintf("Recorded experiment #%d · retained result", d.experimentID)).FontSize(11).TextColor(t.TextMuted).SingleLine()
-		}
+		rename.Children(func() { ui.Icon(c, requestIcon).Size(14, 14) })
 		if d.sourceFlow != 0 && (a.query != "" || a.filter != "all" || a.chip != 0 || a.filtersActive()) {
-			ui.Text(c, "Filtered source").Label("Capture filters kept · new traffic may be hidden").FontSize(10).TextColor(t.Warning).SingleLine().
+			ui.Icon(c, filterIcon).Size(14, 14).Label("Capture filters kept · new traffic may be hidden").TextColor(t.Warning).
 				Tooltip("Capture filters kept · new traffic may be hidden. Returning restores filters, selection and position.")
 		}
 		if d.sourceAPI != "" {
 			if ui.ButtonBase(c).Label("Source API").Height(24).Padding(0, 6).Radius(4).AlignItems(ui.Center).
 				TextColor(t.TextMuted).Children(func() {
-				ui.Text(c, "Source: APIs · review contract").FontSize(11).TextColor(t.Accent)
+				ui.Text(c, "Source API").FontSize(12).TextColor(t.Accent)
 			}).Clicked() {
 				a.apiChoice, a.workspace, a.requestsSection = d.sourceAPI, 1, 1
 				a.requestSide = 3
@@ -828,6 +827,10 @@ func (a *app) requestResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 	ui.Column(c).Fill().Children(func() {
 		ui.Row(c).MinHeight(32).Padding(2, 10).Gap(6).Wrap().AlignItems(ui.Center).Children(func() {
 			ui.Text(c, "Response").FontSize(13).FontWeight(600).TextColor(t.Text)
+			if d.experimentID != 0 && !d.composeWaiting {
+				ui.Text(c, fmt.Sprintf("Recorded experiment #%d", d.experimentID)).FontSize(11).TextColor(t.TextMuted).
+					Tooltip("Retained result from this experiment; opening it does not send the draft")
+			}
 			if r := d.response; r != nil {
 				status := fmt.Sprintf("%d %s", r.Status, http.StatusText(r.Status))
 				if outcome == "Network error" {
