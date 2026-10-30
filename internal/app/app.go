@@ -1516,7 +1516,7 @@ func (a *app) requestSidebar(c *ui.Context, t *ui.Theme) {
 				title = "APIs"
 			}
 			ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
-				ui.Text(c, title).FontSize(14).Bold().Grow(1)
+				ui.Text(c, title).FontSize(13).FontWeight(600).Grow(1)
 				newLabel := "New request"
 				if a.requestSide == 3 {
 					newLabel = "New API"
@@ -1542,7 +1542,7 @@ func (a *app) requestSidebar(c *ui.Context, t *ui.Theme) {
 			} else if a.requestSide == 3 {
 				placeholder, label = "Search APIs…", "Search APIs"
 			}
-			ui.TextInput(c, &a.requestQuery).Label(label).Placeholder(placeholder).FontSize(11)
+			ui.TextInput(c, &a.requestQuery).Label(label).Placeholder(placeholder).Height(28).FontSize(12)
 		})
 		chosen := ui.Sidebar(c, &a.requestChoice, func() {
 			query := strings.ToLower(strings.TrimSpace(a.requestQuery))

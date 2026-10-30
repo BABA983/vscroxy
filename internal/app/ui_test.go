@@ -405,6 +405,20 @@ func TestRequestResourcesPreserveDraftAndTreeExpansion(t *testing.T) {
 	click("URL")
 	tt.Key(ui.Cmd, ui.KeyA)
 	tt.Type("https://api.example.com/unsent")
+	click("Hide request sidebar")
+	if tt.HasText("GET  List projects") {
+		t.Fatal("request sidebar remained visible")
+	}
+	click("Capture")
+	if !tt.HasText("Traffic") {
+		t.Fatal("hiding the request sidebar also hid Capture's sidebar")
+	}
+	click("Requests")
+	click("Show request sidebar")
+	if !tt.HasText("GET  List projects") || tt.HasText("POST  Other request") {
+		t.Fatal("restoring the sidebar lost its search")
+	}
+	click("Hide request sidebar")
 	for _, resource := range []string{"Envs", "Runs", "APIs", "Collections"} {
 		click(resource)
 	}

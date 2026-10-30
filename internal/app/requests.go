@@ -368,6 +368,12 @@ func (a *app) documentTabs(c *ui.Context, t *ui.Theme) {
 		}).Clicked() {
 			a.openCompose()
 		}
+		if names := a.envNames(); len(names) > 0 {
+			ui.Select(c, &a.activeEnv, names).Width(140).Height(28).Label("Active environment").FontSize(12).Margin(0, 8)
+		} else {
+			ui.ButtonBase(c).Label("Manage environments").Tooltip("Add an environment for request variables").Height(28).Padding(0, 8).
+				Children(func() { ui.Text(c, "No environment").FontSize(12).TextColor(t.TextMuted) }).OnClick(a.openVars)
+		}
 	})
 	ui.Divider(c)
 	if closing != nil {
@@ -484,10 +490,9 @@ func (a *app) requestRenameModal(c *ui.Context, t *ui.Theme) {
 	})
 }
 
-// requestBreadcrumb ties the draft to the capture it came from and holds the
-// environment and the save action.
+// requestBreadcrumb ties the draft to its source and holds the save action.
 func (a *app) requestBreadcrumb(c *ui.Context, t *ui.Theme, d *requestDocument) {
-	ui.Row(c).Height(36).Padding(0, 12).Gap(8).AlignItems(ui.Center).Children(func() {
+	ui.Row(c).Height(30).Padding(0, 12).Gap(8).AlignItems(ui.Center).Children(func() {
 		label := "Back to traffic"
 		if d.sourceFlow != 0 {
 			label = fmt.Sprintf("Source #%d", d.sourceFlow)
@@ -539,9 +544,6 @@ func (a *app) requestBreadcrumb(c *ui.Context, t *ui.Theme, d *requestDocument) 
 				a.requestSide = 3
 			}
 		}
-		if names := a.envNames(); len(names) > 0 {
-			ui.Select(c, &a.activeEnv, names).Width(140).Label("Active environment").FontSize(11)
-		}
 		a.desktopButton(c, "save-request", "Save")
 		ui.MenuButton(c, "⋯", func(m *ui.Menu) {
 			if m.Item("Duplicate as new request").Chosen() {
@@ -584,7 +586,6 @@ func (a *app) requestBreadcrumb(c *ui.Context, t *ui.Theme, d *requestDocument) 
 			}
 		}).Label("Request options").Height(26).Padding(0, 6).FontSize(14).TextColor(t.TextMuted).Border(0, t.Border)
 	})
-	ui.Divider(c)
 }
 
 func (a *app) requestVariablesPanel(c *ui.Context, t *ui.Theme, d *requestDocument) {
@@ -759,6 +760,9 @@ func (a *app) requestEditor(c *ui.Context, t *ui.Theme, d *requestDocument) {
 			if wide && d.composeTab == composeTabBody {
 				bodyTools()
 			}
+			if d.composeTab == composeTabHeaders {
+				a.headerModeButton(c, d, t)
+			}
 		})
 		if !wide && d.composeTab == composeTabBody {
 			ui.Row(c).Height(32).Padding(0, 12).Gap(8).AlignItems(ui.Center).Children(func() {
@@ -766,7 +770,7 @@ func (a *app) requestEditor(c *ui.Context, t *ui.Theme, d *requestDocument) {
 				bodyTools()
 			})
 		}
-		ui.Column(c).Grow(1).Padding(4, 8).Gap(8).Children(func() {
+		ui.Column(c).Grow(1).Padding(10, 12).Gap(8).Children(func() {
 			switch d.composeTab {
 			case composeTabParams:
 				a.paramsEditor(c, d, t)
@@ -788,7 +792,7 @@ func (a *app) requestEditor(c *ui.Context, t *ui.Theme, d *requestDocument) {
 			}
 		})
 		// A visible response already names the last attempt and draft changes.
-		if d.response == nil || !d.sentSet || d.composeWaiting {
+		if d.composeWaiting || d.sentSet && d.response == nil {
 			ui.Row(c).Height(24).Padding(0, 12).AlignItems(ui.Center).Children(func() {
 				a.requestSentState(c, t, d)
 			})
@@ -823,7 +827,7 @@ func (a *app) requestResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 	}
 	ui.Column(c).Fill().Children(func() {
 		ui.Row(c).MinHeight(32).Padding(2, 10).Gap(6).Wrap().AlignItems(ui.Center).Children(func() {
-			ui.Text(c, "Response").FontSize(14).Bold().TextColor(t.Text)
+			ui.Text(c, "Response").FontSize(13).FontWeight(600).TextColor(t.Text)
 			if r := d.response; r != nil {
 				status := fmt.Sprintf("%d %s", r.Status, http.StatusText(r.Status))
 				if outcome == "Network error" {

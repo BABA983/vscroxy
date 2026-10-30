@@ -14,19 +14,20 @@ import (
 // desktopWorkbench owns presentation, not the capture view's filters or choice.
 // Focusing an inspector is temporary; only the normal layout is persisted.
 type desktopWorkbench struct {
-	layout        string
-	sidePercent   float32
-	sidebarHidden bool
-	focused       bool
-	sideBySide    bool
-	paletteOpen   bool
-	query         string
-	command       int
-	commands      ui.ListState
-	inspector     ui.Handle
-	content       ui.Handle
-	menuAction    string
-	menuItems     map[string]*mygo.MenuItem
+	layout               string
+	sidePercent          float32
+	sidebarHidden        bool
+	focused              bool
+	sideBySide           bool
+	paletteOpen          bool
+	query                string
+	command              int
+	commands             ui.ListState
+	inspector            ui.Handle
+	content              ui.Handle
+	menuAction           string
+	menuItems            map[string]*mygo.MenuItem
+	requestSidebarHidden bool
 }
 
 func (w *desktopWorkbench) openPalette() {
@@ -37,7 +38,7 @@ func (w *desktopWorkbench) openPalette() {
 // contentWidth is the room the main pane has beside the sidebar.
 func (a *app) contentWidth(c *ui.Context) float32 {
 	width, _ := c.Size()
-	if !a.workbench.sidebarHidden {
+	if !a.workbench.sidebarHidden && !(a.workspace == 1 && (a.workbench.requestSidebarHidden || a.requestsSection == 2)) {
 		width -= a.sidebarWidth + 6
 	}
 	if a.workspace == 1 {
@@ -114,7 +115,7 @@ func (a *app) desktopContent(c *ui.Context) {
 		if a.workspace == 1 {
 			a.requestRail(c)
 		}
-		if w.sidebarHidden || w.focused && a.workspace == 0 || a.workspace == 1 && a.requestsSection == 2 {
+		if w.sidebarHidden || w.focused && a.workspace == 0 || a.workspace == 1 && (w.requestSidebarHidden || a.requestsSection == 2) {
 			ui.Column(c).Grow(1).FillHeight().Children(content)
 		} else {
 			ui.Split(c, &a.sidebarWidth, func() { a.sidebar(c) }, content).Grow(1).FillHeight()

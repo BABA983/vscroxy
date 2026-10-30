@@ -34,6 +34,7 @@ func (a *app) requestRail(c *ui.Context) {
 			})
 			button.OnClick(func() {
 				a.requestSide, a.requestQuery = item.side, ""
+				a.workbench.requestSidebarHidden = false
 				switch item.side {
 				case 0, 2:
 					a.requestsSection = 0
@@ -45,6 +46,15 @@ func (a *app) requestRail(c *ui.Context) {
 				}
 			})
 		}
+		ui.Spacer(c)
+		label := "Hide request sidebar"
+		if a.workbench.requestSidebarHidden {
+			label = "Show request sidebar"
+		}
+		ui.ButtonBase(c).Label(label).Tooltip(label).Height(32).FillWidth().Radius(5).
+			Disabled(a.workbench.sidebarHidden || a.requestsSection == 2).Center().
+			Children(func() { ui.Icon(c, lucide.PanelLeft()).Size(16, 16).TextColor(t.TextMuted) }).
+			OnClick(func() { a.workbench.requestSidebarHidden = !a.workbench.requestSidebarHidden })
 	})
 }
 

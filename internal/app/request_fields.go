@@ -38,7 +38,7 @@ func (a *app) paramsEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
 			d.queryError = err.Error()
 		}
 	}
-	ui.Text(c, "QUERY PARAMETERS · edits update the URL; repeated keys are preserved").FontSize(10).TextColor(t.TextMuted)
+	ui.Text(c, "Edits update the URL; repeated keys are preserved.").FontSize(12).TextColor(t.TextMuted)
 	if d.queryError != "" {
 		ui.Text(c, d.queryError).FontSize(11).TextColor(t.Danger)
 	}
@@ -76,8 +76,8 @@ func requestFieldsEditor(c *ui.Context, rows *[]request.Field, opts fieldsOption
 		// reads as a column rather than its own form.
 		ui.Row(c).Gap(6).Padding(0, 8, 2, 0).Children(func() {
 			ui.Box(c).Width(16)
-			ui.Text(c, "KEY").Grow(1).FontSize(10).Bold().TextColor(t.TextMuted)
-			ui.Text(c, "VALUE").Grow(2).FontSize(10).Bold().TextColor(t.TextMuted)
+			ui.Text(c, "Key").Grow(1).FontSize(12).FontWeight(600).TextColor(t.TextMuted)
+			ui.Text(c, "Value").Grow(2).FontSize(12).FontWeight(600).TextColor(t.TextMuted)
 			if opts.secret {
 				ui.Box(c).Width(24)
 			}
@@ -253,6 +253,26 @@ func parseHeaderRows(text string) []request.Field {
 	return rows
 }
 
+func (a *app) headerModeButton(c *ui.Context, d *requestDocument, t *ui.Theme) {
+	label := "Bulk edit"
+	if d.headerBulk {
+		label = "Table"
+	}
+	ui.ButtonBase(c).Label("Toggle header editing mode").Height(28).Padding(0, 8).Gap(5).Radius(4).AlignItems(ui.Center).
+		TextColor(t.TextMuted).Tooltip("Bulk edit replaces the table with one Key: Value per line; switched-off rows are kept").Children(func() {
+		ui.Icon(c, formatIcon).Size(11, 11)
+		ui.Text(c, label).FontSize(12)
+	}).OnClick(func() {
+		if d.headerBulk || !hasSecretHeader(d.headerRows) {
+			toggleHeaderMode(d)
+		} else {
+			// The block shows every value: ask before putting credentials
+			// on the screen in plain text.
+			d.headerWarn = true
+		}
+	})
+}
+
 // headerEditor edits headers as rows, so order, duplicates, empty values and
 // disabled rows all survive. Bulk edit shows the Key: Value block for pasting.
 func (a *app) headerEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
@@ -260,26 +280,6 @@ func (a *app) headerEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
 		// The block changed elsewhere: an import, a script or the bulk editor.
 		d.headerRows, d.headerFor = parseHeaderRows(d.composeHeaders), d.composeHeaders
 	}
-	ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-		ui.Text(c, "HEADERS · unchecked rows are not sent").FontSize(10).TextColor(t.TextMuted).Grow(1)
-		label := "Bulk edit"
-		if d.headerBulk {
-			label = "Table"
-		}
-		if ui.ButtonBase(c).Label("Toggle header editing mode").Height(22).Padding(0, 8).Gap(5).Radius(4).AlignItems(ui.Center).
-			Border(1, t.Border).TextColor(t.TextMuted).Tooltip("Bulk edit replaces the table with one Key: Value per line; switched-off rows are kept").Children(func() {
-			ui.Icon(c, formatIcon).Size(11, 11)
-			ui.Text(c, label).FontSize(11)
-		}).Clicked() {
-			if d.headerBulk || !hasSecretHeader(d.headerRows) {
-				toggleHeaderMode(d)
-			} else {
-				// The block shows every value: ask before putting credentials
-				// on the screen in plain text.
-				d.headerWarn = true
-			}
-		}
-	})
 	if d.headerBulk {
 		// The block reads in the same editor as the body: line numbers,
 		// find and undo, one Key: Value per line.
