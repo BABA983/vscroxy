@@ -363,8 +363,7 @@ func (a *app) paneTabs(c *ui.Context, t *ui.Theme, side string, selected *int, l
 	if bodySide == 0 {
 		bodyTab = resTabBody
 	}
-	ui.Row(c).Height(36).Padding(0, 8).Gap(4).AlignItems(ui.Center).
-		Border(0, t.Border).BorderWidth(0, 0, 1, 0).Children(func() {
+	ui.Row(c).Height(32).Padding(0, 8).Gap(4).AlignItems(ui.Center).Children(func() {
 		title := ui.ButtonBase(c).Label(side+" pane").Height(24).Padding(0, 4).Radius(4).AlignItems(ui.Center).
 			TextColor(t.TextMuted).Tooltip("Read this side in shared readers")
 		if a.inspect.focus == bodySide {
@@ -373,7 +372,7 @@ func (a *app) paneTabs(c *ui.Context, t *ui.Theme, side string, selected *int, l
 		if title.Clicked() {
 			a.inspect.focus = bodySide
 		}
-		title.Children(func() { ui.Text(c, side).FontSize(14).Bold() })
+		title.Children(func() { ui.Text(c, side).FontSize(13).FontWeight(600) })
 		ui.Spacer(c)
 		if *selected == bodyTab {
 			a.bodyFormatMenu(c, t, bodySide)

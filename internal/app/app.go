@@ -1418,7 +1418,7 @@ func (a *app) sidebar(c *ui.Context) {
 								ui.Text(c, fmt.Sprint(d.n)).FontSize(11).TextColor(t.TextMuted)
 							})
 					}
-				})
+				}).Margin(8, 0, 0, 0)
 			}
 			ui.SidebarSection(c, "Domains", &a.domainsOpen, func() {
 				for _, d := range a.domains {
@@ -1429,21 +1429,18 @@ func (a *app) sidebar(c *ui.Context) {
 						ui.Text(c, fmt.Sprint(d.n)).FontSize(11).TextColor(t.TextMuted)
 					})
 				}
-			})
+			}).Margin(8, 0, 0, 0)
 			ui.SidebarSection(c, "Views", nil, func() {
 				a.views.sidebar(c, t, a)
-			})
+			}).Margin(8, 0, 0, 0)
 			ui.SidebarSection(c, "Investigations", nil, func() {
 				for _, inv := range a.board.items {
 					ui.SidebarItem(c, "investigation:"+inv.ID, layersIcon, inv.Title).FontSize(12).Padding(5, 8).Children(func() {
 						ui.Text(c, fmt.Sprint(len(inv.Items))).FontSize(11).TextColor(t.TextMuted)
 					})
 				}
-				if len(a.board.items) == 0 {
-					ui.Text(c, "Add a capture from its inspector to keep evidence.").FontSize(11).TextColor(t.TextMuted).Padding(6, 10)
-				}
 				if ui.ButtonBase(c).Label("New investigation").Height(26).Padding(0, 6).Gap(6).Radius(5).FillWidth().
-					AlignItems(ui.Center).TextColor(t.TextMuted).Children(func() {
+					AlignItems(ui.Center).TextColor(t.TextMuted).Tooltip("Create an investigation, then add captures from their inspectors to keep evidence").Children(func() {
 					ui.Icon(c, plusIcon).Size(13, 13)
 					ui.Text(c, "New investigation").FontSize(12)
 				}).Clicked() {
@@ -1458,7 +1455,7 @@ func (a *app) sidebar(c *ui.Context) {
 				}).Clicked() {
 					a.investigations.show()
 				}
-			})
+			}).Margin(8, 0, 0, 0)
 		}).Grow(1)
 		if chosen.Changed() {
 			if id, ok := strings.CutPrefix(a.sidebarChoice, "investigation:"); ok {

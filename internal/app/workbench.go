@@ -131,8 +131,7 @@ var captureProtocols = captureKinds[:6]
 
 func (a *app) captureToolbar(c *ui.Context, t *ui.Theme) {
 	width, _ := c.Size()
-	// The search field is the reason this bar exists; the labels beside it
-	// shorten to icons before it gives up room.
+	// Search and filtering stay above the quieter protocol and debugging tools.
 	tight := width < 1100
 	ui.Row(c).Height(44).Padding(0, 12).Gap(8).AlignItems(ui.Center).Children(func() {
 		search := ui.TextInput(c, &a.query).Bind(&a.search).Label("Search host or path").Placeholder("Search host or path…").
@@ -147,36 +146,10 @@ func (a *app) captureToolbar(c *ui.Context, t *ui.Theme) {
 		if ui.ButtonBase(c).Label("Filters…").Height(26).Padding(0, 8).Gap(6).Radius(5).AlignItems(ui.Center).
 			TextColor(t.TextMuted).Tooltip("Status, header, body, method, duration and notes").Children(func() {
 			ui.Icon(c, filterIcon).Size(14, 14)
-			if !tight {
-				ui.Text(c, "Filters").FontSize(13)
-			}
+			ui.Text(c, "Filters").FontSize(13)
 		}).Clicked() {
 			a.openFilter()
 		}
-		if ui.Button(c, "Rules…").Label("Debugging rules…").Height(26).Clicked() {
-			a.openRules()
-		}
-		ui.Box(c).Width(1).Height(18).Background(t.Border)
-		breakButton := ui.ButtonBase(c).Label("Breakpoints").Height(26).Padding(0, 8).Gap(6).Radius(5).AlignItems(ui.Center).
-			Tooltip("Pause each matching request or response before it continues")
-		if a.breakOn {
-			breakButton.Background(t.SurfaceHover).TextColor(t.Text)
-		} else {
-			breakButton.TextColor(t.TextMuted)
-		}
-		if breakButton.Clicked() && a.srv != nil {
-			a.breakOn = !a.breakOn
-			a.srv.SetBreak(a.breakOn)
-		}
-		breakButton.Children(func() {
-			ui.Icon(c, breakIcon).Size(12, 12)
-			if !tight {
-				ui.Text(c, "Breakpoints").FontSize(12)
-			}
-			if a.breakOn {
-				ui.Box(c).Size(5, 5).Radius(3).Background(t.Warning)
-			}
-		})
 		ui.MenuButton(c, "⋯", func(m *ui.Menu) {
 			for _, index := range []int{6, 7} {
 				if m.Item(captureKinds[index]).Checked(a.chip == index).Chosen() {
@@ -202,21 +175,52 @@ func (a *app) captureToolbar(c *ui.Context, t *ui.Theme) {
 		}).Label("More capture options").Height(26).Padding(0, 6).FontSize(14).TextColor(t.TextMuted).Border(0, t.Border)
 	})
 	ui.Row(c).Height(34).Padding(0, 12).Gap(6).AlignItems(ui.Center).Children(func() {
-		for i, name := range captureProtocols {
-			b := ui.ButtonBase(c).Label("Protocol and content type: "+name).Height(28).Padding(0, 8).Radius(4).
-				AlignItems(ui.Center).TextColor(t.TextMuted)
-			if a.chip == i {
-				b.Background(t.Accent.Alpha(0.10)).TextColor(t.Accent)
-			}
-			b.Children(func() { ui.Text(c, name).FontSize(12) })
-			b.OnClick(func() { a.chip = i; a.applyFilter() })
+		ui.ScrollHorizontal(c).Grow(1).FillHeight().Children(func() {
+			ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
+				for i, name := range captureProtocols {
+					b := ui.ButtonBase(c).Label("Protocol and content type: "+name).Height(28).Padding(0, 8).Radius(4).
+						AlignItems(ui.Center).TextColor(t.TextMuted)
+					if a.chip == i {
+						b.Background(t.Accent.Alpha(0.10)).TextColor(t.Accent)
+					}
+					b.Children(func() { ui.Text(c, name).FontSize(12) })
+					b.OnClick(func() { a.chip = i; a.applyFilter() })
+				}
+			})
+		})
+		rules := ui.ButtonBase(c).Label("Debugging rules…").Tooltip("Debugging rules").Height(28).Padding(0, 8).Radius(4).
+			AlignItems(ui.Center).TextColor(t.TextMuted)
+		if rules.Hovered() {
+			rules.Background(t.SurfaceHover).TextColor(t.Text)
 		}
-		ui.Spacer(c)
+		rules.Children(func() { ui.Text(c, "Rules…").FontSize(12) }).OnClick(a.openRules)
+		breakButton := ui.ButtonBase(c).Label("Breakpoints").Height(28).Padding(0, 8).Gap(6).Radius(4).AlignItems(ui.Center).
+			Tooltip("Pause each matching request or response before it continues")
+		if a.breakOn {
+			breakButton.Background(t.Warning.Alpha(0.10)).TextColor(t.Warning)
+		} else if breakButton.Hovered() {
+			breakButton.Background(t.SurfaceHover).TextColor(t.Text)
+		} else {
+			breakButton.TextColor(t.TextMuted)
+		}
+		if breakButton.Clicked() && a.srv != nil {
+			a.breakOn = !a.breakOn
+			a.srv.SetBreak(a.breakOn)
+		}
+		breakButton.Children(func() {
+			ui.Icon(c, breakIcon).Size(14, 14)
+			if !tight {
+				ui.Text(c, "Breakpoints").FontSize(12)
+			}
+			if a.breakOn {
+				ui.Box(c).Size(5, 5).Radius(3).Background(t.Warning)
+			}
+		})
 		ui.MenuButton(c, "Layout", func(m *ui.Menu) {
 			for _, id := range []string{"layout-bottom", "layout-right", "layout-auto", "focus"} {
 				a.desktopMenuItem(c, m, id, "")
 			}
-		}).Label("Inspector layout").Height(24).FontSize(11)
+		}).Label("Inspector layout").Height(28).FontSize(12).TextColor(t.TextMuted).Border(0, t.Border)
 	})
 	ui.Divider(c)
 	if !a.filtersActive() {
