@@ -9,14 +9,14 @@ require (
 	github.com/andybalholm/brotli v1.2.1
 	github.com/bufbuild/protocompile v0.14.1
 	github.com/dop251/goja v0.0.0-20261019185110-cf7b1419c9c0
-	github.com/ebitengine/purego v0.11.1
-	github.com/egoist/mygo v0.6.3
+	github.com/ebitengine/purego v0.11.2
+	github.com/egoist/mygo v0.7.3
 	github.com/getkin/kin-openapi v0.151.0
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/websocket v1.5.3
 	github.com/klauspost/compress v1.18.6
 	github.com/lqqyt2423/go-mitmproxy v1.9.4
-	github.com/oneo-me/onevra/source v0.2026.15
+	github.com/oneo-me/onevra/source v0.2026.16
 	golang.org/x/net v0.61.0
 	golang.org/x/sys v0.49.0
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260706201446-f0a921348800
