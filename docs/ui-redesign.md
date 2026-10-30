@@ -167,6 +167,32 @@
 
 验收：一条命令就能生成全套截图，结果是确定的（同样的代码出同样的图）。
 
+#### 阶段 0 使用方式
+
+截图测试在 `internal/app/snapshots_test.go`。从仓库根目录运行：
+
+```bash
+VSCROXY_SNAPSHOTS="$PWD/.amp/in/artifacts/ui-current" go test ./internal/app -run '^TestUISnapshots$' -count=1 -v
+```
+
+输出目录必须不存在或为空；测试不会覆盖已有基线。换一个目录名即可保留下一轮截图。必须带 `-count=1`，避免测试缓存跳过生成。普通 `go test ./...` 会跳过这项测试，不生成图片。
+
+改版前基线保存在 `internal/app/testdata/ui-baseline/`：
+
+- `light/`、`dark/` 各 28 张 PNG，共 56 张；默认 1280 × 800，Capture 选中态、Requests 编辑态和响应态另有 960 × 800 版本。
+- 覆盖 Capture 空状态、选中、筛选、Headers/Raw/Timing；Auto/Pretty/JSON/Hex/HTML Preview/Protobuf/图片预览；Requests 空状态、Headers 编辑、Body 编辑、有响应；Settings 通用页和命令面板。
+- 六类原生菜单（Capture 更多、布局、body 格式、inspector 更多、Request 更多、流量右键）各有宿主截图 `*.host.png` 和菜单条目 `*.menu.json`。**MyGo 的原生弹出菜单不在 `tt.Image()` 中**；条目清单只能核对文案、顺序和子菜单路径，不能验证菜单外观、勾选或禁用态。菜单外观与交互仍需后续真实窗口检查，不能把宿主截图当成菜单截图。
+- `manifest.json` 记录运行平台、Go 版本、缩放比例和每个产物的 SHA-256。只有全部场景成功才写入；不自动判定视觉变化是否正确。
+
+基线环境：Linux amd64、Go 1.27.3、MyGo v0.7.3、Onevra source v0.2026.16，1× 渲染，DejaVu Sans / DejaVu Sans Mono。生产 UI 来源是 `59a1442fc83106db613e397dc64d742a85445614`，本阶段不改生产代码。固定 UTC 时间、英文 locale、假流量、请求库和环境；不读取个人设置，不启动代理，不发送网络请求。Requests 的 Send 在无代理实例的测试夹具中为禁用态，不代表实际发送行为的验证。
+
+确定性范围是**相同代码、依赖、平台和字体环境**；现阶段仍使用系统字体，不能要求跨平台逐像素一致。已在两个独立测试进程中逐文件比较产物。后续阶段保留此基线，将新产物生成到另一个目录，再做浅色/深色对比；跨平台检查仍按阶段 7 执行。
+
+```bash
+# 同环境下核对全部文件；无输出且退出码为 0 表示完全相同。
+diff -rq internal/app/testdata/ui-baseline .amp/in/artifacts/ui-current
+```
+
 ### 阶段 1：设计系统落地，不改布局
 
 - 新增 `style.go`：第 4 节的 token 和共用组件。

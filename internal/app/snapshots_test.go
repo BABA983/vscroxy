@@ -1,0 +1,242 @@
+package app
+
+import (
+	"bytes"
+	"crypto/sha256"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
+	"fmt"
+	"image"
+	"image/color"
+	"image/png"
+	"net/http"
+	"os"
+	"path/filepath"
+	"runtime"
+	"slices"
+	"testing"
+	"time"
+
+	"github.com/baba983/vscroxy/internal/capture"
+	"github.com/egoist/mygo/ui"
+)
+
+// TestUISnapshots is opt-in: normal tests neither render the matrix nor write
+// files. It uses no listener, real traffic, user settings or system proxy.
+func TestUISnapshots(t *testing.T) {
+	dir := os.Getenv("VSCROXY_SNAPSHOTS")
+	if dir == "" {
+		t.Skip("set VSCROXY_SNAPSHOTS to an output directory")
+	}
+	dir, err := filepath.Abs(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 0 {
+		t.Fatal("snapshot output directory must be empty; keep the baseline and choose a new directory")
+	}
+	zone := time.Local
+	time.Local = time.UTC
+	t.Cleanup(func() { time.Local = zone })
+
+	type snapshot struct {
+		name  string
+		setup func(*app)
+		act   func(*testing.T, *ui.Tester)
+		want  string
+		menu  string // Native menu label; its pixels are outside tt.Image().
+	}
+	click := func(label string) func(*testing.T, *ui.Tester) {
+		return func(t *testing.T, tt *ui.Tester) {
+			t.Helper()
+			if err := tt.Click(label); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	draft := func(a *app) {
+		a.composeFrom(a.flows[0])
+		a.composeTab = composeTabHeaders
+	}
+	states := []snapshot{
+		{name: "capture-empty", setup: func(a *app) { a.flows = nil; a.countDomains(); a.countClients(); a.applyFilter() }, want: "Capture is stopped"},
+		{name: "capture-selected", want: "Request inspector"},
+		{name: "capture-filtered", act: func(t *testing.T, tt *ui.Tester) {
+			click("Filters…")(t, tt)
+			click("Filter status")(t, tt)
+			tt.Type("200")
+			click("Apply")(t, tt)
+		}, want: "2 captured · 1 shown"},
+		{name: "capture-headers", setup: func(a *app) { a.inspect.tab[1] = resTabHeaders }, want: "Content-Type"},
+		{name: "capture-raw", setup: func(a *app) { a.inspect.tab[1] = resTabRaw }, want: "Raw message"},
+		{name: "capture-timing", setup: func(a *app) { a.inspect.tab[1] = resTabTiming }, want: "Waiting"},
+		{name: "requests-empty", setup: func(a *app) { a.workspace = 1 }, want: "Open a saved request or create a new one"},
+		{name: "requests-editing", setup: draft, want: "Send a request to see its response"},
+		{name: "requests-body", setup: func(a *app) { draft(a); a.composeTab = composeTabBody }, want: "Request body"},
+		{name: "requests-response", setup: func(a *app) {
+			draft(a)
+			a.sent, a.sentSet, a.sentAt = a.draft(), true, snapshotTime
+			a.response = &capture.Flow{Status: 201, Millis: 47, Bytes: 43, ResponseHeader: http.Header{"Content-Type": {"application/json"}}, ResponseBody: `{"id":73,"name":"Demo project","active":true}`}
+			a.sendOutcome = "Response received"
+			a.responseArrived()
+		}, want: "201 Created"},
+		{name: "settings", setup: func(a *app) { a.settingsOpen = true }, want: "Dark appearance"},
+		{name: "commands", setup: func(a *app) { a.workbench.openPalette() }, want: "Find command"},
+		{name: "capture-menu", act: click("More capture options"), menu: "Clear unpinned requests…"},
+		{name: "layout-menu", act: click("Inspector layout"), menu: "Inspector: Bottom"},
+		{name: "body-menu", act: click("Response body format"), menu: "Pretty"},
+		{name: "inspector-menu", act: click("Inspector options"), menu: "Replay…"},
+		{name: "request-menu", setup: draft, act: click("Request options"), menu: "Copy as cURL"},
+		{name: "traffic-menu", act: func(t *testing.T, tt *ui.Tester) {
+			if err := tt.RightClick("api.example.com/projects"); err != nil {
+				t.Fatal(err)
+			}
+		}, menu: "Edit & resend"},
+	}
+	for _, mode := range []string{"Auto", "Pretty", "JSON", "Hex", "Preview", "Protobuf"} {
+		want := map[string]string{"Auto": "Body text", "Pretty": "Body text", "JSON": "projects", "Hex": "00000000", "Preview": "Rich text", "Protobuf": "1 of 1 messages"}[mode]
+		states = append(states, snapshot{name: "body-" + mode, setup: func(a *app) {
+			if mode == "Preview" {
+				a.flows[0].respHeader.Set("Content-Type", "text/html")
+				a.flows[0].resBody = "<h1>Snapshot preview</h1><p>Rendered locally, without a web view.</p>"
+			}
+			if mode == "Protobuf" {
+				a.flows[0].respHeader.Set("Content-Type", "application/protobuf")
+				a.flows[0].resBody = "\x08\x49\x12\x04Demo"
+			}
+		}, act: func(t *testing.T, tt *ui.Tester) { chooseBodyFormat(t, tt, "response", mode) }, want: want})
+	}
+	states = append(states, snapshot{name: "body-image", setup: func(a *app) {
+		img := image.NewRGBA(image.Rect(0, 0, 24, 24))
+		for y := range 24 {
+			for x := range 24 {
+				img.SetRGBA(x, y, color.RGBA{R: uint8(x * 10), G: uint8(y * 10), B: 128, A: 255})
+			}
+		}
+		var b bytes.Buffer
+		if err := png.Encode(&b, img); err != nil {
+			t.Fatal(err)
+		}
+		a.flows[0].respHeader.Set("Content-Type", "image/png")
+		a.flows[0].resBody = b.String()
+	}, want: "24 × 24 px"})
+
+	manifest := struct {
+		Platform string
+		Go       string
+		Scale    int
+		Files    map[string]string
+	}{runtime.GOOS + "/" + runtime.GOARCH, runtime.Version(), 1, map[string]string{}}
+	write := func(t *testing.T, name string, data []byte) {
+		t.Helper()
+		path := filepath.Join(dir, name)
+		if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, data, 0644); err != nil {
+			t.Fatal(err)
+		}
+		manifest.Files[filepath.ToSlash(name)] = fmt.Sprintf("%x", sha256.Sum256(data))
+	}
+	for _, dark := range []bool{false, true} {
+		theme := "light"
+		if dark {
+			theme = "dark"
+		}
+		for _, state := range states {
+			widths := []int{1280}
+			if state.name == "capture-selected" || state.name == "requests-editing" || state.name == "requests-response" {
+				widths = append(widths, 960)
+			}
+			for _, width := range widths {
+				t.Run(fmt.Sprintf("%s/%s-%d", theme, state.name, width), func(t *testing.T) {
+					a := snapshotApp()
+					a.library.root = filepath.Join(t.TempDir(), "collections")
+					a.dark = dark
+					t.Cleanup(a.protobuf.stop)
+					if state.setup != nil {
+						state.setup(a)
+					}
+					tt := ui.NewTester(a.view, width, 800)
+					tt.SetLocale("en-US")
+					if state.act != nil {
+						state.act(t, tt)
+					}
+					// Protobuf decoding is asynchronous. Wait for completion, not
+					// an arbitrary sleep, and never capture an intermediate frame.
+					deadline := time.NewTimer(time.Minute)
+					defer deadline.Stop()
+					for a.protobuf.answers != nil {
+						select {
+						case <-deadline.C:
+							t.Fatal("protobuf render did not settle")
+						default:
+						}
+						runtime.Gosched()
+						tt.Frame()
+					}
+					tt.Frame()
+					if state.want != "" && !tt.HasText(state.want) {
+						t.Fatalf("missing %q: %v", state.want, tt.Texts())
+					}
+					base := filepath.Join(theme, fmt.Sprintf("%s-%d", state.name, width))
+					if state.menu != "" {
+						if !slices.Contains(tt.Menu(), state.menu) {
+							t.Fatalf("missing menu item %q: %v", state.menu, tt.Menu())
+						}
+						data, err := json.Marshal(tt.Menu(), jsontext.WithIndent("  "))
+						if err != nil {
+							t.Fatal(err)
+						}
+						write(t, base+".menu.json", append(data, '\n'))
+						base += ".host" // Host pixels only, NOT a menu screenshot.
+					}
+					var b bytes.Buffer
+					if err := png.Encode(&b, tt.Image()); err != nil {
+						t.Fatal(err)
+					}
+					write(t, base+".png", b.Bytes())
+				})
+			}
+		}
+	}
+	if t.Failed() {
+		return // A partial run must not publish a success manifest.
+	}
+	data, err := json.Marshal(manifest, jsontext.WithIndent("  "), json.Deterministic(true))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "manifest.json"), append(data, '\n'), 0644); err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("wrote %d artifacts to %s", len(manifest.Files), dir)
+}
+
+var snapshotTime = time.Date(2026, 1, 15, 10, 30, 0, 0, time.UTC)
+
+func snapshotApp() *app {
+	a := workspaceApp()
+	a.envs = []environment{{Name: "Local", Vars: map[string]string{"baseUrl": "https://api.example.com"}}, {Name: "Staging", Vars: map[string]string{"baseUrl": "https://staging.example.com"}}}
+	a.activeEnv = "Local"
+	a.flows[0].at, a.flows[1].at = snapshotTime, snapshotTime.Add(time.Second)
+	a.flows[0].millis, a.flows[0].bytes = 47, 83
+	a.flows[0].wait, a.flows[0].download = 32, 15
+	a.flows[1].millis, a.flows[1].bytes = 132, 41
+	a.flows[0].reqBody = `{"name":"Demo project"}`
+	a.flows[0].reqHeader.Set("Content-Type", "application/json")
+	a.flows[0].resBody = `{"projects":[{"id":73,"name":"Demo project","active":true}],"total":1}`
+	a.flows[1].respHeader = http.Header{"Content-Type": {"application/json"}}
+	a.flows[1].resBody = `{"error":"Unauthorized","code":"AUTH_401"}`
+	a.pickedID = 1
+	a.chosen.Add(1)
+	openResponseBody(a)
+	return a
+}
