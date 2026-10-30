@@ -187,7 +187,7 @@ func TestSaveChosenRowsToCollection(t *testing.T) {
 	if err := tt.RightClick("api.example.com/login"); err != nil {
 		t.Fatal(err)
 	}
-	if err := tt.ChooseMenuItem("Save 4 requests to collection…"); err != nil {
+	if err := chooseMenu(tt, "Save 4 requests to collection…"); err != nil {
 		t.Fatalf("%v: %q", err, tt.Menu())
 	}
 	if !tt.HasText("Save 4 requests to collection") || !a.bulkSaveUI.perHost || a.bulkSaveUI.name != "Captured api.example.com" {

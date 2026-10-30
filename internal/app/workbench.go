@@ -87,9 +87,9 @@ func (a *app) desktopContent(c *ui.Context) {
 					a.detail(c)
 					return
 				}
+				a.captureToolbar(c, c.Theme())
 				table := func() {
 					ui.Column(c).Fill().Children(func() {
-						a.captureToolbar(c, c.Theme())
 						if a.chosen.Len() > 1 {
 							ui.Row(c).Height(34).Padding(0, 10).Gap(8).AlignItems(ui.Center).Children(func() {
 								ui.Text(c, fmt.Sprintf("%d selected", a.chosen.Len())).FontSize(11).Bold().Grow(1)
@@ -103,7 +103,13 @@ func (a *app) desktopContent(c *ui.Context) {
 						a.table(c)
 					})
 				}
-				if w.sideBySide {
+				if len(a.visible) == 0 {
+					a.syncDetail()
+					table()
+					ui.Row(c).Height(heightLarge).Padding(0, 12).AlignItems(ui.Center).Children(func() {
+						ui.Text(c, "No request chosen").FontSize(textBody).TextColor(c.Theme().TextMuted)
+					})
+				} else if w.sideBySide {
 					ui.SplitPercent(c.Key("right-inspector"), &w.sidePercent, table, func() { a.detail(c) }).Fill()
 				} else {
 					ui.SplitVerticalPercent(c.Key("bottom-inspector"), &a.tablePercent, table, func() { a.detail(c) }).Fill()
@@ -130,26 +136,78 @@ var captureKinds = []string{"All", "HTTP", "HTTPS", "WebSocket", "SSE", "JSON", 
 var captureProtocols = captureKinds[:6]
 
 func (a *app) captureToolbar(c *ui.Context, t *ui.Theme) {
-	width, _ := c.Size()
-	// Search and filtering stay above the quieter protocol and debugging tools.
-	tight := width < 1100
-	ui.Row(c).Height(44).Padding(0, 12).Gap(8).AlignItems(ui.Center).Children(func() {
-		search := ui.TextInput(c, &a.query).Bind(&a.search).Label("Search host or path").Placeholder("Search host or path…").
-			Tooltip("URL host and path only · Ctrl/Cmd+F · Enter or ↓ moves to requests. Filters search headers and full bodies.").Height(heightControl).FontSize(textBody).Grow(1)
-		search.OnShortcut(0, ui.KeyDown, func() { a.focusTraffic(c) })
-		if search.Changed() {
-			a.applyFilter()
-		}
-		if search.Submitted() {
-			a.focusTraffic(c)
-		}
-		if toolbarButton(c, "Filters…", "Status, header, body, method, duration and notes", a.filtersActive()).Children(func() {
+	width := a.contentWidth(c)
+	ui.Row(c).Height(44).Padding(0, 12).Gap(6).AlignItems(ui.Center).Children(func() {
+		ui.Row(c).Grow(1).MinWidth(160).Height(heightControl).Gap(4).Padding(0, 4).
+			Border(1, t.Border).Radius(radiusControl).AlignItems(ui.Center).Children(func() {
+			search := ui.TextInputBase(c, &a.query).Bind(&a.search).Label("Search host or path").Placeholder("Search host or path…").
+				Tooltip("URL host and path only · Ctrl/Cmd+F · Enter or ↓ moves to requests. Filters search headers and full bodies.").
+				Height(heightCompact).Padding(0, 8).FontSize(textBody).Grow(1).MinWidth(72)
+			search.OnShortcut(0, ui.KeyDown, func() { a.focusTraffic(c) })
+			if search.Changed() {
+				a.applyFilter()
+			}
+			if search.Submitted() {
+				a.focusTraffic(c)
+			}
+			if a.filtersActive() {
+				ui.ScrollHorizontal(c).Width(min(260, width/4)).FillHeight().Children(func() {
+					a.captureConditions(c)
+				})
+				if iconButton(c, "Reset all", "Reset all conditions", closeIcon).Clicked() {
+					a.views.resetFilters(a)
+				}
+			}
+		})
+		ui.ScrollHorizontal(c).Width(min(302, width*0.36)).Height(heightControl).Children(func() {
+			// Images and HTML live in the menu but remain valid selections.
+			segments := ui.SegmentedBase(c, &a.chip, len(captureKinds))
+			segments.Track.Label("Protocol and content type").Height(heightControl).Padding(2).Gap(1).Radius(radiusControl).Background(t.Surface).Children(func() {
+				for i, name := range captureProtocols {
+					label := name
+					if name == "WebSocket" {
+						label = "WS"
+					}
+					segment := segments.Segment(i).Label("Protocol and content type: "+name).Height(heightCompact).
+						Padding(0, 7).Radius(radiusControl).AlignItems(ui.Center).TextColor(t.TextMuted)
+					if a.chip == i {
+						segment.Background(t.Background).TextColor(t.Text)
+					} else if segment.Hovered() {
+						segment.Background(t.SurfaceHover)
+					}
+					segment.Children(func() { ui.Text(c, label).FontSize(textMeta) })
+				}
+			})
+			if segments.Track.Changed() {
+				a.applyFilter()
+			}
+		})
+		if toolbarButton(c, "Filters…", "Status, header, body, method, duration and notes", a.filtersActive()).Width(heightControl).Padding(0).Justify(ui.Center).Children(func() {
 			ui.Icon(c, filterIcon).Size(iconInline, iconInline)
-			ui.Text(c, "Filters").FontSize(textBody)
 		}).Clicked() {
 			a.openFilter()
 		}
-		ui.MenuButton(c, "⋯", func(m *ui.Menu) {
+		breakButton := toolbarButton(c, "Breakpoints", "Pause each matching request or response before it continues", a.breakOn).
+			Width(heightControl).Padding(0).Justify(ui.Center)
+		if breakButton.Clicked() && a.srv != nil {
+			a.breakOn = !a.breakOn
+			a.srv.SetBreak(a.breakOn)
+		}
+		breakButton.Children(func() { ui.Icon(c, breakIcon).Size(iconInline, iconInline) })
+		ui.PopoverMenuButton(c, "Layout", func(m *ui.Menu) {
+			for _, id := range []string{"layout-bottom", "layout-right", "layout-auto", "focus"} {
+				a.desktopMenuItem(c, m, id, "")
+			}
+		}).Label("Inspector layout").Tooltip("Inspector layout").Height(heightControl).Padding(0, 6).
+			FontSize(textMeta).TextColor(t.TextMuted).Border(0, t.Border)
+		ui.PopoverMenuButton(c, "⋯", func(m *ui.Menu) {
+			if m.Item("Debugging rules…").Chosen() {
+				a.openRules()
+			}
+			if m.Item("Save filter…").Chosen() {
+				a.views.openSaved(a)
+			}
+			m.Separator()
 			for _, index := range []int{6, 7} {
 				if m.Item(captureKinds[index]).Checked(a.chip == index).Chosen() {
 					a.chip = index
@@ -171,96 +229,53 @@ func (a *app) captureToolbar(c *ui.Context, t *ui.Theme) {
 			if m.Item("Clear unpinned requests…").Chosen() {
 				a.clearOpen = true
 			}
-		}).Label("More capture options").Tooltip("More capture options").Height(heightCompact).Padding(0, t.Space(2)).FontSize(textBody).TextColor(t.TextMuted).Border(0, t.Border)
-	})
-	ui.Row(c).Height(34).Padding(0, 12).Gap(6).AlignItems(ui.Center).Children(func() {
-		ui.ScrollHorizontal(c).Grow(1).FillHeight().Children(func() {
-			ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
-				for i, name := range captureProtocols {
-					b := toolbarButton(c, "Protocol and content type: "+name, "Filter by "+name, a.chip == i)
-					b.Children(func() { ui.Text(c, name).FontSize(textBody) })
-					b.OnClick(func() { a.chip = i; a.applyFilter() })
-				}
-			})
-		})
-		rules := toolbarButton(c, "Debugging rules…", "Debugging rules", false)
-		rules.Children(func() { ui.Text(c, "Rules…").FontSize(textBody) }).OnClick(a.openRules)
-		breakButton := toolbarButton(c, "Breakpoints", "Pause each matching request or response before it continues", a.breakOn)
-		if breakButton.Clicked() && a.srv != nil {
-			a.breakOn = !a.breakOn
-			a.srv.SetBreak(a.breakOn)
-		}
-		breakButton.Children(func() {
-			ui.Icon(c, breakIcon).Size(iconInline, iconInline)
-			if !tight {
-				ui.Text(c, "Breakpoints").FontSize(textBody)
-			}
-			if a.breakOn {
-				ui.Box(c).Size(5, 5).Radius(radiusControl).Background(t.Accent)
-			}
-		})
-		ui.MenuButton(c, "Layout", func(m *ui.Menu) {
-			for _, id := range []string{"layout-bottom", "layout-right", "layout-auto", "focus"} {
-				a.desktopMenuItem(c, m, id, "")
-			}
-		}).Label("Inspector layout").Tooltip("Inspector layout").Height(heightControl).FontSize(textBody).TextColor(t.TextMuted).Border(0, t.Border)
+		}).
+			Label("More capture options").Tooltip("More capture options").Height(heightCompact).Padding(0, t.Space(2)).FontSize(textBody).TextColor(t.TextMuted).Border(0, t.Border)
 	})
 	ui.Divider(c)
-	if !a.filtersActive() {
-		return
-	}
-	// Every condition is visible and removable without opening a dialog.
-	ui.Row(c).Height(32).Padding(0, 12).Gap(8).AlignItems(ui.Center).Children(func() {
-		ui.Text(c, "Match all").FontSize(textMeta).TextColor(t.TextMuted).Tooltip("Conditions combine with AND; comma-separated status and method alternatives use OR")
-		ui.ScrollHorizontal(c).Grow(1).FillHeight().Children(func() {
-			ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
-				token := func(label string, clear func()) {
-					if secondaryButton(c, clamp(label, 30)+" ×").Label(label + " ×").Height(heightCompact).TextColor(t.Accent).Tooltip("Remove condition: " + label).Clicked() {
-						clear()
-						a.views.capture(a)
-						a.applyFilter()
-					}
-				}
-				if a.query != "" {
-					token("URL: "+a.query, func() { a.query = "" })
-				}
-				if a.filter != "all" {
-					label := "Traffic: " + a.filter
-					if host, ok := strings.CutPrefix(a.filter, "host:"); ok {
-						label = "Host: " + host
-					} else if client, ok := strings.CutPrefix(a.filter, "client:"); ok {
-						label = "App: " + client
-					}
-					token(label, func() { a.filter = "all" })
-				}
-				if a.chip != 0 {
-					token(captureKinds[a.chip], func() { a.chip = 0 })
-				}
-				for _, field := range []struct {
-					label string
-					value *string
-				}{
-					{"App", &a.filterTriage.Client}, {"Host", &a.filterTriage.Host},
-					{"Status", &a.filterStatus}, {"Header", &a.filterHeader}, {"Body", &a.views.activeView().body},
-					{"Method", &a.filterTriage.Method}, {"Duration ms", &a.filterTriage.Duration},
-					{"Response bytes", &a.filterTriage.Size}, {"Color", &a.filterTriage.Color}, {"Note", &a.filterTriage.Note},
-				} {
-					if *field.value != "" {
-						token(field.label+": "+*field.value, func() { *field.value = "" })
-					}
-				}
-			})
-		})
-		if secondaryButton(c, "Save filter…").Height(heightCompact).Tooltip("Save all current conditions for reuse in any capture view").Clicked() {
-			a.views.openSaved(a)
+}
+
+// Conditions stay removable inside the search field; overflow scrolls rather
+// than adding another toolbar row. Their AND/OR semantics are unchanged.
+func (a *app) captureConditions(c *ui.Context) {
+	t := c.Theme()
+	ui.Row(c).Gap(4).AlignItems(ui.Center).Tooltip("All conditions must match").Children(func() {
+		token := func(label string, clear func()) {
+			if secondaryButton(c, clamp(label, 30)+" ×").Label(label+" ×").Height(22).Padding(0, 6).FontSize(textMeta).TextColor(t.Accent).Tooltip("Remove condition: " + label).Clicked() {
+				clear()
+				a.views.capture(a)
+				a.applyFilter()
+			}
 		}
-		if toolbarButton(c, "Reset all", "Reset all conditions", false).Height(heightCompact).Children(func() {
-			ui.Text(c, "Reset all").FontSize(textMeta)
-		}).Clicked() {
-			a.views.resetFilters(a)
+		if a.query != "" {
+			token("URL: "+a.query, func() { a.query = "" })
+		}
+		if a.filter != "all" {
+			label := "Traffic: " + a.filter
+			if host, ok := strings.CutPrefix(a.filter, "host:"); ok {
+				label = "Host: " + host
+			} else if client, ok := strings.CutPrefix(a.filter, "client:"); ok {
+				label = "App: " + client
+			}
+			token(label, func() { a.filter = "all" })
+		}
+		if a.chip != 0 {
+			token(captureKinds[a.chip], func() { a.chip = 0 })
+		}
+		for _, field := range []struct {
+			label string
+			value *string
+		}{
+			{"App", &a.filterTriage.Client}, {"Host", &a.filterTriage.Host},
+			{"Status", &a.filterStatus}, {"Header", &a.filterHeader}, {"Body", &a.views.activeView().body},
+			{"Method", &a.filterTriage.Method}, {"Duration ms", &a.filterTriage.Duration},
+			{"Response bytes", &a.filterTriage.Size}, {"Color", &a.filterTriage.Color}, {"Note", &a.filterTriage.Note},
+		} {
+			if *field.value != "" {
+				token(field.label+": "+*field.value, func() { *field.value = "" })
+			}
 		}
 	})
-	ui.Divider(c)
 }
 
 // desktopAction is shared by the palette, shortcuts and contextual buttons:
@@ -582,11 +597,13 @@ func (a *app) commandPalette(c *ui.Context) {
 	}
 	appModal(c, &w.paletteOpen, func() {
 		width, _ := c.Size()
-		ui.Column(c).Width(min(560, width-48)).Gap(10).Children(func() {
+		t := c.Theme()
+		ui.Column(c).Width(min(560, width-48)).Gap(t.Space(3)).Children(func() {
 			dialogTitle(c, "Commands")
 			// Modal focuses its first input after remembering the opener. An
 			// explicit AutoFocus here would replace that remembered focus.
-			input := ui.TextInput(c, &w.query).Label("Find command").Placeholder("Search actions…").FillWidth()
+			input := ui.TextInput(c, &w.query).Label("Find command").Placeholder("Search actions…").
+				Height(heightLarge).FontSize(textBody).FillWidth()
 			if input.Changed() {
 				w.command = 0
 				w.commands.ScrollTo(0, ui.Start)
@@ -626,37 +643,49 @@ func (a *app) commandPalette(c *ui.Context) {
 				run()
 			}
 			w.commands.Selected = &w.command
+			focused := w.commands.Handle.Focused(c)
+			selectionTheme := *t
+			if !focused {
+				selectionTheme.Accent, selectionTheme.AccentText = t.Accent.Alpha(0.12), t.Text
+			}
+			c.SetTheme(&selectionTheme)
 			list := ui.List(c, &w.commands, len(matches), func(i int) {
 				action := matches[i]
-				b := ui.ButtonBase(c).Label(action.label).Height(34).FillWidth().Padding(0, 10).Gap(8).Radius(5).AlignItems(ui.Center).Disabled(!action.enabled).Tooltip(action.hint())
-				if i == w.command {
-					b.Background(c.Theme().Accent.Alpha(0.12))
+				b := ui.ButtonBase(c).Label(action.label).Height(heightLarge).FillWidth().Padding(0, t.Space(3)).
+					Gap(t.Space(2)).Radius(radiusControl).AlignItems(ui.Center).Disabled(!action.enabled).Tooltip(action.hint())
+				if action.enabled {
+					if b.Pressed() {
+						b.Background(t.SurfacePressed)
+					} else if b.Hovered() && i != w.command {
+						b.Background(t.SurfaceHover)
+					}
 				}
 				b.Children(func() {
-					color := c.Theme().Text
-					if i == w.command {
-						color = c.Theme().AccentText
+					color := t.Text
+					if i == w.command && focused {
+						color = t.AccentText
 					} else if !action.enabled {
-						color = c.Theme().TextMuted
+						color = appColors(t).TextFaint
 					}
 					label := action.label
 					if !action.enabled {
 						label += " (unavailable)"
 					}
-					ui.Text(c, label).FontSize(12).TextColor(color)
+					ui.Text(c, label).FontSize(textBody).TextColor(color)
 					ui.Spacer(c)
-					ui.Text(c, action.shortcut()).FontSize(10).TextColor(color)
+					ui.Text(c, action.shortcut()).FontSize(textMeta).TextColor(color)
 				})
 				if b.Clicked() {
 					w.command = i
 					run()
 				}
-			}).Height(300).FillWidth()
+			}).Height(9 * heightLarge).FillWidth()
+			c.SetTheme(t)
 			if list.Submitted() {
 				run()
 			}
 			if len(matches) == 0 {
-				ui.Text(c, "No matching commands").FontSize(12).TextColor(c.Theme().TextMuted)
+				ui.Text(c, "No matching commands").FontSize(textBody).TextColor(t.TextMuted)
 			} else if w.command >= 0 && w.command < len(matches) {
 				action := matches[w.command]
 				message := ""
@@ -671,9 +700,9 @@ func (a *app) commandPalette(c *ui.Context) {
 				} else if a.workspace == 1 && a.requestDocument != nil {
 					message = "Draft · " + a.title()
 				}
-				ui.Text(c, message).FontSize(11).TextColor(c.Theme().TextMuted).SingleLine().Tooltip(message)
+				ui.Text(c, message).FontSize(textMeta).TextColor(t.TextMuted).SingleLine().Tooltip(message)
 			}
-			ui.Text(c, "↑ ↓ Choose · Enter Run · Esc Close").FontSize(11).TextColor(c.Theme().TextMuted)
+			ui.Text(c, "↑ ↓ Choose · Enter Run · Esc Close").FontSize(textMeta).TextColor(t.TextMuted)
 		})
 	})
 }

@@ -34,6 +34,30 @@ func openResponseBody(a *app) {
 	a.inspect.ready = true
 }
 
+// App menus are drawn in the window, including each opened submenu.
+func chooseMenu(tt *ui.Tester, path ...string) error {
+	for _, label := range path {
+		if _, found := tt.Find(label); !found {
+			return fmt.Errorf("menu item %q is not shown", label)
+		}
+		// Type selection targets the focused menu, not an identically named
+		// button (for example Capture's JSON filter) behind the overlay.
+		prefix := strings.TrimRight(strings.ToLower(label), "…. ")
+		if strings.ContainsFunc(prefix, func(r rune) bool { return r < 'a' || r > 'z' }) {
+			if err := tt.Click(label); err != nil {
+				return err
+			}
+			continue
+		}
+		tt.Advance(time.Second)
+		for _, r := range prefix {
+			tt.Key(0, ui.KeyA+ui.Key(r-'a'))
+		}
+		tt.Key(0, ui.KeyEnter)
+	}
+	return nil
+}
+
 // chooseBodyFormat picks a representation from the pane's format menu.
 func chooseBodyFormat(t *testing.T, tt *ui.Tester, side, mode string) {
 	t.Helper()
@@ -44,8 +68,143 @@ func chooseBodyFormat(t *testing.T, tt *ui.Tester, side, mode string) {
 	if err := tt.Click(label); err != nil {
 		t.Fatal(err)
 	}
-	if err := tt.ChooseMenuItem(mode); err != nil {
+	if err := chooseMenu(tt, mode); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestShellCentersStatusWithoutCoveringNativeControls(t *testing.T) {
+	for _, bar := range []ui.TitleBar{{Height: 44, Left: 80}, {Height: 44, Right: 192}} {
+		a := workspaceApp()
+		tt := ui.NewTester(a.view, 960, 800)
+		tt.SetTitleBar(bar)
+		status, ok := tt.Find("Proxy status")
+		if !ok || status.X+status.W/2 < 479 || status.X+status.W/2 > 481 {
+			t.Fatalf("status followed native button insets instead of the window center: %v", status)
+		}
+		brand, _ := tt.Find("vscroxy")
+		more, _ := tt.Find("More")
+		requests, _ := tt.Find("Requests")
+		commands, _ := tt.Find("Commands")
+		if brand.X < bar.Left || more.X+more.W > 960-bar.Right || requests.X+requests.W > status.X || commands.X < status.X+status.W {
+			t.Fatal("shell controls overlap each other or the native window buttons")
+		}
+	}
+}
+
+func TestEnabledToolbarPreservesContentFocus(t *testing.T) {
+	a := workspaceApp()
+	tt := ui.NewTester(a.view, 960, 800)
+	if err := tt.Click("Search host or path"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Type("projects")
+	for _, enabled := range []bool{true, false, true} {
+		a.breakOn = enabled
+		tt.Frame()
+		if !tt.Focused("Search host or path") || a.query != "projects" {
+			t.Fatal("toolbar appearing or disappearing reset the content's input identity")
+		}
+	}
+	tt.Key(ui.Ctrl, ui.KeyA)
+	tt.Type("login")
+	if a.query != "login" {
+		t.Fatal("search no longer accepts edits after the toolbar changes")
+	}
+}
+
+func TestNotificationsRetainActionAndDismissal(t *testing.T) {
+	a := workspaceApp()
+	added, actions := false, 0
+	tt := ui.NewTester(func(c *ui.Context) {
+		if !added {
+			c.AddToast(ui.Toast{Title: "Export ready", Action: "Open export", OnAction: func() { actions++ }})
+			added = true
+		}
+		a.view(c)
+	}, 960, 800)
+	tt.Advance(250 * time.Millisecond)
+	if err := tt.Click("Open export"); err != nil {
+		t.Fatal(err)
+	}
+	if actions != 1 || tt.HasText("Export ready") {
+		t.Fatal("notification action did not run once and close its toast")
+	}
+	a.setMessage("Copied URL")
+	tt.Frame()
+	tt.Advance(250 * time.Millisecond)
+	if err := tt.Click("Dismiss notification"); err != nil {
+		t.Fatal(err)
+	}
+	if tt.HasText("Copied URL") {
+		t.Fatal("dismiss button left the notification open")
+	}
+}
+
+func TestActiveToolChipsChangeConfigurationInBothWorkspaces(t *testing.T) {
+	for _, workspace := range []int{0, 1} {
+		t.Run(fmt.Sprint(workspace), func(t *testing.T) {
+			a := workspaceApp()
+			a.workspace = workspace
+			var err error
+			a.srv, err = capture.New("127.0.0.1:0", t.TempDir())
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { _ = a.srv.Close() })
+			a.breakOn, a.throttle, a.upstream = true, capture.Presets[1], "http://127.0.0.1:8081"
+			a.srv.SetBreak(true)
+			a.srv.SetThrottle(a.throttle)
+			a.srv.SetNoCaching(true)
+			if err := a.srv.SetUpstream(a.upstream); err != nil {
+				t.Fatal(err)
+			}
+			a.rules = []capture.Rule{{Type: capture.RuleBlock, Match: "/test", Scenario: "Offline", ScenarioActive: true}}
+			if err := a.srv.SetRules(a.rules); err != nil {
+				t.Fatal(err)
+			}
+			a.rulesPath = t.TempDir() // A directory makes saving fail, on every platform.
+			tt := ui.NewTester(a.view, 960, 800)
+			click := func(label string) {
+				t.Helper()
+				if err := tt.Click(label); err != nil {
+					t.Fatal(err)
+				}
+			}
+			click("Active tool: Breakpoints")
+			if !a.ruleUI.open {
+				t.Fatal("breakpoint chip did not open the existing rule editor")
+			}
+			click("Close")
+			click("Disable Scenario: Offline")
+			if capture.ActiveScenario(a.rules) != "Offline" || capture.ActiveScenario(a.srv.Rules()) != "Offline" || !tt.HasText("Could not disable scenario") {
+				t.Fatal("failed save hid or deactivated the active scenario")
+			}
+			a.rulesPath = filepath.Join(t.TempDir(), "rules.json")
+			click("Disable Scenario: Offline")
+			stored, err := capture.LoadRules(a.rulesPath)
+			if err != nil || capture.ActiveScenario(stored) != "" || capture.ActiveScenario(a.srv.Rules()) != "" {
+				t.Fatalf("scenario chip did not persist the inactive configuration: %v", err)
+			}
+			for _, label := range []string{"Breakpoints", "3G", "No Caching", "Upstream"} {
+				click("Disable " + label)
+				if _, found := tt.Find("Active tool: " + label); found {
+					t.Fatalf("disabled tool %q still appears active", label)
+				}
+			}
+			if a.breakOn || a.srv.Breaking() || a.throttle.Name != "Off" || a.srv.Throttle().Name != "Off" || a.srv.NoCaching() || a.upstream != "" || a.srv.Upstream() != "" {
+				t.Fatal("chip close only hid the tool instead of disabling it")
+			}
+			// Disappearing and returning chips retain independent identities.
+			click("Tools")
+			if err := chooseMenu(tt, "No Caching"); err != nil {
+				t.Fatal(err)
+			}
+			if !a.srv.NoCaching() || !tt.HasText("Active tool: No Caching") {
+				t.Fatal("Tools menu could not re-enable caching control")
+			}
+			click("Disable No Caching")
+		})
 	}
 }
 
@@ -239,7 +398,9 @@ func TestCaptureTableScrollsAndKeepsEachViewsPlace(t *testing.T) {
 	}
 	x, y := box.X+10, box.Y+10
 	tt.Scroll(x, y, 0, -1e6)
-	tt.Scroll(x, y, 0, 640)
+	first, _ := tt.Find("api.example.com/capture/0001")
+	second, _ := tt.Find("api.example.com/capture/0002")
+	tt.Scroll(x, y, 0, 20*(second.Y-first.Y))
 	if !tt.HasText("api.example.com/capture/0021") {
 		t.Fatalf("scrolling did not reveal later requests: %q", tt.Texts())
 	}
@@ -347,7 +508,7 @@ func TestWorkspaceKeepsCaptureAndDraftIndependent(t *testing.T) {
 	if err := tt.RightClick("api.example.com/login"); err != nil {
 		t.Fatal(err)
 	}
-	if err := tt.ChooseMenuItem("Edit & resend"); err != nil {
+	if err := chooseMenu(tt, "Edit & resend"); err != nil {
 		t.Fatal(err)
 	}
 	if value("URL") != "https://api.example.com/login" || !tt.HasText("Save") {
@@ -410,7 +571,7 @@ func TestRequestResourcesPreserveDraftAndTreeExpansion(t *testing.T) {
 		t.Fatal("request sidebar remained visible")
 	}
 	click("Capture")
-	if !tt.HasText("Traffic") {
+	if !tt.HasText("TRAFFIC") {
 		t.Fatal("hiding the request sidebar also hid Capture's sidebar")
 	}
 	click("Requests")
@@ -613,6 +774,8 @@ func TestHTTPSAppRuleCanBeScopedEditedAndCancelled(t *testing.T) {
 		}
 		return cfg
 	}
+	inspector, _ := tt.Find("Request inspector")
+	tt.Scroll(inspector.X+inspector.W/2, inspector.Y+inspector.H-20, 0, 200)
 	click("Inspect all domains from client")
 	cfg := load()
 	if cfg.All || len(cfg.Apps) != 1 || cfg.Apps[0].Path != path || !cfg.Decrypts("existing.test") || !cfg.DecryptsProcess("another.test:9443", path) || cfg.DecryptsProcess("another.test", "") {
@@ -816,7 +979,7 @@ func TestBodyWarningsStayOutsideStructuredPayloadAndClipboard(t *testing.T) {
 	if err := tt.Click("Response pane options"); err != nil {
 		t.Fatal(err)
 	}
-	if err := tt.ChooseMenuItem("Copy shown body"); err != nil {
+	if err := chooseMenu(tt, "Copy shown body"); err != nil {
 		t.Fatal(err)
 	}
 	if tt.Clipboard() != `{"z":9007199254740993,"a":false}` {
@@ -910,7 +1073,7 @@ func TestJSONExpansionSurvivesIncomingTraffic(t *testing.T) {
 	if err := tt.Click("Response pane options"); err != nil {
 		t.Fatal(err)
 	}
-	if err := tt.ChooseMenuItem("Copy shown body"); err != nil {
+	if err := chooseMenu(tt, "Copy shown body"); err != nil {
 		t.Fatal(err)
 	}
 	if tt.Clipboard() != `{"replacement":"new-value"}` || tt.HasText(`"expanded-value"`) {
@@ -975,10 +1138,10 @@ func TestCaptureKeepsSelectionAcrossListChanges(t *testing.T) {
 	if !tt.HasText(selected) {
 		t.Fatal("evicting the oldest request changed the inspected request")
 	}
-	if err := tt.Click("URL"); err != nil {
+	if err := tt.Click("Path"); err != nil {
 		t.Fatal(err)
 	}
-	if err := tt.Click("URL"); err != nil {
+	if err := tt.Click("Path"); err != nil {
 		t.Fatal(err)
 	}
 	if !tt.HasText(selected) {
@@ -1081,7 +1244,7 @@ func TestCaptureDetailSurvivesUnrelatedTraffic(t *testing.T) {
 	if err := tt.Click("Response pane options"); err != nil {
 		t.Fatal(err)
 	}
-	if err := tt.ChooseMenuItem("Find in text…"); err != nil {
+	if err := chooseMenu(tt, "Find in text…"); err != nil {
 		t.Fatal(err)
 	}
 	if err := tt.Click("Search body"); err != nil {
@@ -1139,7 +1302,7 @@ func TestCaptureSelectionFollowsKeysAndExcludesHiddenRows(t *testing.T) {
 	if err := tt.Click("More capture options"); err != nil {
 		t.Fatal(err)
 	}
-	if err := tt.ChooseMenuItem("Clear unpinned requests…"); err != nil {
+	if err := chooseMenu(tt, "Clear unpinned requests…"); err != nil {
 		t.Fatal(err)
 	}
 	if len(a.flows) != 2 || !tt.HasText("Clear captured requests?") {
@@ -1638,7 +1801,7 @@ func TestConcurrentRequestTabsOwnTheirResponses(t *testing.T) {
 		t.Fatal("slow completion overwrote the fast tab")
 	}
 	click("Request options")
-	if err := tt.ChooseMenuItem("Manage environments…"); err != nil {
+	if err := chooseMenu(tt, "Manage environments…"); err != nil {
 		t.Fatal(err)
 	}
 	click("Reveal variable 1")
@@ -1652,7 +1815,7 @@ func TestConcurrentRequestTabsOwnTheirResponses(t *testing.T) {
 	click("Active environment")
 	click("Local")
 	click("Request options")
-	if err := tt.ChooseMenuItem("Manage environments…"); err != nil {
+	if err := chooseMenu(tt, "Manage environments…"); err != nil {
 		t.Fatal(err)
 	}
 	for i, want := range []string{"yes", "original", "yes"} {
@@ -1704,7 +1867,7 @@ func TestAPIWorkflowPreservesIndependentContracts(t *testing.T) {
 	if err := tt.RightClick("api.example.com/projects"); err != nil {
 		t.Fatal(err)
 	}
-	if err := tt.ChooseMenuItem("Edit & resend"); err != nil {
+	if err := chooseMenu(tt, "Edit & resend"); err != nil {
 		t.Fatal(err)
 	}
 	click("Rename request")
@@ -1852,7 +2015,7 @@ func TestCurlImportAndCopyKeepExistingDrafts(t *testing.T) {
 		t.Fatal("import changed the body quoting")
 	}
 	click("Request options")
-	if err := tt.ChooseMenuItem("Copy as cURL"); err != nil {
+	if err := chooseMenu(tt, "Copy as cURL"); err != nil {
 		t.Fatal(err)
 	}
 	command := tt.Clipboard()
@@ -2138,7 +2301,7 @@ func TestRuleEditorPersistsOrderingTogglesAndCapturedMock(t *testing.T) {
 		return rules
 	}
 	click("More")
-	if err := tt.ChooseMenuItem("Debugging rules…"); err != nil {
+	if err := chooseMenu(tt, "Debugging rules…"); err != nil {
 		t.Fatal(err)
 	}
 	tt.SetSize(960, 600)
@@ -2178,7 +2341,7 @@ func TestRuleEditorPersistsOrderingTogglesAndCapturedMock(t *testing.T) {
 	if err := tt.RightClick("api.example.com/projects"); err != nil {
 		t.Fatal(err)
 	}
-	if err := tt.ChooseMenuItem("Tools", "Mock this response…"); err != nil {
+	if err := chooseMenu(tt, "Tools", "Mock this response…"); err != nil {
 		t.Fatal(err)
 	}
 	edit("Response status", "201")
@@ -2193,7 +2356,7 @@ func TestRuleEditorPersistsOrderingTogglesAndCapturedMock(t *testing.T) {
 	}
 	click("Close")
 	click("More")
-	if err := tt.ChooseMenuItem("Debugging rules…"); err != nil {
+	if err := chooseMenu(tt, "Debugging rules…"); err != nil {
 		t.Fatal(err)
 	}
 	edit("Rule name", "Should not apply")
@@ -2355,7 +2518,7 @@ func TestDeviceOnboardingCertificateHTTPSAndLiveTunnelRevocation(t *testing.T) {
 	echo(mobile, "device tunnel before disable")
 	click("Close")
 	click("More")
-	if err := tt.ChooseMenuItem("Network", "Connect a device…"); err != nil {
+	if err := chooseMenu(tt, "Network", "Connect a device…"); err != nil {
 		t.Fatal(err)
 	}
 	if !tt.HasText("LAN enabled") {
@@ -2399,7 +2562,7 @@ func TestCaptureRegressionCanBeSavedAndSharedOnlyAfterReview(t *testing.T) {
 	if err := tt.RightClick("api.example.com/projects"); err != nil {
 		t.Fatal(err)
 	}
-	if err := tt.ChooseMenuItem("Save as regression…"); err != nil {
+	if err := chooseMenu(tt, "Save as regression…"); err != nil {
 		t.Fatal(err)
 	}
 	if a.workspace != 1 || !tt.HasText("RESPONSE CHECKS") || a.sourceFlow != 1 || a.composeWaiting {
@@ -2411,7 +2574,7 @@ func TestCaptureRegressionCanBeSavedAndSharedOnlyAfterReview(t *testing.T) {
 		t.Fatalf("checks not saved: %+v %v", loaded, err)
 	}
 	click("Request options")
-	if err := tt.ChooseMenuItem("Share regression…"); err != nil {
+	if err := chooseMenu(tt, "Share regression…"); err != nil {
 		t.Fatal(err)
 	}
 	for _, label := range []string{"Cancel", "Copy case JSON"} {
@@ -2559,7 +2722,7 @@ func TestReplayLinksRevealFilteredSourceAndCompareWithoutGuessingURL(t *testing.
 	if err := tt.Click("Replays (1)"); err != nil {
 		t.Fatal(err)
 	}
-	if err := tt.ChooseMenuItem("#3 · /redirected · 200 · 0 ms"); err != nil {
+	if err := chooseMenu(tt, "#3 · /redirected · 200 · 0 ms"); err != nil {
 		t.Fatal(err)
 	}
 	if !tt.HasText("Replay of #1") {
@@ -2595,7 +2758,7 @@ func TestBatchReplaySendsChosenRequestsInOrder(t *testing.T) {
 	a.chosen.Add(2)
 	tt := ui.NewTester(a.view, 960, 600)
 	tt.Click("More")
-	if err := tt.ChooseMenuItem("Session", "Replay chosen…"); err != nil {
+	if err := chooseMenu(tt, "Session", "Replay chosen…"); err != nil {
 		t.Fatal(err)
 	}
 	if !tt.HasText("Replay 2 requests") {
@@ -2878,7 +3041,7 @@ func TestDesktopLayoutDefaultsBelowAndSwitchesWithoutLosingCaptureContext(t *tes
 	}
 	check(false) // A: bottom inspector is the default even on wide windows.
 	click("More")
-	if err := tt.ChooseMenuItem("View", "Inspector: Right (wide windows)"); err != nil {
+	if err := chooseMenu(tt, "View", "Inspector: Right (wide windows)"); err != nil {
 		t.Fatal(err)
 	}
 	check(true)
@@ -2893,7 +3056,7 @@ func TestDesktopLayoutDefaultsBelowAndSwitchesWithoutLosingCaptureContext(t *tes
 	tt.SetSize(1440, 860)
 	check(true)
 	click("More")
-	if err := tt.ChooseMenuItem("View", "Inspector: Bottom"); err != nil {
+	if err := chooseMenu(tt, "View", "Inspector: Bottom"); err != nil {
 		t.Fatal(err)
 	}
 	check(false)
@@ -2910,10 +3073,12 @@ func TestDesktopLayoutDefaultsBelowAndSwitchesWithoutLosingCaptureContext(t *tes
 	tt.Key(0, ui.KeyEnter)
 	check(false)
 	number, _ := tt.Find("#")
-	url, _ := tt.Find("URL")
+	status, _ := tt.Find("Status")
 	method, _ := tt.Find("Method")
-	if number.X >= url.X || url.X >= method.X {
-		t.Fatal("reset layout did not restore the URL-first default columns")
+	host, _ := tt.Find("Host")
+	path, _ := tt.Find("Path")
+	if number.X >= status.X || status.X >= method.X || method.X >= host.X || host.X >= path.X {
+		t.Fatal("reset layout did not restore status, method, host and path columns")
 	}
 }
 
@@ -3145,7 +3310,7 @@ func TestReplayTargetsAndUnavailableActionsAreConsistentAcrossEntries(t *testing
 			if err := tt.RightClick("api.example.com/projects"); err != nil {
 				t.Fatal(err)
 			}
-			if err := tt.ChooseMenuItem("Replay"); err != nil {
+			if err := chooseMenu(tt, "Replay"); err != nil {
 				t.Fatal(err)
 			}
 		case "toolbar":
@@ -3213,6 +3378,66 @@ func TestNativeCommandsRespectModalScopeAndDraftCloseProtection(t *testing.T) {
 	choose("back")
 	if !tt.Focused("Captured requests") {
 		t.Fatal("native Back did not restore capture focus")
+	}
+}
+
+func TestCaptureHostColumnSortsByHostNotScheme(t *testing.T) {
+	a := workspaceApp()
+	a.flows[0].host, a.flows[0].url = "a.test", "https://a.test/projects"
+	a.flows[1].host, a.flows[1].url, a.flows[1].scheme = "z.test", "http://z.test/login", "http"
+	tt := ui.NewTester(a.view, 1280, 800)
+	for _, descending := range []bool{false, true} {
+		if err := tt.Click("Host"); err != nil {
+			t.Fatal(err)
+		}
+		first, ok := tt.Find("a.test/projects")
+		second, found := tt.Find("z.test/login")
+		if !ok || !found || (first.Y > second.Y) != descending {
+			t.Fatalf("Host used URL scheme order: %v, %v; descending %t", first, second, descending)
+		}
+	}
+}
+
+func TestCaptureCompactLayoutKeepsSearchUsableAcrossEmptyResults(t *testing.T) {
+	for _, width := range []int{960, 1280} {
+		t.Run(fmt.Sprint(width), func(t *testing.T) {
+			a := workspaceApp()
+			tt := ui.NewTester(a.view, width, 800)
+			first, _ := tt.Find("api.example.com/projects")
+			second, _ := tt.Find("api.example.com/login")
+			if second.Y-first.Y != 28 {
+				t.Fatalf("traffic rows are not 28px: %v, %v", first, second)
+			}
+			search, _ := tt.Find("Search host or path")
+			for _, label := range []string{"Protocol and content type: All", "Filters…", "Breakpoints", "Inspector layout"} {
+				control, ok := tt.Find(label)
+				if !ok || control.Y >= search.Y+search.H || control.Y+control.H <= search.Y {
+					t.Fatalf("%s escaped the single toolbar row: %v", label, control)
+				}
+			}
+			if err := tt.Click("Search host or path"); err != nil {
+				t.Fatal(err)
+			}
+			tt.Type("no-match")
+			if !tt.Focused("Search host or path") || !tt.HasText("No matching requests") || tt.HasText("Request inspector") {
+				t.Fatal("empty results lost input focus or left the full inspector open")
+			}
+			tt.Key(ui.Cmd, ui.KeyA)
+			tt.Type("login")
+			if !tt.Focused("Search host or path") || len(a.visible) != 1 || !tt.HasText("POST https://api.example.com/login") {
+				t.Fatal("search could not restore the table and matching inspector")
+			}
+			if err := tt.Click("More capture options"); err != nil {
+				t.Fatal(err)
+			}
+			if err := chooseMenu(tt, "Images"); err != nil {
+				t.Fatal(err)
+			}
+			tt.Frame()
+			if !tt.HasText("Images ×") || len(a.visible) != 0 {
+				t.Fatal("the segmented control overwrote the menu-only Images condition")
+			}
+		})
 	}
 }
 
@@ -3433,7 +3658,7 @@ func TestCaptureFacetsIntersectAndResetOnlyTheActiveView(t *testing.T) {
 	if err := tt.RightClick("api.example.com/login"); err != nil {
 		t.Fatal(err)
 	}
-	if err := tt.ChooseMenuItem("Filter captures", "Status: 401"); err != nil {
+	if err := chooseMenu(tt, "Filter captures", "Status: 401"); err != nil {
 		t.Fatal(err)
 	}
 	if got := fmt.Sprint(visibleIDs(a)); got != "[2]" {
@@ -3448,7 +3673,7 @@ func TestCaptureFacetsIntersectAndResetOnlyTheActiveView(t *testing.T) {
 	a.query = "other"
 	tt.Frame()
 	click("More capture options")
-	if err := tt.ChooseMenuItem("Reset all conditions"); err != nil {
+	if err := chooseMenu(tt, "Reset all conditions"); err != nil {
 		t.Fatal(err)
 	}
 	if len(a.visible) != 4 || a.filtersActive() {
@@ -3479,7 +3704,7 @@ func TestHeaderContextFilterUsesEitherSideContainsWithoutLeakingCredentials(t *t
 	if err := tt.RightClick("X-Format"); err != nil {
 		t.Fatal(err)
 	}
-	if err := tt.ChooseMenuItem("Contains value 2: JSON"); err != nil {
+	if err := chooseMenu(tt, "Contains value 2: JSON"); err != nil {
 		t.Fatal(err)
 	}
 	if got := fmt.Sprint(visibleIDs(a)); got != "[1 2]" {
@@ -3488,10 +3713,15 @@ func TestHeaderContextFilterUsesEitherSideContainsWithoutLeakingCredentials(t *t
 	if err := tt.RightClick("Authorization"); err != nil {
 		t.Fatal(err)
 	}
-	if menu := strings.Join(tt.Menu(), "\n"); strings.Contains(menu, "private-fixture") || strings.Contains(menu, "Contains value") {
+	// Inspect only the menu overlay, not the header value behind it.
+	_, menu, found := strings.Cut(strings.Join(tt.Texts(), "\n"), "Matches request or response headers\n")
+	if !found || !strings.Contains(menu, "Credential values are not added to filters") {
+		t.Fatalf("credential filter menu did not open: %s", menu)
+	}
+	if strings.Contains(menu, "private-fixture") || strings.Contains(menu, "Contains value") {
 		t.Fatalf("credential escaped into the filter menu: %s", menu)
 	}
-	if err := tt.ChooseMenuItem("Header exists: Authorization"); err != nil {
+	if err := chooseMenu(tt, "Header exists: Authorization"); err != nil {
 		t.Fatal(err)
 	}
 	if got := fmt.Sprint(visibleIDs(a)); got != "[1]" || a.filterHeader != "Authorization" {

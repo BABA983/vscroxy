@@ -267,7 +267,8 @@ func (a *app) bodySideView(c *ui.Context, f flow, side int) {
 		return // rebuild the chosen side before parsing or copying its bytes
 	}
 	if notice := strings.TrimSpace(a.bodyNotice[side]); notice != "" {
-		ui.Text(c, notice).FontSize(textMeta).TextColor(t.Warning).Padding(4, 12).Tooltip(notice)
+		ui.Text(c, notice).FontSize(textMeta).TextColor(t.Warning).Background(t.Warning.Alpha(0.12)).
+			Padding(t.Space(1), t.Space(3)).FillWidth().Tooltip(notice)
 	}
 	if mode == 5 {
 		// One inspector reads one side: when both sides are protobuf, the
@@ -298,7 +299,8 @@ func (a *app) bodySideView(c *ui.Context, f flow, side int) {
 		if mode == 3 {
 			placeholder = "Filter hex rows (hex bytes or text)…"
 		}
-		ui.TextInput(c, &a.bodyQuery[side]).Label("Search body").Placeholder(placeholder).Tooltip(placeholder).Margin(0, 12, 6).FillWidth()
+		ui.TextInput(c, &a.bodyQuery[side]).Label("Search body").Placeholder(placeholder).Tooltip(placeholder).
+			FontSize(textBody).Height(heightControl).Radius(radiusControl).Margin(0, t.Space(3), t.Space(2)).FillWidth()
 	}
 	switch mode {
 	case 2:
@@ -341,10 +343,10 @@ func (a *app) previewBody(c *ui.Context, f flow, body string, side int) {
 		a.htmlPreview(c, key, body, side)
 	default:
 		ui.Text(c, "No preview for "+cmp.Or(ct, "this body")).FontSize(textBody).TextColor(t.TextMuted).Padding(16)
-		if ui.Button(c, "Show as text").Margin(0, 12).Clicked() {
+		if secondaryButton(c, "Show as text").Margin(0, t.Space(3)).Clicked() {
 			a.bodyMode[side] = 1
 		}
-		if ui.Button(c, "Show as hex").Margin(0, 12).Clicked() {
+		if secondaryButton(c, "Show as hex").Margin(0, t.Space(3)).Clicked() {
 			a.bodyMode[side] = 3
 		}
 	}
@@ -371,7 +373,7 @@ func (a *app) imagePreview(c *ui.Context, key, body string, side int) {
 	}
 	w, h := a.imageBmp[side].Size()
 	ui.Scroll(c).Grow(1).Children(func() {
-		ui.Column(c).Padding(16).Gap(6).Children(func() {
+		ui.Column(c).Padding(t.Space(4)).Gap(t.Space(2)).Children(func() {
 			ui.Text(c, fmt.Sprintf("%d × %d px", w, h)).FontSize(textMeta).FontFeatures("tnum").TextColor(t.TextMuted)
 			ui.Image(c, a.imageBmp[side]).MaxWidthPercent(100)
 		})
@@ -442,18 +444,18 @@ func (a *app) jsonBody(c *ui.Context, side int) {
 	}
 	ui.List(c, &a.jsonScroll[side], len(rows), func(i int) {
 		row := rows[i]
-		ui.Row(c).Gap(6).Padding(3, 12).AlignItems(ui.Center).Children(func() {
+		ui.Row(c).Gap(t.Space(2)).Padding(0, t.Space(3)).MinHeight(heightControl).AlignItems(ui.Center).Children(func() {
 			ui.Box(c).Width(float32(row.depth) * 16)
 			if len(row.node.children) > 0 && a.bodyQuery[side] == "" {
 				arrow := "▸"
 				if a.jsonExpanded[side][row.node.path] {
 					arrow = "▾"
 				}
-				if ui.Button(c, arrow).Width(20).Height(20).Padding(0).Clicked() {
+				if secondaryButton(c, arrow).Size(heightCompact, heightCompact).Padding(0).Clicked() {
 					a.jsonExpanded[side][row.node.path] = !a.jsonExpanded[side][row.node.path]
 				}
 			} else {
-				ui.Box(c).Width(20)
+				ui.Box(c).Width(heightCompact)
 			}
 			if row.node.key != "" {
 				ui.Text(c, row.node.key).FontSize(textBody).Font(fontMono).TextColor(keyColor).SingleLine().Tooltip(row.node.path)
@@ -479,6 +481,7 @@ func (a *app) hexBody(c *ui.Context, body string, side int) {
 		return
 	}
 	ui.List(c, &a.hexScroll[side], len(rows), func(i int) {
-		ui.Text(c, hexLine(body, rows[i])).FontSize(textMeta).Font(fontMono).TextColor(t.Text).Padding(3, 12).SingleLine()
+		ui.Text(c, hexLine(body, rows[i])).FontSize(textMeta).Font(fontMono).TextColor(t.Text).
+			Padding(t.Space(1), t.Space(3)).SingleLine()
 	}).Grow(1)
 }

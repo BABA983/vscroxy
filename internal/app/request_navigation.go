@@ -106,12 +106,14 @@ func (a *app) collectionTree(c *ui.Context) {
 				open = new(true)
 			}
 			ui.TreeItem(c.Key("folder:"+path), name, open, func() { branch(path) }).Height(32).
-				Label("Collection: " + path).ContextMenu(func(m *ui.Menu) {
-				a.folderSettingsItems(m, path)
-				if m.Item("Delete “" + path + "”…").Chosen() {
-					a.confirmDeleteFolder(path)
-				}
-			})
+				Label("Collection: " + path).PopoverMenu(
+				func(m *ui.Menu) {
+					a.folderSettingsItems(m, path)
+					if m.Item("Delete “" + path + "”…").Chosen() {
+						a.confirmDeleteFolder(path)
+					}
+				})
+
 		}
 		for _, r := range a.requests {
 			if r.Collection != parent || query != "" && !strings.Contains(strings.ToLower(r.Collection+" "+r.Name+" "+r.URL+" "+r.Method), query) {
@@ -119,13 +121,16 @@ func (a *app) collectionTree(c *ui.Context) {
 			}
 			item := ui.TreeItem(c.Key(r.key()), "", nil, nil).Label(r.Name).Height(32).
 				Selected(a.requestChoice == r.key()).Tooltip(r.Method + " " + r.URL).
-				OnClick(func() { a.openSaved(r.key()) }).ContextMenu(func(m *ui.Menu) {
-				if m.Item("Delete request…").Chosen() {
-					a.confirmDeleteRequest(r.key(), r.Name)
-				}
-				m.Separator()
-				a.folderSettingsItems(m, r.Collection)
-			})
+				OnClick(func() { a.openSaved(r.key()) }).PopoverMenu(
+
+				func(m *ui.Menu) {
+					if m.Item("Delete request…").Chosen() {
+						a.confirmDeleteRequest(r.key(), r.Name)
+					}
+					m.Separator()
+					a.folderSettingsItems(m, r.Collection)
+				})
+
 			if a.requestChoice == r.key() {
 				item.Background(c.Theme().Accent.Alpha(0.10)).TextColor(c.Theme().Text)
 			}

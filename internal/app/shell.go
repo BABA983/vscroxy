@@ -15,32 +15,33 @@ import (
 // it belongs to traffic or to a request.
 func (a *app) shell(c *ui.Context, t *ui.Theme) {
 	bar := c.TitleBar()
-	height := max(bar.Height, 50)
-	ui.Row(c).Height(height).Padding(0, max(bar.Right, t.Space(3)), 0, max(bar.Left, t.Space(3))).Gap(t.Space(4)).AlignItems(ui.Center).
+	height := max(bar.Height, 44)
+	ui.Grid(c).ColumnTracks(ui.Fr(1), ui.Fr(1), ui.Fr(1)).Height(height).AlignItems(ui.Center).
 		Background(t.Surface).Border(0, t.Border).BorderWidth(0, 0, 1, 0).DragWindow().Children(func() {
-		ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-			ui.Icon(c, brandIcon).Size(iconLarge, iconLarge).TextColor(t.Text)
-			ui.Text(c, "vscroxy").FontSize(textBody).Bold().TextColor(t.Text)
+		ui.Row(c).PaddingStart(max(bar.Left, t.Space(3))).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+			ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+				ui.Icon(c, brandIcon).Size(iconLarge, iconLarge).TextColor(t.Text)
+				ui.Text(c, "vscroxy").FontSize(textBody).Bold().TextColor(t.Text)
+			})
+			a.workspaceSwitch(c, t)
 		})
-		a.workspaceSwitch(c, t)
-		ui.Spacer(c)
-		a.proxyIndicator(c, t)
-		ui.Box(c).Width(1).Height(18).Background(t.Border)
-		if toolbarButton(c, "Commands", "Search every action · Ctrl/Cmd+K", false).Children(func() {
-			ui.Icon(c, commandIcon).Size(iconInline, iconInline)
-			ui.Text(c, "Commands").FontSize(textBody)
-		}).Clicked() {
-			a.workbench.openPalette()
-		}
-		if toolbarButton(c, "Settings", "Settings · Ctrl/Cmd+,", false).Children(func() {
-			ui.Icon(c, settingsIcon).Size(iconInline, iconInline)
-			ui.Text(c, "Settings").FontSize(textBody)
-		}).Clicked() {
-			a.settingsOpen = true
-		}
-		ui.MenuButton(c, "⋯", func(m *ui.Menu) {
-			a.moreMenu(c, m)
-		}).Label("More").Tooltip("More commands").Height(heightCompact).Padding(0, t.Space(2)).FontSize(textBody).TextColor(t.TextMuted).Border(0, t.Border)
+		ui.Row(c).Justify(ui.Center).MinWidth(0).Children(func() { a.proxyIndicator(c, t) })
+		ui.Row(c).PaddingEnd(max(bar.Right, t.Space(3))).Gap(t.Space(2)).Justify(ui.End).AlignItems(ui.Center).Children(func() {
+			if iconButton(c, "Commands", "Search every action · Ctrl/Cmd+K", commandIcon).Clicked() {
+				a.workbench.openPalette()
+			}
+			iconButton(c, "Tools", "Manage debugging rules and network conditions", toolsIcon).PopoverMenuButton(func(m *ui.Menu) {
+				if m.Item("Debugging rules…").Chosen() {
+					a.openRules()
+				}
+				m.Separator()
+				a.networkTools(m)
+			})
+			if iconButton(c, "Settings", "Settings · Ctrl/Cmd+,", settingsIcon).Clicked() {
+				a.settingsOpen = true
+			}
+			iconButton(c, "More", "More commands", moreIcon).PopoverMenuButton(func(m *ui.Menu) { a.moreMenu(c, m) })
+		})
 	})
 }
 
@@ -78,8 +79,8 @@ func (a *app) workspaceSwitch(c *ui.Context, t *ui.Theme) {
 	}
 }
 
-// proxyIndicator is plain secondary text with a small green dot. It reports
-// the listener, never HTTPS inspection or list following.
+// proxyIndicator reports the listener, never HTTPS inspection or list following.
+// Recording pause is a separate feature; this pill does not imply it exists.
 func (a *app) proxyIndicator(c *ui.Context, t *ui.Theme) {
 	running := a.srv != nil && a.srv.Running()
 	label, color := "Proxy stopped", t.TextMuted
@@ -89,18 +90,117 @@ func (a *app) proxyIndicator(c *ui.Context, t *ui.Theme) {
 	if a.deviceUI.gateway != nil {
 		label += " · LAN"
 	}
-	b := toolbarButton(c, "Proxy status", "Listening address · proxy settings; listening is not proof of HTTPS inspection", false)
+	b := toolbarButton(c, "Proxy status", "Listening address · proxy settings; listening is not proof of HTTPS inspection", false).
+		Background(t.Background).Border(1, t.Border).Radius(heightControl / 2).MinWidth(0)
 	b.Children(func() {
-		dot := t.TextMuted
+		dot := t.Danger
 		if running {
 			dot = t.Success
 		}
 		ui.Box(c).Size(7, 7).Radius(4).Background(dot)
-		ui.Text(c, label).FontSize(textBody).TextColor(color).SingleLine()
+		ui.Text(c, label).FontSize(textMeta).FontFeatures("tnum").TextColor(color).SingleLine()
 	})
 	if b.Clicked() {
 		a.settingsTab, a.settingsOpen = 1, true
 	}
+}
+
+// networkTools is shared by Tools, the enabled chips and More → Network.
+func (a *app) networkTools(m *ui.Menu) {
+	if m.Item("No Caching").Checked(a.srv != nil && a.srv.NoCaching()).Disabled(a.srv == nil).Chosen() {
+		a.srv.SetNoCaching(!a.srv.NoCaching())
+	}
+	m.Separator()
+	for _, preset := range capture.Presets {
+		if m.Item(preset.Name).Radio(a.throttle.Name == preset.Name || a.throttle.Name == "" && preset.Name == "Off").Chosen() {
+			a.throttle = preset
+			if a.srv != nil {
+				a.srv.SetThrottle(preset)
+			}
+		}
+	}
+	m.Separator()
+	if m.Item("Upstream…").Chosen() {
+		a.upstreamAddr = a.upstream
+		a.upstreamOpen = true
+	}
+	if m.Item("Upstream off").Disabled(a.upstream == "").Chosen() {
+		if a.srv != nil {
+			_ = a.srv.SetUpstream("")
+		}
+		a.upstream = ""
+		a.setMessage("Upstream: off")
+	}
+}
+
+// activeTools remains visible in both workspaces. Each close button changes
+// the same setting as its existing menu/editor, never just hides the chip.
+func (a *app) activeTools(c *ui.Context, t *ui.Theme) {
+	scenario := capture.ActiveScenario(a.rules)
+	throttled := a.throttle.Name != "" && a.throttle.Name != "Off"
+	noCaching := a.srv != nil && a.srv.NoCaching()
+	if !a.breakOn && !throttled && !noCaching && scenario == "" && a.upstream == "" {
+		return
+	}
+	ui.ScrollHorizontal(c.Key("active-tools")).Height(32).Background(t.Surface).Border(0, t.Border).BorderWidth(0, 0, 1, 0).Children(func() {
+		ui.Row(c).Padding(0, t.Space(3)).Gap(t.Space(2)).Height(32).AlignItems(ui.Center).Children(func() {
+			if a.breakOn {
+				toolChip(c, "breakpoints", "Breakpoints", "Edit breakpoint rules", breakIcon, a.openRules, func() {
+					a.breakOn = false
+					if a.srv != nil {
+						a.srv.SetBreak(false)
+					}
+				})
+			}
+			if throttled {
+				toolChip(c, "throttle", a.throttle.Name, "Change network conditions", networkIcon, nil, func() {
+					a.throttle = capture.Presets[0]
+					if a.srv != nil {
+						a.srv.SetThrottle(a.throttle)
+					}
+				}).PopoverMenuButton(a.networkTools)
+			}
+			if noCaching {
+				toolChip(c, "no-caching", "No Caching", "Change caching and network conditions", cacheIcon, nil, func() {
+					a.srv.SetNoCaching(false)
+				}).PopoverMenuButton(a.networkTools)
+			}
+			if scenario != "" {
+				toolChip(c, "scenario", "Scenario: "+scenario, "Manage scenario: "+scenario, layersIcon, a.openRules, func() {
+					a.selectRuleScenario("")
+					if a.ruleUI.problem != "" {
+						a.setMessage("Could not disable scenario: " + a.ruleUI.problem)
+					}
+				})
+			}
+			if a.upstream != "" {
+				toolChip(c, "upstream", "Upstream", "Edit upstream proxy settings", upstreamIcon, func() {
+					a.upstreamAddr, a.upstreamOpen = a.upstream, true
+				}, func() {
+					if a.srv != nil {
+						_ = a.srv.SetUpstream("")
+					}
+					a.upstream = ""
+				})
+			}
+		})
+	})
+}
+
+func toolChip(c *ui.Context, id, label, tip string, icon *ui.SVG, open, off func()) ui.Element {
+	t := c.Theme()
+	var body ui.Element
+	ui.Row(c.Key(id)).Height(heightCompact).AlignItems(ui.Center).Background(t.Background).Border(1, t.Border).Radius(radiusControl).Children(func() {
+		body = toolbarButton(c, "Active tool: "+label, tip, false).Height(heightCompact).Children(func() {
+			ui.Icon(c, icon).Size(iconInline, iconInline)
+			ui.Text(c, label).FontSize(textMeta).MaxWidth(180).SingleLine()
+		})
+		if open != nil {
+			body.OnClick(open)
+		}
+		iconButton(c, "Disable "+label, "Turn off "+label, closeIcon).OnClick(off)
+	})
+	return body
 }
 
 // moreMenu keeps the less frequent menus one step away without hiding them:
@@ -117,33 +217,10 @@ func (a *app) moreMenu(c *ui.Context, m *ui.Menu) {
 			a.openClientSetup()
 		}
 		a.desktopMenuItem(c, m, "websocket", "WebSocket session…")
-		if m.Item("No Caching").Checked(a.srv != nil && a.srv.NoCaching()).Disabled(a.srv == nil).Chosen() {
-			a.srv.SetNoCaching(!a.srv.NoCaching())
-		}
+		a.networkTools(m)
 		m.Separator()
 		if m.Item("Connect a device…").Checked(a.deviceUI.gateway != nil).Chosen() {
 			a.openDevices()
-		}
-		m.Separator()
-		for _, preset := range capture.Presets {
-			if m.Item(preset.Name).Checked(a.throttle.Name == preset.Name).Chosen() {
-				a.throttle = preset
-				if a.srv != nil {
-					a.srv.SetThrottle(preset)
-				}
-			}
-		}
-		m.Separator()
-		if m.Item("Upstream…").Chosen() {
-			a.upstreamAddr = a.upstream
-			a.upstreamOpen = true
-		}
-		if m.Item("Upstream off").Chosen() {
-			if a.srv != nil {
-				_ = a.srv.SetUpstream("")
-			}
-			a.upstream = ""
-			a.setMessage("Upstream: off")
 		}
 		m.Separator()
 		if m.Item("SSL proxying…").Chosen() {
@@ -306,8 +383,13 @@ func (a *app) footer(c *ui.Context, t *ui.Theme) {
 			if a.activeEnv != "" {
 				env = a.activeEnv + " environment"
 			}
-			text(env)
+			counts := fmt.Sprintf("%d requests", len(a.requests))
+			if len(a.requests) == 1 {
+				counts = "1 request"
+			}
+			text(counts)
 			ui.Spacer(c)
+			text(env)
 			if key := sendShortcut(); key != "" {
 				text(key + "  Send")
 			}
@@ -330,12 +412,6 @@ func (a *app) footer(c *ui.Context, t *ui.Theme) {
 		ui.Spacer(c)
 		if a.workspace != 0 {
 			return
-		}
-		if a.throttle.Name != "" && a.throttle.Name != "Off" {
-			text("Network: " + a.throttle.Name)
-		}
-		if a.upstream != "" {
-			text("Upstream: " + a.upstream)
 		}
 		view := a.views.activeView()
 		if view == nil || len(a.visible) == 0 {

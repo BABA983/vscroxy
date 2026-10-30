@@ -227,6 +227,15 @@ XDG_CACHE_HOME=/tmp/vscroxy-ui-cache VSCROXY_SNAPSHOTS="$PWD/.amp/in/artifacts/u
 - 命令面板、右键菜单、`⋯` 菜单、toast 统一样式。toast 依赖基础设施的通知层，在它完成前先统一现有消息条的样式。
 - 新品牌标识和 app 图标（4.10）。
 
+#### 阶段 2 实施记录（保留现有图标）
+
+- 标题栏改为 44px，工作区切换移到品牌旁，监听状态 pill 按整个窗口居中，左右分别避让平台窗口按钮；右侧保留命令面板、Tools、Settings 和更多入口。状态仍明确称为 Proxy running/stopped，不把监听误报为已验证的 HTTPS 录制，也没有提前加入 M1 暂停、M2 Host 或 M4 Tools 窗口。
+- 32px 已启用工具栏在两个工作区共享，无工具时不占空间；现有断点、限速、No Caching、Scenario 和上游代理均有编辑入口和独立关闭按钮。关闭直接更新原有配置；Scenario 必须保存成功后才更新运行配置，失败则保留 chip 并通知。上游 chip 不显示可能带凭据的地址。状态栏左侧统一计数，右侧保留 auto-follow、环境等上下文。Capture 和 Requests 内部布局不变。
+- app 自己构建的右键／菜单按钮统一使用 MyGo 的 `PopoverMenu`／`PopoverMenuButton`，由主题绘制；保留原有动作、快捷键、勾选、禁用和子菜单。系统应用菜单以及 MyGo 内建的编辑器／表头菜单仍由框架负责。命令面板接入 13/11 字号、32px 行高和焦点选中规范，列表视口显示完整行。
+- 现有通知实际上已使用 MyGo Toast，因而用 `ToastViewportBase`／`ToastBase` 统一外观：右下角 360px 中性卡片，最多三个，图标区分已有 Type，200ms 位移／淡入淡出并尊重减少动效。计时、悬停暂停、无障碍通知、动作和关闭仍由 MyGo 管理；不新增通知业务层，也不靠猜测消息文字分级。弹窗位于通知之上，保存按钮不会被通知遮住。
+- 截图矩阵扩展到浅深色共 76 张，新增工具栏、Tools／更多／子菜单、不可用命令和四类通知，工具栏也覆盖 960px。新菜单直接包含在 PNG 中，不再输出宿主截图和原生菜单清单；阶段 0 基线保持不变。新增测试覆盖左右原生按钮避让、通知动作／关闭，以及两个工作区关闭工具、重新开启和 Scenario 保存失败；Linux 真实窗口另检查指针、菜单、命令搜索、工作区切换和通知动作。macOS／Windows 的真实窗口仍待跨平台验收。
+- 按用户最新决定，保留现有 Route 品牌标识及 app 图标；不实施 A/B/C 新品牌方案，也不将新图标作为继续阶段 3 的前置条件。
+
 ### 阶段 3：Capture
 
 - **侧栏**：灰色单色图标、大写分组标题、计数对齐；Views 和 Investigations 的"+ ⋯"行和缩进不齐的条目改成规范的侧栏条目；底部的 Client setup、HTTPS rules 保留但改成同样的样式。
@@ -235,6 +244,16 @@ XDG_CACHE_HOME=/tmp/vscroxy-ui-cache VSCROXY_SNAPSHOTS="$PWD/.amp/in/artifacts/u
 - **Inspector**：一行头部（`POST /graphql`、状态 pill、耗时和大小、Replay、Copy cURL、`⋯`）；Request 和 Response 两个面板各自把标题和 tab 放在同一行；header 用只读 `kvGrid`；Pretty、格式菜单放在面板头右侧。上下分栏、左右分栏的布局选项保留。
 - **Body 视图**（`body.go`）、Timing、WebSocket/SSE 消息列表、CONNECT 连接视图、调试历史、对比视图：统一面板头和间距。
 - **空状态**：用 `emptyState`；没选中请求时，inspector 不再占半屏空白（收起或只显示一行提示）。
+
+#### 阶段 3 实施记录
+
+- Capture 工具栏合为 44px 一行，位于流量表格／Inspector 分栏之外；搜索、内嵌可移除条件、协议 segmented、筛选、断点、布局和更多入口并列。条件较多时在搜索框内横向滚动，不再新增条件行；全部条件仍按原有 AND／OR 语义工作。Images／HTML、保存筛选和 Debugging rules 保留在更多菜单。
+- 侧栏分组标题改为大写和 11px，计数使用等宽数字；Views 的新建入口改为带文字的条目，保存筛选入口保留在同行右侧；新建 Investigation、历史会话和底部连接入口的图标／文字左对齐。不重做 Investigations 看板，也不替换品牌图标。
+- 流量表格分开显示弱化的 Host 和主要 Path；保留 `#`、列拖动、列宽、隐藏列和自定义列。Path 沿用持久化 ID `url` 及原有完整 URL 排序，避免清掉用户保存的布局；新增 Host 列按主机名排序且可隐藏。正常 HTTP 状态显示圆点和状态码，Tunnel／Failed 不误称为 HTTP 成功。表格局部 `Spacing=3.5` 配合 16px 单行文本框实现 28px 行高；全局 Spacing 仍为 4，依赖未修改。
+- Inspector 摘要使用 method／path、状态、耗时／大小、Replay、Copy cURL 和更多菜单；完整 URL 保留在辅助标签和 tooltip。窄 Inspector 缩短状态并把 Copy 收为图标，历史入口移入更多菜单。Request／Response 各自的标题、tab 和格式菜单合到同一行；只读 Headers／Params 继续复用 `kvRow`，保留凭据遮盖、复制和筛选。底部、右侧、自适应和聚焦模式保留，宽度判断扣除实际侧栏。
+- Body、JSON／Hex、Timing、WS／SSE、CONNECT、调试历史和对比阅读器统一字级、控件和间距；CONNECT 标题与其 tabs 也合到同一行。完整内容、截断提示、消息过滤／暂停／导出及历史证据语义不变。空列表使用 `emptyState`，Inspector 仅留一行提示；搜索框不随分栏挂载变化，输入无匹配再恢复时保留焦点。
+- 验证：`go build ./...`、`go vet ./...`、`go tool mygo vet .`、`go test ./...` 和 `CGO_ENABLED=0 go test ./...` 通过。新增 UI 回归检查覆盖 960／1280px 单行工具栏、28px 行高、空结果恢复和菜单专属协议条件；原有选择、滚动、分栏、筛选、重放和列布局测试继续通过。
+- 浅／深色截图矩阵为 98 张，新增右侧 Inspector、无匹配、多选、CONNECT／失败、WS／SSE、Diff 和调试历史。16 张 Requests 截图与阶段 2 基线逐字节一致。Linux 原生窗口另录制并检查了指针悬停、协议键盘导航、搜索归零／恢复、重置、Headers／Raw／Timing、左右分栏和深色切换；未使用真实流量、用户配置或系统代理。macOS／Windows 原生窗口仍待跨平台验收。
 
 ### 阶段 4：Requests
 

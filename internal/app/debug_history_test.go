@@ -93,7 +93,7 @@ func TestDebugHistoryLinksExactSendsAndSurvivesRestartAndReusedIDs(t *testing.T)
 	}
 	tt.Frame()
 	click("Request options")
-	if err := tt.ChooseMenuItem("Send history"); err != nil {
+	if err := chooseMenu(tt, "Send history"); err != nil {
 		t.Fatal(err)
 	}
 	if !tt.HasText("Recorded interventions: Scenario · Empty account · Map Local") {
@@ -120,7 +120,7 @@ func TestDebugHistoryLinksExactSendsAndSurvivesRestartAndReusedIDs(t *testing.T)
 	a.requestDocument = a.documents[0]
 	tt.Frame()
 	click("Request options")
-	if err := tt.ChooseMenuItem("Send history"); err != nil {
+	if err := chooseMenu(tt, "Send history"); err != nil {
 		t.Fatal(err)
 	}
 	if tt.HasText("Experiment #3") || !tt.HasText("Experiment #1") || !tt.HasText("Experiment #2") || tt.HasText("Open linked draft 2") {
@@ -137,7 +137,7 @@ func TestDebugHistoryLinksExactSendsAndSurvivesRestartAndReusedIDs(t *testing.T)
 		t.Fatal("returning to the originating draft overwrote its unsent edits")
 	}
 	click("Request options")
-	if err := tt.ChooseMenuItem("Send history"); err != nil {
+	if err := chooseMenu(tt, "Send history"); err != nil {
 		t.Fatal(err)
 	}
 	click("Experiment #1")
@@ -155,7 +155,7 @@ func TestDebugHistoryLinksExactSendsAndSurvivesRestartAndReusedIDs(t *testing.T)
 	tt = ui.NewTester(b.view, 960, 600)
 	click("Request tab: Draft A")
 	click("Request options")
-	if err := tt.ChooseMenuItem("Send history"); err != nil {
+	if err := chooseMenu(tt, "Send history"); err != nil {
 		t.Fatal(err)
 	}
 	click("Experiment #1")

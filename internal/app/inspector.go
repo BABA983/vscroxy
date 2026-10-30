@@ -125,13 +125,15 @@ func (a *app) connectDetail(c *ui.Context, t *ui.Theme, f flow) {
 	if a.tab > 1 {
 		a.tab = 0
 	}
-	ui.Row(c).Height(40).Padding(0, 14).Gap(10).AlignItems(ui.Center).Children(func() {
+	ui.Row(c).Height(heightLarge).Padding(0, 12).Gap(8).AlignItems(ui.Center).Children(func() {
 		ui.Text(c, cmp.Or(f.process, "Unidentified client")).FontSize(textBody).Bold().SingleLine().Tooltip(f.processPath)
 		ui.Text(c, f.host).FontSize(textBody).Font(fontMono).TextColor(t.TextMuted).SingleLine().Tooltip(f.url)
 		if f.conn.error != "" {
 			ui.Text(c, cmp.Or(f.conn.errorStage, "Connection")+" failed").FontSize(textBody).TextColor(t.Danger)
 		}
-		ui.Spacer(c)
+		ui.ScrollHorizontal(c).Grow(1).FillHeight().Children(func() {
+			flatTabs(c, &a.tab, "", "HTTPS setup", "Connection")
+		})
 		explain := secondaryButton(c, "Explain").Tooltip("Explain the recorded connection failure")
 		if explain.Clicked() {
 			a.explainOpen = !a.explainOpen
@@ -144,7 +146,6 @@ func (a *app) connectDetail(c *ui.Context, t *ui.Theme, f flow) {
 		a.desktopButton(c, "focus", "Focus")
 	})
 	ui.Divider(c)
-	flatTabs(c, &a.tab, "", "HTTPS setup", "Connection").Padding(0, t.Space(3))
 	if a.tab == 1 {
 		a.connectionView(c, f)
 		return
@@ -157,43 +158,36 @@ func (a *app) connectDetail(c *ui.Context, t *ui.Theme, f flow) {
 func (a *app) inspectorSummary(c *ui.Context, t *ui.Theme, f flow, ok bool) {
 	// A narrow inspector keeps the name, the result and the one action that
 	// starts the next step; the rest stays in the overflow.
-	compact := a.inspectorWidth(c) < 1100
+	compact := a.inspectorWidth(c) < 600
 	ui.Row(c).Height(36).Padding(0, 12).Gap(8).AlignItems(ui.Center).Children(func() {
 		if !ok {
 			ui.Text(c, "No request chosen").FontSize(textBody).TextColor(t.TextMuted).Grow(1)
 			return
 		}
 		title := fmt.Sprintf("%s %s", f.method, cmp.Or(f.url, f.scheme+"://"+f.host+f.path))
-		ui.Text(c, title).FontSize(textTitle).Font(fontMono).TextColor(t.Text).SingleLine().MinWidth(80).Grow(1).Tooltip(title)
+		ui.Text(c, f.method+" "+cmp.Or(f.path, "/")).Label(title).FontSize(textBody).Font(fontMono).
+			TextColor(t.Text).SingleLine().MinWidth(48).Grow(1).Tooltip(title)
 		a.exchangeResult(c, t, f, compact)
 		// One action stands out: starting the edit-and-replay loop. Copying
 		// and history are quiet beside it.
 		for _, action := range a.requestActions(c, f, true) {
 			if action.id == "edit" {
-				primaryButton(c, "Edit & replay").Disabled(!action.enabled).Tooltip(action.hint()).OnClick(action.run)
+				primaryButton(c, "Replay").Label("Edit & replay").Disabled(!action.enabled).Tooltip(action.hint()).OnClick(action.run)
 			}
 		}
-		if !compact {
-			copy := toolbarButton(c, "Copy as cURL", "Copy as cURL", false)
-			if copy.Clicked() {
-				a.copyCurl(c, f)
-			}
-			copy.Children(func() {
-				ui.Icon(c, copyIcon).Size(iconInline, iconInline)
+		copy := toolbarButton(c, "Copy as cURL", "Copy as cURL", false).Padding(0, 4)
+		if copy.Clicked() {
+			a.copyCurl(c, f)
+		}
+		copy.Children(func() {
+			ui.Icon(c, copyIcon).Size(iconInline, iconInline)
+			if !compact {
 				ui.Text(c, "Copy as cURL").FontSize(textBody)
-			})
-		}
+			}
+		})
 		info := iconButton(c, "Connection details", "Connection: addresses, DNS and TLS", infoIcon)
 		info.OnClick(func() { a.connOpen = !a.connOpen })
 		ui.Popover(c, info, &a.connOpen, func() { a.connPanel(c, t, f) })
-		if !compact {
-			if toolbarButton(c, "Debug history", "Retained runs and linked drafts for this capture", false).Children(func() {
-				ui.Icon(c, sendHistoryIcon).Size(iconInline, iconInline)
-				ui.Text(c, "Debug history").FontSize(textBody)
-			}).Clicked() {
-				a.openDebugHistory(newDebugSource(f))
-			}
-		}
 		a.inspectorMenu(c, t, f)
 	})
 	ui.Divider(c)
@@ -244,7 +238,7 @@ func (a *app) exchangeResult(c *ui.Context, t *ui.Theme, f flow, compact bool) {
 // inspectorMenu holds the exchange-wide views and the layout choices, so the
 // default screen stays request beside response.
 func (a *app) inspectorMenu(c *ui.Context, t *ui.Theme, f flow) {
-	ui.MenuButton(c, "⋯", func(m *ui.Menu) {
+	ui.PopoverMenuButton(c, "⋯", func(m *ui.Menu) {
 		split := m.Item("Request & response").Checked(a.inspect.pane == inspectorSplit)
 		if split.Chosen() {
 			a.inspect.pane = inspectorSplit
@@ -268,6 +262,12 @@ func (a *app) inspectorMenu(c *ui.Context, t *ui.Theme, f flow) {
 		if m.Item("Connection details").Chosen() {
 			a.connOpen = !a.connOpen
 		}
+		if m.Item("Debug history").Chosen() {
+			a.openDebugHistory(newDebugSource(f))
+		}
+		if m.Item("Copy as cURL").Chosen() {
+			a.copyCurl(c, f)
+		}
 		m.Separator()
 		for _, action := range a.desktopActions(c) {
 			if action.id == "focus" || action.id == "layout-bottom" || action.id == "layout-right" || action.id == "layout-auto" {
@@ -281,14 +281,17 @@ func (a *app) inspectorMenu(c *ui.Context, t *ui.Theme, f flow) {
 				}
 			}
 		}
-	}).Label("Inspector options").Tooltip("Inspector options").Height(heightCompact).Padding(0, t.Space(2)).FontSize(textBody).TextColor(t.TextMuted).Border(0, t.Border)
+	}).
+		Label("Inspector options").Tooltip("Inspector options").Height(heightCompact).Padding(0, t.Space(2)).FontSize(textBody).TextColor(t.TextMuted).Border(0, t.Border)
 }
 
-// inspectorWidth is the room the inspector has, which is the window's when
-// it sits under the list and its share of the split when it sits beside it.
+// inspectorWidth is the main pane's width beneath the list, its share beside
+// the list, or the full window while the inspector is focused.
 func (a *app) inspectorWidth(c *ui.Context) float32 {
-	width, _ := c.Size()
-	if a.workbench.sideBySide {
+	width := a.contentWidth(c)
+	if a.workbench.focused {
+		width, _ = c.Size()
+	} else if a.workbench.sideBySide {
 		share := a.workbench.sidePercent
 		if share == 0 {
 			share = 64
@@ -370,10 +373,12 @@ func (a *app) paneTabs(c *ui.Context, t *ui.Theme, side string, selected *int, l
 			a.inspect.focus = bodySide
 		}
 		title.Children(func() { ui.Text(c, side).FontSize(textBody).FontWeight(600) })
-		ui.Spacer(c)
+		ui.ScrollHorizontal(c).Grow(1).FillHeight().Children(func() {
+			flatTabs(c, selected, side+" pane", labels...)
+		})
 		if *selected == bodyTab {
 			a.bodyFormatMenu(c, t, bodySide)
-			ui.MenuButton(c, "⋯", func(m *ui.Menu) {
+			ui.PopoverMenuButton(c, "⋯", func(m *ui.Menu) {
 				if m.Item("Find in text…").Chosen() {
 					if reader := a.bodyText[bodySide]; reader != nil {
 						reader.Run(editor.Find)
@@ -382,13 +387,11 @@ func (a *app) paneTabs(c *ui.Context, t *ui.Theme, side string, selected *int, l
 				if m.Item("Copy shown body").Chosen() {
 					a.copyPaneBody(c, bodySide)
 				}
-			}).Label(side+" pane options").Tooltip(side+" pane options").Height(heightCompact).Padding(0, t.Space(1)).FontSize(textBody).TextColor(t.TextMuted).Border(0, t.Border)
+			}).
+				Label(side+" pane options").Tooltip(side+" pane options").Height(heightCompact).Padding(0, t.Space(1)).FontSize(textBody).TextColor(t.TextMuted).Border(0, t.Border)
 		}
 	})
-	ui.ScrollHorizontal(c).Height(36).Padding(0, 8).
-		Border(0, t.Border).BorderWidth(0, 0, 1, 0).Children(func() {
-		flatTabs(c, selected, side+" pane", labels...)
-	})
+	ui.Divider(c)
 }
 
 // bodyFormatMenu shows and chooses the representation of one side's body.
@@ -414,14 +417,15 @@ func (a *app) bodyFormatMenu(c *ui.Context, t *ui.Theme, side int) {
 			shown = modes[resolved]
 		}
 	}
-	ui.MenuButton(c, shown, func(m *ui.Menu) {
+	ui.PopoverMenuButton(c, shown, func(m *ui.Menu) {
 		for i, name := range modes {
 			if m.Item(name).Checked(i == mode).Chosen() {
 				a.bodyMode[side] = i
 				a.bodyQuery[side] = ""
 			}
 		}
-	}).Label(bodyFormatLabel(side)).Height(heightControl).Padding(0, t.Space(2)).FontSize(textBody).Radius(radiusControl).TextColor(t.TextMuted).Border(1, t.Border)
+	}).
+		Label(bodyFormatLabel(side)).Height(heightControl).Padding(0, t.Space(2)).FontSize(textBody).Radius(radiusControl).TextColor(t.TextMuted).Border(1, t.Border)
 }
 
 // copyPaneBody copies exactly the bytes the pane shows, without formatting
@@ -448,7 +452,7 @@ func bodyFormatLabel(side int) string {
 
 // inspectorPaneBar names an exchange-wide view and gives the way back.
 func (a *app) inspectorPaneBar(c *ui.Context, t *ui.Theme, title, note string) {
-	ui.Row(c).Height(34).Padding(0, 8).Gap(8).AlignItems(ui.Center).Children(func() {
+	ui.Row(c).Height(heightLarge).Padding(0, 12).Gap(8).AlignItems(ui.Center).Children(func() {
 		if iconButton(c, "Back to request and response", "Request and response", backIcon).Clicked() {
 			a.inspect.pane = inspectorSplit
 		}
@@ -509,8 +513,10 @@ func (a *app) headersSide(c *ui.Context, f flow, side int) {
 				}
 				kvRow(c, func() {
 					ui.Text(c, key).FontSize(textBody).Font(fontMono).TextColor(t.TextMuted).Width(124).SingleLine().
-						Tooltip(strings.TrimSpace(key + "\n" + headerDoc(key))).ContextMenu(a.headerFilterMenu(c, key, headers[key]))
-					ui.Text(c, value).FontSize(textBody).Font(fontMono).TextColor(t.Text).Grow(1).Selectable().ContextMenu(a.headerFilterMenu(c, key, headers[key]))
+						Tooltip(strings.TrimSpace(key + "\n" + headerDoc(key))).PopoverMenu(
+						a.headerFilterMenu(c, key, headers[key]))
+
+					ui.Text(c, value).FontSize(textBody).Font(fontMono).TextColor(t.Text).Grow(1).Selectable().PopoverMenu(a.headerFilterMenu(c, key, headers[key]))
 				})
 				ui.Divider(c).Background(t.Border.Alpha(0.45))
 			}

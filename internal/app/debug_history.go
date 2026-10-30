@@ -98,56 +98,56 @@ func (a *app) debugDrafts(c *ui.Context) {
 	s := &a.experiments
 	if s.scope == nil {
 		if s.draftKey != "" {
-			ui.Text(c, "Only sends linked to this draft; never matched by URL.").FontSize(11).TextColor(c.Theme().TextMuted)
-			if ui.Button(c, "Show all experiments").FillWidth().Clicked() {
+			ui.Text(c, "Only sends linked to this draft; never matched by URL.").FontSize(textMeta).TextColor(c.Theme().TextMuted)
+			if secondaryButton(c, "Show all experiments").FillWidth().Clicked() {
 				s.draftKey = ""
 			}
 			ui.Divider(c)
 		}
 		return
 	}
-	ui.Text(c, fmt.Sprintf("Source snapshot · Capture #%d", s.scope.Exchange.ID)).FontSize(12).Bold()
-	ui.Text(c, "Only explicitly linked drafts and retained runs; never matched by URL.").FontSize(10).TextColor(c.Theme().TextMuted)
+	ui.Text(c, fmt.Sprintf("Source snapshot · Capture #%d", s.scope.Exchange.ID)).FontSize(textBody).FontFeatures("tnum").Bold()
+	ui.Text(c, "Only explicitly linked drafts and retained runs; never matched by URL.").FontSize(textMeta).TextColor(c.Theme().TextMuted)
 	index := slices.IndexFunc(a.flows, func(f flow) bool { return f.debugKey == s.scope.Key })
-	if ui.Button(c, "Inspect source capture").FillWidth().Disabled(index < 0).Clicked() {
+	if secondaryButton(c, "Inspect source capture").FillWidth().Disabled(index < 0).Clicked() {
 		s.open = false
 		a.inspectCapture(a.flows[index].id)
 	}
 	if index < 0 {
-		ui.Text(c, "Original capture unavailable; snapshot retained.").FontSize(10).TextColor(c.Theme().TextMuted)
+		ui.Text(c, "Original capture unavailable; snapshot retained.").FontSize(textMeta).TextColor(c.Theme().TextMuted)
 	}
-	if ui.Button(c, "Show all experiments").FillWidth().Clicked() {
+	if secondaryButton(c, "Show all experiments").FillWidth().Clicked() {
 		s.scope, s.draftKey = nil, ""
 	}
 	ui.Divider(c)
-	ui.Text(c, "Open drafts").FontSize(12).Bold()
+	ui.Text(c, "Open drafts").FontSize(textBody).Bold()
 	n := 0
 	for _, d := range a.documents {
 		if d.origin == nil || s.scope == nil || d.origin.Key != s.scope.Key {
 			continue
 		}
 		n++
-		if ui.Button(c, d.title()).Label(fmt.Sprintf("Open linked draft %d", n)).FillWidth().Tooltip(d.composeMethod + " " + d.composeURL).Clicked() {
+		if secondaryButton(c, d.title()).Label(fmt.Sprintf("Open linked draft %d", n)).FillWidth().Tooltip(d.composeMethod + " " + d.composeURL).Clicked() {
 			a.requestDocument, a.requestChoice, a.workspace = d, d.savedKey, 1
 			d.revealTab, s.open = true, false
 			d.urlInput.Focus()
 		}
 	}
 	if n == 0 {
-		ui.Text(c, "No open drafts for this source.").FontSize(11)
+		ui.Text(c, "No open drafts for this source.").FontSize(textMeta)
 	}
 	ui.Divider(c)
-	ui.Text(c, "Retained experiments").FontSize(12).Bold()
+	ui.Text(c, "Retained experiments").FontSize(textBody).Bold()
 }
 
 func (a *app) debugWire(c *ui.Context, r experimentRecord) {
 	s := &a.experiments
 	if r.RunKey == "" {
-		ui.Text(c, "Legacy run · wire provenance was not recorded.").FontSize(10).TextColor(c.Theme().TextMuted)
+		ui.Text(c, "Legacy run · wire provenance was not recorded.").FontSize(textMeta).TextColor(c.Theme().TextMuted)
 		return
 	}
 	if len(r.Wire) == 0 {
-		ui.Text(c, "No wire evidence retained yet; no rule outcome can be inferred.").FontSize(10).TextColor(c.Theme().TextMuted)
+		ui.Text(c, "No wire evidence retained yet; no rule outcome can be inferred.").FontSize(textMeta).TextColor(c.Theme().TextMuted)
 		return
 	}
 	options := make([]string, len(r.Wire))
@@ -156,7 +156,8 @@ func (a *app) debugWire(c *ui.Context, r experimentRecord) {
 	}
 	s.wire = min(s.wire, len(options)-1)
 	choice := options[s.wire]
-	if ui.Select(c, &choice, options).Label("Recorded wire exchange").FillWidth().Changed() {
+	if ui.Select(c, &choice, options).Label("Recorded wire exchange").FillWidth().
+		Height(heightControl).FontSize(textBody).Radius(radiusControl).Changed() {
 		s.wire = slices.Index(options, choice)
 	}
 	wire := r.Wire[s.wire]
@@ -164,13 +165,13 @@ func (a *app) debugWire(c *ui.Context, r experimentRecord) {
 	if len(wire.Actions) > 0 {
 		effects = strings.Join(wire.Actions, " · ")
 	}
-	ui.Text(c, "Recorded interventions: "+effects).FontSize(11).SingleLine().Tooltip(effects)
-	ui.Text(c, "Wire evidence, not current rules. Redirect hops stay separate; source comparison uses the client result.").FontSize(10).TextColor(c.Theme().TextMuted)
+	ui.Text(c, "Recorded interventions: "+effects).FontSize(textBody).SingleLine().Tooltip(effects)
+	ui.Text(c, "Wire evidence, not current rules. Redirect hops stay separate; source comparison uses the client result.").FontSize(textMeta).TextColor(c.Theme().TextMuted)
 }
 
 func (s *experimentWorkbench) compareSource(c *ui.Context, r experimentRecord) {
 	if r.Source == nil {
-		ui.Text(c, "This run has no recorded capture source.").FontSize(12)
+		ui.Text(c, "This run has no recorded capture source.").FontSize(textBody)
 		return
 	}
 	left, right := investigationFlow(r.Source.Exchange), r.compared("")

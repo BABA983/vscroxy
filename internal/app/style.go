@@ -1,6 +1,10 @@
 package app
 
-import "github.com/egoist/mygo/ui"
+import (
+	"strings"
+
+	"github.com/egoist/mygo/ui"
+)
 
 // Shared metrics. Container geometry stays with each screen; these describe
 // controls, not a new layout for the shell or inspector.
@@ -91,10 +95,86 @@ func sidebarItem(c *ui.Context, id string, icon *ui.SVG, label string, chosen bo
 	return item
 }
 
+func sidebarSection(c *ui.Context, title string, open *bool, content func()) {
+	t := c.Theme()
+	sectionTheme := *t
+	sectionTheme.FontSize = textMeta + 1 // SidebarSection uses FontSize - 1.
+	c.SetTheme(&sectionTheme)
+	ui.SidebarSection(c, strings.ToUpper(title), open, func() {
+		c.SetTheme(t)
+		content()
+	}).Margin(8, 0, 0, 0)
+	c.SetTheme(t)
+}
+
+func emptyState(c *ui.Context, title, hint string, actions func()) {
+	t := c.Theme()
+	ui.Column(c).Fill().Center().Padding(24).Gap(8).Children(func() {
+		ui.Icon(c, trafficIcon).Size(24, 24).TextColor(t.TextMuted).Margin(0, 0, 8, 0)
+		ui.Text(c, title).FontSize(textTitle).TextColor(t.Text)
+		ui.Text(c, hint).FontSize(textBody).TextColor(t.TextMuted)
+		if actions != nil {
+			actions()
+		}
+	})
+}
+
 // Read-only key/value rows preserve wrapping and existing value actions.
-// The editable request grid and merged pane headers arrive with their layouts.
 func kvRow(c *ui.Context, content func()) ui.Element {
 	t := c.Theme()
 	return ui.Row(c).Gap(t.Space(3)).Padding(t.Space(1), t.Space(3)).
 		MinHeight(heightControl).AlignItems(ui.Start).FillWidth().Children(content)
+}
+
+// Only the look is ours: MyGo owns announcements, timeouts, pause-on-hover,
+// the three-toast limit, action dispatch and keyboard dismissal.
+func appToasts(c *ui.Context) {
+	t := c.Theme()
+	width, _ := c.Size()
+	ui.ToastViewportBase(c, func(viewport ui.Element, toasts []ui.Toast) {
+		viewport.Padding(t.Space(4)).AlignItems(ui.End).Gap(t.Space(2))
+		for _, toast := range toasts {
+			icon, color := infoIcon, t.TextMuted
+			switch toast.Type {
+			case "success":
+				icon, color = successIcon, t.Success
+			case "warning":
+				icon, color = warningIcon, t.Warning
+			case "error":
+				icon, color = errorIcon, t.Danger
+			}
+			parts := ui.ToastBase(c, toast)
+			parts.Root.Row().Width(min(360, width-32)).Gap(t.Space(3)).Padding(t.Space(3)).
+				AlignItems(ui.Start).Radius(radiusPanel).Background(t.Background).Border(1, t.Border).
+				Shadow(0, 6, 20, 0, ui.RGBA(0, 0, 0, 0.18)).
+				Transition(ui.ElementTransition{Enter: &ui.Motion{Y: 8}, Exit: &ui.Motion{Y: 4}}).
+				Children(func() {
+					ui.Icon(c, icon).Size(iconLarge, iconLarge).TextColor(color)
+					ui.Column(c).Grow(1).MinWidth(0).Gap(t.Space(2)).Children(func() {
+						ui.Text(c, toast.Title).FontSize(textBody).TextColor(t.Text)
+						if toast.Description != "" {
+							ui.Text(c, toast.Description).FontSize(textMeta).TextColor(t.TextMuted)
+						}
+						if toast.Action != "" {
+							b := parts.ActionButton().Label(toast.Action).Height(heightControl).Padding(0, t.Space(2)).
+								Radius(radiusControl).Border(1, t.Border).TextColor(t.Text).AlignItems(ui.Center)
+							if b.Pressed() {
+								b.Background(t.SurfacePressed)
+							} else if b.Hovered() {
+								b.Background(t.SurfaceHover)
+							}
+							b.Children(func() { ui.Text(c, toast.Action).FontSize(textBody) })
+						}
+					})
+					close := parts.CloseButton().Label("Dismiss notification").Tooltip("Dismiss notification").
+						Size(heightCompact, heightCompact).Radius(radiusControl).Center().TextColor(t.TextMuted)
+					if close.Pressed() {
+						close.Background(t.SurfacePressed)
+					} else if close.Hovered() {
+						close.Background(t.SurfaceHover)
+					}
+					close.Children(func() { ui.Icon(c, closeIcon).Size(iconInline, iconInline) })
+				})
+		}
+	})
 }

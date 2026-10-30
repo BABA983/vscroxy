@@ -473,7 +473,7 @@ func TestCollectionSettingsGiveRequestsTheirAuth(t *testing.T) {
 	if err := tt.RightClick("List projects"); err != nil {
 		t.Fatal(err)
 	}
-	if err := tt.ChooseMenuItem("Folder “API” settings…"); err != nil {
+	if err := chooseMenu(tt, "Folder “API” settings…"); err != nil {
 		t.Fatal(err)
 	}
 	if !tt.HasText("Folder · Workspace/API") {
@@ -613,7 +613,7 @@ func TestRenamingAFolderFromItsSettings(t *testing.T) {
 	if err := tt.RightClick("List projects"); err != nil {
 		t.Fatal(err)
 	}
-	if err := tt.ChooseMenuItem("Folder “API” settings…"); err != nil {
+	if err := chooseMenu(tt, "Folder “API” settings…"); err != nil {
 		t.Fatal(err)
 	}
 	if err := tt.Click("Folder name"); err != nil {

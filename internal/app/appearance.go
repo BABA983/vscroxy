@@ -42,6 +42,12 @@ var (
 	moreIcon        = lucide.Ellipsis()
 	chevronIcon     = lucide.ChevronDown()
 	exampleIcon     = lucide.BookmarkPlus()
+	toolsIcon       = lucide.Wrench()
+	networkIcon     = lucide.Gauge()
+	cacheIcon       = lucide.ArchiveX()
+	upstreamIcon    = lucide.Network()
+	successIcon     = lucide.CircleCheck()
+	warningIcon     = lucide.TriangleAlert()
 )
 
 // appTheme is one neutral, flat palette for both workspaces: quiet chrome,

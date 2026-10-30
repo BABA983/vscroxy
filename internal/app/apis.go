@@ -282,13 +282,14 @@ func (a *app) apiGenerationModal(c *ui.Context, t *ui.Theme) {
 		ui.Column(c).Width(520).Gap(16).Children(func() {
 			dialogTitle(c, "Generate OpenAPI draft")
 			ui.Text(c, "Choose a saved collection. Unsaved request tabs are not included.").FontSize(12).TextColor(t.TextMuted)
-			ui.MenuButton(c, cmp.Or(a.apiCollection, "Saved (ungrouped)"), func(m *ui.Menu) {
+			ui.PopoverMenuButton(c, cmp.Or(a.apiCollection, "Saved (ungrouped)"), func(m *ui.Menu) {
 				for _, name := range slices.Sorted(maps.Keys(groupRequests(a.requests))) {
 					if m.Item(cmp.Or(name, "Saved (ungrouped)")).Checked(name == a.apiCollection).Chosen() {
 						a.apiCollection = name
 					}
 				}
-			}).Label("Source collection").FillWidth()
+			}).
+				Label("Source collection").FillWidth()
 			ui.Text(c, "Header/query/body values and scripts are omitted. Paths remain literal. Authentication, types and response schemas need review. This creates a new specification; existing ones are never overwritten.").FontSize(12).TextColor(t.TextMuted)
 			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
 				if ui.Button(c, "Cancel").Clicked() {

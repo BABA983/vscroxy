@@ -946,17 +946,17 @@ func (v *captureViews) sidebar(c *ui.Context, t *ui.Theme, a *app) {
 				})
 			})
 		}
-		// Create and manage live in one compact row under the views, so the
-		// list itself is what the section shows first.
-		ui.Row(c).Gap(2).Padding(0, 4, 0, 2).Children(func() {
-			if iconButton(c, "New view", "A new view with its own filters, selection and scroll position", plusIcon).Clicked() {
+		ui.Row(c).FillWidth().AlignItems(ui.Center).Children(func() {
+			if toolbarButton(c, "New view", "A new view with its own filters, selection and scroll position", false).Grow(1).Justify(ui.Start).Children(func() {
+				ui.Icon(c, plusIcon).Size(iconInline, iconInline)
+				ui.Text(c, "New view").FontSize(textBody)
+			}).Clicked() {
 				v.capture(a)
 				v.newView(a)
 			}
-			if iconButton(c, "Saved filters…", "Save current conditions, apply, rename or delete a saved filter", moreIcon).Clicked() {
+			if iconButton(c, "Saved filters…", "Save current conditions, apply, rename or delete a saved filter", filterIcon).Margin(0, 8, 0, 0).Clicked() {
 				v.openSaved(a)
 			}
-			ui.Spacer(c)
 		})
 		if len(v.filters) > 0 {
 			ui.Text(c, "SAVED FILTERS").FontSize(textMeta).LetterSpacing(0.5).Bold().TextColor(t.TextMuted).Padding(12, 8, 4, 8)

@@ -1137,6 +1137,7 @@ func (a *app) view(c *ui.Context) {
 	a.syncSections()
 	ui.Column(c).Bind(&a.workbench.content).Focusable().AutoFocus().Fill().Background(t.Background).Children(func() {
 		a.shell(c, t)
+		a.activeTools(c, t)
 		if a.srv == nil && a.errText != "" {
 			ui.Text(c, "Proxy unavailable · "+a.errText+" · Local requests remain available").Padding(8, 12).FontSize(12).TextColor(t.Danger)
 		}
@@ -1156,12 +1157,14 @@ func (a *app) view(c *ui.Context) {
 				ui.Text(c, "Original files left untouched. Repair or move the affected file aside, then reload. Other local assets remain usable.").FontSize(11).TextColor(t.TextMuted)
 			})
 		}
-		a.desktopContent(c)
-		a.footer(c, t)
+		a.desktopContent(c.Key("workspace-content"))
+		a.footer(c.Key("workspace-footer"), t)
 	})
 	a.persistSettings()
 	a.board.persist()
 	a.checkpointExperiments(c)
+	// Dialogs keep their input and actions above background notifications.
+	appToasts(c)
 	a.commandPalette(c)
 	appModal(c, &a.clearOpen, func() {
 		ui.Column(c).Width(360).Gap(12).Children(func() {
@@ -1368,7 +1371,7 @@ func (a *app) sidebar(c *ui.Context) {
 	}
 	ui.Column(c).Fill().Background(t.Surface).Children(func() {
 		chosen := ui.Sidebar(c, &a.sidebarChoice, func() {
-			ui.SidebarSection(c, "Traffic", &a.trafficOpen, func() {
+			sidebarSection(c, "Traffic", &a.trafficOpen, func() {
 				sidebarItem(c, "all", trafficIcon, "All requests", a.sidebarChoice == "all").Children(func() {
 					ui.Text(c, fmt.Sprint(len(a.flows))).FontSize(textMeta).FontFeatures("tnum").TextColor(t.TextMuted)
 				})
@@ -1383,11 +1386,11 @@ func (a *app) sidebar(c *ui.Context) {
 				ui.Text(c, fmt.Sprint(a.count(func(f flow) bool { return f.pinned }))).FontSize(textMeta).FontFeatures("tnum").TextColor(t.TextMuted)
 			})
 			if len(a.clients) > 0 {
-				ui.SidebarSection(c, "Apps", &a.clientsOpen, func() {
+				sidebarSection(c, "Apps", &a.clientsOpen, func() {
 					for _, d := range a.clients {
 						apps := a.capturedApps(d.name)
-						sidebarItem(c, "client:"+d.name, appIcon, d.name, a.sidebarChoice == "client:"+d.name).
-							ContextMenu(func(m *ui.Menu) {
+						sidebarItem(c, "client:"+d.name, appIcon, d.name, a.sidebarChoice == "client:"+d.name).PopoverMenu(
+							func(m *ui.Menu) {
 								if len(apps) == 1 {
 									a.appInspectionMenu(m, apps[0])
 								} else {
@@ -1415,31 +1418,31 @@ func (a *app) sidebar(c *ui.Context) {
 								if slices.ContainsFunc(apps, func(app capture.SSLApp) bool { return a.appInspectionEnabled(app.Path) }) {
 									ui.Icon(c, lockIcon).Size(12, 12).Tooltip("An exact executable rule is enabled; client CA trust is still required")
 								}
-								ui.Text(c, fmt.Sprint(d.n)).FontSize(11).TextColor(t.TextMuted)
+								ui.Text(c, fmt.Sprint(d.n)).FontSize(textMeta).FontFeatures("tnum").TextColor(t.TextMuted)
 							})
 					}
-				}).Margin(8, 0, 0, 0)
+				})
 			}
-			ui.SidebarSection(c, "Domains", &a.domainsOpen, func() {
+			sidebarSection(c, "Domains", &a.domainsOpen, func() {
 				for _, d := range a.domains {
 					sidebarItem(c, "host:"+d.name, domainIcon, d.name, a.sidebarChoice == "host:"+d.name).Children(func() {
 						if a.filterTriage.Host == d.name {
 							ui.Text(c, "✓").FontSize(11).TextColor(t.Accent).Tooltip("Host filter is active; remove it in the condition bar")
 						}
-						ui.Text(c, fmt.Sprint(d.n)).FontSize(11).TextColor(t.TextMuted)
+						ui.Text(c, fmt.Sprint(d.n)).FontSize(textMeta).FontFeatures("tnum").TextColor(t.TextMuted)
 					})
 				}
-			}).Margin(8, 0, 0, 0)
-			ui.SidebarSection(c, "Views", nil, func() {
+			})
+			sidebarSection(c, "Views", nil, func() {
 				a.views.sidebar(c, t, a)
-			}).Margin(8, 0, 0, 0)
-			ui.SidebarSection(c, "Investigations", nil, func() {
+			})
+			sidebarSection(c, "Investigations", nil, func() {
 				for _, inv := range a.board.items {
 					sidebarItem(c, "investigation:"+inv.ID, layersIcon, inv.Title, a.sidebarChoice == "investigation:"+inv.ID).Children(func() {
-						ui.Text(c, fmt.Sprint(len(inv.Items))).FontSize(11).TextColor(t.TextMuted)
+						ui.Text(c, fmt.Sprint(len(inv.Items))).FontSize(textMeta).FontFeatures("tnum").TextColor(t.TextMuted)
 					})
 				}
-				if toolbarButton(c, "New investigation", "Create an investigation, then add captures from their inspectors to keep evidence", false).FillWidth().Children(func() {
+				if toolbarButton(c, "New investigation", "Create an investigation, then add captures from their inspectors to keep evidence", false).FillWidth().Justify(ui.Start).Children(func() {
 					ui.Icon(c, plusIcon).Size(iconInline, iconInline)
 					ui.Text(c, "New investigation").FontSize(textBody)
 				}).Clicked() {
@@ -1447,13 +1450,13 @@ func (a *app) sidebar(c *ui.Context) {
 					a.board.list = ui.ListState{}
 					a.captureSection = 1
 				}
-				if toolbarButton(c, "Historical sessions…", "Read saved sessions and exported evidence, read-only", false).FillWidth().Children(func() {
+				if toolbarButton(c, "Historical sessions…", "Read saved sessions and exported evidence, read-only", false).FillWidth().Justify(ui.Start).Children(func() {
 					ui.Icon(c, clockIcon).Size(iconInline, iconInline)
 					ui.Text(c, "Historical sessions…").FontSize(textBody)
 				}).Clicked() {
 					a.investigations.show()
 				}
-			}).Margin(8, 0, 0, 0)
+			})
 		}).Grow(1)
 		if chosen.Changed() {
 			if id, ok := strings.CutPrefix(a.sidebarChoice, "investigation:"); ok {
@@ -1655,19 +1658,17 @@ func (a *app) count(match func(flow) bool) int {
 func (a *app) table(c *ui.Context) {
 	t := c.Theme()
 	if len(a.visible) == 0 {
-		ui.Column(c).Fill().Center().Gap(8).Children(func() {
-			if len(a.flows) > 0 {
-				note, failure := a.views.status()
-				title := "No matching requests"
-				hint := fmt.Sprintf("%d captured requests are hidden by this view's search or filters.", len(a.flows))
-				if note != "" {
-					title, hint = "Searching captured bodies…", "Results are not final until the body search finishes."
-					if failure {
-						title, hint = "No matches in searchable traffic", "Some bodies could not be searched in full; matches may be missing."
-					}
+		if len(a.flows) > 0 {
+			note, failure := a.views.status()
+			title := "No matching requests"
+			hint := fmt.Sprintf("%d captured requests are hidden by this view's search or filters.", len(a.flows))
+			if note != "" {
+				title, hint = "Searching captured bodies…", "Results are not final until the body search finishes."
+				if failure {
+					title, hint = "No matches in searchable traffic", "Some bodies could not be searched in full; matches may be missing."
 				}
-				ui.Text(c, title).FontSize(textTitle).TextColor(t.Text)
-				ui.Text(c, hint).FontSize(textBody).TextColor(t.TextMuted)
+			}
+			emptyState(c, title, hint, func() {
 				ui.Text(c, "All conditions must match. Remove a condition above or edit the filters.").FontSize(textBody).TextColor(t.TextMuted)
 				if note != "" {
 					color := t.TextMuted
@@ -1682,16 +1683,15 @@ func (a *app) table(c *ui.Context) {
 				if secondaryButton(c, "Show all requests").Clicked() {
 					a.views.resetFilters(a)
 				}
-				return
-			}
-			running := a.srv != nil && a.srv.Running()
-			if running {
-				ui.Text(c, "Connect a client to start capturing").FontSize(textTitle).TextColor(t.Text)
-				ui.Text(c, "Listening at "+a.srv.Addr()+" · no retained requests yet").FontSize(textBody).TextColor(t.TextMuted)
-			} else {
-				ui.Text(c, "Capture is stopped").FontSize(textTitle).TextColor(t.Text)
-				ui.Text(c, "Check the listener before configuring a client.").FontSize(textBody).TextColor(t.TextMuted)
-			}
+			})
+			return
+		}
+		running := a.srv != nil && a.srv.Running()
+		title, hint := "Capture is stopped", "Check the listener before configuring a client."
+		if running {
+			title, hint = "Connect a client to start capturing", "Listening at "+a.srv.Addr()+" · no retained requests yet"
+		}
+		emptyState(c, title, hint, func() {
 			ui.Row(c).Gap(8).Wrap().Justify(ui.Center).Children(func() {
 				if secondaryButton(c, "Set up a local client…").Disabled(!running).Clicked() {
 					a.openClientSetup()
@@ -1711,10 +1711,12 @@ func (a *app) table(c *ui.Context) {
 	}
 	cols := []ui.TableColumn{
 		{ID: "id", Title: "#", Width: 48, Sortable: true},
-		{ID: "url", Title: "URL", MinWidth: 200, Sortable: true},
-		{ID: "method", Title: "Method", Width: 80, Sortable: true},
-		{ID: "client", Title: "Client", Width: 132, Sortable: true},
 		{ID: "status", Title: "Status", Width: 78, Sortable: true},
+		{ID: "method", Title: "Method", Width: 76, Sortable: true},
+		{ID: "host", Title: "Host", Width: 160, Sortable: true},
+		// Keep the URL identity and sorting so saved column layouts survive.
+		{ID: "url", Title: "Path", MinWidth: 160, Sortable: true},
+		{ID: "client", Title: "Client", Width: 132, Sortable: true},
 		{ID: "duration", Title: "Duration", Width: 84, Align: ui.End, Sortable: true},
 		{ID: "size", Title: "Size", Width: 78, Align: ui.End, Sortable: true},
 		{ID: "captured", Title: "Time", Width: 84, Sortable: true},
@@ -1730,8 +1732,9 @@ func (a *app) table(c *ui.Context) {
 	// A narrow list keeps what identifies a request and what it returned;
 	// the columns that only repeat the inspector's numbers give way.
 	if available < 900 {
-		cols[3].Width = 100
-		cols = slices.Delete(cols, 6, 8)
+		cols[3].Width = 132
+		cols[5].Width = 100
+		cols = slices.DeleteFunc(cols, func(col ui.TableColumn) bool { return col.ID == "size" || col.ID == "captured" })
 	}
 	if available < 700 {
 		cols = slices.DeleteFunc(cols, func(col ui.TableColumn) bool { return col.ID == "client" })
@@ -1757,6 +1760,9 @@ func (a *app) table(c *ui.Context) {
 	}
 	focused := state.Handle.Focused(c)
 	selectionTheme := *t
+	// Table's built-in row minimum is eight spacing units. Scope the 3.5px
+	// unit here only: 28px rows without shrinking the rest of the application.
+	selectionTheme.Spacing = 3.5
 	if !focused {
 		selectionTheme.Accent = t.Accent.Alpha(0.12)
 		selectionTheme.AccentText = t.Text
@@ -1765,12 +1771,16 @@ func (a *app) table(c *ui.Context) {
 	table := ui.Table(c, state, cols, len(a.visible), func(row, col int) {
 		f := a.flows[a.visible[row]]
 		chosen := a.chosen.Has(f.id) && focused
-		text := func(s string) ui.Element { return ui.Text(c, s).FontSize(textBody).FontFeatures("tnum").SingleLine() }
+		text := func(s string) ui.Element {
+			return ui.Text(c, s).FontSize(textBody).Height(16).FontFeatures("tnum").SingleLine()
+		}
 		switch cols[col].ID {
 		case "id":
 			text(fmt.Sprint(f.id)).Font(fontMono).TextColor(rowColor(chosen, t, t.TextMuted))
 		case "method":
-			methodLabel(c, f.method).TextColor(rowColor(chosen, t, methodColor(f.method, t))).Tooltip(f.method).ContextMenu(a.rowMenu(c, f))
+			methodLabel(c, f.method).Height(16).TextColor(rowColor(chosen, t, methodColor(f.method, t))).Tooltip(f.method).PopoverMenu(a.rowMenu(c, f))
+		case "host":
+			text(f.host).TextColor(rowColor(chosen, t, t.TextMuted)).Tooltip(f.url).PopoverMenu(a.rowMenu(c, f))
 		case "url":
 			if f.pinned {
 				ui.Icon(c, pinIcon).Size(11, 11).MarginEnd(4).TextColor(rowColor(chosen, t, t.TextMuted))
@@ -1780,11 +1790,7 @@ func (a *app) table(c *ui.Context) {
 					ui.Box(c).Size(8, 8).Radius(4).Background(dot).MarginEnd(5)
 				}
 			}
-			scheme := t.TextMuted
 			rest := rowColor(chosen, t, t.Text)
-			if chosen {
-				scheme = t.AccentText
-			}
 			ui.Row(c).Gap(1).Children(func() {
 				if f.kind == "connect" {
 					ui.Icon(c, lockIcon).Size(11, 11).TextColor(rest).MarginEnd(5).Tooltip("Encrypted tunnel; CONNECT success is not a decrypted response")
@@ -1799,16 +1805,16 @@ func (a *app) table(c *ui.Context) {
 							ui.Text(c, "DNS").FontSize(textMeta).Bold().TextColor(rowColor(chosen, t, t.Warning))
 						})
 				}
-				text(f.scheme + "://").Font(fontMono).Shrink(0).TextColor(scheme).ContextMenu(a.rowMenu(c, f))
-				text(f.host + f.path).Font(fontMono).TextColor(rest).Tooltip(f.url).ContextMenu(a.rowMenu(c, f))
+				text(cmp.Or(f.path, "/")).Label(f.host + f.path).TextColor(rest).Tooltip(f.url).PopoverMenu(a.rowMenu(c, f))
 			})
 		case "status":
 			if f.conn.error != "" {
-				text("Failed").TextColor(rowColor(chosen, t, t.Danger)).Tooltip(f.conn.errorStage + ": " + f.conn.error).ContextMenu(a.rowMenu(c, f))
+				text("Failed").TextColor(rowColor(chosen, t, t.Danger)).Tooltip(f.conn.errorStage + ": " + f.conn.error).PopoverMenu(a.rowMenu(c, f))
 			} else if f.kind == "connect" {
-				text("Tunnel").TextColor(rowColor(chosen, t, t.TextMuted)).Tooltip(fmt.Sprintf("CONNECT %d · encrypted tunnel, not an HTTP response", f.status)).ContextMenu(a.rowMenu(c, f))
+				text("Tunnel").TextColor(rowColor(chosen, t, t.TextMuted)).Tooltip(fmt.Sprintf("CONNECT %d · encrypted tunnel, not an HTTP response", f.status)).PopoverMenu(a.rowMenu(c, f))
 			} else {
-				text(fmt.Sprint(f.status)).TextColor(rowColor(chosen, t, f.statusColor(t))).ContextMenu(a.rowMenu(c, f))
+				ui.Box(c).Size(5, 5).Radius(3).Background(rowColor(chosen, t, f.statusColor(t))).MarginEnd(6)
+				text(fmt.Sprint(f.status)).TextColor(rowColor(chosen, t, f.statusColor(t))).PopoverMenu(a.rowMenu(c, f))
 			}
 		case "client":
 			if src, ok := a.clientIcon(f.process, f.processPath); ok {
@@ -1816,7 +1822,7 @@ func (a *app) table(c *ui.Context) {
 			} else {
 				clientBadge(c, f.process)
 			}
-			text(f.process).Padding(0, 0, 0, 6).ContextMenu(a.rowMenu(c, f)).TextColor(rowColor(chosen, t, t.TextMuted))
+			text(f.process).Padding(0, 0, 0, 6).PopoverMenu(a.rowMenu(c, f)).TextColor(rowColor(chosen, t, t.TextMuted))
 		case "duration":
 			text(fmt.Sprintf("%d ms", f.millis)).TextColor(rowColor(chosen, t, t.TextMuted))
 		case "size":
@@ -1839,7 +1845,7 @@ func (a *app) table(c *ui.Context) {
 			}
 			cell := text(value).TextColor(rowColor(chosen, t, t.Text)).Tooltip(value)
 			if cc.header() {
-				cell.ContextMenu(a.headerFilterMenu(c, cc.Name, []string{value}))
+				cell.PopoverMenu(a.headerFilterMenu(c, cc.Name, []string{value}))
 			}
 		}
 	}).Label("Captured requests").Grow(1)
@@ -1977,20 +1983,20 @@ func (a *app) connectionView(c *ui.Context, f flow) {
 	t := c.Theme()
 	ui.Row(c).Padding(8, 12).Gap(8).Children(func() {
 		if f.conn.error != "" {
-			ui.Text(c, cmp.Or(f.conn.errorStage, "Connection")+" failed").FontSize(12).TextColor(t.Danger).Grow(1)
+			ui.Text(c, cmp.Or(f.conn.errorStage, "Connection")+" failed").FontSize(textBody).TextColor(t.Danger).Grow(1)
 		} else {
-			ui.Text(c, "Connection log · snapshot at capture time").FontSize(12).TextColor(t.TextMuted).Grow(1)
+			ui.Text(c, "Connection log · snapshot at capture time").FontSize(textBody).TextColor(t.TextMuted).Grow(1)
 		}
-		if ui.Button(c, "Copy connection log").Disabled(f.conn.log == "").Clicked() {
+		if secondaryButton(c, "Copy connection log").Height(heightCompact).Disabled(f.conn.log == "").Clicked() {
 			c.Services().WriteClipboard(f.conn.log)
 			a.setMessage("Copied connection log")
 		}
 	})
 	if f.conn.error != "" {
-		ui.Text(c, f.conn.error).Selectable().MaxLines(3).Tooltip(f.conn.error).FontSize(12).TextColor(t.Danger).Padding(0, 12, 8)
+		ui.Text(c, f.conn.error).Selectable().MaxLines(3).Tooltip(f.conn.error).FontSize(textBody).TextColor(t.Danger).Padding(0, 12, 8)
 	}
 	text := cmp.Or(f.conn.log, "No connection history was recorded for this exchange (for example, an older or imported session).")
-	ui.TextArea(c, &text).ReadOnly(true).Label("Connection log").Font("monospace").FontSize(12).Grow(1).FillWidth()
+	ui.TextArea(c, &text).ReadOnly(true).Label("Connection log").Font(fontMono).FontSize(textBody).Grow(1).FillWidth()
 }
 
 // connPanel is the connection behind a flow: who talked to the proxy, where it
@@ -2870,7 +2876,9 @@ func (a *app) sortOrder() func(x, y int) int {
 			c = cmp.Compare(fx.scheme, fy.scheme)
 		case "status":
 			c = cmp.Compare(fx.status, fy.status)
-		case "host", "url":
+		case "host":
+			c = cmp.Compare(fx.host, fy.host)
+		case "url":
 			c = cmp.Compare(fx.url, fy.url)
 		case "client":
 			c = cmp.Compare(fx.process, fy.process)

@@ -54,7 +54,7 @@ func TestEditReplayOpensExactBytesWithoutSending(t *testing.T) {
 			}
 			originalID := a.assetID
 			click("Request options")
-			if err := tt.ChooseMenuItem("Duplicate as new request"); err != nil {
+			if err := chooseMenu(tt, "Duplicate as new request"); err != nil {
 				t.Fatal(err)
 			}
 			if !a.saveComposed() || a.assetID == originalID || len(a.requests) != 3 {
@@ -198,7 +198,7 @@ func TestScenarioRulesUIControlsSavedAndRunningConfiguration(t *testing.T) {
 		return loaded
 	}
 	click("More")
-	if err := tt.ChooseMenuItem("Debugging rules…"); err != nil {
+	if err := chooseMenu(tt, "Debugging rules…"); err != nil {
 		t.Fatal(err)
 	}
 	click("Test URL + method")

@@ -544,7 +544,7 @@ func (a *app) requestDocumentActions(c *ui.Context, t *ui.Theme, d *requestDocum
 			}
 		}
 		a.desktopButton(c, "save-request", "Save")
-		ui.MenuButton(c, "⋯", func(m *ui.Menu) {
+		ui.PopoverMenuButton(c, "⋯", func(m *ui.Menu) {
 			if m.Item("Duplicate as new request").Chosen() {
 				r := d.value()
 				r.ID, r.Name = "", uniqueRequestName(a.requests, r.Name+" copy")
@@ -583,7 +583,8 @@ func (a *app) requestDocumentActions(c *ui.Context, t *ui.Theme, d *requestDocum
 			if m.Item("Vault…").Chosen() {
 				a.openVault()
 			}
-		}).Label("Request options").Height(26).Padding(0, 6).FontSize(14).TextColor(t.TextMuted).Border(0, t.Border)
+		}).
+			Label("Request options").Height(26).Padding(0, 6).FontSize(14).TextColor(t.TextMuted).Border(0, t.Border)
 	})
 }
 

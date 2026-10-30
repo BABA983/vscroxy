@@ -76,7 +76,7 @@ func TestInvestigationBoardAddsFromCaptureComparesAndReviewsEvidence(t *testing.
 	add := func() {
 		t.Helper()
 		click("Inspector options")
-		if err := tt.ChooseMenuItem("Add to investigation…"); err != nil {
+		if err := chooseMenu(tt, "Add to investigation…"); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -111,7 +111,7 @@ func TestInvestigationBoardAddsFromCaptureComparesAndReviewsEvidence(t *testing.
 	}
 	// Deleting asks first and keeps the investigation when cancelled.
 	click("Investigation options")
-	if err := tt.ChooseMenuItem("Delete investigation…"); err != nil {
+	if err := chooseMenu(tt, "Delete investigation…"); err != nil {
 		t.Fatal(err)
 	}
 	if !tt.HasText("Delete investigation?") {

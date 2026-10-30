@@ -33,7 +33,7 @@ func TestDeletingAFolderRemovesItsTreeOnly(t *testing.T) {
 	if err := tt.RightClick("Collection: Shop/Orders"); err != nil {
 		t.Fatal(err)
 	}
-	if err := tt.ChooseMenuItem("Delete “Shop/Orders”…"); err != nil {
+	if err := chooseMenu(tt, "Delete “Shop/Orders”…"); err != nil {
 		t.Fatal(err)
 	}
 	if !tt.HasText("Delete folder “Shop/Orders”?") {

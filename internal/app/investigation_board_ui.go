@@ -69,7 +69,7 @@ func (a *app) boardHeader(c *ui.Context, t *ui.Theme, inv *investigation) {
 			a.exportInvestigation(c)
 		}
 		f, hasFlow := a.current()
-		ui.MenuButton(c, "⋯", func(m *ui.Menu) {
+		ui.PopoverMenuButton(c, "⋯", func(m *ui.Menu) {
 			if m.Item("Add the inspected capture").Disabled(!hasFlow).Chosen() {
 				a.addToInvestigation(f)
 			}
@@ -80,7 +80,8 @@ func (a *app) boardHeader(c *ui.Context, t *ui.Theme, inv *investigation) {
 			if m.Item("Delete investigation…").Chosen() {
 				b.deleting = true
 			}
-		}).Label("Investigation options").Height(26).Padding(0, 6).FontSize(14).TextColor(t.TextMuted).Border(0, t.Border)
+		}).
+			Label("Investigation options").Height(26).Padding(0, 6).FontSize(14).TextColor(t.TextMuted).Border(0, t.Border)
 	})
 	if b.notesOpen {
 		notes := ui.TextArea(c, &inv.Notes).Height(52).Label("Investigation notes").

@@ -13,7 +13,6 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"slices"
 	"testing"
 	"time"
 
@@ -47,11 +46,12 @@ func TestUISnapshots(t *testing.T) {
 	t.Cleanup(func() { time.Local = zone })
 
 	type snapshot struct {
-		name  string
-		setup func(*app)
-		act   func(*testing.T, *ui.Tester)
-		want  string
-		menu  string // Native menu label; its pixels are outside tt.Image().
+		name   string
+		setup  func(*app)
+		act    func(*testing.T, *ui.Tester)
+		want   string
+		menu   string // Drawn menu label, included in tt.Image().
+		toasts []ui.Toast
 	}
 	click := func(label string) func(*testing.T, *ui.Tester) {
 		return func(t *testing.T, tt *ui.Tester) {
@@ -68,6 +68,39 @@ func TestUISnapshots(t *testing.T) {
 	states := []snapshot{
 		{name: "capture-empty", setup: func(a *app) { a.flows = nil; a.countDomains(); a.countClients(); a.applyFilter() }, want: "Capture is stopped"},
 		{name: "capture-selected", want: "Request inspector"},
+		{name: "capture-right", setup: func(a *app) { a.workbench.layout = "right" }, want: "Request inspector"},
+		{name: "capture-no-matches", act: func(t *testing.T, tt *ui.Tester) {
+			click("Search host or path")(t, tt)
+			tt.Type("no-match")
+		}, want: "No matching requests"},
+		{name: "capture-multiple", setup: func(a *app) { a.chosen.Add(2) }, want: "2 selected"},
+		{name: "capture-connect", setup: func(a *app) { a.flows[0].kind, a.flows[0].method = "connect", "CONNECT" }, want: "Encrypted tunnel"},
+		{name: "capture-connect-failed", setup: func(a *app) {
+			a.flows[0].kind, a.flows[0].method = "connect", "CONNECT"
+			a.flows[0].conn = conn{errorStage: "TLS client", error: "remote error: tls: unknown certificate authority"}
+		}, want: "Copy connection log"},
+		{name: "capture-ws", setup: func(a *app) {
+			a.flows[0].kind, a.flows[0].status = "ws", 101
+			a.frames = map[int][]frame{1: {
+				{seq: 1, direction: "out", kind: "text", data: `{"subscribe":"prices"}`, size: 22, kept: 22, at: snapshotTime},
+				{seq: 2, direction: "in", kind: "text", data: `{"symbol":"GO","price":73}`, size: 26, kept: 26, at: snapshotTime.Add(time.Second)},
+			}}
+		}, want: "Messages"},
+		{name: "capture-sse", setup: func(a *app) {
+			a.flows[0].kind = "sse"
+			a.frames = map[int][]frame{1: {{seq: 1, direction: "in", kind: "event", eventName: "price", eventID: "73", data: "updated", size: 7, kept: 7, at: snapshotTime}}}
+		}, want: "Messages"},
+		{name: "capture-diff", setup: func(a *app) {
+			previous := a.flows[0]
+			previous.id, previous.resBody = 3, `{"projects":[],"total":0}`
+			a.flows = append([]flow{previous}, a.flows...)
+			a.applyFilter()
+			a.inspect.pane = inspectorDiff
+		}, act: func(t *testing.T, tt *ui.Tester) {
+			click("api.example.com/projects")(t, tt)
+			tt.Key(0, ui.KeyDown)
+		}, want: "Previous response (left)"},
+		{name: "capture-debug-history", setup: func(a *app) { a.openDebugHistory(newDebugSource(a.flows[0])) }, want: "Source snapshot"},
 		{name: "capture-filtered", act: func(t *testing.T, tt *ui.Tester) {
 			click("Filters…")(t, tt)
 			click("Filter status")(t, tt)
@@ -89,6 +122,23 @@ func TestUISnapshots(t *testing.T) {
 		}, want: "201 Created"},
 		{name: "settings", setup: func(a *app) { a.settingsOpen = true }, want: "Dark appearance"},
 		{name: "commands", setup: func(a *app) { a.workbench.openPalette() }, want: "Find command"},
+		{name: "commands-unavailable", setup: func(a *app) { a.workbench.openPalette(); a.workbench.query = "Send request" }, want: "unavailable"},
+		{name: "active-tools", setup: snapshotActiveTools, want: "Disable Scenario: Offline"},
+		{name: "requests-active-tools", setup: func(a *app) { snapshotActiveTools(a); draft(a) }, want: "Disable No Caching"},
+		{name: "shell-menu", act: click("More"), menu: "Network"},
+		{name: "tools-menu", setup: snapshotActiveTools, act: click("Tools"), menu: "No Caching"},
+		{name: "network-submenu", act: func(t *testing.T, tt *ui.Tester) {
+			click("More")(t, tt)
+			if err := chooseMenu(tt, "Network"); err != nil {
+				t.Fatal(err)
+			}
+		}, menu: "No Caching"},
+		{name: "notifications", toasts: []ui.Toast{
+			{Title: "Session exported", Type: "success"},
+			{Title: "Rules apply to new requests", Type: "info"},
+			{Title: "Replay failed", Description: "The upstream connection was refused.", Type: "error", Action: "Inspect request"},
+		}, want: "Inspect request"},
+		{name: "notification-warning", toasts: []ui.Toast{{Title: "Response body incomplete", Description: "The captured bytes are still available.", Type: "warning"}}, want: "Response body incomplete"},
 		{name: "capture-menu", act: click("More capture options"), menu: "Clear unpinned requests…"},
 		{name: "layout-menu", act: click("Inspector layout"), menu: "Inspector: Bottom"},
 		{name: "body-menu", act: click("Response body format"), menu: "Pretty"},
@@ -152,7 +202,7 @@ func TestUISnapshots(t *testing.T) {
 		}
 		for _, state := range states {
 			widths := []int{1280}
-			if state.name == "capture-selected" || state.name == "requests-editing" || state.name == "requests-response" {
+			if state.name == "capture-selected" || state.name == "capture-ws" || state.name == "capture-connect" || state.name == "requests-editing" || state.name == "requests-response" || state.name == "active-tools" || state.name == "requests-active-tools" {
 				widths = append(widths, 960)
 			}
 			for _, width := range widths {
@@ -164,7 +214,16 @@ func TestUISnapshots(t *testing.T) {
 					if state.setup != nil {
 						state.setup(a)
 					}
-					tt := ui.NewTester(a.view, width, 800)
+					announced := false
+					tt := ui.NewTester(func(c *ui.Context) {
+						if !announced {
+							for _, toast := range state.toasts {
+								c.AddToast(toast)
+							}
+							announced = true
+						}
+						a.view(c)
+					}, width, 800)
 					tt.SetLocale("en-US")
 					if state.act != nil {
 						state.act(t, tt)
@@ -182,21 +241,16 @@ func TestUISnapshots(t *testing.T) {
 						runtime.Gosched()
 						tt.Frame()
 					}
+					tt.Advance(250 * time.Millisecond) // Complete toast entry motion.
 					tt.Frame()
 					if state.want != "" && !tt.HasText(state.want) {
 						t.Fatalf("missing %q: %v", state.want, tt.Texts())
 					}
 					base := filepath.Join(theme, fmt.Sprintf("%s-%d", state.name, width))
 					if state.menu != "" {
-						if !slices.Contains(tt.Menu(), state.menu) {
-							t.Fatalf("missing menu item %q: %v", state.menu, tt.Menu())
+						if !tt.HasText(state.menu) {
+							t.Fatalf("missing menu item %q: %v", state.menu, tt.Texts())
 						}
-						data, err := json.Marshal(tt.Menu(), jsontext.WithIndent("  "))
-						if err != nil {
-							t.Fatal(err)
-						}
-						write(t, base+".menu.json", append(data, '\n'))
-						base += ".host" // Host pixels only, NOT a menu screenshot.
 					}
 					var b bytes.Buffer
 					if err := png.Encode(&b, tt.Image()); err != nil {
@@ -221,6 +275,18 @@ func TestUISnapshots(t *testing.T) {
 }
 
 var snapshotTime = time.Date(2026, 1, 15, 10, 30, 0, 0, time.UTC)
+
+func snapshotActiveTools(a *app) {
+	// State only: never start a listener or create user settings/CA files.
+	a.srv = &capture.Server{}
+	a.breakOn, a.throttle, a.upstream = true, capture.Presets[1], "http://127.0.0.1:8081"
+	a.srv.SetBreak(true)
+	a.srv.SetThrottle(a.throttle)
+	a.srv.SetNoCaching(true)
+	_ = a.srv.SetUpstream(a.upstream)
+	a.rules = []capture.Rule{{Type: capture.RuleBlock, Match: "/offline", Scenario: "Offline", ScenarioActive: true}}
+	_ = a.srv.SetRules(a.rules)
+}
 
 func snapshotApp() *app {
 	a := workspaceApp()

@@ -79,7 +79,7 @@ func (a *app) customColumnAt(id string) (customColumn, bool) {
 // hideableColumns are the built-in columns the table can do without; the URL
 // always stays.
 var hideableColumns = []struct{ id, title string }{
-	{"id", "#"}, {"method", "Method"}, {"client", "Client"}, {"status", "Status"},
+	{"id", "#"}, {"method", "Method"}, {"host", "Host"}, {"client", "Client"}, {"status", "Status"},
 	{"duration", "Duration"}, {"size", "Size"}, {"captured", "Time"},
 }
 
