@@ -16,33 +16,31 @@ import (
 func (a *app) shell(c *ui.Context, t *ui.Theme) {
 	bar := c.TitleBar()
 	height := max(bar.Height, 50)
-	ui.Row(c).Height(height).Padding(0, max(bar.Right, 12), 0, max(bar.Left, 12)).Gap(14).AlignItems(ui.Center).
+	ui.Row(c).Height(height).Padding(0, max(bar.Right, t.Space(3)), 0, max(bar.Left, t.Space(3))).Gap(t.Space(4)).AlignItems(ui.Center).
 		Background(t.Surface).Border(0, t.Border).BorderWidth(0, 0, 1, 0).DragWindow().Children(func() {
-		ui.Row(c).Gap(7).AlignItems(ui.Center).Children(func() {
-			ui.Icon(c, brandIcon).Size(17, 17).TextColor(t.Text)
-			ui.Text(c, "vscroxy").FontSize(13).Bold().TextColor(t.Text)
+		ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+			ui.Icon(c, brandIcon).Size(iconLarge, iconLarge).TextColor(t.Text)
+			ui.Text(c, "vscroxy").FontSize(textBody).Bold().TextColor(t.Text)
 		})
 		a.workspaceSwitch(c, t)
 		ui.Spacer(c)
 		a.proxyIndicator(c, t)
 		ui.Box(c).Width(1).Height(18).Background(t.Border)
-		if ui.ButtonBase(c).Label("Commands").Height(26).Padding(0, 8).Gap(6).Radius(5).AlignItems(ui.Center).
-			Tooltip("Search every action · Ctrl/Cmd+K").TextColor(t.TextMuted).Children(func() {
-			ui.Icon(c, commandIcon).Size(14, 14)
-			ui.Text(c, "Commands").FontSize(12)
+		if toolbarButton(c, "Commands", "Search every action · Ctrl/Cmd+K", false).Children(func() {
+			ui.Icon(c, commandIcon).Size(iconInline, iconInline)
+			ui.Text(c, "Commands").FontSize(textBody)
 		}).Clicked() {
 			a.workbench.openPalette()
 		}
-		if ui.ButtonBase(c).Label("Settings").Height(26).Padding(0, 8).Gap(6).Radius(5).AlignItems(ui.Center).
-			Tooltip("Settings · Ctrl/Cmd+,").TextColor(t.TextMuted).Children(func() {
-			ui.Icon(c, settingsIcon).Size(14, 14)
-			ui.Text(c, "Settings").FontSize(12)
+		if toolbarButton(c, "Settings", "Settings · Ctrl/Cmd+,", false).Children(func() {
+			ui.Icon(c, settingsIcon).Size(iconInline, iconInline)
+			ui.Text(c, "Settings").FontSize(textBody)
 		}).Clicked() {
 			a.settingsOpen = true
 		}
 		ui.MenuButton(c, "⋯", func(m *ui.Menu) {
 			a.moreMenu(c, m)
-		}).Label("More").Height(26).Padding(0, 6).FontSize(14).TextColor(t.TextMuted).Border(0, t.Border)
+		}).Label("More").Tooltip("More commands").Height(heightCompact).Padding(0, t.Space(2)).FontSize(textBody).TextColor(t.TextMuted).Border(0, t.Border)
 	})
 }
 
@@ -52,15 +50,18 @@ func (a *app) shell(c *ui.Context, t *ui.Theme) {
 func (a *app) workspaceSwitch(c *ui.Context, t *ui.Theme) {
 	names := []string{"Capture", "Requests"}
 	seg := ui.SegmentedBase(c, &a.workspace, len(names))
-	seg.Track.Padding(2).Radius(7).Border(1, t.Border).Background(t.Background).Children(func() {
+	seg.Track.Padding(t.Space(1)).Radius(radiusPanel).Border(1, t.Border).Background(t.Background).Children(func() {
 		for i, name := range names {
-			s := seg.Segment(i).Label(name).Height(26).Padding(0, 14).Radius(5).AlignItems(ui.Center).TextColor(t.TextMuted)
+			s := seg.Segment(i).Label(name).Height(heightControl).Padding(0, t.Space(3)).Radius(radiusControl).AlignItems(ui.Center).TextColor(t.TextMuted)
 			if i == a.workspace {
-				s.Background(t.SurfaceHover).TextColor(t.Text)
-			} else if s.Hovered() {
 				s.TextColor(t.Text)
 			}
-			s.Children(func() { ui.Text(c, name).FontSize(12) })
+			if s.Pressed() {
+				s.Background(t.SurfacePressed)
+			} else if s.Hovered() || i == a.workspace {
+				s.Background(t.SurfaceHover)
+			}
+			s.Children(func() { ui.Text(c, name).FontSize(textBody) })
 		}
 	})
 	if seg.Track.Changed() {
@@ -88,18 +89,14 @@ func (a *app) proxyIndicator(c *ui.Context, t *ui.Theme) {
 	if a.deviceUI.gateway != nil {
 		label += " · LAN"
 	}
-	b := ui.ButtonBase(c).Label("Proxy status").Height(26).Padding(0, 8).Gap(7).Radius(5).AlignItems(ui.Center).
-		Tooltip("Listening address · proxy settings; listening is not proof of HTTPS inspection")
-	if b.Hovered() {
-		b.Background(t.SurfaceHover)
-	}
+	b := toolbarButton(c, "Proxy status", "Listening address · proxy settings; listening is not proof of HTTPS inspection", false)
 	b.Children(func() {
 		dot := t.TextMuted
 		if running {
 			dot = t.Success
 		}
 		ui.Box(c).Size(7, 7).Radius(4).Background(dot)
-		ui.Text(c, label).FontSize(12).TextColor(color).SingleLine()
+		ui.Text(c, label).FontSize(textBody).TextColor(color).SingleLine()
 	})
 	if b.Clicked() {
 		a.settingsTab, a.settingsOpen = 1, true
@@ -280,9 +277,11 @@ func (a *app) syncSections() {
 // footer is the one line under every workspace: what this screen counts on
 // the left, and the workspace's own quiet state on the right.
 func (a *app) footer(c *ui.Context, t *ui.Theme) {
-	ui.Row(c).Height(27).Padding(0, 12).Gap(10).AlignItems(ui.Center).
+	ui.Row(c).Height(27).Padding(0, t.Space(3)).Gap(t.Space(3)).AlignItems(ui.Center).
 		Background(t.Surface).Border(0, t.Border).BorderWidth(1, 0, 0, 0).Children(func() {
-		text := func(s string) ui.Element { return ui.Text(c, s).FontSize(11).TextColor(t.TextMuted).SingleLine() }
+		text := func(s string) ui.Element {
+			return ui.Text(c, s).FontSize(textMeta).FontFeatures("tnum").TextColor(t.TextMuted).SingleLine()
+		}
 		switch {
 		case a.workspace == 0 && a.captureSection == 1:
 			text(a.boardSummary())
@@ -320,13 +319,13 @@ func (a *app) footer(c *ui.Context, t *ui.Theme) {
 		}
 		text(counts)
 		if a.filtersActive() {
-			ui.Text(c, "Filtered").FontSize(11).TextColor(t.Text).SingleLine().Tooltip("filtered: " + a.filterSummary())
+			ui.Text(c, "Filtered").FontSize(textMeta).TextColor(t.Text).SingleLine().Tooltip("filtered: " + a.filterSummary())
 		}
 		if a.dropped > 0 {
-			ui.Text(c, fmt.Sprintf("%d dropped", a.dropped)).FontSize(11).TextColor(t.Warning).SingleLine()
+			ui.Text(c, fmt.Sprintf("%d dropped", a.dropped)).FontSize(textMeta).FontFeatures("tnum").TextColor(t.Warning).SingleLine()
 		}
 		if a.scriptErrs > 0 {
-			ui.Text(c, fmt.Sprintf("%d script errors", a.scriptErrs)).FontSize(11).TextColor(t.Warning).SingleLine()
+			ui.Text(c, fmt.Sprintf("%d script errors", a.scriptErrs)).FontSize(textMeta).FontFeatures("tnum").TextColor(t.Warning).SingleLine()
 		}
 		ui.Spacer(c)
 		if a.workspace != 0 {
@@ -351,12 +350,11 @@ func (a *app) footer(c *ui.Context, t *ui.Theme) {
 		if newRows > 0 {
 			label = fmt.Sprintf("Auto-follow off · %d new ↓", newRows)
 		}
-		if ui.ButtonBase(c).Label("Auto-follow").Height(20).Padding(0, 4).Gap(5).Radius(4).AlignItems(ui.Center).
-			Tooltip(tip).TextColor(t.Text).Children(func() {
+		if toolbarButton(c, "Auto-follow", tip, false).Height(heightCompact).Padding(0, t.Space(1)).TextColor(t.Text).Children(func() {
 			if newRows > 0 {
-				ui.Icon(c, breakIcon).Size(10, 10).TextColor(t.TextMuted)
+				ui.Icon(c, breakIcon).Size(iconInline, iconInline).TextColor(t.TextMuted)
 			}
-			ui.Text(c, label).FontSize(11).SingleLine()
+			ui.Text(c, label).FontSize(textMeta).FontFeatures("tnum").SingleLine()
 		}).Clicked() {
 			a.workbench.focused = false
 			a.newRows = 0

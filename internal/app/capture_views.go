@@ -926,13 +926,7 @@ func (v *captureViews) sidebar(c *ui.Context, t *ui.Theme, a *app) {
 		for i, view := range v.views {
 			name := v.label(i)
 			ui.Row(c.Key(view.id)).AlignItems(ui.Center).Children(func() {
-				b := ui.ButtonBase(c).Label("Capture view: "+name).Height(26).Padding(0, 6).Gap(6).Radius(5).FillWidth().
-					AlignItems(ui.Center).TextColor(t.TextMuted).Tooltip("Independent filters, selection and scroll position")
-				if i == v.active {
-					b.Background(t.SurfaceHover).TextColor(t.Text)
-				} else if b.Hovered() {
-					b.Background(t.SurfaceHover).TextColor(t.Text)
-				}
+				b := toolbarButton(c, "Capture view: "+name, "Independent filters, selection and scroll position", i == v.active).FillWidth()
 				if b.Clicked() {
 					v.capture(a)
 					v.activate(a, i)
@@ -942,13 +936,10 @@ func (v *captureViews) sidebar(c *ui.Context, t *ui.Theme, a *app) {
 					view.reveal = false
 				}
 				b.Children(func() {
-					ui.Icon(c, layersIcon).Size(13, 13)
-					ui.Text(c, name).FontSize(12).SingleLine().Grow(1)
+					ui.Icon(c, layersIcon).Size(iconInline, iconInline)
+					ui.Text(c, name).FontSize(textBody).SingleLine().Grow(1)
 					if len(v.views) > 1 {
-						if ui.ButtonBase(c).Size(18, 18).Radius(4).Label("Close view: " + name).Tooltip("Close this view").
-							TextColor(t.TextMuted).Children(func() {
-							ui.Icon(c, closeIcon).Size(11, 11)
-						}).Clicked() {
+						if iconButton(c, "Close view: "+name, "Close this view", closeIcon).Clicked() {
 							closing = i
 						}
 					}
@@ -958,31 +949,21 @@ func (v *captureViews) sidebar(c *ui.Context, t *ui.Theme, a *app) {
 		// Create and manage live in one compact row under the views, so the
 		// list itself is what the section shows first.
 		ui.Row(c).Gap(2).Padding(0, 4, 0, 2).Children(func() {
-			if ui.ButtonBase(c).Label("New view").Size(22, 22).Radius(4).AlignItems(ui.Center).
-				TextColor(t.TextMuted).Tooltip("A new view with its own filters, selection and scroll position").Children(func() {
-				ui.Icon(c, plusIcon).Size(13, 13)
-			}).Clicked() {
+			if iconButton(c, "New view", "A new view with its own filters, selection and scroll position", plusIcon).Clicked() {
 				v.capture(a)
 				v.newView(a)
 			}
-			if ui.ButtonBase(c).Label("Saved filters…").Size(22, 22).Radius(4).AlignItems(ui.Center).
-				TextColor(t.TextMuted).Tooltip("Save current conditions, apply, rename or delete a saved filter").Children(func() {
-				ui.Icon(c, moreIcon).Size(13, 13)
-			}).Clicked() {
+			if iconButton(c, "Saved filters…", "Save current conditions, apply, rename or delete a saved filter", moreIcon).Clicked() {
 				v.openSaved(a)
 			}
 			ui.Spacer(c)
 		})
 		if len(v.filters) > 0 {
-			ui.Text(c, "SAVED FILTERS").FontSize(10).Bold().TextColor(t.TextMuted).Padding(12, 6, 4, 6)
+			ui.Text(c, "SAVED FILTERS").FontSize(textMeta).LetterSpacing(0.5).Bold().TextColor(t.TextMuted).Padding(12, 8, 4, 8)
 		}
 		for _, f := range v.filters {
 			active := v.activeView().saved(f.Name) == f
-			b := ui.ButtonBase(c).Label("Quick filter: "+f.Name).Height(26).Padding(0, 6).Gap(6).Radius(5).FillWidth().
-				AlignItems(ui.Center).TextColor(t.TextMuted)
-			if active {
-				b.Background(t.SurfaceHover).TextColor(t.Text)
-			}
+			b := toolbarButton(c, "Quick filter: "+f.Name, "Apply saved conditions", active).FillWidth()
 			if b.Clicked() {
 				if active {
 					v.resetFilters(a)
@@ -991,8 +972,8 @@ func (v *captureViews) sidebar(c *ui.Context, t *ui.Theme, a *app) {
 				}
 			}
 			b.Children(func() {
-				ui.Icon(c, filterIcon).Size(13, 13)
-				ui.Text(c, f.Name).FontSize(12).SingleLine()
+				ui.Icon(c, filterIcon).Size(iconInline, iconInline)
+				ui.Text(c, f.Name).FontSize(textBody).SingleLine()
 			})
 		}
 		if note, failure := v.status(); note != "" {

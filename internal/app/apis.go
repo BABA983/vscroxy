@@ -228,7 +228,7 @@ func (a *app) apiEndpoints(c *ui.Context, t *ui.Theme, d *apiDocument) {
 			for _, endpoint := range endpoints {
 				label := endpoint.method + " " + endpoint.path
 				ui.SidebarItem(c, label, nil, endpoint.path).Label("Endpoint: " + label).Children(func() {
-					ui.Text(c, endpoint.method).FontSize(9).Bold().TextColor(methodColor(endpoint.method)).Width(36)
+					ui.Text(c, endpoint.method).FontSize(9).Bold().TextColor(methodColor(endpoint.method, t)).Width(36)
 				})
 			}
 		}).Width(210).FillHeight().Background(t.Surface)
@@ -242,7 +242,7 @@ func (a *app) apiEndpoints(c *ui.Context, t *ui.Theme, d *apiDocument) {
 		endpoint := endpoints[selected]
 		d.endpoint = endpoint.method + " " + endpoint.path
 		ui.Column(c).Grow(1).FillHeight().Padding(18).Gap(12).Children(func() {
-			ui.Text(c, endpoint.method+" "+endpoint.path).FontSize(16).Bold().SingleLine().TextColor(methodColor(endpoint.method))
+			ui.Text(c, endpoint.method+" "+endpoint.path).FontSize(16).Bold().SingleLine().TextColor(methodColor(endpoint.method, t))
 			if summary := cmp.Or(endpoint.op.Summary, endpoint.op.OperationID); summary != "" && summary != endpoint.method+" "+endpoint.path {
 				ui.Text(c, summary).FontSize(13)
 			}

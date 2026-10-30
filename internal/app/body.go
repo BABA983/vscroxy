@@ -267,7 +267,7 @@ func (a *app) bodySideView(c *ui.Context, f flow, side int) {
 		return // rebuild the chosen side before parsing or copying its bytes
 	}
 	if notice := strings.TrimSpace(a.bodyNotice[side]); notice != "" {
-		ui.Text(c, notice).FontSize(11).TextColor(t.Warning).Padding(4, 12).Tooltip(notice)
+		ui.Text(c, notice).FontSize(textMeta).TextColor(t.Warning).Padding(4, 12).Tooltip(notice)
 	}
 	if mode == 5 {
 		// One inspector reads one side: when both sides are protobuf, the
@@ -277,7 +277,7 @@ func (a *app) bodySideView(c *ui.Context, f flow, side int) {
 			if owner == 1 {
 				name = "request"
 			}
-			ui.Text(c, "Protobuf is read in the "+name+" pane.").FontSize(12).TextColor(t.TextMuted).Padding(16)
+			ui.Text(c, "Protobuf is read in the "+name+" pane.").FontSize(textBody).TextColor(t.TextMuted).Padding(16)
 			return
 		}
 		a.protobuf.view(c, a, f, side)
@@ -290,7 +290,7 @@ func (a *app) bodySideView(c *ui.Context, f flow, side int) {
 		} else if side == 0 && (f.method == "HEAD" || f.status == 204 || f.status == 304) {
 			message = "No response body expected for " + f.method + " / " + strconv.Itoa(f.status)
 		}
-		ui.Text(c, message).FontSize(12).TextColor(t.TextMuted).Padding(16)
+		ui.Text(c, message).FontSize(textBody).TextColor(t.TextMuted).Padding(16)
 		return
 	}
 	if mode == 2 || mode == 3 {
@@ -314,7 +314,7 @@ func (a *app) bodySideView(c *ui.Context, f flow, side int) {
 			}
 		}
 		if !a.jsonOK[side] {
-			ui.Text(c, "Body is not JSON; showing it as text").FontSize(11).TextColor(t.TextMuted).Padding(12)
+			ui.Text(c, "Body is not JSON; showing it as text").FontSize(textMeta).TextColor(t.TextMuted).Padding(12)
 			a.prettyBody(c, body, side)
 			return
 		}
@@ -340,7 +340,7 @@ func (a *app) previewBody(c *ui.Context, f flow, body string, side int) {
 	case ct == "text/html" || ct == "application/xhtml+xml":
 		a.htmlPreview(c, key, body, side)
 	default:
-		ui.Text(c, "No preview for "+cmp.Or(ct, "this body")).FontSize(12).TextColor(t.TextMuted).Padding(16)
+		ui.Text(c, "No preview for "+cmp.Or(ct, "this body")).FontSize(textBody).TextColor(t.TextMuted).Padding(16)
 		if ui.Button(c, "Show as text").Margin(0, 12).Clicked() {
 			a.bodyMode[side] = 1
 		}
@@ -363,7 +363,7 @@ func (a *app) imagePreview(c *ui.Context, key, body string, side int) {
 		}
 	}
 	if a.imageErr[side] != "" {
-		ui.Text(c, "Cannot decode image: "+a.imageErr[side]).FontSize(12).TextColor(t.TextMuted).Padding(16)
+		ui.Text(c, "Cannot decode image: "+a.imageErr[side]).FontSize(textBody).TextColor(t.TextMuted).Padding(16)
 		return
 	}
 	if a.imageBmp[side] == nil {
@@ -372,7 +372,7 @@ func (a *app) imagePreview(c *ui.Context, key, body string, side int) {
 	w, h := a.imageBmp[side].Size()
 	ui.Scroll(c).Grow(1).Children(func() {
 		ui.Column(c).Padding(16).Gap(6).Children(func() {
-			ui.Text(c, fmt.Sprintf("%d × %d px", w, h)).FontSize(11).TextColor(t.TextMuted)
+			ui.Text(c, fmt.Sprintf("%d × %d px", w, h)).FontSize(textMeta).FontFeatures("tnum").TextColor(t.TextMuted)
 			ui.Image(c, a.imageBmp[side]).MaxWidthPercent(100)
 		})
 	})
@@ -403,6 +403,7 @@ func (a *app) prettyBody(c *ui.Context, body string, side int) {
 		reader = &editor.State{Buffer: buf, ReadOnly: true, NoScrollPastEnd: true, SoftWrap: true, Label: "Body text", RenderFindBar: bodyFindBar}
 		a.bodyText[side] = reader
 	}
+	reader.Font = ui.Font{Family: fontMono, Size: textBody}
 	reader.Theme = bodyEditorTheme(c.Theme())
 	editor.View(c, reader).Bind(&a.bodyReader[side]).Grow(1)
 }
@@ -412,8 +413,8 @@ func bodyFindBar(c *ui.Context, bar ui.Element, find *editor.FindBar) {
 	t := c.Theme()
 	bar.Row().Gap(6).Padding(6).AlignItems(ui.Center).Background(t.Surface).Border(1, t.Border).Radius(t.Radius)
 	bar.Children(func() {
-		find.QueryInput(ui.TextInput(c, find.Query()).Label("Search body").Placeholder("Find in body…").Width(140).FontSize(11))
-		ui.Text(c, find.Status()).FontSize(10).TextColor(t.TextMuted).MinWidth(40).Role(ui.RoleStatus)
+		find.QueryInput(ui.TextInput(c, find.Query()).Label("Search body").Placeholder("Find in body…").Width(140).FontSize(textBody))
+		ui.Text(c, find.Status()).FontSize(textMeta).FontFeatures("tnum").TextColor(t.TextMuted).MinWidth(40).Role(ui.RoleStatus)
 		if ui.Button(c, "↑").Label("Previous body match").Tooltip("Previous match · Shift+Enter").KeepFocus().Clicked() {
 			find.Previous()
 		}
@@ -428,7 +429,7 @@ func bodyFindBar(c *ui.Context, bar ui.Element, find *editor.FindBar) {
 
 func (a *app) jsonBody(c *ui.Context, side int) {
 	t := c.Theme()
-	keyColor := editor.DefaultTheme(t).Tokens[editor.TokenProperty].Color
+	keyColor := bodyEditorTheme(t).Tokens[editor.TokenProperty].Color
 	var rows []jsonRow
 	if a.bodyQuery[side] != "" {
 		rows = matchingJSON(a.jsonRoots[side], a.bodyQuery[side])
@@ -436,7 +437,7 @@ func (a *app) jsonBody(c *ui.Context, side int) {
 		rows = a.visibleJSON(side)
 	}
 	if len(rows) == 0 {
-		ui.Text(c, "No matches").FontSize(12).TextColor(t.TextMuted).Padding(16)
+		ui.Text(c, "No matches").FontSize(textBody).TextColor(t.TextMuted).Padding(16)
 		return
 	}
 	ui.List(c, &a.jsonScroll[side], len(rows), func(i int) {
@@ -455,16 +456,16 @@ func (a *app) jsonBody(c *ui.Context, side int) {
 				ui.Box(c).Width(20)
 			}
 			if row.node.key != "" {
-				ui.Text(c, row.node.key).FontSize(12).Font("monospace").TextColor(keyColor).SingleLine().Tooltip(row.node.path)
-				ui.Text(c, ":").FontSize(12).TextColor(t.TextMuted)
+				ui.Text(c, row.node.key).FontSize(textBody).Font(fontMono).TextColor(keyColor).SingleLine().Tooltip(row.node.path)
+				ui.Text(c, ":").FontSize(textBody).TextColor(t.TextMuted)
 			}
 			switch row.node.kind {
 			case "object":
-				ui.Text(c, fmt.Sprintf("{%d}", len(row.node.children))).FontSize(12).TextColor(t.TextMuted)
+				ui.Text(c, fmt.Sprintf("{%d}", len(row.node.children))).FontSize(textBody).FontFeatures("tnum").TextColor(t.TextMuted)
 			case "array":
-				ui.Text(c, fmt.Sprintf("[%d]", len(row.node.children))).FontSize(12).TextColor(t.TextMuted)
+				ui.Text(c, fmt.Sprintf("[%d]", len(row.node.children))).FontSize(textBody).FontFeatures("tnum").TextColor(t.TextMuted)
 			default:
-				ui.Text(c, row.node.value).FontSize(12).Font("monospace").TextColor(t.Text).SingleLine()
+				ui.Text(c, row.node.value).FontSize(textBody).Font(fontMono).TextColor(t.Text).SingleLine()
 			}
 		})
 	}).Grow(1)
@@ -474,10 +475,10 @@ func (a *app) hexBody(c *ui.Context, body string, side int) {
 	t := c.Theme()
 	rows := hexRows(body, a.bodyQuery[side])
 	if len(rows) == 0 {
-		ui.Text(c, "No matches").FontSize(12).TextColor(t.TextMuted).Padding(16)
+		ui.Text(c, "No matches").FontSize(textBody).TextColor(t.TextMuted).Padding(16)
 		return
 	}
 	ui.List(c, &a.hexScroll[side], len(rows), func(i int) {
-		ui.Text(c, hexLine(body, rows[i])).FontSize(11).Font("monospace").TextColor(t.Text).Padding(3, 12).SingleLine()
+		ui.Text(c, hexLine(body, rows[i])).FontSize(textMeta).Font(fontMono).TextColor(t.Text).Padding(3, 12).SingleLine()
 	}).Grow(1)
 }

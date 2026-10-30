@@ -214,7 +214,7 @@ func (a *app) boardPreview(c *ui.Context, t *ui.Theme, inv *investigation) {
 	f := investigationFlow(item.Source)
 	ui.Column(c).Fill().Children(func() {
 		ui.Row(c).Padding(6, 12).Gap(8).AlignItems(ui.Center).Children(func() {
-			ui.Text(c, cmp.Or(f.method, "REQUEST")).FontSize(12).Bold().TextColor(methodColor(f.method))
+			ui.Text(c, cmp.Or(f.method, "REQUEST")).FontSize(12).Bold().TextColor(methodColor(f.method, t))
 			status, statusText := fmt.Sprintf("%d %s", f.status, http.StatusText(f.status)), f.statusColor(t)
 			if f.conn.error != "" {
 				status, statusText = "Failed", t.Danger

@@ -12,13 +12,13 @@ import (
 func (a *app) timingView(c *ui.Context, f flow) {
 	t := c.Theme()
 	if f.wait == 0 && f.download == 0 {
-		ui.Text(c, "No timing for this flow").FontSize(12).TextColor(t.TextMuted).Padding(16)
+		ui.Text(c, "No timing for this flow").FontSize(textBody).TextColor(t.TextMuted).Padding(16)
 		return
 	}
 	total := max(f.millis, 1)
-	dns := ui.Hex("#a855f7")
-	wait := ui.Hex("#2563eb")
-	download := ui.Hex("#22c55e")
+	dns := appColors(t).MethodPatch
+	wait := appColors(t).Info
+	download := t.Success
 	ui.Column(c).Gap(6).Padding(16).Children(func() {
 		if f.conn.dnsFresh && f.conn.resolved != "" {
 			waterfallRow(c, t, "DNS lookup", fmt.Sprintf("%s → %s", hostOnly(f.host), f.conn.resolved),
@@ -30,11 +30,11 @@ func (a *app) timingView(c *ui.Context, f flow) {
 		waterfallRow(c, t, "Download", "rest of the response body", f.download, f.wait, total, download)
 		ui.Divider(c)
 		ui.Row(c).Gap(10).Padding(4, 0).Children(func() {
-			ui.Text(c, "Total").FontSize(12).Bold().TextColor(t.Text).Width(90)
-			ui.Text(c, f.method+" "+f.host+f.path).FontSize(11).TextColor(t.TextMuted).Width(260).SingleLine()
-			ui.Text(c, fmt.Sprintf("%d ms", f.millis)).FontSize(11).Bold().TextColor(t.Text).Width(64)
+			ui.Text(c, "Total").FontSize(textBody).Bold().TextColor(t.Text).Width(90)
+			ui.Text(c, f.method+" "+f.host+f.path).FontSize(textMeta).TextColor(t.TextMuted).Width(260).SingleLine()
+			ui.Text(c, fmt.Sprintf("%d ms", f.millis)).FontSize(textMeta).FontFeatures("tnum").Bold().TextColor(t.Text).Width(64)
 		})
-		ui.Text(c, connectionNote(f)).FontSize(11).TextColor(t.TextMuted).Padding(4, 0, 0, 0)
+		ui.Text(c, connectionNote(f)).FontSize(textMeta).TextColor(t.TextMuted).Padding(4, 0, 0, 0)
 	})
 }
 
@@ -42,14 +42,14 @@ func (a *app) timingView(c *ui.Context, f flow) {
 // place in the exchange.
 func waterfallRow(c *ui.Context, t *ui.Theme, label, detail string, ms, offset, total int, color ui.Color) {
 	ui.Row(c).Gap(10).AlignItems(ui.Center).Padding(3, 0).Children(func() {
-		ui.Text(c, label).FontSize(12).TextColor(t.Text).Width(90)
-		ui.Text(c, detail).FontSize(11).TextColor(t.TextMuted).Width(260).SingleLine().Tooltip(detail)
-		ui.Text(c, fmt.Sprintf("%d ms", ms)).FontSize(11).TextColor(t.TextMuted).Width(64)
+		ui.Text(c, label).FontSize(textBody).TextColor(t.Text).Width(90)
+		ui.Text(c, detail).FontSize(textMeta).TextColor(t.TextMuted).Width(260).SingleLine().Tooltip(detail)
+		ui.Text(c, fmt.Sprintf("%d ms", ms)).FontSize(textMeta).FontFeatures("tnum").TextColor(t.TextMuted).Width(64)
 		ui.Row(c).Grow(1).Height(10).Children(func() {
 			if offset > 0 {
 				ui.Spacer(c).Grow(float32(offset))
 			}
-			ui.Box(c).Grow(float32(max(ms, 1))).Height(10).Radius(3).Background(color)
+			ui.Box(c).Grow(float32(max(ms, 1))).Height(10).Radius(radiusControl).Background(color)
 			if rest := total - offset - ms; rest > 0 {
 				ui.Spacer(c).Grow(float32(rest))
 			}

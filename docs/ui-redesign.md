@@ -52,7 +52,7 @@
 ### 4.1 字体
 
 - 内嵌 Inter（界面）和 JetBrains Mono（URL、header、body、method），用 `ui.RegisterFont` 注册，设到 `t.Font`。两者都是 OFL 许可，需要补进 `THIRD_PARTY_NOTICES.md`。
-- 只带要用的字重：Inter Regular/Medium/SemiBold，JetBrains Mono Regular/Bold。二进制大约增加 1 MB。
+- 只带要用的字重：Inter Regular/Medium/SemiBold，JetBrains Mono Regular/Bold。阶段 1 实际带入的原始静态 TTF 共 1,800,412 字节（1.72 MiB），另有 8,779 字节的 OFL 许可；这是资源量，不是最终打包后二进制增量测量。
 - 表格里会变化的数字（耗时、大小、时间、计数）开 `FontFeatures("tnum")`，让数字等宽、列能对齐。
 - **中文回退**：Inter 和 JetBrains Mono 都没有中文字形。主题字体写成一个列表，中文用各平台的系统字体：
   - 界面：`Inter, PingFang SC, Microsoft YaHei UI, Noto Sans CJK SC`。
@@ -202,6 +202,23 @@ diff -rq internal/app/testdata/ui-baseline .amp/in/artifacts/ui-current
 
 验收：Capture 截图前后对比，布局一致，观感统一；所有现有测试通过；`go tool mygo vet .` 通过。
 
+#### 阶段 1 实施记录
+
+- `style.go` 已加入三档字号、控件尺寸、圆角、图标和字体 token，以及工具栏按钮、图标按钮、主次按钮、状态 pill、method 标签、原生侧栏条目和只读 KV 行；已有 `flatTabs` 统一为 32px 下划线 tab。保留 MyGo 的键盘、焦点、禁用和无障碍行为。
+- Shell 和 Capture 的工具栏、流量表格、Inspector、Headers/Params、Body/Raw/JSON/Hex 和 Timing 已接入这套样式。搜索／协议两行工具栏、列顺序、Inspector 摘要／面板标题／tab 的分层、分栏方向和比例不变；没有合并任何一行。全局主题和共用 tab 会影响其他界面的字体、颜色和 tab 外观，但没有迁移 Requests 或 Settings 布局。
+- 浅深色主题使用靛蓝强调色和主题语义色；列表与窗口都有焦点时选中行用实心强调底，否则用 12% 浅底和正常文字。新增浅／深色焦点回归测试，覆盖窗口失焦、重新获得焦点和转到搜索框。
+- Inter 4.1（400/500/600）和 JetBrains Mono 2.304（400/700）已内嵌，来源、版本、校验和与许可见 `internal/app/fonts/README.md`。注册失败只记录一次日志并回退，不阻止启动。为避免回退到 CJK 字体后英文变宽、ASCII 失去等宽，平台拉丁字体放在 CJK 字体前；中文仍由系统字体提供。MyGo 没有 `Theme.FontMono`，等宽读数和编辑器显式使用字体 token。
+- **行高限制**：MyGo v0.7.3 的原生 `ui.Table` 最小行高／表头为 `t.Space(8)`，当前公共 API 无行高参数。阶段 1 保留 32px；不修改依赖或缩小全局 Spacing 来强行实现目标 28px。后续 Capture 阶段需另行解决，28px 目标不变。
+- **留给后续阶段**：合并式 `paneHeader`、可编辑 `kvGrid`、侧栏分组重排、统一空状态结构、modal footer／宽度档和全局剩余字面量清理，随各自布局阶段迁移；本阶段不加入未使用的组件骨架。中文字体缺失的 Settings 提示也不在本次新增。
+
+验证仍使用阶段 0 的截图矩阵，保留原基线；本阶段检查浅／深色、1280／960 宽度、各 Body 格式、空状态和原生窗口 hover、菜单、tab、焦点。另检查了包含中文 client、URL 路径和 JSON 值的 960px 夹具；这不是整套中文本地化界面验收。macOS／Windows 实机外观留给阶段 7。
+
+当前 orb 的 `~/.cache/mygo` 是文档源码软链且不可写，会阻止 MyGo 写入字体缓存。要验收内嵌字体而非系统回退，使用独立的可写缓存（正常启动失败回退路径也已测试）：
+
+```bash
+XDG_CACHE_HOME=/tmp/vscroxy-ui-cache VSCROXY_SNAPSHOTS="$PWD/.amp/in/artifacts/ui-phase1" go test ./internal/app -run '^TestUISnapshots$' -count=1 -v
+```
+
 ### 阶段 2：外壳
 
 - 标题栏 44px：品牌、`Capture | Requests` 切换、居中的录制状态 pill（状态点、地址；暂停按钮在 M1 录制开关做好后加上）、右侧命令面板、Tools、Settings 图标按钮，`⋯` 菜单保留。Host 方案下拉框在 M2 加入，位置预留在录制 pill 右侧。
@@ -294,7 +311,7 @@ Runner、History（合并后的 Run records）、Sessions（合并后的 Investi
 | --- | --- |
 | 改布局时不小心丢功能或快捷键 | 阶段 1 只换样式；后续阶段对照菜单、命令面板和快捷键清单逐项检查，现有测试兜底 |
 | 无障碍标签变化导致测试大面积失败 | 共用组件强制传入标签，标签沿用现有文字 |
-| 内嵌字体增加体积 | 只带用到的字重，约 1 MB |
+| 内嵌字体增加体积 | 只带用到的五个字重；当前 TTF 资源量为 1.72 MiB |
 | 改动面大，难以评审 | 按阶段、按区域拆成小提交，每个都附截图 |
 | 次级界面长期停留在旧样式 | 阶段 8 的检查脚本会列出剩余的写死值，作为待办清单 |
 

@@ -48,6 +48,7 @@ var (
 // a single accent for the focused table and the primary action, and no
 // decoration that competes with traffic or bodies.
 func appTheme(dark bool) *ui.Theme {
+	registerAppFonts()
 	t := ui.LightTheme()
 	if dark {
 		t = ui.DarkTheme()
@@ -58,13 +59,13 @@ func appTheme(dark bool) *ui.Theme {
 		t.Border = ui.Hex("#383838")
 		t.Text = ui.Hex("#ededed")
 		t.TextMuted = ui.Hex("#9a9a9a")
-		t.Accent = ui.Hex("#0a84ff")
-		t.AccentHover = ui.Hex("#2f95ff")
-		t.AccentPressed = ui.Hex("#0071e3")
-		t.AccentText = ui.Hex("#ffffff")
-		t.Danger = ui.Hex("#ff453a")
-		t.Warning = ui.Hex("#ff9f0a")
-		t.Success = ui.Hex("#32d74b")
+		t.Accent = ui.Hex("#7c7cf0")
+		t.AccentHover = ui.Hex("#8b8bf5")
+		t.AccentPressed = ui.Hex("#6b6bda")
+		t.AccentText = ui.Hex("#14142b")
+		t.Danger = ui.Hex("#ff8585")
+		t.Warning = ui.Hex("#f0ad60")
+		t.Success = ui.Hex("#6cce91")
 		t.Inverse = ui.Hex("#3a3a3a")
 		t.InverseText = ui.Hex("#f5f5f5")
 	} else {
@@ -75,22 +76,65 @@ func appTheme(dark bool) *ui.Theme {
 		t.Border = ui.Hex("#d9d9de")
 		t.Text = ui.Hex("#1d1d1f")
 		t.TextMuted = ui.Hex("#6e6e73")
-		t.Accent = ui.Hex("#007aff")
-		t.AccentHover = ui.Hex("#2492ff")
-		t.AccentPressed = ui.Hex("#0063d1")
+		t.Accent = ui.Hex("#5b5bd6")
+		t.AccentHover = ui.Hex("#5050c5")
+		t.AccentPressed = ui.Hex("#4444b0")
 		t.AccentText = ui.Hex("#ffffff")
-		t.Danger = ui.Hex("#d70015")
-		t.Warning = ui.Hex("#b25000")
-		t.Success = ui.Hex("#248a3d")
+		t.Danger = ui.Hex("#c42b36")
+		t.Warning = ui.Hex("#995000")
+		t.Success = ui.Hex("#217a40")
 		t.Inverse = ui.Hex("#e8e8ec")
 		t.InverseText = ui.Hex("#1d1d1f")
 	}
-	t.FontSize = 13
-	t.Radius = 6
+	t.Font = fontUI
+	t.FontSize = textBody
+	t.Radius = radiusControl
 	t.Spacing = 4
 	t.Selection = t.Accent.Alpha(0.3)
 	t.Focus = t.Accent
 	return t
+}
+
+// appColors extends MyGo's theme with the app's remaining semantic roles.
+// Success/warning/danger stay on Theme so native widgets share those colors.
+type appPalette struct {
+	TextFaint, Info, MethodGet, MethodPatch ui.Color
+}
+
+var lightPalette = appPalette{
+	TextFaint: ui.Hex("#85858c"), Info: ui.Hex("#087e96"),
+	MethodGet: ui.Hex("#2563c4"), MethodPatch: ui.Hex("#c026d3"),
+}
+
+var darkPalette = appPalette{
+	TextFaint: ui.Hex("#85858e"), Info: ui.Hex("#69cadc"),
+	MethodGet: ui.Hex("#7eb3ff"), MethodPatch: ui.Hex("#e98aef"),
+}
+
+func appColors(t *ui.Theme) appPalette {
+	if t.Dark {
+		return darkPalette
+	}
+	return lightPalette
+}
+
+func methodColor(method string, t *ui.Theme) ui.Color {
+	switch method {
+	case "GET":
+		return appColors(t).MethodGet
+	case "POST":
+		return t.Success
+	case "PUT":
+		return t.Warning
+	case "DELETE":
+		return t.Danger
+	case "PATCH":
+		return appColors(t).MethodPatch
+	case "WS":
+		return appColors(t).Info
+	default:
+		return t.TextMuted
+	}
 }
 
 // Body readers and the authored body share syntax colors, not error colors.
@@ -110,14 +154,14 @@ func appModal(c *ui.Context, open *bool, content func()) ui.Element {
 	width, height := c.Size()
 	return ui.DialogBase(c, open, func(backdrop, panel ui.Element) {
 		backdrop.Background(ui.RGBA(0, 0, 0, 0.45))
-		panel.Padding(20).Gap(12).Radius(10).Background(t.Background).Border(1, t.Border).
+		panel.Padding(20).Gap(12).Radius(radiusDialog).Background(t.Background).Border(1, t.Border).
 			MaxWidth(width-40).MaxHeight(height-40).Shadow(0, 16, 40, 0, ui.RGBA(0, 0, 0, 0.3))
 		content()
 	})
 }
 
 func dialogTitle(c *ui.Context, title string) ui.Element {
-	return ui.Text(c, title).FontSize(15).Bold().TextColor(c.Theme().Text)
+	return ui.Text(c, title).FontSize(textTitle).Bold().TextColor(c.Theme().Text)
 }
 
 // flatTabs is a row of plain text tabs with an underline under the chosen
@@ -132,14 +176,17 @@ func flatTabs(c *ui.Context, selected *int, prefix string, labels ...string) ui.
 			if prefix != "" {
 				name = prefix + ": " + label
 			}
-			tab := group.Tab(i).Label(name).Height(34).Padding(0, 9).Radius(0).AlignItems(ui.Center).TextColor(t.TextMuted)
+			tab := group.Tab(i).Label(name).Height(heightTabs).Padding(0, t.Space(2)).Radius(0).AlignItems(ui.Center).TextColor(t.TextMuted)
 			if i == *selected {
 				tab.TextColor(t.Text).Border(0, t.Accent).BorderWidth(0, 0, 2, 0)
+			}
+			if tab.Pressed() {
+				tab.Background(t.SurfacePressed)
 			} else if tab.Hovered() {
-				tab.TextColor(t.Text)
+				tab.Background(t.SurfaceHover)
 			}
 			tab.Children(func() {
-				text := ui.Text(c, label).FontSize(13)
+				text := ui.Text(c, label).FontSize(textBody)
 				if i == *selected {
 					text.Bold()
 				}

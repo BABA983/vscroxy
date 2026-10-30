@@ -344,7 +344,7 @@ func (a *app) documentTabs(c *ui.Context, t *ui.Theme) {
 						tab.Background(t.SurfaceHover).TextColor(t.Text)
 					}
 					tab.Children(func() {
-						ui.Text(c, d.composeMethod).FontSize(11).Bold().TextColor(methodColor(d.composeMethod))
+						ui.Text(c, d.composeMethod).FontSize(11).Bold().TextColor(methodColor(d.composeMethod, t))
 						ui.Text(c, d.title()).FontSize(13).SingleLine().MaxWidth(165)
 						if d.dirty() {
 							ui.Box(c).Size(5, 5).Radius(3).Background(t.Accent).Label("Unsaved changes")
@@ -680,7 +680,7 @@ func (a *app) requestBar(c *ui.Context, t *ui.Theme, d *requestDocument) {
 		control.Children(func() {
 			method := ui.ComboboxBase(c, &d.composeMethod)
 			method.Input.Width(78).Height(32).Label("Method").FontSize(13).FontWeight(600).
-				TextColor(methodColor(d.composeMethod)).Border(0, t.Border)
+				TextColor(methodColor(d.composeMethod, t)).Border(0, t.Border)
 			if method.Input.Changed() {
 				d.composeMethod = strings.ToUpper(strings.TrimSpace(d.composeMethod))
 			}
@@ -695,7 +695,7 @@ func (a *app) requestBar(c *ui.Context, t *ui.Theme, d *requestDocument) {
 					if item.Highlighted() {
 						item.Background(t.SurfaceHover).TextColor(t.Text)
 					}
-					item.Children(func() { ui.Text(c, m).FontSize(12).TextColor(methodColor(m)) })
+					item.Children(func() { ui.Text(c, m).FontSize(12).TextColor(methodColor(m, t)) })
 				}
 			})
 			if chosen, ok := method.Chosen(); ok {

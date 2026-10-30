@@ -135,7 +135,7 @@ func (a *app) captureToolbar(c *ui.Context, t *ui.Theme) {
 	tight := width < 1100
 	ui.Row(c).Height(44).Padding(0, 12).Gap(8).AlignItems(ui.Center).Children(func() {
 		search := ui.TextInput(c, &a.query).Bind(&a.search).Label("Search host or path").Placeholder("Search host or path…").
-			Tooltip("URL host and path only · Ctrl/Cmd+F · Enter or ↓ moves to requests. Filters search headers and full bodies.").Grow(1)
+			Tooltip("URL host and path only · Ctrl/Cmd+F · Enter or ↓ moves to requests. Filters search headers and full bodies.").Height(heightControl).FontSize(textBody).Grow(1)
 		search.OnShortcut(0, ui.KeyDown, func() { a.focusTraffic(c) })
 		if search.Changed() {
 			a.applyFilter()
@@ -143,10 +143,9 @@ func (a *app) captureToolbar(c *ui.Context, t *ui.Theme) {
 		if search.Submitted() {
 			a.focusTraffic(c)
 		}
-		if ui.ButtonBase(c).Label("Filters…").Height(26).Padding(0, 8).Gap(6).Radius(5).AlignItems(ui.Center).
-			TextColor(t.TextMuted).Tooltip("Status, header, body, method, duration and notes").Children(func() {
-			ui.Icon(c, filterIcon).Size(14, 14)
-			ui.Text(c, "Filters").FontSize(13)
+		if toolbarButton(c, "Filters…", "Status, header, body, method, duration and notes", a.filtersActive()).Children(func() {
+			ui.Icon(c, filterIcon).Size(iconInline, iconInline)
+			ui.Text(c, "Filters").FontSize(textBody)
 		}).Clicked() {
 			a.openFilter()
 		}
@@ -172,55 +171,39 @@ func (a *app) captureToolbar(c *ui.Context, t *ui.Theme) {
 			if m.Item("Clear unpinned requests…").Chosen() {
 				a.clearOpen = true
 			}
-		}).Label("More capture options").Height(26).Padding(0, 6).FontSize(14).TextColor(t.TextMuted).Border(0, t.Border)
+		}).Label("More capture options").Tooltip("More capture options").Height(heightCompact).Padding(0, t.Space(2)).FontSize(textBody).TextColor(t.TextMuted).Border(0, t.Border)
 	})
 	ui.Row(c).Height(34).Padding(0, 12).Gap(6).AlignItems(ui.Center).Children(func() {
 		ui.ScrollHorizontal(c).Grow(1).FillHeight().Children(func() {
 			ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
 				for i, name := range captureProtocols {
-					b := ui.ButtonBase(c).Label("Protocol and content type: "+name).Height(28).Padding(0, 8).Radius(4).
-						AlignItems(ui.Center).TextColor(t.TextMuted)
-					if a.chip == i {
-						b.Background(t.Accent.Alpha(0.10)).TextColor(t.Accent)
-					}
-					b.Children(func() { ui.Text(c, name).FontSize(12) })
+					b := toolbarButton(c, "Protocol and content type: "+name, "Filter by "+name, a.chip == i)
+					b.Children(func() { ui.Text(c, name).FontSize(textBody) })
 					b.OnClick(func() { a.chip = i; a.applyFilter() })
 				}
 			})
 		})
-		rules := ui.ButtonBase(c).Label("Debugging rules…").Tooltip("Debugging rules").Height(28).Padding(0, 8).Radius(4).
-			AlignItems(ui.Center).TextColor(t.TextMuted)
-		if rules.Hovered() {
-			rules.Background(t.SurfaceHover).TextColor(t.Text)
-		}
-		rules.Children(func() { ui.Text(c, "Rules…").FontSize(12) }).OnClick(a.openRules)
-		breakButton := ui.ButtonBase(c).Label("Breakpoints").Height(28).Padding(0, 8).Gap(6).Radius(4).AlignItems(ui.Center).
-			Tooltip("Pause each matching request or response before it continues")
-		if a.breakOn {
-			breakButton.Background(t.Warning.Alpha(0.10)).TextColor(t.Warning)
-		} else if breakButton.Hovered() {
-			breakButton.Background(t.SurfaceHover).TextColor(t.Text)
-		} else {
-			breakButton.TextColor(t.TextMuted)
-		}
+		rules := toolbarButton(c, "Debugging rules…", "Debugging rules", false)
+		rules.Children(func() { ui.Text(c, "Rules…").FontSize(textBody) }).OnClick(a.openRules)
+		breakButton := toolbarButton(c, "Breakpoints", "Pause each matching request or response before it continues", a.breakOn)
 		if breakButton.Clicked() && a.srv != nil {
 			a.breakOn = !a.breakOn
 			a.srv.SetBreak(a.breakOn)
 		}
 		breakButton.Children(func() {
-			ui.Icon(c, breakIcon).Size(14, 14)
+			ui.Icon(c, breakIcon).Size(iconInline, iconInline)
 			if !tight {
-				ui.Text(c, "Breakpoints").FontSize(12)
+				ui.Text(c, "Breakpoints").FontSize(textBody)
 			}
 			if a.breakOn {
-				ui.Box(c).Size(5, 5).Radius(3).Background(t.Warning)
+				ui.Box(c).Size(5, 5).Radius(radiusControl).Background(t.Accent)
 			}
 		})
 		ui.MenuButton(c, "Layout", func(m *ui.Menu) {
 			for _, id := range []string{"layout-bottom", "layout-right", "layout-auto", "focus"} {
 				a.desktopMenuItem(c, m, id, "")
 			}
-		}).Label("Inspector layout").Height(28).FontSize(12).TextColor(t.TextMuted).Border(0, t.Border)
+		}).Label("Inspector layout").Tooltip("Inspector layout").Height(heightControl).FontSize(textBody).TextColor(t.TextMuted).Border(0, t.Border)
 	})
 	ui.Divider(c)
 	if !a.filtersActive() {
@@ -228,11 +211,11 @@ func (a *app) captureToolbar(c *ui.Context, t *ui.Theme) {
 	}
 	// Every condition is visible and removable without opening a dialog.
 	ui.Row(c).Height(32).Padding(0, 12).Gap(8).AlignItems(ui.Center).Children(func() {
-		ui.Text(c, "Match all").FontSize(11).TextColor(t.TextMuted).Tooltip("Conditions combine with AND; comma-separated status and method alternatives use OR")
+		ui.Text(c, "Match all").FontSize(textMeta).TextColor(t.TextMuted).Tooltip("Conditions combine with AND; comma-separated status and method alternatives use OR")
 		ui.ScrollHorizontal(c).Grow(1).FillHeight().Children(func() {
 			ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
 				token := func(label string, clear func()) {
-					if ui.Button(c, clamp(label, 30)+" ×").Label(label + " ×").FontSize(12).Height(24).TextColor(t.Accent).Tooltip("Remove condition: " + label).Clicked() {
+					if secondaryButton(c, clamp(label, 30)+" ×").Label(label + " ×").Height(heightCompact).TextColor(t.Accent).Tooltip("Remove condition: " + label).Clicked() {
 						clear()
 						a.views.capture(a)
 						a.applyFilter()
@@ -268,12 +251,11 @@ func (a *app) captureToolbar(c *ui.Context, t *ui.Theme) {
 				}
 			})
 		})
-		if ui.Button(c, "Save filter…").FontSize(12).Height(24).Tooltip("Save all current conditions for reuse in any capture view").Clicked() {
+		if secondaryButton(c, "Save filter…").Height(heightCompact).Tooltip("Save all current conditions for reuse in any capture view").Clicked() {
 			a.views.openSaved(a)
 		}
-		if ui.ButtonBase(c).Label("Reset all").Height(22).Padding(0, 6).Radius(4).AlignItems(ui.Center).
-			TextColor(t.TextMuted).Children(func() {
-			ui.Text(c, "Reset all").FontSize(11)
+		if toolbarButton(c, "Reset all", "Reset all conditions", false).Height(heightCompact).Children(func() {
+			ui.Text(c, "Reset all").FontSize(textMeta)
 		}).Clicked() {
 			a.views.resetFilters(a)
 		}

@@ -2917,6 +2917,55 @@ func TestDesktopLayoutDefaultsBelowAndSwitchesWithoutLosingCaptureContext(t *tes
 	}
 }
 
+func TestCaptureSelectionIsSolidOnlyWhileTheListAndWindowHaveFocus(t *testing.T) {
+	for _, dark := range []bool{false, true} {
+		t.Run(fmt.Sprintf("dark=%t", dark), func(t *testing.T) {
+			a := workspaceApp()
+			a.dark = dark
+			tt := ui.NewTester(a.view, 1280, 800)
+			if err := tt.Click("api.example.com/projects"); err != nil {
+				t.Fatal(err)
+			}
+			check := func(solid bool) {
+				t.Helper()
+				table, ok := tt.Find("Captured requests")
+				row, found := tt.Find("api.example.com/projects")
+				if !ok || !found {
+					t.Fatal("selected traffic row disappeared")
+				}
+				// Sample empty space, not font antialiasing. Expected colors
+				// come from the design's indigo and 12% tint, not appTheme.
+				want := [3]int{235, 235, 250}
+				if dark {
+					want = [3]int{41, 41, 55}
+				}
+				if solid {
+					want = [3]int{91, 91, 214}
+					if dark {
+						want = [3]int{124, 124, 240}
+					}
+				}
+				pixel := tt.Image().RGBAAt(int(table.X+table.W-5), int(row.Y+row.H/2))
+				for i, got := range [3]int{int(pixel.R), int(pixel.G), int(pixel.B)} {
+					if got < want[i]-2 || got > want[i]+2 {
+						t.Fatalf("solid=%t: selection pixel %v, want RGB %v", solid, pixel, want)
+					}
+				}
+			}
+			check(true)
+			tt.SetFocused(false)
+			check(false)
+			tt.SetFocused(true)
+			check(true)
+			tt.Key(ui.Cmd, ui.KeyF)
+			if !tt.Focused("Search host or path") {
+				t.Fatal("search shortcut did not move focus out of the list")
+			}
+			check(false)
+		})
+	}
+}
+
 func TestCommandPaletteKeyboardAndDisabledActions(t *testing.T) {
 	a := workspaceApp()
 	tt := ui.NewTester(a.view, 960, 600)

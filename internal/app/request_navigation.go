@@ -131,7 +131,7 @@ func (a *app) collectionTree(c *ui.Context) {
 			}
 			item.Children(func() {
 				ui.Row(c).Gap(8).Label(r.Method + "  " + r.Name).Children(func() {
-					ui.Text(c, r.Method).FontSize(11).Bold().TextColor(methodColor(r.Method)).Width(38).SingleLine()
+					ui.Text(c, r.Method).FontSize(11).Bold().TextColor(methodColor(r.Method, c.Theme())).Width(38).SingleLine()
 					ui.Text(c, r.Name).FontSize(13).SingleLine()
 				})
 			})
