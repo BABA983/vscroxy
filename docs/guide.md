@@ -184,8 +184,8 @@ one shows its result read-only where the response goes, with **Open as draft**,
 until **×** or the next Send brings back the request's own response.
 **Examples** lists the saved examples and opens one in the Examples tab.
 **Run records** opens retained attempts across the whole window, without
-sending them again; **Close** returns. Document tabs stay in the content pane
-above the editor and inline response viewer. Moving between sidebar groups
+sending them again; **Close** returns. One request shows at a time, under a
+breadcrumb header above the editor and inline response viewer. Moving between sidebar groups
 preserves the capture filters, all open drafts and responses, and the board. The response's **Last attempt** disclosure shows the
 full sent draft URL and response time; the collapsed row still distinguishes
 an edited, unsent draft from the retained result. The diff pane is MyGo's
@@ -731,10 +731,12 @@ response.
 
 ## Requests
 
-**New request** opens a document tab in **Requests**. The document tabs stay in
-the content pane, so the sidebar runs up to the title bar and only the
-workspace switch sits above them. The breadcrumb shows the collection and name
-as quiet text: clicking it renames the request and moves it
+**New request** opens a request in the content area, one at a time. Other open
+requests wait in the sidebar: new ones under **Unsaved** at the top of
+COLLECTIONS, saved ones with unsaved changes marked by a dot in their
+collection. A saved request left unchanged and unsent closes when another is
+shown, since it reopens from its collection as it was. The header is a
+breadcrumb of the collection and name: clicking it renames the request and moves it
 between collections, so neither needs a permanent input. The environment,
 **Save** and the request's **⋯** menu — Copy as cURL, Variables, Run records,
 Send history, regression import/export and environment management — sit at the
@@ -1018,14 +1020,14 @@ Each delivered attempt also appears in **Run records**, including failures and
 in-flight cancellation; **Inspect retained run** opens its immutable snapshot
 and Console. Runner results are not the deduplicated recent-request list.
 
-Each tab owns its draft, editor selection, pending send and response. Concurrent
+Each open request owns its draft, editor selection, pending send and response. Concurrent
 sends, even to the same URL, retain their own results and run the script that
 was present when sent. Script variable updates go to the originating environment
-without overwriting unrelated variables changed by another tab. Reopening a
-saved request focuses its existing tab instead of replacing unsaved edits.
+without overwriting unrelated variables changed by another request. Reopening a
+saved request shows its open draft instead of replacing unsaved edits.
 A dot marks unsaved changes; closing offers **Cancel**, **Discard** or
-**Save & close**. A failed save leaves the draft open. Sending tabs cannot be
-closed until the send finishes. Open drafts are restored from the private
+**Save & close**. A failed save leaves the draft open. A request that is sending cannot be
+closed (**×** in its header) until the send finishes. Open drafts are restored from the private
 experiment checkpoint described below; editor selection and layout are session-local.
 
 A captured HTTP request is itself a request document: choosing its row shows
@@ -1461,8 +1463,8 @@ Proxyman or Postman use identical Windows/Linux defaults.
 | Save current draft | Cmd/Ctrl+S |
 | Compare exact last send with source | Cmd/Ctrl+Shift+D after sending a draft opened from Capture |
 | Back to original traffic view | Cmd/Ctrl+[; preserves the draft and original capture conditions |
-| Cycle request tabs | Ctrl+Tab / Ctrl+Shift+Tab |
-| Close current request tab | Cmd/Ctrl+W; asks about unsaved changes; unavailable while sending |
+| Cycle open requests | Ctrl+Tab / Ctrl+Shift+Tab |
+| Close current request | Cmd/Ctrl+W; asks about unsaved changes; unavailable while sending |
 | Close window | Cmd/Ctrl+Shift+W (separate from closing a request) |
 
 Plain Enter in the URL input never sends. Dialogs own their shortcuts: sending,
@@ -1488,8 +1490,8 @@ as they were while traffic continues arriving. Escape returns to the list and
 Enter reopens the same document, with its edits, response and comparison. In
 Live, Cmd/Ctrl+Enter sends only while the focus is in the inspector, so the
 shortcut never sends the row under the list's focus by surprise.
-Request tabs opened from the library still require save or discard before
-closing; open tabs, their active tab and saved/unsaved baseline are
+Open requests from the library still require save or discard before
+closing; open requests, the one shown and their saved/unsaved baseline are
 checkpointed privately for restart and never send on restore.
 Header, text-body, JSON and hex reading positions survive leaving Capture;
 choosing a different request resets those readers.

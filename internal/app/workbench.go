@@ -70,7 +70,7 @@ func (a *app) desktopContent(c *ui.Context) {
 			a.apiView(c, c.Theme())
 		case pageRequest:
 			ui.Column(c).Fill().Children(func() {
-				a.documentTabs(c, c.Theme())
+				a.documentHeader(c, c.Theme())
 				d := a.requestDocument
 				// A saved request has a history; the column leaves the editor
 				// its room in a narrow window, where Send history still opens it.
@@ -367,9 +367,9 @@ func (a *app) desktopActions(c *ui.Context) []desktopAction {
 				a.workbench.inspector.Focus(c)
 			}
 		}},
-		{"close-request", "Close request tab", tab && !d.composeWaiting, ui.Cmd, ui.KeyW, func() { a.requestClose(d) }},
-		{"next-tab", "Next debugging tab", len(a.documents) > 0, ui.Ctrl, ui.KeyTab, func() { a.cycleDocument(1) }},
-		{"previous-tab", "Previous debugging tab", len(a.documents) > 0, ui.Ctrl | ui.Shift, ui.KeyTab, func() { a.cycleDocument(-1) }},
+		{"close-request", "Close request", tab && !d.composeWaiting, ui.Cmd, ui.KeyW, func() { a.requestClose(d) }},
+		{"next-tab", "Next open request", len(a.documents) > 0, ui.Ctrl, ui.KeyTab, func() { a.cycleDocument(1) }},
+		{"previous-tab", "Previous open request", len(a.documents) > 0, ui.Ctrl | ui.Shift, ui.KeyTab, func() { a.cycleDocument(-1) }},
 		{"export-selection", "Export selected HAR…", capturing && a.chosen.Len() > 0, 0, 0, a.exportChosen},
 		{"focus", focus, capturing && current, ui.Cmd | ui.Shift, ui.KeyEnter, func() {
 			w.focused = !w.focused
@@ -507,7 +507,7 @@ func (action desktopAction) unavailable() string {
 	case "save-request":
 		return "Open a request draft first"
 	case "next-tab", "previous-tab":
-		return "Open a request tab first"
+		return "Open a request first"
 	case "sessions":
 		return "Create an investigation first"
 	case "apis":

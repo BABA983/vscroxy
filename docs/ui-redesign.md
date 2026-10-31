@@ -238,7 +238,10 @@ uikit 已按"主题 = 语义 token 表"实现，导入第三方主题不用返�
      - 还没做：双击分隔线恢复默认（MyGo 的分隔线不暴露双击，要先改库；现在用 View → Reset desktop layout）。
    - 3.2 发送历史栏（完成）：选中已保存的请求时，编辑器左边多一栏 History／Examples（240，内容区不足 900 时不显示，仍可从请求的 `⋯` → Send history 进入）。History 只列从这个请求发出的运行记录（按请求 ID 或这个文档关联，不按 URL 匹配），点一条在响应区只读显示，可以 Open as draft，× 或再次 Send 回到自己的响应；Examples 点一条在 Examples tab 打开。设基线、对比留给 M1。
    - 3.3 抓到的请求就是请求文档（完成）：选中抓到的 HTTP 请求，检查器就是它的请求文档：顶部 `Captured · 时间 · 进程` 和抓到的状态，下面是 method、URL、Send 和 Save to collection（检查器不足 600 时只留图标），编辑器的 tab 以 Original（抓到的请求读取器）打头，旁边是抓到的响应，发送后换成这次的响应。第一次编辑或发送时才为这条抓包留一份草稿（copy on write），头部和行里有 Edited 标记，抓包本身不变；检查器 `⋯` → Discard edits 回到原样。Edit & replay、Back to traffic、Source #N 都去掉了；落盘的大请求体点 Edit request 才读，流和隧道只读。检查器在列表旁边时请求在上、响应在下；在列表下方（上下布局，或窗口不足 1000 时）或占满窗口时左右并排，不再按宽度切换。窄检查器里 Send 窄到 64，发送中只留 Cancel。
-   - 3.4 收尾：待做，包括去掉文档 tab 栏（一次只显示一个文档）。
+   - 3.4 收尾（进行中）：
+     - `workspace`／`captureSection`／`requestsSection` 合成一个 `page`（Live、Session、Request、API、Runs）。
+     - 去掉文档 tab 栏，一次只显示一个请求：顶部是面包屑（集合 / 名字，点它改名或移动）、环境、Save、`⋯` 和 ×；新建的请求放在 COLLECTIONS 顶部的 Unsaved 里，改过没保存的已保存请求在集合里带圆点；没改过也没发过的已保存请求离开屏幕就关掉。Ctrl+Tab 仍在打开的请求之间切换。
+     - 还没做：剩下约 26 处 muted 文字、截图矩阵改为两种布局 × Paper／Ink。
 4. **标志性组件：** 录制 pill 的速率曲线、查询语法筛选、活动柱状图、耗时条、响应结论、瀑布视图（Table／Waterfall 切换）。
 5. **随里程碑落地：** 首次启动引导和 Settings 独立窗口随 M1，Host 方案随 M2，Tools 窗口随 M4（见第 10 节）。
 6. **第三方主题：** 第 8 节的映射、内置主题和导入。
@@ -311,3 +314,4 @@ XDG_CACHE_HOME=/tmp/vscroxy-ui-cache VSCROXY_SNAPSHOTS="$PWD/.amp/in/artifacts/u
 14. 不加防写死值回退的检查脚本。
 15. 形状靠近 macOS：圆角 6／10／14，嵌套同心，浮层柔和阴影；不做胶囊按钮和毛玻璃（3.0）。
 16. 抓到的请求原地编辑：第一次编辑或发送才留草稿，草稿跟着抓包，只在本次会话，清掉抓包就没了；保存到集合要先起名、选集合（3.3）。
+17. 去掉请求文档的 tab 栏，一次只显示一个请求，未保存的新请求在 COLLECTIONS 顶部 Unsaved 里（3.4）。

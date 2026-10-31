@@ -2976,7 +2976,6 @@ func (a *app) openSaved(key string) {
 	for _, d := range a.documents {
 		if d.savedKey == key {
 			a.requestDocument = d
-			d.revealTab = true
 			a.requestChoice = key
 			a.page = pageRequest
 			return

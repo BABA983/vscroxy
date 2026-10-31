@@ -362,7 +362,7 @@ func (a *app) experimentsView(c *ui.Context, t *ui.Theme, inline bool) {
 					if uikit.SecondaryButton(c, "Origin draft").Label("Open originating draft").Disabled(origin < 0).Tooltip("Return to the original editable tab without overwriting its current edits: " + r.Draft.Name).Clicked() {
 						d := a.documents[origin]
 						a.requestDocument, a.requestChoice, a.page = d, d.savedKey, pageRequest
-						d.revealTab, s.open = true, false
+						s.open = false
 						d.urlInput.Focus()
 					}
 					if uikit.SecondaryButton(c, "Set baseline").Clicked() {

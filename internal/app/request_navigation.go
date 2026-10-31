@@ -1,10 +1,11 @@
 package app
 
 import (
-	"github.com/baba983/vscroxy/internal/uikit"
+	"fmt"
 	"slices"
 	"strings"
 
+	"github.com/baba983/vscroxy/internal/uikit"
 	"github.com/egoist/mygo/ui"
 	"github.com/oneo-me/onevra/source/icons/lucide"
 )
@@ -87,6 +88,7 @@ func (a *app) collectionTree(c *ui.Context) {
 			}
 			// The sidebar has one choice: a request only while it is shown.
 			chosen := a.page == pageRequest && a.requestChoice == r.key()
+			edited := slices.ContainsFunc(a.documents, func(d *requestDocument) bool { return d.savedKey == r.key() && d.dirty() })
 			item := ui.TreeItem(c.Key(r.key()), "", nil, nil).Label(r.Name).Height(uikit.HeightControl).
 				Selected(chosen).Tooltip(r.Method + " " + r.URL).
 				OnClick(func() { a.openSaved(r.key()) }).PopoverMenu(menu)
@@ -97,6 +99,9 @@ func (a *app) collectionTree(c *ui.Context) {
 				ui.Row(c).Grow(1).FillHeight().Gap(c.Theme().Space(2)).AlignItems(ui.Center).Label(r.Method + "  " + r.Name).Children(func() {
 					uikit.MethodLabel(c, r.Method).FontSize(uikit.TextMeta).Width(38).Height(16)
 					uikit.Body(c, r.Name).SingleLine().Grow(1)
+					if edited {
+						unsavedDot(c)
+					}
 					action := uikit.IconButton(c, "Request actions: "+r.Name, "Request actions", moreIcon).PopoverMenuButton(menu).
 						Absolute().Right(0).Top(2).Background(uikit.Colors(c.Theme()).Panel)
 					if !item.Hovered() && !item.FocusWithin() {
@@ -106,8 +111,57 @@ func (a *app) collectionTree(c *ui.Context) {
 			})
 		}
 	}
-	ui.Tree(c, func() { branch("") })
+	ui.Tree(c, func() {
+		a.unsavedRequests(c, query)
+		branch("")
+	})
 	if len(a.requests) == 0 && len(paths) == 0 {
 		ui.Text(c, "Save a request here, or edit a captured flow to start.").FontSize(uikit.TextBody).TextColor(c.Theme().TextMuted).Padding(c.Theme().Space(2))
 	}
+}
+
+// unsavedGroup keys the Unsaved group's open state among the collections'.
+const unsavedGroup = "\x00unsaved"
+
+// unsavedRequests lists the open requests no collection holds yet, above the
+// collections: with one request on screen at a time, this is where a new
+// one waits while another is shown.
+func (a *app) unsavedRequests(c *ui.Context, query string) {
+	t := c.Theme()
+	var unsaved []*requestDocument
+	for _, d := range a.documents {
+		if d.savedKey == "" && (query == "" || strings.Contains(strings.ToLower(d.title()+" "+d.composeURL+" "+d.composeMethod), query)) {
+			unsaved = append(unsaved, d)
+		}
+	}
+	if len(unsaved) == 0 {
+		return
+	}
+	group := ui.TreeItem(c.Key("unsaved"), "", a.collectionShown(unsavedGroup), func() {
+		for _, d := range unsaved {
+			chosen := a.page == pageRequest && a.requestDocument == d
+			item := ui.TreeItem(c.Key(fmt.Sprint("unsaved:", d.id)), "", nil, nil).Label("Unsaved: " + d.title()).Height(uikit.HeightControl).
+				Selected(chosen).Tooltip(d.composeMethod + " " + d.composeURL).
+				OnClick(func() { a.requestDocument, a.requestChoice, a.page = d, "", pageRequest })
+			if chosen {
+				uikit.Selected(c, item, true)
+			}
+			item.Children(func() {
+				ui.Row(c).Grow(1).FillHeight().Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+					uikit.MethodLabel(c, d.composeMethod).FontSize(uikit.TextMeta).Width(38).Height(16)
+					uikit.Body(c, d.title()).SingleLine().Grow(1)
+				})
+			})
+		}
+	}).Height(uikit.HeightControl).Label("Unsaved requests")
+	group.Children(func() {
+		ui.Icon(c, lucide.FilePen()).Size(uikit.IconInline, uikit.IconInline).TextColor(t.TextMuted)
+		uikit.Body(c, "Unsaved").SingleLine().Grow(1)
+		uikit.Meta(c, fmt.Sprint(len(unsaved))).FontFeatures("tnum")
+	})
+}
+
+// unsavedDot marks a request whose open document has changes to save.
+func unsavedDot(c *ui.Context) {
+	ui.Box(c).Size(6, 6).Radius(uikit.RadiusControl).Background(c.Theme().Accent).Label("Unsaved changes")
 }

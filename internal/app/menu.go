@@ -27,7 +27,7 @@ func (a *app) menu() *mygo.Menu {
 		command("new-request", "New request"),
 		command("import-curl", "Import cURL…"),
 		command("save-request", "Save request"),
-		command("close-request", "Close request tab"),
+		command("close-request", "Close request"),
 		mygo.Separator(),
 		{Role: mygo.RoleClose, Label: "Close window", Accelerator: "CmdOrCtrl+Shift+W"},
 	}}
@@ -62,8 +62,8 @@ func (a *app) menu() *mygo.Menu {
 		command("search", "Find / Search traffic"),
 		command("primary", "Focus request list / URL"),
 		command("focus", "Focus inspector / Back to list"),
-		command("next-tab", "Next debugging tab"),
-		command("previous-tab", "Previous debugging tab"),
+		command("next-tab", "Next open request"),
+		command("previous-tab", "Previous open request"),
 		mygo.Separator(), {Role: mygo.RoleToggleFullScreen},
 	}}, &mygo.MenuItem{Role: mygo.RoleWindowMenu})
 	return mygo.NewMenu(items)

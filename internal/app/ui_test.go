@@ -1700,10 +1700,10 @@ func TestSavedRequestHistoryShowsLinkedRunsReadOnly(t *testing.T) {
 	}
 	click("Run #3")
 	click("Open as draft")
-	if len(a.documents) != 2 || a.requestDocument.assetID != "" || a.requestDocument.response == nil || a.requestDocument.response.Status != 404 {
+	if a.requestDocument == d || a.requestDocument.assetID != "" || a.requestDocument.response == nil || a.requestDocument.response.Status != 404 {
 		t.Fatal("Open as draft did not open an unsaved copy with that run's result")
 	}
-	click("List projects")
+	click("GET  List projects") // The saved one; its copy waits under Unsaved.
 	click("Examples")
 	if a.requestDocument.historyTab != 1 {
 		t.Fatal("Examples did not switch the history column")
@@ -1714,7 +1714,7 @@ func TestSavedRequestHistoryShowsLinkedRunsReadOnly(t *testing.T) {
 	}
 }
 
-func TestRequestTabsKeepDraftsAndConfirmClose(t *testing.T) {
+func TestOpenRequestsKeepDraftsAndConfirmClose(t *testing.T) {
 	a := workspaceApp()
 	a.library.root = filepath.Join(t.TempDir(), "collections")
 	tt := ui.NewTester(a.view, 960, 800)
@@ -1730,6 +1730,13 @@ func TestRequestTabsKeepDraftsAndConfirmClose(t *testing.T) {
 		tt.Key(ui.Cmd, ui.KeyA)
 		tt.Type(text)
 	}
+	copyURL := func() string {
+		t.Helper()
+		click("URL")
+		tt.Key(ui.Cmd, ui.KeyA)
+		tt.Key(ui.Cmd, ui.KeyC)
+		return tt.Clipboard()
+	}
 	tt.Key(ui.Cmd, ui.Key2)
 	click("Create request")
 	click("Rename request")
@@ -1738,30 +1745,31 @@ func TestRequestTabsKeepDraftsAndConfirmClose(t *testing.T) {
 	edit("URL", "https://example.test/a?limit=7")
 	click("Body")
 	edit("Request body", `{"side":"A"}`)
-	click("Add request tab")
+	// One request shows at a time; a new one waits under Unsaved.
+	click("New request")
 	click("Rename request")
 	edit("Name", "Draft B")
 	click("Done")
 	edit("URL", "https://example.test/b")
-	click("Request tab: Draft A")
-	click("URL")
-	tt.Key(ui.Cmd, ui.KeyA)
-	tt.Key(ui.Cmd, ui.KeyC)
-	if tt.Clipboard() != "https://example.test/a?limit=7" {
-		t.Fatal("switching tabs lost Draft A's URL")
+	if !tt.HasText("Unsaved: Draft A") || !tt.HasText("Unsaved: Draft B") {
+		t.Fatal("new requests are not listed under Unsaved")
+	}
+	click("Unsaved: Draft A")
+	if copyURL() != "https://example.test/a?limit=7" {
+		t.Fatal("switching requests lost Draft A's URL")
 	}
 	click("Request body")
 	tt.Key(ui.Cmd, ui.KeyA)
 	tt.Key(ui.Cmd, ui.KeyC)
 	if tt.Clipboard() != `{"side":"A"}` {
-		t.Fatal("switching tabs lost Draft A's body or editor selection")
+		t.Fatal("switching requests lost Draft A's body or editor selection")
 	}
-	click("Close Draft A")
+	click("Close request")
 	if !tt.HasText("Save changes?") {
-		t.Fatal("dirty tab closed without confirmation")
+		t.Fatal("dirty request closed without confirmation")
 	}
 	click("Cancel")
-	click("Close Draft A")
+	click("Close request")
 	// A failed save must not silently close or mark the draft as saved.
 	blocked := filepath.Join(t.TempDir(), "not-a-directory")
 	if err := os.WriteFile(blocked, nil, 0o600); err != nil {
@@ -1784,39 +1792,28 @@ func TestRequestTabsKeepDraftsAndConfirmClose(t *testing.T) {
 			found = true
 		}
 	}
-	if !found || tt.HasText("Request tab: Draft A") {
-		t.Fatal("save-and-close failed to persist or close Draft A")
+	if !found || tt.HasText("Unsaved: Draft A") || !tt.HasText("Draft A") {
+		t.Fatal("save-and-close failed to persist Draft A or move it into its collection")
 	}
-	click("Close Draft B")
+	click("Unsaved: Draft B")
+	click("Close request")
 	click("Discard")
-	if !tt.HasText("Open a saved request") {
-		t.Fatal("closing the last tab did not show the empty workspace")
+	if !tt.HasText("Open a saved request") || tt.HasText("Unsaved requests") {
+		t.Fatal("closing the last request did not show the empty workspace")
 	}
 	click("Draft A")
 	if tt.HasText("Unsaved changes") {
 		t.Fatal("saved request reopened dirty")
 	}
+	// An edited saved request stays open, marked in its collection.
 	edit("URL", "https://example.test/edited")
-	click("Add request tab")
+	click("New request")
+	if !tt.HasText("Unsaved changes") {
+		t.Fatal("the collection did not mark the edited request")
+	}
 	click("Draft A")
-	click("URL")
-	tt.Key(ui.Cmd, ui.KeyA)
-	tt.Key(ui.Cmd, ui.KeyC)
-	if tt.Clipboard() != "https://example.test/edited" {
-		t.Fatal("reopening a saved request replaced its existing unsaved tab")
-	}
-	for i := range 8 {
-		click("Add request tab")
-		click("Rename request")
-		edit("Name", fmt.Sprintf("Extra %d", i))
-		click("Done")
-	}
-	click("Rename request")
-	edit("Name", "Endpoint 8 with a longer name")
-	click("Done")
-	click("Close Endpoint 8 with a longer name")
-	if !tt.HasText("Save changes?") {
-		t.Fatal("the renamed tab's close button was hidden beyond the scroll area")
+	if copyURL() != "https://example.test/edited" {
+		t.Fatal("reopening a saved request replaced its unsaved edits")
 	}
 }
 
@@ -2009,7 +2006,7 @@ func TestConcurrentRequestTabsOwnTheirResponses(t *testing.T) {
 	click("Active environment")
 	click("Staging")
 	releaseSlow <- struct{}{}
-	click("Request tab: Slow request")
+	click("Slow request")
 	waitFor("200 OK")
 	click("Response tab: Tests")
 	if !tt.HasText("✓ slow owns response") || tt.HasText("wrong script") {
@@ -2022,7 +2019,7 @@ func TestConcurrentRequestTabsOwnTheirResponses(t *testing.T) {
 	if !strings.Contains(tt.Clipboard(), `"slow"`) {
 		t.Fatal("slow response body was not retained")
 	}
-	click("Request tab: Fast request")
+	click("Fast request")
 	if !tt.HasText("201 Created") || tt.HasText("200 OK") || !tt.HasText("✓ fast owns response") {
 		t.Fatal("slow completion overwrote the fast tab")
 	}
@@ -2186,7 +2183,7 @@ func TestAPIWorkflowPreservesIndependentContracts(t *testing.T) {
 
 func TestCurlImportAndCopyKeepExistingDrafts(t *testing.T) {
 	a := workspaceApp()
-	tt := ui.NewTester(a.view, 960, 600)
+	tt := ui.NewTester(a.view, 960, 800) // Room for the collections below Unsaved.
 	click := func(label string) {
 		t.Helper()
 		if err := tt.Click(label); err != nil {
@@ -2843,14 +2840,14 @@ func TestCaptureRegressionCanBeSavedAndSharedOnlyAfterReview(t *testing.T) {
 	click("Cancel")
 	a.regressionUI = regressionShare{open: true, importing: true, preview: shared}
 	tt.Frame()
-	count := len(a.documents)
+	shown := a.requestDocument
 	click("Open unsent case")
-	if len(a.documents) != count {
+	if a.requestDocument != shown {
 		t.Fatal("unreviewed import opened")
 	}
 	click("Confirm regression review")
 	click("Open unsent case")
-	if len(a.documents) != count+1 || a.composeWaiting || a.response != nil || a.composeURL != "{{base_url}}/projects" {
+	if a.requestDocument == shown || a.requestDocument.savedKey != "" || a.composeWaiting || a.response != nil || a.composeURL != "{{base_url}}/projects" {
 		t.Fatal("import should open only an unsent, parameterized draft")
 	}
 }
@@ -4179,7 +4176,7 @@ func TestSendCancellationKeepsTheSentSnapshotAndDoesNotRetry(t *testing.T) {
 
 func TestRequestsWorkspaceDoesNotCreateUnrequestedDrafts(t *testing.T) {
 	a := workspaceApp()
-	tt := ui.NewTester(a.view, 960, 650)
+	tt := ui.NewTester(a.view, 960, 800)
 	click := func(label string) {
 		t.Helper()
 		if err := tt.Click(label); err != nil {
@@ -4196,12 +4193,12 @@ func TestRequestsWorkspaceDoesNotCreateUnrequestedDrafts(t *testing.T) {
 		t.Fatal("entering Requests silently created an empty draft")
 	}
 	click("List projects")
-	if _, found := tt.Find("Request tab: Untitled request"); found {
-		t.Fatal("opening a saved request left an automatic blank tab")
+	if tt.HasText("Unsaved requests") {
+		t.Fatal("opening a saved request left an automatic blank draft")
 	}
-	click("Add request tab")
+	click("New request")
 	click("List projects")
-	click("Request tab: Untitled request")
+	click("Unsaved: Untitled request")
 	if readField(t, tt, "URL") != "https://" {
 		t.Fatal("opening a saved request discarded a user-created blank draft")
 	}

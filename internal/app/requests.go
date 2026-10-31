@@ -33,8 +33,6 @@ type requestDocument struct {
 	historyPick       int
 	historyReader     *editor.State
 	origin            *debugSource
-	revealTab         bool
-	tabLabel          string
 	assetID           string
 	savedKey          string
 	baseline          savedRequest
@@ -199,7 +197,7 @@ func (a *app) addDocument(r savedRequest, key string) {
 func (a *app) newDocument(r savedRequest, key string) *requestDocument {
 	a.nextDocument++
 	d := &requestDocument{
-		id: a.nextDocument, debugKey: uuid.New().String(), revealTab: true, requestPercent: draftPercent,
+		id: a.nextDocument, debugKey: uuid.New().String(), requestPercent: draftPercent,
 		composeTab: composeTabFor(r), baseline: savedRequest{Method: "GET", URL: "https://"},
 	}
 	d.load(r, key)
@@ -262,7 +260,6 @@ func (a *app) closeDocument(d *requestDocument) {
 		a.requestChoice = ""
 		if len(a.documents) > 0 {
 			a.requestDocument = a.documents[min(at, len(a.documents)-1)]
-			a.revealTab = true
 			a.requestChoice = a.savedKey
 			a.urlInput.Focus()
 		} else {
@@ -300,7 +297,7 @@ func (a *app) cycleDocument(step int) {
 		return
 	}
 	a.requestDocument = a.documents[index-1]
-	a.requestChoice, a.page, a.revealTab = a.savedKey, pageRequest, true
+	a.requestChoice, a.page = a.savedKey, pageRequest
 	a.urlInput.Focus()
 }
 
@@ -337,49 +334,30 @@ func (a *app) closeRequestModal(c *ui.Context, t *ui.Theme) {
 	}
 }
 
-// documentTabs keeps documents, source navigation and save actions together.
-// Only the documents scroll; the active draft's actions remain visible.
-func (a *app) documentTabs(c *ui.Context, t *ui.Theme) {
-	var closing *requestDocument
-	ui.Row(c).Height(uikit.HeightLarge).AlignItems(ui.Center).Background(uikit.Colors(t).Panel).Children(func() {
-		ui.ScrollHorizontal(c).Grow(1).FillHeight().Children(func() {
-			selected := max(slices.Index(a.documents, a.requestDocument), 0)
-			tabs := ui.TabsBase(c, &selected, len(a.documents))
-			tabs.List.Gap(t.Space(0.5)).Padding(t.Space(1), t.Space(2), 0, t.Space(2)).Children(func() {
-				for i, d := range a.documents {
-					c.Key(d.id)
-					tab := tabs.Tab(i).Label("Request tab: "+d.title()).Height(uikit.HeightTabs).Padding(0, t.Space(2)).Gap(t.Space(2)).AlignItems(ui.Center).Radius(uikit.RadiusControl).TextColor(t.TextMuted)
-					label := fmt.Sprintf("%s %s %t", d.composeMethod, d.title(), d.dirty())
-					if d.revealTab || d == a.requestDocument && d.tabLabel != label {
-						tab.ScrollIntoView()
-						d.revealTab = false
-					}
-					d.tabLabel = label
-					if d == a.requestDocument {
-						tab.Background(t.Background).TextColor(t.Text).Border(0, t.Accent).BorderWidth(0, 0, 2, 0)
-					}
-					tab.Children(func() {
-						uikit.MethodLabel(c, d.composeMethod).FontSize(uikit.TextMeta)
-						uikit.Body(c, d.title()).SingleLine().MaxWidth(165)
-						if d.dirty() {
-							ui.Box(c).Size(5, 5).Radius(uikit.RadiusControl).Background(t.Accent).Label("Unsaved changes")
-						}
-						ui.Row(c).Disabled(d.composeWaiting).Children(func() {
-							if uikit.IconButton(c, "Close "+d.title(), "Close request", closeIcon).Size(20, 20).Clicked() {
-								closing = d
-							}
-						})
-					})
+// documentHeader names the one request on screen as a breadcrumb — its
+// collection, then its name, which renames or moves it — with the
+// environment it sends in and its actions. Other open requests are in the
+// sidebar: saved ones in their collection, new ones under Unsaved.
+func (a *app) documentHeader(c *ui.Context, t *ui.Theme) {
+	d := a.requestDocument
+	ui.Row(c).Height(uikit.HeightLarge).Padding(0, t.Space(2)).Gap(t.Space(1)).AlignItems(ui.Center).Background(uikit.Colors(t).Panel).Children(func() {
+		if d != nil {
+			crumb := uikit.ToolbarButton(c, "Rename request", "Rename or move to another collection", false).Height(uikit.HeightCompact).
+				Padding(0, t.Space(1)).Gap(t.Space(1)).MinWidth(0)
+			crumb.Children(func() {
+				if d.composeCollection != "" {
+					uikit.Meta(c, strings.ReplaceAll(d.composeCollection, "/", " / ")+" /").SingleLine().MinWidth(0)
+				}
+				uikit.Body(c, d.title()).FontWeight(600).SingleLine().MinWidth(0)
+				if d.dirty() {
+					unsavedDot(c)
 				}
 			})
-			if tabs.List.Changed() && selected >= 0 && selected < len(a.documents) {
-				a.requestDocument = a.documents[selected]
-				a.requestChoice, a.page = a.savedKey, pageRequest
+			if crumb.Clicked() {
+				a.renameOpen, a.saveAfterRename = true, false
 			}
-		})
-		if uikit.IconButton(c, "Add request tab", "New request", plusIcon).Size(uikit.HeightControl, uikit.HeightControl).Clicked() {
-			a.openCompose()
 		}
+		ui.Spacer(c)
 		if names := a.envNames(); len(names) > 0 {
 			env := ui.SelectBase(c.Key("active-environment"), &a.activeEnv)
 			env.Trigger.Label("Active environment").Tooltip("Active environment").Width(132).Height(uikit.HeightControl).
@@ -409,14 +387,17 @@ func (a *app) documentTabs(c *ui.Context, t *ui.Theme) {
 			uikit.ToolbarButton(c, "Manage environments", "Add an environment for request variables", false).
 				Children(func() { ui.Text(c, "No environment") }).OnClick(a.openVars)
 		}
-		if d := a.requestDocument; d != nil {
+		if d != nil {
 			a.requestDocumentActions(c, t, d)
+			// A send in flight finishes before its request closes.
+			ui.Row(c).Disabled(d.composeWaiting).Children(func() {
+				if uikit.IconButton(c, "Close request", "Close this request · Ctrl/Cmd+W", closeIcon).Clicked() {
+					a.requestClose(d)
+				}
+			})
 		}
 	})
 	ui.Divider(c)
-	if closing != nil {
-		a.requestClose(closing)
-	}
 }
 
 // Response views are separate from the request editor's tabs: reading what
@@ -544,19 +525,6 @@ func (a *app) requestRenameModal(c *ui.Context, t *ui.Theme) {
 // requestDocumentActions never scrolls away with a long document tab strip.
 func (a *app) requestDocumentActions(c *ui.Context, t *ui.Theme, d *requestDocument) {
 	ui.Row(c).Key(d.id).Gap(t.Space(1)).AlignItems(ui.Center).Children(func() {
-		// The tab already names the request. Keep its full collection path
-		// available at the rename action without reserving another row.
-		name := d.composeName
-		if d.composeCollection != "" {
-			name = d.composeCollection + " / " + cmp.Or(name, "Untitled request")
-		}
-		if name == "" {
-			name = "Name this request…"
-		}
-		rename := uikit.IconButton(c, "Rename request", name+"\nRename or move to another collection", requestIcon).Size(uikit.HeightControl, uikit.HeightControl)
-		if rename.Clicked() {
-			a.renameOpen, a.saveAfterRename = true, false
-		}
 		if d.sourceAPI != "" {
 			if uikit.ToolbarButton(c, "Source API", "Open the API this request came from", false).Height(uikit.HeightCompact).Children(func() {
 				ui.Text(c, "Source API").TextColor(t.Accent)

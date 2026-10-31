@@ -85,6 +85,13 @@ func (a *app) syncDocument() {
 	if d := a.requestDocument; d != nil && slices.Contains(a.documents, d) {
 		a.libraryDocument = d
 	}
+	// One request shows at a time. A saved one left unchanged and unsent
+	// reopens from its collection exactly as it was, so it closes when it
+	// is no longer on screen; the others stay open in the sidebar.
+	a.documents = slices.DeleteFunc(a.documents, func(d *requestDocument) bool {
+		return d != a.requestDocument && d != a.libraryDocument && d.savedKey != "" &&
+			!d.dirty() && !d.sentSet && !d.composeWaiting && d.response == nil
+	})
 	switch {
 	case a.page == pageLive:
 		a.requestDocument = nil

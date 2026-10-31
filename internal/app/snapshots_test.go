@@ -149,7 +149,14 @@ func TestUISnapshots(t *testing.T) {
 		}, want: "Remove header 1"},
 		{name: "requests-body", setup: func(a *app) { draft(a); a.composeTab = composeTabBody }, want: "Request body"},
 		{name: "requests-response", setup: response, want: "201 Created"},
-		{name: "requests-history", setup: snapshotHistory, want: "Request tab: List projects"},
+		{name: "requests-history", setup: snapshotHistory, want: "Rename request"},
+		// One request on screen; an unsaved draft waits in the sidebar and
+		// the edited saved one is marked in its collection.
+		{name: "requests-open-several", setup: func(a *app) {
+			draft(a)
+			a.openSaved(a.requests[0].key())
+			a.composeURL += "?page=2"
+		}, want: "Unsaved requests"},
 		{name: "requests-history-run", setup: func(a *app) { snapshotHistory(a); a.requestDocument.historyPick = 1 }, want: "Read-only"},
 		{name: "requests-response-checks", setup: func(a *app) { response(a); a.responseTab = resViewTests }, want: "Project active"},
 		{name: "requests-response-headers", setup: func(a *app) { response(a); a.responseTab = resViewHeaders }, want: "X-Tag"},
