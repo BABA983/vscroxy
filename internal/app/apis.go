@@ -283,23 +283,25 @@ func (a *app) apiGenerationModal(c *ui.Context, t *ui.Theme) {
 		return
 	}
 	appModal(c, &a.apiGenerateOpen, func() {
-		ui.Column(c).Width(520).Gap(16).Children(func() {
+		dialogColumn(c, dialogMedium).Children(func() {
 			dialogTitle(c, "Generate OpenAPI draft")
-			ui.Text(c, "Choose a saved collection. Unsaved request tabs are not included.").FontSize(12).TextColor(t.TextMuted)
-			ui.PopoverMenuButton(c, cmp.Or(a.apiCollection, "Saved (ungrouped)"), func(m *ui.Menu) {
-				for _, name := range slices.Sorted(maps.Keys(groupRequests(a.requests))) {
-					if m.Item(cmp.Or(name, "Saved (ungrouped)")).Checked(name == a.apiCollection).Chosen() {
-						a.apiCollection = name
+			ui.Scroll(c).MinHeight(0).Shrink(1).Gap(16).Children(func() {
+				ui.Text(c, "Choose a saved collection. Unsaved request tabs are not included.").FontSize(textBody).TextColor(t.TextMuted)
+				ui.PopoverMenuButton(c, cmp.Or(a.apiCollection, "Saved (ungrouped)"), func(m *ui.Menu) {
+					for _, name := range slices.Sorted(maps.Keys(groupRequests(a.requests))) {
+						if m.Item(cmp.Or(name, "Saved (ungrouped)")).Checked(name == a.apiCollection).Chosen() {
+							a.apiCollection = name
+						}
 					}
-				}
-			}).
-				Label("Source collection").FillWidth()
-			ui.Text(c, "Header/query/body values and scripts are omitted. Paths remain literal. Authentication, types and response schemas need review. This creates a new specification; existing ones are never overwritten.").FontSize(12).TextColor(t.TextMuted)
-			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
-				if ui.Button(c, "Cancel").Clicked() {
+				}).
+					Label("Source collection").FillWidth().Height(heightControl).FontSize(textBody).Radius(radiusControl)
+				ui.Text(c, "Header/query/body values and scripts are omitted. Paths remain literal. Authentication, types and response schemas need review. This creates a new specification; existing ones are never overwritten.").FontSize(textBody).TextColor(t.TextMuted)
+			})
+			dialogFooter(c).Children(func() {
+				if secondaryButton(c, "Cancel").Clicked() {
 					a.apiGenerateOpen = false
 				}
-				if ui.PrimaryButton(c, "Generate draft").Clicked() {
+				if primaryButton(c, "Generate draft").Clicked() {
 					a.generateAPI(a.apiCollection)
 					a.apiGenerateOpen = false
 				}

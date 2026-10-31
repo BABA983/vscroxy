@@ -303,28 +303,30 @@ func (a *app) collectionSaveModal(c *ui.Context, t *ui.Theme) {
 		return
 	}
 	appModal(c, &s.open, func() {
-		ui.Column(c).Width(480).Gap(12).Children(func() {
+		dialogColumn(c, dialogSmall).Children(func() {
 			dialogTitle(c, fmt.Sprintf("Save %d requests to collection", len(s.flows)))
-			ui.Text(c, "Saved in capture order, not sent. Tunnels, WebSocket connections and incomplete or non-UTF-8 bodies are skipped.").FontSize(12).TextColor(t.TextMuted)
 			names := a.collectionNames()
 			name := collectionSegment(s.name)
 			hint := "Creates a new collection."
 			if slices.Contains(names, name) {
 				hint = "Adds to the end of this collection."
 			}
-			ui.Form(c, func() {
-				ui.Field(c, "Collection", func() {
-					ui.Autocomplete(c, &s.name, names).Label("Collection name")
-				}).Description(hint)
-				ui.Field(c, "Folders", func() {
-					ui.Checkbox(c, &s.perHost, "One folder per host")
+			ui.Scroll(c).MinHeight(0).Shrink(1).Gap(16).Children(func() {
+				ui.Text(c, "Saved in capture order, not sent. Tunnels, WebSocket connections and incomplete or non-UTF-8 bodies are skipped.").FontSize(textBody).TextColor(t.TextMuted)
+				ui.Form(c, func() {
+					ui.Field(c, "Collection", func() {
+						ui.Autocomplete(c, &s.name, names).Label("Collection name").Height(heightControl).FontSize(textBody)
+					}).Description(hint)
+					ui.Field(c, "Folders", func() {
+						ui.Checkbox(c, &s.perHost, "One folder per host").FontSize(textBody)
+					})
 				})
 			})
-			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
-				if ui.Button(c, "Cancel").Clicked() {
+			dialogFooter(c).Children(func() {
+				if secondaryButton(c, "Cancel").Clicked() {
 					s.open = false
 				}
-				if ui.PrimaryButton(c, "Save requests").Disabled(name == "").Clicked() {
+				if primaryButton(c, "Save requests").Disabled(name == "").Clicked() {
 					s.open = false
 					a.saveFlowsToCollection(s.flows, s.name, s.perHost)
 				}

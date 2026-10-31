@@ -211,23 +211,24 @@ func (a *app) vaultModal(c *ui.Context, t *ui.Theme) {
 	if !v.open {
 		return
 	}
-	width, height := c.Size()
+	_, height := c.Size()
 	appModal(c, &v.open, func() {
-		ui.Column(c).Width(min(760, width-64)).Height(min(520, height-80)).Gap(10).Children(func() {
+		dialogColumn(c, dialogLarge).Height(min(520, height-80)).Children(func() {
 			dialogTitle(c, "Vault")
-			ui.Text(c, "Use {{vault:name}} in a URL, header, body or auth field. A secret with domains is sent only to those hosts.").FontSize(11).TextColor(t.TextMuted)
+			ui.Text(c, "Use {{vault:name}} in a URL, header, body or auth field. A secret with domains is sent only to those hosts.").FontSize(textMeta).TextColor(t.TextMuted)
 			if v.problem != "" {
-				ui.Text(c, v.problem).FontSize(12).TextColor(t.Danger).Selectable()
-				ui.Spacer(c)
-				ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
-					if ui.Button(c, "Close").Clicked() {
+				ui.Scroll(c).Grow(1).MinHeight(0).Children(func() {
+					ui.Text(c, v.problem).FontSize(textBody).TextColor(t.Danger).Selectable()
+				})
+				dialogFooter(c).Children(func() {
+					if secondaryButton(c, "Close").Clicked() {
 						v.open = false
 					}
 					if !v.resetting {
-						if ui.Button(c, "Reset vault…").Clicked() {
+						if secondaryButton(c, "Reset vault…").Clicked() {
 							v.resetting = true
 						}
-					} else if ui.PrimaryButton(c, "Delete all secrets and start over").Clicked() {
+					} else if primaryButton(c, "Delete all secrets and start over").Clicked() {
 						a.resetVault()
 					}
 				})
@@ -237,32 +238,38 @@ func (a *app) vaultModal(c *ui.Context, t *ui.Theme) {
 			if v.keyInFile {
 				where = "Encrypted with a key kept in " + v.keyPath + ": this system has no credential store, so anyone who can read that file can open the vault."
 			}
-			ui.Text(c, where).FontSize(11).TextColor(t.TextMuted)
-			ui.Row(c).Gap(6).Padding(0, 8, 2, 0).Children(func() {
-				ui.Text(c, "NAME").Grow(1).FontSize(10).Bold().TextColor(t.TextMuted)
-				ui.Text(c, "VALUE").Grow(2).FontSize(10).Bold().TextColor(t.TextMuted)
-				ui.Text(c, "ALLOWED DOMAINS").Grow(2).FontSize(10).Bold().TextColor(t.TextMuted)
-				ui.Box(c).Width(74) // the two row buttons and the gap between them
+			ui.Text(c, where).FontSize(textMeta).TextColor(t.TextMuted)
+			ui.Row(c).Gap(8).Padding(0, 8, 0, 0).Children(func() {
+				for i, label := range []string{"NAME", "VALUE", "ALLOWED DOMAINS"} {
+					grow := float32(2)
+					if i == 0 {
+						grow = 1
+					}
+					ui.Box(c).Basis(0).Grow(grow).MinWidth(0).Children(func() {
+						ui.Text(c, label).FontSize(textMeta).Bold().TextColor(t.TextMuted)
+					})
+				}
+				ui.Box(c).Width(76) // the two row buttons and the gap between them
 			})
-			ui.Scroll(c).Grow(1).FillWidth().Gap(6).Padding(0, 8, 0, 0).Children(func() {
+			ui.Scroll(c).Grow(1).MinHeight(0).FillWidth().Gap(8).Padding(0, 8, 0, 0).Children(func() {
 				remove := -1
 				for i := range v.rows {
 					r := &v.rows[i]
-					ui.Row(c).Key(i).Gap(6).AlignItems(ui.Center).Children(func() {
-						ui.TextInput(c, &r.name).Label(fmt.Sprintf("Secret name %d", i+1)).Placeholder("api_token").Grow(1)
-						value := ui.TextInput(c, &r.value).Label(fmt.Sprintf("Secret value %d", i+1)).Placeholder("Value").Grow(2)
+					ui.Row(c).Key(i).Gap(8).AlignItems(ui.Center).Children(func() {
+						ui.TextInput(c, &r.name).Label(fmt.Sprintf("Secret name %d", i+1)).Placeholder("api_token").Basis(0).Grow(1).MinWidth(0).Height(heightControl).Radius(radiusControl)
+						value := ui.TextInput(c, &r.value).Label(fmt.Sprintf("Secret value %d", i+1)).Placeholder("Value").Basis(0).Grow(2).MinWidth(0).Height(heightControl).Radius(radiusControl)
 						if !r.revealed {
 							value.Password()
 						}
-						ui.TextInput(c, &r.domains).Label(fmt.Sprintf("Allowed domains %d", i+1)).Placeholder("Any host, or api.example.com, *.example.com").Grow(2)
+						ui.TextInput(c, &r.domains).Label(fmt.Sprintf("Allowed domains %d", i+1)).Placeholder("Any host, or api.example.com, *.example.com").Basis(0).Grow(2).MinWidth(0).Height(heightControl).Radius(radiusControl)
 						label := "Reveal"
 						if r.revealed {
 							label = "Hide"
 						}
-						if ui.Button(c, "◉").Label(fmt.Sprintf("%s secret %d", label, i+1)).Width(34).Clicked() {
+						if secondaryButton(c, "◉").Label(fmt.Sprintf("%s secret %d", label, i+1)).Tooltip(fmt.Sprintf("%s secret %d", label, i+1)).Width(34).Padding(0).Clicked() {
 							r.revealed = !r.revealed
 						}
-						if ui.Button(c, "×").Label(fmt.Sprintf("Remove secret %d", i+1)).Width(34).Clicked() {
+						if secondaryButton(c, "×").Label(fmt.Sprintf("Remove secret %d", i+1)).Tooltip(fmt.Sprintf("Remove secret %d", i+1)).Width(34).Padding(0).Clicked() {
 							remove = i
 						}
 					})
@@ -270,20 +277,20 @@ func (a *app) vaultModal(c *ui.Context, t *ui.Theme) {
 				if remove >= 0 {
 					v.rows = slices.Delete(v.rows, remove, remove+1)
 				}
-				if ui.Button(c, "Add secret").Clicked() {
+				if secondaryButton(c, "Add secret").Clicked() {
 					v.rows = append(v.rows, vaultRow{})
 				}
 			})
 			ui.Checkbox(c, &v.scriptsDraft, "Let scripts use pm.vault").
 				Tooltip("Scripts can then read any secret allowed for their request's host, and add, change or remove secrets")
 			if v.editProblem != "" {
-				ui.Text(c, v.editProblem).FontSize(11).TextColor(t.Danger)
+				ui.Text(c, v.editProblem).FontSize(textMeta).TextColor(t.Danger)
 			}
-			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
-				if ui.Button(c, "Cancel").Clicked() {
+			dialogFooter(c).Children(func() {
+				if secondaryButton(c, "Cancel").Clicked() {
 					v.open = false
 				}
-				if ui.PrimaryButton(c, "Save").Label("Save vault").Clicked() {
+				if primaryButton(c, "Save").Label("Save vault").Clicked() {
 					a.saveVault()
 				}
 			})

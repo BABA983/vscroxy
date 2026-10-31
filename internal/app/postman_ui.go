@@ -157,16 +157,16 @@ func (a *app) importReportModal(c *ui.Context, t *ui.Theme) {
 		return
 	}
 	appModal(c, &r.open, func() {
-		ui.Column(c).Width(520).Gap(10).Children(func() {
+		dialogColumn(c, dialogMedium).Children(func() {
 			dialogTitle(c, r.title)
-			ui.Text(c, r.intro).FontSize(12).TextColor(t.TextMuted)
-			ui.Column(c).Gap(4).Children(func() {
+			ui.Scroll(c).MinHeight(0).Shrink(1).Gap(8).Children(func() {
+				ui.Text(c, r.intro).FontSize(textBody).TextColor(t.TextMuted)
 				for _, line := range r.lines {
-					ui.Text(c, "• "+line).FontSize(12).Selectable()
+					ui.Text(c, "• "+line).FontSize(textBody).Selectable()
 				}
 			})
-			ui.Row(c).Justify(ui.End).Children(func() {
-				if ui.PrimaryButton(c, "OK").Clicked() {
+			dialogFooter(c).Children(func() {
+				if primaryButton(c, "OK").Clicked() {
 					r.open = false
 				}
 			})

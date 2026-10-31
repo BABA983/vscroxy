@@ -209,51 +209,52 @@ func (a *app) folderModal(c *ui.Context, t *ui.Theme) {
 	if !f.open {
 		return
 	}
-	width, height := c.Size()
+	_, height := c.Size()
 	kind := "Collection"
 	if strings.Contains(f.draft.Path, "/") {
 		kind = "Folder"
 	}
 	appModal(c, &f.open, func() {
-		ui.Column(c).Width(min(760, width-64)).Height(min(560, height-80)).Gap(10).Children(func() {
+		dialogColumn(c, dialogLarge).Height(min(560, height-80)).Children(func() {
 			dialogTitle(c, kind+" · "+f.draft.Path)
-			ui.Text(c, "Every request saved under it inherits these settings; a folder's settings override its collection's.").FontSize(11).TextColor(t.TextMuted)
-			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-				ui.Text(c, "Name").FontSize(12).Width(48)
-				ui.TextInput(c, &f.name).Label(kind + " name").Grow(1)
+			ui.Text(c, "Every request saved under it inherits these settings; a folder's settings override its collection's.").FontSize(textMeta).TextColor(t.TextMuted)
+			ui.Form(c, func() {
+				ui.Field(c, "Name", func() {
+					ui.TextInput(c, &f.name).Label(kind + " name").Height(heightControl).Radius(radiusControl)
+				})
 			})
-			ui.Text(c, "Renaming moves its requests, folders and settings together.").FontSize(11).TextColor(t.TextMuted)
-			ui.Tabs(c, &f.tab, "Auth", "Scripts", "Variables", "Description")
-			ui.Column(c).Grow(1).Gap(8).Children(func() {
+			ui.Text(c, "Renaming moves its requests, folders and settings together.").FontSize(textMeta).TextColor(t.TextMuted)
+			flatTabs(c, &f.tab, "", "Auth", "Scripts", "Variables", "Description")
+			ui.Column(c).Grow(1).MinHeight(0).Gap(8).Children(func() {
 				switch f.tab {
 				case 0:
-					ui.Scroll(c).Grow(1).Gap(8).Children(func() {
+					ui.Scroll(c).Grow(1).MinHeight(0).Gap(8).Children(func() {
 						a.authFields(c, &f.draft.Auth, a.folderAuthTypes(f.draft.Path), f.draft.Path)
 					})
-					ui.Text(c, "Requests whose Auth is Inherit send this.").FontSize(11).TextColor(t.TextMuted)
+					ui.Text(c, "Requests whose Auth is Inherit send this.").FontSize(textMeta).TextColor(t.TextMuted)
 				case 1:
 					ui.Segmented(c, &f.script, "Pre-request", "Post-response")
-					ui.Text(c, "Runs before the request's own script, after any parent collection's.").FontSize(11).TextColor(t.TextMuted)
+					ui.Text(c, "Runs before the request's own script, after any parent collection's.").FontSize(textMeta).TextColor(t.TextMuted)
 					if f.script == 0 {
 						scriptText(c, &f.draft.Pre, &f.pre, &f.preFor, kind+" pre-request script")
 					} else {
 						scriptText(c, &f.draft.Post, &f.post, &f.postFor, kind+" post-response script")
 					}
 				case 2:
-					ui.Text(c, "Environment values override these; a folder's variables override its collection's.").FontSize(11).TextColor(t.TextMuted)
+					ui.Text(c, "Environment values override these; a folder's variables override its collection's.").FontSize(textMeta).TextColor(t.TextMuted)
 					requestFieldsEditor(c, &f.draft.Variables, fieldsOptions{secret: true}, "variable")
 				case 3:
-					ui.TextArea(c, &f.draft.Description).Label("Description").Placeholder("What these requests are for").Grow(1)
+					ui.TextArea(c, &f.draft.Description).Label("Description").Placeholder("What these requests are for").FontSize(textBody).Radius(radiusControl).Grow(1).MinHeight(0)
 				}
 			})
 			if f.problem != "" {
-				ui.Text(c, f.problem).FontSize(11).TextColor(t.Danger)
+				ui.Text(c, f.problem).FontSize(textMeta).TextColor(t.Danger)
 			}
-			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
-				if ui.Button(c, "Cancel").Clicked() {
+			dialogFooter(c).Children(func() {
+				if secondaryButton(c, "Cancel").Clicked() {
 					f.open = false
 				}
-				if ui.PrimaryButton(c, "Save").Label("Save settings").Clicked() {
+				if primaryButton(c, "Save").Label("Save settings").Clicked() {
 					a.saveFolder()
 				}
 			})

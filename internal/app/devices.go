@@ -162,8 +162,9 @@ func (a *app) devicesModal(c *ui.Context, t *ui.Theme) {
 	if d.gateway != nil {
 		c.After(time.Second)
 	}
+	_, height := c.Size()
 	appModal(c, &d.open, func() {
-		ui.Column(c).Width(820).Height(510).Gap(14).Children(func() {
+		dialogColumn(c, dialogLarge).Height(min(510, height-80)).Children(func() {
 			ui.Row(c).AlignItems(ui.Center).Children(func() {
 				dialogTitle(c, "Connect a device")
 				ui.Spacer(c)
@@ -173,115 +174,121 @@ func (a *app) devicesModal(c *ui.Context, t *ui.Theme) {
 					ui.Badge(c, "LAN enabled").Background(t.Accent.Alpha(0.12)).TextColor(t.Accent)
 				}
 			})
-			ui.Text(c, "Same Wi-Fi / LAN. Only listed source addresses can connect. Local capture stays on loopback.").FontSize(12).TextColor(t.TextMuted)
-			ui.Row(c).Grow(1).Gap(22).AlignItems(ui.Stretch).Children(func() {
-				ui.Scroll(c).Width(350).Gap(10).Children(func() {
+			ui.Text(c, "Same Wi-Fi / LAN. Only listed source addresses can connect. Local capture stays on loopback.").FontSize(textBody).TextColor(t.TextMuted)
+			ui.Row(c).Grow(1).MinHeight(0).Gap(24).AlignItems(ui.Stretch).Children(func() {
+				ui.Scroll(c).BasisPercent(44).Grow(1).MinWidth(0).Gap(12).Padding(0, 8, 0, 0).Children(func() {
 					if d.gateway == nil {
-						ui.Text(c, "1  Choose a network address").Bold()
-						ui.Row(c).Gap(8).Children(func() {
-							ui.Select(c, &d.ip, d.ips).Label("Device-facing address").Grow(1)
-							ui.TextInput(c, &d.port).Width(82).Label("LAN proxy port").Placeholder("7891")
+						ui.Text(c, "1  Choose a network address").FontSize(textBody).Bold()
+						ui.Form(c, func() {
+							ui.Field(c, "Address", func() {
+								ui.Select(c, &d.ip, d.ips).Label("Device-facing address").Height(heightControl).FontSize(textBody).Radius(radiusControl)
+							})
+							ui.Field(c, "Port", func() {
+								ui.TextInput(c, &d.port).Width(82).Height(heightControl).FontSize(textBody).Radius(radiusControl).Label("LAN proxy port").Placeholder("7891")
+							})
 						})
 						if len(d.ips) == 0 {
-							ui.Text(c, "No active LAN address. Connect to a network, then reopen this dialog.").FontSize(12).TextColor(t.Danger)
+							ui.Text(c, "No active LAN address. Connect to a network, then reopen this dialog.").FontSize(textBody).TextColor(t.Danger)
 						}
 						if ip, err := netip.ParseAddr(d.ip); err == nil && ip.IsLinkLocalUnicast() {
-							ui.Text(c, "Link-local address: the device needs a compatible address on the same network link.").FontSize(11).TextColor(t.TextMuted)
+							ui.Text(c, "Link-local address: the device needs a compatible address on the same network link.").FontSize(textMeta).TextColor(t.TextMuted)
 						}
-						ui.Text(c, "Proxy port above; the certificate service uses port + 1. Allow both in your firewall.").FontSize(11).TextColor(t.TextMuted)
-						ui.Text(c, "2  Allow your device's IP address").Bold()
-						ui.TextArea(c, &d.allowed).Height(74).Label("Allowed device addresses").Placeholder("192.168.1.42\nOne IP or CIDR per line")
-						ui.Text(c, "Find it in the device’s Wi-Fi details. Prefer one IP; CIDRs allow every device in that range. Empty = deny all.").FontSize(11).TextColor(t.TextMuted)
-						ui.Checkbox(c, &d.consent, "I trust this network and the allowed devices")
+						ui.Text(c, "Proxy port above; the certificate service uses port + 1. Allow both in your firewall.").FontSize(textMeta).TextColor(t.TextMuted)
+						ui.Text(c, "2  Allow your device's IP address").FontSize(textBody).Bold()
+						ui.TextArea(c, &d.allowed).Height(74).Font(fontMono).FontSize(textBody).Radius(radiusControl).Label("Allowed device addresses").Placeholder("192.168.1.42\nOne IP or CIDR per line")
+						ui.Text(c, "Find it in the device’s Wi-Fi details. Prefer one IP; CIDRs allow every device in that range. Empty = deny all.").FontSize(textMeta).TextColor(t.TextMuted)
+						ui.Checkbox(c, &d.consent, "I trust this network and the allowed devices").FontSize(textBody)
 					} else {
-						ui.Text(c, "Proxy address").FontSize(12).TextColor(t.TextMuted)
-						ui.Text(c, d.gateway.Addr()).FontSize(17).Bold()
-						if ui.Button(c, "Copy proxy address").Clicked() {
+						ui.Text(c, "Proxy address").FontSize(textBody).TextColor(t.TextMuted)
+						ui.Text(c, d.gateway.Addr()).Font(fontMono).FontSize(textTitle).Bold()
+						if secondaryButton(c, "Copy proxy address").Clicked() {
 							c.Services().WriteClipboard(d.gateway.Addr())
 						}
 						ui.Divider(c)
-						ui.Text(c, "Open on your device to download the CA").FontSize(12).TextColor(t.TextMuted)
+						ui.Text(c, "Open on your device to download the CA").FontSize(textBody).TextColor(t.TextMuted)
 						certificateURL := "http://" + d.gateway.CertificateAddr() + "/vscroxy-ca.cer"
-						ui.Text(c, certificateURL).FontSize(12)
-						if ui.Button(c, "Copy certificate URL").Clicked() {
+						ui.Text(c, certificateURL).Font(fontMono).FontSize(textBody)
+						if secondaryButton(c, "Copy certificate URL").Clicked() {
 							c.Services().WriteClipboard(certificateURL)
 						}
-						ui.Text(c, "Public certificate only — the signing key is never served. Compare the CA fingerprint under Checks on a trusted network.").FontSize(11).TextColor(t.TextMuted)
+						ui.Text(c, "Public certificate only — the signing key is never served. Compare the CA fingerprint under Checks on a trusted network.").FontSize(textMeta).TextColor(t.TextMuted)
 						ui.Divider(c)
-						ui.Text(c, "Allowed sources").FontSize(12).Bold()
-						ui.Text(c, d.allowed).FontSize(12).TextColor(t.TextMuted)
-						ui.Text(c, "Disable access before changing the address or allowlist.").FontSize(11).TextColor(t.TextMuted)
+						ui.Text(c, "Allowed sources").FontSize(textBody).Bold()
+						ui.Text(c, d.allowed).Font(fontMono).FontSize(textBody).TextColor(t.TextMuted)
+						ui.Text(c, "Disable access before changing the address or allowlist.").FontSize(textMeta).TextColor(t.TextMuted)
 					}
 				})
-				ui.Column(c).Grow(1).Gap(12).Children(func() {
-					ui.Tabs(c, &d.platform, "iOS", "Android", "Checks")
-					ui.Scroll(c).Grow(1).Gap(6).Padding(0, 10, 0, 0).Children(func() {
+				ui.Column(c).BasisPercent(56).Grow(1).MinWidth(0).Gap(12).Children(func() {
+					flatTabs(c, &d.platform, "", "iOS", "Android", "Checks")
+					ui.Scroll(c).Grow(1).MinHeight(0).Gap(8).Padding(0, 10, 0, 0).Children(func() {
 						switch d.platform {
 						case 0:
-							ui.Text(c, "Set up iPhone / iPad").FontSize(14).Bold()
-							ui.Text(c, "1. Wi-Fi → your network → Configure Proxy → Manual. Enter the proxy IP and port shown here; authentication off.").FontSize(12)
-							ui.Text(c, "2. Open the certificate URL in Safari. Allow the profile, then install it in Settings → General → VPN & Device Management (or Profile Downloaded).").FontSize(12)
-							ui.Text(c, "3. General → About → Certificate Trust Settings → enable full trust for this CA.").FontSize(12)
-							ui.Text(c, "4. Enable SSL proxying for the hosts you inspect, then open an HTTPS page and check Capture.").FontSize(12)
+							ui.Text(c, "Set up iPhone / iPad").FontSize(textTitle).Bold()
+							ui.Text(c, "1. Wi-Fi → your network → Configure Proxy → Manual. Enter the proxy IP and port shown here; authentication off.").FontSize(textBody)
+							ui.Text(c, "2. Open the certificate URL in Safari. Allow the profile, then install it in Settings → General → VPN & Device Management (or Profile Downloaded).").FontSize(textBody)
+							ui.Text(c, "3. General → About → Certificate Trust Settings → enable full trust for this CA.").FontSize(textBody)
+							ui.Text(c, "4. Enable SSL proxying for the hosts you inspect, then open an HTTPS page and check Capture.").FontSize(textBody)
 						case 1:
-							ui.Text(c, "Set up Android").FontSize(14).Bold()
-							ui.Text(c, "1. Edit your Wi-Fi network → Advanced → Proxy → Manual. Enter the proxy IP and port; save. Labels vary by vendor.").FontSize(12)
-							ui.Text(c, "2. Download the certificate URL. In Security / Encryption & credentials, choose Install a certificate → CA certificate, then select vscroxy-ca.cer.").FontSize(12)
-							ui.Text(c, "3. Enable SSL proxying for your hosts and open an HTTPS page. For your own debug app, opt in to user CAs with Network Security Configuration.").FontSize(12)
-							ui.Text(c, "Many Android 7+ apps do not trust user-installed CAs. Certificate pinning and apps that ignore the system proxy need app-side changes; installing this CA does not bypass them.").FontSize(12).TextColor(t.TextMuted)
+							ui.Text(c, "Set up Android").FontSize(textTitle).Bold()
+							ui.Text(c, "1. Edit your Wi-Fi network → Advanced → Proxy → Manual. Enter the proxy IP and port; save. Labels vary by vendor.").FontSize(textBody)
+							ui.Text(c, "2. Download the certificate URL. In Security / Encryption & credentials, choose Install a certificate → CA certificate, then select vscroxy-ca.cer.").FontSize(textBody)
+							ui.Text(c, "3. Enable SSL proxying for your hosts and open an HTTPS page. For your own debug app, opt in to user CAs with Network Security Configuration.").FontSize(textBody)
+							ui.Text(c, "Many Android 7+ apps do not trust user-installed CAs. Certificate pinning and apps that ignore the system proxy need app-side changes; installing this CA does not bypass them.").FontSize(textBody).TextColor(t.TextMuted)
 						case 2:
-							ui.Text(c, "Connection checks").FontSize(14).Bold()
+							ui.Text(c, "Connection checks").FontSize(textTitle).Bold()
 							if a.srv != nil {
 								fingerprint := fmt.Sprintf("%X", sha256.Sum256(a.srv.CACertificate()))
-								ui.Text(c, "CA SHA-256\n"+fingerprint[:32]+"\n"+fingerprint[32:]).Font("monospace").FontSize(11)
-								if ui.Button(c, "Copy CA fingerprint").Clicked() {
+								ui.Text(c, "CA SHA-256\n"+fingerprint[:32]+"\n"+fingerprint[32:]).Font(fontMono).FontSize(textMeta)
+								if secondaryButton(c, "Copy CA fingerprint").Clicked() {
 									c.Services().WriteClipboard(fingerprint)
 								}
 							}
-							ui.TextInput(c, &d.target).Label("Device HTTPS URL").Placeholder("https://example.com/")
-							if ui.Button(c, "Check local proxy").Disabled(a.srv == nil || d.checkDone != nil).Clicked() {
+							ui.Field(c, "Device HTTPS URL", func() {
+								ui.TextInput(c, &d.target).Label("Device HTTPS URL").Placeholder("https://example.com/").Height(heightControl).FontSize(textBody).Radius(radiusControl)
+							})
+							if secondaryButton(c, "Check local proxy").Disabled(a.srv == nil || d.checkDone != nil).Clicked() {
 								a.checkDeviceProxy()
 							}
 							if d.check != "" {
-								ui.Text(c, d.check).FontSize(12)
+								ui.Text(c, d.check).FontSize(textBody)
 							}
 							if d.gateway != nil {
 								status := d.gateway.Status()
-								ui.Text(c, "Proxy TCP client: "+cmp.Or(status.LastProxyClient, "not seen yet")).FontSize(12)
-								ui.Text(c, "Certificate port client: "+cmp.Or(status.LastCertificateClient, "not seen yet")).FontSize(12)
+								ui.Text(c, "Proxy TCP client: "+cmp.Or(status.LastProxyClient, "not seen yet")).FontSize(textBody)
+								ui.Text(c, "Certificate port client: "+cmp.Or(status.LastCertificateClient, "not seen yet")).FontSize(textBody)
 							}
-							ui.Text(c, "A TCP connection is not proof of HTTPS trust. Verify the decrypted host, path and response in Capture. Mobile app identity is not available through this gateway.").FontSize(11).TextColor(t.TextMuted)
+							ui.Text(c, "A TCP connection is not proof of HTTPS trust. Verify the decrypted host, path and response in Capture. Mobile app identity is not available through this gateway.").FontSize(textMeta).TextColor(t.TextMuted)
 							a.setupEvidence(c, t, d.target, d.since, &d.details)
-							ui.Text(c, "No device seen? Check the source IP / DHCP changes, selected interface, VPN, firewall and Wi-Fi client isolation. HTTP works but HTTPS fails? Check CA trust, SSL host rules and pinning.").FontSize(11).TextColor(t.TextMuted)
+							ui.Text(c, "No device seen? Check the source IP / DHCP changes, selected interface, VPN, firewall and Wi-Fi client isolation. HTTP works but HTTPS fails? Check CA trust, SSL host rules and pinning.").FontSize(textMeta).TextColor(t.TextMuted)
 						}
 					})
-					if ui.Button(c, "Configure HTTPS inspection…").Clicked() {
+					if secondaryButton(c, "Configure HTTPS inspection…").Clicked() {
 						d.open, a.sslOpen = false, true
 					}
 				})
 			})
 			if d.problem != "" {
-				ui.Text(c, d.problem).FontSize(12).TextColor(t.Danger)
+				ui.Text(c, d.problem).FontSize(textBody).TextColor(t.Danger)
 			}
-			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+			dialogFooter(c).Children(func() {
 				if d.gateway == nil {
-					ui.Text(c, "Off by default on every launch.").FontSize(11).TextColor(t.TextMuted)
+					ui.Text(c, "Off by default on every launch.").FontSize(textMeta).TextColor(t.TextMuted)
 				} else {
-					ui.Text(c, "Closing this dialog keeps access on. Disable when finished.").FontSize(11).TextColor(t.TextMuted)
+					ui.Text(c, "Closing this dialog keeps access on. Disable when finished.").FontSize(textMeta).TextColor(t.TextMuted)
 				}
 				ui.Spacer(c)
-				if ui.Button(c, "Local client setup…").Clicked() {
+				if secondaryButton(c, "Local client setup…").Clicked() {
 					d.open = false
 					a.openClientSetup()
 				}
-				if ui.Button(c, "Close").Clicked() {
+				if secondaryButton(c, "Close").Clicked() {
 					d.open = false
 				}
 				if d.gateway == nil {
-					if ui.PrimaryButton(c, "Enable device access").Disabled(a.srv == nil || !d.consent || d.ip == "" || strings.TrimSpace(d.allowed) == "").Clicked() {
+					if primaryButton(c, "Enable device access").Disabled(a.srv == nil || !d.consent || d.ip == "" || strings.TrimSpace(d.allowed) == "").Clicked() {
 						a.enableDevices()
 					}
-				} else if ui.Button(c, "Disable device access").TextColor(t.Danger).Clicked() {
+				} else if secondaryButton(c, "Disable device access").TextColor(t.Danger).Clicked() {
 					a.disableDevices()
 				}
 			})

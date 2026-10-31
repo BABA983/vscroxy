@@ -55,59 +55,55 @@ func (a *app) socketModal(c *ui.Context, t *ui.Theme) {
 	}
 	state, events, evicted := s.session.snapshot()
 	active := state == "Connected" || state == "Connecting" || state == "Disconnecting"
-	w, h := c.Size()
+	_, h := c.Size()
 	if appModal(c, &s.open, func() {
-		ui.Column(c).Width(min(1150, w-80)).Height(h - 100).Gap(8).Children(func() {
-			ui.Row(c).Gap(8).Children(func() {
-				dialogTitle(c, "WebSocket session · "+state).Grow(1)
-				if ui.Button(c, "Disconnect & close").Clicked() {
-					s.session.disconnect()
-					s.open = false
+		dialogColumn(c, dialogLarge).Height(h - 100).Children(func() {
+			dialogTitle(c, "WebSocket session · "+state)
+			ui.Scroll(c).MaxHeight(260).MinHeight(0).Shrink(1).Gap(8).Children(func() {
+				ui.Text(c, "Connect starts a fresh timeline. No automatic reconnect, scripts or restore. Closing this panel disconnects. Auth and cookies may contain secrets.").FontSize(textBody).TextColor(t.TextMuted)
+				ui.Row(c).Gap(8).Children(func() {
+					ui.TextInput(c, &s.url).Label("WebSocket URL").Placeholder("ws://127.0.0.1:8080/socket").Grow(1).MinWidth(0).Height(heightControl).Font(fontMono).FontSize(textBody).Disabled(active)
+					if secondaryButton(c, "Connect").Disabled(active || a.srv == nil || !a.srv.Running() || !request.IsWebSocket(s.url)).Clicked() {
+						s.session = openWSSession(a.srv.Addr(), &request.Prepared{Method: "GET", URL: s.url, Header: request.ParseHeaderBlock(s.headers)}, a.srv.CACertificate(), a.requestCookies(), a.invalidate)
+						s.problem = ""
+						s.picked = 0
+						s.reader = nil
+					}
+					if secondaryButton(c, "Disconnect").Disabled(!active).Clicked() {
+						s.session.disconnect()
+					}
+				})
+				ui.TextArea(c, &s.headers).Label("WebSocket handshake headers").Placeholder("Authorization: Bearer …").Height(54).Font(fontMono).FontSize(textBody).Radius(radiusControl).Disabled(active)
+				if s.problem != "" {
+					ui.Text(c, s.problem).FontSize(textBody).TextColor(t.Danger)
 				}
+				ui.Row(c).Gap(8).Children(func() {
+					ui.TextInput(c, &s.message).Label("WebSocket message").Placeholder("Text message").Grow(1).MinWidth(0).Height(heightControl).Font(fontMono).FontSize(textBody)
+					if primaryButton(c, "Send text").Disabled(state != "Connected" || s.sending).Clicked() {
+						s.problem = ""
+						s.sent = make(chan error, 1)
+						s.sending = true
+						session, data, done := s.session, []byte(s.message), s.sent
+						go func() { done <- session.send(websocket.TextMessage, data); a.invalidate() }()
+					}
+				})
+				ui.Row(c).Gap(8).Wrap().Children(func() {
+					ui.TextInput(c, &s.query).Label("Search session messages").Placeholder("Search retained payloads and events").Grow(1).MinWidth(160).Height(heightControl).FontSize(textBody)
+					if s.direction == "" {
+						s.direction = "All"
+					}
+					ui.Select(c, &s.direction, []string{"All", "In", "Out", "Events"}).Width(100).Height(heightControl).FontSize(textBody).Label("Session direction")
+					ui.Text(c, fmt.Sprintf("%d retained · %d evicted", len(events), evicted)).FontSize(textMeta).FontFeatures("tnum")
+					if secondaryButton(c, "Latest message").Clicked() {
+						s.scroll.Y = math.MaxFloat32
+					}
+				})
 			})
-			ui.Text(c, "Connect starts a fresh timeline. No automatic reconnect, scripts or restore. Closing this panel disconnects. Auth and cookies may contain secrets.").FontSize(11).TextColor(t.TextMuted)
-			ui.Row(c).Gap(8).Children(func() {
-				ui.TextInput(c, &s.url).Label("WebSocket URL").Placeholder("ws://127.0.0.1:8080/socket").Grow(1).Disabled(active)
-				if ui.Button(c, "Connect").Disabled(active || a.srv == nil || !a.srv.Running() || !request.IsWebSocket(s.url)).Clicked() {
-					s.session = openWSSession(a.srv.Addr(), &request.Prepared{Method: "GET", URL: s.url, Header: request.ParseHeaderBlock(s.headers)}, a.srv.CACertificate(), a.requestCookies(), a.invalidate)
-					s.problem = ""
-					s.picked = 0
-					s.reader = nil
-				}
-				if ui.Button(c, "Disconnect").Disabled(!active).Clicked() {
-					s.session.disconnect()
-				}
-			})
-			ui.TextArea(c, &s.headers).Label("WebSocket handshake headers").Placeholder("Authorization: Bearer …").Height(54).Disabled(active)
-			if s.problem != "" {
-				ui.Text(c, s.problem).FontSize(11).TextColor(t.Danger)
-			}
-			ui.Row(c).Gap(8).Children(func() {
-				ui.TextInput(c, &s.message).Label("WebSocket message").Placeholder("Text message").Grow(1)
-				if ui.PrimaryButton(c, "Send text").Disabled(state != "Connected" || s.sending).Clicked() {
-					s.problem = ""
-					s.sent = make(chan error, 1)
-					s.sending = true
-					session, data, done := s.session, []byte(s.message), s.sent
-					go func() { done <- session.send(websocket.TextMessage, data); a.invalidate() }()
-				}
-			})
-			ui.Row(c).Gap(8).Children(func() {
-				ui.TextInput(c, &s.query).Label("Search session messages").Placeholder("Search retained payloads and events").Grow(1)
-				if s.direction == "" {
-					s.direction = "All"
-				}
-				ui.Select(c, &s.direction, []string{"All", "In", "Out", "Events"}).Width(100).Label("Session direction")
-				ui.Text(c, fmt.Sprintf("%d retained · %d evicted", len(events), evicted)).FontSize(11)
-				if ui.Button(c, "Latest message").Clicked() {
-					s.scroll.Y = math.MaxFloat32
-				}
-			})
-			ui.Row(c).Grow(1).Gap(10).AlignItems(ui.Stretch).Children(func() {
+			ui.Row(c).Grow(1).MinHeight(84).Gap(16).AlignItems(ui.Stretch).Children(func() {
 				if s.scroll.Y >= s.scroll.MaxY {
 					s.scroll.Y = math.MaxFloat32
 				}
-				ui.Scroll(c).TrackScroll(&s.scroll).Width(300).Gap(3).Children(func() {
+				ui.Scroll(c).TrackScroll(&s.scroll).Width(280).MinWidth(0).Shrink(1).Gap(4).Children(func() {
 					for _, e := range events {
 						if s.direction != "All" && !(s.direction == e.Direction || s.direction == "Events" && e.Direction == "") {
 							continue
@@ -123,7 +119,7 @@ func (a *app) socketModal(c *ui.Context, t *ui.Theme) {
 						if e.Direction == "" {
 							label = fmt.Sprintf("#%d %s", e.Sequence, e.Detail)
 						}
-						b := ui.Button(c, label).Key(fmt.Sprint(e.Sequence)).Label(fmt.Sprintf("Session message %d", e.Sequence)).FillWidth().Height(36).Tooltip(label)
+						b := secondaryButton(c, label).Key(fmt.Sprint(e.Sequence)).Label(fmt.Sprintf("Session message %d", e.Sequence)).FillWidth().Tooltip(label)
 						if e.Sequence == s.picked {
 							b.Background(t.Accent).TextColor(t.AccentText)
 						}
@@ -143,18 +139,24 @@ func (a *app) socketModal(c *ui.Context, t *ui.Theme) {
 						}
 					}
 				})
-				ui.Column(c).Grow(1).Children(func() {
+				ui.Column(c).Grow(1).MinWidth(0).MinHeight(0).Children(func() {
 					if s.reader == nil {
-						ui.Text(c, "Select a message or connection event. Binary payloads display as hex.").FontSize(12).TextColor(t.TextMuted)
+						ui.Text(c, "Select a message or connection event. Binary payloads display as hex.").FontSize(textBody).TextColor(t.TextMuted)
 					} else {
-						editor.View(c, s.reader).Grow(1)
-					}
-					if ui.Button(c, "Copy shown payload").Disabled(s.reader == nil).Tooltip("Copies displayed text/hex, not hidden bytes; review secrets before sharing").Clicked() {
-						c.Services().WriteClipboard(s.reader.Buffer.String())
+						requestCodeEditor(c, s.reader)
 					}
 				})
 			})
-			ui.Text(c, "Latest 200 events · 64 KiB retained per message · 1 MiB receive/send limit. Close codes are shown only when a peer close frame was observed. Full proxy-captured traffic remains in Capture.").FontSize(10).TextColor(t.TextMuted)
+			ui.Text(c, "Latest 200 events · 64 KiB retained per message · 1 MiB receive/send limit. Close codes are shown only when a peer close frame was observed. Full proxy-captured traffic remains in Capture.").FontSize(textMeta).TextColor(t.TextMuted)
+			dialogFooter(c).Children(func() {
+				if secondaryButton(c, "Copy shown payload").Disabled(s.reader == nil).Tooltip("Copies displayed text/hex, not hidden bytes; review secrets before sharing").Clicked() {
+					c.Services().WriteClipboard(s.reader.Buffer.String())
+				}
+				if secondaryButton(c, "Disconnect & close").Clicked() {
+					s.session.disconnect()
+					s.open = false
+				}
+			})
 		})
 	}).Dismissed() {
 		s.session.disconnect()

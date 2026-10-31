@@ -82,26 +82,29 @@ func (a *app) codeModal(c *ui.Context, t *ui.Theme) {
 		}
 		s.view = &editor.State{Buffer: buf, ReadOnly: true, NoScrollPastEnd: true, SoftWrap: true, Label: "Code: " + s.language}
 	}
+	_, h := c.Size()
 	appModal(c, &s.open, func() {
-		ui.Column(c).Width(760).Height(520).Gap(10).Children(func() {
-			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+		dialogColumn(c, dialogLarge).Height(min(520, h-80)).Children(func() {
+			ui.Row(c).Gap(8).Wrap().AlignItems(ui.Center).Children(func() {
 				dialogTitle(c, "Code").Grow(1)
-				if ui.Select(c, &s.language, codeLanguages).Label("Code language").Width(200).Changed() {
+				if ui.Select(c, &s.language, codeLanguages).Label("Code language").Width(200).Height(heightControl).FontSize(textBody).Changed() {
 					s.view = nil
 				}
 			})
-			ui.Text(c, "{{variables}} stay as written and scripts do not run; replace them before running the code.").FontSize(11).TextColor(t.TextMuted)
-			if s.problem != "" {
-				ui.Text(c, s.problem).FontSize(12).TextColor(t.Danger)
-			}
+			ui.Scroll(c).MinHeight(0).Shrink(1).MaxHeight(100).Gap(8).Children(func() {
+				ui.Text(c, "{{variables}} stay as written and scripts do not run; replace them before running the code.").FontSize(textBody).TextColor(t.TextMuted)
+				if s.problem != "" {
+					ui.Text(c, s.problem).FontSize(textBody).TextColor(t.Danger)
+				}
+			})
 			if s.view != nil {
-				editor.View(c, s.view).Grow(1)
+				requestCodeEditor(c, s.view)
 			}
-			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
-				if ui.Button(c, "Close").Clicked() {
+			dialogFooter(c).Children(func() {
+				if secondaryButton(c, "Close").Clicked() {
 					s.open = false
 				}
-				if ui.PrimaryButton(c, "Copy").Disabled(s.problem != "").Clicked() {
+				if primaryButton(c, "Copy").Disabled(s.problem != "").Clicked() {
 					c.Services().WriteClipboard(s.view.Buffer.String())
 					a.setMessage("Copied " + s.language + " code; review credentials before sharing")
 				}

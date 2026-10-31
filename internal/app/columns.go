@@ -132,28 +132,34 @@ func (a *app) columnModal(c *ui.Context, t *ui.Theme) {
 		problem = "The table already has this column."
 	}
 	appModal(c, &a.columnOpen, func() {
-		ui.Column(c).Width(460).Gap(12).Children(func() {
+		dialogColumn(c, dialogSmall).Children(func() {
 			dialogTitle(c, "Add column")
-			ui.Form(c, func() {
-				ui.Field(c, "From", func() { ui.Select(c, &draft.Source, columnSources).Width(200) }).
-					Description(map[string]string{
-						sourceHeader:         "The response's header, or the request's when the response has none.",
-						sourceRequestHeader:  "What the client sent.",
-						sourceResponseHeader: "What the server answered.",
-						sourceQuery:          "A parameter of the URL's query.",
-					}[draft.Source])
-				placeholder := "x-request-id"
-				if draft.Source == sourceQuery {
-					placeholder = "page"
-				}
-				ui.Field(c, "Name", func() { ui.TextInput(c, &draft.Name).Placeholder(placeholder).AutoFocus() }).Error(problem)
+			ui.Scroll(c).MinHeight(0).Gap(12).Children(func() {
+				ui.Form(c, func() {
+					ui.Field(c, "From", func() {
+						ui.Select(c, &draft.Source, columnSources).Width(200).Height(heightControl).Radius(radiusControl)
+					}).
+						Description(map[string]string{
+							sourceHeader:         "The response's header, or the request's when the response has none.",
+							sourceRequestHeader:  "What the client sent.",
+							sourceResponseHeader: "What the server answered.",
+							sourceQuery:          "A parameter of the URL's query.",
+						}[draft.Source])
+					placeholder := "x-request-id"
+					if draft.Source == sourceQuery {
+						placeholder = "page"
+					}
+					ui.Field(c, "Name", func() {
+						ui.TextInput(c, &draft.Name).Placeholder(placeholder).AutoFocus().Height(heightControl).Radius(radiusControl)
+					}).Error(problem)
+				})
+				ui.Text(c, "Right-click the table's header to hide columns or remove this one.").FontSize(textMeta).TextColor(t.TextMuted)
 			})
-			ui.Text(c, "Right-click the table's header to hide columns or remove this one.").FontSize(11).TextColor(t.TextMuted)
-			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
-				if ui.Button(c, "Cancel").Clicked() {
+			dialogFooter(c).Children(func() {
+				if secondaryButton(c, "Cancel").Clicked() {
 					a.columnOpen = false
 				}
-				if ui.PrimaryButton(c, "Add column").Disabled(name == "" || problem != "").Clicked() {
+				if primaryButton(c, "Add column").Disabled(name == "" || problem != "").Clicked() {
 					a.setCustomColumns(append(slices.Clone(a.customColumns), customColumn{Source: draft.Source, Name: name}))
 					a.columnOpen = false
 				}

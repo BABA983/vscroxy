@@ -1167,14 +1167,16 @@ func (a *app) view(c *ui.Context) {
 	appToasts(c)
 	a.commandPalette(c)
 	appModal(c, &a.clearOpen, func() {
-		ui.Column(c).Width(360).Gap(12).Children(func() {
+		dialogColumn(c, dialogSmall).Children(func() {
 			dialogTitle(c, "Clear captured requests?")
-			ui.Text(c, "Unpinned requests will be removed from this session. Export any traffic you want to keep first.")
-			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
-				if ui.Button(c, "Cancel").Clicked() {
+			ui.Scroll(c).MinHeight(0).Children(func() {
+				ui.Text(c, "Unpinned requests will be removed from this session. Export any traffic you want to keep first.").FontSize(textBody)
+			})
+			dialogFooter(c).Children(func() {
+				if secondaryButton(c, "Cancel").Clicked() {
 					a.clearOpen = false
 				}
-				if ui.PrimaryButton(c, "Clear unpinned requests").Clicked() {
+				if primaryButton(c, "Clear unpinned requests").Background(t.Danger).Clicked() {
 					a.clearCaptured()
 					a.clearOpen = false
 				}
@@ -1254,14 +1256,16 @@ func (a *app) upstreamModal(c *ui.Context, t *ui.Theme) {
 		return
 	}
 	appModal(c, &a.upstreamOpen, func() {
-		ui.Column(c).Width(480).Gap(10).Children(func() {
+		dialogColumn(c, dialogSmall).Children(func() {
 			dialogTitle(c, "Upstream proxy")
-			ui.TextInput(c, &a.upstreamAddr).Placeholder("http://127.0.0.1:8080").Label("Address")
-			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
-				if ui.Button(c, "Cancel").Clicked() {
+			ui.Scroll(c).MinHeight(0).Children(func() {
+				ui.TextInput(c, &a.upstreamAddr).Placeholder("http://127.0.0.1:8080").Label("Address").Height(heightControl).FontSize(textBody).Radius(radiusControl)
+			})
+			dialogFooter(c).Children(func() {
+				if secondaryButton(c, "Cancel").Clicked() {
 					a.upstreamOpen = false
 				}
-				if ui.PrimaryButton(c, "Save").Clicked() {
+				if primaryButton(c, "Save").Clicked() {
 					if a.srv != nil {
 						if err := a.srv.SetUpstream(strings.TrimSpace(a.upstreamAddr)); err != nil {
 							a.setMessage("Upstream: " + err.Error())
@@ -1285,9 +1289,9 @@ func (a *app) breakpointModal(c *ui.Context, t *ui.Theme) {
 	// Feedback from a previous decision must not cover this pause's footer,
 	// especially when queued breakpoints open in a small window.
 	c.CloseToast("")
-	width, height := c.Size()
+	_, height := c.Size()
 	if appModal(c, &a.bpOpen, func() {
-		ui.Column(c).Width(min(720, width-64)).Height(min(640, height-64)).Gap(10).Children(func() {
+		dialogColumn(c, dialogLarge).Height(min(640, height-80)).Children(func() {
 			title := "Breakpoint · request paused"
 			if a.bp.Phase == capture.PhaseResponse {
 				title = "Breakpoint · response paused"
@@ -1296,41 +1300,41 @@ func (a *app) breakpointModal(c *ui.Context, t *ui.Theme) {
 			a.mu.Lock()
 			waiting := len(a.bps) + 1
 			a.mu.Unlock()
-			ui.Text(c, fmt.Sprintf("%d paused · changes apply only to this exchange", waiting)).FontSize(11).TextColor(t.TextMuted)
-			ui.Scroll(c).Grow(1).FillWidth().Gap(8).Children(func() {
+			ui.Text(c, fmt.Sprintf("%d paused · changes apply only to this exchange", waiting)).FontSize(textMeta).TextColor(t.TextMuted)
+			ui.Scroll(c).Grow(1).MinHeight(0).FillWidth().Gap(t.Space(2)).Children(func() {
 				if a.bp.Phase == capture.PhaseResponse {
-					ui.Row(c).Gap(8).Children(func() {
-						ui.TextInput(c, &a.bpStatus).Width(90).Label("Status")
-						ui.Text(c, a.bp.URL).FontSize(12).TextColor(t.TextMuted).SingleLine().Grow(1)
+					ui.Row(c).Gap(t.Space(2)).Children(func() {
+						ui.TextInput(c, &a.bpStatus).Width(90).Label("Status").Height(heightControl).FontSize(textBody).Radius(radiusControl)
+						ui.Text(c, a.bp.URL).FontSize(textBody).TextColor(t.TextMuted).SingleLine().Grow(1).MinWidth(0)
 					})
 				} else {
-					ui.Row(c).Gap(8).Children(func() {
-						ui.TextInput(c, &a.bpMethod).Width(90).Label("Method")
-						ui.TextInput(c, &a.bpURL).Grow(1).Label("URL")
+					ui.Row(c).Gap(t.Space(2)).Children(func() {
+						ui.TextInput(c, &a.bpMethod).Width(90).Label("Method").Height(heightControl).FontSize(textBody).Radius(radiusControl)
+						ui.TextInput(c, &a.bpURL).Grow(1).MinWidth(0).Label("URL").Height(heightControl).FontSize(textBody).Radius(radiusControl)
 					})
 				}
-				ui.Text(c, "Headers · one Name: Value per line; repeat a name for multiple values").FontSize(11).TextColor(t.TextMuted)
-				ui.TextArea(c, &a.bpHeaders).Height(130).Label("Breakpoint headers")
+				ui.Text(c, "Headers · one Name: Value per line; repeat a name for multiple values").FontSize(textMeta).TextColor(t.TextMuted)
+				ui.TextArea(c, &a.bpHeaders).Height(130).Label("Breakpoint headers").FontSize(textBody).Radius(radiusControl)
 				if a.bp.BodyReadOnly {
-					ui.Text(c, "Binary, undecodable or large body: preserved unchanged; headers can still be edited.").FontSize(12).TextColor(t.TextMuted)
+					ui.Text(c, "Binary, undecodable or large body: preserved unchanged; headers can still be edited.").FontSize(textBody).TextColor(t.TextMuted)
 				} else {
-					ui.TextArea(c, &a.bpBody).Height(160).Label("Body")
-					ui.Text(c, "Body edits use decoded bytes; encoding, digest and length headers are recalculated or removed.").FontSize(11).TextColor(t.TextMuted)
+					ui.TextArea(c, &a.bpBody).Height(160).Label("Body").FontSize(textBody).Radius(radiusControl)
+					ui.Text(c, "Body edits use decoded bytes; encoding, digest and length headers are recalculated or removed.").FontSize(textMeta).TextColor(t.TextMuted)
 				}
 			})
 			validation := a.breakpointError()
 			if validation != "" {
-				ui.Text(c, validation).FontSize(12).TextColor(t.Danger)
+				ui.Text(c, validation).FontSize(textBody).TextColor(t.Danger)
 			}
-			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
-				ui.Select(c, &a.bpAbort, []string{"502 Bad Gateway", "429 Too Many Requests", "503 Service Unavailable"}).Width(200).Label("Abort status")
-				if ui.Button(c, "Abort").Clicked() {
+			dialogFooter(c).Children(func() {
+				ui.Select(c, &a.bpAbort, []string{"502 Bad Gateway", "429 Too Many Requests", "503 Service Unavailable"}).Width(200).Label("Abort status").Height(heightControl).FontSize(textBody).Radius(radiusControl)
+				if secondaryButton(c, "Abort").Clicked() {
 					a.resolveBreak(true, false)
 				}
-				if ui.Button(c, "Continue original").Clicked() {
+				if secondaryButton(c, "Continue original").Clicked() {
 					a.resolveBreak(false, true)
 				}
-				if ui.PrimaryButton(c, "Apply & continue").Disabled(validation != "").Clicked() {
+				if primaryButton(c, "Apply & continue").Disabled(validation != "").Clicked() {
 					a.resolveBreak(false, false)
 				}
 			})
@@ -1883,32 +1887,34 @@ func (a *app) markModal(c *ui.Context, t *ui.Theme) {
 		return
 	}
 	appModal(c, &a.markOpen, func() {
-		ui.Column(c).Width(460).Gap(10).Children(func() {
+		dialogColumn(c, dialogSmall).Children(func() {
 			dialogTitle(c, "Mark the request")
-			ui.Text(c, "A color shows in the table beside the method, and the note in the URL cell and the detail header.").
-				FontSize(11).TextColor(t.TextMuted)
-			ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
-				for _, color := range highlightColors {
-					selected := a.markColor == color.name
-					ui.Box(c).Size(24, 24).Radius(5).Background(ui.Hex(color.hex)).Center().
-						Tooltip(color.name).
-						OnClick(func() { a.markColor = color.name }).
-						Children(func() {
-							if selected {
-								ui.Text(c, "✓").FontSize(12).Bold().TextColor(ui.Hex("#ffffff"))
-							}
-						})
-				}
-				if ui.Button(c, "None").Clicked() {
-					a.markColor = ""
-				}
+			ui.Scroll(c).MinHeight(0).Gap(t.Space(3)).Children(func() {
+				ui.Text(c, "A color shows in the table beside the method, and the note in the URL cell and the detail header.").
+					FontSize(textMeta).TextColor(t.TextMuted)
+				ui.Row(c).Gap(t.Space(2)).Wrap().AlignItems(ui.Center).Children(func() {
+					for _, color := range highlightColors {
+						selected := a.markColor == color.name
+						ui.Box(c).Size(heightControl, heightControl).Radius(radiusControl).Background(ui.Hex(color.hex)).Center().
+							Tooltip(color.name).
+							OnClick(func() { a.markColor = color.name }).
+							Children(func() {
+								if selected {
+									ui.Text(c, "✓").FontSize(textBody).Bold().TextColor(ui.Hex("#ffffff"))
+								}
+							})
+					}
+					if secondaryButton(c, "None").Clicked() {
+						a.markColor = ""
+					}
+				})
+				ui.TextArea(c, &a.markNote).Height(90).Label("Note").FontSize(textBody).Radius(radiusControl)
 			})
-			ui.TextArea(c, &a.markNote).Height(90).Label("Note")
-			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
-				if ui.Button(c, "Cancel").Clicked() {
+			dialogFooter(c).Children(func() {
+				if secondaryButton(c, "Cancel").Clicked() {
 					a.markOpen = false
 				}
-				if ui.PrimaryButton(c, "Save").Clicked() {
+				if primaryButton(c, "Save").Clicked() {
 					a.saveMark()
 				}
 			})
@@ -2460,100 +2466,102 @@ func (a *app) varsModal(c *ui.Context, t *ui.Theme) {
 	if !a.varsOpen {
 		return
 	}
-	width, height := c.Size()
+	_, height := c.Size()
 	appModal(c, &a.varsOpen, func() {
-		ui.Column(c).Width(min(700, width-64)).Height(min(500, height-80)).Gap(10).Children(func() {
+		dialogColumn(c, dialogMedium).Height(min(560, height-80)).Children(func() {
 			dialogTitle(c, "Variables")
-			if a.envsProblem != "" {
-				ui.Text(c, "Variables are read-only. Close this dialog, repair or move env.json aside, then reload local assets.").FontSize(11).TextColor(t.Danger)
-			}
-			scope := 0
-			if a.varsGlobals {
-				scope = 1
-			}
-			if ui.Segmented(c, &scope, "Environments", "Globals").Changed() {
-				if scope == 1 {
-					a.editGlobals()
-				} else {
-					a.editEnvironment(cmp.Or(a.activeEnv, "default"))
+			ui.Scroll(c).Grow(1).MinHeight(0).FillWidth().Gap(t.Space(3)).Children(func() {
+				if a.envsProblem != "" {
+					ui.Text(c, "Variables are read-only. Close this dialog, repair or move env.json aside, then reload local assets.").FontSize(textMeta).TextColor(t.Danger)
 				}
-			}
-			if a.varsGlobals {
-				ui.Text(c, "Every request reads these, whatever the environment. Collection, folder and environment values override them. Stored locally in plaintext; keep secrets in the Vault.").
-					FontSize(11).TextColor(t.TextMuted)
-			} else {
-				ui.Text(c, "Use {{name}} in requests. Environment values override collection values and globals. Stored locally in plaintext; keep secrets in the Vault.").
-					FontSize(11).TextColor(t.TextMuted)
-				ui.Row(c).Gap(8).Children(func() {
-					if names := a.envNames(); len(names) > 0 {
-						if ui.Select(c, &a.varsChoice, names).Label("Edit environment").Grow(1).Changed() {
-							a.editEnvironment(a.varsChoice)
+				scope := 0
+				if a.varsGlobals {
+					scope = 1
+				}
+				if ui.Segmented(c, &scope, "Environments", "Globals").Height(heightControl).FontSize(textBody).Radius(radiusControl).Changed() {
+					if scope == 1 {
+						a.editGlobals()
+					} else {
+						a.editEnvironment(cmp.Or(a.activeEnv, "default"))
+					}
+				}
+				if a.varsGlobals {
+					ui.Text(c, "Every request reads these, whatever the environment. Collection, folder and environment values override them. Stored locally in plaintext; keep secrets in the Vault.").
+						FontSize(textMeta).TextColor(t.TextMuted)
+				} else {
+					ui.Text(c, "Use {{name}} in requests. Environment values override collection values and globals. Stored locally in plaintext; keep secrets in the Vault.").
+						FontSize(textMeta).TextColor(t.TextMuted)
+					ui.Row(c).Gap(t.Space(2)).Children(func() {
+						if names := a.envNames(); len(names) > 0 {
+							if ui.Select(c, &a.varsChoice, names).Label("Edit environment").Grow(1).MinWidth(0).Height(heightControl).FontSize(textBody).Radius(radiusControl).Changed() {
+								a.editEnvironment(a.varsChoice)
+							}
 						}
-					}
-					if ui.Button(c, "New environment").Clicked() {
-						a.editEnvironment("")
-					}
-				})
-				ui.TextInput(c, &a.varsName).Label("Environment")
-			}
-			ui.Column(c).Grow(1).MinHeight(0).Border(1, t.Border).Radius(radiusControl).Children(func() {
-				ui.Row(c).Height(heightControl).AlignItems(ui.Center).BorderWidth(0, 0, 1, 0).BorderColor(t.Border).Children(func() {
-					ui.Text(c, "NAME").Basis(0).Grow(1).Padding(0, 8).FontSize(textMeta).TextColor(t.TextMuted)
-					ui.Text(c, "VALUE").Basis(0).Grow(2).Padding(0, 8).FontSize(textMeta).TextColor(t.TextMuted)
-					ui.Box(c).Width(56)
-				})
-				ui.Scroll(c).Grow(1).MinHeight(0).FillWidth().Children(func() {
-					remove := -1
-					for i := range a.varsRows {
-						r := &a.varsRows[i]
-						row := ui.Row(c).Key(i).Height(heightControl).AlignItems(ui.Center).BorderWidth(0, 0, 1, 0).BorderColor(t.Border)
-						row.Children(func() {
-							ui.Box(c).Basis(0).Grow(1).MinWidth(0).FillHeight().BorderWidth(0, 1, 0, 0).BorderColor(t.Border).Children(func() {
-								field := requestGridInput(c, &r.Name, "base_url", fmt.Sprintf("Variable name %d", i+1)).ReadOnly(a.envsProblem != "")
-								cellBorder(t, field, false, false)
-							})
-							ui.Box(c).Basis(0).Grow(2).MinWidth(0).FillHeight().Children(func() {
-								value := requestGridInput(c, &r.Value, "Value", fmt.Sprintf("Variable value %d", i+1)).ReadOnly(a.envsProblem != "")
-								if !r.Revealed {
-									value.Password()
+						if secondaryButton(c, "New environment").Clicked() {
+							a.editEnvironment("")
+						}
+					})
+					ui.TextInput(c, &a.varsName).Label("Environment").Height(heightControl).FontSize(textBody).Radius(radiusControl)
+				}
+				ui.Column(c).Height(224).Border(1, t.Border).Radius(radiusControl).Children(func() {
+					ui.Row(c).Height(heightControl).AlignItems(ui.Center).BorderWidth(0, 0, 1, 0).BorderColor(t.Border).Children(func() {
+						ui.Text(c, "NAME").Basis(0).Grow(1).Padding(0, 8).FontSize(textMeta).TextColor(t.TextMuted)
+						ui.Text(c, "VALUE").Basis(0).Grow(2).Padding(0, 8).FontSize(textMeta).TextColor(t.TextMuted)
+						ui.Box(c).Width(56)
+					})
+					ui.Scroll(c).Grow(1).MinHeight(0).FillWidth().Children(func() {
+						remove := -1
+						for i := range a.varsRows {
+							r := &a.varsRows[i]
+							row := ui.Row(c).Key(i).Height(heightControl).AlignItems(ui.Center).BorderWidth(0, 0, 1, 0).BorderColor(t.Border)
+							row.Children(func() {
+								ui.Box(c).Basis(0).Grow(1).MinWidth(0).FillHeight().BorderWidth(0, 1, 0, 0).BorderColor(t.Border).Children(func() {
+									field := requestGridInput(c, &r.Name, "base_url", fmt.Sprintf("Variable name %d", i+1)).ReadOnly(a.envsProblem != "")
+									cellBorder(t, field, false, false)
+								})
+								ui.Box(c).Basis(0).Grow(2).MinWidth(0).FillHeight().Children(func() {
+									value := requestGridInput(c, &r.Value, "Value", fmt.Sprintf("Variable value %d", i+1)).ReadOnly(a.envsProblem != "")
+									if !r.Revealed {
+										value.Password()
+									}
+									cellBorder(t, value, !r.Revealed, r.Revealed)
+								})
+								if iconButton(c, fmt.Sprintf("Reveal variable %d", i+1), "Reveal or hide variable value", eyeIcon).Clicked() {
+									r.Revealed = !r.Revealed
 								}
-								cellBorder(t, value, !r.Revealed, r.Revealed)
+								button := iconButton(c, fmt.Sprintf("Remove variable %d", i+1), "Remove variable", closeIcon).Disabled(a.envsProblem != "")
+								if !row.Hovered() && !row.FocusWithin() {
+									button.Opacity(0)
+								}
+								if button.Clicked() {
+									remove = i
+								}
 							})
-							if iconButton(c, fmt.Sprintf("Reveal variable %d", i+1), "Reveal or hide variable value", eyeIcon).Clicked() {
-								r.Revealed = !r.Revealed
-							}
-							button := iconButton(c, fmt.Sprintf("Remove variable %d", i+1), "Remove variable", closeIcon).Disabled(a.envsProblem != "")
-							if !row.Hovered() && !row.FocusWithin() {
-								button.Opacity(0)
-							}
-							if button.Clicked() {
-								remove = i
-							}
-						})
-					}
-					if remove >= 0 {
-						a.varsRows = slices.Delete(a.varsRows, remove, remove+1)
-					}
-					if toolbarButton(c, "Add variable", "Add variable", false).Disabled(a.envsProblem != "").Children(func() {
-						ui.Icon(c, plusIcon).Size(iconInline, iconInline)
-						ui.Text(c, "Add variable").FontSize(textBody)
-					}).Clicked() {
-						a.varsRows = append(a.varsRows, request.Field{})
-					}
+						}
+						if remove >= 0 {
+							a.varsRows = slices.Delete(a.varsRows, remove, remove+1)
+						}
+						if toolbarButton(c, "Add variable", "Add variable", false).Disabled(a.envsProblem != "").Children(func() {
+							ui.Icon(c, plusIcon).Size(iconInline, iconInline)
+							ui.Text(c, "Add variable").FontSize(textBody)
+						}).Clicked() {
+							a.varsRows = append(a.varsRows, request.Field{})
+						}
+					})
 				})
+				if a.varsProblem != "" {
+					ui.Text(c, a.varsProblem).FontSize(textMeta).TextColor(t.Danger)
+				}
 			})
-			if a.varsProblem != "" {
-				ui.Text(c, a.varsProblem).FontSize(11).TextColor(t.Danger)
-			}
-			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
-				if ui.Button(c, "Export as Postman…").Tooltip("Writes the rows shown here, saved or not, in Postman's environment format").Clicked() {
+			dialogFooter(c).Children(func() {
+				if secondaryButton(c, "Export as Postman…").Tooltip("Writes the rows shown here, saved or not, in Postman's environment format").Clicked() {
 					a.exportPostmanVariables()
 				}
 				ui.Spacer(c)
-				if ui.Button(c, "Cancel").Clicked() {
+				if secondaryButton(c, "Cancel").Clicked() {
 					a.varsOpen = false
 				}
-				if ui.PrimaryButton(c, "Save").Disabled(a.envsProblem != "").Clicked() {
+				if primaryButton(c, "Save").Disabled(a.envsProblem != "").Clicked() {
 					a.saveVars()
 				}
 			})
@@ -2686,20 +2694,22 @@ func (a *app) keyLogModal(c *ui.Context, t *ui.Theme) {
 		return
 	}
 	appModal(c, &a.keyLogOpen, func() {
-		ui.Column(c).Width(520).Gap(10).Children(func() {
+		dialogColumn(c, dialogMedium).Children(func() {
 			dialogTitle(c, "TLS key log")
-			ui.Text(c, "The secrets go to a file Wireshark reads (SSLKEYLOGFILE), so it can decrypt this capture. The engine reads the variable once, when it first handshakes, so a change here takes effect from the next launch.").
-				FontSize(11).TextColor(t.TextMuted)
-			ui.TextInput(c, &a.keyLogInput).Placeholder("~/.vscroxy/keys.log").Label("File")
-			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
-				if a.keyLogPath != "" && ui.Button(c, "Turn off").Clicked() {
+			ui.Scroll(c).MinHeight(0).Gap(t.Space(3)).Children(func() {
+				ui.Text(c, "The secrets go to a file Wireshark reads (SSLKEYLOGFILE), so it can decrypt this capture. The engine reads the variable once, when it first handshakes, so a change here takes effect from the next launch.").
+					FontSize(textMeta).TextColor(t.TextMuted)
+				ui.TextInput(c, &a.keyLogInput).Placeholder("~/.vscroxy/keys.log").Label("File").Height(heightControl).FontSize(textBody).Radius(radiusControl)
+			})
+			dialogFooter(c).Children(func() {
+				if a.keyLogPath != "" && secondaryButton(c, "Turn off").Clicked() {
 					a.setKeyLog("")
 					a.keyLogOpen = false
 				}
-				if ui.Button(c, "Cancel").Clicked() {
+				if secondaryButton(c, "Cancel").Clicked() {
 					a.keyLogOpen = false
 				}
-				if ui.PrimaryButton(c, "Save").Clicked() {
+				if primaryButton(c, "Save").Clicked() {
 					a.setKeyLog(strings.TrimSpace(a.keyLogInput))
 					a.keyLogOpen = false
 				}
@@ -2913,15 +2923,17 @@ func (a *app) hostListModal(c *ui.Context, t *ui.Theme, open *bool, title, hint,
 		return
 	}
 	appModal(c, open, func() {
-		ui.Column(c).Width(520).Gap(10).Children(func() {
+		dialogColumn(c, dialogMedium).Children(func() {
 			dialogTitle(c, title)
-			ui.Text(c, hint).FontSize(11).TextColor(t.TextMuted)
-			ui.TextArea(c, text).Height(140).Label(title)
-			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
-				if ui.Button(c, "Cancel").Clicked() {
+			ui.Scroll(c).MinHeight(0).Gap(t.Space(3)).Children(func() {
+				ui.Text(c, hint).FontSize(textMeta).TextColor(t.TextMuted)
+				ui.TextArea(c, text).Height(140).Label(title).FontSize(textBody).Radius(radiusControl)
+			})
+			dialogFooter(c).Children(func() {
+				if secondaryButton(c, "Cancel").Clicked() {
 					*open = false
 				}
-				if ui.PrimaryButton(c, "Save").Clicked() {
+				if primaryButton(c, "Save").Clicked() {
 					patterns := splitHosts(*text)
 					if path != "" {
 						if err := writeHosts(path, patterns); err != nil {
@@ -3094,33 +3106,33 @@ func (a *app) sslModal(c *ui.Context, t *ui.Theme) {
 		a.sslDraft, a.sslDraftHosts = &cfg, a.sslHosts
 	}
 	draft := a.sslDraft
-	width, height := c.Size()
+	_, height := c.Size()
 	appModal(c, &a.sslOpen, func() {
-		ui.Column(c).Width(min(580, width-64)).Height(min(510, height-80)).Gap(12).Children(func() {
+		dialogColumn(c, dialogMedium).Height(min(510, height-80)).Children(func() {
 			dialogTitle(c, "SSL proxying")
-			ui.Text(c, "Enable a domain or a local executable. New connections only; clients must trust the CA. Enabling a rule does not prove decryption succeeded.").
-				FontSize(11).TextColor(t.TextMuted)
-			ui.Scroll(c).Grow(1).FillWidth().Gap(10).Children(func() {
-				ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+			ui.Scroll(c).Grow(1).MinHeight(0).FillWidth().Gap(t.Space(3)).Children(func() {
+				ui.Text(c, "Enable a domain or a local executable. New connections only; clients must trust the CA. Enabling a rule does not prove decryption succeeded.").
+					FontSize(textMeta).TextColor(t.TextMuted)
+				ui.Row(c).Gap(t.Space(2)).MinHeight(heightControl).AlignItems(ui.Center).Children(func() {
 					ui.Switch(c, &draft.All).Label("Decrypt every domain")
-					ui.Text(c, "Decrypt every domain").FontSize(12).TextColor(t.Text)
+					ui.Text(c, "Decrypt every domain").FontSize(textBody).TextColor(t.Text)
 				})
-				ui.Text(c, "Domains and subdomains").FontSize(12).Bold()
-				ui.TextArea(c, &a.sslDraftHosts).Height(100).Label("Decryption domains")
+				ui.Text(c, "Domains and subdomains").FontSize(textBody).Bold()
+				ui.TextArea(c, &a.sslDraftHosts).Height(100).Label("Decryption domains").FontSize(textBody).Radius(radiusControl)
 				ui.Divider(c)
-				ui.Text(c, "Local apps").FontSize(12).Bold()
-				ui.Text(c, "Exact executable paths, not app names or parent/Helper groups. Add from a captured request or an App's context menu.").FontSize(11).TextColor(t.TextMuted)
+				ui.Text(c, "Local apps").FontSize(textBody).Bold()
+				ui.Text(c, "Exact executable paths, not app names or parent/Helper groups. Add from a captured request or an App's context menu.").FontSize(textMeta).TextColor(t.TextMuted)
 				if len(draft.Apps) == 0 {
-					ui.Text(c, "No app rules enabled.").FontSize(12).TextColor(t.TextMuted)
+					ui.Text(c, "No app rules enabled.").FontSize(textBody).TextColor(t.TextMuted)
 				}
 				remove := -1
 				for i, app := range draft.Apps {
-					ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-						ui.Column(c).Grow(1).Gap(2).Children(func() {
-							ui.Text(c, app.Name).FontSize(12)
-							ui.Text(c, app.Path).FontSize(10).TextColor(t.TextMuted).SingleLine().Tooltip(app.Path)
+					ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+						ui.Column(c).Grow(1).MinWidth(0).Gap(t.Space(1)).Children(func() {
+							ui.Text(c, app.Name).FontSize(textBody)
+							ui.Text(c, app.Path).FontSize(textMeta).TextColor(t.TextMuted).SingleLine().Tooltip(app.Path)
 						})
-						if ui.Button(c, "Remove").Label("Remove HTTPS app: " + app.Path).FontSize(11).Clicked() {
+						if secondaryButton(c, "Remove").Label("Remove HTTPS app: " + app.Path).Clicked() {
 							remove = i
 						}
 					})
@@ -3129,11 +3141,11 @@ func (a *app) sslModal(c *ui.Context, t *ui.Theme) {
 					draft.Apps = slices.Delete(draft.Apps, remove, remove+1)
 				}
 			})
-			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
-				if ui.Button(c, "Cancel").Clicked() {
+			dialogFooter(c).Children(func() {
+				if secondaryButton(c, "Cancel").Clicked() {
 					a.sslOpen = false
 				}
-				if ui.PrimaryButton(c, "Save").Clicked() {
+				if primaryButton(c, "Save").Clicked() {
 					draft.Hosts = splitHosts(a.sslDraftHosts)
 					if a.saveSSL(*draft) {
 						a.sslOpen = false
@@ -3362,16 +3374,18 @@ func (a *app) dnsModal(c *ui.Context, t *ui.Theme) {
 		return
 	}
 	appModal(c, &a.dnsOpen, func() {
-		ui.Column(c).Width(560).Gap(10).Children(func() {
+		dialogColumn(c, dialogMedium).Children(func() {
 			dialogTitle(c, "DNS mapping")
-			ui.Text(c, "Names the proxy resolves itself, one \"name = address\" a line. The request keeps its name and Host header, so a device pointed at this proxy reaches the machine you map: example.com = 192.168.1.50. Add \"@ Chrome, com.example.app\" to map the name for those apps only, or right-click a request and pick \"Map this host…\" to choose the app there. A name matches its subdomains; *.example.com matches one level. Flows that hit a mapping carry a DNS tag in the table.").
-				FontSize(11).TextColor(t.TextMuted)
-			ui.TextArea(c, &a.dnsText).Height(140).Label("DNS mappings")
-			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
-				if ui.Button(c, "Cancel").Clicked() {
+			ui.Scroll(c).MinHeight(0).Gap(t.Space(3)).Children(func() {
+				ui.Text(c, "Names the proxy resolves itself, one \"name = address\" a line. The request keeps its name and Host header, so a device pointed at this proxy reaches the machine you map: example.com = 192.168.1.50. Add \"@ Chrome, com.example.app\" to map the name for those apps only, or right-click a request and pick \"Map this host…\" to choose the app there. A name matches its subdomains; *.example.com matches one level. Flows that hit a mapping carry a DNS tag in the table.").
+					FontSize(textMeta).TextColor(t.TextMuted)
+				ui.TextArea(c, &a.dnsText).Height(140).Label("DNS mappings").FontSize(textBody).Radius(radiusControl)
+			})
+			dialogFooter(c).Children(func() {
+				if secondaryButton(c, "Cancel").Clicked() {
 					a.dnsOpen = false
 				}
-				if ui.PrimaryButton(c, "Save").Clicked() {
+				if primaryButton(c, "Save").Clicked() {
 					a.saveDNS()
 				}
 			})
@@ -3387,19 +3401,21 @@ func (a *app) dnsRuleModal(c *ui.Context, t *ui.Theme) {
 		return
 	}
 	appModal(c, &a.dnsRuleOpen, func() {
-		ui.Column(c).Width(460).Gap(10).Children(func() {
+		dialogColumn(c, dialogSmall).Children(func() {
 			dialogTitle(c, "Map a host")
-			ui.Text(c, "The request keeps its name, URL, Host header and SNI; the proxy dials the address instead.").
-				FontSize(11).TextColor(t.TextMuted)
-			ui.TextInput(c, &a.dnsRuleHost).Label("Host")
-			ui.TextInput(c, &a.dnsRuleAddr).Label("Address")
-			ui.Text(c, "Applies to").FontSize(11).TextColor(t.TextMuted)
-			ui.Select(c, &a.dnsRuleScope, a.dnsRuleApps)
-			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
-				if ui.Button(c, "Cancel").Clicked() {
+			ui.Scroll(c).MinHeight(0).Gap(t.Space(3)).Children(func() {
+				ui.Text(c, "The request keeps its name, URL, Host header and SNI; the proxy dials the address instead.").
+					FontSize(textMeta).TextColor(t.TextMuted)
+				ui.TextInput(c, &a.dnsRuleHost).Label("Host").Height(heightControl).FontSize(textBody).Radius(radiusControl)
+				ui.TextInput(c, &a.dnsRuleAddr).Label("Address").Height(heightControl).FontSize(textBody).Radius(radiusControl)
+				ui.Text(c, "Applies to").FontSize(textMeta).TextColor(t.TextMuted)
+				ui.Select(c, &a.dnsRuleScope, a.dnsRuleApps).Height(heightControl).FontSize(textBody).Radius(radiusControl)
+			})
+			dialogFooter(c).Children(func() {
+				if secondaryButton(c, "Cancel").Clicked() {
 					a.dnsRuleOpen = false
 				}
-				if ui.PrimaryButton(c, "Save").Clicked() {
+				if primaryButton(c, "Save").Clicked() {
 					a.saveDNSRule()
 				}
 			})

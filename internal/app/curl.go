@@ -425,22 +425,22 @@ func (a *app) curlImportModal(c *ui.Context, t *ui.Theme) {
 		return
 	}
 	appModal(c, &a.curlOpen, func() {
-		ui.Column(c).Width(640).Gap(14).Children(func() {
+		dialogColumn(c, dialogMedium).Children(func() {
 			dialogTitle(c, "Import cURL")
-			ui.Text(c, "Paste one Bash/POSIX curl command. It opens an unsent request tab; nothing is executed.").FontSize(12).TextColor(t.TextMuted)
-			if ui.TextArea(c, &a.curlInput).Height(190).Font("monospace").FontSize(12).Label("cURL command").Placeholder("curl 'https://api.example.com/projects' \\\n  -H 'Accept: application/json'").AutoFocus().Changed() {
-				a.curlProblem = ""
-			}
-			if a.curlProblem != "" {
-				ui.Scroll(c).MaxHeight(70).Children(func() {
-					ui.Text(c, a.curlProblem).FontSize(12).TextColor(t.Danger)
-				})
-			}
-			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
-				if ui.Button(c, "Cancel").Clicked() {
+			ui.Scroll(c).MinHeight(0).Shrink(1).Gap(16).Children(func() {
+				ui.Text(c, "Paste one Bash/POSIX curl command. It opens an unsent request tab; nothing is executed.").FontSize(textBody).TextColor(t.TextMuted)
+				if ui.TextArea(c, &a.curlInput).Height(190).Font(fontMono).FontSize(textBody).Radius(radiusControl).Label("cURL command").Placeholder("curl 'https://api.example.com/projects' \\\n  -H 'Accept: application/json'").AutoFocus().Changed() {
+					a.curlProblem = ""
+				}
+				if a.curlProblem != "" {
+					ui.Text(c, a.curlProblem).FontSize(textBody).TextColor(t.Danger)
+				}
+			})
+			dialogFooter(c).Children(func() {
+				if secondaryButton(c, "Cancel").Clicked() {
 					a.curlOpen, a.curlInput = false, ""
 				}
-				if ui.PrimaryButton(c, "Import request").Disabled(strings.TrimSpace(a.curlInput) == "").Clicked() {
+				if primaryButton(c, "Import request").Disabled(strings.TrimSpace(a.curlInput) == "").Clicked() {
 					r, err := parseCurl(a.curlInput)
 					if err != nil {
 						a.curlProblem = err.Error()

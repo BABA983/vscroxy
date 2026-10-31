@@ -21,6 +21,9 @@ const (
 	radiusDialog  = 10
 	iconInline    = 14
 	iconLarge     = 16
+	dialogSmall   = 480
+	dialogMedium  = 640
+	dialogLarge   = 840
 	// Latin fallbacks precede CJK faces: missing embedded fonts must not turn
 	// monospace readers into proportional text or widen ordinary UI labels.
 	fontUI   = "Inter, Arial, DejaVu Sans, PingFang SC, Microsoft YaHei UI, Noto Sans CJK SC, sans-serif"
@@ -67,6 +70,19 @@ func primaryButton(c *ui.Context, label string) ui.Element {
 func secondaryButton(c *ui.Context, label string) ui.Element {
 	return ui.Button(c, label).Height(heightControl).Padding(0, c.Theme().Space(3)).
 		FontSize(textBody).Radius(radiusControl)
+}
+
+// Dialog content uses three width tiers inside appModal's shared padding.
+// Callers choose the height; long content scrolls without moving the footer.
+func dialogColumn(c *ui.Context, width float32) ui.Element {
+	w, h := c.Size()
+	return ui.Column(c).Width(min(width, w-80)).MaxHeight(h - 80).MinHeight(0).Gap(c.Theme().Space(4))
+}
+
+func dialogFooter(c *ui.Context) ui.Element {
+	t := c.Theme()
+	return ui.Row(c).FillWidth().Gap(t.Space(2)).Wrap().AlignItems(ui.Center).Justify(ui.End).
+		Padding(t.Space(3), 0, 0, 0).Border(0, t.Border).BorderWidth(1, 0, 0, 0)
 }
 
 func statusPill(c *ui.Context, label string, foreground ui.Color) ui.Element {

@@ -20,6 +20,7 @@ import (
 	"github.com/baba983/vscroxy/internal/capture"
 	"github.com/baba983/vscroxy/internal/request"
 	"github.com/egoist/mygo/ui"
+	"github.com/gorilla/websocket"
 )
 
 // TestUISnapshots is opt-in: normal tests neither render the matrix nor write
@@ -54,6 +55,7 @@ func TestUISnapshots(t *testing.T) {
 		want   string
 		menu   string // Drawn menu label, included in tt.Image().
 		toasts []ui.Toast
+		short  bool // Also inspect the modal at the minimum window height.
 	}
 	click := func(label string) func(*testing.T, *ui.Tester) {
 		return func(t *testing.T, tt *ui.Tester) {
@@ -224,7 +226,101 @@ func TestUISnapshots(t *testing.T) {
 			a.activeAPI().tab = 1
 		}, want: "Validation failed"},
 		{name: "secondary-api-notes", setup: func(a *app) { snapshotAPI(a); a.activeAPI().tab = 2 }, want: "Review before publishing"},
-		{name: "settings", setup: func(a *app) { a.settingsOpen = true }, want: "Dark appearance"},
+		{name: "settings", setup: func(a *app) { a.settingsOpen = true }, want: "Settings"},
+		{name: "dialog-settings-proxy", setup: func(a *app) { snapshotSettings(a, 1) }, want: "Save for next launch", short: true},
+		{name: "dialog-settings-https", setup: func(a *app) { snapshotSettings(a, 2) }, want: "TLS key log…", short: true},
+		{name: "dialog-settings-appearance", setup: func(a *app) { snapshotSettings(a, 3) }, want: "Settings"},
+		{name: "dialog-settings-capture", setup: func(a *app) { snapshotSettings(a, 4) }, want: "Settings"},
+		{name: "dialog-settings-devices", setup: func(a *app) { snapshotSettings(a, 5) }, want: "Settings"},
+		{name: "dialog-upstream", setup: func(a *app) { a.upstreamOpen, a.upstreamAddr = true, "http://proxy.example.com:8080" }, want: "Upstream proxy"},
+		{name: "dialog-ssl", setup: func(a *app) { a.sslOpen, a.sslHosts = true, "api.example.com\n*.example.org" }, want: "SSL proxying", short: true},
+		{name: "dialog-ignore-hosts", setup: func(a *app) { a.ignoreOpen, a.ignoreText = true, "telemetry.example.com\n*.analytics.example.org" }, want: "Ignored hosts"},
+		{name: "dialog-ignore-apps", setup: func(a *app) { a.ignoreAppsOpen, a.ignoreAppsText = true, "Updater\nBackground Sync" }, want: "Ignored apps"},
+		{name: "dialog-dns", setup: func(a *app) { a.dnsOpen, a.dnsText = true, "api.example.com = 192.168.1.50 @ Browser" }, want: "DNS mapping", short: true},
+		{name: "dialog-dns-rule", setup: func(a *app) {
+			a.dnsRuleOpen, a.dnsRuleHost, a.dnsRuleAddr = true, "api.example.com", "192.168.1.50"
+			a.dnsRuleApps, a.dnsRuleScope = []string{"All apps", "Browser"}, "Browser"
+		}, want: "Map a host"},
+		{name: "dialog-key-log", setup: func(a *app) { a.openKeyLog() }, want: "TLS key log"},
+		{name: "dialog-rules", setup: func(a *app) {
+			a.rules = []capture.Rule{{Name: "Development API", Type: capture.RuleMapRemote, Match: "https://api.example.com/*", Target: "http://127.0.0.1:3000"}}
+			a.openRules()
+		}, want: "Save rule", short: true},
+		{name: "dialog-rules-error", setup: func(a *app) { a.openRules(); a.ruleUI.problem = "Enter a valid HTTP(S) target URL" }, want: "Enter a valid HTTP(S) target URL"},
+		{name: "dialog-breakpoint", setup: snapshotBreakpoint, want: "Breakpoint · request paused", short: true},
+		{name: "dialog-breakpoint-readonly", setup: func(a *app) {
+			snapshotBreakpoint(a)
+			a.bp.Phase, a.bp.BodyReadOnly, a.bpStatus = capture.PhaseResponse, true, "503"
+		}, want: "Breakpoint · response paused", short: true},
+		{name: "dialog-vault", setup: func(a *app) {
+			a.vault.open, a.vault.loaded = true, true
+			a.vault.rows = []vaultRow{{name: "demo_token", value: "fake-snapshot-token", domains: "api.example.com"}}
+		}, want: "Let scripts use pm.vault", short: true},
+		{name: "dialog-vault-revealed", setup: func(a *app) {
+			a.vault.open, a.vault.loaded = true, true
+			a.vault.rows = []vaultRow{{name: "demo_token", value: "fake-snapshot-token", domains: "api.example.com", revealed: true}}
+		}, want: "Hide secret 1"},
+		{name: "dialog-vault-reset", setup: func(a *app) {
+			a.vault.open, a.vault.loaded, a.vault.resetting = true, true, true
+			a.vault.problem = "Vault key unavailable; the original encrypted file has not been replaced."
+		}, want: "Delete all secrets and start over", short: true},
+		{name: "dialog-cookies", setup: func(a *app) {
+			a.cookieUI = cookieEditor{open: true, url: "https://api.example.com/", name: "demo", value: "fake-cookie", path: "/", secure: true, httpOnly: true}
+		}, want: "Session Cookies", short: true},
+		{name: "dialog-column", setup: func(a *app) { a.openColumn(); a.columnDraft.Name = "x-request-id" }, want: "Add column"},
+		{name: "dialog-folder", setup: func(a *app) { a.openFolder("Workspace") }, want: "Collection · Workspace", short: true},
+		{name: "dialog-code", setup: func(a *app) { draft(a); a.openCode() }, want: "Code language", short: true},
+		{name: "dialog-curl-error", setup: func(a *app) {
+			a.curlOpen, a.curlInput, a.curlProblem = true, "curl $(unsafe-command)", "shell substitutions are not supported; paste literal values instead"
+		}, want: "Import cURL", short: true},
+		{name: "dialog-import-report", setup: func(a *app) {
+			a.importReport = importReport{open: true, title: "Import review", intro: "Imported requests; review unsupported fields before sending."}
+			for i := range 16 {
+				a.importReport.lines = append(a.importReport.lines, fmt.Sprintf("Request %d: unsupported collection option was not imported.", i+1))
+			}
+		}, want: "Import review", short: true},
+		{name: "dialog-save-collection", setup: func(a *app) { a.openCollectionSave(a.flows) }, want: "Save 2 requests to collection"},
+		{name: "dialog-replay", setup: func(a *app) { a.openReplay(a.flows) }, want: "Replay 2 requests"},
+		{name: "dialog-replay-error", setup: func(a *app) { a.openReplay(a.flows); a.replayUI.timeout = "86401" }, want: "Enter 0–86400 seconds."},
+		{name: "dialog-replay-busy", setup: func(a *app) {
+			a.openReplay(a.flows)
+			a.replayUI.updates, a.replayUI.cancel = make(chan error), func() {}
+		}, want: "Stop replay"},
+		{name: "dialog-protobuf", setup: func(a *app) { a.protobuf.open, a.protobuf.problem = true, "Missing import: common.proto" }, want: "Protobuf schema", short: true},
+		{name: "dialog-protobuf-busy", setup: func(a *app) { a.protobuf.open, a.protobuf.loading = true, true }, want: "Compiling and linking schema…"},
+		{name: "dialog-socket", setup: func(a *app) { a.socket.open, a.socket.url = true, "wss://api.example.com/events" }, want: "WebSocket session · Not connected", short: true},
+		{name: "dialog-socket-payload", setup: func(a *app) {
+			a.socket.open, a.socket.url = true, "wss://api.example.com/events"
+			a.socket.session = &wsSession{state: "Disconnected", events: []wsSessionEvent{
+				{Sequence: 1, At: snapshotTime, Direction: "In", Kind: websocket.TextMessage, Data: []byte(`{"event":"ready"}`), Size: 17},
+				{Sequence: 2, At: snapshotTime.Add(time.Second), Direction: "In", Kind: websocket.BinaryMessage, Data: []byte{0x01, 0x7f, 0xa3}, Size: 512},
+			}}
+		}, act: func(t *testing.T, tt *ui.Tester) {
+			tt.Scroll(600, 400, 0, 300)
+			click("Session message 2")(t, tt)
+		}, want: "Session payload", short: true},
+		{name: "dialog-api-generation", setup: func(a *app) { a.apiGenerateOpen, a.apiCollection = true, "Workspace" }, want: "Generate OpenAPI draft"},
+		{name: "dialog-devices", setup: func(a *app) {
+			a.deviceUI = deviceSetup{open: true, ips: []string{"192.168.1.10"}, ip: "192.168.1.10", port: "7891", allowed: "192.168.1.20", target: "https://api.example.com/projects", since: snapshotTime}
+		}, want: "LAN off", short: true},
+		{name: "dialog-client", setup: func(a *app) {
+			a.clientUI = clientSetup{open: true, runtime: "cURL", url: "https://api.example.com/projects", since: snapshotTime}
+		}, want: "No target traffic observed yet.", short: true},
+		{name: "dialog-diagnostics", setup: func(a *app) {
+			snapshotSettings(a, 0)
+			a.settingsOpen = false
+			a.diagnostics = captureDiagnostics{open: true, target: "https://api.example.com/projects"}
+		}, want: "Capture diagnostics", short: true},
+		{name: "dialog-clear", setup: func(a *app) { a.clearOpen = true }, want: "Clear captured requests?"},
+		{name: "dialog-clear-records", setup: func(a *app) { snapshotRuns(a); a.experiments.clearing = true }, want: "Clear all experiment records?"},
+		{name: "dialog-mark", setup: func(a *app) { a.openMark(a.flows[0]); a.markNote = "Investigate cache response" }, want: "Note"},
+		{name: "dialog-delete", setup: func(a *app) { a.confirmDeleteFolder("Workspace") }, want: "Delete collection"},
+		{name: "dialog-close-unsaved", setup: func(a *app) { draft(a); a.closingDocument = a.requestDocument }, want: "Save changes?"},
+		{name: "dialog-rename", setup: func(a *app) { draft(a); a.renameOpen = true }, want: "Rename request"},
+		{name: "dialog-header-warning", setup: func(a *app) { draft(a); a.requestDocument.headerWarn = true }, want: "Bulk edit shows credentials"},
+		{name: "dialog-evidence-review", setup: func(a *app) {
+			a.investigations.showReview([]byte(`{"version":1,"title":"Demo raw evidence","notes":"Fake fixture only","sources":[],"exchanges":[]}`))
+		}, want: "Confirm full evidence review", short: true},
 		{name: "commands", setup: func(a *app) { a.workbench.openPalette() }, want: "Find command"},
 		{name: "commands-unavailable", setup: func(a *app) { a.workbench.openPalette(); a.workbench.query = "Send request" }, want: "unavailable"},
 		{name: "active-tools", setup: snapshotActiveTools, want: "Disable Scenario: Offline"},
@@ -312,62 +408,72 @@ func TestUISnapshots(t *testing.T) {
 		}
 		for _, state := range states {
 			widths := []int{1280}
-			if state.name == "capture-selected" || state.name == "capture-ws" || state.name == "capture-connect" || strings.HasPrefix(state.name, "requests-") || strings.HasPrefix(state.name, "secondary-") || state.name == "active-tools" {
+			if state.name == "capture-selected" || state.name == "capture-ws" || state.name == "capture-connect" || strings.HasPrefix(state.name, "requests-") || strings.HasPrefix(state.name, "secondary-") || strings.HasPrefix(state.name, "dialog-") || state.name == "active-tools" {
 				widths = append(widths, 960)
 			}
 			for _, width := range widths {
-				t.Run(fmt.Sprintf("%s/%s-%d", theme, state.name, width), func(t *testing.T) {
-					a := snapshotApp()
-					a.library.root = filepath.Join(t.TempDir(), "collections")
-					a.dark = dark
-					t.Cleanup(a.protobuf.stop)
-					if state.setup != nil {
-						state.setup(a)
+				heights := []int{800}
+				if state.short && width == 960 {
+					heights = append(heights, 600)
+				}
+				for _, height := range heights {
+					name := fmt.Sprintf("%s-%d", state.name, width)
+					if height != 800 {
+						name += fmt.Sprintf("x%d", height)
 					}
-					announced := false
-					tt := ui.NewTester(func(c *ui.Context) {
-						if !announced {
-							for _, toast := range state.toasts {
-								c.AddToast(toast)
+					t.Run(theme+"/"+name, func(t *testing.T) {
+						a := snapshotApp()
+						a.library.root = filepath.Join(t.TempDir(), "collections")
+						a.dark = dark
+						t.Cleanup(a.protobuf.stop)
+						if state.setup != nil {
+							state.setup(a)
+						}
+						announced := false
+						tt := ui.NewTester(func(c *ui.Context) {
+							if !announced {
+								for _, toast := range state.toasts {
+									c.AddToast(toast)
+								}
+								announced = true
 							}
-							announced = true
+							a.view(c)
+						}, width, height)
+						tt.SetLocale("en-US")
+						if state.act != nil {
+							state.act(t, tt)
 						}
-						a.view(c)
-					}, width, 800)
-					tt.SetLocale("en-US")
-					if state.act != nil {
-						state.act(t, tt)
-					}
-					// Protobuf decoding is asynchronous. Wait for completion, not
-					// an arbitrary sleep, and never capture an intermediate frame.
-					deadline := time.NewTimer(time.Minute)
-					defer deadline.Stop()
-					for a.protobuf.answers != nil {
-						select {
-						case <-deadline.C:
-							t.Fatal("protobuf render did not settle")
-						default:
+						// Protobuf decoding is asynchronous. Wait for completion, not
+						// an arbitrary sleep, and never capture an intermediate frame.
+						deadline := time.NewTimer(time.Minute)
+						defer deadline.Stop()
+						for a.protobuf.answers != nil {
+							select {
+							case <-deadline.C:
+								t.Fatal("protobuf render did not settle")
+							default:
+							}
+							runtime.Gosched()
+							tt.Frame()
 						}
-						runtime.Gosched()
+						tt.Advance(250 * time.Millisecond) // Complete toast entry motion.
 						tt.Frame()
-					}
-					tt.Advance(250 * time.Millisecond) // Complete toast entry motion.
-					tt.Frame()
-					if state.want != "" && !tt.HasText(state.want) {
-						t.Fatalf("missing %q: %v", state.want, tt.Texts())
-					}
-					base := filepath.Join(theme, fmt.Sprintf("%s-%d", state.name, width))
-					if state.menu != "" {
-						if !tt.HasText(state.menu) {
-							t.Fatalf("missing menu item %q: %v", state.menu, tt.Texts())
+						if state.want != "" && !tt.HasText(state.want) {
+							t.Fatalf("missing %q: %v", state.want, tt.Texts())
 						}
-					}
-					var b bytes.Buffer
-					if err := png.Encode(&b, tt.Image()); err != nil {
-						t.Fatal(err)
-					}
-					write(t, base+".png", b.Bytes())
-				})
+						base := filepath.Join(theme, name)
+						if state.menu != "" {
+							if !tt.HasText(state.menu) {
+								t.Fatalf("missing menu item %q: %v", state.menu, tt.Texts())
+							}
+						}
+						var b bytes.Buffer
+						if err := png.Encode(&b, tt.Image()); err != nil {
+							t.Fatal(err)
+						}
+						write(t, base+".png", b.Bytes())
+					})
+				}
 			}
 		}
 	}
@@ -385,6 +491,20 @@ func TestUISnapshots(t *testing.T) {
 }
 
 var snapshotTime = time.Date(2026, 1, 15, 10, 30, 0, 0, time.UTC)
+
+func snapshotSettings(a *app, tab int) {
+	a.settingsOpen, a.settingsTab = true, tab
+	// Render known state; never read or write this machine's proxy/CA setup.
+	a.systemProxy.checked, a.systemProxy.shown = true, true
+	a.systemProxy.check.Target = a.systemProxyTarget()
+	a.certificate.checked = true
+}
+
+func snapshotBreakpoint(a *app) {
+	a.bp = &capture.Breakpoint{ID: 1, Method: "POST", URL: "https://api.example.com/projects"}
+	a.bpOpen, a.bpMethod, a.bpURL = true, "POST", a.bp.URL
+	a.bpHeaders, a.bpBody = "Content-Type: application/json\nX-Trace: demo", `{"name":"Demo project"}`
+}
 
 func snapshotActiveTools(a *app) {
 	// State only: never start a listener or create user settings/CA files.

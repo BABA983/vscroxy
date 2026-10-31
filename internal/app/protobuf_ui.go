@@ -244,33 +244,35 @@ func (p *protoInspector) modal(c *ui.Context, a *app) {
 	}
 	t := c.Theme()
 	appModal(c, &p.open, func() {
-		ui.Column(c).Width(560).Gap(10).Children(func() {
+		dialogColumn(c, dialogMedium).Children(func() {
 			dialogTitle(c, "Protobuf schema")
-			ui.Text(c, "Import a .proto source or a binary FileDescriptorSet (.pb / .protoset). gRPC methods select input/output types automatically; raw protobuf needs a message type. A successful load replaces the current registry.").FontSize(11).TextColor(t.TextMuted)
-			if p.schema != nil {
-				ui.Text(c, fmt.Sprintf("Loaded: %d message types", len(p.schema.names))).FontSize(11).TextColor(t.TextMuted)
-			}
-			ui.Row(c).Gap(8).Children(func() {
-				ui.TextInput(c, &p.source).Label("Schema file").Placeholder("/path/to/service.proto or descriptors.pb").Grow(1)
-				if ui.Button(c, "Browse…").Disabled(p.loading).Clicked() && a.win != nil {
-					go func() {
-						paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Title: "Import protobuf schema", Filters: []mygo.FileFilter{{Name: "Protobuf", Extensions: []string{"proto", "pb", "protoset", "desc"}}}})
-						if err == nil && len(paths) > 0 {
-							a.win.Update(func() { p.source = paths[0] })
-						}
-					}()
+			ui.Scroll(c).MinHeight(0).Shrink(1).Gap(16).Children(func() {
+				ui.Text(c, "Import a .proto source or a binary FileDescriptorSet (.pb / .protoset). gRPC methods select input/output types automatically; raw protobuf needs a message type. A successful load replaces the current registry.").FontSize(textBody).TextColor(t.TextMuted)
+				if p.schema != nil {
+					ui.Text(c, fmt.Sprintf("Loaded: %d message types", len(p.schema.names))).FontSize(textMeta).TextColor(t.TextMuted)
+				}
+				ui.Row(c).Gap(8).Children(func() {
+					ui.TextInput(c, &p.source).Label("Schema file").Placeholder("/path/to/service.proto or descriptors.pb").Grow(1).MinWidth(0).Height(heightControl).FontSize(textBody)
+					if secondaryButton(c, "Browse…").Disabled(p.loading).Clicked() && a.win != nil {
+						go func() {
+							paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Title: "Import protobuf schema", Filters: []mygo.FileFilter{{Name: "Protobuf", Extensions: []string{"proto", "pb", "protoset", "desc"}}}})
+							if err == nil && len(paths) > 0 {
+								a.win.Update(func() { p.source = paths[0] })
+							}
+						}()
+					}
+				})
+				ui.Text(c, "Include roots (optional, one per line). The source directory and standard Google imports are included automatically.").FontSize(textBody).TextColor(t.TextMuted)
+				ui.TextArea(c, &p.roots).Height(70).Font(fontMono).FontSize(textBody).Radius(radiusControl).Label("Protobuf include roots")
+				if p.problem != "" {
+					ui.Text(c, p.problem).FontSize(textBody).TextColor(t.Danger)
+				}
+				if p.loading {
+					ui.Text(c, "Compiling and linking schema…").FontSize(textMeta).TextColor(t.TextMuted)
 				}
 			})
-			ui.Text(c, "Include roots (optional, one per line). The source directory and standard Google imports are included automatically.").FontSize(11).TextColor(t.TextMuted)
-			ui.TextArea(c, &p.roots).Height(70).Label("Protobuf include roots")
-			if p.problem != "" {
-				ui.Text(c, p.problem).FontSize(11).TextColor(t.Danger)
-			}
-			if p.loading {
-				ui.Text(c, "Compiling and linking schema…").FontSize(11).TextColor(t.TextMuted)
-			}
-			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
-				if ui.Button(c, "Clear schema").Disabled(p.schema == nil || p.loading).Clicked() {
+			dialogFooter(c).Children(func() {
+				if secondaryButton(c, "Clear schema").Disabled(p.schema == nil || p.loading).Clicked() {
 					err := error(nil)
 					if p.store != "" {
 						err = os.Remove(p.store)
@@ -282,10 +284,10 @@ func (p *protoInspector) modal(c *ui.Context, a *app) {
 						p.schema, p.name, p.problem = nil, "Auto", ""
 					}
 				}
-				if ui.Button(c, "Close").Clicked() {
+				if secondaryButton(c, "Close").Clicked() {
 					p.open = false
 				}
-				if ui.PrimaryButton(c, "Load schema").Disabled(p.loading || strings.TrimSpace(p.source) == "").Clicked() {
+				if primaryButton(c, "Load schema").Disabled(p.loading || strings.TrimSpace(p.source) == "").Clicked() {
 					p.loadSchema(a)
 				}
 			})

@@ -430,14 +430,14 @@ func (a *app) experimentsView(c *ui.Context, t *ui.Theme, inline bool) {
 		})
 	})
 	appModal(c, &s.clearing, func() {
-		ui.Column(c).Width(420).Gap(12).Children(func() {
+		dialogColumn(c, dialogSmall).Children(func() {
 			dialogTitle(c, "Clear all experiment records?")
-			ui.Text(c, "This removes the retained runs and baseline, not open drafts, captured traffic or saved requests.")
-			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
-				if ui.Button(c, "Cancel").Clicked() {
+			ui.Text(c, "This removes the retained runs and baseline, not open drafts, captured traffic or saved requests.").FontSize(textBody).TextColor(t.TextMuted)
+			dialogFooter(c).Children(func() {
+				if secondaryButton(c, "Cancel").Clicked() {
 					s.clearing = false
 				}
-				if ui.PrimaryButton(c, "Clear records").Clicked() {
+				if primaryButton(c, "Clear records").Clicked() {
 					s.log.Records = nil
 					s.log.Baseline = 0
 					s.picked = 0

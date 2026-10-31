@@ -304,6 +304,17 @@ Runner、History（合并后的 Run records）、Sessions（合并后的 Investi
 
 全部使用 `appModal` 的宽度档、标题、可滚动内容和 footer。
 
+#### 阶段 6 实施记录（现有对话框）
+
+- 现有设置、编辑、流程和确认对话框共用 480／640／840px 内容宽度档，按窗口收缩；标题、正文、28px 控件、代码字体及带顶部分隔线的右对齐 footer 统一。长内容独立滚动，footer 不随内容滚走；窄窗口允许按钮换行。Rules 的原生删除确认、系统文件选择器以及阶段 5 的运行记录／历史会话外壳保留，不另造替代界面。现有品牌及 app 图标不变。
+- Settings 改为左侧 General、Appearance、Proxy、HTTPS、Capture、Devices 六分类，右侧复用现有表单和操作；保留端口下次启动生效、系统代理读回和证书状态检查。分类使用原生 Sidebar 的方向键、Home／End 和 Tab 导航，增加 `Settings category: …` 标签以区分主工作区。外观仍使用已有深色开关，不在本阶段增加主题功能。
+- 本轮遵守第 1 节的外观／布局边界，**未完成设置功能整合**：Upstream、SSL、Ignored hosts/apps 编辑器仍由现有入口打开，未删除；Client setup 和 Diagnostics 尚未合并。独立 Settings 窗口及连接诊断整合随 M1，Host 方案随 M2，Tools 窗口随 M4；抓包白名单、内存上限等新增配置按功能路线图落地。No Caching 保留在现有 Tools／Network 菜单，不声称已迁入 Settings。
+- Vault／Cookies 遮盖与显式显示、危险操作确认、设备网络授权／allowlist、证据导出前人工同意及编辑后撤销同意、断点关闭后仍保持暂停等语义不变。原始证据审阅区使用统一只读／编辑器外观和固定确认区；没有放宽安全门槛，也没有改存储格式或非 UI 包。
+- 验证中发现整块滚动的 WebSocket 对话框在 960×600 下挤掉消息区，现改为配置区独立滚动、时间线／payload 使用剩余高度，复制和关闭固定在 footer；原有真实 WebSocket 连接、二进制截断和复制测试无需修改即通过。新增 UI 回归检查覆盖 Settings 键盘导航／现有编辑器交接，以及 40 条导入报告滚动后 footer 保持可见且可关闭。
+- 最终 `go build ./...`、`go vet ./...`、`go tool mygo vet .`、`go test ./... -count=1` 和 `CGO_ENABLED=0 go test ./... -count=1` 全部通过（字体缓存使用可写的 `XDG_CACHE_HOME`）。过程中未改动的 gRPC deadline/cancellation 和 Capture body-search cancellation 测试各出现过一次失败；后者同代码定向重跑 20 次通过，前者阶段 5 基线定向 10 次通过，最终全量均通过。根因尚未确定，已分别记录后续调查，不据此宣称不存在偶发失败。
+- 浅／深色截图矩阵为 516 张，含 45 种对话框状态及 21 种短窗口变体，覆盖空／错误／忙碌／凭据显示／只读／截断。与阶段 5 基线比较，288 张无关截图逐字节一致，另 4 张 Requests Variables 截图因本阶段统一变量对话框而有意变化。前后图保存于 `.amp/in/artifacts/phase6-before` 和 `phase6-final`，不覆盖阶段 0 基线。
+- Linux 原生窗口录屏并检查了移动指针、分类切换、键盘外观开关、Rules 焦点、Vault 显隐、报告滚动、证据编辑和短窗口设备／Cookies／Code／断点操作。录屏只加载离线夹具，不读取用户配置、不启动代理、不修改系统代理或发送外部请求；F 键是夹具切换，不是产品快捷键。最终录屏为 `.amp/in/artifacts/phase6-review.mp4`；macOS／Windows 原生窗口及全面对比度／可访问性审查仍待阶段 7。
+
 ### 阶段 7：深色模式、跨平台与可访问性
 
 - 用截图检查全部状态的深色版本，调整对比度：正文至少 4.5:1，次要文字至少 3:1。

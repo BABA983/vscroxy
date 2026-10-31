@@ -389,36 +389,39 @@ func (s *investigationWorkbench) browse(c *ui.Context, a *app) {
 }
 
 func (s *investigationWorkbench) review(c *ui.Context, a *app) {
-	ui.Text(c, "RAW EVIDENCE · NOT AUTOMATICALLY SANITIZED").FontSize(13).Bold().TextColor(c.Theme().Warning)
-	ui.Text(c, "May include credentials, cookies, URL secrets, bodies, binary/base64 messages, trailers and private notes. Review ALL JSON before sharing. Edit title, notes, source labels and captured fields below; remove secrets yourself. No automatic redaction is performed.").FontSize(12)
-	if s.reviewCode == nil {
-		buf := editor.NewBuffer(s.preview)
-		buf.SetLanguage(editor.LanguageNamed("json"))
-		s.reviewCode = &editor.State{Buffer: buf, Label: "Editable raw evidence JSON", NoScrollPastEnd: true}
-		s.reviewVersion = buf.Version()
-		s.preview = ""
-	}
-	s.reviewCode.ReadOnly = s.busy
-	editor.View(c, s.reviewCode).Grow(1).Disabled(s.busy)
-	if version := s.reviewCode.Buffer.Version(); version != s.reviewVersion {
-		s.reviewVersion = version
-		s.reviewed, s.problem, s.feedback = false, "", ""
-	}
-	ui.Checkbox(c, &s.reviewed, "I reviewed the complete raw evidence and accept responsibility for sharing it").Label("Confirm full evidence review").Disabled(s.busy)
-	ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
-		back := "Back without exporting"
-		if s.origin == "board" {
-			back = "Close without exporting"
+	t := c.Theme()
+	dialogColumn(c, dialogLarge).Grow(1).AlignSelf(ui.Center).Children(func() {
+		ui.Text(c, "RAW EVIDENCE · NOT AUTOMATICALLY SANITIZED").FontSize(textBody).Bold().TextColor(t.Warning)
+		ui.Text(c, "May include credentials, cookies, URL secrets, bodies, binary/base64 messages, trailers and private notes. Review ALL JSON before sharing. Edit title, notes, source labels and captured fields below; remove secrets yourself. No automatic redaction is performed.").FontSize(textBody)
+		if s.reviewCode == nil {
+			buf := editor.NewBuffer(s.preview)
+			buf.SetLanguage(editor.LanguageNamed("json"))
+			s.reviewCode = &editor.State{Buffer: buf, Label: "Editable raw evidence JSON", NoScrollPastEnd: true}
+			s.reviewVersion = buf.Version()
+			s.preview = ""
 		}
-		if ui.Button(c, back).Disabled(s.busy).Clicked() {
-			s.reviewing, s.reviewed, s.preview = false, false, ""
-			s.reviewCode = nil
+		s.reviewCode.ReadOnly = s.busy
+		requestCodeEditor(c, s.reviewCode).Disabled(s.busy)
+		if version := s.reviewCode.Buffer.Version(); version != s.reviewVersion {
+			s.reviewVersion = version
+			s.reviewed, s.problem, s.feedback = false, "", ""
+		}
+		ui.Checkbox(c, &s.reviewed, "I reviewed the complete raw evidence and accept responsibility for sharing it").Label("Confirm full evidence review").FontSize(textBody).Disabled(s.busy)
+		dialogFooter(c).Children(func() {
+			back := "Back without exporting"
 			if s.origin == "board" {
-				s.open, s.origin = false, ""
+				back = "Close without exporting"
 			}
-		}
-		if ui.PrimaryButton(c, "Export reviewed evidence…").Disabled(s.busy || !s.reviewed).Clicked() {
-			s.exportReviewed(a)
-		}
+			if secondaryButton(c, back).Disabled(s.busy).Clicked() {
+				s.reviewing, s.reviewed, s.preview = false, false, ""
+				s.reviewCode = nil
+				if s.origin == "board" {
+					s.open, s.origin = false, ""
+				}
+			}
+			if primaryButton(c, "Export reviewed evidence…").Disabled(s.busy || !s.reviewed).Clicked() {
+				s.exportReviewed(a)
+			}
+		})
 	})
 }

@@ -297,18 +297,18 @@ func (a *app) closeRequestModal(c *ui.Context, t *ui.Theme) {
 	}
 	open := true
 	appModal(c, &open, func() {
-		ui.Column(c).Width(440).Gap(16).Children(func() {
+		dialogColumn(c, dialogSmall).Children(func() {
 			dialogTitle(c, "Save changes?")
-			ui.Text(c, d.title()+" has unsaved changes. Closing it without saving will discard this draft.").TextColor(t.TextMuted)
-			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
-				if ui.Button(c, "Cancel").Clicked() {
+			ui.Text(c, d.title()+" has unsaved changes. Closing it without saving will discard this draft.").FontSize(textBody).TextColor(t.TextMuted)
+			dialogFooter(c).Children(func() {
+				if secondaryButton(c, "Cancel").Clicked() {
 					a.closingDocument = nil
 				}
-				if ui.Button(c, "Discard").Clicked() {
+				if secondaryButton(c, "Discard").Clicked() {
 					a.closeDocument(d)
 					a.closingDocument = nil
 				}
-				if ui.PrimaryButton(c, "Save & close").Clicked() {
+				if primaryButton(c, "Save & close").Clicked() {
 					a.requestDocument = d
 					if a.saveComposed() {
 						a.closeDocument(d)
@@ -471,15 +471,15 @@ func (a *app) headerWarnModal(c *ui.Context, t *ui.Theme) {
 		return
 	}
 	appModal(c, &d.headerWarn, func() {
-		ui.Column(c).Width(460).Gap(12).Children(func() {
+		dialogColumn(c, dialogSmall).Children(func() {
 			dialogTitle(c, "Bulk edit shows credentials")
-			ui.Text(c, "The Key: Value block writes every header value in plain text, including tokens, cookies and passwords. The table masks them one row at a time.").FontSize(12).TextColor(t.TextMuted)
-			ui.Text(c, "Switching modes does not send a request. All enabled header values will be visible; be careful when sharing your screen.").FontSize(12).TextColor(t.TextMuted)
-			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
-				if ui.Button(c, "Cancel").Clicked() {
+			ui.Text(c, "The Key: Value block writes every header value in plain text, including tokens, cookies and passwords. The table masks them one row at a time.").FontSize(textBody).TextColor(t.TextMuted)
+			ui.Text(c, "Switching modes does not send a request. All enabled header values will be visible; be careful when sharing your screen.").FontSize(textBody).TextColor(t.TextMuted)
+			dialogFooter(c).Children(func() {
+				if secondaryButton(c, "Cancel").Clicked() {
 					d.headerWarn = false
 				}
-				if ui.PrimaryButton(c, "Show values").Clicked() {
+				if primaryButton(c, "Show values").Clicked() {
 					d.headerWarn = false
 					toggleHeaderMode(d)
 				}
@@ -496,16 +496,18 @@ func (a *app) requestRenameModal(c *ui.Context, t *ui.Theme) {
 		return
 	}
 	appModal(c, &a.renameOpen, func() {
-		ui.Column(c).Width(440).Gap(12).Children(func() {
+		dialogColumn(c, dialogSmall).Children(func() {
 			dialogTitle(c, "Rename request")
-			ui.TextInput(c, &d.composeName).Label("Name").Placeholder("Untitled request").FillWidth()
-			ui.TextInput(c, &d.composeCollection).Label("Collection").Placeholder("Collection").FillWidth()
-			ui.Text(c, "The collection groups saved requests in the library.").FontSize(11).TextColor(t.TextMuted)
-			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
-				if ui.Button(c, "Cancel").Clicked() {
+			ui.TextInput(c, &d.composeName).Label("Name").Placeholder("Untitled request").FillWidth().
+				Height(heightControl).Padding(0, t.Space(2)).Radius(radiusControl).FontSize(textBody)
+			ui.TextInput(c, &d.composeCollection).Label("Collection").Placeholder("Collection").FillWidth().
+				Height(heightControl).Padding(0, t.Space(2)).Radius(radiusControl).FontSize(textBody)
+			ui.Text(c, "The collection groups saved requests in the library.").FontSize(textMeta).TextColor(t.TextMuted)
+			dialogFooter(c).Children(func() {
+				if secondaryButton(c, "Cancel").Clicked() {
 					a.renameOpen = false
 				}
-				if ui.PrimaryButton(c, "Done").Clicked() {
+				if primaryButton(c, "Done").Clicked() {
 					a.renameOpen = false
 				}
 			})

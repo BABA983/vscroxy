@@ -92,14 +92,14 @@ func (a *app) deleteModal(c *ui.Context, t *ui.Theme) {
 		return
 	}
 	appModal(c, &del.open, func() {
-		ui.Column(c).Width(420).Gap(12).Children(func() {
+		dialogColumn(c, dialogSmall).Children(func() {
 			dialogTitle(c, "Delete "+del.name+"?")
-			ui.Text(c, del.detail+" This cannot be undone.").FontSize(12).TextColor(t.TextMuted)
-			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
-				if ui.Button(c, "Cancel").Clicked() {
+			ui.Text(c, del.detail+" This cannot be undone.").FontSize(textBody).TextColor(t.TextMuted)
+			dialogFooter(c).Children(func() {
+				if secondaryButton(c, "Cancel").Clicked() {
 					del.open = false
 				}
-				if ui.PrimaryButton(c, "Delete "+strings.Fields(del.name)[0]).Clicked() {
+				if primaryButton(c, "Delete "+strings.Fields(del.name)[0]).Clicked() {
 					if err := a.deleteAssets(*del); err != nil {
 						a.setMessage("Delete: " + err.Error())
 					} else {

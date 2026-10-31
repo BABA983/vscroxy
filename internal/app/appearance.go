@@ -211,93 +211,114 @@ func (a *app) settingsModal(c *ui.Context, t *ui.Theme) {
 	if !a.settingsOpen {
 		return
 	}
-	height := float32(372)
-	if a.settingsTab == 1 || a.settingsTab == 2 {
-		height = 520
-	}
-	if a.settingsTab == 2 {
-		height = 600
-	}
-	width, windowHeight := c.Size()
-	height = min(height, windowHeight-80)
+	_, height := c.Size()
 	appModal(c, &a.settingsOpen, func() {
-		ui.Column(c).Width(min(620, width-80)).Height(height).Gap(12).Children(func() {
+		dialogColumn(c, dialogLarge).Height(min(640, height-80)).Children(func() {
 			dialogTitle(c, "Settings")
-			if ui.Tabs(c, &a.settingsTab, "General", "Proxy", "HTTPS").Changed() {
-				switch a.settingsTab {
-				case 1:
-					a.checkSystemProxy(true)
-				case 2:
-					a.checkCertificate(false)
-				}
-			}
-			ui.Scroll(c).Grow(1).Gap(14).Padding(8, 20, 8, 0).Children(func() {
-				switch a.settingsTab {
-				case 0:
-					ui.Row(c).AlignItems(ui.Center).Children(func() {
-						ui.Column(c).Grow(1).Gap(4).Children(func() {
-							ui.Text(c, "Dark appearance").Bold()
-							ui.Text(c, "Use a low-glare palette for traffic and editors.").FontSize(12).TextColor(t.TextMuted)
-						})
-						ui.Switch(c, &a.dark).Label("Dark appearance")
-					})
-					ui.Divider(c)
-					ui.Text(c, "Rules & scripts").Bold()
-					ui.Text(c, "Reload proxy rules, DNS mappings, ignore lists and the capture script from disk.").FontSize(12).TextColor(t.TextMuted)
-					ui.Row(c).Gap(8).Children(func() {
-						if ui.Button(c, "Manage rules…").Clicked() {
-							a.settingsOpen = false
-							a.openRules()
-						}
-						if ui.Button(c, "Reload configuration").Clicked() {
-							a.reloadConfig()
-						}
-					})
-				case 1:
-					addr := "Capture is not running"
-					if a.srv != nil && a.srv.Running() {
-						addr = "Proxy address: " + a.srv.Addr()
+			ui.Row(c).Grow(1).MinHeight(0).AlignItems(ui.Stretch).Children(func() {
+				choice := strconv.Itoa(a.settingsTab)
+				ui.Sidebar(c, &choice, func() {
+					for _, item := range []struct {
+						id    string
+						label string
+					}{{"0", "General"}, {"3", "Appearance"}, {"1", "Proxy"}, {"2", "HTTPS"}, {"4", "Capture"}, {"5", "Devices"}} {
+						sidebarItem(c, item.id, nil, item.label, choice == item.id).Label("Settings category: " + item.label)
 					}
-					ui.Text(c, addr).Bold()
-					ui.Column(c).Gap(6).Children(func() {
-						ui.Text(c, "Listening port").FontSize(12).Bold()
-						ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-							ui.TextInput(c, &a.proxyPortInput).Label("Proxy port").Placeholder("Automatic").Width(120)
-							if ui.Button(c, "Save for next launch").Clicked() {
-								a.saveProxyPort()
+				}).Width(140).Padding(4).Gap(0).OnChange(func() {
+					a.settingsTab, _ = strconv.Atoi(choice)
+					switch a.settingsTab {
+					case 1:
+						a.checkSystemProxy(true)
+					case 2:
+						a.checkCertificate(false)
+					}
+				})
+				ui.Divider(c)
+				ui.Scroll(c).Grow(1).MinWidth(0).Gap(t.Space(3)).Padding(0, t.Space(3)).Children(func() {
+					switch a.settingsTab {
+					case 0:
+						ui.Text(c, "Rules & scripts").FontSize(textBody).Bold()
+						ui.Text(c, "Reload proxy rules, DNS mappings, ignore lists and the capture script from disk.").FontSize(textMeta).TextColor(t.TextMuted)
+						ui.Row(c).Gap(t.Space(2)).Wrap().Children(func() {
+							if secondaryButton(c, "Manage rules…").Clicked() {
+								a.settingsOpen = false
+								a.openRules()
+							}
+							if secondaryButton(c, "Reload configuration").Clicked() {
+								a.reloadConfig()
 							}
 						})
-						ui.Text(c, "Blank = automatic (prefers 7890). Fixed port: 1024–65535, no fallback.").FontSize(12).TextColor(t.TextMuted)
+					case 1:
+						addr := "Capture is not running"
+						if a.srv != nil && a.srv.Running() {
+							addr = "Proxy address: " + a.srv.Addr()
+						}
+						ui.Text(c, addr).FontSize(textBody).Bold()
+						ui.Form(c, func() {
+							ui.Field(c, "Listening port", func() {
+								ui.Row(c).Gap(t.Space(2)).Wrap().Children(func() {
+									ui.TextInput(c, &a.proxyPortInput).Label("Proxy port").Placeholder("Automatic").Width(100).Height(heightControl).FontSize(textBody).Radius(radiusControl)
+									if secondaryButton(c, "Save for next launch").Clicked() {
+										a.saveProxyPort()
+									}
+								})
+							}).Description("Blank = automatic (prefers 7890). Fixed port: 1024–65535, no fallback.").Error(a.proxyPortProblem)
+						})
 						next := "Next launch: Automatic · restart the app to apply"
 						if a.proxyPort != 0 {
 							next = "Next launch: 127.0.0.1:" + strconv.Itoa(a.proxyPort) + " · restart the app to apply"
 						}
-						ui.Text(c, next).FontSize(12).TextColor(t.TextMuted)
-						if a.proxyPortProblem != "" {
-							ui.Text(c, a.proxyPortProblem).FontSize(12).TextColor(t.Danger).SingleLine().Tooltip(a.proxyPortProblem)
-						}
-					})
-					ui.Divider(c)
-					a.systemProxySettings(c, t)
-					ui.Divider(c)
-					ui.Text(c, "Upstream: "+cmp.Or(a.upstream, "Direct connection")).FontSize(12).TextColor(t.TextMuted).SingleLine()
-					ui.Row(c).Gap(8).Children(func() {
-						if ui.Button(c, "Configure upstream…").Clicked() {
-							a.settingsOpen = false
-							a.upstreamAddr, a.upstreamOpen = a.upstream, true
-						}
-						if ui.Button(c, "Connect a device…").Clicked() {
-							a.settingsOpen = false
-							a.openDevices()
-						}
-					})
-				case 2:
-					a.httpsSettings(c, t)
-				}
+						ui.Text(c, next).FontSize(textMeta).FontFeatures("tnum").TextColor(t.TextMuted)
+						ui.Divider(c)
+						a.systemProxySettings(c, t)
+						ui.Divider(c)
+						ui.Text(c, "Upstream: "+cmp.Or(a.upstream, "Direct connection")).FontSize(textMeta).TextColor(t.TextMuted).SingleLine()
+						ui.Row(c).Gap(t.Space(2)).Wrap().Children(func() {
+							if secondaryButton(c, "Configure upstream…").Clicked() {
+								a.settingsOpen = false
+								a.upstreamAddr, a.upstreamOpen = a.upstream, true
+							}
+							if secondaryButton(c, "Connect a device…").Clicked() {
+								a.settingsOpen = false
+								a.openDevices()
+							}
+						})
+					case 2:
+						a.httpsSettings(c, t)
+					case 3:
+						ui.Form(c, func() {
+							ui.Field(c, "Dark appearance", func() { ui.Switch(c, &a.dark).Label("Dark appearance") }).
+								Description("Use a low-glare palette for traffic and editors.")
+						})
+					case 4:
+						ui.Text(c, "Capture visibility").FontSize(textBody).Bold()
+						ui.Text(c, "Ignored traffic stays proxied but is not shown in the table.").FontSize(textMeta).TextColor(t.TextMuted)
+						ui.Row(c).Gap(t.Space(2)).Wrap().Children(func() {
+							if secondaryButton(c, "Ignored hosts…").Clicked() {
+								a.settingsOpen, a.ignoreOpen = false, true
+							}
+							if secondaryButton(c, "Ignored apps…").Clicked() {
+								a.settingsOpen, a.ignoreAppsOpen = false, true
+							}
+						})
+					case 5:
+						ui.Text(c, "Device and client access").FontSize(textBody).Bold()
+						ui.Text(c, "Device access requires explicit network consent and an allowlist.").FontSize(textMeta).TextColor(t.TextMuted)
+						ui.Row(c).Gap(t.Space(2)).Wrap().Children(func() {
+							if secondaryButton(c, "Connect a device…").Clicked() {
+								a.settingsOpen = false
+								a.openDevices()
+							}
+							if secondaryButton(c, "Set up a local client…").Clicked() {
+								a.settingsOpen = false
+								a.openClientSetup()
+							}
+						})
+					}
+				})
 			})
-			ui.Divider(c)
-			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
-				if ui.Button(c, "Done").Clicked() {
+			dialogFooter(c).Children(func() {
+				if secondaryButton(c, "Done").Clicked() {
 					a.settingsOpen = false
 				}
 			})

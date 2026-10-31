@@ -90,34 +90,36 @@ drained:
 		return
 	}
 	appModal(c, &r.open, func() {
-		ui.Column(c).Width(500).Gap(12).Children(func() {
+		dialogColumn(c, dialogMedium).Children(func() {
 			dialogTitle(c, fmt.Sprintf("Replay %d requests", len(r.flows)))
-			ui.Text(c, "Sends in capture order through the current rules. POST, PUT, PATCH and DELETE can change server data. WebSocket, SSE and tunnels are excluded.").FontSize(12).TextColor(t.TextMuted)
 			seconds, err := strconv.Atoi(strings.TrimSpace(r.timeout))
 			valid := err == nil && seconds >= 0 && seconds <= 86400
-			ui.Field(c, "Timeout per request (seconds; 0 = no timeout)", func() {
-				ui.TextInput(c, &r.timeout).Label("Replay timeout").Disabled(r.updates != nil)
+			ui.Scroll(c).MinHeight(0).Shrink(1).Gap(16).Children(func() {
+				ui.Text(c, "Sends in capture order through the current rules. POST, PUT, PATCH and DELETE can change server data. WebSocket, SSE and tunnels are excluded.").FontSize(textBody).TextColor(t.TextMuted)
+				ui.Field(c, "Timeout per request (seconds; 0 = no timeout)", func() {
+					ui.TextInput(c, &r.timeout).Label("Replay timeout").Height(heightControl).FontSize(textBody).Disabled(r.updates != nil)
+				})
+				if !valid {
+					ui.Text(c, "Enter 0–86400 seconds.").FontSize(textBody).TextColor(t.Danger)
+				}
+				if a.srv != nil && a.srv.NoCaching() {
+					ui.Text(c, "No Caching is on: conditional cache headers will be removed.").FontSize(textBody).TextColor(t.Accent)
+				}
+				if r.done > 0 || r.updates != nil {
+					ui.Text(c, fmt.Sprintf("%d/%d sent · %d failed", r.done, len(r.flows), r.failed)).FontSize(textBody)
+				}
+				if r.problem != "" {
+					ui.Text(c, r.problem).FontSize(textBody).TextColor(t.Danger).MaxLines(3).Tooltip(r.problem)
+				}
 			})
-			if !valid {
-				ui.Text(c, "Enter 0–86400 seconds.").FontSize(12).TextColor(t.Danger)
-			}
-			if a.srv != nil && a.srv.NoCaching() {
-				ui.Text(c, "No Caching is on: conditional cache headers will be removed.").FontSize(12).TextColor(t.Accent)
-			}
-			if r.done > 0 || r.updates != nil {
-				ui.Text(c, fmt.Sprintf("%d/%d sent · %d failed", r.done, len(r.flows), r.failed)).FontSize(12)
-			}
-			if r.problem != "" {
-				ui.Text(c, r.problem).FontSize(12).TextColor(t.Danger).MaxLines(3).Tooltip(r.problem)
-			}
-			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
-				if r.cancel != nil && ui.Button(c, "Stop replay").Clicked() {
+			dialogFooter(c).Children(func() {
+				if r.cancel != nil && secondaryButton(c, "Stop replay").Clicked() {
 					r.cancel()
 				}
-				if ui.Button(c, "Close").Clicked() {
+				if secondaryButton(c, "Close").Clicked() {
 					r.open = false
 				}
-				if ui.PrimaryButton(c, "Send replays").Disabled(!valid || len(r.flows) == 0 || r.updates != nil || r.done > 0 || a.srv == nil).Clicked() {
+				if primaryButton(c, "Send replays").Disabled(!valid || len(r.flows) == 0 || r.updates != nil || r.done > 0 || a.srv == nil).Clicked() {
 					a.startReplay(seconds)
 				}
 			})

@@ -668,13 +668,69 @@ func TestSettingsOpensExistingEditors(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	tt.Key(0, ui.KeyRight) // HTTPS tab, not Capture's HTTPS filter chip.
+	tt.Key(0, ui.KeyDown) // HTTPS category, not Capture's HTTPS filter chip.
 	tt.Scroll(480, 300, 0, 500)
 	if err := tt.Click("TLS key log…"); err != nil {
 		t.Fatal(err)
 	}
 	if !tt.HasText("TLS key log") {
 		t.Fatal("settings did not open the TLS key log editor")
+	}
+}
+
+func TestSettingsCategoriesKeepNativeNavigationAndEditorRoutes(t *testing.T) {
+	a := workspaceApp()
+	a.settingsOpen = true
+	tt := ui.NewTester(a.view, 960, 600)
+	click := func(label string) {
+		t.Helper()
+		if err := tt.Click(label); err != nil {
+			t.Fatal(err)
+		}
+	}
+	click("Settings category: Appearance")
+	tt.Key(0, ui.KeyTab)
+	tt.Key(0, ui.KeySpace)
+	if !a.dark {
+		t.Fatal("Appearance did not update the existing dark preference")
+	}
+	click("Settings category: Appearance")
+	tt.Key(0, ui.KeyEnd)
+	if !tt.HasText("Device and client access") {
+		t.Fatal("native End navigation did not select Devices")
+	}
+	click("Settings category: Capture")
+	click("Ignored hosts…")
+	if !tt.HasText("Ignored hosts") || a.settingsOpen {
+		t.Fatal("Capture did not hand off to the existing ignored-host editor")
+	}
+	click("Cancel")
+	click("Settings")
+	click("Done")
+	if a.settingsOpen {
+		t.Fatal("the fixed Done footer was not reachable")
+	}
+}
+
+func TestLongImportReportKeepsFooterReachable(t *testing.T) {
+	a := workspaceApp()
+	a.importReport = importReport{open: true, title: "Import review"}
+	for i := range 40 {
+		a.importReport.lines = append(a.importReport.lines, fmt.Sprintf("Request %d: unsupported option omitted", i+1))
+	}
+	tt := ui.NewTester(a.view, 960, 600)
+	before, ok := tt.Find("OK")
+	if !ok || before.Y < 0 || before.Y+before.H > 600 {
+		t.Fatalf("footer is outside the short window: %v", before)
+	}
+	tt.Scroll(480, 300, 0, 3000)
+	after, _ := tt.Find("OK")
+	last, _ := tt.Find("• Request 40: unsupported option omitted")
+	if after != before || last.Y < 0 || last.Y+last.H > after.Y {
+		t.Fatalf("report did not scroll independently of its footer: last=%v, footer=%v → %v", last, before, after)
+	}
+	if err := tt.Click("OK"); err != nil || a.importReport.open {
+		t.Fatalf("report footer did not dismiss the dialog: %v", err)
 	}
 }
 

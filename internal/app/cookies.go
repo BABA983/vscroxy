@@ -192,53 +192,64 @@ func (a *app) cookiesModal(c *ui.Context, t *ui.Theme) {
 	if !e.open {
 		return
 	}
+	_, height := c.Size()
 	appModal(c, &e.open, func() {
-		ui.Column(c).Width(760).Height(480).Gap(12).Children(func() {
+		dialogColumn(c, dialogLarge).Height(min(480, height-80)).Children(func() {
 			dialogTitle(c, "Session Cookies")
-			ui.Text(c, "Shared by Requests and Runner. Kept in memory until the app quits.").FontSize(11).TextColor(t.TextMuted)
-			ui.Scroll(c).Grow(1).Gap(8).Children(func() {
+			ui.Text(c, "Shared by Requests and Runner. Kept in memory until the app quits.").FontSize(textMeta).TextColor(t.TextMuted)
+			ui.Scroll(c).Grow(1).MinHeight(0).Gap(12).Children(func() {
 				items := a.requestCookies().snapshot()
 				if len(items) == 0 {
 					ui.Text(c, "No cookies yet. Send a request or add one below.").TextColor(t.TextMuted)
 				}
 				for _, item := range items {
 					ui.Row(c).Key(item.key).Gap(8).AlignItems(ui.Center).Children(func() {
-						ui.Column(c).Grow(1).Gap(3).Children(func() {
-							ui.Text(c, item.cookie.Name+" = "+item.cookie.Value).FontSize(12).Font("monospace").SingleLine()
+						ui.Column(c).Grow(1).Gap(4).Children(func() {
+							ui.Text(c, item.cookie.Name+" = "+item.cookie.Value).FontSize(textBody).Font(fontMono).SingleLine()
 							domain := cmp.Or(item.cookie.Domain, item.origin.Hostname())
-							ui.Text(c, fmt.Sprintf("%s%s · Secure %t · HttpOnly %t", domain, item.cookie.Path, item.cookie.Secure, item.cookie.HttpOnly)).FontSize(11).TextColor(t.TextMuted)
+							ui.Text(c, fmt.Sprintf("%s%s · Secure %t · HttpOnly %t", domain, item.cookie.Path, item.cookie.Secure, item.cookie.HttpOnly)).FontSize(textMeta).TextColor(t.TextMuted)
 						})
-						if ui.Button(c, "Delete").Label("Delete cookie " + item.cookie.Name + " " + item.cookie.Path).Clicked() {
+						if secondaryButton(c, "Delete").Label("Delete cookie " + item.cookie.Name + " " + item.cookie.Path).Clicked() {
 							a.cookies.remove(item.key)
 						}
 					})
 				}
-			})
-			ui.Divider(c)
-			ui.Text(c, "Add replaces the same domain / path / name. Leave Domain empty for a host-only cookie.").FontSize(11).TextColor(t.TextMuted)
-			ui.TextInput(c, &e.url).Label("Cookie URL").Placeholder("https://api.example.com/")
-			ui.Row(c).Gap(8).Children(func() {
-				ui.TextInput(c, &e.name).Grow(1).Label("Cookie name").Placeholder("Name")
-				ui.TextInput(c, &e.value).Grow(2).Label("Cookie value").Placeholder("Value").Password()
-			})
-			ui.Row(c).Gap(12).Children(func() {
-				ui.TextInput(c, &e.domain).Grow(1).Label("Cookie domain").Placeholder("Domain (optional)")
-				ui.TextInput(c, &e.path).Width(100).Label("Cookie path").Placeholder("/")
-				ui.Checkbox(c, &e.secure, "Secure")
-				ui.Checkbox(c, &e.httpOnly, "HttpOnly")
+				ui.Divider(c)
+				ui.Text(c, "Add replaces the same domain / path / name. Leave Domain empty for a host-only cookie.").FontSize(textMeta).TextColor(t.TextMuted)
+				ui.Form(c, func() {
+					ui.Field(c, "Cookie URL", func() {
+						ui.TextInput(c, &e.url).Label("Cookie URL").Placeholder("https://api.example.com/").Height(heightControl).Radius(radiusControl)
+					})
+					ui.Field(c, "Cookie name", func() {
+						ui.TextInput(c, &e.name).Label("Cookie name").Placeholder("Name").Height(heightControl).Radius(radiusControl)
+					})
+					ui.Field(c, "Cookie value", func() {
+						ui.TextInput(c, &e.value).Label("Cookie value").Placeholder("Value").Password().Height(heightControl).Radius(radiusControl)
+					})
+					ui.Field(c, "Cookie domain", func() {
+						ui.TextInput(c, &e.domain).Label("Cookie domain").Placeholder("Domain (optional)").Height(heightControl).Radius(radiusControl)
+					})
+					ui.Field(c, "Cookie path", func() {
+						ui.Row(c).Gap(12).Children(func() {
+							ui.TextInput(c, &e.path).Width(100).Label("Cookie path").Placeholder("/").Height(heightControl).Radius(radiusControl)
+							ui.Checkbox(c, &e.secure, "Secure")
+							ui.Checkbox(c, &e.httpOnly, "HttpOnly")
+						})
+					})
+				})
 			})
 			if e.problem != "" {
-				ui.Text(c, e.problem).FontSize(11).TextColor(t.Danger)
+				ui.Text(c, e.problem).FontSize(textMeta).TextColor(t.Danger)
 			}
-			ui.Row(c).Gap(8).Children(func() {
-				if ui.Button(c, "Clear all cookies").Clicked() {
+			dialogFooter(c).Children(func() {
+				if secondaryButton(c, "Clear all cookies").Clicked() {
 					a.requestCookies().clear()
 				}
 				ui.Spacer(c)
-				if ui.Button(c, "Close").Clicked() {
+				if secondaryButton(c, "Close").Clicked() {
 					e.open = false
 				}
-				if ui.PrimaryButton(c, "Add cookie").Clicked() {
+				if primaryButton(c, "Add cookie").Clicked() {
 					a.saveCookie()
 				}
 			})
