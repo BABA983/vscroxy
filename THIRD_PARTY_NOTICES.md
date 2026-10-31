@@ -3,7 +3,7 @@
 vscroxy's desktop app links the icon package below and embeds Chai and the
 Inter and JetBrains Mono fonts. These notices cover them.
 
-## Inter 4.1 (`internal/app/fonts/Inter-*.ttf`)
+## Inter 4.1 (`internal/uikit/fonts/Inter-*.ttf`)
 
 Copyright (c) 2016 The Inter Project Authors (https://github.com/rsms/inter).
 
@@ -13,11 +13,11 @@ tag commit `e3a3d4c57d5ecc01453a575621882a384c1995a3`.
 
 Licensed under the SIL Open Font License, Version 1.1. The complete upstream
 copyright notice and license are preserved in
-[`internal/app/fonts/Inter-OFL.txt`](internal/app/fonts/Inter-OFL.txt) and
+[`internal/uikit/fonts/Inter-OFL.txt`](internal/uikit/fonts/Inter-OFL.txt) and
 embedded in the executable with the fonts. Download provenance and SHA-256
-checksums are recorded in [`internal/app/fonts/README.md`](internal/app/fonts/README.md).
+checksums are recorded in [`internal/uikit/fonts/README.md`](internal/uikit/fonts/README.md).
 
-## JetBrains Mono 2.304 (`internal/app/fonts/JetBrainsMono-*.ttf`)
+## JetBrains Mono 2.304 (`internal/uikit/fonts/JetBrainsMono-*.ttf`)
 
 Copyright 2020 The JetBrains Mono Project Authors (https://github.com/JetBrains/JetBrainsMono).
 
@@ -27,9 +27,9 @@ tag commit `cd5227bd1f61dff3bbd6c814ceaf7ffd95e947d9`.
 
 Licensed under the SIL Open Font License, Version 1.1. The complete upstream
 copyright notice and license are preserved in
-[`internal/app/fonts/JetBrainsMono-OFL.txt`](internal/app/fonts/JetBrainsMono-OFL.txt)
+[`internal/uikit/fonts/JetBrainsMono-OFL.txt`](internal/uikit/fonts/JetBrainsMono-OFL.txt)
 and embedded in the executable with the fonts. Download provenance and SHA-256
-checksums are recorded in [`internal/app/fonts/README.md`](internal/app/fonts/README.md).
+checksums are recorded in [`internal/uikit/fonts/README.md`](internal/uikit/fonts/README.md).
 
 ## Chai 4.5.0 (`internal/request/js/chai.js`)
 

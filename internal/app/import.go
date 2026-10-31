@@ -5,6 +5,7 @@ import (
 	"encoding/json/jsontext"
 	"encoding/json/v2"
 	"fmt"
+	"github.com/baba983/vscroxy/internal/uikit"
 	"maps"
 	"net/url"
 	"path/filepath"
@@ -302,9 +303,9 @@ func (a *app) collectionSaveModal(c *ui.Context, t *ui.Theme) {
 	if !s.open {
 		return
 	}
-	appModal(c, &s.open, func() {
-		dialogColumn(c, dialogSmall).Children(func() {
-			dialogTitle(c, fmt.Sprintf("Save %d requests to collection", len(s.flows)))
+	uikit.Modal(c, &s.open, func() {
+		uikit.DialogColumn(c, uikit.DialogSmall).Children(func() {
+			uikit.DialogTitle(c, fmt.Sprintf("Save %d requests to collection", len(s.flows)))
 			names := a.collectionNames()
 			name := collectionSegment(s.name)
 			hint := "Creates a new collection."
@@ -312,21 +313,21 @@ func (a *app) collectionSaveModal(c *ui.Context, t *ui.Theme) {
 				hint = "Adds to the end of this collection."
 			}
 			ui.Scroll(c).MinHeight(0).Shrink(1).Gap(t.Space(4)).Children(func() {
-				ui.Text(c, "Saved in capture order, not sent. Tunnels, WebSocket connections and incomplete or non-UTF-8 bodies are skipped.").FontSize(textBody).TextColor(t.TextMuted)
+				ui.Text(c, "Saved in capture order, not sent. Tunnels, WebSocket connections and incomplete or non-UTF-8 bodies are skipped.").FontSize(uikit.TextBody).TextColor(t.TextMuted)
 				ui.Form(c, func() {
 					ui.Field(c, "Collection", func() {
-						ui.Autocomplete(c, &s.name, names).Label("Collection name").Height(heightControl).FontSize(textBody)
+						ui.Autocomplete(c, &s.name, names).Label("Collection name").Height(uikit.HeightControl).FontSize(uikit.TextBody)
 					}).Description(hint)
 					ui.Field(c, "Folders", func() {
-						ui.Checkbox(c, &s.perHost, "One folder per host").FontSize(textBody)
+						ui.Checkbox(c, &s.perHost, "One folder per host").FontSize(uikit.TextBody)
 					})
 				})
 			})
-			dialogFooter(c).Children(func() {
-				if secondaryButton(c, "Cancel").Clicked() {
+			uikit.DialogFooter(c).Children(func() {
+				if uikit.SecondaryButton(c, "Cancel").Clicked() {
 					s.open = false
 				}
-				if primaryButton(c, "Save requests").Disabled(name == "").Clicked() {
+				if uikit.PrimaryButton(c, "Save requests").Disabled(name == "").Clicked() {
 					s.open = false
 					a.saveFlowsToCollection(s.flows, s.name, s.perHost)
 				}

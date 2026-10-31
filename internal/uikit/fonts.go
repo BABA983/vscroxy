@@ -1,4 +1,4 @@
-package app
+package uikit
 
 import (
 	"embed"
@@ -13,14 +13,14 @@ import (
 // Provenance and checksums live in fonts/README.md.
 //
 //go:embed fonts/*.ttf fonts/*-OFL.txt
-var appFontFiles embed.FS
+var fontFiles embed.FS
 
-// registerAppFonts registers every bundled weight once, before appTheme uses
+// registerFonts registers every bundled weight once, before Theme uses
 // "Inter" or "JetBrains Mono". Keep platform CJK fallbacks in the theme's family
 // list; these fonts intentionally do not bundle Chinese glyphs.
 // Missing embedded assets are a build invariant violation. OS registration
 // failures are logged so native fallback fonts can keep the app usable.
-var registerAppFonts = sync.OnceFunc(func() {
+var registerFonts = sync.OnceFunc(func() {
 	for _, font := range []struct {
 		file   string
 		family string
@@ -31,7 +31,7 @@ var registerAppFonts = sync.OnceFunc(func() {
 		{"JetBrainsMono-Regular.ttf", "JetBrains Mono"},
 		{"JetBrainsMono-Bold.ttf", "JetBrains Mono"},
 	} {
-		data, err := appFontFiles.ReadFile("fonts/" + font.file)
+		data, err := fontFiles.ReadFile("fonts/" + font.file)
 		if err != nil {
 			panic(fmt.Errorf("read embedded font %s: %w", font.file, err))
 		}

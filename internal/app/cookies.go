@@ -3,6 +3,7 @@ package app
 import (
 	"cmp"
 	"fmt"
+	"github.com/baba983/vscroxy/internal/uikit"
 	"net/http"
 	"net/http/cookiejar"
 	"net/netip"
@@ -193,10 +194,10 @@ func (a *app) cookiesModal(c *ui.Context, t *ui.Theme) {
 		return
 	}
 	_, height := c.Size()
-	appModal(c, &e.open, func() {
-		dialogColumn(c, dialogLarge).Height(min(480, height-80)).Children(func() {
-			dialogTitle(c, "Session Cookies")
-			ui.Text(c, "Shared by Requests and Runner. Kept in memory until the app quits.").FontSize(textMeta).TextColor(t.TextMuted)
+	uikit.Modal(c, &e.open, func() {
+		uikit.DialogColumn(c, uikit.DialogLarge).Height(min(480, height-80)).Children(func() {
+			uikit.DialogTitle(c, "Session Cookies")
+			ui.Text(c, "Shared by Requests and Runner. Kept in memory until the app quits.").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
 			ui.Scroll(c).Grow(1).MinHeight(0).Gap(t.Space(3)).Children(func() {
 				items := a.requestCookies().snapshot()
 				if len(items) == 0 {
@@ -205,33 +206,33 @@ func (a *app) cookiesModal(c *ui.Context, t *ui.Theme) {
 				for _, item := range items {
 					ui.Row(c).Key(item.key).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 						ui.Column(c).Grow(1).Gap(t.Space(1)).Children(func() {
-							ui.Text(c, item.cookie.Name+" = "+item.cookie.Value).FontSize(textBody).Font(fontMono).SingleLine()
+							ui.Text(c, item.cookie.Name+" = "+item.cookie.Value).FontSize(uikit.TextBody).Font(uikit.FontMono).SingleLine()
 							domain := cmp.Or(item.cookie.Domain, item.origin.Hostname())
-							ui.Text(c, fmt.Sprintf("%s%s · Secure %t · HttpOnly %t", domain, item.cookie.Path, item.cookie.Secure, item.cookie.HttpOnly)).FontSize(textMeta).TextColor(t.TextMuted)
+							ui.Text(c, fmt.Sprintf("%s%s · Secure %t · HttpOnly %t", domain, item.cookie.Path, item.cookie.Secure, item.cookie.HttpOnly)).FontSize(uikit.TextMeta).TextColor(t.TextMuted)
 						})
-						if secondaryButton(c, "Delete").Label("Delete cookie " + item.cookie.Name + " " + item.cookie.Path).Clicked() {
+						if uikit.SecondaryButton(c, "Delete").Label("Delete cookie " + item.cookie.Name + " " + item.cookie.Path).Clicked() {
 							a.cookies.remove(item.key)
 						}
 					})
 				}
 				ui.Divider(c)
-				ui.Text(c, "Add replaces the same domain / path / name. Leave Domain empty for a host-only cookie.").FontSize(textMeta).TextColor(t.TextMuted)
+				ui.Text(c, "Add replaces the same domain / path / name. Leave Domain empty for a host-only cookie.").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
 				ui.Form(c, func() {
 					ui.Field(c, "Cookie URL", func() {
-						ui.TextInput(c, &e.url).Label("Cookie URL").Placeholder("https://api.example.com/").Height(heightControl).Radius(radiusControl)
+						ui.TextInput(c, &e.url).Label("Cookie URL").Placeholder("https://api.example.com/").Height(uikit.HeightControl).Radius(uikit.RadiusControl)
 					})
 					ui.Field(c, "Cookie name", func() {
-						ui.TextInput(c, &e.name).Label("Cookie name").Placeholder("Name").Height(heightControl).Radius(radiusControl)
+						ui.TextInput(c, &e.name).Label("Cookie name").Placeholder("Name").Height(uikit.HeightControl).Radius(uikit.RadiusControl)
 					})
 					ui.Field(c, "Cookie value", func() {
-						ui.TextInput(c, &e.value).Label("Cookie value").Placeholder("Value").Password().Height(heightControl).Radius(radiusControl)
+						ui.TextInput(c, &e.value).Label("Cookie value").Placeholder("Value").Password().Height(uikit.HeightControl).Radius(uikit.RadiusControl)
 					})
 					ui.Field(c, "Cookie domain", func() {
-						ui.TextInput(c, &e.domain).Label("Cookie domain").Placeholder("Domain (optional)").Height(heightControl).Radius(radiusControl)
+						ui.TextInput(c, &e.domain).Label("Cookie domain").Placeholder("Domain (optional)").Height(uikit.HeightControl).Radius(uikit.RadiusControl)
 					})
 					ui.Field(c, "Cookie path", func() {
 						ui.Row(c).Gap(t.Space(3)).Children(func() {
-							ui.TextInput(c, &e.path).Width(100).Label("Cookie path").Placeholder("/").Height(heightControl).Radius(radiusControl)
+							ui.TextInput(c, &e.path).Width(100).Label("Cookie path").Placeholder("/").Height(uikit.HeightControl).Radius(uikit.RadiusControl)
 							ui.Checkbox(c, &e.secure, "Secure")
 							ui.Checkbox(c, &e.httpOnly, "HttpOnly")
 						})
@@ -239,17 +240,17 @@ func (a *app) cookiesModal(c *ui.Context, t *ui.Theme) {
 				})
 			})
 			if e.problem != "" {
-				ui.Text(c, e.problem).FontSize(textMeta).TextColor(t.Danger)
+				ui.Text(c, e.problem).FontSize(uikit.TextMeta).TextColor(t.Danger)
 			}
-			dialogFooter(c).Children(func() {
-				if secondaryButton(c, "Clear all cookies").Clicked() {
+			uikit.DialogFooter(c).Children(func() {
+				if uikit.SecondaryButton(c, "Clear all cookies").Clicked() {
 					a.requestCookies().clear()
 				}
 				ui.Spacer(c)
-				if secondaryButton(c, "Close").Clicked() {
+				if uikit.SecondaryButton(c, "Close").Clicked() {
 					e.open = false
 				}
-				if primaryButton(c, "Add cookie").Clicked() {
+				if uikit.PrimaryButton(c, "Add cookie").Clicked() {
 					a.saveCookie()
 				}
 			})

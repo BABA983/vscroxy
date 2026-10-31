@@ -6,6 +6,7 @@ import (
 	"encoding/json/jsontext"
 	"encoding/json/v2"
 	"fmt"
+	"github.com/baba983/vscroxy/internal/uikit"
 	"maps"
 	"os"
 	"slices"
@@ -121,9 +122,9 @@ func (a *app) saveAPI(d *apiDocument) {
 func (a *app) apiView(c *ui.Context, t *ui.Theme) {
 	d := a.activeAPI()
 	if d == nil {
-		emptyState(c, "From traffic to an API contract", "Save captured requests in a collection, then generate an OpenAPI draft.", func() {
-			ui.Text(c, "Or create or import a standalone OpenAPI 3.0 / 3.1 specification.").FontSize(textBody).TextColor(t.TextMuted)
-			if secondaryButton(c, "Create API").Clicked() {
+		uikit.EmptyState(c, "From traffic to an API contract", "Save captured requests in a collection, then generate an OpenAPI draft.", func() {
+			ui.Text(c, "Or create or import a standalone OpenAPI 3.0 / 3.1 specification.").FontSize(uikit.TextBody).TextColor(t.TextMuted)
+			if uikit.SecondaryButton(c, "Create API").Clicked() {
 				a.newAPI()
 			}
 		})
@@ -132,18 +133,18 @@ func (a *app) apiView(c *ui.Context, t *ui.Theme) {
 	current := d.code.Buffer.String() == d.checked
 	valid := current && d.parsed != nil
 	ui.Column(c).Key(d.spec.ID).Fill().Children(func() {
-		ui.Row(c).Height(heightTabs).Padding(0, t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-			ui.Text(c, d.title()).FontSize(textBody).Bold().Grow(1).MinWidth(0).SingleLine()
-			if secondaryButton(c, "Validate").Clicked() {
+		ui.Row(c).Height(uikit.HeightTabs).Padding(0, t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+			ui.Text(c, d.title()).FontSize(uikit.TextBody).Bold().Grow(1).MinWidth(0).SingleLine()
+			if uikit.SecondaryButton(c, "Validate").Clicked() {
 				d.validate()
 			}
-			if secondaryButton(c, "Export…").Label("Export OpenAPI").Disabled(!valid).Clicked() {
+			if uikit.SecondaryButton(c, "Export…").Label("Export OpenAPI").Disabled(!valid).Clicked() {
 				a.exportOpenAPI(d)
 			}
-			if secondaryButton(c, "Create collection").Label("Create collection from OpenAPI").Disabled(!valid).Clicked() {
+			if uikit.SecondaryButton(c, "Create collection").Label("Create collection from OpenAPI").Disabled(!valid).Clicked() {
 				a.importOpenAPICollection(d.parsed, d.title())
 			}
-			if primaryButton(c, "Save API").Clicked() {
+			if uikit.PrimaryButton(c, "Save API").Clicked() {
 				a.saveAPI(d)
 			}
 		})
@@ -157,7 +158,7 @@ func (a *app) apiView(c *ui.Context, t *ui.Theme) {
 			}
 			status = fmt.Sprintf("%s  ·  OpenAPI %s  ·  Endpoints: %d", state, d.parsed.OpenAPI, len(apiOperations(d.parsed)))
 		}
-		ui.Text(c, status).FontSize(textMeta).FontFeatures("tnum").TextColor(color).Padding(0, t.Space(3), t.Space(2), t.Space(3))
+		ui.Text(c, status).FontSize(uikit.TextMeta).FontFeatures("tnum").TextColor(color).Padding(0, t.Space(3), t.Space(2), t.Space(3))
 		if d.spec.Fingerprint != "" {
 			changed := d.spec.Fingerprint != collectionFingerprint(collectionRequests(a.requests, d.spec.Collection))
 			ui.Row(c).Padding(t.Space(2), t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).
@@ -166,23 +167,23 @@ func (a *app) apiView(c *ui.Context, t *ui.Theme) {
 				if changed {
 					message = "Source collection changed — review before updating this contract."
 				}
-				ui.Text(c, message).FontSize(textMeta).TextColor(t.TextMuted).Grow(1)
-				if secondaryButton(c, "Generate new draft").Clicked() {
+				ui.Text(c, message).FontSize(uikit.TextMeta).TextColor(t.TextMuted).Grow(1)
+				if uikit.SecondaryButton(c, "Generate new draft").Clicked() {
 					a.generateAPI(d.spec.Collection)
 				}
 			})
 		}
-		ui.Row(c).Height(heightTabs).Padding(0, t.Space(1)).AlignItems(ui.Center).
+		ui.Row(c).Height(uikit.HeightTabs).Padding(0, t.Space(1)).AlignItems(ui.Center).
 			Border(0, t.Border).BorderWidth(0, 0, 1, 0).Children(func() {
-			flatTabs(c, &d.tab, "API", "Endpoints", "OpenAPI", "Review notes")
+			uikit.Tabs(c, &d.tab, "API", "Endpoints", "OpenAPI", "Review notes")
 		})
 		switch d.tab {
 		case 0:
 			if valid {
 				a.apiEndpoints(c, t, d)
 			} else {
-				emptyState(c, "Endpoints unavailable", cmp.Or(d.problem, "Validate the edited source to refresh endpoints."), func() {
-					if secondaryButton(c, "Edit OpenAPI").Clicked() {
+				uikit.EmptyState(c, "Endpoints unavailable", cmp.Or(d.problem, "Validate the edited source to refresh endpoints."), func() {
+					if uikit.SecondaryButton(c, "Edit OpenAPI").Clicked() {
 						d.tab = 1
 					}
 				})
@@ -190,7 +191,7 @@ func (a *app) apiView(c *ui.Context, t *ui.Theme) {
 		case 1:
 			if current && d.problem != "" {
 				ui.Scroll(c).Height(90).Padding(t.Space(2), t.Space(3)).Children(func() {
-					ui.Text(c, d.problem).FontSize(textMeta).TextColor(t.Danger)
+					ui.Text(c, d.problem).FontSize(uikit.TextMeta).TextColor(t.Danger)
 				})
 				ui.Divider(c)
 			}
@@ -199,12 +200,12 @@ func (a *app) apiView(c *ui.Context, t *ui.Theme) {
 			})
 		case 2:
 			ui.Scroll(c).Grow(1).Padding(t.Space(4)).Gap(t.Space(4)).Children(func() {
-				ui.Text(c, "Review before publishing").FontSize(textTitle).Bold()
-				ui.Text(c, "Validation checks OpenAPI structure, not whether your service implements the contract. No automatic or bidirectional synchronization is performed.").FontSize(textBody).TextColor(t.TextMuted)
+				ui.Text(c, "Review before publishing").FontSize(uikit.TextTitle).Bold()
+				ui.Text(c, "Validation checks OpenAPI structure, not whether your service implements the contract. No automatic or bidirectional synchronization is performed.").FontSize(uikit.TextBody).TextColor(t.TextMuted)
 				for _, note := range d.spec.Notes {
-					ui.Text(c, "• "+note).FontSize(textBody)
+					ui.Text(c, "• "+note).FontSize(uikit.TextBody)
 				}
-				ui.Text(c, "Only standalone JSON/YAML is supported. Internal #/ references are resolved; external files and URLs are never fetched. Original source is preserved on save/export.").FontSize(textBody).TextColor(t.TextMuted)
+				ui.Text(c, "Only standalone JSON/YAML is supported. Internal #/ references are resolved; external files and URLs are never fetched. Original source is preserved on save/export.").FontSize(uikit.TextBody).TextColor(t.TextMuted)
 			})
 		}
 	})
@@ -213,7 +214,7 @@ func (a *app) apiView(c *ui.Context, t *ui.Theme) {
 func (a *app) apiEndpoints(c *ui.Context, t *ui.Theme, d *apiDocument) {
 	endpoints := apiOperations(d.parsed)
 	if len(endpoints) == 0 {
-		emptyState(c, "No HTTP endpoints yet", "Define paths in OpenAPI, or generate a draft from saved requests.", nil)
+		uikit.EmptyState(c, "No HTTP endpoints yet", "Define paths in OpenAPI, or generate a draft from saved requests.", nil)
 		return
 	}
 	if d.endpoint == "" {
@@ -223,14 +224,14 @@ func (a *app) apiEndpoints(c *ui.Context, t *ui.Theme, d *apiDocument) {
 		ui.Sidebar(c, &d.endpoint, func() {
 			for _, endpoint := range endpoints {
 				label := endpoint.method + " " + endpoint.path
-				sidebarItem(c, label, nil, endpoint.path, d.endpoint == label).Label("Endpoint: " + label).Children(func() {
-					method := ui.Text(c, endpoint.method).Font(fontMono).FontSize(textMeta).SingleLine().Width(48)
+				uikit.SidebarItem(c, label, nil, endpoint.path, d.endpoint == label).Label("Endpoint: " + label).Children(func() {
+					method := ui.Text(c, endpoint.method).Font(uikit.FontMono).FontSize(uikit.TextMeta).SingleLine().Width(48)
 					if d.endpoint != label {
-						method.TextColor(methodColor(endpoint.method, t))
+						method.TextColor(uikit.MethodColor(endpoint.method, t))
 					}
 				})
 			}
-		}).Width(210).FillHeight().Padding(t.Space(2)).Gap(0).Background(t.Surface)
+		}).Width(210).FillHeight().Padding(t.Space(2)).Gap(0).Background(uikit.Colors(t).Panel)
 		ui.Divider(c)
 		selected := 0
 		for i, endpoint := range endpoints {
@@ -241,22 +242,22 @@ func (a *app) apiEndpoints(c *ui.Context, t *ui.Theme, d *apiDocument) {
 		endpoint := endpoints[selected]
 		d.endpoint = endpoint.method + " " + endpoint.path
 		ui.Column(c).Grow(1).MinWidth(0).FillHeight().Padding(t.Space(3)).Gap(t.Space(3)).Children(func() {
-			ui.Row(c).Height(heightTabs).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-				methodLabel(c, endpoint.method)
-				ui.Text(c, endpoint.path).Font(fontMono).FontSize(textTitle).Bold().SingleLine().Grow(1).MinWidth(0)
+			ui.Row(c).Height(uikit.HeightTabs).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+				uikit.MethodLabel(c, endpoint.method)
+				ui.Text(c, endpoint.path).Font(uikit.FontMono).FontSize(uikit.TextTitle).Bold().SingleLine().Grow(1).MinWidth(0)
 			})
 			if summary := cmp.Or(endpoint.op.Summary, endpoint.op.OperationID); summary != "" && summary != endpoint.method+" "+endpoint.path {
-				ui.Text(c, summary).FontSize(textBody)
+				ui.Text(c, summary).FontSize(uikit.TextBody)
 			}
-			if secondaryButton(c, "Open in Requests").Width(160).Clicked() {
+			if uikit.SecondaryButton(c, "Open in Requests").Width(160).Clicked() {
 				a.addDocument(requestFromOperation(d.parsed, endpoint), "")
 				a.sourceAPI = d.spec.ID
 				a.composeResult = "Draft from OpenAPI. Review server, variables, authentication and body before sending."
 			}
-			ui.Text(c, "Uses the first effective server and required parameters. Body examples are copied when provided; schemas are not turned into invented payloads.").FontSize(textMeta).TextColor(t.TextMuted)
+			ui.Text(c, "Uses the first effective server and required parameters. Body examples are copied when provided; schemas are not turned into invented payloads.").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
 			ui.Divider(c)
-			ui.Row(c).Height(heightTabs).AlignItems(ui.Center).Children(func() {
-				ui.Text(c, "OPERATION · schemas and references").FontSize(textMeta).Bold().TextColor(t.TextMuted)
+			ui.Row(c).Height(uikit.HeightTabs).AlignItems(ui.Center).Children(func() {
+				ui.Text(c, "OPERATION · schemas and references").FontSize(uikit.TextMeta).Bold().TextColor(t.TextMuted)
 			})
 			if d.details == nil || d.detailsFor != d.endpoint {
 				data, _ := json.Marshal(endpoint.op, jsontext.WithIndent("  "))
@@ -282,11 +283,11 @@ func (a *app) apiGenerationModal(c *ui.Context, t *ui.Theme) {
 	if !a.apiGenerateOpen {
 		return
 	}
-	appModal(c, &a.apiGenerateOpen, func() {
-		dialogColumn(c, dialogMedium).Children(func() {
-			dialogTitle(c, "Generate OpenAPI draft")
+	uikit.Modal(c, &a.apiGenerateOpen, func() {
+		uikit.DialogColumn(c, uikit.DialogMedium).Children(func() {
+			uikit.DialogTitle(c, "Generate OpenAPI draft")
 			ui.Scroll(c).MinHeight(0).Shrink(1).Gap(t.Space(4)).Children(func() {
-				ui.Text(c, "Choose a saved collection. Unsaved request tabs are not included.").FontSize(textBody).TextColor(t.TextMuted)
+				ui.Text(c, "Choose a saved collection. Unsaved request tabs are not included.").FontSize(uikit.TextBody).TextColor(t.TextMuted)
 				ui.PopoverMenuButton(c, cmp.Or(a.apiCollection, "Saved (ungrouped)"), func(m *ui.Menu) {
 					for _, name := range slices.Sorted(maps.Keys(groupRequests(a.requests))) {
 						if m.Item(cmp.Or(name, "Saved (ungrouped)")).Checked(name == a.apiCollection).Chosen() {
@@ -294,14 +295,14 @@ func (a *app) apiGenerationModal(c *ui.Context, t *ui.Theme) {
 						}
 					}
 				}).
-					Label("Source collection").FillWidth().Height(heightControl).FontSize(textBody).Radius(radiusControl)
-				ui.Text(c, "Header/query/body values and scripts are omitted. Paths remain literal. Authentication, types and response schemas need review. This creates a new specification; existing ones are never overwritten.").FontSize(textBody).TextColor(t.TextMuted)
+					Label("Source collection").FillWidth().Height(uikit.HeightControl).FontSize(uikit.TextBody).Radius(uikit.RadiusControl)
+				ui.Text(c, "Header/query/body values and scripts are omitted. Paths remain literal. Authentication, types and response schemas need review. This creates a new specification; existing ones are never overwritten.").FontSize(uikit.TextBody).TextColor(t.TextMuted)
 			})
-			dialogFooter(c).Children(func() {
-				if secondaryButton(c, "Cancel").Clicked() {
+			uikit.DialogFooter(c).Children(func() {
+				if uikit.SecondaryButton(c, "Cancel").Clicked() {
 					a.apiGenerateOpen = false
 				}
-				if primaryButton(c, "Generate draft").Clicked() {
+				if uikit.PrimaryButton(c, "Generate draft").Clicked() {
 					a.generateAPI(a.apiCollection)
 					a.apiGenerateOpen = false
 				}

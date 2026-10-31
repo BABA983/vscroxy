@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/baba983/vscroxy/internal/uikit"
 	"os"
 	"path/filepath"
 	"strings"
@@ -112,33 +113,33 @@ func (p *protoInspector) view(c *ui.Context, a *app, f flow, side int) {
 	})
 	p.inspect(c, a, f, response)
 	if grpcContentType(f.contentType(response)) {
-		ui.Text(c, grpcStatus(f)).FontSize(textMeta).TextColor(t.TextMuted).Padding(0, t.Space(3), t.Space(2), t.Space(3))
+		ui.Text(c, grpcStatus(f)).FontSize(uikit.TextMeta).TextColor(t.TextMuted).Padding(0, t.Space(3), t.Space(2), t.Space(3))
 	}
 	if p.answers != nil {
-		ui.Text(c, "Reading complete retained body…").FontSize(textBody).TextColor(t.TextMuted).Padding(t.Space(3))
+		ui.Text(c, "Reading complete retained body…").FontSize(uikit.TextBody).TextColor(t.TextMuted).Padding(t.Space(3))
 		return
 	}
 	if p.result.problem != "" {
-		ui.Text(c, p.result.problem).FontSize(textMeta).TextColor(t.Danger).Padding(0, t.Space(3), t.Space(2), t.Space(3))
+		ui.Text(c, p.result.problem).FontSize(uikit.TextMeta).TextColor(t.Danger).Padding(0, t.Space(3), t.Space(2), t.Space(3))
 	}
 	note := "Schema-less: field numbers, not names. Load a schema to resolve types."
 	if p.result.typeName != "" {
 		note = "Message type: " + p.result.typeName
 	}
-	ui.Text(c, note).FontSize(textMeta).TextColor(t.TextMuted).Padding(0, t.Space(3), t.Space(2), t.Space(3))
+	ui.Text(c, note).FontSize(uikit.TextMeta).TextColor(t.TextMuted).Padding(0, t.Space(3), t.Space(2), t.Space(3))
 	var visible []int
 	for i, message := range p.result.messages {
 		if p.query == "" || strings.Contains(strings.ToLower(message.text), strings.ToLower(p.query)) {
 			visible = append(visible, i)
 		}
 	}
-	ui.Text(c, fmt.Sprintf("%d of %d messages", len(visible), len(p.result.messages))).FontSize(textMeta).TextColor(t.TextMuted).Padding(0, t.Space(3), t.Space(2), t.Space(3))
+	ui.Text(c, fmt.Sprintf("%d of %d messages", len(visible), len(p.result.messages))).FontSize(uikit.TextMeta).TextColor(t.TextMuted).Padding(0, t.Space(3), t.Space(2), t.Space(3))
 	if len(visible) == 0 {
 		note := "No message matches"
 		if len(p.result.messages) == 0 && p.result.problem == "" {
 			note = "No messages in this body (a trailers-only gRPC response is valid)"
 		}
-		ui.Text(c, note).FontSize(textBody).TextColor(t.TextMuted).Padding(t.Space(3))
+		ui.Text(c, note).FontSize(uikit.TextBody).TextColor(t.TextMuted).Padding(t.Space(3))
 		return
 	}
 	if p.split == 0 {
@@ -159,7 +160,7 @@ func (p *protoInspector) view(c *ui.Context, a *app, f flow, side int) {
 			if i == p.selected {
 				color = t.AccentText
 			}
-			ui.Text(c, note).FontSize(textMeta).TextColor(color).Padding(t.Space(2), t.Space(3)).SingleLine()
+			ui.Text(c, note).FontSize(uikit.TextMeta).TextColor(color).Padding(t.Space(2), t.Space(3)).SingleLine()
 		}).Grow(1)
 	}, func() {
 		// List may remap a selected key to -1 when a search removes it.
@@ -167,7 +168,7 @@ func (p *protoInspector) view(c *ui.Context, a *app, f flow, side int) {
 		message := p.result.messages[visible[p.selected]]
 		ui.Column(c).Fill().Children(func() {
 			ui.Row(c).Padding(0, t.Space(3)).AlignItems(ui.Center).Children(func() {
-				ui.Text(c, fmt.Sprintf("Message %d · %s decoded", visible[p.selected]+1, humanBytes(message.size))).FontSize(textMeta).TextColor(t.TextMuted).Grow(1)
+				ui.Text(c, fmt.Sprintf("Message %d · %s decoded", visible[p.selected]+1, humanBytes(message.size))).FontSize(uikit.TextMeta).TextColor(t.TextMuted).Grow(1)
 				if ui.Button(c, "Copy decoded").Clicked() {
 					c.Services().WriteClipboard(message.text)
 					a.setMessage("Copied decoded protobuf message")
@@ -178,7 +179,7 @@ func (p *protoInspector) view(c *ui.Context, a *app, f flow, side int) {
 				text = text[:maxMessageText] + "\n\n… Text preview limited to 64 KiB; Copy decoded keeps the full text."
 			}
 			ui.Scroll(c).Grow(1).Padding(t.Space(3)).Children(func() {
-				ui.Text(c, text).Font(fontMono).FontSize(textBody).TextColor(t.Text)
+				ui.Text(c, text).Font(uikit.FontMono).FontSize(uikit.TextBody).TextColor(t.Text)
 			})
 		})
 	}).Grow(1)
@@ -243,17 +244,17 @@ func (p *protoInspector) modal(c *ui.Context, a *app) {
 		return
 	}
 	t := c.Theme()
-	appModal(c, &p.open, func() {
-		dialogColumn(c, dialogMedium).Children(func() {
-			dialogTitle(c, "Protobuf schema")
+	uikit.Modal(c, &p.open, func() {
+		uikit.DialogColumn(c, uikit.DialogMedium).Children(func() {
+			uikit.DialogTitle(c, "Protobuf schema")
 			ui.Scroll(c).MinHeight(0).Shrink(1).Gap(t.Space(4)).Children(func() {
-				ui.Text(c, "Import a .proto source or a binary FileDescriptorSet (.pb / .protoset). gRPC methods select input/output types automatically; raw protobuf needs a message type. A successful load replaces the current registry.").FontSize(textBody).TextColor(t.TextMuted)
+				ui.Text(c, "Import a .proto source or a binary FileDescriptorSet (.pb / .protoset). gRPC methods select input/output types automatically; raw protobuf needs a message type. A successful load replaces the current registry.").FontSize(uikit.TextBody).TextColor(t.TextMuted)
 				if p.schema != nil {
-					ui.Text(c, fmt.Sprintf("Loaded: %d message types", len(p.schema.names))).FontSize(textMeta).TextColor(t.TextMuted)
+					ui.Text(c, fmt.Sprintf("Loaded: %d message types", len(p.schema.names))).FontSize(uikit.TextMeta).TextColor(t.TextMuted)
 				}
 				ui.Row(c).Gap(t.Space(2)).Children(func() {
-					ui.TextInput(c, &p.source).Label("Schema file").Placeholder("/path/to/service.proto or descriptors.pb").Grow(1).MinWidth(0).Height(heightControl).FontSize(textBody)
-					if secondaryButton(c, "Browse…").Disabled(p.loading).Clicked() && a.win != nil {
+					ui.TextInput(c, &p.source).Label("Schema file").Placeholder("/path/to/service.proto or descriptors.pb").Grow(1).MinWidth(0).Height(uikit.HeightControl).FontSize(uikit.TextBody)
+					if uikit.SecondaryButton(c, "Browse…").Disabled(p.loading).Clicked() && a.win != nil {
 						go func() {
 							paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Title: "Import protobuf schema", Filters: []mygo.FileFilter{{Name: "Protobuf", Extensions: []string{"proto", "pb", "protoset", "desc"}}}})
 							if err == nil && len(paths) > 0 {
@@ -262,17 +263,17 @@ func (p *protoInspector) modal(c *ui.Context, a *app) {
 						}()
 					}
 				})
-				ui.Text(c, "Include roots (optional, one per line). The source directory and standard Google imports are included automatically.").FontSize(textBody).TextColor(t.TextMuted)
-				ui.TextArea(c, &p.roots).Height(70).Font(fontMono).FontSize(textBody).Radius(radiusControl).Label("Protobuf include roots")
+				ui.Text(c, "Include roots (optional, one per line). The source directory and standard Google imports are included automatically.").FontSize(uikit.TextBody).TextColor(t.TextMuted)
+				ui.TextArea(c, &p.roots).Height(70).Font(uikit.FontMono).FontSize(uikit.TextBody).Radius(uikit.RadiusControl).Label("Protobuf include roots")
 				if p.problem != "" {
-					ui.Text(c, p.problem).FontSize(textBody).TextColor(t.Danger)
+					ui.Text(c, p.problem).FontSize(uikit.TextBody).TextColor(t.Danger)
 				}
 				if p.loading {
-					ui.Text(c, "Compiling and linking schema…").FontSize(textMeta).TextColor(t.TextMuted)
+					ui.Text(c, "Compiling and linking schema…").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
 				}
 			})
-			dialogFooter(c).Children(func() {
-				if secondaryButton(c, "Clear schema").Disabled(p.schema == nil || p.loading).Clicked() {
+			uikit.DialogFooter(c).Children(func() {
+				if uikit.SecondaryButton(c, "Clear schema").Disabled(p.schema == nil || p.loading).Clicked() {
 					err := error(nil)
 					if p.store != "" {
 						err = os.Remove(p.store)
@@ -284,10 +285,10 @@ func (p *protoInspector) modal(c *ui.Context, a *app) {
 						p.schema, p.name, p.problem = nil, "Auto", ""
 					}
 				}
-				if secondaryButton(c, "Close").Clicked() {
+				if uikit.SecondaryButton(c, "Close").Clicked() {
 					p.open = false
 				}
-				if primaryButton(c, "Load schema").Disabled(p.loading || strings.TrimSpace(p.source) == "").Clicked() {
+				if uikit.PrimaryButton(c, "Load schema").Disabled(p.loading || strings.TrimSpace(p.source) == "").Clicked() {
 					p.loadSchema(a)
 				}
 			})

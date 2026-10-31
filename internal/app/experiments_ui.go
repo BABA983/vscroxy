@@ -5,6 +5,7 @@ import (
 	"encoding/json/jsontext"
 	"encoding/json/v2"
 	"fmt"
+	"github.com/baba983/vscroxy/internal/uikit"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -204,7 +205,7 @@ func (a *app) experimentsModal(c *ui.Context, t *ui.Theme) {
 	if !s.open {
 		return
 	}
-	appModal(c, &s.open, func() { a.experimentsView(c, t, false) })
+	uikit.Modal(c, &s.open, func() { a.experimentsView(c, t, false) })
 }
 
 // The retained-run reader is shared by the resource page and scoped history.
@@ -227,33 +228,33 @@ func (a *app) experimentsView(c *ui.Context, t *ui.Theme, inline bool) {
 		panel.Width(min(1200, width-80)).Height(height - 100)
 	}
 	panel.Children(func() {
-		ui.Row(c).Height(heightTabs).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+		ui.Row(c).Height(uikit.HeightTabs).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 			title := "Run records"
 			if s.scope != nil {
 				title += " · Source"
 			} else if s.draftKey != "" {
 				title += " · Draft"
 			}
-			dialogTitle(c, title).Grow(1)
-			if secondaryButton(c, "Clear experiments…").Disabled(s.readOnly || len(s.log.Records) == 0).Clicked() {
+			uikit.DialogTitle(c, title).Grow(1)
+			if uikit.SecondaryButton(c, "Clear experiments…").Disabled(s.readOnly || len(s.log.Records) == 0).Clicked() {
 				s.clearing = true
 			}
-			if secondaryButton(c, "Close").Clicked() {
+			if uikit.SecondaryButton(c, "Close").Clicked() {
 				s.open = false
 				if inline {
 					a.requestsSection, a.requestSide = 0, 0
 				}
 			}
 		})
-		ui.Text(c, "Private local snapshots may contain credentials. Up to 100 runs / 32 MiB; baseline retained. Payloads keep up to 256 KiB per side. Opening or comparing never sends.").FontSize(textMeta).TextColor(t.TextMuted)
+		ui.Text(c, "Private local snapshots may contain credentials. Up to 100 runs / 32 MiB; baseline retained. Payloads keep up to 256 KiB per side. Opening or comparing never sends.").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
 		if s.problem != "" {
-			ui.Text(c, s.problem).FontSize(textBody).TextColor(t.Danger)
+			ui.Text(c, s.problem).FontSize(uikit.TextBody).TextColor(t.Danger)
 		}
-		ui.Row(c).Grow(1).MinHeight(0).Border(1, t.Border).Radius(radiusControl).AlignItems(ui.Stretch).Children(func() {
+		ui.Row(c).Grow(1).MinHeight(0).Border(1, t.Border).Radius(uikit.RadiusControl).AlignItems(ui.Stretch).Children(func() {
 			ui.Scroll(c).Width(220).Padding(t.Space(1)).Children(func() {
 				a.debugDrafts(c)
 				if len(s.log.Records) == 0 {
-					ui.Text(c, "Send a request to record an experiment.").Padding(t.Space(2)).FontSize(textBody).TextColor(t.TextMuted)
+					ui.Text(c, "Send a request to record an experiment.").Padding(t.Space(2)).FontSize(uikit.TextBody).TextColor(t.TextMuted)
 				}
 				for _, r := range s.log.Records {
 					if !s.includes(r) {
@@ -263,9 +264,9 @@ func (a *app) experimentsView(c *ui.Context, t *ui.Theme, inline bool) {
 					if r.ID == s.log.Baseline {
 						label += " · Baseline"
 					}
-					button := toolbarButton(c, fmt.Sprintf("Experiment #%d", r.ID), r.Draft.Method+" "+r.Draft.URL+"\n"+r.Summary, r.ID == s.picked).
+					button := uikit.ToolbarButton(c, fmt.Sprintf("Experiment #%d", r.ID), r.Draft.Method+" "+r.Draft.URL+"\n"+r.Summary, r.ID == s.picked).
 						FillWidth().FontFeatures("tnum").Children(func() {
-						ui.Text(c, label).FontSize(textMeta).FontFeatures("tnum").SingleLine()
+						ui.Text(c, label).FontSize(uikit.TextMeta).FontFeatures("tnum").SingleLine()
 					})
 					if button.Clicked() {
 						s.pick(r.ID)
@@ -274,14 +275,14 @@ func (a *app) experimentsView(c *ui.Context, t *ui.Theme, inline bool) {
 				if inline && len(a.history) > 0 {
 					ui.Divider(c)
 					ui.Text(c, "Recent requests").Bold()
-					ui.Text(c, "Unsent copies · deduplicated by method + URL").FontSize(textMeta).TextColor(t.TextMuted)
-					ui.TextInput(c, &a.requestQuery).Label("Search history").Placeholder("Search history…").FontSize(textMeta)
+					ui.Text(c, "Unsent copies · deduplicated by method + URL").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
+					ui.TextInput(c, &a.requestQuery).Label("Search history").Placeholder("Search history…").FontSize(uikit.TextMeta)
 					query := strings.ToLower(strings.TrimSpace(a.requestQuery))
 					for i, entry := range a.history {
 						if query != "" && !strings.Contains(strings.ToLower(entry.Method+" "+entry.URL), query) {
 							continue
 						}
-						ui.Button(c, entry.label()).FillWidth().FontSize(textMeta).OnClick(func() { a.openHistory(i) })
+						ui.Button(c, entry.label()).FillWidth().FontSize(uikit.TextMeta).OnClick(func() { a.openHistory(i) })
 					}
 				}
 			})
@@ -296,13 +297,13 @@ func (a *app) experimentsView(c *ui.Context, t *ui.Theme, inline bool) {
 						message = "No retained sends for this draft. Opening history never sends."
 					}
 					if s.scope == nil {
-						emptyState(c, "No retained runs", message, nil)
+						uikit.EmptyState(c, "No retained runs", message, nil)
 					} else {
-						ui.Text(c, message).FontSize(textBody)
+						ui.Text(c, message).FontSize(uikit.TextBody)
 					}
 					if s.scope != nil {
 						f := investigationFlow(s.scope.Exchange)
-						ui.Text(c, fmt.Sprintf("Source #%d · %s %s · %d", f.id, f.method, f.url, f.status)).FontSize(textBody).FontFeatures("tnum").SingleLine().Tooltip(f.url)
+						ui.Text(c, fmt.Sprintf("Source #%d · %s %s · %d", f.id, f.method, f.url, f.status)).FontSize(uikit.TextBody).FontFeatures("tnum").SingleLine().Tooltip(f.url)
 						if s.reader == nil {
 							s.reader = &editor.State{Buffer: editor.NewBuffer(f.body(true)), ReadOnly: true, Label: "Source snapshot", NoScrollPastEnd: true}
 						}
@@ -310,13 +311,13 @@ func (a *app) experimentsView(c *ui.Context, t *ui.Theme, inline bool) {
 					}
 					return
 				}
-				ui.Text(c, fmt.Sprintf("Experiment #%d · %s %s", r.ID, r.Draft.Method, r.Draft.URL)).FontSize(textBody).FontFeatures("tnum").Bold().SingleLine().Tooltip(r.Draft.URL)
-				ui.Text(c, r.Summary+" · Environment: "+cmp.Or(r.Environment, "none")).FontSize(textMeta).FontFeatures("tnum").TextColor(t.TextMuted)
+				ui.Text(c, fmt.Sprintf("Experiment #%d · %s %s", r.ID, r.Draft.Method, r.Draft.URL)).FontSize(uikit.TextBody).FontFeatures("tnum").Bold().SingleLine().Tooltip(r.Draft.URL)
+				ui.Text(c, r.Summary+" · Environment: "+cmp.Or(r.Environment, "none")).FontSize(uikit.TextMeta).FontFeatures("tnum").TextColor(t.TextMuted)
 				if r.Outcome != "" {
-					ui.Text(c, r.Outcome).FontSize(textMeta).TextColor(t.TextMuted)
+					ui.Text(c, r.Outcome).FontSize(uikit.TextMeta).TextColor(t.TextMuted)
 				}
 				ui.Row(c).Gap(t.Space(1)).Wrap().Children(func() {
-					if secondaryButton(c, "Open as draft").Clicked() {
+					if uikit.SecondaryButton(c, "Open as draft").Clicked() {
 						draft := r.Draft
 						draft.ID = "" // Restoring an attempt creates a copy, not a library update.
 						a.addDocument(draft, "")
@@ -331,47 +332,47 @@ func (a *app) experimentsView(c *ui.Context, t *ui.Theme, inline bool) {
 						}
 						s.open = false
 					}
-					if secondaryButton(c, "Trace source").Disabled(r.Source == nil).Clicked() {
+					if uikit.SecondaryButton(c, "Trace source").Disabled(r.Source == nil).Clicked() {
 						a.openDebugHistory(r.Source)
 					}
 					origin := slices.IndexFunc(a.documents, func(d *requestDocument) bool { return r.DraftKey != "" && d.debugKey == r.DraftKey })
-					if secondaryButton(c, "Origin draft").Label("Open originating draft").Disabled(origin < 0).Tooltip("Return to the original editable tab without overwriting its current edits: " + r.Draft.Name).Clicked() {
+					if uikit.SecondaryButton(c, "Origin draft").Label("Open originating draft").Disabled(origin < 0).Tooltip("Return to the original editable tab without overwriting its current edits: " + r.Draft.Name).Clicked() {
 						d := a.documents[origin]
 						a.requestDocument, a.requestChoice, a.workspace = d, d.savedKey, 1
 						a.requestsSection, a.requestSide = 0, 0
 						d.revealTab, s.open = true, false
 						d.urlInput.Focus()
 					}
-					if secondaryButton(c, "Set baseline").Clicked() {
+					if uikit.SecondaryButton(c, "Set baseline").Clicked() {
 						s.log.Baseline, s.left = r.ID, r.ID
 						s.persist()
 					}
-					if secondaryButton(c, "Use as left").Clicked() {
+					if uikit.SecondaryButton(c, "Use as left").Clicked() {
 						s.left = r.ID
 						s.comparison.diff = nil
 					}
-					if secondaryButton(c, "Compare with left").Disabled(s.record(cmp.Or(s.left, s.log.Baseline)) == nil || cmp.Or(s.left, s.log.Baseline) == r.ID).Clicked() {
+					if uikit.SecondaryButton(c, "Compare with left").Disabled(s.record(cmp.Or(s.left, s.log.Baseline)) == nil || cmp.Or(s.left, s.log.Baseline) == r.ID).Clicked() {
 						s.tab = 1
 						s.comparison.diff = nil
 					}
 				})
 				ui.Row(c).Gap(t.Space(2)).Children(func() {
-					ui.TextInput(c, &s.note).Label("Experiment note").Placeholder("What did this attempt test?").Grow(1).Height(heightControl).FontSize(textBody).Radius(radiusControl)
-					if secondaryButton(c, "Save note").Clicked() {
+					ui.TextInput(c, &s.note).Label("Experiment note").Placeholder("What did this attempt test?").Grow(1).Height(uikit.HeightControl).FontSize(uikit.TextBody).Radius(uikit.RadiusControl)
+					if uikit.SecondaryButton(c, "Save note").Clicked() {
 						r.Note = s.note
 						s.persist()
 					}
 				})
 				a.debugWire(c, *r)
-				ui.ScrollHorizontal(c).Height(heightTabs).FillWidth().Children(func() {
-					if flatTabs(c, &s.tab, "", "Recorded result", "Compare experiments", "Compare source", "Sent request", "Console", "Variables").Gap(0).Changed() {
+				ui.ScrollHorizontal(c).Height(uikit.HeightTabs).FillWidth().Children(func() {
+					if uikit.Tabs(c, &s.tab, "", "Recorded result", "Compare experiments", "Compare source", "Sent request", "Console", "Variables").Gap(0).Changed() {
 						s.reader = nil
 					}
 				})
 				if s.tab == 5 {
-					ui.Text(c, "Referenced values after pre-script, before expansion · run input = environment snapshot or preceding Runner step · post-script changes do not rewrite this snapshot.").FontSize(textMeta).TextColor(t.TextMuted)
+					ui.Text(c, "Referenced values after pre-script, before expansion · run input = environment snapshot or preceding Runner step · post-script changes do not rewrite this snapshot.").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
 					if r.Variables == nil {
-						ui.Text(c, "No variable snapshot retained (older records may not include it).").FontSize(textMeta)
+						ui.Text(c, "No variable snapshot retained (older records may not include it).").FontSize(uikit.TextMeta)
 					}
 					variableRows(c, r.Variables, &s.revealVars)
 					return
@@ -381,7 +382,7 @@ func (a *app) experimentsView(c *ui.Context, t *ui.Theme, inline bool) {
 					return
 				}
 				if s.tab == 3 {
-					ui.Text(c, "Initial client request after variables and pre-request script; redirect hops and proxy interventions are separate wire exchanges.").FontSize(textMeta).TextColor(t.TextMuted)
+					ui.Text(c, "Initial client request after variables and pre-request script; redirect hops and proxy interventions are separate wire exchanges.").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
 					if s.reader == nil {
 						text := "Request was not prepared. The editable draft snapshot is retained."
 						if f := r.Exchange; f != nil {
@@ -400,14 +401,14 @@ func (a *app) experimentsView(c *ui.Context, t *ui.Theme, inline bool) {
 					return
 				}
 				if s.tab == 1 {
-					if ui.TextInput(c, &s.ignore).Label("Ignore JSON keys").Placeholder("Ignore top-level response JSON keys: timestamp, traceId").Height(heightControl).FontSize(textBody).Radius(radiusControl).Changed() {
+					if ui.TextInput(c, &s.ignore).Label("Ignore JSON keys").Placeholder("Ignore top-level response JSON keys: timestamp, traceId").Height(uikit.HeightControl).FontSize(uikit.TextBody).Radius(uikit.RadiusControl).Changed() {
 						s.comparison.diffPart = ""
 					}
-					ui.Text(c, "Comparison only; original snapshots remain unchanged. Ignores top-level response JSON keys, not headers or nested fields.").FontSize(textMeta).TextColor(t.TextMuted)
+					ui.Text(c, "Comparison only; original snapshots remain unchanged. Ignores top-level response JSON keys, not headers or nested fields.").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
 					if left := s.record(cmp.Or(s.left, s.log.Baseline)); left != nil && left.ID != r.ID {
 						s.comparison.compare(c, left.compared(s.ignore), r.compared(s.ignore), [2]string{fmt.Sprintf("Run #%d", left.ID), fmt.Sprintf("Run #%d", r.ID)})
 					} else {
-						emptyState(c, "Choose a baseline", "Choose another experiment as left, or set a baseline first.", nil)
+						uikit.EmptyState(c, "Choose a baseline", "Choose another experiment as left, or set a baseline first.", nil)
 					}
 				} else {
 					if s.reader == nil {
@@ -429,15 +430,15 @@ func (a *app) experimentsView(c *ui.Context, t *ui.Theme, inline bool) {
 			})
 		})
 	})
-	appModal(c, &s.clearing, func() {
-		dialogColumn(c, dialogSmall).Children(func() {
-			dialogTitle(c, "Clear all experiment records?")
-			ui.Text(c, "This removes the retained runs and baseline, not open drafts, captured traffic or saved requests.").FontSize(textBody).TextColor(t.TextMuted)
-			dialogFooter(c).Children(func() {
-				if secondaryButton(c, "Cancel").Clicked() {
+	uikit.Modal(c, &s.clearing, func() {
+		uikit.DialogColumn(c, uikit.DialogSmall).Children(func() {
+			uikit.DialogTitle(c, "Clear all experiment records?")
+			ui.Text(c, "This removes the retained runs and baseline, not open drafts, captured traffic or saved requests.").FontSize(uikit.TextBody).TextColor(t.TextMuted)
+			uikit.DialogFooter(c).Children(func() {
+				if uikit.SecondaryButton(c, "Cancel").Clicked() {
 					s.clearing = false
 				}
-				if primaryButton(c, "Clear records").Clicked() {
+				if uikit.PrimaryButton(c, "Clear records").Clicked() {
 					s.log.Records = nil
 					s.log.Baseline = 0
 					s.picked = 0

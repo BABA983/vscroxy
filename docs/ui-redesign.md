@@ -141,6 +141,15 @@ uikit 第一版就按"主题 = 语义 token 表"实现；导入第三方主题�
 
 阶段 8 的写死值清理是第 1 步的起点。
 
+#### 第 1 步实施记录（uikit 和主题）
+
+- 新建 `internal/uikit`：`tokens.go`（字号、高度、圆角、字体）、`theme.go`（`Palette`、Paper／Ink、`Theme`、`Colors`、`MethodColor`、`StatusColor`、`EditorTheme`、标记色和徽章色）、`components.go`（原 `style.go` 和 `appearance.go` 里的共用组件，改为导出名）和内嵌字体（从 `internal/app/fonts` 移入，`THIRD_PARTY_NOTICES.md` 路径同步）。`internal/app/style.go` 删除，`appearance.go` 只剩图标和 Settings。
+- `ui.Theme.Surface` 现在等于背景，是 MyGo 控件的底色（输入框、按钮、表头）；侧栏和各种条栏用新的 `Panel`。MyGo 的 `Sidebar` 和 `Segmented` 自己用 Surface 画底，所以侧栏显式设 Panel，新增 `uikit.Segmented` 替换 6 处 `ui.Segmented`。`Success` 等于强调色。
+- 「正常不上色」已生效：`StatusColor` 让 2xx、304 和无响应都用次要文字，`StatusPill` 对它们不加底色。
+- 对比度检查移到 `internal/uikit/theme_test.go`，新增信号色、tooltip 和「正常不上色」两项检查。它发现 0.5 表里 Paper 的几种墨色在 hover／pressed 底上不到 4.5:1，已加深：信息 `#396482`、警告 `#8d520e`、危险 `#ab382c`、POST `#58661e`、WS `#2b6868`。Capture 选中像素检查的期望值改为油墨绿。
+- 组件总览截图：`VSCROXY_UIKIT_SNAPSHOTS=dir go test ./internal/uikit -run '^TestOverviewSnapshots$' -count=1`，Paper／Ink 各输出总览和三种按钮的 hover／pressed 图。
+- 没改布局，选中样式也还是 v1 的实心行（标记线留给第 2 步）。直接调用 `ui.Button`、`ui.TextInput` 的地方还没迁移。
+
 ## 1. 目标
 
 1. 整个 app 看起来像一个精心打磨的原生桌面工具（Proxyman、Linear 这个级别），而不是拼起来的表单。

@@ -1,6 +1,7 @@
 package app
 
 import (
+	"github.com/baba983/vscroxy/internal/uikit"
 	"net/url"
 	"slices"
 	"strings"
@@ -131,13 +132,13 @@ func (a *app) columnModal(c *ui.Context, t *ui.Theme) {
 	}) {
 		problem = "The table already has this column."
 	}
-	appModal(c, &a.columnOpen, func() {
-		dialogColumn(c, dialogSmall).Children(func() {
-			dialogTitle(c, "Add column")
+	uikit.Modal(c, &a.columnOpen, func() {
+		uikit.DialogColumn(c, uikit.DialogSmall).Children(func() {
+			uikit.DialogTitle(c, "Add column")
 			ui.Scroll(c).MinHeight(0).Gap(t.Space(3)).Children(func() {
 				ui.Form(c, func() {
 					ui.Field(c, "From", func() {
-						ui.Select(c, &draft.Source, columnSources).Width(200).Height(heightControl).Radius(radiusControl)
+						ui.Select(c, &draft.Source, columnSources).Width(200).Height(uikit.HeightControl).Radius(uikit.RadiusControl)
 					}).
 						Description(map[string]string{
 							sourceHeader:         "The response's header, or the request's when the response has none.",
@@ -150,16 +151,16 @@ func (a *app) columnModal(c *ui.Context, t *ui.Theme) {
 						placeholder = "page"
 					}
 					ui.Field(c, "Name", func() {
-						ui.TextInput(c, &draft.Name).Placeholder(placeholder).AutoFocus().Height(heightControl).Radius(radiusControl)
+						ui.TextInput(c, &draft.Name).Placeholder(placeholder).AutoFocus().Height(uikit.HeightControl).Radius(uikit.RadiusControl)
 					}).Error(problem)
 				})
-				ui.Text(c, "Right-click the table's header to hide columns or remove this one.").FontSize(textMeta).TextColor(t.TextMuted)
+				ui.Text(c, "Right-click the table's header to hide columns or remove this one.").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
 			})
-			dialogFooter(c).Children(func() {
-				if secondaryButton(c, "Cancel").Clicked() {
+			uikit.DialogFooter(c).Children(func() {
+				if uikit.SecondaryButton(c, "Cancel").Clicked() {
 					a.columnOpen = false
 				}
-				if primaryButton(c, "Add column").Disabled(name == "" || problem != "").Clicked() {
+				if uikit.PrimaryButton(c, "Add column").Disabled(name == "" || problem != "").Clicked() {
 					a.setCustomColumns(append(slices.Clone(a.customColumns), customColumn{Source: draft.Source, Name: name}))
 					a.columnOpen = false
 				}

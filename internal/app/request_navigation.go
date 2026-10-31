@@ -2,6 +2,7 @@ package app
 
 import (
 	"cmp"
+	"github.com/baba983/vscroxy/internal/uikit"
 	"slices"
 	"strings"
 
@@ -15,13 +16,13 @@ const requestRailWidth = 72
 func (a *app) requestRail(c *ui.Context) {
 	t := c.Theme()
 	ui.Column(c).Width(requestRailWidth).FillHeight().Padding(t.Space(1)).Gap(t.Space(1)).
-		Background(t.Surface).BorderWidth(0, 1, 0, 0).BorderColor(t.Border).Children(func() {
+		Background(uikit.Colors(t).Panel).BorderWidth(0, 1, 0, 0).BorderColor(t.Border).Children(func() {
 		for _, item := range []struct {
 			label string
 			icon  *ui.SVG
 			side  int
 		}{{"Collections", layersIcon, 0}, {"Envs", domainIcon, 2}, {"Runs", sendHistoryIcon, 1}, {"APIs", apiIcon, 3}} {
-			button := ui.ButtonBase(c.Key(item.label)).Label(item.label).Tooltip(item.label).Height(56).FillWidth().Radius(radiusControl).
+			button := ui.ButtonBase(c.Key(item.label)).Label(item.label).Tooltip(item.label).Height(56).FillWidth().Radius(uikit.RadiusControl).
 				Column().Justify(ui.Center).AlignItems(ui.Center).Gap(t.Space(1)).TextColor(t.TextMuted)
 			if a.requestSide == item.side {
 				button.Background(t.Accent.Alpha(0.1)).TextColor(t.Accent)
@@ -29,8 +30,8 @@ func (a *app) requestRail(c *ui.Context) {
 				button.Background(t.SurfaceHover)
 			}
 			button.Children(func() {
-				ui.Icon(c, item.icon).Size(iconLarge, iconLarge)
-				ui.Text(c, item.label).FontSize(textMeta)
+				ui.Icon(c, item.icon).Size(uikit.IconLarge, uikit.IconLarge)
+				ui.Text(c, item.label).FontSize(uikit.TextMeta)
 			})
 			button.OnClick(func() {
 				a.requestSide, a.requestQuery = item.side, ""
@@ -51,9 +52,9 @@ func (a *app) requestRail(c *ui.Context) {
 		if a.workbench.requestSidebarHidden {
 			label = "Show request sidebar"
 		}
-		ui.ButtonBase(c).Label(label).Tooltip(label).Height(heightLarge).FillWidth().Radius(radiusControl).
+		ui.ButtonBase(c).Label(label).Tooltip(label).Height(uikit.HeightLarge).FillWidth().Radius(uikit.RadiusControl).
 			Disabled(a.workbench.sidebarHidden || a.requestsSection == 2).Center().
-			Children(func() { ui.Icon(c, lucide.PanelLeft()).Size(iconLarge, iconLarge).TextColor(t.TextMuted) }).
+			Children(func() { ui.Icon(c, lucide.PanelLeft()).Size(uikit.IconLarge, uikit.IconLarge).TextColor(t.TextMuted) }).
 			OnClick(func() { a.workbench.requestSidebarHidden = !a.workbench.requestSidebarHidden })
 	})
 }
@@ -111,13 +112,13 @@ func (a *app) collectionTree(c *ui.Context) {
 					a.confirmDeleteFolder(path)
 				}
 			}
-			item := ui.TreeItem(c.Key("folder:"+path), "", open, func() { branch(path) }).Height(heightControl).
+			item := ui.TreeItem(c.Key("folder:"+path), "", open, func() { branch(path) }).Height(uikit.HeightControl).
 				Label("Collection: " + path).PopoverMenu(menu)
 			item.Children(func() {
-				ui.Icon(c, lucide.Folder()).Size(iconInline, iconInline).TextColor(c.Theme().TextMuted)
-				ui.Text(c, name).FontSize(textBody).SingleLine().Grow(1)
-				action := iconButton(c, "Collection actions: "+path, "Collection actions", moreIcon).PopoverMenuButton(menu).
-					Absolute().Right(0).Top(2).Background(c.Theme().Surface)
+				ui.Icon(c, lucide.Folder()).Size(uikit.IconInline, uikit.IconInline).TextColor(c.Theme().TextMuted)
+				ui.Text(c, name).FontSize(uikit.TextBody).SingleLine().Grow(1)
+				action := uikit.IconButton(c, "Collection actions: "+path, "Collection actions", moreIcon).PopoverMenuButton(menu).
+					Absolute().Right(0).Top(2).Background(uikit.Colors(c.Theme()).Panel)
 				if !item.Hovered() && !item.FocusWithin() {
 					action.Opacity(0)
 				}
@@ -134,7 +135,7 @@ func (a *app) collectionTree(c *ui.Context) {
 				m.Separator()
 				a.folderSettingsItems(m, r.Collection)
 			}
-			item := ui.TreeItem(c.Key(r.key()), "", nil, nil).Label(r.Name).Height(heightControl).
+			item := ui.TreeItem(c.Key(r.key()), "", nil, nil).Label(r.Name).Height(uikit.HeightControl).
 				Selected(a.requestChoice == r.key()).Tooltip(r.Method + " " + r.URL).
 				OnClick(func() { a.openSaved(r.key()) }).PopoverMenu(menu)
 			if a.requestChoice == r.key() {
@@ -142,10 +143,10 @@ func (a *app) collectionTree(c *ui.Context) {
 			}
 			item.Children(func() {
 				ui.Row(c).Grow(1).FillHeight().Gap(c.Theme().Space(2)).AlignItems(ui.Center).Label(r.Method + "  " + r.Name).Children(func() {
-					methodLabel(c, r.Method).FontSize(textMeta).Width(38).Height(16)
-					ui.Text(c, r.Name).FontSize(textBody).SingleLine().Grow(1)
-					action := iconButton(c, "Request actions: "+r.Name, "Request actions", moreIcon).PopoverMenuButton(menu).
-						Absolute().Right(0).Top(2).Background(c.Theme().Surface)
+					uikit.MethodLabel(c, r.Method).FontSize(uikit.TextMeta).Width(38).Height(16)
+					ui.Text(c, r.Name).FontSize(uikit.TextBody).SingleLine().Grow(1)
+					action := uikit.IconButton(c, "Request actions: "+r.Name, "Request actions", moreIcon).PopoverMenuButton(menu).
+						Absolute().Right(0).Top(2).Background(uikit.Colors(c.Theme()).Panel)
 					if !item.Hovered() && !item.FocusWithin() {
 						action.Opacity(0)
 					}
@@ -155,37 +156,37 @@ func (a *app) collectionTree(c *ui.Context) {
 	}
 	ui.Tree(c, func() { branch("") })
 	if len(a.requests) == 0 && len(paths) == 0 {
-		ui.Text(c, "Save a request here, or edit a captured flow to start.").FontSize(textBody).TextColor(c.Theme().TextMuted).Padding(c.Theme().Space(2))
+		ui.Text(c, "Save a request here, or edit a captured flow to start.").FontSize(uikit.TextBody).TextColor(c.Theme().TextMuted).Padding(c.Theme().Space(2))
 	}
 }
 
 func (a *app) environmentSidebar(c *ui.Context) {
 	t := c.Theme()
-	ui.Column(c).Fill().Background(t.Surface).Children(func() {
+	ui.Column(c).Fill().Background(uikit.Colors(t).Panel).Children(func() {
 		ui.Row(c).Height(40).Padding(0, t.Space(2)).AlignItems(ui.Center).Children(func() {
-			ui.Text(c, "Environments").FontSize(textBody).FontWeight(600).Grow(1)
-			if iconButton(c, "Manage environments…", "Manage environments", plusIcon).Clicked() {
+			ui.Text(c, "Environments").FontSize(uikit.TextBody).FontWeight(600).Grow(1)
+			if uikit.IconButton(c, "Manage environments…", "Manage environments", plusIcon).Clicked() {
 				a.openVars()
 			}
 		})
 		ui.Scroll(c).Grow(1).Padding(t.Space(2)).Children(func() {
 			ui.Tree(c, func() {
 				for _, name := range a.envNames() {
-					item := ui.TreeItem(c.Key(name), "", nil, nil).Label(cmp.Or(name, "No environment")).Height(heightControl).
+					item := ui.TreeItem(c.Key(name), "", nil, nil).Label(cmp.Or(name, "No environment")).Height(uikit.HeightControl).
 						Selected(name == a.activeEnv).OnClick(func() { a.editEnvironment(name) })
 					if name == a.activeEnv {
 						item.Background(t.Accent.Alpha(0.1))
 					}
 					item.Children(func() {
-						ui.Box(c).Size(6, 6).Radius(radiusControl).Background(t.Accent)
-						ui.Text(c, cmp.Or(name, "No environment")).FontSize(textBody).SingleLine()
+						ui.Box(c).Size(6, 6).Radius(uikit.RadiusControl).Background(t.Accent)
+						ui.Text(c, cmp.Or(name, "No environment")).FontSize(uikit.TextBody).SingleLine()
 					})
 				}
-				ui.TreeItem(c, "Globals", nil, nil).Height(heightControl).FontSize(textBody).OnClick(a.editGlobals)
+				ui.TreeItem(c, "Globals", nil, nil).Height(uikit.HeightControl).FontSize(uikit.TextBody).OnClick(a.editGlobals)
 			})
 		})
-		if toolbarButton(c, "Vault…", "Manage secrets", false).FillWidth().Children(func() {
-			ui.Icon(c, lucide.Lock()).Size(iconInline, iconInline)
+		if uikit.ToolbarButton(c, "Vault…", "Manage secrets", false).FillWidth().Children(func() {
+			ui.Icon(c, lucide.Lock()).Size(uikit.IconInline, uikit.IconInline)
 			ui.Text(c, "Vault…")
 		}).Clicked() {
 			a.openVault()

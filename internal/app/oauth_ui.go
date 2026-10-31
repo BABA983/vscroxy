@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"github.com/baba983/vscroxy/internal/uikit"
 	"time"
 
 	"github.com/baba983/vscroxy/internal/request"
@@ -39,38 +40,38 @@ func (a *app) oauthFields(c *ui.Context, auth *request.Auth, collection string) 
 	if o.ClientAuth == "Body" {
 		clientAuth = "In body"
 	}
-	ui.Field(c, "Grant type", func() { ui.Select(c, &o.Grant, request.Grants).Width(240).Height(heightControl) })
+	ui.Field(c, "Grant type", func() { ui.Select(c, &o.Grant, request.Grants).Width(240).Height(uikit.HeightControl) })
 	if interactive {
 		ui.Field(c, "Authorization URL", func() {
-			ui.TextInput(c, &o.AuthURL).Height(heightControl).Placeholder("https://login.example.com/authorize")
+			ui.TextInput(c, &o.AuthURL).Height(uikit.HeightControl).Placeholder("https://login.example.com/authorize")
 		})
 	}
 	ui.Field(c, "Access token URL", func() {
-		ui.TextInput(c, &o.TokenURL).Height(heightControl).Placeholder("https://login.example.com/token")
+		ui.TextInput(c, &o.TokenURL).Height(uikit.HeightControl).Placeholder("https://login.example.com/token")
 	})
-	ui.Field(c, "Client ID", func() { ui.TextInput(c, &o.ClientID).Height(heightControl) })
+	ui.Field(c, "Client ID", func() { ui.TextInput(c, &o.ClientID).Height(uikit.HeightControl) })
 	ui.Field(c, "Client secret", func() {
-		ui.TextInput(c, &o.ClientSecret).Height(heightControl).Placeholder("{{vault:client_secret}}, empty for a public client").Password()
+		ui.TextInput(c, &o.ClientSecret).Height(uikit.HeightControl).Placeholder("{{vault:client_secret}}, empty for a public client").Password()
 	})
-	ui.Field(c, "Scope", func() { ui.TextInput(c, &o.Scope).Height(heightControl).Placeholder("Space-separated, optional") })
+	ui.Field(c, "Scope", func() { ui.TextInput(c, &o.Scope).Height(uikit.HeightControl).Placeholder("Space-separated, optional") })
 	if o.Grant == request.GrantPassword {
-		ui.Field(c, "Username", func() { ui.TextInput(c, &o.Username).Height(heightControl) })
-		ui.Field(c, "Password", func() { ui.TextInput(c, &o.Password).Height(heightControl).Password() })
+		ui.Field(c, "Username", func() { ui.TextInput(c, &o.Username).Height(uikit.HeightControl) })
+		ui.Field(c, "Password", func() { ui.TextInput(c, &o.Password).Height(uikit.HeightControl).Password() })
 	}
 	if interactive {
 		ui.Field(c, "Callback URL", func() {
-			ui.TextInput(c, &o.RedirectURL).Height(heightControl).Placeholder("http://127.0.0.1 on any free port")
+			ui.TextInput(c, &o.RedirectURL).Height(uikit.HeightControl).Placeholder("http://127.0.0.1 on any free port")
 		}).Description("Register it with the provider; the sign-in opens in your browser and returns there.")
 	}
 	ui.Field(c, "Client authentication", func() {
-		if ui.Select(c, &clientAuth, []string{"Basic header", "In body"}).Width(160).Height(heightControl).Changed() {
+		if ui.Select(c, &clientAuth, []string{"Basic header", "In body"}).Width(160).Height(uikit.HeightControl).Changed() {
 			o.ClientAuth = ""
 			if clientAuth == "In body" {
 				o.ClientAuth = "Body"
 			}
 		}
 	})
-	ui.Field(c, "Header prefix", func() { ui.TextInput(c, &o.HeaderPrefix).Height(heightControl).Placeholder("Bearer").Width(150) })
+	ui.Field(c, "Header prefix", func() { ui.TextInput(c, &o.HeaderPrefix).Height(uikit.HeightControl).Placeholder("Bearer").Width(150) })
 
 	in, cfg, err := a.oauthConfig(*auth, collection)
 	s := &a.oauth
@@ -105,17 +106,17 @@ func (a *app) oauthFields(c *ui.Context, auth *request.Auth, collection string) 
 		status, color = s.problem, t.Danger
 	}
 	ui.Field(c, "Access token", func() {
-		ui.Text(c, status).FontSize(textMeta).TextColor(color).Selectable()
+		ui.Text(c, status).FontSize(uikit.TextMeta).TextColor(color).Selectable()
 		ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 			busy := s.key == cfg.Key() && s.busy
-			if busy && secondaryButton(c, "Cancel").Clicked() {
+			if busy && uikit.SecondaryButton(c, "Cancel").Clicked() {
 				s.cancel()
 			}
-			if secondaryButton(c, "Clear token").Disabled(err != nil || busy).Clicked() {
+			if uikit.SecondaryButton(c, "Clear token").Disabled(err != nil || busy).Clicked() {
 				in.Tokens.Clear(cfg)
 				s.problem = ""
 			}
-			if secondaryButton(c, "Get new access token").Disabled(err != nil || busy).Clicked() {
+			if uikit.SecondaryButton(c, "Get new access token").Disabled(err != nil || busy).Clicked() {
 				a.newAccessToken(in, cfg)
 			}
 		})

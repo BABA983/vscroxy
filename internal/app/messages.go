@@ -15,6 +15,7 @@ import (
 	"encoding/json/jsontext"
 	"encoding/json/v2"
 	"fmt"
+	"github.com/baba983/vscroxy/internal/uikit"
 	"maps"
 	"os"
 	"slices"
@@ -282,23 +283,23 @@ func (m messageView) searchText() string {
 // row draws one message in the list.
 func (m messageView) row(c *ui.Context, chosen bool) {
 	t := c.Theme()
-	color := appColors(t).Info
+	color := uikit.Colors(t).Info
 	if m.direction == "in" {
 		color = t.Success
 	}
 	if chosen {
 		color = t.AccentText
 	}
-	ui.Row(c).Gap(t.Space(2)).Padding(t.Space(1), t.Space(2)).MinHeight(heightControl).AlignItems(ui.Center).Children(func() {
-		ui.Text(c, m.arrow()).FontSize(textBody).TextColor(color).Width(iconInline)
+	ui.Row(c).Gap(t.Space(2)).Padding(t.Space(1), t.Space(2)).MinHeight(uikit.HeightControl).AlignItems(ui.Center).Children(func() {
+		ui.Text(c, m.arrow()).FontSize(uikit.TextBody).TextColor(color).Width(uikit.IconInline)
 		muted := rowColor(chosen, t, t.TextMuted)
-		ui.Text(c, m.stamp()).FontSize(textMeta).FontFeatures("tnum").TextColor(muted).Width(80).SingleLine()
-		label := ui.Text(c, m.label()).FontSize(textMeta).TextColor(muted).Width(52).SingleLine()
+		ui.Text(c, m.stamp()).FontSize(uikit.TextMeta).FontFeatures("tnum").TextColor(muted).Width(80).SingleLine()
+		label := ui.Text(c, m.label()).FontSize(uikit.TextMeta).TextColor(muted).Width(52).SingleLine()
 		label = label.Tooltip(m.kindLine())
-		preview := ui.Text(c, m.preview()).FontSize(textBody).Font(fontMono).
+		preview := ui.Text(c, m.preview()).FontSize(uikit.TextBody).Font(uikit.FontMono).
 			TextColor(rowColor(chosen, t, t.Text)).SingleLine().Grow(1)
 		preview.Tooltip(m.preview())
-		ui.Text(c, humanBytes(m.size)).FontSize(textMeta).FontFeatures("tnum").TextColor(muted).Width(48).SingleLine()
+		ui.Text(c, humanBytes(m.size)).FontSize(uikit.TextMeta).FontFeatures("tnum").TextColor(muted).Width(48).SingleLine()
 	})
 }
 
@@ -319,25 +320,25 @@ func (m messageView) detail(c *ui.Context, a *app, f flow, p *messagePanel) {
 		}
 	}
 	ui.Column(c).Fill().Children(func() {
-		ui.Row(c).Padding(t.Space(1), t.Space(3)).Gap(t.Space(2)).MinHeight(heightLarge).AlignItems(ui.Center).Children(func() {
-			ui.Text(c, m.headline()).FontSize(textBody).Font(fontMono).FontFeatures("tnum").TextColor(t.Text).
+		ui.Row(c).Padding(t.Space(1), t.Space(3)).Gap(t.Space(2)).MinHeight(uikit.HeightLarge).AlignItems(ui.Center).Children(func() {
+			ui.Text(c, m.headline()).FontSize(uikit.TextBody).Font(uikit.FontMono).FontFeatures("tnum").TextColor(t.Text).
 				SingleLine().Grow(1).Tooltip(m.headline())
-			if secondaryButton(c, "Copy").Clicked() {
+			if uikit.SecondaryButton(c, "Copy").Clicked() {
 				c.Services().WriteClipboard(payload)
 				a.setMessage("Copied " + m.label() + " message · " + humanBytes(len(payload)))
 			}
 		})
 		ui.Row(c).Padding(0, t.Space(3), t.Space(2), t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-			ui.Segmented(c, &p.mode, "Text", "Hex").Label("Show as").Height(heightControl).FontSize(textBody).Radius(radiusControl)
-			ui.Text(c, m.meta()).FontSize(textMeta).TextColor(t.TextMuted).SingleLine().Grow(1).Tooltip(m.meta())
+			uikit.Segmented(c, &p.mode, "Text", "Hex").Label("Show as")
+			ui.Text(c, m.meta()).FontSize(uikit.TextMeta).TextColor(t.TextMuted).SingleLine().Grow(1).Tooltip(m.meta())
 		})
 		ui.Divider(c)
 		if p.loadedError != "" {
-			ui.Text(c, "Payload unavailable; showing inline preview: "+p.loadedError).FontSize(textMeta).
+			ui.Text(c, "Payload unavailable; showing inline preview: "+p.loadedError).FontSize(uikit.TextMeta).
 				TextColor(t.Danger).Background(t.Danger.Alpha(0.12)).Padding(t.Space(1), t.Space(3)).FillWidth()
 		}
 		if len(payload) == 0 {
-			ui.Text(c, "Empty message").FontSize(textBody).TextColor(t.TextMuted).Padding(t.Space(3))
+			ui.Text(c, "Empty message").FontSize(uikit.TextBody).TextColor(t.TextMuted).Padding(t.Space(3))
 			return
 		}
 		if p.mode == 1 {
@@ -365,7 +366,7 @@ func (m messageView) textView(c *ui.Context, payload string) {
 		text = cut + fmt.Sprintf("\n\n… showing the first %s of %s", humanBytes(maxMessageText), humanBytes(len(text)))
 	}
 	ui.Scroll(c).Grow(1).Padding(t.Space(3)).Children(func() {
-		ui.Text(c, text).FontSize(textBody).Font(fontMono).TextColor(t.Text)
+		ui.Text(c, text).FontSize(uikit.TextBody).Font(uikit.FontMono).TextColor(t.Text)
 	})
 }
 
@@ -374,7 +375,7 @@ func (m messageView) textView(c *ui.Context, payload string) {
 func (m messageView) hexView(c *ui.Context, payload string) {
 	t := c.Theme()
 	ui.List(c, nil, (len(payload)+15)/16, func(i int) {
-		ui.Text(c, hexLine(payload, i)).FontSize(textMeta).Font(fontMono).
+		ui.Text(c, hexLine(payload, i)).FontSize(uikit.TextMeta).Font(uikit.FontMono).
 			TextColor(t.Text).Padding(t.Space(1), t.Space(3)).SingleLine()
 	}).Grow(1)
 }
@@ -467,12 +468,12 @@ func (p *messagePanel) view(c *ui.Context, a *app, f flow, list []messageView) {
 		if !f.at.IsZero() {
 			state = "Started " + f.at.Format("15:04:05.000") + " · " + state
 		}
-		ui.Text(c, state).FontSize(textMeta).FontFeatures("tnum").TextColor(t.TextMuted).Grow(1).SingleLine().Tooltip(state + ". The engine does not provide close codes or an end reason.")
+		ui.Text(c, state).FontSize(uikit.TextMeta).FontFeatures("tnum").TextColor(t.TextMuted).Grow(1).SingleLine().Tooltip(state + ". The engine does not provide close codes or an end reason.")
 		pauseLabel := "Pause view"
 		if p.paused {
 			pauseLabel = "Resume"
 		}
-		if secondaryButton(c, pauseLabel).Clicked() {
+		if uikit.SecondaryButton(c, pauseLabel).Clicked() {
 			p.paused = !p.paused
 			if p.paused {
 				p.frozen = slices.Clone(list)
@@ -482,7 +483,7 @@ func (p *messagePanel) view(c *ui.Context, a *app, f flow, list []messageView) {
 				p.follow = true
 			}
 		}
-		if secondaryButton(c, "Export messages…").Clicked() {
+		if uikit.SecondaryButton(c, "Export messages…").Clicked() {
 			p.exportOpen = true
 		}
 	})
@@ -495,8 +496,8 @@ func (p *messagePanel) view(c *ui.Context, a *app, f flow, list []messageView) {
 			newer -= p.frozen[len(p.frozen)-1].seq
 		}
 		note := fmt.Sprintf("Paused view · %d newer messages · capture continues; Resume shows the latest retained window", max(newer, 0))
-		ui.Text(c, note).FontSize(textMeta).FontFeatures("tnum").TextColor(t.TextMuted).
-			Background(t.Surface).Padding(t.Space(1), t.Space(3)).SingleLine().Tooltip(note)
+		ui.Text(c, note).FontSize(uikit.TextMeta).FontFeatures("tnum").TextColor(t.TextMuted).
+			Background(uikit.Colors(t).Panel).Padding(t.Space(1), t.Space(3)).SingleLine().Tooltip(note)
 		list = p.frozen
 	}
 	// The search and the direction filter are built first: they change what
@@ -504,13 +505,12 @@ func (p *messagePanel) view(c *ui.Context, a *app, f flow, list []messageView) {
 	var visible []messageView
 	ui.Row(c).Padding(t.Space(2), t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 		search := ui.SearchField(c, &p.query).Placeholder("Search messages…").Label("Search messages").
-			Width(180).Height(heightControl).FontSize(textBody).Radius(radiusControl)
+			Width(180).Height(uikit.HeightControl).FontSize(uikit.TextBody).Radius(uikit.RadiusControl)
 		search.Tooltip("Searches metadata and the full retained payload; spill files are read off the UI thread")
 		if search.Changed() {
 			p.follow = true
 		}
-		if ui.Segmented(c, &p.direction, "All", "In", "Out").Label("Direction").
-			Height(heightControl).FontSize(textBody).Radius(radiusControl).Changed() {
+		if uikit.Segmented(c, &p.direction, "All", "In", "Out").Label("Direction").Changed() {
 			p.follow = true
 		}
 		p.searchMessages(a, list)
@@ -532,9 +532,9 @@ func (p *messagePanel) view(c *ui.Context, a *app, f flow, list []messageView) {
 		if n := len(p.searchCache.errs); n > 0 {
 			note += fmt.Sprintf(" · %d payloads unreadable", n)
 		}
-		ui.Text(c, note).FontSize(textMeta).FontFeatures("tnum").TextColor(t.TextMuted).SingleLine().Tooltip(note)
+		ui.Text(c, note).FontSize(uikit.TextMeta).FontFeatures("tnum").TextColor(t.TextMuted).SingleLine().Tooltip(note)
 		ui.Spacer(c)
-		if !p.follow && secondaryButton(c, "Latest").Clicked() {
+		if !p.follow && uikit.SecondaryButton(c, "Latest").Clicked() {
 			p.follow = true
 		}
 	})
@@ -566,12 +566,12 @@ func (p *messagePanel) view(c *ui.Context, a *app, f flow, list []messageView) {
 				if len(list) == 0 {
 					text = "No messages retained"
 				}
-				ui.Text(c, text).FontSize(textBody).TextColor(t.TextMuted).Padding(t.Space(4))
+				ui.Text(c, text).FontSize(uikit.TextBody).TextColor(t.TextMuted).Padding(t.Space(4))
 			}
 		})
 	}, func() {
 		if len(visible) == 0 {
-			ui.Text(c, "Choose a message to see it in full").FontSize(textBody).TextColor(t.TextMuted).Padding(t.Space(4))
+			ui.Text(c, "Choose a message to see it in full").FontSize(uikit.TextBody).TextColor(t.TextMuted).Padding(t.Space(4))
 			return
 		}
 		// List remaps a disappeared selected key to -1 during filtering.
@@ -648,16 +648,16 @@ func (e messageExport) write(path string, list []messageView) error {
 }
 
 func (p *messagePanel) exportModal(c *ui.Context, a *app, f flow, list, visible []messageView) {
-	appModal(c, &p.exportOpen, func() {
+	uikit.Modal(c, &p.exportOpen, func() {
 		ui.Column(c).Width(470).Gap(c.Theme().Space(3)).Children(func() {
-			dialogTitle(c, "Export retained messages")
-			ui.Text(c, fmt.Sprintf("Exports %d matching messages from this %d-message window, not the complete conversation. Pause freezes the view, not capture. Saving is available once the payload search finishes.", len(visible), len(list))).FontSize(textBody)
-			ui.Text(c, "Payloads and URLs can contain credentials or personal data. Review before sharing.").FontSize(textBody).TextColor(c.Theme().Danger)
+			uikit.DialogTitle(c, "Export retained messages")
+			ui.Text(c, fmt.Sprintf("Exports %d matching messages from this %d-message window, not the complete conversation. Pause freezes the view, not capture. Saving is available once the payload search finishes.", len(visible), len(list))).FontSize(uikit.TextBody)
+			ui.Text(c, "Payloads and URLs can contain credentials or personal data. Review before sharing.").FontSize(uikit.TextBody).TextColor(c.Theme().Danger)
 			ui.Row(c).Gap(c.Theme().Space(2)).Justify(ui.End).Children(func() {
-				if secondaryButton(c, "Cancel").Clicked() {
+				if uikit.SecondaryButton(c, "Cancel").Clicked() {
 					p.exportOpen = false
 				}
-				if primaryButton(c, "Save messages JSON…").Disabled(len(p.searchPending) > 0).Clicked() {
+				if uikit.PrimaryButton(c, "Save messages JSON…").Disabled(len(p.searchPending) > 0).Clicked() {
 					archive := messageExport{
 						URL: f.url, Protocol: f.kind, StartedAt: f.at, End: f.streamEnd,
 						Paused: p.paused, Query: p.query, Direction: []string{"all", "in", "out"}[p.direction],

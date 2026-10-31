@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"github.com/baba983/vscroxy/internal/uikit"
 	"maps"
 	"os"
 	"path/filepath"
@@ -156,17 +157,17 @@ func (a *app) importReportModal(c *ui.Context, t *ui.Theme) {
 	if !r.open {
 		return
 	}
-	appModal(c, &r.open, func() {
-		dialogColumn(c, dialogMedium).Children(func() {
-			dialogTitle(c, r.title)
+	uikit.Modal(c, &r.open, func() {
+		uikit.DialogColumn(c, uikit.DialogMedium).Children(func() {
+			uikit.DialogTitle(c, r.title)
 			ui.Scroll(c).MinHeight(0).Shrink(1).Gap(t.Space(2)).Children(func() {
-				ui.Text(c, r.intro).FontSize(textBody).TextColor(t.TextMuted)
+				ui.Text(c, r.intro).FontSize(uikit.TextBody).TextColor(t.TextMuted)
 				for _, line := range r.lines {
-					ui.Text(c, "• "+line).FontSize(textBody).Selectable()
+					ui.Text(c, "• "+line).FontSize(uikit.TextBody).Selectable()
 				}
 			})
-			dialogFooter(c).Children(func() {
-				if primaryButton(c, "OK").Clicked() {
+			uikit.DialogFooter(c).Children(func() {
+				if uikit.PrimaryButton(c, "OK").Clicked() {
 					r.open = false
 				}
 			})

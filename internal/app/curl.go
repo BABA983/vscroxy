@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"github.com/baba983/vscroxy/internal/uikit"
 	"io"
 	"maps"
 	"net/http"
@@ -424,23 +425,23 @@ func (a *app) curlImportModal(c *ui.Context, t *ui.Theme) {
 	if !a.curlOpen {
 		return
 	}
-	appModal(c, &a.curlOpen, func() {
-		dialogColumn(c, dialogMedium).Children(func() {
-			dialogTitle(c, "Import cURL")
+	uikit.Modal(c, &a.curlOpen, func() {
+		uikit.DialogColumn(c, uikit.DialogMedium).Children(func() {
+			uikit.DialogTitle(c, "Import cURL")
 			ui.Scroll(c).MinHeight(0).Shrink(1).Gap(t.Space(4)).Children(func() {
-				ui.Text(c, "Paste one Bash/POSIX curl command. It opens an unsent request tab; nothing is executed.").FontSize(textBody).TextColor(t.TextMuted)
-				if ui.TextArea(c, &a.curlInput).Height(190).Font(fontMono).FontSize(textBody).Radius(radiusControl).Label("cURL command").Placeholder("curl 'https://api.example.com/projects' \\\n  -H 'Accept: application/json'").AutoFocus().Changed() {
+				ui.Text(c, "Paste one Bash/POSIX curl command. It opens an unsent request tab; nothing is executed.").FontSize(uikit.TextBody).TextColor(t.TextMuted)
+				if ui.TextArea(c, &a.curlInput).Height(190).Font(uikit.FontMono).FontSize(uikit.TextBody).Radius(uikit.RadiusControl).Label("cURL command").Placeholder("curl 'https://api.example.com/projects' \\\n  -H 'Accept: application/json'").AutoFocus().Changed() {
 					a.curlProblem = ""
 				}
 				if a.curlProblem != "" {
-					ui.Text(c, a.curlProblem).FontSize(textBody).TextColor(t.Danger)
+					ui.Text(c, a.curlProblem).FontSize(uikit.TextBody).TextColor(t.Danger)
 				}
 			})
-			dialogFooter(c).Children(func() {
-				if secondaryButton(c, "Cancel").Clicked() {
+			uikit.DialogFooter(c).Children(func() {
+				if uikit.SecondaryButton(c, "Cancel").Clicked() {
 					a.curlOpen, a.curlInput = false, ""
 				}
-				if primaryButton(c, "Import request").Disabled(strings.TrimSpace(a.curlInput) == "").Clicked() {
+				if uikit.PrimaryButton(c, "Import request").Disabled(strings.TrimSpace(a.curlInput) == "").Clicked() {
 					r, err := parseCurl(a.curlInput)
 					if err != nil {
 						a.curlProblem = err.Error()

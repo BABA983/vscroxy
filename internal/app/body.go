@@ -5,6 +5,7 @@ import (
 	"encoding/json/jsontext"
 	"errors"
 	"fmt"
+	"github.com/baba983/vscroxy/internal/uikit"
 	"io"
 	"strconv"
 	"strings"
@@ -267,7 +268,7 @@ func (a *app) bodySideView(c *ui.Context, f flow, side int) {
 		return // rebuild the chosen side before parsing or copying its bytes
 	}
 	if notice := strings.TrimSpace(a.bodyNotice[side]); notice != "" {
-		ui.Text(c, notice).FontSize(textMeta).TextColor(t.Warning).Background(t.Warning.Alpha(0.12)).
+		ui.Text(c, notice).FontSize(uikit.TextMeta).TextColor(t.Warning).Background(t.Warning.Alpha(0.12)).
 			Padding(t.Space(1), t.Space(3)).FillWidth().Tooltip(notice)
 	}
 	if mode == 5 {
@@ -278,7 +279,7 @@ func (a *app) bodySideView(c *ui.Context, f flow, side int) {
 			if owner == 1 {
 				name = "request"
 			}
-			ui.Text(c, "Protobuf is read in the "+name+" pane.").FontSize(textBody).TextColor(t.TextMuted).Padding(t.Space(4))
+			ui.Text(c, "Protobuf is read in the "+name+" pane.").FontSize(uikit.TextBody).TextColor(t.TextMuted).Padding(t.Space(4))
 			return
 		}
 		a.protobuf.view(c, a, f, side)
@@ -291,7 +292,7 @@ func (a *app) bodySideView(c *ui.Context, f flow, side int) {
 		} else if side == 0 && (f.method == "HEAD" || f.status == 204 || f.status == 304) {
 			message = "No response body expected for " + f.method + " / " + strconv.Itoa(f.status)
 		}
-		ui.Text(c, message).FontSize(textBody).TextColor(t.TextMuted).Padding(t.Space(4))
+		ui.Text(c, message).FontSize(uikit.TextBody).TextColor(t.TextMuted).Padding(t.Space(4))
 		return
 	}
 	if mode == 2 || mode == 3 {
@@ -300,7 +301,7 @@ func (a *app) bodySideView(c *ui.Context, f flow, side int) {
 			placeholder = "Filter hex rows (hex bytes or text)…"
 		}
 		ui.TextInput(c, &a.bodyQuery[side]).Label("Search body").Placeholder(placeholder).Tooltip(placeholder).
-			FontSize(textBody).Height(heightControl).Radius(radiusControl).Margin(0, t.Space(3), t.Space(2)).FillWidth()
+			FontSize(uikit.TextBody).Height(uikit.HeightControl).Radius(uikit.RadiusControl).Margin(0, t.Space(3), t.Space(2)).FillWidth()
 	}
 	switch mode {
 	case 2:
@@ -316,7 +317,7 @@ func (a *app) bodySideView(c *ui.Context, f flow, side int) {
 			}
 		}
 		if !a.jsonOK[side] {
-			ui.Text(c, "Body is not JSON; showing it as text").FontSize(textMeta).TextColor(t.TextMuted).Padding(t.Space(3))
+			ui.Text(c, "Body is not JSON; showing it as text").FontSize(uikit.TextMeta).TextColor(t.TextMuted).Padding(t.Space(3))
 			a.prettyBody(c, body, side)
 			return
 		}
@@ -342,11 +343,11 @@ func (a *app) previewBody(c *ui.Context, f flow, body string, side int) {
 	case ct == "text/html" || ct == "application/xhtml+xml":
 		a.htmlPreview(c, key, body, side)
 	default:
-		ui.Text(c, "No preview for "+cmp.Or(ct, "this body")).FontSize(textBody).TextColor(t.TextMuted).Padding(t.Space(4))
-		if secondaryButton(c, "Show as text").Margin(0, t.Space(3)).Clicked() {
+		ui.Text(c, "No preview for "+cmp.Or(ct, "this body")).FontSize(uikit.TextBody).TextColor(t.TextMuted).Padding(t.Space(4))
+		if uikit.SecondaryButton(c, "Show as text").Margin(0, t.Space(3)).Clicked() {
 			a.bodyMode[side] = 1
 		}
-		if secondaryButton(c, "Show as hex").Margin(0, t.Space(3)).Clicked() {
+		if uikit.SecondaryButton(c, "Show as hex").Margin(0, t.Space(3)).Clicked() {
 			a.bodyMode[side] = 3
 		}
 	}
@@ -365,7 +366,7 @@ func (a *app) imagePreview(c *ui.Context, key, body string, side int) {
 		}
 	}
 	if a.imageErr[side] != "" {
-		ui.Text(c, "Cannot decode image: "+a.imageErr[side]).FontSize(textBody).TextColor(t.TextMuted).Padding(t.Space(4))
+		ui.Text(c, "Cannot decode image: "+a.imageErr[side]).FontSize(uikit.TextBody).TextColor(t.TextMuted).Padding(t.Space(4))
 		return
 	}
 	if a.imageBmp[side] == nil {
@@ -374,7 +375,7 @@ func (a *app) imagePreview(c *ui.Context, key, body string, side int) {
 	w, h := a.imageBmp[side].Size()
 	ui.Scroll(c).Grow(1).Children(func() {
 		ui.Column(c).Padding(t.Space(4)).Gap(t.Space(2)).Children(func() {
-			ui.Text(c, fmt.Sprintf("%d × %d px", w, h)).FontSize(textMeta).FontFeatures("tnum").TextColor(t.TextMuted)
+			ui.Text(c, fmt.Sprintf("%d × %d px", w, h)).FontSize(uikit.TextMeta).FontFeatures("tnum").TextColor(t.TextMuted)
 			ui.Image(c, a.imageBmp[side]).MaxWidthPercent(100)
 		})
 	})
@@ -405,18 +406,18 @@ func (a *app) prettyBody(c *ui.Context, body string, side int) {
 		reader = &editor.State{Buffer: buf, ReadOnly: true, NoScrollPastEnd: true, SoftWrap: true, Label: "Body text", RenderFindBar: bodyFindBar}
 		a.bodyText[side] = reader
 	}
-	reader.Font = ui.Font{Family: fontMono, Size: textBody}
-	reader.Theme = bodyEditorTheme(c.Theme())
+	reader.Font = ui.Font{Family: uikit.FontMono, Size: uikit.TextBody}
+	reader.Theme = uikit.EditorTheme(c.Theme())
 	editor.View(c, reader).Bind(&a.bodyReader[side]).Grow(1)
 }
 
 // Keep the library's search semantics, with controls that fit a side inspector.
 func bodyFindBar(c *ui.Context, bar ui.Element, find *editor.FindBar) {
 	t := c.Theme()
-	bar.Row().Gap(t.Space(2)).Padding(t.Space(2)).AlignItems(ui.Center).Background(t.Surface).Border(1, t.Border).Radius(radiusControl)
+	bar.Row().Gap(t.Space(2)).Padding(t.Space(2)).AlignItems(ui.Center).Background(uikit.Colors(t).Panel).Border(1, t.Border).Radius(uikit.RadiusControl)
 	bar.Children(func() {
-		find.QueryInput(ui.TextInput(c, find.Query()).Label("Search body").Placeholder("Find in body…").Width(140).FontSize(textBody))
-		ui.Text(c, find.Status()).FontSize(textMeta).FontFeatures("tnum").TextColor(t.TextMuted).MinWidth(40).Role(ui.RoleStatus)
+		find.QueryInput(ui.TextInput(c, find.Query()).Label("Search body").Placeholder("Find in body…").Width(140).FontSize(uikit.TextBody))
+		ui.Text(c, find.Status()).FontSize(uikit.TextMeta).FontFeatures("tnum").TextColor(t.TextMuted).MinWidth(40).Role(ui.RoleStatus)
 		if ui.Button(c, "↑").Label("Previous body match").Tooltip("Previous match · Shift+Enter").KeepFocus().Clicked() {
 			find.Previous()
 		}
@@ -431,7 +432,7 @@ func bodyFindBar(c *ui.Context, bar ui.Element, find *editor.FindBar) {
 
 func (a *app) jsonBody(c *ui.Context, side int) {
 	t := c.Theme()
-	keyColor := bodyEditorTheme(t).Tokens[editor.TokenProperty].Color
+	keyColor := uikit.EditorTheme(t).Tokens[editor.TokenProperty].Color
 	var rows []jsonRow
 	if a.bodyQuery[side] != "" {
 		rows = matchingJSON(a.jsonRoots[side], a.bodyQuery[side])
@@ -439,12 +440,12 @@ func (a *app) jsonBody(c *ui.Context, side int) {
 		rows = a.visibleJSON(side)
 	}
 	if len(rows) == 0 {
-		ui.Text(c, "No matches").FontSize(textBody).TextColor(t.TextMuted).Padding(t.Space(4))
+		ui.Text(c, "No matches").FontSize(uikit.TextBody).TextColor(t.TextMuted).Padding(t.Space(4))
 		return
 	}
 	ui.List(c, &a.jsonScroll[side], len(rows), func(i int) {
 		row := rows[i]
-		ui.Row(c).Gap(t.Space(2)).Padding(0, t.Space(3)).MinHeight(heightControl).AlignItems(ui.Center).Children(func() {
+		ui.Row(c).Gap(t.Space(2)).Padding(0, t.Space(3)).MinHeight(uikit.HeightControl).AlignItems(ui.Center).Children(func() {
 			ui.Box(c).Width(float32(row.depth) * 16)
 			if len(row.node.children) > 0 && a.bodyQuery[side] == "" {
 				expanded := a.jsonExpanded[side][row.node.path]
@@ -453,23 +454,23 @@ func (a *app) jsonBody(c *ui.Context, side int) {
 					arrow, action = "▾", "Collapse"
 				}
 				label := action + " " + []string{"response", "request"}[side] + " JSON " + row.node.path
-				if secondaryButton(c, arrow).Label(label).Tooltip(label).Expanded(expanded).Size(heightCompact, heightCompact).Padding(0).Clicked() {
+				if uikit.SecondaryButton(c, arrow).Label(label).Tooltip(label).Expanded(expanded).Size(uikit.HeightCompact, uikit.HeightCompact).Padding(0).Clicked() {
 					a.jsonExpanded[side][row.node.path] = !expanded
 				}
 			} else {
-				ui.Box(c).Width(heightCompact)
+				ui.Box(c).Width(uikit.HeightCompact)
 			}
 			if row.node.key != "" {
-				ui.Text(c, row.node.key).FontSize(textBody).Font(fontMono).TextColor(keyColor).SingleLine().Tooltip(row.node.path)
-				ui.Text(c, ":").FontSize(textBody).TextColor(t.TextMuted)
+				ui.Text(c, row.node.key).FontSize(uikit.TextBody).Font(uikit.FontMono).TextColor(keyColor).SingleLine().Tooltip(row.node.path)
+				ui.Text(c, ":").FontSize(uikit.TextBody).TextColor(t.TextMuted)
 			}
 			switch row.node.kind {
 			case "object":
-				ui.Text(c, fmt.Sprintf("{%d}", len(row.node.children))).FontSize(textBody).FontFeatures("tnum").TextColor(t.TextMuted)
+				ui.Text(c, fmt.Sprintf("{%d}", len(row.node.children))).FontSize(uikit.TextBody).FontFeatures("tnum").TextColor(t.TextMuted)
 			case "array":
-				ui.Text(c, fmt.Sprintf("[%d]", len(row.node.children))).FontSize(textBody).FontFeatures("tnum").TextColor(t.TextMuted)
+				ui.Text(c, fmt.Sprintf("[%d]", len(row.node.children))).FontSize(uikit.TextBody).FontFeatures("tnum").TextColor(t.TextMuted)
 			default:
-				ui.Text(c, row.node.value).FontSize(textBody).Font(fontMono).TextColor(t.Text).SingleLine()
+				ui.Text(c, row.node.value).FontSize(uikit.TextBody).Font(uikit.FontMono).TextColor(t.Text).SingleLine()
 			}
 		})
 	}).Grow(1)
@@ -479,11 +480,11 @@ func (a *app) hexBody(c *ui.Context, body string, side int) {
 	t := c.Theme()
 	rows := hexRows(body, a.bodyQuery[side])
 	if len(rows) == 0 {
-		ui.Text(c, "No matches").FontSize(textBody).TextColor(t.TextMuted).Padding(t.Space(4))
+		ui.Text(c, "No matches").FontSize(uikit.TextBody).TextColor(t.TextMuted).Padding(t.Space(4))
 		return
 	}
 	ui.List(c, &a.hexScroll[side], len(rows), func(i int) {
-		ui.Text(c, hexLine(body, rows[i])).FontSize(textMeta).Font(fontMono).TextColor(t.Text).
+		ui.Text(c, hexLine(body, rows[i])).FontSize(uikit.TextMeta).Font(uikit.FontMono).TextColor(t.Text).
 			Padding(t.Space(1), t.Space(3)).SingleLine()
 	}).Grow(1)
 }

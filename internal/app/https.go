@@ -6,6 +6,7 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
+	"github.com/baba983/vscroxy/internal/uikit"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -106,69 +107,69 @@ func (a *app) certificateStatus(t *ui.Theme) (string, ui.Color) {
 func (a *app) httpsSettings(c *ui.Context, t *ui.Theme) {
 	status, color := a.certificateStatus(t)
 	s := &a.certificate
-	ui.Text(c, "HTTPS inspection").FontSize(textTitle).Bold()
+	ui.Text(c, "HTTPS inspection").FontSize(uikit.TextTitle).Bold()
 	if a.srv != nil && a.srv.Running() {
-		ui.Text(c, "Proxy listening · "+a.srv.Addr()).FontSize(textBody).TextColor(t.Success)
+		ui.Text(c, "Proxy listening · "+a.srv.Addr()).FontSize(uikit.TextBody).TextColor(t.Success)
 	} else {
-		ui.Text(c, "Capture is not running").FontSize(textBody).TextColor(t.TextMuted)
+		ui.Text(c, "Capture is not running").FontSize(uikit.TextBody).TextColor(t.TextMuted)
 	}
-	ui.Text(c, "Trusting the CA only makes decryption possible. Domain and app rules expose request and response headers — including Cookie and Set-Cookie — and bodies. Connections not covered by a rule stay encrypted CONNECT tunnels.").FontSize(textBody).TextColor(t.TextMuted)
+	ui.Text(c, "Trusting the CA only makes decryption possible. Domain and app rules expose request and response headers — including Cookie and Set-Cookie — and bodies. Connections not covered by a rule stay encrypted CONNECT tunnels.").FontSize(uikit.TextBody).TextColor(t.TextMuted)
 	ui.Divider(c)
 	ui.Column(c).Gap(t.Space(3)).Children(func() {
 		ui.Row(c).Gap(t.Space(2)).Wrap().Children(func() {
-			ui.Text(c, "Certificate").FontSize(textBody).Bold().Grow(1)
-			ui.Text(c, status).FontSize(textBody).Bold().TextColor(color)
+			ui.Text(c, "Certificate").FontSize(uikit.TextBody).Bold().Grow(1)
+			ui.Text(c, status).FontSize(uikit.TextBody).Bold().TextColor(color)
 		})
 		if s.cert != nil {
-			ui.Text(c, cmp.Or(s.cert.Subject.CommonName, s.cert.Subject.String())).FontSize(textBody)
-			ui.Text(c, "Valid: "+s.cert.NotBefore.Local().Format("2006-01-02")+" → "+s.cert.NotAfter.Local().Format("2006-01-02")).FontSize(textMeta).TextColor(t.TextMuted)
+			ui.Text(c, cmp.Or(s.cert.Subject.CommonName, s.cert.Subject.String())).FontSize(uikit.TextBody)
+			ui.Text(c, "Valid: "+s.cert.NotBefore.Local().Format("2006-01-02")+" → "+s.cert.NotAfter.Local().Format("2006-01-02")).FontSize(uikit.TextMeta).TextColor(t.TextMuted)
 			fingerprint := fmt.Sprintf("%X", sha256.Sum256(s.cert.Raw))
-			ui.Text(c, "SHA-256: "+fingerprint).Font(fontMono).FontSize(textMeta).TextColor(t.TextMuted).SingleLine().Tooltip(fingerprint).Selectable()
+			ui.Text(c, "SHA-256: "+fingerprint).Font(uikit.FontMono).FontSize(uikit.TextMeta).TextColor(t.TextMuted).SingleLine().Tooltip(fingerprint).Selectable()
 		}
-		ui.Text(c, "Trust this CA on the requesting device or in the requesting application. Separate trust stores and certificate pinning may need client-side configuration.").FontSize(textBody).TextColor(t.TextMuted)
+		ui.Text(c, "Trust this CA on the requesting device or in the requesting application. Separate trust stores and certificate pinning may need client-side configuration.").FontSize(uikit.TextBody).TextColor(t.TextMuted)
 		if runtime.GOOS == "windows" {
-			ui.Text(c, "Installation trusts this CA for the current Windows user, not other accounts or services.").FontSize(textBody).TextColor(t.TextMuted)
+			ui.Text(c, "Installation trusts this CA for the current Windows user, not other accounts or services.").FontSize(uikit.TextBody).TextColor(t.TextMuted)
 		}
 		if s.installing {
-			ui.Text(c, "If the system asks for authorization, approve it to continue. Trust will be checked afterwards.").FontSize(textBody).TextColor(t.TextMuted)
+			ui.Text(c, "If the system asks for authorization, approve it to continue. Trust will be checked afterwards.").FontSize(uikit.TextBody).TextColor(t.TextMuted)
 		}
 		if s.checked && !s.checking && s.err != nil {
 			problem := s.err.Error()
 			if errors.Is(s.err, os.ErrNotExist) {
 				problem = "CA file not found. Start capture, then check again."
 			}
-			ui.Text(c, problem).FontSize(textMeta).TextColor(t.Warning).SingleLine().Tooltip(s.err.Error())
+			ui.Text(c, problem).FontSize(uikit.TextMeta).TextColor(t.Warning).SingleLine().Tooltip(s.err.Error())
 		}
 		if s.installErr != nil {
 			if errors.Is(s.installErr, system.ErrInstallCancelled) {
-				ui.Text(c, "Installation cancelled. You can try again when ready.").FontSize(textBody).TextColor(t.TextMuted)
+				ui.Text(c, "Installation cancelled. You can try again when ready.").FontSize(uikit.TextBody).TextColor(t.TextMuted)
 			} else {
-				ui.Text(c, "Installation failed: "+s.installErr.Error()).FontSize(textMeta).TextColor(t.Danger).MaxLines(2).Tooltip(s.installErr.Error())
+				ui.Text(c, "Installation failed: "+s.installErr.Error()).FontSize(uikit.TextMeta).TextColor(t.Danger).MaxLines(2).Tooltip(s.installErr.Error())
 				switch runtime.GOOS {
 				case "darwin":
-					ui.Text(c, "Manual fallback: use Show certificate to locate the public CA, import it in Keychain Access, then set Trust → When using this certificate to Always Trust. Check again afterwards.").FontSize(textBody).TextColor(t.TextMuted)
+					ui.Text(c, "Manual fallback: use Show certificate to locate the public CA, import it in Keychain Access, then set Trust → When using this certificate to Always Trust. Check again afterwards.").FontSize(uikit.TextBody).TextColor(t.TextMuted)
 				case "windows":
-					ui.Text(c, "Manual fallback: use Show certificate and import the public CA into Trusted Root Certification Authorities for the current user. Check again afterwards.").FontSize(textBody).TextColor(t.TextMuted)
+					ui.Text(c, "Manual fallback: use Show certificate and import the public CA into Trusted Root Certification Authorities for the current user. Check again afterwards.").FontSize(uikit.TextBody).TextColor(t.TextMuted)
 				default:
-					ui.Text(c, "Manual fallback: use Show certificate and import the public CA using your distribution's trust-store tools. Check again afterwards.").FontSize(textBody).TextColor(t.TextMuted)
+					ui.Text(c, "Manual fallback: use Show certificate and import the public CA using your distribution's trust-store tools. Check again afterwards.").FontSize(uikit.TextBody).TextColor(t.TextMuted)
 				}
 			}
 		}
 		ui.Row(c).Gap(t.Space(2)).Wrap().Children(func() {
-			if primaryButton(c, "Install & Trust…").Tooltip("Trust the local CA on this computer; approve system authorization if requested").Disabled(s.checking || s.cert == nil || s.checked && s.err == nil).Clicked() {
+			if uikit.PrimaryButton(c, "Install & Trust…").Tooltip("Trust the local CA on this computer; approve system authorization if requested").Disabled(s.checking || s.cert == nil || s.checked && s.err == nil).Clicked() {
 				a.checkCertificate(true)
 			}
-			if secondaryButton(c, "Check again").Disabled(s.checking).Clicked() {
+			if uikit.SecondaryButton(c, "Check again").Disabled(s.checking).Clicked() {
 				a.checkCertificate(false)
 			}
-			if secondaryButton(c, "Show certificate").Tooltip(a.caPath).Disabled(a.caPath == "").Clicked() {
+			if uikit.SecondaryButton(c, "Show certificate").Tooltip(a.caPath).Disabled(a.caPath == "").Clicked() {
 				a.revealCA()
 			}
 		})
 	})
 	ui.Divider(c)
 	ui.Column(c).Gap(t.Space(3)).Children(func() {
-		ui.Text(c, "Decryption rules").FontSize(textBody).Bold()
+		ui.Text(c, "Decryption rules").FontSize(uikit.TextBody).Bold()
 		domains := splitHosts(a.sslHosts)
 		summary := "No domains enabled — HTTPS stays an encrypted tunnel"
 		if a.sslAll {
@@ -179,29 +180,29 @@ func (a *app) httpsSettings(c *ui.Context, t *ui.Theme) {
 		if !a.sslAll && len(a.sslApps) > 0 {
 			summary = fmt.Sprintf("%d domain rules · %d local executable rules", len(domains), len(a.sslApps))
 		}
-		ui.Text(c, summary).FontSize(textBody).MaxLines(2).Tooltip(summary)
+		ui.Text(c, summary).FontSize(uikit.TextBody).MaxLines(2).Tooltip(summary)
 		switch {
 		case a.sslAll:
-			ui.Text(c, "All new HTTPS connections are eligible for inspection. Client trust and TLS compatibility still apply.").FontSize(textBody).TextColor(t.TextMuted)
+			ui.Text(c, "All new HTTPS connections are eligible for inspection. Client trust and TLS compatibility still apply.").FontSize(uikit.TextBody).TextColor(t.TextMuted)
 		case len(a.sslApps) > 0:
-			ui.Text(c, "Listed domains or exact local executables are eligible. Other clients stay encrypted unless a domain rule also matches.").FontSize(textBody).TextColor(t.TextMuted)
+			ui.Text(c, "Listed domains or exact local executables are eligible. Other clients stay encrypted unless a domain rule also matches.").FontSize(uikit.TextBody).TextColor(t.TextMuted)
 		case len(domains) > 0:
-			ui.Text(c, "Only these domains and their subdomains are decrypted. Every other host stays an encrypted tunnel.").FontSize(textBody).TextColor(t.TextMuted)
+			ui.Text(c, "Only these domains and their subdomains are decrypted. Every other host stays an encrypted tunnel.").FontSize(uikit.TextBody).TextColor(t.TextMuted)
 		default:
-			ui.Text(c, "Enable a domain here, or every domain explicitly, to inspect its headers, cookies, and bodies.").FontSize(textBody).TextColor(t.TextMuted)
+			ui.Text(c, "Enable a domain here, or every domain explicitly, to inspect its headers, cookies, and bodies.").FontSize(uikit.TextBody).TextColor(t.TextMuted)
 		}
-		ui.Text(c, "Trusting the CA and enabling domain decryption are separate steps.").FontSize(textBody).TextColor(t.TextMuted)
+		ui.Text(c, "Trusting the CA and enabling domain decryption are separate steps.").FontSize(uikit.TextBody).TextColor(t.TextMuted)
 		ui.Row(c).Gap(t.Space(2)).Wrap().Children(func() {
-			if secondaryButton(c, "Manage domains…").Clicked() {
+			if uikit.SecondaryButton(c, "Manage domains…").Clicked() {
 				a.settingsOpen, a.sslOpen = false, true
 			}
-			if secondaryButton(c, "TLS key log…").Clicked() {
+			if uikit.SecondaryButton(c, "TLS key log…").Clicked() {
 				a.settingsOpen = false
 				a.openKeyLog()
 			}
 		})
 	})
-	ui.Text(c, "After changing HTTPS setup, establish a new connection and retry the request.").FontSize(textMeta).TextColor(t.TextMuted)
+	ui.Text(c, "After changing HTTPS setup, establish a new connection and retry the request.").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
 }
 
 func (a *app) inspectionConfig() capture.SSLConfig {
@@ -285,28 +286,28 @@ func (a *app) connectPanel(c *ui.Context, f flow) {
 					title = e.title
 				}
 				ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-					ui.Icon(c, lockIcon).Size(iconLarge, iconLarge).TextColor(t.Text)
-					ui.Text(c, title).Label(title + " — not individual requests").FontSize(textTitle).Bold()
+					ui.Icon(c, lockIcon).Size(uikit.IconLarge, uikit.IconLarge).TextColor(t.Text)
+					ui.Text(c, title).Label(title + " — not individual requests").FontSize(uikit.TextTitle).Bold()
 				})
 				summary := "This connection is encrypted. CONNECT is not a decrypted HTTP response."
 				if failed {
 					summary = e.summary
 				}
-				ui.Text(c, summary).FontSize(textBody).TextColor(t.TextMuted)
+				ui.Text(c, summary).FontSize(uikit.TextBody).TextColor(t.TextMuted)
 				if failed {
 					// What happened: the stage and the raw error, copyable.
-					ui.Column(c).FillWidth().Padding(t.Space(2), t.Space(2)).Gap(t.Space(1)).Radius(radiusPanel).Background(t.Danger.Alpha(0.06)).Border(1, t.Danger.Alpha(0.2)).Children(func() {
+					ui.Column(c).FillWidth().Padding(t.Space(2), t.Space(2)).Gap(t.Space(1)).Radius(uikit.RadiusPanel).Background(t.Danger.Alpha(0.06)).Border(1, t.Danger.Alpha(0.2)).Children(func() {
 						ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-							ui.Text(c, "Recorded failure · "+cmp.Or(f.conn.errorStage, "unknown stage")).FontSize(textMeta).Bold().TextColor(t.TextMuted).Grow(1)
-							if ui.ButtonBase(c).Label("Copy error").Height(heightCompact).Padding(0, t.Space(2)).Gap(t.Space(1)).Radius(radiusControl).AlignItems(ui.Center).TextColor(t.TextMuted).Children(func() {
-								ui.Icon(c, copyIcon).Size(iconInline, iconInline)
-								ui.Text(c, "Copy").FontSize(textMeta)
+							ui.Text(c, "Recorded failure · "+cmp.Or(f.conn.errorStage, "unknown stage")).FontSize(uikit.TextMeta).Bold().TextColor(t.TextMuted).Grow(1)
+							if ui.ButtonBase(c).Label("Copy error").Height(uikit.HeightCompact).Padding(0, t.Space(2)).Gap(t.Space(1)).Radius(uikit.RadiusControl).AlignItems(ui.Center).TextColor(t.TextMuted).Children(func() {
+								ui.Icon(c, copyIcon).Size(uikit.IconInline, uikit.IconInline)
+								ui.Text(c, "Copy").FontSize(uikit.TextMeta)
 							}).Clicked() {
 								c.Services().WriteClipboard(f.conn.error)
 								a.setMessage("Copied the recorded error")
 							}
 						})
-						ui.Text(c, f.conn.error).Font(fontMono).FontSize(textMeta).TextColor(t.Danger).Selectable().SingleLine().Tooltip(f.conn.error)
+						ui.Text(c, f.conn.error).Font(uikit.FontMono).FontSize(uikit.TextMeta).TextColor(t.Danger).Selectable().SingleLine().Tooltip(f.conn.error)
 					})
 				}
 				// What to do next. A failure is read before anything is
@@ -318,9 +319,9 @@ func (a *app) connectPanel(c *ui.Context, f flow) {
 						const tip = "Open this exchange's Connection tab: the recorded log and addresses"
 						var button ui.Element
 						if primary {
-							button = ui.PrimaryButton(c, "View connection record").Height(heightControl).FontSize(textBody).Tooltip(tip)
+							button = ui.PrimaryButton(c, "View connection record").Height(uikit.HeightControl).FontSize(uikit.TextBody).Tooltip(tip)
 						} else {
-							button = ui.Button(c, "View connection record").Height(heightControl).FontSize(textBody).Tooltip(tip)
+							button = ui.Button(c, "View connection record").Height(uikit.HeightControl).FontSize(uikit.TextBody).Tooltip(tip)
 						}
 						if button.Clicked() {
 							a.inspect.pane = inspectorConnection
@@ -329,13 +330,13 @@ func (a *app) connectPanel(c *ui.Context, f flow) {
 					enable := func(primary bool) {
 						var button ui.Element
 						if primary {
-							button = ui.PrimaryButton(c, "Inspect "+hostOnly(f.host)).Label("Enable for " + f.host).Height(heightControl).FontSize(textBody).
+							button = ui.PrimaryButton(c, "Inspect "+hostOnly(f.host)).Label("Enable for " + f.host).Height(uikit.HeightControl).FontSize(uikit.TextBody).
 								Tooltip("Enable this hostname and subdomains on new connections; client CA trust is still required")
 							if !a.workbench.sideBySide {
 								button.MaxWidth(260)
 							}
 						} else {
-							button = ui.Button(c, "Inspect "+hostOnly(f.host)).Label("Enable for " + f.host).Height(heightControl).FontSize(textBody).
+							button = ui.Button(c, "Inspect "+hostOnly(f.host)).Label("Enable for " + f.host).Height(uikit.HeightControl).FontSize(uikit.TextBody).
 								Tooltip("Configuration for new connections; a recorded failure stays as it was")
 						}
 						if button.Clicked() {
@@ -356,30 +357,30 @@ func (a *app) connectPanel(c *ui.Context, f flow) {
 						}
 						record(false)
 					}
-					if ui.Button(c, "Certificate setup…").Height(heightControl).FontSize(textBody).Tooltip("Check or install the local CA; this client may still need its own trust or a debug build").Clicked() {
+					if ui.Button(c, "Certificate setup…").Height(uikit.HeightControl).FontSize(uikit.TextBody).Tooltip("Check or install the local CA; this client may still need its own trust or a debug build").Clicked() {
 						a.settingsTab, a.settingsOpen = 2, true
 						a.checkCertificate(false)
 					}
 				})
 				// Known configuration, secondary: today's rules never
 				// explain a tunnel that was recorded earlier.
-				ui.Text(c, "Known configuration").FontSize(textMeta).Bold().TextColor(t.TextMuted)
+				ui.Text(c, "Known configuration").FontSize(uikit.TextMeta).Bold().TextColor(t.TextMuted)
 				if domainEnabled {
-					ui.Text(c, "Domain rule enabled · reconnect to inspect new requests").FontSize(textMeta).TextColor(t.Text)
+					ui.Text(c, "Domain rule enabled · reconnect to inspect new requests").FontSize(uikit.TextMeta).TextColor(t.Text)
 				} else {
-					ui.Text(c, "Domain decryption disabled").FontSize(textMeta).TextColor(t.TextMuted)
+					ui.Text(c, "Domain decryption disabled").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
 				}
 				if appEnabled {
-					ui.Text(c, "App rule enabled · reconnect to inspect new requests").FontSize(textMeta).Tooltip(f.processPath)
+					ui.Text(c, "App rule enabled · reconnect to inspect new requests").FontSize(uikit.TextMeta).Tooltip(f.processPath)
 				} else if !filepath.IsAbs(f.processPath) {
-					ui.Text(c, "App rule unavailable · local executable identity not recorded").FontSize(textMeta).TextColor(t.TextMuted)
+					ui.Text(c, "App rule unavailable · local executable identity not recorded").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
 				}
-				ui.Text(c, trust).FontSize(textMeta).TextColor(trustColor).
+				ui.Text(c, trust).FontSize(uikit.TextMeta).TextColor(trustColor).
 					Tooltip("System trust is not proof that this client accepts the proxy's CA")
 				if broadScope {
 					ui.Row(c).Children(func() {
-						if ui.ButtonBase(c).Label("Inspect all domains from "+f.process).Height(heightCompact).Padding(0, t.Space(1)).Radius(radiusControl).AlignItems(ui.Center).Children(func() {
-							ui.Text(c, "Inspect all domains from \""+f.process+"\"…").FontSize(textMeta).TextColor(t.TextMuted)
+						if ui.ButtonBase(c).Label("Inspect all domains from "+f.process).Height(uikit.HeightCompact).Padding(0, t.Space(1)).Radius(uikit.RadiusControl).AlignItems(ui.Center).Children(func() {
+							ui.Text(c, "Inspect all domains from \""+f.process+"\"…").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
 						}).Tooltip("Wider scope for new connections from " + f.processPath + "; not a fix for this failure").Clicked() {
 							a.setAppInspection(capture.SSLApp{Name: f.process, Path: f.processPath}, true)
 						}

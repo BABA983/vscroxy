@@ -3,6 +3,7 @@ package app
 import (
 	"cmp"
 	"fmt"
+	"github.com/baba983/vscroxy/internal/uikit"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -206,14 +207,14 @@ func (a *app) ruleScenarios(c *ui.Context, t *ui.Theme) {
 		}
 	}
 	ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-		ui.Text(c, "Active: "+cmp.Or(active, "none · global rules only")).FontSize(textBody).Bold().Grow(1)
+		ui.Text(c, "Active: "+cmp.Or(active, "none · global rules only")).FontSize(uikit.TextBody).Bold().Grow(1)
 		if len(options) > 0 {
-			ui.Select(c, &e.scenarioChoice, options).Label("Scenario to activate").Width(180).Height(heightControl).Radius(radiusControl)
-			if secondaryButton(c, "Activate scenario").Disabled(e.scenarioChoice == active).Clicked() {
+			ui.Select(c, &e.scenarioChoice, options).Label("Scenario to activate").Width(180).Height(uikit.HeightControl).Radius(uikit.RadiusControl)
+			if uikit.SecondaryButton(c, "Activate scenario").Disabled(e.scenarioChoice == active).Clicked() {
 				a.selectRuleScenario(e.scenarioChoice)
 			}
 		}
-		if secondaryButton(c, "Deactivate scenario").Disabled(active == "").Clicked() {
+		if uikit.SecondaryButton(c, "Deactivate scenario").Disabled(active == "").Clicked() {
 			a.selectRuleScenario("")
 		}
 	})
@@ -223,13 +224,13 @@ func (a *app) previewRuleMatches(c *ui.Context, t *ui.Theme) {
 	e := &a.ruleUI
 	ui.Text(c, "Test saved rules · no request is sent").Bold()
 	ui.Row(c).Gap(t.Space(2)).Children(func() {
-		ui.TextInput(c, &e.previewMethod).Label("Test method").Width(85).Height(heightControl).Radius(radiusControl)
-		ui.TextInput(c, &e.previewURL).Label("Test URL").Placeholder("https://api.example.com/v1/").Grow(1).Height(heightControl).Radius(radiusControl)
+		ui.TextInput(c, &e.previewMethod).Label("Test method").Width(85).Height(uikit.HeightControl).Radius(uikit.RadiusControl)
+		ui.TextInput(c, &e.previewURL).Label("Test URL").Placeholder("https://api.example.com/v1/").Grow(1).Height(uikit.HeightControl).Radius(uikit.RadiusControl)
 	})
 	u, err := url.Parse(strings.TrimSpace(e.previewURL))
 	method := strings.TrimSpace(e.previewMethod)
 	if err != nil || u.Hostname() == "" || (u.Scheme != "http" && u.Scheme != "https") || u.User != nil || u.Fragment != "" || !httpguts.ValidHeaderFieldName(method) {
-		ui.Text(c, "Enter an http(s) URL without credentials or fragment and an HTTP method.").FontSize(textBody).TextColor(t.TextMuted)
+		ui.Text(c, "Enter an http(s) URL without credentials or fragment and an HTTP method.").FontSize(uikit.TextBody).TextColor(t.TextMuted)
 		return
 	}
 	winner := false
@@ -240,10 +241,10 @@ func (a *app) previewRuleMatches(c *ui.Context, t *ui.Theme) {
 			winner = true
 			color = t.Accent
 		}
-		ui.Text(c, fmt.Sprintf("%d · %s · %s — %s", p.Index+1, cmp.Or(r.Name, r.Match), ruleLabel(r.Type), p.Reason)).FontSize(textBody).TextColor(color)
+		ui.Text(c, fmt.Sprintf("%d · %s · %s — %s", p.Index+1, cmp.Or(r.Name, r.Match), ruleLabel(r.Type), p.Reason)).FontSize(uikit.TextBody).TextColor(color)
 	}
 	if !winner {
-		ui.Text(c, "No response rule wins · request goes upstream.").FontSize(textBody)
+		ui.Text(c, "No response rule wins · request goes upstream.").FontSize(uikit.TextBody)
 	}
 }
 
@@ -253,24 +254,24 @@ func (a *app) rulesModal(c *ui.Context, t *ui.Theme) {
 		return
 	}
 	_, height := c.Size()
-	if appModal(c, &e.open, func() {
-		dialogColumn(c, dialogLarge).Height(min(560, height-80)).Children(func() {
+	if uikit.Modal(c, &e.open, func() {
+		uikit.DialogColumn(c, uikit.DialogLarge).Height(min(560, height-80)).Children(func() {
 			ui.Row(c).AlignItems(ui.Center).Children(func() {
-				dialogTitle(c, "Rules")
+				uikit.DialogTitle(c, "Rules")
 				ui.Spacer(c)
 				ui.Checkbox(c, &e.preview, "Test URL + method")
 				ui.Badge(c, fmt.Sprintf("%d rules", len(a.rules)))
 			})
-			ui.Text(c, "The first matching Map or Block rule wins. Breakpoints pause only while Breakpoints is on.").FontSize(textMeta).TextColor(t.TextMuted)
+			ui.Text(c, "The first matching Map or Block rule wins. Breakpoints pause only while Breakpoints is on.").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
 			a.ruleScenarios(c, t)
 			ui.Row(c).Grow(1).MinHeight(0).Gap(t.Space(4)).AlignItems(ui.Stretch).Children(func() {
 				ui.Column(c).Width(260).Gap(t.Space(2)).Children(func() {
-					if secondaryButton(c, "+ New rule").Clicked() {
+					if uikit.SecondaryButton(c, "+ New rule").Clicked() {
 						a.editRule(-1, capture.Rule{Type: capture.RuleMapRemote})
 					}
 					ui.Scroll(c).Grow(1).MinHeight(0).Gap(t.Space(2)).Children(func() {
 						for i, r := range a.rules {
-							ui.Row(c).Key(fmt.Sprint(i)).Gap(t.Space(2)).AlignItems(ui.Center).Padding(t.Space(2)).Radius(radiusControl).Background(t.Surface).Children(func() {
+							ui.Row(c).Key(fmt.Sprint(i)).Gap(t.Space(2)).AlignItems(ui.Center).Padding(t.Space(2)).Radius(uikit.RadiusControl).Background(uikit.Colors(t).Panel).Children(func() {
 								enabled := !r.Disabled
 								if ui.Switch(c, &enabled).Label(fmt.Sprintf("Enable rule %d", i+1)).Changed() {
 									next := slices.Clone(a.rules)
@@ -279,14 +280,14 @@ func (a *app) rulesModal(c *ui.Context, t *ui.Theme) {
 										e.draft.Disabled = !enabled
 									}
 								}
-								button := ui.Button(c, "").Label(fmt.Sprintf("Edit rule %d", i+1)).Grow(1).Border(0, t.Border).Radius(radiusControl)
+								button := ui.Button(c, "").Label(fmt.Sprintf("Edit rule %d", i+1)).Grow(1).Border(0, t.Border).Radius(uikit.RadiusControl)
 								if e.index == i {
 									button.Background(t.Accent.Alpha(0.12)).TextColor(t.Accent)
 								}
 								button.Children(func() {
 									ui.Column(c).Gap(t.Space(1)).Children(func() {
-										ui.Text(c, cmp.Or(r.Name, r.Match)).FontSize(textBody).Bold().SingleLine()
-										ui.Text(c, fmt.Sprintf("%d · %s · %s", i+1, ruleLabel(r.Type), cmp.Or(r.Scenario, "global"))).FontSize(textMeta).TextColor(t.TextMuted).SingleLine()
+										ui.Text(c, cmp.Or(r.Name, r.Match)).FontSize(uikit.TextBody).Bold().SingleLine()
+										ui.Text(c, fmt.Sprintf("%d · %s · %s", i+1, ruleLabel(r.Type), cmp.Or(r.Scenario, "global"))).FontSize(uikit.TextMeta).TextColor(t.TextMuted).SingleLine()
 									})
 								})
 								if button.Clicked() {
@@ -295,14 +296,14 @@ func (a *app) rulesModal(c *ui.Context, t *ui.Theme) {
 							})
 						}
 						if len(a.rules) == 0 {
-							ui.Text(c, "No rules yet.\nCreate one here, or from a captured flow’s context menu.").FontSize(textBody).TextColor(t.TextMuted)
+							ui.Text(c, "No rules yet.\nCreate one here, or from a captured flow’s context menu.").FontSize(uikit.TextBody).TextColor(t.TextMuted)
 						}
 					})
 					ui.Row(c).Gap(t.Space(2)).Children(func() {
-						if secondaryButton(c, "Move up").Disabled(e.index <= 0).Clicked() {
+						if uikit.SecondaryButton(c, "Move up").Disabled(e.index <= 0).Clicked() {
 							a.moveRule(-1)
 						}
-						if secondaryButton(c, "Move down").Disabled(e.index < 0 || e.index >= len(a.rules)-1).Clicked() {
+						if uikit.SecondaryButton(c, "Move down").Disabled(e.index < 0 || e.index >= len(a.rules)-1).Clicked() {
 							a.moveRule(1)
 						}
 					})
@@ -312,42 +313,42 @@ func (a *app) rulesModal(c *ui.Context, t *ui.Theme) {
 						a.previewRuleMatches(c, t)
 						return
 					}
-					ui.Text(c, "Name / scenario (blank means global)").FontSize(textMeta).TextColor(t.TextMuted)
+					ui.Text(c, "Name / scenario (blank means global)").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
 					ui.Row(c).Gap(t.Space(2)).Children(func() {
-						ui.TextInput(c, &e.draft.Name).Label("Rule name").Placeholder("A descriptive name").Grow(1).Height(heightControl).Radius(radiusControl)
+						ui.TextInput(c, &e.draft.Name).Label("Rule name").Placeholder("A descriptive name").Grow(1).Height(uikit.HeightControl).Radius(uikit.RadiusControl)
 						if e.kind != "Request breakpoint" && e.kind != "Response breakpoint" {
-							ui.TextInput(c, &e.draft.Scenario).Label("Rule scenario").Placeholder("Named scenario").Width(180).Height(heightControl).Radius(radiusControl)
+							ui.TextInput(c, &e.draft.Scenario).Label("Rule scenario").Placeholder("Named scenario").Width(180).Height(uikit.HeightControl).Radius(uikit.RadiusControl)
 						}
 					})
-					ui.Text(c, "Type / HTTP method").FontSize(textMeta).TextColor(t.TextMuted)
+					ui.Text(c, "Type / HTTP method").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
 					ui.Row(c).Gap(t.Space(2)).Children(func() {
-						ui.Select(c, &e.kind, ruleLabels).Label("Rule type").Grow(1).Height(heightControl).Radius(radiusControl)
-						ui.TextInput(c, &e.draft.Method).Width(95).Label("Match method").Placeholder("Any").Height(heightControl).Radius(radiusControl)
+						ui.Select(c, &e.kind, ruleLabels).Label("Rule type").Grow(1).Height(uikit.HeightControl).Radius(uikit.RadiusControl)
+						ui.TextInput(c, &e.draft.Method).Width(95).Label("Match method").Placeholder("Any").Height(uikit.HeightControl).Radius(uikit.RadiusControl)
 					})
-					ui.Text(c, "Match URL").FontSize(textMeta).TextColor(t.TextMuted)
-					ui.TextInput(c, &e.draft.Match).Label("URL contains").Placeholder("https://api.example.com/v1/").Height(heightControl).Radius(radiusControl)
-					ui.Text(c, "Literal substring of the full URL, not a regex or wildcard.").FontSize(textMeta).TextColor(t.TextMuted)
+					ui.Text(c, "Match URL").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
+					ui.TextInput(c, &e.draft.Match).Label("URL contains").Placeholder("https://api.example.com/v1/").Height(uikit.HeightControl).Radius(uikit.RadiusControl)
+					ui.Text(c, "Literal substring of the full URL, not a regex or wildcard.").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
 					switch e.kind {
 					case "Map Local":
-						ui.Text(c, "Local response").FontSize(textMeta).TextColor(t.TextMuted)
+						ui.Text(c, "Local response").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
 						ui.Row(c).Gap(t.Space(2)).AlignItems(ui.End).Children(func() {
-							ui.TextInput(c, &e.draft.Target).Label("Response file").Grow(1).Height(heightControl).Radius(radiusControl)
-							if secondaryButton(c, "Browse…").Clicked() {
+							ui.TextInput(c, &e.draft.Target).Label("Response file").Grow(1).Height(uikit.HeightControl).Radius(uikit.RadiusControl)
+							if uikit.SecondaryButton(c, "Browse…").Clicked() {
 								a.browseRuleFile()
 							}
 						})
-						ui.Text(c, "HTTP status / response headers").FontSize(textMeta).TextColor(t.TextMuted)
-						ui.TextInput(c, &e.status).Label("Response status").Width(130).Height(heightControl).Radius(radiusControl)
-						ui.TextArea(c, &e.headers).Height(76).Font(fontMono).FontSize(textBody).Radius(radiusControl).Label("Response headers").Placeholder("Content-Type: application/json")
-						ui.Text(c, "Up to 8 MiB. Connection headers are removed; length is recalculated.").FontSize(textMeta).TextColor(t.TextMuted)
+						ui.Text(c, "HTTP status / response headers").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
+						ui.TextInput(c, &e.status).Label("Response status").Width(130).Height(uikit.HeightControl).Radius(uikit.RadiusControl)
+						ui.TextArea(c, &e.headers).Height(76).Font(uikit.FontMono).FontSize(uikit.TextBody).Radius(uikit.RadiusControl).Label("Response headers").Placeholder("Content-Type: application/json")
+						ui.Text(c, "Up to 8 MiB. Connection headers are removed; length is recalculated.").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
 					case "Map Remote":
-						ui.Text(c, "Upstream destination").FontSize(textMeta).TextColor(t.TextMuted)
-						ui.TextInput(c, &e.draft.Target).Label("Target base URL").Placeholder("http://127.0.0.1:8080").Height(heightControl).Radius(radiusControl)
-						ui.Text(c, "Keeps the original path and query. A target path prefixes the path; a target query replaces the query.").FontSize(textMeta).TextColor(t.TextMuted)
+						ui.Text(c, "Upstream destination").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
+						ui.TextInput(c, &e.draft.Target).Label("Target base URL").Placeholder("http://127.0.0.1:8080").Height(uikit.HeightControl).Radius(uikit.RadiusControl)
+						ui.Text(c, "Keeps the original path and query. A target path prefixes the path; a target query replaces the query.").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
 					case "Block":
-						ui.Text(c, "Returns 403 without contacting the upstream server.").FontSize(textBody).TextColor(t.TextMuted)
+						ui.Text(c, "Returns 403 without contacting the upstream server.").FontSize(uikit.TextBody).TextColor(t.TextMuted)
 					default:
-						ui.Text(c, "Pauses matching traffic while Break is on. Use Continue or Abort in the breakpoint dialog.").FontSize(textBody).TextColor(t.TextMuted)
+						ui.Text(c, "Pauses matching traffic while Break is on. Use Continue or Abort in the breakpoint dialog.").FontSize(uikit.TextBody).TextColor(t.TextMuted)
 					}
 					enabled := !e.draft.Disabled
 					if ui.Checkbox(c, &enabled, "Rule enabled").Changed() {
@@ -356,18 +357,18 @@ func (a *app) rulesModal(c *ui.Context, t *ui.Theme) {
 				})
 			})
 			if e.problem != "" {
-				ui.Text(c, e.problem).FontSize(textBody).TextColor(t.Danger)
+				ui.Text(c, e.problem).FontSize(uikit.TextBody).TextColor(t.Danger)
 			}
-			dialogFooter(c).Children(func() {
-				if secondaryButton(c, "Delete rule…").Disabled(e.index < 0).Clicked() {
+			uikit.DialogFooter(c).Children(func() {
+				if uikit.SecondaryButton(c, "Delete rule…").Disabled(e.index < 0).Clicked() {
 					e.deleting = true
 				}
 				ui.Spacer(c)
-				if secondaryButton(c, "Close").Clicked() {
+				if uikit.SecondaryButton(c, "Close").Clicked() {
 					a.discardRuleDraft()
 					e.open = false
 				}
-				if primaryButton(c, "Save rule").Disabled(e.preview).Clicked() {
+				if uikit.PrimaryButton(c, "Save rule").Disabled(e.preview).Clicked() {
 					a.saveRule()
 				}
 			})

@@ -3,6 +3,7 @@ package app
 import (
 	"encoding/json/v2"
 	"fmt"
+	"github.com/baba983/vscroxy/internal/uikit"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -198,7 +199,7 @@ func (s *investigationWorkbench) pane(c *ui.Context, side int) {
 	t := c.Theme()
 	ui.Column(c.Key(fmt.Sprintf("investigation-pane-%d", side))).Grow(1).Basis(0).FillHeight().Gap(t.Space(2)).Children(func() {
 		if len(s.sources) == 0 {
-			emptyState(c, "No opened sources", "Open saved session or evidence files to inspect them here.", nil)
+			uikit.EmptyState(c, "No opened sources", "Open saved session or evidence files to inspect them here.", nil)
 			return
 		}
 		options := make([]string, len(s.sources))
@@ -207,15 +208,15 @@ func (s *investigationWorkbench) pane(c *ui.Context, side int) {
 		}
 		choice := options[s.panes[side]]
 		if ui.Select(c, &choice, options).Label(fmt.Sprintf("Historical source %d", side+1)).FillWidth().
-			Height(heightControl).Padding(0, t.Space(2)).Radius(radiusControl).FontSize(textBody).Changed() {
+			Height(uikit.HeightControl).Padding(0, t.Space(2)).Radius(uikit.RadiusControl).FontSize(uikit.TextBody).Changed() {
 			s.panes[side] = slices.Index(options, choice)
 			s.lists[side] = ui.ListState{}
 		}
 		index := s.panes[side]
 		src, rows := s.sources[index], s.matches[index]
-		ui.Text(c, fmt.Sprintf("Historical / read-only · %d of %d exchanges", len(rows), len(src.Session.Flows))).FontSize(textMeta).TextColor(t.TextMuted)
+		ui.Text(c, fmt.Sprintf("Historical / read-only · %d of %d exchanges", len(rows), len(src.Session.Flows))).FontSize(uikit.TextMeta).TextColor(t.TextMuted)
 		if src.Notes != "" {
-			ui.Text(c, "Source notes: "+investigationSummary(src.Notes)).FontSize(textMeta).Tooltip(src.Notes)
+			ui.Text(c, "Source notes: "+investigationSummary(src.Notes)).FontSize(uikit.TextMeta).Tooltip(src.Notes)
 		}
 		ui.Divider(c).Background(t.Border)
 		ui.List(c, &s.lists[side], len(rows), func(i int) {
@@ -223,21 +224,21 @@ func (s *investigationWorkbench) pane(c *ui.Context, side int) {
 			f := src.Session.Flows[row]
 			p := investigationPick{index, row}
 			chosen := slices.Contains(s.picks, p)
-			ui.Column(c).MinHeight(heightControl).Padding(t.Space(1), t.Space(2)).Gap(t.Space(1)).Children(func() {
+			ui.Column(c).MinHeight(uikit.HeightControl).Padding(t.Space(1), t.Space(2)).Gap(t.Space(1)).Children(func() {
 				label := fmt.Sprintf("#%d · %s · %d · %s", f.ID, investigationSummary(f.Method), f.Status, investigationSummary(f.URL))
-				if ui.Checkbox(c, &chosen, label).Label(fmt.Sprintf("Select source %d exchange %d", index+1, f.ID)).Tooltip(f.URL).FontSize(textBody).Changed() {
+				if ui.Checkbox(c, &chosen, label).Label(fmt.Sprintf("Select source %d exchange %d", index+1, f.ID)).Tooltip(f.URL).FontSize(uikit.TextBody).Changed() {
 					s.pick(p, chosen)
 				}
 				if f.Note != "" {
-					ui.Text(c, "Note: "+investigationSummary(f.Note)).FontSize(textMeta).TextColor(t.TextMuted)
+					ui.Text(c, "Note: "+investigationSummary(f.Note)).FontSize(uikit.TextMeta).TextColor(t.TextMuted)
 				}
 				if problem := strings.Join([]string{f.ConnectionError, f.ReqError, f.ResError}, " "); strings.TrimSpace(problem) != "" {
-					ui.Text(c, "Error: "+investigationSummary(problem)).FontSize(textMeta).TextColor(t.Danger)
+					ui.Text(c, "Error: "+investigationSummary(problem)).FontSize(uikit.TextMeta).TextColor(t.Danger)
 				}
 			})
 		}).Grow(1).Gap(t.Space(1)).Dividers(1, t.Border).Children(func() {
 			if len(rows) == 0 {
-				emptyState(c, "No matching exchanges", "Try another URL, status, note or error.", nil)
+				uikit.EmptyState(c, "No matching exchanges", "Try another URL, status, note or error.", nil)
 			}
 		})
 	})
@@ -307,31 +308,31 @@ func (s *investigationWorkbench) modal(c *ui.Context, a *app) {
 	}
 	w, h := c.Size()
 	t := c.Theme()
-	appModal(c, &s.open, func() {
+	uikit.Modal(c, &s.open, func() {
 		ui.Column(c).Width(min(1120, w-80)).Height(min(800, h-100)).Gap(t.Space(2)).Children(func() {
 			ui.Row(c).Gap(t.Space(3)).Children(func() {
-				dialogTitle(c, "Historical sessions & evidence").Grow(1)
-				if secondaryButton(c, "Close").Clicked() {
+				uikit.DialogTitle(c, "Historical sessions & evidence").Grow(1)
+				if uikit.SecondaryButton(c, "Close").Clicked() {
 					s.open = false
 				}
 			})
 			ui.Divider(c).Background(t.Border)
-			ui.Text(c, "Read-only local files. Never sends requests, runs scripts, changes rules or replaces live traffic.").FontSize(textMeta).TextColor(t.TextMuted)
+			ui.Text(c, "Read-only local files. Never sends requests, runs scripts, changes rules or replaces live traffic.").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
 			if s.busy {
-				ui.Text(c, "Working…").FontSize(textMeta)
+				ui.Text(c, "Working…").FontSize(uikit.TextMeta)
 			}
 			if s.problem != "" {
-				ui.Text(c, s.problem).FontSize(textBody).TextColor(t.Danger)
+				ui.Text(c, s.problem).FontSize(uikit.TextBody).TextColor(t.Danger)
 			}
 			if s.feedback != "" {
-				ui.Text(c, s.feedback).FontSize(textMeta).TextColor(t.Success)
+				ui.Text(c, s.feedback).FontSize(uikit.TextMeta).TextColor(t.Success)
 			}
 			if s.reviewing {
 				s.review(c, a)
 				return
 			}
 			if s.comparing && len(s.picks) == 2 {
-				if secondaryButton(c, "Back to sources").Clicked() {
+				if uikit.SecondaryButton(c, "Back to sources").Clicked() {
 					s.comparing = false
 				}
 				left, right := s.picks[0], s.picks[1]
@@ -350,19 +351,19 @@ func (s *investigationWorkbench) modal(c *ui.Context, a *app) {
 func (s *investigationWorkbench) browse(c *ui.Context, a *app) {
 	t := c.Theme()
 	ui.Row(c).Gap(t.Space(2)).Wrap().Children(func() {
-		if secondaryButton(c, "Open files…").Disabled(s.busy).Clicked() {
+		if uikit.SecondaryButton(c, "Open files…").Disabled(s.busy).Clicked() {
 			s.openFiles(a)
 		}
-		if secondaryButton(c, "Forget opened files").Disabled(s.busy || len(s.sources) == 0).Clicked() {
+		if uikit.SecondaryButton(c, "Forget opened files").Disabled(s.busy || len(s.sources) == 0).Clicked() {
 			s.sources, s.picks, s.matches = nil, nil, nil
 			s.kept, s.panes = 0, [2]int{}
 			s.comparison, s.problem, s.feedback = captureAnalysis{}, "", ""
 		}
-		ui.Text(c, fmt.Sprintf("%d / 8 sources · %.1f / 48 MiB", len(s.sources), float64(s.kept)/(1<<20))).FontSize(textMeta)
+		ui.Text(c, fmt.Sprintf("%d / 8 sources · %.1f / 48 MiB", len(s.sources), float64(s.kept)/(1<<20))).FontSize(uikit.TextMeta)
 	})
-	ui.Text(c, "Search scope: opened sources only · URL, numeric status, exchange/source notes and errors · literal, case-insensitive · not headers, bodies or messages").FontSize(textMeta).TextColor(t.TextMuted)
+	ui.Text(c, "Search scope: opened sources only · URL, numeric status, exchange/source notes and errors · literal, case-insensitive · not headers, bodies or messages").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
 	if ui.TextInput(c, &s.query).Label("Search historical sources").Placeholder("Search URL / status / note / error").
-		Height(heightControl).Padding(0, t.Space(2)).Radius(radiusControl).FontSize(textBody).Changed() {
+		Height(uikit.HeightControl).Padding(0, t.Space(2)).Radius(uikit.RadiusControl).FontSize(uikit.TextBody).Changed() {
 		s.refreshSearch()
 	}
 	ui.Row(c).Grow(1).Gap(t.Space(3)).Dividers(1, t.Border).AlignItems(ui.Stretch).Children(func() {
@@ -371,28 +372,28 @@ func (s *investigationWorkbench) browse(c *ui.Context, a *app) {
 	})
 	ui.Divider(c).Background(t.Border)
 	ui.Row(c).Gap(t.Space(2)).Wrap().Children(func() {
-		ui.Text(c, fmt.Sprintf("%d / 64 selected across all sources (including hidden results)", len(s.picks))).FontSize(textMeta).Grow(1)
-		if secondaryButton(c, "Clear selection").Clicked() {
+		ui.Text(c, fmt.Sprintf("%d / 64 selected across all sources (including hidden results)", len(s.picks))).FontSize(uikit.TextMeta).Grow(1)
+		if uikit.SecondaryButton(c, "Clear selection").Clicked() {
 			s.picks, s.comparison = nil, captureAnalysis{}
 		}
-		if secondaryButton(c, "Compare selected two").Disabled(len(s.picks) != 2).Clicked() {
+		if uikit.SecondaryButton(c, "Compare selected two").Disabled(len(s.picks) != 2).Clicked() {
 			s.comparing = true
 		}
 	})
 	ui.TextInput(c, &s.title).Label("Evidence title").Placeholder("Evidence title (required for export)").
-		Height(heightControl).Padding(0, t.Space(2)).Radius(radiusControl).FontSize(textBody)
+		Height(uikit.HeightControl).Padding(0, t.Space(2)).Radius(uikit.RadiusControl).FontSize(uikit.TextBody)
 	ui.TextInput(c, &s.notes).Label("Evidence notes").Placeholder("Notes for this evidence bundle (optional)").
-		Height(heightControl).Padding(0, t.Space(2)).Radius(radiusControl).FontSize(textBody)
-	if primaryButton(c, "Review selected evidence…").Disabled(s.busy || len(s.picks) == 0).Clicked() {
+		Height(uikit.HeightControl).Padding(0, t.Space(2)).Radius(uikit.RadiusControl).FontSize(uikit.TextBody)
+	if uikit.PrimaryButton(c, "Review selected evidence…").Disabled(s.busy || len(s.picks) == 0).Clicked() {
 		s.prepareReview(a)
 	}
 }
 
 func (s *investigationWorkbench) review(c *ui.Context, a *app) {
 	t := c.Theme()
-	dialogColumn(c, dialogLarge).Grow(1).AlignSelf(ui.Center).Children(func() {
-		ui.Text(c, "RAW EVIDENCE · NOT AUTOMATICALLY SANITIZED").FontSize(textBody).Bold().TextColor(t.Warning)
-		ui.Text(c, "May include credentials, cookies, URL secrets, bodies, binary/base64 messages, trailers and private notes. Review ALL JSON before sharing. Edit title, notes, source labels and captured fields below; remove secrets yourself. No automatic redaction is performed.").FontSize(textBody)
+	uikit.DialogColumn(c, uikit.DialogLarge).Grow(1).AlignSelf(ui.Center).Children(func() {
+		ui.Text(c, "RAW EVIDENCE · NOT AUTOMATICALLY SANITIZED").FontSize(uikit.TextBody).Bold().TextColor(t.Warning)
+		ui.Text(c, "May include credentials, cookies, URL secrets, bodies, binary/base64 messages, trailers and private notes. Review ALL JSON before sharing. Edit title, notes, source labels and captured fields below; remove secrets yourself. No automatic redaction is performed.").FontSize(uikit.TextBody)
 		if s.reviewCode == nil {
 			buf := editor.NewBuffer(s.preview)
 			buf.SetLanguage(editor.LanguageNamed("json"))
@@ -406,20 +407,20 @@ func (s *investigationWorkbench) review(c *ui.Context, a *app) {
 			s.reviewVersion = version
 			s.reviewed, s.problem, s.feedback = false, "", ""
 		}
-		ui.Checkbox(c, &s.reviewed, "I reviewed the complete raw evidence and accept responsibility for sharing it").Label("Confirm full evidence review").FontSize(textBody).Disabled(s.busy)
-		dialogFooter(c).Children(func() {
+		ui.Checkbox(c, &s.reviewed, "I reviewed the complete raw evidence and accept responsibility for sharing it").Label("Confirm full evidence review").FontSize(uikit.TextBody).Disabled(s.busy)
+		uikit.DialogFooter(c).Children(func() {
 			back := "Back without exporting"
 			if s.origin == "board" {
 				back = "Close without exporting"
 			}
-			if secondaryButton(c, back).Disabled(s.busy).Clicked() {
+			if uikit.SecondaryButton(c, back).Disabled(s.busy).Clicked() {
 				s.reviewing, s.reviewed, s.preview = false, false, ""
 				s.reviewCode = nil
 				if s.origin == "board" {
 					s.open, s.origin = false, ""
 				}
 			}
-			if primaryButton(c, "Export reviewed evidence…").Disabled(s.busy || !s.reviewed).Clicked() {
+			if uikit.PrimaryButton(c, "Export reviewed evidence…").Disabled(s.busy || !s.reviewed).Clicked() {
 				s.exportReviewed(a)
 			}
 		})

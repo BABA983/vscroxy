@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"github.com/baba983/vscroxy/internal/uikit"
 	"io"
 	"os"
 	"strings"
@@ -19,32 +20,32 @@ type regressionShare struct {
 
 func (a *app) checksEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
 	ui.Scroll(c).Grow(1).Gap(t.Space(3)).Children(func() {
-		ui.Text(c, "RESPONSE CHECKS · all must pass · used by Send and Collection Runner").FontSize(textMeta).TextColor(t.TextMuted)
+		ui.Text(c, "RESPONSE CHECKS · all must pass · used by Send and Collection Runner").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
 		ui.Form(c, func() {
 			ui.Field(c, "Expected status", func() {
 				ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-					ui.TextInput(c, &d.checks.Status).Width(90).Height(heightControl).Label("Expected status").Placeholder("200")
-					ui.Text(c, "Empty = no status assertion").FontSize(textMeta).TextColor(t.TextMuted)
+					ui.TextInput(c, &d.checks.Status).Width(90).Height(uikit.HeightControl).Label("Expected status").Placeholder("200")
+					ui.Text(c, "Empty = no status assertion").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
 				})
 			})
 			ui.Field(c, "Response headers", func() {
-				ui.TextArea(c.Key("check-headers"), &d.checks.Headers).Height(72).Font(fontMono).FontSize(textBody).
-					Radius(radiusControl).Label("Expected response headers").Placeholder("Content-Type: application/json")
-				ui.Text(c, "Response headers · exact value, any repeated value may match").FontSize(textMeta).TextColor(t.TextMuted)
+				ui.TextArea(c.Key("check-headers"), &d.checks.Headers).Height(72).Font(uikit.FontMono).FontSize(uikit.TextBody).
+					Radius(uikit.RadiusControl).Label("Expected response headers").Placeholder("Content-Type: application/json")
+				ui.Text(c, "Response headers · exact value, any repeated value may match").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
 			})
 			ui.Field(c, "JSON scalar fields", func() {
-				ui.TextArea(c.Key("check-json"), &d.checks.JSON).Height(96).Font(fontMono).FontSize(textBody).
-					Radius(radiusControl).Label("JSON response checks").Placeholder("/data/id = 42\n/items/0/name = \"example\"\n/ok = true")
-				ui.Text(c, "JSON scalar fields · RFC 6901 pointer = JSON value · one per line").FontSize(textMeta).TextColor(t.TextMuted)
+				ui.TextArea(c.Key("check-json"), &d.checks.JSON).Height(96).Font(uikit.FontMono).FontSize(uikit.TextBody).
+					Radius(uikit.RadiusControl).Label("JSON response checks").Placeholder("/data/id = 42\n/items/0/name = \"example\"\n/ok = true")
+				ui.Text(c, "JSON scalar fields · RFC 6901 pointer = JSON value · one per line").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
 			})
 		})
 		if _, _, _, err := d.checks.Parse(); err != nil {
-			ui.Text(c, err.Error()).FontSize(textMeta).TextColor(t.Danger)
+			ui.Text(c, err.Error()).FontSize(uikit.TextMeta).TextColor(t.Danger)
 		}
 		if names := d.value().Variables(); len(names) > 0 {
-			ui.Text(c, "Required variables: "+strings.Join(names, ", ")+" · configure in Variables…").FontSize(textMeta).TextColor(t.TextMuted)
+			ui.Text(c, "Required variables: "+strings.Join(names, ", ")+" · configure in Variables…").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
 		}
-		ui.Text(c, "JSON types matter; missing is not null. Checks never run scripts. Rerunning sends real traffic and can change server data.").FontSize(textMeta).TextColor(t.TextMuted)
+		ui.Text(c, "JSON types matter; missing is not null. Checks never run scripts. Rerunning sends real traffic and can change server data.").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
 	})
 }
 
@@ -93,31 +94,31 @@ func (a *app) regressionModal(c *ui.Context, t *ui.Theme) {
 	// Capture/save feedback must not cover the review gate in a small window.
 	c.CloseToast("")
 	width, height := c.Size()
-	appModal(c, &s.open, func() {
+	uikit.Modal(c, &s.open, func() {
 		ui.Column(c).Width(min(760, width-80)).Height(min(660, height-80)).Gap(t.Space(2)).Children(func() {
 			title := "Share regression · review sanitized copy"
 			if s.importing {
 				title = "Import regression · review before opening"
 			}
-			dialogTitle(c, title)
+			uikit.DialogTitle(c, title)
 			ui.Scroll(c).Grow(1).Gap(t.Space(2)).Children(func() {
 				for _, change := range s.changes {
-					ui.Text(c, "• "+change).FontSize(textMeta).TextColor(t.TextMuted)
+					ui.Text(c, "• "+change).FontSize(uikit.TextMeta).TextColor(t.TextMuted)
 				}
-				ui.Text(c, "Review URL paths, parameter names, Content-Type/Accept and assertion values for secrets. Automatic replacements are not a guarantee of anonymization. Edit the JSON below if needed.").FontSize(textBody).TextColor(t.Warning)
-				if ui.TextArea(c, &s.preview).Height(280).Font(fontMono).FontSize(textMeta).Label("Regression JSON preview").Changed() {
+				ui.Text(c, "Review URL paths, parameter names, Content-Type/Accept and assertion values for secrets. Automatic replacements are not a guarantee of anonymization. Edit the JSON below if needed.").FontSize(uikit.TextBody).TextColor(t.Warning)
+				if ui.TextArea(c, &s.preview).Height(280).Font(uikit.FontMono).FontSize(uikit.TextMeta).Label("Regression JSON preview").Changed() {
 					s.reviewed, s.feedback = false, ""
 				}
 			})
 			r, err := decodeRegression([]byte(s.preview))
 			if err != nil {
-				ui.Text(c, err.Error()).FontSize(textMeta).TextColor(t.Danger)
+				ui.Text(c, err.Error()).FontSize(uikit.TextMeta).TextColor(t.Danger)
 			} else {
-				ui.Text(c, "Variables to supply locally: "+strings.Join(r.Variables(), ", ")).FontSize(textMeta).TextColor(t.TextMuted)
+				ui.Text(c, "Variables to supply locally: "+strings.Join(r.Variables(), ", ")).FontSize(uikit.TextMeta).TextColor(t.TextMuted)
 			}
 			ui.Checkbox(c, &s.reviewed, "I reviewed the full request and checks").Label("Confirm regression review")
 			ui.Row(c).Gap(t.Space(2)).Justify(ui.End).Children(func() {
-				ui.Text(c, s.feedback).FontSize(textMeta).TextColor(t.Success)
+				ui.Text(c, s.feedback).FontSize(uikit.TextMeta).TextColor(t.Success)
 				if ui.Button(c, "Cancel").Clicked() {
 					s.open = false
 				}

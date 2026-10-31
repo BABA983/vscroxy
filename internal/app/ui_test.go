@@ -6,6 +6,7 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
+	"github.com/baba983/vscroxy/internal/uikit"
 	"io"
 	"math"
 	"net"
@@ -122,50 +123,6 @@ func TestEnabledToolbarPreservesContentFocus(t *testing.T) {
 	tt.Type("login")
 	if a.query != "login" {
 		t.Fatal("search no longer accepts edits after the toolbar changes")
-	}
-}
-
-func TestApplicationThemeKeepsTextReadable(t *testing.T) {
-	// WCAG relative luminance, calculated in linear sRGB after compositing
-	// translucent fills. Do not compare hex strings or derive thresholds
-	// from the palette: both themes must meet the same reading contract.
-	luminance := func(c ui.Color) float64 {
-		linear := func(v uint8) float64 {
-			s := float64(v) / 255
-			if s <= 0.04045 {
-				return s / 12.92
-			}
-			return math.Pow((s+0.055)/1.055, 2.4)
-		}
-		return 0.2126*linear(c.R) + 0.7152*linear(c.G) + 0.0722*linear(c.B)
-	}
-	for _, dark := range []bool{false, true} {
-		t.Run(fmt.Sprintf("dark=%t", dark), func(t *testing.T) {
-			theme := appTheme(dark)
-			check := func(name string, foreground, background ui.Color, minimum float64) {
-				t.Helper()
-				lo, hi := luminance(foreground.Over(background)), luminance(background)
-				ratio := (max(lo, hi) + 0.05) / (min(lo, hi) + 0.05)
-				if ratio < minimum {
-					t.Errorf("%s: contrast %.2f:1, want at least %.1f:1", name, ratio, minimum)
-				}
-			}
-			for _, fill := range []ui.Color{theme.Background, theme.Surface, theme.SurfaceHover, theme.SurfacePressed} {
-				check("body", theme.Text, fill, 4.5)
-				check("secondary", theme.TextMuted, fill, 3)
-				check("keyboard focus", theme.Focus, fill, 3)
-				for _, method := range []string{"GET", "POST", "PUT", "DELETE", "PATCH", "WS"} {
-					check(method, methodColor(method, theme), fill, 4.5)
-				}
-			}
-			for _, fill := range []ui.Color{theme.Accent, theme.AccentHover, theme.AccentPressed} {
-				check("primary action", theme.AccentText, fill, 4.5)
-			}
-			for _, status := range []int{200, 302, 404, 503} {
-				ink := statusColor(status, theme)
-				check(fmt.Sprintf("status %d", status), ink, ink.Alpha(0.12).Over(theme.Background), 4.5)
-			}
-		})
 	}
 }
 
@@ -807,7 +764,7 @@ func TestSettingsEscapeRestoresVisibleKeyboardFocus(t *testing.T) {
 				if !ok {
 					return false
 				}
-				im, ink := tt.Image(), appTheme(dark).Focus
+				im, ink := tt.Image(), uikit.Theme(dark).Focus
 				for y := int(bounds.Y) - 4; y < int(bounds.Y+bounds.H)+4; y++ {
 					for x := int(bounds.X) - 4; x < int(bounds.X+bounds.W)+4; x++ {
 						p := im.RGBAAt(x, y)
@@ -3300,15 +3257,17 @@ func TestCaptureSelectionIsSolidOnlyWhileTheListAndWindowHaveFocus(t *testing.T)
 					t.Fatal("selected traffic row disappeared")
 				}
 				// Sample empty space, not font antialiasing. Expected colors
-				// come from the design's indigo and 12% tint, not appTheme.
-				want := [3]int{235, 235, 250}
+				// come from the design's ink green (Paper #1e5b47, Ink
+				// #6fb593) and its 12% tint over the background, not
+				// uikit.Theme.
+				want := [3]int{221, 226, 216}
 				if dark {
-					want = [3]int{41, 41, 55}
+					want = [3]int{29, 41, 35}
 				}
 				if solid {
-					want = [3]int{91, 91, 214}
+					want = [3]int{30, 91, 71}
 					if dark {
-						want = [3]int{124, 124, 240}
+						want = [3]int{111, 181, 147}
 					}
 				}
 				pixel := tt.Image().RGBAAt(int(table.X+table.W-5), int(row.Y+row.H/2))

@@ -1,6 +1,7 @@
 package app
 
 import (
+	"github.com/baba983/vscroxy/internal/uikit"
 	"slices"
 
 	"github.com/baba983/vscroxy/internal/request"
@@ -83,28 +84,28 @@ func (a *app) codeModal(c *ui.Context, t *ui.Theme) {
 		s.view = &editor.State{Buffer: buf, ReadOnly: true, NoScrollPastEnd: true, SoftWrap: true, Label: "Code: " + s.language}
 	}
 	_, h := c.Size()
-	appModal(c, &s.open, func() {
-		dialogColumn(c, dialogLarge).Height(min(520, h-80)).Children(func() {
+	uikit.Modal(c, &s.open, func() {
+		uikit.DialogColumn(c, uikit.DialogLarge).Height(min(520, h-80)).Children(func() {
 			ui.Row(c).Gap(t.Space(2)).Wrap().AlignItems(ui.Center).Children(func() {
-				dialogTitle(c, "Code").Grow(1)
-				if ui.Select(c, &s.language, codeLanguages).Label("Code language").Width(200).Height(heightControl).FontSize(textBody).Changed() {
+				uikit.DialogTitle(c, "Code").Grow(1)
+				if ui.Select(c, &s.language, codeLanguages).Label("Code language").Width(200).Height(uikit.HeightControl).FontSize(uikit.TextBody).Changed() {
 					s.view = nil
 				}
 			})
 			ui.Scroll(c).MinHeight(0).Shrink(1).MaxHeight(100).Gap(t.Space(2)).Children(func() {
-				ui.Text(c, "{{variables}} stay as written and scripts do not run; replace them before running the code.").FontSize(textBody).TextColor(t.TextMuted)
+				ui.Text(c, "{{variables}} stay as written and scripts do not run; replace them before running the code.").FontSize(uikit.TextBody).TextColor(t.TextMuted)
 				if s.problem != "" {
-					ui.Text(c, s.problem).FontSize(textBody).TextColor(t.Danger)
+					ui.Text(c, s.problem).FontSize(uikit.TextBody).TextColor(t.Danger)
 				}
 			})
 			if s.view != nil {
 				requestCodeEditor(c, s.view)
 			}
-			dialogFooter(c).Children(func() {
-				if secondaryButton(c, "Close").Clicked() {
+			uikit.DialogFooter(c).Children(func() {
+				if uikit.SecondaryButton(c, "Close").Clicked() {
 					s.open = false
 				}
-				if primaryButton(c, "Copy").Disabled(s.problem != "").Clicked() {
+				if uikit.PrimaryButton(c, "Copy").Disabled(s.problem != "").Clicked() {
 					c.Services().WriteClipboard(s.view.Buffer.String())
 					a.setMessage("Copied " + s.language + " code; review credentials before sharing")
 				}

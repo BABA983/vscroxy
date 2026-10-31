@@ -2,6 +2,7 @@ package app
 
 import (
 	"errors"
+	"github.com/baba983/vscroxy/internal/uikit"
 	"os"
 	"path/filepath"
 	"strings"
@@ -368,28 +369,28 @@ func (a *app) systemProxySettings(c *ui.Context, t *ui.Theme) {
 	detail, full := a.systemProxyDetail(target)
 	ui.Column(c).Gap(t.Space(3)).Children(func() {
 		ui.Row(c).Gap(t.Space(2)).Wrap().AlignItems(ui.Center).Children(func() {
-			ui.Text(c, "System proxy").FontSize(textTitle).Bold().Grow(1)
+			ui.Text(c, "System proxy").FontSize(uikit.TextTitle).Bold().Grow(1)
 			if busy {
 				ui.Spinner(c).Label("System proxy")
 			}
-			ui.Text(c, status).FontSize(textBody).Bold().TextColor(color)
+			ui.Text(c, status).FontSize(uikit.TextBody).Bold().TextColor(color)
 		})
-		ui.Text(c, detail).FontSize(textMeta).TextColor(t.TextMuted).SingleLine().Tooltip(full)
+		ui.Text(c, detail).FontSize(uikit.TextMeta).TextColor(t.TextMuted).SingleLine().Tooltip(full)
 		ui.Row(c).Gap(t.Space(2)).Wrap().Children(func() {
-			enable := primaryButton(c, "Enable system proxy").Disabled(!running || busy)
+			enable := uikit.PrimaryButton(c, "Enable system proxy").Disabled(!running || busy)
 			if !running {
 				enable.Tooltip("Start capture first")
 			}
 			if enable.Clicked() {
 				a.setSystemProxy(true)
 			}
-			if secondaryButton(c, "Disable system proxy").Disabled(busy).Clicked() {
+			if uikit.SecondaryButton(c, "Disable system proxy").Disabled(busy).Clicked() {
 				a.setSystemProxy(false)
 			}
-			if secondaryButton(c, "Check again").Disabled(busy).Clicked() {
+			if uikit.SecondaryButton(c, "Check again").Disabled(busy).Clicked() {
 				a.checkSystemProxy(true)
 			}
 		})
-		ui.Text(c, "Read from this computer's OS settings. Applications with their own proxy settings, or that ignore the system proxy, still connect directly; captured traffic does not prove they use it.").FontSize(textMeta).TextColor(t.TextMuted)
+		ui.Text(c, "Read from this computer's OS settings. Applications with their own proxy settings, or that ignore the system proxy, still connect directly; captured traffic does not prove they use it.").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
 	})
 }

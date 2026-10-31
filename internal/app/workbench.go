@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"github.com/baba983/vscroxy/internal/uikit"
 	"runtime"
 	"slices"
 	"strings"
@@ -80,9 +81,9 @@ func (a *app) desktopContent(c *ui.Context) {
 			}
 			ui.Column(c).Fill().Children(func() {
 				if w.focused {
-					ui.Row(c).Height(heightLarge).Padding(0, c.Theme().Space(3)).AlignItems(ui.Center).Children(func() {
+					ui.Row(c).Height(uikit.HeightLarge).Padding(0, c.Theme().Space(3)).AlignItems(ui.Center).Children(func() {
 						a.desktopButton(c, "focus", "Back to list")
-						ui.Text(c, "Inspector focus · Ctrl/Cmd+Shift+Enter").FontSize(textMeta).TextColor(c.Theme().TextMuted)
+						ui.Text(c, "Inspector focus · Ctrl/Cmd+Shift+Enter").FontSize(uikit.TextMeta).TextColor(c.Theme().TextMuted)
 					})
 					a.detail(c)
 					return
@@ -91,11 +92,11 @@ func (a *app) desktopContent(c *ui.Context) {
 				table := func() {
 					ui.Column(c).Fill().Children(func() {
 						if a.chosen.Len() > 1 {
-							ui.Row(c).Height(heightLarge).Padding(0, c.Theme().Space(2)).Gap(c.Theme().Space(2)).AlignItems(ui.Center).Children(func() {
-								ui.Text(c, fmt.Sprintf("%d selected", a.chosen.Len())).FontSize(textMeta).Bold().Grow(1)
+							ui.Row(c).Height(uikit.HeightLarge).Padding(0, c.Theme().Space(2)).Gap(c.Theme().Space(2)).AlignItems(ui.Center).Children(func() {
+								ui.Text(c, fmt.Sprintf("%d selected", a.chosen.Len())).FontSize(uikit.TextMeta).Bold().Grow(1)
 								a.desktopButton(c, "replay", "Replay…")
 								a.desktopButton(c, "export-selection", "Export HAR…")
-								if ui.Button(c, "Clear selection").FontSize(textMeta).Height(heightCompact).Clicked() {
+								if ui.Button(c, "Clear selection").FontSize(uikit.TextMeta).Height(uikit.HeightCompact).Clicked() {
 									a.chosen.Clear()
 								}
 							})
@@ -106,8 +107,8 @@ func (a *app) desktopContent(c *ui.Context) {
 				if len(a.visible) == 0 {
 					a.syncDetail()
 					table()
-					ui.Row(c).Height(heightLarge).Padding(0, c.Theme().Space(3)).AlignItems(ui.Center).Children(func() {
-						ui.Text(c, "No request chosen").FontSize(textBody).TextColor(c.Theme().TextMuted)
+					ui.Row(c).Height(uikit.HeightLarge).Padding(0, c.Theme().Space(3)).AlignItems(ui.Center).Children(func() {
+						ui.Text(c, "No request chosen").FontSize(uikit.TextBody).TextColor(c.Theme().TextMuted)
 					})
 				} else if w.sideBySide {
 					ui.SplitPercent(c.Key("right-inspector"), &w.sidePercent, table, func() { a.detail(c) }).Fill()
@@ -137,12 +138,12 @@ var captureProtocols = captureKinds[:6]
 
 func (a *app) captureToolbar(c *ui.Context, t *ui.Theme) {
 	width := a.contentWidth(c)
-	ui.Row(c).Height(heightBar).Padding(0, t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-		ui.Row(c).Grow(1).MinWidth(160).Height(heightControl).Gap(t.Space(1)).Padding(0, t.Space(1)).
-			Border(1, t.Border).Radius(radiusControl).AlignItems(ui.Center).Children(func() {
+	ui.Row(c).Height(uikit.HeightBar).Padding(0, t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+		ui.Row(c).Grow(1).MinWidth(160).Height(uikit.HeightControl).Gap(t.Space(1)).Padding(0, t.Space(1)).
+			Border(1, t.Border).Radius(uikit.RadiusControl).AlignItems(ui.Center).Children(func() {
 			search := ui.TextInputBase(c, &a.query).Bind(&a.search).Label("Search host or path").Placeholder("Search host or path…").
 				Tooltip("URL host and path only · Ctrl/Cmd+F · Enter or ↓ moves to requests. Filters search headers and full bodies.").
-				Height(heightCompact).Padding(0, t.Space(2)).FontSize(textBody).Grow(1).MinWidth(72)
+				Height(uikit.HeightCompact).Padding(0, t.Space(2)).FontSize(uikit.TextBody).Grow(1).MinWidth(72)
 			search.OnShortcut(0, ui.KeyDown, func() { a.focusTraffic(c) })
 			if search.Changed() {
 				a.applyFilter()
@@ -154,52 +155,52 @@ func (a *app) captureToolbar(c *ui.Context, t *ui.Theme) {
 				ui.ScrollHorizontal(c).Width(min(260, width/4)).FillHeight().Children(func() {
 					a.captureConditions(c)
 				})
-				if iconButton(c, "Reset all", "Reset all conditions", closeIcon).Clicked() {
+				if uikit.IconButton(c, "Reset all", "Reset all conditions", closeIcon).Clicked() {
 					a.views.resetFilters(a)
 				}
 			}
 		})
-		ui.ScrollHorizontal(c).Width(min(302, width*0.36)).Height(heightControl).Children(func() {
+		ui.ScrollHorizontal(c).Width(min(302, width*0.36)).Height(uikit.HeightControl).Children(func() {
 			// Images and HTML live in the menu but remain valid selections.
 			segments := ui.SegmentedBase(c, &a.chip, len(captureKinds))
-			segments.Track.Label("Protocol and content type").Height(heightControl).Padding(t.Space(0.5)).Gap(t.Space(0.5)).Radius(radiusControl).Background(t.Surface).Children(func() {
+			segments.Track.Label("Protocol and content type").Height(uikit.HeightControl).Padding(t.Space(0.5)).Gap(t.Space(0.5)).Radius(uikit.RadiusControl).Background(uikit.Colors(t).Panel).Children(func() {
 				for i, name := range captureProtocols {
 					label := name
 					if name == "WebSocket" {
 						label = "WS"
 					}
-					segment := segments.Segment(i).Label("Protocol and content type: "+name).Height(heightCompact).
-						Padding(0, 7).Radius(radiusControl).AlignItems(ui.Center).TextColor(t.TextMuted)
+					segment := segments.Segment(i).Label("Protocol and content type: "+name).Height(uikit.HeightCompact).
+						Padding(0, 7).Radius(uikit.RadiusControl).AlignItems(ui.Center).TextColor(t.TextMuted)
 					if a.chip == i {
 						segment.Background(t.Background).TextColor(t.Text)
 					} else if segment.Hovered() {
 						segment.Background(t.SurfaceHover)
 					}
-					segment.Children(func() { ui.Text(c, label).FontSize(textMeta) })
+					segment.Children(func() { ui.Text(c, label).FontSize(uikit.TextMeta) })
 				}
 			})
 			if segments.Track.Changed() {
 				a.applyFilter()
 			}
 		})
-		if toolbarButton(c, "Filters…", "Status, header, body, method, duration and notes", a.filtersActive()).Width(heightControl).Padding(0).Justify(ui.Center).Children(func() {
-			ui.Icon(c, filterIcon).Size(iconInline, iconInline)
+		if uikit.ToolbarButton(c, "Filters…", "Status, header, body, method, duration and notes", a.filtersActive()).Width(uikit.HeightControl).Padding(0).Justify(ui.Center).Children(func() {
+			ui.Icon(c, filterIcon).Size(uikit.IconInline, uikit.IconInline)
 		}).Clicked() {
 			a.openFilter()
 		}
-		breakButton := toolbarButton(c, "Breakpoints", "Pause each matching request or response before it continues", a.breakOn).
-			Width(heightControl).Padding(0).Justify(ui.Center)
+		breakButton := uikit.ToolbarButton(c, "Breakpoints", "Pause each matching request or response before it continues", a.breakOn).
+			Width(uikit.HeightControl).Padding(0).Justify(ui.Center)
 		if breakButton.Clicked() && a.srv != nil {
 			a.breakOn = !a.breakOn
 			a.srv.SetBreak(a.breakOn)
 		}
-		breakButton.Children(func() { ui.Icon(c, breakIcon).Size(iconInline, iconInline) })
+		breakButton.Children(func() { ui.Icon(c, breakIcon).Size(uikit.IconInline, uikit.IconInline) })
 		ui.PopoverMenuButton(c, "Layout", func(m *ui.Menu) {
 			for _, id := range []string{"layout-bottom", "layout-right", "layout-auto", "focus"} {
 				a.desktopMenuItem(c, m, id, "")
 			}
-		}).Label("Inspector layout").Tooltip("Inspector layout").Height(heightControl).Padding(0, t.Space(2)).
-			FontSize(textMeta).TextColor(t.TextMuted).Border(0, t.Border)
+		}).Label("Inspector layout").Tooltip("Inspector layout").Height(uikit.HeightControl).Padding(0, t.Space(2)).
+			FontSize(uikit.TextMeta).TextColor(t.TextMuted).Border(0, t.Border)
 		ui.PopoverMenuButton(c, "⋯", func(m *ui.Menu) {
 			if m.Item("Debugging rules…").Chosen() {
 				a.openRules()
@@ -230,7 +231,7 @@ func (a *app) captureToolbar(c *ui.Context, t *ui.Theme) {
 				a.clearOpen = true
 			}
 		}).
-			Label("More capture options").Tooltip("More capture options").Height(heightCompact).Padding(0, t.Space(2)).FontSize(textBody).TextColor(t.TextMuted).Border(0, t.Border)
+			Label("More capture options").Tooltip("More capture options").Height(uikit.HeightCompact).Padding(0, t.Space(2)).FontSize(uikit.TextBody).TextColor(t.TextMuted).Border(0, t.Border)
 	})
 	ui.Divider(c)
 }
@@ -241,7 +242,7 @@ func (a *app) captureConditions(c *ui.Context) {
 	t := c.Theme()
 	ui.Row(c).Gap(t.Space(1)).AlignItems(ui.Center).Tooltip("All conditions must match").Children(func() {
 		token := func(label string, clear func()) {
-			if secondaryButton(c, clamp(label, 30)+" ×").Label(label+" ×").Height(heightCompact).Padding(0, t.Space(2)).FontSize(textMeta).TextColor(t.Accent).Tooltip("Remove condition: " + label).Clicked() {
+			if uikit.SecondaryButton(c, clamp(label, 30)+" ×").Label(label+" ×").Height(uikit.HeightCompact).Padding(0, t.Space(2)).FontSize(uikit.TextMeta).TextColor(t.Accent).Tooltip("Remove condition: " + label).Clicked() {
 				clear()
 				a.views.capture(a)
 				a.applyFilter()
@@ -455,7 +456,7 @@ func (a *app) desktopShortcuts(c *ui.Context) {
 func (a *app) desktopButton(c *ui.Context, id, label string) ui.Element {
 	for _, action := range a.desktopActions(c) {
 		if action.id == id {
-			b := ui.Button(c, label).Height(heightControl).FontSize(textMeta).Disabled(!action.enabled).Tooltip(action.hint())
+			b := ui.Button(c, label).Height(uikit.HeightControl).FontSize(uikit.TextMeta).Disabled(!action.enabled).Tooltip(action.hint())
 			if b.Clicked() {
 				action.run()
 			}
@@ -595,15 +596,15 @@ func (a *app) commandPalette(c *ui.Context) {
 	if !w.paletteOpen {
 		return
 	}
-	appModal(c, &w.paletteOpen, func() {
+	uikit.Modal(c, &w.paletteOpen, func() {
 		width, _ := c.Size()
 		t := c.Theme()
 		ui.Column(c).Width(min(560, width-48)).Gap(t.Space(3)).Children(func() {
-			dialogTitle(c, "Commands")
+			uikit.DialogTitle(c, "Commands")
 			// Modal focuses its first input after remembering the opener. An
 			// explicit AutoFocus here would replace that remembered focus.
 			input := ui.TextInput(c, &w.query).Label("Find command").Placeholder("Search actions…").
-				Height(heightLarge).FontSize(textBody).FillWidth()
+				Height(uikit.HeightLarge).FontSize(uikit.TextBody).FillWidth()
 			if input.Changed() {
 				w.command = 0
 				w.commands.ScrollTo(0, ui.Start)
@@ -651,8 +652,8 @@ func (a *app) commandPalette(c *ui.Context) {
 			c.SetTheme(&selectionTheme)
 			list := ui.List(c, &w.commands, len(matches), func(i int) {
 				action := matches[i]
-				b := ui.ButtonBase(c).Label(action.label).Height(heightLarge).FillWidth().Padding(0, t.Space(3)).
-					Gap(t.Space(2)).Radius(radiusControl).AlignItems(ui.Center).Disabled(!action.enabled).Tooltip(action.hint())
+				b := ui.ButtonBase(c).Label(action.label).Height(uikit.HeightLarge).FillWidth().Padding(0, t.Space(3)).
+					Gap(t.Space(2)).Radius(uikit.RadiusControl).AlignItems(ui.Center).Disabled(!action.enabled).Tooltip(action.hint())
 				if action.enabled {
 					if b.Pressed() {
 						b.Background(t.SurfacePressed)
@@ -665,27 +666,27 @@ func (a *app) commandPalette(c *ui.Context) {
 					if i == w.command && focused {
 						color = t.AccentText
 					} else if !action.enabled {
-						color = appColors(t).TextFaint
+						color = uikit.Colors(t).TextFaint
 					}
 					label := action.label
 					if !action.enabled {
 						label += " (unavailable)"
 					}
-					ui.Text(c, label).FontSize(textBody).TextColor(color)
+					ui.Text(c, label).FontSize(uikit.TextBody).TextColor(color)
 					ui.Spacer(c)
-					ui.Text(c, action.shortcut()).FontSize(textMeta).TextColor(color)
+					ui.Text(c, action.shortcut()).FontSize(uikit.TextMeta).TextColor(color)
 				})
 				if b.Clicked() {
 					w.command = i
 					run()
 				}
-			}).Height(9 * heightLarge).FillWidth()
+			}).Height(9 * uikit.HeightLarge).FillWidth()
 			c.SetTheme(t)
 			if list.Submitted() {
 				run()
 			}
 			if len(matches) == 0 {
-				ui.Text(c, "No matching commands").FontSize(textBody).TextColor(t.TextMuted)
+				ui.Text(c, "No matching commands").FontSize(uikit.TextBody).TextColor(t.TextMuted)
 			} else if w.command >= 0 && w.command < len(matches) {
 				action := matches[w.command]
 				message := ""
@@ -700,9 +701,9 @@ func (a *app) commandPalette(c *ui.Context) {
 				} else if a.workspace == 1 && a.requestDocument != nil {
 					message = "Draft · " + a.title()
 				}
-				ui.Text(c, message).FontSize(textMeta).TextColor(t.TextMuted).SingleLine().Tooltip(message)
+				ui.Text(c, message).FontSize(uikit.TextMeta).TextColor(t.TextMuted).SingleLine().Tooltip(message)
 			}
-			ui.Text(c, "↑ ↓ Choose · Enter Run · Esc Close").FontSize(textMeta).TextColor(t.TextMuted)
+			ui.Text(c, "↑ ↓ Choose · Enter Run · Esc Close").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
 		})
 	})
 }

@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json/v2"
 	"fmt"
+	"github.com/baba983/vscroxy/internal/uikit"
 	"hash/fnv"
 	"log"
 	"maps"
@@ -1092,7 +1093,7 @@ func (a *app) syncDetail() {
 }
 
 func (a *app) view(c *ui.Context) {
-	c.SetTheme(appTheme(a.dark))
+	c.SetTheme(uikit.Theme(a.dark))
 	a.drain()
 	a.drainCertificate()
 	a.drainSystemProxy()
@@ -1139,22 +1140,22 @@ func (a *app) view(c *ui.Context) {
 		a.shell(c, t)
 		a.activeTools(c, t)
 		if a.srv == nil && a.errText != "" {
-			ui.Text(c, "Proxy unavailable · "+a.errText+" · Local requests remain available").Padding(t.Space(2), t.Space(3)).FontSize(textBody).TextColor(t.Danger)
+			ui.Text(c, "Proxy unavailable · "+a.errText+" · Local requests remain available").Padding(t.Space(2), t.Space(3)).FontSize(uikit.TextBody).TextColor(t.Danger)
 		}
 		if a.requestsProblem != "" || a.envsProblem != "" {
 			ui.Column(c).Padding(t.Space(2), t.Space(3)).Gap(t.Space(1)).Children(func() {
 				ui.Row(c).Gap(t.Space(3)).AlignItems(ui.Center).Children(func() {
-					ui.Text(c, "Local assets protected · saving disabled").FontSize(textBody).Bold().TextColor(t.Danger).Grow(1)
+					ui.Text(c, "Local assets protected · saving disabled").FontSize(uikit.TextBody).Bold().TextColor(t.Danger).Grow(1)
 					if ui.Button(c, "Reload local assets").Clicked() {
 						a.loadRequestAssets()
 					}
 				})
 				for _, problem := range []string{a.requestsProblem, a.envsProblem} {
 					if problem != "" {
-						ui.Text(c, problem).FontSize(textMeta).TextColor(t.Danger)
+						ui.Text(c, problem).FontSize(uikit.TextMeta).TextColor(t.Danger)
 					}
 				}
-				ui.Text(c, "Original files left untouched. Repair or move the affected file aside, then reload. Other local assets remain usable.").FontSize(textMeta).TextColor(t.TextMuted)
+				ui.Text(c, "Original files left untouched. Repair or move the affected file aside, then reload. Other local assets remain usable.").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
 			})
 		}
 		a.desktopContent(c.Key("workspace-content"))
@@ -1164,19 +1165,19 @@ func (a *app) view(c *ui.Context) {
 	a.board.persist()
 	a.checkpointExperiments(c)
 	// Dialogs keep their input and actions above background notifications.
-	appToasts(c)
+	uikit.Toasts(c)
 	a.commandPalette(c)
-	appModal(c, &a.clearOpen, func() {
-		dialogColumn(c, dialogSmall).Children(func() {
-			dialogTitle(c, "Clear captured requests?")
+	uikit.Modal(c, &a.clearOpen, func() {
+		uikit.DialogColumn(c, uikit.DialogSmall).Children(func() {
+			uikit.DialogTitle(c, "Clear captured requests?")
 			ui.Scroll(c).MinHeight(0).Children(func() {
-				ui.Text(c, "Unpinned requests will be removed from this session. Export any traffic you want to keep first.").FontSize(textBody)
+				ui.Text(c, "Unpinned requests will be removed from this session. Export any traffic you want to keep first.").FontSize(uikit.TextBody)
 			})
-			dialogFooter(c).Children(func() {
-				if secondaryButton(c, "Cancel").Clicked() {
+			uikit.DialogFooter(c).Children(func() {
+				if uikit.SecondaryButton(c, "Cancel").Clicked() {
 					a.clearOpen = false
 				}
-				if primaryButton(c, "Clear unpinned requests").Background(t.Danger).Clicked() {
+				if uikit.PrimaryButton(c, "Clear unpinned requests").Background(t.Danger).Clicked() {
 					a.clearCaptured()
 					a.clearOpen = false
 				}
@@ -1255,17 +1256,17 @@ func (a *app) upstreamModal(c *ui.Context, t *ui.Theme) {
 	if !a.upstreamOpen {
 		return
 	}
-	appModal(c, &a.upstreamOpen, func() {
-		dialogColumn(c, dialogSmall).Children(func() {
-			dialogTitle(c, "Upstream proxy")
+	uikit.Modal(c, &a.upstreamOpen, func() {
+		uikit.DialogColumn(c, uikit.DialogSmall).Children(func() {
+			uikit.DialogTitle(c, "Upstream proxy")
 			ui.Scroll(c).MinHeight(0).Children(func() {
-				ui.TextInput(c, &a.upstreamAddr).Placeholder("http://127.0.0.1:8080").Label("Address").Height(heightControl).FontSize(textBody).Radius(radiusControl)
+				ui.TextInput(c, &a.upstreamAddr).Placeholder("http://127.0.0.1:8080").Label("Address").Height(uikit.HeightControl).FontSize(uikit.TextBody).Radius(uikit.RadiusControl)
 			})
-			dialogFooter(c).Children(func() {
-				if secondaryButton(c, "Cancel").Clicked() {
+			uikit.DialogFooter(c).Children(func() {
+				if uikit.SecondaryButton(c, "Cancel").Clicked() {
 					a.upstreamOpen = false
 				}
-				if primaryButton(c, "Save").Clicked() {
+				if uikit.PrimaryButton(c, "Save").Clicked() {
 					if a.srv != nil {
 						if err := a.srv.SetUpstream(strings.TrimSpace(a.upstreamAddr)); err != nil {
 							a.setMessage("Upstream: " + err.Error())
@@ -1290,51 +1291,51 @@ func (a *app) breakpointModal(c *ui.Context, t *ui.Theme) {
 	// especially when queued breakpoints open in a small window.
 	c.CloseToast("")
 	_, height := c.Size()
-	if appModal(c, &a.bpOpen, func() {
-		dialogColumn(c, dialogLarge).Height(min(640, height-80)).Children(func() {
+	if uikit.Modal(c, &a.bpOpen, func() {
+		uikit.DialogColumn(c, uikit.DialogLarge).Height(min(640, height-80)).Children(func() {
 			title := "Breakpoint · request paused"
 			if a.bp.Phase == capture.PhaseResponse {
 				title = "Breakpoint · response paused"
 			}
-			dialogTitle(c, title)
+			uikit.DialogTitle(c, title)
 			a.mu.Lock()
 			waiting := len(a.bps) + 1
 			a.mu.Unlock()
-			ui.Text(c, fmt.Sprintf("%d paused · changes apply only to this exchange", waiting)).FontSize(textMeta).TextColor(t.TextMuted)
+			ui.Text(c, fmt.Sprintf("%d paused · changes apply only to this exchange", waiting)).FontSize(uikit.TextMeta).TextColor(t.TextMuted)
 			ui.Scroll(c).Grow(1).MinHeight(0).FillWidth().Gap(t.Space(2)).Children(func() {
 				if a.bp.Phase == capture.PhaseResponse {
 					ui.Row(c).Gap(t.Space(2)).Children(func() {
-						ui.TextInput(c, &a.bpStatus).Width(90).Label("Status").Height(heightControl).FontSize(textBody).Radius(radiusControl)
-						ui.Text(c, a.bp.URL).FontSize(textBody).TextColor(t.TextMuted).SingleLine().Grow(1).MinWidth(0)
+						ui.TextInput(c, &a.bpStatus).Width(90).Label("Status").Height(uikit.HeightControl).FontSize(uikit.TextBody).Radius(uikit.RadiusControl)
+						ui.Text(c, a.bp.URL).FontSize(uikit.TextBody).TextColor(t.TextMuted).SingleLine().Grow(1).MinWidth(0)
 					})
 				} else {
 					ui.Row(c).Gap(t.Space(2)).Children(func() {
-						ui.TextInput(c, &a.bpMethod).Width(90).Label("Method").Height(heightControl).FontSize(textBody).Radius(radiusControl)
-						ui.TextInput(c, &a.bpURL).Grow(1).MinWidth(0).Label("URL").Height(heightControl).FontSize(textBody).Radius(radiusControl)
+						ui.TextInput(c, &a.bpMethod).Width(90).Label("Method").Height(uikit.HeightControl).FontSize(uikit.TextBody).Radius(uikit.RadiusControl)
+						ui.TextInput(c, &a.bpURL).Grow(1).MinWidth(0).Label("URL").Height(uikit.HeightControl).FontSize(uikit.TextBody).Radius(uikit.RadiusControl)
 					})
 				}
-				ui.Text(c, "Headers · one Name: Value per line; repeat a name for multiple values").FontSize(textMeta).TextColor(t.TextMuted)
-				ui.TextArea(c, &a.bpHeaders).Height(130).Label("Breakpoint headers").FontSize(textBody).Radius(radiusControl)
+				ui.Text(c, "Headers · one Name: Value per line; repeat a name for multiple values").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
+				ui.TextArea(c, &a.bpHeaders).Height(130).Label("Breakpoint headers").FontSize(uikit.TextBody).Radius(uikit.RadiusControl)
 				if a.bp.BodyReadOnly {
-					ui.Text(c, "Binary, undecodable or large body: preserved unchanged; headers can still be edited.").FontSize(textBody).TextColor(t.TextMuted)
+					ui.Text(c, "Binary, undecodable or large body: preserved unchanged; headers can still be edited.").FontSize(uikit.TextBody).TextColor(t.TextMuted)
 				} else {
-					ui.TextArea(c, &a.bpBody).Height(160).Label("Body").FontSize(textBody).Radius(radiusControl)
-					ui.Text(c, "Body edits use decoded bytes; encoding, digest and length headers are recalculated or removed.").FontSize(textMeta).TextColor(t.TextMuted)
+					ui.TextArea(c, &a.bpBody).Height(160).Label("Body").FontSize(uikit.TextBody).Radius(uikit.RadiusControl)
+					ui.Text(c, "Body edits use decoded bytes; encoding, digest and length headers are recalculated or removed.").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
 				}
 			})
 			validation := a.breakpointError()
 			if validation != "" {
-				ui.Text(c, validation).FontSize(textBody).TextColor(t.Danger)
+				ui.Text(c, validation).FontSize(uikit.TextBody).TextColor(t.Danger)
 			}
-			dialogFooter(c).Children(func() {
-				ui.Select(c, &a.bpAbort, []string{"502 Bad Gateway", "429 Too Many Requests", "503 Service Unavailable"}).Width(200).Label("Abort status").Height(heightControl).FontSize(textBody).Radius(radiusControl)
-				if secondaryButton(c, "Abort").Clicked() {
+			uikit.DialogFooter(c).Children(func() {
+				ui.Select(c, &a.bpAbort, []string{"502 Bad Gateway", "429 Too Many Requests", "503 Service Unavailable"}).Width(200).Label("Abort status").Height(uikit.HeightControl).FontSize(uikit.TextBody).Radius(uikit.RadiusControl)
+				if uikit.SecondaryButton(c, "Abort").Clicked() {
 					a.resolveBreak(true, false)
 				}
-				if secondaryButton(c, "Continue original").Clicked() {
+				if uikit.SecondaryButton(c, "Continue original").Clicked() {
 					a.resolveBreak(false, true)
 				}
-				if primaryButton(c, "Apply & continue").Disabled(validation != "").Clicked() {
+				if uikit.PrimaryButton(c, "Apply & continue").Disabled(validation != "").Clicked() {
 					a.resolveBreak(false, false)
 				}
 			})
@@ -1373,27 +1374,27 @@ func (a *app) sidebar(c *ui.Context) {
 		a.requestSidebar(c, t)
 		return
 	}
-	ui.Column(c).Fill().Background(t.Surface).Children(func() {
+	ui.Column(c).Fill().Background(uikit.Colors(t).Panel).Children(func() {
 		chosen := ui.Sidebar(c, &a.sidebarChoice, func() {
-			sidebarSection(c, "Traffic", &a.trafficOpen, func() {
-				sidebarItem(c, "all", trafficIcon, "All requests", a.sidebarChoice == "all").Children(func() {
-					ui.Text(c, fmt.Sprint(len(a.flows))).FontSize(textMeta).FontFeatures("tnum").TextColor(t.TextMuted)
+			uikit.SidebarSection(c, "Traffic", &a.trafficOpen, func() {
+				uikit.SidebarItem(c, "all", trafficIcon, "All requests", a.sidebarChoice == "all").Children(func() {
+					ui.Text(c, fmt.Sprint(len(a.flows))).FontSize(uikit.TextMeta).FontFeatures("tnum").TextColor(t.TextMuted)
 				})
-				sidebarItem(c, "errors", errorIcon, "Errors", a.sidebarChoice == "errors").Children(func() {
-					ui.Text(c, fmt.Sprint(a.count(flow.failed))).FontSize(textMeta).FontFeatures("tnum").TextColor(t.TextMuted)
+				uikit.SidebarItem(c, "errors", errorIcon, "Errors", a.sidebarChoice == "errors").Children(func() {
+					ui.Text(c, fmt.Sprint(a.count(flow.failed))).FontSize(uikit.TextMeta).FontFeatures("tnum").TextColor(t.TextMuted)
 				})
-				sidebarItem(c, "slow", captureIcon, "Slow", a.sidebarChoice == "slow").Children(func() {
-					ui.Text(c, fmt.Sprint(a.count(func(f flow) bool { return f.millis >= 120 }))).FontSize(textMeta).FontFeatures("tnum").TextColor(t.TextMuted)
+				uikit.SidebarItem(c, "slow", captureIcon, "Slow", a.sidebarChoice == "slow").Children(func() {
+					ui.Text(c, fmt.Sprint(a.count(func(f flow) bool { return f.millis >= 120 }))).FontSize(uikit.TextMeta).FontFeatures("tnum").TextColor(t.TextMuted)
 				})
 			})
-			sidebarItem(c, "pinned", pinIcon, "Pinned", a.sidebarChoice == "pinned").Children(func() {
-				ui.Text(c, fmt.Sprint(a.count(func(f flow) bool { return f.pinned }))).FontSize(textMeta).FontFeatures("tnum").TextColor(t.TextMuted)
+			uikit.SidebarItem(c, "pinned", pinIcon, "Pinned", a.sidebarChoice == "pinned").Children(func() {
+				ui.Text(c, fmt.Sprint(a.count(func(f flow) bool { return f.pinned }))).FontSize(uikit.TextMeta).FontFeatures("tnum").TextColor(t.TextMuted)
 			})
 			if len(a.clients) > 0 {
-				sidebarSection(c, "Apps", &a.clientsOpen, func() {
+				uikit.SidebarSection(c, "Apps", &a.clientsOpen, func() {
 					for _, d := range a.clients {
 						apps := a.capturedApps(d.name)
-						sidebarItem(c, "client:"+d.name, appIcon, d.name, a.sidebarChoice == "client:"+d.name).PopoverMenu(
+						uikit.SidebarItem(c, "client:"+d.name, appIcon, d.name, a.sidebarChoice == "client:"+d.name).PopoverMenu(
 							func(m *ui.Menu) {
 								if len(apps) == 1 {
 									a.appInspectionMenu(m, apps[0])
@@ -1417,51 +1418,51 @@ func (a *app) sidebar(c *ui.Context) {
 							}).
 							Children(func() {
 								if a.filterTriage.Client == d.name {
-									ui.Text(c, "✓").FontSize(textMeta).TextColor(t.Accent).Tooltip("App filter is active; remove it in the condition bar")
+									ui.Text(c, "✓").FontSize(uikit.TextMeta).TextColor(t.Accent).Tooltip("App filter is active; remove it in the condition bar")
 								}
 								if slices.ContainsFunc(apps, func(app capture.SSLApp) bool { return a.appInspectionEnabled(app.Path) }) {
-									ui.Icon(c, lockIcon).Size(iconInline, iconInline).Tooltip("An exact executable rule is enabled; client CA trust is still required")
+									ui.Icon(c, lockIcon).Size(uikit.IconInline, uikit.IconInline).Tooltip("An exact executable rule is enabled; client CA trust is still required")
 								}
-								ui.Text(c, fmt.Sprint(d.n)).FontSize(textMeta).FontFeatures("tnum").TextColor(t.TextMuted)
+								ui.Text(c, fmt.Sprint(d.n)).FontSize(uikit.TextMeta).FontFeatures("tnum").TextColor(t.TextMuted)
 							})
 					}
 				})
 			}
-			sidebarSection(c, "Domains", &a.domainsOpen, func() {
+			uikit.SidebarSection(c, "Domains", &a.domainsOpen, func() {
 				for _, d := range a.domains {
-					sidebarItem(c, "host:"+d.name, domainIcon, d.name, a.sidebarChoice == "host:"+d.name).Children(func() {
+					uikit.SidebarItem(c, "host:"+d.name, domainIcon, d.name, a.sidebarChoice == "host:"+d.name).Children(func() {
 						if a.filterTriage.Host == d.name {
-							ui.Text(c, "✓").FontSize(textMeta).TextColor(t.Accent).Tooltip("Host filter is active; remove it in the condition bar")
+							ui.Text(c, "✓").FontSize(uikit.TextMeta).TextColor(t.Accent).Tooltip("Host filter is active; remove it in the condition bar")
 						}
-						ui.Text(c, fmt.Sprint(d.n)).FontSize(textMeta).FontFeatures("tnum").TextColor(t.TextMuted)
+						ui.Text(c, fmt.Sprint(d.n)).FontSize(uikit.TextMeta).FontFeatures("tnum").TextColor(t.TextMuted)
 					})
 				}
 			})
-			sidebarSection(c, "Views", nil, func() {
+			uikit.SidebarSection(c, "Views", nil, func() {
 				a.views.sidebar(c, t, a)
 			})
-			sidebarSection(c, "Investigations", nil, func() {
+			uikit.SidebarSection(c, "Investigations", nil, func() {
 				for _, inv := range a.board.items {
-					sidebarItem(c, "investigation:"+inv.ID, layersIcon, inv.Title, a.sidebarChoice == "investigation:"+inv.ID).Children(func() {
-						ui.Text(c, fmt.Sprint(len(inv.Items))).FontSize(textMeta).FontFeatures("tnum").TextColor(t.TextMuted)
+					uikit.SidebarItem(c, "investigation:"+inv.ID, layersIcon, inv.Title, a.sidebarChoice == "investigation:"+inv.ID).Children(func() {
+						ui.Text(c, fmt.Sprint(len(inv.Items))).FontSize(uikit.TextMeta).FontFeatures("tnum").TextColor(t.TextMuted)
 					})
 				}
-				if toolbarButton(c, "New investigation", "Create an investigation, then add captures from their inspectors to keep evidence", false).FillWidth().Justify(ui.Start).Children(func() {
-					ui.Icon(c, plusIcon).Size(iconInline, iconInline)
-					ui.Text(c, "New investigation").FontSize(textBody)
+				if uikit.ToolbarButton(c, "New investigation", "Create an investigation, then add captures from their inspectors to keep evidence", false).FillWidth().Justify(ui.Start).Children(func() {
+					ui.Icon(c, plusIcon).Size(uikit.IconInline, uikit.IconInline)
+					ui.Text(c, "New investigation").FontSize(uikit.TextBody)
 				}).Clicked() {
 					a.board.create("")
 					a.board.list = ui.ListState{}
 					a.captureSection = 1
 				}
-				if toolbarButton(c, "Historical sessions…", "Read saved sessions and exported evidence, read-only", false).FillWidth().Justify(ui.Start).Children(func() {
-					ui.Icon(c, clockIcon).Size(iconInline, iconInline)
-					ui.Text(c, "Historical sessions…").FontSize(textBody)
+				if uikit.ToolbarButton(c, "Historical sessions…", "Read saved sessions and exported evidence, read-only", false).FillWidth().Justify(ui.Start).Children(func() {
+					ui.Icon(c, clockIcon).Size(uikit.IconInline, uikit.IconInline)
+					ui.Text(c, "Historical sessions…").FontSize(uikit.TextBody)
 				}).Clicked() {
 					a.investigations.show()
 				}
 			})
-		}).Grow(1)
+		}).Grow(1).Background(uikit.Colors(t).Panel)
 		if chosen.Changed() {
 			if id, ok := strings.CutPrefix(a.sidebarChoice, "investigation:"); ok {
 				a.captureSection = 1
@@ -1481,17 +1482,17 @@ func (a *app) sidebar(c *ui.Context) {
 		}
 		ui.Divider(c)
 		ui.Column(c).Padding(t.Space(2)).Gap(t.Space(0.5)).Children(func() {
-			if toolbarButton(c, "Client setup", "Copy a process-scoped proxy and CA example", false).FillWidth().Children(func() {
-				ui.Icon(c, monitorIcon).Size(iconInline, iconInline)
-				ui.Text(c, "Client setup").FontSize(textBody).Grow(1)
-				ui.Text(c, "›").FontSize(textBody)
+			if uikit.ToolbarButton(c, "Client setup", "Copy a process-scoped proxy and CA example", false).FillWidth().Children(func() {
+				ui.Icon(c, monitorIcon).Size(uikit.IconInline, uikit.IconInline)
+				ui.Text(c, "Client setup").FontSize(uikit.TextBody).Grow(1)
+				ui.Text(c, "›").FontSize(uikit.TextBody)
 			}).Clicked() {
 				a.openClientSetup()
 			}
-			if toolbarButton(c, "Manage HTTPS rules", "HTTPS inspection rules", false).FillWidth().Children(func() {
-				ui.Icon(c, lockIcon).Size(iconInline, iconInline)
-				ui.Text(c, "HTTPS rules").FontSize(textBody).Grow(1)
-				ui.Text(c, "›").FontSize(textBody)
+			if uikit.ToolbarButton(c, "Manage HTTPS rules", "HTTPS inspection rules", false).FillWidth().Children(func() {
+				ui.Icon(c, lockIcon).Size(uikit.IconInline, uikit.IconInline)
+				ui.Text(c, "HTTPS rules").FontSize(uikit.TextBody).Grow(1)
+				ui.Text(c, "›").FontSize(uikit.TextBody)
 			}).Clicked() {
 				a.sslOpen = true
 			}
@@ -1507,7 +1508,7 @@ func (a *app) requestSidebar(c *ui.Context, t *ui.Theme) {
 		a.environmentSidebar(c)
 		return
 	}
-	ui.Column(c).Fill().Background(t.Surface).Children(func() {
+	ui.Column(c).Fill().Background(uikit.Colors(t).Panel).Children(func() {
 		ui.Column(c).Padding(t.Space(2), t.Space(2)).Gap(t.Space(2)).Children(func() {
 			title := "Collections"
 			if a.requestSide == 1 {
@@ -1516,19 +1517,19 @@ func (a *app) requestSidebar(c *ui.Context, t *ui.Theme) {
 				title = "APIs"
 			}
 			ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-				ui.Text(c, title).FontSize(textBody).FontWeight(600).Grow(1)
+				ui.Text(c, title).FontSize(uikit.TextBody).FontWeight(600).Grow(1)
 				newLabel := "New request"
 				if a.requestSide == 3 {
 					newLabel = "New API"
 				}
-				if iconButton(c, newLabel, newLabel, plusIcon).Clicked() {
+				if uikit.IconButton(c, newLabel, newLabel, plusIcon).Clicked() {
 					if a.requestSide == 3 {
 						a.newAPI()
 					} else {
 						a.openCompose()
 					}
 				}
-				iconButton(c, "Collection options", "Import and collection tools", moreIcon).PopoverMenuButton(func(m *ui.Menu) {
+				uikit.IconButton(c, "Collection options", "Import and collection tools", moreIcon).PopoverMenuButton(func(m *ui.Menu) {
 					if m.Item("Import…").Chosen() {
 						if a.requestSide == 3 {
 							a.importOpenAPI()
@@ -1557,7 +1558,7 @@ func (a *app) requestSidebar(c *ui.Context, t *ui.Theme) {
 			} else if a.requestSide == 3 {
 				placeholder, label = "Search APIs…", "Search APIs"
 			}
-			ui.TextInput(c, &a.requestQuery).Label(label).Placeholder(placeholder).Height(heightControl).FontSize(textBody)
+			ui.TextInput(c, &a.requestQuery).Label(label).Placeholder(placeholder).Height(uikit.HeightControl).FontSize(uikit.TextBody)
 		})
 		chosen := ui.Sidebar(c, &a.requestChoice, func() {
 			query := strings.ToLower(strings.TrimSpace(a.requestQuery))
@@ -1567,56 +1568,56 @@ func (a *app) requestSidebar(c *ui.Context, t *ui.Theme) {
 			if a.requestSide != 3 {
 				return
 			}
-			sidebarSection(c, "API contracts", &a.contractsOpen, func() {
+			uikit.SidebarSection(c, "API contracts", &a.contractsOpen, func() {
 				for _, d := range a.apis {
 					if query != "" && !strings.Contains(strings.ToLower(d.title()), query) {
 						continue
 					}
-					sidebarItem(c, "contract:"+d.spec.ID, apiIcon, d.title(), a.apiChoice == d.spec.ID).Label("API: " + d.title()).Children(func() {
+					uikit.SidebarItem(c, "contract:"+d.spec.ID, apiIcon, d.title(), a.apiChoice == d.spec.ID).Label("API: " + d.title()).Children(func() {
 						if d.dirty() {
-							ui.Box(c).Size(5, 5).Radius(radiusControl).Background(t.Accent).Label("Unsaved API")
+							ui.Box(c).Size(5, 5).Radius(uikit.RadiusControl).Background(t.Accent).Label("Unsaved API")
 						}
 					})
 				}
 				// A group with nothing in it stays two short entries, so the
 				// history and the collections keep their room.
 				if len(a.apis) == 0 {
-					if toolbarButton(c, "New API", "Create a contract, or import OpenAPI from the editor", false).FillWidth().Children(func() {
-						ui.Icon(c, plusIcon).Size(iconInline, iconInline)
-						ui.Text(c, "New contract").FontSize(textBody)
+					if uikit.ToolbarButton(c, "New API", "Create a contract, or import OpenAPI from the editor", false).FillWidth().Children(func() {
+						ui.Icon(c, plusIcon).Size(uikit.IconInline, uikit.IconInline)
+						ui.Text(c, "New contract").FontSize(uikit.TextBody)
 					}).Clicked() {
 						a.newAPI()
 						a.requestsSection = 1
 					}
-					if toolbarButton(c, "Generate from collection", "Generate OpenAPI from a saved collection", false).FillWidth().Disabled(len(a.requests) == 0).Children(func() {
-						ui.Icon(c, layersIcon).Size(iconInline, iconInline)
-						ui.Text(c, "From collection…").FontSize(textBody)
+					if uikit.ToolbarButton(c, "Generate from collection", "Generate OpenAPI from a saved collection", false).FillWidth().Disabled(len(a.requests) == 0).Children(func() {
+						ui.Icon(c, layersIcon).Size(uikit.IconInline, uikit.IconInline)
+						ui.Text(c, "From collection…").FontSize(uikit.TextBody)
 					}).Clicked() {
 						a.openAPIGeneration()
 					}
 					return
 				}
-				if toolbarButton(c, "New API", "Create an API contract", false).FillWidth().Children(func() {
-					ui.Icon(c, plusIcon).Size(iconInline, iconInline)
-					ui.Text(c, "New contract").FontSize(textBody)
+				if uikit.ToolbarButton(c, "New API", "Create an API contract", false).FillWidth().Children(func() {
+					ui.Icon(c, plusIcon).Size(uikit.IconInline, uikit.IconInline)
+					ui.Text(c, "New contract").FontSize(uikit.TextBody)
 				}).Clicked() {
 					a.newAPI()
 					a.requestsSection = 1
 				}
-				if toolbarButton(c, "Import OpenAPI", "Import an OpenAPI file", false).FillWidth().Children(func() {
-					ui.Icon(c, fileInputIcon).Size(iconInline, iconInline)
-					ui.Text(c, "Import OpenAPI…").FontSize(textBody)
+				if uikit.ToolbarButton(c, "Import OpenAPI", "Import an OpenAPI file", false).FillWidth().Children(func() {
+					ui.Icon(c, fileInputIcon).Size(uikit.IconInline, uikit.IconInline)
+					ui.Text(c, "Import OpenAPI…").FontSize(uikit.TextBody)
 				}).Clicked() {
 					a.importOpenAPI()
 				}
-				if toolbarButton(c, "Generate from collection", "Generate OpenAPI from a saved collection", false).FillWidth().Disabled(len(a.requests) == 0).Children(func() {
-					ui.Icon(c, layersIcon).Size(iconInline, iconInline)
-					ui.Text(c, "From collection…").FontSize(textBody)
+				if uikit.ToolbarButton(c, "Generate from collection", "Generate OpenAPI from a saved collection", false).FillWidth().Disabled(len(a.requests) == 0).Children(func() {
+					ui.Icon(c, layersIcon).Size(uikit.IconInline, uikit.IconInline)
+					ui.Text(c, "From collection…").FontSize(uikit.TextBody)
 				}).Clicked() {
 					a.openAPIGeneration()
 				}
 			})
-		}).Grow(1)
+		}).Grow(1).Background(uikit.Colors(t).Panel)
 		if chosen.Changed() {
 			if id, ok := strings.CutPrefix(a.requestChoice, "contract:"); ok {
 				a.requestsSection, a.apiChoice = 1, id
@@ -1662,19 +1663,19 @@ func (a *app) table(c *ui.Context) {
 					title, hint = "No matches in searchable traffic", "Some bodies could not be searched in full; matches may be missing."
 				}
 			}
-			emptyState(c, title, hint, func() {
-				ui.Text(c, "All conditions must match. Remove a condition above or edit the filters.").FontSize(textBody).TextColor(t.TextMuted)
+			uikit.EmptyState(c, title, hint, func() {
+				ui.Text(c, "All conditions must match. Remove a condition above or edit the filters.").FontSize(uikit.TextBody).TextColor(t.TextMuted)
 				if note != "" {
 					color := t.TextMuted
 					if failure {
 						color = t.Warning
 					}
-					ui.Text(c, note).FontSize(textBody).TextColor(color).Tooltip(a.views.statusDetail())
+					ui.Text(c, note).FontSize(uikit.TextBody).TextColor(color).Tooltip(a.views.statusDetail())
 				}
-				if secondaryButton(c, "Edit filters…").Clicked() {
+				if uikit.SecondaryButton(c, "Edit filters…").Clicked() {
 					a.openFilter()
 				}
-				if secondaryButton(c, "Show all requests").Clicked() {
+				if uikit.SecondaryButton(c, "Show all requests").Clicked() {
 					a.views.resetFilters(a)
 				}
 			})
@@ -1685,19 +1686,19 @@ func (a *app) table(c *ui.Context) {
 		if running {
 			title, hint = "Connect a client to start capturing", "Listening at "+a.srv.Addr()+" · no retained requests yet"
 		}
-		emptyState(c, title, hint, func() {
+		uikit.EmptyState(c, title, hint, func() {
 			ui.Row(c).Gap(t.Space(2)).Wrap().Justify(ui.Center).Children(func() {
-				if secondaryButton(c, "Set up a local client…").Disabled(!running).Clicked() {
+				if uikit.SecondaryButton(c, "Set up a local client…").Disabled(!running).Clicked() {
 					a.openClientSetup()
 				}
-				if secondaryButton(c, "Connect a device…").Disabled(!running).Clicked() {
+				if uikit.SecondaryButton(c, "Connect a device…").Disabled(!running).Clicked() {
 					a.openDevices()
 				}
-				if secondaryButton(c, "Check HTTPS…").Clicked() {
+				if uikit.SecondaryButton(c, "Check HTTPS…").Clicked() {
 					a.settingsTab, a.settingsOpen = 2, true
 				}
 			})
-			if secondaryButton(c, "Diagnose capture…").Clicked() {
+			if uikit.SecondaryButton(c, "Diagnose capture…").Clicked() {
 				a.openDiagnostics()
 			}
 		})
@@ -1766,37 +1767,37 @@ func (a *app) table(c *ui.Context) {
 		f := a.flows[a.visible[row]]
 		chosen := a.chosen.Has(f.id) && focused
 		text := func(s string) ui.Element {
-			return ui.Text(c, s).FontSize(textBody).Height(16).FontFeatures("tnum").SingleLine()
+			return ui.Text(c, s).FontSize(uikit.TextBody).Height(16).FontFeatures("tnum").SingleLine()
 		}
 		switch cols[col].ID {
 		case "id":
-			text(fmt.Sprint(f.id)).Font(fontMono).TextColor(rowColor(chosen, t, t.TextMuted))
+			text(fmt.Sprint(f.id)).Font(uikit.FontMono).TextColor(rowColor(chosen, t, t.TextMuted))
 		case "method":
-			methodLabel(c, f.method).Height(16).TextColor(rowColor(chosen, t, methodColor(f.method, t))).Tooltip(f.method).PopoverMenu(a.rowMenu(c, f))
+			uikit.MethodLabel(c, f.method).Height(16).TextColor(rowColor(chosen, t, uikit.MethodColor(f.method, t))).Tooltip(f.method).PopoverMenu(a.rowMenu(c, f))
 		case "host":
 			text(f.host).TextColor(rowColor(chosen, t, t.TextMuted)).Tooltip(f.url).PopoverMenu(a.rowMenu(c, f))
 		case "url":
 			if f.pinned {
-				ui.Icon(c, pinIcon).Size(iconInline, iconInline).MarginEnd(t.Space(1)).TextColor(rowColor(chosen, t, t.TextMuted))
+				ui.Icon(c, pinIcon).Size(uikit.IconInline, uikit.IconInline).MarginEnd(t.Space(1)).TextColor(rowColor(chosen, t, t.TextMuted))
 			}
 			if f.color != "" {
 				if dot, ok := highlightColor(f.color); ok {
-					ui.Box(c).Size(8, 8).Radius(radiusControl).Background(dot).MarginEnd(t.Space(1))
+					ui.Box(c).Size(8, 8).Radius(uikit.RadiusControl).Background(dot).MarginEnd(t.Space(1))
 				}
 			}
 			rest := rowColor(chosen, t, t.Text)
 			ui.Row(c).Gap(t.Space(0.5)).Children(func() {
 				if f.kind == "connect" {
-					ui.Icon(c, lockIcon).Size(iconInline, iconInline).TextColor(rest).MarginEnd(t.Space(1)).Tooltip("Encrypted tunnel; CONNECT success is not a decrypted response")
+					ui.Icon(c, lockIcon).Size(uikit.IconInline, uikit.IconInline).TextColor(rest).MarginEnd(t.Space(1)).Tooltip("Encrypted tunnel; CONNECT success is not a decrypted response")
 				}
 				if f.note != "" {
-					ui.Icon(c, noteIcon).Size(iconInline, iconInline).TextColor(rowColor(chosen, t, t.TextMuted)).MarginEnd(t.Space(1)).Tooltip(f.note)
+					ui.Icon(c, noteIcon).Size(uikit.IconInline, uikit.IconInline).TextColor(rowColor(chosen, t, t.TextMuted)).MarginEnd(t.Space(1)).Tooltip(f.note)
 				}
 				if f.dns != "" {
-					ui.Box(c).MinWidth(heightControl).Height(16).Radius(radiusControl).Background(t.Warning.Alpha(0.12)).Center().MarginEnd(t.Space(1)).
+					ui.Box(c).MinWidth(uikit.HeightControl).Height(16).Radius(uikit.RadiusControl).Background(t.Warning.Alpha(0.12)).Center().MarginEnd(t.Space(1)).
 						Tooltip("DNS mapping " + f.dns).
 						Children(func() {
-							ui.Text(c, "DNS").FontSize(textMeta).Bold().TextColor(rowColor(chosen, t, t.Warning))
+							ui.Text(c, "DNS").FontSize(uikit.TextMeta).Bold().TextColor(rowColor(chosen, t, t.Warning))
 						})
 				}
 				text(cmp.Or(f.path, "/")).Label(f.host + f.path).TextColor(rest).Tooltip(f.url).PopoverMenu(a.rowMenu(c, f))
@@ -1807,7 +1808,7 @@ func (a *app) table(c *ui.Context) {
 			} else if f.kind == "connect" {
 				text("Tunnel").TextColor(rowColor(chosen, t, t.TextMuted)).Tooltip(fmt.Sprintf("CONNECT %d · encrypted tunnel, not an HTTP response", f.status)).PopoverMenu(a.rowMenu(c, f))
 			} else {
-				ui.Box(c).Size(5, 5).Radius(radiusControl).Background(rowColor(chosen, t, f.statusColor(t))).MarginEnd(t.Space(2))
+				ui.Box(c).Size(5, 5).Radius(uikit.RadiusControl).Background(rowColor(chosen, t, f.statusColor(t))).MarginEnd(t.Space(2))
 				text(fmt.Sprint(f.status)).TextColor(rowColor(chosen, t, f.statusColor(t))).PopoverMenu(a.rowMenu(c, f))
 			}
 		case "client":
@@ -1826,7 +1827,7 @@ func (a *app) table(c *ui.Context) {
 			if !f.at.IsZero() {
 				at = f.at.Local().Format("15:04:05")
 			}
-			text(at).Font(fontMono).TextColor(rowColor(chosen, t, t.TextMuted))
+			text(at).Font(uikit.FontMono).TextColor(rowColor(chosen, t, t.TextMuted))
 		default:
 			cc, ok := a.customColumnAt(cols[col].ID)
 			if !ok {
@@ -1854,9 +1855,9 @@ var noteIcon = lucide.MessageSquare()
 
 // highlightColor is the color a flow is marked with.
 func highlightColor(name string) (ui.Color, bool) {
-	for _, c := range highlightColors {
-		if c.name == name {
-			return c.color, true
+	for _, c := range uikit.MarkColors {
+		if c.Name == name {
+			return c.Color, true
 		}
 	}
 	return ui.Color{}, false
@@ -1876,36 +1877,36 @@ func (a *app) markModal(c *ui.Context, t *ui.Theme) {
 	if !a.markOpen {
 		return
 	}
-	appModal(c, &a.markOpen, func() {
-		dialogColumn(c, dialogSmall).Children(func() {
-			dialogTitle(c, "Mark the request")
+	uikit.Modal(c, &a.markOpen, func() {
+		uikit.DialogColumn(c, uikit.DialogSmall).Children(func() {
+			uikit.DialogTitle(c, "Mark the request")
 			ui.Scroll(c).MinHeight(0).Gap(t.Space(3)).Children(func() {
 				ui.Text(c, "A color shows in the table beside the method, and the note in the URL cell and the detail header.").
-					FontSize(textMeta).TextColor(t.TextMuted)
+					FontSize(uikit.TextMeta).TextColor(t.TextMuted)
 				ui.Row(c).Gap(t.Space(2)).Wrap().AlignItems(ui.Center).Children(func() {
-					for _, color := range highlightColors {
-						selected := a.markColor == color.name
-						ui.ButtonBase(c).Label("Mark "+color.name).Checked(selected).
-							Size(heightControl, heightControl).Radius(radiusControl).Background(color.color).Center().
-							Tooltip(color.name).
-							OnClick(func() { a.markColor = color.name }).
+					for _, color := range uikit.MarkColors {
+						selected := a.markColor == color.Name
+						ui.ButtonBase(c).Label("Mark "+color.Name).Checked(selected).
+							Size(uikit.HeightControl, uikit.HeightControl).Radius(uikit.RadiusControl).Background(color.Color).Center().
+							Tooltip(color.Name).
+							OnClick(func() { a.markColor = color.Name }).
 							Children(func() {
 								if selected {
-									ui.Text(c, "✓").FontSize(textBody).Bold().TextColor(swatchText)
+									ui.Text(c, "✓").FontSize(uikit.TextBody).Bold().TextColor(uikit.SwatchText)
 								}
 							})
 					}
-					if secondaryButton(c, "None").Clicked() {
+					if uikit.SecondaryButton(c, "None").Clicked() {
 						a.markColor = ""
 					}
 				})
-				ui.TextArea(c, &a.markNote).Height(90).Label("Note").FontSize(textBody).Radius(radiusControl)
+				ui.TextArea(c, &a.markNote).Height(90).Label("Note").FontSize(uikit.TextBody).Radius(uikit.RadiusControl)
 			})
-			dialogFooter(c).Children(func() {
-				if secondaryButton(c, "Cancel").Clicked() {
+			uikit.DialogFooter(c).Children(func() {
+				if uikit.SecondaryButton(c, "Cancel").Clicked() {
 					a.markOpen = false
 				}
-				if primaryButton(c, "Save").Clicked() {
+				if uikit.PrimaryButton(c, "Save").Clicked() {
 					a.saveMark()
 				}
 			})
@@ -1937,26 +1938,26 @@ func (a *app) explainConnection(c *ui.Context, f flow) {
 	e := f.conn.explanation()
 	width, height := c.Size()
 	ui.Column(c).Width(min(480, width-40)).Children(func() {
-		ui.Text(c, e.title).FontSize(textTitle).Bold().Padding(t.Space(4), t.Space(4), t.Space(3), t.Space(4))
+		ui.Text(c, e.title).FontSize(uikit.TextTitle).Bold().Padding(t.Space(4), t.Space(4), t.Space(3), t.Space(4))
 		ui.Scroll(c).Height(min(270, height-220)).Padding(0, t.Space(4), t.Space(3), t.Space(4)).Gap(t.Space(4)).Selectable().Children(func() {
-			ui.Text(c, e.summary).FontSize(textBody).TextColor(t.TextMuted)
-			ui.Column(c).Padding(t.Space(3)).Gap(t.Space(2)).Radius(radiusPanel).Background(t.Danger.Alpha(0.06)).Border(1, t.Danger.Alpha(0.2)).Children(func() {
-				ui.Text(c, "Observed failure · "+cmp.Or(f.conn.errorStage, "unknown stage")).FontSize(textMeta).Bold().TextColor(t.TextMuted)
-				ui.Text(c, f.conn.error).Font(fontMono).FontSize(textMeta).TextColor(t.Danger)
+			ui.Text(c, e.summary).FontSize(uikit.TextBody).TextColor(t.TextMuted)
+			ui.Column(c).Padding(t.Space(3)).Gap(t.Space(2)).Radius(uikit.RadiusPanel).Background(t.Danger.Alpha(0.06)).Border(1, t.Danger.Alpha(0.2)).Children(func() {
+				ui.Text(c, "Observed failure · "+cmp.Or(f.conn.errorStage, "unknown stage")).FontSize(uikit.TextMeta).Bold().TextColor(t.TextMuted)
+				ui.Text(c, f.conn.error).Font(uikit.FontMono).FontSize(uikit.TextMeta).TextColor(t.Danger)
 			})
 			ui.Column(c).Gap(t.Space(2)).Children(func() {
-				ui.Text(c, "Possible causes · not confirmed").FontSize(textBody).Bold()
-				ui.Text(c, e.causes).FontSize(textBody).TextColor(t.TextMuted)
+				ui.Text(c, "Possible causes · not confirmed").FontSize(uikit.TextBody).Bold()
+				ui.Text(c, e.causes).FontSize(uikit.TextBody).TextColor(t.TextMuted)
 			})
 			ui.Column(c).Gap(t.Space(2)).Children(func() {
-				ui.Text(c, "What to try").FontSize(textBody).Bold()
-				ui.Text(c, e.steps).FontSize(textBody)
+				ui.Text(c, "What to try").FontSize(uikit.TextBody).Bold()
+				ui.Text(c, e.steps).FontSize(uikit.TextBody)
 			})
 		})
 		ui.Divider(c)
 		ui.Row(c).Padding(t.Space(3), t.Space(4)).Gap(t.Space(4)).Children(func() {
-			ui.Text(c, "Review URLs, addresses and raw errors before sharing.").FontSize(textMeta).TextColor(t.TextMuted).Grow(1)
-			if ui.Button(c, "Copy diagnostics").FontSize(textBody).Height(heightControl).Clicked() {
+			ui.Text(c, "Review URLs, addresses and raw errors before sharing.").FontSize(uikit.TextMeta).TextColor(t.TextMuted).Grow(1)
+			if ui.Button(c, "Copy diagnostics").FontSize(uikit.TextBody).Height(uikit.HeightControl).Clicked() {
 				c.Services().WriteClipboard(f.connectionDiagnostics())
 				a.setMessage("Copied connection diagnostics")
 			}
@@ -1970,20 +1971,20 @@ func (a *app) connectionView(c *ui.Context, f flow) {
 	t := c.Theme()
 	ui.Row(c).Padding(t.Space(2), t.Space(3)).Gap(t.Space(2)).Children(func() {
 		if f.conn.error != "" {
-			ui.Text(c, cmp.Or(f.conn.errorStage, "Connection")+" failed").FontSize(textBody).TextColor(t.Danger).Grow(1)
+			ui.Text(c, cmp.Or(f.conn.errorStage, "Connection")+" failed").FontSize(uikit.TextBody).TextColor(t.Danger).Grow(1)
 		} else {
-			ui.Text(c, "Connection log · snapshot at capture time").FontSize(textBody).TextColor(t.TextMuted).Grow(1)
+			ui.Text(c, "Connection log · snapshot at capture time").FontSize(uikit.TextBody).TextColor(t.TextMuted).Grow(1)
 		}
-		if secondaryButton(c, "Copy connection log").Height(heightCompact).Disabled(f.conn.log == "").Clicked() {
+		if uikit.SecondaryButton(c, "Copy connection log").Height(uikit.HeightCompact).Disabled(f.conn.log == "").Clicked() {
 			c.Services().WriteClipboard(f.conn.log)
 			a.setMessage("Copied connection log")
 		}
 	})
 	if f.conn.error != "" {
-		ui.Text(c, f.conn.error).Selectable().MaxLines(3).Tooltip(f.conn.error).FontSize(textBody).TextColor(t.Danger).Padding(0, t.Space(3), t.Space(2))
+		ui.Text(c, f.conn.error).Selectable().MaxLines(3).Tooltip(f.conn.error).FontSize(uikit.TextBody).TextColor(t.Danger).Padding(0, t.Space(3), t.Space(2))
 	}
 	text := cmp.Or(f.conn.log, "No connection history was recorded for this exchange (for example, an older or imported session).")
-	ui.TextArea(c, &text).ReadOnly(true).Label("Connection log").Font(fontMono).FontSize(textBody).Grow(1).FillWidth()
+	ui.TextArea(c, &text).ReadOnly(true).Label("Connection log").Font(uikit.FontMono).FontSize(uikit.TextBody).Grow(1).FillWidth()
 }
 
 // connPanel is the connection behind a flow: who talked to the proxy, where it
@@ -1991,7 +1992,7 @@ func (a *app) connectionView(c *ui.Context, f flow) {
 func (a *app) connPanel(c *ui.Context, t *ui.Theme, f flow) {
 	cn := f.conn
 	ui.Column(c).Width(440).Gap(t.Space(0.5)).Padding(t.Space(1)).Children(func() {
-		ui.Text(c, "Connection").FontSize(textBody).Bold().TextColor(t.Text).Padding(0, 0, t.Space(2), 0)
+		ui.Text(c, "Connection").FontSize(uikit.TextBody).Bold().TextColor(t.Text).Padding(0, 0, t.Space(2), 0)
 		field(c, t, "HTTP version", cn.proto)
 		field(c, t, "Client", cn.client)
 		field(c, t, "Proxy", cn.proxy)
@@ -2033,8 +2034,8 @@ func field(c *ui.Context, t *ui.Theme, label, value string) {
 		return
 	}
 	ui.Row(c).Gap(t.Space(2)).Padding(t.Space(0.5), 0).Children(func() {
-		ui.Text(c, label).FontSize(textMeta).TextColor(t.TextMuted).Width(96)
-		ui.Text(c, value).FontSize(textBody).Font(fontMono).TextColor(t.Text).Grow(1)
+		ui.Text(c, label).FontSize(uikit.TextMeta).TextColor(t.TextMuted).Width(96)
+		ui.Text(c, value).FontSize(uikit.TextBody).Font(uikit.FontMono).TextColor(t.Text).Grow(1)
 	})
 }
 
@@ -2044,15 +2045,15 @@ func field(c *ui.Context, t *ui.Theme, label, value string) {
 // headerBlock is one side of the Headers tab: the line that starts the message
 // and then its headers, sorted by name.
 func (a *app) headerBlock(c *ui.Context, t *ui.Theme, title, line, note string, headers http.Header, raw string, trailers http.Header) {
-	ui.Column(c).FillWidth().Padding(t.Space(2), t.Space(3)).Gap(t.Space(2)).Background(t.Surface).Children(func() {
+	ui.Column(c).FillWidth().Padding(t.Space(2), t.Space(3)).Gap(t.Space(2)).Background(uikit.Colors(t).Panel).Children(func() {
 		ui.Row(c).AlignItems(ui.Center).Children(func() {
-			ui.Text(c, title).FontSize(textBody).Bold()
+			ui.Text(c, title).FontSize(uikit.TextBody).Bold()
 			ui.Spacer(c)
 			if len(headers) > 0 {
-				ui.Text(c, fmt.Sprintf("%d headers", len(headers))).FontSize(textMeta).TextColor(t.TextMuted)
+				ui.Text(c, fmt.Sprintf("%d headers", len(headers))).FontSize(uikit.TextMeta).TextColor(t.TextMuted)
 			}
 		})
-		ui.Text(c, line).FontSize(textMeta).Font(fontMono).TextColor(t.TextMuted).SingleLine().Selectable().Tooltip(strings.TrimSpace(line + "\n" + note))
+		ui.Text(c, line).FontSize(uikit.TextMeta).Font(uikit.FontMono).TextColor(t.TextMuted).SingleLine().Selectable().Tooltip(strings.TrimSpace(line + "\n" + note))
 	})
 	ui.Divider(c)
 	side := 0
@@ -2062,20 +2063,20 @@ func (a *app) headerBlock(c *ui.Context, t *ui.Theme, title, line, note string, 
 	ui.Scroll(c).TrackScroll(&a.headerScroll[side]).Grow(1).FillWidth().Children(func() {
 		for i, block := range []http.Header{headers, trailers} {
 			if i == 1 && len(block) > 0 {
-				ui.Text(c, "Trailers").FontSize(textMeta).Bold().TextColor(t.TextMuted).Padding(t.Space(2), t.Space(3), t.Space(2)).FillWidth().Background(t.Surface)
+				ui.Text(c, "Trailers").FontSize(uikit.TextMeta).Bold().TextColor(t.TextMuted).Padding(t.Space(2), t.Space(3), t.Space(2)).FillWidth().Background(uikit.Colors(t).Panel)
 			}
 			if i == 0 && len(block) == 0 {
 				if raw == "" {
-					ui.Text(c, "No headers recorded").FontSize(textBody).TextColor(t.TextMuted).Padding(t.Space(3))
+					ui.Text(c, "No headers recorded").FontSize(uikit.TextBody).TextColor(t.TextMuted).Padding(t.Space(3))
 				} else {
-					ui.Text(c, raw).FontSize(textBody).Font(fontMono).TextColor(t.Text).Selectable().Padding(t.Space(3))
+					ui.Text(c, raw).FontSize(uikit.TextBody).Font(uikit.FontMono).TextColor(t.Text).Selectable().Padding(t.Space(3))
 				}
 			}
 			for _, key := range slices.Sorted(maps.Keys(block)) {
 				value := strings.Join(block[key], "\n")
 				ui.Row(c).Gap(t.Space(3)).Padding(t.Space(2), t.Space(3)).AlignItems(ui.Start).FillWidth().Children(func() {
-					ui.Text(c, key).FontSize(textMeta).Font(fontMono).TextColor(t.TextMuted).Width(124).SingleLine().Tooltip(strings.TrimSpace(key + "\n" + headerDoc(key)))
-					ui.Text(c, value).FontSize(textBody).Font(fontMono).TextColor(t.Text).Grow(1).Selectable()
+					ui.Text(c, key).FontSize(uikit.TextMeta).Font(uikit.FontMono).TextColor(t.TextMuted).Width(124).SingleLine().Tooltip(strings.TrimSpace(key + "\n" + headerDoc(key)))
+					ui.Text(c, value).FontSize(uikit.TextBody).Font(uikit.FontMono).TextColor(t.Text).Grow(1).Selectable()
 				})
 				ui.Divider(c).Background(t.Border.Alpha(0.45))
 			}
@@ -2108,24 +2109,7 @@ func (f flow) statusColor(t *ui.Theme) ui.Color {
 	if f.status < 400 && f.failed() {
 		return t.Danger
 	}
-	return statusColor(f.status, t)
-}
-
-func statusColor(status int, t *ui.Theme) ui.Color {
-	switch {
-	case status == 0:
-		return t.TextMuted
-	case status == 304:
-		return t.TextMuted
-	case status < 300:
-		return t.Success
-	case status < 400:
-		return appColors(t).Info
-	case status < 500:
-		return t.Warning
-	default:
-		return t.Danger
-	}
+	return uikit.StatusColor(f.status, t)
 }
 
 // Run starts the native desktop app and releases its resources on exit.
@@ -2239,8 +2223,8 @@ func clientBadge(c *ui.Context, name string) {
 	if runes := []rune(name); len(runes) > 0 {
 		letter = strings.ToUpper(string(runes[0]))
 	}
-	ui.Box(c).Size(16, 16).Radius(radiusControl).Background(badgeColor(name)).Center().Children(func() {
-		ui.Text(c, letter).FontSize(textMeta).Bold().TextColor(swatchText)
+	ui.Box(c).Size(16, 16).Radius(uikit.RadiusControl).Background(badgeColor(name)).Center().Children(func() {
+		ui.Text(c, letter).FontSize(uikit.TextMeta).Bold().TextColor(uikit.SwatchText)
 	})
 }
 
@@ -2248,7 +2232,7 @@ func clientBadge(c *ui.Context, name string) {
 func badgeColor(name string) ui.Color {
 	h := fnv.New32a()
 	_, _ = h.Write([]byte(name))
-	return badgePalette[int(h.Sum32())%len(badgePalette)]
+	return uikit.BadgeColors[int(h.Sum32())%len(uikit.BadgeColors)]
 }
 
 // rowMenu is the context menu of a flow's row: what a captured request is
@@ -2457,18 +2441,18 @@ func (a *app) varsModal(c *ui.Context, t *ui.Theme) {
 		return
 	}
 	_, height := c.Size()
-	appModal(c, &a.varsOpen, func() {
-		dialogColumn(c, dialogMedium).Height(min(560, height-80)).Children(func() {
-			dialogTitle(c, "Variables")
+	uikit.Modal(c, &a.varsOpen, func() {
+		uikit.DialogColumn(c, uikit.DialogMedium).Height(min(560, height-80)).Children(func() {
+			uikit.DialogTitle(c, "Variables")
 			ui.Scroll(c).Grow(1).MinHeight(0).FillWidth().Gap(t.Space(3)).Children(func() {
 				if a.envsProblem != "" {
-					ui.Text(c, "Variables are read-only. Close this dialog, repair or move env.json aside, then reload local assets.").FontSize(textMeta).TextColor(t.Danger)
+					ui.Text(c, "Variables are read-only. Close this dialog, repair or move env.json aside, then reload local assets.").FontSize(uikit.TextMeta).TextColor(t.Danger)
 				}
 				scope := 0
 				if a.varsGlobals {
 					scope = 1
 				}
-				if ui.Segmented(c, &scope, "Environments", "Globals").Height(heightControl).FontSize(textBody).Radius(radiusControl).Changed() {
+				if uikit.Segmented(c, &scope, "Environments", "Globals").Changed() {
 					if scope == 1 {
 						a.editGlobals()
 					} else {
@@ -2477,33 +2461,33 @@ func (a *app) varsModal(c *ui.Context, t *ui.Theme) {
 				}
 				if a.varsGlobals {
 					ui.Text(c, "Every request reads these, whatever the environment. Collection, folder and environment values override them. Stored locally in plaintext; keep secrets in the Vault.").
-						FontSize(textMeta).TextColor(t.TextMuted)
+						FontSize(uikit.TextMeta).TextColor(t.TextMuted)
 				} else {
 					ui.Text(c, "Use {{name}} in requests. Environment values override collection values and globals. Stored locally in plaintext; keep secrets in the Vault.").
-						FontSize(textMeta).TextColor(t.TextMuted)
+						FontSize(uikit.TextMeta).TextColor(t.TextMuted)
 					ui.Row(c).Gap(t.Space(2)).Children(func() {
 						if names := a.envNames(); len(names) > 0 {
-							if ui.Select(c, &a.varsChoice, names).Label("Edit environment").Grow(1).MinWidth(0).Height(heightControl).FontSize(textBody).Radius(radiusControl).Changed() {
+							if ui.Select(c, &a.varsChoice, names).Label("Edit environment").Grow(1).MinWidth(0).Height(uikit.HeightControl).FontSize(uikit.TextBody).Radius(uikit.RadiusControl).Changed() {
 								a.editEnvironment(a.varsChoice)
 							}
 						}
-						if secondaryButton(c, "New environment").Clicked() {
+						if uikit.SecondaryButton(c, "New environment").Clicked() {
 							a.editEnvironment("")
 						}
 					})
-					ui.TextInput(c, &a.varsName).Label("Environment").Height(heightControl).FontSize(textBody).Radius(radiusControl)
+					ui.TextInput(c, &a.varsName).Label("Environment").Height(uikit.HeightControl).FontSize(uikit.TextBody).Radius(uikit.RadiusControl)
 				}
-				ui.Column(c).Height(224).Border(1, t.Border).Radius(radiusControl).Children(func() {
-					ui.Row(c).Height(heightControl).AlignItems(ui.Center).BorderWidth(0, 0, 1, 0).BorderColor(t.Border).Children(func() {
-						ui.Text(c, "NAME").Basis(0).Grow(1).Padding(0, t.Space(2)).FontSize(textMeta).TextColor(t.TextMuted)
-						ui.Text(c, "VALUE").Basis(0).Grow(2).Padding(0, t.Space(2)).FontSize(textMeta).TextColor(t.TextMuted)
+				ui.Column(c).Height(224).Border(1, t.Border).Radius(uikit.RadiusControl).Children(func() {
+					ui.Row(c).Height(uikit.HeightControl).AlignItems(ui.Center).BorderWidth(0, 0, 1, 0).BorderColor(t.Border).Children(func() {
+						ui.Text(c, "NAME").Basis(0).Grow(1).Padding(0, t.Space(2)).FontSize(uikit.TextMeta).TextColor(t.TextMuted)
+						ui.Text(c, "VALUE").Basis(0).Grow(2).Padding(0, t.Space(2)).FontSize(uikit.TextMeta).TextColor(t.TextMuted)
 						ui.Box(c).Width(56)
 					})
 					ui.Scroll(c).Grow(1).MinHeight(0).FillWidth().Children(func() {
 						remove := -1
 						for i := range a.varsRows {
 							r := &a.varsRows[i]
-							row := ui.Row(c).Key(i).Height(heightControl).AlignItems(ui.Center).BorderWidth(0, 0, 1, 0).BorderColor(t.Border)
+							row := ui.Row(c).Key(i).Height(uikit.HeightControl).AlignItems(ui.Center).BorderWidth(0, 0, 1, 0).BorderColor(t.Border)
 							row.Children(func() {
 								ui.Box(c).Basis(0).Grow(1).MinWidth(0).FillHeight().BorderWidth(0, 1, 0, 0).BorderColor(t.Border).Children(func() {
 									field := requestGridInput(c, &r.Name, "base_url", fmt.Sprintf("Variable name %d", i+1)).ReadOnly(a.envsProblem != "")
@@ -2516,10 +2500,10 @@ func (a *app) varsModal(c *ui.Context, t *ui.Theme) {
 									}
 									cellBorder(t, value, !r.Revealed, r.Revealed)
 								})
-								if iconButton(c, fmt.Sprintf("Reveal variable %d", i+1), "Reveal or hide variable value", eyeIcon).Clicked() {
+								if uikit.IconButton(c, fmt.Sprintf("Reveal variable %d", i+1), "Reveal or hide variable value", eyeIcon).Clicked() {
 									r.Revealed = !r.Revealed
 								}
-								button := iconButton(c, fmt.Sprintf("Remove variable %d", i+1), "Remove variable", closeIcon).Disabled(a.envsProblem != "")
+								button := uikit.IconButton(c, fmt.Sprintf("Remove variable %d", i+1), "Remove variable", closeIcon).Disabled(a.envsProblem != "")
 								if !row.Hovered() && !row.FocusWithin() {
 									button.Opacity(0)
 								}
@@ -2531,27 +2515,27 @@ func (a *app) varsModal(c *ui.Context, t *ui.Theme) {
 						if remove >= 0 {
 							a.varsRows = slices.Delete(a.varsRows, remove, remove+1)
 						}
-						if toolbarButton(c, "Add variable", "Add variable", false).Disabled(a.envsProblem != "").Children(func() {
-							ui.Icon(c, plusIcon).Size(iconInline, iconInline)
-							ui.Text(c, "Add variable").FontSize(textBody)
+						if uikit.ToolbarButton(c, "Add variable", "Add variable", false).Disabled(a.envsProblem != "").Children(func() {
+							ui.Icon(c, plusIcon).Size(uikit.IconInline, uikit.IconInline)
+							ui.Text(c, "Add variable").FontSize(uikit.TextBody)
 						}).Clicked() {
 							a.varsRows = append(a.varsRows, request.Field{})
 						}
 					})
 				})
 				if a.varsProblem != "" {
-					ui.Text(c, a.varsProblem).FontSize(textMeta).TextColor(t.Danger)
+					ui.Text(c, a.varsProblem).FontSize(uikit.TextMeta).TextColor(t.Danger)
 				}
 			})
-			dialogFooter(c).Children(func() {
-				if secondaryButton(c, "Export as Postman…").Tooltip("Writes the rows shown here, saved or not, in Postman's environment format").Clicked() {
+			uikit.DialogFooter(c).Children(func() {
+				if uikit.SecondaryButton(c, "Export as Postman…").Tooltip("Writes the rows shown here, saved or not, in Postman's environment format").Clicked() {
 					a.exportPostmanVariables()
 				}
 				ui.Spacer(c)
-				if secondaryButton(c, "Cancel").Clicked() {
+				if uikit.SecondaryButton(c, "Cancel").Clicked() {
 					a.varsOpen = false
 				}
-				if primaryButton(c, "Save").Disabled(a.envsProblem != "").Clicked() {
+				if uikit.PrimaryButton(c, "Save").Disabled(a.envsProblem != "").Clicked() {
 					a.saveVars()
 				}
 			})
@@ -2683,23 +2667,23 @@ func (a *app) keyLogModal(c *ui.Context, t *ui.Theme) {
 	if !a.keyLogOpen {
 		return
 	}
-	appModal(c, &a.keyLogOpen, func() {
-		dialogColumn(c, dialogMedium).Children(func() {
-			dialogTitle(c, "TLS key log")
+	uikit.Modal(c, &a.keyLogOpen, func() {
+		uikit.DialogColumn(c, uikit.DialogMedium).Children(func() {
+			uikit.DialogTitle(c, "TLS key log")
 			ui.Scroll(c).MinHeight(0).Gap(t.Space(3)).Children(func() {
 				ui.Text(c, "The secrets go to a file Wireshark reads (SSLKEYLOGFILE), so it can decrypt this capture. The engine reads the variable once, when it first handshakes, so a change here takes effect from the next launch.").
-					FontSize(textMeta).TextColor(t.TextMuted)
-				ui.TextInput(c, &a.keyLogInput).Placeholder("~/.vscroxy/keys.log").Label("File").Height(heightControl).FontSize(textBody).Radius(radiusControl)
+					FontSize(uikit.TextMeta).TextColor(t.TextMuted)
+				ui.TextInput(c, &a.keyLogInput).Placeholder("~/.vscroxy/keys.log").Label("File").Height(uikit.HeightControl).FontSize(uikit.TextBody).Radius(uikit.RadiusControl)
 			})
-			dialogFooter(c).Children(func() {
-				if a.keyLogPath != "" && secondaryButton(c, "Turn off").Clicked() {
+			uikit.DialogFooter(c).Children(func() {
+				if a.keyLogPath != "" && uikit.SecondaryButton(c, "Turn off").Clicked() {
 					a.setKeyLog("")
 					a.keyLogOpen = false
 				}
-				if secondaryButton(c, "Cancel").Clicked() {
+				if uikit.SecondaryButton(c, "Cancel").Clicked() {
 					a.keyLogOpen = false
 				}
-				if primaryButton(c, "Save").Clicked() {
+				if uikit.PrimaryButton(c, "Save").Clicked() {
 					a.setKeyLog(strings.TrimSpace(a.keyLogInput))
 					a.keyLogOpen = false
 				}
@@ -2912,18 +2896,18 @@ func (a *app) hostListModal(c *ui.Context, t *ui.Theme, open *bool, title, hint,
 	if !*open {
 		return
 	}
-	appModal(c, open, func() {
-		dialogColumn(c, dialogMedium).Children(func() {
-			dialogTitle(c, title)
+	uikit.Modal(c, open, func() {
+		uikit.DialogColumn(c, uikit.DialogMedium).Children(func() {
+			uikit.DialogTitle(c, title)
 			ui.Scroll(c).MinHeight(0).Gap(t.Space(3)).Children(func() {
-				ui.Text(c, hint).FontSize(textMeta).TextColor(t.TextMuted)
-				ui.TextArea(c, text).Height(140).Label(title).FontSize(textBody).Radius(radiusControl)
+				ui.Text(c, hint).FontSize(uikit.TextMeta).TextColor(t.TextMuted)
+				ui.TextArea(c, text).Height(140).Label(title).FontSize(uikit.TextBody).Radius(uikit.RadiusControl)
 			})
-			dialogFooter(c).Children(func() {
-				if secondaryButton(c, "Cancel").Clicked() {
+			uikit.DialogFooter(c).Children(func() {
+				if uikit.SecondaryButton(c, "Cancel").Clicked() {
 					*open = false
 				}
-				if primaryButton(c, "Save").Clicked() {
+				if uikit.PrimaryButton(c, "Save").Clicked() {
 					patterns := splitHosts(*text)
 					if path != "" {
 						if err := writeHosts(path, patterns); err != nil {
@@ -3097,32 +3081,32 @@ func (a *app) sslModal(c *ui.Context, t *ui.Theme) {
 	}
 	draft := a.sslDraft
 	_, height := c.Size()
-	appModal(c, &a.sslOpen, func() {
-		dialogColumn(c, dialogMedium).Height(min(510, height-80)).Children(func() {
-			dialogTitle(c, "SSL proxying")
+	uikit.Modal(c, &a.sslOpen, func() {
+		uikit.DialogColumn(c, uikit.DialogMedium).Height(min(510, height-80)).Children(func() {
+			uikit.DialogTitle(c, "SSL proxying")
 			ui.Scroll(c).Grow(1).MinHeight(0).FillWidth().Gap(t.Space(3)).Children(func() {
 				ui.Text(c, "Enable a domain or a local executable. New connections only; clients must trust the CA. Enabling a rule does not prove decryption succeeded.").
-					FontSize(textMeta).TextColor(t.TextMuted)
-				ui.Row(c).Gap(t.Space(2)).MinHeight(heightControl).AlignItems(ui.Center).Children(func() {
+					FontSize(uikit.TextMeta).TextColor(t.TextMuted)
+				ui.Row(c).Gap(t.Space(2)).MinHeight(uikit.HeightControl).AlignItems(ui.Center).Children(func() {
 					ui.Switch(c, &draft.All).Label("Decrypt every domain")
-					ui.Text(c, "Decrypt every domain").FontSize(textBody).TextColor(t.Text)
+					ui.Text(c, "Decrypt every domain").FontSize(uikit.TextBody).TextColor(t.Text)
 				})
-				ui.Text(c, "Domains and subdomains").FontSize(textBody).Bold()
-				ui.TextArea(c, &a.sslDraftHosts).Height(100).Label("Decryption domains").FontSize(textBody).Radius(radiusControl)
+				ui.Text(c, "Domains and subdomains").FontSize(uikit.TextBody).Bold()
+				ui.TextArea(c, &a.sslDraftHosts).Height(100).Label("Decryption domains").FontSize(uikit.TextBody).Radius(uikit.RadiusControl)
 				ui.Divider(c)
-				ui.Text(c, "Local apps").FontSize(textBody).Bold()
-				ui.Text(c, "Exact executable paths, not app names or parent/Helper groups. Add from a captured request or an App's context menu.").FontSize(textMeta).TextColor(t.TextMuted)
+				ui.Text(c, "Local apps").FontSize(uikit.TextBody).Bold()
+				ui.Text(c, "Exact executable paths, not app names or parent/Helper groups. Add from a captured request or an App's context menu.").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
 				if len(draft.Apps) == 0 {
-					ui.Text(c, "No app rules enabled.").FontSize(textBody).TextColor(t.TextMuted)
+					ui.Text(c, "No app rules enabled.").FontSize(uikit.TextBody).TextColor(t.TextMuted)
 				}
 				remove := -1
 				for i, app := range draft.Apps {
 					ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 						ui.Column(c).Grow(1).MinWidth(0).Gap(t.Space(1)).Children(func() {
-							ui.Text(c, app.Name).FontSize(textBody)
-							ui.Text(c, app.Path).FontSize(textMeta).TextColor(t.TextMuted).SingleLine().Tooltip(app.Path)
+							ui.Text(c, app.Name).FontSize(uikit.TextBody)
+							ui.Text(c, app.Path).FontSize(uikit.TextMeta).TextColor(t.TextMuted).SingleLine().Tooltip(app.Path)
 						})
-						if secondaryButton(c, "Remove").Label("Remove HTTPS app: " + app.Path).Clicked() {
+						if uikit.SecondaryButton(c, "Remove").Label("Remove HTTPS app: " + app.Path).Clicked() {
 							remove = i
 						}
 					})
@@ -3131,11 +3115,11 @@ func (a *app) sslModal(c *ui.Context, t *ui.Theme) {
 					draft.Apps = slices.Delete(draft.Apps, remove, remove+1)
 				}
 			})
-			dialogFooter(c).Children(func() {
-				if secondaryButton(c, "Cancel").Clicked() {
+			uikit.DialogFooter(c).Children(func() {
+				if uikit.SecondaryButton(c, "Cancel").Clicked() {
 					a.sslOpen = false
 				}
-				if primaryButton(c, "Save").Clicked() {
+				if uikit.PrimaryButton(c, "Save").Clicked() {
 					draft.Hosts = splitHosts(a.sslDraftHosts)
 					if a.saveSSL(*draft) {
 						a.sslOpen = false
@@ -3363,19 +3347,19 @@ func (a *app) dnsModal(c *ui.Context, t *ui.Theme) {
 	if !a.dnsOpen {
 		return
 	}
-	appModal(c, &a.dnsOpen, func() {
-		dialogColumn(c, dialogMedium).Children(func() {
-			dialogTitle(c, "DNS mapping")
+	uikit.Modal(c, &a.dnsOpen, func() {
+		uikit.DialogColumn(c, uikit.DialogMedium).Children(func() {
+			uikit.DialogTitle(c, "DNS mapping")
 			ui.Scroll(c).MinHeight(0).Gap(t.Space(3)).Children(func() {
 				ui.Text(c, "Names the proxy resolves itself, one \"name = address\" a line. The request keeps its name and Host header, so a device pointed at this proxy reaches the machine you map: example.com = 192.168.1.50. Add \"@ Chrome, com.example.app\" to map the name for those apps only, or right-click a request and pick \"Map this host…\" to choose the app there. A name matches its subdomains; *.example.com matches one level. Flows that hit a mapping carry a DNS tag in the table.").
-					FontSize(textMeta).TextColor(t.TextMuted)
-				ui.TextArea(c, &a.dnsText).Height(140).Label("DNS mappings").FontSize(textBody).Radius(radiusControl)
+					FontSize(uikit.TextMeta).TextColor(t.TextMuted)
+				ui.TextArea(c, &a.dnsText).Height(140).Label("DNS mappings").FontSize(uikit.TextBody).Radius(uikit.RadiusControl)
 			})
-			dialogFooter(c).Children(func() {
-				if secondaryButton(c, "Cancel").Clicked() {
+			uikit.DialogFooter(c).Children(func() {
+				if uikit.SecondaryButton(c, "Cancel").Clicked() {
 					a.dnsOpen = false
 				}
-				if primaryButton(c, "Save").Clicked() {
+				if uikit.PrimaryButton(c, "Save").Clicked() {
 					a.saveDNS()
 				}
 			})
@@ -3390,22 +3374,22 @@ func (a *app) dnsRuleModal(c *ui.Context, t *ui.Theme) {
 	if !a.dnsRuleOpen {
 		return
 	}
-	appModal(c, &a.dnsRuleOpen, func() {
-		dialogColumn(c, dialogSmall).Children(func() {
-			dialogTitle(c, "Map a host")
+	uikit.Modal(c, &a.dnsRuleOpen, func() {
+		uikit.DialogColumn(c, uikit.DialogSmall).Children(func() {
+			uikit.DialogTitle(c, "Map a host")
 			ui.Scroll(c).MinHeight(0).Gap(t.Space(3)).Children(func() {
 				ui.Text(c, "The request keeps its name, URL, Host header and SNI; the proxy dials the address instead.").
-					FontSize(textMeta).TextColor(t.TextMuted)
-				ui.TextInput(c, &a.dnsRuleHost).Label("Host").Height(heightControl).FontSize(textBody).Radius(radiusControl)
-				ui.TextInput(c, &a.dnsRuleAddr).Label("Address").Height(heightControl).FontSize(textBody).Radius(radiusControl)
-				ui.Text(c, "Applies to").FontSize(textMeta).TextColor(t.TextMuted)
-				ui.Select(c, &a.dnsRuleScope, a.dnsRuleApps).Height(heightControl).FontSize(textBody).Radius(radiusControl)
+					FontSize(uikit.TextMeta).TextColor(t.TextMuted)
+				ui.TextInput(c, &a.dnsRuleHost).Label("Host").Height(uikit.HeightControl).FontSize(uikit.TextBody).Radius(uikit.RadiusControl)
+				ui.TextInput(c, &a.dnsRuleAddr).Label("Address").Height(uikit.HeightControl).FontSize(uikit.TextBody).Radius(uikit.RadiusControl)
+				ui.Text(c, "Applies to").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
+				ui.Select(c, &a.dnsRuleScope, a.dnsRuleApps).Height(uikit.HeightControl).FontSize(uikit.TextBody).Radius(uikit.RadiusControl)
 			})
-			dialogFooter(c).Children(func() {
-				if secondaryButton(c, "Cancel").Clicked() {
+			uikit.DialogFooter(c).Children(func() {
+				if uikit.SecondaryButton(c, "Cancel").Clicked() {
 					a.dnsRuleOpen = false
 				}
-				if primaryButton(c, "Save").Clicked() {
+				if uikit.PrimaryButton(c, "Save").Clicked() {
 					a.saveDNSRule()
 				}
 			})

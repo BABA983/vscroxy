@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"github.com/baba983/vscroxy/internal/uikit"
 	"os"
 	"path/filepath"
 	"strings"
@@ -35,7 +36,7 @@ func captureViewsApp(t *testing.T, flows ...flow) (*app, *captureViews) {
 // the frame's edits go back to the view.
 func captureViewsFrame(a *app, v *captureViews) func(*ui.Context) {
 	return func(c *ui.Context) {
-		c.SetTheme(appTheme(a.dark))
+		c.SetTheme(uikit.Theme(a.dark))
 		t := c.Theme()
 		v.drain(a)
 		v.sync(a)

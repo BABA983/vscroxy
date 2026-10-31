@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"github.com/baba983/vscroxy/internal/uikit"
 	"slices"
 	"strings"
 
@@ -91,15 +92,15 @@ func (a *app) deleteModal(c *ui.Context, t *ui.Theme) {
 	if !del.open {
 		return
 	}
-	appModal(c, &del.open, func() {
-		dialogColumn(c, dialogSmall).Children(func() {
-			dialogTitle(c, "Delete "+del.name+"?")
-			ui.Text(c, del.detail+" This cannot be undone.").FontSize(textBody).TextColor(t.TextMuted)
-			dialogFooter(c).Children(func() {
-				if secondaryButton(c, "Cancel").Clicked() {
+	uikit.Modal(c, &del.open, func() {
+		uikit.DialogColumn(c, uikit.DialogSmall).Children(func() {
+			uikit.DialogTitle(c, "Delete "+del.name+"?")
+			ui.Text(c, del.detail+" This cannot be undone.").FontSize(uikit.TextBody).TextColor(t.TextMuted)
+			uikit.DialogFooter(c).Children(func() {
+				if uikit.SecondaryButton(c, "Cancel").Clicked() {
 					del.open = false
 				}
-				if primaryButton(c, "Delete "+strings.Fields(del.name)[0]).Clicked() {
+				if uikit.PrimaryButton(c, "Delete "+strings.Fields(del.name)[0]).Clicked() {
 					if err := a.deleteAssets(*del); err != nil {
 						a.setMessage("Delete: " + err.Error())
 					} else {

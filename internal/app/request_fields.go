@@ -3,6 +3,7 @@ package app
 import (
 	"cmp"
 	"fmt"
+	"github.com/baba983/vscroxy/internal/uikit"
 	"net/url"
 	"slices"
 	"strings"
@@ -38,9 +39,9 @@ func (a *app) paramsEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
 			d.queryError = err.Error()
 		}
 	}
-	ui.Text(c, "Edits update the URL; repeated keys are preserved.").FontSize(textMeta).TextColor(t.TextMuted)
+	ui.Text(c, "Edits update the URL; repeated keys are preserved.").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
 	if d.queryError != "" {
-		ui.Text(c, d.queryError).FontSize(textMeta).TextColor(t.Danger)
+		ui.Text(c, d.queryError).FontSize(uikit.TextMeta).TextColor(t.Danger)
 	}
 	if requestFieldsEditor(c, &d.queryRows, fieldsOptions{}, "parameter") {
 		u, err := url.Parse(d.composeURL)
@@ -71,28 +72,28 @@ type fieldsOptions struct {
 func requestFieldsEditor(c *ui.Context, rows *[]request.Field, opts fieldsOptions, noun string, actions ...func()) bool {
 	t := c.Theme()
 	changed, remove := false, -1
-	ui.Column(c).Grow(1).MinHeight(0).Border(1, t.Border).Radius(radiusControl).Children(func() {
+	ui.Column(c).Grow(1).MinHeight(0).Border(1, t.Border).Radius(uikit.RadiusControl).Children(func() {
 		// Column titles stay above the rows as they scroll, so every cell
 		// reads as a column rather than its own form.
-		ui.Row(c).Height(heightControl).AlignItems(ui.Center).BorderWidth(0, 0, 1, 0).BorderColor(t.Border).Children(func() {
-			ui.Box(c).Width(heightLarge).FillHeight().BorderWidth(0, 1, 0, 0).BorderColor(t.Border)
+		ui.Row(c).Height(uikit.HeightControl).AlignItems(ui.Center).BorderWidth(0, 0, 1, 0).BorderColor(t.Border).Children(func() {
+			ui.Box(c).Width(uikit.HeightLarge).FillHeight().BorderWidth(0, 1, 0, 0).BorderColor(t.Border)
 			ui.Text(c, "Key").Basis(0).Grow(1).MinWidth(0).FillHeight().Padding(t.Space(1), t.Space(2)).
-				FontSize(textMeta).FontWeight(600).TextColor(t.TextMuted).BorderWidth(0, 1, 0, 0).BorderColor(t.Border)
-			ui.Text(c, "Value").Basis(0).Grow(2).MinWidth(0).Padding(t.Space(1), t.Space(2)).FontSize(textMeta).FontWeight(600).TextColor(t.TextMuted)
+				FontSize(uikit.TextMeta).FontWeight(600).TextColor(t.TextMuted).BorderWidth(0, 1, 0, 0).BorderColor(t.Border)
+			ui.Text(c, "Value").Basis(0).Grow(2).MinWidth(0).Padding(t.Space(1), t.Space(2)).FontSize(uikit.TextMeta).FontWeight(600).TextColor(t.TextMuted)
 			if opts.secret {
-				ui.Box(c).Width(heightCompact)
+				ui.Box(c).Width(uikit.HeightCompact)
 			}
 			if opts.file {
-				ui.Text(c, "FILE").Width(64).FontSize(textMeta).Bold().TextColor(t.TextMuted)
+				ui.Text(c, "FILE").Width(64).FontSize(uikit.TextMeta).Bold().TextColor(t.TextMuted)
 			}
-			ui.Box(c).Width(heightLarge)
+			ui.Box(c).Width(uikit.HeightLarge)
 		})
 		ui.Scroll(c).Grow(1).MinHeight(0).Children(func() {
 			for i := range *rows {
 				r := &(*rows)[i]
-				row := ui.Row(c).Key(i).Height(heightControl).AlignItems(ui.Center).BorderWidth(0, 0, 1, 0).BorderColor(t.Border)
+				row := ui.Row(c).Key(i).Height(uikit.HeightControl).AlignItems(ui.Center).BorderWidth(0, 0, 1, 0).BorderColor(t.Border)
 				row.Children(func() {
-					ui.Box(c).Width(heightLarge).FillHeight().Center().BorderWidth(0, 1, 0, 0).BorderColor(t.Border).Children(func() {
+					ui.Box(c).Width(uikit.HeightLarge).FillHeight().Center().BorderWidth(0, 1, 0, 0).BorderColor(t.Border).Children(func() {
 						enabled := !r.Disabled
 						if ui.Checkbox(c, &enabled, "").Label(fmt.Sprintf("Enable %s %d", noun, i+1)).Tooltip("Unchecked rows stay here and are not sent").Changed() {
 							r.Disabled, changed = !enabled, true
@@ -130,7 +131,7 @@ func requestFieldsEditor(c *ui.Context, rows *[]request.Field, opts fieldsOption
 						if r.Revealed {
 							label = fmt.Sprintf("Hide %s %d", noun, i+1)
 						}
-						reveal := iconButton(c, label, "Credentials are masked by default; reveal this row to read it in plain text", eyeIcon)
+						reveal := uikit.IconButton(c, label, "Credentials are masked by default; reveal this row to read it in plain text", eyeIcon)
 						if r.Revealed {
 							reveal.TextColor(t.Accent)
 						}
@@ -140,7 +141,7 @@ func requestFieldsEditor(c *ui.Context, rows *[]request.Field, opts fieldsOption
 					} else if opts.secret {
 						// Every header keeps the same action column, even when
 						// its value does not need an explicit reveal control.
-						ui.Box(c).Width(heightCompact)
+						ui.Box(c).Width(uikit.HeightCompact)
 					}
 					if opts.file {
 						ui.Box(c).Width(64).Children(func() {
@@ -149,9 +150,9 @@ func requestFieldsEditor(c *ui.Context, rows *[]request.Field, opts fieldsOption
 							}
 						})
 					}
-					ui.Box(c).Width(heightLarge).Center().Children(func() {
+					ui.Box(c).Width(uikit.HeightLarge).Center().Children(func() {
 						label := fmt.Sprintf("Remove %s %d", noun, i+1)
-						button := iconButton(c, label, label, closeIcon)
+						button := uikit.IconButton(c, label, label, closeIcon)
 						// Keep the control mounted, named and in the Tab order even
 						// while quiet. Any focus in the row reveals its action.
 						if !row.Hovered() && !row.FocusWithin() {
@@ -165,10 +166,10 @@ func requestFieldsEditor(c *ui.Context, rows *[]request.Field, opts fieldsOption
 			}
 			// The spacer carries the row to the full width, so the action stays
 			// at the table's left edge rather than in the middle.
-			ui.Row(c).MinHeight(heightControl).Gap(t.Space(2)).Children(func() {
-				if toolbarButton(c, "Add "+noun, "Add "+noun, false).Children(func() {
-					ui.Icon(c, plusIcon).Size(iconInline, iconInline)
-					ui.Text(c, "Add "+noun).FontSize(textBody)
+			ui.Row(c).MinHeight(uikit.HeightControl).Gap(t.Space(2)).Children(func() {
+				if uikit.ToolbarButton(c, "Add "+noun, "Add "+noun, false).Children(func() {
+					ui.Icon(c, plusIcon).Size(uikit.IconInline, uikit.IconInline)
+					ui.Text(c, "Add "+noun).FontSize(uikit.TextBody)
 				}).Clicked() {
 					*rows = append(*rows, request.Field{})
 					changed = true
@@ -191,7 +192,7 @@ func requestFieldsEditor(c *ui.Context, rows *[]request.Field, opts fieldsOption
 // text editing, password handling, accessibility or keyboard focus rings.
 func requestGridInput(c *ui.Context, value *string, placeholder, label string) ui.Element {
 	return ui.TextInputBase(c, value).Label(label).Placeholder(placeholder).FillWidth().MinWidth(0).
-		FillHeight().Padding(0, c.Theme().Space(2)).Font(fontMono).FontSize(textBody).
+		FillHeight().Padding(0, c.Theme().Space(2)).Font(uikit.FontMono).FontSize(uikit.TextBody).
 		Border(1, ui.Color{})
 }
 
@@ -285,9 +286,9 @@ func (a *app) headerModeButton(c *ui.Context, d *requestDocument, t *ui.Theme) {
 	if d.headerBulk {
 		label = "Table"
 	}
-	toolbarButton(c, "Toggle header editing mode", "Bulk edit replaces the table with one Key: Value per line; switched-off rows are kept", d.headerBulk).Children(func() {
-		ui.Icon(c, formatIcon).Size(iconInline, iconInline)
-		ui.Text(c, label).FontSize(textBody)
+	uikit.ToolbarButton(c, "Toggle header editing mode", "Bulk edit replaces the table with one Key: Value per line; switched-off rows are kept", d.headerBulk).Children(func() {
+		ui.Icon(c, formatIcon).Size(uikit.IconInline, uikit.IconInline)
+		ui.Text(c, label).FontSize(uikit.TextBody)
 	}).OnClick(func() {
 		if d.headerBulk || !hasSecretHeader(d.headerRows) {
 			toggleHeaderMode(d)
@@ -338,8 +339,8 @@ func (a *app) authEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
 				text = "Uses " + resolved.Type + " auth from " + from + "."
 			}
 			ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-				ui.Text(c, text).FontSize(textMeta).TextColor(t.TextMuted)
-				if path := cmp.Or(from, d.composeCollection); path != "" && secondaryButton(c, settingsLabel(path)).Clicked() {
+				ui.Text(c, text).FontSize(uikit.TextMeta).TextColor(t.TextMuted)
+				if path := cmp.Or(from, d.composeCollection); path != "" && uikit.SecondaryButton(c, settingsLabel(path)).Clicked() {
 					a.openFolder(path)
 				}
 			})
@@ -355,43 +356,45 @@ var authTypes = []string{"None", "Bearer", "Basic", "API key", request.AuthOAuth
 func (a *app) authFields(c *ui.Context, auth *request.Auth, types []string, collection string) {
 	t := c.Theme()
 	if auth.Type != request.AuthInherit {
-		ui.Text(c, "Prefer {{variables}} or {{vault:name}} for secrets; these fields are saved in plaintext.").FontSize(textMeta).TextColor(t.TextMuted)
+		ui.Text(c, "Prefer {{variables}} or {{vault:name}} for secrets; these fields are saved in plaintext.").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
 	}
 	ui.Form(c, func() {
 		ui.Field(c, "Type", func() {
-			ui.Select(c, &auth.Type, types).Label("Authorization type").Width(240).Height(heightControl)
+			ui.Select(c, &auth.Type, types).Label("Authorization type").Width(240).Height(uikit.HeightControl)
 		})
 		switch auth.Type {
 		case "Bearer":
 			ui.Field(c, "Bearer token", func() {
-				ui.TextInput(c, &auth.Token).Height(heightControl).Label("Bearer token").Placeholder("{{token}}").Password()
+				ui.TextInput(c, &auth.Token).Height(uikit.HeightControl).Label("Bearer token").Placeholder("{{token}}").Password()
 			})
 		case "Basic":
-			ui.Field(c, "Username", func() { ui.TextInput(c, &auth.Username).Height(heightControl).Label("Username") })
-			ui.Field(c, "Password", func() { ui.TextInput(c, &auth.Password).Height(heightControl).Label("Password").Password() })
+			ui.Field(c, "Username", func() { ui.TextInput(c, &auth.Username).Height(uikit.HeightControl).Label("Username") })
+			ui.Field(c, "Password", func() { ui.TextInput(c, &auth.Password).Height(uikit.HeightControl).Label("Password").Password() })
 		case "API key":
-			ui.Field(c, "API key name", func() { ui.TextInput(c, &auth.Key).Height(heightControl).Label("API key name") })
-			ui.Field(c, "API key value", func() { ui.TextInput(c, &auth.Value).Height(heightControl).Label("API key value").Password() })
+			ui.Field(c, "API key name", func() { ui.TextInput(c, &auth.Key).Height(uikit.HeightControl).Label("API key name") })
+			ui.Field(c, "API key value", func() { ui.TextInput(c, &auth.Value).Height(uikit.HeightControl).Label("API key value").Password() })
 			ui.Field(c, "Location", func() {
-				ui.Select(c, &auth.Location, []string{"Header", "Query"}).Label("API key location").Width(160).Height(heightControl)
+				ui.Select(c, &auth.Location, []string{"Header", "Query"}).Label("API key location").Width(160).Height(uikit.HeightControl)
 			})
 		case request.AuthOAuth2:
 			a.oauthFields(c, auth, collection)
 		case request.AuthDigest:
-			ui.Field(c, "Username", func() { ui.TextInput(c, &auth.Username).Height(heightControl) })
-			ui.Field(c, "Password", func() { ui.TextInput(c, &auth.Password).Height(heightControl).Password() }).
+			ui.Field(c, "Username", func() { ui.TextInput(c, &auth.Username).Height(uikit.HeightControl) })
+			ui.Field(c, "Password", func() { ui.TextInput(c, &auth.Password).Height(uikit.HeightControl).Password() }).
 				Description("The first send gets the server's challenge; vscroxy answers it and sends again.")
 		case request.AuthAWS:
 			aws := &auth.AWS
-			ui.Field(c, "Access key", func() { ui.TextInput(c, &aws.AccessKey).Height(heightControl) })
+			ui.Field(c, "Access key", func() { ui.TextInput(c, &aws.AccessKey).Height(uikit.HeightControl) })
 			ui.Field(c, "Secret key", func() {
-				ui.TextInput(c, &aws.SecretKey).Height(heightControl).Placeholder("{{vault:aws_secret}}").Password()
+				ui.TextInput(c, &aws.SecretKey).Height(uikit.HeightControl).Placeholder("{{vault:aws_secret}}").Password()
 			})
-			ui.Field(c, "Region", func() { ui.TextInput(c, &aws.Region).Height(heightControl).Placeholder("us-east-1").Width(260) })
+			ui.Field(c, "Region", func() { ui.TextInput(c, &aws.Region).Height(uikit.HeightControl).Placeholder("us-east-1").Width(260) })
 			ui.Field(c, "Service", func() {
-				ui.TextInput(c, &aws.Service).Height(heightControl).Placeholder("e.g. execute-api or s3").Width(260)
+				ui.TextInput(c, &aws.Service).Height(uikit.HeightControl).Placeholder("e.g. execute-api or s3").Width(260)
 			})
-			ui.Field(c, "Session token", func() { ui.TextInput(c, &aws.SessionToken).Height(heightControl).Placeholder("Optional").Password() })
+			ui.Field(c, "Session token", func() {
+				ui.TextInput(c, &aws.SessionToken).Height(uikit.HeightControl).Placeholder("Optional").Password()
+			})
 		case request.AuthJWT:
 			jwt := &auth.JWT
 			if jwt.Algorithm == "" {
@@ -401,25 +404,25 @@ func (a *app) authFields(c *ui.Context, auth *request.Auth, types []string, coll
 			if jwt.AddTo == "Query" {
 				addTo = "Query"
 			}
-			ui.Field(c, "Algorithm", func() { ui.Select(c, &jwt.Algorithm, request.JWTAlgorithms).Width(160).Height(heightControl) })
+			ui.Field(c, "Algorithm", func() { ui.Select(c, &jwt.Algorithm, request.JWTAlgorithms).Width(160).Height(uikit.HeightControl) })
 			if strings.HasPrefix(jwt.Algorithm, "HS") {
 				ui.Field(c, "Secret", func() {
-					ui.TextInput(c, &jwt.Secret).Height(heightControl).Placeholder("{{vault:jwt_secret}}").Password()
+					ui.TextInput(c, &jwt.Secret).Height(uikit.HeightControl).Placeholder("{{vault:jwt_secret}}").Password()
 				})
 				ui.Field(c, "", func() { ui.Checkbox(c, &jwt.SecretBase64, "Secret is base64-encoded") })
 			} else {
 				ui.Field(c, "Private key", func() {
-					ui.TextArea(c, &jwt.PrivateKey).Height(72).Font(fontMono).FontSize(textBody).Radius(radiusControl).Placeholder("-----BEGIN PRIVATE KEY----- … or {{vault:jwt_key}}")
+					ui.TextArea(c, &jwt.PrivateKey).Height(72).Font(uikit.FontMono).FontSize(uikit.TextBody).Radius(uikit.RadiusControl).Placeholder("-----BEGIN PRIVATE KEY----- … or {{vault:jwt_key}}")
 				})
 			}
 			ui.Field(c, "Payload", func() {
-				ui.TextArea(c, &jwt.Payload).Height(72).Font(fontMono).FontSize(textBody).Radius(radiusControl).Placeholder(`{"sub": "{{user_id}}"}`)
+				ui.TextArea(c, &jwt.Payload).Height(72).Font(uikit.FontMono).FontSize(uikit.TextBody).Radius(uikit.RadiusControl).Placeholder(`{"sub": "{{user_id}}"}`)
 			})
 			ui.Field(c, "Extra header", func() {
-				ui.TextInput(c, &jwt.Header).Height(heightControl).Placeholder(`Optional, e.g. {"kid": "key-1"}`).Font(fontMono)
+				ui.TextInput(c, &jwt.Header).Height(uikit.HeightControl).Placeholder(`Optional, e.g. {"kid": "key-1"}`).Font(uikit.FontMono)
 			})
 			ui.Field(c, "Add token to", func() {
-				if ui.Select(c, &addTo, []string{"Header", "Query"}).Width(160).Height(heightControl).Changed() {
+				if ui.Select(c, &addTo, []string{"Header", "Query"}).Width(160).Height(uikit.HeightControl).Changed() {
 					jwt.AddTo = ""
 					if addTo == "Query" {
 						jwt.AddTo = "Query"
@@ -427,9 +430,9 @@ func (a *app) authFields(c *ui.Context, auth *request.Auth, types []string, coll
 				}
 			})
 			if jwt.AddTo == "Query" {
-				ui.Field(c, "Query parameter", func() { ui.TextInput(c, &jwt.QueryParam).Height(heightControl).Placeholder("token").Width(200) })
+				ui.Field(c, "Query parameter", func() { ui.TextInput(c, &jwt.QueryParam).Height(uikit.HeightControl).Placeholder("token").Width(200) })
 			} else {
-				ui.Field(c, "Header prefix", func() { ui.TextInput(c, &jwt.Prefix).Height(heightControl).Placeholder("Bearer").Width(150) })
+				ui.Field(c, "Header prefix", func() { ui.TextInput(c, &jwt.Prefix).Height(uikit.HeightControl).Placeholder("Bearer").Width(150) })
 			}
 		}
 	}).Gap(t.Space(3))
@@ -441,11 +444,11 @@ func (a *app) requestBodyEditor(c *ui.Context, d *requestDocument, t *ui.Theme) 
 	if d.bodyMode == "Raw" {
 		a.requestBodyText(c, d)
 	} else {
-		ui.Text(c, "FORM DATA · file values are local paths, 16 MiB in total").FontSize(textMeta).TextColor(t.TextMuted)
+		ui.Text(c, "FORM DATA · file values are local paths, 16 MiB in total").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
 		requestFieldsEditor(c, &d.formFields, fieldsOptions{file: true}, "field", func() {
-			if toolbarButton(c, "Attach file…", "Add a file part; only the local path is stored", false).Children(func() {
-				ui.Icon(c, fileInputIcon).Size(iconInline, iconInline)
-				ui.Text(c, "Attach file…").FontSize(textBody)
+			if uikit.ToolbarButton(c, "Attach file…", "Add a file part; only the local path is stored", false).Children(func() {
+				ui.Icon(c, fileInputIcon).Size(uikit.IconInline, uikit.IconInline)
+				ui.Text(c, "Attach file…").FontSize(uikit.TextBody)
 			}).Clicked() && a.win != nil {
 				go func() {
 					paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Title: "Attach request file"})
@@ -510,9 +513,9 @@ func (a *app) requestBodyText(c *ui.Context, d *requestDocument) {
 // surface. The editor still owns editing, scrolling, find and accessibility.
 func requestCodeEditor(c *ui.Context, state *editor.State) ui.Element {
 	t := c.Theme()
-	state.Font = ui.Font{Family: fontMono, Size: textBody}
-	state.Theme = bodyEditorTheme(t)
-	return ui.Box(c).Grow(1).MinHeight(0).FillWidth().Border(1, t.Border).Radius(radiusControl).Children(func() {
+	state.Font = ui.Font{Family: uikit.FontMono, Size: uikit.TextBody}
+	state.Theme = uikit.EditorTheme(t)
+	return ui.Box(c).Grow(1).MinHeight(0).FillWidth().Border(1, t.Border).Radius(uikit.RadiusControl).Children(func() {
 		editor.View(c, state).Grow(1).FillWidth().FocusRing(true)
 	})
 }

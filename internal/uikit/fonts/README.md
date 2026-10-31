@@ -23,7 +23,7 @@ If none of those Latin fallbacks are installed either, the native engine uses
 the remaining CJK and generic families.
 
 MyGo v0.7.3 has `ui.Theme.Font`, but no `ui.Theme.FontMono` field. Apply the
-second family list through an app token and an element's `.Font(...)` (or
+second family list through the uikit `FontMono` token and an element's `.Font(...)` (or
 `ui.Font.Family` for custom drawing). The native text engine chooses the
 registered face by weight: Inter 400/500/600 and JetBrains Mono 400/700.
 Chinese glyphs remain supplied by installed platform fonts.

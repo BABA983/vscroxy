@@ -7,7 +7,9 @@ The Go module and MyGo configuration live at the repository root.
 `cmd/vscroxy/` is the thin executable entry, including `--proxy-guard` mode.
 `internal/app/` owns the UI and application state. `internal/request/` owns an
 authored request and how it becomes traffic (variables, encoding, scripts,
-checks, sending); it never imports MyGo. `internal/vault/` seals secrets and
+checks, sending); it never imports MyGo. `internal/uikit/` is the design system: tokens, the Paper/Ink themes, bundled
+fonts and shared components; it depends only on MyGo, and screens use its roles
+and components instead of colors and sizes. `internal/vault/` seals secrets and
 decides which hosts may receive them. `internal/postman/` converts Postman
 collections and environments. Request scripts are Postman's `pm` API, built in
 `internal/request/js/pm.js` on an embedded, unmodified Chai 4.5.0. Keep the other `internal/`
