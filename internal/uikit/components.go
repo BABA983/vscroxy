@@ -130,11 +130,20 @@ func DialogFooter(c *ui.Context) ui.Element {
 }
 
 // PopoverPanel is the chrome of anything floating above the window short of
-// a dialog: popovers and toasts. Modal has the heavier of the two shadows.
+// a dialog: popovers and toasts. Modal has the deeper of the two shadows.
 func PopoverPanel(c *ui.Context, panel ui.Element) ui.Element {
 	t := c.Theme()
 	return panel.Radius(RadiusPanel).Background(t.Background).Border(1, t.Border).
-		Shadow(0, 8, 24, 0, ui.RGBA(0, 0, 0, 0.22))
+		Shadow(0, 8, 28, 0, shadow(t, 0.14))
+}
+
+// shadow is a soft, wide shadow as macOS draws under floating panels, with
+// the hairline border doing the edge. A dark window needs it darker to show.
+func shadow(t *ui.Theme, alpha float32) ui.Color {
+	if t.Dark {
+		alpha *= 2.5
+	}
+	return ui.RGBA(0, 0, 0, alpha)
 }
 
 // StatusPill tints only what calls for attention: a quiet status (2xx, 304,
@@ -266,7 +275,7 @@ func Modal(c *ui.Context, open *bool, content func()) ui.Element {
 	dialog := ui.DialogBase(c, open, func(backdrop, panel ui.Element) {
 		backdrop.Background(ui.RGBA(0, 0, 0, 0.45))
 		panel.Padding(t.Space(5)).Gap(t.Space(3)).Radius(RadiusDialog).Background(t.Background).Border(1, t.Border).
-			MaxWidth(width-40).MaxHeight(height-40).Shadow(0, 16, 40, 0, ui.RGBA(0, 0, 0, 0.3))
+			MaxWidth(width-40).MaxHeight(height-40).Shadow(0, 20, 56, 0, shadow(t, 0.2))
 		content()
 	})
 	if dialog.Dismissed() {
@@ -323,7 +332,8 @@ func Segmented(c *ui.Context, selected *int, labels ...string) ui.Element {
 	parts.Track.AlignItems(ui.Stretch).Height(HeightControl).Padding(t.Space(0.5)).Gap(t.Space(0.5)).
 		Radius(RadiusControl).Background(p.Panel).Border(1, t.Border).Children(func() {
 		for i, label := range labels {
-			s := parts.Segment(i).Label(label).Padding(0, t.Space(3)).Radius(RadiusControl).
+			// Concentric with the track: its radius less the track's padding.
+			s := parts.Segment(i).Label(label).Padding(0, t.Space(3)).Radius(RadiusControl - t.Space(0.5)).
 				AlignItems(ui.Center).FontSize(TextBody).TextColor(t.TextMuted)
 			switch {
 			case i == *selected && t.Dark:
@@ -341,14 +351,19 @@ func Segmented(c *ui.Context, selected *int, labels ...string) ui.Element {
 	return parts.Track
 }
 
-// Selection has one look everywhere: a tinted fill with the row's normal
-// text colors, and a marker line at its leading edge. focused is whether the
-// list holding the row has the keyboard focus; without it the fill turns to
-// the hover color and the marker to muted text, so the row still shows which
-// one is selected without claiming the keyboard.
+// Selection is a tinted fill with the row's normal text colors. focused is
+// whether the list holding the row has the keyboard focus; without it the
+// fill turns to the hover color, so the row still shows which one is
+// selected without claiming the keyboard.
+//
+// Rows that pick a place or a thing (sidebars, trees, pick lists) are
+// rounded blocks inset from the edges, as in a macOS source list: Selected.
+// Rows of data in a MyGo table or list span its width and add a marker line
+// at the leading edge, which keeps a selected row apart from a hovered one
+// once the fill turns to hover: ListTheme and RowMarker.
 
 // ListTheme is the theme a MyGo table, list or tree paints its selection
-// from. Scope it to the list with SetTheme; rows draw Marker themselves.
+// from. Scope it to the list with SetTheme; rows draw RowMarker themselves.
 func ListTheme(t *ui.Theme, focused bool) *ui.Theme {
 	p := Colors(t)
 	list := *t
@@ -359,8 +374,8 @@ func ListTheme(t *ui.Theme, focused bool) *ui.Theme {
 	return &list
 }
 
-// Marker paints the selection marker on the leading edge of r.
-func Marker(t *ui.Theme, focused bool) func(p *ui.Painter, r ui.Rect) {
+// marker paints the selection marker on the leading edge of r.
+func marker(t *ui.Theme, focused bool) func(p *ui.Painter, r ui.Rect) {
 	// The palette's accent, not t.Accent: inside ListTheme that is the fill.
 	color := Colors(t).Accent
 	if !focused {
@@ -375,15 +390,15 @@ func Marker(t *ui.Theme, focused bool) func(p *ui.Painter, r ui.Rect) {
 // RowMarker adds the marker to the row being built by a MyGo list or table,
 // whose own selection fill comes from ListTheme.
 func RowMarker(c *ui.Context, focused bool) {
-	ui.Box(c).Absolute().Left(0).Top(0).Bottom(0).Width(4).Draw(Marker(c.Theme(), focused))
+	ui.Box(c).Absolute().Left(0).Top(0).Bottom(0).Width(4).Draw(marker(c.Theme(), focused))
 }
 
-// Selected gives a row the selection look.
+// Selected gives a rounded row the selection look.
 func Selected(c *ui.Context, e ui.Element, focused bool) ui.Element {
 	t := c.Theme()
 	fill := Colors(t).AccentTint
 	if !focused {
 		fill = Colors(t).Hover
 	}
-	return e.Background(fill).TextColor(t.Text).Draw(Marker(t, focused))
+	return e.Background(fill).TextColor(t.Text)
 }

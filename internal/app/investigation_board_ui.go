@@ -253,9 +253,9 @@ func (a *app) boardPreview(c *ui.Context, t *ui.Theme, inv *investigation) {
 			choice := 1 - b.previewSide
 			ui.Row(c).Padding(t.Space(2), t.Space(3), t.Space(0.5)).Children(func() {
 				seg := ui.SegmentedBase(c, &choice, 2)
-				seg.Track.Padding(t.Space(0.5)).Radius(uikit.RadiusPanel).Border(1, t.Border).Background(t.Background).Children(func() {
+				seg.Track.Padding(t.Space(0.5)).Radius(uikit.RadiusControl).Border(1, t.Border).Background(t.Background).Children(func() {
 					for i, name := range []string{"Request", "Response"} {
-						s := seg.Segment(i).Label(name).Height(uikit.HeightCompact).Padding(0, t.Space(2)).Radius(uikit.RadiusControl).AlignItems(ui.Center).TextColor(t.TextMuted)
+						s := seg.Segment(i).Label(name).Height(uikit.HeightCompact).Padding(0, t.Space(2)).Radius(uikit.RadiusControl - t.Space(0.5)).AlignItems(ui.Center).TextColor(t.TextMuted)
 						if i == choice {
 							s.Background(t.SurfaceHover).TextColor(t.Text)
 						}

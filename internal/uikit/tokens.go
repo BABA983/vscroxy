@@ -14,9 +14,11 @@ const (
 	HeightLarge   = 32
 	HeightTabs    = 32
 	HeightBar     = 44 // title bar and the Capture toolbar
-	RadiusControl = 4
-	RadiusPanel   = 6
-	RadiusDialog  = 10
+	// macOS-sized corners. Something nested in a padded container takes the
+	// container's radius less the padding, so the corners stay concentric.
+	RadiusControl = 6
+	RadiusPanel   = 10
+	RadiusDialog  = 14
 	IconInline    = 14
 	IconLarge     = 16
 	DialogSmall   = 480
