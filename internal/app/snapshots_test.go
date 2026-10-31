@@ -66,21 +66,32 @@ func TestUISnapshots(t *testing.T) {
 		}
 	}
 	draft := func(a *app) {
-		a.composeFrom(a.flows[0])
+		openDraft(a, a.flows[0])
 		a.composeTab = composeTabHeaders
 	}
-	response := func(a *app) {
-		draft(a)
+	sent := func(a *app) {
 		a.sent, a.sentSet, a.sentAt = a.draft(), true, snapshotTime
 		a.response = &capture.Flow{Status: 201, Millis: 47, Bytes: 43, ResponseHeader: http.Header{"Content-Type": {"application/json"}, "X-Tag": {"first", "second"}}, ResponseBody: `{"id":73,"name":"Demo project","active":true}`}
 		a.sendOutcome = "Response received"
 		a.composeTests = []request.TestResult{{Name: "Created", Pass: true}, {Name: "Project active", Pass: false}}
 		a.responseArrived()
 	}
+	response := func(a *app) {
+		draft(a)
+		sent(a)
+	}
+	// A capture edited in place, as its draft.
+	edited := func(a *app) {
+		a.editCapture(a.flows[0])
+		a.composeURL += "?page=2"
+		a.composeTab = composeTabParams
+	}
 	states := []snapshot{
 		{name: "capture-empty", setup: func(a *app) { a.flows = nil; a.countDomains(); a.countClients(); a.applyFilter() }, want: "Capture is stopped"},
 		{name: "capture-selected", want: "Request inspector"},
 		{name: "capture-stacked", setup: func(a *app) { a.workbench.layout = "bottom" }, want: "Request inspector"},
+		{name: "capture-edited", setup: edited, want: "Edited"},
+		{name: "capture-sent", setup: func(a *app) { edited(a); sent(a) }, want: "Last attempt"},
 		{name: "capture-no-matches", act: func(t *testing.T, tt *ui.Tester) {
 			click("Search host or path")(t, tt)
 			tt.Type("no-match")
@@ -367,7 +378,7 @@ func TestUISnapshots(t *testing.T) {
 			if err := tt.RightClick("api.example.com/projects"); err != nil {
 				t.Fatal(err)
 			}
-		}, menu: "Edit & resend"},
+		}, menu: "Edit request"},
 	}
 	for _, auth := range []string{"Bearer", "Basic", "API key", request.AuthOAuth2, request.AuthDigest, request.AuthAWS, request.AuthJWT} {
 		states = append(states, snapshot{name: "requests-auth-" + auth, setup: func(a *app) {
@@ -427,7 +438,7 @@ func TestUISnapshots(t *testing.T) {
 		}
 		for _, state := range states {
 			widths := []int{1280}
-			if state.name == "capture-selected" || state.name == "capture-ws" || state.name == "capture-connect" || strings.HasPrefix(state.name, "requests-") || strings.HasPrefix(state.name, "secondary-") || strings.HasPrefix(state.name, "dialog-") || state.name == "active-tools" {
+			if state.name == "capture-selected" || state.name == "capture-edited" || state.name == "capture-sent" || state.name == "capture-ws" || state.name == "capture-connect" || strings.HasPrefix(state.name, "requests-") || strings.HasPrefix(state.name, "secondary-") || strings.HasPrefix(state.name, "dialog-") || state.name == "active-tools" {
 				widths = append(widths, 960)
 			}
 			for _, width := range widths {

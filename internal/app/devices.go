@@ -220,7 +220,7 @@ func (a *app) devicesModal(c *ui.Context, t *ui.Theme) {
 					}
 				})
 				ui.Column(c).BasisPercent(56).Grow(1).MinWidth(0).Gap(t.Space(3)).Children(func() {
-					uikit.Tabs(c, &d.platform, "", "iOS", "Android", "Checks")
+					uikit.Tabs(c, &d.platform, "Device platform", "iOS", "Android", "Checks")
 					ui.Scroll(c).Grow(1).MinHeight(0).Gap(t.Space(2)).Padding(0, t.Space(2), 0, 0).Children(func() {
 						switch d.platform {
 						case 0:

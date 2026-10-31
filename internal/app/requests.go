@@ -41,7 +41,6 @@ type requestDocument struct {
 	sourceFlow        int
 	experimentID      int
 	source            *flow
-	sourceView        *captureView
 	comparison        captureAnalysis
 	sourceAPI         string
 	composeName       string
@@ -188,17 +187,23 @@ func (d *requestDocument) title() string {
 }
 
 func (a *app) addDocument(r savedRequest, key string) {
+	d := a.newDocument(r, key)
+	a.documents = append(a.documents, d)
+	a.requestDocument = d
+	a.requestChoice = key
+	a.workspace, a.requestsSection = 1, 0
+	d.urlInput.Focus()
+}
+
+// newDocument is a document for r that no tab or capture holds yet.
+func (a *app) newDocument(r savedRequest, key string) *requestDocument {
 	a.nextDocument++
 	d := &requestDocument{
 		id: a.nextDocument, debugKey: uuid.New().String(), revealTab: true, requestPercent: draftPercent,
 		composeTab: composeTabFor(r), baseline: savedRequest{Method: "GET", URL: "https://"},
 	}
 	d.load(r, key)
-	a.documents = append(a.documents, d)
-	a.requestDocument = d
-	a.requestChoice = key
-	a.workspace, a.requestsSection = 1, 0
-	d.urlInput.Focus()
+	return d
 }
 
 // load puts r in the editor; a key says it is that saved asset, which is
@@ -232,6 +237,9 @@ const (
 	composeTabScripts
 	composeTabChecks
 	composeTabExamples
+	// composeTabOriginal reads the captured request a draft came from, in
+	// the capture's readers. Only a captured request has it.
+	composeTabOriginal
 )
 
 // composeTabFor opens the tab a request is usually edited in: its body when
@@ -435,7 +443,7 @@ func (a *app) composeView(c *ui.Context, t *ui.Theme) {
 		return
 	}
 	ui.Column(c).Key(d.id).Fill().Children(func() {
-		a.requestBar(c, t, d)
+		a.requestBar(c, t, d, nil)
 		a.requestVariablesPanel(c, t, d)
 		if d.comparing {
 			ui.Column(c).Grow(1).Children(func() { a.requestResponse(c, t, d) })
@@ -451,7 +459,7 @@ func (a *app) composeView(c *ui.Context, t *ui.Theme) {
 		}
 		d.splitSeen = d.requestPercent
 		ui.SplitVerticalPercent(c.Key("request-editor"), &d.requestPercent, func() {
-			a.requestEditor(c, t, d)
+			a.requestEditor(c, t, d, nil)
 		}, func() {
 			if r := a.experiments.record(d.historyPick); r != nil {
 				a.historyResponse(c, t, d, r)
@@ -505,7 +513,11 @@ func (a *app) requestRenameModal(c *ui.Context, t *ui.Theme) {
 	}
 	uikit.Modal(c, &a.renameOpen, func() {
 		uikit.DialogColumn(c, uikit.DialogSmall).Children(func() {
-			uikit.DialogTitle(c, "Rename request")
+			title := "Rename request"
+			if a.saveAfterRename {
+				title = "Save to collection"
+			}
+			uikit.DialogTitle(c, title)
 			uikit.Input(c, &d.composeName).Label("Name").Placeholder("Untitled request").FillWidth().
 				Height(uikit.HeightControl).Padding(0, t.Space(2)).Radius(uikit.RadiusControl).FontSize(uikit.TextBody)
 			uikit.Input(c, &d.composeCollection).Label("Collection").Placeholder("Collection").FillWidth().
@@ -514,6 +526,12 @@ func (a *app) requestRenameModal(c *ui.Context, t *ui.Theme) {
 			uikit.DialogFooter(c).Children(func() {
 				if uikit.SecondaryButton(c, "Cancel").Clicked() {
 					a.renameOpen = false
+				}
+				if a.saveAfterRename {
+					if uikit.PrimaryButton(c, "Save").Clicked() && a.saveComposed() {
+						a.renameOpen = false
+					}
+					return
 				}
 				if uikit.PrimaryButton(c, "Done").Clicked() {
 					a.renameOpen = false
@@ -526,20 +544,6 @@ func (a *app) requestRenameModal(c *ui.Context, t *ui.Theme) {
 // requestDocumentActions never scrolls away with a long document tab strip.
 func (a *app) requestDocumentActions(c *ui.Context, t *ui.Theme, d *requestDocument) {
 	ui.Row(c).Key(d.id).Gap(t.Space(1)).AlignItems(ui.Center).Children(func() {
-		label := "Back to traffic"
-		if d.sourceFlow != 0 {
-			label = fmt.Sprintf("Source #%d", d.sourceFlow)
-		}
-		back := uikit.ToolbarButton(c, "Back to traffic", "Return to the capture, keeping its filters, selection and position", false)
-		if back.Clicked() {
-			a.backToTraffic(c)
-		}
-		back.Children(func() {
-			ui.Icon(c, backIcon).Size(uikit.IconInline, uikit.IconInline)
-			if d.sourceFlow != 0 {
-				uikit.Body(c, label)
-			}
-		})
 		// The tab already names the request. Keep its full collection path
 		// available at the rename action without reserving another row.
 		name := d.composeName
@@ -551,11 +555,7 @@ func (a *app) requestDocumentActions(c *ui.Context, t *ui.Theme, d *requestDocum
 		}
 		rename := uikit.IconButton(c, "Rename request", name+"\nRename or move to another collection", requestIcon).Size(uikit.HeightControl, uikit.HeightControl)
 		if rename.Clicked() {
-			a.renameOpen = true
-		}
-		if d.sourceFlow != 0 && (a.query != "" || a.filter != "all" || a.chip != 0 || a.filtersActive()) {
-			ui.Icon(c, filterIcon).Size(uikit.IconInline, uikit.IconInline).Label("Capture filters kept · new traffic may be hidden").TextColor(t.Warning).
-				Tooltip("Capture filters kept · new traffic may be hidden. Returning restores filters, selection and position.")
+			a.renameOpen, a.saveAfterRename = true, false
 		}
 		if d.sourceAPI != "" {
 			if uikit.ToolbarButton(c, "Source API", "Open the API this request came from", false).Height(uikit.HeightCompact).Children(func() {
@@ -690,7 +690,8 @@ var requestMethods = []string{"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "
 
 // requestBar is the line a person edits and sends: method, URL, and the one
 // prominent action.
-func (a *app) requestBar(c *ui.Context, t *ui.Theme, d *requestDocument) {
+// requestBar is the method, URL and Send; more adds what follows Send.
+func (a *app) requestBar(c *ui.Context, t *ui.Theme, d *requestDocument, more func()) {
 	ui.Row(c).Height(48).Padding(t.Space(2), t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 		ui.Row(c).Grow(1).Height(uikit.HeightLarge).Border(1, t.Border).Radius(uikit.RadiusControl).AlignItems(ui.Center).Children(func() {
 			// An editable dropdown: a click lists the common methods, and a method
@@ -769,6 +770,9 @@ func (a *app) requestBar(c *ui.Context, t *ui.Theme, d *requestDocument) {
 			a.desktopButton(c, "cancel-send", label).Label("Cancel send").Width(96).Height(uikit.HeightLarge).
 				Tooltip("Stop waiting; cancelling does not undo server-side changes")
 		}
+		if more != nil {
+			more()
+		}
 	})
 	ui.Divider(c)
 }
@@ -799,8 +803,18 @@ func urlSpans(raw string, t *ui.Theme) []ui.Span {
 
 // requestEditor is the draft's own body: parameters, auth, headers, body and
 // scripts, each a tab of the same document.
-func (a *app) requestEditor(c *ui.Context, t *ui.Theme, d *requestDocument) {
-	wide := a.contentWidth(c) >= 900
+// requestEditor edits the request's parts; original, when set, reads the
+// captured request it came from in its own tab.
+func (a *app) requestEditor(c *ui.Context, t *ui.Theme, d *requestDocument, original func()) {
+	labels := []string{"Params", "Headers", "Auth", "Body", "Scripts", "Checks", "Examples"}
+	if original != nil {
+		labels = append(labels, "Original")
+	} else if d.composeTab == composeTabOriginal {
+		d.composeTab = composeTabParams
+	}
+	// Beside a capture's response the editor has half the width: its body
+	// tools take their own row there.
+	wide := a.contentWidth(c) >= 900 && original == nil
 	bodyTools := func() {
 		uikit.Select(c, &d.bodyMode, []string{"Raw", "URL encoded", "Multipart"}).Label("Request body type").Width(132).FontSize(uikit.TextMeta)
 		formatted, isJSON := indentJSON(d.composeBody)
@@ -817,7 +831,7 @@ func (a *app) requestEditor(c *ui.Context, t *ui.Theme, d *requestDocument) {
 	ui.Column(c).Fill().Children(func() {
 		ui.Row(c).Height(uikit.HeightTabs).Padding(0, t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).
 			Border(0, t.Border).BorderWidth(0, 0, 1, 0).Children(func() {
-			counts := make([]string, 7)
+			counts := make([]string, len(labels))
 			if u, err := url.Parse(d.composeURL); err == nil {
 				n := 0
 				for _, values := range u.Query() {
@@ -849,7 +863,17 @@ func (a *app) requestEditor(c *ui.Context, t *ui.Theme, d *requestDocument) {
 			}
 			counts[composeTabChecks], counts[composeTabExamples] = fmt.Sprint(n), fmt.Sprint(len(d.examples))
 			ui.ScrollHorizontal(c).Grow(1).FillHeight().Children(func() {
-				requestTabs(c, &d.composeTab, "Request editor", []string{"Params", "Headers", "Auth", "Body", "Scripts", "Checks", "Examples"}, counts)
+				if original == nil {
+					requestTabs(c, &d.composeTab, "Request editor", labels, counts)
+					return
+				}
+				// A capture reads first: Original leads its tabs, so the tab
+				// it opens on is the one in view, and the arrows follow the
+				// order shown.
+				n := len(labels)
+				shown := (d.composeTab + 1) % n
+				requestTabs(c, &shown, "Request editor", slices.Concat(labels[n-1:], labels[:n-1]), slices.Concat(counts[n-1:], counts[:n-1]))
+				d.composeTab = (shown + n - 1) % n
 			})
 			if wide && d.composeTab == composeTabBody {
 				bodyTools()
@@ -883,6 +907,8 @@ func (a *app) requestEditor(c *ui.Context, t *ui.Theme, d *requestDocument) {
 				a.checksEditor(c, d, t)
 			case composeTabExamples:
 				a.examplesEditor(c, d, t)
+			case composeTabOriginal:
+				original()
 			}
 		})
 		// A visible response already names the last attempt and draft changes.

@@ -45,7 +45,7 @@ func TestDebugHistoryLinksExactSendsAndSurvivesRestartAndReusedIDs(t *testing.T)
 	if err := a.srv.SetRules([]capture.Rule{rule}); err != nil {
 		t.Fatal(err)
 	}
-	a.composeFrom(a.flows[0])
+	openDraft(a, a.flows[0])
 	tt := ui.NewTester(a.view, 1280, 800)
 	click := func(label string) {
 		t.Helper()
@@ -108,7 +108,7 @@ func TestDebugHistoryLinksExactSendsAndSurvivesRestartAndReusedIDs(t *testing.T)
 	tt.Type(`throw new Error("intentional preflight failure")`)
 	click("Send")
 	waitRuns(2)
-	a.composeFrom(a.flows[1])
+	openDraft(a, a.flows[1])
 	tt.Frame()
 	click("Rename request")
 	tt.Key(ui.Cmd, ui.KeyA)

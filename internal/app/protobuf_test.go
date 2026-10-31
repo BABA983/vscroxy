@@ -284,6 +284,7 @@ func TestProtobufInspectorLoadsSchemaAndSelectsMessages(t *testing.T) {
 	a.applyFilter()
 	t.Cleanup(a.protobuf.stop)
 	a.protobuf.store = filepath.Join(t.TempDir(), "protobuf.pb")
+	a.workbench.layout = "bottom" // Room for the request and response readers side by side.
 	tt := ui.NewTester(a.view, 1240, 850)
 	click := func(label string) {
 		t.Helper()
@@ -332,7 +333,11 @@ func TestProtobufInspectorLoadsSchemaAndSelectsMessages(t *testing.T) {
 	if !tt.HasText("1 of 2 messages") || !tt.HasText("alpha") {
 		t.Fatal("incoming traffic reset protobuf search")
 	}
-	click("Request")
+	// The captured request reads in the document's Original tab; the
+	// protobuf reader follows the pane in focus.
+	click("Original")
+	click("Request pane: Body")
+	click("Request pane")
 	wait("Message type: api.Input")
 	click("Copy decoded")
 	if !strings.Contains(tt.Clipboard(), "query:") || !strings.Contains(tt.Clipboard(), "find") {

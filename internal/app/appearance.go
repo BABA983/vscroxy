@@ -50,6 +50,7 @@ var (
 	upstreamIcon      = lucide.Network()
 	successIcon       = lucide.CircleCheck()
 	warningIcon       = lucide.TriangleAlert()
+	saveIcon          = lucide.Save()
 )
 
 // settingsModal groups infrequent system actions away from capture controls.

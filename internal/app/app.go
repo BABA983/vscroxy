@@ -60,6 +60,8 @@ type app struct {
 	requestChoice   string
 	requestQuery    string
 	renameOpen      bool
+	// saveAfterRename makes the rename dialog Save to collection.
+	saveAfterRename bool
 	settingsOpen    bool
 	settingsTab     int
 	curlOpen        bool
@@ -101,6 +103,16 @@ type app struct {
 	// revealGroup scrolls the sidebar to a group in the next build: "live",
 	// "collections" or "sessions".
 	revealGroup string
+	// Captured requests as documents (captured_document.go): the drafts of
+	// edited or sent captures by flow ID, the inspected capture's unchanged
+	// document (or why there is none), and the tab's document to come back
+	// to from LIVE.
+	flowDrafts      map[int]*requestDocument
+	live            *requestDocument
+	liveFor         int
+	liveProblem     string
+	liveLoad        bool
+	libraryDocument *requestDocument
 	// collectionOpen keeps each saved collection's section open or shut,
 	// by name, the empty name for the requests outside one.
 	collectionOpen map[string]*bool
@@ -1113,8 +1125,10 @@ func (a *app) view(c *ui.Context) {
 		c.ToastAction(fmt.Sprintf("Replayed Capture #%d · %s %s → %d", result.source.id, result.source.method, result.source.path, result.reply.Status), "Inspect replay", func() {
 			// The response belongs to this exact send, not the next capture of
 			// the same URL. Never move the reader until they ask to inspect it.
-			a.composeFrom(result.source)
-			a.response = &result.reply
+			if d := a.editCapture(result.source); d != nil {
+				d.response = &result.reply
+				d.responseArrived()
+			}
 		})
 	}
 	a.desktopShortcuts(c)
@@ -1139,6 +1153,7 @@ func (a *app) view(c *ui.Context) {
 	a.desktopNativeMenu(c)
 	t := c.Theme()
 	a.syncSections()
+	a.syncDocument()
 	ui.Column(c).Bind(&a.workbench.content).Focusable().AutoFocus().Fill().Background(t.Background).Children(func() {
 		a.shell(c, t)
 		a.activeTools(c, t)
@@ -1725,6 +1740,10 @@ func (a *app) table(c *ui.Context) {
 		case "host":
 			text(f.host).TextColor(t.TextMuted).Tooltip(f.url).PopoverMenu(a.rowMenu(c, f))
 		case "url":
+			if a.edited(f.id) {
+				ui.Box(c).Size(6, 6).Radius(3).Background(uikit.Colors(t).Accent).MarginEnd(t.Space(1.5)).
+					Label("Edited").Tooltip("Edited in the inspector · the capture itself is unchanged")
+			}
 			if f.pinned {
 				ui.Icon(c, pinIcon).Size(uikit.IconInline, uikit.IconInline).MarginEnd(t.Space(1)).TextColor(t.TextMuted)
 			}
@@ -2178,7 +2197,7 @@ func (a *app) rowMenu(c *ui.Context, f flow) func(*ui.Menu) {
 		// change future traffic like it, as Proxyman's Tools submenu does.
 		actions := a.requestActions(c, f, true)
 		desktopMenuItem(m, actions, "replay", "Replay")
-		desktopMenuItem(m, actions, "edit", "Edit & resend")
+		desktopMenuItem(m, actions, "edit", "Edit request")
 		if m.Item("Save as request").Disabled(f.kind == "connect" || f.method == "CONNECT").Chosen() {
 			a.saveCapture(f)
 		}
@@ -2265,20 +2284,6 @@ func (a *app) rowMenu(c *ui.Context, f flow) func(*ui.Menu) {
 // openCompose shows the request editor with an empty request.
 func (a *app) openCompose() {
 	a.addDocument(savedRequest{Method: "GET", URL: "https://", Auth: request.Auth{Type: request.AuthInherit}}, "")
-}
-
-// composeFrom fills the request editor with a captured request, the step from
-// traffic to a request worth keeping.
-func (a *app) composeFrom(f flow) {
-	r, err := f.requestDraft()
-	if err != nil {
-		a.setMessage("Edit & replay: " + err.Error())
-		return
-	}
-	a.views.capture(a)
-	a.addDocument(r, "")
-	a.setDebugSource(newDebugSource(f))
-	a.sourceView = a.views.activeView()
 }
 
 // envNames are the environments the editor offers, sorted.

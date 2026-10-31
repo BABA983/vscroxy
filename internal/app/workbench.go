@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"github.com/baba983/vscroxy/internal/uikit"
 	"runtime"
-	"slices"
 	"strings"
 
 	"github.com/egoist/mygo"
@@ -315,7 +314,7 @@ func (a *app) requestActions(c *ui.Context, f flow, current bool) []desktopActio
 		copyRequest = func() { a.copyDraftCurl(c, d) }
 	}
 	return []desktopAction{
-		{"edit", "Edit & replay", current && !bulk && f.kind == "", ui.Cmd | ui.Alt, ui.KeyEnter, func() { a.composeFrom(f) }},
+		{"edit", "Edit request", current && !bulk && f.kind == "", ui.Cmd | ui.Alt, ui.KeyEnter, func() { a.editCapture(f) }},
 		{"replay", "Replay selected…", replayable, ui.Cmd, ui.KeyR, func() { a.openReplay(selected) }},
 		{"copy", "Copy as cURL", copyable, ui.Cmd | ui.Alt, ui.KeyC, copyRequest},
 	}
@@ -326,13 +325,15 @@ func (a *app) desktopActions(c *ui.Context) []desktopAction {
 	f, current := a.current()
 	capturing := a.workspace == 0
 	d := a.requestDocument
-	editing := a.workspace == 1 && d != nil
+	// A captured request in LIVE is a document too; tabs are COLLECTIONS'.
+	editing := d != nil
+	tab := editing && a.workspace == 1
 	focus := "Focus inspector"
 	if w.focused {
 		focus = "Back to list"
 	}
 	primary := "Focus request list"
-	if editing {
+	if tab {
 		primary = "Focus request URL"
 	}
 	search := "Search host or path"
@@ -348,7 +349,7 @@ func (a *app) desktopActions(c *ui.Context) []desktopAction {
 		{"palette", "Commands…", true, ui.Cmd, ui.KeyK, w.openPalette},
 		{"search", search, capturing, ui.Cmd, ui.KeyF, find},
 		{"primary", primary, capturing && len(a.visible) > 0 || editing, ui.Cmd, ui.KeyL, func() {
-			if editing {
+			if tab {
 				d.urlInput.Focus(c)
 			} else {
 				a.focusTraffic(c)
@@ -356,10 +357,23 @@ func (a *app) desktopActions(c *ui.Context) []desktopAction {
 		}},
 		{"send", "Send request", editing && !d.composeWaiting && a.srv != nil && a.srv.Running(), ui.Cmd, ui.KeyEnter, a.sendComposed},
 		{"cancel-send", "Cancel send", editing && d.composeWaiting && d.sendCancel != nil && !d.sendCancelling, 0, 0, func() { d.cancelSend() }},
-		{"save-request", "Save request", editing, ui.Cmd, ui.KeyS, func() { a.saveComposed() }},
-		{"compare-source", "Compare with source", editing && d.source != nil && d.response != nil && !d.composeWaiting, ui.Cmd | ui.Shift, ui.KeyD, func() { d.comparing = true }},
-		{"back", "Back to traffic", editing, ui.Cmd, ui.KeyBracketLeft, func() { a.backToTraffic(c) }},
-		{"close-request", "Close request tab", editing && !d.composeWaiting, ui.Cmd, ui.KeyW, func() { a.requestClose(d) }},
+		{"save-request", "Save request", editing, ui.Cmd, ui.KeyS, func() {
+			if a.workspace == 0 && d.savedKey == "" {
+				// A capture has no name or collection yet: ask for both.
+				a.renameOpen, a.saveAfterRename = true, true
+				return
+			}
+			a.saveComposed()
+		}},
+		{"compare-source", "Compare with source", editing && d.source != nil && d.response != nil && !d.composeWaiting, ui.Cmd | ui.Shift, ui.KeyD, func() {
+			d.comparing = true
+			if !tab {
+				// The comparison replaces the editor that had the focus; keep
+				// it in the inspector, where Escape returns to the list.
+				a.workbench.inspector.Focus(c)
+			}
+		}},
+		{"close-request", "Close request tab", tab && !d.composeWaiting, ui.Cmd, ui.KeyW, func() { a.requestClose(d) }},
 		{"next-tab", "Next debugging tab", len(a.documents) > 0, ui.Ctrl, ui.KeyTab, func() { a.cycleDocument(1) }},
 		{"previous-tab", "Previous debugging tab", len(a.documents) > 0, ui.Ctrl | ui.Shift, ui.KeyTab, func() { a.cycleDocument(-1) }},
 		{"export-selection", "Export selected HAR…", capturing && a.chosen.Len() > 0, 0, 0, a.exportChosen},
@@ -460,6 +474,11 @@ func (a *app) focusTraffic(c *ui.Context) {
 
 func (a *app) desktopShortcuts(c *ui.Context) {
 	for _, action := range a.desktopActions(c) {
+		// Browsing traffic never sends: in LIVE, Send's shortcut works from
+		// inside the inspector only.
+		if action.id == "send" && a.workspace == 0 && !a.workbench.inspector.FocusWithin(c) {
+			continue
+		}
 		if action.enabled && action.key != 0 {
 			c.OnShortcut(action.mods, action.key, action.run)
 		}
@@ -491,7 +510,7 @@ func (action desktopAction) unavailable() string {
 		return "Send a draft opened from Capture before comparing it with its source"
 	case "close-request":
 		return "Open a request draft; wait for its send to finish before closing"
-	case "save-request", "back":
+	case "save-request":
 		return "Open a request draft first"
 	case "next-tab", "previous-tab":
 		return "Open a request tab first"
@@ -573,20 +592,6 @@ func desktopMenuItem(m *ui.Menu, actions []desktopAction, id, label string) {
 			return
 		}
 	}
-}
-
-func (a *app) backToTraffic(c *ui.Context) {
-	d := a.requestDocument
-	a.views.capture(a)
-	if d != nil && d.sourceView != nil {
-		if i := slices.Index(a.views.views, d.sourceView); i >= 0 {
-			a.views.activate(a, i)
-		} else {
-			a.setMessage("Original capture view is no longer open; returned to the current traffic view")
-		}
-	}
-	a.workspace, a.captureSection = 0, 0
-	a.focusTraffic(c)
 }
 
 // Native menu callbacks enter the next build, rather than retaining a Context

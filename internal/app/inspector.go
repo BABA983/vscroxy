@@ -92,17 +92,20 @@ func (a *app) detail(c *ui.Context) {
 			a.connectDetail(c, t, f)
 			return
 		}
-		a.inspectorSummary(c, t, f, ok)
-		if ok {
-			a.replayLinks(c, f)
-			if len(f.actions) > 0 {
-				ui.Text(c, "Applied: "+strings.Join(f.actions, " · ")).FontSize(uikit.TextMeta).TextColor(t.Accent).
-					Padding(4, 14).SingleLine().Tooltip(strings.Join(f.actions, "\n"))
-			}
-		}
 		if !ok {
+			ui.Row(c).Height(uikit.HeightLarge).Padding(0, t.Space(3)).AlignItems(ui.Center).Children(func() {
+				uikit.Hint(c, "No request chosen")
+			})
+			ui.Divider(c)
 			uikit.Hint(c, "Capture a request to inspect it.").Padding(t.Space(4))
 			return
+		}
+		d, problem := a.liveDocument(f)
+		a.capturedHeader(c, t, f, d)
+		a.replayLinks(c, f)
+		if len(f.actions) > 0 {
+			ui.Text(c, "Applied: "+strings.Join(f.actions, " · ")).FontSize(uikit.TextMeta).TextColor(t.Accent).
+				Padding(4, 14).SingleLine().Tooltip(strings.Join(f.actions, "\n"))
 		}
 		switch a.inspect.pane {
 		case inspectorDiff:
@@ -115,6 +118,11 @@ func (a *app) detail(c *ui.Context) {
 			a.inspectorPaneBar(c, t, "Messages", "WebSocket messages or SSE events")
 			a.messages(c, f)
 		default:
+			if d != nil {
+				a.capturedDocument(c, t, f, d)
+				return
+			}
+			a.capturedReadOnly(c, t, f, problem)
 			a.splitInspector(c, f)
 		}
 	})
@@ -153,46 +161,6 @@ func (a *app) connectDetail(c *ui.Context, t *ui.Theme, f flow) {
 	a.connectPanel(c, f)
 }
 
-// inspectorSummary is the one line that names what is inspected and what the
-// exchange produced, with the actions that start from it.
-func (a *app) inspectorSummary(c *ui.Context, t *ui.Theme, f flow, ok bool) {
-	// A narrow inspector keeps the name, the result and the one action that
-	// starts the next step; the rest stays in the overflow.
-	compact := a.inspectorWidth(c) < 600
-	ui.Row(c).Height(uikit.HeightLarge).Padding(0, t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-		if !ok {
-			uikit.Hint(c, "No request chosen").Grow(1)
-			return
-		}
-		title := fmt.Sprintf("%s %s", f.method, cmp.Or(f.url, f.scheme+"://"+f.host+f.path))
-		ui.Text(c, f.method+" "+cmp.Or(f.path, "/")).Label(title).FontSize(uikit.TextBody).Font(uikit.FontMono).
-			TextColor(t.Text).SingleLine().MinWidth(48).Grow(1).Tooltip(title)
-		a.exchangeResult(c, t, f, compact)
-		// One action stands out: starting the edit-and-replay loop. Copying
-		// and history are quiet beside it.
-		for _, action := range a.requestActions(c, f, true) {
-			if action.id == "edit" {
-				uikit.PrimaryButton(c, "Replay").Label("Edit & replay").Disabled(!action.enabled).Tooltip(action.hint()).OnClick(action.run)
-			}
-		}
-		copy := uikit.ToolbarButton(c, "Copy as cURL", "Copy as cURL", false).Padding(0, t.Space(1))
-		if copy.Clicked() {
-			a.copyCurl(c, f)
-		}
-		copy.Children(func() {
-			ui.Icon(c, copyIcon).Size(uikit.IconInline, uikit.IconInline)
-			if !compact {
-				uikit.Body(c, "Copy as cURL")
-			}
-		})
-		info := uikit.IconButton(c, "Connection details", "Connection: addresses, DNS and TLS", infoIcon)
-		info.OnClick(func() { a.connOpen = !a.connOpen })
-		ui.Popover(c, info, &a.connOpen, func() { a.connPanel(c, t, f) })
-		a.inspectorMenu(c, t, f)
-	})
-	ui.Divider(c)
-}
-
 // exchangeResult spells the status as a person reads it, then the two numbers
 // that say how much work the exchange took and carried.
 func (a *app) exchangeResult(c *ui.Context, t *ui.Theme, f flow, compact bool) {
@@ -210,7 +178,7 @@ func (a *app) exchangeResult(c *ui.Context, t *ui.Theme, f flow, compact bool) {
 			status = "CONNECT 200 · failed"
 		}
 	}
-	chip := uikit.StatusPill(c, status, color)
+	chip := uikit.StatusPill(c, status, color).Shrink(0)
 	if f.conn.error != "" {
 		chip = chip.Tooltip(cmp.Or(f.conn.errorStage, "Connection") + ": " + f.conn.error)
 	} else if doc := statusDoc(f.status); doc != "" {
@@ -254,6 +222,10 @@ func (a *app) inspectorMenu(c *ui.Context, t *ui.Theme, f flow) {
 			}
 		}
 		m.Separator()
+		if m.Item("Discard edits").Disabled(a.flowDrafts[f.id] == nil).Chosen() {
+			delete(a.flowDrafts, f.id)
+			a.liveFor = 0 // The capture opens unchanged again.
+		}
 		a.desktopMenuItem(c, m, "replay", "Replay…")
 		if m.Item("Add to investigation…").Chosen() {
 			a.addToInvestigation(f)

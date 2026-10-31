@@ -10,7 +10,7 @@
 
 1. 看到某个 App 或某个域名的请求。
 2. 找到出错的、慢的、可疑的那一条，看懂它。
-3. 改一下再发一次（Edit & replay）。
+3. 改一下再发一次（在检查器里原地编辑，Send）。
 4. 改响应、mock、断点，验证客户端的行为。
 5. 切换 host 或环境，把同一个客户端指到别的服务器。
 6. 把请求整理成集合、写断言、反复运行。
@@ -94,7 +94,7 @@
 
 **一条流量：**
 
-1. 下一步：Replay、Edit & replay、Save as request、Add to collection…
+1. 下一步：Replay、Edit request、Save as request、Add to collection…
 2. 复制：Copy URL、Copy as cURL、Copy response body、Copy as…
 3. 整理：Pin、Mark…、Add note
 4. 工具：Breakpoint、Map Local、Map Remote、Block、Map this host…、HTTPS inspection
@@ -164,7 +164,7 @@
 | 抓到的一次交换 | request（列表里）、exchange（文档里） | 请求 | flow（只留在代码里） |
 | 选中多条 | select、selected | 选中 | choose、chosen、pick |
 | 原样再发一次 | Replay | 重放 | Repeat、Resend |
-| 编辑后再发 | Edit & replay | 编辑后重放 | Edit & resend |
+| 编辑抓到的请求 | Edit request | 编辑请求 | Edit & replay、Edit & resend |
 | 暂停记录 | Pause recording | 暂停录制 | |
 | HTTPS 解密 | HTTPS inspection | HTTPS 解密 | SSL proxying（只在兼容说明里出现） |
 | 已保存的请求 | request | 请求 | saved request、asset |

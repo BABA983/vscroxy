@@ -20,7 +20,7 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-func TestEditReplayOpensExactBytesWithoutSending(t *testing.T) {
+func TestEditingACaptureOpensExactBytesWithoutSending(t *testing.T) {
 	for _, width := range []int{1280, 960} {
 		t.Run(fmt.Sprint(width), func(t *testing.T) {
 			a := workspaceApp()
@@ -38,9 +38,13 @@ func TestEditReplayOpensExactBytesWithoutSending(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			click("Edit & replay")
-			if len(a.documents) != 1 || len(a.requests) != 1 || a.composeWaiting || a.response != nil || a.activeEnv != "" {
-				t.Fatal("Edit & replay must open one unsent draft without saving it or changing the environment")
+			// A spilled body is read from disk only when asked for.
+			if a.requestDocument != nil || !tt.HasText("Large request body kept on disk") {
+				t.Fatal("choosing a capture read its spilled body")
+			}
+			click("Edit request")
+			if a.requestDocument == nil || len(a.documents) != 0 || len(a.requests) != 1 || a.composeWaiting || a.response != nil || a.activeEnv != "" {
+				t.Fatal("editing a capture must open it in place, unsent, without saving it or changing the environment")
 			}
 			if a.composeBody != body || !strings.HasSuffix(a.composeURL, "/projects") {
 				t.Fatal("the draft lost spilled body bytes or its URL")
@@ -53,6 +57,8 @@ func TestEditReplayOpensExactBytesWithoutSending(t *testing.T) {
 				t.Fatal(a.message)
 			}
 			originalID := a.assetID
+			a.openSaved(a.savedKey)
+			tt.Frame()
 			click("Request options")
 			if err := chooseMenu(tt, "Duplicate as new request"); err != nil {
 				t.Fatal(err)
@@ -61,6 +67,59 @@ func TestEditReplayOpensExactBytesWithoutSending(t *testing.T) {
 				t.Fatal("duplicate reused a saved identity")
 			}
 		})
+	}
+}
+
+func TestACapturedRequestIsEditedInPlaceAndDiscardedBackToTheCapture(t *testing.T) {
+	var sends atomic.Int32
+	upstream := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { sends.Add(1) }))
+	defer upstream.Close()
+	a := workspaceApp()
+	a.srv = requestProxy(t)
+	captured := upstream.URL + "/projects"
+	a.flows[0].url = captured
+	tt := ui.NewTester(a.view, 1280, 800)
+	click := func(label string) {
+		t.Helper()
+		if err := tt.Click(label); err != nil {
+			t.Fatal(err)
+		}
+	}
+	readURL := func() string {
+		t.Helper()
+		click("URL")
+		tt.Key(ui.Cmd, ui.KeyA)
+		tt.Key(ui.Cmd, ui.KeyC)
+		return tt.Clipboard()
+	}
+	click("api.example.com/projects")
+	if readURL() != captured || tt.HasText("Edited") || len(a.flowDrafts) != 0 {
+		t.Fatal("choosing a capture did not open it unchanged, without a draft")
+	}
+	// The first edit makes the capture's draft; the capture keeps its bytes.
+	tt.Key(ui.Cmd, ui.KeyA)
+	tt.Type(upstream.URL + "/edited")
+	tt.Frame()
+	if a.flowDrafts[1] == nil || !tt.HasText("Edited") || a.flows[0].url != captured {
+		t.Fatal("editing did not keep a draft beside an unchanged capture")
+	}
+	click("api.example.com/login")
+	if a.requestDocument == nil || a.requestDocument == a.flowDrafts[1] || a.flowDrafts[2] != nil {
+		t.Fatal("another capture opened the edited draft")
+	}
+	click("api.example.com/projects")
+	if readURL() != upstream.URL+"/edited" {
+		t.Fatal("the edit did not stay with its capture")
+	}
+	click("Inspector options")
+	if err := chooseMenu(tt, "Discard edits"); err != nil {
+		t.Fatal(err)
+	}
+	if readURL() != captured || tt.HasText("Edited") || len(a.flowDrafts) != 0 {
+		t.Fatal("discarding edits did not reopen the capture as it was")
+	}
+	if sends.Load() != 0 {
+		t.Fatal("editing sent a request without Send")
 	}
 }
 

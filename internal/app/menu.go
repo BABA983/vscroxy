@@ -43,13 +43,12 @@ func (a *app) menu() *mygo.Menu {
 		file.Submenu = append(file.Submenu, preferences, mygo.Separator(), &mygo.MenuItem{Role: mygo.RoleQuit})
 	}
 	items = append(items, file, &mygo.MenuItem{Role: mygo.RoleEditMenu}, &mygo.MenuItem{Label: "Request", Submenu: []*mygo.MenuItem{
-		command("edit", "Edit & replay"),
+		command("edit", "Edit request"),
 		command("replay", "Replay selected…"),
 		command("copy", "Copy as cURL"),
 		mygo.Separator(),
 		command("send", "Send request"),
 		command("compare-source", "Compare with source"),
-		command("back", "Back to traffic"),
 	}}, &mygo.MenuItem{Label: "View", Submenu: []*mygo.MenuItem{
 		command("live", "Live traffic"),
 		command("collections", "Collections"),

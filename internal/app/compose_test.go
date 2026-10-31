@@ -67,8 +67,7 @@ func TestCapturedDraftUsesCompleteDecodedPayload(t *testing.T) {
 	if f.reqFile == "" || f.reqSize != len(body) || f.reqHeader.Get("Content-Encoding") != "gzip" {
 		t.Fatal("test must exercise a real decoded, spilled gzip capture")
 	}
-	a.composeFrom(f)
-	if a.requestDocument == nil || a.composeBody != body {
+	if d := a.editCapture(f); d == nil || d.composeBody != body {
 		t.Fatal("draft did not retain the full spilled body")
 	}
 	file := filepath.Join(t.TempDir(), "requests.json")
@@ -106,7 +105,7 @@ func TestCapturedDraftRejectsUnavailablePayload(t *testing.T) {
 	} {
 		a := workspaceApp()
 		a.requests = nil
-		a.composeFrom(f)
+		a.editCapture(f)
 		a.regressionFrom(f)
 		a.saveCapture(f)
 		if len(a.documents) != 0 || len(a.requests) != 0 || a.message == "" {

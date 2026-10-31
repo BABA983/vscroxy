@@ -246,6 +246,17 @@ func TestActiveToolChipsChangeConfigurationInBothWorkspaces(t *testing.T) {
 	}
 }
 
+// openDraft opens a captured request as a new request tab linked to it, as
+// a tab in COLLECTIONS rather than the capture's document in LIVE.
+func openDraft(a *app, f flow) {
+	r, err := f.requestDraft()
+	if err != nil {
+		panic(err)
+	}
+	a.addDocument(r, "")
+	a.requestDocument.setDebugSource(newDebugSource(f))
+}
+
 func workspaceApp() *app {
 	a := &app{
 		filter: "all", sidebarWidth: 220, tablePercent: 56,
@@ -452,14 +463,14 @@ func TestCaptureTableScrollsAndKeepsEachViewsPlace(t *testing.T) {
 	if err := tt.Click("api.example.com/capture/0021"); err != nil {
 		t.Fatal(err)
 	}
-	if err := tt.Click("Edit & replay"); err != nil {
+	// Editing happens in place: the list keeps its position and follow state.
+	if err := tt.Click("URL"); err != nil {
 		t.Fatal(err)
 	}
-	if err := tt.Click("Back to traffic"); err != nil {
-		t.Fatal(err)
-	}
-	if !tt.HasText("api.example.com/capture/0021") || !tt.HasText("GET https://api.example.com/capture/0021") || !tt.HasText("Auto-follow off · latest ↓") {
-		t.Fatal("the editing round trip changed the list position, follow state or inspected request")
+	tt.Key(0, ui.KeyEnd)
+	tt.Type("?edited=1")
+	if !tt.HasText("api.example.com/capture/0021") || !tt.HasText("GET https://api.example.com/capture/0021") || !tt.HasText("Auto-follow off · latest ↓") || !tt.HasText("Edited") {
+		t.Fatal("editing the capture changed the list position, follow state or inspected request")
 	}
 	if err := tt.Click("New view"); err != nil {
 		t.Fatal(err)
@@ -549,11 +560,11 @@ func TestWorkspaceKeepsCaptureAndDraftIndependent(t *testing.T) {
 	if err := tt.RightClick("api.example.com/login"); err != nil {
 		t.Fatal(err)
 	}
-	if err := chooseMenu(tt, "Edit & resend"); err != nil {
+	if err := chooseMenu(tt, "Edit request"); err != nil {
 		t.Fatal(err)
 	}
-	if value("URL") != "https://api.example.com/login" || !tt.HasText("Save") {
-		t.Fatal("captured request did not open in the Requests workspace")
+	if value("URL") != "https://api.example.com/login" || !tt.HasText("Save to collection") || !tt.HasText("401") {
+		t.Fatal("the captured request did not open in place as a document")
 	}
 	click("List projects")
 	if value("URL") != "https://api.example.com/projects" || tt.HasText("Captured requests") {
@@ -1076,7 +1087,7 @@ func TestBodyTextFindKeepsContextAndCannotEditCapture(t *testing.T) {
 	body := "before\nneedle first\nbetween\nneedle last\nafter"
 	a.flows[0].resBody = body
 	a.flows[0].respHeader.Set("Content-Type", "text/plain")
-	tt := ui.NewTester(a.view, 960, 600)
+	tt := ui.NewTester(a.view, 960, 700)
 	if err := tt.Click("Body text"); err != nil {
 		t.Fatal(err)
 	}
@@ -1204,12 +1215,14 @@ func TestJSONExpansionSurvivesIncomingTraffic(t *testing.T) {
 	if !tt.HasText(`"expanded-value"`) || tt.HasText(`"hidden-value"`) {
 		t.Fatal("JSON nodes did not expand and collapse")
 	}
-	if err := tt.Click("Edit & replay"); err != nil {
+	// Editing the request keeps the captured response's reader as it was.
+	if err := tt.Click("URL"); err != nil {
 		t.Fatal(err)
 	}
-	tt.Key(ui.Cmd, ui.Key1)
+	tt.Key(0, ui.KeyEnd)
+	tt.Type("?edited=1")
 	if !tt.HasText(`"expanded-value"`) || tt.HasText(`"hidden-value"`) || !tt.HasText("collapsed") {
-		t.Fatal("returning from editing lost the reader's mode or expanded JSON nodes")
+		t.Fatal("editing the request lost the reader's mode or expanded JSON nodes")
 	}
 	for _, id := range []int{3, 4} {
 		a.pending = []capture.Flow{{ID: id, Method: "GET", Scheme: "https", Host: "other.example.com", Path: "/new", Status: 200, Kind: "http"}}
@@ -1496,7 +1509,10 @@ func TestReplayResultDoesNotStealFocusAndKeepsItsSource(t *testing.T) {
 	if err := tt.Click("Inspect replay"); err != nil {
 		t.Fatal(err)
 	}
-	if !tt.HasText("Source #1") || a.response == nil || a.response.Status != 201 || a.response.ResponseBody != "result of this replay" {
+	// The replay's response shows on its source capture's document, in place.
+	d := a.flowDrafts[1]
+	if d == nil || a.requestDocument != d || d.sourceFlow != 1 || d.response == nil || d.response.Status != 201 ||
+		d.response.ResponseBody != "result of this replay" || !tt.HasText("201 Created") {
 		t.Fatal("inspect did not retain the exact replay response and source")
 	}
 }
@@ -1825,7 +1841,7 @@ func TestCaptureDraftComparisonKeepsTheTrafficContextAndLastSend(t *testing.T) {
 	a.views.init(a, "")
 	a.query, a.filterStatus, a.chip, a.tablePercent = "original", "200", 1, 35
 	a.applyFilter()
-	tt := ui.NewTester(a.view, 960, 600)
+	tt := ui.NewTester(a.view, 960, 900)
 	click := func(label string) {
 		t.Helper()
 		if err := tt.Click(label); err != nil {
@@ -1848,15 +1864,17 @@ func TestCaptureDraftComparisonKeepsTheTrafficContextAndLastSend(t *testing.T) {
 	waitForResponse := func() {
 		t.Helper()
 		deadline := time.Now().Add(5 * time.Second)
-		for !tt.HasText("200 OK") && time.Now().Before(deadline) {
+		// The capture's own result says 200 OK too: wait for the send.
+		done := func() bool { return !tt.HasText("Sending…") && tt.HasText("200 OK") }
+		for !done() && time.Now().Before(deadline) {
 			time.Sleep(10 * time.Millisecond)
 			tt.Frame()
 		}
-		if !tt.HasText("200 OK") {
+		if !done() {
 			t.Fatalf("send did not complete: %v", tt.Texts())
 		}
 	}
-	click("Edit & replay")
+	// The captured request is the document: edit and send it in place.
 	edit("URL", upstream.URL+"/items?variant=edited")
 	click("Scripts")
 	edit("Pre-request script", `req.set("X-Marker", "from-script"); req.body = "sent-body"`)
@@ -1864,9 +1882,6 @@ func TestCaptureDraftComparisonKeepsTheTrafficContextAndLastSend(t *testing.T) {
 	edit("Post-response script", `req.set("X-Marker", "after-send"); req.body = "after-send"`)
 	click("Send")
 	waitForResponse()
-	if !tt.HasText("Capture filters kept · new traffic may be hidden") {
-		t.Fatal("filtered traffic can hide the send without explanation")
-	}
 	// Later edits must not change what the last send actually compared.
 	edit("URL", upstream.URL+"/items?variant=not-sent")
 	click("Compare with source")
@@ -1886,18 +1901,18 @@ func TestCaptureDraftComparisonKeepsTheTrafficContextAndLastSend(t *testing.T) {
 	if got := copyText("New text"); !strings.Contains(got, "X-Marker: from-script") || strings.Contains(got, "after-send") {
 		t.Fatalf("compared mutated headers: %q", got)
 	}
-	click("Back to traffic")
-	if !tt.HasText("URL: original ×") || !tt.HasText("Status: 200 ×") || !tt.HasText("HTTP ×") || !tt.HasText("POST http://"+a.flows[0].host+"/items?variant=original") {
-		t.Fatalf("return changed capture conditions or inspected source: %v", tt.Texts())
+	if !tt.HasText("URL: original ×") || !tt.HasText("Status: 200 ×") || !tt.HasText("HTTP ×") || !tt.HasText("POST http://"+a.flows[0].host+"/items?variant=original") || !tt.HasText("Edited") {
+		t.Fatalf("editing changed capture conditions or the inspected source: %v", tt.Texts())
 	}
+	// Going elsewhere and back keeps the draft, its comparison and its edits.
 	tt.Key(ui.Cmd, ui.Key2)
-	click("Request tab: /items?variant=original")
+	tt.Key(ui.Cmd, ui.Key1)
 	if !tt.HasText("Back to response") || !strings.Contains(copyText("New text"), "X-Marker: from-script") {
-		t.Fatal("returning to the draft lost its comparison")
+		t.Fatal("returning to the capture lost its comparison")
 	}
 	click("Response")
 	if got := copyText("URL"); got != upstream.URL+"/items?variant=not-sent" {
-		t.Fatalf("switching workspaces lost unsent edits: %q", got)
+		t.Fatalf("leaving the capture lost unsent edits: %q", got)
 	}
 	click("Send")
 	waitForResponse()
@@ -1907,18 +1922,8 @@ func TestCaptureDraftComparisonKeepsTheTrafficContextAndLastSend(t *testing.T) {
 	if got := copyText("New text"); got != "variant=not-sent; marker=from-script; body=sent-body" {
 		t.Fatalf("second send kept a stale comparison: %q", got)
 	}
-	tt.Key(ui.Cmd, ui.Key1)
 	if !tt.HasText("URL: original ×") || !tt.HasText("Status: 200 ×") {
-		t.Fatal("switching to Capture reset the live view")
-	}
-	click("New view")
-	click("Close view: View 1")
-	tt.Key(ui.Cmd, ui.Key2)
-	click("Request tab: /items?variant=original")
-	click("Back to traffic")
-	tt.Frame()
-	if !tt.HasText("Original capture view is no longer open; returned to the current traffic view") || !tt.HasText("2 captured · 2 shown") {
-		t.Fatal("closed source view was silently resurrected or the fallback was unexplained")
+		t.Fatal("sending reset the live view")
 	}
 }
 
@@ -2088,13 +2093,12 @@ func TestAPIWorkflowPreservesIndependentContracts(t *testing.T) {
 	if err := tt.RightClick("api.example.com/projects"); err != nil {
 		t.Fatal(err)
 	}
-	if err := chooseMenu(tt, "Edit & resend"); err != nil {
+	if err := chooseMenu(tt, "Edit request"); err != nil {
 		t.Fatal(err)
 	}
-	click("Rename request")
+	click("Save to collection")
 	edit("Collection", "Captured API")
 	edit("Name", "Captured projects")
-	click("Done")
 	click("Save")
 	tt.Key(ui.Cmd, ui.Key2)
 	click("Collection options")
@@ -2708,7 +2712,7 @@ func TestDeviceOnboardingCertificateHTTPSAndLiveTunnelRevocation(t *testing.T) {
 	if err != nil || !ca.IsCA {
 		t.Fatalf("download was not a public CA: %v", err)
 	}
-	click("Checks")
+	click("Device platform: Checks")
 	click("Copy CA fingerprint")
 	if tt.Clipboard() != fmt.Sprintf("%X", sha256.Sum256(der)) {
 		t.Fatal("displayed fingerprint does not match the downloaded certificate")
@@ -3477,15 +3481,23 @@ func TestKeyboardDebuggingLoopDoesNotSendThroughDialogsOrRepeatWhileWaiting(t *t
 	if !tt.Focused("URL") {
 		t.Fatal("dismissing the palette lost the editor's focus")
 	}
-	for range 20 {
-		if tt.Focused("header key 1") {
-			break
+	// An unchanged capture opens on its Original tab, first of the editor's
+	// tabs; they are one Tab stop away, and the arrows choose among them.
+	tab := func(label string) {
+		t.Helper()
+		for range 20 {
+			if tt.Focused(label) {
+				return
+			}
+			tt.Key(0, ui.KeyTab)
 		}
-		tt.Key(0, ui.KeyTab)
+		t.Fatalf("%s was not keyboard accessible", label)
 	}
-	if !tt.Focused("header key 1") {
-		t.Fatal("request headers were not keyboard accessible")
-	}
+	tab("Request editor: Original")
+	tt.Key(0, ui.KeyHome)
+	tt.Key(0, ui.KeyRight)
+	tt.Key(0, ui.KeyRight)
+	tab("header key 1")
 	tt.Key(ui.Cmd, ui.KeyEnter)
 	select {
 	case got := <-started:
@@ -3496,38 +3508,32 @@ func TestKeyboardDebuggingLoopDoesNotSendThroughDialogsOrRepeatWhileWaiting(t *t
 		t.Fatal("send never reached the server")
 	}
 	tt.Key(ui.Cmd, ui.KeyEnter)
-	tt.Key(ui.Cmd, ui.KeyW)
-	if !tt.HasText("Sending…") || tt.HasText("Save changes?") || sends.Load() != 1 {
-		t.Fatal("in-flight send could be repeated or its document closed")
+	if !tt.HasText("Sending…") || sends.Load() != 1 {
+		t.Fatal("in-flight send could be repeated")
 	}
 	release <- struct{}{}
 	deadline := time.Now().Add(time.Minute)
-	for !tt.HasText("200 OK") && time.Now().Before(deadline) {
+	done := func() bool { return !tt.HasText("Sending…") && tt.HasText("Last attempt") }
+	for !done() && time.Now().Before(deadline) {
 		time.Sleep(time.Millisecond)
 		tt.Frame()
 	}
-	if !tt.HasText("200 OK") || sends.Load() != 1 {
+	if !done() || sends.Load() != 1 {
 		t.Fatalf("send did not complete once: %v", tt.Texts())
 	}
 	tt.Key(ui.Cmd|ui.Shift, ui.KeyD)
 	if !tt.HasText("Left Source #2") || !tt.HasText("Right Last send") {
 		t.Fatal("keyboard comparison did not show the exact source and send")
 	}
-	tt.Key(ui.Cmd, ui.KeyBracketLeft)
-	if !tt.Focused("Captured requests") || !tt.HasText("URL: api.example.com ×") || !tt.HasText("POST https://api.example.com/login") {
-		t.Fatal("keyboard return lost capture focus, filter or source selection")
-	}
-	tt.Key(ui.Ctrl|ui.Shift, ui.KeyTab)
-	if !tt.Focused("URL") || !tt.HasText("Right Last send") {
-		t.Fatal("cycling back to the draft lost its comparison")
-	}
-	tt.Key(ui.Cmd, ui.KeyW)
-	if !tt.HasText("Save changes?") {
-		t.Fatal("keyboard close discarded unsaved changes")
-	}
+	// The edited capture stays in its row: Escape returns to the list, and
+	// Enter opens the same document, comparison and all.
 	tt.Key(0, ui.KeyEscape)
-	if !tt.Focused("URL") || !tt.HasText("Right Last send") {
-		t.Fatal("cancelling close lost the draft or editor focus")
+	if !tt.Focused("Captured requests") || !tt.HasText("URL: api.example.com ×") || !tt.HasText("POST https://api.example.com/login") || !tt.HasText("Edited") {
+		t.Fatal("keyboard return lost capture focus, filter or the edited source")
+	}
+	tt.Key(0, ui.KeyEnter)
+	if !tt.Focused("Request inspector") || !tt.HasText("Right Last send") {
+		t.Fatal("returning to the capture lost its comparison")
 	}
 }
 
@@ -3601,6 +3607,11 @@ func TestNativeCommandsRespectModalScopeAndDraftCloseProtection(t *testing.T) {
 	if !tt.Focused("URL") {
 		t.Fatal("native edit did not open the focused capture")
 	}
+	if item := menu.ItemByID("close-request"); item.IsEnabled() {
+		t.Fatal("a capture's document is not a tab to close")
+	}
+	choose("new-request")
+	tt.Type("https://draft.example.com")
 	choose("close-request")
 	if !tt.HasText("Save changes?") {
 		t.Fatal("native close bypassed unsaved draft protection")
@@ -3609,16 +3620,12 @@ func TestNativeCommandsRespectModalScopeAndDraftCloseProtection(t *testing.T) {
 	item := menu.ItemByID("new-request")
 	item.Click(item, nil)
 	tt.Frame()
-	if tt.HasText("Request tab: Untitled request") || !tt.HasText("Save changes?") {
+	if len(a.documents) != 1 || !tt.HasText("Save changes?") {
 		t.Fatal("native command escaped the modal scope")
 	}
 	tt.Key(0, ui.KeyEscape)
 	if !tt.Focused("URL") {
 		t.Fatal("native close cancellation did not restore draft focus")
-	}
-	choose("back")
-	if !tt.Focused("Captured requests") {
-		t.Fatal("native Back did not restore capture focus")
 	}
 }
 

@@ -278,7 +278,7 @@ captures**, **Pin** and **Mark…**. **Tools** creates a rule from the request
 (breakpoints, Mock this response, Map Remote, Block), maps its host in DNS or
 changes its HTTPS inspection. Investigation and regression actions come last.
 
-**Edit & replay** and **Save as request** use the complete retained, decoded
+Editing a capture and **Save as request** use the complete retained, decoded
 request payload, not the Body preview. Repeated headers and query parameters
 are kept; stale content encoding/length, transfer framing and the client's
 connection headers (`Proxy-Connection`, `Proxy-Authorization`, `Keep-Alive`
@@ -733,9 +733,8 @@ response.
 
 **New request** opens a document tab in **Requests**. The document tabs stay in
 the content pane, so the sidebar runs up to the title bar and only the
-workspace switch sits above them. The breadcrumb keeps a back button to the
-traffic or to the capture the draft came from (**Source #N**), then the
-collection and name as quiet text: clicking it renames the request and moves it
+workspace switch sits above them. The breadcrumb shows the collection and name
+as quiet text: clicking it renames the request and moves it
 between collections, so neither needs a permanent input. The environment,
 **Save** and the request's **⋯** menu — Copy as cURL, Variables, Run records,
 Send history, regression import/export and environment management — sit at the
@@ -1029,11 +1028,19 @@ A dot marks unsaved changes; closing offers **Cancel**, **Discard** or
 closed until the send finishes. Open drafts are restored from the private
 experiment checkpoint described below; editor selection and layout are session-local.
 
-A captured row's **Edit & replay** opens an unsent draft at once, with the
+A captured HTTP request is itself a request document: choosing its row shows
+**Captured · time · process**, an editable method, URL and **Send**, the editor's
+tabs led by **Original** (the capture's own request readers) and, beside them,
+the captured response until the document is sent. The document holds the
 complete decoded UTF-8 payload and duplicate headers; encoding/framing headers
 are removed. Missing/incomplete content, non-UTF-8, trailers and CONNECT/tunnels
-block conversion with a message. Opening a draft never sends and never edits
-the original capture. Source identity and bounded source evidence accompany the
+stay read only and say why; a body kept on disk is read only after **Edit
+request**. The first edit or send keeps a draft with the capture, marked
+**Edited** in its header and by a dot in its row; the capture itself never
+changes and nothing sends without **Send**. **Discard edits** in the inspector's
+**⋯** menu returns to the capture as it was. **Save to collection** asks for a
+name and collection, then saves it to the library. Edits stay with the capture
+for the session and go when it is cleared. Source identity and bounded source evidence accompany the
 saved request across restart.
 
 **Save request** keeps the editor's request in the request library with
@@ -1112,7 +1119,7 @@ Right-click an HTTP capture and choose **Save as regression…**. This opens an
 unsent Requests draft linked to that capture, with its status as the first
 assertion. Review/edit the request, use `{{base_url}}` and other variables for
 targets/credentials, then **Save request**. Capture conversion uses the same full
-decoded request contract as **Edit & replay**, not a shell/cURL round-trip or UI
+decoded request contract as editing a capture, not a shell/cURL round-trip or UI
 body preview. Its body has no cURL size/control-character restriction; incomplete,
 missing or non-UTF-8 content, trailers and tunnels are refused explicitly.
 
@@ -1475,19 +1482,15 @@ vscroxy mapping instead of silently inheriting conflicting shortcuts.
 
 ### Continuous debugging
 
-**Edit & replay** opens a named request tab in **Requests**. The document tabs
-stay in the content pane, so a draft and its response remain one click away
-while traffic continues arriving. Unsaved tabs still require save or
-discard before closing. Open request drafts, their active tab and saved/unsaved
-baseline are checkpointed privately for restart; they are not automatically
-added to the saved request library and never send on restore.
-
-**Back to traffic** returns to the draft's original capture view without clearing
-search, protocol, header/body or triage conditions, changing its chosen request,
-or resuming a paused list. **Live → All requests** returns to the currently
-active live view.
-If the original view was closed, Back to traffic returns to the current view
-and explains the fallback instead of recreating it.
+A capture is edited and sent where it is, in its row's inspector, so the list,
+its search, protocol, header/body and triage conditions and a paused list stay
+as they were while traffic continues arriving. Escape returns to the list and
+Enter reopens the same document, with its edits, response and comparison. In
+Live, Cmd/Ctrl+Enter sends only while the focus is in the inspector, so the
+shortcut never sends the row under the list's focus by surprise.
+Request tabs opened from the library still require save or discard before
+closing; open tabs, their active tab and saved/unsaved baseline are
+checkpointed privately for restart and never send on restore.
 Header, text-body, JSON and hex reading positions survive leaving Capture;
 choosing a different request resets those readers.
 
