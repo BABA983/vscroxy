@@ -704,7 +704,14 @@ func TestGRPCDeadlineAndCancellation(t *testing.T) {
 	last := new(wrapperspb.StringValue)
 	err = stream.RecvMsg(last)
 	cancel()
-	if got, ok := status.FromError(err); !ok || got.Code() != codes.DeadlineExceeded {
+	// Two timers race to end this call: the client's, and the server's copy
+	// of the deadline from grpc-timeout, which resets the stream with CANCEL.
+	// Under load the server's can fire first, and the proxy relays that reset
+	// the only way an HTTP/2 handler can, as INTERNAL_ERROR. A clean end of
+	// stream would be wrong either way: the client reads it as a call that
+	// finished without its status.
+	if got, ok := status.FromError(err); !ok || (got.Code() != codes.DeadlineExceeded &&
+		(got.Code() != codes.Internal || !strings.Contains(got.Message(), "RST_STREAM"))) {
 		t.Fatalf("end of the slow stream = %v", err)
 	}
 	slow := waitFlowFor(t, s, "/Slow")

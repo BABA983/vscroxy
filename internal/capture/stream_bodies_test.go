@@ -344,6 +344,34 @@ func TestStreamedResponseCutByClientAbort(t *testing.T) {
 	waitNoFlow(t, s)
 }
 
+func TestStreamedResponseCutByUpstream(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = io.WriteString(w, "data: first\n\n")
+		w.(http.Flusher).Flush()
+		// Drop the connection in the middle of the chunked body.
+		panic(http.ErrAbortHandler)
+	}))
+	defer upstream.Close()
+
+	s, _ := startServer(t)
+	resp, err := clientFor(t, s, nil).Get(upstream.URL + "/events")
+	if err != nil {
+		t.Fatalf("request through proxy: %v", err)
+	}
+	defer resp.Body.Close()
+	// The client must see the body fail as the upstream's did, not end as if
+	// it were whole: for a gRPC call that is the difference between a reset
+	// stream and a call that ended without its status.
+	body, err := io.ReadAll(resp.Body)
+	if err == nil {
+		t.Fatalf("a body the upstream cut reached the client as complete: %q", body)
+	}
+	if string(body) != "data: first\n\n" {
+		t.Fatalf("body before the cut = %q", body)
+	}
+}
+
 // TestStreamedRequestToAnSSEEndpoint keeps the events an SSE flow publishes
 // itself: a large request makes the engine stream the response too, and the
 // capture must not publish the flow a second time.

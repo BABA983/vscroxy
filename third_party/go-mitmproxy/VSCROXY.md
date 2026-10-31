@@ -147,6 +147,19 @@ then: a gRPC server stream that sends its first message late, or a bidirectional
 call that sends nothing until the client continues, waited on headers that were
 never sent.
 
+### A body that fails is not ended as whole
+
+When copying a response body to the client fails, because the upstream reset its
+stream or the client went away, `reply` panics with `http.ErrAbortHandler`, which
+the addon-panic `recover` in `attack` re-panics. Upstream only logged the error
+and returned. net/http then ended an HTTP/2 stream with END_STREAM, or finished
+an HTTP/1.1 chunked body, so the client read a short body as complete. For gRPC,
+a server's deadline reset (`RST_STREAM CANCEL`) reached the client as "server
+closed the stream without sending trailers". The abort resets the stream, or
+closes the connection, as `httputil.ReverseProxy` does. The HTTP/2 server can
+reset a stream only with `INTERNAL_ERROR`, so the upstream's code is not kept.
+`TestStreamedResponseCutByUpstream` covers this.
+
 ### HTTP/2 server configuration
 
 `serveConn` passed the live `http.Server` (`a.server`, the HTTP/1.1 side, which

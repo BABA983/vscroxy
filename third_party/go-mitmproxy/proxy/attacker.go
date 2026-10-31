@@ -552,22 +552,30 @@ func (a *attacker) attack(res http.ResponseWriter, req *http.Request) {
 			}
 		}
 
+		// A body that fails part way, because the upstream reset its stream
+		// or the client went away, must not end as if it were whole: net/http
+		// would close an HTTP/2 stream cleanly or finish the chunked body, and
+		// the client would read a short body as complete (a gRPC client, as a
+		// call that ended without its status). Aborting the handler resets the
+		// stream or closes the connection instead, as httputil.ReverseProxy
+		// does.
+		abort := func(err error) {
+			logErr(log, err)
+			panic(http.ErrAbortHandler)
+		}
 		if body != nil {
-			err := copyStream(body)
-			if err != nil {
-				logErr(log, err)
+			if err := copyStream(body); err != nil {
+				abort(err)
 			}
 		}
 		if response.BodyReader != nil {
-			err := copyStream(response.BodyReader)
-			if err != nil {
-				logErr(log, err)
+			if err := copyStream(response.BodyReader); err != nil {
+				abort(err)
 			}
 		}
 		if len(response.Body) > 0 {
-			_, err := res.Write(response.Body)
-			if err != nil {
-				logErr(log, err)
+			if _, err := res.Write(response.Body); err != nil {
+				abort(err)
 			}
 		}
 		// The trailer block goes after the body, as HTTP/1.1 chunked
@@ -585,6 +593,9 @@ func (a *attacker) attack(res http.ResponseWriter, req *http.Request) {
 	// when addons panic
 	defer func() {
 		if err := recover(); err != nil {
+			if err == http.ErrAbortHandler {
+				panic(err)
+			}
 			log.Warnf("Recovered: %v\n", err)
 		}
 	}()
