@@ -38,9 +38,9 @@ func (a *app) paramsEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
 			d.queryError = err.Error()
 		}
 	}
-	ui.Text(c, "Edits update the URL; repeated keys are preserved.").FontSize(12).TextColor(t.TextMuted)
+	ui.Text(c, "Edits update the URL; repeated keys are preserved.").FontSize(textMeta).TextColor(t.TextMuted)
 	if d.queryError != "" {
-		ui.Text(c, d.queryError).FontSize(11).TextColor(t.Danger)
+		ui.Text(c, d.queryError).FontSize(textMeta).TextColor(t.Danger)
 	}
 	if requestFieldsEditor(c, &d.queryRows, fieldsOptions{}, "parameter") {
 		u, err := url.Parse(d.composeURL)
@@ -71,85 +71,104 @@ type fieldsOptions struct {
 func requestFieldsEditor(c *ui.Context, rows *[]request.Field, opts fieldsOptions, noun string, actions ...func()) bool {
 	t := c.Theme()
 	changed, remove := false, -1
-	ui.Column(c).Grow(1).Children(func() {
+	ui.Column(c).Grow(1).MinHeight(0).Border(1, t.Border).Radius(radiusControl).Children(func() {
 		// Column titles stay above the rows as they scroll, so every cell
 		// reads as a column rather than its own form.
-		ui.Row(c).Gap(6).Padding(0, 8, 2, 0).Children(func() {
-			ui.Box(c).Width(16)
-			ui.Text(c, "Key").Grow(1).FontSize(12).FontWeight(600).TextColor(t.TextMuted)
-			ui.Text(c, "Value").Grow(2).FontSize(12).FontWeight(600).TextColor(t.TextMuted)
+		ui.Row(c).Height(heightControl).AlignItems(ui.Center).BorderWidth(0, 0, 1, 0).BorderColor(t.Border).Children(func() {
+			ui.Box(c).Width(heightLarge).FillHeight().BorderWidth(0, 1, 0, 0).BorderColor(t.Border)
+			ui.Text(c, "Key").Basis(0).Grow(1).MinWidth(0).FillHeight().Padding(4, 8).
+				FontSize(textMeta).FontWeight(600).TextColor(t.TextMuted).BorderWidth(0, 1, 0, 0).BorderColor(t.Border)
+			ui.Text(c, "Value").Basis(0).Grow(2).MinWidth(0).Padding(4, 8).FontSize(textMeta).FontWeight(600).TextColor(t.TextMuted)
 			if opts.secret {
-				ui.Box(c).Width(24)
+				ui.Box(c).Width(heightCompact)
 			}
 			if opts.file {
-				ui.Text(c, "FILE").Width(46).FontSize(10).Bold().TextColor(t.TextMuted)
+				ui.Text(c, "FILE").Width(64).FontSize(textMeta).Bold().TextColor(t.TextMuted)
 			}
-			ui.Box(c).Width(t.Space(7))
+			ui.Box(c).Width(heightLarge)
 		})
-		ui.Scroll(c).Grow(1).Gap(4).Padding(0, 8, 0, 0).Children(func() {
+		ui.Scroll(c).Grow(1).MinHeight(0).Children(func() {
 			for i := range *rows {
 				r := &(*rows)[i]
-				ui.Row(c).Key(i).Gap(6).AlignItems(ui.Center).Children(func() {
-					enabled := !r.Disabled
-					if ui.Checkbox(c, &enabled, "").Label(fmt.Sprintf("Enable %s %d", noun, i+1)).Tooltip("Unchecked rows stay here and are not sent").Changed() {
-						r.Disabled, changed = !enabled, true
-					}
-					if field := ui.TextInput(c, &r.Name).Grow(1).Placeholder("Key").Label(fmt.Sprintf("%s key %d", noun, i+1)); field.Changed() {
-						changed = true
-					}
-					value := ui.TextInput(c, &r.Value).Grow(2).Placeholder("Value").Label(fmt.Sprintf("%s value %d", noun, i+1))
+				row := ui.Row(c).Key(i).Height(heightControl).AlignItems(ui.Center).BorderWidth(0, 0, 1, 0).BorderColor(t.Border)
+				row.Children(func() {
+					ui.Box(c).Width(heightLarge).FillHeight().Center().BorderWidth(0, 1, 0, 0).BorderColor(t.Border).Children(func() {
+						enabled := !r.Disabled
+						if ui.Checkbox(c, &enabled, "").Label(fmt.Sprintf("Enable %s %d", noun, i+1)).Tooltip("Unchecked rows stay here and are not sent").Changed() {
+							r.Disabled, changed = !enabled, true
+						}
+					})
+					ui.Box(c).Basis(0).Grow(1).MinWidth(0).FillHeight().BorderWidth(0, 1, 0, 0).BorderColor(t.Border).Children(func() {
+						field := requestGridInput(c, &r.Name, "Key", fmt.Sprintf("%s key %d", noun, i+1))
+						cellBorder(t, field, false, false)
+						if field.Changed() {
+							changed = true
+						}
+					})
 					// Masked until the reader reveals this row with its eye: the
 					// keyboard alone never shows a credential, so tabbing
 					// through a table cannot put one on a shared screen.
 					secret := opts.secret && sensitiveHeader(r.Name)
 					masked := secret && !r.Revealed
-					if masked {
-						value.Password()
-					}
-					cellBorder(t, value, masked, secret && r.Revealed)
-					if !masked && len(r.Value) > 40 {
-						// A long value reads in full on hover, without the click
-						// that would move the keyboard into it.
-						value.Tooltip(r.Value)
-					}
-					if value.Changed() {
-						changed = true
-					}
+					ui.Box(c).Basis(0).Grow(2).MinWidth(0).FillHeight().Children(func() {
+						value := requestGridInput(c, &r.Value, "Value", fmt.Sprintf("%s value %d", noun, i+1))
+						if masked {
+							value.Password()
+						}
+						cellBorder(t, value, masked, secret && r.Revealed)
+						if !masked && len(r.Value) > 40 {
+							// A long value reads in full on hover, without the click
+							// that would move the keyboard into it.
+							value.Tooltip(r.Value)
+						}
+						if value.Changed() {
+							changed = true
+						}
+					})
 					if opts.secret && sensitiveHeader(r.Name) {
 						label := fmt.Sprintf("Reveal %s %d", noun, i+1)
 						if r.Revealed {
 							label = fmt.Sprintf("Hide %s %d", noun, i+1)
 						}
-						reveal := ui.ButtonBase(c).Label(label).Size(24, 24).Radius(4).AlignItems(ui.Center).
-							TextColor(t.TextMuted).Tooltip("Credentials are masked by default; reveal this row to read it in plain text")
+						reveal := iconButton(c, label, "Credentials are masked by default; reveal this row to read it in plain text", eyeIcon)
 						if r.Revealed {
 							reveal.TextColor(t.Accent)
 						}
-						if reveal.Children(func() { ui.Icon(c, eyeIcon).Size(13, 13) }).Clicked() {
+						if reveal.Clicked() {
 							r.Revealed = !r.Revealed
 						}
 					} else if opts.secret {
 						// Every header keeps the same action column, even when
 						// its value does not need an explicit reveal control.
-						ui.Box(c).Width(24)
+						ui.Box(c).Width(heightCompact)
 					}
 					if opts.file {
-						if ui.Checkbox(c, &r.File, "File").Label(fmt.Sprintf("File part %d", i+1)).Changed() {
-							changed = true
+						ui.Box(c).Width(64).Children(func() {
+							if ui.Checkbox(c, &r.File, "File").Label(fmt.Sprintf("File part %d", i+1)).Changed() {
+								changed = true
+							}
+						})
+					}
+					ui.Box(c).Width(heightLarge).Center().Children(func() {
+						label := fmt.Sprintf("Remove %s %d", noun, i+1)
+						button := iconButton(c, label, label, closeIcon)
+						// Keep the control mounted, named and in the Tab order even
+						// while quiet. Any focus in the row reveals its action.
+						if !row.Hovered() && !row.FocusWithin() {
+							button.Opacity(0)
 						}
-					}
-					if ui.Button(c, "×").Label(fmt.Sprintf("Remove %s %d", noun, i+1)).Clicked() {
-						remove = i
-					}
+						if button.Clicked() {
+							remove = i
+						}
+					})
 				})
 			}
 			// The spacer carries the row to the full width, so the action stays
 			// at the table's left edge rather than in the middle.
-			ui.Row(c).Gap(6).Children(func() {
-				if ui.ButtonBase(c).Label("Add "+noun).Height(26).Padding(0, 6).Gap(6).Radius(4).AlignItems(ui.Center).
-					TextColor(t.TextMuted).Children(func() {
-					ui.Icon(c, plusIcon).Size(12, 12)
-					ui.Text(c, "Add "+noun).FontSize(12)
+			ui.Row(c).MinHeight(heightControl).Gap(t.Space(2)).Children(func() {
+				if toolbarButton(c, "Add "+noun, "Add "+noun, false).Children(func() {
+					ui.Icon(c, plusIcon).Size(iconInline, iconInline)
+					ui.Text(c, "Add "+noun).FontSize(textBody)
 				}).Clicked() {
 					*rows = append(*rows, request.Field{})
 					changed = true
@@ -168,6 +187,14 @@ func requestFieldsEditor(c *ui.Context, rows *[]request.Field, opts fieldsOption
 	return changed
 }
 
+// Base inputs keep the grid's cells borderless at rest without losing native
+// text editing, password handling, accessibility or keyboard focus rings.
+func requestGridInput(c *ui.Context, value *string, placeholder, label string) ui.Element {
+	return ui.TextInputBase(c, value).Label(label).Placeholder(placeholder).FillWidth().MinWidth(0).
+		FillHeight().Padding(0, c.Theme().Space(2)).Font(fontMono).FontSize(textBody).
+		Border(1, ui.Color{})
+}
+
 // cellBorder keeps a cell quiet until the pointer or the keyboard is on it, as
 // a spreadsheet does. A revealed credential is the one cell that says so.
 func cellBorder(t *ui.Theme, field ui.Element, masked, revealed bool) {
@@ -177,9 +204,9 @@ func cellBorder(t *ui.Theme, field ui.Element, masked, revealed bool) {
 	case field.Focused():
 		field.Border(1, t.Accent)
 	case field.Hovered():
-		field.Border(1, t.Border)
+		field.Border(1, t.Border).Background(t.SurfaceHover)
 	default:
-		field.Border(1, t.Border.Alpha(0.4))
+		field.Border(1, ui.Color{})
 	}
 	if masked {
 		field.TextColor(t.TextMuted)
@@ -258,10 +285,9 @@ func (a *app) headerModeButton(c *ui.Context, d *requestDocument, t *ui.Theme) {
 	if d.headerBulk {
 		label = "Table"
 	}
-	ui.ButtonBase(c).Label("Toggle header editing mode").Height(28).Padding(0, 8).Gap(5).Radius(4).AlignItems(ui.Center).
-		TextColor(t.TextMuted).Tooltip("Bulk edit replaces the table with one Key: Value per line; switched-off rows are kept").Children(func() {
-		ui.Icon(c, formatIcon).Size(11, 11)
-		ui.Text(c, label).FontSize(12)
+	toolbarButton(c, "Toggle header editing mode", "Bulk edit replaces the table with one Key: Value per line; switched-off rows are kept", d.headerBulk).Children(func() {
+		ui.Icon(c, formatIcon).Size(iconInline, iconInline)
+		ui.Text(c, label).FontSize(textBody)
 	}).OnClick(func() {
 		if d.headerBulk || !hasSecretHeader(d.headerRows) {
 			toggleHeaderMode(d)
@@ -287,7 +313,7 @@ func (a *app) headerEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
 			d.bulkEditor = &editor.State{Buffer: editor.NewBuffer(d.composeHeaders), NoScrollPastEnd: true, SoftWrap: true, Label: "Request headers"}
 			d.bulkFor = d.composeHeaders
 		}
-		editor.View(c, d.bulkEditor).Grow(1).FillWidth()
+		requestCodeEditor(c, d.bulkEditor)
 		if text := d.bulkEditor.Buffer.String(); text != d.composeHeaders {
 			d.composeHeaders, d.bulkFor = text, text
 		}
@@ -303,7 +329,7 @@ func (a *app) headerEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
 }
 
 func (a *app) authEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
-	ui.Scroll(c).Grow(1).Gap(8).Children(func() {
+	ui.Scroll(c).Grow(1).Gap(t.Space(3)).Children(func() {
 		a.authFields(c, &d.auth, append([]string{request.AuthInherit}, authTypes...), d.composeCollection)
 		if d.auth.Type == request.AuthInherit {
 			resolved, from := a.inheritance(d.composeCollection).InheritAuth(d.auth)
@@ -312,8 +338,8 @@ func (a *app) authEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
 				text = "Uses " + resolved.Type + " auth from " + from + "."
 			}
 			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-				ui.Text(c, text).FontSize(12).TextColor(t.TextMuted)
-				if path := cmp.Or(from, d.composeCollection); path != "" && ui.Button(c, settingsLabel(path)).FontSize(11).Clicked() {
+				ui.Text(c, text).FontSize(textMeta).TextColor(t.TextMuted)
+				if path := cmp.Or(from, d.composeCollection); path != "" && secondaryButton(c, settingsLabel(path)).Clicked() {
 					a.openFolder(path)
 				}
 			})
@@ -328,64 +354,72 @@ var authTypes = []string{"None", "Bearer", "Basic", "API key", request.AuthOAuth
 // it is used, for the variables an OAuth 2.0 token request expands.
 func (a *app) authFields(c *ui.Context, auth *request.Auth, types []string, collection string) {
 	t := c.Theme()
-	ui.Select(c, &auth.Type, types).Label("Authorization type").Width(180)
 	if auth.Type != request.AuthInherit {
-		ui.Text(c, "Prefer {{variables}} or {{vault:name}} for secrets; these fields are saved in plaintext.").FontSize(11).TextColor(t.TextMuted)
+		ui.Text(c, "Prefer {{variables}} or {{vault:name}} for secrets; these fields are saved in plaintext.").FontSize(textMeta).TextColor(t.TextMuted)
 	}
-	switch auth.Type {
-	case "Bearer":
-		ui.TextInput(c, &auth.Token).Label("Bearer token").Placeholder("{{token}}").Password()
-	case "Basic":
-		ui.TextInput(c, &auth.Username).Label("Username")
-		ui.TextInput(c, &auth.Password).Label("Password").Password()
-	case "API key":
-		ui.Row(c).Gap(8).Children(func() {
-			ui.TextInput(c, &auth.Key).Label("API key name").Grow(1)
-			ui.TextInput(c, &auth.Value).Label("API key value").Password().Grow(2)
-			ui.Select(c, &auth.Location, []string{"Header", "Query"}).Label("API key location").Width(120)
+	ui.Form(c, func() {
+		ui.Field(c, "Type", func() {
+			ui.Select(c, &auth.Type, types).Label("Authorization type").Width(240).Height(heightControl)
 		})
-	case request.AuthOAuth2:
-		a.oauthFields(c, auth, collection)
-	case request.AuthDigest:
-		ui.Form(c, func() {
-			ui.Field(c, "Username", func() { ui.TextInput(c, &auth.Username) })
-			ui.Field(c, "Password", func() { ui.TextInput(c, &auth.Password).Password() }).
+		switch auth.Type {
+		case "Bearer":
+			ui.Field(c, "Bearer token", func() {
+				ui.TextInput(c, &auth.Token).Height(heightControl).Label("Bearer token").Placeholder("{{token}}").Password()
+			})
+		case "Basic":
+			ui.Field(c, "Username", func() { ui.TextInput(c, &auth.Username).Height(heightControl).Label("Username") })
+			ui.Field(c, "Password", func() { ui.TextInput(c, &auth.Password).Height(heightControl).Label("Password").Password() })
+		case "API key":
+			ui.Field(c, "API key name", func() { ui.TextInput(c, &auth.Key).Height(heightControl).Label("API key name") })
+			ui.Field(c, "API key value", func() { ui.TextInput(c, &auth.Value).Height(heightControl).Label("API key value").Password() })
+			ui.Field(c, "Location", func() {
+				ui.Select(c, &auth.Location, []string{"Header", "Query"}).Label("API key location").Width(160).Height(heightControl)
+			})
+		case request.AuthOAuth2:
+			a.oauthFields(c, auth, collection)
+		case request.AuthDigest:
+			ui.Field(c, "Username", func() { ui.TextInput(c, &auth.Username).Height(heightControl) })
+			ui.Field(c, "Password", func() { ui.TextInput(c, &auth.Password).Height(heightControl).Password() }).
 				Description("The first send gets the server's challenge; vscroxy answers it and sends again.")
-		})
-	case request.AuthAWS:
-		aws := &auth.AWS
-		ui.Form(c, func() {
-			ui.Field(c, "Access key", func() { ui.TextInput(c, &aws.AccessKey) })
-			ui.Field(c, "Secret key", func() { ui.TextInput(c, &aws.SecretKey).Placeholder("{{vault:aws_secret}}").Password() })
-			ui.Field(c, "Region", func() { ui.TextInput(c, &aws.Region).Placeholder("us-east-1").Width(260) })
-			ui.Field(c, "Service", func() { ui.TextInput(c, &aws.Service).Placeholder("e.g. execute-api or s3").Width(260) })
-			ui.Field(c, "Session token", func() { ui.TextInput(c, &aws.SessionToken).Placeholder("Optional").Password() })
-		})
-	case request.AuthJWT:
-		jwt := &auth.JWT
-		if jwt.Algorithm == "" {
-			jwt.Algorithm = request.JWTAlgorithms[0]
-		}
-		addTo := "Header"
-		if jwt.AddTo == "Query" {
-			addTo = "Query"
-		}
-		ui.Form(c, func() {
-			ui.Field(c, "Algorithm", func() { ui.Select(c, &jwt.Algorithm, request.JWTAlgorithms).Width(150) })
+		case request.AuthAWS:
+			aws := &auth.AWS
+			ui.Field(c, "Access key", func() { ui.TextInput(c, &aws.AccessKey).Height(heightControl) })
+			ui.Field(c, "Secret key", func() {
+				ui.TextInput(c, &aws.SecretKey).Height(heightControl).Placeholder("{{vault:aws_secret}}").Password()
+			})
+			ui.Field(c, "Region", func() { ui.TextInput(c, &aws.Region).Height(heightControl).Placeholder("us-east-1").Width(260) })
+			ui.Field(c, "Service", func() {
+				ui.TextInput(c, &aws.Service).Height(heightControl).Placeholder("e.g. execute-api or s3").Width(260)
+			})
+			ui.Field(c, "Session token", func() { ui.TextInput(c, &aws.SessionToken).Height(heightControl).Placeholder("Optional").Password() })
+		case request.AuthJWT:
+			jwt := &auth.JWT
+			if jwt.Algorithm == "" {
+				jwt.Algorithm = request.JWTAlgorithms[0]
+			}
+			addTo := "Header"
+			if jwt.AddTo == "Query" {
+				addTo = "Query"
+			}
+			ui.Field(c, "Algorithm", func() { ui.Select(c, &jwt.Algorithm, request.JWTAlgorithms).Width(160).Height(heightControl) })
 			if strings.HasPrefix(jwt.Algorithm, "HS") {
-				ui.Field(c, "Secret", func() { ui.TextInput(c, &jwt.Secret).Placeholder("{{vault:jwt_secret}}").Password() })
+				ui.Field(c, "Secret", func() {
+					ui.TextInput(c, &jwt.Secret).Height(heightControl).Placeholder("{{vault:jwt_secret}}").Password()
+				})
 				ui.Field(c, "", func() { ui.Checkbox(c, &jwt.SecretBase64, "Secret is base64-encoded") })
 			} else {
 				ui.Field(c, "Private key", func() {
-					ui.TextArea(c, &jwt.PrivateKey).Height(72).Font("monospace").FontSize(11).Placeholder("-----BEGIN PRIVATE KEY----- … or {{vault:jwt_key}}")
+					ui.TextArea(c, &jwt.PrivateKey).Height(72).Font(fontMono).FontSize(textBody).Radius(radiusControl).Placeholder("-----BEGIN PRIVATE KEY----- … or {{vault:jwt_key}}")
 				})
 			}
 			ui.Field(c, "Payload", func() {
-				ui.TextArea(c, &jwt.Payload).Height(72).Font("monospace").FontSize(11).Placeholder(`{"sub": "{{user_id}}"}`)
+				ui.TextArea(c, &jwt.Payload).Height(72).Font(fontMono).FontSize(textBody).Radius(radiusControl).Placeholder(`{"sub": "{{user_id}}"}`)
 			})
-			ui.Field(c, "Extra header", func() { ui.TextInput(c, &jwt.Header).Placeholder(`Optional, e.g. {"kid": "key-1"}`).Font("monospace") })
+			ui.Field(c, "Extra header", func() {
+				ui.TextInput(c, &jwt.Header).Height(heightControl).Placeholder(`Optional, e.g. {"kid": "key-1"}`).Font(fontMono)
+			})
 			ui.Field(c, "Add token to", func() {
-				if ui.Select(c, &addTo, []string{"Header", "Query"}).Width(150).Changed() {
+				if ui.Select(c, &addTo, []string{"Header", "Query"}).Width(160).Height(heightControl).Changed() {
 					jwt.AddTo = ""
 					if addTo == "Query" {
 						jwt.AddTo = "Query"
@@ -393,12 +427,12 @@ func (a *app) authFields(c *ui.Context, auth *request.Auth, types []string, coll
 				}
 			})
 			if jwt.AddTo == "Query" {
-				ui.Field(c, "Query parameter", func() { ui.TextInput(c, &jwt.QueryParam).Placeholder("token").Width(200) })
+				ui.Field(c, "Query parameter", func() { ui.TextInput(c, &jwt.QueryParam).Height(heightControl).Placeholder("token").Width(200) })
 			} else {
-				ui.Field(c, "Header prefix", func() { ui.TextInput(c, &jwt.Prefix).Placeholder("Bearer").Width(150) })
+				ui.Field(c, "Header prefix", func() { ui.TextInput(c, &jwt.Prefix).Height(heightControl).Placeholder("Bearer").Width(150) })
 			}
-		})
-	}
+		}
+	}).Gap(t.Space(3))
 }
 
 func (a *app) requestBodyEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
@@ -407,12 +441,11 @@ func (a *app) requestBodyEditor(c *ui.Context, d *requestDocument, t *ui.Theme) 
 	if d.bodyMode == "Raw" {
 		a.requestBodyText(c, d)
 	} else {
-		ui.Text(c, "FORM DATA · file values are local paths, 16 MiB in total").FontSize(10).TextColor(t.TextMuted)
+		ui.Text(c, "FORM DATA · file values are local paths, 16 MiB in total").FontSize(textMeta).TextColor(t.TextMuted)
 		requestFieldsEditor(c, &d.formFields, fieldsOptions{file: true}, "field", func() {
-			if ui.ButtonBase(c).Label("Attach file…").Height(26).Padding(0, 6).Gap(6).Radius(4).AlignItems(ui.Center).
-				TextColor(t.TextMuted).Tooltip("Add a file part; only the local path is stored").Children(func() {
-				ui.Icon(c, fileInputIcon).Size(12, 12)
-				ui.Text(c, "Attach file…").FontSize(12)
+			if toolbarButton(c, "Attach file…", "Add a file part; only the local path is stored", false).Children(func() {
+				ui.Icon(c, fileInputIcon).Size(iconInline, iconInline)
+				ui.Text(c, "Attach file…").FontSize(textBody)
 			}).Clicked() && a.win != nil {
 				go func() {
 					paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Title: "Attach request file"})
@@ -445,7 +478,7 @@ func scriptText(c *ui.Context, text *string, state **editor.State, seen *string,
 		*state = &editor.State{Buffer: buf, NoScrollPastEnd: true, SoftWrap: true, Label: label}
 		*seen = *text
 	}
-	editor.View(c, *state).Grow(1).FillWidth()
+	requestCodeEditor(c, *state)
 	if current := (*state).Buffer.String(); current != *text {
 		*text, *seen = current, current
 	}
@@ -463,8 +496,7 @@ func (a *app) requestBodyText(c *ui.Context, d *requestDocument) {
 		d.bodyEditor = &editor.State{Buffer: buf, NoScrollPastEnd: true, SoftWrap: true, Label: "Request body"}
 		d.bodyFor = d.composeBody
 	}
-	d.bodyEditor.Theme = bodyEditorTheme(c.Theme())
-	editor.View(c, d.bodyEditor).Grow(1)
+	requestCodeEditor(c, d.bodyEditor)
 	if text := d.bodyEditor.Buffer.String(); text != d.composeBody {
 		d.composeBody = text
 		d.bodyFor = text
@@ -472,6 +504,17 @@ func (a *app) requestBodyText(c *ui.Context, d *requestDocument) {
 			d.bodyEditor.Buffer.SetLanguage(editor.LanguageNamed("json"))
 		}
 	}
+}
+
+// Authored body, scripts, bulk headers and saved examples share one editor
+// surface. The editor still owns editing, scrolling, find and accessibility.
+func requestCodeEditor(c *ui.Context, state *editor.State) ui.Element {
+	t := c.Theme()
+	state.Font = ui.Font{Family: fontMono, Size: textBody}
+	state.Theme = bodyEditorTheme(t)
+	return ui.Box(c).Grow(1).MinHeight(0).FillWidth().Border(1, t.Border).Radius(radiusControl).Children(func() {
+		editor.View(c, state).Grow(1).FillWidth().FocusRing(true)
+	})
 }
 
 // looksJSON is the cheap test that decides the body editor's highlighting and

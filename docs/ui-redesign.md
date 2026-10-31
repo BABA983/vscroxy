@@ -267,6 +267,16 @@ XDG_CACHE_HOME=/tmp/vscroxy-ui-cache VSCROXY_SNAPSHOTS="$PWD/.amp/in/artifacts/u
 - **Auth、Body、Scripts、Checks、Examples、OAuth、Protobuf**：统一表单行（标签在左、控件在右）、统一代码编辑器边框。
 - **响应区**：一行头部，包含 tab（Body、Headers 5、Cookies、Checks 2/2、Timing）、状态 pill、耗时、大小；Send history、对比入口放在头部右侧。
 
+#### 阶段 4 实施记录
+
+- 保留现有品牌和 app 图标。Requests rail 使用浅色选中底和小标签；集合树使用 28px 行、文件夹、method 标签和 hover／行内键盘焦点时出现的操作菜单。操作始终挂载且保留 Tab 顺序，不因隐藏而丢失键盘入口；不悬停时不为操作预留额外的名称宽度。集合头部的「+」和「⋯」容纳新建、Import、Import cURL、Vault、Runner、Cookies。
+- 文档 tab 保留 method、未保存标记、关闭和 Source 入口；环境选择改为带颜色点的正式下拉框，位于 Save 等操作之前。环境侧栏改为树形样式，不改变原有环境编辑行为。
+- Method 和 URL 合为一个边框，Send 为 32px。URL 未聚焦时绘制字面量 `{{引用}}` chip，聚焦时使用原生输入框的文字范围样式；始终是同一个原生输入框负责选择、复制、撤销和 IME，不展开变量，也不读取 vault 值。Unicode 和未闭合引用不改写。
+- Params、Headers、Form 和变量表格使用细线分隔、28px 行、静止时无边框的单元格和末尾添加入口；保留重复／禁用行、显式凭据显隐、文件附件及 Bulk edit 往返。Auth／OAuth 共用标签左、控件右的表单；Body、Scripts、Bulk Headers 和 Examples 共用代码编辑器样式，Checks／Examples 同步整理。Protobuf 沿用阶段 3 已统一的共享阅读器，不另建 Requests 专用版本。
+- 编辑区显示 Params、Headers、Checks、Examples 计数；Headers 按启用行计数，不去重。计数与无障碍名称分离；Examples 使用稳定名称 `Request editor: Examples`，不再把数量放进名称。响应头合并 tab、格式菜单、状态 pill、耗时／大小和操作；Tests 视觉文案为 Checks，保留 `Response tab: Tests` 无障碍名称和原有枚举顺序。收紧 tab 留白，保证当前 960px 夹具的 Console 完整显示；更拥挤时仍可横向滚动。不隐藏取消、失败、历史实验和来源证据。
+- 验证：`go build ./...`、`go vet ./...`、`go tool mygo vet .`、`go test ./...` 和 `CGO_ENABLED=0 go test ./...`。回归检查覆盖 960／1280px 的 URL 原文复制与撤销、环境切换、重复／禁用 Header 计数、Checks 计数和最右侧响应 tab；窄屏裁切检查在恢复较宽留白时失败。
+- 浅／深色截图矩阵扩展到 198 张，覆盖七类 Auth、Params、Multipart、Bulk Headers、Scripts、Checks、Examples、变量／环境、菜单、凭据遮盖／显式显示和键盘焦点。与阶段 3 共有的 80 张非 Requests 截图逐字节一致。Linux 原生窗口另录制并检查了移动指针、集合菜单、hover 行操作、凭据显隐、URL 选择／复制、环境切换、响应页签和深色窄窗口；夹具不读取用户配置、不启动代理、不发送请求，Send 保持禁用。实际发送行为由现有代理集成测试覆盖；macOS／Windows 外观仍留给阶段 7。
+
 ### 阶段 5：次级视图
 
 Runner、History（合并后的 Run records）、Sessions（合并后的 Investigations 和 Historical sessions）、APIs（OpenAPI）、Tools 窗口（规则、Scenario、脚本、Host 方案）：套用同样的侧栏、表格、面板头和空状态组件。

@@ -26,7 +26,8 @@ func (a *app) oauthConfig(auth request.Auth, collection string) (request.Context
 	return in, cfg, err
 }
 
-// oauthFields edits an OAuth 2.0 configuration and shows the token it has.
+// oauthFields adds OAuth 2.0 fields to the authorization form and shows the
+// token it has; the common form keeps all authorization labels aligned.
 func (a *app) oauthFields(c *ui.Context, auth *request.Auth, collection string) {
 	t := c.Theme()
 	o := &auth.OAuth2
@@ -38,40 +39,38 @@ func (a *app) oauthFields(c *ui.Context, auth *request.Auth, collection string) 
 	if o.ClientAuth == "Body" {
 		clientAuth = "In body"
 	}
-	ui.Form(c, func() {
-		ui.Field(c, "Grant type", func() { ui.Select(c, &o.Grant, request.Grants).Width(240) })
-		if interactive {
-			ui.Field(c, "Authorization URL", func() {
-				ui.TextInput(c, &o.AuthURL).Placeholder("https://login.example.com/authorize")
-			})
-		}
-		ui.Field(c, "Access token URL", func() {
-			ui.TextInput(c, &o.TokenURL).Placeholder("https://login.example.com/token")
+	ui.Field(c, "Grant type", func() { ui.Select(c, &o.Grant, request.Grants).Width(240).Height(heightControl) })
+	if interactive {
+		ui.Field(c, "Authorization URL", func() {
+			ui.TextInput(c, &o.AuthURL).Height(heightControl).Placeholder("https://login.example.com/authorize")
 		})
-		ui.Field(c, "Client ID", func() { ui.TextInput(c, &o.ClientID) })
-		ui.Field(c, "Client secret", func() {
-			ui.TextInput(c, &o.ClientSecret).Placeholder("{{vault:client_secret}}, empty for a public client").Password()
-		})
-		ui.Field(c, "Scope", func() { ui.TextInput(c, &o.Scope).Placeholder("Space-separated, optional") })
-		if o.Grant == request.GrantPassword {
-			ui.Field(c, "Username", func() { ui.TextInput(c, &o.Username) })
-			ui.Field(c, "Password", func() { ui.TextInput(c, &o.Password).Password() })
-		}
-		if interactive {
-			ui.Field(c, "Callback URL", func() {
-				ui.TextInput(c, &o.RedirectURL).Placeholder("http://127.0.0.1 on any free port")
-			}).Description("Register it with the provider; the sign-in opens in your browser and returns there.")
-		}
-		ui.Field(c, "Client authentication", func() {
-			if ui.Select(c, &clientAuth, []string{"Basic header", "In body"}).Width(150).Changed() {
-				o.ClientAuth = ""
-				if clientAuth == "In body" {
-					o.ClientAuth = "Body"
-				}
-			}
-		})
-		ui.Field(c, "Header prefix", func() { ui.TextInput(c, &o.HeaderPrefix).Placeholder("Bearer").Width(150) })
+	}
+	ui.Field(c, "Access token URL", func() {
+		ui.TextInput(c, &o.TokenURL).Height(heightControl).Placeholder("https://login.example.com/token")
 	})
+	ui.Field(c, "Client ID", func() { ui.TextInput(c, &o.ClientID).Height(heightControl) })
+	ui.Field(c, "Client secret", func() {
+		ui.TextInput(c, &o.ClientSecret).Height(heightControl).Placeholder("{{vault:client_secret}}, empty for a public client").Password()
+	})
+	ui.Field(c, "Scope", func() { ui.TextInput(c, &o.Scope).Height(heightControl).Placeholder("Space-separated, optional") })
+	if o.Grant == request.GrantPassword {
+		ui.Field(c, "Username", func() { ui.TextInput(c, &o.Username).Height(heightControl) })
+		ui.Field(c, "Password", func() { ui.TextInput(c, &o.Password).Height(heightControl).Password() })
+	}
+	if interactive {
+		ui.Field(c, "Callback URL", func() {
+			ui.TextInput(c, &o.RedirectURL).Height(heightControl).Placeholder("http://127.0.0.1 on any free port")
+		}).Description("Register it with the provider; the sign-in opens in your browser and returns there.")
+	}
+	ui.Field(c, "Client authentication", func() {
+		if ui.Select(c, &clientAuth, []string{"Basic header", "In body"}).Width(160).Height(heightControl).Changed() {
+			o.ClientAuth = ""
+			if clientAuth == "In body" {
+				o.ClientAuth = "Body"
+			}
+		}
+	})
+	ui.Field(c, "Header prefix", func() { ui.TextInput(c, &o.HeaderPrefix).Height(heightControl).Placeholder("Bearer").Width(150) })
 
 	in, cfg, err := a.oauthConfig(*auth, collection)
 	s := &a.oauth
@@ -105,19 +104,21 @@ func (a *app) oauthFields(c *ui.Context, auth *request.Auth, collection string) 
 	} else if s.key == cfg.Key() && s.problem != "" {
 		status, color = s.problem, t.Danger
 	}
-	ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-		ui.Text(c, status).FontSize(12).TextColor(color).Grow(1).Selectable()
-		busy := s.key == cfg.Key() && s.busy
-		if busy && ui.Button(c, "Cancel").Clicked() {
-			s.cancel()
-		}
-		if ui.Button(c, "Clear token").Disabled(err != nil || busy).Clicked() {
-			in.Tokens.Clear(cfg)
-			s.problem = ""
-		}
-		if ui.PrimaryButton(c, "Get new access token").Disabled(err != nil || busy).Clicked() {
-			a.newAccessToken(in, cfg)
-		}
+	ui.Field(c, "Access token", func() {
+		ui.Text(c, status).FontSize(textMeta).TextColor(color).Selectable()
+		ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+			busy := s.key == cfg.Key() && s.busy
+			if busy && secondaryButton(c, "Cancel").Clicked() {
+				s.cancel()
+			}
+			if secondaryButton(c, "Clear token").Disabled(err != nil || busy).Clicked() {
+				in.Tokens.Clear(cfg)
+				s.problem = ""
+			}
+			if secondaryButton(c, "Get new access token").Disabled(err != nil || busy).Clicked() {
+				a.newAccessToken(in, cfg)
+			}
+		})
 	})
 }
 

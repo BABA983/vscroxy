@@ -11,6 +11,7 @@ import (
 	"slices"
 	"strings"
 	"time"
+	"unicode/utf8"
 	"uuid"
 
 	"github.com/baba983/vscroxy/internal/capture"
@@ -326,14 +327,14 @@ func (a *app) closeRequestModal(c *ui.Context, t *ui.Theme) {
 // Only the documents scroll; the active draft's actions remain visible.
 func (a *app) documentTabs(c *ui.Context, t *ui.Theme) {
 	var closing *requestDocument
-	ui.Row(c).Height(38).Background(t.Surface).Children(func() {
+	ui.Row(c).Height(36).AlignItems(ui.Center).Background(t.Surface).Children(func() {
 		ui.ScrollHorizontal(c).Grow(1).FillHeight().Children(func() {
 			selected := max(slices.Index(a.documents, a.requestDocument), 0)
 			tabs := ui.TabsBase(c, &selected, len(a.documents))
 			tabs.List.Gap(1).Padding(4, 6, 0, 6).Children(func() {
 				for i, d := range a.documents {
 					c.Key(d.id)
-					tab := tabs.Tab(i).Label("Request tab: "+d.title()).Height(32).Padding(0, 8).Gap(7).AlignItems(ui.Center).Radius(5).TextColor(t.TextMuted)
+					tab := tabs.Tab(i).Label("Request tab: "+d.title()).Height(heightTabs).Padding(0, 8).Gap(6).AlignItems(ui.Center).Radius(radiusControl).TextColor(t.TextMuted)
 					label := fmt.Sprintf("%s %s %t", d.composeMethod, d.title(), d.dirty())
 					if d.revealTab || d == a.requestDocument && d.tabLabel != label {
 						tab.ScrollIntoView()
@@ -341,10 +342,10 @@ func (a *app) documentTabs(c *ui.Context, t *ui.Theme) {
 					}
 					d.tabLabel = label
 					if d == a.requestDocument {
-						tab.Background(t.SurfaceHover).TextColor(t.Text)
+						tab.Background(t.Background).TextColor(t.Text).Border(0, t.Accent).BorderWidth(0, 0, 2, 0)
 					}
 					tab.Children(func() {
-						ui.Text(c, d.composeMethod).FontSize(11).Bold().TextColor(methodColor(d.composeMethod, t))
+						methodLabel(c, d.composeMethod).FontSize(textMeta)
 						ui.Text(c, d.title()).FontSize(13).SingleLine().MaxWidth(165)
 						if d.dirty() {
 							ui.Box(c).Size(5, 5).Radius(3).Background(t.Accent).Label("Unsaved changes")
@@ -367,14 +368,37 @@ func (a *app) documentTabs(c *ui.Context, t *ui.Theme) {
 		}).Clicked() {
 			a.openCompose()
 		}
-		if d := a.requestDocument; d != nil {
-			a.requestDocumentActions(c, t, d)
-		}
 		if names := a.envNames(); len(names) > 0 {
-			ui.Select(c, &a.activeEnv, names).Width(120).Height(28).Label("Active environment").FontSize(12).Margin(0, 8)
+			env := ui.SelectBase(c.Key("active-environment"), &a.activeEnv)
+			env.Trigger.Label("Active environment").Tooltip("Active environment").Width(132).Height(heightControl).
+				Padding(0, 8).Gap(6).Radius(radiusControl).Border(1, t.Border).AlignItems(ui.Center).Children(func() {
+				ui.Box(c).Size(6, 6).Radius(3).Background(t.Accent)
+				ui.Text(c, cmp.Or(a.activeEnv, "No environment")).FontSize(textBody).SingleLine().Grow(1)
+				ui.Icon(c, chevronIcon).Size(12, 12).TextColor(t.TextMuted)
+			})
+			env.Popup(func(panel ui.Element) {
+				panel.Padding(4).Radius(radiusPanel).Background(t.Background).Border(1, t.Border)
+				for _, name := range names {
+					item := env.Item(name).Label(name).Height(heightControl).Padding(0, 8).Gap(8).Radius(radiusControl).AlignItems(ui.Center)
+					if item.Highlighted() {
+						item.Background(t.SurfaceHover)
+					}
+					item.Children(func() {
+						color := t.TextMuted
+						if name == a.activeEnv {
+							color = t.Accent
+						}
+						ui.Box(c).Size(6, 6).Radius(3).Background(color)
+						ui.Text(c, name).FontSize(textBody)
+					})
+				}
+			})
 		} else {
 			ui.ButtonBase(c).Label("Manage environments").Tooltip("Add an environment for request variables").Height(28).Padding(0, 8).
 				Children(func() { ui.Text(c, "No environment").FontSize(12).TextColor(t.TextMuted) }).OnClick(a.openVars)
+		}
+		if d := a.requestDocument; d != nil {
+			a.requestDocumentActions(c, t, d)
 		}
 	})
 	ui.Divider(c)
@@ -399,10 +423,8 @@ const (
 func (a *app) composeView(c *ui.Context, t *ui.Theme) {
 	d := a.requestDocument
 	if d == nil {
-		ui.Column(c).Fill().Center().Gap(12).Children(func() {
-			ui.Icon(c, requestIcon).Size(30, 30).TextColor(t.TextMuted)
-			ui.Text(c, "Open a saved request or create a new one").TextColor(t.TextMuted)
-			if ui.PrimaryButton(c, "Create request").Clicked() {
+		emptyState(c, "Open a saved request or create a new one", "Keep drafts, variables and responses together in one request tab.", func() {
+			if primaryButton(c, "Create request").Clicked() {
 				a.openCompose()
 			}
 		})
@@ -670,64 +692,114 @@ var requestMethods = []string{"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "
 // requestBar is the line a person edits and sends: method, URL, and the one
 // prominent action.
 func (a *app) requestBar(c *ui.Context, t *ui.Theme, d *requestDocument) {
-	ui.Row(c).Height(52).Padding(8, 12).Gap(8).AlignItems(ui.Center).Children(func() {
-		// An editable dropdown: a click lists the common methods, and a method
-		// the list lacks is typed and kept as it is. The chevron and the hover
-		// background say it is a control, not a label.
-		control := ui.Row(c).Gap(2).Padding(0, 4).Radius(5).AlignItems(ui.Center)
-		if control.Hovered() {
-			control.Background(t.SurfaceHover)
-		}
-		control.Children(func() {
-			method := ui.ComboboxBase(c, &d.composeMethod)
-			method.Input.Width(78).Height(32).Label("Method").FontSize(13).FontWeight(600).
-				TextColor(methodColor(d.composeMethod, t)).Border(0, t.Border)
-			if method.Input.Changed() {
-				d.composeMethod = strings.ToUpper(strings.TrimSpace(d.composeMethod))
+	ui.Row(c).Height(48).Padding(8, 12).Gap(8).AlignItems(ui.Center).Children(func() {
+		ui.Row(c).Grow(1).Height(heightLarge).Border(1, t.Border).Radius(radiusControl).AlignItems(ui.Center).Children(func() {
+			// An editable dropdown: a click lists the common methods, and a method
+			// the list lacks is typed and kept as it is. The chevron and the hover
+			// background say it is a control, not a label.
+			control := ui.Row(c).Gap(2).Padding(0, 4).AlignItems(ui.Center)
+			if control.Hovered() {
+				control.Background(t.SurfaceHover)
 			}
-			method.Popup(func(panel ui.Element) {
-				panel.Padding(4).Radius(6).Background(t.Background).Border(1, t.Border)
-				query := strings.ToUpper(strings.TrimSpace(d.composeMethod))
-				for _, m := range requestMethods {
-					if method.Filtering() && query != "" && !strings.HasPrefix(m, query) {
-						continue
+			control.Children(func() {
+				method := ui.ComboboxBase(c, &d.composeMethod)
+				method.Input.Width(72).Height(28).Padding(0, 4).Label("Method").FontSize(textBody).FontWeight(600).
+					TextColor(methodColor(d.composeMethod, t)).Border(0, t.Border)
+				if method.Input.Changed() {
+					d.composeMethod = strings.ToUpper(strings.TrimSpace(d.composeMethod))
+				}
+				method.Popup(func(panel ui.Element) {
+					panel.Padding(4).Radius(6).Background(t.Background).Border(1, t.Border)
+					query := strings.ToUpper(strings.TrimSpace(d.composeMethod))
+					for _, m := range requestMethods {
+						if method.Filtering() && query != "" && !strings.HasPrefix(m, query) {
+							continue
+						}
+						item := method.Item(m).Height(26).Padding(0, 10).Radius(4).AlignItems(ui.Center)
+						if item.Highlighted() {
+							item.Background(t.SurfaceHover).TextColor(t.Text)
+						}
+						item.Children(func() { ui.Text(c, m).FontSize(12).TextColor(methodColor(m, t)) })
 					}
-					item := method.Item(m).Height(26).Padding(0, 10).Radius(4).AlignItems(ui.Center)
-					if item.Highlighted() {
-						item.Background(t.SurfaceHover).TextColor(t.Text)
-					}
-					item.Children(func() { ui.Text(c, m).FontSize(12).TextColor(methodColor(m, t)) })
+				})
+				if chosen, ok := method.Chosen(); ok {
+					d.composeMethod = chosen
+				}
+				arrow := ui.ButtonBase(c).Size(18, 18).Radius(4).Label("Method list").Tooltip("Common methods").AlignItems(ui.Center)
+				if arrow.Hovered() {
+					arrow.Background(t.SurfacePressed)
+				}
+				if arrow.Children(func() { ui.Icon(c, chevronIcon).Size(12, 12).TextColor(t.TextMuted) }).Clicked() {
+					method.SetOpen(!method.Open())
+					method.Input.Focus()
 				}
 			})
-			if chosen, ok := method.Chosen(); ok {
-				d.composeMethod = chosen
+			ui.Box(c).Width(1).Height(18).Background(t.Border)
+			input := ui.TextInputBase(c, &d.composeURL).Bind(&d.urlInput).Grow(1).Height(heightControl).Padding(0, 8).Label("URL").
+				Placeholder("https://api.example.com/v1/resource").Font(fontMono).FontSize(textBody)
+			spans := urlSpans(d.composeURL, t)
+			at := 0
+			hasVariables := false
+			for _, span := range spans {
+				end := at + utf8.RuneCountInString(span.Text)
+				if span.Background.A > 0 {
+					hasVariables = true
+					input.TextRanges(ui.TextRange{Start: at, End: end, Color: t.Accent, Weight: 600})
+				}
+				at = end
 			}
-			arrow := ui.ButtonBase(c).Size(18, 18).Radius(4).Label("Method list").Tooltip("Common methods").AlignItems(ui.Center)
-			if arrow.Hovered() {
-				arrow.Background(t.SurfacePressed)
-			}
-			if arrow.Children(func() { ui.Icon(c, chevronIcon).Size(12, 12).TextColor(t.TextMuted) }).Clicked() {
-				method.SetOpen(!method.Open())
-				method.Input.Focus()
+			if !input.Focused() && hasVariables {
+				// Paint chips only at rest. The same native input always owns
+				// selection, undo, clipboard and IME; editing shows styled text.
+				input.DrawOver(func(p *ui.Painter, r ui.Rect) {
+					p.Fill(r, t.Background, 0)
+					r.X, r.W = r.X+8, max(0, r.W-16)
+					p.Clip(r, 0, func() {
+						_, h := p.MeasureText(0, spans...)
+						p.RichText(r.X, r.Y+(r.H-h)/2, 0, spans...)
+					})
+				})
 			}
 		})
-		ui.TextInput(c, &d.composeURL).Bind(&d.urlInput).Grow(1).Height(34).Label("URL").
-			Placeholder("https://api.example.com/v1/resource").FontSize(13)
 		sendLabel := "Send"
 		if d.composeWaiting {
 			sendLabel = "Sending…"
 		}
-		a.desktopButton(c, "send", sendLabel).Width(96).Height(34).FontSize(13).Background(t.Accent).TextColor(t.AccentText)
+		a.desktopButton(c, "send", sendLabel).Label(sendLabel).Width(80).Height(heightLarge).Radius(radiusControl).FontSize(textBody).Background(t.Accent).TextColor(t.AccentText)
 		if d.composeWaiting {
 			label := "Cancel"
 			if d.sendCancelling {
 				label = "Cancelling…"
 			}
-			a.desktopButton(c, "cancel-send", label).Label("Cancel send").Width(96).Height(34).
+			a.desktopButton(c, "cancel-send", label).Label("Cancel send").Width(96).Height(heightLarge).
 				Tooltip("Stop waiting; cancelling does not undo server-side changes")
 		}
 	})
 	ui.Divider(c)
+}
+
+// urlSpans styles references, never expands them or reads their secret values.
+func urlSpans(raw string, t *ui.Theme) []ui.Span {
+	var spans []ui.Span
+	for raw != "" {
+		start := strings.Index(raw, "{{")
+		if start < 0 {
+			spans = append(spans, ui.Span{Text: raw, Font: fontMono, Size: textBody, Color: t.Text})
+			break
+		}
+		end := strings.Index(raw[start+2:], "}}")
+		if end < 0 {
+			spans = append(spans, ui.Span{Text: raw, Font: fontMono, Size: textBody, Color: t.Text})
+			break
+		}
+		if start > 0 {
+			spans = append(spans, ui.Span{Text: raw[:start], Font: fontMono, Size: textBody, Color: t.Text})
+		}
+		end += start + 4
+		spans = append(spans, ui.Span{Text: raw[start:end], Font: fontMono, Size: textBody, Color: t.Accent, Weight: 600, Background: t.Accent.Alpha(0.12), Radius: radiusControl})
+		raw = raw[end:]
+	}
+	return spans
 }
 
 // requestEditor is the draft's own body: parameters, auth, headers, body and
@@ -748,14 +820,41 @@ func (a *app) requestEditor(c *ui.Context, t *ui.Theme, d *requestDocument) {
 		}
 	}
 	ui.Column(c).Fill().Children(func() {
-		ui.Row(c).Height(36).Padding(0, 12).Gap(8).AlignItems(ui.Center).
+		ui.Row(c).Height(heightTabs).Padding(0, 12).Gap(8).AlignItems(ui.Center).
 			Border(0, t.Border).BorderWidth(0, 0, 1, 0).Children(func() {
-			examples := "Examples"
-			if len(d.examples) > 0 {
-				examples = fmt.Sprintf("Examples (%d)", len(d.examples))
+			counts := make([]string, 7)
+			if u, err := url.Parse(d.composeURL); err == nil {
+				n := 0
+				for _, values := range u.Query() {
+					n += len(values)
+				}
+				counts[composeTabParams] = fmt.Sprint(n)
 			}
+			headers := d.headerRows
+			if d.headerBulk || headers == nil {
+				headers = parseHeaderRows(d.composeHeaders)
+			}
+			n := 0
+			for _, row := range headers {
+				if !row.Disabled && row.Name != "" {
+					n++
+				}
+			}
+			counts[composeTabHeaders] = fmt.Sprint(n)
+			n = 0
+			if strings.TrimSpace(d.checks.Status) != "" {
+				n++
+			}
+			for _, block := range []string{d.checks.Headers, d.checks.JSON} {
+				for line := range strings.SplitSeq(block, "\n") {
+					if strings.TrimSpace(line) != "" {
+						n++
+					}
+				}
+			}
+			counts[composeTabChecks], counts[composeTabExamples] = fmt.Sprint(n), fmt.Sprint(len(d.examples))
 			ui.ScrollHorizontal(c).Grow(1).FillHeight().Children(func() {
-				flatTabs(c, &d.composeTab, "Request editor", "Params", "Headers", "Auth", "Body", "Scripts", "Checks", examples)
+				requestTabs(c, &d.composeTab, "Request editor", []string{"Params", "Headers", "Auth", "Body", "Scripts", "Checks", "Examples"}, counts)
 			})
 			if wide && d.composeTab == composeTabBody {
 				bodyTools()
@@ -800,6 +899,39 @@ func (a *app) requestEditor(c *ui.Context, t *ui.Theme, d *requestDocument) {
 	})
 }
 
+// Counts are presentation, not part of each tab's stable accessible name.
+func requestTabs(c *ui.Context, selected *int, prefix string, labels, counts []string) {
+	t := c.Theme()
+	group := ui.TabsBase(c, selected, len(labels))
+	group.List.Gap(2).Children(func() {
+		for i, label := range labels {
+			tab := group.Tab(i).Label(prefix+": "+label).Height(heightTabs).Padding(0, 4).Gap(4).Radius(0).
+				AlignItems(ui.Center).TextColor(t.TextMuted)
+			if i == *selected {
+				tab.TextColor(t.Text).Border(0, t.Accent).BorderWidth(0, 0, 2, 0)
+			}
+			if tab.Pressed() {
+				tab.Background(t.SurfacePressed)
+			} else if tab.Hovered() {
+				tab.Background(t.SurfaceHover)
+			}
+			tab.Children(func() {
+				shown := label
+				if label == "Tests" {
+					shown = "Checks"
+				}
+				text := ui.Text(c, shown).FontSize(textBody)
+				if i == *selected {
+					text.FontWeight(600)
+				}
+				if counts[i] != "" && counts[i] != "0" {
+					ui.Text(c, counts[i]).FontSize(textMeta).FontFeatures("tnum").TextColor(t.TextMuted)
+				}
+			})
+		}
+	})
+}
+
 // requestSentState says whether the draft on screen is the one that was
 // actually sent, and when.
 func (a *app) requestSentState(c *ui.Context, t *ui.Theme, d *requestDocument) {
@@ -826,49 +958,68 @@ func (a *app) requestResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 		outcome, detail = r.Outcome, r.Summary
 	}
 	ui.Column(c).Fill().Children(func() {
-		ui.Row(c).MinHeight(32).Padding(2, 10).Gap(6).Wrap().AlignItems(ui.Center).Children(func() {
-			ui.Text(c, "Response").FontSize(13).FontWeight(600).TextColor(t.Text)
-			if d.experimentID != 0 && !d.composeWaiting {
-				ui.Text(c, fmt.Sprintf("Recorded experiment #%d", d.experimentID)).FontSize(11).TextColor(t.TextMuted).
-					Tooltip("Retained result from this experiment; opening it does not send the draft")
+		ui.Row(c).Height(heightTabs).Padding(0, 10).Gap(6).AlignItems(ui.Center).
+			Border(0, t.Border).BorderWidth(0, 0, 1, 0).Children(func() {
+			if !d.comparing && (d.response != nil || len(d.composeReplies) > 0 || len(d.console) > 0) {
+				labels := []string{"Body", "Headers", "Cookies", "Timing", "Tests", "Console"}
+				counts := make([]string, len(labels))
+				if r := d.response; r != nil {
+					n := 0
+					for _, values := range r.ResponseHeader {
+						n += len(values)
+					}
+					counts[resViewHeaders] = fmt.Sprint(n)
+				}
+				if len(d.composeTests) > 0 {
+					passed := 0
+					for _, check := range d.composeTests {
+						if check.Pass {
+							passed++
+						}
+					}
+					counts[resViewTests] = fmt.Sprintf("%d/%d", passed, len(d.composeTests))
+				}
+				if d.responseTab >= len(labels) {
+					d.responseTab = resViewBody
+				}
+				ui.ScrollHorizontal(c).Grow(1).FillHeight().Children(func() {
+					requestTabs(c, &d.responseTab, "Response tab", labels, counts)
+				})
+				if d.responseTab == resViewBody && d.response != nil {
+					formats := []string{"Pretty", "Raw", "Hex"}
+					ui.PopoverMenuButton(c, formats[d.responseView], func(m *ui.Menu) {
+						for i, name := range formats {
+							if m.Item(name).Checked(i == d.responseView).Chosen() {
+								d.responseView, d.responseEditor, d.responseList = i, nil, ui.ListState{}
+							}
+						}
+					}).Label("Response format").Tooltip("Response body format").Height(heightControl).FontSize(textMeta).Padding(0, 6)
+				}
+			} else {
+				ui.Text(c, "Response").FontSize(textBody).FontWeight(600).Grow(1)
 			}
 			if r := d.response; r != nil {
 				status := fmt.Sprintf("%d %s", r.Status, http.StatusText(r.Status))
 				if outcome == "Network error" {
 					status = fmt.Sprintf("%d · proxy response", r.Status)
 				}
-				ui.Text(c, status).FontSize(12).Bold().TextColor(statusColor(r.Status, t))
-				ui.Text(c, "·").FontSize(12).TextColor(t.Border)
-				ui.Text(c, fmt.Sprintf("%d ms", r.Millis)).FontSize(12).TextColor(t.TextMuted)
-				ui.Text(c, "·").FontSize(12).TextColor(t.Border)
-				ui.Text(c, humanBytes(r.Bytes)).FontSize(12).TextColor(t.TextMuted)
+				shown := status
+				if a.contentWidth(c) < 800 {
+					shown = fmt.Sprint(r.Status)
+					if outcome == "Network error" {
+						shown += " · proxy"
+					}
+				}
+				statusPill(c, shown, statusColor(r.Status, t)).Label(status).Tooltip(status).FontSize(textMeta).Padding(3, 6)
+				ui.Text(c, fmt.Sprintf("%d ms", r.Millis)).FontSize(textMeta).FontFeatures("tnum").TextColor(t.TextMuted)
+				ui.Text(c, humanBytes(r.Bytes)).FontSize(textMeta).FontFeatures("tnum").TextColor(t.TextMuted)
 			} else if d.composeWaiting {
 				ui.Text(c, "Sending…").FontSize(12).TextColor(t.TextMuted)
 			}
-			if !d.composeWaiting && outcome != "" && outcome != "Response received" {
-				ui.Text(c, outcome).FontSize(11).TextColor(t.Warning)
-			}
-			if len(d.composeTests) > 0 {
-				passed := 0
-				for _, check := range d.composeTests {
-					if check.Pass {
-						passed++
-					}
-				}
-				color := t.Success
-				if passed != len(d.composeTests) {
-					color = t.Danger
-				}
-				ui.Text(c, fmt.Sprintf("%d/%d checks passed", passed, len(d.composeTests))).FontSize(11).Bold().TextColor(color)
-			}
-			ui.Spacer(c)
 			if d.source != nil && d.response != nil && !d.comparing {
 				if ui.ButtonBase(c).Label("Compare with source").Height(26).Padding(0, 8).Gap(6).Radius(5).AlignItems(ui.Center).
 					TextColor(t.TextMuted).Tooltip("Compare this response with the capture it came from").Children(func() {
 					ui.Icon(c, compareIcon).Size(13, 13)
-					if a.contentWidth(c) >= 800 {
-						ui.Text(c, "Compare with source").FontSize(11)
-					}
 				}).Clicked() {
 					d.comparing = true
 				}
@@ -877,9 +1028,6 @@ func (a *app) requestResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 				if ui.ButtonBase(c).Label("Save as example").Height(26).Padding(0, 8).Gap(6).Radius(5).AlignItems(ui.Center).
 					TextColor(t.TextMuted).Tooltip("Keep this response with the request, as a Postman example").Children(func() {
 					ui.Icon(c, exampleIcon).Size(13, 13)
-					if a.contentWidth(c) >= 800 {
-						ui.Text(c, "Save as example").FontSize(11)
-					}
 				}).Clicked() {
 					a.saveExample(d)
 				}
@@ -890,11 +1038,17 @@ func (a *app) requestResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 				TextColor(t.TextMuted).Disabled(d.origin == nil && d.experimentID == 0).
 				Tooltip("Inspect the exact request and result of each retained attempt; opening never sends").Children(func() {
 				ui.Icon(c, sendHistoryIcon).Size(13, 13)
-				ui.Text(c, "Send history").FontSize(11)
 			}).Clicked() {
 				a.openSendHistory(d)
 			}
 		})
+		if d.experimentID != 0 && !d.composeWaiting {
+			ui.Text(c, fmt.Sprintf("Recorded experiment #%d", d.experimentID)).FontSize(textMeta).TextColor(t.TextMuted).Padding(4, 12).
+				Tooltip("Retained result from this experiment; opening it does not send the draft")
+		}
+		if !d.composeWaiting && outcome != "" && outcome != "Response received" {
+			ui.Text(c, outcome).FontSize(textMeta).TextColor(t.Warning).Padding(4, 12)
+		}
 		if d.sentSet {
 			ui.Row(c).Height(30).Padding(0, 12).Gap(10).AlignItems(ui.Center).Children(func() {
 				path := d.sent.URL
@@ -946,33 +1100,6 @@ func (a *app) requestResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 			a.responseProvenance(c, t, d)
 			return
 		}
-		ui.Row(c).Height(34).Padding(0, 6).Gap(4).AlignItems(ui.Center).
-			Border(0, t.Border).BorderWidth(0, 0, 1, 0).Children(func() {
-			labels := []string{"Body", "Headers", "Cookies", "Timing", "Tests", "Console"}
-			if d.responseTab >= len(labels) {
-				d.responseTab = resViewBody
-			}
-			ui.ScrollHorizontal(c).Grow(1).FillHeight().Children(func() {
-				flatTabs(c, &d.responseTab, "Response tab", labels...)
-			})
-			if d.responseTab == resViewBody && d.response != nil {
-				formats := []string{"Pretty", "Raw", "Hex"}
-				seg := ui.SegmentedBase(c, &d.responseView, len(formats))
-				seg.Track.Padding(2).Radius(6).Border(1, t.Border).Background(t.Background).Children(func() {
-					for i, name := range formats {
-						s := seg.Segment(i).Label(name).Height(22).Padding(0, 8).Radius(4).AlignItems(ui.Center).TextColor(t.TextMuted)
-						if i == d.responseView {
-							s.Background(t.SurfaceHover).TextColor(t.Text)
-						}
-						s.Children(func() { ui.Text(c, name).FontSize(11) })
-					}
-				})
-				if seg.Track.Changed() {
-					d.responseEditor = nil
-					d.responseList = ui.ListState{}
-				}
-			}
-		})
 		a.responseBody(c, t, d)
 		a.responseProvenance(c, t, d)
 	})

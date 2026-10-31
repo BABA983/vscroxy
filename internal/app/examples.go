@@ -85,38 +85,38 @@ func (a *app) saveExample(d *requestDocument) {
 // examplesEditor lists the request's examples and shows the chosen one.
 func (a *app) examplesEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
 	if len(d.examples) == 0 {
-		ui.Column(c).Grow(1).Center().Gap(6).Children(func() {
-			ui.Text(c, "No examples yet").FontSize(13).Bold()
-			ui.Text(c, "Send the request, then choose Save as example beside the response.").FontSize(12).TextColor(t.TextMuted)
-		})
+		emptyState(c, "No examples yet", "Send the request, then choose Save as example beside the response.", nil)
 		return
 	}
 	d.example = min(max(d.example, 0), len(d.examples)-1)
-	ui.Row(c).Grow(1).Gap(12).AlignItems(ui.Stretch).Children(func() {
-		ui.Scroll(c).Width(200).Gap(2).Children(func() {
+	ui.Row(c).Grow(1).MinHeight(0).Gap(t.Space(3)).AlignItems(ui.Stretch).Children(func() {
+		ui.Scroll(c).Width(168).BorderWidth(0, 1, 0, 0).BorderColor(t.Border).Padding(0, 8, 0, 0).Children(func() {
 			for i, e := range d.examples {
-				item := ui.ButtonBase(c).Label("Example: "+e.Name).Height(28).Padding(0, 8).Gap(8).Radius(5).AlignItems(ui.Center).FillWidth()
+				item := toolbarButton(c.Key(e.ID), "Example: "+e.Name, e.Name, false).FillWidth()
 				if i == d.example {
 					item.Background(t.SurfaceHover)
 				}
 				if item.Children(func() {
-					ui.Text(c, strconv.Itoa(e.Status)).FontSize(11).Bold().TextColor(statusColor(e.Status, t)).Width(28)
-					ui.Text(c, e.Name).FontSize(12).SingleLine().Grow(1)
+					ui.Text(c, strconv.Itoa(e.Status)).Font(fontMono).FontSize(textMeta).Bold().TextColor(statusColor(e.Status, t)).Width(28)
+					ui.Text(c, e.Name).FontSize(textBody).SingleLine().Grow(1).MinWidth(0).TextColor(t.Text)
 				}).Clicked() {
 					d.example, d.exampleEditor = i, nil
 				}
 			}
 		})
 		e := &d.examples[d.example]
-		ui.Column(c).Grow(1).Gap(8).Children(func() {
-			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-				ui.TextInput(c, &e.Name).Label("Example name").Grow(1)
-				ui.Text(c, fmt.Sprintf("%d %s", e.Status, http.StatusText(e.Status))).FontSize(12).Bold().TextColor(statusColor(e.Status, t))
-				ui.Text(c, humanBytes(len(e.Body))).FontSize(11).TextColor(t.TextMuted)
+		ui.Column(c).Grow(1).MinWidth(0).MinHeight(0).Gap(t.Space(2)).Children(func() {
+			ui.Form(c, func() {
+				ui.Field(c, "Example name", func() { ui.TextInput(c, &e.Name).Label("Example name").Height(heightControl) })
+			})
+			ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+				ui.Text(c, fmt.Sprintf("%d %s", e.Status, http.StatusText(e.Status))).FontSize(textBody).Bold().TextColor(statusColor(e.Status, t))
+				ui.Text(c, humanBytes(len(e.Body))).FontSize(textMeta).FontFeatures("tnum").TextColor(t.TextMuted)
+				ui.Spacer(c)
 				if ui.Segmented(c, &d.exampleView, "Body", "Headers", "Request").Changed() {
 					d.exampleEditor = nil
 				}
-				if ui.Button(c, "Delete").Label("Delete example").Clicked() {
+				if secondaryButton(c, "Delete").Label("Delete example").Clicked() {
 					d.examples = slices.Delete(d.examples, d.example, d.example+1)
 					d.exampleEditor = nil
 				}
@@ -124,7 +124,7 @@ func (a *app) examplesEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
 			if d.example >= len(d.examples) {
 				return
 			}
-			ui.Text(c, e.Request.Method+" "+e.Request.URL).FontSize(11).Font("monospace").TextColor(t.TextMuted).SingleLine().Selectable()
+			ui.Text(c, e.Request.Method+" "+e.Request.URL).FontSize(textMeta).Font(fontMono).TextColor(t.TextMuted).SingleLine().Selectable()
 			if d.exampleEditor == nil {
 				text, language := e.Body, ""
 				switch d.exampleView {
@@ -146,7 +146,7 @@ func (a *app) examplesEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
 				}
 				d.exampleEditor = &editor.State{Buffer: buf, ReadOnly: true, NoScrollPastEnd: true, SoftWrap: true, Label: "Example " + e.Name}
 			}
-			editor.View(c, d.exampleEditor).Grow(1)
+			requestCodeEditor(c, d.exampleEditor)
 		})
 	})
 }

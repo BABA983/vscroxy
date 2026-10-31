@@ -13,10 +13,12 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/baba983/vscroxy/internal/capture"
+	"github.com/baba983/vscroxy/internal/request"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -65,6 +67,14 @@ func TestUISnapshots(t *testing.T) {
 		a.composeFrom(a.flows[0])
 		a.composeTab = composeTabHeaders
 	}
+	response := func(a *app) {
+		draft(a)
+		a.sent, a.sentSet, a.sentAt = a.draft(), true, snapshotTime
+		a.response = &capture.Flow{Status: 201, Millis: 47, Bytes: 43, ResponseHeader: http.Header{"Content-Type": {"application/json"}, "X-Tag": {"first", "second"}}, ResponseBody: `{"id":73,"name":"Demo project","active":true}`}
+		a.sendOutcome = "Response received"
+		a.composeTests = []request.TestResult{{Name: "Created", Pass: true}, {Name: "Project active", Pass: false}}
+		a.responseArrived()
+	}
 	states := []snapshot{
 		{name: "capture-empty", setup: func(a *app) { a.flows = nil; a.countDomains(); a.countClients(); a.applyFilter() }, want: "Capture is stopped"},
 		{name: "capture-selected", want: "Request inspector"},
@@ -112,14 +122,53 @@ func TestUISnapshots(t *testing.T) {
 		{name: "capture-timing", setup: func(a *app) { a.inspect.tab[1] = resTabTiming }, want: "Waiting"},
 		{name: "requests-empty", setup: func(a *app) { a.workspace = 1 }, want: "Open a saved request or create a new one"},
 		{name: "requests-editing", setup: draft, want: "Send a request to see its response"},
-		{name: "requests-body", setup: func(a *app) { draft(a); a.composeTab = composeTabBody }, want: "Request body"},
-		{name: "requests-response", setup: func(a *app) {
+		{name: "requests-header-masked", setup: func(a *app) {
 			draft(a)
-			a.sent, a.sentSet, a.sentAt = a.draft(), true, snapshotTime
-			a.response = &capture.Flow{Status: 201, Millis: 47, Bytes: 43, ResponseHeader: http.Header{"Content-Type": {"application/json"}}, ResponseBody: `{"id":73,"name":"Demo project","active":true}`}
-			a.sendOutcome = "Response received"
-			a.responseArrived()
-		}, want: "201 Created"},
+			a.composeHeaders += "\nAuthorization: Bearer snapshot-only"
+		}, want: "Reveal header 3"},
+		{name: "requests-header-revealed", setup: func(a *app) {
+			draft(a)
+			a.composeHeaders += "\nAuthorization: Bearer snapshot-only"
+		}, act: click("Reveal header 3"), want: "Hide header 3"},
+		{name: "requests-header-focus", setup: draft, act: func(t *testing.T, tt *ui.Tester) {
+			click("header value 1")(t, tt)
+			tt.Key(0, ui.KeyTab)
+		}, want: "Remove header 1"},
+		{name: "requests-body", setup: func(a *app) { draft(a); a.composeTab = composeTabBody }, want: "Request body"},
+		{name: "requests-response", setup: response, want: "201 Created"},
+		{name: "requests-response-checks", setup: func(a *app) { response(a); a.responseTab = resViewTests }, want: "Project active"},
+		{name: "requests-response-headers", setup: func(a *app) { response(a); a.responseTab = resViewHeaders }, want: "X-Tag"},
+		{name: "requests-variables", setup: func(a *app) { draft(a); a.openVars() }, want: "Variable name 1"},
+		{name: "requests-environments", setup: func(a *app) { draft(a); a.requestSide = 2 }, want: "Environments"},
+		{name: "requests-environment-menu", setup: draft, act: click("Active environment"), want: "Staging"},
+		{name: "requests-collection-menu", setup: draft, act: click("Collection options"), menu: "Import cURL…"},
+		{name: "requests-method-menu", setup: draft, act: click("Method list"), want: "PATCH"},
+		{name: "requests-url-variables", setup: func(a *app) {
+			draft(a)
+			a.composeURL = "{{baseUrl}}/projects?q={{query}}&page=1"
+		}, act: click("Request editor: Headers"), want: "Request variables"},
+		{name: "requests-bulk-headers", setup: func(a *app) { draft(a); a.headerBulk = true }, want: "Request headers"},
+		{name: "requests-params", setup: func(a *app) {
+			draft(a)
+			a.composeURL += "?tag=first&tag=second&page=1"
+			a.composeTab = composeTabParams
+		}, want: "parameter key 3"},
+		{name: "requests-multipart", setup: func(a *app) {
+			draft(a)
+			a.composeTab, a.requestDocument.bodyMode = composeTabBody, "Multipart"
+			a.formFields = []request.Field{{Name: "name", Value: "Demo"}, {Name: "upload", Value: "/tmp/example.txt", File: true}}
+		}, want: "Attach file…"},
+		{name: "requests-scripts", setup: func(a *app) { draft(a); a.composeTab = composeTabScripts }, want: "Pre-request script"},
+		{name: "requests-checks", setup: func(a *app) {
+			draft(a)
+			a.composeTab = composeTabChecks
+			a.checks = request.Checks{Status: "201", Headers: "Content-Type: application/json", JSON: "/id = 73\n/active = true"}
+		}, want: "Expected status"},
+		{name: "requests-examples", setup: func(a *app) {
+			draft(a)
+			a.composeTab = composeTabExamples
+			a.examples = []request.Example{{ID: "snapshot-example", Name: "Created project", Status: 201, Body: `{"id":73}`, Request: request.ExampleRequest{Method: "POST", URL: "{{baseUrl}}/projects"}}}
+		}, want: "Example name"},
 		{name: "settings", setup: func(a *app) { a.settingsOpen = true }, want: "Dark appearance"},
 		{name: "commands", setup: func(a *app) { a.workbench.openPalette() }, want: "Find command"},
 		{name: "commands-unavailable", setup: func(a *app) { a.workbench.openPalette(); a.workbench.query = "Send request" }, want: "unavailable"},
@@ -149,6 +198,12 @@ func TestUISnapshots(t *testing.T) {
 				t.Fatal(err)
 			}
 		}, menu: "Edit & resend"},
+	}
+	for _, auth := range []string{"Bearer", "Basic", "API key", request.AuthOAuth2, request.AuthDigest, request.AuthAWS, request.AuthJWT} {
+		states = append(states, snapshot{name: "requests-auth-" + auth, setup: func(a *app) {
+			draft(a)
+			a.composeTab, a.auth.Type = composeTabAuth, auth
+		}, want: "Authorization type"})
 	}
 	for _, mode := range []string{"Auto", "Pretty", "JSON", "Hex", "Preview", "Protobuf"} {
 		want := map[string]string{"Auto": "Body text", "Pretty": "Body text", "JSON": "projects", "Hex": "00000000", "Preview": "Rich text", "Protobuf": "1 of 1 messages"}[mode]
@@ -202,7 +257,7 @@ func TestUISnapshots(t *testing.T) {
 		}
 		for _, state := range states {
 			widths := []int{1280}
-			if state.name == "capture-selected" || state.name == "capture-ws" || state.name == "capture-connect" || state.name == "requests-editing" || state.name == "requests-response" || state.name == "active-tools" || state.name == "requests-active-tools" {
+			if state.name == "capture-selected" || state.name == "capture-ws" || state.name == "capture-connect" || strings.HasPrefix(state.name, "requests-") || state.name == "active-tools" {
 				widths = append(widths, 960)
 			}
 			for _, width := range widths {

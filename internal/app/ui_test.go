@@ -43,7 +43,7 @@ func chooseMenu(tt *ui.Tester, path ...string) error {
 		// Type selection targets the focused menu, not an identically named
 		// button (for example Capture's JSON filter) behind the overlay.
 		prefix := strings.TrimRight(strings.ToLower(label), "…. ")
-		if strings.ContainsFunc(prefix, func(r rune) bool { return r < 'a' || r > 'z' }) {
+		if strings.ContainsFunc(prefix, func(r rune) bool { return r != ' ' && (r < 'a' || r > 'z') }) {
 			if err := tt.Click(label); err != nil {
 				return err
 			}
@@ -51,7 +51,13 @@ func chooseMenu(tt *ui.Tester, path ...string) error {
 		}
 		tt.Advance(time.Second)
 		for _, r := range prefix {
-			tt.Key(0, ui.KeyA+ui.Key(r-'a'))
+			if r == ' ' {
+				// Shift keeps Space in type selection rather than activating
+				// the highlighted item before the full label is entered.
+				tt.Key(ui.Shift, ui.KeySpace)
+			} else {
+				tt.Key(0, ui.KeyA+ui.Key(r-'a'))
+			}
 		}
 		tt.Key(0, ui.KeyEnter)
 	}
@@ -1776,7 +1782,7 @@ func TestConcurrentRequestTabsOwnTheirResponses(t *testing.T) {
 	click("Fast request")
 	click("Send")
 	waitFor("201 Created")
-	click("Tests")
+	click("Response tab: Tests")
 	if !tt.HasText("✓ fast owns response") {
 		t.Fatal("fast request ran another tab's script or saw its response")
 	}
@@ -1785,7 +1791,7 @@ func TestConcurrentRequestTabsOwnTheirResponses(t *testing.T) {
 	releaseSlow <- struct{}{}
 	click("Request tab: Slow request")
 	waitFor("200 OK")
-	click("Tests")
+	click("Response tab: Tests")
 	if !tt.HasText("✓ slow owns response") || tt.HasText("wrong script") {
 		t.Fatal("slow result used the active tab or a script edited after sending")
 	}
@@ -1981,7 +1987,10 @@ func TestCurlImportAndCopyKeepExistingDrafts(t *testing.T) {
 	}
 	click("Requests")
 	click("List projects")
-	click("Import cURL…")
+	click("Collection options")
+	if err := chooseMenu(tt, "Import cURL…"); err != nil {
+		t.Fatal(err)
+	}
 	paste("curl https://example.test --data @private.txt")
 	if !tt.HasText("@files and stdin are not read") {
 		t.Fatal("file-backed input was not explained or was imported")
@@ -1990,7 +1999,10 @@ func TestCurlImportAndCopyKeepExistingDrafts(t *testing.T) {
 	if read("URL") != "https://api.example.com/projects" {
 		t.Fatal("failed import replaced the existing draft")
 	}
-	click("Import cURL…")
+	click("Collection options")
+	if err := chooseMenu(tt, "Import cURL…"); err != nil {
+		t.Fatal(err)
+	}
 	paste(`curl 'https://example.test/api?x=7' -H 'X-Count: 19' --json '{"name":"it'\''s","count":7}'`)
 	if read("Method") != "POST" || read("URL") != "https://example.test/api?x=7" {
 		t.Fatal("imported request fields were not shown in a new tab")
@@ -2026,7 +2038,10 @@ func TestCurlImportAndCopyKeepExistingDrafts(t *testing.T) {
 	if read("URL") != "https://api.example.com/projects" {
 		t.Fatal("successful import overwrote another document")
 	}
-	click("Import cURL…")
+	click("Collection options")
+	if err := chooseMenu(tt, "Import cURL…"); err != nil {
+		t.Fatal(err)
+	}
 	paste(command)
 	click("Body")
 	if read("Request body") != `{"name":"it's","count":7}` || read("URL") != "https://example.test/api?x=7" {
@@ -3436,6 +3451,76 @@ func TestCaptureCompactLayoutKeepsSearchUsableAcrossEmptyResults(t *testing.T) {
 			tt.Frame()
 			if !tt.HasText("Images ×") || len(a.visible) != 0 {
 				t.Fatal("the segmented control overwrote the menu-only Images condition")
+			}
+		})
+	}
+}
+
+func TestRequestCompactControlsKeepTemplateEditingAndCounts(t *testing.T) {
+	for _, width := range []int{960, 1280} {
+		t.Run(fmt.Sprint(width), func(t *testing.T) {
+			a := snapshotApp()
+			a.addDocument(savedRequest{Method: "PATCH", URL: "https://例.test/{{path}}?tag=a&tag=b", HeaderList: []request.Field{
+				{Name: "X-Tag", Value: "one"}, {Name: "X-Tag", Value: "two"}, {Name: "Accept", Value: "text/plain"},
+				{Name: "X-Off", Value: "ignored", Disabled: true},
+			}, Checks: request.Checks{Status: "201", Headers: "X-One: one\nX-Two: two", JSON: "/ok = true"}}, "")
+			a.composeTab = composeTabHeaders
+			tt := ui.NewTester(a.view, width, 800)
+			click := func(label string) {
+				t.Helper()
+				if err := tt.Click(label); err != nil {
+					t.Fatal(err)
+				}
+			}
+			method, _ := tt.Find("Method")
+			urlBox, _ := tt.Find("URL")
+			send, _ := tt.Find("Send")
+			if send.H != 32 || method.Y >= urlBox.Y+urlBox.H || send.Y >= urlBox.Y+urlBox.H {
+				t.Fatal("method, URL and 32px Send no longer share one row")
+			}
+			for _, count := range []struct{ label, value string }{{"Headers", "3"}, {"Checks", "4"}} {
+				tab, ok := tt.Find("Request editor: " + count.label)
+				number, found := tt.Find(count.value)
+				if !ok || !found || number.X < tab.X || number.X+number.W > tab.X+tab.W || number.Y < tab.Y || number.Y+number.H > tab.Y+tab.H {
+					t.Fatalf("%s did not show configured count %s: tab %v, number %v", count.label, count.value, tab, number)
+				}
+			}
+			click("URL")
+			tt.Key(ui.Cmd, ui.KeyA)
+			raw := "https://例.test/中文/{{path}}?secret={{vault:token}}&unfinished={{name"
+			tt.Type(raw)
+			click("Request editor: Headers") // Blur shows chips without replacing the input.
+			click("URL")
+			tt.Key(ui.Cmd, ui.KeyA)
+			tt.Key(ui.Cmd, ui.KeyC)
+			if tt.Clipboard() != raw {
+				t.Fatal("URL chips changed Unicode, reference braces or incomplete input")
+			}
+			tt.Key(0, ui.KeyEnd)
+			tt.Type("z")
+			click("Active environment")
+			click("Staging")
+			click("URL")
+			tt.Key(ui.Cmd, ui.KeyZ)
+			if a.composeURL != raw || a.activeEnv != "Staging" || !tt.Focused("URL") {
+				t.Fatal("environment selection or chip rendering lost native undo/focus")
+			}
+			a.requestDocument.setDebugSource(newDebugSource(a.flows[0]))
+			a.response = &capture.Flow{Status: 201, Millis: 47, Bytes: 43, ResponseHeader: http.Header{"Content-Type": {"application/json"}, "X-Tag": {"first", "second"}}, ResponseBody: `{"id":73}`}
+			a.composeTests = []request.TestResult{{Name: "Created", Pass: true}, {Name: "Active", Pass: false}}
+			a.responseArrived()
+			tt.Frame()
+			tt.SetSize(1280, 800)
+			fullConsole, _ := tt.Find("Response tab: Console")
+			tt.SetSize(width, 800)
+			console, ok := tt.Find("Response tab: Console")
+			format, found := tt.Find("Response format")
+			if !ok || !found || console.W < fullConsole.W || console.X+console.W > format.X {
+				t.Fatal("response tabs are clipped behind the format control")
+			}
+			click("Response tab: Console")
+			if a.responseTab != resViewConsole {
+				t.Fatal("the rightmost response tab is not reachable")
 			}
 		})
 	}

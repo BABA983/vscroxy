@@ -1517,20 +1517,35 @@ func (a *app) requestSidebar(c *ui.Context, t *ui.Theme) {
 				if a.requestSide == 3 {
 					newLabel = "New API"
 				}
-				if ui.Button(c, "+").Label(newLabel).Size(26, 26).Padding(0).Clicked() {
+				if iconButton(c, newLabel, newLabel, plusIcon).Clicked() {
 					if a.requestSide == 3 {
 						a.newAPI()
 					} else {
 						a.openCompose()
 					}
 				}
-				if ui.Button(c, "Import…").Height(26).Padding(0, 8).FontSize(11).Clicked() {
-					if a.requestSide == 3 {
-						a.importOpenAPI()
-					} else {
-						a.importRequests()
+				iconButton(c, "Collection options", "Import and collection tools", moreIcon).PopoverMenuButton(func(m *ui.Menu) {
+					if m.Item("Import…").Chosen() {
+						if a.requestSide == 3 {
+							a.importOpenAPI()
+						} else {
+							a.importRequests()
+						}
 					}
-				}
+					m.Separator()
+					if m.Item("Import cURL…").Chosen() {
+						a.openCurlImport()
+					}
+					if m.Item("Vault…").Chosen() {
+						a.openVault()
+					}
+					if m.Item("Runner…").Chosen() {
+						a.openRunner()
+					}
+					if m.Item("Cookies…").Chosen() {
+						a.openCookies()
+					}
+				})
 			})
 			placeholder, label := "Search collections…", "Search collections"
 			if a.requestSide == 1 {
@@ -1622,26 +1637,6 @@ func (a *app) requestSidebar(c *ui.Context, t *ui.Theme) {
 				}
 			}
 		}
-		ui.Divider(c)
-		ui.Row(c).Padding(8).Gap(4).Wrap().Children(func() {
-			for _, item := range []struct {
-				label string
-				run   func()
-			}{
-				{"Import cURL…", a.openCurlImport},
-				{"Vault…", a.openVault},
-				{"Runner…", a.openRunner},
-				{"Cookies…", a.openCookies},
-			} {
-				run := item.run
-				if ui.ButtonBase(c).Label(item.label).Height(28).Padding(0, 6).Radius(5).Width((a.sidebarWidth - 20) / 2).
-					AlignItems(ui.Center).Justify(ui.Start).TextColor(t.TextMuted).Children(func() {
-					ui.Text(c, item.label).FontSize(11).SingleLine()
-				}).Clicked() {
-					run()
-				}
-			}
-		})
 	})
 }
 
@@ -2506,35 +2501,51 @@ func (a *app) varsModal(c *ui.Context, t *ui.Theme) {
 				})
 				ui.TextInput(c, &a.varsName).Label("Environment")
 			}
-			ui.Row(c).Gap(8).Children(func() {
-				ui.Text(c, "NAME").Grow(1).FontSize(10).TextColor(t.TextMuted)
-				ui.Text(c, "VALUE").Grow(2).FontSize(10).TextColor(t.TextMuted)
-				ui.Box(c).Width(80)
-			})
-			ui.Scroll(c).Grow(1).FillWidth().Gap(6).Children(func() {
-				remove := -1
-				for i := range a.varsRows {
-					r := &a.varsRows[i]
-					ui.Row(c).Key(i).Gap(8).Children(func() {
-						ui.TextInput(c, &r.Name).Label(fmt.Sprintf("Variable name %d", i+1)).Placeholder("base_url").Grow(1).ReadOnly(a.envsProblem != "")
-						value := ui.TextInput(c, &r.Value).Label(fmt.Sprintf("Variable value %d", i+1)).Grow(2).ReadOnly(a.envsProblem != "")
-						if !r.Revealed {
-							value.Password()
-						}
-						if ui.Button(c, "◉").Label(fmt.Sprintf("Reveal variable %d", i+1)).Width(32).Clicked() {
-							r.Revealed = !r.Revealed
-						}
-						if ui.Button(c, "×").Label(fmt.Sprintf("Remove variable %d", i+1)).Width(32).Disabled(a.envsProblem != "").Clicked() {
-							remove = i
-						}
-					})
-				}
-				if remove >= 0 {
-					a.varsRows = slices.Delete(a.varsRows, remove, remove+1)
-				}
-				if ui.Button(c, "Add variable").Disabled(a.envsProblem != "").Clicked() {
-					a.varsRows = append(a.varsRows, request.Field{})
-				}
+			ui.Column(c).Grow(1).MinHeight(0).Border(1, t.Border).Radius(radiusControl).Children(func() {
+				ui.Row(c).Height(heightControl).AlignItems(ui.Center).BorderWidth(0, 0, 1, 0).BorderColor(t.Border).Children(func() {
+					ui.Text(c, "NAME").Basis(0).Grow(1).Padding(0, 8).FontSize(textMeta).TextColor(t.TextMuted)
+					ui.Text(c, "VALUE").Basis(0).Grow(2).Padding(0, 8).FontSize(textMeta).TextColor(t.TextMuted)
+					ui.Box(c).Width(56)
+				})
+				ui.Scroll(c).Grow(1).MinHeight(0).FillWidth().Children(func() {
+					remove := -1
+					for i := range a.varsRows {
+						r := &a.varsRows[i]
+						row := ui.Row(c).Key(i).Height(heightControl).AlignItems(ui.Center).BorderWidth(0, 0, 1, 0).BorderColor(t.Border)
+						row.Children(func() {
+							ui.Box(c).Basis(0).Grow(1).MinWidth(0).FillHeight().BorderWidth(0, 1, 0, 0).BorderColor(t.Border).Children(func() {
+								field := requestGridInput(c, &r.Name, "base_url", fmt.Sprintf("Variable name %d", i+1)).ReadOnly(a.envsProblem != "")
+								cellBorder(t, field, false, false)
+							})
+							ui.Box(c).Basis(0).Grow(2).MinWidth(0).FillHeight().Children(func() {
+								value := requestGridInput(c, &r.Value, "Value", fmt.Sprintf("Variable value %d", i+1)).ReadOnly(a.envsProblem != "")
+								if !r.Revealed {
+									value.Password()
+								}
+								cellBorder(t, value, !r.Revealed, r.Revealed)
+							})
+							if iconButton(c, fmt.Sprintf("Reveal variable %d", i+1), "Reveal or hide variable value", eyeIcon).Clicked() {
+								r.Revealed = !r.Revealed
+							}
+							button := iconButton(c, fmt.Sprintf("Remove variable %d", i+1), "Remove variable", closeIcon).Disabled(a.envsProblem != "")
+							if !row.Hovered() && !row.FocusWithin() {
+								button.Opacity(0)
+							}
+							if button.Clicked() {
+								remove = i
+							}
+						})
+					}
+					if remove >= 0 {
+						a.varsRows = slices.Delete(a.varsRows, remove, remove+1)
+					}
+					if toolbarButton(c, "Add variable", "Add variable", false).Disabled(a.envsProblem != "").Children(func() {
+						ui.Icon(c, plusIcon).Size(iconInline, iconInline)
+						ui.Text(c, "Add variable").FontSize(textBody)
+					}).Clicked() {
+						a.varsRows = append(a.varsRows, request.Field{})
+					}
+				})
 			})
 			if a.varsProblem != "" {
 				ui.Text(c, a.varsProblem).FontSize(11).TextColor(t.Danger)

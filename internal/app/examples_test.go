@@ -83,7 +83,7 @@ func TestSaveAsExampleKeepsTheResponseWithTheAuthoredRequest(t *testing.T) {
 		t.Fatalf("draft examples = %+v, dirty = %v", d.examples, d.dirty())
 	}
 
-	if err := tt.Click("Request editor: Examples (2)"); err != nil {
+	if err := tt.Click("Request editor: Examples"); err != nil {
 		t.Fatal(err)
 	}
 	if !tt.HasText("GET {{base}}/projects") {
