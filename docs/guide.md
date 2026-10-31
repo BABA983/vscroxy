@@ -177,6 +177,12 @@ Its **⋯** menu holds the exchange-wide views — Diff, Connection
 and, for WebSocket and SSE, Messages — and the layout choices. Request and
 response headers scroll independently. Collections form a nested tree;
 search reveals matching ancestors without changing saved expansion choices.
+A saved request has a **History / Examples** column beside its editor, from
+900 DIPs of content width. **History** lists the retained runs sent from that
+request, newest first, matched by the request itself and never by URL; choosing
+one shows its result read-only where the response goes, with **Open as draft**,
+until **×** or the next Send brings back the request's own response.
+**Examples** lists the saved examples and opens one in the Examples tab.
 **Run records** opens retained attempts across the whole window, without
 sending them again; **Close** returns. Document tabs stay in the content pane
 above the editor and inline response viewer. Moving between sidebar groups

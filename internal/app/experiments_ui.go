@@ -173,6 +173,40 @@ func (s *experimentWorkbench) pick(id int) {
 	}
 }
 
+// openRecord opens a retained attempt as a new draft with its result,
+// never sending it again.
+func (a *app) openRecord(r experimentRecord) {
+	draft := r.Draft
+	draft.ID = "" // Restoring an attempt creates a copy, not a library update.
+	a.addDocument(draft, "")
+	a.setDebugSource(r.Source)
+	a.experimentID, a.response, a.composeTests, a.composeResult = r.ID, r.response(), slices.Clone(r.Tests), r.Summary
+	a.composeReplies = slices.Clone(r.Replies)
+	a.console = slices.Clone(r.Console)
+	a.sent, a.sentAt, a.sentSet, a.sentRun = a.draft(), r.At, true, r.RunKey
+	a.sendOutcome = cmp.Or(r.Outcome, "Retained attempt")
+	if a.response != nil {
+		a.responseArrived()
+	}
+}
+
+// resultText is a retained run's response as one read-only text: headers,
+// body, checks and WebSocket replies.
+func (r experimentRecord) resultText() string {
+	f := r.compared("")
+	text := f.resHeaders + "\n\n" + f.body(true)
+	for _, check := range r.Tests {
+		text += fmt.Sprintf("\nCheck %t: %s", check.Pass, check.Name)
+		if check.Error != "" {
+			text += " — " + check.Error
+		}
+	}
+	if len(r.Replies) > 0 {
+		text += "\nWebSocket replies:\n" + strings.Join(r.Replies, "\n")
+	}
+	return text
+}
+
 func (r experimentRecord) compared(ignore string) flow {
 	f := flow{id: r.ID, method: r.Draft.Method, url: r.Draft.URL, path: r.Draft.URL}
 	if reply := r.Exchange; reply != nil {
@@ -318,18 +352,7 @@ func (a *app) experimentsView(c *ui.Context, t *ui.Theme, inline bool) {
 				}
 				ui.Row(c).Gap(t.Space(1)).Wrap().Children(func() {
 					if uikit.SecondaryButton(c, "Open as draft").Clicked() {
-						draft := r.Draft
-						draft.ID = "" // Restoring an attempt creates a copy, not a library update.
-						a.addDocument(draft, "")
-						a.setDebugSource(r.Source)
-						a.experimentID, a.response, a.composeTests, a.composeResult = r.ID, r.response(), slices.Clone(r.Tests), r.Summary
-						a.composeReplies = slices.Clone(r.Replies)
-						a.console = slices.Clone(r.Console)
-						a.sent, a.sentAt, a.sentSet, a.sentRun = a.draft(), r.At, true, r.RunKey
-						a.sendOutcome = cmp.Or(r.Outcome, "Retained attempt")
-						if a.response != nil {
-							a.responseArrived()
-						}
+						a.openRecord(*r)
 						s.open = false
 					}
 					if uikit.SecondaryButton(c, "Trace source").Disabled(r.Source == nil).Clicked() {
@@ -412,18 +435,7 @@ func (a *app) experimentsView(c *ui.Context, t *ui.Theme, inline bool) {
 					}
 				} else {
 					if s.reader == nil {
-						f := r.compared("")
-						text := f.resHeaders + "\n\n" + f.body(true)
-						for _, check := range r.Tests {
-							text += fmt.Sprintf("\nCheck %t: %s", check.Pass, check.Name)
-							if check.Error != "" {
-								text += " — " + check.Error
-							}
-						}
-						if len(r.Replies) > 0 {
-							text += "\nWebSocket replies:\n" + strings.Join(r.Replies, "\n")
-						}
-						s.reader = &editor.State{Buffer: editor.NewBuffer(text), ReadOnly: true, NoScrollPastEnd: true, SoftWrap: true, Label: "Experiment result"}
+						s.reader = &editor.State{Buffer: editor.NewBuffer(r.resultText()), ReadOnly: true, NoScrollPastEnd: true, SoftWrap: true, Label: "Experiment result"}
 					}
 					requestCodeEditor(c, s.reader)
 				}

@@ -138,6 +138,8 @@ func TestUISnapshots(t *testing.T) {
 		}, want: "Remove header 1"},
 		{name: "requests-body", setup: func(a *app) { draft(a); a.composeTab = composeTabBody }, want: "Request body"},
 		{name: "requests-response", setup: response, want: "201 Created"},
+		{name: "requests-history", setup: snapshotHistory, want: "Request tab: List projects"},
+		{name: "requests-history-run", setup: func(a *app) { snapshotHistory(a); a.requestDocument.historyPick = 1 }, want: "Read-only"},
 		{name: "requests-response-checks", setup: func(a *app) { response(a); a.responseTab = resViewTests }, want: "Project active"},
 		{name: "requests-response-headers", setup: func(a *app) { response(a); a.responseTab = resViewHeaders }, want: "X-Tag"},
 		{name: "requests-variables", setup: func(a *app) { draft(a); a.openVars() }, want: "Variable name 1"},
@@ -572,6 +574,25 @@ func snapshotRuns(a *app) {
 	}
 	a.experiments.log.Baseline = 1
 	a.experiments.pick(2)
+}
+
+// snapshotHistory opens a saved request with two runs sent from it.
+func snapshotHistory(a *app) {
+	a.requests[0].ID = "list"
+	for i, status := range []int{200, 401} {
+		body := `{"projects":[{"id":73}],"total":1}`
+		if status == 401 {
+			body = `{"error":"Unauthorized"}`
+		}
+		r := snapshotExperiment(i+1, a.requests[0], "Local", request.Execution{
+			Response: &capture.Flow{Method: "GET", URL: a.requests[0].URL, Status: status, Millis: 40 + 7*i, Bytes: len(body), ResponseHeader: http.Header{"Content-Type": {"application/json"}}, ResponseBody: body},
+		})
+		r.At = snapshotTime.Add(time.Duration(i) * time.Minute)
+		if err := a.experiments.log.retain(r); err != nil {
+			panic(err)
+		}
+	}
+	a.openSaved(a.requests[0].key())
 }
 
 func snapshotRunner(a *app) {

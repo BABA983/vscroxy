@@ -2547,6 +2547,7 @@ func (a *app) sendComposed() {
 	d.composeTests = nil
 	d.composeReplies = nil
 	d.console = nil
+	d.historyPick = 0 // The new response replaces a retained run on screen.
 	d.response = nil
 	d.responseEditor = nil
 	// A send replaces the response, so the comparison of the previous one

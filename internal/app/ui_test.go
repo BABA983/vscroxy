@@ -1631,6 +1631,73 @@ func TestProxyPortEditorSavesWithoutInterruptingCapture(t *testing.T) {
 	}
 }
 
+// A saved request's History lists only the runs linked to it, newest first;
+// choosing one shows its result read-only where the response goes, without
+// touching the draft or its own response, and opening it never sends.
+func TestSavedRequestHistoryShowsLinkedRunsReadOnly(t *testing.T) {
+	a := workspaceApp()
+	a.requests[0].ID = "list"
+	a.requests[0].Examples = []request.Example{{ID: "ok", Name: "Two projects", Status: 200, Body: `{"total":2}`}}
+	saved := a.requests[0]
+	unlinked := saved
+	unlinked.ID = "" // Same method and URL, never sent from this request.
+	for i, run := range []struct {
+		draft  savedRequest
+		status int
+		body   string
+	}{{saved, 201, `{"run":"first"}`}, {unlinked, 500, `{"run":"other"}`}, {saved, 404, `{"run":"latest"}`}} {
+		r := snapshotExperiment(i+1, run.draft, "", request.Execution{
+			Response: &capture.Flow{Method: "GET", URL: saved.URL, Status: run.status, Millis: 12, ResponseBody: run.body},
+		})
+		r.At = time.Now().Add(time.Duration(i) * time.Minute)
+		if err := a.experiments.log.retain(r); err != nil {
+			t.Fatal(err)
+		}
+	}
+	tt := ui.NewTester(a.view, 1280, 800)
+	click := func(label string) {
+		t.Helper()
+		if err := tt.Click(label); err != nil {
+			t.Fatal(err)
+		}
+	}
+	click("List projects")
+	latest, ok3 := tt.Find("Run #3")
+	first, ok1 := tt.Find("Run #1")
+	if _, other := tt.Find("Run #2"); !ok1 || !ok3 || other || latest.Y >= first.Y {
+		t.Fatalf("history is not the linked runs, newest first: #3 %v, #1 %v, unlinked shown %t", latest, first, other)
+	}
+	click("Run #1")
+	click("Run #1 result")
+	tt.Key(ui.Cmd, ui.KeyA)
+	tt.Key(ui.Cmd, ui.KeyC)
+	if !strings.Contains(tt.Clipboard(), `{"run":"first"}`) || !tt.HasText("Read-only") {
+		t.Fatalf("the chosen run is not shown read-only: %q", tt.Clipboard())
+	}
+	d := a.requestDocument
+	if d.response != nil || d.composeURL != saved.URL || len(a.documents) != 1 {
+		t.Fatal("reading a run changed the draft or its response")
+	}
+	click("Show latest response")
+	if !tt.HasText("Send a request to see its response") {
+		t.Fatal("the request's own response did not come back")
+	}
+	click("Run #3")
+	click("Open as draft")
+	if len(a.documents) != 2 || a.requestDocument.assetID != "" || a.requestDocument.response == nil || a.requestDocument.response.Status != 404 {
+		t.Fatal("Open as draft did not open an unsaved copy with that run's result")
+	}
+	click("List projects")
+	click("Examples")
+	if a.requestDocument.historyTab != 1 {
+		t.Fatal("Examples did not switch the history column")
+	}
+	click("Open example: Two projects")
+	if !tt.HasText("Example name") {
+		t.Fatal("choosing an example did not open it in the Examples tab")
+	}
+}
+
 func TestRequestTabsKeepDraftsAndConfirmClose(t *testing.T) {
 	a := workspaceApp()
 	a.library.root = filepath.Join(t.TempDir(), "collections")

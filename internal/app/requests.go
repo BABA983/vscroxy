@@ -24,8 +24,14 @@ import (
 // requestDocument owns both the editable draft and the last send. Neither is
 // borrowed from the selected capture row or another request tab.
 type requestDocument struct {
-	id                int
-	debugKey          string
+	id       int
+	debugKey string
+	// The History / Examples column of a saved request: which list shows,
+	// the retained run shown read-only in place of the response (0 for the
+	// document's own response), and its reader.
+	historyTab        int
+	historyPick       int
+	historyReader     *editor.State
 	origin            *debugSource
 	revealTab         bool
 	tabLabel          string
@@ -447,6 +453,10 @@ func (a *app) composeView(c *ui.Context, t *ui.Theme) {
 		ui.SplitVerticalPercent(c.Key("request-editor"), &d.requestPercent, func() {
 			a.requestEditor(c, t, d)
 		}, func() {
+			if r := a.experiments.record(d.historyPick); r != nil {
+				a.historyResponse(c, t, d, r)
+				return
+			}
 			a.requestResponse(c, t, d)
 		}).Grow(1)
 	})

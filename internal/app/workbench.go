@@ -76,7 +76,17 @@ func (a *app) desktopContent(c *ui.Context) {
 			}
 			ui.Column(c).Fill().Children(func() {
 				a.documentTabs(c, c.Theme())
-				a.composeView(c, c.Theme())
+				d := a.requestDocument
+				// A saved request has a history; the column leaves the editor
+				// its room in a narrow window, where Send history still opens it.
+				if d == nil || d.assetID == "" || available < 900 {
+					a.composeView(c, c.Theme())
+					return
+				}
+				ui.Row(c).Grow(1).FillWidth().MinHeight(0).AlignItems(ui.Stretch).Children(func() {
+					a.historyColumn(c, c.Theme(), d)
+					ui.Column(c).Grow(1).MinWidth(0).Children(func() { a.composeView(c, c.Theme()) })
+				})
 			})
 		default:
 			if a.captureSection == 1 {
