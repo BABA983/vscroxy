@@ -98,7 +98,7 @@ drained:
 			ui.Scroll(c).MinHeight(0).Shrink(1).Gap(t.Space(4)).Children(func() {
 				ui.Text(c, "Sends in capture order through the current rules. POST, PUT, PATCH and DELETE can change server data. WebSocket, SSE and tunnels are excluded.").FontSize(uikit.TextBody).TextColor(t.TextMuted)
 				ui.Field(c, "Timeout per request (seconds; 0 = no timeout)", func() {
-					ui.TextInput(c, &r.timeout).Label("Replay timeout").Height(uikit.HeightControl).FontSize(uikit.TextBody).Disabled(r.updates != nil)
+					uikit.Input(c, &r.timeout).Label("Replay timeout").Disabled(r.updates != nil)
 				})
 				if !valid {
 					ui.Text(c, "Enter 0–86400 seconds.").FontSize(uikit.TextBody).TextColor(t.Danger)

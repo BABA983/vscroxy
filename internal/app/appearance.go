@@ -105,7 +105,7 @@ func (a *app) settingsModal(c *ui.Context, t *ui.Theme) {
 						ui.Form(c, func() {
 							ui.Field(c, "Listening port", func() {
 								ui.Row(c).Gap(t.Space(2)).Wrap().Children(func() {
-									ui.TextInput(c, &a.proxyPortInput).Label("Proxy port").Placeholder("Automatic").Width(100).Height(uikit.HeightControl).FontSize(uikit.TextBody).Radius(uikit.RadiusControl)
+									uikit.Input(c, &a.proxyPortInput).Label("Proxy port").Placeholder("Automatic").Width(100)
 									if uikit.SecondaryButton(c, "Save for next launch").Clicked() {
 										a.saveProxyPort()
 									}

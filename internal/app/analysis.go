@@ -160,7 +160,7 @@ func (s *captureAnalysis) compare(c *ui.Context, left, right flow, labels [2]str
 		s.part = "Response body"
 	}
 	ui.Row(c).Padding(t.Space(1), t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Wrap().Children(func() {
-		ui.Select(c, &s.part, []string{"Response body", "Response headers", "Request body", "Request headers"}).
+		uikit.Select(c, &s.part, []string{"Response body", "Response headers", "Request body", "Request headers"}).
 			Label("Compare content").Width(165).Height(uikit.HeightControl).FontSize(uikit.TextBody).Radius(uikit.RadiusControl)
 		if uikit.SecondaryButton(c, "Swap sides").Clicked() {
 			s.swapped = !s.swapped

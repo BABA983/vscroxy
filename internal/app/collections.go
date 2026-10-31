@@ -221,7 +221,7 @@ func (a *app) folderModal(c *ui.Context, t *ui.Theme) {
 			ui.Text(c, "Every request saved under it inherits these settings; a folder's settings override its collection's.").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
 			ui.Form(c, func() {
 				ui.Field(c, "Name", func() {
-					ui.TextInput(c, &f.name).Label(kind + " name").Height(uikit.HeightControl).Radius(uikit.RadiusControl)
+					uikit.Input(c, &f.name).Label(kind + " name")
 				})
 			})
 			ui.Text(c, "Renaming moves its requests, folders and settings together.").FontSize(uikit.TextMeta).TextColor(t.TextMuted)

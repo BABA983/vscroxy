@@ -219,20 +219,20 @@ func (a *app) cookiesModal(c *ui.Context, t *ui.Theme) {
 				ui.Text(c, "Add replaces the same domain / path / name. Leave Domain empty for a host-only cookie.").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
 				ui.Form(c, func() {
 					ui.Field(c, "Cookie URL", func() {
-						ui.TextInput(c, &e.url).Label("Cookie URL").Placeholder("https://api.example.com/").Height(uikit.HeightControl).Radius(uikit.RadiusControl)
+						uikit.Input(c, &e.url).Label("Cookie URL").Placeholder("https://api.example.com/")
 					})
 					ui.Field(c, "Cookie name", func() {
-						ui.TextInput(c, &e.name).Label("Cookie name").Placeholder("Name").Height(uikit.HeightControl).Radius(uikit.RadiusControl)
+						uikit.Input(c, &e.name).Label("Cookie name").Placeholder("Name")
 					})
 					ui.Field(c, "Cookie value", func() {
-						ui.TextInput(c, &e.value).Label("Cookie value").Placeholder("Value").Password().Height(uikit.HeightControl).Radius(uikit.RadiusControl)
+						uikit.Input(c, &e.value).Label("Cookie value").Placeholder("Value").Password()
 					})
 					ui.Field(c, "Cookie domain", func() {
-						ui.TextInput(c, &e.domain).Label("Cookie domain").Placeholder("Domain (optional)").Height(uikit.HeightControl).Radius(uikit.RadiusControl)
+						uikit.Input(c, &e.domain).Label("Cookie domain").Placeholder("Domain (optional)")
 					})
 					ui.Field(c, "Cookie path", func() {
 						ui.Row(c).Gap(t.Space(3)).Children(func() {
-							ui.TextInput(c, &e.path).Width(100).Label("Cookie path").Placeholder("/").Height(uikit.HeightControl).Radius(uikit.RadiusControl)
+							uikit.Input(c, &e.path).Width(100).Label("Cookie path").Placeholder("/")
 							ui.Checkbox(c, &e.secure, "Secure")
 							ui.Checkbox(c, &e.httpOnly, "HttpOnly")
 						})

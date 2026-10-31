@@ -106,7 +106,7 @@ func (p *protoInspector) view(c *ui.Context, a *app, f flow, side int) {
 			p.name = "Auto"
 		}
 		ui.Combobox(c, &p.name, options).Label("Protobuf message type").Width(280)
-		if ui.Button(c, "Schema…").Clicked() {
+		if uikit.SecondaryButton(c, "Schema…").Clicked() {
 			p.open = true
 		}
 		ui.SearchField(c, &p.query).Label("Search protobuf messages").Placeholder("Search messages…").Width(200)
@@ -150,18 +150,20 @@ func (p *protoInspector) view(c *ui.Context, a *app, f flow, side int) {
 		p.list.Selected = &p.selected
 		p.list.Key = func(i int) any { return visible[i] }
 		p.list.Label = func(i int) string { return fmt.Sprintf("Message %d", visible[i]+1) }
+		focused := p.list.Handle.Focused(c)
+		c.SetTheme(uikit.ListTheme(t, focused))
 		ui.List(c, &p.list, len(visible), func(i int) {
+			if i == p.selected {
+				uikit.RowMarker(c, focused)
+			}
 			message := p.result.messages[visible[i]]
 			note := fmt.Sprintf("#%d · %s", visible[i]+1, humanBytes(message.size))
 			if message.compressed {
 				note += " · gzip"
 			}
-			color := t.Text
-			if i == p.selected {
-				color = t.AccentText
-			}
-			ui.Text(c, note).FontSize(uikit.TextMeta).TextColor(color).Padding(t.Space(2), t.Space(3)).SingleLine()
+			ui.Text(c, note).FontSize(uikit.TextMeta).TextColor(t.Text).Padding(t.Space(2), t.Space(3)).SingleLine()
 		}).Grow(1)
+		c.SetTheme(t)
 	}, func() {
 		// List may remap a selected key to -1 when a search removes it.
 		p.selected = max(0, min(p.selected, len(visible)-1))
@@ -169,7 +171,7 @@ func (p *protoInspector) view(c *ui.Context, a *app, f flow, side int) {
 		ui.Column(c).Fill().Children(func() {
 			ui.Row(c).Padding(0, t.Space(3)).AlignItems(ui.Center).Children(func() {
 				ui.Text(c, fmt.Sprintf("Message %d · %s decoded", visible[p.selected]+1, humanBytes(message.size))).FontSize(uikit.TextMeta).TextColor(t.TextMuted).Grow(1)
-				if ui.Button(c, "Copy decoded").Clicked() {
+				if uikit.SecondaryButton(c, "Copy decoded").Clicked() {
 					c.Services().WriteClipboard(message.text)
 					a.setMessage("Copied decoded protobuf message")
 				}
@@ -253,7 +255,7 @@ func (p *protoInspector) modal(c *ui.Context, a *app) {
 					ui.Text(c, fmt.Sprintf("Loaded: %d message types", len(p.schema.names))).FontSize(uikit.TextMeta).TextColor(t.TextMuted)
 				}
 				ui.Row(c).Gap(t.Space(2)).Children(func() {
-					ui.TextInput(c, &p.source).Label("Schema file").Placeholder("/path/to/service.proto or descriptors.pb").Grow(1).MinWidth(0).Height(uikit.HeightControl).FontSize(uikit.TextBody)
+					uikit.Input(c, &p.source).Label("Schema file").Placeholder("/path/to/service.proto or descriptors.pb").Grow(1).MinWidth(0)
 					if uikit.SecondaryButton(c, "Browse…").Disabled(p.loading).Clicked() && a.win != nil {
 						go func() {
 							paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Title: "Import protobuf schema", Filters: []mygo.FileFilter{{Name: "Protobuf", Extensions: []string{"proto", "pb", "protoset", "desc"}}}})

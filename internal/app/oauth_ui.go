@@ -40,38 +40,38 @@ func (a *app) oauthFields(c *ui.Context, auth *request.Auth, collection string) 
 	if o.ClientAuth == "Body" {
 		clientAuth = "In body"
 	}
-	ui.Field(c, "Grant type", func() { ui.Select(c, &o.Grant, request.Grants).Width(240).Height(uikit.HeightControl) })
+	ui.Field(c, "Grant type", func() { uikit.Select(c, &o.Grant, request.Grants).Width(240) })
 	if interactive {
 		ui.Field(c, "Authorization URL", func() {
-			ui.TextInput(c, &o.AuthURL).Height(uikit.HeightControl).Placeholder("https://login.example.com/authorize")
+			uikit.Input(c, &o.AuthURL).Placeholder("https://login.example.com/authorize")
 		})
 	}
 	ui.Field(c, "Access token URL", func() {
-		ui.TextInput(c, &o.TokenURL).Height(uikit.HeightControl).Placeholder("https://login.example.com/token")
+		uikit.Input(c, &o.TokenURL).Placeholder("https://login.example.com/token")
 	})
-	ui.Field(c, "Client ID", func() { ui.TextInput(c, &o.ClientID).Height(uikit.HeightControl) })
+	ui.Field(c, "Client ID", func() { uikit.Input(c, &o.ClientID) })
 	ui.Field(c, "Client secret", func() {
-		ui.TextInput(c, &o.ClientSecret).Height(uikit.HeightControl).Placeholder("{{vault:client_secret}}, empty for a public client").Password()
+		uikit.Input(c, &o.ClientSecret).Placeholder("{{vault:client_secret}}, empty for a public client").Password()
 	})
-	ui.Field(c, "Scope", func() { ui.TextInput(c, &o.Scope).Height(uikit.HeightControl).Placeholder("Space-separated, optional") })
+	ui.Field(c, "Scope", func() { uikit.Input(c, &o.Scope).Placeholder("Space-separated, optional") })
 	if o.Grant == request.GrantPassword {
-		ui.Field(c, "Username", func() { ui.TextInput(c, &o.Username).Height(uikit.HeightControl) })
-		ui.Field(c, "Password", func() { ui.TextInput(c, &o.Password).Height(uikit.HeightControl).Password() })
+		ui.Field(c, "Username", func() { uikit.Input(c, &o.Username) })
+		ui.Field(c, "Password", func() { uikit.Input(c, &o.Password).Password() })
 	}
 	if interactive {
 		ui.Field(c, "Callback URL", func() {
-			ui.TextInput(c, &o.RedirectURL).Height(uikit.HeightControl).Placeholder("http://127.0.0.1 on any free port")
+			uikit.Input(c, &o.RedirectURL).Placeholder("http://127.0.0.1 on any free port")
 		}).Description("Register it with the provider; the sign-in opens in your browser and returns there.")
 	}
 	ui.Field(c, "Client authentication", func() {
-		if ui.Select(c, &clientAuth, []string{"Basic header", "In body"}).Width(160).Height(uikit.HeightControl).Changed() {
+		if uikit.Select(c, &clientAuth, []string{"Basic header", "In body"}).Width(160).Changed() {
 			o.ClientAuth = ""
 			if clientAuth == "In body" {
 				o.ClientAuth = "Body"
 			}
 		}
 	})
-	ui.Field(c, "Header prefix", func() { ui.TextInput(c, &o.HeaderPrefix).Height(uikit.HeightControl).Placeholder("Bearer").Width(150) })
+	ui.Field(c, "Header prefix", func() { uikit.Input(c, &o.HeaderPrefix).Placeholder("Bearer").Width(150) })
 
 	in, cfg, err := a.oauthConfig(*auth, collection)
 	s := &a.oauth

@@ -305,10 +305,10 @@ func (a *app) runnerModal(c *ui.Context, t *ui.Theme) {
 				if len(names) == 0 {
 					names = []string{""}
 				}
-				if ui.Select(c, &r.collection, names).Label("Runner collection").Grow(1).Height(uikit.HeightControl).FontSize(uikit.TextBody).Radius(uikit.RadiusControl).Disabled(r.running).Changed() {
+				if uikit.Select(c, &r.collection, names).Label("Runner collection").Grow(1).Disabled(r.running).Changed() {
 					r.load(a.requests)
 				}
-				ui.TextInput(c, &r.iterations).Width(86).Height(uikit.HeightControl).FontSize(uikit.TextBody).Radius(uikit.RadiusControl).Label("Iterations").Disabled(r.running)
+				uikit.Input(c, &r.iterations).Width(86).Label("Iterations").Disabled(r.running)
 				ui.Checkbox(c, &r.stopOnFailure, "Stop on failure").FontSize(uikit.TextBody).Disabled(r.running)
 			})
 			ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
@@ -359,8 +359,12 @@ func (a *app) runnerModal(c *ui.Context, t *ui.Theme) {
 					ui.Text(c, fmt.Sprintf("RESULTS · %d completed · %d failed", r.completed, r.failures)).Height(uikit.HeightTabs).Padding(t.Space(2)).
 						FontSize(uikit.TextMeta).FontFeatures("tnum").Bold().TextColor(t.TextMuted).Border(0, t.Border).BorderWidth(0, 0, 1, 0)
 					r.results.Selected = &r.picked
+					c.SetTheme(uikit.ListTheme(t, r.results.Handle.Focused(c)))
 					ui.List(c, &r.results, len(r.rows)).Grow(1).Rows(func(item ui.ListRow) {
 						c := item.Context
+						if item.Selected() {
+							uikit.RowMarker(c, item.ListFocused())
+						}
 						row := r.rows[item.Index]
 						color := t.Success
 						if row.failed {
@@ -370,9 +374,7 @@ func (a *app) runnerModal(c *ui.Context, t *ui.Theme) {
 							Border(0, t.Border).BorderWidth(0, 0, 1, 0).Tooltip(row.summary).Children(func() {
 							ui.Text(c, fmt.Sprintf("%d · %s", row.iteration, row.name)).FontSize(uikit.TextBody).FontFeatures("tnum").Grow(1).MinWidth(0).SingleLine()
 							summary := ui.Text(c, row.summary).FontSize(uikit.TextMeta).FontFeatures("tnum").SingleLine().MaxWidth(240)
-							if !item.Selected() {
-								summary.TextColor(color)
-							}
+							summary.TextColor(color)
 						})
 					}).Children(func() {
 						if len(r.rows) == 0 {
@@ -383,6 +385,7 @@ func (a *app) runnerModal(c *ui.Context, t *ui.Theme) {
 							}
 						}
 					})
+					c.SetTheme(t)
 					ui.Divider(c)
 					ui.Scroll(c).Height(125).Padding(t.Space(2)).Gap(t.Space(1)).Children(func() {
 						if r.picked >= 0 && r.picked < len(r.rows) {

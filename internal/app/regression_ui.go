@@ -24,7 +24,7 @@ func (a *app) checksEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
 		ui.Form(c, func() {
 			ui.Field(c, "Expected status", func() {
 				ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-					ui.TextInput(c, &d.checks.Status).Width(90).Height(uikit.HeightControl).Label("Expected status").Placeholder("200")
+					uikit.Input(c, &d.checks.Status).Width(90).Label("Expected status").Placeholder("200")
 					ui.Text(c, "Empty = no status assertion").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
 				})
 			})
@@ -119,22 +119,22 @@ func (a *app) regressionModal(c *ui.Context, t *ui.Theme) {
 			ui.Checkbox(c, &s.reviewed, "I reviewed the full request and checks").Label("Confirm regression review")
 			ui.Row(c).Gap(t.Space(2)).Justify(ui.End).Children(func() {
 				ui.Text(c, s.feedback).FontSize(uikit.TextMeta).TextColor(t.Success)
-				if ui.Button(c, "Cancel").Clicked() {
+				if uikit.SecondaryButton(c, "Cancel").Clicked() {
 					s.open = false
 				}
 				if s.importing {
-					if ui.PrimaryButton(c, "Open unsent case").Disabled(err != nil || !s.reviewed).Clicked() {
+					if uikit.PrimaryButton(c, "Open unsent case").Disabled(err != nil || !s.reviewed).Clicked() {
 						r.Name = uniqueRequestName(a.requests, r.Name)
 						a.addDocument(r, "")
 						a.composeTab, s.open = 5, false
 						a.setMessage("Imported unsent case; configure Variables, review the target, then Save request or Send")
 					}
 				} else {
-					if ui.Button(c, "Copy case JSON").Disabled(err != nil || !s.reviewed).Clicked() {
+					if uikit.SecondaryButton(c, "Copy case JSON").Disabled(err != nil || !s.reviewed).Clicked() {
 						c.Services().WriteClipboard(s.preview)
 						s.feedback = "Copied"
 					}
-					if ui.PrimaryButton(c, "Export case…").Disabled(err != nil || !s.reviewed).Clicked() {
+					if uikit.PrimaryButton(c, "Export case…").Disabled(err != nil || !s.reviewed).Clicked() {
 						data := []byte(s.preview + "\n")
 						go func() {
 							path, err := mygo.Dialog.Save(mygo.SaveDialogOptions{Title: "Export reviewed regression", DefaultPath: "vscroxy-regression.json", Filters: []mygo.FileFilter{{Name: "Regression JSON", Extensions: []string{"json"}}}})

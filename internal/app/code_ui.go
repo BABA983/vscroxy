@@ -88,7 +88,7 @@ func (a *app) codeModal(c *ui.Context, t *ui.Theme) {
 		uikit.DialogColumn(c, uikit.DialogLarge).Height(min(520, h-80)).Children(func() {
 			ui.Row(c).Gap(t.Space(2)).Wrap().AlignItems(ui.Center).Children(func() {
 				uikit.DialogTitle(c, "Code").Grow(1)
-				if ui.Select(c, &s.language, codeLanguages).Label("Code language").Width(200).Height(uikit.HeightControl).FontSize(uikit.TextBody).Changed() {
+				if uikit.Select(c, &s.language, codeLanguages).Label("Code language").Width(200).Changed() {
 					s.view = nil
 				}
 			})

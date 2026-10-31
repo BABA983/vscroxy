@@ -300,7 +300,7 @@ func (a *app) bodySideView(c *ui.Context, f flow, side int) {
 		if mode == 3 {
 			placeholder = "Filter hex rows (hex bytes or text)…"
 		}
-		ui.TextInput(c, &a.bodyQuery[side]).Label("Search body").Placeholder(placeholder).Tooltip(placeholder).
+		uikit.Input(c, &a.bodyQuery[side]).Label("Search body").Placeholder(placeholder).Tooltip(placeholder).
 			FontSize(uikit.TextBody).Height(uikit.HeightControl).Radius(uikit.RadiusControl).Margin(0, t.Space(3), t.Space(2)).FillWidth()
 	}
 	switch mode {
@@ -416,15 +416,15 @@ func bodyFindBar(c *ui.Context, bar ui.Element, find *editor.FindBar) {
 	t := c.Theme()
 	bar.Row().Gap(t.Space(2)).Padding(t.Space(2)).AlignItems(ui.Center).Background(uikit.Colors(t).Panel).Border(1, t.Border).Radius(uikit.RadiusControl)
 	bar.Children(func() {
-		find.QueryInput(ui.TextInput(c, find.Query()).Label("Search body").Placeholder("Find in body…").Width(140).FontSize(uikit.TextBody))
+		find.QueryInput(uikit.Input(c, find.Query()).Label("Search body").Placeholder("Find in body…").Width(140))
 		ui.Text(c, find.Status()).FontSize(uikit.TextMeta).FontFeatures("tnum").TextColor(t.TextMuted).MinWidth(40).Role(ui.RoleStatus)
-		if ui.Button(c, "↑").Label("Previous body match").Tooltip("Previous match · Shift+Enter").KeepFocus().Clicked() {
+		if uikit.SecondaryButton(c, "↑").Label("Previous body match").Tooltip("Previous match · Shift+Enter").KeepFocus().Clicked() {
 			find.Previous()
 		}
-		if ui.Button(c, "↓").Label("Next body match").Tooltip("Next match · Enter").KeepFocus().Clicked() {
+		if uikit.SecondaryButton(c, "↓").Label("Next body match").Tooltip("Next match · Enter").KeepFocus().Clicked() {
 			find.Next()
 		}
-		if ui.Button(c, "×").Label("Close body search").Tooltip("Close search · Esc").KeepFocus().Clicked() {
+		if uikit.SecondaryButton(c, "×").Label("Close body search").Tooltip("Close search · Esc").KeepFocus().Clicked() {
 			find.Close()
 		}
 	})

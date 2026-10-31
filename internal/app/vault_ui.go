@@ -257,12 +257,12 @@ func (a *app) vaultModal(c *ui.Context, t *ui.Theme) {
 				for i := range v.rows {
 					r := &v.rows[i]
 					ui.Row(c).Key(i).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-						ui.TextInput(c, &r.name).Label(fmt.Sprintf("Secret name %d", i+1)).Placeholder("api_token").Basis(0).Grow(1).MinWidth(0).Height(uikit.HeightControl).Radius(uikit.RadiusControl)
-						value := ui.TextInput(c, &r.value).Label(fmt.Sprintf("Secret value %d", i+1)).Placeholder("Value").Basis(0).Grow(2).MinWidth(0).Height(uikit.HeightControl).Radius(uikit.RadiusControl)
+						uikit.Input(c, &r.name).Label(fmt.Sprintf("Secret name %d", i+1)).Placeholder("api_token").Basis(0).Grow(1).MinWidth(0)
+						value := uikit.Input(c, &r.value).Label(fmt.Sprintf("Secret value %d", i+1)).Placeholder("Value").Basis(0).Grow(2).MinWidth(0)
 						if !r.revealed {
 							value.Password()
 						}
-						ui.TextInput(c, &r.domains).Label(fmt.Sprintf("Allowed domains %d", i+1)).Placeholder("Any host, or api.example.com, *.example.com").Basis(0).Grow(2).MinWidth(0).Height(uikit.HeightControl).Radius(uikit.RadiusControl)
+						uikit.Input(c, &r.domains).Label(fmt.Sprintf("Allowed domains %d", i+1)).Placeholder("Any host, or api.example.com, *.example.com").Basis(0).Grow(2).MinWidth(0)
 						label := "Reveal"
 						if r.revealed {
 							label = "Hide"

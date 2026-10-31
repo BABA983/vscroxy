@@ -1146,7 +1146,7 @@ func (a *app) view(c *ui.Context) {
 			ui.Column(c).Padding(t.Space(2), t.Space(3)).Gap(t.Space(1)).Children(func() {
 				ui.Row(c).Gap(t.Space(3)).AlignItems(ui.Center).Children(func() {
 					ui.Text(c, "Local assets protected · saving disabled").FontSize(uikit.TextBody).Bold().TextColor(t.Danger).Grow(1)
-					if ui.Button(c, "Reload local assets").Clicked() {
+					if uikit.SecondaryButton(c, "Reload local assets").Clicked() {
 						a.loadRequestAssets()
 					}
 				})
@@ -1260,7 +1260,7 @@ func (a *app) upstreamModal(c *ui.Context, t *ui.Theme) {
 		uikit.DialogColumn(c, uikit.DialogSmall).Children(func() {
 			uikit.DialogTitle(c, "Upstream proxy")
 			ui.Scroll(c).MinHeight(0).Children(func() {
-				ui.TextInput(c, &a.upstreamAddr).Placeholder("http://127.0.0.1:8080").Label("Address").Height(uikit.HeightControl).FontSize(uikit.TextBody).Radius(uikit.RadiusControl)
+				uikit.Input(c, &a.upstreamAddr).Placeholder("http://127.0.0.1:8080").Label("Address")
 			})
 			uikit.DialogFooter(c).Children(func() {
 				if uikit.SecondaryButton(c, "Cancel").Clicked() {
@@ -1305,13 +1305,13 @@ func (a *app) breakpointModal(c *ui.Context, t *ui.Theme) {
 			ui.Scroll(c).Grow(1).MinHeight(0).FillWidth().Gap(t.Space(2)).Children(func() {
 				if a.bp.Phase == capture.PhaseResponse {
 					ui.Row(c).Gap(t.Space(2)).Children(func() {
-						ui.TextInput(c, &a.bpStatus).Width(90).Label("Status").Height(uikit.HeightControl).FontSize(uikit.TextBody).Radius(uikit.RadiusControl)
+						uikit.Input(c, &a.bpStatus).Width(90).Label("Status")
 						ui.Text(c, a.bp.URL).FontSize(uikit.TextBody).TextColor(t.TextMuted).SingleLine().Grow(1).MinWidth(0)
 					})
 				} else {
 					ui.Row(c).Gap(t.Space(2)).Children(func() {
-						ui.TextInput(c, &a.bpMethod).Width(90).Label("Method").Height(uikit.HeightControl).FontSize(uikit.TextBody).Radius(uikit.RadiusControl)
-						ui.TextInput(c, &a.bpURL).Grow(1).MinWidth(0).Label("URL").Height(uikit.HeightControl).FontSize(uikit.TextBody).Radius(uikit.RadiusControl)
+						uikit.Input(c, &a.bpMethod).Width(90).Label("Method")
+						uikit.Input(c, &a.bpURL).Grow(1).MinWidth(0).Label("URL")
 					})
 				}
 				ui.Text(c, "Headers · one Name: Value per line; repeat a name for multiple values").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
@@ -1328,7 +1328,7 @@ func (a *app) breakpointModal(c *ui.Context, t *ui.Theme) {
 				ui.Text(c, validation).FontSize(uikit.TextBody).TextColor(t.Danger)
 			}
 			uikit.DialogFooter(c).Children(func() {
-				ui.Select(c, &a.bpAbort, []string{"502 Bad Gateway", "429 Too Many Requests", "503 Service Unavailable"}).Width(200).Label("Abort status").Height(uikit.HeightControl).FontSize(uikit.TextBody).Radius(uikit.RadiusControl)
+				uikit.Select(c, &a.bpAbort, []string{"502 Bad Gateway", "429 Too Many Requests", "503 Service Unavailable"}).Width(200).Label("Abort status")
 				if uikit.SecondaryButton(c, "Abort").Clicked() {
 					a.resolveBreak(true, false)
 				}
@@ -1558,7 +1558,7 @@ func (a *app) requestSidebar(c *ui.Context, t *ui.Theme) {
 			} else if a.requestSide == 3 {
 				placeholder, label = "Search APIs…", "Search APIs"
 			}
-			ui.TextInput(c, &a.requestQuery).Label(label).Placeholder(placeholder).Height(uikit.HeightControl).FontSize(uikit.TextBody)
+			uikit.Input(c, &a.requestQuery).Label(label).Placeholder(placeholder)
 		})
 		chosen := ui.Sidebar(c, &a.requestChoice, func() {
 			query := strings.ToLower(strings.TrimSpace(a.requestQuery))
@@ -1754,62 +1754,62 @@ func (a *app) table(c *ui.Context) {
 		a.columnsMenu(m, id)
 	}
 	focused := state.Handle.Focused(c)
-	selectionTheme := *t
+	selectionTheme := uikit.ListTheme(t, focused)
 	// Table's built-in row minimum is eight spacing units. Scope the 3.5px
 	// unit here only: 28px rows without shrinking the rest of the application.
 	selectionTheme.Spacing = 3.5
-	if !focused {
-		selectionTheme.Accent = t.Accent.Alpha(0.12)
-		selectionTheme.AccentText = t.Text
-	}
-	c.SetTheme(&selectionTheme)
+	c.SetTheme(selectionTheme)
 	table := ui.Table(c, state, cols, len(a.visible), func(row, col int) {
 		f := a.flows[a.visible[row]]
-		chosen := a.chosen.Has(f.id) && focused
+		if col == 0 && a.chosen.Has(f.id) {
+			// The marker sits on the row's first visible cell, whichever
+			// column the user moved there.
+			uikit.RowMarker(c, focused)
+		}
 		text := func(s string) ui.Element {
 			return ui.Text(c, s).FontSize(uikit.TextBody).Height(16).FontFeatures("tnum").SingleLine()
 		}
 		switch cols[col].ID {
 		case "id":
-			text(fmt.Sprint(f.id)).Font(uikit.FontMono).TextColor(rowColor(chosen, t, t.TextMuted))
+			text(fmt.Sprint(f.id)).Font(uikit.FontMono).TextColor(t.TextMuted)
 		case "method":
-			uikit.MethodLabel(c, f.method).Height(16).TextColor(rowColor(chosen, t, uikit.MethodColor(f.method, t))).Tooltip(f.method).PopoverMenu(a.rowMenu(c, f))
+			uikit.MethodLabel(c, f.method).Height(16).TextColor(uikit.MethodColor(f.method, t)).Tooltip(f.method).PopoverMenu(a.rowMenu(c, f))
 		case "host":
-			text(f.host).TextColor(rowColor(chosen, t, t.TextMuted)).Tooltip(f.url).PopoverMenu(a.rowMenu(c, f))
+			text(f.host).TextColor(t.TextMuted).Tooltip(f.url).PopoverMenu(a.rowMenu(c, f))
 		case "url":
 			if f.pinned {
-				ui.Icon(c, pinIcon).Size(uikit.IconInline, uikit.IconInline).MarginEnd(t.Space(1)).TextColor(rowColor(chosen, t, t.TextMuted))
+				ui.Icon(c, pinIcon).Size(uikit.IconInline, uikit.IconInline).MarginEnd(t.Space(1)).TextColor(t.TextMuted)
 			}
 			if f.color != "" {
 				if dot, ok := highlightColor(f.color); ok {
 					ui.Box(c).Size(8, 8).Radius(uikit.RadiusControl).Background(dot).MarginEnd(t.Space(1))
 				}
 			}
-			rest := rowColor(chosen, t, t.Text)
+			rest := t.Text
 			ui.Row(c).Gap(t.Space(0.5)).Children(func() {
 				if f.kind == "connect" {
 					ui.Icon(c, lockIcon).Size(uikit.IconInline, uikit.IconInline).TextColor(rest).MarginEnd(t.Space(1)).Tooltip("Encrypted tunnel; CONNECT success is not a decrypted response")
 				}
 				if f.note != "" {
-					ui.Icon(c, noteIcon).Size(uikit.IconInline, uikit.IconInline).TextColor(rowColor(chosen, t, t.TextMuted)).MarginEnd(t.Space(1)).Tooltip(f.note)
+					ui.Icon(c, noteIcon).Size(uikit.IconInline, uikit.IconInline).TextColor(t.TextMuted).MarginEnd(t.Space(1)).Tooltip(f.note)
 				}
 				if f.dns != "" {
 					ui.Box(c).MinWidth(uikit.HeightControl).Height(16).Radius(uikit.RadiusControl).Background(t.Warning.Alpha(0.12)).Center().MarginEnd(t.Space(1)).
 						Tooltip("DNS mapping " + f.dns).
 						Children(func() {
-							ui.Text(c, "DNS").FontSize(uikit.TextMeta).Bold().TextColor(rowColor(chosen, t, t.Warning))
+							ui.Text(c, "DNS").FontSize(uikit.TextMeta).Bold().TextColor(t.Warning)
 						})
 				}
 				text(cmp.Or(f.path, "/")).Label(f.host + f.path).TextColor(rest).Tooltip(f.url).PopoverMenu(a.rowMenu(c, f))
 			})
 		case "status":
 			if f.conn.error != "" {
-				text("Failed").TextColor(rowColor(chosen, t, t.Danger)).Tooltip(f.conn.errorStage + ": " + f.conn.error).PopoverMenu(a.rowMenu(c, f))
+				text("Failed").TextColor(t.Danger).Tooltip(f.conn.errorStage + ": " + f.conn.error).PopoverMenu(a.rowMenu(c, f))
 			} else if f.kind == "connect" {
-				text("Tunnel").TextColor(rowColor(chosen, t, t.TextMuted)).Tooltip(fmt.Sprintf("CONNECT %d · encrypted tunnel, not an HTTP response", f.status)).PopoverMenu(a.rowMenu(c, f))
+				text("Tunnel").TextColor(t.TextMuted).Tooltip(fmt.Sprintf("CONNECT %d · encrypted tunnel, not an HTTP response", f.status)).PopoverMenu(a.rowMenu(c, f))
 			} else {
-				ui.Box(c).Size(5, 5).Radius(uikit.RadiusControl).Background(rowColor(chosen, t, f.statusColor(t))).MarginEnd(t.Space(2))
-				text(fmt.Sprint(f.status)).TextColor(rowColor(chosen, t, f.statusColor(t))).PopoverMenu(a.rowMenu(c, f))
+				ui.Box(c).Size(5, 5).Radius(uikit.RadiusControl).Background(f.statusColor(t)).MarginEnd(t.Space(2))
+				text(fmt.Sprint(f.status)).TextColor(f.statusColor(t)).PopoverMenu(a.rowMenu(c, f))
 			}
 		case "client":
 			if src, ok := a.clientIcon(f.process, f.processPath); ok {
@@ -1817,17 +1817,17 @@ func (a *app) table(c *ui.Context) {
 			} else {
 				clientBadge(c, f.process)
 			}
-			text(f.process).Padding(0, 0, 0, t.Space(2)).PopoverMenu(a.rowMenu(c, f)).TextColor(rowColor(chosen, t, t.TextMuted))
+			text(f.process).Padding(0, 0, 0, t.Space(2)).PopoverMenu(a.rowMenu(c, f)).TextColor(t.TextMuted)
 		case "duration":
-			text(fmt.Sprintf("%d ms", f.millis)).TextColor(rowColor(chosen, t, t.TextMuted))
+			text(fmt.Sprintf("%d ms", f.millis)).TextColor(t.TextMuted)
 		case "size":
-			text(humanBytes(f.bytes)).TextColor(rowColor(chosen, t, t.TextMuted))
+			text(humanBytes(f.bytes)).TextColor(t.TextMuted)
 		case "captured":
 			at := "—"
 			if !f.at.IsZero() {
 				at = f.at.Local().Format("15:04:05")
 			}
-			text(at).Font(uikit.FontMono).TextColor(rowColor(chosen, t, t.TextMuted))
+			text(at).Font(uikit.FontMono).TextColor(t.TextMuted)
 		default:
 			cc, ok := a.customColumnAt(cols[col].ID)
 			if !ok {
@@ -1835,10 +1835,10 @@ func (a *app) table(c *ui.Context) {
 			}
 			value := cc.value(f)
 			if value == "" {
-				text("—").TextColor(rowColor(chosen, t, t.TextMuted))
+				text("—").TextColor(t.TextMuted)
 				return
 			}
-			cell := text(value).TextColor(rowColor(chosen, t, t.Text)).Tooltip(value)
+			cell := text(value).TextColor(t.Text).Tooltip(value)
 			if cc.header() {
 				cell.PopoverMenu(a.headerFilterMenu(c, cc.Name, []string{value}))
 			}
@@ -1957,7 +1957,7 @@ func (a *app) explainConnection(c *ui.Context, f flow) {
 		ui.Divider(c)
 		ui.Row(c).Padding(t.Space(3), t.Space(4)).Gap(t.Space(4)).Children(func() {
 			ui.Text(c, "Review URLs, addresses and raw errors before sharing.").FontSize(uikit.TextMeta).TextColor(t.TextMuted).Grow(1)
-			if ui.Button(c, "Copy diagnostics").FontSize(uikit.TextBody).Height(uikit.HeightControl).Clicked() {
+			if uikit.SecondaryButton(c, "Copy diagnostics").Clicked() {
 				c.Services().WriteClipboard(f.connectionDiagnostics())
 				a.setMessage("Copied connection diagnostics")
 			}
@@ -2096,13 +2096,6 @@ func shortenHome(path string) string {
 		}
 	}
 	return path
-}
-
-func rowColor(chosen bool, t *ui.Theme, normal ui.Color) ui.Color {
-	if chosen {
-		return t.AccentText
-	}
-	return normal
 }
 
 func (f flow) statusColor(t *ui.Theme) ui.Color {
@@ -2467,7 +2460,7 @@ func (a *app) varsModal(c *ui.Context, t *ui.Theme) {
 						FontSize(uikit.TextMeta).TextColor(t.TextMuted)
 					ui.Row(c).Gap(t.Space(2)).Children(func() {
 						if names := a.envNames(); len(names) > 0 {
-							if ui.Select(c, &a.varsChoice, names).Label("Edit environment").Grow(1).MinWidth(0).Height(uikit.HeightControl).FontSize(uikit.TextBody).Radius(uikit.RadiusControl).Changed() {
+							if uikit.Select(c, &a.varsChoice, names).Label("Edit environment").Grow(1).MinWidth(0).Changed() {
 								a.editEnvironment(a.varsChoice)
 							}
 						}
@@ -2475,7 +2468,7 @@ func (a *app) varsModal(c *ui.Context, t *ui.Theme) {
 							a.editEnvironment("")
 						}
 					})
-					ui.TextInput(c, &a.varsName).Label("Environment").Height(uikit.HeightControl).FontSize(uikit.TextBody).Radius(uikit.RadiusControl)
+					uikit.Input(c, &a.varsName).Label("Environment")
 				}
 				ui.Column(c).Height(224).Border(1, t.Border).Radius(uikit.RadiusControl).Children(func() {
 					ui.Row(c).Height(uikit.HeightControl).AlignItems(ui.Center).BorderWidth(0, 0, 1, 0).BorderColor(t.Border).Children(func() {
@@ -2673,7 +2666,7 @@ func (a *app) keyLogModal(c *ui.Context, t *ui.Theme) {
 			ui.Scroll(c).MinHeight(0).Gap(t.Space(3)).Children(func() {
 				ui.Text(c, "The secrets go to a file Wireshark reads (SSLKEYLOGFILE), so it can decrypt this capture. The engine reads the variable once, when it first handshakes, so a change here takes effect from the next launch.").
 					FontSize(uikit.TextMeta).TextColor(t.TextMuted)
-				ui.TextInput(c, &a.keyLogInput).Placeholder("~/.vscroxy/keys.log").Label("File").Height(uikit.HeightControl).FontSize(uikit.TextBody).Radius(uikit.RadiusControl)
+				uikit.Input(c, &a.keyLogInput).Placeholder("~/.vscroxy/keys.log").Label("File")
 			})
 			uikit.DialogFooter(c).Children(func() {
 				if a.keyLogPath != "" && uikit.SecondaryButton(c, "Turn off").Clicked() {
@@ -3380,10 +3373,10 @@ func (a *app) dnsRuleModal(c *ui.Context, t *ui.Theme) {
 			ui.Scroll(c).MinHeight(0).Gap(t.Space(3)).Children(func() {
 				ui.Text(c, "The request keeps its name, URL, Host header and SNI; the proxy dials the address instead.").
 					FontSize(uikit.TextMeta).TextColor(t.TextMuted)
-				ui.TextInput(c, &a.dnsRuleHost).Label("Host").Height(uikit.HeightControl).FontSize(uikit.TextBody).Radius(uikit.RadiusControl)
-				ui.TextInput(c, &a.dnsRuleAddr).Label("Address").Height(uikit.HeightControl).FontSize(uikit.TextBody).Radius(uikit.RadiusControl)
+				uikit.Input(c, &a.dnsRuleHost).Label("Host")
+				uikit.Input(c, &a.dnsRuleAddr).Label("Address")
 				ui.Text(c, "Applies to").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
-				ui.Select(c, &a.dnsRuleScope, a.dnsRuleApps).Height(uikit.HeightControl).FontSize(uikit.TextBody).Radius(uikit.RadiusControl)
+				uikit.Select(c, &a.dnsRuleScope, a.dnsRuleApps)
 			})
 			uikit.DialogFooter(c).Children(func() {
 				if uikit.SecondaryButton(c, "Cancel").Clicked() {

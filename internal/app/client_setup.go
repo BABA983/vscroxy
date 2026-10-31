@@ -140,10 +140,10 @@ func (a *app) clientSetupModal(c *ui.Context, t *ui.Theme) {
 			uikit.DialogTitle(c, "Set up a local client")
 			ui.Form(c, func() {
 				ui.Field(c, "Client runtime", func() {
-					ui.Select(c, &s.runtime, []string{"cURL", "Node.js", "Python", "Go"}).Label("Client runtime").Width(150).Height(uikit.HeightControl).FontSize(uikit.TextBody).Radius(uikit.RadiusControl)
+					uikit.Select(c, &s.runtime, []string{"cURL", "Node.js", "Python", "Go"}).Label("Client runtime").Width(150)
 				})
 				ui.Field(c, "Setup HTTPS URL", func() {
-					if ui.TextInput(c, &s.url).Label("Setup HTTPS URL").Height(uikit.HeightControl).FontSize(uikit.TextBody).Radius(uikit.RadiusControl).Changed() {
+					if uikit.Input(c, &s.url).Label("Setup HTTPS URL").Changed() {
 						s.scroll.Y = 0
 					}
 				})

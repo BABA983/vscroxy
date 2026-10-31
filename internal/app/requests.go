@@ -499,9 +499,9 @@ func (a *app) requestRenameModal(c *ui.Context, t *ui.Theme) {
 	uikit.Modal(c, &a.renameOpen, func() {
 		uikit.DialogColumn(c, uikit.DialogSmall).Children(func() {
 			uikit.DialogTitle(c, "Rename request")
-			ui.TextInput(c, &d.composeName).Label("Name").Placeholder("Untitled request").FillWidth().
+			uikit.Input(c, &d.composeName).Label("Name").Placeholder("Untitled request").FillWidth().
 				Height(uikit.HeightControl).Padding(0, t.Space(2)).Radius(uikit.RadiusControl).FontSize(uikit.TextBody)
-			ui.TextInput(c, &d.composeCollection).Label("Collection").Placeholder("Collection").FillWidth().
+			uikit.Input(c, &d.composeCollection).Label("Collection").Placeholder("Collection").FillWidth().
 				Height(uikit.HeightControl).Padding(0, t.Space(2)).Radius(uikit.RadiusControl).FontSize(uikit.TextBody)
 			ui.Text(c, "The collection groups saved requests in the library.").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
 			uikit.DialogFooter(c).Children(func() {
@@ -635,7 +635,7 @@ func (a *app) requestVariablesPanel(c *ui.Context, t *ui.Theme, d *requestDocume
 		target = u.Scheme + "://" + u.Host // Do not reveal query tokens or userinfo.
 	}
 	ui.Row(c).Height(uikit.HeightControl).Padding(0, t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-		if ui.Button(c, fmt.Sprintf("Variables · %d unresolved", missing)).Label("Request variables").FontSize(uikit.TextMeta).Clicked() {
+		if uikit.CompactButton(c, fmt.Sprintf("Variables · %d unresolved", missing)).Label("Request variables").Clicked() {
 			d.variablesOpen = !d.variablesOpen
 		}
 		ui.Text(c, "Target before scripts: "+target).FontSize(uikit.TextMeta).TextColor(t.TextMuted).SingleLine().Grow(1)
@@ -646,7 +646,7 @@ func (a *app) requestVariablesPanel(c *ui.Context, t *ui.Theme, d *requestDocume
 	ui.Column(c).Height(160).Padding(t.Space(2), t.Space(3)).Gap(t.Space(2)).Background(uikit.Colors(t).Panel).Children(func() {
 		ui.Row(c).Gap(t.Space(2)).Children(func() {
 			ui.Text(c, "Draft context · pre-script may generate or replace values").FontSize(uikit.TextMeta).TextColor(t.TextMuted).Grow(1)
-			if ui.Button(c, "Edit environments").FontSize(uikit.TextMeta).Clicked() {
+			if uikit.CompactButton(c, "Edit environments").Clicked() {
 				a.openVars()
 			}
 		})
@@ -810,7 +810,7 @@ func urlSpans(raw string, t *ui.Theme) []ui.Span {
 func (a *app) requestEditor(c *ui.Context, t *ui.Theme, d *requestDocument) {
 	wide := a.contentWidth(c) >= 900
 	bodyTools := func() {
-		ui.Select(c, &d.bodyMode, []string{"Raw", "URL encoded", "Multipart"}).Label("Request body type").Width(132).Height(uikit.HeightControl).FontSize(uikit.TextMeta)
+		uikit.Select(c, &d.bodyMode, []string{"Raw", "URL encoded", "Multipart"}).Label("Request body type").Width(132).FontSize(uikit.TextMeta)
 		formatted, isJSON := indentJSON(d.composeBody)
 		if ui.ButtonBase(c).Label("Format body").Height(uikit.HeightControl).Padding(0, t.Space(2)).Gap(t.Space(2)).Radius(uikit.RadiusControl).AlignItems(ui.Center).
 			TextColor(t.TextMuted).Disabled(!isJSON || d.bodyMode != "Raw").
@@ -1210,7 +1210,7 @@ func (a *app) responseBody(c *ui.Context, t *ui.Theme, d *requestDocument) {
 			ui.Text(c, fmt.Sprintf("Total %d ms · %s", d.response.Millis, humanBytes(d.response.Bytes))).FontSize(uikit.TextBody)
 			ui.Text(c, "Per-phase timing (DNS, connect, TLS, wait, download) is recorded on the capture in Capture → Timing.").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
 			index := a.sentFlowIndex(d)
-			if ui.Button(c, "Inspect timing in Capture").FontSize(uikit.TextMeta).Disabled(index < 0).Clicked() {
+			if uikit.CompactButton(c, "Inspect timing in Capture").Disabled(index < 0).Clicked() {
 				if index >= 0 {
 					a.inspectCapture(a.flows[index].id)
 					a.syncDetail()

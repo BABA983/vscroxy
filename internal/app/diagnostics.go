@@ -59,7 +59,7 @@ func (a *app) diagnosticsModal(c *ui.Context, t *ui.Theme) {
 			ui.Text(c, "Read-only checks · no proxy changes, CA installation, test requests or LAN exposure.").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
 			ui.Form(c, func() {
 				ui.Field(c, "Target URL", func() {
-					if ui.TextInput(c, &d.target).Label("Target URL").Placeholder("https://api.example.com/").Height(uikit.HeightControl).FontSize(uikit.TextBody).Radius(uikit.RadiusControl).Changed() {
+					if uikit.Input(c, &d.target).Label("Target URL").Placeholder("https://api.example.com/").Changed() {
 						d.scroll.Y = 0
 					}
 				})

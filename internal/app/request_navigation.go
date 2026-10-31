@@ -25,7 +25,7 @@ func (a *app) requestRail(c *ui.Context) {
 			button := ui.ButtonBase(c.Key(item.label)).Label(item.label).Tooltip(item.label).Height(56).FillWidth().Radius(uikit.RadiusControl).
 				Column().Justify(ui.Center).AlignItems(ui.Center).Gap(t.Space(1)).TextColor(t.TextMuted)
 			if a.requestSide == item.side {
-				button.Background(t.Accent.Alpha(0.1)).TextColor(t.Accent)
+				uikit.Selected(c, button, true)
 			} else if button.Hovered() {
 				button.Background(t.SurfaceHover)
 			}
@@ -139,7 +139,7 @@ func (a *app) collectionTree(c *ui.Context) {
 				Selected(a.requestChoice == r.key()).Tooltip(r.Method + " " + r.URL).
 				OnClick(func() { a.openSaved(r.key()) }).PopoverMenu(menu)
 			if a.requestChoice == r.key() {
-				item.Background(c.Theme().Accent.Alpha(0.10)).TextColor(c.Theme().Text)
+				uikit.Selected(c, item, true)
 			}
 			item.Children(func() {
 				ui.Row(c).Grow(1).FillHeight().Gap(c.Theme().Space(2)).AlignItems(ui.Center).Label(r.Method + "  " + r.Name).Children(func() {
@@ -175,7 +175,7 @@ func (a *app) environmentSidebar(c *ui.Context) {
 					item := ui.TreeItem(c.Key(name), "", nil, nil).Label(cmp.Or(name, "No environment")).Height(uikit.HeightControl).
 						Selected(name == a.activeEnv).OnClick(func() { a.editEnvironment(name) })
 					if name == a.activeEnv {
-						item.Background(t.Accent.Alpha(0.1))
+						uikit.Selected(c, item, true)
 					}
 					item.Children(func() {
 						ui.Box(c).Size(6, 6).Radius(uikit.RadiusControl).Background(t.Accent)

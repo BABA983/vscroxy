@@ -24,10 +24,10 @@ func (a *app) boardView(c *ui.Context, t *ui.Theme) {
 			ui.Text(c, "Collect the exchanges that matter, compare them, and export the evidence you reviewed.").FontSize(uikit.TextBody).TextColor(t.TextMuted)
 			ui.Text(c, "Add a request from Capture's inspector, or open saved sessions.").FontSize(uikit.TextBody).TextColor(t.TextMuted)
 			ui.Row(c).Gap(t.Space(2)).Children(func() {
-				if ui.PrimaryButton(c, "New investigation").Clicked() {
+				if uikit.PrimaryButton(c, "New investigation").Clicked() {
 					b.create("")
 				}
-				if ui.Button(c, "Historical sessions…").Clicked() {
+				if uikit.SecondaryButton(c, "Historical sessions…").Clicked() {
 					a.investigations.show()
 				}
 			})
@@ -58,14 +58,14 @@ func (a *app) boardView(c *ui.Context, t *ui.Theme) {
 func (a *app) boardHeader(c *ui.Context, t *ui.Theme, inv *investigation) {
 	b := &a.board
 	ui.Row(c).Height(uikit.HeightBar).Padding(0, t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-		title := ui.TextInput(c, &inv.Title).Grow(1).Height(uikit.HeightControl).Label("Investigation title").
+		title := uikit.Input(c, &inv.Title).Grow(1).Label("Investigation title").
 			Placeholder("Untitled investigation").FontSize(uikit.TextBody)
 		if title.Changed() {
 			b.mark()
 		}
 		started := "started " + inv.Created.Local().Format("Jan 2 15:04")
 		ui.Text(c, fmt.Sprintf("%d exchanges · %s", len(inv.Items), started)).FontSize(uikit.TextMeta).TextColor(t.TextMuted).SingleLine()
-		if ui.Button(c, "Export evidence…").Height(uikit.HeightControl).FontSize(uikit.TextMeta).Disabled(len(b.picked) == 0).
+		if uikit.CompactButton(c, "Export evidence…").Disabled(len(b.picked) == 0).
 			Tooltip("Export the selected exchanges after reviewing the raw JSON").Clicked() {
 			a.exportInvestigation(c)
 		}
@@ -92,7 +92,7 @@ func (a *app) boardHeader(c *ui.Context, t *ui.Theme, inv *investigation) {
 			b.mark()
 		}
 		ui.Row(c).Padding(0, t.Space(3), t.Space(1)).Justify(ui.End).Children(func() {
-			if ui.Button(c, "Done").Height(uikit.HeightCompact).FontSize(uikit.TextMeta).Clicked() {
+			if uikit.CompactButton(c, "Done").Clicked() {
 				b.notesOpen = false
 			}
 		})
@@ -120,16 +120,16 @@ func (a *app) boardHeader(c *ui.Context, t *ui.Theme, inv *investigation) {
 func (a *app) boardToolbar(c *ui.Context, t *ui.Theme, inv *investigation) {
 	b := &a.board
 	ui.Row(c).Height(uikit.HeightLarge).Padding(0, t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-		search := ui.TextInput(c, &b.query).Label("Search investigation").
+		search := uikit.Input(c, &b.query).Label("Search investigation").
 			Placeholder("Search method, URL, status, notes or errors…").FontSize(uikit.TextMeta).Grow(1)
 		if search.Changed() {
 			b.list = ui.ListState{}
 		}
 		ui.Text(c, fmt.Sprintf("%d / %d selected", len(b.picked), len(inv.Items))).FontSize(uikit.TextMeta).TextColor(t.TextMuted).SingleLine()
-		if ui.Button(c, "Compare two").Height(uikit.HeightCompact).FontSize(uikit.TextMeta).Disabled(len(b.picked) != 2).Clicked() {
+		if uikit.CompactButton(c, "Compare two").Disabled(len(b.picked) != 2).Clicked() {
 			b.comparing = true
 		}
-		if ui.Button(c, "Clear selection").Height(uikit.HeightCompact).FontSize(uikit.TextMeta).Disabled(len(b.picked) == 0).Clicked() {
+		if uikit.CompactButton(c, "Clear selection").Disabled(len(b.picked) == 0).Clicked() {
 			b.picked, b.comparing = nil, false
 		}
 	})
@@ -149,7 +149,7 @@ func (a *app) boardList(c *ui.Context, t *ui.Theme, inv *investigation) {
 					ui.Text(c, "Inspect a request in Capture and choose Add to investigation.").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
 				} else {
 					ui.Text(c, "No exchange matches this search").FontSize(uikit.TextBody)
-					if ui.Button(c, "Clear search").FontSize(uikit.TextMeta).Clicked() {
+					if uikit.CompactButton(c, "Clear search").Clicked() {
 						b.query = ""
 						b.list = ui.ListState{}
 					}
@@ -236,13 +236,13 @@ func (a *app) boardPreview(c *ui.Context, t *ui.Theme, inv *investigation) {
 					b.reveal = !b.reveal
 				}
 			}
-			if ui.Button(c, "Remove").Height(uikit.HeightCompact).FontSize(uikit.TextMeta).Clicked() {
+			if uikit.CompactButton(c, "Remove").Clicked() {
 				b.removeItem(item.ID)
 			}
 		})
 		ui.Text(c, cmp.Or(f.url, f.host+f.path)).FontSize(uikit.TextMeta).Font(uikit.FontMono).TextColor(t.TextMuted).
 			Padding(0, 12, 4).SingleLine().Tooltip(f.url)
-		note := ui.TextInput(c, &item.Note).Label("Exchange note").Placeholder("What does this exchange show?").FontSize(uikit.TextMeta)
+		note := uikit.Input(c, &item.Note).Label("Exchange note").Placeholder("What does this exchange show?").FontSize(uikit.TextMeta)
 		note.Margin(0, t.Space(3), t.Space(2))
 		if note.Changed() {
 			b.mark()
@@ -421,10 +421,10 @@ func (a *app) boardConfirmModal(c *ui.Context, t *ui.Theme) {
 			ui.Text(c, fmt.Sprintf("%q and its %d exchanges are removed from this app. Export evidence first if you need to keep it.", inv.Title, len(inv.Items))).
 				TextColor(t.TextMuted)
 			ui.Row(c).Gap(t.Space(2)).Justify(ui.End).Children(func() {
-				if ui.Button(c, "Cancel").Clicked() {
+				if uikit.SecondaryButton(c, "Cancel").Clicked() {
 					b.deleting = false
 				}
-				if ui.PrimaryButton(c, "Delete investigation").Clicked() {
+				if uikit.PrimaryButton(c, "Delete investigation").Clicked() {
 					b.deleteActive()
 					b.list = ui.ListState{}
 					b.deleting = false

@@ -319,9 +319,9 @@ func (a *app) connectPanel(c *ui.Context, f flow) {
 						const tip = "Open this exchange's Connection tab: the recorded log and addresses"
 						var button ui.Element
 						if primary {
-							button = ui.PrimaryButton(c, "View connection record").Height(uikit.HeightControl).FontSize(uikit.TextBody).Tooltip(tip)
+							button = uikit.PrimaryButton(c, "View connection record").Tooltip(tip)
 						} else {
-							button = ui.Button(c, "View connection record").Height(uikit.HeightControl).FontSize(uikit.TextBody).Tooltip(tip)
+							button = uikit.SecondaryButton(c, "View connection record").Tooltip(tip)
 						}
 						if button.Clicked() {
 							a.inspect.pane = inspectorConnection
@@ -330,13 +330,13 @@ func (a *app) connectPanel(c *ui.Context, f flow) {
 					enable := func(primary bool) {
 						var button ui.Element
 						if primary {
-							button = ui.PrimaryButton(c, "Inspect "+hostOnly(f.host)).Label("Enable for " + f.host).Height(uikit.HeightControl).FontSize(uikit.TextBody).
+							button = uikit.PrimaryButton(c, "Inspect "+hostOnly(f.host)).Label("Enable for " + f.host).
 								Tooltip("Enable this hostname and subdomains on new connections; client CA trust is still required")
 							if !a.workbench.sideBySide {
 								button.MaxWidth(260)
 							}
 						} else {
-							button = ui.Button(c, "Inspect "+hostOnly(f.host)).Label("Enable for " + f.host).Height(uikit.HeightControl).FontSize(uikit.TextBody).
+							button = uikit.SecondaryButton(c, "Inspect "+hostOnly(f.host)).Label("Enable for " + f.host).
 								Tooltip("Configuration for new connections; a recorded failure stays as it was")
 						}
 						if button.Clicked() {
@@ -357,7 +357,7 @@ func (a *app) connectPanel(c *ui.Context, f flow) {
 						}
 						record(false)
 					}
-					if ui.Button(c, "Certificate setup…").Height(uikit.HeightControl).FontSize(uikit.TextBody).Tooltip("Check or install the local CA; this client may still need its own trust or a debug build").Clicked() {
+					if uikit.SecondaryButton(c, "Certificate setup…").Tooltip("Check or install the local CA; this client may still need its own trust or a debug build").Clicked() {
 						a.settingsTab, a.settingsOpen = 2, true
 						a.checkCertificate(false)
 					}

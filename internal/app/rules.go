@@ -209,7 +209,7 @@ func (a *app) ruleScenarios(c *ui.Context, t *ui.Theme) {
 	ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 		ui.Text(c, "Active: "+cmp.Or(active, "none · global rules only")).FontSize(uikit.TextBody).Bold().Grow(1)
 		if len(options) > 0 {
-			ui.Select(c, &e.scenarioChoice, options).Label("Scenario to activate").Width(180).Height(uikit.HeightControl).Radius(uikit.RadiusControl)
+			uikit.Select(c, &e.scenarioChoice, options).Label("Scenario to activate").Width(180)
 			if uikit.SecondaryButton(c, "Activate scenario").Disabled(e.scenarioChoice == active).Clicked() {
 				a.selectRuleScenario(e.scenarioChoice)
 			}
@@ -224,8 +224,8 @@ func (a *app) previewRuleMatches(c *ui.Context, t *ui.Theme) {
 	e := &a.ruleUI
 	ui.Text(c, "Test saved rules · no request is sent").Bold()
 	ui.Row(c).Gap(t.Space(2)).Children(func() {
-		ui.TextInput(c, &e.previewMethod).Label("Test method").Width(85).Height(uikit.HeightControl).Radius(uikit.RadiusControl)
-		ui.TextInput(c, &e.previewURL).Label("Test URL").Placeholder("https://api.example.com/v1/").Grow(1).Height(uikit.HeightControl).Radius(uikit.RadiusControl)
+		uikit.Input(c, &e.previewMethod).Label("Test method").Width(85)
+		uikit.Input(c, &e.previewURL).Label("Test URL").Placeholder("https://api.example.com/v1/").Grow(1)
 	})
 	u, err := url.Parse(strings.TrimSpace(e.previewURL))
 	method := strings.TrimSpace(e.previewMethod)
@@ -280,9 +280,9 @@ func (a *app) rulesModal(c *ui.Context, t *ui.Theme) {
 										e.draft.Disabled = !enabled
 									}
 								}
-								button := ui.Button(c, "").Label(fmt.Sprintf("Edit rule %d", i+1)).Grow(1).Border(0, t.Border).Radius(uikit.RadiusControl)
+								button := uikit.RowButton(c, fmt.Sprintf("Edit rule %d", i+1)).Grow(1)
 								if e.index == i {
-									button.Background(t.Accent.Alpha(0.12)).TextColor(t.Accent)
+									uikit.Selected(c, button, true)
 								}
 								button.Children(func() {
 									ui.Column(c).Gap(t.Space(1)).Children(func() {
@@ -315,35 +315,35 @@ func (a *app) rulesModal(c *ui.Context, t *ui.Theme) {
 					}
 					ui.Text(c, "Name / scenario (blank means global)").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
 					ui.Row(c).Gap(t.Space(2)).Children(func() {
-						ui.TextInput(c, &e.draft.Name).Label("Rule name").Placeholder("A descriptive name").Grow(1).Height(uikit.HeightControl).Radius(uikit.RadiusControl)
+						uikit.Input(c, &e.draft.Name).Label("Rule name").Placeholder("A descriptive name").Grow(1)
 						if e.kind != "Request breakpoint" && e.kind != "Response breakpoint" {
-							ui.TextInput(c, &e.draft.Scenario).Label("Rule scenario").Placeholder("Named scenario").Width(180).Height(uikit.HeightControl).Radius(uikit.RadiusControl)
+							uikit.Input(c, &e.draft.Scenario).Label("Rule scenario").Placeholder("Named scenario").Width(180)
 						}
 					})
 					ui.Text(c, "Type / HTTP method").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
 					ui.Row(c).Gap(t.Space(2)).Children(func() {
-						ui.Select(c, &e.kind, ruleLabels).Label("Rule type").Grow(1).Height(uikit.HeightControl).Radius(uikit.RadiusControl)
-						ui.TextInput(c, &e.draft.Method).Width(95).Label("Match method").Placeholder("Any").Height(uikit.HeightControl).Radius(uikit.RadiusControl)
+						uikit.Select(c, &e.kind, ruleLabels).Label("Rule type").Grow(1)
+						uikit.Input(c, &e.draft.Method).Width(95).Label("Match method").Placeholder("Any")
 					})
 					ui.Text(c, "Match URL").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
-					ui.TextInput(c, &e.draft.Match).Label("URL contains").Placeholder("https://api.example.com/v1/").Height(uikit.HeightControl).Radius(uikit.RadiusControl)
+					uikit.Input(c, &e.draft.Match).Label("URL contains").Placeholder("https://api.example.com/v1/")
 					ui.Text(c, "Literal substring of the full URL, not a regex or wildcard.").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
 					switch e.kind {
 					case "Map Local":
 						ui.Text(c, "Local response").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
 						ui.Row(c).Gap(t.Space(2)).AlignItems(ui.End).Children(func() {
-							ui.TextInput(c, &e.draft.Target).Label("Response file").Grow(1).Height(uikit.HeightControl).Radius(uikit.RadiusControl)
+							uikit.Input(c, &e.draft.Target).Label("Response file").Grow(1)
 							if uikit.SecondaryButton(c, "Browse…").Clicked() {
 								a.browseRuleFile()
 							}
 						})
 						ui.Text(c, "HTTP status / response headers").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
-						ui.TextInput(c, &e.status).Label("Response status").Width(130).Height(uikit.HeightControl).Radius(uikit.RadiusControl)
+						uikit.Input(c, &e.status).Label("Response status").Width(130)
 						ui.TextArea(c, &e.headers).Height(76).Font(uikit.FontMono).FontSize(uikit.TextBody).Radius(uikit.RadiusControl).Label("Response headers").Placeholder("Content-Type: application/json")
 						ui.Text(c, "Up to 8 MiB. Connection headers are removed; length is recalculated.").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
 					case "Map Remote":
 						ui.Text(c, "Upstream destination").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
-						ui.TextInput(c, &e.draft.Target).Label("Target base URL").Placeholder("http://127.0.0.1:8080").Height(uikit.HeightControl).Radius(uikit.RadiusControl)
+						uikit.Input(c, &e.draft.Target).Label("Target base URL").Placeholder("http://127.0.0.1:8080")
 						ui.Text(c, "Keeps the original path and query. A target path prefixes the path; a target query replaces the query.").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
 					case "Block":
 						ui.Text(c, "Returns 403 without contacting the upstream server.").FontSize(uikit.TextBody).TextColor(t.TextMuted)

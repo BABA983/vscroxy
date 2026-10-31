@@ -207,7 +207,7 @@ func (s *investigationWorkbench) pane(c *ui.Context, side int) {
 			options[i] = fmt.Sprintf("%d · %s", i+1, src.Label)
 		}
 		choice := options[s.panes[side]]
-		if ui.Select(c, &choice, options).Label(fmt.Sprintf("Historical source %d", side+1)).FillWidth().
+		if uikit.Select(c, &choice, options).Label(fmt.Sprintf("Historical source %d", side+1)).FillWidth().
 			Height(uikit.HeightControl).Padding(0, t.Space(2)).Radius(uikit.RadiusControl).FontSize(uikit.TextBody).Changed() {
 			s.panes[side] = slices.Index(options, choice)
 			s.lists[side] = ui.ListState{}
@@ -362,7 +362,7 @@ func (s *investigationWorkbench) browse(c *ui.Context, a *app) {
 		ui.Text(c, fmt.Sprintf("%d / 8 sources · %.1f / 48 MiB", len(s.sources), float64(s.kept)/(1<<20))).FontSize(uikit.TextMeta)
 	})
 	ui.Text(c, "Search scope: opened sources only · URL, numeric status, exchange/source notes and errors · literal, case-insensitive · not headers, bodies or messages").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
-	if ui.TextInput(c, &s.query).Label("Search historical sources").Placeholder("Search URL / status / note / error").
+	if uikit.Input(c, &s.query).Label("Search historical sources").Placeholder("Search URL / status / note / error").
 		Height(uikit.HeightControl).Padding(0, t.Space(2)).Radius(uikit.RadiusControl).FontSize(uikit.TextBody).Changed() {
 		s.refreshSearch()
 	}
@@ -380,9 +380,9 @@ func (s *investigationWorkbench) browse(c *ui.Context, a *app) {
 			s.comparing = true
 		}
 	})
-	ui.TextInput(c, &s.title).Label("Evidence title").Placeholder("Evidence title (required for export)").
+	uikit.Input(c, &s.title).Label("Evidence title").Placeholder("Evidence title (required for export)").
 		Height(uikit.HeightControl).Padding(0, t.Space(2)).Radius(uikit.RadiusControl).FontSize(uikit.TextBody)
-	ui.TextInput(c, &s.notes).Label("Evidence notes").Placeholder("Notes for this evidence bundle (optional)").
+	uikit.Input(c, &s.notes).Label("Evidence notes").Placeholder("Notes for this evidence bundle (optional)").
 		Height(uikit.HeightControl).Padding(0, t.Space(2)).Radius(uikit.RadiusControl).FontSize(uikit.TextBody)
 	if uikit.PrimaryButton(c, "Review selected evidence…").Disabled(s.busy || len(s.picks) == 0).Clicked() {
 		s.prepareReview(a)

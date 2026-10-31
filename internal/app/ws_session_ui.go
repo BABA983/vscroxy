@@ -63,7 +63,7 @@ func (a *app) socketModal(c *ui.Context, t *ui.Theme) {
 			ui.Scroll(c).MaxHeight(260).MinHeight(0).Shrink(1).Gap(t.Space(2)).Children(func() {
 				ui.Text(c, "Connect starts a fresh timeline. No automatic reconnect, scripts or restore. Closing this panel disconnects. Auth and cookies may contain secrets.").FontSize(uikit.TextBody).TextColor(t.TextMuted)
 				ui.Row(c).Gap(t.Space(2)).Children(func() {
-					ui.TextInput(c, &s.url).Label("WebSocket URL").Placeholder("ws://127.0.0.1:8080/socket").Grow(1).MinWidth(0).Height(uikit.HeightControl).Font(uikit.FontMono).FontSize(uikit.TextBody).Disabled(active)
+					uikit.Input(c, &s.url).Label("WebSocket URL").Placeholder("ws://127.0.0.1:8080/socket").Grow(1).MinWidth(0).Font(uikit.FontMono).Disabled(active)
 					if uikit.SecondaryButton(c, "Connect").Disabled(active || a.srv == nil || !a.srv.Running() || !request.IsWebSocket(s.url)).Clicked() {
 						s.session = openWSSession(a.srv.Addr(), &request.Prepared{Method: "GET", URL: s.url, Header: request.ParseHeaderBlock(s.headers)}, a.srv.CACertificate(), a.requestCookies(), a.invalidate)
 						s.problem = ""
@@ -79,7 +79,7 @@ func (a *app) socketModal(c *ui.Context, t *ui.Theme) {
 					ui.Text(c, s.problem).FontSize(uikit.TextBody).TextColor(t.Danger)
 				}
 				ui.Row(c).Gap(t.Space(2)).Children(func() {
-					ui.TextInput(c, &s.message).Label("WebSocket message").Placeholder("Text message").Grow(1).MinWidth(0).Height(uikit.HeightControl).Font(uikit.FontMono).FontSize(uikit.TextBody)
+					uikit.Input(c, &s.message).Label("WebSocket message").Placeholder("Text message").Grow(1).MinWidth(0).Font(uikit.FontMono)
 					if uikit.PrimaryButton(c, "Send text").Disabled(state != "Connected" || s.sending).Clicked() {
 						s.problem = ""
 						s.sent = make(chan error, 1)
@@ -89,11 +89,11 @@ func (a *app) socketModal(c *ui.Context, t *ui.Theme) {
 					}
 				})
 				ui.Row(c).Gap(t.Space(2)).Wrap().Children(func() {
-					ui.TextInput(c, &s.query).Label("Search session messages").Placeholder("Search retained payloads and events").Grow(1).MinWidth(160).Height(uikit.HeightControl).FontSize(uikit.TextBody)
+					uikit.Input(c, &s.query).Label("Search session messages").Placeholder("Search retained payloads and events").Grow(1).MinWidth(160)
 					if s.direction == "" {
 						s.direction = "All"
 					}
-					ui.Select(c, &s.direction, []string{"All", "In", "Out", "Events"}).Width(100).Height(uikit.HeightControl).FontSize(uikit.TextBody).Label("Session direction")
+					uikit.Select(c, &s.direction, []string{"All", "In", "Out", "Events"}).Width(100).Label("Session direction")
 					ui.Text(c, fmt.Sprintf("%d retained · %d evicted", len(events), evicted)).FontSize(uikit.TextMeta).FontFeatures("tnum")
 					if uikit.SecondaryButton(c, "Latest message").Clicked() {
 						s.scroll.Y = math.MaxFloat32
@@ -122,7 +122,7 @@ func (a *app) socketModal(c *ui.Context, t *ui.Theme) {
 						}
 						b := uikit.SecondaryButton(c, label).Key(fmt.Sprint(e.Sequence)).Label(fmt.Sprintf("Session message %d", e.Sequence)).FillWidth().Tooltip(label)
 						if e.Sequence == s.picked {
-							b.Background(t.Accent).TextColor(t.AccentText)
+							uikit.Selected(c, b, true)
 						}
 						if b.Clicked() {
 							s.picked = e.Sequence

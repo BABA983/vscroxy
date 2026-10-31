@@ -157,7 +157,7 @@ func (a *app) debugWire(c *ui.Context, r experimentRecord) {
 	}
 	s.wire = min(s.wire, len(options)-1)
 	choice := options[s.wire]
-	if ui.Select(c, &choice, options).Label("Recorded wire exchange").FillWidth().
+	if uikit.Select(c, &choice, options).Label("Recorded wire exchange").FillWidth().
 		Height(uikit.HeightControl).FontSize(uikit.TextBody).Radius(uikit.RadiusControl).Changed() {
 		s.wire = slices.Index(options, choice)
 	}

@@ -281,23 +281,20 @@ func (m messageView) searchText() string {
 }
 
 // row draws one message in the list.
-func (m messageView) row(c *ui.Context, chosen bool) {
+func (m messageView) row(c *ui.Context) {
 	t := c.Theme()
 	color := uikit.Colors(t).Info
 	if m.direction == "in" {
 		color = t.Success
 	}
-	if chosen {
-		color = t.AccentText
-	}
 	ui.Row(c).Gap(t.Space(2)).Padding(t.Space(1), t.Space(2)).MinHeight(uikit.HeightControl).AlignItems(ui.Center).Children(func() {
 		ui.Text(c, m.arrow()).FontSize(uikit.TextBody).TextColor(color).Width(uikit.IconInline)
-		muted := rowColor(chosen, t, t.TextMuted)
+		muted := t.TextMuted
 		ui.Text(c, m.stamp()).FontSize(uikit.TextMeta).FontFeatures("tnum").TextColor(muted).Width(80).SingleLine()
 		label := ui.Text(c, m.label()).FontSize(uikit.TextMeta).TextColor(muted).Width(52).SingleLine()
 		label = label.Tooltip(m.kindLine())
 		preview := ui.Text(c, m.preview()).FontSize(uikit.TextBody).Font(uikit.FontMono).
-			TextColor(rowColor(chosen, t, t.Text)).SingleLine().Grow(1)
+			TextColor(t.Text).SingleLine().Grow(1)
 		preview.Tooltip(m.preview())
 		ui.Text(c, humanBytes(m.size)).FontSize(uikit.TextMeta).FontFeatures("tnum").TextColor(muted).Width(48).SingleLine()
 	})
@@ -553,9 +550,15 @@ func (p *messagePanel) view(c *ui.Context, a *app, f flow, list []messageView) {
 		p.list.Selected = &p.selected
 		p.list.FollowEnd = p.follow
 		p.list.Label = func(i int) string { return visible[i].label() + ": " + visible[i].preview() }
+		focused := p.list.Handle.Focused(c)
+		c.SetTheme(uikit.ListTheme(t, focused))
 		rows := ui.List(c, &p.list, len(visible), func(i int) {
-			visible[i].row(c, i == p.selected)
+			if i == p.selected {
+				uikit.RowMarker(c, focused)
+			}
+			visible[i].row(c)
 		}).Grow(1)
+		c.SetTheme(t)
 		if rows.Changed() {
 			// A row was chosen: the list stays where the person put it.
 			p.follow = false

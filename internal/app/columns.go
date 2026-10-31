@@ -138,7 +138,7 @@ func (a *app) columnModal(c *ui.Context, t *ui.Theme) {
 			ui.Scroll(c).MinHeight(0).Gap(t.Space(3)).Children(func() {
 				ui.Form(c, func() {
 					ui.Field(c, "From", func() {
-						ui.Select(c, &draft.Source, columnSources).Width(200).Height(uikit.HeightControl).Radius(uikit.RadiusControl)
+						uikit.Select(c, &draft.Source, columnSources).Width(200)
 					}).
 						Description(map[string]string{
 							sourceHeader:         "The response's header, or the request's when the response has none.",
@@ -151,7 +151,7 @@ func (a *app) columnModal(c *ui.Context, t *ui.Theme) {
 						placeholder = "page"
 					}
 					ui.Field(c, "Name", func() {
-						ui.TextInput(c, &draft.Name).Placeholder(placeholder).AutoFocus().Height(uikit.HeightControl).Radius(uikit.RadiusControl)
+						uikit.Input(c, &draft.Name).Placeholder(placeholder).AutoFocus()
 					}).Error(problem)
 				})
 				ui.Text(c, "Right-click the table's header to hide columns or remove this one.").FontSize(uikit.TextMeta).TextColor(t.TextMuted)

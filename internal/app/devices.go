@@ -182,10 +182,10 @@ func (a *app) devicesModal(c *ui.Context, t *ui.Theme) {
 						ui.Text(c, "1  Choose a network address").FontSize(uikit.TextBody).Bold()
 						ui.Form(c, func() {
 							ui.Field(c, "Address", func() {
-								ui.Select(c, &d.ip, d.ips).Label("Device-facing address").Height(uikit.HeightControl).FontSize(uikit.TextBody).Radius(uikit.RadiusControl)
+								uikit.Select(c, &d.ip, d.ips).Label("Device-facing address")
 							})
 							ui.Field(c, "Port", func() {
-								ui.TextInput(c, &d.port).Width(82).Height(uikit.HeightControl).FontSize(uikit.TextBody).Radius(uikit.RadiusControl).Label("LAN proxy port").Placeholder("7891")
+								uikit.Input(c, &d.port).Width(82).Label("LAN proxy port").Placeholder("7891")
 							})
 						})
 						if len(d.ips) == 0 {
@@ -245,7 +245,7 @@ func (a *app) devicesModal(c *ui.Context, t *ui.Theme) {
 								}
 							}
 							ui.Field(c, "Device HTTPS URL", func() {
-								ui.TextInput(c, &d.target).Label("Device HTTPS URL").Placeholder("https://example.com/").Height(uikit.HeightControl).FontSize(uikit.TextBody).Radius(uikit.RadiusControl)
+								uikit.Input(c, &d.target).Label("Device HTTPS URL").Placeholder("https://example.com/")
 							})
 							if uikit.SecondaryButton(c, "Check local proxy").Disabled(a.srv == nil || d.checkDone != nil).Clicked() {
 								a.checkDeviceProxy()

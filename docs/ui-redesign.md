@@ -150,6 +150,14 @@ uikit 第一版就按"主题 = 语义 token 表"实现；导入第三方主题�
 - 组件总览截图：`VSCROXY_UIKIT_SNAPSHOTS=dir go test ./internal/uikit -run '^TestOverviewSnapshots$' -count=1`，Paper／Ink 各输出总览和三种按钮的 hover／pressed 图。
 - 没改布局，选中样式也还是 v1 的实心行（标记线留给第 2 步）。直接调用 `ui.Button`、`ui.TextInput` 的地方还没迁移。
 
+#### 第 2 步实施记录（进行中：选中样式和控件迁移）
+
+- 选中只剩一种样子：强调浅底、正常文字颜色、左侧 2px 标记线；列表失焦时浅底变 hover 色、标记线变次要色。uikit 新增 `ListTheme`（给 MyGo 表格／列表／树）、`Marker`／`RowMarker`、`Selected`。已接入 Capture 流量表、消息列表、Protobuf 消息、Runner 结果、两个侧栏和 Settings 分类、集合树、环境树、Requests rail、Rules 列表和 WebSocket 会话列表；`rowColor`（选中时文字变白）删除。命令面板的高亮只有浅底不画标记线，因为菜单没有要保留的选中。
+- 侧栏的选中代表「当前在哪」，不是键盘光标，所以焦点在别处时标记线仍是强调色。
+- uikit 新增 `CompactButton`（24px、11 号字）、`DangerButton`、`RowButton`、`Input`、`Select`。`internal/app` 已不再直接调用 `ui.Button`、`ui.PrimaryButton`、`ui.TextInput`、`ui.Select`，同时去掉了这些调用后面重复设置的高度、字号和圆角。
+- Capture 选中检查改为同时检查浅底和标记线像素（去掉标记线时该检查会失败），对比度检查加上强调浅底。
+- 未完成：手搭的 `ui.ButtonBase`（仍有约 20 处）、手写 hover／pressed、文字角色（约 330 处 `TextColor(t.TextMuted)`），以及 Capture 侧栏里 View 1 和 All requests 看起来同时被选中的问题。
+
 ## 1. 目标
 
 1. 整个 app 看起来像一个精心打磨的原生桌面工具（Proxyman、Linear 这个级别），而不是拼起来的表单。

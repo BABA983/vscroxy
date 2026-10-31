@@ -34,7 +34,7 @@ func TestThemesKeepTextReadable(t *testing.T) {
 					t.Errorf("%s: contrast %.2f:1, want at least %.1f:1", name, ratio, minimum)
 				}
 			}
-			for _, fill := range []ui.Color{theme.Background, p.Panel, theme.SurfaceHover, theme.SurfacePressed} {
+			for _, fill := range []ui.Color{theme.Background, p.Panel, theme.SurfaceHover, theme.SurfacePressed, p.AccentTint} {
 				check("body", theme.Text, fill, 4.5)
 				check("secondary", theme.TextMuted, fill, 3)
 				check("keyboard focus", theme.Focus, fill, 3)

@@ -3240,7 +3240,15 @@ func TestDesktopLayoutDefaultsBelowAndSwitchesWithoutLosingCaptureContext(t *tes
 	}
 }
 
-func TestCaptureSelectionIsSolidOnlyWhileTheListAndWindowHaveFocus(t *testing.T) {
+func TestCaptureSelectionMarkerFollowsListAndWindowFocus(t *testing.T) {
+	// Expected colors are the design's Paper/Ink values, not read from
+	// uikit: accent tint fill and accent marker while the list has the
+	// focus, hover fill and muted marker otherwise. Text never turns white.
+	type look struct{ fill, marker [3]int }
+	looks := map[bool][2]look{
+		false: {{[3]int{233, 228, 214}, [3]int{109, 106, 95}}, {[3]int{227, 236, 228}, [3]int{30, 91, 71}}},
+		true:  {{[3]int{31, 38, 34}, [3]int{154, 151, 139}}, {[3]int{31, 45, 38}, [3]int{111, 181, 147}}},
+	}
 	for _, dark := range []bool{false, true} {
 		t.Run(fmt.Sprintf("dark=%t", dark), func(t *testing.T) {
 			a := workspaceApp()
@@ -3249,31 +3257,31 @@ func TestCaptureSelectionIsSolidOnlyWhileTheListAndWindowHaveFocus(t *testing.T)
 			if err := tt.Click("api.example.com/projects"); err != nil {
 				t.Fatal(err)
 			}
-			check := func(solid bool) {
+			check := func(focused bool) {
 				t.Helper()
 				table, ok := tt.Find("Captured requests")
 				row, found := tt.Find("api.example.com/projects")
 				if !ok || !found {
 					t.Fatal("selected traffic row disappeared")
 				}
-				// Sample empty space, not font antialiasing. Expected colors
-				// come from the design's ink green (Paper #1e5b47, Ink
-				// #6fb593) and its 12% tint over the background, not
-				// uikit.Theme.
-				want := [3]int{221, 226, 216}
-				if dark {
-					want = [3]int{29, 41, 35}
+				want := looks[dark][0]
+				if focused {
+					want = looks[dark][1]
 				}
-				if solid {
-					want = [3]int{30, 91, 71}
-					if dark {
-						want = [3]int{111, 181, 147}
-					}
-				}
-				pixel := tt.Image().RGBAAt(int(table.X+table.W-5), int(row.Y+row.H/2))
-				for i, got := range [3]int{int(pixel.R), int(pixel.G), int(pixel.B)} {
-					if got < want[i]-2 || got > want[i]+2 {
-						t.Fatalf("solid=%t: selection pixel %v, want RGB %v", solid, pixel, want)
+				im := tt.Image()
+				y := int(row.Y + row.H/2)
+				// Sample empty space at the row's end, and the marker at its
+				// leading edge, not font antialiasing.
+				for _, sample := range []struct {
+					name string
+					x    int
+					want [3]int
+				}{{"fill", int(table.X + table.W - 5), want.fill}, {"marker", int(table.X + 1), want.marker}} {
+					pixel := im.RGBAAt(sample.x, y)
+					for i, got := range [3]int{int(pixel.R), int(pixel.G), int(pixel.B)} {
+						if got < sample.want[i]-2 || got > sample.want[i]+2 {
+							t.Fatalf("focused=%t: %s pixel %v, want RGB %v", focused, sample.name, pixel, sample.want)
+						}
 					}
 				}
 			}

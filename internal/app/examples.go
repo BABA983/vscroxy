@@ -108,7 +108,7 @@ func (a *app) examplesEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
 		e := &d.examples[d.example]
 		ui.Column(c).Grow(1).MinWidth(0).MinHeight(0).Gap(t.Space(2)).Children(func() {
 			ui.Form(c, func() {
-				ui.Field(c, "Example name", func() { ui.TextInput(c, &e.Name).Label("Example name").Height(uikit.HeightControl) })
+				ui.Field(c, "Example name", func() { uikit.Input(c, &e.Name).Label("Example name") })
 			})
 			ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 				ui.Text(c, fmt.Sprintf("%d %s", e.Status, http.StatusText(e.Status))).FontSize(uikit.TextBody).Bold().TextColor(uikit.StatusColor(e.Status, t))

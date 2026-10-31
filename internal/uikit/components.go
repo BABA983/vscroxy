@@ -59,6 +59,46 @@ func SecondaryButton(c *ui.Context, label string) ui.Element {
 		FontSize(TextBody).Radius(RadiusControl)
 }
 
+// CompactButton is a secondary button for dense rows and bars.
+func CompactButton(c *ui.Context, label string) ui.Element {
+	return ui.Button(c, label).Height(HeightCompact).Padding(0, c.Theme().Space(2)).
+		FontSize(TextMeta).Radius(RadiusControl)
+}
+
+// DangerButton confirms a destructive action; it is never the only way out.
+func DangerButton(c *ui.Context, label string) ui.Element {
+	t := c.Theme()
+	return SecondaryButton(c, label).TextColor(t.Danger).Border(1, t.Danger)
+}
+
+// RowButton is a full-width row in a list of things to pick: no face of its
+// own until hovered or pressed. Pair it with Selected for the picked row.
+func RowButton(c *ui.Context, label string) ui.Element {
+	t := c.Theme()
+	b := ui.ButtonBase(c).Label(label).FillWidth().MinHeight(HeightControl).
+		Padding(t.Space(1), t.Space(2)).Gap(t.Space(2)).Radius(RadiusControl).AlignItems(ui.Center).
+		FontSize(TextBody).TextColor(t.Text)
+	switch {
+	case b.IsDisabled():
+		b.TextColor(Colors(t).TextFaint)
+	case b.Pressed():
+		b.Background(t.SurfacePressed)
+	case b.Hovered():
+		b.Background(t.SurfaceHover)
+	}
+	return b
+}
+
+// Input is a single-line text field at control height.
+func Input(c *ui.Context, value *string) ui.Element {
+	return ui.TextInput(c, value).Height(HeightControl).FontSize(TextBody).Radius(RadiusControl)
+}
+
+// Select picks one of a few options at control height.
+func Select(c *ui.Context, selected *string, options []string) ui.Element {
+	return ui.Select(c, selected, options).Height(HeightControl).FontSize(TextBody).Radius(RadiusControl)
+}
+
 // Dialog content uses three width tiers inside Modal's shared padding.
 // Callers choose the height; long content scrolls without moving the footer.
 func DialogColumn(c *ui.Context, width float32) ui.Element {
@@ -97,18 +137,24 @@ func MethodLabel(c *ui.Context, method string) ui.Element {
 		TextColor(MethodColor(method, c.Theme())).SingleLine()
 }
 
-// Keep Sidebar's native source-list navigation and item identities. Only
-// unselected icons use a neutral accent; selected items retain native colors.
+// Keep Sidebar's native source-list navigation and item identities, with
+// the selection look. A sidebar's selection is where the window is, not a
+// keyboard cursor, so its marker keeps the accent while focus is elsewhere.
 func SidebarItem(c *ui.Context, id string, icon *ui.SVG, label string, chosen bool) ui.Element {
 	t := c.Theme()
 	neutral := *t
-	if !chosen {
-		neutral.Accent = t.TextMuted
-	}
+	// Sidebar draws icons in Accent and the selection in Accent/AccentText,
+	// or SurfacePressed without the focus.
+	// Sidebar also takes a chosen item's icon from Accent while it lacks the
+	// focus, so the fill is set after construction rather than through Accent.
+	neutral.Accent, neutral.AccentText = t.TextMuted, t.Text
 	c.SetTheme(&neutral)
 	item := ui.SidebarItem(c, id, icon, label).Height(HeightControl).
 		FontSize(TextBody).Padding(0, t.Space(2)).Radius(RadiusControl)
 	c.SetTheme(t)
+	if chosen {
+		Selected(c, item, true)
+	}
 	return item
 }
 
@@ -276,4 +322,51 @@ func Segmented(c *ui.Context, selected *int, labels ...string) ui.Element {
 		}
 	})
 	return parts.Track
+}
+
+// Selection has one look everywhere: a tinted fill with the row's normal
+// text colors, and a marker line at its leading edge. focused is whether the
+// list holding the row has the keyboard focus; without it the fill turns to
+// the hover color and the marker to muted text, so the row still shows which
+// one is selected without claiming the keyboard.
+
+// ListTheme is the theme a MyGo table, list or tree paints its selection
+// from. Scope it to the list with SetTheme; rows draw Marker themselves.
+func ListTheme(t *ui.Theme, focused bool) *ui.Theme {
+	p := Colors(t)
+	list := *t
+	list.Accent, list.AccentText = p.AccentTint, t.Text
+	if !focused {
+		list.Accent = p.Hover
+	}
+	return &list
+}
+
+// Marker paints the selection marker on the leading edge of r.
+func Marker(t *ui.Theme, focused bool) func(p *ui.Painter, r ui.Rect) {
+	// The palette's accent, not t.Accent: inside ListTheme that is the fill.
+	color := Colors(t).Accent
+	if !focused {
+		color = t.TextMuted
+	}
+	return func(p *ui.Painter, r ui.Rect) {
+		inset := min(t.Space(1.5), r.H/4)
+		p.Fill(ui.Rect{X: r.X, Y: r.Y + inset, W: 2, H: r.H - 2*inset}, color, 1)
+	}
+}
+
+// RowMarker adds the marker to the row being built by a MyGo list or table,
+// whose own selection fill comes from ListTheme.
+func RowMarker(c *ui.Context, focused bool) {
+	ui.Box(c).Absolute().Left(0).Top(0).Bottom(0).Width(4).Draw(Marker(c.Theme(), focused))
+}
+
+// Selected gives a row the selection look.
+func Selected(c *ui.Context, e ui.Element, focused bool) ui.Element {
+	t := c.Theme()
+	fill := Colors(t).AccentTint
+	if !focused {
+		fill = Colors(t).Hover
+	}
+	return e.Background(fill).TextColor(t.Text).Draw(Marker(t, focused))
 }

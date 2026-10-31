@@ -360,40 +360,40 @@ func (a *app) authFields(c *ui.Context, auth *request.Auth, types []string, coll
 	}
 	ui.Form(c, func() {
 		ui.Field(c, "Type", func() {
-			ui.Select(c, &auth.Type, types).Label("Authorization type").Width(240).Height(uikit.HeightControl)
+			uikit.Select(c, &auth.Type, types).Label("Authorization type").Width(240)
 		})
 		switch auth.Type {
 		case "Bearer":
 			ui.Field(c, "Bearer token", func() {
-				ui.TextInput(c, &auth.Token).Height(uikit.HeightControl).Label("Bearer token").Placeholder("{{token}}").Password()
+				uikit.Input(c, &auth.Token).Label("Bearer token").Placeholder("{{token}}").Password()
 			})
 		case "Basic":
-			ui.Field(c, "Username", func() { ui.TextInput(c, &auth.Username).Height(uikit.HeightControl).Label("Username") })
-			ui.Field(c, "Password", func() { ui.TextInput(c, &auth.Password).Height(uikit.HeightControl).Label("Password").Password() })
+			ui.Field(c, "Username", func() { uikit.Input(c, &auth.Username).Label("Username") })
+			ui.Field(c, "Password", func() { uikit.Input(c, &auth.Password).Label("Password").Password() })
 		case "API key":
-			ui.Field(c, "API key name", func() { ui.TextInput(c, &auth.Key).Height(uikit.HeightControl).Label("API key name") })
-			ui.Field(c, "API key value", func() { ui.TextInput(c, &auth.Value).Height(uikit.HeightControl).Label("API key value").Password() })
+			ui.Field(c, "API key name", func() { uikit.Input(c, &auth.Key).Label("API key name") })
+			ui.Field(c, "API key value", func() { uikit.Input(c, &auth.Value).Label("API key value").Password() })
 			ui.Field(c, "Location", func() {
-				ui.Select(c, &auth.Location, []string{"Header", "Query"}).Label("API key location").Width(160).Height(uikit.HeightControl)
+				uikit.Select(c, &auth.Location, []string{"Header", "Query"}).Label("API key location").Width(160)
 			})
 		case request.AuthOAuth2:
 			a.oauthFields(c, auth, collection)
 		case request.AuthDigest:
-			ui.Field(c, "Username", func() { ui.TextInput(c, &auth.Username).Height(uikit.HeightControl) })
-			ui.Field(c, "Password", func() { ui.TextInput(c, &auth.Password).Height(uikit.HeightControl).Password() }).
+			ui.Field(c, "Username", func() { uikit.Input(c, &auth.Username) })
+			ui.Field(c, "Password", func() { uikit.Input(c, &auth.Password).Password() }).
 				Description("The first send gets the server's challenge; vscroxy answers it and sends again.")
 		case request.AuthAWS:
 			aws := &auth.AWS
-			ui.Field(c, "Access key", func() { ui.TextInput(c, &aws.AccessKey).Height(uikit.HeightControl) })
+			ui.Field(c, "Access key", func() { uikit.Input(c, &aws.AccessKey) })
 			ui.Field(c, "Secret key", func() {
-				ui.TextInput(c, &aws.SecretKey).Height(uikit.HeightControl).Placeholder("{{vault:aws_secret}}").Password()
+				uikit.Input(c, &aws.SecretKey).Placeholder("{{vault:aws_secret}}").Password()
 			})
-			ui.Field(c, "Region", func() { ui.TextInput(c, &aws.Region).Height(uikit.HeightControl).Placeholder("us-east-1").Width(260) })
+			ui.Field(c, "Region", func() { uikit.Input(c, &aws.Region).Placeholder("us-east-1").Width(260) })
 			ui.Field(c, "Service", func() {
-				ui.TextInput(c, &aws.Service).Height(uikit.HeightControl).Placeholder("e.g. execute-api or s3").Width(260)
+				uikit.Input(c, &aws.Service).Placeholder("e.g. execute-api or s3").Width(260)
 			})
 			ui.Field(c, "Session token", func() {
-				ui.TextInput(c, &aws.SessionToken).Height(uikit.HeightControl).Placeholder("Optional").Password()
+				uikit.Input(c, &aws.SessionToken).Placeholder("Optional").Password()
 			})
 		case request.AuthJWT:
 			jwt := &auth.JWT
@@ -404,10 +404,10 @@ func (a *app) authFields(c *ui.Context, auth *request.Auth, types []string, coll
 			if jwt.AddTo == "Query" {
 				addTo = "Query"
 			}
-			ui.Field(c, "Algorithm", func() { ui.Select(c, &jwt.Algorithm, request.JWTAlgorithms).Width(160).Height(uikit.HeightControl) })
+			ui.Field(c, "Algorithm", func() { uikit.Select(c, &jwt.Algorithm, request.JWTAlgorithms).Width(160) })
 			if strings.HasPrefix(jwt.Algorithm, "HS") {
 				ui.Field(c, "Secret", func() {
-					ui.TextInput(c, &jwt.Secret).Height(uikit.HeightControl).Placeholder("{{vault:jwt_secret}}").Password()
+					uikit.Input(c, &jwt.Secret).Placeholder("{{vault:jwt_secret}}").Password()
 				})
 				ui.Field(c, "", func() { ui.Checkbox(c, &jwt.SecretBase64, "Secret is base64-encoded") })
 			} else {
@@ -419,10 +419,10 @@ func (a *app) authFields(c *ui.Context, auth *request.Auth, types []string, coll
 				ui.TextArea(c, &jwt.Payload).Height(72).Font(uikit.FontMono).FontSize(uikit.TextBody).Radius(uikit.RadiusControl).Placeholder(`{"sub": "{{user_id}}"}`)
 			})
 			ui.Field(c, "Extra header", func() {
-				ui.TextInput(c, &jwt.Header).Height(uikit.HeightControl).Placeholder(`Optional, e.g. {"kid": "key-1"}`).Font(uikit.FontMono)
+				uikit.Input(c, &jwt.Header).Placeholder(`Optional, e.g. {"kid": "key-1"}`).Font(uikit.FontMono)
 			})
 			ui.Field(c, "Add token to", func() {
-				if ui.Select(c, &addTo, []string{"Header", "Query"}).Width(160).Height(uikit.HeightControl).Changed() {
+				if uikit.Select(c, &addTo, []string{"Header", "Query"}).Width(160).Changed() {
 					jwt.AddTo = ""
 					if addTo == "Query" {
 						jwt.AddTo = "Query"
@@ -430,9 +430,9 @@ func (a *app) authFields(c *ui.Context, auth *request.Auth, types []string, coll
 				}
 			})
 			if jwt.AddTo == "Query" {
-				ui.Field(c, "Query parameter", func() { ui.TextInput(c, &jwt.QueryParam).Height(uikit.HeightControl).Placeholder("token").Width(200) })
+				ui.Field(c, "Query parameter", func() { uikit.Input(c, &jwt.QueryParam).Placeholder("token").Width(200) })
 			} else {
-				ui.Field(c, "Header prefix", func() { ui.TextInput(c, &jwt.Prefix).Height(uikit.HeightControl).Placeholder("Bearer").Width(150) })
+				ui.Field(c, "Header prefix", func() { uikit.Input(c, &jwt.Prefix).Placeholder("Bearer").Width(150) })
 			}
 		}
 	}).Gap(t.Space(3))

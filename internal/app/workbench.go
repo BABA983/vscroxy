@@ -96,7 +96,7 @@ func (a *app) desktopContent(c *ui.Context) {
 								ui.Text(c, fmt.Sprintf("%d selected", a.chosen.Len())).FontSize(uikit.TextMeta).Bold().Grow(1)
 								a.desktopButton(c, "replay", "Replay…")
 								a.desktopButton(c, "export-selection", "Export HAR…")
-								if ui.Button(c, "Clear selection").FontSize(uikit.TextMeta).Height(uikit.HeightCompact).Clicked() {
+								if uikit.CompactButton(c, "Clear selection").Clicked() {
 									a.chosen.Clear()
 								}
 							})
@@ -456,7 +456,7 @@ func (a *app) desktopShortcuts(c *ui.Context) {
 func (a *app) desktopButton(c *ui.Context, id, label string) ui.Element {
 	for _, action := range a.desktopActions(c) {
 		if action.id == id {
-			b := ui.Button(c, label).Height(uikit.HeightControl).FontSize(uikit.TextMeta).Disabled(!action.enabled).Tooltip(action.hint())
+			b := uikit.SecondaryButton(c, label).Disabled(!action.enabled).Tooltip(action.hint())
 			if b.Clicked() {
 				action.run()
 			}
@@ -603,7 +603,7 @@ func (a *app) commandPalette(c *ui.Context) {
 			uikit.DialogTitle(c, "Commands")
 			// Modal focuses its first input after remembering the opener. An
 			// explicit AutoFocus here would replace that remembered focus.
-			input := ui.TextInput(c, &w.query).Label("Find command").Placeholder("Search actions…").
+			input := uikit.Input(c, &w.query).Label("Find command").Placeholder("Search actions…").
 				Height(uikit.HeightLarge).FontSize(uikit.TextBody).FillWidth()
 			if input.Changed() {
 				w.command = 0
@@ -645,11 +645,9 @@ func (a *app) commandPalette(c *ui.Context) {
 			}
 			w.commands.Selected = &w.command
 			focused := w.commands.Handle.Focused(c)
-			selectionTheme := *t
-			if !focused {
-				selectionTheme.Accent, selectionTheme.AccentText = t.Accent.Alpha(0.12), t.Text
-			}
-			c.SetTheme(&selectionTheme)
+			// The highlighted command is a menu highlight: the tint without a
+			// marker, as menus have no selection to keep.
+			c.SetTheme(uikit.ListTheme(t, focused))
 			list := ui.List(c, &w.commands, len(matches), func(i int) {
 				action := matches[i]
 				b := ui.ButtonBase(c).Label(action.label).Height(uikit.HeightLarge).FillWidth().Padding(0, t.Space(3)).
@@ -663,9 +661,7 @@ func (a *app) commandPalette(c *ui.Context) {
 				}
 				b.Children(func() {
 					color := t.Text
-					if i == w.command && focused {
-						color = t.AccentText
-					} else if !action.enabled {
+					if !action.enabled {
 						color = uikit.Colors(t).TextFaint
 					}
 					label := action.label

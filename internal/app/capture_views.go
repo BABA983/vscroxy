@@ -1013,15 +1013,15 @@ func (v *captureViews) filterModal(c *ui.Context, t *ui.Theme, a *app) {
 			problem := ""
 			ui.Row(c).Gap(t.Space(3)).Children(func() {
 				ui.Field(c, "Host (exact, including port)", func() {
-					ui.TextInput(c, &v.editTriage.Host).Label("Filter host").Placeholder("api.example.com")
+					uikit.Input(c, &v.editTriage.Host).Label("Filter host").Placeholder("api.example.com")
 				}).Grow(1)
 				ui.Field(c, "App (exact name)", func() {
-					ui.TextInput(c, &v.editTriage.Client).Label("Filter app").Placeholder("Browser")
+					uikit.Input(c, &v.editTriage.Client).Label("Filter app").Placeholder("Browser")
 				}).Grow(1)
 			})
 			ui.Row(c).Gap(t.Space(3)).Children(func() {
 				ui.Field(c, "Method (comma-separated)", func() {
-					ui.TextInput(c, &v.editTriage.Method).Label("Filter method").Placeholder("GET, POST")
+					uikit.Input(c, &v.editTriage.Method).Label("Filter method").Placeholder("GET, POST")
 				}).Grow(1)
 				ui.Field(c, "Color", func() {
 					colors := []string{"Any", "Marked"}
@@ -1029,7 +1029,7 @@ func (v *captureViews) filterModal(c *ui.Context, t *ui.Theme, a *app) {
 						colors = append(colors, color.Name)
 					}
 					color := cmp.Or(v.editTriage.Color, "Any")
-					if ui.Select(c, &color, colors).Label("Filter color").Changed() {
+					if uikit.Select(c, &color, colors).Label("Filter color").Changed() {
 						v.editTriage.Color = color
 						if color == "Any" {
 							v.editTriage.Color = ""
@@ -1048,7 +1048,7 @@ func (v *captureViews) filterModal(c *ui.Context, t *ui.Theme, a *app) {
 						problem = "Use a non-negative integer, optionally prefixed with <, <=, =, >= or >."
 					}
 					ui.Field(c, field.label, func() {
-						ui.TextInput(c, field.value).Label(field.label).Placeholder(">=500")
+						uikit.Input(c, field.value).Label(field.label).Placeholder(">=500")
 					}).Grow(1)
 				}
 			})
@@ -1062,18 +1062,18 @@ func (v *captureViews) filterModal(c *ui.Context, t *ui.Theme, a *app) {
 			}
 			ui.Row(c).Gap(t.Space(3)).Children(func() {
 				ui.Field(c, "Status", func() {
-					ui.TextInput(c, &v.editStatus).Label("Filter status").Placeholder("4xx, 5xx")
+					uikit.Input(c, &v.editStatus).Label("Filter status").Placeholder("4xx, 5xx")
 				}).Grow(1)
 				ui.Field(c, "Header", func() {
-					ui.TextInput(c, &v.editHeader).Placeholder("content-type: json")
+					uikit.Input(c, &v.editHeader).Placeholder("content-type: json")
 				}).Grow(1)
 			})
 			ui.Row(c).Gap(t.Space(3)).Children(func() {
 				ui.Field(c, "Note contains", func() {
-					ui.TextInput(c, &v.editTriage.Note).Label("Filter note").Placeholder("case-insensitive text")
+					uikit.Input(c, &v.editTriage.Note).Label("Filter note").Placeholder("case-insensitive text")
 				}).Grow(1)
 				ui.Field(c, "Body", func() {
-					ui.TextInput(c, &v.editBody).Label("Body contains").Placeholder("\"error\":")
+					uikit.Input(c, &v.editBody).Label("Body contains").Placeholder("\"error\":")
 				}).Grow(1)
 			})
 			if problem != "" {
@@ -1087,16 +1087,16 @@ func (v *captureViews) filterModal(c *ui.Context, t *ui.Theme, a *app) {
 				ui.Text(c, note).FontSize(uikit.TextMeta).TextColor(color).Tooltip(v.statusDetail())
 			}
 			ui.Row(c).Gap(t.Space(2)).Justify(ui.End).Children(func() {
-				if ui.Button(c, "Clear").Clicked() {
+				if uikit.SecondaryButton(c, "Clear").Clicked() {
 					v.editStatus, v.editHeader, v.editBody = "", "", ""
 					v.editTriage = captureTriage{}
 					v.commitFilter(a)
 					v.filterOpen = false
 				}
-				if ui.Button(c, "Cancel").Clicked() {
+				if uikit.SecondaryButton(c, "Cancel").Clicked() {
 					v.filterOpen = false
 				}
-				if ui.PrimaryButton(c, "Apply").Disabled(problem != "").Clicked() {
+				if uikit.PrimaryButton(c, "Apply").Disabled(problem != "").Clicked() {
 					v.commitFilter(a)
 					v.filterOpen = false
 				}
@@ -1144,20 +1144,20 @@ func (v *captureViews) savedModal(c *ui.Context, t *ui.Theme, a *app) {
 				name := f.Name
 				ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 					ui.Text(c, name).FontSize(uikit.TextBody).Grow(1).SingleLine().Tooltip(name)
-					if ui.Button(c, "Apply").Label("Apply " + strconv.Quote(name)).FontSize(uikit.TextMeta).Clicked() {
+					if uikit.CompactButton(c, "Apply").Label("Apply " + strconv.Quote(name)).Clicked() {
 						v.applySaved(a, name)
 					}
-					if ui.Button(c, "Rename").Label("Rename " + strconv.Quote(name)).FontSize(uikit.TextMeta).Clicked() {
+					if uikit.CompactButton(c, "Rename").Label("Rename " + strconv.Quote(name)).Clicked() {
 						v.renaming = name
 						v.savedName = name
 					}
-					if ui.Button(c, "Delete").Label("Delete " + strconv.Quote(name)).FontSize(uikit.TextMeta).Clicked() {
+					if uikit.CompactButton(c, "Delete").Label("Delete " + strconv.Quote(name)).Clicked() {
 						v.deleteSaved(a, name)
 					}
 				})
 			}
 			ui.Field(c, "Filter name", func() {
-				ui.TextInput(c, &v.savedName).Placeholder("Name this view's conditions")
+				uikit.Input(c, &v.savedName).Placeholder("Name this view's conditions")
 			})
 			if v.renaming != "" {
 				ui.Text(c, "Renaming "+strconv.Quote(v.renaming)+". Type the new name, then Rename filter.").
@@ -1170,16 +1170,16 @@ func (v *captureViews) savedModal(c *ui.Context, t *ui.Theme, a *app) {
 				ui.Text(c, v.note).FontSize(uikit.TextMeta).TextColor(t.TextMuted)
 			}
 			ui.Row(c).Gap(t.Space(2)).Justify(ui.End).Children(func() {
-				if ui.Button(c, "Close").Clicked() {
+				if uikit.SecondaryButton(c, "Close").Clicked() {
 					v.savedOpen = false
 					v.renaming = ""
 				}
 				if v.renaming != "" {
-					if ui.Button(c, "Rename filter").Clicked() {
+					if uikit.SecondaryButton(c, "Rename filter").Clicked() {
 						v.renameSaved(a)
 					}
 				}
-				if ui.PrimaryButton(c, "Save filter").Clicked() {
+				if uikit.PrimaryButton(c, "Save filter").Clicked() {
 					v.saveCurrent(a)
 				}
 			})

@@ -276,13 +276,13 @@ func (a *app) experimentsView(c *ui.Context, t *ui.Theme, inline bool) {
 					ui.Divider(c)
 					ui.Text(c, "Recent requests").Bold()
 					ui.Text(c, "Unsent copies · deduplicated by method + URL").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
-					ui.TextInput(c, &a.requestQuery).Label("Search history").Placeholder("Search history…").FontSize(uikit.TextMeta)
+					uikit.Input(c, &a.requestQuery).Label("Search history").Placeholder("Search history…").FontSize(uikit.TextMeta)
 					query := strings.ToLower(strings.TrimSpace(a.requestQuery))
 					for i, entry := range a.history {
 						if query != "" && !strings.Contains(strings.ToLower(entry.Method+" "+entry.URL), query) {
 							continue
 						}
-						ui.Button(c, entry.label()).FillWidth().FontSize(uikit.TextMeta).OnClick(func() { a.openHistory(i) })
+						uikit.RowButton(c, entry.label()).OnClick(func() { a.openHistory(i) }).Children(func() { ui.Text(c, entry.label()).SingleLine() })
 					}
 				}
 			})
@@ -357,7 +357,7 @@ func (a *app) experimentsView(c *ui.Context, t *ui.Theme, inline bool) {
 					}
 				})
 				ui.Row(c).Gap(t.Space(2)).Children(func() {
-					ui.TextInput(c, &s.note).Label("Experiment note").Placeholder("What did this attempt test?").Grow(1).Height(uikit.HeightControl).FontSize(uikit.TextBody).Radius(uikit.RadiusControl)
+					uikit.Input(c, &s.note).Label("Experiment note").Placeholder("What did this attempt test?").Grow(1)
 					if uikit.SecondaryButton(c, "Save note").Clicked() {
 						r.Note = s.note
 						s.persist()
@@ -401,7 +401,7 @@ func (a *app) experimentsView(c *ui.Context, t *ui.Theme, inline bool) {
 					return
 				}
 				if s.tab == 1 {
-					if ui.TextInput(c, &s.ignore).Label("Ignore JSON keys").Placeholder("Ignore top-level response JSON keys: timestamp, traceId").Height(uikit.HeightControl).FontSize(uikit.TextBody).Radius(uikit.RadiusControl).Changed() {
+					if uikit.Input(c, &s.ignore).Label("Ignore JSON keys").Placeholder("Ignore top-level response JSON keys: timestamp, traceId").Changed() {
 						s.comparison.diffPart = ""
 					}
 					ui.Text(c, "Comparison only; original snapshots remain unchanged. Ignores top-level response JSON keys, not headers or nested fields.").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
