@@ -50,23 +50,27 @@ func captureViewsFrame(a *app, v *captureViews) func(*ui.Context) {
 	}
 }
 
-// settle renders frames until the body search has answered every flow.
+// settle renders frames until the body search has answered every flow and
+// every answer has been applied. Progress is read before the drain: an answer
+// that comes in between would otherwise count as done without being applied.
 func settle(t *testing.T, a *app, v *captureViews) {
 	t.Helper()
 	deadline := time.Now().Add(20 * time.Second)
 	for {
-		v.drain(a)
-		if s := v.run; s != nil {
-			if done, total := s.progress(); done < total {
-				if time.Now().After(deadline) {
-					note, _ := v.status()
-					t.Fatalf("the body search did not finish: %s", note)
-				}
-				time.Sleep(2 * time.Millisecond)
-				continue
-			}
+		s := v.run
+		if s == nil {
+			return
 		}
-		return
+		done, total := s.progress()
+		v.drain(a)
+		if done >= total {
+			return
+		}
+		if time.Now().After(deadline) {
+			note, _ := v.status()
+			t.Fatalf("the body search did not finish: %s", note)
+		}
+		time.Sleep(2 * time.Millisecond)
 	}
 }
 
@@ -415,11 +419,14 @@ func TestCaptureViewBodySearchIsCancellable(t *testing.T) {
 	if len(a.visible) != 0 {
 		t.Fatalf("a row was shown before its body was read: %v", visibleIDs(a))
 	}
-	select {
-	case <-started:
-	case <-time.After(5 * time.Second):
-		t.Fatal("the search never started")
+	for range 2 {
+		select {
+		case <-started:
+		case <-time.After(5 * time.Second):
+			t.Fatal("the search never started")
+		}
 	}
+	// Give a duplicate reader the chance to show up.
 	time.Sleep(20 * time.Millisecond)
 	if n := calls.Load(); n != 2 {
 		t.Fatalf("two flows were handed to the reader %d times", n)
