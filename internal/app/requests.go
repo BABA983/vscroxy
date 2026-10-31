@@ -761,13 +761,23 @@ func (a *app) requestBar(c *ui.Context, t *ui.Theme, d *requestDocument, more fu
 		if d.composeWaiting {
 			sendLabel = "Sending…"
 		}
-		a.desktopButton(c, "send", sendLabel).Label(sendLabel).Width(80).Height(uikit.HeightLarge).Radius(uikit.RadiusControl).FontSize(uikit.TextBody).Background(t.Accent).TextColor(t.AccentText)
+		// A capture's inspector beside the list keeps its width for the URL:
+		// a narrower Send, and while sending only Cancel in its place (the
+		// response says it is sending).
+		narrow := a.workspace == 0 && a.inspectorWidth(c) < 600
+		sendWidth, cancelWidth := float32(80), float32(96)
+		if narrow {
+			sendWidth, cancelWidth = 64, 76
+		}
+		if !narrow || !d.composeWaiting {
+			a.desktopButton(c, "send", sendLabel).Label(sendLabel).Width(sendWidth).Height(uikit.HeightLarge).Radius(uikit.RadiusControl).FontSize(uikit.TextBody).Background(t.Accent).TextColor(t.AccentText)
+		}
 		if d.composeWaiting {
 			label := "Cancel"
-			if d.sendCancelling {
+			if d.sendCancelling && !narrow {
 				label = "Cancelling…"
 			}
-			a.desktopButton(c, "cancel-send", label).Label("Cancel send").Width(96).Height(uikit.HeightLarge).
+			a.desktopButton(c, "cancel-send", label).Label("Cancel send").Width(cancelWidth).Height(uikit.HeightLarge).
 				Tooltip("Stop waiting; cancelling does not undo server-side changes")
 		}
 		if more != nil {

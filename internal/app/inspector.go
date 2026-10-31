@@ -271,15 +271,22 @@ func (a *app) inspectorWidth(c *ui.Context) float32 {
 	return width
 }
 
-// splitInspector puts the request beside the response, or above it when the
-// inspector is too narrow for two readable panes.
+// sidesStacked reports whether the request goes above the response: when the
+// inspector is a column beside the list. Below the list, or filling the
+// window, it is wide and short, so the two sides sit next to each other.
+func (a *app) sidesStacked() bool {
+	return a.workbench.sideBySide && !a.workbench.focused
+}
+
+// splitInspector puts the request beside the response, or above it in a
+// column beside the list.
 func (a *app) splitInspector(c *ui.Context, f flow) {
 	if a.inspect.percent == 0 {
 		a.inspect.percent = 50
 	}
 	request := func() { a.requestPane(c, f) }
 	response := func() { a.responsePane(c, f) }
-	if a.inspectorWidth(c) < 760 {
+	if a.sidesStacked() {
 		ui.SplitVerticalPercent(c.Key("inspector-sides"), &a.inspect.percent, request, response).Grow(1)
 		return
 	}

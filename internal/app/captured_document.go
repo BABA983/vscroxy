@@ -208,7 +208,7 @@ func (a *app) capturedDocument(c *ui.Context, t *ui.Theme, f flow, d *requestDoc
 		}
 		a.responsePane(c, f)
 	}
-	if a.inspectorWidth(c) < 760 {
+	if a.sidesStacked() {
 		ui.SplitVerticalPercent(c.Key("inspector-sides"), &a.inspect.percent, request, response).Grow(1)
 		return
 	}
