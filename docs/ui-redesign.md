@@ -283,6 +283,16 @@ Runner、History（合并后的 Run records）、Sessions（合并后的 Investi
 
 功能合并（History、Sessions）和 Tools 窗口属于 [功能路线图](feature-roadmap.md) 的 M1 和 M4。按路线图会被去掉的界面（Investigations 看板、Regression 分享对话框、Recent requests）不做改版，直接随合并删除。
 
+#### 阶段 5 实施记录（现有次级视图）
+
+- Runner、Run records、Historical sessions & evidence 和 APIs 接入共用字号、28px 控件、32px 面板头／下划线 tab、细线分隔和空状态；保留现有品牌及 app 图标。Runner 使用 28px 结果行，选中行文字继承原生选中色，失败检查详情仍明确显示错误。历史会话保留两来源布局，带注释／错误的交换行允许增高，不为固定行高隐藏证据。
+- Run records 保留页面和来源／草稿弹窗两种入口，统一记录条目、操作、备注、比较和只读编辑器；隐私、保留上限、截断、来源和 wire 提示不删减。960px 下收紧阅读区及 tab 留白，使六个页签完整显示；更拥挤时仍可横向滚动。新增回归检查对照宽窗口的自然宽度，实际点击末尾 Variables 和 Console 验证内容；它曾检测到本轮迁移后的末尾裁切，修正留白后通过。
+- APIs 的契约和端点侧栏、状态／来源说明、OpenAPI 源码及只读 schema 共用已有组件；Save API 是唯一主操作，校验、导出、生成独立草稿和 Open in Requests 的行为不变。历史会话的搜索范围、跨来源／隐藏选择、比较和导出前人工审阅流程保持不变；原始证据审阅编辑器和确认区留给阶段 6。
+- 本阶段**不做** History／Sessions 功能合并、存储迁移或 Tools 窗口；这些随 M1／M4 落地。Investigations 看板、Recent requests 和 Regression 分享界面不改版，也不提前删除。规则、Scenario、脚本、Host 等尚未形成 Tools 窗口的界面不借本阶段重构。
+- 验证：`go build ./...`、`go vet ./...`、`go tool mygo vet .`、`go test ./...` 和 `CGO_ENABLED=0 go test ./...`。截图矩阵扩展到浅深色共 294 张，新增 24 种次级视图状态的 1280／960px 版本；阶段 4 的 196 张无关截图逐字节一致，另两张调试历史截图因复用本阶段的运行记录阅读器而同步变化。前后图分别生成至 `.amp/in/artifacts/phase5-before` 和 `phase5-final`，没有覆盖阶段 0 基线。
+- Linux 原生窗口录屏检查了移动指针、Runner 结果／键盘焦点、记录选择／对比／Variables／Console、历史会话双选／对比／返回、API 端点／源码／审查说明及深色窄窗口。录屏中的 F 键只加载离线夹具，不代表产品导航；未读取用户设置、启动代理或发送请求。macOS／Windows 实机检查仍留给阶段 7。
+- 已有的空 API 导航问题不在本次修复：没有选中 API 时，shell 会回到 Requests 主视图。空 API 阅读器截图使用显式无选中项夹具检查其外观，不能作为该导航路径已修复的证据。
+
 ### 阶段 6：对话框
 
 约 40 个 modal 按类型统一：

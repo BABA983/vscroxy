@@ -195,9 +195,10 @@ func (s *investigationWorkbench) label(p investigationPick) string {
 }
 
 func (s *investigationWorkbench) pane(c *ui.Context, side int) {
-	ui.Column(c.Key(fmt.Sprintf("investigation-pane-%d", side))).Grow(1).Basis(0).FillHeight().Gap(6).Children(func() {
+	t := c.Theme()
+	ui.Column(c.Key(fmt.Sprintf("investigation-pane-%d", side))).Grow(1).Basis(0).FillHeight().Gap(t.Space(2)).Children(func() {
 		if len(s.sources) == 0 {
-			ui.Text(c, "Open saved session or evidence files to inspect them here.").FontSize(12)
+			emptyState(c, "No opened sources", "Open saved session or evidence files to inspect them here.", nil)
 			return
 		}
 		options := make([]string, len(s.sources))
@@ -205,34 +206,40 @@ func (s *investigationWorkbench) pane(c *ui.Context, side int) {
 			options[i] = fmt.Sprintf("%d · %s", i+1, src.Label)
 		}
 		choice := options[s.panes[side]]
-		if ui.Select(c, &choice, options).Label(fmt.Sprintf("Historical source %d", side+1)).FillWidth().Changed() {
+		if ui.Select(c, &choice, options).Label(fmt.Sprintf("Historical source %d", side+1)).FillWidth().
+			Height(heightControl).Padding(0, t.Space(2)).Radius(radiusControl).FontSize(textBody).Changed() {
 			s.panes[side] = slices.Index(options, choice)
 			s.lists[side] = ui.ListState{}
 		}
 		index := s.panes[side]
 		src, rows := s.sources[index], s.matches[index]
-		ui.Text(c, fmt.Sprintf("Historical / read-only · %d of %d exchanges", len(rows), len(src.Session.Flows))).FontSize(11).TextColor(c.Theme().TextMuted)
+		ui.Text(c, fmt.Sprintf("Historical / read-only · %d of %d exchanges", len(rows), len(src.Session.Flows))).FontSize(textMeta).TextColor(t.TextMuted)
 		if src.Notes != "" {
-			ui.Text(c, "Source notes: "+investigationSummary(src.Notes)).FontSize(11).Tooltip(src.Notes)
+			ui.Text(c, "Source notes: "+investigationSummary(src.Notes)).FontSize(textMeta).Tooltip(src.Notes)
 		}
+		ui.Divider(c).Background(t.Border)
 		ui.List(c, &s.lists[side], len(rows), func(i int) {
 			row := rows[i]
 			f := src.Session.Flows[row]
 			p := investigationPick{index, row}
 			chosen := slices.Contains(s.picks, p)
-			ui.Column(c).Padding(5).Gap(3).Children(func() {
+			ui.Column(c).MinHeight(heightControl).Padding(t.Space(1), t.Space(2)).Gap(t.Space(1)).Children(func() {
 				label := fmt.Sprintf("#%d · %s · %d · %s", f.ID, investigationSummary(f.Method), f.Status, investigationSummary(f.URL))
-				if ui.Checkbox(c, &chosen, label).Label(fmt.Sprintf("Select source %d exchange %d", index+1, f.ID)).Tooltip(f.URL).Changed() {
+				if ui.Checkbox(c, &chosen, label).Label(fmt.Sprintf("Select source %d exchange %d", index+1, f.ID)).Tooltip(f.URL).FontSize(textBody).Changed() {
 					s.pick(p, chosen)
 				}
 				if f.Note != "" {
-					ui.Text(c, "Note: "+investigationSummary(f.Note)).FontSize(10).TextColor(c.Theme().TextMuted)
+					ui.Text(c, "Note: "+investigationSummary(f.Note)).FontSize(textMeta).TextColor(t.TextMuted)
 				}
 				if problem := strings.Join([]string{f.ConnectionError, f.ReqError, f.ResError}, " "); strings.TrimSpace(problem) != "" {
-					ui.Text(c, "Error: "+investigationSummary(problem)).FontSize(10).TextColor(c.Theme().Danger)
+					ui.Text(c, "Error: "+investigationSummary(problem)).FontSize(textMeta).TextColor(t.Danger)
 				}
 			})
-		}).Grow(1)
+		}).Grow(1).Gap(t.Space(1)).Dividers(1, t.Border).Children(func() {
+			if len(rows) == 0 {
+				emptyState(c, "No matching exchanges", "Try another URL, status, note or error.", nil)
+			}
+		})
 	})
 }
 
@@ -299,30 +306,32 @@ func (s *investigationWorkbench) modal(c *ui.Context, a *app) {
 		return
 	}
 	w, h := c.Size()
+	t := c.Theme()
 	appModal(c, &s.open, func() {
-		ui.Column(c).Width(min(1120, w-80)).Height(min(800, h-100)).Gap(8).Children(func() {
-			ui.Row(c).Gap(10).Children(func() {
+		ui.Column(c).Width(min(1120, w-80)).Height(min(800, h-100)).Gap(t.Space(2)).Children(func() {
+			ui.Row(c).Gap(t.Space(3)).Children(func() {
 				dialogTitle(c, "Historical sessions & evidence").Grow(1)
-				if ui.Button(c, "Close").Clicked() {
+				if secondaryButton(c, "Close").Clicked() {
 					s.open = false
 				}
 			})
-			ui.Text(c, "Read-only local files. Never sends requests, runs scripts, changes rules or replaces live traffic.").FontSize(11).TextColor(c.Theme().TextMuted)
+			ui.Divider(c).Background(t.Border)
+			ui.Text(c, "Read-only local files. Never sends requests, runs scripts, changes rules or replaces live traffic.").FontSize(textMeta).TextColor(t.TextMuted)
 			if s.busy {
-				ui.Text(c, "Working…").FontSize(11)
+				ui.Text(c, "Working…").FontSize(textMeta)
 			}
 			if s.problem != "" {
-				ui.Text(c, s.problem).FontSize(12).TextColor(c.Theme().Danger)
+				ui.Text(c, s.problem).FontSize(textBody).TextColor(t.Danger)
 			}
 			if s.feedback != "" {
-				ui.Text(c, s.feedback).FontSize(11).TextColor(c.Theme().Success)
+				ui.Text(c, s.feedback).FontSize(textMeta).TextColor(t.Success)
 			}
 			if s.reviewing {
 				s.review(c, a)
 				return
 			}
 			if s.comparing && len(s.picks) == 2 {
-				if ui.Button(c, "Back to sources").Clicked() {
+				if secondaryButton(c, "Back to sources").Clicked() {
 					s.comparing = false
 				}
 				left, right := s.picks[0], s.picks[1]
@@ -339,37 +348,42 @@ func (s *investigationWorkbench) modal(c *ui.Context, a *app) {
 }
 
 func (s *investigationWorkbench) browse(c *ui.Context, a *app) {
-	ui.Row(c).Gap(8).Wrap().Children(func() {
-		if ui.Button(c, "Open files…").Disabled(s.busy).Clicked() {
+	t := c.Theme()
+	ui.Row(c).Gap(t.Space(2)).Wrap().Children(func() {
+		if secondaryButton(c, "Open files…").Disabled(s.busy).Clicked() {
 			s.openFiles(a)
 		}
-		if ui.Button(c, "Forget opened files").Disabled(s.busy || len(s.sources) == 0).Clicked() {
+		if secondaryButton(c, "Forget opened files").Disabled(s.busy || len(s.sources) == 0).Clicked() {
 			s.sources, s.picks, s.matches = nil, nil, nil
 			s.kept, s.panes = 0, [2]int{}
 			s.comparison, s.problem, s.feedback = captureAnalysis{}, "", ""
 		}
-		ui.Text(c, fmt.Sprintf("%d / 8 sources · %.1f / 48 MiB", len(s.sources), float64(s.kept)/(1<<20))).FontSize(11)
+		ui.Text(c, fmt.Sprintf("%d / 8 sources · %.1f / 48 MiB", len(s.sources), float64(s.kept)/(1<<20))).FontSize(textMeta)
 	})
-	ui.Text(c, "Search scope: opened sources only · URL, numeric status, exchange/source notes and errors · literal, case-insensitive · not headers, bodies or messages").FontSize(10).TextColor(c.Theme().TextMuted)
-	if ui.TextInput(c, &s.query).Label("Search historical sources").Placeholder("Search URL / status / note / error").Changed() {
+	ui.Text(c, "Search scope: opened sources only · URL, numeric status, exchange/source notes and errors · literal, case-insensitive · not headers, bodies or messages").FontSize(textMeta).TextColor(t.TextMuted)
+	if ui.TextInput(c, &s.query).Label("Search historical sources").Placeholder("Search URL / status / note / error").
+		Height(heightControl).Padding(0, t.Space(2)).Radius(radiusControl).FontSize(textBody).Changed() {
 		s.refreshSearch()
 	}
-	ui.Row(c).Grow(1).Gap(12).AlignItems(ui.Stretch).Children(func() {
+	ui.Row(c).Grow(1).Gap(t.Space(3)).Dividers(1, t.Border).AlignItems(ui.Stretch).Children(func() {
 		s.pane(c, 0)
 		s.pane(c, 1)
 	})
-	ui.Row(c).Gap(8).Wrap().Children(func() {
-		ui.Text(c, fmt.Sprintf("%d / 64 selected across all sources (including hidden results)", len(s.picks))).FontSize(11).Grow(1)
-		if ui.Button(c, "Clear selection").Clicked() {
+	ui.Divider(c).Background(t.Border)
+	ui.Row(c).Gap(t.Space(2)).Wrap().Children(func() {
+		ui.Text(c, fmt.Sprintf("%d / 64 selected across all sources (including hidden results)", len(s.picks))).FontSize(textMeta).Grow(1)
+		if secondaryButton(c, "Clear selection").Clicked() {
 			s.picks, s.comparison = nil, captureAnalysis{}
 		}
-		if ui.Button(c, "Compare selected two").Disabled(len(s.picks) != 2).Clicked() {
+		if secondaryButton(c, "Compare selected two").Disabled(len(s.picks) != 2).Clicked() {
 			s.comparing = true
 		}
 	})
-	ui.TextInput(c, &s.title).Label("Evidence title").Placeholder("Evidence title (required for export)")
-	ui.TextInput(c, &s.notes).Label("Evidence notes").Placeholder("Notes for this evidence bundle (optional)")
-	if ui.PrimaryButton(c, "Review selected evidence…").Disabled(s.busy || len(s.picks) == 0).Clicked() {
+	ui.TextInput(c, &s.title).Label("Evidence title").Placeholder("Evidence title (required for export)").
+		Height(heightControl).Padding(0, t.Space(2)).Radius(radiusControl).FontSize(textBody)
+	ui.TextInput(c, &s.notes).Label("Evidence notes").Placeholder("Notes for this evidence bundle (optional)").
+		Height(heightControl).Padding(0, t.Space(2)).Radius(radiusControl).FontSize(textBody)
+	if primaryButton(c, "Review selected evidence…").Disabled(s.busy || len(s.picks) == 0).Clicked() {
 		s.prepareReview(a)
 	}
 }

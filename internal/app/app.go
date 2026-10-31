@@ -1563,12 +1563,12 @@ func (a *app) requestSidebar(c *ui.Context, t *ui.Theme) {
 			if a.requestSide != 3 {
 				return
 			}
-			ui.SidebarSection(c, "API contracts", &a.contractsOpen, func() {
+			sidebarSection(c, "API contracts", &a.contractsOpen, func() {
 				for _, d := range a.apis {
 					if query != "" && !strings.Contains(strings.ToLower(d.title()), query) {
 						continue
 					}
-					ui.SidebarItem(c, "contract:"+d.spec.ID, apiIcon, d.title()).Label("API: "+d.title()).FontSize(12).Padding(5, 8).Children(func() {
+					sidebarItem(c, "contract:"+d.spec.ID, apiIcon, d.title(), a.apiChoice == d.spec.ID).Label("API: " + d.title()).Children(func() {
 						if d.dirty() {
 							ui.Box(c).Size(5, 5).Radius(3).Background(t.Accent).Label("Unsaved API")
 						}
@@ -1577,42 +1577,37 @@ func (a *app) requestSidebar(c *ui.Context, t *ui.Theme) {
 				// A group with nothing in it stays two short entries, so the
 				// history and the collections keep their room.
 				if len(a.apis) == 0 {
-					if ui.ButtonBase(c).Label("New API").Height(26).Padding(0, 6).Gap(6).Radius(5).FillWidth().
-						AlignItems(ui.Center).TextColor(t.TextMuted).Tooltip("Create a contract, or import OpenAPI from the editor").Children(func() {
-						ui.Icon(c, plusIcon).Size(13, 13)
-						ui.Text(c, "New contract").FontSize(12)
+					if toolbarButton(c, "New API", "Create a contract, or import OpenAPI from the editor", false).FillWidth().Children(func() {
+						ui.Icon(c, plusIcon).Size(iconInline, iconInline)
+						ui.Text(c, "New contract").FontSize(textBody)
 					}).Clicked() {
 						a.newAPI()
 						a.requestsSection = 1
 					}
-					if ui.ButtonBase(c).Label("Generate from collection").Height(26).Padding(0, 6).Gap(6).Radius(5).FillWidth().
-						AlignItems(ui.Center).TextColor(t.TextMuted).Disabled(len(a.requests) == 0).Children(func() {
-						ui.Icon(c, layersIcon).Size(13, 13)
-						ui.Text(c, "From collection…").FontSize(12)
+					if toolbarButton(c, "Generate from collection", "Generate OpenAPI from a saved collection", false).FillWidth().Disabled(len(a.requests) == 0).Children(func() {
+						ui.Icon(c, layersIcon).Size(iconInline, iconInline)
+						ui.Text(c, "From collection…").FontSize(textBody)
 					}).Clicked() {
 						a.openAPIGeneration()
 					}
 					return
 				}
-				if ui.ButtonBase(c).Label("New API").Height(26).Padding(0, 6).Gap(6).Radius(5).FillWidth().
-					AlignItems(ui.Center).TextColor(t.TextMuted).Children(func() {
-					ui.Icon(c, plusIcon).Size(13, 13)
-					ui.Text(c, "New contract").FontSize(12)
+				if toolbarButton(c, "New API", "Create an API contract", false).FillWidth().Children(func() {
+					ui.Icon(c, plusIcon).Size(iconInline, iconInline)
+					ui.Text(c, "New contract").FontSize(textBody)
 				}).Clicked() {
 					a.newAPI()
 					a.requestsSection = 1
 				}
-				if ui.ButtonBase(c).Label("Import OpenAPI").Height(26).Padding(0, 6).Gap(6).Radius(5).FillWidth().
-					AlignItems(ui.Center).TextColor(t.TextMuted).Children(func() {
-					ui.Icon(c, fileInputIcon).Size(13, 13)
-					ui.Text(c, "Import OpenAPI…").FontSize(12)
+				if toolbarButton(c, "Import OpenAPI", "Import an OpenAPI file", false).FillWidth().Children(func() {
+					ui.Icon(c, fileInputIcon).Size(iconInline, iconInline)
+					ui.Text(c, "Import OpenAPI…").FontSize(textBody)
 				}).Clicked() {
 					a.importOpenAPI()
 				}
-				if ui.ButtonBase(c).Label("Generate from collection").Height(26).Padding(0, 6).Gap(6).Radius(5).FillWidth().
-					AlignItems(ui.Center).TextColor(t.TextMuted).Disabled(len(a.requests) == 0).Children(func() {
-					ui.Icon(c, layersIcon).Size(13, 13)
-					ui.Text(c, "From collection…").FontSize(12)
+				if toolbarButton(c, "Generate from collection", "Generate OpenAPI from a saved collection", false).FillWidth().Disabled(len(a.requests) == 0).Children(func() {
+					ui.Icon(c, layersIcon).Size(iconInline, iconInline)
+					ui.Text(c, "From collection…").FontSize(textBody)
 				}).Clicked() {
 					a.openAPIGeneration()
 				}

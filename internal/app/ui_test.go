@@ -3694,6 +3694,36 @@ func TestExperimentWorkbenchComparesIndependentRunsAndReopensWithoutSending(t *t
 	}
 }
 
+func TestRunRecordTabsRemainReadableAtMinimumWidth(t *testing.T) {
+	for _, dark := range []bool{false, true} {
+		a := snapshotApp()
+		a.dark = dark
+		snapshotRuns(a)
+		wide := ui.NewTester(a.view, 1280, 800)
+		full, ok := wide.Find("Variables")
+		if !ok {
+			t.Fatal("missing variables tab")
+		}
+		tt := ui.NewTester(a.view, 960, 800)
+		last, ok := tt.Find("Variables")
+		if !ok || last.W < full.W || last.X+last.W > 948 {
+			t.Fatalf("dark=%t: final tab clipped at minimum width: %v, full=%v", dark, last, full)
+		}
+		if err := tt.Click("Variables"); err != nil {
+			t.Fatal(err)
+		}
+		if !tt.HasText("baseUrl") || len(a.documents) != 0 {
+			t.Fatal("variables tab lost its snapshot or opened a draft")
+		}
+		if err := tt.Click("Console"); err != nil {
+			t.Fatal(err)
+		}
+		if !tt.HasText("Created project 73") {
+			t.Fatal("console tab lost retained output")
+		}
+	}
+}
+
 func TestExperimentDraftCheckpointRestoresUnsavedEditsAndCloseFlushes(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "experiments.json")
 	a := workspaceApp()

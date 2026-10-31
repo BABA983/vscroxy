@@ -169,6 +169,61 @@ func TestUISnapshots(t *testing.T) {
 			a.composeTab = composeTabExamples
 			a.examples = []request.Example{{ID: "snapshot-example", Name: "Created project", Status: 201, Body: `{"id":73}`, Request: request.ExampleRequest{Method: "POST", URL: "{{baseUrl}}/projects"}}}
 		}, want: "Example name"},
+		{name: "secondary-runner-empty", setup: func(a *app) { a.requests = nil; a.openRunner() }, want: "Collection Runner"},
+		{name: "secondary-runner-ready", setup: func(a *app) { a.runner.collection = "Workspace"; a.openRunner() }, want: "Run request 1"},
+		{name: "secondary-runner-results", setup: snapshotRunner, want: "Inspect retained run"},
+		{name: "secondary-runner-focused", setup: snapshotRunner, act: click("2 · Check project"), want: "expected 200, received 503"},
+		{name: "secondary-runner-running", setup: func(a *app) { snapshotRunner(a); a.runner.running, a.runner.status = true, "Running…" }, want: "Cancel run"},
+		{name: "secondary-runner-error", setup: func(a *app) { a.openRunner(); a.runner.dataProblem = "data.csv: duplicate column name" }, want: "duplicate column name"},
+		{name: "secondary-runs-empty", setup: func(a *app) { a.workspace, a.requestsSection, a.requestSide = 1, 2, 1; a.history = nil }, want: "Send a request to record an experiment."},
+		{name: "secondary-runs-result", setup: snapshotRuns, want: "Experiment result"},
+		{name: "secondary-runs-compare", setup: func(a *app) { snapshotRuns(a); a.experiments.left, a.experiments.tab = 1, 1 }, want: "Old text"},
+		{name: "secondary-runs-variables", setup: func(a *app) { snapshotRuns(a); a.experiments.tab = 5 }, want: "baseUrl"},
+		{name: "secondary-runs-modal", setup: func(a *app) { snapshotRuns(a); a.workspace = 0; a.experiments.open = true }, want: "Experiment result"},
+		{name: "secondary-sessions-empty", setup: func(a *app) { a.investigations.show() }, want: "Historical sessions & evidence"},
+		{name: "secondary-sessions-browse", setup: snapshotSources, want: "Select source 2 exchange 2"},
+		{name: "secondary-sessions-selected", setup: snapshotSources, act: func(t *testing.T, tt *ui.Tester) {
+			click("Select source 1 exchange 1")(t, tt)
+			click("Select source 2 exchange 2")(t, tt)
+		}, want: "2 / 64 selected"},
+		{name: "secondary-sessions-no-matches", setup: func(a *app) {
+			snapshotSources(a)
+			a.investigations.query = "no-matches"
+			a.investigations.refreshSearch()
+		}, want: "0 of 1 exchanges"},
+		{name: "secondary-sessions-compare", setup: func(a *app) {
+			snapshotSources(a)
+			a.investigations.picks = []investigationPick{{0, 0}, {1, 0}}
+			a.investigations.comparing = true
+		}, want: "Old text"},
+		{name: "secondary-api-empty", setup: func(a *app) {
+			a.workspace, a.requestsSection, a.requestSide = 1, 1, 3
+			// Preview the empty reader without changing existing no-API routing.
+			a.apiChoice = "snapshot-no-selection"
+		}, want: "From traffic to an API contract"},
+		{name: "secondary-api-endpoints", setup: snapshotAPI, want: "Operation schema"},
+		{name: "secondary-api-generated", setup: func(a *app) {
+			snapshotAPI(a)
+			d := a.activeAPI()
+			d.saved, d.spec.Fingerprint, d.spec.Collection = nil, "previous-source", "Workspace"
+		}, want: "Source collection changed"},
+		{name: "secondary-api-no-endpoints", setup: func(a *app) {
+			a.workspace, a.requestsSection, a.requestSide = 1, 1, 3
+			a.addAPI(apiSpec{ID: "snapshot-api", Source: `{"openapi":"3.0.3","info":{"title":"Empty contract","version":"1.0"},"paths":{}}`}, true)
+		}, want: "No HTTP endpoints yet"},
+		{name: "secondary-api-unvalidated", setup: func(a *app) {
+			snapshotAPI(a)
+			d := a.activeAPI()
+			d.code.Buffer.Set(d.code.Buffer.String() + "\n")
+		}, want: "Validate the edited source"},
+		{name: "secondary-api-source", setup: func(a *app) { snapshotAPI(a); a.activeAPI().tab = 1 }, want: "OpenAPI source"},
+		{name: "secondary-api-invalid", setup: func(a *app) {
+			snapshotAPI(a)
+			a.activeAPI().code.Buffer.Set("openapi: broken")
+			a.activeAPI().validate()
+			a.activeAPI().tab = 1
+		}, want: "Validation failed"},
+		{name: "secondary-api-notes", setup: func(a *app) { snapshotAPI(a); a.activeAPI().tab = 2 }, want: "Review before publishing"},
 		{name: "settings", setup: func(a *app) { a.settingsOpen = true }, want: "Dark appearance"},
 		{name: "commands", setup: func(a *app) { a.workbench.openPalette() }, want: "Find command"},
 		{name: "commands-unavailable", setup: func(a *app) { a.workbench.openPalette(); a.workbench.query = "Send request" }, want: "unavailable"},
@@ -257,7 +312,7 @@ func TestUISnapshots(t *testing.T) {
 		}
 		for _, state := range states {
 			widths := []int{1280}
-			if state.name == "capture-selected" || state.name == "capture-ws" || state.name == "capture-connect" || strings.HasPrefix(state.name, "requests-") || state.name == "active-tools" {
+			if state.name == "capture-selected" || state.name == "capture-ws" || state.name == "capture-connect" || strings.HasPrefix(state.name, "requests-") || strings.HasPrefix(state.name, "secondary-") || state.name == "active-tools" {
 				widths = append(widths, 960)
 			}
 			for _, width := range widths {
@@ -360,4 +415,51 @@ func snapshotApp() *app {
 	a.chosen.Add(1)
 	openResponseBody(a)
 	return a
+}
+
+func snapshotRuns(a *app) {
+	a.workspace, a.requestsSection, a.requestSide = 1, 2, 1
+	a.history = nil // The legacy Recent requests section is outside phase five.
+	for i, body := range []string{`{"id":73,"active":false}`, `{"id":73,"active":true}`} {
+		draft := savedRequest{Name: "Create project", Method: "POST", URL: "https://api.example.com/projects", Body: `{"name":"Demo project"}`}
+		r := snapshotExperiment(i+1, draft, "Local", request.Execution{
+			Response:  &capture.Flow{Method: "POST", URL: draft.URL, Status: 201, Millis: 47, Bytes: len(body), ResponseHeader: http.Header{"Content-Type": {"application/json"}}, ResponseBody: body},
+			Tests:     []request.TestResult{{Name: "Created", Pass: true}},
+			Console:   []request.ConsoleMessage{{Phase: "post-response", Kind: "log", Text: "Created project 73"}},
+			Variables: []request.ResolvedVariable{{Name: "baseUrl", Value: "https://api.example.com", Source: "environment"}},
+		})
+		r.At = snapshotTime.Add(time.Duration(i) * time.Minute)
+		if err := a.experiments.log.retain(r); err != nil {
+			panic(err)
+		}
+	}
+	a.experiments.log.Baseline = 1
+	a.experiments.pick(2)
+}
+
+func snapshotRunner(a *app) {
+	snapshotRuns(a)
+	a.requestsSection, a.requestSide = 0, 0
+	a.runner = collectionRunner{open: true, collection: "Workspace", iterations: "2", completed: 2, failures: 1, status: "Finished"}
+	a.runner.load(a.requests)
+	a.runner.rows = []runnerRow{
+		{name: "Create project", iteration: 1, summary: "201 · 43 B · 47 ms · 1/1 tests", recordID: 1, tests: []request.TestResult{{Name: "Created", Pass: true}}},
+		{name: "Check project", iteration: 2, summary: "503 · 41 B · 132 ms · 0/1 tests", failed: true, recordID: 2, tests: []request.TestResult{{Name: "Available", Error: "expected 200, received 503"}}},
+	}
+}
+
+func snapshotSources(a *app) {
+	s := &a.investigations
+	s.show()
+	s.sources = []EvidenceSource{
+		{Label: "before.json", Notes: "Previous release", Session: sessionFrom(a.flows[:1], nil)},
+		{Label: "after.json", Notes: "Current release", Session: sessionFrom(a.flows[1:], nil)},
+	}
+	s.panes = [2]int{0, 1}
+	s.refreshSearch()
+}
+
+func snapshotAPI(a *app) {
+	a.workspace, a.requestsSection, a.requestSide = 1, 1, 3
+	a.addAPI(apiSpec{ID: "snapshot-api", Source: openAPIFixture, Notes: []string{"Review authentication and response schemas before publishing."}}, true)
 }

@@ -121,12 +121,9 @@ func (a *app) saveAPI(d *apiDocument) {
 func (a *app) apiView(c *ui.Context, t *ui.Theme) {
 	d := a.activeAPI()
 	if d == nil {
-		ui.Column(c).Fill().Center().Gap(10).Children(func() {
-			ui.Icon(c, apiIcon).Size(28, 28).TextColor(t.TextMuted)
-			ui.Text(c, "From traffic to an API contract").FontSize(15).Bold()
-			ui.Text(c, "Save captured requests in a collection, then generate an OpenAPI draft.").FontSize(12).TextColor(t.TextMuted)
-			ui.Text(c, "Or create or import a standalone OpenAPI 3.0 / 3.1 specification.").FontSize(12).TextColor(t.TextMuted)
-			if ui.PrimaryButton(c, "Create API").Clicked() {
+		emptyState(c, "From traffic to an API contract", "Save captured requests in a collection, then generate an OpenAPI draft.", func() {
+			ui.Text(c, "Or create or import a standalone OpenAPI 3.0 / 3.1 specification.").FontSize(textBody).TextColor(t.TextMuted)
+			if secondaryButton(c, "Create API").Clicked() {
 				a.newAPI()
 			}
 		})
@@ -135,18 +132,18 @@ func (a *app) apiView(c *ui.Context, t *ui.Theme) {
 	current := d.code.Buffer.String() == d.checked
 	valid := current && d.parsed != nil
 	ui.Column(c).Key(d.spec.ID).Fill().Children(func() {
-		ui.Row(c).Height(44).Padding(0, 12).Gap(8).AlignItems(ui.Center).Children(func() {
-			ui.Text(c, d.title()).FontSize(13).Bold().Grow(1).SingleLine()
-			if ui.Button(c, "Validate").Height(26).FontSize(11).Clicked() {
+		ui.Row(c).Height(heightTabs).Padding(0, t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+			ui.Text(c, d.title()).FontSize(textBody).Bold().Grow(1).MinWidth(0).SingleLine()
+			if secondaryButton(c, "Validate").Clicked() {
 				d.validate()
 			}
-			if ui.Button(c, "Export…").Height(26).FontSize(11).Label("Export OpenAPI").Disabled(!valid).Clicked() {
+			if secondaryButton(c, "Export…").Label("Export OpenAPI").Disabled(!valid).Clicked() {
 				a.exportOpenAPI(d)
 			}
-			if ui.Button(c, "Create collection").Height(26).FontSize(11).Label("Create collection from OpenAPI").Disabled(!valid).Clicked() {
+			if secondaryButton(c, "Create collection").Label("Create collection from OpenAPI").Disabled(!valid).Clicked() {
 				a.importOpenAPICollection(d.parsed, d.title())
 			}
-			if ui.PrimaryButton(c, "Save API").Height(26).FontSize(11).Clicked() {
+			if primaryButton(c, "Save API").Clicked() {
 				a.saveAPI(d)
 			}
 		})
@@ -160,21 +157,22 @@ func (a *app) apiView(c *ui.Context, t *ui.Theme) {
 			}
 			status = fmt.Sprintf("%s  ·  OpenAPI %s  ·  Endpoints: %d", state, d.parsed.OpenAPI, len(apiOperations(d.parsed)))
 		}
-		ui.Text(c, status).FontSize(11).TextColor(color).Padding(0, 12, 8, 12)
+		ui.Text(c, status).FontSize(textMeta).FontFeatures("tnum").TextColor(color).Padding(0, t.Space(3), t.Space(2), t.Space(3))
 		if d.spec.Fingerprint != "" {
 			changed := d.spec.Fingerprint != collectionFingerprint(collectionRequests(a.requests, d.spec.Collection))
-			ui.Row(c).Padding(6, 12).Gap(10).AlignItems(ui.Center).Background(t.Surface).Children(func() {
+			ui.Row(c).Padding(t.Space(2), t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).
+				Border(0, t.Border).BorderWidth(1, 0, 1, 0).Children(func() {
 				message := "Source: " + cmp.Or(d.spec.Collection, "Saved") + " · independent draft"
 				if changed {
 					message = "Source collection changed — review before updating this contract."
 				}
-				ui.Text(c, message).FontSize(11).TextColor(t.TextMuted).Grow(1)
-				if ui.Button(c, "Generate new draft").FontSize(11).Clicked() {
+				ui.Text(c, message).FontSize(textMeta).TextColor(t.TextMuted).Grow(1)
+				if secondaryButton(c, "Generate new draft").Clicked() {
 					a.generateAPI(d.spec.Collection)
 				}
 			})
 		}
-		ui.Row(c).Height(34).Padding(0, 6).AlignItems(ui.Center).
+		ui.Row(c).Height(heightTabs).Padding(0, t.Space(1)).AlignItems(ui.Center).
 			Border(0, t.Border).BorderWidth(0, 0, 1, 0).Children(func() {
 			flatTabs(c, &d.tab, "API", "Endpoints", "OpenAPI", "Review notes")
 		})
@@ -183,29 +181,30 @@ func (a *app) apiView(c *ui.Context, t *ui.Theme) {
 			if valid {
 				a.apiEndpoints(c, t, d)
 			} else {
-				ui.Scroll(c).Grow(1).Padding(18).Gap(12).Children(func() {
-					ui.Text(c, cmp.Or(d.problem, "Validate the edited source to refresh endpoints.")).TextColor(t.TextMuted).FontSize(12)
-					if ui.Button(c, "Edit OpenAPI").Clicked() {
+				emptyState(c, "Endpoints unavailable", cmp.Or(d.problem, "Validate the edited source to refresh endpoints."), func() {
+					if secondaryButton(c, "Edit OpenAPI").Clicked() {
 						d.tab = 1
 					}
 				})
 			}
 		case 1:
 			if current && d.problem != "" {
-				ui.Scroll(c).Height(90).Padding(10, 18).Children(func() {
-					ui.Text(c, d.problem).FontSize(11).TextColor(t.Danger)
+				ui.Scroll(c).Height(90).Padding(t.Space(2), t.Space(3)).Children(func() {
+					ui.Text(c, d.problem).FontSize(textMeta).TextColor(t.Danger)
 				})
 				ui.Divider(c)
 			}
-			editor.View(c, d.code).Grow(1)
+			ui.Column(c).Grow(1).MinHeight(0).Padding(t.Space(3)).Children(func() {
+				requestCodeEditor(c, d.code)
+			})
 		case 2:
-			ui.Scroll(c).Grow(1).Padding(20).Gap(16).Children(func() {
-				ui.Text(c, "Review before publishing").FontSize(16).Bold()
-				ui.Text(c, "Validation checks OpenAPI structure, not whether your service implements the contract. No automatic or bidirectional synchronization is performed.").FontSize(12).TextColor(t.TextMuted)
+			ui.Scroll(c).Grow(1).Padding(t.Space(4)).Gap(t.Space(4)).Children(func() {
+				ui.Text(c, "Review before publishing").FontSize(textTitle).Bold()
+				ui.Text(c, "Validation checks OpenAPI structure, not whether your service implements the contract. No automatic or bidirectional synchronization is performed.").FontSize(textBody).TextColor(t.TextMuted)
 				for _, note := range d.spec.Notes {
-					ui.Text(c, "• "+note).FontSize(12)
+					ui.Text(c, "• "+note).FontSize(textBody)
 				}
-				ui.Text(c, "Only standalone JSON/YAML is supported. Internal #/ references are resolved; external files and URLs are never fetched. Original source is preserved on save/export.").FontSize(12).TextColor(t.TextMuted)
+				ui.Text(c, "Only standalone JSON/YAML is supported. Internal #/ references are resolved; external files and URLs are never fetched. Original source is preserved on save/export.").FontSize(textBody).TextColor(t.TextMuted)
 			})
 		}
 	})
@@ -214,10 +213,7 @@ func (a *app) apiView(c *ui.Context, t *ui.Theme) {
 func (a *app) apiEndpoints(c *ui.Context, t *ui.Theme, d *apiDocument) {
 	endpoints := apiOperations(d.parsed)
 	if len(endpoints) == 0 {
-		ui.Column(c).Grow(1).Center().Gap(8).Children(func() {
-			ui.Text(c, "No HTTP endpoints yet").FontSize(15).Bold()
-			ui.Text(c, "Define paths in OpenAPI, or generate a draft from saved requests.").FontSize(12).TextColor(t.TextMuted)
-		})
+		emptyState(c, "No HTTP endpoints yet", "Define paths in OpenAPI, or generate a draft from saved requests.", nil)
 		return
 	}
 	if d.endpoint == "" {
@@ -227,11 +223,14 @@ func (a *app) apiEndpoints(c *ui.Context, t *ui.Theme, d *apiDocument) {
 		ui.Sidebar(c, &d.endpoint, func() {
 			for _, endpoint := range endpoints {
 				label := endpoint.method + " " + endpoint.path
-				ui.SidebarItem(c, label, nil, endpoint.path).Label("Endpoint: " + label).Children(func() {
-					ui.Text(c, endpoint.method).FontSize(9).Bold().TextColor(methodColor(endpoint.method, t)).Width(36)
+				sidebarItem(c, label, nil, endpoint.path, d.endpoint == label).Label("Endpoint: " + label).Children(func() {
+					method := ui.Text(c, endpoint.method).Font(fontMono).FontSize(textMeta).SingleLine().Width(48)
+					if d.endpoint != label {
+						method.TextColor(methodColor(endpoint.method, t))
+					}
 				})
 			}
-		}).Width(210).FillHeight().Background(t.Surface)
+		}).Width(210).FillHeight().Padding(t.Space(2)).Gap(0).Background(t.Surface)
 		ui.Divider(c)
 		selected := 0
 		for i, endpoint := range endpoints {
@@ -241,19 +240,24 @@ func (a *app) apiEndpoints(c *ui.Context, t *ui.Theme, d *apiDocument) {
 		}
 		endpoint := endpoints[selected]
 		d.endpoint = endpoint.method + " " + endpoint.path
-		ui.Column(c).Grow(1).FillHeight().Padding(18).Gap(12).Children(func() {
-			ui.Text(c, endpoint.method+" "+endpoint.path).FontSize(16).Bold().SingleLine().TextColor(methodColor(endpoint.method, t))
+		ui.Column(c).Grow(1).MinWidth(0).FillHeight().Padding(t.Space(3)).Gap(t.Space(3)).Children(func() {
+			ui.Row(c).Height(heightTabs).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+				methodLabel(c, endpoint.method)
+				ui.Text(c, endpoint.path).Font(fontMono).FontSize(textTitle).Bold().SingleLine().Grow(1).MinWidth(0)
+			})
 			if summary := cmp.Or(endpoint.op.Summary, endpoint.op.OperationID); summary != "" && summary != endpoint.method+" "+endpoint.path {
-				ui.Text(c, summary).FontSize(13)
+				ui.Text(c, summary).FontSize(textBody)
 			}
-			if ui.PrimaryButton(c, "Open in Requests").Width(160).Clicked() {
+			if secondaryButton(c, "Open in Requests").Width(160).Clicked() {
 				a.addDocument(requestFromOperation(d.parsed, endpoint), "")
 				a.sourceAPI = d.spec.ID
 				a.composeResult = "Draft from OpenAPI. Review server, variables, authentication and body before sending."
 			}
-			ui.Text(c, "Uses the first effective server and required parameters. Body examples are copied when provided; schemas are not turned into invented payloads.").FontSize(11).TextColor(t.TextMuted)
+			ui.Text(c, "Uses the first effective server and required parameters. Body examples are copied when provided; schemas are not turned into invented payloads.").FontSize(textMeta).TextColor(t.TextMuted)
 			ui.Divider(c)
-			ui.Text(c, "OPERATION · schemas and references").FontSize(10).Bold().TextColor(t.TextMuted)
+			ui.Row(c).Height(heightTabs).AlignItems(ui.Center).Children(func() {
+				ui.Text(c, "OPERATION · schemas and references").FontSize(textMeta).Bold().TextColor(t.TextMuted)
+			})
 			if d.details == nil || d.detailsFor != d.endpoint {
 				data, _ := json.Marshal(endpoint.op, jsontext.WithIndent("  "))
 				buf := editor.NewBuffer(string(data))
@@ -261,7 +265,7 @@ func (a *app) apiEndpoints(c *ui.Context, t *ui.Theme, d *apiDocument) {
 				d.details = &editor.State{Buffer: buf, ReadOnly: true, NoScrollPastEnd: true, Label: "Operation schema"}
 				d.detailsFor = d.endpoint
 			}
-			editor.View(c, d.details).Grow(1)
+			requestCodeEditor(c, d.details)
 		})
 	})
 }

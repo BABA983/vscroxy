@@ -294,22 +294,23 @@ func (a *app) runnerModal(c *ui.Context, t *ui.Theme) {
 	if !r.open {
 		return
 	}
+	width, height := c.Size()
 	appModal(c, &r.open, func() {
-		ui.Column(c).Width(820).Height(510).Gap(12).Children(func() {
+		ui.Column(c).Width(min(840, width-80)).Height(min(560, height-100)).Gap(t.Space(2)).Children(func() {
 			dialogTitle(c, "Collection Runner")
-			ui.Text(c, "Runs saved requests in order, 30 s per request").FontSize(11).TextColor(t.TextMuted)
-			ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
+			ui.Text(c, "Runs saved requests in order, 30 s per request").FontSize(textMeta).TextColor(t.TextMuted)
+			ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 				names := runnableCollections(a.requests)
 				if len(names) == 0 {
 					names = []string{""}
 				}
-				if ui.Select(c, &r.collection, names).Label("Runner collection").Grow(1).Disabled(r.running).Changed() {
+				if ui.Select(c, &r.collection, names).Label("Runner collection").Grow(1).Height(heightControl).FontSize(textBody).Radius(radiusControl).Disabled(r.running).Changed() {
 					r.load(a.requests)
 				}
-				ui.TextInput(c, &r.iterations).Width(86).Label("Iterations").Disabled(r.running)
-				ui.Checkbox(c, &r.stopOnFailure, "Stop on failure").Disabled(r.running)
+				ui.TextInput(c, &r.iterations).Width(86).Height(heightControl).FontSize(textBody).Radius(radiusControl).Label("Iterations").Disabled(r.running)
+				ui.Checkbox(c, &r.stopOnFailure, "Stop on failure").FontSize(textBody).Disabled(r.running)
 			})
-			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+			ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 				text, color := "No data file: every iteration uses the same variables.", t.TextMuted
 				switch {
 				case r.dataProblem != "":
@@ -317,27 +318,32 @@ func (a *app) runnerModal(c *ui.Context, t *ui.Theme) {
 				case len(r.data) > 0:
 					text, color = fmt.Sprintf("%s · %d %s · %s", r.dataName, len(r.data), plural(len(r.data), "row", "rows"), strings.Join(request.DataColumns(r.data), ", ")), t.Text
 				}
-				ui.Text(c, text).FontSize(11).TextColor(color).Grow(1).SingleLine()
-				if len(r.data) > 0 && ui.Button(c, "Remove").Label("Remove data file").Disabled(r.running).Clicked() {
+				ui.Text(c, text).FontSize(textMeta).TextColor(color).Grow(1).MinWidth(0).SingleLine().Tooltip(text)
+				if len(r.data) > 0 && secondaryButton(c, "Remove").Label("Remove data file").Disabled(r.running).Clicked() {
 					r.data, r.dataName, r.iterations = nil, "", "1"
 				}
-				if ui.Button(c, "Data file…").Tooltip("CSV with a header row, or a JSON array of objects; each row is one iteration's pm.iterationData").Disabled(r.running).Clicked() {
+				if secondaryButton(c, "Data file…").Tooltip("CSV with a header row, or a JSON array of objects; each row is one iteration's pm.iterationData").Disabled(r.running).Clicked() {
 					a.chooseRunnerData()
 				}
 			})
-			ui.Row(c).Grow(1).Gap(16).AlignItems(ui.Stretch).Children(func() {
-				ui.Column(c).Width(310).Gap(8).Children(func() {
-					ui.Text(c, "EXECUTION ORDER").FontSize(10).Bold().TextColor(t.TextMuted)
+			ui.Row(c).Grow(1).MinHeight(0).Border(1, t.Border).Radius(radiusControl).AlignItems(ui.Stretch).Children(func() {
+				ui.Column(c).Width(300).Children(func() {
+					ui.Text(c, "EXECUTION ORDER").Height(heightTabs).Padding(8).FontSize(textMeta).Bold().TextColor(t.TextMuted).
+						Border(0, t.Border).BorderWidth(0, 0, 1, 0)
 					move, delta := -1, 0
-					ui.Scroll(c).Grow(1).Gap(6).Children(func() {
+					ui.Scroll(c).Grow(1).Children(func() {
+						if len(r.steps) == 0 {
+							emptyState(c, "No saved requests", "Choose a collection with saved requests to run.", nil)
+						}
 						for i := range r.steps {
 							step := &r.steps[i]
-							ui.Row(c).Key(i).Gap(6).AlignItems(ui.Center).Children(func() {
-								ui.Checkbox(c, &step.enabled, step.request.Name).Label(fmt.Sprintf("Run request %d", i+1)).Grow(1).Disabled(r.running)
-								if ui.Button(c, "↑").Label(fmt.Sprintf("Move request %d up", i+1)).Disabled(r.running || i == 0).Clicked() {
+							ui.Row(c).Key(i).Height(heightControl).Padding(0, 8).Gap(4).AlignItems(ui.Center).
+								Border(0, t.Border).BorderWidth(0, 0, 1, 0).Children(func() {
+								ui.Checkbox(c, &step.enabled, step.request.Name).Label(fmt.Sprintf("Run request %d", i+1)).FontSize(textBody).Grow(1).Disabled(r.running)
+								if secondaryButton(c, "↑").Label(fmt.Sprintf("Move request %d up", i+1)).Width(heightCompact).Padding(0).Disabled(r.running || i == 0).Clicked() {
 									move, delta = i, -1
 								}
-								if ui.Button(c, "↓").Label(fmt.Sprintf("Move request %d down", i+1)).Disabled(r.running || i == len(r.steps)-1).Clicked() {
+								if secondaryButton(c, "↓").Label(fmt.Sprintf("Move request %d down", i+1)).Width(heightCompact).Padding(0).Disabled(r.running || i == len(r.steps)-1).Clicked() {
 									move, delta = i, 1
 								}
 							})
@@ -347,33 +353,49 @@ func (a *app) runnerModal(c *ui.Context, t *ui.Theme) {
 						r.steps[move], r.steps[move+delta] = r.steps[move+delta], r.steps[move]
 					}
 				})
-				ui.Column(c).Grow(1).Gap(8).Children(func() {
-					ui.Text(c, fmt.Sprintf("RESULTS · %d completed · %d failed", r.completed, r.failures)).FontSize(10).Bold().TextColor(t.TextMuted)
+				ui.Divider(c)
+				ui.Column(c).Grow(1).MinWidth(0).Children(func() {
+					ui.Text(c, fmt.Sprintf("RESULTS · %d completed · %d failed", r.completed, r.failures)).Height(heightTabs).Padding(8).
+						FontSize(textMeta).FontFeatures("tnum").Bold().TextColor(t.TextMuted).Border(0, t.Border).BorderWidth(0, 0, 1, 0)
 					r.results.Selected = &r.picked
-					ui.List(c, &r.results, len(r.rows), func(i int) {
-						row := r.rows[i]
+					ui.List(c, &r.results, len(r.rows)).Grow(1).Rows(func(item ui.ListRow) {
+						c := item.Context
+						row := r.rows[item.Index]
 						color := t.Success
 						if row.failed {
 							color = t.Danger
 						}
-						ui.Column(c).Padding(6).Gap(3).Children(func() {
-							ui.Text(c, fmt.Sprintf("%d · %s", row.iteration, row.name)).FontSize(12).Bold()
-							ui.Text(c, row.summary).FontSize(11).TextColor(color).SingleLine()
+						ui.Row(c).Height(heightControl).Padding(0, 8).Gap(8).AlignItems(ui.Center).
+							Border(0, t.Border).BorderWidth(0, 0, 1, 0).Tooltip(row.summary).Children(func() {
+							ui.Text(c, fmt.Sprintf("%d · %s", row.iteration, row.name)).FontSize(textBody).FontFeatures("tnum").Grow(1).MinWidth(0).SingleLine()
+							summary := ui.Text(c, row.summary).FontSize(textMeta).FontFeatures("tnum").SingleLine().MaxWidth(240)
+							if !item.Selected() {
+								summary.TextColor(color)
+							}
 						})
-					}).Grow(1)
-					ui.Scroll(c).Height(125).Gap(3).Children(func() {
+					}).Children(func() {
+						if len(r.rows) == 0 {
+							if r.running {
+								emptyState(c, "Running collection", "Completed requests will appear here.", nil)
+							} else {
+								emptyState(c, "No results yet", "Run the selected requests to inspect checks and output.", nil)
+							}
+						}
+					})
+					ui.Divider(c)
+					ui.Scroll(c).Height(125).Padding(8).Gap(4).Children(func() {
 						if r.picked >= 0 && r.picked < len(r.rows) {
 							row := r.rows[r.picked]
-							if ui.Button(c, "Inspect retained run").Disabled(row.recordID == 0).Clicked() {
+							if secondaryButton(c, "Inspect retained run").Disabled(row.recordID == 0).Clicked() {
 								a.experiments.scope, a.experiments.draftKey = nil, ""
 								a.experiments.pick(row.recordID)
 								a.experiments.open, r.open = true, false
 							}
 							for _, test := range r.rows[r.picked].tests {
-								testResultRow(c, test, 11)
+								testResultRow(c, test, textBody)
 							}
 							for _, entry := range row.console {
-								ui.Text(c, entry.Phase+" · "+entry.Kind+" · "+entry.Text).FontSize(11).Selectable()
+								ui.Text(c, entry.Phase+" · "+entry.Kind+" · "+entry.Text).FontSize(textBody).Selectable()
 							}
 						}
 					})
@@ -383,17 +405,17 @@ func (a *app) runnerModal(c *ui.Context, t *ui.Theme) {
 			if r.status != "" {
 				footer = r.status + " · displaying latest 1000 results; closing keeps a run active"
 			}
-			ui.Text(c, footer).FontSize(11).TextColor(t.TextMuted)
-			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
-				if ui.Button(c, "Close").Clicked() {
+			ui.Text(c, footer).FontSize(textMeta).TextColor(t.TextMuted)
+			ui.Row(c).Gap(t.Space(2)).Justify(ui.End).Children(func() {
+				if secondaryButton(c, "Close").Clicked() {
 					r.open = false
 				}
-				if ui.Button(c, "Cancel run").Disabled(!r.running).Clicked() {
+				if secondaryButton(c, "Cancel run").Disabled(!r.running).Clicked() {
 					r.cancelled = true
 					r.cancel()
 					r.status = "Stopping…"
 				}
-				if ui.PrimaryButton(c, "Run collection").Disabled(r.running || len(r.steps) == 0).Clicked() {
+				if primaryButton(c, "Run collection").Disabled(r.running || len(r.steps) == 0).Clicked() {
 					a.startRunner()
 				}
 			})
