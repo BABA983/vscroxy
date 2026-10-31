@@ -927,7 +927,14 @@ func (v *captureViews) sidebar(c *ui.Context, t *ui.Theme, a *app) {
 		for i, view := range v.views {
 			name := v.label(i)
 			ui.Row(c.Key(view.id)).AlignItems(ui.Center).Children(func() {
-				b := uikit.ToolbarButton(c, "Capture view: "+name, "Independent filters, selection and scroll position", i == v.active).FillWidth()
+				// The active view is where the sidebar's scope applies, not a
+				// second selection: an accent icon and full-strength text
+				// mark it, and only the scope above has the selection look.
+				active := i == v.active
+				b := uikit.ToolbarButton(c, "Capture view: "+name, "Independent filters, selection and scroll position", false).FillWidth().Checked(active)
+				if active {
+					b.TextColor(t.Text)
+				}
 				if b.Clicked() {
 					v.capture(a)
 					v.activate(a, i)
@@ -937,7 +944,7 @@ func (v *captureViews) sidebar(c *ui.Context, t *ui.Theme, a *app) {
 					view.reveal = false
 				}
 				b.Children(func() {
-					ui.Icon(c, layersIcon).Size(uikit.IconInline, uikit.IconInline)
+					onIcon(c, t, layersIcon, active)
 					uikit.Body(c, name).SingleLine().Grow(1)
 					if len(v.views) > 1 {
 						if uikit.IconButton(c, "Close view: "+name, "Close this view", closeIcon).Clicked() {
@@ -964,7 +971,10 @@ func (v *captureViews) sidebar(c *ui.Context, t *ui.Theme, a *app) {
 		}
 		for _, f := range v.filters {
 			active := v.activeView().saved(f.Name) == f
-			b := uikit.ToolbarButton(c, "Quick filter: "+f.Name, "Apply saved conditions", active).FillWidth()
+			b := uikit.ToolbarButton(c, "Quick filter: "+f.Name, "Apply saved conditions", false).FillWidth().Checked(active)
+			if active {
+				b.TextColor(t.Text)
+			}
 			if b.Clicked() {
 				if active {
 					v.resetFilters(a)
@@ -973,7 +983,7 @@ func (v *captureViews) sidebar(c *ui.Context, t *ui.Theme, a *app) {
 				}
 			}
 			b.Children(func() {
-				ui.Icon(c, filterIcon).Size(uikit.IconInline, uikit.IconInline)
+				onIcon(c, t, filterIcon, active)
 				uikit.Body(c, f.Name).SingleLine()
 			})
 		}
@@ -1301,4 +1311,12 @@ func (v *captureViews) deleteSaved(a *app, name string) {
 	v.problem = ""
 	v.note = "Deleted " + strconv.Quote(name) + "."
 	a.setMessage("Deleted capture filter " + name)
+}
+
+// onIcon is a sidebar toggle's icon, in the accent color while it is on.
+func onIcon(c *ui.Context, t *ui.Theme, icon *ui.SVG, on bool) {
+	i := ui.Icon(c, icon).Size(uikit.IconInline, uikit.IconInline)
+	if on {
+		i.TextColor(t.Accent)
+	}
 }
