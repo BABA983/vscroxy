@@ -66,7 +66,7 @@ func (a *app) collectionTree(c *ui.Context) {
 			item := ui.TreeItem(c.Key("folder:"+path), "", open, func() { branch(path) }).Height(uikit.HeightControl).
 				Label("Collection: " + path).PopoverMenu(menu)
 			item.Children(func() {
-				ui.Icon(c, lucide.Folder()).Size(uikit.IconInline, uikit.IconInline).TextColor(c.Theme().TextMuted)
+				uikit.Glyph(c, lucide.Folder())
 				uikit.Body(c, name).SingleLine().Grow(1)
 				action := uikit.IconButton(c, "Collection actions: "+path, "Collection actions", moreIcon).PopoverMenuButton(menu).
 					Absolute().Right(0).Top(2).Background(uikit.Colors(c.Theme()).Panel)
@@ -116,7 +116,7 @@ func (a *app) collectionTree(c *ui.Context) {
 		branch("")
 	})
 	if len(a.requests) == 0 && len(paths) == 0 {
-		ui.Text(c, "Save a request here, or edit a captured flow to start.").FontSize(uikit.TextBody).TextColor(c.Theme().TextMuted).Padding(c.Theme().Space(2))
+		uikit.Hint(c, "Save a request here, or edit a captured flow to start.").Padding(c.Theme().Space(2))
 	}
 }
 
@@ -155,7 +155,7 @@ func (a *app) unsavedRequests(c *ui.Context, query string) {
 		}
 	}).Height(uikit.HeightControl).Label("Unsaved requests")
 	group.Children(func() {
-		ui.Icon(c, lucide.FilePen()).Size(uikit.IconInline, uikit.IconInline).TextColor(t.TextMuted)
+		uikit.Glyph(c, lucide.FilePen())
 		uikit.Body(c, "Unsaved").SingleLine().Grow(1)
 		uikit.Meta(c, fmt.Sprint(len(unsaved))).FontFeatures("tnum")
 	})

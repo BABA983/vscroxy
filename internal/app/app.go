@@ -1744,20 +1744,24 @@ func (a *app) table(c *ui.Context) {
 		text := func(s string) ui.Element {
 			return uikit.Body(c, s).Height(16).FontFeatures("tnum").SingleLine()
 		}
+		// Facts beside the request: its number, host, client, timing and size.
+		quiet := func(s string) ui.Element {
+			return uikit.Hint(c, s).Height(16).FontFeatures("tnum").SingleLine()
+		}
 		switch cols[col].ID {
 		case "id":
-			text(fmt.Sprint(f.id)).Font(uikit.FontMono).TextColor(t.TextMuted)
+			quiet(fmt.Sprint(f.id)).Font(uikit.FontMono)
 		case "method":
 			uikit.MethodLabel(c, f.method).Height(16).TextColor(uikit.MethodColor(f.method, t)).Tooltip(f.method).PopoverMenu(a.rowMenu(c, f))
 		case "host":
-			text(f.host).TextColor(t.TextMuted).Tooltip(f.url).PopoverMenu(a.rowMenu(c, f))
+			quiet(f.host).Tooltip(f.url).PopoverMenu(a.rowMenu(c, f))
 		case "url":
 			if a.edited(f.id) {
 				ui.Box(c).Size(6, 6).Radius(3).Background(uikit.Colors(t).Accent).MarginEnd(t.Space(1.5)).
 					Label("Edited").Tooltip("Edited in the inspector · the capture itself is unchanged")
 			}
 			if f.pinned {
-				ui.Icon(c, pinIcon).Size(uikit.IconInline, uikit.IconInline).MarginEnd(t.Space(1)).TextColor(t.TextMuted)
+				uikit.Glyph(c, pinIcon).MarginEnd(t.Space(1))
 			}
 			if f.color != "" {
 				if dot, ok := highlightColor(f.color); ok {
@@ -1770,7 +1774,7 @@ func (a *app) table(c *ui.Context) {
 					ui.Icon(c, lockIcon).Size(uikit.IconInline, uikit.IconInline).TextColor(rest).MarginEnd(t.Space(1)).Tooltip("Encrypted tunnel; CONNECT success is not a decrypted response")
 				}
 				if f.note != "" {
-					ui.Icon(c, noteIcon).Size(uikit.IconInline, uikit.IconInline).TextColor(t.TextMuted).MarginEnd(t.Space(1)).Tooltip(f.note)
+					uikit.Glyph(c, noteIcon).MarginEnd(t.Space(1)).Tooltip(f.note)
 				}
 				if f.dns != "" {
 					ui.Box(c).MinWidth(uikit.HeightControl).Height(16).Radius(uikit.RadiusControl).Background(t.Warning.Alpha(0.12)).Center().MarginEnd(t.Space(1)).
@@ -1785,7 +1789,7 @@ func (a *app) table(c *ui.Context) {
 			if f.conn.error != "" {
 				text("Failed").TextColor(t.Danger).Tooltip(f.conn.errorStage + ": " + f.conn.error).PopoverMenu(a.rowMenu(c, f))
 			} else if f.kind == "connect" {
-				text("Tunnel").TextColor(t.TextMuted).Tooltip(fmt.Sprintf("CONNECT %d · encrypted tunnel, not an HTTP response", f.status)).PopoverMenu(a.rowMenu(c, f))
+				quiet("Tunnel").Tooltip(fmt.Sprintf("CONNECT %d · encrypted tunnel, not an HTTP response", f.status)).PopoverMenu(a.rowMenu(c, f))
 			} else {
 				ui.Box(c).Size(5, 5).Radius(uikit.RadiusControl).Background(f.statusColor(t)).MarginEnd(t.Space(2))
 				text(fmt.Sprint(f.status)).TextColor(f.statusColor(t)).PopoverMenu(a.rowMenu(c, f))
@@ -1796,17 +1800,17 @@ func (a *app) table(c *ui.Context) {
 			} else {
 				clientBadge(c, f.process)
 			}
-			text(f.process).Padding(0, 0, 0, t.Space(2)).PopoverMenu(a.rowMenu(c, f)).TextColor(t.TextMuted)
+			quiet(f.process).Padding(0, 0, 0, t.Space(2)).PopoverMenu(a.rowMenu(c, f))
 		case "duration":
-			text(fmt.Sprintf("%d ms", f.millis)).TextColor(t.TextMuted)
+			quiet(fmt.Sprintf("%d ms", f.millis))
 		case "size":
-			text(humanBytes(f.bytes)).TextColor(t.TextMuted)
+			quiet(humanBytes(f.bytes))
 		case "captured":
 			at := "—"
 			if !f.at.IsZero() {
 				at = f.at.Local().Format("15:04:05")
 			}
-			text(at).Font(uikit.FontMono).TextColor(t.TextMuted)
+			quiet(at).Font(uikit.FontMono)
 		default:
 			cc, ok := a.customColumnAt(cols[col].ID)
 			if !ok {
@@ -1814,7 +1818,7 @@ func (a *app) table(c *ui.Context) {
 			}
 			value := cc.value(f)
 			if value == "" {
-				text("—").TextColor(t.TextMuted)
+				quiet("—")
 				return
 			}
 			cell := text(value).TextColor(t.Text).Tooltip(value)

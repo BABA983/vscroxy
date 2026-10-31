@@ -89,7 +89,6 @@ func TestUISnapshots(t *testing.T) {
 	states := []snapshot{
 		{name: "capture-empty", setup: func(a *app) { a.flows = nil; a.countDomains(); a.countClients(); a.applyFilter() }, want: "Capture is stopped"},
 		{name: "capture-selected", want: "Request inspector"},
-		{name: "capture-stacked", setup: func(a *app) { a.workbench.layout = "bottom" }, want: "Request inspector"},
 		{name: "capture-edited", setup: edited, want: "Edited"},
 		{name: "capture-sent", setup: func(a *app) { edited(a); sent(a) }, want: "Last attempt"},
 		{name: "capture-no-matches", act: func(t *testing.T, tt *ui.Tester) {
@@ -448,68 +447,80 @@ func TestUISnapshots(t *testing.T) {
 			if state.name == "capture-selected" || state.name == "capture-edited" || state.name == "capture-sent" || state.name == "capture-ws" || state.name == "capture-connect" || strings.HasPrefix(state.name, "requests-") || strings.HasPrefix(state.name, "secondary-") || strings.HasPrefix(state.name, "dialog-") || state.name == "active-tools" {
 				widths = append(widths, 960)
 			}
-			for _, width := range widths {
-				heights := []int{800}
-				if state.short && width == 960 {
-					heights = append(heights, 600)
-				}
-				for _, height := range heights {
-					name := fmt.Sprintf("%s-%d", state.name, width)
-					if height != 800 {
-						name += fmt.Sprintf("x%d", height)
+			// Live traffic reads in both layouts: the inspector beside the
+			// list (the default) and below it.
+			layouts := []string{"right"}
+			if strings.HasPrefix(state.name, "capture-") {
+				layouts = append(layouts, "bottom")
+			}
+			for _, layout := range layouts {
+				for _, width := range widths {
+					heights := []int{800}
+					if state.short && width == 960 {
+						heights = append(heights, 600)
 					}
-					t.Run(theme+"/"+name, func(t *testing.T) {
-						a := snapshotApp()
-						a.library.root = filepath.Join(t.TempDir(), "collections")
-						a.dark = dark
-						t.Cleanup(a.protobuf.stop)
-						if state.setup != nil {
-							state.setup(a)
+					for _, height := range heights {
+						name := fmt.Sprintf("%s-%d", state.name, width)
+						if height != 800 {
+							name += fmt.Sprintf("x%d", height)
 						}
-						announced := false
-						tt := ui.NewTester(func(c *ui.Context) {
-							if !announced {
-								for _, toast := range state.toasts {
-									c.AddToast(toast)
+						if layout == "bottom" {
+							name += "-stacked"
+						}
+						t.Run(theme+"/"+name, func(t *testing.T) {
+							a := snapshotApp()
+							a.library.root = filepath.Join(t.TempDir(), "collections")
+							a.dark = dark
+							a.workbench.layout = layout
+							t.Cleanup(a.protobuf.stop)
+							if state.setup != nil {
+								state.setup(a)
+							}
+							announced := false
+							tt := ui.NewTester(func(c *ui.Context) {
+								if !announced {
+									for _, toast := range state.toasts {
+										c.AddToast(toast)
+									}
+									announced = true
 								}
-								announced = true
+								a.view(c)
+							}, width, height)
+							tt.SetLocale("en-US")
+							if state.act != nil {
+								state.act(t, tt)
 							}
-							a.view(c)
-						}, width, height)
-						tt.SetLocale("en-US")
-						if state.act != nil {
-							state.act(t, tt)
-						}
-						// Protobuf decoding is asynchronous. Wait for completion, not
-						// an arbitrary sleep, and never capture an intermediate frame.
-						deadline := time.NewTimer(time.Minute)
-						defer deadline.Stop()
-						for a.protobuf.answers != nil {
-							select {
-							case <-deadline.C:
-								t.Fatal("protobuf render did not settle")
-							default:
+							// Protobuf decoding is asynchronous. Wait for completion, not
+							// an arbitrary sleep, and never capture an intermediate frame.
+							deadline := time.NewTimer(time.Minute)
+							defer deadline.Stop()
+							for a.protobuf.answers != nil {
+								select {
+								case <-deadline.C:
+									t.Fatal("protobuf render did not settle")
+								default:
+								}
+								runtime.Gosched()
+								tt.Frame()
 							}
-							runtime.Gosched()
+							tt.Advance(250 * time.Millisecond) // Complete toast entry motion.
 							tt.Frame()
-						}
-						tt.Advance(250 * time.Millisecond) // Complete toast entry motion.
-						tt.Frame()
-						if state.want != "" && !tt.HasText(state.want) {
-							t.Fatalf("missing %q: %v", state.want, tt.Texts())
-						}
-						base := filepath.Join(theme, name)
-						if state.menu != "" {
-							if !tt.HasText(state.menu) {
-								t.Fatalf("missing menu item %q: %v", state.menu, tt.Texts())
+							if state.want != "" && !tt.HasText(state.want) {
+								t.Fatalf("missing %q: %v", state.want, tt.Texts())
 							}
-						}
-						var b bytes.Buffer
-						if err := png.Encode(&b, tt.Image()); err != nil {
-							t.Fatal(err)
-						}
-						write(t, base+".png", b.Bytes())
-					})
+							base := filepath.Join(theme, name)
+							if state.menu != "" {
+								if !tt.HasText(state.menu) {
+									t.Fatalf("missing menu item %q: %v", state.menu, tt.Texts())
+								}
+							}
+							var b bytes.Buffer
+							if err := png.Encode(&b, tt.Image()); err != nil {
+								t.Fatal(err)
+							}
+							write(t, base+".png", b.Bytes())
+						})
+					}
 				}
 			}
 		}

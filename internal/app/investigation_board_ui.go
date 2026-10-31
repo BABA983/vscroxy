@@ -19,7 +19,7 @@ func (a *app) boardView(c *ui.Context, t *ui.Theme) {
 	inv := b.current()
 	if inv == nil {
 		ui.Column(c).Fill().Center().Gap(t.Space(2)).Children(func() {
-			ui.Icon(c, layersIcon).Size(uikit.HeightControl, uikit.HeightControl).TextColor(t.TextMuted)
+			uikit.Glyph(c, layersIcon).Size(uikit.HeightControl, uikit.HeightControl)
 			uikit.Heading(c, "One investigation, one story")
 			uikit.Hint(c, "Collect the exchanges that matter, compare them, and export the evidence you reviewed.")
 			uikit.Hint(c, "Add a request from Capture's inspector, or open saved sessions.")
@@ -70,7 +70,7 @@ func (a *app) boardHeader(c *ui.Context, t *ui.Theme, inv *investigation) {
 			a.exportInvestigation(c)
 		}
 		f, hasFlow := a.current()
-		ui.PopoverMenuButton(c, "⋯", func(m *ui.Menu) {
+		uikit.MoreMenu(c, "Investigation options", func(m *ui.Menu) {
 			if m.Item("Add the inspected capture").Disabled(!hasFlow).Chosen() {
 				a.addToInvestigation(f)
 			}
@@ -81,8 +81,7 @@ func (a *app) boardHeader(c *ui.Context, t *ui.Theme, inv *investigation) {
 			if m.Item("Delete investigation…").Chosen() {
 				b.deleting = true
 			}
-		}).
-			Label("Investigation options").Tooltip("Investigation options").Height(uikit.HeightControl).Padding(0, t.Space(2)).FontSize(uikit.TextTitle).TextColor(t.TextMuted).Border(0, t.Border)
+		}).Height(uikit.HeightControl).FontSize(uikit.TextTitle)
 	})
 	if b.notesOpen {
 		notes := ui.TextArea(c, &inv.Notes).Height(52).Label("Investigation notes").
@@ -184,7 +183,7 @@ func (a *app) boardList(c *ui.Context, t *ui.Theme, inv *investigation) {
 				ui.Text(c, status).FontSize(uikit.TextMeta).Width(46).SingleLine().TextColor(ink)
 				ui.Text(c, cmp.Or(f.URL, f.Path)).FontSize(uikit.TextMeta).Font(uikit.FontMono).SingleLine().Grow(1).Tooltip(f.URL).TextColor(t.Text)
 				if note := cmp.Or(item.Note, f.Note); note != "" {
-					ui.Icon(c, noteIcon).Size(uikit.IconInline, uikit.IconInline).TextColor(t.TextMuted).Tooltip(note)
+					uikit.Glyph(c, noteIcon).Tooltip(note)
 				}
 				at := "—"
 				if !f.At.IsZero() {
@@ -252,19 +251,8 @@ func (a *app) boardPreview(c *ui.Context, t *ui.Theme, inv *investigation) {
 			// response as side 0.
 			choice := 1 - b.previewSide
 			ui.Row(c).Padding(t.Space(2), t.Space(3), t.Space(0.5)).Children(func() {
-				seg := ui.SegmentedBase(c, &choice, 2)
-				seg.Track.Padding(t.Space(0.5)).Radius(uikit.RadiusControl).Border(1, t.Border).Background(t.Background).Children(func() {
-					for i, name := range []string{"Request", "Response"} {
-						s := seg.Segment(i).Label(name).Height(uikit.HeightCompact).Padding(0, t.Space(2)).Radius(uikit.RadiusControl - t.Space(0.5)).AlignItems(ui.Center).TextColor(t.TextMuted)
-						if i == choice {
-							s.Background(t.SurfaceHover).TextColor(t.Text)
-						}
-						s.Children(func() { ui.Text(c, name).FontSize(uikit.TextMeta) })
-					}
-				})
-				if seg.Track.Changed() {
-					b.previewSide = 1 - choice
-				}
+				uikit.Segmented(c, &choice, "Request", "Response")
+				b.previewSide = 1 - choice
 			})
 			a.boardMessage(c, t, f, b.previewSide)
 			return
@@ -410,8 +398,7 @@ func (a *app) boardConfirmModal(c *ui.Context, t *ui.Theme) {
 	uikit.Modal(c, &b.deleting, func() {
 		ui.Column(c).Width(440).Gap(t.Space(3)).Children(func() {
 			uikit.DialogTitle(c, "Delete investigation?")
-			ui.Text(c, fmt.Sprintf("%q and its %d exchanges are removed from this app. Export evidence first if you need to keep it.", inv.Title, len(inv.Items))).
-				TextColor(t.TextMuted)
+			uikit.Hint(c, fmt.Sprintf("%q and its %d exchanges are removed from this app. Export evidence first if you need to keep it.", inv.Title, len(inv.Items)))
 			ui.Row(c).Gap(t.Space(2)).Justify(ui.End).Children(func() {
 				if uikit.SecondaryButton(c, "Cancel").Clicked() {
 					b.deleting = false

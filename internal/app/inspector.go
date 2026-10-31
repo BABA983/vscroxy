@@ -205,7 +205,7 @@ func (a *app) exchangeResult(c *ui.Context, t *ui.Theme, f flow, compact bool) {
 // inspectorMenu holds the exchange-wide views and the layout choices, so the
 // default screen stays request beside response.
 func (a *app) inspectorMenu(c *ui.Context, t *ui.Theme, f flow) {
-	ui.PopoverMenuButton(c, "⋯", func(m *ui.Menu) {
+	uikit.MoreMenu(c, "Inspector options", func(m *ui.Menu) {
 		split := m.Item("Request & response").Checked(a.inspect.pane == inspectorSplit)
 		if split.Chosen() {
 			a.inspect.pane = inspectorSplit
@@ -251,8 +251,7 @@ func (a *app) inspectorMenu(c *ui.Context, t *ui.Theme, f flow) {
 				}
 			}
 		}
-	}).
-		Label("Inspector options").Tooltip("Inspector options").Height(uikit.HeightCompact).Padding(0, t.Space(2)).FontSize(uikit.TextBody).TextColor(t.TextMuted).Border(0, t.Border)
+	})
 }
 
 // inspectorWidth is the main pane's width beneath the list, its share beside
@@ -355,7 +354,7 @@ func (a *app) paneTabs(c *ui.Context, t *ui.Theme, side string, selected *int, l
 		})
 		if *selected == bodyTab {
 			a.bodyFormatMenu(c, t, bodySide)
-			ui.PopoverMenuButton(c, "⋯", func(m *ui.Menu) {
+			uikit.MoreMenu(c, side+" pane options", func(m *ui.Menu) {
 				if m.Item("Find in text…").Chosen() {
 					if reader := a.bodyText[bodySide]; reader != nil {
 						reader.Run(editor.Find)
@@ -364,8 +363,7 @@ func (a *app) paneTabs(c *ui.Context, t *ui.Theme, side string, selected *int, l
 				if m.Item("Copy shown body").Chosen() {
 					a.copyPaneBody(c, bodySide)
 				}
-			}).
-				Label(side+" pane options").Tooltip(side+" pane options").Height(uikit.HeightCompact).Padding(0, t.Space(1)).FontSize(uikit.TextBody).TextColor(t.TextMuted).Border(0, t.Border)
+			}).Padding(0, t.Space(1))
 		}
 	})
 	ui.Divider(c)

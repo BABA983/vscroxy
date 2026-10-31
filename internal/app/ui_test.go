@@ -1999,7 +1999,7 @@ func TestConcurrentRequestTabsOwnTheirResponses(t *testing.T) {
 	click("Fast request")
 	click("Send")
 	waitFor("201 Created")
-	click("Response tab: Tests")
+	click("Response tab: Checks")
 	if !tt.HasText("✓ fast owns response") {
 		t.Fatal("fast request ran another tab's script or saw its response")
 	}
@@ -2008,7 +2008,7 @@ func TestConcurrentRequestTabsOwnTheirResponses(t *testing.T) {
 	releaseSlow <- struct{}{}
 	click("Slow request")
 	waitFor("200 OK")
-	click("Response tab: Tests")
+	click("Response tab: Checks")
 	if !tt.HasText("✓ slow owns response") || tt.HasText("wrong script") {
 		t.Fatal("slow result used the active tab or a script edited after sending")
 	}

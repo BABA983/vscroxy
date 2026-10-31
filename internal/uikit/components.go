@@ -295,6 +295,13 @@ func DialogTitle(c *ui.Context, title string) ui.Element {
 // one. The prefix names each tab for assistive technology, so a screen with
 // two tab rows of the same labels can name the one it means.
 func Tabs(c *ui.Context, selected *int, prefix string, labels ...string) ui.Element {
+	return CountedTabs(c, selected, prefix, labels, nil)
+}
+
+// CountedTabs is Tabs with a quiet count after each label, as in "Headers 3".
+// A count is presentation, not part of the tab's accessible name; an empty
+// or zero count is left out.
+func CountedTabs(c *ui.Context, selected *int, prefix string, labels, counts []string) ui.Element {
 	t := c.Theme()
 	group := ui.TabsBase(c, selected, len(labels))
 	group.List.Gap(t.Space(0.5)).Children(func() {
@@ -303,7 +310,7 @@ func Tabs(c *ui.Context, selected *int, prefix string, labels ...string) ui.Elem
 			if prefix != "" {
 				name = prefix + ": " + label
 			}
-			tab := group.Tab(i).Label(name).Height(HeightTabs).Padding(0, t.Space(2)).Radius(0).AlignItems(ui.Center).TextColor(t.TextMuted)
+			tab := group.Tab(i).Label(name).Height(HeightTabs).Padding(0, t.Space(1.5)).Gap(t.Space(1)).Radius(0).AlignItems(ui.Center).TextColor(t.TextMuted)
 			if i == *selected {
 				tab.TextColor(t.Text).Border(0, t.Accent).BorderWidth(0, 0, 2, 0)
 			}
@@ -317,10 +324,27 @@ func Tabs(c *ui.Context, selected *int, prefix string, labels ...string) ui.Elem
 				if i == *selected {
 					text.Bold()
 				}
+				if i < len(counts) && counts[i] != "" && counts[i] != "0" {
+					Meta(c, counts[i]).FontFeatures("tnum")
+				}
 			})
 		}
 	})
 	return group.List
+}
+
+// MoreMenu is the quiet "⋯" button that opens a menu of further actions;
+// label names it for assistive technology and in its tooltip.
+func MoreMenu(c *ui.Context, label string, menu func(*ui.Menu)) ui.Element {
+	t := c.Theme()
+	return ui.PopoverMenuButton(c, "⋯", menu).Label(label).Tooltip(label).Height(HeightCompact).
+		Padding(0, t.Space(2)).FontSize(TextBody).TextColor(t.TextMuted).Border(0, t.Border)
+}
+
+// Glyph is a quiet inline icon that marks rather than acts: a folder, a pin,
+// a note.
+func Glyph(c *ui.Context, icon *ui.SVG) ui.Element {
+	return ui.Icon(c, icon).Size(IconInline, IconInline).TextColor(c.Theme().TextMuted)
 }
 
 // Segmented chooses one of a few mutually exclusive modes. The track sits on

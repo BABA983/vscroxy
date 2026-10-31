@@ -90,7 +90,7 @@ func (a *app) desktopContent(c *ui.Context) {
 				if w.focused {
 					ui.Row(c).Height(uikit.HeightLarge).Padding(0, c.Theme().Space(3)).AlignItems(ui.Center).Children(func() {
 						a.desktopButton(c, "focus", "Back to list")
-						ui.Text(c, "Inspector focus · Ctrl/Cmd+Shift+Enter").FontSize(uikit.TextMeta).TextColor(c.Theme().TextMuted)
+						uikit.Meta(c, "Inspector focus · Ctrl/Cmd+Shift+Enter")
 					})
 					a.detail(c)
 					return
@@ -115,7 +115,7 @@ func (a *app) desktopContent(c *ui.Context) {
 					a.syncDetail()
 					table()
 					ui.Row(c).Height(uikit.HeightLarge).Padding(0, c.Theme().Space(3)).AlignItems(ui.Center).Children(func() {
-						ui.Text(c, "No request chosen").FontSize(uikit.TextBody).TextColor(c.Theme().TextMuted)
+						uikit.Hint(c, "No request chosen")
 					})
 				} else if w.sideBySide {
 					// The room under the toolbar, not the column's whole
@@ -201,7 +201,7 @@ func (a *app) captureToolbar(c *ui.Context, t *ui.Theme) {
 			a.srv.SetBreak(a.breakOn)
 		}
 		breakButton.Children(func() { ui.Icon(c, breakIcon).Size(uikit.IconInline, uikit.IconInline) })
-		ui.PopoverMenuButton(c, "⋯", func(m *ui.Menu) {
+		uikit.MoreMenu(c, "More capture options", func(m *ui.Menu) {
 			if m.Item("Debugging rules…").Chosen() {
 				a.openRules()
 			}
@@ -230,8 +230,7 @@ func (a *app) captureToolbar(c *ui.Context, t *ui.Theme) {
 			if m.Item("Clear unpinned requests…").Chosen() {
 				a.clearOpen = true
 			}
-		}).
-			Label("More capture options").Tooltip("More capture options").Height(uikit.HeightCompact).Padding(0, t.Space(2)).FontSize(uikit.TextBody).TextColor(t.TextMuted).Border(0, t.Border)
+		})
 	})
 	ui.Divider(c)
 }

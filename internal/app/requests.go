@@ -364,7 +364,7 @@ func (a *app) documentHeader(c *ui.Context, t *ui.Theme) {
 				Padding(0, t.Space(2)).Gap(t.Space(2)).Radius(uikit.RadiusControl).Border(1, t.Border).AlignItems(ui.Center).Children(func() {
 				ui.Box(c).Size(6, 6).Radius(uikit.RadiusControl).Background(t.Accent)
 				uikit.Body(c, cmp.Or(a.activeEnv, "No environment")).SingleLine().Grow(1)
-				ui.Icon(c, chevronIcon).Size(uikit.IconInline, uikit.IconInline).TextColor(t.TextMuted)
+				uikit.Glyph(c, chevronIcon)
 			})
 			env.Popup(func(panel ui.Element) {
 				uikit.PopoverPanel(c, panel).Padding(t.Space(1))
@@ -533,7 +533,7 @@ func (a *app) requestDocumentActions(c *ui.Context, t *ui.Theme, d *requestDocum
 			}
 		}
 		a.desktopButton(c, "save-request", "Save")
-		ui.PopoverMenuButton(c, "⋯", func(m *ui.Menu) {
+		uikit.MoreMenu(c, "Request options", func(m *ui.Menu) {
 			if m.Item("Duplicate as new request").Chosen() {
 				r := d.value()
 				r.ID, r.Name = "", uniqueRequestName(a.requests, r.Name+" copy")
@@ -572,8 +572,7 @@ func (a *app) requestDocumentActions(c *ui.Context, t *ui.Theme, d *requestDocum
 			if m.Item("Vault…").Chosen() {
 				a.openVault()
 			}
-		}).
-			Label("Request options").Tooltip("Request options").Height(uikit.HeightControl).Padding(0, t.Space(2)).FontSize(uikit.TextTitle).TextColor(t.TextMuted).Border(0, t.Border)
+		}).Height(uikit.HeightControl).FontSize(uikit.TextTitle)
 	})
 }
 
@@ -842,7 +841,7 @@ func (a *app) requestEditor(c *ui.Context, t *ui.Theme, d *requestDocument, orig
 			counts[composeTabChecks], counts[composeTabExamples] = fmt.Sprint(n), fmt.Sprint(len(d.examples))
 			ui.ScrollHorizontal(c).Grow(1).FillHeight().Children(func() {
 				if original == nil {
-					requestTabs(c, &d.composeTab, "Request editor", labels, counts)
+					uikit.CountedTabs(c, &d.composeTab, "Request editor", labels, counts)
 					return
 				}
 				// A capture reads first: Original leads its tabs, so the tab
@@ -850,7 +849,7 @@ func (a *app) requestEditor(c *ui.Context, t *ui.Theme, d *requestDocument, orig
 				// order shown.
 				n := len(labels)
 				shown := (d.composeTab + 1) % n
-				requestTabs(c, &shown, "Request editor", slices.Concat(labels[n-1:], labels[:n-1]), slices.Concat(counts[n-1:], counts[:n-1]))
+				uikit.CountedTabs(c, &shown, "Request editor", slices.Concat(labels[n-1:], labels[:n-1]), slices.Concat(counts[n-1:], counts[:n-1]))
 				d.composeTab = (shown + n - 1) % n
 			})
 			if wide && d.composeTab == composeTabBody {
@@ -898,39 +897,6 @@ func (a *app) requestEditor(c *ui.Context, t *ui.Theme, d *requestDocument, orig
 	})
 }
 
-// Counts are presentation, not part of each tab's stable accessible name.
-func requestTabs(c *ui.Context, selected *int, prefix string, labels, counts []string) {
-	t := c.Theme()
-	group := ui.TabsBase(c, selected, len(labels))
-	group.List.Gap(t.Space(0.5)).Children(func() {
-		for i, label := range labels {
-			tab := group.Tab(i).Label(prefix+": "+label).Height(uikit.HeightTabs).Padding(0, t.Space(1)).Gap(t.Space(1)).Radius(0).
-				AlignItems(ui.Center).TextColor(t.TextMuted)
-			if i == *selected {
-				tab.TextColor(t.Text).Border(0, t.Accent).BorderWidth(0, 0, 2, 0)
-			}
-			if tab.Pressed() {
-				tab.Background(t.SurfacePressed)
-			} else if tab.Hovered() {
-				tab.Background(t.SurfaceHover)
-			}
-			tab.Children(func() {
-				shown := label
-				if label == "Tests" {
-					shown = "Checks"
-				}
-				text := uikit.Body(c, shown)
-				if i == *selected {
-					text.FontWeight(600)
-				}
-				if counts[i] != "" && counts[i] != "0" {
-					uikit.Meta(c, counts[i]).FontFeatures("tnum")
-				}
-			})
-		}
-	})
-}
-
 // requestSentState says whether the draft on screen is the one that was
 // actually sent, and when.
 func (a *app) requestSentState(c *ui.Context, t *ui.Theme, d *requestDocument) {
@@ -960,7 +926,7 @@ func (a *app) requestResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 		ui.Row(c).Height(uikit.HeightTabs).Padding(0, t.Space(2)).Gap(t.Space(2)).AlignItems(ui.Center).
 			Border(0, t.Border).BorderWidth(0, 0, 1, 0).Children(func() {
 			if !d.comparing && (d.response != nil || len(d.composeReplies) > 0 || len(d.console) > 0) {
-				labels := []string{"Body", "Headers", "Cookies", "Timing", "Tests", "Console"}
+				labels := []string{"Body", "Headers", "Cookies", "Timing", "Checks", "Console"}
 				counts := make([]string, len(labels))
 				if r := d.response; r != nil {
 					n := 0
@@ -982,7 +948,7 @@ func (a *app) requestResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 					d.responseTab = resViewBody
 				}
 				ui.ScrollHorizontal(c).Grow(1).FillHeight().Children(func() {
-					requestTabs(c, &d.responseTab, "Response tab", labels, counts)
+					uikit.CountedTabs(c, &d.responseTab, "Response tab", labels, counts)
 				})
 				if d.responseTab == resViewBody && d.response != nil {
 					formats := []string{"Pretty", "Raw", "Hex"}
@@ -1316,7 +1282,7 @@ func (a *app) responseCookies(c *ui.Context, t *ui.Theme, d *requestDocument) {
 func (a *app) responseHex(c *ui.Context, d *requestDocument, body string) {
 	rows := hexRows(body, "")
 	if len(rows) == 0 {
-		ui.Text(c, "Empty body").FontSize(uikit.TextBody).TextColor(c.Theme().TextMuted).Padding(c.Theme().Space(3))
+		uikit.Hint(c, "Empty body").Padding(c.Theme().Space(3))
 		return
 	}
 	ui.List(c, &d.responseList, len(rows), func(i int) {

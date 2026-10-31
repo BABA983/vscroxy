@@ -99,7 +99,7 @@ func (a *app) debugDrafts(c *ui.Context) {
 	s := &a.experiments
 	if s.scope == nil {
 		if s.draftKey != "" {
-			ui.Text(c, "Only sends linked to this draft; never matched by URL.").FontSize(uikit.TextMeta).TextColor(c.Theme().TextMuted)
+			uikit.Meta(c, "Only sends linked to this draft; never matched by URL.")
 			if uikit.SecondaryButton(c, "Show all experiments").FillWidth().Clicked() {
 				s.draftKey = ""
 			}
@@ -108,14 +108,14 @@ func (a *app) debugDrafts(c *ui.Context) {
 		return
 	}
 	ui.Text(c, fmt.Sprintf("Source snapshot · Capture #%d", s.scope.Exchange.ID)).FontSize(uikit.TextBody).FontFeatures("tnum").Bold()
-	ui.Text(c, "Only explicitly linked drafts and retained runs; never matched by URL.").FontSize(uikit.TextMeta).TextColor(c.Theme().TextMuted)
+	uikit.Meta(c, "Only explicitly linked drafts and retained runs; never matched by URL.")
 	index := slices.IndexFunc(a.flows, func(f flow) bool { return f.debugKey == s.scope.Key })
 	if uikit.SecondaryButton(c, "Inspect source capture").FillWidth().Disabled(index < 0).Clicked() {
 		s.open = false
 		a.inspectCapture(a.flows[index].id)
 	}
 	if index < 0 {
-		ui.Text(c, "Original capture unavailable; snapshot retained.").FontSize(uikit.TextMeta).TextColor(c.Theme().TextMuted)
+		uikit.Meta(c, "Original capture unavailable; snapshot retained.")
 	}
 	if uikit.SecondaryButton(c, "Show all experiments").FillWidth().Clicked() {
 		s.scope, s.draftKey = nil, ""
@@ -144,11 +144,11 @@ func (a *app) debugDrafts(c *ui.Context) {
 func (a *app) debugWire(c *ui.Context, r experimentRecord) {
 	s := &a.experiments
 	if r.RunKey == "" {
-		ui.Text(c, "Legacy run · wire provenance was not recorded.").FontSize(uikit.TextMeta).TextColor(c.Theme().TextMuted)
+		uikit.Meta(c, "Legacy run · wire provenance was not recorded.")
 		return
 	}
 	if len(r.Wire) == 0 {
-		ui.Text(c, "No wire evidence retained yet; no rule outcome can be inferred.").FontSize(uikit.TextMeta).TextColor(c.Theme().TextMuted)
+		uikit.Meta(c, "No wire evidence retained yet; no rule outcome can be inferred.")
 		return
 	}
 	options := make([]string, len(r.Wire))
@@ -167,7 +167,7 @@ func (a *app) debugWire(c *ui.Context, r experimentRecord) {
 		effects = strings.Join(wire.Actions, " · ")
 	}
 	uikit.Body(c, "Recorded interventions: "+effects).SingleLine().Tooltip(effects)
-	ui.Text(c, "Wire evidence, not current rules. Redirect hops stay separate; source comparison uses the client result.").FontSize(uikit.TextMeta).TextColor(c.Theme().TextMuted)
+	uikit.Meta(c, "Wire evidence, not current rules. Redirect hops stay separate; source comparison uses the client result.")
 }
 
 func (s *experimentWorkbench) compareSource(c *ui.Context, r experimentRecord) {

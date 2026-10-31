@@ -408,7 +408,7 @@ func (a *app) footer(c *ui.Context, t *ui.Theme) {
 		}
 		if uikit.ToolbarButton(c, "Auto-follow", tip, false).Height(uikit.HeightCompact).Padding(0, t.Space(1)).TextColor(t.Text).Children(func() {
 			if newRows > 0 {
-				ui.Icon(c, breakIcon).Size(uikit.IconInline, uikit.IconInline).TextColor(t.TextMuted)
+				uikit.Glyph(c, breakIcon)
 			}
 			ui.Text(c, label).FontSize(uikit.TextMeta).FontFeatures("tnum").SingleLine()
 		}).Clicked() {
