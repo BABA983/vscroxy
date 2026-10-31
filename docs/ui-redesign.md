@@ -1,6 +1,8 @@
 # vscroxy UI 改版计划
 
-状态：已定稿，实施时细化。方向：概念图 A（精修 Proxyman 的 Capture）+ C（Postman 式的 Requests）。
+状态：**方向 v2 已定稿（2026-10-31），见第 0 节。** 第 1–8 节是 v1 改版的规范和实施记录；凡与第 0 节冲突，以第 0 节为准。
+
+v1 方向（已被 v2 取代）：概念图 A（精修 Proxyman 的 Capture）+ C（Postman 式的 Requests）。
 
 - 概念 A，Capture：https://ampcode.com/user-content/attachments/6f08b3d269bd9a4951a014aaabc83df3d412b6e7c786f46f94ef9df3ea0919ac-file.png
 - 概念 C，Requests：https://ampcode.com/user-content/attachments/7769f0d30970d12d35ff0e3c52e86e854e86aad8eda587eeb12ec9c8c0d64621-file.png
@@ -8,6 +10,136 @@
 概念图只用来定方向，里面的数据和个别细节是生成的，不是像素级的稿子。
 
 相关文档：[功能路线图](feature-roadmap.md)、[UX 规范](ux-guidelines.md)（交互和文案）、[基础设施方向](architecture.md)。
+
+## 0. 方向 v2
+
+### 0.1 为什么改
+
+v1 的阶段 1–8 统一了结构和 token（阶段 8 之后，`internal/app` 里只有 `style.go` 和 `appearance.go` 写数值），但界面仍然是一张普通表格加一堆表单：同一种控件有好几种样子，异常要靠眼睛一行行扫，Capture 和 Requests 之间要来回搬运请求。v2 从 UX 规范第 1 节的前两项核心任务出发重新设计：**让时间和异常一眼可见，让抓到的请求和保存的请求是同一种东西。**
+
+### 0.2 设计稿
+
+都是 Painter 概念图，只用来定方向；数据和个别细节是生成的，和规范冲突时以规范为准（见 0.8）。
+
+关键界面（布局和信息架构以这组为准；它们用的是早期的荧光绿强调色，**颜色以 0.5 的 Paper／Ink 为准**）：
+
+| 界面 | 深色 | 浅色 |
+| --- | --- | --- |
+| 主工作区 · 左右布局 | https://ampcode.com/user-content/attachments/73d7d0576b5f516381540f10044c3cf38d1afdeb1b68161795af386a7036d72a-file.png | https://ampcode.com/user-content/attachments/726673b3d777a6fc578c34483a15d469be751b0f79052f0d0d6c249855984540-file.png |
+| 主工作区 · 上下布局 | https://ampcode.com/user-content/attachments/e4d07f9ff768c045340168e753c0665102f2dc2aa28737e2eb8289f5e6ad1dbd-file.png | https://ampcode.com/user-content/attachments/8810b61f2a1b3d49303cc7f86ec517891751a3f864eeeb3ce16b4bb603050348-file.png |
+| 编辑和发送已保存的请求 | https://ampcode.com/user-content/attachments/13614a07a5f933ecb3ac7289311016152f8ca48c12d6438f3389b9d25230a032-file.png | https://ampcode.com/user-content/attachments/689468df6df55143d9c8a0c83e34275032f682d0b13c49f73978490c6c9c57a1-file.png |
+| 首次启动引导 | https://ampcode.com/user-content/attachments/42ae2e5117ad05431780016bd82a1133a0febc0724eb49dd06333b2538365247-file.png | https://ampcode.com/user-content/attachments/d2fbbaa9ccc1ed92f220a83081300df3399ad0ad3f10f7f0cdab6be50eb102d1-file.png |
+| Settings 独立窗口 | https://ampcode.com/user-content/attachments/fd2d1cee395051fa3a32edf1d4fa38022e5ee3c45f14cd7bb3b44e1c5377f979-file.png | https://ampcode.com/user-content/attachments/d91616c93f71c3d587bd9ab6e1890a6a91d950ce20a8bbebd35a89c308399b0a-file.png |
+| 主工作区 · Paper／Ink 配色 | https://ampcode.com/user-content/attachments/4264e67bf143883b93aeb4f42f8c4a95410859a42a81bceda68f6293e9fd335d-file.png | https://ampcode.com/user-content/attachments/60501cbdcdd682610c79458646ac794c4b17389f1a5881d836585b8888110756-file.png |
+
+uikit 组件总览（`internal/uikit` 的规格，颜色以这组为准）：
+
+| 总览 | Ink（深色） | Paper（浅色） |
+| --- | --- | --- |
+| 控件 | https://ampcode.com/user-content/attachments/900406bfa1a1edc21aed8a1797a9b2b4ee67b47a31c6bf6571efade3b54b909e-file.png | https://ampcode.com/user-content/attachments/8d629c20f8e012b5227369f81b842995009326d280089a1a57d8bb80a4083fd6-file.png |
+| 结构和反馈 | https://ampcode.com/user-content/attachments/7994da9f07c86a3f3c3866e1d99c73af2a197a848381afbc90d05d89c3703c9e-file.png | https://ampcode.com/user-content/attachments/f007c7d55451f9a1c97f9f7d7bc0401172770a7b6cda3c841cf004ced536cc15-file.png |
+| 标志性组件 | https://ampcode.com/user-content/attachments/ce3837e7e7e6d41c58c45c2e7972bf29ba5cbc55810b146a5aa8386a81365e3c-file.png | https://ampcode.com/user-content/attachments/8fb1ae2fd8231030e32f8f65b3d6b982434c64255534472029fa88767d1dc1ee-file.png |
+
+### 0.3 信息架构：一个工作区
+
+- **去掉 Capture／Requests 切换。** 抓到的请求就是"还没保存的请求"：点开是可编辑的文档，顶部有来源标记（`Captured · 12:03:42 · Safari`），可以直接 Send，或者 Save to collection。Edit & replay、Save as request 这类搬运动作并入这个文档，不再是跨工作区的跳转。
+- **侧栏三组：** LIVE（All traffic、Errors、Slow、各 App、各域名、保存的筛选）、COLLECTIONS（集合树，请求前是 method 标签）、SESSIONS（保存的会话文件）。环境、APIs、Runner 从集合的菜单和命令面板进入，不再占一条资源栏。
+- **中间栏随侧栏选择变化：** 选 LIVE 或 SESSIONS 时是流量表格；选一个已保存的请求时，是这个请求的发送历史（History／Examples 切换），可以标基线、对比。
+- **两种布局，** 用标题栏右侧的两个图标切换，各自记住分隔线比例，双击分隔线恢复默认：
+  - 左右（默认）：列表在左，请求文档和响应在右，适合宽屏逐条翻看。
+  - 上下：列表占满宽度（多出 Client 列），下方 Request 和 Response 左右并排，适合对照请求和响应。
+- **标题栏：** 品牌、录制 pill（状态点、监听地址、实时速率曲线、暂停）、命令栏（`⌘K`，同时是搜索）、布局切换、Settings。Tools 窗口（M4）和 Host 方案（M2）的入口位置不变。
+- 已启用工具栏、状态栏、对象动作表、撤销和确认规则保持 UX 规范的规定不变。
+
+### 0.4 视觉语言："仪器"
+
+- **界面本身是单色的，颜色只表达信号：** 状态码、method、耗时条、校验结果。工具栏、侧栏、边框、图标一律中性色。
+- **正常的东西不上色。** 2xx 是普通的次要文字，不加底色、不用绿色；只有 3xx（灰蓝）、4xx（赭黄）、5xx（朱红）上色。满屏的 200 退到背景，异常自己跳出来。这条规则也让强调色可以是绿色而不和"成功"撞色。
+- **数据一律等宽：** method、URL、路径、header、body、时间、耗时、大小都用 JetBrains Mono，数字开 `tnum`。界面文字仍是 Inter。
+- **结论大字：** 响应区第一行是 22px 等宽的状态行（`500  Internal Server Error`），下面一行次要文字写耗时、大小、类型。
+- **常驻的状态信息：** 列表上方一条 52px 的活动柱状图（最近 5 分钟，按状态码上色，可拖选时间范围）；筛选是查询语法 chip（`status:>=400`、`host:`、`app:`、`slow`），带自动补全；每行带一根耗时条，慢请求是朱红。
+- **选中只有一套样子：** 侧栏和表格的选中都是 2–3px 强调色左侧标记线加 hover 底色，文字颜色不变；失焦时标记线变成次要色。不再用 v1 的实心强调色整行（取代 4.4 的"选中行"规则）。
+- 字号、控件高度、圆角、间距沿用第 4 节和阶段 8 的 token：11／13／15，24／28／32，4／6／10，4px 网格；新增 22px 的响应结论字号。
+
+### 0.5 主题：Paper／Ink
+
+默认主题是"油墨绿"一套两张：浅色 **Paper**（印在暖色纸上的技术手册），深色 **Ink**（暖色油墨印在墨绿黑底上）。默认跟随系统（决策 3 不变）。只用平涂色，不做纸纹、做旧和渐变。
+
+| Token | Paper | Ink | 说明 |
+| --- | --- | --- | --- |
+| 背景 | `#f7f4ec` | `#121614` | 窗口 |
+| 表面／侧栏 | `#efebe0` | `#181d1a`（侧栏 `#161b18`） | 侧栏、segmented 轨道、chip |
+| Hover | `#e9e4d6` | `#1f2622` | |
+| Pressed | `#e0dacb` | `#26302a` | |
+| 细线 | `#e2dccd` | `#2a312d` | 分隔线 |
+| 输入框边框 | `#d3ccba` | `#343c37` | |
+| 正文 | `#1f2a24` | `#e6e1d3` | |
+| 次要文字 | `#6d6a5f` | `#9a978b` | 也是 2xx 的颜色 |
+| 第三级文字 | `#a29d8f` | `#66665e` | 只用于禁用和占位，不承载信息 |
+| 强调色 | `#1e5b47` | `#6fb593` | 主按钮、焦点、选中标记、录制、开关；Ink 主按钮文字 `#121614` |
+| 强调色 hover／pressed | `#174a3a`／`#123d30` | `#82c4a4`／`#5ea482` | |
+| 强调浅底 | `#e3ece4` | `#1f2d26` | 侧栏选中、变量 chip |
+| 信息／3xx | `#3d6a8a` | `#8fb3d1` | |
+| 警告／4xx | `#94560f` | `#e0a458` | |
+| 危险／5xx | `#b23a2e` | `#e8806f` | |
+| 成功 | 用强调色 | 用强调色 | 只用于勾选图标等小面积，不用于 2xx |
+| 柱状图／耗时条（正常） | `#cfc8b8` | `#4a4d47` | |
+| GET／POST／PUT | `#2f5d8a`／`#5c6a1f`／警告色 | `#8fb3d1`／`#b5c27a`／警告色 | |
+| DELETE／PATCH／WS | 危险色／`#7a3e6d`／`#2d6e6e` | 危险色／`#c99abd`／`#7cc4c0` | |
+| 耗时分段 DNS／Connect／TLS／Wait／Download | 信息／WS／PATCH／警告／强调 | 同左 | 五段必须可区分，不能全灰 |
+
+对比度（线性 sRGB 相对亮度，按阶段 7 的方法在背景、侧栏、hover 三种底上计算）：两主题正文 ≥ 11.6:1，次要文字 ≥ 4.26:1，强调色和所有信号色、method 色 ≥ 4.5:1。设计稿里 Paper 的警告色 `#a8641a`（4.24:1）和 POST 橄榄绿 `#6b7a2a`（4.30:1）不达标，上表已加深为 `#94560f` 和 `#5c6a1f`，后者也和强调色拉开了距离。第三级文字两主题都低于 3:1，所以只能用于禁用和占位。落地时把这些组合写进现有的对比度回归检查。
+
+### 0.6 `internal/uikit`
+
+- **一个独立的包，** 只依赖 MyGo 的 `ui`（以及 `ui/editor`、`ui/chart`），不碰 app 状态和 `internal/request` 等业务包。它取代第 4 节"全部放在 `internal/app`、不建独立 package"的做法。
+- **主题 = 语义 token 表。** 包里定义 token（第 0.5 节的每一行）和内置的 Paper、Ink 两张表；`ui.Theme` 由这张表生成。界面代码只能引用语义 token，不能假设强调色是哪种颜色。字号、高度、圆角、间距也由 uikit 导出，主题不能改它们。
+- **界面只用 uikit。** 迁移完成后，`internal/app` 不再直接调用 `ui.Button`、`ui.PrimaryButton`、`ui.TextInput`、`ui.Select`，不写 `ui.Hex`、数字字号和手写 hover／pressed。uikit 的组件仍建在 MyGo 的 Base（`ButtonBase`、`TabsBase`、`SelectBase`、`DialogBase`、`ToastBase`…）上，键盘、焦点和无障碍继续由 MyGo 负责；每个可交互组件强制传入无障碍标签。
+- **组件按变体设计，不让调用方调样式：**
+  - 文字角色：Heading、Body、Label、Hint、Meta、Mono。
+  - 控件：Button（primary／secondary／ghost／danger × 24／28／32，可带图标）、IconButton（必带 tooltip）、Input（默认／hover／焦点／错误／禁用）、Select、Menu、Checkbox、Switch、Segmented、Tabs（带计数）、LayoutToggle。
+  - 结构：Sidebar 分组和条目、表格行样式、PaneHeader（标题、tab、次要信息、操作在同一行）、KVGrid（可编辑和只读）、FormRow（标签左、控件右、一行说明在控件下）、Dialog（宽度档、标题、可滚动内容、footer）、Splitter。
+  - 反馈：Callout（信息／警告／错误，一行文字加文字操作）、EmptyState、Toast、StatusText、MethodLabel（纯色等宽文字，不做 chip）、CountBadge、CheckResult。
+  - 标志性组件：RecordingPill（录制／暂停／停止，可带 LAN）、QueryBar（chip 和自动补全）、ActivityStrip、DurationBar、TimingBar、ResponseHeadline、SourceBadge、EnvironmentSelect。
+- **组件总览截图：** 截图测试新增一组 uikit 总览（每个组件的默认、hover、按下、焦点、禁用、选中），Paper 和 Ink 各一套。评审外观先看总览，再看界面矩阵。
+
+### 0.7 第三方主题（VS Code 主题）
+
+uikit 第一版就按"主题 = 语义 token 表"实现；导入第三方主题晚于 v2 的界面迁移，但结构不返工。VS Code 主题 JSON 的映射：
+
+| VS Code 主题字段 | 映射到 |
+| --- | --- |
+| `colors` 的 `editor.background`、`sideBar.background`、`list.hoverBackground`、`list.activeSelectionBackground`、`focusBorder`、`button.background`、`input.border` 等 | 背景、侧栏、hover、选中、焦点、主按钮、输入框 |
+| `terminal.ansiRed`／`ansiYellow`／`ansiBlue`／`ansiGreen`／`ansiMagenta`／`ansiCyan` | 状态码、method、耗时分段 |
+| `tokenColors`（TextMate scope） | body 编辑器的语法高亮 |
+
+约束：
+
+1. 主题只换颜色，不换字号、密度和形状。
+2. 映射后按 0.5 的对比度标准检查；不达标的组合自动调整，并在 Settings → 外观里提示。
+3. 内置主题（候选：One Dark Pro、Dracula、Tokyo Night、Catppuccin、GitHub Light/Dark、Solarized）逐个确认许可证，写进 `THIRD_PARTY_NOTICES.md`；同时支持导入 `.json` 主题文件。
+
+### 0.8 设计稿与规范不一致的地方（以规范为准）
+
+- 关键界面用的是荧光绿，配色以 0.5 为准；Ink 主工作区里的耗时分段全是灰色，实现时五段要可区分。
+- 浅色"已保存请求"的录制 pill 被画成了 `Staging`，响应区多了一个重复的 Save to collection；浅色引导页的说明文字误用了等宽字体；表格里有 `/v1/prders` 之类的拼写错误。
+- Paper「结构和反馈」的面板头把标题和 tab 分成了两行；规范是一行（Ink 版已改对）。
+- 空状态图标偏大；规范是 16px、不加框。Toast 的说明文字和标题不对应（Paper 版）。
+- 「标志性组件」里的校验结果画成了带底色的卡片；规范是行内的一行结果加一行原因（同已保存请求界面）。Ink 版的几张总览副标题仍写着 Paper。
+- 按钮 hover／pressed 在设计稿里是改变底色明度；实现按 0.5 表中的 hover／pressed 值，焦点环一律画在控件外侧。
+
+### 0.9 实施顺序
+
+每一步都能单独合并，附 Paper／Ink 前后截图；涉及交互的另外录屏。
+
+1. **uikit 和主题：** 建 `internal/uikit`，实现 token 表、Paper／Ink、文字角色和控件类组件，加组件总览截图。现有 `style.go` 和 `appearance.go` 的内容迁进来。这一步不改布局，只换主题和控件。
+2. **迁移现有界面到 uikit：** Capture → Requests → 对话框和次级视图，去掉直接的 `ui.Button`、`ui.TextInput` 和手写样式。选中样式按 0.4 改成标记线。
+3. **一个工作区和两种布局：** 合并侧栏、请求文档、发送历史中间栏、布局切换。这一步改变导航，同步改 UX 规范第 3 节涉及的测试和快捷键清单。
+4. **标志性组件：** 录制 pill 的速率曲线、查询语法筛选、活动柱状图、耗时条、响应结论、瀑布视图（Table／Waterfall 切换）。
+5. **随里程碑落地：** 首次启动引导和 Settings 独立窗口随 M1，Host 方案随 M2，Tools 窗口随 M4。
+6. **第三方主题：** 0.7 的映射、内置主题和导入。
+
+阶段 8 的写死值清理是第 1 步的起点。
 
 ## 1. 目标
 
@@ -47,7 +179,7 @@
 
 ## 4. 设计系统
 
-全部放在 `internal/app` 里：主题继续在 `appearance.go`，新增 `style.go` 放 token 和共用组件。不建独立的 package，不做组件文档站。
+v1：全部放在 `internal/app` 里：主题继续在 `appearance.go`，新增 `style.go` 放 token 和共用组件。不建独立的 package，不做组件文档站。**v2 起移到独立的 `internal/uikit`，见 0.6；颜色见 0.5，选中样式见 0.4。**
 
 ### 4.1 字体
 
@@ -84,8 +216,8 @@
 在现有 `ui.Theme` 字段的基础上调整，再加一组语义色，浅色和深色各一套：
 
 - **中性色**：背景、侧栏背景（比背景略灰）、hover、pressed、边框、正文、次要文字、第三级文字（禁用、占位）。
-- **强调色**：靛蓝，浅色 #5b5bd6，深色 #7c7cf0。不再用系统蓝，因为它和 GET 的蓝是同一色相。
-- **选中行**：窗口有焦点且列表有焦点时用实心强调色；否则用浅色强调底（约 12% 透明度）加正常文字颜色。
+- **强调色**：靛蓝，浅色 #5b5bd6，深色 #7c7cf0。不再用系统蓝，因为它和 GET 的蓝是同一色相。（v2 改为油墨绿，见 0.5。）
+- **选中行**：窗口有焦点且列表有焦点时用实心强调色；否则用浅色强调底（约 12% 透明度）加正常文字颜色。（v2 改为左侧标记线，见 0.4。）
 - **语义色**：成功、警告、危险、信息四种，每种有前景色和浅底色两档（给 pill 用）。
 - **Method 色**：GET 蓝、POST 绿、PUT 橙、DELETE 红、PATCH 洋红（#c026d3，原来是紫，会和靛蓝撞）、WS 青；改成从主题取值，深色模式提高亮度。
 - **状态码色**：2xx 绿、3xx 青、4xx 橙、5xx 红、304 和 Tunnel 灰，同样从主题取值。
@@ -388,8 +520,13 @@ Runner、History（合并后的 Run records）、Sessions（合并后的 Investi
 ## 9. 决策记录
 
 1. ~~是否内嵌 Inter 和 JetBrains Mono？~~ 已决定：三个平台都内嵌。
-2. ~~强调色？~~ 已决定：靛蓝 #5b5bd6（深色 #7c7cf0），PATCH 改成洋红。
+2. ~~强调色？~~ 已决定：靛蓝 #5b5bd6（深色 #7c7cf0），PATCH 改成洋红。**v2 修订：** 改为油墨绿，Paper `#1e5b47`、Ink `#6fb593`，见 0.5。
 3. ~~默认主题？~~ 已决定：外观设置改成"跟随系统 / 浅色 / 深色"三选一，默认跟随系统。现有的深色开关迁移过来。
 4. ~~行高？~~ 已决定：28。桌面调试工具需要密度，Proxyman 也是这个量级。
-5. ~~全局图标栏（方案 B）？~~ 已决定：不做。保留 Capture / Requests 两个工作区；规则、Host 方案、脚本、Mock 集中到 Tools 窗口（见功能路线图第 2 节）。
+5. ~~全局图标栏（方案 B）？~~ 已决定：不做。保留 Capture / Requests 两个工作区；规则、Host 方案、脚本、Mock 集中到 Tools 窗口（见功能路线图第 2 节）。**v2 修订：** 合并成一个工作区（见 0.3）；全局图标栏仍然不做，Tools 窗口不变。
 6. ~~网络设置对话框是否并进 Settings？~~ 已决定：并进，见阶段 6。
+7. ~~组件放在哪？~~ 已决定（v2）：独立的 `internal/uikit` 包，只依赖 MyGo；界面只用 uikit 的组件和 token（见 0.6）。
+8. ~~默认主题的样子？~~ 已决定（v2）：油墨绿 Paper／Ink，平涂、不做纸纹（见 0.5）。
+9. ~~状态码怎么上色？~~ 已决定（v2）：正常的不上色，2xx 用次要文字，只有 3xx／4xx／5xx 上色；method 用纯色等宽文字，不做 chip（见 0.4）。
+10. ~~详情区布局？~~ 已决定（v2）：左右和上下两种，标题栏切换，各自记住比例（见 0.3）。
+11. ~~第三方主题？~~ 已决定（v2）：支持 VS Code 主题映射和导入，在界面迁移完成后做；主题只换颜色（见 0.7）。

@@ -19,7 +19,7 @@
 
 | 问题 | 决定 | 理由 |
 | --- | --- | --- |
-| 历史和留证的 7 个概念 | 合并成 Requests 侧的 **History** 和 Capture 侧的 **Sessions**（见 3.1） | 概念太多、入口重复，约 2700 行代码维护同一类功能 |
+| 历史和留证的 7 个概念 | 合并成 **History**（已保存请求的发送记录）和 **Sessions**（侧栏 SESSIONS 分组）（见 3.1） | 概念太多、入口重复，约 2700 行代码维护同一类功能 |
 | Investigations | 去掉，能力并入 Sessions；已有数据自动迁移成会话文件，不丢数据 | Proxyman 用"保存会话 + Pin + 颜色 + 备注"就覆盖了这个需求 |
 | Regression 分享/导入格式 | 去掉自有格式；脱敏变成所有导出（Postman、HAR、会话）都有的"脱敏"选项 | 分享统一走通用格式，脱敏能力保留并扩大适用范围 |
 | 两套脚本 | 抓包脚本改成挂在规则上，API 对齐 `pm`，和请求脚本共用编辑器、Console 和内置库；`script.js` 迁移成一条"匹配全部"的规则 | 用户只需学一套 API；Proxyman 也是"规则 + 脚本" |
@@ -30,7 +30,7 @@
 | Host 方案和 Requests 环境联动 | 第一版不联动；之后作为方案上的可选项"切换时同时切换环境" | 先把两个功能各自做好，避免概念绑死 |
 | Host 方案和系统 hosts 文件 | 不写系统 hosts 文件 | 代理方式已经覆盖本机 App 和设备，不需要管理员权限，也不影响全机器 |
 | 抓包 → 集合向导 vs Host 方案 | Host 方案先做 | 更小、基于现有 DNS 映射；向导依赖 Requests 侧改版完成 |
-| 导航结构 | 保留 Capture / Requests 两个工作区；规则、Host、脚本、Mock 集中到一个 **Tools** 管理窗口（标题栏和命令面板进入） | 工具类功能高频开关，不适合塞进设置；也不需要第三个工作区 |
+| 导航结构 | 只有一个工作区：抓到的请求和保存的请求是同一种可编辑文档，侧栏分 LIVE、COLLECTIONS、SESSIONS（UI 改版计划 v2，2026-10-31 修订，原为保留 Capture / Requests 两个工作区）；规则、Host、脚本、Mock 集中到一个 **Tools** 管理窗口（标题栏和命令面板进入） | 去掉两个工作区之间的搬运动作；工具类功能高频开关，不适合塞进设置 |
 | 设置结构 | Settings 只放配置：通用、外观、代理（端口、系统代理、上游、绕过）、HTTPS（CA、解密名单）、抓包（白名单、忽略、No Caching、内存上限）、设备 | 和 Tools 分开：配置很少改，工具经常开关 |
 | 界面语言 | 加中文界面，在 UI 改版完成后做（M9 之前任何时候都可以插入） | 改版后文字集中在共用组件里，翻译成本最低 |
 
@@ -40,9 +40,9 @@
 
 | 现在 | 之后 |
 | --- | --- |
-| Run records、Send history、Debug history | **History**（Requests 侧）：每次 Send/Runner 一条记录，可以按请求、按抓包来源过滤，对比、标基线、备注、打开成草稿 |
+| Run records、Send history、Debug history | **History**（选中已保存请求时的中间栏）：每次 Send/Runner 一条记录，可以按请求、按抓包来源过滤，对比、标基线、备注、打开成草稿 |
 | Recent requests（`history.json`） | 去掉，被 History 取代 |
-| Investigations、Historical sessions | **Sessions**（Capture 侧）：保存/打开会话文件，多个会话以 tab 打开，用 Pin、颜色、备注留证，跨会话用 Diff 对比 |
+| Investigations、Historical sessions | **Sessions**（侧栏 SESSIONS 分组）：保存/打开会话文件，多个会话以 tab 打开，用 Pin、颜色、备注留证，跨会话用 Diff 对比 |
 | Regression 用例和分享格式 | 带 Checks 的普通请求放在集合里，用 Runner 跑；分享走 Postman 导出加"脱敏"选项 |
 
 迁移：`investigations.json` 里每个调查转成一个会话文件；`experiments.json` 继续作为 History 的存储；`history.json` 保留只读一个版本后删除。
