@@ -269,11 +269,10 @@ func (a *app) inspectorMenu(c *ui.Context, t *ui.Theme, f flow) {
 		}
 		m.Separator()
 		for _, action := range a.desktopActions(c) {
-			if action.id == "focus" || action.id == "layout-bottom" || action.id == "layout-right" || action.id == "layout-auto" {
+			if action.id == "focus" || action.id == "layout-bottom" || action.id == "layout-right" {
 				item := m.Item(action.label).Shortcut(action.mods, action.key).Disabled(!action.enabled)
-				if action.id == "layout-bottom" || action.id == "layout-right" || action.id == "layout-auto" {
-					layout := cmpOr(a.workbench.layout, "bottom")
-					item.Checked(action.id == "layout-"+layout || action.id == "layout-auto" && layout == "adaptive")
+				if action.id == "layout-bottom" || action.id == "layout-right" {
+					item.Checked(action.id == "layout-"+a.workbench.layout)
 				}
 				if item.Chosen() {
 					action.run()

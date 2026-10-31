@@ -147,30 +147,40 @@ the capture's Client column may identify the desktop gateway instead.
 - `mygo.json`: the app's name, identifier and version for `mygo package`.
 
 The window draws its own title bar under the macOS traffic lights: the name,
-the two workspaces — **Capture** and **Requests** — the proxy address,
+the proxy address, the two layout buttons (**Side by side** and **Stacked**),
 **Commands** and **Settings**, with the rest in the **⋯** menu. It is a native
 window, not a frameless one, so resizing, full screen and the system window
-menu still work. The switch names how you work; what you work on lives in each
-workspace's sidebar: **Investigations** in Capture, **API contracts** in
-Requests.
+menu still work.
 
-The **Capture** sidebar groups **Traffic** (all requests, errors, slow), a
-**Pinned** row of its own, apps, domains, one **Views** area holding opened
-views and saved filters, whose create and manage actions are two compact
-buttons under the list, and the investigations. Its traffic table sits above
-the inspector. The inspector shows the request and the response **beside each
+There is one sidebar, and what it has chosen is what the content area shows.
+It has three groups:
+
+- **Live**: all requests, errors, slow and pinned, then apps, domains, and one
+  **Views** area holding opened views and saved filters, whose create and
+  manage actions are two compact buttons under the list. Choosing one shows the
+  traffic table with its inspector.
+- **Collections**: a search field, **New request**, the **⋯** collection menu,
+  the collection tree, and the API contracts. Choosing a request opens it in
+  the request editor; choosing a contract opens it.
+- **Sessions**: the investigations, **New investigation** and
+  **Historical sessions…**.
+
+The collection **⋯** menu and Commands open what has no place of its own in
+the sidebar: **Environments…**, **Run records**, **Runner…**, **New API
+contract**, **Import OpenAPI…**, **Generate API from collection…**, imports,
+**Vault…** and **Cookies…**. The active environment is chosen in the request
+editor's header. The inspector shows the request and the response **beside each
 other**, each with its own Headers / Params / Body / Raw (request) or
 Headers / Body / Raw / Timing (response) tabs, so a body comparison never needs
 a tab switch. Each pane has a separate heading and format menu above its tabs.
 Its **⋯** menu holds the exchange-wide views — Diff, Connection
 and, for WebSocket and SSE, Messages — and the layout choices. Request and
-response headers scroll independently. **Requests** has a resource rail for
-**Collections**, **Envs**, **Runs** and **APIs**. Collections form a nested tree;
+response headers scroll independently. Collections form a nested tree;
 search reveals matching ancestors without changing saved expansion choices.
-Runs opens retained attempts inline, without sending them again. Document tabs
-stay in the content pane above the editor and inline response viewer. Switching
-resources or workspaces preserves the capture filters, all open drafts and
-responses, and the board. The response's **Last attempt** disclosure shows the
+**Run records** opens retained attempts across the whole window, without
+sending them again; **Close** returns. Document tabs stay in the content pane
+above the editor and inline response viewer. Moving between sidebar groups
+preserves the capture filters, all open drafts and responses, and the board. The response's **Last attempt** disclosure shows the
 full sent draft URL and response time; the collapsed row still distinguishes
 an edited, unsent draft from the retained result. The diff pane is MyGo's
 own `ui/editor` diff viewer, not Monaco, so it stays native and can be reused on
@@ -1083,7 +1093,7 @@ into the tree and keeps them as `requests.json.migrated` and
 `collections.json.migrated`. If either cannot be read, nothing is moved and
 saving stays blocked until the file is repaired.
 
-**Runs → All retained runs…** opens the retained records for choosing an individual
+**Run records** in the collection **⋯** menu opens the retained records for choosing an individual
 immutable attempt. **Send history** scopes the same view to a draft (or its source),
 and **Debug history** scopes it to capture provenance. **Recent requests** beneath
 these records retains the older `~/.vscroxy/history.json` meaning: sent requests
@@ -1203,10 +1213,11 @@ round trips alone.
 
 ## APIs / OpenAPI
 
-Contracts live under **APIs** in the Requests resource rail, independently of
-the collection they were generated from. The sidebar offers **New contract**,
-OpenAPI import and **From collection…**. Switching back to **Collections**
-returns to the request editor without discarding its drafts.
+Contracts are listed in the sidebar's **Collections** group, independently of
+the collection they were generated from. The collection **⋯** menu and Commands
+offer **New API contract**, **Import OpenAPI…** and **Generate API from
+collection…**. Choosing a request returns to the request editor without
+discarding its drafts.
 
 **From collection…** (also **Session → Generate OpenAPI…**) generates a new
 OpenAPI 3.0.3 draft from the selected saved collection, not unsaved request tabs.
@@ -1242,8 +1253,8 @@ them. A generated specification tracks its source collection and shows a warning
 when saved requests change; **Generate new draft** creates another specification,
 never overwriting hand edits. There is no automatic/bidirectional sync, multi-file
 bundling, Swagger 2 import or schema inference yet. Unsaved API editors and source
-links are session-local; saved contracts are restored after restart. Cmd/Ctrl+3
-opens **Requests** on its contracts; Cmd/Ctrl+4 opens the investigations.
+links are session-local; saved contracts are restored after restart. **API
+contracts** in Commands opens the first one.
 
 ## Timing
 
@@ -1256,7 +1267,7 @@ throttle adds, so it matches what the client saw.
 
 **Settings → Proxy** controls the system proxy; **Settings → HTTPS**
 shows the local CA, system trust and domain decryption rules. The native menu also opens
-Settings with Cmd/Ctrl+,; Cmd/Ctrl+1 and Cmd/Ctrl+2 switch workspaces, and
+Settings with Cmd/Ctrl+,; Cmd/Ctrl+1–3 go to the sidebar's groups, and
 Cmd/Ctrl+N starts a request. On Linux and Windows, Alt reveals the native
 menu bar.
 
@@ -1392,11 +1403,13 @@ restored when they would still show on a connected display.
 
 ### Desktop workbench
 
-The default is **Bottom**: requests above, inspector below, even on wide windows.
-Choose **⋯ → View → Inspector: Right (wide windows)** to use a side inspector from
-1000 DIPs of content width, or **Adaptive** to move it right from 1160 DIPs.
-Even Right yields at small widths; both orientations keep
-their own divider positions. In the side layout, the table prioritizes URL,
+The default is **Side by side**: requests on the left, the inspector on the
+right, from 1000 DIPs of content width; a narrower window stacks them without
+changing the choice. **Stacked** puts the inspector under the requests at any
+width. Choose either with the two buttons in the title bar or **⋯ → View →
+Layout**. Each keeps its own divider position. Settings saved before this kept
+**Bottom** as Stacked; **Right**, **Adaptive** and the old default open side
+by side. In the side layout, the table prioritizes URL,
 method, status and duration, and header blocks stack rather than squeezing values
 into two narrow columns. Client and size remain visible in the inspector.
 
@@ -1441,8 +1454,10 @@ Proxyman or Postman use identical Windows/Linux defaults.
 
 Plain Enter in the URL input never sends. Dialogs own their shortcuts: sending,
 opening drafts and workspace commands cannot act through a modal. Local response
-editors keep their own Find commands. Cmd/Ctrl+1–4 still select workspaces and
-their sections, not individual drafts.
+editors keep their own Find commands. Cmd/Ctrl+1, 2 and 3 go to the sidebar's
+Live, Collections and Sessions groups and show what each last showed: the
+traffic, the open draft, the investigation. They never pick an individual
+draft.
 
 The design takes **Edit and Repeat** from [Proxyman](https://docs.proxyman.com/advanced-features/edit-and-repeat)
 and the explicit **Send** chord documented by [Postman](https://blog.postman.com/boost-your-productivity-in-postman-with-these-4-keyboard-shortcuts/).
@@ -1463,7 +1478,7 @@ added to the saved request library and never send on restore.
 
 **Back to traffic** returns to the draft's original capture view without clearing
 search, protocol, header/body or triage conditions, changing its chosen request,
-or resuming a paused list. **Capture → All requests** returns to the currently
+or resuming a paused list. **Live → All requests** returns to the currently
 active live view.
 If the original view was closed, Back to traffic returns to the current view
 and explains the fallback instead of recreating it.
@@ -1486,8 +1501,8 @@ operation and is not undone by returning to Capture or closing a tab.
 
 ### Run records (experiment snapshots)
 
-**Run records…** in Requests or Commands opens the same retained experiment store
-as the sidebar's **Runs**. It retains independent snapshots of Send and Runner
+**Run records…** in Commands opens the same retained experiment store as
+**Run records** in the collection **⋯** menu. It retains independent snapshots of Send and Runner
 attempts, including failures: authored draft, environment name, referenced-variable
 snapshot, Console, prepared request/final response, checks, summary and notes.
 Only referenced variables are retained, not the entire environment. Repeated
@@ -1539,7 +1554,7 @@ debugging history, not sanitized evidence for sharing.
 
 ### Investigations
 
-The **Investigations** section of the Capture sidebar (Ctrl/Cmd+4) is where
+The sidebar's **Sessions** group (Ctrl/Cmd+3) is where
 evidence outlives the traffic list. Each investigation has a name, one line of
 notes that expands when clicked, and a list of exchanges. **Add to investigation…**
 in a capture's inspector or row menu snapshots that exchange — bodies, headers,

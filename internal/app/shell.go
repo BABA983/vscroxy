@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"github.com/baba983/vscroxy/internal/uikit"
 	"runtime"
-	"strings"
 
 	"github.com/baba983/vscroxy/internal/capture"
 	"github.com/egoist/mygo/ui"
@@ -12,22 +11,23 @@ import (
 
 // shell draws the window's own title bar and the footer of the workspace
 // below it. The bar carries only what is true everywhere — where capture is
-// listening, the two workspaces, and the rare commands — so the screen under
-// it belongs to traffic or to a request.
+// listening, the layout, and the rare commands — so the screen under it
+// belongs to traffic or to a request.
 func (a *app) shell(c *ui.Context, t *ui.Theme) {
 	bar := c.TitleBar()
 	height := max(bar.Height, 44)
-	ui.Grid(c).ColumnTracks(ui.Fr(1), ui.Fr(1), ui.Fr(1)).Height(height).AlignItems(ui.Center).
+	// The sides share what the centered status leaves.
+	ui.Grid(c).ColumnTracks(ui.Fr(1), ui.FitContent(), ui.Fr(1)).Height(height).AlignItems(ui.Center).
 		Background(uikit.Colors(t).Panel).Border(0, t.Border).BorderWidth(0, 0, 1, 0).DragWindow().Children(func() {
 		ui.Row(c).PaddingStart(max(bar.Left, t.Space(3))).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 			ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 				ui.Icon(c, brandIcon).Size(uikit.IconLarge, uikit.IconLarge).TextColor(t.Text)
 				ui.Text(c, "vscroxy").FontSize(uikit.TextBody).Bold().TextColor(t.Text)
 			})
-			a.workspaceSwitch(c, t)
 		})
 		ui.Row(c).Justify(ui.Center).MinWidth(0).Children(func() { a.proxyIndicator(c, t) })
 		ui.Row(c).PaddingEnd(max(bar.Right, t.Space(3))).Gap(t.Space(2)).Justify(ui.End).AlignItems(ui.Center).Children(func() {
+			ui.Row(c).Gap(t.Space(0.5)).AlignItems(ui.Center).Children(func() { a.layoutToggle(c) })
 			if uikit.IconButton(c, "Commands", "Search every action · Ctrl/Cmd+K", commandIcon).Clicked() {
 				a.workbench.openPalette()
 			}
@@ -46,36 +46,19 @@ func (a *app) shell(c *ui.Context, t *ui.Theme) {
 	})
 }
 
-// workspaceSwitch is a quiet segmented control: the chosen workspace is a
-// lighter gray, not an accent-colored tab. There are two: traffic is one
-// place, and requests and contracts are another.
-func (a *app) workspaceSwitch(c *ui.Context, t *ui.Theme) {
-	names := []string{"Capture", "Requests"}
-	seg := ui.SegmentedBase(c, &a.workspace, len(names))
-	seg.Track.Padding(t.Space(1)).Radius(uikit.RadiusPanel).Border(1, t.Border).Background(t.Background).Children(func() {
-		for i, name := range names {
-			s := seg.Segment(i).Label(name).Height(uikit.HeightControl).Padding(0, t.Space(3)).Radius(uikit.RadiusControl).AlignItems(ui.Center).TextColor(t.TextMuted)
-			if i == a.workspace {
-				s.TextColor(t.Text)
-			}
-			if s.Pressed() {
-				s.Background(t.SurfacePressed)
-			} else if s.Hovered() || i == a.workspace {
-				s.Background(t.SurfaceHover)
-			}
-			s.Children(func() { uikit.Body(c, name) })
-		}
-	})
-	if seg.Track.Changed() {
-		switch a.workspace {
-		case 1:
-			if a.requestsSection == 0 && a.requestDocument != nil {
-				a.urlInput.Focus(c)
-			}
-		case 0:
-			if a.captureSection == 0 {
-				a.focusTraffic(c)
-			}
+// layoutToggle chooses where the inspector sits: beside the traffic list or
+// under it. A window too narrow for side by side stacks them anyway.
+func (a *app) layoutToggle(c *ui.Context) {
+	w := &a.workbench
+	for _, l := range []struct {
+		id, label string
+		icon      *ui.SVG
+	}{{"right", "Side by side layout", sideLayoutIcon}, {"bottom", "Stacked layout", stackedLayoutIcon}} {
+		b := uikit.ToolbarButton(c, l.label, l.label, w.layout == l.id).Checked(w.layout == l.id).
+			Size(uikit.HeightCompact, uikit.HeightCompact).Padding(0).Justify(ui.Center).
+			Children(func() { ui.Icon(c, l.icon).Size(uikit.IconInline, uikit.IconInline) })
+		if b.Clicked() {
+			w.layout, w.focused = l.id, false
 		}
 	}
 }
@@ -288,12 +271,10 @@ func (a *app) moreMenu(c *ui.Context, m *ui.Menu) {
 	})
 	m.Submenu("View", func(m *ui.Menu) {
 		for _, action := range a.desktopActions(c) {
-			if action.id == "layout-bottom" || action.id == "layout-right" || action.id == "layout-auto" ||
-				action.id == "sidebar" || action.id == "focus" {
+			if action.id == "layout-bottom" || action.id == "layout-right" || action.id == "sidebar" || action.id == "focus" {
 				item := m.Item(action.label).Shortcut(action.mods, action.key).Disabled(!action.enabled)
-				if action.id == "layout-bottom" || action.id == "layout-right" || action.id == "layout-auto" {
-					layout := cmpOr(a.workbench.layout, "bottom")
-					item.Checked(action.id == "layout-"+layout || action.id == "layout-auto" && layout == "adaptive")
+				if action.id == "layout-bottom" || action.id == "layout-right" {
+					item.Checked(action.id == "layout-"+a.workbench.layout)
 				}
 				if item.Chosen() {
 					action.run()
@@ -318,26 +299,24 @@ func (a *app) moreMenu(c *ui.Context, m *ui.Menu) {
 	})
 }
 
-// syncSections keeps each sidebar's choice and the section on screen in step
-// when another part of the app changes them: a filter reset, a new
+// syncSections keeps the sidebar's one choice and the content on screen in
+// step when another part of the app changes them: a filter reset, a new
 // investigation, a contract or a request opened from elsewhere.
 func (a *app) syncSections() {
 	if a.workspace == 1 {
 		if a.requestsSection == 1 {
-			a.requestSide = 3
 			if a.apiChoice == "" && len(a.apis) > 0 {
 				a.apiChoice = a.apis[0].spec.ID
 			}
-			if a.apiChoice == "" {
-				a.requestsSection = 0
-			} else {
-				a.requestChoice = "contract:" + a.apiChoice
+			if a.apiChoice != "" {
+				a.sidebarChoice = "contract:" + a.apiChoice
 				return
 			}
+			a.requestsSection = 0
 		}
-		if strings.HasPrefix(a.requestChoice, "contract:") {
-			a.requestChoice = ""
-		}
+		// A request is a tree item with its own selection; no other item is
+		// chosen meanwhile.
+		a.sidebarChoice = ""
 		return
 	}
 	if a.captureSection == 1 {
@@ -347,7 +326,7 @@ func (a *app) syncSections() {
 		}
 		a.captureSection = 0
 	}
-	if !strings.HasPrefix(a.sidebarChoice, "investigation:") && a.sidebarChoice != cmpOr(a.filter, "all") {
+	if a.sidebarChoice != cmpOr(a.filter, "all") {
 		a.sidebarChoice = cmpOr(a.filter, "all")
 	}
 }

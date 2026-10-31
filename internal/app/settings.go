@@ -22,8 +22,9 @@ type settings struct {
 	SidebarWidth float32      `json:"sidebarWidth,omitempty"`
 	TablePercent float32      `json:"tablePercent,omitempty"`
 	Columns      columnLayout `json:"columns,omitempty"`
-	// InspectorLayout defaults to bottom (also for older empty values).
-	// Right and adaptive are opt-in; each orientation keeps its own divider.
+	// InspectorLayout is "right" (side by side, the default) or "bottom"
+	// (stacked); each keeps its own divider. Older values read as
+	// inspectorLayout says.
 	InspectorLayout  string  `json:"inspectorLayout,omitempty"`
 	SideTablePercent float32 `json:"sideTablePercent,omitzero"`
 	SidebarHidden    bool    `json:"sidebarHidden,omitzero"`
@@ -151,4 +152,14 @@ func sameSettings(x, y settings) bool {
 		x.VaultScripts == y.VaultScripts &&
 		slices.Equal(x.Columns.Order, y.Columns.Order) &&
 		maps.Equal(x.Columns.Widths, y.Columns.Widths)
+}
+
+// inspectorLayout reads a saved layout. Side by side became the default
+// with one workspace, so only an explicit "bottom" stays stacked; the
+// retired "adaptive" and the old empty default read as side by side.
+func inspectorLayout(saved string) string {
+	if saved == "bottom" {
+		return "bottom"
+	}
+	return "right"
 }

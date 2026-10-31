@@ -184,16 +184,17 @@ func SidebarItem(c *ui.Context, id string, icon *ui.SVG, label string, chosen bo
 	return item
 }
 
-func SidebarSection(c *ui.Context, title string, open *bool, content func()) {
+func SidebarSection(c *ui.Context, title string, open *bool, content func()) ui.Element {
 	t := c.Theme()
 	sectionTheme := *t
 	sectionTheme.FontSize = TextMeta + 1 // SidebarSection uses FontSize - 1.
 	c.SetTheme(&sectionTheme)
-	ui.SidebarSection(c, strings.ToUpper(title), open, func() {
+	section := ui.SidebarSection(c, strings.ToUpper(title), open, func() {
 		c.SetTheme(t)
 		content()
 	}).Margin(t.Space(2), 0, 0, 0)
 	c.SetTheme(t)
+	return section
 }
 
 func EmptyState(c *ui.Context, title, hint string, actions func()) {

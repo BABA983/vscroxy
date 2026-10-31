@@ -244,6 +244,17 @@ func TestSameSettingsSeesColumnChanges(t *testing.T) {
 	}
 }
 
+// Side by side is the default with one workspace: only a stacked choice
+// someone made stays stacked, and the retired adaptive layout reads as side
+// by side.
+func TestSavedInspectorLayoutMigrates(t *testing.T) {
+	for saved, want := range map[string]string{"": "right", "adaptive": "right", "right": "right", "bottom": "bottom"} {
+		if got := inspectorLayout(saved); got != want {
+			t.Errorf("inspectorLayout(%q) = %q, want %q", saved, got, want)
+		}
+	}
+}
+
 // An older settings file's single header column becomes the first custom one.
 func TestLegacyHeaderColumnBecomesACustomColumn(t *testing.T) {
 	got := settings{HeaderColumn: "x-request-id"}.customColumns()

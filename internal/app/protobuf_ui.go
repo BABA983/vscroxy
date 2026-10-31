@@ -97,7 +97,8 @@ func (p *protoInspector) inspect(c *ui.Context, a *app, f flow, response bool) {
 func (p *protoInspector) view(c *ui.Context, a *app, f flow, side int) {
 	t := c.Theme()
 	response := side == 0
-	ui.Row(c).Padding(0, t.Space(3), t.Space(2), t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+	// Wraps in a narrow inspector rather than pushing its controls out.
+	ui.Row(c).Padding(0, t.Space(3), t.Space(2), t.Space(3)).Gap(t.Space(2)).Wrap().AlignItems(ui.Center).Children(func() {
 		options := []string{"Auto"}
 		if p.schema != nil {
 			options = append(options, p.schema.names...)

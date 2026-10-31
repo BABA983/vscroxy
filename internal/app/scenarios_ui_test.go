@@ -97,7 +97,10 @@ func TestRequestConsoleAndRunsAreVisibleWithoutReexecution(t *testing.T) {
 	if !tt.HasText("pre-request · log · pre-output") || !tt.HasText("post-response · log · post-output") || !tt.HasText("post-response.js:1:") {
 		t.Fatal("visible console lost logs or error location")
 	}
-	click("Runs")
+	click("Collection options")
+	if err := chooseMenu(tt, "Run records"); err != nil {
+		t.Fatal(err)
+	}
 	click("Variables")
 	tt.Key(0, ui.KeyLeft)
 	if a.experiments.tab != 4 || !tt.HasText("post-response · log · post-output") {

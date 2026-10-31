@@ -58,7 +58,6 @@ type app struct {
 	requestsSection int
 	sidebarChoice   string
 	requestChoice   string
-	requestSide     int // 0 collections, 1 runs, 2 environments, 3 contracts
 	requestQuery    string
 	renameOpen      bool
 	settingsOpen    bool
@@ -97,8 +96,11 @@ type app struct {
 	trafficOpen bool
 	domainsOpen bool
 	clientsOpen bool
-	// contractsOpen keeps the Requests sidebar's contract group open or shut.
-	contractsOpen bool
+	// collectionsOpen keeps the sidebar's COLLECTIONS group open or shut.
+	collectionsOpen bool
+	// revealGroup scrolls the sidebar to a group in the next build: "live",
+	// "collections" or "sessions".
+	revealGroup string
 	// collectionOpen keeps each saved collection's section open or shut,
 	// by name, the empty name for the requests outside one.
 	collectionOpen map[string]*bool
@@ -335,20 +337,21 @@ type domain struct {
 
 func newApp() *app {
 	a := &app{
-		filter:         "all",
-		sidebarChoice:  "all",
-		icons:          make(map[string]ui.ImageSource),
-		sidebarWidth:   220,
-		tablePercent:   44,
-		trafficOpen:    true,
-		domainsOpen:    true,
-		clientsOpen:    true,
-		contractsOpen:  true,
-		historyOpen:    true,
-		collectionOpen: make(map[string]*bool),
-		detailFor:      -1,
-		frames:         make(map[int][]frame),
-		throttle:       capture.Presets[0],
+		filter:          "all",
+		sidebarChoice:   "all",
+		icons:           make(map[string]ui.ImageSource),
+		sidebarWidth:    220,
+		tablePercent:    44,
+		trafficOpen:     true,
+		domainsOpen:     true,
+		clientsOpen:     true,
+		collectionsOpen: true,
+		historyOpen:     true,
+		collectionOpen:  make(map[string]*bool),
+		detailFor:       -1,
+		frames:          make(map[int][]frame),
+		throttle:        capture.Presets[0],
+		workbench:       desktopWorkbench{layout: "right"},
 	}
 	// The engine reads SSLKEYLOGFILE on its first handshake, so a key log the
 	// settings ask for has to be in the environment before it starts.
@@ -406,7 +409,7 @@ func newApp() *app {
 		if saved.TablePercent > 0 {
 			a.tablePercent = saved.TablePercent
 		}
-		a.workbench.layout = saved.InspectorLayout
+		a.workbench.layout = inspectorLayout(saved.InspectorLayout)
 		a.workbench.sidebarHidden = saved.SidebarHidden
 		if saved.SideTablePercent > 0 {
 			a.workbench.sidePercent = saved.SideTablePercent
@@ -1365,18 +1368,20 @@ func (a *app) clearCaptured() {
 	a.setMessage("Unpinned requests cleared")
 }
 
-// sidebar is the capture workspace's source list: the traffic itself, the
-// apps and hosts it came from, the views that narrow it, and the
-// investigations that keep evidence beyond it.
+// sidebar is the window's one source list, in three groups: LIVE is the
+// traffic and what narrows it, COLLECTIONS the saved requests and API
+// contracts, SESSIONS the evidence kept beyond live traffic. Its one choice
+// is what the content area shows; syncSections keeps it in step.
 func (a *app) sidebar(c *ui.Context) {
 	t := c.Theme()
-	if a.workspace == 1 {
-		a.requestSidebar(c, t)
-		return
-	}
 	ui.Column(c).Fill().Background(uikit.Colors(t).Panel).Children(func() {
 		chosen := ui.Sidebar(c, &a.sidebarChoice, func() {
-			uikit.SidebarSection(c, "Traffic", &a.trafficOpen, func() {
+			reveal := func(group string, section ui.Element) {
+				if a.revealGroup == group {
+					section.ScrollIntoView()
+				}
+			}
+			reveal("live", uikit.SidebarSection(c, "Live", &a.trafficOpen, func() {
 				uikit.SidebarItem(c, "all", trafficIcon, "All requests", a.sidebarChoice == "all").Children(func() {
 					uikit.Meta(c, fmt.Sprint(len(a.flows))).FontFeatures("tnum")
 				})
@@ -1386,10 +1391,10 @@ func (a *app) sidebar(c *ui.Context) {
 				uikit.SidebarItem(c, "slow", captureIcon, "Slow", a.sidebarChoice == "slow").Children(func() {
 					uikit.Meta(c, fmt.Sprint(a.count(func(f flow) bool { return f.millis >= 120 }))).FontFeatures("tnum")
 				})
-			})
-			uikit.SidebarItem(c, "pinned", pinIcon, "Pinned", a.sidebarChoice == "pinned").Children(func() {
-				uikit.Meta(c, fmt.Sprint(a.count(func(f flow) bool { return f.pinned }))).FontFeatures("tnum")
-			})
+				uikit.SidebarItem(c, "pinned", pinIcon, "Pinned", a.sidebarChoice == "pinned").Children(func() {
+					uikit.Meta(c, fmt.Sprint(a.count(func(f flow) bool { return f.pinned }))).FontFeatures("tnum")
+				})
+			}))
 			if len(a.clients) > 0 {
 				uikit.SidebarSection(c, "Apps", &a.clientsOpen, func() {
 					for _, d := range a.clients {
@@ -1441,7 +1446,10 @@ func (a *app) sidebar(c *ui.Context) {
 			uikit.SidebarSection(c, "Views", nil, func() {
 				a.views.sidebar(c, t, a)
 			})
-			uikit.SidebarSection(c, "Investigations", nil, func() {
+			reveal("collections", uikit.SidebarSection(c, "Collections", &a.collectionsOpen, func() {
+				a.collectionsGroup(c, t)
+			}))
+			reveal("sessions", uikit.SidebarSection(c, "Sessions", nil, func() {
 				for _, inv := range a.board.items {
 					uikit.SidebarItem(c, "investigation:"+inv.ID, layersIcon, inv.Title, a.sidebarChoice == "investigation:"+inv.ID).Children(func() {
 						uikit.Meta(c, fmt.Sprint(len(inv.Items))).FontFeatures("tnum")
@@ -1453,7 +1461,7 @@ func (a *app) sidebar(c *ui.Context) {
 				}).Clicked() {
 					a.board.create("")
 					a.board.list = ui.ListState{}
-					a.captureSection = 1
+					a.workspace, a.captureSection = 0, 1
 				}
 				if uikit.ToolbarButton(c, "Historical sessions…", "Read saved sessions and exported evidence, read-only", false).FillWidth().Justify(ui.Start).Children(func() {
 					ui.Icon(c, clockIcon).Size(uikit.IconInline, uikit.IconInline)
@@ -1461,24 +1469,11 @@ func (a *app) sidebar(c *ui.Context) {
 				}).Clicked() {
 					a.investigations.show()
 				}
-			})
+			}))
 		}).Grow(1).Background(uikit.Colors(t).Panel)
+		a.revealGroup = ""
 		if chosen.Changed() {
-			if id, ok := strings.CutPrefix(a.sidebarChoice, "investigation:"); ok {
-				a.captureSection = 1
-				a.board.active = id
-				a.board.list = ui.ListState{}
-			} else {
-				a.captureSection = 0
-				if host, ok := strings.CutPrefix(a.sidebarChoice, "host:"); ok {
-					a.filterTriage.Host = host
-				} else if client, ok := strings.CutPrefix(a.sidebarChoice, "client:"); ok {
-					a.filterTriage.Client = client
-				} else {
-					a.filter = cmp.Or(a.sidebarChoice, "all")
-				}
-				a.applyFilter()
-			}
+			a.goTo(a.sidebarChoice)
 		}
 		ui.Divider(c)
 		ui.Column(c).Padding(t.Space(2)).Gap(t.Space(0.5)).Children(func() {
@@ -1500,148 +1495,97 @@ func (a *app) sidebar(c *ui.Context) {
 	})
 }
 
-// requestSidebar is the library a debugging screen needs: the collections,
-// the history of sends, the API contracts edited here, and the way to manage
-// environments. It is not the traffic list, so capture filters never appear.
-func (a *app) requestSidebar(c *ui.Context, t *ui.Theme) {
-	if a.requestSide == 2 {
-		a.environmentSidebar(c)
+// goTo shows what a sidebar choice names: an investigation, an API
+// contract, or a LIVE scope of the traffic. Saved requests are tree items
+// that open themselves.
+func (a *app) goTo(choice string) {
+	if id, ok := strings.CutPrefix(choice, "investigation:"); ok {
+		a.workspace, a.captureSection = 0, 1
+		a.board.active = id
+		a.board.list = ui.ListState{}
 		return
 	}
-	ui.Column(c).Fill().Background(uikit.Colors(t).Panel).Children(func() {
-		ui.Column(c).Padding(t.Space(2), t.Space(2)).Gap(t.Space(2)).Children(func() {
-			title := "Collections"
-			if a.requestSide == 1 {
-				title = "Runs"
-			} else if a.requestSide == 3 {
-				title = "APIs"
-			}
-			ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-				ui.Text(c, title).FontSize(uikit.TextBody).FontWeight(600).Grow(1)
-				newLabel := "New request"
-				if a.requestSide == 3 {
-					newLabel = "New API"
-				}
-				if uikit.IconButton(c, newLabel, newLabel, plusIcon).Clicked() {
-					if a.requestSide == 3 {
-						a.newAPI()
-					} else {
-						a.openCompose()
-					}
-				}
-				uikit.IconButton(c, "Collection options", "Import and collection tools", moreIcon).PopoverMenuButton(func(m *ui.Menu) {
-					if m.Item("Import…").Chosen() {
-						if a.requestSide == 3 {
-							a.importOpenAPI()
-						} else {
-							a.importRequests()
-						}
-					}
-					m.Separator()
-					if m.Item("Import cURL…").Chosen() {
-						a.openCurlImport()
-					}
-					if m.Item("Vault…").Chosen() {
-						a.openVault()
-					}
-					if m.Item("Runner…").Chosen() {
-						a.openRunner()
-					}
-					if m.Item("Cookies…").Chosen() {
-						a.openCookies()
-					}
-				})
-			})
-			placeholder, label := "Search collections…", "Search collections"
-			if a.requestSide == 1 {
-				placeholder, label = "Search history…", "Search history"
-			} else if a.requestSide == 3 {
-				placeholder, label = "Search APIs…", "Search APIs"
-			}
-			uikit.Input(c, &a.requestQuery).Label(label).Placeholder(placeholder)
-		})
-		chosen := ui.Sidebar(c, &a.requestChoice, func() {
-			query := strings.ToLower(strings.TrimSpace(a.requestQuery))
-			if a.requestSide == 0 {
-				a.collectionTree(c)
-			}
-			if a.requestSide != 3 {
-				return
-			}
-			uikit.SidebarSection(c, "API contracts", &a.contractsOpen, func() {
-				for _, d := range a.apis {
-					if query != "" && !strings.Contains(strings.ToLower(d.title()), query) {
-						continue
-					}
-					uikit.SidebarItem(c, "contract:"+d.spec.ID, apiIcon, d.title(), a.apiChoice == d.spec.ID).Label("API: " + d.title()).Children(func() {
-						if d.dirty() {
-							ui.Box(c).Size(5, 5).Radius(uikit.RadiusControl).Background(t.Accent).Label("Unsaved API")
-						}
-					})
-				}
-				// A group with nothing in it stays two short entries, so the
-				// history and the collections keep their room.
-				if len(a.apis) == 0 {
-					if uikit.ToolbarButton(c, "New API", "Create a contract, or import OpenAPI from the editor", false).FillWidth().Children(func() {
-						ui.Icon(c, plusIcon).Size(uikit.IconInline, uikit.IconInline)
-						uikit.Body(c, "New contract")
-					}).Clicked() {
-						a.newAPI()
-						a.requestsSection = 1
-					}
-					ui.Column(c).FillWidth().Disabled(len(a.requests) == 0).Children(func() {
-						if uikit.ToolbarButton(c, "Generate from collection", "Generate OpenAPI from a saved collection", false).FillWidth().Children(func() {
-							ui.Icon(c, layersIcon).Size(uikit.IconInline, uikit.IconInline)
-							uikit.Body(c, "From collection…")
-						}).Clicked() {
-							a.openAPIGeneration()
-						}
-					})
-					return
-				}
-				if uikit.ToolbarButton(c, "New API", "Create an API contract", false).FillWidth().Children(func() {
-					ui.Icon(c, plusIcon).Size(uikit.IconInline, uikit.IconInline)
-					uikit.Body(c, "New contract")
-				}).Clicked() {
-					a.newAPI()
-					a.requestsSection = 1
-				}
-				if uikit.ToolbarButton(c, "Import OpenAPI", "Import an OpenAPI file", false).FillWidth().Children(func() {
-					ui.Icon(c, fileInputIcon).Size(uikit.IconInline, uikit.IconInline)
-					uikit.Body(c, "Import OpenAPI…")
-				}).Clicked() {
-					a.importOpenAPI()
-				}
-				ui.Column(c).FillWidth().Disabled(len(a.requests) == 0).Children(func() {
-					if uikit.ToolbarButton(c, "Generate from collection", "Generate OpenAPI from a saved collection", false).FillWidth().Children(func() {
-						ui.Icon(c, layersIcon).Size(uikit.IconInline, uikit.IconInline)
-						uikit.Body(c, "From collection…")
-					}).Clicked() {
-						a.openAPIGeneration()
-					}
-				})
-			})
-		}).Grow(1).Background(uikit.Colors(t).Panel)
-		if chosen.Changed() {
-			if id, ok := strings.CutPrefix(a.requestChoice, "contract:"); ok {
-				a.requestsSection, a.apiChoice = 1, id
-			} else {
-				a.requestsSection = 0
-				if value, ok := strings.CutPrefix(a.requestChoice, "history:"); ok {
-					if i, err := strconv.Atoi(value); err == nil {
-						a.openHistory(i)
-					}
-				} else {
-					for _, r := range a.requests {
-						if a.requestChoice == r.key() {
-							a.openSaved(r.key())
-							break
-						}
-					}
-				}
-			}
+	if id, ok := strings.CutPrefix(choice, "contract:"); ok {
+		a.workspace, a.requestsSection, a.apiChoice = 1, 1, id
+		return
+	}
+	a.workspace, a.captureSection = 0, 0
+	if host, ok := strings.CutPrefix(choice, "host:"); ok {
+		a.filterTriage.Host = host
+	} else if client, ok := strings.CutPrefix(choice, "client:"); ok {
+		a.filterTriage.Client = client
+	} else {
+		a.filter = cmp.Or(choice, "all")
+	}
+	a.applyFilter()
+}
+
+// collectionsGroup is the COLLECTIONS group: its search and tools, the
+// collection tree, and the API contracts. Environments, run records and the
+// rest of the library open from its menu and the command palette.
+func (a *app) collectionsGroup(c *ui.Context, t *ui.Theme) {
+	ui.Row(c).Gap(t.Space(1)).AlignItems(ui.Center).Padding(0, 0, t.Space(1)).Children(func() {
+		uikit.Input(c, &a.requestQuery).Label("Search collections").Placeholder("Search…").Grow(1).MinWidth(0)
+		if uikit.IconButton(c, "New request", "New request", plusIcon).Clicked() {
+			a.openCompose()
 		}
+		uikit.IconButton(c, "Collection options", "Collections, APIs, environments and runs", moreIcon).PopoverMenuButton(a.collectionsMenu)
 	})
+	a.collectionTree(c)
+	query := strings.ToLower(strings.TrimSpace(a.requestQuery))
+	for _, d := range a.apis {
+		if query != "" && !strings.Contains(strings.ToLower(d.title()), query) {
+			continue
+		}
+		uikit.SidebarItem(c, "contract:"+d.spec.ID, apiIcon, d.title(), a.sidebarChoice == "contract:"+d.spec.ID).Label("API: " + d.title()).Children(func() {
+			if d.dirty() {
+				ui.Box(c).Size(5, 5).Radius(uikit.RadiusControl).Background(t.Accent).Label("Unsaved API")
+			}
+		})
+	}
+}
+
+func (a *app) collectionsMenu(m *ui.Menu) {
+	if m.Item("Import…").Chosen() {
+		a.importRequests()
+	}
+	if m.Item("Import cURL…").Chosen() {
+		a.openCurlImport()
+	}
+	m.Separator()
+	if m.Item("Environments…").Chosen() {
+		a.openVars()
+	}
+	if m.Item("Run records").Chosen() {
+		a.showRunRecords()
+	}
+	if m.Item("Runner…").Chosen() {
+		a.openRunner()
+	}
+	m.Separator()
+	if m.Item("New API contract").Chosen() {
+		a.newAPI()
+		a.workspace, a.requestsSection = 1, 1
+	}
+	if m.Item("Import OpenAPI…").Chosen() {
+		a.importOpenAPI()
+	}
+	if m.Item("Generate API from collection…").Disabled(len(a.requests) == 0).Chosen() {
+		a.openAPIGeneration()
+	}
+	m.Separator()
+	if m.Item("Vault…").Chosen() {
+		a.openVault()
+	}
+	if m.Item("Cookies…").Chosen() {
+		a.openCookies()
+	}
+}
+
+// showRunRecords shows every run record in the content area.
+func (a *app) showRunRecords() {
+	a.experiments.scope, a.experiments.draftKey = nil, ""
+	a.workspace, a.requestsSection = 1, 2
 }
 
 func (a *app) count(match func(flow) bool) int {
@@ -3016,7 +2960,7 @@ func (a *app) openSaved(key string) {
 			a.requestDocument = d
 			d.revealTab = true
 			a.requestChoice = key
-			a.workspace, a.requestsSection, a.requestSide = 1, 0, 0
+			a.workspace, a.requestsSection = 1, 0
 			return
 		}
 	}

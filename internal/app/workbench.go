@@ -15,20 +15,19 @@ import (
 // desktopWorkbench owns presentation, not the capture view's filters or choice.
 // Focusing an inspector is temporary; only the normal layout is persisted.
 type desktopWorkbench struct {
-	layout               string
-	sidePercent          float32
-	sidebarHidden        bool
-	focused              bool
-	sideBySide           bool
-	paletteOpen          bool
-	query                string
-	command              int
-	commands             ui.ListState
-	inspector            ui.Handle
-	content              ui.Handle
-	menuAction           string
-	menuItems            map[string]*mygo.MenuItem
-	requestSidebarHidden bool
+	layout        string
+	sidePercent   float32
+	sidebarHidden bool
+	focused       bool
+	sideBySide    bool
+	paletteOpen   bool
+	query         string
+	command       int
+	commands      ui.ListState
+	inspector     ui.Handle
+	content       ui.Handle
+	menuAction    string
+	menuItems     map[string]*mygo.MenuItem
 }
 
 func (w *desktopWorkbench) openPalette() {
@@ -39,13 +38,18 @@ func (w *desktopWorkbench) openPalette() {
 // contentWidth is the room the main pane has beside the sidebar.
 func (a *app) contentWidth(c *ui.Context) float32 {
 	width, _ := c.Size()
-	if !a.workbench.sidebarHidden && !(a.workspace == 1 && (a.workbench.requestSidebarHidden || a.requestsSection == 2)) {
+	if a.sidebarShown() {
 		width -= a.sidebarWidth + 6
 	}
-	if a.workspace == 1 {
-		width -= requestRailWidth
-	}
 	return width
+}
+
+// sidebarShown: the sidebar stays beside every screen, except while it is
+// hidden, the inspector has the window, or the run records (three columns
+// of their own, closed with their Close button) need it.
+func (a *app) sidebarShown() bool {
+	return !a.workbench.sidebarHidden && !(a.workbench.focused && a.workspace == 0) &&
+		!(a.workspace == 1 && a.requestsSection == 2)
 }
 
 func (a *app) desktopContent(c *ui.Context) {
@@ -53,7 +57,7 @@ func (a *app) desktopContent(c *ui.Context) {
 	available := a.contentWidth(c)
 	// Even an explicitly requested side inspector yields on small windows.
 	// It returns, with its own divider position, when there is room again.
-	w.sideBySide = w.layout == "right" && available >= 1000 || w.layout == "adaptive" && available >= 1160
+	w.sideBySide = w.layout == "right" && available >= 1000
 	if w.sidePercent == 0 {
 		w.sidePercent = 64
 	}
@@ -119,13 +123,10 @@ func (a *app) desktopContent(c *ui.Context) {
 		}
 	}
 	ui.Row(c).Grow(1).FillWidth().Children(func() {
-		if a.workspace == 1 {
-			a.requestRail(c)
-		}
-		if w.sidebarHidden || w.focused && a.workspace == 0 || a.workspace == 1 && (w.requestSidebarHidden || a.requestsSection == 2) {
-			ui.Column(c).Grow(1).FillHeight().Children(content)
-		} else {
+		if a.sidebarShown() {
 			ui.Split(c, &a.sidebarWidth, func() { a.sidebar(c) }, content).Grow(1).FillHeight()
+		} else {
+			ui.Column(c).Grow(1).FillHeight().Children(content)
 		}
 	})
 }
@@ -195,12 +196,6 @@ func (a *app) captureToolbar(c *ui.Context, t *ui.Theme) {
 			a.srv.SetBreak(a.breakOn)
 		}
 		breakButton.Children(func() { ui.Icon(c, breakIcon).Size(uikit.IconInline, uikit.IconInline) })
-		ui.PopoverMenuButton(c, "Layout", func(m *ui.Menu) {
-			for _, id := range []string{"layout-bottom", "layout-right", "layout-auto", "focus"} {
-				a.desktopMenuItem(c, m, id, "")
-			}
-		}).Label("Inspector layout").Tooltip("Inspector layout").Height(uikit.HeightControl).Padding(0, t.Space(2)).
-			FontSize(uikit.TextMeta).TextColor(t.TextMuted).Border(0, t.Border)
 		ui.PopoverMenuButton(c, "⋯", func(m *ui.Menu) {
 			if m.Item("Debugging rules…").Chosen() {
 				a.openRules()
@@ -378,12 +373,11 @@ func (a *app) desktopActions(c *ui.Context) []desktopAction {
 			a.breakOn = !a.breakOn
 			a.srv.SetBreak(a.breakOn)
 		}},
-		{"layout-auto", "Inspector: Adaptive", capturing, 0, 0, func() { w.layout, w.focused = "adaptive", false }},
-		{"layout-right", "Inspector: Right (wide windows)", capturing, 0, 0, func() { w.layout, w.focused = "right", false }},
-		{"layout-bottom", "Inspector: Bottom", capturing, 0, 0, func() { w.layout, w.focused = "bottom", false }},
+		{"layout-right", "Layout: Side by side", true, 0, 0, func() { w.layout, w.focused = "right", false }},
+		{"layout-bottom", "Layout: Stacked", true, 0, 0, func() { w.layout, w.focused = "bottom", false }},
 		{"sidebar", "Toggle sidebar", true, ui.Cmd, ui.KeyB, func() { w.sidebarHidden = !w.sidebarHidden }},
 		{"layout-reset", "Reset desktop layout", true, 0, 0, func() {
-			w.layout, w.sidebarHidden, w.focused, w.sidePercent = "bottom", false, false, 64
+			w.layout, w.sidebarHidden, w.focused, w.sidePercent = "right", false, false, 64
 			a.sidebarWidth, a.tablePercent = 220, 44
 			a.columns = ui.TableLayout{}
 		}},
@@ -410,27 +404,34 @@ func (a *app) desktopActions(c *ui.Context) []desktopAction {
 		{"import-postman", "Import…", true, 0, 0, a.importRequests},
 		{"export-postman", "Export collection as Postman…", editing && d.composeCollection != "", 0, 0, func() { a.exportPostman(collectionRoot(d.composeCollection)) }},
 		{"settings", "Open settings…", true, ui.Cmd, ui.KeyComma, func() { a.settingsOpen = true }},
-		{"capture-workspace", "Capture", true, ui.Cmd, ui.Key1, func() {
+		{"live", "Go to Live traffic", true, ui.Cmd, ui.Key1, func() {
 			a.workspace, a.captureSection = 0, 0
-			a.sidebarChoice = cmpOr(a.filter, "all")
+			a.trafficOpen, a.revealGroup = true, "live"
 			a.focusTraffic(c)
 		}},
-		{"requests-workspace", "Requests", true, ui.Cmd, ui.Key2, func() {
+		{"collections", "Go to Collections", true, ui.Cmd, ui.Key2, func() {
 			a.workspace, a.requestsSection = 1, 0
+			a.collectionsOpen, a.revealGroup = true, "collections"
 			if a.requestDocument != nil {
 				a.urlInput.Focus(c)
 			}
 		}},
-		{"apis-workspace", "API contracts", true, ui.Cmd, ui.Key3, func() {
-			a.workspace, a.requestsSection = 1, 1
-			a.requestSide = 3
-			if a.apiChoice == "" && len(a.apis) > 0 {
-				a.apiChoice = a.apis[0].spec.ID
+		{"sessions", "Go to Sessions", len(a.board.items) > 0, ui.Cmd, ui.Key3, func() {
+			if a.board.active == "" {
+				a.board.active = a.board.items[0].ID
 			}
-		}},
-		{"investigate-workspace", "Investigations", true, ui.Cmd, ui.Key4, func() {
 			a.workspace, a.captureSection = 0, 1
+			a.revealGroup = "sessions"
 		}},
+		{"apis", "API contracts", len(a.apis) > 0, 0, 0, func() {
+			a.workspace, a.requestsSection = 1, 1
+		}},
+		{"new-api", "New API contract", true, 0, 0, func() {
+			a.newAPI()
+			a.workspace, a.requestsSection = 1, 1
+		}},
+		{"import-openapi", "Import OpenAPI…", true, 0, 0, a.importOpenAPI},
+		{"run-records", "Show run records", true, 0, 0, a.showRunRecords},
 		{"add-investigation", "Add inspected request to investigation", capturing && current && f.kind == "", 0, 0, func() {
 			a.addToInvestigation(f)
 		}},
@@ -481,9 +482,13 @@ func (action desktopAction) unavailable() string {
 	case "save-request", "back":
 		return "Open a request draft first"
 	case "next-tab", "previous-tab":
-		return "Open a request tab in Capture or Requests"
+		return "Open a request tab first"
+	case "sessions":
+		return "Create an investigation first"
+	case "apis":
+		return "Create or import an API contract first"
 	default:
-		return "Unavailable in the current workspace or selection"
+		return "Unavailable for what is shown or selected"
 	}
 }
 
@@ -569,7 +574,6 @@ func (a *app) backToTraffic(c *ui.Context) {
 		}
 	}
 	a.workspace, a.captureSection = 0, 0
-	a.sidebarChoice = cmpOr(a.filter, "all")
 	a.focusTraffic(c)
 }
 

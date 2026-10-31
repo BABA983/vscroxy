@@ -192,7 +192,6 @@ func (a *app) addDocument(r savedRequest, key string) {
 	a.requestDocument = d
 	a.requestChoice = key
 	a.workspace, a.requestsSection = 1, 0
-	a.requestSide = 0
 	d.urlInput.Focus()
 }
 
@@ -553,7 +552,6 @@ func (a *app) requestDocumentActions(c *ui.Context, t *ui.Theme, d *requestDocum
 				ui.Text(c, "Source API").TextColor(t.Accent)
 			}).Clicked() {
 				a.apiChoice, a.workspace, a.requestsSection = d.sourceAPI, 1, 1
-				a.requestSide = 3
 			}
 		}
 		a.desktopButton(c, "save-request", "Save")

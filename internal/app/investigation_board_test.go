@@ -84,7 +84,7 @@ func TestInvestigationBoardAddsFromCaptureComparesAndReviewsEvidence(t *testing.
 	if len(a.board.items) != 1 || len(a.board.items[0].Items) != 1 {
 		t.Fatal("adding from the inspector did not reach the board")
 	}
-	click("Capture")
+	tt.Key(ui.Cmd, ui.Key1)
 	click("api.example.com/login")
 	add()
 	if len(a.board.items[0].Items) != 2 {

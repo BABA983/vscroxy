@@ -1,7 +1,6 @@
 package app
 
 import (
-	"cmp"
 	"github.com/baba983/vscroxy/internal/uikit"
 	"slices"
 	"strings"
@@ -9,54 +8,6 @@ import (
 	"github.com/egoist/mygo/ui"
 	"github.com/oneo-me/onevra/source/icons/lucide"
 )
-
-const requestRailWidth = 72
-
-// The rail chooses resources, not documents. Switching it never replaces a draft.
-func (a *app) requestRail(c *ui.Context) {
-	t := c.Theme()
-	ui.Column(c).Width(requestRailWidth).FillHeight().Padding(t.Space(1)).Gap(t.Space(1)).
-		Background(uikit.Colors(t).Panel).BorderWidth(0, 1, 0, 0).BorderColor(t.Border).Children(func() {
-		for _, item := range []struct {
-			label string
-			icon  *ui.SVG
-			side  int
-		}{{"Collections", layersIcon, 0}, {"Envs", domainIcon, 2}, {"Runs", sendHistoryIcon, 1}, {"APIs", apiIcon, 3}} {
-			button := uikit.RowButton(c.Key(item.label), item.label).Tooltip(item.label).Height(56).
-				Column().Justify(ui.Center).Gap(t.Space(1)).TextColor(t.TextMuted)
-			if a.requestSide == item.side {
-				uikit.Selected(c, button, true)
-			}
-			button.Children(func() {
-				ui.Icon(c, item.icon).Size(uikit.IconLarge, uikit.IconLarge)
-				ui.Text(c, item.label).FontSize(uikit.TextMeta)
-			})
-			button.OnClick(func() {
-				a.requestSide, a.requestQuery = item.side, ""
-				a.workbench.requestSidebarHidden = false
-				switch item.side {
-				case 0, 2:
-					a.requestsSection = 0
-				case 1:
-					a.requestsSection = 2
-					a.experiments.scope, a.experiments.draftKey = nil, ""
-				case 3:
-					a.requestsSection = 1
-				}
-			})
-		}
-		ui.Spacer(c)
-		label := "Hide request sidebar"
-		if a.workbench.requestSidebarHidden {
-			label = "Show request sidebar"
-		}
-		ui.Column(c).FillWidth().Disabled(a.workbench.sidebarHidden || a.requestsSection == 2).Children(func() {
-			uikit.ToolbarButton(c, label, label, false).Height(uikit.HeightLarge).FillWidth().Justify(ui.Center).
-				Children(func() { ui.Icon(c, lucide.PanelLeft()).Size(uikit.IconLarge, uikit.IconLarge) }).
-				OnClick(func() { a.workbench.requestSidebarHidden = !a.workbench.requestSidebarHidden })
-		})
-	})
-}
 
 // collectionTree uses full paths for identity and short names for presentation.
 // Search opens matching ancestors without rewriting the user's collapsed state.
@@ -134,10 +85,12 @@ func (a *app) collectionTree(c *ui.Context) {
 				m.Separator()
 				a.folderSettingsItems(m, r.Collection)
 			}
+			// The sidebar has one choice: a request only while it is shown.
+			chosen := a.workspace == 1 && a.requestsSection == 0 && a.requestChoice == r.key()
 			item := ui.TreeItem(c.Key(r.key()), "", nil, nil).Label(r.Name).Height(uikit.HeightControl).
-				Selected(a.requestChoice == r.key()).Tooltip(r.Method + " " + r.URL).
+				Selected(chosen).Tooltip(r.Method + " " + r.URL).
 				OnClick(func() { a.openSaved(r.key()) }).PopoverMenu(menu)
-			if a.requestChoice == r.key() {
+			if chosen {
 				uikit.Selected(c, item, true)
 			}
 			item.Children(func() {
@@ -157,38 +110,4 @@ func (a *app) collectionTree(c *ui.Context) {
 	if len(a.requests) == 0 && len(paths) == 0 {
 		ui.Text(c, "Save a request here, or edit a captured flow to start.").FontSize(uikit.TextBody).TextColor(c.Theme().TextMuted).Padding(c.Theme().Space(2))
 	}
-}
-
-func (a *app) environmentSidebar(c *ui.Context) {
-	t := c.Theme()
-	ui.Column(c).Fill().Background(uikit.Colors(t).Panel).Children(func() {
-		ui.Row(c).Height(40).Padding(0, t.Space(2)).AlignItems(ui.Center).Children(func() {
-			ui.Text(c, "Environments").FontSize(uikit.TextBody).FontWeight(600).Grow(1)
-			if uikit.IconButton(c, "Manage environments…", "Manage environments", plusIcon).Clicked() {
-				a.openVars()
-			}
-		})
-		ui.Scroll(c).Grow(1).Padding(t.Space(2)).Children(func() {
-			ui.Tree(c, func() {
-				for _, name := range a.envNames() {
-					item := ui.TreeItem(c.Key(name), "", nil, nil).Label(cmp.Or(name, "No environment")).Height(uikit.HeightControl).
-						Selected(name == a.activeEnv).OnClick(func() { a.editEnvironment(name) })
-					if name == a.activeEnv {
-						uikit.Selected(c, item, true)
-					}
-					item.Children(func() {
-						ui.Box(c).Size(6, 6).Radius(uikit.RadiusControl).Background(t.Accent)
-						uikit.Body(c, cmp.Or(name, "No environment")).SingleLine()
-					})
-				}
-				ui.TreeItem(c, "Globals", nil, nil).Height(uikit.HeightControl).FontSize(uikit.TextBody).OnClick(a.editGlobals)
-			})
-		})
-		if uikit.ToolbarButton(c, "Vault…", "Manage secrets", false).FillWidth().Children(func() {
-			ui.Icon(c, lucide.Lock()).Size(uikit.IconInline, uikit.IconInline)
-			ui.Text(c, "Vault…")
-		}).Clicked() {
-			a.openVault()
-		}
-	})
 }

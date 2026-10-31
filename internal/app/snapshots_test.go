@@ -80,7 +80,7 @@ func TestUISnapshots(t *testing.T) {
 	states := []snapshot{
 		{name: "capture-empty", setup: func(a *app) { a.flows = nil; a.countDomains(); a.countClients(); a.applyFilter() }, want: "Capture is stopped"},
 		{name: "capture-selected", want: "Request inspector"},
-		{name: "capture-right", setup: func(a *app) { a.workbench.layout = "right" }, want: "Request inspector"},
+		{name: "capture-stacked", setup: func(a *app) { a.workbench.layout = "bottom" }, want: "Request inspector"},
 		{name: "capture-no-matches", act: func(t *testing.T, tt *ui.Tester) {
 			click("Search host or path")(t, tt)
 			tt.Type("no-match")
@@ -141,7 +141,6 @@ func TestUISnapshots(t *testing.T) {
 		{name: "requests-response-checks", setup: func(a *app) { response(a); a.responseTab = resViewTests }, want: "Project active"},
 		{name: "requests-response-headers", setup: func(a *app) { response(a); a.responseTab = resViewHeaders }, want: "X-Tag"},
 		{name: "requests-variables", setup: func(a *app) { draft(a); a.openVars() }, want: "Variable name 1"},
-		{name: "requests-environments", setup: func(a *app) { draft(a); a.requestSide = 2 }, want: "Environments"},
 		{name: "requests-environment-menu", setup: draft, act: click("Active environment"), want: "Staging"},
 		{name: "requests-collection-menu", setup: draft, act: click("Collection options"), menu: "Import cURL…"},
 		{name: "requests-method-menu", setup: draft, act: click("Method list"), want: "PATCH"},
@@ -177,7 +176,7 @@ func TestUISnapshots(t *testing.T) {
 		{name: "secondary-runner-focused", setup: snapshotRunner, act: click("2 · Check project"), want: "expected 200, received 503"},
 		{name: "secondary-runner-running", setup: func(a *app) { snapshotRunner(a); a.runner.running, a.runner.status = true, "Running…" }, want: "Cancel run"},
 		{name: "secondary-runner-error", setup: func(a *app) { a.openRunner(); a.runner.dataProblem = "data.csv: duplicate column name" }, want: "duplicate column name"},
-		{name: "secondary-runs-empty", setup: func(a *app) { a.workspace, a.requestsSection, a.requestSide = 1, 2, 1; a.history = nil }, want: "Send a request to record an experiment."},
+		{name: "secondary-runs-empty", setup: func(a *app) { a.workspace, a.requestsSection = 1, 2; a.history = nil }, want: "Send a request to record an experiment."},
 		{name: "secondary-runs-result", setup: snapshotRuns, want: "Experiment result"},
 		{name: "secondary-runs-compare", setup: func(a *app) { snapshotRuns(a); a.experiments.left, a.experiments.tab = 1, 1 }, want: "Old text"},
 		{name: "secondary-runs-variables", setup: func(a *app) { snapshotRuns(a); a.experiments.tab = 5 }, want: "baseUrl"},
@@ -199,7 +198,7 @@ func TestUISnapshots(t *testing.T) {
 			a.investigations.comparing = true
 		}, want: "Old text"},
 		{name: "secondary-api-empty", setup: func(a *app) {
-			a.workspace, a.requestsSection, a.requestSide = 1, 1, 3
+			a.workspace, a.requestsSection = 1, 1
 			// Preview the empty reader without changing existing no-API routing.
 			a.apiChoice = "snapshot-no-selection"
 		}, want: "From traffic to an API contract"},
@@ -210,7 +209,7 @@ func TestUISnapshots(t *testing.T) {
 			d.saved, d.spec.Fingerprint, d.spec.Collection = nil, "previous-source", "Workspace"
 		}, want: "Source collection changed"},
 		{name: "secondary-api-no-endpoints", setup: func(a *app) {
-			a.workspace, a.requestsSection, a.requestSide = 1, 1, 3
+			a.workspace, a.requestsSection = 1, 1
 			a.addAPI(apiSpec{ID: "snapshot-api", Source: `{"openapi":"3.0.3","info":{"title":"Empty contract","version":"1.0"},"paths":{}}`}, true)
 		}, want: "No HTTP endpoints yet"},
 		{name: "secondary-api-unvalidated", setup: func(a *app) {
@@ -358,7 +357,7 @@ func TestUISnapshots(t *testing.T) {
 		}, want: "Inspect request"},
 		{name: "notification-warning", toasts: []ui.Toast{{Title: "Response body incomplete", Description: "The captured bytes are still available.", Type: "warning"}}, want: "Response body incomplete"},
 		{name: "capture-menu", act: click("More capture options"), menu: "Clear unpinned requests…"},
-		{name: "layout-menu", act: click("Inspector layout"), menu: "Inspector: Bottom"},
+		{name: "collections-menu", act: click("Collection options"), menu: "Generate API from collection…"},
 		{name: "body-menu", act: click("Response body format"), menu: "Pretty"},
 		{name: "inspector-menu", act: click("Inspector options"), menu: "Replay…"},
 		{name: "request-menu", setup: draft, act: click("Request options"), menu: "Copy as cURL"},
@@ -556,7 +555,7 @@ func snapshotApp() *app {
 }
 
 func snapshotRuns(a *app) {
-	a.workspace, a.requestsSection, a.requestSide = 1, 2, 1
+	a.workspace, a.requestsSection = 1, 2
 	a.history = nil // The legacy Recent requests section is outside phase five.
 	for i, body := range []string{`{"id":73,"active":false}`, `{"id":73,"active":true}`} {
 		draft := savedRequest{Name: "Create project", Method: "POST", URL: "https://api.example.com/projects", Body: `{"name":"Demo project"}`}
@@ -577,7 +576,7 @@ func snapshotRuns(a *app) {
 
 func snapshotRunner(a *app) {
 	snapshotRuns(a)
-	a.requestsSection, a.requestSide = 0, 0
+	a.requestsSection = 0
 	a.runner = collectionRunner{open: true, collection: "Workspace", iterations: "2", completed: 2, failures: 1, status: "Finished"}
 	a.runner.load(a.requests)
 	a.runner.rows = []runnerRow{
@@ -598,6 +597,6 @@ func snapshotSources(a *app) {
 }
 
 func snapshotAPI(a *app) {
-	a.workspace, a.requestsSection, a.requestSide = 1, 1, 3
+	a.workspace, a.requestsSection = 1, 1
 	a.addAPI(apiSpec{ID: "snapshot-api", Source: openAPIFixture, Notes: []string{"Review authentication and response schemas before publishing."}}, true)
 }
