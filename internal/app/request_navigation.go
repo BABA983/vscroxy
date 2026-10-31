@@ -86,7 +86,7 @@ func (a *app) collectionTree(c *ui.Context) {
 				a.folderSettingsItems(m, r.Collection)
 			}
 			// The sidebar has one choice: a request only while it is shown.
-			chosen := a.workspace == 1 && a.requestsSection == 0 && a.requestChoice == r.key()
+			chosen := a.page == pageRequest && a.requestChoice == r.key()
 			item := ui.TreeItem(c.Key(r.key()), "", nil, nil).Label(r.Name).Height(uikit.HeightControl).
 				Selected(chosen).Tooltip(r.Method + " " + r.URL).
 				OnClick(func() { a.openSaved(r.key()) }).PopoverMenu(menu)

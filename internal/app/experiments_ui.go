@@ -276,7 +276,7 @@ func (a *app) experimentsView(c *ui.Context, t *ui.Theme, inline bool) {
 			if uikit.SecondaryButton(c, "Close").Clicked() {
 				s.open = false
 				if inline {
-					a.requestsSection = 0
+					a.page = pageRequest
 				}
 			}
 		})
@@ -361,8 +361,7 @@ func (a *app) experimentsView(c *ui.Context, t *ui.Theme, inline bool) {
 					origin := slices.IndexFunc(a.documents, func(d *requestDocument) bool { return r.DraftKey != "" && d.debugKey == r.DraftKey })
 					if uikit.SecondaryButton(c, "Origin draft").Label("Open originating draft").Disabled(origin < 0).Tooltip("Return to the original editable tab without overwriting its current edits: " + r.Draft.Name).Clicked() {
 						d := a.documents[origin]
-						a.requestDocument, a.requestChoice, a.workspace = d, d.savedKey, 1
-						a.requestsSection = 0
+						a.requestDocument, a.requestChoice, a.page = d, d.savedKey, pageRequest
 						d.revealTab, s.open = true, false
 						d.urlInput.Focus()
 					}

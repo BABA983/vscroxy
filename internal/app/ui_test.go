@@ -180,10 +180,10 @@ func TestNotificationsRetainActionAndDismissal(t *testing.T) {
 }
 
 func TestActiveToolChipsChangeConfigurationInBothWorkspaces(t *testing.T) {
-	for _, workspace := range []int{0, 1} {
-		t.Run(fmt.Sprint(workspace), func(t *testing.T) {
+	for _, page := range []page{pageLive, pageRequest} {
+		t.Run(fmt.Sprint(page), func(t *testing.T) {
 			a := workspaceApp()
-			a.workspace = workspace
+			a.page = page
 			var err error
 			a.srv, err = capture.New("127.0.0.1:0", t.TempDir())
 			if err != nil {
@@ -598,7 +598,7 @@ func TestWorkspaceKeepsCaptureAndDraftIndependent(t *testing.T) {
 
 func TestRequestResourcesPreserveDraftAndTreeExpansion(t *testing.T) {
 	a := workspaceApp()
-	a.workspace = 1
+	a.page = pageRequest
 	a.requests = append(a.requests, savedRequest{Name: "Other request", Collection: "Other/API", Method: "POST", URL: "https://other.test"})
 	tt := ui.NewTester(a.view, 960, 800)
 	click := func(label string) {
@@ -1503,7 +1503,7 @@ func TestReplayResultDoesNotStealFocusAndKeepsItsSource(t *testing.T) {
 		t.Fatal(err)
 	}
 	tt := ui.NewTester(a.view, 1280, 800)
-	if a.workspace != 0 || !tt.HasText("Inspect replay") {
+	if !a.page.capture() || !tt.HasText("Inspect replay") {
 		t.Fatal("replay stole focus or gave no route to its result")
 	}
 	if err := tt.Click("Inspect replay"); err != nil {
@@ -2803,7 +2803,7 @@ func TestCaptureRegressionCanBeSavedAndSharedOnlyAfterReview(t *testing.T) {
 	if err := chooseMenu(tt, "Save as regression…"); err != nil {
 		t.Fatal(err)
 	}
-	if a.workspace != 1 || !tt.HasText("RESPONSE CHECKS") || a.sourceFlow != 1 || a.composeWaiting {
+	if a.page.capture() || !tt.HasText("RESPONSE CHECKS") || a.sourceFlow != 1 || a.composeWaiting {
 		t.Fatal("capture did not become an unsent regression draft")
 	}
 	click("Save")
@@ -3025,7 +3025,7 @@ func TestBatchReplaySendsChosenRequestsInOrder(t *testing.T) {
 		time.Sleep(time.Millisecond)
 		tt.Frame()
 	}
-	if !tt.HasText("2/2 sent · 0 failed") || a.workspace != 0 {
+	if !tt.HasText("2/2 sent · 0 failed") || !a.page.capture() {
 		t.Fatalf("batch incomplete or stole focus: %v", tt.Texts())
 	}
 	if first, second := <-paths, <-paths; first != "GET /first" || second != "POST /second" {
@@ -4325,8 +4325,8 @@ func TestSendResultsSeparateFailuresAndLinkTheExactAttempt(t *testing.T) {
 			if err := tt.Click("Inspect timing in Capture"); err != nil {
 				t.Fatal(err)
 			}
-			if a.workspace != 0 || a.pickedID == 900 || !tt.HasText("request sent, first byte back") && !tt.HasText("No timing for this flow") {
-				t.Fatalf("timing target: workspace %d, capture %d, tab %d", a.workspace, a.pickedID, a.inspect.tab[1])
+			if !a.page.capture() || a.pickedID == 900 || !tt.HasText("request sent, first byte back") && !tt.HasText("No timing for this flow") {
+				t.Fatalf("timing target: page %d, capture %d, tab %d", a.page, a.pickedID, a.inspect.tab[1])
 			}
 		})
 	}

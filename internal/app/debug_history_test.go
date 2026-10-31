@@ -172,7 +172,7 @@ func TestDebugHistoryLinksExactSendsAndSurvivesRestartAndReusedIDs(t *testing.T)
 	b.replaceSession(flows, frames)
 	tt.Frame()
 	click("Inspect source capture")
-	if tt.HasText("Source snapshot · Capture #1") || b.pickedID != 1 || b.workspace != 0 || hits.Load() != 1 {
+	if tt.HasText("Source snapshot · Capture #1") || b.pickedID != 1 || !b.page.capture() || hits.Load() != 1 {
 		t.Fatal("saved-session link failed, or opening history sent a request")
 	}
 }

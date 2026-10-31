@@ -47,8 +47,8 @@ func (a *app) contentWidth(c *ui.Context) float32 {
 // hidden, the inspector has the window, or the run records (three columns
 // of their own, closed with their Close button) need it.
 func (a *app) sidebarShown() bool {
-	return !a.workbench.sidebarHidden && !(a.workbench.focused && a.workspace == 0) &&
-		!(a.workspace == 1 && a.requestsSection == 2)
+	return !a.workbench.sidebarHidden && !(a.workbench.focused && a.page.capture()) &&
+		!(a.page == pageRuns)
 }
 
 func (a *app) desktopContent(c *ui.Context) {
@@ -61,18 +61,14 @@ func (a *app) desktopContent(c *ui.Context) {
 		w.sidePercent = 64
 	}
 	content := func() {
-		switch a.workspace {
-		case 1:
-			if a.requestsSection == 2 {
-				if !a.experiments.open {
-					a.experimentsView(c, c.Theme(), true)
-				}
-				return
+		switch a.page {
+		case pageRuns:
+			if !a.experiments.open {
+				a.experimentsView(c, c.Theme(), true)
 			}
-			if a.requestsSection == 1 {
-				a.apiView(c, c.Theme())
-				return
-			}
+		case pageAPI:
+			a.apiView(c, c.Theme())
+		case pageRequest:
 			ui.Column(c).Fill().Children(func() {
 				a.documentTabs(c, c.Theme())
 				d := a.requestDocument
@@ -87,11 +83,9 @@ func (a *app) desktopContent(c *ui.Context) {
 					ui.Column(c).Grow(1).MinWidth(0).Children(func() { a.composeView(c, c.Theme()) })
 				})
 			})
+		case pageSession:
+			a.boardView(c, c.Theme())
 		default:
-			if a.captureSection == 1 {
-				a.boardView(c, c.Theme())
-				return
-			}
 			ui.Column(c).Fill().Children(func() {
 				if w.focused {
 					ui.Row(c).Height(uikit.HeightLarge).Padding(0, c.Theme().Space(3)).AlignItems(ui.Center).Children(func() {
@@ -309,7 +303,7 @@ func (a *app) requestActions(c *ui.Context, f flow, current bool) []desktopActio
 	}
 	copyable := current && !bulk && f.kind == "" && f.url != ""
 	copyRequest := func() { a.copyCurl(c, f) }
-	if d := a.requestDocument; a.workspace == 1 && d != nil {
+	if d := a.requestDocument; !a.page.capture() && d != nil {
 		copyable = true
 		copyRequest = func() { a.copyDraftCurl(c, d) }
 	}
@@ -323,11 +317,11 @@ func (a *app) requestActions(c *ui.Context, f flow, current bool) []desktopActio
 func (a *app) desktopActions(c *ui.Context) []desktopAction {
 	w := &a.workbench
 	f, current := a.current()
-	capturing := a.workspace == 0
+	capturing := a.page.capture()
 	d := a.requestDocument
 	// A captured request in LIVE is a document too; tabs are COLLECTIONS'.
 	editing := d != nil
-	tab := editing && a.workspace == 1
+	tab := editing && !a.page.capture()
 	focus := "Focus inspector"
 	if w.focused {
 		focus = "Back to list"
@@ -358,7 +352,7 @@ func (a *app) desktopActions(c *ui.Context) []desktopAction {
 		{"send", "Send request", editing && !d.composeWaiting && a.srv != nil && a.srv.Running(), ui.Cmd, ui.KeyEnter, a.sendComposed},
 		{"cancel-send", "Cancel send", editing && d.composeWaiting && d.sendCancel != nil && !d.sendCancelling, 0, 0, func() { d.cancelSend() }},
 		{"save-request", "Save request", editing, ui.Cmd, ui.KeyS, func() {
-			if a.workspace == 0 && d.savedKey == "" {
+			if a.page.capture() && d.savedKey == "" {
 				// A capture has no name or collection yet: ask for both.
 				a.renameOpen, a.saveAfterRename = true, true
 				return
@@ -431,12 +425,12 @@ func (a *app) desktopActions(c *ui.Context) []desktopAction {
 		{"export-postman", "Export collection as Postman…", editing && d.composeCollection != "", 0, 0, func() { a.exportPostman(collectionRoot(d.composeCollection)) }},
 		{"settings", "Open settings…", true, ui.Cmd, ui.KeyComma, func() { a.settingsOpen = true }},
 		{"live", "Go to Live traffic", true, ui.Cmd, ui.Key1, func() {
-			a.workspace, a.captureSection = 0, 0
+			a.page = pageLive
 			a.trafficOpen, a.revealGroup = true, "live"
 			a.focusTraffic(c)
 		}},
 		{"collections", "Go to Collections", true, ui.Cmd, ui.Key2, func() {
-			a.workspace, a.requestsSection = 1, 0
+			a.page = pageRequest
 			a.collectionsOpen, a.revealGroup = true, "collections"
 			if a.requestDocument != nil {
 				a.urlInput.Focus(c)
@@ -446,15 +440,15 @@ func (a *app) desktopActions(c *ui.Context) []desktopAction {
 			if a.board.active == "" {
 				a.board.active = a.board.items[0].ID
 			}
-			a.workspace, a.captureSection = 0, 1
+			a.page = pageSession
 			a.revealGroup = "sessions"
 		}},
 		{"apis", "API contracts", len(a.apis) > 0, 0, 0, func() {
-			a.workspace, a.requestsSection = 1, 1
+			a.page = pageAPI
 		}},
 		{"new-api", "New API contract", true, 0, 0, func() {
 			a.newAPI()
-			a.workspace, a.requestsSection = 1, 1
+			a.page = pageAPI
 		}},
 		{"import-openapi", "Import OpenAPI…", true, 0, 0, a.importOpenAPI},
 		{"run-records", "Show run records", true, 0, 0, a.showRunRecords},
@@ -476,7 +470,7 @@ func (a *app) desktopShortcuts(c *ui.Context) {
 	for _, action := range a.desktopActions(c) {
 		// Browsing traffic never sends: in LIVE, Send's shortcut works from
 		// inside the inspector only.
-		if action.id == "send" && a.workspace == 0 && !a.workbench.inspector.FocusWithin(c) {
+		if action.id == "send" && a.page.capture() && !a.workbench.inspector.FocusWithin(c) {
 			continue
 		}
 		if action.enabled && action.key != 0 {
@@ -706,13 +700,13 @@ func (a *app) commandPalette(c *ui.Context) {
 				message := ""
 				if !action.enabled {
 					message = action.unavailable()
-				} else if a.workspace == 0 {
+				} else if a.page.capture() {
 					if a.chosen.Len() > 1 {
 						message = fmt.Sprintf("Capture · %d selected requests", a.chosen.Len())
 					} else if f, ok := a.current(); ok {
 						message = fmt.Sprintf("Capture #%d · %s %s", f.id, f.method, f.path)
 					}
-				} else if a.workspace == 1 && a.requestDocument != nil {
+				} else if !a.page.capture() && a.requestDocument != nil {
 					message = "Draft · " + a.title()
 				}
 				uikit.Meta(c, message).SingleLine().Tooltip(message)

@@ -191,7 +191,7 @@ func (a *app) addDocument(r savedRequest, key string) {
 	a.documents = append(a.documents, d)
 	a.requestDocument = d
 	a.requestChoice = key
-	a.workspace, a.requestsSection = 1, 0
+	a.page = pageRequest
 	d.urlInput.Focus()
 }
 
@@ -276,7 +276,7 @@ func (a *app) requestClose(d *requestDocument) {
 		return
 	}
 	if d.dirty() {
-		a.requestDocument, a.requestChoice, a.workspace = d, d.savedKey, 1
+		a.requestDocument, a.requestChoice, a.page = d, d.savedKey, pageRequest
 		a.closingDocument = d
 	} else {
 		a.closeDocument(d)
@@ -288,19 +288,19 @@ func (a *app) requestClose(d *requestDocument) {
 // independent, so Cmd/Ctrl+1–4 never unexpectedly select a draft tab.
 func (a *app) cycleDocument(step int) {
 	index := 0
-	if a.workspace == 1 {
+	if !a.page.capture() {
 		index = slices.Index(a.documents, a.requestDocument) + 1
 	}
 	index = (index + step + len(a.documents) + 1) % (len(a.documents) + 1)
 	if index == 0 {
-		a.workspace, a.captureSection = 0, 0
+		a.page = pageLive
 		if view := a.views.activeView(); view != nil {
 			view.list.Handle.Focus()
 		}
 		return
 	}
 	a.requestDocument = a.documents[index-1]
-	a.requestChoice, a.workspace, a.revealTab = a.savedKey, 1, true
+	a.requestChoice, a.page, a.revealTab = a.savedKey, pageRequest, true
 	a.urlInput.Focus()
 }
 
@@ -374,7 +374,7 @@ func (a *app) documentTabs(c *ui.Context, t *ui.Theme) {
 			})
 			if tabs.List.Changed() && selected >= 0 && selected < len(a.documents) {
 				a.requestDocument = a.documents[selected]
-				a.requestChoice, a.workspace, a.requestsSection = a.savedKey, 1, 0
+				a.requestChoice, a.page = a.savedKey, pageRequest
 			}
 		})
 		if uikit.IconButton(c, "Add request tab", "New request", plusIcon).Size(uikit.HeightControl, uikit.HeightControl).Clicked() {
@@ -561,7 +561,7 @@ func (a *app) requestDocumentActions(c *ui.Context, t *ui.Theme, d *requestDocum
 			if uikit.ToolbarButton(c, "Source API", "Open the API this request came from", false).Height(uikit.HeightCompact).Children(func() {
 				ui.Text(c, "Source API").TextColor(t.Accent)
 			}).Clicked() {
-				a.apiChoice, a.workspace, a.requestsSection = d.sourceAPI, 1, 1
+				a.apiChoice, a.page = d.sourceAPI, pageAPI
 			}
 		}
 		a.desktopButton(c, "save-request", "Save")
@@ -764,7 +764,7 @@ func (a *app) requestBar(c *ui.Context, t *ui.Theme, d *requestDocument, more fu
 		// A capture's inspector beside the list keeps its width for the URL:
 		// a narrower Send, and while sending only Cancel in its place (the
 		// response says it is sending).
-		narrow := a.workspace == 0 && a.inspectorWidth(c) < 600
+		narrow := a.page.capture() && a.inspectorWidth(c) < 600
 		sendWidth, cancelWidth := float32(80), float32(96)
 		if narrow {
 			sendWidth, cancelWidth = 64, 76

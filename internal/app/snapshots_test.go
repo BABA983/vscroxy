@@ -133,7 +133,7 @@ func TestUISnapshots(t *testing.T) {
 		{name: "capture-headers", setup: func(a *app) { a.inspect.tab[1] = resTabHeaders }, want: "Content-Type"},
 		{name: "capture-raw", setup: func(a *app) { a.inspect.tab[1] = resTabRaw }, want: "Raw message"},
 		{name: "capture-timing", setup: func(a *app) { a.inspect.tab[1] = resTabTiming }, want: "Waiting"},
-		{name: "requests-empty", setup: func(a *app) { a.workspace = 1 }, want: "Open a saved request or create a new one"},
+		{name: "requests-empty", setup: func(a *app) { a.page = pageRequest }, want: "Open a saved request or create a new one"},
 		{name: "requests-editing", setup: draft, want: "Send a request to see its response"},
 		{name: "requests-header-masked", setup: func(a *app) {
 			draft(a)
@@ -189,11 +189,11 @@ func TestUISnapshots(t *testing.T) {
 		{name: "secondary-runner-focused", setup: snapshotRunner, act: click("2 · Check project"), want: "expected 200, received 503"},
 		{name: "secondary-runner-running", setup: func(a *app) { snapshotRunner(a); a.runner.running, a.runner.status = true, "Running…" }, want: "Cancel run"},
 		{name: "secondary-runner-error", setup: func(a *app) { a.openRunner(); a.runner.dataProblem = "data.csv: duplicate column name" }, want: "duplicate column name"},
-		{name: "secondary-runs-empty", setup: func(a *app) { a.workspace, a.requestsSection = 1, 2; a.history = nil }, want: "Send a request to record an experiment."},
+		{name: "secondary-runs-empty", setup: func(a *app) { a.page = pageRuns; a.history = nil }, want: "Send a request to record an experiment."},
 		{name: "secondary-runs-result", setup: snapshotRuns, want: "Experiment result"},
 		{name: "secondary-runs-compare", setup: func(a *app) { snapshotRuns(a); a.experiments.left, a.experiments.tab = 1, 1 }, want: "Old text"},
 		{name: "secondary-runs-variables", setup: func(a *app) { snapshotRuns(a); a.experiments.tab = 5 }, want: "baseUrl"},
-		{name: "secondary-runs-modal", setup: func(a *app) { snapshotRuns(a); a.workspace = 0; a.experiments.open = true }, want: "Experiment result"},
+		{name: "secondary-runs-modal", setup: func(a *app) { snapshotRuns(a); a.page = pageLive; a.experiments.open = true }, want: "Experiment result"},
 		{name: "secondary-sessions-empty", setup: func(a *app) { a.investigations.show() }, want: "Historical sessions & evidence"},
 		{name: "secondary-sessions-browse", setup: snapshotSources, want: "Select source 2 exchange 2"},
 		{name: "secondary-sessions-selected", setup: snapshotSources, act: func(t *testing.T, tt *ui.Tester) {
@@ -211,7 +211,7 @@ func TestUISnapshots(t *testing.T) {
 			a.investigations.comparing = true
 		}, want: "Old text"},
 		{name: "secondary-api-empty", setup: func(a *app) {
-			a.workspace, a.requestsSection = 1, 1
+			a.page = pageAPI
 			// Preview the empty reader without changing existing no-API routing.
 			a.apiChoice = "snapshot-no-selection"
 		}, want: "From traffic to an API contract"},
@@ -222,7 +222,7 @@ func TestUISnapshots(t *testing.T) {
 			d.saved, d.spec.Fingerprint, d.spec.Collection = nil, "previous-source", "Workspace"
 		}, want: "Source collection changed"},
 		{name: "secondary-api-no-endpoints", setup: func(a *app) {
-			a.workspace, a.requestsSection = 1, 1
+			a.page = pageAPI
 			a.addAPI(apiSpec{ID: "snapshot-api", Source: `{"openapi":"3.0.3","info":{"title":"Empty contract","version":"1.0"},"paths":{}}`}, true)
 		}, want: "No HTTP endpoints yet"},
 		{name: "secondary-api-unvalidated", setup: func(a *app) {
@@ -568,7 +568,7 @@ func snapshotApp() *app {
 }
 
 func snapshotRuns(a *app) {
-	a.workspace, a.requestsSection = 1, 2
+	a.page = pageRuns
 	a.history = nil // The legacy Recent requests section is outside phase five.
 	for i, body := range []string{`{"id":73,"active":false}`, `{"id":73,"active":true}`} {
 		draft := savedRequest{Name: "Create project", Method: "POST", URL: "https://api.example.com/projects", Body: `{"name":"Demo project"}`}
@@ -608,7 +608,7 @@ func snapshotHistory(a *app) {
 
 func snapshotRunner(a *app) {
 	snapshotRuns(a)
-	a.requestsSection = 0
+	a.page = pageRequest
 	a.runner = collectionRunner{open: true, collection: "Workspace", iterations: "2", completed: 2, failures: 1, status: "Finished"}
 	a.runner.load(a.requests)
 	a.runner.rows = []runnerRow{
@@ -629,6 +629,6 @@ func snapshotSources(a *app) {
 }
 
 func snapshotAPI(a *app) {
-	a.workspace, a.requestsSection = 1, 1
+	a.page = pageAPI
 	a.addAPI(apiSpec{ID: "snapshot-api", Source: openAPIFixture, Notes: []string{"Review authentication and response schemas before publishing."}}, true)
 }

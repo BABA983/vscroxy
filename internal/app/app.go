@@ -37,6 +37,20 @@ import (
 // maxFlows bounds what the UI keeps; older flows are dropped from the front.
 const maxFlows = 5000
 
+// page is what the content area shows for the sidebar's one choice.
+type page int
+
+const (
+	pageLive    page = iota // live traffic, under a view or quick filter
+	pageSession             // an investigation session's board
+	pageRequest             // a request document from the collections
+	pageAPI                 // an API contract
+	pageRuns                // the run records, which take the window
+)
+
+// capture reports whether the page reads captured traffic.
+func (p page) capture() bool { return p <= pageSession }
+
 // app is the state the window shows; view reads it and the controls write it.
 type app struct {
 	flows   []flow
@@ -53,13 +67,11 @@ type app struct {
 	// Capture filters and the request library have independent selections.
 	// Each workspace has two sections, chosen in its sidebar: live traffic or
 	// an investigation, and request documents or API contracts.
-	workspace       int
-	captureSection  int
-	requestsSection int
-	sidebarChoice   string
-	requestChoice   string
-	requestQuery    string
-	renameOpen      bool
+	page          page
+	sidebarChoice string
+	requestChoice string
+	requestQuery  string
+	renameOpen    bool
 	// saveAfterRename makes the rename dialog Save to collection.
 	saveAfterRename bool
 	settingsOpen    bool
@@ -1252,11 +1264,11 @@ func (a *app) view(c *ui.Context) {
 	a.collectionSaveModal(c, t)
 	a.protobuf.modal(c, a)
 	a.views.capture(a)
-	if a.workspace != 0 || a.inspect.pane != inspectorMessages {
+	if !a.page.capture() || a.inspect.pane != inspectorMessages {
 		a.messageUI.stopSearch()
 	}
 	f, ok := a.current()
-	bodyShowing := a.workspace == 0 && ok && (a.inspect.tab[0] == reqTabBody || a.inspect.tab[1] == resTabBody)
+	bodyShowing := a.page.capture() && ok && (a.inspect.tab[0] == reqTabBody || a.inspect.tab[1] == resTabBody)
 	protobufShowing := false
 	for side := range 2 {
 		ct := f.contentType(side == 0)
@@ -1476,7 +1488,7 @@ func (a *app) sidebar(c *ui.Context) {
 				}).Clicked() {
 					a.board.create("")
 					a.board.list = ui.ListState{}
-					a.workspace, a.captureSection = 0, 1
+					a.page = pageSession
 				}
 				if uikit.ToolbarButton(c, "Historical sessions…", "Read saved sessions and exported evidence, read-only", false).FillWidth().Justify(ui.Start).Children(func() {
 					ui.Icon(c, clockIcon).Size(uikit.IconInline, uikit.IconInline)
@@ -1515,16 +1527,16 @@ func (a *app) sidebar(c *ui.Context) {
 // that open themselves.
 func (a *app) goTo(choice string) {
 	if id, ok := strings.CutPrefix(choice, "investigation:"); ok {
-		a.workspace, a.captureSection = 0, 1
+		a.page = pageSession
 		a.board.active = id
 		a.board.list = ui.ListState{}
 		return
 	}
 	if id, ok := strings.CutPrefix(choice, "contract:"); ok {
-		a.workspace, a.requestsSection, a.apiChoice = 1, 1, id
+		a.page, a.apiChoice = pageAPI, id
 		return
 	}
-	a.workspace, a.captureSection = 0, 0
+	a.page = pageLive
 	if host, ok := strings.CutPrefix(choice, "host:"); ok {
 		a.filterTriage.Host = host
 	} else if client, ok := strings.CutPrefix(choice, "client:"); ok {
@@ -1580,7 +1592,7 @@ func (a *app) collectionsMenu(m *ui.Menu) {
 	m.Separator()
 	if m.Item("New API contract").Chosen() {
 		a.newAPI()
-		a.workspace, a.requestsSection = 1, 1
+		a.page = pageAPI
 	}
 	if m.Item("Import OpenAPI…").Chosen() {
 		a.importOpenAPI()
@@ -1600,7 +1612,7 @@ func (a *app) collectionsMenu(m *ui.Menu) {
 // showRunRecords shows every run record in the content area.
 func (a *app) showRunRecords() {
 	a.experiments.scope, a.experiments.draftKey = nil, ""
-	a.workspace, a.requestsSection = 1, 2
+	a.page = pageRuns
 }
 
 func (a *app) count(match func(flow) bool) int {
@@ -2966,7 +2978,7 @@ func (a *app) openSaved(key string) {
 			a.requestDocument = d
 			d.revealTab = true
 			a.requestChoice = key
-			a.workspace, a.requestsSection = 1, 0
+			a.page = pageRequest
 			return
 		}
 	}

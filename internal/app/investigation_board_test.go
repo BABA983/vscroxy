@@ -134,7 +134,7 @@ func TestInvestigationBoardFailureEvidenceStaysLayered(t *testing.T) {
 	if _, err := a.board.add(f); err != nil {
 		t.Fatal(err)
 	}
-	a.workspace, a.captureSection = 0, 1
+	a.page = pageSession
 	tt := ui.NewTester(a.view, 1280, 800)
 	if !tt.HasText("Recorded failure · TCP · connection reset by peer") {
 		t.Fatalf("the recorded stage and raw error are missing: %q", tt.Texts())

@@ -70,7 +70,7 @@ func (a *app) importData(data []byte, path string) {
 				col.Warnings = append(col.Warnings, "Collection and folder settings not saved: "+err.Error())
 			}
 		}
-		a.workspace, a.requestsSection = 1, 0
+		a.page = pageRequest
 		a.reportImport(fmt.Sprintf("Imported “%s” · %d %s", col.Name, len(col.Requests), plural(len(col.Requests), "request", "requests")), col.Warnings)
 	case postman.KindEnvironment, postman.KindGlobals:
 		env, err := postman.ReadEnvironment(data)

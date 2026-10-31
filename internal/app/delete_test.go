@@ -13,7 +13,7 @@ import (
 // request, an edited one stays open as a new draft.
 func TestDeletingAFolderRemovesItsTreeOnly(t *testing.T) {
 	a := libraryApp(t)
-	a.workspace = 1
+	a.page = pageRequest
 	requests := []savedRequest{
 		{Request: request.Request{ID: "a", Name: "List", Collection: "Shop/Orders", Method: "GET"}},
 		{Request: request.Request{ID: "b", Name: "Refund", Collection: "Shop/Orders/Refunds", Method: "POST"}},

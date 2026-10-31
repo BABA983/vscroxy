@@ -129,7 +129,7 @@ func (a *app) debugDrafts(c *ui.Context) {
 		}
 		n++
 		if uikit.SecondaryButton(c, d.title()).Label(fmt.Sprintf("Open linked draft %d", n)).FillWidth().Tooltip(d.composeMethod + " " + d.composeURL).Clicked() {
-			a.requestDocument, a.requestChoice, a.workspace = d, d.savedKey, 1
+			a.requestDocument, a.requestChoice, a.page = d, d.savedKey, pageRequest
 			d.revealTab, s.open = true, false
 			d.urlInput.Focus()
 		}

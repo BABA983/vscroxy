@@ -19,7 +19,7 @@ import (
 func TestSaveAsExampleKeepsTheResponseWithTheAuthoredRequest(t *testing.T) {
 	a := workspaceApp()
 	a.library.root = filepath.Join(t.TempDir(), "collections")
-	a.workspace = 1
+	a.page = pageRequest
 	a.requests[0].URL = "{{base}}/projects"
 	a.requests[0].Headers = "Authorization: Bearer {{vault:token}}"
 	tt := ui.NewTester(a.view, 1280, 760)

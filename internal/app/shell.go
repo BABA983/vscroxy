@@ -303,8 +303,8 @@ func (a *app) moreMenu(c *ui.Context, m *ui.Menu) {
 // step when another part of the app changes them: a filter reset, a new
 // investigation, a contract or a request opened from elsewhere.
 func (a *app) syncSections() {
-	if a.workspace == 1 {
-		if a.requestsSection == 1 {
+	if !a.page.capture() {
+		if a.page == pageAPI {
 			if a.apiChoice == "" && len(a.apis) > 0 {
 				a.apiChoice = a.apis[0].spec.ID
 			}
@@ -312,19 +312,19 @@ func (a *app) syncSections() {
 				a.sidebarChoice = "contract:" + a.apiChoice
 				return
 			}
-			a.requestsSection = 0
+			a.page = pageRequest
 		}
 		// A request is a tree item with its own selection; no other item is
 		// chosen meanwhile.
 		a.sidebarChoice = ""
 		return
 	}
-	if a.captureSection == 1 {
+	if a.page == pageSession {
 		if a.board.active != "" {
 			a.sidebarChoice = "investigation:" + a.board.active
 			return
 		}
-		a.captureSection = 0
+		a.page = pageLive
 	}
 	if a.sidebarChoice != cmpOr(a.filter, "all") {
 		a.sidebarChoice = cmpOr(a.filter, "all")
@@ -340,12 +340,12 @@ func (a *app) footer(c *ui.Context, t *ui.Theme) {
 			return uikit.Meta(c, s).FontFeatures("tnum").SingleLine()
 		}
 		switch {
-		case a.workspace == 0 && a.captureSection == 1:
+		case a.page == pageSession:
 			text(a.boardSummary())
 			ui.Spacer(c)
 			text("Read-only evidence · live traffic unchanged")
 			return
-		case a.workspace == 1 && a.requestsSection == 1:
+		case a.page == pageAPI:
 			counts := fmt.Sprintf("%d contracts", len(a.apis))
 			if len(a.apis) == 1 {
 				counts = "1 contract"
@@ -358,7 +358,7 @@ func (a *app) footer(c *ui.Context, t *ui.Theme) {
 				}
 			}
 			return
-		case a.workspace == 1:
+		case !a.page.capture():
 			env := "No environment"
 			if a.activeEnv != "" {
 				env = a.activeEnv + " environment"
@@ -390,7 +390,7 @@ func (a *app) footer(c *ui.Context, t *ui.Theme) {
 			ui.Text(c, fmt.Sprintf("%d script errors", a.scriptErrs)).FontSize(uikit.TextMeta).FontFeatures("tnum").TextColor(t.Warning).SingleLine()
 		}
 		ui.Spacer(c)
-		if a.workspace != 0 {
+		if !a.page.capture() {
 			return
 		}
 		view := a.views.activeView()

@@ -36,7 +36,7 @@ func (a *app) inspectCapture(id int) {
 	}
 	a.chosen.Clear()
 	a.chosen.Add(id)
-	a.pickedID, a.workspace = id, 0
+	a.pickedID, a.page = id, pageLive
 	a.restoreSelection()
 	if view := a.views.activeView(); view != nil {
 		// Show the row without centering it: a centered offset can leave a

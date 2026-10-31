@@ -461,7 +461,7 @@ func TestCollectionRunnerCancellationRevokesInFlightRequest(t *testing.T) {
 func TestCollectionSettingsGiveRequestsTheirAuth(t *testing.T) {
 	a := workspaceApp()
 	a.library.root = filepath.Join(t.TempDir(), "collections")
-	a.workspace = 1
+	a.page = pageRequest
 	tt := ui.NewTester(a.view, 1280, 760)
 	click := func(label string) {
 		t.Helper()
@@ -605,7 +605,7 @@ func TestRenamingAFolderFromItsSettings(t *testing.T) {
 	if err := a.writeLibrary(a.requests, []request.Folder{{Path: "Workspace/API", Auth: request.Auth{Type: "Bearer", Token: "t"}}}); err != nil {
 		t.Fatal(err)
 	}
-	a.workspace = 1
+	a.page = pageRequest
 	tt := ui.NewTester(a.view, 1280, 760)
 	if err := tt.Click("List projects"); err != nil {
 		t.Fatal(err)

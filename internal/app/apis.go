@@ -318,7 +318,7 @@ func (a *app) generateAPI(collection string) {
 		return
 	}
 	a.addAPI(spec, false)
-	a.workspace, a.requestsSection = 1, 1
+	a.page = pageAPI
 	a.setMessage("Generated independent OpenAPI draft; review notes before publishing")
 }
 
@@ -343,7 +343,7 @@ func (a *app) importOpenAPI() {
 		}
 		a.win.Update(func() {
 			a.addAPI(apiSpec{Source: string(data)}, false)
-			a.workspace, a.requestsSection = 1, 1
+			a.page = pageAPI
 		})
 	}()
 }

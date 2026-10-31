@@ -86,12 +86,12 @@ func (a *app) syncDocument() {
 		a.libraryDocument = d
 	}
 	switch {
-	case a.workspace == 0 && a.captureSection == 0:
+	case a.page == pageLive:
 		a.requestDocument = nil
 		if f, ok := a.current(); ok && a.chosen.Len() <= 1 {
 			a.requestDocument, _ = a.liveDocument(f)
 		}
-	case a.workspace == 0:
+	case a.page.capture():
 		a.requestDocument = nil
 	case !slices.Contains(a.documents, a.requestDocument):
 		a.requestDocument = nil
@@ -110,7 +110,7 @@ func (a *app) editCapture(f flow) *requestDocument {
 		return nil
 	}
 	a.inspectCapture(f.id)
-	a.workspace, a.captureSection, a.workbench.focused = 0, 0, false
+	a.page, a.workbench.focused = pageLive, false
 	a.liveLoad = true
 	if a.liveFor == f.id && a.live == nil {
 		a.liveFor = 0 // Try again, now reading a spilled body.

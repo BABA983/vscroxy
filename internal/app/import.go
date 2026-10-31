@@ -195,7 +195,7 @@ func (a *app) importHARCollection(data []byte, path string) {
 		a.setMessage("Import HAR: " + err.Error())
 		return
 	}
-	a.workspace, a.requestsSection = 1, 0
+	a.page = pageRequest
 	a.reportImport(fmt.Sprintf("Imported “%s” · %d %s", name, len(incoming), plural(len(incoming), "request", "requests")), warnings)
 }
 
@@ -237,7 +237,7 @@ func (a *app) importOpenAPICollection(doc *openapi3.T, fallback string) {
 		a.setMessage("OpenAPI collection: " + err.Error())
 		return
 	}
-	a.workspace, a.requestsSection = 1, 0
+	a.page = pageRequest
 	a.reportImport(title, nil)
 }
 
