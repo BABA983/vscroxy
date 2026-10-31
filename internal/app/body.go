@@ -447,12 +447,14 @@ func (a *app) jsonBody(c *ui.Context, side int) {
 		ui.Row(c).Gap(t.Space(2)).Padding(0, t.Space(3)).MinHeight(heightControl).AlignItems(ui.Center).Children(func() {
 			ui.Box(c).Width(float32(row.depth) * 16)
 			if len(row.node.children) > 0 && a.bodyQuery[side] == "" {
-				arrow := "▸"
-				if a.jsonExpanded[side][row.node.path] {
-					arrow = "▾"
+				expanded := a.jsonExpanded[side][row.node.path]
+				arrow, action := "▸", "Expand"
+				if expanded {
+					arrow, action = "▾", "Collapse"
 				}
-				if secondaryButton(c, arrow).Size(heightCompact, heightCompact).Padding(0).Clicked() {
-					a.jsonExpanded[side][row.node.path] = !a.jsonExpanded[side][row.node.path]
+				label := action + " " + []string{"response", "request"}[side] + " JSON " + row.node.path
+				if secondaryButton(c, arrow).Label(label).Tooltip(label).Expanded(expanded).Size(heightCompact, heightCompact).Padding(0).Clicked() {
+					a.jsonExpanded[side][row.node.path] = !expanded
 				}
 			} else {
 				ui.Box(c).Width(heightCompact)

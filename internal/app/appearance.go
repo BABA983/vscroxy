@@ -67,7 +67,7 @@ func appTheme(dark bool) *ui.Theme {
 		t.TextMuted = ui.Hex("#9a9a9a")
 		t.Accent = ui.Hex("#7c7cf0")
 		t.AccentHover = ui.Hex("#8b8bf5")
-		t.AccentPressed = ui.Hex("#6b6bda")
+		t.AccentPressed = ui.Hex("#7373e6")
 		t.AccentText = ui.Hex("#14142b")
 		t.Danger = ui.Hex("#ff8585")
 		t.Warning = ui.Hex("#f0ad60")
@@ -86,9 +86,9 @@ func appTheme(dark bool) *ui.Theme {
 		t.AccentHover = ui.Hex("#5050c5")
 		t.AccentPressed = ui.Hex("#4444b0")
 		t.AccentText = ui.Hex("#ffffff")
-		t.Danger = ui.Hex("#c42b36")
+		t.Danger = ui.Hex("#bb2530")
 		t.Warning = ui.Hex("#995000")
-		t.Success = ui.Hex("#217a40")
+		t.Success = ui.Hex("#1d723b")
 		t.Inverse = ui.Hex("#e8e8ec")
 		t.InverseText = ui.Hex("#1d1d1f")
 	}
@@ -108,8 +108,8 @@ type appPalette struct {
 }
 
 var lightPalette = appPalette{
-	TextFaint: ui.Hex("#85858c"), Info: ui.Hex("#087e96"),
-	MethodGet: ui.Hex("#2563c4"), MethodPatch: ui.Hex("#c026d3"),
+	TextFaint: ui.Hex("#85858c"), Info: ui.Hex("#076b80"),
+	MethodGet: ui.Hex("#235eba"), MethodPatch: ui.Hex("#a51db5"),
 }
 
 var darkPalette = appPalette{
@@ -158,12 +158,18 @@ func bodyEditorTheme(t *ui.Theme) *editor.Theme {
 func appModal(c *ui.Context, open *bool, content func()) ui.Element {
 	t := c.Theme()
 	width, height := c.Size()
-	return ui.DialogBase(c, open, func(backdrop, panel ui.Element) {
+	dialog := ui.DialogBase(c, open, func(backdrop, panel ui.Element) {
 		backdrop.Background(ui.RGBA(0, 0, 0, 0.45))
 		panel.Padding(20).Gap(12).Radius(radiusDialog).Background(t.Background).Border(1, t.Border).
 			MaxWidth(width-40).MaxHeight(height-40).Shadow(0, 16, 40, 0, ui.RGBA(0, 0, 0, 0.3))
 		content()
 	})
+	if dialog.Dismissed() {
+		// MyGo v0.7.3 restores the opener after painting. Render its focus
+		// ring even when no hover or animation would request another frame.
+		c.Invalidate()
+	}
+	return dialog
 }
 
 func dialogTitle(c *ui.Context, title string) ui.Element {

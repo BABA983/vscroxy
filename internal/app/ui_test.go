@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -80,20 +81,25 @@ func chooseBodyFormat(t *testing.T, tt *ui.Tester, side, mode string) {
 }
 
 func TestShellCentersStatusWithoutCoveringNativeControls(t *testing.T) {
-	for _, bar := range []ui.TitleBar{{Height: 44, Left: 80}, {Height: 44, Right: 192}} {
-		a := workspaceApp()
-		tt := ui.NewTester(a.view, 960, 800)
-		tt.SetTitleBar(bar)
-		status, ok := tt.Find("Proxy status")
-		if !ok || status.X+status.W/2 < 479 || status.X+status.W/2 > 481 {
-			t.Fatalf("status followed native button insets instead of the window center: %v", status)
-		}
-		brand, _ := tt.Find("vscroxy")
-		more, _ := tt.Find("More")
-		requests, _ := tt.Find("Requests")
-		commands, _ := tt.Find("Commands")
-		if brand.X < bar.Left || more.X+more.W > 960-bar.Right || requests.X+requests.W > status.X || commands.X < status.X+status.W {
-			t.Fatal("shell controls overlap each other or the native window buttons")
+	for _, width := range []int{960, 1280} {
+		for _, scale := range []float32{1, 2} {
+			for _, bar := range []ui.TitleBar{{}, {Height: 48, Left: 76}, {Height: 44, Right: 192}} {
+				a := workspaceApp()
+				tt := ui.NewTester(a.view, width, 800)
+				tt.SetScale(scale)
+				tt.SetTitleBar(bar)
+				status, ok := tt.Find("Proxy status")
+				if !ok || math.Abs(float64(status.X+status.W/2)-float64(width)/2) > 1 {
+					t.Fatalf("status followed native button insets instead of the window center: %v", status)
+				}
+				brand, _ := tt.Find("vscroxy")
+				more, _ := tt.Find("More")
+				requests, _ := tt.Find("Requests")
+				commands, _ := tt.Find("Commands")
+				if brand.X < bar.Left || more.X+more.W > float32(width)-bar.Right || requests.X+requests.W > status.X || commands.X < status.X+status.W {
+					t.Fatalf("shell overlaps controls at width=%d, scale=%g, titlebar=%v", width, scale, bar)
+				}
+			}
 		}
 	}
 }
@@ -116,6 +122,76 @@ func TestEnabledToolbarPreservesContentFocus(t *testing.T) {
 	tt.Type("login")
 	if a.query != "login" {
 		t.Fatal("search no longer accepts edits after the toolbar changes")
+	}
+}
+
+func TestApplicationThemeKeepsTextReadable(t *testing.T) {
+	// WCAG relative luminance, calculated in linear sRGB after compositing
+	// translucent fills. Do not compare hex strings or derive thresholds
+	// from the palette: both themes must meet the same reading contract.
+	luminance := func(c ui.Color) float64 {
+		linear := func(v uint8) float64 {
+			s := float64(v) / 255
+			if s <= 0.04045 {
+				return s / 12.92
+			}
+			return math.Pow((s+0.055)/1.055, 2.4)
+		}
+		return 0.2126*linear(c.R) + 0.7152*linear(c.G) + 0.0722*linear(c.B)
+	}
+	for _, dark := range []bool{false, true} {
+		t.Run(fmt.Sprintf("dark=%t", dark), func(t *testing.T) {
+			theme := appTheme(dark)
+			check := func(name string, foreground, background ui.Color, minimum float64) {
+				t.Helper()
+				lo, hi := luminance(foreground.Over(background)), luminance(background)
+				ratio := (max(lo, hi) + 0.05) / (min(lo, hi) + 0.05)
+				if ratio < minimum {
+					t.Errorf("%s: contrast %.2f:1, want at least %.1f:1", name, ratio, minimum)
+				}
+			}
+			for _, fill := range []ui.Color{theme.Background, theme.Surface, theme.SurfaceHover, theme.SurfacePressed} {
+				check("body", theme.Text, fill, 4.5)
+				check("secondary", theme.TextMuted, fill, 3)
+				check("keyboard focus", theme.Focus, fill, 3)
+				for _, method := range []string{"GET", "POST", "PUT", "DELETE", "PATCH", "WS"} {
+					check(method, methodColor(method, theme), fill, 4.5)
+				}
+			}
+			for _, fill := range []ui.Color{theme.Accent, theme.AccentHover, theme.AccentPressed} {
+				check("primary action", theme.AccentText, fill, 4.5)
+			}
+			for _, status := range []int{200, 302, 404, 503} {
+				ink := statusColor(status, theme)
+				check(fmt.Sprintf("status %d", status), ink, ink.Alpha(0.12).Over(theme.Background), 4.5)
+			}
+		})
+	}
+}
+
+func TestMarkColorsCanBeChosenWithoutAPointer(t *testing.T) {
+	a := workspaceApp()
+	a.openMark(a.flows[0])
+	tt := ui.NewTester(a.view, 960, 600)
+	if !tt.Focused("Mark Red") {
+		t.Fatal("opening the dialog did not focus its first color")
+	}
+	tt.Key(0, ui.KeyTab)
+	if !tt.Focused("Mark Orange") {
+		t.Fatal("Tab did not reach the next mark color")
+	}
+	tt.Key(0, ui.KeySpace)
+	if a.markColor != "Orange" {
+		t.Fatal("Space did not choose the focused color")
+	}
+	tt.Key(ui.Shift, ui.KeyTab)
+	tt.Key(0, ui.KeyEnter)
+	if a.markColor != "Red" {
+		t.Fatal("Shift+Tab and Enter did not choose the previous color")
+	}
+	tt.Key(0, ui.KeyEscape)
+	if a.markOpen || a.flows[0].color != "" {
+		t.Fatal("Escape must dismiss without saving the mark")
 	}
 }
 
@@ -712,6 +788,55 @@ func TestSettingsCategoriesKeepNativeNavigationAndEditorRoutes(t *testing.T) {
 	}
 }
 
+func TestSettingsEscapeRestoresVisibleKeyboardFocus(t *testing.T) {
+	for _, dark := range []bool{false, true} {
+		t.Run(fmt.Sprintf("dark=%t", dark), func(t *testing.T) {
+			a := workspaceApp()
+			a.dark = dark
+			tt := ui.NewTester(a.view, 960, 800)
+			// Focused includes ancestors; the content root is initially
+			// focused, so exclude it by checking a neighboring control.
+			for range 100 {
+				tt.Key(0, ui.KeyTab)
+				if tt.Focused("Settings") && !tt.Focused("Tools") {
+					break
+				}
+			}
+			hasRing := func() bool {
+				bounds, ok := tt.Find("Settings")
+				if !ok {
+					return false
+				}
+				im, ink := tt.Image(), appTheme(dark).Focus
+				for y := int(bounds.Y) - 4; y < int(bounds.Y+bounds.H)+4; y++ {
+					for x := int(bounds.X) - 4; x < int(bounds.X+bounds.W)+4; x++ {
+						p := im.RGBAAt(x, y)
+						if p.R == ink.R && p.G == ink.G && p.B == ink.B && p.A == ink.A {
+							return true
+						}
+					}
+				}
+				return false
+			}
+			if !tt.Focused("Settings") || tt.Focused("Tools") || !hasRing() {
+				t.Fatal("Tab did not visibly focus the Settings opener")
+			}
+			tt.Key(0, ui.KeyEnter)
+			if !a.settingsOpen {
+				t.Fatal("Enter did not open Settings")
+			}
+			tt.Key(0, ui.KeyTab)
+			// Inspect before key release or another input can request an
+			// unrelated frame and hide a missing dismissal repaint.
+			tt.KeyDown(ui.KeyEscape)
+			if a.settingsOpen || !tt.Focused("Settings") || tt.Focused("Tools") || !hasRing() {
+				t.Fatal("Escape did not restore a visible focus ring to Settings")
+			}
+			tt.KeyUp(ui.KeyEscape)
+		})
+	}
+}
+
 func TestLongImportReportKeepsFooterReachable(t *testing.T) {
 	a := workspaceApp()
 	a.importReport = importReport{open: true, title: "Import review"}
@@ -1100,14 +1225,19 @@ func TestJSONExpansionSurvivesIncomingTraffic(t *testing.T) {
 	if !tt.HasText("collapsed") {
 		t.Fatal("JSON mode was not selected")
 	}
-	if err := tt.Click("▸"); err != nil {
+	if err := tt.Click("Expand response JSON $.data.nested"); err != nil {
 		t.Fatal(err)
 	}
-	box, ok := tt.Find("collapsed")
-	if !ok {
-		t.Fatal("missing object to collapse")
+	// Named disclosures are native buttons: keyboard activation must keep
+	// the same per-node expansion behavior as the pointer.
+	tt.Key(0, ui.KeySpace)
+	if tt.HasText(`"expanded-value"`) {
+		t.Fatal("Space did not collapse the focused JSON node")
 	}
-	tt.ClickAt(box.X-16, box.Y+box.H/2)
+	tt.Key(0, ui.KeyEnter)
+	if err := tt.Click("Collapse response JSON $.collapsed"); err != nil {
+		t.Fatal(err)
+	}
 	if !tt.HasText(`"expanded-value"`) || tt.HasText(`"hidden-value"`) {
 		t.Fatal("JSON nodes did not expand and collapse")
 	}

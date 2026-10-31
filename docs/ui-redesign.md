@@ -321,6 +321,20 @@ Runner、History（合并后的 Run records）、Sessions（合并后的 Investi
 - macOS（红绿灯、标题栏）、Windows、Linux 各检查一遍标题栏和窗口控件位置。
 - 键盘：Tab 顺序、焦点环可见、所有图标按钮都有 tooltip 和标签。
 
+#### 阶段 7 实施记录（配色与键盘检查）
+
+- 保留既有图标和布局。先用回归检查复现深色主按钮按下态 4.07:1、浅色部分 method／状态文字与 tint 背景低于正文目标，以及标记色块不是可聚焦按钮的问题，再修正。深色按下态调为 `#7373e6`（文字仍为 `#14142b`），对比度为 4.57:1；浅色 GET、POST、DELETE、PATCH 和信息色适当加深，原有语义不变，PATCH 仍为洋红而不是强调色靛蓝。
+- 对正常／hover／pressed 背景计算线性 sRGB 相对亮度，透明 pill 先合成再计算；两主题中，正文最低 9.72:1、次要文字最低 3.85:1、method／语义文字最低 4.53:1、主按钮文字最低 4.57:1、所测状态 pill 最低 5.02:1。永久检查约束的是这些共享配色组合，不将禁用控件算作可操作正文，也不把检查等同于系统高对比度或屏幕阅读器认证。
+- Mark 色块改用带名称、选中状态的原生 `ButtonBase`，保留颜色、提示、勾选和保存／取消行为；Tab／Shift+Tab、Space／Enter 可选择颜色，Esc 不保存。JSON 展开按钮从单个 `▸`／`▾` 名称改为动作、请求／响应及节点路径，例如 `Expand response JSON $.data.nested`，同时暴露 Expanded 状态；现有 JSON 回归检查同步改用该名称，并覆盖键盘折叠／展开及新流量到达后状态保留。Request／Investigation 更多菜单和 Runner 排序箭头补齐 tooltip；Investigations 看板没有布局改版。
+- 原生基础组件的焦点环未被关闭，不另绘一套键盘系统。标题栏布局检查扩展到 960／1280px、1×／2×，覆盖无预留空间、macOS 左侧红绿灯预留和 Windows 风格右侧按钮预留；这是无窗口布局检查，不冒充对应 OS 的实机结果。既有命令面板、工作区、表格选择、编辑器和 Settings 键盘测试继续通过。
+- macOS 首轮发现 Settings 经 Esc 关闭后仅逻辑焦点恢复，齿轮没有焦点环。在 app view 及只含 `ButtonBase`／`DialogBase` 的最小示例中复现：MyGo v0.7.3 在 paint／present 后才 prune／restoreFocus，若无后续帧就不绘制恢复后的焦点环；强制一帧后按钮图像与打开前逐像素相同。共享 `appModal` 在 Dismissed 通知中请求一次 `Invalidate`，仍由 MyGo 决定焦点目标，不改依赖或另行绘环。浅／深色回归检查在缺少该调用时均失败，修正后均通过；检查在 Esc 按下后、释放键或其他事件掩盖问题前读取实际渲染像素。最小示例及前后证据保存于 `.amp/in/artifacts/phase7-focus-regression`。
+- `go build ./...`、`go vet ./...`、`go tool mygo vet .`、`go test ./... -count=1`、`CGO_ENABLED=0 go test ./... -count=1` 全部通过；`GOOS=windows GOARCH=amd64` 和 `GOOS=darwin GOARCH=arm64` 的无 CGO 可执行文件交叉编译通过。无平台专用产品代码或依赖升级。
+- 截图矩阵为 530 张，保存于 `.amp/in/artifacts/phase7-final`，逐表检查浅／深色状态，并对缩略图疑点回看原图；原有 258 张深色图逐字节不变，浅色图随共享语义色变化，另增加 14 张 Mark 键盘／hover／pressed 图。阶段 6 基线保留；旧代码额外生成深色按下态对照于 `phase7-before-pressed`。滚动内容在 viewport 边缘截断是正常裁切，不误判为固定 footer 覆盖。
+- Linux 使用 Xvfb 下的真实 GTK 原生窗口及 X11 移动指针／键盘输入，录屏检查相邻工具栏控件、色块选择／焦点环、浅深色、按住 Save 后移出释放、不保存退出和 Settings；最终录屏为 `.amp/in/artifacts/phase7-linux-keyboard-pointer.mp4`。该 orb 没有 GPU，MyGo 使用软件渲染；离线夹具不加载用户配置、不启动监听或发送外部请求，检查后已移除临时 harness 并停止服务。
+- macOS 在隔离源码中应用最终产品补丁后重跑真实 Aqua 原生窗口：浅／深色 × 1280×800／960×800，4 组共 88/88 项应用级 automation 断言通过。单窗口系统截图已检查标题栏／红绿灯预留、Capture／Requests／Settings 导航、Mark 键盘独占选择与取消、JSON Expanded 状态及叶节点显示。Settings 经 Esc 关闭后，四组系统截图均出现独立焦点环，首轮视觉保留项已消除；没有用额外输入或 harness 强制帧掩盖问题。最终 28 张系统截图、28 张补充 scene 截图、协议／焦点树／日志和完整报告保存于 `.amp/in/artifacts/phase7-macos-final`，原始首轮证据保留在 `phase7-macos`。`CapturePage` 在此版本重新 raster 渲染 scene，不称 GPU framebuffer 读回；真实标题栏证据来自系统单窗口截图。
+- 焦点修正后重新通过上述全量检查和两平台交叉编译；矩阵重跑结果保存在 `.amp/in/artifacts/phase7-final-focus`，530 张均与 `phase7-final` 逐字节相同。临时诊断测试、二进制和隔离源码已清理，未改变 macOS 原仓库、用户配置、系统代理或凭据，未启动产品监听或发送外部请求。
+- 跨平台验收仍有边界：当前没有 Windows runner，Windows 原生窗口与 Narrator／NVDA 待实机检查；macOS 的 AX／系统键盘投递权限未授予，输入是公开 MyGo automation 的应用级合成事件，不是系统真实键盘输入或 VoiceOver 验收。系统录屏曾请求额外权限，未授权、未绕过，已删除无效视频；最终轮不再尝试录屏。交叉编译及应用级检查不作为这些未验项的替代。
+
 ### 阶段 8：收尾
 
 - 清理剩余的写死字号、圆角、高度和颜色。目标是 `internal/app` 里只有 `style.go` 和 `appearance.go` 出现数字字号和 `ui.Hex`。

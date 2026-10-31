@@ -81,7 +81,7 @@ func (a *app) boardHeader(c *ui.Context, t *ui.Theme, inv *investigation) {
 				b.deleting = true
 			}
 		}).
-			Label("Investigation options").Height(26).Padding(0, 6).FontSize(14).TextColor(t.TextMuted).Border(0, t.Border)
+			Label("Investigation options").Tooltip("Investigation options").Height(26).Padding(0, 6).FontSize(14).TextColor(t.TextMuted).Border(0, t.Border)
 	})
 	if b.notesOpen {
 		notes := ui.TextArea(c, &inv.Notes).Height(52).Label("Investigation notes").

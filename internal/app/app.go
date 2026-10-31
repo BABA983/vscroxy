@@ -1895,7 +1895,8 @@ func (a *app) markModal(c *ui.Context, t *ui.Theme) {
 				ui.Row(c).Gap(t.Space(2)).Wrap().AlignItems(ui.Center).Children(func() {
 					for _, color := range highlightColors {
 						selected := a.markColor == color.name
-						ui.Box(c).Size(heightControl, heightControl).Radius(radiusControl).Background(ui.Hex(color.hex)).Center().
+						ui.ButtonBase(c).Label("Mark "+color.name).Checked(selected).
+							Size(heightControl, heightControl).Radius(radiusControl).Background(ui.Hex(color.hex)).Center().
 							Tooltip(color.name).
 							OnClick(func() { a.markColor = color.name }).
 							Children(func() {

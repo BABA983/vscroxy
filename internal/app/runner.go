@@ -340,10 +340,10 @@ func (a *app) runnerModal(c *ui.Context, t *ui.Theme) {
 							ui.Row(c).Key(i).Height(heightControl).Padding(0, 8).Gap(4).AlignItems(ui.Center).
 								Border(0, t.Border).BorderWidth(0, 0, 1, 0).Children(func() {
 								ui.Checkbox(c, &step.enabled, step.request.Name).Label(fmt.Sprintf("Run request %d", i+1)).FontSize(textBody).Grow(1).Disabled(r.running)
-								if secondaryButton(c, "↑").Label(fmt.Sprintf("Move request %d up", i+1)).Width(heightCompact).Padding(0).Disabled(r.running || i == 0).Clicked() {
+								if secondaryButton(c, "↑").Label(fmt.Sprintf("Move request %d up", i+1)).Tooltip(fmt.Sprintf("Move request %d up", i+1)).Width(heightCompact).Padding(0).Disabled(r.running || i == 0).Clicked() {
 									move, delta = i, -1
 								}
-								if secondaryButton(c, "↓").Label(fmt.Sprintf("Move request %d down", i+1)).Width(heightCompact).Padding(0).Disabled(r.running || i == len(r.steps)-1).Clicked() {
+								if secondaryButton(c, "↓").Label(fmt.Sprintf("Move request %d down", i+1)).Tooltip(fmt.Sprintf("Move request %d down", i+1)).Width(heightCompact).Padding(0).Disabled(r.running || i == len(r.steps)-1).Clicked() {
 									move, delta = i, 1
 								}
 							})

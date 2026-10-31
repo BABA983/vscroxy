@@ -314,6 +314,24 @@ func TestUISnapshots(t *testing.T) {
 		{name: "dialog-clear", setup: func(a *app) { a.clearOpen = true }, want: "Clear captured requests?"},
 		{name: "dialog-clear-records", setup: func(a *app) { snapshotRuns(a); a.experiments.clearing = true }, want: "Clear all experiment records?"},
 		{name: "dialog-mark", setup: func(a *app) { a.openMark(a.flows[0]); a.markNote = "Investigate cache response" }, want: "Note"},
+		{name: "dialog-mark-keyboard", setup: func(a *app) { a.openMark(a.flows[0]) }, act: func(t *testing.T, tt *ui.Tester) {
+			tt.Key(0, ui.KeyTab)
+			tt.Key(0, ui.KeySpace)
+		}, want: "Mark Orange", short: true},
+		{name: "dialog-mark-primary-hover", setup: func(a *app) { a.openMark(a.flows[0]) }, act: func(t *testing.T, tt *ui.Tester) {
+			box, ok := tt.Find("Save")
+			if !ok {
+				t.Fatal("missing primary action")
+			}
+			tt.Move(box.X+box.W/2, box.Y+box.H/2)
+		}, want: "Save"},
+		{name: "dialog-mark-primary-pressed", setup: func(a *app) { a.openMark(a.flows[0]) }, act: func(t *testing.T, tt *ui.Tester) {
+			box, ok := tt.Find("Save")
+			if !ok {
+				t.Fatal("missing primary action")
+			}
+			tt.Press(box.X+box.W/2, box.Y+box.H/2)
+		}, want: "Save"},
 		{name: "dialog-delete", setup: func(a *app) { a.confirmDeleteFolder("Workspace") }, want: "Delete collection"},
 		{name: "dialog-close-unsaved", setup: func(a *app) { draft(a); a.closingDocument = a.requestDocument }, want: "Save changes?"},
 		{name: "dialog-rename", setup: func(a *app) { draft(a); a.renameOpen = true }, want: "Rename request"},
