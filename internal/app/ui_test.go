@@ -430,13 +430,13 @@ func TestCaptureTableScrollsAndKeepsEachViewsPlace(t *testing.T) {
 	a.applyFilter()
 	tt := ui.NewTester(a.view, 1280, 800)
 	row := "api.example.com/capture/0001"
-	_, ok := tt.Find("api.example.com/capture/5000")
-	if !ok {
-		t.Fatal("a capture view must start at the latest request")
-	}
-	// Scroll over the table: in side by side the newest row can sit just
-	// past the visible end.
+	// Side by side by default: the newest row is inside the table, not laid
+	// out past the footer.
+	newest, ok := tt.Find("api.example.com/capture/5000")
 	table, _ := tt.Find("Captured requests")
+	if !ok || newest.H == 0 || newest.Y+newest.H > table.Y+table.H {
+		t.Fatalf("a capture view must start with the latest request in view: %v, table %v", newest, table)
+	}
 	x, y := table.X+table.W/2, table.Y+table.H/2
 	tt.Scroll(x, y, 0, -1e6)
 	first, _ := tt.Find("api.example.com/capture/0001")

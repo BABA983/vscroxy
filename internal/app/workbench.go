@@ -115,9 +115,11 @@ func (a *app) desktopContent(c *ui.Context) {
 						ui.Text(c, "No request chosen").FontSize(uikit.TextBody).TextColor(c.Theme().TextMuted)
 					})
 				} else if w.sideBySide {
-					ui.SplitPercent(c.Key("right-inspector"), &w.sidePercent, table, func() { a.detail(c) }).Fill()
+					// The room under the toolbar, not the column's whole
+					// height (Fill), which ran past the footer.
+					ui.SplitPercent(c.Key("right-inspector"), &w.sidePercent, table, func() { a.detail(c) }).Grow(1).FillWidth().MinHeight(0)
 				} else {
-					ui.SplitVerticalPercent(c.Key("bottom-inspector"), &a.tablePercent, table, func() { a.detail(c) }).Fill()
+					ui.SplitVerticalPercent(c.Key("bottom-inspector"), &a.tablePercent, table, func() { a.detail(c) }).Grow(1).FillWidth().MinHeight(0)
 				}
 			})
 		}
