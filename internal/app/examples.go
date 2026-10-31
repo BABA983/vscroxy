@@ -112,7 +112,7 @@ func (a *app) examplesEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
 			})
 			ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 				ui.Text(c, fmt.Sprintf("%d %s", e.Status, http.StatusText(e.Status))).FontSize(uikit.TextBody).Bold().TextColor(uikit.StatusColor(e.Status, t))
-				ui.Text(c, humanBytes(len(e.Body))).FontSize(uikit.TextMeta).FontFeatures("tnum").TextColor(t.TextMuted)
+				uikit.Meta(c, humanBytes(len(e.Body))).FontFeatures("tnum")
 				ui.Spacer(c)
 				if uikit.Segmented(c, &d.exampleView, "Body", "Headers", "Request").Changed() {
 					d.exampleEditor = nil
@@ -125,7 +125,7 @@ func (a *app) examplesEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
 			if d.example >= len(d.examples) {
 				return
 			}
-			ui.Text(c, e.Request.Method+" "+e.Request.URL).FontSize(uikit.TextMeta).Font(uikit.FontMono).TextColor(t.TextMuted).SingleLine().Selectable()
+			uikit.Meta(c, e.Request.Method+" "+e.Request.URL).Font(uikit.FontMono).SingleLine().Selectable()
 			if d.exampleEditor == nil {
 				text, language := e.Body, ""
 				switch d.exampleView {

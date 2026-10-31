@@ -214,7 +214,7 @@ func (s *investigationWorkbench) pane(c *ui.Context, side int) {
 		}
 		index := s.panes[side]
 		src, rows := s.sources[index], s.matches[index]
-		ui.Text(c, fmt.Sprintf("Historical / read-only · %d of %d exchanges", len(rows), len(src.Session.Flows))).FontSize(uikit.TextMeta).TextColor(t.TextMuted)
+		uikit.Meta(c, fmt.Sprintf("Historical / read-only · %d of %d exchanges", len(rows), len(src.Session.Flows)))
 		if src.Notes != "" {
 			ui.Text(c, "Source notes: "+investigationSummary(src.Notes)).FontSize(uikit.TextMeta).Tooltip(src.Notes)
 		}
@@ -230,7 +230,7 @@ func (s *investigationWorkbench) pane(c *ui.Context, side int) {
 					s.pick(p, chosen)
 				}
 				if f.Note != "" {
-					ui.Text(c, "Note: "+investigationSummary(f.Note)).FontSize(uikit.TextMeta).TextColor(t.TextMuted)
+					uikit.Meta(c, "Note: "+investigationSummary(f.Note))
 				}
 				if problem := strings.Join([]string{f.ConnectionError, f.ReqError, f.ResError}, " "); strings.TrimSpace(problem) != "" {
 					ui.Text(c, "Error: "+investigationSummary(problem)).FontSize(uikit.TextMeta).TextColor(t.Danger)
@@ -317,7 +317,7 @@ func (s *investigationWorkbench) modal(c *ui.Context, a *app) {
 				}
 			})
 			ui.Divider(c).Background(t.Border)
-			ui.Text(c, "Read-only local files. Never sends requests, runs scripts, changes rules or replaces live traffic.").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
+			uikit.Meta(c, "Read-only local files. Never sends requests, runs scripts, changes rules or replaces live traffic.")
 			if s.busy {
 				ui.Text(c, "Working…").FontSize(uikit.TextMeta)
 			}
@@ -361,7 +361,7 @@ func (s *investigationWorkbench) browse(c *ui.Context, a *app) {
 		}
 		ui.Text(c, fmt.Sprintf("%d / 8 sources · %.1f / 48 MiB", len(s.sources), float64(s.kept)/(1<<20))).FontSize(uikit.TextMeta)
 	})
-	ui.Text(c, "Search scope: opened sources only · URL, numeric status, exchange/source notes and errors · literal, case-insensitive · not headers, bodies or messages").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
+	uikit.Meta(c, "Search scope: opened sources only · URL, numeric status, exchange/source notes and errors · literal, case-insensitive · not headers, bodies or messages")
 	if uikit.Input(c, &s.query).Label("Search historical sources").Placeholder("Search URL / status / note / error").
 		Height(uikit.HeightControl).Padding(0, t.Space(2)).Radius(uikit.RadiusControl).FontSize(uikit.TextBody).Changed() {
 		s.refreshSearch()
@@ -393,7 +393,7 @@ func (s *investigationWorkbench) review(c *ui.Context, a *app) {
 	t := c.Theme()
 	uikit.DialogColumn(c, uikit.DialogLarge).Grow(1).AlignSelf(ui.Center).Children(func() {
 		ui.Text(c, "RAW EVIDENCE · NOT AUTOMATICALLY SANITIZED").FontSize(uikit.TextBody).Bold().TextColor(t.Warning)
-		ui.Text(c, "May include credentials, cookies, URL secrets, bodies, binary/base64 messages, trailers and private notes. Review ALL JSON before sharing. Edit title, notes, source labels and captured fields below; remove secrets yourself. No automatic redaction is performed.").FontSize(uikit.TextBody)
+		uikit.Body(c, "May include credentials, cookies, URL secrets, bodies, binary/base64 messages, trailers and private notes. Review ALL JSON before sharing. Edit title, notes, source labels and captured fields below; remove secrets yourself. No automatic redaction is performed.")
 		if s.reviewCode == nil {
 			buf := editor.NewBuffer(s.preview)
 			buf.SetLanguage(editor.LanguageNamed("json"))

@@ -938,7 +938,7 @@ func (v *captureViews) sidebar(c *ui.Context, t *ui.Theme, a *app) {
 				}
 				b.Children(func() {
 					ui.Icon(c, layersIcon).Size(uikit.IconInline, uikit.IconInline)
-					ui.Text(c, name).FontSize(uikit.TextBody).SingleLine().Grow(1)
+					uikit.Body(c, name).SingleLine().Grow(1)
 					if len(v.views) > 1 {
 						if uikit.IconButton(c, "Close view: "+name, "Close this view", closeIcon).Clicked() {
 							closing = i
@@ -950,7 +950,7 @@ func (v *captureViews) sidebar(c *ui.Context, t *ui.Theme, a *app) {
 		ui.Row(c).FillWidth().AlignItems(ui.Center).Children(func() {
 			if uikit.ToolbarButton(c, "New view", "A new view with its own filters, selection and scroll position", false).Grow(1).Justify(ui.Start).Children(func() {
 				ui.Icon(c, plusIcon).Size(uikit.IconInline, uikit.IconInline)
-				ui.Text(c, "New view").FontSize(uikit.TextBody)
+				uikit.Body(c, "New view")
 			}).Clicked() {
 				v.capture(a)
 				v.newView(a)
@@ -960,7 +960,7 @@ func (v *captureViews) sidebar(c *ui.Context, t *ui.Theme, a *app) {
 			}
 		})
 		if len(v.filters) > 0 {
-			ui.Text(c, "SAVED FILTERS").FontSize(uikit.TextMeta).LetterSpacing(0.5).Bold().TextColor(t.TextMuted).Padding(t.Space(3), t.Space(2), t.Space(1), t.Space(2))
+			uikit.Label(c, "SAVED FILTERS").LetterSpacing(0.5).Padding(t.Space(3), t.Space(2), t.Space(1), t.Space(2))
 		}
 		for _, f := range v.filters {
 			active := v.activeView().saved(f.Name) == f
@@ -974,7 +974,7 @@ func (v *captureViews) sidebar(c *ui.Context, t *ui.Theme, a *app) {
 			}
 			b.Children(func() {
 				ui.Icon(c, filterIcon).Size(uikit.IconInline, uikit.IconInline)
-				ui.Text(c, f.Name).FontSize(uikit.TextBody).SingleLine()
+				uikit.Body(c, f.Name).SingleLine()
 			})
 		}
 		if note, failure := v.status(); note != "" {
@@ -1008,8 +1008,7 @@ func (v *captureViews) filterModal(c *ui.Context, t *ui.Theme, a *app) {
 	uikit.Modal(c, &v.filterOpen, func() {
 		ui.Column(c).Width(560).Gap(t.Space(2)).Children(func() {
 			uikit.DialogTitle(c, "Filter "+v.label(v.active))
-			ui.Text(c, "All fields combine with AND. Host and app match exactly. Status takes 404, 4xx, 200-299 or >=400; commas mean OR. Header values use case-insensitive contains on either side. Body searches both sides in full, including spilled files.").
-				FontSize(uikit.TextMeta).TextColor(t.TextMuted)
+			uikit.Meta(c, "All fields combine with AND. Host and app match exactly. Status takes 404, 4xx, 200-299 or >=400; commas mean OR. Header values use case-insensitive contains on either side. Body searches both sides in full, including spilled files.")
 			problem := ""
 			ui.Row(c).Gap(t.Space(3)).Children(func() {
 				ui.Field(c, "Host (exact, including port)", func() {
@@ -1135,15 +1134,14 @@ func (v *captureViews) savedModal(c *ui.Context, t *ui.Theme, a *app) {
 	uikit.Modal(c, &v.savedOpen, func() {
 		ui.Column(c).Width(560).Gap(t.Space(2)).Children(func() {
 			uikit.DialogTitle(c, "Saved capture filters")
-			ui.Text(c, "A filter keeps this view's URL, content and triage conditions. Applying one changes this view; the other views keep their own.").
-				FontSize(uikit.TextMeta).TextColor(t.TextMuted)
+			uikit.Meta(c, "A filter keeps this view's URL, content and triage conditions. Applying one changes this view; the other views keep their own.")
 			if len(v.filters) == 0 {
-				ui.Text(c, "No saved filters yet.").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
+				uikit.Meta(c, "No saved filters yet.")
 			}
 			for _, f := range v.filters {
 				name := f.Name
 				ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-					ui.Text(c, name).FontSize(uikit.TextBody).Grow(1).SingleLine().Tooltip(name)
+					uikit.Body(c, name).Grow(1).SingleLine().Tooltip(name)
 					if uikit.CompactButton(c, "Apply").Label("Apply " + strconv.Quote(name)).Clicked() {
 						v.applySaved(a, name)
 					}
@@ -1160,14 +1158,13 @@ func (v *captureViews) savedModal(c *ui.Context, t *ui.Theme, a *app) {
 				uikit.Input(c, &v.savedName).Placeholder("Name this view's conditions")
 			})
 			if v.renaming != "" {
-				ui.Text(c, "Renaming "+strconv.Quote(v.renaming)+". Type the new name, then Rename filter.").
-					FontSize(uikit.TextMeta).TextColor(t.TextMuted)
+				uikit.Meta(c, "Renaming "+strconv.Quote(v.renaming)+". Type the new name, then Rename filter.")
 			}
 			if v.problem != "" {
 				ui.Text(c, v.problem).FontSize(uikit.TextMeta).TextColor(t.Danger)
 			}
 			if v.note != "" {
-				ui.Text(c, v.note).FontSize(uikit.TextMeta).TextColor(t.TextMuted)
+				uikit.Meta(c, v.note)
 			}
 			ui.Row(c).Gap(t.Space(2)).Justify(ui.End).Children(func() {
 				if uikit.SecondaryButton(c, "Close").Clicked() {

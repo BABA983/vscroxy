@@ -161,9 +161,9 @@ func (a *app) importReportModal(c *ui.Context, t *ui.Theme) {
 		uikit.DialogColumn(c, uikit.DialogMedium).Children(func() {
 			uikit.DialogTitle(c, r.title)
 			ui.Scroll(c).MinHeight(0).Shrink(1).Gap(t.Space(2)).Children(func() {
-				ui.Text(c, r.intro).FontSize(uikit.TextBody).TextColor(t.TextMuted)
+				uikit.Hint(c, r.intro)
 				for _, line := range r.lines {
-					ui.Text(c, "• "+line).FontSize(uikit.TextBody).Selectable()
+					uikit.Body(c, "• "+line).Selectable()
 				}
 			})
 			uikit.DialogFooter(c).Children(func() {

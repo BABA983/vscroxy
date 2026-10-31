@@ -102,12 +102,25 @@ func (o *overview) view(c *ui.Context, dark bool) {
 				row(func() {
 					PrimaryButton(c, "Disabled").Disabled(true)
 					SecondaryButton(c, "Disabled").Disabled(true)
-					ToolbarButton(c, "Disabled", "Unavailable", false).Disabled(true).Children(func() { ui.Text(c, "Disabled") })
+					ui.Row(c).Disabled(true).Children(func() {
+						ToolbarButton(c, "Disabled", "Unavailable", false).Children(func() { ui.Text(c, "Disabled") })
+						IconButton(c, "Disabled icon", "Unavailable", lucide.Settings())
+					})
 				})
 				row(func() {
 					PrimaryButton(c, "Hover Primary")
 					SecondaryButton(c, "Hover Secondary")
 					ToolbarButton(c, "Hover Toolbar", "", false).Children(func() { ui.Text(c, "Hover Toolbar") })
+				})
+			})
+			section("TEXT", func() {
+				Heading(c, "Heading · POST /v1/orders")
+				Body(c, "Body · the request was replayed with the draft's headers.")
+				Mono(c, "Mono · https://api.example.com/v1/orders?id=42")
+				Hint(c, "Hint · captured traffic appears here once the proxy is on.")
+				row(func() {
+					Label(c, "Label")
+					Meta(c, "Meta · 12 ms · 4.2 KB · 15:04:05")
 				})
 			})
 			section("INPUTS AND TOGGLES", func() {
@@ -123,6 +136,11 @@ func (o *overview) view(c *ui.Context, dark bool) {
 					ui.Switch(c, &o.on).Label("System proxy")
 					ui.Switch(c, &o.off).Label("LAN devices")
 					Segmented(c, &o.segment, "All", "HTTP", "HTTPS", "WS", "SSE", "JSON")
+				})
+				row(func() {
+					for i, m := range MarkColors {
+						SwatchButton(c, "Mark "+m.Name, m.Color, i == 1)
+					}
 				})
 			})
 			section("TABS", func() {

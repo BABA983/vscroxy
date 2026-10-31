@@ -63,7 +63,7 @@ func (a *app) workspaceSwitch(c *ui.Context, t *ui.Theme) {
 			} else if s.Hovered() || i == a.workspace {
 				s.Background(t.SurfaceHover)
 			}
-			s.Children(func() { ui.Text(c, name).FontSize(uikit.TextBody) })
+			s.Children(func() { uikit.Body(c, name) })
 		}
 	})
 	if seg.Track.Changed() {
@@ -358,7 +358,7 @@ func (a *app) footer(c *ui.Context, t *ui.Theme) {
 	ui.Row(c).Height(27).Padding(0, t.Space(3)).Gap(t.Space(3)).AlignItems(ui.Center).
 		Background(uikit.Colors(t).Panel).Border(0, t.Border).BorderWidth(1, 0, 0, 0).Children(func() {
 		text := func(s string) ui.Element {
-			return ui.Text(c, s).FontSize(uikit.TextMeta).FontFeatures("tnum").TextColor(t.TextMuted).SingleLine()
+			return uikit.Meta(c, s).FontFeatures("tnum").SingleLine()
 		}
 		switch {
 		case a.workspace == 0 && a.captureSection == 1:

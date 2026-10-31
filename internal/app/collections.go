@@ -218,13 +218,13 @@ func (a *app) folderModal(c *ui.Context, t *ui.Theme) {
 	uikit.Modal(c, &f.open, func() {
 		uikit.DialogColumn(c, uikit.DialogLarge).Height(min(560, height-80)).Children(func() {
 			uikit.DialogTitle(c, kind+" · "+f.draft.Path)
-			ui.Text(c, "Every request saved under it inherits these settings; a folder's settings override its collection's.").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
+			uikit.Meta(c, "Every request saved under it inherits these settings; a folder's settings override its collection's.")
 			ui.Form(c, func() {
 				ui.Field(c, "Name", func() {
 					uikit.Input(c, &f.name).Label(kind + " name")
 				})
 			})
-			ui.Text(c, "Renaming moves its requests, folders and settings together.").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
+			uikit.Meta(c, "Renaming moves its requests, folders and settings together.")
 			uikit.Tabs(c, &f.tab, "", "Auth", "Scripts", "Variables", "Description")
 			ui.Column(c).Grow(1).MinHeight(0).Gap(t.Space(2)).Children(func() {
 				switch f.tab {
@@ -232,17 +232,17 @@ func (a *app) folderModal(c *ui.Context, t *ui.Theme) {
 					ui.Scroll(c).Grow(1).MinHeight(0).Gap(t.Space(2)).Children(func() {
 						a.authFields(c, &f.draft.Auth, a.folderAuthTypes(f.draft.Path), f.draft.Path)
 					})
-					ui.Text(c, "Requests whose Auth is Inherit send this.").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
+					uikit.Meta(c, "Requests whose Auth is Inherit send this.")
 				case 1:
 					uikit.Segmented(c, &f.script, "Pre-request", "Post-response")
-					ui.Text(c, "Runs before the request's own script, after any parent collection's.").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
+					uikit.Meta(c, "Runs before the request's own script, after any parent collection's.")
 					if f.script == 0 {
 						scriptText(c, &f.draft.Pre, &f.pre, &f.preFor, kind+" pre-request script")
 					} else {
 						scriptText(c, &f.draft.Post, &f.post, &f.postFor, kind+" post-response script")
 					}
 				case 2:
-					ui.Text(c, "Environment values override these; a folder's variables override its collection's.").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
+					uikit.Meta(c, "Environment values override these; a folder's variables override its collection's.")
 					requestFieldsEditor(c, &f.draft.Variables, fieldsOptions{secret: true}, "variable")
 				case 3:
 					ui.TextArea(c, &f.draft.Description).Label("Description").Placeholder("What these requests are for").FontSize(uikit.TextBody).Radius(uikit.RadiusControl).Grow(1).MinHeight(0)

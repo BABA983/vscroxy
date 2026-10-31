@@ -95,7 +95,7 @@ func (a *app) deleteModal(c *ui.Context, t *ui.Theme) {
 	uikit.Modal(c, &del.open, func() {
 		uikit.DialogColumn(c, uikit.DialogSmall).Children(func() {
 			uikit.DialogTitle(c, "Delete "+del.name+"?")
-			ui.Text(c, del.detail+" This cannot be undone.").FontSize(uikit.TextBody).TextColor(t.TextMuted)
+			uikit.Hint(c, del.detail+" This cannot be undone.")
 			uikit.DialogFooter(c).Children(func() {
 				if uikit.SecondaryButton(c, "Cancel").Clicked() {
 					del.open = false

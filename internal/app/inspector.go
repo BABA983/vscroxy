@@ -101,7 +101,7 @@ func (a *app) detail(c *ui.Context) {
 			}
 		}
 		if !ok {
-			ui.Text(c, "Capture a request to inspect it.").FontSize(uikit.TextBody).TextColor(t.TextMuted).Padding(t.Space(4))
+			uikit.Hint(c, "Capture a request to inspect it.").Padding(t.Space(4))
 			return
 		}
 		switch a.inspect.pane {
@@ -128,7 +128,7 @@ func (a *app) connectDetail(c *ui.Context, t *ui.Theme, f flow) {
 	}
 	ui.Row(c).Height(uikit.HeightLarge).Padding(0, t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 		ui.Text(c, cmp.Or(f.process, "Unidentified client")).FontSize(uikit.TextBody).Bold().SingleLine().Tooltip(f.processPath)
-		ui.Text(c, f.host).FontSize(uikit.TextBody).Font(uikit.FontMono).TextColor(t.TextMuted).SingleLine().Tooltip(f.url)
+		uikit.Hint(c, f.host).Font(uikit.FontMono).SingleLine().Tooltip(f.url)
 		if f.conn.error != "" {
 			ui.Text(c, cmp.Or(f.conn.errorStage, "Connection")+" failed").FontSize(uikit.TextBody).TextColor(t.Danger)
 		}
@@ -161,7 +161,7 @@ func (a *app) inspectorSummary(c *ui.Context, t *ui.Theme, f flow, ok bool) {
 	compact := a.inspectorWidth(c) < 600
 	ui.Row(c).Height(uikit.HeightLarge).Padding(0, t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 		if !ok {
-			ui.Text(c, "No request chosen").FontSize(uikit.TextBody).TextColor(t.TextMuted).Grow(1)
+			uikit.Hint(c, "No request chosen").Grow(1)
 			return
 		}
 		title := fmt.Sprintf("%s %s", f.method, cmp.Or(f.url, f.scheme+"://"+f.host+f.path))
@@ -182,7 +182,7 @@ func (a *app) inspectorSummary(c *ui.Context, t *ui.Theme, f flow, ok bool) {
 		copy.Children(func() {
 			ui.Icon(c, copyIcon).Size(uikit.IconInline, uikit.IconInline)
 			if !compact {
-				ui.Text(c, "Copy as cURL").FontSize(uikit.TextBody)
+				uikit.Body(c, "Copy as cURL")
 			}
 		})
 		info := uikit.IconButton(c, "Connection details", "Connection: addresses, DNS and TLS", infoIcon)
@@ -218,9 +218,9 @@ func (a *app) exchangeResult(c *ui.Context, t *ui.Theme, f flow, compact bool) {
 	}
 	if !compact {
 		ui.Text(c, "·").FontSize(uikit.TextBody).TextColor(t.Border)
-		ui.Text(c, fmt.Sprintf("%d ms", f.millis)).FontSize(uikit.TextBody).FontFeatures("tnum").TextColor(t.TextMuted).SingleLine()
+		uikit.Hint(c, fmt.Sprintf("%d ms", f.millis)).FontFeatures("tnum").SingleLine()
 		ui.Text(c, "·").FontSize(uikit.TextBody).TextColor(t.Border)
-		ui.Text(c, humanBytes(f.bytes)).FontSize(uikit.TextBody).FontFeatures("tnum").TextColor(t.TextMuted).SingleLine()
+		uikit.Hint(c, humanBytes(f.bytes)).FontFeatures("tnum").SingleLine()
 	}
 	if f.conn.error != "" {
 		explain := uikit.SecondaryButton(c, "Explain").Tooltip("Explain the recorded connection failure")
@@ -456,7 +456,7 @@ func (a *app) inspectorPaneBar(c *ui.Context, t *ui.Theme, title, note string) {
 			a.inspect.pane = inspectorSplit
 		}
 		ui.Text(c, title).FontSize(uikit.TextBody).Bold().TextColor(t.Text)
-		ui.Text(c, note).FontSize(uikit.TextMeta).TextColor(t.TextMuted).SingleLine().Tooltip(note)
+		uikit.Meta(c, note).SingleLine().Tooltip(note)
 		ui.Spacer(c)
 	})
 	ui.Divider(c)
@@ -481,10 +481,10 @@ func (a *app) headersSide(c *ui.Context, f flow, side int) {
 	}
 	ui.Column(c).Fill().Children(func() {
 		ui.Row(c).Padding(t.Space(2), t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-			ui.Text(c, line).FontSize(uikit.TextMeta).Font(uikit.FontMono).TextColor(t.TextMuted).SingleLine().Selectable().Grow(1).
+			uikit.Meta(c, line).Font(uikit.FontMono).SingleLine().Selectable().Grow(1).
 				Tooltip(strings.TrimSpace(line + "\n" + note))
 			if len(headers) > 0 {
-				ui.Text(c, fmt.Sprintf("%d headers", len(headers))).FontSize(uikit.TextMeta).FontFeatures("tnum").TextColor(t.TextMuted)
+				uikit.Meta(c, fmt.Sprintf("%d headers", len(headers))).FontFeatures("tnum")
 			}
 			if hasSensitiveHeader(headers) {
 				label := "Reveal"
@@ -500,7 +500,7 @@ func (a *app) headersSide(c *ui.Context, f flow, side int) {
 		ui.Scroll(c).TrackScroll(&a.headerScroll[side]).Grow(1).FillWidth().Children(func() {
 			if len(headers) == 0 {
 				if raw == "" {
-					ui.Text(c, "No headers recorded").FontSize(uikit.TextBody).TextColor(t.TextMuted).Padding(t.Space(3))
+					uikit.Hint(c, "No headers recorded").Padding(t.Space(3))
 				} else {
 					ui.Text(c, raw).FontSize(uikit.TextBody).Font(uikit.FontMono).TextColor(t.Text).Selectable().Padding(t.Space(3))
 				}
@@ -511,7 +511,7 @@ func (a *app) headersSide(c *ui.Context, f flow, side int) {
 					value = "••••••••  masked"
 				}
 				uikit.KVRow(c, func() {
-					ui.Text(c, key).FontSize(uikit.TextBody).Font(uikit.FontMono).TextColor(t.TextMuted).Width(124).SingleLine().
+					uikit.Hint(c, key).Font(uikit.FontMono).Width(124).SingleLine().
 						Tooltip(strings.TrimSpace(key + "\n" + headerDoc(key))).PopoverMenu(
 						a.headerFilterMenu(c, key, headers[key]))
 
@@ -520,10 +520,10 @@ func (a *app) headersSide(c *ui.Context, f flow, side int) {
 				ui.Divider(c).Background(t.Border.Alpha(0.45))
 			}
 			if len(trailers) > 0 {
-				ui.Text(c, "Trailers").FontSize(uikit.TextMeta).Bold().TextColor(t.TextMuted).Padding(t.Space(2), t.Space(3), t.Space(1)).FillWidth()
+				uikit.Label(c, "Trailers").Padding(t.Space(2), t.Space(3), t.Space(1)).FillWidth()
 				for _, key := range slices.Sorted(maps.Keys(trailers)) {
 					uikit.KVRow(c, func() {
-						ui.Text(c, key).FontSize(uikit.TextBody).Font(uikit.FontMono).TextColor(t.TextMuted).Width(124).SingleLine()
+						uikit.Hint(c, key).Font(uikit.FontMono).Width(124).SingleLine()
 						ui.Text(c, strings.Join(trailers[key], "\n")).FontSize(uikit.TextBody).Font(uikit.FontMono).TextColor(t.Text).Grow(1).Selectable()
 					})
 				}
@@ -538,14 +538,14 @@ func (a *app) paramsSide(c *ui.Context, f flow) {
 	t := c.Theme()
 	parsed, err := url.Parse(cmp.Or(f.url, f.scheme+"://"+f.host+f.path))
 	if err != nil || len(parsed.Query()) == 0 {
-		ui.Text(c, "No query parameters in this request.").FontSize(uikit.TextBody).TextColor(t.TextMuted).Padding(t.Space(4))
+		uikit.Hint(c, "No query parameters in this request.").Padding(t.Space(4))
 		return
 	}
 	ui.Scroll(c).Grow(1).FillWidth().Children(func() {
 		for _, key := range slices.Sorted(maps.Keys(parsed.Query())) {
 			for _, value := range parsed.Query()[key] {
 				uikit.KVRow(c, func() {
-					ui.Text(c, key).FontSize(uikit.TextBody).Font(uikit.FontMono).TextColor(t.TextMuted).Width(140).SingleLine()
+					uikit.Hint(c, key).Font(uikit.FontMono).Width(140).SingleLine()
 					ui.Text(c, value).FontSize(uikit.TextBody).Font(uikit.FontMono).TextColor(t.Text).Grow(1).Selectable()
 				})
 				ui.Divider(c).Background(t.Border.Alpha(0.45))
@@ -564,7 +564,7 @@ func (a *app) rawSide(c *ui.Context, f flow, side int) {
 		a.rawEditor[side] = &editor.State{Buffer: buf, ReadOnly: true, NoScrollPastEnd: true, SoftWrap: true, Label: "Raw message"}
 	}
 	ui.Row(c).Padding(t.Space(2), t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-		ui.Text(c, "As sent and received · capture bytes").FontSize(uikit.TextMeta).TextColor(t.TextMuted).Grow(1)
+		uikit.Meta(c, "As sent and received · capture bytes").Grow(1)
 		if uikit.SecondaryButton(c, "Copy raw").Height(uikit.HeightCompact).Disabled(a.rawText[side] == "").Clicked() {
 			c.Services().WriteClipboard(a.rawText[side])
 			a.setMessage("Copied raw message; review credentials before sharing")
@@ -580,13 +580,12 @@ func (a *app) rawSide(c *ui.Context, f flow, side int) {
 func (a *app) diffPane(c *ui.Context, f flow) {
 	t := c.Theme()
 	if !a.diffBaseline {
-		ui.Text(c, "No previous response for this method and URL. Replay the request to compare responses.").
-			FontSize(uikit.TextBody).TextColor(t.TextMuted).Padding(t.Space(4))
+		uikit.Hint(c, "No previous response for this method and URL. Replay the request to compare responses.").Padding(t.Space(4))
 		return
 	}
 	ui.Row(c).Padding(t.Space(2), t.Space(3)).Children(func() {
-		ui.Text(c, "Previous response (left)").Grow(1).FontSize(uikit.TextMeta).TextColor(t.TextMuted)
-		ui.Text(c, "Current response (right)").Grow(1).FontSize(uikit.TextMeta).TextColor(t.TextMuted)
+		uikit.Meta(c, "Previous response (left)").Grow(1)
+		uikit.Meta(c, "Current response (right)").Grow(1)
 	})
 	if a.diff != nil {
 		editor.DiffView(c, a.diff).Grow(1).FillWidth()

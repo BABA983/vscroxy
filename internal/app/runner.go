@@ -299,7 +299,7 @@ func (a *app) runnerModal(c *ui.Context, t *ui.Theme) {
 	uikit.Modal(c, &r.open, func() {
 		ui.Column(c).Width(min(840, width-80)).Height(min(560, height-100)).Gap(t.Space(2)).Children(func() {
 			uikit.DialogTitle(c, "Collection Runner")
-			ui.Text(c, "Runs saved requests in order, 30 s per request").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
+			uikit.Meta(c, "Runs saved requests in order, 30 s per request")
 			ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 				names := runnableCollections(a.requests)
 				if len(names) == 0 {
@@ -329,7 +329,7 @@ func (a *app) runnerModal(c *ui.Context, t *ui.Theme) {
 			})
 			ui.Row(c).Grow(1).MinHeight(0).Border(1, t.Border).Radius(uikit.RadiusControl).AlignItems(ui.Stretch).Children(func() {
 				ui.Column(c).Width(300).Children(func() {
-					ui.Text(c, "EXECUTION ORDER").Height(uikit.HeightTabs).Padding(t.Space(2)).FontSize(uikit.TextMeta).Bold().TextColor(t.TextMuted).
+					uikit.Label(c, "EXECUTION ORDER").Height(uikit.HeightTabs).Padding(t.Space(2)).
 						Border(0, t.Border).BorderWidth(0, 0, 1, 0)
 					move, delta := -1, 0
 					ui.Scroll(c).Grow(1).Children(func() {
@@ -356,8 +356,7 @@ func (a *app) runnerModal(c *ui.Context, t *ui.Theme) {
 				})
 				ui.Divider(c)
 				ui.Column(c).Grow(1).MinWidth(0).Children(func() {
-					ui.Text(c, fmt.Sprintf("RESULTS · %d completed · %d failed", r.completed, r.failures)).Height(uikit.HeightTabs).Padding(t.Space(2)).
-						FontSize(uikit.TextMeta).FontFeatures("tnum").Bold().TextColor(t.TextMuted).Border(0, t.Border).BorderWidth(0, 0, 1, 0)
+					uikit.Label(c, fmt.Sprintf("RESULTS · %d completed · %d failed", r.completed, r.failures)).Height(uikit.HeightTabs).Padding(t.Space(2)).FontFeatures("tnum").Border(0, t.Border).BorderWidth(0, 0, 1, 0)
 					r.results.Selected = &r.picked
 					c.SetTheme(uikit.ListTheme(t, r.results.Handle.Focused(c)))
 					ui.List(c, &r.results, len(r.rows)).Grow(1).Rows(func(item ui.ListRow) {
@@ -372,7 +371,7 @@ func (a *app) runnerModal(c *ui.Context, t *ui.Theme) {
 						}
 						ui.Row(c).Height(uikit.HeightControl).Padding(0, t.Space(2)).Gap(t.Space(2)).AlignItems(ui.Center).
 							Border(0, t.Border).BorderWidth(0, 0, 1, 0).Tooltip(row.summary).Children(func() {
-							ui.Text(c, fmt.Sprintf("%d · %s", row.iteration, row.name)).FontSize(uikit.TextBody).FontFeatures("tnum").Grow(1).MinWidth(0).SingleLine()
+							uikit.Body(c, fmt.Sprintf("%d · %s", row.iteration, row.name)).FontFeatures("tnum").Grow(1).MinWidth(0).SingleLine()
 							summary := ui.Text(c, row.summary).FontSize(uikit.TextMeta).FontFeatures("tnum").SingleLine().MaxWidth(240)
 							summary.TextColor(color)
 						})
@@ -399,7 +398,7 @@ func (a *app) runnerModal(c *ui.Context, t *ui.Theme) {
 								testResultRow(c, test)
 							}
 							for _, entry := range row.console {
-								ui.Text(c, entry.Phase+" · "+entry.Kind+" · "+entry.Text).FontSize(uikit.TextBody).Selectable()
+								uikit.Body(c, entry.Phase+" · "+entry.Kind+" · "+entry.Text).Selectable()
 							}
 						}
 					})
@@ -409,7 +408,7 @@ func (a *app) runnerModal(c *ui.Context, t *ui.Theme) {
 			if r.status != "" {
 				footer = r.status + " · displaying latest 1000 results; closing keeps a run active"
 			}
-			ui.Text(c, footer).FontSize(uikit.TextMeta).TextColor(t.TextMuted)
+			uikit.Meta(c, footer)
 			ui.Row(c).Gap(t.Space(2)).Justify(ui.End).Children(func() {
 				if uikit.SecondaryButton(c, "Close").Clicked() {
 					r.open = false

@@ -327,7 +327,7 @@ func (m messageView) detail(c *ui.Context, a *app, f flow, p *messagePanel) {
 		})
 		ui.Row(c).Padding(0, t.Space(3), t.Space(2), t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 			uikit.Segmented(c, &p.mode, "Text", "Hex").Label("Show as")
-			ui.Text(c, m.meta()).FontSize(uikit.TextMeta).TextColor(t.TextMuted).SingleLine().Grow(1).Tooltip(m.meta())
+			uikit.Meta(c, m.meta()).SingleLine().Grow(1).Tooltip(m.meta())
 		})
 		ui.Divider(c)
 		if p.loadedError != "" {
@@ -335,7 +335,7 @@ func (m messageView) detail(c *ui.Context, a *app, f flow, p *messagePanel) {
 				TextColor(t.Danger).Background(t.Danger.Alpha(0.12)).Padding(t.Space(1), t.Space(3)).FillWidth()
 		}
 		if len(payload) == 0 {
-			ui.Text(c, "Empty message").FontSize(uikit.TextBody).TextColor(t.TextMuted).Padding(t.Space(3))
+			uikit.Hint(c, "Empty message").Padding(t.Space(3))
 			return
 		}
 		if p.mode == 1 {
@@ -465,7 +465,7 @@ func (p *messagePanel) view(c *ui.Context, a *app, f flow, list []messageView) {
 		if !f.at.IsZero() {
 			state = "Started " + f.at.Format("15:04:05.000") + " · " + state
 		}
-		ui.Text(c, state).FontSize(uikit.TextMeta).FontFeatures("tnum").TextColor(t.TextMuted).Grow(1).SingleLine().Tooltip(state + ". The engine does not provide close codes or an end reason.")
+		uikit.Meta(c, state).FontFeatures("tnum").Grow(1).SingleLine().Tooltip(state + ". The engine does not provide close codes or an end reason.")
 		pauseLabel := "Pause view"
 		if p.paused {
 			pauseLabel = "Resume"
@@ -493,7 +493,7 @@ func (p *messagePanel) view(c *ui.Context, a *app, f flow, list []messageView) {
 			newer -= p.frozen[len(p.frozen)-1].seq
 		}
 		note := fmt.Sprintf("Paused view · %d newer messages · capture continues; Resume shows the latest retained window", max(newer, 0))
-		ui.Text(c, note).FontSize(uikit.TextMeta).FontFeatures("tnum").TextColor(t.TextMuted).
+		uikit.Meta(c, note).FontFeatures("tnum").
 			Background(uikit.Colors(t).Panel).Padding(t.Space(1), t.Space(3)).SingleLine().Tooltip(note)
 		list = p.frozen
 	}
@@ -529,7 +529,7 @@ func (p *messagePanel) view(c *ui.Context, a *app, f flow, list []messageView) {
 		if n := len(p.searchCache.errs); n > 0 {
 			note += fmt.Sprintf(" · %d payloads unreadable", n)
 		}
-		ui.Text(c, note).FontSize(uikit.TextMeta).FontFeatures("tnum").TextColor(t.TextMuted).SingleLine().Tooltip(note)
+		uikit.Meta(c, note).FontFeatures("tnum").SingleLine().Tooltip(note)
 		ui.Spacer(c)
 		if !p.follow && uikit.SecondaryButton(c, "Latest").Clicked() {
 			p.follow = true
@@ -569,12 +569,12 @@ func (p *messagePanel) view(c *ui.Context, a *app, f flow, list []messageView) {
 				if len(list) == 0 {
 					text = "No messages retained"
 				}
-				ui.Text(c, text).FontSize(uikit.TextBody).TextColor(t.TextMuted).Padding(t.Space(4))
+				uikit.Hint(c, text).Padding(t.Space(4))
 			}
 		})
 	}, func() {
 		if len(visible) == 0 {
-			ui.Text(c, "Choose a message to see it in full").FontSize(uikit.TextBody).TextColor(t.TextMuted).Padding(t.Space(4))
+			uikit.Hint(c, "Choose a message to see it in full").Padding(t.Space(4))
 			return
 		}
 		// List remaps a disappeared selected key to -1 during filtering.
@@ -654,7 +654,7 @@ func (p *messagePanel) exportModal(c *ui.Context, a *app, f flow, list, visible 
 	uikit.Modal(c, &p.exportOpen, func() {
 		ui.Column(c).Width(470).Gap(c.Theme().Space(3)).Children(func() {
 			uikit.DialogTitle(c, "Export retained messages")
-			ui.Text(c, fmt.Sprintf("Exports %d matching messages from this %d-message window, not the complete conversation. Pause freezes the view, not capture. Saving is available once the payload search finishes.", len(visible), len(list))).FontSize(uikit.TextBody)
+			uikit.Body(c, fmt.Sprintf("Exports %d matching messages from this %d-message window, not the complete conversation. Pause freezes the view, not capture. Saving is available once the payload search finishes.", len(visible), len(list)))
 			ui.Text(c, "Payloads and URLs can contain credentials or personal data. Review before sharing.").FontSize(uikit.TextBody).TextColor(c.Theme().Danger)
 			ui.Row(c).Gap(c.Theme().Space(2)).Justify(ui.End).Children(func() {
 				if uikit.SecondaryButton(c, "Cancel").Clicked() {

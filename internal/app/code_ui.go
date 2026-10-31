@@ -93,7 +93,7 @@ func (a *app) codeModal(c *ui.Context, t *ui.Theme) {
 				}
 			})
 			ui.Scroll(c).MinHeight(0).Shrink(1).MaxHeight(100).Gap(t.Space(2)).Children(func() {
-				ui.Text(c, "{{variables}} stay as written and scripts do not run; replace them before running the code.").FontSize(uikit.TextBody).TextColor(t.TextMuted)
+				uikit.Hint(c, "{{variables}} stay as written and scripts do not run; replace them before running the code.")
 				if s.problem != "" {
 					ui.Text(c, s.problem).FontSize(uikit.TextBody).TextColor(t.Danger)
 				}

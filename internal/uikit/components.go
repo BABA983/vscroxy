@@ -18,7 +18,9 @@ var (
 )
 
 // ButtonBase keeps native keyboard, focus-ring and accessibility behavior.
-// IsDisabled includes a disabled ancestor, so disabled controls never hover.
+// The face is chosen as the button is built, so disable it through an
+// ancestor (IsDisabled includes one); Disabled on the result comes too late
+// to stop the hover face.
 func ToolbarButton(c *ui.Context, label, tip string, active bool) ui.Element {
 	t := c.Theme()
 	b := ui.ButtonBase(c).Label(label).Tooltip(tip).Height(HeightControl).
@@ -87,6 +89,21 @@ func RowButton(c *ui.Context, label string) ui.Element {
 		b.Background(t.SurfaceHover)
 	}
 	return b
+}
+
+// SwatchButton picks a color; the chosen one carries a check mark, and a hovered
+// one an outline, so the color itself stays unaltered.
+func SwatchButton(c *ui.Context, label string, color ui.Color, chosen bool) ui.Element {
+	b := ui.ButtonBase(c).Label(label).Tooltip(label).Checked(chosen).Size(HeightControl, HeightControl).
+		Radius(RadiusControl).Background(color).Center()
+	if b.Hovered() {
+		b.Border(1, c.Theme().Text)
+	}
+	return b.Children(func() {
+		if chosen {
+			ui.Text(c, "✓").FontSize(TextBody).Bold().TextColor(SwatchText)
+		}
+	})
 }
 
 // Input is a single-line text field at control height.

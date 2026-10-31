@@ -300,7 +300,7 @@ func (a *app) closeRequestModal(c *ui.Context, t *ui.Theme) {
 	uikit.Modal(c, &open, func() {
 		uikit.DialogColumn(c, uikit.DialogSmall).Children(func() {
 			uikit.DialogTitle(c, "Save changes?")
-			ui.Text(c, d.title()+" has unsaved changes. Closing it without saving will discard this draft.").FontSize(uikit.TextBody).TextColor(t.TextMuted)
+			uikit.Hint(c, d.title()+" has unsaved changes. Closing it without saving will discard this draft.")
 			uikit.DialogFooter(c).Children(func() {
 				if uikit.SecondaryButton(c, "Cancel").Clicked() {
 					a.closingDocument = nil
@@ -347,15 +347,15 @@ func (a *app) documentTabs(c *ui.Context, t *ui.Theme) {
 					}
 					tab.Children(func() {
 						uikit.MethodLabel(c, d.composeMethod).FontSize(uikit.TextMeta)
-						ui.Text(c, d.title()).FontSize(uikit.TextBody).SingleLine().MaxWidth(165)
+						uikit.Body(c, d.title()).SingleLine().MaxWidth(165)
 						if d.dirty() {
 							ui.Box(c).Size(5, 5).Radius(uikit.RadiusControl).Background(t.Accent).Label("Unsaved changes")
 						}
-						if ui.ButtonBase(c).Size(20, 20).Radius(uikit.RadiusControl).Label("Close " + d.title()).Tooltip("Close request").Disabled(d.composeWaiting).Children(func() {
-							ui.Text(c, "×").FontSize(uikit.TextTitle).TextColor(t.TextMuted)
-						}).Clicked() {
-							closing = d
-						}
+						ui.Row(c).Disabled(d.composeWaiting).Children(func() {
+							if uikit.IconButton(c, "Close "+d.title(), "Close request", closeIcon).Size(20, 20).Clicked() {
+								closing = d
+							}
+						})
 					})
 				}
 			})
@@ -364,9 +364,7 @@ func (a *app) documentTabs(c *ui.Context, t *ui.Theme) {
 				a.requestChoice, a.workspace, a.requestsSection = a.savedKey, 1, 0
 			}
 		})
-		if ui.ButtonBase(c).Size(uikit.HeightControl, uikit.HeightControl).Label("Add request tab").Tooltip("New request").Children(func() {
-			ui.Icon(c, plusIcon).Size(uikit.IconInline, uikit.IconInline).TextColor(t.TextMuted)
-		}).Clicked() {
+		if uikit.IconButton(c, "Add request tab", "New request", plusIcon).Size(uikit.HeightControl, uikit.HeightControl).Clicked() {
 			a.openCompose()
 		}
 		if names := a.envNames(); len(names) > 0 {
@@ -374,7 +372,7 @@ func (a *app) documentTabs(c *ui.Context, t *ui.Theme) {
 			env.Trigger.Label("Active environment").Tooltip("Active environment").Width(132).Height(uikit.HeightControl).
 				Padding(0, t.Space(2)).Gap(t.Space(2)).Radius(uikit.RadiusControl).Border(1, t.Border).AlignItems(ui.Center).Children(func() {
 				ui.Box(c).Size(6, 6).Radius(uikit.RadiusControl).Background(t.Accent)
-				ui.Text(c, cmp.Or(a.activeEnv, "No environment")).FontSize(uikit.TextBody).SingleLine().Grow(1)
+				uikit.Body(c, cmp.Or(a.activeEnv, "No environment")).SingleLine().Grow(1)
 				ui.Icon(c, chevronIcon).Size(uikit.IconInline, uikit.IconInline).TextColor(t.TextMuted)
 			})
 			env.Popup(func(panel ui.Element) {
@@ -390,13 +388,13 @@ func (a *app) documentTabs(c *ui.Context, t *ui.Theme) {
 							color = t.Accent
 						}
 						ui.Box(c).Size(6, 6).Radius(uikit.RadiusControl).Background(color)
-						ui.Text(c, name).FontSize(uikit.TextBody)
+						uikit.Body(c, name)
 					})
 				}
 			})
 		} else {
-			ui.ButtonBase(c).Label("Manage environments").Tooltip("Add an environment for request variables").Height(uikit.HeightControl).Padding(0, t.Space(2)).
-				Children(func() { ui.Text(c, "No environment").FontSize(uikit.TextBody).TextColor(t.TextMuted) }).OnClick(a.openVars)
+			uikit.ToolbarButton(c, "Manage environments", "Add an environment for request variables", false).
+				Children(func() { ui.Text(c, "No environment") }).OnClick(a.openVars)
 		}
 		if d := a.requestDocument; d != nil {
 			a.requestDocumentActions(c, t, d)
@@ -474,8 +472,8 @@ func (a *app) headerWarnModal(c *ui.Context, t *ui.Theme) {
 	uikit.Modal(c, &d.headerWarn, func() {
 		uikit.DialogColumn(c, uikit.DialogSmall).Children(func() {
 			uikit.DialogTitle(c, "Bulk edit shows credentials")
-			ui.Text(c, "The Key: Value block writes every header value in plain text, including tokens, cookies and passwords. The table masks them one row at a time.").FontSize(uikit.TextBody).TextColor(t.TextMuted)
-			ui.Text(c, "Switching modes does not send a request. All enabled header values will be visible; be careful when sharing your screen.").FontSize(uikit.TextBody).TextColor(t.TextMuted)
+			uikit.Hint(c, "The Key: Value block writes every header value in plain text, including tokens, cookies and passwords. The table masks them one row at a time.")
+			uikit.Hint(c, "Switching modes does not send a request. All enabled header values will be visible; be careful when sharing your screen.")
 			uikit.DialogFooter(c).Children(func() {
 				if uikit.SecondaryButton(c, "Cancel").Clicked() {
 					d.headerWarn = false
@@ -503,7 +501,7 @@ func (a *app) requestRenameModal(c *ui.Context, t *ui.Theme) {
 				Height(uikit.HeightControl).Padding(0, t.Space(2)).Radius(uikit.RadiusControl).FontSize(uikit.TextBody)
 			uikit.Input(c, &d.composeCollection).Label("Collection").Placeholder("Collection").FillWidth().
 				Height(uikit.HeightControl).Padding(0, t.Space(2)).Radius(uikit.RadiusControl).FontSize(uikit.TextBody)
-			ui.Text(c, "The collection groups saved requests in the library.").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
+			uikit.Meta(c, "The collection groups saved requests in the library.")
 			uikit.DialogFooter(c).Children(func() {
 				if uikit.SecondaryButton(c, "Cancel").Clicked() {
 					a.renameOpen = false
@@ -523,18 +521,14 @@ func (a *app) requestDocumentActions(c *ui.Context, t *ui.Theme, d *requestDocum
 		if d.sourceFlow != 0 {
 			label = fmt.Sprintf("Source #%d", d.sourceFlow)
 		}
-		back := ui.ButtonBase(c).Label("Back to traffic").Height(uikit.HeightControl).Padding(0, t.Space(2)).Gap(t.Space(2)).Radius(uikit.RadiusControl).AlignItems(ui.Center).
-			TextColor(t.TextMuted).Tooltip("Return to the capture, keeping its filters, selection and position")
-		if back.Hovered() {
-			back.TextColor(t.Text)
-		}
+		back := uikit.ToolbarButton(c, "Back to traffic", "Return to the capture, keeping its filters, selection and position", false)
 		if back.Clicked() {
 			a.backToTraffic(c)
 		}
 		back.Children(func() {
 			ui.Icon(c, backIcon).Size(uikit.IconInline, uikit.IconInline)
 			if d.sourceFlow != 0 {
-				ui.Text(c, label).FontSize(uikit.TextBody)
+				uikit.Body(c, label)
 			}
 		})
 		// The tab already names the request. Keep its full collection path
@@ -546,23 +540,17 @@ func (a *app) requestDocumentActions(c *ui.Context, t *ui.Theme, d *requestDocum
 		if name == "" {
 			name = "Name this request…"
 		}
-		rename := ui.ButtonBase(c).Label("Rename request").Size(uikit.HeightControl, uikit.HeightControl).Radius(uikit.RadiusControl).Center().
-			TextColor(t.TextMuted).Tooltip(name + "\nRename or move to another collection")
-		if rename.Hovered() {
-			rename.TextColor(t.Text)
-		}
+		rename := uikit.IconButton(c, "Rename request", name+"\nRename or move to another collection", requestIcon).Size(uikit.HeightControl, uikit.HeightControl)
 		if rename.Clicked() {
 			a.renameOpen = true
 		}
-		rename.Children(func() { ui.Icon(c, requestIcon).Size(uikit.IconInline, uikit.IconInline) })
 		if d.sourceFlow != 0 && (a.query != "" || a.filter != "all" || a.chip != 0 || a.filtersActive()) {
 			ui.Icon(c, filterIcon).Size(uikit.IconInline, uikit.IconInline).Label("Capture filters kept · new traffic may be hidden").TextColor(t.Warning).
 				Tooltip("Capture filters kept · new traffic may be hidden. Returning restores filters, selection and position.")
 		}
 		if d.sourceAPI != "" {
-			if ui.ButtonBase(c).Label("Source API").Height(uikit.HeightCompact).Padding(0, t.Space(2)).Radius(uikit.RadiusControl).AlignItems(ui.Center).
-				TextColor(t.TextMuted).Children(func() {
-				ui.Text(c, "Source API").FontSize(uikit.TextBody).TextColor(t.Accent)
+			if uikit.ToolbarButton(c, "Source API", "Open the API this request came from", false).Height(uikit.HeightCompact).Children(func() {
+				ui.Text(c, "Source API").TextColor(t.Accent)
 			}).Clicked() {
 				a.apiChoice, a.workspace, a.requestsSection = d.sourceAPI, 1, 1
 				a.requestSide = 3
@@ -638,14 +626,14 @@ func (a *app) requestVariablesPanel(c *ui.Context, t *ui.Theme, d *requestDocume
 		if uikit.CompactButton(c, fmt.Sprintf("Variables · %d unresolved", missing)).Label("Request variables").Clicked() {
 			d.variablesOpen = !d.variablesOpen
 		}
-		ui.Text(c, "Target before scripts: "+target).FontSize(uikit.TextMeta).TextColor(t.TextMuted).SingleLine().Grow(1)
+		uikit.Meta(c, "Target before scripts: "+target).SingleLine().Grow(1)
 	})
 	if !d.variablesOpen {
 		return
 	}
 	ui.Column(c).Height(160).Padding(t.Space(2), t.Space(3)).Gap(t.Space(2)).Background(uikit.Colors(t).Panel).Children(func() {
 		ui.Row(c).Gap(t.Space(2)).Children(func() {
-			ui.Text(c, "Draft context · pre-script may generate or replace values").FontSize(uikit.TextMeta).TextColor(t.TextMuted).Grow(1)
+			uikit.Meta(c, "Draft context · pre-script may generate or replace values").Grow(1)
 			if uikit.CompactButton(c, "Edit environments").Clicked() {
 				a.openVars()
 			}
@@ -660,7 +648,7 @@ func variableRows(c *ui.Context, rows []request.ResolvedVariable, reveal *bool) 
 	ui.Checkbox(c, reveal, "Reveal values (plaintext)").FontSize(uikit.TextMeta)
 	ui.Scroll(c).Grow(1).FillWidth().Gap(t.Space(2)).Children(func() {
 		if len(rows) == 0 {
-			ui.Text(c, "No referenced variables in this snapshot.").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
+			uikit.Meta(c, "No referenced variables in this snapshot.")
 		}
 		for _, row := range rows {
 			ui.Row(c).Gap(t.Space(2)).Children(func() {
@@ -675,7 +663,7 @@ func variableRows(c *ui.Context, rows []request.ResolvedVariable, reveal *bool) 
 					}
 				}
 				ui.Text(c, value).FontSize(uikit.TextMeta).TextColor(color).Grow(1).Selectable()
-				ui.Text(c, row.Source).Width(180).FontSize(uikit.TextMeta).TextColor(t.TextMuted)
+				uikit.Meta(c, row.Source).Width(180)
 			})
 		}
 	})
@@ -728,11 +716,7 @@ func (a *app) requestBar(c *ui.Context, t *ui.Theme, d *requestDocument) {
 				if chosen, ok := method.Chosen(); ok {
 					d.composeMethod = chosen
 				}
-				arrow := ui.ButtonBase(c).Size(18, 18).Radius(uikit.RadiusControl).Label("Method list").Tooltip("Common methods").AlignItems(ui.Center)
-				if arrow.Hovered() {
-					arrow.Background(t.SurfacePressed)
-				}
-				if arrow.Children(func() { ui.Icon(c, chevronIcon).Size(uikit.IconInline, uikit.IconInline).TextColor(t.TextMuted) }).Clicked() {
+				if uikit.IconButton(c, "Method list", "Common methods", chevronIcon).Size(18, 18).Clicked() {
 					method.SetOpen(!method.Open())
 					method.Input.Focus()
 				}
@@ -812,15 +796,15 @@ func (a *app) requestEditor(c *ui.Context, t *ui.Theme, d *requestDocument) {
 	bodyTools := func() {
 		uikit.Select(c, &d.bodyMode, []string{"Raw", "URL encoded", "Multipart"}).Label("Request body type").Width(132).FontSize(uikit.TextMeta)
 		formatted, isJSON := indentJSON(d.composeBody)
-		if ui.ButtonBase(c).Label("Format body").Height(uikit.HeightControl).Padding(0, t.Space(2)).Gap(t.Space(2)).Radius(uikit.RadiusControl).AlignItems(ui.Center).
-			TextColor(t.TextMuted).Disabled(!isJSON || d.bodyMode != "Raw").
-			Tooltip("Indent the JSON body; the bytes sent stay what the editor shows").Children(func() {
-			ui.Icon(c, formatIcon).Size(uikit.IconInline, uikit.IconInline)
-			ui.Text(c, "Format").FontSize(uikit.TextMeta)
-		}).Clicked() {
-			// Rebuild the editor rather than writing its old buffer back.
-			d.composeBody, d.bodyFor = formatted, ""
-		}
+		ui.Row(c).Disabled(!isJSON || d.bodyMode != "Raw").Children(func() {
+			if uikit.ToolbarButton(c, "Format body", "Indent the JSON body; the bytes sent stay what the editor shows", false).Children(func() {
+				ui.Icon(c, formatIcon).Size(uikit.IconInline, uikit.IconInline)
+				ui.Text(c, "Format").FontSize(uikit.TextMeta)
+			}).Clicked() {
+				// Rebuild the editor rather than writing its old buffer back.
+				d.composeBody, d.bodyFor = formatted, ""
+			}
+		})
 	}
 	ui.Column(c).Fill().Children(func() {
 		ui.Row(c).Height(uikit.HeightTabs).Padding(0, t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).
@@ -923,12 +907,12 @@ func requestTabs(c *ui.Context, selected *int, prefix string, labels, counts []s
 				if label == "Tests" {
 					shown = "Checks"
 				}
-				text := ui.Text(c, shown).FontSize(uikit.TextBody)
+				text := uikit.Body(c, shown)
 				if i == *selected {
 					text.FontWeight(600)
 				}
 				if counts[i] != "" && counts[i] != "0" {
-					ui.Text(c, counts[i]).FontSize(uikit.TextMeta).FontFeatures("tnum").TextColor(t.TextMuted)
+					uikit.Meta(c, counts[i]).FontFeatures("tnum")
 				}
 			})
 		}
@@ -940,11 +924,11 @@ func requestTabs(c *ui.Context, selected *int, prefix string, labels, counts []s
 func (a *app) requestSentState(c *ui.Context, t *ui.Theme, d *requestDocument) {
 	switch {
 	case d.composeWaiting:
-		ui.Text(c, "Sending…").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
+		uikit.Meta(c, "Sending…")
 	case !d.sentSet:
-		ui.Text(c, "Not sent yet").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
+		uikit.Meta(c, "Not sent yet")
 	case reflect.DeepEqual(d.draft(), d.sent):
-		ui.Text(c, "Draft matches last attempt · "+d.sentAt.Local().Format("15:04:05")).FontSize(uikit.TextMeta).TextColor(t.TextMuted).
+		uikit.Meta(c, "Draft matches last attempt · "+d.sentAt.Local().Format("15:04:05")).
 			Tooltip("The draft snapshot matches; variables, scripts, redirects and rules may change the wire request")
 	default:
 		ui.Text(c, "Edited since last send · not yet sent").FontSize(uikit.TextMeta).TextColor(t.Warning).
@@ -1014,39 +998,34 @@ func (a *app) requestResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 					}
 				}
 				uikit.StatusPill(c, shown, uikit.StatusColor(r.Status, t)).Label(status).Tooltip(status).FontSize(uikit.TextMeta).Padding(t.Space(1), t.Space(2))
-				ui.Text(c, fmt.Sprintf("%d ms", r.Millis)).FontSize(uikit.TextMeta).FontFeatures("tnum").TextColor(t.TextMuted)
-				ui.Text(c, humanBytes(r.Bytes)).FontSize(uikit.TextMeta).FontFeatures("tnum").TextColor(t.TextMuted)
+				uikit.Meta(c, fmt.Sprintf("%d ms", r.Millis)).FontFeatures("tnum")
+				uikit.Meta(c, humanBytes(r.Bytes)).FontFeatures("tnum")
 			} else if d.composeWaiting {
-				ui.Text(c, "Sending…").FontSize(uikit.TextBody).TextColor(t.TextMuted)
+				uikit.Hint(c, "Sending…")
 			}
 			if d.source != nil && d.response != nil && !d.comparing {
-				if ui.ButtonBase(c).Label("Compare with source").Height(uikit.HeightControl).Padding(0, t.Space(2)).Gap(t.Space(2)).Radius(uikit.RadiusControl).AlignItems(ui.Center).
-					TextColor(t.TextMuted).Tooltip("Compare this response with the capture it came from").Children(func() {
-					ui.Icon(c, compareIcon).Size(uikit.IconInline, uikit.IconInline)
-				}).Clicked() {
+				if uikit.IconButton(c, "Compare with source", "Compare this response with the capture it came from", compareIcon).
+					Size(uikit.HeightControl, uikit.HeightControl).Clicked() {
 					d.comparing = true
 				}
 			}
 			if d.response != nil && !d.composeWaiting && outcome != "Network error" && d.sentSet {
-				if ui.ButtonBase(c).Label("Save as example").Height(uikit.HeightControl).Padding(0, t.Space(2)).Gap(t.Space(2)).Radius(uikit.RadiusControl).AlignItems(ui.Center).
-					TextColor(t.TextMuted).Tooltip("Keep this response with the request, as a Postman example").Children(func() {
-					ui.Icon(c, exampleIcon).Size(uikit.IconInline, uikit.IconInline)
-				}).Clicked() {
+				if uikit.IconButton(c, "Save as example", "Keep this response with the request, as a Postman example", exampleIcon).
+					Size(uikit.HeightControl, uikit.HeightControl).Clicked() {
 					a.saveExample(d)
 				}
 			}
 			// Without a retained send there is nothing to read, so the entry
 			// waits rather than opening an empty list.
-			if ui.ButtonBase(c).Label("Send history").Height(uikit.HeightControl).Padding(0, t.Space(2)).Gap(t.Space(2)).Radius(uikit.RadiusControl).AlignItems(ui.Center).
-				TextColor(t.TextMuted).Disabled(d.origin == nil && d.experimentID == 0).
-				Tooltip("Inspect the exact request and result of each retained attempt; opening never sends").Children(func() {
-				ui.Icon(c, sendHistoryIcon).Size(uikit.IconInline, uikit.IconInline)
-			}).Clicked() {
-				a.openSendHistory(d)
-			}
+			ui.Row(c).Disabled(d.origin == nil && d.experimentID == 0).Children(func() {
+				if uikit.IconButton(c, "Send history", "Inspect the exact request and result of each retained attempt; opening never sends", sendHistoryIcon).
+					Size(uikit.HeightControl, uikit.HeightControl).Clicked() {
+					a.openSendHistory(d)
+				}
+			})
 		})
 		if d.experimentID != 0 && !d.composeWaiting {
-			ui.Text(c, fmt.Sprintf("Recorded experiment #%d", d.experimentID)).FontSize(uikit.TextMeta).TextColor(t.TextMuted).Padding(t.Space(1), t.Space(3)).
+			uikit.Meta(c, fmt.Sprintf("Recorded experiment #%d", d.experimentID)).Padding(t.Space(1), t.Space(3)).
 				Tooltip("Retained result from this experiment; opening it does not send the draft")
 		}
 		if !d.composeWaiting && outcome != "" && outcome != "Response received" {
@@ -1059,8 +1038,8 @@ func (a *app) requestResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 					path = cmp.Or(u.EscapedPath(), "/")
 				}
 				label := "Last attempt · " + d.sentAt.Local().Format("15:04:05") + " · " + d.sent.Method + " " + path
-				if ui.ButtonBase(c).Label("Last send details").Grow(1).MinWidth(0).Height(uikit.HeightControl).Gap(t.Space(2)).
-					AlignItems(ui.Center).Justify(ui.Start).TextColor(t.TextMuted).Tooltip("Show the full draft URL and response time").Children(func() {
+				if uikit.ToolbarButton(c, "Last send details", "Show the full draft URL and response time", false).Grow(1).MinWidth(0).
+					Justify(ui.Start).Children(func() {
 					arrow := "›"
 					if d.lastAttemptOpen {
 						arrow = "⌄"
@@ -1073,16 +1052,16 @@ func (a *app) requestResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 				if !reflect.DeepEqual(d.draft(), d.sent) {
 					ui.Text(c, "Draft changed · not sent").FontSize(uikit.TextMeta).TextColor(t.Warning)
 				} else if !d.composeWaiting {
-					ui.Text(c, "Draft matches last attempt").FontSize(uikit.TextMeta).TextColor(t.TextMuted).
+					uikit.Meta(c, "Draft matches last attempt").
 						Tooltip("The draft snapshot matches; variables, scripts, redirects and rules may change the wire request")
 				}
 			})
 			if d.lastAttemptOpen {
 				ui.Column(c).Padding(t.Space(2), t.Space(3)).Gap(t.Space(2)).Background(uikit.Colors(t).Panel).Children(func() {
-					ui.Text(c, d.sent.Method+" "+d.sent.URL).Label("Last sent draft URL").FontSize(uikit.TextBody).Selectable()
-					ui.Text(c, "Draft snapshot · variables, scripts, redirects and proxy rules may change the wire request. Inspect Send history for retained wire evidence.").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
+					uikit.Body(c, d.sent.Method+" "+d.sent.URL).Label("Last sent draft URL").Selectable()
+					uikit.Meta(c, "Draft snapshot · variables, scripts, redirects and proxy rules may change the wire request. Inspect Send history for retained wire evidence.")
 					if d.response != nil {
-						ui.Text(c, "Response from "+d.response.At.Local().Format("15:04:05")).FontSize(uikit.TextMeta).TextColor(t.TextMuted)
+						uikit.Meta(c, "Response from "+d.response.At.Local().Format("15:04:05"))
 					}
 				})
 			}
@@ -1111,7 +1090,7 @@ func (a *app) requestResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 func (a *app) cancelledResult(c *ui.Context, t *ui.Theme, d *requestDocument) {
 	ui.Text(c, "Waiting cancelled. The server may still be processing; check whether sending again would repeat the operation.").FontSize(uikit.TextBody).TextColor(t.Text)
 	ui.Collapsible(c, "Technical details", &d.sendDetails, func() {
-		ui.Text(c, d.composeResult).FontSize(uikit.TextMeta).TextColor(t.TextMuted).Selectable().FillWidth()
+		uikit.Meta(c, d.composeResult).Selectable().FillWidth()
 	}).FontSize(uikit.TextBody)
 }
 
@@ -1122,7 +1101,7 @@ func (a *app) responseProvenance(c *ui.Context, t *ui.Theme, d *requestDocument)
 		return
 	}
 	provenance := "Response from " + d.response.At.Local().Format("15:04:05")
-	ui.Text(c, provenance).FontSize(uikit.TextMeta).TextColor(t.TextMuted).Padding(t.Space(2), t.Space(3)).
+	uikit.Meta(c, provenance).Padding(t.Space(2), t.Space(3)).
 		Tooltip("Redirects, cookies and proxy rules may change the on-wire exchange; Capture has the wire details")
 }
 
@@ -1137,19 +1116,19 @@ func (a *app) responseBody(c *ui.Context, t *ui.Theme, d *requestDocument) {
 			ui.Column(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(2)).Children(func() {
 				if d.composeWaiting {
 					ui.Spinner(c).Label("Waiting for request result")
-					ui.Text(c, "Waiting for response… · 30 s timeout").FontSize(uikit.TextBody).TextColor(t.TextMuted)
+					uikit.Hint(c, "Waiting for response… · 30 s timeout")
 				} else if d.sendOutcome == "Cancelled" {
 					a.cancelledResult(c, t, d)
 				} else if d.sendOutcome != "" {
 					ui.Text(c, d.sendOutcome).FontSize(uikit.TextBody).TextColor(t.Warning)
 					ui.Text(c, d.composeResult).FontSize(uikit.TextBody).TextColor(t.Text).Selectable().FillWidth()
-					ui.Text(c, "Edit the draft and send again. No automatic retry.").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
+					uikit.Meta(c, "Edit the draft and send again. No automatic retry.")
 				} else {
-					ui.Text(c, cmp.Or(d.composeResult, "Send a request to see its response")).FontSize(uikit.TextBody).TextColor(t.TextMuted)
-					ui.Text(c, "The exchange will also appear in Capture.").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
+					uikit.Hint(c, cmp.Or(d.composeResult, "Send a request to see its response"))
+					uikit.Meta(c, "The exchange will also appear in Capture.")
 				}
 				if d.composeWaiting || d.sendOutcome == "Timed out" {
-					ui.Text(c, "Cancelling does not undo server-side changes.").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
+					uikit.Meta(c, "Cancelling does not undo server-side changes.")
 				}
 			})
 		})
@@ -1165,7 +1144,7 @@ func (a *app) responseBody(c *ui.Context, t *ui.Theme, d *requestDocument) {
 		if d.response != nil {
 			body = d.response.ResponseBody
 			if d.response.ResponseBodySize > len(d.response.ResponseBody) {
-				ui.Text(c, "Preview limited to 8 MiB; the complete body is in Capture.").FontSize(uikit.TextMeta).TextColor(t.TextMuted).Padding(t.Space(1), t.Space(3))
+				uikit.Meta(c, "Preview limited to 8 MiB; the complete body is in Capture.").Padding(t.Space(1), t.Space(3))
 			}
 		}
 		switch d.responseView {
@@ -1196,7 +1175,7 @@ func (a *app) responseBody(c *ui.Context, t *ui.Theme, d *requestDocument) {
 	case resViewHeaders:
 		ui.Scroll(c).Grow(1).Padding(t.Space(2), t.Space(3)).Children(func() {
 			if d.response != nil {
-				ui.Text(c, request.HeaderBlock(d.response.ResponseHeader)).Font(uikit.FontMono).FontSize(uikit.TextBody)
+				uikit.Mono(c, request.HeaderBlock(d.response.ResponseHeader))
 			}
 		})
 	case resViewCookies:
@@ -1204,11 +1183,11 @@ func (a *app) responseBody(c *ui.Context, t *ui.Theme, d *requestDocument) {
 	case resViewTiming:
 		ui.Scroll(c).Grow(1).Padding(t.Space(2), t.Space(3)).Gap(t.Space(2)).Children(func() {
 			if d.response == nil {
-				ui.Text(c, "No response yet.").FontSize(uikit.TextBody).TextColor(t.TextMuted)
+				uikit.Hint(c, "No response yet.")
 				return
 			}
-			ui.Text(c, fmt.Sprintf("Total %d ms · %s", d.response.Millis, humanBytes(d.response.Bytes))).FontSize(uikit.TextBody)
-			ui.Text(c, "Per-phase timing (DNS, connect, TLS, wait, download) is recorded on the capture in Capture → Timing.").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
+			uikit.Body(c, fmt.Sprintf("Total %d ms · %s", d.response.Millis, humanBytes(d.response.Bytes)))
+			uikit.Meta(c, "Per-phase timing (DNS, connect, TLS, wait, download) is recorded on the capture in Capture → Timing.")
 			index := a.sentFlowIndex(d)
 			if uikit.CompactButton(c, "Inspect timing in Capture").Disabled(index < 0).Clicked() {
 				if index >= 0 {
@@ -1219,13 +1198,13 @@ func (a *app) responseBody(c *ui.Context, t *ui.Theme, d *requestDocument) {
 				}
 			}
 			if index < 0 {
-				ui.Text(c, "This send's wire capture is not available in this session. Send history may retain its snapshot.").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
+				uikit.Meta(c, "This send's wire capture is not available in this session. Send history may retain its snapshot.")
 			}
 		})
 	case resViewTests:
 		ui.Scroll(c).Grow(1).Padding(t.Space(2), t.Space(3)).Gap(t.Space(2)).Children(func() {
 			if len(d.composeTests) == 0 {
-				ui.Text(c, "No assertions. Add response Checks, or pm.test(name, fn) in a script.").FontSize(uikit.TextBody).TextColor(t.TextMuted)
+				uikit.Hint(c, "No assertions. Add response Checks, or pm.test(name, fn) in a script.")
 			}
 			for _, result := range d.composeTests {
 				testResultRow(c, result)
@@ -1252,7 +1231,7 @@ func testResultRow(c *ui.Context, result request.TestResult) {
 	ui.Column(c).Gap(t.Space(0.5)).Children(func() {
 		ui.Text(c, name).FontSize(uikit.TextBody).TextColor(color)
 		if result.Error != "" {
-			ui.Text(c, result.Error).FontSize(uikit.TextMeta).TextColor(t.TextMuted).Padding(0, 0, 0, t.Space(3)).Selectable()
+			uikit.Meta(c, result.Error).Padding(0, 0, 0, t.Space(3)).Selectable()
 		}
 	})
 }
@@ -1261,7 +1240,7 @@ func runConsole(c *ui.Context, entries []request.ConsoleMessage) {
 	t := c.Theme()
 	ui.Scroll(c).Grow(1).FillWidth().Padding(t.Space(2), t.Space(3)).Gap(t.Space(2)).Children(func() {
 		if len(entries) == 0 {
-			ui.Text(c, "No output. Call console.log(...) in a script to print here.").FontSize(uikit.TextBody).TextColor(t.TextMuted)
+			uikit.Hint(c, "No output. Call console.log(...) in a script to print here.")
 		}
 		for _, entry := range entries {
 			color := t.Text
@@ -1277,17 +1256,16 @@ func runConsole(c *ui.Context, entries []request.ConsoleMessage) {
 // capture it came from, and puts the response tabs back when it closes.
 func (a *app) responseCompare(c *ui.Context, t *ui.Theme, d *requestDocument) {
 	ui.Row(c).Height(uikit.HeightControl).Padding(0, t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-		if ui.ButtonBase(c).Label("Back to response").Height(uikit.HeightCompact).Padding(0, t.Space(2)).Gap(t.Space(1)).Radius(uikit.RadiusControl).AlignItems(ui.Center).
-			TextColor(t.TextMuted).Children(func() {
+		if uikit.ToolbarButton(c, "Back to response", "Back to the response", false).Height(uikit.HeightCompact).Gap(t.Space(1)).Children(func() {
 			ui.Icon(c, backIcon).Size(uikit.IconInline, uikit.IconInline)
 			ui.Text(c, "Back to response").FontSize(uikit.TextMeta)
 		}).Clicked() {
 			d.comparing = false
 		}
-		ui.Text(c, "Comparing with the source capture").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
+		uikit.Meta(c, "Comparing with the source capture")
 	})
 	if d.source == nil || d.response == nil {
-		ui.Text(c, "The source capture is no longer in this session.").FontSize(uikit.TextBody).TextColor(t.TextMuted).Padding(t.Space(3))
+		uikit.Hint(c, "The source capture is no longer in this session.").Padding(t.Space(3))
 		return
 	}
 	r := d.response
@@ -1300,24 +1278,24 @@ func (a *app) responseCompare(c *ui.Context, t *ui.Theme, d *requestDocument) {
 	if r.ResponseBodySize > len(r.ResponseBody) {
 		right.resError = "preview limited to 8 MiB"
 	}
-	ui.Text(c, "Last send: client request and final response. Capture has the wire exchange.").FontSize(uikit.TextMeta).TextColor(t.TextMuted).Padding(t.Space(1), t.Space(3))
+	uikit.Meta(c, "Last send: client request and final response. Capture has the wire exchange.").Padding(t.Space(1), t.Space(3))
 	d.comparison.compare(c, *d.source, right, [2]string{fmt.Sprintf("Source #%d", d.sourceFlow), "Last send"})
 }
 
 // responseCookies lists what the response asked the client to store.
 func (a *app) responseCookies(c *ui.Context, t *ui.Theme, d *requestDocument) {
 	if d.response == nil {
-		ui.Text(c, "No response yet.").FontSize(uikit.TextBody).TextColor(t.TextMuted).Padding(t.Space(3))
+		uikit.Hint(c, "No response yet.").Padding(t.Space(3))
 		return
 	}
 	cookies := d.response.ResponseHeader.Values("Set-Cookie")
 	if len(cookies) == 0 {
-		ui.Text(c, "This response set no cookies.").FontSize(uikit.TextBody).TextColor(t.TextMuted).Padding(t.Space(3))
+		uikit.Hint(c, "This response set no cookies.").Padding(t.Space(3))
 		return
 	}
 	ui.Scroll(c).Grow(1).Padding(t.Space(2), t.Space(3)).Gap(t.Space(1)).Children(func() {
 		for _, cookie := range cookies {
-			ui.Text(c, cookie).FontSize(uikit.TextBody).Font(uikit.FontMono).Selectable().SingleLine().Tooltip(cookie)
+			uikit.Mono(c, cookie).Selectable().SingleLine().Tooltip(cookie)
 		}
 	})
 }

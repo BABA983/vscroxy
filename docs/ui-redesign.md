@@ -156,7 +156,10 @@ uikit 第一版就按"主题 = 语义 token 表"实现；导入第三方主题�
 - 侧栏的选中代表「当前在哪」，不是键盘光标，所以焦点在别处时标记线仍是强调色。
 - uikit 新增 `CompactButton`（24px、11 号字）、`DangerButton`、`RowButton`、`Input`、`Select`。`internal/app` 已不再直接调用 `ui.Button`、`ui.PrimaryButton`、`ui.TextInput`、`ui.Select`，同时去掉了这些调用后面重复设置的高度、字号和圆角。
 - Capture 选中检查改为同时检查浅底和标记线像素（去掉标记线时该检查会失败），对比度检查加上强调浅底。
-- 未完成：手搭的 `ui.ButtonBase`（仍有约 20 处）、手写 hover／pressed、文字角色（约 330 处 `TextColor(t.TextMuted)`），以及 Capture 侧栏里 View 1 和 All requests 看起来同时被选中的问题。
+- 手搭的 `ui.ButtonBase` 全部换成 uikit：工具栏式的文字按钮用 `ToolbarButton`，只有图标的用 `IconButton`（关闭 tab、新建 tab、重命名、和来源对比、存为示例、发送历史、方法列表），列表行用 `RowButton`（Requests rail、调查板证据列表、命令面板），标记色用新的 `SwatchButton`。`internal/app` 里不再有 `ui.ButtonBase` 和手写 hover／pressed。调查板的选中行从 hover 底色改成统一的选中样子。
+- uikit 的按钮在构建时就决定 hover 外观，MyGo 的 `Hovered()` 也只看那一刻是否禁用，所以在返回值上再调 `Disabled` 会让禁用按钮仍有 hover 底色。禁用改为放在外面一层元素上（`ui.Row(c).Disabled(...)`），已改 7 处，组件总览也加了禁用的 IconButton。
+- 文字角色 `internal/uikit/text.go`：`Heading`（15、600）、`Body`（13，颜色继承）、`Mono`（Body 加等宽）、`Hint`（13 次要色）、`Meta`（11 次要色）、`Label`（Meta 加 600）。共替换 394 处 `ui.Text`（Meta 190、Hint 94、Body 78、Label 16、Heading 11、Mono 5）。`TextColor(t.TextMuted)` 从约 330 处降到 30 处，剩下的是图标、表格单元格（有自己的 `text` 帮手）、分段控件和菜单触发器。标题从 Bold 改成 600，和内嵌的 Inter SemiBold 一致。组件总览加了 TEXT 一节和标记色。
+- 未完成：Capture 侧栏里 View 1 和 All requests 看起来同时被选中的问题。
 
 ## 1. 目标
 

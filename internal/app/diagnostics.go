@@ -56,7 +56,7 @@ func (a *app) diagnosticsModal(c *ui.Context, t *ui.Theme) {
 					a.checkCertificate(false)
 				}
 			})
-			ui.Text(c, "Read-only checks · no proxy changes, CA installation, test requests or LAN exposure.").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
+			uikit.Meta(c, "Read-only checks · no proxy changes, CA installation, test requests or LAN exposure.")
 			ui.Form(c, func() {
 				ui.Field(c, "Target URL", func() {
 					if uikit.Input(c, &d.target).Label("Target URL").Placeholder("https://api.example.com/").Changed() {
@@ -71,14 +71,14 @@ func (a *app) diagnosticsModal(c *ui.Context, t *ui.Theme) {
 				} else {
 					ui.Text(c, "Capture is stopped. Start capture before configuring a client.").FontSize(uikit.TextBody).TextColor(t.Warning)
 				}
-				ui.Text(c, "Listener state is not proof that a client can reach it.").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
+				uikit.Meta(c, "Listener state is not proof that a client can reach it.")
 
 				ui.Text(c, "2  System proxy · OS readback").FontSize(uikit.TextBody).Bold()
 				status, color := a.systemProxyStatus(t)
 				ui.Text(c, status).FontSize(uikit.TextBody).TextColor(color)
 				detail, _ := a.systemProxyDetail(a.systemProxyTarget())
 				ui.Text(c, detail).FontSize(uikit.TextMeta).Selectable()
-				ui.Text(c, "Last check only. Apps may ignore these settings or use their own proxy; a matching OS setting does not prove their traffic reaches this app.").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
+				uikit.Meta(c, "Last check only. Apps may ignore these settings or use their own proxy; a matching OS setting does not prove their traffic reaches this app.")
 
 				ui.Text(c, "3  Target evidence · retained live session").FontSize(uikit.TextBody).Bold()
 				u, err := url.Parse(strings.TrimSpace(d.target))
@@ -111,7 +111,7 @@ func (a *app) diagnosticsModal(c *ui.Context, t *ui.Theme) {
 							decrypted++
 						}
 					}
-					ui.Text(c, fmt.Sprintf("%d live records · %d shown · %d hidden in the current capture view", matched, visible, matched-visible)).FontSize(uikit.TextBody)
+					uikit.Body(c, fmt.Sprintf("%d live records · %d shown · %d hidden in the current capture view", matched, visible, matched-visible))
 					if progress, failure := a.views.status(); progress != "" {
 						note := " · view visibility may still change"
 						if failure {
@@ -122,35 +122,35 @@ func (a *app) diagnosticsModal(c *ui.Context, t *ui.Theme) {
 					if latest == nil {
 						ui.Text(c, "No retained live evidence for this origin. This does not establish a connection failure: the client may not have sent a request, bypassed the proxy, or matched an ignored host/app.").FontSize(uikit.TextBody).TextColor(t.Warning)
 					} else {
-						ui.Text(c, fmt.Sprintf("Latest #%d · %s · %s", latest.id, latest.method, latest.at.Local().Format("15:04:05"))).FontSize(uikit.TextBody)
+						uikit.Body(c, fmt.Sprintf("Latest #%d · %s · %s", latest.id, latest.method, latest.at.Local().Format("15:04:05")))
 						if latest.conn.error != "" {
 							ui.Text(c, cmp.Or(latest.conn.errorStage, "Connection")+" failed: "+latest.conn.error).FontSize(uikit.TextBody).TextColor(t.Warning).Selectable()
 						} else if latest.kind == "connect" {
-							ui.Text(c, "CONNECT is tunnel evidence, not proof of a decrypted request or a successful response.").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
+							uikit.Meta(c, "CONNECT is tunnel evidence, not proof of a decrypted request or a successful response.")
 						} else {
-							ui.Text(c, fmt.Sprintf("Recorded HTTP status: %d", latest.status)).FontSize(uikit.TextBody)
+							uikit.Body(c, fmt.Sprintf("Recorded HTTP status: %d", latest.status))
 						}
 						if len(latest.actions) > 0 {
 							ui.Text(c, "Recorded actions on this exchange: "+strings.Join(latest.actions, " · ")).FontSize(uikit.TextMeta).Selectable()
 						} else {
-							ui.Text(c, "No rule/script actions recorded on this exchange.").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
+							uikit.Meta(c, "No rule/script actions recorded on this exchange.")
 						}
 						if uikit.SecondaryButton(c, "Inspect latest evidence").Tooltip("Hidden records open in a new capture view; existing filters are preserved").Clicked() {
 							d.open = false
 							a.inspectCapture(latest.id)
 						}
 					}
-					ui.Text(c, "Matches scheme, host and port, not path. Includes previous traffic from any client in this live session; imported, cleared and evicted records do not count.").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
+					uikit.Meta(c, "Matches scheme, host and port, not path. Includes previous traffic from any client in this live session; imported, cleared and evicted records do not count.")
 					if u.Scheme == "https" {
 						policy := "Disabled for new connections"
 						if a.srv != nil && a.srv.SSL().Decrypts(u.Hostname()) {
 							policy = "Enabled for new connections; not proof of decryption"
 						}
-						ui.Text(c, "HTTPS policy: "+policy).FontSize(uikit.TextBody)
-						ui.Text(c, fmt.Sprintf("Observed HTTPS: %d decrypted request records · %d CONNECT records", decrypted, tunnels)).FontSize(uikit.TextBody)
+						uikit.Body(c, "HTTPS policy: "+policy)
+						uikit.Body(c, fmt.Sprintf("Observed HTTPS: %d decrypted request records · %d CONNECT records", decrypted, tunnels))
 						trust, trustColor := a.certificateStatus(t)
 						ui.Text(c, "Local CA: "+trust).FontSize(uikit.TextBody).TextColor(trustColor)
-						ui.Text(c, "Client CA trust and pinning are not verified here. A decrypted request may come from a client that skips verification. Reconnect after changing HTTPS policy.").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
+						uikit.Meta(c, "Client CA trust and pinning are not verified here. A decrypted request may come from a client that skips verification. Reconnect after changing HTTPS policy.")
 					}
 				}
 
@@ -167,7 +167,7 @@ func (a *app) diagnosticsModal(c *ui.Context, t *ui.Theme) {
 					ui.Text(c, "Active scenario: "+cmp.Or(capture.ActiveScenario(rules), "none · global rules only")).FontSize(uikit.TextMeta)
 					ui.Text(c, fmt.Sprintf("Ignored hosts: %d · Ignored apps: %d · Dropped capture events: %d", len(a.srv.Ignore()), len(a.srv.IgnoreApps()), a.srv.Dropped())).FontSize(uikit.TextMeta)
 				}
-				ui.Text(c, "Ignored traffic is still proxied but not retained. Current rules do not explain past exchanges; inspect their recorded actions and Connection log. No match is predicted from configuration alone.").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
+				uikit.Meta(c, "Ignored traffic is still proxied but not retained. Current rules do not explain past exchanges; inspect their recorded actions and Connection log. No match is predicted from configuration alone.")
 				ui.Row(c).Gap(t.Space(2)).Wrap().Children(func() {
 					if uikit.SecondaryButton(c, "Review ignored hosts").Clicked() {
 						d.open, a.ignoreOpen = false, true
@@ -185,7 +185,7 @@ func (a *app) diagnosticsModal(c *ui.Context, t *ui.Theme) {
 			if d.scroll.Y < d.scroll.MaxY-1 {
 				hint = "Scroll for more diagnostics and review actions ↓"
 			}
-			ui.Text(c, hint).FontSize(uikit.TextMeta).TextColor(t.TextMuted)
+			uikit.Meta(c, hint)
 			uikit.DialogFooter(c).Children(func() {
 				if uikit.SecondaryButton(c, "Proxy settings…").Clicked() {
 					d.open = false

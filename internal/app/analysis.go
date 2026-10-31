@@ -78,7 +78,7 @@ func (a *app) replayLinks(c *ui.Context, f flow) {
 				}
 			}).Height(uikit.HeightControl).FontSize(uikit.TextBody).Radius(uikit.RadiusControl)
 		}
-		ui.Text(c, "Links stay with saved sessions").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
+		uikit.Meta(c, "Links stay with saved sessions")
 	})
 }
 
@@ -124,10 +124,10 @@ func (a *app) analysisDetail(c *ui.Context, selected []flow) {
 			ui.Row(c).Gap(t.Space(4)).Wrap().Children(func() {
 				ui.Text(c, fmt.Sprintf("Response bytes: %d B", bytes)).FontSize(uikit.TextBody).FontFeatures("tnum").Bold()
 				ui.Text(c, fmt.Sprintf("Errors: %d", errors)).FontSize(uikit.TextBody).FontFeatures("tnum").TextColor(t.Danger)
-				ui.Text(c, fmt.Sprintf("Incomplete bodies: %d", incomplete)).FontSize(uikit.TextBody).FontFeatures("tnum").TextColor(t.TextMuted)
+				uikit.Hint(c, fmt.Sprintf("Incomplete bodies: %d", incomplete)).FontFeatures("tnum")
 			})
-			ui.Text(c, fmt.Sprintf("Average: %.1f ms · P50: %d ms · Max: %d ms", float64(duration)/float64(len(selected)), times[(len(times)-1)/2], times[len(times)-1])).FontSize(uikit.TextBody).FontFeatures("tnum")
-			ui.Text(c, "Recorded per-capture durations, not elapsed session time. P50 uses nearest rank. Errors include HTTP 4xx/5xx, connection failures and incomplete bodies.").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
+			uikit.Body(c, fmt.Sprintf("Average: %.1f ms · P50: %d ms · Max: %d ms", float64(duration)/float64(len(selected)), times[(len(times)-1)/2], times[len(times)-1])).FontFeatures("tnum")
+			uikit.Meta(c, "Recorded per-capture durations, not elapsed session time. P50 uses nearest rank. Errors include HTTP 4xx/5xx, connection failures and incomplete bodies.")
 			ui.Divider(c)
 			ui.Text(c, "Slowest requests").FontSize(uikit.TextBody).Bold()
 			slowest := slices.Clone(selected)
@@ -137,7 +137,7 @@ func (a *app) analysisDetail(c *ui.Context, selected []flow) {
 					if uikit.SecondaryButton(c, fmt.Sprintf("Inspect #%d", f.id)).Clicked() {
 						a.inspectCapture(f.id)
 					}
-					ui.Text(c, f.method+" "+f.host+f.path).FontSize(uikit.TextBody).SingleLine().Grow(1).Tooltip(f.url)
+					uikit.Body(c, f.method+" "+f.host+f.path).SingleLine().Grow(1).Tooltip(f.url)
 					ui.Text(c, fmt.Sprintf("%d ms", f.millis)).FontSize(uikit.TextMeta).FontFeatures("tnum").Bold().Width(65)
 				})
 			}
@@ -205,8 +205,7 @@ func (s *captureAnalysis) compare(c *ui.Context, left, right flow, labels [2]str
 				FontSize(uikit.TextMeta).FontFeatures("tnum").SingleLine().Grow(1).Tooltip(f.url)
 		}
 	})
-	ui.Text(c, "Read-only comparison · bodies limited to 8 MiB; truncation/incomplete notices are included").
-		FontSize(uikit.TextMeta).TextColor(t.TextMuted).Padding(t.Space(1), t.Space(3))
+	uikit.Meta(c, "Read-only comparison · bodies limited to 8 MiB; truncation/incomplete notices are included").Padding(t.Space(1), t.Space(3))
 	s.diff.Font = ui.Font{Family: uikit.FontMono, Size: uikit.TextBody}
 	s.diff.Theme = uikit.EditorTheme(t)
 	editor.DiffView(c, s.diff).Grow(1).FillWidth()

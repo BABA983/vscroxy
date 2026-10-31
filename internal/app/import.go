@@ -313,7 +313,7 @@ func (a *app) collectionSaveModal(c *ui.Context, t *ui.Theme) {
 				hint = "Adds to the end of this collection."
 			}
 			ui.Scroll(c).MinHeight(0).Shrink(1).Gap(t.Space(4)).Children(func() {
-				ui.Text(c, "Saved in capture order, not sent. Tunnels, WebSocket connections and incomplete or non-UTF-8 bodies are skipped.").FontSize(uikit.TextBody).TextColor(t.TextMuted)
+				uikit.Hint(c, "Saved in capture order, not sent. Tunnels, WebSocket connections and incomplete or non-UTF-8 bodies are skipped.")
 				ui.Form(c, func() {
 					ui.Field(c, "Collection", func() {
 						ui.Autocomplete(c, &s.name, names).Label("Collection name").Height(uikit.HeightControl).FontSize(uikit.TextBody)

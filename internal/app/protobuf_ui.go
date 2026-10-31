@@ -113,10 +113,10 @@ func (p *protoInspector) view(c *ui.Context, a *app, f flow, side int) {
 	})
 	p.inspect(c, a, f, response)
 	if grpcContentType(f.contentType(response)) {
-		ui.Text(c, grpcStatus(f)).FontSize(uikit.TextMeta).TextColor(t.TextMuted).Padding(0, t.Space(3), t.Space(2), t.Space(3))
+		uikit.Meta(c, grpcStatus(f)).Padding(0, t.Space(3), t.Space(2), t.Space(3))
 	}
 	if p.answers != nil {
-		ui.Text(c, "Reading complete retained body…").FontSize(uikit.TextBody).TextColor(t.TextMuted).Padding(t.Space(3))
+		uikit.Hint(c, "Reading complete retained body…").Padding(t.Space(3))
 		return
 	}
 	if p.result.problem != "" {
@@ -126,20 +126,20 @@ func (p *protoInspector) view(c *ui.Context, a *app, f flow, side int) {
 	if p.result.typeName != "" {
 		note = "Message type: " + p.result.typeName
 	}
-	ui.Text(c, note).FontSize(uikit.TextMeta).TextColor(t.TextMuted).Padding(0, t.Space(3), t.Space(2), t.Space(3))
+	uikit.Meta(c, note).Padding(0, t.Space(3), t.Space(2), t.Space(3))
 	var visible []int
 	for i, message := range p.result.messages {
 		if p.query == "" || strings.Contains(strings.ToLower(message.text), strings.ToLower(p.query)) {
 			visible = append(visible, i)
 		}
 	}
-	ui.Text(c, fmt.Sprintf("%d of %d messages", len(visible), len(p.result.messages))).FontSize(uikit.TextMeta).TextColor(t.TextMuted).Padding(0, t.Space(3), t.Space(2), t.Space(3))
+	uikit.Meta(c, fmt.Sprintf("%d of %d messages", len(visible), len(p.result.messages))).Padding(0, t.Space(3), t.Space(2), t.Space(3))
 	if len(visible) == 0 {
 		note := "No message matches"
 		if len(p.result.messages) == 0 && p.result.problem == "" {
 			note = "No messages in this body (a trailers-only gRPC response is valid)"
 		}
-		ui.Text(c, note).FontSize(uikit.TextBody).TextColor(t.TextMuted).Padding(t.Space(3))
+		uikit.Hint(c, note).Padding(t.Space(3))
 		return
 	}
 	if p.split == 0 {
@@ -170,7 +170,7 @@ func (p *protoInspector) view(c *ui.Context, a *app, f flow, side int) {
 		message := p.result.messages[visible[p.selected]]
 		ui.Column(c).Fill().Children(func() {
 			ui.Row(c).Padding(0, t.Space(3)).AlignItems(ui.Center).Children(func() {
-				ui.Text(c, fmt.Sprintf("Message %d · %s decoded", visible[p.selected]+1, humanBytes(message.size))).FontSize(uikit.TextMeta).TextColor(t.TextMuted).Grow(1)
+				uikit.Meta(c, fmt.Sprintf("Message %d · %s decoded", visible[p.selected]+1, humanBytes(message.size))).Grow(1)
 				if uikit.SecondaryButton(c, "Copy decoded").Clicked() {
 					c.Services().WriteClipboard(message.text)
 					a.setMessage("Copied decoded protobuf message")
@@ -250,9 +250,9 @@ func (p *protoInspector) modal(c *ui.Context, a *app) {
 		uikit.DialogColumn(c, uikit.DialogMedium).Children(func() {
 			uikit.DialogTitle(c, "Protobuf schema")
 			ui.Scroll(c).MinHeight(0).Shrink(1).Gap(t.Space(4)).Children(func() {
-				ui.Text(c, "Import a .proto source or a binary FileDescriptorSet (.pb / .protoset). gRPC methods select input/output types automatically; raw protobuf needs a message type. A successful load replaces the current registry.").FontSize(uikit.TextBody).TextColor(t.TextMuted)
+				uikit.Hint(c, "Import a .proto source or a binary FileDescriptorSet (.pb / .protoset). gRPC methods select input/output types automatically; raw protobuf needs a message type. A successful load replaces the current registry.")
 				if p.schema != nil {
-					ui.Text(c, fmt.Sprintf("Loaded: %d message types", len(p.schema.names))).FontSize(uikit.TextMeta).TextColor(t.TextMuted)
+					uikit.Meta(c, fmt.Sprintf("Loaded: %d message types", len(p.schema.names)))
 				}
 				ui.Row(c).Gap(t.Space(2)).Children(func() {
 					uikit.Input(c, &p.source).Label("Schema file").Placeholder("/path/to/service.proto or descriptors.pb").Grow(1).MinWidth(0)
@@ -265,13 +265,13 @@ func (p *protoInspector) modal(c *ui.Context, a *app) {
 						}()
 					}
 				})
-				ui.Text(c, "Include roots (optional, one per line). The source directory and standard Google imports are included automatically.").FontSize(uikit.TextBody).TextColor(t.TextMuted)
+				uikit.Hint(c, "Include roots (optional, one per line). The source directory and standard Google imports are included automatically.")
 				ui.TextArea(c, &p.roots).Height(70).Font(uikit.FontMono).FontSize(uikit.TextBody).Radius(uikit.RadiusControl).Label("Protobuf include roots")
 				if p.problem != "" {
 					ui.Text(c, p.problem).FontSize(uikit.TextBody).TextColor(t.Danger)
 				}
 				if p.loading {
-					ui.Text(c, "Compiling and linking schema…").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
+					uikit.Meta(c, "Compiling and linking schema…")
 				}
 			})
 			uikit.DialogFooter(c).Children(func() {

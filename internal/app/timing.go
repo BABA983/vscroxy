@@ -13,7 +13,7 @@ import (
 func (a *app) timingView(c *ui.Context, f flow) {
 	t := c.Theme()
 	if f.wait == 0 && f.download == 0 {
-		ui.Text(c, "No timing for this flow").FontSize(uikit.TextBody).TextColor(t.TextMuted).Padding(t.Space(4))
+		uikit.Hint(c, "No timing for this flow").Padding(t.Space(4))
 		return
 	}
 	total := max(f.millis, 1)
@@ -32,10 +32,10 @@ func (a *app) timingView(c *ui.Context, f flow) {
 		ui.Divider(c)
 		ui.Row(c).Gap(t.Space(2)).Padding(t.Space(1), 0).Children(func() {
 			ui.Text(c, "Total").FontSize(uikit.TextBody).Bold().TextColor(t.Text).Width(90)
-			ui.Text(c, f.method+" "+f.host+f.path).FontSize(uikit.TextMeta).TextColor(t.TextMuted).Width(260).SingleLine()
+			uikit.Meta(c, f.method+" "+f.host+f.path).Width(260).SingleLine()
 			ui.Text(c, fmt.Sprintf("%d ms", f.millis)).FontSize(uikit.TextMeta).FontFeatures("tnum").Bold().TextColor(t.Text).Width(64)
 		})
-		ui.Text(c, connectionNote(f)).FontSize(uikit.TextMeta).TextColor(t.TextMuted).Padding(t.Space(1), 0, 0, 0)
+		uikit.Meta(c, connectionNote(f)).Padding(t.Space(1), 0, 0, 0)
 	})
 }
 
@@ -44,8 +44,8 @@ func (a *app) timingView(c *ui.Context, f flow) {
 func waterfallRow(c *ui.Context, t *ui.Theme, label, detail string, ms, offset, total int, color ui.Color) {
 	ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Padding(t.Space(1), 0).Children(func() {
 		ui.Text(c, label).FontSize(uikit.TextBody).TextColor(t.Text).Width(90)
-		ui.Text(c, detail).FontSize(uikit.TextMeta).TextColor(t.TextMuted).Width(260).SingleLine().Tooltip(detail)
-		ui.Text(c, fmt.Sprintf("%d ms", ms)).FontSize(uikit.TextMeta).FontFeatures("tnum").TextColor(t.TextMuted).Width(64)
+		uikit.Meta(c, detail).Width(260).SingleLine().Tooltip(detail)
+		uikit.Meta(c, fmt.Sprintf("%d ms", ms)).FontFeatures("tnum").Width(64)
 		ui.Row(c).Grow(1).Height(10).Children(func() {
 			if offset > 0 {
 				ui.Spacer(c).Grow(float32(offset))

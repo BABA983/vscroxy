@@ -154,7 +154,7 @@ func (a *app) columnModal(c *ui.Context, t *ui.Theme) {
 						uikit.Input(c, &draft.Name).Placeholder(placeholder).AutoFocus()
 					}).Error(problem)
 				})
-				ui.Text(c, "Right-click the table's header to hide columns or remove this one.").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
+				uikit.Meta(c, "Right-click the table's header to hide columns or remove this one.")
 			})
 			uikit.DialogFooter(c).Children(func() {
 				if uikit.SecondaryButton(c, "Cancel").Clicked() {

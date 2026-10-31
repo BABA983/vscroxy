@@ -96,7 +96,7 @@ drained:
 			seconds, err := strconv.Atoi(strings.TrimSpace(r.timeout))
 			valid := err == nil && seconds >= 0 && seconds <= 86400
 			ui.Scroll(c).MinHeight(0).Shrink(1).Gap(t.Space(4)).Children(func() {
-				ui.Text(c, "Sends in capture order through the current rules. POST, PUT, PATCH and DELETE can change server data. WebSocket, SSE and tunnels are excluded.").FontSize(uikit.TextBody).TextColor(t.TextMuted)
+				uikit.Hint(c, "Sends in capture order through the current rules. POST, PUT, PATCH and DELETE can change server data. WebSocket, SSE and tunnels are excluded.")
 				ui.Field(c, "Timeout per request (seconds; 0 = no timeout)", func() {
 					uikit.Input(c, &r.timeout).Label("Replay timeout").Disabled(r.updates != nil)
 				})
@@ -107,7 +107,7 @@ drained:
 					ui.Text(c, "No Caching is on: conditional cache headers will be removed.").FontSize(uikit.TextBody).TextColor(t.Accent)
 				}
 				if r.done > 0 || r.updates != nil {
-					ui.Text(c, fmt.Sprintf("%d/%d sent · %d failed", r.done, len(r.flows), r.failed)).FontSize(uikit.TextBody)
+					uikit.Body(c, fmt.Sprintf("%d/%d sent · %d failed", r.done, len(r.flows), r.failed))
 				}
 				if r.problem != "" {
 					ui.Text(c, r.problem).FontSize(uikit.TextBody).TextColor(t.Danger).MaxLines(3).Tooltip(r.problem)

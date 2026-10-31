@@ -166,13 +166,13 @@ func (a *app) debugWire(c *ui.Context, r experimentRecord) {
 	if len(wire.Actions) > 0 {
 		effects = strings.Join(wire.Actions, " · ")
 	}
-	ui.Text(c, "Recorded interventions: "+effects).FontSize(uikit.TextBody).SingleLine().Tooltip(effects)
+	uikit.Body(c, "Recorded interventions: "+effects).SingleLine().Tooltip(effects)
 	ui.Text(c, "Wire evidence, not current rules. Redirect hops stay separate; source comparison uses the client result.").FontSize(uikit.TextMeta).TextColor(c.Theme().TextMuted)
 }
 
 func (s *experimentWorkbench) compareSource(c *ui.Context, r experimentRecord) {
 	if r.Source == nil {
-		ui.Text(c, "This run has no recorded capture source.").FontSize(uikit.TextBody)
+		uikit.Body(c, "This run has no recorded capture source.")
 		return
 	}
 	left, right := investigationFlow(r.Source.Exchange), r.compared("")

@@ -197,18 +197,18 @@ func (a *app) cookiesModal(c *ui.Context, t *ui.Theme) {
 	uikit.Modal(c, &e.open, func() {
 		uikit.DialogColumn(c, uikit.DialogLarge).Height(min(480, height-80)).Children(func() {
 			uikit.DialogTitle(c, "Session Cookies")
-			ui.Text(c, "Shared by Requests and Runner. Kept in memory until the app quits.").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
+			uikit.Meta(c, "Shared by Requests and Runner. Kept in memory until the app quits.")
 			ui.Scroll(c).Grow(1).MinHeight(0).Gap(t.Space(3)).Children(func() {
 				items := a.requestCookies().snapshot()
 				if len(items) == 0 {
-					ui.Text(c, "No cookies yet. Send a request or add one below.").TextColor(t.TextMuted)
+					uikit.Hint(c, "No cookies yet. Send a request or add one below.")
 				}
 				for _, item := range items {
 					ui.Row(c).Key(item.key).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 						ui.Column(c).Grow(1).Gap(t.Space(1)).Children(func() {
-							ui.Text(c, item.cookie.Name+" = "+item.cookie.Value).FontSize(uikit.TextBody).Font(uikit.FontMono).SingleLine()
+							uikit.Mono(c, item.cookie.Name+" = "+item.cookie.Value).SingleLine()
 							domain := cmp.Or(item.cookie.Domain, item.origin.Hostname())
-							ui.Text(c, fmt.Sprintf("%s%s · Secure %t · HttpOnly %t", domain, item.cookie.Path, item.cookie.Secure, item.cookie.HttpOnly)).FontSize(uikit.TextMeta).TextColor(t.TextMuted)
+							uikit.Meta(c, fmt.Sprintf("%s%s · Secure %t · HttpOnly %t", domain, item.cookie.Path, item.cookie.Secure, item.cookie.HttpOnly))
 						})
 						if uikit.SecondaryButton(c, "Delete").Label("Delete cookie " + item.cookie.Name + " " + item.cookie.Path).Clicked() {
 							a.cookies.remove(item.key)
@@ -216,7 +216,7 @@ func (a *app) cookiesModal(c *ui.Context, t *ui.Theme) {
 					})
 				}
 				ui.Divider(c)
-				ui.Text(c, "Add replaces the same domain / path / name. Leave Domain empty for a host-only cookie.").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
+				uikit.Meta(c, "Add replaces the same domain / path / name. Leave Domain empty for a host-only cookie.")
 				ui.Form(c, func() {
 					ui.Field(c, "Cookie URL", func() {
 						uikit.Input(c, &e.url).Label("Cookie URL").Placeholder("https://api.example.com/")

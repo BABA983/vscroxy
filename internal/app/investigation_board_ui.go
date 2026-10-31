@@ -20,9 +20,9 @@ func (a *app) boardView(c *ui.Context, t *ui.Theme) {
 	if inv == nil {
 		ui.Column(c).Fill().Center().Gap(t.Space(2)).Children(func() {
 			ui.Icon(c, layersIcon).Size(uikit.HeightControl, uikit.HeightControl).TextColor(t.TextMuted)
-			ui.Text(c, "One investigation, one story").FontSize(uikit.TextTitle).Bold()
-			ui.Text(c, "Collect the exchanges that matter, compare them, and export the evidence you reviewed.").FontSize(uikit.TextBody).TextColor(t.TextMuted)
-			ui.Text(c, "Add a request from Capture's inspector, or open saved sessions.").FontSize(uikit.TextBody).TextColor(t.TextMuted)
+			uikit.Heading(c, "One investigation, one story")
+			uikit.Hint(c, "Collect the exchanges that matter, compare them, and export the evidence you reviewed.")
+			uikit.Hint(c, "Add a request from Capture's inspector, or open saved sessions.")
 			ui.Row(c).Gap(t.Space(2)).Children(func() {
 				if uikit.PrimaryButton(c, "New investigation").Clicked() {
 					b.create("")
@@ -64,7 +64,7 @@ func (a *app) boardHeader(c *ui.Context, t *ui.Theme, inv *investigation) {
 			b.mark()
 		}
 		started := "started " + inv.Created.Local().Format("Jan 2 15:04")
-		ui.Text(c, fmt.Sprintf("%d exchanges · %s", len(inv.Items), started)).FontSize(uikit.TextMeta).TextColor(t.TextMuted).SingleLine()
+		uikit.Meta(c, fmt.Sprintf("%d exchanges · %s", len(inv.Items), started)).SingleLine()
 		if uikit.CompactButton(c, "Export evidence…").Disabled(len(b.picked) == 0).
 			Tooltip("Export the selected exchanges after reviewing the raw JSON").Clicked() {
 			a.exportInvestigation(c)
@@ -98,11 +98,7 @@ func (a *app) boardHeader(c *ui.Context, t *ui.Theme, inv *investigation) {
 		})
 	} else {
 		summary := cmp.Or(inv.Notes, "Add notes: what are you trying to explain?")
-		note := ui.ButtonBase(c).Label("Edit notes").Height(uikit.HeightControl).Padding(0, t.Space(2)).Radius(uikit.RadiusControl).AlignItems(ui.Center).
-			TextColor(t.TextMuted).Tooltip(inv.Notes)
-		if note.Hovered() {
-			note.TextColor(t.Text)
-		}
+		note := uikit.ToolbarButton(c, "Edit notes", inv.Notes, false)
 		if note.Clicked() {
 			b.notesOpen = true
 		}
@@ -125,7 +121,7 @@ func (a *app) boardToolbar(c *ui.Context, t *ui.Theme, inv *investigation) {
 		if search.Changed() {
 			b.list = ui.ListState{}
 		}
-		ui.Text(c, fmt.Sprintf("%d / %d selected", len(b.picked), len(inv.Items))).FontSize(uikit.TextMeta).TextColor(t.TextMuted).SingleLine()
+		uikit.Meta(c, fmt.Sprintf("%d / %d selected", len(b.picked), len(inv.Items))).SingleLine()
 		if uikit.CompactButton(c, "Compare two").Disabled(len(b.picked) != 2).Clicked() {
 			b.comparing = true
 		}
@@ -145,10 +141,10 @@ func (a *app) boardList(c *ui.Context, t *ui.Theme, inv *investigation) {
 		if len(rows) == 0 {
 			ui.Column(c).Grow(1).Center().Gap(t.Space(2)).Children(func() {
 				if len(inv.Items) == 0 {
-					ui.Text(c, "No exchanges yet").FontSize(uikit.TextBody)
-					ui.Text(c, "Inspect a request in Capture and choose Add to investigation.").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
+					uikit.Body(c, "No exchanges yet")
+					uikit.Meta(c, "Inspect a request in Capture and choose Add to investigation.")
 				} else {
-					ui.Text(c, "No exchange matches this search").FontSize(uikit.TextBody)
+					uikit.Body(c, "No exchange matches this search")
 					if uikit.CompactButton(c, "Clear search").Clicked() {
 						b.query = ""
 						b.list = ui.ListState{}
@@ -164,10 +160,9 @@ func (a *app) boardList(c *ui.Context, t *ui.Theme, inv *investigation) {
 		ui.List(c, &b.list, len(rows), func(i int) {
 			item := rows[i]
 			f := item.Source
-			row := ui.ButtonBase(c).Label("Read "+boardItemLabel(item)).Height(uikit.HeightControl).Padding(t.Space(1), t.Space(2)).Gap(t.Space(2)).Radius(uikit.RadiusControl).
-				AlignItems(ui.Center).FillWidth()
+			row := uikit.RowButton(c, "Read "+boardItemLabel(item)).Height(uikit.HeightControl)
 			if item.ID == b.selected {
-				row.Background(t.SurfaceHover)
+				uikit.Selected(c, row, b.list.Handle.Focused(c))
 			}
 			if row.Clicked() {
 				if b.selected != item.ID {
@@ -195,7 +190,7 @@ func (a *app) boardList(c *ui.Context, t *ui.Theme, inv *investigation) {
 				if !f.At.IsZero() {
 					at = f.At.Local().Format("15:04:05")
 				}
-				ui.Text(c, at).FontSize(uikit.TextMeta).Font(uikit.FontMono).TextColor(t.TextMuted)
+				uikit.Meta(c, at).Font(uikit.FontMono)
 			})
 		}).Grow(1)
 	})
@@ -209,7 +204,7 @@ func (a *app) boardPreview(c *ui.Context, t *ui.Theme, inv *investigation) {
 	_, item := b.find(b.selected)
 	if item == nil {
 		ui.Column(c).Fill().Center().Children(func() {
-			ui.Text(c, "Choose an exchange to read it").FontSize(uikit.TextBody).TextColor(t.TextMuted)
+			uikit.Hint(c, "Choose an exchange to read it")
 		})
 		return
 	}
@@ -222,15 +217,15 @@ func (a *app) boardPreview(c *ui.Context, t *ui.Theme, inv *investigation) {
 				status, statusText = "Failed", t.Danger
 			}
 			ui.Text(c, status).FontSize(uikit.TextBody).TextColor(statusText)
-			ui.Text(c, fmt.Sprintf("%d ms · %s", f.millis, humanBytes(f.bytes))).FontSize(uikit.TextMeta).TextColor(t.TextMuted)
+			uikit.Meta(c, fmt.Sprintf("%d ms · %s", f.millis, humanBytes(f.bytes)))
 			ui.Spacer(c)
 			if hasSensitiveHeader(f.reqHeader) || hasSensitiveHeader(f.respHeader) {
 				label := "Reveal credentials"
 				if b.reveal {
 					label = "Hide credentials"
 				}
-				if ui.ButtonBase(c).Label("Reveal credentials").Height(uikit.HeightCompact).Padding(0, t.Space(2)).Radius(uikit.RadiusControl).AlignItems(ui.Center).
-					TextColor(t.TextMuted).Tooltip("Credentials are masked so a shared screen does not leak them").Children(func() {
+				if uikit.ToolbarButton(c, "Reveal credentials", "Credentials are masked so a shared screen does not leak them", b.reveal).
+					Height(uikit.HeightCompact).Children(func() {
 					ui.Text(c, label).FontSize(uikit.TextMeta)
 				}).Clicked() {
 					b.reveal = !b.reveal
@@ -240,7 +235,7 @@ func (a *app) boardPreview(c *ui.Context, t *ui.Theme, inv *investigation) {
 				b.removeItem(item.ID)
 			}
 		})
-		ui.Text(c, cmp.Or(f.url, f.host+f.path)).FontSize(uikit.TextMeta).Font(uikit.FontMono).TextColor(t.TextMuted).
+		uikit.Meta(c, cmp.Or(f.url, f.host+f.path)).Font(uikit.FontMono).
 			Padding(0, 12, 4).SingleLine().Tooltip(f.url)
 		note := uikit.Input(c, &item.Note).Label("Exchange note").Placeholder("What does this exchange show?").FontSize(uikit.TextMeta)
 		note.Margin(0, t.Space(3), t.Space(2))
@@ -297,24 +292,24 @@ func (a *app) boardMessage(c *ui.Context, t *ui.Theme, f flow, side int) {
 	}
 	ui.Column(c).Grow(1).Basis(0).FillHeight().Children(func() {
 		ui.Row(c).Height(uikit.HeightLarge).Padding(0, t.Space(2)).Gap(t.Space(1)).AlignItems(ui.Center).Children(func() {
-			ui.Text(c, title).FontSize(uikit.TextMeta).Bold().TextColor(t.TextMuted).Padding(0, t.Space(2), 0, t.Space(1))
+			uikit.Label(c, title).Padding(0, t.Space(2), 0, t.Space(1))
 			uikit.Tabs(c, &b.previewTab[side], title+" pane", "Headers", "Body")
 			ui.Spacer(c)
-			ui.Text(c, line).FontSize(uikit.TextMeta).Font(uikit.FontMono).TextColor(t.TextMuted).SingleLine()
+			uikit.Meta(c, line).Font(uikit.FontMono).SingleLine()
 		})
 		ui.Divider(c)
 		ui.Scroll(c).Grow(1).Children(func() {
 			ui.Column(c).Padding(0, t.Space(3), t.Space(2)).Gap(t.Space(1)).Children(func() {
 				if b.previewTab[side] == 0 {
 					if len(headers) == 0 {
-						ui.Text(c, "No headers recorded").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
+						uikit.Meta(c, "No headers recorded")
 					}
 					for _, key := range slices.Sorted(maps.Keys(headers)) {
 						value := strings.Join(headers[key], ", ")
 						if sensitiveHeader(key) && !b.reveal {
 							value = "••••••••  masked"
 						}
-						ui.Text(c, key+": "+value).FontSize(uikit.TextMeta).Font(uikit.FontMono).TextColor(t.TextMuted).Selectable().
+						uikit.Meta(c, key+": "+value).Font(uikit.FontMono).Selectable().
 							Tooltip(key + "\n" + value)
 					}
 					return
@@ -322,7 +317,7 @@ func (a *app) boardMessage(c *ui.Context, t *ui.Theme, f flow, side int) {
 				if body != "" {
 					ui.Text(c, boardBody(body)).FontSize(uikit.TextMeta).Font(uikit.FontMono).Selectable()
 				} else {
-					ui.Text(c, "Empty body").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
+					uikit.Meta(c, "Empty body")
 				}
 				if problem != "" {
 					ui.Text(c, problem).FontSize(uikit.TextMeta).TextColor(t.Warning)
@@ -339,12 +334,12 @@ func (a *app) boardFailure(c *ui.Context, t *ui.Theme, f flow) {
 	ui.Column(c).Margin(0, t.Space(3), t.Space(2)).Padding(t.Space(2), t.Space(2)).Gap(t.Space(1)).Radius(uikit.RadiusPanel).Background(uikit.Colors(t).Panel).Children(func() {
 		ui.Text(c, fmt.Sprintf("Recorded failure · %s · %s", cmp.Or(f.conn.errorStage, "unknown stage"), f.conn.error)).
 			FontSize(uikit.TextMeta).TextColor(t.Danger).SingleLine().Tooltip(f.conn.error)
-		ui.Text(c, "Possible causes · not confirmed").FontSize(uikit.TextMeta).Bold().TextColor(t.TextMuted)
+		uikit.Label(c, "Possible causes · not confirmed")
 		ui.Text(c, e.causes).FontSize(uikit.TextMeta)
-		ui.Text(c, "What to try").FontSize(uikit.TextMeta).Bold().TextColor(t.TextMuted)
+		uikit.Label(c, "What to try")
 		ui.Text(c, e.steps).FontSize(uikit.TextMeta)
 		if f.conn.log != "" {
-			ui.Text(c, "Connection log retained with this exchange").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
+			uikit.Meta(c, "Connection log retained with this exchange")
 		}
 	})
 }
@@ -357,14 +352,11 @@ func (a *app) boardCompare(c *ui.Context, t *ui.Theme, inv *investigation) {
 		return
 	}
 	ui.Row(c).Height(uikit.HeightLarge).Padding(0, t.Space(2)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-		if ui.ButtonBase(c).Size(uikit.HeightCompact, uikit.HeightCompact).Radius(uikit.RadiusControl).Label("Back to evidence").Tooltip("Back to the investigation").
-			TextColor(t.TextMuted).Children(func() {
-			ui.Icon(c, backIcon).Size(uikit.IconInline, uikit.IconInline)
-		}).Clicked() {
+		if uikit.IconButton(c, "Back to evidence", "Back to the investigation", backIcon).Clicked() {
 			b.comparing = false
 		}
 		ui.Text(c, "Compare two exchanges").FontSize(uikit.TextBody).Bold()
-		ui.Text(c, "Read-only snapshots; neither side can be edited here").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
+		uikit.Meta(c, "Read-only snapshots; neither side can be edited here")
 		ui.Spacer(c)
 	})
 	ui.Divider(c)

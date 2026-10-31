@@ -39,7 +39,7 @@ func (a *app) paramsEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
 			d.queryError = err.Error()
 		}
 	}
-	ui.Text(c, "Edits update the URL; repeated keys are preserved.").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
+	uikit.Meta(c, "Edits update the URL; repeated keys are preserved.")
 	if d.queryError != "" {
 		ui.Text(c, d.queryError).FontSize(uikit.TextMeta).TextColor(t.Danger)
 	}
@@ -77,14 +77,13 @@ func requestFieldsEditor(c *ui.Context, rows *[]request.Field, opts fieldsOption
 		// reads as a column rather than its own form.
 		ui.Row(c).Height(uikit.HeightControl).AlignItems(ui.Center).BorderWidth(0, 0, 1, 0).BorderColor(t.Border).Children(func() {
 			ui.Box(c).Width(uikit.HeightLarge).FillHeight().BorderWidth(0, 1, 0, 0).BorderColor(t.Border)
-			ui.Text(c, "Key").Basis(0).Grow(1).MinWidth(0).FillHeight().Padding(t.Space(1), t.Space(2)).
-				FontSize(uikit.TextMeta).FontWeight(600).TextColor(t.TextMuted).BorderWidth(0, 1, 0, 0).BorderColor(t.Border)
-			ui.Text(c, "Value").Basis(0).Grow(2).MinWidth(0).Padding(t.Space(1), t.Space(2)).FontSize(uikit.TextMeta).FontWeight(600).TextColor(t.TextMuted)
+			uikit.Label(c, "Key").Basis(0).Grow(1).MinWidth(0).FillHeight().Padding(t.Space(1), t.Space(2)).BorderWidth(0, 1, 0, 0).BorderColor(t.Border)
+			uikit.Label(c, "Value").Basis(0).Grow(2).MinWidth(0).Padding(t.Space(1), t.Space(2))
 			if opts.secret {
 				ui.Box(c).Width(uikit.HeightCompact)
 			}
 			if opts.file {
-				ui.Text(c, "FILE").Width(64).FontSize(uikit.TextMeta).Bold().TextColor(t.TextMuted)
+				uikit.Label(c, "FILE").Width(64)
 			}
 			ui.Box(c).Width(uikit.HeightLarge)
 		})
@@ -169,7 +168,7 @@ func requestFieldsEditor(c *ui.Context, rows *[]request.Field, opts fieldsOption
 			ui.Row(c).MinHeight(uikit.HeightControl).Gap(t.Space(2)).Children(func() {
 				if uikit.ToolbarButton(c, "Add "+noun, "Add "+noun, false).Children(func() {
 					ui.Icon(c, plusIcon).Size(uikit.IconInline, uikit.IconInline)
-					ui.Text(c, "Add "+noun).FontSize(uikit.TextBody)
+					uikit.Body(c, "Add "+noun)
 				}).Clicked() {
 					*rows = append(*rows, request.Field{})
 					changed = true
@@ -288,7 +287,7 @@ func (a *app) headerModeButton(c *ui.Context, d *requestDocument, t *ui.Theme) {
 	}
 	uikit.ToolbarButton(c, "Toggle header editing mode", "Bulk edit replaces the table with one Key: Value per line; switched-off rows are kept", d.headerBulk).Children(func() {
 		ui.Icon(c, formatIcon).Size(uikit.IconInline, uikit.IconInline)
-		ui.Text(c, label).FontSize(uikit.TextBody)
+		uikit.Body(c, label)
 	}).OnClick(func() {
 		if d.headerBulk || !hasSecretHeader(d.headerRows) {
 			toggleHeaderMode(d)
@@ -339,7 +338,7 @@ func (a *app) authEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
 				text = "Uses " + resolved.Type + " auth from " + from + "."
 			}
 			ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-				ui.Text(c, text).FontSize(uikit.TextMeta).TextColor(t.TextMuted)
+				uikit.Meta(c, text)
 				if path := cmp.Or(from, d.composeCollection); path != "" && uikit.SecondaryButton(c, settingsLabel(path)).Clicked() {
 					a.openFolder(path)
 				}
@@ -356,7 +355,7 @@ var authTypes = []string{"None", "Bearer", "Basic", "API key", request.AuthOAuth
 func (a *app) authFields(c *ui.Context, auth *request.Auth, types []string, collection string) {
 	t := c.Theme()
 	if auth.Type != request.AuthInherit {
-		ui.Text(c, "Prefer {{variables}} or {{vault:name}} for secrets; these fields are saved in plaintext.").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
+		uikit.Meta(c, "Prefer {{variables}} or {{vault:name}} for secrets; these fields are saved in plaintext.")
 	}
 	ui.Form(c, func() {
 		ui.Field(c, "Type", func() {
@@ -444,11 +443,11 @@ func (a *app) requestBodyEditor(c *ui.Context, d *requestDocument, t *ui.Theme) 
 	if d.bodyMode == "Raw" {
 		a.requestBodyText(c, d)
 	} else {
-		ui.Text(c, "FORM DATA · file values are local paths, 16 MiB in total").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
+		uikit.Meta(c, "FORM DATA · file values are local paths, 16 MiB in total")
 		requestFieldsEditor(c, &d.formFields, fieldsOptions{file: true}, "field", func() {
 			if uikit.ToolbarButton(c, "Attach file…", "Add a file part; only the local path is stored", false).Children(func() {
 				ui.Icon(c, fileInputIcon).Size(uikit.IconInline, uikit.IconInline)
-				ui.Text(c, "Attach file…").FontSize(uikit.TextBody)
+				uikit.Body(c, "Attach file…")
 			}).Clicked() && a.win != nil {
 				go func() {
 					paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Title: "Attach request file"})

@@ -246,7 +246,7 @@ func (a *app) experimentsView(c *ui.Context, t *ui.Theme, inline bool) {
 				}
 			}
 		})
-		ui.Text(c, "Private local snapshots may contain credentials. Up to 100 runs / 32 MiB; baseline retained. Payloads keep up to 256 KiB per side. Opening or comparing never sends.").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
+		uikit.Meta(c, "Private local snapshots may contain credentials. Up to 100 runs / 32 MiB; baseline retained. Payloads keep up to 256 KiB per side. Opening or comparing never sends.")
 		if s.problem != "" {
 			ui.Text(c, s.problem).FontSize(uikit.TextBody).TextColor(t.Danger)
 		}
@@ -254,7 +254,7 @@ func (a *app) experimentsView(c *ui.Context, t *ui.Theme, inline bool) {
 			ui.Scroll(c).Width(220).Padding(t.Space(1)).Children(func() {
 				a.debugDrafts(c)
 				if len(s.log.Records) == 0 {
-					ui.Text(c, "Send a request to record an experiment.").Padding(t.Space(2)).FontSize(uikit.TextBody).TextColor(t.TextMuted)
+					uikit.Hint(c, "Send a request to record an experiment.").Padding(t.Space(2))
 				}
 				for _, r := range s.log.Records {
 					if !s.includes(r) {
@@ -275,7 +275,7 @@ func (a *app) experimentsView(c *ui.Context, t *ui.Theme, inline bool) {
 				if inline && len(a.history) > 0 {
 					ui.Divider(c)
 					ui.Text(c, "Recent requests").Bold()
-					ui.Text(c, "Unsent copies · deduplicated by method + URL").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
+					uikit.Meta(c, "Unsent copies · deduplicated by method + URL")
 					uikit.Input(c, &a.requestQuery).Label("Search history").Placeholder("Search history…").FontSize(uikit.TextMeta)
 					query := strings.ToLower(strings.TrimSpace(a.requestQuery))
 					for i, entry := range a.history {
@@ -299,11 +299,11 @@ func (a *app) experimentsView(c *ui.Context, t *ui.Theme, inline bool) {
 					if s.scope == nil {
 						uikit.EmptyState(c, "No retained runs", message, nil)
 					} else {
-						ui.Text(c, message).FontSize(uikit.TextBody)
+						uikit.Body(c, message)
 					}
 					if s.scope != nil {
 						f := investigationFlow(s.scope.Exchange)
-						ui.Text(c, fmt.Sprintf("Source #%d · %s %s · %d", f.id, f.method, f.url, f.status)).FontSize(uikit.TextBody).FontFeatures("tnum").SingleLine().Tooltip(f.url)
+						uikit.Body(c, fmt.Sprintf("Source #%d · %s %s · %d", f.id, f.method, f.url, f.status)).FontFeatures("tnum").SingleLine().Tooltip(f.url)
 						if s.reader == nil {
 							s.reader = &editor.State{Buffer: editor.NewBuffer(f.body(true)), ReadOnly: true, Label: "Source snapshot", NoScrollPastEnd: true}
 						}
@@ -312,9 +312,9 @@ func (a *app) experimentsView(c *ui.Context, t *ui.Theme, inline bool) {
 					return
 				}
 				ui.Text(c, fmt.Sprintf("Experiment #%d · %s %s", r.ID, r.Draft.Method, r.Draft.URL)).FontSize(uikit.TextBody).FontFeatures("tnum").Bold().SingleLine().Tooltip(r.Draft.URL)
-				ui.Text(c, r.Summary+" · Environment: "+cmp.Or(r.Environment, "none")).FontSize(uikit.TextMeta).FontFeatures("tnum").TextColor(t.TextMuted)
+				uikit.Meta(c, r.Summary+" · Environment: "+cmp.Or(r.Environment, "none")).FontFeatures("tnum")
 				if r.Outcome != "" {
-					ui.Text(c, r.Outcome).FontSize(uikit.TextMeta).TextColor(t.TextMuted)
+					uikit.Meta(c, r.Outcome)
 				}
 				ui.Row(c).Gap(t.Space(1)).Wrap().Children(func() {
 					if uikit.SecondaryButton(c, "Open as draft").Clicked() {
@@ -370,7 +370,7 @@ func (a *app) experimentsView(c *ui.Context, t *ui.Theme, inline bool) {
 					}
 				})
 				if s.tab == 5 {
-					ui.Text(c, "Referenced values after pre-script, before expansion · run input = environment snapshot or preceding Runner step · post-script changes do not rewrite this snapshot.").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
+					uikit.Meta(c, "Referenced values after pre-script, before expansion · run input = environment snapshot or preceding Runner step · post-script changes do not rewrite this snapshot.")
 					if r.Variables == nil {
 						ui.Text(c, "No variable snapshot retained (older records may not include it).").FontSize(uikit.TextMeta)
 					}
@@ -382,7 +382,7 @@ func (a *app) experimentsView(c *ui.Context, t *ui.Theme, inline bool) {
 					return
 				}
 				if s.tab == 3 {
-					ui.Text(c, "Initial client request after variables and pre-request script; redirect hops and proxy interventions are separate wire exchanges.").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
+					uikit.Meta(c, "Initial client request after variables and pre-request script; redirect hops and proxy interventions are separate wire exchanges.")
 					if s.reader == nil {
 						text := "Request was not prepared. The editable draft snapshot is retained."
 						if f := r.Exchange; f != nil {
@@ -404,7 +404,7 @@ func (a *app) experimentsView(c *ui.Context, t *ui.Theme, inline bool) {
 					if uikit.Input(c, &s.ignore).Label("Ignore JSON keys").Placeholder("Ignore top-level response JSON keys: timestamp, traceId").Changed() {
 						s.comparison.diffPart = ""
 					}
-					ui.Text(c, "Comparison only; original snapshots remain unchanged. Ignores top-level response JSON keys, not headers or nested fields.").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
+					uikit.Meta(c, "Comparison only; original snapshots remain unchanged. Ignores top-level response JSON keys, not headers or nested fields.")
 					if left := s.record(cmp.Or(s.left, s.log.Baseline)); left != nil && left.ID != r.ID {
 						s.comparison.compare(c, left.compared(s.ignore), r.compared(s.ignore), [2]string{fmt.Sprintf("Run #%d", left.ID), fmt.Sprintf("Run #%d", r.ID)})
 					} else {
@@ -433,7 +433,7 @@ func (a *app) experimentsView(c *ui.Context, t *ui.Theme, inline bool) {
 	uikit.Modal(c, &s.clearing, func() {
 		uikit.DialogColumn(c, uikit.DialogSmall).Children(func() {
 			uikit.DialogTitle(c, "Clear all experiment records?")
-			ui.Text(c, "This removes the retained runs and baseline, not open drafts, captured traffic or saved requests.").FontSize(uikit.TextBody).TextColor(t.TextMuted)
+			uikit.Hint(c, "This removes the retained runs and baseline, not open drafts, captured traffic or saved requests.")
 			uikit.DialogFooter(c).Children(func() {
 				if uikit.SecondaryButton(c, "Cancel").Clicked() {
 					s.clearing = false

@@ -61,7 +61,7 @@ func (a *app) socketModal(c *ui.Context, t *ui.Theme) {
 		uikit.DialogColumn(c, uikit.DialogLarge).Height(h - 100).Children(func() {
 			uikit.DialogTitle(c, "WebSocket session · "+state)
 			ui.Scroll(c).MaxHeight(260).MinHeight(0).Shrink(1).Gap(t.Space(2)).Children(func() {
-				ui.Text(c, "Connect starts a fresh timeline. No automatic reconnect, scripts or restore. Closing this panel disconnects. Auth and cookies may contain secrets.").FontSize(uikit.TextBody).TextColor(t.TextMuted)
+				uikit.Hint(c, "Connect starts a fresh timeline. No automatic reconnect, scripts or restore. Closing this panel disconnects. Auth and cookies may contain secrets.")
 				ui.Row(c).Gap(t.Space(2)).Children(func() {
 					uikit.Input(c, &s.url).Label("WebSocket URL").Placeholder("ws://127.0.0.1:8080/socket").Grow(1).MinWidth(0).Font(uikit.FontMono).Disabled(active)
 					if uikit.SecondaryButton(c, "Connect").Disabled(active || a.srv == nil || !a.srv.Running() || !request.IsWebSocket(s.url)).Clicked() {
@@ -142,13 +142,13 @@ func (a *app) socketModal(c *ui.Context, t *ui.Theme) {
 				})
 				ui.Column(c).Grow(1).MinWidth(0).MinHeight(0).Children(func() {
 					if s.reader == nil {
-						ui.Text(c, "Select a message or connection event. Binary payloads display as hex.").FontSize(uikit.TextBody).TextColor(t.TextMuted)
+						uikit.Hint(c, "Select a message or connection event. Binary payloads display as hex.")
 					} else {
 						requestCodeEditor(c, s.reader)
 					}
 				})
 			})
-			ui.Text(c, "Latest 200 events · 64 KiB retained per message · 1 MiB receive/send limit. Close codes are shown only when a peer close frame was observed. Full proxy-captured traffic remains in Capture.").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
+			uikit.Meta(c, "Latest 200 events · 64 KiB retained per message · 1 MiB receive/send limit. Close codes are shown only when a peer close frame was observed. Full proxy-captured traffic remains in Capture.")
 			uikit.DialogFooter(c).Children(func() {
 				if uikit.SecondaryButton(c, "Copy shown payload").Disabled(s.reader == nil).Tooltip("Copies displayed text/hex, not hidden bytes; review secrets before sharing").Clicked() {
 					c.Services().WriteClipboard(s.reader.Buffer.String())

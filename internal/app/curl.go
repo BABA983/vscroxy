@@ -429,7 +429,7 @@ func (a *app) curlImportModal(c *ui.Context, t *ui.Theme) {
 		uikit.DialogColumn(c, uikit.DialogMedium).Children(func() {
 			uikit.DialogTitle(c, "Import cURL")
 			ui.Scroll(c).MinHeight(0).Shrink(1).Gap(t.Space(4)).Children(func() {
-				ui.Text(c, "Paste one Bash/POSIX curl command. It opens an unsent request tab; nothing is executed.").FontSize(uikit.TextBody).TextColor(t.TextMuted)
+				uikit.Hint(c, "Paste one Bash/POSIX curl command. It opens an unsent request tab; nothing is executed.")
 				if ui.TextArea(c, &a.curlInput).Height(190).Font(uikit.FontMono).FontSize(uikit.TextBody).Radius(uikit.RadiusControl).Label("cURL command").Placeholder("curl 'https://api.example.com/projects' \\\n  -H 'Accept: application/json'").AutoFocus().Changed() {
 					a.curlProblem = ""
 				}

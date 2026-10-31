@@ -230,7 +230,7 @@ func (a *app) previewRuleMatches(c *ui.Context, t *ui.Theme) {
 	u, err := url.Parse(strings.TrimSpace(e.previewURL))
 	method := strings.TrimSpace(e.previewMethod)
 	if err != nil || u.Hostname() == "" || (u.Scheme != "http" && u.Scheme != "https") || u.User != nil || u.Fragment != "" || !httpguts.ValidHeaderFieldName(method) {
-		ui.Text(c, "Enter an http(s) URL without credentials or fragment and an HTTP method.").FontSize(uikit.TextBody).TextColor(t.TextMuted)
+		uikit.Hint(c, "Enter an http(s) URL without credentials or fragment and an HTTP method.")
 		return
 	}
 	winner := false
@@ -244,7 +244,7 @@ func (a *app) previewRuleMatches(c *ui.Context, t *ui.Theme) {
 		ui.Text(c, fmt.Sprintf("%d · %s · %s — %s", p.Index+1, cmp.Or(r.Name, r.Match), ruleLabel(r.Type), p.Reason)).FontSize(uikit.TextBody).TextColor(color)
 	}
 	if !winner {
-		ui.Text(c, "No response rule wins · request goes upstream.").FontSize(uikit.TextBody)
+		uikit.Body(c, "No response rule wins · request goes upstream.")
 	}
 }
 
@@ -262,7 +262,7 @@ func (a *app) rulesModal(c *ui.Context, t *ui.Theme) {
 				ui.Checkbox(c, &e.preview, "Test URL + method")
 				ui.Badge(c, fmt.Sprintf("%d rules", len(a.rules)))
 			})
-			ui.Text(c, "The first matching Map or Block rule wins. Breakpoints pause only while Breakpoints is on.").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
+			uikit.Meta(c, "The first matching Map or Block rule wins. Breakpoints pause only while Breakpoints is on.")
 			a.ruleScenarios(c, t)
 			ui.Row(c).Grow(1).MinHeight(0).Gap(t.Space(4)).AlignItems(ui.Stretch).Children(func() {
 				ui.Column(c).Width(260).Gap(t.Space(2)).Children(func() {
@@ -287,7 +287,7 @@ func (a *app) rulesModal(c *ui.Context, t *ui.Theme) {
 								button.Children(func() {
 									ui.Column(c).Gap(t.Space(1)).Children(func() {
 										ui.Text(c, cmp.Or(r.Name, r.Match)).FontSize(uikit.TextBody).Bold().SingleLine()
-										ui.Text(c, fmt.Sprintf("%d · %s · %s", i+1, ruleLabel(r.Type), cmp.Or(r.Scenario, "global"))).FontSize(uikit.TextMeta).TextColor(t.TextMuted).SingleLine()
+										uikit.Meta(c, fmt.Sprintf("%d · %s · %s", i+1, ruleLabel(r.Type), cmp.Or(r.Scenario, "global"))).SingleLine()
 									})
 								})
 								if button.Clicked() {
@@ -296,7 +296,7 @@ func (a *app) rulesModal(c *ui.Context, t *ui.Theme) {
 							})
 						}
 						if len(a.rules) == 0 {
-							ui.Text(c, "No rules yet.\nCreate one here, or from a captured flow’s context menu.").FontSize(uikit.TextBody).TextColor(t.TextMuted)
+							uikit.Hint(c, "No rules yet.\nCreate one here, or from a captured flow’s context menu.")
 						}
 					})
 					ui.Row(c).Gap(t.Space(2)).Children(func() {
@@ -313,42 +313,42 @@ func (a *app) rulesModal(c *ui.Context, t *ui.Theme) {
 						a.previewRuleMatches(c, t)
 						return
 					}
-					ui.Text(c, "Name / scenario (blank means global)").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
+					uikit.Meta(c, "Name / scenario (blank means global)")
 					ui.Row(c).Gap(t.Space(2)).Children(func() {
 						uikit.Input(c, &e.draft.Name).Label("Rule name").Placeholder("A descriptive name").Grow(1)
 						if e.kind != "Request breakpoint" && e.kind != "Response breakpoint" {
 							uikit.Input(c, &e.draft.Scenario).Label("Rule scenario").Placeholder("Named scenario").Width(180)
 						}
 					})
-					ui.Text(c, "Type / HTTP method").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
+					uikit.Meta(c, "Type / HTTP method")
 					ui.Row(c).Gap(t.Space(2)).Children(func() {
 						uikit.Select(c, &e.kind, ruleLabels).Label("Rule type").Grow(1)
 						uikit.Input(c, &e.draft.Method).Width(95).Label("Match method").Placeholder("Any")
 					})
-					ui.Text(c, "Match URL").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
+					uikit.Meta(c, "Match URL")
 					uikit.Input(c, &e.draft.Match).Label("URL contains").Placeholder("https://api.example.com/v1/")
-					ui.Text(c, "Literal substring of the full URL, not a regex or wildcard.").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
+					uikit.Meta(c, "Literal substring of the full URL, not a regex or wildcard.")
 					switch e.kind {
 					case "Map Local":
-						ui.Text(c, "Local response").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
+						uikit.Meta(c, "Local response")
 						ui.Row(c).Gap(t.Space(2)).AlignItems(ui.End).Children(func() {
 							uikit.Input(c, &e.draft.Target).Label("Response file").Grow(1)
 							if uikit.SecondaryButton(c, "Browse…").Clicked() {
 								a.browseRuleFile()
 							}
 						})
-						ui.Text(c, "HTTP status / response headers").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
+						uikit.Meta(c, "HTTP status / response headers")
 						uikit.Input(c, &e.status).Label("Response status").Width(130)
 						ui.TextArea(c, &e.headers).Height(76).Font(uikit.FontMono).FontSize(uikit.TextBody).Radius(uikit.RadiusControl).Label("Response headers").Placeholder("Content-Type: application/json")
-						ui.Text(c, "Up to 8 MiB. Connection headers are removed; length is recalculated.").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
+						uikit.Meta(c, "Up to 8 MiB. Connection headers are removed; length is recalculated.")
 					case "Map Remote":
-						ui.Text(c, "Upstream destination").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
+						uikit.Meta(c, "Upstream destination")
 						uikit.Input(c, &e.draft.Target).Label("Target base URL").Placeholder("http://127.0.0.1:8080")
-						ui.Text(c, "Keeps the original path and query. A target path prefixes the path; a target query replaces the query.").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
+						uikit.Meta(c, "Keeps the original path and query. A target path prefixes the path; a target query replaces the query.")
 					case "Block":
-						ui.Text(c, "Returns 403 without contacting the upstream server.").FontSize(uikit.TextBody).TextColor(t.TextMuted)
+						uikit.Hint(c, "Returns 403 without contacting the upstream server.")
 					default:
-						ui.Text(c, "Pauses matching traffic while Break is on. Use Continue or Abort in the breakpoint dialog.").FontSize(uikit.TextBody).TextColor(t.TextMuted)
+						uikit.Hint(c, "Pauses matching traffic while Break is on. Use Continue or Abort in the breakpoint dialog.")
 					}
 					enabled := !e.draft.Disabled
 					if ui.Checkbox(c, &enabled, "Rule enabled").Changed() {

@@ -216,7 +216,7 @@ func (a *app) vaultModal(c *ui.Context, t *ui.Theme) {
 	uikit.Modal(c, &v.open, func() {
 		uikit.DialogColumn(c, uikit.DialogLarge).Height(min(520, height-80)).Children(func() {
 			uikit.DialogTitle(c, "Vault")
-			ui.Text(c, "Use {{vault:name}} in a URL, header, body or auth field. A secret with domains is sent only to those hosts.").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
+			uikit.Meta(c, "Use {{vault:name}} in a URL, header, body or auth field. A secret with domains is sent only to those hosts.")
 			if v.problem != "" {
 				ui.Scroll(c).Grow(1).MinHeight(0).Children(func() {
 					ui.Text(c, v.problem).FontSize(uikit.TextBody).TextColor(t.Danger).Selectable()
@@ -239,7 +239,7 @@ func (a *app) vaultModal(c *ui.Context, t *ui.Theme) {
 			if v.keyInFile {
 				where = "Encrypted with a key kept in " + v.keyPath + ": this system has no credential store, so anyone who can read that file can open the vault."
 			}
-			ui.Text(c, where).FontSize(uikit.TextMeta).TextColor(t.TextMuted)
+			uikit.Meta(c, where)
 			ui.Row(c).Gap(t.Space(2)).Padding(0, t.Space(2), 0, 0).Children(func() {
 				for i, label := range []string{"NAME", "VALUE", "ALLOWED DOMAINS"} {
 					grow := float32(2)
@@ -247,7 +247,7 @@ func (a *app) vaultModal(c *ui.Context, t *ui.Theme) {
 						grow = 1
 					}
 					ui.Box(c).Basis(0).Grow(grow).MinWidth(0).Children(func() {
-						ui.Text(c, label).FontSize(uikit.TextMeta).Bold().TextColor(t.TextMuted)
+						uikit.Label(c, label)
 					})
 				}
 				ui.Box(c).Width(76) // the two row buttons and the gap between them

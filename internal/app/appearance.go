@@ -86,7 +86,7 @@ func (a *app) settingsModal(c *ui.Context, t *ui.Theme) {
 					switch a.settingsTab {
 					case 0:
 						ui.Text(c, "Rules & scripts").FontSize(uikit.TextBody).Bold()
-						ui.Text(c, "Reload proxy rules, DNS mappings, ignore lists and the capture script from disk.").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
+						uikit.Meta(c, "Reload proxy rules, DNS mappings, ignore lists and the capture script from disk.")
 						ui.Row(c).Gap(t.Space(2)).Wrap().Children(func() {
 							if uikit.SecondaryButton(c, "Manage rules…").Clicked() {
 								a.settingsOpen = false
@@ -116,11 +116,11 @@ func (a *app) settingsModal(c *ui.Context, t *ui.Theme) {
 						if a.proxyPort != 0 {
 							next = "Next launch: 127.0.0.1:" + strconv.Itoa(a.proxyPort) + " · restart the app to apply"
 						}
-						ui.Text(c, next).FontSize(uikit.TextMeta).FontFeatures("tnum").TextColor(t.TextMuted)
+						uikit.Meta(c, next).FontFeatures("tnum")
 						ui.Divider(c)
 						a.systemProxySettings(c, t)
 						ui.Divider(c)
-						ui.Text(c, "Upstream: "+cmp.Or(a.upstream, "Direct connection")).FontSize(uikit.TextMeta).TextColor(t.TextMuted).SingleLine()
+						uikit.Meta(c, "Upstream: "+cmp.Or(a.upstream, "Direct connection")).SingleLine()
 						ui.Row(c).Gap(t.Space(2)).Wrap().Children(func() {
 							if uikit.SecondaryButton(c, "Configure upstream…").Clicked() {
 								a.settingsOpen = false
@@ -140,7 +140,7 @@ func (a *app) settingsModal(c *ui.Context, t *ui.Theme) {
 						})
 					case 4:
 						ui.Text(c, "Capture visibility").FontSize(uikit.TextBody).Bold()
-						ui.Text(c, "Ignored traffic stays proxied but is not shown in the table.").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
+						uikit.Meta(c, "Ignored traffic stays proxied but is not shown in the table.")
 						ui.Row(c).Gap(t.Space(2)).Wrap().Children(func() {
 							if uikit.SecondaryButton(c, "Ignored hosts…").Clicked() {
 								a.settingsOpen, a.ignoreOpen = false, true
@@ -151,7 +151,7 @@ func (a *app) settingsModal(c *ui.Context, t *ui.Theme) {
 						})
 					case 5:
 						ui.Text(c, "Device and client access").FontSize(uikit.TextBody).Bold()
-						ui.Text(c, "Device access requires explicit network consent and an allowlist.").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
+						uikit.Meta(c, "Device access requires explicit network consent and an allowlist.")
 						ui.Row(c).Gap(t.Space(2)).Wrap().Children(func() {
 							if uikit.SecondaryButton(c, "Connect a device…").Clicked() {
 								a.settingsOpen = false

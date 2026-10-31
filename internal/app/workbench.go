@@ -650,14 +650,11 @@ func (a *app) commandPalette(c *ui.Context) {
 			c.SetTheme(uikit.ListTheme(t, focused))
 			list := ui.List(c, &w.commands, len(matches), func(i int) {
 				action := matches[i]
-				b := ui.ButtonBase(c).Label(action.label).Height(uikit.HeightLarge).FillWidth().Padding(0, t.Space(3)).
-					Gap(t.Space(2)).Radius(uikit.RadiusControl).AlignItems(ui.Center).Disabled(!action.enabled).Tooltip(action.hint())
-				if action.enabled {
-					if b.Pressed() {
-						b.Background(t.SurfacePressed)
-					} else if b.Hovered() && i != w.command {
-						b.Background(t.SurfaceHover)
-					}
+				b := uikit.RowButton(c, action.label).Disabled(!action.enabled).Height(uikit.HeightLarge).Padding(0, t.Space(3)).Tooltip(action.hint())
+				// The list's highlight shows through; RowButton saw the row
+				// before Disabled, so an unavailable command drops its hover too.
+				if !action.enabled || i == w.command && !b.Pressed() {
+					b.Background(ui.Transparent)
 				}
 				b.Children(func() {
 					color := t.Text
@@ -682,7 +679,7 @@ func (a *app) commandPalette(c *ui.Context) {
 				run()
 			}
 			if len(matches) == 0 {
-				ui.Text(c, "No matching commands").FontSize(uikit.TextBody).TextColor(t.TextMuted)
+				uikit.Hint(c, "No matching commands")
 			} else if w.command >= 0 && w.command < len(matches) {
 				action := matches[w.command]
 				message := ""
@@ -697,9 +694,9 @@ func (a *app) commandPalette(c *ui.Context) {
 				} else if a.workspace == 1 && a.requestDocument != nil {
 					message = "Draft · " + a.title()
 				}
-				ui.Text(c, message).FontSize(uikit.TextMeta).TextColor(t.TextMuted).SingleLine().Tooltip(message)
+				uikit.Meta(c, message).SingleLine().Tooltip(message)
 			}
-			ui.Text(c, "↑ ↓ Choose · Enter Run · Esc Close").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
+			uikit.Meta(c, "↑ ↓ Choose · Enter Run · Esc Close")
 		})
 	})
 }
