@@ -341,6 +341,12 @@ Runner、History（合并后的 Run records）、Sessions（合并后的 Investi
 - 加一个简单的检查（测试或 `go vet` 风格的脚本），防止新代码再写死这些值。
 - 更新 `docs/guide.md` 里与新界面不符的描述（控件名称、位置）。
 
+#### 阶段 8 实施记录（写死值清理）
+
+- `internal/app` 里除 `style.go`、`appearance.go` 外，不再有数字字号、`ui.Hex`／`ui.RGBA`、数字圆角或 `Font("monospace")`。字号 9–11 归 `textMeta`，12–13 归 `textBody`，14–17 归 `textTitle`；圆角 3–5 归 `radiusControl`，6–7 归 `radiusPanel`；控件高度 22–24、26–30、32–36 分别归 24／28／32，新增 44px `heightBar`；图标只剩 14／16。
+- 间距全部改为 `t.Space(n)`，不在网格上的值就近取整（6→8、10→8、14→12，1–2 保留为 `t.Space(0.5)` 细缝）；对话框内边距 20 保持不变。弹层和 toast 共用 `popoverPanel` 的一档阴影；标记色和客户端徽章色板移到 `appearance.go`。
+- 列宽、编辑器高度等界面几何仍留在各自界面。按用户决定，不加防回退检查脚本。截图矩阵前后对比只有 2–4px 的对齐变化，没有裁切或重叠。
+
 ## 6. 新界面
 
 功能路线图带来的新界面，都按第 4 节的规范和 UX 规范设计。每个界面在对应里程碑开始前先出设计稿（Painter 概念图或 amp-view 交互原型），确认后再实现。

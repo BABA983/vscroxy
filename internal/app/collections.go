@@ -225,10 +225,10 @@ func (a *app) folderModal(c *ui.Context, t *ui.Theme) {
 			})
 			ui.Text(c, "Renaming moves its requests, folders and settings together.").FontSize(textMeta).TextColor(t.TextMuted)
 			flatTabs(c, &f.tab, "", "Auth", "Scripts", "Variables", "Description")
-			ui.Column(c).Grow(1).MinHeight(0).Gap(8).Children(func() {
+			ui.Column(c).Grow(1).MinHeight(0).Gap(t.Space(2)).Children(func() {
 				switch f.tab {
 				case 0:
-					ui.Scroll(c).Grow(1).MinHeight(0).Gap(8).Children(func() {
+					ui.Scroll(c).Grow(1).MinHeight(0).Gap(t.Space(2)).Children(func() {
 						a.authFields(c, &f.draft.Auth, a.folderAuthTypes(f.draft.Path), f.draft.Path)
 					})
 					ui.Text(c, "Requests whose Auth is Inherit send this.").FontSize(textMeta).TextColor(t.TextMuted)

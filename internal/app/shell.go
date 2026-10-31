@@ -97,7 +97,7 @@ func (a *app) proxyIndicator(c *ui.Context, t *ui.Theme) {
 		if running {
 			dot = t.Success
 		}
-		ui.Box(c).Size(7, 7).Radius(4).Background(dot)
+		ui.Box(c).Size(7, 7).Radius(radiusControl).Background(dot)
 		ui.Text(c, label).FontSize(textMeta).FontFeatures("tnum").TextColor(color).SingleLine()
 	})
 	if b.Clicked() {
@@ -142,8 +142,8 @@ func (a *app) activeTools(c *ui.Context, t *ui.Theme) {
 	if !a.breakOn && !throttled && !noCaching && scenario == "" && a.upstream == "" {
 		return
 	}
-	ui.ScrollHorizontal(c.Key("active-tools")).Height(32).Background(t.Surface).Border(0, t.Border).BorderWidth(0, 0, 1, 0).Children(func() {
-		ui.Row(c).Padding(0, t.Space(3)).Gap(t.Space(2)).Height(32).AlignItems(ui.Center).Children(func() {
+	ui.ScrollHorizontal(c.Key("active-tools")).Height(heightLarge).Background(t.Surface).Border(0, t.Border).BorderWidth(0, 0, 1, 0).Children(func() {
+		ui.Row(c).Padding(0, t.Space(3)).Gap(t.Space(2)).Height(heightLarge).AlignItems(ui.Center).Children(func() {
 			if a.breakOn {
 				toolChip(c, "breakpoints", "Breakpoints", "Edit breakpoint rules", breakIcon, a.openRules, func() {
 					a.breakOn = false

@@ -922,7 +922,7 @@ func (v *captureViews) sidebar(c *ui.Context, t *ui.Theme, a *app) {
 		v.init(a, v.path)
 	}
 	closing := -1
-	ui.Column(c).Gap(1).FillWidth().Children(func() {
+	ui.Column(c).Gap(t.Space(0.5)).FillWidth().Children(func() {
 		for i, view := range v.views {
 			name := v.label(i)
 			ui.Row(c.Key(view.id)).AlignItems(ui.Center).Children(func() {
@@ -954,12 +954,12 @@ func (v *captureViews) sidebar(c *ui.Context, t *ui.Theme, a *app) {
 				v.capture(a)
 				v.newView(a)
 			}
-			if iconButton(c, "Saved filters…", "Save current conditions, apply, rename or delete a saved filter", filterIcon).Margin(0, 8, 0, 0).Clicked() {
+			if iconButton(c, "Saved filters…", "Save current conditions, apply, rename or delete a saved filter", filterIcon).Margin(0, t.Space(2), 0, 0).Clicked() {
 				v.openSaved(a)
 			}
 		})
 		if len(v.filters) > 0 {
-			ui.Text(c, "SAVED FILTERS").FontSize(textMeta).LetterSpacing(0.5).Bold().TextColor(t.TextMuted).Padding(12, 8, 4, 8)
+			ui.Text(c, "SAVED FILTERS").FontSize(textMeta).LetterSpacing(0.5).Bold().TextColor(t.TextMuted).Padding(t.Space(3), t.Space(2), t.Space(1), t.Space(2))
 		}
 		for _, f := range v.filters {
 			active := v.activeView().saved(f.Name) == f
@@ -981,7 +981,7 @@ func (v *captureViews) sidebar(c *ui.Context, t *ui.Theme, a *app) {
 			if failure {
 				color = t.Danger
 			}
-			ui.Text(c, note).FontSize(11).TextColor(color).Tooltip(v.statusDetail())
+			ui.Text(c, note).FontSize(textMeta).TextColor(color).Tooltip(v.statusDetail())
 		}
 	})
 	if closing >= 0 {
@@ -1005,12 +1005,12 @@ func (v *captureViews) filterModal(c *ui.Context, t *ui.Theme, a *app) {
 		return
 	}
 	appModal(c, &v.filterOpen, func() {
-		ui.Column(c).Width(560).Gap(8).Children(func() {
+		ui.Column(c).Width(560).Gap(t.Space(2)).Children(func() {
 			dialogTitle(c, "Filter "+v.label(v.active))
 			ui.Text(c, "All fields combine with AND. Host and app match exactly. Status takes 404, 4xx, 200-299 or >=400; commas mean OR. Header values use case-insensitive contains on either side. Body searches both sides in full, including spilled files.").
-				FontSize(11).TextColor(t.TextMuted)
+				FontSize(textMeta).TextColor(t.TextMuted)
 			problem := ""
-			ui.Row(c).Gap(12).Children(func() {
+			ui.Row(c).Gap(t.Space(3)).Children(func() {
 				ui.Field(c, "Host (exact, including port)", func() {
 					ui.TextInput(c, &v.editTriage.Host).Label("Filter host").Placeholder("api.example.com")
 				}).Grow(1)
@@ -1018,7 +1018,7 @@ func (v *captureViews) filterModal(c *ui.Context, t *ui.Theme, a *app) {
 					ui.TextInput(c, &v.editTriage.Client).Label("Filter app").Placeholder("Browser")
 				}).Grow(1)
 			})
-			ui.Row(c).Gap(12).Children(func() {
+			ui.Row(c).Gap(t.Space(3)).Children(func() {
 				ui.Field(c, "Method (comma-separated)", func() {
 					ui.TextInput(c, &v.editTriage.Method).Label("Filter method").Placeholder("GET, POST")
 				}).Grow(1)
@@ -1036,7 +1036,7 @@ func (v *captureViews) filterModal(c *ui.Context, t *ui.Theme, a *app) {
 					}
 				}).Width(150)
 			})
-			ui.Row(c).Gap(12).Children(func() {
+			ui.Row(c).Gap(t.Space(3)).Children(func() {
 				for _, field := range []struct {
 					label string
 					value *string
@@ -1059,7 +1059,7 @@ func (v *captureViews) filterModal(c *ui.Context, t *ui.Theme, a *app) {
 					}
 				}
 			}
-			ui.Row(c).Gap(12).Children(func() {
+			ui.Row(c).Gap(t.Space(3)).Children(func() {
 				ui.Field(c, "Status", func() {
 					ui.TextInput(c, &v.editStatus).Label("Filter status").Placeholder("4xx, 5xx")
 				}).Grow(1)
@@ -1067,7 +1067,7 @@ func (v *captureViews) filterModal(c *ui.Context, t *ui.Theme, a *app) {
 					ui.TextInput(c, &v.editHeader).Placeholder("content-type: json")
 				}).Grow(1)
 			})
-			ui.Row(c).Gap(12).Children(func() {
+			ui.Row(c).Gap(t.Space(3)).Children(func() {
 				ui.Field(c, "Note contains", func() {
 					ui.TextInput(c, &v.editTriage.Note).Label("Filter note").Placeholder("case-insensitive text")
 				}).Grow(1)
@@ -1076,16 +1076,16 @@ func (v *captureViews) filterModal(c *ui.Context, t *ui.Theme, a *app) {
 				}).Grow(1)
 			})
 			if problem != "" {
-				ui.Text(c, problem).FontSize(11).TextColor(t.Danger)
+				ui.Text(c, problem).FontSize(textMeta).TextColor(t.Danger)
 			}
 			if note, failure := v.status(); note != "" {
 				color := t.TextMuted
 				if failure {
 					color = t.Danger
 				}
-				ui.Text(c, note).FontSize(11).TextColor(color).Tooltip(v.statusDetail())
+				ui.Text(c, note).FontSize(textMeta).TextColor(color).Tooltip(v.statusDetail())
 			}
-			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
+			ui.Row(c).Gap(t.Space(2)).Justify(ui.End).Children(func() {
 				if ui.Button(c, "Clear").Clicked() {
 					v.editStatus, v.editHeader, v.editBody = "", "", ""
 					v.editTriage = captureTriage{}
@@ -1132,25 +1132,25 @@ func (v *captureViews) savedModal(c *ui.Context, t *ui.Theme, a *app) {
 		return
 	}
 	appModal(c, &v.savedOpen, func() {
-		ui.Column(c).Width(560).Gap(10).Children(func() {
+		ui.Column(c).Width(560).Gap(t.Space(2)).Children(func() {
 			dialogTitle(c, "Saved capture filters")
 			ui.Text(c, "A filter keeps this view's URL, content and triage conditions. Applying one changes this view; the other views keep their own.").
-				FontSize(11).TextColor(t.TextMuted)
+				FontSize(textMeta).TextColor(t.TextMuted)
 			if len(v.filters) == 0 {
-				ui.Text(c, "No saved filters yet.").FontSize(11).TextColor(t.TextMuted)
+				ui.Text(c, "No saved filters yet.").FontSize(textMeta).TextColor(t.TextMuted)
 			}
 			for _, f := range v.filters {
 				name := f.Name
-				ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-					ui.Text(c, name).FontSize(12).Grow(1).SingleLine().Tooltip(name)
-					if ui.Button(c, "Apply").Label("Apply " + strconv.Quote(name)).FontSize(11).Clicked() {
+				ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+					ui.Text(c, name).FontSize(textBody).Grow(1).SingleLine().Tooltip(name)
+					if ui.Button(c, "Apply").Label("Apply " + strconv.Quote(name)).FontSize(textMeta).Clicked() {
 						v.applySaved(a, name)
 					}
-					if ui.Button(c, "Rename").Label("Rename " + strconv.Quote(name)).FontSize(11).Clicked() {
+					if ui.Button(c, "Rename").Label("Rename " + strconv.Quote(name)).FontSize(textMeta).Clicked() {
 						v.renaming = name
 						v.savedName = name
 					}
-					if ui.Button(c, "Delete").Label("Delete " + strconv.Quote(name)).FontSize(11).Clicked() {
+					if ui.Button(c, "Delete").Label("Delete " + strconv.Quote(name)).FontSize(textMeta).Clicked() {
 						v.deleteSaved(a, name)
 					}
 				})
@@ -1160,15 +1160,15 @@ func (v *captureViews) savedModal(c *ui.Context, t *ui.Theme, a *app) {
 			})
 			if v.renaming != "" {
 				ui.Text(c, "Renaming "+strconv.Quote(v.renaming)+". Type the new name, then Rename filter.").
-					FontSize(11).TextColor(t.TextMuted)
+					FontSize(textMeta).TextColor(t.TextMuted)
 			}
 			if v.problem != "" {
-				ui.Text(c, v.problem).FontSize(11).TextColor(t.Danger)
+				ui.Text(c, v.problem).FontSize(textMeta).TextColor(t.Danger)
 			}
 			if v.note != "" {
-				ui.Text(c, v.note).FontSize(11).TextColor(t.TextMuted)
+				ui.Text(c, v.note).FontSize(textMeta).TextColor(t.TextMuted)
 			}
-			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
+			ui.Row(c).Gap(t.Space(2)).Justify(ui.End).Children(func() {
 				if ui.Button(c, "Close").Clicked() {
 					v.savedOpen = false
 					v.renaming = ""

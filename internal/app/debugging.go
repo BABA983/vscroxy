@@ -94,7 +94,7 @@ drained:
 			dialogTitle(c, fmt.Sprintf("Replay %d requests", len(r.flows)))
 			seconds, err := strconv.Atoi(strings.TrimSpace(r.timeout))
 			valid := err == nil && seconds >= 0 && seconds <= 86400
-			ui.Scroll(c).MinHeight(0).Shrink(1).Gap(16).Children(func() {
+			ui.Scroll(c).MinHeight(0).Shrink(1).Gap(t.Space(4)).Children(func() {
 				ui.Text(c, "Sends in capture order through the current rules. POST, PUT, PATCH and DELETE can change server data. WebSocket, SSE and tunnels are excluded.").FontSize(textBody).TextColor(t.TextMuted)
 				ui.Field(c, "Timeout per request (seconds; 0 = no timeout)", func() {
 					ui.TextInput(c, &r.timeout).Label("Replay timeout").Height(heightControl).FontSize(textBody).Disabled(r.updates != nil)

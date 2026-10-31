@@ -285,7 +285,7 @@ func (a *app) apiGenerationModal(c *ui.Context, t *ui.Theme) {
 	appModal(c, &a.apiGenerateOpen, func() {
 		dialogColumn(c, dialogMedium).Children(func() {
 			dialogTitle(c, "Generate OpenAPI draft")
-			ui.Scroll(c).MinHeight(0).Shrink(1).Gap(16).Children(func() {
+			ui.Scroll(c).MinHeight(0).Shrink(1).Gap(t.Space(4)).Children(func() {
 				ui.Text(c, "Choose a saved collection. Unsaved request tabs are not included.").FontSize(textBody).TextColor(t.TextMuted)
 				ui.PopoverMenuButton(c, cmp.Or(a.apiCollection, "Saved (ungrouped)"), func(m *ui.Menu) {
 					for _, name := range slices.Sorted(maps.Keys(groupRequests(a.requests))) {

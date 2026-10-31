@@ -80,9 +80,9 @@ func (a *app) desktopContent(c *ui.Context) {
 			}
 			ui.Column(c).Fill().Children(func() {
 				if w.focused {
-					ui.Row(c).Height(32).Padding(0, 12).AlignItems(ui.Center).Children(func() {
+					ui.Row(c).Height(heightLarge).Padding(0, c.Theme().Space(3)).AlignItems(ui.Center).Children(func() {
 						a.desktopButton(c, "focus", "Back to list")
-						ui.Text(c, "Inspector focus · Ctrl/Cmd+Shift+Enter").FontSize(11).TextColor(c.Theme().TextMuted)
+						ui.Text(c, "Inspector focus · Ctrl/Cmd+Shift+Enter").FontSize(textMeta).TextColor(c.Theme().TextMuted)
 					})
 					a.detail(c)
 					return
@@ -91,11 +91,11 @@ func (a *app) desktopContent(c *ui.Context) {
 				table := func() {
 					ui.Column(c).Fill().Children(func() {
 						if a.chosen.Len() > 1 {
-							ui.Row(c).Height(34).Padding(0, 10).Gap(8).AlignItems(ui.Center).Children(func() {
-								ui.Text(c, fmt.Sprintf("%d selected", a.chosen.Len())).FontSize(11).Bold().Grow(1)
+							ui.Row(c).Height(heightLarge).Padding(0, c.Theme().Space(2)).Gap(c.Theme().Space(2)).AlignItems(ui.Center).Children(func() {
+								ui.Text(c, fmt.Sprintf("%d selected", a.chosen.Len())).FontSize(textMeta).Bold().Grow(1)
 								a.desktopButton(c, "replay", "Replay…")
 								a.desktopButton(c, "export-selection", "Export HAR…")
-								if ui.Button(c, "Clear selection").FontSize(11).Height(24).Clicked() {
+								if ui.Button(c, "Clear selection").FontSize(textMeta).Height(heightCompact).Clicked() {
 									a.chosen.Clear()
 								}
 							})
@@ -106,7 +106,7 @@ func (a *app) desktopContent(c *ui.Context) {
 				if len(a.visible) == 0 {
 					a.syncDetail()
 					table()
-					ui.Row(c).Height(heightLarge).Padding(0, 12).AlignItems(ui.Center).Children(func() {
+					ui.Row(c).Height(heightLarge).Padding(0, c.Theme().Space(3)).AlignItems(ui.Center).Children(func() {
 						ui.Text(c, "No request chosen").FontSize(textBody).TextColor(c.Theme().TextMuted)
 					})
 				} else if w.sideBySide {
@@ -137,12 +137,12 @@ var captureProtocols = captureKinds[:6]
 
 func (a *app) captureToolbar(c *ui.Context, t *ui.Theme) {
 	width := a.contentWidth(c)
-	ui.Row(c).Height(44).Padding(0, 12).Gap(6).AlignItems(ui.Center).Children(func() {
-		ui.Row(c).Grow(1).MinWidth(160).Height(heightControl).Gap(4).Padding(0, 4).
+	ui.Row(c).Height(heightBar).Padding(0, t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+		ui.Row(c).Grow(1).MinWidth(160).Height(heightControl).Gap(t.Space(1)).Padding(0, t.Space(1)).
 			Border(1, t.Border).Radius(radiusControl).AlignItems(ui.Center).Children(func() {
 			search := ui.TextInputBase(c, &a.query).Bind(&a.search).Label("Search host or path").Placeholder("Search host or path…").
 				Tooltip("URL host and path only · Ctrl/Cmd+F · Enter or ↓ moves to requests. Filters search headers and full bodies.").
-				Height(heightCompact).Padding(0, 8).FontSize(textBody).Grow(1).MinWidth(72)
+				Height(heightCompact).Padding(0, t.Space(2)).FontSize(textBody).Grow(1).MinWidth(72)
 			search.OnShortcut(0, ui.KeyDown, func() { a.focusTraffic(c) })
 			if search.Changed() {
 				a.applyFilter()
@@ -162,7 +162,7 @@ func (a *app) captureToolbar(c *ui.Context, t *ui.Theme) {
 		ui.ScrollHorizontal(c).Width(min(302, width*0.36)).Height(heightControl).Children(func() {
 			// Images and HTML live in the menu but remain valid selections.
 			segments := ui.SegmentedBase(c, &a.chip, len(captureKinds))
-			segments.Track.Label("Protocol and content type").Height(heightControl).Padding(2).Gap(1).Radius(radiusControl).Background(t.Surface).Children(func() {
+			segments.Track.Label("Protocol and content type").Height(heightControl).Padding(t.Space(0.5)).Gap(t.Space(0.5)).Radius(radiusControl).Background(t.Surface).Children(func() {
 				for i, name := range captureProtocols {
 					label := name
 					if name == "WebSocket" {
@@ -198,7 +198,7 @@ func (a *app) captureToolbar(c *ui.Context, t *ui.Theme) {
 			for _, id := range []string{"layout-bottom", "layout-right", "layout-auto", "focus"} {
 				a.desktopMenuItem(c, m, id, "")
 			}
-		}).Label("Inspector layout").Tooltip("Inspector layout").Height(heightControl).Padding(0, 6).
+		}).Label("Inspector layout").Tooltip("Inspector layout").Height(heightControl).Padding(0, t.Space(2)).
 			FontSize(textMeta).TextColor(t.TextMuted).Border(0, t.Border)
 		ui.PopoverMenuButton(c, "⋯", func(m *ui.Menu) {
 			if m.Item("Debugging rules…").Chosen() {
@@ -239,9 +239,9 @@ func (a *app) captureToolbar(c *ui.Context, t *ui.Theme) {
 // than adding another toolbar row. Their AND/OR semantics are unchanged.
 func (a *app) captureConditions(c *ui.Context) {
 	t := c.Theme()
-	ui.Row(c).Gap(4).AlignItems(ui.Center).Tooltip("All conditions must match").Children(func() {
+	ui.Row(c).Gap(t.Space(1)).AlignItems(ui.Center).Tooltip("All conditions must match").Children(func() {
 		token := func(label string, clear func()) {
-			if secondaryButton(c, clamp(label, 30)+" ×").Label(label+" ×").Height(22).Padding(0, 6).FontSize(textMeta).TextColor(t.Accent).Tooltip("Remove condition: " + label).Clicked() {
+			if secondaryButton(c, clamp(label, 30)+" ×").Label(label+" ×").Height(heightCompact).Padding(0, t.Space(2)).FontSize(textMeta).TextColor(t.Accent).Tooltip("Remove condition: " + label).Clicked() {
 				clear()
 				a.views.capture(a)
 				a.applyFilter()
@@ -455,7 +455,7 @@ func (a *app) desktopShortcuts(c *ui.Context) {
 func (a *app) desktopButton(c *ui.Context, id, label string) ui.Element {
 	for _, action := range a.desktopActions(c) {
 		if action.id == id {
-			b := ui.Button(c, label).Height(28).FontSize(11).Disabled(!action.enabled).Tooltip(action.hint())
+			b := ui.Button(c, label).Height(heightControl).FontSize(textMeta).Disabled(!action.enabled).Tooltip(action.hint())
 			if b.Clicked() {
 				action.run()
 			}

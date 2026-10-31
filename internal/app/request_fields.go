@@ -76,9 +76,9 @@ func requestFieldsEditor(c *ui.Context, rows *[]request.Field, opts fieldsOption
 		// reads as a column rather than its own form.
 		ui.Row(c).Height(heightControl).AlignItems(ui.Center).BorderWidth(0, 0, 1, 0).BorderColor(t.Border).Children(func() {
 			ui.Box(c).Width(heightLarge).FillHeight().BorderWidth(0, 1, 0, 0).BorderColor(t.Border)
-			ui.Text(c, "Key").Basis(0).Grow(1).MinWidth(0).FillHeight().Padding(4, 8).
+			ui.Text(c, "Key").Basis(0).Grow(1).MinWidth(0).FillHeight().Padding(t.Space(1), t.Space(2)).
 				FontSize(textMeta).FontWeight(600).TextColor(t.TextMuted).BorderWidth(0, 1, 0, 0).BorderColor(t.Border)
-			ui.Text(c, "Value").Basis(0).Grow(2).MinWidth(0).Padding(4, 8).FontSize(textMeta).FontWeight(600).TextColor(t.TextMuted)
+			ui.Text(c, "Value").Basis(0).Grow(2).MinWidth(0).Padding(t.Space(1), t.Space(2)).FontSize(textMeta).FontWeight(600).TextColor(t.TextMuted)
 			if opts.secret {
 				ui.Box(c).Width(heightCompact)
 			}
@@ -337,7 +337,7 @@ func (a *app) authEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
 			if from != "" {
 				text = "Uses " + resolved.Type + " auth from " + from + "."
 			}
-			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+			ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 				ui.Text(c, text).FontSize(textMeta).TextColor(t.TextMuted)
 				if path := cmp.Or(from, d.composeCollection); path != "" && secondaryButton(c, settingsLabel(path)).Clicked() {
 					a.openFolder(path)

@@ -48,7 +48,7 @@ func (a *app) diagnosticsModal(c *ui.Context, t *ui.Theme) {
 	_, height := c.Size()
 	appModal(c, &d.open, func() {
 		dialogColumn(c, dialogLarge).Height(min(680, height-80)).Children(func() {
-			ui.Row(c).Gap(12).AlignItems(ui.Center).Children(func() {
+			ui.Row(c).Gap(t.Space(3)).AlignItems(ui.Center).Children(func() {
 				dialogTitle(c, "Capture diagnostics").Grow(1)
 				if secondaryButton(c, "Refresh checks").Disabled(a.systemProxy.checking || a.systemProxy.applying || a.certificate.checking).Clicked() {
 					a.checkSystemProxy(false)
@@ -63,7 +63,7 @@ func (a *app) diagnosticsModal(c *ui.Context, t *ui.Theme) {
 					}
 				})
 			})
-			ui.Scroll(c).TrackScroll(&d.scroll).Grow(1).MinHeight(0).Gap(12).Padding(0, 16, 8, 0).Children(func() {
+			ui.Scroll(c).TrackScroll(&d.scroll).Grow(1).MinHeight(0).Gap(t.Space(3)).Padding(0, t.Space(4), t.Space(2), 0).Children(func() {
 				ui.Text(c, "1  Capture listener").FontSize(textBody).Bold()
 				if a.srv != nil && a.srv.Running() {
 					ui.Text(c, "Listening at "+a.srv.Addr()).FontSize(textBody).TextColor(t.Success)
@@ -167,7 +167,7 @@ func (a *app) diagnosticsModal(c *ui.Context, t *ui.Theme) {
 					ui.Text(c, fmt.Sprintf("Ignored hosts: %d · Ignored apps: %d · Dropped capture events: %d", len(a.srv.Ignore()), len(a.srv.IgnoreApps()), a.srv.Dropped())).FontSize(textMeta)
 				}
 				ui.Text(c, "Ignored traffic is still proxied but not retained. Current rules do not explain past exchanges; inspect their recorded actions and Connection log. No match is predicted from configuration alone.").FontSize(textMeta).TextColor(t.TextMuted)
-				ui.Row(c).Gap(8).Wrap().Children(func() {
+				ui.Row(c).Gap(t.Space(2)).Wrap().Children(func() {
 					if secondaryButton(c, "Review ignored hosts").Clicked() {
 						d.open, a.ignoreOpen = false, true
 					}

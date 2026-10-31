@@ -85,13 +85,13 @@ func (a *app) codeModal(c *ui.Context, t *ui.Theme) {
 	_, h := c.Size()
 	appModal(c, &s.open, func() {
 		dialogColumn(c, dialogLarge).Height(min(520, h-80)).Children(func() {
-			ui.Row(c).Gap(8).Wrap().AlignItems(ui.Center).Children(func() {
+			ui.Row(c).Gap(t.Space(2)).Wrap().AlignItems(ui.Center).Children(func() {
 				dialogTitle(c, "Code").Grow(1)
 				if ui.Select(c, &s.language, codeLanguages).Label("Code language").Width(200).Height(heightControl).FontSize(textBody).Changed() {
 					s.view = nil
 				}
 			})
-			ui.Scroll(c).MinHeight(0).Shrink(1).MaxHeight(100).Gap(8).Children(func() {
+			ui.Scroll(c).MinHeight(0).Shrink(1).MaxHeight(100).Gap(t.Space(2)).Children(func() {
 				ui.Text(c, "{{variables}} stay as written and scripts do not run; replace them before running the code.").FontSize(textBody).TextColor(t.TextMuted)
 				if s.problem != "" {
 					ui.Text(c, s.problem).FontSize(textBody).TextColor(t.Danger)

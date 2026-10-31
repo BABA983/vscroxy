@@ -239,7 +239,7 @@ func (a *app) vaultModal(c *ui.Context, t *ui.Theme) {
 				where = "Encrypted with a key kept in " + v.keyPath + ": this system has no credential store, so anyone who can read that file can open the vault."
 			}
 			ui.Text(c, where).FontSize(textMeta).TextColor(t.TextMuted)
-			ui.Row(c).Gap(8).Padding(0, 8, 0, 0).Children(func() {
+			ui.Row(c).Gap(t.Space(2)).Padding(0, t.Space(2), 0, 0).Children(func() {
 				for i, label := range []string{"NAME", "VALUE", "ALLOWED DOMAINS"} {
 					grow := float32(2)
 					if i == 0 {
@@ -251,11 +251,11 @@ func (a *app) vaultModal(c *ui.Context, t *ui.Theme) {
 				}
 				ui.Box(c).Width(76) // the two row buttons and the gap between them
 			})
-			ui.Scroll(c).Grow(1).MinHeight(0).FillWidth().Gap(8).Padding(0, 8, 0, 0).Children(func() {
+			ui.Scroll(c).Grow(1).MinHeight(0).FillWidth().Gap(t.Space(2)).Padding(0, t.Space(2), 0, 0).Children(func() {
 				remove := -1
 				for i := range v.rows {
 					r := &v.rows[i]
-					ui.Row(c).Key(i).Gap(8).AlignItems(ui.Center).Children(func() {
+					ui.Row(c).Key(i).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 						ui.TextInput(c, &r.name).Label(fmt.Sprintf("Secret name %d", i+1)).Placeholder("api_token").Basis(0).Grow(1).MinWidth(0).Height(heightControl).Radius(radiusControl)
 						value := ui.TextInput(c, &r.value).Label(fmt.Sprintf("Secret value %d", i+1)).Placeholder("Value").Basis(0).Grow(2).MinWidth(0).Height(heightControl).Radius(radiusControl)
 						if !r.revealed {

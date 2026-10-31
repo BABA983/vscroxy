@@ -160,7 +160,7 @@ func appModal(c *ui.Context, open *bool, content func()) ui.Element {
 	width, height := c.Size()
 	dialog := ui.DialogBase(c, open, func(backdrop, panel ui.Element) {
 		backdrop.Background(ui.RGBA(0, 0, 0, 0.45))
-		panel.Padding(20).Gap(12).Radius(radiusDialog).Background(t.Background).Border(1, t.Border).
+		panel.Padding(t.Space(5)).Gap(t.Space(3)).Radius(radiusDialog).Background(t.Background).Border(1, t.Border).
 			MaxWidth(width-40).MaxHeight(height-40).Shadow(0, 16, 40, 0, ui.RGBA(0, 0, 0, 0.3))
 		content()
 	})
@@ -182,7 +182,7 @@ func dialogTitle(c *ui.Context, title string) ui.Element {
 func flatTabs(c *ui.Context, selected *int, prefix string, labels ...string) ui.Element {
 	t := c.Theme()
 	group := ui.TabsBase(c, selected, len(labels))
-	group.List.Gap(2).Children(func() {
+	group.List.Gap(t.Space(0.5)).Children(func() {
 		for i, label := range labels {
 			name := label
 			if prefix != "" {
@@ -330,4 +330,27 @@ func (a *app) settingsModal(c *ui.Context, t *ui.Theme) {
 			})
 		})
 	})
+}
+
+// Swatches are user-facing labels rather than semantic roles, so they keep
+// the same saturated value in both appearances and always carry white text.
+var swatchText = ui.Hex("#ffffff")
+
+// highlightColors are the colors a flow can be marked with, in menu order.
+var highlightColors = []struct {
+	name  string
+	color ui.Color
+}{
+	{"Red", ui.Hex("#dc2626")},
+	{"Orange", ui.Hex("#ea580c")},
+	{"Yellow", ui.Hex("#ca8a04")},
+	{"Green", ui.Hex("#16a34a")},
+	{"Blue", ui.Hex("#2563eb")},
+	{"Purple", ui.Hex("#7c3aed")},
+}
+
+// badgePalette colors a client's initial when the system has no icon for it.
+var badgePalette = []ui.Color{
+	ui.Hex("#2563eb"), ui.Hex("#7c3aed"), ui.Hex("#db2777"), ui.Hex("#ea580c"),
+	ui.Hex("#0891b2"), ui.Hex("#16a34a"), ui.Hex("#ca8a04"),
 }

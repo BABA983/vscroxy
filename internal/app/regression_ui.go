@@ -94,30 +94,30 @@ func (a *app) regressionModal(c *ui.Context, t *ui.Theme) {
 	c.CloseToast("")
 	width, height := c.Size()
 	appModal(c, &s.open, func() {
-		ui.Column(c).Width(min(760, width-80)).Height(min(660, height-80)).Gap(10).Children(func() {
+		ui.Column(c).Width(min(760, width-80)).Height(min(660, height-80)).Gap(t.Space(2)).Children(func() {
 			title := "Share regression · review sanitized copy"
 			if s.importing {
 				title = "Import regression · review before opening"
 			}
 			dialogTitle(c, title)
-			ui.Scroll(c).Grow(1).Gap(8).Children(func() {
+			ui.Scroll(c).Grow(1).Gap(t.Space(2)).Children(func() {
 				for _, change := range s.changes {
-					ui.Text(c, "• "+change).FontSize(11).TextColor(t.TextMuted)
+					ui.Text(c, "• "+change).FontSize(textMeta).TextColor(t.TextMuted)
 				}
-				ui.Text(c, "Review URL paths, parameter names, Content-Type/Accept and assertion values for secrets. Automatic replacements are not a guarantee of anonymization. Edit the JSON below if needed.").FontSize(12).TextColor(t.Warning)
-				if ui.TextArea(c, &s.preview).Height(280).Font("monospace").FontSize(11).Label("Regression JSON preview").Changed() {
+				ui.Text(c, "Review URL paths, parameter names, Content-Type/Accept and assertion values for secrets. Automatic replacements are not a guarantee of anonymization. Edit the JSON below if needed.").FontSize(textBody).TextColor(t.Warning)
+				if ui.TextArea(c, &s.preview).Height(280).Font(fontMono).FontSize(textMeta).Label("Regression JSON preview").Changed() {
 					s.reviewed, s.feedback = false, ""
 				}
 			})
 			r, err := decodeRegression([]byte(s.preview))
 			if err != nil {
-				ui.Text(c, err.Error()).FontSize(11).TextColor(t.Danger)
+				ui.Text(c, err.Error()).FontSize(textMeta).TextColor(t.Danger)
 			} else {
-				ui.Text(c, "Variables to supply locally: "+strings.Join(r.Variables(), ", ")).FontSize(11).TextColor(t.TextMuted)
+				ui.Text(c, "Variables to supply locally: "+strings.Join(r.Variables(), ", ")).FontSize(textMeta).TextColor(t.TextMuted)
 			}
 			ui.Checkbox(c, &s.reviewed, "I reviewed the full request and checks").Label("Confirm regression review")
-			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
-				ui.Text(c, s.feedback).FontSize(11).TextColor(t.Success)
+			ui.Row(c).Gap(t.Space(2)).Justify(ui.End).Children(func() {
+				ui.Text(c, s.feedback).FontSize(textMeta).TextColor(t.Success)
 				if ui.Button(c, "Cancel").Clicked() {
 					s.open = false
 				}

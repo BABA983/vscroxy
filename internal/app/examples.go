@@ -90,7 +90,7 @@ func (a *app) examplesEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
 	}
 	d.example = min(max(d.example, 0), len(d.examples)-1)
 	ui.Row(c).Grow(1).MinHeight(0).Gap(t.Space(3)).AlignItems(ui.Stretch).Children(func() {
-		ui.Scroll(c).Width(168).BorderWidth(0, 1, 0, 0).BorderColor(t.Border).Padding(0, 8, 0, 0).Children(func() {
+		ui.Scroll(c).Width(168).BorderWidth(0, 1, 0, 0).BorderColor(t.Border).Padding(0, t.Space(2), 0, 0).Children(func() {
 			for i, e := range d.examples {
 				item := toolbarButton(c.Key(e.ID), "Example: "+e.Name, e.Name, false).FillWidth()
 				if i == d.example {

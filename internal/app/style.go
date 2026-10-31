@@ -16,6 +16,7 @@ const (
 	heightControl = 28
 	heightLarge   = 32
 	heightTabs    = 32
+	heightBar     = 44 // title bar and the Capture toolbar
 	radiusControl = 4
 	radiusPanel   = 6
 	radiusDialog  = 10
@@ -85,6 +86,14 @@ func dialogFooter(c *ui.Context) ui.Element {
 		Padding(t.Space(3), 0, 0, 0).Border(0, t.Border).BorderWidth(1, 0, 0, 0)
 }
 
+// popoverPanel is the chrome of anything floating above the window short of
+// a dialog: popovers and toasts. appModal has the heavier of the two shadows.
+func popoverPanel(c *ui.Context, panel ui.Element) ui.Element {
+	t := c.Theme()
+	return panel.Radius(radiusPanel).Background(t.Background).Border(1, t.Border).
+		Shadow(0, 8, 24, 0, ui.RGBA(0, 0, 0, 0.22))
+}
+
 func statusPill(c *ui.Context, label string, foreground ui.Color) ui.Element {
 	return ui.Text(c, label).FontSize(textBody).FontFeatures("tnum").SingleLine().
 		TextColor(foreground).Background(foreground.Alpha(0.12)).
@@ -119,14 +128,14 @@ func sidebarSection(c *ui.Context, title string, open *bool, content func()) {
 	ui.SidebarSection(c, strings.ToUpper(title), open, func() {
 		c.SetTheme(t)
 		content()
-	}).Margin(8, 0, 0, 0)
+	}).Margin(t.Space(2), 0, 0, 0)
 	c.SetTheme(t)
 }
 
 func emptyState(c *ui.Context, title, hint string, actions func()) {
 	t := c.Theme()
-	ui.Column(c).Fill().Center().Padding(24).Gap(8).Children(func() {
-		ui.Icon(c, trafficIcon).Size(24, 24).TextColor(t.TextMuted).Margin(0, 0, 8, 0)
+	ui.Column(c).Fill().Center().Padding(t.Space(6)).Gap(t.Space(2)).Children(func() {
+		ui.Icon(c, trafficIcon).Size(iconLarge, iconLarge).TextColor(t.TextMuted).Margin(0, 0, t.Space(2), 0)
 		ui.Text(c, title).FontSize(textTitle).TextColor(t.Text)
 		ui.Text(c, hint).FontSize(textBody).TextColor(t.TextMuted)
 		if actions != nil {
@@ -160,9 +169,8 @@ func appToasts(c *ui.Context) {
 				icon, color = errorIcon, t.Danger
 			}
 			parts := ui.ToastBase(c, toast)
-			parts.Root.Row().Width(min(360, width-32)).Gap(t.Space(3)).Padding(t.Space(3)).
-				AlignItems(ui.Start).Radius(radiusPanel).Background(t.Background).Border(1, t.Border).
-				Shadow(0, 6, 20, 0, ui.RGBA(0, 0, 0, 0.18)).
+			popoverPanel(c, parts.Root).Row().Width(min(360, width-32)).Gap(t.Space(3)).Padding(t.Space(3)).
+				AlignItems(ui.Start).
 				Transition(ui.ElementTransition{Enter: &ui.Motion{Y: 8}, Exit: &ui.Motion{Y: 4}}).
 				Children(func() {
 					ui.Icon(c, icon).Size(iconLarge, iconLarge).TextColor(color)

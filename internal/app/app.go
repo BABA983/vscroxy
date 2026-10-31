@@ -1139,22 +1139,22 @@ func (a *app) view(c *ui.Context) {
 		a.shell(c, t)
 		a.activeTools(c, t)
 		if a.srv == nil && a.errText != "" {
-			ui.Text(c, "Proxy unavailable · "+a.errText+" · Local requests remain available").Padding(8, 12).FontSize(12).TextColor(t.Danger)
+			ui.Text(c, "Proxy unavailable · "+a.errText+" · Local requests remain available").Padding(t.Space(2), t.Space(3)).FontSize(textBody).TextColor(t.Danger)
 		}
 		if a.requestsProblem != "" || a.envsProblem != "" {
-			ui.Column(c).Padding(8, 12).Gap(4).Children(func() {
-				ui.Row(c).Gap(12).AlignItems(ui.Center).Children(func() {
-					ui.Text(c, "Local assets protected · saving disabled").FontSize(12).Bold().TextColor(t.Danger).Grow(1)
+			ui.Column(c).Padding(t.Space(2), t.Space(3)).Gap(t.Space(1)).Children(func() {
+				ui.Row(c).Gap(t.Space(3)).AlignItems(ui.Center).Children(func() {
+					ui.Text(c, "Local assets protected · saving disabled").FontSize(textBody).Bold().TextColor(t.Danger).Grow(1)
 					if ui.Button(c, "Reload local assets").Clicked() {
 						a.loadRequestAssets()
 					}
 				})
 				for _, problem := range []string{a.requestsProblem, a.envsProblem} {
 					if problem != "" {
-						ui.Text(c, problem).FontSize(11).TextColor(t.Danger)
+						ui.Text(c, problem).FontSize(textMeta).TextColor(t.Danger)
 					}
 				}
-				ui.Text(c, "Original files left untouched. Repair or move the affected file aside, then reload. Other local assets remain usable.").FontSize(11).TextColor(t.TextMuted)
+				ui.Text(c, "Original files left untouched. Repair or move the affected file aside, then reload. Other local assets remain usable.").FontSize(textMeta).TextColor(t.TextMuted)
 			})
 		}
 		a.desktopContent(c.Key("workspace-content"))
@@ -1417,10 +1417,10 @@ func (a *app) sidebar(c *ui.Context) {
 							}).
 							Children(func() {
 								if a.filterTriage.Client == d.name {
-									ui.Text(c, "✓").FontSize(11).TextColor(t.Accent).Tooltip("App filter is active; remove it in the condition bar")
+									ui.Text(c, "✓").FontSize(textMeta).TextColor(t.Accent).Tooltip("App filter is active; remove it in the condition bar")
 								}
 								if slices.ContainsFunc(apps, func(app capture.SSLApp) bool { return a.appInspectionEnabled(app.Path) }) {
-									ui.Icon(c, lockIcon).Size(12, 12).Tooltip("An exact executable rule is enabled; client CA trust is still required")
+									ui.Icon(c, lockIcon).Size(iconInline, iconInline).Tooltip("An exact executable rule is enabled; client CA trust is still required")
 								}
 								ui.Text(c, fmt.Sprint(d.n)).FontSize(textMeta).FontFeatures("tnum").TextColor(t.TextMuted)
 							})
@@ -1431,7 +1431,7 @@ func (a *app) sidebar(c *ui.Context) {
 				for _, d := range a.domains {
 					sidebarItem(c, "host:"+d.name, domainIcon, d.name, a.sidebarChoice == "host:"+d.name).Children(func() {
 						if a.filterTriage.Host == d.name {
-							ui.Text(c, "✓").FontSize(11).TextColor(t.Accent).Tooltip("Host filter is active; remove it in the condition bar")
+							ui.Text(c, "✓").FontSize(textMeta).TextColor(t.Accent).Tooltip("Host filter is active; remove it in the condition bar")
 						}
 						ui.Text(c, fmt.Sprint(d.n)).FontSize(textMeta).FontFeatures("tnum").TextColor(t.TextMuted)
 					})
@@ -1480,7 +1480,7 @@ func (a *app) sidebar(c *ui.Context) {
 			}
 		}
 		ui.Divider(c)
-		ui.Column(c).Padding(8).Gap(2).Children(func() {
+		ui.Column(c).Padding(t.Space(2)).Gap(t.Space(0.5)).Children(func() {
 			if toolbarButton(c, "Client setup", "Copy a process-scoped proxy and CA example", false).FillWidth().Children(func() {
 				ui.Icon(c, monitorIcon).Size(iconInline, iconInline)
 				ui.Text(c, "Client setup").FontSize(textBody).Grow(1)
@@ -1508,15 +1508,15 @@ func (a *app) requestSidebar(c *ui.Context, t *ui.Theme) {
 		return
 	}
 	ui.Column(c).Fill().Background(t.Surface).Children(func() {
-		ui.Column(c).Padding(10, 10).Gap(8).Children(func() {
+		ui.Column(c).Padding(t.Space(2), t.Space(2)).Gap(t.Space(2)).Children(func() {
 			title := "Collections"
 			if a.requestSide == 1 {
 				title = "Runs"
 			} else if a.requestSide == 3 {
 				title = "APIs"
 			}
-			ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
-				ui.Text(c, title).FontSize(13).FontWeight(600).Grow(1)
+			ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+				ui.Text(c, title).FontSize(textBody).FontWeight(600).Grow(1)
 				newLabel := "New request"
 				if a.requestSide == 3 {
 					newLabel = "New API"
@@ -1557,7 +1557,7 @@ func (a *app) requestSidebar(c *ui.Context, t *ui.Theme) {
 			} else if a.requestSide == 3 {
 				placeholder, label = "Search APIs…", "Search APIs"
 			}
-			ui.TextInput(c, &a.requestQuery).Label(label).Placeholder(placeholder).Height(28).FontSize(12)
+			ui.TextInput(c, &a.requestQuery).Label(label).Placeholder(placeholder).Height(heightControl).FontSize(textBody)
 		})
 		chosen := ui.Sidebar(c, &a.requestChoice, func() {
 			query := strings.ToLower(strings.TrimSpace(a.requestQuery))
@@ -1574,7 +1574,7 @@ func (a *app) requestSidebar(c *ui.Context, t *ui.Theme) {
 					}
 					sidebarItem(c, "contract:"+d.spec.ID, apiIcon, d.title(), a.apiChoice == d.spec.ID).Label("API: " + d.title()).Children(func() {
 						if d.dirty() {
-							ui.Box(c).Size(5, 5).Radius(3).Background(t.Accent).Label("Unsaved API")
+							ui.Box(c).Size(5, 5).Radius(radiusControl).Background(t.Accent).Label("Unsaved API")
 						}
 					})
 				}
@@ -1686,7 +1686,7 @@ func (a *app) table(c *ui.Context) {
 			title, hint = "Connect a client to start capturing", "Listening at "+a.srv.Addr()+" · no retained requests yet"
 		}
 		emptyState(c, title, hint, func() {
-			ui.Row(c).Gap(8).Wrap().Justify(ui.Center).Children(func() {
+			ui.Row(c).Gap(t.Space(2)).Wrap().Justify(ui.Center).Children(func() {
 				if secondaryButton(c, "Set up a local client…").Disabled(!running).Clicked() {
 					a.openClientSetup()
 				}
@@ -1777,23 +1777,23 @@ func (a *app) table(c *ui.Context) {
 			text(f.host).TextColor(rowColor(chosen, t, t.TextMuted)).Tooltip(f.url).PopoverMenu(a.rowMenu(c, f))
 		case "url":
 			if f.pinned {
-				ui.Icon(c, pinIcon).Size(11, 11).MarginEnd(4).TextColor(rowColor(chosen, t, t.TextMuted))
+				ui.Icon(c, pinIcon).Size(iconInline, iconInline).MarginEnd(t.Space(1)).TextColor(rowColor(chosen, t, t.TextMuted))
 			}
 			if f.color != "" {
 				if dot, ok := highlightColor(f.color); ok {
-					ui.Box(c).Size(8, 8).Radius(4).Background(dot).MarginEnd(5)
+					ui.Box(c).Size(8, 8).Radius(radiusControl).Background(dot).MarginEnd(t.Space(1))
 				}
 			}
 			rest := rowColor(chosen, t, t.Text)
-			ui.Row(c).Gap(1).Children(func() {
+			ui.Row(c).Gap(t.Space(0.5)).Children(func() {
 				if f.kind == "connect" {
-					ui.Icon(c, lockIcon).Size(11, 11).TextColor(rest).MarginEnd(5).Tooltip("Encrypted tunnel; CONNECT success is not a decrypted response")
+					ui.Icon(c, lockIcon).Size(iconInline, iconInline).TextColor(rest).MarginEnd(t.Space(1)).Tooltip("Encrypted tunnel; CONNECT success is not a decrypted response")
 				}
 				if f.note != "" {
-					ui.Icon(c, noteIcon).Size(iconInline, iconInline).TextColor(rowColor(chosen, t, t.TextMuted)).MarginEnd(4).Tooltip(f.note)
+					ui.Icon(c, noteIcon).Size(iconInline, iconInline).TextColor(rowColor(chosen, t, t.TextMuted)).MarginEnd(t.Space(1)).Tooltip(f.note)
 				}
 				if f.dns != "" {
-					ui.Box(c).MinWidth(heightControl).Height(16).Radius(radiusControl).Background(t.Warning.Alpha(0.12)).Center().MarginEnd(4).
+					ui.Box(c).MinWidth(heightControl).Height(16).Radius(radiusControl).Background(t.Warning.Alpha(0.12)).Center().MarginEnd(t.Space(1)).
 						Tooltip("DNS mapping " + f.dns).
 						Children(func() {
 							ui.Text(c, "DNS").FontSize(textMeta).Bold().TextColor(rowColor(chosen, t, t.Warning))
@@ -1807,7 +1807,7 @@ func (a *app) table(c *ui.Context) {
 			} else if f.kind == "connect" {
 				text("Tunnel").TextColor(rowColor(chosen, t, t.TextMuted)).Tooltip(fmt.Sprintf("CONNECT %d · encrypted tunnel, not an HTTP response", f.status)).PopoverMenu(a.rowMenu(c, f))
 			} else {
-				ui.Box(c).Size(5, 5).Radius(3).Background(rowColor(chosen, t, f.statusColor(t))).MarginEnd(6)
+				ui.Box(c).Size(5, 5).Radius(radiusControl).Background(rowColor(chosen, t, f.statusColor(t))).MarginEnd(t.Space(2))
 				text(fmt.Sprint(f.status)).TextColor(rowColor(chosen, t, f.statusColor(t))).PopoverMenu(a.rowMenu(c, f))
 			}
 		case "client":
@@ -1816,7 +1816,7 @@ func (a *app) table(c *ui.Context) {
 			} else {
 				clientBadge(c, f.process)
 			}
-			text(f.process).Padding(0, 0, 0, 6).PopoverMenu(a.rowMenu(c, f)).TextColor(rowColor(chosen, t, t.TextMuted))
+			text(f.process).Padding(0, 0, 0, t.Space(2)).PopoverMenu(a.rowMenu(c, f)).TextColor(rowColor(chosen, t, t.TextMuted))
 		case "duration":
 			text(fmt.Sprintf("%d ms", f.millis)).TextColor(rowColor(chosen, t, t.TextMuted))
 		case "size":
@@ -1852,21 +1852,11 @@ func (a *app) table(c *ui.Context) {
 
 var noteIcon = lucide.MessageSquare()
 
-// highlightColors are the colors a flow can be marked with, in menu order.
-var highlightColors = []struct{ name, hex string }{
-	{"Red", "#dc2626"},
-	{"Orange", "#ea580c"},
-	{"Yellow", "#ca8a04"},
-	{"Green", "#16a34a"},
-	{"Blue", "#2563eb"},
-	{"Purple", "#7c3aed"},
-}
-
 // highlightColor is the color a flow is marked with.
 func highlightColor(name string) (ui.Color, bool) {
 	for _, c := range highlightColors {
 		if c.name == name {
-			return ui.Hex(c.hex), true
+			return c.color, true
 		}
 	}
 	return ui.Color{}, false
@@ -1896,12 +1886,12 @@ func (a *app) markModal(c *ui.Context, t *ui.Theme) {
 					for _, color := range highlightColors {
 						selected := a.markColor == color.name
 						ui.ButtonBase(c).Label("Mark "+color.name).Checked(selected).
-							Size(heightControl, heightControl).Radius(radiusControl).Background(ui.Hex(color.hex)).Center().
+							Size(heightControl, heightControl).Radius(radiusControl).Background(color.color).Center().
 							Tooltip(color.name).
 							OnClick(func() { a.markColor = color.name }).
 							Children(func() {
 								if selected {
-									ui.Text(c, "✓").FontSize(textBody).Bold().TextColor(ui.Hex("#ffffff"))
+									ui.Text(c, "✓").FontSize(textBody).Bold().TextColor(swatchText)
 								}
 							})
 					}
@@ -1947,26 +1937,26 @@ func (a *app) explainConnection(c *ui.Context, f flow) {
 	e := f.conn.explanation()
 	width, height := c.Size()
 	ui.Column(c).Width(min(480, width-40)).Children(func() {
-		ui.Text(c, e.title).FontSize(16).Bold().Padding(16, 16, 12, 16)
-		ui.Scroll(c).Height(min(270, height-220)).Padding(0, 16, 14, 16).Gap(16).Selectable().Children(func() {
-			ui.Text(c, e.summary).FontSize(12).TextColor(t.TextMuted)
-			ui.Column(c).Padding(12).Gap(6).Radius(7).Background(t.Danger.Alpha(0.06)).Border(1, t.Danger.Alpha(0.2)).Children(func() {
-				ui.Text(c, "Observed failure · "+cmp.Or(f.conn.errorStage, "unknown stage")).FontSize(11).Bold().TextColor(t.TextMuted)
-				ui.Text(c, f.conn.error).Font("monospace").FontSize(11).TextColor(t.Danger)
+		ui.Text(c, e.title).FontSize(textTitle).Bold().Padding(t.Space(4), t.Space(4), t.Space(3), t.Space(4))
+		ui.Scroll(c).Height(min(270, height-220)).Padding(0, t.Space(4), t.Space(3), t.Space(4)).Gap(t.Space(4)).Selectable().Children(func() {
+			ui.Text(c, e.summary).FontSize(textBody).TextColor(t.TextMuted)
+			ui.Column(c).Padding(t.Space(3)).Gap(t.Space(2)).Radius(radiusPanel).Background(t.Danger.Alpha(0.06)).Border(1, t.Danger.Alpha(0.2)).Children(func() {
+				ui.Text(c, "Observed failure · "+cmp.Or(f.conn.errorStage, "unknown stage")).FontSize(textMeta).Bold().TextColor(t.TextMuted)
+				ui.Text(c, f.conn.error).Font(fontMono).FontSize(textMeta).TextColor(t.Danger)
 			})
-			ui.Column(c).Gap(6).Children(func() {
-				ui.Text(c, "Possible causes · not confirmed").FontSize(12).Bold()
-				ui.Text(c, e.causes).FontSize(12).TextColor(t.TextMuted)
+			ui.Column(c).Gap(t.Space(2)).Children(func() {
+				ui.Text(c, "Possible causes · not confirmed").FontSize(textBody).Bold()
+				ui.Text(c, e.causes).FontSize(textBody).TextColor(t.TextMuted)
 			})
-			ui.Column(c).Gap(6).Children(func() {
-				ui.Text(c, "What to try").FontSize(12).Bold()
-				ui.Text(c, e.steps).FontSize(12)
+			ui.Column(c).Gap(t.Space(2)).Children(func() {
+				ui.Text(c, "What to try").FontSize(textBody).Bold()
+				ui.Text(c, e.steps).FontSize(textBody)
 			})
 		})
 		ui.Divider(c)
-		ui.Row(c).Padding(12, 16).Gap(16).Children(func() {
-			ui.Text(c, "Review URLs, addresses and raw errors before sharing.").FontSize(11).TextColor(t.TextMuted).Grow(1)
-			if ui.Button(c, "Copy diagnostics").FontSize(12).Height(30).Clicked() {
+		ui.Row(c).Padding(t.Space(3), t.Space(4)).Gap(t.Space(4)).Children(func() {
+			ui.Text(c, "Review URLs, addresses and raw errors before sharing.").FontSize(textMeta).TextColor(t.TextMuted).Grow(1)
+			if ui.Button(c, "Copy diagnostics").FontSize(textBody).Height(heightControl).Clicked() {
 				c.Services().WriteClipboard(f.connectionDiagnostics())
 				a.setMessage("Copied connection diagnostics")
 			}
@@ -1978,7 +1968,7 @@ func (a *app) explainConnection(c *ui.Context, f flow) {
 // failures after a successful CONNECT but before any HTTP request was received.
 func (a *app) connectionView(c *ui.Context, f flow) {
 	t := c.Theme()
-	ui.Row(c).Padding(8, 12).Gap(8).Children(func() {
+	ui.Row(c).Padding(t.Space(2), t.Space(3)).Gap(t.Space(2)).Children(func() {
 		if f.conn.error != "" {
 			ui.Text(c, cmp.Or(f.conn.errorStage, "Connection")+" failed").FontSize(textBody).TextColor(t.Danger).Grow(1)
 		} else {
@@ -1990,7 +1980,7 @@ func (a *app) connectionView(c *ui.Context, f flow) {
 		}
 	})
 	if f.conn.error != "" {
-		ui.Text(c, f.conn.error).Selectable().MaxLines(3).Tooltip(f.conn.error).FontSize(textBody).TextColor(t.Danger).Padding(0, 12, 8)
+		ui.Text(c, f.conn.error).Selectable().MaxLines(3).Tooltip(f.conn.error).FontSize(textBody).TextColor(t.Danger).Padding(0, t.Space(3), t.Space(2))
 	}
 	text := cmp.Or(f.conn.log, "No connection history was recorded for this exchange (for example, an older or imported session).")
 	ui.TextArea(c, &text).ReadOnly(true).Label("Connection log").Font(fontMono).FontSize(textBody).Grow(1).FillWidth()
@@ -2000,8 +1990,8 @@ func (a *app) connectionView(c *ui.Context, f flow) {
 // dialled, the addresses the name resolved to, and what TLS agreed on.
 func (a *app) connPanel(c *ui.Context, t *ui.Theme, f flow) {
 	cn := f.conn
-	ui.Column(c).Width(440).Gap(2).Padding(4).Children(func() {
-		ui.Text(c, "Connection").FontSize(12).Bold().TextColor(t.Text).Padding(0, 0, 6, 0)
+	ui.Column(c).Width(440).Gap(t.Space(0.5)).Padding(t.Space(1)).Children(func() {
+		ui.Text(c, "Connection").FontSize(textBody).Bold().TextColor(t.Text).Padding(0, 0, t.Space(2), 0)
 		field(c, t, "HTTP version", cn.proto)
 		field(c, t, "Client", cn.client)
 		field(c, t, "Proxy", cn.proxy)
@@ -2042,9 +2032,9 @@ func field(c *ui.Context, t *ui.Theme, label, value string) {
 	if value == "" {
 		return
 	}
-	ui.Row(c).Gap(10).Padding(2, 0).Children(func() {
-		ui.Text(c, label).FontSize(11).TextColor(t.TextMuted).Width(96)
-		ui.Text(c, value).FontSize(12).Font("monospace").TextColor(t.Text).Grow(1)
+	ui.Row(c).Gap(t.Space(2)).Padding(t.Space(0.5), 0).Children(func() {
+		ui.Text(c, label).FontSize(textMeta).TextColor(t.TextMuted).Width(96)
+		ui.Text(c, value).FontSize(textBody).Font(fontMono).TextColor(t.Text).Grow(1)
 	})
 }
 
@@ -2054,15 +2044,15 @@ func field(c *ui.Context, t *ui.Theme, label, value string) {
 // headerBlock is one side of the Headers tab: the line that starts the message
 // and then its headers, sorted by name.
 func (a *app) headerBlock(c *ui.Context, t *ui.Theme, title, line, note string, headers http.Header, raw string, trailers http.Header) {
-	ui.Column(c).FillWidth().Padding(10, 12).Gap(6).Background(t.Surface).Children(func() {
+	ui.Column(c).FillWidth().Padding(t.Space(2), t.Space(3)).Gap(t.Space(2)).Background(t.Surface).Children(func() {
 		ui.Row(c).AlignItems(ui.Center).Children(func() {
-			ui.Text(c, title).FontSize(12).Bold()
+			ui.Text(c, title).FontSize(textBody).Bold()
 			ui.Spacer(c)
 			if len(headers) > 0 {
-				ui.Text(c, fmt.Sprintf("%d headers", len(headers))).FontSize(10).TextColor(t.TextMuted)
+				ui.Text(c, fmt.Sprintf("%d headers", len(headers))).FontSize(textMeta).TextColor(t.TextMuted)
 			}
 		})
-		ui.Text(c, line).FontSize(11).Font("monospace").TextColor(t.TextMuted).SingleLine().Selectable().Tooltip(strings.TrimSpace(line + "\n" + note))
+		ui.Text(c, line).FontSize(textMeta).Font(fontMono).TextColor(t.TextMuted).SingleLine().Selectable().Tooltip(strings.TrimSpace(line + "\n" + note))
 	})
 	ui.Divider(c)
 	side := 0
@@ -2072,20 +2062,20 @@ func (a *app) headerBlock(c *ui.Context, t *ui.Theme, title, line, note string, 
 	ui.Scroll(c).TrackScroll(&a.headerScroll[side]).Grow(1).FillWidth().Children(func() {
 		for i, block := range []http.Header{headers, trailers} {
 			if i == 1 && len(block) > 0 {
-				ui.Text(c, "Trailers").FontSize(11).Bold().TextColor(t.TextMuted).Padding(10, 12, 6).FillWidth().Background(t.Surface)
+				ui.Text(c, "Trailers").FontSize(textMeta).Bold().TextColor(t.TextMuted).Padding(t.Space(2), t.Space(3), t.Space(2)).FillWidth().Background(t.Surface)
 			}
 			if i == 0 && len(block) == 0 {
 				if raw == "" {
-					ui.Text(c, "No headers recorded").FontSize(12).TextColor(t.TextMuted).Padding(12)
+					ui.Text(c, "No headers recorded").FontSize(textBody).TextColor(t.TextMuted).Padding(t.Space(3))
 				} else {
-					ui.Text(c, raw).FontSize(12).Font("monospace").TextColor(t.Text).Selectable().Padding(12)
+					ui.Text(c, raw).FontSize(textBody).Font(fontMono).TextColor(t.Text).Selectable().Padding(t.Space(3))
 				}
 			}
 			for _, key := range slices.Sorted(maps.Keys(block)) {
 				value := strings.Join(block[key], "\n")
-				ui.Row(c).Gap(12).Padding(7, 12).AlignItems(ui.Start).FillWidth().Children(func() {
-					ui.Text(c, key).FontSize(11).Font("monospace").TextColor(t.TextMuted).Width(124).SingleLine().Tooltip(strings.TrimSpace(key + "\n" + headerDoc(key)))
-					ui.Text(c, value).FontSize(12).Font("monospace").TextColor(t.Text).Grow(1).Selectable()
+				ui.Row(c).Gap(t.Space(3)).Padding(t.Space(2), t.Space(3)).AlignItems(ui.Start).FillWidth().Children(func() {
+					ui.Text(c, key).FontSize(textMeta).Font(fontMono).TextColor(t.TextMuted).Width(124).SingleLine().Tooltip(strings.TrimSpace(key + "\n" + headerDoc(key)))
+					ui.Text(c, value).FontSize(textBody).Font(fontMono).TextColor(t.Text).Grow(1).Selectable()
 				})
 				ui.Divider(c).Background(t.Border.Alpha(0.45))
 			}
@@ -2249,8 +2239,8 @@ func clientBadge(c *ui.Context, name string) {
 	if runes := []rune(name); len(runes) > 0 {
 		letter = strings.ToUpper(string(runes[0]))
 	}
-	ui.Box(c).Size(16, 16).Radius(4).Background(badgeColor(name)).Center().Children(func() {
-		ui.Text(c, letter).FontSize(9).Bold().TextColor(ui.Hex("#ffffff"))
+	ui.Box(c).Size(16, 16).Radius(radiusControl).Background(badgeColor(name)).Center().Children(func() {
+		ui.Text(c, letter).FontSize(textMeta).Bold().TextColor(swatchText)
 	})
 }
 
@@ -2258,8 +2248,7 @@ func clientBadge(c *ui.Context, name string) {
 func badgeColor(name string) ui.Color {
 	h := fnv.New32a()
 	_, _ = h.Write([]byte(name))
-	palette := []string{"#2563eb", "#7c3aed", "#db2777", "#ea580c", "#0891b2", "#16a34a", "#ca8a04"}
-	return ui.Hex(palette[int(h.Sum32())%len(palette)])
+	return badgePalette[int(h.Sum32())%len(badgePalette)]
 }
 
 // rowMenu is the context menu of a flow's row: what a captured request is
@@ -2506,8 +2495,8 @@ func (a *app) varsModal(c *ui.Context, t *ui.Theme) {
 				}
 				ui.Column(c).Height(224).Border(1, t.Border).Radius(radiusControl).Children(func() {
 					ui.Row(c).Height(heightControl).AlignItems(ui.Center).BorderWidth(0, 0, 1, 0).BorderColor(t.Border).Children(func() {
-						ui.Text(c, "NAME").Basis(0).Grow(1).Padding(0, 8).FontSize(textMeta).TextColor(t.TextMuted)
-						ui.Text(c, "VALUE").Basis(0).Grow(2).Padding(0, 8).FontSize(textMeta).TextColor(t.TextMuted)
+						ui.Text(c, "NAME").Basis(0).Grow(1).Padding(0, t.Space(2)).FontSize(textMeta).TextColor(t.TextMuted)
+						ui.Text(c, "VALUE").Basis(0).Grow(2).Padding(0, t.Space(2)).FontSize(textMeta).TextColor(t.TextMuted)
 						ui.Box(c).Width(56)
 					})
 					ui.Scroll(c).Grow(1).MinHeight(0).FillWidth().Children(func() {

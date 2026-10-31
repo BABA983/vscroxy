@@ -159,7 +159,7 @@ func (a *app) importReportModal(c *ui.Context, t *ui.Theme) {
 	appModal(c, &r.open, func() {
 		dialogColumn(c, dialogMedium).Children(func() {
 			dialogTitle(c, r.title)
-			ui.Scroll(c).MinHeight(0).Shrink(1).Gap(8).Children(func() {
+			ui.Scroll(c).MinHeight(0).Shrink(1).Gap(t.Space(2)).Children(func() {
 				ui.Text(c, r.intro).FontSize(textBody).TextColor(t.TextMuted)
 				for _, line := range r.lines {
 					ui.Text(c, "• "+line).FontSize(textBody).Selectable()

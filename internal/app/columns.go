@@ -134,7 +134,7 @@ func (a *app) columnModal(c *ui.Context, t *ui.Theme) {
 	appModal(c, &a.columnOpen, func() {
 		dialogColumn(c, dialogSmall).Children(func() {
 			dialogTitle(c, "Add column")
-			ui.Scroll(c).MinHeight(0).Gap(12).Children(func() {
+			ui.Scroll(c).MinHeight(0).Gap(t.Space(3)).Children(func() {
 				ui.Form(c, func() {
 					ui.Field(c, "From", func() {
 						ui.Select(c, &draft.Source, columnSources).Width(200).Height(heightControl).Radius(radiusControl)

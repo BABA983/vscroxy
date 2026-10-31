@@ -175,8 +175,8 @@ func (a *app) devicesModal(c *ui.Context, t *ui.Theme) {
 				}
 			})
 			ui.Text(c, "Same Wi-Fi / LAN. Only listed source addresses can connect. Local capture stays on loopback.").FontSize(textBody).TextColor(t.TextMuted)
-			ui.Row(c).Grow(1).MinHeight(0).Gap(24).AlignItems(ui.Stretch).Children(func() {
-				ui.Scroll(c).BasisPercent(44).Grow(1).MinWidth(0).Gap(12).Padding(0, 8, 0, 0).Children(func() {
+			ui.Row(c).Grow(1).MinHeight(0).Gap(t.Space(6)).AlignItems(ui.Stretch).Children(func() {
+				ui.Scroll(c).BasisPercent(44).Grow(1).MinWidth(0).Gap(t.Space(3)).Padding(0, t.Space(2), 0, 0).Children(func() {
 					if d.gateway == nil {
 						ui.Text(c, "1  Choose a network address").FontSize(textBody).Bold()
 						ui.Form(c, func() {
@@ -218,9 +218,9 @@ func (a *app) devicesModal(c *ui.Context, t *ui.Theme) {
 						ui.Text(c, "Disable access before changing the address or allowlist.").FontSize(textMeta).TextColor(t.TextMuted)
 					}
 				})
-				ui.Column(c).BasisPercent(56).Grow(1).MinWidth(0).Gap(12).Children(func() {
+				ui.Column(c).BasisPercent(56).Grow(1).MinWidth(0).Gap(t.Space(3)).Children(func() {
 					flatTabs(c, &d.platform, "", "iOS", "Android", "Checks")
-					ui.Scroll(c).Grow(1).MinHeight(0).Gap(8).Padding(0, 10, 0, 0).Children(func() {
+					ui.Scroll(c).Grow(1).MinHeight(0).Gap(t.Space(2)).Padding(0, t.Space(2), 0, 0).Children(func() {
 						switch d.platform {
 						case 0:
 							ui.Text(c, "Set up iPhone / iPad").FontSize(textTitle).Bold()

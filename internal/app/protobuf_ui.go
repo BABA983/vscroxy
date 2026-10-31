@@ -96,7 +96,7 @@ func (p *protoInspector) inspect(c *ui.Context, a *app, f flow, response bool) {
 func (p *protoInspector) view(c *ui.Context, a *app, f flow, side int) {
 	t := c.Theme()
 	response := side == 0
-	ui.Row(c).Padding(0, 12, 8, 12).Gap(8).AlignItems(ui.Center).Children(func() {
+	ui.Row(c).Padding(0, t.Space(3), t.Space(2), t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 		options := []string{"Auto"}
 		if p.schema != nil {
 			options = append(options, p.schema.names...)
@@ -112,33 +112,33 @@ func (p *protoInspector) view(c *ui.Context, a *app, f flow, side int) {
 	})
 	p.inspect(c, a, f, response)
 	if grpcContentType(f.contentType(response)) {
-		ui.Text(c, grpcStatus(f)).FontSize(11).TextColor(t.TextMuted).Padding(0, 12, 6, 12)
+		ui.Text(c, grpcStatus(f)).FontSize(textMeta).TextColor(t.TextMuted).Padding(0, t.Space(3), t.Space(2), t.Space(3))
 	}
 	if p.answers != nil {
-		ui.Text(c, "Reading complete retained body…").FontSize(12).TextColor(t.TextMuted).Padding(12)
+		ui.Text(c, "Reading complete retained body…").FontSize(textBody).TextColor(t.TextMuted).Padding(t.Space(3))
 		return
 	}
 	if p.result.problem != "" {
-		ui.Text(c, p.result.problem).FontSize(11).TextColor(t.Danger).Padding(0, 12, 6, 12)
+		ui.Text(c, p.result.problem).FontSize(textMeta).TextColor(t.Danger).Padding(0, t.Space(3), t.Space(2), t.Space(3))
 	}
 	note := "Schema-less: field numbers, not names. Load a schema to resolve types."
 	if p.result.typeName != "" {
 		note = "Message type: " + p.result.typeName
 	}
-	ui.Text(c, note).FontSize(11).TextColor(t.TextMuted).Padding(0, 12, 6, 12)
+	ui.Text(c, note).FontSize(textMeta).TextColor(t.TextMuted).Padding(0, t.Space(3), t.Space(2), t.Space(3))
 	var visible []int
 	for i, message := range p.result.messages {
 		if p.query == "" || strings.Contains(strings.ToLower(message.text), strings.ToLower(p.query)) {
 			visible = append(visible, i)
 		}
 	}
-	ui.Text(c, fmt.Sprintf("%d of %d messages", len(visible), len(p.result.messages))).FontSize(11).TextColor(t.TextMuted).Padding(0, 12, 6, 12)
+	ui.Text(c, fmt.Sprintf("%d of %d messages", len(visible), len(p.result.messages))).FontSize(textMeta).TextColor(t.TextMuted).Padding(0, t.Space(3), t.Space(2), t.Space(3))
 	if len(visible) == 0 {
 		note := "No message matches"
 		if len(p.result.messages) == 0 && p.result.problem == "" {
 			note = "No messages in this body (a trailers-only gRPC response is valid)"
 		}
-		ui.Text(c, note).FontSize(12).TextColor(t.TextMuted).Padding(12)
+		ui.Text(c, note).FontSize(textBody).TextColor(t.TextMuted).Padding(t.Space(3))
 		return
 	}
 	if p.split == 0 {
@@ -159,15 +159,15 @@ func (p *protoInspector) view(c *ui.Context, a *app, f flow, side int) {
 			if i == p.selected {
 				color = t.AccentText
 			}
-			ui.Text(c, note).FontSize(11).TextColor(color).Padding(8, 12).SingleLine()
+			ui.Text(c, note).FontSize(textMeta).TextColor(color).Padding(t.Space(2), t.Space(3)).SingleLine()
 		}).Grow(1)
 	}, func() {
 		// List may remap a selected key to -1 when a search removes it.
 		p.selected = max(0, min(p.selected, len(visible)-1))
 		message := p.result.messages[visible[p.selected]]
 		ui.Column(c).Fill().Children(func() {
-			ui.Row(c).Padding(0, 12).AlignItems(ui.Center).Children(func() {
-				ui.Text(c, fmt.Sprintf("Message %d · %s decoded", visible[p.selected]+1, humanBytes(message.size))).FontSize(11).TextColor(t.TextMuted).Grow(1)
+			ui.Row(c).Padding(0, t.Space(3)).AlignItems(ui.Center).Children(func() {
+				ui.Text(c, fmt.Sprintf("Message %d · %s decoded", visible[p.selected]+1, humanBytes(message.size))).FontSize(textMeta).TextColor(t.TextMuted).Grow(1)
 				if ui.Button(c, "Copy decoded").Clicked() {
 					c.Services().WriteClipboard(message.text)
 					a.setMessage("Copied decoded protobuf message")
@@ -177,8 +177,8 @@ func (p *protoInspector) view(c *ui.Context, a *app, f flow, side int) {
 			if len(text) > maxMessageText {
 				text = text[:maxMessageText] + "\n\n… Text preview limited to 64 KiB; Copy decoded keeps the full text."
 			}
-			ui.Scroll(c).Grow(1).Padding(12).Children(func() {
-				ui.Text(c, text).Font("monospace").FontSize(12).TextColor(t.Text)
+			ui.Scroll(c).Grow(1).Padding(t.Space(3)).Children(func() {
+				ui.Text(c, text).Font(fontMono).FontSize(textBody).TextColor(t.Text)
 			})
 		})
 	}).Grow(1)
@@ -246,12 +246,12 @@ func (p *protoInspector) modal(c *ui.Context, a *app) {
 	appModal(c, &p.open, func() {
 		dialogColumn(c, dialogMedium).Children(func() {
 			dialogTitle(c, "Protobuf schema")
-			ui.Scroll(c).MinHeight(0).Shrink(1).Gap(16).Children(func() {
+			ui.Scroll(c).MinHeight(0).Shrink(1).Gap(t.Space(4)).Children(func() {
 				ui.Text(c, "Import a .proto source or a binary FileDescriptorSet (.pb / .protoset). gRPC methods select input/output types automatically; raw protobuf needs a message type. A successful load replaces the current registry.").FontSize(textBody).TextColor(t.TextMuted)
 				if p.schema != nil {
 					ui.Text(c, fmt.Sprintf("Loaded: %d message types", len(p.schema.names))).FontSize(textMeta).TextColor(t.TextMuted)
 				}
-				ui.Row(c).Gap(8).Children(func() {
+				ui.Row(c).Gap(t.Space(2)).Children(func() {
 					ui.TextInput(c, &p.source).Label("Schema file").Placeholder("/path/to/service.proto or descriptors.pb").Grow(1).MinWidth(0).Height(heightControl).FontSize(textBody)
 					if secondaryButton(c, "Browse…").Disabled(p.loading).Clicked() && a.win != nil {
 						go func() {

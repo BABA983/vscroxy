@@ -222,7 +222,7 @@ func (a *app) experimentsView(c *ui.Context, t *ui.Theme, inline bool) {
 	width, height := c.Size()
 	panel := ui.Column(c).Gap(t.Space(2))
 	if inline {
-		panel.Fill().Padding(12)
+		panel.Fill().Padding(t.Space(3))
 	} else {
 		panel.Width(min(1200, width-80)).Height(height - 100)
 	}
@@ -250,10 +250,10 @@ func (a *app) experimentsView(c *ui.Context, t *ui.Theme, inline bool) {
 			ui.Text(c, s.problem).FontSize(textBody).TextColor(t.Danger)
 		}
 		ui.Row(c).Grow(1).MinHeight(0).Border(1, t.Border).Radius(radiusControl).AlignItems(ui.Stretch).Children(func() {
-			ui.Scroll(c).Width(220).Padding(4).Children(func() {
+			ui.Scroll(c).Width(220).Padding(t.Space(1)).Children(func() {
 				a.debugDrafts(c)
 				if len(s.log.Records) == 0 {
-					ui.Text(c, "Send a request to record an experiment.").Padding(8).FontSize(textBody).TextColor(t.TextMuted)
+					ui.Text(c, "Send a request to record an experiment.").Padding(t.Space(2)).FontSize(textBody).TextColor(t.TextMuted)
 				}
 				for _, r := range s.log.Records {
 					if !s.includes(r) {
@@ -274,14 +274,14 @@ func (a *app) experimentsView(c *ui.Context, t *ui.Theme, inline bool) {
 				if inline && len(a.history) > 0 {
 					ui.Divider(c)
 					ui.Text(c, "Recent requests").Bold()
-					ui.Text(c, "Unsent copies · deduplicated by method + URL").FontSize(10).TextColor(t.TextMuted)
-					ui.TextInput(c, &a.requestQuery).Label("Search history").Placeholder("Search history…").FontSize(11)
+					ui.Text(c, "Unsent copies · deduplicated by method + URL").FontSize(textMeta).TextColor(t.TextMuted)
+					ui.TextInput(c, &a.requestQuery).Label("Search history").Placeholder("Search history…").FontSize(textMeta)
 					query := strings.ToLower(strings.TrimSpace(a.requestQuery))
 					for i, entry := range a.history {
 						if query != "" && !strings.Contains(strings.ToLower(entry.Method+" "+entry.URL), query) {
 							continue
 						}
-						ui.Button(c, entry.label()).FillWidth().FontSize(11).OnClick(func() { a.openHistory(i) })
+						ui.Button(c, entry.label()).FillWidth().FontSize(textMeta).OnClick(func() { a.openHistory(i) })
 					}
 				}
 			})

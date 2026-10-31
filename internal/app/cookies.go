@@ -197,14 +197,14 @@ func (a *app) cookiesModal(c *ui.Context, t *ui.Theme) {
 		dialogColumn(c, dialogLarge).Height(min(480, height-80)).Children(func() {
 			dialogTitle(c, "Session Cookies")
 			ui.Text(c, "Shared by Requests and Runner. Kept in memory until the app quits.").FontSize(textMeta).TextColor(t.TextMuted)
-			ui.Scroll(c).Grow(1).MinHeight(0).Gap(12).Children(func() {
+			ui.Scroll(c).Grow(1).MinHeight(0).Gap(t.Space(3)).Children(func() {
 				items := a.requestCookies().snapshot()
 				if len(items) == 0 {
 					ui.Text(c, "No cookies yet. Send a request or add one below.").TextColor(t.TextMuted)
 				}
 				for _, item := range items {
-					ui.Row(c).Key(item.key).Gap(8).AlignItems(ui.Center).Children(func() {
-						ui.Column(c).Grow(1).Gap(4).Children(func() {
+					ui.Row(c).Key(item.key).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+						ui.Column(c).Grow(1).Gap(t.Space(1)).Children(func() {
 							ui.Text(c, item.cookie.Name+" = "+item.cookie.Value).FontSize(textBody).Font(fontMono).SingleLine()
 							domain := cmp.Or(item.cookie.Domain, item.origin.Hostname())
 							ui.Text(c, fmt.Sprintf("%s%s · Secure %t · HttpOnly %t", domain, item.cookie.Path, item.cookie.Secure, item.cookie.HttpOnly)).FontSize(textMeta).TextColor(t.TextMuted)
@@ -230,7 +230,7 @@ func (a *app) cookiesModal(c *ui.Context, t *ui.Theme) {
 						ui.TextInput(c, &e.domain).Label("Cookie domain").Placeholder("Domain (optional)").Height(heightControl).Radius(radiusControl)
 					})
 					ui.Field(c, "Cookie path", func() {
-						ui.Row(c).Gap(12).Children(func() {
+						ui.Row(c).Gap(t.Space(3)).Children(func() {
 							ui.TextInput(c, &e.path).Width(100).Label("Cookie path").Placeholder("/").Height(heightControl).Radius(radiusControl)
 							ui.Checkbox(c, &e.secure, "Secure")
 							ui.Checkbox(c, &e.httpOnly, "HttpOnly")

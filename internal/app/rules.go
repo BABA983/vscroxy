@@ -205,7 +205,7 @@ func (a *app) ruleScenarios(c *ui.Context, t *ui.Theme) {
 			e.scenarioChoice = options[0]
 		}
 	}
-	ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+	ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 		ui.Text(c, "Active: "+cmp.Or(active, "none · global rules only")).FontSize(textBody).Bold().Grow(1)
 		if len(options) > 0 {
 			ui.Select(c, &e.scenarioChoice, options).Label("Scenario to activate").Width(180).Height(heightControl).Radius(radiusControl)
@@ -222,7 +222,7 @@ func (a *app) ruleScenarios(c *ui.Context, t *ui.Theme) {
 func (a *app) previewRuleMatches(c *ui.Context, t *ui.Theme) {
 	e := &a.ruleUI
 	ui.Text(c, "Test saved rules · no request is sent").Bold()
-	ui.Row(c).Gap(8).Children(func() {
+	ui.Row(c).Gap(t.Space(2)).Children(func() {
 		ui.TextInput(c, &e.previewMethod).Label("Test method").Width(85).Height(heightControl).Radius(radiusControl)
 		ui.TextInput(c, &e.previewURL).Label("Test URL").Placeholder("https://api.example.com/v1/").Grow(1).Height(heightControl).Radius(radiusControl)
 	})
@@ -263,14 +263,14 @@ func (a *app) rulesModal(c *ui.Context, t *ui.Theme) {
 			})
 			ui.Text(c, "The first matching Map or Block rule wins. Breakpoints pause only while Breakpoints is on.").FontSize(textMeta).TextColor(t.TextMuted)
 			a.ruleScenarios(c, t)
-			ui.Row(c).Grow(1).MinHeight(0).Gap(16).AlignItems(ui.Stretch).Children(func() {
-				ui.Column(c).Width(260).Gap(8).Children(func() {
+			ui.Row(c).Grow(1).MinHeight(0).Gap(t.Space(4)).AlignItems(ui.Stretch).Children(func() {
+				ui.Column(c).Width(260).Gap(t.Space(2)).Children(func() {
 					if secondaryButton(c, "+ New rule").Clicked() {
 						a.editRule(-1, capture.Rule{Type: capture.RuleMapRemote})
 					}
-					ui.Scroll(c).Grow(1).MinHeight(0).Gap(8).Children(func() {
+					ui.Scroll(c).Grow(1).MinHeight(0).Gap(t.Space(2)).Children(func() {
 						for i, r := range a.rules {
-							ui.Row(c).Key(fmt.Sprint(i)).Gap(8).AlignItems(ui.Center).Padding(8).Radius(radiusControl).Background(t.Surface).Children(func() {
+							ui.Row(c).Key(fmt.Sprint(i)).Gap(t.Space(2)).AlignItems(ui.Center).Padding(t.Space(2)).Radius(radiusControl).Background(t.Surface).Children(func() {
 								enabled := !r.Disabled
 								if ui.Switch(c, &enabled).Label(fmt.Sprintf("Enable rule %d", i+1)).Changed() {
 									next := slices.Clone(a.rules)
@@ -284,7 +284,7 @@ func (a *app) rulesModal(c *ui.Context, t *ui.Theme) {
 									button.Background(t.Accent.Alpha(0.12)).TextColor(t.Accent)
 								}
 								button.Children(func() {
-									ui.Column(c).Gap(4).Children(func() {
+									ui.Column(c).Gap(t.Space(1)).Children(func() {
 										ui.Text(c, cmp.Or(r.Name, r.Match)).FontSize(textBody).Bold().SingleLine()
 										ui.Text(c, fmt.Sprintf("%d · %s · %s", i+1, ruleLabel(r.Type), cmp.Or(r.Scenario, "global"))).FontSize(textMeta).TextColor(t.TextMuted).SingleLine()
 									})
@@ -298,7 +298,7 @@ func (a *app) rulesModal(c *ui.Context, t *ui.Theme) {
 							ui.Text(c, "No rules yet.\nCreate one here, or from a captured flow’s context menu.").FontSize(textBody).TextColor(t.TextMuted)
 						}
 					})
-					ui.Row(c).Gap(8).Children(func() {
+					ui.Row(c).Gap(t.Space(2)).Children(func() {
 						if secondaryButton(c, "Move up").Disabled(e.index <= 0).Clicked() {
 							a.moveRule(-1)
 						}
@@ -307,20 +307,20 @@ func (a *app) rulesModal(c *ui.Context, t *ui.Theme) {
 						}
 					})
 				})
-				ui.Scroll(c).Grow(1).MinHeight(0).Gap(8).Children(func() {
+				ui.Scroll(c).Grow(1).MinHeight(0).Gap(t.Space(2)).Children(func() {
 					if e.preview {
 						a.previewRuleMatches(c, t)
 						return
 					}
 					ui.Text(c, "Name / scenario (blank means global)").FontSize(textMeta).TextColor(t.TextMuted)
-					ui.Row(c).Gap(8).Children(func() {
+					ui.Row(c).Gap(t.Space(2)).Children(func() {
 						ui.TextInput(c, &e.draft.Name).Label("Rule name").Placeholder("A descriptive name").Grow(1).Height(heightControl).Radius(radiusControl)
 						if e.kind != "Request breakpoint" && e.kind != "Response breakpoint" {
 							ui.TextInput(c, &e.draft.Scenario).Label("Rule scenario").Placeholder("Named scenario").Width(180).Height(heightControl).Radius(radiusControl)
 						}
 					})
 					ui.Text(c, "Type / HTTP method").FontSize(textMeta).TextColor(t.TextMuted)
-					ui.Row(c).Gap(8).Children(func() {
+					ui.Row(c).Gap(t.Space(2)).Children(func() {
 						ui.Select(c, &e.kind, ruleLabels).Label("Rule type").Grow(1).Height(heightControl).Radius(radiusControl)
 						ui.TextInput(c, &e.draft.Method).Width(95).Label("Match method").Placeholder("Any").Height(heightControl).Radius(radiusControl)
 					})
@@ -330,7 +330,7 @@ func (a *app) rulesModal(c *ui.Context, t *ui.Theme) {
 					switch e.kind {
 					case "Map Local":
 						ui.Text(c, "Local response").FontSize(textMeta).TextColor(t.TextMuted)
-						ui.Row(c).Gap(8).AlignItems(ui.End).Children(func() {
+						ui.Row(c).Gap(t.Space(2)).AlignItems(ui.End).Children(func() {
 							ui.TextInput(c, &e.draft.Target).Label("Response file").Grow(1).Height(heightControl).Radius(radiusControl)
 							if secondaryButton(c, "Browse…").Clicked() {
 								a.browseRuleFile()

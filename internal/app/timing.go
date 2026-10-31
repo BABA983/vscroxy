@@ -12,14 +12,14 @@ import (
 func (a *app) timingView(c *ui.Context, f flow) {
 	t := c.Theme()
 	if f.wait == 0 && f.download == 0 {
-		ui.Text(c, "No timing for this flow").FontSize(textBody).TextColor(t.TextMuted).Padding(16)
+		ui.Text(c, "No timing for this flow").FontSize(textBody).TextColor(t.TextMuted).Padding(t.Space(4))
 		return
 	}
 	total := max(f.millis, 1)
 	dns := appColors(t).MethodPatch
 	wait := appColors(t).Info
 	download := t.Success
-	ui.Column(c).Gap(6).Padding(16).Children(func() {
+	ui.Column(c).Gap(t.Space(2)).Padding(t.Space(4)).Children(func() {
 		if f.conn.dnsFresh && f.conn.resolved != "" {
 			waterfallRow(c, t, "DNS lookup", fmt.Sprintf("%s → %s", hostOnly(f.host), f.conn.resolved),
 				f.conn.lookupMs, 0, total, dns)
@@ -29,19 +29,19 @@ func (a *app) timingView(c *ui.Context, f flow) {
 		waterfallRow(c, t, "Waiting", "request sent, first byte back", f.wait, 0, total, wait)
 		waterfallRow(c, t, "Download", "rest of the response body", f.download, f.wait, total, download)
 		ui.Divider(c)
-		ui.Row(c).Gap(10).Padding(4, 0).Children(func() {
+		ui.Row(c).Gap(t.Space(2)).Padding(t.Space(1), 0).Children(func() {
 			ui.Text(c, "Total").FontSize(textBody).Bold().TextColor(t.Text).Width(90)
 			ui.Text(c, f.method+" "+f.host+f.path).FontSize(textMeta).TextColor(t.TextMuted).Width(260).SingleLine()
 			ui.Text(c, fmt.Sprintf("%d ms", f.millis)).FontSize(textMeta).FontFeatures("tnum").Bold().TextColor(t.Text).Width(64)
 		})
-		ui.Text(c, connectionNote(f)).FontSize(textMeta).TextColor(t.TextMuted).Padding(4, 0, 0, 0)
+		ui.Text(c, connectionNote(f)).FontSize(textMeta).TextColor(t.TextMuted).Padding(t.Space(1), 0, 0, 0)
 	})
 }
 
 // waterfallRow is one phase: its name, what it was, its time, and a bar at its
 // place in the exchange.
 func waterfallRow(c *ui.Context, t *ui.Theme, label, detail string, ms, offset, total int, color ui.Color) {
-	ui.Row(c).Gap(10).AlignItems(ui.Center).Padding(3, 0).Children(func() {
+	ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Padding(t.Space(1), 0).Children(func() {
 		ui.Text(c, label).FontSize(textBody).TextColor(t.Text).Width(90)
 		ui.Text(c, detail).FontSize(textMeta).TextColor(t.TextMuted).Width(260).SingleLine().Tooltip(detail)
 		ui.Text(c, fmt.Sprintf("%d ms", ms)).FontSize(textMeta).FontFeatures("tnum").TextColor(t.TextMuted).Width(64)

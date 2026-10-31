@@ -147,8 +147,8 @@ func (a *app) clientSetupModal(c *ui.Context, t *ui.Theme) {
 					}
 				})
 			})
-			ui.Row(c).Grow(1).MinHeight(0).Gap(24).AlignItems(ui.Stretch).Children(func() {
-				ui.Scroll(c).Grow(1).MinWidth(0).Gap(12).Padding(0, 8, 0, 0).Children(func() {
+			ui.Row(c).Grow(1).MinHeight(0).Gap(t.Space(6)).AlignItems(ui.Stretch).Children(func() {
+				ui.Scroll(c).Grow(1).MinWidth(0).Gap(t.Space(3)).Padding(0, t.Space(2), 0, 0).Children(func() {
 					addr := ""
 					if a.srv != nil && a.srv.Running() {
 						addr = a.srv.Addr()
@@ -163,9 +163,9 @@ func (a *app) clientSetupModal(c *ui.Context, t *ui.Theme) {
 					}
 					ui.Text(c, example).Font(fontMono).FontSize(textMeta).Selectable()
 				})
-				ui.Column(c).Width(340).MinWidth(0).Gap(8).Children(func() {
+				ui.Column(c).Width(340).MinWidth(0).Gap(t.Space(2)).Children(func() {
 					ui.Text(c, "2  Observe, then inspect").FontSize(textBody).Bold()
-					ui.Scroll(c).TrackScroll(&s.scroll).Grow(1).MinHeight(0).Gap(8).Padding(0, 8, 8, 0).Children(func() {
+					ui.Scroll(c).TrackScroll(&s.scroll).Grow(1).MinHeight(0).Gap(t.Space(2)).Padding(0, t.Space(2), t.Space(2), 0).Children(func() {
 						if secondaryButton(c, "Check local proxy").Disabled(a.srv == nil || !a.srv.Running() || a.deviceUI.checkDone != nil).Clicked() {
 							a.checkDeviceProxy()
 						}

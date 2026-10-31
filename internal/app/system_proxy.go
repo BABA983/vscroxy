@@ -366,8 +366,8 @@ func (a *app) systemProxySettings(c *ui.Context, t *ui.Theme) {
 	busy := s.checking || s.applying || s.quitting
 	status, color := a.systemProxyStatus(t)
 	detail, full := a.systemProxyDetail(target)
-	ui.Column(c).Gap(12).Children(func() {
-		ui.Row(c).Gap(8).Wrap().AlignItems(ui.Center).Children(func() {
+	ui.Column(c).Gap(t.Space(3)).Children(func() {
+		ui.Row(c).Gap(t.Space(2)).Wrap().AlignItems(ui.Center).Children(func() {
 			ui.Text(c, "System proxy").FontSize(textTitle).Bold().Grow(1)
 			if busy {
 				ui.Spinner(c).Label("System proxy")
@@ -375,7 +375,7 @@ func (a *app) systemProxySettings(c *ui.Context, t *ui.Theme) {
 			ui.Text(c, status).FontSize(textBody).Bold().TextColor(color)
 		})
 		ui.Text(c, detail).FontSize(textMeta).TextColor(t.TextMuted).SingleLine().Tooltip(full)
-		ui.Row(c).Gap(8).Wrap().Children(func() {
+		ui.Row(c).Gap(t.Space(2)).Wrap().Children(func() {
 			enable := primaryButton(c, "Enable system proxy").Disabled(!running || busy)
 			if !running {
 				enable.Tooltip("Start capture first")

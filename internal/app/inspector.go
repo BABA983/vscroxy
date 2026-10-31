@@ -125,7 +125,7 @@ func (a *app) connectDetail(c *ui.Context, t *ui.Theme, f flow) {
 	if a.tab > 1 {
 		a.tab = 0
 	}
-	ui.Row(c).Height(heightLarge).Padding(0, 12).Gap(8).AlignItems(ui.Center).Children(func() {
+	ui.Row(c).Height(heightLarge).Padding(0, t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 		ui.Text(c, cmp.Or(f.process, "Unidentified client")).FontSize(textBody).Bold().SingleLine().Tooltip(f.processPath)
 		ui.Text(c, f.host).FontSize(textBody).Font(fontMono).TextColor(t.TextMuted).SingleLine().Tooltip(f.url)
 		if f.conn.error != "" {
@@ -139,8 +139,7 @@ func (a *app) connectDetail(c *ui.Context, t *ui.Theme, f flow) {
 			a.explainOpen = !a.explainOpen
 		}
 		ui.PopoverBase(c, explain, &a.explainOpen, func(panel ui.Element) {
-			panel.Margin(8, 0, 0, 0).Padding(0).Radius(radiusPanel).Background(t.Background).
-				Border(1, t.Border).Shadow(0, 8, 24, 0, ui.RGBA(0, 0, 0, 0.22)).
+			popoverPanel(c, panel).Margin(t.Space(2), 0, 0, 0).Padding(0).
 				Children(func() { a.explainConnection(c, f) })
 		})
 		a.desktopButton(c, "focus", "Focus")
@@ -159,7 +158,7 @@ func (a *app) inspectorSummary(c *ui.Context, t *ui.Theme, f flow, ok bool) {
 	// A narrow inspector keeps the name, the result and the one action that
 	// starts the next step; the rest stays in the overflow.
 	compact := a.inspectorWidth(c) < 600
-	ui.Row(c).Height(36).Padding(0, 12).Gap(8).AlignItems(ui.Center).Children(func() {
+	ui.Row(c).Height(heightLarge).Padding(0, t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 		if !ok {
 			ui.Text(c, "No request chosen").FontSize(textBody).TextColor(t.TextMuted).Grow(1)
 			return
@@ -175,7 +174,7 @@ func (a *app) inspectorSummary(c *ui.Context, t *ui.Theme, f flow, ok bool) {
 				primaryButton(c, "Replay").Label("Edit & replay").Disabled(!action.enabled).Tooltip(action.hint()).OnClick(action.run)
 			}
 		}
-		copy := toolbarButton(c, "Copy as cURL", "Copy as cURL", false).Padding(0, 4)
+		copy := toolbarButton(c, "Copy as cURL", "Copy as cURL", false).Padding(0, t.Space(1))
 		if copy.Clicked() {
 			a.copyCurl(c, f)
 		}
@@ -228,8 +227,7 @@ func (a *app) exchangeResult(c *ui.Context, t *ui.Theme, f flow, compact bool) {
 			a.explainOpen = !a.explainOpen
 		}
 		ui.PopoverBase(c, explain, &a.explainOpen, func(panel ui.Element) {
-			panel.Margin(8, 0, 0, 0).Padding(0).Radius(radiusPanel).Background(t.Background).
-				Border(1, t.Border).Shadow(0, 8, 24, 0, ui.RGBA(0, 0, 0, 0.22)).
+			popoverPanel(c, panel).Margin(t.Space(2), 0, 0, 0).Padding(0).
 				Children(func() { a.explainConnection(c, f) })
 		})
 	}
@@ -364,7 +362,7 @@ func (a *app) paneTabs(c *ui.Context, t *ui.Theme, side string, selected *int, l
 	if bodySide == 0 {
 		bodyTab = resTabBody
 	}
-	ui.Row(c).Height(32).Padding(0, 8).Gap(4).AlignItems(ui.Center).Children(func() {
+	ui.Row(c).Height(heightLarge).Padding(0, t.Space(2)).Gap(t.Space(1)).AlignItems(ui.Center).Children(func() {
 		title := toolbarButton(c, side+" pane", "Read this side in shared readers", false).Height(heightCompact).Padding(0, t.Space(1))
 		if a.inspect.focus == bodySide {
 			title.TextColor(t.Text)
@@ -452,7 +450,7 @@ func bodyFormatLabel(side int) string {
 
 // inspectorPaneBar names an exchange-wide view and gives the way back.
 func (a *app) inspectorPaneBar(c *ui.Context, t *ui.Theme, title, note string) {
-	ui.Row(c).Height(heightLarge).Padding(0, 12).Gap(8).AlignItems(ui.Center).Children(func() {
+	ui.Row(c).Height(heightLarge).Padding(0, t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 		if iconButton(c, "Back to request and response", "Request and response", backIcon).Clicked() {
 			a.inspect.pane = inspectorSplit
 		}
@@ -481,7 +479,7 @@ func (a *app) headersSide(c *ui.Context, f flow, side int) {
 		note = statusDoc(f.status)
 	}
 	ui.Column(c).Fill().Children(func() {
-		ui.Row(c).Padding(6, 12).Gap(8).AlignItems(ui.Center).Children(func() {
+		ui.Row(c).Padding(t.Space(2), t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 			ui.Text(c, line).FontSize(textMeta).Font(fontMono).TextColor(t.TextMuted).SingleLine().Selectable().Grow(1).
 				Tooltip(strings.TrimSpace(line + "\n" + note))
 			if len(headers) > 0 {
@@ -501,9 +499,9 @@ func (a *app) headersSide(c *ui.Context, f flow, side int) {
 		ui.Scroll(c).TrackScroll(&a.headerScroll[side]).Grow(1).FillWidth().Children(func() {
 			if len(headers) == 0 {
 				if raw == "" {
-					ui.Text(c, "No headers recorded").FontSize(textBody).TextColor(t.TextMuted).Padding(12)
+					ui.Text(c, "No headers recorded").FontSize(textBody).TextColor(t.TextMuted).Padding(t.Space(3))
 				} else {
-					ui.Text(c, raw).FontSize(textBody).Font(fontMono).TextColor(t.Text).Selectable().Padding(12)
+					ui.Text(c, raw).FontSize(textBody).Font(fontMono).TextColor(t.Text).Selectable().Padding(t.Space(3))
 				}
 			}
 			for _, key := range slices.Sorted(maps.Keys(headers)) {
@@ -521,7 +519,7 @@ func (a *app) headersSide(c *ui.Context, f flow, side int) {
 				ui.Divider(c).Background(t.Border.Alpha(0.45))
 			}
 			if len(trailers) > 0 {
-				ui.Text(c, "Trailers").FontSize(textMeta).Bold().TextColor(t.TextMuted).Padding(8, 12, 4).FillWidth()
+				ui.Text(c, "Trailers").FontSize(textMeta).Bold().TextColor(t.TextMuted).Padding(t.Space(2), t.Space(3), t.Space(1)).FillWidth()
 				for _, key := range slices.Sorted(maps.Keys(trailers)) {
 					kvRow(c, func() {
 						ui.Text(c, key).FontSize(textBody).Font(fontMono).TextColor(t.TextMuted).Width(124).SingleLine()
@@ -564,7 +562,7 @@ func (a *app) rawSide(c *ui.Context, f flow, side int) {
 		buf.SetLanguage(editor.LanguageNamed("http"))
 		a.rawEditor[side] = &editor.State{Buffer: buf, ReadOnly: true, NoScrollPastEnd: true, SoftWrap: true, Label: "Raw message"}
 	}
-	ui.Row(c).Padding(6, 12).Gap(8).AlignItems(ui.Center).Children(func() {
+	ui.Row(c).Padding(t.Space(2), t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 		ui.Text(c, "As sent and received · capture bytes").FontSize(textMeta).TextColor(t.TextMuted).Grow(1)
 		if secondaryButton(c, "Copy raw").Height(heightCompact).Disabled(a.rawText[side] == "").Clicked() {
 			c.Services().WriteClipboard(a.rawText[side])
@@ -582,10 +580,10 @@ func (a *app) diffPane(c *ui.Context, f flow) {
 	t := c.Theme()
 	if !a.diffBaseline {
 		ui.Text(c, "No previous response for this method and URL. Replay the request to compare responses.").
-			FontSize(textBody).TextColor(t.TextMuted).Padding(16)
+			FontSize(textBody).TextColor(t.TextMuted).Padding(t.Space(4))
 		return
 	}
-	ui.Row(c).Padding(6, 14).Children(func() {
+	ui.Row(c).Padding(t.Space(2), t.Space(3)).Children(func() {
 		ui.Text(c, "Previous response (left)").Grow(1).FontSize(textMeta).TextColor(t.TextMuted)
 		ui.Text(c, "Current response (right)").Grow(1).FontSize(textMeta).TextColor(t.TextMuted)
 	})

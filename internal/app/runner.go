@@ -328,7 +328,7 @@ func (a *app) runnerModal(c *ui.Context, t *ui.Theme) {
 			})
 			ui.Row(c).Grow(1).MinHeight(0).Border(1, t.Border).Radius(radiusControl).AlignItems(ui.Stretch).Children(func() {
 				ui.Column(c).Width(300).Children(func() {
-					ui.Text(c, "EXECUTION ORDER").Height(heightTabs).Padding(8).FontSize(textMeta).Bold().TextColor(t.TextMuted).
+					ui.Text(c, "EXECUTION ORDER").Height(heightTabs).Padding(t.Space(2)).FontSize(textMeta).Bold().TextColor(t.TextMuted).
 						Border(0, t.Border).BorderWidth(0, 0, 1, 0)
 					move, delta := -1, 0
 					ui.Scroll(c).Grow(1).Children(func() {
@@ -337,7 +337,7 @@ func (a *app) runnerModal(c *ui.Context, t *ui.Theme) {
 						}
 						for i := range r.steps {
 							step := &r.steps[i]
-							ui.Row(c).Key(i).Height(heightControl).Padding(0, 8).Gap(4).AlignItems(ui.Center).
+							ui.Row(c).Key(i).Height(heightControl).Padding(0, t.Space(2)).Gap(t.Space(1)).AlignItems(ui.Center).
 								Border(0, t.Border).BorderWidth(0, 0, 1, 0).Children(func() {
 								ui.Checkbox(c, &step.enabled, step.request.Name).Label(fmt.Sprintf("Run request %d", i+1)).FontSize(textBody).Grow(1).Disabled(r.running)
 								if secondaryButton(c, "↑").Label(fmt.Sprintf("Move request %d up", i+1)).Tooltip(fmt.Sprintf("Move request %d up", i+1)).Width(heightCompact).Padding(0).Disabled(r.running || i == 0).Clicked() {
@@ -355,7 +355,7 @@ func (a *app) runnerModal(c *ui.Context, t *ui.Theme) {
 				})
 				ui.Divider(c)
 				ui.Column(c).Grow(1).MinWidth(0).Children(func() {
-					ui.Text(c, fmt.Sprintf("RESULTS · %d completed · %d failed", r.completed, r.failures)).Height(heightTabs).Padding(8).
+					ui.Text(c, fmt.Sprintf("RESULTS · %d completed · %d failed", r.completed, r.failures)).Height(heightTabs).Padding(t.Space(2)).
 						FontSize(textMeta).FontFeatures("tnum").Bold().TextColor(t.TextMuted).Border(0, t.Border).BorderWidth(0, 0, 1, 0)
 					r.results.Selected = &r.picked
 					ui.List(c, &r.results, len(r.rows)).Grow(1).Rows(func(item ui.ListRow) {
@@ -365,7 +365,7 @@ func (a *app) runnerModal(c *ui.Context, t *ui.Theme) {
 						if row.failed {
 							color = t.Danger
 						}
-						ui.Row(c).Height(heightControl).Padding(0, 8).Gap(8).AlignItems(ui.Center).
+						ui.Row(c).Height(heightControl).Padding(0, t.Space(2)).Gap(t.Space(2)).AlignItems(ui.Center).
 							Border(0, t.Border).BorderWidth(0, 0, 1, 0).Tooltip(row.summary).Children(func() {
 							ui.Text(c, fmt.Sprintf("%d · %s", row.iteration, row.name)).FontSize(textBody).FontFeatures("tnum").Grow(1).MinWidth(0).SingleLine()
 							summary := ui.Text(c, row.summary).FontSize(textMeta).FontFeatures("tnum").SingleLine().MaxWidth(240)
@@ -383,7 +383,7 @@ func (a *app) runnerModal(c *ui.Context, t *ui.Theme) {
 						}
 					})
 					ui.Divider(c)
-					ui.Scroll(c).Height(125).Padding(8).Gap(4).Children(func() {
+					ui.Scroll(c).Height(125).Padding(t.Space(2)).Gap(t.Space(1)).Children(func() {
 						if r.picked >= 0 && r.picked < len(r.rows) {
 							row := r.rows[r.picked]
 							if secondaryButton(c, "Inspect retained run").Disabled(row.recordID == 0).Clicked() {
@@ -392,7 +392,7 @@ func (a *app) runnerModal(c *ui.Context, t *ui.Theme) {
 								a.experiments.open, r.open = true, false
 							}
 							for _, test := range r.rows[r.picked].tests {
-								testResultRow(c, test, textBody)
+								testResultRow(c, test)
 							}
 							for _, entry := range row.console {
 								ui.Text(c, entry.Phase+" · "+entry.Kind+" · "+entry.Text).FontSize(textBody).Selectable()

@@ -278,7 +278,7 @@ func (a *app) bodySideView(c *ui.Context, f flow, side int) {
 			if owner == 1 {
 				name = "request"
 			}
-			ui.Text(c, "Protobuf is read in the "+name+" pane.").FontSize(textBody).TextColor(t.TextMuted).Padding(16)
+			ui.Text(c, "Protobuf is read in the "+name+" pane.").FontSize(textBody).TextColor(t.TextMuted).Padding(t.Space(4))
 			return
 		}
 		a.protobuf.view(c, a, f, side)
@@ -291,7 +291,7 @@ func (a *app) bodySideView(c *ui.Context, f flow, side int) {
 		} else if side == 0 && (f.method == "HEAD" || f.status == 204 || f.status == 304) {
 			message = "No response body expected for " + f.method + " / " + strconv.Itoa(f.status)
 		}
-		ui.Text(c, message).FontSize(textBody).TextColor(t.TextMuted).Padding(16)
+		ui.Text(c, message).FontSize(textBody).TextColor(t.TextMuted).Padding(t.Space(4))
 		return
 	}
 	if mode == 2 || mode == 3 {
@@ -316,7 +316,7 @@ func (a *app) bodySideView(c *ui.Context, f flow, side int) {
 			}
 		}
 		if !a.jsonOK[side] {
-			ui.Text(c, "Body is not JSON; showing it as text").FontSize(textMeta).TextColor(t.TextMuted).Padding(12)
+			ui.Text(c, "Body is not JSON; showing it as text").FontSize(textMeta).TextColor(t.TextMuted).Padding(t.Space(3))
 			a.prettyBody(c, body, side)
 			return
 		}
@@ -342,7 +342,7 @@ func (a *app) previewBody(c *ui.Context, f flow, body string, side int) {
 	case ct == "text/html" || ct == "application/xhtml+xml":
 		a.htmlPreview(c, key, body, side)
 	default:
-		ui.Text(c, "No preview for "+cmp.Or(ct, "this body")).FontSize(textBody).TextColor(t.TextMuted).Padding(16)
+		ui.Text(c, "No preview for "+cmp.Or(ct, "this body")).FontSize(textBody).TextColor(t.TextMuted).Padding(t.Space(4))
 		if secondaryButton(c, "Show as text").Margin(0, t.Space(3)).Clicked() {
 			a.bodyMode[side] = 1
 		}
@@ -365,7 +365,7 @@ func (a *app) imagePreview(c *ui.Context, key, body string, side int) {
 		}
 	}
 	if a.imageErr[side] != "" {
-		ui.Text(c, "Cannot decode image: "+a.imageErr[side]).FontSize(textBody).TextColor(t.TextMuted).Padding(16)
+		ui.Text(c, "Cannot decode image: "+a.imageErr[side]).FontSize(textBody).TextColor(t.TextMuted).Padding(t.Space(4))
 		return
 	}
 	if a.imageBmp[side] == nil {
@@ -413,7 +413,7 @@ func (a *app) prettyBody(c *ui.Context, body string, side int) {
 // Keep the library's search semantics, with controls that fit a side inspector.
 func bodyFindBar(c *ui.Context, bar ui.Element, find *editor.FindBar) {
 	t := c.Theme()
-	bar.Row().Gap(6).Padding(6).AlignItems(ui.Center).Background(t.Surface).Border(1, t.Border).Radius(t.Radius)
+	bar.Row().Gap(t.Space(2)).Padding(t.Space(2)).AlignItems(ui.Center).Background(t.Surface).Border(1, t.Border).Radius(radiusControl)
 	bar.Children(func() {
 		find.QueryInput(ui.TextInput(c, find.Query()).Label("Search body").Placeholder("Find in body…").Width(140).FontSize(textBody))
 		ui.Text(c, find.Status()).FontSize(textMeta).FontFeatures("tnum").TextColor(t.TextMuted).MinWidth(40).Role(ui.RoleStatus)
@@ -439,7 +439,7 @@ func (a *app) jsonBody(c *ui.Context, side int) {
 		rows = a.visibleJSON(side)
 	}
 	if len(rows) == 0 {
-		ui.Text(c, "No matches").FontSize(textBody).TextColor(t.TextMuted).Padding(16)
+		ui.Text(c, "No matches").FontSize(textBody).TextColor(t.TextMuted).Padding(t.Space(4))
 		return
 	}
 	ui.List(c, &a.jsonScroll[side], len(rows), func(i int) {
@@ -479,7 +479,7 @@ func (a *app) hexBody(c *ui.Context, body string, side int) {
 	t := c.Theme()
 	rows := hexRows(body, a.bodyQuery[side])
 	if len(rows) == 0 {
-		ui.Text(c, "No matches").FontSize(textBody).TextColor(t.TextMuted).Padding(16)
+		ui.Text(c, "No matches").FontSize(textBody).TextColor(t.TextMuted).Padding(t.Space(4))
 		return
 	}
 	ui.List(c, &a.hexScroll[side], len(rows), func(i int) {

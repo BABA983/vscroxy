@@ -59,9 +59,9 @@ func (a *app) socketModal(c *ui.Context, t *ui.Theme) {
 	if appModal(c, &s.open, func() {
 		dialogColumn(c, dialogLarge).Height(h - 100).Children(func() {
 			dialogTitle(c, "WebSocket session · "+state)
-			ui.Scroll(c).MaxHeight(260).MinHeight(0).Shrink(1).Gap(8).Children(func() {
+			ui.Scroll(c).MaxHeight(260).MinHeight(0).Shrink(1).Gap(t.Space(2)).Children(func() {
 				ui.Text(c, "Connect starts a fresh timeline. No automatic reconnect, scripts or restore. Closing this panel disconnects. Auth and cookies may contain secrets.").FontSize(textBody).TextColor(t.TextMuted)
-				ui.Row(c).Gap(8).Children(func() {
+				ui.Row(c).Gap(t.Space(2)).Children(func() {
 					ui.TextInput(c, &s.url).Label("WebSocket URL").Placeholder("ws://127.0.0.1:8080/socket").Grow(1).MinWidth(0).Height(heightControl).Font(fontMono).FontSize(textBody).Disabled(active)
 					if secondaryButton(c, "Connect").Disabled(active || a.srv == nil || !a.srv.Running() || !request.IsWebSocket(s.url)).Clicked() {
 						s.session = openWSSession(a.srv.Addr(), &request.Prepared{Method: "GET", URL: s.url, Header: request.ParseHeaderBlock(s.headers)}, a.srv.CACertificate(), a.requestCookies(), a.invalidate)
@@ -77,7 +77,7 @@ func (a *app) socketModal(c *ui.Context, t *ui.Theme) {
 				if s.problem != "" {
 					ui.Text(c, s.problem).FontSize(textBody).TextColor(t.Danger)
 				}
-				ui.Row(c).Gap(8).Children(func() {
+				ui.Row(c).Gap(t.Space(2)).Children(func() {
 					ui.TextInput(c, &s.message).Label("WebSocket message").Placeholder("Text message").Grow(1).MinWidth(0).Height(heightControl).Font(fontMono).FontSize(textBody)
 					if primaryButton(c, "Send text").Disabled(state != "Connected" || s.sending).Clicked() {
 						s.problem = ""
@@ -87,7 +87,7 @@ func (a *app) socketModal(c *ui.Context, t *ui.Theme) {
 						go func() { done <- session.send(websocket.TextMessage, data); a.invalidate() }()
 					}
 				})
-				ui.Row(c).Gap(8).Wrap().Children(func() {
+				ui.Row(c).Gap(t.Space(2)).Wrap().Children(func() {
 					ui.TextInput(c, &s.query).Label("Search session messages").Placeholder("Search retained payloads and events").Grow(1).MinWidth(160).Height(heightControl).FontSize(textBody)
 					if s.direction == "" {
 						s.direction = "All"
@@ -99,11 +99,11 @@ func (a *app) socketModal(c *ui.Context, t *ui.Theme) {
 					}
 				})
 			})
-			ui.Row(c).Grow(1).MinHeight(84).Gap(16).AlignItems(ui.Stretch).Children(func() {
+			ui.Row(c).Grow(1).MinHeight(84).Gap(t.Space(4)).AlignItems(ui.Stretch).Children(func() {
 				if s.scroll.Y >= s.scroll.MaxY {
 					s.scroll.Y = math.MaxFloat32
 				}
-				ui.Scroll(c).TrackScroll(&s.scroll).Width(280).MinWidth(0).Shrink(1).Gap(4).Children(func() {
+				ui.Scroll(c).TrackScroll(&s.scroll).Width(280).MinWidth(0).Shrink(1).Gap(t.Space(1)).Children(func() {
 					for _, e := range events {
 						if s.direction != "All" && !(s.direction == e.Direction || s.direction == "Events" && e.Direction == "") {
 							continue
