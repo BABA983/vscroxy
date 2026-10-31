@@ -1,27 +1,27 @@
-# vscroxy UI 改版计划
+# vscroxy UI 设计规范与改版计划
 
-状态：**方向 v2 已定稿（2026-10-31），见第 0 节。** 第 1–8 节是 v1 改版的规范和实施记录；凡与第 0 节冲突，以第 0 节为准。
+状态：**方向 v2，2026-10-31 定稿。** 本文是界面的视觉规范和改版进度；交互和文案见 [UX 规范](ux-guidelines.md)，功能范围见 [功能路线图](feature-roadmap.md)，代码基础设施见 [基础设施方向](architecture.md)。
 
-v1 方向（已被 v2 取代）：概念图 A（精修 Proxyman 的 Capture）+ C（Postman 式的 Requests）。
+v1 改版（靛蓝强调色、Capture／Requests 两个工作区，阶段 0–8）已经完成并被本文取代，它的规范和各阶段实施记录见 git 历史里提交 `44f2c82` 的本文件。
 
-- 概念 A，Capture：https://ampcode.com/user-content/attachments/6f08b3d269bd9a4951a014aaabc83df3d412b6e7c786f46f94ef9df3ea0919ac-file.png
-- 概念 C，Requests：https://ampcode.com/user-content/attachments/7769f0d30970d12d35ff0e3c52e86e854e86aad8eda587eeb12ec9c8c0d64621-file.png
+## 1. 方向
 
-概念图只用来定方向，里面的数据和个别细节是生成的，不是像素级的稿子。
+v1 统一了结构和 token，但界面仍然是一张普通表格加一堆表单：同一种控件有好几种样子，异常要靠眼睛一行行扫，Capture 和 Requests 之间要来回搬运请求。v2 从 UX 规范第 1 节的前两项核心任务出发：**让时间和异常一眼可见，让抓到的请求和保存的请求是同一种东西。**
 
-相关文档：[功能路线图](feature-roadmap.md)、[UX 规范](ux-guidelines.md)（交互和文案）、[基础设施方向](architecture.md)。
+目标：
 
-## 0. 方向 v2
+1. 看起来像一个精心打磨的原生桌面工具（Proxyman、Linear 这个级别），而不是拼起来的表单。
+2. 所有界面只用一套设计系统 `internal/uikit`：同样的字号、间距、控件、颜色语义。
+3. 信息密度高：chrome 退后，屏幕留给流量、请求和响应体。
+4. 改版不丢功能：现有的功能、快捷键和无障碍标签都保留；确实要改名的标签，在同一个提交里同步改测试。
 
-### 0.1 为什么改
+不在范围内：改数据模型或存储格式、改 `internal/request`、`internal/vault` 等非 UI 包、换掉 MyGo。
 
-v1 的阶段 1–8 统一了结构和 token（阶段 8 之后，`internal/app` 里只有 `style.go` 和 `appearance.go` 写数值），但界面仍然是一张普通表格加一堆表单：同一种控件有好几种样子，异常要靠眼睛一行行扫，Capture 和 Requests 之间要来回搬运请求。v2 从 UX 规范第 1 节的前两项核心任务出发重新设计：**让时间和异常一眼可见，让抓到的请求和保存的请求是同一种东西。**
+## 2. 设计稿
 
-### 0.2 设计稿
+都是 Painter 概念图，只用来定方向；数据和个别细节是生成的，和本文冲突时以本文为准。
 
-都是 Painter 概念图，只用来定方向；数据和个别细节是生成的，和规范冲突时以规范为准（见 0.8）。
-
-关键界面（布局和信息架构以这组为准；它们用的是早期的荧光绿强调色，**颜色以 0.5 的 Paper／Ink 为准**）：
+关键界面（布局和信息架构以这组为准；它们用的是早期的荧光绿强调色，**颜色以第 5 节为准**）：
 
 | 界面 | 深色 | 浅色 |
 | --- | --- | --- |
@@ -32,7 +32,7 @@ v1 的阶段 1–8 统一了结构和 token（阶段 8 之后，`internal/app` �
 | Settings 独立窗口 | https://ampcode.com/user-content/attachments/fd2d1cee395051fa3a32edf1d4fa38022e5ee3c45f14cd7bb3b44e1c5377f979-file.png | https://ampcode.com/user-content/attachments/d91616c93f71c3d587bd9ab6e1890a6a91d950ce20a8bbebd35a89c308399b0a-file.png |
 | 主工作区 · Paper／Ink 配色 | https://ampcode.com/user-content/attachments/4264e67bf143883b93aeb4f42f8c4a95410859a42a81bceda68f6293e9fd335d-file.png | https://ampcode.com/user-content/attachments/60501cbdcdd682610c79458646ac794c4b17389f1a5881d836585b8888110756-file.png |
 
-uikit 组件总览（`internal/uikit` 的规格，颜色以这组为准）：
+uikit 组件总览设计稿（实现后以第 11 节的总览截图为准）：
 
 | 总览 | Ink（深色） | Paper（浅色） |
 | --- | --- | --- |
@@ -40,513 +40,261 @@ uikit 组件总览（`internal/uikit` 的规格，颜色以这组为准）：
 | 结构和反馈 | https://ampcode.com/user-content/attachments/7994da9f07c86a3f3c3866e1d99c73af2a197a848381afbc90d05d89c3703c9e-file.png | https://ampcode.com/user-content/attachments/f007c7d55451f9a1c97f9f7d7bc0401172770a7b6cda3c841cf004ced536cc15-file.png |
 | 标志性组件 | https://ampcode.com/user-content/attachments/ce3837e7e7e6d41c58c45c2e7972bf29ba5cbc55810b146a5aa8386a81365e3c-file.png | https://ampcode.com/user-content/attachments/8fb1ae2fd8231030e32f8f65b3d6b982434c64255534472029fa88767d1dc1ee-file.png |
 
-### 0.3 信息架构：一个工作区
+设计稿里和规范不一致、实现时以规范为准的地方：
+
+- Ink 主工作区里的耗时分段全是灰色；五段要可区分。
+- 浅色"已保存请求"的录制 pill 被画成了 `Staging`，响应区多了一个重复的 Save to collection；浅色引导页的说明文字误用了等宽字体；表格里有 `/v1/prders` 之类的拼写错误。
+- Paper「结构和反馈」的面板头把标题和 tab 分成了两行；规范是一行。
+- 空状态图标偏大；规范是 16px、不加框。
+- 「标志性组件」里的校验结果画成了带底色的卡片；规范是行内的一行结果加一行原因。
+- 按钮 hover／pressed 以第 5 节的颜色为准，焦点环一律画在控件外侧。
+
+## 3. 信息架构：一个工作区
 
 - **去掉 Capture／Requests 切换。** 抓到的请求就是"还没保存的请求"：点开是可编辑的文档，顶部有来源标记（`Captured · 12:03:42 · Safari`），可以直接 Send，或者 Save to collection。Edit & replay、Save as request 这类搬运动作并入这个文档，不再是跨工作区的跳转。
 - **侧栏三组：** LIVE（All traffic、Errors、Slow、各 App、各域名、保存的筛选）、COLLECTIONS（集合树，请求前是 method 标签）、SESSIONS（保存的会话文件）。环境、APIs、Runner 从集合的菜单和命令面板进入，不再占一条资源栏。
+- **侧栏只有一个选中项，** 表示"现在看的是什么"。视图、快速筛选这类开关不是第二个选中项：开着时图标用强调色、文字用正文色，不画选中底和标记线。
 - **中间栏随侧栏选择变化：** 选 LIVE 或 SESSIONS 时是流量表格；选一个已保存的请求时，是这个请求的发送历史（History／Examples 切换），可以标基线、对比。
 - **两种布局，** 用标题栏右侧的两个图标切换，各自记住分隔线比例，双击分隔线恢复默认：
   - 左右（默认）：列表在左，请求文档和响应在右，适合宽屏逐条翻看。
   - 上下：列表占满宽度（多出 Client 列），下方 Request 和 Response 左右并排，适合对照请求和响应。
-- **标题栏：** 品牌、录制 pill（状态点、监听地址、实时速率曲线、暂停）、命令栏（`⌘K`，同时是搜索）、布局切换、Settings。Tools 窗口（M4）和 Host 方案（M2）的入口位置不变。
-- 已启用工具栏、状态栏、对象动作表、撤销和确认规则保持 UX 规范的规定不变。
+- **标题栏 44px：** 品牌（保留现有图标）、录制 pill（状态点、监听地址、实时速率曲线、暂停）、命令栏（`⌘K`，同时是搜索）、布局切换、Settings。Tools 窗口（M4）和 Host 方案（M2）的入口在录制 pill 右侧。
+- **已启用工具栏：** 标题栏下方 32px，每个工具一个 chip（图标、名称、×），没有工具时不占空间。行为见 UX 规范第 5 节。
+- 状态栏、对象动作表、撤销和确认规则按 UX 规范。
 
-### 0.4 视觉语言："仪器"
+## 4. 视觉语言："仪器"
 
 - **界面本身是单色的，颜色只表达信号：** 状态码、method、耗时条、校验结果。工具栏、侧栏、边框、图标一律中性色。
-- **正常的东西不上色。** 2xx 是普通的次要文字，不加底色、不用绿色；只有 3xx（灰蓝）、4xx（赭黄）、5xx（朱红）上色。满屏的 200 退到背景，异常自己跳出来。这条规则也让强调色可以是绿色而不和"成功"撞色。
-- **数据一律等宽：** method、URL、路径、header、body、时间、耗时、大小都用 JetBrains Mono，数字开 `tnum`。界面文字仍是 Inter。
+- **一个强调色，只用于：** 主操作、焦点、选中标记、录制、开关和"已开启"。
+- **正常的东西不上色。** 2xx 和 304 是普通的次要文字，不加底色、不用绿色；只有 3xx（灰蓝）、4xx（赭黄）、5xx（朱红）上色。满屏的 200 退到背景，异常自己跳出来。这条规则也让强调色可以是绿色而不和"成功"撞色。
+- **数据一律等宽：** method、URL、路径、header、body、时间、耗时、大小都用 JetBrains Mono，会变化的数字开 `tnum`。界面文字是 Inter。method 是纯色等宽文字，不做 chip。
 - **结论大字：** 响应区第一行是 22px 等宽的状态行（`500  Internal Server Error`），下面一行次要文字写耗时、大小、类型。
 - **常驻的状态信息：** 列表上方一条 52px 的活动柱状图（最近 5 分钟，按状态码上色，可拖选时间范围）；筛选是查询语法 chip（`status:>=400`、`host:`、`app:`、`slow`），带自动补全；每行带一根耗时条，慢请求是朱红。
-- **选中只有一套样子：** 侧栏和表格的选中都是 2–3px 强调色左侧标记线加 hover 底色，文字颜色不变；失焦时标记线变成次要色。不再用 v1 的实心强调色整行（取代 4.4 的"选中行"规则）。
-- 字号、控件高度、圆角、间距沿用第 4 节和阶段 8 的 token：11／13／15，24／28／32，4／6／10，4px 网格；新增 22px 的响应结论字号。
+- **选中只有一套样子：** 强调浅底、正常文字颜色、左侧 2px 强调色标记线。列表失焦时浅底变成 hover 色、标记线变成次要色。侧栏的选中表示"现在在哪"，不是键盘光标，焦点在别处时标记线仍是强调色。菜单和命令面板的高亮只有浅底，不画标记线。
+- **同一种东西只有一种样子：** tab、按钮、面板头、表格各一种写法，都来自 uikit。
+- **密而不挤：** 表格和编辑器保持桌面工具的密度，最小字号 11，正文 13，行高 28。
 
-### 0.5 主题：Paper／Ink
+## 5. 主题：Paper／Ink
 
-默认主题是"油墨绿"一套两张：浅色 **Paper**（印在暖色纸上的技术手册），深色 **Ink**（暖色油墨印在墨绿黑底上）。默认跟随系统（决策 3 不变）。只用平涂色，不做纸纹、做旧和渐变。
+默认主题是"油墨绿"一套两张：浅色 **Paper**（印在暖色纸上的技术手册），深色 **Ink**（暖色油墨印在墨绿黑底上）。只用平涂色，不做纸纹、做旧和渐变。外观跟随系统，也可以手动选浅色或深色。
+
+下表是 `internal/uikit/theme.go` 里的实际值：
 
 | Token | Paper | Ink | 说明 |
 | --- | --- | --- | --- |
-| 背景 | `#f7f4ec` | `#121614` | 窗口 |
-| 表面／侧栏 | `#efebe0` | `#181d1a`（侧栏 `#161b18`） | 侧栏、segmented 轨道、chip |
+| Background | `#f7f4ec` | `#121614` | 窗口；也是 MyGo 控件的 Surface（输入框、按钮、表头） |
+| Panel | `#efebe0` | `#181d1a` | 侧栏、各种条栏 |
 | Hover | `#e9e4d6` | `#1f2622` | |
 | Pressed | `#e0dacb` | `#26302a` | |
-| 细线 | `#e2dccd` | `#2a312d` | 分隔线 |
-| 输入框边框 | `#d3ccba` | `#343c37` | |
-| 正文 | `#1f2a24` | `#e6e1d3` | |
-| 次要文字 | `#6d6a5f` | `#9a978b` | 也是 2xx 的颜色 |
-| 第三级文字 | `#a29d8f` | `#66665e` | 只用于禁用和占位，不承载信息 |
-| 强调色 | `#1e5b47` | `#6fb593` | 主按钮、焦点、选中标记、录制、开关；Ink 主按钮文字 `#121614` |
-| 强调色 hover／pressed | `#174a3a`／`#123d30` | `#82c4a4`／`#5ea482` | |
-| 强调浅底 | `#e3ece4` | `#1f2d26` | 侧栏选中、变量 chip |
-| 信息／3xx | `#3d6a8a` | `#8fb3d1` | |
-| 警告／4xx | `#94560f` | `#e0a458` | |
-| 危险／5xx | `#b23a2e` | `#e8806f` | |
-| 成功 | 用强调色 | 用强调色 | 只用于勾选图标等小面积，不用于 2xx |
-| 柱状图／耗时条（正常） | `#cfc8b8` | `#4a4d47` | |
-| GET／POST／PUT | `#2f5d8a`／`#5c6a1f`／警告色 | `#8fb3d1`／`#b5c27a`／警告色 | |
-| DELETE／PATCH／WS | 危险色／`#7a3e6d`／`#2d6e6e` | 危险色／`#c99abd`／`#7cc4c0` | |
-| 耗时分段 DNS／Connect／TLS／Wait／Download | 信息／WS／PATCH／警告／强调 | 同左 | 五段必须可区分，不能全灰 |
+| Border | `#d3ccba` | `#343c37` | 分隔线和输入框边框 |
+| Text | `#1f2a24` | `#e6e1d3` | 正文 |
+| TextMuted | `#6d6a5f` | `#9a978b` | 次要文字，也是 2xx 的颜色 |
+| TextFaint | `#a29d8f` | `#66665e` | 只用于禁用和占位，不承载信息 |
+| Accent | `#1e5b47` | `#6fb593` | 主按钮、焦点、选中标记、录制、开关；也是 Success |
+| AccentHover／AccentPressed | `#174a3a`／`#123d30` | `#82c4a4`／`#5ea482` | |
+| AccentText | `#f7f4ec` | `#121614` | 主按钮文字 |
+| AccentTint | `#e3ece4` | `#1f2d26` | 选中浅底、变量 chip |
+| Info／3xx | `#396482` | `#8fb3d1` | |
+| Warning／4xx／PUT | `#8d520e` | `#e0a458` | |
+| Danger／5xx／DELETE | `#ab382c` | `#e8806f` | |
+| GET／POST | `#2f5d8a`／`#58661e` | `#8fb3d1`／`#b5c27a` | |
+| PATCH／WS | `#7a3e6d`／`#2b6868` | `#c99abd`／`#7cc4c0` | |
+| Inverse／InverseText | `#1f2a24`／`#f7f4ec` | `#e6e1d3`／`#121614` | tooltip |
+| 柱状图／耗时条（正常） | `#cfc8b8` | `#4a4d47` | 待实现 |
+| 耗时分段 DNS／Connect／TLS／Wait／Download | Info／WS／PATCH／Warning／Accent | 同左 | 待实现；五段必须可区分 |
 
-对比度（线性 sRGB 相对亮度，按阶段 7 的方法在背景、侧栏、hover 三种底上计算）：两主题正文 ≥ 11.6:1，次要文字 ≥ 4.26:1，强调色和所有信号色、method 色 ≥ 4.5:1。设计稿里 Paper 的警告色 `#a8641a`（4.24:1）和 POST 橄榄绿 `#6b7a2a`（4.30:1）不达标，上表已加深为 `#94560f` 和 `#5c6a1f`，后者也和强调色拉开了距离。第三级文字两主题都低于 3:1，所以只能用于禁用和占位。落地时把这些组合写进现有的对比度回归检查。
+对比度（线性 sRGB 相对亮度，在背景、Panel、Hover、Pressed 上计算）由 `internal/uikit/theme_test.go` 检查：正文和信号色、method 色、强调色、主按钮文字 ≥ 4.5:1，次要文字 ≥ 3:1，TextFaint 不参与。Paper 的信息、警告、危险、POST、WS 比最初的设计值加深过，就是为了在 Hover／Pressed 底上达标。
 
-### 0.6 `internal/uikit`
+## 6. 设计系统：`internal/uikit`
 
-- **一个独立的包，** 只依赖 MyGo 的 `ui`（以及 `ui/editor`、`ui/chart`），不碰 app 状态和 `internal/request` 等业务包。它取代第 4 节"全部放在 `internal/app`、不建独立 package"的做法。
-- **主题 = 语义 token 表。** 包里定义 token（第 0.5 节的每一行）和内置的 Paper、Ink 两张表；`ui.Theme` 由这张表生成。界面代码只能引用语义 token，不能假设强调色是哪种颜色。字号、高度、圆角、间距也由 uikit 导出，主题不能改它们。
-- **界面只用 uikit。** 迁移完成后，`internal/app` 不再直接调用 `ui.Button`、`ui.PrimaryButton`、`ui.TextInput`、`ui.Select`，不写 `ui.Hex`、数字字号和手写 hover／pressed。uikit 的组件仍建在 MyGo 的 Base（`ButtonBase`、`TabsBase`、`SelectBase`、`DialogBase`、`ToastBase`…）上，键盘、焦点和无障碍继续由 MyGo 负责；每个可交互组件强制传入无障碍标签。
-- **组件按变体设计，不让调用方调样式：**
-  - 文字角色：Heading、Body、Label、Hint、Meta、Mono。
-  - 控件：Button（primary／secondary／ghost／danger × 24／28／32，可带图标）、IconButton（必带 tooltip）、Input（默认／hover／焦点／错误／禁用）、Select、Menu、Checkbox、Switch、Segmented、Tabs（带计数）、LayoutToggle。
-  - 结构：Sidebar 分组和条目、表格行样式、PaneHeader（标题、tab、次要信息、操作在同一行）、KVGrid（可编辑和只读）、FormRow（标签左、控件右、一行说明在控件下）、Dialog（宽度档、标题、可滚动内容、footer）、Splitter。
-  - 反馈：Callout（信息／警告／错误，一行文字加文字操作）、EmptyState、Toast、StatusText、MethodLabel（纯色等宽文字，不做 chip）、CountBadge、CheckResult。
-  - 标志性组件：RecordingPill（录制／暂停／停止，可带 LAN）、QueryBar（chip 和自动补全）、ActivityStrip、DurationBar、TimingBar、ResponseHeadline、SourceBadge、EnvironmentSelect。
-- **组件总览截图：** 截图测试新增一组 uikit 总览（每个组件的默认、hover、按下、焦点、禁用、选中），Paper 和 Ink 各一套。评审外观先看总览，再看界面矩阵。
+### 6.1 规则
 
-### 0.7 第三方主题（VS Code 主题）
+- **独立的包，** 只依赖 MyGo（`ui`、`ui/editor`、`ui/chart`），不碰 app 状态和业务包。
+- **主题 = 语义 token 表。** `Palette` 是一张表，Paper、Ink 是内置的两张，`Theme(dark)` 由它生成 `ui.Theme`，`Colors(t)` 取回当前表。界面代码只引用语义 token，不能假设强调色是哪种颜色。字号、高度、圆角、间距由 uikit 导出，主题不能改。
+- **界面只用 uikit。** `internal/app` 不直接调用 `ui.Button`、`ui.PrimaryButton`、`ui.ButtonBase`、`ui.TextInput`、`ui.Select`，不写 `ui.Hex`、数字字号和手写 hover／pressed。uikit 的组件建在 MyGo 的 Base 上，键盘、焦点和无障碍由 MyGo 负责；每个可交互组件都要传无障碍标签。
+- **组件按变体设计，** 调用方选角色和变体，不调样式。布局（Grow、Width、SingleLine、Tooltip）照常在返回值上链式设置。
+- **禁用放在外层：** uikit 按钮在构建时就决定 hover 外观，MyGo 的 `Hovered()` 也只看那一刻是否禁用。可能被禁用的按钮，用外层元素禁用（`ui.Row(c).Disabled(x).Children(...)`），不要在返回值上再调 `Disabled`。
+- 不做防回退的检查脚本；写死值靠评审和组件总览发现。
 
-uikit 第一版就按"主题 = 语义 token 表"实现；导入第三方主题晚于 v2 的界面迁移，但结构不返工。VS Code 主题 JSON 的映射：
+### 6.2 字体
+
+- 内嵌 Inter 4.1（400／500／600，界面）和 JetBrains Mono 2.304（400／700，数据），在 `internal/uikit/fonts`，来源和许可见那里的 README 和 `THIRD_PARTY_NOTICES.md`。注册失败只记录一次日志并回退。
+- 中文不内嵌（一个字重就要 10 MB 以上），用系统字体回退。拉丁回退字体放在 CJK 字体前面，避免英文变宽、等宽失效：
+  - 界面：`Inter, Arial, DejaVu Sans, PingFang SC, Microsoft YaHei UI, Noto Sans CJK SC`。
+  - 等宽：`JetBrains Mono, Menlo, Consolas, DejaVu Sans Mono, PingFang SC, Microsoft YaHei UI, Noto Sans CJK SC`。
+- 中文界面的行高和按钮宽度要用中文截图单独检查。Linux 上没有 Noto Sans CJK 时，Settings → 外观提示安装（待做）。
+
+### 6.3 尺寸
+
+| Token | 值 | 用途 |
+| --- | --- | --- |
+| `TextMeta`／`TextBody`／`TextTitle` | 11／13／15 | 计数和次要信息／正文、表格、控件／标题；响应结论另加 22（待做） |
+| `HeightCompact`／`HeightControl`／`HeightLarge` | 24／28／32 | 表格内和条栏里的小按钮／按钮、输入框、侧栏条目／URL 栏和 Send |
+| `HeightTabs`／`HeightBar` | 32／44 | tab 行／标题栏和 Capture 工具栏 |
+| `RadiusControl`／`RadiusPanel`／`RadiusDialog` | 4／6／10 | 控件和 pill／弹层、菜单、卡片／对话框 |
+| `IconInline`／`IconLarge` | 14／16 | 行内和按钮／rail 和空状态 |
+| `DialogSmall`／`DialogMedium`／`DialogLarge` | 480／640／840 | 对话框宽度档，随窗口收缩 |
+
+- 间距用 `t.Space(n)`，网格 4px，只用 4／8／12／16／24（细缝可用 `t.Space(0.5)`）。
+- 表格行高 28。MyGo 的 `ui.Table` 最小行高是 `t.Space(8)`，所以流量表格在局部主题里设 `Spacing = 3.5`。
+- 分隔统一 1px `Border`，不靠色块分区。只有菜单、弹层、对话框有阴影。
+
+### 6.4 文字角色（`text.go`）
+
+| 角色 | 样子 | 用途 |
+| --- | --- | --- |
+| `Heading` | 15，600 | 对话框、面板、检查器里的请求名 |
+| `Body` | 13，颜色继承 | 普通文字；在按钮和选中行里也对 |
+| `Mono` | Body + 等宽 | URL、header、路径等数据 |
+| `Hint` | 13，次要色 | 控件下或空面板里的一句说明 |
+| `Meta` | 11，次要色 | 计数、时间、大小；会变化的数字加 `FontFeatures("tnum")` |
+| `Label` | Meta + 600 | 字段名、分组标题（分组标题大写加字距） |
+
+等宽的次要信息写成 `Meta(c, s).Font(uikit.FontMono)`。
+
+### 6.5 组件
+
+已有（组件总览里都有）：
+
+| 类别 | 组件 |
+| --- | --- |
+| 按钮 | `PrimaryButton`、`SecondaryButton`、`DangerButton`（28）、`CompactButton`（24）、`ToolbarButton`（透明底，可带 active 浅底）、`IconButton`（24 正方形，必带 tooltip）、`RowButton`（列表里的整行）、`SwatchButton`（标记色） |
+| 输入 | `Input`、`Select`、`Segmented`、`Tabs`（32 下划线，可带计数） |
+| 列表和侧栏 | `ListTheme`（MyGo 表格／列表／树的选中色）、`Marker`／`RowMarker`、`Selected`、`SidebarItem`、`SidebarSection` |
+| 信号 | `StatusPill`（2xx／304 不加底色）、`MethodLabel`、`MethodColor`、`StatusColor`、`MarkColors`、`BadgeColors` |
+| 结构和反馈 | `KVRow`（只读）、`EmptyState`、`Toasts`、`Modal`、`DialogColumn`、`DialogTitle`、`DialogFooter`、`PopoverPanel`、`EditorTheme` |
+
+待做（随用到它们的步骤加入）：
+
+- 控件：Button 的 ghost 变体和 32 档、Input 的错误态、Checkbox／Switch 包装、LayoutToggle。
+- 结构：PaneHeader（标题、tab、次要信息、操作在同一行）、可编辑 KVGrid、FormRow（标签左、控件右、说明在控件下一行）、Splitter。
+- 反馈：Callout（信息／警告／错误，一行文字加文字操作）、StatusText、CountBadge、CheckResult。
+- 标志性组件：RecordingPill、QueryBar、ActivityStrip、DurationBar、TimingBar、ResponseHeadline、SourceBadge、EnvironmentSelect。
+
+### 6.6 图标
+
+只用 Lucide。尺寸只有 14 和 16 两档；颜色跟随文字，不单独上色。例外：开关类条目开着时图标用强调色（第 3 节）。
+
+## 7. 交互和状态
+
+- **Hover：** 可点的元素背景变 Hover，文字颜色不变；不可点的没有 hover。立即变化，不做过渡。
+- **按下：** 背景变 Pressed。
+- **焦点环：** 键盘焦点显示 2px 强调色外框，鼠标点击不显示，所有可交互元素都要有。对话框关闭后焦点回到打开它的控件，`Modal` 会请求一帧重绘让焦点环显示出来。
+- **禁用：** 文字用 TextFaint，不响应 hover；tooltip 说明为什么不可用。
+- **动效：** 只用于说明变化（展开收起、面板出现、toast 进出），150–200ms，ease-out，只改透明度和位移；尊重"减少动效"。列表滚动、新流量到达不做动画。
+- **拖拽：** 分隔线 hover 时变成强调色细线，指针变成调整大小；双击恢复默认。
+- **右键：** 任何有动作的对象都支持右键，菜单内容见 UX 规范第 6 节。
+- **选中：** 单击选中；Cmd／Ctrl 单击加选；Shift 单击连选；Enter 进入检查器；Esc 返回。
+
+每个列表、面板、编辑器都要设计四种状态：
+
+| 状态 | 样子 |
+| --- | --- |
+| 空 | `EmptyState`：16px 图标、一句标题、一句说明、最多一个主操作和一个次操作 |
+| 加载 | 超过 300ms 才显示；列表用占位行，面板用居中的小转圈，按钮内显示转圈并禁用 |
+| 错误 | 面板内显示错误图标、一句说明、"重试"和"详情"；不用弹窗报错 |
+| 部分数据 | 数据被截断、不完整时，内容上方一条警告 Callout，说明原因 |
+
+**Toast：** 右下角，宽 360，最多同时 3 个，从下往上堆叠，级别用左侧图标区分（不用彩色背景）。行为见 UX 规范第 8 节。
+
+**对话框：** 用宽度档、`DialogTitle`、可滚动内容和 `DialogFooter`（取消在左，主操作在右，footer 不随内容滚走）。一屏最多一个主按钮。
+
+**文案：** 语气、长度、省略号和术语表见 UX 规范第 11 节。
+
+## 8. 第三方主题（VS Code 主题）
+
+uikit 已按"主题 = 语义 token 表"实现，导入第三方主题不用返工结构，在界面迁移完成后做。VS Code 主题 JSON 的映射：
 
 | VS Code 主题字段 | 映射到 |
 | --- | --- |
-| `colors` 的 `editor.background`、`sideBar.background`、`list.hoverBackground`、`list.activeSelectionBackground`、`focusBorder`、`button.background`、`input.border` 等 | 背景、侧栏、hover、选中、焦点、主按钮、输入框 |
+| `colors` 的 `editor.background`、`sideBar.background`、`list.hoverBackground`、`list.activeSelectionBackground`、`focusBorder`、`button.background`、`input.border` 等 | Background、Panel、Hover、AccentTint、焦点、Accent、Border |
 | `terminal.ansiRed`／`ansiYellow`／`ansiBlue`／`ansiGreen`／`ansiMagenta`／`ansiCyan` | 状态码、method、耗时分段 |
 | `tokenColors`（TextMate scope） | body 编辑器的语法高亮 |
 
 约束：
 
 1. 主题只换颜色，不换字号、密度和形状。
-2. 映射后按 0.5 的对比度标准检查；不达标的组合自动调整，并在 Settings → 外观里提示。
+2. 映射后按第 5 节的对比度标准检查；不达标的组合自动调整，并在 Settings → 外观里提示。
 3. 内置主题（候选：One Dark Pro、Dracula、Tokyo Night、Catppuccin、GitHub Light/Dark、Solarized）逐个确认许可证，写进 `THIRD_PARTY_NOTICES.md`；同时支持导入 `.json` 主题文件。
 
-### 0.8 设计稿与规范不一致的地方（以规范为准）
-
-- 关键界面用的是荧光绿，配色以 0.5 为准；Ink 主工作区里的耗时分段全是灰色，实现时五段要可区分。
-- 浅色"已保存请求"的录制 pill 被画成了 `Staging`，响应区多了一个重复的 Save to collection；浅色引导页的说明文字误用了等宽字体；表格里有 `/v1/prders` 之类的拼写错误。
-- Paper「结构和反馈」的面板头把标题和 tab 分成了两行；规范是一行（Ink 版已改对）。
-- 空状态图标偏大；规范是 16px、不加框。Toast 的说明文字和标题不对应（Paper 版）。
-- 「标志性组件」里的校验结果画成了带底色的卡片；规范是行内的一行结果加一行原因（同已保存请求界面）。Ink 版的几张总览副标题仍写着 Paper。
-- 按钮 hover／pressed 在设计稿里是改变底色明度；实现按 0.5 表中的 hover／pressed 值，焦点环一律画在控件外侧。
-
-### 0.9 实施顺序
+## 9. 实施顺序和进度
 
 每一步都能单独合并，附 Paper／Ink 前后截图；涉及交互的另外录屏。
 
-1. **uikit 和主题：** 建 `internal/uikit`，实现 token 表、Paper／Ink、文字角色和控件类组件，加组件总览截图。现有 `style.go` 和 `appearance.go` 的内容迁进来。这一步不改布局，只换主题和控件。
-2. **迁移现有界面到 uikit：** Capture → Requests → 对话框和次级视图，去掉直接的 `ui.Button`、`ui.TextInput` 和手写样式。选中样式按 0.4 改成标记线。
+1. **uikit 和主题（完成）：** 建 `internal/uikit`（token、Paper／Ink、字体、共用组件、对比度检查、组件总览截图），删掉 `internal/app/style.go`。不改布局。
+2. **迁移现有界面到 uikit（完成）：**
+   - 选中改成标记线（第 4 节），接入流量表、消息列表、Protobuf、Runner、各侧栏和 Settings 分类、集合树、环境树、Requests rail、Rules、WebSocket 会话和调查板。
+   - `internal/app` 不再直接用 `ui.Button`、`ui.PrimaryButton`、`ui.ButtonBase`、`ui.TextInput`、`ui.Select`，也没有手写 hover／pressed。
+   - 文字改用文字角色；`TextColor(t.TextMuted)` 还剩约 30 处，是图标、表格单元格（有自己的 `text` 帮手）、分段控件和菜单触发器，随第 3 步重写这些界面时处理。
+   - Capture 侧栏的视图和快速筛选不再像第二个选中项（第 3 节）。
 3. **一个工作区和两种布局：** 合并侧栏、请求文档、发送历史中间栏、布局切换。这一步改变导航，同步改 UX 规范第 3 节涉及的测试和快捷键清单。
 4. **标志性组件：** 录制 pill 的速率曲线、查询语法筛选、活动柱状图、耗时条、响应结论、瀑布视图（Table／Waterfall 切换）。
-5. **随里程碑落地：** 首次启动引导和 Settings 独立窗口随 M1，Host 方案随 M2，Tools 窗口随 M4。
-6. **第三方主题：** 0.7 的映射、内置主题和导入。
+5. **随里程碑落地：** 首次启动引导和 Settings 独立窗口随 M1，Host 方案随 M2，Tools 窗口随 M4（见第 10 节）。
+6. **第三方主题：** 第 8 节的映射、内置主题和导入。
 
-阶段 8 的写死值清理是第 1 步的起点。
+## 10. 新界面
 
-#### 第 1 步实施记录（uikit 和主题）
-
-- 新建 `internal/uikit`：`tokens.go`（字号、高度、圆角、字体）、`theme.go`（`Palette`、Paper／Ink、`Theme`、`Colors`、`MethodColor`、`StatusColor`、`EditorTheme`、标记色和徽章色）、`components.go`（原 `style.go` 和 `appearance.go` 里的共用组件，改为导出名）和内嵌字体（从 `internal/app/fonts` 移入，`THIRD_PARTY_NOTICES.md` 路径同步）。`internal/app/style.go` 删除，`appearance.go` 只剩图标和 Settings。
-- `ui.Theme.Surface` 现在等于背景，是 MyGo 控件的底色（输入框、按钮、表头）；侧栏和各种条栏用新的 `Panel`。MyGo 的 `Sidebar` 和 `Segmented` 自己用 Surface 画底，所以侧栏显式设 Panel，新增 `uikit.Segmented` 替换 6 处 `ui.Segmented`。`Success` 等于强调色。
-- 「正常不上色」已生效：`StatusColor` 让 2xx、304 和无响应都用次要文字，`StatusPill` 对它们不加底色。
-- 对比度检查移到 `internal/uikit/theme_test.go`，新增信号色、tooltip 和「正常不上色」两项检查。它发现 0.5 表里 Paper 的几种墨色在 hover／pressed 底上不到 4.5:1，已加深：信息 `#396482`、警告 `#8d520e`、危险 `#ab382c`、POST `#58661e`、WS `#2b6868`。Capture 选中像素检查的期望值改为油墨绿。
-- 组件总览截图：`VSCROXY_UIKIT_SNAPSHOTS=dir go test ./internal/uikit -run '^TestOverviewSnapshots$' -count=1`，Paper／Ink 各输出总览和三种按钮的 hover／pressed 图。
-- 没改布局，选中样式也还是 v1 的实心行（标记线留给第 2 步）。直接调用 `ui.Button`、`ui.TextInput` 的地方还没迁移。
-
-#### 第 2 步实施记录（进行中：选中样式和控件迁移）
-
-- 选中只剩一种样子：强调浅底、正常文字颜色、左侧 2px 标记线；列表失焦时浅底变 hover 色、标记线变次要色。uikit 新增 `ListTheme`（给 MyGo 表格／列表／树）、`Marker`／`RowMarker`、`Selected`。已接入 Capture 流量表、消息列表、Protobuf 消息、Runner 结果、两个侧栏和 Settings 分类、集合树、环境树、Requests rail、Rules 列表和 WebSocket 会话列表；`rowColor`（选中时文字变白）删除。命令面板的高亮只有浅底不画标记线，因为菜单没有要保留的选中。
-- 侧栏的选中代表「当前在哪」，不是键盘光标，所以焦点在别处时标记线仍是强调色。
-- uikit 新增 `CompactButton`（24px、11 号字）、`DangerButton`、`RowButton`、`Input`、`Select`。`internal/app` 已不再直接调用 `ui.Button`、`ui.PrimaryButton`、`ui.TextInput`、`ui.Select`，同时去掉了这些调用后面重复设置的高度、字号和圆角。
-- Capture 选中检查改为同时检查浅底和标记线像素（去掉标记线时该检查会失败），对比度检查加上强调浅底。
-- 手搭的 `ui.ButtonBase` 全部换成 uikit：工具栏式的文字按钮用 `ToolbarButton`，只有图标的用 `IconButton`（关闭 tab、新建 tab、重命名、和来源对比、存为示例、发送历史、方法列表），列表行用 `RowButton`（Requests rail、调查板证据列表、命令面板），标记色用新的 `SwatchButton`。`internal/app` 里不再有 `ui.ButtonBase` 和手写 hover／pressed。调查板的选中行从 hover 底色改成统一的选中样子。
-- uikit 的按钮在构建时就决定 hover 外观，MyGo 的 `Hovered()` 也只看那一刻是否禁用，所以在返回值上再调 `Disabled` 会让禁用按钮仍有 hover 底色。禁用改为放在外面一层元素上（`ui.Row(c).Disabled(...)`），已改 7 处，组件总览也加了禁用的 IconButton。
-- 文字角色 `internal/uikit/text.go`：`Heading`（15、600）、`Body`（13，颜色继承）、`Mono`（Body 加等宽）、`Hint`（13 次要色）、`Meta`（11 次要色）、`Label`（Meta 加 600）。共替换 394 处 `ui.Text`（Meta 190、Hint 94、Body 78、Label 16、Heading 11、Mono 5）。`TextColor(t.TextMuted)` 从约 330 处降到 30 处，剩下的是图标、表格单元格（有自己的 `text` 帮手）、分段控件和菜单触发器。标题从 Bold 改成 600，和内嵌的 Inter SemiBold 一致。组件总览加了 TEXT 一节和标记色。
-- 未完成：Capture 侧栏里 View 1 和 All requests 看起来同时被选中的问题。
-
-## 1. 目标
-
-1. 整个 app 看起来像一个精心打磨的原生桌面工具（Proxyman、Linear 这个级别），而不是拼起来的表单。
-2. 所有界面共用一套视觉规范：同样的字号、间距、控件高度、圆角和颜色语义。
-3. 信息密度更高：减少层层叠叠的标题栏，把屏幕留给流量列表、请求和响应体。
-4. 第 5 节的改版阶段只改外观和布局，不改功能。现有的每个功能、快捷键和无障碍标签都保留。
-5. 功能路线图带来的新界面（第 6 节）也按同一套规范设计，随各自的功能里程碑落地。
-
-不在改版阶段范围内：新增功能、改数据模型或存储格式、改 `internal/request`、`internal/vault` 等非 UI 包、换掉 MyGo。
-
-## 2. 现状问题
-
-数据来自 `internal/app` 的非测试代码：
-
-| 问题 | 现状 |
-| --- | --- |
-| 字号没有规范 | 写死的 `FontSize` 有 700 多处，用了 9、10、11、12、13、14、15、16、17 共 9 种字号；主题设的是 13，但最常用的是 11（331 处）和 12（299 处），整体又小又挤 |
-| 圆角、高度没有规范 | `Radius` 混用 3/4/5/6/7/10；控件高度有 22/24/26/28/30/32/34/36 八种 |
-| 同类控件写法不一 | 手搭 `ui.ButtonBase` 58 处；tab 有 `flatTabs`、`ui.Tabs`、`ui.TabsBase`、`ui.Segmented`、`ui.SegmentedBase` 五种，所以 Request 和 Response 两边的 tab 长得不一样 |
-| 强调色过多 | 侧栏图标、选中行、主按钮、tab 下划线、checkbox 全是饱和蓝，互相抢视线 |
-| 颜色写死 | method 和状态码的颜色在 `methodColor`、`statusColor` 里写死，不跟深色模式变化 |
-| 纵向浪费 | Capture 在表格上方叠了标题栏、搜索行、协议行、表头约 160px；inspector 在内容上方叠了摘要、面板标题、tab 三层约 100px |
-| 编辑器像网页表单 | Requests 的 Key/Value 每格都是独立的填充输入框，加一个带边框的 ×；Method 选择器无边框而 URL 框有边框；侧栏底部散落 4 个文字链接 |
-| 两个工作区导航不一致 | Requests 有左侧图标栏，Capture 没有 |
-| Linux 字体 | 走系统字体（常见是 DejaVu Sans），又宽又笨重；三个平台的观感不一致 |
-| 对话框 | 约 40 个 modal，各自排版，标题、按钮位置、宽度都不统一 |
-
-## 3. 设计原则
-
-1. **内容优先**：chrome（工具栏、标题、边框）尽量退后，流量和 body 是主角。
-2. **一个强调色**：靛蓝只用于焦点、有焦点时的选中、主操作。其他一律用中性灰和语义色。
-3. **语义色只表达语义**：绿、橙、红、青只出现在状态码、method、校验结果、错误上。
-4. **同一种东西只有一种样子**：tab、按钮、面板头、表格各一种规范写法。
-5. **密而不挤**：表格和编辑器保持桌面工具的密度，但最小可读字号是 11，正文 13。
-6. **保持原生行为**：只封装"这个 app 的样子"，键盘、焦点、无障碍继续交给 MyGo 自带的组件。
-
-## 4. 设计系统
-
-v1：全部放在 `internal/app` 里：主题继续在 `appearance.go`，新增 `style.go` 放 token 和共用组件。不建独立的 package，不做组件文档站。**v2 起移到独立的 `internal/uikit`，见 0.6；颜色见 0.5，选中样式见 0.4。**
-
-### 4.1 字体
-
-- 内嵌 Inter（界面）和 JetBrains Mono（URL、header、body、method），用 `ui.RegisterFont` 注册，设到 `t.Font`。两者都是 OFL 许可，需要补进 `THIRD_PARTY_NOTICES.md`。
-- 只带要用的字重：Inter Regular/Medium/SemiBold，JetBrains Mono Regular/Bold。阶段 1 实际带入的原始静态 TTF 共 1,800,412 字节（1.72 MiB），另有 8,779 字节的 OFL 许可；这是资源量，不是最终打包后二进制增量测量。
-- 表格里会变化的数字（耗时、大小、时间、计数）开 `FontFeatures("tnum")`，让数字等宽、列能对齐。
-- **中文回退**：Inter 和 JetBrains Mono 都没有中文字形。主题字体写成一个列表，中文用各平台的系统字体：
-  - 界面：`Inter, PingFang SC, Microsoft YaHei UI, Noto Sans CJK SC`。
-  - 等宽：`JetBrains Mono, PingFang SC, Microsoft YaHei UI, Noto Sans CJK SC`（中文没有好的等宽字体，用界面字体回退）。
-  - 不内嵌中文字体：一个字重就要 10 MB 以上。Linux 上没有 Noto Sans CJK 时，在 Settings → 外观提示安装（Debian/Ubuntu 是 `fonts-noto-cjk`）。
-  - 中文界面的行高和按钮宽度要用中文截图单独检查：中文字形比英文高，按钮文字通常更短。
-
-### 4.2 字号
-
-| Token | 大小 | 用途 |
-| --- | --- | --- |
-| `textMeta` | 11 | 计数、时间戳、提示、状态栏、分组标题（大写，加字距） |
-| `textBody` | 13 | 默认：正文、表格、输入框、按钮、tab |
-| `textTitle` | 15 | 对话框标题、inspector 头部的请求名 |
-
-不再使用 9、10、12、14、16、17。等宽字体同样走这三档。
-
-### 4.3 尺寸、间距、圆角
-
-- 间距：直接用 MyGo 的 `t.Space(n)`，`Spacing` 保持 4，只允许 4/8/12/16/24。
-- 控件高度：`heightCompact` 24（表格内、工具栏图标按钮）、`heightControl` 28（按钮、输入框、tab、侧栏条目）、`heightLarge` 32（URL 栏、Send）。
-- 行高：流量表格和 KV 表格 28。
-- 圆角：`radiusControl` 4（按钮、输入、pill）、`radiusPanel` 6（弹层、菜单、卡片）、`radiusDialog` 10（对话框）。
-- 分隔：统一 1px 细线 `t.Border`，不靠背景色块分区。
-- 阴影：只有菜单、弹层、对话框有阴影，两档。
-
-### 4.4 颜色
-
-在现有 `ui.Theme` 字段的基础上调整，再加一组语义色，浅色和深色各一套：
-
-- **中性色**：背景、侧栏背景（比背景略灰）、hover、pressed、边框、正文、次要文字、第三级文字（禁用、占位）。
-- **强调色**：靛蓝，浅色 #5b5bd6，深色 #7c7cf0。不再用系统蓝，因为它和 GET 的蓝是同一色相。（v2 改为油墨绿，见 0.5。）
-- **选中行**：窗口有焦点且列表有焦点时用实心强调色；否则用浅色强调底（约 12% 透明度）加正常文字颜色。（v2 改为左侧标记线，见 0.4。）
-- **语义色**：成功、警告、危险、信息四种，每种有前景色和浅底色两档（给 pill 用）。
-- **Method 色**：GET 蓝、POST 绿、PUT 橙、DELETE 红、PATCH 洋红（#c026d3，原来是紫，会和靛蓝撞）、WS 青；改成从主题取值，深色模式提高亮度。
-- **状态码色**：2xx 绿、3xx 青、4xx 橙、5xx 红、304 和 Tunnel 灰，同样从主题取值。
-- 侧栏图标改成次要文字色，不再用蓝色。
-
-**为以后接入第三方主题做准备**（Tokyo Night、Dracula 这类现成色板）：
-
-- 所有界面代码只引用语义 token（背景、表面、边框、文字、强调、成功/警告/危险/信息、method、状态码、语法高亮），不直接写色值。
-- 一套主题就是"语义 token → 色值"的一张表。内置浅色和深色两张；以后再加一个映射层，把外部色板（比如 Tokyo Night 的 `bg`/`fg`/`blue`/`magenta`）填进这张表，代码编辑器的语法高亮也一起取值。
-- 本次只做到 token 齐全、全部从主题取值，不做主题选择界面和导入功能。
-
-### 4.5 图标
-
-继续用 Lucide。尺寸只有 14（行内、按钮）和 16（rail、空状态）两档；颜色跟随文字，不单独上色。
-
-### 4.6 共用组件
-
-只封装反复出现、需要统一样子的东西：
-
-| 组件 | 替换的现状 | 规范 |
-| --- | --- | --- |
-| `toolbarButton` | 各处手搭的 `ButtonBase` | 高 28，透明底，hover 灰底，可带图标；激活态（如断点开启）用浅色强调底 |
-| `iconButton` | 同上 | 24 或 28 的正方形，必须有 tooltip 和无障碍标签 |
-| `primaryButton` / `secondaryButton` | `ui.Button` 的各种样式 | 一屏最多一个主按钮 |
-| `tabs` | 五种 tab 写法 | 一种下划线 tab，高 32，可带计数（`Headers 3`）；segmented 只用于真正互斥的模式切换 |
-| `paneHeader` | inspector 和响应区的标题行加 tab 行 | 一行：标题、tab、右侧操作 |
-| `statusPill` | 纯文字状态 | 语义浅底色加前景色文字，`201 Created` |
-| `methodLabel` | 各处 method 文字 | 等宽字体、method 色，宽度对齐 |
-| `kvGrid` | 请求编辑器里的 KV 输入框，inspector 的 header 列表 | 细线表格、无边框单元格、启用列、hover 时才出现删除按钮、末行是"添加"占位行；只读模式给 inspector 用 |
-| `sidebarItem` / `sidebarSection` | 两个侧栏各自的写法 | 高 28，图标、名称、右侧计数；分组标题用 11 号大写 |
-| `emptyState` | 各处空状态 | 图标、一句标题、一句说明、最多一个主操作和一个次操作 |
-| `appModal` / `dialogTitle` / `dialogFooter` | 已有前两者，footer 各写各的 | 固定宽度档（480/640/840）、标题栏、可滚动内容、右下角按钮（取消在左，主操作在右） |
-
-### 4.7 交互规范
-
-- **Hover**：可点的元素 hover 时背景变为 `SurfaceHover`，文字颜色不变；不可点的元素没有 hover 效果。颜色立即变化，不做过渡动画。
-- **按下**：背景变为 `SurfacePressed`。
-- **焦点环**：键盘焦点显示 2px 强调色外框，鼠标点击不显示。所有可交互元素都必须有焦点环。
-- **禁用**：文字用第三级文字色，不响应 hover；tooltip 说明为什么不可用。
-- **动效**：只用于说明变化（展开收起、面板出现、toast 进出），150–200ms，ease-out，只改变透明度和位移；尊重系统的"减少动效"设置。列表滚动、新流量到达不做动画。
-- **拖拽**：可拖的分隔线 hover 时变成强调色细线，鼠标指针变成调整大小的样式；双击分隔线恢复默认位置。
-- **右键**：任何有动作的对象都支持右键，菜单内容见 UX 规范第 6 节。
-- **选中**：单击选中；Cmd/Ctrl 单击加选；Shift 单击连选；Enter 进入检查器；Esc 返回。
-
-### 4.8 状态规范
-
-每个列表、面板、编辑器都要设计这四种状态：
-
-| 状态 | 样子 |
-| --- | --- |
-| 空 | `emptyState`：16px 图标、一句标题、一句说明、最多一个主操作和一个次操作，垂直居中偏上 |
-| 加载 | 超过 300ms 才显示；列表用占位行，面板用居中的小转圈，按钮内显示转圈并禁用 |
-| 错误 | 面板内显示错误图标、一句说明、"重试"和"详情"；不要用弹窗报错 |
-| 部分数据 | 数据被截断、不完整时，在内容上方显示一条警告条，说明原因（现有的截断提示改成这个样式） |
-
-**Toast**：右下角，宽 360，最多同时 3 个，从下往上堆叠。四个级别用左侧图标区分（不用彩色背景）。行为见 UX 规范第 8 节。
-
-**已启用工具栏**：标题栏下方 32px 高，背景比标题栏略深；每个工具一个 chip（图标、名称、×）。行为见 UX 规范第 5 节。
-
-### 4.9 文案
-
-文案的语气、长度、省略号用法和术语表见 [UX 规范](ux-guidelines.md) 第 11 节。改版时同步替换界面上超过一行的说明文字（现在有 47 段超过 120 个字符）。
-
-### 4.10 品牌和 app 图标
-
-- 现在的 logo 直接用 Lucide 的 `Route` 图标，需要一个专属的品牌标识。
-- 产出：一个简单的几何图形标识（靛蓝为主色），用于标题栏（16px 单色版）和 app 图标（macOS 圆角矩形、Windows、Linux 各尺寸，1024px 源文件），放在 `internal/appicon` 旁边的资源目录里。
-- 先出 2–3 个方向供选择，在阶段 2 之前定下来。
-
-## 5. 分阶段计划
-
-每个阶段单独可验证、可回退，可以单独合并。一次只做一件事：先换样式不动布局，再改布局。
-
-### 阶段 0：基线与截图工具
-
-- 写一个可选开启的截图测试（例如设置 `VSCROXY_SNAPSHOTS=dir` 时才运行）。它用 `ui.NewTester` 加固定的假流量和假请求库渲染关键状态，再用 `tt.Image()` 存成 PNG，浅色深色各一套。
-- 覆盖的状态包括：Capture 空状态、有流量且选中一行、各个 body 视图；Requests 空状态、编辑中、有响应；设置对话框；命令面板；主要菜单。
-- 先存一份改版前的基线。之后每个阶段都出前后对比图。
-
-验收：一条命令就能生成全套截图，结果是确定的（同样的代码出同样的图）。
-
-#### 阶段 0 使用方式
-
-截图测试在 `internal/app/snapshots_test.go`。从仓库根目录运行：
-
-```bash
-VSCROXY_SNAPSHOTS="$PWD/.amp/in/artifacts/ui-current" go test ./internal/app -run '^TestUISnapshots$' -count=1 -v
-```
-
-输出目录必须不存在或为空；测试不会覆盖已有基线。换一个目录名即可保留下一轮截图。必须带 `-count=1`，避免测试缓存跳过生成。普通 `go test ./...` 会跳过这项测试，不生成图片。
-
-改版前基线保存在 `internal/app/testdata/ui-baseline/`：
-
-- `light/`、`dark/` 各 28 张 PNG，共 56 张；默认 1280 × 800，Capture 选中态、Requests 编辑态和响应态另有 960 × 800 版本。
-- 覆盖 Capture 空状态、选中、筛选、Headers/Raw/Timing；Auto/Pretty/JSON/Hex/HTML Preview/Protobuf/图片预览；Requests 空状态、Headers 编辑、Body 编辑、有响应；Settings 通用页和命令面板。
-- 六类原生菜单（Capture 更多、布局、body 格式、inspector 更多、Request 更多、流量右键）各有宿主截图 `*.host.png` 和菜单条目 `*.menu.json`。**MyGo 的原生弹出菜单不在 `tt.Image()` 中**；条目清单只能核对文案、顺序和子菜单路径，不能验证菜单外观、勾选或禁用态。菜单外观与交互仍需后续真实窗口检查，不能把宿主截图当成菜单截图。
-- `manifest.json` 记录运行平台、Go 版本、缩放比例和每个产物的 SHA-256。只有全部场景成功才写入；不自动判定视觉变化是否正确。
-
-基线环境：Linux amd64、Go 1.27.3、MyGo v0.7.3、Onevra source v0.2026.16，1× 渲染，DejaVu Sans / DejaVu Sans Mono。生产 UI 来源是 `59a1442fc83106db613e397dc64d742a85445614`，本阶段不改生产代码。固定 UTC 时间、英文 locale、假流量、请求库和环境；不读取个人设置，不启动代理，不发送网络请求。Requests 的 Send 在无代理实例的测试夹具中为禁用态，不代表实际发送行为的验证。
-
-确定性范围是**相同代码、依赖、平台和字体环境**；现阶段仍使用系统字体，不能要求跨平台逐像素一致。已在两个独立测试进程中逐文件比较产物。后续阶段保留此基线，将新产物生成到另一个目录，再做浅色/深色对比；跨平台检查仍按阶段 7 执行。
-
-```bash
-# 同环境下核对全部文件；无输出且退出码为 0 表示完全相同。
-diff -rq internal/app/testdata/ui-baseline .amp/in/artifacts/ui-current
-```
-
-### 阶段 1：设计系统落地，不改布局
-
-- 新增 `style.go`：第 4 节的 token 和共用组件。
-- `appTheme` 按 4.4 调整颜色，补语义色；`methodColor`、`statusColor` 改成从主题取值。
-- 内嵌字体。
-- 只替换 shell（标题栏、状态栏）和 Capture 主界面里的写死数值和手搭控件，用来检验这套规范；布局保持不变。
-
-验收：Capture 截图前后对比，布局一致，观感统一；所有现有测试通过；`go tool mygo vet .` 通过。
-
-#### 阶段 1 实施记录
-
-- `style.go` 已加入三档字号、控件尺寸、圆角、图标和字体 token，以及工具栏按钮、图标按钮、主次按钮、状态 pill、method 标签、原生侧栏条目和只读 KV 行；已有 `flatTabs` 统一为 32px 下划线 tab。保留 MyGo 的键盘、焦点、禁用和无障碍行为。
-- Shell 和 Capture 的工具栏、流量表格、Inspector、Headers/Params、Body/Raw/JSON/Hex 和 Timing 已接入这套样式。搜索／协议两行工具栏、列顺序、Inspector 摘要／面板标题／tab 的分层、分栏方向和比例不变；没有合并任何一行。全局主题和共用 tab 会影响其他界面的字体、颜色和 tab 外观，但没有迁移 Requests 或 Settings 布局。
-- 浅深色主题使用靛蓝强调色和主题语义色；列表与窗口都有焦点时选中行用实心强调底，否则用 12% 浅底和正常文字。新增浅／深色焦点回归测试，覆盖窗口失焦、重新获得焦点和转到搜索框。
-- Inter 4.1（400/500/600）和 JetBrains Mono 2.304（400/700）已内嵌，来源、版本、校验和与许可见 `internal/app/fonts/README.md`。注册失败只记录一次日志并回退，不阻止启动。为避免回退到 CJK 字体后英文变宽、ASCII 失去等宽，平台拉丁字体放在 CJK 字体前；中文仍由系统字体提供。MyGo 没有 `Theme.FontMono`，等宽读数和编辑器显式使用字体 token。
-- **行高限制**：MyGo v0.7.3 的原生 `ui.Table` 最小行高／表头为 `t.Space(8)`，当前公共 API 无行高参数。阶段 1 保留 32px；不修改依赖或缩小全局 Spacing 来强行实现目标 28px。后续 Capture 阶段需另行解决，28px 目标不变。
-- **留给后续阶段**：合并式 `paneHeader`、可编辑 `kvGrid`、侧栏分组重排、统一空状态结构、modal footer／宽度档和全局剩余字面量清理，随各自布局阶段迁移；本阶段不加入未使用的组件骨架。中文字体缺失的 Settings 提示也不在本次新增。
-
-验证仍使用阶段 0 的截图矩阵，保留原基线；本阶段检查浅／深色、1280／960 宽度、各 Body 格式、空状态和原生窗口 hover、菜单、tab、焦点。另检查了包含中文 client、URL 路径和 JSON 值的 960px 夹具；这不是整套中文本地化界面验收。macOS／Windows 实机外观留给阶段 7。
-
-当前 orb 的 `~/.cache/mygo` 是文档源码软链且不可写，会阻止 MyGo 写入字体缓存。要验收内嵌字体而非系统回退，使用独立的可写缓存（正常启动失败回退路径也已测试）：
-
-```bash
-XDG_CACHE_HOME=/tmp/vscroxy-ui-cache VSCROXY_SNAPSHOTS="$PWD/.amp/in/artifacts/ui-phase1" go test ./internal/app -run '^TestUISnapshots$' -count=1 -v
-```
-
-### 阶段 2：外壳
-
-- 标题栏 44px：品牌、`Capture | Requests` 切换、居中的录制状态 pill（状态点、地址；暂停按钮在 M1 录制开关做好后加上）、右侧命令面板、Tools、Settings 图标按钮，`⋯` 菜单保留。Host 方案下拉框在 M2 加入，位置预留在录制 pill 右侧。
-- 已启用工具栏（4.8）：先显示现有的断点、限速、No Caching、Scenario、上游代理。
-- 状态栏统一样式：左侧计数，右侧 auto-follow 开关、环境等上下文信息。
-- 命令面板、右键菜单、`⋯` 菜单、toast 统一样式。toast 依赖基础设施的通知层，在它完成前先统一现有消息条的样式。
-- 新品牌标识和 app 图标（4.10）。
-
-#### 阶段 2 实施记录（保留现有图标）
-
-- 标题栏改为 44px，工作区切换移到品牌旁，监听状态 pill 按整个窗口居中，左右分别避让平台窗口按钮；右侧保留命令面板、Tools、Settings 和更多入口。状态仍明确称为 Proxy running/stopped，不把监听误报为已验证的 HTTPS 录制，也没有提前加入 M1 暂停、M2 Host 或 M4 Tools 窗口。
-- 32px 已启用工具栏在两个工作区共享，无工具时不占空间；现有断点、限速、No Caching、Scenario 和上游代理均有编辑入口和独立关闭按钮。关闭直接更新原有配置；Scenario 必须保存成功后才更新运行配置，失败则保留 chip 并通知。上游 chip 不显示可能带凭据的地址。状态栏左侧统一计数，右侧保留 auto-follow、环境等上下文。Capture 和 Requests 内部布局不变。
-- app 自己构建的右键／菜单按钮统一使用 MyGo 的 `PopoverMenu`／`PopoverMenuButton`，由主题绘制；保留原有动作、快捷键、勾选、禁用和子菜单。系统应用菜单以及 MyGo 内建的编辑器／表头菜单仍由框架负责。命令面板接入 13/11 字号、32px 行高和焦点选中规范，列表视口显示完整行。
-- 现有通知实际上已使用 MyGo Toast，因而用 `ToastViewportBase`／`ToastBase` 统一外观：右下角 360px 中性卡片，最多三个，图标区分已有 Type，200ms 位移／淡入淡出并尊重减少动效。计时、悬停暂停、无障碍通知、动作和关闭仍由 MyGo 管理；不新增通知业务层，也不靠猜测消息文字分级。弹窗位于通知之上，保存按钮不会被通知遮住。
-- 截图矩阵扩展到浅深色共 76 张，新增工具栏、Tools／更多／子菜单、不可用命令和四类通知，工具栏也覆盖 960px。新菜单直接包含在 PNG 中，不再输出宿主截图和原生菜单清单；阶段 0 基线保持不变。新增测试覆盖左右原生按钮避让、通知动作／关闭，以及两个工作区关闭工具、重新开启和 Scenario 保存失败；Linux 真实窗口另检查指针、菜单、命令搜索、工作区切换和通知动作。macOS／Windows 的真实窗口仍待跨平台验收。
-- 按用户最新决定，保留现有 Route 品牌标识及 app 图标；不实施 A/B/C 新品牌方案，也不将新图标作为继续阶段 3 的前置条件。
-
-### 阶段 3：Capture
-
-- **侧栏**：灰色单色图标、大写分组标题、计数对齐；Views 和 Investigations 的"+ ⋯"行和缩进不齐的条目改成规范的侧栏条目；底部的 Client setup、HTTPS rules 保留但改成同样的样式。
-- **工具栏合成一行**：搜索框（内嵌筛选 chip）、协议 segmented（All/HTTP/HTTPS/WS/SSE/JSON）、筛选、断点、布局。"Rules…" 收进图标按钮或菜单。
-- **流量表格**：状态列（圆点加状态码）、Method、Host（次要色）、Path（主文字）、Client（小图标加名称）、耗时、大小、时间；行高 28；数字等宽；选中样式按 4.4；列宽和列选择（`columns.go`）保持可用。
-- **Inspector**：一行头部（`POST /graphql`、状态 pill、耗时和大小、Replay、Copy cURL、`⋯`）；Request 和 Response 两个面板各自把标题和 tab 放在同一行；header 用只读 `kvGrid`；Pretty、格式菜单放在面板头右侧。上下分栏、左右分栏的布局选项保留。
-- **Body 视图**（`body.go`）、Timing、WebSocket/SSE 消息列表、CONNECT 连接视图、调试历史、对比视图：统一面板头和间距。
-- **空状态**：用 `emptyState`；没选中请求时，inspector 不再占半屏空白（收起或只显示一行提示）。
-
-#### 阶段 3 实施记录
-
-- Capture 工具栏合为 44px 一行，位于流量表格／Inspector 分栏之外；搜索、内嵌可移除条件、协议 segmented、筛选、断点、布局和更多入口并列。条件较多时在搜索框内横向滚动，不再新增条件行；全部条件仍按原有 AND／OR 语义工作。Images／HTML、保存筛选和 Debugging rules 保留在更多菜单。
-- 侧栏分组标题改为大写和 11px，计数使用等宽数字；Views 的新建入口改为带文字的条目，保存筛选入口保留在同行右侧；新建 Investigation、历史会话和底部连接入口的图标／文字左对齐。不重做 Investigations 看板，也不替换品牌图标。
-- 流量表格分开显示弱化的 Host 和主要 Path；保留 `#`、列拖动、列宽、隐藏列和自定义列。Path 沿用持久化 ID `url` 及原有完整 URL 排序，避免清掉用户保存的布局；新增 Host 列按主机名排序且可隐藏。正常 HTTP 状态显示圆点和状态码，Tunnel／Failed 不误称为 HTTP 成功。表格局部 `Spacing=3.5` 配合 16px 单行文本框实现 28px 行高；全局 Spacing 仍为 4，依赖未修改。
-- Inspector 摘要使用 method／path、状态、耗时／大小、Replay、Copy cURL 和更多菜单；完整 URL 保留在辅助标签和 tooltip。窄 Inspector 缩短状态并把 Copy 收为图标，历史入口移入更多菜单。Request／Response 各自的标题、tab 和格式菜单合到同一行；只读 Headers／Params 继续复用 `kvRow`，保留凭据遮盖、复制和筛选。底部、右侧、自适应和聚焦模式保留，宽度判断扣除实际侧栏。
-- Body、JSON／Hex、Timing、WS／SSE、CONNECT、调试历史和对比阅读器统一字级、控件和间距；CONNECT 标题与其 tabs 也合到同一行。完整内容、截断提示、消息过滤／暂停／导出及历史证据语义不变。空列表使用 `emptyState`，Inspector 仅留一行提示；搜索框不随分栏挂载变化，输入无匹配再恢复时保留焦点。
-- 验证：`go build ./...`、`go vet ./...`、`go tool mygo vet .`、`go test ./...` 和 `CGO_ENABLED=0 go test ./...` 通过。新增 UI 回归检查覆盖 960／1280px 单行工具栏、28px 行高、空结果恢复和菜单专属协议条件；原有选择、滚动、分栏、筛选、重放和列布局测试继续通过。
-- 浅／深色截图矩阵为 98 张，新增右侧 Inspector、无匹配、多选、CONNECT／失败、WS／SSE、Diff 和调试历史。16 张 Requests 截图与阶段 2 基线逐字节一致。Linux 原生窗口另录制并检查了指针悬停、协议键盘导航、搜索归零／恢复、重置、Headers／Raw／Timing、左右分栏和深色切换；未使用真实流量、用户配置或系统代理。macOS／Windows 原生窗口仍待跨平台验收。
-
-### 阶段 4：Requests
-
-- **左侧 rail**：图标加小标签，选中态用浅底，不用蓝色块。
-- **集合树**：文件夹、请求前的 method 小标签、hover 时出现操作；面板头放"+"和"⋯"；底部的 Import cURL、Vault、Runner、Cookies 收进"+"或"⋯"菜单。
-- **环境侧栏**：同样的树和表格样式。
-- **文档 tab 栏**：method 色标签、未保存圆点、关闭按钮；右侧是正式的环境下拉框（带颜色点）和 Save。
-- **请求行**：Method 和 URL 合成一个带边框的控件，`{{变量}}` 显示成 chip；Send 用 32 高的主按钮。
-- **编辑区 tab**：带计数（Headers 3、Checks 2）。
-- **Params、Headers、Form、变量**：换成可编辑 `kvGrid`；Bulk edit 保留成切换按钮。
-- **Auth、Body、Scripts、Checks、Examples、OAuth、Protobuf**：统一表单行（标签在左、控件在右）、统一代码编辑器边框。
-- **响应区**：一行头部，包含 tab（Body、Headers 5、Cookies、Checks 2/2、Timing）、状态 pill、耗时、大小；Send history、对比入口放在头部右侧。
-
-#### 阶段 4 实施记录
-
-- 保留现有品牌和 app 图标。Requests rail 使用浅色选中底和小标签；集合树使用 28px 行、文件夹、method 标签和 hover／行内键盘焦点时出现的操作菜单。操作始终挂载且保留 Tab 顺序，不因隐藏而丢失键盘入口；不悬停时不为操作预留额外的名称宽度。集合头部的「+」和「⋯」容纳新建、Import、Import cURL、Vault、Runner、Cookies。
-- 文档 tab 保留 method、未保存标记、关闭和 Source 入口；环境选择改为带颜色点的正式下拉框，位于 Save 等操作之前。环境侧栏改为树形样式，不改变原有环境编辑行为。
-- Method 和 URL 合为一个边框，Send 为 32px。URL 未聚焦时绘制字面量 `{{引用}}` chip，聚焦时使用原生输入框的文字范围样式；始终是同一个原生输入框负责选择、复制、撤销和 IME，不展开变量，也不读取 vault 值。Unicode 和未闭合引用不改写。
-- Params、Headers、Form 和变量表格使用细线分隔、28px 行、静止时无边框的单元格和末尾添加入口；保留重复／禁用行、显式凭据显隐、文件附件及 Bulk edit 往返。Auth／OAuth 共用标签左、控件右的表单；Body、Scripts、Bulk Headers 和 Examples 共用代码编辑器样式，Checks／Examples 同步整理。Protobuf 沿用阶段 3 已统一的共享阅读器，不另建 Requests 专用版本。
-- 编辑区显示 Params、Headers、Checks、Examples 计数；Headers 按启用行计数，不去重。计数与无障碍名称分离；Examples 使用稳定名称 `Request editor: Examples`，不再把数量放进名称。响应头合并 tab、格式菜单、状态 pill、耗时／大小和操作；Tests 视觉文案为 Checks，保留 `Response tab: Tests` 无障碍名称和原有枚举顺序。收紧 tab 留白，保证当前 960px 夹具的 Console 完整显示；更拥挤时仍可横向滚动。不隐藏取消、失败、历史实验和来源证据。
-- 验证：`go build ./...`、`go vet ./...`、`go tool mygo vet .`、`go test ./...` 和 `CGO_ENABLED=0 go test ./...`。回归检查覆盖 960／1280px 的 URL 原文复制与撤销、环境切换、重复／禁用 Header 计数、Checks 计数和最右侧响应 tab；窄屏裁切检查在恢复较宽留白时失败。
-- 浅／深色截图矩阵扩展到 198 张，覆盖七类 Auth、Params、Multipart、Bulk Headers、Scripts、Checks、Examples、变量／环境、菜单、凭据遮盖／显式显示和键盘焦点。与阶段 3 共有的 80 张非 Requests 截图逐字节一致。Linux 原生窗口另录制并检查了移动指针、集合菜单、hover 行操作、凭据显隐、URL 选择／复制、环境切换、响应页签和深色窄窗口；夹具不读取用户配置、不启动代理、不发送请求，Send 保持禁用。实际发送行为由现有代理集成测试覆盖；macOS／Windows 外观仍留给阶段 7。
-
-### 阶段 5：次级视图
-
-Runner、History（合并后的 Run records）、Sessions（合并后的 Investigations 和 Historical sessions）、APIs（OpenAPI）、Tools 窗口（规则、Scenario、脚本、Host 方案）：套用同样的侧栏、表格、面板头和空状态组件。
-
-功能合并（History、Sessions）和 Tools 窗口属于 [功能路线图](feature-roadmap.md) 的 M1 和 M4。按路线图会被去掉的界面（Investigations 看板、Regression 分享对话框、Recent requests）不做改版，直接随合并删除。
-
-#### 阶段 5 实施记录（现有次级视图）
-
-- Runner、Run records、Historical sessions & evidence 和 APIs 接入共用字号、28px 控件、32px 面板头／下划线 tab、细线分隔和空状态；保留现有品牌及 app 图标。Runner 使用 28px 结果行，选中行文字继承原生选中色，失败检查详情仍明确显示错误。历史会话保留两来源布局，带注释／错误的交换行允许增高，不为固定行高隐藏证据。
-- Run records 保留页面和来源／草稿弹窗两种入口，统一记录条目、操作、备注、比较和只读编辑器；隐私、保留上限、截断、来源和 wire 提示不删减。960px 下收紧阅读区及 tab 留白，使六个页签完整显示；更拥挤时仍可横向滚动。新增回归检查对照宽窗口的自然宽度，实际点击末尾 Variables 和 Console 验证内容；它曾检测到本轮迁移后的末尾裁切，修正留白后通过。
-- APIs 的契约和端点侧栏、状态／来源说明、OpenAPI 源码及只读 schema 共用已有组件；Save API 是唯一主操作，校验、导出、生成独立草稿和 Open in Requests 的行为不变。历史会话的搜索范围、跨来源／隐藏选择、比较和导出前人工审阅流程保持不变；原始证据审阅编辑器和确认区留给阶段 6。
-- 本阶段**不做** History／Sessions 功能合并、存储迁移或 Tools 窗口；这些随 M1／M4 落地。Investigations 看板、Recent requests 和 Regression 分享界面不改版，也不提前删除。规则、Scenario、脚本、Host 等尚未形成 Tools 窗口的界面不借本阶段重构。
-- 验证：`go build ./...`、`go vet ./...`、`go tool mygo vet .`、`go test ./...` 和 `CGO_ENABLED=0 go test ./...`。截图矩阵扩展到浅深色共 294 张，新增 24 种次级视图状态的 1280／960px 版本；阶段 4 的 196 张无关截图逐字节一致，另两张调试历史截图因复用本阶段的运行记录阅读器而同步变化。前后图分别生成至 `.amp/in/artifacts/phase5-before` 和 `phase5-final`，没有覆盖阶段 0 基线。
-- Linux 原生窗口录屏检查了移动指针、Runner 结果／键盘焦点、记录选择／对比／Variables／Console、历史会话双选／对比／返回、API 端点／源码／审查说明及深色窄窗口。录屏中的 F 键只加载离线夹具，不代表产品导航；未读取用户设置、启动代理或发送请求。macOS／Windows 实机检查仍留给阶段 7。
-- 已有的空 API 导航问题不在本次修复：没有选中 API 时，shell 会回到 Requests 主视图。空 API 阅读器截图使用显式无选中项夹具检查其外观，不能作为该导航路径已修复的证据。
-
-### 阶段 6：对话框
-
-约 40 个 modal 按类型统一：
-
-- **设置类**：Settings 改成左侧分类、右侧表单行的布局，分区为通用、外观、代理（端口、系统代理、上游、绕过）、HTTPS（CA、解密名单）、抓包（白名单、忽略、No Caching、内存上限）、设备。Upstream、SSL、Ignored hosts/apps 这几个独立对话框并进 Settings 后删除；DNS 映射升级为 Host 方案，放进 Tools 窗口。Client setup 和 Diagnostics 合并成"连接诊断"。
-- **编辑类**：Rules、Breakpoint、Vault、Cookies、Variables、Columns、Folder、Rename。
-- **流程类**：Import、Postman 导入报告、cURL 导入、Code、HAR 导出、WebSocket session、Replay。
-- **确认类**：Delete、Clear、关闭未保存请求。使用统一的确认对话框。
-
-全部使用 `appModal` 的宽度档、标题、可滚动内容和 footer。
-
-#### 阶段 6 实施记录（现有对话框）
-
-- 现有设置、编辑、流程和确认对话框共用 480／640／840px 内容宽度档，按窗口收缩；标题、正文、28px 控件、代码字体及带顶部分隔线的右对齐 footer 统一。长内容独立滚动，footer 不随内容滚走；窄窗口允许按钮换行。Rules 的原生删除确认、系统文件选择器以及阶段 5 的运行记录／历史会话外壳保留，不另造替代界面。现有品牌及 app 图标不变。
-- Settings 改为左侧 General、Appearance、Proxy、HTTPS、Capture、Devices 六分类，右侧复用现有表单和操作；保留端口下次启动生效、系统代理读回和证书状态检查。分类使用原生 Sidebar 的方向键、Home／End 和 Tab 导航，增加 `Settings category: …` 标签以区分主工作区。外观仍使用已有深色开关，不在本阶段增加主题功能。
-- 本轮遵守第 1 节的外观／布局边界，**未完成设置功能整合**：Upstream、SSL、Ignored hosts/apps 编辑器仍由现有入口打开，未删除；Client setup 和 Diagnostics 尚未合并。独立 Settings 窗口及连接诊断整合随 M1，Host 方案随 M2，Tools 窗口随 M4；抓包白名单、内存上限等新增配置按功能路线图落地。No Caching 保留在现有 Tools／Network 菜单，不声称已迁入 Settings。
-- Vault／Cookies 遮盖与显式显示、危险操作确认、设备网络授权／allowlist、证据导出前人工同意及编辑后撤销同意、断点关闭后仍保持暂停等语义不变。原始证据审阅区使用统一只读／编辑器外观和固定确认区；没有放宽安全门槛，也没有改存储格式或非 UI 包。
-- 验证中发现整块滚动的 WebSocket 对话框在 960×600 下挤掉消息区，现改为配置区独立滚动、时间线／payload 使用剩余高度，复制和关闭固定在 footer；原有真实 WebSocket 连接、二进制截断和复制测试无需修改即通过。新增 UI 回归检查覆盖 Settings 键盘导航／现有编辑器交接，以及 40 条导入报告滚动后 footer 保持可见且可关闭。
-- 最终 `go build ./...`、`go vet ./...`、`go tool mygo vet .`、`go test ./... -count=1` 和 `CGO_ENABLED=0 go test ./... -count=1` 全部通过（字体缓存使用可写的 `XDG_CACHE_HOME`）。过程中未改动的 gRPC deadline/cancellation 和 Capture body-search cancellation 测试各出现过一次失败；后者同代码定向重跑 20 次通过，前者阶段 5 基线定向 10 次通过，最终全量均通过。根因尚未确定，已分别记录后续调查，不据此宣称不存在偶发失败。
-- 浅／深色截图矩阵为 516 张，含 45 种对话框状态及 21 种短窗口变体，覆盖空／错误／忙碌／凭据显示／只读／截断。与阶段 5 基线比较，288 张无关截图逐字节一致，另 4 张 Requests Variables 截图因本阶段统一变量对话框而有意变化。前后图保存于 `.amp/in/artifacts/phase6-before` 和 `phase6-final`，不覆盖阶段 0 基线。
-- Linux 原生窗口录屏并检查了移动指针、分类切换、键盘外观开关、Rules 焦点、Vault 显隐、报告滚动、证据编辑和短窗口设备／Cookies／Code／断点操作。录屏只加载离线夹具，不读取用户配置、不启动代理、不修改系统代理或发送外部请求；F 键是夹具切换，不是产品快捷键。最终录屏为 `.amp/in/artifacts/phase6-review.mp4`；macOS／Windows 原生窗口及全面对比度／可访问性审查仍待阶段 7。
-
-### 阶段 7：深色模式、跨平台与可访问性
-
-- 用截图检查全部状态的深色版本，调整对比度：正文至少 4.5:1，次要文字至少 3:1。
-- macOS（红绿灯、标题栏）、Windows、Linux 各检查一遍标题栏和窗口控件位置。
-- 键盘：Tab 顺序、焦点环可见、所有图标按钮都有 tooltip 和标签。
-
-#### 阶段 7 实施记录（配色与键盘检查）
-
-- 保留既有图标和布局。先用回归检查复现深色主按钮按下态 4.07:1、浅色部分 method／状态文字与 tint 背景低于正文目标，以及标记色块不是可聚焦按钮的问题，再修正。深色按下态调为 `#7373e6`（文字仍为 `#14142b`），对比度为 4.57:1；浅色 GET、POST、DELETE、PATCH 和信息色适当加深，原有语义不变，PATCH 仍为洋红而不是强调色靛蓝。
-- 对正常／hover／pressed 背景计算线性 sRGB 相对亮度，透明 pill 先合成再计算；两主题中，正文最低 9.72:1、次要文字最低 3.85:1、method／语义文字最低 4.53:1、主按钮文字最低 4.57:1、所测状态 pill 最低 5.02:1。永久检查约束的是这些共享配色组合，不将禁用控件算作可操作正文，也不把检查等同于系统高对比度或屏幕阅读器认证。
-- Mark 色块改用带名称、选中状态的原生 `ButtonBase`，保留颜色、提示、勾选和保存／取消行为；Tab／Shift+Tab、Space／Enter 可选择颜色，Esc 不保存。JSON 展开按钮从单个 `▸`／`▾` 名称改为动作、请求／响应及节点路径，例如 `Expand response JSON $.data.nested`，同时暴露 Expanded 状态；现有 JSON 回归检查同步改用该名称，并覆盖键盘折叠／展开及新流量到达后状态保留。Request／Investigation 更多菜单和 Runner 排序箭头补齐 tooltip；Investigations 看板没有布局改版。
-- 原生基础组件的焦点环未被关闭，不另绘一套键盘系统。标题栏布局检查扩展到 960／1280px、1×／2×，覆盖无预留空间、macOS 左侧红绿灯预留和 Windows 风格右侧按钮预留；这是无窗口布局检查，不冒充对应 OS 的实机结果。既有命令面板、工作区、表格选择、编辑器和 Settings 键盘测试继续通过。
-- macOS 首轮发现 Settings 经 Esc 关闭后仅逻辑焦点恢复，齿轮没有焦点环。在 app view 及只含 `ButtonBase`／`DialogBase` 的最小示例中复现：MyGo v0.7.3 在 paint／present 后才 prune／restoreFocus，若无后续帧就不绘制恢复后的焦点环；强制一帧后按钮图像与打开前逐像素相同。共享 `appModal` 在 Dismissed 通知中请求一次 `Invalidate`，仍由 MyGo 决定焦点目标，不改依赖或另行绘环。浅／深色回归检查在缺少该调用时均失败，修正后均通过；检查在 Esc 按下后、释放键或其他事件掩盖问题前读取实际渲染像素。最小示例及前后证据保存于 `.amp/in/artifacts/phase7-focus-regression`。
-- `go build ./...`、`go vet ./...`、`go tool mygo vet .`、`go test ./... -count=1`、`CGO_ENABLED=0 go test ./... -count=1` 全部通过；`GOOS=windows GOARCH=amd64` 和 `GOOS=darwin GOARCH=arm64` 的无 CGO 可执行文件交叉编译通过。无平台专用产品代码或依赖升级。
-- 截图矩阵为 530 张，保存于 `.amp/in/artifacts/phase7-final`，逐表检查浅／深色状态，并对缩略图疑点回看原图；原有 258 张深色图逐字节不变，浅色图随共享语义色变化，另增加 14 张 Mark 键盘／hover／pressed 图。阶段 6 基线保留；旧代码额外生成深色按下态对照于 `phase7-before-pressed`。滚动内容在 viewport 边缘截断是正常裁切，不误判为固定 footer 覆盖。
-- Linux 使用 Xvfb 下的真实 GTK 原生窗口及 X11 移动指针／键盘输入，录屏检查相邻工具栏控件、色块选择／焦点环、浅深色、按住 Save 后移出释放、不保存退出和 Settings；最终录屏为 `.amp/in/artifacts/phase7-linux-keyboard-pointer.mp4`。该 orb 没有 GPU，MyGo 使用软件渲染；离线夹具不加载用户配置、不启动监听或发送外部请求，检查后已移除临时 harness 并停止服务。
-- macOS 在隔离源码中应用最终产品补丁后重跑真实 Aqua 原生窗口：浅／深色 × 1280×800／960×800，4 组共 88/88 项应用级 automation 断言通过。单窗口系统截图已检查标题栏／红绿灯预留、Capture／Requests／Settings 导航、Mark 键盘独占选择与取消、JSON Expanded 状态及叶节点显示。Settings 经 Esc 关闭后，四组系统截图均出现独立焦点环，首轮视觉保留项已消除；没有用额外输入或 harness 强制帧掩盖问题。最终 28 张系统截图、28 张补充 scene 截图、协议／焦点树／日志和完整报告保存于 `.amp/in/artifacts/phase7-macos-final`，原始首轮证据保留在 `phase7-macos`。`CapturePage` 在此版本重新 raster 渲染 scene，不称 GPU framebuffer 读回；真实标题栏证据来自系统单窗口截图。
-- 焦点修正后重新通过上述全量检查和两平台交叉编译；矩阵重跑结果保存在 `.amp/in/artifacts/phase7-final-focus`，530 张均与 `phase7-final` 逐字节相同。临时诊断测试、二进制和隔离源码已清理，未改变 macOS 原仓库、用户配置、系统代理或凭据，未启动产品监听或发送外部请求。
-- 跨平台验收仍有边界：当前没有 Windows runner，Windows 原生窗口与 Narrator／NVDA 待实机检查；macOS 的 AX／系统键盘投递权限未授予，输入是公开 MyGo automation 的应用级合成事件，不是系统真实键盘输入或 VoiceOver 验收。系统录屏曾请求额外权限，未授权、未绕过，已删除无效视频；最终轮不再尝试录屏。交叉编译及应用级检查不作为这些未验项的替代。
-
-### 阶段 8：收尾
-
-- 清理剩余的写死字号、圆角、高度和颜色。目标是 `internal/app` 里只有 `style.go` 和 `appearance.go` 出现数字字号和 `ui.Hex`。
-- 加一个简单的检查（测试或 `go vet` 风格的脚本），防止新代码再写死这些值。
-- 更新 `docs/guide.md` 里与新界面不符的描述（控件名称、位置）。
-
-#### 阶段 8 实施记录（写死值清理）
-
-- `internal/app` 里除 `style.go`、`appearance.go` 外，不再有数字字号、`ui.Hex`／`ui.RGBA`、数字圆角或 `Font("monospace")`。字号 9–11 归 `textMeta`，12–13 归 `textBody`，14–17 归 `textTitle`；圆角 3–5 归 `radiusControl`，6–7 归 `radiusPanel`；控件高度 22–24、26–30、32–36 分别归 24／28／32，新增 44px `heightBar`；图标只剩 14／16。
-- 间距全部改为 `t.Space(n)`，不在网格上的值就近取整（6→8、10→8、14→12，1–2 保留为 `t.Space(0.5)` 细缝）；对话框内边距 20 保持不变。弹层和 toast 共用 `popoverPanel` 的一档阴影；标记色和客户端徽章色板移到 `appearance.go`。
-- 列宽、编辑器高度等界面几何仍留在各自界面。按用户决定，不加防回退检查脚本。截图矩阵前后对比只有 2–4px 的对齐变化，没有裁切或重叠。
-
-## 6. 新界面
-
-功能路线图带来的新界面，都按第 4 节的规范和 UX 规范设计。每个界面在对应里程碑开始前先出设计稿（Painter 概念图或 amp-view 交互原型），确认后再实现。
+功能路线图带来的新界面，都按本文和 UX 规范设计。每个界面在对应里程碑开始前先出设计稿，确认后再实现。
 
 | 界面 | 要点 | 里程碑 |
 | --- | --- | --- |
-| 首次启动引导 | 嵌在 Capture 空状态里的 4 步引导（UX 规范第 9 节）；每步一个主按钮，完成的步骤打勾，可跳过 | M1 |
+| 首次启动引导 | 嵌在流量列表空状态里的 4 步引导（UX 规范第 9 节）；每步一个主按钮，完成的步骤打勾，可跳过 | M1 |
 | 录制 pill 和暂停 | 三种状态（录制中、已暂停、代理停止），暂停按钮在 pill 内 | M1 |
-| Settings 页面 | 独立窗口，左侧分类（通用、外观、代理、HTTPS、抓包、设备），右侧表单行（标签左、控件右、说明在控件下方一行）；改动立即生效，需要重启的项目标明 | M1 |
-| Sessions | Capture 侧栏的一个分组：最近打开的会话文件；打开的会话以视图 tab 显示，tab 上有"历史"标记，只读 | M1 |
-| History | Requests 资源栏的一项：按时间倒序的发送记录列表，顶部按请求、来源、状态筛选；选中后右侧显示请求和响应，可以设为基线、对比、打开成草稿 | M1 |
+| Settings 窗口 | 独立窗口，左侧分类（通用、外观、代理、HTTPS、抓包、设备），右侧 FormRow；改动立即生效，需要重启的项目标明 | M1 |
+| Sessions | 侧栏 SESSIONS 组：最近打开的会话文件，打开后只读，带"历史"标记 | M1 |
+| History | 选中已保存请求时的中间栏：按时间倒序的发送记录，可按来源、状态筛选；可以设为基线、对比、打开成草稿 | M1 |
 | 连接诊断 | 一个页面：上方输入目标 URL，下方按"监听 → 系统代理 → 证书 → 解密规则 → 实际流量"逐项打勾或打叉，每项一个修复按钮 | M1 |
 | Host 方案 | 标题栏下拉框：列出方案和开关，底部"管理方案…"；Tools 窗口里左侧方案列表（拖动排序、开关），右侧 hosts 编辑器（语法高亮、冲突提示） | M2 |
-| 整理成集合向导 | 大弹窗，顶部步骤条（范围 → 合并接口 → 变量 → 结构 → 示例 → 完成），每步左侧是设置、右侧是结果预览 | M3 |
-| 对应请求提示 | 检查器头部一个小链接"对应请求：Get user"，点开或存为示例 | M3 |
-| Tools 窗口 | 独立窗口，左侧分类（规则、场景、脚本、Host 方案、模拟），中间列表（开关、名称、匹配条件），右侧详情编辑；顶部规则测试输入框 | M4 |
-| 规则脚本编辑器 | Tools 窗口右侧的代码编辑器，下方 Console；和 Requests 的 Scripts 用同一个组件 | M4 |
-| JSON 筛选、快速解码 | Body 面板头部的筛选输入框（JSONPath / jq 切换）；选中文字后出现的小浮层，显示 Base64、JWT、时间戳解码结果 | M5 |
-| 耗时瀑布图 | Timing 标签：横向分段条（DNS、连接、TLS、等待、下载），每段颜色不同，下方表格列出数值 | M5 |
-| 协议客户端 | gRPC、SSE、Socket.IO、MCP、MQTT 客户端都作为 Requests 的请求类型，共用请求 tab、地址栏和响应区，只有编辑区和消息时间线不同 | M8 |
+| 整理成集合向导 | 大弹窗，顶部步骤条（范围 → 合并接口 → 变量 → 结构 → 示例 → 完成），每步左侧设置、右侧结果预览 | M3 |
+| 对应请求提示 | 请求文档头部一个小链接"对应请求：Get user"，点开或存为示例 | M3 |
+| Tools 窗口 | 独立窗口，左侧分类（规则、场景、脚本、Host 方案、模拟），中间列表（开关、名称、匹配条件），右侧详情；顶部规则测试输入框 | M4 |
+| 规则脚本编辑器 | Tools 窗口右侧的代码编辑器，下方 Console；和请求的 Scripts 用同一个组件 | M4 |
+| JSON 筛选、快速解码 | Body 面板头部的筛选输入框（JSONPath／jq 切换）；选中文字后的小浮层，显示 Base64、JWT、时间戳解码结果 | M5 |
+| 耗时瀑布图 | Timing：横向分段条（五段颜色见第 5 节），下方表格列出数值 | M5 |
+| 协议客户端 | gRPC、SSE、Socket.IO、MCP、MQTT 都是请求文档的请求类型，共用地址栏和响应区，只有编辑区和消息时间线不同 | M8 |
 
-## 7. 验证
+## 11. 验证
 
-- 每个阶段：`go build ./...`、`go vet ./...`、`go test ./...`、`go tool mygo vet .`。
-- 每个阶段都附阶段 0 生成的浅色和深色前后对比截图。
-- 涉及交互的改动（菜单、hover、tab、拖动分栏）另外在真实窗口里录屏检查。
-- 现有 UI 测试（28 个测试文件、约 250 处按标签点击和查找）是行为不变的保障。改版必须保留无障碍标签；确实需要改名的，同一次提交里同步改测试，并在提交说明中写清楚。
+每一步：
 
-## 8. 风险
+```bash
+go build ./...
+go vet ./...
+go tool mygo vet .
+go test ./... -count=1
+CGO_ENABLED=0 go test ./... -count=1
+```
 
-| 风险 | 应对 |
-| --- | --- |
-| 改布局时不小心丢功能或快捷键 | 阶段 1 只换样式；后续阶段对照菜单、命令面板和快捷键清单逐项检查，现有测试兜底 |
-| 无障碍标签变化导致测试大面积失败 | 共用组件强制传入标签，标签沿用现有文字 |
-| 内嵌字体增加体积 | 只带用到的五个字重；当前 TTF 资源量为 1.72 MiB |
-| 改动面大，难以评审 | 按阶段、按区域拆成小提交，每个都附截图 |
-| 次级界面长期停留在旧样式 | 阶段 8 的检查脚本会列出剩余的写死值，作为待办清单 |
+截图（输出目录必须不存在或为空；`~/.cache/mygo` 不可写时用独立的 `XDG_CACHE_HOME`，否则内嵌字体不生效）：
 
-## 9. 决策记录
+```bash
+# 组件总览：Paper／Ink 各一张总览，加按钮的 hover／pressed
+XDG_CACHE_HOME=/tmp/vscroxy-ui-cache VSCROXY_UIKIT_SNAPSHOTS="$PWD/.amp/in/artifacts/uikit" \
+  go test ./internal/uikit -run '^TestOverviewSnapshots$' -count=1
 
-1. ~~是否内嵌 Inter 和 JetBrains Mono？~~ 已决定：三个平台都内嵌。
-2. ~~强调色？~~ 已决定：靛蓝 #5b5bd6（深色 #7c7cf0），PATCH 改成洋红。**v2 修订：** 改为油墨绿，Paper `#1e5b47`、Ink `#6fb593`，见 0.5。
-3. ~~默认主题？~~ 已决定：外观设置改成"跟随系统 / 浅色 / 深色"三选一，默认跟随系统。现有的深色开关迁移过来。
-4. ~~行高？~~ 已决定：28。桌面调试工具需要密度，Proxyman 也是这个量级。
-5. ~~全局图标栏（方案 B）？~~ 已决定：不做。保留 Capture / Requests 两个工作区；规则、Host 方案、脚本、Mock 集中到 Tools 窗口（见功能路线图第 2 节）。**v2 修订：** 合并成一个工作区（见 0.3）；全局图标栏仍然不做，Tools 窗口不变。
-6. ~~网络设置对话框是否并进 Settings？~~ 已决定：并进，见阶段 6。
-7. ~~组件放在哪？~~ 已决定（v2）：独立的 `internal/uikit` 包，只依赖 MyGo；界面只用 uikit 的组件和 token（见 0.6）。
-8. ~~默认主题的样子？~~ 已决定（v2）：油墨绿 Paper／Ink，平涂、不做纸纹（见 0.5）。
-9. ~~状态码怎么上色？~~ 已决定（v2）：正常的不上色，2xx 用次要文字，只有 3xx／4xx／5xx 上色；method 用纯色等宽文字，不做 chip（见 0.4）。
-10. ~~详情区布局？~~ 已决定（v2）：左右和上下两种，标题栏切换，各自记住比例（见 0.3）。
-11. ~~第三方主题？~~ 已决定（v2）：支持 VS Code 主题映射和导入，在界面迁移完成后做；主题只换颜色（见 0.7）。
+# 界面矩阵：浅／深色 × 1280／960 等宽度，覆盖各界面、菜单、对话框和状态
+XDG_CACHE_HOME=/tmp/vscroxy-ui-cache VSCROXY_SNAPSHOTS="$PWD/.amp/in/artifacts/ui" \
+  go test ./internal/app -run '^TestUISnapshots$' -count=1
+```
+
+- 评审外观先看组件总览，再看界面矩阵；每一步附前后对比。
+- 菜单、hover、tab、拖动分栏这类交互，另外在真实窗口里录屏检查。
+- 现有 UI 测试按无障碍标签点击和查找，是行为不变的保障。
+- macOS、Windows 的原生窗口、读屏软件还没有实机验收（Windows 没有 runner）。
+
+## 12. 决策记录
+
+1. 内嵌 Inter 和 JetBrains Mono，三个平台都内嵌；中文用系统字体。
+2. 强调色是油墨绿：Paper `#1e5b47`、Ink `#6fb593`（v1 的靛蓝已取代）。
+3. 外观默认跟随系统，可选浅色或深色（现在还是深色开关，随 Settings 窗口改）。
+4. 行高 28。
+5. 一个工作区（取代 Capture／Requests 两个工作区）；不做全局图标栏；规则、Host 方案、脚本、Mock 集中到 Tools 窗口。
+6. 网络相关的设置对话框并进 Settings。
+7. 组件放在独立的 `internal/uikit`，只依赖 MyGo；界面只用 uikit 的组件和 token。
+8. 默认主题是 Paper／Ink，平涂、不做纸纹。
+9. 正常的不上色：2xx 用次要文字，只有 3xx／4xx／5xx 上色；method 用纯色等宽文字，不做 chip。
+10. 选中是浅底加标记线，不用实心整行；侧栏只有一个选中项。
+11. 详情区有左右和上下两种布局，标题栏切换，各自记住比例。
+12. 支持 VS Code 主题映射和导入，在界面迁移完成后做；主题只换颜色。
+13. 保留现有品牌图标和 app 图标。
+14. 不加防写死值回退的检查脚本。
