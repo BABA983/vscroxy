@@ -3296,6 +3296,27 @@ func TestClientSetupCopiedCommandProducesLiveDecryptionEvidence(t *testing.T) {
 	}
 }
 
+func TestSettingsWindowViewChangesSharedState(t *testing.T) {
+	a := workspaceApp()
+	tt := ui.NewTester(a.settingsView, 760, 560)
+	if err := tt.Click("Settings category: Appearance"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.Click("Dark"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if a.appearance != "dark" || a.settingsTab != 3 {
+		t.Fatalf("appearance %q, tab %d", a.appearance, a.settingsTab)
+	}
+	// The main window draws from the same state.
+	main := ui.NewTester(a.view, 1280, 800)
+	main.Frame()
+	if !a.dark {
+		t.Fatal("the main window kept the light theme")
+	}
+}
+
 func TestSetupGuideAdvancesFromWhatTheAppObserves(t *testing.T) {
 	a := workspaceApp()
 	a.flows = nil

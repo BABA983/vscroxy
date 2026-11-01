@@ -194,10 +194,11 @@ func (a *app) httpsSettings(c *ui.Context, t *ui.Theme) {
 		uikit.Hint(c, "Trusting the CA and enabling domain decryption are separate steps.")
 		ui.Row(c).Gap(t.Space(2)).Wrap().Children(func() {
 			if uikit.SecondaryButton(c, "Manage domains…").Clicked() {
-				a.settingsOpen, a.sslOpen = false, true
+				a.leaveSettings()
+				a.sslOpen = true
 			}
 			if uikit.SecondaryButton(c, "TLS key log…").Clicked() {
-				a.settingsOpen = false
+				a.leaveSettings()
 				a.openKeyLog()
 			}
 		})
@@ -358,7 +359,7 @@ func (a *app) connectPanel(c *ui.Context, f flow) {
 						record(false)
 					}
 					if uikit.SecondaryButton(c, "Certificate setup…").Tooltip("Check or install the local CA; this client may still need its own trust or a debug build").Clicked() {
-						a.settingsTab, a.settingsOpen = 2, true
+						a.openSettings(2)
 						a.checkCertificate(false)
 					}
 				})

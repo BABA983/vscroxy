@@ -489,7 +489,7 @@ func (a *app) desktopActions(c *ui.Context) []desktopAction {
 			a.sidebarWidth, a.tablePercent = 220, 44
 			a.columns = ui.TableLayout{}
 		}},
-		{"https", "HTTPS certificate & decryption setup…", true, 0, 0, func() { a.settingsTab, a.settingsOpen = 2, true }},
+		{"https", "HTTPS certificate & decryption setup…", true, 0, 0, func() { a.openSettings(2) }},
 		{"diagnostics", "Capture diagnostics…", true, 0, 0, a.openDiagnostics},
 		{"setup-guide", "Show setup guide", !a.guide, 0, 0, a.openGuide},
 		{"experiments", "Run records…", true, 0, 0, func() {
@@ -512,7 +512,7 @@ func (a *app) desktopActions(c *ui.Context) []desktopAction {
 		}},
 		{"import-postman", "Import…", true, 0, 0, a.importRequests},
 		{"export-postman", "Export collection as Postman…", editing && d.composeCollection != "", 0, 0, func() { a.exportPostman(collectionRoot(d.composeCollection)) }},
-		{"settings", "Open settings…", true, ui.Cmd, ui.KeyComma, func() { a.settingsOpen = true }},
+		{"settings", "Open settings…", true, ui.Cmd, ui.KeyComma, func() { a.openSettings(-1) }},
 		{"live", "Go to Live traffic", true, ui.Cmd, ui.Key1, func() {
 			a.page = pageLive
 			a.trafficOpen, a.revealGroup = true, "live"

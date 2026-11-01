@@ -189,11 +189,11 @@ func (a *app) diagnosticsModal(c *ui.Context, t *ui.Theme) {
 			uikit.DialogFooter(c).Children(func() {
 				if uikit.SecondaryButton(c, "Proxy settings…").Clicked() {
 					d.open = false
-					a.settingsTab, a.settingsOpen = 1, true
+					a.openSettings(1)
 				}
 				if uikit.SecondaryButton(c, "HTTPS settings…").Clicked() {
 					d.open = false
-					a.settingsTab, a.settingsOpen = 2, true
+					a.openSettings(2)
 				}
 				if uikit.SecondaryButton(c, "Client setup…").Clicked() {
 					d.open = false

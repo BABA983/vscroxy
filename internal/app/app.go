@@ -92,6 +92,10 @@ type app struct {
 	saveAfterRename bool
 	settingsOpen    bool
 	settingsTab     int
+	// settingsWin is the Settings window while it is open, and
+	// settingsFocused whether it is in front; both only on the main thread.
+	settingsWin     *mygo.Window
+	settingsFocused bool
 	curlOpen        bool
 	curlInput       string
 	curlProblem     string
@@ -1180,11 +1184,21 @@ func (a *app) view(c *ui.Context) {
 	a.dark = a.appearance == "dark" || a.appearance == "" && c.Theme().Dark
 	c.SetTheme(uikit.Theme(a.dark))
 	a.drain()
+	// The Settings window shows these checks too: it redraws when one
+	// finishes, and shows the messages while it is in front.
+	busy := [3]bool{a.certificate.checking, a.systemProxy.checking, a.systemProxy.applying}
 	a.drainCertificate()
 	a.drainSystemProxy()
 	a.drainRunner()
+	settings := a.settingsWin != nil
+	if settings && busy != [3]bool{a.certificate.checking, a.systemProxy.checking, a.systemProxy.applying} {
+		a.settingsWin.Invalidate()
+	}
 	a.mu.Lock()
-	if a.messagePending {
+	switch {
+	case a.messagePending && settings && a.settingsFocused:
+		a.settingsWin.Invalidate()
+	case a.messagePending:
 		c.Toast(a.message)
 		a.messagePending = false
 	}

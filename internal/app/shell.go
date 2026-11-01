@@ -44,7 +44,7 @@ func (a *app) shell(c *ui.Context, t *ui.Theme) {
 					a.networkTools(m)
 				})
 				if uikit.IconButton(c, "Settings", "Settings · Ctrl/Cmd+,", settingsIcon).Clicked() {
-					a.settingsOpen = true
+					a.openSettings(-1)
 				}
 				uikit.IconButton(c, "More", "More commands", moreIcon).PopoverMenuButton(func(m *ui.Menu) { a.moreMenu(c, m) })
 			})
@@ -135,7 +135,7 @@ func (a *app) proxyIndicator(c *ui.Context, t *ui.Theme) {
 			ui.Text(c, rateLabel(a.rate.perSecond())).Font(uikit.FontMono).FontFeatures("tnum").SingleLine()
 		})
 		if b.Clicked() {
-			a.settingsTab, a.settingsOpen = 1, true
+			a.openSettings(1)
 		}
 		if !running {
 			return
