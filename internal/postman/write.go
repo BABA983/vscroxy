@@ -158,7 +158,7 @@ func WriteCollection(name string, requests []request.Request, folders []request.
 	for _, r := range requests {
 		if n := root.at(name, r.Collection); n != nil {
 			n.requests = append(n.requests, r)
-			if r.Checks != (request.Checks{}) {
+			if _, err := r.Checks.Script(); err != nil {
 				warn.add("checks", "", 1)
 			}
 		}
@@ -219,7 +219,7 @@ func (n *node) items() []outItem {
 		})
 	}
 	for _, r := range n.requests {
-		items = append(items, outItem{ID: r.ID, Name: r.Name, Request: writeRequest(r), Event: writeEvents(r.Pre, r.Post), Response: writeExamples(r.Examples)})
+		items = append(items, outItem{ID: r.ID, Name: r.Name, Request: writeRequest(r), Event: writeEvents(r.Pre, testScript(r)), Response: writeExamples(r.Examples)})
 	}
 	return items
 }
@@ -386,6 +386,16 @@ func writeOAuth2(o request.OAuth2) []outKV {
 	add("headerPrefix", o.HeaderPrefix, false)
 	add("addTokenTo", "header", true)
 	return params
+}
+
+// testScript is a request's post-response script with its Checks after it,
+// as pm.test code: Postman has no declarative checks.
+func testScript(r request.Request) string {
+	checks, _ := r.Checks.Script() // Invalid checks are left out, with a warning.
+	if r.Post == "" || checks == "" {
+		return r.Post + checks
+	}
+	return r.Post + "\n\n" + checks
 }
 
 func writeEvents(pre, post string) []outEvent {

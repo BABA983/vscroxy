@@ -1006,7 +1006,12 @@ Raw bodies get the `Content-Type` Postman would send for their language.
 
 Right-click a request or collection and choose **Export “Shop” as Postman…**,
 or use the palette, to write the collection as Collection v2.1. Response
-Checks have no Postman form and are left out. **Export as Postman…** in
+Checks have no Postman form, so they are written as `pm.test` code after the
+request's own post-response script, one test per check under the same name,
+reporting the same pass or fail. Numbers compare as JavaScript numbers there, so
+two integers beyond 2^53 that Checks tells apart may compare equal. Invalid
+Checks are left out with a warning. Importing the file back gives a script, not
+Checks. **Export as Postman…** in
 **Variables** writes the environment or globals on screen. Exports contain auth
 fields and variable values as they are; `{{vault:name}}` references stay
 references.

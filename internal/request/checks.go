@@ -85,6 +85,66 @@ func (r Checks) Evaluate(f capture.Flow) []TestResult {
 	return results
 }
 
+// Script writes the checks as a Postman test script, for an export: one
+// pm.test per result Evaluate reports, under the same name. Numbers compare
+// as JavaScript does, so past 2^53 two IDs Evaluate tells apart can pass.
+func (r Checks) Script() (string, error) {
+	status, headers, checks, err := r.Parse()
+	if err != nil || status == 0 && len(headers) == 0 && len(checks) == 0 {
+		return "", err
+	}
+	quote := func(s string) string {
+		b, _ := json.Marshal(s)
+		return jsLiteral(b)
+	}
+	var b strings.Builder
+	b.WriteString("// vscroxy Checks\n(function () {\n")
+	if status != 0 {
+		fmt.Fprintf(&b, "\tpm.test(%s + pm.response.code + \")\", function () {\n\t\tpm.expect(pm.response.code).to.equal(%d);\n\t});\n",
+			quote(fmt.Sprintf("Status equals %d (received ", status)), status)
+	}
+	for _, name := range slices.Sorted(maps.Keys(headers)) {
+		for _, want := range headers[name] {
+			// Any repeated header may match; missing is not equal to empty.
+			fmt.Fprintf(&b, "\tpm.test(%s, function () {\n\t\tpm.expect(pm.response.headers.all().some(function (h) { return h.key.toLowerCase() === %s && h.value === %s; }), %s).to.be.true;\n\t});\n",
+				quote("Header "+name+" equals expected value"), quote(strings.ToLower(name)), quote(want), quote("a "+name+" header of "+want))
+		}
+	}
+	if len(checks) > 0 {
+		b.WriteString(`	// field walks a JSON Pointer's tokens into the response body.
+	function field(tokens) {
+		var value;
+		try { value = JSON.parse(pm.response.text()); } catch (e) { return { found: false }; }
+		for (var i = 0; i < tokens.length; i++) {
+			var token = tokens[i];
+			if (Array.isArray(value)) {
+				if (!/^(0|[1-9][0-9]*)$/.test(token) || Number(token) >= value.length) return { found: false };
+				value = value[Number(token)];
+			} else if (value !== null && typeof value === "object" && Object.prototype.hasOwnProperty.call(value, token)) {
+				value = value[token];
+			} else {
+				return { found: false };
+			}
+		}
+		return { found: true, value: value };
+	}
+`)
+		for _, check := range checks {
+			tokens, _ := json.Marshal(slices.Collect(check.pointer.Tokens()))
+			fmt.Fprintf(&b, "\tpm.test(%s, function () {\n\t\tvar got = field(%s);\n\t\tpm.expect(got.found, %s).to.be.true;\n\t\tpm.expect(got.value).to.equal(%s);\n\t});\n",
+				quote("JSON "+string(check.pointer)+" equals expected value"), jsLiteral(tokens), quote(string(check.pointer)+" in the JSON body"), jsLiteral(check.want))
+		}
+	}
+	b.WriteString("})();")
+	return b.String(), nil
+}
+
+// jsLiteral is JSON as a JavaScript literal: the same text, with the line
+// separators JSON allows in strings escaped for older engines.
+func jsLiteral(b []byte) string {
+	return strings.NewReplacer("\u2028", `\u2028`, "\u2029", `\u2029`).Replace(string(b))
+}
+
 func jsonField(raw jsontext.Value, pointer jsontext.Pointer) (jsontext.Value, bool) {
 	if !raw.IsValid() {
 		return nil, false

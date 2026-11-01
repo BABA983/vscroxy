@@ -174,7 +174,7 @@ func (k warning) text(n int) string {
 		return count(n, "AWS Signature configuration adds", "AWS Signature configurations add") +
 			" the signature to the query; vscroxy sends it in headers"
 	case "checks":
-		return "Declarative checks on " + count(n, "request are", "requests are") + " not exported"
+		return "Invalid checks on " + count(n, "request are", "requests are") + " not exported"
 	}
 	return fmt.Sprintf("%s %s: %d", k.what, k.detail, n)
 }

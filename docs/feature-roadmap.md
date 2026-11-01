@@ -64,7 +64,7 @@
 | HTTP/2（TLS） | 已有 | 底层引擎协商 h2；h2c 不支持 | |
 | WebSocket、SSE | 已有 | | |
 | gRPC / Protobuf 检查 | 已有 | 只限 HTTP body | |
-| **录制开关（Record / Pause）** | 缺少 | 现在只能清空，不能暂停 | M1 |
+| **录制开关（Record / Pause）** | 已有 | 标题栏录制 pill 的暂停按钮，命令面板 Pause／Resume recording | M1 |
 | 清空会话 | 已有 | | |
 | **只抓指定 host / App（Allow list）** | 已有 | Settings → Capture，按 host 和 App；忽略名单优先 | M1 |
 | 长时间抓包的内存和磁盘上限、自动清理 | 已有 | Settings → Capture → Memory：条数和内存上限，超出先删最旧的（Pin 的保留），连同落盘文件 | M1 |
@@ -181,7 +181,7 @@
 | `have.jsonSchema` | 缺少 | | M6 |
 | `pm.visualizer`（响应可视化） | 缺少 | | M9 |
 | 可复用脚本库（Postman Packages） | 缺少 | | M9 |
-| Checks（无代码断言） | 已有 | 导出时转 `pm.test` | M1 |
+| Checks（无代码断言） | 已有 | 导出 Postman 时转成 `pm.test`，结果与 Checks 一致；无效的 Checks 跳过并警告 | M1 |
 | 集合、文件夹、设置、落盘为目录 | 已有 | | |
 | 请求描述、集合文档视图 | 缺少 | Postman 导入时会丢 | M6 |
 | 单个请求的设置：超时、跟随重定向、证书校验 | 缺少 | Postman 导入时会丢 | M6 |

@@ -679,8 +679,8 @@ func TestCollectionRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := []string{"Declarative checks on 1 request are not exported"}; !slices.Equal(warnings, want) {
-		t.Errorf("warnings = %q, want %q", warnings, want)
+	if len(warnings) != 0 {
+		t.Errorf("warnings = %q, want none: valid checks export as pm.test", warnings)
 	}
 	for _, s := range []string{"{\n  \"info\": {", `"name": "Orders/Returns"`, `"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"`} {
 		if !strings.Contains(string(data), s) {
@@ -721,7 +721,12 @@ func TestCollectionRoundTrip(t *testing.T) {
 	r8.Auth.Token, r8.Auth.OAuth2.Grant = "", request.GrantAuthorizationCodePKCE
 	want["r8"] = r8
 	r6 := want["r6"]
-	r6.HeaderList, r6.Checks = []request.Field{{Name: "A", Value: "1"}, {Name: "B", Value: "2"}}, request.Checks{}
+	// Checks come back as the test script they were exported as.
+	checks, err := r6.Checks.Script()
+	if err != nil {
+		t.Fatal(err)
+	}
+	r6.HeaderList, r6.Checks, r6.Post = []request.Field{{Name: "A", Value: "1"}, {Name: "B", Value: "2"}}, request.Checks{}, checks
 	want["r6"] = r6
 	for _, r := range got.Requests {
 		if !reflect.DeepEqual(r, want[r.ID]) {
@@ -730,6 +735,21 @@ func TestCollectionRoundTrip(t *testing.T) {
 	}
 	if !reflect.DeepEqual(got.Folders, folders[:4]) {
 		t.Errorf("Folders:\n got %+v\nwant %+v", got.Folders, folders[:4])
+	}
+}
+
+func TestWriteCollectionWarnsAboutInvalidChecks(t *testing.T) {
+	r := request.Request{ID: "r", Name: "Bad", Collection: "Shop", Method: "GET", URL: "https://x.test", Post: "// mine", Checks: request.Checks{Status: "abc"}}
+	data, warnings, err := postman.WriteCollection("Shop", []request.Request{r}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{"Invalid checks on 1 request are not exported"}; !slices.Equal(warnings, want) {
+		t.Errorf("warnings = %q, want %q", warnings, want)
+	}
+	got, err := postman.ReadCollection(data)
+	if err != nil || len(got.Requests) != 1 || got.Requests[0].Post != "// mine" {
+		t.Fatalf("the request's own script must survive without the checks: %+v, %v", got.Requests, err)
 	}
 }
 
