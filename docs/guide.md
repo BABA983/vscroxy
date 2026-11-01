@@ -1455,9 +1455,7 @@ The default is **Side by side**: requests on the left, the inspector on the
 right, from 1000 DIPs of content width; a narrower window stacks them without
 changing the choice. **Stacked** puts the inspector under the requests at any
 width. Choose either with the two buttons in the title bar or **⋯ → View →
-Layout**. Each keeps its own divider position. Settings saved before this kept
-**Bottom** as Stacked; **Right**, **Adaptive** and the old default open side
-by side. In the side layout, the table prioritizes URL,
+Layout**. Each keeps its own divider position. In the side layout, the table prioritizes URL,
 method, status and duration, and header blocks stack rather than squeezing values
 into two narrow columns. Client and size remain visible in the inspector.
 
