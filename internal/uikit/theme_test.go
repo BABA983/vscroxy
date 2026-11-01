@@ -75,3 +75,37 @@ func TestNormalResponsesAreQuiet(t *testing.T) {
 		}
 	}
 }
+
+func TestActivityStacksMeasureTotalWithoutRecoloringNormalTraffic(t *testing.T) {
+	for _, dark := range []bool{false, true} {
+		theme := Theme(dark)
+		palette := Colors(theme)
+		var selected ActivityRange
+		tt := ui.NewTester(func(c *ui.Context) {
+			c.SetTheme(theme)
+			ui.Column(c).Fill().Background(theme.Background).Children(func() {
+				ActivityStrip(c, []ActivityBucket{{6, 0, 0, 4}, {0, 0, 0, 5}}, &selected, "15 requests", [3]string{}, func() {})
+			})
+		}, 224, 100)
+		plot, _ := tt.Find("Activity time range")
+		image := tt.Image()
+		for _, sample := range []struct {
+			x, y float32
+			want ui.Color
+		}{
+			// The ten-request mixed stack is taller than five errors. Only
+			// its upper four tenths are red; normal requests stay neutral.
+			{plot.X + plot.W/4, plot.Y + 5, palette.Danger},
+			{plot.X + plot.W/4, plot.Y + 15, palette.TextMuted.Alpha(0.6).Over(theme.Background)},
+			{plot.X + plot.W*3/4, plot.Y + 5, theme.Background},
+			{plot.X + plot.W*3/4, plot.Y + 15, palette.Danger},
+		} {
+			got := image.RGBAAt(int(sample.x), int(sample.y))
+			// The raster compositor may round translucent channels one unit
+			// differently from Color.Over; a different signal color still fails.
+			if math.Abs(float64(got.R)-float64(sample.want.R)) > 1 || math.Abs(float64(got.G)-float64(sample.want.G)) > 1 || math.Abs(float64(got.B)-float64(sample.want.B)) > 1 {
+				t.Fatalf("dark=%t: activity at %.0f,%.0f = %v, want %v", dark, sample.x, sample.y, got, sample.want)
+			}
+		}
+	}
+}

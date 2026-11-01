@@ -179,13 +179,14 @@ func writeCaptureFilters(path string, list []savedCaptureFilter) error {
 // captureConditions is what narrows the table and how it is ordered, as one
 // view holds it. The app's own filter fields mirror the active view.
 type captureConditions struct {
-	query  string
-	filter string
-	chip   int
-	status string
-	header string
-	triage captureTriage
-	sort   ui.SortOrder
+	query    string
+	filter   string
+	chip     int
+	status   string
+	header   string
+	triage   captureTriage
+	activity activityRange
+	sort     ui.SortOrder
 }
 
 // captureView is one tab over the capture list: the same traffic, its own
@@ -406,7 +407,7 @@ func conditionsOf(a *app) captureConditions {
 	return captureConditions{
 		query: a.query, filter: a.filter, chip: a.chip,
 		status: a.filterStatus, header: a.filterHeader, sort: a.sort,
-		triage: a.filterTriage,
+		triage: a.filterTriage, activity: a.activity,
 	}
 }
 
@@ -420,6 +421,7 @@ func (v *captureViews) bind(a *app) {
 	a.query, a.filter, a.chip = view.query, view.filter, view.chip
 	a.filterStatus, a.filterHeader = view.status, view.header
 	a.filterTriage = view.triage
+	a.activity = view.activity
 	a.sort, a.picked = view.sort, view.picked
 	a.pickedID = view.pickedID
 	// The app's own body filter would match the 64 KiB heads only: the view
@@ -850,6 +852,7 @@ func (v *captureViews) clearFilters(a *app) {
 // in the saved filter library. Sorting and the view itself stay in place.
 func (v *captureViews) resetFilters(a *app) {
 	a.query, a.filter, a.chip = "", "all", 0
+	a.activity = activityRange{}
 	v.capture(a)
 	v.clearFilters(a)
 }

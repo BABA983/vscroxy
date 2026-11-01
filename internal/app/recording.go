@@ -62,8 +62,8 @@ func (a *app) record(pending []capture.Flow) []capture.Flow {
 	return pending
 }
 
-// tickRate redraws once a second while the curve has something in it to
-// move, until capture stops.
+// tickRate redraws once a second while the pill or five-minute activity
+// overview has something in it to move, until capture stops.
 func (a *app) tickRate(done <-chan struct{}) {
 	tick := time.NewTicker(time.Second)
 	defer tick.Stop()
@@ -72,7 +72,7 @@ func (a *app) tickRate(done <-chan struct{}) {
 		case <-done:
 			return
 		case now := <-tick.C:
-			if now.Unix()-a.lastFlow.Load() <= int64(len(a.rate.counts))+1 {
+			if now.Unix()-a.lastFlow.Load() <= int64(activitySpan/time.Second)+1 {
 				a.win.Invalidate()
 			}
 		}

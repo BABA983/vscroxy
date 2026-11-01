@@ -639,12 +639,14 @@ func (a *app) replaceSession(flows []flow, frames map[int][]frame) {
 	a.views.cache = bodyCache{}
 	for _, view := range a.views.views {
 		view.picked, view.pickedID = 0, 0
+		view.activity = activityRange{}
 		view.list = ui.ListState{}
 	}
 	a.messageUI.stopSearch()
 	a.messageUI = messagePanel{}
 	a.protobuf.stop()
 	a.query, a.filter = "", "all"
+	a.activity = activityRange{}
 	a.countDomains()
 	a.countClients()
 	a.applyFilter()

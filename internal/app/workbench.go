@@ -98,6 +98,7 @@ func (a *app) desktopContent(c *ui.Context) {
 				a.captureToolbar(c, c.Theme())
 				table := func() {
 					ui.Column(c).Fill().Children(func() {
+						a.activityStrip(c)
 						if a.chosen.Len() > 1 {
 							ui.Row(c).Height(uikit.HeightLarge).Padding(0, c.Theme().Space(2)).Gap(c.Theme().Space(2)).AlignItems(ui.Center).Children(func() {
 								ui.Text(c, fmt.Sprintf("%d selected", a.chosen.Len())).FontSize(uikit.TextMeta).Bold().Grow(1)
@@ -111,7 +112,9 @@ func (a *app) desktopContent(c *ui.Context) {
 						a.table(c)
 					})
 				}
-				if len(a.visible) == 0 {
+				// Keep the plot and its pointer capture in the same split while
+				// a brush passes through an interval with no matching requests.
+				if len(a.visible) == 0 && !a.activity.active() {
 					a.syncDetail()
 					table()
 					ui.Row(c).Height(uikit.HeightLarge).Padding(0, c.Theme().Space(3)).AlignItems(ui.Center).Children(func() {
@@ -266,6 +269,9 @@ func (a *app) captureConditions(c *ui.Context) {
 		}
 		if a.chip != 0 {
 			token(captureKinds[a.chip], func() { a.chip = 0 })
+		}
+		if a.activity.active() {
+			token("Time: "+a.activity.label(), func() { a.activity = activityRange{} })
 		}
 		for _, field := range []struct {
 			label string

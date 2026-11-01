@@ -283,6 +283,8 @@ type app struct {
 	filterHeader  string
 	filterBody    string
 	filterTriage  captureTriage
+	activity      activityRange
+	activityRows  []int // matching rows before the time brush, for its full context
 	views         captureViews
 	columnOpen    bool
 	columnDraft   customColumn
@@ -1047,6 +1049,15 @@ func (a *app) applyFilter() {
 	}
 	a.sortVisible()
 	a.views.narrow(a)
+	a.activityRows = append(a.activityRows[:0], a.visible...)
+	if a.activity.active() {
+		from, to := a.activity.bounds()
+		a.visible = slices.DeleteFunc(a.visible, func(i int) bool {
+			at := a.flows[i].at
+			return at.Before(from) || !at.Before(to)
+		})
+	}
+	a.views.rows = len(a.visible)
 	a.restoreSelection()
 }
 
@@ -2781,7 +2792,7 @@ func (a *app) setKeyLog(path string) {
 // filtersActive includes every condition that can hide captured requests.
 func (a *app) filtersActive() bool {
 	return a.query != "" || a.filter != "" && a.filter != "all" || a.chip != 0 ||
-		a.filterStatus != "" || a.filterHeader != "" || a.views.bodyFilter() != "" || a.filterTriage != (captureTriage{})
+		a.filterStatus != "" || a.filterHeader != "" || a.views.bodyFilter() != "" || a.filterTriage != (captureTriage{}) || a.activity.active()
 }
 
 // filterSummary is what the status bar says about the filters in use.
@@ -2804,6 +2815,9 @@ func (a *app) filterSummary() string {
 	}
 	if body := a.views.bodyFilter(); body != "" {
 		parts = append(parts, "body "+body)
+	}
+	if a.activity.active() {
+		parts = append(parts, "time "+a.activity.label())
 	}
 	parts = append(parts, a.filterTriage.summary()...)
 	return strings.Join(parts, " · ")

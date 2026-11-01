@@ -89,6 +89,16 @@ func TestUISnapshots(t *testing.T) {
 	states := []snapshot{
 		{name: "capture-empty", setup: func(a *app) { a.flows = nil; a.countDomains(); a.countClients(); a.applyFilter() }, want: "Capture is stopped"},
 		{name: "capture-selected", want: "Request inspector"},
+		{name: "capture-activity", setup: snapshotActivity, want: "Activity strip"},
+		{name: "capture-activity-range", setup: snapshotActivity, act: func(t *testing.T, tt *ui.Tester) {
+			plot, ok := tt.Find("Activity time range")
+			if !ok {
+				t.Fatal("activity plot missing")
+			}
+			tt.Press(plot.X+plot.W*0.35, plot.Y+10)
+			tt.Move(plot.X+plot.W*0.6, plot.Y+10)
+			tt.Release(plot.X+plot.W*0.6, plot.Y+10)
+		}, want: "Clear activity range"},
 		{name: "capture-response-error", setup: func(a *app) {
 			a.flows[0].status, a.flows[0].millis, a.flows[0].bytes = 500, 1242, 1843
 			a.flows[0].resBody = `{"error":"Internal Server Error","request_id":"req_73","retryable":true}`
@@ -452,7 +462,7 @@ func TestUISnapshots(t *testing.T) {
 		}
 		for _, state := range states {
 			widths := []int{1280}
-			if state.name == "capture-selected" || state.name == "capture-response-error" || state.name == "capture-no-response" || state.name == "capture-edited" || state.name == "capture-sent" || state.name == "capture-ws" || state.name == "capture-connect" || strings.HasPrefix(state.name, "requests-") || strings.HasPrefix(state.name, "secondary-") || strings.HasPrefix(state.name, "dialog-") || state.name == "active-tools" {
+			if state.name == "capture-selected" || strings.HasPrefix(state.name, "capture-activity") || state.name == "capture-response-error" || state.name == "capture-no-response" || state.name == "capture-edited" || state.name == "capture-sent" || state.name == "capture-ws" || state.name == "capture-connect" || strings.HasPrefix(state.name, "requests-") || strings.HasPrefix(state.name, "secondary-") || strings.HasPrefix(state.name, "dialog-") || state.name == "active-tools" {
 				widths = append(widths, 960)
 			}
 			// Live traffic reads in both layouts: the inspector beside the
@@ -591,6 +601,39 @@ func snapshotApp() *app {
 	a.chosen.Add(1)
 	openResponseBody(a)
 	return a
+}
+
+func snapshotActivity(a *app) {
+	base := a.flows[0]
+	a.flows = nil
+	for bucket := range 60 {
+		n := 1 + bucket*7%6
+		if bucket >= 22 && bucket < 29 {
+			n += 8
+		}
+		for j := range n {
+			f := base
+			f.id, f.debugKey = len(a.flows)+1, ""
+			f.at = snapshotTime.Add(-5*time.Minute + time.Duration(bucket)*5*time.Second + time.Duration(j)*time.Millisecond)
+			f.path = fmt.Sprintf("/v1/projects/%d", f.id)
+			f.url = "https://" + f.host + f.path
+			f.status = 200
+			switch {
+			case bucket >= 22 && bucket < 29 && j >= n-3:
+				f.status, f.millis = 500, 1242
+			case bucket%9 == 0 && j == 0:
+				f.status = 404
+			case bucket%7 == 0 && j == 1:
+				f.status = 302
+			}
+			a.flows = append(a.flows, f)
+		}
+	}
+	a.chosen.Clear()
+	a.picked, a.pickedID = 0, 1
+	a.countDomains()
+	a.countClients()
+	a.applyFilter()
 }
 
 func snapshotRuns(a *app) {
