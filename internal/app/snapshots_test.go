@@ -165,6 +165,18 @@ func TestUISnapshots(t *testing.T) {
 			click("Search host or path")(t, tt)
 			tt.Type("host:api.example.com status:abc ")
 		}, want: "Remove condition: host:api.example.com"},
+		{name: "capture-timing-hover", setup: func(a *app) {
+			f := &a.flows[0]
+			f.millis, f.wait, f.download = 300, 240, 60
+			f.conn = conn{resolved: "203.0.113.7", lookupMs: 25, dnsFresh: true, flows: 1, tls: "TLS 1.3"}
+		}, act: func(t *testing.T, tt *ui.Tester) {
+			r, ok := tt.Find("Response result")
+			if !ok {
+				t.Fatal("headline missing")
+			}
+			tt.Move(r.X+20, r.Y+r.H-14)
+			tt.Advance(time.Second)
+		}, want: "DNS lookup"},
 		{name: "capture-headers", setup: func(a *app) { a.inspect.tab[1] = resTabHeaders }, want: "Content-Type"},
 		{name: "capture-raw", setup: func(a *app) { a.inspect.tab[1] = resTabRaw }, want: "Raw message"},
 		{name: "capture-timing", setup: func(a *app) { a.inspect.tab[1] = resTabTiming }, want: "Waiting"},

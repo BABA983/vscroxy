@@ -1,6 +1,8 @@
 package uikit
 
 import (
+	"fmt"
+
 	"github.com/egoist/mygo/ui"
 	"github.com/oneo-me/onevra/source/icons/lucide"
 )
@@ -157,17 +159,88 @@ func Select(c *ui.Context, selected *string, options []string) ui.Element {
 		Height(HeightControl).Padding(0, c.Theme().Space(2)).FontSize(TextBody).Radius(RadiusControl)
 }
 
-// ResponseHeadline keeps the complete status above its secondary facts.
-// Narrow panes elide either line, with the full text available on hover.
-func ResponseHeadline(c *ui.Context, status, detail string, ink ui.Color) ui.Element {
+// TimingPhase is one part of a response's time, as the Timing tab colors it.
+type TimingPhase struct {
+	Name   string
+	Millis int
+	Color  ui.Color
+}
+
+// Timing is how a response's time divides into its phases, in order, and
+// what the phases cannot name, as a reused connection; no phases for an
+// exchange that never reached a server.
+type Timing struct {
+	Phases []TimingPhase
+	Note   string
+}
+
+// ResponseHeadline keeps the complete status above its secondary facts: the
+// duration, then the rest of detail. Narrow panes elide either line, with the
+// full text available on hover; the duration's hover card splits it into its
+// phases.
+func ResponseHeadline(c *ui.Context, status string, ink ui.Color, duration, detail string, timing Timing) ui.Element {
 	t := c.Theme()
 	return ui.Column(c).Height(48).Shrink(0).Padding(t.Space(1.5), t.Space(3)).
 		Justify(ui.Center).Label("Response result").
 		Border(0, t.Border).BorderWidth(0, 0, 1, 0).Children(func() {
 		ui.Text(c, status).Font(FontMono).FontSize(TextHeadline).FixedLineHeight(22).
 			TextColor(ink).SingleLine().Tooltip(status)
-		Meta(c, detail).Font(FontMono).FontFeatures("tnum").FixedLineHeight(14).
-			SingleLine().Tooltip(detail)
+		ui.Row(c).MinWidth(0).Children(func() {
+			d := Meta(c, duration).Font(FontMono).FontFeatures("tnum").FixedLineHeight(14).Shrink(0)
+			if len(timing.Phases) > 0 {
+				d.Description("Hover for the time of each phase")
+				ui.TooltipBase(c, d, func(tip ui.Element) {
+					tip.AttachTo(d, ui.AnchorBottomStart, ui.AnchorTopStart).Margin(t.Space(1.5), 0, 0, 0)
+					timingCard(c, tip, duration, timing)
+				})
+			}
+			if detail != "" {
+				rest := " · " + detail
+				Meta(c, rest).Font(FontMono).FontFeatures("tnum").FixedLineHeight(14).
+					SingleLine().Shrink(1).MinWidth(0).Tooltip(detail)
+			}
+		})
+	})
+}
+
+// timingCard lists the phases of a response's time: a bar of their shares,
+// then each with its milliseconds, the total and what the phases leave out.
+func timingCard(c *ui.Context, card ui.Element, total string, timing Timing) {
+	t := c.Theme()
+	sum := 0
+	for _, p := range timing.Phases {
+		sum += max(p.Millis, 0)
+	}
+	PopoverPanel(c, card).Width(240).Padding(t.Space(2.5)).Gap(t.Space(1.5)).Children(func() {
+		ui.Row(c).FillWidth().Height(6).Radius(3).Background(t.Text.Alpha(0.08)).Children(func() {
+			for _, p := range timing.Phases {
+				if p.Millis > 0 {
+					ui.Box(c).Grow(float32(p.Millis)).FillHeight().Background(p.Color)
+				}
+			}
+			if sum == 0 {
+				ui.Spacer(c)
+			}
+		})
+		row := func(dot ui.Color, name, value string, bold bool) {
+			ui.Row(c).FillWidth().Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+				ui.Box(c).Size(6, 6).Radius(3).Background(dot)
+				label := ui.Text(c, name).FontSize(TextMeta).TextColor(t.Text).Grow(1)
+				v := ui.Text(c, value).Font(FontMono).FontSize(TextMeta).FontFeatures("tnum").TextColor(t.Text)
+				if bold {
+					label.Bold()
+					v.Bold()
+				}
+			})
+		}
+		for _, p := range timing.Phases {
+			row(p.Color, p.Name, fmt.Sprintf("%d ms", p.Millis), false)
+		}
+		ui.Divider(c)
+		row(ui.Color{}, "Total", total, true)
+		if timing.Note != "" {
+			Meta(c, timing.Note)
+		}
 	})
 }
 

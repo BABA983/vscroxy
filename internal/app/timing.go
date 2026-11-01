@@ -39,6 +39,31 @@ func (a *app) timingView(c *ui.Context, f flow) {
 	})
 }
 
+// headlineTiming splits a response's time for the hover card on its duration:
+// the lookup the request made itself, the rest of the wait, and the download,
+// so the phases add up to the time the server took.
+func headlineTiming(t *ui.Theme, f flow) uikit.Timing {
+	if f.wait == 0 && f.download == 0 {
+		return uikit.Timing{}
+	}
+	var phases []uikit.TimingPhase
+	wait := f.wait
+	if f.conn.dnsFresh && f.conn.resolved != "" {
+		lookup := min(f.conn.lookupMs, wait)
+		phases = append(phases, uikit.TimingPhase{Name: "DNS lookup", Millis: lookup, Color: uikit.Colors(t).MethodPatch})
+		wait -= lookup
+	}
+	phases = append(phases,
+		uikit.TimingPhase{Name: "Waiting", Millis: wait, Color: uikit.Colors(t).Info},
+		uikit.TimingPhase{Name: "Download", Millis: f.download, Color: t.Success})
+	note := connectionNote(f)
+	if f.conn.dnsFresh && f.conn.resolved != "" {
+		// The card lists the lookup on its own row.
+		note = strings.TrimSpace(strings.TrimPrefix(note, "The DNS lookup is the first part of the wait."))
+	}
+	return uikit.Timing{Phases: phases, Note: note}
+}
+
 // waterfallRow is one phase: its name, what it was, its time, and a bar at its
 // place in the exchange.
 func waterfallRow(c *ui.Context, t *ui.Theme, label, detail string, ms, offset, total int, color ui.Color) {

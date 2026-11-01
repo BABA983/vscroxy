@@ -996,11 +996,14 @@ func (a *app) requestResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 			if outcome == "Network error" {
 				status = fmt.Sprintf("%d · proxy response", r.Status)
 			}
-			detail := fmt.Sprintf("%d ms · %s", r.Millis, humanBytes(r.Bytes))
+			detail := humanBytes(r.Bytes)
 			if ct := (flow{respHeader: r.ResponseHeader}).contentType(true); ct != "" {
 				detail += " · " + ct
 			}
-			uikit.ResponseHeadline(c, status, detail, uikit.StatusColor(r.Status, t))
+			sent := flow{wait: r.Wait, download: r.Download, conn: conn{
+				resolved: r.Conn.Resolved, lookupMs: r.Conn.LookupMs, dnsFresh: r.Conn.DNSFresh, flows: r.Conn.Flows, tls: r.Conn.TLS,
+			}}
+			uikit.ResponseHeadline(c, status, uikit.StatusColor(r.Status, t), fmt.Sprintf("%d ms", r.Millis), detail, headlineTiming(t, sent))
 		}
 		if d.experimentID != 0 && !d.composeWaiting {
 			uikit.Meta(c, fmt.Sprintf("Recorded experiment #%d", d.experimentID)).Padding(t.Space(1), t.Space(3)).

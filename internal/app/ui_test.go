@@ -1318,6 +1318,34 @@ func TestJSONExpansionSurvivesIncomingTraffic(t *testing.T) {
 	}
 }
 
+func TestResponseDurationHoverSplitsItIntoPhases(t *testing.T) {
+	a := snapshotApp()
+	f := &a.flows[0]
+	f.millis, f.wait, f.download = 300, 240, 60
+	f.conn = conn{resolved: "203.0.113.7", lookupMs: 25, dnsFresh: true, flows: 1, tls: "TLS 1.3"}
+	tt := ui.NewTester(a.view, 1280, 800)
+	r, ok := tt.Find("Response result")
+	if !ok {
+		t.Fatalf("no headline: %q", tt.Texts())
+	}
+	if tt.HasText("Download") {
+		t.Fatal("the phases showed before hovering")
+	}
+	// The duration starts the headline's second line.
+	tt.Move(r.X+20, r.Y+r.H-14)
+	tt.Advance(time.Second)
+	// The lookup is part of the wait: listed apart, the phases add up to
+	// the server's time rather than counting it twice.
+	for _, want := range []string{"DNS lookup", "25 ms", "Waiting", "215 ms", "Download", "60 ms", "Total", "connect and TLS are inside the wait"} {
+		if !tt.HasText(want) {
+			t.Fatalf("hover card lacks %q: %q", want, tt.Texts())
+		}
+	}
+	if tt.HasText("The DNS lookup is the first part of the wait.") {
+		t.Fatal("the card repeated the lookup in its note")
+	}
+}
+
 func TestResponseHeadlineShowsTheExchangeWithoutInventingAStatus(t *testing.T) {
 	for _, tc := range []struct {
 		name, headline string
@@ -1335,7 +1363,7 @@ func TestResponseHeadlineShowsTheExchangeWithoutInventingAStatus(t *testing.T) {
 			a.flows[0].millis, a.flows[0].bytes = 1242, 1843
 			a.flows[0].respHeader = http.Header{"Content-Type": {"Application/JSON; charset=utf-8"}}
 			tt := ui.NewTester(a.view, 960, 800)
-			if _, ok := tt.Find("Response result"); !ok || !tt.HasText(tc.headline) || !tt.HasText("1242 ms · 1.8 KB · application/json") {
+			if _, ok := tt.Find("Response result"); !ok || !tt.HasText(tc.headline) || !tt.HasText("1242 ms") || !tt.HasText(" · 1.8 KB · application/json") {
 				t.Fatalf("missing response result: %q", tt.Texts())
 			}
 			if tc.failure != "" {
@@ -3856,7 +3884,7 @@ func TestRequestCompactControlsKeepTemplateEditingAndCounts(t *testing.T) {
 			a.composeTests = []request.TestResult{{Name: "Created", Pass: true}, {Name: "Active", Pass: false}}
 			a.responseArrived()
 			tt.Frame()
-			if _, ok := tt.Find("Response result"); !ok || !tt.HasText("201 Created") || !tt.HasText("47 ms · 43 B · application/json") {
+			if _, ok := tt.Find("Response result"); !ok || !tt.HasText("201 Created") || !tt.HasText("47 ms") || !tt.HasText(" · 43 B · application/json") {
 				t.Fatalf("sent response lost its status or metadata: %q", tt.Texts())
 			}
 			tt.SetSize(1280, 800)

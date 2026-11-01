@@ -314,11 +314,11 @@ func (a *app) responsePane(c *ui.Context, f flow) {
 		if f.conn.error != "" {
 			status = "Failed"
 		}
-		detail := fmt.Sprintf("%d ms · %s", f.millis, humanBytes(f.bytes))
+		detail := humanBytes(f.bytes)
 		if ct := f.contentType(true); ct != "" {
 			detail += " · " + ct
 		}
-		uikit.ResponseHeadline(c, status, detail, f.statusColor(t))
+		uikit.ResponseHeadline(c, status, f.statusColor(t), fmt.Sprintf("%d ms", f.millis), detail, headlineTiming(t, f))
 		switch a.inspect.tab[1] {
 		case resTabHeaders:
 			a.headersSide(c, f, 0)
