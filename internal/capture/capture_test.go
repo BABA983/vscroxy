@@ -44,7 +44,7 @@ func freeAddr(t *testing.T) string {
 func startServer(t *testing.T) (*Server, string) {
 	t.Helper()
 	dir := t.TempDir()
-	s, err := New(freeAddr(t), dir)
+	s, err := New("127.0.0.1:0", dir)
 	if err != nil {
 		t.Fatalf("new server: %v", err)
 	}
@@ -894,7 +894,7 @@ func TestCapturesHTTPS(t *testing.T) {
 func startServerWithRules(t *testing.T, rules ...Rule) (*Server, string) {
 	t.Helper()
 	dir := t.TempDir()
-	s, err := New(freeAddr(t), dir)
+	s, err := New("127.0.0.1:0", dir)
 	if err != nil {
 		t.Fatalf("new server: %v", err)
 	}
