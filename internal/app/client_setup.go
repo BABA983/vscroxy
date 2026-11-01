@@ -4,9 +4,6 @@ import (
 	"cmp"
 	"fmt"
 	"github.com/baba983/vscroxy/internal/uikit"
-	"net/url"
-	"strings"
-	"time"
 
 	"github.com/egoist/mygo/ui"
 )
@@ -15,13 +12,10 @@ type clientSetup struct {
 	open    bool
 	runtime string
 	url     string
-	since   time.Time
-	scroll  ui.ScrollState
-	details bool
 }
 
 func (a *app) openClientSetup() {
-	a.clientUI = clientSetup{open: true, runtime: "cURL", url: "https://example.com/", since: time.Now()}
+	a.clientUI = clientSetup{open: true, runtime: "cURL", url: "https://example.com/"}
 }
 
 // Examples configure only the requesting process. They never install a root
@@ -40,95 +34,6 @@ func clientExample(runtime, addr, ca, target string) string {
 	}
 }
 
-// Evidence is deliberately session-wide, not attributed to the selected device
-// or runtime: gateways do not preserve a device identity in the capture core.
-func (a *app) setupEvidence(c *ui.Context, t *ui.Theme, target string, since time.Time, details *bool) {
-	u, err := url.Parse(strings.TrimSpace(target))
-	if err != nil || u.Scheme != "https" || u.Hostname() == "" || u.User != nil {
-		ui.Text(c, "Enter an HTTPS URL without embedded credentials.").FontSize(uikit.TextBody).TextColor(t.Warning)
-		return
-	}
-	var observed, latest *flow
-	requests, tunnels := 0, 0
-	for i := range a.flows {
-		f := &a.flows[i]
-		capturedURL, parseErr := url.Parse(f.url)
-		if !f.live || f.at.Before(since) || parseErr != nil || diagnosticOrigin(capturedURL) != diagnosticOrigin(u) {
-			continue
-		}
-		latest = f
-		if f.kind == "connect" {
-			tunnels++
-		} else if f.reqHeaders != "" {
-			requests++
-			observed = f
-		}
-	}
-	enabled := a.inspectionConfig().Decrypts(u.Hostname())
-	failed := latest != nil && latest.conn.error != ""
-	ui.Text(c, "Observed · since opening setup").FontSize(uikit.TextBody).Bold()
-	switch {
-	case latest == nil:
-		uikit.Hint(c, "No target traffic observed yet.")
-	case failed:
-		ui.Text(c, latest.conn.explanation().title).FontSize(uikit.TextBody).TextColor(t.Warning)
-		uikit.Meta(c, "This is a recorded failure, not a confirmed certificate diagnosis.")
-	case observed != nil:
-		ui.Text(c, fmt.Sprintf("Decrypted HTTPS observed · #%d · %s · %d", observed.id, observed.path, observed.status)).FontSize(uikit.TextBody).TextColor(t.Success)
-	default:
-		ui.Text(c, "Encrypted tunnel observed; no decrypted request yet.").FontSize(uikit.TextBody).TextColor(t.Warning)
-	}
-	uikit.Meta(c, "Client CA trust is not verified here.")
-	ui.Text(c, "Next step").FontSize(uikit.TextBody).Bold()
-	switch {
-	case failed:
-		uikit.Body(c, "Inspect the recorded failure before changing trust or rules.")
-	case !enabled:
-		uikit.Body(c, "Enable inspection, then run the client request on a new connection.")
-		if uikit.SecondaryButton(c, "Enable inspection for "+u.Hostname()).Clicked() {
-			a.decryptHost(u.Hostname())
-		}
-	case observed != nil:
-		uikit.Body(c, "Inspect the decrypted request.")
-	case latest != nil:
-		uikit.Body(c, "Verify this client's CA trust, then reconnect and send an HTTPS request.")
-	default:
-		uikit.Body(c, "Run the client request. If nothing appears, check proxy and bypass settings.")
-	}
-	inspect, label := latest, "Inspect latest connection"
-	if observed != nil && !failed {
-		inspect, label = observed, "Inspect observed request"
-	}
-	if inspect != nil && uikit.SecondaryButton(c, label).Tooltip("Inspect the recorded exchange without clearing the current view's filters").Clicked() {
-		a.clientUI.open, a.deviceUI.open = false, false
-		a.inspectCapture(inspect.id)
-	}
-	ui.Collapsible(c, "Evidence and limitations", details, func() {
-		uikit.Body(c, fmt.Sprintf("%d decrypted HTTPS requests · %d CONNECT records", requests, tunnels))
-		if failed {
-			uikit.Mono(c, latest.conn.error).Selectable()
-			if observed != nil {
-				uikit.Body(c, fmt.Sprintf("Earlier decrypted request · #%d · %s · %d", observed.id, observed.path, observed.status))
-				if uikit.SecondaryButton(c, "Inspect observed request").Clicked() {
-					a.clientUI.open, a.deviceUI.open = false, false
-					a.inspectCapture(observed.id)
-				}
-			}
-		}
-		rule := "Disabled — new connections stay encrypted"
-		if enabled {
-			rule = "Enabled for new connections (not proof of decryption)"
-		}
-		uikit.Body(c, "Decryption rule: "+rule)
-		if failed && !enabled && uikit.SecondaryButton(c, "Enable inspection for "+u.Hostname()).Clicked() {
-			a.decryptHost(u.Hostname())
-		}
-		uikit.Meta(c, "Client CA trust: not verified here. A captured request can also come from a client that skips verification.")
-		uikit.Meta(c, "Evidence is from any client in this live session, not necessarily this device or runtime. Imported sessions do not count.")
-		uikit.Meta(c, "No traffic? Check proxy address, bypass rules and ignored hosts/apps. Reconnect after setup changes. Pinning or a private runtime trust store needs client-side changes.")
-	}).FontSize(uikit.TextBody)
-}
-
 func (a *app) clientSetupModal(c *ui.Context, t *ui.Theme) {
 	s := &a.clientUI
 	if !s.open {
@@ -143,52 +48,33 @@ func (a *app) clientSetupModal(c *ui.Context, t *ui.Theme) {
 					uikit.Select(c, &s.runtime, []string{"cURL", "Node.js", "Python", "Go"}).Label("Client runtime").Width(150)
 				})
 				ui.Field(c, "Setup HTTPS URL", func() {
-					if uikit.Input(c, &s.url).Label("Setup HTTPS URL").Changed() {
-						s.scroll.Y = 0
-					}
+					uikit.Input(c, &s.url).Label("Setup HTTPS URL")
 				})
 			})
-			ui.Row(c).Grow(1).MinHeight(0).Gap(t.Space(6)).AlignItems(ui.Stretch).Children(func() {
-				ui.Scroll(c).Grow(1).MinWidth(0).Gap(t.Space(3)).Padding(0, t.Space(2), 0, 0).Children(func() {
-					addr := ""
-					if a.srv != nil && a.srv.Running() {
-						addr = a.srv.Addr()
-					}
-					ui.Text(c, "1  Process-scoped configuration").FontSize(uikit.TextBody).Bold()
-					uikit.Body(c, "Proxy listener: "+cmp.Or(addr, "not running"))
-					uikit.Meta(c, "The example trusts only the public CA file for this client. No system changes; no insecure TLS bypass. cURL commands use a POSIX shell.")
-					example := clientExample(s.runtime, addr, a.caPath, s.url)
-					if uikit.SecondaryButton(c, "Copy client example").Disabled(addr == "" || a.caPath == "").Clicked() {
-						c.Services().WriteClipboard(example)
-						a.setMessage("Copied " + s.runtime + " setup; review URL and CA path before running")
-					}
-					ui.Text(c, example).Font(uikit.FontMono).FontSize(uikit.TextMeta).Selectable()
-				})
-				ui.Column(c).Width(340).MinWidth(0).Gap(t.Space(2)).Children(func() {
-					ui.Text(c, "2  Observe, then inspect").FontSize(uikit.TextBody).Bold()
-					ui.Scroll(c).TrackScroll(&s.scroll).Grow(1).MinHeight(0).Gap(t.Space(2)).Padding(0, t.Space(2), t.Space(2), 0).Children(func() {
-						if uikit.SecondaryButton(c, "Check local proxy").Disabled(a.srv == nil || !a.srv.Running() || a.deviceUI.checkDone != nil).Clicked() {
-							a.checkDeviceProxy()
-						}
-						if a.deviceUI.check != "" {
-							ui.Text(c, a.deviceUI.check).FontSize(uikit.TextMeta)
-						}
-						a.setupEvidence(c, t, s.url, s.since, &s.details)
-					})
-					if s.scroll.Y < s.scroll.MaxY-1 {
-						uikit.Meta(c, "More evidence below ↓")
-					}
-				})
+			ui.Scroll(c).Grow(1).MinHeight(0).Gap(t.Space(3)).Padding(0, t.Space(2), 0, 0).Children(func() {
+				addr := ""
+				if a.srv != nil && a.srv.Running() {
+					addr = a.srv.Addr()
+				}
+				uikit.Body(c, "Proxy listener: "+cmp.Or(addr, "not running"))
+				uikit.Meta(c, "The example trusts only the public CA file for this client. No system changes; no insecure TLS bypass. cURL commands use a POSIX shell.")
+				example := clientExample(s.runtime, addr, a.caPath, s.url)
+				if uikit.SecondaryButton(c, "Copy client example").Disabled(addr == "" || a.caPath == "").Clicked() {
+					c.Services().WriteClipboard(example)
+					a.setMessage("Copied " + s.runtime + " setup; review URL and CA path before running")
+				}
+				ui.Text(c, example).Font(uikit.FontMono).FontSize(uikit.TextMeta).Selectable()
+				uikit.Meta(c, "Run it, then use Diagnose to see whether the request arrived and was decrypted.")
 			})
 			uikit.DialogFooter(c).Children(func() {
 				if uikit.SecondaryButton(c, "Phone / tablet setup…").Clicked() {
 					s.open = false
 					a.openDevices()
 				}
-				if uikit.SecondaryButton(c, "Capture diagnostics…").Clicked() {
+				if uikit.SecondaryButton(c, "Diagnose…").Clicked() {
 					s.open = false
-					a.openDiagnostics()
 					a.diagnostics.target = s.url
+					a.openDiagnostics(nil, diagnoseProcess)
 				}
 				if uikit.SecondaryButton(c, "Close").Clicked() {
 					s.open = false

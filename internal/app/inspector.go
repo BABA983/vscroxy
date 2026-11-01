@@ -143,14 +143,9 @@ func (a *app) connectDetail(c *ui.Context, t *ui.Theme, f flow) {
 		ui.ScrollHorizontal(c).Grow(1).FillHeight().Children(func() {
 			uikit.Tabs(c, &a.tab, "", "HTTPS setup", "Connection")
 		})
-		explain := uikit.SecondaryButton(c, "Explain").Tooltip("Explain the recorded connection failure")
-		if explain.Clicked() {
-			a.explainOpen = !a.explainOpen
+		if uikit.SecondaryButton(c, "Explain").Tooltip("Diagnose this connection").Clicked() {
+			a.openDiagnostics(&f, diagnoseMac)
 		}
-		ui.PopoverBase(c, explain, &a.explainOpen, func(panel ui.Element) {
-			uikit.PopoverPanel(c, panel).Margin(t.Space(2), 0, 0, 0).Padding(0).
-				Children(func() { a.explainConnection(c, f) })
-		})
 		a.desktopButton(c, "focus", "Focus")
 	})
 	ui.Divider(c)

@@ -398,16 +398,33 @@ func TestUISnapshots(t *testing.T) {
 		}, want: "Session payload", short: true},
 		{name: "dialog-api-generation", setup: func(a *app) { a.apiGenerateOpen, a.apiCollection = true, "Workspace" }, want: "Generate OpenAPI draft"},
 		{name: "dialog-devices", setup: func(a *app) {
-			a.deviceUI = deviceSetup{open: true, ips: []string{"192.168.1.10"}, ip: "192.168.1.10", port: "7891", allowed: "192.168.1.20", target: "https://api.example.com/projects", since: snapshotTime}
+			a.deviceUI = deviceSetup{open: true, ips: []string{"192.168.1.10"}, ip: "192.168.1.10", port: "7891", allowed: "192.168.1.20"}
 		}, want: "LAN off", short: true},
 		{name: "dialog-client", setup: func(a *app) {
-			a.clientUI = clientSetup{open: true, runtime: "cURL", url: "https://api.example.com/projects", since: snapshotTime}
-		}, want: "No target traffic observed yet.", short: true},
-		{name: "dialog-diagnostics", setup: func(a *app) {
+			a.clientUI = clientSetup{open: true, runtime: "cURL", url: "https://api.example.com/projects"}
+		}, want: "Copy client example", short: true},
+		{name: "secondary-diagnostics", setup: func(a *app) {
 			snapshotSettings(a, 0)
 			a.settingsOpen = false
-			a.diagnostics = captureDiagnostics{open: true, target: "https://api.example.com/projects"}
-		}, want: "Capture diagnostics", short: true},
+			a.diagnostics.target = "https://api.example.com/projects"
+			a.openDiagnostics(nil, diagnoseMac)
+		}, want: "Connection diagnostics"},
+		{name: "secondary-diagnostics-failure", setup: func(a *app) {
+			snapshotSettings(a, 0)
+			a.settingsOpen = false
+			f := a.flows[0]
+			f.id, f.kind, f.method, f.url, f.host, f.path, f.status = 99, "connect", "CONNECT", "https://api.example.com:443", "api.example.com", "", 0
+			f.conn.errorStage, f.conn.error = "TLS client", "remote error: tls: unknown certificate authority"
+			f.live = true
+			a.flows = append(a.flows, f)
+			a.openDiagnostics(&a.flows[len(a.flows)-1], diagnoseMac)
+		}, want: "Possible causes · not confirmed"},
+		{name: "secondary-diagnostics-device", setup: func(a *app) {
+			snapshotSettings(a, 0)
+			a.settingsOpen = false
+			a.diagnostics.target = "https://api.example.com/projects"
+			a.openDiagnostics(nil, diagnoseDevice)
+		}, want: "Device access is off"},
 		{name: "dialog-clear", setup: func(a *app) { a.clearOpen = true }, want: "Clear captured requests?"},
 		{name: "dialog-clear-records", setup: func(a *app) { snapshotRuns(a); a.experiments.clearing = true }, want: "Clear all experiment records?"},
 		{name: "dialog-mark", setup: func(a *app) { a.openMark(a.flows[0]); a.markNote = "Investigate cache response" }, want: "Note"},

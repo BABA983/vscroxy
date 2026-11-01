@@ -2,8 +2,6 @@ package app
 
 import (
 	"cmp"
-	"crypto/sha256"
-	"fmt"
 	"github.com/baba983/vscroxy/internal/uikit"
 	"net"
 	"net/netip"
@@ -19,19 +17,14 @@ import (
 // Device access is session-only. Neither consent nor the listener is restored
 // from disk, so reopening the app cannot silently expose the proxy to the LAN.
 type deviceSetup struct {
-	open      bool
-	ips       []string
-	ip, port  string
-	allowed   string
-	consent   bool
-	platform  int
-	problem   string
-	gateway   *lan.Gateway
-	check     string
-	checkDone chan string
-	since     time.Time
-	target    string
-	details   bool
+	open     bool
+	ips      []string
+	ip, port string
+	allowed  string
+	consent  bool
+	platform int
+	problem  string
+	gateway  *lan.Gateway
 }
 
 func deviceIPs() []string {
@@ -71,9 +64,6 @@ func deviceIPs() []string {
 
 func (a *app) openDevices() {
 	d := &a.deviceUI
-	d.since = time.Now()
-	d.details = false
-	d.target = cmp.Or(d.target, "https://example.com/")
 	if d.gateway == nil {
 		d.ips = deviceIPs()
 		if !slices.Contains(d.ips, d.ip) {
@@ -110,7 +100,7 @@ func (a *app) enableDevices() {
 		d.problem = err.Error()
 		return
 	}
-	d.gateway, d.problem, d.check = gateway, "", ""
+	d.gateway, d.problem = gateway, ""
 	a.setMessage("Device access enabled · " + gateway.Addr())
 }
 
@@ -127,36 +117,8 @@ func (a *app) disableDevices() {
 	a.setMessage("Device access off · local capture is unchanged")
 }
 
-func (a *app) checkDeviceProxy() {
-	if a.srv == nil || a.deviceUI.checkDone != nil {
-		return
-	}
-	done := make(chan string, 1)
-	a.deviceUI.checkDone = done
-	addr := a.srv.Addr()
-	go func() {
-		conn, err := net.DialTimeout("tcp", addr, 2*time.Second)
-		result := "Local proxy: reachable. Test the network path and HTTPS trust from your device."
-		if err != nil {
-			result = "Local proxy: " + err.Error()
-		} else {
-			_ = conn.Close()
-		}
-		done <- result
-		a.invalidate()
-	}()
-}
-
 func (a *app) devicesModal(c *ui.Context, t *ui.Theme) {
 	d := &a.deviceUI
-	if d.checkDone != nil {
-		select {
-		case d.check = <-d.checkDone:
-			d.checkDone = nil
-		default:
-			c.After(time.Second)
-		}
-	}
 	if !d.open {
 		return
 	}
@@ -212,7 +174,7 @@ func (a *app) devicesModal(c *ui.Context, t *ui.Theme) {
 						if uikit.SecondaryButton(c, "Copy certificate URL").Clicked() {
 							c.Services().WriteClipboard(certificateURL)
 						}
-						uikit.Meta(c, "Public certificate only — the signing key is never served. Compare the CA fingerprint under Checks on a trusted network.")
+						uikit.Meta(c, "Public certificate only — the signing key is never served. Compare the CA fingerprint in Diagnostics on a trusted network.")
 						ui.Divider(c)
 						ui.Text(c, "Allowed sources").FontSize(uikit.TextBody).Bold()
 						uikit.Hint(c, d.allowed).Font(uikit.FontMono)
@@ -220,7 +182,7 @@ func (a *app) devicesModal(c *ui.Context, t *ui.Theme) {
 					}
 				})
 				ui.Column(c).BasisPercent(56).Grow(1).MinWidth(0).Gap(t.Space(3)).Children(func() {
-					uikit.Tabs(c, &d.platform, "Device platform", "iOS", "Android", "Checks")
+					uikit.Tabs(c, &d.platform, "Device platform", "iOS", "Android")
 					ui.Scroll(c).Grow(1).MinHeight(0).Gap(t.Space(2)).Padding(0, t.Space(2), 0, 0).Children(func() {
 						switch d.platform {
 						case 0:
@@ -235,32 +197,6 @@ func (a *app) devicesModal(c *ui.Context, t *ui.Theme) {
 							uikit.Body(c, "2. Download the certificate URL. In Security / Encryption & credentials, choose Install a certificate → CA certificate, then select vscroxy-ca.cer.")
 							uikit.Body(c, "3. Enable SSL proxying for your hosts and open an HTTPS page. For your own debug app, opt in to user CAs with Network Security Configuration.")
 							uikit.Hint(c, "Many Android 7+ apps do not trust user-installed CAs. Certificate pinning and apps that ignore the system proxy need app-side changes; installing this CA does not bypass them.")
-						case 2:
-							uikit.Heading(c, "Connection checks")
-							if a.srv != nil {
-								fingerprint := fmt.Sprintf("%X", sha256.Sum256(a.srv.CACertificate()))
-								ui.Text(c, "CA SHA-256\n"+fingerprint[:32]+"\n"+fingerprint[32:]).Font(uikit.FontMono).FontSize(uikit.TextMeta)
-								if uikit.SecondaryButton(c, "Copy CA fingerprint").Clicked() {
-									c.Services().WriteClipboard(fingerprint)
-								}
-							}
-							ui.Field(c, "Device HTTPS URL", func() {
-								uikit.Input(c, &d.target).Label("Device HTTPS URL").Placeholder("https://example.com/")
-							})
-							if uikit.SecondaryButton(c, "Check local proxy").Disabled(a.srv == nil || d.checkDone != nil).Clicked() {
-								a.checkDeviceProxy()
-							}
-							if d.check != "" {
-								uikit.Body(c, d.check)
-							}
-							if d.gateway != nil {
-								status := d.gateway.Status()
-								uikit.Body(c, "Proxy TCP client: "+cmp.Or(status.LastProxyClient, "not seen yet"))
-								uikit.Body(c, "Certificate port client: "+cmp.Or(status.LastCertificateClient, "not seen yet"))
-							}
-							uikit.Meta(c, "A TCP connection is not proof of HTTPS trust. Verify the decrypted host, path and response in Capture. Mobile app identity is not available through this gateway.")
-							a.setupEvidence(c, t, d.target, d.since, &d.details)
-							uikit.Meta(c, "No device seen? Check the source IP / DHCP changes, selected interface, VPN, firewall and Wi-Fi client isolation. HTTP works but HTTPS fails? Check CA trust, SSL host rules and pinning.")
 						}
 					})
 					if uikit.SecondaryButton(c, "Configure HTTPS inspection…").Clicked() {
@@ -278,6 +214,10 @@ func (a *app) devicesModal(c *ui.Context, t *ui.Theme) {
 					uikit.Meta(c, "Closing this dialog keeps access on. Disable when finished.")
 				}
 				ui.Spacer(c)
+				if uikit.SecondaryButton(c, "Diagnose…").Clicked() {
+					d.open = false
+					a.openDiagnostics(nil, diagnoseDevice)
+				}
 				if uikit.SecondaryButton(c, "Local client setup…").Clicked() {
 					d.open = false
 					a.openClientSetup()

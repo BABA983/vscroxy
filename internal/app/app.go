@@ -42,11 +42,12 @@ import (
 type page int
 
 const (
-	pageLive    page = iota // live traffic, under a view or quick filter
-	pageSession             // historical session tabs
-	pageRequest             // a request document from the collections
-	pageAPI                 // an API contract
-	pageRuns                // the run records, which take the window
+	pageLive        page = iota // live traffic, under a view or quick filter
+	pageSession                 // historical session tabs
+	pageRequest                 // a request document from the collections
+	pageAPI                     // an API contract
+	pageRuns                    // the run records, which take the window
+	pageDiagnostics             // connection diagnostics
 )
 
 // capture reports whether the page reads captured traffic.
@@ -290,8 +291,7 @@ type app struct {
 	keyLogInput string
 
 	// Connection overlays belong to the inspected request, not the list.
-	connOpen    bool
-	explainOpen bool
+	connOpen bool
 
 	// customColumns are the columns the user added to the table and
 	// hiddenColumns the built-in ones they took out; the filter fields narrow
@@ -1146,7 +1146,7 @@ func (a *app) syncDetail() {
 	f, ok := a.current()
 	if !ok {
 		a.detailFor = -1
-		a.connOpen, a.explainOpen = false, false
+		a.connOpen = false
 		a.protobuf.stop()
 		return
 	}
@@ -1154,7 +1154,7 @@ func (a *app) syncDetail() {
 		return
 	}
 	a.detailFor = f.id
-	a.connOpen, a.explainOpen = false, false
+	a.connOpen = false
 	if f.kind == "" && a.inspect.pane == inspectorMessages {
 		a.inspect.pane = inspectorSplit
 	}
@@ -1336,7 +1336,6 @@ func (a *app) view(c *ui.Context) {
 	a.rulesModal(c, t)
 	a.devicesModal(c, t)
 	a.clientSetupModal(c, t)
-	a.diagnosticsModal(c, t)
 	a.experimentsModal(c, t)
 	a.socketModal(c, t)
 	a.requestRenameModal(c, t)
@@ -1549,6 +1548,7 @@ func (a *app) sidebar(c *ui.Context) {
 				uikit.SidebarItem(c, "pinned", pinIcon, "Pinned", a.sidebarChoice == "pinned", !a.windowBehind).Children(func() {
 					uikit.Meta(c, fmt.Sprint(a.count(func(f flow) bool { return f.pinned }))).FontFeatures("tnum")
 				})
+				uikit.SidebarItem(c, "diagnostics", diagnosticsIcon, "Diagnostics", a.sidebarChoice == "diagnostics", !a.windowBehind)
 			}))
 			if len(a.clients) > 0 {
 				uikit.SidebarSection(c, "Apps", &a.clientsOpen, func() {
@@ -1656,6 +1656,10 @@ func (a *app) goTo(choice string) {
 	}
 	if id, ok := strings.CutPrefix(choice, "contract:"); ok {
 		a.page, a.apiChoice = pageAPI, id
+		return
+	}
+	if choice == "diagnostics" {
+		a.openDiagnostics(nil, a.diagnostics.client)
 		return
 	}
 	a.page = pageLive
@@ -1792,7 +1796,7 @@ func (a *app) table(c *ui.Context) {
 					a.setSystemProxy(true)
 				}
 				if uikit.SecondaryButton(c, "Diagnose capture…").Clicked() {
-					a.openDiagnostics()
+					a.openDiagnostics(nil, diagnoseMac)
 				}
 			})
 		})
@@ -2062,38 +2066,6 @@ func (a *app) saveMark() {
 // infoIcon marks a header the Headers tab can explain, or a connection detail
 // worth opening.
 var infoIcon = lucide.Info()
-
-func (a *app) explainConnection(c *ui.Context, f flow) {
-	t := c.Theme()
-	e := f.conn.explanation()
-	width, height := c.Size()
-	ui.Column(c).Width(min(480, width-40)).Children(func() {
-		uikit.Heading(c, e.title).Padding(t.Space(4), t.Space(4), t.Space(3), t.Space(4))
-		ui.Scroll(c).Height(min(270, height-220)).Padding(0, t.Space(4), t.Space(3), t.Space(4)).Gap(t.Space(4)).Selectable().Children(func() {
-			uikit.Hint(c, e.summary)
-			ui.Column(c).Padding(t.Space(3)).Gap(t.Space(2)).Radius(uikit.RadiusPanel).Background(t.Danger.Alpha(0.06)).Border(1, t.Danger.Alpha(0.2)).Children(func() {
-				uikit.Label(c, "Observed failure · "+cmp.Or(f.conn.errorStage, "unknown stage"))
-				ui.Text(c, f.conn.error).Font(uikit.FontMono).FontSize(uikit.TextMeta).TextColor(t.Danger)
-			})
-			ui.Column(c).Gap(t.Space(2)).Children(func() {
-				ui.Text(c, "Possible causes · not confirmed").FontSize(uikit.TextBody).Bold()
-				uikit.Hint(c, e.causes)
-			})
-			ui.Column(c).Gap(t.Space(2)).Children(func() {
-				ui.Text(c, "What to try").FontSize(uikit.TextBody).Bold()
-				uikit.Body(c, e.steps)
-			})
-		})
-		ui.Divider(c)
-		ui.Row(c).Padding(t.Space(3), t.Space(4)).Gap(t.Space(4)).Children(func() {
-			uikit.Meta(c, "Review URLs, addresses and raw errors before sharing.").Grow(1)
-			if uikit.SecondaryButton(c, "Copy diagnostics").Clicked() {
-				c.Services().WriteClipboard(f.connectionDiagnostics())
-				a.setMessage("Copied connection diagnostics")
-			}
-		})
-	})
-}
 
 // connectionView makes transport failures inspectable and copyable, including
 // failures after a successful CONNECT but before any HTTP request was received.

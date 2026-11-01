@@ -163,14 +163,9 @@ func (a *app) capturedHeader(c *ui.Context, t *ui.Theme, f flow, d *requestDocum
 			a.exchangeResult(c, t, f, compact)
 		}
 		if f.conn.error != "" {
-			explain := uikit.SecondaryButton(c, "Explain").Tooltip("Explain the recorded connection failure")
-			if explain.Clicked() {
-				a.explainOpen = !a.explainOpen
+			if uikit.SecondaryButton(c, "Explain").Tooltip("Diagnose this connection").Clicked() {
+				a.openDiagnostics(&f, diagnoseMac)
 			}
-			ui.PopoverBase(c, explain, &a.explainOpen, func(panel ui.Element) {
-				uikit.PopoverPanel(c, panel).Margin(t.Space(2), 0, 0, 0).Padding(0).
-					Children(func() { a.explainConnection(c, f) })
-			})
 		}
 		copy := uikit.ToolbarButton(c, "Copy as cURL", "Copy the captured request as cURL", false).Padding(0, t.Space(1))
 		if copy.Clicked() {

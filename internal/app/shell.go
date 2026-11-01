@@ -271,8 +271,8 @@ func (a *app) moreMenu(c *ui.Context, m *ui.Menu) {
 		a.openRules()
 	}
 	m.Submenu("Network", func(m *ui.Menu) {
-		if m.Item("Capture diagnostics…").Chosen() {
-			a.openDiagnostics()
+		if m.Item("Connection diagnostics").Chosen() {
+			a.openDiagnostics(nil, diagnoseMac)
 		}
 		if m.Item("Set up a local client…").Chosen() {
 			a.openClientSetup()
@@ -368,6 +368,10 @@ func (a *app) moreMenu(c *ui.Context, m *ui.Menu) {
 // step when another part of the app changes them: a filter reset, a new
 // investigation, a contract or a request opened from elsewhere.
 func (a *app) syncSections() {
+	if a.page == pageDiagnostics {
+		a.sidebarChoice = "diagnostics"
+		return
+	}
 	if !a.page.capture() {
 		if a.page == pageAPI {
 			if a.apiChoice == "" && len(a.apis) > 0 {
@@ -402,6 +406,11 @@ func (a *app) footer(c *ui.Context, t *ui.Theme) {
 			return uikit.Meta(c, s).FontFeatures("tnum").SingleLine()
 		}
 		switch {
+		case a.page == pageDiagnostics:
+			text("Connection diagnostics")
+			ui.Spacer(c)
+			text("Read-only until you press a fix")
+			return
 		case a.page == pageSession:
 			text(fmt.Sprintf("%d saved sessions", len(a.sessions.items)))
 			ui.Spacer(c)

@@ -87,6 +87,8 @@ func (a *app) desktopContent(c *ui.Context) {
 			})
 		case pageSession:
 			a.sessionsView(c, c.Theme())
+		case pageDiagnostics:
+			a.diagnosticsView(c, c.Theme())
 		default:
 			ui.Column(c).Fill().Children(func() {
 				if w.focused {
@@ -490,7 +492,7 @@ func (a *app) desktopActions(c *ui.Context) []desktopAction {
 			a.columns = ui.TableLayout{}
 		}},
 		{"https", "HTTPS certificate & decryption setup…", true, 0, 0, func() { a.openSettings(2) }},
-		{"diagnostics", "Capture diagnostics…", true, 0, 0, a.openDiagnostics},
+		{"diagnostics", "Connection diagnostics", true, 0, 0, func() { a.openDiagnostics(nil, diagnoseMac) }},
 		{"setup-guide", "Show setup guide", !a.guide, 0, 0, a.openGuide},
 		{"experiments", "History…", true, 0, 0, func() {
 			a.experiments.scope, a.experiments.draftKey, a.experiments.open = nil, "", true

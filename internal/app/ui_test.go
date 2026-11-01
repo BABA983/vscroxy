@@ -381,6 +381,7 @@ func TestConnectionFailureCanBeFoundAndCopiedWithoutInventingAnHTTPError(t *test
 	if err := tt.Click("Explain"); err != nil {
 		t.Fatal(err)
 	}
+	tt.Frame() // the failure scrolls into view
 	if !tt.HasText("Client TLS handshake failed") || !tt.HasText("Possible causes · not confirmed") {
 		t.Fatal("missing stage-specific explanation or uncertainty")
 	}
@@ -392,22 +393,20 @@ func TestConnectionFailureCanBeFoundAndCopiedWithoutInventingAnHTTPError(t *test
 			t.Fatalf("diagnostics missing %q: %s", want, tt.Clipboard())
 		}
 	}
+	if a.page != pageDiagnostics || a.diagnostics.flowID != 10 || a.diagnostics.target != "https://api.example.com:443" {
+		t.Fatalf("Explain did not open diagnostics on #10: page %v, %+v", a.page, a.diagnostics)
+	}
 	a.pending = []capture.Flow{{ID: 11, Method: "GET", Scheme: "https", Host: "other.example.com", Path: "/gateway", Status: 502, Kind: "http"}}
 	tt.Frame()
 	if !tt.HasText("Client TLS handshake failed") {
-		t.Fatal("new traffic closed the explanation for the inspected request")
+		t.Fatal("new traffic replaced the explanation for the inspected request")
 	}
-	tt.Key(0, ui.KeyEscape)
 	if err := tt.Click("Errors"); err != nil {
 		t.Fatal(err)
 	}
 	if len(a.visible) != 2 {
 		t.Fatal("TLS failure missing from Errors filter")
 	}
-	if err := tt.Click("Explain"); err != nil {
-		t.Fatal(err)
-	}
-	// The popover can cover content columns; use the exposed request ID.
 	if err := tt.Click("11"); err != nil {
 		t.Fatal(err)
 	}
@@ -437,11 +436,12 @@ func TestConnectionExplanationsUseCapturedStageWithoutNeedingALog(t *testing.T) 
 			if err := tt.Click("Explain"); err != nil {
 				t.Fatal(err)
 			}
+			tt.Frame() // the failure scrolls into view
 			if !tt.HasText(tc.title) || !tt.HasText(raw) {
 				t.Fatalf("wrong explanation for stage %q: %q", tc.stage, tt.Texts())
 			}
 			if box, ok := tt.Find("Possible causes · not confirmed"); !ok || box.H <= 0 {
-				t.Fatal("explanation content is clipped out of the popover")
+				t.Fatal("explanation content is clipped")
 			}
 			if err := tt.Click("Copy diagnostics"); err != nil {
 				t.Fatal(err)
@@ -464,6 +464,7 @@ func TestConnectionExplanationScrollsLongErrorsWithoutTruncatingDiagnostics(t *t
 	if err := tt.Click("Explain"); err != nil {
 		t.Fatal(err)
 	}
+	tt.Frame() // the failure scrolls into view
 	box, ok := tt.Find("Observed failure · TCP")
 	if !ok || box.H <= 0 {
 		t.Fatal("failure evidence is not visible")
@@ -1506,6 +1507,7 @@ func TestResponseHeadlineShowsTheExchangeWithoutInventingAStatus(t *testing.T) {
 				if err := tt.Click("Explain"); err != nil {
 					t.Fatal(err)
 				}
+				tt.Frame() // the failure scrolls into view
 				if !tt.HasText("Possible causes · not confirmed") {
 					t.Fatal("the response headline removed connection diagnostics")
 				}
@@ -3009,7 +3011,9 @@ func TestDeviceOnboardingCertificateHTTPSAndLiveTunnelRevocation(t *testing.T) {
 	if err != nil || !ca.IsCA {
 		t.Fatalf("download was not a public CA: %v", err)
 	}
-	click("Device platform: Checks")
+	a.deviceUI.open = false
+	a.openDiagnostics(nil, diagnoseDevice)
+	tt.Frame()
 	click("Copy CA fingerprint")
 	if tt.Clipboard() != fmt.Sprintf("%X", sha256.Sum256(der)) {
 		t.Fatal("displayed fingerprint does not match the downloaded certificate")
@@ -3051,7 +3055,6 @@ func TestDeviceOnboardingCertificateHTTPSAndLiveTunnelRevocation(t *testing.T) {
 		}
 	}
 	echo(mobile, "device tunnel before disable")
-	click("Close")
 	click("More")
 	if err := chooseMenu(tt, "Network", "Connect a device…"); err != nil {
 		t.Fatal(err)
@@ -3381,9 +3384,6 @@ func TestClientSetupCopiedCommandProducesLiveDecryptionEvidence(t *testing.T) {
 	// An imported capture with the same URL must never prove live setup.
 	a.flows = []flow{{id: 9, scheme: "https", url: upstream.URL, at: time.Now(), reqHeaders: "GET /"}}
 	tt := ui.NewTester(a.view, 960, 600)
-	if !tt.HasText("No target traffic observed yet.") || tt.HasText("Evidence is from any client") {
-		t.Fatal("imported traffic was mistaken for setup evidence")
-	}
 	if err := tt.Click("Copy client example"); err != nil {
 		t.Fatal(err)
 	}
@@ -3398,15 +3398,12 @@ func TestClientSetupCopiedCommandProducesLiveDecryptionEvidence(t *testing.T) {
 		t.Fatal("example was not captured")
 	}
 	tt.Frame()
-	if !tt.HasText("Decrypted HTTPS observed · #1 · / · 200") || !tt.HasText("Client CA trust is not verified here.") {
-		t.Fatalf("capture evidence missing or overstated trust: %v", tt.Texts())
-	}
-	if err := tt.Click("Evidence and limitations"); err != nil {
+	if err := tt.Click("Diagnose…"); err != nil {
 		t.Fatal(err)
 	}
-	tt.Advance(time.Second)
-	if !tt.HasText("Client CA trust: not verified here. A captured request can also come from a client that skips verification.") || !tt.HasText("Enabled for new connections (not proof of decryption)") {
-		t.Fatal("condensing setup lost its trust and rule limitations")
+	// The live request (#1) is the evidence; the imported one (#9) is not.
+	if !tt.HasText("#1 · GET / · 200") || tt.HasText("#9") || !tt.HasText("Trust on the client can't be checked from here; Actual traffic shows the outcome") {
+		t.Fatalf("capture evidence missing or overstated trust: %v", tt.Texts())
 	}
 }
 
@@ -3512,68 +3509,6 @@ func TestCaptureEmptyStateOffersSetupWithoutConfusingFilteredTraffic(t *testing.
 	tt.Frame()
 	if !tt.HasText("No matching requests") || tt.HasText("Connect a client to start capturing") {
 		t.Fatal("filtered traffic was presented as a client setup problem")
-	}
-}
-
-func TestClientSetupSeparatesTunnelsFailuresAndDecryptedRequests(t *testing.T) {
-	a := workspaceApp()
-	a.srv = requestProxy(t)
-	a.openClientSetup()
-	a.clientUI.url = "https://EXAMPLE.test/path"
-	since := a.clientUI.since
-	a.flows = []flow{
-		{id: 1, live: false, at: since, url: "https://example.test/", reqHeaders: "GET /"},
-		{id: 2, live: true, at: since.Add(-time.Second), url: "https://example.test/", reqHeaders: "GET /"},
-		{id: 3, live: true, at: since, url: "https://example.test:8443/", reqHeaders: "GET /"},
-		{id: 4, live: true, at: since, url: "http://example.test/", reqHeaders: "GET /"},
-		{id: 5, live: true, at: since, url: "https://example.test:443", scheme: "https", kind: "connect"},
-	}
-	a.views.init(a, "")
-	a.query = "keep-this-filter"
-	a.applyFilter()
-	tt := ui.NewTester(a.view, 960, 600)
-	if !tt.HasText("Encrypted tunnel observed; no decrypted request yet.") || tt.HasText("0 decrypted HTTPS requests · 1 CONNECT records") {
-		t.Fatalf("tunnel summary is missing or details were not collapsed: %q", tt.Texts())
-	}
-	if err := tt.Click("Evidence and limitations"); err != nil {
-		t.Fatal(err)
-	}
-	tt.Advance(time.Second)
-	if !tt.HasText("0 decrypted HTTPS requests · 1 CONNECT records") {
-		t.Fatalf("tunnel evidence missing or unrelated traffic counted: %q", tt.Texts())
-	}
-	a.flows[4].conn = conn{errorStage: "TLS client", error: "EOF"}
-	tt.Frame()
-	if !tt.HasText("Client TLS handshake failed") || !tt.HasText("This is a recorded failure, not a confirmed certificate diagnosis.") {
-		t.Fatal("recorded stage or diagnostic uncertainty omitted")
-	}
-	if err := tt.Click("Inspect latest connection"); err != nil {
-		t.Fatal(err)
-	}
-	if f, ok := a.current(); !ok || f.id != 5 || a.clientUI.open {
-		t.Fatal("inspect did not open the exact connection")
-	}
-	a.views.activate(a, 0)
-	if a.query != "keep-this-filter" {
-		t.Fatal("inspecting hidden setup evidence cleared the original filters")
-	}
-	a.clientUI.open = true
-	a.flows = append(a.flows, flow{id: 6, live: true, at: since, url: "https://example.test/new", scheme: "https", reqHeaders: "GET /new", path: "/new", status: 401})
-	tt.Frame()
-	if !tt.HasText("1 decrypted HTTPS requests · 1 CONNECT records") || !tt.HasText("Decrypted HTTPS observed · #6 · /new · 401") || tt.HasText("Client TLS handshake failed") {
-		t.Fatal("new decrypted traffic did not supersede the old failure, or HTTP error hid successful decryption")
-	}
-	a.flows = append(a.flows, flow{id: 7, live: true, at: since, url: "https://example.test:443", scheme: "https", kind: "connect", conn: conn{errorStage: "TLS client", error: "EOF"}})
-	tt.Frame()
-	if !tt.HasText("Client TLS handshake failed") || !tt.HasText("Earlier decrypted request · #6 · /new · 401") {
-		t.Fatal("a later failure hid the earlier decryption evidence")
-	}
-	tt.Scroll(700, 440, 0, 300)
-	if err := tt.Click("Inspect observed request"); err != nil {
-		t.Fatal(err)
-	}
-	if f, ok := a.current(); !ok || f.id != 6 {
-		t.Fatalf("the earlier decrypted request was no longer inspectable: selected #%d, present %t", f.id, ok)
 	}
 }
 
@@ -4231,12 +4166,12 @@ func TestQueryAutocompleteCompletesKeysAndValuesWithoutTakingEnterOrDown(t *test
 	}
 }
 
-func TestCaptureDiagnosticsSeparateConfigurationLiveEvidenceAndViewVisibility(t *testing.T) {
+func TestConnectionDiagnosticsMatchTheTargetOriginAndKeepFilters(t *testing.T) {
 	fake := &fakeSystemProxy{check: system.ProxyCheck{Status: system.ProxyMatches}}
 	a := proxyTestApp(t, fake)
 	a.flows = []flow{
 		{id: 1, live: true, method: "CONNECT", scheme: "https", url: "https://API.example.com:443/", kind: "connect", status: 200},
-		{id: 2, live: true, method: "GET", scheme: "https", url: "https://api.example.com/items", kind: "http", status: 502, reqHeaders: "Accept: */*", conn: conn{errorStage: "TCP", error: "fixture connection refused"}, actions: []string{"Map Remote · fixture"}},
+		{id: 2, live: true, method: "GET", scheme: "https", url: "https://api.example.com/items", kind: "http", status: 502, reqHeaders: "Accept: */*", conn: conn{errorStage: "TCP", error: "fixture connection refused"}},
 		{id: 3, live: false, method: "GET", scheme: "https", url: "https://api.example.com/imported", status: 200, reqHeaders: "Accept: */*"},
 		{id: 4, live: true, method: "GET", scheme: "https", url: "https://api.example.com:8443/other-port", status: 200, reqHeaders: "Accept: */*"},
 		{id: 5, live: true, method: "GET", scheme: "http", url: "http://api.example.com:443/other-scheme", status: 200},
@@ -4246,7 +4181,7 @@ func TestCaptureDiagnosticsSeparateConfigurationLiveEvidenceAndViewVisibility(t 
 	a.views.applyFilter(a)
 	tt := ui.NewTester(a.view, 960, 600)
 	tt.Key(ui.Cmd, ui.KeyK)
-	tt.Type("Capture diagnostics")
+	tt.Type("Connection diagnostics")
 	tt.Key(0, ui.KeyEnter)
 	settleProxy(t, a, tt)
 	if err := tt.Click("Target URL"); err != nil {
@@ -4254,32 +4189,31 @@ func TestCaptureDiagnosticsSeparateConfigurationLiveEvidenceAndViewVisibility(t 
 	}
 	tt.Key(ui.Ctrl, ui.KeyA)
 	tt.Type("https://api.example.com/")
-	for _, want := range []string{
-		"HTTP and HTTPS point at this app",
-		"2 live records · 0 shown · 2 hidden in the current capture view",
-		"Observed HTTPS: 1 decrypted request records · 1 CONNECT records",
-		"HTTPS policy: Disabled for new connections",
-		"TCP failed: fixture connection refused",
-		"Recorded actions on this exchange: Map Remote · fixture",
-	} {
-		if !tt.HasText(want) {
-			t.Fatalf("missing %q: %q", want, tt.Texts())
-		}
+	// Imported (#3), other-port (#4) and other-scheme (#5) records are not
+	// this origin's evidence; the latest live one (#2) is.
+	if !tt.HasText("HTTP and HTTPS point at this app") || !tt.HasText("#2 · TCP failed") || tt.HasText("Waiting for a request") {
+		t.Fatalf("wrong evidence: %q", tt.Texts())
+	}
+	if err := tt.Click("Actual traffic"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame() // the step scrolls into view
+	if !tt.HasText("fixture connection refused") || !tt.HasText("Possible causes · not confirmed") || !tt.HasText("2 live records for this origin, from any client.") {
+		t.Fatalf("failure not explained in place: %q", tt.Texts())
 	}
 	if fake.writes != 0 || a.deviceUI.gateway != nil {
 		t.Fatal("opening diagnostics changed the proxy or exposed a device gateway")
 	}
 	// Inspecting hidden evidence must preserve the original filter tab.
-	tt.Scroll(480, 300, 0, 220)
-	if err := tt.Click("Inspect latest evidence"); err != nil {
+	if err := tt.Click("Inspect #2"); err != nil {
 		t.Fatal(err)
 	}
-	if a.pickedID != 2 || len(a.views.views) != 2 || a.views.views[0].query != "no-match" || tt.HasText("Capture diagnostics") {
-		t.Fatal("inspecting evidence lost the old filter or selected imported/other-origin traffic")
+	if a.pickedID != 2 || len(a.views.views) != 2 || a.views.views[0].query != "no-match" || a.page != pageLive {
+		t.Fatal("inspecting evidence lost the old filter or selected other-origin traffic")
 	}
 }
 
-func TestCaptureDiagnosticsEmptyAndInvalidTargetsDoNotClaimProxyFailure(t *testing.T) {
+func TestConnectionDiagnosticsEmptyAndInvalidTargetsDoNotClaimProxyFailure(t *testing.T) {
 	a := workspaceApp()
 	a.flows, a.visible = nil, nil
 	a.systemProxy.read = func(target string) system.ProxyCheck {
@@ -4290,7 +4224,7 @@ func TestCaptureDiagnosticsEmptyAndInvalidTargetsDoNotClaimProxyFailure(t *testi
 		t.Fatal(err)
 	}
 	settleProxy(t, a, tt)
-	if !tt.HasText("No system proxy is set") || !tt.HasText("No retained live evidence for this origin.") {
+	if !tt.HasText("No system proxy is set") || !tt.HasText("Waiting for a request to example.com") {
 		t.Fatalf("no-traffic state not explained: %q", tt.Texts())
 	}
 	for _, target := range []string{"not a URL", "ftp://example.com", "https://user:secret@example.com"} {
@@ -4299,13 +4233,15 @@ func TestCaptureDiagnosticsEmptyAndInvalidTargetsDoNotClaimProxyFailure(t *testi
 		}
 		tt.Key(ui.Ctrl, ui.KeyA)
 		tt.Type(target)
-		if !tt.HasText("Enter an HTTP or HTTPS URL without embedded credentials.") || tt.HasText("0 live records") {
+		if !tt.HasText("Enter an HTTP or HTTPS URL without embedded credentials.") || tt.HasText("Actual traffic") {
 			t.Fatalf("invalid target %q received a diagnosis", target)
 		}
 	}
-	tt.Key(0, ui.KeyEscape)
+	if err := tt.Click("All requests"); err != nil {
+		t.Fatal(err)
+	}
 	if tt.HasText("Target URL") || !tt.HasText("Capture is stopped") {
-		t.Fatal("Escape did not return to the unchanged capture view")
+		t.Fatal("the sidebar did not return to the unchanged capture view")
 	}
 }
 

@@ -74,9 +74,8 @@ For a local process, **Network → Set up a local client…** provides copyable 
 Node.js (`https-proxy-agent`), Python (`requests`) and Go examples. They set the
 proxy and trust the public CA for that process only; they do not change the OS
 proxy, install a system CA or skip TLS verification. cURL uses POSIX shell syntax.
-Choose an HTTPS URL, enable inspection for its host, then run the example yourself.
-The guide separates a listening/reachable proxy, the decryption rule and newly
-observed decrypted traffic, with an action to inspect that capture.
+Run the example yourself, then **Diagnose…** opens Connection diagnostics for
+one process to show whether the request arrived and was decrypted.
 
 Open **Network → Connect a device** or **Settings → Devices → Connect a device**.
 Device access is **off on every launch**; consent and listeners are not persisted.
@@ -93,7 +92,8 @@ Device access is **off on every launch**; consent and listeners are not persiste
    is configured; this is restricted by source IP, not user identity.
 4. Open the displayed certificate URL on the device. It serves only the public
    CA certificate as DER, never a directory or signing key. Compare the CA's
-   SHA-256 fingerprint under **Checks**; obtain it over a trusted network.
+   SHA-256 fingerprint in **Diagnostics** (Phone or tablet); obtain it over a
+   trusted network.
 5. Follow the guide's **iOS** or **Android** tab. On iOS, install the downloaded
    profile and explicitly enable full trust under General → About → Certificate
    Trust Settings. On Android, install it as a CA certificate; many Android 7+
@@ -101,12 +101,11 @@ Device access is **off on every launch**; consent and listeners are not persiste
 6. Enable **Configure HTTPS inspection** for the desired hosts, then make an
    HTTPS request from the device and inspect its decrypted path/body in Capture.
 
-**Checks** distinguishes local proxy reachability and last admitted TCP clients
-at each port. Set the target HTTPS URL to see the current host rule and decrypted
-traffic observed since opening setup. Imported captures never count as evidence.
-Evidence is session-wide, not attributed to a specific phone or runtime, and
-client CA trust remains explicitly unverified: a client could skip verification.
-A TCP connection does **not** prove that a certificate was installed,
+**Diagnose…** opens Connection diagnostics for a phone or tablet: the last
+admitted clients at each port, the CA fingerprint, the host's decryption rule and
+the target's traffic. Evidence is session-wide, not attributed to a specific
+device, and client CA trust remains explicitly unverified. A TCP connection does
+**not** prove that a certificate was installed,
 that HTTPS decrypted, or that the remote network path is reachable. No traffic?
 Check DHCP changes, the selected interface, VPN, firewall and Wi-Fi isolation.
 Certificate pinning and clients that ignore the OS proxy are not bypassed. The
@@ -361,18 +360,25 @@ an unsaved mock removes its file; deleting a saved rule keeps its file for reuse
 
 ## Connection diagnostics
 
-**Network → Capture diagnostics…**, the command palette, or **Diagnose capture…**
-in the empty list opens read-only checks for the listener, OS proxy readback,
-target traffic and engine configuration. Enter an HTTP(S) URL: evidence matches
-its scheme, hostname and port (default ports are equivalent), not its path.
-Counts include retained live traffic from any client, not imported sessions;
-the panel distinguishes decrypted requests, CONNECT records and records hidden
-by the current capture view. **Inspect latest evidence** opens hidden records in
-a new view without erasing existing filters. An absent record is not a confirmed
-failure; ignored traffic is proxied without being retained. Current rules and
-decryption settings are not proof of past execution or client CA trust. Opening
-or refreshing checks does not restore an interrupted system-proxy session,
-change proxy settings, install a CA, send requests or expose a LAN listener.
+**Diagnostics** under Live in the sidebar is the one place for "why don't I see
+this traffic". It is also reached from **Network → Connection diagnostics**, the
+command palette, **Diagnose capture…** in the empty list, **Diagnose…** in client
+and device setup, and **Explain** on a failed exchange. Choose the client (This
+Mac, Phone or tablet, One process) and an HTTP(S) target URL; five steps are
+checked in order: **Listener**, the client's proxy (system proxy, device access
+or the process itself), **Certificate**, **HTTPS decryption** and **Actual
+traffic**. The first failing step opens with its details, and its fix is the
+highlighted button. Certificate trust is only checked for this Mac; for a phone
+or a process it is not verifiable here and Actual traffic shows the outcome.
+
+Traffic evidence matches the target's scheme, hostname and port (default ports
+are equivalent), not its path, and counts only live traffic from any client, not
+imported sessions. **Inspect #N** opens a hidden record in a new view without
+erasing existing filters. An absent record is not a confirmed failure; ignored
+traffic is proxied without being retained. Nothing changes until a fix button is
+pressed: opening or re-checking does not restore an interrupted system-proxy
+session, change proxy settings, install a CA, send requests or expose a LAN
+listener.
 
 Select **Connection** in a captured exchange's detail to inspect and copy its
 connection log: DNS lookup, TCP dial attempts, upstream/client TLS handshakes,
@@ -390,8 +396,9 @@ details survive saving/reopening a session; older/imported sessions may have no
 connection history. Review hostnames, addresses and certificate details before
 sharing logs.
 
-For a transport failure, **Explain** in the detail header shows the recorded
-stage and raw error, possible causes (not confirmed), and stage-specific checks.
+For a transport failure, **Explain** in the detail header opens Diagnostics on
+that exchange, with Actual traffic expanded: the recorded stage and raw error,
+possible causes (not confirmed), and stage-specific checks.
 Client and upstream TLS failures have different guidance; unknown stages do not
 guess a cause. **Copy diagnostics** combines the request, recorded status, error,
 guidance and available connection log, even for a session with no log. The

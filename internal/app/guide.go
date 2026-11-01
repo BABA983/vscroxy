@@ -167,7 +167,7 @@ func (a *app) guideCapture(c *ui.Context, t *ui.Theme) {
 		ui.Text(c, "Capture is stopped.").FontSize(uikit.TextBody).TextColor(t.Warning)
 		ui.Row(c).Children(func() {
 			if uikit.SecondaryButton(c, "Diagnose capture…").Clicked() {
-				a.openDiagnostics()
+				a.openDiagnostics(nil, diagnoseMac)
 			}
 		})
 		return

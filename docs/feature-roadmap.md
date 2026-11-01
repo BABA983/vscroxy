@@ -250,7 +250,7 @@
 - Allow list（Settings → 抓包）。
 - 内存和磁盘上限、自动清理。
 - 合并历史和留证（3.1）（已完成：History + Sessions；不迁移旧数据）。
-- 合并诊断入口。
+- 合并诊断入口（已完成：侧栏 Live → Diagnostics 一页五步检查；失败行的 Explain、Client setup、设备接入、空状态都跳到这里）。
 - 导出时的脱敏选项（已完成：Postman、HAR、会话）。
 - Checks 导出为 `pm.test`。
 - 旧版脚本 API 删除（已完成）。
