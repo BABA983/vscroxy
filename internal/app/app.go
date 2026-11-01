@@ -1752,7 +1752,7 @@ func (a *app) table(c *ui.Context) {
 		// Keep the URL identity and sorting so saved column layouts survive.
 		{ID: "url", Title: "Path", MinWidth: 160, Sortable: true},
 		{ID: "client", Title: "Client", Width: 132, Sortable: true},
-		{ID: "duration", Title: "Duration", Width: 84, Align: ui.End, Sortable: true},
+		{ID: "duration", Title: "Duration", Width: 112, Align: ui.End, Sortable: true},
 		{ID: "size", Title: "Size", Width: 78, Align: ui.End, Sortable: true},
 		{ID: "captured", Title: "Time", Width: 84, Sortable: true},
 	}
@@ -1908,23 +1908,29 @@ var noteIcon = lucide.MessageSquare()
 // slowMillis is where a request's duration turns vermilion in the table.
 const slowMillis = 1000
 
-// durationCell fills the cell from its right edge, under the number, by the
+// durationCell lays a bar behind the number, a row's height less a
+// little, that always covers the number and reaches further left by the
 // logarithm of the time up to a minute: a column of numbers becomes a
-// column of lengths without a column of its own. Slow requests fill in
-// vermilion.
+// column of lengths without a column of its own, and no edge cuts through
+// a digit. Slow requests fill in vermilion.
 func durationCell(c *ui.Context, t *ui.Theme, millis int, number func(string) ui.Element) {
 	fill := uikit.Colors(t).Bar
 	if millis >= slowMillis {
 		fill = t.Danger.Alpha(0.16)
 	}
+	label := fmt.Sprintf("%d ms", millis)
 	share := float32(min(math.Log1p(float64(max(millis, 0)))/math.Log1p(60_000), 1))
-	ui.Row(c).Grow(1).MinWidth(0).Justify(ui.End).AlignItems(ui.Center).Padding(0, t.Space(1)).
+	pad := t.Space(1.5)
+	ui.Row(c).Grow(1).Height(15).MinWidth(0).Justify(ui.End).AlignItems(ui.Center).Padding(0, pad).
 		Draw(func(p *ui.Painter, r ui.Rect) {
-			w := r.W * share
-			p.Fill(ui.Rect{X: r.X + r.W - w, Y: r.Y, W: w, H: r.H}, fill, 2)
+			text, _ := p.MeasureText(0, ui.Span{Text: label, Font: uikit.FontMono, Size: uikit.TextData, Features: "tnum"})
+			least := min(text+2*pad, r.W)
+			w := least + (r.W-least)*share
+			// Past the 15px line, into the cell's padding: most of the 24px row.
+			p.Fill(ui.Rect{X: r.X + r.W - w, Y: r.Y - 2, W: w, H: r.H + 4}, fill, uikit.RadiusControl-2)
 		}).
 		Children(func() {
-			cell := number(fmt.Sprintf("%d ms", millis))
+			cell := number(label)
 			if millis >= slowMillis {
 				cell.TextColor(t.Text)
 			}
