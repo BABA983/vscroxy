@@ -11,6 +11,7 @@ import (
 	"os"
 	"slices"
 
+	"github.com/baba983/vscroxy/internal/store"
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/editor"
@@ -366,7 +367,7 @@ func (a *app) exportOpenAPI(d *apiDocument) {
 		if path == "" {
 			return
 		}
-		if err := os.WriteFile(path, []byte(source), 0o600); err != nil {
+		if err := store.WriteFile(path, []byte(source)); err != nil {
 			a.fail("Export OpenAPI", err)
 			return
 		}

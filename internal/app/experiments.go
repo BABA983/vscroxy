@@ -12,6 +12,7 @@ import (
 
 	"github.com/baba983/vscroxy/internal/capture"
 	"github.com/baba983/vscroxy/internal/request"
+	"github.com/baba983/vscroxy/internal/store"
 )
 
 const (
@@ -181,7 +182,7 @@ func saveExperiments(path string, log experimentLog) error {
 	if err != nil {
 		return err
 	}
-	return writePrivateFile(path, data)
+	return store.WriteFile(path, data)
 }
 
 func encodeExperiments(log experimentLog) ([]byte, error) {

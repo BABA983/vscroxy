@@ -24,6 +24,7 @@ import (
 
 	"github.com/baba983/vscroxy/internal/capture"
 	"github.com/baba983/vscroxy/internal/request"
+	"github.com/baba983/vscroxy/internal/store"
 	"github.com/baba983/vscroxy/internal/system"
 	"github.com/egoist/mygo/ui"
 	"github.com/gorilla/websocket"
@@ -1080,7 +1081,7 @@ func TestHTTPSSetupExplainsTunnelsAndEnablesOnlyTheSelectedDomain(t *testing.T) 
 	if !tt.HasText("Domain rule enabled · reconnect to inspect new requests") || !tt.HasText("Encrypted tunnel — not individual requests") {
 		t.Fatalf("enabling a domain must not make the old CONNECT appear decrypted: %q", tt.Texts())
 	}
-	cfg, err := capture.LoadSSL(a.sslPath)
+	cfg, err := a.readSSL()
 	if err != nil || !cfg.Decrypts("api.dc.dlife.cn") || cfg.Decrypts("other.dlife.cn") || cfg.All || !srv.SSL().Decrypts("dc.dlife.cn") || srv.SSL().All {
 		t.Fatalf("domain selection was not saved with the correct scope: %+v, %v", cfg, err)
 	}
@@ -1108,7 +1109,7 @@ func TestHTTPSSetupExplainsTunnelsAndEnablesOnlyTheSelectedDomain(t *testing.T) 
 	tt.Key(ui.Cmd, ui.KeyA)
 	tt.Type("dlife.cn")
 	click("Save")
-	cfg, err = capture.LoadSSL(a.sslPath)
+	cfg, err = a.readSSL()
 	if err != nil || !cfg.Decrypts("other.dlife.cn") || cfg.Decrypts("notdlife.cn") || !tt.HasText("Domain rule enabled · reconnect to inspect new requests") {
 		t.Fatal("a parent-domain rule must enable its subdomains in the inspector too")
 	}
@@ -1134,7 +1135,7 @@ func TestHTTPSAppRuleCanBeScopedEditedAndCancelled(t *testing.T) {
 	}
 	load := func() capture.SSLConfig {
 		t.Helper()
-		cfg, err := capture.LoadSSL(a.sslPath)
+		cfg, err := a.readSSL()
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -3343,7 +3344,7 @@ func TestTriageFiltersAndQuickPresetsStayWithTheirView(t *testing.T) {
 	tt.Type("Checkout failures")
 	tt.Click("Save filter")
 	tt.Click("Close")
-	filters, err := loadCaptureFilters(a.views.path)
+	filters, err := loadCaptureFilters(&store.File{Path: a.views.path})
 	if err != nil || len(filters) != 1 || filters[0].Triage.Color != "Red" || filters[0].Triage.Duration != ">500" {
 		t.Fatalf("triage conditions not saved: %+v %v", filters, err)
 	}

@@ -13,6 +13,7 @@ import (
 
 	"github.com/baba983/vscroxy/internal/capture"
 	"github.com/baba983/vscroxy/internal/request"
+	"github.com/baba983/vscroxy/internal/store"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -145,7 +146,7 @@ func TestStartupFailureKeepsLocalAssetsUsable(t *testing.T) {
 	if err := library.persistRequests([]savedRequest{{Request: request.Request{ID: "kept", Name: "kept", Method: "GET", URL: "https://example.test"}}}); err != nil {
 		t.Fatal(err)
 	}
-	if err := saveEnvs(filepath.Join(dir, "env.json"), envFile{Active: "dev", Envs: []environment{{Name: "dev", Vars: map[string]string{"host": "local"}}}}); err != nil {
+	if err := saveEnvs(&store.File{Path: filepath.Join(dir, "env.json")}, envFile{Active: "dev", Envs: []environment{{Name: "dev", Vars: map[string]string{"host": "local"}}}}); err != nil {
 		t.Fatal(err)
 	}
 	a := newApp()
@@ -219,7 +220,7 @@ func TestDamagedAssetsStayUntouchedUntilExplicitReload(t *testing.T) {
 	a.openVars()
 	a.varsRows = []request.Field{{Name: "token", Value: "recovered"}}
 	a.saveVars()
-	f, err := loadEnvs(filepath.Join(dir, "env.json"))
+	f, err := loadEnvs(&store.File{Path: filepath.Join(dir, "env.json")})
 	envs := f.Envs
 	if err != nil || len(envs) != 1 || envs[0].Vars["token"] != "recovered" {
 		t.Fatalf("environment recovery: %v, %v", envs, err)
@@ -250,35 +251,59 @@ func TestSameSettingsSeesColumnChanges(t *testing.T) {
 	}
 }
 
-// Side by side is the default with one workspace: only a stacked choice
-// someone made stays stacked, and the retired adaptive layout reads as side
-// by side.
-func TestSavedInspectorLayoutMigrates(t *testing.T) {
-	for saved, want := range map[string]string{"": "right", "adaptive": "right", "right": "right", "bottom": "bottom"} {
-		if got := inspectorLayout(saved); got != want {
-			t.Errorf("inspectorLayout(%q) = %q, want %q", saved, got, want)
-		}
-	}
-}
-
-// An older settings file's single header column becomes the first custom one.
-func TestLegacyHeaderColumnBecomesACustomColumn(t *testing.T) {
-	got := settings{HeaderColumn: "x-request-id"}.customColumns()
-	if len(got) != 1 || got[0] != (customColumn{Source: sourceHeader, Name: "x-request-id"}) {
-		t.Fatalf("customColumns = %+v", got)
-	}
-	if got := (settings{HeaderColumn: "x-old", CustomColumns: []customColumn{{Source: sourceQuery, Name: "q"}}}).customColumns(); len(got) != 1 || got[0].Name != "q" {
-		t.Fatalf("saved custom columns lost to the legacy field: %+v", got)
-	}
-}
-
-func TestSettingsReadOlderDarkSwitchAsDarkAppearance(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "settings.json")
-	if err := os.WriteFile(path, []byte(`{"dark":true}`), 0o600); err != nil {
+// TestHandEditedConfigIsNotOverwritten checks that a config file edited on
+// disk after the app read it is never replaced by a save from stale state,
+// that Reload picks the edit up, and that a damaged file stays untouched.
+func TestHandEditedConfigIsNotOverwritten(t *testing.T) {
+	a := workspaceApp()
+	a.sslPath = filepath.Join(t.TempDir(), "ssl.json")
+	var err error
+	a.srv, err = capture.New("127.0.0.1:0", t.TempDir())
+	if err != nil {
 		t.Fatal(err)
 	}
-	got, err := loadSettings(path)
-	if err != nil || got.appearance() != "dark" {
-		t.Fatalf("older dark switch read as %q, %v", got.appearance(), err)
+	t.Cleanup(func() { _ = a.srv.Close() })
+	a.reloadConfig()
+	if !a.saveSSL(capture.SSLConfig{Hosts: []string{"app.test"}}) {
+		t.Fatal("first save failed")
+	}
+	edited := []byte(`{"hosts":["hand.test"]}` + "\n")
+	if err := os.WriteFile(a.sslPath, edited, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if a.saveSSL(capture.SSLConfig{Hosts: []string{"stale.test"}}) {
+		t.Fatal("a save from stale state replaced a hand edit")
+	}
+	if disk, _ := os.ReadFile(a.sslPath); string(disk) != string(edited) {
+		t.Fatalf("hand edit overwritten: %s", disk)
+	}
+	last := a.notices[len(a.notices)-1]
+	if last.action != "Reload" || last.run == nil {
+		t.Fatalf("changed file offered no reload: %+v", last)
+	}
+	last.run()
+	if a.sslHosts != "hand.test" || !a.srv.SSL().Decrypts("hand.test") {
+		t.Fatalf("reload did not pick up the edit: %q", a.sslHosts)
+	}
+	if !a.saveSSL(capture.SSLConfig{Hosts: []string{"hand.test", "next.test"}}) {
+		t.Fatal("save after reload failed")
+	}
+	if info, err := os.Stat(a.sslPath); err != nil || info.Mode().Perm() != 0o600 {
+		t.Fatalf("config file is not private: %v %v", info.Mode(), err)
+	}
+
+	damaged := []byte(`{"hosts":`)
+	if err := os.WriteFile(a.sslPath, damaged, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	a.reloadConfig()
+	if tt := ui.NewTester(a.view, 960, 600); !tt.HasText(a.sslPath + " could not be read and is left untouched") {
+		t.Fatalf("damaged file not reported: %q", tt.Texts())
+	}
+	if a.saveSSL(capture.SSLConfig{All: true}) {
+		t.Fatal("a damaged file was replaced")
+	}
+	if disk, _ := os.ReadFile(a.sslPath); string(disk) != string(damaged) {
+		t.Fatalf("damaged file changed: %s", disk)
 	}
 }

@@ -13,6 +13,7 @@ import (
 	"time"
 	"uuid"
 
+	"github.com/baba983/vscroxy/internal/store"
 	"github.com/egoist/mygo/ui/editor"
 )
 
@@ -125,7 +126,7 @@ func (item *savedSession) persist(notify func()) {
 			for state := range jobs {
 				data, err := json.Marshal(state)
 				if err == nil {
-					err = writePrivateFile(path, data)
+					err = store.WriteFile(path, data)
 				}
 				select {
 				case <-results:

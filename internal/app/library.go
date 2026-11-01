@@ -18,6 +18,7 @@ import (
 	"strings"
 
 	"github.com/baba983/vscroxy/internal/request"
+	"github.com/baba983/vscroxy/internal/store"
 )
 
 // The request library is a directory tree, one directory per collection
@@ -347,7 +348,7 @@ func (l *libraryState) apply(files map[string][]byte) error {
 		if err := os.MkdirAll(filepath.Dir(target), 0o700); err != nil {
 			return err
 		}
-		if err := writePrivateFile(target, files[name]); err != nil {
+		if err := store.WriteFile(target, files[name]); err != nil {
 			return err
 		}
 		l.known[name] = files[name]

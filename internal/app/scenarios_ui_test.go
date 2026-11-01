@@ -193,7 +193,7 @@ func TestScenarioRulesUIControlsSavedAndRunningConfiguration(t *testing.T) {
 	if err := capture.SaveRules(a.rulesPath, initial); err != nil {
 		t.Fatal(err)
 	}
-	a.rules, err = capture.LoadRules(a.rulesPath)
+	a.rules, err = a.readRules()
 	if err != nil {
 		t.Fatal(err)
 	}

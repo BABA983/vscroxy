@@ -20,9 +20,7 @@ import (
 	"fmt"
 	"github.com/baba983/vscroxy/internal/uikit"
 	"io"
-	"io/fs"
 	"os"
-	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
@@ -31,6 +29,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/baba983/vscroxy/internal/store"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -131,37 +130,23 @@ func (q captureTriage) summary() []string {
 
 // loadCaptureFilters reads the saved filters, an empty list when there is no
 // file.
-func loadCaptureFilters(path string) ([]savedCaptureFilter, error) {
-	if path == "" {
-		return nil, nil
-	}
-	data, err := os.ReadFile(path)
-	if errors.Is(err, fs.ErrNotExist) {
-		return nil, nil
-	}
-	if err != nil {
+// One that does not parse stays read-only.
+func loadCaptureFilters(file *store.File) ([]savedCaptureFilter, error) {
+	data, err := file.Read()
+	if err != nil || data == nil {
 		return nil, err
 	}
 	var list []savedCaptureFilter
 	if err := json.Unmarshal(data, &list); err != nil {
+		file.Fail(err)
 		return nil, err
-	}
-	// Earlier versions kept host/app in the single sidebar choice.
-	for i := range list {
-		f := &list[i]
-		if host, ok := strings.CutPrefix(f.Filter, "host:"); ok {
-			f.Triage.Host, f.Filter = host, "all"
-		} else if client, ok := strings.CutPrefix(f.Filter, "client:"); ok {
-			f.Triage.Client, f.Filter = client, "all"
-		}
 	}
 	return list, nil
 }
 
-// writeCaptureFilters writes the filters sorted by name, through a temporary
-// file, so a failure leaves the file before it whole.
-func writeCaptureFilters(path string, list []savedCaptureFilter) error {
-	if path == "" {
+// writeCaptureFilters writes the filters sorted by name.
+func writeCaptureFilters(file *store.File, list []savedCaptureFilter) error {
+	if file.Path == "" {
 		return errors.New("no file to save the filters to")
 	}
 	slices.SortFunc(list, func(x, y savedCaptureFilter) int { return cmp.Compare(x.Name, y.Name) })
@@ -169,11 +154,7 @@ func writeCaptureFilters(path string, list []savedCaptureFilter) error {
 	if err != nil {
 		return err
 	}
-	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return err
-	}
-	return writePrivateFile(path, append(data, '\n'))
+	return file.Write(append(data, '\n'))
 }
 
 // captureConditions is what narrows the table and how it is ordered, as one
@@ -365,17 +346,17 @@ func (v *captureViews) init(a *app, path string) {
 		return
 	}
 	v.path = path
-	v.load()
+	v.load(a)
 	v.newView(a)
 }
 
 // load reads the saved filters from the file.
-func (v *captureViews) load() {
+func (v *captureViews) load(a *app) {
 	v.filters = nil
 	if v.path == "" {
 		return
 	}
-	list, err := loadCaptureFilters(v.path)
+	list, err := loadCaptureFilters(a.file(v.path))
 	if err != nil {
 		v.problem = "Saved capture filters: " + err.Error()
 		return
@@ -1245,7 +1226,7 @@ func (v *captureViews) saveCurrent(a *app) {
 	if !replaced {
 		list = append(list, f)
 	}
-	if err := writeCaptureFilters(v.path, list); err != nil {
+	if err := writeCaptureFilters(a.file(v.path), list); err != nil {
 		v.problem = "Could not save filters: " + err.Error()
 		return
 	}
@@ -1281,7 +1262,7 @@ func (v *captureViews) renameSaved(a *app) {
 			list[i].Name = to
 		}
 	}
-	if err := writeCaptureFilters(v.path, list); err != nil {
+	if err := writeCaptureFilters(a.file(v.path), list); err != nil {
 		v.problem = "Could not save filters: " + err.Error()
 		return
 	}
@@ -1301,7 +1282,7 @@ func (v *captureViews) renameSaved(a *app) {
 // the conditions they show.
 func (v *captureViews) deleteSaved(a *app, name string) {
 	list := slices.DeleteFunc(slices.Clone(v.filters), func(f savedCaptureFilter) bool { return f.Name == name })
-	if err := writeCaptureFilters(v.path, list); err != nil {
+	if err := writeCaptureFilters(a.file(v.path), list); err != nil {
 		v.problem = "Could not save filters: " + err.Error()
 		return
 	}

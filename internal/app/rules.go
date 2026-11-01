@@ -93,7 +93,7 @@ func (a *app) applyRuleChanges(next []capture.Rule) bool {
 		a.ruleUI.problem = "Rules storage is unavailable"
 		return false
 	}
-	if err := capture.SaveRules(a.rulesPath, next); err != nil {
+	if err := a.writeRules(next); err != nil {
 		a.ruleUI.problem = err.Error()
 		return false
 	}

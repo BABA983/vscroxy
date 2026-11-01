@@ -18,6 +18,7 @@ import (
 
 	"github.com/baba983/vscroxy/internal/capture"
 	"github.com/baba983/vscroxy/internal/request"
+	"github.com/baba983/vscroxy/internal/store"
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 )
@@ -266,7 +267,7 @@ func writeHAR(path string, flows []flow) error {
 	if err != nil {
 		return err
 	}
-	return writePrivateFile(path, append(data, '\n'))
+	return store.WriteFile(path, append(data, '\n'))
 }
 
 // headerPairs prefers the structured headers, and parses the formatted block
@@ -467,7 +468,7 @@ func writeSession(path string, flows []flow, frames map[int][]frame) error {
 	if err != nil {
 		return err
 	}
-	return writePrivateFile(path, append(data, '\n'))
+	return store.WriteFile(path, append(data, '\n'))
 }
 
 // readSessionFile reads and checks a session file. Files are bounded: a

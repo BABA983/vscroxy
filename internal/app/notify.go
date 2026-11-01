@@ -1,8 +1,11 @@
 package app
 
 import (
+	"errors"
 	"log/slog"
 	"time"
+
+	"github.com/baba983/vscroxy/internal/store"
 
 	"github.com/egoist/mygo/ui"
 )
@@ -58,8 +61,13 @@ func (a *app) done(text string)   { a.notify(notice{level: noticeSuccess, text: 
 func (a *app) warn(text string)   { a.notify(notice{level: noticeWarning, text: text}) }
 
 // fail says what could not be done; the error itself is the detail.
+// A file changed on disk offers to read it again.
 func (a *app) fail(what string, err error) {
-	a.notify(notice{level: noticeError, text: what, detail: err.Error()})
+	n := notice{level: noticeError, text: what, detail: err.Error()}
+	if errors.Is(err, store.ErrChanged) {
+		n.action, n.run = "Reload", a.reloadFromDisk
+	}
+	a.notify(n)
 }
 
 // showNotices hands queued notices to c as toasts. The Settings window shows

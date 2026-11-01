@@ -30,6 +30,7 @@ import (
 	"github.com/baba983/vscroxy/internal/applog"
 	"github.com/baba983/vscroxy/internal/capture"
 	"github.com/baba983/vscroxy/internal/request"
+	"github.com/baba983/vscroxy/internal/store"
 	"github.com/baba983/vscroxy/internal/system"
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
@@ -224,6 +225,7 @@ type app struct {
 	certificate certificateSetup
 	systemProxy proxySetup
 	rulesPath   string
+	files       map[string]*store.File // see file
 	scriptPath  string
 	rules       []capture.Rule
 	ruleUI      ruleEditor
@@ -478,7 +480,7 @@ func newApp() *app {
 	a.loadRequestAssets()
 	if a.settingsPath != "" {
 		saved := a.saved
-		a.appearance = saved.appearance()
+		a.appearance = saved.Appearance
 		if saved.SidebarWidth > 0 {
 			a.sidebarWidth = saved.SidebarWidth
 		}
@@ -491,7 +493,7 @@ func newApp() *app {
 			a.workbench.sidePercent = saved.SideTablePercent
 		}
 		a.columns = saved.Columns.layout()
-		a.customColumns, a.hiddenColumns = saved.customColumns(), saved.HiddenColumns
+		a.customColumns, a.hiddenColumns = slices.Clone(saved.CustomColumns), saved.HiddenColumns
 	}
 	if home, err := os.UserHomeDir(); err == nil {
 		a.apisPath = filepath.Join(home, ".vscroxy", "apis.json")
@@ -523,7 +525,7 @@ func newApp() *app {
 func (a *app) loadRequestAssets() {
 	a.loadRequestLibrary()
 	a.refreshDocuments()
-	if f, err := loadEnvs(a.envsPath); err != nil {
+	if f, err := loadEnvs(a.file(a.envsPath)); err != nil {
 		a.envsProblem = fmt.Sprintf("Variables (%s): %v", a.envsPath, err)
 	} else {
 		a.envs, a.activeEnv, a.globals, a.envsProblem = f.Envs, f.Active, f.Globals, ""
@@ -537,29 +539,32 @@ func (a *app) loadRequestAssets() {
 // reloadConfig reads the rules and the script and hands them to the proxy.
 // It runs on the main thread, from startup or the Reload button.
 func (a *app) reloadConfig() {
+	unreadable := func(path string, err error) {
+		a.fail(path+" could not be read and is left untouched", err)
+	}
 	if a.dnsPath != "" && a.srv != nil {
-		lines, err := capture.LoadIgnore(a.dnsPath)
+		lines, err := a.readList(a.dnsPath)
 		if err != nil {
-			a.errText = err.Error()
+			unreadable(a.dnsPath, err)
 		} else if err := a.srv.SetDNS(lines); err != nil {
-			a.errText = err.Error()
+			a.fail("DNS mapping", err)
 		} else {
 			a.dnsText = strings.Join(lines, "\n")
 		}
 	}
 	if a.ignoreAppsPath != "" && a.srv != nil {
-		apps, err := capture.LoadIgnore(a.ignoreAppsPath)
+		apps, err := a.readList(a.ignoreAppsPath)
 		if err != nil {
-			a.errText = err.Error()
+			unreadable(a.ignoreAppsPath, err)
 		} else {
 			a.srv.SetIgnoreApps(apps)
 			a.ignoreAppsText = strings.Join(apps, "\n")
 		}
 	}
 	if a.ignorePath != "" && a.srv != nil {
-		patterns, err := capture.LoadIgnore(a.ignorePath)
+		patterns, err := a.readList(a.ignorePath)
 		if err != nil {
-			a.errText = err.Error()
+			unreadable(a.ignorePath, err)
 		} else {
 			a.srv.SetIgnore(patterns)
 			a.ignoreText = strings.Join(patterns, "\n")
@@ -573,8 +578,8 @@ func (a *app) reloadConfig() {
 			if l.path == "" {
 				continue
 			}
-			if lines, err := capture.LoadIgnore(l.path); err != nil {
-				a.errText = err.Error()
+			if lines, err := a.readList(l.path); err != nil {
+				unreadable(l.path, err)
 			} else {
 				*l.text = strings.Join(lines, "\n")
 			}
@@ -582,9 +587,9 @@ func (a *app) reloadConfig() {
 		a.applyAllow()
 	}
 	if a.sslPath != "" && a.srv != nil {
-		cfg, err := capture.LoadSSL(a.sslPath)
+		cfg, err := a.readSSL()
 		if err != nil {
-			a.errText = err.Error()
+			unreadable(a.sslPath, err)
 		} else {
 			a.srv.SetSSL(cfg)
 			a.sslAll = cfg.All
@@ -593,9 +598,9 @@ func (a *app) reloadConfig() {
 		}
 	}
 	if a.rulesPath != "" {
-		rules, err := capture.LoadRules(a.rulesPath)
+		rules, err := a.readRules()
 		if err != nil {
-			a.errText = err.Error()
+			unreadable(a.rulesPath, err)
 		} else {
 			a.rules = rules
 			if a.srv != nil {
@@ -608,7 +613,7 @@ func (a *app) reloadConfig() {
 	}
 	script, err := capture.LoadScript(a.scriptPath)
 	if err != nil {
-		a.errText = err.Error()
+		unreadable(a.scriptPath, err)
 		return
 	}
 	if a.srv != nil {
@@ -2478,7 +2483,7 @@ func (a *app) applyVars(name string, before, vars map[string]string) {
 	if a.activeEnv == "" {
 		a.activeEnv = name
 	}
-	if err := saveEnvs(a.envsPath, envFile{Active: a.activeEnv, Envs: a.envs, Globals: a.globals}); err != nil {
+	if err := saveEnvs(a.file(a.envsPath), envFile{Active: a.activeEnv, Envs: a.envs, Globals: a.globals}); err != nil {
 		a.fail("Variables", err)
 	}
 }
@@ -2649,7 +2654,7 @@ func (a *app) saveVars() {
 		vars[key] = row.Value // Empty and whitespace values are significant.
 	}
 	if a.varsGlobals {
-		if err := saveEnvs(a.envsPath, envFile{Active: a.activeEnv, Envs: a.envs, Globals: vars}); err != nil {
+		if err := saveEnvs(a.file(a.envsPath), envFile{Active: a.activeEnv, Envs: a.envs, Globals: vars}); err != nil {
 			a.varsProblem = "Save failed: " + err.Error()
 			return
 		}
@@ -2669,7 +2674,7 @@ func (a *app) saveVars() {
 	if !found {
 		envs = append(envs, environment{Name: name, Vars: vars})
 	}
-	if err := saveEnvs(a.envsPath, envFile{Active: name, Envs: envs, Globals: a.globals}); err != nil {
+	if err := saveEnvs(a.file(a.envsPath), envFile{Active: name, Envs: envs, Globals: a.globals}); err != nil {
 		a.varsProblem = "Save failed: " + err.Error()
 		return
 	}
@@ -2998,7 +3003,7 @@ func (a *app) hostListModal(c *ui.Context, t *ui.Theme, open *bool, title, hint,
 				if uikit.PrimaryButton(c, "Save").Clicked() {
 					patterns := splitHosts(*text)
 					if path != "" {
-						if err := writeHosts(path, patterns); err != nil {
+						if err := a.writeList(path, patterns); err != nil {
 							a.fail(title, err)
 							return
 						}
@@ -3024,18 +3029,6 @@ func splitHosts(text string) []string {
 		patterns = append(patterns, line)
 	}
 	return patterns
-}
-
-// writeHosts writes the list where the next start reads it.
-func writeHosts(path string, patterns []string) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return err
-	}
-	text := strings.Join(patterns, "\n")
-	if text != "" {
-		text += "\n"
-	}
-	return os.WriteFile(path, []byte(text), 0o644)
 }
 
 // saveComposed keeps the editor's request under its name, replacing one of
@@ -3075,7 +3068,7 @@ func (a *app) saveComposed() bool {
 			a.errText = err.Error()
 		} else {
 			a.saved = saved
-			a.appearance = saved.appearance()
+			a.appearance = saved.Appearance
 			if saved.SidebarWidth > 0 {
 				a.sidebarWidth = saved.SidebarWidth
 			}
@@ -3083,7 +3076,7 @@ func (a *app) saveComposed() bool {
 				a.tablePercent = saved.TablePercent
 			}
 			a.columns = saved.Columns.layout()
-			a.customColumns, a.hiddenColumns = saved.customColumns(), saved.HiddenColumns
+			a.customColumns, a.hiddenColumns = slices.Clone(saved.CustomColumns), saved.HiddenColumns
 		}
 	}
 	if err := a.persistRequests(list); err != nil {
@@ -3215,16 +3208,12 @@ func (a *app) sslModal(c *ui.Context, t *ui.Theme) {
 // connection already open keeps the choice it was made with.
 func (a *app) saveSSL(cfg capture.SSLConfig) bool {
 	if a.sslPath != "" {
-		if err := os.MkdirAll(filepath.Dir(a.sslPath), 0o755); err != nil {
-			a.fail("SSL proxying", err)
-			return false
-		}
 		data, err := json.Marshal(cfg)
 		if err != nil {
 			a.fail("SSL proxying", err)
 			return false
 		}
-		if err := os.WriteFile(a.sslPath, append(data, '\n'), 0o644); err != nil {
+		if err := a.file(a.sslPath).Write(append(data, '\n')); err != nil {
 			a.fail("SSL proxying", err)
 			return false
 		}
@@ -3461,7 +3450,7 @@ func (a *app) saveDNSRule() {
 		}
 	}
 	if a.dnsPath != "" {
-		if err := writeHosts(a.dnsPath, lines); err != nil {
+		if err := a.writeList(a.dnsPath, lines); err != nil {
 			a.fail("DNS mapping", err)
 			return
 		}
@@ -3488,7 +3477,7 @@ func (a *app) saveDNS() {
 		}
 	}
 	if a.dnsPath != "" {
-		if err := writeHosts(a.dnsPath, lines); err != nil {
+		if err := a.writeList(a.dnsPath, lines); err != nil {
 			a.fail("DNS mapping", err)
 			return
 		}

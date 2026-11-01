@@ -16,6 +16,7 @@ import (
 
 	"github.com/baba983/vscroxy/internal/capture"
 	"github.com/baba983/vscroxy/internal/request"
+	"github.com/baba983/vscroxy/internal/store"
 )
 
 func TestCapturedDraftUsesCompleteDecodedPayload(t *testing.T) {
@@ -178,7 +179,7 @@ func TestEnvironmentTablePreservesValuesAndRejectsDuplicateKeys(t *testing.T) {
 	a.openVars()
 	a.varsRows = []request.Field{{Name: "base", Value: "http://a.test"}, {Name: "empty"}, {Name: "spaced", Value: "  = x  "}}
 	a.saveVars()
-	f, err := loadEnvs(a.envsPath)
+	f, err := loadEnvs(&store.File{Path: a.envsPath})
 	envs := f.Envs
 	if err != nil || len(envs) != 1 || envs[0].Vars["spaced"] != "  = x  " || len(envs[0].Vars) != 3 {
 		t.Fatalf("environment table lost literal values: %+v %v", envs, err)
@@ -197,10 +198,10 @@ func TestEnvsRoundTrip(t *testing.T) {
 		{Name: "dev", Vars: map[string]string{"base": "http://127.0.0.1:8099"}},
 		{Name: "live", Vars: map[string]string{"base": "https://example.com"}},
 	}
-	if err := saveEnvs(path, envFile{Active: "live", Envs: envs}); err != nil {
+	if err := saveEnvs(&store.File{Path: path}, envFile{Active: "live", Envs: envs}); err != nil {
 		t.Fatalf("save: %v", err)
 	}
-	f, err := loadEnvs(path)
+	f, err := loadEnvs(&store.File{Path: path})
 	got, active := f.Envs, f.Active
 	if err != nil {
 		t.Fatalf("load: %v", err)
@@ -211,7 +212,7 @@ func TestEnvsRoundTrip(t *testing.T) {
 	if len(got) != 2 || got[0].Name != "dev" || got[0].Vars["base"] != "http://127.0.0.1:8099" {
 		t.Fatalf("envs = %+v", got)
 	}
-	if missing, err := loadEnvs(t.TempDir() + "/none.json"); err != nil || missing.Envs != nil || missing.Active != "" {
+	if missing, err := loadEnvs(&store.File{Path: t.TempDir() + "/none.json"}); err != nil || missing.Envs != nil || missing.Active != "" {
 		t.Errorf("missing file = %+v, %v; want nothing", missing, err)
 	}
 }

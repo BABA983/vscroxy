@@ -2,10 +2,7 @@ package app
 
 import (
 	"encoding/json/v2"
-	"errors"
-	"io/fs"
-	"os"
-	"path/filepath"
+	"github.com/baba983/vscroxy/internal/store"
 )
 
 // environment is a named set of variables a composed request uses as {{name}},
@@ -23,34 +20,31 @@ type envFile struct {
 	Globals map[string]string `json:"globals,omitempty"`
 }
 
-// loadEnvs reads the environments file; a missing file has none.
-func loadEnvs(path string) (envFile, error) {
+// loadEnvs reads the environments file; a missing file has none. One that
+// does not parse stays read-only.
+func loadEnvs(file *store.File) (envFile, error) {
 	var f envFile
-	if path == "" {
+	if file.Path == "" {
 		return f, nil
 	}
-	data, err := os.ReadFile(path)
-	if errors.Is(err, fs.ErrNotExist) {
-		return f, nil
-	}
-	if err != nil {
+	data, err := file.Read()
+	if err != nil || data == nil {
 		return f, err
 	}
-	err = json.Unmarshal(data, &f)
+	if err = json.Unmarshal(data, &f); err != nil {
+		file.Fail(err)
+	}
 	return f, err
 }
 
 // saveEnvs keeps the environments, which one is in use and the globals.
-func saveEnvs(path string, f envFile) error {
-	if path == "" {
+func saveEnvs(file *store.File, f envFile) error {
+	if file.Path == "" {
 		return nil
-	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return err
 	}
 	data, err := json.Marshal(f)
 	if err != nil {
 		return err
 	}
-	return writePrivateFile(path, append(data, '\n'))
+	return file.Write(append(data, '\n'))
 }

@@ -12,28 +12,23 @@ import (
 	"strings"
 	"time"
 
+	"github.com/baba983/vscroxy/internal/store"
 	"github.com/egoist/mygo/ui"
 )
 
 // settings is what the app keeps between launches besides the window's
 // bounds, which MyGo saves itself for a window with a StateKey.
 type settings struct {
-	// Appearance is "light" or "dark"; empty follows the system. Dark is
-	// what older versions wrote and reads as "dark".
+	// Appearance is "light" or "dark"; empty follows the system.
 	Appearance   string       `json:"appearance,omitempty"`
-	Dark         bool         `json:"dark,omitempty"`
 	SidebarWidth float32      `json:"sidebarWidth,omitempty"`
 	TablePercent float32      `json:"tablePercent,omitempty"`
 	Columns      columnLayout `json:"columns,omitempty"`
 	// InspectorLayout is "right" (side by side, the default) or "bottom"
-	// (stacked); each keeps its own divider. Older values read as
-	// inspectorLayout says.
+	// (stacked); each keeps its own divider.
 	InspectorLayout  string  `json:"inspectorLayout,omitempty"`
 	SideTablePercent float32 `json:"sideTablePercent,omitzero"`
 	SidebarHidden    bool    `json:"sidebarHidden,omitzero"`
-	// HeaderColumn is the one header column older versions kept; it is read
-	// as the first custom column and no longer written.
-	HeaderColumn string `json:"headerColumn,omitempty"`
 	// CustomColumns are the table's added columns, HiddenColumns the IDs of
 	// the built-in ones taken out.
 	CustomColumns []customColumn `json:"customColumns,omitempty"`
@@ -126,16 +121,7 @@ func writeSettings(path string, s settings) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(path, append(data, '\n'), 0o644)
-}
-
-// customColumns are the saved custom columns, with an older file's header
-// column as the first.
-func (s settings) customColumns() []customColumn {
-	if s.HeaderColumn != "" && len(s.CustomColumns) == 0 {
-		return []customColumn{{Source: sourceHeader, Name: s.HeaderColumn}}
-	}
-	return slices.Clone(s.CustomColumns)
+	return store.WriteFile(path, append(data, '\n'))
 }
 
 // layout turns the saved columns into the table's.
@@ -148,23 +134,14 @@ func savedLayout(l ui.TableLayout) columnLayout {
 	return columnLayout{Order: slices.Clone(l.Order), Widths: maps.Clone(l.Widths)}
 }
 
-// appearance is the saved appearance, reading older files' dark switch.
-func (s settings) appearance() string {
-	if s.Appearance == "" && s.Dark {
-		return "dark"
-	}
-	return s.Appearance
-}
-
 // sameSettings reports whether two settings would write the same file.
 func sameSettings(x, y settings) bool {
-	return x.Appearance == y.Appearance && x.Dark == y.Dark &&
+	return x.Appearance == y.Appearance &&
 		x.SidebarWidth == y.SidebarWidth &&
 		x.TablePercent == y.TablePercent &&
 		x.InspectorLayout == y.InspectorLayout &&
 		x.SideTablePercent == y.SideTablePercent &&
 		x.SidebarHidden == y.SidebarHidden &&
-		x.HeaderColumn == y.HeaderColumn &&
 		slices.Equal(x.CustomColumns, y.CustomColumns) &&
 		slices.Equal(x.HiddenColumns, y.HiddenColumns) &&
 		x.KeyLogPath == y.KeyLogPath &&
@@ -177,9 +154,8 @@ func sameSettings(x, y settings) bool {
 		maps.Equal(x.Columns.Widths, y.Columns.Widths)
 }
 
-// inspectorLayout reads a saved layout. Side by side became the default
-// with one workspace, so only an explicit "bottom" stays stacked; the
-// retired "adaptive" and the old empty default read as side by side.
+// inspectorLayout reads a saved layout: "bottom" is stacked, anything else
+// side by side.
 func inspectorLayout(saved string) string {
 	if saved == "bottom" {
 		return "bottom"

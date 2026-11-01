@@ -24,6 +24,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/baba983/vscroxy/internal/capture"
+	"github.com/baba983/vscroxy/internal/store"
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 )
@@ -647,7 +648,7 @@ func (e messageExport) write(path string, list []messageView) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(path, append(data, '\n'), 0o600)
+	return store.WriteFile(path, append(data, '\n'))
 }
 
 func (p *messagePanel) exportModal(c *ui.Context, a *app, f flow, list, visible []messageView) {

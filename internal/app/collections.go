@@ -88,7 +88,7 @@ func (a *app) applyWrites(writes []request.Write) {
 	if touched[0] {
 		if a.envsProblem != "" {
 			problems = append(problems, "globals: "+a.envsProblem)
-		} else if err := saveEnvs(a.envsPath, envFile{Active: a.activeEnv, Envs: a.envs, Globals: globals}); err != nil {
+		} else if err := saveEnvs(a.file(a.envsPath), envFile{Active: a.activeEnv, Envs: a.envs, Globals: globals}); err != nil {
 			problems = append(problems, "globals: "+err.Error())
 		} else {
 			a.globals = globals

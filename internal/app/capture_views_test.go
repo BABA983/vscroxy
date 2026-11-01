@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/baba983/vscroxy/internal/store"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -161,7 +162,7 @@ func TestSavedCaptureFiltersSurviveRestart(t *testing.T) {
 	if !tt.HasText(`Saved "Failing calls".`) {
 		t.Fatalf("saving did not report what it did: %v", tt.Texts())
 	}
-	saved, err := loadCaptureFilters(v.path)
+	saved, err := loadCaptureFilters(&store.File{Path: v.path})
 	if err != nil || len(saved) != 1 {
 		t.Fatalf("the file holds %v (%v)", saved, err)
 	}
@@ -210,7 +211,7 @@ func TestSavedCaptureFiltersSurviveRestart(t *testing.T) {
 	if len(v2.filters) != 0 {
 		t.Fatalf("deleting kept %v", v2.filters)
 	}
-	again, err := loadCaptureFilters(v.path)
+	again, err := loadCaptureFilters(&store.File{Path: v.path})
 	if err != nil || len(again) != 0 {
 		t.Fatalf("the file holds %v (%v)", again, err)
 	}
@@ -485,42 +486,5 @@ func TestSearchBodyDoesNotJoinSides(t *testing.T) {
 	}
 	if ok, err := searchBody(t.Context(), job, "response"); err != nil || !ok {
 		t.Fatalf("a side was not searched: %t (%v)", ok, err)
-	}
-}
-
-func TestLegacySidebarFiltersCanCombineWithNewFacets(t *testing.T) {
-	a, v := captureViewsApp(t,
-		flow{id: 1, host: "api.example.com", process: "Browser"},
-		flow{id: 2, host: "api.example.com", process: "CLI"},
-		flow{id: 3, host: "other.example.com", process: "Browser"},
-	)
-	if err := os.WriteFile(v.path, []byte(`[{"name":"API","filter":"host:api.example.com"},{"name":"Browser","filter":"client:Browser"}]`), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	v.load()
-	tt := ui.NewTester(captureViewsFrame(a, v), 1100, 620)
-	if err := tt.Click("Quick filter: API"); err != nil {
-		t.Fatal(err)
-	}
-	if got := fmt.Sprint(visibleIDs(a)); got != "[1 2]" {
-		t.Fatalf("legacy host filter showed %s", got)
-	}
-	v.openFilter(a)
-	tt.Frame()
-	if err := tt.Click("Filter app"); err != nil {
-		t.Fatal(err)
-	}
-	tt.Type("Browser")
-	if err := tt.Click("Apply"); err != nil {
-		t.Fatal(err)
-	}
-	if got := fmt.Sprint(visibleIDs(a)); got != "[1]" {
-		t.Fatalf("new app facet replaced legacy host filter: %s", got)
-	}
-	if err := tt.Click("Quick filter: Browser"); err != nil {
-		t.Fatal(err)
-	}
-	if got := fmt.Sprint(visibleIDs(a)); got != "[1 3]" {
-		t.Fatalf("legacy app filter showed %s", got)
 	}
 }

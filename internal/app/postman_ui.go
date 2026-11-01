@@ -106,7 +106,7 @@ func (a *app) importData(data []byte, path string) {
 			envs[at].Vars = vars
 			title = fmt.Sprintf("Imported environment “%s” · %d %s", name, len(env.Values), plural(len(env.Values), "variable", "variables"))
 		}
-		if err := saveEnvs(a.envsPath, envFile{Active: a.activeEnv, Envs: envs, Globals: globals}); err != nil {
+		if err := saveEnvs(a.file(a.envsPath), envFile{Active: a.activeEnv, Envs: envs, Globals: globals}); err != nil {
 			a.fail("Import Postman environment", err)
 			return
 		}

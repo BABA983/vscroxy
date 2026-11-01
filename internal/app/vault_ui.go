@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/baba983/vscroxy/internal/request"
+	"github.com/baba983/vscroxy/internal/store"
 	"github.com/baba983/vscroxy/internal/vault"
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
@@ -61,9 +62,9 @@ func (a *app) ensureVault() error {
 	if v.loaded {
 		return nil
 	}
-	data, err := os.ReadFile(v.path)
-	exists := err == nil
-	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+	data, err := a.file(v.path).Read()
+	exists := data != nil
+	if err != nil {
 		return a.vaultFailed(err)
 	}
 	key, inFile, err := a.vaultKey(!exists)
@@ -114,7 +115,7 @@ func (a *app) vaultKey(create bool) (key []byte, inFile bool, err error) {
 	if err := os.MkdirAll(filepath.Dir(v.keyPath), 0o700); err != nil {
 		return nil, false, err
 	}
-	return key, true, writePrivateFile(v.keyPath, key)
+	return key, true, store.WriteFile(v.keyPath, key)
 }
 
 // sendContext is inheritance plus the vault, opened when the request, or
@@ -188,7 +189,7 @@ func (a *app) writeVault(secrets vault.Secrets) error {
 	v := &a.vault
 	data, err := vault.Seal(v.key, secrets)
 	if err == nil {
-		err = writePrivateFile(v.path, data)
+		err = a.file(v.path).Write(data)
 	}
 	if err == nil {
 		v.secrets = secrets
@@ -203,6 +204,7 @@ func (a *app) resetVault() {
 		v.problem = err.Error()
 		return
 	}
+	a.file(v.path).Read() // the vault is gone, so a new one may be written
 	v.loaded, v.problem, v.resetting = false, "", false
 	a.openVault()
 }

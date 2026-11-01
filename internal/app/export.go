@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/baba983/vscroxy/internal/postman"
+	"github.com/baba983/vscroxy/internal/store"
 	"github.com/baba983/vscroxy/internal/uikit"
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
@@ -107,7 +108,7 @@ func (a *app) writeReviewedExport(job exportReview) {
 	if path == "" {
 		return
 	}
-	if err := writePrivateFile(path, data); err != nil {
+	if err := store.WriteFile(path, data); err != nil {
 		a.fail(job.title, err)
 		return
 	}

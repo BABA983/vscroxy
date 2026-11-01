@@ -51,23 +51,12 @@ func (a *app) loadExperiments(path string) {
 	}
 	s.log = log
 	for _, draft := range log.Drafts {
-		if draft.Value.ID == "" && draft.SavedKey != "" {
-			for _, asset := range a.requests {
-				if draft.SavedKey == "saved:"+asset.Collection+"\x00"+asset.Name {
-					draft.Value.ID, draft.Baseline.ID, draft.SavedKey = asset.ID, asset.ID, asset.key()
-					break
-				}
-			}
-		}
 		a.addDocument(draft.Value, draft.SavedKey)
 		a.baseline = draft.Baseline
 		if draft.Key != "" {
 			a.debugKey = draft.Key
 		}
 		a.setDebugSource(draft.Source)
-		// Older checkpoints kept provenance beside the request, not inside it.
-		// Restoring that metadata must not make an otherwise unchanged draft dirty.
-		a.baseline.Source = draft.Source
 	}
 	if len(a.documents) > 0 {
 		a.requestDocument = a.documents[min(max(log.Active, 0), len(a.documents)-1)]

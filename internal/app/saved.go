@@ -3,8 +3,6 @@ package app
 import (
 	"crypto/sha256"
 	"fmt"
-	"os"
-	"path/filepath"
 	"slices"
 	"uuid"
 
@@ -45,25 +43,6 @@ func (r savedRequest) key() string {
 // persistRequests is the app's guarded library write.
 func (a *app) persistRequests(list []savedRequest) error {
 	return a.writeLibrary(list, a.folders)
-}
-
-// Request assets may contain credentials. Replace atomically with a private
-// file, including when an older version created a world-readable destination.
-func writePrivateFile(path string, data []byte) error {
-	f, err := os.CreateTemp(filepath.Dir(path), ".request-*")
-	if err != nil {
-		return err
-	}
-	defer os.Remove(f.Name())
-	_, err = f.Write(data)
-	closed := f.Close()
-	if err != nil {
-		return err
-	}
-	if closed != nil {
-		return closed
-	}
-	return os.Rename(f.Name(), path)
 }
 
 // Explicit identities update only that asset. A request without an ID

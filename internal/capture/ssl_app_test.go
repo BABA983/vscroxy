@@ -51,29 +51,23 @@ func TestSSLAppRulesAndPersistence(t *testing.T) {
 		t.Fatal("All did not apply to unidentified source")
 	}
 
-	file := filepath.Join(t.TempDir(), "ssl.json")
 	data, err := json.Marshal(c)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(file, data, 0o600); err != nil {
-		t.Fatal(err)
-	}
-	loaded, err := LoadSSL(file)
+	loaded, err := ParseSSL(data)
 	if err != nil || !reflect.DeepEqual(loaded, c) {
-		t.Fatalf("load = %+v, %v; want %+v", loaded, err, c)
+		t.Fatalf("parse = %+v, %v; want %+v", loaded, err, c)
 	}
-	for _, legacy := range []string{`{"all":false}`, `{"all":true}`, `{"all":false,"hosts":["example.com:443"]}`} {
-		if err := os.WriteFile(file, []byte(legacy), 0o600); err != nil {
-			t.Fatal(err)
-		}
-		loaded, err := LoadSSL(file)
+	// Without app rules, the file reads and writes the same as host rules alone.
+	for _, hostsOnly := range []string{`{"all":false}`, `{"all":true}`, `{"all":false,"hosts":["example.com:443"]}`} {
+		loaded, err := ParseSSL([]byte(hostsOnly))
 		if err != nil || len(loaded.Apps) != 0 || loaded.DecryptsProcess("example.com", "") != loaded.Decrypts("example.com") {
-			t.Fatalf("legacy %s: %+v, %v", legacy, loaded, err)
+			t.Fatalf("%s: %+v, %v", hostsOnly, loaded, err)
 		}
 		encoded, err := json.Marshal(loaded)
-		if err != nil || string(encoded) != legacy {
-			t.Fatalf("legacy round trip = %s, %v; want %s", encoded, err, legacy)
+		if err != nil || string(encoded) != hostsOnly {
+			t.Fatalf("round trip = %s, %v; want %s", encoded, err, hostsOnly)
 		}
 	}
 	var s Server

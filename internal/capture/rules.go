@@ -15,6 +15,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/baba983/vscroxy/internal/store"
 	"golang.org/x/net/http/httpguts"
 )
 
@@ -186,35 +187,26 @@ func ValidateRules(rules []Rule) error {
 	return nil
 }
 
-// SaveRules replaces the file only after validation and a complete write.
-// Callers apply the new rules to the running proxy only after this succeeds.
-func SaveRules(path string, rules []Rule) error {
+// MarshalRules validates rules and encodes them as a rules file holds them.
+func MarshalRules(rules []Rule) ([]byte, error) {
 	if err := ValidateRules(rules); err != nil {
-		return err
+		return nil, err
 	}
 	data, err := json.Marshal(rules, jsontext.WithIndent("  "))
 	if err != nil {
-		return err
+		return nil, err
 	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
-		return err
-	}
-	f, err := os.CreateTemp(filepath.Dir(path), ".rules-*")
+	return append(data, '\n'), nil
+}
+
+// SaveRules replaces the file only after validation and a complete write.
+// Callers apply the new rules to the running proxy only after this succeeds.
+func SaveRules(path string, rules []Rule) error {
+	data, err := MarshalRules(rules)
 	if err != nil {
 		return err
 	}
-	defer os.Remove(f.Name())
-	if _, err = f.Write(append(data, '\n')); err == nil {
-		err = f.Sync()
-	}
-	closeErr := f.Close()
-	if err != nil {
-		return err
-	}
-	if closeErr != nil {
-		return closeErr
-	}
-	return os.Rename(f.Name(), path)
+	return store.WriteFile(path, data)
 }
 
 func readMockBody(path string) ([]byte, error) {
@@ -277,10 +269,7 @@ func NewMockRule(dir string, f Flow) (Rule, error) {
 	if err := ValidateRules([]Rule{r}); err != nil {
 		return Rule{}, err
 	}
-	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return Rule{}, err
-	}
-	if err := os.WriteFile(r.Target, body, 0o600); err != nil {
+	if err := store.WriteFile(r.Target, body); err != nil {
 		return Rule{}, err
 	}
 	return r, nil

@@ -580,20 +580,14 @@ func (s *Server) SSL() SSLConfig {
 	return c
 }
 
-// LoadSSL reads the SSL proxying settings; a missing file decrypts nothing.
-func LoadSSL(path string) (SSLConfig, error) {
-	data, err := os.ReadFile(path)
-	if errors.Is(err, fs.ErrNotExist) {
-		return SSLConfig{}, nil
-	}
-	if err != nil {
-		return SSLConfig{}, err
-	}
+// ParseSSL reads the SSL proxying settings; no data decrypts nothing.
+func ParseSSL(data []byte) (SSLConfig, error) {
 	var c SSLConfig
-	if err := json.Unmarshal(data, &c); err != nil {
-		return SSLConfig{}, fmt.Errorf("%s: %w", path, err)
+	if len(data) == 0 {
+		return c, nil
 	}
-	return c, nil
+	err := json.Unmarshal(data, &c)
+	return c, err
 }
 
 // SetIgnore sets the hosts whose flows the table does not show, for traffic
@@ -702,15 +696,9 @@ func hostMatches(host string, patterns []string) bool {
 	return false
 }
 
-// LoadIgnore reads the hosts to keep out of the table, one per line.
-func LoadIgnore(path string) ([]string, error) {
-	data, err := os.ReadFile(path)
-	if errors.Is(err, fs.ErrNotExist) {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, err
-	}
+// ParseIgnore reads a list of hosts or apps, one per line; a line starting
+// with # is a comment.
+func ParseIgnore(data []byte) []string {
 	var patterns []string
 	for _, line := range strings.Split(string(data), "\n") {
 		line = strings.TrimSpace(line)
@@ -719,7 +707,7 @@ func LoadIgnore(path string) ([]string, error) {
 		}
 		patterns = append(patterns, line)
 	}
-	return patterns, nil
+	return patterns
 }
 
 // requestHost is the host a request goes to, without its port.
@@ -916,20 +904,29 @@ func (s *Server) willBreakResponse(f *proxy.Flow) bool {
 	return s.breakOn.Load() && f.Request != nil && s.matchesBreak(f.Request.URL.String(), f.Request.Method, PhaseResponse)
 }
 
+// ParseRules reads and validates rules; no data is no rules.
+func ParseRules(data []byte) ([]Rule, error) {
+	var rules []Rule
+	if len(data) == 0 {
+		return nil, nil
+	}
+	if err := json.Unmarshal(data, &rules); err != nil {
+		return nil, err
+	}
+	if err := ValidateRules(rules); err != nil {
+		return nil, err
+	}
+	return rules, nil
+}
+
 // LoadRules reads a rules file. A missing file is no rules, not an error.
 func LoadRules(path string) ([]Rule, error) {
 	data, err := os.ReadFile(path)
-	if errors.Is(err, fs.ErrNotExist) {
-		return nil, nil
-	}
-	if err != nil {
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return nil, err
 	}
-	var rules []Rule
-	if err := json.Unmarshal(data, &rules); err != nil {
-		return nil, fmt.Errorf("%s: %w", path, err)
-	}
-	if err := ValidateRules(rules); err != nil {
+	rules, err := ParseRules(data)
+	if err != nil {
 		return nil, fmt.Errorf("%s: %w", path, err)
 	}
 	return rules, nil
