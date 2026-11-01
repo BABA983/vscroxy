@@ -67,7 +67,7 @@
 | **录制开关（Record / Pause）** | 缺少 | 现在只能清空，不能暂停 | M1 |
 | 清空会话 | 已有 | | |
 | **只抓指定 host / App（Allow list）** | 已有 | Settings → Capture，按 host 和 App；忽略名单优先 | M1 |
-| 长时间抓包的内存和磁盘上限、自动清理 | 缺少 | 指南写明落盘没有总量上限 | M1 |
+| 长时间抓包的内存和磁盘上限、自动清理 | 已有 | Settings → Capture → Memory：条数和内存上限，超出先删最旧的（Pin 的保留），连同落盘文件 | M1 |
 | Block list：通配符、正则、按 App、"隐藏"或"拦截"、断开连接 | 部分 | 现在 Block 规则只回 403，忽略名单只按 host/App | M4 |
 | 系统代理绕过名单（Bypass list） | 部分 | 保留系统原有的绕过设置，但不能在 app 里编辑 | M7 |
 | SOCKS5 代理入口 | 缺少 | 现在只有 HTTP 代理入口（上游支持 SOCKS5） | M7 |

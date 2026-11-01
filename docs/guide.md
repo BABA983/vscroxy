@@ -554,6 +554,15 @@ With the switch on and both lists empty nothing is shown, and Settings says so.
 While it is on, an **Allow list** chip sits above the traffic table: click it
 to edit the lists, or its × to turn the allow list off.
 
+## Memory limits
+
+**Settings → Capture → Memory** bounds what a long capture keeps: **Keep up
+to** a number of requests (1,000–50,000, default 5,000) and a **Memory limit**
+(128 MB–2 GB, default 512 MB) for their headers, kept bodies and messages.
+Past either, the oldest requests leave the table first, and their spill files
+are deleted from disk with them; pinned requests always stay. A change applies
+at once and is remembered. **In use** shows the current estimate and count.
+
 ## DNS mapping
 
 **Network → DNS mapping…** lists names the proxy resolves itself, a line of
@@ -612,8 +621,8 @@ The last 200 messages per flow are retained: at most 4 KiB each inline, with
 longer payloads spilled to disk up to 256 KiB each. Larger messages explicitly
 show retained/original lengths. Sequence gaps report dropped/evicted messages;
 global queue losses appear in the status bar, including a loss at stream end.
-Spill files are temporary and removed when capture closes; there is no total
-disk quota for a long capture session yet.
+Spill files are temporary and removed when capture closes, or earlier when
+their request leaves the table (see Memory limits).
 Sessions save retained payloads and metadata, not temporary spill paths, and
 older session files still load.
 

@@ -23,6 +23,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
@@ -650,6 +651,25 @@ func TestAllowListShowsOnlyAllowedHostsAndApps(t *testing.T) {
 	s.SetIgnore(nil)
 	s.SetAllow(AllowList{Hosts: []string{"example.com"}})
 	shown("/off")
+}
+
+func TestDiscardRemovesOnlyThisCapturesSpillFiles(t *testing.T) {
+	s, _ := startServer(t)
+	_, spilled, _, problem := s.keepBody(uuid.New(), "res", make([]byte, maxBody+1))
+	if spilled == "" {
+		t.Fatalf("no spill file: %s", problem)
+	}
+	outside := filepath.Join(t.TempDir(), "res-"+uuid.NewString()+".bin")
+	if err := os.WriteFile(outside, []byte("keep"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	s.Discard([]string{spilled, outside, ""})
+	if _, err := os.Stat(spilled); !os.IsNotExist(err) {
+		t.Fatalf("spill file survived Discard: %v", err)
+	}
+	if _, err := os.Stat(outside); err != nil {
+		t.Fatalf("Discard removed a file outside the spill directory: %v", err)
+	}
 }
 
 func TestTimingSplitsWaitAndDownload(t *testing.T) {

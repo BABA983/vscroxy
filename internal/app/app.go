@@ -38,9 +38,6 @@ import (
 	"golang.org/x/net/http/httpguts"
 )
 
-// maxFlows bounds what the UI keeps; older flows are dropped from the front.
-const maxFlows = 5000
-
 // page is what the content area shows for the sidebar's one choice.
 type page int
 
@@ -329,6 +326,10 @@ type app struct {
 	allowText, allowAppsText string
 	allowOpen, allowAppsOpen bool
 
+	// flowLimit and memoryLimit (MB) bound what the table keeps, zero for
+	// the defaults.
+	flowLimit, memoryLimit int
+
 	// requests are the saved requests, the Compose direction's kept half,
 	// and history what Compose sent.
 	requests        []savedRequest
@@ -456,6 +457,7 @@ func newApp() *app {
 			a.saved, a.proxyPort, a.vault.scripts = saved, saved.ProxyPort, saved.VaultScripts
 			a.launchPort, a.launchKeyLog = saved.ProxyPort, saved.KeyLogPath
 			a.allowOn = saved.AllowList
+			a.flowLimit, a.memoryLimit = saved.FlowLimit, saved.MemoryLimit
 			a.guide = a.guide || saved.Guide
 			if saved.ProxyPort != 0 {
 				a.proxyPortInput = strconv.Itoa(saved.ProxyPort)
@@ -1010,11 +1012,7 @@ func (a *app) drain() {
 			a.experiments.persist()
 		}
 	}
-	if len(a.flows) > maxFlows {
-		cut := len(a.flows) - maxFlows
-		a.flows = a.flows[cut:]
-		a.frames = pruneMessages(a.frames, a.flows)
-	}
+	a.trimFlows()
 	a.countDomains()
 	a.countClients()
 	a.applyFilter()
@@ -3340,6 +3338,8 @@ func (a *app) persistSettings() error {
 		VaultScripts:     a.vault.scripts,
 		Guide:            a.guide,
 		AllowList:        a.allowOn,
+		FlowLimit:        a.flowLimit,
+		MemoryLimit:      a.memoryLimit,
 	}
 	if sameSettings(now, a.saved) || time.Since(a.lastSave) < 400*time.Millisecond {
 		return nil

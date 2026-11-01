@@ -484,7 +484,7 @@ func TestConnectionExplanationScrollsLongErrorsWithoutTruncatingDiagnostics(t *t
 func TestCaptureTableScrollsAndKeepsEachViewsPlace(t *testing.T) {
 	a := workspaceApp()
 	a.flows = nil
-	for i := range maxFlows {
+	for i := range defaultFlowLimit {
 		path := fmt.Sprintf("/capture/%04d", i+1)
 		a.flows = append(a.flows, flow{id: i + 1, method: "GET", scheme: "https", host: "api.example.com", path: path, url: "https://api.example.com" + path, status: 200})
 	}
@@ -881,6 +881,52 @@ func TestAllowListFromSettingsAndToolbar(t *testing.T) {
 	click("Disable Allow list")
 	if a.allowOn || a.srv.Allow().On {
 		t.Fatal("the toolbar chip did not turn the allow list off")
+	}
+}
+
+func TestRetentionDropsOldestUnpinnedFlowsPastEitherLimit(t *testing.T) {
+	a := workspaceApp()
+	body := strings.Repeat("x", 300<<10)
+	a.flows = []flow{
+		{id: 1, method: "GET", host: "a.test", path: "/1", resBody: body, pinned: true},
+		{id: 2, method: "GET", host: "a.test", path: "/2", resBody: body},
+		{id: 3, method: "GET", host: "a.test", path: "/3", resBody: body},
+	}
+	a.memoryLimit = 1 // MB: three bodies of 300 KiB fit, four do not
+	a.applyFilter()
+	tt := ui.NewTester(a.view, 1280, 800)
+	a.pending = []capture.Flow{{ID: 4, Method: "GET", Scheme: "https", Host: "a.test", Path: "/4", Status: 200, Kind: "http", ResponseBody: body}}
+	tt.Frame()
+	ids := func() (out []int) {
+		for _, f := range a.flows {
+			out = append(out, f.id)
+		}
+		return out
+	}
+	if got := fmt.Sprint(ids()); got != "[1 3 4]" {
+		t.Fatalf("past the memory limit kept %s, want the pinned 1 and the newest 3 4", got)
+	}
+	a.flowLimit = 2
+	a.trimFlows()
+	a.applyFilter()
+	if got := fmt.Sprint(ids()); got != "[1 4]" {
+		t.Fatalf("past the request limit kept %s, want the pinned 1 and the newest 4", got)
+	}
+
+	a.settingsOpen = true
+	tt.Frame()
+	for i, label := range []string{"Settings category: Capture", "2 requests", "1,000 requests"} {
+		if i == 1 {
+			tt.Scroll(600, 400, 0, 1000) // Memory is the last group
+			tt.Frame()
+		}
+		if err := tt.Click(label); err != nil {
+			t.Fatal(err)
+		}
+		tt.Frame()
+	}
+	if a.flowLimit != 1000 || !tt.HasText("2 requests") {
+		t.Fatalf("request limit = %d, want 1000 from Settings, with the usage shown", a.flowLimit)
 	}
 }
 
@@ -1521,7 +1567,7 @@ func TestCaptureOrdersRequestsByNumberAndCaptureTime(t *testing.T) {
 func TestCaptureKeepsSelectionAcrossListChanges(t *testing.T) {
 	a := workspaceApp()
 	a.flows = nil
-	for id := 1; id <= maxFlows; id++ {
+	for id := 1; id <= defaultFlowLimit; id++ {
 		path := fmt.Sprintf("/capture/%04d", id)
 		a.flows = append(a.flows, flow{id: id, method: "GET", scheme: "https", host: "api.example.com", path: path, status: 200})
 	}

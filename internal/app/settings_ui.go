@@ -11,6 +11,7 @@ import (
 	"cmp"
 	"fmt"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/baba983/vscroxy/internal/capture"
@@ -166,7 +167,48 @@ func (a *app) captureSettings(c *ui.Context, t *ui.Theme) {
 			list("Ignored hosts", a.ignoreText, "host", "Still proxied, but not shown in the table, even when allowed.", &a.ignoreOpen)
 			list("Ignored apps", a.ignoreAppsText, "app", "The same by app.", &a.ignoreAppsOpen)
 		})
+		uikit.SettingsGroup(c, "Memory", func() {
+			// limit is a field choosing one of options, labelled by label.
+			limit := func(name string, value *int, fallback int, options []int, label func(int) string) ui.Element {
+				return ui.Field(c, name, func() {
+					labels := make([]string, len(options))
+					for i, n := range options {
+						labels[i] = label(n)
+					}
+					choice := label(cmp.Or(*value, fallback))
+					uikit.Select(c, &choice, labels).Label(name).Width(160)
+					if i := slices.Index(labels, choice); i >= 0 && options[i] != cmp.Or(*value, fallback) {
+						*value = options[i]
+						a.trimFlows()
+						a.countDomains()
+						a.countClients()
+						a.applyFilter()
+					}
+				})
+			}
+			limit("Keep up to", &a.flowLimit, defaultFlowLimit, flowLimits, func(n int) string {
+				return groupThousands(n) + " requests"
+			})
+			limit("Memory limit", &a.memoryLimit, defaultMemoryLimit, memoryLimits, func(mb int) string {
+				if mb >= 1024 {
+					return fmt.Sprintf("%d GB", mb/1024)
+				}
+				return fmt.Sprintf("%d MB", mb)
+			}).Description("Past either limit the oldest requests go first, with their files on disk; pinned ones stay.")
+			ui.Field(c, "In use", func() {
+				uikit.Body(c, fmt.Sprintf("%s · %s %s", humanBytes(int(a.retainedTotal())), groupThousands(len(a.flows)), plural(len(a.flows), "request", "requests"))).FontFeatures("tnum")
+			})
+		})
 	})
+}
+
+// groupThousands writes n with comma thousands separators.
+func groupThousands(n int) string {
+	s := strconv.Itoa(n)
+	for i := len(s) - 3; i > 0; i -= 3 {
+		s = s[:i] + "," + s[i:]
+	}
+	return s
 }
 
 // applyAllow hands the allow list to the proxy, for new flows.

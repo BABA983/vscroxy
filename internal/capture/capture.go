@@ -1997,6 +1997,19 @@ func (s *Server) keepBody(id uuid.UUID, kind string, body []byte) (head, file st
 	return head, file, size, problem
 }
 
+// Discard deletes spill files of flows the UI no longer keeps. Only files in
+// this capture's own spill directory are removed, never a path from elsewhere.
+func (s *Server) Discard(files []string) {
+	if s.bodyDir == "" {
+		return
+	}
+	for _, file := range files {
+		if file != "" && filepath.Dir(file) == s.bodyDir {
+			_ = os.Remove(file)
+		}
+	}
+}
+
 // frameInput is one message the engine reported, before the capture keeps it.
 type frameInput struct {
 	Direction string
