@@ -12,34 +12,37 @@ package app
 import (
 	"cmp"
 	"fmt"
+	"maps"
+	"slices"
 	"strings"
+	"unicode/utf8"
 )
 
 // queryKey is one key of the syntax and the condition it sets. check returns
 // what is wrong with a value, or "" when the value is valid.
 type queryKey struct {
-	name  string
-	field func(a *app) *string
-	check func(string) string
+	name, hint string
+	field      func(a *app) *string
+	check      func(string) string
 }
 
 // queryKeys are in the order their chips show.
 var queryKeys = []queryKey{
-	{"app", func(a *app) *string { return &a.filterTriage.Client }, nil},
-	{"host", func(a *app) *string { return &a.filterTriage.Host }, nil},
-	{"status", func(a *app) *string { return &a.filterStatus }, checkStatus},
-	{"method", func(a *app) *string { return &a.filterTriage.Method }, nil},
-	{"duration", func(a *app) *string { return &a.filterTriage.Duration }, checkNumber("duration", "ms")},
-	{"size", func(a *app) *string { return &a.filterTriage.Size }, checkNumber("size", "response bytes")},
-	{"header", func(a *app) *string { return &a.filterHeader }, nil},
-	{"body", func(a *app) *string {
+	{"app", "Client app", func(a *app) *string { return &a.filterTriage.Client }, nil},
+	{"host", "Exact host", func(a *app) *string { return &a.filterTriage.Host }, nil},
+	{"status", "Code, class or range", func(a *app) *string { return &a.filterStatus }, checkStatus},
+	{"method", "HTTP method", func(a *app) *string { return &a.filterTriage.Method }, nil},
+	{"duration", "Milliseconds", func(a *app) *string { return &a.filterTriage.Duration }, checkNumber("duration", "ms")},
+	{"size", "Response bytes", func(a *app) *string { return &a.filterTriage.Size }, checkNumber("size", "response bytes")},
+	{"header", "Name, or name: value", func(a *app) *string { return &a.filterHeader }, nil},
+	{"body", "Text in either body", func(a *app) *string {
 		if view := a.views.activeView(); view != nil {
 			return &view.body
 		}
 		return nil
 	}, nil},
-	{"color", func(a *app) *string { return &a.filterTriage.Color }, nil},
-	{"note", func(a *app) *string { return &a.filterTriage.Note }, nil},
+	{"color", "Row color", func(a *app) *string { return &a.filterTriage.Color }, nil},
+	{"note", "Text in the note", func(a *app) *string { return &a.filterTriage.Note }, nil},
 }
 
 // slowQuery is what the bare word "slow" sets: the same 1 s threshold as the
@@ -64,10 +67,12 @@ func checkNumber(name, unit string) func(string) string {
 	}
 }
 
-// queryToken is one whitespace-separated part of the field. key is "" for
-// free text; done means whitespace follows it, so the user has finished it.
+// queryToken is one whitespace-separated part of the field, q[start:end]
+// in bytes. key is "" for free text; done means whitespace follows it, so
+// the user has finished it.
 type queryToken struct {
 	raw, key, value string
+	start, end      int
 	done            bool
 }
 
@@ -84,13 +89,17 @@ func tokenizeQuery(q string) []queryToken {
 		case start >= 0 && r == '"' && i > start:
 			quoted = !quoted
 		case start >= 0 && space && !quoted:
-			tokens = append(tokens, parseQueryToken(q[start:i], i < len(q)))
+			t := parseQueryToken(q[start:i], i < len(q))
+			t.start, t.end = start, i
+			tokens = append(tokens, t)
 			start = -1
 		}
 	}
 	if start >= 0 {
 		// An unclosed quote runs to the end of the field.
-		tokens = append(tokens, parseQueryToken(q[start:], false))
+		t := parseQueryToken(q[start:], false)
+		t.start, t.end = start, len(q)
+		tokens = append(tokens, t)
 	}
 	return tokens
 }
@@ -191,4 +200,108 @@ func queryChip(key, value string) string {
 		value = `"` + value + `"`
 	}
 	return key + ":" + value
+}
+
+// querySuggestion is one line of the query bar's autocomplete: the token it
+// writes, and what it means.
+type querySuggestion struct{ text, hint string }
+
+// maxQuerySuggestions keeps the popup within the activity strip and the top
+// rows of the table it covers.
+const maxQuerySuggestions = 8
+
+// queryTokenAt is where the token holding caret, in runes, starts and ends
+// in q, in bytes, and how much of it is before the caret. Between tokens it
+// is an empty token at the caret.
+func queryTokenAt(q string, caret int) (start, end int, prefix string) {
+	at := len(q)
+	for i := range q {
+		if caret == 0 {
+			at = i
+			break
+		}
+		caret--
+	}
+	for _, t := range tokenizeQuery(q) {
+		if t.start <= at && at <= t.end {
+			return t.start, t.end, q[t.start:at]
+		}
+	}
+	return at, at, ""
+}
+
+// querySuggestions completes the token being typed: a key while it has no
+// colon, then the values this capture holds for it. An empty token lists
+// the keys only when the user asked for the list, by a click or Down
+// (asked), not after each space typed.
+func (a *app) querySuggestions(prefix string, asked bool) []querySuggestion {
+	var out []querySuggestion
+	key, typed, hasValue := strings.Cut(prefix, ":")
+	if !hasValue {
+		if prefix == "" && !asked {
+			return nil
+		}
+		lower := strings.ToLower(prefix)
+		for _, k := range queryKeys {
+			if strings.HasPrefix(k.name, lower) {
+				out = append(out, querySuggestion{k.name + ":", k.hint})
+			}
+		}
+		if strings.HasPrefix("slow", lower) && lower != "slow" {
+			out = append(out, querySuggestion{"slow", "1 s or longer"})
+		}
+		return out
+	}
+	key = strings.ToLower(key)
+	var values []querySuggestion
+	switch key {
+	case "status":
+		values = []querySuggestion{{"2xx", "Success"}, {"3xx", "Redirect"}, {"4xx", "Client error"}, {"5xx", "Server error"}, {">=400", "Any error"}}
+	case "host":
+		for _, d := range a.domains {
+			values = append(values, querySuggestion{d.name, fmt.Sprint(d.n)})
+		}
+	case "app":
+		for _, d := range a.clients {
+			values = append(values, querySuggestion{d.name, fmt.Sprint(d.n)})
+		}
+	case "method":
+		seen := map[string]int{}
+		for _, f := range a.flows {
+			if f.method != "" {
+				seen[f.method]++
+			}
+		}
+		for _, m := range slices.Sorted(maps.Keys(seen)) {
+			values = append(values, querySuggestion{m, fmt.Sprint(seen[m])})
+		}
+	}
+	typed = strings.ToLower(strings.Trim(typed, `"`))
+	var later []querySuggestion
+	for _, v := range values {
+		switch l := strings.ToLower(v.text); {
+		case l == typed:
+			// Already written: a space or Enter takes it.
+		case strings.HasPrefix(l, typed):
+			out = append(out, querySuggestion{queryChip(key, v.text), v.hint})
+		case strings.Contains(l, typed):
+			later = append(later, querySuggestion{queryChip(key, v.text), v.hint})
+		}
+	}
+	return append(out, later...)
+}
+
+// completeQuery writes text in place of the token holding caret, in runes,
+// and returns the field and where the caret goes, after it. A key keeps the
+// caret on it for the value; anything else is a whole token, so a space
+// follows it and commitQuery takes it.
+func completeQuery(q string, caret int, text string) (string, int) {
+	start, end, _ := queryTokenAt(q, caret)
+	rest := q[end:]
+	if !strings.HasSuffix(text, ":") {
+		text += " "
+		rest = strings.TrimLeft(rest, " \t")
+	}
+	q = q[:start] + text + rest
+	return q, utf8.RuneCountInString(q[:start] + text)
 }

@@ -65,10 +65,16 @@ type app struct {
 	// not taken.
 	query        string
 	queryProblem string
-	filter       string
-	chip         int
-	search       ui.Handle
-	clearOpen    bool
+	// queryCaret is where the caret goes in the field once it shows a
+	// text set from elsewhere: a completion or a chip turned back into text.
+	queryCaret *int
+	// queryOpen is whether the field's autocomplete showed in the last
+	// build, to tell Down opening it from Down meant for the requests.
+	queryOpen bool
+	filter    string
+	chip      int
+	search    ui.Handle
+	clearOpen bool
 
 	// Capture filters and the request library have independent selections.
 	// Each workspace has two sections, chosen in its sidebar: live traffic or

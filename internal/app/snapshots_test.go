@@ -151,6 +151,16 @@ func TestUISnapshots(t *testing.T) {
 			click("Search host or path")(t, tt)
 			tt.Type("status:2xx app:Browser projects method:")
 		}, want: "Remove condition: status:2xx"},
+		{name: "capture-query-suggest", act: func(t *testing.T, tt *ui.Tester) {
+			click("Search host or path")(t, tt)
+			tt.Type("status:4xx st")
+			tt.Frame()
+		}, want: "status:"},
+		{name: "capture-query-values", act: func(t *testing.T, tt *ui.Tester) {
+			click("Search host or path")(t, tt)
+			tt.Type("method:")
+			tt.Frame()
+		}, want: "method:POST"},
 		{name: "capture-query-invalid", act: func(t *testing.T, tt *ui.Tester) {
 			click("Search host or path")(t, tt)
 			tt.Type("host:api.example.com status:abc ")

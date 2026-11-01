@@ -3954,6 +3954,73 @@ func TestQuerySyntaxTurnsFinishedTokensIntoChips(t *testing.T) {
 	}
 }
 
+func TestQueryAutocompleteCompletesKeysAndValuesWithoutTakingEnterOrDown(t *testing.T) {
+	a := workspaceApp()
+	a.views.init(a, "")
+	tt := ui.NewTester(a.view, 1280, 700)
+	search := func() {
+		t.Helper()
+		if err := tt.Click("Search host or path"); err != nil {
+			t.Fatal(err)
+		}
+		tt.Key(ui.Cmd, ui.KeyA)
+		tt.Key(0, ui.KeyBackspace)
+		tt.Frame()
+	}
+	// Free text that starts like a key is still a search on Enter.
+	search()
+	tt.Type("lo")
+	tt.Key(0, ui.KeyEnter)
+	tt.Frame()
+	if a.query != "lo" || !tt.Focused("Captured requests") {
+		t.Fatalf("Enter after free text: query %q", a.query)
+	}
+	// Down chooses a key; the values follow, filtered, the first for Enter.
+	search()
+	tt.Type("sta")
+	tt.Frame()
+	tt.Key(0, ui.KeyDown)
+	tt.Frame()
+	tt.Key(0, ui.KeyEnter)
+	tt.Frame()
+	if a.query != "status:" || !tt.HasText("status:4xx") {
+		t.Fatalf("key completion: query %q", a.query)
+	}
+	tt.Type("4")
+	tt.Key(0, ui.KeyEnter)
+	tt.Frame()
+	if a.query != "" || a.filterStatus != "4xx" || !tt.Focused("Search host or path") {
+		t.Fatalf("value completion: query %q, status %q", a.query, a.filterStatus)
+	}
+	// Values come from the capture, and a click takes one.
+	tt.Type("login app:b")
+	tt.Frame()
+	if err := tt.Click("app:Browser"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if a.query != "login " || a.filterTriage.Client != "Browser" || fmt.Sprint(visibleIDs(a)) != "[2]" {
+		t.Fatalf("clicked value: query %q, app %q, visible %v", a.query, a.filterTriage.Client, visibleIDs(a))
+	}
+	// A chip turned back into text leaves the caret after it.
+	if err := tt.Click("Edit condition: status:4xx"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	tt.Type(" ")
+	tt.Frame()
+	if a.query != "login " || a.filterStatus != "4xx" {
+		t.Fatalf("edited chip: query %q, status %q", a.query, a.filterStatus)
+	}
+	// With no suggestions showing, Down still moves to the requests.
+	tt.Key(0, ui.KeyEscape)
+	tt.Key(0, ui.KeyDown)
+	tt.Frame()
+	if !tt.Focused("Captured requests") {
+		t.Fatal("Down did not move to the requests")
+	}
+}
+
 func TestCaptureDiagnosticsSeparateConfigurationLiveEvidenceAndViewVisibility(t *testing.T) {
 	fake := &fakeSystemProxy{check: system.ProxyCheck{Status: system.ProxyMatches}}
 	a := proxyTestApp(t, fake)

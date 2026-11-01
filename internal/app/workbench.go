@@ -6,6 +6,7 @@ import (
 	"github.com/baba983/vscroxy/internal/uikit"
 	"runtime"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
@@ -155,13 +156,67 @@ func (a *app) captureToolbar(c *ui.Context, t *ui.Theme) {
 					a.captureConditions(c)
 				})
 			}
-			search := ui.TextInputBase(c.Key("capture-search"), &a.query).Bind(&a.search).Label("Search host or path").Placeholder("Search host or path, or status:>=400…").
+			cb := ui.ComboboxBase(c.Key("capture-search"), &a.query)
+			search := cb.Input.Bind(&a.search).Label("Search host or path").Placeholder("Search host or path, or status:>=400…").
 				Tooltip(cmp.Or(a.queryProblem, "Host and path text, plus status: host: app: method: duration: size: header: body: and slow · Space or Enter makes a chip · Ctrl/Cmd+F · Enter or ↓ moves to requests")).
 				Height(uikit.HeightCompact).Padding(0, t.Space(1)).FontSize(uikit.TextBody).Grow(1).MinWidth(min(200, width/5)).FocusRing(false)
 			if a.queryProblem != "" {
 				search.TextColor(t.Danger)
 			}
-			search.OnShortcut(0, ui.KeyDown, func() { a.focusTraffic(c) })
+			if a.queryCaret != nil {
+				search.SetTextSelection(*a.queryCaret, *a.queryCaret)
+				a.queryCaret = nil
+			}
+			caret, _ := search.TextSelection()
+			_, _, prefix := queryTokenAt(a.query, caret)
+			suggestions := a.querySuggestions(prefix, !cb.Filtering())
+			first := false
+			cb.Popup(func(panel ui.Element) {
+				uikit.PopoverPanel(c, panel).Padding(t.Space(1)).Margin(t.Space(1.5), 0, 0, 0)
+				for _, s := range suggestions[:min(len(suggestions), maxQuerySuggestions)] {
+					item := cb.Item(s.text).Label(s.text).Height(uikit.HeightControl).Padding(0, t.Space(2)).Gap(t.Space(3)).Radius(uikit.RadiusControl).AlignItems(ui.Center)
+					if item.Highlighted() {
+						item.Background(t.SurfaceHover)
+						first = first || s == suggestions[0]
+					}
+					item.Children(func() {
+						ui.Text(c, s.text).Font(uikit.FontMono).FontSize(uikit.TextData).TextColor(t.Text).SingleLine().Grow(1)
+						uikit.Meta(c, s.hint).SingleLine()
+					})
+				}
+			})
+			_, _, value := strings.Cut(prefix, ":")
+			text, chosen := cb.Chosen()
+			switch {
+			case chosen:
+				q, at := completeQuery(a.query, caret, text)
+				a.query, a.queryCaret = q, new(at)
+				if !a.commitQuery(false) {
+					a.applyFilter()
+				}
+				if strings.HasSuffix(text, ":") {
+					cb.SetOpen(true) // on to the values
+				} else {
+					a.queryCaret = new(utf8.RuneCountInString(a.query))
+				}
+			// Opened by Down, not a click or typing, on its first option or
+			// none: meant for the requests, as before the field suggested
+			// anything. Up opens it on its last option.
+			case cb.Open() && !a.queryOpen && !cb.Filtering() && !search.Clicked() && (first || len(suggestions) == 0):
+				cb.SetOpen(false)
+				a.focusTraffic(c)
+			// Closed rather than open with nothing in it, so that Down
+			// opening it again can be told apart.
+			case cb.Open() && len(suggestions) == 0:
+				cb.SetOpen(false)
+			// Typing highlights the first option for Enter to take. A key
+			// is only highlighted once asked for (Down): Enter after free
+			// text such as "st" searches it, not status:.
+			case !value && cb.Filtering():
+				cb.SetOpen(false)
+				cb.SetOpen(true)
+			}
+			a.queryOpen = cb.Open()
 			if search.Changed() && !a.commitQuery(false) {
 				a.applyFilter()
 			}
@@ -295,6 +350,7 @@ func (a *app) captureConditions(c *ui.Context) {
 			uikit.QueryChip(c, text, func() {
 				*field = ""
 				a.query = strings.TrimSpace(strings.TrimSpace(a.query) + " " + text)
+				a.queryCaret = new(utf8.RuneCountInString(a.query))
 				changed()
 				a.search.Focus(c)
 			}, func() { *field = ""; changed() })
