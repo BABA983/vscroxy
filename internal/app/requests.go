@@ -953,13 +953,13 @@ func (a *app) requestResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 				})
 				if d.responseTab == resViewBody && d.response != nil {
 					formats := []string{"Pretty", "Raw", "Hex"}
-					ui.PopoverMenuButton(c, formats[d.responseView], func(m *ui.Menu) {
+					uikit.MenuSelect(c, formats[d.responseView], func(m *ui.Menu) {
 						for i, name := range formats {
 							if m.Item(name).Checked(i == d.responseView).Chosen() {
 								d.responseView, d.responseEditor, d.responseList = i, nil, ui.ListState{}
 							}
 						}
-					}).Label("Response format").Tooltip("Response body format").Height(uikit.HeightControl).FontSize(uikit.TextMeta).Padding(0, t.Space(2))
+					}).Label("Response format").Tooltip("Response body format")
 				}
 			} else {
 				ui.Text(c, "Response").FontSize(uikit.TextBody).FontWeight(600).Grow(1)

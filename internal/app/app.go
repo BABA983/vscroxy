@@ -1782,7 +1782,8 @@ func (a *app) table(c *ui.Context) {
 	// Table's built-in row minimum is eight spacing units and its cells pad
 	// 1.5 units around 15px lines. Scope the 3px unit here only: 24px rows
 	// without shrinking the rest of the application. Rows have no hover, as
-	// in a macOS table.
+	// in a macOS table. The headers take the data's 12px, so their
+	// semibold labels stay quieter than the rows they name.
 	selectionTheme.Spacing = 3
 	selectionTheme.SurfaceHover = ui.Color{}
 	c.SetTheme(selectionTheme)
@@ -1878,7 +1879,7 @@ func (a *app) table(c *ui.Context) {
 				cell.PopoverMenu(a.headerFilterMenu(c, cc.Name, []string{value}))
 			}
 		}
-	}).Label("Captured requests").Grow(1)
+	}).Label("Captured requests").FontSize(uikit.TextData).Grow(1)
 	c.SetTheme(t)
 	if table.Submitted() {
 		a.workbench.inspector.Focus(c)

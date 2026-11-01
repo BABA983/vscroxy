@@ -288,14 +288,14 @@ func (a *app) apiGenerationModal(c *ui.Context, t *ui.Theme) {
 			uikit.DialogTitle(c, "Generate OpenAPI draft")
 			ui.Scroll(c).MinHeight(0).Shrink(1).Gap(t.Space(4)).Children(func() {
 				uikit.Hint(c, "Choose a saved collection. Unsaved request tabs are not included.")
-				ui.PopoverMenuButton(c, cmp.Or(a.apiCollection, "Saved (ungrouped)"), func(m *ui.Menu) {
+				uikit.MenuSelect(c, cmp.Or(a.apiCollection, "Saved (ungrouped)"), func(m *ui.Menu) {
 					for _, name := range slices.Sorted(maps.Keys(groupRequests(a.requests))) {
 						if m.Item(cmp.Or(name, "Saved (ungrouped)")).Checked(name == a.apiCollection).Chosen() {
 							a.apiCollection = name
 						}
 					}
 				}).
-					Label("Source collection").FillWidth().Height(uikit.HeightControl).FontSize(uikit.TextBody).Radius(uikit.RadiusControl)
+					Label("Source collection").FillWidth()
 				uikit.Hint(c, "Header/query/body values and scripts are omitted. Paths remain literal. Authentication, types and response schemas need review. This creates a new specification; existing ones are never overwritten.")
 			})
 			uikit.DialogFooter(c).Children(func() {

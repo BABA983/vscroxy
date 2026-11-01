@@ -70,13 +70,13 @@ func (a *app) replayLinks(c *ui.Context, f flow) {
 			}
 		}
 		if len(replays) > 0 {
-			ui.PopoverMenuButton(c, fmt.Sprintf("Replays (%d)", len(replays)), func(m *ui.Menu) {
+			uikit.MenuSelect(c, fmt.Sprintf("Replays (%d)", len(replays)), func(m *ui.Menu) {
 				for _, replay := range replays {
 					if m.Item(fmt.Sprintf("#%d · %s · %d · %d ms", replay.id, replay.path, replay.status, replay.millis)).Chosen() {
 						a.inspectCapture(replay.id)
 					}
 				}
-			}).Height(uikit.HeightControl).FontSize(uikit.TextBody).Radius(uikit.RadiusControl)
+			})
 		}
 		uikit.Meta(c, "Links stay with saved sessions")
 	})

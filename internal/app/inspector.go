@@ -392,15 +392,14 @@ func (a *app) bodyFormatMenu(c *ui.Context, t *ui.Theme, side int) {
 			shown = modes[resolved]
 		}
 	}
-	ui.PopoverMenuButton(c, shown, func(m *ui.Menu) {
+	uikit.MenuSelect(c, shown, func(m *ui.Menu) {
 		for i, name := range modes {
 			if m.Item(name).Checked(i == mode).Chosen() {
 				a.bodyMode[side] = i
 				a.bodyQuery[side] = ""
 			}
 		}
-	}).
-		Label(bodyFormatLabel(side)).Height(uikit.HeightControl).Padding(0, t.Space(2)).FontSize(uikit.TextBody).Radius(uikit.RadiusControl).TextColor(t.TextMuted).Border(1, t.Border)
+	}).Label(bodyFormatLabel(side))
 }
 
 // copyPaneBody copies exactly the bytes the pane shows, without formatting

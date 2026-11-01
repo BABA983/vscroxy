@@ -157,6 +157,13 @@ func Select(c *ui.Context, selected *string, options []string) ui.Element {
 		Height(HeightControl).Padding(0, c.Theme().Space(2)).FontSize(TextBody).Radius(RadiusControl)
 }
 
+// MenuSelect is Select for choices built as a menu: a button naming the
+// current one, with the same face, that opens the menu.
+func MenuSelect(c *ui.Context, current string, menu func(*ui.Menu)) ui.Element {
+	return faced(c, func() ui.Element { return ui.PopoverMenuButton(c, current, menu) }).
+		Height(HeightControl).Padding(0, c.Theme().Space(2)).FontSize(TextBody).Radius(RadiusControl)
+}
+
 // Dialog content uses three width tiers inside Modal's shared padding.
 // Callers choose the height; long content scrolls without moving the footer.
 func DialogColumn(c *ui.Context, width float32) ui.Element {
