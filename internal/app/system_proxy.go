@@ -367,30 +367,36 @@ func (a *app) systemProxySettings(c *ui.Context, t *ui.Theme) {
 	busy := s.checking || s.applying || s.quitting
 	status, color := a.systemProxyStatus(t)
 	detail, full := a.systemProxyDetail(target)
-	ui.Column(c).Gap(t.Space(3)).Children(func() {
-		ui.Row(c).Gap(t.Space(2)).Wrap().AlignItems(ui.Center).Children(func() {
-			uikit.Heading(c, "System proxy").Grow(1)
-			if busy {
-				ui.Spinner(c).Label("System proxy")
-			}
-			ui.Text(c, status).FontSize(uikit.TextBody).Bold().TextColor(color)
+	uikit.SettingsGroup(c, "System proxy", func() {
+		ui.Field(c, "Status", func() {
+			ui.Column(c).Gap(t.Space(1)).Children(func() {
+				ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+					ui.Text(c, status).FontSize(uikit.TextBody).FontWeight(600).TextColor(color)
+					if busy {
+						ui.Spinner(c).Label("System proxy")
+					}
+				})
+				uikit.Meta(c, detail).SingleLine().Tooltip(full)
+			})
 		})
-		uikit.Meta(c, detail).SingleLine().Tooltip(full)
-		ui.Row(c).Gap(t.Space(2)).Wrap().Children(func() {
-			enable := uikit.PrimaryButton(c, "Enable system proxy").Disabled(!running || busy)
-			if !running {
-				enable.Tooltip("Start capture first")
-			}
-			if enable.Clicked() {
-				a.setSystemProxy(true)
-			}
-			if uikit.SecondaryButton(c, "Disable system proxy").Disabled(busy).Clicked() {
-				a.setSystemProxy(false)
-			}
-			if uikit.SecondaryButton(c, "Check again").Disabled(busy).Clicked() {
-				a.checkSystemProxy(true)
-			}
-		})
-		uikit.Meta(c, "Read from this computer's OS settings. Applications with their own proxy settings, or that ignore the system proxy, still connect directly; captured traffic does not prove they use it.")
+		// The buttons are their own field, so a disabled one does not gray
+		// the Status label.
+		ui.Field(c, "", func() {
+			ui.Row(c).Gap(t.Space(2)).Wrap().Children(func() {
+				enable := uikit.PrimaryButton(c, "Enable system proxy").Disabled(!running || busy)
+				if !running {
+					enable.Tooltip("Start capture first")
+				}
+				if enable.Clicked() {
+					a.setSystemProxy(true)
+				}
+				if uikit.SecondaryButton(c, "Disable system proxy").Disabled(busy).Clicked() {
+					a.setSystemProxy(false)
+				}
+				if uikit.SecondaryButton(c, "Check again").Disabled(busy).Clicked() {
+					a.checkSystemProxy(true)
+				}
+			})
+		}).Description("Read from this computer's OS settings. Apps with their own proxy settings, or that ignore the system proxy, still connect directly.")
 	})
 }

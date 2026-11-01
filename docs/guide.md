@@ -29,7 +29,7 @@ ephemeral pool and respects its reserved/excluded-port configuration; the app
 does not scan low ports or change those settings. The assigned port may differ
 on the next launch.
 
-For a stable port, open **Settings → Proxy → Listening port**, enter a number
+For a stable port, open **Settings → Proxy → Port**, enter a number
 from **1024 to 65535**, and click **Save for next launch**. Restart the app to
 apply it; current capture connections and system-proxy settings are not changed
 by saving. A fixed port never falls back silently: if it is unavailable, capture
@@ -78,7 +78,7 @@ Choose an HTTPS URL, enable inspection for its host, then run the example yourse
 The guide separates a listening/reachable proxy, the decryption rule and newly
 observed decrypted traffic, with an action to inspect that capture.
 
-Open **Network → Connect a device** or **Settings → Proxy → Connect a device**.
+Open **Network → Connect a device** or **Settings → Devices → Connect a device**.
 Device access is **off on every launch**; consent and listeners are not persisted.
 
 1. Put the computer and device on the same trusted network. Select the computer's
@@ -500,7 +500,8 @@ time includes the transfer it will take, so it matches what the client sees.
 **Off** leaves traffic alone.
 
 **Network → Upstream…** sends every request through another proxy, such as
-`http://127.0.0.1:8080`; **Upstream off** clears it. The engine tunnels to the
+`http://127.0.0.1:8080`; **Upstream off** clears it. **Settings → Proxy → Upstream** edits the same
+address in place; leave it empty and apply to connect directly. The engine tunnels to the
 upstream with CONNECT, so HTTPS targets chain through it; a plain HTTP target
 depends on the upstream accepting CONNECT to port 80.
 
@@ -698,8 +699,8 @@ in capture order after confirmation. Choose a per-request timeout (30 seconds by
 default, 0 for no timeout), watch sent/failed counts, or stop the batch. Replaying
 can mutate server data; streams and tunnels are excluded.
 
-**Network → No Caching** is a session-only switch, also visible in the status
-bar. New exchanges strip conditional cache headers, send no-cache request
+**Network → No Caching** (or **Settings → Capture → Caching**) is a
+session-only switch, also visible in the status bar. New exchanges strip conditional cache headers, send no-cache request
 headers, and remove response validators while forbidding response storage.
 Each exchange snapshots the switch; changes do not rewrite historical captures.
 The detail header's **Applied** line records cache bypass, scripts, edited

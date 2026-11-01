@@ -107,103 +107,112 @@ func (a *app) certificateStatus(t *ui.Theme) (string, ui.Color) {
 func (a *app) httpsSettings(c *ui.Context, t *ui.Theme) {
 	status, color := a.certificateStatus(t)
 	s := &a.certificate
-	uikit.Heading(c, "HTTPS inspection")
-	if a.srv != nil && a.srv.Running() {
-		ui.Text(c, "Proxy listening · "+a.srv.Addr()).FontSize(uikit.TextBody).TextColor(t.Success)
-	} else {
-		uikit.Hint(c, "Capture is not running")
-	}
-	uikit.Hint(c, "Trusting the CA only makes decryption possible. Domain and app rules expose request and response headers — including Cookie and Set-Cookie — and bodies. Connections not covered by a rule stay encrypted CONNECT tunnels.")
-	ui.Divider(c)
-	ui.Column(c).Gap(t.Space(3)).Children(func() {
-		ui.Row(c).Gap(t.Space(2)).Wrap().Children(func() {
-			ui.Text(c, "Certificate").FontSize(uikit.TextBody).Bold().Grow(1)
-			ui.Text(c, status).FontSize(uikit.TextBody).Bold().TextColor(color)
+	uikit.SettingsPage(c, "HTTPS", "Trusting the CA makes decryption possible; decryption chooses which connections are read. Changes apply to new connections.", func() {
+		uikit.SettingsGroup(c, "Certificate", func() {
+			ui.Field(c, "Trust", func() {
+				ui.Column(c).Gap(t.Space(1)).Children(func() {
+					ui.Text(c, status).FontSize(uikit.TextBody).FontWeight(600).TextColor(color)
+					if s.cert != nil {
+						uikit.Body(c, cmp.Or(s.cert.Subject.CommonName, s.cert.Subject.String()))
+						uikit.Meta(c, "Valid: "+s.cert.NotBefore.Local().Format("2006-01-02")+" → "+s.cert.NotAfter.Local().Format("2006-01-02"))
+						fingerprint := fmt.Sprintf("%X", sha256.Sum256(s.cert.Raw))
+						uikit.Meta(c, "SHA-256: "+fingerprint).Font(uikit.FontMono).SingleLine().Tooltip(fingerprint).Selectable()
+					}
+					if s.installing {
+						uikit.Meta(c, "If the system asks for authorization, approve it to continue. Trust will be checked afterwards.")
+					}
+					if s.checked && !s.checking && s.err != nil {
+						problem := s.err.Error()
+						if errors.Is(s.err, os.ErrNotExist) {
+							problem = "CA file not found. Start capture, then check again."
+						}
+						ui.Text(c, problem).FontSize(uikit.TextMeta).TextColor(t.Warning).SingleLine().Tooltip(s.err.Error())
+					}
+					if s.installErr != nil {
+						if errors.Is(s.installErr, system.ErrInstallCancelled) {
+							uikit.Meta(c, "Installation cancelled. You can try again when ready.")
+						} else {
+							ui.Text(c, "Installation failed: "+s.installErr.Error()).FontSize(uikit.TextMeta).TextColor(t.Danger).MaxLines(2).Tooltip(s.installErr.Error())
+							switch runtime.GOOS {
+							case "darwin":
+								uikit.Meta(c, "Manual fallback: use Show certificate to locate the public CA, import it in Keychain Access, then set Trust → When using this certificate to Always Trust. Check again afterwards.")
+							case "windows":
+								uikit.Meta(c, "Manual fallback: use Show certificate and import the public CA into Trusted Root Certification Authorities for the current user. Check again afterwards.")
+							default:
+								uikit.Meta(c, "Manual fallback: use Show certificate and import the public CA using your distribution's trust-store tools. Check again afterwards.")
+							}
+						}
+					}
+				})
+			})
+			// The buttons are their own field, so a disabled one does not
+			// gray the Trust label.
+			ui.Field(c, "", func() {
+				ui.Row(c).Gap(t.Space(2)).Wrap().Children(func() {
+					if uikit.PrimaryButton(c, "Install & Trust…").Tooltip("Trust the local CA on this computer; approve system authorization if requested").Disabled(s.checking || s.cert == nil || s.checked && s.err == nil).Clicked() {
+						a.checkCertificate(true)
+					}
+					if uikit.SecondaryButton(c, "Check again").Disabled(s.checking).Clicked() {
+						a.checkCertificate(false)
+					}
+					if uikit.SecondaryButton(c, "Show certificate").Tooltip(a.caPath).Disabled(a.caPath == "").Clicked() {
+						a.revealCA()
+					}
+				})
+			}).Description(certificateScope())
 		})
-		if s.cert != nil {
-			uikit.Body(c, cmp.Or(s.cert.Subject.CommonName, s.cert.Subject.String()))
-			uikit.Meta(c, "Valid: "+s.cert.NotBefore.Local().Format("2006-01-02")+" → "+s.cert.NotAfter.Local().Format("2006-01-02"))
-			fingerprint := fmt.Sprintf("%X", sha256.Sum256(s.cert.Raw))
-			uikit.Meta(c, "SHA-256: "+fingerprint).Font(uikit.FontMono).SingleLine().Tooltip(fingerprint).Selectable()
-		}
-		uikit.Hint(c, "Trust this CA on the requesting device or in the requesting application. Separate trust stores and certificate pinning may need client-side configuration.")
-		if runtime.GOOS == "windows" {
-			uikit.Hint(c, "Installation trusts this CA for the current Windows user, not other accounts or services.")
-		}
-		if s.installing {
-			uikit.Hint(c, "If the system asks for authorization, approve it to continue. Trust will be checked afterwards.")
-		}
-		if s.checked && !s.checking && s.err != nil {
-			problem := s.err.Error()
-			if errors.Is(s.err, os.ErrNotExist) {
-				problem = "CA file not found. Start capture, then check again."
-			}
-			ui.Text(c, problem).FontSize(uikit.TextMeta).TextColor(t.Warning).SingleLine().Tooltip(s.err.Error())
-		}
-		if s.installErr != nil {
-			if errors.Is(s.installErr, system.ErrInstallCancelled) {
-				uikit.Hint(c, "Installation cancelled. You can try again when ready.")
-			} else {
-				ui.Text(c, "Installation failed: "+s.installErr.Error()).FontSize(uikit.TextMeta).TextColor(t.Danger).MaxLines(2).Tooltip(s.installErr.Error())
-				switch runtime.GOOS {
-				case "darwin":
-					uikit.Hint(c, "Manual fallback: use Show certificate to locate the public CA, import it in Keychain Access, then set Trust → When using this certificate to Always Trust. Check again afterwards.")
-				case "windows":
-					uikit.Hint(c, "Manual fallback: use Show certificate and import the public CA into Trusted Root Certification Authorities for the current user. Check again afterwards.")
-				default:
-					uikit.Hint(c, "Manual fallback: use Show certificate and import the public CA using your distribution's trust-store tools. Check again afterwards.")
+		uikit.SettingsGroup(c, "Decryption", func() {
+			ui.Field(c, "Every domain", func() {
+				all := a.sslAll
+				if ui.Switch(c, &all).Label("Decrypt every domain").Changed() {
+					cfg := a.inspectionConfig()
+					cfg.All = all
+					a.saveSSL(cfg)
 				}
+			}).Description("Decrypt every new HTTPS connection, not only the listed domains and apps.")
+			domains := splitHosts(a.sslHosts)
+			summary := "None"
+			hint := "Enable a domain or a local app to read its headers, cookies and bodies."
+			switch {
+			case len(a.sslApps) > 0:
+				summary = fmt.Sprintf("%d domain rules · %d local executable rules", len(domains), len(a.sslApps))
+				hint = "Listed domains or exact local executables are decrypted. Other clients stay encrypted unless a domain rule also matches."
+			case len(domains) > 0:
+				summary = strings.Join(domains, ", ")
+				hint = "These domains and their subdomains are decrypted. Every other host stays an encrypted tunnel."
 			}
-		}
-		ui.Row(c).Gap(t.Space(2)).Wrap().Children(func() {
-			if uikit.PrimaryButton(c, "Install & Trust…").Tooltip("Trust the local CA on this computer; approve system authorization if requested").Disabled(s.checking || s.cert == nil || s.checked && s.err == nil).Clicked() {
-				a.checkCertificate(true)
-			}
-			if uikit.SecondaryButton(c, "Check again").Disabled(s.checking).Clicked() {
-				a.checkCertificate(false)
-			}
-			if uikit.SecondaryButton(c, "Show certificate").Tooltip(a.caPath).Disabled(a.caPath == "").Clicked() {
-				a.revealCA()
-			}
+			ui.Field(c, "Domains and apps", func() {
+				ui.Row(c).Gap(t.Space(3)).AlignItems(ui.Center).Children(func() {
+					if uikit.SecondaryButton(c, "Manage domains…").Clicked() {
+						a.leaveSettings()
+						a.sslOpen = true
+					}
+					uikit.Hint(c, summary).SingleLine().Shrink(1).MinWidth(0).Tooltip(summary)
+				})
+			}).Description(hint)
+		})
+		uikit.SettingsGroup(c, "Wireshark", func() {
+			ui.Field(c, "TLS key log", func() {
+				ui.Row(c).Gap(t.Space(2)).Wrap().AlignItems(ui.Center).Children(func() {
+					if uikit.SecondaryButton(c, "TLS key log…").Clicked() {
+						a.leaveSettings()
+						a.openKeyLog()
+					}
+					uikit.Mono(c, cmp.Or(a.keyLogPath, "Off")).TextColor(t.TextMuted).SingleLine().MaxWidth(260).Tooltip(a.keyLogPath)
+					restartPending(c, a.keyLogPath != a.launchKeyLog)
+				})
+			}).Description("Write TLS secrets to a file Wireshark reads to decrypt this capture. Applies after a restart.")
 		})
 	})
-	ui.Divider(c)
-	ui.Column(c).Gap(t.Space(3)).Children(func() {
-		ui.Text(c, "Decryption rules").FontSize(uikit.TextBody).Bold()
-		domains := splitHosts(a.sslHosts)
-		summary := "No domains enabled — HTTPS stays an encrypted tunnel"
-		if a.sslAll {
-			summary = "Every domain enabled for new connections"
-		} else if len(domains) > 0 {
-			summary = strings.Join(domains, ", ")
-		}
-		if !a.sslAll && len(a.sslApps) > 0 {
-			summary = fmt.Sprintf("%d domain rules · %d local executable rules", len(domains), len(a.sslApps))
-		}
-		uikit.Body(c, summary).MaxLines(2).Tooltip(summary)
-		switch {
-		case a.sslAll:
-			uikit.Hint(c, "All new HTTPS connections are eligible for inspection. Client trust and TLS compatibility still apply.")
-		case len(a.sslApps) > 0:
-			uikit.Hint(c, "Listed domains or exact local executables are eligible. Other clients stay encrypted unless a domain rule also matches.")
-		case len(domains) > 0:
-			uikit.Hint(c, "Only these domains and their subdomains are decrypted. Every other host stays an encrypted tunnel.")
-		default:
-			uikit.Hint(c, "Enable a domain here, or every domain explicitly, to inspect its headers, cookies, and bodies.")
-		}
-		uikit.Hint(c, "Trusting the CA and enabling domain decryption are separate steps.")
-		ui.Row(c).Gap(t.Space(2)).Wrap().Children(func() {
-			if uikit.SecondaryButton(c, "Manage domains…").Clicked() {
-				a.leaveSettings()
-				a.sslOpen = true
-			}
-			if uikit.SecondaryButton(c, "TLS key log…").Clicked() {
-				a.leaveSettings()
-				a.openKeyLog()
-			}
-		})
-	})
-	uikit.Meta(c, "After changing HTTPS setup, establish a new connection and retry the request.")
+}
+
+// certificateScope says where trusting the CA here reaches, and where not.
+func certificateScope() string {
+	scope := "Trust this CA on the requesting device or in the requesting application too. Separate trust stores and certificate pinning may need client-side configuration."
+	if runtime.GOOS == "windows" {
+		scope += " On Windows, installation trusts it for the current user, not other accounts or services."
+	}
+	return scope
 }
 
 func (a *app) inspectionConfig() capture.SSLConfig {

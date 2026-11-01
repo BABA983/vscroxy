@@ -751,20 +751,21 @@ func TestCaptureUIUsesOnlyTheRunningListener(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if !tt.HasText("Proxy address: " + srv.Addr()) {
+	if !tt.HasText(srv.Addr()) {
 		t.Fatal("settings did not use the actual bound address")
 	}
 	if err := srv.Close(); err != nil {
 		t.Fatal(err)
 	}
 	tt.Frame()
-	if !tt.HasText("Capture is not running") || tt.HasText("Proxy address: "+srv.Addr()) {
+	if !tt.HasText("Capture is not running") || tt.HasText(srv.Addr()) {
 		t.Fatal("closed proxy must not advertise its old address")
 	}
 }
 
 func TestSettingsOpensExistingEditors(t *testing.T) {
 	a := workspaceApp()
+	a.srv = requestProxy(t)
 	tt := ui.NewTester(a.view, 960, 600)
 	for _, label := range []string{"Settings", "Proxy"} {
 		if err := tt.Click(label); err != nil {
@@ -772,19 +773,31 @@ func TestSettingsOpensExistingEditors(t *testing.T) {
 		}
 	}
 	tt.Scroll(480, 300, 0, 500)
-	if err := tt.Click("Configure upstream…"); err != nil {
-		t.Fatal(err)
-	}
-	if !tt.HasText("Upstream proxy") {
-		t.Fatal("settings did not open the upstream editor")
-	}
-	if err := tt.Click("Cancel"); err != nil {
-		t.Fatal(err)
-	}
-	for _, label := range []string{"Settings", "Proxy"} {
-		if err := tt.Click(label); err != nil {
+	// The upstream is edited in place and applies at once; clearing it
+	// connects directly again.
+	upstream := func(value string) {
+		t.Helper()
+		if err := tt.Click("Upstream proxy address"); err != nil {
 			t.Fatal(err)
 		}
+		tt.Key(ui.Cmd, ui.KeyA)
+		tt.Key(0, ui.KeyBackspace)
+		tt.Type(value)
+		if err := tt.Click("Apply"); err != nil {
+			t.Fatal(err)
+		}
+		tt.Frame()
+	}
+	upstream("http://127.0.0.1:9")
+	if a.upstream != "http://127.0.0.1:9" || a.srv.Upstream() != a.upstream {
+		t.Fatalf("upstream not applied: %q", a.upstream)
+	}
+	upstream("")
+	if a.upstream != "" || a.srv.Upstream() != "" {
+		t.Fatalf("clearing kept the upstream: %q", a.upstream)
+	}
+	if err := tt.Click("Settings category: Proxy"); err != nil {
+		t.Fatal(err)
 	}
 	tt.Key(0, ui.KeyDown) // HTTPS category, not Capture's HTTPS filter chip.
 	tt.Scroll(480, 300, 0, 500)
@@ -793,6 +806,44 @@ func TestSettingsOpensExistingEditors(t *testing.T) {
 	}
 	if !tt.HasText("TLS key log") {
 		t.Fatal("settings did not open the TLS key log editor")
+	}
+}
+
+func TestSettingsSwitchesApplyAtOnce(t *testing.T) {
+	a := workspaceApp()
+	a.srv = requestProxy(t)
+	a.settingsOpen = true
+	tt := ui.NewTester(a.view, 1280, 800)
+	click := func(label string) {
+		t.Helper()
+		if err := tt.Click(label); err != nil {
+			t.Fatal(err)
+		}
+		tt.Frame()
+	}
+	click("Settings category: Capture")
+	sw, ok := tt.Find("No Caching")
+	if !ok {
+		t.Fatal("no No Caching switch")
+	}
+	click("No Caching")
+	if !a.srv.NoCaching() {
+		t.Fatal("No Caching did not turn on")
+	}
+	// The toolbar now shows a "No Caching" chip too; click the switch where it was.
+	tt.ClickAt(sw.X+sw.W/2, sw.Y+sw.H/2)
+	tt.Frame()
+	if a.srv.NoCaching() {
+		t.Fatal("No Caching did not turn off")
+	}
+	click("Settings category: HTTPS")
+	click("Decrypt every domain")
+	if !a.sslAll || !a.inspectionConfig().All {
+		t.Fatal("every domain was not enabled")
+	}
+	click("Decrypt every domain")
+	if a.sslAll {
+		t.Fatal("every domain stayed enabled")
 	}
 }
 
@@ -817,7 +868,7 @@ func TestSettingsCategoriesKeepNativeNavigationAndEditorRoutes(t *testing.T) {
 	}
 	click("Settings category: Appearance")
 	tt.Key(0, ui.KeyEnd)
-	if !tt.HasText("Device and client access") {
+	if !tt.HasText("Send traffic from other devices and programs through vscroxy.") {
 		t.Fatal("native End navigation did not select Devices")
 	}
 	click("Settings category: Capture")
@@ -952,7 +1003,7 @@ func TestHTTPSSetupExplainsTunnelsAndEnablesOnlyTheSelectedDomain(t *testing.T) 
 	}
 	click("Certificate setup…")
 	waitCertificate()
-	if !tt.HasText("HTTPS inspection") || !tt.HasText("Trust not verified on this system") || !tt.HasText("Proxy listening · "+srv.Addr()) || !tt.HasText("dc.dlife.cn") {
+	if !tt.HasText("Trust not verified on this system") || !tt.HasText("dc.dlife.cn") {
 		t.Fatalf("settings did not show scoped trust and domain state: %q", tt.Texts())
 	}
 	// A missing/replaced certificate must not leave the previous result cached.
@@ -1763,10 +1814,10 @@ func TestProxyPortEditorSavesWithoutInterruptingCapture(t *testing.T) {
 	for _, port := range []int{1024, 65535, 9091} {
 		edit(fmt.Sprint(port))
 		got, err := loadSettings(a.settingsPath)
-		if err != nil || got.ProxyPort != port || !tt.HasText(fmt.Sprintf("Next launch: 127.0.0.1:%d · restart the app to apply", port)) {
+		if err != nil || got.ProxyPort != port || !tt.HasText("Restart to apply") {
 			t.Fatalf("port %d not saved: %+v, error %v", port, got, err)
 		}
-		if !srv.Running() || srv.Addr() != addr || !tt.HasText("Proxy address: "+addr) {
+		if !srv.Running() || srv.Addr() != addr || !tt.HasText(addr) {
 			t.Fatal("saving next launch's port interrupted the current capture")
 		}
 	}
@@ -1786,7 +1837,8 @@ func TestProxyPortEditorSavesWithoutInterruptingCapture(t *testing.T) {
 	a.settingsPath = path
 	edit("")
 	got, err = loadSettings(path)
-	if err != nil || got.ProxyPort != 0 || !tt.HasText("Next launch: Automatic · restart the app to apply") {
+	// Back to what this run started with: nothing waits for a restart.
+	if err != nil || got.ProxyPort != 0 || tt.HasText("Restart to apply") {
 		t.Fatalf("clearing the port must restore automatic selection: %+v, %v", got, err)
 	}
 }
@@ -2798,7 +2850,7 @@ func TestDeviceOnboardingCertificateHTTPSAndLiveTunnelRevocation(t *testing.T) {
 		}
 	}
 	click("Settings")
-	click("Proxy")
+	click("Settings category: Devices")
 	click("Connect a device…")
 	if !tt.HasText("LAN off") {
 		t.Fatal("LAN access was not off by default")

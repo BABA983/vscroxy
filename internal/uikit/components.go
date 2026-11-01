@@ -652,3 +652,27 @@ func Selected(c *ui.Context, e ui.Element, focused bool) ui.Element {
 	}
 	return e.Background(fill).TextColor(t.Text)
 }
+
+// SettingsPage is one category of a settings window, as in macOS's System
+// Settings: its title, a sentence on what it holds, and a form of
+// SettingsGroups, whose labels line up across the page. It keeps a reading
+// width however wide the window is.
+func SettingsPage(c *ui.Context, title, about string, groups func()) ui.Element {
+	t := c.Theme()
+	return ui.Column(c).FillWidth().MaxWidth(640).Gap(t.Space(5)).Children(func() {
+		ui.Column(c).Gap(t.Space(1)).Children(func() {
+			ui.Text(c, title).FontSize(TextHeadline).FontWeight(600)
+			if about != "" {
+				Hint(c, about)
+			}
+		})
+		ui.Form(c, groups).Gap(t.Space(4))
+	})
+}
+
+// SettingsGroup is a card of related fields under its legend.
+func SettingsGroup(c *ui.Context, legend string, fields func()) ui.Element {
+	t := c.Theme()
+	return ui.Fieldset(c, legend, fields).Margin(0).Padding(t.Space(3), t.Space(4), t.Space(4), t.Space(4)).
+		Background(neutral(t, 0.4)).Border(1, t.Text.Alpha(0.08)).Radius(RadiusPanel)
+}

@@ -1,9 +1,7 @@
 package app
 
 import (
-	"cmp"
 	"github.com/baba983/vscroxy/internal/uikit"
-	"slices"
 	"strconv"
 
 	"github.com/egoist/mygo"
@@ -94,6 +92,9 @@ func (a *app) openSettings(tab int) {
 	case 2:
 		a.checkCertificate(false)
 	}
+	if !a.settingsOpen {
+		a.upstreamAddr = a.upstream // a fresh draft, not one left by the dialog
+	}
 	a.settingsOpen = true
 	if a.win == nil {
 		return
@@ -170,11 +171,19 @@ func (a *app) settingsContent(c *ui.Context, t *ui.Theme, active bool) {
 		ui.Sidebar(c, &choice, func() {
 			for _, item := range []struct {
 				id    string
+				icon  *ui.SVG
 				label string
-			}{{"0", "General"}, {"3", "Appearance"}, {"1", "Proxy"}, {"2", "HTTPS"}, {"4", "Capture"}, {"5", "Devices"}} {
-				uikit.SidebarItem(c, item.id, nil, item.label, choice == item.id, active).Label("Settings category: " + item.label)
+			}{
+				{"0", lucide.SlidersHorizontal(), "General"},
+				{"3", lucide.SunMoon(), "Appearance"},
+				{"1", upstreamIcon, "Proxy"},
+				{"2", lockIcon, "HTTPS"},
+				{"4", captureIcon, "Capture"},
+				{"5", lucide.MonitorSmartphone(), "Devices"},
+			} {
+				uikit.SidebarItem(c, item.id, item.icon, item.label, choice == item.id, active).Label("Settings category: " + item.label)
 			}
-		}).Width(140).Padding(t.Space(1)).Gap(0).Background(uikit.Colors(t).Panel).OnChange(func() {
+		}).Width(176).Padding(t.Space(2)).Gap(t.Space(0.5)).Background(uikit.Colors(t).Panel).OnChange(func() {
 			a.settingsTab, _ = strconv.Atoi(choice)
 			switch a.settingsTab {
 			case 1:
@@ -184,96 +193,24 @@ func (a *app) settingsContent(c *ui.Context, t *ui.Theme, active bool) {
 			}
 		})
 		ui.Divider(c)
-		top := float32(0)
+		top := t.Space(2)
 		if a.settingsWin != nil {
-			top = t.Space(4) // no dialog title above it
+			top = t.Space(6) // no dialog title above it
 		}
-		ui.Scroll(c).Grow(1).MinWidth(0).Gap(t.Space(3)).Padding(top, t.Space(4), t.Space(4), t.Space(3)).Children(func() {
+		ui.Scroll(c).Grow(1).MinWidth(0).Padding(top, t.Space(6), t.Space(6), t.Space(6)).Children(func() {
 			switch a.settingsTab {
 			case 0:
-				ui.Text(c, "Rules & scripts").FontSize(uikit.TextBody).Bold()
-				uikit.Meta(c, "Reload proxy rules, DNS mappings, ignore lists and the capture script from disk.")
-				ui.Row(c).Gap(t.Space(2)).Wrap().Children(func() {
-					if uikit.SecondaryButton(c, "Manage rules…").Clicked() {
-						a.leaveSettings()
-						a.openRules()
-					}
-					if uikit.SecondaryButton(c, "Reload configuration").Clicked() {
-						a.reloadConfig()
-					}
-				})
+				a.generalSettings(c, t)
 			case 1:
-				addr := "Capture is not running"
-				if a.srv != nil && a.srv.Running() {
-					addr = "Proxy address: " + a.srv.Addr()
-				}
-				ui.Text(c, addr).FontSize(uikit.TextBody).Bold()
-				ui.Form(c, func() {
-					ui.Field(c, "Listening port", func() {
-						ui.Row(c).Gap(t.Space(2)).Wrap().Children(func() {
-							uikit.Input(c, &a.proxyPortInput).Label("Proxy port").Placeholder("Automatic").Width(100)
-							if uikit.SecondaryButton(c, "Save for next launch").Clicked() {
-								a.saveProxyPort()
-							}
-						})
-					}).Description("Blank = automatic (prefers 7890). Fixed port: 1024–65535, no fallback.").Error(a.proxyPortProblem)
-				})
-				next := "Next launch: Automatic · restart the app to apply"
-				if a.proxyPort != 0 {
-					next = "Next launch: 127.0.0.1:" + strconv.Itoa(a.proxyPort) + " · restart the app to apply"
-				}
-				uikit.Meta(c, next).FontFeatures("tnum")
-				ui.Divider(c)
-				a.systemProxySettings(c, t)
-				ui.Divider(c)
-				uikit.Meta(c, "Upstream: "+cmp.Or(a.upstream, "Direct connection")).SingleLine()
-				ui.Row(c).Gap(t.Space(2)).Wrap().Children(func() {
-					if uikit.SecondaryButton(c, "Configure upstream…").Clicked() {
-						a.leaveSettings()
-						a.upstreamAddr, a.upstreamOpen = a.upstream, true
-					}
-					if uikit.SecondaryButton(c, "Connect a device…").Clicked() {
-						a.leaveSettings()
-						a.openDevices()
-					}
-				})
+				a.proxySettings(c, t)
 			case 2:
 				a.httpsSettings(c, t)
 			case 3:
-				ui.Form(c, func() {
-					ui.Field(c, "Appearance", func() {
-						modes := []string{"", "light", "dark"}
-						choice := max(slices.Index(modes, a.appearance), 0)
-						uikit.Segmented(c, &choice, "System", "Light", "Dark").Label("Appearance")
-						a.appearance = modes[choice]
-					}).Description("System follows the light or dark appearance of this computer.")
-				})
+				a.appearanceSettings(c, t)
 			case 4:
-				ui.Text(c, "Capture visibility").FontSize(uikit.TextBody).Bold()
-				uikit.Meta(c, "Ignored traffic stays proxied but is not shown in the table.")
-				ui.Row(c).Gap(t.Space(2)).Wrap().Children(func() {
-					if uikit.SecondaryButton(c, "Ignored hosts…").Clicked() {
-						a.leaveSettings()
-						a.ignoreOpen = true
-					}
-					if uikit.SecondaryButton(c, "Ignored apps…").Clicked() {
-						a.leaveSettings()
-						a.ignoreAppsOpen = true
-					}
-				})
+				a.captureSettings(c, t)
 			case 5:
-				ui.Text(c, "Device and client access").FontSize(uikit.TextBody).Bold()
-				uikit.Meta(c, "Device access requires explicit network consent and an allowlist.")
-				ui.Row(c).Gap(t.Space(2)).Wrap().Children(func() {
-					if uikit.SecondaryButton(c, "Connect a device…").Clicked() {
-						a.leaveSettings()
-						a.openDevices()
-					}
-					if uikit.SecondaryButton(c, "Set up a local client…").Clicked() {
-						a.leaveSettings()
-						a.openClientSetup()
-					}
-				})
+				a.deviceSettings(c, t)
 			}
 		})
 	})

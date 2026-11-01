@@ -96,12 +96,16 @@ type app struct {
 	// settingsFocused whether it is in front; both only on the main thread.
 	settingsWin     *mygo.Window
 	settingsFocused bool
-	curlOpen        bool
-	curlInput       string
-	curlProblem     string
-	deviceUI        deviceSetup
-	clientUI        clientSetup
-	diagnostics     captureDiagnostics
+	// launchPort and launchKeyLog are the saved settings this run started
+	// with: a different saved value waits for a restart.
+	launchPort   int
+	launchKeyLog string
+	curlOpen     bool
+	curlInput    string
+	curlProblem  string
+	deviceUI     deviceSetup
+	clientUI     clientSetup
+	diagnostics  captureDiagnostics
 
 	apis            []*apiDocument
 	apisPath        string
@@ -441,6 +445,7 @@ func newApp() *app {
 			a.errText = err.Error()
 		} else {
 			a.saved, a.proxyPort, a.vault.scripts = saved, saved.ProxyPort, saved.VaultScripts
+			a.launchPort, a.launchKeyLog = saved.ProxyPort, saved.KeyLogPath
 			a.guide = a.guide || saved.Guide
 			if saved.ProxyPort != 0 {
 				a.proxyPortInput = strconv.Itoa(saved.ProxyPort)
