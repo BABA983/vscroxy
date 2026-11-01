@@ -78,7 +78,7 @@ func TestActivityBrushFiltersWithoutLosingContext(t *testing.T) {
 	if !tt.HasText("10:31:40–10:33:20 · 1 request") {
 		t.Fatal("body results did not narrow the selected interval")
 	}
-	if err := tt.Click("Body: needle ×"); err != nil {
+	if err := tt.Click("Remove condition: body:needle"); err != nil {
 		t.Fatal(err)
 	}
 	check(4, 5)

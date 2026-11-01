@@ -2014,7 +2014,7 @@ func TestCaptureDraftComparisonKeepsTheTrafficContextAndLastSend(t *testing.T) {
 	if got := copyText("New text"); !strings.Contains(got, "X-Marker: from-script") || strings.Contains(got, "after-send") {
 		t.Fatalf("compared mutated headers: %q", got)
 	}
-	if !tt.HasText("URL: original ×") || !tt.HasText("Status: 200 ×") || !tt.HasText("HTTP ×") || !tt.HasText("POST http://"+a.flows[0].host+"/items?variant=original") || !tt.HasText("Edited") {
+	if a.query != "original" || !tt.HasText("Remove condition: status:200") || !tt.HasText("Remove condition: HTTP") || !tt.HasText("POST http://"+a.flows[0].host+"/items?variant=original") || !tt.HasText("Edited") {
 		t.Fatalf("editing changed capture conditions or the inspected source: %v", tt.Texts())
 	}
 	// Going elsewhere and back keeps the draft, its comparison and its edits.
@@ -2035,7 +2035,7 @@ func TestCaptureDraftComparisonKeepsTheTrafficContextAndLastSend(t *testing.T) {
 	if got := copyText("New text"); got != "variant=not-sent; marker=from-script; body=sent-body" {
 		t.Fatalf("second send kept a stale comparison: %q", got)
 	}
-	if !tt.HasText("URL: original ×") || !tt.HasText("Status: 200 ×") {
+	if a.query != "original" || !tt.HasText("Remove condition: status:200") {
 		t.Fatal("sending reset the live view")
 	}
 }
@@ -3082,7 +3082,7 @@ func TestReplayLinksRevealFilteredSourceAndCompareWithoutGuessingURL(t *testing.
 	if err := tt.Click("Capture view: View 1"); err != nil {
 		t.Fatal(err)
 	}
-	if !tt.HasText("URL: redirected ×") || !tt.HasText("Replay of #1") {
+	if a.query != "redirected" || !tt.HasText("Replay of #1") {
 		t.Fatal("following a hidden relationship erased the original view")
 	}
 }
@@ -3641,7 +3641,7 @@ func TestKeyboardDebuggingLoopDoesNotSendThroughDialogsOrRepeatWhileWaiting(t *t
 	// The edited capture stays in its row: Escape returns to the list, and
 	// Enter opens the same document, comparison and all.
 	tt.Key(0, ui.KeyEscape)
-	if !tt.Focused("Captured requests") || !tt.HasText("URL: api.example.com ×") || !tt.HasText("POST https://api.example.com/login") || !tt.HasText("Edited") {
+	if !tt.Focused("Captured requests") || a.query != "api.example.com" || !tt.HasText("POST https://api.example.com/login") || !tt.HasText("Edited") {
 		t.Fatal("keyboard return lost capture focus, filter or the edited source")
 	}
 	tt.Key(0, ui.KeyEnter)
@@ -3795,7 +3795,7 @@ func TestCaptureCompactLayoutKeepsSearchUsableAcrossEmptyResults(t *testing.T) {
 				t.Fatal(err)
 			}
 			tt.Frame()
-			if !tt.HasText("Images ×") || len(a.visible) != 0 {
+			if !tt.HasText("Remove condition: Images") || len(a.visible) != 0 {
 				t.Fatal("the segmented control overwrote the menu-only Images condition")
 			}
 		})
@@ -3882,16 +3882,16 @@ func TestFilterTokensRemoveOnlyTheirOwnCondition(t *testing.T) {
 	a.filterTriage.Method = "POST"
 	a.applyFilter()
 	tt := ui.NewTester(a.view, 960, 600)
-	if err := tt.Click("Status: 4xx ×"); err != nil {
+	if err := tt.Click("Remove condition: status:4xx"); err != nil {
 		t.Fatal(err)
 	}
-	if !tt.HasText("URL: login ×") || !tt.HasText("Method: POST ×") || tt.HasText("Status: 4xx ×") || len(a.visible) != 1 {
+	if a.query != "login" || !tt.HasText("Remove condition: method:POST") || tt.HasText("status:4xx") || len(a.visible) != 1 {
 		t.Fatal("removing status cleared other conditions or left a stale token")
 	}
 	if err := tt.Click("Reset all"); err != nil {
 		t.Fatal(err)
 	}
-	if len(a.visible) != 2 || tt.HasText("URL: login ×") || tt.HasText("Method: POST ×") {
+	if len(a.visible) != 2 || a.query != "" || tt.HasText("method:POST") {
 		t.Fatal("reset did not remove all capture conditions")
 	}
 	// Full-body conditions live on the view, not the URL search model.
@@ -3902,11 +3902,55 @@ func TestFilterTokensRemoveOnlyTheirOwnCondition(t *testing.T) {
 	if len(a.visible) != 1 {
 		t.Fatal("body fixture did not narrow the view")
 	}
-	if err := tt.Click("Body: projects ×"); err != nil {
+	if err := tt.Click("Remove condition: body:projects"); err != nil {
 		t.Fatal(err)
 	}
 	if len(a.visible) != 2 || a.filtersActive() {
 		t.Fatal("body token did not remove the full-body search condition")
+	}
+}
+
+func TestQuerySyntaxTurnsFinishedTokensIntoChips(t *testing.T) {
+	a := workspaceApp()
+	a.views.init(a, "")
+	tt := ui.NewTester(a.view, 1280, 700)
+	if err := tt.Click("Search host or path"); err != nil {
+		t.Fatal(err)
+	}
+	// A token still being typed is neither a condition nor URL text.
+	tt.Type("login status:4")
+	tt.Frame()
+	if got := fmt.Sprint(visibleIDs(a)); a.filterStatus != "" || got != "[2]" {
+		t.Fatalf("pending token filtered: status %q, visible %s", a.filterStatus, got)
+	}
+	tt.Type("xx ")
+	tt.Frame()
+	if got := fmt.Sprint(visibleIDs(a)); a.filterStatus != "4xx" || a.query != "login " || got != "[2]" || !tt.HasText("Remove condition: status:4xx") {
+		t.Fatalf("finished token: status %q, query %q, visible %s", a.filterStatus, a.query, got)
+	}
+	// Unknown keys are text; an invalid value stays in the field with why.
+	tt.Key(ui.Cmd, ui.KeyA)
+	tt.Type("localhost:8080 status:abc ")
+	tt.Frame()
+	if a.query != "localhost:8080 status:abc " || a.filterStatus != "4xx" || a.queryProblem == "" {
+		t.Fatalf("query %q, status %q, problem %q", a.query, a.filterStatus, a.queryProblem)
+	}
+	// Enter takes the last token too; quotes keep a value's spaces.
+	tt.Key(ui.Cmd, ui.KeyA)
+	tt.Type(`slow app:"Google Chrome" method:post`)
+	tt.Key(0, ui.KeyEnter)
+	tt.Frame()
+	if a.query != "" || a.filterTriage.Client != "Google Chrome" || a.filterTriage.Method != "POST" || a.filterTriage.Duration != ">=1000" ||
+		!tt.HasText(`Remove condition: app:"Google Chrome"`) || !tt.HasText("Remove condition: slow") {
+		t.Fatalf("query %q, triage %+v", a.query, a.filterTriage)
+	}
+	// A chip's text comes back exactly, ready to change and commit again.
+	if err := tt.Click("Edit condition: status:4xx"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if a.filterStatus != "" || a.query != "status:4xx" || !tt.Focused("Search host or path") {
+		t.Fatalf("edit: status %q, query %q", a.filterStatus, a.query)
 	}
 }
 
@@ -4128,7 +4172,7 @@ func TestCaptureFacetsIntersectAndResetOnlyTheActiveView(t *testing.T) {
 	if got := fmt.Sprint(visibleIDs(a)); got != "[2]" {
 		t.Fatalf("row filter replaced a facet: %s", got)
 	}
-	click("App: Browser ×")
+	click("Remove condition: app:Browser")
 	if got := fmt.Sprint(visibleIDs(a)); got != "[2 4]" || a.filterTriage.Host != "api.example.com" || a.filterStatus != "401" {
 		t.Fatalf("removing app changed other conditions: %s", got)
 	}

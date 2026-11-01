@@ -60,11 +60,15 @@ type app struct {
 	domains []domain
 	clients []domain
 
-	query     string
-	filter    string
-	chip      int
-	search    ui.Handle
-	clearOpen bool
+	// query is the search field: free host/path text and query syntax not
+	// yet turned into chips (query.go). queryProblem says why a token was
+	// not taken.
+	query        string
+	queryProblem string
+	filter       string
+	chip         int
+	search       ui.Handle
+	clearOpen    bool
 
 	// Capture filters and the request library have independent selections.
 	// Each workspace has two sections, chosen in its sidebar: live traffic or
@@ -1005,7 +1009,7 @@ func (a *app) countDomains() {
 // applyFilter rebuilds the visible rows from the search text and the sidebar
 // choice, and keeps the choice on a row that still shows.
 func (a *app) applyFilter() {
-	q := strings.ToLower(strings.TrimSpace(a.query))
+	q := strings.ToLower(queryText(a.query))
 	a.visible = a.visible[:0]
 	for i, f := range a.flows {
 		if f.debugKey == "" {
@@ -2791,15 +2795,21 @@ func (a *app) setKeyLog(path string) {
 
 // filtersActive includes every condition that can hide captured requests.
 func (a *app) filtersActive() bool {
-	return a.query != "" || a.filter != "" && a.filter != "all" || a.chip != 0 ||
+	return a.query != "" || a.conditionsActive()
+}
+
+// conditionsActive is filtersActive without the search field's own text:
+// the conditions the field shows as chips.
+func (a *app) conditionsActive() bool {
+	return a.filter != "" && a.filter != "all" || a.chip != 0 ||
 		a.filterStatus != "" || a.filterHeader != "" || a.views.bodyFilter() != "" || a.filterTriage != (captureTriage{}) || a.activity.active()
 }
 
 // filterSummary is what the status bar says about the filters in use.
 func (a *app) filterSummary() string {
 	var parts []string
-	if a.query != "" {
-		parts = append(parts, "URL "+a.query)
+	if text := queryText(a.query); text != "" {
+		parts = append(parts, "URL "+text)
 	}
 	if a.filter != "" && a.filter != "all" {
 		parts = append(parts, a.filter)

@@ -147,6 +147,14 @@ func TestUISnapshots(t *testing.T) {
 			tt.Type("200")
 			click("Apply")(t, tt)
 		}, want: "2 captured · 1 shown"},
+		{name: "capture-query", act: func(t *testing.T, tt *ui.Tester) {
+			click("Search host or path")(t, tt)
+			tt.Type("status:2xx app:Browser projects method:")
+		}, want: "Remove condition: status:2xx"},
+		{name: "capture-query-invalid", act: func(t *testing.T, tt *ui.Tester) {
+			click("Search host or path")(t, tt)
+			tt.Type("host:api.example.com status:abc ")
+		}, want: "Remove condition: host:api.example.com"},
 		{name: "capture-headers", setup: func(a *app) { a.inspect.tab[1] = resTabHeaders }, want: "Content-Type"},
 		{name: "capture-raw", setup: func(a *app) { a.inspect.tab[1] = resTabRaw }, want: "Raw message"},
 		{name: "capture-timing", setup: func(a *app) { a.inspect.tab[1] = resTabTiming }, want: "Waiting"},

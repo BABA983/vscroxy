@@ -1,6 +1,7 @@
 package app
 
 import (
+	"cmp"
 	"fmt"
 	"github.com/baba983/vscroxy/internal/uikit"
 	"runtime"
@@ -144,20 +145,33 @@ func (a *app) captureToolbar(c *ui.Context, t *ui.Theme) {
 	ui.Row(c).Height(uikit.HeightBar).Padding(0, t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 		box := ui.Row(c).Grow(1).MinWidth(160).Height(uikit.HeightControl).Gap(t.Space(1)).Padding(0, t.Space(1)).AlignItems(ui.Center)
 		uikit.FieldFace(c, box, a.search.Focused(c)).Children(func() {
-			search := ui.TextInputBase(c, &a.query).Bind(&a.search).Label("Search host or path").Placeholder("Search host or path…").
-				Tooltip("URL host and path only · Ctrl/Cmd+F · Enter or ↓ moves to requests. Filters search headers and full bodies.").
-				Height(uikit.HeightCompact).Padding(0, t.Space(1)).FontSize(uikit.TextBody).Grow(1).MinWidth(72).FocusRing(false)
+			// Chips first, then the input: a condition is narrowed one
+			// token at a time and stays where it was put.
+			if a.conditionsActive() {
+				// The strip takes the room its chips need, down to what the
+				// input leaves it; its thumb sits on the field's edge, under
+				// the chips' text rather than over their buttons.
+				ui.ScrollHorizontal(c).Shrink(1).MinWidth(0).FillHeight().ScrollbarInsets(0, 0, -4).Children(func() {
+					a.captureConditions(c)
+				})
+			}
+			search := ui.TextInputBase(c.Key("capture-search"), &a.query).Bind(&a.search).Label("Search host or path").Placeholder("Search host or path, or status:>=400…").
+				Tooltip(cmp.Or(a.queryProblem, "Host and path text, plus status: host: app: method: duration: size: header: body: and slow · Space or Enter makes a chip · Ctrl/Cmd+F · Enter or ↓ moves to requests")).
+				Height(uikit.HeightCompact).Padding(0, t.Space(1)).FontSize(uikit.TextBody).Grow(1).MinWidth(min(200, width/5)).FocusRing(false)
+			if a.queryProblem != "" {
+				search.TextColor(t.Danger)
+			}
 			search.OnShortcut(0, ui.KeyDown, func() { a.focusTraffic(c) })
-			if search.Changed() {
+			if search.Changed() && !a.commitQuery(false) {
 				a.applyFilter()
 			}
 			if search.Submitted() {
-				a.focusTraffic(c)
+				a.commitQuery(true)
+				if a.queryProblem == "" {
+					a.focusTraffic(c)
+				}
 			}
 			if a.filtersActive() {
-				ui.ScrollHorizontal(c).Width(min(260, width/4)).FillHeight().Children(func() {
-					a.captureConditions(c)
-				})
 				if uikit.IconButton(c, "Reset all", "Reset all conditions", closeIcon).Clicked() {
 					a.views.resetFilters(a)
 				}
@@ -243,20 +257,19 @@ func (a *app) captureToolbar(c *ui.Context, t *ui.Theme) {
 	ui.Divider(c)
 }
 
-// Conditions stay removable inside the search field; overflow scrolls rather
-// than adding another toolbar row. Their AND/OR semantics are unchanged.
+// Conditions are chips inside the search field; overflow scrolls rather
+// than adding another toolbar row. All of them must match. A chip the query
+// syntax can write turns back into text when clicked, at the end of the
+// field, so it can be changed and committed again.
 func (a *app) captureConditions(c *ui.Context) {
 	t := c.Theme()
 	ui.Row(c).Gap(t.Space(1)).AlignItems(ui.Center).Tooltip("All conditions must match").Children(func() {
-		token := func(label string, clear func()) {
-			if uikit.SecondaryButton(c, clamp(label, 30)+" ×").Label(label+" ×").Height(uikit.HeightCompact).Padding(0, t.Space(2)).FontSize(uikit.TextMeta).TextColor(t.Accent).Tooltip("Remove condition: " + label).Clicked() {
-				clear()
-				a.views.capture(a)
-				a.applyFilter()
-			}
+		changed := func() {
+			a.views.capture(a)
+			a.applyFilter()
 		}
-		if a.query != "" {
-			token("URL: "+a.query, func() { a.query = "" })
+		chip := func(label string, clear func()) {
+			uikit.QueryChip(c, label, nil, func() { clear(); changed() })
 		}
 		if a.filter != "all" {
 			label := "Traffic: " + a.filter
@@ -265,26 +278,26 @@ func (a *app) captureConditions(c *ui.Context) {
 			} else if client, ok := strings.CutPrefix(a.filter, "client:"); ok {
 				label = "App: " + client
 			}
-			token(label, func() { a.filter = "all" })
+			chip(label, func() { a.filter = "all" })
 		}
 		if a.chip != 0 {
-			token(captureKinds[a.chip], func() { a.chip = 0 })
+			chip(captureKinds[a.chip], func() { a.chip = 0 })
 		}
 		if a.activity.active() {
-			token("Time: "+a.activity.label(), func() { a.activity = activityRange{} })
+			chip("Time: "+a.activity.label(), func() { a.activity = activityRange{} })
 		}
-		for _, field := range []struct {
-			label string
-			value *string
-		}{
-			{"App", &a.filterTriage.Client}, {"Host", &a.filterTriage.Host},
-			{"Status", &a.filterStatus}, {"Header", &a.filterHeader}, {"Body", &a.views.activeView().body},
-			{"Method", &a.filterTriage.Method}, {"Duration ms", &a.filterTriage.Duration},
-			{"Response bytes", &a.filterTriage.Size}, {"Color", &a.filterTriage.Color}, {"Note", &a.filterTriage.Note},
-		} {
-			if *field.value != "" {
-				token(field.label+": "+*field.value, func() { *field.value = "" })
+		for _, key := range queryKeys {
+			field := key.field(a)
+			if field == nil || *field == "" {
+				continue
 			}
+			text := queryChip(key.name, *field)
+			uikit.QueryChip(c, text, func() {
+				*field = ""
+				a.query = strings.TrimSpace(strings.TrimSpace(a.query) + " " + text)
+				changed()
+				a.search.Focus(c)
+			}, func() { *field = ""; changed() })
 		}
 	})
 }

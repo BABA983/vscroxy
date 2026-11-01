@@ -253,6 +253,44 @@ func StatusPill(c *ui.Context, label string, foreground ui.Color) ui.Element {
 	return pill
 }
 
+// QueryChip is one condition in the query bar, written as the query syntax
+// writes it. A click on its text runs edit, which turns it back into text
+// to change; a condition with no syntax passes nil and has no such button.
+// The × runs remove. Both run after the chip is built.
+func QueryChip(c *ui.Context, text string, edit, remove func()) ui.Element {
+	t := c.Theme()
+	p := Colors(t)
+	inner := float32(RadiusControl - 2)
+	return ui.Row(c.Key("query-chip:"+text)).Height(HeightCompact).Shrink(0).Padding(0, 2).Gap(0).
+		AlignItems(ui.Center).Radius(RadiusControl).Background(p.AccentTint).Children(func() {
+		label := func() {
+			ui.Text(c, text).Font(FontMono).FontSize(TextMeta).TextColor(p.Accent).SingleLine()
+		}
+		if edit == nil {
+			ui.Row(c).Padding(0, t.Space(1)).Children(label)
+		} else {
+			b := ui.ButtonBase(c).Label("Edit condition: "+text).Tooltip("Edit "+text).
+				Height(HeightCompact-4).Padding(0, t.Space(1)).Radius(inner).AlignItems(ui.Center)
+			if b.Hovered() {
+				b.Background(p.Accent.Alpha(0.12))
+			}
+			b.Children(label)
+			if b.Clicked() {
+				edit()
+			}
+		}
+		x := ui.ButtonBase(c).Label("Remove condition: "+text).Tooltip("Remove "+text).
+			Size(HeightCompact-4, HeightCompact-4).Radius(inner).Justify(ui.Center).AlignItems(ui.Center).TextColor(p.Accent)
+		if x.Hovered() {
+			x.Background(p.Accent.Alpha(0.12))
+		}
+		x.Children(func() { ui.Icon(c, closeIcon).Size(10, 10) })
+		if x.Clicked() {
+			remove()
+		}
+	})
+}
+
 func MethodLabel(c *ui.Context, method string) ui.Element {
 	return ui.Text(c, method).Font(FontMono).FontSize(TextBody).
 		TextColor(MethodColor(method, c.Theme())).SingleLine()
