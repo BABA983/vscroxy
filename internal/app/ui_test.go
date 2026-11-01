@@ -714,7 +714,7 @@ func TestCaptureUIUsesOnlyTheRunningListener(t *testing.T) {
 	a := workspaceApp()
 	a.srv, a.flows, a.visible = srv, nil, nil
 	tt := ui.NewTester(a.view, 1240, 800)
-	if !tt.HasText("Proxy stopped") || tt.HasText("Proxy running · "+srv.Addr()) {
+	if !tt.HasText("Proxy stopped") || tt.HasText(srv.Addr()) {
 		t.Fatal("an unstarted server must not appear live")
 	}
 	a.setSystemProxy(true)
@@ -725,8 +725,26 @@ func TestCaptureUIUsesOnlyTheRunningListener(t *testing.T) {
 		t.Fatal(err)
 	}
 	tt.Frame()
-	if !tt.HasText("Proxy running · "+srv.Addr()) || !tt.HasText("Listening at "+srv.Addr()+" · no retained requests yet") {
+	if !tt.HasText("Recording") || !tt.HasText(srv.Addr()) || !tt.HasText("Listening at "+srv.Addr()+" · no retained requests yet") {
 		t.Fatalf("capture must show its actual bound address, texts: %q", tt.Texts())
+	}
+	// Paused, the proxy still forwards but keeps only what the app itself
+	// sent; resuming keeps ambient traffic again.
+	if err := tt.Click("Pause recording"); err != nil {
+		t.Fatal(err)
+	}
+	a.pending = []capture.Flow{{ID: 1, Method: "GET", Host: "ambient.test"}, {ID: 2, Method: "GET", Host: "editor.test", DebugRun: "run"}}
+	tt.Frame()
+	if !tt.HasText("Paused") || len(a.flows) != 1 || a.flows[0].id != 2 {
+		t.Fatalf("paused recording kept %d flows, want only the editor's send", len(a.flows))
+	}
+	if err := tt.Click("Resume recording"); err != nil {
+		t.Fatal(err)
+	}
+	a.pending = []capture.Flow{{ID: 3, Method: "GET", Host: "ambient.test"}}
+	tt.Frame()
+	if !tt.HasText("Recording") || len(a.flows) != 2 || a.flows[1].id != 3 {
+		t.Fatalf("resumed recording kept %d flows, want the ambient one too", len(a.flows))
 	}
 	for _, label := range []string{"Settings", "Proxy"} {
 		if err := tt.Click(label); err != nil {

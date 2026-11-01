@@ -49,6 +49,9 @@ func TestThemesKeepTextReadable(t *testing.T) {
 				check("primary action", theme.AccentText, fill, 4.5)
 			}
 			check("tooltip", theme.InverseText, theme.Inverse, 4.5)
+			// A duration sits on its bar: muted on a normal one, body text on a slow one.
+			check("duration on bar", theme.TextMuted, p.Bar.Over(theme.SurfacePressed), 3)
+			check("slow duration", theme.Text, theme.Danger.Alpha(0.16).Over(theme.SurfacePressed), 4.5)
 			// Status pills: quiet statuses are untinted, the rest sit on a 12% tint.
 			for _, status := range []int{200, 304, 302, 404, 503} {
 				ink, fill := StatusColor(status, theme), theme.Background

@@ -122,7 +122,7 @@ uikit 组件总览设计稿（实现后以第 11 节的总览截图为准）：
 | GET／POST | `#2f5d8a`／`#58661e` | `#8fb3d1`／`#b5c27a` | |
 | PATCH／WS | `#7a3e6d`／`#2b6868` | `#c99abd`／`#7cc4c0` | |
 | Inverse／InverseText | `#1f2a24`／`#f7f4ec` | `#e6e1d3`／`#121614` | tooltip |
-| 柱状图／耗时条（正常） | `#cfc8b8` | `#4a4d47` | 待实现 |
+| `Bar`：耗时条（正常） | `#e3ddcf` | `#2a312c` | 数字压在它上面，所以比原设计浅；慢请求用 Danger 16% 浅底。活动柱状图待实现 |
 | 耗时分段 DNS／Connect／TLS／Wait／Download | Info／WS／PATCH／Warning／Accent | 同左 | 待实现；五段必须可区分 |
 
 对比度（线性 sRGB 相对亮度，在背景、Panel、Hover、Pressed 上计算）由 `internal/uikit/theme_test.go` 检查：正文和信号色、method 色、强调色、主按钮文字 ≥ 4.5:1，次要文字 ≥ 3:1，TextFaint 不参与。Paper 的信息、警告、危险、POST、WS 比最初的设计值加深过，就是为了在 Hover／Pressed 底上达标。
@@ -192,9 +192,9 @@ uikit 组件总览设计稿（实现后以第 11 节的总览截图为准）：
 | 类别 | 组件 |
 | --- | --- |
 | 按钮 | `PrimaryButton`、`SecondaryButton`、`DangerButton`（24，后两个无边框、中性面）、`CompactButton`（20）、`ToolbarButton`（透明底，可带 active 浅底）、`IconButton`（24 正方形，必带 tooltip）、`RowButton`（列表里的整行，没有 hover）、`SwatchButton`（标记色） |
-| 输入 | `Input`（中性填充加细线，聚焦时 3px 强调色光晕代替焦点环）、`FieldFace`（同样的面给自带控件的输入行，如搜索框和 URL 栏）、`Select`（按钮的面）、`Segmented`（凹槽加浮起的滑块，只用于互斥的模式）、`Tabs`／`CountedTabs`（选中是强调浅底圆角块加强调色文字，可带计数）、`SubTabs`（嵌在另一行 tab 选中内容里的第二层，选中只有强调色文字） |
+| 输入 | `Input`（中性填充加细线，聚焦时 3px 强调色光晕代替焦点环）、`FieldFace`（同样的面给自带控件的输入行，如搜索框和 URL 栏）、`Select`／`MenuSelect`（按钮的面；后者给用菜单做的选择，如 body 格式）、`Segmented`（凹槽加浮起的滑块，只用于互斥的模式）、`Tabs`／`CountedTabs`（选中是强调浅底圆角块加强调色文字，可带计数）、`SubTabs`（嵌在另一行 tab 选中内容里的第二层，选中只有强调色文字） |
 | 列表和侧栏 | `ListTheme`（MyGo 表格／列表／树的选中色）、`Marker`／`RowMarker`、`Selected`、`SidebarItem`、`SidebarSection` |
-| 信号 | `StatusPill`（2xx／304 不加底色）、`MethodLabel`、`MethodColor`、`StatusColor`、`MarkColors`、`BadgeColors` |
+| 信号 | `Sparkline`（录制 pill 的速率曲线）、`StatusPill`（2xx／304 不加底色）、`MethodLabel`、`MethodColor`、`StatusColor`、`MarkColors`、`BadgeColors` |
 | 结构和反馈 | `KVRow`（只读）、`EmptyState`、`Toasts`、`Modal`、`DialogColumn`、`DialogTitle`、`DialogFooter`、`PopoverPanel`、`EditorTheme` |
 
 待做（随用到它们的步骤加入）：
@@ -202,7 +202,7 @@ uikit 组件总览设计稿（实现后以第 11 节的总览截图为准）：
 - 控件：Button 的 ghost 变体和 32 档、Input 的错误态、Checkbox／Switch 包装、LayoutToggle。
 - 结构：PaneHeader（标题、tab、次要信息、操作在同一行）、可编辑 KVGrid、FormRow（标签左、控件右、说明在控件下一行）、Splitter。
 - 反馈：Callout（信息／警告／错误，一行文字加文字操作）、StatusText、CountBadge、CheckResult。
-- 标志性组件：RecordingPill、QueryBar、ActivityStrip、DurationBar、TimingBar、ResponseHeadline、SourceBadge、EnvironmentSelect。
+- 标志性组件：QueryBar、ActivityStrip、TimingBar、ResponseHeadline、SourceBadge、EnvironmentSelect。
 
 ### 6.6 图标
 
@@ -283,6 +283,8 @@ uikit 已按"主题 = 语义 token 表"实现，导入第三方主题不用返�
        - 侧栏占满高度只在 macOS（红绿灯在左上角）；Windows、Linux 的窗口按钮在右边，标题栏横跨整个窗口，品牌在它左侧，录制 pill 居中在窗口上。
        - 还没统一的：Settings 对话框的分类列表（随 Settings 独立窗口，M1）。
 4. **标志性组件：** 录制 pill 的速率曲线、查询语法筛选、活动柱状图、耗时条、响应结论、瀑布视图（Table／Waterfall 切换）。
+   - 4.1 录制 pill（完成，方案 A）：一个 24 高、细线边框的 pill，依次是状态点、状态（Recording／Paused／Proxy stopped）、等宽监听地址（设备接入时加 `· LAN`）、最近 60 秒的速率曲线（56×14，2 秒一个点，平滑曲线下面一层向下渐隐的浅色阴影）、最近 10 秒的平均速率，竖线后面是 20 的暂停／继续按钮；点左边部分打开 Settings → Proxy，代理停止时只有红点、文字和 `›`。暂停时代理照常转发，但不保留外部流量（连同它的 WebSocket／SSE 消息），编辑器发出的请求和重放仍然保留；曲线变平、不显示速率。命令面板里有 Pause／Resume recording。
+   - 4.2 耗时条（完成，方案 C）：不加新列，Duration 单元格从右往左铺一层浅底，长度按耗时的对数（0 到 60 秒），数字压在上面；≥ 1 秒是慢请求，底是 Danger 16%，数字用正文色；侧栏的 Slow 也按 1 秒算（原来是 120 ms）。
 5. **随里程碑落地：** 首次启动引导和 Settings 独立窗口随 M1，Host 方案随 M2，Tools 窗口随 M4（见第 10 节）。
 6. **第三方主题：** 第 8 节的映射、内置主题和导入。
 
@@ -359,3 +361,4 @@ XDG_CACHE_HOME=/tmp/vscroxy-ui-cache VSCROXY_SNAPSHOTS="$PWD/.amp/in/artifacts/u
 19. 按钮和输入框不画边框，面是文字色的低透明度叠加；列表和表格的行没有 hover；菜单高亮是强调色实底（3.5）。
 20. 强调色不跟随系统的强调色（3.5）。
 21. macOS 上侧栏占满窗口高度，红绿灯和品牌在侧栏顶部，录制 pill 居中在侧栏右边那一栏；Windows、Linux 的标题栏横跨窗口（3.5b）。
+22. 录制 pill 用方案 A（暂停按钮在 pill 内）；耗时条用方案 C（铺在 Duration 单元格里，不占新列，尽量利用空间）；慢请求的线是 1 秒（4）。

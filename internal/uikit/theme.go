@@ -17,6 +17,9 @@ type Palette struct {
 	MethodGet, MethodPost, MethodPatch, Socket ui.Color
 	// Inverse fills tooltips, so they stand out from what they cover.
 	Inverse, InverseText ui.Color
+	// Bar measures a normal quantity behind its number, as a request's
+	// duration in the traffic table; a slow one is Danger at a tint.
+	Bar ui.Color
 }
 
 // Paper is the light theme: ink on warm paper. TextFaint is only for
@@ -31,6 +34,7 @@ var Paper = Palette{
 	MethodGet: ui.Hex("#2f5d8a"), MethodPost: ui.Hex("#58661e"), MethodPatch: ui.Hex("#7a3e6d"),
 	Socket:  ui.Hex("#2b6868"),
 	Inverse: ui.Hex("#1f2a24"), InverseText: ui.Hex("#f7f4ec"),
+	Bar: ui.Hex("#e3ddcf"),
 }
 
 // Ink is the dark theme: warm paper-colored ink on a green-black board.
@@ -44,6 +48,7 @@ var Ink = Palette{
 	MethodGet: ui.Hex("#8fb3d1"), MethodPost: ui.Hex("#b5c27a"), MethodPatch: ui.Hex("#c99abd"),
 	Socket:  ui.Hex("#7cc4c0"),
 	Inverse: ui.Hex("#e6e1d3"), InverseText: ui.Hex("#121614"),
+	Bar: ui.Hex("#2a312c"),
 }
 
 // Theme is MyGo's theme for a palette. Surface is the face of MyGo's own

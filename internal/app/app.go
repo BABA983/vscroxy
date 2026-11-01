@@ -9,6 +9,7 @@ import (
 	"hash/fnv"
 	"log"
 	"maps"
+	"math"
 	"net"
 	"net/http"
 	"net/url"
@@ -186,6 +187,15 @@ type app struct {
 	// newRows counts traffic that arrived while the list was paused, so the
 	// footer can offer to resume following without moving the reader.
 	newRows int
+
+	// recordingPaused keeps the proxy forwarding without keeping ambient
+	// traffic; unrecorded holds what it let pass, so their messages are not
+	// kept either. rate counts what was kept, and lastFlow is when capture
+	// last delivered anything, for the curve's clock.
+	recordingPaused bool
+	unrecorded      map[int]bool
+	rate            rateWindow
+	lastFlow        atomic.Int64
 
 	srv         *capture.Server
 	win         *mygo.Window
@@ -638,7 +648,11 @@ func (a *app) startCapture() {
 	a.invalidate()
 	go a.collectBreakpoints()
 	go a.collectFrames()
+	done := make(chan struct{})
+	defer close(done)
+	go a.tickRate(done)
 	for f := range a.srv.Flows() {
+		a.lastFlow.Store(time.Now().Unix())
 		a.mu.Lock()
 		a.pending = append(a.pending, f)
 		a.mu.Unlock()
@@ -815,7 +829,9 @@ func (a *app) drain() {
 	a.pendingFrames = nil
 	a.mu.Unlock()
 	for _, ev := range pendingFrames {
-		a.addFrame(ev)
+		if !a.unrecorded[ev.FlowID] {
+			a.addFrame(ev)
+		}
 	}
 	if a.bp == nil {
 		a.mu.Lock()
@@ -840,7 +856,7 @@ func (a *app) drain() {
 			a.bpAbort = "502 Bad Gateway"
 		}
 	}
-	if len(pending) == 0 {
+	if pending = a.record(pending); len(pending) == 0 {
 		return
 	}
 	// New traffic arriving while the reader is away from the end is counted,
@@ -1003,7 +1019,7 @@ func (a *app) applyFilter() {
 		if a.filter == "errors" && !f.failed() {
 			continue
 		}
-		if a.filter == "slow" && f.millis < 120 {
+		if a.filter == "slow" && f.millis < slowMillis {
 			continue
 		}
 		if host, ok := strings.CutPrefix(a.filter, "host:"); ok && f.host != host {
@@ -1465,7 +1481,7 @@ func (a *app) sidebar(c *ui.Context) {
 					uikit.Meta(c, fmt.Sprint(a.count(flow.failed))).FontFeatures("tnum")
 				})
 				uikit.SidebarItem(c, "slow", captureIcon, "Slow", a.sidebarChoice == "slow", !a.windowBehind).Children(func() {
-					uikit.Meta(c, fmt.Sprint(a.count(func(f flow) bool { return f.millis >= 120 }))).FontFeatures("tnum")
+					uikit.Meta(c, fmt.Sprint(a.count(func(f flow) bool { return f.millis >= slowMillis }))).FontFeatures("tnum")
 				})
 				uikit.SidebarItem(c, "pinned", pinIcon, "Pinned", a.sidebarChoice == "pinned", !a.windowBehind).Children(func() {
 					uikit.Meta(c, fmt.Sprint(a.count(func(f flow) bool { return f.pinned }))).FontFeatures("tnum")
@@ -1855,7 +1871,7 @@ func (a *app) table(c *ui.Context) {
 			}
 			quiet(f.process).Padding(0, 0, 0, t.Space(2)).PopoverMenu(a.rowMenu(c, f))
 		case "duration":
-			quiet(fmt.Sprintf("%d ms", f.millis))
+			durationCell(c, t, f.millis, quiet)
 		case "size":
 			quiet(humanBytes(f.bytes))
 		case "captured":
@@ -1888,6 +1904,32 @@ func (a *app) table(c *ui.Context) {
 }
 
 var noteIcon = lucide.MessageSquare()
+
+// slowMillis is where a request's duration turns vermilion in the table.
+const slowMillis = 1000
+
+// durationCell fills the cell from its right edge, under the number, by the
+// logarithm of the time up to a minute: a column of numbers becomes a
+// column of lengths without a column of its own. Slow requests fill in
+// vermilion.
+func durationCell(c *ui.Context, t *ui.Theme, millis int, number func(string) ui.Element) {
+	fill := uikit.Colors(t).Bar
+	if millis >= slowMillis {
+		fill = t.Danger.Alpha(0.16)
+	}
+	share := float32(min(math.Log1p(float64(max(millis, 0)))/math.Log1p(60_000), 1))
+	ui.Row(c).Grow(1).MinWidth(0).Justify(ui.End).AlignItems(ui.Center).Padding(0, t.Space(1)).
+		Draw(func(p *ui.Painter, r ui.Rect) {
+			w := r.W * share
+			p.Fill(ui.Rect{X: r.X + r.W - w, Y: r.Y, W: w, H: r.H}, fill, 2)
+		}).
+		Children(func() {
+			cell := number(fmt.Sprintf("%d ms", millis))
+			if millis >= slowMillis {
+				cell.TextColor(t.Text)
+			}
+		})
+}
 
 // highlightColor is the color a flow is marked with.
 func highlightColor(name string) (ui.Color, bool) {

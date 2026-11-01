@@ -157,6 +157,39 @@ func Select(c *ui.Context, selected *string, options []string) ui.Element {
 		Height(HeightControl).Padding(0, c.Theme().Space(2)).FontSize(TextBody).Radius(RadiusControl)
 }
 
+// Sparkline draws counts oldest first as a smooth line over a soft shade
+// that fades to the baseline, scaled to the largest, in a box the size of
+// a line of meta text; no counts draws it flat.
+func Sparkline(c *ui.Context, counts []int, ink ui.Color) ui.Element {
+	peak := 1
+	for _, n := range counts {
+		peak = max(peak, n)
+	}
+	return ui.Box(c).Size(56, 14).Shrink(0).Draw(func(p *ui.Painter, r ui.Rect) {
+		const stroke = 1.25
+		bottom, height := r.Y+r.H-stroke/2, r.H-stroke
+		if len(counts) < 2 {
+			p.Line(r.X, bottom, r.X+r.W, bottom, stroke, ink)
+			return
+		}
+		x := func(i int) float32 { return r.X + r.W*float32(i)/float32(len(counts)-1) }
+		y := func(i int) float32 { return bottom - height*float32(counts[i])/float32(peak) }
+		// Through the midpoints between samples, with each sample as the
+		// control point: a curve that never overshoots below zero.
+		var line ui.Path
+		line.MoveTo(x(0), y(0))
+		for i := 1; i < len(counts)-1; i++ {
+			line.QuadTo(x(i), y(i), (x(i)+x(i+1))/2, (y(i)+y(i+1))/2)
+		}
+		last := len(counts) - 1
+		line.LineTo(x(last), y(last))
+		shade := line
+		shade.LineTo(x(last), r.Y+r.H).LineTo(x(0), r.Y+r.H).Close()
+		p.FillPathGradient(&shade, ui.LinearGradient{From: ink.Alpha(0.45), To: ink.Alpha(0.04), Angle: 180})
+		p.StrokePath(&line, stroke, ink)
+	})
+}
+
 // MenuSelect is Select for choices built as a menu: a button naming the
 // current one, with the same face, that opens the menu.
 func MenuSelect(c *ui.Context, current string, menu func(*ui.Menu)) ui.Element {

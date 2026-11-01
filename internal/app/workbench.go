@@ -330,6 +330,10 @@ func (a *app) desktopActions(c *ui.Context) []desktopAction {
 	if w.focused {
 		focus = "Back to list"
 	}
+	recording := "Pause recording"
+	if a.recordingPaused {
+		recording = "Resume recording"
+	}
 	primary := "Focus request list"
 	if tab {
 		primary = "Focus request URL"
@@ -396,6 +400,9 @@ func (a *app) desktopActions(c *ui.Context) []desktopAction {
 		{"break", fmt.Sprintf("Break requests · %t", a.breakOn), a.srv != nil, 0, 0, func() {
 			a.breakOn = !a.breakOn
 			a.srv.SetBreak(a.breakOn)
+		}},
+		{"recording", recording, a.srv != nil && a.srv.Running(), 0, 0, func() {
+			a.recordingPaused = !a.recordingPaused
 		}},
 		{"layout-right", "Layout: Side by side", true, 0, 0, func() { w.layout, w.focused = "right", false }},
 		{"layout-bottom", "Layout: Stacked", true, 0, 0, func() { w.layout, w.focused = "bottom", false }},

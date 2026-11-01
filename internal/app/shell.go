@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/baba983/vscroxy/internal/uikit"
 	"runtime"
+	"time"
 
 	"github.com/baba983/vscroxy/internal/capture"
 	"github.com/egoist/mygo/ui"
@@ -85,30 +86,78 @@ func (a *app) layoutToggle(c *ui.Context) {
 	}
 }
 
-// proxyIndicator reports the listener, never HTTPS inspection or list following.
-// Recording pause is a separate feature; this pill does not imply it exists.
+// proxyIndicator is the recording pill: whether traffic is being kept,
+// where the proxy listens, and how much is arriving, with pause beside it.
+// Listening is never presented as proof of HTTPS inspection.
 func (a *app) proxyIndicator(c *ui.Context, t *ui.Theme) {
+	pal := uikit.Colors(t)
 	running := a.srv != nil && a.srv.Running()
-	label, color := "Proxy stopped", t.TextMuted
+	state, dot := "Proxy stopped", t.Danger
+	switch {
+	case running && a.recordingPaused:
+		state, dot = "Paused", pal.TextFaint
+	case running:
+		state, dot = "Recording", t.Success
+	}
+	tip := "Proxy settings · the listener failed or is off"
 	if running {
-		label, color = "Proxy running · "+a.srv.Addr(), t.TextMuted
+		tip = "Listening address · proxy settings; listening is not proof of HTTPS inspection"
 	}
-	if a.deviceUI.gateway != nil {
-		label += " · LAN"
-	}
-	b := uikit.ToolbarButton(c, "Proxy status", "Listening address · proxy settings; listening is not proof of HTTPS inspection", false).
-		Background(t.Background).Border(1, t.Border).Radius(uikit.HeightControl / 2).MinWidth(0)
-	b.Children(func() {
-		dot := t.Danger
-		if running {
-			dot = t.Success
+	ui.Row(c).Height(uikit.HeightControl).MinWidth(0).AlignItems(ui.Center).Gap(0).Padding(0, 1).
+		Radius(uikit.RadiusControl).Border(1, t.Border).Background(t.Background).Children(func() {
+		// Inset by the border, so the faces stay concentric with the pill.
+		b := uikit.ToolbarButton(c, "Proxy status", tip, false).Height(uikit.HeightControl-4).
+			Radius(uikit.RadiusControl-2).MinWidth(0).Padding(0, t.Space(2)).FontSize(uikit.TextMeta)
+		b.Children(func() {
+			ui.Box(c).Size(7, 7).Radius(uikit.RadiusControl).Background(dot)
+			ui.Text(c, state).TextColor(t.Text).SingleLine()
+			if !running {
+				ui.Icon(c, statusMoreIcon).Size(uikit.IconInline-2, uikit.IconInline-2)
+				return
+			}
+			addr := a.srv.Addr()
+			if a.deviceUI.gateway != nil {
+				addr += " · LAN"
+			}
+			ui.Text(c, addr).Font(uikit.FontMono).FontFeatures("tnum").SingleLine().MinWidth(0)
+			a.rate.advance(time.Now().Unix())
+			if a.recordingPaused {
+				// Nothing ambient is kept, so there is no rate to show.
+				uikit.Sparkline(c, nil, pal.TextFaint).Label("Recording paused")
+				return
+			}
+			// Two-second sums: 30 points over 48px draw a line, not a saw.
+			var curve [30]int
+			for i, n := range a.rate.counts {
+				curve[i/2] += n
+			}
+			uikit.Sparkline(c, curve[:], t.TextMuted).Label("Requests per second, last minute")
+			ui.Text(c, rateLabel(a.rate.perSecond())).Font(uikit.FontMono).FontFeatures("tnum").SingleLine()
+		})
+		if b.Clicked() {
+			a.settingsTab, a.settingsOpen = 1, true
 		}
-		ui.Box(c).Size(7, 7).Radius(uikit.RadiusControl).Background(dot)
-		ui.Text(c, label).FontSize(uikit.TextMeta).FontFeatures("tnum").TextColor(color).SingleLine()
+		if !running {
+			return
+		}
+		ui.Box(c).Size(1, uikit.IconInline).Background(t.Border)
+		label, tip, icon := "Pause recording", "Pause recording · the proxy keeps forwarding without keeping traffic", pauseIcon
+		if a.recordingPaused {
+			label, tip, icon = "Resume recording", "Resume recording", resumeIcon
+		}
+		if uikit.IconButton(c, label, tip, icon).Size(uikit.HeightCompact, uikit.HeightCompact).Radius(uikit.RadiusControl - 2).MarginStart(1).Clicked() {
+			a.recordingPaused = !a.recordingPaused
+		}
 	})
-	if b.Clicked() {
-		a.settingsTab, a.settingsOpen = 1, true
+}
+
+// rateLabel is a request rate as the pill prints it: tenths while it is
+// low enough for them to matter.
+func rateLabel(perSecond float64) string {
+	if perSecond == 0 || perSecond >= 10 {
+		return fmt.Sprintf("%.0f/s", perSecond)
 	}
+	return fmt.Sprintf("%.1f/s", perSecond)
 }
 
 // networkTools is shared by Tools, the enabled chips and More → Network.
