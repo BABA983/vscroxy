@@ -13,6 +13,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/baba983/vscroxy/internal/capture"
 	"github.com/baba983/vscroxy/internal/uikit"
 	"github.com/egoist/mygo/ui"
 )
@@ -121,6 +122,23 @@ func (a *app) applyUpstream() {
 }
 
 func (a *app) captureSettings(c *ui.Context, t *ui.Theme) {
+	// list is a field of a host or app list: its editor and how many it has.
+	list := func(label, text, unit, about string, open *bool) ui.Element {
+		return ui.Field(c, label, func() {
+			ui.Row(c).Gap(t.Space(3)).AlignItems(ui.Center).Children(func() {
+				if uikit.SecondaryButton(c, label+"…").Clicked() {
+					a.leaveSettings()
+					*open = true
+				}
+				n := len(splitHosts(text))
+				summary := "None"
+				if n > 0 {
+					summary = fmt.Sprintf("%d %s", n, plural(n, unit, unit+"s"))
+				}
+				uikit.Hint(c, summary)
+			})
+		}).Description(about)
+	}
 	uikit.SettingsPage(c, "Capture", "What capture changes on the way, and what the table shows.", func() {
 		uikit.SettingsGroup(c, "Responses", func() {
 			ui.Field(c, "Caching", func() {
@@ -130,27 +148,32 @@ func (a *app) captureSettings(c *ui.Context, t *ui.Theme) {
 				}
 			}).Description("Strip caching headers both ways, so every response comes from the server.")
 		})
-		uikit.SettingsGroup(c, "Capture visibility", func() {
-			list := func(label, text, unit, about string, open *bool) {
-				ui.Field(c, label, func() {
-					ui.Row(c).Gap(t.Space(3)).AlignItems(ui.Center).Children(func() {
-						if uikit.SecondaryButton(c, label+"…").Clicked() {
-							a.leaveSettings()
-							*open = true
-						}
-						n := len(splitHosts(text))
-						summary := "None"
-						if n > 0 {
-							summary = fmt.Sprintf("%d %s", n, plural(n, unit, unit+"s"))
-						}
-						uikit.Hint(c, summary)
-					})
-				}).Description(about)
+		uikit.SettingsGroup(c, "Allow list", func() {
+			empty := len(splitHosts(a.allowText))+len(splitHosts(a.allowAppsText)) == 0
+			problem := ""
+			if a.allowOn && empty {
+				problem = "Nothing is shown until you add a host or an app."
 			}
-			list("Ignored hosts", a.ignoreText, "host", "Still proxied, but not shown in the table.", &a.ignoreOpen)
-			list("Ignored apps", a.ignoreAppsText, "app", "The same by app, as the sidebar's Apps names them.", &a.ignoreAppsOpen)
+			ui.Field(c, "Allow list", func() {
+				if ui.Switch(c, &a.allowOn).Label("Only show allowed traffic").Changed() {
+					a.applyAllow()
+				}
+			}).Description("Show only the hosts and apps below. Everything else is still proxied, just not recorded.").Error(problem)
+			list("Allowed hosts", a.allowText, "host", "Each host with its subdomains.", &a.allowOpen)
+			list("Allowed apps", a.allowAppsText, "app", "As the sidebar's Apps names them.", &a.allowAppsOpen)
+		})
+		uikit.SettingsGroup(c, "Ignored", func() {
+			list("Ignored hosts", a.ignoreText, "host", "Still proxied, but not shown in the table, even when allowed.", &a.ignoreOpen)
+			list("Ignored apps", a.ignoreAppsText, "app", "The same by app.", &a.ignoreAppsOpen)
 		})
 	})
+}
+
+// applyAllow hands the allow list to the proxy, for new flows.
+func (a *app) applyAllow() {
+	if a.srv != nil {
+		a.srv.SetAllow(capture.AllowList{On: a.allowOn, Hosts: splitHosts(a.allowText), Apps: splitHosts(a.allowAppsText)})
+	}
 }
 
 func (a *app) deviceSettings(c *ui.Context, t *ui.Theme) {

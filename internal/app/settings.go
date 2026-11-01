@@ -47,6 +47,9 @@ type settings struct {
 	VaultScripts bool `json:"vaultScripts,omitzero"`
 	// Guide keeps the setup guide open until it is finished or skipped.
 	Guide bool `json:"guide,omitzero"`
+	// AllowList narrows the table to the hosts and apps in allow.txt and
+	// allow-apps.txt.
+	AllowList bool `json:"allowList,omitzero"`
 }
 
 func (s settings) proxyAddr() (string, error) {
@@ -164,6 +167,7 @@ func sameSettings(x, y settings) bool {
 		x.ProxyPort == y.ProxyPort &&
 		x.VaultScripts == y.VaultScripts &&
 		x.Guide == y.Guide &&
+		x.AllowList == y.AllowList &&
 		slices.Equal(x.Columns.Order, y.Columns.Order) &&
 		maps.Equal(x.Columns.Widths, y.Columns.Widths)
 }

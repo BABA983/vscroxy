@@ -847,6 +847,43 @@ func TestSettingsSwitchesApplyAtOnce(t *testing.T) {
 	}
 }
 
+func TestAllowListFromSettingsAndToolbar(t *testing.T) {
+	a := workspaceApp()
+	a.srv = requestProxy(t)
+	a.settingsOpen = true
+	tt := ui.NewTester(a.view, 1280, 800)
+	click := func(label string) {
+		t.Helper()
+		if err := tt.Click(label); err != nil {
+			t.Fatal(err)
+		}
+		tt.Frame()
+	}
+	click("Settings category: Capture")
+	click("Only show allowed traffic")
+	if l := a.srv.Allow(); !l.On || len(l.Hosts) != 0 {
+		t.Fatalf("allow list = %+v, want on and empty", l)
+	}
+	if !tt.HasText("Nothing is shown until you add a host or an app.") {
+		t.Fatal("an empty allow list was not flagged")
+	}
+	a.lastSave = time.Time{} // past the write debounce
+	if err := a.persistSettings(); err != nil || !a.saved.AllowList {
+		t.Fatalf("the allow list switch was not saved: %v", err)
+	}
+	click("Allowed hosts…")
+	a.allowText = "api.example.com\n# a comment"
+	tt.Frame()
+	click("Save")
+	if l := a.srv.Allow(); !l.On || len(l.Hosts) != 1 || l.Hosts[0] != "api.example.com" {
+		t.Fatalf("allow list = %+v, want api.example.com", l)
+	}
+	click("Disable Allow list")
+	if a.allowOn || a.srv.Allow().On {
+		t.Fatal("the toolbar chip did not turn the allow list off")
+	}
+}
+
 func TestSettingsCategoriesKeepNativeNavigationAndEditorRoutes(t *testing.T) {
 	a := workspaceApp()
 	a.settingsOpen = true
@@ -872,6 +909,8 @@ func TestSettingsCategoriesKeepNativeNavigationAndEditorRoutes(t *testing.T) {
 		t.Fatal("native End navigation did not select Devices")
 	}
 	click("Settings category: Capture")
+	tt.Scroll(600, 300, 0, 400) // the Ignored group is below the fold
+	tt.Frame()
 	click("Ignored hosts…")
 	if !tt.HasText("Ignored hosts") || a.settingsOpen {
 		t.Fatal("Capture did not hand off to the existing ignored-host editor")

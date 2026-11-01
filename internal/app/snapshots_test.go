@@ -316,6 +316,10 @@ func TestUISnapshots(t *testing.T) {
 		{name: "dialog-settings-https", setup: func(a *app) { snapshotSettings(a, 2) }, want: "TLS key log…", short: true},
 		{name: "dialog-settings-appearance", setup: func(a *app) { snapshotSettings(a, 3) }, want: "Settings"},
 		{name: "dialog-settings-capture", setup: func(a *app) { snapshotSettings(a, 4) }, want: "Settings"},
+		{name: "dialog-settings-allow-list", setup: func(a *app) {
+			snapshotSettings(a, 4)
+			a.allowOn, a.allowText = true, "api.example.com\n.internal.test"
+		}, want: "Only show allowed traffic"},
 		{name: "dialog-settings-devices", setup: func(a *app) { snapshotSettings(a, 5) }, want: "Settings"},
 		{name: "dialog-upstream", setup: func(a *app) { a.upstreamOpen, a.upstreamAddr = true, "http://proxy.example.com:8080" }, want: "Upstream proxy"},
 		{name: "dialog-ssl", setup: func(a *app) { a.sslOpen, a.sslHosts = true, "api.example.com\n*.example.org" }, want: "SSL proxying", short: true},

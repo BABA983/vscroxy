@@ -597,6 +597,61 @@ func TestIgnoredAppsAreNotShown(t *testing.T) {
 	}
 }
 
+func TestAllowListShowsOnlyAllowedHostsAndApps(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, "ok")
+	}))
+	defer upstream.Close()
+	exe, err := os.Executable()
+	if err != nil {
+		t.Fatalf("executable path: %v", err)
+	}
+
+	s, _ := startServer(t)
+	get := func(path string) {
+		t.Helper()
+		resp, err := clientFor(t, s, nil).Get(upstream.URL + path)
+		if err != nil {
+			t.Fatalf("request through proxy: %v", err)
+		}
+		body, err := io.ReadAll(resp.Body)
+		_ = resp.Body.Close()
+		if err != nil || string(body) != "ok" {
+			t.Fatalf("body = %q, %v; want the response untouched", body, err)
+		}
+	}
+	hidden := func(path string) {
+		t.Helper()
+		get(path)
+		select {
+		case f := <-s.Flows():
+			t.Fatalf("flow outside the allow list was published: %+v", f)
+		case <-time.After(300 * time.Millisecond):
+		}
+	}
+	shown := func(path string) {
+		t.Helper()
+		get(path)
+		if f := waitFlow(t, s); !strings.HasSuffix(f.URL, path) {
+			t.Fatalf("published %q, want %q", f.URL, path)
+		}
+	}
+
+	s.SetAllow(AllowList{On: true, Hosts: []string{"example.com"}, Apps: []string{"some-other-app"}})
+	hidden("/unlisted")
+	s.SetAllow(AllowList{On: true})
+	hidden("/empty-list")
+	s.SetAllow(AllowList{On: true, Apps: []string{strings.ToUpper(filepath.Base(exe))}})
+	shown("/by-app")
+	s.SetAllow(AllowList{On: true, Hosts: []string{"127.0.0.1"}})
+	shown("/by-host")
+	s.SetIgnore([]string{"127.0.0.1"})
+	hidden("/ignored-wins")
+	s.SetIgnore(nil)
+	s.SetAllow(AllowList{Hosts: []string{"example.com"}})
+	shown("/off")
+}
+
 func TestTimingSplitsWaitAndDownload(t *testing.T) {
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		time.Sleep(40 * time.Millisecond)

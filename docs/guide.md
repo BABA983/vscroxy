@@ -542,6 +542,18 @@ kept in `~/.vscroxy/ignore.txt` and matched like the SSL list.
 shows, in `~/.vscroxy/ignore-apps.txt`: a browser's background traffic stays
 out of the table while another app's does not.
 
+## Allow list
+
+**Settings → Capture → Allow list** does the opposite: while **Only show
+allowed traffic** is on, the table shows only flows to an allowed host (with
+its subdomains, matched like the ignore list) or from an allowed app. Everything
+else is still proxied, just not recorded. The lists are kept in
+`~/.vscroxy/allow.txt` and `~/.vscroxy/allow-apps.txt`, and the switch is
+remembered across launches. An ignored host or app stays out even when allowed.
+With the switch on and both lists empty nothing is shown, and Settings says so.
+While it is on, an **Allow list** chip sits above the traffic table: click it
+to edit the lists, or its × to turn the allow list off.
+
 ## DNS mapping
 
 **Network → DNS mapping…** lists names the proxy resolves itself, a line of

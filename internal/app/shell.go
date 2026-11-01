@@ -194,7 +194,7 @@ func (a *app) activeTools(c *ui.Context, t *ui.Theme) {
 	scenario := capture.ActiveScenario(a.rules)
 	throttled := a.throttle.Name != "" && a.throttle.Name != "Off"
 	noCaching := a.srv != nil && a.srv.NoCaching()
-	if !a.breakOn && !throttled && !noCaching && scenario == "" && a.upstream == "" {
+	if !a.breakOn && !throttled && !noCaching && !a.allowOn && scenario == "" && a.upstream == "" {
 		return
 	}
 	ui.ScrollHorizontal(c.Key("active-tools")).Height(uikit.HeightLarge).Background(uikit.Colors(t).Panel).Border(0, t.Border).BorderWidth(0, 0, 1, 0).Children(func() {
@@ -219,6 +219,12 @@ func (a *app) activeTools(c *ui.Context, t *ui.Theme) {
 				toolChip(c, "no-caching", "No Caching", "Change caching and network conditions", cacheIcon, nil, func() {
 					a.srv.SetNoCaching(false)
 				}).PopoverMenuButton(a.networkTools)
+			}
+			if a.allowOn {
+				toolChip(c, "allow-list", "Allow list", "Edit the allow list", filterIcon, func() { a.openSettings(4) }, func() {
+					a.allowOn = false
+					a.applyAllow()
+				})
 			}
 			if scenario != "" {
 				toolChip(c, "scenario", "Scenario: "+scenario, "Manage scenario: "+scenario, layersIcon, a.openRules, func() {

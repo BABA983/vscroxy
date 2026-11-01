@@ -338,6 +338,7 @@ type Server struct {
 	ssl        atomic.Value // SSLConfig
 	ignoreList atomic.Value // []string
 	ignoreApps atomic.Value // []string
+	allowList  atomic.Value // AllowList
 
 	breakOn     atomic.Bool
 	noCaching   atomic.Bool
@@ -626,11 +627,42 @@ func (s *Server) IgnoreApps() []string {
 
 // ignoredApp reports whether the flow of an app is dropped.
 func (s *Server) ignoredApp(name string) bool {
+	return appMatches(name, s.IgnoreApps())
+}
+
+// AllowList narrows the table to the traffic being debugged. While On, only
+// flows to a host in Hosts or from an app in Apps are shown, the rest is
+// still proxied; with both empty nothing is. The ignore lists still apply.
+type AllowList struct {
+	On          bool
+	Hosts, Apps []string
+}
+
+// SetAllow sets the allow list.
+func (s *Server) SetAllow(l AllowList) {
+	l.Hosts, l.Apps = slices.Clone(l.Hosts), slices.Clone(l.Apps)
+	s.allowList.Store(l)
+}
+
+// Allow returns the allow list.
+func (s *Server) Allow() AllowList {
+	l, _ := s.allowList.Load().(AllowList)
+	return l
+}
+
+// allows reports whether a flow to host from app is shown.
+func (l AllowList) allows(host, app string) bool {
+	return !l.On || hostMatches(host, l.Hosts) || appMatches(app, l.Apps)
+}
+
+// appMatches reports whether an app name matches one of the patterns, as
+// the Apps section spells them, ignoring case.
+func appMatches(name string, apps []string) bool {
 	name = strings.ToLower(strings.TrimSpace(name))
 	if name == "" {
 		return false
 	}
-	for _, app := range s.IgnoreApps() {
+	for _, app := range apps {
 		app = strings.ToLower(strings.TrimSpace(app))
 		if app == "" || strings.HasPrefix(app, "#") {
 			continue
@@ -1697,7 +1729,7 @@ func (s *Server) publishFlow(f *proxy.Flow, kind string, frames []Frame, status 
 		return 0
 	}
 	client := s.clientProcess(f)
-	if s.ignoredApp(client.Name) {
+	if s.ignoredApp(client.Name) || !s.Allow().allows(display.Hostname(), client.Name) {
 		streamed.release()
 		return 0
 	}

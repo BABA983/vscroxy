@@ -322,6 +322,13 @@ type app struct {
 	ignoreAppsText string
 	ignoreAppsOpen bool
 
+	// allow narrows the table to listed hosts and apps while allowOn,
+	// without stopping the rest at the proxy.
+	allowOn                  bool
+	allowPath, allowAppsPath string
+	allowText, allowAppsText string
+	allowOpen, allowAppsOpen bool
+
 	// requests are the saved requests, the Compose direction's kept half,
 	// and history what Compose sent.
 	requests        []savedRequest
@@ -436,6 +443,8 @@ func newApp() *app {
 		a.historyPath = filepath.Join(home, ".vscroxy", "history.json")
 		a.ignorePath = filepath.Join(home, ".vscroxy", "ignore.txt")
 		a.ignoreAppsPath = filepath.Join(home, ".vscroxy", "ignore-apps.txt")
+		a.allowPath = filepath.Join(home, ".vscroxy", "allow.txt")
+		a.allowAppsPath = filepath.Join(home, ".vscroxy", "allow-apps.txt")
 		a.dnsPath = filepath.Join(home, ".vscroxy", "dns.txt")
 		a.scriptPath = filepath.Join(home, ".vscroxy", "script.js")
 		a.envsPath = filepath.Join(home, ".vscroxy", "env.json")
@@ -446,6 +455,7 @@ func newApp() *app {
 		} else {
 			a.saved, a.proxyPort, a.vault.scripts = saved, saved.ProxyPort, saved.VaultScripts
 			a.launchPort, a.launchKeyLog = saved.ProxyPort, saved.KeyLogPath
+			a.allowOn = saved.AllowList
 			a.guide = a.guide || saved.Guide
 			if saved.ProxyPort != 0 {
 				a.proxyPortInput = strconv.Itoa(saved.ProxyPort)
@@ -561,6 +571,22 @@ func (a *app) reloadConfig() {
 			a.srv.SetIgnore(patterns)
 			a.ignoreText = strings.Join(patterns, "\n")
 		}
+	}
+	if a.srv != nil {
+		for _, l := range []struct {
+			path string
+			text *string
+		}{{a.allowPath, &a.allowText}, {a.allowAppsPath, &a.allowAppsText}} {
+			if l.path == "" {
+				continue
+			}
+			if lines, err := capture.LoadIgnore(l.path); err != nil {
+				a.errText = err.Error()
+			} else {
+				*l.text = strings.Join(lines, "\n")
+			}
+		}
+		a.applyAllow()
 	}
 	if a.sslPath != "" && a.srv != nil {
 		cfg, err := capture.LoadSSL(a.sslPath)
@@ -1304,6 +1330,12 @@ func (a *app) view(c *ui.Context) {
 				a.srv.SetIgnore(patterns)
 			}
 		})
+	a.hostListModal(c, t, &a.allowOpen, "Allowed hosts",
+		"While the allow list is on, the table shows only these hosts and their subdomains, one per line, besides the allowed apps. A leading dot matches subdomains only; * is a wildcard.",
+		a.allowPath, &a.allowText, func([]string) { a.applyAllow() })
+	a.hostListModal(c, t, &a.allowAppsOpen, "Allowed apps",
+		"While the allow list is on, the table shows only these apps, one name per line, as the Apps section spells them, besides the allowed hosts.",
+		a.allowAppsPath, &a.allowAppsText, func([]string) { a.applyAllow() })
 	a.varsModal(c, t)
 	a.importReportModal(c, t)
 	a.folderModal(c, t)
@@ -3307,6 +3339,7 @@ func (a *app) persistSettings() error {
 		ProxyPort:        a.proxyPort,
 		VaultScripts:     a.vault.scripts,
 		Guide:            a.guide,
+		AllowList:        a.allowOn,
 	}
 	if sameSettings(now, a.saved) || time.Since(a.lastSave) < 400*time.Millisecond {
 		return nil
