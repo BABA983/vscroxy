@@ -4,9 +4,11 @@ import (
 	"cmp"
 	"context"
 	"encoding/json/v2"
+	"errors"
 	"fmt"
 	"github.com/baba983/vscroxy/internal/uikit"
 	"hash/fnv"
+	"io/fs"
 	"log"
 	"maps"
 	"math"
@@ -71,6 +73,8 @@ type app struct {
 	// queryOpen is whether the field's autocomplete showed in the last
 	// build, to tell Down opening it from Down meant for the requests.
 	queryOpen bool
+	// guide shows the setup guide in place of the traffic list (guide.go).
+	guide     bool
 	filter    string
 	chip      int
 	search    ui.Handle
@@ -413,6 +417,10 @@ func newApp() *app {
 	// settings ask for has to be in the environment before it starts.
 	if home, err := os.UserHomeDir(); err == nil {
 		a.settingsPath = filepath.Join(home, ".vscroxy", "settings.json")
+		// A first launch, before anything below creates the directory.
+		if _, err := os.Stat(filepath.Dir(a.settingsPath)); errors.Is(err, fs.ErrNotExist) {
+			a.guide = true
+		}
 		a.caPath = filepath.Join(home, ".mitmproxy", "mitmproxy-ca-cert.pem")
 		a.rulesPath = filepath.Join(home, ".vscroxy", "rules.json")
 		a.sslPath = filepath.Join(home, ".vscroxy", "ssl.json")
@@ -429,6 +437,7 @@ func newApp() *app {
 			a.errText = err.Error()
 		} else {
 			a.saved, a.proxyPort, a.vault.scripts = saved, saved.ProxyPort, saved.VaultScripts
+			a.guide = a.guide || saved.Guide
 			if saved.ProxyPort != 0 {
 				a.proxyPortInput = strconv.Itoa(saved.ProxyPort)
 			}
@@ -1747,21 +1756,17 @@ func (a *app) table(c *ui.Context) {
 		if running {
 			title, hint = "Connect a client to start capturing", "Listening at "+a.srv.Addr()+" · no retained requests yet"
 		}
+		// One sentence and at most two buttons; clients, devices and
+		// HTTPS live in the sidebar, the full walk-through in the guide.
 		uikit.EmptyState(c, title, hint, func() {
 			ui.Row(c).Gap(t.Space(2)).Wrap().Justify(ui.Center).Children(func() {
-				if uikit.SecondaryButton(c, "Set up a local client…").Disabled(!running).Clicked() {
-					a.openClientSetup()
+				if running && uikit.SecondaryButton(c, "Turn on system proxy").Disabled(a.systemProxy.applying).Clicked() {
+					a.setSystemProxy(true)
 				}
-				if uikit.SecondaryButton(c, "Connect a device…").Disabled(!running).Clicked() {
-					a.openDevices()
-				}
-				if uikit.SecondaryButton(c, "Check HTTPS…").Clicked() {
-					a.settingsTab, a.settingsOpen = 2, true
+				if uikit.SecondaryButton(c, "Diagnose capture…").Clicked() {
+					a.openDiagnostics()
 				}
 			})
-			if uikit.SecondaryButton(c, "Diagnose capture…").Clicked() {
-				a.openDiagnostics()
-			}
 		})
 		return
 	}
@@ -3282,6 +3287,7 @@ func (a *app) persistSettings() error {
 		KeyLogPath:       a.keyLogPath,
 		ProxyPort:        a.proxyPort,
 		VaultScripts:     a.vault.scripts,
+		Guide:            a.guide,
 	}
 	if sameSettings(now, a.saved) || time.Since(a.lastSave) < 400*time.Millisecond {
 		return nil

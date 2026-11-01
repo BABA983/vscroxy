@@ -3296,6 +3296,62 @@ func TestClientSetupCopiedCommandProducesLiveDecryptionEvidence(t *testing.T) {
 	}
 }
 
+func TestSetupGuideAdvancesFromWhatTheAppObserves(t *testing.T) {
+	a := workspaceApp()
+	a.flows = nil
+	a.applyFilter()
+	a.srv = requestProxy(t)
+	a.guide = true
+	// Never read or change this machine's proxy or trust store.
+	a.systemProxy.read = func(string) system.ProxyCheck { return system.ProxyCheck{Status: system.ProxyOff} }
+	a.certificate.checked = true
+	tt := ui.NewTester(a.view, 1280, 800)
+	tt.Frame()
+	if !tt.HasText("Listening at") || !tt.HasText(a.srv.Addr()) || !tt.HasText("Turn on system proxy") || tt.HasText("Install and trust") {
+		t.Fatalf("step 1 is not the open step: %q", tt.Texts())
+	}
+	// Any captured traffic shows a client reaches the proxy, however set up.
+	a.flows = []flow{{id: 1, live: true, kind: "connect", method: "CONNECT", host: "api.example.com:443", process: "Browser"}}
+	a.countDomains()
+	a.applyFilter()
+	tt.Frame()
+	if !tt.HasText("Install and trust") || tt.HasText("Turn on system proxy") || !tt.HasText("1 request captured so far") {
+		t.Fatal("captured traffic did not finish step 1")
+	}
+	a.certificate.cert = &x509.Certificate{}
+	tt.Frame()
+	if err := tt.Click("api.example.com"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if a.sslHosts != "api.example.com" {
+		t.Fatalf("ticking a domain did not add its rule: %q", a.sslHosts)
+	}
+	// Waiting for the request, the choices stay open for more ticks.
+	if !tt.HasText("Rules apply to new connections") || !tt.HasText("api.example.com") {
+		t.Fatal("step 4 hid the choices or its hint")
+	}
+	if err := tt.Click("api.example.com"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if a.sslHosts != "" {
+		t.Fatalf("unticking kept the rule: %q", a.sslHosts)
+	}
+	tt.Frame()
+	if err := tt.Click("api.example.com"); err != nil {
+		t.Fatal(err)
+	}
+	// The first decrypted request ends the guide and opens its details.
+	a.flows = append(a.flows, flow{id: 2, live: true, method: "GET", scheme: "https", host: "api.example.com", path: "/projects", status: 200})
+	a.applyFilter()
+	tt.Frame()
+	tt.Frame()
+	if f, ok := a.current(); a.guide || !ok || f.id != 2 || !tt.HasText("Request inspector") {
+		t.Fatalf("guide %v, current %v %v", a.guide, f.id, ok)
+	}
+}
+
 func TestCaptureEmptyStateOffersSetupWithoutConfusingFilteredTraffic(t *testing.T) {
 	a := workspaceApp()
 	a.flows = nil
@@ -3304,26 +3360,17 @@ func TestCaptureEmptyStateOffersSetupWithoutConfusingFilteredTraffic(t *testing.
 	if !tt.HasText("Capture is stopped") {
 		t.Fatal("stopped listener presented as waiting for clients")
 	}
-	if err := tt.Click("Set up a local client…"); err == nil && a.clientUI.open {
-		t.Fatal("stopped listener offered a working client configuration")
+	if tt.HasText("Turn on system proxy") {
+		t.Fatal("stopped listener offered the system proxy")
 	}
 	a.srv = requestProxy(t)
 	tt.Frame()
 	if !tt.HasText("Listening at " + a.srv.Addr() + " · no retained requests yet") {
 		t.Fatal("empty state omitted the actual bound address")
 	}
-	if err := tt.Click("Set up a local client…"); err != nil || !a.clientUI.open {
-		t.Fatalf("client setup is not reachable: %v", err)
+	if !tt.HasText("Turn on system proxy") || !tt.HasText("Diagnose capture…") {
+		t.Fatal("empty state lost its two setup actions")
 	}
-	tt.Key(0, ui.KeyEscape)
-	if err := tt.Click("Connect a device…"); err != nil || !a.deviceUI.open {
-		t.Fatalf("device setup is not reachable: %v", err)
-	}
-	tt.Key(0, ui.KeyEscape)
-	if err := tt.Click("Check HTTPS…"); err != nil || !a.settingsOpen || a.settingsTab != 2 {
-		t.Fatalf("HTTPS settings are not reachable: %v", err)
-	}
-	tt.Key(0, ui.KeyEscape)
 	a.flows = []flow{{id: 1, method: "GET", url: "http://example.test/"}}
 	a.query = "no-match"
 	a.applyFilter()

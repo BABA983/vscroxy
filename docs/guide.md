@@ -60,6 +60,14 @@ curl --cacert ~/.mitmproxy/mitmproxy-ca-cert.pem -x http://127.0.0.1:7890 https:
 go tool mygo dev
 ```
 
+## Setup guide
+
+On the first launch (no `~/.vscroxy` yet) the traffic list shows a four-step
+setup guide: start capturing, trust the certificate, choose what to decrypt,
+and the first decrypted request, which the guide selects as it closes. Each
+step completes on its own as the app sees it done. **Skip guide** closes it;
+**Show setup guide** in the command palette opens it again.
+
 ## Connect a phone or another device
 
 For a local process, **Network → Set up a local client…** provides copyable cURL,

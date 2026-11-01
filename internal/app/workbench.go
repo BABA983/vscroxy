@@ -116,7 +116,9 @@ func (a *app) desktopContent(c *ui.Context) {
 				}
 				// Keep the plot and its pointer capture in the same split while
 				// a brush passes through an interval with no matching requests.
-				if len(a.visible) == 0 && !a.activity.active() {
+				if a.guide {
+					a.setupGuide(c)
+				} else if len(a.visible) == 0 && !a.activity.active() {
 					a.syncDetail()
 					table()
 					ui.Row(c).Height(uikit.HeightLarge).Padding(0, c.Theme().Space(3)).AlignItems(ui.Center).Children(func() {
@@ -489,6 +491,7 @@ func (a *app) desktopActions(c *ui.Context) []desktopAction {
 		}},
 		{"https", "HTTPS certificate & decryption setup…", true, 0, 0, func() { a.settingsTab, a.settingsOpen = 2, true }},
 		{"diagnostics", "Capture diagnostics…", true, 0, 0, a.openDiagnostics},
+		{"setup-guide", "Show setup guide", !a.guide, 0, 0, a.openGuide},
 		{"experiments", "Run records…", true, 0, 0, func() {
 			a.experiments.scope, a.experiments.draftKey, a.experiments.open = nil, "", true
 		}},

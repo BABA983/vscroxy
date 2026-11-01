@@ -3,6 +3,7 @@ package app
 import (
 	"bytes"
 	"crypto/sha256"
+	"crypto/x509"
 	"encoding/json/jsontext"
 	"encoding/json/v2"
 	"fmt"
@@ -19,6 +20,7 @@ import (
 
 	"github.com/baba983/vscroxy/internal/capture"
 	"github.com/baba983/vscroxy/internal/request"
+	"github.com/baba983/vscroxy/internal/system"
 	"github.com/egoist/mygo/ui"
 	"github.com/gorilla/websocket"
 )
@@ -177,6 +179,23 @@ func TestUISnapshots(t *testing.T) {
 			tt.Move(r.X+20, r.Y+r.H-14)
 			tt.Advance(time.Second)
 		}, want: "DNS lookup"},
+		{name: "capture-guide", setup: func(a *app) {
+			a.flows, a.guide, a.certificate.checked = nil, true, true
+			a.systemProxy.read = func(string) system.ProxyCheck { return system.ProxyCheck{Status: system.ProxyOff} }
+			a.countDomains()
+			a.applyFilter()
+		}, want: "Setup guide"},
+		{name: "capture-guide-decrypt", setup: func(a *app) {
+			a.flows = []flow{
+				{id: 1, live: true, kind: "connect", method: "CONNECT", host: "api.example.com:443", process: "Browser", processPath: "/Applications/Browser.app/Contents/MacOS/Browser"},
+				{id: 2, live: true, kind: "connect", method: "CONNECT", host: "cdn.example.com:443", process: "Browser", processPath: "/Applications/Browser.app/Contents/MacOS/Browser"},
+			}
+			a.guide, a.certificate.checked, a.certificate.cert = true, true, &x509.Certificate{}
+			a.systemProxy.read = func(string) system.ProxyCheck { return system.ProxyCheck{Status: system.ProxyOff} }
+			a.countDomains()
+			a.countClients()
+			a.applyFilter()
+		}, want: "Choose what to decrypt"},
 		{name: "capture-headers", setup: func(a *app) { a.inspect.tab[1] = resTabHeaders }, want: "Content-Type"},
 		{name: "capture-raw", setup: func(a *app) { a.inspect.tab[1] = resTabRaw }, want: "Raw message"},
 		{name: "capture-timing", setup: func(a *app) { a.inspect.tab[1] = resTabTiming }, want: "Waiting"},

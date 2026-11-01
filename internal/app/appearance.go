@@ -53,6 +53,7 @@ var (
 	cacheIcon         = lucide.ArchiveX()
 	upstreamIcon      = lucide.Network()
 	successIcon       = lucide.CircleCheck()
+	checkIcon         = lucide.Check()
 	warningIcon       = lucide.TriangleAlert()
 	saveIcon          = lucide.Save()
 )

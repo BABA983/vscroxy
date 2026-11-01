@@ -45,6 +45,8 @@ type settings struct {
 	ProxyPort int `json:"proxyPort,omitzero"`
 	// VaultScripts lets request scripts use pm.vault.
 	VaultScripts bool `json:"vaultScripts,omitzero"`
+	// Guide keeps the setup guide open until it is finished or skipped.
+	Guide bool `json:"guide,omitzero"`
 }
 
 func (s settings) proxyAddr() (string, error) {
@@ -161,6 +163,7 @@ func sameSettings(x, y settings) bool {
 		x.KeyLogPath == y.KeyLogPath &&
 		x.ProxyPort == y.ProxyPort &&
 		x.VaultScripts == y.VaultScripts &&
+		x.Guide == y.Guide &&
 		slices.Equal(x.Columns.Order, y.Columns.Order) &&
 		maps.Equal(x.Columns.Widths, y.Columns.Widths)
 }
