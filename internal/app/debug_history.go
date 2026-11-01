@@ -109,7 +109,7 @@ func (a *app) debugDrafts(c *ui.Context) {
 		}
 		return
 	}
-	ui.Text(c, fmt.Sprintf("Source snapshot · Capture #%d", s.scope.Exchange.ID)).FontSize(uikit.TextBody).FontFeatures("tnum").Bold()
+	ui.Text(c, fmt.Sprintf("Source snapshot · Capture #%d", s.scope.Exchange.ID)).FontSize(uikit.TextBody).FontFeatures("tnum").FontWeight(600)
 	uikit.Meta(c, "Only explicitly linked drafts and retained runs; never matched by URL.")
 	index := slices.IndexFunc(a.flows, func(f flow) bool { return f.debugKey == s.scope.Key })
 	if uikit.SecondaryButton(c, "Inspect source capture").FillWidth().Disabled(index < 0).Clicked() {
@@ -123,7 +123,7 @@ func (a *app) debugDrafts(c *ui.Context) {
 		s.scope, s.draftKey = nil, ""
 	}
 	ui.Divider(c)
-	ui.Text(c, "Open drafts").FontSize(uikit.TextBody).Bold()
+	ui.Text(c, "Open drafts").FontSize(uikit.TextBody).FontWeight(600)
 	n := 0
 	for _, d := range a.documents {
 		if d.origin == nil || s.scope == nil || d.origin.Key != s.scope.Key {
@@ -137,10 +137,10 @@ func (a *app) debugDrafts(c *ui.Context) {
 		}
 	}
 	if n == 0 {
-		ui.Text(c, "No open drafts for this source.").FontSize(uikit.TextMeta)
+		ui.Text(c, "No open drafts for this source").FontSize(uikit.TextMeta)
 	}
 	ui.Divider(c)
-	ui.Text(c, "History").FontSize(uikit.TextBody).Bold()
+	ui.Text(c, "History").FontSize(uikit.TextBody).FontWeight(600)
 }
 
 func (a *app) debugWire(c *ui.Context, r experimentRecord) {

@@ -98,7 +98,7 @@ func (a *app) examplesEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
 					item.Background(t.SurfaceHover)
 				}
 				if item.Children(func() {
-					ui.Text(c, strconv.Itoa(e.Status)).Font(uikit.FontMono).FontSize(uikit.TextMeta).Bold().TextColor(uikit.StatusColor(e.Status, t)).Width(28)
+					ui.Text(c, strconv.Itoa(e.Status)).Font(uikit.FontMono).FontSize(uikit.TextMeta).FontWeight(600).TextColor(uikit.StatusColor(e.Status, t)).Width(28)
 					ui.Text(c, e.Name).FontSize(uikit.TextBody).SingleLine().Grow(1).MinWidth(0).TextColor(t.Text)
 				}).Clicked() {
 					d.example, d.exampleEditor = i, nil
@@ -111,7 +111,7 @@ func (a *app) examplesEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
 				ui.Field(c, "Example name", func() { uikit.Input(c, &e.Name).Label("Example name") })
 			})
 			ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-				ui.Text(c, fmt.Sprintf("%d %s", e.Status, http.StatusText(e.Status))).FontSize(uikit.TextBody).Bold().TextColor(uikit.StatusColor(e.Status, t))
+				ui.Text(c, fmt.Sprintf("%d %s", e.Status, http.StatusText(e.Status))).FontSize(uikit.TextBody).FontWeight(600).TextColor(uikit.StatusColor(e.Status, t))
 				uikit.Meta(c, humanBytes(len(e.Body))).FontFeatures("tnum")
 				ui.Spacer(c)
 				if uikit.Segmented(c, &d.exampleView, "Body", "Headers", "Request").Changed() {

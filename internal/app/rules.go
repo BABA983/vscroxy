@@ -207,7 +207,7 @@ func (a *app) ruleScenarios(c *ui.Context, t *ui.Theme) {
 		}
 	}
 	ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-		ui.Text(c, "Active: "+cmp.Or(active, "none · global rules only")).FontSize(uikit.TextBody).Bold().Grow(1)
+		ui.Text(c, "Active: "+cmp.Or(active, "none · global rules only")).FontSize(uikit.TextBody).FontWeight(600).Grow(1)
 		if len(options) > 0 {
 			uikit.Select(c, &e.scenarioChoice, options).Label("Scenario to activate").Width(180)
 			if uikit.SecondaryButton(c, "Activate scenario").Disabled(e.scenarioChoice == active).Clicked() {
@@ -222,7 +222,7 @@ func (a *app) ruleScenarios(c *ui.Context, t *ui.Theme) {
 
 func (a *app) previewRuleMatches(c *ui.Context, t *ui.Theme) {
 	e := &a.ruleUI
-	ui.Text(c, "Test saved rules · no request is sent").Bold()
+	ui.Text(c, "Test saved rules · no request is sent").FontWeight(600)
 	ui.Row(c).Gap(t.Space(2)).Children(func() {
 		uikit.Input(c, &e.previewMethod).Label("Test method").Width(85)
 		uikit.Input(c, &e.previewURL).Label("Test URL").Placeholder("https://api.example.com/v1/").Grow(1)
@@ -244,7 +244,7 @@ func (a *app) previewRuleMatches(c *ui.Context, t *ui.Theme) {
 		ui.Text(c, fmt.Sprintf("%d · %s · %s — %s", p.Index+1, cmp.Or(r.Name, r.Match), ruleLabel(r.Type), p.Reason)).FontSize(uikit.TextBody).TextColor(color)
 	}
 	if !winner {
-		uikit.Body(c, "No response rule wins · request goes upstream.")
+		uikit.Body(c, "No response rule wins · request goes upstream")
 	}
 }
 
@@ -286,7 +286,7 @@ func (a *app) rulesModal(c *ui.Context, t *ui.Theme) {
 								}
 								button.Children(func() {
 									ui.Column(c).Gap(t.Space(1)).Children(func() {
-										ui.Text(c, cmp.Or(r.Name, r.Match)).FontSize(uikit.TextBody).Bold().SingleLine()
+										ui.Text(c, cmp.Or(r.Name, r.Match)).FontSize(uikit.TextBody).FontWeight(600).SingleLine()
 										uikit.Meta(c, fmt.Sprintf("%d · %s · %s", i+1, ruleLabel(r.Type), cmp.Or(r.Scenario, "global"))).SingleLine()
 									})
 								})

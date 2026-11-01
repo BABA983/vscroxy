@@ -1373,7 +1373,7 @@ func (a *app) mainColumn(c *ui.Context, t *ui.Theme) {
 	if a.requestsProblem != "" || a.envsProblem != "" {
 		ui.Column(c).Padding(t.Space(2), t.Space(3)).Gap(t.Space(1)).Children(func() {
 			ui.Row(c).Gap(t.Space(3)).AlignItems(ui.Center).Children(func() {
-				ui.Text(c, "Local assets protected · saving disabled").FontSize(uikit.TextBody).Bold().TextColor(t.Danger).Grow(1)
+				ui.Text(c, "Local assets protected · saving disabled").FontSize(uikit.TextBody).FontWeight(600).TextColor(t.Danger).Grow(1)
 				if uikit.SecondaryButton(c, "Reload local assets").Clicked() {
 					a.loadRequestAssets()
 				}
@@ -1898,7 +1898,7 @@ func (a *app) table(c *ui.Context) {
 					ui.Box(c).MinWidth(uikit.HeightControl).Height(15).Radius(uikit.RadiusControl).Background(t.Warning.Alpha(0.12)).Center().MarginEnd(t.Space(1)).
 						Tooltip("DNS mapping " + f.dns).
 						Children(func() {
-							ui.Text(c, "DNS").FontSize(uikit.TextMeta).Bold().TextColor(t.Warning)
+							ui.Text(c, "DNS").FontSize(uikit.TextMeta).FontWeight(600).TextColor(t.Warning)
 						})
 				}
 				text(cmp.Or(f.path, "/")).Label(f.host + f.path).TextColor(rest).Tooltip(f.url).PopoverMenu(a.rowMenu(c, f))
@@ -2085,7 +2085,7 @@ func (a *app) connectionView(c *ui.Context, f flow) {
 func (a *app) connPanel(c *ui.Context, t *ui.Theme, f flow) {
 	cn := f.conn
 	ui.Column(c).Width(440).Gap(t.Space(0.5)).Padding(t.Space(1)).Children(func() {
-		ui.Text(c, "Connection").FontSize(uikit.TextBody).Bold().TextColor(t.Text).Padding(0, 0, t.Space(2), 0)
+		ui.Text(c, "Connection").FontSize(uikit.TextBody).FontWeight(600).TextColor(t.Text).Padding(0, 0, t.Space(2), 0)
 		field(c, t, "HTTP version", cn.proto)
 		field(c, t, "Client", cn.client)
 		field(c, t, "Proxy", cn.proxy)
@@ -2140,7 +2140,7 @@ func field(c *ui.Context, t *ui.Theme, label, value string) {
 func (a *app) headerBlock(c *ui.Context, t *ui.Theme, title, line, note string, headers http.Header, raw string, trailers http.Header) {
 	ui.Column(c).FillWidth().Padding(t.Space(2), t.Space(3)).Gap(t.Space(2)).Background(uikit.Colors(t).Panel).Children(func() {
 		ui.Row(c).AlignItems(ui.Center).Children(func() {
-			ui.Text(c, title).FontSize(uikit.TextBody).Bold()
+			ui.Text(c, title).FontSize(uikit.TextBody).FontWeight(600)
 			ui.Spacer(c)
 			if len(headers) > 0 {
 				uikit.Meta(c, fmt.Sprintf("%d headers", len(headers)))
@@ -2323,7 +2323,7 @@ func clientBadge(c *ui.Context, name string) {
 		letter = strings.ToUpper(string(runes[0]))
 	}
 	ui.Box(c).Size(uikit.IconInline, uikit.IconInline).Radius(uikit.RadiusControl).Background(badgeColor(name)).Center().Children(func() {
-		ui.Text(c, letter).FontSize(uikit.TextMeta).Bold().TextColor(uikit.SwatchText)
+		ui.Text(c, letter).FontSize(uikit.TextMeta).FontWeight(600).TextColor(uikit.SwatchText)
 	})
 }
 
@@ -3165,13 +3165,13 @@ func (a *app) sslModal(c *ui.Context, t *ui.Theme) {
 					ui.Switch(c, &draft.All).Label("Decrypt every domain")
 					ui.Text(c, "Decrypt every domain").FontSize(uikit.TextBody).TextColor(t.Text)
 				})
-				ui.Text(c, "Domains and subdomains").FontSize(uikit.TextBody).Bold()
+				ui.Text(c, "Domains and subdomains").FontSize(uikit.TextBody).FontWeight(600)
 				ui.TextArea(c, &a.sslDraftHosts).Height(100).Label("Decryption domains").FontSize(uikit.TextBody).Radius(uikit.RadiusControl)
 				ui.Divider(c)
-				ui.Text(c, "Local apps").FontSize(uikit.TextBody).Bold()
+				ui.Text(c, "Local apps").FontSize(uikit.TextBody).FontWeight(600)
 				uikit.Meta(c, "Exact executable paths, not app names or parent/Helper groups. Add from a captured request or an App's context menu.")
 				if len(draft.Apps) == 0 {
-					uikit.Hint(c, "No app rules enabled.")
+					uikit.Hint(c, "No app rules enabled")
 				}
 				remove := -1
 				for i, app := range draft.Apps {

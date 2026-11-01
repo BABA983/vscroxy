@@ -75,13 +75,13 @@ func (a *app) oauthFields(c *ui.Context, auth *request.Auth, collection string) 
 
 	in, cfg, err := a.oauthConfig(*auth, collection)
 	s := &a.oauth
-	status, color := "No access token yet.", t.TextMuted
+	status, color := "No access token yet", t.TextMuted
 	if err != nil {
 		status, color = err.Error(), t.Danger
 	} else if tok, ok := in.Tokens.Peek(cfg); ok {
 		switch {
 		case tok.Fresh(time.Now()) && tok.Expiry.IsZero():
-			status, color = "Access token ready.", t.Success
+			status, color = "Access token ready", t.Success
 		case tok.Fresh(time.Now()):
 			status, color = "Access token ready · expires "+tok.Expiry.Format("15:04:05"), t.Success
 		case tok.Refresh != "":

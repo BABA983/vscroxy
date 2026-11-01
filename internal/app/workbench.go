@@ -105,7 +105,7 @@ func (a *app) desktopContent(c *ui.Context) {
 						a.activityStrip(c)
 						if a.chosen.Len() > 1 {
 							ui.Row(c).Height(uikit.HeightLarge).Padding(0, c.Theme().Space(2)).Gap(c.Theme().Space(2)).AlignItems(ui.Center).Children(func() {
-								ui.Text(c, fmt.Sprintf("%d selected", a.chosen.Len())).FontSize(uikit.TextMeta).Bold().Grow(1)
+								ui.Text(c, fmt.Sprintf("%d selected", a.chosen.Len())).FontSize(uikit.TextMeta).FontWeight(600).Grow(1)
 								a.desktopButton(c, "replay", "Replay…")
 								a.desktopButton(c, "export-selection", "Export HAR…")
 								if uikit.CompactButton(c, "Clear selection").Clicked() {
@@ -122,10 +122,9 @@ func (a *app) desktopContent(c *ui.Context) {
 					a.setupGuide(c)
 				} else if len(a.visible) == 0 && !a.activity.active() {
 					a.syncDetail()
+					// The table's own empty state says why; an inspector
+					// with nothing to show would only repeat it.
 					table()
-					ui.Row(c).Height(uikit.HeightLarge).Padding(0, c.Theme().Space(3)).AlignItems(ui.Center).Children(func() {
-						uikit.Hint(c, "No request chosen")
-					})
 				} else if w.sideBySide {
 					// The room under the toolbar, not the column's whole
 					// height (Fill), which ran past the footer.
@@ -252,17 +251,14 @@ func (a *app) captureToolbar(c *ui.Context, t *ui.Theme) {
 						Padding(0, t.Space(1.5)).Radius(uikit.RadiusControl).AlignItems(ui.Center).TextColor(t.TextMuted)
 					switch {
 					case a.chip == i:
-						segment.Background(p.AccentTint).TextColor(p.Accent)
+						segment.Background(p.AccentTint).TextColor(t.Text)
 					case segment.Pressed():
 						segment.Background(t.SurfacePressed)
 					case segment.Hovered():
 						segment.Background(t.SurfaceHover)
 					}
 					segment.Children(func() {
-						text := ui.Text(c, label).FontSize(uikit.TextMeta)
-						if a.chip == i {
-							text.FontWeight(600)
-						}
+						ui.Text(c, label).FontSize(uikit.TextMeta)
 					})
 				}
 			})

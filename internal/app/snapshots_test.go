@@ -276,7 +276,7 @@ func TestUISnapshots(t *testing.T) {
 		{name: "secondary-sessions-empty", setup: func(a *app) { a.page = pageSession }, want: "Open a session file or save evidence from live traffic."},
 		{name: "secondary-sessions-empty-file", setup: func(a *app) {
 			a.keepSession(sessionFile{Version: 1, Title: "Empty session"})
-		}, want: "This saved session contains no exchanges."},
+		}, want: "This saved session contains no exchanges"},
 		{name: "secondary-sessions-browse", setup: snapshotSources, want: "Historical · read-only payloads"},
 		{name: "secondary-sessions-selected", setup: snapshotSources, act: click("Pin"), want: "Unpin"},
 		{name: "secondary-sessions-no-matches", setup: func(a *app) {

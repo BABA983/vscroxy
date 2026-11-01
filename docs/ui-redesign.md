@@ -192,7 +192,7 @@ uikit 组件总览设计稿（实现后以第 11 节的总览截图为准）：
 | 类别 | 组件 |
 | --- | --- |
 | 按钮 | `PrimaryButton`、`SecondaryButton`、`DangerButton`（24，后两个无边框、中性面）、`CompactButton`（20）、`ToolbarButton`（透明底，可带 active 浅底）、`IconButton`（24 正方形，必带 tooltip）、`RowButton`（列表里的整行，没有 hover）、`SwatchButton`（标记色） |
-| 输入 | `Input`（中性填充加细线，聚焦时 3px 强调色光晕代替焦点环）、`FieldFace`（同样的面给自带控件的输入行，如搜索框和 URL 栏）、`Select`／`MenuSelect`（按钮的面；后者给用菜单做的选择，如 body 格式）、`Segmented`（凹槽加浮起的滑块，只用于互斥的模式）、`Tabs`／`CountedTabs`（选中是强调浅底圆角块加强调色文字，可带计数）、`SubTabs`（嵌在另一行 tab 选中内容里的第二层，选中只有强调色文字） |
+| 输入 | `Input`（中性填充加细线，聚焦时 3px 强调色光晕代替焦点环）、`FieldFace`（同样的面给自带控件的输入行，如搜索框和 URL 栏）、`Select`／`MenuSelect`（按钮的面；后者给用菜单做的选择，如 body 格式）、`Segmented`（凹槽加浮起的滑块，只用于互斥的模式）、`Tabs`／`CountedTabs`（选中是强调浅底圆角块加正文色文字，不加粗，可带计数；放在 `TabStrip` 里横向滚动，有藏起来的 tab 的一侧渐隐）、`SubTabs`（嵌在另一行 tab 选中内容里的第二层，选中只有强调色文字） |
 | 列表和侧栏 | `ListTheme`（MyGo 表格／列表／树的选中色）、`Marker`／`RowMarker`、`Selected`、`SidebarItem`、`SidebarSection` |
 | 信号 | `Sparkline`（录制 pill 的速率曲线）、`ResponseHeadline`（48 高，两行状态和次要信息）、`StatusPill`（2xx／304 不加底色）、`MethodLabel`、`MethodColor`、`StatusColor`、`MarkColors`、`BadgeColors` |
 | 结构和反馈 | `KVRow`（只读）、`EmptyState`、`Toasts`、`Modal`、`DialogColumn`、`DialogTitle`、`DialogFooter`、`PopoverPanel`、`EditorTheme` |
@@ -372,7 +372,7 @@ XDG_CACHE_HOME=/tmp/vscroxy-ui-cache VSCROXY_SNAPSHOTS="$PWD/.amp/in/artifacts/u
 15. 形状靠近 macOS：圆角 6／10／14，嵌套同心，浮层柔和阴影；不做胶囊按钮（3.0）。毛玻璃只在 macOS 侧栏，且盖 90% 不透明的 Panel（3.5）。
 16. 抓到的请求原地编辑：第一次编辑或发送才留草稿，草稿跟着抓包，只在本次会话，清掉抓包就没了；保存到集合要先起名、选集合（3.3）。
 17. 去掉请求文档的 tab 栏，一次只显示一个请求，未保存的新请求在 COLLECTIONS 顶部 Unsaved 里（3.4）。
-18. tab 用方案 B：第一层是强调浅底圆角块加强调色文字（借 Telegram 的选中色，不要它的胶囊轨道），第二层只有强调色文字（3.5）。
+18. tab 用方案 B：第一层是强调浅底圆角块（借 Telegram 的选中色，不要它的胶囊轨道），第二层只有强调色文字（3.5）。第一层的文字后来改成正文色、不加粗，和选中行一致：浅底已经表示选中，再叠强调色和粗体是重复（unslop 检查，2026-11-01）。
 19. 按钮和输入框不画边框，面是文字色的低透明度叠加；列表和表格的行没有 hover；菜单高亮是强调色实底（3.5）。
 20. 强调色不跟随系统的强调色（3.5）。
 21. macOS 上侧栏占满窗口高度，红绿灯和品牌在侧栏顶部，录制 pill 居中在侧栏右边那一栏；Windows、Linux 的标题栏横跨窗口（3.5b）。

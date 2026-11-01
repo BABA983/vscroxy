@@ -135,7 +135,7 @@ func (a *app) connectDetail(c *ui.Context, t *ui.Theme, f flow) {
 		a.tab = 0
 	}
 	ui.Row(c).Height(uikit.HeightLarge).Padding(0, t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-		ui.Text(c, cmp.Or(f.process, "Unidentified client")).FontSize(uikit.TextBody).Bold().SingleLine().Tooltip(f.processPath)
+		ui.Text(c, cmp.Or(f.process, "Unidentified client")).FontSize(uikit.TextBody).FontWeight(600).SingleLine().Tooltip(f.processPath)
 		uikit.Hint(c, f.host).Font(uikit.FontMono).SingleLine().Tooltip(f.url)
 		if f.conn.error != "" {
 			ui.Text(c, cmp.Or(f.conn.errorStage, "Connection")+" failed").FontSize(uikit.TextBody).TextColor(t.Danger)
@@ -346,9 +346,9 @@ func (a *app) paneTabs(c *ui.Context, t *ui.Theme, side string, selected *int, l
 			a.inspect.focus = bodySide
 		}
 		title.Children(func() { ui.Text(c, side).FontSize(uikit.TextBody).FontWeight(600) })
-		ui.ScrollHorizontal(c).Grow(1).FillHeight().Children(func() {
+		uikit.TabStrip(c, func() {
 			uikit.SubTabs(c, selected, side+" pane", labels...)
-		})
+		}).Grow(1).FillHeight()
 		if *selected == bodyTab {
 			a.bodyFormatMenu(c, t, bodySide)
 			uikit.MoreMenu(c, side+" pane options", func(m *ui.Menu) {
@@ -427,7 +427,7 @@ func (a *app) inspectorPaneBar(c *ui.Context, t *ui.Theme, title, note string) {
 		if uikit.IconButton(c, "Back to request and response", "Request and response", backIcon).Clicked() {
 			a.inspect.pane = inspectorSplit
 		}
-		ui.Text(c, title).FontSize(uikit.TextBody).Bold().TextColor(t.Text)
+		ui.Text(c, title).FontSize(uikit.TextBody).FontWeight(600).TextColor(t.Text)
 		uikit.Meta(c, note).SingleLine().Tooltip(note)
 		ui.Spacer(c)
 	})
@@ -510,7 +510,7 @@ func (a *app) paramsSide(c *ui.Context, f flow) {
 	t := c.Theme()
 	parsed, err := url.Parse(cmp.Or(f.url, f.scheme+"://"+f.host+f.path))
 	if err != nil || len(parsed.Query()) == 0 {
-		uikit.Hint(c, "No query parameters in this request.").Padding(t.Space(4))
+		uikit.Hint(c, "No query parameters in this request").Padding(t.Space(4))
 		return
 	}
 	ui.Scroll(c).Grow(1).FillWidth().Children(func() {

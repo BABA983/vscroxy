@@ -160,7 +160,7 @@ func (a *app) sessionDetail(c *ui.Context, t *ui.Theme, item *savedSession) {
 		if uikit.Input(c, &item.data.Notes).Label("Session notes").Placeholder("Session notes…").Changed() {
 			item.persist(a.invalidate)
 		}
-		uikit.EmptyState(c, "Empty session", "This saved session contains no exchanges.", nil)
+		uikit.EmptyState(c, "Empty session", "This saved session contains no exchanges", nil)
 		return
 	}
 	f := &item.data.Flows[item.picked]

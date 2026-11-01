@@ -1616,7 +1616,7 @@ func TestCaptureKeepsSelectionAcrossListChanges(t *testing.T) {
 	}
 	tt.Key(ui.Cmd, ui.KeyA)
 	tt.Type("no-match")
-	if !tt.HasText("No request chosen") {
+	if tt.HasText("GET https://api.example.com/capture/4997") || !tt.HasText("No matching requests") {
 		t.Fatal("an empty list still inspected a removed request")
 	}
 	// A replacement dataset may reuse an ID remembered by an inactive view.

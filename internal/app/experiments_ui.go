@@ -325,7 +325,7 @@ func (a *app) experimentsView(c *ui.Context, t *ui.Theme, inline bool) {
 					}
 					return
 				}
-				ui.Text(c, fmt.Sprintf("Run #%d · %s %s", r.ID, r.Draft.Method, r.Draft.URL)).FontSize(uikit.TextBody).FontFeatures("tnum").Bold().SingleLine().Tooltip(r.Draft.URL)
+				ui.Text(c, fmt.Sprintf("Run #%d · %s %s", r.ID, r.Draft.Method, r.Draft.URL)).FontSize(uikit.TextBody).FontFeatures("tnum").FontWeight(600).SingleLine().Tooltip(r.Draft.URL)
 				uikit.Meta(c, r.Summary+" · Environment: "+cmp.Or(r.Environment, "none")).FontFeatures("tnum")
 				if r.Outcome != "" {
 					uikit.Meta(c, r.Outcome)
@@ -366,11 +366,11 @@ func (a *app) experimentsView(c *ui.Context, t *ui.Theme, inline bool) {
 					}
 				})
 				a.debugWire(c, *r)
-				ui.ScrollHorizontal(c).Height(uikit.HeightTabs).FillWidth().Children(func() {
+				uikit.TabStrip(c, func() {
 					if uikit.Tabs(c, &s.tab, "", "Recorded result", "Compare runs", "Compare source", "Sent request", "Console", "Variables").Gap(0).Changed() {
 						s.reader = nil
 					}
-				})
+				}).Height(uikit.HeightTabs).FillWidth()
 				if s.tab == 5 {
 					uikit.Meta(c, "Referenced values after pre-script, before expansion · run input = environment snapshot or preceding Runner step · post-script changes do not rewrite this snapshot.")
 					if r.Variables == nil {

@@ -131,7 +131,7 @@ func (a *app) guideStep(c *ui.Context, t *ui.Theme, i int, title, summary string
 			})
 		case current:
 			mark.Background(p.Accent).TextColor(p.AccentText).Children(func() {
-				ui.Text(c, fmt.Sprint(i+1)).FontSize(uikit.TextMeta).Bold()
+				ui.Text(c, fmt.Sprint(i+1)).FontSize(uikit.TextMeta).FontWeight(600)
 			})
 		default:
 			mark.Background(t.Text.Alpha(0.08)).TextColor(t.TextMuted).Children(func() {
@@ -141,7 +141,7 @@ func (a *app) guideStep(c *ui.Context, t *ui.Theme, i int, title, summary string
 		ui.Column(c).Grow(1).MinWidth(0).Gap(t.Space(1)).Children(func() {
 			heading := ui.Text(c, title).FontSize(uikit.TextBody).TextColor(t.Text)
 			if current {
-				heading.Bold()
+				heading.FontWeight(600)
 			}
 			uikit.Meta(c, summary)
 			if open {
@@ -164,7 +164,7 @@ func (a *app) guideStep(c *ui.Context, t *ui.Theme, i int, title, summary string
 
 func (a *app) guideCapture(c *ui.Context, t *ui.Theme) {
 	if a.srv == nil || !a.srv.Running() {
-		ui.Text(c, "Capture is stopped.").FontSize(uikit.TextBody).TextColor(t.Warning)
+		ui.Text(c, "Capture is stopped").FontSize(uikit.TextBody).TextColor(t.Warning)
 		ui.Row(c).Children(func() {
 			if uikit.SecondaryButton(c, "Diagnose capture…").Clicked() {
 				a.openDiagnostics(nil, diagnoseMac)

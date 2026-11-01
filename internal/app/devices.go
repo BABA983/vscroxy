@@ -141,7 +141,7 @@ func (a *app) devicesModal(c *ui.Context, t *ui.Theme) {
 			ui.Row(c).Grow(1).MinHeight(0).Gap(t.Space(6)).AlignItems(ui.Stretch).Children(func() {
 				ui.Scroll(c).BasisPercent(44).Grow(1).MinWidth(0).Gap(t.Space(3)).Padding(0, t.Space(2), 0, 0).Children(func() {
 					if d.gateway == nil {
-						ui.Text(c, "1  Choose a network address").FontSize(uikit.TextBody).Bold()
+						ui.Text(c, "1  Choose a network address").FontSize(uikit.TextBody).FontWeight(600)
 						ui.Form(c, func() {
 							ui.Field(c, "Address", func() {
 								uikit.Select(c, &d.ip, d.ips).Label("Device-facing address")
@@ -157,7 +157,7 @@ func (a *app) devicesModal(c *ui.Context, t *ui.Theme) {
 							uikit.Meta(c, "Link-local address: the device needs a compatible address on the same network link.")
 						}
 						uikit.Meta(c, "Proxy port above; the certificate service uses port + 1. Allow both in your firewall.")
-						ui.Text(c, "2  Allow your device's IP address").FontSize(uikit.TextBody).Bold()
+						ui.Text(c, "2  Allow your device's IP address").FontSize(uikit.TextBody).FontWeight(600)
 						ui.TextArea(c, &d.allowed).Height(74).Font(uikit.FontMono).FontSize(uikit.TextBody).Radius(uikit.RadiusControl).Label("Allowed device addresses").Placeholder("192.168.1.42\nOne IP or CIDR per line")
 						uikit.Meta(c, "Find it in the device’s Wi-Fi details. Prefer one IP; CIDRs allow every device in that range. Empty = deny all.")
 						ui.Checkbox(c, &d.consent, "I trust this network and the allowed devices").FontSize(uikit.TextBody)
@@ -176,7 +176,7 @@ func (a *app) devicesModal(c *ui.Context, t *ui.Theme) {
 						}
 						uikit.Meta(c, "Public certificate only — the signing key is never served. Compare the CA fingerprint in Diagnostics on a trusted network.")
 						ui.Divider(c)
-						ui.Text(c, "Allowed sources").FontSize(uikit.TextBody).Bold()
+						ui.Text(c, "Allowed sources").FontSize(uikit.TextBody).FontWeight(600)
 						uikit.Hint(c, d.allowed).Font(uikit.FontMono)
 						uikit.Meta(c, "Disable access before changing the address or allowlist.")
 					}

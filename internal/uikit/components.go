@@ -28,7 +28,7 @@ func ToolbarButton(c *ui.Context, label, tip string, active bool) ui.Element {
 		AlignItems(ui.Center).FontSize(TextBody).TextColor(t.TextMuted)
 	if !b.IsDisabled() {
 		if active {
-			b.TextColor(t.Accent)
+			b.TextColor(t.Text)
 		}
 		switch {
 		case b.Pressed():
@@ -36,7 +36,7 @@ func ToolbarButton(c *ui.Context, label, tip string, active bool) ui.Element {
 		case b.Hovered():
 			b.Background(t.SurfaceHover)
 		case active:
-			b.Background(t.Accent.Alpha(0.12))
+			b.Background(Colors(t).AccentTint)
 		}
 	} else {
 		b.TextColor(Colors(t).TextFaint)
@@ -127,7 +127,7 @@ func SwatchButton(c *ui.Context, label string, color ui.Color, chosen bool) ui.E
 	}
 	return b.Children(func() {
 		if chosen {
-			ui.Text(c, "✓").FontSize(TextBody).Bold().TextColor(SwatchText)
+			ui.Text(c, "✓").FontSize(TextBody).FontWeight(600).TextColor(SwatchText)
 		}
 	})
 }
@@ -228,8 +228,8 @@ func timingCard(c *ui.Context, card ui.Element, total string, timing Timing) {
 				label := ui.Text(c, name).FontSize(TextMeta).TextColor(t.Text).Grow(1)
 				v := ui.Text(c, value).Font(FontMono).FontSize(TextMeta).FontFeatures("tnum").TextColor(t.Text)
 				if bold {
-					label.Bold()
-					v.Bold()
+					label.FontWeight(600)
+					v.FontWeight(600)
 				}
 			})
 		}
@@ -497,11 +497,11 @@ func Modal(c *ui.Context, open *bool, content func()) ui.Element {
 }
 
 func DialogTitle(c *ui.Context, title string) ui.Element {
-	return ui.Text(c, title).FontSize(TextTitle).Bold().TextColor(c.Theme().Text)
+	return ui.Text(c, title).FontSize(TextTitle).FontWeight(600).TextColor(c.Theme().Text)
 }
 
 // Tabs is a row of text tabs; the chosen one is a rounded chip in the
-// accent tint with accent text. The prefix names each tab for assistive
+// accent tint with the normal text color, as a selected row is. The prefix names each tab for assistive
 // technology, so a screen with two tab rows of the same labels can name the
 // one it means.
 func Tabs(c *ui.Context, selected *int, prefix string, labels ...string) ui.Element {
@@ -540,7 +540,7 @@ func tabs(c *ui.Context, selected *int, prefix string, labels, counts []string, 
 			case chosen && sub:
 				tab.TextColor(p.Accent)
 			case chosen:
-				tab.Background(p.AccentTint).TextColor(p.Accent)
+				tab.Background(p.AccentTint).TextColor(t.Text)
 			case sub && (tab.Pressed() || tab.Hovered()):
 				tab.TextColor(t.Text)
 			case tab.Pressed():
@@ -549,10 +549,7 @@ func tabs(c *ui.Context, selected *int, prefix string, labels, counts []string, 
 				tab.Background(t.SurfaceHover)
 			}
 			tab.Children(func() {
-				text := ui.Text(c, label).FontSize(TextBody)
-				if chosen {
-					text.FontWeight(600)
-				}
+				ui.Text(c, label).FontSize(TextBody)
 				if i < len(counts) && counts[i] != "" && counts[i] != "0" {
 					Meta(c, counts[i]).FontFeatures("tnum")
 				}
@@ -560,6 +557,31 @@ func tabs(c *ui.Context, selected *int, prefix string, labels, counts []string, 
 		}
 	})
 	return group.List
+}
+
+// TabStrip scrolls a row of tabs sideways in a narrow pane. An edge that
+// hides more tabs fades into the background, so a cut-off tab reads as
+// more to scroll rather than a clipped label. The caller sizes it.
+func TabStrip(c *ui.Context, tabs func()) ui.Element {
+	t := c.Theme()
+	strip := ui.Box(c).MinWidth(0)
+	scroll := ui.Local(strip, "scroll", func() ui.ScrollState { return ui.ScrollState{} })
+	return strip.Children(func() {
+		ui.ScrollHorizontal(c).TrackScroll(scroll).Fill().Children(tabs)
+		fade := func(from bool) ui.Element {
+			edge := ui.Box(c).Absolute().Top(0).Bottom(0).Width(t.Space(6))
+			if from {
+				return edge.Left(0).Gradient(t.Background, t.Background.Alpha(0), 90)
+			}
+			return edge.Right(0).Gradient(t.Background.Alpha(0), t.Background, 90)
+		}
+		if scroll.X > 0.5 {
+			fade(true)
+		}
+		if scroll.X < scroll.MaxX-0.5 {
+			fade(false)
+		}
+	})
 }
 
 // MoreMenu is the quiet "⋯" button that opens a menu of further actions;

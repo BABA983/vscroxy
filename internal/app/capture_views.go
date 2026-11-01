@@ -1130,7 +1130,7 @@ func (v *captureViews) savedModal(c *ui.Context, t *ui.Theme, a *app) {
 			uikit.DialogTitle(c, "Saved capture filters")
 			uikit.Meta(c, "A filter keeps this view's URL, content and triage conditions. Applying one changes this view; the other views keep their own.")
 			if len(v.filters) == 0 {
-				uikit.Meta(c, "No saved filters yet.")
+				uikit.Meta(c, "No saved filters yet")
 			}
 			for _, f := range v.filters {
 				name := f.Name

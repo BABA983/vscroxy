@@ -87,7 +87,7 @@ func (a *app) analysisDetail(c *ui.Context, selected []flow) {
 	s := &a.analysis
 	ui.Column(c).Fill().Background(t.Background).Children(func() {
 		ui.Row(c).Padding(t.Space(1), t.Space(3)).Gap(t.Space(2)).MinHeight(uikit.HeightLarge).AlignItems(ui.Center).Wrap().Children(func() {
-			ui.Text(c, fmt.Sprintf("%d requests selected", len(selected))).FontSize(uikit.TextBody).FontFeatures("tnum").Bold().Grow(1)
+			ui.Text(c, fmt.Sprintf("%d requests selected", len(selected))).FontSize(uikit.TextBody).FontFeatures("tnum").FontWeight(600).Grow(1)
 			if uikit.SecondaryButton(c, "Summary").Clicked() {
 				s.tab = 0
 			}
@@ -122,14 +122,14 @@ func (a *app) analysisDetail(c *ui.Context, selected []flow) {
 			}
 			slices.Sort(times)
 			ui.Row(c).Gap(t.Space(4)).Wrap().Children(func() {
-				ui.Text(c, fmt.Sprintf("Response bytes: %d B", bytes)).FontSize(uikit.TextBody).FontFeatures("tnum").Bold()
+				ui.Text(c, fmt.Sprintf("Response bytes: %d B", bytes)).FontSize(uikit.TextBody).FontFeatures("tnum").FontWeight(600)
 				ui.Text(c, fmt.Sprintf("Errors: %d", errors)).FontSize(uikit.TextBody).FontFeatures("tnum").TextColor(t.Danger)
 				uikit.Hint(c, fmt.Sprintf("Incomplete bodies: %d", incomplete)).FontFeatures("tnum")
 			})
 			uikit.Body(c, fmt.Sprintf("Average: %.1f ms · P50: %d ms · Max: %d ms", float64(duration)/float64(len(selected)), times[(len(times)-1)/2], times[len(times)-1])).FontFeatures("tnum")
 			uikit.Meta(c, "Recorded per-capture durations, not elapsed session time. P50 uses nearest rank. Errors include HTTP 4xx/5xx, connection failures and incomplete bodies.")
 			ui.Divider(c)
-			ui.Text(c, "Slowest requests").FontSize(uikit.TextBody).Bold()
+			ui.Text(c, "Slowest requests").FontSize(uikit.TextBody).FontWeight(600)
 			slowest := slices.Clone(selected)
 			slices.SortStableFunc(slowest, func(a, b flow) int { return cmp.Compare(b.millis, a.millis) })
 			for _, f := range slowest[:min(5, len(slowest))] {
@@ -138,7 +138,7 @@ func (a *app) analysisDetail(c *ui.Context, selected []flow) {
 						a.inspectCapture(f.id)
 					}
 					uikit.Body(c, f.method+" "+f.host+f.path).SingleLine().Grow(1).Tooltip(f.url)
-					ui.Text(c, fmt.Sprintf("%d ms", f.millis)).FontSize(uikit.TextMeta).FontFeatures("tnum").Bold().Width(65)
+					ui.Text(c, fmt.Sprintf("%d ms", f.millis)).FontSize(uikit.TextMeta).FontFeatures("tnum").FontWeight(600).Width(65)
 				})
 			}
 		})

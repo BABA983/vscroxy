@@ -613,7 +613,7 @@ func variableRows(c *ui.Context, rows []request.ResolvedVariable, reveal *bool) 
 	ui.Checkbox(c, reveal, "Reveal values (plaintext)").FontSize(uikit.TextMeta)
 	ui.Scroll(c).Grow(1).FillWidth().Gap(t.Space(2)).Children(func() {
 		if len(rows) == 0 {
-			uikit.Meta(c, "No referenced variables in this snapshot.")
+			uikit.Meta(c, "No referenced variables in this snapshot")
 		}
 		for _, row := range rows {
 			ui.Row(c).Gap(t.Space(2)).Children(func() {
@@ -830,7 +830,7 @@ func (a *app) requestEditor(c *ui.Context, t *ui.Theme, d *requestDocument, orig
 				}
 			}
 			counts[composeTabChecks], counts[composeTabExamples] = fmt.Sprint(n), fmt.Sprint(len(d.examples))
-			ui.ScrollHorizontal(c).Grow(1).FillHeight().Children(func() {
+			uikit.TabStrip(c, func() {
 				if original == nil {
 					uikit.CountedTabs(c, &d.composeTab, "Request editor", labels, counts)
 					return
@@ -842,7 +842,7 @@ func (a *app) requestEditor(c *ui.Context, t *ui.Theme, d *requestDocument, orig
 				shown := (d.composeTab + 1) % n
 				uikit.CountedTabs(c, &shown, "Request editor", slices.Concat(labels[n-1:], labels[:n-1]), slices.Concat(counts[n-1:], counts[:n-1]))
 				d.composeTab = (shown + n - 1) % n
-			})
+			}).Grow(1).FillHeight()
 			if wide && d.composeTab == composeTabBody {
 				bodyTools()
 			}
@@ -938,9 +938,9 @@ func (a *app) requestResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 				if d.responseTab >= len(labels) {
 					d.responseTab = resViewBody
 				}
-				ui.ScrollHorizontal(c).Grow(1).FillHeight().Children(func() {
+				uikit.TabStrip(c, func() {
 					uikit.CountedTabs(c, &d.responseTab, "Response tab", labels, counts)
-				})
+				}).Grow(1).FillHeight()
 				if d.responseTab == resViewBody && d.response != nil {
 					formats := []string{"Pretty", "Raw", "Hex"}
 					uikit.MenuSelect(c, formats[d.responseView], func(m *ui.Menu) {
@@ -1154,7 +1154,7 @@ func (a *app) responseBody(c *ui.Context, t *ui.Theme, d *requestDocument) {
 	case resViewTiming:
 		ui.Scroll(c).Grow(1).Padding(t.Space(2), t.Space(3)).Gap(t.Space(2)).Children(func() {
 			if d.response == nil {
-				uikit.Hint(c, "No response yet.")
+				uikit.Hint(c, "No response yet")
 				return
 			}
 			uikit.Body(c, fmt.Sprintf("Total %d ms · %s", d.response.Millis, humanBytes(d.response.Bytes)))
@@ -1256,12 +1256,12 @@ func (a *app) responseCompare(c *ui.Context, t *ui.Theme, d *requestDocument) {
 // responseCookies lists what the response asked the client to store.
 func (a *app) responseCookies(c *ui.Context, t *ui.Theme, d *requestDocument) {
 	if d.response == nil {
-		uikit.Hint(c, "No response yet.").Padding(t.Space(3))
+		uikit.Hint(c, "No response yet").Padding(t.Space(3))
 		return
 	}
 	cookies := d.response.ResponseHeader.Values("Set-Cookie")
 	if len(cookies) == 0 {
-		uikit.Hint(c, "This response set no cookies.").Padding(t.Space(3))
+		uikit.Hint(c, "This response set no cookies").Padding(t.Space(3))
 		return
 	}
 	ui.Scroll(c).Grow(1).Padding(t.Space(2), t.Space(3)).Gap(t.Space(1)).Children(func() {

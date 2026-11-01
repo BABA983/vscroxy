@@ -65,7 +65,7 @@ func (a *app) brandBar(c *ui.Context, t *ui.Theme) {
 	ui.Row(c).Height(max(bar.Height, uikit.HeightBar)).PaddingStart(start).Gap(t.Space(2)).AlignItems(ui.Center).
 		DragWindow().Children(func() {
 		ui.Icon(c, brandIcon).Size(uikit.IconLarge, uikit.IconLarge).TextColor(t.Text)
-		ui.Text(c, "vscroxy").FontSize(uikit.TextBody).Bold().TextColor(t.Text).SingleLine()
+		ui.Text(c, "vscroxy").FontSize(uikit.TextBody).FontWeight(600).TextColor(t.Text).SingleLine()
 	})
 }
 

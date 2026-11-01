@@ -30,10 +30,11 @@ func (a *app) timingView(c *ui.Context, f flow) {
 		waterfallRow(c, t, "Waiting", "request sent, first byte back", f.wait, 0, total, wait)
 		waterfallRow(c, t, "Download", "rest of the response body", f.download, f.wait, total, download)
 		ui.Divider(c)
-		ui.Row(c).Gap(t.Space(2)).Padding(t.Space(1), 0).Children(func() {
-			ui.Text(c, "Total").FontSize(uikit.TextBody).Bold().TextColor(t.Text).Width(90)
-			uikit.Meta(c, f.method+" "+f.host+f.path).Width(260).SingleLine()
-			ui.Text(c, fmt.Sprintf("%d ms", f.millis)).FontSize(uikit.TextMeta).FontFeatures("tnum").Bold().TextColor(t.Text).Width(64)
+		ui.Row(c).FillWidth().Gap(t.Space(2)).AlignItems(ui.Center).Padding(t.Space(1), 0).Children(func() {
+			ui.Text(c, "Total").FontSize(uikit.TextBody).FontWeight(600).TextColor(t.Text).Shrink(0)
+			target := f.method + " " + f.host + f.path
+			uikit.Meta(c, target).Grow(1).Shrink(1).MinWidth(0).SingleLine().Tooltip(target)
+			ui.Text(c, fmt.Sprintf("%d ms", f.millis)).Font(uikit.FontMono).FontSize(uikit.TextMeta).FontFeatures("tnum").FontWeight(600).TextColor(t.Text).Shrink(0)
 		})
 		uikit.Meta(c, connectionNote(f)).Padding(t.Space(1), 0, 0, 0)
 	})
@@ -67,15 +68,19 @@ func headlineTiming(t *ui.Theme, f flow) uikit.Timing {
 // waterfallRow is one phase: its name, what it was, its time, and a bar at its
 // place in the exchange.
 func waterfallRow(c *ui.Context, t *ui.Theme, label, detail string, ms, offset, total int, color ui.Color) {
-	ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Padding(t.Space(1), 0).Children(func() {
-		ui.Text(c, label).FontSize(uikit.TextBody).TextColor(t.Text).Width(90)
-		uikit.Meta(c, detail).Width(260).SingleLine().Tooltip(detail)
-		uikit.Meta(c, fmt.Sprintf("%d ms", ms)).FontFeatures("tnum").Width(64)
-		ui.Row(c).Grow(1).Height(10).Children(func() {
+	// The name and milliseconds lead, the detail gives way in a narrow
+	// inspector, and the bar takes the full width below them.
+	ui.Column(c).FillWidth().Gap(t.Space(1)).Padding(t.Space(1), 0).Children(func() {
+		ui.Row(c).FillWidth().Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+			ui.Text(c, label).FontSize(uikit.TextBody).TextColor(t.Text).Shrink(0)
+			uikit.Meta(c, detail).Grow(1).Shrink(1).MinWidth(0).SingleLine().Tooltip(detail)
+			uikit.Meta(c, fmt.Sprintf("%d ms", ms)).Font(uikit.FontMono).FontFeatures("tnum").Shrink(0)
+		})
+		ui.Row(c).FillWidth().Height(8).Children(func() {
 			if offset > 0 {
 				ui.Spacer(c).Grow(float32(offset))
 			}
-			ui.Box(c).Grow(float32(max(ms, 1))).Height(10).Radius(uikit.RadiusControl).Background(color)
+			ui.Box(c).Grow(float32(max(ms, 1))).Height(8).Radius(4).Background(color)
 			if rest := total - offset - ms; rest > 0 {
 				ui.Spacer(c).Grow(float32(rest))
 			}

@@ -135,7 +135,7 @@ func (a *app) apiView(c *ui.Context, t *ui.Theme) {
 	valid := current && d.parsed != nil
 	ui.Column(c).Key(d.spec.ID).Fill().Children(func() {
 		ui.Row(c).Height(uikit.HeightTabs).Padding(0, t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-			ui.Text(c, d.title()).FontSize(uikit.TextBody).Bold().Grow(1).MinWidth(0).SingleLine()
+			ui.Text(c, d.title()).FontSize(uikit.TextBody).FontWeight(600).Grow(1).MinWidth(0).SingleLine()
 			if uikit.SecondaryButton(c, "Validate").Clicked() {
 				d.validate()
 			}
