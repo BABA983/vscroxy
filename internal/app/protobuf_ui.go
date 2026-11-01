@@ -97,20 +97,30 @@ func (p *protoInspector) inspect(c *ui.Context, a *app, f flow, response bool) {
 func (p *protoInspector) view(c *ui.Context, a *app, f flow, side int) {
 	t := c.Theme()
 	response := side == 0
-	// Wraps in a narrow inspector rather than pushing its controls out.
-	ui.Row(c).Padding(0, t.Space(3), t.Space(2), t.Space(3)).Gap(t.Space(2)).Wrap().AlignItems(ui.Center).Children(func() {
-		options := []string{"Auto"}
-		if p.schema != nil {
-			options = append(options, p.schema.names...)
-		}
-		if p.name == "" {
-			p.name = "Auto"
-		}
-		ui.Combobox(c, &p.name, options).Label("Protobuf message type").Width(280)
-		if uikit.SecondaryButton(c, "Schema…").Clicked() {
-			p.open = true
-		}
-		ui.SearchField(c, &p.query).Label("Search protobuf messages").Placeholder("Search messages…").Width(200)
+	// Keep the type and its schema together; only search wraps in a narrow
+	// inspector. Both fields share the surrounding controls' density.
+	ui.Row(c).Padding(t.Space(2), t.Space(3)).Gap(t.Space(2)).Wrap().AlignItems(ui.Center).Children(func() {
+		ui.Row(c).Grow(1).Basis(280).MinWidth(0).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+			options := []string{"Auto"}
+			if p.schema != nil {
+				options = append(options, p.schema.names...)
+			}
+			if p.name == "" {
+				p.name = "Auto"
+			}
+			field := ui.Combobox(c, &p.name, options).Label("Protobuf message type").
+				Tooltip("Message type · Auto resolves the gRPC method using the loaded schema").
+				Grow(1).MinWidth(0).Height(uikit.HeightControl).Padding(0, t.Space(2)).
+				FontSize(uikit.TextBody).Radius(uikit.RadiusControl).FocusRing(false)
+			uikit.FieldFace(c, field, field.Focused())
+			if uikit.SecondaryButton(c, "Schema…").Shrink(0).Clicked() {
+				p.open = true
+			}
+		})
+		search := ui.SearchField(c, &p.query).Label("Search protobuf messages").Placeholder("Search messages…").
+			Grow(1).Basis(180).MinWidth(0).Height(uikit.HeightControl).Padding(0, t.Space(2)).
+			FontSize(uikit.TextBody).Radius(uikit.RadiusControl).FocusRing(false)
+		uikit.FieldFace(c, search, search.Focused())
 	})
 	p.inspect(c, a, f, response)
 	if grpcContentType(f.contentType(response)) {
@@ -127,7 +137,7 @@ func (p *protoInspector) view(c *ui.Context, a *app, f flow, side int) {
 	if p.result.typeName != "" {
 		note = "Message type: " + p.result.typeName
 	}
-	uikit.Meta(c, note).Padding(0, t.Space(3), t.Space(2), t.Space(3))
+	uikit.Meta(c, note).SingleLine().Tooltip(note).Padding(0, t.Space(3), t.Space(2), t.Space(3))
 	var visible []int
 	for i, message := range p.result.messages {
 		if p.query == "" || strings.Contains(strings.ToLower(message.text), strings.ToLower(p.query)) {
@@ -171,8 +181,9 @@ func (p *protoInspector) view(c *ui.Context, a *app, f flow, side int) {
 		message := p.result.messages[visible[p.selected]]
 		ui.Column(c).Fill().Children(func() {
 			ui.Row(c).Padding(0, t.Space(3)).AlignItems(ui.Center).Children(func() {
-				uikit.Meta(c, fmt.Sprintf("Message %d · %s decoded", visible[p.selected]+1, humanBytes(message.size))).Grow(1)
-				if uikit.SecondaryButton(c, "Copy decoded").Clicked() {
+				detail := fmt.Sprintf("Message %d · %s decoded", visible[p.selected]+1, humanBytes(message.size))
+				uikit.Meta(c, detail).Grow(1).MinWidth(0).SingleLine().Tooltip(detail)
+				if uikit.SecondaryButton(c, "Copy decoded").Shrink(0).Clicked() {
 					c.Services().WriteClipboard(message.text)
 					a.setMessage("Copied decoded protobuf message")
 				}

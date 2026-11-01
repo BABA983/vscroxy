@@ -157,6 +157,20 @@ func Select(c *ui.Context, selected *string, options []string) ui.Element {
 		Height(HeightControl).Padding(0, c.Theme().Space(2)).FontSize(TextBody).Radius(RadiusControl)
 }
 
+// ResponseHeadline keeps the complete status above its secondary facts.
+// Narrow panes elide either line, with the full text available on hover.
+func ResponseHeadline(c *ui.Context, status, detail string, ink ui.Color) ui.Element {
+	t := c.Theme()
+	return ui.Column(c).Height(48).Shrink(0).Padding(t.Space(1.5), t.Space(3)).
+		Justify(ui.Center).Label("Response result").
+		Border(0, t.Border).BorderWidth(0, 0, 1, 0).Children(func() {
+		ui.Text(c, status).Font(FontMono).FontSize(TextHeadline).FixedLineHeight(22).
+			TextColor(ink).SingleLine().Tooltip(status)
+		Meta(c, detail).Font(FontMono).FontFeatures("tnum").FixedLineHeight(14).
+			SingleLine().Tooltip(detail)
+	})
+}
+
 // Sparkline draws counts oldest first as a smooth line over a soft shade
 // that fades to the baseline, scaled to the largest, in a box the size of
 // a line of meta text; no counts draws it flat.

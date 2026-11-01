@@ -81,7 +81,7 @@ uikit 组件总览设计稿（实现后以第 11 节的总览截图为准）：
 - **一个强调色，只用于：** 主操作、焦点、选中标记、录制、开关和"已开启"。
 - **正常的东西不上色。** 2xx 和 304 是普通的次要文字，不加底色、不用绿色；只有 3xx（灰蓝）、4xx（赭黄）、5xx（朱红）上色。满屏的 200 退到背景，异常自己跳出来。这条规则也让强调色可以是绿色而不和"成功"撞色。
 - **数据一律等宽：** method、URL、路径、header、body、时间、耗时、大小都用等宽字体（macOS 上是 SF Mono，其他平台是 Geist Mono），会变化的数字开 `tnum`。界面文字在 macOS 上是 SF Pro，其他平台是 Geist。method 是纯色等宽文字，不做 chip。
-- **结论大字：** 响应区第一行是 22px 等宽的状态行（`500  Internal Server Error`），下面一行次要文字写耗时、大小、类型。
+- **结论大字：** 响应区第一行是 18px 等宽的状态行（`500 Internal Server Error`），下面一行 11px 次要文字写耗时、大小、类型；两行共 48 高，比概念稿的 22px／60 高收紧一点。
 - **常驻的状态信息：** 列表上方一条 52px 的活动柱状图（最近 5 分钟，按状态码上色，可拖选时间范围）；筛选是查询语法 chip（`status:>=400`、`host:`、`app:`、`slow`），带自动补全；每行带一根耗时条，慢请求是朱红。
 - **选中是强调浅底、正常文字颜色，分两种形状：**
   - 选位置或选东西的行（侧栏、集合树、各种挑选列表）是离边缘内缩的圆角块，不画标记线，和 macOS 的 source list 一样。侧栏的选中表示"现在在哪"，不是键盘光标，焦点在别处时仍是强调浅底。
@@ -151,7 +151,7 @@ uikit 组件总览设计稿（实现后以第 11 节的总览截图为准）：
 
 | Token | 值 | 用途 |
 | --- | --- | --- |
-| `TextMeta`／`TextData`／`TextBody`／`TextTitle` | 11／12／13／15 | 计数和次要信息／表格里的等宽数据／正文、控件／标题；响应结论另加 22（待做） |
+| `TextMeta`／`TextData`／`TextBody`／`TextTitle`／`TextHeadline` | 11／12／13／15／18 | 计数和次要信息／表格里的等宽数据／正文、控件／标题／响应结论 |
 | `HeightCompact`／`HeightControl`／`HeightLarge` | 20／24／28 | 表格内和条栏里的小按钮／按钮、输入框、tab、侧栏条目、表格行／URL 栏和 Send（3.5 起，桌面工具的密度，和 Proxyman、Xcode 一致） |
 | `HeightTabs`／`HeightBar` | 28／44 | tab 行和面板头／标题栏和 Capture 工具栏 |
 | `RadiusControl`／`RadiusPanel`／`RadiusDialog` | 6／10／14 | 控件和 pill／弹层、卡片／对话框；嵌在容器内边距里的控件用容器圆角减内边距（分段控件的滑块是 6 − 2 = 4） |
@@ -194,7 +194,7 @@ uikit 组件总览设计稿（实现后以第 11 节的总览截图为准）：
 | 按钮 | `PrimaryButton`、`SecondaryButton`、`DangerButton`（24，后两个无边框、中性面）、`CompactButton`（20）、`ToolbarButton`（透明底，可带 active 浅底）、`IconButton`（24 正方形，必带 tooltip）、`RowButton`（列表里的整行，没有 hover）、`SwatchButton`（标记色） |
 | 输入 | `Input`（中性填充加细线，聚焦时 3px 强调色光晕代替焦点环）、`FieldFace`（同样的面给自带控件的输入行，如搜索框和 URL 栏）、`Select`／`MenuSelect`（按钮的面；后者给用菜单做的选择，如 body 格式）、`Segmented`（凹槽加浮起的滑块，只用于互斥的模式）、`Tabs`／`CountedTabs`（选中是强调浅底圆角块加强调色文字，可带计数）、`SubTabs`（嵌在另一行 tab 选中内容里的第二层，选中只有强调色文字） |
 | 列表和侧栏 | `ListTheme`（MyGo 表格／列表／树的选中色）、`Marker`／`RowMarker`、`Selected`、`SidebarItem`、`SidebarSection` |
-| 信号 | `Sparkline`（录制 pill 的速率曲线）、`StatusPill`（2xx／304 不加底色）、`MethodLabel`、`MethodColor`、`StatusColor`、`MarkColors`、`BadgeColors` |
+| 信号 | `Sparkline`（录制 pill 的速率曲线）、`ResponseHeadline`（48 高，两行状态和次要信息）、`StatusPill`（2xx／304 不加底色）、`MethodLabel`、`MethodColor`、`StatusColor`、`MarkColors`、`BadgeColors` |
 | 结构和反馈 | `KVRow`（只读）、`EmptyState`、`Toasts`、`Modal`、`DialogColumn`、`DialogTitle`、`DialogFooter`、`PopoverPanel`、`EditorTheme` |
 
 待做（随用到它们的步骤加入）：
@@ -202,7 +202,7 @@ uikit 组件总览设计稿（实现后以第 11 节的总览截图为准）：
 - 控件：Button 的 ghost 变体和 32 档、Input 的错误态、Checkbox／Switch 包装、LayoutToggle。
 - 结构：PaneHeader（标题、tab、次要信息、操作在同一行）、可编辑 KVGrid、FormRow（标签左、控件右、说明在控件下一行）、Splitter。
 - 反馈：Callout（信息／警告／错误，一行文字加文字操作）、StatusText、CountBadge、CheckResult。
-- 标志性组件：QueryBar、ActivityStrip、TimingBar、ResponseHeadline、SourceBadge、EnvironmentSelect。
+- 标志性组件：QueryBar、ActivityStrip、TimingBar、SourceBadge、EnvironmentSelect。
 
 ### 6.6 图标
 
@@ -285,6 +285,7 @@ uikit 已按"主题 = 语义 token 表"实现，导入第三方主题不用返�
 4. **标志性组件：** 录制 pill 的速率曲线、查询语法筛选、活动柱状图、耗时条、响应结论、瀑布视图（Table／Waterfall 切换）。
    - 4.1 录制 pill（完成，方案 A）：一个 24 高、细线边框的 pill，依次是状态点、状态（Recording／Paused／Proxy stopped）、等宽监听地址（设备接入时加 `· LAN`）、最近 60 秒的速率曲线（56×14，2 秒一个点，平滑曲线下面一层向下渐隐的浅色阴影）、最近 10 秒的平均速率，竖线后面是 20 的暂停／继续按钮；点左边部分打开 Settings → Proxy，代理停止时只有红点、文字和 `›`。暂停时代理照常转发，但不保留外部流量（连同它的 WebSocket／SSE 消息），编辑器发出的请求和重放仍然保留；曲线变平、不显示速率。命令面板里有 Pause／Resume recording。
    - 4.2 耗时条（完成，方案 C）：不加新列，Duration 单元格（112 宽）从右往左铺一块 19 高的浅底，至少盖住整个数字，再往左多出的长度按耗时的对数（0 到 60 秒），这样边缘不会切过数字；≥ 1 秒是慢请求，底是 Danger 16%，数字用正文色；侧栏的 Slow 也按 1 秒算（原来是 120 ms）。
+   - 4.3 响应结论（完成，方案 A，尺寸收紧）：响应 tab 下方一行 18px 等宽状态，一行 11px 等宽耗时、大小、媒体类型，共 48 高、左右内边距 12；正常状态用次要色，错误延续语义色，不加卡片底。抓包和发送后的响应共用 `ResponseHeadline`；窄面板单行省略，悬停可读全文。没有状态码显示 No response，连接失败显示 Failed，手动发送的代理错误保留 proxy response 标记，不冒充上游 HTTP 错误。原始响应打开时去掉上方重复摘要；查看其他视图或发送后的新响应时仍保留原抓包摘要，便于区分来源。Protobuf 的消息类型、搜索框和 Schema 按钮统一 24 高、中性填充，输入框聚焦时加光晕；类型和 Schema 保持同组，搜索框只在空间不足时换行，消息说明单行省略并支持悬停全文；短面板滚动可达消息选择和复制操作。Activity strip、Query bar 和 Waterfall 待做。
 5. **随里程碑落地：** 首次启动引导和 Settings 独立窗口随 M1，Host 方案随 M2，Tools 窗口随 M4（见第 10 节）。
 6. **第三方主题：** 第 8 节的映射、内置主题和导入。
 
@@ -362,3 +363,4 @@ XDG_CACHE_HOME=/tmp/vscroxy-ui-cache VSCROXY_SNAPSHOTS="$PWD/.amp/in/artifacts/u
 20. 强调色不跟随系统的强调色（3.5）。
 21. macOS 上侧栏占满窗口高度，红绿灯和品牌在侧栏顶部，录制 pill 居中在侧栏右边那一栏；Windows、Linux 的标题栏横跨窗口（3.5b）。
 22. 录制 pill 用方案 A（暂停按钮在 pill 内）；耗时条用方案 C（铺在 Duration 单元格里，不占新列，尽量利用空间）；慢请求的线是 1 秒（4）。
+23. 响应结论用方案 A（完整状态在第一行），尺寸允许调整：落地用 18px／48 高，而不是概念稿的 22px／60 高，给正文留空间；相邻的 Protobuf 工具栏同时按 24 高的控件规范协调（4.3）。

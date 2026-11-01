@@ -1318,6 +1318,51 @@ func TestJSONExpansionSurvivesIncomingTraffic(t *testing.T) {
 	}
 }
 
+func TestResponseHeadlineShowsTheExchangeWithoutInventingAStatus(t *testing.T) {
+	for _, tc := range []struct {
+		name, headline string
+		status         int
+		failure        string
+	}{
+		{"success", "200 OK", 200, ""},
+		{"http-error", "500 Internal Server Error", 500, ""},
+		{"no-response", "No response", 0, ""},
+		{"transport-error", "Failed", 502, "connection refused"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			a := snapshotApp()
+			a.flows[0].status, a.flows[0].conn.error = tc.status, tc.failure
+			a.flows[0].millis, a.flows[0].bytes = 1242, 1843
+			a.flows[0].respHeader = http.Header{"Content-Type": {"Application/JSON; charset=utf-8"}}
+			tt := ui.NewTester(a.view, 960, 800)
+			if _, ok := tt.Find("Response result"); !ok || !tt.HasText(tc.headline) || !tt.HasText("1242 ms · 1.8 KB · application/json") {
+				t.Fatalf("missing response result: %q", tt.Texts())
+			}
+			if tc.failure != "" {
+				if tt.HasText("502 Bad Gateway") {
+					t.Fatal("a transport failure was presented as an upstream HTTP response")
+				}
+				if err := tt.Click("Explain"); err != nil {
+					t.Fatal(err)
+				}
+				if !tt.HasText("Possible causes · not confirmed") {
+					t.Fatal("the response headline removed connection diagnostics")
+				}
+			} else if tc.status != 0 {
+				count := 0
+				for _, text := range tt.Texts() {
+					if text == tc.headline {
+						count++
+					}
+				}
+				if count != 1 {
+					t.Fatalf("response status repeated %d times", count)
+				}
+			}
+		})
+	}
+}
+
 func TestCaptureOrdersRequestsByNumberAndCaptureTime(t *testing.T) {
 	a := workspaceApp()
 	start := time.Date(2026, 10, 25, 10, 0, 0, 0, time.UTC)
@@ -3811,6 +3856,9 @@ func TestRequestCompactControlsKeepTemplateEditingAndCounts(t *testing.T) {
 			a.composeTests = []request.TestResult{{Name: "Created", Pass: true}, {Name: "Active", Pass: false}}
 			a.responseArrived()
 			tt.Frame()
+			if _, ok := tt.Find("Response result"); !ok || !tt.HasText("201 Created") || !tt.HasText("47 ms · 43 B · application/json") {
+				t.Fatalf("sent response lost its status or metadata: %q", tt.Texts())
+			}
 			tt.SetSize(1280, 800)
 			fullConsole, _ := tt.Find("Response tab: Console")
 			tt.SetSize(width, 800)

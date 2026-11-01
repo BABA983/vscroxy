@@ -288,6 +288,33 @@ func TestProtobufInspectorLoadsSchemaAndSelectsMessages(t *testing.T) {
 	tt := ui.NewTester(a.view, 1240, 850)
 	click := func(label string) {
 		t.Helper()
+		// Clear prior confirmations before operating the short pane beneath
+		// them, just as the notification's close action allows in the app.
+		if _, ok := tt.Find("Dismiss notification"); ok {
+			if err := tt.Click("Dismiss notification"); err != nil {
+				t.Fatal(err)
+			}
+			tt.Advance(250 * time.Millisecond)
+		}
+		// A short pane scrolls between the schema/search controls and the
+		// decoded messages, instead of clipping the latter under the footer.
+		if label == "Message 2" || label == "Copy decoded" || label == "Search protobuf messages" || label == "Protobuf message type" || label == "Schema…" {
+			r, ok := tt.Find("Protobuf reader")
+			if !ok {
+				t.Fatal("missing scrollable protobuf reader")
+			}
+			tt.Scroll(r.X+4, r.Y+r.H/2, 0, -320)
+			if label == "Message 2" || label == "Copy decoded" {
+				// Stop when the action is visible: scrolling straight to the
+				// bottom can take a decoded message's header past the viewport.
+				for range 16 {
+					if target, ok := tt.Find(label); ok && target.H >= 18 {
+						break
+					}
+					tt.Scroll(r.X+4, r.Y+r.H/2, 0, 24)
+				}
+			}
+		}
 		if err := tt.Click(label); err != nil {
 			t.Fatal(err)
 		}
@@ -311,6 +338,22 @@ func TestProtobufInspectorLoadsSchemaAndSelectsMessages(t *testing.T) {
 	click("Load schema")
 	wait("Loaded: 3 message types") // Input, Output and imported Timestamp.
 	click("Close")
+	wait("Message type: api.Output")
+	// The editable type picker must still filter and accept a keyboard
+	// choice at the compact field height, then restore automatic inference.
+	click("Protobuf message type")
+	tt.Key(ui.Cmd, ui.KeyA)
+	tt.Type("api.Input")
+	tt.Key(0, ui.KeyEnter)
+	wait("Message type: api.Input")
+	click("Copy decoded")
+	if text := strings.Join(strings.Fields(tt.Clipboard()), " "); text != `query: "alpha"` {
+		t.Fatalf("explicit type did not decode the response: %q", text)
+	}
+	click("Protobuf message type")
+	tt.Key(ui.Cmd, ui.KeyA)
+	tt.Type("Auto")
+	tt.Key(0, ui.KeyEnter)
 	wait("Message type: api.Output")
 	click("Message 2")
 	click("Copy decoded")

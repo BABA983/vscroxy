@@ -964,22 +964,7 @@ func (a *app) requestResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 			} else {
 				ui.Text(c, "Response").FontSize(uikit.TextBody).FontWeight(600).Grow(1)
 			}
-			if r := d.response; r != nil {
-				status := fmt.Sprintf("%d %s", r.Status, http.StatusText(r.Status))
-				if outcome == "Network error" {
-					status = fmt.Sprintf("%d · proxy response", r.Status)
-				}
-				shown := status
-				if a.contentWidth(c) < 800 {
-					shown = fmt.Sprint(r.Status)
-					if outcome == "Network error" {
-						shown += " · proxy"
-					}
-				}
-				uikit.StatusPill(c, shown, uikit.StatusColor(r.Status, t)).Label(status).Tooltip(status).FontSize(uikit.TextMeta).Padding(t.Space(1), t.Space(2))
-				uikit.Meta(c, fmt.Sprintf("%d ms", r.Millis)).FontFeatures("tnum")
-				uikit.Meta(c, humanBytes(r.Bytes)).FontFeatures("tnum")
-			} else if d.composeWaiting {
+			if d.composeWaiting {
 				uikit.Hint(c, "Sending…")
 			}
 			if d.source != nil && d.response != nil && !d.comparing {
@@ -1003,6 +988,20 @@ func (a *app) requestResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 				}
 			})
 		})
+		if r := d.response; r != nil {
+			status := "No response"
+			if r.Status != 0 {
+				status = strings.TrimSpace(fmt.Sprintf("%d %s", r.Status, http.StatusText(r.Status)))
+			}
+			if outcome == "Network error" {
+				status = fmt.Sprintf("%d · proxy response", r.Status)
+			}
+			detail := fmt.Sprintf("%d ms · %s", r.Millis, humanBytes(r.Bytes))
+			if ct := (flow{respHeader: r.ResponseHeader}).contentType(true); ct != "" {
+				detail += " · " + ct
+			}
+			uikit.ResponseHeadline(c, status, detail, uikit.StatusColor(r.Status, t))
+		}
 		if d.experimentID != 0 && !d.composeWaiting {
 			uikit.Meta(c, fmt.Sprintf("Recorded experiment #%d", d.experimentID)).Padding(t.Space(1), t.Space(3)).
 				Tooltip("Retained result from this experiment; opening it does not send the draft")

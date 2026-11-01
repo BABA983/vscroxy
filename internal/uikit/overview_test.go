@@ -165,6 +165,7 @@ func (o *overview) view(c *ui.Context, dark bool) {
 						MethodLabel(c, m)
 					}
 				})
+				ResponseHeadline(c, "500 Internal Server Error", "1242 ms · 1.8 KB · application/json", t.Danger)
 			})
 			section("Key / value", func() {
 				ui.Column(c).Width(520).Border(1, t.Border).Radius(RadiusControl).Children(func() {

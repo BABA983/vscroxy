@@ -6,10 +6,11 @@ package uikit
 // Shared metrics. Container geometry stays with each screen; these describe
 // controls, not a new layout for the shell or inspector.
 const (
-	TextMeta  = 11
-	TextBody  = 13
-	TextTitle = 15
-	TextData  = 12 // monospace data in tables, as dense as their 24px rows
+	TextMeta     = 11
+	TextBody     = 13
+	TextTitle    = 15
+	TextData     = 12 // monospace data in tables, as dense as their 24px rows
+	TextHeadline = 18 // full response status, above its compact metadata
 	// Desktop density, as in Proxyman and Xcode: controls and rows are 24,
 	// the URL bar and Send 28.
 	HeightCompact = 20

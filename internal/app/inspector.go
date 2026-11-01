@@ -190,16 +190,6 @@ func (a *app) exchangeResult(c *ui.Context, t *ui.Theme, f flow, compact bool) {
 		ui.Text(c, "·").FontSize(uikit.TextBody).TextColor(t.Border)
 		uikit.Hint(c, humanBytes(f.bytes)).FontFeatures("tnum").SingleLine()
 	}
-	if f.conn.error != "" {
-		explain := uikit.SecondaryButton(c, "Explain").Tooltip("Explain the recorded connection failure")
-		if explain.Clicked() {
-			a.explainOpen = !a.explainOpen
-		}
-		ui.PopoverBase(c, explain, &a.explainOpen, func(panel ui.Element) {
-			uikit.PopoverPanel(c, panel).Margin(t.Space(2), 0, 0, 0).Padding(0).
-				Children(func() { a.explainConnection(c, f) })
-		})
-	}
 }
 
 // inspectorMenu holds the exchange-wide views and the layout choices, so the
@@ -317,6 +307,18 @@ func (a *app) responsePane(c *ui.Context, f flow) {
 	}
 	ui.Column(c).Fill().Background(t.Background).Children(func() {
 		a.paneTabs(c, t, "Response", &a.inspect.tab[1], labels, 0)
+		status := "No response"
+		if f.status != 0 {
+			status = strings.TrimSpace(fmt.Sprintf("%d %s", f.status, http.StatusText(f.status)))
+		}
+		if f.conn.error != "" {
+			status = "Failed"
+		}
+		detail := fmt.Sprintf("%d ms · %s", f.millis, humanBytes(f.bytes))
+		if ct := f.contentType(true); ct != "" {
+			detail += " · " + ct
+		}
+		uikit.ResponseHeadline(c, status, detail, f.statusColor(t))
 		switch a.inspect.tab[1] {
 		case resTabHeaders:
 			a.headersSide(c, f, 0)

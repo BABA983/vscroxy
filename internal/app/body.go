@@ -282,7 +282,13 @@ func (a *app) bodySideView(c *ui.Context, f flow, side int) {
 			uikit.Hint(c, "Protobuf is read in the "+name+" pane.").Padding(t.Space(4))
 			return
 		}
-		a.protobuf.view(c, a, f, side)
+		// Keep the message picker and copy action reachable even when the
+		// response headline leaves little height beneath the pane tabs.
+		ui.Scroll(c).Label("Protobuf reader").Grow(1).FillWidth().Children(func() {
+			ui.Column(c).Fill().MinHeight(320).Children(func() {
+				a.protobuf.view(c, a, f, side)
+			})
+		})
 		return
 	}
 	if body == "" {

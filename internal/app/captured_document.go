@@ -157,7 +157,21 @@ func (a *app) capturedHeader(c *ui.Context, t *ui.Theme, f flow, d *requestDocum
 			ui.Text(c, "Edited").FontSize(uikit.TextMeta).TextColor(t.Accent).SingleLine().Shrink(0)
 		}
 		ui.Spacer(c)
-		a.exchangeResult(c, t, f, compact)
+		// The original response names its result in the pane. Keep the
+		// capture's summary when reading another view or a later send.
+		if a.inspect.pane != inspectorSplit || d != nil && (d.sentSet || d.composeWaiting || d.response != nil) {
+			a.exchangeResult(c, t, f, compact)
+		}
+		if f.conn.error != "" {
+			explain := uikit.SecondaryButton(c, "Explain").Tooltip("Explain the recorded connection failure")
+			if explain.Clicked() {
+				a.explainOpen = !a.explainOpen
+			}
+			ui.PopoverBase(c, explain, &a.explainOpen, func(panel ui.Element) {
+				uikit.PopoverPanel(c, panel).Margin(t.Space(2), 0, 0, 0).Padding(0).
+					Children(func() { a.explainConnection(c, f) })
+			})
+		}
 		copy := uikit.ToolbarButton(c, "Copy as cURL", "Copy the captured request as cURL", false).Padding(0, t.Space(1))
 		if copy.Clicked() {
 			a.copyCurl(c, f)

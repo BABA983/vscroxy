@@ -89,6 +89,14 @@ func TestUISnapshots(t *testing.T) {
 	states := []snapshot{
 		{name: "capture-empty", setup: func(a *app) { a.flows = nil; a.countDomains(); a.countClients(); a.applyFilter() }, want: "Capture is stopped"},
 		{name: "capture-selected", want: "Request inspector"},
+		{name: "capture-response-error", setup: func(a *app) {
+			a.flows[0].status, a.flows[0].millis, a.flows[0].bytes = 500, 1242, 1843
+			a.flows[0].resBody = `{"error":"Internal Server Error","request_id":"req_73","retryable":true}`
+		}, want: "500 Internal Server Error"},
+		{name: "capture-no-response", setup: func(a *app) {
+			a.flows[0].status, a.flows[0].bytes, a.flows[0].resBody = 0, 0, ""
+			a.flows[0].respHeader, a.flows[0].resHeaders = nil, ""
+		}, want: "No response"},
 		{name: "capture-edited", setup: edited, want: "Edited"},
 		{name: "capture-sent", setup: func(a *app) { edited(a); sent(a) }, want: "Last attempt"},
 		{name: "capture-no-matches", act: func(t *testing.T, tt *ui.Tester) {
@@ -444,7 +452,7 @@ func TestUISnapshots(t *testing.T) {
 		}
 		for _, state := range states {
 			widths := []int{1280}
-			if state.name == "capture-selected" || state.name == "capture-edited" || state.name == "capture-sent" || state.name == "capture-ws" || state.name == "capture-connect" || strings.HasPrefix(state.name, "requests-") || strings.HasPrefix(state.name, "secondary-") || strings.HasPrefix(state.name, "dialog-") || state.name == "active-tools" {
+			if state.name == "capture-selected" || state.name == "capture-response-error" || state.name == "capture-no-response" || state.name == "capture-edited" || state.name == "capture-sent" || state.name == "capture-ws" || state.name == "capture-connect" || strings.HasPrefix(state.name, "requests-") || strings.HasPrefix(state.name, "secondary-") || strings.HasPrefix(state.name, "dialog-") || state.name == "active-tools" {
 				widths = append(widths, 960)
 			}
 			// Live traffic reads in both layouts: the inspector beside the
