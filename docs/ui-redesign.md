@@ -312,8 +312,8 @@ uikit 已按"主题 = 语义 token 表"实现，导入第三方主题不用返�
 | 首次启动引导 | 嵌在流量列表空状态里的 4 步引导（UX 规范第 9 节）；每步一个主按钮，完成的步骤打勾，可跳过 | M1 |
 | 录制 pill 和暂停 | 三种状态（录制中、已暂停、代理停止），暂停按钮在 pill 内 | M1 |
 | Settings 窗口 | 独立窗口，左侧分类（通用、外观、代理、HTTPS、抓包、设备），右侧 FormRow；改动立即生效，需要重启的项目标明 | M1 |
-| Sessions（已完成） | 侧栏 SESSIONS 组和多会话 tab；payload 只读并标记历史，Pin／颜色／备注可保存，跨会话 Diff；旧调查迁移到普通会话文件 | M1 |
-| History（已完成） | 请求的 History／Examples 中间栏；状态／来源筛选，Run details… 进入基线、备注和 Diff；各入口共用 experiments.json，旧 Recent requests 只读保留 | M1 |
+| Sessions（已完成） | 侧栏 SESSIONS 组和多会话 tab；payload 只读并标记历史，Pin／颜色／备注可保存，跨会话 Diff；启动只读标题，打开时才加载，可删除 | M1 |
+| History（已完成） | 请求的 History／Examples 中间栏；状态／来源筛选，Run details… 进入基线、备注和 Diff；各入口共用 experiments.json | M1 |
 | 连接诊断 | 一个页面：上方输入目标 URL，下方按"监听 → 系统代理 → 证书 → 解密规则 → 实际流量"逐项打勾或打叉，每项一个修复按钮 | M1 |
 | Host 方案 | 标题栏下拉框：列出方案和开关，底部"管理方案…"；Tools 窗口里左侧方案列表（拖动排序、开关），右侧 hosts 编辑器（语法高亮、冲突提示） | M2 |
 | 整理成集合向导 | 大弹窗，顶部步骤条（范围 → 合并接口 → 变量 → 结构 → 示例 → 完成），每步左侧设置、右侧结果预览 | M3 |

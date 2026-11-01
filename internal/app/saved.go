@@ -1,12 +1,8 @@
 package app
 
 import (
-	"cmp"
 	"crypto/sha256"
-	"encoding/json/v2"
-	"errors"
 	"fmt"
-	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
@@ -22,33 +18,9 @@ type savedRequest struct {
 	Source *debugSource `json:"source,omitempty"`
 }
 
-// loadRequests reads the saved requests, an empty list when there is no file.
-func loadRequests(path string) ([]savedRequest, error) {
-	if path == "" {
-		return nil, nil
-	}
-	data, err := os.ReadFile(path)
-	if errors.Is(err, fs.ErrNotExist) {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-	return parseRequests(data)
-}
-
-// parseRequests reads a request list file's contents.
-func parseRequests(data []byte) ([]savedRequest, error) {
-	var list []savedRequest
-	if err := json.Unmarshal(data, &list); err != nil {
-		return nil, err
-	}
-	return list, assignIDs(list)
-}
-
-// assignIDs gives requests without an ID a deterministic one: loading an
-// old file never writes it, yet repeated loads and imports keep the same
-// identity until the next explicit save persists it. Duplicates are an error.
+// assignIDs gives requests without an ID a deterministic one, so reading
+// the same hand-written library twice keeps the same identities. Duplicates
+// are an error.
 func assignIDs(list []savedRequest) error {
 	seen := map[string]bool{}
 	for i := range list {
@@ -67,24 +39,12 @@ func (r savedRequest) key() string {
 	if r.ID != "" {
 		return "saved:" + r.ID
 	}
-	return "saved:" + r.Collection + "\x00" + r.Name // Unsaved/legacy in-memory callers.
+	return "saved:" + r.Collection + "\x00" + r.Name // Unsaved, in-memory requests.
 }
 
-// persistRequests is the app's guarded library write; exports use saveRequests
-// directly because a separate destination is not the protected library.
+// persistRequests is the app's guarded library write.
 func (a *app) persistRequests(list []savedRequest) error {
 	return a.writeLibrary(list, a.folders)
-}
-
-// saveRequests writes the list grouped by collection. Within one, requests
-// keep their order: an imported collection's is the order its Runner uses.
-func saveRequests(path string, list []savedRequest) error {
-	slices.SortStableFunc(list, func(x, y savedRequest) int { return cmp.Compare(x.Collection, y.Collection) })
-	data, err := json.Marshal(list)
-	if err != nil {
-		return err
-	}
-	return writePrivateFile(path, append(data, '\n'))
 }
 
 // Request assets may contain credentials. Replace atomically with a private
@@ -106,8 +66,8 @@ func writePrivateFile(path string, data []byte) error {
 	return os.Rename(f.Name(), path)
 }
 
-// Explicit identities update only that asset. ID-less legacy callers retain
-// name-based updates, adopting an existing identity rather than replacing it.
+// Explicit identities update only that asset. A request without an ID
+// updates by name, adopting an existing identity rather than replacing it.
 func upsertRequest(list []savedRequest, r savedRequest) []savedRequest {
 	for i, existing := range list {
 		if r.ID != "" && existing.ID == r.ID || r.ID == "" && existing.Name == r.Name && existing.Collection == r.Collection {

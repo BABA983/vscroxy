@@ -132,7 +132,7 @@ func TestRequestConsoleAndRunsAreVisibleWithoutReexecution(t *testing.T) {
 	defer upstream.Close()
 	a := workspaceApp()
 	a.srv = requestProxy(t)
-	a.addDocument(savedRequest{Name: "Console request", Method: "GET", URL: upstream.URL, Pre: `log("pre-output");`, Post: `log("post-output"); throw new Error("diagnostic");`}, "")
+	a.addDocument(savedRequest{Name: "Console request", Method: "GET", URL: upstream.URL, Pre: `console.log("pre-output");`, Post: `console.log("post-output"); throw new Error("diagnostic");`}, "")
 	tt := ui.NewTester(a.view, 960, 600)
 	click := func(label string) {
 		t.Helper()

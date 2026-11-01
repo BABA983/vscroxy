@@ -53,7 +53,7 @@ func TestPreRequestVariablesAndOverridesReachCurrentRequest(t *testing.T) {
 			t.Run(mode+auth.Type, func(t *testing.T) {
 				r := savedRequest{Method: "POST", URL: upstream.URL + "?q={{generated}}", Headers: "Authorization: Bearer {{token}}", Auth: auth,
 					Body: "{{token}}", BodyMode: mode, Form: []request.Field{{Name: "value", Value: "{{token}}"}},
-					Pre: `vars.set("token", "new-token"); vars.set("user", "alice"); vars.set("generated", "fresh"); req.set("X-Direct", "script");`, Checks: request.Checks{Status: "200"}}
+					Pre: `pm.environment.set("token", "new-token"); pm.environment.set("user", "alice"); pm.environment.set("generated", "fresh"); pm.request.headers.upsert("X-Direct", "script");`, Checks: request.Checks{Status: "200"}}
 				got := r.Execute(t.Context(), srv, request.Context{}, map[string]string{"token": "old-token"}, nil)
 				wantAuth := "Bearer new-token"
 				if auth.Type == "Basic" {
@@ -68,13 +68,13 @@ func TestPreRequestVariablesAndOverridesReachCurrentRequest(t *testing.T) {
 					t.Fatalf("without Checks: %+v, response = %+v", got, got.Response)
 				}
 				// Direct request edits win over generated auth and form encoding.
-				r.Pre += `req.set("Authorization", "direct"); req.body = "direct-body"; req.url = req.url.replace("?q=", "/edited?q="); req.method = "PATCH";`
+				r.Pre += `pm.request.headers.upsert("Authorization", "direct"); pm.request.body.raw = "direct-body"; pm.request.url = pm.request.url.toString().replace("?q=", "/edited?q="); pm.request.method = "PATCH";`
 				got = r.Execute(t.Context(), srv, request.Context{}, nil, nil)
 				if got.Err != nil || got.Request.Method != "PATCH" || got.Response.ResponseBody != "direct|script|q=fresh|direct-body" || !strings.Contains(got.Request.URL, "/edited?") {
 					t.Fatalf("direct edits lost: %+v, response = %+v", got, got.Response)
 				}
 				r.Body = ""
-				r.Pre += `req.body = ""; req.remove("Authorization");`
+				r.Pre += `pm.request.body.raw = ""; pm.request.headers.remove("Authorization");`
 				got = r.Execute(t.Context(), srv, request.Context{}, nil, nil)
 				if got.Err != nil || got.Response == nil || got.Response.ResponseBody != "|script|q=fresh|" {
 					t.Fatalf("explicit empty body/header removal lost: %+v, response = %+v", got, got.Response)
@@ -119,15 +119,11 @@ func TestStructuredRequestSurvivesSavingAndSendsBinaryMultipart(t *testing.T) {
 		Headers: "Content-Type: stale/type\nContent-Length: 1\nAuthorization: stale",
 		Auth:    request.Auth{Type: "Bearer", Token: "{{token}}"}, BodyMode: "Multipart",
 		Form: []request.Field{{Name: "label", Value: "中文 & ="}, {Name: "label", Value: "second"}, {Name: "upload", Value: file, File: true}, {Name: "disabled", Value: "not sent", Disabled: true}},
-		Post: `test("created",res.status===201); test("body",res.json().upload==="complete")`,
+		Post: `pm.test("created", function () { pm.expect(pm.response.code).to.equal(201) }); pm.test("body", function () { pm.expect(pm.response.json().upload).to.equal("complete") })`,
 	}
-	path := filepath.Join(t.TempDir(), "requests.json")
-	if err := saveRequests(path, []savedRequest{r}); err != nil {
-		t.Fatal(err)
-	}
-	loaded, err := loadRequests(path)
-	if err != nil || len(loaded) != 1 || !reflect.DeepEqual(loaded[0], r) {
-		t.Fatalf("round trip: %+v %v", loaded, err)
+	loaded := libraryRoundTrip(t, []savedRequest{r})
+	if len(loaded) != 1 || !reflect.DeepEqual(loaded[0], r) {
+		t.Fatalf("round trip: %+v", loaded)
 	}
 	a := workspaceApp()
 	a.addDocument(loaded[0], "saved:Demo\x00Upload")
@@ -334,8 +330,8 @@ func TestRequestDiagnosticsKeepPhasesErrorsAndSentVariables(t *testing.T) {
 	defer upstream.Close()
 	srv := requestProxy(t)
 	r := savedRequest{Method: "GET", URL: upstream.URL, Auth: request.Auth{Type: "Bearer", Token: "{{token}}"},
-		Pre:  `log("preparing"); vars.set("token","sent-token");`,
-		Post: "log('received', res.status); vars.set('token','next-token');\nthrow new Error('post failed');"}
+		Pre:  `console.log("preparing"); pm.environment.set("token","sent-token");`,
+		Post: "console.log('received', pm.response.code); pm.environment.set('token','next-token');\nthrow new Error('post failed');"}
 	got := r.Execute(t.Context(), srv, request.Context{}, map[string]string{"token": "old-token"}, nil)
 	if <-headers != "Bearer sent-token" || got.Response == nil || got.Response.Status != 200 || got.Outcome() != "Post-response script failed" {
 		t.Fatalf("wrong observable request/result: %s", runSummary(got))
@@ -391,9 +387,9 @@ func TestCollectionRunnerChainsVariablesCookiesAssertionsAndStops(t *testing.T) 
 	a.envs = []environment{{Name: "Local", Vars: map[string]string{"base": upstream.URL}}}
 	a.activeEnv = "Local"
 	a.requests = []savedRequest{
-		{Name: "01 Login", Collection: "Demo", Method: "GET", URL: "{{base}}/login", Post: `log("login received");vars.set("id",String(res.json().id));test("login",res.status===200)`},
-		{Name: "02 Detail", Collection: "Demo/nested", Method: "GET", URL: "{{base}}/api/{{id}}", Post: `test("cookie and variable",res.status===200 && res.json().ok===true)`},
-		{Name: "03 Failure", Collection: "Demo/nested", Method: "GET", URL: "{{base}}/fail", Post: `test("deliberate failure",false)`},
+		{Name: "01 Login", Collection: "Demo", Method: "GET", URL: "{{base}}/login", Post: `console.log("login received");pm.environment.set("id",String(pm.response.json().id));pm.test("login",function(){pm.expect(pm.response.code).to.equal(200)})`},
+		{Name: "02 Detail", Collection: "Demo/nested", Method: "GET", URL: "{{base}}/api/{{id}}", Post: `pm.test("cookie and variable",function(){pm.expect(pm.response.code===200 && pm.response.json().ok===true).to.be.true})`},
+		{Name: "03 Failure", Collection: "Demo/nested", Method: "GET", URL: "{{base}}/fail", Post: `pm.test("deliberate failure",function(){pm.expect(false).to.be.true})`},
 		{Name: "04 Never", Collection: "Demo/nested", Method: "GET", URL: "{{base}}/never"},
 	}
 	a.addDocument(a.requests[0], "saved:Demo\x0001 Login")

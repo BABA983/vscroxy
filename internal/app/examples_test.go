@@ -2,7 +2,6 @@ package app
 
 import (
 	"net/http"
-	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -37,13 +36,9 @@ func TestSaveAsExampleKeepsTheResponseWithTheAuthoredRequest(t *testing.T) {
 	}
 	saved := func() []string {
 		t.Helper()
-		data, err := os.ReadFile(filepath.Join(a.library.root, "Workspace", "API", "List projects.request.json"))
-		if err != nil {
-			t.Fatal(err)
-		}
-		list, err := parseRequests([]byte("[" + string(data) + "]"))
+		list, err := loadLibraryRequests(a.library.root)
 		if err != nil || len(list) != 1 {
-			t.Fatalf("request file = %s, %v", data, err)
+			t.Fatalf("library = %+v, %v", list, err)
 		}
 		var names []string
 		for _, e := range list[0].Examples {

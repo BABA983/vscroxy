@@ -78,6 +78,8 @@ type action struct {
 
 ### 3.3 存储层（`internal/store`）
 
+原型阶段不做兼容：格式要变就直接改，不写迁移，也不保留读取旧格式的代码，旧数据不再读取。下面的版本和迁移机制从第一个公开版本开始启用。
+
 提供一个通用的"带版本的文档"：
 
 - **格式版本**：每个文件有 `version` 字段；读取时依次运行迁移函数升到当前版本。迁移是纯函数，每个都有测试数据。
@@ -96,11 +98,11 @@ type action struct {
 | `script.js` | `tools/scripts/*.js`，每条规则脚本一个文件 |
 | `dns.txt` | `tools/hosts/*.hosts`，每个 Host 方案一个文件，可以手改、放进 Git |
 | `experiments.json`、`history.json` | `history/`（合并后的 History） |
-| `investigations.json` | 迁移成 `sessions/` 下的会话文件 |
+| `investigations.json` | 去掉，Sessions 用 `sessions/` 下的会话文件 |
 | `views.json` | 并进 `settings.json` |
 | `collections/`、`env.json`、`vault.json`、`vault.key`、`apis.json`、`protobuf.pb` | 不变，只加版本号 |
 
-迁移只做一次：新版本第一次启动时迁移，原文件移到 `backups/` 并保留一个版本周期。
+公开版本之后，迁移只做一次：新版本第一次启动时迁移，原文件移到 `backups/` 并保留一个版本周期。
 
 ### 3.4 规则引擎（`internal/rules`）
 
@@ -170,8 +172,8 @@ type action struct {
 | CI（3.10） | M0 | 之后每一步都要靠它兜底 |
 | 动作层（3.2） | M1 | 已启用工具栏、对象动作、撤销都依赖它 |
 | 通知（3.6） | M1 | 撤销 toast 依赖它 |
-| 存储层和迁移（3.3） | M1 | 合并历史和留证需要迁移旧数据 |
-| 日志（3.7） | M1 | 迁移出问题时需要排查 |
+| 存储层（3.3） | M1 | 原子写、外部修改检测；迁移从第一个公开版本开始 |
+| 日志（3.7） | M1 | 出问题时需要排查 |
 | 状态和导航（3.1） | 跟随 UI 改版逐步完成 | 改到哪里拆到哪里 |
 | 后台任务（3.5） | 跟随 UI 改版逐步完成 | 同上 |
 | 规则引擎（3.4） | M2 用匹配器，M4 完成管线 | Host 方案需要统一的匹配器；规则升级需要管线 |

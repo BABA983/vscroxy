@@ -15,6 +15,7 @@ import (
 type deletion struct {
 	open      bool
 	key, path string
+	session   string // a saved session's key
 	name      string
 	detail    string
 }
@@ -101,7 +102,11 @@ func (a *app) deleteModal(c *ui.Context, t *ui.Theme) {
 					del.open = false
 				}
 				if uikit.PrimaryButton(c, "Delete "+strings.Fields(del.name)[0]).Clicked() {
-					if err := a.deleteAssets(*del); err != nil {
+					deleteAll := a.deleteAssets
+					if del.session != "" {
+						deleteAll = func(del deletion) error { return a.sessions.remove(del.session) }
+					}
+					if err := deleteAll(*del); err != nil {
 						a.setMessage("Delete: " + err.Error())
 					} else {
 						a.setMessage("Deleted " + del.name)

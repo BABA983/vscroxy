@@ -5,7 +5,6 @@ import (
 	"context"
 	_ "embed"
 	"encoding/base64"
-	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"maps"
@@ -44,13 +43,13 @@ type TestResult struct {
 	Skipped bool   `json:",omitempty"`
 }
 
-// Prepared is a request ready to send, and the req object scripts get: what
-// a pre-request script changes is what the proxy sends.
+// Prepared is a request ready to send, and what pm.request edits: what a
+// pre-request script changes is what the proxy sends.
 type Prepared struct {
-	Method string      `json:"method"`
-	URL    string      `json:"url"`
-	Body   string      `json:"body"`
-	Header http.Header `json:"-"`
+	Method string
+	URL    string
+	Body   string
+	Header http.Header
 	// Only pre-script templates record explicit overrides of generated fields.
 	editedHeaders map[string]bool
 	editedBody    bool
@@ -83,25 +82,13 @@ func (r *Prepared) edited(name string) {
 	}
 }
 
-// jsResponse is the res object a post-response script gets.
+// jsResponse is the response pm.response is built from.
 type jsResponse struct {
-	Status int         `json:"status"`
-	Body   string      `json:"body"`
-	Header http.Header `json:"-"`
-	Millis int         `json:"-"`
-	Bytes  int         `json:"-"`
-}
-
-// Get is the response header named.
-func (r *jsResponse) Get(name string) string { return r.Header.Get(name) }
-
-// Json is the body parsed as JSON, nil when it is not JSON.
-func (r *jsResponse) Json() any {
-	var v any
-	if err := json.Unmarshal([]byte(r.Body), &v); err != nil {
-		return nil
-	}
-	return v
+	Status int
+	Body   string
+	Header http.Header
+	Millis int
+	Bytes  int
 }
 
 // Write is a script's change to a variable scope the run does not own:
@@ -135,7 +122,7 @@ func (w Write) Fields(fields []Field) []Field {
 // they read and write, the assertions they made and what they logged.
 type scriptRun struct {
 	// vars are the environment's and this run's values, what
-	// pm.environment.set and vars.set write; locals are pm.variables.
+	// pm.environment.set writes; locals are pm.variables.
 	vars, locals map[string]string
 	// data is the Runner data file's row, pm.iterationData.
 	data map[string]string
@@ -207,7 +194,7 @@ func (r *scriptRun) scope(name string) map[string]string {
 		}
 	}
 	switch name {
-	case "environment", "legacy":
+	case "environment":
 		return r.vars
 	case "variables":
 		return r.locals
@@ -250,9 +237,6 @@ func (r *scriptRun) set(scope, name, value string, unset bool) error {
 	call := "pm." + scope + ".set"
 	if unset {
 		call = "pm." + scope + ".unset"
-	}
-	if scope == "legacy" {
-		call = "vars.set"
 	}
 	r.message("variable", call+"("+name+")")
 	return nil
@@ -297,8 +281,8 @@ func (r *scriptRun) secret(op, name, value string) (goja.Value, string, error) {
 	return nil, "", fmt.Errorf("pm.vault.%s is not supported", op)
 }
 
-// runScript executes src with the objects given, which are the globals the
-// script sees beside pm, vars, test and log.
+// runScript executes src. objects hands pm the request ("req", a *Prepared)
+// and response ("res", a *jsResponse) behind pm.request and pm.response.
 func runScript(src string, run *scriptRun, objects map[string]any) error {
 	return runScriptContext(context.Background(), src, run, objects)
 }
@@ -345,7 +329,6 @@ func runScriptContext(ctx context.Context, src string, run *scriptRun, objects m
 	defer clock.pause()
 	stop := context.AfterFunc(ctx, func() { vm.Interrupt(ctx.Err()) })
 	defer stop()
-	vm.SetFieldNameMapper(goja.TagFieldNameMapper("json", true))
 	if _, err := vm.RunProgram(chaiProgram()); err != nil {
 		return err
 	}
@@ -363,28 +346,6 @@ func runScriptContext(ctx context.Context, src string, run *scriptRun, objects m
 	finishValue, err := setup(goja.Undefined(), vm.GlobalObject(), host, chai)
 	if err != nil {
 		return err
-	}
-	for name, value := range objects {
-		if req, ok := value.(*Prepared); ok && req.editedHeaders != nil {
-			obj := vm.NewObject()
-			obj.Set("get", req.Get)
-			obj.Set("set", req.Set)
-			obj.Set("remove", req.Remove)
-			for field, target := range map[string]*string{"method": &req.Method, "url": &req.URL, "body": &req.Body} {
-				if err := obj.DefineAccessorProperty(field, vm.ToValue(func() string { return *target }), vm.ToValue(func(v string) {
-					*target = v
-					if field == "body" {
-						req.editedBody = true
-					}
-				}), goja.FLAG_TRUE, goja.FLAG_TRUE); err != nil {
-					return err
-				}
-			}
-			value = obj
-		}
-		if err := vm.Set(name, value); err != nil {
-			return err
-		}
 	}
 	// Postman runs a script as an async function body, so top-level await
 	// works. The wrapper shares the first line so error lines stay true.

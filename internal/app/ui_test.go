@@ -317,8 +317,7 @@ func workspaceApp() *app {
 			{id: 1, method: "GET", scheme: "https", host: "api.example.com", path: "/projects", url: "https://api.example.com/projects", status: 200, process: "Browser", reqHeader: http.Header{"Accept": {"application/json"}}, respHeader: http.Header{"Content-Type": {"application/json"}}, resBody: `{"projects":[]}`},
 			{id: 2, method: "POST", scheme: "https", host: "api.example.com", path: "/login", url: "https://api.example.com/login", status: 401, process: "Browser"},
 		},
-		requests: []savedRequest{{Name: "List projects", Collection: "Workspace/API", Method: "GET", URL: "https://api.example.com/projects", Pre: `req.set("Accept", "application/json")`}},
-		history:  []historyEntry{{Method: "POST", URL: "https://api.example.com/login"}},
+		requests: []savedRequest{{Name: "List projects", Collection: "Workspace/API", Method: "GET", URL: "https://api.example.com/projects", Pre: `pm.request.headers.upsert("Accept", "application/json")`}},
 	}
 	a.countDomains()
 	a.countClients()
@@ -633,16 +632,8 @@ func TestWorkspaceKeepsCaptureAndDraftIndependent(t *testing.T) {
 		t.Fatal("switching workspaces lost the error filter")
 	}
 	tt.Key(ui.Cmd, ui.Key2)
-	if url, script := value("URL"), value("Pre-request script"); url != "https://api.example.com/projects?limit=7" || a.composeMethod != "" || script != `req.set("Accept", "application/json")` {
+	if url, script := value("URL"), value("Pre-request script"); url != "https://api.example.com/projects?limit=7" || a.composeMethod != "" || script != `pm.request.headers.upsert("Accept", "application/json")` {
 		t.Fatalf("switching workspaces changed the draft: URL %q, method %q, script %q", url, a.composeMethod, script)
-	}
-	click("Collection options")
-	if err := chooseMenu(tt, "History"); err != nil {
-		t.Fatal(err)
-	}
-	click(a.history[0].label())
-	if value("URL") != "https://api.example.com/login" {
-		t.Fatal("history did not open in the request editor")
 	}
 }
 
@@ -2183,9 +2174,9 @@ func TestCaptureDraftComparisonKeepsTheTrafficContextAndLastSend(t *testing.T) {
 	// The captured request is the document: edit and send it in place.
 	edit("URL", upstream.URL+"/items?variant=edited")
 	click("Scripts")
-	edit("Pre-request script", `req.set("X-Marker", "from-script"); req.body = "sent-body"`)
+	edit("Pre-request script", `pm.request.headers.upsert("X-Marker", "from-script"); pm.request.body.raw = "sent-body"`)
 	click("Post-response")
-	edit("Post-response script", `req.set("X-Marker", "after-send"); req.body = "after-send"`)
+	edit("Post-response script", `pm.request.headers.upsert("X-Marker", "after-send"); pm.request.body.raw = "after-send"`)
 	click("Send")
 	waitForResponse()
 	// Later edits must not change what the last send actually compared.
@@ -2270,8 +2261,8 @@ func TestConcurrentRequestTabsOwnTheirResponses(t *testing.T) {
 	a.envs = []environment{{Name: "Local", Vars: map[string]string{"keep": "original"}}, {Name: "Staging", Vars: map[string]string{"keep": "staging"}}}
 	a.activeEnv = "Local"
 	a.requests = []savedRequest{
-		{Name: "Slow request", Method: "GET", URL: upstream.URL, Headers: "X-Owner: slow", Post: `test("slow owns response", res.json().owner === "slow"); vars.set("slowDone", "yes")`},
-		{Name: "Fast request", Method: "GET", URL: upstream.URL, Headers: "X-Owner: fast", Post: `test("fast owns response", res.json().owner === "fast"); vars.set("fastDone", "yes")`},
+		{Name: "Slow request", Method: "GET", URL: upstream.URL, Headers: "X-Owner: slow", Post: `pm.test("slow owns response", function () { pm.expect(pm.response.json().owner).to.equal("slow") }); pm.environment.set("slowDone", "yes")`},
+		{Name: "Fast request", Method: "GET", URL: upstream.URL, Headers: "X-Owner: fast", Post: `pm.test("fast owns response", function () { pm.expect(pm.response.json().owner).to.equal("fast") }); pm.environment.set("fastDone", "yes")`},
 	}
 	tt := ui.NewTester(a.view, 1100, 650)
 	click := func(label string) {
@@ -2304,7 +2295,7 @@ func TestConcurrentRequestTabsOwnTheirResponses(t *testing.T) {
 	click("Post-response")
 	click("Post-response script")
 	tt.Key(ui.Cmd, ui.KeyA)
-	tt.Type(`test("wrong script", false)`)
+	tt.Type(`pm.test("wrong script", function () { pm.expect(false).to.be.true })`)
 	click("Fast request")
 	click("Send")
 	waitFor("201 Created")
@@ -4690,7 +4681,7 @@ func TestSendResultsSeparateFailuresAndLinkTheExactAttempt(t *testing.T) {
 		{"pre-script", "Pre-request script failed", savedRequest{Method: "GET", URL: upstream.URL, Pre: `throw new Error("before sending")`}, false, false},
 		{"http", "HTTP error response", savedRequest{Method: "GET", URL: upstream.URL + "/502"}, true, false},
 		{"network", "Network error", savedRequest{Method: "GET", URL: deadURL}, true, false},
-		{"checks", "Checks failed", savedRequest{Method: "POST", URL: upstream.URL, Body: "draft-only-body", Pre: `req.body = "actual-sent-body"; req.set("X-Prepared", "yes")`, Checks: request.Checks{Status: "201"}}, true, true},
+		{"checks", "Checks failed", savedRequest{Method: "POST", URL: upstream.URL, Body: "draft-only-body", Pre: `pm.request.body.raw = "actual-sent-body"; pm.request.headers.upsert("X-Prepared", "yes")`, Checks: request.Checks{Status: "201"}}, true, true},
 		{"post-script", "Post-response script failed", savedRequest{Method: "GET", URL: upstream.URL, Post: `throw new Error("after response")`}, true, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

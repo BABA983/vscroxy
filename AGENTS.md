@@ -16,6 +16,10 @@ collections and environments. Request scripts are Postman's `pm` API, built in
 packages' existing responsibility boundaries; `third_party/go-mitmproxy/` is a
 locally patched dependency with its own license and patch notes.
 
+The app is a prototype in rapid development: change file formats and APIs
+directly. Do not write migrations, readers for old formats, or deprecation
+shims, and delete such code when you touch it.
+
 ## Building and testing
 
 Go 1.27 lives at `/usr/local/go`. `.agents/setup` installs it, the GTK libraries a

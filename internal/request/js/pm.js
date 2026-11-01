@@ -410,7 +410,7 @@
 	global.atob = host.atob;
 	global.btoa = host.btoa;
 
-	// Legacy Postman globals and vscroxy's original vars/test/log API.
+	// Legacy Postman globals.
 	global.tests = {};
 	global.postman = {
 		setEnvironmentVariable: pm.environment.set,
@@ -421,9 +421,6 @@
 		clearGlobalVariable: pm.globals.unset,
 		setNextRequest: pm.execution.setNextRequest,
 	};
-	global.vars = { get: function (k) { return host.get("variables", text(k)) || ""; }, set: function (k, v) { host.set("legacy", text(k), text(v)); } };
-	global.test = function (name, pass) { results.push({ name: text(name), pass: !!pass, error: "", skipped: false, pending: false }); };
-	global.log = function () { host.log("log", format(arguments)); };
 	if (host.response) {
 		global.responseBody = host.response.body;
 		global.responseCode = { code: host.response.code, name: host.response.status, detail: host.response.status };
@@ -431,7 +428,7 @@
 		global.responseHeaders = pm.response.headers.toObject();
 	}
 
-	// finish reports every test: pm.test, test() and tests[...] alike.
+	// finish reports every test: pm.test and tests[...] alike.
 	return function finish() {
 		Object.keys(global.tests).forEach(function (name) {
 			results.push({ name: name, pass: !!global.tests[name], error: "", skipped: false, pending: false });

@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"path/filepath"
 	"sync/atomic"
 	"testing"
 
@@ -34,16 +33,9 @@ func TestRegressionChecksRunThroughProxyAndRunner(t *testing.T) {
 	}))
 	defer upstream.Close()
 	r := savedRequest{Name: "Conflict", Collection: "Regressions", Method: "GET", URL: upstream.URL,
-		Headers: "Authorization: Bearer {{token}}", Pre: `vars.set("token", "generated-for-current-send"); req.set("X-Direct", "kept");`,
+		Headers: "Authorization: Bearer {{token}}", Pre: `pm.environment.set("token", "generated-for-current-send"); pm.request.headers.upsert("X-Direct", "kept");`,
 		Checks: request.Checks{Status: "409", Headers: "x-revision: current", JSON: "/items/0/a~1b/~0id = 9007199254740993\n/ok = false\n/empty = null"}}
-	path := filepath.Join(t.TempDir(), "requests.json")
-	if err := saveRequests(path, []savedRequest{r}); err != nil {
-		t.Fatal(err)
-	}
-	list, err := loadRequests(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	list := libraryRoundTrip(t, []savedRequest{r})
 	a := workspaceApp()
 	a.srv, a.requests = requestProxy(t), list
 	a.addDocument(list[0], "saved:Regressions\x00Conflict")

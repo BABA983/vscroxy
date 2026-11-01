@@ -24,12 +24,12 @@ type importReport struct {
 
 // importRequests adds what a file the user picks holds: a Postman
 // collection, environment or globals file, a HAR file or an OpenAPI
-// document as a new collection, or this app's request list.
+// document as a new collection.
 func (a *app) importRequests() {
 	go func() {
 		paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{
 			Title:   "Import",
-			Filters: []mygo.FileFilter{{Name: "Postman, HAR, OpenAPI or vscroxy requests", Extensions: []string{"json", "har", "yaml", "yml"}}},
+			Filters: []mygo.FileFilter{{Name: "Postman, HAR or OpenAPI", Extensions: []string{"json", "har", "yaml", "yml"}}},
 		})
 		if err != nil || len(paths) == 0 {
 			return
@@ -126,18 +126,7 @@ func (a *app) importData(data []byte, path string) {
 			a.importOpenAPICollection(doc, strings.TrimSuffix(filepath.Base(path), filepath.Ext(path)))
 			return
 		}
-		list, err := parseRequests(data)
-		if err != nil {
-			a.setMessage("Import: not a Postman collection, environment or globals file, a HAR file, an OpenAPI 3.0/3.1 document or a vscroxy request list (" + err.Error() + ")")
-			return
-		}
-		merged := mergeRequests(a.requests, list)
-		if err := a.persistRequests(merged); err != nil {
-			a.setMessage("Import requests: " + err.Error())
-			return
-		}
-		a.requests = merged
-		a.setMessage(fmt.Sprintf("Imported %d requests", len(list)))
+		a.setMessage("Import: not a Postman collection, environment or globals file, a HAR file or an OpenAPI 3.0/3.1 document")
 	}
 }
 

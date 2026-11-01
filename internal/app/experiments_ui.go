@@ -310,19 +310,6 @@ func (a *app) experimentsView(c *ui.Context, t *ui.Theme, inline bool) {
 						s.pick(r.ID)
 					}
 				}
-				if inline && len(a.history) > 0 {
-					ui.Divider(c)
-					ui.Text(c, "Legacy drafts").Bold()
-					uikit.Meta(c, "Read-only archive · no response recorded")
-					uikit.Input(c, &a.requestQuery).Label("Search history").Placeholder("Search history…").FontSize(uikit.TextMeta)
-					query := strings.ToLower(strings.TrimSpace(a.requestQuery))
-					for i, entry := range a.history {
-						if query != "" && !strings.Contains(strings.ToLower(entry.Method+" "+entry.URL), query) {
-							continue
-						}
-						uikit.RowButton(c, entry.label()).OnClick(func() { a.openHistory(i) }).Children(func() { ui.Text(c, entry.label()).SingleLine() })
-					}
-				}
 			})
 			ui.Divider(c)
 			ui.Column(c).Grow(1).MinWidth(0).Padding(t.Space(2)).Gap(t.Space(2)).Children(func() {
@@ -340,7 +327,7 @@ func (a *app) experimentsView(c *ui.Context, t *ui.Theme, inline bool) {
 						uikit.Body(c, message)
 					}
 					if s.scope != nil {
-						f := investigationFlow(s.scope.Exchange)
+						f := s.scope.Exchange.flow()
 						uikit.Body(c, fmt.Sprintf("Source #%d · %s %s · %d", f.id, f.method, f.url, f.status)).FontFeatures("tnum").SingleLine().Tooltip(f.url)
 						if s.reader == nil {
 							s.reader = &editor.State{Buffer: editor.NewBuffer(f.body(true)), ReadOnly: true, Label: "Source snapshot", NoScrollPastEnd: true}

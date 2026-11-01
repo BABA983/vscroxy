@@ -341,8 +341,6 @@ type app struct {
 	deleting    deletion
 	code        codeDialog
 	vault       vaultState
-	history     []historyEntry
-	historyPath string
 	experiments experimentWorkbench
 	socket      websocketWorkbench
 	sessions    sessionWorkspace
@@ -438,7 +436,6 @@ func newApp() *app {
 		a.rulesPath = filepath.Join(home, ".vscroxy", "rules.json")
 		a.sslPath = filepath.Join(home, ".vscroxy", "ssl.json")
 		a.library.root = filepath.Join(home, ".vscroxy", "collections")
-		a.historyPath = filepath.Join(home, ".vscroxy", "history.json")
 		a.ignorePath = filepath.Join(home, ".vscroxy", "ignore.txt")
 		a.ignoreAppsPath = filepath.Join(home, ".vscroxy", "ignore-apps.txt")
 		a.allowPath = filepath.Join(home, ".vscroxy", "allow.txt")
@@ -478,11 +475,6 @@ func newApp() *app {
 		a.reloadConfig()
 	}
 	a.loadRequestAssets()
-	if a.historyPath != "" {
-		if list, err := loadHistory(a.historyPath); err == nil {
-			a.history = list
-		}
-	}
 	if a.settingsPath != "" {
 		saved := a.saved
 		a.appearance = saved.appearance()
@@ -1281,6 +1273,7 @@ func (a *app) view(c *ui.Context) {
 	})
 	a.persistSettings()
 	a.checkpointExperiments(c)
+	a.checkpointSessions()
 	// Dialogs keep their input and actions above background notifications.
 	uikit.Toasts(c)
 	a.commandPalette(c)
@@ -1614,7 +1607,11 @@ func (a *app) sidebar(c *ui.Context) {
 			reveal("sessions", uikit.SidebarSection(c, "Sessions", nil, func() {
 				for _, item := range a.sessions.items {
 					uikit.SidebarItem(c, "session:"+item.key, clockIcon, item.data.Title, a.sidebarChoice == "session:"+item.key, !a.windowBehind).Children(func() {
-						uikit.Meta(c, fmt.Sprint(len(item.data.Flows))).FontFeatures("tnum")
+						uikit.Meta(c, fmt.Sprint(item.count)).FontFeatures("tnum")
+					}).PopoverMenu(func(m *ui.Menu) {
+						if m.Item("Delete session…").Chosen() {
+							a.confirmDeleteSession(item)
+						}
 					})
 				}
 				if uikit.ToolbarButton(c, "Open session…", "Open historical session files without replacing live traffic", false).FillWidth().Justify(ui.Start).Children(func() {
@@ -3106,11 +3103,6 @@ func (a *app) saveComposed() bool {
 			break
 		}
 	}
-	if a.historyPath != "" {
-		if list, err := loadHistory(a.historyPath); err == nil {
-			a.history = list
-		}
-	}
 	if a.settingsPath != "" {
 		saved, err := loadSettings(a.settingsPath)
 		if err != nil {
@@ -3375,43 +3367,6 @@ func (a *app) collectionShown(name string) *bool {
 	open := true
 	a.collectionOpen[name] = &open
 	return &open
-}
-
-// exportRequests writes the saved requests to a file the user picks.
-func (a *app) exportRequests() {
-	list := slices.Clone(a.requests)
-	go func() {
-		path, err := mygo.Dialog.Save(mygo.SaveDialogOptions{
-			Title:       "Export requests",
-			DefaultPath: "vscroxy-requests.json",
-			Filters:     []mygo.FileFilter{{Name: "Requests", Extensions: []string{"json"}}},
-		})
-		if err != nil || path == "" {
-			return
-		}
-		if err := saveRequests(path, list); err != nil {
-			a.setMessage("Export requests: " + err.Error())
-			return
-		}
-		a.setMessage(fmt.Sprintf("Exported %d requests to %s", len(list), path))
-	}()
-}
-
-// openHistory fills the request editor from a sent request.
-func (a *app) openHistory(i int) {
-	if i < 0 || i >= len(a.history) {
-		return
-	}
-	e := a.history[i]
-	if e.Draft != nil {
-		r := *e.Draft
-		r.ID = "" // History opens a copy, never an update to a saved asset.
-		a.addDocument(r, "")
-		return
-	}
-	a.addDocument(savedRequest{
-		Method: cmp.Or(e.Method, "GET"), URL: e.URL, Headers: e.Headers, Body: e.Body,
-	}, "")
 }
 
 // selectedFlows are the flows chosen in the table, in the order captured.

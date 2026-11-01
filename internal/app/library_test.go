@@ -17,6 +17,20 @@ func loadLibraryRequests(root string) ([]savedRequest, error) {
 	return requests, err
 }
 
+// libraryRoundTrip saves list as a library and reads it back, as a restart does.
+func libraryRoundTrip(t *testing.T, list []savedRequest) []savedRequest {
+	t.Helper()
+	a := &app{library: libraryState{root: filepath.Join(t.TempDir(), "collections")}}
+	if err := a.persistRequests(list); err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := loadLibraryRequests(a.library.root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return loaded
+}
+
 // libraryTree lists the files under root, slash-separated.
 func libraryTree(t *testing.T, root string) []string {
 	t.Helper()
@@ -205,46 +219,6 @@ func TestLibraryLeavesOutsideChangesAlone(t *testing.T) {
 	}
 	if got := libraryTree(t, root); !slices.Equal(got, []string{"Shop/README.md", "Shop/Two.request.json", "Shop/folder.json"}) {
 		t.Errorf("after deleting two requests: %q", got)
-	}
-}
-
-func TestLibraryMigratesTheSingleFileAssets(t *testing.T) {
-	dir := t.TempDir()
-	root := filepath.Join(dir, "collections")
-	legacy := `[{"name":"Login","collection":"Dev","method":"POST","url":"https://example.test/login"},{"id":"x","name":"Ping","method":"GET"}]`
-	os.WriteFile(filepath.Join(dir, "requests.json"), []byte(legacy), 0o600)
-	os.WriteFile(filepath.Join(dir, "collections.json"), []byte(`[{"path":"Dev","pre":"console.log(1)"}]`), 0o600)
-	a := libraryApp(t)
-	a.library.root = root
-	a.loadRequestLibrary()
-	if a.requestsProblem != "" || len(a.requests) != 2 || a.requests[1].Collection != "Dev" || !strings.HasPrefix(a.requests[1].ID, "legacy-") {
-		t.Fatalf("problem %q, requests %+v", a.requestsProblem, a.requests)
-	}
-	if len(a.folders) != 1 || a.folders[0].Pre != "console.log(1)" {
-		t.Errorf("folders = %+v", a.folders)
-	}
-	for _, name := range []string{"requests.json", "collections.json"} {
-		if _, err := os.Stat(filepath.Join(dir, name+".migrated")); err != nil {
-			t.Errorf("%s was not kept as a backup: %v", name, err)
-		}
-	}
-	// The legacy identity is persisted, so experiment links keep working.
-	id := a.requests[1].ID
-	a.loadRequestLibrary()
-	if a.requests[1].ID != id {
-		t.Error("the migrated identity changed on reload")
-	}
-
-	damaged := t.TempDir()
-	os.WriteFile(filepath.Join(damaged, "requests.json"), []byte("{damaged"), 0o600)
-	b := libraryApp(t)
-	b.library.root = filepath.Join(damaged, "collections")
-	b.loadRequestLibrary()
-	if b.requestsProblem == "" || b.persistRequests([]savedRequest{{Request: request.Request{Name: "x"}}}) == nil {
-		t.Fatal("a damaged legacy file did not block saving")
-	}
-	if _, err := os.Stat(b.library.root); err == nil {
-		t.Error("a failed migration left a library that would hide the old file")
 	}
 }
 

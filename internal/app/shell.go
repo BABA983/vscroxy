@@ -323,9 +323,6 @@ func (a *app) moreMenu(c *ui.Context, m *ui.Menu) {
 			a.importHAR()
 		}
 		m.Separator()
-		if m.Item("Export requests…").Chosen() {
-			a.exportRequests()
-		}
 		if m.Item("Import…").Chosen() {
 			a.importRequests()
 		}

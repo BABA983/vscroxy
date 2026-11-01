@@ -70,14 +70,7 @@ func TestCapturedDraftUsesCompleteDecodedPayload(t *testing.T) {
 	if d := a.editCapture(f); d == nil || d.composeBody != body {
 		t.Fatal("draft did not retain the full spilled body")
 	}
-	file := filepath.Join(t.TempDir(), "requests.json")
-	if err := saveRequests(file, []savedRequest{a.requestDocument.value()}); err != nil {
-		t.Fatal(err)
-	}
-	list, err := loadRequests(file)
-	if err != nil {
-		t.Fatal(err)
-	}
+	list := libraryRoundTrip(t, []savedRequest{a.requestDocument.value()})
 	got := list[0].Execute(t.Context(), srv, request.Context{}, nil, nil)
 	if got.Err != nil || got.Response == nil || got.Response.Status != 201 {
 		t.Fatalf("replay failed: %+v, response %+v", got, got.Response)

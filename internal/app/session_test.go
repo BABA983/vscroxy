@@ -297,94 +297,6 @@ func TestReadHARRejectsWhatItCannotUse(t *testing.T) {
 	}
 }
 
-func TestInvestigationsMigrateOnceWithoutLosingEvidence(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, "investigations.json")
-	// Duplicate capture IDs and binary payloads distinguish a real merge from
-	// merely copying the first item or restoring its lossy text preview.
-	legacy := investigationFile{Version: 1, Investigations: []*investigation{
-		{ID: "../not-a-path", Title: "Checkout", Notes: "Session observation", Items: []investigationItem{
-			{Note: "First item", Source: sessionFlow{ID: 7, URL: "https://one.test/", ReqBytes: []byte{255, 0, 4}, Note: "Capture note", ReqTrailer: http.Header{"X-Trail": {"retained"}}, ConnectionLog: "recorded log"}},
-			{Note: "Second item", Source: sessionFlow{ID: 7, URL: "https://two.test/", ResBody: "second result", Color: "Blue", DebugKey: "stable-source"}},
-		}},
-		{ID: "empty", Title: "Empty but named", Notes: "Keep this too"},
-	}}
-	data, err := json.Marshal(legacy)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(path, data, 0o600); err != nil {
-		t.Fatal(err)
-	}
-	sessions := sessionWorkspace{}
-	if err := sessions.load(filepath.Join(dir, "sessions")); err != nil {
-		t.Fatal(err)
-	}
-	if len(sessions.items) != 2 {
-		t.Fatalf("migrated %d sessions, want both, including the empty one", len(sessions.items))
-	}
-	var migrated *savedSession
-	for _, item := range sessions.items {
-		if item.data.Title == "Checkout" {
-			migrated = item
-		}
-	}
-	if migrated == nil {
-		t.Fatal("lost investigation title")
-	}
-	got := migrated.data
-	if got.Notes != "Session observation" || len(got.Flows) != 2 || got.Flows[0].ID == got.Flows[1].ID || got.Flows[1].OriginalID != 7 ||
-		!bytes.Equal(got.Flows[0].ReqBytes, []byte{255, 0, 4}) || got.Flows[0].ReqTrailer.Get("X-Trail") != "retained" ||
-		got.Flows[0].ConnectionLog != "recorded log" || got.Flows[0].Note != "Capture note\nFirst item" ||
-		got.Flows[1].ResBody != "second result" || got.Flows[1].DebugKey != "stable-source" || got.Flows[1].Color != "Blue" {
-		t.Fatalf("migration changed or dropped evidence: %+v", got)
-	}
-	// Editing the migrated session survives both a normal restart and a retry
-	// after an interrupted migration; legacy bytes remain untouched.
-	migrated.data.Flows[0].Note = "New annotation"
-	migrated.persist(nil)
-	sessions.close()
-	for _, retry := range []bool{false, true} {
-		if retry {
-			if err := os.Remove(filepath.Join(dir, "sessions", ".investigations-migrated")); err != nil {
-				t.Fatal(err)
-			}
-		}
-		restarted := sessionWorkspace{}
-		if err := restarted.load(filepath.Join(dir, "sessions")); err != nil || len(restarted.items) != 2 {
-			t.Fatalf("restart duplicated or lost sessions: %v", err)
-		}
-		for _, item := range restarted.items {
-			if item.data.Title == "Checkout" && item.data.Flows[0].Note != "New annotation" {
-				t.Fatal("retry overwrote migrated annotations")
-			}
-		}
-	}
-	unchanged, _ := os.ReadFile(path)
-	if !bytes.Equal(data, unchanged) {
-		t.Fatal("migration changed the original board")
-	}
-	if info, err := os.Stat(migrated.path); err != nil || info.Mode().Perm() != 0o600 {
-		t.Fatalf("migrated evidence is not private: %v %v", info, err)
-	}
-	// A broken target from an interrupted migration must not be blessed as
-	// complete or hide other healthy sessions. The legacy board is the recovery.
-	marker := filepath.Join(dir, "sessions", ".investigations-migrated")
-	if err := os.Remove(marker); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(migrated.path, []byte("partial JSON"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	retry := sessionWorkspace{}
-	if err := retry.load(filepath.Join(dir, "sessions")); err == nil || len(retry.items) != 1 {
-		t.Fatalf("incomplete migration was accepted or hid a healthy session: %v", err)
-	}
-	if _, err := os.Stat(marker); !errors.Is(err, os.ErrNotExist) {
-		t.Fatal("incomplete migration was marked complete")
-	}
-}
-
 func TestSessionsAnnotateCompareAndReopenWithoutChangingLiveTraffic(t *testing.T) {
 	a := workspaceApp()
 	a.openCompose() // A hidden draft must not be sent from a historical tab.
@@ -413,7 +325,6 @@ func TestSessionsAnnotateCompareAndReopenWithoutChangingLiveTraffic(t *testing.T
 	if err := chooseMenu(tt, "Purple"); err != nil {
 		t.Fatal(err)
 	}
-	click("Save annotations")
 	click("Use as left")
 	click("Session: After")
 	click("Compare with left")
@@ -445,14 +356,45 @@ func TestSessionsAnnotateCompareAndReopenWithoutChangingLiveTraffic(t *testing.T
 	if !bytes.Equal(live, stillLive) {
 		t.Fatal("historical browsing replaced live traffic")
 	}
+	// Annotations save as they change; closing only waits for the writes.
 	a.sessions.close()
 	reopened := sessionWorkspace{}
-	if err := reopened.load(a.sessions.dir); err != nil {
+	if err := reopened.load(a.sessions.dir); err != nil || len(reopened.items) != 2 {
+		t.Fatal("restart lost sessions", err)
+	}
+	var before *savedSession
+	for _, item := range reopened.items {
+		if item.data.Title == "Before" {
+			before = item
+		}
+	}
+	if before == nil || before.loaded || before.data.Flows != nil || before.count != 1 {
+		t.Fatalf("startup loaded session payloads: %+v", before)
+	}
+	file, err := readSessionFile(before.path)
+	if err != nil || !file.Flows[0].Pinned || file.Flows[0].Note != "Observed once" || file.Flows[0].Color != "Purple" {
+		t.Fatal("annotations did not survive a restart", err)
+	}
+	// Opening a session after a restart loads its payloads in the background.
+	b := workspaceApp()
+	if err := b.sessions.load(a.sessions.dir); err != nil {
 		t.Fatal(err)
 	}
-	for _, item := range reopened.items {
-		if item.data.Title == "Before" && (!item.data.Flows[0].Pinned || item.data.Flows[0].Note != "Observed once" || item.data.Flows[0].Color != "Purple") {
-			t.Fatal("annotations did not survive a restart")
+	t.Cleanup(b.sessions.close)
+	b.selectSession(before.key)
+	for deadline := time.Now().Add(5 * time.Second); !b.sessions.current().loaded; time.Sleep(time.Millisecond) {
+		if time.Now().After(deadline) {
+			t.Fatal("session never loaded")
 		}
+		b.checkpointSessions()
+	}
+	if got := b.sessions.current().data.Flows; len(got) != 1 || got[0].ResBody != "before" {
+		t.Fatalf("opened session = %+v", got)
+	}
+	if err := reopened.remove(before.key); err != nil || len(reopened.items) != 1 {
+		t.Fatal("delete kept the session", err)
+	}
+	if _, err := os.Stat(before.path); !errors.Is(err, os.ErrNotExist) {
+		t.Fatal("delete left the session file", err)
 	}
 }

@@ -20,11 +20,11 @@
 | 问题 | 决定 | 理由 |
 | --- | --- | --- |
 | 历史和留证的 7 个概念 | 合并成 **History**（已保存请求的发送记录）和 **Sessions**（侧栏 SESSIONS 分组）（见 3.1） | 概念太多、入口重复，约 2700 行代码维护同一类功能 |
-| Investigations | 去掉，能力并入 Sessions；已有数据自动迁移成会话文件，不丢数据 | Proxyman 用"保存会话 + Pin + 颜色 + 备注"就覆盖了这个需求 |
+| Investigations | 去掉，能力并入 Sessions；原型阶段不迁移旧数据 | Proxyman 用"保存会话 + Pin + 颜色 + 备注"就覆盖了这个需求 |
 | Regression 分享/导入格式 | 去掉自有格式；脱敏变成所有导出（Postman、HAR、会话）都有的"脱敏"选项 | 分享统一走通用格式，脱敏能力保留并扩大适用范围 |
 | 两套脚本 | 抓包脚本改成挂在规则上，API 对齐 `pm`，和请求脚本共用编辑器、Console 和内置库；`script.js` 迁移成一条"匹配全部"的规则 | 用户只需学一套 API；Proxyman 也是"规则 + 脚本" |
 | Checks 和 pm.test | 都保留；导出 Postman 时 Checks 自动转成等价的 `pm.test` | 无代码断言有价值，导出不再丢失 |
-| 旧版脚本 API（`req`、`res`、`vars`、`test`、`log`） | 下一个版本标记废弃并在 Console 提示，再下一个版本删除 | 减少维护面 |
+| 旧版脚本 API（`req`、`res`、`vars`、`test`、`log`） | 已删除，只保留 `pm` 和 Postman 自己的旧全局（`tests`、`postman.*`、`responseBody` 等） | 减少维护面；原型阶段不做兼容 |
 | 诊断入口分散 | 合并成一个"连接诊断"，其他地方只放跳转 | 同一类问题只有一个答案 |
 | Host 方案能否同时启用多个 | 默认可以同时开多个，列表里靠上的优先；可以切到"互斥模式" | 和 SwitchHosts 默认行为一致 |
 | Host 方案和 Requests 环境联动 | 第一版不联动；之后作为方案上的可选项"切换时同时切换环境" | 先把两个功能各自做好，避免概念绑死 |
@@ -45,7 +45,7 @@
 | Investigations、Historical sessions | **Sessions**（侧栏 SESSIONS 分组）：保存/打开会话文件，多个会话以 tab 打开，用 Pin、颜色、备注留证，跨会话用 Diff 对比 |
 | Regression 用例和分享格式 | 带 Checks 的普通请求放在集合里，用 Runner 跑；分享走 Postman 导出加"脱敏"选项 |
 
-迁移：`investigations.json` 里每个调查转成一个会话文件；`experiments.json` 继续作为 History 的存储；`history.json` 保留只读一个版本后删除。
+`experiments.json` 继续作为 History 的存储；`investigations.json` 和 `history.json` 不再读取（原型阶段不做迁移）。
 
 ### 3.2 其他
 
@@ -249,11 +249,11 @@
 - 录制开关（标题栏状态 pill 里的暂停按钮）。
 - Allow list（Settings → 抓包）。
 - 内存和磁盘上限、自动清理。
-- 合并历史和留证（3.1），迁移旧数据（已完成：History + Sessions；旧调查自动迁移，旧 Recent requests 只读保留）。
+- 合并历史和留证（3.1）（已完成：History + Sessions；不迁移旧数据）。
 - 合并诊断入口。
 - 导出时的脱敏选项（已完成：Postman、HAR、会话）。
 - Checks 导出为 `pm.test`。
-- 旧版脚本 API 标记废弃。
+- 旧版脚本 API 删除（已完成）。
 - Settings 重新分区。
 - UI 改版第 4 步（录制 pill、查询筛选、活动柱状图等标志性组件）。
 

@@ -140,7 +140,9 @@ func TestStartupFailureKeepsLocalAssetsUsable(t *testing.T) {
 	if err := writeSettings(filepath.Join(dir, "settings.json"), settings{ProxyPort: 80}); err != nil {
 		t.Fatal(err)
 	}
-	if err := saveRequests(filepath.Join(dir, "requests.json"), []savedRequest{{Name: "kept", Method: "GET", URL: "https://example.test"}}); err != nil {
+	library := &app{}
+	library.library.root = filepath.Join(dir, "collections")
+	if err := library.persistRequests([]savedRequest{{Request: request.Request{ID: "kept", Name: "kept", Method: "GET", URL: "https://example.test"}}}); err != nil {
 		t.Fatal(err)
 	}
 	if err := saveEnvs(filepath.Join(dir, "env.json"), envFile{Active: "dev", Envs: []environment{{Name: "dev", Vars: map[string]string{"host": "local"}}}}); err != nil {
@@ -166,7 +168,11 @@ func TestDamagedAssetsStayUntouchedUntilExplicitReload(t *testing.T) {
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		t.Fatal(err)
 	}
-	for _, name := range []string{"requests.json", "env.json"} {
+	if err := os.MkdirAll(filepath.Join(dir, "collections", "Shop"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	damaged := []string{filepath.Join("collections", "Shop", "Bad.request.json"), "env.json"}
+	for _, name := range damaged {
 		if err := os.WriteFile(filepath.Join(dir, name), []byte("{damaged"), 0o600); err != nil {
 			t.Fatal(err)
 		}
@@ -187,7 +193,7 @@ func TestDamagedAssetsStayUntouchedUntilExplicitReload(t *testing.T) {
 	a.saveVars()
 	a.applyVars("dev", nil, map[string]string{"token": "from-script"})
 	a.varsOpen = false
-	for _, name := range []string{"requests.json", "env.json"} {
+	for _, name := range damaged {
 		data, err := os.ReadFile(filepath.Join(dir, name))
 		if err != nil || string(data) != "{damaged" {
 			t.Fatalf("%s overwritten: %q, %v", name, data, err)
@@ -199,7 +205,7 @@ func TestDamagedAssetsStayUntouchedUntilExplicitReload(t *testing.T) {
 	}
 	// Recovery is external repair/move-aside plus a read-only retry, never an
 	// implicit overwrite or an automatic destructive reset.
-	for _, name := range []string{"requests.json", "env.json"} {
+	for _, name := range damaged {
 		if err := os.Rename(filepath.Join(dir, name), filepath.Join(dir, name+".backup")); err != nil {
 			t.Fatal(err)
 		}

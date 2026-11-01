@@ -167,7 +167,7 @@ func TestImportOpenAPIWithoutServerAddsBaseURLVariable(t *testing.T) {
 func TestImportRejectsUnknownFilesListingEveryKind(t *testing.T) {
 	a := libraryApp(t)
 	a.importData([]byte(`{"swagger":"2.0"}`), "old.json")
-	if !strings.HasPrefix(a.message, "Import: not a Postman collection, environment or globals file, a HAR file, an OpenAPI 3.0/3.1 document or a vscroxy request list") || len(a.requests) != 0 {
+	if !strings.HasPrefix(a.message, "Import: not a Postman collection, environment or globals file, a HAR file or an OpenAPI 3.0/3.1 document") || len(a.requests) != 0 {
 		t.Errorf("message %q, requests %d", a.message, len(a.requests))
 	}
 }

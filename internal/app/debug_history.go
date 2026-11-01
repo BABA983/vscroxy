@@ -33,7 +33,7 @@ func (d *requestDocument) setDebugSource(source *debugSource) {
 	if source == nil {
 		return
 	}
-	f := investigationFlow(source.Exchange)
+	f := source.Exchange.flow()
 	d.sourceFlow, d.source = f.id, &f
 }
 
@@ -145,10 +145,6 @@ func (a *app) debugDrafts(c *ui.Context) {
 
 func (a *app) debugWire(c *ui.Context, r experimentRecord) {
 	s := &a.experiments
-	if r.RunKey == "" {
-		uikit.Meta(c, "Legacy run · wire provenance was not recorded.")
-		return
-	}
 	if len(r.Wire) == 0 {
 		uikit.Meta(c, "No wire evidence retained yet; no rule outcome can be inferred.")
 		return
@@ -177,7 +173,7 @@ func (s *experimentWorkbench) compareSource(c *ui.Context, r experimentRecord) {
 		uikit.Body(c, "This run has no recorded capture source.")
 		return
 	}
-	left, right := investigationFlow(r.Source.Exchange), r.compared("")
+	left, right := r.Source.Exchange.flow(), r.compared("")
 	left.id, right.id = 1, 2
 	s.sourceComparison.compare(c, left, right, [2]string{fmt.Sprintf("Source #%d · snapshot", r.Source.Exchange.ID), fmt.Sprintf("Experiment #%d", r.ID)})
 }

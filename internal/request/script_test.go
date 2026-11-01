@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"testing"
 	"time"
+
+	"github.com/baba983/vscroxy/internal/capture"
 )
 
 func TestPreRequestScriptChangesTheRequest(t *testing.T) {
@@ -15,13 +17,13 @@ func TestPreRequestScriptChangesTheRequest(t *testing.T) {
 	}
 	run := &scriptRun{vars: map[string]string{"token": "abc"}}
 	src := `
-		req.method = "POST"
-		req.body = JSON.stringify({name: "vscroxy"})
-		req.set("Authorization", "Bearer " + vars.get("token"))
-		req.set("X-Drop", "1")
-		req.remove("X-Drop")
-		vars.set("last", req.url)
-		log("ready")
+		pm.request.method = "POST"
+		pm.request.body.raw = JSON.stringify({name: "vscroxy"})
+		pm.request.headers.upsert("Authorization", "Bearer " + pm.variables.get("token"))
+		pm.request.headers.upsert("X-Drop", "1")
+		pm.request.headers.remove("X-Drop")
+		pm.environment.set("last", pm.request.url.toString())
+		console.log("ready")
 	`
 	if err := runScript(src, run, map[string]any{"req": req}); err != nil {
 		t.Fatalf("run: %v", err)
@@ -54,12 +56,12 @@ func TestPostResponseScriptAsserts(t *testing.T) {
 	}
 	run := &scriptRun{vars: map[string]string{}}
 	src := `
-		test("status is 200", res.status === 200)
-		test("content type is json", res.get("Content-Type") === "application/json")
-		var body = res.json()
-		test("the name is vscroxy", body.name === "vscroxy")
-		test("a wrong one fails", res.status === 404)
-		vars.set("id", String(body.id))
+		pm.test("status is 200", function () { pm.expect(pm.response.code === 200).to.be.true })
+		pm.test("content type is json", function () { pm.expect(pm.response.headers.get("Content-Type") === "application/json").to.be.true })
+		var body = pm.response.json()
+		pm.test("the name is vscroxy", function () { pm.expect(body.name === "vscroxy").to.be.true })
+		pm.test("a wrong one fails", function () { pm.expect(pm.response.code === 404).to.be.true })
+		pm.environment.set("id", String(body.id))
 	`
 	if err := runScript(src, run, map[string]any{"res": res}); err != nil {
 		t.Fatalf("run: %v", err)
@@ -96,7 +98,8 @@ func TestCancellingRunningScriptStopsItsLoop(t *testing.T) {
 	defer cancel()
 	entered, done := make(chan struct{}), make(chan error, 1)
 	go func() {
-		done <- runScriptContext(ctx, `entered(); for (;;) {}`, &scriptRun{}, map[string]any{"entered": func() { close(entered) }})
+		run := &scriptRun{send: func(*Prepared) (capture.Flow, error) { close(entered); return capture.Flow{Status: 200}, nil }}
+		done <- runScriptContext(ctx, `pm.sendRequest("http://example.test/"); for (;;) {}`, run, nil)
 	}()
 	select {
 	case <-entered:

@@ -1,29 +1,16 @@
 package app
 
 import (
-	"os"
 	"path/filepath"
-	"strings"
 	"testing"
+
+	"github.com/baba983/vscroxy/internal/request"
 )
 
-func TestRequestIdentitySurvivesLegacyLoadRenameMoveAndImport(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "requests.json")
-	legacy := []byte(`[{"name":"Login","collection":"Dev","method":"POST","url":"https://example.test/login"}]`)
-	if err := os.WriteFile(path, legacy, 0o600); err != nil {
-		t.Fatal(err)
-	}
-	first, err := loadRequests(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	second, err := loadRequests(path)
-	if err != nil || first[0].ID == "" || first[0].ID != second[0].ID {
-		t.Fatal("legacy loads changed identity", err)
-	}
-	data, _ := os.ReadFile(path)
-	if string(data) != string(legacy) {
-		t.Fatal("loading rewrote the legacy file")
+func TestRequestIdentitySurvivesRenameMoveAndImport(t *testing.T) {
+	first := []savedRequest{{Request: request.Request{Name: "Login", Collection: "Dev", Method: "POST", URL: "https://example.test/login"}}}
+	if err := assignIDs(first); err != nil || first[0].ID == "" {
+		t.Fatal("no identity assigned", err)
 	}
 	a := workspaceApp()
 	a.requests, a.library.root = first, filepath.Join(t.TempDir(), "collections")
@@ -55,10 +42,7 @@ func TestRequestIdentitySurvivesLegacyLoadRenameMoveAndImport(t *testing.T) {
 	if len(merged) != 2 || merged[0].ID != id || merged[0].URL != "https://example.test/login" || merged[1].Name != "Authenticate (2)" || merged[1].ID != foreign.ID {
 		t.Fatalf("import conflated identities or was not idempotent: %+v", merged)
 	}
-	if err := os.WriteFile(path, []byte(`[{"id":"same","name":"one"},{"id":"same","name":"two"}]`), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := loadRequests(path); err == nil {
+	if assignIDs([]savedRequest{{Request: request.Request{ID: "same", Name: "one"}}, {Request: request.Request{ID: "same", Name: "two"}}}) == nil {
 		t.Fatal("ambiguous identities accepted")
 	}
 }
@@ -116,37 +100,5 @@ func TestUniqueRequestName(t *testing.T) {
 	list = append(list, savedRequest{Name: "GET example.com/ (2)"})
 	if got := uniqueRequestName(list, "GET example.com/"); got != "GET example.com/ (3)" {
 		t.Errorf("name = %q, want the next count", got)
-	}
-}
-
-func TestSaveAndLoadRequests(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "requests.json")
-	want := []savedRequest{
-		{Name: "second", Collection: "B", Method: "POST", URL: "https://example.com/b", Headers: "A: 1", Body: `{"x":1}`},
-		{Name: "b-first", Collection: "A", Method: "GET", URL: "https://example.com/a"},
-		{Name: "a-second", Collection: "A", Method: "GET", URL: "https://example.com/c"},
-	}
-	if err := saveRequests(path, want); err != nil {
-		t.Fatalf("save: %v", err)
-	}
-	got, err := loadRequests(path)
-	if err != nil {
-		t.Fatalf("load: %v", err)
-	}
-	// Grouped by collection; within one, the order they were saved in, which
-	// is the order an imported collection runs in.
-	var names []string
-	for _, r := range got {
-		names = append(names, r.Name)
-	}
-	if strings.Join(names, ",") != "b-first,a-second,second" || got[2].Body != `{"x":1}` {
-		t.Fatalf("loaded = %+v", got)
-	}
-}
-
-func TestLoadRequestsWithoutAFile(t *testing.T) {
-	got, err := loadRequests(filepath.Join(t.TempDir(), "missing.json"))
-	if err != nil || got != nil {
-		t.Fatalf("load = %+v, %v; want none and no error", got, err)
 	}
 }

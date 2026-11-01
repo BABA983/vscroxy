@@ -4,11 +4,13 @@ import (
 	"cmp"
 	"encoding/base64"
 	"encoding/json/v2"
+	"errors"
 	"fmt"
 	"maps"
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"time"
@@ -331,7 +333,6 @@ type sessionFile struct {
 
 type sessionFlow struct {
 	ID              int               `json:"id"`
-	OriginalID      int               `json:"originalId,omitzero"`
 	Pinned          bool              `json:"pinned,omitzero"`
 	DebugKey        string            `json:"debugKey,omitempty"`
 	DebugRun        string            `json:"debugRun,omitempty"`
@@ -374,7 +375,7 @@ type sessionFlow struct {
 
 // sessionFrameData is one message of a saved session: the whole of what the
 // capture retained of it, and what says what it is and where it came in the
-// stream. A file another version wrote has only the first three fields.
+// stream.
 type sessionFrameData struct {
 	Seq       int       `json:"seq,omitzero"`
 	Direction string    `json:"direction"`
@@ -469,44 +470,51 @@ func writeSession(path string, flows []flow, frames map[int][]frame) error {
 	return writePrivateFile(path, append(data, '\n'))
 }
 
+// readSessionFile reads and checks a session file. Files are bounded: a
+// session is opened whole.
+func readSessionFile(path string) (sessionFile, error) {
+	var s sessionFile
+	info, err := os.Stat(path)
+	if err != nil {
+		return s, err
+	}
+	if !info.Mode().IsRegular() || info.Size() > 48<<20 {
+		return s, errors.New("choose a regular session file no larger than 48 MiB")
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return s, err
+	}
+	if err := json.Unmarshal(data, &s); err != nil {
+		return s, fmt.Errorf("%s: %w", filepath.Base(path), err)
+	}
+	if s.Version != 1 {
+		return s, fmt.Errorf("%s: unknown session version %d", filepath.Base(path), s.Version)
+	}
+	ids := map[int]bool{}
+	for _, f := range s.Flows {
+		if ids[f.ID] {
+			return s, errors.New("session has duplicate exchange IDs")
+		}
+		ids[f.ID] = true
+	}
+	for id := range s.Frames {
+		if !ids[id] {
+			return s, errors.New("session has messages without an exchange")
+		}
+	}
+	return s, nil
+}
+
 // readSession parses a session file into the flows and frames the table shows.
 func readSession(path string) ([]flow, map[int][]frame, error) {
-	data, err := os.ReadFile(path)
+	s, err := readSessionFile(path)
 	if err != nil {
 		return nil, nil, err
 	}
-	var s sessionFile
-	if err := json.Unmarshal(data, &s); err != nil {
-		return nil, nil, err
-	}
-	if s.Version != 1 {
-		return nil, nil, fmt.Errorf("%s: unknown session version %d", path, s.Version)
-	}
 	flows := make([]flow, 0, len(s.Flows))
 	for _, f := range s.Flows {
-		if len(f.ReqBytes) > 0 {
-			f.ReqBody = string(f.ReqBytes)
-		}
-		if len(f.ResBytes) > 0 {
-			f.ResBody = string(f.ResBytes)
-		}
-		flows = append(flows, flow{
-			id: f.ID, method: f.Method, scheme: f.Scheme, host: f.Host, path: f.Path, url: f.URL,
-			pinned:   f.Pinned,
-			debugKey: f.DebugKey, debugRun: f.DebugRun,
-			replayOf: f.ReplayOf,
-			actions:  f.Actions,
-			status:   f.Status, bytes: f.Bytes, millis: f.Millis,
-			reqHeaders: f.ReqHeaders, resHeaders: f.ResHeaders,
-			reqBody: f.ReqBody, resBody: f.ResBody,
-			reqSize: max(f.ReqSize, len(f.ReqBody)), resSize: max(f.ResSize, len(f.ResBody)),
-			reqError: f.ReqError, resError: f.ResError,
-			reqHeader: f.ReqHeader, respHeader: f.RespHeader,
-			reqTrailer: f.ReqTrailer, resTrailer: f.ResTrailer,
-			conn: conn{proto: f.ReqProto, log: f.ConnectionLog, error: f.ConnectionError, errorStage: f.ConnectionStage}, resProto: f.ResProto,
-			at: f.At, kind: f.Kind, color: f.Color, note: f.Note,
-			streamEnd: f.StreamEnd,
-		})
+		flows = append(flows, f.flow())
 	}
 	frames := make(map[int][]frame, len(s.Frames))
 	for id, list := range s.Frames {
@@ -514,8 +522,6 @@ func readSession(path string) ([]flow, map[int][]frame, error) {
 			if len(fr.Payload) > 0 {
 				fr.Data = string(fr.Payload)
 			}
-			// A file written before messages carried a size or a time reads
-			// as one that knows only what it holds.
 			frames[id] = append(frames[id], frame{
 				seq:       fr.Seq,
 				direction: fr.Direction,
@@ -610,22 +616,18 @@ func (a *app) openSession() {
 		}
 		var files []sessionFile
 		for _, path := range paths {
-			bundle, err := ReadInvestigationFile(path)
+			file, err := readSessionFile(path)
 			if err != nil {
 				a.setMessage("Session: " + err.Error())
 				return
 			}
-			for _, source := range bundle.Sources {
-				file := source.Session
-				if file.Title == "" {
-					file.Title = source.Label
-				}
-				file.Notes = strings.TrimSpace(bundle.Notes + "\n" + source.Notes + "\n" + file.Notes)
-				if file.Created.IsZero() {
-					file.Created = time.Now()
-				}
-				files = append(files, file)
+			if file.Title == "" {
+				file.Title = strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))
 			}
+			if file.Created.IsZero() {
+				file.Created = time.Now()
+			}
+			files = append(files, file)
 		}
 		a.win.Update(func() {
 			for _, file := range files {

@@ -134,7 +134,7 @@ the capture's Client column may identify the desktop gateway instead.
   request and the response side by side, each with its own tabs, and the
   exchange-wide Diff, Connection and Messages views one click away.
 - `sessions.go` / `sessions_ui.go`: historical session tabs, immutable payloads,
-  annotations, cross-session comparison and legacy investigation migration.
+  annotations, cross-session comparison and deletion.
 - `export.go`: shared Postman, HAR and session export redaction options.
 - `requests.go`: independent request documents, their tabs, draft-close
   confirmation and the inline response viewer.
@@ -917,10 +917,9 @@ at the top level, with two seconds of run time (time spent waiting on
   **Let scripts use pm.vault** is turned on in **Vault…**. A read follows the
   secret's allowed domains for the request's host; a secret a script adds has
   none. Scripts can log what they read: Console output is not redacted.
-- **Legacy**: `tests["name"] = bool`, `postman.setEnvironmentVariable` and the
-  other `postman.*` variable calls, `responseBody`, `responseCode`,
-  `responseHeaders`, and this app's earlier `req`, `res`, `vars`, `test` and
-  `log` keep working.
+- **Postman's legacy globals**: `tests["name"] = bool`,
+  `postman.setEnvironmentVariable` and the other `postman.*` variable calls,
+  `responseBody`, `responseCode` and `responseHeaders`.
 
 `require` only provides `chai`. Postman's other sandbox libraries (lodash,
 moment, crypto-js, cheerio and so on), `pm.visualizer` and timers are not
@@ -981,8 +980,8 @@ its requests, folders and settings move together, and open tabs follow.
 
 **Import…** in the sidebar footer, **Session → Import…** and the command
 palette read a Postman Collection v2.0 or v2.1 file, an environment or a
-globals export, a HAR file, an OpenAPI 3.0 or 3.1 document (JSON or YAML), or
-this app's own request list, telling them apart by their contents.
+globals export, a HAR file or an OpenAPI 3.0 or 3.1 document (JSON or YAML),
+telling them apart by their contents.
 
 A **HAR** file becomes a collection named after the file: every HTTP(S) entry,
 in order, converted as **Save as request** converts a captured row, up to 1000
@@ -1065,7 +1064,7 @@ rows, with cumulative totals). Closing the dialog leaves the run active;
 **Cancel run** stops it. Unsaved request tabs are not run or modified.
 Each delivered attempt also appears in **History**, including failures and
 in-flight cancellation; **Inspect retained run** opens its immutable snapshot
-and Console. Runner results are not the deduplicated recent-request list.
+and Console.
 
 Each open request owns its draft, editor selection, pending send and response. Concurrent
 sends, even to the same URL, retain their own results and run the script that
@@ -1095,10 +1094,9 @@ saved request across restart.
 **Save request** keeps the editor's request in the request library with
 a stable ID: renaming or moving it updates the same asset. Unrelated same-name
 assets are not silently overwritten. **Duplicate as new request** creates a new
-identity. Legacy assets gain deterministic IDs in memory without a load-time
-rewrite; the next explicit save persists them. Imports update matching IDs and
-rename unrelated name collisions. The sidebar groups requests by collection; the
-**Session** menu exports and imports them as a file. Right-click a request for
+identity. Imports update matching IDs and rename unrelated name collisions. The
+sidebar groups requests by collection; share a collection with its Postman
+export. Right-click a request for
 **Delete request…**, or a collection or folder for **Delete “Shop/Orders”…**,
 which removes it with every request, folder and setting under it after a
 confirmation. A deleted request's open tab closes, unless it holds unsaved
@@ -1150,18 +1148,10 @@ anything is written, and the file is never overwritten or deleted: reload, then
 save again. Reloading shows the new contents in open tabs without unsaved
 changes; a tab with unsaved changes keeps them, and saving it replaces the file.
 
-The first start of this version moves `requests.json` and `collections.json`
-into the tree and keeps them as `requests.json.migrated` and
-`collections.json.migrated`. If either cannot be read, nothing is moved and
-saving stays blocked until the file is repaired.
-
 **History** in the collection **⋯** menu opens retained attempts. The request's
 **History / Examples** column and **⋯ → History** scope the same store by request
 identity or capture provenance, never by URL. Status and source filters narrow
 the results; **Run details…** opens notes, baseline and comparison actions.
-The old `~/.vscroxy/history.json` appears under **Legacy drafts**, read-only for
-one compatibility version. Opening an entry creates an unsent copy. New sends
-never append to or rewrite that legacy file.
 
 ### Regression cases
 
@@ -1584,8 +1574,8 @@ client request/final response. **Recorded interventions** shows actual captured
 scenario/rule actions for the selected wire exchange, never inferred from today's
 configuration. Each HTTP(S) Send or Runner attempt has a local correlation identity, including
 across redirect hops; it is not sent as an HTTP header. Up to 16 separate wire
-exchanges are retained per run. Legacy runs and missing wire evidence are labeled
-explicitly and do not imply that no rule ran. Interactive WebSocket sends are not
+exchanges are retained per run. Missing wire evidence is labeled explicitly and
+does not imply that no rule ran. Interactive WebSocket sends are not
 linked into this HTTP(S) history.
 
 Source/wire snapshots share the experiment checkpoint's 100-run / 32 MiB budget
@@ -1601,16 +1591,18 @@ row menu or Commands snapshots that exchange, including retained stream messages
 **Save capture to Sessions** keeps the entire live capture. Later capture changes
 never change these snapshots.
 
-**Open session…** accepts multiple session files, plus legacy evidence bundles,
-up to 48 MiB per input file. It stores private copies under `~/.vscroxy/sessions/`;
+**Open session…** accepts multiple session files, up to 48 MiB each. It stores private copies under `~/.vscroxy/sessions/`;
 the imported originals are never overwritten. Saved sessions stay in the sidebar
-after restart. Open sessions have separate tabs, marked **Historical · read-only
-payloads**. Closing a tab keeps its saved file. Opening, annotating and comparing
+after restart; startup reads only their titles, and a session's payloads load
+when it opens. Open sessions have separate tabs, marked **Historical · read-only
+payloads**. Closing a tab keeps its saved file and releases its payloads.
+**Delete…** in the session bar, or right-clicking it in the sidebar, removes the
+saved file. Opening, annotating and comparing
 never replace live traffic, change rules, run scripts or send requests.
 
 Choose an exchange and use **Pin**, a color, exchange notes or session notes;
-**Save annotations** persists the title, notes and color, while Pin saves immediately.
-Writes are ordered in the background and flushed on quit. Headers (including
+the title and every annotation save as they change. Writes are ordered in the
+background and flushed on quit; a failed write shows in the session bar. Headers (including
 trailers), bodies, messages and connection diagnostics are read-only; sensitive
 header values are masked until **Reveal credentials**. Search matches URL, status,
 notes and errors literally, case-insensitively; it does not search payloads.
@@ -1620,15 +1612,6 @@ to reuse the header/body Diff reader. Numeric IDs reused by different sessions d
 not link exchanges. **Export session…** uses the common redaction review above.
 Local sessions remain private, unencrypted historical data, not verified current
 network or certificate state.
-
-On first launch, every investigation in `investigations.json` becomes a session
-file, preserving its title, notes, exchange payloads, binary data, trailers and
-diagnostics. Duplicate capture IDs receive unique session-local IDs, retaining
-the original ID as provenance. Migration is restartable, does not overwrite
-already-migrated annotations, and never changes the legacy file. An unreadable or
-incomplete migration is reported rather than marked complete; healthy sessions
-remain available. `experiments.json` continues to hold History, and `history.json`
-is retained read-only for one compatibility version.
 
 ## Next
 

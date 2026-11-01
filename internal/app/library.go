@@ -368,19 +368,10 @@ func (l *libraryState) apply(files map[string][]byte) error {
 	return nil
 }
 
-// loadRequestLibrary reads the library into the app. A library that does
-// not exist yet is made from requests.json and collections.json, which are
-// then kept beside it as *.migrated.
+// loadRequestLibrary reads the library into the app.
 func (a *app) loadRequestLibrary() {
 	l := &a.library
 	a.requestsProblem = ""
-	if _, err := os.Stat(l.root); errors.Is(err, fs.ErrNotExist) && l.root != "" {
-		if err := migrateLibrary(l.root); err != nil {
-			a.requests, a.folders, l.known = nil, nil, nil
-			a.requestsProblem = fmt.Sprintf("Requests (moving to %s): %v", l.root, err)
-			return
-		}
-	}
 	requests, folders, known, err := loadLibrary(l.root)
 	if err != nil {
 		a.requests, a.folders, l.known = nil, nil, nil
@@ -417,52 +408,6 @@ func (a *app) refreshDocuments() {
 	if kept > 0 {
 		a.setMessage(fmt.Sprintf("%d open %s unsaved changes to requests that changed on disk; saving replaces those changes", kept, plural(kept, "tab has", "tabs have")))
 	}
-}
-
-// migrateLibrary writes the single-file assets beside root as a tree. It
-// builds the tree aside and renames it into place, so a failure leaves no
-// half library that a later start would read instead of the old files.
-func migrateLibrary(root string) error {
-	dir := filepath.Dir(root)
-	requestsFile, foldersFile := filepath.Join(dir, "requests.json"), filepath.Join(dir, "collections.json")
-	requests, err := loadRequests(requestsFile)
-	if err != nil {
-		return fmt.Errorf("%s: %w", requestsFile, err)
-	}
-	var folders []request.Folder
-	if data, err := os.ReadFile(foldersFile); err == nil {
-		if err := json.Unmarshal(data, &folders); err != nil {
-			return fmt.Errorf("%s: %w", foldersFile, err)
-		}
-	} else if !errors.Is(err, fs.ErrNotExist) {
-		return err
-	}
-	if len(requests) == 0 && len(folders) == 0 {
-		return nil
-	}
-	files, err := libraryFiles(requests, folders)
-	if err != nil {
-		return err
-	}
-	building := root + ".migrating"
-	if err := os.RemoveAll(building); err != nil {
-		return err
-	}
-	staged := libraryState{root: building}
-	if err := staged.apply(files); err != nil {
-		os.RemoveAll(building)
-		return err
-	}
-	if err := os.Rename(building, root); err != nil {
-		os.RemoveAll(building)
-		return err
-	}
-	for _, old := range []string{requestsFile, foldersFile} {
-		if _, err := os.Stat(old); err == nil {
-			_ = os.Rename(old, old+".migrated")
-		}
-	}
-	return nil
 }
 
 // renameFolder renames the collection or folder at from, the last part of

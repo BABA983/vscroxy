@@ -262,7 +262,7 @@ func TestUISnapshots(t *testing.T) {
 		{name: "secondary-runner-focused", setup: snapshotRunner, act: click("2 · Check project"), want: "expected 200, received 503"},
 		{name: "secondary-runner-running", setup: func(a *app) { snapshotRunner(a); a.runner.running, a.runner.status = true, "Running…" }, want: "Cancel run"},
 		{name: "secondary-runner-error", setup: func(a *app) { a.openRunner(); a.runner.dataProblem = "data.csv: duplicate column name" }, want: "duplicate column name"},
-		{name: "secondary-runs-empty", setup: func(a *app) { a.page = pageRuns; a.history = nil }, want: "Send a request to record an experiment."},
+		{name: "secondary-runs-empty", setup: func(a *app) { a.page = pageRuns }, want: "Send a request to record an experiment."},
 		{name: "secondary-runs-result", setup: snapshotRuns, want: "Experiment result"},
 		{name: "secondary-runs-filtered", setup: func(a *app) {
 			snapshotHistory(a)
@@ -284,7 +284,7 @@ func TestUISnapshots(t *testing.T) {
 		}, want: "Search session"},
 		{name: "secondary-sessions-compare", setup: func(a *app) {
 			snapshotSources(a)
-			left := investigationFlow(a.sessions.items[1].data.Flows[0])
+			left := a.sessions.items[1].data.Flows[0].flow()
 			a.sessions.left, a.sessions.leftLabel = &left, "before.json"
 			a.sessions.comparing = true
 		}, want: "Old text"},
@@ -696,7 +696,6 @@ func snapshotActivity(a *app) {
 
 func snapshotRuns(a *app) {
 	a.page = pageRuns
-	a.history = nil // The legacy Recent requests section is outside phase five.
 	for i, body := range []string{`{"id":73,"active":false}`, `{"id":73,"active":true}`} {
 		draft := savedRequest{Name: "Create project", Method: "POST", URL: "https://api.example.com/projects", Body: `{"name":"Demo project"}`}
 		r := snapshotExperiment(i+1, draft, "Local", request.Execution{

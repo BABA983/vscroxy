@@ -17,17 +17,6 @@ import (
 
 func (a *app) sessionsView(c *ui.Context, t *ui.Theme) {
 	s := &a.sessions
-	for _, item := range s.items {
-		select {
-		case err := <-item.results:
-			if err != nil {
-				s.problem = "Save session: " + err.Error()
-			} else {
-				a.setMessage("Session saved · original imported file unchanged")
-			}
-		default:
-		}
-	}
 	item := s.current()
 	ui.Column(c).Fill().Children(func() {
 		ui.ScrollHorizontal(c).Height(uikit.HeightTabs).FillWidth().Children(func() {
@@ -44,7 +33,7 @@ func (a *app) sessionsView(c *ui.Context, t *ui.Theme) {
 							a.selectSession(doc.key)
 						}
 						if uikit.IconButton(c, "Close session: "+doc.data.Title, "Close tab; keep the saved session", closeIcon).Clicked() {
-							doc.open = false
+							doc.closeTab()
 							if doc == item {
 								s.active = ""
 								for _, next := range s.items {
@@ -70,9 +59,24 @@ func (a *app) sessionsView(c *ui.Context, t *ui.Theme) {
 			})
 			return
 		}
+		if !item.loaded {
+			ui.Column(c).Grow(1).Center().Children(func() {
+				if item.saveErr != "" {
+					ui.Text(c, item.saveErr).FontSize(uikit.TextMeta).TextColor(t.Danger)
+				} else {
+					uikit.Hint(c, "Opening session…")
+				}
+			})
+			return
+		}
 		ui.Row(c).Height(uikit.HeightBar).Padding(0, t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-			uikit.Input(c, &item.data.Title).Label("Session title").Grow(1).MinWidth(0)
+			if uikit.Input(c, &item.data.Title).Label("Session title").Grow(1).MinWidth(0).Changed() {
+				item.persist(a.invalidate)
+			}
 			uikit.Meta(c, "Historical · read-only payloads")
+			if uikit.CompactButton(c, "Delete…").Clicked() {
+				a.confirmDeleteSession(item)
+			}
 			if uikit.CompactButton(c, "Export session…").Clicked() {
 				data, err := json.Marshal(item.data)
 				if err != nil {
@@ -82,14 +86,16 @@ func (a *app) sessionsView(c *ui.Context, t *ui.Theme) {
 				}
 			}
 		})
-		if s.problem != "" {
-			ui.Text(c, s.problem).FontSize(uikit.TextMeta).TextColor(t.Danger).Padding(t.Space(2))
+		for _, problem := range []string{s.problem, item.saveErr} {
+			if problem != "" {
+				ui.Text(c, problem).FontSize(uikit.TextMeta).TextColor(t.Danger).Padding(t.Space(2))
+			}
 		}
 		if s.comparing && s.left != nil && len(item.data.Flows) > 0 {
 			if uikit.CompactButton(c, "Back to session").Clicked() {
 				s.comparing = false
 			}
-			left, right := *s.left, investigationFlow(item.data.Flows[item.picked])
+			left, right := *s.left, item.data.Flows[item.picked].flow()
 			left.id, right.id = 1, 2
 			s.comparison.compare(c, left, right, [2]string{s.leftLabel, item.data.Title})
 			return
@@ -115,7 +121,7 @@ func (a *app) sessionsView(c *ui.Context, t *ui.Theme) {
 					matched := 0
 					for _, i := range rows {
 						f := item.data.Flows[i]
-						if !investigationMatches(f, item.data.Notes, item.query) {
+						if !f.matches(item.data.Notes, item.query) {
 							continue
 						}
 						matched++
@@ -151,8 +157,7 @@ func (a *app) sessionsView(c *ui.Context, t *ui.Theme) {
 
 func (a *app) sessionDetail(c *ui.Context, t *ui.Theme, item *savedSession) {
 	if len(item.data.Flows) == 0 {
-		uikit.Input(c, &item.data.Notes).Label("Session notes").Placeholder("Session notes…")
-		if uikit.CompactButton(c, "Save annotations").Clicked() {
+		if uikit.Input(c, &item.data.Notes).Label("Session notes").Placeholder("Session notes…").Changed() {
 			item.persist(a.invalidate)
 		}
 		uikit.EmptyState(c, "Empty session", "This saved session contains no exchanges.", nil)
@@ -170,7 +175,7 @@ func (a *app) sessionDetail(c *ui.Context, t *ui.Theme, item *savedSession) {
 			item.persist(a.invalidate)
 		}
 		if uikit.CompactButton(c, "Use as left").Clicked() {
-			left := investigationFlow(*f)
+			left := f.flow()
 			s.left, s.leftLabel = &left, item.data.Title
 			s.comparison = captureAnalysis{}
 		}
@@ -187,7 +192,9 @@ func (a *app) sessionDetail(c *ui.Context, t *ui.Theme, item *savedSession) {
 	})
 	uikit.Meta(c, f.URL).Padding(0, t.Space(2)).SingleLine().Tooltip(f.URL)
 	ui.Row(c).Padding(t.Space(2)).Gap(t.Space(2)).Children(func() {
-		uikit.Input(c, &f.Note).Label("Session exchange note").Placeholder("Add a note…").Grow(1)
+		if uikit.Input(c, &f.Note).Label("Session exchange note").Placeholder("Add a note…").Grow(1).Changed() {
+			item.persist(a.invalidate)
+		}
 		uikit.MenuSelect(c, cmp.Or(f.Color, "No color"), func(m *ui.Menu) {
 			for _, color := range []string{"No color", "Red", "Orange", "Yellow", "Green", "Blue", "Purple"} {
 				if m.Item(color).Chosen() {
@@ -195,14 +202,14 @@ func (a *app) sessionDetail(c *ui.Context, t *ui.Theme, item *savedSession) {
 					if color == "No color" {
 						f.Color = ""
 					}
+					item.persist(a.invalidate)
 				}
 			}
 		}).Label("Session color").Width(90)
-		if uikit.CompactButton(c, "Save annotations").Clicked() {
-			item.persist(a.invalidate)
-		}
 	})
-	uikit.Input(c, &item.data.Notes).Label("Session notes").Placeholder("Session notes…").Margin(0, t.Space(2), t.Space(2))
+	if uikit.Input(c, &item.data.Notes).Label("Session notes").Placeholder("Session notes…").Margin(0, t.Space(2), t.Space(2)).Changed() {
+		item.persist(a.invalidate)
+	}
 	ui.Row(c).Padding(0, t.Space(2)).Gap(t.Space(2)).Children(func() {
 		if uikit.Segmented(c, &item.side, "Request", "Response").Changed() {
 			item.reader = nil
@@ -216,7 +223,7 @@ func (a *app) sessionDetail(c *ui.Context, t *ui.Theme, item *savedSession) {
 		if item.side == 1 {
 			body, block, headers, trailers = f.ResBody, f.ResHeaders, f.RespHeader, f.ResTrailer
 		}
-		wire := investigationFlow(*f)
+		wire := f.flow()
 		text := wire.body(item.side == 1)
 		if item.tab == 0 {
 			var lines []string

@@ -229,7 +229,9 @@ func (n *exportPostmanNode) redact(o exportOptions) {
 			redactPostmanValues(r.URL.Query)
 		}
 		if o.Auth {
-			r.Auth = jsontext.Value(`{"type":"noauth"}`)
+			if r.Auth != nil { // absent auth inherits, and the parents are redacted too
+				r.Auth = jsontext.Value(`{"type":"noauth"}`)
+			}
 			r.URL.Hash = ""
 			// writeURL also places userinfo in its structured host parts.
 			host := strings.Join(r.URL.Host, ".")

@@ -29,17 +29,17 @@ func TestExecuteInheritsFromCollectionAndFolder(t *testing.T) {
 		Folders: []Folder{
 			{Path: "Shop", Auth: Auth{Type: "Bearer", Token: "{{vault:token}}"},
 				Variables: []Field{{Name: "base", Value: "http://collection.invalid"}, {Name: "region", Value: "eu"}, {Name: "off", Value: "x", Disabled: true}},
-				Pre:       `vars.set("order", vars.get("order") + "C")`, Post: `vars.set("post", vars.get("post") + "C")`},
+				Pre:       `pm.environment.set("order", (pm.variables.get("order") || "") + "C")`, Post: `pm.environment.set("post", (pm.variables.get("post") || "") + "C")`},
 			{Path: "Shop/Orders", Auth: Auth{Type: AuthInherit},
 				Variables: []Field{{Name: "base", Value: upstream.URL}},
-				Pre:       `vars.set("order", vars.get("order") + "F")`, Post: `vars.set("post", vars.get("post") + "F")`},
+				Pre:       `pm.environment.set("order", (pm.variables.get("order") || "") + "F")`, Post: `pm.environment.set("post", (pm.variables.get("post") || "") + "F")`},
 		},
 		Vault: secrets.Lookup,
 	}
 	r := Request{Method: "GET", Collection: "Shop/Orders", Auth: Auth{Type: AuthInherit},
 		URL:     "{{base}}/orders?a={{$guid}}&b={{$guid}}",
 		Headers: "X-Order: {{order}}\nX-Region: {{region}}\nX-Only: {{only}}\nX-Env: {{env}}\nX-Off: {{off}}",
-		Pre:     `vars.set("order", vars.get("order") + "R")`, Post: `vars.set("post", vars.get("post") + "R")`}
+		Pre:     `pm.environment.set("order", (pm.variables.get("order") || "") + "R")`, Post: `pm.environment.set("post", (pm.variables.get("post") || "") + "R")`}
 	out := r.Execute(t.Context(), srv, in, map[string]string{"env": "dev", "region": "env-wins"}, nil)
 	if out.Err != nil {
 		t.Fatalf("%s: %v", out.Stage, out.Err)
