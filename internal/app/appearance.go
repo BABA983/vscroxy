@@ -3,6 +3,7 @@ package app
 import (
 	"cmp"
 	"github.com/baba983/vscroxy/internal/uikit"
+	"slices"
 	"strconv"
 
 	"github.com/egoist/mygo/ui"
@@ -73,7 +74,7 @@ func (a *app) settingsModal(c *ui.Context, t *ui.Theme) {
 						id    string
 						label string
 					}{{"0", "General"}, {"3", "Appearance"}, {"1", "Proxy"}, {"2", "HTTPS"}, {"4", "Capture"}, {"5", "Devices"}} {
-						uikit.SidebarItem(c, item.id, nil, item.label, choice == item.id).Label("Settings category: " + item.label)
+						uikit.SidebarItem(c, item.id, nil, item.label, choice == item.id, !a.windowBehind).Label("Settings category: " + item.label)
 					}
 				}).Width(140).Padding(t.Space(1)).Gap(0).Background(uikit.Colors(t).Panel).OnChange(func() {
 					a.settingsTab, _ = strconv.Atoi(choice)
@@ -138,8 +139,12 @@ func (a *app) settingsModal(c *ui.Context, t *ui.Theme) {
 						a.httpsSettings(c, t)
 					case 3:
 						ui.Form(c, func() {
-							ui.Field(c, "Dark appearance", func() { ui.Switch(c, &a.dark).Label("Dark appearance") }).
-								Description("Use a low-glare palette for traffic and editors.")
+							ui.Field(c, "Appearance", func() {
+								modes := []string{"", "light", "dark"}
+								choice := max(slices.Index(modes, a.appearance), 0)
+								uikit.Segmented(c, &choice, "System", "Light", "Dark").Label("Appearance")
+								a.appearance = modes[choice]
+							}).Description("System follows the light or dark appearance of this computer.")
 						})
 					case 4:
 						ui.Text(c, "Capture visibility").FontSize(uikit.TextBody).Bold()

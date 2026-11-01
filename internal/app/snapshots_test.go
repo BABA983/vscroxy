@@ -470,7 +470,7 @@ func TestUISnapshots(t *testing.T) {
 						t.Run(theme+"/"+name, func(t *testing.T) {
 							a := snapshotApp()
 							a.library.root = filepath.Join(t.TempDir(), "collections")
-							a.dark = dark
+							a.appearance = appearanceOf(dark)
 							a.workbench.layout = layout
 							t.Cleanup(a.protobuf.stop)
 							if state.setup != nil {

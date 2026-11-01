@@ -18,6 +18,9 @@ import (
 // settings is what the app keeps between launches besides the window's
 // bounds, which MyGo saves itself for a window with a StateKey.
 type settings struct {
+	// Appearance is "light" or "dark"; empty follows the system. Dark is
+	// what older versions wrote and reads as "dark".
+	Appearance   string       `json:"appearance,omitempty"`
 	Dark         bool         `json:"dark,omitempty"`
 	SidebarWidth float32      `json:"sidebarWidth,omitempty"`
 	TablePercent float32      `json:"tablePercent,omitempty"`
@@ -136,9 +139,17 @@ func savedLayout(l ui.TableLayout) columnLayout {
 	return columnLayout{Order: slices.Clone(l.Order), Widths: maps.Clone(l.Widths)}
 }
 
+// appearance is the saved appearance, reading older files' dark switch.
+func (s settings) appearance() string {
+	if s.Appearance == "" && s.Dark {
+		return "dark"
+	}
+	return s.Appearance
+}
+
 // sameSettings reports whether two settings would write the same file.
 func sameSettings(x, y settings) bool {
-	return x.Dark == y.Dark &&
+	return x.Appearance == y.Appearance && x.Dark == y.Dark &&
 		x.SidebarWidth == y.SidebarWidth &&
 		x.TablePercent == y.TablePercent &&
 		x.InspectorLayout == y.InspectorLayout &&

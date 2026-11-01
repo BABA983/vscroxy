@@ -53,7 +53,7 @@ func (a *app) historyColumn(c *ui.Context, t *ui.Theme, d *requestDocument) {
 				}
 				row := uikit.RowButton(c.Key(strconv.Itoa(r.ID)), fmt.Sprintf("Run #%d", r.ID)).Tooltip(r.Summary)
 				if r.ID == d.historyPick {
-					uikit.Selected(c, row, true)
+					uikit.Selected(c, row, !a.windowBehind)
 				}
 				row.Children(func() {
 					shown := "—"
@@ -82,7 +82,7 @@ func (a *app) historyExamples(c *ui.Context, t *ui.Theme, d *requestDocument) {
 	for i, e := range d.examples {
 		row := uikit.RowButton(c.Key(e.ID), "Open example: "+e.Name)
 		if d.composeTab == composeTabExamples && i == d.example {
-			uikit.Selected(c, row, true)
+			uikit.Selected(c, row, !a.windowBehind)
 		}
 		row.Children(func() {
 			ui.Text(c, strconv.Itoa(e.Status)).Font(uikit.FontMono).FontSize(uikit.TextMeta).TextColor(uikit.StatusColor(e.Status, t)).Width(28)

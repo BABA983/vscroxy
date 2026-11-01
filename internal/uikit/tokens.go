@@ -9,6 +9,7 @@ const (
 	TextMeta  = 11
 	TextBody  = 13
 	TextTitle = 15
+	TextData  = 12 // monospace data in tables, as dense as their 24px rows
 	// Desktop density, as in Proxyman and Xcode: controls and rows are 24,
 	// the URL bar and Send 28.
 	HeightCompact = 20
@@ -26,7 +27,5 @@ const (
 	DialogSmall   = 480
 	DialogMedium  = 640
 	DialogLarge   = 840
-	// Latin fallbacks precede CJK faces: missing embedded fonts must not turn
-	// monospace readers into proportional text. FontUI is per platform.
-	FontMono = "JetBrains Mono, Menlo, Consolas, DejaVu Sans Mono, PingFang SC, Microsoft YaHei UI, Noto Sans CJK SC, monospace"
+	// FontUI and FontMono are per platform: font_darwin.go, font_other.go.
 )

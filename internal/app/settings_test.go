@@ -19,7 +19,7 @@ import (
 func TestSettingsRoundTrip(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "settings.json")
 	want := settings{
-		Dark:             true,
+		Appearance:       "dark",
 		SidebarWidth:     264,
 		TablePercent:     55,
 		InspectorLayout:  "right",
@@ -263,5 +263,16 @@ func TestLegacyHeaderColumnBecomesACustomColumn(t *testing.T) {
 	}
 	if got := (settings{HeaderColumn: "x-old", CustomColumns: []customColumn{{Source: sourceQuery, Name: "q"}}}).customColumns(); len(got) != 1 || got[0].Name != "q" {
 		t.Fatalf("saved custom columns lost to the legacy field: %+v", got)
+	}
+}
+
+func TestSettingsReadOlderDarkSwitchAsDarkAppearance(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "settings.json")
+	if err := os.WriteFile(path, []byte(`{"dark":true}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	got, err := loadSettings(path)
+	if err != nil || got.appearance() != "dark" {
+		t.Fatalf("older dark switch read as %q, %v", got.appearance(), err)
 	}
 }

@@ -84,9 +84,11 @@ func (o *overview) view(c *ui.Context, dark bool) {
 	ui.Row(c).Fill().Background(t.Background).Children(func() {
 		ui.Sidebar(c, &o.side, func() {
 			SidebarSection(c, "Live", &o.open, func() {})
-			SidebarItem(c, "all", lucide.LayoutList(), "All traffic", o.side == "all")
-			SidebarItem(c, "errors", lucide.CircleAlert(), "Errors", o.side == "errors")
-			SidebarItem(c, "slow", lucide.Clock(), "Slow", o.side == "slow")
+			SidebarItem(c, "all", lucide.LayoutList(), "All traffic", o.side == "all", true)
+			SidebarItem(c, "errors", lucide.CircleAlert(), "Errors", o.side == "errors", true)
+			SidebarItem(c, "slow", lucide.Clock(), "Slow", o.side == "slow", true)
+			// The same selection in a window behind others.
+			SidebarItem(c, "behind", lucide.Clock(), "Chosen, window behind", true, false)
 		}).Width(200).FillHeight().Background(Colors(t).Panel)
 		ui.Divider(c)
 		ui.Scroll(c).Grow(1).Padding(t.Space(6)).Gap(t.Space(6)).Children(func() {

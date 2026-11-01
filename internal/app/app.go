@@ -14,6 +14,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strconv"
 	"strings"
@@ -214,8 +215,16 @@ type app struct {
 	sslDraft      *capture.SSLConfig
 	sslDraftHosts string
 
-	// dark draws the window in the dark theme.
-	dark bool
+	// appearance is "light", "dark", or empty to follow the system; dark is
+	// what it resolved to for this frame.
+	appearance string
+	dark       bool
+	// macChrome is macOS's window layout: the sidebar full height with
+	// the traffic lights at its top (see view).
+	macChrome bool
+	// windowBehind is whether another window is in front of this one;
+	// its selections then turn gray.
+	windowBehind bool
 
 	// settings are what the window keeps between launches, besides its
 	// bounds, which MyGo saves with the window's StateKey.
@@ -361,6 +370,7 @@ type domain struct {
 
 func newApp() *app {
 	a := &app{
+		macChrome:       runtime.GOOS == "darwin",
 		filter:          "all",
 		sidebarChoice:   "all",
 		icons:           make(map[string]ui.ImageSource),
@@ -426,7 +436,7 @@ func newApp() *app {
 	}
 	if a.settingsPath != "" {
 		saved := a.saved
-		a.dark = saved.Dark
+		a.appearance = saved.appearance()
 		if saved.SidebarWidth > 0 {
 			a.sidebarWidth = saved.SidebarWidth
 		}
@@ -1120,6 +1130,8 @@ func (a *app) syncDetail() {
 }
 
 func (a *app) view(c *ui.Context) {
+	// The pass starts from MyGo's theme, which follows the system.
+	a.dark = a.appearance == "dark" || a.appearance == "" && c.Theme().Dark
 	c.SetTheme(uikit.Theme(a.dark))
 	a.drain()
 	a.drainCertificate()
@@ -1166,30 +1178,23 @@ func (a *app) view(c *ui.Context) {
 	t := c.Theme()
 	a.syncSections()
 	a.syncDocument()
-	ui.Column(c).Bind(&a.workbench.content).Focusable().AutoFocus().Fill().Background(t.Background).Children(func() {
-		a.shell(c, t)
-		a.activeTools(c, t)
-		if a.srv == nil && a.errText != "" {
-			ui.Text(c, "Proxy unavailable · "+a.errText+" · Local requests remain available").Padding(t.Space(2), t.Space(3)).FontSize(uikit.TextBody).TextColor(t.Danger)
+	// On macOS the sidebar runs the window's full height, the traffic
+	// lights at its top, as a window with a source list does there, and
+	// the title bar heads the column beside it. Elsewhere the window
+	// controls are on the right: the title bar spans the window, the
+	// brand at its start.
+	main := func() {
+		ui.Column(c).Fill().Background(t.Background).Children(func() { a.mainColumn(c, t) })
+	}
+	ui.Column(c).Bind(&a.workbench.content).Focusable().AutoFocus().Fill().Children(func() {
+		if !a.macChrome {
+			a.shell(c, t)
 		}
-		if a.requestsProblem != "" || a.envsProblem != "" {
-			ui.Column(c).Padding(t.Space(2), t.Space(3)).Gap(t.Space(1)).Children(func() {
-				ui.Row(c).Gap(t.Space(3)).AlignItems(ui.Center).Children(func() {
-					ui.Text(c, "Local assets protected · saving disabled").FontSize(uikit.TextBody).Bold().TextColor(t.Danger).Grow(1)
-					if uikit.SecondaryButton(c, "Reload local assets").Clicked() {
-						a.loadRequestAssets()
-					}
-				})
-				for _, problem := range []string{a.requestsProblem, a.envsProblem} {
-					if problem != "" {
-						ui.Text(c, problem).FontSize(uikit.TextMeta).TextColor(t.Danger)
-					}
-				}
-				uikit.Meta(c, "Original files left untouched. Repair or move the affected file aside, then reload. Other local assets remain usable.")
-			})
+		if a.sidebarShown() {
+			ui.Split(c, &a.sidebarWidth, func() { a.sidebar(c) }, main).Grow(1).FillWidth().MinHeight(0)
+		} else {
+			ui.Column(c).Grow(1).FillWidth().MinHeight(0).Children(main)
 		}
-		a.desktopContent(c.Key("workspace-content"))
-		a.footer(c.Key("workspace-footer"), t)
 	})
 	a.persistSettings()
 	a.board.persist()
@@ -1279,6 +1284,41 @@ func (a *app) view(c *ui.Context) {
 	if !bodyShowing || !protobufShowing {
 		a.protobuf.stop()
 	}
+	// Last, since every SetTheme above paints the root again: the sidebar's
+	// material shows through where nothing opaque is drawn.
+	if c.Vibrancy() {
+		c.Root().Background(ui.Transparent)
+	}
+}
+
+// mainColumn is everything beside the sidebar: on macOS the title bar,
+// then active tools, problems, the content and the footer.
+func (a *app) mainColumn(c *ui.Context, t *ui.Theme) {
+	if a.macChrome {
+		a.shell(c, t)
+	}
+	a.activeTools(c, t)
+	if a.srv == nil && a.errText != "" {
+		ui.Text(c, "Proxy unavailable · "+a.errText+" · Local requests remain available").Padding(t.Space(2), t.Space(3)).FontSize(uikit.TextBody).TextColor(t.Danger)
+	}
+	if a.requestsProblem != "" || a.envsProblem != "" {
+		ui.Column(c).Padding(t.Space(2), t.Space(3)).Gap(t.Space(1)).Children(func() {
+			ui.Row(c).Gap(t.Space(3)).AlignItems(ui.Center).Children(func() {
+				ui.Text(c, "Local assets protected · saving disabled").FontSize(uikit.TextBody).Bold().TextColor(t.Danger).Grow(1)
+				if uikit.SecondaryButton(c, "Reload local assets").Clicked() {
+					a.loadRequestAssets()
+				}
+			})
+			for _, problem := range []string{a.requestsProblem, a.envsProblem} {
+				if problem != "" {
+					ui.Text(c, problem).FontSize(uikit.TextMeta).TextColor(t.Danger)
+				}
+			}
+			uikit.Meta(c, "Original files left untouched. Repair or move the affected file aside, then reload. Other local assets remain usable.")
+		})
+	}
+	a.desktopContent(c.Key("workspace-content"))
+	a.footer(c.Key("workspace-footer"), t)
 }
 
 // upstreamModal edits the proxy every request goes through.
@@ -1401,7 +1441,16 @@ func (a *app) clearCaptured() {
 // is what the content area shows; syncSections keeps it in step.
 func (a *app) sidebar(c *ui.Context) {
 	t := c.Theme()
-	ui.Column(c).Fill().Background(uikit.Colors(t).Panel).Children(func() {
+	// Over macOS's material the panel stays nine parts opaque: the desktop
+	// shows only as a faint shift in its tone.
+	panel := uikit.Colors(t).Panel
+	if c.Vibrancy() {
+		panel = panel.Alpha(0.9)
+	}
+	ui.Column(c).Fill().Background(panel).Children(func() {
+		if a.macChrome {
+			a.brandBar(c, t)
+		}
 		chosen := ui.Sidebar(c, &a.sidebarChoice, func() {
 			reveal := func(group string, section ui.Element) {
 				if a.revealGroup == group {
@@ -1409,16 +1458,16 @@ func (a *app) sidebar(c *ui.Context) {
 				}
 			}
 			reveal("live", uikit.SidebarSection(c, "Live", &a.trafficOpen, func() {
-				uikit.SidebarItem(c, "all", trafficIcon, "All requests", a.sidebarChoice == "all").Children(func() {
+				uikit.SidebarItem(c, "all", trafficIcon, "All requests", a.sidebarChoice == "all", !a.windowBehind).Children(func() {
 					uikit.Meta(c, fmt.Sprint(len(a.flows))).FontFeatures("tnum")
 				})
-				uikit.SidebarItem(c, "errors", errorIcon, "Errors", a.sidebarChoice == "errors").Children(func() {
+				uikit.SidebarItem(c, "errors", errorIcon, "Errors", a.sidebarChoice == "errors", !a.windowBehind).Children(func() {
 					uikit.Meta(c, fmt.Sprint(a.count(flow.failed))).FontFeatures("tnum")
 				})
-				uikit.SidebarItem(c, "slow", captureIcon, "Slow", a.sidebarChoice == "slow").Children(func() {
+				uikit.SidebarItem(c, "slow", captureIcon, "Slow", a.sidebarChoice == "slow", !a.windowBehind).Children(func() {
 					uikit.Meta(c, fmt.Sprint(a.count(func(f flow) bool { return f.millis >= 120 }))).FontFeatures("tnum")
 				})
-				uikit.SidebarItem(c, "pinned", pinIcon, "Pinned", a.sidebarChoice == "pinned").Children(func() {
+				uikit.SidebarItem(c, "pinned", pinIcon, "Pinned", a.sidebarChoice == "pinned", !a.windowBehind).Children(func() {
 					uikit.Meta(c, fmt.Sprint(a.count(func(f flow) bool { return f.pinned }))).FontFeatures("tnum")
 				})
 			}))
@@ -1426,7 +1475,7 @@ func (a *app) sidebar(c *ui.Context) {
 				uikit.SidebarSection(c, "Apps", &a.clientsOpen, func() {
 					for _, d := range a.clients {
 						apps := a.capturedApps(d.name)
-						uikit.SidebarItem(c, "client:"+d.name, appIcon, d.name, a.sidebarChoice == "client:"+d.name).PopoverMenu(
+						uikit.SidebarItem(c, "client:"+d.name, appIcon, d.name, a.sidebarChoice == "client:"+d.name, !a.windowBehind).PopoverMenu(
 							func(m *ui.Menu) {
 								if len(apps) == 1 {
 									a.appInspectionMenu(m, apps[0])
@@ -1462,7 +1511,7 @@ func (a *app) sidebar(c *ui.Context) {
 			}
 			uikit.SidebarSection(c, "Domains", &a.domainsOpen, func() {
 				for _, d := range a.domains {
-					uikit.SidebarItem(c, "host:"+d.name, domainIcon, d.name, a.sidebarChoice == "host:"+d.name).Children(func() {
+					uikit.SidebarItem(c, "host:"+d.name, domainIcon, d.name, a.sidebarChoice == "host:"+d.name, !a.windowBehind).Children(func() {
 						if a.filterTriage.Host == d.name {
 							ui.Text(c, "✓").FontSize(uikit.TextMeta).TextColor(t.Accent).Tooltip("Host filter is active; remove it in the condition bar")
 						}
@@ -1478,7 +1527,7 @@ func (a *app) sidebar(c *ui.Context) {
 			}))
 			reveal("sessions", uikit.SidebarSection(c, "Sessions", nil, func() {
 				for _, inv := range a.board.items {
-					uikit.SidebarItem(c, "investigation:"+inv.ID, layersIcon, inv.Title, a.sidebarChoice == "investigation:"+inv.ID).Children(func() {
+					uikit.SidebarItem(c, "investigation:"+inv.ID, layersIcon, inv.Title, a.sidebarChoice == "investigation:"+inv.ID, !a.windowBehind).Children(func() {
 						uikit.Meta(c, fmt.Sprint(len(inv.Items))).FontFeatures("tnum")
 					})
 				}
@@ -1564,7 +1613,7 @@ func (a *app) collectionsGroup(c *ui.Context, t *ui.Theme) {
 		if query != "" && !strings.Contains(strings.ToLower(d.title()), query) {
 			continue
 		}
-		uikit.SidebarItem(c, "contract:"+d.spec.ID, apiIcon, d.title(), a.sidebarChoice == "contract:"+d.spec.ID).Label("API: " + d.title()).Children(func() {
+		uikit.SidebarItem(c, "contract:"+d.spec.ID, apiIcon, d.title(), a.sidebarChoice == "contract:"+d.spec.ID, !a.windowBehind).Label("API: " + d.title()).Children(func() {
 			if d.dirty() {
 				ui.Box(c).Size(5, 5).Radius(uikit.RadiusControl).Background(t.Accent).Label("Unsaved API")
 			}
@@ -1745,17 +1794,17 @@ func (a *app) table(c *ui.Context) {
 			uikit.RowMarker(c, focused)
 		}
 		text := func(s string) ui.Element {
-			return uikit.Body(c, s).Height(15).FontFeatures("tnum").SingleLine()
+			return uikit.Body(c, s).Font(uikit.FontMono).FontSize(uikit.TextData).Height(15).FontFeatures("tnum").SingleLine()
 		}
 		// Facts beside the request: its number, host, client, timing and size.
 		quiet := func(s string) ui.Element {
-			return uikit.Hint(c, s).Height(15).FontFeatures("tnum").SingleLine()
+			return uikit.Hint(c, s).Font(uikit.FontMono).FontSize(uikit.TextData).Height(15).FontFeatures("tnum").SingleLine()
 		}
 		switch cols[col].ID {
 		case "id":
-			quiet(fmt.Sprint(f.id)).Font(uikit.FontMono)
+			quiet(fmt.Sprint(f.id))
 		case "method":
-			uikit.MethodLabel(c, f.method).Height(15).TextColor(uikit.MethodColor(f.method, t)).Tooltip(f.method).PopoverMenu(a.rowMenu(c, f))
+			uikit.MethodLabel(c, f.method).FontSize(uikit.TextData).Height(15).TextColor(uikit.MethodColor(f.method, t)).Tooltip(f.method).PopoverMenu(a.rowMenu(c, f))
 		case "host":
 			quiet(f.host).Tooltip(f.url).PopoverMenu(a.rowMenu(c, f))
 		case "url":
@@ -1813,7 +1862,7 @@ func (a *app) table(c *ui.Context) {
 			if !f.at.IsZero() {
 				at = f.at.Local().Format("15:04:05")
 			}
-			quiet(at).Font(uikit.FontMono)
+			quiet(at)
 		default:
 			cc, ok := a.customColumnAt(cols[col].ID)
 			if !ok {
@@ -2132,12 +2181,19 @@ func Run() error {
 			AutoHideMenuBar: true,
 			// The view draws the title bar under the window controls, so the
 			// toolbar and the traffic share one continuous surface.
-			TitleBarStyle:        mygo.TitleBarHidden,
-			TrafficLightPosition: &mygo.Point{X: 16, Y: 17},
+			TitleBarStyle: mygo.TitleBarHidden,
+			// The lights (14 tall) sit on the 44px title bar's middle line.
+			TrafficLightPosition: &mygo.Point{X: 16, Y: 15},
+			// The sidebar shows the window's material on macOS only; the
+			// view keeps it mostly opaque and draws it flat elsewhere.
+			Vibrancy: sidebarVibrancy(),
 			// MyGo keeps the window's bounds under this key.
 			StateKey: "vscroxy",
 			Content:  ui.View(a.view),
 		})
+		// A window behind others shows its selections gray.
+		a.win.OnFocus(func() { a.win.Update(func() { a.windowBehind = false }) })
+		a.win.OnBlur(func() { a.win.Update(func() { a.windowBehind = true }) })
 		a.win.OnClose(func(e *mygo.CloseEvent) {
 			if !a.systemProxy.quitReady {
 				e.PreventDefault()
@@ -2951,7 +3007,7 @@ func (a *app) saveComposed() bool {
 			a.errText = err.Error()
 		} else {
 			a.saved = saved
-			a.dark = saved.Dark
+			a.appearance = saved.appearance()
 			if saved.SidebarWidth > 0 {
 				a.sidebarWidth = saved.SidebarWidth
 			}
@@ -3135,7 +3191,7 @@ func (a *app) decryptHost(host string) {
 // 400ms, so dragging a divider does not write a file a frame.
 func (a *app) persistSettings() error {
 	now := settings{
-		Dark:             a.dark,
+		Appearance:       a.appearance,
 		SidebarWidth:     a.sidebarWidth,
 		TablePercent:     a.tablePercent,
 		InspectorLayout:  a.workbench.layout,
@@ -3435,4 +3491,13 @@ func (a *app) saveDNS() {
 	}
 	a.dnsOpen = false
 	a.setMessage(fmt.Sprintf("DNS mapping: %d names", len(lines)))
+}
+
+// sidebarVibrancy is the sidebar's material: macOS's, and none elsewhere,
+// where Windows' Mica would cost the window its menu bar.
+func sidebarVibrancy() mygo.Vibrancy {
+	if runtime.GOOS == "darwin" {
+		return mygo.VibrancySidebar
+	}
+	return mygo.VibrancyNone
 }

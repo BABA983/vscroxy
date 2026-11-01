@@ -122,7 +122,7 @@ func (a *app) socketModal(c *ui.Context, t *ui.Theme) {
 						}
 						b := uikit.SecondaryButton(c, label).Key(fmt.Sprint(e.Sequence)).Label(fmt.Sprintf("Session message %d", e.Sequence)).FillWidth().Tooltip(label)
 						if e.Sequence == s.picked {
-							uikit.Selected(c, b, true)
+							uikit.Selected(c, b, !a.windowBehind)
 						}
 						if b.Clicked() {
 							s.picked = e.Sequence

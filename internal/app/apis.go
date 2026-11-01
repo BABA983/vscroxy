@@ -224,7 +224,7 @@ func (a *app) apiEndpoints(c *ui.Context, t *ui.Theme, d *apiDocument) {
 		ui.Sidebar(c, &d.endpoint, func() {
 			for _, endpoint := range endpoints {
 				label := endpoint.method + " " + endpoint.path
-				uikit.SidebarItem(c, label, nil, endpoint.path, d.endpoint == label).Label("Endpoint: " + label).Children(func() {
+				uikit.SidebarItem(c, label, nil, endpoint.path, d.endpoint == label, !a.windowBehind).Label("Endpoint: " + label).Children(func() {
 					method := ui.Text(c, endpoint.method).Font(uikit.FontMono).FontSize(uikit.TextMeta).SingleLine().Width(48)
 					if d.endpoint != label {
 						method.TextColor(uikit.MethodColor(endpoint.method, t))

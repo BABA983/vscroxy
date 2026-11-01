@@ -9,14 +9,14 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// Keep the upstream licenses in the executable alongside the unmodified fonts.
+// Keep the upstream license in the executable alongside the unmodified fonts.
 // Provenance and checksums live in fonts/README.md.
 //
 //go:embed fonts/*.ttf fonts/*-OFL.txt
 var fontFiles embed.FS
 
 // registerFonts registers every bundled weight once, before Theme uses
-// "Inter" or "JetBrains Mono". Keep platform CJK fallbacks in the theme's family
+// "Geist" or "Geist Mono". Keep platform CJK fallbacks in the theme's family
 // list; these fonts intentionally do not bundle Chinese glyphs.
 // Missing embedded assets are a build invariant violation. OS registration
 // failures are logged so native fallback fonts can keep the app usable.
@@ -25,11 +25,11 @@ var registerFonts = sync.OnceFunc(func() {
 		file   string
 		family string
 	}{
-		{"Inter-Regular.ttf", "Inter"},
-		{"Inter-Medium.ttf", "Inter"},
-		{"Inter-SemiBold.ttf", "Inter"},
-		{"JetBrainsMono-Regular.ttf", "JetBrains Mono"},
-		{"JetBrainsMono-Bold.ttf", "JetBrains Mono"},
+		{"Geist-Regular.ttf", "Geist"},
+		{"Geist-Medium.ttf", "Geist"},
+		{"Geist-SemiBold.ttf", "Geist"},
+		{"GeistMono-Regular.ttf", "Geist Mono"},
+		{"GeistMono-Bold.ttf", "Geist Mono"},
 	} {
 		data, err := fontFiles.ReadFile("fonts/" + font.file)
 		if err != nil {

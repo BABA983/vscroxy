@@ -70,7 +70,8 @@ uikit 组件总览设计稿（实现后以第 11 节的总览截图为准）：
 - **两种布局，** 用标题栏右侧的两个图标切换，各自记住分隔线比例，双击分隔线恢复默认：
   - 左右（默认）：列表在左，请求文档和响应在右，适合宽屏逐条翻看。
   - 上下：列表占满宽度（多出 Client 列），下方 Request 和 Response 左右并排，适合对照请求和响应。
-- **标题栏 44px：** 品牌（保留现有图标）、录制 pill（状态点、监听地址、实时速率曲线、暂停）、命令栏（`⌘K`，同时是搜索）、布局切换、Settings。Tools 窗口（M4）和 Host 方案（M2）的入口在录制 pill 右侧。
+- **macOS 上侧栏占满窗口高度（3.5）：** 和 macOS 带 source list 的窗口一样，红绿灯和品牌在侧栏顶部，标题栏、工具栏、内容和状态栏在侧栏右边的一栏里；侧栏收起时品牌回到标题栏左侧（让开红绿灯）。Windows、Linux 的窗口按钮在右边，标题栏横跨整个窗口，品牌在它左侧，侧栏从标题栏下面开始。
+- **标题栏 44px：** 没有色带和底边框。品牌（保留现有图标）、录制 pill（macOS 上居中在侧栏右边那一栏，其他平台居中在窗口上，右侧命令放不下时让开；状态点、监听地址、实时速率曲线、暂停）、命令栏（`⌘K`，同时是搜索）、布局切换、Settings。Tools 窗口（M4）和 Host 方案（M2）的入口在录制 pill 右侧。
 - **已启用工具栏：** 标题栏下方 32px，每个工具一个 chip（图标、名称、×），没有工具时不占空间。行为见 UX 规范第 5 节。
 - 状态栏、对象动作表、撤销和确认规则按 UX 规范。
 
@@ -79,7 +80,7 @@ uikit 组件总览设计稿（实现后以第 11 节的总览截图为准）：
 - **界面本身是单色的，颜色只表达信号：** 状态码、method、耗时条、校验结果。工具栏、侧栏、边框、图标一律中性色。
 - **一个强调色，只用于：** 主操作、焦点、选中标记、录制、开关和"已开启"。
 - **正常的东西不上色。** 2xx 和 304 是普通的次要文字，不加底色、不用绿色；只有 3xx（灰蓝）、4xx（赭黄）、5xx（朱红）上色。满屏的 200 退到背景，异常自己跳出来。这条规则也让强调色可以是绿色而不和"成功"撞色。
-- **数据一律等宽：** method、URL、路径、header、body、时间、耗时、大小都用 JetBrains Mono，会变化的数字开 `tnum`。界面文字是 Inter。method 是纯色等宽文字，不做 chip。
+- **数据一律等宽：** method、URL、路径、header、body、时间、耗时、大小都用等宽字体（macOS 上是 SF Mono，其他平台是 Geist Mono），会变化的数字开 `tnum`。界面文字在 macOS 上是 SF Pro，其他平台是 Geist。method 是纯色等宽文字，不做 chip。
 - **结论大字：** 响应区第一行是 22px 等宽的状态行（`500  Internal Server Error`），下面一行次要文字写耗时、大小、类型。
 - **常驻的状态信息：** 列表上方一条 52px 的活动柱状图（最近 5 分钟，按状态码上色，可拖选时间范围）；筛选是查询语法 chip（`status:>=400`、`host:`、`app:`、`slow`），带自动补全；每行带一根耗时条，慢请求是朱红。
 - **选中是强调浅底、正常文字颜色，分两种形状：**
@@ -88,7 +89,7 @@ uikit 组件总览设计稿（实现后以第 11 节的总览截图为准）：
   - 菜单和命令面板的高亮只有浅底。
 - **形状靠近 macOS：** 圆角比 Windows 的 Fluent 大一档（第 6.3 节），嵌套的圆角同心（内层 = 外层 − 内边距），浮层是细边框加柔和的大阴影。不做胶囊按钮：控件高 24 时胶囊显得像玩具。
 - **macOS 上的原生感（3.5）：** 参考了 onegit／onevra、kero、mygo-cloudmusic 三个 MyGo 应用、Telegram 和 Apple HIG，共同点是窗口外壳原生、控件用中性色叠加、少画线。
-  - 只在 macOS 上：界面字体用系统字体（SF Pro），侧栏用 `VibrancySidebar` 材质，但上面盖约 90% 不透明的 Panel 色，桌面只隐约透出一点色调；内容区始终不透明。Windows、Linux 保持 Inter 和平涂。
+  - 只在 macOS 上：界面字体用系统字体（SF Pro），侧栏用 `VibrancySidebar` 材质，但上面盖约 90% 不透明的 Panel 色，桌面只隐约透出一点色调；内容区始终不透明。Windows、Linux 用内嵌的 Geist 和平涂。
   - 标题栏不画色带和底边框，红绿灯对齐标题栏中线。
   - 按钮和输入框不画 1px 边框：面是文字色的低透明度叠加（浅色 6%、深色 9%，hover ×1.5、按下 ×2.2），放在窗口、Panel 或选中行上都对。分隔线、表格、对话框边缘仍是 1px `Border`。
   - 强调色不跟随系统，仍是油墨绿。
@@ -139,18 +140,18 @@ uikit 组件总览设计稿（实现后以第 11 节的总览截图为准）：
 
 ### 6.2 字体
 
-- 内嵌 Inter 4.1（400／500／600，界面）和 JetBrains Mono 2.304（400／700，数据），在 `internal/uikit/fonts`，来源和许可见那里的 README 和 `THIRD_PARTY_NOTICES.md`。注册失败只记录一次日志并回退。
-- macOS 上界面字体是系统字体（`FontUI = "system-ui"`，即 SF Pro，中文走系统的级联），在 `font_darwin.go`；其他平台在 `font_other.go`。等宽字体三个平台都是内嵌的 JetBrains Mono。
+- 内嵌 Geist 1.9.0（400／500／600，界面）和同家族的 Geist Mono 1.9.0（400／700，数据），给 Windows、Linux 用，在 `internal/uikit/fonts`，来源和许可见那里的 README 和 `THIRD_PARTY_NOTICES.md`。注册失败只记录一次日志并回退。
+- macOS 上用系统字体：界面 `FontUI = "system-ui"`（SF Pro），数据 `FontMono = "monospace"`（SF Mono），中文走系统的级联；SF 的许可不允许内嵌。在 `font_darwin.go`；其他平台在 `font_other.go`。等宽从 JetBrains Mono 换成 Geist Mono（3.5）：JetBrains 字面宽、x 高大，像代码编辑器，显得重；Geist Mono 窄一些、更安静。界面字体同时从 Inter 换成 Geist（3.5）：Inter 在小字号下显得瘦长，Geist 字面更开、和 Geist Mono 同一家族，两者放在一起协调。
 - 中文不内嵌（一个字重就要 10 MB 以上），用系统字体回退。拉丁回退字体放在 CJK 字体前面，避免英文变宽、等宽失效：
-  - 界面（Windows、Linux）：`Inter, Arial, DejaVu Sans, PingFang SC, Microsoft YaHei UI, Noto Sans CJK SC`。
-  - 等宽：`JetBrains Mono, Menlo, Consolas, DejaVu Sans Mono, PingFang SC, Microsoft YaHei UI, Noto Sans CJK SC`。
+  - 界面（Windows、Linux）：`Geist, Arial, DejaVu Sans, PingFang SC, Microsoft YaHei UI, Noto Sans CJK SC`。
+  - 等宽（Windows、Linux）：`Geist Mono, Menlo, Consolas, DejaVu Sans Mono, PingFang SC, Microsoft YaHei UI, Noto Sans CJK SC`。
 - 中文界面的行高和按钮宽度要用中文截图单独检查。Linux 上没有 Noto Sans CJK 时，Settings → 外观提示安装（待做）。
 
 ### 6.3 尺寸
 
 | Token | 值 | 用途 |
 | --- | --- | --- |
-| `TextMeta`／`TextBody`／`TextTitle` | 11／13／15 | 计数和次要信息／正文、表格、控件／标题；响应结论另加 22（待做） |
+| `TextMeta`／`TextData`／`TextBody`／`TextTitle` | 11／12／13／15 | 计数和次要信息／表格里的等宽数据／正文、控件／标题；响应结论另加 22（待做） |
 | `HeightCompact`／`HeightControl`／`HeightLarge` | 20／24／28 | 表格内和条栏里的小按钮／按钮、输入框、tab、侧栏条目、表格行／URL 栏和 Send（3.5 起，桌面工具的密度，和 Proxyman、Xcode 一致） |
 | `HeightTabs`／`HeightBar` | 28／44 | tab 行和面板头／标题栏和 Capture 工具栏 |
 | `RadiusControl`／`RadiusPanel`／`RadiusDialog` | 6／10／14 | 控件和 pill／弹层、卡片／对话框；嵌在容器内边距里的控件用容器圆角减内边距（分段控件的滑块是 6 − 2 = 4） |
@@ -191,7 +192,7 @@ uikit 组件总览设计稿（实现后以第 11 节的总览截图为准）：
 | 类别 | 组件 |
 | --- | --- |
 | 按钮 | `PrimaryButton`、`SecondaryButton`、`DangerButton`（24，后两个无边框、中性面）、`CompactButton`（20）、`ToolbarButton`（透明底，可带 active 浅底）、`IconButton`（24 正方形，必带 tooltip）、`RowButton`（列表里的整行，没有 hover）、`SwatchButton`（标记色） |
-| 输入 | `Input`（中性填充加细线，聚焦时 3px 强调色光晕代替焦点环）、`Select`（按钮的面）、`Segmented`（凹槽加浮起的滑块，只用于互斥的模式）、`Tabs`／`CountedTabs`（选中是强调浅底圆角块加强调色文字，可带计数）、`SubTabs`（嵌在另一行 tab 选中内容里的第二层，选中只有强调色文字） |
+| 输入 | `Input`（中性填充加细线，聚焦时 3px 强调色光晕代替焦点环）、`FieldFace`（同样的面给自带控件的输入行，如搜索框和 URL 栏）、`Select`（按钮的面）、`Segmented`（凹槽加浮起的滑块，只用于互斥的模式）、`Tabs`／`CountedTabs`（选中是强调浅底圆角块加强调色文字，可带计数）、`SubTabs`（嵌在另一行 tab 选中内容里的第二层，选中只有强调色文字） |
 | 列表和侧栏 | `ListTheme`（MyGo 表格／列表／树的选中色）、`Marker`／`RowMarker`、`Selected`、`SidebarItem`、`SidebarSection` |
 | 信号 | `StatusPill`（2xx／304 不加底色）、`MethodLabel`、`MethodColor`、`StatusColor`、`MarkColors`、`BadgeColors` |
 | 结构和反馈 | `KVRow`（只读）、`EmptyState`、`Toasts`、`Modal`、`DialogColumn`、`DialogTitle`、`DialogFooter`、`PopoverPanel`、`EditorTheme` |
@@ -210,7 +211,7 @@ uikit 组件总览设计稿（实现后以第 11 节的总览截图为准）：
 ## 7. 交互和状态
 
 - **Hover：** 按钮、工具栏按钮、tab 的背景变 Hover（第二层 tab 和分段控件只把文字变成正文色），立即变化，不做过渡。和 macOS 一样，列表、表格、侧栏的行没有 hover；不可点的也没有。
-- **窗口失焦：** 选中的浅底变成中性灰，标记线变次要色（3.5b 接入窗口焦点）。
+- **窗口失焦：** 窗口在别的窗口后面时，侧栏和挑选列表的选中浅底变成中性灰，表格的标记线变次要色。
 - **按下：** 背景变 Pressed。
 - **焦点环：** 键盘焦点显示 2px 强调色外框，鼠标点击不显示，所有可交互元素都要有。输入框例外：聚焦时是强调色细边加 3px 柔和光晕，不再画外框。对话框关闭后焦点回到打开它的控件，`Modal` 会请求一帧重绘让焦点环显示出来。
 - **禁用：** 文字用 TextFaint，不响应 hover；tooltip 说明为什么不可用。
@@ -273,7 +274,14 @@ uikit 已按"主题 = 语义 token 表"实现，导入第三方主题不用返�
      - 截图矩阵：LIVE 的状态（`capture-*`）同时渲染左右和上下两种布局（上下的文件名带 `-stacked`），× Paper／Ink；单独的 `capture-stacked` 去掉。
    - 3.5 macOS 质感：
      - 3.5a uikit（完成）：高度 20／24／28，tab 行和面板头 28，表格行 24；macOS 上界面用系统字体；`Tabs` 改成强调浅底圆角块，新增 `SubTabs`，检查器的 Request／Response 面板和调查板的预览用它；`Segmented` 改成无边框凹槽加浮起滑块；`SecondaryButton`、`DangerButton`、`CompactButton`、`Select` 去掉边框、用中性面；`Input` 中性填充加聚焦光晕；`RowButton` 和流量表的行去掉 hover（流量表的客户端图标随行高改成 14）；侧栏分组标题不再全大写。
-     - 3.5b 窗口和界面（待做）：macOS 侧栏材质（`VibrancySidebar`，根节点和侧栏透明，侧栏盖 90% Panel）；标题栏去掉色带和底边框，红绿灯按 44 的中线对齐；窗口失焦时选中变灰；流量表的数据列改 12 号等宽；流量列表上方的类型筛选改成和 `Tabs` 一样的浅底块；`internal/app` 里自己画的输入框、URL 栏、方法下拉、类型筛选和标题栏图标按钮按新的高度和面统一；外观默认跟随系统（决策 3，代码现在读保存的深色开关）。
+     - 3.5b 窗口和界面（完成）：
+       - 侧栏占满窗口高度，红绿灯和品牌在它顶部；标题栏、已启用工具栏、内容和状态栏移到右边一栏，标题栏没有色带和底边框，录制 pill 居中在这一栏。红绿灯按 44 的中线对齐（`TrafficLightPosition` Y 15）。
+       - macOS 上窗口用 `VibrancySidebar`，根节点透明（在 `view` 最后设，因为每次 `SetTheme` 都会重画根节点），侧栏盖 90% 的 Panel，内容区不透明；其他平台没有材质，侧栏是平涂的 Panel。
+       - 窗口在别的窗口后面时（`OnFocus`／`OnBlur`），侧栏和挑选列表的选中变灰。
+       - 外观改成「跟随系统／浅色／深色」三选一，默认跟随系统；旧设置里的 `dark: true` 读成深色。
+       - 流量表的数据改成 12 号等宽（`TextData`）；类型筛选改成和 `Tabs` 一样的浅底块，没有凹槽；流量搜索框和 URL 栏用 `FieldFace`（中性填充、细线、聚焦时强调色细边加光晕）；标题栏的布局切换按钮改成 24。
+       - 侧栏占满高度只在 macOS（红绿灯在左上角）；Windows、Linux 的窗口按钮在右边，标题栏横跨整个窗口，品牌在它左侧，录制 pill 居中在窗口上。
+       - 还没统一的：Settings 对话框的分类列表（随 Settings 独立窗口，M1）。
 4. **标志性组件：** 录制 pill 的速率曲线、查询语法筛选、活动柱状图、耗时条、响应结论、瀑布视图（Table／Waterfall 切换）。
 5. **随里程碑落地：** 首次启动引导和 Settings 独立窗口随 M1，Host 方案随 M2，Tools 窗口随 M4（见第 10 节）。
 6. **第三方主题：** 第 8 节的映射、内置主题和导入。
@@ -330,9 +338,9 @@ XDG_CACHE_HOME=/tmp/vscroxy-ui-cache VSCROXY_SNAPSHOTS="$PWD/.amp/in/artifacts/u
 
 ## 12. 决策记录
 
-1. 内嵌 Inter 和 JetBrains Mono；中文用系统字体。macOS 的界面字体改用系统字体（SF Pro），等宽仍是 JetBrains Mono（3.5）。
+1. Windows、Linux 内嵌 Geist 和 Geist Mono；macOS 用系统的 SF Pro 和 SF Mono；中文用系统字体（3.5，原来三个平台都内嵌 Inter 和 JetBrains Mono）。
 2. 强调色是油墨绿：Paper `#1e5b47`、Ink `#6fb593`（v1 的靛蓝已取代）。
-3. 外观默认跟随系统，可选浅色或深色（现在还是深色开关，随 Settings 窗口改）。
+3. 外观默认跟随系统，可选浅色或深色（3.5b）。
 4. 行高 24，控件 24，URL 栏和 Send 28（3.5；原来是 28／28／32）。
 5. 一个工作区（取代 Capture／Requests 两个工作区）；不做全局图标栏；规则、Host 方案、脚本、Mock 集中到 Tools 窗口。
 6. 网络相关的设置对话框并进 Settings。
@@ -350,3 +358,4 @@ XDG_CACHE_HOME=/tmp/vscroxy-ui-cache VSCROXY_SNAPSHOTS="$PWD/.amp/in/artifacts/u
 18. tab 用方案 B：第一层是强调浅底圆角块加强调色文字（借 Telegram 的选中色，不要它的胶囊轨道），第二层只有强调色文字（3.5）。
 19. 按钮和输入框不画边框，面是文字色的低透明度叠加；列表和表格的行没有 hover；菜单高亮是强调色实底（3.5）。
 20. 强调色不跟随系统的强调色（3.5）。
+21. macOS 上侧栏占满窗口高度，红绿灯和品牌在侧栏顶部，录制 pill 居中在侧栏右边那一栏；Windows、Linux 的标题栏横跨窗口（3.5b）。

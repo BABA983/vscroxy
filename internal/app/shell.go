@@ -15,40 +15,56 @@ import (
 // belongs to traffic or to a request.
 func (a *app) shell(c *ui.Context, t *ui.Theme) {
 	bar := c.TitleBar()
-	height := max(bar.Height, 44)
+	// Without a band or a rule of its own, the title bar is the top of the
+	// column it heads; on macOS, beside the sidebar, the brand and the
+	// window controls are at the sidebar's top. The sides share what the centered
+	// status leaves; when the commands need more than half of it, the
+	// status moves aside rather than under them.
+	ui.Row(c).Height(max(bar.Height, uikit.HeightBar)).AlignItems(ui.Center).DragWindow().Children(func() {
+		ui.Row(c).Grow(1).Basis(0).MinWidth(0).Children(func() {
+			if !a.macChrome || !a.sidebarShown() {
+				a.brandBar(c, t)
+			}
+		})
+		ui.Row(c).Justify(ui.Center).MinWidth(0).Children(func() { a.proxyIndicator(c, t) })
+		// Flex counts padding outside a zero basis: keep it inside, so the
+		// two sides split the room evenly.
+		ui.Row(c).Grow(1).Basis(0).Justify(ui.End).Children(func() {
+			ui.Row(c).PaddingEnd(max(bar.Right, t.Space(3))).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+				ui.Row(c).Gap(t.Space(0.5)).AlignItems(ui.Center).Children(func() { a.layoutToggle(c) })
+				if uikit.IconButton(c, "Commands", "Search every action · Ctrl/Cmd+K", commandIcon).Clicked() {
+					a.workbench.openPalette()
+				}
+				uikit.IconButton(c, "Tools", "Manage debugging rules and network conditions", toolsIcon).PopoverMenuButton(func(m *ui.Menu) {
+					if m.Item("Debugging rules…").Chosen() {
+						a.openRules()
+					}
+					m.Separator()
+					a.networkTools(m)
+				})
+				if uikit.IconButton(c, "Settings", "Settings · Ctrl/Cmd+,", settingsIcon).Clicked() {
+					a.settingsOpen = true
+				}
+				uikit.IconButton(c, "More", "More commands", moreIcon).PopoverMenuButton(func(m *ui.Menu) { a.moreMenu(c, m) })
+			})
+		})
+	})
+}
+
+// brandBar is the window's name past any window controls on the left: at
+// the top of the sidebar on macOS, or at the title bar's start.
+func (a *app) brandBar(c *ui.Context, t *ui.Theme) {
+	bar := c.TitleBar()
 	// bar.Left ends at the last window control's edge; the brand keeps a
 	// gap from it rather than touching the zoom button.
 	start := t.Space(3)
 	if bar.Left > 0 {
 		start += bar.Left
 	}
-	// The sides share what the centered status leaves.
-	ui.Grid(c).ColumnTracks(ui.Fr(1), ui.FitContent(), ui.Fr(1)).Height(height).AlignItems(ui.Center).
-		Background(uikit.Colors(t).Panel).Border(0, t.Border).BorderWidth(0, 0, 1, 0).DragWindow().Children(func() {
-		ui.Row(c).PaddingStart(start).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-			ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-				ui.Icon(c, brandIcon).Size(uikit.IconLarge, uikit.IconLarge).TextColor(t.Text)
-				ui.Text(c, "vscroxy").FontSize(uikit.TextBody).Bold().TextColor(t.Text)
-			})
-		})
-		ui.Row(c).Justify(ui.Center).MinWidth(0).Children(func() { a.proxyIndicator(c, t) })
-		ui.Row(c).PaddingEnd(max(bar.Right, t.Space(3))).Gap(t.Space(2)).Justify(ui.End).AlignItems(ui.Center).Children(func() {
-			ui.Row(c).Gap(t.Space(0.5)).AlignItems(ui.Center).Children(func() { a.layoutToggle(c) })
-			if uikit.IconButton(c, "Commands", "Search every action · Ctrl/Cmd+K", commandIcon).Clicked() {
-				a.workbench.openPalette()
-			}
-			uikit.IconButton(c, "Tools", "Manage debugging rules and network conditions", toolsIcon).PopoverMenuButton(func(m *ui.Menu) {
-				if m.Item("Debugging rules…").Chosen() {
-					a.openRules()
-				}
-				m.Separator()
-				a.networkTools(m)
-			})
-			if uikit.IconButton(c, "Settings", "Settings · Ctrl/Cmd+,", settingsIcon).Clicked() {
-				a.settingsOpen = true
-			}
-			uikit.IconButton(c, "More", "More commands", moreIcon).PopoverMenuButton(func(m *ui.Menu) { a.moreMenu(c, m) })
-		})
+	ui.Row(c).Height(max(bar.Height, uikit.HeightBar)).PaddingStart(start).Gap(t.Space(2)).AlignItems(ui.Center).
+		DragWindow().Children(func() {
+		ui.Icon(c, brandIcon).Size(uikit.IconLarge, uikit.IconLarge).TextColor(t.Text)
+		ui.Text(c, "vscroxy").FontSize(uikit.TextBody).Bold().TextColor(t.Text).SingleLine()
 	})
 }
 
@@ -61,7 +77,7 @@ func (a *app) layoutToggle(c *ui.Context) {
 		icon      *ui.SVG
 	}{{"right", "Side by side layout", sideLayoutIcon}, {"bottom", "Stacked layout", stackedLayoutIcon}} {
 		b := uikit.ToolbarButton(c, l.label, l.label, w.layout == l.id).Checked(w.layout == l.id).
-			Size(uikit.HeightCompact, uikit.HeightCompact).Padding(0).Justify(ui.Center).
+			Size(uikit.HeightControl, uikit.HeightControl).Padding(0).Justify(ui.Center).
 			Children(func() { ui.Icon(c, l.icon).Size(uikit.IconInline, uikit.IconInline) })
 		if b.Clicked() {
 			w.layout, w.focused = l.id, false

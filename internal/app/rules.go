@@ -282,7 +282,7 @@ func (a *app) rulesModal(c *ui.Context, t *ui.Theme) {
 								}
 								button := uikit.RowButton(c, fmt.Sprintf("Edit rule %d", i+1)).Grow(1)
 								if e.index == i {
-									uikit.Selected(c, button, true)
+									uikit.Selected(c, button, !a.windowBehind)
 								}
 								button.Children(func() {
 									ui.Column(c).Gap(t.Space(1)).Children(func() {

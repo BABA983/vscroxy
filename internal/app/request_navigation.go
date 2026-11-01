@@ -93,7 +93,7 @@ func (a *app) collectionTree(c *ui.Context) {
 				Selected(chosen).Tooltip(r.Method + " " + r.URL).
 				OnClick(func() { a.openSaved(r.key()) }).PopoverMenu(menu)
 			if chosen {
-				uikit.Selected(c, item, true)
+				uikit.Selected(c, item, !a.windowBehind)
 			}
 			item.Children(func() {
 				ui.Row(c).Grow(1).FillHeight().Gap(c.Theme().Space(2)).AlignItems(ui.Center).Label(r.Method + "  " + r.Name).Children(func() {
@@ -144,7 +144,7 @@ func (a *app) unsavedRequests(c *ui.Context, query string) {
 				Selected(chosen).Tooltip(d.composeMethod + " " + d.composeURL).
 				OnClick(func() { a.requestDocument, a.requestChoice, a.page = d, "", pageRequest })
 			if chosen {
-				uikit.Selected(c, item, true)
+				uikit.Selected(c, item, !a.windowBehind)
 			}
 			item.Children(func() {
 				ui.Row(c).Grow(1).FillHeight().Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {

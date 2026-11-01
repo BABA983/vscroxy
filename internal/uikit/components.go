@@ -135,15 +135,20 @@ func SwatchButton(c *ui.Context, label string, color ui.Color, chosen bool) ui.E
 // it has the focus.
 func Input(c *ui.Context, value *string) ui.Element {
 	t := c.Theme()
-	field := *t
-	field.Surface, field.Border = neutral(t, 0.6), t.Text.Alpha(0.1)
-	c.SetTheme(&field)
 	in := ui.TextInput(c, value).Height(HeightControl).Padding(0, t.Space(2)).FontSize(TextBody).Radius(RadiusControl).FocusRing(false)
-	c.SetTheme(t)
-	if in.Focused() {
-		in.Shadow(0, 0, 0, 3, t.Accent.Alpha(0.25))
+	return FieldFace(c, in, in.Focused())
+}
+
+// FieldFace gives a text field, or a row holding one with its own controls
+// (a search box, the URL bar), the field look: a neutral fill with a
+// hairline, and an accent edge and halo while focused.
+func FieldFace(c *ui.Context, field ui.Element, focused bool) ui.Element {
+	t := c.Theme()
+	field.Background(neutral(t, 0.6)).Border(1, t.Text.Alpha(0.1)).Radius(RadiusControl)
+	if focused {
+		field.Border(1, t.Accent).Shadow(0, 0, 0, 3, t.Accent.Alpha(0.25))
 	}
-	return in
+	return field
 }
 
 // Select picks one of a few options at control height, with a button's face.
@@ -202,7 +207,10 @@ func MethodLabel(c *ui.Context, method string) ui.Element {
 // Keep Sidebar's native source-list navigation and item identities, with
 // the selection look. A sidebar's selection is where the window is, not a
 // keyboard cursor, so its marker keeps the accent while focus is elsewhere.
-func SidebarItem(c *ui.Context, id string, icon *ui.SVG, label string, chosen bool) ui.Element {
+//
+// active is whether the window is the one in front: in a window behind
+// others the chosen item turns gray, as in a macOS source list.
+func SidebarItem(c *ui.Context, id string, icon *ui.SVG, label string, chosen, active bool) ui.Element {
 	t := c.Theme()
 	neutral := *t
 	// Sidebar draws icons in Accent and the selection in Accent/AccentText,
@@ -215,7 +223,7 @@ func SidebarItem(c *ui.Context, id string, icon *ui.SVG, label string, chosen bo
 		FontSize(TextBody).Padding(0, t.Space(2)).Radius(RadiusControl)
 	c.SetTheme(t)
 	if chosen {
-		Selected(c, item, true)
+		Selected(c, item, active)
 	}
 	return item
 }

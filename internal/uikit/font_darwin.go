@@ -1,6 +1,9 @@
 package uikit
 
-// FontUI is the system font on macOS (SF Pro, with the system's CJK
-// cascade): it is what makes the app read as a Mac app. Data stays in the
-// bundled JetBrains Mono.
-const FontUI = "system-ui"
+// On macOS the fonts are the system's: SF Pro for the interface and SF Mono
+// for data, with the system's CJK cascade. They are what make the app read
+// as a Mac app, and SF's license does not allow bundling them anyway.
+const (
+	FontUI   = "system-ui"
+	FontMono = "monospace"
+)

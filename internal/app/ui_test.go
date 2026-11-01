@@ -81,29 +81,64 @@ func chooseBodyFormat(t *testing.T, tt *ui.Tester, side, mode string) {
 	}
 }
 
+func TestSidebarShowsTheWindowMaterialOverOpaqueContent(t *testing.T) {
+	for _, material := range []bool{false, true} {
+		a := workspaceApp()
+		a.macChrome = true
+		tt := ui.NewTester(a.view, 1280, 800)
+		tt.SetVibrancy(material)
+		// Empty places: the sidebar's bottom edge, beside the brand at its
+		// top, and the content's empty traffic list.
+		im := tt.Image()
+		for _, at := range []struct {
+			name        string
+			x, y        int
+			translucent bool
+		}{{"sidebar", 200, 30, material}, {"content", 900, 700, false}} {
+			alpha := im.RGBAAt(at.x, at.y).A
+			if at.translucent != (alpha < 255) {
+				t.Fatalf("material=%t: %s alpha %d", material, at.name, alpha)
+			}
+		}
+	}
+}
+
 func TestShellCentersStatusWithoutCoveringNativeControls(t *testing.T) {
-	for _, width := range []int{960, 1280} {
-		for _, scale := range []float32{1, 2} {
-			for _, bar := range []ui.TitleBar{{}, {Height: 48, Left: 76}, {Height: 44, Right: 192}} {
-				a := workspaceApp()
-				tt := ui.NewTester(a.view, width, 800)
-				tt.SetScale(scale)
-				tt.SetTitleBar(bar)
-				status, ok := tt.Find("Proxy status")
-				if !ok || math.Abs(float64(status.X+status.W/2)-float64(width)/2) > 1 {
-					t.Fatalf("status followed native button insets instead of the window center: %v", status)
-				}
-				brand, _ := tt.Find("vscroxy")
-				more, _ := tt.Find("More")
-				layout, _ := tt.Find("Side by side layout")
-				// The brand icon sits before its name: with controls on the
-				// left it needs a gap from them as well as from the name.
-				room := float32(0)
-				if bar.Left > 0 {
-					room = uikit.IconLarge + 16
-				}
-				if brand.X < bar.Left+room || more.X+more.W > float32(width)-bar.Right || brand.X+brand.W > status.X || layout.X < status.X+status.W {
-					t.Fatalf("shell overlaps controls at width=%d, scale=%g, titlebar=%v", width, scale, bar)
+	for _, mac := range []bool{false, true} {
+		for _, width := range []int{960, 1280} {
+			for _, scale := range []float32{1, 2} {
+				for _, bar := range []ui.TitleBar{{}, {Height: 48, Left: 76}, {Height: 44, Right: 192}} {
+					a := workspaceApp()
+					a.macChrome = mac
+					tt := ui.NewTester(a.view, width, 800)
+					tt.SetScale(scale)
+					tt.SetTitleBar(bar)
+					// Centered over the window, or on macOS over the column
+					// beside the sidebar as a toolbar centers over the content;
+					// not over the native insets. Only wide right-hand window
+					// buttons beside the sidebar in the narrowest window push it
+					// aside.
+					status, ok := tt.Find("Proxy status")
+					left := float32(0)
+					if mac {
+						left = a.sidebarWidth + 1 // the split's hairline
+					}
+					centered := !mac || bar.Right == 0 || width > 960
+					if !ok || centered && math.Abs(float64(status.X+status.W/2)-float64(left+float32(width))/2) > 1 {
+						t.Fatalf("mac=%t: status followed native button insets instead of the center: %v", mac, status)
+					}
+					brand, _ := tt.Find("vscroxy")
+					more, _ := tt.Find("More")
+					layout, _ := tt.Find("Side by side layout")
+					// The brand icon sits before its name: with controls on the
+					// left it needs a gap from them as well as from the name.
+					room := float32(0)
+					if bar.Left > 0 {
+						room = uikit.IconLarge + 16
+					}
+					if brand.X < bar.Left+room || more.X+more.W > float32(width)-bar.Right || brand.X+brand.W > status.X || layout.X < status.X+status.W {
+						t.Fatalf("shell overlaps controls at mac=%t, width=%d, scale=%g, titlebar=%v", mac, width, scale, bar)
+					}
 				}
 			}
 		}
@@ -261,6 +296,15 @@ func openDraft(a *app, f flow) {
 	}
 	a.addDocument(r, "")
 	a.requestDocument.setDebugSource(newDebugSource(f))
+}
+
+// appearanceOf is the explicit appearance a test draws in, whatever the
+// system's.
+func appearanceOf(dark bool) string {
+	if dark {
+		return "dark"
+	}
+	return "light"
 }
 
 func workspaceApp() *app {
@@ -745,10 +789,13 @@ func TestSettingsCategoriesKeepNativeNavigationAndEditorRoutes(t *testing.T) {
 		}
 	}
 	click("Settings category: Appearance")
-	tt.Key(0, ui.KeyTab)
-	tt.Key(0, ui.KeySpace)
-	if !a.dark {
-		t.Fatal("Appearance did not update the existing dark preference")
+	click("Dark")
+	if a.appearance != "dark" || !a.dark {
+		t.Fatal("Appearance did not switch to dark")
+	}
+	click("System")
+	if a.appearance != "" || a.dark {
+		t.Fatal("System did not follow the light system appearance")
 	}
 	click("Settings category: Appearance")
 	tt.Key(0, ui.KeyEnd)
@@ -772,7 +819,7 @@ func TestSettingsEscapeRestoresVisibleKeyboardFocus(t *testing.T) {
 	for _, dark := range []bool{false, true} {
 		t.Run(fmt.Sprintf("dark=%t", dark), func(t *testing.T) {
 			a := workspaceApp()
-			a.dark = dark
+			a.appearance = appearanceOf(dark)
 			tt := ui.NewTester(a.view, 960, 800)
 			// Focused includes ancestors; the content root is initially
 			// focused, so exclude it by checking a neighboring control.
@@ -1633,10 +1680,10 @@ func TestProxyPortEditorSavesWithoutInterruptingCapture(t *testing.T) {
 		}
 	}
 	// Other settings must not overwrite the newly saved port.
-	a.dark, a.lastSave = true, time.Time{}
+	a.appearance, a.lastSave = "dark", time.Time{}
 	tt.Frame()
 	got, err := loadSettings(a.settingsPath)
-	if err != nil || !got.Dark || got.ProxyPort != 9091 {
+	if err != nil || got.Appearance != "dark" || got.ProxyPort != 9091 {
 		t.Fatalf("subsequent settings save lost the port: %+v, %v", got, err)
 	}
 	path := a.settingsPath
@@ -3334,7 +3381,7 @@ func TestCaptureSelectionMarkerFollowsListAndWindowFocus(t *testing.T) {
 	for _, dark := range []bool{false, true} {
 		t.Run(fmt.Sprintf("dark=%t", dark), func(t *testing.T) {
 			a := workspaceApp()
-			a.dark = dark
+			a.appearance = appearanceOf(dark)
 			tt := ui.NewTester(a.view, 1280, 800)
 			if err := tt.Click("api.example.com/projects"); err != nil {
 				t.Fatal(err)
@@ -3933,7 +3980,7 @@ func TestExperimentWorkbenchComparesIndependentRunsAndReopensWithoutSending(t *t
 func TestRunRecordTabsRemainReadableAtMinimumWidth(t *testing.T) {
 	for _, dark := range []bool{false, true} {
 		a := snapshotApp()
-		a.dark = dark
+		a.appearance = appearanceOf(dark)
 		snapshotRuns(a)
 		wide := ui.NewTester(a.view, 1280, 800)
 		full, ok := wide.Find("Variables")

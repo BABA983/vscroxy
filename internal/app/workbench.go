@@ -127,13 +127,7 @@ func (a *app) desktopContent(c *ui.Context) {
 			})
 		}
 	}
-	ui.Row(c).Grow(1).FillWidth().Children(func() {
-		if a.sidebarShown() {
-			ui.Split(c, &a.sidebarWidth, func() { a.sidebar(c) }, content).Grow(1).FillHeight()
-		} else {
-			ui.Column(c).Grow(1).FillHeight().Children(content)
-		}
-	})
+	ui.Column(c).Grow(1).FillWidth().MinHeight(0).Children(content)
 }
 
 var captureKinds = []string{"All", "HTTP", "HTTPS", "WebSocket", "SSE", "JSON", "Images", "HTML"}
@@ -145,11 +139,11 @@ var captureProtocols = captureKinds[:6]
 func (a *app) captureToolbar(c *ui.Context, t *ui.Theme) {
 	width := a.contentWidth(c)
 	ui.Row(c).Height(uikit.HeightBar).Padding(0, t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-		ui.Row(c).Grow(1).MinWidth(160).Height(uikit.HeightControl).Gap(t.Space(1)).Padding(0, t.Space(1)).
-			Border(1, t.Border).Radius(uikit.RadiusControl).AlignItems(ui.Center).Children(func() {
+		box := ui.Row(c).Grow(1).MinWidth(160).Height(uikit.HeightControl).Gap(t.Space(1)).Padding(0, t.Space(1)).AlignItems(ui.Center)
+		uikit.FieldFace(c, box, a.search.Focused(c)).Children(func() {
 			search := ui.TextInputBase(c, &a.query).Bind(&a.search).Label("Search host or path").Placeholder("Search host or path…").
 				Tooltip("URL host and path only · Ctrl/Cmd+F · Enter or ↓ moves to requests. Filters search headers and full bodies.").
-				Height(uikit.HeightCompact).Padding(0, t.Space(2)).FontSize(uikit.TextBody).Grow(1).MinWidth(72)
+				Height(uikit.HeightCompact).Padding(0, t.Space(1)).FontSize(uikit.TextBody).Grow(1).MinWidth(72).FocusRing(false)
 			search.OnShortcut(0, ui.KeyDown, func() { a.focusTraffic(c) })
 			if search.Changed() {
 				a.applyFilter()
@@ -168,21 +162,32 @@ func (a *app) captureToolbar(c *ui.Context, t *ui.Theme) {
 		})
 		ui.ScrollHorizontal(c).Width(min(302, width*0.36)).Height(uikit.HeightControl).Children(func() {
 			// Images and HTML live in the menu but remain valid selections.
+			// The kinds read as tabs over the list: the chosen one is the
+			// tabs' tinted chip, with no track behind them.
+			p := uikit.Colors(t)
 			segments := ui.SegmentedBase(c, &a.chip, len(captureKinds))
-			segments.Track.Label("Protocol and content type").Height(uikit.HeightControl).Padding(t.Space(0.5)).Gap(t.Space(0.5)).Radius(uikit.RadiusControl).Background(uikit.Colors(t).Panel).Children(func() {
+			segments.Track.Label("Protocol and content type").Height(uikit.HeightControl).Gap(t.Space(0.5)).Children(func() {
 				for i, name := range captureProtocols {
 					label := name
 					if name == "WebSocket" {
 						label = "WS"
 					}
-					segment := segments.Segment(i).Label("Protocol and content type: "+name).Height(uikit.HeightCompact).
-						Padding(0, 7).Radius(uikit.RadiusControl).AlignItems(ui.Center).TextColor(t.TextMuted)
-					if a.chip == i {
-						segment.Background(t.Background).TextColor(t.Text)
-					} else if segment.Hovered() {
+					segment := segments.Segment(i).Label("Protocol and content type: "+name).Height(uikit.HeightControl).
+						Padding(0, t.Space(1.5)).Radius(uikit.RadiusControl).AlignItems(ui.Center).TextColor(t.TextMuted)
+					switch {
+					case a.chip == i:
+						segment.Background(p.AccentTint).TextColor(p.Accent)
+					case segment.Pressed():
+						segment.Background(t.SurfacePressed)
+					case segment.Hovered():
 						segment.Background(t.SurfaceHover)
 					}
-					segment.Children(func() { ui.Text(c, label).FontSize(uikit.TextMeta) })
+					segment.Children(func() {
+						text := ui.Text(c, label).FontSize(uikit.TextMeta)
+						if a.chip == i {
+							text.FontWeight(600)
+						}
+					})
 				}
 			})
 			if segments.Track.Changed() {

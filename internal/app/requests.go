@@ -660,7 +660,8 @@ var requestMethods = []string{"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "
 // requestBar is the method, URL and Send; more adds what follows Send.
 func (a *app) requestBar(c *ui.Context, t *ui.Theme, d *requestDocument, more func()) {
 	ui.Row(c).Height(48).Padding(t.Space(2), t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-		ui.Row(c).Grow(1).Height(uikit.HeightLarge).Border(1, t.Border).Radius(uikit.RadiusControl).AlignItems(ui.Center).Children(func() {
+		field := ui.Row(c).Grow(1).Height(uikit.HeightLarge).AlignItems(ui.Center)
+		uikit.FieldFace(c, field, field.FocusWithin()).Children(func() {
 			// An editable dropdown: a click lists the common methods, and a method
 			// the list lacks is typed and kept as it is. The chevron and the hover
 			// background say it is a control, not a label.
