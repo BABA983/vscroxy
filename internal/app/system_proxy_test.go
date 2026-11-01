@@ -132,6 +132,56 @@ func TestProxySettingsCheckTheOSOnEntry(t *testing.T) {
 	}
 }
 
+func TestProxySettingsFastChecksReadOncePerVisit(t *testing.T) {
+	for _, mode := range []string{"modal", "window"} {
+		t.Run(mode, func(t *testing.T) {
+			fake := &fakeSystemProxy{check: system.ProxyCheck{Status: system.ProxyOff}}
+			a := proxyTestApp(t, fake)
+			view := a.view
+			visits := [][]string{{"Settings", "Proxy"}, {"General", "Proxy"}, {"Done", "Settings"}}
+			if mode == "window" {
+				view = a.settingsView
+				visits = [][]string{{"Proxy"}, {"General", "Proxy"}}
+			}
+			tt := ui.NewTester(func(c *ui.Context) {
+				// Force the worker to finish before the next build drains its
+				// result, even if the panel has not drawn for this visit yet.
+				if a.systemProxy.checking {
+					select {
+					case result := <-a.systemProxy.pending:
+						a.systemProxy.pending <- result
+					case <-t.Context().Done():
+						t.Fatal("system proxy check did not finish")
+					}
+				}
+				view(c)
+			}, 1280, 800)
+			for visit, labels := range visits {
+				for _, label := range labels {
+					if err := tt.Click(label); err != nil {
+						t.Fatal(err)
+					}
+				}
+				settleProxy(t, a, tt)
+				tt.Frame() // ordinary redraws must not start another check
+				if fake.reads != visit+1 || fake.writes != 0 {
+					t.Fatalf("visit %d: reads = %d, writes = %d; want one read per visit and no writes", visit+1, fake.reads, fake.writes)
+				}
+				if !tt.HasText("No system proxy is set") {
+					t.Fatalf("the completed check was not shown: %q", tt.Texts())
+				}
+			}
+			// Opening Settings on the active Proxy tab must still refresh it.
+			a.openSettings(1)
+			tt.Frame()
+			settleProxy(t, a, tt)
+			if fake.reads != len(visits)+1 || fake.writes != 0 {
+				t.Fatalf("opening the active tab: reads = %d, writes = %d; want one additional read and no writes", fake.reads, fake.writes)
+			}
+		})
+	}
+}
+
 func TestProxySettingsDistinguishEveryOSState(t *testing.T) {
 	for _, tc := range []struct {
 		name    string

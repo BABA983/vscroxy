@@ -712,6 +712,8 @@ func TestCaptureUIUsesOnlyTheRunningListener(t *testing.T) {
 	}
 	defer srv.Close()
 	a := workspaceApp()
+	fake := &fakeSystemProxy{check: system.ProxyCheck{Status: system.ProxyOff}}
+	a.systemProxy.read = fake.read
 	a.srv, a.flows, a.visible = srv, nil, nil
 	tt := ui.NewTester(a.view, 1240, 800)
 	if !tt.HasText("Proxy stopped") || tt.HasText(srv.Addr()) {
@@ -751,14 +753,18 @@ func TestCaptureUIUsesOnlyTheRunningListener(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if !tt.HasText(srv.Addr()) {
+	settleProxy(t, a, tt)
+	if _, found := tt.Find(srv.Addr()); !found {
 		t.Fatal("settings did not use the actual bound address")
 	}
 	if err := srv.Close(); err != nil {
 		t.Fatal(err)
 	}
 	tt.Frame()
-	if !tt.HasText("Capture is not running") || tt.HasText(srv.Addr()) {
+	// Match the Listener's address itself, not the System proxy explanation
+	// of the address it checked, which remains valid after capture stops.
+	_, listenerAddress := tt.Find(srv.Addr())
+	if !tt.HasText("Capture is not running") || listenerAddress {
 		t.Fatal("closed proxy must not advertise its old address")
 	}
 }

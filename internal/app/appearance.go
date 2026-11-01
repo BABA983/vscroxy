@@ -60,10 +60,13 @@ var (
 // settingsModal is Settings without a main window to open its own beside,
 // as in headless tests: the same content, in a dialog.
 func (a *app) settingsModal(c *ui.Context, t *ui.Theme) {
+	if a.win != nil {
+		return // the Settings window owns its panel's visit state
+	}
 	// Closing Settings or leaving the Proxy tab makes the next visit read the
 	// OS again.
 	defer func() { a.systemProxy.shown = a.settingsOpen && a.settingsTab == 1 }()
-	if !a.settingsOpen || a.win != nil {
+	if !a.settingsOpen {
 		return
 	}
 	_, height := c.Size()
@@ -88,7 +91,9 @@ func (a *app) openSettings(tab int) {
 	}
 	switch a.settingsTab {
 	case 1:
-		a.checkSystemProxy(true)
+		// Let the panel start the entry check, even when focusing an already
+		// open Settings window. Starting here too races with its first build.
+		a.systemProxy.shown = false
 	case 2:
 		a.checkCertificate(false)
 	}
@@ -185,10 +190,7 @@ func (a *app) settingsContent(c *ui.Context, t *ui.Theme, active bool) {
 			}
 		}).Width(176).Padding(t.Space(2)).Gap(t.Space(0.5)).Background(uikit.Colors(t).Panel).OnChange(func() {
 			a.settingsTab, _ = strconv.Atoi(choice)
-			switch a.settingsTab {
-			case 1:
-				a.checkSystemProxy(true)
-			case 2:
+			if a.settingsTab == 2 {
 				a.checkCertificate(false)
 			}
 		})
