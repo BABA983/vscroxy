@@ -40,7 +40,7 @@ func (a *app) draftPrepared(d *requestDocument) (*request.Prepared, error) {
 func (a *app) copyDraftCurl(c *ui.Context, d *requestDocument) {
 	req, err := a.draftPrepared(d)
 	if err != nil {
-		a.setMessage("Copy cURL: " + err.Error())
+		a.fail("Copy cURL", err)
 		return
 	}
 	a.copyCurl(c, flow{method: req.Method, url: req.URL, reqHeader: req.Header, reqBody: req.Body})
@@ -107,7 +107,7 @@ func (a *app) codeModal(c *ui.Context, t *ui.Theme) {
 				}
 				if uikit.PrimaryButton(c, "Copy").Disabled(s.problem != "").Clicked() {
 					c.Services().WriteClipboard(s.view.Buffer.String())
-					a.setMessage("Copied " + s.language + " code; review credentials before sharing")
+					a.done("Copied " + s.language + " code; review credentials before sharing")
 				}
 			})
 		})

@@ -185,7 +185,7 @@ func (p *protoInspector) view(c *ui.Context, a *app, f flow, side int) {
 				uikit.Meta(c, detail).Grow(1).MinWidth(0).SingleLine().Tooltip(detail)
 				if uikit.SecondaryButton(c, "Copy decoded").Shrink(0).Clicked() {
 					c.Services().WriteClipboard(message.text)
-					a.setMessage("Copied decoded protobuf message")
+					a.done("Copied decoded protobuf message")
 				}
 			})
 			text := message.text
@@ -248,7 +248,7 @@ func (p *protoInspector) modal(c *ui.Context, a *app) {
 			} else {
 				p.stop()
 				p.schema, p.name = result.schema, "Auto"
-				a.setMessage("Loaded protobuf schema")
+				a.done("Loaded protobuf schema")
 			}
 		default:
 			c.After(50 * time.Millisecond)

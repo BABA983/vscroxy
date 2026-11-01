@@ -107,9 +107,9 @@ func (a *app) deleteModal(c *ui.Context, t *ui.Theme) {
 						deleteAll = func(del deletion) error { return a.sessions.remove(del.session) }
 					}
 					if err := deleteAll(*del); err != nil {
-						a.setMessage("Delete: " + err.Error())
+						a.fail("Delete", err)
 					} else {
-						a.setMessage("Deleted " + del.name)
+						a.done("Deleted " + del.name)
 					}
 					del.open = false
 				}

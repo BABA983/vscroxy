@@ -12,7 +12,7 @@ import (
 func (a *app) saveCapture(f flow) {
 	r, err := f.requestDraft()
 	if err != nil {
-		a.setMessage("Save as request: " + err.Error())
+		a.fail("Save as request", err)
 		return
 	}
 	r.ID = uuid.New().String()
@@ -20,9 +20,9 @@ func (a *app) saveCapture(f flow) {
 	r.Name = uniqueRequestName(a.requests, strings.TrimSpace(f.method+" "+f.host+f.path))
 	list := upsertRequest(slices.Clone(a.requests), r)
 	if err := a.persistRequests(list); err != nil {
-		a.setMessage("Save as request: " + err.Error())
+		a.fail("Save as request", err)
 		return
 	}
 	a.requests = list
-	a.setMessage("Saved " + r.Name + " to Requests; not sent")
+	a.done("Saved " + r.Name + " to Requests; not sent")
 }

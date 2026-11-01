@@ -113,7 +113,7 @@ func (a *app) syncDocument() {
 // editCapture shows the capture f in LIVE as its draft, ready to change.
 func (a *app) editCapture(f flow) *requestDocument {
 	if !slices.ContainsFunc(a.flows, func(g flow) bool { return g.id == f.id }) {
-		a.setMessage("Capture is no longer in this session")
+		a.warn("Capture is no longer in this session")
 		return nil
 	}
 	a.inspectCapture(f.id)
@@ -124,7 +124,7 @@ func (a *app) editCapture(f flow) *requestDocument {
 	}
 	d, problem := a.liveDocument(f)
 	if d == nil {
-		a.setMessage(cmp.Or(problem, "This capture is read only"))
+		a.warn(cmp.Or(problem, "This capture is read only"))
 		return nil
 	}
 	a.requestDocument = d

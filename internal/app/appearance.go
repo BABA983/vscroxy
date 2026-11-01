@@ -151,12 +151,9 @@ func (a *app) settingsView(c *ui.Context) {
 	t := c.Theme()
 	a.drainCertificate()
 	a.drainSystemProxy()
-	a.mu.Lock()
-	if a.messagePending && a.settingsFocused {
-		c.Toast(a.message)
-		a.messagePending = false
+	if a.settingsFocused {
+		a.showNotices(c)
 	}
-	a.mu.Unlock()
 	ui.Column(c).Fill().Background(t.Background).Children(func() {
 		a.settingsContent(c, t, a.settingsFocused)
 	})

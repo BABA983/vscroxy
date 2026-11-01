@@ -140,7 +140,7 @@ func (a *app) setSystemProxy(on bool) {
 	var addr string
 	if on {
 		if a.srv == nil || !a.srv.Running() {
-			a.setMessage("System proxy: start capture successfully first")
+			a.warn("System proxy: start capture successfully first")
 			return
 		}
 		addr = a.srv.Addr()
@@ -223,7 +223,7 @@ func (a *app) beforeProxyQuit(e *mygo.QuitEvent) {
 		mygo.RunOnMain(func() {
 			s.quitting = false
 			if err != nil {
-				a.setMessage("Quit cancelled: system proxy cleanup failed: " + err.Error())
+				a.fail("Quit cancelled: system proxy cleanup failed", err)
 				a.invalidate()
 				go mygo.Dialog.Error("Could not release system proxy", "Capture is still running to keep your network working. Disable the system proxy in Settings and retry quitting.\n\n"+err.Error())
 				return
@@ -242,9 +242,9 @@ func (a *app) drainSystemProxy() {
 		s.check, s.writeErr = result.check, result.applied
 		s.checked, s.checking, s.applying = true, false, false
 		if result.wrote {
-			a.setMessage(proxyOutcome(result))
+			a.inform(proxyOutcome(result))
 		} else if result.applied != nil {
-			a.setMessage("System proxy recovery: " + result.applied.Error())
+			a.fail("System proxy recovery", result.applied)
 		}
 	default:
 	}

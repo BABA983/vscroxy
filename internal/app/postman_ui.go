@@ -36,7 +36,7 @@ func (a *app) importRequests() {
 		}
 		data, err := os.ReadFile(paths[0])
 		if err != nil {
-			a.setMessage("Import: " + err.Error())
+			a.fail("Import", err)
 			return
 		}
 		a.win.Update(func() { a.importData(data, paths[0]) })
@@ -49,7 +49,7 @@ func (a *app) importData(data []byte, path string) {
 	case postman.KindCollection:
 		col, err := postman.ReadCollection(data)
 		if err != nil {
-			a.setMessage("Import Postman collection: " + err.Error())
+			a.fail("Import Postman collection", err)
 			return
 		}
 		incoming := make([]savedRequest, len(col.Requests))
@@ -58,7 +58,7 @@ func (a *app) importData(data []byte, path string) {
 		}
 		merged := mergeRequests(a.requests, incoming)
 		if err := a.persistRequests(merged); err != nil {
-			a.setMessage("Import Postman collection: " + err.Error())
+			a.fail("Import Postman collection", err)
 			return
 		}
 		a.requests = merged
@@ -75,11 +75,11 @@ func (a *app) importData(data []byte, path string) {
 	case postman.KindEnvironment, postman.KindGlobals:
 		env, err := postman.ReadEnvironment(data)
 		if err != nil {
-			a.setMessage("Import Postman environment: " + err.Error())
+			a.fail("Import Postman environment", err)
 			return
 		}
 		if a.envsProblem != "" {
-			a.setMessage("Import Postman environment: " + a.envsProblem)
+			a.warn("Import Postman environment: " + a.envsProblem)
 			return
 		}
 		envs, globals := slices.Clone(a.envs), maps.Clone(a.globals)
@@ -107,7 +107,7 @@ func (a *app) importData(data []byte, path string) {
 			title = fmt.Sprintf("Imported environment “%s” · %d %s", name, len(env.Values), plural(len(env.Values), "variable", "variables"))
 		}
 		if err := saveEnvs(a.envsPath, envFile{Active: a.activeEnv, Envs: envs, Globals: globals}); err != nil {
-			a.setMessage("Import Postman environment: " + err.Error())
+			a.fail("Import Postman environment", err)
 			return
 		}
 		a.envs, a.globals = envs, globals
@@ -120,13 +120,13 @@ func (a *app) importData(data []byte, path string) {
 		if isOpenAPI(data) {
 			doc, err := parseOpenAPI(string(data))
 			if err != nil {
-				a.setMessage("Import OpenAPI: " + err.Error())
+				a.fail("Import OpenAPI", err)
 				return
 			}
 			a.importOpenAPICollection(doc, strings.TrimSuffix(filepath.Base(path), filepath.Ext(path)))
 			return
 		}
-		a.setMessage("Import: not a Postman collection, environment or globals file, a HAR file or an OpenAPI 3.0/3.1 document")
+		a.warn("Import: not a Postman collection, environment or globals file, a HAR file or an OpenAPI 3.0/3.1 document")
 	}
 }
 
@@ -134,7 +134,7 @@ func (a *app) importData(data []byte, path string) {
 // dialog that lists it instead of a passing message.
 func (a *app) reportImport(title string, warnings []string) {
 	if len(warnings) == 0 {
-		a.setMessage(title)
+		a.done(title)
 		return
 	}
 	a.importReport = importReport{open: true, title: title, lines: warnings,
@@ -173,7 +173,7 @@ func (a *app) exportPostman(name string) {
 	}
 	data, warnings, err := postman.WriteCollection(name, list, slices.Clone(a.folders))
 	if err != nil {
-		a.setMessage("Export Postman collection: " + err.Error())
+		a.fail("Export Postman collection", err)
 		return
 	}
 	a.saveExport("Export Postman collection", strings.ReplaceAll(name, "∕", "-")+".postman_collection.json", data, warnings)
@@ -194,7 +194,7 @@ func (a *app) exportPostmanVariables() {
 	}
 	data, err := postman.WriteEnvironment(name, values, a.varsGlobals)
 	if err != nil {
-		a.setMessage("Export Postman environment: " + err.Error())
+		a.fail("Export Postman environment", err)
 		return
 	}
 	file := name + ".postman_environment.json"

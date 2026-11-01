@@ -69,7 +69,7 @@ func (a *app) ruleFromFlow(f flow, kind capture.RuleType) {
 	r := capture.Rule{Name: ruleLabel(kind) + " " + f.path, Type: kind, Match: f.url, Method: f.method}
 	if kind == capture.RuleMapLocal {
 		if a.rulesPath == "" {
-			a.setMessage("Rules storage is unavailable")
+			a.warn("Rules storage is unavailable")
 			return
 		}
 		var err error
@@ -78,7 +78,7 @@ func (a *app) ruleFromFlow(f flow, kind capture.RuleType) {
 			ResponseBody: f.resBody, ResponseBodyFile: f.resFile, ResponseBodySize: f.resSize, ResponseHeader: f.respHeader,
 		})
 		if err != nil {
-			a.setMessage("Create mock: " + err.Error())
+			a.fail("Create mock", err)
 			return
 		}
 	}
@@ -102,7 +102,7 @@ func (a *app) applyRuleChanges(next []capture.Rule) bool {
 		a.srv.SetRules(next)
 	}
 	a.ruleUI.problem = ""
-	a.setMessage("Rules saved · apply to new requests")
+	a.done("Rules saved · apply to new requests")
 	return true
 }
 
@@ -169,7 +169,7 @@ func (a *app) browseRuleFile() {
 	go func() {
 		paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Title: "Choose local response file"})
 		if err != nil {
-			a.setMessage("Choose response: " + err.Error())
+			a.fail("Choose response", err)
 			return
 		}
 		if len(paths) > 0 {

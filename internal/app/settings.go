@@ -91,7 +91,7 @@ func (a *app) saveProxyPort() {
 		a.proxyPortProblem = "Port was not saved: " + err.Error()
 		return
 	}
-	a.setMessage("Proxy port saved · restart the app to apply")
+	a.done("Proxy port saved · restart the app to apply")
 }
 
 // columnLayout is a table's columns as the user arranged them, saved with

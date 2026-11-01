@@ -512,7 +512,7 @@ func (a *app) desktopActions(c *ui.Context) []desktopAction {
 		{"import-curl", "Import cURL…", true, 0, 0, a.openCurlImport},
 		{"reload-library", "Reload collections from disk", true, 0, 0, func() {
 			a.loadRequestAssets()
-			a.setMessage(fmt.Sprintf("Reloaded %d %s from %s", len(a.requests), plural(len(a.requests), "request", "requests"), a.library.root))
+			a.done(fmt.Sprintf("Reloaded %d %s from %s", len(a.requests), plural(len(a.requests), "request", "requests"), a.library.root))
 		}},
 		{"import-postman", "Import…", true, 0, 0, a.importRequests},
 		{"export-postman", "Export collection as Postman…", editing && d.composeCollection != "", 0, 0, func() { a.exportPostman(collectionRoot(d.composeCollection)) }},

@@ -845,7 +845,7 @@ func (v *captureViews) clearFilters(a *app) {
 	view.triage = captureTriage{}
 	v.bind(a)
 	v.applyFilter(a)
-	a.setMessage("Filters cleared")
+	a.done("Filters cleared")
 }
 
 // resetFilters clears every condition in this view, not in other views or
@@ -1133,7 +1133,7 @@ func (v *captureViews) commitFilter(a *app) {
 	v.bind(a)
 	v.applyFilter(a)
 	if strings.TrimSpace(view.body) != "" {
-		a.setMessage("Body filter: " + strconv.Quote(strings.TrimSpace(view.body)))
+		a.inform("Body filter: " + strconv.Quote(strings.TrimSpace(view.body)))
 	}
 }
 
@@ -1219,7 +1219,7 @@ func (v *captureViews) applySaved(a *app, name string) {
 	v.applyFilter(a)
 	v.problem = ""
 	v.note = "Applied " + strconv.Quote(name) + " to this view."
-	a.setMessage("Filter applied: " + name)
+	a.inform("Filter applied: " + name)
 }
 
 // saveCurrent saves the active view's conditions under the name typed,
@@ -1253,7 +1253,7 @@ func (v *captureViews) saveCurrent(a *app) {
 	v.problem = ""
 	view.preset = name
 	v.note = "Saved " + strconv.Quote(name) + "."
-	a.setMessage("Saved capture filter " + name)
+	a.done("Saved capture filter " + name)
 }
 
 func (v *captureView) saved(name string) savedCaptureFilter {
@@ -1294,7 +1294,7 @@ func (v *captureViews) renameSaved(a *app) {
 	v.renaming = ""
 	v.problem = ""
 	v.note = "Renamed " + strconv.Quote(from) + " to " + strconv.Quote(to) + "."
-	a.setMessage("Renamed capture filter to " + to)
+	a.done("Renamed capture filter to " + to)
 }
 
 // deleteSaved drops the filter of that name. The views it was applied to keep
@@ -1313,7 +1313,7 @@ func (v *captureViews) deleteSaved(a *app, name string) {
 	}
 	v.problem = ""
 	v.note = "Deleted " + strconv.Quote(name) + "."
-	a.setMessage("Deleted capture filter " + name)
+	a.done("Deleted capture filter " + name)
 }
 
 // onIcon is a sidebar toggle's icon, in the accent color while it is on.

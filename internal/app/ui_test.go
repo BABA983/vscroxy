@@ -209,7 +209,7 @@ func TestNotificationsRetainActionAndDismissal(t *testing.T) {
 	if actions != 1 || tt.HasText("Export ready") {
 		t.Fatal("notification action did not run once and close its toast")
 	}
-	a.setMessage("Copied URL")
+	a.done("Copied URL")
 	tt.Frame()
 	tt.Advance(250 * time.Millisecond)
 	if err := tt.Click("Dismiss notification"); err != nil {
@@ -330,7 +330,7 @@ func TestBreakpointDialogValidatesEditsAndKeepsOriginalActionReachable(t *testin
 	a.bp = &capture.Breakpoint{ID: 1, Method: "POST", URL: "https://api.example.com/login"}
 	a.bpOpen, a.bpMethod, a.bpURL = true, "POST", a.bp.URL
 	a.bpHeaders, a.bpAbort = "Authorization: Bearer old", "502 Bad Gateway"
-	a.setMessage("Previous breakpoint continued")
+	a.inform("Previous breakpoint continued")
 	tt := ui.NewTester(a.view, 960, 600)
 	if err := tt.Click("Breakpoint headers"); err != nil {
 		t.Fatal(err)
@@ -1713,14 +1713,19 @@ func TestCaptureFeedbackIsTransientAndComplete(t *testing.T) {
 	a := workspaceApp()
 	tt := ui.NewTester(a.view, 960, 600)
 	message := "Copied cURL command; review credentials before sharing it with another person or service."
-	a.setMessage(message)
+	a.done(message)
+	// Two notices in one frame both show; an error keeps its raw detail.
+	a.fail("Save session", errors.New("disk full"))
 	tt.Frame()
-	if !tt.HasText(message) {
-		t.Fatal("feedback was truncated")
+	if !tt.HasText(message) || !tt.HasText("Save session") || !tt.HasText("disk full") {
+		t.Fatalf("feedback was truncated or overwritten: %q", tt.Texts())
 	}
 	tt.Advance(6 * time.Second)
 	if tt.HasText(message) {
 		t.Fatal("feedback stayed visible after its timeout")
+	}
+	if !tt.HasText("disk full") {
+		t.Fatal("an error closed by itself before the user saw it")
 	}
 }
 

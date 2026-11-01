@@ -406,7 +406,7 @@ func (a *app) refreshDocuments() {
 		d.load(a.requests[at], a.requests[at].key())
 	}
 	if kept > 0 {
-		a.setMessage(fmt.Sprintf("%d open %s unsaved changes to requests that changed on disk; saving replaces those changes", kept, plural(kept, "tab has", "tabs have")))
+		a.warn(fmt.Sprintf("%d open %s unsaved changes to requests that changed on disk; saving replaces those changes", kept, plural(kept, "tab has", "tabs have")))
 	}
 }
 

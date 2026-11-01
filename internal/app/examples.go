@@ -71,16 +71,16 @@ func (a *app) saveExample(d *requestDocument) {
 	clean := d.savedKey != "" && !d.dirty()
 	example, err := newExample(d.sent, d.response, d.examples)
 	if err != nil {
-		a.setMessage("Save as example: " + err.Error())
+		a.fail("Save as example", err)
 		return
 	}
 	d.examples = append(d.examples, example)
 	d.example, d.exampleEditor = len(d.examples)-1, nil
 	if clean && d == a.requestDocument && a.saveComposed() {
-		a.setMessage("Saved example “" + example.Name + "”")
+		a.done("Saved example “" + example.Name + "”")
 		return
 	}
-	a.setMessage("Added example “" + example.Name + "”; save the request to keep it")
+	a.done("Added example “" + example.Name + "”; save the request to keep it")
 }
 
 // examplesEditor lists the request's examples and shows the chosen one.

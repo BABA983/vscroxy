@@ -179,7 +179,7 @@ func (a *app) diagnosticChecks(t *ui.Theme, target *url.URL) []diagnosticCheck {
 			cert.fix = "Copy CA fingerprint"
 			cert.run = func(c *ui.Context) {
 				c.Services().WriteClipboard(fingerprint)
-				a.setMessage("Copied CA fingerprint")
+				a.done("Copied CA fingerprint")
 			}
 		}
 	}
@@ -383,7 +383,7 @@ func (a *app) explainFailure(c *ui.Context, t *ui.Theme, f flow) {
 			uikit.Meta(c, "Review URLs, addresses and raw errors before sharing.").Grow(1)
 			if uikit.SecondaryButton(c, "Copy diagnostics").Clicked() {
 				c.Services().WriteClipboard(f.connectionDiagnostics())
-				a.setMessage("Copied connection diagnostics")
+				a.done("Copied connection diagnostics")
 			}
 		})
 	})

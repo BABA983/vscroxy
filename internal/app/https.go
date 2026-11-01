@@ -70,13 +70,13 @@ func (a *app) drainCertificate() {
 		if s.installing {
 			switch {
 			case errors.Is(result.installErr, system.ErrInstallCancelled):
-				a.setMessage("Certificate installation cancelled; system trust not verified")
+				a.warn("Certificate installation cancelled; system trust not verified")
 			case result.installErr != nil:
-				a.setMessage("Install certificate: " + result.installErr.Error())
+				a.fail("Install certificate", result.installErr)
 			case result.err != nil:
-				a.setMessage("Installation finished; system trust not verified")
+				a.warn("Installation finished; system trust not verified")
 			default:
-				a.setMessage("CA trusted by this system; client trust may differ")
+				a.done("CA trusted by this system; client trust may differ")
 			}
 		}
 		s.certificateResult = result
@@ -238,7 +238,7 @@ func (a *app) capturedApps(name string) []capture.SSLApp {
 
 func (a *app) setAppInspection(app capture.SSLApp, enabled bool) {
 	if !filepath.IsAbs(app.Path) {
-		a.setMessage("HTTPS app rule unavailable: a local executable path is required")
+		a.warn("HTTPS app rule unavailable: a local executable path is required")
 		return
 	}
 	app.Name = cmp.Or(app.Name, filepath.Base(app.Path))
@@ -252,7 +252,7 @@ func (a *app) setAppInspection(app capture.SSLApp, enabled bool) {
 		if enabled {
 			message = "App rule enabled for " + app.Name + "; reconnect the client · decryption not yet verified"
 		}
-		a.setMessage(message)
+		a.inform(message)
 	}
 }
 
@@ -314,7 +314,7 @@ func (a *app) connectPanel(c *ui.Context, f flow) {
 								ui.Text(c, "Copy").FontSize(uikit.TextMeta)
 							}).Clicked() {
 								c.Services().WriteClipboard(f.conn.error)
-								a.setMessage("Copied the recorded error")
+								a.done("Copied the recorded error")
 							}
 						})
 						ui.Text(c, f.conn.error).Font(uikit.FontMono).FontSize(uikit.TextMeta).TextColor(t.Danger).Selectable().SingleLine().Tooltip(f.conn.error)

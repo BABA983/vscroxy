@@ -120,12 +120,14 @@ type action struct {
 
 ### 3.6 通知和错误
 
+已完成（`internal/app/notify.go`）：`notify(notice)` 和 `inform`／`done`／`warn`／`fail` 替代了 `setMessage`；通知排队，不再互相覆盖；错误写入日志。
+
 - `notify(level, text, ...action)` 替代 `setMessage`：级别（信息、成功、警告、错误）、可选动作（撤销、查看、重试）、可选详情。展示规则见 UX 规范第 8 节。
 - 面向用户的错误类型：一句话说明加原始错误，原始错误放在"详情"里并写入日志。
 
 ### 3.7 日志和诊断
 
-- 用 `log/slog` 写到 `~/.vscroxy/logs/vscroxy.log`，按大小轮转，保留 5 份。不记录请求内容和凭据。
+- 用 `log/slog` 写到 `~/.vscroxy/logs/vscroxy.log`，按大小轮转，保留 5 份。不记录请求内容和凭据。（已完成：`internal/applog`，5 MiB 轮转；go-mitmproxy 的 logrus 输出含完整 URL，仍只打到标准输出。）
 - "导出诊断包"：版本信息、平台、脱敏后的设置、最近的日志、连接诊断结果，打成一个 zip，用于提交问题。
 
 ### 3.8 国际化

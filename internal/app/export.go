@@ -94,24 +94,24 @@ func (a *app) writeReviewedExport(job exportReview) {
 	}
 	data, err := redactExport(job.data, options)
 	if err != nil {
-		a.setMessage(job.title + ": " + err.Error())
+		a.fail(job.title, err)
 		return
 	}
 	ext := strings.TrimPrefix(filepath.Ext(job.file), ".")
 	path, err := mygo.Dialog.Save(mygo.SaveDialogOptions{Title: job.title, DefaultPath: job.file,
 		Filters: []mygo.FileFilter{{Name: "Export", Extensions: []string{ext}}}})
 	if err != nil {
-		a.setMessage(job.title + ": " + err.Error())
+		a.fail(job.title, err)
 		return
 	}
 	if path == "" {
 		return
 	}
 	if err := writePrivateFile(path, data); err != nil {
-		a.setMessage(job.title + ": " + err.Error())
+		a.fail(job.title, err)
 		return
 	}
-	a.setMessage("Exported to " + path)
+	a.done("Exported to " + path)
 }
 
 const exportReplacement = "[REDACTED]"

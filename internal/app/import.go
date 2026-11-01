@@ -158,7 +158,7 @@ func (a *app) addToLibrary(incoming []savedRequest, folders []request.Folder) er
 func (a *app) importHARCollection(data []byte, path string) {
 	var doc harFile
 	if err := json.Unmarshal(data, &doc); err != nil {
-		a.setMessage("Import HAR: " + err.Error())
+		a.fail("Import HAR", err)
 		return
 	}
 	name := a.newCollectionName(cmp.Or(collectionSegment(strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))), "HAR"))
@@ -188,11 +188,11 @@ func (a *app) importHARCollection(data []byte, path string) {
 	}
 	warnings = append(skips.lines("entry", "entries"), warnings...)
 	if len(incoming) == 0 {
-		a.setMessage("Import HAR: no HTTP(S) request to import; " + cmp.Or(strings.Join(warnings, "; "), "the file has no entries"))
+		a.warn("Import HAR: no HTTP(S) request to import; " + cmp.Or(strings.Join(warnings, "; "), "the file has no entries"))
 		return
 	}
 	if err := a.addToLibrary(incoming, nil); err != nil {
-		a.setMessage("Import HAR: " + err.Error())
+		a.fail("Import HAR", err)
 		return
 	}
 	a.page = pageRequest
@@ -224,7 +224,7 @@ func (a *app) importOpenAPICollection(doc *openapi3.T, fallback string) {
 	name := a.newCollectionName(cmp.Or(collectionSegment(doc.Info.Title), collectionSegment(fallback), "OpenAPI"))
 	incoming, base := openAPIRequests(doc, name, a.requests)
 	if len(incoming) == 0 {
-		a.setMessage("OpenAPI collection: the document has no operations")
+		a.warn("OpenAPI collection: the document has no operations")
 		return
 	}
 	var folders []request.Folder
@@ -234,7 +234,7 @@ func (a *app) importOpenAPICollection(doc *openapi3.T, fallback string) {
 		title += " · set base_url in its settings"
 	}
 	if err := a.addToLibrary(incoming, folders); err != nil {
-		a.setMessage("OpenAPI collection: " + err.Error())
+		a.fail("OpenAPI collection", err)
 		return
 	}
 	a.page = pageRequest
@@ -266,7 +266,7 @@ func (a *app) openCollectionSave(flows []flow) {
 func (a *app) saveFlowsToCollection(flows []flow, name string, perHost bool) {
 	name = collectionSegment(name)
 	if name == "" {
-		a.setMessage("Save to collection: name the collection")
+		a.warn("Save to collection: name the collection")
 		return
 	}
 	var skips importSkips
@@ -288,11 +288,11 @@ func (a *app) saveFlowsToCollection(flows []flow, name string, perHost bool) {
 	}
 	warnings := skips.lines("row", "rows")
 	if len(incoming) == 0 {
-		a.setMessage("Save to collection: nothing saved; " + strings.Join(warnings, "; "))
+		a.warn("Save to collection: nothing saved; " + strings.Join(warnings, "; "))
 		return
 	}
 	if err := a.addToLibrary(incoming, nil); err != nil {
-		a.setMessage("Save to collection: " + err.Error())
+		a.fail("Save to collection", err)
 		return
 	}
 	a.reportImport(fmt.Sprintf("Saved %d %s to “%s”; not sent", len(incoming), plural(len(incoming), "request", "requests"), name), warnings)

@@ -184,7 +184,7 @@ func (a *app) networkTools(m *ui.Menu) {
 			_ = a.srv.SetUpstream("")
 		}
 		a.upstream = ""
-		a.setMessage("Upstream: off")
+		a.inform("Upstream: off")
 	}
 }
 
@@ -230,7 +230,7 @@ func (a *app) activeTools(c *ui.Context, t *ui.Theme) {
 				toolChip(c, "scenario", "Scenario: "+scenario, "Manage scenario: "+scenario, layersIcon, a.openRules, func() {
 					a.selectRuleScenario("")
 					if a.ruleUI.problem != "" {
-						a.setMessage("Could not disable scenario: " + a.ruleUI.problem)
+						a.warn("Could not disable scenario: " + a.ruleUI.problem)
 					}
 				})
 			}
@@ -308,7 +308,7 @@ func (a *app) moreMenu(c *ui.Context, m *ui.Menu) {
 			for _, at := range a.visible {
 				a.chosen.Add(a.flows[at].id)
 			}
-			a.setMessage(fmt.Sprintf("%d chosen", a.chosen.Len()))
+			a.inform(fmt.Sprintf("%d chosen", a.chosen.Len()))
 		}
 		if m.Item("Clear choice").Chosen() {
 			a.chosen.Clear()

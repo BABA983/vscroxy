@@ -107,7 +107,7 @@ func (a *app) applyWrites(writes []request.Write) {
 		}
 	}
 	if len(problems) > 0 {
-		a.setMessage("Script changes not saved: " + strings.Join(problems, "; "))
+		a.warn("Script changes not saved: " + strings.Join(problems, "; "))
 	}
 }
 
@@ -193,7 +193,7 @@ func (a *app) saveFolder() {
 		return
 	}
 	f.open = false
-	a.setMessage("Saved " + draft.Path + " settings")
+	a.done("Saved " + draft.Path + " settings")
 }
 
 // writeFolders saves the collection and folder settings, sorted by path,

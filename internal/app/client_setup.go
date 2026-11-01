@@ -61,7 +61,7 @@ func (a *app) clientSetupModal(c *ui.Context, t *ui.Theme) {
 				example := clientExample(s.runtime, addr, a.caPath, s.url)
 				if uikit.SecondaryButton(c, "Copy client example").Disabled(addr == "" || a.caPath == "").Clicked() {
 					c.Services().WriteClipboard(example)
-					a.setMessage("Copied " + s.runtime + " setup; review URL and CA path before running")
+					a.done("Copied " + s.runtime + " setup; review URL and CA path before running")
 				}
 				ui.Text(c, example).Font(uikit.FontMono).FontSize(uikit.TextMeta).Selectable()
 				uikit.Meta(c, "Run it, then use Diagnose to see whether the request arrived and was decrypted.")

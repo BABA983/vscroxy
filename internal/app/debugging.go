@@ -71,7 +71,7 @@ func (a *app) replayModal(c *ui.Context, t *ui.Theme) {
 		case err, ok := <-r.updates:
 			if !ok {
 				r.updates, r.cancel = nil, nil
-				a.setMessage(fmt.Sprintf("Replay finished · %d/%d sent · %d failed", r.done, len(r.flows), r.failed))
+				a.inform(fmt.Sprintf("Replay finished · %d/%d sent · %d failed", r.done, len(r.flows), r.failed))
 				break
 			}
 			r.done++

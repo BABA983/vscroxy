@@ -414,11 +414,11 @@ func (a *app) openCurlImport() {
 func (a *app) copyCurl(c *ui.Context, f flow) {
 	command, err := curlCommand(f)
 	if err != nil {
-		a.setMessage("Copy cURL: " + err.Error())
+		a.fail("Copy cURL", err)
 		return
 	}
 	c.Services().WriteClipboard(command)
-	a.setMessage("Copied cURL command; review credentials before sharing")
+	a.done("Copied cURL command; review credentials before sharing")
 }
 
 func (a *app) curlImportModal(c *ui.Context, t *ui.Theme) {
@@ -449,7 +449,7 @@ func (a *app) curlImportModal(c *ui.Context, t *ui.Theme) {
 					}
 					a.addDocument(r, "")
 					a.curlOpen, a.curlInput = false, ""
-					a.setMessage("Imported cURL as an unsent request; review headers and body before sending")
+					a.done("Imported cURL as an unsent request; review headers and body before sending")
 				}
 			})
 		})

@@ -237,7 +237,7 @@ func (a *app) checkpointSessions() {
 		case err := <-item.results:
 			if err != nil {
 				item.saveErr = "Save session: " + err.Error()
-				a.setMessage(item.saveErr)
+				a.fail("Save session", err)
 			} else {
 				item.saveErr = ""
 			}

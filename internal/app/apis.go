@@ -92,7 +92,7 @@ func (a *app) newAPI() {
 
 func (a *app) saveAPI(d *apiDocument) {
 	if !d.validate() {
-		a.setMessage("OpenAPI validation failed; nothing was saved")
+		a.warn("OpenAPI validation failed; nothing was saved")
 		return
 	}
 	next := d.spec
@@ -106,17 +106,17 @@ func (a *app) saveAPI(d *apiDocument) {
 		}
 	}
 	if a.apisPath == "" {
-		a.setMessage("APIs: no local storage path available")
+		a.warn("APIs: no local storage path available")
 		return
 	}
 	if err := saveAPIs(a.apisPath, list); err != nil {
-		a.setMessage("Save API: " + err.Error())
+		a.fail("Save API", err)
 		return
 	}
 	d.spec = next
 	d.saved = new(next)
 	d.code.Buffer.MarkSaved()
-	a.setMessage("Saved API " + d.title())
+	a.done("Saved API " + d.title())
 }
 
 func (a *app) apiView(c *ui.Context, t *ui.Theme) {
@@ -314,19 +314,19 @@ func (a *app) apiGenerationModal(c *ui.Context, t *ui.Theme) {
 func (a *app) generateAPI(collection string) {
 	spec, err := generateOpenAPI(a.requests, collection)
 	if err != nil {
-		a.setMessage("Generate API: " + err.Error())
+		a.fail("Generate API", err)
 		return
 	}
 	a.addAPI(spec, false)
 	a.page = pageAPI
-	a.setMessage("Generated independent OpenAPI draft; review notes before publishing")
+	a.done("Generated independent OpenAPI draft; review notes before publishing")
 }
 
 func (a *app) importOpenAPI() {
 	go func() {
 		paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Title: "Import OpenAPI", Filters: []mygo.FileFilter{{Name: "OpenAPI", Extensions: []string{"json", "yaml", "yml"}}}})
 		if err != nil {
-			a.setMessage("Import OpenAPI: " + err.Error())
+			a.fail("Import OpenAPI", err)
 			return
 		}
 		if len(paths) == 0 {
@@ -334,11 +334,11 @@ func (a *app) importOpenAPI() {
 		}
 		data, err := os.ReadFile(paths[0])
 		if err != nil {
-			a.setMessage("Import OpenAPI: " + err.Error())
+			a.fail("Import OpenAPI", err)
 			return
 		}
 		if len(data) > 16<<20 {
-			a.setMessage("OpenAPI documents are limited to 16 MiB")
+			a.warn("OpenAPI documents are limited to 16 MiB")
 			return
 		}
 		a.win.Update(func() {
@@ -360,16 +360,16 @@ func (a *app) exportOpenAPI(d *apiDocument) {
 	go func() {
 		path, err := mygo.Dialog.Save(mygo.SaveDialogOptions{Title: "Export OpenAPI", DefaultPath: "openapi." + ext, Filters: []mygo.FileFilter{{Name: "OpenAPI", Extensions: []string{ext}}}})
 		if err != nil {
-			a.setMessage("Export OpenAPI: " + err.Error())
+			a.fail("Export OpenAPI", err)
 			return
 		}
 		if path == "" {
 			return
 		}
 		if err := os.WriteFile(path, []byte(source), 0o600); err != nil {
-			a.setMessage("Export OpenAPI: " + err.Error())
+			a.fail("Export OpenAPI", err)
 			return
 		}
-		a.setMessage("Exported OpenAPI to " + path)
+		a.done("Exported OpenAPI to " + path)
 	}()
 }

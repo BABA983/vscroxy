@@ -7,7 +7,7 @@ import "strconv"
 func (a *app) regressionFrom(f flow) {
 	r, err := f.requestDraft()
 	if err != nil {
-		a.setMessage("Save regression: " + err.Error())
+		a.fail("Save regression", err)
 		return
 	}
 	r.Source = newDebugSource(f)
@@ -15,5 +15,5 @@ func (a *app) regressionFrom(f flow) {
 	r.Collection, r.Checks.Status = "Regressions", strconv.Itoa(f.status)
 	a.addDocument(r, "")
 	a.sourceFlow, a.composeTab = f.id, 5
-	a.setMessage("Review checks and variables, then Save request; nothing has been sent")
+	a.inform("Review checks and variables, then Save request; nothing has been sent")
 }

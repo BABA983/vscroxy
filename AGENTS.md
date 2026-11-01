@@ -20,6 +20,10 @@ The app is a prototype in rapid development: change file formats and APIs
 directly. Do not write migrations, readers for old formats, or deprecation
 shims, and delete such code when you touch it.
 
+User feedback goes through `notify` (`internal/app/notify.go`): `done`, `inform`,
+`warn`, or `fail(what, err)` for errors, which also go to the log at
+`~/.vscroxy/logs/vscroxy.log` (`internal/applog`). Never log request contents.
+
 ## Building and testing
 
 Go 1.27 lives at `/usr/local/go`. `.agents/setup` installs it, the GTK libraries a

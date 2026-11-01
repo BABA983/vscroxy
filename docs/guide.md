@@ -360,6 +360,11 @@ an unsaved mock removes its file; deleting a saved rule keeps its file for reuse
 
 ## Connection diagnostics
 
+The app's own log is `~/.vscroxy/logs/vscroxy.log`, rotated at 5 MiB with five
+files kept. It records startup and errors shown in notifications, never request
+contents. Errors and warnings stay on screen until dismissed, with the raw error
+under the sentence; other notifications fade after a few seconds.
+
 **Diagnostics** under Live in the sidebar is the one place for "why don't I see
 this traffic". It is also reached from **Network → Connection diagnostics**, the
 command palette, **Diagnose capture…** in the empty list, **Diagnose…** in client

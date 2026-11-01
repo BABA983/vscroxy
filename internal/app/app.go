@@ -9,7 +9,7 @@ import (
 	"github.com/baba983/vscroxy/internal/uikit"
 	"hash/fnv"
 	"io/fs"
-	"log"
+	"log/slog"
 	"maps"
 	"math"
 	"net"
@@ -27,6 +27,7 @@ import (
 	"uuid"
 
 	"github.com/baba983/vscroxy/internal/appicon"
+	"github.com/baba983/vscroxy/internal/applog"
 	"github.com/baba983/vscroxy/internal/capture"
 	"github.com/baba983/vscroxy/internal/request"
 	"github.com/baba983/vscroxy/internal/system"
@@ -386,14 +387,14 @@ type app struct {
 
 	// mu guards what the capture goroutine hands to the view: the flows not
 	// yet drained, and a startup error.
-	mu             sync.Mutex
-	pending        []capture.Flow
-	pendingFrames  []capture.FrameEvent
-	bps            []capture.Breakpoint
-	err            error
-	message        string
-	messagePending bool
-	replayResults  []replayResult
+	mu            sync.Mutex
+	pending       []capture.Flow
+	pendingFrames []capture.FrameEvent
+	bps           []capture.Breakpoint
+	err           error
+	notices       []notice
+	message       string // the last notice as one line
+	replayResults []replayResult
 }
 
 type replayResult struct {
@@ -495,7 +496,7 @@ func newApp() *app {
 	if home, err := os.UserHomeDir(); err == nil {
 		a.apisPath = filepath.Join(home, ".vscroxy", "apis.json")
 		if specs, err := loadAPIs(a.apisPath); err != nil {
-			a.setMessage("APIs: " + err.Error())
+			a.fail("APIs", err)
 		} else {
 			for _, spec := range specs {
 				a.addAPI(spec, true)
@@ -511,7 +512,7 @@ func newApp() *app {
 		a.loadExperiments(filepath.Join(home, ".vscroxy", "experiments.json"))
 		if err := a.sessions.load(filepath.Join(home, ".vscroxy", "sessions")); err != nil {
 			a.sessions.problem = err.Error()
-			a.setMessage("Sessions: " + err.Error())
+			a.fail("Sessions", err)
 		}
 	}
 	return a
@@ -615,17 +616,6 @@ func (a *app) reloadConfig() {
 	}
 }
 
-// setMessage queues feedback for the UI thread, from any goroutine.
-func (a *app) setMessage(msg string) {
-	a.mu.Lock()
-	a.message = msg
-	a.messagePending = true
-	a.mu.Unlock()
-	if a.win != nil {
-		a.win.Invalidate()
-	}
-}
-
 // invalidate asks for a frame, so what a goroutine changed shows.
 func (a *app) invalidate() {
 	if a.win != nil {
@@ -644,13 +634,13 @@ func clamp(msg string, max int) string {
 
 func (a *app) revealCA() {
 	if a.caPath == "" {
-		a.setMessage("Certificate: no path known")
+		a.warn("Certificate: no path known")
 		return
 	}
 	path := a.caPath
 	go func() {
 		if err := system.RevealCA(path); err != nil {
-			a.setMessage("Reveal certificate: " + err.Error())
+			a.fail("Reveal certificate", err)
 		}
 	}()
 }
@@ -761,21 +751,21 @@ func (a *app) resolveBreak(abort, original bool) {
 		})
 		if !resumed {
 			a.bp, a.bpOpen = nil, false
-			a.setMessage("Breakpoint expired; the exchange is no longer paused")
+			a.inform("Breakpoint expired; the exchange is no longer paused")
 			return
 		}
 	}
 	a.bp = nil
 	a.bpOpen = false
 	if abort {
-		a.setMessage("Aborted " + bp.Method + " " + bp.URL)
+		a.inform("Aborted " + bp.Method + " " + bp.URL)
 		return
 	}
 	if original {
-		a.setMessage("Continued original " + bp.Method + " " + bp.URL)
+		a.done("Continued original " + bp.Method + " " + bp.URL)
 		return
 	}
-	a.setMessage("Continued " + bp.Method + " " + bp.URL)
+	a.done("Continued " + bp.Method + " " + bp.URL)
 }
 
 // Validate before parsing so a malformed line cannot silently delete a header.
@@ -1209,26 +1199,22 @@ func (a *app) view(c *ui.Context) {
 	if settings && busy != [3]bool{a.certificate.checking, a.systemProxy.checking, a.systemProxy.applying} {
 		a.settingsWin.Invalidate()
 	}
-	a.mu.Lock()
-	switch {
-	case a.messagePending && settings && a.settingsFocused:
-		a.settingsWin.Invalidate()
-	case a.messagePending:
-		c.Toast(a.message)
-		a.messagePending = false
+	if !settings || !a.settingsFocused {
+		a.showNotices(c)
 	}
+	a.mu.Lock()
 	replays := a.replayResults
 	a.replayResults = nil
 	a.mu.Unlock()
 	for _, result := range replays {
-		c.ToastAction(fmt.Sprintf("Replayed Capture #%d · %s %s → %d", result.source.id, result.source.method, result.source.path, result.reply.Status), "Inspect replay", func() {
+		a.notify(notice{text: fmt.Sprintf("Replayed Capture #%d · %s %s → %d", result.source.id, result.source.method, result.source.path, result.reply.Status), action: "Inspect replay", run: func() {
 			// The response belongs to this exact send, not the next capture of
 			// the same URL. Never move the reader until they ask to inspect it.
 			if d := a.editCapture(result.source); d != nil {
 				d.response = &result.reply
 				d.responseArrived()
 			}
-		})
+		}})
 	}
 	a.desktopShortcuts(c)
 	if a.sort != a.sortApplied {
@@ -1417,10 +1403,10 @@ func (a *app) upstreamModal(c *ui.Context, t *ui.Theme) {
 				if uikit.PrimaryButton(c, "Save").Clicked() {
 					if a.srv != nil {
 						if err := a.srv.SetUpstream(strings.TrimSpace(a.upstreamAddr)); err != nil {
-							a.setMessage("Upstream: " + err.Error())
+							a.fail("Upstream", err)
 						} else {
 							a.upstream = a.srv.Upstream()
-							a.setMessage("Upstream: " + cmp.Or(a.upstream, "off"))
+							a.inform("Upstream: " + cmp.Or(a.upstream, "off"))
 						}
 					}
 					a.upstreamOpen = false
@@ -1510,7 +1496,7 @@ func (a *app) clearCaptured() {
 	a.countDomains()
 	a.countClients()
 	a.applyFilter()
-	a.setMessage("Unpinned requests cleared")
+	a.done("Unpinned requests cleared")
 }
 
 // sidebar is the window's one source list, in three groups: LIVE is the
@@ -2060,7 +2046,7 @@ func (a *app) saveMark() {
 	a.markOpen = false
 	a.applyFilter()
 	a.invalidate()
-	a.setMessage("Marked")
+	a.done("Marked")
 }
 
 // infoIcon marks a header the Headers tab can explain, or a connection detail
@@ -2079,7 +2065,7 @@ func (a *app) connectionView(c *ui.Context, f flow) {
 		}
 		if uikit.SecondaryButton(c, "Copy connection log").Height(uikit.HeightCompact).Disabled(f.conn.log == "").Clicked() {
 			c.Services().WriteClipboard(f.conn.log)
-			a.setMessage("Copied connection log")
+			a.done("Copied connection log")
 		}
 	})
 	if f.conn.error != "" {
@@ -2209,13 +2195,21 @@ func (f flow) statusColor(t *ui.Theme) ui.Color {
 
 // Run starts the native desktop app and releases its resources on exit.
 func Run() error {
+	if home, err := os.UserHomeDir(); err == nil {
+		if logs, err := applog.Open(filepath.Join(home, ".vscroxy", "logs")); err != nil {
+			slog.Warn("log file unavailable; logging to stderr only", "err", err)
+		} else {
+			defer logs.Close()
+		}
+	}
+	slog.Info("vscroxy starting", "os", runtime.GOOS, "arch", runtime.GOARCH)
 	a := newApp()
 	if a.srv != nil {
 		defer a.srv.Close()
 	}
 	cleanupProxy := func() {
 		if err := a.systemProxy.close(); err != nil {
-			log.Printf("release system proxy: %v", err)
+			slog.Error("release system proxy", "err", err)
 		}
 	}
 	defer cleanupProxy() // before the listener closes, even if Run returns an error
@@ -2356,12 +2350,12 @@ func (a *app) rowMenu(c *ui.Context, f flow) func(*ui.Menu) {
 		m.Submenu("Copy", func(m *ui.Menu) {
 			if m.Item("URL").Chosen() {
 				services.WriteClipboard(f.url)
-				a.setMessage("Copied URL")
+				a.done("Copied URL")
 			}
 			desktopMenuItem(m, actions, "copy", "cURL")
 			if m.Item("Response body").Disabled(f.resBody == "").Chosen() {
 				services.WriteClipboard(f.body(true))
-				a.setMessage("Copied response body")
+				a.done("Copied response body")
 			}
 		})
 		if f.kind == "" && f.url != "" && m.Item("Open in browser").Chosen() {
@@ -2459,7 +2453,7 @@ func (a *app) activeVars() map[string]string {
 // have completed or the user may have edited the environment in the meantime.
 func (a *app) applyVars(name string, before, vars map[string]string) {
 	if a.envsProblem != "" {
-		a.setMessage("Variables not saved: " + a.envsProblem)
+		a.warn("Variables not saved: " + a.envsProblem)
 		return
 	}
 	name = cmp.Or(name, "default")
@@ -2485,7 +2479,7 @@ func (a *app) applyVars(name string, before, vars map[string]string) {
 		a.activeEnv = name
 	}
 	if err := saveEnvs(a.envsPath, envFile{Active: a.activeEnv, Envs: a.envs, Globals: a.globals}); err != nil {
-		a.setMessage("Variables: " + err.Error())
+		a.fail("Variables", err)
 	}
 }
 
@@ -2634,7 +2628,7 @@ func (a *app) varsModal(c *ui.Context, t *ui.Theme) {
 // saveVars keeps the edited environment and puts it in use.
 func (a *app) saveVars() {
 	if a.envsProblem != "" {
-		a.setMessage("Variables not saved: " + a.envsProblem)
+		a.warn("Variables not saved: " + a.envsProblem)
 		return
 	}
 	name := strings.TrimSpace(a.varsName)
@@ -2660,7 +2654,7 @@ func (a *app) saveVars() {
 			return
 		}
 		a.globals, a.varsOpen = vars, false
-		a.setMessage(fmt.Sprintf("Globals: %d of them", len(vars)))
+		a.inform(fmt.Sprintf("Globals: %d of them", len(vars)))
 		return
 	}
 	envs := slices.Clone(a.envs)
@@ -2681,7 +2675,7 @@ func (a *app) saveVars() {
 	}
 	a.envs, a.activeEnv = envs, name
 	a.varsOpen = false
-	a.setMessage(fmt.Sprintf("Variables: %s, %d of them", name, len(vars)))
+	a.inform(fmt.Sprintf("Variables: %s, %d of them", name, len(vars)))
 }
 
 // sendComposed sends the editor's request through the proxy, so the result
@@ -2694,7 +2688,7 @@ func (a *app) sendComposed() {
 		return
 	}
 	if a.srv == nil || !a.srv.Running() {
-		a.setMessage("No proxy running. Start capture before sending; previous result kept.")
+		a.warn("No proxy running. Start capture before sending; previous result kept.")
 		return
 	}
 	d.composeTests = nil
@@ -2790,10 +2784,10 @@ func (a *app) setKeyLog(path string) {
 	a.keyLogPath = path
 	if path == "" {
 		_ = os.Unsetenv("SSLKEYLOGFILE")
-		a.setMessage("TLS key log off")
+		a.inform("TLS key log off")
 	} else {
 		_ = os.Setenv("SSLKEYLOGFILE", path)
-		a.setMessage("TLS keys go to " + path + " from the next launch")
+		a.inform("TLS keys go to " + path + " from the next launch")
 	}
 	a.persistSettings()
 	a.invalidate()
@@ -3005,13 +2999,13 @@ func (a *app) hostListModal(c *ui.Context, t *ui.Theme, open *bool, title, hint,
 					patterns := splitHosts(*text)
 					if path != "" {
 						if err := writeHosts(path, patterns); err != nil {
-							a.setMessage(title + ": " + err.Error())
+							a.fail(title, err)
 							return
 						}
 					}
 					apply(patterns)
 					*open = false
-					a.setMessage(fmt.Sprintf("%s: %d", title, len(patterns)))
+					a.inform(fmt.Sprintf("%s: %d", title, len(patterns)))
 				}
 			})
 		})
@@ -3052,19 +3046,19 @@ func (a *app) saveComposed() bool {
 		name = strings.TrimSpace(a.composeMethod + " " + a.composeURL)
 	}
 	if name == "" {
-		a.setMessage("Save: the request has no name")
+		a.warn("Save: the request has no name")
 		return false
 	}
 	r := a.requestDocument.value()
 	if _, _, _, err := r.Checks.Parse(); err != nil {
-		a.setMessage("Save: " + err.Error())
+		a.fail("Save", err)
 		return false
 	}
 	r.Name, r.Collection = name, cleanPath(r.Collection)
 	r.Method, r.URL = strings.ToUpper(strings.TrimSpace(cmp.Or(r.Method, "GET"))), strings.TrimSpace(r.URL)
 	for _, existing := range a.requests {
 		if existing.Name == r.Name && existing.Collection == r.Collection && !(r.ID != "" && existing.ID == r.ID) && existing.key() != a.savedKey {
-			a.setMessage("Save: another request has this name in this collection; rename it first. No asset replaced.")
+			a.warn("Save: another request has this name in this collection; rename it first. No asset replaced.")
 			return false
 		}
 	}
@@ -3093,7 +3087,7 @@ func (a *app) saveComposed() bool {
 		}
 	}
 	if err := a.persistRequests(list); err != nil {
-		a.setMessage("Save: " + err.Error())
+		a.fail("Save", err)
 		return false
 	}
 	a.requests = list
@@ -3104,7 +3098,7 @@ func (a *app) saveComposed() bool {
 	a.savedKey = r.key()
 	a.requestChoice = a.savedKey
 	*a.collectionShown(r.Collection) = true
-	a.setMessage("Saved " + name)
+	a.done("Saved " + name)
 	return true
 }
 
@@ -3222,16 +3216,16 @@ func (a *app) sslModal(c *ui.Context, t *ui.Theme) {
 func (a *app) saveSSL(cfg capture.SSLConfig) bool {
 	if a.sslPath != "" {
 		if err := os.MkdirAll(filepath.Dir(a.sslPath), 0o755); err != nil {
-			a.setMessage("SSL proxying: " + err.Error())
+			a.fail("SSL proxying", err)
 			return false
 		}
 		data, err := json.Marshal(cfg)
 		if err != nil {
-			a.setMessage("SSL proxying: " + err.Error())
+			a.fail("SSL proxying", err)
 			return false
 		}
 		if err := os.WriteFile(a.sslPath, append(data, '\n'), 0o644); err != nil {
-			a.setMessage("SSL proxying: " + err.Error())
+			a.fail("SSL proxying", err)
 			return false
 		}
 	}
@@ -3241,9 +3235,9 @@ func (a *app) saveSSL(cfg capture.SSLConfig) bool {
 	a.sslAll, a.sslHosts = cfg.All, strings.Join(cfg.Hosts, "\n")
 	a.sslApps = slices.Clone(cfg.Apps)
 	if cfg.All {
-		a.setMessage("SSL proxying: every domain")
+		a.inform("SSL proxying: every domain")
 	} else {
-		a.setMessage(fmt.Sprintf("SSL proxying: %d domains, %d local apps · new connections only", len(cfg.Hosts), len(cfg.Apps)))
+		a.inform(fmt.Sprintf("SSL proxying: %d domains, %d local apps · new connections only", len(cfg.Hosts), len(cfg.Apps)))
 	}
 	return true
 }
@@ -3257,7 +3251,7 @@ func (a *app) decryptHost(host string) {
 		cfg.Hosts = append(cfg.Hosts, host)
 	}
 	if a.saveSSL(cfg) {
-		a.setMessage("Inspection enabled for " + host + " on all ports; reconnect the client and retry")
+		a.done("Inspection enabled for " + host + " on all ports; reconnect the client and retry")
 	}
 }
 
@@ -3297,7 +3291,7 @@ func (a *app) persistSettings() error {
 		err = writeSettings(a.settingsPath, now)
 	}
 	if err != nil {
-		a.setMessage("Settings: " + err.Error())
+		a.fail("Settings", err)
 		return err
 	}
 	a.saved = now
@@ -3321,9 +3315,9 @@ func (a *app) togglePin(f flow) {
 		}
 		a.flows[i].pinned = !a.flows[i].pinned
 		if a.flows[i].pinned {
-			a.setMessage("Pinned " + f.method + " " + f.path)
+			a.done("Pinned " + f.method + " " + f.path)
 		} else {
-			a.setMessage("Unpinned " + f.method + " " + f.path)
+			a.done("Unpinned " + f.method + " " + f.path)
 		}
 		a.applyFilter()
 		return
@@ -3359,7 +3353,7 @@ func (a *app) selectedFlows() []flow {
 func (a *app) exportChosen() {
 	flows := a.selectedFlows()
 	if len(flows) == 0 {
-		a.setMessage("Export chosen: no flow chosen")
+		a.warn("Export chosen: no flow chosen")
 		return
 	}
 	a.reviewHAR(flows, "vscroxy-chosen.har")
@@ -3445,7 +3439,7 @@ func (a *app) saveDNSRule() {
 	host := strings.TrimSpace(a.dnsRuleHost)
 	addr := strings.TrimSpace(a.dnsRuleAddr)
 	if host == "" || addr == "" {
-		a.setMessage("DNS mapping: a host and an address")
+		a.warn("DNS mapping: a host and an address")
 		return
 	}
 	line := host + " = " + addr
@@ -3462,18 +3456,18 @@ func (a *app) saveDNSRule() {
 	a.dnsText = strings.Join(lines, "\n")
 	if a.srv != nil {
 		if err := a.srv.SetDNS(lines); err != nil {
-			a.setMessage("DNS mapping: " + err.Error())
+			a.fail("DNS mapping", err)
 			return
 		}
 	}
 	if a.dnsPath != "" {
 		if err := writeHosts(a.dnsPath, lines); err != nil {
-			a.setMessage("DNS mapping: " + err.Error())
+			a.fail("DNS mapping", err)
 			return
 		}
 	}
 	a.dnsRuleOpen = false
-	a.setMessage("DNS mapping: " + line)
+	a.inform("DNS mapping: " + line)
 }
 
 // hostOnly drops the port from a host the table shows, for a rule's name.
@@ -3489,18 +3483,18 @@ func (a *app) saveDNS() {
 	lines := splitHosts(a.dnsText)
 	if a.srv != nil {
 		if err := a.srv.SetDNS(lines); err != nil {
-			a.setMessage("DNS mapping: " + err.Error())
+			a.fail("DNS mapping", err)
 			return
 		}
 	}
 	if a.dnsPath != "" {
 		if err := writeHosts(a.dnsPath, lines); err != nil {
-			a.setMessage("DNS mapping: " + err.Error())
+			a.fail("DNS mapping", err)
 			return
 		}
 	}
 	a.dnsOpen = false
-	a.setMessage(fmt.Sprintf("DNS mapping: %d names", len(lines)))
+	a.inform(fmt.Sprintf("DNS mapping: %d names", len(lines)))
 }
 
 // sidebarVibrancy is the sidebar's material: macOS's, and none elsewhere,

@@ -114,12 +114,12 @@ func (a *app) applyUpstream() {
 		return
 	}
 	if err := a.srv.SetUpstream(strings.TrimSpace(a.upstreamAddr)); err != nil {
-		a.setMessage("Upstream: " + err.Error())
+		a.fail("Upstream", err)
 		return
 	}
 	a.upstream = a.srv.Upstream()
 	a.upstreamAddr = a.upstream
-	a.setMessage("Upstream: " + cmp.Or(a.upstream, "off"))
+	a.inform("Upstream: " + cmp.Or(a.upstream, "off"))
 }
 
 func (a *app) captureSettings(c *ui.Context, t *ui.Theme) {

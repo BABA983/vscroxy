@@ -407,11 +407,11 @@ func (a *app) copyPaneBody(c *ui.Context, side int) {
 		body = a.reqBody
 	}
 	if !utf8.ValidString(body) || strings.ContainsRune(body, 0) {
-		a.setMessage("Binary bytes cannot be copied to a text clipboard; use HAR or session export")
+		a.warn("Binary bytes cannot be copied to a text clipboard; use HAR or session export")
 		return
 	}
 	c.Services().WriteClipboard(body)
-	a.setMessage("Copied shown body; review credentials before sharing")
+	a.done("Copied shown body; review credentials before sharing")
 }
 
 func bodyFormatLabel(side int) string {
@@ -539,7 +539,7 @@ func (a *app) rawSide(c *ui.Context, f flow, side int) {
 		uikit.Meta(c, "As sent and received · capture bytes").Grow(1)
 		if uikit.SecondaryButton(c, "Copy raw").Height(uikit.HeightCompact).Disabled(a.rawText[side] == "").Clicked() {
 			c.Services().WriteClipboard(a.rawText[side])
-			a.setMessage("Copied raw message; review credentials before sharing")
+			a.done("Copied raw message; review credentials before sharing")
 		}
 	})
 	a.rawEditor[side].Font = ui.Font{Family: uikit.FontMono, Size: uikit.TextBody}

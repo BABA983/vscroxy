@@ -322,7 +322,7 @@ func (m messageView) detail(c *ui.Context, a *app, f flow, p *messagePanel) {
 				SingleLine().Grow(1).Tooltip(m.headline())
 			if uikit.SecondaryButton(c, "Copy").Clicked() {
 				c.Services().WriteClipboard(payload)
-				a.setMessage("Copied " + m.label() + " message · " + humanBytes(len(payload)))
+				a.done("Copied " + m.label() + " message · " + humanBytes(len(payload)))
 			}
 		})
 		ui.Row(c).Padding(0, t.Space(3), t.Space(2), t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
@@ -684,10 +684,10 @@ func (p *messagePanel) exportModal(c *ui.Context, a *app, f flow, list, visible 
 							return
 						}
 						if err := archive.write(path, chosen); err != nil {
-							a.setMessage("Message export: " + err.Error())
+							a.fail("Message export", err)
 							return
 						}
-						a.setMessage(fmt.Sprintf("Exported %d retained messages", len(chosen)))
+						a.done(fmt.Sprintf("Exported %d retained messages", len(chosen)))
 					}()
 				}
 			})

@@ -6,6 +6,7 @@ import (
 	"crypto/x509"
 	"encoding/json/jsontext"
 	"encoding/json/v2"
+	"errors"
 	"fmt"
 	"image"
 	"image/color"
@@ -467,6 +468,10 @@ func TestUISnapshots(t *testing.T) {
 			{Title: "Rules apply to new requests", Type: "info"},
 			{Title: "Replay failed", Description: "The upstream connection was refused.", Type: "error", Action: "Inspect request"},
 		}, want: "Inspect request"},
+		{name: "notification-error", setup: func(a *app) {
+			a.done("Saved List projects")
+			a.fail("Save session", errors.New("open /home/user/.vscroxy/sessions/1f3c.json: no space left on device"))
+		}, want: "no space left on device"},
 		{name: "notification-warning", toasts: []ui.Toast{{Title: "Response body incomplete", Description: "The captured bytes are still available.", Type: "warning"}}, want: "Response body incomplete"},
 		{name: "capture-menu", act: click("More capture options"), menu: "Clear unpinned requests…"},
 		{name: "collections-menu", act: click("Collection options"), menu: "Generate API from collection…"},

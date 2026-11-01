@@ -74,7 +74,7 @@ func (a *app) setupGuide(c *ui.Context) {
 		if view := a.views.activeView(); view != nil {
 			view.list.ScrollIntoView(a.picked)
 		}
-		a.setMessage("Setup complete · the first decrypted request is selected")
+		a.done("Setup complete · the first decrypted request is selected")
 		return
 	}
 	current := 0
