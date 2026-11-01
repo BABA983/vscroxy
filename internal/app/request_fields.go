@@ -80,7 +80,7 @@ func requestFieldsEditor(c *ui.Context, rows *[]request.Field, opts fieldsOption
 			uikit.Label(c, "Key").Basis(0).Grow(1).MinWidth(0).FillHeight().Padding(t.Space(1), t.Space(2)).BorderWidth(0, 1, 0, 0).BorderColor(t.Border)
 			uikit.Label(c, "Value").Basis(0).Grow(2).MinWidth(0).Padding(t.Space(1), t.Space(2))
 			if opts.secret {
-				ui.Box(c).Width(uikit.HeightCompact)
+				ui.Box(c).Width(uikit.HeightControl)
 			}
 			if opts.file {
 				uikit.Label(c, "FILE").Width(64)
@@ -140,7 +140,7 @@ func requestFieldsEditor(c *ui.Context, rows *[]request.Field, opts fieldsOption
 					} else if opts.secret {
 						// Every header keeps the same action column, even when
 						// its value does not need an explicit reveal control.
-						ui.Box(c).Width(uikit.HeightCompact)
+						ui.Box(c).Width(uikit.HeightControl)
 					}
 					if opts.file {
 						ui.Box(c).Width(64).Children(func() {

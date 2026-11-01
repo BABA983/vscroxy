@@ -350,7 +350,7 @@ func (a *app) paneTabs(c *ui.Context, t *ui.Theme, side string, selected *int, l
 		}
 		title.Children(func() { ui.Text(c, side).FontSize(uikit.TextBody).FontWeight(600) })
 		ui.ScrollHorizontal(c).Grow(1).FillHeight().Children(func() {
-			uikit.Tabs(c, selected, side+" pane", labels...)
+			uikit.SubTabs(c, selected, side+" pane", labels...)
 		})
 		if *selected == bodyTab {
 			a.bodyFormatMenu(c, t, bodySide)

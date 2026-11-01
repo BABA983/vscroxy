@@ -622,7 +622,7 @@ func TestRequestResourcesPreserveDraftAndTreeExpansion(t *testing.T) {
 	tt.Key(ui.Cmd, ui.KeyA)
 	tt.Type("https://api.example.com/unsent")
 	tt.Key(ui.Cmd, ui.KeyB)
-	if tt.HasText("GET  List projects") || tt.HasText("LIVE") {
+	if tt.HasText("GET  List projects") || tt.HasText("Live") {
 		t.Fatal("sidebar remained visible")
 	}
 	tt.Key(ui.Cmd, ui.KeyB)
@@ -3650,8 +3650,8 @@ func TestCaptureCompactLayoutKeepsSearchUsableAcrossEmptyResults(t *testing.T) {
 			tt := ui.NewTester(a.view, width, 800)
 			first, _ := tt.Find("api.example.com/projects")
 			second, _ := tt.Find("api.example.com/login")
-			if second.Y-first.Y != 28 {
-				t.Fatalf("traffic rows are not 28px: %v, %v", first, second)
+			if second.Y-first.Y != 24 {
+				t.Fatalf("traffic rows are not 24px: %v, %v", first, second)
 			}
 			search, _ := tt.Find("Search host or path")
 			for _, label := range []string{"Protocol and content type: All", "Filters…", "Breakpoints", "More capture options"} {
@@ -3705,8 +3705,8 @@ func TestRequestCompactControlsKeepTemplateEditingAndCounts(t *testing.T) {
 			method, _ := tt.Find("Method")
 			urlBox, _ := tt.Find("URL")
 			send, _ := tt.Find("Send")
-			if send.H != 32 || method.Y >= urlBox.Y+urlBox.H || send.Y >= urlBox.Y+urlBox.H {
-				t.Fatal("method, URL and 32px Send no longer share one row")
+			if send.H != uikit.HeightLarge || method.Y >= urlBox.Y+urlBox.H || send.Y >= urlBox.Y+urlBox.H {
+				t.Fatal("method, URL and 28px Send no longer share one row")
 			}
 			for _, count := range []struct{ label, value string }{{"Headers", "3"}, {"Checks", "4"}} {
 				tab, ok := tt.Find("Request editor: " + count.label)

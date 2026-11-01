@@ -1,8 +1,6 @@
 package uikit
 
 import (
-	"strings"
-
 	"github.com/egoist/mygo/ui"
 	"github.com/oneo-me/onevra/source/icons/lucide"
 )
@@ -45,7 +43,7 @@ func ToolbarButton(c *ui.Context, label, tip string, active bool) ui.Element {
 }
 
 func IconButton(c *ui.Context, label, tip string, icon *ui.SVG) ui.Element {
-	return ToolbarButton(c, label, tip, false).Size(HeightCompact, HeightCompact).
+	return ToolbarButton(c, label, tip, false).Size(HeightControl, HeightControl).
 		Padding(0).Justify(ui.Center).Children(func() {
 		ui.Icon(c, icon).Size(IconInline, IconInline)
 	})
@@ -56,25 +54,53 @@ func PrimaryButton(c *ui.Context, label string) ui.Element {
 		FontSize(TextBody).Radius(RadiusControl)
 }
 
+// SecondaryButton has no border: its face is the text color laid thinly
+// over whatever is beneath, as macOS draws a push button, so it reads the
+// same on the window, a panel or a selected row.
 func SecondaryButton(c *ui.Context, label string) ui.Element {
-	return ui.Button(c, label).Height(HeightControl).Padding(0, c.Theme().Space(3)).
-		FontSize(TextBody).Radius(RadiusControl)
+	return faced(c, func() ui.Element { return ui.Button(c, label) }).Height(HeightControl).
+		Padding(0, c.Theme().Space(3)).FontSize(TextBody).Radius(RadiusControl)
 }
 
 // CompactButton is a secondary button for dense rows and bars.
 func CompactButton(c *ui.Context, label string) ui.Element {
-	return ui.Button(c, label).Height(HeightCompact).Padding(0, c.Theme().Space(2)).
-		FontSize(TextMeta).Radius(RadiusControl)
+	return faced(c, func() ui.Element { return ui.Button(c, label) }).Height(HeightCompact).
+		Padding(0, c.Theme().Space(2)).FontSize(TextMeta).Radius(RadiusControl)
 }
 
 // DangerButton confirms a destructive action; it is never the only way out.
 func DangerButton(c *ui.Context, label string) ui.Element {
+	return SecondaryButton(c, label).TextColor(c.Theme().Danger)
+}
+
+// faced builds a MyGo control with the neutral face and no border. MyGo
+// picks a control's resting, hover and pressed colors from the theme as
+// it is built, so the theme is swapped only around the constructor and
+// disabled controls keep MyGo's own handling.
+func faced(c *ui.Context, build func() ui.Element) ui.Element {
 	t := c.Theme()
-	return SecondaryButton(c, label).TextColor(t.Danger).Border(1, t.Danger)
+	face := *t
+	face.Surface, face.SurfaceHover, face.SurfacePressed = neutral(t, 1), neutral(t, 1.5), neutral(t, 2.2)
+	face.Border = ui.Color{}
+	c.SetTheme(&face)
+	e := build()
+	c.SetTheme(t)
+	return e
+}
+
+// neutral is the text color at a low opacity: the face of a control, or
+// level times that for its hover and pressed states.
+func neutral(t *ui.Theme, level float32) ui.Color {
+	alpha := float32(0.06)
+	if t.Dark {
+		alpha = 0.09
+	}
+	return t.Text.Alpha(alpha * level)
 }
 
 // RowButton is a full-width row in a list of things to pick: no face of its
-// own until hovered or pressed. Pair it with Selected for the picked row.
+// own until pressed, as rows in a macOS list do not light up under the
+// pointer. Pair it with Selected for the picked row.
 func RowButton(c *ui.Context, label string) ui.Element {
 	t := c.Theme()
 	b := ui.ButtonBase(c).Label(label).FillWidth().MinHeight(HeightControl).
@@ -85,8 +111,6 @@ func RowButton(c *ui.Context, label string) ui.Element {
 		b.TextColor(Colors(t).TextFaint)
 	case b.Pressed():
 		b.Background(t.SurfacePressed)
-	case b.Hovered():
-		b.Background(t.SurfaceHover)
 	}
 	return b
 }
@@ -106,14 +130,26 @@ func SwatchButton(c *ui.Context, label string, color ui.Color, chosen bool) ui.E
 	})
 }
 
-// Input is a single-line text field at control height.
+// Input is a single-line text field at control height: a neutral fill
+// with a hairline, and a soft accent halo instead of the focus ring while
+// it has the focus.
 func Input(c *ui.Context, value *string) ui.Element {
-	return ui.TextInput(c, value).Height(HeightControl).FontSize(TextBody).Radius(RadiusControl)
+	t := c.Theme()
+	field := *t
+	field.Surface, field.Border = neutral(t, 0.6), t.Text.Alpha(0.1)
+	c.SetTheme(&field)
+	in := ui.TextInput(c, value).Height(HeightControl).Padding(0, t.Space(2)).FontSize(TextBody).Radius(RadiusControl).FocusRing(false)
+	c.SetTheme(t)
+	if in.Focused() {
+		in.Shadow(0, 0, 0, 3, t.Accent.Alpha(0.25))
+	}
+	return in
 }
 
-// Select picks one of a few options at control height.
+// Select picks one of a few options at control height, with a button's face.
 func Select(c *ui.Context, selected *string, options []string) ui.Element {
-	return ui.Select(c, selected, options).Height(HeightControl).FontSize(TextBody).Radius(RadiusControl)
+	return faced(c, func() ui.Element { return ui.Select(c, selected, options) }).
+		Height(HeightControl).Padding(0, c.Theme().Space(2)).FontSize(TextBody).Radius(RadiusControl)
 }
 
 // Dialog content uses three width tiers inside Modal's shared padding.
@@ -189,7 +225,7 @@ func SidebarSection(c *ui.Context, title string, open *bool, content func()) ui.
 	sectionTheme := *t
 	sectionTheme.FontSize = TextMeta + 1 // SidebarSection uses FontSize - 1.
 	c.SetTheme(&sectionTheme)
-	section := ui.SidebarSection(c, strings.ToUpper(title), open, func() {
+	section := ui.SidebarSection(c, title, open, func() {
 		c.SetTheme(t)
 		content()
 	}).Margin(t.Space(2), 0, 0, 0)
@@ -291,38 +327,58 @@ func DialogTitle(c *ui.Context, title string) ui.Element {
 	return ui.Text(c, title).FontSize(TextTitle).Bold().TextColor(c.Theme().Text)
 }
 
-// Tabs is a row of plain text tabs with an underline under the chosen
-// one. The prefix names each tab for assistive technology, so a screen with
-// two tab rows of the same labels can name the one it means.
+// Tabs is a row of text tabs; the chosen one is a rounded chip in the
+// accent tint with accent text. The prefix names each tab for assistive
+// technology, so a screen with two tab rows of the same labels can name the
+// one it means.
 func Tabs(c *ui.Context, selected *int, prefix string, labels ...string) ui.Element {
-	return CountedTabs(c, selected, prefix, labels, nil)
+	return tabs(c, selected, prefix, labels, nil, false)
 }
 
 // CountedTabs is Tabs with a quiet count after each label, as in "Headers 3".
 // A count is presentation, not part of the tab's accessible name; an empty
 // or zero count is left out.
 func CountedTabs(c *ui.Context, selected *int, prefix string, labels, counts []string) ui.Element {
+	return tabs(c, selected, prefix, labels, counts, false)
+}
+
+// SubTabs is a row of tabs inside what another tab row chose: the chosen
+// one is only accent text, so the two levels never look alike.
+func SubTabs(c *ui.Context, selected *int, prefix string, labels ...string) ui.Element {
+	return tabs(c, selected, prefix, labels, nil, true)
+}
+
+func tabs(c *ui.Context, selected *int, prefix string, labels, counts []string, sub bool) ui.Element {
 	t := c.Theme()
+	p := Colors(t)
 	group := ui.TabsBase(c, selected, len(labels))
+	// As narrow as the underlined tabs were, so a narrow inspector still
+	// shows them all; the chip's own padding keeps neighbours apart.
 	group.List.Gap(t.Space(0.5)).Children(func() {
 		for i, label := range labels {
 			name := label
 			if prefix != "" {
 				name = prefix + ": " + label
 			}
-			tab := group.Tab(i).Label(name).Height(HeightTabs).Padding(0, t.Space(1.5)).Gap(t.Space(1)).Radius(0).AlignItems(ui.Center).TextColor(t.TextMuted)
-			if i == *selected {
-				tab.TextColor(t.Text).Border(0, t.Accent).BorderWidth(0, 0, 2, 0)
-			}
-			if tab.Pressed() {
+			chosen := i == *selected
+			tab := group.Tab(i).Label(name).Height(HeightControl).Padding(0, t.Space(1.5)).Gap(t.Space(1)).
+				Radius(RadiusControl).AlignItems(ui.Center).TextColor(t.TextMuted)
+			switch {
+			case chosen && sub:
+				tab.TextColor(p.Accent)
+			case chosen:
+				tab.Background(p.AccentTint).TextColor(p.Accent)
+			case sub && (tab.Pressed() || tab.Hovered()):
+				tab.TextColor(t.Text)
+			case tab.Pressed():
 				tab.Background(t.SurfacePressed)
-			} else if tab.Hovered() {
+			case tab.Hovered():
 				tab.Background(t.SurfaceHover)
 			}
 			tab.Children(func() {
 				text := ui.Text(c, label).FontSize(TextBody)
-				if i == *selected {
-					text.Bold()
+				if chosen {
+					text.FontWeight(600)
 				}
 				if i < len(counts) && counts[i] != "" && counts[i] != "0" {
 					Meta(c, counts[i]).FontFeatures("tnum")
@@ -347,28 +403,24 @@ func Glyph(c *ui.Context, icon *ui.SVG) ui.Element {
 	return ui.Icon(c, icon).Size(IconInline, IconInline).TextColor(c.Theme().TextMuted)
 }
 
-// Segmented chooses one of a few mutually exclusive modes. The track sits on
-// the panel color so the selected segment reads as raised in both themes;
-// MyGo's own Segmented draws both from Surface, the control face.
+// Segmented chooses one of a few mutually exclusive modes, as AppKit
+// draws one: a recessed groove and a raised thumb, concentric with it.
+// Tabs, not Segmented, switch what a pane shows.
 func Segmented(c *ui.Context, selected *int, labels ...string) ui.Element {
 	t := c.Theme()
-	p := Colors(t)
 	parts := ui.SegmentedBase(c, selected, len(labels))
-	parts.Track.AlignItems(ui.Stretch).Height(HeightControl).Padding(t.Space(0.5)).Gap(t.Space(0.5)).
-		Radius(RadiusControl).Background(p.Panel).Border(1, t.Border).Children(func() {
+	parts.Track.AlignItems(ui.Stretch).Height(HeightControl).Padding(t.Space(0.5)).
+		Radius(RadiusControl).Background(neutral(t, 1)).Children(func() {
 		for i, label := range labels {
-			// Concentric with the track: its radius less the track's padding.
 			s := parts.Segment(i).Label(label).Padding(0, t.Space(3)).Radius(RadiusControl - t.Space(0.5)).
 				AlignItems(ui.Center).FontSize(TextBody).TextColor(t.TextMuted)
 			switch {
 			case i == *selected && t.Dark:
-				s.Background(p.Pressed).TextColor(t.Text)
+				s.Background(neutral(t, 1.6)).TextColor(t.Text)
 			case i == *selected:
-				s.Background(t.Background).TextColor(t.Text).Shadow(0, 1, 2, 0, ui.RGBA(0, 0, 0, 0.12))
-			case s.Pressed():
-				s.Background(p.Pressed)
-			case s.Hovered():
-				s.Background(p.Hover)
+				s.Background(t.Background).TextColor(t.Text).Shadow(0, 0.5, 1.5, 0, ui.RGBA(0, 0, 0, 0.16))
+			case s.Pressed() || s.Hovered():
+				s.TextColor(t.Text)
 			}
 			s.Children(func() { ui.Text(c, label).SingleLine() })
 		}

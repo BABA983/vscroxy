@@ -1,6 +1,6 @@
 # vscroxy UI 设计规范与改版计划
 
-状态：**方向 v2，2026-10-31 定稿。** 本文是界面的视觉规范和改版进度；交互和文案见 [UX 规范](ux-guidelines.md)，功能范围见 [功能路线图](feature-roadmap.md)，代码基础设施见 [基础设施方向](architecture.md)。
+状态：**方向 v2，2026-10-31 定稿；3.5「macOS 质感」2026-11-01 定稿。** 本文是界面的视觉规范和改版进度；交互和文案见 [UX 规范](ux-guidelines.md)，功能范围见 [功能路线图](feature-roadmap.md)，代码基础设施见 [基础设施方向](architecture.md)。
 
 v1 改版（靛蓝强调色、Capture／Requests 两个工作区，阶段 0–8）已经完成并被本文取代，它的规范和各阶段实施记录见 git 历史里提交 `44f2c82` 的本文件。
 
@@ -40,6 +40,18 @@ uikit 组件总览设计稿（实现后以第 11 节的总览截图为准）：
 | 结构和反馈 | https://ampcode.com/user-content/attachments/7994da9f07c86a3f3c3866e1d99c73af2a197a848381afbc90d05d89c3703c9e-file.png | https://ampcode.com/user-content/attachments/f007c7d55451f9a1c97f9f7d7bc0401172770a7b6cda3c841cf004ced536cc15-file.png |
 | 标志性组件 | https://ampcode.com/user-content/attachments/ce3837e7e7e6d41c58c45c2e7972bf29ba5cbc55810b146a5aa8386a81365e3c-file.png | https://ampcode.com/user-content/attachments/8fb1ae2fd8231030e32f8f65b3d6b982434c64255534472029fa88767d1dc1ee-file.png |
 
+3.5「macOS 质感」（密度、tab、侧栏材质、控件形状以这组为准，数值以第 6.3 节为准；Painter 画不准像素，图里的行高仍比 24 高）：
+
+| 设计稿 | 链接 |
+| --- | --- |
+| 主工作区 · Paper | https://ampcode.com/user-content/attachments/1f7855404ee0e721a439d66473c9d87476cc8fab892dedeb6fd4e77de80d422e-file.png |
+| 主工作区 · Ink | https://ampcode.com/user-content/attachments/e21b22a0870927c6301a6794325b063d5c51fe16bba20dfa96de911a0c92272f-file.png |
+| tab 三种方案（选 B） | https://ampcode.com/user-content/attachments/aaf96d6a6a15e2fbd9c5ef07aec1ff425162053eafd461bf79c41a4db454f2ea-file.png |
+| 组件总览 · Paper | https://ampcode.com/user-content/attachments/b61d8c6facc74d8de884ad0d85334bee3f1bdeb9fab6ce280d292b1e19a0c47a-file.png |
+| 组件总览 · Ink | https://ampcode.com/user-content/attachments/6d731fdff658c99fbc162178fce775f625d94dfa1a381c4f7c61127218a27511-file.png |
+
+3.5 的两张组件总览早于 tab 方案 B 和 24 档高度：里面的 tab 和 28 高的控件以第 6 节为准；Ink 组件总览里对话框的 Delete 应该是危险色；Ink 主工作区响应区的 Body 多了下划线。
+
 设计稿里和规范不一致、实现时以规范为准的地方：
 
 - Ink 主工作区里的耗时分段全是灰色；五段要可区分。
@@ -74,9 +86,14 @@ uikit 组件总览设计稿（实现后以第 11 节的总览截图为准）：
   - 选位置或选东西的行（侧栏、集合树、各种挑选列表）是离边缘内缩的圆角块，不画标记线，和 macOS 的 source list 一样。侧栏的选中表示"现在在哪"，不是键盘光标，焦点在别处时仍是强调浅底。
   - 表格和数据列表（流量表、消息、Protobuf、Runner 结果）的行占满宽度，左侧加 2px 强调色标记线。列表失焦时浅底变成 hover 色、标记线变成次要色，靠标记线和 hover 行区分开。
   - 菜单和命令面板的高亮只有浅底。
-- **形状靠近 macOS：** 圆角比 Windows 的 Fluent 大一档（第 6.3 节），嵌套的圆角同心（内层 = 外层 − 内边距），浮层是细边框加柔和的大阴影。不做胶囊按钮和毛玻璃：行高 28 下胶囊显得像玩具，毛玻璃跨平台做不一致，也和平涂的 Paper 冲突。
+- **形状靠近 macOS：** 圆角比 Windows 的 Fluent 大一档（第 6.3 节），嵌套的圆角同心（内层 = 外层 − 内边距），浮层是细边框加柔和的大阴影。不做胶囊按钮：控件高 24 时胶囊显得像玩具。
+- **macOS 上的原生感（3.5）：** 参考了 onegit／onevra、kero、mygo-cloudmusic 三个 MyGo 应用、Telegram 和 Apple HIG，共同点是窗口外壳原生、控件用中性色叠加、少画线。
+  - 只在 macOS 上：界面字体用系统字体（SF Pro），侧栏用 `VibrancySidebar` 材质，但上面盖约 90% 不透明的 Panel 色，桌面只隐约透出一点色调；内容区始终不透明。Windows、Linux 保持 Inter 和平涂。
+  - 标题栏不画色带和底边框，红绿灯对齐标题栏中线。
+  - 按钮和输入框不画 1px 边框：面是文字色的低透明度叠加（浅色 6%、深色 9%，hover ×1.5、按下 ×2.2），放在窗口、Panel 或选中行上都对。分隔线、表格、对话框边缘仍是 1px `Border`。
+  - 强调色不跟随系统，仍是油墨绿。
 - **同一种东西只有一种样子：** tab、按钮、面板头、表格各一种写法，都来自 uikit。
-- **密而不挤：** 表格和编辑器保持桌面工具的密度，最小字号 11，正文 13，行高 28。
+- **密而不挤：** 表格和编辑器保持桌面工具的密度，最小字号 11，正文 13，行高 24。
 
 ## 5. 主题：Paper／Ink
 
@@ -123,8 +140,9 @@ uikit 组件总览设计稿（实现后以第 11 节的总览截图为准）：
 ### 6.2 字体
 
 - 内嵌 Inter 4.1（400／500／600，界面）和 JetBrains Mono 2.304（400／700，数据），在 `internal/uikit/fonts`，来源和许可见那里的 README 和 `THIRD_PARTY_NOTICES.md`。注册失败只记录一次日志并回退。
+- macOS 上界面字体是系统字体（`FontUI = "system-ui"`，即 SF Pro，中文走系统的级联），在 `font_darwin.go`；其他平台在 `font_other.go`。等宽字体三个平台都是内嵌的 JetBrains Mono。
 - 中文不内嵌（一个字重就要 10 MB 以上），用系统字体回退。拉丁回退字体放在 CJK 字体前面，避免英文变宽、等宽失效：
-  - 界面：`Inter, Arial, DejaVu Sans, PingFang SC, Microsoft YaHei UI, Noto Sans CJK SC`。
+  - 界面（Windows、Linux）：`Inter, Arial, DejaVu Sans, PingFang SC, Microsoft YaHei UI, Noto Sans CJK SC`。
   - 等宽：`JetBrains Mono, Menlo, Consolas, DejaVu Sans Mono, PingFang SC, Microsoft YaHei UI, Noto Sans CJK SC`。
 - 中文界面的行高和按钮宽度要用中文截图单独检查。Linux 上没有 Noto Sans CJK 时，Settings → 外观提示安装（待做）。
 
@@ -133,14 +151,23 @@ uikit 组件总览设计稿（实现后以第 11 节的总览截图为准）：
 | Token | 值 | 用途 |
 | --- | --- | --- |
 | `TextMeta`／`TextBody`／`TextTitle` | 11／13／15 | 计数和次要信息／正文、表格、控件／标题；响应结论另加 22（待做） |
-| `HeightCompact`／`HeightControl`／`HeightLarge` | 24／28／32 | 表格内和条栏里的小按钮／按钮、输入框、侧栏条目／URL 栏和 Send |
-| `HeightTabs`／`HeightBar` | 32／44 | tab 行／标题栏和 Capture 工具栏 |
+| `HeightCompact`／`HeightControl`／`HeightLarge` | 20／24／28 | 表格内和条栏里的小按钮／按钮、输入框、tab、侧栏条目、表格行／URL 栏和 Send（3.5 起，桌面工具的密度，和 Proxyman、Xcode 一致） |
+| `HeightTabs`／`HeightBar` | 28／44 | tab 行和面板头／标题栏和 Capture 工具栏 |
 | `RadiusControl`／`RadiusPanel`／`RadiusDialog` | 6／10／14 | 控件和 pill／弹层、卡片／对话框；嵌在容器内边距里的控件用容器圆角减内边距（分段控件的滑块是 6 − 2 = 4） |
 | `IconInline`／`IconLarge` | 14／16 | 行内和按钮／rail 和空状态 |
 | `DialogSmall`／`DialogMedium`／`DialogLarge` | 480／640／840 | 对话框宽度档，随窗口收缩 |
 
-- 间距用 `t.Space(n)`，网格 4px，只用 4／8／12／16／24（细缝可用 `t.Space(0.5)`）。
-- 表格行高 28。MyGo 的 `ui.Table` 最小行高是 `t.Space(8)`，所以流量表格在局部主题里设 `Spacing = 3.5`。
+- 间距用 `t.Space(n)`，网格 4px，只用 4／8／12／16／24（细缝可用 `t.Space(0.5)`），每档有固定用途：
+
+| 间距 | 用途 |
+| --- | --- |
+| 4 | 图标和文字之间（tab 之间只留 2，选中块自带 6 的左右内边距，窄检查器里也放得下一整行） |
+| 8 | 同一行的控件之间 |
+| 12 | 面板内边距 |
+| 16 | 分组之间 |
+| 24 | 区块之间 |
+
+- 表格行高 24。MyGo 的 `ui.Table` 最小行高是 `t.Space(8)`，所以流量表格在局部主题里设 `Spacing = 3`。
 - 分隔统一 1px `Border`，不靠色块分区。只有菜单、弹层、对话框有阴影：1px 边框画边缘，阴影只做柔和的浮起（弹层 `0 8 28` 透明度 0.14，对话框 `0 20 56` 透明度 0.2；Ink 下乘 2.5 才看得出）。
 - MyGo 自带的弹出菜单圆角写死为面板 `t.Radius + 2`、菜单项 `t.Radius`，即 8／6，不完全同心；不为此改库。
 
@@ -153,7 +180,7 @@ uikit 组件总览设计稿（实现后以第 11 节的总览截图为准）：
 | `Mono` | Body + 等宽 | URL、header、路径等数据 |
 | `Hint` | 13，次要色 | 控件下或空面板里的一句说明 |
 | `Meta` | 11，次要色 | 计数、时间、大小；会变化的数字加 `FontFeatures("tnum")` |
-| `Label` | Meta + 600 | 字段名、分组标题（分组标题大写加字距） |
+| `Label` | Meta + 600 | 字段名、分组标题（标题式大小写，不全大写，和 Finder 侧栏一致） |
 
 等宽的次要信息写成 `Meta(c, s).Font(uikit.FontMono)`。
 
@@ -163,8 +190,8 @@ uikit 组件总览设计稿（实现后以第 11 节的总览截图为准）：
 
 | 类别 | 组件 |
 | --- | --- |
-| 按钮 | `PrimaryButton`、`SecondaryButton`、`DangerButton`（28）、`CompactButton`（24）、`ToolbarButton`（透明底，可带 active 浅底）、`IconButton`（24 正方形，必带 tooltip）、`RowButton`（列表里的整行）、`SwatchButton`（标记色） |
-| 输入 | `Input`、`Select`、`Segmented`、`Tabs`（32 下划线，可带计数） |
+| 按钮 | `PrimaryButton`、`SecondaryButton`、`DangerButton`（24，后两个无边框、中性面）、`CompactButton`（20）、`ToolbarButton`（透明底，可带 active 浅底）、`IconButton`（24 正方形，必带 tooltip）、`RowButton`（列表里的整行，没有 hover）、`SwatchButton`（标记色） |
+| 输入 | `Input`（中性填充加细线，聚焦时 3px 强调色光晕代替焦点环）、`Select`（按钮的面）、`Segmented`（凹槽加浮起的滑块，只用于互斥的模式）、`Tabs`／`CountedTabs`（选中是强调浅底圆角块加强调色文字，可带计数）、`SubTabs`（嵌在另一行 tab 选中内容里的第二层，选中只有强调色文字） |
 | 列表和侧栏 | `ListTheme`（MyGo 表格／列表／树的选中色）、`Marker`／`RowMarker`、`Selected`、`SidebarItem`、`SidebarSection` |
 | 信号 | `StatusPill`（2xx／304 不加底色）、`MethodLabel`、`MethodColor`、`StatusColor`、`MarkColors`、`BadgeColors` |
 | 结构和反馈 | `KVRow`（只读）、`EmptyState`、`Toasts`、`Modal`、`DialogColumn`、`DialogTitle`、`DialogFooter`、`PopoverPanel`、`EditorTheme` |
@@ -182,13 +209,14 @@ uikit 组件总览设计稿（实现后以第 11 节的总览截图为准）：
 
 ## 7. 交互和状态
 
-- **Hover：** 可点的元素背景变 Hover，文字颜色不变；不可点的没有 hover。立即变化，不做过渡。
+- **Hover：** 按钮、工具栏按钮、tab 的背景变 Hover（第二层 tab 和分段控件只把文字变成正文色），立即变化，不做过渡。和 macOS 一样，列表、表格、侧栏的行没有 hover；不可点的也没有。
+- **窗口失焦：** 选中的浅底变成中性灰，标记线变次要色（3.5b 接入窗口焦点）。
 - **按下：** 背景变 Pressed。
-- **焦点环：** 键盘焦点显示 2px 强调色外框，鼠标点击不显示，所有可交互元素都要有。对话框关闭后焦点回到打开它的控件，`Modal` 会请求一帧重绘让焦点环显示出来。
+- **焦点环：** 键盘焦点显示 2px 强调色外框，鼠标点击不显示，所有可交互元素都要有。输入框例外：聚焦时是强调色细边加 3px 柔和光晕，不再画外框。对话框关闭后焦点回到打开它的控件，`Modal` 会请求一帧重绘让焦点环显示出来。
 - **禁用：** 文字用 TextFaint，不响应 hover；tooltip 说明为什么不可用。
 - **动效：** 只用于说明变化（展开收起、面板出现、toast 进出），150–200ms，ease-out，只改透明度和位移；尊重"减少动效"。列表滚动、新流量到达不做动画。
 - **拖拽：** 分隔线 hover 时变成强调色细线，指针变成调整大小；双击恢复默认。
-- **右键：** 任何有动作的对象都支持右键，菜单内容见 UX 规范第 6 节。
+- **右键：** 任何有动作的对象都支持右键，菜单内容见 UX 规范第 6 节。菜单的高亮项是强调色实底、反色文字（MyGo 菜单本来的画法，和 macOS 一致）。
 - **选中：** 单击选中；Cmd／Ctrl 单击加选；Shift 单击连选；Enter 进入检查器；Esc 返回。
 
 每个列表、面板、编辑器都要设计四种状态：
@@ -243,6 +271,9 @@ uikit 已按"主题 = 语义 token 表"实现，导入第三方主题不用返�
      - 去掉文档 tab 栏，一次只显示一个请求：顶部是面包屑（集合 / 名字，点它改名或移动）、环境、Save、`⋯` 和 ×；新建的请求放在 COLLECTIONS 顶部的 Unsaved 里，改过没保存的已保存请求在集合里带圆点；没改过也没发过的已保存请求离开屏幕就关掉。Ctrl+Tab 仍在打开的请求之间切换。
      - muted 文字收进 uikit：新增 `CountedTabs`（带计数的 tab，请求编辑器和响应 tab 共用）、`MoreMenu`（`⋯` 菜单按钮）、`Glyph`（标记用的小图标）；说明文字改用 Hint／Meta，流量表的次要列用 Hint，调查板的 Request／Response 切换改用 `uikit.Segmented`。剩下 4 处是控件自己的状态色（格式下拉、遮住的密钥、协议分段），保留。
      - 截图矩阵：LIVE 的状态（`capture-*`）同时渲染左右和上下两种布局（上下的文件名带 `-stacked`），× Paper／Ink；单独的 `capture-stacked` 去掉。
+   - 3.5 macOS 质感：
+     - 3.5a uikit（完成）：高度 20／24／28，tab 行和面板头 28，表格行 24；macOS 上界面用系统字体；`Tabs` 改成强调浅底圆角块，新增 `SubTabs`，检查器的 Request／Response 面板和调查板的预览用它；`Segmented` 改成无边框凹槽加浮起滑块；`SecondaryButton`、`DangerButton`、`CompactButton`、`Select` 去掉边框、用中性面；`Input` 中性填充加聚焦光晕；`RowButton` 和流量表的行去掉 hover（流量表的客户端图标随行高改成 14）；侧栏分组标题不再全大写。
+     - 3.5b 窗口和界面（待做）：macOS 侧栏材质（`VibrancySidebar`，根节点和侧栏透明，侧栏盖 90% Panel）；标题栏去掉色带和底边框，红绿灯按 44 的中线对齐；窗口失焦时选中变灰；流量表的数据列改 12 号等宽；流量列表上方的类型筛选改成和 `Tabs` 一样的浅底块；`internal/app` 里自己画的输入框、URL 栏、方法下拉、类型筛选和标题栏图标按钮按新的高度和面统一；外观默认跟随系统（决策 3，代码现在读保存的深色开关）。
 4. **标志性组件：** 录制 pill 的速率曲线、查询语法筛选、活动柱状图、耗时条、响应结论、瀑布视图（Table／Waterfall 切换）。
 5. **随里程碑落地：** 首次启动引导和 Settings 独立窗口随 M1，Host 方案随 M2，Tools 窗口随 M4（见第 10 节）。
 6. **第三方主题：** 第 8 节的映射、内置主题和导入。
@@ -299,10 +330,10 @@ XDG_CACHE_HOME=/tmp/vscroxy-ui-cache VSCROXY_SNAPSHOTS="$PWD/.amp/in/artifacts/u
 
 ## 12. 决策记录
 
-1. 内嵌 Inter 和 JetBrains Mono，三个平台都内嵌；中文用系统字体。
+1. 内嵌 Inter 和 JetBrains Mono；中文用系统字体。macOS 的界面字体改用系统字体（SF Pro），等宽仍是 JetBrains Mono（3.5）。
 2. 强调色是油墨绿：Paper `#1e5b47`、Ink `#6fb593`（v1 的靛蓝已取代）。
 3. 外观默认跟随系统，可选浅色或深色（现在还是深色开关，随 Settings 窗口改）。
-4. 行高 28。
+4. 行高 24，控件 24，URL 栏和 Send 28（3.5；原来是 28／28／32）。
 5. 一个工作区（取代 Capture／Requests 两个工作区）；不做全局图标栏；规则、Host 方案、脚本、Mock 集中到 Tools 窗口。
 6. 网络相关的设置对话框并进 Settings。
 7. 组件放在独立的 `internal/uikit`，只依赖 MyGo；界面只用 uikit 的组件和 token。
@@ -313,6 +344,9 @@ XDG_CACHE_HOME=/tmp/vscroxy-ui-cache VSCROXY_SNAPSHOTS="$PWD/.amp/in/artifacts/u
 12. 支持 VS Code 主题映射和导入，在界面迁移完成后做；主题只换颜色。
 13. 保留现有品牌图标和 app 图标。
 14. 不加防写死值回退的检查脚本。
-15. 形状靠近 macOS：圆角 6／10／14，嵌套同心，浮层柔和阴影；不做胶囊按钮和毛玻璃（3.0）。
+15. 形状靠近 macOS：圆角 6／10／14，嵌套同心，浮层柔和阴影；不做胶囊按钮（3.0）。毛玻璃只在 macOS 侧栏，且盖 90% 不透明的 Panel（3.5）。
 16. 抓到的请求原地编辑：第一次编辑或发送才留草稿，草稿跟着抓包，只在本次会话，清掉抓包就没了；保存到集合要先起名、选集合（3.3）。
 17. 去掉请求文档的 tab 栏，一次只显示一个请求，未保存的新请求在 COLLECTIONS 顶部 Unsaved 里（3.4）。
+18. tab 用方案 B：第一层是强调浅底圆角块加强调色文字（借 Telegram 的选中色，不要它的胶囊轨道），第二层只有强调色文字（3.5）。
+19. 按钮和输入框不画边框，面是文字色的低透明度叠加；列表和表格的行没有 hover；菜单高亮是强调色实底（3.5）。
+20. 强调色不跟随系统的强调色（3.5）。

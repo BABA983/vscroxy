@@ -281,7 +281,7 @@ func (a *app) boardMessage(c *ui.Context, t *ui.Theme, f flow, side int) {
 	ui.Column(c).Grow(1).Basis(0).FillHeight().Children(func() {
 		ui.Row(c).Height(uikit.HeightLarge).Padding(0, t.Space(2)).Gap(t.Space(1)).AlignItems(ui.Center).Children(func() {
 			uikit.Label(c, title).Padding(0, t.Space(2), 0, t.Space(1))
-			uikit.Tabs(c, &b.previewTab[side], title+" pane", "Headers", "Body")
+			uikit.SubTabs(c, &b.previewTab[side], title+" pane", "Headers", "Body")
 			ui.Spacer(c)
 			uikit.Meta(c, line).Font(uikit.FontMono).SingleLine()
 		})

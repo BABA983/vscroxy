@@ -64,7 +64,7 @@ type overview struct {
 	text, empty, invalid string
 	format, side         string
 	on, off, check       bool
-	segment, tab         int
+	segment, tab, subtab int
 	open                 bool
 }
 
@@ -76,7 +76,7 @@ func (o *overview) view(c *ui.Context, dark bool) {
 	}
 	section := func(title string, content func()) {
 		ui.Column(c).Gap(t.Space(2)).Children(func() {
-			ui.Text(c, title).FontSize(TextMeta).Bold().LetterSpacing(0.5).TextColor(t.TextMuted)
+			Label(c, title)
 			content()
 		})
 	}
@@ -91,10 +91,12 @@ func (o *overview) view(c *ui.Context, dark bool) {
 		ui.Divider(c)
 		ui.Scroll(c).Grow(1).Padding(t.Space(6)).Gap(t.Space(6)).Children(func() {
 			ui.Text(c, "vscroxy uikit").FontSize(TextTitle).Bold()
-			section("BUTTONS", func() {
+			section("Buttons", func() {
 				row(func() {
 					PrimaryButton(c, "Send")
 					SecondaryButton(c, "Copy as cURL")
+					DangerButton(c, "Delete")
+					CompactButton(c, "Copy")
 					ToolbarButton(c, "Breakpoints", "Pause matching requests", false).Children(func() { ui.Text(c, "Breakpoints") })
 					ToolbarButton(c, "Breakpoints on", "Pause matching requests", true).Children(func() { ui.Text(c, "Breakpoints on") })
 					IconButton(c, "Settings", "Settings", lucide.Settings())
@@ -113,7 +115,7 @@ func (o *overview) view(c *ui.Context, dark bool) {
 					ToolbarButton(c, "Hover Toolbar", "", false).Children(func() { ui.Text(c, "Hover Toolbar") })
 				})
 			})
-			section("TEXT", func() {
+			section("Text", func() {
 				Heading(c, "Heading · POST /v1/orders")
 				Body(c, "Body · the request was replayed with the draft's headers.")
 				Mono(c, "Mono · https://api.example.com/v1/orders?id=42")
@@ -123,12 +125,12 @@ func (o *overview) view(c *ui.Context, dark bool) {
 					Meta(c, "Meta · 12 ms · 4.2 KB · 15:04:05")
 				})
 			})
-			section("INPUTS AND TOGGLES", func() {
+			section("Inputs and toggles", func() {
 				row(func() {
-					ui.TextInput(c, &o.text).Label("Host").Width(220).Height(HeightControl)
-					ui.TextInput(c, &o.empty).Label("Empty").Placeholder("Search host or path").Width(220).Height(HeightControl)
-					ui.TextInput(c, &o.invalid).Label("Disabled").Width(120).Height(HeightControl).Disabled(true)
-					ui.Select(c, &o.format, []string{"Pretty", "Raw", "Preview"}).Width(140).Height(HeightControl)
+					Input(c, &o.text).Label("Host").Width(220)
+					Input(c, &o.empty).Label("Empty").Placeholder("Search host or path").Width(220)
+					Input(c, &o.invalid).Label("Disabled").Width(120).Disabled(true)
+					Select(c, &o.format, []string{"Pretty", "Raw", "Preview"}).Width(140)
 				})
 				row(func() {
 					ui.Checkbox(c, &o.check, "Rule enabled")
@@ -143,10 +145,11 @@ func (o *overview) view(c *ui.Context, dark bool) {
 					}
 				})
 			})
-			section("TABS", func() {
-				Tabs(c, &o.tab, "Response", "Body", "Headers", "Cookies", "Timing")
+			section("Tabs", func() {
+				CountedTabs(c, &o.tab, "Request", []string{"Params", "Headers", "Auth", "Body", "Scripts"}, []string{"", "2"})
+				SubTabs(c, &o.subtab, "Response", "Body", "Headers", "Cookies", "Timing")
 			})
-			section("SIGNALS", func() {
+			section("Signals", func() {
 				row(func() {
 					for _, s := range []struct {
 						label  string
@@ -161,7 +164,7 @@ func (o *overview) view(c *ui.Context, dark bool) {
 					}
 				})
 			})
-			section("KEY / VALUE", func() {
+			section("Key / value", func() {
 				ui.Column(c).Width(520).Border(1, t.Border).Radius(RadiusControl).Children(func() {
 					for _, kv := range [][2]string{{"Accept", "application/json"}, {"Content-Type", "application/json"}} {
 						KVRow(c, func() {
@@ -171,7 +174,7 @@ func (o *overview) view(c *ui.Context, dark bool) {
 					}
 				})
 			})
-			section("PANELS", func() {
+			section("Panels", func() {
 				row(func() {
 					PopoverPanel(c, ui.Column(c)).Padding(t.Space(3)).Width(240).Children(func() {
 						ui.Text(c, "Popover panel")

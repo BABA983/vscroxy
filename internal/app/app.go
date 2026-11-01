@@ -1730,9 +1730,12 @@ func (a *app) table(c *ui.Context) {
 	}
 	focused := state.Handle.Focused(c)
 	selectionTheme := uikit.ListTheme(t, focused)
-	// Table's built-in row minimum is eight spacing units. Scope the 3.5px
-	// unit here only: 28px rows without shrinking the rest of the application.
-	selectionTheme.Spacing = 3.5
+	// Table's built-in row minimum is eight spacing units and its cells pad
+	// 1.5 units around 15px lines. Scope the 3px unit here only: 24px rows
+	// without shrinking the rest of the application. Rows have no hover, as
+	// in a macOS table.
+	selectionTheme.Spacing = 3
+	selectionTheme.SurfaceHover = ui.Color{}
 	c.SetTheme(selectionTheme)
 	table := ui.Table(c, state, cols, len(a.visible), func(row, col int) {
 		f := a.flows[a.visible[row]]
@@ -1742,17 +1745,17 @@ func (a *app) table(c *ui.Context) {
 			uikit.RowMarker(c, focused)
 		}
 		text := func(s string) ui.Element {
-			return uikit.Body(c, s).Height(16).FontFeatures("tnum").SingleLine()
+			return uikit.Body(c, s).Height(15).FontFeatures("tnum").SingleLine()
 		}
 		// Facts beside the request: its number, host, client, timing and size.
 		quiet := func(s string) ui.Element {
-			return uikit.Hint(c, s).Height(16).FontFeatures("tnum").SingleLine()
+			return uikit.Hint(c, s).Height(15).FontFeatures("tnum").SingleLine()
 		}
 		switch cols[col].ID {
 		case "id":
 			quiet(fmt.Sprint(f.id)).Font(uikit.FontMono)
 		case "method":
-			uikit.MethodLabel(c, f.method).Height(16).TextColor(uikit.MethodColor(f.method, t)).Tooltip(f.method).PopoverMenu(a.rowMenu(c, f))
+			uikit.MethodLabel(c, f.method).Height(15).TextColor(uikit.MethodColor(f.method, t)).Tooltip(f.method).PopoverMenu(a.rowMenu(c, f))
 		case "host":
 			quiet(f.host).Tooltip(f.url).PopoverMenu(a.rowMenu(c, f))
 		case "url":
@@ -1777,7 +1780,7 @@ func (a *app) table(c *ui.Context) {
 					uikit.Glyph(c, noteIcon).MarginEnd(t.Space(1)).Tooltip(f.note)
 				}
 				if f.dns != "" {
-					ui.Box(c).MinWidth(uikit.HeightControl).Height(16).Radius(uikit.RadiusControl).Background(t.Warning.Alpha(0.12)).Center().MarginEnd(t.Space(1)).
+					ui.Box(c).MinWidth(uikit.HeightControl).Height(15).Radius(uikit.RadiusControl).Background(t.Warning.Alpha(0.12)).Center().MarginEnd(t.Space(1)).
 						Tooltip("DNS mapping " + f.dns).
 						Children(func() {
 							ui.Text(c, "DNS").FontSize(uikit.TextMeta).Bold().TextColor(t.Warning)
@@ -1796,7 +1799,7 @@ func (a *app) table(c *ui.Context) {
 			}
 		case "client":
 			if src, ok := a.clientIcon(f.process, f.processPath); ok {
-				ui.Image(c, src).Size(16, 16)
+				ui.Image(c, src).Size(uikit.IconInline, uikit.IconInline)
 			} else {
 				clientBadge(c, f.process)
 			}
@@ -2191,7 +2194,7 @@ func clientBadge(c *ui.Context, name string) {
 	if runes := []rune(name); len(runes) > 0 {
 		letter = strings.ToUpper(string(runes[0]))
 	}
-	ui.Box(c).Size(16, 16).Radius(uikit.RadiusControl).Background(badgeColor(name)).Center().Children(func() {
+	ui.Box(c).Size(uikit.IconInline, uikit.IconInline).Radius(uikit.RadiusControl).Background(badgeColor(name)).Center().Children(func() {
 		ui.Text(c, letter).FontSize(uikit.TextMeta).Bold().TextColor(uikit.SwatchText)
 	})
 }
