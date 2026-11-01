@@ -217,13 +217,13 @@ func (a *app) inspectorMenu(c *ui.Context, t *ui.Theme, f flow) {
 			a.liveFor = 0 // The capture opens unchanged again.
 		}
 		a.desktopMenuItem(c, m, "replay", "Replay…")
-		if m.Item("Add to investigation…").Chosen() {
-			a.addToInvestigation(f)
+		if m.Item("Save evidence to Sessions").Chosen() {
+			a.saveEvidence(f)
 		}
 		if m.Item("Connection details").Chosen() {
 			a.connOpen = !a.connOpen
 		}
-		if m.Item("Debug history").Chosen() {
+		if m.Item("History").Chosen() {
 			a.openDebugHistory(newDebugSource(f))
 		}
 		if m.Item("Copy as cURL").Chosen() {

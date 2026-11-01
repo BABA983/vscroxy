@@ -2,11 +2,9 @@ package app
 
 import (
 	"fmt"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
-	"strings"
 	"sync/atomic"
 	"testing"
 
@@ -105,70 +103,7 @@ func TestRegressionScalarChecksDistinguishTypesMissingAndNumericPrecision(t *tes
 	}
 }
 
-func TestPortableRegressionReplacesCredentialsAndRerunsWithRecipientsVariables(t *testing.T) {
-	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		body, _ := io.ReadAll(r.Body)
-		if r.URL.Query().Get("token") != "recipient-query" || r.Header.Get("Authorization") != "recipient-auth" || r.Header.Get("Cookie") != "session=recipient" || string(body) != `{"input":"recipient"}` {
-			http.Error(w, "wrong recipient configuration", 400)
-			return
-		}
-		w.WriteHeader(201)
-		fmt.Fprint(w, `{"id":73}`)
-	}))
-	defer upstream.Close()
-	r := savedRequest{Name: "secret-name", Collection: "secret-folder", Method: "POST", URL: "https://user:secret-password@private.example/items?token=secret-query&tag=secret-tag#secret-fragment",
-		Headers: "Authorization: secret-auth\nCookie: session=secret-cookie\nX-Custom-Key: secret-custom\nContent-Type: application/json\nContent-Length: 9", Body: `{"input":"secret-body"}`,
-		Pre: `throw "secret-script"`, Checks: request.Checks{Status: "201", JSON: "/id = 73"}}
-	text, _, err := portableRegression(r)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if strings.Contains(text, "secret-") || strings.Contains(text, "private.example") || strings.Contains(text, "Content-Length") {
-		t.Fatalf("portable export leaked credentials or framing: %s", text)
-	}
-	shared, err := decodeRegression([]byte(text))
-	if err != nil {
-		t.Fatal(err)
-	}
-	vars := map[string]string{"base_url": upstream.URL, "query_1": "recipient-query", "query_2": "recipient-tag", "request_body": `{"input":"recipient"}`}
-	for _, line := range strings.Split(shared.Headers, "\n") {
-		key, value, _ := strings.Cut(line, ": ")
-		if strings.HasPrefix(value, "{{") {
-			replacement := "recipient-custom"
-			if key == "Authorization" {
-				replacement = "recipient-auth"
-			} else if key == "Cookie" {
-				replacement = "session=recipient"
-			}
-			vars[strings.TrimSuffix(strings.TrimPrefix(value, "{{"), "}}")] = replacement
-		}
-	}
-	got := shared.Execute(t.Context(), requestProxy(t), request.Context{}, vars, nil)
-	if got.Failed() || len(got.Tests) != 2 {
-		t.Fatalf("recipient run: %s %+v", runSummary(got), got.Tests)
-	}
-	if _, _, err := portableRegression(shared); err != nil {
-		t.Fatalf("sharing an imported template: %v", err)
-	}
-	templated := shared
-	templated.URL = "{{base_url}}/items/{{ id }}/a%2Fb/%7B%7Bliteral%7D%7D?tag=one&tag=two"
-	encoded, _, err := portableRegression(templated)
-	if err != nil {
-		t.Fatal(err)
-	}
-	decoded, err := decodeRegression([]byte(encoded))
-	if err != nil || decoded.URL != "{{base_url}}/items/{{ id }}/a%2Fb/%7B%7Bliteral%7D%7D?tag={{query_1}}&tag={{query_2}}" {
-		t.Fatalf("template or encoded path changed: %s %v", decoded.URL, err)
-	}
-	for _, injected := range []string{
-		strings.Replace(text, `"method": "POST"`, `"pre": "req.set('X','hidden')", "method": "POST"`, 1),
-		strings.Replace(text, `"method": "POST"`, `"bodyMode": "Multipart", "method": "POST"`, 1),
-		strings.Replace(text, `"version": 1`, `"version": 99`, 1),
-	} {
-		if _, err := decodeRegression([]byte(injected)); err == nil {
-			t.Fatal("accepted executable, file-backed or unknown-version case")
-		}
-	}
+func TestRegressionChecksRejectTruncatedResponse(t *testing.T) {
 	// Truncation must not turn a JSON-prefix assertion into a pass.
 	checks := request.Checks{JSON: "/id = 73"}
 	if checks.Evaluate(capture.Flow{ResponseBody: `{"id":73}`, ResponseBodySize: 999})[0].Pass {

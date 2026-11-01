@@ -52,11 +52,12 @@ func (r *experimentRecord) keepWire(f flow) bool {
 }
 
 func (a *app) openSendHistory(d *requestDocument) {
-	if d.origin != nil {
+	if d.origin != nil && d.assetID == "" {
 		a.openDebugHistory(d.origin)
 		return
 	}
 	s := &a.experiments
+	s.assetID, s.status, s.sourceFilter = d.assetID, "", ""
 	s.scope, s.draftKey, s.open = nil, d.debugKey, true
 	s.picked, s.reader, s.tab = 0, nil, 0
 	for _, r := range s.log.Records {
@@ -78,7 +79,7 @@ func (a *app) openDebugHistory(source *debugSource) {
 		return
 	}
 	s := &a.experiments
-	s.draftKey = ""
+	s.draftKey, s.assetID, s.status, s.sourceFilter = "", "", "", ""
 	s.scope, s.open, s.picked = source, true, 0
 	s.reader, s.sourceComparison = nil, captureAnalysis{}
 	s.tab = 2
@@ -91,17 +92,18 @@ func (a *app) openDebugHistory(source *debugSource) {
 }
 
 func (s *experimentWorkbench) includes(r experimentRecord) bool {
-	return s.scope == nil && (s.draftKey == "" || r.DraftKey == s.draftKey) ||
+	linked := s.scope == nil && (s.draftKey == "" && s.assetID == "" || s.draftKey != "" && r.DraftKey == s.draftKey || s.assetID != "" && r.Draft.ID == s.assetID) ||
 		s.scope != nil && r.Source != nil && r.Source.Key == s.scope.Key
+	return linked && r.matchesHistory(s.status, s.sourceFilter)
 }
 
 func (a *app) debugDrafts(c *ui.Context) {
 	s := &a.experiments
 	if s.scope == nil {
-		if s.draftKey != "" {
-			uikit.Meta(c, "Only sends linked to this draft; never matched by URL.")
-			if uikit.SecondaryButton(c, "Show all experiments").FillWidth().Clicked() {
-				s.draftKey = ""
+		if s.draftKey != "" || s.assetID != "" {
+			uikit.Meta(c, "Only runs linked to this request; never matched by URL.")
+			if uikit.SecondaryButton(c, "Show all History").FillWidth().Clicked() {
+				s.draftKey, s.assetID = "", ""
 			}
 			ui.Divider(c)
 		}
@@ -117,7 +119,7 @@ func (a *app) debugDrafts(c *ui.Context) {
 	if index < 0 {
 		uikit.Meta(c, "Original capture unavailable; snapshot retained.")
 	}
-	if uikit.SecondaryButton(c, "Show all experiments").FillWidth().Clicked() {
+	if uikit.SecondaryButton(c, "Show all History").FillWidth().Clicked() {
 		s.scope, s.draftKey = nil, ""
 	}
 	ui.Divider(c)
@@ -138,7 +140,7 @@ func (a *app) debugDrafts(c *ui.Context) {
 		ui.Text(c, "No open drafts for this source.").FontSize(uikit.TextMeta)
 	}
 	ui.Divider(c)
-	ui.Text(c, "Retained experiments").FontSize(uikit.TextBody).Bold()
+	ui.Text(c, "History").FontSize(uikit.TextBody).Bold()
 }
 
 func (a *app) debugWire(c *ui.Context, r experimentRecord) {

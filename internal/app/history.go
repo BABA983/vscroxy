@@ -6,15 +6,12 @@ import (
 	"io/fs"
 	"net/url"
 	"os"
-	"slices"
 	"strings"
 	"time"
 )
 
-// maxHistory bounds the requests kept: the recent ones are the useful ones.
-const maxHistory = 100
-
-// historyEntry is a request Compose sent.
+// historyEntry is the read-only legacy recent-request format. New sends are
+// retained only in experiments.json; this file stays readable for one version.
 type historyEntry struct {
 	Method  string        `json:"method"`
 	URL     string        `json:"url"`
@@ -41,28 +38,6 @@ func loadHistory(path string) ([]historyEntry, error) {
 		return nil, err
 	}
 	return list, nil
-}
-
-// saveHistory writes the list, newest first.
-func saveHistory(path string, list []historyEntry) error {
-	data, err := json.Marshal(list)
-	if err != nil {
-		return err
-	}
-	return writePrivateFile(path, append(data, '\n'))
-}
-
-// pushHistory puts e first, dropping an earlier send of the same method and
-// URL, and keeps the list to maxHistory.
-func pushHistory(list []historyEntry, e historyEntry) []historyEntry {
-	list = slices.DeleteFunc(list, func(old historyEntry) bool {
-		return old.Method == e.Method && old.URL == e.URL
-	})
-	list = append([]historyEntry{e}, list...)
-	if len(list) > maxHistory {
-		list = list[:maxHistory]
-	}
-	return list
 }
 
 // label names a sent request in the sidebar: the method and the host and path,

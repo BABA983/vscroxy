@@ -319,14 +319,8 @@ func (a *app) moreMenu(c *ui.Context, m *ui.Menu) {
 		if m.Item("Open session…").Chosen() {
 			a.openSession()
 		}
-		a.desktopMenuItem(c, m, "investigations", "Historical sessions & evidence…")
 		if m.Item("Import HAR…").Chosen() {
 			a.importHAR()
-		}
-		if len(a.history) > 0 && m.Item("Clear history").Chosen() {
-			a.history = nil
-			a.saveHistory()
-			a.setMessage("History cleared")
 		}
 		m.Separator()
 		if m.Item("Export requests…").Chosen() {
@@ -334,9 +328,6 @@ func (a *app) moreMenu(c *ui.Context, m *ui.Menu) {
 		}
 		if m.Item("Import…").Chosen() {
 			a.importRequests()
-		}
-		if m.Item("Import regression…").Chosen() {
-			a.importRegression()
 		}
 		if m.Item("Import cURL…").Chosen() {
 			a.openCurlImport()
@@ -397,11 +388,8 @@ func (a *app) syncSections() {
 		return
 	}
 	if a.page == pageSession {
-		if a.board.active != "" {
-			a.sidebarChoice = "investigation:" + a.board.active
-			return
-		}
-		a.page = pageLive
+		a.sidebarChoice = "session:" + a.sessions.active
+		return
 	}
 	if a.sidebarChoice != cmpOr(a.filter, "all") {
 		a.sidebarChoice = cmpOr(a.filter, "all")
@@ -418,7 +406,7 @@ func (a *app) footer(c *ui.Context, t *ui.Theme) {
 		}
 		switch {
 		case a.page == pageSession:
-			text(a.boardSummary())
+			text(fmt.Sprintf("%d saved sessions", len(a.sessions.items)))
 			ui.Spacer(c)
 			text("Read-only evidence · live traffic unchanged")
 			return

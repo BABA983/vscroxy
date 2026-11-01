@@ -32,6 +32,8 @@ type requestDocument struct {
 	historyTab        int
 	historyPick       int
 	historyReader     *editor.State
+	historyStatus     string
+	historySource     string
 	origin            *debugSource
 	assetID           string
 	savedKey          string
@@ -137,7 +139,6 @@ type requestResult struct {
 	varsBefore  map[string]string
 	vars        map[string]string
 	writes      []request.Write
-	history     *historyEntry
 	experiment  *experimentRecord
 }
 
@@ -545,19 +546,8 @@ func (a *app) requestDocumentActions(c *ui.Context, t *ui.Theme, d *requestDocum
 			if m.Item("Generate code…").Chosen() {
 				a.openCode()
 			}
-			if m.Item("Run records…").Chosen() {
-				a.experiments.scope, a.experiments.draftKey = nil, ""
-				a.experiments.open = true
-			}
-			if m.Item("Send history").Chosen() {
+			if m.Item("History").Chosen() {
 				a.openSendHistory(d)
-			}
-			m.Separator()
-			if m.Item("Share regression…").Chosen() {
-				a.openRegressionShare(d.value())
-			}
-			if m.Item("Import regression…").Chosen() {
-				a.importRegression()
 			}
 			m.Separator()
 			if m.Item(settingsLabel(d.composeCollection)).Disabled(d.composeCollection == "").Chosen() {
@@ -982,7 +972,7 @@ func (a *app) requestResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 			// Without a retained send there is nothing to read, so the entry
 			// waits rather than opening an empty list.
 			ui.Row(c).Disabled(d.origin == nil && d.experimentID == 0).Children(func() {
-				if uikit.IconButton(c, "Send history", "Inspect the exact request and result of each retained attempt; opening never sends", sendHistoryIcon).
+				if uikit.IconButton(c, "Open request History", "History · inspect retained attempts; opening never sends", sendHistoryIcon).
 					Size(uikit.HeightControl, uikit.HeightControl).Clicked() {
 					a.openSendHistory(d)
 				}
@@ -1006,7 +996,7 @@ func (a *app) requestResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 			uikit.ResponseHeadline(c, status, uikit.StatusColor(r.Status, t), fmt.Sprintf("%d ms", r.Millis), detail, headlineTiming(t, sent))
 		}
 		if d.experimentID != 0 && !d.composeWaiting {
-			uikit.Meta(c, fmt.Sprintf("Recorded experiment #%d", d.experimentID)).Padding(t.Space(1), t.Space(3)).
+			uikit.Meta(c, fmt.Sprintf("Recorded run #%d", d.experimentID)).Padding(t.Space(1), t.Space(3)).
 				Tooltip("Retained result from this experiment; opening it does not send the draft")
 		}
 		if !d.composeWaiting && outcome != "" && outcome != "Response received" {
@@ -1040,7 +1030,7 @@ func (a *app) requestResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 			if d.lastAttemptOpen {
 				ui.Column(c).Padding(t.Space(2), t.Space(3)).Gap(t.Space(2)).Background(uikit.Colors(t).Panel).Children(func() {
 					uikit.Body(c, d.sent.Method+" "+d.sent.URL).Label("Last sent draft URL").Selectable()
-					uikit.Meta(c, "Draft snapshot · variables, scripts, redirects and proxy rules may change the wire request. Inspect Send history for retained wire evidence.")
+					uikit.Meta(c, "Draft snapshot · variables, scripts, redirects and proxy rules may change the wire request. Inspect History for retained wire evidence.")
 					if d.response != nil {
 						uikit.Meta(c, "Response from "+d.response.At.Local().Format("15:04:05"))
 					}
@@ -1179,7 +1169,7 @@ func (a *app) responseBody(c *ui.Context, t *ui.Theme, d *requestDocument) {
 				}
 			}
 			if index < 0 {
-				uikit.Meta(c, "This send's wire capture is not available in this session. Send history may retain its snapshot.")
+				uikit.Meta(c, "This send's wire capture is not available in this session. History may retain its snapshot.")
 			}
 		})
 	case resViewTests:

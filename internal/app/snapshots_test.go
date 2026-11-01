@@ -264,25 +264,33 @@ func TestUISnapshots(t *testing.T) {
 		{name: "secondary-runner-error", setup: func(a *app) { a.openRunner(); a.runner.dataProblem = "data.csv: duplicate column name" }, want: "duplicate column name"},
 		{name: "secondary-runs-empty", setup: func(a *app) { a.page = pageRuns; a.history = nil }, want: "Send a request to record an experiment."},
 		{name: "secondary-runs-result", setup: snapshotRuns, want: "Experiment result"},
+		{name: "secondary-runs-filtered", setup: func(a *app) {
+			snapshotHistory(a)
+			a.showRunRecords()
+			a.experiments.status, a.experiments.sourceFilter = "4xx", "Authored"
+		}, want: "Experiment #2"},
 		{name: "secondary-runs-compare", setup: func(a *app) { snapshotRuns(a); a.experiments.left, a.experiments.tab = 1, 1 }, want: "Old text"},
 		{name: "secondary-runs-variables", setup: func(a *app) { snapshotRuns(a); a.experiments.tab = 5 }, want: "baseUrl"},
 		{name: "secondary-runs-modal", setup: func(a *app) { snapshotRuns(a); a.page = pageLive; a.experiments.open = true }, want: "Experiment result"},
-		{name: "secondary-sessions-empty", setup: func(a *app) { a.investigations.show() }, want: "Historical sessions & evidence"},
-		{name: "secondary-sessions-browse", setup: snapshotSources, want: "Select source 2 exchange 2"},
-		{name: "secondary-sessions-selected", setup: snapshotSources, act: func(t *testing.T, tt *ui.Tester) {
-			click("Select source 1 exchange 1")(t, tt)
-			click("Select source 2 exchange 2")(t, tt)
-		}, want: "2 / 64 selected"},
+		{name: "secondary-sessions-empty", setup: func(a *app) { a.page = pageSession }, want: "Open a session file or save evidence from live traffic."},
+		{name: "secondary-sessions-empty-file", setup: func(a *app) {
+			a.keepSession(sessionFile{Version: 1, Title: "Empty session"})
+		}, want: "This saved session contains no exchanges."},
+		{name: "secondary-sessions-browse", setup: snapshotSources, want: "Historical · read-only payloads"},
+		{name: "secondary-sessions-selected", setup: snapshotSources, act: click("Pin"), want: "Unpin"},
 		{name: "secondary-sessions-no-matches", setup: func(a *app) {
 			snapshotSources(a)
-			a.investigations.query = "no-matches"
-			a.investigations.refreshSearch()
-		}, want: "0 of 1 exchanges"},
+			a.sessions.current().query = "no-matches"
+		}, want: "Search session"},
 		{name: "secondary-sessions-compare", setup: func(a *app) {
 			snapshotSources(a)
-			a.investigations.picks = []investigationPick{{0, 0}, {1, 0}}
-			a.investigations.comparing = true
+			left := investigationFlow(a.sessions.items[1].data.Flows[0])
+			a.sessions.left, a.sessions.leftLabel = &left, "before.json"
+			a.sessions.comparing = true
 		}, want: "Old text"},
+		{name: "dialog-export", setup: snapshotExport, want: "Headers, trailers and cookies", short: true},
+		{name: "dialog-export-ready", setup: snapshotExport, act: click("I understand the scope and will review the exported file before sharing"), want: "Save export…", short: true},
+		{name: "dialog-export-unredacted", setup: snapshotExport, act: click("Export unredacted (include original values)"), want: "Save export…", short: true},
 		{name: "secondary-api-empty", setup: func(a *app) {
 			a.page = pageAPI
 			// Preview the empty reader without changing existing no-API routing.
@@ -425,9 +433,6 @@ func TestUISnapshots(t *testing.T) {
 		{name: "dialog-close-unsaved", setup: func(a *app) { draft(a); a.closingDocument = a.requestDocument }, want: "Save changes?"},
 		{name: "dialog-rename", setup: func(a *app) { draft(a); a.renameOpen = true }, want: "Rename request"},
 		{name: "dialog-header-warning", setup: func(a *app) { draft(a); a.requestDocument.headerWarn = true }, want: "Bulk edit shows credentials"},
-		{name: "dialog-evidence-review", setup: func(a *app) {
-			a.investigations.showReview([]byte(`{"version":1,"title":"Demo raw evidence","notes":"Fake fixture only","sources":[],"exchanges":[]}`))
-		}, want: "Confirm full evidence review", short: true},
 		{name: "commands", setup: func(a *app) { a.workbench.openPalette() }, want: "Find command"},
 		{name: "commands-unavailable", setup: func(a *app) { a.workbench.openPalette(); a.workbench.query = "Send request" }, want: "unavailable"},
 		{name: "active-tools", setup: snapshotActiveTools, want: "Disable Scenario: Offline"},
@@ -740,14 +745,18 @@ func snapshotRunner(a *app) {
 }
 
 func snapshotSources(a *app) {
-	s := &a.investigations
-	s.show()
-	s.sources = []EvidenceSource{
-		{Label: "before.json", Notes: "Previous release", Session: sessionFrom(a.flows[:1], nil)},
-		{Label: "after.json", Notes: "Current release", Session: sessionFrom(a.flows[1:], nil)},
+	for i, name := range []string{"before.json", "after.json"} {
+		file := sessionFrom(a.flows[i:i+1], nil)
+		file.Title, file.Created = name, snapshotTime
+		a.keepSession(file)
 	}
-	s.panes = [2]int{0, 1}
-	s.refreshSearch()
+	a.sessions.current().side, a.sessions.current().tab = 1, 1
+}
+
+func snapshotExport(a *app) {
+	snapshotSources(a)
+	data, _ := json.Marshal(a.sessions.current().data)
+	a.reviewExport("Export session", "vscroxy-session.json", data, nil)
 }
 
 func snapshotAPI(a *app) {

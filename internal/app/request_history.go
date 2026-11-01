@@ -13,13 +13,41 @@ import (
 // historyWidth is the History / Examples column beside a saved request.
 const historyWidth = 240
 
+var historyStatuses = []string{"All statuses", "2xx", "3xx", "4xx", "5xx", "No response"}
+var historySources = []string{"All sources", "Capture-linked", "Authored"}
+
+func (r experimentRecord) matchesHistory(status, source string) bool {
+	if source == "Capture-linked" && r.Source == nil || source == "Authored" && r.Source != nil {
+		return false
+	}
+	code := 0
+	if r.Exchange != nil {
+		code = r.Exchange.Status
+	}
+	if status == "No response" {
+		return code == 0
+	}
+	return len(status) != 3 || status[1:] != "xx" || code/100 == int(status[0]-'0')
+}
+
+func historyFilters(c *ui.Context, status, source *string) {
+	if *status == "" {
+		*status = historyStatuses[0]
+	}
+	if *source == "" {
+		*source = historySources[0]
+	}
+	uikit.Select(c, status, historyStatuses).Label("History status").FillWidth().Shrink(1).MinWidth(0)
+	uikit.Select(c, source, historySources).Label("History source").FillWidth().Shrink(1).MinWidth(0)
+}
+
 // historyRecords are the retained runs of the request d edits, newest first:
 // those sent from the library request it opened, in any session, and those
 // sent from this document before it was saved. Never matched by URL.
 func (a *app) historyRecords(d *requestDocument) []experimentRecord {
 	var records []experimentRecord
 	for _, r := range a.experiments.log.Records {
-		if d.assetID != "" && r.Draft.ID == d.assetID || r.DraftKey == d.debugKey {
+		if (d.assetID != "" && r.Draft.ID == d.assetID || r.DraftKey == d.debugKey) && r.matchesHistory(d.historyStatus, d.historySource) {
 			records = append(records, r)
 		}
 	}
@@ -41,6 +69,7 @@ func (a *app) historyColumn(c *ui.Context, t *ui.Theme, d *requestDocument) {
 				a.historyExamples(c, t, d)
 				return
 			}
+			historyFilters(c, &d.historyStatus, &d.historySource)
 			records := a.historyRecords(d)
 			if len(records) == 0 {
 				uikit.Hint(c, "Send this request to keep its runs here. Opening one never sends.").Padding(t.Space(2))
@@ -62,6 +91,9 @@ func (a *app) historyColumn(c *ui.Context, t *ui.Theme, d *requestDocument) {
 					}
 					ui.Text(c, shown).Font(uikit.FontMono).FontSize(uikit.TextMeta).TextColor(uikit.StatusColor(status, t)).Width(28)
 					uikit.Body(c, runTime(r.At)).FontFeatures("tnum").SingleLine().Grow(1).MinWidth(0)
+					if r.ID == a.experiments.log.Baseline {
+						uikit.Glyph(c, pinIcon).Tooltip("Baseline")
+					}
 					if status != 0 {
 						uikit.Meta(c, fmt.Sprintf("%d ms", millis)).FontFeatures("tnum")
 					}
@@ -113,6 +145,12 @@ func (a *app) historyResponse(c *ui.Context, t *ui.Theme, d *requestDocument, r 
 			}
 			if uikit.IconButton(c, "Show latest response", "Back to this request's latest response", closeIcon).Clicked() {
 				d.historyPick, d.historyReader = 0, nil
+			}
+		})
+		ui.Row(c).Padding(t.Space(1), t.Space(3)).Children(func() {
+			if uikit.CompactButton(c, "Run details…").Tooltip("Notes, baseline and comparison in History").Clicked() {
+				a.openSendHistory(d)
+				a.experiments.pick(r.ID)
 			}
 		})
 		if r.Outcome != "" || r.Summary != "" {

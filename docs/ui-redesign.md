@@ -265,7 +265,7 @@ uikit 已按"主题 = 语义 token 表"实现，导入第三方主题不用返�
    - 3.0 形状（完成）：圆角 6／10／14、嵌套同心、柔和阴影，侧栏和挑选列表的选中去掉标记线（第 4 节）。
    - 3.1 外壳合并（完成）：去掉 Capture／Requests 切换和 Requests 的 rail，只留一个侧栏（LIVE、COLLECTIONS、SESSIONS），内容区跟着侧栏的唯一选中项走；环境、运行记录、Runner、API 的新建和导入从集合的 `⋯` 菜单和命令面板进入；标题栏右侧两个布局图标，默认左右，adaptive 删掉（`bottom` 留上下，其余迁移成左右）；Cmd+1–3 跳到侧栏三组并滚动到那一组。内容界面不动，例外是运行记录页仍然占满窗口（三栏放不下侧栏），Protobuf 工具行在窄检查器里换行。
      - 还没做：双击分隔线恢复默认（MyGo 的分隔线不暴露双击，要先改库；现在用 View → Reset desktop layout）。
-   - 3.2 发送历史栏（完成）：选中已保存的请求时，编辑器左边多一栏 History／Examples（240，内容区不足 900 时不显示，仍可从请求的 `⋯` → Send history 进入）。History 只列从这个请求发出的运行记录（按请求 ID 或这个文档关联，不按 URL 匹配），点一条在响应区只读显示，可以 Open as draft，× 或再次 Send 回到自己的响应；Examples 点一条在 Examples tab 打开。设基线、对比留给 M1。
+   - 3.2 发送历史栏（完成）：选中已保存的请求时，编辑器左边多一栏 History／Examples（240，内容区不足 900 时不显示，仍可从请求的 `⋯` → History 进入）。History 只列从这个请求发出的运行记录（按请求 ID 或这个文档关联，不按 URL 匹配），点一条在响应区只读显示，可以 Open as draft，× 或再次 Send 回到自己的响应；Examples 点一条在 Examples tab 打开。M1 已补齐状态／来源筛选，以及 Run details… 中的备注、基线和对比。
    - 3.3 抓到的请求就是请求文档（完成）：选中抓到的 HTTP 请求，检查器就是它的请求文档：顶部 `Captured · 时间 · 进程` 和抓到的状态，下面是 method、URL、Send 和 Save to collection（检查器不足 600 时只留图标），编辑器的 tab 以 Original（抓到的请求读取器）打头，旁边是抓到的响应，发送后换成这次的响应。第一次编辑或发送时才为这条抓包留一份草稿（copy on write），头部和行里有 Edited 标记，抓包本身不变；检查器 `⋯` → Discard edits 回到原样。Edit & replay、Back to traffic、Source #N 都去掉了；落盘的大请求体点 Edit request 才读，流和隧道只读。检查器在列表旁边时请求在上、响应在下；在列表下方（上下布局，或窗口不足 1000 时）或占满窗口时左右并排，不再按宽度切换。窄检查器里 Send 窄到 64，发送中只留 Cancel。
    - 3.4 收尾（完成）：
      - `workspace`／`captureSection`／`requestsSection` 合成一个 `page`（Live、Session、Request、API、Runs）。
@@ -312,8 +312,8 @@ uikit 已按"主题 = 语义 token 表"实现，导入第三方主题不用返�
 | 首次启动引导 | 嵌在流量列表空状态里的 4 步引导（UX 规范第 9 节）；每步一个主按钮，完成的步骤打勾，可跳过 | M1 |
 | 录制 pill 和暂停 | 三种状态（录制中、已暂停、代理停止），暂停按钮在 pill 内 | M1 |
 | Settings 窗口 | 独立窗口，左侧分类（通用、外观、代理、HTTPS、抓包、设备），右侧 FormRow；改动立即生效，需要重启的项目标明 | M1 |
-| Sessions | 侧栏 SESSIONS 组：最近打开的会话文件，打开后只读，带"历史"标记 | M1 |
-| History | 选中已保存请求时的中间栏：按时间倒序的发送记录，可按来源、状态筛选；可以设为基线、对比、打开成草稿 | M1 |
+| Sessions（已完成） | 侧栏 SESSIONS 组和多会话 tab；payload 只读并标记历史，Pin／颜色／备注可保存，跨会话 Diff；旧调查迁移到普通会话文件 | M1 |
+| History（已完成） | 请求的 History／Examples 中间栏；状态／来源筛选，Run details… 进入基线、备注和 Diff；各入口共用 experiments.json，旧 Recent requests 只读保留 | M1 |
 | 连接诊断 | 一个页面：上方输入目标 URL，下方按"监听 → 系统代理 → 证书 → 解密规则 → 实际流量"逐项打勾或打叉，每项一个修复按钮 | M1 |
 | Host 方案 | 标题栏下拉框：列出方案和开关，底部"管理方案…"；Tools 窗口里左侧方案列表（拖动排序、开关），右侧 hosts 编辑器（语法高亮、冲突提示） | M2 |
 | 整理成集合向导 | 大弹窗，顶部步骤条（范围 → 合并接口 → 变量 → 结构 → 示例 → 完成），每步左侧设置、右侧结果预览 | M3 |

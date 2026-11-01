@@ -215,27 +215,7 @@ func (a *app) exportPostmanVariables() {
 	a.saveExport("Export Postman environment", file, data, nil)
 }
 
-// saveExport asks where to write data and writes it privately: exports can
-// hold credentials typed into auth fields and variables.
+// saveExport reviews a copy before opening the native save dialog.
 func (a *app) saveExport(title, file string, data []byte, warnings []string) {
-	go func() {
-		path, err := mygo.Dialog.Save(mygo.SaveDialogOptions{Title: title, DefaultPath: file,
-			Filters: []mygo.FileFilter{{Name: "Postman JSON", Extensions: []string{"json"}}}})
-		if err != nil || path == "" {
-			return
-		}
-		if err := writePrivateFile(path, data); err != nil {
-			a.setMessage(title + ": " + err.Error())
-			return
-		}
-		a.win.Update(func() {
-			done := "Exported to " + path
-			if len(warnings) > 0 {
-				a.importReport = importReport{open: true, title: done, lines: warnings,
-					intro: "Everything else was exported. Postman has no place for these:"}
-				return
-			}
-			a.setMessage(done)
-		})
-	}()
+	a.reviewExport(title, file, data, warnings)
 }

@@ -43,14 +43,14 @@ type page int
 
 const (
 	pageLive    page = iota // live traffic, under a view or quick filter
-	pageSession             // an investigation session's board
+	pageSession             // historical session tabs
 	pageRequest             // a request document from the collections
 	pageAPI                 // an API contract
 	pageRuns                // the run records, which take the window
 )
 
 // capture reports whether the page reads captured traffic.
-func (p page) capture() bool { return p <= pageSession }
+func (p page) capture() bool { return p == pageLive }
 
 // app is the state the window shows; view reads it and the controls write it.
 type app struct {
@@ -336,18 +336,16 @@ type app struct {
 	library         libraryState
 	requestsProblem string
 	// folders are the collections' and folders' own settings, by path.
-	folders        []request.Folder
-	folderUI       folderEditor
-	deleting       deletion
-	code           codeDialog
-	vault          vaultState
-	history        []historyEntry
-	historyPath    string
-	historyOpen    bool
-	experiments    experimentWorkbench
-	socket         websocketWorkbench
-	investigations investigationWorkbench
-	board          investigationBoard
+	folders     []request.Folder
+	folderUI    folderEditor
+	deleting    deletion
+	code        codeDialog
+	vault       vaultState
+	history     []historyEntry
+	historyPath string
+	experiments experimentWorkbench
+	socket      websocketWorkbench
+	sessions    sessionWorkspace
 
 	// The active document is embedded so the editor's fields always belong
 	// to that tab. Workers return results to their originating document.
@@ -358,12 +356,12 @@ type app struct {
 	requestResults  []requestResult
 	importReport    importReport
 	// tokens are the OAuth 2.0 access tokens of this session, never saved.
-	tokens       request.Tokens
-	oauth        oauthState
-	runner       collectionRunner
-	cookies      *cookieStore
-	cookieUI     cookieEditor
-	regressionUI regressionShare
+	tokens   request.Tokens
+	oauth    oauthState
+	runner   collectionRunner
+	cookies  *cookieStore
+	cookieUI cookieEditor
+	exportUI exportReview
 
 	// envs are the variables a request uses as {{name}}, one set in use.
 	envsPath    string
@@ -422,7 +420,6 @@ func newApp() *app {
 		domainsOpen:     true,
 		clientsOpen:     true,
 		collectionsOpen: true,
-		historyOpen:     true,
 		collectionOpen:  make(map[string]*bool),
 		detailFor:       -1,
 		frames:          make(map[int][]frame),
@@ -520,8 +517,9 @@ func newApp() *app {
 		a.views.init(a, filepath.Join(home, ".vscroxy", "views.json"))
 		a.protobuf.init(filepath.Join(home, ".vscroxy", "protobuf.pb"))
 		a.loadExperiments(filepath.Join(home, ".vscroxy", "experiments.json"))
-		if err := a.board.load(filepath.Join(home, ".vscroxy", "investigations.json")); err != nil {
-			a.setMessage("Investigations: " + err.Error())
+		if err := a.sessions.load(filepath.Join(home, ".vscroxy", "sessions")); err != nil {
+			a.sessions.problem = err.Error()
+			a.setMessage("Sessions: " + err.Error())
 		}
 	}
 	return a
@@ -859,10 +857,6 @@ func (a *app) drain() {
 			a.applyVars(result.environment, result.varsBefore, result.vars)
 		}
 		a.applyWrites(result.writes)
-		if result.history != nil {
-			a.history = pushHistory(a.history, *result.history)
-			a.saveHistory()
-		}
 		if result.experiment != nil {
 			for _, f := range a.flows {
 				if f.live {
@@ -1286,7 +1280,6 @@ func (a *app) view(c *ui.Context) {
 		}
 	})
 	a.persistSettings()
-	a.board.persist()
 	a.checkpointExperiments(c)
 	// Dialogs keep their input and actions above background notifications.
 	uikit.Toasts(c)
@@ -1353,13 +1346,11 @@ func (a *app) view(c *ui.Context) {
 	a.diagnosticsModal(c, t)
 	a.experimentsModal(c, t)
 	a.socketModal(c, t)
-	a.investigations.modal(c, a)
-	a.boardConfirmModal(c, t)
 	a.requestRenameModal(c, t)
 	a.headerWarnModal(c, t)
 	a.runnerModal(c, t)
 	a.cookiesModal(c, t)
-	a.regressionModal(c, t)
+	a.exportModal(c, t)
 	a.replayModal(c, t)
 	a.collectionSaveModal(c, t)
 	a.protobuf.modal(c, a)
@@ -1621,24 +1612,16 @@ func (a *app) sidebar(c *ui.Context) {
 				a.collectionsGroup(c, t)
 			}))
 			reveal("sessions", uikit.SidebarSection(c, "Sessions", nil, func() {
-				for _, inv := range a.board.items {
-					uikit.SidebarItem(c, "investigation:"+inv.ID, layersIcon, inv.Title, a.sidebarChoice == "investigation:"+inv.ID, !a.windowBehind).Children(func() {
-						uikit.Meta(c, fmt.Sprint(len(inv.Items))).FontFeatures("tnum")
+				for _, item := range a.sessions.items {
+					uikit.SidebarItem(c, "session:"+item.key, clockIcon, item.data.Title, a.sidebarChoice == "session:"+item.key, !a.windowBehind).Children(func() {
+						uikit.Meta(c, fmt.Sprint(len(item.data.Flows))).FontFeatures("tnum")
 					})
 				}
-				if uikit.ToolbarButton(c, "New investigation", "Create an investigation, then add captures from their inspectors to keep evidence", false).FillWidth().Justify(ui.Start).Children(func() {
-					ui.Icon(c, plusIcon).Size(uikit.IconInline, uikit.IconInline)
-					uikit.Body(c, "New investigation")
-				}).Clicked() {
-					a.board.create("")
-					a.board.list = ui.ListState{}
-					a.page = pageSession
-				}
-				if uikit.ToolbarButton(c, "Historical sessions…", "Read saved sessions and exported evidence, read-only", false).FillWidth().Justify(ui.Start).Children(func() {
+				if uikit.ToolbarButton(c, "Open session…", "Open historical session files without replacing live traffic", false).FillWidth().Justify(ui.Start).Children(func() {
 					ui.Icon(c, clockIcon).Size(uikit.IconInline, uikit.IconInline)
-					uikit.Body(c, "Historical sessions…")
+					uikit.Body(c, "Open session…")
 				}).Clicked() {
-					a.investigations.show()
+					a.openSession()
 				}
 			}))
 		}).Grow(1).Background(uikit.Colors(t).Panel)
@@ -1670,10 +1653,8 @@ func (a *app) sidebar(c *ui.Context) {
 // contract, or a LIVE scope of the traffic. Saved requests are tree items
 // that open themselves.
 func (a *app) goTo(choice string) {
-	if id, ok := strings.CutPrefix(choice, "investigation:"); ok {
-		a.page = pageSession
-		a.board.active = id
-		a.board.list = ui.ListState{}
+	if id, ok := strings.CutPrefix(choice, "session:"); ok {
+		a.selectSession(id)
 		return
 	}
 	if id, ok := strings.CutPrefix(choice, "contract:"); ok {
@@ -1727,7 +1708,7 @@ func (a *app) collectionsMenu(m *ui.Menu) {
 	if m.Item("Environments…").Chosen() {
 		a.openVars()
 	}
-	if m.Item("Run records").Chosen() {
+	if m.Item("History").Chosen() {
 		a.showRunRecords()
 	}
 	if m.Item("Runner…").Chosen() {
@@ -1756,6 +1737,7 @@ func (a *app) collectionsMenu(m *ui.Menu) {
 // showRunRecords shows every run record in the content area.
 func (a *app) showRunRecords() {
 	a.experiments.scope, a.experiments.draftKey = nil, ""
+	a.experiments.assetID, a.experiments.status, a.experiments.sourceFilter = "", "", ""
 	a.page = pageRuns
 }
 
@@ -2272,6 +2254,8 @@ func Run() error {
 	mygo.App.OnQuit(cleanupProxy) // native termination may not return from Run
 	mygo.App.OnQuit(a.experiments.close)
 	defer a.experiments.close()
+	mygo.App.OnQuit(a.sessions.close)
+	defer a.sessions.close()
 	cancelRequests := func() {
 		for _, d := range a.documents {
 			d.cancelSend()
@@ -2281,10 +2265,6 @@ func Run() error {
 	defer cancelRequests()
 	mygo.App.OnQuit(func() { a.socket.session.disconnect() })
 	defer func() { a.socket.session.disconnect() }()
-	mygo.App.OnQuit(a.investigations.close)
-	mygo.App.OnQuit(a.board.flush)
-	defer a.investigations.close()
-	defer a.board.flush()
 	defer a.discardRuleDraft()
 	defer a.disableDevices()
 	defer a.views.stopSearch()
@@ -2471,8 +2451,8 @@ func (a *app) rowMenu(c *ui.Context, f flow) func(*ui.Menu) {
 			})
 		})
 		m.Separator()
-		if m.Item("Add to investigation…").Chosen() {
-			a.addToInvestigation(f)
+		if m.Item("Save evidence to Sessions").Chosen() {
+			a.saveEvidence(f)
 		}
 		if m.Item("Save as regression…").Disabled(f.status == 0 || f.method == "CONNECT" || f.kind == "ws").Chosen() {
 			a.regressionFrom(f)
@@ -2777,9 +2757,6 @@ func (a *app) sendComposed() {
 		record := snapshotExperiment(0, r, env, got)
 		record.RunKey, record.DraftKey, record.Source = runKey, draftKey, origin
 		result.experiment = &record
-		if got.Request != nil {
-			result.history = &historyEntry{Method: got.Request.Method, URL: got.Request.URL, Headers: r.Headers, Body: r.Body, Draft: &r, At: time.Now()}
-		}
 		a.mu.Lock()
 		a.requestResults = append(a.requestResults, result)
 		a.mu.Unlock()
@@ -3437,23 +3414,6 @@ func (a *app) openHistory(i int) {
 	}, "")
 }
 
-// saveHistory keeps the sent requests for the next launch.
-func (a *app) saveHistory() {
-	if a.historyPath == "" {
-		return
-	}
-	list := slices.Clone(a.history)
-	go func() {
-		if err := os.MkdirAll(filepath.Dir(a.historyPath), 0o755); err != nil {
-			a.setMessage("History: " + err.Error())
-			return
-		}
-		if err := saveHistory(a.historyPath, list); err != nil {
-			a.setMessage("History: " + err.Error())
-		}
-	}()
-}
-
 // selectedFlows are the flows chosen in the table, in the order captured.
 func (a *app) selectedFlows() []flow {
 	if a.chosen.Len() == 0 {
@@ -3475,21 +3435,7 @@ func (a *app) exportChosen() {
 		a.setMessage("Export chosen: no flow chosen")
 		return
 	}
-	go func() {
-		path, err := mygo.Dialog.Save(mygo.SaveDialogOptions{
-			Title:       "Export chosen flows",
-			DefaultPath: "vscroxy-chosen.har",
-			Filters:     []mygo.FileFilter{{Name: "HAR", Extensions: []string{"har"}}},
-		})
-		if err != nil || path == "" {
-			return
-		}
-		if err := writeHAR(path, flows); err != nil {
-			a.setMessage("HAR: " + err.Error())
-			return
-		}
-		a.setMessage(fmt.Sprintf("Exported %d flows to %s", len(flows), path))
-	}()
+	a.reviewHAR(flows, "vscroxy-chosen.har")
 }
 
 // dnsModal edits the names the proxy resolves itself.

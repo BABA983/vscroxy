@@ -30,6 +30,7 @@ type experimentWorkbench struct {
 	sourceComparison                 captureAnalysis
 	scope                            *debugSource
 	draftKey                         string
+	assetID, status, sourceFilter    string
 	wire                             int
 	revealVars                       bool
 	changed                          time.Time
@@ -263,14 +264,14 @@ func (a *app) experimentsView(c *ui.Context, t *ui.Theme, inline bool) {
 	}
 	panel.Children(func() {
 		ui.Row(c).Height(uikit.HeightTabs).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-			title := "Run records"
+			title := "History"
 			if s.scope != nil {
 				title += " · Source"
 			} else if s.draftKey != "" {
 				title += " · Draft"
 			}
 			uikit.DialogTitle(c, title).Grow(1)
-			if uikit.SecondaryButton(c, "Clear experiments…").Disabled(s.readOnly || len(s.log.Records) == 0).Clicked() {
+			if uikit.SecondaryButton(c, "Clear History…").Disabled(s.readOnly || len(s.log.Records) == 0).Clicked() {
 				s.clearing = true
 			}
 			if uikit.SecondaryButton(c, "Close").Clicked() {
@@ -284,6 +285,9 @@ func (a *app) experimentsView(c *ui.Context, t *ui.Theme, inline bool) {
 		if s.problem != "" {
 			ui.Text(c, s.problem).FontSize(uikit.TextBody).TextColor(t.Danger)
 		}
+		ui.Row(c).Gap(t.Space(2)).Children(func() {
+			historyFilters(c, &s.status, &s.sourceFilter)
+		})
 		ui.Row(c).Grow(1).MinHeight(0).Border(1, t.Border).Radius(uikit.RadiusControl).AlignItems(ui.Stretch).Children(func() {
 			ui.Scroll(c).Width(220).Padding(t.Space(1)).Children(func() {
 				a.debugDrafts(c)
@@ -308,8 +312,8 @@ func (a *app) experimentsView(c *ui.Context, t *ui.Theme, inline bool) {
 				}
 				if inline && len(a.history) > 0 {
 					ui.Divider(c)
-					ui.Text(c, "Recent requests").Bold()
-					uikit.Meta(c, "Unsent copies · deduplicated by method + URL")
+					ui.Text(c, "Legacy drafts").Bold()
+					uikit.Meta(c, "Read-only archive · no response recorded")
 					uikit.Input(c, &a.requestQuery).Label("Search history").Placeholder("Search history…").FontSize(uikit.TextMeta)
 					query := strings.ToLower(strings.TrimSpace(a.requestQuery))
 					for i, entry := range a.history {
@@ -345,7 +349,7 @@ func (a *app) experimentsView(c *ui.Context, t *ui.Theme, inline bool) {
 					}
 					return
 				}
-				ui.Text(c, fmt.Sprintf("Experiment #%d · %s %s", r.ID, r.Draft.Method, r.Draft.URL)).FontSize(uikit.TextBody).FontFeatures("tnum").Bold().SingleLine().Tooltip(r.Draft.URL)
+				ui.Text(c, fmt.Sprintf("Run #%d · %s %s", r.ID, r.Draft.Method, r.Draft.URL)).FontSize(uikit.TextBody).FontFeatures("tnum").Bold().SingleLine().Tooltip(r.Draft.URL)
 				uikit.Meta(c, r.Summary+" · Environment: "+cmp.Or(r.Environment, "none")).FontFeatures("tnum")
 				if r.Outcome != "" {
 					uikit.Meta(c, r.Outcome)
@@ -387,7 +391,7 @@ func (a *app) experimentsView(c *ui.Context, t *ui.Theme, inline bool) {
 				})
 				a.debugWire(c, *r)
 				ui.ScrollHorizontal(c).Height(uikit.HeightTabs).FillWidth().Children(func() {
-					if uikit.Tabs(c, &s.tab, "", "Recorded result", "Compare experiments", "Compare source", "Sent request", "Console", "Variables").Gap(0).Changed() {
+					if uikit.Tabs(c, &s.tab, "", "Recorded result", "Compare runs", "Compare source", "Sent request", "Console", "Variables").Gap(0).Changed() {
 						s.reader = nil
 					}
 				})
@@ -430,7 +434,7 @@ func (a *app) experimentsView(c *ui.Context, t *ui.Theme, inline bool) {
 					if left := s.record(cmp.Or(s.left, s.log.Baseline)); left != nil && left.ID != r.ID {
 						s.comparison.compare(c, left.compared(s.ignore), r.compared(s.ignore), [2]string{fmt.Sprintf("Run #%d", left.ID), fmt.Sprintf("Run #%d", r.ID)})
 					} else {
-						uikit.EmptyState(c, "Choose a baseline", "Choose another experiment as left, or set a baseline first.", nil)
+						uikit.EmptyState(c, "Choose a baseline", "Choose another run as left, or set a baseline first.", nil)
 					}
 				} else {
 					if s.reader == nil {
@@ -443,7 +447,7 @@ func (a *app) experimentsView(c *ui.Context, t *ui.Theme, inline bool) {
 	})
 	uikit.Modal(c, &s.clearing, func() {
 		uikit.DialogColumn(c, uikit.DialogSmall).Children(func() {
-			uikit.DialogTitle(c, "Clear all experiment records?")
+			uikit.DialogTitle(c, "Clear History?")
 			uikit.Hint(c, "This removes the retained runs and baseline, not open drafts, captured traffic or saved requests.")
 			uikit.DialogFooter(c).Children(func() {
 				if uikit.SecondaryButton(c, "Cancel").Clicked() {

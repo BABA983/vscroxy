@@ -142,7 +142,7 @@
 | 抓包流量 → Postman 集合 | 已有 | 通过"保存到集合"再导出 | |
 | 抓包流量 → OpenAPI | 部分 | 要先保存成集合 | M3 |
 | 导出 CSV | 缺少 | | M5 |
-| 导出时脱敏选项 | 部分 | 只有 Regression 分享有 | M1 |
+| 导出时脱敏选项 | 已有 | Postman、HAR、会话共用六类脱敏选项；默认全部启用，可明确原样导出，需确认范围 | M1 |
 | 导入 Charles 会话（.chls）、Proxyman 日志 | 缺少 | | M7 |
 | 分享到 GitHub Gist | 缺少 | | M9 |
 
@@ -249,9 +249,9 @@
 - 录制开关（标题栏状态 pill 里的暂停按钮）。
 - Allow list（Settings → 抓包）。
 - 内存和磁盘上限、自动清理。
-- 合并历史和留证（3.1），迁移旧数据。
+- 合并历史和留证（3.1），迁移旧数据（已完成：History + Sessions；旧调查自动迁移，旧 Recent requests 只读保留）。
 - 合并诊断入口。
-- 导出时的脱敏选项。
+- 导出时的脱敏选项（已完成：Postman、HAR、会话）。
 - Checks 导出为 `pm.test`。
 - 旧版脚本 API 标记废弃。
 - Settings 重新分区。

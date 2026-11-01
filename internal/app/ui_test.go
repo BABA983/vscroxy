@@ -310,7 +310,7 @@ func appearanceOf(dark bool) string {
 func workspaceApp() *app {
 	a := &app{
 		filter: "all", sidebarWidth: 220, tablePercent: 56,
-		trafficOpen: true, domainsOpen: true, clientsOpen: true, collectionsOpen: true, historyOpen: true,
+		trafficOpen: true, domainsOpen: true, clientsOpen: true, collectionsOpen: true,
 		collectionOpen: make(map[string]*bool), icons: make(map[string]ui.ImageSource),
 		detailFor: -1, frames: make(map[int][]frame), workbench: desktopWorkbench{layout: "right"},
 		flows: []flow{
@@ -637,7 +637,7 @@ func TestWorkspaceKeepsCaptureAndDraftIndependent(t *testing.T) {
 		t.Fatalf("switching workspaces changed the draft: URL %q, method %q, script %q", url, a.composeMethod, script)
 	}
 	click("Collection options")
-	if err := chooseMenu(tt, "Run records"); err != nil {
+	if err := chooseMenu(tt, "History"); err != nil {
 		t.Fatal(err)
 	}
 	click(a.history[0].label())
@@ -682,7 +682,7 @@ func TestRequestResourcesPreserveDraftAndTreeExpansion(t *testing.T) {
 	// Other places in the window never replace the draft.
 	tt.Key(ui.Cmd, ui.Key1)
 	click("Collection options")
-	if err := chooseMenu(tt, "Run records"); err != nil {
+	if err := chooseMenu(tt, "History"); err != nil {
 		t.Fatal(err)
 	}
 	tt.Key(ui.Cmd, ui.Key2)
@@ -1946,6 +1946,9 @@ func TestSavedRequestHistoryShowsLinkedRunsReadOnly(t *testing.T) {
 		r := snapshotExperiment(i+1, run.draft, "", request.Execution{
 			Response: &capture.Flow{Method: "GET", URL: saved.URL, Status: run.status, Millis: 12, ResponseBody: run.body},
 		})
+		if i == 2 {
+			r.Source = newDebugSource(a.flows[0])
+		}
 		r.At = time.Now().Add(time.Duration(i) * time.Minute)
 		if err := a.experiments.log.retain(r); err != nil {
 			t.Fatal(err)
@@ -1964,6 +1967,25 @@ func TestSavedRequestHistoryShowsLinkedRunsReadOnly(t *testing.T) {
 	if _, other := tt.Find("Run #2"); !ok1 || !ok3 || other || latest.Y >= first.Y {
 		t.Fatalf("history is not the linked runs, newest first: #3 %v, #1 %v, unlinked shown %t", latest, first, other)
 	}
+	click("History source")
+	click("Capture-linked")
+	if _, first := tt.Find("Run #1"); first || !tt.HasText("Run #3") {
+		t.Fatal("capture source filter mixed authored attempts")
+	}
+	click("History status")
+	click("2xx")
+	if tt.HasText("Run #3") || tt.HasText("Run #1") {
+		t.Fatal("status and source filters did not intersect")
+	}
+	click("History status")
+	click("4xx")
+	if !tt.HasText("Run #3") || tt.HasText("Run #2") {
+		t.Fatal("status filter lost a match or admitted an unrelated request")
+	}
+	click("History status")
+	click("All statuses")
+	click("History source")
+	click("All sources")
 	click("Run #1")
 	click("Run #1 result")
 	tt.Key(ui.Cmd, ui.KeyA)
@@ -3065,7 +3087,7 @@ func TestDeviceOnboardingCertificateHTTPSAndLiveTunnelRevocation(t *testing.T) {
 	}
 }
 
-func TestCaptureRegressionCanBeSavedAndSharedOnlyAfterReview(t *testing.T) {
+func TestCaptureRegressionIsAnOrdinarySavedRequestWithChecks(t *testing.T) {
 	a := workspaceApp()
 	a.library.root = filepath.Join(t.TempDir(), "collections")
 	tt := ui.NewTester(a.view, 960, 600)
@@ -3088,48 +3110,6 @@ func TestCaptureRegressionCanBeSavedAndSharedOnlyAfterReview(t *testing.T) {
 	loaded, err := loadLibraryRequests(a.library.root)
 	if err != nil || len(loaded) != 2 || loaded[0].Checks.Status != "200" {
 		t.Fatalf("checks not saved: %+v %v", loaded, err)
-	}
-	click("Request options")
-	if err := chooseMenu(tt, "Share regression…"); err != nil {
-		t.Fatal(err)
-	}
-	for _, label := range []string{"Cancel", "Copy case JSON"} {
-		bounds, ok := tt.Find(label)
-		if !ok || bounds.Y < 20 || bounds.Y+bounds.H > 580 {
-			t.Fatalf("review action %q outside the compact dialog: %v", label, bounds)
-		}
-	}
-	click("Copy case JSON")
-	if tt.Clipboard() != "" {
-		t.Fatal("unreviewed case copied")
-	}
-	click("Confirm regression review")
-	click("Copy case JSON")
-	shared := tt.Clipboard()
-	if _, err := decodeRegression([]byte(shared)); err != nil || strings.Contains(shared, "api.example.com") {
-		t.Fatalf("reviewed clipboard not a sanitized case: %s %v", shared, err)
-	}
-	click("Regression JSON preview")
-	tt.Key(ui.Cmd, ui.KeyA)
-	tt.SetClipboard(shared + "\n")
-	tt.Key(ui.Cmd, ui.KeyV)
-	tt.SetClipboard("not copied")
-	click("Copy case JSON")
-	if tt.Clipboard() != "not copied" {
-		t.Fatal("editing the preview did not revoke review approval")
-	}
-	click("Cancel")
-	a.regressionUI = regressionShare{open: true, importing: true, preview: shared}
-	tt.Frame()
-	shown := a.requestDocument
-	click("Open unsent case")
-	if a.requestDocument != shown {
-		t.Fatal("unreviewed import opened")
-	}
-	click("Confirm regression review")
-	click("Open unsent case")
-	if a.requestDocument == shown || a.requestDocument.savedKey != "" || a.composeWaiting || a.response != nil || a.composeURL != "{{base_url}}/projects" {
-		t.Fatal("import should open only an unsent, parameterized draft")
 	}
 }
 
@@ -4356,7 +4336,7 @@ func TestExperimentWorkbenchComparesIndependentRunsAndReopensWithoutSending(t *t
 		return tt.Clipboard()
 	}
 	tt.Key(ui.Cmd, ui.KeyK)
-	tt.Type("Run records")
+	tt.Type("History")
 	tt.Key(0, ui.KeyEnter)
 	click("Experiment #1")
 	click("Set baseline")
@@ -4382,7 +4362,7 @@ func TestExperimentWorkbenchComparesIndependentRunsAndReopensWithoutSending(t *t
 		t.Fatal("comparison rewrote the original snapshot")
 	}
 	click("Open as draft")
-	if !tt.HasText("Recorded experiment #1") || a.composeWaiting || a.composeBody != "attempt 1" || a.response.ResponseBody != `{"value":1,"timestamp":10}` {
+	if !tt.HasText("Recorded run #1") || a.composeWaiting || a.composeBody != "attempt 1" || a.response.ResponseBody != `{"value":1,"timestamp":10}` {
 		t.Fatal("opening a historical run sent it, chose the wrong snapshot, or lost its result")
 	}
 }
@@ -4398,6 +4378,12 @@ func TestRunRecordTabsRemainReadableAtMinimumWidth(t *testing.T) {
 			t.Fatal("missing variables tab")
 		}
 		tt := ui.NewTester(a.view, 960, 800)
+		for _, label := range []string{"History status", "History source"} {
+			bounds, ok := tt.Find(label)
+			if !ok || bounds.W < 24 || bounds.X < 0 || bounds.X+bounds.W > 960 {
+				t.Fatalf("dark=%t: history filter unavailable at minimum width: %s %v", dark, label, bounds)
+			}
+		}
 		last, ok := tt.Find("Variables")
 		if !ok || last.W < full.W || last.X+last.W > 948 {
 			t.Fatalf("dark=%t: final tab clipped at minimum width: %v, full=%v", dark, last, full)
@@ -4601,7 +4587,7 @@ func TestSendCancellationKeepsTheSentSnapshotAndDoesNotRetry(t *testing.T) {
 	if a.composeURL != upstream.URL+"/unsent" {
 		t.Fatal("cancelling overwrote in-flight edits")
 	}
-	if err := tt.Click("Send history"); err != nil {
+	if err := tt.Click("Open request History"); err != nil {
 		t.Fatal(err)
 	}
 	if !tt.HasText("Cancelled") || !tt.HasText("Experiment #1") {
@@ -4629,7 +4615,7 @@ func TestSendCancellationKeepsTheSentSnapshotAndDoesNotRetry(t *testing.T) {
 		tt.Frame()
 		runtime.Gosched()
 	}
-	if err := tt.Click("Send history"); err != nil {
+	if err := tt.Click("Open request History"); err != nil {
 		t.Fatal(err)
 	}
 	if _, found := tt.Find("Experiment #1"); found || !tt.HasText("Pre-request script failed") || hits.Load() != 1 {
@@ -4740,7 +4726,7 @@ func TestSendResultsSeparateFailuresAndLinkTheExactAttempt(t *testing.T) {
 			if tc.name == "network" && !tt.HasText("502 · proxy response") || tc.name == "http" && !tt.HasText("502 Bad Gateway") {
 				t.Fatalf("response origin is ambiguous: %q", tt.Texts())
 			}
-			if err := tt.Click("Send history"); err != nil {
+			if err := tt.Click("Open request History"); err != nil {
 				t.Fatal(err)
 			}
 			if !tt.HasText(tc.outcome) {

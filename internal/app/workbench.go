@@ -86,7 +86,7 @@ func (a *app) desktopContent(c *ui.Context) {
 				})
 			})
 		case pageSession:
-			a.boardView(c, c.Theme())
+			a.sessionsView(c, c.Theme())
 		default:
 			ui.Column(c).Fill().Children(func() {
 				if w.focused {
@@ -401,7 +401,7 @@ func (a *app) desktopActions(c *ui.Context) []desktopAction {
 	capturing := a.page.capture()
 	d := a.requestDocument
 	// A captured request in LIVE is a document too; tabs are COLLECTIONS'.
-	editing := d != nil
+	editing := d != nil && (a.page == pageLive || a.page == pageRequest)
 	tab := editing && !a.page.capture()
 	focus := "Focus inspector"
 	if w.focused {
@@ -492,11 +492,13 @@ func (a *app) desktopActions(c *ui.Context) []desktopAction {
 		{"https", "HTTPS certificate & decryption setup…", true, 0, 0, func() { a.openSettings(2) }},
 		{"diagnostics", "Capture diagnostics…", true, 0, 0, a.openDiagnostics},
 		{"setup-guide", "Show setup guide", !a.guide, 0, 0, a.openGuide},
-		{"experiments", "Run records…", true, 0, 0, func() {
+		{"experiments", "History…", true, 0, 0, func() {
 			a.experiments.scope, a.experiments.draftKey, a.experiments.open = nil, "", true
+			a.experiments.assetID, a.experiments.status, a.experiments.sourceFilter = "", "", ""
 		}},
 		{"websocket", "WebSocket session…", true, 0, 0, a.openSocket},
-		{"investigations", "Historical sessions & evidence…", true, 0, 0, a.investigations.show},
+		{"open-session", "Open session…", true, 0, 0, a.openSession},
+		{"save-session", "Save capture to Sessions", capturing, 0, 0, a.saveSession},
 		{"client", "Set up a local client…", a.srv != nil, 0, 0, a.openClientSetup},
 		{"devices", "Connect a device…", a.srv != nil, 0, 0, a.openDevices},
 		{"rules", "Manage debugging rules…", true, 0, 0, a.openRules},
@@ -525,10 +527,7 @@ func (a *app) desktopActions(c *ui.Context) []desktopAction {
 				a.urlInput.Focus(c)
 			}
 		}},
-		{"sessions", "Go to Sessions", len(a.board.items) > 0, ui.Cmd, ui.Key3, func() {
-			if a.board.active == "" {
-				a.board.active = a.board.items[0].ID
-			}
+		{"sessions", "Go to Sessions", true, ui.Cmd, ui.Key3, func() {
 			a.page = pageSession
 			a.revealGroup = "sessions"
 		}},
@@ -540,9 +539,9 @@ func (a *app) desktopActions(c *ui.Context) []desktopAction {
 			a.page = pageAPI
 		}},
 		{"import-openapi", "Import OpenAPI…", true, 0, 0, a.importOpenAPI},
-		{"run-records", "Show run records", true, 0, 0, a.showRunRecords},
-		{"add-investigation", "Add inspected request to investigation", capturing && current && f.kind == "", 0, 0, func() {
-			a.addToInvestigation(f)
+		{"run-records", "Show History", true, 0, 0, a.showRunRecords},
+		{"save-evidence", "Save evidence to Sessions", capturing && current, 0, 0, func() {
+			a.saveEvidence(f)
 		}},
 	}...)
 	return actions
@@ -597,8 +596,6 @@ func (action desktopAction) unavailable() string {
 		return "Open a request draft first"
 	case "next-tab", "previous-tab":
 		return "Open a request first"
-	case "sessions":
-		return "Create an investigation first"
 	case "apis":
 		return "Create or import an API contract first"
 	default:

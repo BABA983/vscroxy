@@ -133,9 +133,9 @@ the capture's Client column may identify the desktop gateway instead.
 - `inspector.go`: the inspector under the traffic: one summary line, then the
   request and the response side by side, each with its own tabs, and the
   exchange-wide Diff, Connection and Messages views one click away.
-- `investigation_board.go` / `investigation_board_ui.go`: the investigation
-  board — named investigations of immutable exchange snapshots, notes,
-  comparison, layered failure evidence and evidence export.
+- `sessions.go` / `sessions_ui.go`: historical session tabs, immutable payloads,
+  annotations, cross-session comparison and legacy investigation migration.
+- `export.go`: shared Postman, HAR and session export redaction options.
 - `requests.go`: independent request documents, their tabs, draft-close
   confirmation and the inline response viewer.
 - `rules.go`: visual rule management and captured-response mock creation.
@@ -170,11 +170,10 @@ It has three groups:
 - **Collections**: a search field, **New request**, the **⋯** collection menu,
   the collection tree, and the API contracts. Choosing a request opens it in
   the request editor; choosing a contract opens it.
-- **Sessions**: the investigations, **New investigation** and
-  **Historical sessions…**.
+- **Sessions**: saved historical sessions and **Open session…**.
 
 The collection **⋯** menu and Commands open what has no place of its own in
-the sidebar: **Environments…**, **Run records**, **Runner…**, **New API
+the sidebar: **Environments…**, **History**, **Runner…**, **New API
 contract**, **Import OpenAPI…**, **Generate API from collection…**, imports,
 **Vault…** and **Cookies…**. The active environment is chosen in the request
 editor's header. The inspector shows the request and the response **beside each
@@ -191,10 +190,10 @@ request, newest first, matched by the request itself and never by URL; choosing
 one shows its result read-only where the response goes, with **Open as draft**,
 until **×** or the next Send brings back the request's own response.
 **Examples** lists the saved examples and opens one in the Examples tab.
-**Run records** opens retained attempts across the whole window, without
+**History** opens retained attempts across the whole window, without
 sending them again; **Close** returns. One request shows at a time, under a
 breadcrumb header above the editor and inline response viewer. Moving between sidebar groups
-preserves the capture filters, all open drafts and responses, and the board. The response's **Last attempt** disclosure shows the
+preserves the capture filters, all open drafts and responses, and the session tabs. The response's **Last attempt** disclosure shows the
 full sent draft URL and response time; the collapsed row still distinguishes
 an edited, unsent draft from the retained result. The diff pane is MyGo's
 own `ui/editor` diff viewer, not Monaco, so it stays native and can be reused on
@@ -580,14 +579,27 @@ reaches the proxy, and an app that connects to an address it already has.
 
 ## Export and sessions
 
-The **Session** menu exports a HAR 1.2 file (HTTP flows; WebSocket and SSE
-messages have no place in HAR), saves the table and its frames as a JSON
-session, and opens one back. The native save and open dialogs choose the
-path.
+The **⋯** menu exports HAR 1.2 (HTTP flows only; HAR has no stream messages),
+saves capture to **Sessions**, or opens session files without replacing live traffic.
+**Export session…** exports the current historical session and its messages.
 
-HAR and session exports use private (0600 on Unix), atomic file replacement,
-including over an existing broadly readable file. They still contain original
-credentials and payloads: they are neither encrypted nor automatically redacted.
+Postman collections/environments/globals, HAR and session exports share an
+options dialog. All six redaction scopes start enabled: header/trailer values
+(except Content-Type and Accept) and cookies; query values; structured auth,
+URL credentials and fragments; variable values; bodies and stream messages;
+and scripts/Checks, session titles, descriptions, notes and diagnostics.
+Disable individual scopes to retain them, or choose **Export unredacted** to
+preserve the original bytes. Removing scripts also removes Checks, since
+Postman stores exported Checks as scripts. Keep that scope unchecked when sharing
+executable tests, and review their literals yourself.
+
+Every export requires explicit acknowledgment; changing the options clears it.
+Only the exported copy changes. This is field-based redaction, not secret
+detection or guaranteed anonymization: review paths, hosts, names, parameter
+names, Content-Type/Accept, assertion literals and every unselected scope.
+The native save dialog chooses the destination. Files are replaced atomically
+and privately (0600 on Unix), including over broadly readable files, but are
+not encrypted. Clipboard/cURL copies do not use this export dialog.
 
 ## WebSocket and SSE
 
@@ -768,8 +780,8 @@ collection. A saved request left unchanged and unsent closes when another is
 shown, since it reopens from its collection as it was. The header is a
 breadcrumb of the collection and name: clicking it renames the request and moves it
 between collections, so neither needs a permanent input. The environment,
-**Save** and the request's **⋯** menu — Copy as cURL, Variables, Run records,
-Send history, regression import/export and environment management — sit at the
+**Save** and the request's **⋯** menu — Copy as cURL, Variables, History
+and environment management — sit at the
 right. Method, URL and **Send** are the main action row; the method is an
 editable dropdown with its own chevron, so the common verbs are a click away and
 one the list lacks is still typed and kept. **Params**,
@@ -841,7 +853,7 @@ headers, cookies, timing and test results below the editor. While nothing has
 come back the request editor keeps most of the height, so a handful of header
 rows and their row action fit without scrolling; the first response pulls the
 divider back to about a third, unless the reader moved it themselves. Until something comes back the
-response area is only its empty state and **Send history** waits, disabled, for a
+response area is only its empty state and **History** waits, disabled, for a
 first send. **Compare with source** replaces the response with the comparison and
 offers **Back to response**; there is no second comparison tab. The quiet footer
 under the editor says whether the draft on screen is **Matches last send · time**
@@ -1012,9 +1024,9 @@ reporting the same pass or fail. Numbers compare as JavaScript numbers there, so
 two integers beyond 2^53 that Checks tells apart may compare equal. Invalid
 Checks are left out with a warning. Importing the file back gives a script, not
 Checks. **Export as Postman…** in
-**Variables** writes the environment or globals on screen. Exports contain auth
-fields and variable values as they are; `{{vault:name}}` references stay
-references.
+**Variables** writes the environment or globals on screen. The common export
+options control auth, variables and scripts; the default script removal also
+removes generated Checks. Vault references are never resolved to secrets for export.
 
 **Vault…** (sidebar footer, request **⋯** menu or command palette) keeps secrets
 as name, value and optional allowed domains. Reference one anywhere a variable
@@ -1024,7 +1036,7 @@ subdomains, and a secret without domains goes to any host. A refused or missing
 secret fails the send before anything leaves. Vault values are never copied into
 environments, Request variables or script variables. Scripts reach it only
 through `pm.vault`, when allowed; the request that was sent, including the header that carried the
-secret, is still retained in Capture and Run records.
+secret, is still retained in Capture and History.
 
 The vault lives in `~/.vscroxy/vault.json`, sealed with AES-256-GCM. Its key is
 kept in the operating system's credential store; where there is none (headless
@@ -1051,7 +1063,7 @@ The starting environment is snapshotted; script variables and session cookies
 carry into later steps. Results show status, timing and assertions (latest 1000
 rows, with cumulative totals). Closing the dialog leaves the run active;
 **Cancel run** stops it. Unsaved request tabs are not run or modified.
-Each delivered attempt also appears in **Run records**, including failures and
+Each delivered attempt also appears in **History**, including failures and
 in-flight cancellation; **Inspect retained run** opens its immutable snapshot
 and Console. Runner results are not the deduplicated recent-request list.
 
@@ -1143,12 +1155,13 @@ into the tree and keeps them as `requests.json.migrated` and
 `collections.json.migrated`. If either cannot be read, nothing is moved and
 saving stays blocked until the file is repaired.
 
-**Run records** in the collection **⋯** menu opens the retained records for choosing an individual
-immutable attempt. **Send history** scopes the same view to a draft (or its source),
-and **Debug history** scopes it to capture provenance. **Recent requests** beneath
-these records retains the older `~/.vscroxy/history.json` meaning: sent requests
-deduplicated by method + URL, not an execution audit log. Opening one creates an
-unsent copy. **Session → Clear history** clears only this recent-request list.
+**History** in the collection **⋯** menu opens retained attempts. The request's
+**History / Examples** column and **⋯ → History** scope the same store by request
+identity or capture provenance, never by URL. Status and source filters narrow
+the results; **Run details…** opens notes, baseline and comparison actions.
+The old `~/.vscroxy/history.json` appears under **Legacy drafts**, read-only for
+one compatibility version. Opening an entry creates an unsent copy. New sends
+never append to or rewrite that legacy file.
 
 ### Regression cases
 
@@ -1176,26 +1189,9 @@ redirects. Missing required variables stop the case before sending. Rerunning is
 not a dry run: POST/PUT/DELETE and other requests can change server data, and the
 existing Requests/Runner session cookie jar still applies locally.
 
-**Case → Share regression…** makes a separate, editable preview. It replaces
-the origin with `{{base_url}}`, query values with `{{query_N}}` (supply URL-encoded
-values), non-content-negotiation header values with placeholders and the entire
-request body with `{{request_body}}`. It drops Host/wire-framing/proxy headers,
-URL userinfo/fragments, scripts, local environment values, session cookie-jar
-contents and responses. Explicit Cookie/Authorization headers become variables.
-The name/collection become generic. Paths, parameter names, Accept/Content-Type
-and assertion literals still need manual review; automatic replacement is **not**
-a guarantee of anonymization. Confirm review to copy/export; changing the preview
-requires review again. This affects only the shared copy, not the saved original.
-
-**Case / Session → Import regression…** accepts a versioned `vscroxy-regression`
-JSON file (up to 1 MiB), shows a review gate, then opens an **unsent** draft.
-No scripts, local form files or unknown schema members/versions are accepted.
-Supply your own Variables and verify the target before sending or saving.
-Portable exports currently support raw HTTP text bodies, not file-backed forms,
-WebSocket/SSE conversations, diagnostic archives or CLI/CI execution. Ordinary
-**Export requests**, HAR/session exports and cURL copies are **not** sanitized by
-this feature and may still contain credentials. Case files are written privately
-(0600 on Unix), atomically, but are not encrypted.
+Regression cases are ordinary collection requests with Checks. Share them with
+Postman export and the common redaction options above; import through the normal
+Postman importer. The separate `vscroxy-regression` sharing/import format is retired.
 
 ### cURL
 
@@ -1506,7 +1502,7 @@ Plain Enter in the URL input never sends. Dialogs own their shortcuts: sending,
 opening drafts and workspace commands cannot act through a modal. Local response
 editors keep their own Find commands. Cmd/Ctrl+1, 2 and 3 go to the sidebar's
 Live, Collections and Sessions groups and show what each last showed: the
-traffic, the open draft, the investigation. They never pick an individual
+traffic, the open draft, the historical session. They never pick an individual
 draft.
 
 The design takes **Edit and Repeat** from [Proxyman](https://docs.proxyman.com/advanced-features/edit-and-repeat)
@@ -1545,10 +1541,10 @@ URL. Capture remains the source for individual wire exchanges. Previews are
 bounded to 8 MiB and explicitly mark incomplete text. Sending is a real network
 operation and is not undone by returning to Capture or closing a tab.
 
-### Run records (experiment snapshots)
+### History (retained attempts)
 
-**Run records…** in Commands opens the same retained experiment store as
-**Run records** in the collection **⋯** menu. It retains independent snapshots of Send and Runner
+**History…** in Commands opens the same retained store as
+**History** in the collection **⋯** menu. It retains independent snapshots of Send and Runner
 attempts, including failures: authored draft, environment name, referenced-variable
 snapshot, Console, prepared request/final response, checks, summary and notes.
 Only referenced variables are retained, not the entire environment. Repeated
@@ -1568,18 +1564,17 @@ retain their full authored content within the same 32 MiB budget; an oversized
 checkpoint reports an error rather than silently discarding draft data. Corrupt
 or unsupported archives are left untouched and reported read-only. Notes and
 baseline persist; comparison layout and ignored-key choices are session-local.
-**Clear experiments…** asks before removing records; it leaves open drafts,
+**Clear History…** asks before removing records; it leaves open drafts,
 saved requests and captured traffic alone. This is a debugging notebook, not a
 complete wire archive: redirect hops remain in Capture and cookies/variables may
 have changed since a run.
 
-### Request debug history
+### Capture-linked History
 
-**Debug history** on a captured exchange or its editable draft opens the existing
+**History** on a captured exchange or its editable draft opens the same
 workbench scoped to that capture's linked open drafts and retained experiments.
 Links use stable identities, not method/URL or reusable capture IDs. The immutable
-source snapshot, draft identity and run links survive restart; reopening the
-original saved session restores **Inspect source capture**. If the source is no
+source snapshot, draft identity and run links survive restart. If the source is no
 longer in Capture, that button is disabled and the retained snapshot remains
 available. **Origin draft** returns to the exact originating tab without replacing
 unsent edits; **Open as draft** creates a new editable branch without sending.
@@ -1598,60 +1593,42 @@ and 256 KiB-per-body limit, with explicit incomplete-body diagnostics. They may
 contain credentials, private URLs and rule details; this is local, unencrypted
 debugging history, not sanitized evidence for sharing.
 
-### Investigations
+### Sessions
 
-The sidebar's **Sessions** group (Ctrl/Cmd+3) is where
-evidence outlives the traffic list. Each investigation has a name, one line of
-notes that expands when clicked, and a list of exchanges. **Add to investigation…**
-in a capture's inspector or row menu snapshots that exchange — bodies, headers,
-connection evidence and notes as they are now — into the investigation on
-screen, starting one when the board is empty. Later live traffic and edits never
-change a snapshot; the same flow can be inspected and added again as a separate
-exchange. Investigations live in `~/.vscroxy/investigations.json` (private,
-0600), up to 20 investigations of 64 exchanges and 32 MiB; adding past a limit
-reports it instead of dropping evidence.
+The sidebar's **Sessions** group (Ctrl/Cmd+3) replaces Investigations and the
+separate historical reader. **Save evidence to Sessions** in a capture's inspector,
+row menu or Commands snapshots that exchange, including retained stream messages.
+**Save capture to Sessions** keeps the entire live capture. Later capture changes
+never change these snapshots.
 
-Reading one exchange shows the request and the response beside each other when
-the pane is wide enough; below that a **Request / Response** switch shows one at
-a time, with the same Headers and Body reading as Capture.
-Credentials are masked until **Reveal credentials**; the export review shows the
-raw bytes, not the masked reading. A failed exchange layers its evidence:
-the recorded stage and raw error first, then **Possible causes · not confirmed**
-and **What to try** — never a single inferred diagnosis. A successful replay is
-one exchange in the list, not proof that the original problem is gone.
+**Open session…** accepts multiple session files, plus legacy evidence bundles,
+up to 48 MiB per input file. It stores private copies under `~/.vscroxy/sessions/`;
+the imported originals are never overwritten. Saved sessions stay in the sidebar
+after restart. Open sessions have separate tabs, marked **Historical · read-only
+payloads**. Closing a tab keeps its saved file. Opening, annotating and comparing
+never replace live traffic, change rules, run scripts or send requests.
 
-Choose two exchanges and **Compare two** to read their headers or bodies side by
-side. **Export evidence…** turns the chosen exchanges into one bundle (one source
-per exchange, so labels stay attached) and opens the review below; nothing is
-written before that confirmation. **⋯ → Delete investigation…** asks first.
+Choose an exchange and use **Pin**, a color, exchange notes or session notes;
+**Save annotations** persists the title, notes and color, while Pin saves immediately.
+Writes are ordered in the background and flushed on quit. Headers (including
+trailers), bodies, messages and connection diagnostics are read-only; sensitive
+header values are masked until **Reveal credentials**. Search matches URL, status,
+notes and errors literally, case-insensitively; it does not search payloads.
 
-### Historical sessions
+Choose **Use as left**, switch exchange or session tab, then **Compare with left**
+to reuse the header/body Diff reader. Numeric IDs reused by different sessions do
+not link exchanges. **Export session…** uses the common redaction review above.
+Local sessions remain private, unencrypted historical data, not verified current
+network or certificate state.
 
-**Historical sessions…** in the Capture sidebar's Investigations section, or
-**Commands → Historical sessions & evidence…**, opens historical session or evidence JSON files without replacing
-Capture, changing rules, running scripts or sending requests. Choose sources in the two panes, select exchanges across
-files and **Compare selected two** using the existing header/body comparison.
-Identical request IDs in different files remain independent. Search is a literal,
-case-insensitive match on URL, numeric status, exchange/source notes and errors;
-it does not scan headers, bodies or messages. Selections survive filtering and
-source changes, including hidden matches; **Clear selection** removes them.
-
-Add an evidence title and notes, then **Review selected evidence…**. The editable
-JSON contains only the selected exchanges and their associated messages, with
-source labels, binary payloads, trailers and incomplete-capture diagnostics.
-**This is raw evidence, not automatically sanitized:** credentials, cookies,
-URL secrets, bodies, base64 payloads and private notes may remain. Review all
-fields and manually remove secrets before sharing. Export requires explicit
-confirmation; any subsequent edit clears that confirmation. The atomic, private
-(0600) export preserves exactly the reviewed JSON and can be reopened here.
-
-Opening files is bounded to 8 sources / 48 MiB of canonical JSON in memory,
-16 MiB per file, 2,000 exchanges and 10,000 messages per source. Evidence export
-is limited to 64 exchanges / 4 MiB. Oversized inputs/selections report an error
-rather than silently dropping evidence. Files are read off the UI thread and
-never autosaved or reopened on launch; **Forget opened files** releases the
-reader's sources without deleting the originals. Imported evidence remains
-historical data, not verified current network or certificate state.
+On first launch, every investigation in `investigations.json` becomes a session
+file, preserving its title, notes, exchange payloads, binary data, trailers and
+diagnostics. Duplicate capture IDs receive unique session-local IDs, retaining
+the original ID as provenance. Migration is restartable, does not overwrite
+already-migrated annotations, and never changes the legacy file. An unreadable or
+incomplete migration is reported rather than marked complete; healthy sessions
+remain available. `experiments.json` continues to hold History, and `history.json`
+is retained read-only for one compatibility version.
 
 ## Next
 

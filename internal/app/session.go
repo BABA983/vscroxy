@@ -322,12 +322,17 @@ func queryPairs(raw string) []harNameValue {
 // same payload the live one did.
 type sessionFile struct {
 	Version int                        `json:"version"`
+	Title   string                     `json:"title,omitempty"`
+	Notes   string                     `json:"notes,omitempty"`
+	Created time.Time                  `json:"created,omitzero"`
 	Flows   []sessionFlow              `json:"flows"`
 	Frames  map[int][]sessionFrameData `json:"frames,omitempty"`
 }
 
 type sessionFlow struct {
 	ID              int               `json:"id"`
+	OriginalID      int               `json:"originalId,omitzero"`
+	Pinned          bool              `json:"pinned,omitzero"`
 	DebugKey        string            `json:"debugKey,omitempty"`
 	DebugRun        string            `json:"debugRun,omitempty"`
 	ReplayOf        int               `json:"replayOf,omitzero"`
@@ -403,16 +408,17 @@ func sessionFrom(flows []flow, frames map[int][]frame) sessionFile {
 		}
 		saved := sessionFlow{
 			ID: f.id, Method: f.method, Scheme: f.scheme, Host: f.host, Path: f.path, URL: f.url,
+			Pinned:   f.pinned,
 			DebugKey: f.debugKey, DebugRun: f.debugRun,
 			ReplayOf: f.replayOf,
-			Actions:  f.actions,
+			Actions:  slices.Clone(f.actions),
 			Status:   f.status, Bytes: f.bytes, Millis: f.millis,
 			ReqHeaders: f.reqHeaders, ResHeaders: f.resHeaders,
 			ReqBody: f.reqBody, ResBody: f.resBody,
 			ReqSize: f.reqSize, ResSize: f.resSize,
 			ReqError: f.reqError, ResError: f.resError,
-			ReqHeader: f.reqHeader, RespHeader: f.respHeader,
-			ReqTrailer: f.reqTrailer, ResTrailer: f.resTrailer,
+			ReqHeader: f.reqHeader.Clone(), RespHeader: f.respHeader.Clone(),
+			ReqTrailer: f.reqTrailer.Clone(), ResTrailer: f.resTrailer.Clone(),
 			ReqProto: f.conn.proto, ResProto: f.resProto,
 			ConnectionLog: f.conn.log, ConnectionError: f.conn.error, ConnectionStage: f.conn.errorStage,
 			At: f.at, Kind: f.kind, Color: f.color, Note: f.note,
@@ -486,6 +492,7 @@ func readSession(path string) ([]flow, map[int][]frame, error) {
 		}
 		flows = append(flows, flow{
 			id: f.ID, method: f.Method, scheme: f.Scheme, host: f.Host, path: f.Path, url: f.URL,
+			pinned:   f.Pinned,
 			debugKey: f.DebugKey, debugRun: f.DebugRun,
 			replayOf: f.ReplayOf,
 			actions:  f.Actions,
@@ -540,21 +547,16 @@ func (a *app) snapshot() ([]flow, map[int][]frame) {
 
 func (a *app) exportHAR() {
 	flows, _ := a.snapshot()
-	go func() {
-		path, err := mygo.Dialog.Save(mygo.SaveDialogOptions{
-			Title:       "Export HAR",
-			DefaultPath: "vscroxy.har",
-			Filters:     []mygo.FileFilter{{Name: "HAR", Extensions: []string{"har"}}},
-		})
-		if err != nil || path == "" {
-			return
-		}
-		if err := writeHAR(path, flows); err != nil {
-			a.setMessage("HAR: " + err.Error())
-			return
-		}
-		a.setMessage(fmt.Sprintf("Exported %d flows to %s", len(flows), path))
-	}()
+	a.reviewHAR(flows, "vscroxy.har")
+}
+
+func (a *app) reviewHAR(flows []flow, name string) {
+	data, err := json.Marshal(harFromFlows(flows))
+	if err != nil {
+		a.setMessage("HAR: " + err.Error())
+		return
+	}
+	a.reviewExport("Export HAR", name, data, nil)
 }
 
 // importHAR adds the flows of a HAR file another tool wrote to the table, so a
@@ -592,39 +594,44 @@ func (a *app) importHAR() {
 
 func (a *app) saveSession() {
 	flows, frames := a.snapshot()
-	go func() {
-		path, err := mygo.Dialog.Save(mygo.SaveDialogOptions{
-			Title:       "Save session",
-			DefaultPath: "vscroxy-session.json",
-			Filters:     []mygo.FileFilter{{Name: "Session", Extensions: []string{"json"}}},
-		})
-		if err != nil || path == "" {
-			return
-		}
-		if err := writeSession(path, flows, frames); err != nil {
-			a.setMessage("Session: " + err.Error())
-			return
-		}
-		a.setMessage(fmt.Sprintf("Saved %d flows to %s", len(flows), path))
-	}()
+	file := sessionFrom(flows, frames)
+	file.Title, file.Created = "Saved capture", time.Now()
+	a.keepSession(file)
 }
 
 func (a *app) openSession() {
 	go func() {
 		paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{
-			Title:   "Open session",
+			Title: "Open session", Multiple: true,
 			Filters: []mygo.FileFilter{{Name: "Session", Extensions: []string{"json"}}},
 		})
 		if err != nil || len(paths) == 0 {
 			return
 		}
-		flows, frames, err := readSession(paths[0])
-		if err != nil {
-			a.setMessage("Session: " + err.Error())
-			return
+		var files []sessionFile
+		for _, path := range paths {
+			bundle, err := ReadInvestigationFile(path)
+			if err != nil {
+				a.setMessage("Session: " + err.Error())
+				return
+			}
+			for _, source := range bundle.Sources {
+				file := source.Session
+				if file.Title == "" {
+					file.Title = source.Label
+				}
+				file.Notes = strings.TrimSpace(bundle.Notes + "\n" + source.Notes + "\n" + file.Notes)
+				if file.Created.IsZero() {
+					file.Created = time.Now()
+				}
+				files = append(files, file)
+			}
 		}
-		a.win.Update(func() { a.replaceSession(flows, frames) })
-		a.setMessage(fmt.Sprintf("Opened %d flows from %s", len(flows), paths[0]))
+		a.win.Update(func() {
+			for _, file := range files {
+				a.keepSession(file)
+			}
+		})
 	}()
 }
 
