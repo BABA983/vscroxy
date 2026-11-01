@@ -16,10 +16,16 @@ import (
 func (a *app) shell(c *ui.Context, t *ui.Theme) {
 	bar := c.TitleBar()
 	height := max(bar.Height, 44)
+	// bar.Left ends at the last window control's edge; the brand keeps a
+	// gap from it rather than touching the zoom button.
+	start := t.Space(3)
+	if bar.Left > 0 {
+		start += bar.Left
+	}
 	// The sides share what the centered status leaves.
 	ui.Grid(c).ColumnTracks(ui.Fr(1), ui.FitContent(), ui.Fr(1)).Height(height).AlignItems(ui.Center).
 		Background(uikit.Colors(t).Panel).Border(0, t.Border).BorderWidth(0, 0, 1, 0).DragWindow().Children(func() {
-		ui.Row(c).PaddingStart(max(bar.Left, t.Space(3))).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+		ui.Row(c).PaddingStart(start).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 			ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 				ui.Icon(c, brandIcon).Size(uikit.IconLarge, uikit.IconLarge).TextColor(t.Text)
 				ui.Text(c, "vscroxy").FontSize(uikit.TextBody).Bold().TextColor(t.Text)

@@ -96,7 +96,13 @@ func TestShellCentersStatusWithoutCoveringNativeControls(t *testing.T) {
 				brand, _ := tt.Find("vscroxy")
 				more, _ := tt.Find("More")
 				layout, _ := tt.Find("Side by side layout")
-				if brand.X < bar.Left || more.X+more.W > float32(width)-bar.Right || brand.X+brand.W > status.X || layout.X < status.X+status.W {
+				// The brand icon sits before its name: with controls on the
+				// left it needs a gap from them as well as from the name.
+				room := float32(0)
+				if bar.Left > 0 {
+					room = uikit.IconLarge + 16
+				}
+				if brand.X < bar.Left+room || more.X+more.W > float32(width)-bar.Right || brand.X+brand.W > status.X || layout.X < status.X+status.W {
 					t.Fatalf("shell overlaps controls at width=%d, scale=%g, titlebar=%v", width, scale, bar)
 				}
 			}
