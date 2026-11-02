@@ -159,6 +159,8 @@ type action struct {
 - 抓包数量和内存的上限、自动清理（路线图 M1），落盘文件有总量上限。
 - 基准测试：10 万条流量时列表滚动、筛选、搜索的耗时；作为回归指标放进 CI（只报告，不阻塞）。
 
+已完成：条数和内存上限（Settings → Capture → Memory）之外加了磁盘上限（1–20 GB，默认 5 GB），按溢出文件的大小计算，超出同样先删最旧的未 Pin 请求连同文件。基准测试在 `internal/app/perf_test.go`（`go test -run '^$' -bench . ./internal/app`）：10 万条时筛选、搜索、滚动一帧、一帧到达 50 条新请求。第一次测量发现侧栏每次构建都遍历全部流量（每个 App 一遍找可执行文件，Errors／Slow／Pinned 各一遍），滚动一帧 176 ms；改为在流量变化时计数后降到 33 ms。
+
 ### 3.12 发布
 
 - 用 `go tool mygo build` 打包三个平台；打 tag 时由 GitHub Actions 构建并发布到 GitHub Releases。

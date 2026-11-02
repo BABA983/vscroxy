@@ -61,6 +61,11 @@ type app struct {
 	visible []int
 	domains []domain
 	clients []domain
+	// clientApps are each app's executables, and triage the sidebar's
+	// Errors, Slow and Pinned counts: kept with domains and clients, so a
+	// build never walks every flow.
+	clientApps map[string][]capture.SSLApp
+	triage     struct{ errors, slow, pinned int }
 
 	// query is the search field: free host/path text and query syntax not
 	// yet turned into chips (query.go). queryProblem says why a token was
@@ -329,9 +334,9 @@ type app struct {
 	allowText, allowAppsText string
 	allowOpen, allowAppsOpen bool
 
-	// flowLimit and memoryLimit (MB) bound what the table keeps, zero for
-	// the defaults.
-	flowLimit, memoryLimit int
+	// flowLimit, memoryLimit (MB) and diskLimit (GB) bound what the table
+	// keeps, zero for the defaults.
+	flowLimit, memoryLimit, diskLimit int
 
 	// requests are the saved requests, the Compose direction's kept half,
 	// and history what Compose sent.
@@ -454,7 +459,7 @@ func newApp() *app {
 			a.saved, a.proxyPort, a.vault.scripts = saved, saved.ProxyPort, saved.VaultScripts
 			a.launchPort, a.launchKeyLog = saved.ProxyPort, saved.KeyLogPath
 			a.allowOn = saved.AllowList
-			a.flowLimit, a.memoryLimit = saved.FlowLimit, saved.MemoryLimit
+			a.flowLimit, a.memoryLimit, a.diskLimit = saved.FlowLimit, saved.MemoryLimit, saved.DiskLimit
 			a.guide = a.guide || saved.Guide
 			if saved.ProxyPort != 0 {
 				a.proxyPortInput = strconv.Itoa(saved.ProxyPort)
@@ -1008,13 +1013,23 @@ func (a *app) drain() {
 	}
 }
 
-// countClients counts the flows per app, the Clients section of the sidebar.
+// countClients counts the flows per app, the Clients section of the sidebar,
+// and finds each app's executables.
 func (a *app) countClients() {
 	counts := make(map[string]int, len(a.flows))
+	a.clientApps = make(map[string][]capture.SSLApp)
 	for _, f := range a.flows {
-		if f.process != "" {
-			counts[f.process]++
+		if f.process == "" {
+			continue
 		}
+		counts[f.process]++
+		apps := a.clientApps[f.process]
+		if filepath.IsAbs(f.processPath) && !slices.ContainsFunc(apps, func(app capture.SSLApp) bool { return app.Path == f.processPath }) {
+			a.clientApps[f.process] = append(apps, capture.SSLApp{Name: f.process, Path: f.processPath})
+		}
+	}
+	for _, apps := range a.clientApps {
+		slices.SortFunc(apps, func(x, y capture.SSLApp) int { return strings.Compare(x.Path, y.Path) })
 	}
 	a.clients = a.clients[:0]
 	for name, n := range counts {
@@ -1023,10 +1038,22 @@ func (a *app) countClients() {
 	slices.SortFunc(a.clients, func(x, y domain) int { return cmp.Compare(y.n, x.n) })
 }
 
+// countDomains counts the flows per host, the Domains section of the
+// sidebar, and the errors, slow and pinned ones above it.
 func (a *app) countDomains() {
 	counts := make(map[string]int, len(a.flows))
+	a.triage.errors, a.triage.slow, a.triage.pinned = 0, 0, 0
 	for _, f := range a.flows {
 		counts[f.host]++
+		if f.failed() {
+			a.triage.errors++
+		}
+		if f.millis >= slowMillis {
+			a.triage.slow++
+		}
+		if f.pinned {
+			a.triage.pinned++
+		}
 	}
 	a.domains = a.domains[:0]
 	for name, n := range counts {
@@ -1531,13 +1558,13 @@ func (a *app) sidebar(c *ui.Context) {
 					uikit.Meta(c, fmt.Sprint(len(a.flows))).FontFeatures("tnum")
 				})
 				uikit.SidebarItem(c, "errors", errorIcon, "Errors", a.sidebarChoice == "errors", !a.windowBehind).Children(func() {
-					uikit.Meta(c, fmt.Sprint(a.count(flow.failed))).FontFeatures("tnum")
+					uikit.Meta(c, fmt.Sprint(a.triage.errors)).FontFeatures("tnum")
 				})
 				uikit.SidebarItem(c, "slow", captureIcon, "Slow", a.sidebarChoice == "slow", !a.windowBehind).Children(func() {
-					uikit.Meta(c, fmt.Sprint(a.count(func(f flow) bool { return f.millis >= slowMillis }))).FontFeatures("tnum")
+					uikit.Meta(c, fmt.Sprint(a.triage.slow)).FontFeatures("tnum")
 				})
 				uikit.SidebarItem(c, "pinned", pinIcon, "Pinned", a.sidebarChoice == "pinned", !a.windowBehind).Children(func() {
-					uikit.Meta(c, fmt.Sprint(a.count(func(f flow) bool { return f.pinned }))).FontFeatures("tnum")
+					uikit.Meta(c, fmt.Sprint(a.triage.pinned)).FontFeatures("tnum")
 				})
 				uikit.SidebarItem(c, "diagnostics", diagnosticsIcon, "Diagnostics", a.sidebarChoice == "diagnostics", !a.windowBehind)
 			}))
@@ -1717,16 +1744,6 @@ func (a *app) showRunRecords() {
 	a.experiments.scope, a.experiments.draftKey = nil, ""
 	a.experiments.assetID, a.experiments.status, a.experiments.sourceFilter = "", "", ""
 	a.page = pageRuns
-}
-
-func (a *app) count(match func(flow) bool) int {
-	n := 0
-	for _, f := range a.flows {
-		if match(f) {
-			n++
-		}
-	}
-	return n
 }
 
 func (a *app) table(c *ui.Context) {
@@ -3234,6 +3251,7 @@ func (a *app) persistSettings() error {
 		AllowList:        a.allowOn,
 		FlowLimit:        a.flowLimit,
 		MemoryLimit:      a.memoryLimit,
+		DiskLimit:        a.diskLimit,
 	}
 	if sameSettings(now, a.saved) || time.Since(a.lastSave) < 400*time.Millisecond {
 		return nil
@@ -3278,6 +3296,7 @@ func (a *app) togglePin(f flow) {
 		} else {
 			a.done("Unpinned " + f.method + " " + f.path)
 		}
+		a.countDomains()
 		a.applyFilter()
 		return
 	}

@@ -226,14 +226,7 @@ func (a *app) appInspectionEnabled(path string) bool {
 // A sidebar name may represent more than one executable. Never silently give
 // all of them a permission intended for one, or infer a parent/Helper group.
 func (a *app) capturedApps(name string) []capture.SSLApp {
-	var apps []capture.SSLApp
-	for _, f := range a.flows {
-		if f.process == name && filepath.IsAbs(f.processPath) && !slices.ContainsFunc(apps, func(app capture.SSLApp) bool { return app.Path == f.processPath }) {
-			apps = append(apps, capture.SSLApp{Name: name, Path: f.processPath})
-		}
-	}
-	slices.SortFunc(apps, func(x, y capture.SSLApp) int { return strings.Compare(x.Path, y.Path) })
-	return apps
+	return a.clientApps[name]
 }
 
 func (a *app) setAppInspection(app capture.SSLApp, enabled bool) {

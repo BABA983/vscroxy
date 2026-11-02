@@ -568,11 +568,14 @@ to edit the lists, or its × to turn the allow list off.
 ## Memory limits
 
 **Settings → Capture → Memory** bounds what a long capture keeps: **Keep up
-to** a number of requests (1,000–50,000, default 5,000) and a **Memory limit**
-(128 MB–2 GB, default 512 MB) for their headers, kept bodies and messages.
-Past either, the oldest requests leave the table first, and their spill files
-are deleted from disk with them; pinned requests always stay. A change applies
-at once and is remembered. **In use** shows the current estimate and count.
+to** a number of requests (1,000–50,000, default 5,000), a **Memory limit**
+(128 MB–2 GB, default 512 MB) for their headers, kept bodies and messages, and
+a **Disk limit** (1–20 GB, default 5 GB) for the temporary files that hold
+bodies past 64 KB and long messages. Past any of them, the oldest requests
+leave the table first, and their spill files are deleted from disk with them;
+pinned requests always stay. A change applies at once and is remembered. **In
+use** shows the current memory estimate, the disk the spill files take, and
+the count. A body still streaming counts once its request is published.
 
 ## DNS mapping
 

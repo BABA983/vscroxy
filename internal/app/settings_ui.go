@@ -194,9 +194,13 @@ func (a *app) captureSettings(c *ui.Context, t *ui.Theme) {
 					return fmt.Sprintf("%d GB", mb/1024)
 				}
 				return fmt.Sprintf("%d MB", mb)
-			}).Description("Past either limit the oldest requests go first, with their files on disk; pinned ones stay.")
+			})
+			limit("Disk limit", &a.diskLimit, defaultDiskLimit, diskLimits, func(gb int) string {
+				return fmt.Sprintf("%d GB", gb)
+			}).Description("Bodies past 64 KB are kept in temporary files. Past any limit the oldest requests go first, with their files; pinned ones stay.")
 			ui.Field(c, "In use", func() {
-				uikit.Body(c, fmt.Sprintf("%s · %s %s", humanBytes(int(a.retainedTotal())), groupThousands(len(a.flows)), plural(len(a.flows), "request", "requests"))).FontFeatures("tnum")
+				memory, disk := a.retainedTotal()
+				uikit.Body(c, fmt.Sprintf("%s in memory · %s on disk · %s %s", humanBytes(int(memory)), humanBytes(int(disk)), groupThousands(len(a.flows)), plural(len(a.flows), "request", "requests"))).FontFeatures("tnum")
 			})
 		})
 	})

@@ -911,6 +911,20 @@ func TestRetentionDropsOldestUnpinnedFlowsPastEitherLimit(t *testing.T) {
 	if got := fmt.Sprint(ids()); got != "[1 4]" {
 		t.Fatalf("past the request limit kept %s, want the pinned 1 and the newest 4", got)
 	}
+	// Spilled bodies count against the disk limit at their full size, though
+	// memory holds only their heads: 400 MB each, 1 GB fits two of them.
+	spill := func(id int, pinned bool) flow {
+		return flow{id: id, method: "GET", host: "a.test", resFile: fmt.Sprintf("res-%d.bin", id), resSize: 400 << 20, pinned: pinned}
+	}
+	a.flows = []flow{spill(1, true), spill(2, false), spill(3, false)}
+	a.flowLimit, a.diskLimit = 0, 1
+	a.trimFlows()
+	if got := fmt.Sprint(ids()); got != "[1 3]" {
+		t.Fatalf("past the disk limit kept %s, want the pinned 1 and the newest 3", got)
+	}
+	a.flows = []flow{{id: 1, method: "GET", host: "a.test", path: "/1", resBody: body, pinned: true}, {id: 4, method: "GET", host: "a.test", path: "/4", resBody: body}}
+	a.flowLimit, a.diskLimit = 2, 0
+	a.applyFilter()
 
 	a.settingsOpen = true
 	tt.Frame()

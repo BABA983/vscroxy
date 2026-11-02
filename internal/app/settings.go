@@ -45,10 +45,11 @@ type settings struct {
 	// AllowList narrows the table to the hosts and apps in allow.txt and
 	// allow-apps.txt.
 	AllowList bool `json:"allowList,omitzero"`
-	// FlowLimit and MemoryLimit (MB) bound what the table keeps of a long
-	// capture; zero is the default.
+	// FlowLimit, MemoryLimit (MB) and DiskLimit (GB) bound what the table
+	// keeps of a long capture; zero is the default.
 	FlowLimit   int `json:"flowLimit,omitzero"`
 	MemoryLimit int `json:"memoryLimitMB,omitzero"`
+	DiskLimit   int `json:"diskLimitGB,omitzero"`
 }
 
 func (s settings) proxyAddr() (string, error) {
@@ -149,7 +150,7 @@ func sameSettings(x, y settings) bool {
 		x.VaultScripts == y.VaultScripts &&
 		x.Guide == y.Guide &&
 		x.AllowList == y.AllowList &&
-		x.FlowLimit == y.FlowLimit && x.MemoryLimit == y.MemoryLimit &&
+		x.FlowLimit == y.FlowLimit && x.MemoryLimit == y.MemoryLimit && x.DiskLimit == y.DiskLimit &&
 		slices.Equal(x.Columns.Order, y.Columns.Order) &&
 		maps.Equal(x.Columns.Widths, y.Columns.Widths)
 }

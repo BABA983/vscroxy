@@ -1,21 +1,23 @@
 package app
 
-// Retention: how much of a long capture the table keeps. Two limits, set in
-// Settings → Capture, bound it: a number of requests and the memory their
-// texts and messages take. Past either, the oldest requests go first; pinned
-// ones stay. A request that goes takes its spill files with it, so a capture
-// left running does not fill the disk either.
+// Retention: how much of a long capture the table keeps. Three limits, set in
+// Settings → Capture, bound it: a number of requests, the memory their texts
+// and messages take, and the disk their spill files take. Past any, the oldest
+// requests go first; pinned ones stay. A request that goes takes its spill
+// files with it, so a capture left running fills neither memory nor the disk.
 
 import "cmp"
 
 const (
 	defaultFlowLimit   = 5000
 	defaultMemoryLimit = 512 // MB
+	defaultDiskLimit   = 5   // GB
 )
 
 var (
 	flowLimits   = []int{1000, 5000, 20000, 50000}
 	memoryLimits = []int{128, 256, 512, 1024, 2048} // MB
+	diskLimits   = []int{1, 2, 5, 10, 20}           // GB
 )
 
 // retained estimates the memory a flow keeps: its texts, with the headers
@@ -26,7 +28,21 @@ func (f *flow) retained() int64 {
 	return int64(n + 512)
 }
 
-// messagesRetained estimates the memory a flow's kept messages take.
+// spilled is what a flow's bodies take in the capture's spill files: a
+// spilled body's file holds all of it.
+func (f *flow) spilled() int64 {
+	var n int64
+	if f.reqFile != "" {
+		n += int64(f.reqSize)
+	}
+	if f.resFile != "" {
+		n += int64(f.resSize)
+	}
+	return n
+}
+
+// messagesRetained estimates the memory a flow's kept messages take, and
+// messagesSpilled what their spill files take.
 func messagesRetained(ms []frame) int64 {
 	var n int64
 	for _, m := range ms {
@@ -35,36 +51,54 @@ func messagesRetained(ms []frame) int64 {
 	return n
 }
 
-// retainedTotal estimates the memory every kept flow takes.
-func (a *app) retainedTotal() int64 {
+func messagesSpilled(ms []frame) int64 {
 	var n int64
-	for i := range a.flows {
-		n += a.flows[i].retained() + messagesRetained(a.frames[a.flows[i].id])
+	for _, m := range ms {
+		if m.file != "" {
+			n += int64(m.kept)
+		}
 	}
 	return n
 }
 
+// retainedTotal estimates the memory every kept flow takes, and the disk
+// their spill files take.
+func (a *app) retainedTotal() (memory, disk int64) {
+	for i := range a.flows {
+		ms := a.frames[a.flows[i].id]
+		memory += a.flows[i].retained() + messagesRetained(ms)
+		disk += a.flows[i].spilled() + messagesSpilled(ms)
+	}
+	return memory, disk
+}
+
 // trimFlows drops the oldest unpinned flows while the table holds more than
-// either limit and deletes their spill files.
+// any limit and deletes their spill files.
 func (a *app) trimFlows() {
 	maxCount := cmp.Or(a.flowLimit, defaultFlowLimit)
-	maxBytes := int64(cmp.Or(a.memoryLimit, defaultMemoryLimit)) << 20
-	sizes := make([]int64, len(a.flows))
-	var total int64
+	maxMemory := int64(cmp.Or(a.memoryLimit, defaultMemoryLimit)) << 20
+	maxDisk := int64(cmp.Or(a.diskLimit, defaultDiskLimit)) << 30
+	memory, disk := make([]int64, len(a.flows)), make([]int64, len(a.flows))
+	var memoryTotal, diskTotal int64
 	for i := range a.flows {
-		sizes[i] = a.flows[i].retained() + messagesRetained(a.frames[a.flows[i].id])
-		total += sizes[i]
+		ms := a.frames[a.flows[i].id]
+		memory[i] = a.flows[i].retained() + messagesRetained(ms)
+		disk[i] = a.flows[i].spilled() + messagesSpilled(ms)
+		memoryTotal += memory[i]
+		diskTotal += disk[i]
 	}
 	count := len(a.flows)
-	if count <= maxCount && total <= maxBytes {
+	over := func() bool { return count > maxCount || memoryTotal > maxMemory || diskTotal > maxDisk }
+	if !over() {
 		return
 	}
 	var files []string
 	kept := a.flows[:0]
 	for i, f := range a.flows {
-		if (count > maxCount || total > maxBytes) && !f.pinned {
+		if over() && !f.pinned {
 			count--
-			total -= sizes[i]
+			memoryTotal -= memory[i]
+			diskTotal -= disk[i]
 			files = append(files, f.reqFile, f.resFile)
 			for _, m := range a.frames[f.id] {
 				files = append(files, m.file)
