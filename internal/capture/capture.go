@@ -32,12 +32,21 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/lqqyt2423/go-mitmproxy/proxy"
+	"github.com/sirupsen/logrus"
 
 	"github.com/baba983/vscroxy/internal/dnsmap"
 	"github.com/baba983/vscroxy/internal/hosts"
 	"github.com/baba983/vscroxy/internal/procinfo"
 	"github.com/baba983/vscroxy/internal/rules"
 )
+
+func init() {
+	// The engine's process-wide logger includes raw URLs both in fields and
+	// error text. Traffic belongs in Capture, never diagnostic stderr/files.
+	// Apply this at the engine boundary for desktop and headless callers alike;
+	// application slog diagnostics remain independent and enabled.
+	logrus.SetOutput(io.Discard)
+}
 
 const (
 	// maxBody bounds what one flow keeps in memory. A larger body is written
