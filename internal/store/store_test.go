@@ -2,6 +2,7 @@ package store
 
 import (
 	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"testing"
@@ -75,5 +76,28 @@ func TestWriteFileIsPrivateAndLeavesNoTemporaryFiles(t *testing.T) {
 	entries, _ := os.ReadDir(dir)
 	if data, _ := os.ReadFile(path); string(data) != "secret" || info.Mode().Perm() != 0o600 || len(entries) != 1 {
 		t.Fatalf("mode %v, %d entries", info.Mode().Perm(), len(entries))
+	}
+}
+
+func TestStreamFailureLeavesTheDestinationWhole(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "response.bin")
+	if err := WriteFile(path, []byte("original")); err != nil {
+		t.Fatal(err)
+	}
+	failed := errors.New("source stopped after a partial write")
+	err := Write(path, func(w io.Writer) error {
+		if _, err := io.WriteString(w, "partial"); err != nil {
+			return err
+		}
+		return failed
+	})
+	if !errors.Is(err, failed) {
+		t.Fatalf("stream error = %v", err)
+	}
+	got, err := os.ReadFile(path)
+	entries, listErr := os.ReadDir(dir)
+	if err != nil || string(got) != "original" || listErr != nil || len(entries) != 1 {
+		t.Fatalf("failed save changed destination or left a temporary file: %q, %v, %v", got, err, entries)
 	}
 }

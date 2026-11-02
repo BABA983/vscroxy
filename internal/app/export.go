@@ -5,11 +5,15 @@ import (
 	"encoding/json/jsontext"
 	"encoding/json/v2"
 	"errors"
+	"fmt"
+	"io"
 	"net/http"
+	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 
+	"github.com/baba983/vscroxy/internal/capture"
 	"github.com/baba983/vscroxy/internal/postman"
 	"github.com/baba983/vscroxy/internal/store"
 	"github.com/baba983/vscroxy/internal/uikit"
@@ -113,6 +117,70 @@ func (a *app) writeReviewedExport(job exportReview) {
 		return
 	}
 	a.done("Exported to " + path)
+}
+
+// saveResponseBody takes a snapshot before opening the dialog: another send
+// or selection must not change which response is saved. I/O stays off the UI.
+func (a *app) saveResponseBody(r capture.Flow) {
+	win := a.win
+	if win == nil {
+		return
+	}
+	go func() {
+		path, err := mygo.Dialog.Save(mygo.SaveDialogOptions{
+			Parent: win, Title: "Save response body", DefaultPath: "response.bin",
+		})
+		if err == nil && path == "" {
+			return
+		}
+		if err == nil {
+			err = writeResponseBody(path, r)
+		}
+		if err != nil {
+			a.fail("Save response body", err)
+			return
+		}
+		a.done("Saved response body to " + path + " · review before sharing")
+	}()
+}
+
+// writeResponseBody saves the retained, decoded payload, never its formatted
+// preview or warning text. An incomplete source cannot replace an old file.
+func writeResponseBody(path string, r capture.Flow) error {
+	if r.Status == 0 {
+		return errors.New("no response was received")
+	}
+	if r.ResponseBodyError != "" {
+		return fmt.Errorf("the response body is incomplete: %s", r.ResponseBodyError)
+	}
+	if r.ResponseBodyFile == "" {
+		if r.ResponseBodySize > 0 && r.ResponseBodySize != len(r.ResponseBody) {
+			return fmt.Errorf("incomplete response body: retained %d of %d bytes", len(r.ResponseBody), r.ResponseBodySize)
+		}
+		return store.WriteFile(path, []byte(r.ResponseBody))
+	}
+	file, err := os.Open(r.ResponseBodyFile)
+	if err != nil {
+		return fmt.Errorf("response body unavailable: %w", err)
+	}
+	defer file.Close()
+	info, err := file.Stat()
+	if err != nil {
+		return err
+	}
+	if !info.Mode().IsRegular() || r.ResponseBodySize > 0 && info.Size() != int64(r.ResponseBodySize) {
+		return errors.New("the retained response body file is incomplete or invalid")
+	}
+	return store.Write(path, func(w io.Writer) error {
+		n, err := io.Copy(w, io.LimitReader(file, info.Size()+1))
+		if err != nil {
+			return err
+		}
+		if n != info.Size() {
+			return errors.New("the response body file changed while saving")
+		}
+		return nil
+	})
 }
 
 const exportReplacement = "[REDACTED]"

@@ -11,6 +11,7 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"errors"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -24,6 +25,15 @@ var ErrChanged = errors.New("changed on disk since it was read; reload, then sav
 // a failure leaves the old file whole. The file is private (0600) and so is a
 // directory it creates (0700): app files can hold credentials.
 func WriteFile(path string, data []byte) error {
+	return Write(path, func(w io.Writer) error {
+		_, err := w.Write(data)
+		return err
+	})
+}
+
+// Write streams into a private temporary file and replaces path only after
+// write succeeds. A callback error leaves an existing destination untouched.
+func Write(path string, write func(io.Writer) error) error {
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return err
@@ -33,7 +43,7 @@ func WriteFile(path string, data []byte) error {
 		return err
 	}
 	defer os.Remove(f.Name())
-	if _, err = f.Write(data); err == nil {
+	if err = write(f); err == nil {
 		err = f.Sync()
 	}
 	if closeErr := f.Close(); err == nil {

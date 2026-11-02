@@ -230,6 +230,12 @@ func TestUISnapshots(t *testing.T) {
 		}, want: "Remove header 1"},
 		{name: "requests-body", setup: func(a *app) { draft(a); a.composeTab = composeTabBody }, want: "Request body"},
 		{name: "requests-response", setup: response, want: "201 Created"},
+		{name: "requests-response-hex", setup: func(a *app) {
+			response(a)
+			a.response.ResponseBody = "\x00\xff\r\n{{token}}"
+			a.responseView = 2
+		}, want: "Save response body"},
+		{name: "capture-response-save", act: click("Response pane options"), menu: "Save body…"},
 		{name: "requests-history", setup: snapshotHistory, want: "Rename request"},
 		// One request on screen; an unsaved draft waits in the sidebar and
 		// the edited saved one is marked in its collection.

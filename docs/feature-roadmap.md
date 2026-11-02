@@ -195,7 +195,7 @@
 | Cookies 管理 | 已有 | 只在内存里 | |
 | Cookies 可选持久化 | 缺少 | | M6 |
 | 响应：Pretty、Raw、Hex、预览、测试结果、耗时 | 已有 | | |
-| 响应保存到文件 | 缺少 | | M6 |
+| 响应保存到文件 | 已有 | Requests 保存按钮／Capture Body 菜单；原样保存已解压正文，流式读取完整落盘内容，拒绝不完整正文 | M6 |
 | 全局搜索（集合、请求、环境） | 缺少 | 并进命令面板 | M6 |
 | 代码生成：cURL、fetch、axios、Python、Go、HTTPie | 已有 | | |
 | 代码生成：Swift、Kotlin、Java、C#、PHP、Ruby、Rust | 缺少 | | M9 |
@@ -309,7 +309,7 @@ Cookie 和其他 API key 保留为变量 header，避免把多个认证机制硬
 - 脚本：沙箱库；`have.jsonSchema` 已完成（Ajv 6.12.6，无 UI 改动）。
 - Postman Collection v3 导入导出。
 - OAuth 1.0 等补充认证。
-- Cookies 持久化、响应保存到文件、全局搜索。
+- Cookies 持久化、全局搜索；响应保存到文件已完成（含二进制和完整落盘正文）。
 - UI 改版第 6 步（VS Code 主题）在 M3 到 M6 期间穿插完成。
 
 ### M7：接入和网络

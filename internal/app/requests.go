@@ -957,6 +957,12 @@ func (a *app) requestResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 					d.comparing = true
 				}
 			}
+			if d.response != nil && d.response.Status != 0 && !d.composeWaiting {
+				if uikit.IconButton(c, "Save response body", "Save body… · complete decoded bytes, without formatting or redaction", saveIcon).
+					Size(uikit.HeightControl, uikit.HeightControl).Clicked() {
+					a.saveResponseBody(*d.response)
+				}
+			}
 			if d.response != nil && !d.composeWaiting && outcome != "Network error" && d.sentSet {
 				if uikit.IconButton(c, "Save as example", "Keep this response with the request, as a Postman example", exampleIcon).
 					Size(uikit.HeightControl, uikit.HeightControl).Clicked() {

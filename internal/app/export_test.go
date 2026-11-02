@@ -2,17 +2,123 @@ package app
 
 import (
 	"bytes"
+	"compress/gzip"
 	"encoding/base64"
 	"encoding/json/v2"
 	"net/http"
+	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/baba983/vscroxy/internal/capture"
 	"github.com/baba983/vscroxy/internal/postman"
 	"github.com/baba983/vscroxy/internal/request"
 	"github.com/baba983/vscroxy/internal/uikit"
 	"github.com/egoist/mygo/ui"
 )
+
+func TestSaveResponseBodyPreservesBytesAndRejectsIncompleteSources(t *testing.T) {
+	dir := t.TempDir()
+	spill := filepath.Join(dir, "spill")
+	// Larger than the display and Send previews; includes invalid UTF-8,
+	// NUL, CRLF and literal variable syntax, none of which is display text.
+	large := bytes.Repeat([]byte("\x00\xff\r\n{{token}}"), 800_000)
+	if err := os.WriteFile(spill, large, 0600); err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		name string
+		res  capture.Flow
+		want []byte
+		fail bool
+	}{
+		{"binary", capture.Flow{Status: 200, ResponseBody: "\x00\xff\r\n{{token}}", ResponseBodySize: 13}, []byte("\x00\xff\r\n{{token}}"), false},
+		{"json without formatting", capture.Flow{Status: 400, ResponseBody: "{\"n\":1}\r\n"}, []byte("{\"n\":1}\r\n"), false},
+		{"empty", capture.Flow{Status: 204}, nil, false},
+		{"spilled", capture.Flow{Status: 200, ResponseBody: "preview only", ResponseBodyFile: spill, ResponseBodySize: len(large)}, large, false},
+		{"no response", capture.Flow{}, nil, true},
+		{"capture error", capture.Flow{Status: 200, ResponseBody: "partial", ResponseBodyError: "unexpected EOF"}, nil, true},
+		{"truncated memory", capture.Flow{Status: 200, ResponseBody: "part", ResponseBodySize: 8}, nil, true},
+		{"missing spill", capture.Flow{Status: 200, ResponseBody: "part", ResponseBodyFile: filepath.Join(dir, "gone"), ResponseBodySize: 8}, nil, true},
+		{"short spill", capture.Flow{Status: 200, ResponseBodyFile: spill, ResponseBodySize: len(large) + 1}, nil, true},
+		{"long spill", capture.Flow{Status: 200, ResponseBodyFile: spill, ResponseBodySize: len(large) - 1}, nil, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "response.bin")
+			before := []byte("previous file must survive a failed save")
+			if err := os.WriteFile(path, before, 0600); err != nil {
+				t.Fatal(err)
+			}
+			err := writeResponseBody(path, tc.res)
+			if (err != nil) != tc.fail {
+				t.Fatalf("save error = %v, want failure %v", err, tc.fail)
+			}
+			want := tc.want
+			if tc.fail {
+				want = before
+			}
+			got, err := os.ReadFile(path)
+			if err != nil || !bytes.Equal(got, want) {
+				t.Fatalf("saved bytes differ: got %d bytes, want %d; %v", len(got), len(want), err)
+			}
+		})
+	}
+	t.Run("decoded proxy response", func(t *testing.T) {
+		payload := []byte("\x00\xff\r\n{{not-expanded}}")
+		upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Encoding", "gzip")
+			z := gzip.NewWriter(w)
+			z.Write(payload)
+			z.Close()
+		}))
+		defer upstream.Close()
+		out := (request.Request{URL: upstream.URL}).Execute(t.Context(), requestProxy(t), request.Context{}, nil, nil)
+		if out.Err != nil || out.Response == nil {
+			t.Fatalf("send: %v", out.Err)
+		}
+		path := filepath.Join(t.TempDir(), "decoded.bin")
+		if err := writeResponseBody(path, *out.Response); err != nil {
+			t.Fatal(err)
+		}
+		data, err := os.ReadFile(path)
+		if err != nil || !bytes.Equal(data, payload) {
+			t.Fatalf("saved proxy response changed decoded bytes: %v", err)
+		}
+	})
+}
+
+func TestResponseBodySaveAvailability(t *testing.T) {
+	a := snapshotApp()
+	openDraft(a, a.flows[0])
+	tt := ui.NewTester(a.view, 960, 800)
+	if _, ok := tt.Find("Save response body"); ok {
+		t.Fatal("save is available without a response")
+	}
+	d := a.requestDocument
+	d.response = &capture.Flow{Status: 200, ResponseBody: `{"n":1}`}
+	for _, format := range []int{0, 1, 2} {
+		d.responseView = format
+		tt.Frame()
+		if _, ok := tt.Find("Save response body"); !ok {
+			t.Fatalf("save is missing in response format %d", format)
+		}
+	}
+	d.composeWaiting = true
+	tt.Frame()
+	if _, ok := tt.Find("Save response body"); ok {
+		t.Fatal("save is available while a response is pending")
+	}
+	a = snapshotApp()
+	tt = ui.NewTester(a.view, 1280, 800)
+	if err := tt.Click("Response pane options"); err != nil {
+		t.Fatal(err)
+	}
+	if !tt.HasText("Save body…") {
+		t.Fatal("capture response body menu has no save action")
+	}
+}
 
 type exportFixture struct {
 	name string

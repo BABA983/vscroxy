@@ -12,6 +12,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/baba983/vscroxy/internal/capture"
 	"github.com/baba983/vscroxy/internal/request"
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/editor"
@@ -314,6 +315,13 @@ func (a *app) paneTabs(c *ui.Context, t *ui.Theme, side string, selected *int, l
 					}),
 					do("body.copy", "Copy shown body", func() { a.copyPaneBody(c, bodySide) }),
 				})
+				if bodySide == 0 {
+					f, ok := a.current()
+					actionMenu(m, []action{do("body.save", "Save body…", func() {
+						a.saveResponseBody(capture.Flow{Status: f.status, ResponseBody: f.resBody,
+							ResponseBodyFile: f.resFile, ResponseBodySize: f.resSize, ResponseBodyError: f.resError})
+					}).when(ok && f.status != 0, "No response was received")})
+				}
 			}).Padding(0, t.Space(1))
 		}
 	})

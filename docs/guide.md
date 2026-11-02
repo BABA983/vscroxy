@@ -1044,6 +1044,17 @@ it came from and that the source capture is unchanged. The exchange also lands
 in Capture. The inline response preview is limited to 8 MiB; Capture retains the
 complete body.
 
+**Save body…** (the save icon beside a Requests response, or **Body → … →
+Save body…** in Capture) saves the retained, decoded body bytes without Pretty
+formatting, Hex encoding, headers or redaction. Binary and empty bodies are
+supported. A large captured body is streamed from its retained file, not from
+the truncated display preview. An incomplete body, missing retained file or
+size mismatch fails without replacing an existing destination. If a Requests
+response exceeds its 8 MiB retained preview, save the complete body from
+Capture instead. Canceling the native save dialog writes nothing. The selected
+response is fixed when saving starts, even if another request is sent meanwhile.
+Saved bodies may contain credentials; review them before sharing.
+
 **Cookies…** manages the in-memory cookie jar shared by Requests and Runner.
 Set-Cookie, redirects, domain/path restrictions, expiry and Secure are respected.
 Cookies can be inspected, added, deleted or cleared; they are not persisted and
