@@ -122,6 +122,8 @@ mutation on transport timeout: its outcome may be unknown.
 | Action | Parameters / result |
 | --- | --- |
 | `status` | Proxy, recording, active environment and counts |
+| `system-proxy.get` | Poll OS-read snapshot; optional `refresh` starts a new read-only check |
+| `system-proxy.set-enabled` | Required boolean `enabled`; returns `accepted:true` and snapshot, then poll `system-proxy.get` |
 | `collections.list` | Runnable saved collection/folder names |
 | `requests.list` | Optional `collection` (descendants included; explicit empty selects unfiled requests) |
 | `requests.get` | Saved `id`; optional `details` |
@@ -159,8 +161,37 @@ names. This is field redaction, not secret detection. Explicit `details:true`
 discloses raw saved requests or live raw headers/URL and binary-safe base64 body
 previews (at most 64 KiB per side). Previews never open spill files and report
 truncation; they are not a full response download. Session tabs are not queried.
-System-proxy changes remain separate roadmap work; the API deliberately has no
-arbitrary filesystem action.
+The API deliberately has no arbitrary filesystem action.
+
+### Control the system proxy
+
+`system-proxy.set-enabled` requires `confirm:true` (CLI `--confirm`, or MCP
+startup `--allow-write`). It uses the existing desktop proxy session: enable
+requires a live capture listener; disable restores the owned previous settings,
+or follows the desktop's explicit Disable behavior without ownership. This may
+change proxy settings used by other applications and may prompt for OS permission.
+
+```sh copy Copy System Proxy Control
+bin/vscroxy-cli control --file "$HOME/.vscroxy/control.json" \
+  --params '{"enabled":true}' --confirm system-proxy.set-enabled
+bin/vscroxy-cli control --file "$HOME/.vscroxy/control.json" system-proxy.get
+```
+
+Accepted is **not verified success**. Poll until `checking` and `applying` are
+false, then inspect `checked`, `status` and `problem`. The status is `unknown`,
+`off`, `matches`, `mismatch` or `automatic`; `matches` means the OS configuration
+points at this app, not that every application obeys it. While an operation is
+pending, the snapshot may describe the previous completed read. Changed capture
+addresses invalidate old verdicts. Raw OS configurations, PAC URLs and helper
+errors are not disclosed.
+
+The first `system-proxy.get` starts a read-only OS check if none has completed.
+Later gets poll the cached result; `refresh:true` requests a fresh check and
+coalesces with any pending operation. Queries never run recovery writes. Changes
+are rejected while another check/write or Quit is active. Accepted OS operations
+continue independently of client cancellation; there is no remote cancellation
+of a permission prompt. The existing ownership/recovery/normal-Quit restoration
+path remains responsible for cleanup. No arbitrary proxy target is accepted.
 
 ### Export captured HTTP traffic
 
@@ -236,8 +267,8 @@ paths (replace both placeholders; shell `$HOME` expansion is not assumed):
 }
 ```
 
-The default catalog contains nine read-only tools, named like desktop actions:
-`status`, `collections.list`, `requests.list`, `requests.get`, `flows.list`,
+The default catalog contains ten read-only tools, named like desktop actions:
+`status`, `system-proxy.get`, `collections.list`, `requests.list`, `requests.get`, `flows.list`,
 `flows.get`, `flows.export-har`, `rules.list`, and `runs.get`. Every tool has a typed, closed input
 schema and an explicit read-only/destructive/open-world annotation. Results are
 JSON structured content with a JSON text fallback. Application rejections set
@@ -246,7 +277,8 @@ MCP `isError`; a run job's acceptance still requires polling its final report.
 Two **independent startup capabilities**, never tool parameters, widen access:
 
 - `--allow-write` registers `request.run`, `collection.run`, `runs.cancel`,
-  `capture.recording`, `rules.set-enabled`, and `rules.import`. It explicitly authorizes those
+  `capture.recording`, `rules.set-enabled`, `rules.import`, and
+  `system-proxy.set-enabled`. It explicitly authorizes those
   tools to supply the desktop's confirmation. Request execution can affect real
   external systems; enable it only for a trusted client and trusted collections.
 - `--allow-sensitive` permits an explicitly requested `details:true` on

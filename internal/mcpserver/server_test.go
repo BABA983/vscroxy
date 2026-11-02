@@ -18,8 +18,8 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-var queries = []string{"collections.list", "flows.export-har", "flows.get", "flows.list", "requests.get", "requests.list", "rules.list", "runs.get", "status"}
-var writes = []string{"capture.recording", "collection.run", "request.run", "rules.import", "rules.set-enabled", "runs.cancel"}
+var queries = []string{"collections.list", "flows.export-har", "flows.get", "flows.list", "requests.get", "requests.list", "rules.list", "runs.get", "status", "system-proxy.get"}
+var writes = []string{"capture.recording", "collection.run", "request.run", "rules.import", "rules.set-enabled", "runs.cancel", "system-proxy.set-enabled"}
 
 func endpoint(t *testing.T, dispatch control.Dispatch) string {
 	t.Helper()
@@ -198,6 +198,8 @@ func TestQueryJSONValues(t *testing.T) {
 		err  bool
 	}{
 		{"status", nil, `{"recording":true}`, false},
+		{"system-proxy.get", nil, `{"action":"system-proxy.get","params":{}}`, false},
+		{"system-proxy.get", map[string]any{"refresh": true}, `{"action":"system-proxy.get","params":{"refresh":true}}`, false},
 		{"collections.list", nil, `["sample"]`, false},
 		{"requests.list", nil, `{"action":"requests.list","params":{}}`, false},
 		{"requests.list", map[string]any{"collection": ""}, `{"action":"requests.list","params":{"collection":""}}`, false},
@@ -365,6 +367,7 @@ func TestMutationsAndConfirmation(t *testing.T) {
 		{"runs.cancel", map[string]any{"id": "job-id"}, `{"action":"runs.cancel","params":{"id":"job-id","confirm":true}}`},
 		{"rules.set-enabled", map[string]any{"index": 0, "key": "current-fingerprint", "enabled": false}, `{"action":"rules.set-enabled","params":{"index":0,"key":"current-fingerprint","enabled":false,"confirm":true}}`},
 		{"rules.import", map[string]any{"document": `[{"type":"block","match":"example.com"}]`}, `{"action":"rules.import","params":{"document":"[{\"type\":\"block\",\"match\":\"example.com\"}]","confirm":true}}`},
+		{"system-proxy.set-enabled", map[string]any{"enabled": false}, `{"action":"system-proxy.set-enabled","params":{"enabled":false,"confirm":true}}`},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			result := call(t, cs, tc.name, tc.args)
@@ -429,6 +432,11 @@ func TestInvalidArgumentsNeverReachDesktop(t *testing.T) {
 		{"rules.import", map[string]any{"document": "[]", "confirm": true}},
 		{"capture.recording", map[string]any{}},
 		{"capture.recording", map[string]any{"enabled": false, "confirm": true}},
+		{"system-proxy.get", map[string]any{"refresh": "true"}},
+		{"system-proxy.get", map[string]any{"target": "127.0.0.1:8888"}},
+		{"system-proxy.set-enabled", map[string]any{}},
+		{"system-proxy.set-enabled", map[string]any{"enabled": nil}},
+		{"system-proxy.set-enabled", map[string]any{"enabled": true, "target": "proxy.example"}},
 		{"status", map[string]any{"action": "request.run"}},
 		{"requests.list", map[string]any{"collection": nil}},
 		{"requests.get", map[string]any{"id": "x", "path": "/private/file"}},

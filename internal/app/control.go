@@ -210,6 +210,8 @@ func (a *app) controlValue(command control.Command) (any, error) {
 		return map[string]any{"items": rows, "nextBefore": 0}, nil
 	case "flows.export-har":
 		return a.controlHAR(command)
+	case "system-proxy.get", "system-proxy.set-enabled":
+		return a.controlSystemProxy(command)
 	case "capture.recording":
 		p, err := controlParams[struct {
 			Enabled *bool `json:"enabled"`

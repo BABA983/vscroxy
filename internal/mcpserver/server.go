@@ -37,6 +37,7 @@ func New(controlFile string, options Options) (*mcp.Server, error) {
 	})
 	query := &mcp.ToolAnnotations{ReadOnlyHint: true, DestructiveHint: new(false), OpenWorldHint: new(false), IdempotentHint: true}
 	register[emptyParams](server, client, options, "status", "Read desktop status.", query)
+	register[systemProxyGetParams](server, client, options, "system-proxy.get", "Poll the last OS system-proxy read: checked/checking/applying, status, capture target and controlled problem. The first call or refresh=true starts a read-only OS check; never restores or writes settings. A pending operation's status may predate its completion. Does not prove all apps use this proxy.", query)
 	register[emptyParams](server, client, options, "collections.list", "List saved collections.", query)
 	register[requestsListParams](server, client, options, "requests.list", "List saved request summaries, optionally filtered by collection.", query)
 	register[requestGetParams](server, client, options, "requests.get", "Read a saved request summary. details=true exposes the raw saved request, possibly including credentials, and requires --allow-sensitive.", query)
@@ -51,7 +52,8 @@ func New(controlFile string, options Options) (*mcp.Server, error) {
 		register[requestRunParams](server, client, options, "request.run", "Run a saved request against real external endpoints; may have destructive side effects. Immediately returns a job ID; poll runs.get. Iterations default to 1 (1–1000); total attempts are bounded to 1000. Variables are not persisted.", run)
 		register[collectionRunParams](server, client, options, "collection.run", "Run a saved collection against real external endpoints; may have destructive side effects. Immediately returns a job ID; poll runs.get. Iterations default to 1 (1–1000); total attempts are bounded to 1000. Variables are not persisted.", run)
 		register[idParams](server, client, options, "runs.cancel", "Cancel a desktop run. Already completed external side effects cannot be undone.", local)
-		register[recordingParams](server, client, options, "capture.recording", "Enable or disable desktop capture recording.", local)
+		register[enabledParams](server, client, options, "capture.recording", "Enable or disable desktop capture recording.", local)
+		register[enabledParams](server, client, options, "system-proxy.set-enabled", "Attempt to enable or disable this computer's system proxy using the desktop's owned session and restoration path. Changes OS settings for other applications and may prompt for authorization. Returns accepted, not verified success; poll system-proxy.get until checking/applying are false and inspect status/problem. Enabling requires live capture; no arbitrary proxy target is accepted. Canceling this call does not undo an accepted OS operation.", local)
 		register[ruleEnabledParams](server, client, options, "rules.set-enabled", "Enable or disable a rule. Supply both index and the current fingerprint key from rules.list to prevent stale edits.", local)
 		register[rulesImportParams](server, client, options, "rules.import", "Append 1–100 rules from a native rules-file JSON array supplied as document text. One entry creates a rule. The whole batch is validated and saved before applying; existing rules and editor drafts are preserved. Not idempotent: do not blindly retry. Trusted rules only: Map Local can serve local files and Map Remote redirects future traffic.", &mcp.ToolAnnotations{DestructiveHint: new(true), OpenWorldHint: new(false)})
 	}
@@ -59,6 +61,10 @@ func New(controlFile string, options Options) (*mcp.Server, error) {
 }
 
 type emptyParams struct{}
+
+type systemProxyGetParams struct {
+	Refresh bool `json:"refresh,omitzero" jsonschema:"Read current OS settings again; false polls the last check"`
+}
 
 type requestsListParams struct {
 	Collection *string `json:"collection,omitzero" jsonschema:"Optional saved collection filter; empty string selects root requests. Not a filesystem path"`
@@ -102,8 +108,8 @@ type collectionRunParams struct {
 	Bail        bool   `json:"bail,omitzero" jsonschema:"Stop after the first failed attempt"`
 }
 
-type recordingParams struct {
-	Enabled bool `json:"enabled" jsonschema:"Whether desktop capture should record traffic"`
+type enabledParams struct {
+	Enabled bool `json:"enabled" jsonschema:"Desired enabled state"`
 }
 
 type ruleEnabledParams struct {
