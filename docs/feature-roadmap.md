@@ -112,7 +112,7 @@
 | 规则匹配：通配符、正则、method、App、header | 已有 | URL 可选包含／通配符／正则；App 用和忽略名单相同的模式；header 支持存在、等于、包含、正则 | M4 |
 | 规则测试（输入 URL 看命中哪条） | 已有 | | |
 | Breakpoint：请求、响应 | 已有 | | |
-| Breakpoint 模板（保存常用报文一键套用） | 缺少 | | M4 |
+| Breakpoint 模板（保存常用报文一键套用） | 已有 | 断点对话框里 Save as template… 和模板菜单；按请求／响应分开，不改暂停时的 URL | M4 |
 | Map Local：文件 | 已有 | | |
 | Map Local：在 app 内直接编辑响应 | 已有 | Tools 规则编辑器里的 Body，保存写回文件；没有文件时建在 mocks 里；二进制和超过 8 MiB 的除外 | M4 |
 | Map Local：目录（按路径找文件，找不到回源） | 已有 | 可去掉路径前缀，/ 结尾读 index.html | M4 |
@@ -283,7 +283,7 @@ Cookie 和其他 API key 保留为变量 header，避免把多个认证机制硬
 - Map Local：app 内编辑响应、目录映射。（已完成）
 - Map Remote：端口、路径、Host header、WebSocket。（已完成，含原主机不可达时的 HTTPS 映射）
 - Block：隐藏或拦截、断开连接、按 App。（已完成）
-- Breakpoint 模板。
+- Breakpoint 模板。（已完成）
 - 规则脚本：`pm` 风格 API、编辑器、异步请求、共享状态、环境变量、内置库、代码片段；`script.js` 迁移。
 - Example → Mock 规则、集合 → Scenario。
 - 规则和设置的导入导出。

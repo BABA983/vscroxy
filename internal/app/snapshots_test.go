@@ -414,6 +414,16 @@ func TestUISnapshots(t *testing.T) {
 			snapshotBreakpoint(a)
 			a.bp.Phase, a.bp.BodyReadOnly, a.bpStatus = capture.PhaseResponse, true, "503"
 		}, want: "Breakpoint · response paused", short: true},
+		{name: "dialog-breakpoint-templates", setup: func(a *app) {
+			snapshotBreakpoint(a)
+			body := `{"name":"Admin project","owner":"admin"}`
+			a.bpTemplates = []bpTemplate{{Name: "Admin project", Phase: "request", Method: "POST", Headers: "Authorization: Bearer test-admin\nContent-Type: application/json", Body: &body}}
+			a.applyBreakTemplate(a.bpTemplates[0])
+		}, want: "Template: Admin project", short: true},
+		{name: "dialog-breakpoint-template-save", setup: func(a *app) {
+			snapshotBreakpoint(a)
+			a.bpSaving, a.bpName = true, "Create project"
+		}, want: "Cancel", short: true},
 		{name: "dialog-vault", setup: func(a *app) {
 			a.vault.open, a.vault.loaded = true, true
 			a.vault.rows = []vaultRow{{name: "demo_token", value: "fake-snapshot-token", domains: "api.example.com"}}

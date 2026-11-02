@@ -379,6 +379,15 @@ Map Remote rule changed its URL. An invalid regular
 expression is refused when the rule is saved. `disabled: true` turns a rule
 off.
 
+**Breakpoint templates** keep a message you edit often. At a pause, edit it and
+choose **Save as template…**; at a later pause of the same phase, pick it from
+the template menu next to it to fill the dialog, then continue as usual. A
+request template replaces the method, headers and body; a response template
+the status, headers and body. Neither changes the paused URL. Saving under an
+existing name replaces that template, and the menu's **Delete** removes one.
+They are kept in `~/.vscroxy/breakpoint-templates.json`. A body the dialog
+cannot edit as text is kept as it is.
+
 **Scenario** groups Map Local, Map Remote and Block rules into named cases such
 as an empty account, server error or alternate upstream. Save a rule with a
 scenario name, then choose it in the scenario menu above the rule list. At most

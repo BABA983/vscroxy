@@ -359,6 +359,77 @@ func TestBreakpointDialogValidatesEditsAndKeepsOriginalActionReachable(t *testin
 	}
 }
 
+func TestBreakpointTemplatesSaveAMessageAndApplyItAtALaterPauseOfThatPhase(t *testing.T) {
+	a := workspaceApp()
+	a.bpTemplatesPath = filepath.Join(t.TempDir(), "breakpoint-templates.json")
+	pause := func(bp capture.Breakpoint) {
+		a.bp = &bp
+		a.bpOpen, a.bpMethod, a.bpURL, a.bpBody = true, bp.Method, bp.URL, bp.Body
+		a.bpHeaders = request.HeaderBlock(bp.Header)
+		a.bpTemplate, a.bpSaving = "", false
+	}
+	pause(capture.Breakpoint{ID: 1, Method: "POST", URL: "https://api.example.com/login", Body: `{"user":"a"}`})
+	a.bpMethod, a.bpHeaders, a.bpBody = "PUT", "Authorization: Bearer test\nX-Debug: 1", `{"user":"admin"}`
+	tt := ui.NewTester(a.view, 960, 600)
+	if tt.HasText("No template") {
+		t.Fatal("template menu shown with nothing saved")
+	}
+	if err := tt.Click("Save as template…"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.Click("Template name"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Type("Admin login")
+	if err := tt.Click("Save"); err != nil {
+		t.Fatal(err)
+	}
+	// A fresh launch reads the template back from disk.
+	a.bpTemplates = nil
+	a.reloadConfig()
+	if len(a.bpTemplates) != 1 || a.bpTemplates[0].Name != "Admin login" {
+		t.Fatalf("templates on disk = %+v", a.bpTemplates)
+	}
+	// A response template must not be offered at a request pause.
+	a.bpTemplates = append(a.bpTemplates, bpTemplate{Name: "Outage", Phase: "response", Status: 503})
+
+	pause(capture.Breakpoint{ID: 2, Method: "GET", URL: "https://api.example.com/other", Body: "x", Header: http.Header{"Accept": {"*/*"}}})
+	tt.Frame()
+	if err := tt.Click("Breakpoint template"); err != nil {
+		t.Fatal(err)
+	}
+	if _, found := tt.Find("Outage"); found {
+		t.Fatal("response template offered at a request pause")
+	}
+	if err := chooseMenu(tt, "Admin login"); err != nil {
+		t.Fatal(err)
+	}
+	if a.bpMethod != "PUT" || a.bpBody != `{"user":"admin"}` || a.bpHeaders != "Authorization: Bearer test\nX-Debug: 1" {
+		t.Fatalf("applied = %q %q %q", a.bpMethod, a.bpHeaders, a.bpBody)
+	}
+	if a.bpURL != "https://api.example.com/other" {
+		t.Fatalf("template replaced the paused URL: %q", a.bpURL)
+	}
+	if a.bp == nil {
+		t.Fatal("applying a template continued the request")
+	}
+	if !tt.HasText("Template: Admin login") {
+		t.Fatalf("applied template not named: %q", tt.Texts())
+	}
+
+	if err := tt.Click("Breakpoint template"); err != nil {
+		t.Fatal(err)
+	}
+	if err := chooseMenu(tt, "Delete", "Admin login"); err != nil {
+		t.Fatal(err)
+	}
+	a.bpTemplates = nil
+	a.reloadConfig()
+	if len(a.bpTemplates) != 1 || a.bpTemplates[0].Name != "Outage" {
+		t.Fatalf("after delete = %+v", a.bpTemplates)
+	}
+}
+
 func TestConnectionFailureCanBeFoundAndCopiedWithoutInventingAnHTTPError(t *testing.T) {
 	a := workspaceApp()
 	a.flows = []flow{{id: 10, method: "CONNECT", scheme: "https", host: "api.example.com:443", url: "https://api.example.com:443", status: 200, kind: "connect", conn: conn{error: "remote error: tls: unknown certificate authority", errorStage: "TLS client", log: "CONNECT succeeded\n[TLS client] FAILED: remote error: tls: unknown certificate authority\n"}}}

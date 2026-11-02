@@ -404,6 +404,14 @@ type app struct {
 	bpBody    string
 	bpHeaders string
 	bpAbort   string
+	// The templates saved at breakpoints; bpTemplate names the one applied
+	// at this pause, bpSaving shows the name field, bpNote what went wrong.
+	bpTemplatesPath string
+	bpTemplates     []bpTemplate
+	bpTemplate      string
+	bpSaving        bool
+	bpName          string
+	bpNote          string
 
 	// mu guards what the capture goroutine hands to the view: the flows not
 	// yet drained, and a startup error.
@@ -455,6 +463,7 @@ func newApp() *app {
 		}
 		a.caPath = filepath.Join(home, ".mitmproxy", "mitmproxy-ca-cert.pem")
 		a.rulesPath = filepath.Join(home, ".vscroxy", "rules.json")
+		a.bpTemplatesPath = filepath.Join(home, ".vscroxy", "breakpoint-templates.json")
 		a.sslPath = filepath.Join(home, ".vscroxy", "ssl.json")
 		a.library.root = filepath.Join(home, ".vscroxy", "collections")
 		a.ignorePath = filepath.Join(home, ".vscroxy", "ignore.txt")
@@ -616,6 +625,13 @@ func (a *app) reloadConfig() {
 			if a.srv != nil {
 				a.srv.SetRules(rules)
 			}
+		}
+	}
+	if a.bpTemplatesPath != "" {
+		if list, err := a.readBreakTemplates(); err != nil {
+			unreadable(a.bpTemplatesPath, err)
+		} else {
+			a.bpTemplates = list
 		}
 	}
 	if a.scriptPath == "" {
@@ -906,6 +922,7 @@ func (a *app) drain() {
 			a.bpBody = next.Body
 			a.bpHeaders = request.HeaderBlock(next.Header)
 			a.bpAbort = "502 Bad Gateway"
+			a.bpTemplate, a.bpSaving, a.bpNote = "", false, ""
 		}
 	}
 	if pending = a.record(pending); len(pending) == 0 {
@@ -1497,7 +1514,14 @@ func (a *app) breakpointModal(c *ui.Context, t *ui.Theme) {
 			a.mu.Lock()
 			waiting := len(a.bps) + 1
 			a.mu.Unlock()
-			uikit.Meta(c, fmt.Sprintf("%d paused · changes apply only to this exchange", waiting))
+			validation := a.breakpointError()
+			ui.Row(c).FillWidth().Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+				uikit.Meta(c, fmt.Sprintf("%d paused · changes apply only to this exchange", waiting)).Grow(1).MinWidth(0)
+				a.breakTemplates(c, t, validation == "")
+			})
+			if a.bpNote != "" {
+				uikit.Hint(c, a.bpNote)
+			}
 			ui.Scroll(c).Grow(1).MinHeight(0).FillWidth().Gap(t.Space(2)).Children(func() {
 				if a.bp.Phase == capture.PhaseResponse {
 					ui.Row(c).Gap(t.Space(2)).Children(func() {
@@ -1519,7 +1543,6 @@ func (a *app) breakpointModal(c *ui.Context, t *ui.Theme) {
 					uikit.Meta(c, "Body edits use decoded bytes; encoding, digest and length headers are recalculated or removed.")
 				}
 			})
-			validation := a.breakpointError()
 			if validation != "" {
 				ui.Text(c, validation).FontSize(uikit.TextBody).TextColor(t.Danger)
 			}
