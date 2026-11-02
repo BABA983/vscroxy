@@ -55,6 +55,7 @@ type runnerRow struct {
 type runnerEvent struct {
 	row          runnerRow
 	before, vars map[string]string
+	current      map[string]string
 	writes       []request.Write
 	record       experimentRecord
 }
@@ -130,6 +131,7 @@ func (a *app) startRunner() {
 	events := make(chan runnerEvent, 16)
 	r.events = events
 	vars, stop, srv, env, data := a.activeVars(), r.stopOnFailure, a.srv, r.environment, r.data
+	current := maps.Clone(a.activeEnvironment().Current)
 	jar := a.requestCookies()
 	go func() {
 		defer close(events)
@@ -169,7 +171,7 @@ func (a *app) startRunner() {
 				}
 				record := snapshotExperiment(0, req, env, got)
 				record.RunKey = runKey
-				event := runnerEvent{row: runnerRow{name: req.Name, iteration: iteration, summary: runSummary(got), failed: got.Failed(), tests: got.Tests, console: console}, before: before, vars: maps.Clone(vars), writes: got.Writes, record: record}
+				event := runnerEvent{row: runnerRow{name: req.Name, iteration: iteration, summary: runSummary(got), failed: got.Failed(), tests: got.Tests, console: console}, before: before, vars: maps.Clone(vars), current: current, writes: got.Writes, record: record}
 				select {
 				case events <- event:
 				default:
@@ -278,7 +280,7 @@ func (a *app) drainRunner() {
 				r.picked = max(0, r.picked-1)
 			}
 			if !maps.Equal(event.before, event.vars) {
-				a.applyVars(r.environment, event.before, event.vars)
+				a.applyVars(r.environment, event.before, event.vars, event.current)
 			}
 			a.applyWrites(event.writes)
 		default:

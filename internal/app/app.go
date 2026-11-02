@@ -849,7 +849,7 @@ func (a *app) drain() {
 			}
 		}
 		if result.vars != nil && !maps.Equal(result.varsBefore, result.vars) {
-			a.applyVars(result.environment, result.varsBefore, result.vars)
+			a.applyVars(result.environment, result.varsBefore, result.vars, result.varsCurrent)
 		}
 		a.applyWrites(result.writes)
 		if result.experiment != nil {
@@ -2500,20 +2500,25 @@ func (a *app) envNames() []string {
 	return names
 }
 
+func (a *app) activeEnvironment() environment {
+	for _, e := range a.envs {
+		if e.Name == a.activeEnv {
+			return e
+		}
+	}
+	return environment{}
+}
+
 // activeVars are the variables of the environment in use, which a request
 // fills its {{name}} from.
 func (a *app) activeVars() map[string]string {
-	for _, e := range a.envs {
-		if e.Name == a.activeEnv {
-			return e.values()
-		}
-	}
-	return map[string]string{}
+	return a.activeEnvironment().values()
 }
 
 // applyVars merges only the variables changed by this run. Another tab may
 // have completed or the user may have edited the environment in the meantime.
-func (a *app) applyVars(name string, before, vars map[string]string) {
+// current is the run's original private scope, not the current editor's rows.
+func (a *app) applyVars(name string, before, vars, current map[string]string) {
 	if a.envsProblem != "" {
 		a.warn("Variables not saved: " + a.envsProblem)
 		return
@@ -2529,7 +2534,12 @@ func (a *app) applyVars(name string, before, vars map[string]string) {
 	}
 	for key, value := range vars {
 		if old, ok := before[key]; !ok || value != old {
-			if _, private := a.envs[at].Current[key]; private {
+			_, wasPrivate := current[key]
+			_, isPrivate := a.envs[at].Current[key]
+			if wasPrivate || isPrivate {
+				if a.envs[at].Current == nil {
+					a.envs[at].Current = map[string]string{}
+				}
 				a.envs[at].Current[key] = value
 			} else {
 				a.envs[at].Vars[key] = value
@@ -2792,6 +2802,7 @@ func (a *app) sendComposed() {
 	d.sendOutcome, d.sendCancelling, d.sendDetails = "", false, false
 	d.composeWaiting, d.composeResult = true, "Sending…"
 	r, env, vars, srv, jar := d.draft(), a.activeEnv, a.activeVars(), a.srv, a.requestCookies()
+	current := maps.Clone(a.activeEnvironment().Current)
 	in := a.sendContext(r.Request)
 	d.sent, d.sentAt, d.sentSet = r, time.Now(), true
 	runKey, draftKey, origin := uuid.New().String(), d.debugKey, d.origin
@@ -2805,7 +2816,7 @@ func (a *app) sendComposed() {
 	go func() {
 		defer cancel()
 		got := r.Execute(ctx, srv, in, vars, jar)
-		result := requestResult{document: d, environment: env, summary: runSummary(got), outcome: got.Outcome(), response: got.Response, tests: got.Tests, replies: got.Replies, console: got.Console, varsBefore: vars, vars: got.Vars, writes: got.Writes}
+		result := requestResult{document: d, environment: env, summary: runSummary(got), outcome: got.Outcome(), response: got.Response, tests: got.Tests, replies: got.Replies, console: got.Console, varsBefore: vars, vars: got.Vars, varsCurrent: current, writes: got.Writes}
 		record := snapshotExperiment(0, r, env, got)
 		record.RunKey, record.DraftKey, record.Source = runKey, draftKey, origin
 		result.experiment = &record

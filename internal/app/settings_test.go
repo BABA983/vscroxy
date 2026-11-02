@@ -192,7 +192,7 @@ func TestDamagedAssetsStayUntouchedUntilExplicitReload(t *testing.T) {
 	a.openVars()
 	a.varsRows = []request.Field{{Name: "token", Value: "new"}}
 	a.saveVars()
-	a.applyVars("dev", nil, map[string]string{"token": "from-script"})
+	a.applyVars("dev", nil, map[string]string{"token": "from-script"}, nil)
 	a.varsOpen = false
 	for _, name := range damaged {
 		data, err := os.ReadFile(filepath.Join(dir, name))

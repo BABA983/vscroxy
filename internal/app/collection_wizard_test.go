@@ -2,6 +2,7 @@ package app
 
 import (
 	"encoding/json/v2"
+	"fmt"
 	"net/http"
 	"net/url"
 	"os"
@@ -14,6 +15,7 @@ import (
 
 	"github.com/baba983/vscroxy/internal/request"
 	"github.com/baba983/vscroxy/internal/store"
+	"github.com/baba983/vscroxy/internal/vault"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -169,6 +171,161 @@ func TestCollectionWizardGroupingBoundariesAndManualCorrections(t *testing.T) {
 	}
 }
 
+func TestCollectionWizardExamplesKeepTheirProducingRequests(t *testing.T) {
+	for _, storage := range []string{credentialCurrent, credentialVault, credentialKeep} {
+		t.Run(storage, func(t *testing.T) {
+			a := libraryApp(t)
+			a.envsPath = filepath.Join(t.TempDir(), "env.json")
+			a.vault = vaultApp(t, &fakeCredentials{keys: map[string][]byte{}}).vault
+			flows := collectionWizardFlows()[:2]
+			for i := range flows {
+				f := &flows[i]
+				f.method = "POST"
+				f.url += []string{"?attempt=success&tag=a%2Fb&tag=c", "?attempt=failure"}[i]
+				f.reqBody = []string{`{"user":"alice"}`, `{"user":"bob"}`}[i]
+				f.reqHeader = http.Header{
+					"Authorization": {"Basic dXNlcjpwYXNz"},
+					"Cookie":        {[]string{"session=old-private", "session=new-private"}[i]},
+					"X-Api-Key":     {"shared-private-api-key"},
+					"Api-Key":       {[]string{"old-private-api-key", "new-private-api-key"}[i]},
+					"X-Attempt":     {[]string{"success", "failure"}[i]},
+					"X-Tag":         {"one", "two"},
+					"Content-Type":  {"application/json"},
+				}
+				f.status = []int{200, 401}[i]
+				f.resBody = []string{`{"ok":true}`, `{"ok":false}`}[i]
+				f.respHeader.Set("Set-Cookie", "response-private-cookie")
+			}
+			// The older request must read its own retained body, not its preview
+			// or the newer request's body.
+			bodyFile := filepath.Join(t.TempDir(), "request-body")
+			if err := os.WriteFile(bodyFile, []byte(flows[0].reqBody), 0600); err != nil {
+				t.Fatal(err)
+			}
+			flows[0].reqFile, flows[0].reqSize, flows[0].reqBody = bodyFile, len(flows[0].reqBody), "preview"
+			a.openCollectionWizard(flows)
+			w := &a.collectionUI
+			for i := range w.credentials {
+				w.credentials[i].storage = storage
+			}
+			a.createCollection()
+			if w.open {
+				t.Fatalf("create failed: %s", w.problem)
+			}
+			list, folders, _, err := loadLibrary(a.library.root)
+			if err != nil || len(list) != 1 {
+				t.Fatalf("load collection: %d requests, %v", len(list), err)
+			}
+			r := list[0]
+			if request.ExpandVars(r.URL, a.activeVars()) != flows[1].url || r.Body != flows[1].reqBody || request.ParseHeaderBlock(r.Headers).Get("X-Attempt") != "failure" {
+				t.Fatalf("representative request is not the newest: %+v", r)
+			}
+			if storage != credentialKeep && (r.Auth.Type != request.AuthInherit || request.Chain(folders, r.Collection)[0].Auth.Value == "") {
+				t.Fatal("shared authorization was not promoted")
+			}
+			if len(r.Examples) != 2 {
+				t.Fatalf("got %d examples", len(r.Examples))
+			}
+			for i, ex := range r.Examples {
+				f := flows[i]
+				if ex.Status != f.status || ex.Body != f.resBody || ex.Request.Method != f.method || ex.Request.URL != f.url || ex.Request.Body != []string{`{"user":"alice"}`, `{"user":"bob"}`}[i] {
+					t.Errorf("example %d lost its producing request/response: %+v", i, ex)
+				}
+				h := request.ParseHeaderBlock(ex.Request.Headers)
+				for _, name := range []string{"X-Attempt", "X-Tag", "Content-Type"} {
+					if !slices.Equal(h.Values(name), f.reqHeader.Values(name)) {
+						t.Errorf("example %d changed %s: %v", i, name, h.Values(name))
+					}
+				}
+				for _, c := range w.credentials {
+					want := c.value
+					switch storage {
+					case credentialCurrent:
+						want = "{{" + c.variable + "}}"
+					case credentialVault:
+						want = "{{vault:" + c.variable + "}}"
+					}
+					if slices.Contains(f.reqHeader.Values(c.header), c.value) && h.Get(c.header) != want {
+						t.Errorf("example %d changed credential reference %s: %q", i, c.header, h.Get(c.header))
+					}
+				}
+				if request.ParseHeaderBlock(ex.Headers).Get("Set-Cookie") != "" {
+					t.Error("example kept a session response cookie")
+				}
+			}
+			if storage == credentialKeep {
+				return // Explicit opt-in keeps literal credentials in snapshots too.
+			}
+			for _, file := range libraryTree(t, a.library.root) {
+				data, err := os.ReadFile(filepath.Join(a.library.root, filepath.FromSlash(file)))
+				if err != nil {
+					t.Fatal(err)
+				}
+				for _, secret := range []string{"dXNlcjpwYXNz", "private", "response-private-cookie"} {
+					if strings.Contains(string(data), secret) {
+						t.Errorf("credential leaked into %s", file)
+					}
+				}
+			}
+			for _, c := range w.credentials {
+				if !strings.Contains(c.value, "old-private") {
+					continue
+				}
+				if _, exists := a.activeVars()[c.variable]; exists || slices.ContainsFunc(a.vault.secrets, func(s vault.Secret) bool { return s.Name == c.variable }) {
+					t.Error("example-only credential was newly persisted")
+				}
+			}
+		})
+	}
+}
+
+func TestCollectionWizardRepeatedMergesKeepDistinctPathParameters(t *testing.T) {
+	for _, tc := range []struct{ reverse, rename bool }{{false, false}, {true, false}, {false, true}, {true, true}} {
+		t.Run(fmt.Sprintf("reverse=%v/rename=%v", tc.reverse, tc.rename), func(t *testing.T) {
+			a := libraryApp(t)
+			a.envsPath = filepath.Join(t.TempDir(), "env.json")
+			var flows []flow
+			for i, path := range []string{"/v1/users/42", "/v2/users/42", "/v1/orders/42", "/v2/orders/42"} {
+				flows = append(flows, flow{method: "GET", url: "https://api.example.com" + path, status: 200, at: snapshotTime.Add(time.Duration(i) * time.Second)})
+			}
+			a.openCollectionWizard(flows)
+			w := &a.collectionUI
+			if err := w.merge(0, 1); err != nil {
+				t.Fatal(err)
+			}
+			if err := w.merge(1, 2); err != nil {
+				t.Fatal(err)
+			}
+			if tc.rename {
+				// Both templates' names must be reserved, even at positions
+				// that the next merge will replace.
+				w.groups[1].template = "/:param2/orders/:id"
+			}
+			from, to := 0, 1
+			if tc.reverse {
+				from, to = to, from
+			}
+			if err := w.merge(from, to); err != nil {
+				t.Fatal(err)
+			}
+			a.createCollection()
+			if w.open {
+				t.Fatalf("create failed: %s", w.problem)
+			}
+			list, _, _, err := loadLibrary(a.library.root)
+			if err != nil || len(list) != 1 {
+				t.Fatalf("load collection: %d requests, %v", len(list), err)
+			}
+			if got := request.ExpandVars(list[0].URL, a.activeVars()); got != flows[3].url {
+				t.Fatalf("merged request expanded to %s instead of %s (template %s)", got, flows[3].url, list[0].URL)
+			}
+			if tc.rename && (strings.Contains(list[0].URL, "{{param1}}") || strings.Contains(list[0].URL, "{{param2}}")) {
+				t.Fatalf("merge reused a parameter name from an input template: %s", list[0].URL)
+			}
+		})
+	}
+}
+
 func TestCollectionWizardRejectsIncompleteExamplesAndEnvironmentConflicts(t *testing.T) {
 	a := libraryApp(t)
 	f := collectionWizardFlows()[0]
@@ -186,6 +343,34 @@ func TestCollectionWizardRejectsIncompleteExamplesAndEnvironmentConflicts(t *tes
 	after, _ := json.Marshal(a.envs)
 	if !reflect.DeepEqual(before, after) || len(a.requests) != 0 || !strings.Contains(a.collectionUI.problem, "different value") {
 		t.Fatalf("existing environment overwritten: %s", a.collectionUI.problem)
+	}
+	for _, kind := range []string{"incomplete", "missing spill", "binary", "trailers"} {
+		t.Run("older example request/"+kind, func(t *testing.T) {
+			a := libraryApp(t)
+			a.envsPath = filepath.Join(t.TempDir(), "env.json")
+			flows := collectionWizardFlows()[:2]
+			flows[1].status = 401
+			switch kind {
+			case "incomplete":
+				flows[0].reqSize = 1
+			case "missing spill":
+				flows[0].reqFile = filepath.Join(t.TempDir(), "missing")
+			case "binary":
+				flows[0].reqBody = "\xff"
+			case "trailers":
+				flows[0].reqTrailer = http.Header{"X-Trailer": {"value"}}
+			}
+			a.openCollectionWizard(flows)
+			a.createCollection()
+			if !a.collectionUI.open || !strings.Contains(a.collectionUI.problem, "example") || len(a.envs) != 0 || len(libraryTree(t, a.library.root)) != 0 {
+				t.Fatalf("unrepresentable example request changed stored assets: %s", a.collectionUI.problem)
+			}
+			a.collectionUI.examples[0] = false
+			a.createCollection()
+			if a.collectionUI.open || len(a.requests) != 1 || len(a.requests[0].Examples) != 1 || a.requests[0].Examples[0].Status != 401 {
+				t.Fatalf("deselecting the incomplete example did not unblock creation: %s", a.collectionUI.problem)
+			}
+		})
 	}
 }
 
@@ -235,6 +420,7 @@ func TestCollectionWizardOnlyStoresIncludedCredentialsAndPreservesPathSegments(t
 	// Merge the encoded segment explicitly; automatic inference leaves it literal.
 	w.groups[0].flows = []int{0, 1, 2}
 	w.groups = w.groups[:1]
+	w.examples[0] = true
 	a.createCollection()
 	if w.open || len(a.requests) != 1 {
 		t.Fatalf("create failed: %s", w.problem)
@@ -251,10 +437,17 @@ func TestCollectionWizardOnlyStoresIncludedCredentialsAndPreservesPathSegments(t
 	if got := request.ExpandVars(a.requests[0].URL, vars); got != flows[2].url {
 		t.Fatalf("path segment changed: %s", got)
 	}
+	list, _, _, err := loadLibrary(a.library.root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := request.ParseHeaderBlock(list[0].Examples[0].Request.Headers).Get("Authorization"); got != "{{authorization}}" {
+		t.Fatalf("older example lost its private unresolved credential reference: %q", got)
+	}
 }
 
 func TestCollectionWizardRejectsVariableShadowing(t *testing.T) {
-	for _, kind := range []string{"current shadows host", "shared credential exists", "parameter reuses host", "parameter reuses credential"} {
+	for _, kind := range []string{"current shadows host", "shared credential exists", "parameter reuses host", "parameter reuses credential", "example credential reuses host", "example credential reuses path", "example credential reuses credential", "example credential invalid"} {
 		t.Run(kind, func(t *testing.T) {
 			a := libraryApp(t)
 			a.envsPath = filepath.Join(t.TempDir(), "env.json")
@@ -271,6 +464,23 @@ func TestCollectionWizardRejectsVariableShadowing(t *testing.T) {
 				w.groups[0].template = "/v1/users/:base_url"
 			case "parameter reuses credential":
 				w.groups[0].template = "/v1/users/:authorization"
+			case "example credential reuses host", "example credential reuses path", "example credential reuses credential", "example credential invalid":
+				flows := collectionWizardFlows()[:2]
+				flows[0].reqHeader.Set("Authorization", "Bearer older-example-only")
+				a.openCollectionWizard(flows)
+				w.environment = "Existing"
+				w.examples[0] = true
+				name := map[string]string{
+					"example credential reuses host":       "base_url",
+					"example credential reuses path":       "id",
+					"example credential reuses credential": "cookie",
+					"example credential invalid":           "not an identifier",
+				}[kind]
+				for i := range w.credentials {
+					if w.credentials[i].value == "Bearer older-example-only" {
+						w.credentials[i].variable = name
+					}
+				}
 			}
 			before, _ := json.Marshal(a.envs)
 			a.createCollection()
@@ -305,7 +515,7 @@ func TestCurrentValuesEditRoundTripAndScriptWritesStayLocal(t *testing.T) {
 	if a.varsOpen || a.activeVars()["token"] != "edited-private" {
 		t.Fatalf("current value edit not saved: %s", a.varsProblem)
 	}
-	a.applyVars("Local", a.activeVars(), map[string]string{"token": "script-private"})
+	a.applyVars("Local", a.activeVars(), map[string]string{"token": "script-private"}, a.envs[0].Current)
 	f, err := loadEnvs(&store.File{Path: a.envsPath})
 	if err != nil || f.Envs[0].Vars["token"] != "shared" || f.Envs[0].Current["token"] != "script-private" {
 		t.Fatalf("script promoted a private value to shared: %+v %v", f, err)

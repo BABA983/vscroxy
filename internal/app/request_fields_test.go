@@ -419,6 +419,93 @@ func TestCollectionRunnerChainsVariablesCookiesAssertionsAndStops(t *testing.T) 
 	}
 }
 
+func TestInFlightCurrentCredentialsStayOutOfExports(t *testing.T) {
+	for _, mode := range []string{"Send", "Runner"} {
+		for _, removal := range []string{"script unset", "editor removal"} {
+			t.Run(mode+"/"+removal, func(t *testing.T) {
+				started, release := make(chan struct{}), make(chan struct{})
+				upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					if r.URL.Path == "/refresh" {
+						close(started)
+						select {
+						case <-release:
+						case <-r.Context().Done():
+							return
+						}
+					}
+					fmt.Fprint(w, `{"ok":true}`)
+				}))
+				defer upstream.Close()
+				defer close(release)
+				a := workspaceApp()
+				a.srv = requestProxy(t)
+				a.envsPath = filepath.Join(t.TempDir(), "env.json")
+				a.envs = []environment{{Name: "Local", Vars: map[string]string{"public": "old", "untouched": "keep"}, Current: map[string]string{"token": "private-old"}}}
+				a.activeEnv = "Local"
+				refresh := savedRequest{Name: "Refresh", Method: "GET", URL: upstream.URL + "/refresh",
+					Post: `pm.environment.set("token", "private-refreshed"); pm.environment.set("public", "updated")`}
+				var document *requestDocument
+				if mode == "Runner" {
+					a.requests = []savedRequest{refresh}
+					a.openRunner()
+					a.startRunner()
+				} else {
+					a.addDocument(refresh, "")
+					document = a.requestDocument
+					a.sendComposed()
+				}
+				select {
+				case <-started:
+				case <-time.After(5 * time.Second):
+					t.Fatal("refresh never reached upstream")
+				}
+				wait := func(pending func() bool) {
+					t.Helper()
+					deadline := time.Now().Add(5 * time.Second)
+					for pending() && time.Now().Before(deadline) {
+						a.drain()
+						a.drainRunner()
+						time.Sleep(time.Millisecond)
+					}
+					if pending() {
+						t.Fatal("request did not finish")
+					}
+				}
+				if removal == "script unset" {
+					a.addDocument(savedRequest{Name: "Unset", Method: "GET", URL: upstream.URL + "/unset", Post: `pm.environment.unset("token")`}, "")
+					unset := a.requestDocument
+					a.sendComposed()
+					wait(func() bool { return unset.composeWaiting })
+				} else {
+					a.openVars()
+					a.varsCurrent = nil
+					a.saveVars()
+				}
+				if _, exists := a.activeVars()["token"]; exists {
+					t.Fatal("token was not removed while refresh was in flight")
+				}
+				release <- struct{}{}
+				wait(func() bool {
+					return mode == "Runner" && a.runner.running || document != nil && document.composeWaiting
+				})
+				a.openVars()
+				a.exportPostmanVariables()
+				if strings.Contains(string(a.exportUI.data), "private-refreshed") || !strings.Contains(string(a.exportUI.data), "updated") {
+					t.Fatal("completion exported a private token or lost a shared variable update")
+				}
+				envs, err := loadEnvs(a.file(a.envsPath))
+				if err != nil || len(envs.Envs) != 1 {
+					t.Fatalf("environment not saved: %v", err)
+				}
+				env := envs.Envs[0]
+				if env.Current["token"] != "private-refreshed" || env.Vars["token"] != "" || env.Vars["public"] != "updated" || env.Vars["untouched"] != "keep" {
+					t.Fatal("completion lost private scope or unrelated environment values")
+				}
+			})
+		}
+	}
+}
+
 func TestCollectionRunnerCancellationRevokesInFlightRequest(t *testing.T) {
 	started, release := make(chan struct{}), make(chan struct{})
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

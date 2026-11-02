@@ -241,10 +241,23 @@ func (w *collectionWizard) merge(from, to int) error {
 	if from == to || a.origin != b.origin || a.method != b.method || len(x) != len(y) {
 		return errors.New("merge endpoints with the same host, method and path depth")
 	}
+	reserved := map[string]bool{}
+	for _, parts := range [][]string{x, y} {
+		for _, part := range parts {
+			if strings.HasPrefix(part, ":") {
+				reserved[part] = true
+			}
+		}
+	}
 	n := 0
 	for i := range x {
 		if x[i] != y[i] {
-			n++
+			for {
+				n++
+				if !reserved[fmt.Sprintf(":param%d", n)] {
+					break
+				}
+			}
 			x[i] = fmt.Sprintf(":param%d", n)
 		}
 	}
@@ -306,7 +319,7 @@ func (w *collectionWizard) latest(g *collectionEndpoint) flow {
 func (w *collectionWizard) requestFor(g *collectionEndpoint) (savedRequest, error) {
 	// Prefer the newest capture, including its query and payload.
 	f := w.latest(g)
-	r, err := f.requestDraft()
+	r, err := w.requestSnapshot(f)
 	if err != nil {
 		return savedRequest{}, err
 	}
@@ -334,6 +347,18 @@ func (w *collectionWizard) requestFor(g *collectionEndpoint) (savedRequest, erro
 	r.URL = base + strings.Join(parts, "/")
 	if u.RawQuery != "" {
 		r.URL += "?" + u.RawQuery
+	}
+	return r, nil
+}
+
+// requestSnapshot preserves the producing capture, except for credential
+// values explicitly governed by the wizard's storage choices. Examples keep
+// literal paths and queries: shared path variables describe only the newest
+// representative request, not every historical capture.
+func (w *collectionWizard) requestSnapshot(f flow) (savedRequest, error) {
+	r, err := f.requestDraft()
+	if err != nil {
+		return savedRequest{}, err
 	}
 	// Work on raw auth headers so Basic and arbitrary auth schemes are also
 	// stored as a single private variable, never split into public fields.
@@ -381,27 +406,41 @@ func (w *collectionWizard) build() ([]savedRequest, []request.Folder, map[string
 			continue
 		}
 		var domains []string
+		referenced := false
+		matches := func(f flow) bool {
+			return slices.ContainsFunc(headerPairs(f.reqHeaders, f.reqHeader), func(pair harNameValue) bool {
+				return strings.EqualFold(pair.Name, c.header) && pair.Value == c.value
+			})
+		}
 		for _, g := range w.groups {
 			if !g.include {
 				continue
 			}
-			f := w.latest(g)
-			if slices.ContainsFunc(headerPairs(f.reqHeaders, f.reqHeader), func(pair harNameValue) bool { return strings.EqualFold(pair.Name, c.header) && pair.Value == c.value }) {
+			if matches(w.latest(g)) {
 				u, _ := url.Parse(g.origin)
 				if !slices.Contains(domains, u.Hostname()) {
 					domains = append(domains, u.Hostname())
 				}
 			}
+			for _, i := range g.flows {
+				if w.examples[i] && matches(w.flows[i]) {
+					referenced = true
+				}
+			}
 		}
-		// Older captures and excluded endpoints must not cause unused secrets
-		// to be written to either the environment or the vault.
-		if len(domains) == 0 {
+		if len(domains) == 0 && !referenced {
 			continue
 		}
 		if !templateSegment.MatchString(c.variable) || seen[c.variable] {
 			return nil, nil, nil, nil, errors.New("credential variable names must be unique identifiers")
 		}
 		seen[c.variable] = true
+		// Examples may keep private references to older credentials, but must
+		// not newly persist their values. Reserve their names so those references
+		// cannot accidentally resolve to a host, path or another credential.
+		if len(domains) == 0 {
+			continue
+		}
 		if c.storage == credentialVault {
 			secrets = append(secrets, vault.Secret{Name: c.variable, Value: c.value, Domains: domains})
 		} else {
@@ -443,12 +482,16 @@ func (w *collectionWizard) build() ([]savedRequest, []request.Folder, map[string
 				continue
 			}
 			f := w.flows[i]
+			snapshot, err := w.requestSnapshot(f)
+			if err != nil {
+				return nil, nil, nil, nil, fmt.Errorf("%s example %d: %w; deselect this response to continue", r.Name, f.status, err)
+			}
 			h := f.respHeader
 			if h == nil {
 				h = request.ParseHeaderBlock(f.resHeaders)
 			}
 			res := &capture.Flow{Status: f.status, ResponseBody: f.resBody, ResponseBodyFile: f.resFile, ResponseBodySize: f.resSize, ResponseBodyError: f.resError, ResponseHeader: h}
-			ex, err := newExample(r, res, r.Examples)
+			ex, err := newExample(snapshot, res, r.Examples)
 			if err != nil {
 				return nil, nil, nil, nil, fmt.Errorf("%s example %d: %w; deselect this response to continue", r.Name, f.status, err)
 			}
@@ -476,9 +519,8 @@ func (w *collectionWizard) build() ([]savedRequest, []request.Folder, map[string
 			h := request.ParseHeaderBlock(list[i].Headers)
 			h.Del("Authorization")
 			list[i].Headers, list[i].Auth = request.HeaderBlock(h), request.Auth{Type: request.AuthInherit}
-			for j := range list[i].Examples {
-				list[i].Examples[j].Request.Headers = list[i].Headers
-			}
+			// ExampleRequest has no inheritable Auth. Keep its own sanitized
+			// headers, including the producing capture's authorization reference.
 		}
 	}
 	return list, folders, vars, secrets, nil
