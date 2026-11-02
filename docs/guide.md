@@ -425,7 +425,14 @@ portable scenario export or a delay/fault-injection engine.
   host that exists only in a rule (`https://shop.dev.invalid`) works too.
   Requests on that host no rule maps then fail with 502. A host no Map Remote
   rule could match still fails the CONNECT, as before.
-- `block` answers `403`.
+- `block` does what its `block` field says: nothing (the default) answers
+  `403` without contacting the server; `"drop"` closes the client's connection
+  without an answer, as a network failure would, and the row shows it failed
+  (clients may retry a GET); `"hide"` proxies the request as usual but keeps it
+  out of the table, and no rule below it acts on it. With `apps`, wildcards and
+  regular expressions this is also the place for a block list that the ignore
+  lists, which match only hosts and apps, cannot express. Block rules do not
+  act on WebSockets.
 - `break` pauses the request until you decide, and `break_response` pauses
   the response (see below).
 

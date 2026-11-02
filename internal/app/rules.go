@@ -40,6 +40,7 @@ type ruleEditor struct {
 var ruleTypes = []capture.RuleType{capture.RuleMapLocal, capture.RuleMapRemote, capture.RuleBlock, capture.RuleBreak, capture.RuleBreakResponse}
 var ruleLabels = []string{"Map Local", "Map Remote", "Block", "Request breakpoint", "Response breakpoint"}
 var ruleIcons = []*ui.SVG{fileInputIcon, lucide.ArrowRightLeft(), lucide.Ban(), breakIcon, breakIcon}
+var hideIcon = lucide.EyeOff()
 var rulesIcon = lucide.SlidersHorizontal()
 
 func ruleLabel(kind capture.RuleType) string {
@@ -169,6 +170,9 @@ func (a *app) saveRule() {
 	r.PathFrom, r.PathTo = strings.TrimSpace(r.PathFrom), strings.TrimSpace(r.PathTo)
 	if r.Type != capture.RuleMapRemote {
 		r.PathFrom, r.PathTo, r.KeepHost = "", "", false
+	}
+	if r.Type != capture.RuleBlock {
+		r.Block = ""
 	}
 	next := slices.Clone(a.rules)
 	index := e.index
@@ -412,7 +416,14 @@ func (a *app) ruleList(c *ui.Context, t *ui.Theme, preview []capture.RulePreview
 			if ui.Switch(c, &on).Label(fmt.Sprintf("Enable rule %d", i+1)).Changed() {
 				a.switchRule(i, on)
 			}
-			uikit.Glyph(c, ruleIcons[max(slices.Index(ruleTypes, r.Type), 0)]).Tooltip(ruleLabel(r.Type))
+			icon, kind := ruleIcons[max(slices.Index(ruleTypes, r.Type), 0)], ruleLabel(r.Type)
+			switch r.Block {
+			case capture.BlockHide:
+				icon, kind = hideIcon, "Block · hide"
+			case capture.BlockDrop:
+				kind = "Block · drop connection"
+			}
+			uikit.Glyph(c, icon).Tooltip(kind)
 			ui.Column(c).Grow(1).MinWidth(0).Children(func() {
 				ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 					ui.Text(c, cmp.Or(r.Name, r.Match)).FontSize(uikit.TextBody).TextColor(t.Text).Grow(1).SingleLine()
@@ -529,7 +540,13 @@ func (a *app) ruleDetail(c *ui.Context, t *ui.Theme) {
 					ui.Checkbox(c, &e.draft.KeepHost, "Keep the original Host header")
 				}).Description("For a server that serves several sites by name. Otherwise it gets the target’s host.")
 			case "Block":
-				ui.Field(c, "Response", func() { uikit.Body(c, "403, without contacting the server") })
+				ui.Field(c, "Action", func() {
+					ui.Row(c).Children(func() {
+						choice := max(slices.Index(capture.BlockActions, e.draft.Block), 0)
+						uikit.Segmented(c, &choice, "Refuse", "Drop connection", "Hide").Label("Block action")
+						e.draft.Block = capture.BlockActions[choice]
+					})
+				}).Description(blockHelp[max(slices.Index(capture.BlockActions, e.draft.Block), 0)])
 			default:
 				ui.Field(c, "Pauses", func() { uikit.Body(c, "While Breakpoints is on") }).
 					Description("Continue or abort in the breakpoint dialog.")
@@ -608,4 +625,10 @@ func (a *app) ruleHeaderConditions(c *ui.Context, t *ui.Theme) {
 			}
 		})
 	})
+}
+
+var blockHelp = []string{
+	"Answers 403 without contacting the server.",
+	"Closes the client’s connection without an answer, as a network failure would. Clients may retry GET.",
+	"Proxies it as usual but keeps it out of the table. Rules below it do not act on it.",
 }

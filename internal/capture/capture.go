@@ -200,13 +200,27 @@ const (
 	RuleMapRemote RuleType = "map_remote"
 	// RuleMapLocal answers the request from a file, without an upstream.
 	RuleMapLocal RuleType = "map_local"
-	// RuleBlock answers the request with a refusal.
+	// RuleBlock refuses the request, drops its connection or hides it, as
+	// its Block says.
 	RuleBlock RuleType = "block"
 	// RuleBreak pauses a matching request until the UI decides what to do.
 	RuleBreak RuleType = "break"
 	// RuleBreakResponse pauses a matching response until the UI decides.
 	RuleBreakResponse RuleType = "break_response"
 )
+
+// What a Block rule does.
+const (
+	BlockRefuse = ""     // answer 403 without contacting the server
+	BlockDrop   = "drop" // close the client's connection without an answer
+	BlockHide   = "hide" // proxy it as usual, but keep it out of the table
+)
+
+// BlockActions are the Block actions, in the order an editor offers them.
+var BlockActions = []string{BlockRefuse, BlockDrop, BlockHide}
+
+// errDropped is the failure a Block rule that drops the connection records.
+var errDropped = errors.New("connection dropped by a Block rule")
 
 // Rule rewrites requests whose URL contains Match. Mapping/block rules use
 // first-match order; breakpoints match independently at their own phase.
@@ -233,6 +247,8 @@ type Rule struct {
 	PathFrom string `json:"pathFrom,omitempty"`
 	PathTo   string `json:"pathTo,omitempty"`
 	KeepHost bool   `json:"keepHost,omitzero"`
+	// Block is what a Block rule does: BlockRefuse, BlockDrop or BlockHide.
+	Block string `json:"block,omitempty"`
 	// Scenario groups response-affecting rules; empty is always global.
 	// Every member of a group has the same ScenarioActive value, and at most
 	// one group is active. Disabled remains an independent per-rule choice.
@@ -1190,8 +1206,7 @@ func (a *addon) Requestheaders(f *proxy.Flow) {
 	// the body cannot, since the client is still sending it.
 	if f.Stream {
 		if resp := a.server.applyRules(f); resp != nil {
-			f.Response = resp
-			a.server.publish(f)
+			a.server.answer(f, resp)
 		}
 	}
 }
@@ -1242,10 +1257,9 @@ func (a *addon) Request(f *proxy.Flow) {
 	}
 	noCacheRequest(f)
 	if resp := a.server.applyRules(f); resp != nil {
-		f.Response = resp
 		// A rule that answers the request itself short-circuits the engine,
 		// which then never calls Response: publish it here instead.
-		a.server.publish(f)
+		a.server.answer(f, resp)
 	}
 }
 
@@ -1457,6 +1471,29 @@ func (s *Server) applyRules(f *proxy.Flow) *proxy.Response {
 		}
 		switch r.Type {
 		case RuleBlock:
+			switch r.Block {
+			case BlockHide:
+				if d := debugOf(f); d != nil {
+					d.hidden = true
+				}
+				return nil
+			case BlockDrop:
+				recordAction(f, "Block · drop connection · "+r.Match)
+				f.Error = errDropped
+				if d := debugOf(f); d != nil {
+					d.drop = true
+				}
+				if f.ConnContext != nil {
+					f.ConnContext.RecordEvent("Rule", "Dropping the client connection", errDropped)
+				}
+				// The client never reads this: answer turns it into a closed
+				// connection once the row is published.
+				return &proxy.Response{
+					StatusCode: http.StatusBadGateway,
+					Header:     http.Header{"Content-Type": {"text/plain; charset=utf-8"}},
+					Body:       []byte("vscroxy: " + errDropped.Error() + "\n"),
+				}
+			}
 			recordAction(f, "Block · "+r.Match)
 			return &proxy.Response{
 				StatusCode: http.StatusForbidden,
@@ -1668,6 +1705,16 @@ func (s *Server) publish(f *proxy.Flow) {
 	s.publishFlow(f, "http", nil, 0)
 }
 
+// answer publishes a response a rule gave in place of the server's, and
+// closes the client's connection when the rule drops it instead.
+func (s *Server) answer(f *proxy.Flow, resp *proxy.Response) {
+	f.Response = resp
+	s.publish(f)
+	if d := debugOf(f); d != nil && d.drop && f.ConnContext != nil && f.ConnContext.ClientConn != nil && f.ConnContext.ClientConn.Conn != nil {
+		_ = f.ConnContext.ClientConn.Conn.Close()
+	}
+}
+
 // flowTrailers is the trailer block one flow ended each of its sides with. The
 // side that finishes its body writes here, and the publisher reads once, under
 // the same lock, so the map the transport owns is never read while it fills it.
@@ -1782,7 +1829,7 @@ func (s *Server) publishFlow(f *proxy.Flow, kind string, frames []Frame, status 
 	if err != nil {
 		reqData = nil
 	}
-	if s.ignored(display.Hostname()) {
+	if d := debugOf(f); s.ignored(display.Hostname()) || d != nil && d.hidden {
 		streamed.release()
 		return 0
 	}

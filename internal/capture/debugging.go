@@ -17,6 +17,9 @@ type debugKey struct{}
 type exchangeDebug struct {
 	noCache bool
 	actions []string
+	// hidden keeps the exchange out of the table; drop closes the client's
+	// connection once it is published. Block rules set them.
+	hidden, drop bool
 }
 
 func (s *Server) startDebug(f *proxy.Flow) {

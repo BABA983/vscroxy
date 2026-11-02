@@ -103,7 +103,7 @@ func mayMapHost(list []Rule, hostport string) bool {
 func (r Rule) key() string {
 	when, _ := json.Marshal(r.When)
 	return strings.Join([]string{string(r.Type), r.MatchMode, r.Match, r.Method, strings.Join(r.Apps, "\n"), string(when), r.Target,
-		r.PathFrom, r.PathTo, fmt.Sprint(r.KeepHost)}, "\x00")
+		r.PathFrom, r.PathTo, fmt.Sprint(r.KeepHost), r.Block}, "\x00")
 }
 
 // RulePreview explains a saved rule's part in one exchange. Step is its place
@@ -132,7 +132,7 @@ func PreviewRules(rules []Rule, req rules.Request, breaking bool) []RulePreview 
 			}
 		}
 	}
-	answered := winner >= 0 && rules[winner].Type != RuleMapRemote
+	answered := winner >= 0 && rules[winner].Type != RuleMapRemote && rules[winner].Block != BlockHide
 	first := map[RuleType]int{}
 	step := 0
 	act := func(i int) {
@@ -285,7 +285,11 @@ func ValidateRules(rules []Rule) error {
 			if r.Status != 0 && (r.Status < 200 || r.Status > 599) {
 				return fail("response status must be between 200 and 599")
 			}
-		case RuleBlock, RuleBreak, RuleBreakResponse:
+		case RuleBlock:
+			if !slices.Contains(BlockActions, r.Block) {
+				return fail(fmt.Sprintf("unknown Block action %q", r.Block))
+			}
+		case RuleBreak, RuleBreakResponse:
 		default:
 			return fail("unknown rule type")
 		}

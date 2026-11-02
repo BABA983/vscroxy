@@ -68,7 +68,7 @@
 | 清空会话 | 已有 | | |
 | **只抓指定 host / App（Allow list）** | 已有 | Settings → Capture，按 host 和 App；忽略名单优先 | M1 |
 | 长时间抓包的内存和磁盘上限、自动清理 | 已有 | Settings → Capture → Memory：条数、内存和磁盘上限，超出先删最旧的（Pin 的保留），连同落盘文件 | M1 |
-| Block list：通配符、正则、按 App、"隐藏"或"拦截"、断开连接 | 部分 | 现在 Block 规则只回 403，忽略名单只按 host/App | M4 |
+| Block list：通配符、正则、按 App、"隐藏"或"拦截"、断开连接 | 已有 | Block 规则的动作：拒绝（403）、断开连接、隐藏（照常代理但不进表格）；匹配用规则的通配符／正则／App／header | M4 |
 | 系统代理绕过名单（Bypass list） | 部分 | 保留系统原有的绕过设置，但不能在 app 里编辑 | M7 |
 | SOCKS5 代理入口 | 缺少 | 现在只有 HTTP 代理入口（上游支持 SOCKS5） | M7 |
 | 反向代理（本地端口直接转发到远端） | 缺少 | | M7 |
@@ -282,7 +282,7 @@ Cookie 和其他 API key 保留为变量 header，避免把多个认证机制硬
 - 规则匹配：通配符、正则、method、App、header。（已完成）
 - Map Local：app 内编辑响应、目录映射。
 - Map Remote：端口、路径、Host header、WebSocket。（已完成，含原主机不可达时的 HTTPS 映射）
-- Block：隐藏或拦截、断开连接、按 App。
+- Block：隐藏或拦截、断开连接、按 App。（已完成）
 - Breakpoint 模板。
 - 规则脚本：`pm` 风格 API、编辑器、异步请求、共享状态、环境变量、内置库、代码片段；`script.js` 迁移。
 - Example → Mock 规则、集合 → Scenario。

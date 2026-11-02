@@ -375,6 +375,11 @@ func TestPreviewRulesFollowsTheProxysOrder(t *testing.T) {
 	if got := steps(p); !slices.Equal(got, []int{0, 1, 0, 2, 0, 0}) || p[0].Reason != "rule 4 answers first" {
 		t.Fatalf("answered: %+v", p)
 	}
+	// A hidden request still goes upstream, so a response breakpoint pauses it.
+	hide := []capture.Rule{{Type: capture.RuleBlock, Match: "/item", Block: capture.BlockHide}, {Type: capture.RuleBreakResponse, Match: "/item"}}
+	if got := steps(capture.PreviewRules(hide, previewRequest("GET", "https://example.com/item"), true)); !slices.Equal(got, []int{1, 2}) {
+		t.Fatalf("hide: %v", got)
+	}
 	// Only Map Remote acts on a WebSocket: the Block above it does not shadow it.
 	rules[5] = capture.Rule{Type: capture.RuleMapRemote, Match: "/item", Target: "http://remote.test"}
 	p = capture.PreviewRules(rules, previewRequest("GET", "wss://example.com/item"), true)
@@ -433,5 +438,59 @@ func TestRulesMatchWildcardsRegexAppsAndHeadersOnTheProxy(t *testing.T) {
 	bad := []capture.Rule{{Type: capture.RuleBlock, MatchMode: rules.URLRegex, Match: "("}}
 	if err := s.SetRules(bad); err == nil || !strings.Contains(err.Error(), "URL regex") {
 		t.Fatalf("an invalid regex was accepted: %v", err)
+	}
+}
+
+func TestBlockRefusesDropsOrHides(t *testing.T) {
+	var hits atomic.Int32
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hits.Add(1)
+		fmt.Fprint(w, "upstream")
+	}))
+	defer upstream.Close()
+	s, client := scenarioProxy(t)
+	list := []capture.Rule{
+		{Type: capture.RuleBlock, Match: "/refuse"},
+		{Type: capture.RuleBlock, Match: "/drop", Block: capture.BlockDrop},
+		{Type: capture.RuleBlock, Match: "/hide", Block: capture.BlockHide},
+	}
+	if err := s.SetRules(list); err != nil {
+		t.Fatal(err)
+	}
+	next := func() capture.Flow {
+		t.Helper()
+		select {
+		case f := <-s.Flows():
+			return f
+		case <-t.Context().Done():
+			t.Fatal(t.Context().Err())
+		}
+		return capture.Flow{}
+	}
+	scenarioRequest(t, client, "GET", upstream.URL+"/refuse", 403, "blocked by vscroxy\n")
+	if f := next(); f.Status != 403 {
+		t.Fatalf("refused row: %+v", f.Status)
+	}
+	// A dropped request gets no answer at all and never reaches the server.
+	// POST: a client retries an idempotent request on a closed connection.
+	req, _ := http.NewRequestWithContext(t.Context(), "POST", upstream.URL+"/drop", nil)
+	if resp, err := client.Do(req); err == nil {
+		resp.Body.Close()
+		t.Fatalf("a dropped request was answered %d", resp.StatusCode)
+	}
+	if f := next(); f.Conn.Error == "" || !slices.ContainsFunc(f.Actions, func(a string) bool { return strings.HasPrefix(a, "Block · drop") }) {
+		t.Fatalf("dropped row: error %q, actions %v", f.Conn.Error, f.Actions)
+	}
+	// A hidden request goes through but leaves no row.
+	scenarioRequest(t, client, "GET", upstream.URL+"/hide", 200, "upstream")
+	scenarioRequest(t, client, "GET", upstream.URL+"/shown", 200, "upstream")
+	if f := next(); !strings.HasSuffix(f.URL, "/shown") {
+		t.Fatalf("the hidden request has a row: %s", f.URL)
+	}
+	if hits.Load() != 2 || s.RuleHits(list[1]) != 1 || s.RuleHits(list[2]) != 1 {
+		t.Fatalf("upstream hits %d, rule hits %d %d", hits.Load(), s.RuleHits(list[1]), s.RuleHits(list[2]))
+	}
+	if err := s.SetRules([]capture.Rule{{Type: capture.RuleBlock, Match: "/x", Block: "tarpit"}}); err == nil {
+		t.Fatal("an unknown Block action was accepted")
 	}
 }

@@ -2900,6 +2900,7 @@ func TestRuleEditorPersistsOrderingTogglesAndCapturedMock(t *testing.T) {
 	if !strings.Contains(a.ruleUI.problem, "URL regex") || len(load()) != 1 {
 		t.Fatalf("an invalid regex was saved or not explained: %q", a.ruleUI.problem)
 	}
+	click("Drop connection")
 	click("Wildcard")
 	edit("Match URL", "*/projects*")
 	edit("Match apps", "curl, Google Chrome*")
@@ -2919,7 +2920,7 @@ func TestRuleEditorPersistsOrderingTogglesAndCapturedMock(t *testing.T) {
 	if len(rules) != 2 || rules[0].Type != capture.RuleBlock || !rules[0].Disabled || rules[1].Name != "Development API" {
 		t.Fatalf("order/toggle not persisted: %+v", rules)
 	}
-	if r := rules[0]; r.MatchMode != "wildcard" || r.Match != "*/projects*" || !slices.Equal(r.Apps, []string{"curl", "Google Chrome*"}) ||
+	if r := rules[0]; r.Block != capture.BlockDrop || r.MatchMode != "wildcard" || r.Match != "*/projects*" || !slices.Equal(r.Apps, []string{"curl", "Google Chrome*"}) ||
 		len(r.When) != 1 || r.When[0].Name != "X-Env" || r.When[0].Op != "equals" || r.When[0].Value != "staging" {
 		t.Fatalf("match conditions not persisted: %+v", r)
 	}

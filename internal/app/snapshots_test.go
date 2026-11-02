@@ -391,6 +391,11 @@ func TestUISnapshots(t *testing.T) {
 			a.editRule(4, a.rules[4])
 			a.ruleUI.draft.MatchMode, a.ruleUI.draft.Match = "regex", `/v1/payments/\d+$`
 		}, want: "A Go regular expression found anywhere in the full URL."},
+		{name: "tools-rules-block", setup: func(a *app) {
+			snapshotRules(a)
+			a.openRules()
+			a.editRule(2, a.rules[2])
+		}, want: "Proxies it as usual but keeps it out of the table. Rules below it do not act on it."},
 		{name: "tools-rules-empty", setup: func(a *app) { a.openRules() }, want: "No rules"},
 		{name: "dialog-breakpoint", setup: snapshotBreakpoint, want: "Breakpoint · request paused", short: true},
 		{name: "dialog-breakpoint-readonly", setup: func(a *app) {
@@ -721,7 +726,7 @@ func snapshotRules(a *app) {
 		{Name: "Mock user profile", Type: capture.RuleMapLocal, Match: "api.example.com/v1/users/", Method: "GET", Target: "/Users/me/mocks/user.json", Status: 200, Scenario: "Offline demo", ScenarioActive: true},
 		{Name: "Orders → staging", Type: capture.RuleMapRemote, MatchMode: "wildcard", Match: "*.example.com/v1/orders/*", Target: "https://staging.example.com:8443", PathFrom: "/v1/", PathTo: "/api/v1/", KeepHost: true,
 			Apps: []string{"Google Chrome*"}, When: []rules.HeaderCondition{{Name: "X-Env", Op: "equals", Value: "staging"}, {Name: "Authorization", Op: "present"}}},
-		{Name: "Block analytics", Type: capture.RuleBlock, Match: "analytics.example.com", Disabled: true},
+		{Name: "Hide analytics", Type: capture.RuleBlock, Block: capture.BlockHide, Match: "analytics.example.com", Apps: []string{"Google Chrome*"}},
 		{Name: "Pause user requests", Type: capture.RuleBreak, Match: "/v1/users"},
 		{Name: "Inspect payments", Type: capture.RuleBreakResponse, Match: "/v1/payments", Method: "POST"},
 		{Name: "Offline users", Type: capture.RuleBlock, Match: "api.example.com/v1/users", Scenario: "Offline demo", ScenarioActive: true},
