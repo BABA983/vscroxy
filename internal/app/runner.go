@@ -12,9 +12,9 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"uuid"
 
 	"github.com/baba983/vscroxy/internal/request"
+	"github.com/baba983/vscroxy/internal/runner"
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 )
@@ -113,11 +113,11 @@ func (a *app) startRunner() {
 		return
 	}
 	var requests []savedRequest
-	var contexts []request.Context
+	var steps []runner.Step
 	for _, step := range r.steps {
 		if step.enabled {
 			requests = append(requests, step.request)
-			contexts = append(contexts, a.sendContext(step.request.Request))
+			steps = append(steps, runner.Step{Request: step.request.Request, Context: a.sendContext(step.request.Request)})
 		}
 	}
 	if len(requests) == 0 {
@@ -137,59 +137,25 @@ func (a *app) startRunner() {
 		defer close(events)
 		defer cancel()
 		defer a.invalidate()
-		var locals map[string]string
-		for iteration := 1; iteration <= n; iteration++ {
-			for i := 0; i < len(requests); {
-				if ctx.Err() != nil {
-					return
-				}
-				req, in := requests[i], contexts[i]
-				in.Iteration, in.Iterations, in.Locals = iteration-1, n, locals
-				if len(data) > 0 {
-					// Postman repeats the last row when there are more iterations.
-					in.Data = data[min(iteration, len(data))-1]
-				}
-				before := maps.Clone(vars)
-				stepCtx, stepCancel := context.WithTimeout(ctx, 30*time.Second)
-				runKey := uuid.New().String()
-				stepCtx = request.WithRunKey(stepCtx, runKey)
-				got := req.Execute(stepCtx, srv, in, vars, jar)
-				stepCancel()
-				vars, locals = got.Vars, got.Locals
-				// Later requests see the globals and collection variables
-				// this one's scripts changed, as the app is about to save them.
-				for j := range contexts {
-					contexts[j] = contexts[j].Apply(got.Writes, requests[j].Collection)
-				}
-				next, console := nextStep(requests, i, got.Next), got.Console
-				if got.Next != nil && next == len(requests) {
-					text := "pm.execution.setNextRequest(null) stopped the run"
-					if *got.Next != "" {
-						text = fmt.Sprintf("setNextRequest(%q): no such request in this run, so it stopped", *got.Next)
-					}
-					console = append(slices.Clone(console), request.ConsoleMessage{Phase: "runner", Kind: "warning", Text: text})
-				}
-				record := snapshotExperiment(0, req, env, got)
-				record.RunKey = runKey
-				event := runnerEvent{row: runnerRow{name: req.Name, iteration: iteration, summary: runSummary(got), failed: got.Failed(), tests: got.Tests, console: console}, before: before, vars: maps.Clone(vars), current: current, writes: got.Writes, record: record}
+		_, _ = runner.Run(ctx, srv, steps, runner.Options{Iterations: n, StopOnFailure: stop, Data: data, Vars: vars, Cookies: jar}, func(result runner.Result) error {
+			req, got := requests[result.Index], result.Execution
+			record := snapshotExperiment(0, req, env, got)
+			record.RunKey = result.RunKey
+			event := runnerEvent{row: runnerRow{name: req.Name, iteration: result.Iteration, summary: runSummary(got), failed: got.Failed(), tests: got.Tests, console: result.Console}, before: result.Before, vars: maps.Clone(got.Vars), current: current, writes: got.Writes, record: record}
+			select {
+			case events <- event:
+			default:
+				// Prefer retaining an already completed/cancelled attempt. Only
+				// abandon delivery on cancellation if the UI is not draining.
 				select {
 				case events <- event:
-				default:
-					// Prefer retaining an already completed/cancelled attempt. Only
-					// abandon delivery on cancellation if the UI is not draining.
-					select {
-					case events <- event:
-					case <-ctx.Done():
-						return
-					}
+				case <-ctx.Done():
+					return ctx.Err()
 				}
-				a.invalidate()
-				if stop && got.Failed() || got.Next != nil && next == len(requests) {
-					return
-				}
-				i = next
 			}
-		}
+			a.invalidate()
+			return nil
+		})
 	}()
 }
 
@@ -205,18 +171,6 @@ func runnableCollections(requests []savedRequest) []string {
 		}
 	}
 	return slices.Sorted(maps.Keys(seen))
-}
-
-// nextStep is the index of the request after step i: the following one, or
-// the one pm.execution.setNextRequest named. len(requests) stops the run.
-func nextStep(requests []savedRequest, i int, next *string) int {
-	if next == nil {
-		return i + 1
-	}
-	if at := slices.IndexFunc(requests, func(r savedRequest) bool { return r.Name == *next || r.ID == *next }); at >= 0 && *next != "" {
-		return at
-	}
-	return len(requests)
 }
 
 // chooseRunnerData reads a data file the user picks; its rows set the

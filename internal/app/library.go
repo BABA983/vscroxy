@@ -14,9 +14,9 @@ import (
 	"path/filepath"
 	"reflect"
 	"slices"
-	"strconv"
 	"strings"
 
+	"github.com/baba983/vscroxy/internal/library"
 	"github.com/baba983/vscroxy/internal/request"
 	"github.com/baba983/vscroxy/internal/store"
 )
@@ -96,18 +96,7 @@ func escapeName(name string) string {
 
 // unescapeName reverses escapeName; a % that starts no escape stays as it is.
 func unescapeName(s string) string {
-	var b strings.Builder
-	for i := 0; i < len(s); i++ {
-		if s[i] == '%' && i+2 < len(s) {
-			if c, err := strconv.ParseUint(s[i+1:i+3], 16, 8); err == nil {
-				b.WriteByte(byte(c))
-				i += 2
-				continue
-			}
-		}
-		b.WriteByte(s[i])
-	}
-	return b.String()
+	return library.UnescapeName(s)
 }
 
 // dirOf is the library directory, slash-separated, of a collection path.
@@ -204,86 +193,19 @@ func pathPrefixes(collection string) []string {
 // folder.json, and names starting with a dot, are not the library's and
 // are ignored. A missing root is an empty library.
 func loadLibrary(root string) (requests []savedRequest, folders []request.Folder, known map[string][]byte, err error) {
-	known = map[string][]byte{}
-	if root == "" {
-		return nil, nil, known, nil
-	}
-	var walk func(dir, collection string) error
-	walk = func(dir, collection string) error {
-		entries, err := os.ReadDir(filepath.Join(root, filepath.FromSlash(dir)))
-		if errors.Is(err, fs.ErrNotExist) && dir == "" {
-			return nil
-		}
-		if err != nil {
-			return err
-		}
-		var settings folderFile
-		if data, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(path.Join(dir, folderFileName)))); err == nil {
-			if err := json.Unmarshal(data, &settings); err != nil {
-				return fmt.Errorf("%s: %w", path.Join(dir, folderFileName), err)
-			}
-			known[path.Join(dir, folderFileName)] = data
-			settings.Path = collection
-			if collection != "" && !folderEmpty(settings.Folder) {
-				folders = append(folders, settings.Folder)
-			}
-		} else if !errors.Is(err, fs.ErrNotExist) {
-			return err
-		}
-		rank := map[string]int{}
-		for i, stem := range settings.Order {
-			rank[stem] = i + 1
-		}
-		var here []string
-		var subdirs []fs.DirEntry
-		for _, e := range entries {
-			switch name := e.Name(); {
-			case strings.HasPrefix(name, "."):
-			case e.IsDir():
-				subdirs = append(subdirs, e)
-			case strings.HasSuffix(name, requestFileSuffix) && e.Type().IsRegular():
-				here = append(here, strings.TrimSuffix(name, requestFileSuffix))
-			}
-		}
-		// Listed requests keep their order; others follow by name.
-		slices.SortFunc(here, func(x, y string) int {
-			unlisted := func(stem string) int { return min(rank[stem], 1) ^ 1 }
-			return cmp.Or(cmp.Compare(unlisted(x), unlisted(y)), cmp.Compare(rank[x], rank[y]), cmp.Compare(x, y))
-		})
-		for _, stem := range here {
-			file := path.Join(dir, stem+requestFileSuffix)
-			data, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(file)))
-			if err != nil {
-				return err
-			}
-			var r savedRequest
-			if err := json.Unmarshal(data, &r); err != nil {
-				return fmt.Errorf("%s: %w", file, err)
-			}
-			known[file] = data
-			r.Collection = collection
-			requests = append(requests, r)
-		}
-		slices.SortFunc(subdirs, func(x, y fs.DirEntry) int { return cmp.Compare(unescapeName(x.Name()), unescapeName(y.Name())) })
-		for _, e := range subdirs {
-			if err := walk(path.Join(dir, e.Name()), strings.TrimPrefix(collection+"/"+unescapeName(e.Name()), "/")); err != nil {
-				return err
-			}
-		}
-		return nil
-	}
-	if err := walk("", ""); err != nil {
+	requests, folders, known, err = library.Read(root, func(data []byte, collection string) (savedRequest, error) {
+		var r savedRequest
+		err := json.Unmarshal(data, &r)
+		r.Collection = collection
+		return r, err
+	})
+	if err != nil {
 		return nil, nil, nil, err
 	}
 	if err := assignIDs(requests); err != nil {
 		return nil, nil, nil, err
 	}
 	return requests, folders, known, nil
-}
-
-func folderEmpty(f request.Folder) bool {
-	f.Path = ""
-	return f.Description == "" && f.Auth == (request.Auth{}) && f.Pre == "" && f.Post == "" && len(f.Variables) == 0
 }
 
 // writeLibrary saves requests and folders as the tree and makes them the
