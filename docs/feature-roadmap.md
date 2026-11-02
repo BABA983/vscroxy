@@ -192,7 +192,7 @@
 | 代码 Mock（脚本写的 mock 服务，Postman `pm.mock`） | 缺少 | | M9 |
 | Runner：数据文件、迭代、setNextRequest | 已有 | | |
 | Runner：性能测试（虚拟用户、时长、指标） | 缺少 | | M9 |
-| 命令行运行集合（CI，JUnit/JSON 报告） | 缺少 | | M9 |
+| 命令行运行集合（CI，JUnit/JSON 报告） | 已有 | 独立无 UI CLI；本地集合/Postman、环境/数据文件、超时/取消/执行预算、私有报告 | M9 |
 | Cookies 管理 | 已有 | 只在内存里 | |
 | Cookies 可选持久化 | 缺少 | | M6 |
 | 响应：Pretty、Raw、Hex、预览、测试结果、耗时 | 已有 | | |
@@ -329,7 +329,7 @@ Cookie 和其他 API key 保留为变量 header，避免把多个认证机制硬
 ### M9：自动化和生态
 
 - 本地控制接口、命令行、MCP server。
-- 命令行运行集合（CI 报告）、Runner 性能测试。
+- 命令行运行集合及 CI 报告已完成（见 [自动化指南](automation.md)）；Runner 性能测试待做。
 - 录制到集合、token 链路识别。
 - 代码 Mock、`pm.visualizer`、可复用脚本库。
 - 更多代码生成语言。

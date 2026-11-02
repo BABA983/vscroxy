@@ -4,6 +4,7 @@ package runner
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"maps"
 	"net/http"
@@ -23,6 +24,7 @@ type Step struct {
 type Options struct {
 	Iterations    int
 	Timeout       time.Duration // per request; zero uses 30 seconds
+	MaxSteps      int           // zero is unlimited; counts script jumps too
 	StopOnFailure bool
 	Data          []map[string]string
 	Vars          map[string]string
@@ -45,6 +47,8 @@ type Summary struct {
 	Stopped                    bool // setNextRequest ended the run
 }
 
+var ErrStepLimit = errors.New("maximum number of request attempts reached")
+
 // Run visits steps in order, following setNextRequest and carrying environment,
 // local, global and collection writes across steps and iterations. Data repeats
 // its last row when there are more iterations. Inputs are not changed. emit is
@@ -64,6 +68,9 @@ func Run(ctx context.Context, srv *capture.Server, steps []Step, opts Options, e
 	if opts.Timeout < 0 {
 		return summary, fmt.Errorf("request timeout must be positive")
 	}
+	if opts.MaxSteps < 0 {
+		return summary, fmt.Errorf("maximum steps must not be negative")
+	}
 	if opts.Timeout == 0 {
 		opts.Timeout = 30 * time.Second
 	}
@@ -74,6 +81,9 @@ func Run(ctx context.Context, srv *capture.Server, steps []Step, opts Options, e
 		for i := 0; i < len(steps); {
 			if err := ctx.Err(); err != nil {
 				return summary, err
+			}
+			if opts.MaxSteps > 0 && summary.Completed >= opts.MaxSteps {
+				return summary, ErrStepLimit
 			}
 			step := steps[i]
 			in := step.Context

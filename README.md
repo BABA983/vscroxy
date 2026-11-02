@@ -31,14 +31,22 @@ See the [user guide](docs/guide.md) for client and device setup, filtering,
 requests, scripts, streaming protocols and the limits of HTTPS inspection.
 JavaScript request/response hooks run in Goja inside the Go process, not Node.js.
 
+For collection regression runs without a window, build
+`go build -o bin/vscroxy-cli ./cmd/vscroxy-cli`.
+See [headless automation](docs/automation.md) for native/Postman inputs,
+environment/data files, exit codes and JSON/JUnit CI reports.
+
 ## Source layout
 
 - `cmd/vscroxy/` is the executable entry point, including proxy-guard mode.
+- `cmd/vscroxy-cli/` is the UI-independent automation executable.
 - `internal/app/` owns the native UI, application state and UI tests, and
   keeps the request library as one directory per collection and one file per
   request (`library.go`).
 - `internal/request/` turns an authored request into traffic: variables,
   auth and form encoding, scripts, response checks and sending through the proxy.
+- `internal/runner/` shares collection execution and CI reports;
+  `internal/library/` shares ordered collection-file reading with the desktop.
 - `internal/postman/` converts Postman Collection v2.1 and environment files
   to and from requests and collection settings.
 - `internal/vault/` seals request secrets with AES-256-GCM and limits them to
