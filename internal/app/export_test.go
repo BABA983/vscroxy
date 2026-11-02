@@ -256,10 +256,11 @@ func TestExportRedactionContracts(t *testing.T) {
 }
 
 func TestExportPostmanBodyModesAndReimport(t *testing.T) {
-	for _, mode := range []string{"Raw", "URL encoded", "Multipart"} {
+	for _, mode := range []string{"Raw", "URL encoded", "Multipart", "Binary", "GraphQL"} {
 		t.Run(mode, func(t *testing.T) {
 			r := request.Request{Name: "Request", Collection: "Collection", URL: "{{base_url}}/a%2Fb/{{ id }}?tag=first&tag=second",
 				BodyMode: mode, Body: "body-secret", Form: []request.Field{{Name: "text", Value: "body-form"}, {Name: "upload", Value: "/body-local-file", File: true}},
+				BodyFile: "/body-local-file", GraphQL: request.GraphQLBody{Query: `query { body-secret }`, Variables: `{"q":"body-variable"}`},
 				Checks: request.Checks{Status: "201"}}
 			data, _, err := postman.WriteCollection("Collection", []request.Request{r}, nil)
 			if err != nil {

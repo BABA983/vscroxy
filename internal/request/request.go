@@ -11,6 +11,8 @@ import (
 	"bytes"
 	"cmp"
 	"encoding/base64"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"fmt"
 	"io"
 	"mime/multipart"
@@ -33,8 +35,9 @@ type Request struct {
 	Auth       Auth   `json:"auth,omitzero"`
 	BodyMode   string `json:"bodyMode,omitempty"`
 	// BodyFile is a local path for Binary bodies; only the path is saved.
-	BodyFile string  `json:"bodyFile,omitempty"`
-	Form     []Field `json:"form,omitempty"`
+	BodyFile string      `json:"bodyFile,omitempty"`
+	GraphQL  GraphQLBody `json:"graphql,omitzero"`
+	Form     []Field     `json:"form,omitempty"`
 	// HeaderList keeps the header table's rows: order, duplicates, empty
 	// values and disabled rows. Headers stays the Key: Value block the send,
 	// export and script paths read, written from the enabled rows.
@@ -45,6 +48,13 @@ type Request struct {
 	Checks Checks `json:"checks,omitzero"`
 	// Examples are responses kept with the request, as Postman's are.
 	Examples []Example `json:"examples,omitempty"`
+}
+
+// GraphQLBody keeps authored templates separate from the JSON envelope sent.
+// Variables is JSON text, not a map, so placeholders and large numbers survive.
+type GraphQLBody struct {
+	Query     string `json:"query,omitempty"`
+	Variables string `json:"variables,omitempty"`
 }
 
 // Example is a response kept with a request, with the request that got it.
@@ -151,6 +161,31 @@ func (r Request) Prepare(vars map[string]string) (*Prepared, error) {
 	}
 	switch r.BodyMode {
 	case "", "Raw":
+	case "GraphQL":
+		query := ExpandVars(r.GraphQL.Query, vars)
+		if strings.TrimSpace(query) == "" {
+			return nil, fmt.Errorf("enter a GraphQL query")
+		}
+		variables := strings.TrimSpace(ExpandVars(r.GraphQL.Variables, vars))
+		if variables == "" {
+			variables = "{}"
+		}
+		value := jsontext.Value(variables)
+		if value.Kind() != '{' || !value.IsValid() {
+			return nil, fmt.Errorf("GraphQL variables must be a JSON object after variable expansion")
+		}
+		data, err := json.Marshal(struct {
+			Query     string         `json:"query"`
+			Variables jsontext.Value `json:"variables"`
+		}{query, value})
+		if err != nil {
+			return nil, fmt.Errorf("encode GraphQL body: %w", err)
+		}
+		req.Body = string(data)
+		if req.Header.Get("Content-Type") == "" {
+			req.Set("Content-Type", "application/json")
+		}
+		req.Remove("Content-Length")
 	case "Binary":
 		path := ExpandVars(r.BodyFile, vars)
 		if path == "" {

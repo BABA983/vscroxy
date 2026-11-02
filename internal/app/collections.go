@@ -233,9 +233,9 @@ func (a *app) folderModal(c *ui.Context, t *ui.Theme) {
 					uikit.Segmented(c, &f.script, "Pre-request", "Post-response")
 					uikit.Meta(c, "Runs before the request's own script, after any parent collection's.")
 					if f.script == 0 {
-						scriptText(c, &f.draft.Pre, &f.pre, &f.preFor, kind+" pre-request script")
+						authoredText(c, &f.draft.Pre, &f.pre, &f.preFor, kind+" pre-request script", "JavaScript")
 					} else {
-						scriptText(c, &f.draft.Post, &f.post, &f.postFor, kind+" post-response script")
+						authoredText(c, &f.draft.Post, &f.post, &f.postFor, kind+" post-response script", "JavaScript")
 					}
 				case 2:
 					uikit.Meta(c, "Environment values override these; a folder's variables override its collection's.")

@@ -681,29 +681,17 @@ func (r *reader) body(out *request.Request, body *pmBody) {
 			out.Form = append(out.Form, field)
 		}
 	case "graphql":
-		variables := jsontext.Value(`{}`)
+		out.BodyMode = "GraphQL"
+		out.GraphQL.Query = body.GraphQL.Query
 		switch v := body.GraphQL.Variables; v.Kind() {
-		case '{':
-			variables = v
+		case 0, 'n':
 		case '"':
-			if parsed := jsontext.Value(strings.TrimSpace(text(v))); parsed.Kind() == '{' && parsed.IsValid() {
-				variables = parsed
-			}
+			out.GraphQL.Variables = text(v)
+		default:
+			// Keep object formatting and non-object values for validation at
+			// send time, without replacing templates or invalid variables.
+			out.GraphQL.Variables = string(v)
 		}
-		variables = variables.Clone()
-		if variables.Compact() != nil {
-			variables = jsontext.Value(`{}`)
-		}
-		data, err := json.Marshal(struct {
-			Query     string         `json:"query"`
-			Variables jsontext.Value `json:"variables"`
-		}{body.GraphQL.Query, variables})
-		if err != nil {
-			r.warn.add("body", "GraphQL", 1)
-			return
-		}
-		out.BodyMode, out.Body = "Raw", string(data)
-		addContentType(out, "application/json")
 	case "file":
 		out.BodyMode, out.BodyFile = "Binary", text(body.File.Src)
 	default:

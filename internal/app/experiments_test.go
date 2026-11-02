@@ -184,6 +184,7 @@ func TestExperimentsStorage(t *testing.T) {
 		t.Fatalf("missing file: %+v, %v", log, err)
 	}
 	draft := savedRequest{Name: "unsaved", Body: strings.Repeat("exact body\x00\n", 30000), Form: []request.Field{{Name: "file", Value: "/tmp/a", File: true}}}
+	draft.BodyMode, draft.GraphQL = "GraphQL", request.GraphQLBody{Query: `query { {{field}} }`, Variables: `{"n":{{count}}}`}
 	r := snapshotExperiment(9, draft, "development", request.Execution{Response: &capture.Flow{Status: 204}})
 	r.At, r.Note = time.Date(2026, 10, 24, 12, 0, 0, 0, time.UTC), "important baseline"
 	want := experimentLog{Version: 1, NextID: 9, Baseline: 9, Records: []experimentRecord{r}, Active: 1,

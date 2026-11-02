@@ -442,6 +442,17 @@ func (a *app) requestBodyEditor(c *ui.Context, d *requestDocument, t *ui.Theme) 
 	// already names the Body tab they belong to.
 	if d.bodyMode == "Raw" {
 		a.requestBodyText(c, d)
+	} else if d.bodyMode == "GraphQL" {
+		ui.Row(c).Children(func() {
+			uikit.Segmented(c, &d.graphqlTab, "Query", "Variables")
+		})
+		if d.graphqlTab == 1 {
+			uikit.Hint(c, "JSON object · {{variables}} supported · blank sends {}")
+			authoredText(c.Key("graphql-variables"), &d.graphql.Variables, &d.varsEditor, &d.varsFor, "GraphQL variables", "json")
+		} else {
+			uikit.Hint(c, "Query or mutation · {{variables}} supported · sent as JSON")
+			authoredText(c.Key("graphql-query"), &d.graphql.Query, &d.queryEditor, &d.queryFor, "GraphQL query", "GraphQL")
+		}
 	} else if d.bodyMode == "Binary" {
 		uikit.Meta(c, "BINARY FILE · up to 16 MiB, sent unchanged")
 		ui.Row(c).Gap(t.Space(2)).Wrap().AlignItems(ui.Center).Children(func() {
@@ -484,24 +495,26 @@ func (a *app) requestBodyEditor(c *ui.Context, d *requestDocument, t *ui.Theme) 
 // The document's string stays the source of truth for running and saving.
 func (a *app) requestScriptText(c *ui.Context, d *requestDocument) {
 	if d.scriptTab == 1 {
-		scriptText(c, &d.composePost, &d.postEditor, &d.postFor, "Post-response script")
+		authoredText(c, &d.composePost, &d.postEditor, &d.postFor, "Post-response script", "JavaScript")
 	} else {
-		scriptText(c, &d.composePre, &d.preEditor, &d.preFor, "Pre-request script")
+		authoredText(c, &d.composePre, &d.preEditor, &d.preFor, "Pre-request script", "JavaScript")
 	}
 }
 
-// scriptText edits a script in the body's reader; *text stays the source of
+// authoredText edits a template in the body's reader; *text stays the source of
 // truth, and seen is what the reader was last built from.
-func scriptText(c *ui.Context, text *string, state **editor.State, seen *string, label string) {
+func authoredText(c *ui.Context, text *string, state **editor.State, seen *string, label, language string) {
 	if *state == nil || *seen != *text {
 		buf := editor.NewBuffer(*text)
-		buf.SetLanguage(editor.LanguageNamed("JavaScript"))
+		buf.SetLanguage(editor.LanguageNamed(language))
 		*state = &editor.State{Buffer: buf, NoScrollPastEnd: true, SoftWrap: true, Label: label}
 		*seen = *text
 	}
 	requestCodeEditor(c, *state)
 	if current := (*state).Buffer.String(); current != *text {
 		*text, *seen = current, current
+		// Tools built above the editor must see the new text next frame.
+		c.Invalidate()
 	}
 }
 

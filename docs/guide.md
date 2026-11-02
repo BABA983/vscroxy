@@ -1028,6 +1028,25 @@ A pre-request script that explicitly updates `pm.request.body.raw` or calls
 Saving a request or exporting it to Postman keeps only the file reference,
 not the file bytes; the receiving machine must have the file or select another.
 
+**GraphQL** provides separate **Query** and **Variables** editors under
+**Body → GraphQL**, with GraphQL/JSON highlighting, find and undo. Enter one
+query or mutation; multi-operation documents that need `operationName` still
+use a Raw JSON body. **Variables** is a JSON object, or blank to send `{}`;
+**Format** indents its JSON without expanding placeholders. Both fields support
+`{{variables}}`, dynamic values, Vault references and pre-request script/Runner
+values. Expansion is textual, as with Raw JSON: escape JSON string values when
+needed. Sending validates the expanded variables as an object and encodes
+`{"query": "…", "variables": {…}}`, defaulting Content-Type to `application/json`
+unless you set it. An empty query or invalid variables fail before sending.
+The HTTP method stays the one selected; use POST for the JSON envelope.
+Saved requests, restored drafts and Postman collections keep query and variables
+separately, including unexpanded templates; switching body types keeps inactive
+edits but never sends them. Code/cURL export uses the same JSON encoding without
+expanding secrets (variables must already be valid JSON for code export).
+A script's explicit raw-body assignment or `pm.request.body.update(...)`
+replaces GraphQL encoding, as it does forms. Schema introspection, completions
+and query formatting are not included yet.
+
 **Scripts** edits the pre-request and post-response scripts in the same reader as
 the body, with JavaScript highlighting, find and undo. **Send** runs through the
 proxy and shows the response body (Pretty, Raw or Hex, with JSON highlighting),

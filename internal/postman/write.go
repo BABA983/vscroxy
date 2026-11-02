@@ -92,11 +92,17 @@ type outBody struct {
 	URLEncoded []outFormField `json:"urlencoded,omitempty"`
 	FormData   []outFormField `json:"formdata,omitempty"`
 	File       *outFile       `json:"file,omitempty"`
+	GraphQL    *outGraphQL    `json:"graphql,omitempty"`
 	Options    *outOptions    `json:"options,omitempty"`
 }
 
 type outFile struct {
 	Src string `json:"src"`
+}
+
+type outGraphQL struct {
+	Query     string `json:"query"`
+	Variables string `json:"variables"`
 }
 
 type outOptions struct {
@@ -250,6 +256,8 @@ func writeRequest(r request.Request) *outRequest {
 				out.Body.Options.Raw.Language = "json"
 			}
 		}
+	case "GraphQL":
+		out.Body = &outBody{Mode: "graphql", GraphQL: &outGraphQL{Query: r.GraphQL.Query, Variables: r.GraphQL.Variables}}
 	case "Binary":
 		out.Body = &outBody{Mode: "file", File: &outFile{Src: r.BodyFile}}
 	case "URL encoded":

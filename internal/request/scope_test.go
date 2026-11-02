@@ -273,6 +273,81 @@ func TestBinaryBodyThroughTheProxy(t *testing.T) {
 	}
 }
 
+func TestGraphQLBodyPreparationAndExecution(t *testing.T) {
+	r := Request{Method: "POST", URL: "https://example.test/graphql", BodyMode: "GraphQL",
+		GraphQL: GraphQLBody{Query: "query Search($q: String!) {\n  search(q: $q) { {{fields}} }\n}", Variables: `{"q":"{{term}}","limit":{{limit}},"id":9007199254740993}`},
+		Body:    "{{inactive_raw}}", BodyFile: "{{inactive_file}}", Form: []Field{{Name: "{{inactive_form}}"}}, Headers: "Content-Length: 1"}
+	if got := r.Variables(); !slices.Equal(got, []string{"fields", "limit", "term"}) {
+		t.Fatalf("variables = %q", got)
+	}
+	vars := map[string]string{"fields": "id name", "term": `shoes & 中文`, "limit": "3"}
+	prepared, err := r.Prepare(vars)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var envelope struct {
+		Query     string `json:"query"`
+		Variables struct {
+			Q     string `json:"q"`
+			Limit int    `json:"limit"`
+			ID    int64  `json:"id"`
+		} `json:"variables"`
+	}
+	if err := json.Unmarshal([]byte(prepared.Body), &envelope); err != nil {
+		t.Fatal(err)
+	}
+	if envelope.Query != "query Search($q: String!) {\n  search(q: $q) { id name }\n}" || envelope.Variables.Q != "shoes & 中文" || envelope.Variables.Limit != 3 || envelope.Variables.ID != 9007199254740993 {
+		t.Fatalf("encoded GraphQL = %+v", envelope)
+	}
+	if prepared.Header.Get("Content-Type") != "application/json" || prepared.Header.Get("Content-Length") != "" {
+		t.Fatalf("headers = %v", prepared.Header)
+	}
+	r.Headers = "Content-Type: application/custom+json"
+	r.GraphQL = GraphQLBody{Query: `{ viewer { id } }`}
+	prepared, err = r.Prepare(nil)
+	if err != nil || prepared.Body != `{"query":"{ viewer { id } }","variables":{}}` || prepared.Header.Get("Content-Type") != "application/custom+json" {
+		t.Fatalf("empty variables/custom header = %+v, %v", prepared, err)
+	}
+	for _, variables := range []string{"null", "[]", `"text"`, "42", "true", `{"n":}`, `{} {}`, `{"n":{{missing}}}`, `{"n":1,"n":2}`} {
+		r.GraphQL.Variables = variables
+		if _, err := r.Prepare(nil); err == nil {
+			t.Errorf("accepted invalid variables %q", variables)
+		}
+	}
+	r.GraphQL = GraphQLBody{Query: " \n\t"}
+	if _, err := r.Prepare(nil); err == nil {
+		t.Fatal("accepted an empty query")
+	}
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		if req.Method != "POST" || req.Header.Get("Content-Type") != "application/json" {
+			t.Errorf("GraphQL wire request = %s, %v", req.Method, req.Header)
+		}
+		io.Copy(w, req.Body)
+	}))
+	defer upstream.Close()
+	r.URL, r.Headers = upstream.URL, "Content-Length: 1"
+	r.GraphQL = GraphQLBody{Query: `query { {{field}} } # {{$randomUUID}}`, Variables: `{"n":{{n}},"uuid":"{{$randomUUID}}","secret":"{{vault:token}}"}`}
+	r.Pre = `pm.variables.set('field', 'viewer { id }'); pm.variables.set('n', '7');`
+	r.Checks = Checks{Status: "200"}
+	secrets := vault.Secrets{{Name: "token", Value: "local-secret", Domains: []string{"127.0.0.1"}}}
+	srv := testProxy(t)
+	out := r.Execute(t.Context(), srv, Context{Vault: secrets.Lookup}, nil, nil)
+	if out.Err != nil || out.Response == nil || out.Failed() {
+		t.Fatalf("GraphQL execute = %s, %v", out.Stage, out.Err)
+	}
+	pattern := `^\{"query":"query \{ viewer \{ id \} \} # [a-f0-9-]{36}","variables":\{"n":7,"uuid":"[a-f0-9-]{36}","secret":"local-secret"\}\}$`
+	if !regexp.MustCompile(pattern).MatchString(out.Response.ResponseBody) || out.Request.Body != out.Response.ResponseBody {
+		t.Fatalf("GraphQL wire body = %q", out.Response.ResponseBody)
+	}
+	// A raw script override wins even over an invalid inactive GraphQL body.
+	r.GraphQL.Variables = "invalid"
+	r.Pre = `pm.request.body.update('script-body'); pm.request.headers.upsert('Content-Type', 'application/json');`
+	out = r.Execute(t.Context(), srv, Context{}, nil, nil)
+	if out.Err != nil || out.Response == nil || out.Response.ResponseBody != "script-body" {
+		t.Fatalf("GraphQL raw override = %s, %v", out.Stage, out.Err)
+	}
+}
+
 func TestBinaryBodyFileLimits(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "limit.bin")

@@ -1348,6 +1348,45 @@ func TestRequestBodyEditorKeepsTheDraftInSync(t *testing.T) {
 	if d.composeBody != `{"quantity": 0}` || d.bodyFile != "{{upload_path}}" {
 		t.Fatal("switching body types lost the raw body or binary file path")
 	}
+	for _, label := range []string{"Request body type", "GraphQL", "GraphQL query"} {
+		if err := tt.Click(label); err != nil {
+			t.Fatal(err)
+		}
+	}
+	tt.Type(`query Search($q: String!) { search(q: $q) { id } }`)
+	if err := tt.Click("Variables"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.Click("GraphQL variables"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Type(`{"q":"{{term}}","limit":3}`)
+	if err := tt.Click("Format GraphQL variables"); err != nil {
+		t.Fatal(err)
+	}
+	wantVariables := "{\n  \"q\": \"{{term}}\",\n  \"limit\": 3\n}"
+	if d.value().GraphQL.Query != `query Search($q: String!) { search(q: $q) { id } }` || d.value().GraphQL.Variables != wantVariables || d.composeBody != `{"quantity": 0}` {
+		t.Fatalf("GraphQL editor changed another body or lost edits: %+v", d.value())
+	}
+	for _, label := range []string{"Request body type", "Raw", "Request body type", "GraphQL", "Query", "GraphQL query"} {
+		if err := tt.Click(label); err != nil {
+			t.Fatal(err)
+		}
+	}
+	tt.Key(ui.Cmd, ui.KeyA)
+	tt.Type(`mutation { createItem { id } }`)
+	if d.graphql.Variables != wantVariables || d.value().GraphQL.Query != `mutation { createItem { id } }` {
+		t.Fatal("GraphQL editors share text or switching modes discarded edits")
+	}
+	// Loading another draft must replace each editor's old text when shown.
+	d.graphql = request.GraphQLBody{Query: `{ viewer { name } }`, Variables: `{"id":19}`}
+	tt.Frame()
+	if err := tt.Click("Variables"); err != nil {
+		t.Fatal(err)
+	}
+	if d.queryEditor.Buffer.String() != `{ viewer { name } }` || d.varsEditor.Buffer.String() != `{"id":19}` {
+		t.Fatal("restored GraphQL text was overwritten by stale editor buffers")
+	}
 }
 
 func TestCredentialsAreMaskedUntilRevealed(t *testing.T) {

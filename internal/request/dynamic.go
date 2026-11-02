@@ -135,6 +135,7 @@ func expandDynamic(s string, defined map[string]string) string {
 func (r Request) withDynamic(defined map[string]string) Request {
 	expand := func(s *string) { *s = expandDynamic(*s, defined) }
 	fields := []*string{&r.Method, &r.URL, &r.Headers, &r.Body, &r.BodyFile, &r.Auth.Token, &r.Auth.Username, &r.Auth.Password, &r.Auth.Key, &r.Auth.Value}
+	fields = append(fields, &r.GraphQL.Query, &r.GraphQL.Variables)
 	for _, s := range append(append(fields, r.Auth.AWS.fields()...), r.Auth.JWT.fields()...) {
 		expand(s)
 	}

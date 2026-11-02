@@ -274,6 +274,18 @@ func TestUISnapshots(t *testing.T) {
 			draft(a)
 			a.composeTab, a.requestDocument.bodyMode, a.bodyFile = composeTabBody, "Binary", "/Users/demo/Uploads/firmware release 2.bin"
 		}, want: "Binary body file"},
+		{name: "requests-graphql-query", setup: func(a *app) {
+			draft(a)
+			a.composeURL = "https://api.example.com/graphql"
+			a.composeTab, a.requestDocument.bodyMode = composeTabBody, "GraphQL"
+			a.graphql = request.GraphQLBody{Query: "query Search($q: String!, $limit: Int) {\n  search(query: $q, limit: $limit) {\n    id\n    name\n    description\n  }\n}", Variables: "{\n  \"q\": \"{{search_term}}\",\n  \"limit\": 10\n}"}
+		}, want: "GraphQL query"},
+		{name: "requests-graphql-variables", setup: func(a *app) {
+			response(a)
+			a.composeURL = "https://api.example.com/graphql"
+			a.composeTab, a.requestDocument.bodyMode, a.graphqlTab = composeTabBody, "GraphQL", 1
+			a.graphql = request.GraphQLBody{Query: "query Search($q: String!, $limit: Int) {\n  search(query: $q, limit: $limit) { id name }\n}", Variables: "{\n  \"q\": \"{{search_term}}\",\n  \"limit\": 10\n}"}
+		}, want: "GraphQL variables"},
 		{name: "requests-scripts", setup: func(a *app) { draft(a); a.composeTab = composeTabScripts }, want: "Pre-request script"},
 		{name: "requests-checks", setup: func(a *app) {
 			draft(a)

@@ -199,6 +199,58 @@ func TestBinaryBodySurvivesSavingAndRunner(t *testing.T) {
 	}
 }
 
+func TestGraphQLBodySurvivesSavingAndRunner(t *testing.T) {
+	bodies := make(chan string, 2)
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Error(err)
+		}
+		bodies <- string(body)
+		w.WriteHeader(201)
+	}))
+	defer upstream.Close()
+	r := savedRequest{ID: "graphql-asset", Name: "Search", Collection: "GraphQL", Method: "POST", URL: upstream.URL,
+		BodyMode: "GraphQL", GraphQL: request.GraphQLBody{Query: `query { {{field}} }`, Variables: `{"q":"{{term}}"}`},
+		Body: "inactive raw", Pre: `pm.variables.set('field', 'viewer { id }'); pm.variables.set('term', 'hello');`, Checks: request.Checks{Status: "201"}}
+	loaded := libraryRoundTrip(t, []savedRequest{r})
+	if len(loaded) != 1 || !reflect.DeepEqual(loaded[0], r) {
+		t.Fatalf("GraphQL library round trip = %+v", loaded)
+	}
+	a := workspaceApp()
+	a.addDocument(loaded[0], loaded[0].key())
+	if a.dirty() || a.draft().GraphQL != r.GraphQL {
+		t.Fatal("reopening a saved GraphQL request changed its body")
+	}
+	a.graphql.Query = `query { viewer { name } }`
+	if !a.dirty() || a.baseline.GraphQL.Query != r.GraphQL.Query {
+		t.Fatal("GraphQL edits were not tracked independently")
+	}
+	prepared, err := a.draftPrepared(a.requestDocument)
+	if err != nil || prepared.Body != `{"query":"query { viewer { name } }","variables":{"q":"{{term}}"}}` {
+		t.Fatalf("code body = %+v, %v", prepared, err)
+	}
+	for _, language := range codeLanguages {
+		a.code.language = language
+		if code, err := a.codeText(a.requestDocument); err != nil || !strings.Contains(code, "viewer") || strings.Contains(code, "inactive raw") {
+			t.Fatalf("%s GraphQL snippet = %q, %v", language, code, err)
+		}
+	}
+	a.srv, a.requests = requestProxy(t), loaded
+	a.openRunner()
+	a.runner.iterations = "2"
+	a.startRunner()
+	waitRunner(t, a)
+	if a.runner.completed != 2 || a.runner.failures != 0 || len(bodies) != 2 {
+		t.Fatalf("GraphQL runner completed=%d failures=%d sends=%d", a.runner.completed, a.runner.failures, len(bodies))
+	}
+	for range 2 {
+		if body := <-bodies; body != `{"query":"query { viewer { id } }","variables":{"q":"hello"}}` {
+			t.Fatalf("GraphQL runner body = %q", body)
+		}
+	}
+}
+
 func TestURLEncodedAuthAndCookiesFollowHTTPRules(t *testing.T) {
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {

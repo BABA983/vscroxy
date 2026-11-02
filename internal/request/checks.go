@@ -208,6 +208,8 @@ func (r Request) Variables() []string {
 		texts = append(texts, r.Body)
 	} else if r.BodyMode == "Binary" {
 		texts = append(texts, r.BodyFile)
+	} else if r.BodyMode == "GraphQL" {
+		texts = append(texts, r.GraphQL.Query, r.GraphQL.Variables)
 	} else {
 		for _, field := range r.Form {
 			if !field.Disabled {

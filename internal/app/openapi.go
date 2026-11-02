@@ -191,6 +191,8 @@ func generateOpenAPI(requests []savedRequest, collection string) (apiSpec, error
 		}
 		if r.BodyMode == "Binary" {
 			notes = append(notes, label+": binary file body is omitted; define its media type and schema manually. File contents and local paths were not copied.")
+		} else if r.BodyMode == "GraphQL" {
+			notes = append(notes, label+": GraphQL body is omitted; define its media type and schema manually. Query and variable values were not copied.")
 		} else if r.BodyMode != "" && r.BodyMode != "Raw" {
 			notes = append(notes, label+": structured form body is omitted; define its media type and schema manually. Form values and local file paths were not copied.")
 		} else if r.Body != "" {

@@ -225,9 +225,8 @@ func TestReadCollection(t *testing.T) {
 		},
 		{
 			Name: "Search", Collection: "Shop API", Method: "POST", URL: "{{baseUrl}}/graphql",
-			BodyMode: "Raw", Body: `{"query":"query($q: String) { search(q: $q) { id } }","variables":{"q":"shoes"}}`,
-			HeaderList: []request.Field{{Name: "Content-Type", Value: "application/json"}},
-			Headers:    "Content-Type: application/json", Auth: inherit,
+			BodyMode: "GraphQL", GraphQL: request.GraphQLBody{Query: "query($q: String) { search(q: $q) { id } }", Variables: "{\n  \"q\": \"shoes\"\n}"},
+			Auth: inherit,
 		},
 		{Name: "Ping", Collection: "Shop API", Method: "GET", URL: "https://shop.example.com/ping", Auth: inherit},
 		{
@@ -742,6 +741,140 @@ func TestCollectionRoundTrip(t *testing.T) {
 	}
 	if !reflect.DeepEqual(got.Folders, folders[:4]) {
 		t.Errorf("Folders:\n got %+v\nwant %+v", got.Folders, folders[:4])
+	}
+}
+
+func TestGraphQLBodyConversion(t *testing.T) {
+	const query = " \nquery {{operation}}($id: ID!) {\n  node(id: $id) { id }\n}\n "
+	for _, tt := range []struct{ name, fields, want string }{
+		{"string", `"variables":" \n{\n  \"id\": \"{{id}}\"\n}\t "`, " \n{\n  \"id\": \"{{id}}\"\n}\t "},
+		{"template expression", `"variables":"{\"id\": {{id}}}"`, `{"id": {{id}}}`},
+		{"whole template", `"variables":" {{variables}} "`, " {{variables}} "},
+		{"invalid JSON string", `"variables":" {not JSON "`, " {not JSON "},
+		{"object", "\"variables\":{\n  \"id\" : \"{{id}}\", \"nested\": { \"n\": 1e2 }\n}", "{\n  \"id\" : \"{{id}}\", \"nested\": { \"n\": 1e2 }\n}"},
+		{"array", `"variables":[ 1, "{{id}}" ]`, `[ 1, "{{id}}" ]`},
+		{"number", `"variables":1e2`, "1e2"},
+		{"true", `"variables":true`, "true"},
+		{"false", `"variables":false`, "false"},
+		{"null string", `"variables":"null"`, "null"},
+		{"empty string", `"variables":""`, ""},
+		{"whitespace string", `"variables":" \n\t "`, " \n\t "},
+		{"null", `"variables":null`, ""},
+		{"absent", ``, ""},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			encodedQuery, err := json.Marshal(query)
+			if err != nil {
+				t.Fatal(err)
+			}
+			fields := `"query":` + string(encodedQuery)
+			if tt.fields != "" {
+				fields += "," + tt.fields
+			}
+			input := `{"info":{"name":"GraphQL"},"item":[{"id":"gql","name":"Query","request":{"method":"POST","url":"{{base}}/graphql","body":{"mode":"graphql","raw":"inactive raw","file":{"src":"inactive.bin"},"formdata":[{"key":"inactive","value":"form"}],"graphql":{` + fields + `}}}}]}`
+			got, err := postman.ReadCollection([]byte(input))
+			if err != nil || len(got.Requests) != 1 || len(got.Warnings) != 0 {
+				t.Fatalf("import = %+v, %v", got, err)
+			}
+			want := request.Request{
+				ID: "gql", Name: "Query", Collection: "GraphQL", Method: "POST", URL: "{{base}}/graphql",
+				BodyMode: "GraphQL", GraphQL: request.GraphQLBody{Query: query, Variables: tt.want},
+				Auth: request.Auth{Type: request.AuthInherit},
+			}
+			if !reflect.DeepEqual(got.Requests[0], want) {
+				t.Fatalf("import:\n got %+v\nwant %+v", got.Requests[0], want)
+			}
+			// Export only the active editor, without reading files, validating
+			// variables or turning templates into a raw JSON envelope.
+			got.Requests[0].Body = "inactive raw"
+			got.Requests[0].BodyFile = "/nonexistent/inactive.bin"
+			got.Requests[0].Form = []request.Field{{Name: "inactive", Value: "form"}}
+			data, warnings, err := postman.WriteCollection(got.Name, got.Requests, nil)
+			if err != nil || len(warnings) != 0 {
+				t.Fatalf("export: %v, warnings %q", err, warnings)
+			}
+			var out struct {
+				Item []struct {
+					Request struct {
+						Body map[string]any `json:"body"`
+					} `json:"request"`
+				} `json:"item"`
+			}
+			if err := json.Unmarshal(data, &out); err != nil {
+				t.Fatal(err)
+			}
+			wantBody := map[string]any{"mode": "graphql", "graphql": map[string]any{"query": query, "variables": tt.want}}
+			if len(out.Item) != 1 || !reflect.DeepEqual(out.Item[0].Request.Body, wantBody) {
+				t.Fatalf("export must contain only mode and graphql strings:\n%s", data)
+			}
+			again, err := postman.ReadCollection(data)
+			if err != nil || len(again.Requests) != 1 || len(again.Warnings) != 0 {
+				t.Fatalf("re-import = %+v, %v", again, err)
+			}
+			if !reflect.DeepEqual(again.Requests[0], want) {
+				t.Errorf("round trip:\n got %+v\nwant %+v", again.Requests[0], want)
+			}
+		})
+	}
+}
+
+func TestGraphQLBodyBlankAndInactive(t *testing.T) {
+	for _, tt := range []struct{ name, body, mode string }{
+		{"missing fields", `{"mode":"graphql","graphql":{}}`, "GraphQL"},
+		{"null graphql", `{"mode":"graphql","graphql":null}`, "GraphQL"},
+		{"missing graphql", `{"mode":"graphql"}`, "GraphQL"},
+		{"disabled", `{"mode":"graphql","disabled":true,"graphql":{"query":"{{query}}","variables":"{{vars}}"}}`, ""},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			input := `{"info":{"name":"GraphQL"},"item":[{"id":"gql","name":"Blank","request":{"body":` + tt.body + `}}]}`
+			got, err := postman.ReadCollection([]byte(input))
+			if err != nil || len(got.Requests) != 1 || len(got.Warnings) != 0 {
+				t.Fatalf("import = %+v, %v", got, err)
+			}
+			want := request.Request{ID: "gql", Name: "Blank", Collection: "GraphQL", Method: "GET", BodyMode: tt.mode, Auth: request.Auth{Type: request.AuthInherit}}
+			if !reflect.DeepEqual(got.Requests[0], want) {
+				t.Fatalf("import:\n got %+v\nwant %+v", got.Requests[0], want)
+			}
+			data, warnings, err := postman.WriteCollection(got.Name, got.Requests, nil)
+			if err != nil || len(warnings) != 0 {
+				t.Fatalf("export: %v, warnings %q", err, warnings)
+			}
+			if tt.mode == "GraphQL" {
+				if !strings.Contains(string(data), `"query": ""`) || !strings.Contains(string(data), `"variables": ""`) {
+					t.Errorf("blank GraphQL must export both string fields:\n%s", data)
+				}
+			} else if strings.Contains(string(data), `"body"`) {
+				t.Errorf("disabled GraphQL body was exported:\n%s", data)
+			}
+		})
+	}
+	for _, mode := range []string{"", "raw", "file", "urlencoded", "formdata"} {
+		t.Run("inactive in "+mode, func(t *testing.T) {
+			input := `{"info":{"name":"GraphQL"},"item":[{"id":"other","name":"Other","request":{"body":{"mode":"` + mode + `","raw":"raw text","options":{"raw":{"language":"text"}},"file":{"src":"file.bin"},"urlencoded":[{"key":"a","value":"b"}],"formdata":[{"key":"a","value":"b"}],"graphql":{"query":"inactive query","variables":"inactive variables"}}}}]}`
+			got, err := postman.ReadCollection([]byte(input))
+			if err != nil || len(got.Requests) != 1 || len(got.Warnings) != 0 {
+				t.Fatalf("import = %+v, %v", got, err)
+			}
+			want := got.Requests[0]
+			if want.GraphQL != (request.GraphQLBody{}) {
+				t.Fatalf("inactive GraphQL imported: %+v", want)
+			}
+			got.Requests[0].GraphQL = request.GraphQLBody{Query: "inactive query", Variables: "inactive variables"}
+			data, warnings, err := postman.WriteCollection(got.Name, got.Requests, nil)
+			if err != nil || len(warnings) != 0 {
+				t.Fatalf("export: %v, warnings %q", err, warnings)
+			}
+			if strings.Contains(string(data), `"graphql"`) || strings.Contains(string(data), "inactive") {
+				t.Fatalf("inactive GraphQL exported:\n%s", data)
+			}
+			again, err := postman.ReadCollection(data)
+			if err != nil || len(again.Requests) != 1 || len(again.Warnings) != 0 {
+				t.Fatalf("re-import = %+v, %v", again, err)
+			}
+			if !reflect.DeepEqual(again.Requests[0], want) {
+				t.Errorf("round trip:\n got %+v\nwant %+v", again.Requests[0], want)
+			}
+		})
 	}
 }
 

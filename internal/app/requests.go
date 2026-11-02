@@ -66,6 +66,12 @@ type requestDocument struct {
 	auth        request.Auth
 	bodyMode    string
 	bodyFile    string
+	graphql     request.GraphQLBody
+	graphqlTab  int
+	queryEditor *editor.State
+	queryFor    string
+	varsEditor  *editor.State
+	varsFor     string
 	formFields  []request.Field
 	queryRows   []request.Field
 	querySource string
@@ -151,7 +157,8 @@ func (d *requestDocument) value() savedRequest {
 		Method: d.composeMethod, URL: d.composeURL, Headers: d.composeHeaders,
 		Body: d.composeBody, Pre: d.composePre, Post: d.composePost,
 		Auth: d.auth, BodyMode: d.bodyMode, BodyFile: d.bodyFile, Form: slices.Clone(d.formFields),
-		Checks: d.checks, HeaderList: headerRowsKept(d.headerRows),
+		GraphQL: d.graphql,
+		Checks:  d.checks, HeaderList: headerRowsKept(d.headerRows),
 		Examples: slices.Clone(d.examples),
 	}
 	if len(d.headerRows) > 0 {
@@ -219,6 +226,7 @@ func (d *requestDocument) load(r savedRequest, key string) {
 	d.examples, d.example, d.exampleEditor = slices.Clone(r.Examples), 0, nil
 	d.auth, d.bodyMode, d.formFields = r.Auth, cmp.Or(r.BodyMode, "Raw"), slices.Clone(r.Form)
 	d.bodyFile = r.BodyFile
+	d.graphql = r.GraphQL
 	if d.headerRows == nil && d.composeHeaders != "" {
 		d.headerRows, d.headerFor = parseHeaderRows(d.composeHeaders), d.composeHeaders
 	}
@@ -778,15 +786,22 @@ func (a *app) requestEditor(c *ui.Context, t *ui.Theme, d *requestDocument, orig
 	// tools take their own row there.
 	wide := a.contentWidth(c) >= 900 && original == nil
 	bodyTools := func() {
-		uikit.Select(c, &d.bodyMode, []string{"Raw", "URL encoded", "Multipart", "Binary"}).Label("Request body type").Width(132).FontSize(uikit.TextMeta)
-		formatted, isJSON := indentJSON(d.composeBody)
-		ui.Row(c).Disabled(!isJSON || d.bodyMode != "Raw").Children(func() {
-			if uikit.ToolbarButton(c, "Format body", "Indent the JSON body; the bytes sent stay what the editor shows", false).Children(func() {
+		uikit.Select(c, &d.bodyMode, []string{"Raw", "URL encoded", "Multipart", "Binary", "GraphQL"}).Label("Request body type").Width(132).FontSize(uikit.TextMeta)
+		text, seen := &d.composeBody, &d.bodyFor
+		formatLabel := "Format body"
+		canFormat := d.bodyMode == "Raw"
+		if d.bodyMode == "GraphQL" && d.graphqlTab == 1 {
+			text, seen = &d.graphql.Variables, &d.varsFor
+			formatLabel, canFormat = "Format GraphQL variables", true
+		}
+		formatted, isJSON := indentJSON(*text)
+		ui.Row(c).Disabled(!isJSON || !canFormat).Children(func() {
+			if uikit.ToolbarButton(c, formatLabel, "Indent the JSON text without expanding variables", false).Children(func() {
 				ui.Icon(c, formatIcon).Size(uikit.IconInline, uikit.IconInline)
 				ui.Text(c, "Format").FontSize(uikit.TextMeta)
 			}).Clicked() {
 				// Rebuild the editor rather than writing its old buffer back.
-				d.composeBody, d.bodyFor = formatted, ""
+				*text, *seen = formatted, ""
 			}
 		})
 	}
