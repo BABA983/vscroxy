@@ -20,7 +20,6 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"path"
 	"path/filepath"
 	"slices"
 	"strconv"
@@ -35,6 +34,7 @@ import (
 
 	"github.com/baba983/vscroxy/internal/dnsmap"
 	"github.com/baba983/vscroxy/internal/procinfo"
+	"github.com/baba983/vscroxy/internal/rules"
 )
 
 const (
@@ -472,7 +472,7 @@ func (c SSLConfig) Decrypts(host string) bool {
 	}
 	host = sslHostname(host)
 	for _, pattern := range c.Hosts {
-		if hostMatches(host, []string{sslHostname(pattern)}) {
+		if rules.Host(host, []string{sslHostname(pattern)}) {
 			return true
 		}
 	}
@@ -604,7 +604,7 @@ func (s *Server) Ignore() []string {
 
 // ignored reports whether host is one whose flows are dropped.
 func (s *Server) ignored(host string) bool {
-	return hostMatches(host, s.Ignore())
+	return rules.Host(host, s.Ignore())
 }
 
 // SetIgnoreApps sets the apps whose flows the table does not show, for a
@@ -621,7 +621,7 @@ func (s *Server) IgnoreApps() []string {
 
 // ignoredApp reports whether the flow of an app is dropped.
 func (s *Server) ignoredApp(name string) bool {
-	return appMatches(name, s.IgnoreApps())
+	return rules.App(name, s.IgnoreApps())
 }
 
 // AllowList narrows the table to the traffic being debugged. While On, only
@@ -646,54 +646,7 @@ func (s *Server) Allow() AllowList {
 
 // allows reports whether a flow to host from app is shown.
 func (l AllowList) allows(host, app string) bool {
-	return !l.On || hostMatches(host, l.Hosts) || appMatches(app, l.Apps)
-}
-
-// appMatches reports whether an app name matches one of the patterns, as
-// the Apps section spells them, ignoring case.
-func appMatches(name string, apps []string) bool {
-	name = strings.ToLower(strings.TrimSpace(name))
-	if name == "" {
-		return false
-	}
-	for _, app := range apps {
-		app = strings.ToLower(strings.TrimSpace(app))
-		if app == "" || strings.HasPrefix(app, "#") {
-			continue
-		}
-		if ok, _ := path.Match(app, name); ok {
-			return true
-		}
-	}
-	return false
-}
-
-// hostMatches reports whether host matches one of the patterns: a host with
-// its subdomains, a leading dot for subdomains only, or a path.Match glob.
-func hostMatches(host string, patterns []string) bool {
-	host = strings.ToLower(strings.TrimSuffix(host, "."))
-	if host == "" {
-		return false
-	}
-	for _, pattern := range patterns {
-		pattern = strings.ToLower(strings.TrimSpace(pattern))
-		if pattern == "" || strings.HasPrefix(pattern, "#") {
-			continue
-		}
-		if ok, _ := path.Match(pattern, host); ok {
-			return true
-		}
-		if rest, ok := strings.CutPrefix(pattern, "."); ok {
-			if host == rest || strings.HasSuffix(host, pattern) {
-				return true
-			}
-			continue
-		}
-		if !strings.ContainsAny(pattern, "*?[") && (host == pattern || strings.HasSuffix(host, "."+pattern)) {
-			return true
-		}
-	}
-	return false
+	return !l.On || rules.Host(host, l.Hosts) || rules.App(app, l.Apps)
 }
 
 // ParseIgnore reads a list of hosts or apps, one per line; a line starting

@@ -780,26 +780,6 @@ func TestSSLDomainRulesIgnorePorts(t *testing.T) {
 	}
 }
 
-func TestHostMatches(t *testing.T) {
-	patterns := []string{"example.com", "*.internal.test", "# comment", ".corp.test"}
-	cases := map[string]bool{
-		"example.com":       true,
-		"api.example.com":   true,
-		"EXAMPLE.COM":       true,
-		"api.internal.test": true,
-		"internal.test":     false,
-		"corp.test":         true,
-		"deep.corp.test":    true,
-		"example.org":       false,
-		"notexample.com":    false,
-	}
-	for host, want := range cases {
-		if got := hostMatches(host, patterns); got != want {
-			t.Errorf("hostMatches(%q) = %v, want %v", host, got, want)
-		}
-	}
-}
-
 func TestSpillsLargeBodiesToDisk(t *testing.T) {
 	big := bytes.Repeat([]byte("x"), 200<<10)
 	sizes := make(chan int, 4)

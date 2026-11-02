@@ -116,6 +116,8 @@ type action struct {
 - **规则脚本**：复用 `internal/request` 的 JS 沙箱（goja、`pm` API、内置库），抓包脚本和请求脚本共用一套库和 Console。
 - `capture` 只负责代理和调用管线，不再自己判断匹配。
 
+已完成匹配器（M2 前置，`internal/rules/match.go`）：`rules.Host`（host 含子域名、前导点只匹配子域名、`path.Match` 通配，忽略大小写和末尾的点，跳过空行和 `#`）、`rules.App`（忽略大小写的通配，路径按可执行文件名比较）、`rules.Matcher`（URL 子串、method、host、App，设置的条件都满足才命中，`Mismatch` 给出原因）。HTTPS 解密名单、忽略和允许名单、DNS 映射、规则和断点都改用它，原来的 `hostMatches`、`appMatches`、`nameMatches` 和规则里的子串判断删掉。统一后 DNS 映射的 `@ App` 也支持通配，忽略和允许名单的 App 也按可执行文件名比较。通配符、正则、header 和管线随 M4。
+
 ### 3.5 后台任务和 UI 更新
 
 - 写一个小的任务工具：按 key 启动任务，同一个 key 的新任务自动取消旧任务；结果通过 `Window.Update` 送回 UI，并带代号检查，过期结果直接丢弃（MyGo 使用指南的要求）。

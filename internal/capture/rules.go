@@ -15,6 +15,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/baba983/vscroxy/internal/rules"
 	"github.com/baba983/vscroxy/internal/store"
 	"golang.org/x/net/http/httpguts"
 )
@@ -31,12 +32,7 @@ func (r Rule) matchReason(raw, method string) string {
 	if r.Scenario != "" && !r.ScenarioActive {
 		reasons = append(reasons, fmt.Sprintf("inactive scenario %q", r.Scenario))
 	}
-	if r.Method != "" && r.Method != method {
-		reasons = append(reasons, "method does not match")
-	}
-	if !strings.Contains(raw, r.Match) {
-		reasons = append(reasons, "URL does not match")
-	}
+	reasons = append(reasons, rules.Matcher{URL: r.Match, Method: r.Method}.Mismatch(rules.Request{URL: raw, Method: method})...)
 	return strings.Join(reasons, "; ")
 }
 

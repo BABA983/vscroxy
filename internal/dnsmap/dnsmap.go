@@ -9,17 +9,17 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"path"
 	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	match "github.com/baba983/vscroxy/internal/rules"
 )
 
-// Rule maps a name to an address. The name is a host, a host with a leading
-// dot for its subdomains only, or a path.Match pattern such as *.example.com.
-// Apps limits the rule to those apps; empty means every app.
+// Rule maps a name to an address. The name is a host pattern and Apps app
+// patterns, as rules.Host and rules.App read them; no apps means every app.
 type Rule struct {
 	Name string
 	IP   net.IP
@@ -63,23 +63,10 @@ func Parse(lines []string) ([]Rule, error) {
 // A rule without apps applies to every app, so a name-scoped rule written
 // after an app-scoped one overrides it for everyone.
 func Lookup(rules []Rule, name, app string) (Rule, bool) {
-	name = strings.ToLower(strings.TrimSuffix(name, "."))
-	if name == "" {
-		return Rule{}, false
-	}
-	app = strings.ToLower(strings.TrimSpace(app))
 	for i := len(rules) - 1; i >= 0; i-- {
 		rule := rules[i]
-		if !nameMatches(rule.Name, name) {
-			continue
-		}
-		if len(rule.Apps) == 0 {
+		if (match.Matcher{Hosts: []string{rule.Name}, Apps: rule.Apps}).Match(match.Request{Host: name, App: app}) {
 			return rule, true
-		}
-		for _, want := range rule.Apps {
-			if strings.EqualFold(want, app) || strings.EqualFold(want, base(app)) {
-				return rule, true
-			}
 		}
 	}
 	return Rule{}, false
@@ -89,39 +76,13 @@ func Lookup(rules []Rule, name, app string) (Rule, bool) {
 // it winning: the DNS server answers these, while app-scoped rules apply to
 // the flows their app sends.
 func Match(rules []Rule, name string) (net.IP, bool) {
-	name = strings.ToLower(strings.TrimSuffix(name, "."))
-	if name == "" {
-		return nil, false
-	}
 	for i := len(rules) - 1; i >= 0; i-- {
 		rule := rules[i]
-		if len(rule.Apps) == 0 && nameMatches(rule.Name, name) {
+		if len(rule.Apps) == 0 && match.Host(name, []string{rule.Name}) {
 			return rule.IP, true
 		}
 	}
 	return nil, false
-}
-
-// nameMatches reports whether a rule's name covers a host.
-func nameMatches(pattern, name string) bool {
-	if ok, _ := path.Match(pattern, name); ok {
-		return true
-	}
-	if rest, ok := strings.CutPrefix(pattern, "."); ok {
-		return name == rest || strings.HasSuffix(name, pattern)
-	}
-	if !strings.ContainsAny(pattern, "*?[") && (name == pattern || strings.HasSuffix(name, "."+pattern)) {
-		return true
-	}
-	return false
-}
-
-// base is the executable's name in a process path.
-func base(path string) string {
-	if i := strings.LastIndexAny(path, `/\`); i >= 0 {
-		return path[i+1:]
-	}
-	return path
 }
 
 // Hit is a name the server answered from the rules.
