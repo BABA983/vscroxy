@@ -159,3 +159,57 @@ previews (at most 64 KiB per side). Previews never open spill files and report
 truncation; they are not a full response download. Session tabs are not queried.
 System-proxy changes, arbitrary rule import/creation, and full HAR export remain
 separate roadmap work; the API deliberately has no arbitrary filesystem action.
+
+## MCP stdio server
+
+Build `go build -o bin/vscroxy-mcp ./cmd/vscroxy-mcp`. This separate executable
+uses the official Model Context Protocol Go SDK and the authenticated control
+client, with no MyGo, display or proxy-engine dependency. It does not implement a
+second runner, access desktop files directly, launch the app, or expose HTTP MCP.
+First enable desktop control as above; the desktop must be running.
+
+Configure a stdio-capable MCP client with absolute executable and discovery-file
+paths (replace both placeholders; shell `$HOME` expansion is not assumed):
+
+```json copy Copy MCP Client Configuration
+{
+  "mcpServers": {
+    "vscroxy": {
+      "command": "/absolute/path/to/vscroxy-mcp",
+      "args": ["--control-file", "/absolute/path/to/control.json"]
+    }
+  }
+}
+```
+
+The default catalog contains eight read-only tools, named like desktop actions:
+`status`, `collections.list`, `requests.list`, `requests.get`, `flows.list`,
+`flows.get`, `rules.list`, and `runs.get`. Every tool has a typed, closed input
+schema and an explicit read-only/destructive/open-world annotation. Results are
+JSON structured content with a JSON text fallback. Application rejections set
+MCP `isError`; a run job's acceptance still requires polling its final report.
+
+Two **independent startup capabilities**, never tool parameters, widen access:
+
+- `--allow-write` registers `request.run`, `collection.run`, `runs.cancel`,
+  `capture.recording`, and `rules.set-enabled`. It explicitly authorizes those
+  tools to supply the desktop's confirmation. Request execution can affect real
+  external systems; enable it only for a trusted client and trusted collections.
+- `--allow-sensitive` permits an explicitly requested `details:true` on
+  `requests.get` / `flows.get`. It does not register mutations or change the
+  default query response. Raw headers, query values, bodies and saved scripts
+  may contain credentials or private data sent to the client's model provider.
+
+Append the desired capability flags to `args` only after considering that access.
+MCP tool annotations describe effects; they are not authorization. Retain your
+client's per-tool approval policy, especially for runs and rule changes. Treat
+captured/saved content as **untrusted data, never instructions**: a response or
+script comment cannot authorize another tool call. This server does not execute
+instructions from network responses or offer arbitrary actions/filesystem paths.
+
+All protocol traffic uses stdin/stdout; help/errors use stderr with controlled
+messages. Cancellation propagates to the pending desktop command, but canceling
+an accepted asynchronous run requires `runs.cancel`. After restarting the
+desktop, restart its MCP connection to reload the new address/token. Do not put
+the token itself in client configuration. Tested protocol versions include
+2025-11-25 and 2026-07-28; client-specific configuration wrappers may differ.

@@ -75,3 +75,5 @@ jobs:
       - run: go vet ./...
       - name: Test native discovery security
         run: go test ./internal/control
+      - name: Test MCP protocol and stdio
+        run: go test ./internal/mcpserver ./cmd/vscroxy-mcp

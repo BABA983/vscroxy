@@ -36,11 +36,15 @@ For collection regression runs without a window, build
 See [headless automation](docs/automation.md) for native/Postman inputs,
 environment/data files, exit codes, JSON/JUnit CI reports and opt-in authenticated
 control of a running desktop.
+For external AI tools, build `go build -o bin/vscroxy-mcp ./cmd/vscroxy-mcp` and
+use the [MCP stdio configuration](docs/automation.md#mcp-stdio-server).
 
 ## Source layout
 
 - `cmd/vscroxy/` is the executable entry point, including proxy-guard mode.
 - `cmd/vscroxy-cli/` is the UI-independent automation executable.
+- `cmd/vscroxy-mcp/` exposes authenticated desktop actions over MCP stdio, with
+  read-only tools by default and independent write/sensitive startup capabilities.
 - `internal/app/` owns the native UI, application state and UI tests, and
   keeps the request library as one directory per collection and one file per
   request (`library.go`).
