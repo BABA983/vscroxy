@@ -1154,11 +1154,32 @@ its requests, folders and settings move together, and open tabs follow.
   Postman environment exports. Use Vault when encryption is required. Script
   updates to an existing Current value stay local too.
 - **Dynamic variables** follow Postman's names and are generated for every
-  occurrence on every send: `$guid`, `$randomUUID`, `$timestamp`,
-  `$isoTimestamp`, `$randomInt`, `$randomBoolean`, `$randomAlphaNumeric`,
-  `$randomHexColor`, `$randomIP`, `$randomUserName`, `$randomEmail` and
-  `$randomPassword`, written as `{{$guid}}`. A variable with the same name
-  wins. Other `$random…` names stay unresolved.
+  occurrence on every send, written as `{{$guid}}`. In scripts, use
+  `pm.variables.replaceIn('{{$randomFirstName}}')`. Names are case-sensitive;
+  a defined variable with the same name wins, even if its value is empty.
+  Unknown names stay unresolved. The 32 supported names are:
+  - **Common**: `$guid`, `$randomUUID`, `$timestamp`, `$isoTimestamp`,
+    `$randomInt` (0–1000), `$randomBoolean`, `$randomAlphaNumeric`,
+    `$randomColor`, `$randomHexColor`.
+  - **Network and accounts**: `$randomIP`, `$randomIPV6`, `$randomMACAddress`,
+    `$randomProtocol`, `$randomSemver`, `$randomUserName`, `$randomEmail`,
+    `$randomExampleEmail`, `$randomPassword`, `$randomDomainName`,
+    `$randomDomainSuffix`, `$randomDomainWord`, `$randomUrl`.
+  - **People and location**: `$randomFirstName`, `$randomLastName`,
+    `$randomFullName`, `$randomPhoneNumber` (ten digits, `###-###-####`),
+    `$randomCountryCode`, `$randomLatitude` (−90 to 90), `$randomLongitude`
+    (−180 to 180). Coordinates have four decimal places.
+  - **Other test data**: `$randomPrice` (0.00–1000.00, two decimal places),
+    `$randomWeekday`, `$randomMonth` (English names).
+
+These use small built-in sample vocabularies, not the full Faker dataset or its
+locale coverage. Generated fields are independent: a full name is not tied to
+separate first/last-name variables. Generated domain names, URLs and email
+addresses use reserved `example.com`, `example.net` or `example.org` domains;
+`$randomDomainSuffix` chooses `com`, `net` or `org`. Generation does not access the
+network, and does not guarantee that phone numbers or IP addresses are reserved
+or reachable. Passwords and the other random values are test data, not production
+credentials.
 
 #### Import and export
 

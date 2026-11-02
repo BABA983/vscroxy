@@ -3,6 +3,7 @@ package request
 import (
 	"fmt"
 	"math/rand/v2"
+	"net/netip"
 	"strconv"
 	"strings"
 	"time"
@@ -25,15 +26,74 @@ var dynamic = map[string]func() string{
 	"$randomIP": func() string {
 		return fmt.Sprintf("%d.%d.%d.%d", 1+rand.IntN(223), rand.IntN(256), rand.IntN(256), 1+rand.IntN(254))
 	},
+	"$randomIPV6": func() string {
+		var address [16]byte
+		for i := range address {
+			address[i] = byte(rand.IntN(256))
+		}
+		return netip.AddrFrom16(address).String()
+	},
+	"$randomMACAddress": func() string {
+		return fmt.Sprintf("%02x:%02x:%02x:%02x:%02x:%02x", rand.IntN(256), rand.IntN(256), rand.IntN(256), rand.IntN(256), rand.IntN(256), rand.IntN(256))
+	},
+	"$randomProtocol": func() string { return randomChoice("http", "https") },
+	"$randomSemver": func() string {
+		return fmt.Sprintf("%d.%d.%d", rand.IntN(10), rand.IntN(10), rand.IntN(10))
+	},
 	"$randomUserName": func() string { return "user_" + randomText(8, lowercase) },
 	"$randomEmail":    func() string { return randomText(10, lowercase) + "@example.com" },
 	"$randomPassword": func() string { return randomText(15, alphanumeric) },
+	"$randomExampleEmail": func() string {
+		return randomText(10, lowercase) + "@example." + randomChoice("com", "net", "org")
+	},
+	"$randomDomainName":   randomDomainName,
+	"$randomDomainSuffix": func() string { return randomChoice("com", "net", "org") },
+	"$randomDomainWord":   func() string { return randomText(10, lowercase) },
+	"$randomUrl":          func() string { return randomChoice("http", "https") + "://" + randomDomainName() },
+	"$randomFirstName":    func() string { return randomChoice(firstNames...) },
+	"$randomLastName":     func() string { return randomChoice(lastNames...) },
+	"$randomFullName": func() string {
+		return randomChoice(firstNames...) + " " + randomChoice(lastNames...)
+	},
+	"$randomPhoneNumber": func() string {
+		return randomText(3, digits) + "-" + randomText(3, digits) + "-" + randomText(4, digits)
+	},
+	"$randomCountryCode": func() string { return randomChoice("AU", "BR", "CA", "CN", "DE", "FR", "GB", "IN", "JP", "US") },
+	"$randomLatitude": func() string {
+		return fmt.Sprintf("%.4f", float64(rand.IntN(1_800_001)-900_000)/10_000)
+	},
+	"$randomLongitude": func() string {
+		return fmt.Sprintf("%.4f", float64(rand.IntN(3_600_001)-1_800_000)/10_000)
+	},
+	"$randomPrice": func() string {
+		cents := rand.IntN(100_001)
+		return fmt.Sprintf("%d.%02d", cents/100, cents%100)
+	},
+	"$randomColor": func() string {
+		return randomChoice("red", "green", "blue", "yellow", "purple", "orange", "black", "white", "gray", "pink")
+	},
+	"$randomWeekday": func() string { return time.Weekday(rand.IntN(7)).String() },
+	"$randomMonth":   func() string { return time.Month(1 + rand.IntN(12)).String() },
 }
 
 const (
+	digits       = "0123456789"
 	lowercase    = "abcdefghijklmnopqrstuvwxyz0123456789"
 	alphanumeric = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
 )
+
+// A small, built-in sample vocabulary, not the full Faker dataset.
+var (
+	firstNames = []string{"Alex", "Amelia", "Daniel", "Emma", "Ethan", "Maya", "Noah", "Olivia", "Sofia", "William"}
+	lastNames  = []string{"Brown", "Chen", "Garcia", "Khan", "Kim", "Martin", "Patel", "Silva", "Smith", "Taylor"}
+)
+
+func randomChoice(values ...string) string { return values[rand.IntN(len(values))] }
+
+// Keep generated destinations on reserved example domains, as randomEmail does.
+func randomDomainName() string {
+	return randomText(10, lowercase) + ".example." + randomChoice("com", "net", "org")
+}
 
 func randomText(n int, alphabet string) string {
 	b := make([]byte, n)

@@ -1,10 +1,14 @@
 package request
 
 import (
+	"encoding/json/v2"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/netip"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -81,6 +85,135 @@ func TestExecuteInheritsFromCollectionAndFolder(t *testing.T) {
 		if sources[name] != want {
 			t.Errorf("source of %s = %q, want %q", name, sources[name], want)
 		}
+	}
+}
+
+func TestExecuteCommonDynamicVariables(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Error(err)
+			return
+		}
+		w.Write(body)
+	}))
+	defer upstream.Close()
+	cases := []struct{ name, pattern string }{
+		{"$randomIPV6", `[0-9a-f:]+`},
+		{"$randomMACAddress", `(?:[0-9a-f]{2}:){5}[0-9a-f]{2}`},
+		{"$randomProtocol", `https?`},
+		{"$randomSemver", `(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)`},
+		{"$randomFirstName", `[A-Z][a-z]+`},
+		{"$randomLastName", `[A-Z][a-z]+`},
+		{"$randomFullName", `[A-Z][a-z]+ [A-Z][a-z]+`},
+		{"$randomPhoneNumber", `[0-9]{3}-[0-9]{3}-[0-9]{4}`},
+		{"$randomCountryCode", `AU|BR|CA|CN|DE|FR|GB|IN|JP|US`},
+		{"$randomLatitude", `-?[0-9]+\.[0-9]{4}`},
+		{"$randomLongitude", `-?[0-9]+\.[0-9]{4}`},
+		{"$randomExampleEmail", `[a-z0-9]+@example\.(?:com|net|org)`},
+		{"$randomDomainName", `[a-z0-9]+\.example\.(?:com|net|org)`},
+		{"$randomDomainSuffix", `com|net|org`},
+		{"$randomDomainWord", `[a-z0-9]+`},
+		{"$randomUrl", `https?://[a-z0-9]+\.example\.(?:com|net|org)`},
+		{"$randomPrice", `[0-9]+\.[0-9]{2}`},
+		{"$randomColor", `red|green|blue|yellow|purple|orange|black|white|gray|pink`},
+		{"$randomWeekday", `Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday`},
+		{"$randomMonth", `January|February|March|April|May|June|July|August|September|October|November|December`},
+	}
+	template := map[string][]string{}
+	for _, tc := range cases {
+		for range 64 {
+			template[tc.name] = append(template[tc.name], "{{"+tc.name+"}}")
+		}
+	}
+	body, err := json.Marshal(template)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := Request{Method: "POST", URL: upstream.URL, Body: string(body),
+		Pre: `pm.variables.set("generated", pm.variables.replaceIn(pm.request.body.raw))`}
+	out := r.Execute(t.Context(), testProxy(t), Context{}, nil, nil)
+	if out.Err != nil {
+		t.Fatalf("%s: %v", out.Stage, out.Err)
+	}
+	for source, body := range map[string]string{"sent body": out.Response.ResponseBody, "script replaceIn": out.Locals["generated"]} {
+		t.Run(source, func(t *testing.T) {
+			var values map[string][]string
+			if err := json.Unmarshal([]byte(body), &values); err != nil {
+				t.Fatal(err)
+			}
+			for _, tc := range cases {
+				t.Run(tc.name, func(t *testing.T) {
+					pattern := regexp.MustCompile("^(?:" + tc.pattern + ")$")
+					if len(values[tc.name]) != 64 {
+						t.Fatalf("got %d samples, want 64", len(values[tc.name]))
+					}
+					switch tc.name {
+					case "$randomIPV6", "$randomMACAddress", "$randomDomainWord", "$randomDomainName", "$randomUrl", "$randomExampleEmail":
+						if values[tc.name][0] == values[tc.name][1] {
+							t.Fatal("repeated occurrences reused the same random value")
+						}
+					}
+					for _, value := range values[tc.name] {
+						if !pattern.MatchString(value) {
+							t.Fatalf("%q does not match %s", value, tc.pattern)
+						}
+						switch tc.name {
+						case "$randomIPV6":
+							if addr, err := netip.ParseAddr(value); err != nil || !addr.Is6() {
+								t.Fatalf("not IPv6: %q", value)
+							}
+						case "$randomLatitude", "$randomLongitude", "$randomPrice":
+							lo, hi := -90.0, 90.0
+							if tc.name == "$randomLongitude" {
+								lo, hi = -180, 180
+							} else if tc.name == "$randomPrice" {
+								lo, hi = 0, 1000
+							}
+							if n, err := strconv.ParseFloat(value, 64); err != nil || n < lo || n > hi {
+								t.Fatalf("%q is outside [%g, %g]", value, lo, hi)
+							}
+						}
+					}
+				})
+			}
+		})
+	}
+	if len(out.Vars) != 0 {
+		t.Errorf("generated values leaked into the environment: %v", out.Vars)
+	}
+}
+
+func TestExecuteDynamicVariableOverrides(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Error(err)
+			return
+		}
+		fmt.Fprintf(w, "%s\n%s\n%s\n", r.URL.Path, r.Header.Get("X-Name"), r.Header.Get("Authorization"))
+		w.Write(body)
+	}))
+	defer upstream.Close()
+	r := Request{Method: "POST", URL: upstream.URL + "/{{$randomDomainWord}}",
+		Headers: "X-Name: {{$randomFirstName}}", Auth: Auth{Type: "Bearer", Token: "{{$randomProtocol}}"},
+		Body: "{{$randomFirstName}}|{{$randomLastName}}|{{$randomNotImplemented}}|{{$randomIpv6}}",
+		Pre: `pm.test("environment override", () => pm.expect(pm.variables.replaceIn("{{$randomFirstName}}")).to.equal("environment"));
+		pm.variables.set("$randomFirstName", "local");
+		pm.test("empty override", () => pm.expect(pm.variables.replaceIn("{{$randomLastName}}")).to.equal(""));`}
+	vars := map[string]string{"$randomDomainWord": "orders", "$randomFirstName": "environment", "$randomLastName": "", "$randomProtocol": "custom-token"}
+	out := r.Execute(t.Context(), testProxy(t), Context{Globals: map[string]string{"$randomFirstName": "global"}}, vars, nil)
+	if out.Err != nil {
+		t.Fatalf("%s: %v", out.Stage, out.Err)
+	}
+	if got, want := out.Response.ResponseBody, "/orders\nlocal\nBearer custom-token\nlocal||{{$randomNotImplemented}}|{{$randomIpv6}}"; got != want {
+		t.Errorf("sent = %q, want %q", got, want)
+	}
+	if len(out.Tests) != 2 || !out.Tests[0].Pass || !out.Tests[1].Pass {
+		t.Errorf("script expansion = %+v", out.Tests)
+	}
+	if vars["$randomFirstName"] != "environment" || !strings.Contains(r.Body, "{{$randomFirstName}}") {
+		t.Error("sending changed the authored request or input variables")
 	}
 }
 
