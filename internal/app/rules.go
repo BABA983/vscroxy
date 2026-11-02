@@ -3,6 +3,7 @@ package app
 import (
 	"cmp"
 	"fmt"
+	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/baba983/vscroxy/internal/capture"
 	"github.com/baba983/vscroxy/internal/request"
+	"github.com/baba983/vscroxy/internal/rules"
 	"github.com/baba983/vscroxy/internal/uikit"
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
@@ -30,7 +32,8 @@ type ruleEditor struct {
 	headers        string
 	problem        string
 	unsavedMock    string
-	test           string // "METHOD URL" or a URL, to see which rules act on it
+	test           string // see ruleTest
+	apps           string // the draft's Apps, comma-separated
 	list           ui.ListState
 }
 
@@ -59,6 +62,9 @@ func (a *app) editRule(index int, r capture.Rule) {
 	e := &a.ruleUI
 	e.open, e.deleting, e.index, e.draft, e.kind = true, false, index, r, ruleLabel(r.Type)
 	e.status, e.headers, e.problem = strconv.Itoa(cmp.Or(r.Status, 200)), request.HeaderBlock(r.Headers), ""
+	// The draft must not edit the saved rule's slices in place.
+	e.draft.Apps, e.draft.When = nil, slices.Clone(r.When)
+	e.apps = strings.Join(r.Apps, ", ")
 }
 
 // openRules shows Tools on Rules, keeping the rule being edited.
@@ -116,6 +122,21 @@ func (a *app) saveRule() {
 	r := e.draft
 	r.Type = ruleTypes[slices.Index(ruleLabels, e.kind)]
 	r.Match, r.Method = strings.TrimSpace(r.Match), strings.ToUpper(strings.TrimSpace(r.Method))
+	r.Apps = nil
+	for app := range strings.SplitSeq(e.apps, ",") {
+		if app = strings.TrimSpace(app); app != "" {
+			r.Apps = append(r.Apps, app)
+		}
+	}
+	r.When = nil
+	for _, h := range e.draft.When {
+		if h.Name = strings.TrimSpace(h.Name); h.Name != "" {
+			if h.Op == rules.HeaderPresent {
+				h.Value = ""
+			}
+			r.When = append(r.When, h)
+		}
+	}
 	r.Target = strings.TrimSpace(r.Target)
 	r.Scenario = strings.TrimSpace(r.Scenario)
 	if r.Type == capture.RuleBreak || r.Type == capture.RuleBreakResponse {
@@ -220,22 +241,43 @@ func (a *app) selectRuleScenario(name string) {
 	}
 }
 
-// ruleTest is the request the rules are tested against: a URL, after a
-// method or not. ok is false while it is not one.
-func ruleTest(s string) (method, raw string, ok bool) {
-	s = strings.TrimSpace(s)
-	method = "GET"
-	if m, rest, found := strings.Cut(s, " "); found && !strings.Contains(m, "/") {
-		method, s = m, strings.TrimSpace(rest)
+// ruleTest is the request the rules are tested against, written as
+//
+//	[METHOD] URL [@ App]; Header: value; …
+//
+// The method is GET and the scheme https when left out. ok is false while it
+// is not one.
+func ruleTest(s string) (req rules.Request, ok bool) {
+	parts := strings.Split(s, ";")
+	first := strings.TrimSpace(parts[0])
+	if at := strings.Index(first, " @"); at >= 0 {
+		req.App = strings.TrimSpace(first[at+2:])
+		first = strings.TrimSpace(first[:at])
 	}
-	if !strings.Contains(s, "://") {
-		s = "https://" + s
+	req.Method = "GET"
+	if m, rest, found := strings.Cut(first, " "); found && !strings.Contains(m, "/") {
+		req.Method, first = m, strings.TrimSpace(rest)
 	}
-	u, err := url.Parse(s)
-	if err != nil || u.Hostname() == "" || (u.Scheme != "http" && u.Scheme != "https") || u.User != nil || u.Fragment != "" || !httpguts.ValidHeaderFieldName(method) {
-		return "", "", false
+	if !strings.Contains(first, "://") {
+		first = "https://" + first
 	}
-	return method, u.String(), true
+	u, err := url.Parse(first)
+	if err != nil || u.Hostname() == "" || (u.Scheme != "http" && u.Scheme != "https") || u.User != nil || u.Fragment != "" || !httpguts.ValidHeaderFieldName(req.Method) {
+		return rules.Request{}, false
+	}
+	req.URL, req.Host = u.String(), u.Hostname()
+	req.Header = http.Header{}
+	for _, part := range parts[1:] {
+		if part = strings.TrimSpace(part); part == "" {
+			continue
+		}
+		name, value, found := strings.Cut(part, ":")
+		if name = strings.TrimSpace(name); !found || !httpguts.ValidHeaderFieldName(name) {
+			return rules.Request{}, false
+		}
+		req.Header.Add(name, strings.TrimSpace(value))
+	}
+	return req, true
 }
 
 // rulesPage is the rules in the order they are tried beside the one being
@@ -248,9 +290,9 @@ func (a *app) rulesPage(c *ui.Context, t *ui.Theme, top float32, active bool) {
 		e.open, e.index = false, -1
 	}
 	var preview []capture.RulePreview
-	method, raw, testing := ruleTest(e.test)
+	req, testing := ruleTest(e.test)
 	if testing {
-		preview = capture.PreviewRules(a.rules, raw, method, a.breakOn)
+		preview = capture.PreviewRules(a.rules, req, a.breakOn)
 	}
 	ui.Column(c).Width(300).MinHeight(0).Padding(top, t.Space(3), t.Space(3), t.Space(3)).Gap(t.Space(2)).Children(func() {
 		ui.Row(c).Gap(t.Space(1)).AlignItems(ui.Center).Children(func() {
@@ -259,12 +301,12 @@ func (a *app) rulesPage(c *ui.Context, t *ui.Theme, top float32, active bool) {
 				a.editRule(-1, capture.Rule{Type: capture.RuleMapRemote})
 			}
 		})
-		uikit.Input(c, &e.test).Label("Test a request").Placeholder("Test: GET https://api.example.com").Font(uikit.FontMono).FillWidth()
+		uikit.Input(c, &e.test).Label("Test a request").Placeholder("Test: GET https://api.example.com @ App; Header: value").Tooltip("[METHOD] URL [@ App]; Header: value; …").Font(uikit.FontMono).FillWidth()
 		switch {
 		case strings.TrimSpace(e.test) == "":
 			uikit.Meta(c, "Rules are tried from the top.")
 		case !testing:
-			uikit.Meta(c, "Enter a URL, after a method or not.")
+			uikit.Meta(c, "Enter a URL, then @ App and ; Header: value if needed.")
 		default:
 			acting := 0
 			for _, p := range preview {
@@ -385,7 +427,7 @@ func (a *app) ruleList(c *ui.Context, t *ui.Theme, preview []capture.RulePreview
 					}
 				})
 				ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-					uikit.Meta(c, strings.TrimSpace(r.Method+" "+r.Match)).Font(uikit.FontMono).Grow(1).SingleLine()
+					uikit.Meta(c, ruleSummary(r)).Font(uikit.FontMono).Grow(1).SingleLine()
 					if r.Scenario != "" {
 						uikit.Meta(c, r.Scenario).MaxWidth(96).SingleLine().Tooltip("In scenario " + r.Scenario)
 					}
@@ -439,9 +481,19 @@ func (a *app) ruleDetail(c *ui.Context, t *ui.Theme) {
 			ui.Field(c, "Method", func() {
 				uikit.Input(c, &e.draft.Method).Width(95).Label("Match method").Placeholder("Any").Font(uikit.FontMono)
 			})
-			ui.Field(c, "URL contains", func() {
-				uikit.Input(c, &e.draft.Match).Label("URL contains").Placeholder("https://api.example.com/v1/").Font(uikit.FontMono).FillWidth()
-			}).Description("A literal part of the full URL, not a wildcard or regex.")
+			ui.Field(c, "URL", func() {
+				ui.Row(c).Gap(t.Space(2)).FillWidth().Children(func() {
+					modes := []string{rules.URLContains, rules.URLWildcard, rules.URLRegex}
+					mode := max(slices.Index(modes, e.draft.MatchMode), 0)
+					uikit.Segmented(c, &mode, "Contains", "Wildcard", "Regex").Label("URL match")
+					e.draft.MatchMode = modes[mode]
+					uikit.Input(c, &e.draft.Match).Label("Match URL").Placeholder(urlPlaceholders[mode]).Font(uikit.FontMono).Grow(1)
+				})
+			}).Description(urlHelp[max(slices.Index([]string{rules.URLContains, rules.URLWildcard, rules.URLRegex}, e.draft.MatchMode), 0)])
+			ui.Field(c, "Apps", func() {
+				uikit.Input(c, &e.apps).Label("Match apps").Placeholder("Any").FillWidth()
+			}).Description("Comma-separated app names; * matches any text, as in Google Chrome*.")
+			ui.Field(c, "Headers", func() { a.ruleHeaderConditions(c, t) })
 			if !breakpoint {
 				ui.Field(c, "Scenario", func() {
 					uikit.Input(c, &e.draft.Scenario).Label("Rule scenario").Placeholder("None").Width(200)
@@ -486,4 +538,60 @@ func (a *app) ruleDetail(c *ui.Context, t *ui.Theme) {
 		}
 	})
 	c.OnShortcut(ui.Cmd, ui.KeyS, a.saveRule) // the Tools window's menu takes it first
+}
+
+var urlPlaceholders = []string{"api.example.com/v1/", "*.example.com/v1/users/*", `^https://api\.example\.com/v1/users/\d+$`}
+var urlHelp = []string{
+	"A literal part of the full URL.",
+	"The whole URL: * is any text, ? one character; the scheme may be left out.",
+	"A Go regular expression found anywhere in the full URL.",
+}
+
+// ruleSummary is what a rule matches, in one line.
+func ruleSummary(r capture.Rule) string {
+	match := r.Match
+	if r.MatchMode == rules.URLRegex {
+		match = "/" + match + "/"
+	}
+	parts := []string{r.Method, match}
+	if len(r.Apps) > 0 {
+		parts = append(parts, "@"+strings.Join(r.Apps, ","))
+	}
+	if n := len(r.When); n > 0 {
+		parts = append(parts, fmt.Sprintf("+%d %s", n, plural(n, "header", "headers")))
+	}
+	return strings.TrimSpace(strings.Join(parts, " "))
+}
+
+// ruleHeaderConditions edits the request headers the draft needs.
+func (a *app) ruleHeaderConditions(c *ui.Context, t *ui.Theme) {
+	e := &a.ruleUI
+	ui.Column(c).Gap(t.Space(2)).FillWidth().Children(func() {
+		remove := -1
+		for i := range e.draft.When {
+			h := &e.draft.When[i]
+			ui.Row(c.Key(fmt.Sprint("when", i))).Gap(t.Space(2)).AlignItems(ui.Center).FillWidth().Children(func() {
+				uikit.Input(c, &h.Name).Label(fmt.Sprintf("Header %d name", i+1)).Placeholder("Name").Font(uikit.FontMono).Width(150)
+				op := cmp.Or(h.Op, rules.HeaderEquals)
+				uikit.Select(c, &op, rules.HeaderOps).Label(fmt.Sprintf("Header %d comparison", i+1)).Width(100)
+				h.Op = op
+				if op != rules.HeaderPresent {
+					uikit.Input(c, &h.Value).Label(fmt.Sprintf("Header %d value", i+1)).Placeholder("Value").Font(uikit.FontMono).Grow(1)
+				} else {
+					ui.Spacer(c)
+				}
+				if uikit.IconButton(c, fmt.Sprintf("Remove header %d", i+1), "Remove condition", closeIcon).Clicked() {
+					remove = i
+				}
+			})
+		}
+		if remove >= 0 {
+			e.draft.When = slices.Delete(e.draft.When, remove, remove+1)
+		}
+		ui.Row(c).Children(func() {
+			if uikit.CompactButton(c, "Add header condition").Clicked() {
+				e.draft.When = append(e.draft.When, rules.HeaderCondition{Op: rules.HeaderEquals})
+			}
+		})
+	})
 }

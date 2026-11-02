@@ -220,6 +220,13 @@ type Rule struct {
 	Status   int         `json:"status,omitzero"`
 	Headers  http.Header `json:"headers,omitempty"`
 	Disabled bool        `json:"disabled,omitzero"`
+	// MatchMode says how Match reads: a part of the URL (empty), a
+	// "wildcard" for the whole URL or a "regex"; see rules.Matcher.
+	MatchMode string `json:"matchMode,omitempty"`
+	// Apps limits the rule to requests from these apps (rules.App patterns).
+	Apps []string `json:"apps,omitempty"`
+	// When are request headers the rule needs, all of them.
+	When []rules.HeaderCondition `json:"when,omitempty"`
 	// Scenario groups response-affecting rules; empty is always global.
 	// Every member of a group has the same ScenarioActive value, and at most
 	// one group is active. Disabled remains an independent per-rule choice.
@@ -806,7 +813,7 @@ func (s *Server) maybeBreak(f *proxy.Flow, phase Phase) *Decision {
 		return nil
 	}
 	raw := f.Request.URL.String()
-	r, ok := s.breakRule(raw, f.Request.Method, phase)
+	r, ok := s.breakRule(s.ruleRequest(f), phase)
 	if !ok {
 		return nil
 	}
@@ -868,13 +875,15 @@ func (s *Server) maybeBreak(f *proxy.Flow, phase Phase) *Decision {
 	return d
 }
 
-func (s *Server) matchesBreak(raw, method string, phase Phase) bool {
-	_, ok := s.breakRule(raw, method, phase)
-	return ok
+// ruleRequest is what the rules look at in an exchange, as it is now: after
+// a Map Remote rule, the URL it was sent to.
+func (s *Server) ruleRequest(f *proxy.Flow) rules.Request {
+	return rules.Request{URL: f.Request.URL.String(), Method: f.Request.Method, Host: f.Request.URL.Hostname(),
+		App: s.clientProcess(f).Name, Header: f.Request.Header}
 }
 
 // breakRule is the first breakpoint rule that pauses an exchange in phase.
-func (s *Server) breakRule(raw, method string, phase Phase) (Rule, bool) {
+func (s *Server) breakRule(req rules.Request, phase Phase) (Rule, bool) {
 	want := RuleBreak
 	if phase == PhaseResponse {
 		want = RuleBreakResponse
@@ -882,7 +891,7 @@ func (s *Server) breakRule(raw, method string, phase Phase) (Rule, bool) {
 	s.rulesMu.RLock()
 	defer s.rulesMu.RUnlock()
 	for _, r := range s.rules {
-		if r.Type == want && r.matches(raw, method) {
+		if r.Type == want && r.matches(req) {
 			return r, true
 		}
 	}
@@ -892,7 +901,11 @@ func (s *Server) breakRule(raw, method string, phase Phase) (Rule, bool) {
 // willBreakResponse reports whether a response for this flow will pause, so
 // the Response hook leaves publishing to the stream modifier.
 func (s *Server) willBreakResponse(f *proxy.Flow) bool {
-	return s.breakOn.Load() && f.Request != nil && s.matchesBreak(f.Request.URL.String(), f.Request.Method, PhaseResponse)
+	if !s.breakOn.Load() || f.Request == nil {
+		return false
+	}
+	_, ok := s.breakRule(s.ruleRequest(f), PhaseResponse)
+	return ok
 }
 
 // ParseRules reads and validates rules; no data is no rules.
@@ -1417,8 +1430,7 @@ func (s *Server) applyRules(f *proxy.Flow) *proxy.Response {
 	if len(rules) == 0 || f.Request.URL == nil {
 		return nil
 	}
-	raw := f.Request.URL.String()
-	if i := firstResponseRule(rules, raw, f.Request.Method); i >= 0 {
+	if i := firstResponseRule(rules, s.ruleRequest(f)); i >= 0 {
 		r := rules[i]
 		if r.Scenario != "" {
 			recordAction(f, "Scenario · "+r.Scenario)

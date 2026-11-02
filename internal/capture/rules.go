@@ -20,11 +20,16 @@ import (
 	"golang.org/x/net/http/httpguts"
 )
 
-func (r Rule) matches(raw, method string) bool {
-	return r.matchReason(raw, method) == ""
+func (r Rule) matches(req rules.Request) bool {
+	return r.matchReason(req) == ""
 }
 
-func (r Rule) matchReason(raw, method string) string {
+// matcher is what a rule matches.
+func (r Rule) matcher() rules.Matcher {
+	return rules.Matcher{URL: r.Match, URLMode: r.MatchMode, Method: r.Method, Apps: r.Apps, Headers: r.When}
+}
+
+func (r Rule) matchReason(req rules.Request) string {
 	var reasons []string
 	if r.Disabled {
 		reasons = append(reasons, "disabled")
@@ -32,7 +37,7 @@ func (r Rule) matchReason(raw, method string) string {
 	if r.Scenario != "" && !r.ScenarioActive {
 		reasons = append(reasons, fmt.Sprintf("inactive scenario %q", r.Scenario))
 	}
-	reasons = append(reasons, rules.Matcher{URL: r.Match, Method: r.Method}.Mismatch(rules.Request{URL: raw, Method: method})...)
+	reasons = append(reasons, r.matcher().Mismatch(req)...)
 	return strings.Join(reasons, "; ")
 }
 
@@ -40,15 +45,16 @@ func responseRule(kind RuleType) bool {
 	return kind == RuleMapLocal || kind == RuleMapRemote || kind == RuleBlock
 }
 
-func firstResponseRule(rules []Rule, raw, method string) int {
-	return slices.IndexFunc(rules, func(r Rule) bool {
-		return responseRule(r.Type) && r.matches(raw, method)
+func firstResponseRule(list []Rule, req rules.Request) int {
+	return slices.IndexFunc(list, func(r Rule) bool {
+		return responseRule(r.Type) && r.matches(req)
 	})
 }
 
 // key is what a rule does, without its name and switches.
 func (r Rule) key() string {
-	return strings.Join([]string{string(r.Type), r.Match, r.Method, r.Target}, "\x00")
+	when, _ := json.Marshal(r.When)
+	return strings.Join([]string{string(r.Type), r.MatchMode, r.Match, r.Method, strings.Join(r.Apps, "\n"), string(when), r.Target}, "\x00")
 }
 
 // RulePreview explains a saved rule's part in one exchange. Step is its place
@@ -66,14 +72,14 @@ type RulePreview struct {
 // that came from upstream, matched against the redirected URL. Breakpoints
 // act only while breaking is on. It does not read response files, contact
 // upstreams or run scripts.
-func PreviewRules(rules []Rule, raw, method string, breaking bool) []RulePreview {
+func PreviewRules(rules []Rule, req rules.Request, breaking bool) []RulePreview {
 	preview := make([]RulePreview, len(rules))
-	upstream := raw
-	winner := firstResponseRule(rules, raw, method)
+	upstream := req
+	winner := firstResponseRule(rules, req)
 	if winner >= 0 && rules[winner].Type == RuleMapRemote {
-		if from, err := url.Parse(raw); err == nil {
+		if from, err := url.Parse(req.URL); err == nil {
 			if to, err := mapURL(from, rules[winner].Target); err == nil {
-				upstream = to.String()
+				upstream.URL, upstream.Host = to.String(), to.Hostname()
 			}
 		}
 	}
@@ -99,11 +105,11 @@ func PreviewRules(rules []Rule, raw, method string, breaking bool) []RulePreview
 			if stage(r) != phase {
 				continue
 			}
-			at := raw
+			at := req
 			if r.Type == RuleBreakResponse {
 				at = upstream
 			}
-			reason := r.matchReason(at, method)
+			reason := r.matchReason(at)
 			switch {
 			case reason != "":
 			case responseRule(r.Type) && i != winner:
@@ -201,7 +207,10 @@ func ValidateRules(rules []Rule) error {
 			}
 		}
 		if strings.TrimSpace(r.Match) == "" {
-			return fail("enter a URL substring to match")
+			return fail("enter a URL to match")
+		}
+		if err := r.matcher().Validate(); err != nil {
+			return fail(err.Error())
 		}
 		if r.Method != "" && !httpguts.ValidHeaderFieldName(r.Method) {
 			return fail("invalid HTTP method")

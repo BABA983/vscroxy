@@ -343,8 +343,10 @@ rule** (Ctrl/Cmd+S) applies it to new requests only, without restarting
 capture. A failed save leaves the running rules unchanged. Closing Tools
 discards unsaved field edits.
 
-**Test a request** above the list takes a URL, optionally after a method
-(`POST https://api.example.com/v1/orders`; GET otherwise). The rules that
+**Test a request** above the list takes a URL, optionally after a method, then
+an app after `@` and headers after `;`
+(`POST https://api.example.com/v1/orders @ Google Chrome; X-Env: staging`; GET
+and https otherwise). The rules that
 would act on it are numbered in the order they act: the first matching request
 breakpoint, then the Map or Block rule that wins, then the first matching
 response breakpoint for a response from upstream, matched against the URL a
@@ -356,10 +358,26 @@ read response files or run scripts.
 
 Rules live in `~/.vscroxy/rules.json`. Enabled Map Local, Map Remote and Block
 rules apply in order, first match wins. Breakpoints match independently at their
-request/response phase and also require the toolbar's **Break** switch. `match`
-is a literal substring of the full URL, not a regex/glob; optional `method`
-restricts the HTTP method. `disabled: true` turns a rule off; old files without
-this field remain enabled.
+request/response phase and also require the toolbar's **Break** switch. A rule
+applies when every condition it sets holds:
+
+- **URL** (`match`, read as `matchMode` says): **Contains** (the default) is a
+  literal part of the full URL. **Wildcard** (`"wildcard"`) is the whole URL,
+  `*` for any text and `?` for one character; the scheme may be left out, so
+  `*.example.com/v1/users/*` matches `https://api.example.com/v1/users/42`.
+  **Regex** (`"regex"`) is a Go regular expression found anywhere in the URL;
+  anchor it with `^` and `$`.
+- **Method** (`method`): the exact method.
+- **Apps** (`apps`): the client's executable name, as in the ignore lists:
+  `Google Chrome*` matches every Chrome helper.
+- **Headers** (`when`): request headers the rule needs, each `present`, or with
+  a value that `equals`, `contains` or `matches` (a regular expression). With
+  several values, one is enough; names ignore case.
+
+A response breakpoint looks at the request as it was sent upstream, after a
+Map Remote rule changed its URL. An invalid regular
+expression is refused when the rule is saved. `disabled: true` turns a rule
+off.
 
 **Scenario** groups Map Local, Map Remote and Block rules into named cases such
 as an empty account, server error or alternate upstream. Save a rule with a
@@ -381,7 +399,9 @@ portable scenario export or a delay/fault-injection engine.
 [
   {"type": "map_local", "match": "/missing", "target": "/tmp/mock.json"},
   {"type": "map_remote", "match": "http://example.com/api", "target": "http://127.0.0.1:8081"},
-  {"type": "block", "match": "/telemetry"},
+  {"type": "block", "matchMode": "wildcard", "match": "*.telemetry.example.com/*", "apps": ["Google Chrome*"]},
+  {"type": "map_local", "matchMode": "regex", "match": "/v1/users/\\d+$", "target": "/tmp/user.json",
+   "when": [{"name": "X-Env", "op": "equals", "value": "staging"}]},
   {"type": "break", "match": "/checkout"},
   {"type": "break_response", "match": "/v1/orders"}
 ]

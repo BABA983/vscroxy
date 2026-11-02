@@ -18,6 +18,7 @@ import (
 	"testing"
 
 	"github.com/baba983/vscroxy/internal/capture"
+	"github.com/baba983/vscroxy/internal/rules"
 )
 
 func scenarioProxy(t *testing.T) (*capture.Server, *http.Client) {
@@ -123,7 +124,7 @@ func TestScenarioSavedSelectionAndPreviewFollowLiveProxy(t *testing.T) {
 				t.Fatal(err)
 			}
 			target := upstream.URL + "/item?q=7"
-			preview := capture.PreviewRules(s.Rules(), target, "GET", false)
+			preview := capture.PreviewRules(s.Rules(), previewRequest("GET", target), false)
 			if preview[tc.winner].Step != 1 || preview[8].Reason != fmt.Sprintf("shadowed by rule %d", tc.winner+1) || !strings.Contains(preview[2].Reason, "disabled") || preview[1].Reason != "breakpoints are off" || preview[6].Reason != "method does not match" || preview[0].Reason != "URL does not match" {
 				t.Fatalf("incorrect preview: %+v", preview)
 			}
@@ -180,7 +181,7 @@ func TestScenarioSavedSelectionAndPreviewFollowLiveProxy(t *testing.T) {
 		t.Fatal(err)
 	}
 	scenarioRequest(t, client, "GET", upstream.URL+"/item", 202, "global fallback")
-	if p := capture.PreviewRules(s.Rules(), upstream.URL+"/item", "GET", false); p[0].Step != 1 || p[3].Reason != "shadowed by rule 1" {
+	if p := capture.PreviewRules(s.Rules(), previewRequest("GET", upstream.URL+"/item"), false); p[0].Step != 1 || p[3].Reason != "shadowed by rule 1" {
 		t.Fatalf("global order diverged from proxy: %+v", p)
 	}
 }
@@ -356,22 +357,75 @@ func TestPreviewRulesFollowsTheProxysOrder(t *testing.T) {
 	}
 	// The response breakpoint is listed first but acts last, on the URL the
 	// request was redirected to.
-	p := capture.PreviewRules(rules, "https://example.com/item", "GET", true)
+	p := capture.PreviewRules(rules, previewRequest("GET", "https://example.com/item"), true)
 	if got := steps(p); !slices.Equal(got, []int{3, 1, 0, 2, 0, 0}) {
 		t.Fatalf("steps %v: %+v", got, p)
 	}
 	if p[2].Reason != "rule 2 pauses first" || p[4].Reason != "shadowed by rule 4" || p[5].Reason != "URL does not match" {
 		t.Fatalf("reasons: %+v", p)
 	}
-	p = capture.PreviewRules(rules, "https://example.com/item", "GET", false)
+	p = capture.PreviewRules(rules, previewRequest("GET", "https://example.com/item"), false)
 	if got := steps(p); !slices.Equal(got, []int{0, 0, 0, 1, 0, 0}) || p[0].Reason != "breakpoints are off" {
 		t.Fatalf("without breaking: %+v", p)
 	}
 	// A rule that answers the request itself leaves no response to pause.
 	rules[3] = capture.Rule{Type: capture.RuleBlock, Match: "/item"}
 	rules[0].Match = "/item"
-	p = capture.PreviewRules(rules, "https://example.com/item", "GET", true)
+	p = capture.PreviewRules(rules, previewRequest("GET", "https://example.com/item"), true)
 	if got := steps(p); !slices.Equal(got, []int{0, 1, 0, 2, 0, 0}) || p[0].Reason != "rule 4 answers first" {
 		t.Fatalf("answered: %+v", p)
+	}
+}
+
+func previewRequest(method, raw string) rules.Request {
+	u, _ := url.Parse(raw)
+	return rules.Request{URL: raw, Method: method, Host: u.Hostname()}
+}
+
+func TestRulesMatchWildcardsRegexAppsAndHeadersOnTheProxy(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, "upstream")
+	}))
+	defer upstream.Close()
+	s, client := scenarioProxy(t)
+	list := []capture.Rule{
+		// No test client is this app, so the rule never applies.
+		{Type: capture.RuleBlock, Match: "/a", Apps: []string{"no-such-app"}},
+		{Type: capture.RuleBlock, Match: "/a", When: []rules.HeaderCondition{{Name: "X-Env", Op: rules.HeaderEquals, Value: "staging"}}},
+		{Type: capture.RuleBlock, MatchMode: rules.URLWildcard, Match: "127.0.0.1:*/w/*/x"},
+		{Type: capture.RuleBlock, MatchMode: rules.URLRegex, Match: `/r/\d+$`},
+	}
+	if err := s.SetRules(list); err != nil {
+		t.Fatal(err)
+	}
+	do := func(path string, header http.Header, status int) {
+		t.Helper()
+		req, err := http.NewRequestWithContext(t.Context(), "GET", upstream.URL+path, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		req.Header = header
+		resp, err := client.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		if resp.StatusCode != status {
+			t.Fatalf("GET %s %v: %d, want %d", path, header, resp.StatusCode, status)
+		}
+	}
+	do("/a", nil, 200)
+	do("/a", http.Header{"X-Env": {"prod"}}, 200)
+	do("/a", http.Header{"X-Env": {"staging"}}, 403)
+	do("/w/1/x", nil, 403)
+	do("/w/1/x/y", nil, 200)
+	do("/r/42", nil, 403)
+	do("/r/42/y", nil, 200)
+	if s.RuleHits(list[0]) != 0 || s.RuleHits(list[1]) != 1 {
+		t.Fatal("hits went to the wrong rules")
+	}
+	bad := []capture.Rule{{Type: capture.RuleBlock, MatchMode: rules.URLRegex, Match: "("}}
+	if err := s.SetRules(bad); err == nil || !strings.Contains(err.Error(), "URL regex") {
+		t.Fatalf("an invalid regex was accepted: %v", err)
 	}
 }

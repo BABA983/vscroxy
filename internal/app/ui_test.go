@@ -17,6 +17,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -2870,18 +2871,29 @@ func TestRuleEditorPersistsOrderingTogglesAndCapturedMock(t *testing.T) {
 	}
 	tt.SetSize(1100, 650)
 	click("Save rule")
-	if !tt.HasText("rule 1: enter a URL substring to match") || len(load()) != 0 {
+	if !tt.HasText("rule 1: enter a URL to match") || len(load()) != 0 {
 		t.Fatal("invalid rule was saved or validation was hidden")
 	}
 	edit("Rule name", "Development API")
-	edit("URL contains", "/projects")
+	edit("Match URL", "/projects")
 	edit("Target base URL", "http://127.0.0.1:8081")
 	click("Save rule")
 	click("New rule")
 	click("Rule type")
 	click("Block")
 	edit("Rule name", "Block projects")
-	edit("URL contains", "/projects")
+	click("Regex")
+	edit("Match URL", "(projects")
+	click("Save rule")
+	if !strings.Contains(a.ruleUI.problem, "URL regex") || len(load()) != 1 {
+		t.Fatalf("an invalid regex was saved or not explained: %q", a.ruleUI.problem)
+	}
+	click("Wildcard")
+	edit("Match URL", "*/projects*")
+	edit("Match apps", "curl, Google Chrome*")
+	click("Add header condition")
+	edit("Header 1 name", "X-Env")
+	edit("Header 1 value", "staging")
 	click("Save rule")
 	click("Rule actions")
 	if err := chooseMenu(tt, "Move up"); err != nil {
@@ -2894,6 +2906,10 @@ func TestRuleEditorPersistsOrderingTogglesAndCapturedMock(t *testing.T) {
 	rules := load()
 	if len(rules) != 2 || rules[0].Type != capture.RuleBlock || !rules[0].Disabled || rules[1].Name != "Development API" {
 		t.Fatalf("order/toggle not persisted: %+v", rules)
+	}
+	if r := rules[0]; r.MatchMode != "wildcard" || r.Match != "*/projects*" || !slices.Equal(r.Apps, []string{"curl", "Google Chrome*"}) ||
+		len(r.When) != 1 || r.When[0].Name != "X-Env" || r.When[0].Op != "equals" || r.When[0].Value != "staging" {
+		t.Fatalf("match conditions not persisted: %+v", r)
 	}
 	click("Rule actions")
 	if err := chooseMenu(tt, "Delete rule…"); err != nil {
