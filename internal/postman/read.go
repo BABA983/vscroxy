@@ -80,7 +80,10 @@ type pmBody struct {
 	Raw        string        `json:"raw"`
 	URLEncoded []pmFormField `json:"urlencoded"`
 	FormData   []pmFormField `json:"formdata"`
-	GraphQL    struct {
+	File       struct {
+		Src jsontext.Value `json:"src"`
+	} `json:"file"`
+	GraphQL struct {
 		Query     string         `json:"query"`
 		Variables jsontext.Value `json:"variables"`
 	} `json:"graphql"`
@@ -702,7 +705,7 @@ func (r *reader) body(out *request.Request, body *pmBody) {
 		out.BodyMode, out.Body = "Raw", string(data)
 		addContentType(out, "application/json")
 	case "file":
-		r.warn.add("body", "binary file", 1)
+		out.BodyMode, out.BodyFile = "Binary", text(body.File.Src)
 	default:
 		r.warn.add("body", body.Mode, 1)
 	}

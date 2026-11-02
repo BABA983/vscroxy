@@ -1328,6 +1328,26 @@ func TestRequestBodyEditorKeepsTheDraftInSync(t *testing.T) {
 	if d.composeBody != `{"quantity": 0}` || d.bodyEditor.Buffer.String() != `{"quantity": 0}` {
 		t.Fatalf("an external body change was lost: %q / %q", d.composeBody, d.bodyEditor.Buffer.String())
 	}
+	for _, label := range []string{"Request body type", "Binary", "Binary body file"} {
+		if err := tt.Click(label); err != nil {
+			t.Fatal(err)
+		}
+	}
+	tt.Type("{{upload_path}}")
+	if d.value().BodyFile != "{{upload_path}}" || d.value().BodyMode != "Binary" || !tt.HasText("Choose file…") {
+		t.Fatal("the binary file editor did not update the draft")
+	}
+	for _, mode := range []string{"Raw", "Binary"} {
+		if err := tt.Click("Request body type"); err != nil {
+			t.Fatal(err)
+		}
+		if err := tt.Click(mode); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if d.composeBody != `{"quantity": 0}` || d.bodyFile != "{{upload_path}}" {
+		t.Fatal("switching body types lost the raw body or binary file path")
+	}
 }
 
 func TestCredentialsAreMaskedUntilRevealed(t *testing.T) {

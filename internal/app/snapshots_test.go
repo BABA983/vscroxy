@@ -260,6 +260,14 @@ func TestUISnapshots(t *testing.T) {
 			a.composeTab, a.requestDocument.bodyMode = composeTabBody, "Multipart"
 			a.formFields = []request.Field{{Name: "name", Value: "Demo"}, {Name: "upload", Value: "/tmp/example.txt", File: true}}
 		}, want: "Attach file…"},
+		{name: "requests-binary-empty", setup: func(a *app) {
+			draft(a)
+			a.composeTab, a.requestDocument.bodyMode = composeTabBody, "Binary"
+		}, want: "Choose file…"},
+		{name: "requests-binary-file", setup: func(a *app) {
+			draft(a)
+			a.composeTab, a.requestDocument.bodyMode, a.bodyFile = composeTabBody, "Binary", "/Users/demo/Uploads/firmware release 2.bin"
+		}, want: "Binary body file"},
 		{name: "requests-scripts", setup: func(a *app) { draft(a); a.composeTab = composeTabScripts }, want: "Pre-request script"},
 		{name: "requests-checks", setup: func(a *app) {
 			draft(a)

@@ -1012,7 +1012,22 @@ Body supports a raw editor with line numbers, JSON highlighting, undo and
 **Format**, plus URL-encoded fields and multipart text/file parts with duplicate
 keys, disabled rows and a 16 MiB total form limit. The body's type and **Format**
 share the Body tab's row instead of a toolbar of their own. File paths are
-stored, not file contents; sending or exporting reads the selected local files.
+stored, not file contents; sending or generating code reads the selected local files.
+
+**Binary** sends a single file as the entire body, without multipart wrapping.
+Choose **Body → Binary → Choose file…**, or enter a local path such as
+`{{upload_path}}`. Paths support variables (including pre-request script and
+Runner data values); relative paths are relative to the app's working directory,
+not the collection file. Files must be regular files up to 16 MiB; empty files
+are allowed. Each send reads the current bytes without text conversion or
+variable substitution inside the file. Missing, unreadable or oversized files
+fail before sending, never falling back to an inactive raw body. Content-Type
+defaults to `application/octet-stream`; set it in Headers to override it.
+A pre-request script that explicitly updates `pm.request.body.raw` or calls
+`pm.request.body.update(...)` replaces the file with that raw body.
+Saving a request or exporting it to Postman keeps only the file reference,
+not the file bytes; the receiving machine must have the file or select another.
+
 **Scripts** edits the pre-request and post-response scripts in the same reader as
 the body, with JavaScript highlighting, find and undo. **Send** runs through the
 proxy and shows the response body (Pretty, Raw or Hex, with JSON highlighting),
@@ -1224,9 +1239,10 @@ Postman. Item IDs are kept, so importing the same file again updates those
 requests. Folder names containing `/` keep it as `∕`. An environment merges
 into the environment of the same name; globals merge into globals.
 
-Saved examples become the requests' examples, both ways. What has no
-equivalent yet is listed after the import: request descriptions, binary file
-bodies, auth other than Bearer, Basic, API key, OAuth 2.0, Digest, AWS
+Saved examples become the requests' examples, both ways. Postman binary file
+bodies retain `file.src` as a local file reference, without reading the file
+during import or export. What has no equivalent yet is listed after the import:
+request descriptions, auth other than Bearer, Basic, API key, OAuth 2.0, Digest, AWS
 Signature and JWT Bearer (imported as no auth), disabled query parameters and
 per-request settings. Digest keeps only the username and password: the rest
 comes from the server's challenge. AWS Signature always signs in headers, and
@@ -1458,7 +1474,10 @@ cannot be re-imported by the intentionally restricted cURL importer.
 Missing/incomplete bodies, request trailers, CONNECT/WebSocket rows, oversized
 header/URL arguments, HEAD with a body, and commands over 16 MiB produce an
 error without replacing the clipboard. Multipart drafts read their selected
-files and export the assembled bytes, including binary parts. Credentials and
+files and export the assembled bytes, including binary parts. Binary drafts
+likewise export the selected file's bytes, not a path reference. Non-UTF-8
+bodies use cURL; the text-only code snippets report an error instead of changing
+the bytes. Credentials and
 cookies are included: review before sharing. Expired credentials, body-sensitive
 signatures and application-specific client certificates may still require manual
 changes; copying a request cannot guarantee a remote server will authorize it.

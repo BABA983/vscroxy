@@ -34,14 +34,16 @@ func exportFixtures(t *testing.T) []exportFixture {
 		{Path: "Collection", Description: "notes-collection", Pre: `throw "notes-root"`, Auth: request.Auth{Type: "Basic", Username: "auth-root-user", Password: "auth-root-password"}, Variables: []request.Field{{Name: "root", Value: "variable-root"}}},
 		{Path: "Collection/Folder", Description: "notes-folder", Post: `throw "notes-folder-post"`, Auth: request.Auth{Type: "Bearer", Token: "auth-folder"}, Variables: []request.Field{{Name: "folder", Value: "variable-folder", Disabled: true}}},
 	}
-	collection, _, err := postman.WriteCollection("Collection", []request.Request{r}, folders)
+	collection, _, err := postman.WriteCollection("Collection", []request.Request{r,
+		{Name: "Upload", Collection: "Collection/Folder", Method: "POST", URL: "https://example.test/upload", BodyMode: "Binary", BodyFile: "/private/body-file-path.bin"},
+	}, folders)
 	if err != nil {
 		t.Fatal(err)
 	}
 	fixtures := []exportFixture{{"Postman collection", collection, map[string][]string{
 		"headers": {"header-secret", "header-custom", "header-cookie", "header-example"},
 		"query":   {"query-secret", "query-second"}, "auth": {"auth-password", "auth-fragment", "auth-token", "auth-root-user", "auth-root-password", "auth-folder"},
-		"variables": {"variable-root", "variable-folder"}, "bodies": {"body-secret", "body-example", "body-original"},
+		"variables": {"variable-root", "variable-folder"}, "bodies": {"body-secret", "body-example", "body-original", "/private/body-file-path.bin"},
 		"notes": {"notes-pre", "notes-post", "notes-collection", "notes-root", "notes-folder", "notes-folder-post", "assertion-to-review"},
 	}}}
 	for _, globals := range []bool{false, true} {

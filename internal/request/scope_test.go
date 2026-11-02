@@ -1,13 +1,17 @@
 package request
 
 import (
+	"bytes"
 	"encoding/json/v2"
 	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/netip"
+	"os"
+	"path/filepath"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -214,6 +218,83 @@ func TestExecuteDynamicVariableOverrides(t *testing.T) {
 	}
 	if vars["$randomFirstName"] != "environment" || !strings.Contains(r.Body, "{{$randomFirstName}}") {
 		t.Error("sending changed the authored request or input variables")
+	}
+}
+
+func TestBinaryBodyThroughTheProxy(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Error(err)
+		}
+		w.Header().Set("X-Body-Type", r.Header.Get("Content-Type"))
+		w.Write(body)
+	}))
+	defer upstream.Close()
+	srv := testProxy(t)
+	path := filepath.Join(t.TempDir(), "payload.bin")
+	r := Request{Method: "POST", URL: upstream.URL, BodyMode: "Binary", BodyFile: "{{upload}}",
+		Body: "{{inactive_raw}}", Form: []Field{{Name: "{{inactive_form}}", Value: "ignored"}},
+		Headers: "Content-Length: 1", Checks: Checks{Status: "200"},
+		Pre: `pm.variables.set('upload', pm.environment.get('file'));`}
+	if got := r.Variables(); !slices.Equal(got, []string{"upload"}) {
+		t.Fatalf("variables = %q; want only the active file path", got)
+	}
+	for _, payload := range [][]byte{[]byte("\x00\xff\xfe\r\n{{token}}|{{$randomUUID}}|中文"), {}, []byte("file changed")} {
+		if err := os.WriteFile(path, payload, 0600); err != nil {
+			t.Fatal(err)
+		}
+		for _, contentType := range []string{"", "image/custom"} {
+			r.Headers = "Content-Length: 1"
+			if contentType != "" {
+				r.Headers += "\nContent-Type: " + contentType
+			}
+			out := r.Execute(t.Context(), srv, Context{}, map[string]string{"file": path, "token": "must-not-expand"}, nil)
+			if out.Err != nil || out.Response == nil || out.Failed() {
+				t.Fatalf("binary send: %s: %v", out.Stage, out.Err)
+			}
+			if !bytes.Equal([]byte(out.Response.ResponseBody), payload) || out.Request.Body != string(payload) {
+				t.Fatal("binary bytes changed or a previous send's contents were reused")
+			}
+			wantType := contentType
+			if wantType == "" {
+				wantType = "application/octet-stream"
+			}
+			if got := out.Response.ResponseHeader.Get("X-Body-Type"); got != wantType {
+				t.Errorf("Content-Type = %q, want %q", got, wantType)
+			}
+		}
+	}
+	// An explicit script body replaces the file, even if the path is missing.
+	r.BodyFile, r.Pre = "missing.bin", `pm.request.body.update('script-body');`
+	out := r.Execute(t.Context(), srv, Context{}, nil, nil)
+	if out.Err != nil || out.Response == nil || out.Response.ResponseBody != "script-body" {
+		t.Fatalf("script override: %s: %v", out.Stage, out.Err)
+	}
+}
+
+func TestBinaryBodyFileLimits(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "limit.bin")
+	for _, size := range []int{(16 << 20) - 1, 16 << 20, (16 << 20) + 1} {
+		if err := os.WriteFile(path, bytes.Repeat([]byte{0xa7}, size), 0600); err != nil {
+			t.Fatal(err)
+		}
+		r := Request{URL: "http://example.test", BodyMode: "Binary", BodyFile: path}
+		prepared, err := r.Prepare(nil)
+		if size <= 16<<20 {
+			if err != nil || len(prepared.Body) != size || prepared.Body[0] != 0xa7 || prepared.Body[size-1] != 0xa7 {
+				t.Fatalf("%d-byte file not preserved: %v", size, err)
+			}
+		} else if err == nil {
+			t.Fatal("accepted a binary body larger than 16 MiB")
+		}
+	}
+	for _, invalid := range []string{"", dir, filepath.Join(dir, "missing")} {
+		r := Request{URL: "http://example.test", BodyMode: "Binary", BodyFile: invalid, Body: "must not fall back"}
+		if _, err := r.Prepare(nil); err == nil {
+			t.Errorf("invalid binary file %q was accepted", invalid)
+		}
 	}
 }
 

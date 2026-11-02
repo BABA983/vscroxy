@@ -91,7 +91,12 @@ type outBody struct {
 	Raw        string         `json:"raw,omitempty"`
 	URLEncoded []outFormField `json:"urlencoded,omitempty"`
 	FormData   []outFormField `json:"formdata,omitempty"`
+	File       *outFile       `json:"file,omitempty"`
 	Options    *outOptions    `json:"options,omitempty"`
+}
+
+type outFile struct {
+	Src string `json:"src"`
 }
 
 type outOptions struct {
@@ -245,6 +250,8 @@ func writeRequest(r request.Request) *outRequest {
 				out.Body.Options.Raw.Language = "json"
 			}
 		}
+	case "Binary":
+		out.Body = &outBody{Mode: "file", File: &outFile{Src: r.BodyFile}}
 	case "URL encoded":
 		out.Body = &outBody{Mode: "urlencoded", URLEncoded: []outFormField{}}
 		for _, f := range r.Form {

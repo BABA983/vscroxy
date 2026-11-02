@@ -140,6 +140,65 @@ func TestStructuredRequestSurvivesSavingAndSendsBinaryMultipart(t *testing.T) {
 	}
 }
 
+func TestBinaryBodySurvivesSavingAndRunner(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "payload.bin")
+	payload := []byte("\x00\xff\r\n{{unchanged}}")
+	if err := os.WriteFile(path, payload, 0600); err != nil {
+		t.Fatal(err)
+	}
+	bodies := make(chan []byte, 2)
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Error(err)
+		}
+		bodies <- body
+		w.WriteHeader(201)
+	}))
+	defer upstream.Close()
+	r := savedRequest{ID: "binary-asset", Name: "Upload", Collection: "Binary", Method: "POST", URL: upstream.URL,
+		BodyMode: "Binary", BodyFile: path, Body: "inactive raw", Checks: request.Checks{Status: "201"}}
+	loaded := libraryRoundTrip(t, []savedRequest{r})
+	if len(loaded) != 1 || !reflect.DeepEqual(loaded[0], r) {
+		t.Fatalf("round trip = %+v", loaded)
+	}
+	a := workspaceApp()
+	a.addDocument(loaded[0], loaded[0].key())
+	if a.dirty() || a.draft().BodyFile != path {
+		t.Fatal("reopened binary request changed or lost its file path")
+	}
+	// cURL carries the exact file bytes; text-only snippets reject binary
+	// instead of silently converting invalid UTF-8 to replacement characters.
+	a.code.language = "cURL"
+	code, err := a.codeText(a.requestDocument)
+	if err != nil || !strings.Contains(code, "--data-binary @-") {
+		t.Fatalf("binary cURL = %q, %v", code, err)
+	}
+	prepared, err := a.draftPrepared(a.requestDocument)
+	if err != nil || !bytes.Equal([]byte(prepared.Body), payload) {
+		t.Fatalf("code generation changed binary bytes: %v", err)
+	}
+	for _, language := range request.SnippetLanguages {
+		a.code.language = language
+		if _, err := a.codeText(a.requestDocument); err == nil {
+			t.Errorf("%s accepted invalid UTF-8 as a text body", language)
+		}
+	}
+	a.srv, a.requests = requestProxy(t), loaded
+	a.openRunner()
+	a.runner.iterations = "2"
+	a.startRunner()
+	waitRunner(t, a)
+	if a.runner.completed != 2 || a.runner.failures != 0 || len(bodies) != 2 {
+		t.Fatalf("runner completed=%d failures=%d sends=%d", a.runner.completed, a.runner.failures, len(bodies))
+	}
+	for range 2 {
+		if !bytes.Equal(<-bodies, payload) {
+			t.Fatal("Runner changed the saved binary body")
+		}
+	}
+}
+
 func TestURLEncodedAuthAndCookiesFollowHTTPRules(t *testing.T) {
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
@@ -281,12 +340,15 @@ func TestCookieManagerRespectsDomainsSecureAndDeletion(t *testing.T) {
 }
 
 func TestStructuredOpenAPIDraftWarnsWithoutCopyingSecretsOrStaleRawBody(t *testing.T) {
-	spec, err := generateOpenAPI([]savedRequest{{Method: "POST", URL: "https://example.com/upload", Auth: request.Auth{Type: "Bearer", Token: "private-token-19"}, BodyMode: "Multipart", Body: "hidden stale body", Form: []request.Field{{Name: "file", Value: "/private/local/path", File: true}}}}, "")
+	spec, err := generateOpenAPI([]savedRequest{
+		{Method: "POST", URL: "https://example.com/upload", Auth: request.Auth{Type: "Bearer", Token: "private-token-19"}, BodyMode: "Multipart", Body: "hidden stale body", Form: []request.Field{{Name: "file", Value: "/private/local/path", File: true}}},
+		{Method: "PUT", URL: "https://example.com/upload", BodyMode: "Binary", BodyFile: "/private/local/path", Body: "hidden stale body"},
+	}, "")
 	if err != nil {
 		t.Fatal(err)
 	}
 	notes := strings.Join(spec.Notes, "\n")
-	if !strings.Contains(notes, "structured authentication is omitted") || !strings.Contains(notes, "structured form body is omitted") {
+	if !strings.Contains(notes, "structured authentication is omitted") || !strings.Contains(notes, "structured form body is omitted") || !strings.Contains(notes, "binary file body is omitted") {
 		t.Fatalf("missing limitations: %s", notes)
 	}
 	for _, secret := range []string{"private-token-19", "/private/local/path", "hidden stale body", "requestBody"} {

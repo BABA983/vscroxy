@@ -442,6 +442,25 @@ func (a *app) requestBodyEditor(c *ui.Context, d *requestDocument, t *ui.Theme) 
 	// already names the Body tab they belong to.
 	if d.bodyMode == "Raw" {
 		a.requestBodyText(c, d)
+	} else if d.bodyMode == "Binary" {
+		uikit.Meta(c, "BINARY FILE · up to 16 MiB, sent unchanged")
+		ui.Row(c).Gap(t.Space(2)).Wrap().AlignItems(ui.Center).Children(func() {
+			uikit.Input(c, &d.bodyFile).Label("Binary body file").Placeholder("Local path or {{upload_path}}").Font(uikit.FontMono).Grow(1).MinWidth(120)
+			if uikit.SecondaryButton(c, "Choose file…").Label("Choose binary body file").Clicked() && a.win != nil {
+				win, before := a.win, d.bodyFile
+				go func() {
+					paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Title: "Choose binary body file"})
+					win.Update(func() {
+						if err != nil {
+							a.fail("Choose binary body file", err)
+						} else if len(paths) > 0 && slices.Contains(a.documents, d) && d.bodyMode == "Binary" && d.bodyFile == before {
+							d.bodyFile = paths[0]
+						}
+					})
+				}()
+			}
+		})
+		uikit.Hint(c, "Only the path is saved. Content-Type defaults to application/octet-stream.")
 	} else {
 		uikit.Meta(c, "FORM DATA · file values are local paths, 16 MiB in total")
 		requestFieldsEditor(c, &d.formFields, fieldsOptions{file: true}, "field", func() {

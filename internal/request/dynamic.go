@@ -134,7 +134,7 @@ func expandDynamic(s string, defined map[string]string) string {
 // withDynamic generates the dynamic variables in every authored field.
 func (r Request) withDynamic(defined map[string]string) Request {
 	expand := func(s *string) { *s = expandDynamic(*s, defined) }
-	fields := []*string{&r.Method, &r.URL, &r.Headers, &r.Body, &r.Auth.Token, &r.Auth.Username, &r.Auth.Password, &r.Auth.Key, &r.Auth.Value}
+	fields := []*string{&r.Method, &r.URL, &r.Headers, &r.Body, &r.BodyFile, &r.Auth.Token, &r.Auth.Username, &r.Auth.Password, &r.Auth.Key, &r.Auth.Value}
 	for _, s := range append(append(fields, r.Auth.AWS.fields()...), r.Auth.JWT.fields()...) {
 		expand(s)
 	}

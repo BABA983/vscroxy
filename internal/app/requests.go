@@ -65,6 +65,7 @@ type requestDocument struct {
 	bulkFor     string
 	auth        request.Auth
 	bodyMode    string
+	bodyFile    string
 	formFields  []request.Field
 	queryRows   []request.Field
 	querySource string
@@ -149,7 +150,7 @@ func (d *requestDocument) value() savedRequest {
 		Name: d.composeName, Collection: d.composeCollection,
 		Method: d.composeMethod, URL: d.composeURL, Headers: d.composeHeaders,
 		Body: d.composeBody, Pre: d.composePre, Post: d.composePost,
-		Auth: d.auth, BodyMode: d.bodyMode, Form: slices.Clone(d.formFields),
+		Auth: d.auth, BodyMode: d.bodyMode, BodyFile: d.bodyFile, Form: slices.Clone(d.formFields),
 		Checks: d.checks, HeaderList: headerRowsKept(d.headerRows),
 		Examples: slices.Clone(d.examples),
 	}
@@ -217,6 +218,7 @@ func (d *requestDocument) load(r savedRequest, key string) {
 	d.composePre, d.composePost, d.checks = r.Pre, r.Post, r.Checks
 	d.examples, d.example, d.exampleEditor = slices.Clone(r.Examples), 0, nil
 	d.auth, d.bodyMode, d.formFields = r.Auth, cmp.Or(r.BodyMode, "Raw"), slices.Clone(r.Form)
+	d.bodyFile = r.BodyFile
 	if d.headerRows == nil && d.composeHeaders != "" {
 		d.headerRows, d.headerFor = parseHeaderRows(d.composeHeaders), d.composeHeaders
 	}
@@ -776,7 +778,7 @@ func (a *app) requestEditor(c *ui.Context, t *ui.Theme, d *requestDocument, orig
 	// tools take their own row there.
 	wide := a.contentWidth(c) >= 900 && original == nil
 	bodyTools := func() {
-		uikit.Select(c, &d.bodyMode, []string{"Raw", "URL encoded", "Multipart"}).Label("Request body type").Width(132).FontSize(uikit.TextMeta)
+		uikit.Select(c, &d.bodyMode, []string{"Raw", "URL encoded", "Multipart", "Binary"}).Label("Request body type").Width(132).FontSize(uikit.TextMeta)
 		formatted, isJSON := indentJSON(d.composeBody)
 		ui.Row(c).Disabled(!isJSON || d.bodyMode != "Raw").Children(func() {
 			if uikit.ToolbarButton(c, "Format body", "Indent the JSON body; the bytes sent stay what the editor shows", false).Children(func() {

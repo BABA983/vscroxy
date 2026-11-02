@@ -206,6 +206,8 @@ func (r Request) Variables() []string {
 	texts := []string{r.Method, r.URL, r.Headers}
 	if r.BodyMode == "" || r.BodyMode == "Raw" {
 		texts = append(texts, r.Body)
+	} else if r.BodyMode == "Binary" {
+		texts = append(texts, r.BodyFile)
 	} else {
 		for _, field := range r.Form {
 			if !field.Disabled {

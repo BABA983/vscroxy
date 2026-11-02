@@ -23,16 +23,18 @@ import (
 // Request is what a user authors and saves. Names and collection paths are
 // editable labels, not asset identities: ID is.
 type Request struct {
-	ID         string  `json:"id,omitempty"`
-	Name       string  `json:"name"`
-	Collection string  `json:"collection,omitempty"`
-	Method     string  `json:"method"`
-	URL        string  `json:"url"`
-	Headers    string  `json:"headers,omitempty"`
-	Body       string  `json:"body,omitempty"`
-	Auth       Auth    `json:"auth,omitzero"`
-	BodyMode   string  `json:"bodyMode,omitempty"`
-	Form       []Field `json:"form,omitempty"`
+	ID         string `json:"id,omitempty"`
+	Name       string `json:"name"`
+	Collection string `json:"collection,omitempty"`
+	Method     string `json:"method"`
+	URL        string `json:"url"`
+	Headers    string `json:"headers,omitempty"`
+	Body       string `json:"body,omitempty"`
+	Auth       Auth   `json:"auth,omitzero"`
+	BodyMode   string `json:"bodyMode,omitempty"`
+	// BodyFile is a local path for Binary bodies; only the path is saved.
+	BodyFile string  `json:"bodyFile,omitempty"`
+	Form     []Field `json:"form,omitempty"`
 	// HeaderList keeps the header table's rows: order, duplicates, empty
 	// values and disabled rows. Headers stays the Key: Value block the send,
 	// export and script paths read, written from the enabled rows.
@@ -149,6 +151,39 @@ func (r Request) Prepare(vars map[string]string) (*Prepared, error) {
 	}
 	switch r.BodyMode {
 	case "", "Raw":
+	case "Binary":
+		path := ExpandVars(r.BodyFile, vars)
+		if path == "" {
+			return nil, fmt.Errorf("choose a binary body file")
+		}
+		info, err := os.Stat(path)
+		if err != nil {
+			return nil, fmt.Errorf("binary body file: %w", err)
+		}
+		if !info.Mode().IsRegular() || info.Size() > 16<<20 {
+			return nil, fmt.Errorf("binary body files must be regular files up to 16 MiB")
+		}
+		file, err := os.Open(path)
+		if err != nil {
+			return nil, fmt.Errorf("open binary body file: %w", err)
+		}
+		defer file.Close()
+		info, err = file.Stat()
+		if err != nil || !info.Mode().IsRegular() {
+			return nil, fmt.Errorf("binary body files must be regular files up to 16 MiB")
+		}
+		data, err := io.ReadAll(io.LimitReader(file, (16<<20)+1))
+		if err != nil {
+			return nil, fmt.Errorf("read binary body file: %w", err)
+		}
+		if len(data) > 16<<20 {
+			return nil, fmt.Errorf("binary body exceeds 16 MiB")
+		}
+		req.Body = string(data)
+		if req.Header.Get("Content-Type") == "" {
+			req.Set("Content-Type", "application/octet-stream")
+		}
+		req.Remove("Content-Length")
 	case "URL encoded", "Multipart":
 		var body bytes.Buffer
 		writer := multipart.NewWriter(&body)

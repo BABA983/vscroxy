@@ -168,7 +168,7 @@
 | HTTP 请求编辑、tab、草稿恢复 | 已有 | | |
 | Params、Headers（启用开关、批量编辑、敏感值遮罩） | 已有 | | |
 | Body：raw、urlencoded、multipart | 已有 | | |
-| Body：binary 文件 | 缺少 | Postman 导入时会丢 | M6 |
+| Body：binary 文件 | 已有 | 只保存本地路径，每次发送原样读取，普通文件 ≤16 MiB；Send/Runner 共用，Postman 导入导出保留引用，支持 cURL 导出 | M6 |
 | Body：GraphQL（query + variables，schema 自省和补全） | 缺少 | | M6 |
 | Auth：Inherit、Bearer、Basic、API key、OAuth 2.0、Digest、AWS、JWT | 已有 | | |
 | Auth：OAuth 1.0、NTLM、Hawk、Akamai EdgeGrid | 缺少 | 按需求排 | M6 |
@@ -302,7 +302,7 @@ Cookie 和其他 API key 保留为变量 header，避免把多个认证机制硬
 
 ### M6：Postman 兼容补齐
 
-- Body：binary、GraphQL。
+- Body：binary 已完成（本地文件引用、原样发送、Postman 转换）；GraphQL 待做。
 - 请求描述和集合文档、单个请求的设置。
 - 证书：请求侧的客户端证书和自定义 CA；抓包侧的上游 mTLS 和自定义根证书。
 - 变量：初始值/当前值、自动补全和悬停、完整动态变量（常用项已扩至 32 个，仍未覆盖完整 Faker）。

@@ -2,6 +2,7 @@ package postman_test
 
 import (
 	"encoding/hex"
+	"encoding/json/v2"
 	"reflect"
 	"slices"
 	"strings"
@@ -218,7 +219,10 @@ func TestReadCollection(t *testing.T) {
 			Form:     []request.Field{{Name: "name", Value: "me"}, {Name: "avatar", Value: "/tmp/avatar.png", File: true}},
 			Auth:     inherit,
 		},
-		{Name: "Upload firmware", Collection: "Shop API", Method: "POST", URL: "{{baseUrl}}/firmware", Auth: inherit},
+		{
+			Name: "Upload firmware", Collection: "Shop API", Method: "POST", URL: "{{baseUrl}}/firmware",
+			BodyMode: "Binary", BodyFile: "/tmp/firmware.bin", Auth: inherit,
+		},
 		{
 			Name: "Search", Collection: "Shop API", Method: "POST", URL: "{{baseUrl}}/graphql",
 			BodyMode: "Raw", Body: `{"query":"query($q: String) { search(q: $q) { id } }","variables":{"q":"shoes"}}`,
@@ -293,7 +297,6 @@ func TestReadCollection(t *testing.T) {
 	}
 
 	wantWarnings := []string{
-		"1 request uses a binary file body; imported without a body",
 		"1 request uses hawk auth; imported as no auth",
 		"Dropped 1 request description",
 		"Dropped 1 request variable",
@@ -673,6 +676,10 @@ func TestCollectionRoundTrip(t *testing.T) {
 				Username: "{{user}}", Password: "{{password}}", ClientAuth: "Body",
 			}},
 		},
+		{
+			ID: "r11", Name: "Binary", Collection: "Shop", Method: "PUT", URL: "{{base}}/firmware",
+			BodyMode: "Binary", BodyFile: "{{files}}/../firmware.bin",
+		},
 		{ID: "other", Name: "Elsewhere", Collection: "Shopping", Method: "GET", URL: "https://example.com"},
 	}
 	data, warnings, err := postman.WriteCollection("Shop", requests, folders)
@@ -709,11 +716,11 @@ func TestCollectionRoundTrip(t *testing.T) {
 	for _, r := range got.Requests {
 		order = append(order, r.ID)
 	}
-	if want := []string{"r4", "r3", "r1", "r7", "r2", "r5", "r6", "r8", "r9", "r10"}; !slices.Equal(order, want) {
+	if want := []string{"r4", "r3", "r1", "r7", "r2", "r5", "r6", "r8", "r9", "r10", "r11"}; !slices.Equal(order, want) {
 		t.Errorf("request order = %q, want %q", order, want)
 	}
 	want := map[string]request.Request{}
-	for _, r := range requests[:10] {
+	for _, r := range requests[:11] {
 		want[r.ID] = r
 	}
 	// The access token is never exported, and the default grant comes back named.
@@ -735,6 +742,91 @@ func TestCollectionRoundTrip(t *testing.T) {
 	}
 	if !reflect.DeepEqual(got.Folders, folders[:4]) {
 		t.Errorf("Folders:\n got %+v\nwant %+v", got.Folders, folders[:4])
+	}
+}
+
+func TestBinaryBodyConversion(t *testing.T) {
+	for _, tt := range []struct{ name, file, want string }{
+		{"absolute", `{"src":"/nonexistent/vscroxy/firmware.bin"}`, "/nonexistent/vscroxy/firmware.bin"},
+		{"relative", `{"src":"../files/./firmware.bin"}`, "../files/./firmware.bin"},
+		{"windows", `{"src":"C:\\files\\firmware.bin"}`, `C:\files\firmware.bin`},
+		{"variables", `{"src":" {{directory}}/{{filename}} "}`, " {{directory}}/{{filename}} "},
+		{"empty", `{"src":""}`, ""},
+		{"null src", `{"src":null}`, ""},
+		{"missing src", `{}`, ""},
+		{"null file", `null`, ""},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			input := `{"info":{"name":"Files"},"item":[{"id":"file","name":"Upload","request":{"method":"POST","url":"{{base}}/upload","body":{"mode":"file","raw":"inactive raw body","file":` + tt.file + `}}}]}`
+			got, err := postman.ReadCollection([]byte(input))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(got.Requests) != 1 || len(got.Warnings) != 0 {
+				t.Fatalf("import = %+v", got)
+			}
+			r := got.Requests[0]
+			if r.BodyMode != "Binary" || r.BodyFile != tt.want || r.Body != "" || len(r.HeaderList) != 0 {
+				t.Fatalf("binary body = %+v", r)
+			}
+			// Inactive raw and form editors must never leak into the file body.
+			got.Requests[0].Body = "inactive raw body"
+			got.Requests[0].Form = []request.Field{{Name: "inactive", Value: "form"}}
+			data, warnings, err := postman.WriteCollection(got.Name, got.Requests, nil)
+			if err != nil || len(warnings) != 0 {
+				t.Fatalf("export: %v, warnings %q", err, warnings)
+			}
+			var out struct {
+				Item []struct {
+					Request struct {
+						Body map[string]any `json:"body"`
+					} `json:"request"`
+				} `json:"item"`
+			}
+			if err := json.Unmarshal(data, &out); err != nil {
+				t.Fatal(err)
+			}
+			wantBody := map[string]any{"mode": "file", "file": map[string]any{"src": tt.want}}
+			if len(out.Item) != 1 || !reflect.DeepEqual(out.Item[0].Request.Body, wantBody) {
+				t.Fatalf("export must contain only mode and file.src:\n%s", data)
+			}
+			again, err := postman.ReadCollection(data)
+			if err != nil || len(again.Warnings) != 0 || len(again.Requests) != 1 {
+				t.Fatalf("re-import = %+v, %v", again, err)
+			}
+			if !reflect.DeepEqual(again.Requests[0], r) {
+				t.Errorf("round trip:\n got %+v\nwant %+v", again.Requests[0], r)
+			}
+		})
+	}
+}
+
+func TestBinaryBodyInactive(t *testing.T) {
+	got, err := postman.ReadCollection([]byte(`{"info":{"name":"Files"},"item":[{"name":"Disabled","request":{"body":{"mode":"file","disabled":true,"file":{"src":"{{path}}"}}}}]}`))
+	if err != nil || len(got.Requests) != 1 || len(got.Warnings) != 0 {
+		t.Fatalf("import = %+v, %v", got, err)
+	}
+	if r := got.Requests[0]; r.BodyMode != "" || r.BodyFile != "" || r.Body != "" {
+		t.Errorf("disabled body was imported: %+v", r)
+	}
+	for _, mode := range []string{"", "Raw"} {
+		t.Run(mode, func(t *testing.T) {
+			r := request.Request{Name: "Raw", Collection: "Files", BodyMode: mode, Body: "raw text", BodyFile: "{{inactive}}"}
+			data, warnings, err := postman.WriteCollection("Files", []request.Request{r}, nil)
+			if err != nil || len(warnings) != 0 {
+				t.Fatalf("export: %v, warnings %q", err, warnings)
+			}
+			if strings.Contains(string(data), `"file"`) || strings.Contains(string(data), "{{inactive}}") {
+				t.Fatalf("raw export contains inactive binary path:\n%s", data)
+			}
+			again, err := postman.ReadCollection(data)
+			if err != nil || len(again.Requests) != 1 {
+				t.Fatalf("re-import = %+v, %v", again, err)
+			}
+			if r := again.Requests[0]; r.BodyMode != "Raw" || r.Body != "raw text" || r.BodyFile != "" {
+				t.Errorf("raw body = %+v", r)
+			}
+		})
 	}
 }
 
