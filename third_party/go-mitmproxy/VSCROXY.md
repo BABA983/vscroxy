@@ -76,6 +76,16 @@ before this plain-WS dial, and the original request is otherwise private.
 - The upstream dialer of `handle` gets `TLSClientConfig`, for a `wss` target.
 
 `TestMapRemoteRewritesPathHostAndWebSockets` in `internal/capture` covers both.
+
+## Unreachable CONNECT targets (`proxy.go`, `entry.go`)
+
+`Proxy.SetDialFallbackRule` decides, for an intercepted CONNECT whose server
+`httpsDialFirstAttack` cannot reach, whether to continue as
+`httpsDialLazyAttack` does: a certificate generated for the CONNECT's host and
+an upstream dialed per request, after addons may have changed its URL. Without
+the rule, or when it says no, the CONNECT fails with 502 as upstream does. The
+capture answers yes when an active Map Remote rule could match the host.
+`TestMapRemoteReachesUnresolvableHTTPSHosts` covers it.
 Regression coverage lives in the desktop module's real-socket tests:
 `TestStructuredWebSocketSendsAuthHeadersAndCookiesWithVerifiedTLS` and
 `TestWebSocketKeepsThePathAndQuery` (alongside the existing WSS regression).

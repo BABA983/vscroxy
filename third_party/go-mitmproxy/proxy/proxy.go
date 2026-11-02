@@ -35,6 +35,7 @@ type Proxy struct {
 	attacker         *attacker
 	webSocketHandler *webSocketHandler
 	shouldIntercept  func(req *http.Request) bool              // req is received by proxy.server
+	dialFallback     func(req *http.Request) bool              // see SetDialFallbackRule
 	upstreamProxy    func(req *http.Request) (*url.URL, error) // req is received by proxy.server, not client request
 	authProxy        func(res http.ResponseWriter, req *http.Request) (bool, error)
 }
@@ -114,6 +115,13 @@ func (proxy *Proxy) GetCertificateByCN(commonName string) (*tls.Certificate, err
 
 func (proxy *Proxy) SetShouldInterceptRule(rule func(req *http.Request) bool) {
 	proxy.shouldIntercept = rule
+}
+
+// SetDialFallbackRule decides, for an intercepted CONNECT whose server cannot
+// be reached, whether to go on with a certificate generated for its host
+// instead of failing the CONNECT: addons may send its requests elsewhere.
+func (proxy *Proxy) SetDialFallbackRule(rule func(req *http.Request) bool) {
+	proxy.dialFallback = rule
 }
 
 func (proxy *Proxy) SetUpstreamProxy(fn func(req *http.Request) (*url.URL, error)) {

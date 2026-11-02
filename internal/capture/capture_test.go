@@ -2341,3 +2341,73 @@ func TestMapRemoteRewritesPathHostAndWebSockets(t *testing.T) {
 		t.Fatal("a mapped WebSocket reached its original server")
 	}
 }
+
+func TestMayMapHost(t *testing.T) {
+	cases := []struct {
+		rule Rule
+		host string
+		want bool
+	}{
+		{Rule{Match: "api.example.com/v1/"}, "api.example.com:443", true},
+		{Rule{Match: "https://example.com/v1/"}, "api.example.com:443", true}, // a URL part: the host ends with it
+		{Rule{Match: "api.example.com/v1/"}, "other.test:443", false},
+		{Rule{Match: "api.example.com/v1/"}, "api.example.com.evil.test:443", false},
+		{Rule{Match: "example"}, "api.example.com:443", true},
+		{Rule{Match: "localhost:8443/x"}, "localhost:8443", true},
+		{Rule{Match: "/v1/users"}, "anything.test:443", true}, // a path could be on any host
+		{Rule{MatchMode: "wildcard", Match: "*.example.com/*"}, "api.example.com:443", true},
+		{Rule{MatchMode: "wildcard", Match: "*.example.com/*"}, "example.org:443", false},
+		{Rule{MatchMode: "wildcard", Match: "*example*"}, "other.test:443", true}, // no path: could cover anything
+		{Rule{MatchMode: "regex", Match: `^https://x\.test/`}, "other.test:443", true},
+		{Rule{Match: "api.example.com/", Disabled: true}, "api.example.com:443", false},
+		{Rule{Match: "api.example.com/", Scenario: "Off"}, "api.example.com:443", false},
+	}
+	for _, tc := range cases {
+		tc.rule.Type, tc.rule.Target = RuleMapRemote, "http://127.0.0.1:1"
+		if got := mayMapHost([]Rule{tc.rule}, tc.host); got != tc.want {
+			t.Errorf("%+v on %s = %v, want %v", tc.rule, tc.host, got, tc.want)
+		}
+	}
+	if mayMapHost([]Rule{{Type: RuleBlock, Match: "/"}}, "x.test:443") {
+		t.Error("a Block rule counted")
+	}
+}
+
+// An HTTPS host that does not exist, which Map Remote sends elsewhere, is
+// answered with a generated certificate instead of failing the CONNECT; one
+// no rule maps still fails it.
+func TestMapRemoteReachesUnresolvableHTTPSHosts(t *testing.T) {
+	var gotPath, gotHost string
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath, gotHost = r.URL.RequestURI(), r.Host
+		fmt.Fprint(w, "mapped")
+	}))
+	defer upstream.Close()
+	s, caPath := startServerWithRules(t,
+		Rule{Type: RuleMapRemote, MatchMode: "wildcard", Match: "*.dev.invalid/api/*", Target: upstream.URL, KeepHost: true},
+	)
+	s.SetSSL(SSLConfig{All: true})
+	client := clientFor(t, s, sslTestRoots(t, caPath))
+	resp, err := client.Get("https://shop.dev.invalid/api/items?id=7")
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if string(body) != "mapped" || gotPath != "/api/items?id=7" || gotHost != "shop.dev.invalid" {
+		t.Fatalf("got %d %q; upstream saw %q with Host %q", resp.StatusCode, body, gotPath, gotHost)
+	}
+	if f := waitFlow(t, s); f.URL != "https://shop.dev.invalid/api/items?id=7" || len(f.Actions) == 0 {
+		t.Fatalf("row %q, actions %v", f.URL, f.Actions)
+	}
+	// The same host's requests no rule maps still have nowhere to go.
+	if resp, err := client.Get("https://shop.dev.invalid/other"); err == nil {
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusBadGateway {
+			t.Fatalf("an unmapped request got %d", resp.StatusCode)
+		}
+	}
+	if _, err := client.Get("https://unmapped.invalid/api/x"); err == nil {
+		t.Fatal("a CONNECT to a host no rule maps succeeded")
+	}
+}

@@ -308,6 +308,11 @@ func (e *entry) httpsDialFirstAttack(res http.ResponseWriter, req *http.Request,
 	})
 
 	conn, err := proxy.attacker.httpsDial(req.Context(), req)
+	if err != nil && proxy.dialFallback != nil && proxy.dialFallback(req) {
+		f.ConnContext.RecordEvent("TLS", "Could not reach "+req.Host+"; a rule may send its requests elsewhere, so using a generated certificate", err)
+		e.httpsDialLazyAttack(res, req, f)
+		return
+	}
 	if err != nil {
 		for _, addon := range proxy.Addons {
 			addon.HTTPConnectError(f, err)

@@ -117,7 +117,7 @@
 | Map Local：在 app 内直接编辑响应 | 缺少 | 现在要改文件 | M4 |
 | Map Local：目录（按路径找文件，找不到回源） | 缺少 | | M4 |
 | Map Remote：换 scheme 和 host | 已有 | | |
-| Map Remote：换端口和路径、是否保留原 Host header、WebSocket | 已有 | 端口写在目标 URL 里；路径前缀改写；WebSocket（含解密的 wss）跟随第一条匹配的 Map Remote。HTTPS 和 CONNECT 里的 WebSocket 仍要先连上原主机取证书 | M4 |
+| Map Remote：换端口和路径、是否保留原 Host header、WebSocket | 已有 | 端口写在目标 URL 里；路径前缀改写；WebSocket（含解密的 wss）跟随第一条匹配的 Map Remote。原主机连不上、且有启用的 Map Remote 可能匹配它时，改用生成的证书 | M4 |
 | Scenario（规则分组切换） | 已有 | | |
 | 脚本：挂在规则上、app 内编辑、`pm` 风格 API | 部分 | 现在是全局 `script.js`，手改文件 | M4 |
 | 脚本：异步发请求、规则间共享状态、读系统环境变量 | 缺少 | | M4 |
@@ -281,7 +281,7 @@ Cookie 和其他 API key 保留为变量 header，避免把多个认证机制硬
 - Tools 管理窗口：规则、Scenario、脚本、Host 方案集中管理。（规则页已完成：规则从弹窗移进 Tools，测试请求时按作用顺序标号，显示命中数和 Scenario。）
 - 规则匹配：通配符、正则、method、App、header。（已完成）
 - Map Local：app 内编辑响应、目录映射。
-- Map Remote：端口、路径、Host header、WebSocket。（已完成；原主机不可达时的 HTTPS 映射待做）
+- Map Remote：端口、路径、Host header、WebSocket。（已完成，含原主机不可达时的 HTTPS 映射）
 - Block：隐藏或拦截、断开连接、按 App。
 - Breakpoint 模板。
 - 规则脚本：`pm` 风格 API、编辑器、异步请求、共享状态、环境变量、内置库、代码片段；`script.js` 迁移。

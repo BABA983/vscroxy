@@ -419,8 +419,12 @@ portable scenario export or a delay/fault-injection engine.
   by name. WebSocket handshakes follow the first matching Map Remote rule too,
   as `ws` or `wss` to match the target; Map Local, Block and breakpoints do not
   act on WebSockets. Inside a CONNECT tunnel (HTTPS and most WebSockets) the
-  proxy still connects to the original host first, for its certificate, so that
-  host must be reachable; plain `http://` requests need not be.
+  proxy first connects to the original host to copy its certificate. When that
+  host cannot be reached and an active Map Remote rule could match it, the
+  proxy answers with a certificate it generates for the host instead, so a
+  host that exists only in a rule (`https://shop.dev.invalid`) works too.
+  Requests on that host no rule maps then fail with 502. A host no Map Remote
+  rule could match still fails the CONNECT, as before.
 - `block` answers `403`.
 - `break` pauses the request until you decide, and `break_response` pauses
   the response (see below).

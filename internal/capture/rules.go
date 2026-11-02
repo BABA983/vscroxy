@@ -6,6 +6,7 @@ import (
 	"encoding/json/v2"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -57,6 +58,45 @@ func firstResponseRule(list []Rule, req rules.Request) int {
 
 func webSocketURL(raw string) bool {
 	return strings.HasPrefix(raw, "ws://") || strings.HasPrefix(raw, "wss://")
+}
+
+// mayMapHost reports whether an active Map Remote rule could send a request
+// to hostport elsewhere. A CONNECT names only the host, so a rule counts
+// unless what it matches names another host: a path-only pattern, a regular
+// expression or a wildcard without a path could match any.
+func mayMapHost(list []Rule, hostport string) bool {
+	host := strings.ToLower(hostport)
+	if h, _, err := net.SplitHostPort(host); err == nil {
+		host = h
+	}
+	for _, r := range list {
+		if r.Type != RuleMapRemote || r.Disabled || r.Scenario != "" && !r.ScenarioActive {
+			continue
+		}
+		pattern := strings.ToLower(r.Match)
+		if _, rest, ok := strings.Cut(pattern, "://"); ok {
+			pattern = rest
+		}
+		named, _, hasPath := strings.Cut(pattern, "/")
+		switch {
+		case r.MatchMode == rules.URLRegex, named == "":
+			return true
+		case r.MatchMode == rules.URLWildcard:
+			if !hasPath || (rules.Matcher{URL: "x://" + named + "/", URLMode: rules.URLWildcard}).Match(rules.Request{URL: "x://" + strings.ToLower(hostport) + "/"}) ||
+				(rules.Matcher{URL: "x://" + named + "/", URLMode: rules.URLWildcard}).Match(rules.Request{URL: "x://" + host + "/"}) {
+				return true
+			}
+		case !hasPath:
+			if strings.Contains(strings.ToLower(hostport), named) {
+				return true
+			}
+		default: // a URL part with a path: the host part ends the URL's host
+			if strings.HasSuffix(host, named) || strings.HasSuffix(strings.ToLower(hostport), named) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // key is what a rule does, without its name and switches.

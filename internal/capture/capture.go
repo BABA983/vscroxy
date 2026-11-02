@@ -422,6 +422,11 @@ func New(addr, caRootPath string) (*Server, error) {
 		}
 		return s.SSL().DecryptsProcess(requestHost(req), process.Path)
 	})
+	p.SetDialFallbackRule(func(req *http.Request) bool {
+		s.rulesMu.RLock()
+		defer s.rulesMu.RUnlock()
+		return mayMapHost(s.rules, req.Host)
+	})
 	p.SetUpstreamProxy(func(*http.Request) (*url.URL, error) {
 		raw, _ := s.upstream.Load().(string)
 		if raw == "" {
