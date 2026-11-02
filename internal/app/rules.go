@@ -2,6 +2,9 @@ package app
 
 import (
 	"cmp"
+	"crypto/rand"
+	"encoding/json/jsontext"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -10,13 +13,16 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/baba983/vscroxy/internal/capture"
 	"github.com/baba983/vscroxy/internal/request"
 	"github.com/baba983/vscroxy/internal/rules"
+	"github.com/baba983/vscroxy/internal/store"
 	"github.com/baba983/vscroxy/internal/uikit"
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
+	"github.com/egoist/mygo/ui/editor"
 	"github.com/oneo-me/onevra/source/icons/lucide"
 	"golang.org/x/net/http/httpguts"
 )
@@ -34,7 +40,13 @@ type ruleEditor struct {
 	unsavedMock    string
 	test           string // see ruleTest
 	apps           string // the draft's Apps, comma-separated
-	list           ui.ListState
+	// body edits a Map Local file's response, read from bodyFor as bodyText;
+	// nil for a folder or a file it cannot edit, as bodyNote says.
+	body               *editor.State
+	bodyFor, bodyText  string
+	bodyNote           string
+	bodyDir, bodyFresh bool // bodyFresh: the file does not exist yet
+	list               ui.ListState
 }
 
 var ruleTypes = []capture.RuleType{capture.RuleMapLocal, capture.RuleMapRemote, capture.RuleBlock, capture.RuleBreak, capture.RuleBreakResponse}
@@ -66,6 +78,57 @@ func (a *app) editRule(index int, r capture.Rule) {
 	// The draft must not edit the saved rule's slices in place.
 	e.draft.Apps, e.draft.When = nil, slices.Clone(r.When)
 	e.apps = strings.Join(r.Apps, ", ")
+	e.body, e.bodyFor = nil, ""
+}
+
+// loadRuleBody reads the draft's Map Local file into the body editor when
+// the target changed, unless the body has edits the new target would lose.
+func (a *app) loadRuleBody() {
+	e := &a.ruleUI
+	target := strings.TrimSpace(e.draft.Target)
+	if e.body != nil && (e.bodyFor == target || e.body.Buffer.String() != e.bodyText) {
+		return
+	}
+	if e.body == nil && e.bodyFor == target && (e.bodyDir || e.bodyNote != "") {
+		return
+	}
+	e.body, e.bodyFor, e.bodyText, e.bodyNote, e.bodyDir, e.bodyFresh = nil, target, "", "", false, false
+	var data []byte
+	if target == "" {
+		e.bodyFresh = true
+		e.bodyNote = "Saving creates a response file in vscroxy’s mocks folder."
+	} else if info, err := os.Stat(target); err == nil && info.IsDir() {
+		e.bodyDir = true
+		return
+	} else if errors.Is(err, os.ErrNotExist) {
+		e.bodyFresh = true
+		e.bodyNote = "Saving creates this file."
+	} else if err != nil {
+		e.bodyNote = "Cannot read the file: " + err.Error()
+		return
+	} else if info.Size() > 8<<20 {
+		e.bodyNote = "Larger than 8 MiB; edit it outside vscroxy."
+		return
+	} else if data, err = os.ReadFile(target); err != nil {
+		e.bodyNote = "Cannot read the file: " + err.Error()
+		return
+	} else if !utf8.Valid(data) {
+		e.bodyNote = "Binary content; edit it outside vscroxy."
+		return
+	}
+	e.bodyText = string(data)
+	buf := editor.NewBuffer(e.bodyText)
+	if strings.EqualFold(filepath.Ext(target), ".json") || jsontext.Value(data).IsValid() {
+		buf.SetLanguage(editor.LanguageNamed("json"))
+	} else {
+		buf.SetLanguage(editor.LanguageNamed(strings.TrimPrefix(filepath.Ext(target), ".")))
+	}
+	e.body = &editor.State{Buffer: buf, Label: "Response body", Placeholder: `{"ok": true}`}
+}
+
+// ruleBodyEdited reports whether the body editor has changes to write.
+func (e *ruleEditor) ruleBodyEdited() bool {
+	return e.body != nil && e.body.Buffer.String() != e.bodyText
 }
 
 // openRules shows Tools on Rules, keeping the rule being edited.
@@ -162,6 +225,17 @@ func (a *app) saveRule() {
 			}
 		}
 		r.Headers = request.ParseHeaderBlock(e.headers)
+		if r.Target == "" && e.ruleBodyEdited() {
+			if a.rulesPath == "" {
+				e.problem = "Rules storage is unavailable"
+				return
+			}
+			ext := ".txt"
+			if jsontext.Value(e.body.Buffer.String()).IsValid() {
+				ext = ".json"
+			}
+			r.Target = filepath.Join(filepath.Dir(a.rulesPath), "mocks", rand.Text()+ext)
+		}
 	} else {
 		if r.Type != capture.RuleMapRemote {
 			r.Target = ""
@@ -169,7 +243,10 @@ func (a *app) saveRule() {
 	}
 	r.PathFrom, r.PathTo = strings.TrimSpace(r.PathFrom), strings.TrimSpace(r.PathTo)
 	if r.Type != capture.RuleMapRemote {
-		r.PathFrom, r.PathTo, r.KeepHost = "", "", false
+		r.PathTo, r.KeepHost = "", false
+		if r.Type != capture.RuleMapLocal || !e.bodyDir {
+			r.PathFrom = ""
+		}
 	}
 	if r.Type != capture.RuleBlock {
 		r.Block = ""
@@ -181,6 +258,26 @@ func (a *app) saveRule() {
 		next = append(next, r)
 	} else {
 		next[index] = r
+	}
+	if r.Type == capture.RuleMapLocal && e.ruleBodyEdited() {
+		// The rule must be valid before its file changes.
+		if err := capture.ValidateRules(next); err != nil {
+			e.problem = err.Error()
+			return
+		}
+		if err := os.MkdirAll(filepath.Dir(r.Target), 0o700); err != nil {
+			e.problem = "Write response file: " + err.Error()
+			return
+		}
+		if err := store.WriteFile(r.Target, []byte(e.body.Buffer.String())); err != nil {
+			e.problem = "Write response file: " + err.Error()
+			return
+		}
+		if r.Target != strings.TrimSpace(e.draft.Target) { // a new file in mocks
+			// The draft owns it from now on, and loses it unless saved.
+			e.draft.Target, e.unsavedMock = r.Target, r.Target
+		}
+		e.bodyText, e.bodyFresh = e.body.Buffer.String(), false
 	}
 	if a.applyRuleChanges(next) {
 		if e.unsavedMock == r.Target {
@@ -223,9 +320,13 @@ func (a *app) switchRule(i int, on bool) {
 	}
 }
 
-func (a *app) browseRuleFile() {
+func (a *app) browseRuleFile(folder bool) {
+	title := "Choose local response file"
+	if folder {
+		title = "Choose a folder to answer from"
+	}
 	go func() {
-		paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Title: "Choose local response file"})
+		paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Title: title, Directory: folder})
 		if err != nil {
 			a.fail("Choose response", err)
 			return
@@ -488,7 +589,8 @@ func (a *app) ruleDetail(c *ui.Context, t *ui.Theme) {
 			})
 		})
 	})
-	ui.Scroll(c).Grow(1).MinHeight(0).Children(func() {
+	// Each rule's form starts at its top, not where the last one was scrolled.
+	ui.Scroll(c.Key(fmt.Sprint("rule-form", e.index))).Grow(1).MinHeight(0).Children(func() {
 		ui.Form(c, func() {
 			ui.Field(c, "Type", func() {
 				uikit.Select(c, &e.kind, ruleLabels).Label("Rule type").Width(200)
@@ -511,14 +613,39 @@ func (a *app) ruleDetail(c *ui.Context, t *ui.Theme) {
 			ui.Field(c, "Headers", func() { a.ruleHeaderConditions(c, t) })
 			switch e.kind {
 			case "Map Local":
-				ui.Field(c, "Response file", func() {
+				a.loadRuleBody()
+				ui.Field(c, "Response from", func() {
 					ui.Row(c).Gap(t.Space(2)).FillWidth().Children(func() {
-						uikit.Input(c, &e.draft.Target).Label("Response file").Font(uikit.FontMono).Grow(1)
-						if uikit.SecondaryButton(c, "Browse…").Clicked() {
-							a.browseRuleFile()
+						uikit.Input(c, &e.draft.Target).Label("Response file").Placeholder("A file or a folder").Font(uikit.FontMono).Grow(1)
+						if uikit.SecondaryButton(c, "File…").Clicked() {
+							a.browseRuleFile(false)
+						}
+						if uikit.SecondaryButton(c, "Folder…").Clicked() {
+							a.browseRuleFile(true)
 						}
 					})
-				}).Description("Up to 8 MiB.")
+				}).Description("A file up to 8 MiB, or a folder that answers with the file at the request’s path; a missing file is left to the server.")
+				if !e.bodyDir {
+					body := ui.Field(c, "Body", func() {
+						if e.body == nil {
+							uikit.Hint(c, e.bodyNote)
+							return
+						}
+						e.body.Font = ui.Font{Family: uikit.FontMono, Size: uikit.TextBody}
+						e.body.Theme = uikit.EditorTheme(t)
+						ui.Box(c).Height(180).FillWidth().Border(1, t.Border).Radius(uikit.RadiusControl).Children(func() {
+							editor.View(c, e.body).Grow(1).FillWidth().FocusRing(true)
+						})
+					})
+					if e.body != nil {
+						body.Description(cmp.Or(e.bodyNote, "Save rule writes it to the file."))
+					}
+				}
+				if e.bodyDir {
+					ui.Field(c, "Strip path", func() {
+						uikit.Input(c, &e.draft.PathFrom).Label("Strip path prefix").Placeholder("/api").Font(uikit.FontMono).Width(200)
+					}).Description("/api/users/42.json reads users/42.json in the folder; a path ending in / reads index.html.")
+				}
 				ui.Field(c, "Status", func() {
 					uikit.Input(c, &e.status).Label("Response status").Width(95).Font(uikit.FontMono)
 				})

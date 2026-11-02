@@ -410,6 +410,15 @@ portable scenario export or a delay/fault-injection engine.
 - `map_local` answers from a file, without calling an upstream. Optional `status`
   and `headers` customize the response; connection headers are removed and length
   is recalculated. Files over 8 MiB fail with 502 instead of being truncated.
+  The rule editor shows a text file's **Body** and **Save rule** writes edits
+  back to it; a rule with a typed body and no file gets one in
+  `~/.vscroxy/mocks`. Binary files and files over 8 MiB are edited outside.
+  A `target` that is a folder answers with the file at the request's path inside
+  it, after removing `pathFrom` (`/api/users/42.json` with `"pathFrom": "/api"`
+  reads `users/42.json`); a path ending in `/` reads `index.html`, `..` cannot
+  leave the folder, and a missing file leaves the request to the server, untouched
+  by the rules below. The request test cannot tell whether a file exists, so it
+  numbers a folder rule as acting.
 - `map_remote` sends the request to the `target`'s scheme, host and port,
   keeping the path and query; the table keeps showing the URL the client asked
   for. `pathFrom`/`pathTo` rewrite a path starting with `pathFrom` to start with

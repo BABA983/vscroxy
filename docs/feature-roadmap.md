@@ -114,8 +114,8 @@
 | Breakpoint：请求、响应 | 已有 | | |
 | Breakpoint 模板（保存常用报文一键套用） | 缺少 | | M4 |
 | Map Local：文件 | 已有 | | |
-| Map Local：在 app 内直接编辑响应 | 缺少 | 现在要改文件 | M4 |
-| Map Local：目录（按路径找文件，找不到回源） | 缺少 | | M4 |
+| Map Local：在 app 内直接编辑响应 | 已有 | Tools 规则编辑器里的 Body，保存写回文件；没有文件时建在 mocks 里；二进制和超过 8 MiB 的除外 | M4 |
+| Map Local：目录（按路径找文件，找不到回源） | 已有 | 可去掉路径前缀，/ 结尾读 index.html | M4 |
 | Map Remote：换 scheme 和 host | 已有 | | |
 | Map Remote：换端口和路径、是否保留原 Host header、WebSocket | 已有 | 端口写在目标 URL 里；路径前缀改写；WebSocket（含解密的 wss）跟随第一条匹配的 Map Remote。原主机连不上、且有启用的 Map Remote 可能匹配它时，改用生成的证书 | M4 |
 | Scenario（规则分组切换） | 已有 | | |
@@ -280,7 +280,7 @@ Cookie 和其他 API key 保留为变量 header，避免把多个认证机制硬
 
 - Tools 管理窗口：规则、Scenario、脚本、Host 方案集中管理。（规则页已完成：规则从弹窗移进 Tools，测试请求时按作用顺序标号，显示命中数和 Scenario。）
 - 规则匹配：通配符、正则、method、App、header。（已完成）
-- Map Local：app 内编辑响应、目录映射。
+- Map Local：app 内编辑响应、目录映射。（已完成）
 - Map Remote：端口、路径、Host header、WebSocket。（已完成，含原主机不可达时的 HTTPS 映射）
 - Block：隐藏或拦截、断开连接、按 App。（已完成）
 - Breakpoint 模板。

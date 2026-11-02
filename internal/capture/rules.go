@@ -280,7 +280,10 @@ func ValidateRules(rules []Rule) error {
 			}
 		case RuleMapLocal:
 			if strings.TrimSpace(r.Target) == "" {
-				return fail("choose a local response file")
+				return fail("choose a local response file or folder")
+			}
+			if r.PathFrom != "" && !strings.HasPrefix(r.PathFrom, "/") || r.PathTo != "" {
+				return fail("a folder's path prefix starts with /")
 			}
 			if r.Status != 0 && (r.Status < 200 || r.Status > 599) {
 				return fail("response status must be between 200 and 599")

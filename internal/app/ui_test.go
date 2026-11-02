@@ -2939,6 +2939,19 @@ func TestRuleEditorPersistsOrderingTogglesAndCapturedMock(t *testing.T) {
 	if err := chooseMenu(tt, "Tools", "Mock this response…"); err != nil {
 		t.Fatal(err)
 	}
+	// The form scrolls: bring a field into view before using it, as a user does.
+	reveal := func(label string) {
+		t.Helper()
+		for _, dy := range []float32{120, 120, 120, 120, -120, -120, -120, -120, -120, -120, -120, -120} {
+			if b, ok := tt.Find(label); ok && b.H > 0 {
+				return
+			}
+			name, _ := tt.Find("Rule name") // above the form, never scrolled away
+			tt.Scroll(name.X+20, name.Y+name.H+60, 0, dy)
+		}
+		t.Fatalf("%q never scrolled into view", label)
+	}
+	reveal("Response status")
 	edit("Response status", "201")
 	click("Save rule")
 	rules = load()
@@ -2948,6 +2961,29 @@ func TestRuleEditorPersistsOrderingTogglesAndCapturedMock(t *testing.T) {
 	body, err := os.ReadFile(rules[1].Target)
 	if err != nil || string(body) != `{"projects":[]}` {
 		t.Fatalf("mock body %q: %v", body, err)
+	}
+	// The body is edited in place and saved to the rule's file.
+	reveal("Response body")
+	edit("Response body", `{"projects":[{"id":1}]}`)
+	click("Save rule")
+	if body, err := os.ReadFile(rules[1].Target); err != nil || string(body) != `{"projects":[{"id":1}]}` {
+		t.Fatalf("edited body %q: %v", body, err)
+	}
+	// A rule with a body but no file gets one in the mocks folder.
+	click("New rule")
+	reveal("Rule type")
+	click("Rule type")
+	click("Map Local")
+	edit("Match URL", "/typed")
+	reveal("Response body")
+	edit("Response body", "typed")
+	click("Save rule")
+	rules = load()
+	if len(rules) != 3 || filepath.Dir(rules[2].Target) != filepath.Join(filepath.Dir(a.rulesPath), "mocks") {
+		t.Fatalf("typed body rule: %+v", rules)
+	}
+	if body, err := os.ReadFile(rules[2].Target); err != nil || string(body) != "typed" {
+		t.Fatalf("typed body %q: %v", body, err)
 	}
 	click("Done")
 	click("More")

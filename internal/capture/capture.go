@@ -20,6 +20,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path"
 	"path/filepath"
 	"slices"
 	"strconv"
@@ -1463,6 +1464,13 @@ func (s *Server) applyRules(f *proxy.Flow) *proxy.Response {
 	}
 	if i := firstResponseRule(rules, s.ruleRequest(f)); i >= 0 {
 		r := rules[i]
+		file := r.Target
+		if r.Type == RuleMapLocal {
+			var ok bool
+			if file, ok = localFile(r, f.Request.URL); !ok {
+				return nil // a folder without the file: the server answers
+			}
+		}
 		if r.Scenario != "" {
 			recordAction(f, "Scenario · "+r.Scenario)
 		}
@@ -1501,8 +1509,8 @@ func (s *Server) applyRules(f *proxy.Flow) *proxy.Response {
 				Body:       []byte("blocked by vscroxy\n"),
 			}
 		case RuleMapLocal:
-			recordAction(f, "Map Local · "+r.Match+" → "+r.Target)
-			body, err := readMockBody(r.Target)
+			recordAction(f, "Map Local · "+r.Match+" → "+file)
+			body, err := readMockBody(file)
 			if err != nil {
 				return &proxy.Response{
 					StatusCode: http.StatusBadGateway,
@@ -1520,7 +1528,7 @@ func (s *Server) applyRules(f *proxy.Flow) *proxy.Response {
 			}
 			StripHopHeaders(headers)
 			if headers.Get("Content-Type") == "" {
-				headers.Set("Content-Type", contentType(r.Target))
+				headers.Set("Content-Type", contentType(file))
 			}
 			headers.Set("Content-Length", strconv.Itoa(len(body)))
 			return &proxy.Response{
@@ -1534,6 +1542,27 @@ func (s *Server) applyRules(f *proxy.Flow) *proxy.Response {
 		}
 	}
 	return nil
+}
+
+// localFile is the file a Map Local rule answers u with: its target, or for a
+// folder the file at u's path, after PathFrom, inside it (index.html for a
+// path ending in /). ok is false when the folder has no such file.
+func localFile(r Rule, u *url.URL) (file string, ok bool) {
+	info, err := os.Stat(r.Target)
+	if err != nil || !info.IsDir() {
+		return r.Target, true // a missing file is the rule's error to report
+	}
+	p := u.Path
+	if rest, cut := strings.CutPrefix(p, r.PathFrom); cut && r.PathFrom != "" {
+		p = "/" + strings.TrimPrefix(rest, "/")
+	}
+	if strings.HasSuffix(p, "/") {
+		p += "index.html"
+	}
+	// Clean drops every .. against the root: the file stays in the folder.
+	file = filepath.Join(r.Target, filepath.FromSlash(path.Clean("/"+p)))
+	info, err = os.Stat(file)
+	return file, err == nil && info.Mode().IsRegular()
 }
 
 // mapRemote sends the request where r says.

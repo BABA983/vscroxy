@@ -494,3 +494,57 @@ func TestBlockRefusesDropsOrHides(t *testing.T) {
 		t.Fatal("an unknown Block action was accepted")
 	}
 }
+
+func TestMapLocalFolderAnswersFromItsFilesOrTheServer(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, "upstream")
+	}))
+	defer upstream.Close()
+	root := t.TempDir()
+	dir := filepath.Join(root, "site")
+	for name, body := range map[string]string{
+		"site/users/42.json": `{"id":42}`,
+		"site/index.html":    "home",
+		"secret.txt":         "outside the folder",
+	} {
+		p := filepath.Join(root, filepath.FromSlash(name))
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, []byte(body), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	s, client := scenarioProxy(t)
+	rule := capture.Rule{Type: capture.RuleMapLocal, Match: "/api/", Target: dir, PathFrom: "/api"}
+	if err := s.SetRules([]capture.Rule{rule}); err != nil {
+		t.Fatal(err)
+	}
+	get := func(path string) (*http.Response, string) {
+		t.Helper()
+		req, _ := http.NewRequestWithContext(t.Context(), "GET", upstream.URL+path, nil)
+		req.URL.Opaque = "//" + req.URL.Host + path // keep .. for the proxy to see
+		resp, err := client.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer resp.Body.Close()
+		body, _ := io.ReadAll(resp.Body)
+		return resp, string(body)
+	}
+	if resp, body := get("/api/users/42.json"); body != `{"id":42}` || resp.Header.Get("Content-Type") != "application/json" {
+		t.Fatalf("file: %q %q", body, resp.Header.Get("Content-Type"))
+	}
+	if _, body := get("/api/"); body != "home" {
+		t.Fatalf("index: %q", body)
+	}
+	if _, body := get("/api/users/7.json"); body != "upstream" {
+		t.Fatalf("a missing file was not left to the server: %q", body)
+	}
+	if _, body := get("/api/../secret.txt"); body == "outside the folder" {
+		t.Fatal("a path escaped the folder")
+	}
+	if s.RuleHits(rule) != 2 {
+		t.Fatalf("hits %d, want the two answered", s.RuleHits(rule))
+	}
+}

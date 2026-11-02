@@ -396,6 +396,18 @@ func TestUISnapshots(t *testing.T) {
 			a.openRules()
 			a.editRule(2, a.rules[2])
 		}, want: "Proxies it as usual but keeps it out of the table. Rules below it do not act on it."},
+		{name: "tools-rules-local-body", setup: func(a *app) {
+			snapshotRules(a)
+			file := filepath.Join(os.TempDir(), "vscroxy-snapshot-user.json")
+			_ = os.WriteFile(file, []byte("{\n  \"id\": 42,\n  \"name\": \"Ada Lovelace\",\n  \"roles\": [\"admin\"]\n}\n"), 0o600)
+			a.rules[0].Target = file
+			a.openRules()
+		}, want: "Save rule writes it to the file."},
+		{name: "tools-rules-local-folder", setup: func(a *app) {
+			snapshotRules(a)
+			a.rules[0].Target, a.rules[0].PathFrom = os.TempDir(), "/v1"
+			a.openRules()
+		}, want: "Strip path prefix"},
 		{name: "tools-rules-empty", setup: func(a *app) { a.openRules() }, want: "No rules"},
 		{name: "dialog-breakpoint", setup: snapshotBreakpoint, want: "Breakpoint · request paused", short: true},
 		{name: "dialog-breakpoint-readonly", setup: func(a *app) {
