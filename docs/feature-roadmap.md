@@ -178,7 +178,7 @@
 | 动态变量 | 部分 | 只有 12 个，Postman 有完整的 faker 集合 | M6 |
 | `pm` 脚本 API、Console、测试 | 已有 | | |
 | 脚本沙箱库（lodash、crypto-js、moment 等） | 缺少 | 很多现成集合依赖 | M6 |
-| `have.jsonSchema` | 缺少 | | M6 |
+| `have.jsonSchema` | 已有 | 响应和 `pm.expect(data)` 共用 Ajv 6.12.6，默认 Draft-07，支持选项和取反；不下载外部引用，不支持异步 schema | M6 |
 | `pm.visualizer`（响应可视化） | 缺少 | | M9 |
 | 可复用脚本库（Postman Packages） | 缺少 | | M9 |
 | Checks（无代码断言） | 已有 | 导出 Postman 时转成 `pm.test`，结果与 Checks 一致；无效的 Checks 跳过并警告 | M1 |
@@ -306,7 +306,7 @@ Cookie 和其他 API key 保留为变量 header，避免把多个认证机制硬
 - 请求描述和集合文档、单个请求的设置。
 - 证书：请求侧的客户端证书和自定义 CA；抓包侧的上游 mTLS 和自定义根证书。
 - 变量：初始值/当前值、自动补全和悬停、完整动态变量。
-- 脚本：沙箱库、`have.jsonSchema`。
+- 脚本：沙箱库；`have.jsonSchema` 已完成（Ajv 6.12.6，无 UI 改动）。
 - Postman Collection v3 导入导出。
 - OAuth 1.0 等补充认证。
 - Cookies 持久化、响应保存到文件、全局搜索。

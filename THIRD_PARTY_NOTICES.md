@@ -1,6 +1,6 @@
 # Third-party notices
 
-vscroxy's desktop app links the icon package below and embeds Chai and the
+vscroxy's desktop app links the icon package below and embeds Chai, Ajv and the
 Geist and Geist Mono fonts. These notices cover them.
 
 ## Geist and Geist Mono 1.9.0 (`internal/uikit/fonts/Geist*.ttf`)
@@ -17,6 +17,76 @@ copyright notice and license, which cover both families, are preserved in
 [`internal/uikit/fonts/Geist-OFL.txt`](internal/uikit/fonts/Geist-OFL.txt)
 and embedded in the executable with the fonts. Download provenance and SHA-256
 checksums are recorded in [`internal/uikit/fonts/README.md`](internal/uikit/fonts/README.md).
+
+## Ajv 6.12.6 (`internal/request/js/ajv.js`)
+
+The unmodified `dist/ajv.bundle.js` browser build from the
+[`ajv@6.12.6` npm archive](https://registry.npmjs.org/ajv/-/ajv-6.12.6.tgz)
+is embedded for the Postman-style `have.jsonSchema` assertions. Its SHA-256 is
+`b399e181c8d546bbb1658f711220fee6995ffa627aacc24654d10e8c635bdf32`.
+The bundle includes fast-deep-equal, fast-json-stable-stringify,
+json-schema-traverse, URI.js and Punycode.js. Their notices follow.
+
+Ajv, fast-deep-equal, fast-json-stable-stringify, json-schema-traverse and
+Punycode.js are MIT-licensed:
+
+```
+The MIT License (MIT)
+
+Ajv: Copyright (c) 2015-2017 Evgeny Poberezkin
+fast-deep-equal and json-schema-traverse: Copyright (c) 2017 Evgeny Poberezkin
+fast-json-stable-stringify: Copyright (c) 2017 Evgeny Poberezkin
+                          Copyright (c) 2013 James Halliday
+Punycode.js: Copyright Mathias Bynens <https://mathiasbynens.be/>
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+URI.js 4.4.0 is BSD-2-Clause-licensed (also preserved in the bundle):
+
+```
+Copyright 2011 Gary Court. All rights reserved.
+
+Redistribution and use in source and binary forms, with or without modification, are
+permitted provided that the following conditions are met:
+
+   1. Redistributions of source code must retain the above copyright notice, this list of
+      conditions and the following disclaimer.
+
+   2. Redistributions in binary form must reproduce the above copyright notice, this list
+      of conditions and the following disclaimer in the documentation and/or other materials
+      provided with the distribution.
+
+THIS SOFTWARE IS PROVIDED BY GARY COURT ``AS IS'' AND ANY EXPRESS OR IMPLIED
+WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND
+FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL GARY COURT OR
+CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
+ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
+ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+The views and conclusions contained in the software and documentation are those of the
+authors and should not be interpreted as representing official policies, either expressed
+or implied, of Gary Court.
+```
 
 ## Chai 4.5.0 (`internal/request/js/chai.js`)
 

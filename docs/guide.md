@@ -1070,8 +1070,8 @@ at the top level, with two seconds of run time (time spent waiting on
 - **Response**: `pm.response.code`, `status`, `responseTime`, `responseSize`,
   `headers`, `text()`, `json()` and the Postman assertions under
   `pm.response.to` (`have.status`, `have.header`, `have.body`, `have.jsonBody`,
-  `be.ok`, `be.success`, `be.error`, `be.json` and the rest, with `not`).
-  `have.jsonSchema` is not supported.
+  `have.jsonSchema`, `be.ok`, `be.success`, `be.error`, `be.json` and the rest,
+  with `not`).
 - **Tests**: `pm.test(name, fn)`, including async functions and `done`
   callbacks, `pm.test.skip`, and `pm.expect`, which is Chai 4's `expect`.
   The **Tests** tab shows why a test failed.
@@ -1087,6 +1087,19 @@ at the top level, with two seconds of run time (time spent waiting on
 - **Postman's legacy globals**: `tests["name"] = bool`,
   `postman.setEnvironmentVariable` and the other `postman.*` variable calls,
   `responseBody`, `responseCode` and `responseHeaders`.
+
+**JSON Schema**: `pm.response.to.have.jsonSchema(schema, options)` and
+`pm.expect(data).to.have.jsonSchema(schema, options)` use the embedded Ajv
+6.12.6 validator, with Draft-07 by default. Like Postman, the schema argument
+must be an object, all validation errors are collected by default, and the
+optional second argument accepts Ajv 6 options such as `allErrors`, `format`,
+`coerceTypes` and `useDefaults`. Each assertion has its own validator, so options
+and registered schemas do not leak to another assertion. Both forms support
+`.not`; an invalid schema or non-JSON response is still an error, not a successful
+negated check. Local `$ref` references work; other schemas can be supplied with
+`options.schemas`, but are never downloaded from the network or read from disk.
+Async schemas (`$async`) are not supported. Validation runs within the script's
+normal time budget; scripts that do not use schema assertions do not load Ajv.
 
 `require` only provides `chai`. Postman's other sandbox libraries (lodash,
 moment, crypto-js, cheerio and so on), `pm.visualizer` and timers are not

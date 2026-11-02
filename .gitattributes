@@ -5,4 +5,5 @@
 *.ps1 eol=lf
 *.sh eol=lf
 
+internal/request/js/ajv.js linguist-vendored -diff
 internal/request/js/chai.js linguist-vendored -diff

@@ -130,6 +130,72 @@ pm.collectionVariables.set("lastStatus", pm.response.code);`}
 	}
 }
 
+func TestJSONSchemaAssertionsThroughTheProxy(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/text" {
+			fmt.Fprint(w, "not JSON")
+			return
+		}
+		fmt.Fprint(w, `{"id":7,"items":[{"sku":"AB-12","quantity":2}],"email":"not-an-email"}`)
+	}))
+	defer upstream.Close()
+	srv := testProxy(t)
+	for _, tc := range []struct {
+		name, path, script string
+		pass               bool
+		errors             []string
+	}{
+		{"nested reference", "/", `pm.response.to.have.jsonSchema({
+			$schema: "http://json-schema.org/draft-07/schema#",
+			type: "object", required: ["id", "items"],
+			properties: {id: {type: "integer"}, items: {type: "array", minItems: 1, items: {$ref: "#/definitions/item"}}},
+			definitions: {item: {type: "object", required: ["sku", "quantity"], additionalProperties: false,
+				properties: {sku: {type: "string", pattern: "^[A-Z]{2}-[0-9]+$"}, quantity: {type: "integer", minimum: 1}}}}
+		}).and.have.status(200)`, true, nil},
+		{"all errors by default", "/", `pm.response.to.have.jsonSchema({type: "object", required: ["missing"], properties: {id: {type: "string"}}})`, false, []string{"missing", "should be string"}},
+		{"first error option", "/", `pm.response.to.have.jsonSchema({type: "object", required: ["missing"], properties: {id: {type: "string"}}}, {allErrors: false})`, false, []string{"missing"}},
+		{"negated mismatch", "/", `pm.response.to.not.have.jsonSchema({type: "array"})`, true, nil},
+		{"negated match", "/", `pm.response.to.not.have.jsonSchema({type: "object"})`, false, []string{"expected data to not satisfy schema"}},
+		{"format checked", "/", `pm.response.to.have.jsonSchema({properties: {email: {type: "string", format: "email"}}})`, false, []string{"email", "format"}},
+		{"format option", "/", `pm.response.to.have.jsonSchema({properties: {email: {type: "string", format: "email"}}}, {format: false})`, true, nil},
+		{"expect data", "/", `pm.expect(pm.response.json().items).to.have.jsonSchema({type: "array", items: {properties: {quantity: {enum: [2]}}}})`, true, nil},
+		{"expect invalid data", "/", `pm.expect(pm.response.json().items).to.have.jsonSchema({type: "array", items: {properties: {quantity: {enum: [3]}}}})`, false, []string{"data[0].quantity", "allowed values"}},
+		{"expect negation", "/", `pm.expect(7).to.not.have.jsonSchema({type: "string"})`, true, nil},
+		{"coercion option", "/", `var data = {id: "7"}; pm.expect(data).to.have.jsonSchema({properties: {id: {type: "integer"}}}, {coerceTypes: true}); pm.expect(data.id).to.equal(7); pm.expect({id: "7"}).to.not.have.jsonSchema({properties: {id: {type: "integer"}}})`, true, nil},
+		{"coercion off by default", "/", `pm.expect({id: "7"}).to.have.jsonSchema({properties: {id: {type: "integer"}}})`, false, []string{"id", "should be integer"}},
+		{"registered reference", "/", `pm.response.to.have.jsonSchema({$ref: "https://schema.test/order"}, {schemas: [{$id: "https://schema.test/order", type: "object", required: ["id"]}]})`, true, nil},
+		{"unresolved reference", "/", `pm.response.to.not.have.jsonSchema({$ref: "https://schema.test/missing"})`, false, []string{"can't resolve reference"}},
+		{"invalid schema", "/", `pm.response.to.not.have.jsonSchema({type: "unknown"})`, false, []string{"schema is invalid"}},
+		{"object schema required", "/", `pm.response.to.have.jsonSchema(true)`, false, []string{"to be an object"}},
+		{"non JSON body", "/text", `pm.response.to.not.have.jsonSchema({type: "object"})`, false, []string{"response body is not JSON"}},
+		{"async schema rejected", "/", `pm.response.to.have.jsonSchema({$async: true, type: "array"})`, false, []string{"Asynchronous JSON schemas are not supported"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			r := Request{Method: "GET", URL: upstream.URL + tc.path,
+				Post: "pm.test('schema', () => {" + tc.script + "}); pm.test('continues', () => pm.response.to.have.status(200));"}
+			out := r.Execute(t.Context(), srv, Context{}, nil, nil)
+			if out.Err != nil {
+				t.Fatalf("%s: %v", out.Stage, out.Err)
+			}
+			if len(out.Tests) != 2 || !out.Tests[1].Pass {
+				t.Fatalf("tests = %+v; want the schema result and a passing subsequent test", out.Tests)
+			}
+			got := out.Tests[0]
+			if got.Pass != tc.pass {
+				t.Errorf("pass = %v, want %v: %s", got.Pass, tc.pass, got.Error)
+			}
+			for _, fragment := range tc.errors {
+				if !strings.Contains(got.Error, fragment) {
+					t.Errorf("error = %q, want %q", got.Error, fragment)
+				}
+			}
+			if tc.name == "first error option" && strings.Contains(got.Error, "should be string") {
+				t.Errorf("allErrors: false collected the second error: %s", got.Error)
+			}
+		})
+	}
+}
+
 func TestScriptControlsTheRun(t *testing.T) {
 	var hits int
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

@@ -25,13 +25,23 @@ import (
 //go:embed js/chai.js
 var chaiSource string
 
+// Ajv 6.12.6 is the Postman-compatible JSON Schema validator (MIT, see
+// THIRD_PARTY_NOTICES.md). Load its unmodified browser build as a private
+// CommonJS module, only when a script uses a schema assertion.
+//
+//go:embed js/ajv.js
+var ajvSource string
+
 //go:embed js/pm.js
 var pmSource string
 
 // The libraries compile once; every script still gets a fresh runtime.
 var (
 	chaiProgram = sync.OnceValue(func() *goja.Program { return goja.MustCompile("chai.js", chaiSource, false) })
-	pmProgram   = sync.OnceValue(func() *goja.Program { return goja.MustCompile("pm.js", pmSource, false) })
+	ajvProgram  = sync.OnceValue(func() *goja.Program {
+		return goja.MustCompile("ajv.js", "(function () { var module = {exports: {}}, exports = module.exports;\n"+ajvSource+"\nreturn module.exports; })()", false)
+	})
+	pmProgram = sync.OnceValue(func() *goja.Program { return goja.MustCompile("pm.js", pmSource, false) })
 )
 
 // TestResult is one assertion a request script or check made. Error says
@@ -430,6 +440,7 @@ func (run *scriptRun) host(ctx context.Context, vm *goja.Runtime, clock *budget,
 	}
 	h := vm.NewObject()
 	set := func(name string, value any) { h.Set(name, value) }
+	set("ajv", func() (goja.Value, error) { return vm.RunProgram(ajvProgram()) })
 	set("info", map[string]any{
 		"eventName": event, "iteration": info.Iteration, "iterationCount": info.Iterations,
 		"requestName": info.RequestName, "requestId": info.RequestID, "environment": info.Environment,

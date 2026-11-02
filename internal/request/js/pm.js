@@ -197,6 +197,22 @@
 		try { return JSON.parse(body); } catch (e) { throw new SyntaxError("The response body is not JSON: " + e.message); }
 	}
 
+	// Match chai-postman's Ajv defaults without exposing the validator as a
+	// global. A fresh instance per assertion keeps options and schemas local.
+	var Ajv;
+	chai.Assertion.addMethod("jsonSchema", function (schema, options) {
+		new chai.Assertion(schema).to.be.an("object");
+		if (!Ajv) Ajv = host.ajv();
+		var ajv = new Ajv(Object.assign({ allErrors: true, logger: false }, options));
+		var validate = ajv.compile(schema);
+		// These assertions are synchronous; a Promise must never count as a pass.
+		if (validate.$async) throw new Error("Asynchronous JSON schemas are not supported");
+		var valid = validate(this._obj);
+		this.assert(valid,
+			"expected data to satisfy schema but found following errors: \n" + ajv.errorsText(validate.errors),
+			"expected data to not satisfy schema", true, valid);
+	});
+
 	// jsonPath reads "a.b[0].c" from a parsed body; found is false when absent.
 	function jsonPath(value, path) {
 		var parts = String(path).replace(/\[(\d+)\]/g, ".$1").split(".").filter(Boolean);
@@ -267,7 +283,12 @@
 			return a;
 		};
 		a.responseTime = { below: function (ms) { check(res.responseTime < ms, "time to be below " + ms + " ms but took " + res.responseTime); return a; } };
-		a.jsonSchema = function () { throw new Error("pm.response.to.have.jsonSchema is not supported; check fields with pm.expect"); };
+		a.jsonSchema = function (schema, options) {
+			var assertion = new chai.Assertion(res.json());
+			if (negate) assertion = assertion.not;
+			assertion.jsonSchema(schema, options);
+			return a;
+		};
 		return a;
 	}
 
