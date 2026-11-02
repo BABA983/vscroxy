@@ -1101,9 +1101,27 @@ negated check. Local `$ref` references work; other schemas can be supplied with
 Async schemas (`$async`) are not supported. Validation runs within the script's
 normal time budget; scripts that do not use schema assertions do not load Ajv.
 
-`require` only provides `chai`. Postman's other sandbox libraries (lodash,
-moment, crypto-js, cheerio and so on), `pm.visualizer` and timers are not
-available.
+**Script libraries**: `require('chai')` and `require('lodash')` are available
+(also through `pm.require`). Lodash 4.18.1 is embedded in the app: no Node.js,
+npm installation or network download is needed. Use `const _ = require('lodash')`;
+there is no global `_` or legacy Lodash 3 alias. It loads on first use and is
+cached within that script, but each pre-request or post-response script gets
+fresh exports, including on subsequent runs. Library execution uses the normal
+script time budget. Updating the embedded library requires an app update.
+
+```javascript
+const _ = require('lodash');
+pm.test('IDs are unique', () => {
+  const ids = _.map(pm.response.json().items, 'id');
+  pm.expect(_.uniq(ids)).to.have.lengthOf(ids.length);
+});
+```
+
+Only these exact module names are supported, not npm packages, file paths,
+URLs or Lodash submodules such as `lodash/fp`. Other Postman sandbox libraries
+(moment, crypto-js, cheerio and so on), `pm.visualizer` and timers are not
+available. Lodash functions that need timers (`delay`, `defer`, `debounce`,
+`throttle`) are therefore not supported.
 
 **Console** in the response area shows phase-tagged `console.log(...)` output,
 variable-write names (not their values), and setup/network/script errors,

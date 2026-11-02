@@ -177,7 +177,7 @@
 | `{{变量}}` 自动补全、悬停预览、未定义高亮 | 缺少 | | M6 |
 | 动态变量 | 部分 | 已有 32 个：补齐常用姓名、电话、国家代码、经纬度、IPv6/MAC、域名/URL、示例邮箱、版本、价格、颜色和星期/月；内置小型词库，尚非完整 Faker | M6 |
 | `pm` 脚本 API、Console、测试 | 已有 | | |
-| 脚本沙箱库（lodash、crypto-js、moment 等） | 缺少 | 很多现成集合依赖 | M6 |
+| 脚本沙箱库（lodash、crypto-js、moment 等） | 部分 | 已内嵌 Lodash 4.18.1，支持 `require('lodash')`，按脚本隔离；无定时器，暂不支持 delay/debounce 等；crypto-js、moment 等仍缺少 | M6 |
 | `have.jsonSchema` | 已有 | 响应和 `pm.expect(data)` 共用 Ajv 6.12.6，默认 Draft-07，支持选项和取反；不下载外部引用，不支持异步 schema | M6 |
 | `pm.visualizer`（响应可视化） | 缺少 | | M9 |
 | 可复用脚本库（Postman Packages） | 缺少 | | M9 |

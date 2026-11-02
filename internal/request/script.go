@@ -32,6 +32,12 @@ var chaiSource string
 //go:embed js/ajv.js
 var ajvSource string
 
+// Lodash is loaded on first require, with separate exports per script runtime.
+// Its unmodified CommonJS build is MIT-licensed (see THIRD_PARTY_NOTICES.md).
+//
+//go:embed js/lodash.js
+var lodashSource string
+
 //go:embed js/pm.js
 var pmSource string
 
@@ -40,6 +46,9 @@ var (
 	chaiProgram = sync.OnceValue(func() *goja.Program { return goja.MustCompile("chai.js", chaiSource, false) })
 	ajvProgram  = sync.OnceValue(func() *goja.Program {
 		return goja.MustCompile("ajv.js", "(function () { var module = {exports: {}}, exports = module.exports;\n"+ajvSource+"\nreturn module.exports; })()", false)
+	})
+	lodashProgram = sync.OnceValue(func() *goja.Program {
+		return goja.MustCompile("lodash.js", "(function () { var module = {exports: {}}, exports = module.exports;\n"+lodashSource+"\nreturn module.exports; })()", false)
 	})
 	pmProgram = sync.OnceValue(func() *goja.Program { return goja.MustCompile("pm.js", pmSource, false) })
 )
@@ -441,6 +450,7 @@ func (run *scriptRun) host(ctx context.Context, vm *goja.Runtime, clock *budget,
 	h := vm.NewObject()
 	set := func(name string, value any) { h.Set(name, value) }
 	set("ajv", func() (goja.Value, error) { return vm.RunProgram(ajvProgram()) })
+	set("lodash", func() (goja.Value, error) { return vm.RunProgram(lodashProgram()) })
 	set("info", map[string]any{
 		"eventName": event, "iteration": info.Iteration, "iterationCount": info.Iterations,
 		"requestName": info.RequestName, "requestId": info.RequestID, "environment": info.Environment,

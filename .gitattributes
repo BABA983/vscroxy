@@ -7,3 +7,4 @@
 
 internal/request/js/ajv.js linguist-vendored -diff
 internal/request/js/chai.js linguist-vendored -diff
+internal/request/js/lodash.js linguist-vendored -diff

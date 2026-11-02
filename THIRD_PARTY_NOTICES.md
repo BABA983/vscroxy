@@ -1,7 +1,7 @@
 # Third-party notices
 
-vscroxy's desktop app links the icon package below and embeds Chai, Ajv and the
-Geist and Geist Mono fonts. These notices cover them.
+vscroxy's desktop app links the icon package below and embeds Chai, Ajv, Lodash
+and the Geist and Geist Mono fonts. These notices cover them.
 
 ## Geist and Geist Mono 1.9.0 (`internal/uikit/fonts/Geist*.ttf`)
 
@@ -86,6 +86,67 @@ ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 The views and conclusions contained in the software and documentation are those of the
 authors and should not be interpreted as representing official policies, either expressed
 or implied, of Gary Court.
+```
+
+## Lodash 4.18.1 (`internal/request/js/lodash.js`)
+
+The unmodified `lodash.js` CommonJS build from the
+[`lodash@4.18.1` npm archive](https://registry.npmjs.org/lodash/-/lodash-4.18.1.tgz)
+is embedded for `require('lodash')` in request scripts. Its SHA-256 is
+`f5465f55566bf544aad0a31c6135889ca1ed81eea8f53ec61c6cbe86926f07cf`.
+Updating it requires replacing the pinned source and releasing the app; no
+packages are downloaded at runtime.
+
+The upstream license follows:
+
+```
+Copyright OpenJS Foundation and other contributors <https://openjsf.org/>
+
+Based on Underscore.js, copyright Jeremy Ashkenas,
+DocumentCloud and Investigative Reporters & Editors <http://underscorejs.org/>
+
+This software consists of voluntary contributions made by many
+individuals. For exact contribution history, see the revision history
+available at https://github.com/lodash/lodash
+
+The following license applies to all parts of this software except as
+documented below:
+
+====
+
+Permission is hereby granted, free of charge, to any person obtaining
+a copy of this software and associated documentation files (the
+"Software"), to deal in the Software without restriction, including
+without limitation the rights to use, copy, modify, merge, publish,
+distribute, sublicense, and/or sell copies of the Software, and to
+permit persons to whom the Software is furnished to do so, subject to
+the following conditions:
+
+The above copyright notice and this permission notice shall be
+included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+====
+
+Copyright and related rights for sample code are waived via CC0. Sample
+code is defined as all source code displayed within the prose of the
+documentation.
+
+CC0: http://creativecommons.org/publicdomain/zero/1.0/
+
+====
+
+Files located in the node_modules and vendor directories are externally
+maintained libraries used by this software which have their own
+licenses; we recommend you read them, as their terms may differ from the
+terms above.
 ```
 
 ## Chai 4.5.0 (`internal/request/js/chai.js`)

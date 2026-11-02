@@ -130,6 +130,75 @@ pm.collectionVariables.set("lastStatus", pm.response.code);`}
 	}
 }
 
+func TestLodashThroughTheProxy(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Error(err)
+		}
+		if string(body) != `{"ids":[7,3],"total":9}` || r.Header.Get("X-Label") != "order-7" {
+			t.Errorf("sent body = %q, label = %q", body, r.Header.Get("X-Label"))
+		}
+		fmt.Fprint(w, `{"items":[{"id":7,"qty":2},{"id":3,"qty":6},{"id":7,"qty":1}]}`)
+	}))
+	defer upstream.Close()
+	srv := testProxy(t)
+	r := Request{Method: "POST", URL: upstream.URL, Pre: `
+		const _ = require('lodash');
+		pm.test('module caching and isolation', () => {
+			pm.expect(_.VERSION).to.equal('4.18.1');
+			pm.expect(require('lodash')).to.equal(_);
+			pm.expect(pm.require('lodash')).to.equal(_);
+			pm.expect(_.scriptMarker).to.equal(undefined);
+			pm.expect(_.template('order-<%= id %>')({id: 7})).to.equal('order-7');
+		});
+		const items = [{id: 7, qty: 2}, {id: 3, qty: 6}, {id: 7, qty: 1}];
+		pm.request.body.update(JSON.stringify({ids: _.map(_.uniqBy(items, 'id'), 'id'), total: _.sumBy(items, 'qty')}));
+		pm.request.headers.upsert({key: 'X-Label', value: _.template('order-<%= id %>')({id: 7})});
+		_.scriptMarker = true;
+		_.templateSettings.interpolate = /{{([\s\S]+?)}}/g;
+	`, Post: `
+		const _ = require('lodash');
+		pm.test('fresh module after pre-request', () => {
+			pm.expect(_.scriptMarker).to.equal(undefined);
+			pm.expect(_.template('order-<%= id %>')({id: 3})).to.equal('order-3');
+		});
+		pm.test('response utilities', () => {
+			const items = _.get(pm.response.json(), 'items');
+			pm.expect(_.chain(items).groupBy('id').mapValues(group => _.sumBy(group, 'qty')).value()).to.deep.equal({'7': 3, '3': 6});
+			const copy = _.cloneDeep(items);
+			copy[0].qty = 99;
+			pm.expect(items[0].qty).to.equal(2);
+			pm.expect(_.isEqual(_.merge({a: {x: 1}}, {a: {y: 2}}), {a: {x: 1, y: 2}})).to.equal(true);
+			pm.expect(_.camelCase('order line-id')).to.equal('orderLineId');
+		});
+		pm.test('existing require and allowlist', () => {
+			pm.expect(require('chai').expect).to.equal(pm.expect);
+			['fs', 'lodash/fp', 'https://example.com/lodash.js'].forEach(name => {
+				pm.expect(() => require(name)).to.throw();
+			});
+			pm.expect(typeof process).to.equal('undefined');
+			pm.expect(typeof setTimeout).to.equal('undefined');
+			pm.expect(() => _.delay(() => {}, 1)).to.throw();
+		});
+		_.scriptMarker = true;
+	`}
+	for range 2 {
+		out := r.Execute(t.Context(), srv, Context{}, nil, nil)
+		if out.Err != nil {
+			t.Fatalf("%s: %v", out.Stage, out.Err)
+		}
+		if len(out.Tests) != 4 {
+			t.Fatalf("tests = %+v, want 4 results", out.Tests)
+		}
+		for _, result := range out.Tests {
+			if !result.Pass {
+				t.Errorf("%s: %s", result.Name, result.Error)
+			}
+		}
+	}
+}
+
 func TestJSONSchemaAssertionsThroughTheProxy(t *testing.T) {
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/text" {

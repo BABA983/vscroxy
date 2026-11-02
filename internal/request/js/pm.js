@@ -424,8 +424,10 @@
 		error: function () { host.log("error", format(arguments)); },
 		clear: function () {},
 	};
+	var lodash;
 	global.require = function (name) {
 		if (name === "chai") return chai;
+		if (name === "lodash") return lodash || (lodash = host.lodash());
 		throw new Error("require(\"" + name + "\") is not available in vscroxy scripts");
 	};
 	global.atob = host.atob;
