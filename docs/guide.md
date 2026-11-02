@@ -438,11 +438,12 @@ portable scenario export or a delay/fault-injection engine.
   as `ws` or `wss` to match the target; Map Local, Block and breakpoints do not
   act on WebSockets. Inside a CONNECT tunnel (HTTPS and most WebSockets) the
   proxy first connects to the original host to copy its certificate. When that
-  host cannot be reached and an active Map Remote rule could match it, the
-  proxy answers with a certificate it generates for the host instead, so a
-  host that exists only in a rule (`https://shop.dev.invalid`) works too.
-  Requests on that host no rule maps then fail with 502. A host no Map Remote
-  rule could match still fails the CONNECT, as before.
+  host cannot be reached and an active Map Remote or Map Local rule could
+  match it, the proxy answers with a certificate it generates for the host
+  instead, so a host that exists only in a rule (`https://shop.dev.invalid`)
+  works too. Requests on that host no rule maps then fail with 502. A host no
+  such rule could match still fails the CONNECT. A regular expression counts
+  for every host unless it starts with a literal one (`^https://api\.test/`).
 - `block` does what its `block` field says: nothing (the default) answers
   `403` without contacting the server; `"drop"` closes the client's connection
   without an answer, as a network failure would, and the row shows it failed
@@ -464,6 +465,20 @@ wire framing, compressed-body metadata and stale validators). Binary and spilled
 bodies are supported up to 8 MiB; missing/partial bodies and stream previews are
 rejected. Review captured headers for secrets before sharing the rule. Canceling
 an unsaved mock removes its file; deleting a saved rule keeps its file for reuse.
+
+A saved request's example can answer too. **Mock** beside an example in the
+Examples tab opens a Map Local rule in Tools that answers with it; it applies
+once saved. **Mock “…” from examples** in a collection's or folder's menu makes
+every example under it a rule of a scenario named for its path: an offline
+mock of the collection, switched on in the scenario menu. A mock matches the
+example's URL with the variables it sees now filled in, as a regular
+expression: an unknown `{{variable}}` or `:name` segment matches one path
+segment (a `{{baseUrl}}` at the start matches any scheme, host and base path),
+and any query matches. Of the examples a request answers the same way, the
+first answers by default and the others when the request sends
+`X-Mock-Response-Name` with the example's name, as Postman's mock servers read
+it. **Rebuild scenario “…” from examples** replaces the scenario's rules and
+the mock files they used, in the same place in the list, keeping it on or off.
 
 ## Connection diagnostics
 

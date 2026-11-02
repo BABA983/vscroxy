@@ -5,6 +5,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/baba983/vscroxy/internal/capture"
 	"github.com/baba983/vscroxy/internal/uikit"
 	"github.com/egoist/mygo/ui"
 	"github.com/oneo-me/onevra/source/icons/lucide"
@@ -58,7 +59,13 @@ func (a *app) collectionTree(c *ui.Context) {
 				open = new(true)
 			}
 			menu := func(m *ui.Menu) {
+				mock := "Mock “" + path + "” from examples"
+				if slices.ContainsFunc(a.rules, func(r capture.Rule) bool { return r.Scenario == path }) {
+					mock = "Rebuild scenario “" + path + "” from examples"
+				}
 				actionMenu(m, append(a.folderSettingsActions(path),
+					do("collection.mock", mock, func() { a.scenarioFromExamples(path) }).
+						when(a.examplesUnder(path), "Save a response as an example first").in("mock"),
 					do("collection.delete", "Delete “"+path+"”…", func() { a.confirmDeleteFolder(path) }).in("export")))
 			}
 			item := ui.TreeItem(c.Key("folder:"+path), "", open, func() { branch(path) }).Height(uikit.HeightControl).

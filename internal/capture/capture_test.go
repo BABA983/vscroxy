@@ -30,6 +30,7 @@ import (
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	"github.com/baba983/vscroxy/internal/hosts"
+	"github.com/baba983/vscroxy/internal/rules"
 )
 
 // freeAddr reserves an address the proxy can listen on.
@@ -2357,8 +2358,12 @@ func TestMayMapHost(t *testing.T) {
 		{Rule{Match: "/v1/users"}, "anything.test:443", true}, // a path could be on any host
 		{Rule{MatchMode: "wildcard", Match: "*.example.com/*"}, "api.example.com:443", true},
 		{Rule{MatchMode: "wildcard", Match: "*.example.com/*"}, "example.org:443", false},
-		{Rule{MatchMode: "wildcard", Match: "*example*"}, "other.test:443", true}, // no path: could cover anything
-		{Rule{MatchMode: "regex", Match: `^https://x\.test/`}, "other.test:443", true},
+		{Rule{MatchMode: "wildcard", Match: "*example*"}, "other.test:443", true},       // no path: could cover anything
+		{Rule{MatchMode: "regex", Match: `^https://x\.test/`}, "other.test:443", false}, // names its host
+		{Rule{MatchMode: "regex", Match: `^https://x\.test/`}, "x.test:443", true},
+		{Rule{MatchMode: "regex", Match: `^https?://localhost:8443/`}, "localhost:8443", true},
+		{Rule{MatchMode: "regex", Match: `^https://[a-z]+\.test/`}, "other.test:443", true},
+		{Rule{MatchMode: "regex", Match: `x\.test/`}, "other.test:443", true}, // not anchored: found anywhere
 		{Rule{Match: "api.example.com/", Disabled: true}, "api.example.com:443", false},
 		{Rule{Match: "api.example.com/", Scenario: "Off"}, "api.example.com:443", false},
 	}
@@ -2370,6 +2375,39 @@ func TestMayMapHost(t *testing.T) {
 	}
 	if mayMapHost([]Rule{{Type: RuleBlock, Match: "/"}}, "x.test:443") {
 		t.Error("a Block rule counted")
+	}
+	if !mayMapHost([]Rule{{Type: RuleMapLocal, Match: "x.test/v1/", Target: "/tmp/m.json"}}, "x.test:443") {
+		t.Error("a Map Local rule did not count: its answer needs no server")
+	}
+}
+
+func TestMockPatternMatchesTheRequestsAnExampleStandsFor(t *testing.T) {
+	cases := []struct {
+		raw       string
+		match, no []string
+	}{
+		{"https://api.test/users/:id", []string{"https://api.test/users/7", "https://api.test/users/7?x=1"},
+			[]string{"https://api.test/users", "https://api.test/users/7/orders", "https://api.test/usersX/7", "http://api.test/users/7", "https://apiXtest/users/7"}},
+		{"https://api.test/users?page=1", []string{"https://api.test/users", "https://api.test/users?page=2"}, []string{"https://api.test/users/1"}},
+		{"{{baseUrl}}/users", []string{"https://api.test/users", "http://x.test/v1/users?q=1"}, []string{"https://api.test/users/1", "https://api.test/admins"}},
+		{"https://{{host}}/v1/{{id}}/items", []string{"https://a.test/v1/9/items"}, []string{"https://a.test/v1/9/8/items", "https://a.test/v1//items"}},
+		{"api.test:8080/a.b", []string{"http://api.test:8080/a.b", "https://api.test:8080/a.b"}, []string{"https://api.test:8080/aXb"}},
+	}
+	for _, tc := range cases {
+		m := rules.Matcher{URL: MockPattern(tc.raw), URLMode: rules.URLRegex}
+		if err := m.Validate(); err != nil {
+			t.Fatalf("%s: %v", tc.raw, err)
+		}
+		for _, u := range tc.match {
+			if !m.Match(rules.Request{URL: u, Method: "GET"}) {
+				t.Errorf("%s → %s does not match %s", tc.raw, m.URL, u)
+			}
+		}
+		for _, u := range tc.no {
+			if m.Match(rules.Request{URL: u, Method: "GET"}) {
+				t.Errorf("%s → %s matches %s", tc.raw, m.URL, u)
+			}
+		}
 	}
 }
 
@@ -2409,5 +2447,32 @@ func TestMapRemoteReachesUnresolvableHTTPSHosts(t *testing.T) {
 	}
 	if _, err := client.Get("https://unmapped.invalid/api/x"); err == nil {
 		t.Fatal("a CONNECT to a host no rule maps succeeded")
+	}
+}
+
+func TestMockOfAnExampleAnswersForAnUnresolvableHTTPSHost(t *testing.T) {
+	mock, err := SaveMock(t.TempDir(), Rule{Type: RuleMapLocal, MatchMode: "regex", Match: MockPattern("https://shop.dev.invalid/users/:id"),
+		Method: "GET", Status: 201, Headers: http.Header{"Content-Encoding": {"gzip"}, "X-Mock": {"yes"}}}, []byte(`{"id":7}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if filepath.Ext(mock.Target) != ".json" {
+		t.Fatalf("mock file %q", mock.Target)
+	}
+	s, caPath := startServerWithRules(t, mock)
+	s.SetSSL(SSLConfig{All: true})
+	client := clientFor(t, s, sslTestRoots(t, caPath))
+	resp, err := client.Get("https://shop.dev.invalid/users/7?fields=all")
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	// The example's decoded body is served as is: gzip would be a lie.
+	if resp.StatusCode != 201 || string(body) != `{"id":7}` || resp.Header.Get("X-Mock") != "yes" || resp.Header.Get("Content-Encoding") != "" {
+		t.Fatalf("got %d %q %v", resp.StatusCode, body, resp.Header)
+	}
+	if _, err := client.Get("https://other.invalid/users/7"); err == nil {
+		t.Fatal("a CONNECT to a host the mock does not name succeeded")
 	}
 }

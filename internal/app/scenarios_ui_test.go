@@ -17,6 +17,7 @@ import (
 
 	"github.com/baba983/vscroxy/internal/capture"
 	"github.com/baba983/vscroxy/internal/request"
+	"github.com/baba983/vscroxy/internal/rules"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -323,5 +324,124 @@ func TestScenarioRulesUIControlsSavedAndRunningConfiguration(t *testing.T) {
 	}
 	if tt.HasText("Scenario: Maintenance") {
 		t.Fatal("failed save falsely reported an active scenario")
+	}
+}
+
+func TestCollectionExamplesBecomeAScenarioThatAnswersForEachRequest(t *testing.T) {
+	dir := t.TempDir()
+	a := workspaceApp()
+	a.page = pageRequest
+	a.rulesPath = filepath.Join(dir, "rules.json")
+	a.folders = []request.Folder{{Path: "Shop", Variables: []request.Field{{Name: "base", Value: "https://api.test"}}}}
+	user := request.Example{Name: "200 OK", Status: 200, Headers: "Content-Type: application/json\nContent-Encoding: gzip", Body: `{"id":7}`,
+		Request: request.ExampleRequest{Method: "GET", URL: "{{base}}/users/:id"}}
+	missing := request.Example{Name: "Missing", Status: 404, Body: "no such user", Request: user.Request}
+	a.requests = append(a.requests,
+		savedRequest{Request: request.Request{Name: "Get user", Collection: "Shop/Users", Method: "GET", URL: "{{base}}/users/:id", Examples: []request.Example{user, missing}}},
+		savedRequest{Request: request.Request{Name: "List users", Collection: "Shop", Method: "GET", URL: "{{base}}/users",
+			Examples: []request.Example{{Name: "Two", Status: 200, Body: "[1,2]", Request: request.ExampleRequest{Method: "GET", URL: "{{base}}/users?page=1"}}}}},
+		savedRequest{Request: request.Request{Name: "Elsewhere", Collection: "Shopping", Method: "GET", URL: "https://x.test",
+			Examples: []request.Example{{Name: "Other", Status: 200, Body: "x"}}}},
+	)
+	global := capture.Rule{Name: "Global block", Type: capture.RuleBlock, Match: "/admin"}
+	a.rules = []capture.Rule{global}
+	tt := ui.NewTester(a.view, 1280, 800)
+	mock := func(label string) {
+		t.Helper()
+		if err := tt.RightClick("Collection: Shop"); err != nil {
+			t.Fatal(err)
+		}
+		if err := chooseMenu(tt, label); err != nil {
+			t.Fatal(err)
+		}
+	}
+	answer := func(url string, header http.Header) (capture.Rule, bool) {
+		t.Helper()
+		for _, p := range capture.PreviewRules(a.rules, rules.Request{Method: "GET", URL: url, Header: header}, false) {
+			if p.Step > 0 && a.rules[p.Index].Type == capture.RuleMapLocal {
+				return a.rules[p.Index], true
+			}
+		}
+		return capture.Rule{}, false
+	}
+	body := func(r capture.Rule) string {
+		t.Helper()
+		data, err := os.ReadFile(r.Target)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return string(data)
+	}
+
+	mock("Mock “Shop” from examples")
+	if !a.toolsOpen || a.toolsPage != "rules" {
+		t.Fatal("the new scenario is not shown in Tools")
+	}
+	tt.Key(0, ui.KeyEscape)
+	if len(a.rules) != 4 || a.rules[0].Name != global.Name {
+		t.Fatalf("rules = %+v", a.rules)
+	}
+	for _, r := range a.rules[1:] {
+		if r.Scenario != "Shop" || r.ScenarioActive {
+			t.Fatalf("a new scenario changed traffic: %+v", r)
+		}
+	}
+	if err := capture.ValidateRules(a.rules); err != nil {
+		t.Fatal(err)
+	}
+	a.selectRuleScenario("Shop")
+	if r, ok := answer("https://api.test/users/7?expand=1", nil); !ok || r.Status != 200 || body(r) != `{"id":7}` || r.Headers.Get("Content-Encoding") != "" {
+		t.Fatalf("default answer = %+v %v", r, ok)
+	}
+	if r, ok := answer("https://api.test/users/7", http.Header{"X-Mock-Response-Name": {"Missing"}}); !ok || r.Status != 404 || body(r) != "no such user" {
+		t.Fatalf("named answer = %+v %v", r, ok)
+	}
+	if r, ok := answer("https://api.test/users", nil); !ok || body(r) != "[1,2]" {
+		t.Fatalf("list answer = %+v %v", r, ok)
+	}
+	if _, ok := answer("https://x.test/", nil); ok {
+		t.Fatal("a collection that only shares the name's prefix was mocked")
+	}
+
+	// Rebuilding replaces the scenario's rules and their files, keeping it on.
+	old := a.rules[1].Target
+	mock("Rebuild scenario “Shop” from examples")
+	if len(a.rules) != 4 || !a.rules[1].ScenarioActive || capture.ActiveScenario(a.rules) != "Shop" {
+		t.Fatalf("rebuilt = %+v", a.rules)
+	}
+	if _, err := os.Stat(old); !os.IsNotExist(err) {
+		t.Fatalf("replaced mock file kept: %v", err)
+	}
+	if saved, err := capture.LoadRules(a.rulesPath); err != nil || len(saved) != 4 {
+		t.Fatalf("rules on disk = %d, %v", len(saved), err)
+	}
+}
+
+func TestMockingAnExampleOpensARuleThatAnswersWithIt(t *testing.T) {
+	a := workspaceApp()
+	a.page = pageRequest
+	a.rulesPath = filepath.Join(t.TempDir(), "rules.json")
+	a.requests[0].URL = "{{host}}/projects"
+	a.requests[0].Examples = []request.Example{{ID: "e1", Name: "Empty", Status: 200, Headers: "Content-Type: application/json", Body: `{"projects":[]}`,
+		Request: request.ExampleRequest{Method: "GET", URL: "{{host}}/projects"}}}
+	a.globals = map[string]string{"host": "https://api.example.com"}
+	tt := ui.NewTester(a.view, 1280, 800)
+	for _, label := range []string{"GET  List projects", "Examples", "Open example: Empty", "Mock this example"} {
+		if err := tt.Click(label); err != nil {
+			t.Fatal(label, err)
+		}
+	}
+	r := a.ruleUI.draft
+	if !a.toolsOpen || a.ruleUI.index != -1 || r.Type != capture.RuleMapLocal || r.Status != 200 || a.ruleUI.unsavedMock != r.Target {
+		t.Fatalf("draft %+v (index %d, unsaved %q)", r, a.ruleUI.index, a.ruleUI.unsavedMock)
+	}
+	if !(rules.Matcher{URL: r.Match, URLMode: r.MatchMode}).Match(rules.Request{URL: "https://api.example.com/projects?limit=7"}) {
+		t.Fatalf("pattern %q does not match the request", r.Match)
+	}
+	if data, err := os.ReadFile(r.Target); err != nil || string(data) != `{"projects":[]}` {
+		t.Fatalf("mock file %q: %v", data, err)
+	}
+	if len(a.rules) != 0 {
+		t.Fatal("the rule applied before it was saved")
 	}
 }

@@ -117,6 +117,9 @@ func (a *app) examplesEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
 				if uikit.Segmented(c, &d.exampleView, "Body", "Headers", "Request").Changed() {
 					d.exampleEditor = nil
 				}
+				if uikit.SecondaryButton(c, "Mock").Label("Mock this example").Tooltip("Answer matching requests with this example: opens a Map Local rule in Tools").Clicked() {
+					a.mockExample(d.value().Request, *e)
+				}
 				if uikit.SecondaryButton(c, "Delete").Label("Delete example").Clicked() {
 					d.examples = slices.Delete(d.examples, d.example, d.example+1)
 					d.exampleEditor = nil

@@ -187,7 +187,7 @@
 | 单个请求的设置：超时、跟随重定向、证书校验 | 缺少 | Postman 导入时会丢 | M6 |
 | 客户端证书（按域名）、自定义 CA | 缺少 | | M6 |
 | Examples | 已有 | | |
-| Examples 作为 Mock 响应（本地 mock） | 缺少 | 见 6.3 | M4 |
+| Examples 作为 Mock 响应（本地 mock） | 已有 | 见 6.3；Examples 标签里的 Mock，集合菜单的 Mock from examples | M4 |
 | 代码 Mock（脚本写的 mock 服务，Postman `pm.mock`） | 缺少 | | M9 |
 | Runner：数据文件、迭代、setNextRequest | 已有 | | |
 | Runner：性能测试（虚拟用户、时长、指标） | 缺少 | | M9 |
@@ -220,7 +220,7 @@
 | 保存时附带抓到的响应作为 Example | 已有 | M3 |
 | 抓到的流量识别出对应的已保存请求 | 已有 | M3 |
 | **录制到集合**（6.2） | 缺少 | M9 |
-| Example → Mock 规则，集合 → Scenario | 缺少 | M4 |
+| Example → Mock 规则，集合 → Scenario | 已有 | M4 |
 | 登录 token 链路识别，建议生成提取脚本 | 缺少 | M9 |
 | **Host 方案**（第 7 节） | 已有 | M2 |
 
@@ -285,7 +285,7 @@ Cookie 和其他 API key 保留为变量 header，避免把多个认证机制硬
 - Block：隐藏或拦截、断开连接、按 App。（已完成）
 - Breakpoint 模板。（已完成）
 - 规则脚本：`pm` 风格 API、编辑器、异步请求、共享状态、环境变量、内置库、代码片段；`script.js` 迁移。
-- Example → Mock 规则、集合 → Scenario。
+- Example → Mock 规则、集合 → Scenario。（已完成：URL 填入当前变量后转成正则，`:id` 和未知变量匹配一段，查询串不限；同一请求的其他 Example 用 `X-Mock-Response-Name` 选择；主机不可达时 Map Local 也用生成的证书）
 - 规则和设置的导入导出。
 
 ### M5：检查器和调试增强

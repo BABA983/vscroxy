@@ -408,6 +408,32 @@ func TestUISnapshots(t *testing.T) {
 			a.rules[0].Target, a.rules[0].PathFrom = os.TempDir(), "/v1"
 			a.openRules()
 		}, want: "Strip path prefix"},
+		{name: "tools-rules-examples", setup: func(a *app) {
+			snapshotRules(a)
+			var made []capture.Rule
+			for _, e := range []struct {
+				name, url, example string
+				status             int
+				named              bool
+			}{
+				{"Get project", "https://api.example.com/projects/:id", "Not found", 404, true},
+				{"Get project", "https://api.example.com/projects/:id", "Created", 200, false},
+				{"List projects", "{{baseUrl}}/projects", "Two projects", 200, false},
+			} {
+				r := capture.Rule{Name: e.name + " · " + e.example, Type: capture.RuleMapLocal, MatchMode: "regex", Match: capture.MockPattern(e.url), Method: "GET",
+					Status: e.status, Target: "/Users/me/.vscroxy/mocks/" + strings.ToLower(strings.ReplaceAll(e.example, " ", "-")) + ".json", Scenario: "Workspace"}
+				if e.named {
+					r.When = []rules.HeaderCondition{{Name: mockResponseName, Op: rules.HeaderEquals, Value: e.example}}
+				}
+				made = append(made, r)
+			}
+			for i := range a.rules {
+				a.rules[i].ScenarioActive = false
+			}
+			a.rules = append(a.rules, made...)
+			a.editRule(len(a.rules)-3, a.rules[len(a.rules)-3])
+			a.openTools("rules")
+		}, want: "Get project · Not found"},
 		{name: "tools-rules-empty", setup: func(a *app) { a.openRules() }, want: "No rules"},
 		{name: "dialog-breakpoint", setup: snapshotBreakpoint, want: "Breakpoint · request paused", short: true},
 		{name: "dialog-breakpoint-readonly", setup: func(a *app) {
@@ -552,6 +578,14 @@ func TestUISnapshots(t *testing.T) {
 		{name: "body-menu", act: click("Response body format"), menu: "Pretty"},
 		{name: "inspector-menu", act: click("Inspector options"), menu: "Replay…"},
 		{name: "request-menu", setup: draft, act: click("Request options"), menu: "Copy as cURL"},
+		{name: "collection-folder-menu", setup: func(a *app) {
+			a.page = pageRequest
+			a.requests[0].Examples = []request.Example{{ID: "e", Name: "Two projects", Status: 200, Body: "[]"}}
+		}, act: func(t *testing.T, tt *ui.Tester) {
+			if err := tt.RightClick("Collection: Workspace"); err != nil {
+				t.Fatal(err)
+			}
+		}, menu: "Mock “Workspace” from examples"},
 		{name: "traffic-menu", act: func(t *testing.T, tt *ui.Tester) {
 			if err := tt.RightClick("api.example.com/projects"); err != nil {
 				t.Fatal(err)

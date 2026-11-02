@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"unicode"
@@ -61,16 +62,17 @@ func webSocketURL(raw string) bool {
 }
 
 // mayMapHost reports whether an active Map Remote rule could send a request
-// to hostport elsewhere. A CONNECT names only the host, so a rule counts
-// unless what it matches names another host: a path-only pattern, a regular
-// expression or a wildcard without a path could match any.
+// to hostport elsewhere, or a Map Local rule answer it without the server.
+// A CONNECT names only the host, so a rule counts unless what it matches
+// names another host: a path-only pattern, a wildcard without a path or a
+// regular expression that does not start with a literal host could match any.
 func mayMapHost(list []Rule, hostport string) bool {
 	host := strings.ToLower(hostport)
 	if h, _, err := net.SplitHostPort(host); err == nil {
 		host = h
 	}
 	for _, r := range list {
-		if r.Type != RuleMapRemote || r.Disabled || r.Scenario != "" && !r.ScenarioActive {
+		if r.Type != RuleMapRemote && r.Type != RuleMapLocal || r.Disabled || r.Scenario != "" && !r.ScenarioActive {
 			continue
 		}
 		pattern := strings.ToLower(r.Match)
@@ -79,7 +81,11 @@ func mayMapHost(list []Rule, hostport string) bool {
 		}
 		named, _, hasPath := strings.Cut(pattern, "/")
 		switch {
-		case r.MatchMode == rules.URLRegex, named == "":
+		case r.MatchMode == rules.URLRegex:
+			if literal, ok := regexHost(r.Match); !ok || literal == host || literal == strings.ToLower(hostport) {
+				return true
+			}
+		case named == "":
 			return true
 		case r.MatchMode == rules.URLWildcard:
 			if !hasPath || (rules.Matcher{URL: "x://" + named + "/", URLMode: rules.URLWildcard}).Match(rules.Request{URL: "x://" + strings.ToLower(hostport) + "/"}) ||
@@ -97,6 +103,31 @@ func mayMapHost(list []Rule, hostport string) bool {
 		}
 	}
 	return false
+}
+
+// regexHost is the host a regular expression anchored at the start of the
+// URL names literally, as MockPattern writes them: ^https://api\.test/….
+func regexHost(expr string) (string, bool) {
+	rest, ok := strings.CutPrefix(expr, "^")
+	if !ok {
+		return "", false
+	}
+	for _, scheme := range []string{"https?://", "https://", "http://"} {
+		if after, found := strings.CutPrefix(rest, scheme); found {
+			rest = after
+			break
+		}
+	}
+	end := strings.Index(rest, "/")
+	if end <= 0 {
+		return "", false
+	}
+	host := strings.ReplaceAll(rest[:end], `\.`, ".")
+	// An unescaped dot is taken for itself, as people write hosts in patterns.
+	if strings.ContainsAny(host, `\+*?()|[]{}^$`) {
+		return "", false
+	}
+	return strings.ToLower(host), true
 }
 
 // key is what a rule does, without its name and switches.
@@ -377,18 +408,36 @@ func NewMockRule(dir string, f Flow) (Rule, error) {
 	if len(body) > maxRuleBody || (f.ResponseBodySize > 0 && len(body) != f.ResponseBodySize) {
 		return Rule{}, fmt.Errorf("complete response body unavailable or larger than 8 MiB")
 	}
-	h := f.ResponseHeader.Clone()
+	r := Rule{Name: "Mock " + f.Method + " " + f.Path, Type: RuleMapLocal, Match: f.URL, Method: f.Method, Status: f.Status, Headers: f.ResponseHeader}
+	return SaveMock(dir, r, body)
+}
+
+// SaveMock writes body to a new file in dir and returns r answering from it.
+// The file is named for what body holds, so its type shows, and r's headers
+// lose those that described the bytes as they came on the wire. The caller
+// owns the new file and must remove it if saving the rule fails.
+func SaveMock(dir string, r Rule, body []byte) (Rule, error) {
+	if len(body) > maxRuleBody {
+		return Rule{}, fmt.Errorf("local responses are limited to 8 MiB")
+	}
+	h := r.Headers.Clone()
 	if h == nil {
 		h = make(http.Header)
 	}
 	StripHopHeaders(h)
-	// Captures contain decoded bytes. Do not retain stale wire framing or
-	// validators for the compressed representation that was received.
+	// Captures and examples hold decoded bytes. Do not retain stale wire
+	// framing or validators for the compressed representation received.
 	for _, name := range []string{"Content-Encoding", "Content-Length", "Content-MD5", "Digest", "ETag"} {
 		h.Del(name)
 	}
-	r := Rule{Name: "Mock " + f.Method + " " + f.Path, Type: RuleMapLocal, Match: f.URL, Method: f.Method, Status: f.Status, Headers: h,
-		Target: filepath.Join(dir, rand.Text()+".bin")}
+	ext := ".bin"
+	switch {
+	case jsontext.Value(body).IsValid():
+		ext = ".json"
+	case utf8.Valid(body):
+		ext = ".txt"
+	}
+	r.Headers, r.Target = h, filepath.Join(dir, rand.Text()+ext)
 	if err := ValidateRules([]Rule{r}); err != nil {
 		return Rule{}, err
 	}
@@ -396,4 +445,49 @@ func NewMockRule(dir string, f Flow) (Rule, error) {
 		return Rule{}, err
 	}
 	return r, nil
+}
+
+// MockPattern is the regular expression that matches the requests a mock of
+// raw answers: raw is an authored URL with the variables known filled in.
+// A {{variable}} still in it matches one path segment, or the scheme, host
+// and any base path when the URL starts with one; a :name segment matches
+// one segment. The query and fragment are left out: any query matches. With
+// no scheme, http and https both match.
+func MockPattern(raw string) string {
+	raw, _, _ = strings.Cut(raw, "#")
+	if q := strings.Index(raw, "?"); q >= 0 && !strings.Contains(raw[q:], "}}") {
+		raw = raw[:q]
+	}
+	var b strings.Builder
+	b.WriteString("^")
+	if !strings.HasPrefix(raw, "{{") && !strings.Contains(raw, "://") {
+		b.WriteString("https?://")
+	}
+	for i, part := range strings.SplitAfter(raw, "/") {
+		segment, slash := strings.CutSuffix(part, "/")
+		if strings.HasPrefix(segment, ":") && len(segment) > 1 && i > 0 {
+			b.WriteString("[^/?#]+")
+		} else {
+			for {
+				start := strings.Index(segment, "{{")
+				end := strings.Index(segment[max(start, 0):], "}}")
+				if start < 0 || end < 0 {
+					b.WriteString(regexp.QuoteMeta(segment))
+					break
+				}
+				b.WriteString(regexp.QuoteMeta(segment[:start]))
+				if i == 0 && start == 0 {
+					b.WriteString("[^?#]*") // a base URL: scheme, host, maybe a path
+				} else {
+					b.WriteString("[^/?#]+")
+				}
+				segment = segment[start+end+2:]
+			}
+		}
+		if slash {
+			b.WriteString("/")
+		}
+	}
+	b.WriteString(`(\?.*)?$`)
+	return b.String()
 }
