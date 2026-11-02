@@ -160,6 +160,13 @@ func (a *attacker) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	if strings.EqualFold(req.Header.Get("Connection"), "Upgrade") && strings.EqualFold(req.Header.Get("Upgrade"), "websocket") {
 		f := newFlow()
 		f.Request = newRequest(req)
+		// Addons see the WebSocket's own URL, and may point it elsewhere.
+		wsURL := *req.URL
+		wsURL.Scheme = map[string]string{"http": "ws"}[req.URL.Scheme]
+		if wsURL.Scheme == "" {
+			wsURL.Scheme = "wss"
+		}
+		f.Request.URL = &wsURL
 		f.ConnContext = req.Context().Value(connContextKey).(*ConnContext)
 		f.ConnContext.FlowCount.Add(1)
 
@@ -181,9 +188,7 @@ func (a *attacker) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 				return
 			}
 		}
-		f.finish()
-
-		if err := a.proxy.webSocketHandler.handleWSS(res, req); err != nil {
+		if err := a.proxy.webSocketHandler.handleWSS(res, req, f); err != nil {
 			log.Errorf("handleWSS error: %v", err)
 		}
 		return

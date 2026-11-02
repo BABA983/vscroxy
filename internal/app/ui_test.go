@@ -2877,7 +2877,19 @@ func TestRuleEditorPersistsOrderingTogglesAndCapturedMock(t *testing.T) {
 	edit("Rule name", "Development API")
 	edit("Match URL", "/projects")
 	edit("Target base URL", "http://127.0.0.1:8081")
+	edit("Rewrite path from", "/v1/")
 	click("Save rule")
+	if !strings.Contains(a.ruleUI.problem, "a path rewrite goes from") || len(load()) != 0 {
+		t.Fatalf("a rewrite without a destination was saved: %q", a.ruleUI.problem)
+	}
+	edit("Rewrite path to", "/api/v1/")
+	tt.SetSize(1100, 1000) // the form scrolls the option out of a short window
+	click("Keep the original Host header")
+	tt.SetSize(1100, 650)
+	click("Save rule")
+	if r := load(); len(r) != 1 || r[0].PathFrom != "/v1/" || r[0].PathTo != "/api/v1/" || !r[0].KeepHost {
+		t.Fatalf("Map Remote options not persisted: %+v", r)
+	}
 	click("New rule")
 	click("Rule type")
 	click("Block")

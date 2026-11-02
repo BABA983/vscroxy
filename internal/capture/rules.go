@@ -45,16 +45,25 @@ func responseRule(kind RuleType) bool {
 	return kind == RuleMapLocal || kind == RuleMapRemote || kind == RuleBlock
 }
 
+// firstResponseRule is the Map or Block rule that acts on req: the first
+// that matches, or for a WebSocket handshake the first Map Remote rule, since
+// the others do not act on WebSockets.
 func firstResponseRule(list []Rule, req rules.Request) int {
+	ws := webSocketURL(req.URL)
 	return slices.IndexFunc(list, func(r Rule) bool {
-		return responseRule(r.Type) && r.matches(req)
+		return responseRule(r.Type) && (!ws || r.Type == RuleMapRemote) && r.matches(req)
 	})
+}
+
+func webSocketURL(raw string) bool {
+	return strings.HasPrefix(raw, "ws://") || strings.HasPrefix(raw, "wss://")
 }
 
 // key is what a rule does, without its name and switches.
 func (r Rule) key() string {
 	when, _ := json.Marshal(r.When)
-	return strings.Join([]string{string(r.Type), r.MatchMode, r.Match, r.Method, strings.Join(r.Apps, "\n"), string(when), r.Target}, "\x00")
+	return strings.Join([]string{string(r.Type), r.MatchMode, r.Match, r.Method, strings.Join(r.Apps, "\n"), string(when), r.Target,
+		r.PathFrom, r.PathTo, fmt.Sprint(r.KeepHost)}, "\x00")
 }
 
 // RulePreview explains a saved rule's part in one exchange. Step is its place
@@ -70,7 +79,7 @@ type RulePreview struct {
 // breakpoint pauses it, the first matching Map or Block rule answers or
 // redirects it, and the first matching response breakpoint pauses a response
 // that came from upstream, matched against the redirected URL. Breakpoints
-// act only while breaking is on. It does not read response files, contact
+// act only while breaking is on. Only Map Remote acts on a WebSocket. It does not read response files, contact
 // upstreams or run scripts.
 func PreviewRules(rules []Rule, req rules.Request, breaking bool) []RulePreview {
 	preview := make([]RulePreview, len(rules))
@@ -78,7 +87,7 @@ func PreviewRules(rules []Rule, req rules.Request, breaking bool) []RulePreview 
 	winner := firstResponseRule(rules, req)
 	if winner >= 0 && rules[winner].Type == RuleMapRemote {
 		if from, err := url.Parse(req.URL); err == nil {
-			if to, err := mapURL(from, rules[winner].Target); err == nil {
+			if to, err := mapURL(from, rules[winner]); err == nil {
 				upstream.URL, upstream.Host = to.String(), to.Hostname()
 			}
 		}
@@ -111,6 +120,8 @@ func PreviewRules(rules []Rule, req rules.Request, breaking bool) []RulePreview 
 			}
 			reason := r.matchReason(at)
 			switch {
+			case webSocketURL(req.URL) && r.Type != RuleMapRemote:
+				reason = "does not act on WebSockets"
 			case reason != "":
 			case responseRule(r.Type) && i != winner:
 				reason = fmt.Sprintf("shadowed by rule %d", winner+1)
@@ -220,6 +231,12 @@ func ValidateRules(rules []Rule) error {
 			u, err := url.Parse(r.Target)
 			if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Hostname() == "" || u.User != nil || u.Fragment != "" {
 				return fail("Map Remote needs an http(s) base URL without credentials or fragment")
+			}
+			if r.PathFrom != "" && (!strings.HasPrefix(r.PathFrom, "/") || !strings.HasPrefix(r.PathTo, "/")) {
+				return fail("a path rewrite goes from a path starting with / to another")
+			}
+			if r.PathFrom == "" && r.PathTo != "" {
+				return fail("enter the path to rewrite")
 			}
 		case RuleMapLocal:
 			if strings.TrimSpace(r.Target) == "" {

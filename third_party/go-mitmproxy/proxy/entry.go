@@ -407,17 +407,12 @@ func (e *entry) httpsDialLazyAttack(res http.ResponseWriter, req *http.Request, 
 	}
 
 	if helper.IsWebSocket(wsPeek) {
-		conn, err := proxy.attacker.httpsDial(req.Context(), req)
-		if err != nil {
-			cconn.Close()
-			log.Error(err)
-			return
-		}
-		err = proxy.webSocketHandler.handle(conn, cconn, f)
+		// handle dials the server once addons have seen the handshake,
+		// which may point it elsewhere.
+		err = proxy.webSocketHandler.handle(nil, cconn, f)
 		if err != nil {
 			log.Errorf("WebSocket handle error: %v", err)
 			cconn.Close()
-			conn.Close()
 		}
 		return
 	}

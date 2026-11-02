@@ -227,6 +227,12 @@ type Rule struct {
 	Apps []string `json:"apps,omitempty"`
 	// When are request headers the rule needs, all of them.
 	When []rules.HeaderCondition `json:"when,omitempty"`
+	// PathFrom and PathTo rewrite a Map Remote path: a path starting with
+	// PathFrom starts with PathTo instead. KeepHost sends the client's Host
+	// header to the new target instead of the target's own.
+	PathFrom string `json:"pathFrom,omitempty"`
+	PathTo   string `json:"pathTo,omitempty"`
+	KeepHost bool   `json:"keepHost,omitzero"`
 	// Scenario groups response-affecting rules; empty is always global.
 	// Every member of a group has the same ScenarioActive value, and at most
 	// one group is active. Disabled remains an independent per-rule choice.
@@ -1166,6 +1172,12 @@ func (a *addon) Requestheaders(f *proxy.Flow) {
 	a.server.mu.Unlock()
 	a.server.startDebug(f)
 	noCacheRequest(f)
+	if isWebSocket(f.Request.URL) {
+		// The engine dials a WebSocket's server after this hook, where the
+		// URL says: a rule changes it here or not at all.
+		a.server.applyWebSocketRules(f)
+		return
+	}
 	// The engine streams a gRPC call instead of buffering it (it sets Stream
 	// before this hook), so it never calls Request for one: apply the rules
 	// here, while the URL and the headers are still the proxy's to change and
@@ -1475,40 +1487,77 @@ func (s *Server) applyRules(f *proxy.Flow) *proxy.Response {
 				Body:       body,
 			}
 		case RuleMapRemote:
-			u, err := mapURL(f.Request.URL, r.Target)
-			if err != nil {
-				return nil
-			}
-			s.hit(r)
-			recordAction(f, "Map Remote · "+r.Match+" → "+u.String())
-			// Keep the URL the client asked for: the table shows that one,
-			// and a replay sends it again.
-			s.mu.Lock()
-			s.original[f.Id] = *f.Request.URL
-			s.mu.Unlock()
-			f.Request.URL = u
+			s.mapRemote(f, r)
 			return nil
 		}
 	}
 	return nil
 }
 
-// mapURL points a URL at another base, keeping its path and query unless the
-// base has a path of its own to put in front.
-func mapURL(orig *url.URL, target string) (*url.URL, error) {
-	t, err := url.Parse(target)
+// mapRemote sends the request where r says.
+func (s *Server) mapRemote(f *proxy.Flow, r Rule) {
+	u, err := mapURL(f.Request.URL, r)
+	if err != nil {
+		return
+	}
+	s.hit(r)
+	recordAction(f, "Map Remote · "+r.Match+" → "+u.String())
+	if r.KeepHost && f.Request.Header.Get("Host") == "" {
+		host := f.Request.URL.Host
+		if raw := f.Request.Raw(); raw != nil && raw.Host != "" {
+			host = raw.Host
+		}
+		f.Request.Header.Set("Host", host)
+	}
+	// Keep the URL the client asked for: the table shows that one, and a
+	// replay sends it again.
+	s.mu.Lock()
+	s.original[f.Id] = *f.Request.URL
+	s.mu.Unlock()
+	f.Request.URL = u
+}
+
+// applyWebSocketRules sends a WebSocket handshake, whose URL is ws or wss,
+// where the first matching Map Remote rule says.
+func (s *Server) applyWebSocketRules(f *proxy.Flow) {
+	s.rulesMu.RLock()
+	list := s.rules
+	s.rulesMu.RUnlock()
+	if i := firstResponseRule(list, s.ruleRequest(f)); i >= 0 {
+		s.mapRemote(f, list[i])
+	}
+}
+
+func isWebSocket(u *url.URL) bool { return u.Scheme == "ws" || u.Scheme == "wss" }
+
+// mapURL points a URL at r's target: its scheme (ws or wss for a WebSocket)
+// and host, its path rewritten by PathFrom and PathTo and then put after the
+// target's own path, and the target's query, if it has one, in place of the
+// URL's.
+func mapURL(orig *url.URL, r Rule) (*url.URL, error) {
+	t, err := url.Parse(r.Target)
 	if err != nil {
 		return nil, err
 	}
 	if t.Scheme == "" || t.Host == "" {
-		return nil, fmt.Errorf("map remote target %q needs a scheme and a host", target)
+		return nil, fmt.Errorf("map remote target %q needs a scheme and a host", r.Target)
 	}
 	u := *orig
-	u.Scheme = t.Scheme
-	u.Host = t.Host
-	if t.Path != "" && t.Path != "/" {
-		u.Path = strings.TrimRight(t.Path, "/") + orig.Path
+	u.Scheme, u.Host = t.Scheme, t.Host
+	if isWebSocket(orig) {
+		u.Scheme = map[string]string{"http": "ws", "https": "wss"}[t.Scheme]
 	}
+	path := orig.EscapedPath()
+	if rest, ok := strings.CutPrefix(path, r.PathFrom); ok && r.PathFrom != "" {
+		path = r.PathTo + rest
+	}
+	if t.Path != "" && t.Path != "/" {
+		path = strings.TrimRight(t.EscapedPath(), "/") + path
+	}
+	if u.Path, err = url.PathUnescape(path); err != nil {
+		return nil, err
+	}
+	u.RawPath = path
 	if t.RawQuery != "" {
 		u.RawQuery = t.RawQuery
 	}

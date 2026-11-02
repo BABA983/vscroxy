@@ -17,9 +17,11 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -2253,5 +2255,89 @@ func TestNoCachingAndAppliedRules(t *testing.T) {
 	s.SetRules(nil)
 	if resp.StatusCode != 403 || !strings.Contains(resp.Header.Get("Cache-Control"), "no-store") || len(f.Actions) != 2 || f.Actions[1] != "Block · /blocked" {
 		t.Fatalf("local response lost cache policy or historical evidence: %+v %v", f.Actions, resp.Header)
+	}
+}
+
+// Map Remote changes the port, rewrites the path and, when asked, keeps the
+// Host header the client sent; WebSockets, plain and decrypted, follow the
+// same rule. A plain request's original host need not exist; a CONNECT's
+// host is dialed for its certificate, so the WebSockets' decoys exist but
+// must never see a request.
+func TestMapRemoteRewritesPathHostAndWebSockets(t *testing.T) {
+	var gotPath, gotHost string
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath, gotHost = r.URL.RequestURI(), r.Host
+		fmt.Fprint(w, "mapped")
+	}))
+	defer upstream.Close()
+	ws, seen := wsEchoServer(t)
+	var decoyHits atomic.Int32
+	decoy := func(w http.ResponseWriter, r *http.Request) { decoyHits.Add(1) }
+	plainDecoy := httptest.NewServer(http.HandlerFunc(decoy))
+	defer plainDecoy.Close()
+	tlsDecoy := httptest.NewTLSServer(http.HandlerFunc(decoy))
+	defer tlsDecoy.Close()
+	plainHost := strings.TrimPrefix(plainDecoy.URL, "http://")
+	tlsPort := tlsDecoy.URL[strings.LastIndex(tlsDecoy.URL, ":")+1:]
+	s, caPath := startServerWithRules(t,
+		Rule{Type: RuleMapRemote, Match: "keep.invalid", Target: upstream.URL + "/base", PathFrom: "/v1/", PathTo: "/api/v2/", KeepHost: true},
+		Rule{Type: RuleMapRemote, Match: "plain.invalid", Target: upstream.URL},
+		Rule{Type: RuleBlock, Match: "/v1/"}, // does not act on a WebSocket
+		Rule{Type: RuleMapRemote, MatchMode: "wildcard", Match: "*/v1/*", Target: ws.URL, PathFrom: "/v1/", PathTo: "/v2/"},
+	)
+	s.SetSSL(SSLConfig{All: true})
+	proxyURL, _ := url.Parse("http://" + s.Addr())
+	client := &http.Client{Transport: &http.Transport{Proxy: http.ProxyURL(proxyURL)}}
+	get := func(target string) {
+		t.Helper()
+		resp, err := client.Get(target)
+		if err != nil {
+			t.Fatal(err)
+		}
+		body, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if string(body) != "mapped" {
+			t.Fatalf("GET %s = %d %q", target, resp.StatusCode, body)
+		}
+	}
+	get("http://keep.invalid:8080/v1/users/a%2Fb?q=1") // first match wins over the Block
+	if gotPath != "/base/api/v2/users/a%2Fb?q=1" || gotHost != "keep.invalid:8080" {
+		t.Fatalf("upstream saw %q with Host %q", gotPath, gotHost)
+	}
+	if f := waitFlow(t, s); f.URL != "http://keep.invalid:8080/v1/users/a%2Fb?q=1" {
+		t.Fatalf("the row shows %q, not the URL the client asked for", f.URL)
+	}
+	get("http://plain.invalid/x")
+	if u, _ := url.Parse(upstream.URL); gotPath != "/x" || gotHost != u.Host {
+		t.Fatalf("upstream saw %q with Host %q", gotPath, gotHost)
+	}
+	waitFlow(t, s)
+
+	echo := func(conn *websocket.Conn) {
+		t.Helper()
+		if err := conn.WriteMessage(websocket.TextMessage, []byte("hi")); err != nil {
+			t.Fatal(err)
+		}
+		if _, msg, err := conn.ReadMessage(); err != nil || string(msg) != "hi" {
+			t.Fatalf("echo = %q, %v", msg, err)
+		}
+	}
+	echo(dialWS(t, s, "ws://"+plainHost+"/v1/room?x=1"))
+	if *seen != "/v2/room?x=1" {
+		t.Fatalf("plain WebSocket reached %q", *seen)
+	}
+	f := waitFlow(t, s)
+	if f.Kind != "ws" || f.URL != "ws://"+plainHost+"/v1/room?x=1" || !slices.ContainsFunc(f.Actions, func(a string) bool { return strings.HasPrefix(a, "Map Remote") }) {
+		t.Fatalf("plain WebSocket row: %q %q %v", f.Kind, f.URL, f.Actions)
+	}
+	echo(dialWSS(t, s, caPath, "localhost:"+tlsPort, "/v1/secure"))
+	if *seen != "/v2/secure" {
+		t.Fatalf("decrypted WebSocket reached %q", *seen)
+	}
+	if f := waitFlow(t, s); f.Kind != "ws" || f.URL != "wss://localhost:"+tlsPort+"/v1/secure" {
+		t.Fatalf("decrypted WebSocket row: %q %q", f.Kind, f.URL)
+	}
+	if decoyHits.Load() != 0 {
+		t.Fatal("a mapped WebSocket reached its original server")
 	}
 }

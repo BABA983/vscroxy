@@ -375,6 +375,12 @@ func TestPreviewRulesFollowsTheProxysOrder(t *testing.T) {
 	if got := steps(p); !slices.Equal(got, []int{0, 1, 0, 2, 0, 0}) || p[0].Reason != "rule 4 answers first" {
 		t.Fatalf("answered: %+v", p)
 	}
+	// Only Map Remote acts on a WebSocket: the Block above it does not shadow it.
+	rules[5] = capture.Rule{Type: capture.RuleMapRemote, Match: "/item", Target: "http://remote.test"}
+	p = capture.PreviewRules(rules, previewRequest("GET", "wss://example.com/item"), true)
+	if got := steps(p); !slices.Equal(got, []int{0, 0, 0, 0, 0, 1}) || p[3].Reason != "does not act on WebSockets" || p[1].Reason != "does not act on WebSockets" {
+		t.Fatalf("WebSocket: %+v", p)
+	}
 }
 
 func previewRequest(method, raw string) rules.Request {

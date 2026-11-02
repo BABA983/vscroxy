@@ -719,7 +719,7 @@ func snapshotBreakpoint(a *app) {
 func snapshotRules(a *app) {
 	a.rules = []capture.Rule{
 		{Name: "Mock user profile", Type: capture.RuleMapLocal, Match: "api.example.com/v1/users/", Method: "GET", Target: "/Users/me/mocks/user.json", Status: 200, Scenario: "Offline demo", ScenarioActive: true},
-		{Name: "Orders → staging", Type: capture.RuleMapRemote, MatchMode: "wildcard", Match: "*.example.com/v1/orders/*", Target: "https://staging.example.com",
+		{Name: "Orders → staging", Type: capture.RuleMapRemote, MatchMode: "wildcard", Match: "*.example.com/v1/orders/*", Target: "https://staging.example.com:8443", PathFrom: "/v1/", PathTo: "/api/v1/", KeepHost: true,
 			Apps: []string{"Google Chrome*"}, When: []rules.HeaderCondition{{Name: "X-Env", Op: "equals", Value: "staging"}, {Name: "Authorization", Op: "present"}}},
 		{Name: "Block analytics", Type: capture.RuleBlock, Match: "analytics.example.com", Disabled: true},
 		{Name: "Pause user requests", Type: capture.RuleBreak, Match: "/v1/users"},

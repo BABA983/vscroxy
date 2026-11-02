@@ -410,8 +410,17 @@ portable scenario export or a delay/fault-injection engine.
 - `map_local` answers from a file, without calling an upstream. Optional `status`
   and `headers` customize the response; connection headers are removed and length
   is recalculated. Files over 8 MiB fail with 502 instead of being truncated.
-- `map_remote` sends the request to another scheme and host, keeping the path
-  and query; the table keeps showing the URL the client asked for.
+- `map_remote` sends the request to the `target`'s scheme, host and port,
+  keeping the path and query; the table keeps showing the URL the client asked
+  for. `pathFrom`/`pathTo` rewrite a path starting with `pathFrom` to start with
+  `pathTo` (`/v1/` → `/api/v1/`); a path in `target` then goes in front, and a
+  query in `target` replaces the request's. `keepHost: true` sends the client's
+  Host header instead of the target's, for servers that serve several sites
+  by name. WebSocket handshakes follow the first matching Map Remote rule too,
+  as `ws` or `wss` to match the target; Map Local, Block and breakpoints do not
+  act on WebSockets. Inside a CONNECT tunnel (HTTPS and most WebSockets) the
+  proxy still connects to the original host first, for its certificate, so that
+  host must be reachable; plain `http://` requests need not be.
 - `block` answers `403`.
 - `break` pauses the request until you decide, and `break_response` pauses
   the response (see below).

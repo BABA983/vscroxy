@@ -58,6 +58,24 @@ and `TestCloseImmediatelyAfterStartReleasesThePort`.
 
 Upstream v1.9.4's `handleWSS` fix did not cover `handle`; there is no addon hook
 before this plain-WS dial, and the original request is otherwise private.
+
+## WebSocket targets (Map Remote)
+
+- `handle` runs `Requestheaders` on the upgrade request (URL `ws://…`) and dials
+  the server `f.Request.URL` then names. `httpsDialLazyAttack` passes no server
+  connection, so the dial waits for addons; a pre-dialed one (`UpstreamCert`)
+  is replaced when the URL changed, swapping only the socket inside
+  `wrapServerConn`, whose `Close` would end the client's tunnel too.
+- `attacker.ServeHTTP` shows addons a decrypted upgrade as `wss://…` (`ws://`
+  for a plain proxied request) and hands its flow to `handleWSS`, which dials
+  `f.Request.URL` and uses that same flow for the messages instead of a new
+  one.
+- `cloneHeaderWithoutWSHandshake` keeps a `Host` header: the server never
+  leaves one in the header map, so it is there only when an addon put it there
+  to keep the client's host. Gorilla sends it as the request's Host.
+- The upstream dialer of `handle` gets `TLSClientConfig`, for a `wss` target.
+
+`TestMapRemoteRewritesPathHostAndWebSockets` in `internal/capture` covers both.
 Regression coverage lives in the desktop module's real-socket tests:
 `TestStructuredWebSocketSendsAuthHeadersAndCookiesWithVerifiedTLS` and
 `TestWebSocketKeepsThePathAndQuery` (alongside the existing WSS regression).

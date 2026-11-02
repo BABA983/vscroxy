@@ -166,6 +166,10 @@ func (a *app) saveRule() {
 			r.Target = ""
 		}
 	}
+	r.PathFrom, r.PathTo = strings.TrimSpace(r.PathFrom), strings.TrimSpace(r.PathTo)
+	if r.Type != capture.RuleMapRemote {
+		r.PathFrom, r.PathTo, r.KeepHost = "", "", false
+	}
 	next := slices.Clone(a.rules)
 	index := e.index
 	if index < 0 {
@@ -262,7 +266,7 @@ func ruleTest(s string) (req rules.Request, ok bool) {
 		first = "https://" + first
 	}
 	u, err := url.Parse(first)
-	if err != nil || u.Hostname() == "" || (u.Scheme != "http" && u.Scheme != "https") || u.User != nil || u.Fragment != "" || !httpguts.ValidHeaderFieldName(req.Method) {
+	if err != nil || u.Hostname() == "" || !slices.Contains([]string{"http", "https", "ws", "wss"}, u.Scheme) || u.User != nil || u.Fragment != "" || !httpguts.ValidHeaderFieldName(req.Method) {
 		return rules.Request{}, false
 	}
 	req.URL, req.Host = u.String(), u.Hostname()
@@ -494,11 +498,6 @@ func (a *app) ruleDetail(c *ui.Context, t *ui.Theme) {
 				uikit.Input(c, &e.apps).Label("Match apps").Placeholder("Any").FillWidth()
 			}).Description("Comma-separated app names; * matches any text, as in Google Chrome*.")
 			ui.Field(c, "Headers", func() { a.ruleHeaderConditions(c, t) })
-			if !breakpoint {
-				ui.Field(c, "Scenario", func() {
-					uikit.Input(c, &e.draft.Scenario).Label("Rule scenario").Placeholder("None").Width(200)
-				}).Description("A rule in a scenario applies only while that scenario is active.")
-			}
 			switch e.kind {
 			case "Map Local":
 				ui.Field(c, "Response file", func() {
@@ -518,12 +517,27 @@ func (a *app) ruleDetail(c *ui.Context, t *ui.Theme) {
 			case "Map Remote":
 				ui.Field(c, "Send to", func() {
 					uikit.Input(c, &e.draft.Target).Label("Target base URL").Placeholder("http://127.0.0.1:8080").Font(uikit.FontMono).FillWidth()
-				}).Description("Keeps the original path and query. A target path prefixes the path; a target query replaces the query.")
+				}).Description("Scheme, host and port. A path here goes before the request’s path; a query replaces its query. WebSockets follow, as ws or wss.")
+				ui.Field(c, "Rewrite path", func() {
+					ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).FillWidth().Children(func() {
+						uikit.Input(c, &e.draft.PathFrom).Label("Rewrite path from").Placeholder("/v1/").Font(uikit.FontMono).Grow(1)
+						uikit.Meta(c, "→")
+						uikit.Input(c, &e.draft.PathTo).Label("Rewrite path to").Placeholder("/api/v1/").Font(uikit.FontMono).Grow(1)
+					})
+				}).Description("A path starting with the first part starts with the second instead.")
+				ui.Field(c, "Host header", func() {
+					ui.Checkbox(c, &e.draft.KeepHost, "Keep the original Host header")
+				}).Description("For a server that serves several sites by name. Otherwise it gets the target’s host.")
 			case "Block":
 				ui.Field(c, "Response", func() { uikit.Body(c, "403, without contacting the server") })
 			default:
 				ui.Field(c, "Pauses", func() { uikit.Body(c, "While Breakpoints is on") }).
 					Description("Continue or abort in the breakpoint dialog.")
+			}
+			if !breakpoint {
+				ui.Field(c, "Scenario", func() {
+					uikit.Input(c, &e.draft.Scenario).Label("Rule scenario").Placeholder("None").Width(200)
+				}).Description("A rule in a scenario applies only while that scenario is active.")
 			}
 		})
 	})
