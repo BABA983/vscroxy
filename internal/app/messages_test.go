@@ -168,8 +168,7 @@ func messagesApp(frames map[int][]frame) *app {
 			process: "Browser", at: time.Now(),
 		}},
 	}
-	a.countDomains()
-	a.countClients()
+	a.recount()
 	a.applyFilter()
 	return a
 }

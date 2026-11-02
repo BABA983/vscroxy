@@ -90,7 +90,7 @@ func TestUISnapshots(t *testing.T) {
 		a.composeTab = composeTabParams
 	}
 	states := []snapshot{
-		{name: "capture-empty", setup: func(a *app) { a.flows = nil; a.countDomains(); a.countClients(); a.applyFilter() }, want: "Capture is stopped"},
+		{name: "capture-empty", setup: func(a *app) { a.flows = nil; a.recount(); a.applyFilter() }, want: "Capture is stopped"},
 		{name: "capture-selected", want: "Request inspector"},
 		{name: "capture-activity", setup: snapshotActivity, want: "Activity strip"},
 		{name: "capture-activity-range", setup: snapshotActivity, act: func(t *testing.T, tt *ui.Tester) {
@@ -183,7 +183,7 @@ func TestUISnapshots(t *testing.T) {
 		{name: "capture-guide", setup: func(a *app) {
 			a.flows, a.guide, a.certificate.checked = nil, true, true
 			a.systemProxy.read = func(string) system.ProxyCheck { return system.ProxyCheck{Status: system.ProxyOff} }
-			a.countDomains()
+			a.recount()
 			a.applyFilter()
 		}, want: "Setup guide"},
 		{name: "capture-guide-decrypt", setup: func(a *app) {
@@ -193,8 +193,7 @@ func TestUISnapshots(t *testing.T) {
 			}
 			a.guide, a.certificate.checked, a.certificate.cert = true, true, &x509.Certificate{}
 			a.systemProxy.read = func(string) system.ProxyCheck { return system.ProxyCheck{Status: system.ProxyOff} }
-			a.countDomains()
-			a.countClients()
+			a.recount()
 			a.applyFilter()
 		}, want: "Choose what to decrypt"},
 		{name: "capture-headers", setup: func(a *app) { a.inspect.tab[1] = resTabHeaders }, want: "Content-Type"},
@@ -679,6 +678,7 @@ func snapshotApp() *app {
 	a.flows[1].resBody = `{"error":"Unauthorized","code":"AUTH_401"}`
 	a.pickedID = 1
 	a.chosen.Add(1)
+	a.recount() // the flows changed in place
 	openResponseBody(a)
 	return a
 }
@@ -711,8 +711,7 @@ func snapshotActivity(a *app) {
 	}
 	a.chosen.Clear()
 	a.picked, a.pickedID = 0, 1
-	a.countDomains()
-	a.countClients()
+	a.recount()
 	a.applyFilter()
 }
 

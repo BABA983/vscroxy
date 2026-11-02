@@ -180,8 +180,7 @@ func (a *app) captureSettings(c *ui.Context, t *ui.Theme) {
 					if i := slices.Index(labels, choice); i >= 0 && options[i] != cmp.Or(*value, fallback) {
 						*value = options[i]
 						a.trimFlows()
-						a.countDomains()
-						a.countClients()
+						a.recount()
 						a.applyFilter()
 					}
 				})

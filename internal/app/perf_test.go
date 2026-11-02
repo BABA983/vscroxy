@@ -36,8 +36,7 @@ func benchApp(n int) *app {
 			resBody: fmt.Sprintf(`{"id":%d,"name":"item %d","tags":["a","b"]}`, i, i),
 		}
 	}
-	a.countDomains()
-	a.countClients()
+	a.recount()
 	a.applyFilter()
 	return a
 }

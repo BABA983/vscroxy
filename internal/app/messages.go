@@ -87,7 +87,13 @@ func (a *app) addFrame(ev capture.FrameEvent) {
 	if a.frames == nil {
 		a.frames = make(map[int][]frame)
 	}
-	a.frames[ev.FlowID] = appendMessage(a.frames[ev.FlowID], ev)
+	old := a.frames[ev.FlowID]
+	memory, disk := messagesRetained(old), messagesSpilled(old) // appendMessage may reuse old
+	a.frames[ev.FlowID] = appendMessage(old, ev)
+	if _, ok := a.tally.known[ev.FlowID]; ok {
+		a.tally.memory += messagesRetained(a.frames[ev.FlowID]) - memory
+		a.tally.disk += messagesSpilled(a.frames[ev.FlowID]) - disk
+	}
 }
 
 // appendMessage adds a message to a flow's window, keeping the newest

@@ -38,25 +38,36 @@ func (a *app) activityEnd(now time.Time) time.Time {
 	if a.activity.active() && !a.activity.end.IsZero() {
 		return a.activity.end
 	}
-	var latest time.Time
-	live := false
-	for _, f := range a.flows {
-		if f.at.After(latest) {
-			latest = f.at
-		}
-		live = live || f.live
-	}
-	if latest.IsZero() || live && a.srv != nil && a.srv.Running() {
+	latest := a.tally.latest
+	if latest.IsZero() || a.tally.live > 0 && a.srv != nil && a.srv.Running() {
 		latest = now
 	}
 	return latest.Truncate(activityStep).Add(activityStep)
 }
 
+// activityCache is the strip's counts for the rows, end and brush it was
+// counted for.
+type activityCache struct {
+	valid           bool
+	end             time.Time
+	selection       uikit.ActivityRange
+	buckets         [activityBuckets]uikit.ActivityBucket
+	total, selected int
+}
+
 func (a *app) activityStrip(c *ui.Context) {
 	end := a.activityEnd(time.Now())
 	start := end.Add(-activitySpan)
-	var buckets [activityBuckets]uikit.ActivityBucket
-	total, selected := 0, 0
+	cache := &a.activityCounts
+	if !cache.valid || !cache.end.Equal(end) || cache.selection != a.activity.selection {
+		*cache = activityCache{valid: true, end: end, selection: a.activity.selection}
+		cache.buckets, cache.total, cache.selected = a.countActivity(start, end)
+	}
+	buckets, total, selected := cache.buckets, cache.total, cache.selected
+	a.drawActivity(c, end, start, buckets, total, selected)
+}
+
+func (a *app) countActivity(start, end time.Time) (buckets [activityBuckets]uikit.ActivityBucket, total, selected int) {
 	for _, at := range a.activityRows {
 		f := a.flows[at]
 		if f.at.Before(start) || !f.at.Before(end) {
@@ -78,6 +89,10 @@ func (a *app) activityStrip(c *ui.Context) {
 			selected++
 		}
 	}
+	return buckets, total, selected
+}
+
+func (a *app) drawActivity(c *ui.Context, end, start time.Time, buckets [activityBuckets]uikit.ActivityBucket, total, selected int) {
 	summary := fmt.Sprintf("Last 5 min · %d %s", total, plural(total, "request", "requests"))
 	if a.activity.active() {
 		summary = fmt.Sprintf("%s · %d %s", a.activity.label(), selected, plural(selected, "request", "requests"))

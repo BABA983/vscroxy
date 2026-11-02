@@ -46,19 +46,14 @@ func (a *app) inspectCapture(id int) {
 }
 
 func (a *app) replayLinks(c *ui.Context, f flow) {
-	var replays []flow
-	for _, candidate := range a.flows {
-		if candidate.replayOf == f.id {
-			replays = append(replays, candidate)
-		}
-	}
+	replays := a.tally.replays[f.id]
 	if f.replayOf == 0 && len(replays) == 0 {
 		return
 	}
 	t := c.Theme()
 	ui.Row(c).Padding(t.Space(1), t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Wrap().Children(func() {
 		if f.replayOf != 0 {
-			present := slices.ContainsFunc(a.flows, func(source flow) bool { return source.id == f.replayOf })
+			_, present := a.tally.known[f.replayOf]
 			if uikit.SecondaryButton(c, fmt.Sprintf("Replay of #%d", f.replayOf)).Disabled(!present).
 				Tooltip("Inspect source capture; unavailable if it was removed from this session").Clicked() {
 				a.inspectCapture(f.replayOf)

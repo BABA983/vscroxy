@@ -23,8 +23,7 @@ func captureViewsApp(t *testing.T, flows ...flow) (*app, *captureViews) {
 	a := workspaceApp()
 	if len(flows) > 0 {
 		a.flows = flows
-		a.countDomains()
-		a.countClients()
+		a.recount()
 		a.applyFilter()
 	}
 	v := &captureViews{}

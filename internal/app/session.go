@@ -591,8 +591,7 @@ func (a *app) importHAR() {
 				flows[i].id = next + i + 1
 			}
 			a.flows = append(a.flows, flows...)
-			a.countDomains()
-			a.countClients()
+			a.recount()
 			a.applyFilter()
 		})
 		a.done(fmt.Sprintf("Imported %d flows from %s", len(flows), paths[0]))
@@ -657,7 +656,6 @@ func (a *app) replaceSession(flows []flow, frames map[int][]frame) {
 	a.protobuf.stop()
 	a.query, a.filter = "", "all"
 	a.activity = activityRange{}
-	a.countDomains()
-	a.countClients()
+	a.recount()
 	a.applyFilter()
 }

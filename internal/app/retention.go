@@ -61,56 +61,72 @@ func messagesSpilled(ms []frame) int64 {
 	return n
 }
 
-// retainedTotal estimates the memory every kept flow takes, and the disk
-// their spill files take.
+// retainedTotal is the memory every kept flow takes, and the disk their spill
+// files take.
 func (a *app) retainedTotal() (memory, disk int64) {
-	for i := range a.flows {
-		ms := a.frames[a.flows[i].id]
-		memory += a.flows[i].retained() + messagesRetained(ms)
-		disk += a.flows[i].spilled() + messagesSpilled(ms)
-	}
-	return memory, disk
+	return a.tally.memory, a.tally.disk
 }
 
 // trimFlows drops the oldest unpinned flows while the table holds more than
-// any limit and deletes their spill files.
-func (a *app) trimFlows() {
+// any limit and deletes their spill files. The flows before past are gone
+// but for the pinned ones, and every later flow moved down by from: rows
+// that point into a.flows are remapped here, and callers holding others map
+// them the same way.
+func (a *app) trimFlows() (from, past int) {
+	if a.tallyStale() {
+		a.recount()
+	}
 	maxCount := cmp.Or(a.flowLimit, defaultFlowLimit)
 	maxMemory := int64(cmp.Or(a.memoryLimit, defaultMemoryLimit)) << 20
 	maxDisk := int64(cmp.Or(a.diskLimit, defaultDiskLimit)) << 30
-	memory, disk := make([]int64, len(a.flows)), make([]int64, len(a.flows))
-	var memoryTotal, diskTotal int64
-	for i := range a.flows {
-		ms := a.frames[a.flows[i].id]
-		memory[i] = a.flows[i].retained() + messagesRetained(ms)
-		disk[i] = a.flows[i].spilled() + messagesSpilled(ms)
-		memoryTotal += memory[i]
-		diskTotal += disk[i]
-	}
+	t := &a.tally
 	count := len(a.flows)
-	over := func() bool { return count > maxCount || memoryTotal > maxMemory || diskTotal > maxDisk }
+	over := func() bool { return count > maxCount || t.memory > maxMemory || t.disk > maxDisk }
 	if !over() {
-		return
+		return 0, 0
 	}
 	var files []string
-	kept := a.flows[:0]
-	for i, f := range a.flows {
-		if over() && !f.pinned {
-			count--
-			memoryTotal -= memory[i]
-			diskTotal -= disk[i]
-			files = append(files, f.reqFile, f.resFile)
-			for _, m := range a.frames[f.id] {
-				files = append(files, m.file)
-			}
+	var pinned []flow
+	moved := make(map[int]int) // a kept pinned flow's old index to its new
+	for ; past < len(a.flows) && over(); past++ {
+		f := &a.flows[past]
+		if f.pinned {
+			moved[past] = len(pinned)
+			pinned = append(pinned, *f)
 			continue
 		}
-		kept = append(kept, f)
+		a.count(f, -1)
+		count--
+		files = append(files, f.reqFile, f.resFile)
+		for _, m := range a.frames[f.id] {
+			files = append(files, m.file)
+		}
+		delete(a.frames, f.id)
 	}
-	clear(a.flows[len(kept):]) // let the dropped bodies be collected
-	a.flows = kept
-	a.frames = pruneMessages(a.frames, a.flows)
+	// The pinned flows of the dropped stretch close it, in their order, and
+	// the slice starts at them: the flows after them never move in memory.
+	from = past - len(pinned)
+	copy(a.flows[from:past], pinned)
+	clear(a.flows[:from]) // let the dropped bodies be collected
+	a.flows = a.flows[from:]
+	remap := func(rows []int) []int {
+		kept := rows[:0]
+		for _, at := range rows {
+			if at >= past {
+				kept = append(kept, at-from)
+			} else if n, ok := moved[at]; ok {
+				kept = append(kept, n)
+			}
+		}
+		return kept
+	}
+	a.visible, a.activityRows = remap(a.visible), remap(a.activityRows)
+	a.activityCounts.valid = false
+	a.views.rows = len(a.visible)
+	a.restoreSelection()
+	a.listCounts()
 	if a.srv != nil {
 		a.srv.Discard(files)
 	}
+	return from, past
 }

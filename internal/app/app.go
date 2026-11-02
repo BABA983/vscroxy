@@ -61,11 +61,10 @@ type app struct {
 	visible []int
 	domains []domain
 	clients []domain
-	// clientApps are each app's executables, and triage the sidebar's
-	// Errors, Slow and Pinned counts: kept with domains and clients, so a
-	// build never walks every flow.
+	// clientApps are each app's executables. tally keeps what all of these
+	// are listed from (tally.go), so a build never walks every flow.
 	clientApps map[string][]capture.SSLApp
-	triage     struct{ errors, slow, pinned int }
+	tally      tally
 
 	// query is the search field: free host/path text and query syntax not
 	// yet turned into chips (query.go). queryProblem says why a token was
@@ -312,9 +311,12 @@ type app struct {
 	filterTriage  captureTriage
 	activity      activityRange
 	activityRows  []int // matching rows before the time brush, for its full context
-	views         captureViews
-	columnOpen    bool
-	columnDraft   customColumn
+	// activityCounts caches the strip's buckets until the rows, its end or
+	// the brush change.
+	activityCounts activityCache
+	views          captureViews
+	columnOpen     bool
+	columnDraft    customColumn
 
 	// mark edits what a flow is marked with: a color and a note.
 	markOpen  bool
@@ -510,8 +512,7 @@ func newApp() *app {
 			}
 		}
 	}
-	a.countDomains()
-	a.countClients()
+	a.recount()
 	a.applyFilter()
 	if home, err := os.UserHomeDir(); err == nil {
 		a.views.init(a, filepath.Join(home, ".vscroxy", "views.json"))
@@ -909,6 +910,13 @@ func (a *app) drain() {
 	if view := a.views.activeView(); view != nil && len(a.visible) > 0 && !view.list.AtEnd() {
 		paused = true
 	}
+	// Code that replaced a.flows without recounting leaves the tally and the
+	// rows stale: rebuild both rather than merge into them.
+	stale := a.tallyStale()
+	if stale {
+		a.recount()
+	}
+	start := len(a.flows)
 	for _, f := range pending {
 		kind := f.Kind
 		if kind == "http" {
@@ -998,10 +1006,21 @@ func (a *app) drain() {
 			a.experiments.persist()
 		}
 	}
-	a.trimFlows()
-	a.countDomains()
-	a.countClients()
-	a.applyFilter()
+	for i := start; i < len(a.flows); i++ {
+		a.count(&a.flows[i], 1)
+	}
+	end := len(a.flows)
+	from, past := a.trimFlows()
+	var arrived []int
+	for i := max(start, past); i < end; i++ {
+		arrived = append(arrived, i-from)
+	}
+	a.listCounts()
+	if stale {
+		a.applyFilter()
+	} else {
+		a.showArrivals(arrived)
+	}
 	if paused {
 		a.newRows += len(pending)
 	} else {
@@ -1013,112 +1032,113 @@ func (a *app) drain() {
 	}
 }
 
-// countClients counts the flows per app, the Clients section of the sidebar,
-// and finds each app's executables.
-func (a *app) countClients() {
-	counts := make(map[string]int, len(a.flows))
-	a.clientApps = make(map[string][]capture.SSLApp)
-	for _, f := range a.flows {
-		if f.process == "" {
-			continue
-		}
-		counts[f.process]++
-		apps := a.clientApps[f.process]
-		if filepath.IsAbs(f.processPath) && !slices.ContainsFunc(apps, func(app capture.SSLApp) bool { return app.Path == f.processPath }) {
-			a.clientApps[f.process] = append(apps, capture.SSLApp{Name: f.process, Path: f.processPath})
-		}
-	}
-	for _, apps := range a.clientApps {
-		slices.SortFunc(apps, func(x, y capture.SSLApp) int { return strings.Compare(x.Path, y.Path) })
-	}
-	a.clients = a.clients[:0]
-	for name, n := range counts {
-		a.clients = append(a.clients, domain{name: name, n: n})
-	}
-	slices.SortFunc(a.clients, func(x, y domain) int { return cmp.Compare(y.n, x.n) })
-}
-
-// countDomains counts the flows per host, the Domains section of the
-// sidebar, and the errors, slow and pinned ones above it.
-func (a *app) countDomains() {
-	counts := make(map[string]int, len(a.flows))
-	a.triage.errors, a.triage.slow, a.triage.pinned = 0, 0, 0
-	for _, f := range a.flows {
-		counts[f.host]++
-		if f.failed() {
-			a.triage.errors++
-		}
-		if f.millis >= slowMillis {
-			a.triage.slow++
-		}
-		if f.pinned {
-			a.triage.pinned++
-		}
-	}
-	a.domains = a.domains[:0]
-	for name, n := range counts {
-		a.domains = append(a.domains, domain{name: name, n: n})
-	}
-	slices.SortFunc(a.domains, func(x, y domain) int { return cmp.Compare(y.n, x.n) })
-}
-
 // applyFilter rebuilds the visible rows from the search text and the sidebar
 // choice, and keeps the choice on a row that still shows.
 func (a *app) applyFilter() {
+	if a.tallyStale() {
+		a.recount()
+	}
 	q := strings.ToLower(queryText(a.query))
 	a.visible = a.visible[:0]
-	for i, f := range a.flows {
+	for i := range a.flows {
+		f := &a.flows[i]
 		if f.debugKey == "" {
 			f.debugKey = uuid.New().String()
-			a.flows[i].debugKey = f.debugKey
 		}
-		if !a.matchesChip(f) {
-			continue
+		if a.shows(f, q) {
+			a.visible = append(a.visible, i)
 		}
-		if a.filter == "pinned" && !f.pinned {
-			continue
-		}
-		if a.filter == "errors" && !f.failed() {
-			continue
-		}
-		if a.filter == "slow" && f.millis < slowMillis {
-			continue
-		}
-		if host, ok := strings.CutPrefix(a.filter, "host:"); ok && f.host != host {
-			continue
-		}
-		if client, ok := strings.CutPrefix(a.filter, "client:"); ok && f.process != client {
-			continue
-		}
-		if q != "" && !strings.Contains(strings.ToLower(f.host+f.path), q) {
-			continue
-		}
-		if a.filterStatus != "" && !statusMatches(a.filterStatus, f.status) {
-			continue
-		}
-		if a.filterHeader != "" && !headerMatches(f, a.filterHeader) {
-			continue
-		}
-		if !a.filterTriage.matches(f) {
-			continue
-		}
-		if a.filterBody != "" && !strings.Contains(strings.ToLower(f.reqBody+f.resBody), strings.ToLower(a.filterBody)) {
-			continue
-		}
-		a.visible = append(a.visible, i)
 	}
 	a.sortVisible()
 	a.views.narrow(a)
 	a.activityRows = append(a.activityRows[:0], a.visible...)
+	a.activityCounts.valid = false
 	if a.activity.active() {
-		from, to := a.activity.bounds()
-		a.visible = slices.DeleteFunc(a.visible, func(i int) bool {
-			at := a.flows[i].at
-			return at.Before(from) || !at.Before(to)
-		})
+		a.visible = slices.DeleteFunc(a.visible, a.outsideActivity)
 	}
 	a.views.rows = len(a.visible)
 	a.restoreSelection()
+}
+
+// showArrivals adds the rows among rows, new flows, that pass the filters,
+// merged into the table in its order, without walking the rows it has.
+func (a *app) showArrivals(rows []int) {
+	if view := a.views.activeView(); view != nil && strings.TrimSpace(view.body) != "" {
+		// A body condition reads spilled bodies off the UI thread: the
+		// full pass starts those reads and hides rows until they answer.
+		a.applyFilter()
+		return
+	}
+	q := strings.ToLower(queryText(a.query))
+	fresh := rows[:0]
+	for _, at := range rows {
+		if a.shows(&a.flows[at], q) {
+			fresh = append(fresh, at)
+		}
+	}
+	if len(fresh) == 0 {
+		return
+	}
+	slices.SortFunc(fresh, a.rowOrder())
+	a.activityRows = a.mergeRows(a.activityRows, fresh)
+	a.activityCounts.valid = false
+	if a.activity.active() {
+		fresh = slices.DeleteFunc(fresh, a.outsideActivity)
+	}
+	a.visible = a.mergeRows(a.visible, fresh)
+	a.views.rows = len(a.visible)
+	a.restoreSelection()
+}
+
+// mergeRows merges fresh, in table order, into rows, in table order.
+func (a *app) mergeRows(rows, fresh []int) []int {
+	order := a.rowOrder()
+	if len(fresh) == 0 || len(rows) == 0 || order(rows[len(rows)-1], fresh[0]) < 0 {
+		return append(rows, fresh...) // new traffic usually sorts last
+	}
+	merged := make([]int, 0, len(rows)+len(fresh))
+	i, j := 0, 0
+	for i < len(rows) && j < len(fresh) {
+		if order(fresh[j], rows[i]) < 0 {
+			merged = append(merged, fresh[j])
+			j++
+		} else {
+			merged = append(merged, rows[i])
+			i++
+		}
+	}
+	return append(append(merged, rows[i:]...), fresh[j:]...)
+}
+
+// outsideActivity reports whether the flow at a row is outside the time the
+// activity strip selects.
+func (a *app) outsideActivity(at int) bool {
+	from, to := a.activity.bounds()
+	t := a.flows[at].at
+	return t.Before(from) || !t.Before(to)
+}
+
+// shows reports whether a flow passes the sidebar choice, the search text q
+// (lower case) and the capture conditions, all but a view's body condition.
+func (a *app) shows(f *flow, q string) bool {
+	switch {
+	case !a.matchesChip(*f),
+		a.filter == "pinned" && !f.pinned,
+		a.filter == "errors" && !f.failed(),
+		a.filter == "slow" && f.millis < slowMillis:
+		return false
+	}
+	if host, ok := strings.CutPrefix(a.filter, "host:"); ok && f.host != host {
+		return false
+	}
+	if client, ok := strings.CutPrefix(a.filter, "client:"); ok && f.process != client {
+		return false
+	}
+	return (q == "" || strings.Contains(strings.ToLower(f.host+f.path), q)) &&
+		(a.filterStatus == "" || statusMatches(a.filterStatus, f.status)) &&
+		(a.filterHeader == "" || headerMatches(*f, a.filterHeader)) &&
+		a.filterTriage.matches(*f) &&
+		(a.filterBody == "" || strings.Contains(strings.ToLower(f.reqBody+f.resBody), strings.ToLower(a.filterBody)))
 }
 
 // restoreSelection maps the stable choice to the table's current row index.
@@ -1525,8 +1545,7 @@ func (a *app) clearCaptured() {
 	for _, f := range a.flows {
 		a.totalBytes += int64(f.bytes)
 	}
-	a.countDomains()
-	a.countClients()
+	a.recount()
 	a.applyFilter()
 	a.done("Unpinned requests cleared")
 }
@@ -1558,13 +1577,13 @@ func (a *app) sidebar(c *ui.Context) {
 					uikit.Meta(c, fmt.Sprint(len(a.flows))).FontFeatures("tnum")
 				})
 				uikit.SidebarItem(c, "errors", errorIcon, "Errors", a.sidebarChoice == "errors", !a.windowBehind).Children(func() {
-					uikit.Meta(c, fmt.Sprint(a.triage.errors)).FontFeatures("tnum")
+					uikit.Meta(c, fmt.Sprint(a.tally.errors)).FontFeatures("tnum")
 				})
 				uikit.SidebarItem(c, "slow", captureIcon, "Slow", a.sidebarChoice == "slow", !a.windowBehind).Children(func() {
-					uikit.Meta(c, fmt.Sprint(a.triage.slow)).FontFeatures("tnum")
+					uikit.Meta(c, fmt.Sprint(a.tally.slow)).FontFeatures("tnum")
 				})
 				uikit.SidebarItem(c, "pinned", pinIcon, "Pinned", a.sidebarChoice == "pinned", !a.windowBehind).Children(func() {
-					uikit.Meta(c, fmt.Sprint(a.triage.pinned)).FontFeatures("tnum")
+					uikit.Meta(c, fmt.Sprint(a.tally.pinned)).FontFeatures("tnum")
 				})
 				uikit.SidebarItem(c, "diagnostics", diagnosticsIcon, "Diagnostics", a.sidebarChoice == "diagnostics", !a.windowBehind)
 			}))
@@ -2046,8 +2065,10 @@ func (a *app) markModal(c *ui.Context, t *ui.Theme) {
 func (a *app) saveMark() {
 	for i := range a.flows {
 		if a.flows[i].id == a.markID {
+			a.count(&a.flows[i], -1) // the note counts toward memory
 			a.flows[i].color = a.markColor
 			a.flows[i].note = strings.TrimSpace(a.markNote)
+			a.count(&a.flows[i], 1)
 			break
 		}
 	}
@@ -2915,9 +2936,14 @@ func (a *app) sortVisible() {
 	if len(a.visible) < 2 {
 		return
 	}
+	slices.SortFunc(a.visible, a.rowOrder())
+}
+
+// rowOrder is the table's order: pinned flows first, whatever the column
+// says, then the column, then arrival.
+func (a *app) rowOrder() func(x, y int) int {
 	less := a.sortOrder()
-	// Pinned flows stay at the top, whatever the column says.
-	slices.SortStableFunc(a.visible, func(x, y int) int {
+	return func(x, y int) int {
 		px, py := a.flows[x].pinned, a.flows[y].pinned
 		if px != py {
 			if px {
@@ -2925,8 +2951,8 @@ func (a *app) sortVisible() {
 			}
 			return 1
 		}
-		return less(x, y)
-	})
+		return cmp.Or(less(x, y), cmp.Compare(x, y))
+	}
 }
 
 // sortOrder compares two flows by the chosen column.
@@ -3290,13 +3316,14 @@ func (a *app) togglePin(f flow) {
 		if a.flows[i].id != f.id {
 			continue
 		}
+		a.count(&a.flows[i], -1)
 		a.flows[i].pinned = !a.flows[i].pinned
+		a.count(&a.flows[i], 1)
 		if a.flows[i].pinned {
 			a.done("Pinned " + f.method + " " + f.path)
 		} else {
 			a.done("Unpinned " + f.method + " " + f.path)
 		}
-		a.countDomains()
 		a.applyFilter()
 		return
 	}

@@ -320,8 +320,7 @@ func workspaceApp() *app {
 		},
 		requests: []savedRequest{{Name: "List projects", Collection: "Workspace/API", Method: "GET", URL: "https://api.example.com/projects", Pre: `pm.request.headers.upsert("Accept", "application/json")`}},
 	}
-	a.countDomains()
-	a.countClients()
+	a.recount()
 	a.applyFilter()
 	return a
 }
@@ -3464,7 +3463,7 @@ func TestSetupGuideAdvancesFromWhatTheAppObserves(t *testing.T) {
 	}
 	// Any captured traffic shows a client reaches the proxy, however set up.
 	a.flows = []flow{{id: 1, live: true, kind: "connect", method: "CONNECT", host: "api.example.com:443", process: "Browser"}}
-	a.countDomains()
+	a.recount()
 	a.applyFilter()
 	tt.Frame()
 	if !tt.HasText("Install and trust") || tt.HasText("Turn on system proxy") || !tt.HasText("1 request captured so far") {
@@ -4387,8 +4386,7 @@ func TestCaptureFacetsIntersectAndResetOnlyTheActiveView(t *testing.T) {
 		flow{id: 3, method: "GET", host: "other.test", path: "/other", process: "Browser", status: 401},
 		flow{id: 4, method: "GET", host: "api.example.com", path: "/cli", process: "CLI", status: 401},
 	)
-	a.countDomains()
-	a.countClients()
+	a.recount()
 	a.applyFilter()
 	tt := ui.NewTester(a.view, 1280, 800)
 	click := func(label string) {
