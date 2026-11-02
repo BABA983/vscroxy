@@ -154,12 +154,14 @@ type action struct {
 - **拆分测试文件**：`ui_test.go` 按功能拆开，和被测的功能文件一一对应。
 - **时间预算**：全量测试保持在 1 分钟左右；变慢时优先找出慢的测试，而不是减少覆盖。
 
+已完成 CI（`.github/workflows/ci.yml`）：每次 push 和 PR 在 Ubuntu 24.04 上跑 build、vet、`mygo vet`、gofmt 检查和 `go test ./...`，基准测试只写进运行摘要、不阻塞；macOS 和 Windows 跑 build 和 vet。截图基线还没接入。
+
 ### 3.11 性能
 
 - 抓包数量和内存的上限、自动清理（路线图 M1），落盘文件有总量上限。
 - 基准测试：10 万条流量时列表滚动、筛选、搜索的耗时；作为回归指标放进 CI（只报告，不阻塞）。
 
-已完成：条数和内存上限（Settings → Capture → Memory）之外加了磁盘上限（1–20 GB，默认 5 GB），按溢出文件的大小计算，超出同样先删最旧的未 Pin 请求连同文件。基准测试在 `internal/app/perf_test.go`（`go test -run '^$' -bench . ./internal/app`）：10 万条时筛选、搜索、滚动一帧、一帧到达 50 条新请求。第一次测量发现侧栏每次构建都遍历全部流量（每个 App 一遍找可执行文件，Errors／Slow／Pinned 各一遍），滚动一帧 176 ms；改为在流量变化时计数后降到 33 ms。新流量到达也改成增量：`internal/app/tally.go` 的 tally 按到达和删除的流量更新主机／App 计数、Errors／Slow／Pinned、内存和磁盘估算、重放关系；新行按表格顺序合并进可见行，裁剪只移动切片起点；活动条的计数缓存到行、终点或选区变化。到达一帧从 120 ms 降到 18 ms，滚动一帧 8 ms。直接替换 `a.flows` 的代码由完整筛选时的长度检查自动重算。还没有 CI，等 3.10 加上后再接入报告。
+已完成：条数和内存上限（Settings → Capture → Memory）之外加了磁盘上限（1–20 GB，默认 5 GB），按溢出文件的大小计算，超出同样先删最旧的未 Pin 请求连同文件。基准测试在 `internal/app/perf_test.go`（`go test -run '^$' -bench . ./internal/app`）：10 万条时筛选、搜索、滚动一帧、一帧到达 50 条新请求。第一次测量发现侧栏每次构建都遍历全部流量（每个 App 一遍找可执行文件，Errors／Slow／Pinned 各一遍），滚动一帧 176 ms；改为在流量变化时计数后降到 33 ms。新流量到达也改成增量：`internal/app/tally.go` 的 tally 按到达和删除的流量更新主机／App 计数、Errors／Slow／Pinned、内存和磁盘估算、重放关系；新行按表格顺序合并进可见行，裁剪只移动切片起点；活动条的计数缓存到行、终点或选区变化。到达一帧从 120 ms 降到 18 ms，滚动一帧 8 ms。直接替换 `a.flows` 的代码由完整筛选时的长度检查自动重算。CI 每次运行都把基准结果写进运行摘要（不阻塞）。
 
 ### 3.12 发布
 

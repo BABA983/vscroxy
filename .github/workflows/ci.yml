@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  linux:
+    name: Linux · build, vet, test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      # The UI tests lay out and draw text through GTK's Pango.
+      - name: Install GTK
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libgtk-3-0t64 libgl1
+      - run: go build ./...
+      - run: go vet ./...
+      - run: go tool mygo vet .
+      - name: Check formatting
+        run: test -z "$(gofmt -l cmd internal)" || { gofmt -l cmd internal; exit 1; }
+      - run: go test ./...
+      # Reported, never blocking: see docs/architecture.md 3.11.
+      - name: Benchmarks (100k requests)
+        continue-on-error: true
+        run: |
+          go test -run '^$' -bench . -benchtime 10x ./internal/app | tee bench.txt
+          { echo '### Benchmarks (100k requests)'; echo '```'; grep '^Benchmark' bench.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+
+  compile:
+    name: ${{ matrix.os }} · build, vet
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - run: go build ./...
+      - run: go vet ./...
