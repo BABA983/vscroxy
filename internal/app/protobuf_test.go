@@ -305,10 +305,11 @@ func TestProtobufInspectorLoadsSchemaAndSelectsMessages(t *testing.T) {
 			}
 			tt.Scroll(r.X+4, r.Y+r.H/2, 0, -320)
 			if label == "Message 2" || label == "Copy decoded" {
-				// Stop when the action is visible: scrolling straight to the
-				// bottom can take a decoded message's header past the viewport.
+				// Stop when the action is wholly inside the reader: scrolling
+				// straight to the bottom can take a decoded message's header
+				// past the viewport.
 				for range 16 {
-					if target, ok := tt.Find(label); ok && target.H >= 18 {
+					if target, ok := tt.Find(label); ok && target.H > 0 && target.Y >= r.Y && target.Y+target.H <= r.Y+r.H {
 						break
 					}
 					tt.Scroll(r.X+4, r.Y+r.H/2, 0, 24)

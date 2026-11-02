@@ -569,7 +569,8 @@ func TabStrip(c *ui.Context, tabs func()) ui.Element {
 	return strip.Children(func() {
 		ui.ScrollHorizontal(c).TrackScroll(scroll).Fill().Children(tabs)
 		fade := func(from bool) ui.Element {
-			edge := ui.Box(c).Absolute().Top(0).Bottom(0).Width(t.Space(6))
+			// The fade only paints: a tab half under it still takes its click.
+			edge := ui.Box(c).Absolute().Top(0).Bottom(0).Width(t.Space(6)).PassThrough()
 			if from {
 				return edge.Left(0).Gradient(t.Background, t.Background.Alpha(0), 90)
 			}

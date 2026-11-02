@@ -426,7 +426,7 @@ func TestUISnapshots(t *testing.T) {
 			a.openDiagnostics(nil, diagnoseDevice)
 		}, want: "Device access is off"},
 		{name: "dialog-clear", setup: func(a *app) { a.clearOpen = true }, want: "Clear captured requests?"},
-		{name: "dialog-clear-records", setup: func(a *app) { snapshotRuns(a); a.experiments.clearing = true }, want: "Clear all experiment records?"},
+		{name: "dialog-clear-records", setup: func(a *app) { snapshotRuns(a); a.experiments.clearing = true }, want: "Clear History?"},
 		{name: "dialog-mark", setup: func(a *app) { a.openMark(a.flows[0]); a.markNote = "Investigate cache response" }, want: "Note"},
 		{name: "dialog-mark-keyboard", setup: func(a *app) { a.openMark(a.flows[0]) }, act: func(t *testing.T, tt *ui.Tester) {
 			tt.Key(0, ui.KeyTab)
