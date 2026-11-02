@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"golang.org/x/net/dns/dnsmessage"
+
+	"github.com/baba983/vscroxy/internal/hosts"
 )
 
 // answer builds the response to a query: the rule's address for the names
@@ -31,9 +33,9 @@ func (s *Server) answer(query []byte) []byte {
 		if ip, ok := s.pendingIP(name); ok {
 			s.last.Store(Hit{Name: name, IP: ip, At: time.Now()})
 			ips = []net.IP{ip}
-		} else if ip, ok := Match(s.Rules(), name); ok {
-			s.last.Store(Hit{Name: name, IP: ip, At: time.Now()})
-			ips = []net.IP{ip}
+		} else if r, ok := hosts.Match(s.Rules(), name); ok {
+			s.last.Store(Hit{Name: name, IP: r.IP, At: time.Now()})
+			ips = []net.IP{r.IP}
 		} else if resolved, err := s.lookup(name); err == nil {
 			ips = resolved
 		}

@@ -366,6 +366,9 @@ type sessionFlow struct {
 	ConnectionLog   string            `json:"connectionLog,omitempty"`
 	ConnectionError string            `json:"connectionError,omitempty"`
 	ConnectionStage string            `json:"connectionStage,omitempty"`
+	Remote          string            `json:"remote,omitempty"`
+	HostsMapped     string            `json:"hostsMapped,omitempty"`
+	HostProfile     string            `json:"hostProfile,omitempty"`
 	At              time.Time         `json:"at"`
 	Kind            string            `json:"kind,omitempty"`
 	StreamEnd       capture.StreamEnd `json:"streamEnd,omitzero"`
@@ -423,6 +426,7 @@ func sessionFrom(flows []flow, frames map[int][]frame) sessionFile {
 			ReqTrailer: f.reqTrailer.Clone(), ResTrailer: f.resTrailer.Clone(),
 			ReqProto: f.conn.proto, ResProto: f.resProto,
 			ConnectionLog: f.conn.log, ConnectionError: f.conn.error, ConnectionStage: f.conn.errorStage,
+			Remote: f.conn.remote, HostsMapped: f.dns, HostProfile: f.hostProfile,
 			At: f.at, Kind: f.kind, Color: f.color, Note: f.note,
 			StreamEnd: f.streamEnd,
 		}

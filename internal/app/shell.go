@@ -29,9 +29,13 @@ func (a *app) shell(c *ui.Context, t *ui.Theme) {
 		})
 		ui.Row(c).Justify(ui.Center).MinWidth(0).Children(func() { a.proxyIndicator(c, t) })
 		// Flex counts padding outside a zero basis: keep it inside, so the
-		// two sides split the room evenly.
-		ui.Row(c).Grow(1).Basis(0).Justify(ui.End).Children(func() {
-			ui.Row(c).PaddingEnd(max(bar.Right, t.Space(3))).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+		// two sides split the room evenly. Host profiles sit right beside
+		// the pill, which stays centered.
+		ui.Row(c).Grow(1).Basis(0).AlignItems(ui.Center).Children(func() {
+			// It gives way first: its label shortens before the pill moves.
+			ui.Row(c).PaddingStart(t.Space(2)).MinWidth(0).Shrink(1).Children(func() { a.hostsSwitch(c, t) })
+			ui.Spacer(c)
+			ui.Row(c).Shrink(0).PaddingEnd(max(bar.Right, t.Space(3))).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 				ui.Row(c).Gap(t.Space(0.5)).AlignItems(ui.Center).Children(func() { a.layoutToggle(c) })
 				if uikit.IconButton(c, "Commands", "Search every action · Ctrl/Cmd+K", commandIcon).Clicked() {
 					a.workbench.openPalette()
@@ -191,7 +195,8 @@ func (a *app) activeTools(c *ui.Context, t *ui.Theme) {
 	scenario := capture.ActiveScenario(a.rules)
 	throttled := a.throttle.Name != "" && a.throttle.Name != "Off"
 	noCaching := a.srv != nil && a.srv.NoCaching()
-	if !a.breakOn && !throttled && !noCaching && !a.allowOn && scenario == "" && a.upstream == "" {
+	hostsOn := len(a.profiles.set.On()) > 0
+	if !a.breakOn && !throttled && !noCaching && !a.allowOn && scenario == "" && a.upstream == "" && !hostsOn {
 		return
 	}
 	ui.ScrollHorizontal(c.Key("active-tools")).Height(uikit.HeightLarge).Background(uikit.Colors(t).Panel).Border(0, t.Border).BorderWidth(0, 0, 1, 0).Children(func() {
@@ -231,6 +236,7 @@ func (a *app) activeTools(c *ui.Context, t *ui.Theme) {
 					}
 				})
 			}
+			a.hostsChip(c)
 			if a.upstream != "" {
 				toolChip(c, "upstream", "Upstream", "Edit upstream proxy settings", upstreamIcon, func() {
 					a.upstreamAddr, a.upstreamOpen = a.upstream, true
@@ -283,7 +289,7 @@ func (a *app) moreActions(c *ui.Context) []action {
 		do("https.rules", "SSL proxying…", func() { a.sslOpen = true }).in("lists"),
 		do("capture.ignored-hosts", "Ignored hosts…", func() { a.ignoreOpen = true }).in("lists"),
 		do("capture.ignored-apps", "Ignored apps…", func() { a.ignoreAppsOpen = true }).in("lists"),
-		do("dns.open", "DNS mapping…", func() { a.dnsOpen = true }).in("lists"),
+		pick(a.hostsActions(), "hosts.manage").as("Host profiles…").in("lists"),
 	)
 	session := []action{
 		pick(global, "flow.replay").as("Replay chosen…"),

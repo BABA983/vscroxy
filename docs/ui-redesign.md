@@ -315,7 +315,7 @@ uikit 已按"主题 = 语义 token 表"实现，导入第三方主题不用返�
 | Sessions（已完成） | 侧栏 SESSIONS 组和多会话 tab；payload 只读并标记历史，Pin／颜色／备注可保存，跨会话 Diff；启动只读标题，打开时才加载，可删除 | M1 |
 | History（已完成） | 请求的 History／Examples 中间栏；状态／来源筛选，Run details… 进入基线、备注和 Diff；各入口共用 experiments.json | M1 |
 | 连接诊断（已完成） | 一个页面：上方输入目标 URL，下方按"监听 → 系统代理 → 证书 → 解密规则 → 实际流量"逐项打勾或打叉，每项一个修复按钮 | M1 |
-| Host 方案 | 标题栏下拉框：列出方案和开关，底部"管理方案…"；Tools 窗口里左侧方案列表（拖动排序、开关），右侧 hosts 编辑器（语法高亮、冲突提示） | M2 |
+| Host 方案（已完成） | 标题栏下拉框：列出方案和开关，底部"管理方案…"；Tools 窗口里左侧方案列表（拖动排序、开关），右侧 hosts 编辑器（语法高亮、冲突提示）。设计稿：[下拉框](https://ampcode.com/user-content/attachments/89b87b593e44b850fa2c15f43d2c8555826507b08af5ee1b4e5c2e2a358d5f44-file.png)、[管理界面](https://ampcode.com/user-content/attachments/29b10b4e637e7374b61763cd22d7a305ae8e17bb43be0fbd59696a3d31db3c75-file.png)。Tools 窗口先只开 Host profiles，其余分类灰显，随 M4 开放；Hosts 按钮在录制 pill 右侧，窗口太窄时 pill 让开 | M2 |
 | 整理成集合向导 | 大弹窗，顶部步骤条（范围 → 合并接口 → 变量 → 结构 → 示例 → 完成），每步左侧设置、右侧结果预览 | M3 |
 | 对应请求提示 | 请求文档头部一个小链接"对应请求：Get user"，点开或存为示例 | M3 |
 | Tools 窗口 | 独立窗口，左侧分类（规则、场景、脚本、Host 方案、模拟），中间列表（开关、名称、匹配条件），右侧详情；顶部规则测试输入框 | M4 |

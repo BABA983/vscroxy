@@ -100,6 +100,13 @@ type app struct {
 	// settingsFocused whether it is in front; both only on the main thread.
 	settingsWin     *mygo.Window
 	settingsFocused bool
+	// toolsWin is the Tools window while it is open, toolsOpen whether Tools
+	// shows (as a dialog without a main window), and toolsFocused whether
+	// its window is in front.
+	toolsWin                *mygo.Window
+	toolsOpen, toolsFocused bool
+	// toolsMenuAction is a menu command chosen while Tools was in front.
+	toolsMenuAction string
 	// launchPort and launchKeyLog are the saved settings this run started
 	// with: a different saved value waits for a restart.
 	launchPort   int
@@ -278,19 +285,18 @@ type app struct {
 	ignoreText string
 	ignoreOpen bool
 
-	// dns maps names to addresses the proxy dials instead, so a device's
-	// traffic reaches another machine as if the name pointed there.
-	dnsPath string
-	dnsText string
-	dnsOpen bool
+	// profiles are the Host profiles: hosts the proxy dials elsewhere, so a
+	// device's traffic reaches another machine as if the name pointed there.
+	profiles hostsState
 
 	// dnsRule is the dialog a flow opens to map its host: the app that sent
 	// it is known there, so nobody has to spell an app's name.
-	dnsRuleOpen  bool
-	dnsRuleHost  string
-	dnsRuleAddr  string
-	dnsRuleScope string
-	dnsRuleApps  []string
+	dnsRuleOpen    bool
+	dnsRuleHost    string
+	dnsRuleAddr    string
+	dnsRuleScope   string
+	dnsRuleApps    []string
+	dnsRuleProfile string
 
 	// keyLogPath is the file the TLS secrets go to, which Wireshark reads.
 	keyLogPath  string
@@ -450,7 +456,7 @@ func newApp() *app {
 		a.ignoreAppsPath = filepath.Join(home, ".vscroxy", "ignore-apps.txt")
 		a.allowPath = filepath.Join(home, ".vscroxy", "allow.txt")
 		a.allowAppsPath = filepath.Join(home, ".vscroxy", "allow-apps.txt")
-		a.dnsPath = filepath.Join(home, ".vscroxy", "dns.txt")
+		a.profiles.dir = filepath.Join(home, ".vscroxy", "tools", "hosts")
 		a.scriptPath = filepath.Join(home, ".vscroxy", "script.js")
 		a.envsPath = filepath.Join(home, ".vscroxy", "env.json")
 		a.vault.path = filepath.Join(home, ".vscroxy", "vault.json")
@@ -548,15 +554,8 @@ func (a *app) reloadConfig() {
 	unreadable := func(path string, err error) {
 		a.fail(path+" could not be read and is left untouched", err)
 	}
-	if a.dnsPath != "" && a.srv != nil {
-		lines, err := a.readList(a.dnsPath)
-		if err != nil {
-			unreadable(a.dnsPath, err)
-		} else if err := a.srv.SetDNS(lines); err != nil {
-			a.fail("DNS mapping", err)
-		} else {
-			a.dnsText = strings.Join(lines, "\n")
-		}
+	if a.srv != nil {
+		a.loadHosts()
 	}
 	if a.ignoreAppsPath != "" && a.srv != nil {
 		apps, err := a.readList(a.ignoreAppsPath)
@@ -957,11 +956,13 @@ func (a *app) drain() {
 			process:     f.Process,
 			processPath: f.ProcessPath,
 			dns:         f.DNSMapped,
+			hostProfile: f.HostProfile,
 			conn: conn{
 				proto:      f.Conn.Proto,
 				client:     f.Conn.Client,
 				proxy:      f.Conn.Proxy,
 				server:     f.Conn.Server,
+				remote:     f.Conn.Remote,
 				resolved:   f.Conn.Resolved,
 				lookupMs:   f.Conn.LookupMs,
 				tls:        f.Conn.TLS,
@@ -1247,11 +1248,12 @@ func (a *app) view(c *ui.Context) {
 	a.drainCertificate()
 	a.drainSystemProxy()
 	a.drainRunner()
+	a.drainHosts()
 	settings := a.settingsWin != nil
 	if settings && busy != [3]bool{a.certificate.checking, a.systemProxy.checking, a.systemProxy.applying} {
 		a.settingsWin.Invalidate()
 	}
-	if !settings || !a.settingsFocused {
+	if (!settings || !a.settingsFocused) && (a.toolsWin == nil || !a.toolsFocused) {
 		a.showNotices(c)
 	}
 	a.mu.Lock()
@@ -1336,7 +1338,7 @@ func (a *app) view(c *ui.Context) {
 	a.breakpointModal(c, t)
 	a.upstreamModal(c, t)
 	a.sslModal(c, t)
-	a.dnsModal(c, t)
+	a.toolsModal(c, t)
 	a.dnsRuleModal(c, t)
 	a.hostListModal(c, t, &a.ignoreAppsOpen, "Ignored apps",
 		"Apps whose flows stay out of the table, one name per line, as the Apps section spells them. They are still proxied.",
@@ -1820,6 +1822,7 @@ func (a *app) table(c *ui.Context) {
 		{ID: "status", Title: "Status", Width: 78, Sortable: true},
 		{ID: "method", Title: "Method", Width: 76, Sortable: true},
 		{ID: "host", Title: "Host", Width: 160, Sortable: true},
+		{ID: "remote", Title: "Remote IP", Width: 124, Sortable: true},
 		// Keep the URL identity and sorting so saved column layouts survive.
 		{ID: "url", Title: "Path", MinWidth: 160, Sortable: true},
 		{ID: "client", Title: "Client", Width: 132, Sortable: true},
@@ -1839,13 +1842,14 @@ func (a *app) table(c *ui.Context) {
 	// the columns that only repeat the inspector's numbers give way.
 	if available < 900 {
 		cols[3].Width = 132
-		cols[5].Width = 100
+		cols[6].Width = 100
 		cols = slices.DeleteFunc(cols, func(col ui.TableColumn) bool { return col.ID == "size" || col.ID == "captured" })
 	}
 	if available < 700 {
-		cols = slices.DeleteFunc(cols, func(col ui.TableColumn) bool { return col.ID == "client" })
+		cols = slices.DeleteFunc(cols, func(col ui.TableColumn) bool { return col.ID == "client" || col.ID == "remote" })
 	}
 	cols = slices.DeleteFunc(cols, func(col ui.TableColumn) bool { return slices.Contains(a.hiddenColumns, col.ID) })
+	remoteShown := slices.ContainsFunc(cols, func(col ui.TableColumn) bool { return col.ID == "remote" })
 	for _, cc := range a.customColumns {
 		cols = append(cols, ui.TableColumn{ID: cc.id(), Title: cc.title(), Width: 150, Sortable: true})
 	}
@@ -1895,6 +1899,8 @@ func (a *app) table(c *ui.Context) {
 			uikit.MethodLabel(c, f.method).FontSize(uikit.TextData).Height(15).TextColor(uikit.MethodColor(f.method, t)).Tooltip(f.method).PopoverMenu(a.rowMenu(c, f))
 		case "host":
 			quiet(f.host).Tooltip(f.url).PopoverMenu(a.rowMenu(c, f))
+		case "remote":
+			a.remoteCell(c, t, f, quiet)
 		case "url":
 			if a.edited(f.id) {
 				ui.Box(c).Size(6, 6).Radius(3).Background(uikit.Colors(t).Accent).MarginEnd(t.Space(1.5)).
@@ -1916,12 +1922,14 @@ func (a *app) table(c *ui.Context) {
 				if f.note != "" {
 					uikit.Glyph(c, noteIcon).MarginEnd(t.Space(1)).Tooltip(f.note)
 				}
-				if f.dns != "" {
-					ui.Box(c).MinWidth(uikit.HeightControl).Height(15).Radius(uikit.RadiusControl).Background(t.Warning.Alpha(0.12)).Center().MarginEnd(t.Space(1)).
-						Tooltip("DNS mapping " + f.dns).
-						Children(func() {
-							ui.Text(c, "DNS").FontSize(uikit.TextMeta).FontWeight(600).TextColor(t.Warning)
-						})
+				if f.dns != "" && !remoteShown {
+					// Without the Remote IP column, the path says a Host
+					// profile sent the request elsewhere.
+					accent := uikit.Colors(t).Accent
+					ui.Box(c).Height(15).Padding(0, t.Space(1)).Radius(uikit.RadiusControl).Background(accent.Alpha(0.12)).Center().MarginEnd(t.Space(1)).
+						Label("Mapped by " + hostProfileLabel(f.hostProfile)).Tooltip(mappedBy(f)).Children(func() {
+						ui.Text(c, "Hosts").FontSize(uikit.TextMeta).FontWeight(600).TextColor(accent)
+					})
 				}
 				text(cmp.Or(f.path, "/")).Label(f.host + f.path).TextColor(rest).Tooltip(f.url).PopoverMenu(a.rowMenu(c, f))
 			})
@@ -1975,6 +1983,32 @@ func (a *app) table(c *ui.Context) {
 }
 
 var noteIcon = lucide.MessageSquare()
+
+// remoteCell is the address a request reached; one a Host profile mapped
+// is in the accent color, and says which profile and line did it.
+func (a *app) remoteCell(c *ui.Context, t *ui.Theme, f flow, quiet func(string) ui.Element) {
+	if f.dns == "" {
+		quiet(cmp.Or(f.conn.remote, "—")).PopoverMenu(a.rowMenu(c, f))
+		return
+	}
+	accent := uikit.Colors(t).Accent
+	ip := f.conn.remote
+	if _, mapped, ok := strings.Cut(f.dns, " → "); ok && ip == "" {
+		ip = mapped
+	}
+	ui.Row(c).Gap(t.Space(1)).AlignItems(ui.Center).Tooltip(mappedBy(f)).Label("Mapped by " + hostProfileLabel(f.hostProfile)).Children(func() {
+		quiet(ip).TextColor(accent).PopoverMenu(a.rowMenu(c, f))
+		ui.Box(c).Size(5, 5).Radius(uikit.RadiusControl).Background(accent)
+	})
+}
+
+// mappedBy says which Host profile sent a request elsewhere.
+func mappedBy(f flow) string {
+	if f.hostProfile == "" {
+		return f.dns
+	}
+	return f.dns + " · " + hostProfileLabel(f.hostProfile)
+}
 
 // slowMillis is where a request's duration turns vermilion in the table.
 const slowMillis = 1000
@@ -2114,6 +2148,10 @@ func (a *app) connPanel(c *ui.Context, t *ui.Theme, f flow) {
 		field(c, t, "Client", cn.client)
 		field(c, t, "Proxy", cn.proxy)
 		field(c, t, "Upstream", cn.server)
+		field(c, t, "Remote IP", cn.remote)
+		if f.dns != "" {
+			field(c, t, "Host profile", mappedBy(f))
+		}
 		if cn.error != "" {
 			field(c, t, "Failed at", cn.errorStage+": "+cn.error)
 		}
@@ -2974,6 +3012,8 @@ func (a *app) sortOrder() func(x, y int) int {
 			c = cmp.Compare(fx.status, fy.status)
 		case "host":
 			c = cmp.Compare(fx.host, fy.host)
+		case "remote":
+			c = cmp.Compare(fx.conn.remote, fy.conn.remote)
 		case "url":
 			c = cmp.Compare(fx.url, fy.url)
 		case "client":
@@ -3364,30 +3404,6 @@ func (a *app) exportChosen() {
 	a.reviewHAR(flows, "vscroxy-chosen.har")
 }
 
-// dnsModal edits the names the proxy resolves itself.
-func (a *app) dnsModal(c *ui.Context, t *ui.Theme) {
-	if !a.dnsOpen {
-		return
-	}
-	uikit.Modal(c, &a.dnsOpen, func() {
-		uikit.DialogColumn(c, uikit.DialogMedium).Children(func() {
-			uikit.DialogTitle(c, "DNS mapping")
-			ui.Scroll(c).MinHeight(0).Gap(t.Space(3)).Children(func() {
-				uikit.Meta(c, "Names the proxy resolves itself, one \"name = address\" a line. The request keeps its name and Host header, so a device pointed at this proxy reaches the machine you map: example.com = 192.168.1.50. Add \"@ Chrome, com.example.app\" to map the name for those apps only, or right-click a request and pick \"Map this host…\" to choose the app there. A name matches its subdomains; *.example.com matches one level. Flows that hit a mapping carry a DNS tag in the table.")
-				ui.TextArea(c, &a.dnsText).Height(140).Label("DNS mappings").FontSize(uikit.TextBody).Radius(uikit.RadiusControl)
-			})
-			uikit.DialogFooter(c).Children(func() {
-				if uikit.SecondaryButton(c, "Cancel").Clicked() {
-					a.dnsOpen = false
-				}
-				if uikit.PrimaryButton(c, "Save").Clicked() {
-					a.saveDNS()
-				}
-			})
-		})
-	})
-}
-
 // dnsRuleModal maps one host, opened from a flow: the host and the app that
 // sent it come from the row, so the scope is a picker over the apps seen
 // rather than a name to spell.
@@ -3404,6 +3420,8 @@ func (a *app) dnsRuleModal(c *ui.Context, t *ui.Theme) {
 				uikit.Input(c, &a.dnsRuleAddr).Label("Address")
 				uikit.Meta(c, "Applies to")
 				uikit.Select(c, &a.dnsRuleScope, a.dnsRuleApps)
+				uikit.Meta(c, "Host profile")
+				uikit.Select(c, &a.dnsRuleProfile, a.mappableProfiles())
 			})
 			uikit.DialogFooter(c).Children(func() {
 				if uikit.SecondaryButton(c, "Cancel").Clicked() {
@@ -3435,44 +3453,48 @@ func (a *app) openDNSRule(host, app string) {
 		}
 		a.dnsRuleScope = app
 	}
+	a.dnsRuleProfile = "Default"
+	if on := a.profiles.set.On(); len(on) > 0 && slices.Contains(a.mappableProfiles(), on[0]) {
+		a.dnsRuleProfile = on[0]
+	} else if names := a.mappableProfiles(); len(names) > 0 {
+		a.dnsRuleProfile = names[0]
+	}
 	a.dnsRuleOpen = true
 }
 
-// saveDNSRule appends the dialog's rule to the mappings and hands them to the
-// proxy; a rule for the same host and scope replaces the one before it.
+// mappableProfiles are the profiles a mapping can be added to: the local
+// ones, or Default, which adding creates.
+func (a *app) mappableProfiles() []string {
+	var names []string
+	for _, p := range a.profiles.set.Profiles {
+		if p.URL == "" {
+			names = append(names, p.Name)
+		}
+	}
+	if len(names) == 0 {
+		names = []string{"Default"}
+	}
+	return names
+}
+
+// saveDNSRule adds the dialog's mapping to the end of the chosen profile
+// and turns it on.
 func (a *app) saveDNSRule() {
 	host := strings.TrimSpace(a.dnsRuleHost)
 	addr := strings.TrimSpace(a.dnsRuleAddr)
-	if host == "" || addr == "" {
-		a.warn("DNS mapping: a host and an address")
+	if host == "" || net.ParseIP(addr) == nil {
+		a.warn("Map a host: enter a host and an IP address")
 		return
 	}
-	line := host + " = " + addr
+	line := addr + " " + host
 	if a.dnsRuleScope != "" && a.dnsRuleScope != "Any app" {
 		line += " @ " + a.dnsRuleScope
 	}
-	var lines []string
-	for _, old := range splitHosts(a.dnsText) {
-		if old != line {
-			lines = append(lines, old)
-		}
-	}
-	lines = append(lines, line)
-	a.dnsText = strings.Join(lines, "\n")
-	if a.srv != nil {
-		if err := a.srv.SetDNS(lines); err != nil {
-			a.fail("DNS mapping", err)
-			return
-		}
-	}
-	if a.dnsPath != "" {
-		if err := a.writeList(a.dnsPath, lines); err != nil {
-			a.fail("DNS mapping", err)
-			return
-		}
+	if !a.mapHostLine(a.dnsRuleProfile, line) {
+		return
 	}
 	a.dnsRuleOpen = false
-	a.inform("DNS mapping: " + line)
+	a.inform(fmt.Sprintf("Mapped %s to %s in %s; applies to new connections", host, addr, a.dnsRuleProfile))
 }
 
 // hostOnly drops the port from a host the table shows, for a rule's name.
@@ -3481,25 +3503,6 @@ func hostOnly(host string) string {
 		return name
 	}
 	return host
-}
-
-// saveDNS keeps the mappings and hands them to the proxy.
-func (a *app) saveDNS() {
-	lines := splitHosts(a.dnsText)
-	if a.srv != nil {
-		if err := a.srv.SetDNS(lines); err != nil {
-			a.fail("DNS mapping", err)
-			return
-		}
-	}
-	if a.dnsPath != "" {
-		if err := a.writeList(a.dnsPath, lines); err != nil {
-			a.fail("DNS mapping", err)
-			return
-		}
-	}
-	a.dnsOpen = false
-	a.inform(fmt.Sprintf("DNS mapping: %d names", len(lines)))
 }
 
 // sidebarVibrancy is the sidebar's material: macOS's, and none elsewhere,

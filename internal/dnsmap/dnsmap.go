@@ -6,7 +6,6 @@ package dnsmap
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"net"
 	"slices"
@@ -15,75 +14,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	match "github.com/baba983/vscroxy/internal/rules"
+	"github.com/baba983/vscroxy/internal/hosts"
 )
-
-// Rule maps a name to an address. The name is a host pattern and Apps app
-// patterns, as rules.Host and rules.App read them; no apps means every app.
-type Rule struct {
-	Name string
-	IP   net.IP
-	Apps []string
-}
-
-// Parse reads "name = address" lines with an optional "@ app1, app2" limiting
-// the rule to those apps; a line starting with # is a comment.
-func Parse(lines []string) ([]Rule, error) {
-	var rules []Rule
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
-		if line == "" || strings.HasPrefix(line, "#") {
-			continue
-		}
-		spec, apps, _ := strings.Cut(line, "@")
-		name, address, ok := strings.Cut(spec, "=")
-		if !ok {
-			return nil, fmt.Errorf("%q: want \"name = address\"", line)
-		}
-		name = strings.ToLower(strings.TrimSpace(name))
-		ip := net.ParseIP(strings.TrimSpace(address))
-		if name == "" {
-			return nil, fmt.Errorf("%q: no name", line)
-		}
-		if ip == nil {
-			return nil, fmt.Errorf("%q: %q is not an address", line, strings.TrimSpace(address))
-		}
-		rule := Rule{Name: name, IP: ip}
-		for _, app := range strings.Split(apps, ",") {
-			if app = strings.TrimSpace(app); app != "" {
-				rule.Apps = append(rule.Apps, app)
-			}
-		}
-		rules = append(rules, rule)
-	}
-	return rules, nil
-}
-
-// Lookup returns the rule that maps a name for an app, the last rule winning.
-// A rule without apps applies to every app, so a name-scoped rule written
-// after an app-scoped one overrides it for everyone.
-func Lookup(rules []Rule, name, app string) (Rule, bool) {
-	for i := len(rules) - 1; i >= 0; i-- {
-		rule := rules[i]
-		if (match.Matcher{Hosts: []string{rule.Name}, Apps: rule.Apps}).Match(match.Request{Host: name, App: app}) {
-			return rule, true
-		}
-	}
-	return Rule{}, false
-}
-
-// Match returns the address a name maps to for every app, the last rule for
-// it winning: the DNS server answers these, while app-scoped rules apply to
-// the flows their app sends.
-func Match(rules []Rule, name string) (net.IP, bool) {
-	for i := len(rules) - 1; i >= 0; i-- {
-		rule := rules[i]
-		if len(rule.Apps) == 0 && match.Host(name, []string{rule.Name}) {
-			return rule.IP, true
-		}
-	}
-	return nil, false
-}
 
 // Hit is a name the server answered from the rules.
 type Hit struct {
@@ -108,7 +40,7 @@ type Server struct {
 	udp      *net.UDPConn
 	tcp      net.Listener
 	upstream *net.Resolver
-	rules    atomic.Value // []Rule
+	rules    atomic.Value // []hosts.Rule
 	last     atomic.Value // Hit
 	done     chan struct{}
 	stopOnce sync.Once
@@ -141,7 +73,7 @@ func Start(upstream *net.Resolver) (*Server, error) {
 		return nil, err
 	}
 	s := &Server{udp: udp, upstream: upstream, done: make(chan struct{}), pending: make(map[string]pending), lookups: make(map[string]Resolution)}
-	s.rules.Store([]Rule(nil))
+	s.rules.Store([]hosts.Rule(nil))
 	if tcp, err := net.Listen("tcp", udp.LocalAddr().String()); err == nil {
 		s.tcp = tcp
 		go s.serveTCP()
@@ -154,11 +86,11 @@ func Start(upstream *net.Resolver) (*Server, error) {
 func (s *Server) Addr() string { return s.udp.LocalAddr().String() }
 
 // SetRules replaces the names the server answers itself.
-func (s *Server) SetRules(rules []Rule) { s.rules.Store(rules) }
+func (s *Server) SetRules(rules []hosts.Rule) { s.rules.Store(rules) }
 
 // Rules lists the names the server answers.
-func (s *Server) Rules() []Rule {
-	rules, _ := s.rules.Load().([]Rule)
+func (s *Server) Rules() []hosts.Rule {
+	rules, _ := s.rules.Load().([]hosts.Rule)
 	return rules
 }
 

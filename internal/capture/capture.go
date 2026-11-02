@@ -33,6 +33,7 @@ import (
 	"github.com/lqqyt2423/go-mitmproxy/proxy"
 
 	"github.com/baba983/vscroxy/internal/dnsmap"
+	"github.com/baba983/vscroxy/internal/hosts"
 	"github.com/baba983/vscroxy/internal/procinfo"
 	"github.com/baba983/vscroxy/internal/rules"
 )
@@ -139,9 +140,11 @@ type Flow struct {
 	Process     string
 	ProcessPath string
 
-	// DNSMapped says what a DNS mapping did to the dial, as
-	// "name → address"; empty when none did.
-	DNSMapped string
+	// DNSMapped says what a Host profile did to the dial, as
+	// "name → address", and HostProfile which profile and line did it, as
+	// "Staging:2"; both are empty when none did.
+	DNSMapped   string
+	HostProfile string
 
 	// Conn is what the exchange ran over: the addresses at both ends, the
 	// HTTP version, the addresses the name resolved to, and the TLS the
@@ -503,35 +506,42 @@ func sslHostname(host string) string {
 	return strings.TrimSuffix(host, ".")
 }
 
-// SetDNS sets the names the proxy dials elsewhere, as "name = address" lines
-// with an optional "@ app1, app2" limiting a rule to those apps: the request
-// keeps its name, URL and Host header, and the proxy connects to the address,
-// so a device's traffic reaches another machine as if the name pointed there.
-func (s *Server) SetDNS(lines []string) error {
-	rules, err := dnsmap.Parse(lines)
-	if err != nil {
-		return err
-	}
+// SetHosts sets the hosts the proxy dials elsewhere, as Host profiles map
+// them, highest priority first: the request keeps its name, URL and Host
+// header, and the proxy connects to the address, so a device's traffic
+// reaches another machine as if the name pointed there. Open connections keep
+// the address they dialled; DropConnections makes clients dial again.
+func (s *Server) SetHosts(rules []hosts.Rule) error {
 	if s.dns == nil {
 		return errors.New("the DNS server did not start")
 	}
-	s.dns.SetRules(rules)
+	s.dns.SetRules(slices.Clone(rules))
 	return nil
 }
 
-// DNSRules lists the mappings the proxy dials.
-func (s *Server) DNSRules() []dnsmap.Rule {
-	if s.dns == nil {
-		return nil
+// DropConnections closes every client connection, so the next requests dial
+// again and pick up changed Host profiles. It returns how many it closed.
+func (s *Server) DropConnections() int {
+	s.mu.Lock()
+	open := make([]*proxy.ClientConn, 0, len(s.clients))
+	for _, id := range s.clients {
+		open = append(open, id.client)
 	}
-	return s.dns.Rules()
+	s.mu.Unlock()
+	for _, client := range open {
+		_ = client.Conn.Close()
+	}
+	return len(open)
 }
 
-// DNSHit is a flow whose target the DNS mappings changed.
+// DNSHit is a flow whose target a Host profile changed: the host, the
+// address, and the profile and line that mapped it.
 type DNSHit struct {
-	Name string
-	IP   net.IP
-	At   time.Time
+	Name    string
+	IP      net.IP
+	Profile string
+	Line    int
+	At      time.Time
 }
 
 // LastDNSMatch is the last flow a mapping changed, for the UI to show.
@@ -551,11 +561,11 @@ func (s *Server) noteDNS(f *proxy.Flow) {
 	if host == "" {
 		return
 	}
-	rule, ok := dnsmap.Lookup(s.dns.Rules(), host, s.clientProcess(f).Name)
+	rule, ok := hosts.Lookup(s.dns.Rules(), host, s.clientProcess(f).Name)
 	if !ok {
 		return
 	}
-	hit := DNSHit{Name: host, IP: rule.IP, At: time.Now()}
+	hit := DNSHit{Name: host, IP: rule.IP, Profile: rule.Profile, Line: rule.Line, At: time.Now()}
 	s.mu.Lock()
 	s.dnsHits[f.Id] = hit
 	s.mu.Unlock()
@@ -1782,9 +1792,9 @@ func (s *Server) publishFlow(f *proxy.Flow, kind string, frames []Frame, status 
 		Frames:            clipFrames(frames),
 		Process:           client.Name,
 		ProcessPath:       client.Path,
-		DNSMapped:         s.dnsMapped(f),
 		Conn:              s.connInfo(f, start),
 	}
+	flow.DNSMapped, flow.HostProfile = s.dnsMapped(f)
 	if raw := f.Request.Raw(); raw != nil {
 		origin, _ := raw.Context().Value(replaySourceKey{}).(replayOrigin)
 		flow.ReplayOf, flow.DebugRun = origin.source, origin.run
@@ -1821,6 +1831,7 @@ type ConnInfo struct {
 	Client    string // the client end of the connection to the proxy
 	Proxy     string // the proxy end of that connection
 	Server    string // the address the proxy dialled
+	Remote    string // the IP address that connection reached
 	Resolved  string // the addresses the name resolved to
 	LookupMs  int    // how long that answer took
 	Flows     int    // how many requests this connection carried before this one
@@ -1878,6 +1889,11 @@ func (s *Server) connInfo(f *proxy.Flow, start time.Time) ConnInfo {
 		}
 		if server := cc.ServerConn; server != nil && !f.UseSeparateClient {
 			ci.Server = server.Address
+			if server.Conn != nil {
+				if addr, ok := server.Conn.RemoteAddr().(*net.TCPAddr); ok {
+					ci.Remote = addr.IP.String()
+				}
+			}
 			if state := server.TlsState(); state != nil {
 				ci.TLS = tls.VersionName(state.Version)
 				ci.Cipher = tls.CipherSuiteName(state.CipherSuite)
@@ -2137,14 +2153,15 @@ func writeHeaders(b *strings.Builder, h http.Header) {
 	}
 }
 
-// dnsMapped is the mapping a flow's dial went through, once.
-func (s *Server) dnsMapped(f *proxy.Flow) string {
+// dnsMapped is the mapping a flow's dial went through, and the profile and
+// line it came from, once.
+func (s *Server) dnsMapped(f *proxy.Flow) (mapped, profile string) {
 	s.mu.Lock()
 	hit, ok := s.dnsHits[f.Id]
 	delete(s.dnsHits, f.Id)
 	s.mu.Unlock()
 	if !ok {
-		return ""
+		return "", ""
 	}
-	return hit.Name + " → " + hit.IP.String()
+	return hit.Name + " → " + hit.IP.String(), fmt.Sprintf("%s:%d", hit.Profile, hit.Line)
 }

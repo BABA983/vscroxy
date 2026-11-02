@@ -43,7 +43,7 @@ func (a *app) generalSettings(c *ui.Context, t *ui.Theme) {
 						a.reloadConfig()
 					}
 				})
-			}).Description("Read rules, DNS mappings, ignore lists and the capture script from disk again.")
+			}).Description("Read rules, Host profiles, ignore lists and the capture script from disk again.")
 		})
 		uikit.SettingsGroup(c, "Help", func() {
 			ui.Field(c, "Setup guide", func() {

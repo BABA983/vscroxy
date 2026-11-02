@@ -198,8 +198,13 @@ func (a *app) nativeMenuActions(c *ui.Context) {
 	w := &a.workbench
 	pending := w.menuAction
 	w.menuAction = ""
+	_, toolsSave := a.profileToSave()
 	for _, x := range a.actions(c) {
 		available := x.enabled && w.content.FocusWithin(c)
+		if a.toolsWin != nil && a.toolsFocused {
+			// Tools in front has one menu command of its own: Save.
+			available = x.id == "request.save" && toolsSave
+		}
 		if item := w.menuItems[x.id]; item != nil && item.IsEnabled() != available {
 			item.SetEnabled(available)
 		}

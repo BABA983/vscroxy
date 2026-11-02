@@ -20,11 +20,25 @@ import (
 	"time"
 
 	"github.com/baba983/vscroxy/internal/capture"
+	"github.com/baba983/vscroxy/internal/hosts"
 	"github.com/baba983/vscroxy/internal/request"
 	"github.com/baba983/vscroxy/internal/system"
 	"github.com/egoist/mygo/ui"
 	"github.com/gorilla/websocket"
 )
+
+// snapshotProfiles is the Host profiles of the design: two on, with a
+// conflict and a line that maps nothing, and a subscription.
+func snapshotProfiles(a *app) {
+	a.profiles.set = hosts.Set{Profiles: []hosts.Profile{
+		{Name: "Staging", On: true, Text: "# Staging API\n10.0.3.21   api.example.com auth.example.com\n10.0.3.22   cdn.example.com\nfd00::12    ws.example.com\n*.internal.test = 10.0.9.1\n10.0.3.30   pay.example.com   @ Browser\n10.0.3.4O   img.example.com\n"},
+		{Name: "Default", On: true, Text: "10.1.0.8 cdn.example.com\n10.1.0.9 auth.example.com @ curl\n10.1.0.10 static.example.com\n"},
+		{Name: "Local", Text: "127.0.0.1 api.example.com cdn.example.com auth.example.com pay.example.com\n"},
+		{Name: "Pre-release", Text: "10.2.0.1 api.example.com\n"},
+		{Name: "Team hosts", URL: "https://hosts.example.com/team.hosts", Updated: time.Now().Add(-2 * time.Hour), Text: "10.9.0.1 team.example.com\n"},
+	}}
+	a.profiles.rev++
+}
 
 // TestUISnapshots is opt-in: normal tests neither render the matrix nor write
 // files. It uses no listener, real traffic, user settings or system proxy.
@@ -333,11 +347,29 @@ func TestUISnapshots(t *testing.T) {
 		{name: "dialog-ssl", setup: func(a *app) { a.sslOpen, a.sslHosts = true, "api.example.com\n*.example.org" }, want: "SSL proxying", short: true},
 		{name: "dialog-ignore-hosts", setup: func(a *app) { a.ignoreOpen, a.ignoreText = true, "telemetry.example.com\n*.analytics.example.org" }, want: "Ignored hosts"},
 		{name: "dialog-ignore-apps", setup: func(a *app) { a.ignoreAppsOpen, a.ignoreAppsText = true, "Updater\nBackground Sync" }, want: "Ignored apps"},
-		{name: "dialog-dns", setup: func(a *app) { a.dnsOpen, a.dnsText = true, "api.example.com = 192.168.1.50 @ Browser" }, want: "DNS mapping", short: true},
 		{name: "dialog-dns-rule", setup: func(a *app) {
-			a.dnsRuleOpen, a.dnsRuleHost, a.dnsRuleAddr = true, "api.example.com", "192.168.1.50"
-			a.dnsRuleApps, a.dnsRuleScope = []string{"All apps", "Browser"}, "Browser"
+			snapshotProfiles(a)
+			a.openDNSRule("api.example.com", "Browser")
+			a.dnsRuleAddr = "192.168.1.50"
 		}, want: "Map a host"},
+		{name: "hosts-menu", setup: func(a *app) { snapshotProfiles(a); a.profiles.menuOpen = true }, want: "Manage profiles…"},
+		{name: "capture-hosts", setup: func(a *app) {
+			snapshotProfiles(a)
+			a.flows[0].dns, a.flows[0].hostProfile, a.flows[0].conn.remote = "api.example.com → 10.0.3.21", "Staging:2", "10.0.3.21"
+			a.flows[1].conn.remote = "93.184.216.34"
+		}, want: "Hosts: Staging + Default"},
+		{name: "tools-hosts", setup: func(a *app) { snapshotProfiles(a); a.openTools() }, want: "Test a host"},
+		{name: "tools-hosts-test", setup: func(a *app) {
+			snapshotProfiles(a)
+			a.openTools()
+			a.profiles.test = "api.example.com"
+		}, want: "→ 10.0.3.21 · Staging line 2"},
+		{name: "tools-hosts-subscription", setup: func(a *app) {
+			snapshotProfiles(a)
+			a.openTools()
+			a.profiles.choice = 4
+		}, want: "Subscription URL"},
+		{name: "tools-hosts-empty", setup: func(a *app) { a.openTools() }, want: "No Host profiles"},
 		{name: "dialog-key-log", setup: func(a *app) { a.openKeyLog() }, want: "TLS key log"},
 		{name: "dialog-rules", setup: func(a *app) {
 			a.rules = []capture.Rule{{Name: "Development API", Type: capture.RuleMapRemote, Match: "https://api.example.com/*", Target: "http://127.0.0.1:3000"}}

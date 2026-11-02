@@ -53,6 +53,7 @@ func (a *app) notify(n notice) {
 	if a.settingsWin != nil {
 		a.settingsWin.Invalidate()
 	}
+	a.invalidateTools()
 }
 
 // inform, done and warn are notify at one level, for the common case.

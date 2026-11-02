@@ -53,6 +53,7 @@ type flow struct {
 	process     string
 	processPath string
 	dns         string
+	hostProfile string // the profile and line that mapped dns, "Staging:2"
 	conn        conn
 	color       string
 	note        string
@@ -67,6 +68,7 @@ type conn struct {
 	client     string
 	proxy      string
 	server     string
+	remote     string // the IP address the upstream connection reached
 	resolved   string
 	lookupMs   int
 	tls        string

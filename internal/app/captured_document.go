@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"fmt"
 	"slices"
+	"strings"
 
 	"github.com/baba983/vscroxy/internal/uikit"
 	"github.com/egoist/mygo/ui"
@@ -155,6 +156,13 @@ func (a *app) capturedHeader(c *ui.Context, t *ui.Theme, f flow, d *requestDocum
 		if a.edited(f.id) {
 			// The source names give way first; the mark and the status stay.
 			ui.Text(c, "Edited").FontSize(uikit.TextMeta).TextColor(t.Accent).SingleLine().Shrink(0)
+		}
+		if f.dns != "" {
+			// Which Host profile sent it elsewhere, as the Remote IP says.
+			profile, _, _ := strings.CutLast(f.hostProfile, ":")
+			_, ip, _ := strings.Cut(f.dns, " → ")
+			ui.Text(c, "Mapped by "+profile+" → "+ip).FontSize(uikit.TextMeta).TextColor(uikit.Colors(t).Accent).
+				SingleLine().MinWidth(0).Tooltip(mappedBy(f))
 		}
 		ui.Spacer(c)
 		// The original response names its result in the pane. Keep the

@@ -26,6 +26,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"google.golang.org/protobuf/types/known/wrapperspb"
+
+	"github.com/baba983/vscroxy/internal/hosts"
 )
 
 // freeAddr reserves an address the proxy can listen on.
@@ -455,9 +457,7 @@ func TestDNSMappingAppliesToEveryApp(t *testing.T) {
 	}
 
 	s, _ := startServer(t)
-	if err := s.SetDNS([]string{"every.test = 127.0.0.1"}); err != nil {
-		t.Fatalf("set dns: %v", err)
-	}
+	setHosts(t, s, "127.0.0.1 every.test")
 	target := "http://every.test:" + port + "/x"
 	resp, err := clientFor(t, s, nil).Get(target)
 	if err != nil {
@@ -481,8 +481,11 @@ func TestDNSMappingAppliesToEveryApp(t *testing.T) {
 			mapped = f
 		}
 	}
-	if want := "every.test → 127.0.0.1"; mapped.DNSMapped != want {
-		t.Fatalf("DNSMapped = %q, want %q", mapped.DNSMapped, want)
+	if want := "every.test → 127.0.0.1"; mapped.DNSMapped != want || mapped.HostProfile != "Test:1" {
+		t.Fatalf("DNSMapped = %q from %q, want %q from Test:1", mapped.DNSMapped, mapped.HostProfile, want)
+	}
+	if mapped.Conn.Remote != "127.0.0.1" {
+		t.Fatalf("Conn.Remote = %q, want the address dialled", mapped.Conn.Remote)
 	}
 	if mapped.Conn.Proto == "" {
 		t.Fatal("Conn.Proto is empty, want the HTTP version the client spoke")
@@ -527,9 +530,7 @@ func TestDNSMappingsResolveTheNameElsewhere(t *testing.T) {
 	}
 
 	// A rule for another app does not apply to this one.
-	if err := s.SetDNS([]string{"mapped.test = 127.0.0.1 @other-app"}); err != nil {
-		t.Fatalf("set dns: %v", err)
-	}
+	setHosts(t, s, "127.0.0.1 mapped.test @other-app")
 	other, err := clientFor(t, s, nil).Get(target)
 	if err != nil {
 		t.Fatalf("request for another app: %v", err)
@@ -541,9 +542,7 @@ func TestDNSMappingsResolveTheNameElsewhere(t *testing.T) {
 
 	// The rule for this app points the dial at the address, and the request
 	// keeps the name it asked for.
-	if err := s.SetDNS([]string{"mapped.test = 127.0.0.1 @" + app}); err != nil {
-		t.Fatalf("set dns: %v", err)
-	}
+	setHosts(t, s, "# Staging\nmapped.test = 127.0.0.1 @"+app)
 	resp, err := clientFor(t, s, nil).Get(target)
 	if err != nil {
 		t.Fatalf("request through the mapping: %v", err)
@@ -566,11 +565,49 @@ func TestDNSMappingsResolveTheNameElsewhere(t *testing.T) {
 			mapped = f
 		}
 	}
-	if want := "mapped.test → 127.0.0.1"; mapped.DNSMapped != want {
-		t.Fatalf("DNSMapped = %q, want %q", mapped.DNSMapped, want)
+	if want := "mapped.test → 127.0.0.1"; mapped.DNSMapped != want || mapped.HostProfile != "Test:2" {
+		t.Fatalf("DNSMapped = %q from %q, want %q from Test:2", mapped.DNSMapped, mapped.HostProfile, want)
 	}
-	if hit, ok := s.LastDNSMatch(); !ok || hit.Name != "mapped.test" || hit.IP.String() != "127.0.0.1" {
+	if hit, ok := s.LastDNSMatch(); !ok || hit.Name != "mapped.test" || hit.IP.String() != "127.0.0.1" || hit.Profile != "Test" {
 		t.Fatalf("last match = %+v, %v", hit, ok)
+	}
+}
+
+// setHosts maps hosts as one profile named Test that is on.
+func setHosts(t *testing.T, s *Server, text string) {
+	t.Helper()
+	set := hosts.Set{Profiles: []hosts.Profile{{Name: "Test", On: true, Text: text}}}
+	if err := s.SetHosts(set.Rules()); err != nil {
+		t.Fatalf("set hosts: %v", err)
+	}
+}
+
+func TestDropConnectionsMakesClientsConnectAgain(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, "ok")
+	}))
+	defer upstream.Close()
+	s, _ := startServer(t)
+	client := clientFor(t, s, nil)
+	get := func() Flow {
+		t.Helper()
+		resp, err := client.Get(upstream.URL + "/x")
+		if err != nil {
+			t.Fatalf("request: %v", err)
+		}
+		_, _ = io.Copy(io.Discard, resp.Body)
+		_ = resp.Body.Close()
+		return waitFlow(t, s)
+	}
+	get()
+	if f := get(); !f.Conn.Reused {
+		t.Fatalf("second request = %+v, want the kept-alive connection", f.Conn)
+	}
+	if n := s.DropConnections(); n != 1 {
+		t.Fatalf("dropped %d connections, want 1", n)
+	}
+	if f := get(); f.Conn.Reused {
+		t.Fatalf("after dropping, Conn = %+v; want a new connection", f.Conn)
 	}
 }
 

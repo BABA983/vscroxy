@@ -577,20 +577,50 @@ pinned requests always stay. A change applies at once and is remembered. **In
 use** shows the current memory estimate, the disk the spill files take, and
 the count. A body still streaming counts once its request is published.
 
-## DNS mapping
+## Host profiles
 
-**Network → DNS mapping…** lists names the proxy resolves itself, a line of
-`name = address` each, kept in `~/.vscroxy/dns.txt`. The proxy dials the
-address while the request keeps its name, its URL and its `Host` header, so a
-phone or emulator pointed at this proxy reaches another machine as if the name
-pointed there — the DNS spoofing a proxy needs, without editing the hosts file
-or rooting the device. A name matches its subdomains and `*.example.com`
-matches one level; the status bar shows the last name a rule answered.
+Host profiles are named hosts files the proxy resolves itself, as
+SwitchHosts keeps them: "Local", "Staging", "Pre-release". The proxy dials the
+address a profile gives while the request keeps its name, its URL, its `Host`
+header and SNI, so a phone or emulator pointed at this proxy reaches another
+machine as if the name pointed there, without editing the system's hosts file,
+administrator rights, or rooting the device. vscroxy never writes the system's
+hosts file.
 
-The proxy resolves on the machine it runs on, so a hosts file entry already
-applies to a device's traffic; this list is for the mappings kept with the
-tool. Two things bypass it: traffic the app sends over QUIC (UDP 443) never
-reaches the proxy, and an app that connects to an address it already has.
+**Hosts** beside the recording pill switches profiles: each has a switch and
+its host count, and a profile a higher one overrides shows its conflicts.
+**Combine** turns on several at once, the higher profile winning where two map
+the same host; **One at a time** turns the others off as one turns on. A change
+applies to new connections; **Drop open connections** closes the clients'
+open ones so they connect again at once. While a profile is on, the enabled
+tools strip shows a **Hosts** chip, whose × turns them all off. The command
+palette lists every profile too.
+
+**Manage profiles…** (Cmd/Ctrl+Shift+H) opens **Tools → Host profiles**: drag
+profiles to reorder them, add one with **+**, and edit the selected one's
+hosts. Each line is the standard `address host…` (several hosts, `#` comments,
+IPv6) or `host = address`, optionally followed by `@ App, other app` to map
+the hosts for those apps only. A host matches its subdomains, `.example.com`
+only the subdomains, and `*.example.com` one level. A line that is not a
+mapping is underlined and maps nothing; a line another profile that is on
+overrides, or that overrides one, is marked with the other's address. **Test a
+host** says where a host goes now, and from which profile and line. **Import
+system hosts…** copies this system's hosts file into a new profile, off;
+**Subscribe to URL…** adds a read-only profile fetched from a URL and
+refreshed every hour.
+
+Right-click a request and pick **Map this host…** to add its host to a profile,
+for every app or the one that sent it; the profile turns on. Each profile is a
+file in `~/.vscroxy/tools/hosts/`, `Staging.hosts` and so on, which you may edit
+by hand or keep in Git; `profiles.json` beside them keeps their order, switches,
+subscriptions and mode, and a `.hosts` file it does not list joins the end,
+off. **Settings → General → Reload configuration** reads them again.
+
+A request a profile mapped shows its **Remote IP** in the accent color, with
+the profile and line in its tooltip (in a narrow list, a **Hosts** tag on its
+path), and "Mapped by Staging → 10.0.3.21" above the inspector. Two things
+bypass the profiles: traffic an app sends over QUIC (UDP 443) never reaches
+the proxy, and an app that connects to an address it already has.
 
 ## Export and sessions
 
@@ -1500,6 +1530,7 @@ Proxyman or Postman use identical Windows/Linux defaults.
 | Cycle open requests | Ctrl+Tab / Ctrl+Shift+Tab |
 | Close current request | Cmd/Ctrl+W; asks about unsaved changes; unavailable while sending |
 | Close window | Cmd/Ctrl+Shift+W (separate from closing a request) |
+| Manage Host profiles | Cmd/Ctrl+Shift+H |
 
 Plain Enter in the URL input never sends. Dialogs own their shortcuts: sending,
 opening drafts and workspace commands cannot act through a modal. Local response

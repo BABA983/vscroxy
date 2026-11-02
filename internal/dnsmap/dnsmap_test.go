@@ -6,97 +6,9 @@ import (
 	"time"
 
 	"golang.org/x/net/dns/dnsmessage"
+
+	"github.com/baba983/vscroxy/internal/hosts"
 )
-
-func TestParse(t *testing.T) {
-	rules, err := Parse([]string{"api.example.com = 10.0.0.5", "  # a comment", "", "*.internal.test = 192.168.1.2", "dev.test = 10.0.0.7 @Chrome, /usr/bin/firefox"})
-	if err != nil {
-		t.Fatalf("parse: %v", err)
-	}
-	if len(rules) != 3 || rules[0].Name != "api.example.com" || rules[1].IP.String() != "192.168.1.2" {
-		t.Fatalf("rules = %+v", rules)
-	}
-	if apps := rules[2].Apps; len(apps) != 2 || apps[0] != "Chrome" || apps[1] != "/usr/bin/firefox" {
-		t.Fatalf("apps = %q, want the two listed", apps)
-	}
-	if len(rules[0].Apps) != 0 {
-		t.Fatalf("a rule without @ has apps %q", rules[0].Apps)
-	}
-	if _, err := Parse([]string{"no address here"}); err == nil {
-		t.Error("a line without = was accepted")
-	}
-	if _, err := Parse([]string{"name = not-an-address"}); err == nil {
-		t.Error("a line without an address was accepted")
-	}
-}
-
-func TestLookupLimitsARuleToItsApps(t *testing.T) {
-	rules, err := Parse([]string{
-		"api.test = 10.0.0.1 @chrome, Safari",
-		"api.test = 10.0.0.2 @other",
-		"*.svc.test = 10.0.0.3",
-	})
-	if err != nil {
-		t.Fatalf("parse: %v", err)
-	}
-	cases := []struct {
-		name, app, want string
-	}{
-		{"api.test", "chrome", "10.0.0.1"},
-		{"api.test", "Safari", "10.0.0.1"},
-		{"api.test", "other", "10.0.0.2"},
-		{"api.test", "firefox", ""},                                                // no rule for this app
-		{"api.test", "/Applications/Safari.app/Contents/MacOS/Safari", "10.0.0.1"}, // the executable's name counts
-		{"a.svc.test", "firefox", "10.0.0.3"},                                      // a rule without apps applies to every app
-		{"nothing.test", "chrome", ""},
-	}
-	for _, c := range cases {
-		rule, ok := Lookup(rules, c.name, c.app)
-		switch {
-		case c.want == "" && ok:
-			t.Errorf("Lookup(%q, %q) = %v, want none", c.name, c.app, rule.IP)
-		case c.want != "" && (!ok || rule.IP.String() != c.want):
-			t.Errorf("Lookup(%q, %q) = %v, %v; want %s", c.name, c.app, rule.IP, ok, c.want)
-		}
-	}
-	// The server answers names, not apps: an app-scoped rule is not one of
-	// the names it answers for everyone.
-	if ip, ok := Match(rules, "api.test"); ok {
-		t.Errorf("Match(api.test) = %v, want none", ip)
-	}
-}
-
-func TestMatch(t *testing.T) {
-	rules, err := Parse([]string{
-		"example.com = 10.0.0.1",
-		"*.internal.test = 10.0.0.2",
-		".corp.test = 10.0.0.3",
-		"example.com = 10.0.0.9",
-	})
-	if err != nil {
-		t.Fatalf("parse: %v", err)
-	}
-	cases := []struct {
-		name string
-		want string
-	}{
-		{"example.com", "10.0.0.9"}, // the last rule wins
-		{"api.example.com", "10.0.0.9"},
-		{"one.internal.test", "10.0.0.2"},
-		{"corp.test", "10.0.0.3"},
-		{"deep.corp.test", "10.0.0.3"},
-		{"other.org", ""},
-	}
-	for _, c := range cases {
-		ip, ok := Match(rules, c.name)
-		switch {
-		case c.want == "" && ok:
-			t.Errorf("Match(%q) = %v, want none", c.name, ip)
-		case c.want != "" && (!ok || ip.String() != c.want):
-			t.Errorf("Match(%q) = %v, %v; want %s", c.name, ip, ok, c.want)
-		}
-	}
-}
 
 func TestServerAnswersTheRules(t *testing.T) {
 	s, err := Start(net.DefaultResolver)
@@ -104,10 +16,7 @@ func TestServerAnswersTheRules(t *testing.T) {
 		t.Fatalf("start: %v", err)
 	}
 	defer s.Close()
-	rules, err := Parse([]string{"mapped.test = 10.9.8.7"})
-	if err != nil {
-		t.Fatalf("parse: %v", err)
-	}
+	rules, _ := hosts.Parse("10.9.8.7 mapped.test")
 	s.SetRules(rules)
 
 	if ip := ask(t, s.Addr(), "mapped.test", dnsmessage.TypeA); ip != "10.9.8.7" {
@@ -138,10 +47,7 @@ func TestServerAnswersAPendingAddress(t *testing.T) {
 		t.Fatalf("start: %v", err)
 	}
 	defer s.Close()
-	rules, err := Parse([]string{"mapped.test = 10.9.8.7 @chrome"})
-	if err != nil {
-		t.Fatalf("parse: %v", err)
-	}
+	rules, _ := hosts.Parse("10.9.8.7 mapped.test @chrome")
 	s.SetRules(rules)
 	// The name alone is not answered: the rule belongs to an app.
 	if ip := ask(t, s.Addr(), "mapped.test", dnsmessage.TypeA); ip != "" {

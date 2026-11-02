@@ -283,8 +283,9 @@ func (f sessionFlow) flow() flow {
 		reqSize: max(f.ReqSize, len(req)), resSize: max(f.ResSize, len(res)),
 		reqError: f.ReqError, resError: f.ResError, reqHeader: f.ReqHeader, respHeader: f.RespHeader,
 		reqTrailer: f.ReqTrailer, resTrailer: f.ResTrailer, resProto: f.ResProto,
-		conn: conn{proto: f.ReqProto, log: f.ConnectionLog, error: f.ConnectionError, errorStage: f.ConnectionStage},
-		at:   f.At, kind: f.Kind, color: f.Color, note: f.Note, streamEnd: f.StreamEnd,
+		conn: conn{proto: f.ReqProto, log: f.ConnectionLog, error: f.ConnectionError, errorStage: f.ConnectionStage, remote: f.Remote},
+		dns:  f.HostsMapped, hostProfile: f.HostProfile,
+		at: f.At, kind: f.Kind, color: f.Color, note: f.Note, streamEnd: f.StreamEnd,
 	}
 }
 

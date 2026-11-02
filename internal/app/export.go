@@ -378,6 +378,7 @@ func redactSession(doc *sessionFile, o exportOptions) {
 		if o.ScriptsNotes {
 			f.Note, f.ConnectionLog, f.ConnectionError, f.ReqError, f.ResError = "", "", "", "", ""
 			f.Actions, f.DebugKey, f.DebugRun = nil, "", ""
+			f.Remote, f.HostsMapped, f.HostProfile = "", "", ""
 		}
 	}
 	if o.Bodies {

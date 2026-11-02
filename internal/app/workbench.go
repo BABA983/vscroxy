@@ -493,6 +493,9 @@ func (a *app) actions(c *ui.Context) []action {
 		do("network.client", "Set up a local client…", a.openClientSetup).when(a.srv != nil, ""),
 		do("network.devices", "Connect a device…", a.openDevices).when(a.srv != nil, ""),
 		do("tools.rules", "Manage debugging rules…", a.openRules),
+	}...)
+	actions = append(actions, a.hostsActions()...)
+	actions = append(actions, []action{
 		do("vault.open", "Vault…", a.openVault),
 		do("environment.manage", "Manage environments…", a.openVars),
 		do("request.code", "Generate code…", a.openCode).when(editing, draft),

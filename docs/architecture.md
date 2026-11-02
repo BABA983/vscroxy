@@ -100,7 +100,7 @@ type action struct {
 | `settings.json`、`ssl.json`、`ignore.txt`、`ignore-apps.txt` | `settings.json`（v2，分区：通用、外观、代理、HTTPS、抓包；白名单也在这里） |
 | `rules.json` | `tools/rules.json`（v2，新的匹配器格式） |
 | `script.js` | `tools/scripts/*.js`，每条规则脚本一个文件 |
-| `dns.txt` | `tools/hosts/*.hosts`，每个 Host 方案一个文件，可以手改、放进 Git |
+| `dns.txt` | `tools/hosts/*.hosts`，每个 Host 方案一个文件，可以手改、放进 Git；`tools/hosts/profiles.json` 记顺序、开关、订阅和模式（已完成） |
 | `experiments.json`、`history.json` | `history/`（合并后的 History） |
 | `investigations.json` | 去掉，Sessions 用 `sessions/` 下的会话文件 |
 | `views.json` | 并进 `settings.json` |

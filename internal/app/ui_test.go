@@ -117,14 +117,14 @@ func TestShellCentersStatusWithoutCoveringNativeControls(t *testing.T) {
 					// Centered over the window, or on macOS over the column
 					// beside the sidebar as a toolbar centers over the content;
 					// not over the native insets. Only wide right-hand window
-					// buttons beside the sidebar in the narrowest window push it
-					// aside.
+					// buttons in the narrowest window push it aside, where the
+					// commands and Host profiles beside it need the room.
 					status, ok := tt.Find("Proxy status")
 					left := float32(0)
 					if mac {
 						left = a.sidebarWidth + 1 // the split's hairline
 					}
-					centered := !mac || bar.Right == 0 || width > 960
+					centered := bar.Right == 0 || width > 960
 					if !ok || centered && math.Abs(float64(status.X+status.W/2)-float64(left+float32(width))/2) > 1 {
 						t.Fatalf("mac=%t: status followed native button insets instead of the center: %v", mac, status)
 					}

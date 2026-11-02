@@ -10,7 +10,14 @@ import (
 func (a *app) menu() *mygo.Menu {
 	a.workbench.menuItems = make(map[string]*mygo.MenuItem)
 	command := func(id, label string) *mygo.MenuItem {
-		item := &mygo.MenuItem{ID: id, Label: label, Disabled: true, Click: func(_ *mygo.MenuItem, _ *mygo.Window) {
+		item := &mygo.MenuItem{ID: id, Label: label, Disabled: true, Click: func(_ *mygo.MenuItem, w *mygo.Window) {
+			// Every window has the menu, and its shortcuts come before the
+			// content's: the Tools window runs the commands it has itself.
+			if w != nil && w == a.toolsWin {
+				a.toolsMenuAction = id
+				a.invalidateTools()
+				return
+			}
 			a.workbench.menuAction = id
 			a.invalidate()
 		}}
