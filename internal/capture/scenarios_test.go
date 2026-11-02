@@ -91,6 +91,7 @@ func TestScenarioSavedSelectionAndPreviewFollowLiveProxy(t *testing.T) {
 	}
 	s, client := scenarioProxy(t)
 	path := filepath.Join(dir, "rules.json")
+	hits := map[int]int{} // GETs each winner answered, across the cases
 	for _, tc := range []struct {
 		name   string
 		winner int
@@ -122,8 +123,8 @@ func TestScenarioSavedSelectionAndPreviewFollowLiveProxy(t *testing.T) {
 				t.Fatal(err)
 			}
 			target := upstream.URL + "/item?q=7"
-			preview := capture.PreviewRules(s.Rules(), target, "GET")
-			if preview[tc.winner].Reason != "winner" || preview[8].Reason != fmt.Sprintf("shadowed by rule %d", tc.winner+1) || !strings.Contains(preview[2].Reason, "disabled") || preview[1].Reason != "independent breakpoint (requires Break)" || preview[6].Reason != "method does not match" || preview[0].Reason != "URL does not match" {
+			preview := capture.PreviewRules(s.Rules(), target, "GET", false)
+			if preview[tc.winner].Step != 1 || preview[8].Reason != fmt.Sprintf("shadowed by rule %d", tc.winner+1) || !strings.Contains(preview[2].Reason, "disabled") || preview[1].Reason != "breakpoints are off" || preview[6].Reason != "method does not match" || preview[0].Reason != "URL does not match" {
 				t.Fatalf("incorrect preview: %+v", preview)
 			}
 			if tc.name != "Empty account" && !strings.Contains(preview[2].Reason, `inactive scenario "Empty account"`) {
@@ -132,6 +133,13 @@ func TestScenarioSavedSelectionAndPreviewFollowLiveProxy(t *testing.T) {
 			scenarioRequest(t, client, "GET", target, tc.status, tc.body)
 			scenarioRequest(t, client, "POST", target, 403, "blocked by vscroxy\n")
 			scenarioRequest(t, client, "GET", upstream.URL+"/global", 403, "blocked by vscroxy\n")
+			hits[tc.winner]++
+			if got := s.RuleHits(loaded[tc.winner]); got != hits[tc.winner] {
+				t.Fatalf("rule %d counted %d hits, want %d", tc.winner+1, got, hits[tc.winner])
+			}
+			if s.RuleHits(loaded[8]) != 0 {
+				t.Fatal("a shadowed rule counted a hit")
+			}
 			found := false
 			for range 3 {
 				select {
@@ -172,7 +180,7 @@ func TestScenarioSavedSelectionAndPreviewFollowLiveProxy(t *testing.T) {
 		t.Fatal(err)
 	}
 	scenarioRequest(t, client, "GET", upstream.URL+"/item", 202, "global fallback")
-	if p := capture.PreviewRules(s.Rules(), upstream.URL+"/item", "GET"); p[0].Reason != "winner" || p[3].Reason != "shadowed by rule 1" {
+	if p := capture.PreviewRules(s.Rules(), upstream.URL+"/item", "GET", false); p[0].Step != 1 || p[3].Reason != "shadowed by rule 1" {
 		t.Fatalf("global order diverged from proxy: %+v", p)
 	}
 }
@@ -327,5 +335,43 @@ func TestScenarioSwitchDoesNotChangeAnInFlightResponse(t *testing.T) {
 	once.Do(func() { close(release) })
 	if got := <-done; got.err != nil || got.body != "original response" {
 		t.Fatalf("in-flight response changed: %+v", got)
+	}
+}
+
+func TestPreviewRulesFollowsTheProxysOrder(t *testing.T) {
+	rules := []capture.Rule{
+		{Type: capture.RuleBreakResponse, Match: "remote.test/v2/item"},
+		{Type: capture.RuleBreak, Match: "/item"},
+		{Type: capture.RuleBreak, Match: "/item"},
+		{Type: capture.RuleMapRemote, Match: "/item", Target: "http://remote.test/v2"},
+		{Type: capture.RuleBlock, Match: "/item"},
+		{Type: capture.RuleBreakResponse, Match: "example.com"},
+	}
+	steps := func(p []capture.RulePreview) []int {
+		var got []int
+		for _, r := range p {
+			got = append(got, r.Step)
+		}
+		return got
+	}
+	// The response breakpoint is listed first but acts last, on the URL the
+	// request was redirected to.
+	p := capture.PreviewRules(rules, "https://example.com/item", "GET", true)
+	if got := steps(p); !slices.Equal(got, []int{3, 1, 0, 2, 0, 0}) {
+		t.Fatalf("steps %v: %+v", got, p)
+	}
+	if p[2].Reason != "rule 2 pauses first" || p[4].Reason != "shadowed by rule 4" || p[5].Reason != "URL does not match" {
+		t.Fatalf("reasons: %+v", p)
+	}
+	p = capture.PreviewRules(rules, "https://example.com/item", "GET", false)
+	if got := steps(p); !slices.Equal(got, []int{0, 0, 0, 1, 0, 0}) || p[0].Reason != "breakpoints are off" {
+		t.Fatalf("without breaking: %+v", p)
+	}
+	// A rule that answers the request itself leaves no response to pause.
+	rules[3] = capture.Rule{Type: capture.RuleBlock, Match: "/item"}
+	rules[0].Match = "/item"
+	p = capture.PreviewRules(rules, "https://example.com/item", "GET", true)
+	if got := steps(p); !slices.Equal(got, []int{0, 1, 0, 2, 0, 0}) || p[0].Reason != "rule 4 answers first" {
+		t.Fatalf("answered: %+v", p)
 	}
 }

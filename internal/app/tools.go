@@ -1,8 +1,8 @@
 package app
 
-// Tools is the window for what changes traffic and is switched often: for
-// now Host profiles; rules, scenarios, scripts and mocks move here with the
-// rules upgrade. It shares the main window's state, as Settings does.
+// Tools is the window for what changes traffic and is switched often: rules
+// and Host profiles; scenarios, scripts and mocks move here with the rest of
+// the rules upgrade. It shares the main window's state, as Settings does.
 
 import (
 	"fmt"
@@ -19,11 +19,11 @@ import (
 	"github.com/oneo-me/onevra/source/icons/lucide"
 )
 
-// openTools shows the Tools window on Host profiles, focused if already
-// open. Without a main window (headless tests) it is a dialog instead.
-func (a *app) openTools() {
+// openTools shows the Tools window on page ("rules" or "hosts"), focused if
+// already open. Without a main window (headless tests) it is a dialog instead.
+func (a *app) openTools(page string) {
 	a.profiles.menuOpen = false
-	a.toolsOpen = true
+	a.toolsOpen, a.toolsPage = true, page
 	if a.win == nil {
 		return
 	}
@@ -48,10 +48,17 @@ func (a *app) openTools() {
 	w.OnClosed(func() {
 		a.win.Update(func() {
 			if a.toolsWin == w {
-				a.toolsWin, a.toolsOpen, a.toolsFocused = nil, false, false
+				a.toolsWin, a.toolsFocused = nil, false
+				a.closeTools()
 			}
 		})
 	})
+}
+
+// closeTools forgets what Tools had not saved: a new rule's response file.
+func (a *app) closeTools() {
+	a.toolsOpen = false
+	a.discardRuleDraft()
 }
 
 func (a *app) invalidateTools() {
@@ -68,7 +75,11 @@ func (a *app) toolsView(c *ui.Context) {
 	t := c.Theme()
 	a.drainHosts()
 	if a.toolsMenuAction == "request.save" {
-		if i, ok := a.profileToSave(); ok {
+		if a.toolsPage == "rules" {
+			if a.ruleUI.open {
+				a.saveRule()
+			}
+		} else if i, ok := a.profileToSave(); ok {
 			a.saveProfile(i)
 		}
 	}
@@ -92,17 +103,19 @@ func (a *app) toolsModal(c *ui.Context, t *ui.Theme) {
 		return
 	}
 	width, height := c.Size()
-	uikit.Modal(c, &a.toolsOpen, func() {
+	if uikit.Modal(c, &a.toolsOpen, func() {
 		ui.Column(c).Width(min(1040, width-80)).Height(min(640, height-80)).Gap(t.Space(3)).Children(func() {
 			uikit.DialogTitle(c, "Tools")
 			a.toolsContent(c, t, true, false)
 			uikit.DialogFooter(c).Children(func() {
 				if uikit.SecondaryButton(c, "Done").Clicked() {
-					a.toolsOpen = false
+					a.closeTools()
 				}
 			})
 		})
-	})
+	}).Dismissed() {
+		a.closeTools()
+	}
 }
 
 // toolsContent is the categories on the left and the chosen one beside.
@@ -110,28 +123,32 @@ func (a *app) toolsModal(c *ui.Context, t *ui.Theme) {
 func (a *app) toolsContent(c *ui.Context, t *ui.Theme, active, window bool) {
 	pal := uikit.Colors(t)
 	ui.Row(c).Grow(1).FillWidth().MinHeight(0).AlignItems(ui.Stretch).Children(func() {
-		choice := "hosts"
 		top := t.Space(2)
 		if window {
 			top = max(c.TitleBar().Height+t.Space(1), t.Space(4))
 		}
-		ui.Sidebar(c, &choice, func() {
-			uikit.SidebarItem(c, "hosts", hostsIcon, "Host profiles", true, active).Label("Tools category: Host profiles")
+		ui.Sidebar(c, &a.toolsPage, func() {
+			uikit.SidebarItem(c, "rules", rulesIcon, "Rules", a.toolsPage == "rules", active).Label("Tools category: Rules")
+			uikit.SidebarItem(c, "hosts", hostsIcon, "Host profiles", a.toolsPage == "hosts", active).Label("Tools category: Host profiles")
 			// The rest arrive with the rules upgrade; until then they are
-			// where they were, in the title bar's Tools menu.
+			// where they were.
 			for _, later := range []struct {
 				icon  *ui.SVG
 				label string
-			}{{lucide.SlidersHorizontal(), "Rules"}, {layersIcon, "Scenarios"}, {lucide.FileCode(), "Scripts"}, {lucide.Server(), "Mocks"}} {
+			}{{layersIcon, "Scenarios"}, {lucide.FileCode(), "Scripts"}, {lucide.Server(), "Mocks"}} {
 				ui.Row(c).Height(uikit.HeightControl).Padding(0, t.Space(2)).Gap(t.Space(2)).AlignItems(ui.Center).
-					Tooltip("Not here yet; use the title bar's Tools menu").Children(func() {
+					Tooltip("Not here yet").Children(func() {
 					ui.Icon(c, later.icon).Size(uikit.IconInline, uikit.IconInline).TextColor(pal.TextFaint)
 					ui.Text(c, later.label).FontSize(uikit.TextBody).TextColor(pal.TextFaint)
 				})
 			}
 		}).Width(180).Padding(top, t.Space(2), t.Space(2), t.Space(2)).Gap(t.Space(0.5)).Background(pal.Panel)
 		ui.Divider(c)
-		a.hostProfilesPage(c, t, window)
+		if a.toolsPage == "rules" {
+			a.rulesPage(c, t, top, active)
+		} else {
+			a.hostProfilesPage(c, t, window)
+		}
 	})
 }
 

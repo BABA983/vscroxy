@@ -293,7 +293,7 @@ func (a *app) hostsMenu(c *ui.Context, t *ui.Theme) {
 		uikit.Meta(c, manage.shortcut.String())
 	}).Clicked() {
 		h.menuOpen = false
-		a.openTools()
+		a.openTools("hosts")
 	}
 }
 
@@ -311,7 +311,7 @@ func (a *app) hostsMode(c *ui.Context) {
 // hostsActions are the profiles' commands for the palette, menus and keys.
 func (a *app) hostsActions() []action {
 	actions := []action{
-		do("hosts.manage", "Manage Host profiles…", a.openTools).keys(ui.Cmd|ui.Shift, ui.KeyH).in("hosts"),
+		do("hosts.manage", "Manage Host profiles…", func() { a.openTools("hosts") }).keys(ui.Cmd|ui.Shift, ui.KeyH).in("hosts"),
 		do("hosts.drop-connections", "Drop open connections", a.dropConnections).
 			when(a.srv != nil, "Start capture first").in("hosts"),
 		do("hosts.off", "Turn off Host profiles", a.hostsOff).
@@ -647,7 +647,7 @@ func (a *app) hostsChip(c *ui.Context) {
 		return
 	}
 	label := "Hosts: " + strings.Join(on, " + ")
-	toolChip(c, "hosts", label, "Manage Host profiles", hostsIcon, a.openTools, a.hostsOff)
+	toolChip(c, "hosts", label, "Manage Host profiles", hostsIcon, func() { a.openTools("hosts") }, a.hostsOff)
 }
 
 // chosen is the profile Tools shows, kept in range; false without any.

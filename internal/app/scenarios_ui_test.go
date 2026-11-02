@@ -263,34 +263,46 @@ func TestScenarioRulesUIControlsSavedAndRunningConfiguration(t *testing.T) {
 	if err := chooseMenu(tt, "Debugging rules…"); err != nil {
 		t.Fatal(err)
 	}
-	click("Test URL + method")
-	edit("Test URL", upstream.URL+"/projects")
-	for _, want := range []string{
-		`1 · Disabled override · Block — disabled; inactive scenario "Empty account"`,
-		`2 · Empty response · Map Local — inactive scenario "Empty account"`,
-		"4 · Global block · Block — winner",
-	} {
-		if !tt.HasText(want) {
-			t.Fatalf("preview missing %q: %q", want, tt.Texts())
+	// acts reports the rule the badge numbered step sits in, by its row.
+	acts := func(step string) string {
+		t.Helper()
+		badge, ok := tt.Find("Acts " + step)
+		if !ok {
+			return ""
+		}
+		for i, r := range a.rules {
+			row, ok := tt.Find(fmt.Sprintf("Rule %d: %s", i+1, r.Name))
+			if ok && badge.Y >= row.Y && badge.Y+badge.H <= row.Y+row.H {
+				return r.Name
+			}
+		}
+		t.Fatalf("badge %q is in no rule's row", step)
+		return ""
+	}
+	chooseScenario := func(name string) {
+		t.Helper()
+		click("Active scenario")
+		if err := chooseMenu(tt, name); err != nil {
+			t.Fatal(err)
 		}
 	}
-	click("Activate scenario")
-	check("Empty account", 201, "empty response")
-	if !tt.HasText("2 · Empty response · Map Local — winner") || !tt.HasText("4 · Global block · Block — shadowed by rule 2") {
-		t.Fatalf("preview did not follow activation: %q", tt.Texts())
+	edit("Test a request", upstream.URL+"/projects")
+	if acts("first") != "Global block" || acts("second") != "" || !tt.HasText("1 rule acts, in the order numbered") {
+		t.Fatalf("the test did not number the global rule alone: %q", tt.Texts())
 	}
-	edit("Test method", "get") // method tokens are case-sensitive, just as on the wire
-	if !tt.HasText("2 · Empty response · Map Local — method does not match") || !tt.HasText("4 · Global block · Block — winner") {
-		t.Fatalf("preview did not use the exact method: %q", tt.Texts())
-	}
-	edit("Test method", "GET")
-	click("Scenario to activate")
-	click("Error")
-	// Choosing a group alone is not an activation.
+	chooseScenario("Empty account")
 	check("Empty account", 201, "empty response")
-	click("Activate scenario")
+	if acts("first") != "Empty response" {
+		t.Fatal("the test did not follow activation")
+	}
+	edit("Test a request", "get "+upstream.URL+"/projects") // method tokens are case-sensitive, just as on the wire
+	if acts("first") != "Global block" {
+		t.Fatal("the test did not use the exact method")
+	}
+	edit("Test a request", "")
+	chooseScenario("Error")
 	check("Error", 503, "empty response")
-	click("Edit rule 4") // returns from preview to the editor
+	click("Rule 4: Global block")
 	edit("Rule scenario", " Error ")
 	click("Save rule")
 	joined := check("Error", 503, "empty response")
@@ -299,19 +311,17 @@ func TestScenarioRulesUIControlsSavedAndRunningConfiguration(t *testing.T) {
 	}
 	edit("Rule scenario", "Maintenance")
 	click("Save rule")
-	click("Scenario to activate")
-	click("Maintenance")
-	click("Activate scenario")
+	chooseScenario("Maintenance")
 	check("Maintenance", 403, "blocked by vscroxy\n")
-	click("Deactivate scenario")
+	chooseScenario("No scenario")
 	check("", 200, "real response")
 	// Failed persistence must not activate either the editor or the runtime.
 	a.rulesPath = t.TempDir()
-	click("Activate scenario")
+	chooseScenario("Maintenance")
 	if capture.ActiveScenario(a.srv.Rules()) != "" || capture.ActiveScenario(a.rules) != "" {
 		t.Fatal("failed save activated a scenario")
 	}
-	if tt.HasText("Active: Maintenance") {
+	if tt.HasText("Scenario: Maintenance") {
 		t.Fatal("failed save falsely reported an active scenario")
 	}
 }

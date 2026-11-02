@@ -331,10 +331,28 @@ the same value again; any other form stays a header.
 
 ## Rules
 
-Open **⋯ → Debugging rules…** (or **Settings → General → Manage rules**) to
-create, edit, enable, delete and move rules up/down. Save applies changes to
-new requests only, without restarting capture. A failed save leaves the running
-rules unchanged. Closing the editor discards unsaved field edits.
+Rules are a page of the **Tools** window: open it with **⋯ → Debugging
+rules…**, **Settings → General → Manage rules…**, a request's **Tools** menu
+or the Breakpoints and Scenario chips. The list shows the rules in the order
+they are tried, each with its switch, type icon, name, method and match, its
+scenario and how many requests it changed since launch (changing what it
+matches or does starts the count again).
+Drag a row, or use **⋯ → Move up/Move down**, to change the order; **⋯ →
+Delete rule…** deletes it. The chosen rule is edited beside the list. **Save
+rule** (Ctrl/Cmd+S) applies it to new requests only, without restarting
+capture. A failed save leaves the running rules unchanged. Closing Tools
+discards unsaved field edits.
+
+**Test a request** above the list takes a URL, optionally after a method
+(`POST https://api.example.com/v1/orders`; GET otherwise). The rules that
+would act on it are numbered in the order they act: the first matching request
+breakpoint, then the Map or Block rule that wins, then the first matching
+response breakpoint for a response from upstream, matched against the URL a
+Map Remote rule sent it to. The other rules fade; hovering one says why it does
+not act (disabled, inactive scenario, shadowed by a rule above, URL or method
+mismatch, breakpoints off). Clearing the field brings the list back. Testing
+uses saved rules and the current Breakpoints switch, sends nothing and does not
+read response files or run scripts.
 
 Rules live in `~/.vscroxy/rules.json`. Enabled Map Local, Map Remote and Block
 rules apply in order, first match wins. Breakpoints match independently at their
@@ -345,9 +363,9 @@ this field remain enabled.
 
 **Scenario** groups Map Local, Map Remote and Block rules into named cases such
 as an empty account, server error or alternate upstream. Save a rule with a
-scenario name, then explicitly **Activate scenario**; choosing a name alone does
-not activate it. At most one named scenario is active. **Deactivate scenario**
-leaves only global (blank-scenario) rules eligible. Global rules keep their place
+scenario name, then choose it in the scenario menu above the rule list. At most
+one named scenario is active. **No scenario** leaves only global
+(blank-scenario) rules eligible. Global rules keep their place
 in first-match order, including ahead of scenario rules; switching never changes
 individual enabled switches. Breakpoints remain global and independent.
 
@@ -356,10 +374,7 @@ Selection lives in the same `rules.json` snapshot (`scenario` and matching
 selection states and multiple active groups are rejected on load/save/apply.
 Changes affect new requests, never an in-flight response. Captured **Applied**
 evidence includes the scenario that actually won, so later switches do not
-rewrite its provenance. **Test URL + method** previews saved rules without
-sending: winner, shadowed rules, disabled/inactive groups, URL/method mismatches
-and independent breakpoints. It does not simulate unsaved edits, scripts or
-missing response-file errors. Mock payload files stay local; this is not a
+rewrite its provenance. Mock payload files stay local; this is not a
 portable scenario export or a delay/fault-injection engine.
 
 ```json

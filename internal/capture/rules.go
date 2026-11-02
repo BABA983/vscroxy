@@ -46,30 +46,84 @@ func firstResponseRule(rules []Rule, raw, method string) int {
 	})
 }
 
-// RulePreview explains a saved rule's eligibility in its original order.
+// key is what a rule does, without its name and switches.
+func (r Rule) key() string {
+	return strings.Join([]string{string(r.Type), r.Match, r.Method, r.Target}, "\x00")
+}
+
+// RulePreview explains a saved rule's part in one exchange. Step is its place
+// in the order the proxy applies the rules that act on it, from 1, and 0 for
+// a rule that does not act; Reason then says why.
 type RulePreview struct {
 	Index  int
+	Step   int
 	Reason string
 }
 
-// PreviewRules uses the proxy's exact URL/method and first-match selection.
-// It does not read response files, contact upstreams, or run breakpoints/scripts.
-func PreviewRules(rules []Rule, raw, method string) []RulePreview {
-	winner := firstResponseRule(rules, raw, method)
+// PreviewRules follows the proxy for one request: the first matching request
+// breakpoint pauses it, the first matching Map or Block rule answers or
+// redirects it, and the first matching response breakpoint pauses a response
+// that came from upstream, matched against the redirected URL. Breakpoints
+// act only while breaking is on. It does not read response files, contact
+// upstreams or run scripts.
+func PreviewRules(rules []Rule, raw, method string, breaking bool) []RulePreview {
 	preview := make([]RulePreview, len(rules))
-	for i, r := range rules {
-		reason := r.matchReason(raw, method)
-		if reason == "" {
-			switch {
-			case !responseRule(r.Type):
-				reason = "independent breakpoint (requires Break)"
-			case i == winner:
-				reason = "winner"
-			default:
-				reason = fmt.Sprintf("shadowed by rule %d", winner+1)
+	upstream := raw
+	winner := firstResponseRule(rules, raw, method)
+	if winner >= 0 && rules[winner].Type == RuleMapRemote {
+		if from, err := url.Parse(raw); err == nil {
+			if to, err := mapURL(from, rules[winner].Target); err == nil {
+				upstream = to.String()
 			}
 		}
-		preview[i] = RulePreview{Index: i, Reason: reason}
+	}
+	answered := winner >= 0 && rules[winner].Type != RuleMapRemote
+	first := map[RuleType]int{}
+	step := 0
+	act := func(i int) {
+		step++
+		preview[i].Step = step
+	}
+	stage := func(r Rule) int { // the order the proxy reaches each kind in
+		switch {
+		case r.Type == RuleBreak:
+			return 0
+		case responseRule(r.Type):
+			return 1
+		}
+		return 2
+	}
+	for phase := range 3 {
+		for i, r := range rules {
+			preview[i].Index = i
+			if stage(r) != phase {
+				continue
+			}
+			at := raw
+			if r.Type == RuleBreakResponse {
+				at = upstream
+			}
+			reason := r.matchReason(at, method)
+			switch {
+			case reason != "":
+			case responseRule(r.Type) && i != winner:
+				reason = fmt.Sprintf("shadowed by rule %d", winner+1)
+			case responseRule(r.Type):
+				act(i)
+			case !breaking:
+				reason = "breakpoints are off"
+			case r.Type == RuleBreakResponse && answered:
+				reason = fmt.Sprintf("rule %d answers first", winner+1)
+			default:
+				if j, seen := first[r.Type]; seen {
+					reason = fmt.Sprintf("rule %d pauses first", j+1)
+				} else {
+					first[r.Type] = i
+					act(i)
+				}
+			}
+			preview[i].Reason = reason
+		}
 	}
 	return preview
 }

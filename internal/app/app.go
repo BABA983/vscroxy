@@ -105,6 +105,8 @@ type app struct {
 	// its window is in front.
 	toolsWin                *mygo.Window
 	toolsOpen, toolsFocused bool
+	// toolsPage is the category Tools shows: "rules" or "hosts".
+	toolsPage string
 	// toolsMenuAction is a menu command chosen while Tools was in front.
 	toolsMenuAction string
 	// launchPort and launchKeyLog are the saved settings this run started
@@ -822,6 +824,9 @@ func (a *app) drain() {
 	a.requestResults = nil
 	err := a.err
 	a.mu.Unlock()
+	if len(pending) > 0 && a.toolsPage == "rules" {
+		a.invalidateTools() // for the rules' hit counts
+	}
 	for _, result := range results {
 		d := result.document
 		d.composeWaiting = false
@@ -1376,7 +1381,6 @@ func (a *app) view(c *ui.Context) {
 	a.closeRequestModal(c, t)
 	a.apiGenerationModal(c, t)
 	a.curlImportModal(c, t)
-	a.rulesModal(c, t)
 	a.devicesModal(c, t)
 	a.clientSetupModal(c, t)
 	a.experimentsModal(c, t)

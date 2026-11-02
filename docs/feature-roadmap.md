@@ -278,7 +278,7 @@ Cookie 和其他 API key 保留为变量 header，避免把多个认证机制硬
 
 ### M4：规则引擎升级（Tools 窗口）
 
-- Tools 管理窗口：规则、Scenario、脚本、Host 方案集中管理。
+- Tools 管理窗口：规则、Scenario、脚本、Host 方案集中管理。（规则页已完成：规则从弹窗移进 Tools，测试请求时按作用顺序标号，显示命中数和 Scenario。）
 - 规则匹配：通配符、正则、method、App、header。
 - Map Local：app 内编辑响应、目录映射。
 - Map Remote：端口、路径、Host header、WebSocket。

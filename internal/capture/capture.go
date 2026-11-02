@@ -316,6 +316,9 @@ type Server struct {
 
 	rulesMu sync.RWMutex
 	rules   []Rule
+	// hits counts, per rule, the exchanges it changed since launch. It is
+	// keyed by what the rule does, so editing a rule starts it over.
+	hits map[string]int
 
 	frames  chan FrameEvent
 	flowIDs map[uuid.UUID]int
@@ -707,6 +710,23 @@ func (s *Server) Rules() []Rule {
 	return cloneRules(s.rules)
 }
 
+// RuleHits is how many exchanges r changed since launch, or since it was
+// last edited.
+func (s *Server) RuleHits(r Rule) int {
+	s.rulesMu.RLock()
+	defer s.rulesMu.RUnlock()
+	return s.hits[r.key()]
+}
+
+func (s *Server) hit(r Rule) {
+	s.rulesMu.Lock()
+	if s.hits == nil {
+		s.hits = make(map[string]int)
+	}
+	s.hits[r.key()]++
+	s.rulesMu.Unlock()
+}
+
 // SetScript replaces the script the proxy runs. A nil script runs nothing.
 func (s *Server) SetScript(script *Script) {
 	s.scriptMu.Lock()
@@ -786,9 +806,11 @@ func (s *Server) maybeBreak(f *proxy.Flow, phase Phase) *Decision {
 		return nil
 	}
 	raw := f.Request.URL.String()
-	if !s.matchesBreak(raw, f.Request.Method, phase) {
+	r, ok := s.breakRule(raw, f.Request.Method, phase)
+	if !ok {
 		return nil
 	}
+	s.hit(r)
 	id := int(s.bpNext.Add(1))
 	ch := make(chan Decision, 1)
 	s.bpMu.Lock()
@@ -847,6 +869,12 @@ func (s *Server) maybeBreak(f *proxy.Flow, phase Phase) *Decision {
 }
 
 func (s *Server) matchesBreak(raw, method string, phase Phase) bool {
+	_, ok := s.breakRule(raw, method, phase)
+	return ok
+}
+
+// breakRule is the first breakpoint rule that pauses an exchange in phase.
+func (s *Server) breakRule(raw, method string, phase Phase) (Rule, bool) {
 	want := RuleBreak
 	if phase == PhaseResponse {
 		want = RuleBreakResponse
@@ -855,10 +883,10 @@ func (s *Server) matchesBreak(raw, method string, phase Phase) bool {
 	defer s.rulesMu.RUnlock()
 	for _, r := range s.rules {
 		if r.Type == want && r.matches(raw, method) {
-			return true
+			return r, true
 		}
 	}
-	return false
+	return Rule{}, false
 }
 
 // willBreakResponse reports whether a response for this flow will pause, so
@@ -1395,6 +1423,9 @@ func (s *Server) applyRules(f *proxy.Flow) *proxy.Response {
 		if r.Scenario != "" {
 			recordAction(f, "Scenario · "+r.Scenario)
 		}
+		if r.Type != RuleMapRemote {
+			s.hit(r) // Map Remote counts once its target is known to work
+		}
 		switch r.Type {
 		case RuleBlock:
 			recordAction(f, "Block · "+r.Match)
@@ -1436,6 +1467,7 @@ func (s *Server) applyRules(f *proxy.Flow) *proxy.Response {
 			if err != nil {
 				return nil
 			}
+			s.hit(r)
 			recordAction(f, "Map Remote · "+r.Match+" → "+u.String())
 			// Keep the URL the client asked for: the table shows that one,
 			// and a replay sends it again.

@@ -252,10 +252,10 @@ func TestActiveToolChipsChangeConfigurationInBothWorkspaces(t *testing.T) {
 				}
 			}
 			click("Active tool: Breakpoints")
-			if !a.ruleUI.open {
-				t.Fatal("breakpoint chip did not open the existing rule editor")
+			if !a.toolsOpen || a.toolsPage != "rules" {
+				t.Fatal("breakpoint chip did not open the rules")
 			}
-			click("Close")
+			click("Done")
 			click("Disable Scenario: Offline")
 			if capture.ActiveScenario(a.rules) != "Offline" || capture.ActiveScenario(a.srv.Rules()) != "Offline" || !tt.HasText("Could not disable scenario") {
 				t.Fatal("failed save hid or deactivated the active scenario")
@@ -2860,8 +2860,9 @@ func TestRuleEditorPersistsOrderingTogglesAndCapturedMock(t *testing.T) {
 	if err := chooseMenu(tt, "Debugging rules…"); err != nil {
 		t.Fatal(err)
 	}
+	click("New rule")
 	tt.SetSize(960, 600)
-	for _, label := range []string{"Close", "Save rule"} {
+	for _, label := range []string{"Done", "Save rule"} {
 		bounds, ok := tt.Find(label)
 		if !ok || bounds.Y < 20 || bounds.Y+bounds.H > 580 {
 			t.Fatalf("rule action %q outside the compact dialog: %v", label, bounds)
@@ -2876,24 +2877,33 @@ func TestRuleEditorPersistsOrderingTogglesAndCapturedMock(t *testing.T) {
 	edit("URL contains", "/projects")
 	edit("Target base URL", "http://127.0.0.1:8081")
 	click("Save rule")
-	click("+ New rule")
+	click("New rule")
 	click("Rule type")
 	click("Block")
 	edit("Rule name", "Block projects")
 	edit("URL contains", "/projects")
 	click("Save rule")
-	click("Move up")
+	click("Rule actions")
+	if err := chooseMenu(tt, "Move up"); err != nil {
+		t.Fatal(err)
+	}
+	if a.ruleUI.index != 0 || a.ruleUI.draft.Name != "Block projects" {
+		t.Fatal("the moved rule left the editor")
+	}
 	click("Enable rule 1")
 	rules := load()
 	if len(rules) != 2 || rules[0].Type != capture.RuleBlock || !rules[0].Disabled || rules[1].Name != "Development API" {
 		t.Fatalf("order/toggle not persisted: %+v", rules)
 	}
-	click("Delete rule…")
+	click("Rule actions")
+	if err := chooseMenu(tt, "Delete rule…"); err != nil {
+		t.Fatal(err)
+	}
 	click("Delete")
 	if rules = load(); len(rules) != 1 || rules[0].Name != "Development API" {
 		t.Fatalf("delete not persisted: %+v", rules)
 	}
-	click("Close")
+	click("Done")
 	if err := tt.RightClick("api.example.com/projects"); err != nil {
 		t.Fatal(err)
 	}
@@ -2910,7 +2920,7 @@ func TestRuleEditorPersistsOrderingTogglesAndCapturedMock(t *testing.T) {
 	if err != nil || string(body) != `{"projects":[]}` {
 		t.Fatalf("mock body %q: %v", body, err)
 	}
-	click("Close")
+	click("Done")
 	click("More")
 	if err := chooseMenu(tt, "Debugging rules…"); err != nil {
 		t.Fatal(err)

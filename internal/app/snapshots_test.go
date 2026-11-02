@@ -358,24 +358,33 @@ func TestUISnapshots(t *testing.T) {
 			a.flows[0].dns, a.flows[0].hostProfile, a.flows[0].conn.remote = "api.example.com → 10.0.3.21", "Staging:2", "10.0.3.21"
 			a.flows[1].conn.remote = "93.184.216.34"
 		}, want: "Hosts: Staging + Default"},
-		{name: "tools-hosts", setup: func(a *app) { snapshotProfiles(a); a.openTools() }, want: "Test a host"},
+		{name: "tools-hosts", setup: func(a *app) { snapshotProfiles(a); a.openTools("hosts") }, want: "Test a host"},
 		{name: "tools-hosts-test", setup: func(a *app) {
 			snapshotProfiles(a)
-			a.openTools()
+			a.openTools("hosts")
 			a.profiles.test = "api.example.com"
 		}, want: "→ 10.0.3.21 · Staging line 2"},
 		{name: "tools-hosts-subscription", setup: func(a *app) {
 			snapshotProfiles(a)
-			a.openTools()
+			a.openTools("hosts")
 			a.profiles.choice = 4
 		}, want: "Subscription URL"},
-		{name: "tools-hosts-empty", setup: func(a *app) { a.openTools() }, want: "No Host profiles"},
+		{name: "tools-hosts-empty", setup: func(a *app) { a.openTools("hosts") }, want: "No Host profiles"},
 		{name: "dialog-key-log", setup: func(a *app) { a.openKeyLog() }, want: "TLS key log"},
-		{name: "dialog-rules", setup: func(a *app) {
-			a.rules = []capture.Rule{{Name: "Development API", Type: capture.RuleMapRemote, Match: "https://api.example.com/*", Target: "http://127.0.0.1:3000"}}
+		{name: "tools-rules", setup: func(a *app) { snapshotRules(a); a.srv = &capture.Server{}; a.openRules() }, want: "Scenario: Offline demo", short: true},
+		{name: "tools-rules-test", setup: func(a *app) {
+			snapshotRules(a)
 			a.openRules()
-		}, want: "Save rule", short: true},
-		{name: "dialog-rules-error", setup: func(a *app) { a.openRules(); a.ruleUI.problem = "Enter a valid HTTP(S) target URL" }, want: "Enter a valid HTTP(S) target URL"},
+			a.breakOn = true
+			a.ruleUI.test = "GET https://api.example.com/v1/users/42"
+		}, want: "2 rules act, in the order numbered"},
+		{name: "tools-rules-remote", setup: func(a *app) {
+			snapshotRules(a)
+			a.openRules()
+			a.editRule(1, a.rules[1])
+			a.ruleUI.problem = "rule 2: Map Remote needs an http(s) base URL without credentials or fragment"
+		}, want: "Target base URL"},
+		{name: "tools-rules-empty", setup: func(a *app) { a.openRules() }, want: "No rules"},
 		{name: "dialog-breakpoint", setup: snapshotBreakpoint, want: "Breakpoint · request paused", short: true},
 		{name: "dialog-breakpoint-readonly", setup: func(a *app) {
 			snapshotBreakpoint(a)
@@ -698,6 +707,17 @@ func snapshotBreakpoint(a *app) {
 	a.bp = &capture.Breakpoint{ID: 1, Method: "POST", URL: "https://api.example.com/projects"}
 	a.bpOpen, a.bpMethod, a.bpURL = true, "POST", a.bp.URL
 	a.bpHeaders, a.bpBody = "Content-Type: application/json\nX-Trace: demo", `{"name":"Demo project"}`
+}
+
+func snapshotRules(a *app) {
+	a.rules = []capture.Rule{
+		{Name: "Mock user profile", Type: capture.RuleMapLocal, Match: "api.example.com/v1/users/", Method: "GET", Target: "/Users/me/mocks/user.json", Status: 200, Scenario: "Offline demo", ScenarioActive: true},
+		{Name: "Orders → staging", Type: capture.RuleMapRemote, Match: "api.example.com/v1/orders", Target: "https://staging.example.com"},
+		{Name: "Block analytics", Type: capture.RuleBlock, Match: "analytics.example.com", Disabled: true},
+		{Name: "Pause user requests", Type: capture.RuleBreak, Match: "/v1/users"},
+		{Name: "Inspect payments", Type: capture.RuleBreakResponse, Match: "/v1/payments", Method: "POST"},
+		{Name: "Offline users", Type: capture.RuleBlock, Match: "api.example.com/v1/users", Scenario: "Offline demo", ScenarioActive: true},
+	}
 }
 
 func snapshotActiveTools(a *app) {
