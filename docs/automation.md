@@ -75,3 +75,87 @@ requests and Binary/Multipart bodies can read local files.
 The repository CI runs `docs/examples/ci/collection.json` against a local static
 fixture and uploads its JSON/JUnit reports. To use your own API, replace that
 fixture server with your test service and pass its URL as `base_url`.
+
+## Control a running desktop
+
+Desktop control is **off by default**. Explicitly set `VSCROXY_CONTROL_FILE` to
+a nonexistent file in an existing, private directory when launching the app:
+
+```sh copy Copy Desktop Control Launch
+mkdir -p "$HOME/.vscroxy"
+chmod 700 "$HOME/.vscroxy"
+VSCROXY_CONTROL_FILE="$HOME/.vscroxy/control.json" bin/vscroxy
+```
+
+This opens an ephemeral **127.0.0.1-only** endpoint, not the capture proxy port.
+The discovery file contains its address and a cryptographically random bearer
+token. Treat it as a credential: never commit, share, or pass its contents to an
+AI tool. Unix files require current-user ownership and no group/other access;
+Windows files have a protected current-user-only DACL from creation, verified
+again when opened. Unsupported filesystem protection fails closed. Normal Quit
+removes the owned file and cancels jobs; after a crash, check the old process is
+gone before removing a stale file. Existing files/symlinks are never overwritten.
+
+Clients reject symlinks, insecure discovery files, non-loopback destinations,
+HTTP redirects and environment proxies. The server checks exact Host and bearer
+authentication, rejects browser Origin headers, bounds commands to 64 KiB and
+responses to 16 MiB, and times out command dispatch after 10s. This is **not a
+security sandbox against other processes running as your user**. A token holder
+can request raw data and authorize side effects. Only give it to trusted clients.
+
+```sh copy Copy Desktop Queries
+bin/vscroxy-cli control --file "$HOME/.vscroxy/control.json" status
+bin/vscroxy-cli control --file "$HOME/.vscroxy/control.json" requests.list
+bin/vscroxy-cli control --file "$HOME/.vscroxy/control.json" \
+  --params '{"collection":"Shop"}' --confirm collection.run
+bin/vscroxy-cli control --file "$HOME/.vscroxy/control.json" \
+  --params '{"id":"JOB-ID"}' runs.get
+```
+
+Flags precede the action. Output is JSON, suitable for shell redirection. Exit
+codes are 0 for a successful command, 1 for an application rejection, 2 for
+configuration/transport/output errors, and 130 for cancellation. A successful
+`*.run` command means **accepted**, not passed: poll `runs.get` until `done`, then
+check `report.failed` and `report.incomplete`. Do not automatically retry a
+mutation on transport timeout: its outcome may be unknown.
+
+| Action | Parameters / result |
+| --- | --- |
+| `status` | Proxy, recording, active environment and counts |
+| `collections.list` | Runnable saved collection/folder names |
+| `requests.list` | Optional `collection` (descendants included; explicit empty selects unfiled requests) |
+| `requests.get` | Saved `id`; optional `details` |
+| `flows.list` | Optional `limit` (default 50, max 200), exclusive `before` ID cursor; `nextBefore:0` ends paging |
+| `flows.get` | Live capture `id`; optional `details` |
+| `rules.list` | Index, fingerprint `key`, name, type and enabled state |
+| `request.run` | Saved `id`, optional `environment`, `iterations` (1–1000), `bail`; returns job ID |
+| `collection.run` | `collection`, same run options; includes descendants |
+| `runs.get` | Job `id`; returns `done` and a redacted report |
+| `runs.cancel` | Job `id`; cancellation cannot undo completed external effects |
+| `capture.recording` | Required boolean `enabled`; forwarding remains on |
+| `rules.set-enabled` | Required `index`, current `key` and boolean `enabled`; persists through the existing rules store |
+
+All five mutations require `confirm:true`; CLI `--confirm` supplies it. Rule
+fingerprints reject stale targets after a concurrent edit/reorder. Each app-state
+command and its response snapshot run on the desktop UI thread, not HTTP workers.
+Runs execute asynchronously with isolated Cookies/OAuth tokens, the selected
+desktop environment and folder inheritance. They do not touch Runner drafts or
+persist script variable writes. An already unlocked Vault may resolve scoped
+request secrets; remote runs never unlock it or enable script Vault writes.
+Desktop proxy rules/Host mapping still apply; interactive OAuth login is not
+started. Binary/Multipart paths resolve in the desktop process working directory.
+
+At most one remote run is active, with a 5-minute whole-run deadline, 30s per
+request and 1000-attempt budget including script jumps. The most recent 16 jobs
+are retained **in memory only**, not desktop History. Polling/canceling requests
+does not implicitly cancel the job; use `runs.cancel` or Quit. A deliberate
+`setNextRequest(null)` is success; unknown targets/budget exhaustion are incomplete.
+
+Default flow/request queries omit bodies, headers and auth, redact URL credentials,
+fragments and query values, but retain authored labels, host/path and parameter
+names. This is field redaction, not secret detection. Explicit `details:true`
+discloses raw saved requests or live raw headers/URL and binary-safe base64 body
+previews (at most 64 KiB per side). Previews never open spill files and report
+truncation; they are not a full response download. Session tabs are not queried.
+System-proxy changes, arbitrary rule import/creation, and full HAR export remain
+separate roadmap work; the API deliberately has no arbitrary filesystem action.

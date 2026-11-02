@@ -34,7 +34,8 @@ JavaScript request/response hooks run in Goja inside the Go process, not Node.js
 For collection regression runs without a window, build
 `go build -o bin/vscroxy-cli ./cmd/vscroxy-cli`.
 See [headless automation](docs/automation.md) for native/Postman inputs,
-environment/data files, exit codes and JSON/JUnit CI reports.
+environment/data files, exit codes, JSON/JUnit CI reports and opt-in authenticated
+control of a running desktop.
 
 ## Source layout
 

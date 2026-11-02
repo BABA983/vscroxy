@@ -236,6 +236,7 @@ type app struct {
 
 	srv         *capture.Server
 	win         *mygo.Window
+	control     *desktopControl
 	caPath      string
 	certificate certificateSetup
 	systemProxy proxySetup
@@ -2311,6 +2312,8 @@ func Run() error {
 	if a.srv != nil {
 		defer a.srv.Close()
 	}
+	defer a.closeControl()
+	mygo.App.OnQuit(a.closeControl)
 	cleanupProxy := func() {
 		if err := a.systemProxy.close(); err != nil {
 			slog.Error("release system proxy", "err", err)
@@ -2373,6 +2376,11 @@ func Run() error {
 		})
 		mygo.App.SetMenu(a.menu())
 		a.checkSystemProxy(true) // retry only a recorded, interrupted proxy session
+		if path := os.Getenv("VSCROXY_CONTROL_FILE"); path != "" {
+			if err := a.startControl(path); err != nil {
+				a.fail("Enable local automation", err)
+			}
+		}
 		go a.startCapture()
 	})
 	return mygo.App.Run()

@@ -312,12 +312,16 @@ func (a *app) moveRules(rows []int, to int) {
 	}
 }
 
-func (a *app) switchRule(i int, on bool) {
+func (a *app) switchRule(i int, on bool) bool {
 	next := slices.Clone(a.rules)
 	next[i].Disabled = !on
-	if a.applyRuleChanges(next) && a.ruleUI.index == i {
+	if !a.applyRuleChanges(next) {
+		return false
+	}
+	if a.ruleUI.index == i {
 		a.ruleUI.draft.Disabled = !on
 	}
+	return true
 }
 
 func (a *app) browseRuleFile(folder bool) {
