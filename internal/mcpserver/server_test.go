@@ -2,6 +2,7 @@ package mcpserver_test
 
 import (
 	"context"
+	"encoding/json/jsontext"
 	"encoding/json/v2"
 	"errors"
 	"fmt"
@@ -17,7 +18,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-var queries = []string{"collections.list", "flows.get", "flows.list", "requests.get", "requests.list", "rules.list", "runs.get", "status"}
+var queries = []string{"collections.list", "flows.export-har", "flows.get", "flows.list", "requests.get", "requests.list", "rules.list", "runs.get", "status"}
 var writes = []string{"capture.recording", "collection.run", "request.run", "rules.set-enabled", "runs.cancel"}
 
 func endpoint(t *testing.T, dispatch control.Dispatch) string {
@@ -145,6 +146,19 @@ func TestCatalogAndAnnotations(t *testing.T) {
 							t.Errorf("tool %s accepts %s", tool.Name, forbidden)
 						}
 					}
+					if tool.Name == "flows.export-har" {
+						ids := props["ids"].(map[string]any)
+						items := ids["items"].(map[string]any)
+						if ids["type"] != "array" || ids["minItems"] != float64(1) || ids["maxItems"] != float64(200) || ids["uniqueItems"] != true || items["type"] != "integer" || items["minimum"] != float64(1) {
+							t.Errorf("incorrect HAR ID constraints: %+v", ids)
+						}
+						if len(props) != 2 || props["details"].(map[string]any)["type"] != "boolean" || !slices.Equal(schema["required"].([]any), []any{"ids"}) {
+							t.Errorf("incorrect HAR export parameters: %+v", schema)
+						}
+						if !a.IdempotentHint {
+							t.Error("HAR export must be idempotent")
+						}
+					}
 				}
 				slices.Sort(names)
 				if !slices.Equal(names, want) {
@@ -191,6 +205,8 @@ func TestQueryJSONValues(t *testing.T) {
 		{"flows.list", nil, `{"action":"flows.list","params":{"limit":50}}`, false},
 		{"flows.list", map[string]any{"limit": 200, "before": 80}, `{"action":"flows.list","params":{"limit":200,"before":80}}`, false},
 		{"flows.get", map[string]any{"id": 7}, `{"action":"flows.get","params":{"id":7}}`, false},
+		{"flows.export-har", map[string]any{"ids": []int{7, 2}}, `{"action":"flows.export-har","params":{"ids":[7,2]}}`, false},
+		{"flows.export-har", map[string]any{"ids": []int{7}, "details": false}, `{"action":"flows.export-har","params":{"ids":[7]}}`, false},
 		{"rules.list", nil, `{"action":"rules.list","params":{}}`, false},
 		{"runs.get", map[string]any{"id": "job-id"}, `{"action":"runs.get","params":{"id":"job-id"}}`, false},
 		{"requests.get", map[string]any{"id": "missing"}, `{"error":"request not found"}`, true},
@@ -226,13 +242,18 @@ func TestSensitiveOptIn(t *testing.T) {
 	for _, write := range []bool{false, true} {
 		for _, sensitive := range []bool{false, true} {
 			cs := connect(t, path, mcpserver.Options{AllowWrite: write, AllowSensitive: sensitive}, "2025-11-25")
-			for _, name := range []string{"requests.get", "flows.get"} {
+			for _, name := range []string{"requests.get", "flows.get", "flows.export-har"} {
 				var id any = "request-id"
 				if name == "flows.get" {
 					id = 1
 				}
 				for _, details := range []bool{false, true} {
-					result := call(t, cs, name, map[string]any{"id": id, "details": details})
+					args := map[string]any{"id": id, "details": details}
+					if name == "flows.export-har" {
+						delete(args, "id")
+						args["ids"] = []int{1}
+					}
+					result := call(t, cs, name, args)
 					if details && !sensitive {
 						if !result.IsError || strings.Contains(resultJSON(t, result), "sensitive-saved-content") {
 							t.Fatalf("sensitive access not blocked: %+v", result)
@@ -248,8 +269,56 @@ func TestSensitiveOptIn(t *testing.T) {
 	}
 	mu.Lock()
 	defer mu.Unlock()
-	if disclosures != 4 {
-		t.Fatalf("desktop saw %d sensitive requests; want only four explicitly authorized disclosures", disclosures)
+	if disclosures != 6 {
+		t.Fatalf("desktop saw %d sensitive requests; want only six explicitly authorized disclosures", disclosures)
+	}
+}
+
+func TestHARExportReturnsDirectJSON(t *testing.T) {
+	safeHAR := `{"log":{"version":"1.2","creator":{"name":"test","version":"1"},"entries":[]}}`
+	rawHAR := `{"log":{"version":"1.2","creator":{"name":"test","version":"1"},"entries":[],"comment":"raw-secret"}}`
+	path := endpoint(t, func(_ context.Context, c control.Command) (any, error) {
+		var p struct {
+			IDs     []int `json:"ids"`
+			Details bool  `json:"details"`
+		}
+		if c.Action != "flows.export-har" || json.Unmarshal(c.Params, &p, json.RejectUnknownMembers(true)) != nil {
+			return nil, errors.New("unexpected export action or parameters")
+		}
+		if slices.Equal(p.IDs, []int{999}) {
+			return map[string]string{"error": "flow not found"}, nil
+		}
+		if !slices.Equal(p.IDs, []int{7, 2}) && len(p.IDs) != 200 {
+			return nil, errors.New("unexpected export IDs")
+		}
+		if p.Details {
+			return jsontext.Value(rawHAR), nil
+		}
+		return jsontext.Value(safeHAR), nil
+	})
+	ids := make([]int, 200)
+	for i := range ids {
+		ids[i] = i + 1
+	}
+	for _, protocol := range []string{"2025-11-25", "2026-07-28"} {
+		cs := connect(t, path, mcpserver.Options{AllowSensitive: true}, protocol)
+		for _, tc := range []struct {
+			args map[string]any
+			want string
+			err  bool
+		}{
+			{map[string]any{"ids": []int{7, 2}}, safeHAR, false},
+			{map[string]any{"ids": []int{7, 2}, "details": false}, safeHAR, false},
+			{map[string]any{"ids": []int{7, 2}, "details": true}, rawHAR, false},
+			{map[string]any{"ids": ids}, safeHAR, false},
+			{map[string]any{"ids": []int{999}}, `{"error":"flow not found"}`, true},
+		} {
+			result := call(t, cs, "flows.export-har", tc.args)
+			if result.IsError != tc.err {
+				t.Fatalf("HAR export IsError=%v; want %v: %+v", result.IsError, tc.err, result)
+			}
+			requireJSON(t, result, tc.want)
+		}
 	}
 }
 
@@ -316,6 +385,10 @@ func TestInvalidArgumentsNeverReachDesktop(t *testing.T) {
 		return map[string]bool{"unexpected": true}, nil
 	})
 	cs := connect(t, path, mcpserver.Options{AllowWrite: true, AllowSensitive: true}, "2025-11-25")
+	tooMany := make([]int, 201)
+	for i := range tooMany {
+		tooMany[i] = i + 1
+	}
 	for _, tc := range []struct {
 		name string
 		args any
@@ -326,6 +399,21 @@ func TestInvalidArgumentsNeverReachDesktop(t *testing.T) {
 		{"flows.get", map[string]any{"id": -1}},
 		{"flows.get", map[string]any{"id": 0}},
 		{"flows.get", map[string]any{"id": 1.5}},
+		{"flows.export-har", map[string]any{}},
+		{"flows.export-har", map[string]any{"ids": nil}},
+		{"flows.export-har", map[string]any{"ids": []int{}}},
+		{"flows.export-har", map[string]any{"ids": tooMany}},
+		{"flows.export-har", map[string]any{"ids": []int{1, 1}}},
+		{"flows.export-har", map[string]any{"ids": []int{0}}},
+		{"flows.export-har", map[string]any{"ids": []int{-1}}},
+		{"flows.export-har", map[string]any{"ids": []float64{1.5}}},
+		{"flows.export-har", map[string]any{"ids": []string{"1"}}},
+		{"flows.export-har", map[string]any{"ids": []any{nil}}},
+		{"flows.export-har", map[string]any{"ids": 1}},
+		{"flows.export-har", map[string]any{"ids": []int{1}, "details": "true"}},
+		{"flows.export-har", map[string]any{"ids": []int{1}, "details": nil}},
+		{"flows.export-har", map[string]any{"ids": []int{1}, "output": "/private/file"}},
+		{"flows.export-har", map[string]any{"ids": []int{1}, "confirm": true}},
 		{"requests.get", map[string]any{"id": "x", "details": "true"}},
 		{"flows.list", map[string]any{"limit": 0}},
 		{"flows.list", map[string]any{"limit": 201}},
@@ -357,13 +445,21 @@ func TestSanitizedBackendFailure(t *testing.T) {
 		return nil, errors.New("private-backend-exception-and-token")
 	})
 	cs := connect(t, path, mcpserver.Options{}, "2025-11-25")
-	result := call(t, cs, "status", nil)
-	data, err := json.Marshal(result)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !result.IsError || strings.Contains(string(data), "private-backend") || !strings.Contains(string(data), "dispatch failed") {
-		t.Fatalf("unsanitized or missing error: %s", data)
+	for _, tc := range []struct {
+		name string
+		args any
+	}{
+		{"status", nil},
+		{"flows.export-har", map[string]any{"ids": []int{1}}},
+	} {
+		result := call(t, cs, tc.name, tc.args)
+		data, err := json.Marshal(result)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !result.IsError || strings.Contains(string(data), "private-backend") || !strings.Contains(string(data), "dispatch failed") {
+			t.Fatalf("unsanitized or missing error: %s", data)
+		}
 	}
 }
 

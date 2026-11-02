@@ -44,34 +44,54 @@ func (a *app) startControl(path string) error {
 	c := &desktopControl{jobs: map[string]*controlJob{}}
 	win := a.win
 	server, err := control.Start(path, func(ctx context.Context, command control.Command) (any, error) {
-		reply := make(chan jsontext.Value, 1)
-		win.Update(func() {
-			if ctx.Err() != nil {
-				return // a timed-out queued mutation must never run later
-			}
-			value, err := a.controlValue(command)
-			if err != nil {
-				value = map[string]string{"error": err.Error()}
-			}
-			// Snapshot on the UI thread, before HTTP encodes the response.
-			data, err := json.Marshal(value)
-			if err != nil {
-				data = []byte(`{"error":"cannot encode result"}`)
-			}
-			reply <- data
-		})
-		select {
-		case value := <-reply:
-			return value, nil
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		}
+		return a.dispatchControl(ctx, command, win.Update)
 	})
 	if err != nil {
 		return err
 	}
 	c.server, a.control = server, c
 	return nil
+}
+
+// controlWork owns an immutable UI snapshot; its I/O runs on the HTTP worker.
+type controlWork func(context.Context) (any, error)
+
+func (a *app) dispatchControl(ctx context.Context, command control.Command, update func(func())) (any, error) {
+	reply := make(chan any, 1)
+	encode := func(value any, err error) jsontext.Value {
+		if err != nil {
+			value = map[string]string{"error": err.Error()}
+		}
+		data, err := json.Marshal(value)
+		if err != nil {
+			data = []byte(`{"error":"cannot encode result"}`)
+		}
+		return data
+	}
+	update(func() {
+		if ctx.Err() != nil {
+			return // a timed-out queued mutation must never run later
+		}
+		value, err := a.controlValue(command)
+		if work, ok := value.(controlWork); ok && err == nil {
+			reply <- work
+		} else {
+			// Marshal mutable app data before leaving the UI thread.
+			reply <- encode(value, err)
+		}
+	})
+	select {
+	case value := <-reply:
+		if work, ok := value.(controlWork); ok {
+			if err := ctx.Err(); err != nil {
+				return nil, err
+			}
+			return encode(work(ctx)), nil
+		}
+		return value, nil
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
 }
 
 func (a *app) closeControl() {
@@ -188,6 +208,8 @@ func (a *app) controlValue(command control.Command) (any, error) {
 			return nil, errors.New("live flow not found")
 		}
 		return map[string]any{"items": rows, "nextBefore": 0}, nil
+	case "flows.export-har":
+		return a.controlHAR(command)
 	case "capture.recording":
 		p, err := controlParams[struct {
 			Enabled *bool `json:"enabled"`

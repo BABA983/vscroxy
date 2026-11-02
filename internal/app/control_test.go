@@ -30,17 +30,11 @@ func desktopClient(t *testing.T, a *app) *control.Client {
 	var ui sync.Mutex
 	path := filepath.Join(t.TempDir(), "desktop.json")
 	server, err := control.Start(path, func(ctx context.Context, c control.Command) (any, error) {
-		ui.Lock()
-		defer ui.Unlock()
-		if err := ctx.Err(); err != nil {
-			return nil, err
-		}
-		value, err := a.controlValue(c)
-		if err != nil {
-			value = map[string]string{"error": err.Error()}
-		}
-		data, err := json.Marshal(value)
-		return jsontext.Value(data), err
+		return a.dispatchControl(ctx, c, func(fn func()) {
+			ui.Lock()
+			defer ui.Unlock()
+			fn()
+		})
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -251,5 +245,87 @@ func TestDesktopControlRunCancellationAndBusyGuard(t *testing.T) {
 	report := waitControlRun(t, client, job.ID)
 	if !report.Incomplete || report.Problem != "cancelled" {
 		t.Fatalf("cancellation became a passing run: %+v", report)
+	}
+}
+
+func TestDesktopControlHARExportRedactionAndBinaryRoundTrip(t *testing.T) {
+	body := "\xff\x00binary-secret"
+	path := filepath.Join(t.TempDir(), "body")
+	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	a := &app{flows: []flow{
+		{id: 2, live: true, method: "POST", url: "http://user:password@example.com/upload?token=query-secret#fragment", status: 201,
+			reqHeader:  http.Header{"Authorization": {"header-secret"}, "Content-Type": {"application/octet-stream"}},
+			respHeader: http.Header{"Set-Cookie": {"cookie-secret"}, "Location": {"http://example.com/?key=redirect-secret"}},
+			reqBody:    body, reqSize: len(body), resBody: "preview", resFile: path, resSize: len(body)},
+		{id: 7, live: true, method: "GET", url: "http://example.com/second", status: 204},
+		{id: 9, live: false}, {id: 10, live: true, kind: "WebSocket"},
+	}}
+	client := desktopClient(t, a)
+	params := map[string]any{"ids": []int{7, 2}}
+	value := desktopCall(t, client, "flows.export-har", params)
+	for _, secret := range []string{"password", "query-secret", "fragment", "header-secret", "cookie-secret", "redirect-secret", "binary-secret"} {
+		if strings.Contains(string(value), secret) {
+			t.Fatalf("redacted HAR leaked %s: %s", secret, value)
+		}
+	}
+	var doc harFile
+	if err := json.Unmarshal(value, &doc); err != nil || doc.Log.Version != "1.2" || len(doc.Log.Entries) != 2 || doc.Log.Entries[0].Request.URL != "http://example.com/second" || doc.Log.Entries[1].Request.PostData != nil || doc.Log.Entries[1].Response.Content.Text != "" {
+		t.Fatalf("redacted HAR or requested order incorrect: %s, %v", value, err)
+	}
+	params["details"] = true
+	value = desktopCall(t, client, "flows.export-har", params)
+	if err := json.Unmarshal(value, &doc); err != nil || len(doc.Log.Entries) != 2 {
+		t.Fatalf("raw HAR: %s, %v", value, err)
+	}
+	e := doc.Log.Entries[1]
+	if e.Request.URL != a.flows[0].url || e.Request.PostData == nil || e.Request.PostData.Encoding != "base64" || e.Response.Content.Encoding != "base64" || harBody(e.Response.Content) != body || harBody(harContent{Text: e.Request.PostData.Text, Encoding: e.Request.PostData.Encoding}) != body {
+		t.Fatalf("raw binary bodies did not round trip: %+v", e)
+	}
+	if a.flows[0].reqHeader.Get("Authorization") != "header-secret" || a.flows[0].resFile != path {
+		t.Fatal("export changed captured originals")
+	}
+	if err := os.Remove(path); err != nil {
+		t.Fatal(err)
+	}
+	if value := desktopCall(t, client, "flows.export-har", params); !strings.Contains(string(value), `"error":`) || strings.Contains(string(value), path) {
+		t.Fatalf("missing body silently exported or path disclosed: %s", value)
+	}
+	delete(params, "details")
+	if value := desktopCall(t, client, "flows.export-har", params); strings.Contains(string(value), `"error":`) {
+		t.Fatalf("redacted export tried to read missing body: %s", value)
+	}
+	for _, params := range []any{nil, map[string]any{"ids": []int{}}, map[string]any{"ids": []int{2, 2}}, map[string]any{"ids": []int{-1}}, map[string]any{"ids": []int{9}}, map[string]any{"ids": []int{2, 999}}, map[string]any{"ids": []int{10}}, map[string]any{"ids": []int{2}, "path": "/tmp/not-allowed"}} {
+		if value := desktopCall(t, client, "flows.export-har", params); !strings.Contains(string(value), `"error":`) {
+			t.Fatalf("invalid selection accepted: %s", value)
+		}
+	}
+}
+
+func TestDesktopControlHARExportRejectsPartialAndOversizedPayloads(t *testing.T) {
+	a := &app{flows: []flow{{id: 1, live: true, method: "POST", url: "http://example.com", status: 200}}}
+	client := desktopClient(t, a)
+	params := map[string]any{"ids": []int{1}, "details": true}
+	// Exactly the aggregate limit fits. Neither a per-body check nor checking
+	// only the preview length would reject the second, cumulatively larger case.
+	a.flows[0].reqBody = strings.Repeat("a", controlHARBodyLimit-1)
+	a.flows[0].resBody = "b"
+	value := desktopCall(t, client, "flows.export-har", params)
+	var doc harFile
+	if err := json.Unmarshal(value, &doc); err != nil || len(doc.Log.Entries) != 1 || doc.Log.Entries[0].Request.PostData == nil || len(doc.Log.Entries[0].Request.PostData.Text) != controlHARBodyLimit-1 || doc.Log.Entries[0].Response.Content.Text != "b" {
+		t.Fatalf("boundary export rejected: %s", value[:min(len(value), 200)])
+	}
+	a.flows[0].resBody = "bc"
+	if value := desktopCall(t, client, "flows.export-har", params); !strings.Contains(string(value), `"error":`) {
+		t.Fatal("aggregate body budget not enforced")
+	}
+	a.flows[0].reqBody, a.flows[0].resBody, a.flows[0].resSize = "", "short", 6
+	if value := desktopCall(t, client, "flows.export-har", params); !strings.Contains(string(value), `"error":`) {
+		t.Fatal("partial retained body exported as complete")
+	}
+	a.flows[0].resSize, a.flows[0].resError = 5, "private-error-contents"
+	if value := desktopCall(t, client, "flows.export-har", params); !strings.Contains(string(value), `"error":`) || strings.Contains(string(value), "private-error-contents") {
+		t.Fatalf("body error leaked or was ignored: %s", value)
 	}
 }

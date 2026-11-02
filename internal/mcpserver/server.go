@@ -42,6 +42,7 @@ func New(controlFile string, options Options) (*mcp.Server, error) {
 	register[requestGetParams](server, client, options, "requests.get", "Read a saved request summary. details=true exposes the raw saved request, possibly including credentials, and requires --allow-sensitive.", query)
 	register[flowsListParams](server, client, options, "flows.list", "List captured flow summaries, newest first. No bodies, headers, credentials, or query values; limit defaults to 50 (1–200).", query)
 	register[flowGetParams](server, client, options, "flows.get", "Read a captured flow summary. details=true exposes raw headers and bounded base64 bodies, possibly including credentials, and requires --allow-sensitive.", query)
+	register[flowsExportHARParams](server, client, options, "flows.export-har", "Export 1–200 unique live HTTP flow IDs as a HAR JSON document, without an envelope. By default bodies, header secrets, and query values are omitted. details=true exposes raw traffic, possibly including credentials, and requires --allow-sensitive. No file is written by the desktop.", query)
 	register[emptyParams](server, client, options, "rules.list", "List rule index, stale-edit fingerprint key, name, type, and enabled state.", query)
 	register[idParams](server, client, options, "runs.get", "Poll an asynchronous run by job ID. Returns done and a redacted report with at most 1000 attempts; run variables are not persisted.", query)
 	if options.AllowWrite {
@@ -75,6 +76,11 @@ type flowsListParams struct {
 type flowGetParams struct {
 	ID      int  `json:"id" jsonschema:"Positive captured flow ID"`
 	Details bool `json:"details,omitzero" jsonschema:"Explicit raw header and bounded body disclosure; requires --allow-sensitive"`
+}
+
+type flowsExportHARParams struct {
+	IDs     []int `json:"ids" jsonschema:"1–200 positive unique live HTTP flow IDs"`
+	Details bool  `json:"details,omitzero" jsonschema:"Explicit raw HAR disclosure; requires --allow-sensitive"`
 }
 
 type idParams struct {
@@ -120,6 +126,10 @@ func register[In any](server *mcp.Server, client *control.Client, options Option
 			} else {
 				property.MinLength = new(1)
 			}
+		case "ids":
+			property.Type, property.Types = "array", nil
+			property.MinItems, property.MaxItems, property.UniqueItems = new(1), new(200), true
+			property.Items.Minimum = new(1.0)
 		case "key":
 			property.MinLength = new(1)
 		case "collection":

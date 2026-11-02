@@ -127,6 +127,7 @@ mutation on transport timeout: its outcome may be unknown.
 | `requests.get` | Saved `id`; optional `details` |
 | `flows.list` | Optional `limit` (default 50, max 200), exclusive `before` ID cursor; `nextBefore:0` ends paging |
 | `flows.get` | Live capture `id`; optional `details` |
+| `flows.export-har` | Required `ids` (1–200 unique live HTTP IDs, in export order); optional `details`; returns a HAR 1.2 document |
 | `rules.list` | Index, fingerprint `key`, name, type and enabled state |
 | `request.run` | Saved `id`, optional `environment`, `iterations` (1–1000), `bail`; returns job ID |
 | `collection.run` | `collection`, same run options; includes descendants |
@@ -157,8 +158,34 @@ names. This is field redaction, not secret detection. Explicit `details:true`
 discloses raw saved requests or live raw headers/URL and binary-safe base64 body
 previews (at most 64 KiB per side). Previews never open spill files and report
 truncation; they are not a full response download. Session tabs are not queried.
-System-proxy changes, arbitrary rule import/creation, and full HAR export remain
-separate roadmap work; the API deliberately has no arbitrary filesystem action.
+System-proxy changes and rule import/creation remain separate roadmap work;
+the API deliberately has no arbitrary filesystem action.
+
+### Export captured HTTP traffic
+
+Select explicit IDs from `flows.list`; imported sessions and WebSocket/SSE
+streams are not HAR exports. Missing IDs reject the entire export rather than
+silently dropping traffic. Default exports use the desktop's field-redaction
+policy: omit bodies/cookies, redact header and query values, and remove URL
+credentials/fragments. They never read retained body files. Host/path, field
+names, Content-Type/Accept and timing/size metadata remain; review before sharing.
+
+```sh copy Copy HAR Export
+bin/vscroxy-cli control --file "$HOME/.vscroxy/control.json" \
+  --params '{"ids":[42,41]}' --output ./capture.har flows.export-har
+```
+
+`--output` writes successful JSON atomically and privately **on the CLI machine**,
+not through a desktop filesystem action. Application/transport errors leave any
+old destination untouched. Without it the JSON goes to stdout. The discovery
+file cannot be an output destination, including aliases to it.
+
+Explicit `details:true` exports original headers/URLs and complete retained
+bodies (binary-safe base64 where needed). It may expose credentials or private
+content. Body I/O happens off the UI thread. Each export is bounded to 1 MiB of
+source metadata, 4 MiB of aggregate body bytes and 8 MiB of encoded HAR. Raw
+exports fail on missing/incomplete/oversized bodies instead of substituting a
+preview or display warning. Select smaller batches when limits are exceeded.
 
 ## MCP stdio server
 
@@ -182,9 +209,9 @@ paths (replace both placeholders; shell `$HOME` expansion is not assumed):
 }
 ```
 
-The default catalog contains eight read-only tools, named like desktop actions:
+The default catalog contains nine read-only tools, named like desktop actions:
 `status`, `collections.list`, `requests.list`, `requests.get`, `flows.list`,
-`flows.get`, `rules.list`, and `runs.get`. Every tool has a typed, closed input
+`flows.get`, `flows.export-har`, `rules.list`, and `runs.get`. Every tool has a typed, closed input
 schema and an explicit read-only/destructive/open-world annotation. Results are
 JSON structured content with a JSON text fallback. Application rejections set
 MCP `isError`; a run job's acceptance still requires polling its final report.
@@ -196,7 +223,7 @@ Two **independent startup capabilities**, never tool parameters, widen access:
   tools to supply the desktop's confirmation. Request execution can affect real
   external systems; enable it only for a trusted client and trusted collections.
 - `--allow-sensitive` permits an explicitly requested `details:true` on
-  `requests.get` / `flows.get`. It does not register mutations or change the
+  `requests.get` / `flows.get` / `flows.export-har`. It does not register mutations or change the
   default query response. Raw headers, query values, bodies and saved scripts
   may contain credentials or private data sent to the client's model provider.
 
