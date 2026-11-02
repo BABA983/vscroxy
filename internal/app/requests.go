@@ -533,37 +533,28 @@ func (a *app) requestDocumentActions(c *ui.Context, t *ui.Theme, d *requestDocum
 				a.apiChoice, a.page = d.sourceAPI, pageAPI
 			}
 		}
-		a.desktopButton(c, "save-request", "Save")
-		uikit.MoreMenu(c, "Request options", func(m *ui.Menu) {
-			if m.Item("Duplicate as new request").Chosen() {
-				r := d.value()
-				r.ID, r.Name = "", uniqueRequestName(a.requests, r.Name+" copy")
-				a.addDocument(r, "")
-			}
-			if m.Item("Copy as cURL").Chosen() {
-				a.copyDraftCurl(c, d)
-			}
-			if m.Item("Generate code…").Chosen() {
-				a.openCode()
-			}
-			if m.Item("History").Chosen() {
-				a.openSendHistory(d)
-			}
-			m.Separator()
-			if m.Item(settingsLabel(d.composeCollection)).Disabled(d.composeCollection == "").Chosen() {
-				a.openFolder(d.composeCollection)
-			}
-			if m.Item("Manage environments…").Chosen() {
-				a.openVars()
-			}
-			if m.Item("Request variables").Chosen() {
-				d.variablesOpen = !d.variablesOpen
-			}
-			if m.Item("Vault…").Chosen() {
-				a.openVault()
-			}
-		}).Height(uikit.HeightControl).FontSize(uikit.TextTitle)
+		a.actionButton(c, "request.save", "Save")
+		uikit.MoreMenu(c, "Request options", func(m *ui.Menu) { actionMenu(m, a.documentActions(c, d)) }).Height(uikit.HeightControl).FontSize(uikit.TextTitle)
 	})
+}
+
+// documentActions are an open request's, beside Save.
+func (a *app) documentActions(c *ui.Context, d *requestDocument) []action {
+	return []action{
+		do("request.duplicate", "Duplicate as new request", func() {
+			r := d.value()
+			r.ID, r.Name = "", uniqueRequestName(a.requests, r.Name+" copy")
+			a.addDocument(r, "")
+		}),
+		do("request.copy-curl", "Copy as cURL", func() { a.copyDraftCurl(c, d) }),
+		do("request.code", "Generate code…", a.openCode),
+		do("request.history", "History", func() { a.openSendHistory(d) }),
+		do("collection.settings", settingsLabel(d.composeCollection), func() { a.openFolder(d.composeCollection) }).
+			when(d.composeCollection != "", "Save the request to a collection first").in("context"),
+		do("environment.manage", "Manage environments…", a.openVars).in("context"),
+		do("request.variables", "Request variables", func() { d.variablesOpen = !d.variablesOpen }).in("context"),
+		do("vault.open", "Vault…", a.openVault).in("context"),
+	}
 }
 
 func (a *app) requestVariablesPanel(c *ui.Context, t *ui.Theme, d *requestDocument) {
@@ -728,14 +719,14 @@ func (a *app) requestBar(c *ui.Context, t *ui.Theme, d *requestDocument, more fu
 			sendWidth, cancelWidth = 64, 76
 		}
 		if !narrow || !d.composeWaiting {
-			a.desktopButton(c, "send", sendLabel).Label(sendLabel).Width(sendWidth).Height(uikit.HeightLarge).Radius(uikit.RadiusControl).FontSize(uikit.TextBody).Background(t.Accent).TextColor(t.AccentText)
+			a.actionButton(c, "request.send", sendLabel).Label(sendLabel).Width(sendWidth).Height(uikit.HeightLarge).Radius(uikit.RadiusControl).FontSize(uikit.TextBody).Background(t.Accent).TextColor(t.AccentText)
 		}
 		if d.composeWaiting {
 			label := "Cancel"
 			if d.sendCancelling && !narrow {
 				label = "Cancelling…"
 			}
-			a.desktopButton(c, "cancel-send", label).Label("Cancel send").Width(cancelWidth).Height(uikit.HeightLarge).
+			a.actionButton(c, "request.cancel-send", label).Label("Cancel send").Width(cancelWidth).Height(uikit.HeightLarge).
 				Tooltip("Stop waiting; cancelling does not undo server-side changes")
 		}
 		if more != nil {

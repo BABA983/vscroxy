@@ -3867,21 +3867,21 @@ func TestNativeCommandsRespectModalScopeAndDraftCloseProtection(t *testing.T) {
 		item.Click(item, nil)
 		tt.Frame()
 	}
-	choose("edit")
+	choose("flow.edit")
 	if !tt.Focused("URL") {
 		t.Fatal("native edit did not open the focused capture")
 	}
-	if item := menu.ItemByID("close-request"); item.IsEnabled() {
+	if item := menu.ItemByID("request.close"); item.IsEnabled() {
 		t.Fatal("a capture's document is not a tab to close")
 	}
-	choose("new-request")
+	choose("request.new")
 	tt.Type("https://draft.example.com")
-	choose("close-request")
+	choose("request.close")
 	if !tt.HasText("Save changes?") {
 		t.Fatal("native close bypassed unsaved draft protection")
 	}
 	// A native callback queued before the focus changed must be rejected too.
-	item := menu.ItemByID("new-request")
+	item := menu.ItemByID("request.new")
 	item.Click(item, nil)
 	tt.Frame()
 	if len(a.documents) != 1 || !tt.HasText("Save changes?") {

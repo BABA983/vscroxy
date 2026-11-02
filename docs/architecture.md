@@ -76,6 +76,8 @@ type action struct {
 - 每个对象类型（流量、请求、集合、规则……）有一个"给定目标，返回动作列表"的函数，现在的 `requestActions` 就是雏形。
 - 动作 ID 是公开契约：M9 的命令行和 MCP 直接按 ID 调用。
 
+已完成（`internal/app/action.go`）：`action` 带 `area.verb` ID、标签、分组、快捷键、可用性和不可用原因、勾选状态、子菜单。`a.actions(c)` 是全局表，原生菜单、快捷键、命令面板和 `actionButton` 都按 ID 取它；每个对象一个返回动作列表的函数（`requestActions`、`flowActions`、`inspectorActions`、`documentActions`、`captureActions`、`collectionsActions`、`folderSettingsActions`、`columnActions`、`clientActions`、`networkTools`、`moreActions`），菜单统一用 `actionMenu` 画，分组之间自动画分隔线。只有选值的下拉（`MenuSelect`：格式、颜色等）不是动作。可用性在建表时就算好，所以菜单和按钮跟着本帧状态走。
+
 ### 3.3 存储层（`internal/store`）
 
 原型阶段不做兼容：格式要变就直接改，不写迁移，也不保留读取旧格式的代码，旧数据不再读取。下面的版本和迁移机制从第一个公开版本开始启用。

@@ -111,26 +111,22 @@ func (a *app) applyWrites(writes []request.Write) {
 	}
 }
 
-// folderSettingsItems offers the settings of every level a request filed
+// folderSettingsActions offers the settings of every level a request filed
 // under path lives in: its collection, then each folder down to path.
-func (a *app) folderSettingsItems(m *ui.Menu, path string) {
+func (a *app) folderSettingsActions(path string) []action {
+	var actions []action
 	parts := strings.Split(path, "/")
 	for i, part := range parts {
 		if part == "" {
-			return
+			return actions
 		}
 		label := "Collection “" + part + "” settings…"
 		if i > 0 {
 			label = "Folder “" + part + "” settings…"
 		}
-		if m.Item(label).Chosen() {
-			a.openFolder(strings.Join(parts[:i+1], "/"))
-		}
+		actions = append(actions, do("collection.settings", label, func() { a.openFolder(strings.Join(parts[:i+1], "/")) }).in("settings"))
 	}
-	m.Separator()
-	if m.Item("Export “" + parts[0] + "” as Postman…").Chosen() {
-		a.exportPostman(parts[0])
-	}
+	return append(actions, do("collection.export-postman", "Export “"+parts[0]+"” as Postman…", func() { a.exportPostman(parts[0]) }).in("export"))
 }
 
 // settingsLabel names the settings of the level path is: its collection's

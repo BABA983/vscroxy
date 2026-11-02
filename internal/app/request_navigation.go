@@ -58,10 +58,8 @@ func (a *app) collectionTree(c *ui.Context) {
 				open = new(true)
 			}
 			menu := func(m *ui.Menu) {
-				a.folderSettingsItems(m, path)
-				if m.Item("Delete “" + path + "”…").Chosen() {
-					a.confirmDeleteFolder(path)
-				}
+				actionMenu(m, append(a.folderSettingsActions(path),
+					do("collection.delete", "Delete “"+path+"”…", func() { a.confirmDeleteFolder(path) }).in("export")))
 			}
 			item := ui.TreeItem(c.Key("folder:"+path), "", open, func() { branch(path) }).Height(uikit.HeightControl).
 				Label("Collection: " + path).PopoverMenu(menu)
@@ -80,11 +78,9 @@ func (a *app) collectionTree(c *ui.Context) {
 				continue
 			}
 			menu := func(m *ui.Menu) {
-				if m.Item("Delete request…").Chosen() {
-					a.confirmDeleteRequest(r.key(), r.Name)
-				}
-				m.Separator()
-				a.folderSettingsItems(m, r.Collection)
+				actionMenu(m, append([]action{
+					do("request.delete", "Delete request…", func() { a.confirmDeleteRequest(r.key(), r.Name) }).in("delete"),
+				}, a.folderSettingsActions(r.Collection)...))
 			}
 			// The sidebar has one choice: a request only while it is shown.
 			chosen := a.page == pageRequest && a.requestChoice == r.key()

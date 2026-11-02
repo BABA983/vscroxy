@@ -37,11 +37,7 @@ func (a *app) shell(c *ui.Context, t *ui.Theme) {
 					a.workbench.openPalette()
 				}
 				uikit.IconButton(c, "Tools", "Manage debugging rules and network conditions", toolsIcon).PopoverMenuButton(func(m *ui.Menu) {
-					if m.Item("Debugging rules…").Chosen() {
-						a.openRules()
-					}
-					m.Separator()
-					a.networkTools(m)
+					actionMenu(m, append([]action{do("tools.rules", "Debugging rules…", a.openRules).in("rules")}, a.networkTools()...))
 				})
 				if uikit.IconButton(c, "Settings", "Settings · Ctrl/Cmd+,", settingsIcon).Clicked() {
 					a.openSettings(-1)
@@ -161,31 +157,32 @@ func rateLabel(perSecond float64) string {
 }
 
 // networkTools is shared by Tools, the enabled chips and More → Network.
-func (a *app) networkTools(m *ui.Menu) {
-	if m.Item("No Caching").Checked(a.srv != nil && a.srv.NoCaching()).Disabled(a.srv == nil).Chosen() {
-		a.srv.SetNoCaching(!a.srv.NoCaching())
+func (a *app) networkTools() []action {
+	actions := []action{
+		do("network.no-caching", "No Caching", func() { a.srv.SetNoCaching(!a.srv.NoCaching()) }).
+			when(a.srv != nil, "Start capture first").checked(checkbox(a.srv != nil && a.srv.NoCaching())).in("caching"),
 	}
-	m.Separator()
 	for _, preset := range capture.Presets {
-		if m.Item(preset.Name).Radio(a.throttle.Name == preset.Name || a.throttle.Name == "" && preset.Name == "Off").Chosen() {
+		actions = append(actions, do("network.throttle", preset.Name, func() {
 			a.throttle = preset
 			if a.srv != nil {
 				a.srv.SetThrottle(preset)
 			}
-		}
+		}).checked(radio(a.throttle.Name == preset.Name || a.throttle.Name == "" && preset.Name == "Off")).in("throttle"))
 	}
-	m.Separator()
-	if m.Item("Upstream…").Chosen() {
-		a.upstreamAddr = a.upstream
-		a.upstreamOpen = true
-	}
-	if m.Item("Upstream off").Disabled(a.upstream == "").Chosen() {
-		if a.srv != nil {
-			_ = a.srv.SetUpstream("")
-		}
-		a.upstream = ""
-		a.inform("Upstream: off")
-	}
+	return append(actions,
+		do("network.upstream", "Upstream…", func() {
+			a.upstreamAddr = a.upstream
+			a.upstreamOpen = true
+		}).in("upstream"),
+		do("network.upstream-off", "Upstream off", func() {
+			if a.srv != nil {
+				_ = a.srv.SetUpstream("")
+			}
+			a.upstream = ""
+			a.inform("Upstream: off")
+		}).when(a.upstream != "", "No upstream proxy is set").in("upstream"),
+	)
 }
 
 // activeTools remains visible in both workspaces. Each close button changes
@@ -213,12 +210,12 @@ func (a *app) activeTools(c *ui.Context, t *ui.Theme) {
 					if a.srv != nil {
 						a.srv.SetThrottle(a.throttle)
 					}
-				}).PopoverMenuButton(a.networkTools)
+				}).PopoverMenuButton(func(m *ui.Menu) { actionMenu(m, a.networkTools()) })
 			}
 			if noCaching {
 				toolChip(c, "no-caching", "No Caching", "Change caching and network conditions", cacheIcon, nil, func() {
 					a.srv.SetNoCaching(false)
-				}).PopoverMenuButton(a.networkTools)
+				}).PopoverMenuButton(func(m *ui.Menu) { actionMenu(m, a.networkTools()) })
 			}
 			if a.allowOn {
 				toolChip(c, "allow-list", "Allow list", "Edit the allow list", filterIcon, func() { a.openSettings(4) }, func() {
@@ -266,102 +263,62 @@ func toolChip(c *ui.Context, id, label, tip string, icon *ui.SVG, open, off func
 
 // moreMenu keeps the less frequent menus one step away without hiding them:
 // the same items stay where they were, grouped as they were.
-func (a *app) moreMenu(c *ui.Context, m *ui.Menu) {
-	if m.Item("Debugging rules…").Chosen() {
-		a.openRules()
+func (a *app) moreMenu(c *ui.Context, m *ui.Menu) { actionMenu(m, a.moreActions(c)) }
+
+func (a *app) moreActions(c *ui.Context) []action {
+	global := a.actions(c)
+	network := []action{
+		do("network.diagnostics", "Connection diagnostics", func() { a.openDiagnostics(nil, diagnoseMac) }).in("tools"),
+		do("network.client", "Set up a local client…", a.openClientSetup).in("tools"),
+		pick(global, "network.websocket").in("tools"),
 	}
-	m.Submenu("Network", func(m *ui.Menu) {
-		if m.Item("Connection diagnostics").Chosen() {
-			a.openDiagnostics(nil, diagnoseMac)
+	for _, x := range a.networkTools() {
+		if x.group == "caching" {
+			x.group = "tools" // No Caching follows the client tools directly.
 		}
-		if m.Item("Set up a local client…").Chosen() {
-			a.openClientSetup()
-		}
-		a.desktopMenuItem(c, m, "websocket", "WebSocket session…")
-		a.networkTools(m)
-		m.Separator()
-		if m.Item("Connect a device…").Checked(a.deviceUI.gateway != nil).Chosen() {
-			a.openDevices()
-		}
-		m.Separator()
-		if m.Item("SSL proxying…").Chosen() {
-			a.sslOpen = true
-		}
-		if m.Item("Ignored hosts…").Chosen() {
-			a.ignoreOpen = true
-		}
-		if m.Item("Ignored apps…").Chosen() {
-			a.ignoreAppsOpen = true
-		}
-		if m.Item("DNS mapping…").Chosen() {
-			a.dnsOpen = true
-		}
-	})
-	m.Submenu("Session", func(m *ui.Menu) {
-		a.desktopMenuItem(c, m, "replay", "Replay chosen…")
-		m.Separator()
-		if m.Item("Export HAR…").Chosen() {
-			a.exportHAR()
-		}
-		a.desktopMenuItem(c, m, "export-selection", "Export chosen HAR…")
-		if m.Item("Choose all shown").Chosen() {
+		network = append(network, x)
+	}
+	network = append(network,
+		do("network.devices", "Connect a device…", a.openDevices).checked(checkbox(a.deviceUI.gateway != nil)).in("devices"),
+		do("https.rules", "SSL proxying…", func() { a.sslOpen = true }).in("lists"),
+		do("capture.ignored-hosts", "Ignored hosts…", func() { a.ignoreOpen = true }).in("lists"),
+		do("capture.ignored-apps", "Ignored apps…", func() { a.ignoreAppsOpen = true }).in("lists"),
+		do("dns.open", "DNS mapping…", func() { a.dnsOpen = true }).in("lists"),
+	)
+	session := []action{
+		pick(global, "flow.replay").as("Replay chosen…"),
+		do("capture.export-har", "Export HAR…", a.exportHAR).in("files"),
+		pick(global, "capture.export-chosen").as("Export chosen HAR…").in("files"),
+		do("capture.choose-shown", "Choose all shown", func() {
 			for _, at := range a.visible {
 				a.chosen.Add(a.flows[at].id)
 			}
 			a.inform(fmt.Sprintf("%d chosen", a.chosen.Len()))
-		}
-		if m.Item("Clear choice").Chosen() {
-			a.chosen.Clear()
-		}
-		if m.Item("Save session…").Chosen() {
-			a.saveSession()
-		}
-		if m.Item("Open session…").Chosen() {
-			a.openSession()
-		}
-		if m.Item("Import HAR…").Chosen() {
-			a.importHAR()
-		}
-		m.Separator()
-		if m.Item("Import…").Chosen() {
-			a.importRequests()
-		}
-		if m.Item("Import cURL…").Chosen() {
-			a.openCurlImport()
-		}
-		m.Separator()
-		if m.Item("Generate OpenAPI…").Disabled(len(a.requests) == 0).Chosen() {
-			a.openAPIGeneration()
-		}
-	})
-	m.Submenu("View", func(m *ui.Menu) {
-		for _, action := range a.desktopActions(c) {
-			if action.id == "layout-bottom" || action.id == "layout-right" || action.id == "sidebar" || action.id == "focus" {
-				item := m.Item(action.label).Shortcut(action.mods, action.key).Disabled(!action.enabled)
-				if action.id == "layout-bottom" || action.id == "layout-right" {
-					item.Checked(action.id == "layout-"+a.workbench.layout)
-				}
-				if item.Chosen() {
-					action.run()
-				}
-			}
-		}
-		m.Separator()
-		if m.Item("Filter…").Chosen() {
-			a.openFilter()
-		}
-		if a.filtersActive() && m.Item("Clear filters").Chosen() {
-			a.clearFilters()
-		}
-		m.Separator()
-		if m.Item("Add column…").Chosen() {
-			a.openColumn()
-		}
-		m.Separator()
-		if m.Item("Protobuf schema…").Chosen() {
-			a.protobuf.open = true
-		}
-	})
+		}).in("files"),
+		do("capture.clear-choice", "Clear choice", a.chosen.Clear).in("files"),
+		do("session.save-as", "Save session…", a.saveSession).in("files"),
+		do("session.open", "Open session…", a.openSession).in("files"),
+		do("capture.import-har", "Import HAR…", a.importHAR).in("files"),
+		do("collection.import", "Import…", a.importRequests).in("import"),
+		do("request.import-curl", "Import cURL…", a.openCurlImport).in("import"),
+		do("api.generate", "Generate OpenAPI…", a.openAPIGeneration).
+			when(len(a.requests) > 0, "Save a request to a collection first").in("api"),
+	}
+	view := a.pickActions(c, "view.focus-inspector", "view.layout-right", "view.layout-bottom", "view.sidebar")
+	view = append(view, do("capture.filter", "Filter…", a.openFilter).in("filter"))
+	if a.filtersActive() {
+		view = append(view, do("capture.clear-filters", "Clear filters", a.clearFilters).in("filter"))
+	}
+	view = append(view,
+		do("capture.add-column", "Add column…", a.openColumn).in("columns"),
+		do("protobuf.schema", "Protobuf schema…", func() { a.protobuf.open = true }).in("protobuf"),
+	)
+	return []action{
+		do("tools.rules", "Debugging rules…", a.openRules),
+		submenu("Network", network...),
+		submenu("Session", session...),
+		submenu("View", view...),
+	}
 }
 
 // syncSections keeps the sidebar's one choice and the content on screen in

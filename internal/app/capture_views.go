@@ -843,21 +843,24 @@ func (v *captureViews) resetFilters(a *app) {
 func (a *app) headerFilterMenu(c *ui.Context, name string, values []string) func(*ui.Menu) {
 	return func(m *ui.Menu) {
 		m.EditItems()
-		m.Item("Matches request or response headers").Disabled(true)
-		if m.Item("Header exists: " + name).Chosen() {
-			a.filterHeader = name
-			c.AnimationFrame()
+		actions := []action{
+			note("Matches request or response headers"),
+			do("capture.filter-header", "Header exists: "+name, func() {
+				a.filterHeader = name
+				c.AnimationFrame()
+			}),
 		}
 		if sensitiveHeader(name) {
-			m.Item("Credential values are not added to filters").Disabled(true)
-			return
-		}
-		for i, value := range values {
-			if m.Item(fmt.Sprintf("Contains value %d: %s", i+1, clamp(value, 50))).Chosen() {
-				a.filterHeader = name + ": " + value
-				c.AnimationFrame()
+			actions = append(actions, note("Credential values are not added to filters"))
+		} else {
+			for i, value := range values {
+				actions = append(actions, do("capture.filter-header", fmt.Sprintf("Contains value %d: %s", i+1, clamp(value, 50)), func() {
+					a.filterHeader = name + ": " + value
+					c.AnimationFrame()
+				}))
 			}
 		}
+		actionMenu(m, actions)
 	}
 }
 

@@ -86,17 +86,22 @@ var hideableColumns = []struct{ id, title string }{
 
 // columnsMenu is the table header's menu: the built-in columns to show or
 // hide, the custom ones to remove, and adding one.
-func (a *app) columnsMenu(m *ui.Menu, id string) {
-	if cc, ok := a.customColumnAt(id); ok && m.Item("Remove “"+cc.title()+"” column").Chosen() {
-		a.setCustomColumns(slices.DeleteFunc(slices.Clone(a.customColumns), func(x customColumn) bool { return x.id() == id }))
+func (a *app) columnsMenu(m *ui.Menu, id string) { actionMenu(m, a.columnActions(id)) }
+
+func (a *app) columnActions(id string) []action {
+	var actions []action
+	removeCustom := func(id string) func() {
+		return func() {
+			a.setCustomColumns(slices.DeleteFunc(slices.Clone(a.customColumns), func(x customColumn) bool { return x.id() == id }))
+		}
 	}
-	if m.Item("Add column…").Chosen() {
-		a.openColumn()
+	if cc, ok := a.customColumnAt(id); ok {
+		actions = append(actions, do("column.remove", "Remove “"+cc.title()+"” column", removeCustom(id)))
 	}
-	m.Separator()
+	actions = append(actions, do("capture.add-column", "Add column…", a.openColumn))
 	for _, col := range hideableColumns {
 		shown := !slices.Contains(a.hiddenColumns, col.id)
-		if m.Item(col.title).Checked(shown).Chosen() {
+		actions = append(actions, do("column.toggle", col.title, func() {
 			if shown {
 				a.hiddenColumns = append(slices.Clone(a.hiddenColumns), col.id)
 			} else {
@@ -104,13 +109,12 @@ func (a *app) columnsMenu(m *ui.Menu, id string) {
 			}
 			a.persistSettings()
 			a.invalidate()
-		}
+		}).checked(checkbox(shown)).in("columns"))
 	}
 	for _, cc := range a.customColumns {
-		if m.Item(cc.title()).Checked(true).Chosen() {
-			a.setCustomColumns(slices.DeleteFunc(slices.Clone(a.customColumns), func(x customColumn) bool { return x.id() == cc.id() }))
-		}
+		actions = append(actions, do("column.remove", cc.title(), removeCustom(cc.id())).checked(checkOn).in("columns"))
 	}
+	return actions
 }
 
 // openColumn asks for a column to add.

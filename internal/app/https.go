@@ -256,15 +256,14 @@ func (a *app) setAppInspection(app capture.SSLApp, enabled bool) {
 	}
 }
 
-func (a *app) appInspectionMenu(m *ui.Menu, app capture.SSLApp) {
+func (a *app) appInspectionActions(app capture.SSLApp) []action {
 	label := "Enable HTTPS for " + cmp.Or(app.Name, "this app")
 	enabled := a.appInspectionEnabled(app.Path)
 	if enabled {
 		label = "Disable HTTPS for " + app.Name
 	}
-	if m.Item(label).Checked(enabled).Disabled(!filepath.IsAbs(app.Path)).Chosen() {
-		a.setAppInspection(app, !enabled)
-	}
+	return []action{do("https.app", label, func() { a.setAppInspection(app, !enabled) }).
+		when(filepath.IsAbs(app.Path), "The app's executable is unknown").checked(checkbox(enabled))}
 }
 
 // connectPanel describes this historical tunnel separately from today's rules:

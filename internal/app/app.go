@@ -1221,7 +1221,7 @@ func (a *app) view(c *ui.Context) {
 			}
 		}})
 	}
-	a.desktopShortcuts(c)
+	a.actionShortcuts(c)
 	if a.sort != a.sortApplied {
 		a.sortApplied = a.sort
 		a.applyFilter()
@@ -1240,7 +1240,7 @@ func (a *app) view(c *ui.Context) {
 			}
 		}
 	}
-	a.desktopNativeMenu(c)
+	a.nativeMenuActions(c)
 	t := c.Theme()
 	a.syncSections()
 	a.syncDocument()
@@ -1546,27 +1546,7 @@ func (a *app) sidebar(c *ui.Context) {
 					for _, d := range a.clients {
 						apps := a.capturedApps(d.name)
 						uikit.SidebarItem(c, "client:"+d.name, appIcon, d.name, a.sidebarChoice == "client:"+d.name, !a.windowBehind).PopoverMenu(
-							func(m *ui.Menu) {
-								if len(apps) == 1 {
-									a.appInspectionMenu(m, apps[0])
-								} else {
-									m.Submenu("HTTPS inspection by executable", func(m *ui.Menu) {
-										if len(apps) == 0 {
-											m.Item("Local executable identity unavailable").Disabled(true)
-										}
-										for _, app := range apps {
-											m.Submenu(app.Path, func(m *ui.Menu) { a.appInspectionMenu(m, app) })
-										}
-									})
-								}
-								if m.Item("View HTTPS rules…").Chosen() {
-									a.sslOpen = true
-								}
-								m.Separator()
-								if m.Item("Map a host for " + d.name + "…").Chosen() {
-									a.openDNSRule("", d.name)
-								}
-							}).
+							func(m *ui.Menu) { actionMenu(m, a.clientActions(d.name, apps)) }).
 							Children(func() {
 								if a.filterTriage.Client == d.name {
 									ui.Text(c, "✓").FontSize(uikit.TextMeta).TextColor(t.Accent).Tooltip("App filter is active; remove it in the condition bar")
@@ -1600,9 +1580,7 @@ func (a *app) sidebar(c *ui.Context) {
 					uikit.SidebarItem(c, "session:"+item.key, clockIcon, item.data.Title, a.sidebarChoice == "session:"+item.key, !a.windowBehind).Children(func() {
 						uikit.Meta(c, fmt.Sprint(item.count)).FontFeatures("tnum")
 					}).PopoverMenu(func(m *ui.Menu) {
-						if m.Item("Delete session…").Chosen() {
-							a.confirmDeleteSession(item)
-						}
+						actionMenu(m, []action{do("session.delete", "Delete session…", func() { a.confirmDeleteSession(item) })})
 					})
 				}
 				if uikit.ToolbarButton(c, "Open session…", "Open historical session files without replacing live traffic", false).FillWidth().Justify(ui.Start).Children(func() {
@@ -1689,40 +1667,48 @@ func (a *app) collectionsGroup(c *ui.Context, t *ui.Theme) {
 	}
 }
 
-func (a *app) collectionsMenu(m *ui.Menu) {
-	if m.Item("Import…").Chosen() {
-		a.importRequests()
+// clientActions are a sidebar app's: HTTPS inspection of its executables
+// and mapping hosts for it.
+func (a *app) clientActions(name string, apps []capture.SSLApp) []action {
+	var actions []action
+	if len(apps) == 1 {
+		actions = a.appInspectionActions(apps[0])
+	} else {
+		var executables []action
+		if len(apps) == 0 {
+			executables = append(executables, note("Local executable identity unavailable"))
+		}
+		for _, app := range apps {
+			executables = append(executables, submenu(app.Path, a.appInspectionActions(app)...))
+		}
+		actions = append(actions, submenu("HTTPS inspection by executable", executables...))
 	}
-	if m.Item("Import cURL…").Chosen() {
-		a.openCurlImport()
-	}
-	m.Separator()
-	if m.Item("Environments…").Chosen() {
-		a.openVars()
-	}
-	if m.Item("History").Chosen() {
-		a.showRunRecords()
-	}
-	if m.Item("Runner…").Chosen() {
-		a.openRunner()
-	}
-	m.Separator()
-	if m.Item("New API contract").Chosen() {
-		a.newAPI()
-		a.page = pageAPI
-	}
-	if m.Item("Import OpenAPI…").Chosen() {
-		a.importOpenAPI()
-	}
-	if m.Item("Generate API from collection…").Disabled(len(a.requests) == 0).Chosen() {
-		a.openAPIGeneration()
-	}
-	m.Separator()
-	if m.Item("Vault…").Chosen() {
-		a.openVault()
-	}
-	if m.Item("Cookies…").Chosen() {
-		a.openCookies()
+	return append(actions,
+		do("https.rules", "View HTTPS rules…", func() { a.sslOpen = true }),
+		do("dns.map-client", "Map a host for "+name+"…", func() { a.openDNSRule("", name) }).in("map"),
+	)
+}
+
+func (a *app) collectionsMenu(m *ui.Menu) { actionMenu(m, a.collectionsActions()) }
+
+// collectionsActions are the Collections header's: importing, the tools that
+// run requests, API contracts, and the stores requests draw on.
+func (a *app) collectionsActions() []action {
+	return []action{
+		do("collection.import", "Import…", a.importRequests),
+		do("request.import-curl", "Import cURL…", a.openCurlImport),
+		do("environment.manage", "Environments…", a.openVars).in("run"),
+		do("history.show", "History", a.showRunRecords).in("run"),
+		do("runner.open", "Runner…", a.openRunner).in("run"),
+		do("api.new", "New API contract", func() {
+			a.newAPI()
+			a.page = pageAPI
+		}).in("api"),
+		do("api.import-openapi", "Import OpenAPI…", a.importOpenAPI).in("api"),
+		do("api.generate", "Generate API from collection…", a.openAPIGeneration).
+			when(len(a.requests) > 0, "Save a request to a collection first").in("api"),
+		do("vault.open", "Vault…", a.openVault).in("stores"),
+		do("cookies.open", "Cookies…", a.openCookies).in("stores"),
 	}
 }
 
@@ -2334,98 +2320,82 @@ func badgeColor(name string) ui.Color {
 	return uikit.BadgeColors[int(h.Sum32())%len(uikit.BadgeColors)]
 }
 
-// rowMenu is the context menu of a flow's row: what a captured request is
-// worth once it leaves the table.
 func (a *app) rowMenu(c *ui.Context, f flow) func(*ui.Menu) {
+	return func(m *ui.Menu) { actionMenu(m, a.flowActions(c, f)) }
+}
+
+// flowActions are what a captured request is worth once it leaves the table.
+// The request's own next steps come first, then copying and finding related
+// traffic, then how this row is kept, then the tools that change future
+// traffic like it, as Proxyman's Tools submenu does.
+func (a *app) flowActions(c *ui.Context, f flow) []action {
 	services := c.Services()
-	return func(m *ui.Menu) {
-		// The request's own next steps come first, then copying and finding
-		// related traffic, then how this row is kept, then the tools that
-		// change future traffic like it, as Proxyman's Tools submenu does.
-		actions := a.requestActions(c, f, true)
-		desktopMenuItem(m, actions, "replay", "Replay")
-		desktopMenuItem(m, actions, "edit", "Edit request")
-		if m.Item("Save as request").Disabled(f.kind == "connect" || f.method == "CONNECT").Chosen() {
-			a.saveCapture(f)
-		}
-		if chosen := a.selectedFlows(); len(chosen) > 1 && m.Item(fmt.Sprintf("Save %d requests to collection…", len(chosen))).Chosen() {
-			a.openCollectionSave(chosen)
-		}
-		m.Separator()
-		m.Submenu("Copy", func(m *ui.Menu) {
-			if m.Item("URL").Chosen() {
+	requests := a.requestActions(c, f, true)
+	actions := []action{
+		pick(requests, "flow.replay").as("Replay"),
+		pick(requests, "flow.edit"),
+		do("flow.save-request", "Save as request", func() { a.saveCapture(f) }).
+			when(f.kind != "connect" && f.method != "CONNECT", "Tunnels cannot be saved as requests"),
+	}
+	if chosen := a.selectedFlows(); len(chosen) > 1 {
+		actions = append(actions, do("flow.save-chosen", fmt.Sprintf("Save %d requests to collection…", len(chosen)), func() { a.openCollectionSave(chosen) }))
+	}
+	actions = append(actions,
+		submenu("Copy",
+			do("flow.copy-url", "URL", func() {
 				services.WriteClipboard(f.url)
 				a.done("Copied URL")
-			}
-			desktopMenuItem(m, actions, "copy", "cURL")
-			if m.Item("Response body").Disabled(f.resBody == "").Chosen() {
+			}),
+			pick(requests, "flow.copy-curl").as("cURL"),
+			do("flow.copy-response", "Response body", func() {
 				services.WriteClipboard(f.body(true))
 				a.done("Copied response body")
-			}
-		})
-		if f.kind == "" && f.url != "" && m.Item("Open in browser").Chosen() {
-			services.OpenURL(f.url)
-		}
-		m.Submenu("Filter captures", func(m *ui.Menu) {
-			// Sync the conditions on the next frame; changing visible rows
-			// while the table is building would invalidate its row indices.
-			if m.Item("Host: " + f.host).Disabled(f.host == "").Chosen() {
-				a.filterTriage.Host = f.host
-				c.AnimationFrame()
-			}
-			if m.Item("App: " + cmp.Or(f.process, "unidentified")).Disabled(f.process == "").Chosen() {
-				a.filterTriage.Client = f.process
-				c.AnimationFrame()
-			}
-			if m.Item("Method: " + f.method).Disabled(f.method == "").Chosen() {
-				a.filterTriage.Method = f.method
-				c.AnimationFrame()
-			}
-			// A CONNECT status acknowledges a tunnel; it is not the status
-			// of an HTTP response from the destination.
-			if f.kind != "connect" && f.conn.error == "" && f.status >= 100 && f.status <= 599 {
-				if m.Item(fmt.Sprintf("Status: %d", f.status)).Chosen() {
-					a.filterStatus = strconv.Itoa(f.status)
-					c.AnimationFrame()
-				}
-			}
-		})
-		m.Separator()
-		if m.Item(cmp.Or(pinLabel(f), "Pin")).Chosen() {
-			a.togglePin(f)
-		}
-		if m.Item("Mark…").Chosen() {
-			a.openMark(f)
-		}
-		m.Submenu("Tools", func(m *ui.Menu) {
-			for _, kind := range ruleTypes {
-				label := ruleLabel(kind) + "…"
-				if kind == capture.RuleMapLocal {
-					label = "Mock this response…"
-				}
-				if m.Item(label).Disabled(f.url == "" || f.method == "CONNECT").Chosen() {
-					a.ruleFromFlow(f, kind)
-				}
-			}
-			m.Separator()
-			if m.Item("Map this host…").Chosen() {
-				a.openDNSRule(hostOnly(f.host), f.process)
-			}
-			m.Submenu("HTTPS inspection", func(m *ui.Menu) {
-				a.appInspectionMenu(m, capture.SSLApp{Name: f.process, Path: f.processPath})
-				if m.Item("View HTTPS rules…").Chosen() {
-					a.sslOpen = true
-				}
-			})
-		})
-		m.Separator()
-		if m.Item("Save evidence to Sessions").Chosen() {
-			a.saveEvidence(f)
-		}
-		if m.Item("Save as regression…").Disabled(f.status == 0 || f.method == "CONNECT" || f.kind == "ws").Chosen() {
-			a.regressionFrom(f)
-		}
+			}).when(f.resBody != "", "The response has no body"),
+		).in("copy"))
+	if f.kind == "" && f.url != "" {
+		actions = append(actions, do("flow.open-browser", "Open in browser", func() { services.OpenURL(f.url) }).in("copy"))
 	}
+	// Sync the conditions on the next frame; changing visible rows while the
+	// table is building would invalidate its row indices.
+	filters := []action{
+		do("flow.filter-host", "Host: "+f.host, func() { a.filterTriage.Host = f.host; c.AnimationFrame() }).
+			when(f.host != "", ""),
+		do("flow.filter-app", "App: "+cmp.Or(f.process, "unidentified"), func() { a.filterTriage.Client = f.process; c.AnimationFrame() }).
+			when(f.process != "", ""),
+		do("flow.filter-method", "Method: "+f.method, func() { a.filterTriage.Method = f.method; c.AnimationFrame() }).
+			when(f.method != "", ""),
+	}
+	// A CONNECT status acknowledges a tunnel; it is not the status of an
+	// HTTP response from the destination.
+	if f.kind != "connect" && f.conn.error == "" && f.status >= 100 && f.status <= 599 {
+		filters = append(filters, do("flow.filter-status", fmt.Sprintf("Status: %d", f.status), func() {
+			a.filterStatus = strconv.Itoa(f.status)
+			c.AnimationFrame()
+		}))
+	}
+	tools := []action{}
+	for _, kind := range ruleTypes {
+		label := ruleLabel(kind) + "…"
+		if kind == capture.RuleMapLocal {
+			label = "Mock this response…"
+		}
+		tools = append(tools, do("flow.rule", label, func() { a.ruleFromFlow(f, kind) }).
+			when(f.url != "" && f.method != "CONNECT", "Tunnels have no request to match"))
+	}
+	tools = append(tools,
+		do("flow.map-host", "Map this host…", func() { a.openDNSRule(hostOnly(f.host), f.process) }).in("host"),
+		submenu("HTTPS inspection", append(a.appInspectionActions(capture.SSLApp{Name: f.process, Path: f.processPath}),
+			do("https.rules", "View HTTPS rules…", func() { a.sslOpen = true }))...).in("host"),
+	)
+	return append(actions,
+		submenu("Filter captures", filters...).in("copy"),
+		do("flow.pin", cmp.Or(pinLabel(f), "Pin"), func() { a.togglePin(f) }).in("keep"),
+		do("flow.mark", "Mark…", func() { a.openMark(f) }).in("keep"),
+		submenu("Tools", tools...).in("keep"),
+		do("flow.save-evidence", "Save evidence to Sessions", func() { a.saveEvidence(f) }).in("save"),
+		do("flow.regression", "Save as regression…", func() { a.regressionFrom(f) }).
+			when(f.status != 0 && f.method != "CONNECT" && f.kind != "ws", "Needs a finished HTTP exchange").in("save"),
+	)
 }
 
 // openCompose shows the request editor with an empty request.

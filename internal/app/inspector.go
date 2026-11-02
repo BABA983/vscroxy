@@ -146,7 +146,7 @@ func (a *app) connectDetail(c *ui.Context, t *ui.Theme, f flow) {
 		if uikit.SecondaryButton(c, "Explain").Tooltip("Diagnose this connection").Clicked() {
 			a.openDiagnostics(&f, diagnoseMac)
 		}
-		a.desktopButton(c, "focus", "Focus")
+		a.actionButton(c, "view.focus-inspector", "Focus")
 	})
 	ui.Divider(c)
 	if a.tab == 1 {
@@ -190,53 +190,7 @@ func (a *app) exchangeResult(c *ui.Context, t *ui.Theme, f flow, compact bool) {
 // inspectorMenu holds the exchange-wide views and the layout choices, so the
 // default screen stays request beside response.
 func (a *app) inspectorMenu(c *ui.Context, t *ui.Theme, f flow) {
-	uikit.MoreMenu(c, "Inspector options", func(m *ui.Menu) {
-		split := m.Item("Request & response").Checked(a.inspect.pane == inspectorSplit)
-		if split.Chosen() {
-			a.inspect.pane = inspectorSplit
-		}
-		if m.Item("Diff responses").Checked(a.inspect.pane == inspectorDiff).Disabled(!a.diffBaseline).Chosen() {
-			a.inspect.pane = inspectorDiff
-		}
-		if m.Item("Connection").Checked(a.inspect.pane == inspectorConnection).Chosen() {
-			a.inspect.pane = inspectorConnection
-		}
-		if f.kind == "ws" || f.kind == "sse" {
-			if m.Item("Messages").Checked(a.inspect.pane == inspectorMessages).Chosen() {
-				a.inspect.pane = inspectorMessages
-			}
-		}
-		m.Separator()
-		if m.Item("Discard edits").Disabled(a.flowDrafts[f.id] == nil).Chosen() {
-			delete(a.flowDrafts, f.id)
-			a.liveFor = 0 // The capture opens unchanged again.
-		}
-		a.desktopMenuItem(c, m, "replay", "Replay…")
-		if m.Item("Save evidence to Sessions").Chosen() {
-			a.saveEvidence(f)
-		}
-		if m.Item("Connection details").Chosen() {
-			a.connOpen = !a.connOpen
-		}
-		if m.Item("History").Chosen() {
-			a.openDebugHistory(newDebugSource(f))
-		}
-		if m.Item("Copy as cURL").Chosen() {
-			a.copyCurl(c, f)
-		}
-		m.Separator()
-		for _, action := range a.desktopActions(c) {
-			if action.id == "focus" || action.id == "layout-bottom" || action.id == "layout-right" {
-				item := m.Item(action.label).Shortcut(action.mods, action.key).Disabled(!action.enabled)
-				if action.id == "layout-bottom" || action.id == "layout-right" {
-					item.Checked(action.id == "layout-"+a.workbench.layout)
-				}
-				if item.Chosen() {
-					action.run()
-				}
-			}
-		}
-	})
+	uikit.MoreMenu(c, "Inspector options", func(m *ui.Menu) { actionMenu(m, a.inspectorActions(c, f)) })
 }
 
 // inspectorWidth is the main pane's width beneath the list, its share beside
@@ -352,14 +306,14 @@ func (a *app) paneTabs(c *ui.Context, t *ui.Theme, side string, selected *int, l
 		if *selected == bodyTab {
 			a.bodyFormatMenu(c, t, bodySide)
 			uikit.MoreMenu(c, side+" pane options", func(m *ui.Menu) {
-				if m.Item("Find in text…").Chosen() {
-					if reader := a.bodyText[bodySide]; reader != nil {
-						reader.Run(editor.Find)
-					}
-				}
-				if m.Item("Copy shown body").Chosen() {
-					a.copyPaneBody(c, bodySide)
-				}
+				actionMenu(m, []action{
+					do("body.find", "Find in text…", func() {
+						if reader := a.bodyText[bodySide]; reader != nil {
+							reader.Run(editor.Find)
+						}
+					}),
+					do("body.copy", "Copy shown body", func() { a.copyPaneBody(c, bodySide) }),
+				})
 			}).Padding(0, t.Space(1))
 		}
 	})
@@ -606,4 +560,33 @@ func rawMessage(f flow, side int) string {
 	b.WriteString("\r\n\r\n")
 	b.WriteString(f.body(true))
 	return b.String()
+}
+
+func (a *app) inspectorActions(c *ui.Context, f flow) []action {
+	pane := func(id, label string, p int) action {
+		return do(id, label, func() { a.inspect.pane = p }).checked(checkbox(a.inspect.pane == p))
+	}
+	actions := []action{
+		pane("inspector.split", "Request & response", inspectorSplit),
+		pane("inspector.diff", "Diff responses", inspectorDiff).when(a.diffBaseline, "Choose a baseline response first"),
+		pane("inspector.connection", "Connection", inspectorConnection),
+	}
+	if f.kind == "ws" || f.kind == "sse" {
+		actions = append(actions, pane("inspector.messages", "Messages", inspectorMessages))
+	}
+	actions = append(actions,
+		do("flow.discard-edits", "Discard edits", func() {
+			delete(a.flowDrafts, f.id)
+			a.liveFor = 0 // The capture opens unchanged again.
+		}).when(a.flowDrafts[f.id] != nil, "This request has no edits").in("flow"),
+		pick(a.actions(c), "flow.replay").as("Replay…").in("flow"),
+		do("flow.save-evidence", "Save evidence to Sessions", func() { a.saveEvidence(f) }).in("flow"),
+		do("flow.connection-details", "Connection details", func() { a.connOpen = !a.connOpen }).in("flow"),
+		do("flow.history", "History", func() { a.openDebugHistory(newDebugSource(f)) }).in("flow"),
+		do("flow.copy-curl", "Copy as cURL", func() { a.copyCurl(c, f) }).in("flow"),
+	)
+	for _, x := range a.pickActions(c, "view.focus-inspector", "view.layout-right", "view.layout-bottom") {
+		actions = append(actions, x.in("view"))
+	}
+	return actions
 }

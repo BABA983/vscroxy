@@ -4,7 +4,6 @@ import (
 	"cmp"
 	"fmt"
 	"github.com/baba983/vscroxy/internal/uikit"
-	"runtime"
 	"strings"
 	"unicode/utf8"
 
@@ -93,7 +92,7 @@ func (a *app) desktopContent(c *ui.Context) {
 			ui.Column(c).Fill().Children(func() {
 				if w.focused {
 					ui.Row(c).Height(uikit.HeightLarge).Padding(0, c.Theme().Space(3)).AlignItems(ui.Center).Children(func() {
-						a.desktopButton(c, "focus", "Back to list")
+						a.actionButton(c, "view.focus-inspector", "Back to list")
 						uikit.Meta(c, "Inspector focus · Ctrl/Cmd+Shift+Enter")
 					})
 					a.detail(c)
@@ -106,8 +105,8 @@ func (a *app) desktopContent(c *ui.Context) {
 						if a.chosen.Len() > 1 {
 							ui.Row(c).Height(uikit.HeightLarge).Padding(0, c.Theme().Space(2)).Gap(c.Theme().Space(2)).AlignItems(ui.Center).Children(func() {
 								ui.Text(c, fmt.Sprintf("%d selected", a.chosen.Len())).FontSize(uikit.TextMeta).FontWeight(600).Grow(1)
-								a.desktopButton(c, "replay", "Replay…")
-								a.desktopButton(c, "export-selection", "Export HAR…")
+								a.actionButton(c, "flow.replay", "Replay…")
+								a.actionButton(c, "capture.export-chosen", "Export HAR…")
 								if uikit.CompactButton(c, "Clear selection").Clicked() {
 									a.chosen.Clear()
 								}
@@ -278,36 +277,7 @@ func (a *app) captureToolbar(c *ui.Context, t *ui.Theme) {
 			a.srv.SetBreak(a.breakOn)
 		}
 		breakButton.Children(func() { ui.Icon(c, breakIcon).Size(uikit.IconInline, uikit.IconInline) })
-		uikit.MoreMenu(c, "More capture options", func(m *ui.Menu) {
-			if m.Item("Debugging rules…").Chosen() {
-				a.openRules()
-			}
-			if m.Item("Save filter…").Chosen() {
-				a.views.openSaved(a)
-			}
-			m.Separator()
-			for _, index := range []int{6, 7} {
-				if m.Item(captureKinds[index]).Checked(a.chip == index).Chosen() {
-					a.chip = index
-					a.applyFilter()
-				}
-			}
-			m.Separator()
-			if m.Item("Filter…").Chosen() {
-				a.openFilter()
-			}
-			if a.filtersActive() && m.Item("Reset all conditions").Chosen() {
-				a.views.resetFilters(a)
-			}
-			m.Separator()
-			if m.Item("Add column…").Chosen() {
-				a.openColumn()
-			}
-			m.Separator()
-			if m.Item("Clear unpinned requests…").Chosen() {
-				a.clearOpen = true
-			}
-		})
+		uikit.MoreMenu(c, "More capture options", func(m *ui.Menu) { actionMenu(m, a.captureActions()) })
 	})
 	ui.Divider(c)
 }
@@ -358,19 +328,33 @@ func (a *app) captureConditions(c *ui.Context) {
 	})
 }
 
-// desktopAction is shared by the palette, shortcuts and contextual buttons:
-// unavailable actions are never given a different meaning by another entry.
-type desktopAction struct {
-	id, label string
-	enabled   bool
-	mods      ui.Modifiers
-	key       ui.Key
-	run       func()
+// captureActions are the capture toolbar's ⋯ menu.
+func (a *app) captureActions() []action {
+	actions := []action{
+		do("tools.rules", "Debugging rules…", a.openRules),
+		do("capture.saved-filters", "Save filter…", func() { a.views.openSaved(a) }),
+	}
+	for _, index := range []int{6, 7} {
+		actions = append(actions, do("capture.kind", captureKinds[index], func() {
+			a.chip = index
+			a.applyFilter()
+		}).checked(checkbox(a.chip == index)).in("kinds"))
+	}
+	actions = append(actions, do("capture.filter", "Filter…", a.openFilter).in("filter"))
+	if a.filtersActive() {
+		actions = append(actions, do("capture.reset-filters", "Reset all conditions", func() { a.views.resetFilters(a) }).in("filter"))
+	}
+	return append(actions,
+		do("capture.add-column", "Add column…", a.openColumn).in("columns"),
+		do("capture.clear", "Clear unpinned requests…", func() { a.clearOpen = true }).in("clear"),
+	)
 }
+
+const inspectOne = "Inspect one HTTP request; bulk selections, tunnels and streams are unavailable"
 
 // Row menus and global commands share these target rules. Single-row actions
 // use the inspected/clicked request; a bulk replay always uses the whole choice.
-func (a *app) requestActions(c *ui.Context, f flow, current bool) []desktopAction {
+func (a *app) requestActions(c *ui.Context, f flow, current bool) []action {
 	selected := []flow{f}
 	bulk := a.chosen.Len() > 1
 	if bulk {
@@ -386,14 +370,18 @@ func (a *app) requestActions(c *ui.Context, f flow, current bool) []desktopActio
 		copyable = true
 		copyRequest = func() { a.copyDraftCurl(c, d) }
 	}
-	return []desktopAction{
-		{"edit", "Edit request", current && !bulk && f.kind == "", ui.Cmd | ui.Alt, ui.KeyEnter, func() { a.editCapture(f) }},
-		{"replay", "Replay selected…", replayable, ui.Cmd, ui.KeyR, func() { a.openReplay(selected) }},
-		{"copy", "Copy as cURL", copyable, ui.Cmd | ui.Alt, ui.KeyC, copyRequest},
+	return []action{
+		do("flow.edit", "Edit request", func() { a.editCapture(f) }).
+			when(current && !bulk && f.kind == "", inspectOne).keys(ui.Cmd|ui.Alt, ui.KeyEnter),
+		do("flow.replay", "Replay selected…", func() { a.openReplay(selected) }).
+			when(replayable, "Choose HTTP requests only; tunnels and streams cannot be replayed").keys(ui.Cmd, ui.KeyR),
+		do("flow.copy-curl", "Copy as cURL", copyRequest).when(copyable, inspectOne).keys(ui.Cmd|ui.Alt, ui.KeyC),
 	}
 }
 
-func (a *app) desktopActions(c *ui.Context) []desktopAction {
+// actions are the global commands: the palette lists them, the menu bar and
+// shortcuts run them by id, and menus and buttons reuse them with pick.
+func (a *app) actions(c *ui.Context) []action {
 	w := &a.workbench
 	f, current := a.current()
 	capturing := a.page.capture()
@@ -421,126 +409,130 @@ func (a *app) desktopActions(c *ui.Context) []desktopAction {
 			find = func() { a.bodyText[side].Run(editor.Find) }
 		}
 	}
+	draft := "Open a request draft first"
 	actions := a.requestActions(c, f, capturing && current)
-	actions = append(actions, []desktopAction{
-		{"palette", "Commands…", true, ui.Cmd, ui.KeyK, w.openPalette},
-		{"search", search, capturing, ui.Cmd, ui.KeyF, find},
-		{"primary", primary, capturing && len(a.visible) > 0 || editing, ui.Cmd, ui.KeyL, func() {
+	actions = append(actions, []action{
+		do("app.palette", "Commands…", w.openPalette).keys(ui.Cmd, ui.KeyK),
+		do("view.search", search, find).when(capturing, "").keys(ui.Cmd, ui.KeyF),
+		do("view.primary", primary, func() {
 			if tab {
 				d.urlInput.Focus(c)
 			} else {
 				a.focusTraffic(c)
 			}
-		}},
-		{"send", "Send request", editing && !d.composeWaiting && a.srv != nil && a.srv.Running(), ui.Cmd, ui.KeyEnter, a.sendComposed},
-		{"cancel-send", "Cancel send", editing && d.composeWaiting && d.sendCancel != nil && !d.sendCancelling, 0, 0, func() { d.cancelSend() }},
-		{"save-request", "Save request", editing, ui.Cmd, ui.KeyS, func() {
+		}).when(capturing && len(a.visible) > 0 || editing, "").keys(ui.Cmd, ui.KeyL),
+		do("request.send", "Send request", a.sendComposed).
+			when(editing && !d.composeWaiting && a.srv != nil && a.srv.Running(), "Open a request draft with capture running; wait for any send in progress").keys(ui.Cmd, ui.KeyEnter),
+		do("request.cancel-send", "Cancel send", func() { d.cancelSend() }).
+			when(editing && d.composeWaiting && d.sendCancel != nil && !d.sendCancelling, ""),
+		do("request.save", "Save request", func() {
 			if a.page.capture() && d.savedKey == "" {
 				// A capture has no name or collection yet: ask for both.
 				a.renameOpen, a.saveAfterRename = true, true
 				return
 			}
 			a.saveComposed()
-		}},
-		{"compare-source", "Compare with source", editing && d.source != nil && d.response != nil && !d.composeWaiting, ui.Cmd | ui.Shift, ui.KeyD, func() {
+		}).when(editing, draft).keys(ui.Cmd, ui.KeyS),
+		do("request.compare-source", "Compare with source", func() {
 			d.comparing = true
 			if !tab {
 				// The comparison replaces the editor that had the focus; keep
 				// it in the inspector, where Escape returns to the list.
 				a.workbench.inspector.Focus(c)
 			}
-		}},
-		{"close-request", "Close request", tab && !d.composeWaiting, ui.Cmd, ui.KeyW, func() { a.requestClose(d) }},
-		{"next-tab", "Next open request", len(a.documents) > 0, ui.Ctrl, ui.KeyTab, func() { a.cycleDocument(1) }},
-		{"previous-tab", "Previous open request", len(a.documents) > 0, ui.Ctrl | ui.Shift, ui.KeyTab, func() { a.cycleDocument(-1) }},
-		{"export-selection", "Export selected HAR…", capturing && a.chosen.Len() > 0, 0, 0, a.exportChosen},
-		{"focus", focus, capturing && current, ui.Cmd | ui.Shift, ui.KeyEnter, func() {
+		}).when(editing && d.source != nil && d.response != nil && !d.composeWaiting, "Send a draft opened from Capture before comparing it with its source").keys(ui.Cmd|ui.Shift, ui.KeyD),
+		do("request.close", "Close request", func() { a.requestClose(d) }).
+			when(tab && !d.composeWaiting, "Open a request draft; wait for its send to finish before closing").keys(ui.Cmd, ui.KeyW),
+		do("request.next-tab", "Next open request", func() { a.cycleDocument(1) }).
+			when(len(a.documents) > 0, "Open a request first").keys(ui.Ctrl, ui.KeyTab),
+		do("request.previous-tab", "Previous open request", func() { a.cycleDocument(-1) }).
+			when(len(a.documents) > 0, "Open a request first").keys(ui.Ctrl|ui.Shift, ui.KeyTab),
+		do("capture.export-chosen", "Export selected HAR…", a.exportChosen).when(capturing && a.chosen.Len() > 0, ""),
+		do("view.focus-inspector", focus, func() {
 			w.focused = !w.focused
 			if w.focused {
 				w.inspector.Focus(c)
 			} else {
 				a.focusTraffic(c)
 			}
-		}},
-		{"latest", "Follow list end", capturing && len(a.visible) > 0, 0, 0, func() {
+		}).when(capturing && current, "").keys(ui.Cmd|ui.Shift, ui.KeyEnter),
+		do("view.follow-end", "Follow list end", func() {
 			w.focused = false
 			a.views.activeView().list.ScrollToEnd()
-		}},
-		{"filters", "Edit capture filters…", capturing, 0, 0, a.openFilter},
-		{"saved", "Manage saved filters…", capturing, 0, 0, func() { a.views.openSaved(a) }},
-		{"new-view", "New capture view", capturing, 0, 0, func() { a.views.capture(a); a.views.newView(a) }},
-		{"clear-filters", "Reset all capture conditions", capturing, 0, 0, func() {
-			a.views.resetFilters(a)
-		}},
-		{"break", fmt.Sprintf("Break requests · %t", a.breakOn), a.srv != nil, 0, 0, func() {
+		}).when(capturing && len(a.visible) > 0, ""),
+		do("capture.filter", "Edit capture filters…", a.openFilter).when(capturing, ""),
+		do("capture.saved-filters", "Manage saved filters…", func() { a.views.openSaved(a) }).when(capturing, ""),
+		do("capture.new-view", "New capture view", func() { a.views.capture(a); a.views.newView(a) }).when(capturing, ""),
+		do("capture.reset-filters", "Reset all capture conditions", func() { a.views.resetFilters(a) }).when(capturing, ""),
+		do("capture.break", fmt.Sprintf("Break requests · %t", a.breakOn), func() {
 			a.breakOn = !a.breakOn
 			a.srv.SetBreak(a.breakOn)
-		}},
-		{"recording", recording, a.srv != nil && a.srv.Running(), 0, 0, func() {
-			a.recordingPaused = !a.recordingPaused
-		}},
-		{"layout-right", "Layout: Side by side", true, 0, 0, func() { w.layout, w.focused = "right", false }},
-		{"layout-bottom", "Layout: Stacked", true, 0, 0, func() { w.layout, w.focused = "bottom", false }},
-		{"sidebar", "Toggle sidebar", true, ui.Cmd, ui.KeyB, func() { w.sidebarHidden = !w.sidebarHidden }},
-		{"layout-reset", "Reset desktop layout", true, 0, 0, func() {
+		}).when(a.srv != nil, ""),
+		do("capture.recording", recording, func() { a.recordingPaused = !a.recordingPaused }).
+			when(a.srv != nil && a.srv.Running(), ""),
+		do("view.layout-right", "Layout: Side by side", func() { w.layout, w.focused = "right", false }).
+			checked(checkbox(w.layout == "right")),
+		do("view.layout-bottom", "Layout: Stacked", func() { w.layout, w.focused = "bottom", false }).
+			checked(checkbox(w.layout == "bottom")),
+		do("view.sidebar", "Toggle sidebar", func() { w.sidebarHidden = !w.sidebarHidden }).keys(ui.Cmd, ui.KeyB),
+		do("view.layout-reset", "Reset desktop layout", func() {
 			w.layout, w.sidebarHidden, w.focused, w.sidePercent = "right", false, false, 64
 			a.sidebarWidth, a.tablePercent = 220, 44
 			a.columns = ui.TableLayout{}
-		}},
-		{"https", "HTTPS certificate & decryption setup…", true, 0, 0, func() { a.openSettings(2) }},
-		{"diagnostics", "Connection diagnostics", true, 0, 0, func() { a.openDiagnostics(nil, diagnoseMac) }},
-		{"setup-guide", "Show setup guide", !a.guide, 0, 0, a.openGuide},
-		{"experiments", "History…", true, 0, 0, func() {
+		}),
+		do("settings.https", "HTTPS certificate & decryption setup…", func() { a.openSettings(2) }),
+		do("network.diagnostics", "Connection diagnostics", func() { a.openDiagnostics(nil, diagnoseMac) }),
+		do("app.setup-guide", "Show setup guide", a.openGuide).when(!a.guide, ""),
+		do("history.open", "History…", func() {
 			a.experiments.scope, a.experiments.draftKey, a.experiments.open = nil, "", true
 			a.experiments.assetID, a.experiments.status, a.experiments.sourceFilter = "", "", ""
-		}},
-		{"websocket", "WebSocket session…", true, 0, 0, a.openSocket},
-		{"open-session", "Open session…", true, 0, 0, a.openSession},
-		{"save-session", "Save capture to Sessions", capturing, 0, 0, a.saveSession},
-		{"client", "Set up a local client…", a.srv != nil, 0, 0, a.openClientSetup},
-		{"devices", "Connect a device…", a.srv != nil, 0, 0, a.openDevices},
-		{"rules", "Manage debugging rules…", true, 0, 0, a.openRules},
-		{"vault", "Vault…", true, 0, 0, a.openVault},
-		{"environments", "Manage environments…", true, 0, 0, a.openVars},
-		{"code", "Generate code…", editing, 0, 0, a.openCode},
-		{"collection", "Collection settings…", editing && d.composeCollection != "", 0, 0, func() { a.openFolder(d.composeCollection) }},
-		{"new-request", "New request", true, ui.Cmd, ui.KeyN, a.openCompose},
-		{"import-curl", "Import cURL…", true, 0, 0, a.openCurlImport},
-		{"reload-library", "Reload collections from disk", true, 0, 0, func() {
+		}),
+		do("network.websocket", "WebSocket session…", a.openSocket),
+		do("session.open", "Open session…", a.openSession),
+		do("session.save", "Save capture to Sessions", a.saveSession).when(capturing, ""),
+		do("network.client", "Set up a local client…", a.openClientSetup).when(a.srv != nil, ""),
+		do("network.devices", "Connect a device…", a.openDevices).when(a.srv != nil, ""),
+		do("tools.rules", "Manage debugging rules…", a.openRules),
+		do("vault.open", "Vault…", a.openVault),
+		do("environment.manage", "Manage environments…", a.openVars),
+		do("request.code", "Generate code…", a.openCode).when(editing, draft),
+		do("collection.settings", "Collection settings…", func() { a.openFolder(d.composeCollection) }).
+			when(editing && d.composeCollection != "", ""),
+		do("request.new", "New request", a.openCompose).keys(ui.Cmd, ui.KeyN),
+		do("request.import-curl", "Import cURL…", a.openCurlImport),
+		do("collection.reload", "Reload collections from disk", func() {
 			a.loadRequestAssets()
 			a.done(fmt.Sprintf("Reloaded %d %s from %s", len(a.requests), plural(len(a.requests), "request", "requests"), a.library.root))
-		}},
-		{"import-postman", "Import…", true, 0, 0, a.importRequests},
-		{"export-postman", "Export collection as Postman…", editing && d.composeCollection != "", 0, 0, func() { a.exportPostman(collectionRoot(d.composeCollection)) }},
-		{"settings", "Open settings…", true, ui.Cmd, ui.KeyComma, func() { a.openSettings(-1) }},
-		{"live", "Go to Live traffic", true, ui.Cmd, ui.Key1, func() {
+		}),
+		do("collection.import", "Import…", a.importRequests),
+		do("collection.export-postman", "Export collection as Postman…", func() { a.exportPostman(collectionRoot(d.composeCollection)) }).
+			when(editing && d.composeCollection != "", ""),
+		do("app.settings", "Open settings…", func() { a.openSettings(-1) }).keys(ui.Cmd, ui.KeyComma),
+		do("go.live", "Go to Live traffic", func() {
 			a.page = pageLive
 			a.trafficOpen, a.revealGroup = true, "live"
 			a.focusTraffic(c)
-		}},
-		{"collections", "Go to Collections", true, ui.Cmd, ui.Key2, func() {
+		}).keys(ui.Cmd, ui.Key1),
+		do("go.collections", "Go to Collections", func() {
 			a.page = pageRequest
 			a.collectionsOpen, a.revealGroup = true, "collections"
 			if a.requestDocument != nil {
 				a.urlInput.Focus(c)
 			}
-		}},
-		{"sessions", "Go to Sessions", true, ui.Cmd, ui.Key3, func() {
+		}).keys(ui.Cmd, ui.Key2),
+		do("go.sessions", "Go to Sessions", func() {
 			a.page = pageSession
 			a.revealGroup = "sessions"
-		}},
-		{"apis", "API contracts", len(a.apis) > 0, 0, 0, func() {
-			a.page = pageAPI
-		}},
-		{"new-api", "New API contract", true, 0, 0, func() {
+		}).keys(ui.Cmd, ui.Key3),
+		do("go.apis", "API contracts", func() { a.page = pageAPI }).
+			when(len(a.apis) > 0, "Create or import an API contract first"),
+		do("api.new", "New API contract", func() {
 			a.newAPI()
 			a.page = pageAPI
-		}},
-		{"import-openapi", "Import OpenAPI…", true, 0, 0, a.importOpenAPI},
-		{"run-records", "Show History", true, 0, 0, a.showRunRecords},
-		{"save-evidence", "Save evidence to Sessions", capturing && current, 0, 0, func() {
-			a.saveEvidence(f)
-		}},
+		}),
+		do("api.import-openapi", "Import OpenAPI…", a.importOpenAPI),
+		do("history.show", "Show History", a.showRunRecords),
+		do("flow.save-evidence", "Save evidence to Sessions", func() { a.saveEvidence(f) }).when(capturing && current, ""),
 	}...)
 	return actions
 }
@@ -549,144 +541,6 @@ func (a *app) focusTraffic(c *ui.Context) {
 	a.workbench.focused = false
 	if view := a.views.activeView(); view != nil && len(a.visible) > 0 {
 		view.list.Handle.Focus(c)
-	}
-}
-
-func (a *app) desktopShortcuts(c *ui.Context) {
-	for _, action := range a.desktopActions(c) {
-		// Browsing traffic never sends: in LIVE, Send's shortcut works from
-		// inside the inspector only.
-		if action.id == "send" && a.page.capture() && !a.workbench.inspector.FocusWithin(c) {
-			continue
-		}
-		if action.enabled && action.key != 0 {
-			c.OnShortcut(action.mods, action.key, action.run)
-		}
-	}
-}
-
-func (a *app) desktopButton(c *ui.Context, id, label string) ui.Element {
-	for _, action := range a.desktopActions(c) {
-		if action.id == id {
-			b := uikit.SecondaryButton(c, label).Disabled(!action.enabled).Tooltip(action.hint())
-			if b.Clicked() {
-				action.run()
-			}
-			return b
-		}
-	}
-	return ui.Element{}
-}
-
-func (action desktopAction) unavailable() string {
-	switch action.id {
-	case "edit", "copy":
-		return "Inspect one HTTP request; bulk selections, tunnels and streams are unavailable"
-	case "replay":
-		return "Choose HTTP requests only; tunnels and streams cannot be replayed"
-	case "send":
-		return "Open a request draft with capture running; wait for any send in progress"
-	case "compare-source":
-		return "Send a draft opened from Capture before comparing it with its source"
-	case "close-request":
-		return "Open a request draft; wait for its send to finish before closing"
-	case "save-request":
-		return "Open a request draft first"
-	case "next-tab", "previous-tab":
-		return "Open a request first"
-	case "apis":
-		return "Create or import an API contract first"
-	default:
-		return "Unavailable for what is shown or selected"
-	}
-}
-
-func (action desktopAction) hint() string {
-	text := action.label
-	if key := action.shortcut(); key != "" {
-		text += " · " + key
-	}
-	if !action.enabled {
-		text += " · " + action.unavailable()
-	}
-	return text
-}
-
-// The same spelling feeds native accelerators and visible shortcut hints.
-func (action desktopAction) accelerator() string {
-	if action.key == 0 {
-		return ""
-	}
-	text := ""
-	if action.mods&ui.Cmd != 0 {
-		text += "CmdOrCtrl+"
-	} else if action.mods&ui.Ctrl != 0 {
-		text += "Ctrl+"
-	}
-	if action.mods&ui.Alt != 0 {
-		text += "Alt+"
-	}
-	if action.mods&ui.Shift != 0 {
-		text += "Shift+"
-	}
-	switch {
-	case action.key >= ui.KeyA && action.key <= ui.KeyZ:
-		return text + string('A'+rune(action.key-ui.KeyA))
-	case action.key >= ui.Key0 && action.key <= ui.Key9:
-		return text + string('0'+rune(action.key-ui.Key0))
-	case action.key == ui.KeyEnter:
-		return text + "Enter"
-	case action.key == ui.KeyTab:
-		return text + "Tab"
-	case action.key == ui.KeyComma:
-		return text + ","
-	case action.key == ui.KeyBracketLeft:
-		return text + "["
-	}
-	return ""
-}
-
-func (action desktopAction) shortcut() string {
-	modifier := "Ctrl"
-	if runtime.GOOS == "darwin" {
-		modifier = "Cmd"
-	}
-	return strings.ReplaceAll(action.accelerator(), "CmdOrCtrl", modifier)
-}
-
-func (a *app) desktopMenuItem(c *ui.Context, m *ui.Menu, id, label string) {
-	desktopMenuItem(m, a.desktopActions(c), id, label)
-}
-
-func desktopMenuItem(m *ui.Menu, actions []desktopAction, id, label string) {
-	for _, action := range actions {
-		if action.id == id {
-			if label == "" {
-				label = action.label
-			}
-			if m.Item(label).Shortcut(action.mods, action.key).Disabled(!action.enabled).Chosen() {
-				action.run()
-			}
-			return
-		}
-	}
-}
-
-// Native menu callbacks enter the next build, rather than retaining a Context
-// or invoking commands behind a modal. Modal focus is outside content.
-func (a *app) desktopNativeMenu(c *ui.Context) {
-	w := &a.workbench
-	pending := w.menuAction
-	w.menuAction = ""
-	for _, action := range a.desktopActions(c) {
-		available := action.enabled && w.content.FocusWithin(c)
-		if item := w.menuItems[action.id]; item != nil && item.IsEnabled() != available {
-			item.SetEnabled(available)
-		}
-		if pending == action.id && available {
-			action.run()
-			c.Invalidate()
-		}
 	}
 }
 
@@ -712,10 +566,10 @@ func (a *app) commandPalette(c *ui.Context) {
 			// unavailable commands, after the available ones, so asking for
 			// one explains why it cannot run instead of hiding it.
 			query := strings.ToLower(strings.TrimSpace(w.query))
-			var matches, unavailable []desktopAction
-			for _, action := range a.desktopActions(c) {
+			var matches, unavailable []action
+			for _, action := range a.actions(c) {
 				switch {
-				case action.id == "palette" || !strings.Contains(strings.ToLower(action.label), query):
+				case action.id == "app.palette" || !strings.Contains(strings.ToLower(action.label), query):
 				case action.enabled:
 					matches = append(matches, action)
 				case query != "":
@@ -766,7 +620,7 @@ func (a *app) commandPalette(c *ui.Context) {
 					}
 					ui.Text(c, label).FontSize(uikit.TextBody).TextColor(color)
 					ui.Spacer(c)
-					ui.Text(c, action.shortcut()).FontSize(uikit.TextMeta).TextColor(color)
+					ui.Text(c, action.shortcut.String()).FontSize(uikit.TextMeta).TextColor(color)
 				})
 				if b.Clicked() {
 					w.command = i
@@ -783,7 +637,7 @@ func (a *app) commandPalette(c *ui.Context) {
 				action := matches[w.command]
 				message := ""
 				if !action.enabled {
-					message = action.unavailable()
+					message = action.why()
 				} else if a.page.capture() {
 					if a.chosen.Len() > 1 {
 						message = fmt.Sprintf("Capture · %d selected requests", a.chosen.Len())
