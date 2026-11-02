@@ -85,7 +85,7 @@ func TestStdioProcess(t *testing.T) {
 			}
 			want := 9
 			if tc.write {
-				want = 14
+				want = 15
 			}
 			if len(listed.Tools) != want {
 				t.Errorf("%d tools; want %d", len(listed.Tools), want)

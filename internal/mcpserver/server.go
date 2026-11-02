@@ -53,6 +53,7 @@ func New(controlFile string, options Options) (*mcp.Server, error) {
 		register[idParams](server, client, options, "runs.cancel", "Cancel a desktop run. Already completed external side effects cannot be undone.", local)
 		register[recordingParams](server, client, options, "capture.recording", "Enable or disable desktop capture recording.", local)
 		register[ruleEnabledParams](server, client, options, "rules.set-enabled", "Enable or disable a rule. Supply both index and the current fingerprint key from rules.list to prevent stale edits.", local)
+		register[rulesImportParams](server, client, options, "rules.import", "Append 1–100 rules from a native rules-file JSON array supplied as document text. One entry creates a rule. The whole batch is validated and saved before applying; existing rules and editor drafts are preserved. Not idempotent: do not blindly retry. Trusted rules only: Map Local can serve local files and Map Remote redirects future traffic.", &mcp.ToolAnnotations{DestructiveHint: new(true), OpenWorldHint: new(false)})
 	}
 	return server, nil
 }
@@ -111,6 +112,10 @@ type ruleEnabledParams struct {
 	Enabled bool   `json:"enabled" jsonschema:"Desired rule enabled state"`
 }
 
+type rulesImportParams struct {
+	Document string `json:"document" jsonschema:"Native rules JSON array text (1–100 rules); contents, never a filesystem path"`
+}
+
 // register binds one statically named action to typed, schema-validated input.
 // No tool accepts an action name, discovery path, or arbitrary backend params.
 func register[In any](server *mcp.Server, client *control.Client, options Options, action, description string, annotations *mcp.ToolAnnotations) {
@@ -130,7 +135,7 @@ func register[In any](server *mcp.Server, client *control.Client, options Option
 			property.Type, property.Types = "array", nil
 			property.MinItems, property.MaxItems, property.UniqueItems = new(1), new(200), true
 			property.Items.Minimum = new(1.0)
-		case "key":
+		case "key", "document":
 			property.MinLength = new(1)
 		case "collection":
 			// Preserve an explicitly empty root filter, but do not accept null

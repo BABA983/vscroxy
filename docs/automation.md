@@ -135,8 +135,9 @@ mutation on transport timeout: its outcome may be unknown.
 | `runs.cancel` | Job `id`; cancellation cannot undo completed external effects |
 | `capture.recording` | Required boolean `enabled`; forwarding remains on |
 | `rules.set-enabled` | Required `index`, current `key` and boolean `enabled`; persists through the existing rules store |
+| `rules.import` | Required `document` string containing a native JSON array of 1–100 rules; append-only, all-or-nothing |
 
-All five mutations require `confirm:true`; CLI `--confirm` supplies it. Rule
+All mutations require `confirm:true`; CLI `--confirm` supplies it. Rule
 fingerprints reject stale targets after a concurrent edit/reorder. Each app-state
 command and its response snapshot run on the desktop UI thread, not HTTP workers.
 Runs execute asynchronously with isolated Cookies/OAuth tokens, the selected
@@ -158,8 +159,8 @@ names. This is field redaction, not secret detection. Explicit `details:true`
 discloses raw saved requests or live raw headers/URL and binary-safe base64 body
 previews (at most 64 KiB per side). Previews never open spill files and report
 truncation; they are not a full response download. Session tabs are not queried.
-System-proxy changes and rule import/creation remain separate roadmap work;
-the API deliberately has no arbitrary filesystem action.
+System-proxy changes remain separate roadmap work; the API deliberately has no
+arbitrary filesystem action.
 
 ### Export captured HTTP traffic
 
@@ -186,6 +187,32 @@ content. Body I/O happens off the UI thread. Each export is bounded to 1 MiB of
 source metadata, 4 MiB of aggregate body bytes and 8 MiB of encoded HAR. Raw
 exports fail on missing/incomplete/oversized bodies instead of substituting a
 preview or display warning. Select smaller batches when limits are exceeded.
+
+### Import or create rules
+
+`rules.import` appends a native rules-file JSON array. A one-element array
+creates one rule. The `document` parameter contains **text**, not a desktop
+filename. CLI clients can read a local file and construct that parameter with jq:
+
+```sh copy Copy Rule Import
+bin/vscroxy-cli control --file "$HOME/.vscroxy/control.json" \
+  --params "$(jq -cn --rawfile document ./rules.json '{document:$document}')" \
+  --confirm rules.import
+```
+
+The 64 KiB command limit still applies, including JSON string escaping. Each
+batch is validated with the existing rules contract, including scenario-state
+consistency against current rules. Unknown fields, invalid rules, an external
+edit or a save failure reject the entire batch. Existing rule order and unsaved
+editor drafts remain unchanged; the saved batch applies to new requests only.
+The result gives `imported` and `total`; use `rules.list` for new indices/keys.
+
+Import is **not idempotent**: a repeated accepted call appends duplicates. After
+an ambiguous timeout, inspect `rules.list` rather than retrying blindly. Only
+import trusted rules. Map Local targets may serve files already accessible to
+the desktop process; Map Remote changes where future requests are sent, and
+breakpoints may pause them. No new mock files are created by import, and no
+additional filesystem/network sandbox is implied by `--allow-write`.
 
 ## MCP stdio server
 
@@ -219,7 +246,7 @@ MCP `isError`; a run job's acceptance still requires polling its final report.
 Two **independent startup capabilities**, never tool parameters, widen access:
 
 - `--allow-write` registers `request.run`, `collection.run`, `runs.cancel`,
-  `capture.recording`, and `rules.set-enabled`. It explicitly authorizes those
+  `capture.recording`, `rules.set-enabled`, and `rules.import`. It explicitly authorizes those
   tools to supply the desktop's confirmation. Request execution can affect real
   external systems; enable it only for a trusted client and trusted collections.
 - `--allow-sensitive` permits an explicitly requested `details:true` on

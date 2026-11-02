@@ -19,7 +19,7 @@ import (
 )
 
 var queries = []string{"collections.list", "flows.export-har", "flows.get", "flows.list", "requests.get", "requests.list", "rules.list", "runs.get", "status"}
-var writes = []string{"capture.recording", "collection.run", "request.run", "rules.set-enabled", "runs.cancel"}
+var writes = []string{"capture.recording", "collection.run", "request.run", "rules.import", "rules.set-enabled", "runs.cancel"}
 
 func endpoint(t *testing.T, dispatch control.Dispatch) string {
 	t.Helper()
@@ -364,6 +364,7 @@ func TestMutationsAndConfirmation(t *testing.T) {
 		{"collection.run", map[string]any{"collection": "sample", "environment": "staging", "iterations": 1000, "bail": true}, `{"action":"collection.run","params":{"collection":"sample","environment":"staging","iterations":1000,"bail":true,"confirm":true}}`},
 		{"runs.cancel", map[string]any{"id": "job-id"}, `{"action":"runs.cancel","params":{"id":"job-id","confirm":true}}`},
 		{"rules.set-enabled", map[string]any{"index": 0, "key": "current-fingerprint", "enabled": false}, `{"action":"rules.set-enabled","params":{"index":0,"key":"current-fingerprint","enabled":false,"confirm":true}}`},
+		{"rules.import", map[string]any{"document": `[{"type":"block","match":"example.com"}]`}, `{"action":"rules.import","params":{"document":"[{\"type\":\"block\",\"match\":\"example.com\"}]","confirm":true}}`},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			result := call(t, cs, tc.name, tc.args)
@@ -422,6 +423,10 @@ func TestInvalidArgumentsNeverReachDesktop(t *testing.T) {
 		{"rules.set-enabled", map[string]any{"index": -1, "key": "x", "enabled": true}},
 		{"rules.set-enabled", map[string]any{"index": 0, "enabled": true}},
 		{"rules.set-enabled", map[string]any{"index": 0, "key": "", "enabled": true}},
+		{"rules.import", map[string]any{}},
+		{"rules.import", map[string]any{"document": ""}},
+		{"rules.import", map[string]any{"document": []any{}}},
+		{"rules.import", map[string]any{"document": "[]", "confirm": true}},
 		{"capture.recording", map[string]any{}},
 		{"capture.recording", map[string]any{"enabled": false, "confirm": true}},
 		{"status", map[string]any{"action": "request.run"}},

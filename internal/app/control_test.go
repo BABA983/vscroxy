@@ -329,3 +329,66 @@ func TestDesktopControlHARExportRejectsPartialAndOversizedPayloads(t *testing.T)
 		t.Fatalf("body error leaked or was ignored: %s", value)
 	}
 }
+
+func TestDesktopControlRuleImportIsAtomicPersistentAndAppliesToTraffic(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(201) }))
+	defer upstream.Close()
+	a := &app{srv: requestProxy(t), rulesPath: filepath.Join(t.TempDir(), "rules.json"), rules: []capture.Rule{{Name: "Existing", Type: capture.RuleBlock, Match: "other.invalid"}}}
+	a.ruleUI.open, a.ruleUI.index, a.ruleUI.draft.Name = true, 0, "Unsaved draft"
+	client := desktopClient(t, a)
+	if status := getThrough(t, a, upstream.URL); status != 201 {
+		t.Fatalf("before import status=%d", status)
+	}
+	document, err := json.Marshal([]capture.Rule{{Name: "Imported", Type: capture.RuleBlock, Match: upstream.URL}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	params := map[string]any{"document": string(document)}
+	if value := desktopCall(t, client, "rules.import", params); !strings.Contains(string(value), `"error":`) {
+		t.Fatalf("unconfirmed import succeeded: %s", value)
+	}
+	params["confirm"] = true
+	if value := desktopCall(t, client, "rules.import", params); string(value) != `{"imported":1,"total":2}` && string(value) != `{"total":2,"imported":1}` {
+		t.Fatalf("import: %s", value)
+	}
+	saved, err := capture.LoadRules(a.rulesPath)
+	if err != nil || len(saved) != 2 || saved[0].Name != "Existing" || saved[1].Name != "Imported" || a.ruleUI.draft.Name != "Unsaved draft" || a.ruleUI.index != 0 {
+		t.Fatalf("save or existing draft changed: %+v %v", saved, err)
+	}
+	if status := getThrough(t, a, upstream.URL); status != 403 {
+		t.Fatalf("import did not affect subsequent traffic: status=%d", status)
+	}
+	original, err := os.ReadFile(a.rulesPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, invalid := range []string{
+		`null`, `[]`, `{}`, `[null]`, `[{"type":"block","match":"ok"},{"type":"invalid","match":"bad"}]`,
+		`[{"type":"block","match":"ok","typo":true}]`,
+		`[{"type":"block","match":"secret-pattern[","matchMode":"regex"}]`,
+		`[{"type":"block","match":"ok","when":[{"name":"X-Test","op":"equals","extra":"bad"}]}]`,
+		`[{"type":"block","match":"ok","scenario":"A","scenarioActive":true},{"type":"block","match":"other","scenario":"B","scenarioActive":true}]`,
+	} {
+		params["document"] = invalid
+		value := desktopCall(t, client, "rules.import", params)
+		if !strings.Contains(string(value), `"error":`) || strings.Contains(string(value), "secret-pattern") {
+			t.Fatalf("invalid batch accepted or disclosed: %s", value)
+		}
+		data, err := os.ReadFile(a.rulesPath)
+		if err != nil || string(data) != string(original) || len(a.rules) != 2 {
+			t.Fatal("rejected batch changed saved or active rules")
+		}
+	}
+	// An external edit must not be overwritten or applied to the running proxy.
+	if err := os.WriteFile(a.rulesPath, []byte("externally changed"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	params["document"] = string(document)
+	if value := desktopCall(t, client, "rules.import", params); !strings.Contains(string(value), `"error":`) || len(a.rules) != 2 {
+		t.Fatalf("failed save was applied: %s", value)
+	}
+	data, err := os.ReadFile(a.rulesPath)
+	if err != nil || string(data) != "externally changed" {
+		t.Fatal("external edit overwritten")
+	}
+}

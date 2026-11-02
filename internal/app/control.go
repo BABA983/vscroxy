@@ -237,6 +237,30 @@ func (a *app) controlValue(command control.Command) (any, error) {
 			return nil, errors.New("could not save rule")
 		}
 		return map[string]bool{"enabled": *p.Enabled}, nil
+	case "rules.import":
+		p, err := controlParams[struct {
+			Document string `json:"document"`
+			Confirm  bool   `json:"confirm"`
+		}](command)
+		if err != nil || !p.Confirm {
+			return nil, errors.New("document and confirm:true are required")
+		}
+		// Accept file contents, not a path for the desktop to open. One entry
+		// creates a rule; a batch appends atomically without replacing drafts.
+		var imported []capture.Rule
+		if json.Unmarshal([]byte(p.Document), &imported, json.RejectUnknownMembers(true)) != nil || len(imported) == 0 || len(imported) > 100 {
+			return nil, errors.New("document must be a native JSON array of 1–100 rules")
+		}
+		next := append(slices.Clone(a.rules), imported...)
+		if capture.ValidateRules(next) != nil {
+			// Validation may quote authored regexes or values: never return
+			// those contents as incidental diagnostics to a remote client.
+			return nil, errors.New("invalid rules or conflicting scenario state; nothing imported")
+		}
+		if !a.applyRuleChanges(next) {
+			return nil, errors.New("could not save rules; nothing imported")
+		}
+		return map[string]int{"imported": len(imported), "total": len(next)}, nil
 	case "request.run", "collection.run":
 		return a.startControlRun(command)
 	case "runs.get", "runs.cancel":
