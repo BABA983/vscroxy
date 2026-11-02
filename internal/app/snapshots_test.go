@@ -549,6 +549,23 @@ func TestUISnapshots(t *testing.T) {
 		a.flows[0].resBody = b.String()
 	}, want: "24 × 24 px"})
 
+	for step, label := range collectionSteps {
+		states = append(states, snapshot{name: "dialog-collection-" + strings.ToLower(label), setup: func(a *app) {
+			a.openCollectionWizard(collectionWizardFlows())
+			a.collectionUI.step, a.collectionUI.grouping = step, 1
+			a.collectionUI.name = "Example API"
+			a.collectionUI.organize()
+		}, want: "Nothing is saved until Create.", short: true})
+	}
+	states = append(states, snapshot{name: "dialog-current-values", setup: func(a *app) {
+		a.envs[0].Current = map[string]string{"authorization": "Bearer local-only-fixture"}
+		a.openVars()
+	}, want: "Current values · local only", short: true})
+	states = append(states, snapshot{name: "collection-matched", setup: func(a *app) {
+		a.requests[0].Name = "Get project"
+		a.requests[0].URL = "https://api.example.com/projects"
+	}, act: click("Matches: Get project"), want: "Save response as example"})
+
 	manifest := struct {
 		Platform string
 		Go       string

@@ -178,6 +178,8 @@ type app struct {
 	analysis     captureAnalysis
 	replayUI     replaySetup
 	bulkSaveUI   collectionSave // saves the chosen rows into a collection
+	collectionUI collectionWizard
+	matchUI      requestMatchState
 	frames       map[int][]frame
 	messageUI    messagePanel
 	frameLost    atomic.Int64
@@ -388,6 +390,7 @@ type app struct {
 	varsName    string
 	varsChoice  string
 	varsRows    []request.Field
+	varsCurrent []request.Field
 	varsProblem string
 
 	breakOn   bool
@@ -1385,6 +1388,7 @@ func (a *app) view(c *ui.Context) {
 	a.exportModal(c, t)
 	a.replayModal(c, t)
 	a.collectionSaveModal(c, t)
+	a.collectionWizardModal(c, t)
 	a.protobuf.modal(c, a)
 	a.views.capture(a)
 	if !a.page.capture() || a.inspect.pane != inspectorMessages {
@@ -1609,7 +1613,12 @@ func (a *app) sidebar(c *ui.Context) {
 			}
 			uikit.SidebarSection(c, "Domains", &a.domainsOpen, func() {
 				for _, d := range a.domains {
-					uikit.SidebarItem(c, "host:"+d.name, domainIcon, d.name, a.sidebarChoice == "host:"+d.name, !a.windowBehind).Children(func() {
+					uikit.SidebarItem(c, "host:"+d.name, domainIcon, d.name, a.sidebarChoice == "host:"+d.name, !a.windowBehind).PopoverMenu(func(m *ui.Menu) {
+						actionMenu(m, []action{
+							do("collection.from-host", "Create collection…", func() { a.openCollectionWizard(a.collectionScope(d.name, "")) }),
+							do("dns.map-host", "Map this host…", func() { a.openDNSRule(hostOnly(d.name), "") }),
+						})
+					}).Children(func() {
 						if a.filterTriage.Host == d.name {
 							ui.Text(c, "✓").FontSize(uikit.TextMeta).TextColor(t.Accent).Tooltip("Host filter is active; remove it in the condition bar")
 						}
@@ -1732,6 +1741,7 @@ func (a *app) clientActions(name string, apps []capture.SSLApp) []action {
 		actions = append(actions, submenu("HTTPS inspection by executable", executables...))
 	}
 	return append(actions,
+		do("collection.from-app", "Create collection…", func() { a.openCollectionWizard(a.collectionScope("", name)) }).in("collection"),
 		do("https.rules", "View HTTPS rules…", func() { a.sslOpen = true }),
 		do("dns.map-client", "Map a host for "+name+"…", func() { a.openDNSRule("", name) }).in("map"),
 	)
@@ -2410,6 +2420,7 @@ func (a *app) flowActions(c *ui.Context, f flow) []action {
 	actions := []action{
 		pick(requests, "flow.replay").as("Replay"),
 		pick(requests, "flow.edit"),
+		pick(requests, "collection.from-capture"),
 		do("flow.save-request", "Save as request", func() { a.saveCapture(f) }).
 			when(f.kind != "connect" && f.method != "CONNECT", "Tunnels cannot be saved as requests"),
 	}
@@ -2494,7 +2505,7 @@ func (a *app) envNames() []string {
 func (a *app) activeVars() map[string]string {
 	for _, e := range a.envs {
 		if e.Name == a.activeEnv {
-			return maps.Clone(e.Vars)
+			return e.values()
 		}
 	}
 	return map[string]string{}
@@ -2518,12 +2529,17 @@ func (a *app) applyVars(name string, before, vars map[string]string) {
 	}
 	for key, value := range vars {
 		if old, ok := before[key]; !ok || value != old {
-			a.envs[at].Vars[key] = value
+			if _, private := a.envs[at].Current[key]; private {
+				a.envs[at].Current[key] = value
+			} else {
+				a.envs[at].Vars[key] = value
+			}
 		}
 	}
 	for key := range before {
 		if _, ok := vars[key]; !ok {
 			delete(a.envs[at].Vars, key) // pm.environment.unset
+			delete(a.envs[at].Current, key)
 		}
 	}
 	if a.activeEnv == "" {
@@ -2543,10 +2559,11 @@ func (a *app) openVars() {
 func (a *app) editEnvironment(name string) {
 	a.varsGlobals = false
 	a.varsName, a.varsChoice, a.varsProblem = name, name, ""
-	a.varsRows = nil
+	a.varsRows, a.varsCurrent = nil, nil
 	for _, env := range a.envs {
 		if env.Name == name {
 			a.varsRows = fieldsOf(env.Vars)
+			a.varsCurrent = fieldsOf(env.Current)
 		}
 	}
 }
@@ -2606,7 +2623,12 @@ func (a *app) varsModal(c *ui.Context, t *ui.Theme) {
 					})
 					uikit.Input(c, &a.varsName).Label("Environment")
 				}
-				ui.Column(c).Height(224).Border(1, t.Border).Radius(uikit.RadiusControl).Children(func() {
+				tableHeight := float32(224)
+				if !a.varsGlobals {
+					// Leave room for local overrides instead of blank shared rows.
+					tableHeight = min(tableHeight, uikit.HeightControl*float32(len(a.varsRows)+2)+2)
+				}
+				ui.Column(c).Height(tableHeight).Border(1, t.Border).Radius(uikit.RadiusControl).Children(func() {
 					ui.Row(c).Height(uikit.HeightControl).AlignItems(ui.Center).BorderWidth(0, 0, 1, 0).BorderColor(t.Border).Children(func() {
 						uikit.Meta(c, "NAME").Basis(0).Grow(1).Padding(0, t.Space(2))
 						uikit.Meta(c, "VALUE").Basis(0).Grow(2).Padding(0, t.Space(2))
@@ -2656,6 +2678,9 @@ func (a *app) varsModal(c *ui.Context, t *ui.Theme) {
 						})
 					})
 				})
+				if !a.varsGlobals {
+					a.currentVariablesEditor(c, t)
+				}
 				if a.varsProblem != "" {
 					ui.Text(c, a.varsProblem).FontSize(uikit.TextMeta).TextColor(t.Danger)
 				}
@@ -2709,16 +2734,29 @@ func (a *app) saveVars() {
 		return
 	}
 	envs := slices.Clone(a.envs)
+	current := map[string]string{}
+	for _, row := range a.varsCurrent {
+		key := strings.TrimSpace(row.Name)
+		if key == "" && row.Value == "" {
+			continue
+		}
+		if _, duplicate := current[key]; key == "" || duplicate || strings.ContainsAny(key, "{}") {
+			a.varsProblem = "Current variable names must be nonempty, unique and contain no braces."
+			return
+		}
+		current[key] = row.Value
+	}
 	found := false
 	for i, e := range envs {
 		if e.Name == name {
 			envs[i].Vars = vars
+			envs[i].Current = current
 			found = true
 			break
 		}
 	}
 	if !found {
-		envs = append(envs, environment{Name: name, Vars: vars})
+		envs = append(envs, environment{Name: name, Vars: vars, Current: current})
 	}
 	if err := saveEnvs(a.file(a.envsPath), envFile{Active: name, Envs: envs, Globals: a.globals}); err != nil {
 		a.varsProblem = "Save failed: " + err.Error()

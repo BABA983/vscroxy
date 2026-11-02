@@ -371,6 +371,8 @@ func (a *app) requestActions(c *ui.Context, f flow, current bool) []action {
 		copyRequest = func() { a.copyDraftCurl(c, d) }
 	}
 	return []action{
+		do("collection.from-capture", "Create collection…", func() { a.openCollectionWizard(selected) }).
+			when(current && len(selected) > 0, "Select captured requests first"),
 		do("flow.edit", "Edit request", func() { a.editCapture(f) }).
 			when(current && !bulk && f.kind == "", inspectOne).keys(ui.Cmd|ui.Alt, ui.KeyEnter),
 		do("flow.replay", "Replay selected…", func() { a.openReplay(selected) }).

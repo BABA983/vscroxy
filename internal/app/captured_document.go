@@ -149,6 +149,7 @@ func (a *app) capturedHeader(c *ui.Context, t *ui.Theme, f flow, d *requestDocum
 		// shows it.
 		title := f.method + " " + cmp.Or(f.url, f.scheme+"://"+f.host+f.path)
 		uikit.Meta(c, source).Label(title).FontFeatures("tnum").SingleLine().MinWidth(0).Tooltip(title)
+		a.capturedRequestMatch(c, t, f)
 		if d == nil {
 			// Streams and tunnels read as they were; the path names them.
 			uikit.Mono(c, f.method+" "+cmp.Or(f.path, "/")).SingleLine().MinWidth(48).Tooltip(f.url)

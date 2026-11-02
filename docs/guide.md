@@ -284,6 +284,40 @@ captures**, **Pin** and **Mark…**. **Tools** creates a rule from the request
 (breakpoints, Mock this response, Map Remote, Block), maps its host in DNS or
 changes its HTTPS inspection. Investigation and regression actions come last.
 
+**Create collection…** opens a six-step draft from selected captures, or from
+all captures under a domain/App through its sidebar context menu:
+**Scope → Endpoints → Variables → Structure → Examples → Done**. Back keeps
+draft edits; Cancel/Escape discards them. Nothing is written before Create,
+and creating never sends requests.
+
+Scope excludes static resources, tunnels and network failures by default;
+HTTP 4xx/5xx responses remain available. Endpoints groups identical methods
+and origins using whole numeric/UUID path segments as parameters. Other slugs
+stay literal. Edit `:name` templates, Split or Merge to correct the inference.
+Variables creates host/path variables in a new or existing environment and
+extracts Authorization, Cookie and API-key headers. The default storage is a
+local **Current value**, not an exported shared value; **Vault** encrypts and
+restricts the value to its captured hosts. **Leave in requests** explicitly
+keeps the original header in library files. Identical Authorization across all
+included requests is inherited from collection auth; other credentials remain
+header references. Query/body secrets still need review before sharing.
+
+Structure defaults to Path prefix; Host and Flat are also available. Rename
+requests, edit their folders, drag them onto folders or before another request,
+or use Move up/down. Examples initially selects the latest successful response
+and one response per HTTP error status. Incomplete/binary/oversized responses
+must be deselected. Done optionally opens an independent, unsaved **OpenAPI
+draft** for review. Existing variable/Vault names with different values are
+never silently replaced. If a collection write fails after dependency writes,
+the wizard reports the retained environment/credentials and supports retry.
+
+When a capture matches a saved request, its header shows **Matches: …**.
+The popup offers **Open request** and **Save response as example**, without
+sending. Matching uses method, scheme, host/port and complete path segments,
+ignores query, and resolves the current environment. Ambiguous matches are all
+listed. Saving keeps the saved request template, not expanded capture secrets,
+and does not save unrelated edits in an open request tab.
+
 Editing a capture and **Save as request** use the complete retained, decoded
 request payload, not the Body preview. Repeated headers and query parameters
 are kept; stale content encoding/length, transfer framing and the client's
@@ -1014,6 +1048,10 @@ its requests, folders and settings move together, and open tabs follow.
   file's row, then run input (the active environment or a preceding Runner
   step), then the nearest folder up to the collection, then globals. Disabled
   rows are skipped. **Request variables** names the source of each value.
+- **Current values** in Variables override shared environment values locally.
+  They are masked by default, saved locally in plaintext and omitted from
+  Postman environment exports. Use Vault when encryption is required. Script
+  updates to an existing Current value stay local too.
 - **Dynamic variables** follow Postman's names and are generated for every
   occurrence on every send: `$guid`, `$randomUUID`, `$timestamp`,
   `$isoTimestamp`, `$randomInt`, `$randomBoolean`, `$randomAlphaNumeric`,
