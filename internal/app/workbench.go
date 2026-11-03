@@ -333,6 +333,7 @@ func (a *app) captureActions() []action {
 	actions := []action{
 		do("tools.rules", "Debugging rules…", a.openRules),
 		do("collection.record", "Record into collection…", func() { a.openCollectionRecording("", "", "") }),
+		do("tokens.analyze", "Recognize token links…", func() { a.openTokenLinks(a.tokenLinkScope()) }),
 		do("capture.saved-filters", "Save filter…", func() { a.views.openSaved(a) }),
 	}
 	for _, index := range []int{6, 7} {
@@ -374,6 +375,8 @@ func (a *app) requestActions(c *ui.Context, f flow, current bool) []action {
 	return []action{
 		do("collection.from-capture", "Create collection…", func() { a.openCollectionWizard(selected) }).
 			when(current && len(selected) > 0, "Select captured requests first"),
+		do("tokens.from-capture", "Recognize token links…", func() { a.openTokenLinks(selected) }).
+			when(current && len(selected) > 1, "Select a source response and subsequent Bearer requests"),
 		do("flow.edit", "Edit request", func() { a.editCapture(f) }).
 			when(current && !bulk && f.kind == "", inspectOne).keys(ui.Cmd|ui.Alt, ui.KeyEnter),
 		do("flow.replay", "Replay selected…", func() { a.openReplay(selected) }).

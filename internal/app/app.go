@@ -182,6 +182,7 @@ type app struct {
 	bulkSaveUI         collectionSave // saves the chosen rows into a collection
 	collectionUI       collectionWizard
 	recordCollectionUI collectionRecordingEditor
+	tokenLinks         *tokenLinkPreview
 	matchUI            requestMatchState
 	frames             map[int][]frame
 	messageUI          messagePanel
@@ -1418,6 +1419,7 @@ func (a *app) view(c *ui.Context) {
 	a.collectionSaveModal(c, t)
 	a.collectionWizardModal(c, t)
 	a.collectionRecordingModal(c, t)
+	a.tokenLinksModal(c, t)
 	a.protobuf.modal(c, a)
 	a.views.capture(a)
 	if !a.page.capture() || a.inspect.pane != inspectorMessages {
