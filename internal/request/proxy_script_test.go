@@ -1,30 +1,38 @@
 package request
 
 import (
+	"bytes"
+	"context"
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/baba983/vscroxy/internal/capture"
 )
 
 func TestParseProxyScriptFindsHooks(t *testing.T) {
-	s, err := ParseProxyScript("t", "// only the response\nexport async function onResponse() {}\nfunction onRequest() {}\nexport function helper() {}")
+	s, err := ParseProxyScript("t", "// only the response\nexport async function onResponse() {}\nfunction onRequest() {}\nfunction onMock() {}\nexport function helper() {}")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if s.OnRequest || !s.OnResponse {
-		t.Fatalf("hooks = %v, %v: only exported hooks count", s.OnRequest, s.OnResponse)
+	if s.OnRequest || !s.OnResponse || s.OnMock {
+		t.Fatalf("hooks = %v, %v, %v: only exported hooks count", s.OnRequest, s.OnResponse, s.OnMock)
+	}
+	s, err = ParseProxyScript("t", `function mock() {} export { mock as onMock };`)
+	if err != nil || s == nil || !s.OnMock || s.OnRequest || s.OnResponse {
+		t.Fatalf("mock hook = %+v, %v", s, err)
 	}
 	for src, line := range map[string]int{
 		"export function onRequest() {\n  pm.request.headers.upsert(\n}":                 3,
 		"const token = 1;\nawait pm.sendRequest(\"x\");\nexport function onRequest() {}": 2,
 	} {
 		_, err = ParseProxyScript("t", src)
-		var problem ScriptProblem
-		if !errors.As(err, &problem) || problem.Line != line {
+		if problem, ok := errors.AsType[ScriptProblem](err); !ok || problem.Line != line {
 			t.Errorf("%q: err = %#v, want a problem on line %d", src, err, line)
 		}
 	}
@@ -109,6 +117,191 @@ export async function onResponse() {
 	want := `{"id":1,"sig":"5031fe3d989c6d1537a013fa6e739da23463fdaec3b70137d828e36ace221bd0","random":16,"before":"yes"}`
 	if x.Status != 299 || string(x.ResponseBody) != want || x.Response.Get("X-Edited") != "1" || x.Response.Get("Etag") != "" {
 		t.Fatalf("response = %d %v %s", x.Status, x.Response, x.ResponseBody)
+	}
+}
+
+func TestProxyScriptMocksDynamicResponse(t *testing.T) {
+	s, err := ParseProxyScript("Mock", `import { greeting } from "greet";
+export async function onMock() {
+	if (pm.response.code !== 200 || pm.response.text() !== "" || pm.response.headers.count() !== 0) throw new Error("not a fresh response");
+	const input = JSON.parse(pm.request.body.raw);
+	const message = await Promise.resolve(greeting(input.name, pm.environment.get("prefix")));
+	pm.response.code = 201;
+	pm.response.headers.add("X-Value", "first");
+	pm.response.headers.add({key: "X-Value", value: "second"});
+	pm.response.headers.upsert("Content-Type", "application/json");
+	pm.response.setBody({message, method: pm.request.method, page: pm.request.url.query.get("page"), token: pm.request.headers.get("X-Token"), local: pm.variables.get("local"), global: pm.globals.get("global")});
+	pm.variables.set("seen", "yes");
+	pm.globals.set("count", "1");
+}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	x := &capture.ScriptExchange{Phase: "mock", Method: "POST", URL: "https://api.test/items?page=2",
+		Header: http.Header{"X-Token": {"abc"}}, Body: []byte(`{"name":"Ada"}`),
+		Status: 503, Response: http.Header{"X-Old": {"old"}}, ResponseBody: []byte("old"),
+		Locals: map[string]string{"local": "here"}}
+	out, err := s.Run(t.Context(), x, ProxyEnv{
+		Environment: map[string]string{"prefix": "Hello"}, Globals: map[string]string{"global": "shared"},
+		Addons: map[string]string{"greet": `export const greeting = (name, prefix) => prefix + ", " + name;`},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := `{"message":"Hello, Ada","method":"POST","page":"2","token":"abc","local":"here","global":"shared"}`
+	if x.Status != 201 || string(x.ResponseBody) != want || x.Response.Get("Content-Type") != "application/json" ||
+		!reflect.DeepEqual(x.Response.Values("X-Value"), []string{"first", "second"}) || x.Response.Get("X-Old") != "" {
+		t.Fatalf("response = %d %v %s", x.Status, x.Response, x.ResponseBody)
+	}
+	if x.Locals["seen"] != "yes" || !reflect.DeepEqual(out.Writes, []Write{{Scope: "global", Name: "count", Value: "1"}}) {
+		t.Fatalf("locals = %v, writes = %+v", x.Locals, out.Writes)
+	}
+}
+
+func TestProxyScriptMockRequestIsReadOnly(t *testing.T) {
+	s, err := ParseProxyScript("Mock", `export function onMock() {
+	const before = JSON.stringify(pm.request.toJSON());
+	[
+		() => { pm.request.method = "DELETE"; },
+		() => { pm.request.url = "https://changed.test/"; },
+		() => { pm.request.body = "changed"; },
+		() => { pm.request.body.raw = "changed"; },
+		() => pm.request.body.update("changed"),
+		() => pm.request.headers.add("X-New", "1"),
+		() => pm.request.headers.upsert("X-Token", "changed"),
+		() => pm.request.headers.remove("X-Token"),
+		() => pm.request.headers.clear(),
+		() => pm.request.addHeader("X-New", "1"),
+		() => pm.request.upsertHeader("X-Token", "changed"),
+		() => pm.request.removeHeader("X-Token"),
+		() => pm.request.url.update("https://changed.test/"),
+		() => pm.request.url.query.add("page", "3"),
+		() => pm.request.url.query.upsert("page", "3"),
+		() => pm.request.url.query.remove("page"),
+		() => pm.request.url.query.clear(),
+		() => pm.request.url.addQueryParams("page=3"),
+		() => pm.request.url.removeQueryParams("page"),
+		() => pm.request.addQueryParams("page=3"),
+		() => pm.request.removeQueryParams("page"),
+		() => { pm.request = {}; }
+	].forEach(edit => {
+		let rejected = false;
+		try { edit(); } catch (e) { rejected = e.message.includes("read-only"); }
+		if (!rejected || JSON.stringify(pm.request.toJSON()) !== before) throw new Error("request mutation was allowed");
+	});
+	pm.response.setBody(pm.request.body.raw);
+}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, binary := range []bool{false, true} {
+		x := &capture.ScriptExchange{Phase: "mock", Method: "POST", URL: "https://api.test/?page=2",
+			Header: http.Header{"X-Token": {"abc"}}, Body: []byte("original"), BinaryBody: binary}
+		if binary {
+			x.Body = []byte{0, 255, 128, 1}
+		}
+		body, header := bytes.Clone(x.Body), x.Header.Clone()
+		if _, err := s.Run(t.Context(), x, ProxyEnv{}); err != nil {
+			t.Fatalf("binary=%v: %v", binary, err)
+		}
+		if x.Method != "POST" || x.URL != "https://api.test/?page=2" || !reflect.DeepEqual(x.Header, header) || !bytes.Equal(x.Body, body) {
+			t.Fatalf("binary=%v: request changed: %+v", binary, x)
+		}
+		if binary && len(x.ResponseBody) != 0 || !binary && string(x.ResponseBody) != "original" {
+			t.Fatalf("binary=%v: exposed body = %q", binary, x.ResponseBody)
+		}
+	}
+}
+
+func TestProxyScriptMockFailuresDoNotPublishResponse(t *testing.T) {
+	for name, tc := range map[string]struct{ source, want string }{
+		"missing":      {`export function onRequest() {}`, "must export onMock"},
+		"throw":        {"export async function onMock() {\n pm.response.code = 201; pm.response.headers.add('X-New', '1'); pm.response.setBody('changed');\n await Promise.resolve(); throw new Error('failed');\n}", "Mock.js:3:"},
+		"module throw": {`throw new Error("module failed"); export function onMock() {}`, "module failed"},
+		"not callable": {`export const onMock = 1;`, "TypeError"},
+		"environment":  {`export function onMock() { pm.environment.set("key", "value"); }`, "read-only"},
+		"request":      {`export function onMock() { pm.request.method = "DELETE"; }`, "read-only"},
+		"pending":      {`export async function onMock() { await new Promise(() => {}); }`, "never finished"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			s, err := ParseProxyScript("Mock", tc.source)
+			if err != nil {
+				t.Fatal(err)
+			}
+			x := &capture.ScriptExchange{Phase: "mock", Method: "GET", URL: "https://api.test/", Header: http.Header{},
+				Status: 202, Response: http.Header{"X-Old": {"old"}}, ResponseBody: []byte("old"), Locals: map[string]string{}}
+			want := *x
+			want.Response, want.ResponseBody = x.Response.Clone(), bytes.Clone(x.ResponseBody)
+			if _, err := s.Run(t.Context(), x, ProxyEnv{}); err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("err = %v, want %q", err, tc.want)
+			}
+			if !reflect.DeepEqual(*x, want) {
+				t.Fatalf("failed mock published changes: %+v", x)
+			}
+		})
+	}
+}
+
+func TestProxyScriptMockCannotSendRequests(t *testing.T) {
+	var contacted atomic.Bool
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		contacted.Store(true)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+	s, err := ParseProxyScript("Mock", `export async function onMock() {
+	pm.response.setBody("not published");
+	await pm.sendRequest("`+server.URL+`");
+}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	x := &capture.ScriptExchange{Phase: "mock", ResponseBody: []byte("original")}
+	if _, err := s.Run(t.Context(), x, ProxyEnv{}); err == nil || !strings.Contains(err.Error(), "pm.sendRequest is not available here") {
+		t.Fatalf("err = %v", err)
+	}
+	if contacted.Load() || string(x.ResponseBody) != "original" {
+		t.Fatalf("contacted = %v, body = %q", contacted.Load(), x.ResponseBody)
+	}
+}
+
+func TestProxyScriptMockTimeoutAndCancellation(t *testing.T) {
+	s, err := ParseProxyScript("Mock", `export function onMock() {
+	pm.response.code = 201;
+	pm.response.headers.add("X-New", "1");
+	pm.response.setBody("not published");
+	for (;;) {}
+}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, mode := range []string{"budget", "deadline", "cancel"} {
+		t.Run(mode, func(t *testing.T) {
+			ctx := t.Context()
+			if mode == "deadline" {
+				var cancel context.CancelFunc
+				ctx, cancel = context.WithTimeout(ctx, 50*time.Millisecond)
+				defer cancel()
+			} else if mode == "cancel" {
+				var cancel context.CancelFunc
+				ctx, cancel = context.WithCancel(ctx)
+				defer cancel()
+				timer := time.AfterFunc(50*time.Millisecond, cancel)
+				defer timer.Stop()
+			}
+			x := &capture.ScriptExchange{Phase: "mock", Status: 202, Response: http.Header{"X-Old": {"old"}}, ResponseBody: []byte("original")}
+			_, err := s.Run(ctx, x, ProxyEnv{})
+			want := context.DeadlineExceeded
+			if mode == "cancel" {
+				want = context.Canceled
+			}
+			if !errors.Is(err, want) {
+				t.Fatalf("err = %v, want %v", err, want)
+			}
+			if x.Status != 202 || len(x.Response) != 1 || x.Response.Get("X-Old") != "old" || string(x.ResponseBody) != "original" {
+				t.Fatalf("interrupted mock published response: %+v", x)
+			}
+		})
 	}
 }
 

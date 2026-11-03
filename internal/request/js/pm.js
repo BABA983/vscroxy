@@ -162,24 +162,28 @@
 		};
 	}
 
+	function readOnlyRequest() { throw new Error("pm.request is read-only in mock scripts"); }
+
 	function makeRequest(r) {
-		var url = makeURL(function () { return r.get("url"); }, function (v) { r.set("url", v); });
-		var headers = headerList(r.headers, r.add, r.upsert, r.remove);
+		var set = r.readOnly ? readOnlyRequest : r.set;
+		var url = makeURL(function () { return r.get("url"); }, function (v) { set("url", v); });
+		var headers = headerList(r.headers, r.readOnly ? readOnlyRequest : r.add,
+			r.readOnly ? readOnlyRequest : r.upsert, r.readOnly ? readOnlyRequest : r.remove);
 		function body() {
 			return {
 				mode: "raw",
 				get raw() { return r.get("body"); },
-				set raw(v) { r.set("body", text(v)); },
+				set raw(v) { set("body", text(v)); },
 				toString: function () { return r.get("body"); },
-				update: function (v) { r.set("body", typeof v === "object" && v !== null && "raw" in v ? text(v.raw) : text(v)); },
+				update: function (v) { set("body", typeof v === "object" && v !== null && "raw" in v ? text(v.raw) : text(v)); },
 				isEmpty: function () { return r.get("body") === ""; },
 			};
 		}
 		var request = {
 			get method() { return r.get("method"); },
-			set method(v) { r.set("method", text(v)); },
+			set method(v) { set("method", text(v)); },
 			get url() { return url; },
-			set url(v) { r.set("url", typeof v === "object" && v !== null && v.raw !== undefined ? text(v.raw) : text(String(v))); },
+			set url(v) { set("url", typeof v === "object" && v !== null && v.raw !== undefined ? text(v.raw) : text(String(v))); },
 			headers: headers,
 			get body() { return body(); },
 			set body(v) { body().update(v); },
@@ -427,6 +431,10 @@
 	pm.execution.location.current = location[location.length - 1];
 	pm.expect.fail = chai.assert.fail;
 	if (host.request) pm.request = makeRequest(host.request);
+	if (host.request && host.request.readOnly) {
+		var mockRequest = pm.request;
+		Object.defineProperty(pm, "request", { get: function () { return mockRequest; }, set: readOnlyRequest });
+	}
 	if (host.response) pm.response = makeResponse(host.response);
 	global.pm = pm;
 

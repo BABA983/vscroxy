@@ -44,7 +44,7 @@ func (r Rule) matchReason(req rules.Request) string {
 }
 
 func responseRule(kind RuleType) bool {
-	return kind == RuleMapLocal || kind == RuleMapRemote || kind == RuleBlock
+	return kind == RuleMapLocal || kind == RuleMapRemote || kind == RuleBlock || kind == RuleCodeMock
 }
 
 // ScenarioRule reports whether a rule of kind may belong to a scenario:
@@ -73,12 +73,19 @@ func webSocketURL(raw string) bool {
 // names another host: a path-only pattern, a wildcard without a path or a
 // regular expression that does not start with a literal host could match any.
 func mayMapHost(list []Rule, hostport string) bool {
+	return mayMatchHost(list, hostport, RuleMapRemote, RuleMapLocal)
+}
+
+// mayMatchHost conservatively tests CONNECT's host before its path, method
+// or headers are available. Code mocks defer the upstream dial until after
+// matching the actual decrypted request.
+func mayMatchHost(list []Rule, hostport string, kinds ...RuleType) bool {
 	host := strings.ToLower(hostport)
 	if h, _, err := net.SplitHostPort(host); err == nil {
 		host = h
 	}
 	for _, r := range list {
-		if r.Type != RuleMapRemote && r.Type != RuleMapLocal || r.Disabled || r.Scenario != "" && !r.ScenarioActive {
+		if !slices.Contains(kinds, r.Type) || r.Disabled || r.Scenario != "" && !r.ScenarioActive {
 			continue
 		}
 		pattern := strings.ToLower(r.Match)
@@ -281,7 +288,7 @@ func ValidateRules(rules []Rule) error {
 			}
 		} else {
 			if !ScenarioRule(r.Type) {
-				return fail("only Map Local, Map Remote, Block and Script rules can belong to a scenario")
+				return fail("only Map Local, Map Remote, Block, Script and Code Mock rules can belong to a scenario")
 			}
 			if r.Scenario != strings.TrimSpace(r.Scenario) || !utf8.ValidString(r.Scenario) || strings.ContainsFunc(r.Scenario, unicode.IsControl) {
 				return fail("scenario names must be trimmed text without control characters")
@@ -332,7 +339,7 @@ func ValidateRules(rules []Rule) error {
 			if !slices.Contains(BlockActions, r.Block) {
 				return fail(fmt.Sprintf("unknown Block action %q", r.Block))
 			}
-		case RuleScript:
+		case RuleScript, RuleCodeMock:
 			name, ok := strings.CutSuffix(r.Target, ".js")
 			if !ok || CheckScriptName(name) != nil {
 				return fail("choose a script")

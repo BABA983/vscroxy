@@ -666,6 +666,12 @@ func (a *attacker) attack(res http.ResponseWriter, req *http.Request) {
 
 	for _, addon := range proxy.Addons {
 		reqBody = addon.StreamRequestModifier(f, reqBody)
+		// A streamed request skipped Request. An addon may reject it here
+		// rather than forwarding a body its local response rule cannot read.
+		if f.Response != nil {
+			reply(f.Response, nil, false)
+			return
+		}
 	}
 
 	proxyReqCtx := context.WithValue(req.Context(), proxyReqCtxKey, req)

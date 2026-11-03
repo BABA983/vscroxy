@@ -36,6 +36,7 @@ type Proxy struct {
 	webSocketHandler *webSocketHandler
 	shouldIntercept  func(req *http.Request) bool              // req is received by proxy.server
 	dialFallback     func(req *http.Request) bool              // see SetDialFallbackRule
+	lazyIntercept    func(req *http.Request) bool              // see SetLazyInterceptRule
 	upstreamProxy    func(req *http.Request) (*url.URL, error) // req is received by proxy.server, not client request
 	authProxy        func(res http.ResponseWriter, req *http.Request) (bool, error)
 }
@@ -122,6 +123,14 @@ func (proxy *Proxy) SetShouldInterceptRule(rule func(req *http.Request) bool) {
 // instead of failing the CONNECT: addons may send its requests elsewhere.
 func (proxy *Proxy) SetDialFallbackRule(rule func(req *http.Request) bool) {
 	proxy.dialFallback = rule
+}
+
+// SetLazyInterceptRule defers the upstream dial for selected intercepted
+// CONNECTs. Local response addons can then answer without contacting the
+// original server, even to obtain its certificate. The interception policy
+// is still authoritative; this never decrypts a bypassed tunnel.
+func (proxy *Proxy) SetLazyInterceptRule(rule func(req *http.Request) bool) {
+	proxy.lazyIntercept = rule
 }
 
 func (proxy *Proxy) SetUpstreamProxy(fn func(req *http.Request) (*url.URL, error)) {

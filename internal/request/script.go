@@ -654,7 +654,8 @@ func (run *scriptRun) host(ctx context.Context, vm *goja.Runtime, clock *budget,
 	if req, ok := objects["req"].(*Prepared); ok {
 		fields := map[string]*string{"method": &req.Method, "url": &req.URL, "body": &req.Body}
 		set("request", map[string]any{
-			"get": func(field string) string { return *fields[field] },
+			"readOnly": run.phase == "mock",
+			"get":      func(field string) string { return *fields[field] },
 			"set": func(field, value string) {
 				*fields[field] = value
 				if field == "body" && req.editedHeaders != nil {

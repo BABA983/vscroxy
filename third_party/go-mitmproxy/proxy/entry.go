@@ -307,6 +307,11 @@ func (e *entry) httpsDialFirstAttack(res http.ResponseWriter, req *http.Request,
 		"host": req.Host,
 	})
 
+	if proxy.lazyIntercept != nil && proxy.lazyIntercept(req) {
+		f.ConnContext.RecordEvent("TLS", "Deferring upstream connection for a local response rule", nil)
+		e.httpsDialLazyAttack(res, req, f)
+		return
+	}
 	conn, err := proxy.attacker.httpsDial(req.Context(), req)
 	if err != nil && proxy.dialFallback != nil && proxy.dialFallback(req) {
 		f.ConnContext.RecordEvent("TLS", "Could not reach "+req.Host+"; a rule may send its requests elsewhere, so using a generated certificate", err)

@@ -13,7 +13,7 @@ import (
 )
 
 // ProxyScript is the script a Script rule runs on the exchanges it matches:
-// an ES module that exports onRequest, onResponse or both, which run with
+// an ES module that exports onRequest, onResponse or onMock, which run with
 // the same pm API as request scripts. onRequest edits pm.request before it
 // goes upstream; onResponse edits pm.response before the client gets it:
 //
@@ -21,11 +21,12 @@ import (
 //	export function onRequest() { pm.request.headers.upsert("X-Sig", sign(pm.request.body.raw)) }
 //	export async function onResponse() { if (pm.response.code === 500) pm.response.code = 200 }
 //
-// It may import the built-in libraries and addons.
+// onMock builds a local response without sending a request upstream. It may
+// import the built-in libraries and addons.
 type ProxyScript struct {
-	OnRequest, OnResponse bool
-	file                  string
-	module                module
+	OnRequest, OnResponse, OnMock bool
+	file                          string
+	module                        module
 }
 
 // ScriptProblem is where a script does not parse.
@@ -54,6 +55,8 @@ func ParseProxyScript(name, src string) (*ProxyScript, error) {
 			s.OnRequest = true
 		case "onResponse":
 			s.OnResponse = true
+		case "onMock":
+			s.OnMock = true
 		}
 	}
 	return s, nil
@@ -76,11 +79,16 @@ type ProxyRun struct {
 
 // Run runs the hook of x's phase. pm.request is x's request, editable in the
 // request phase; pm.response is x's response, editable in the response
-// phase. pm.variables are x's Locals; pm.globals writes are returned for the
-// app to save; pm.environment is read-only. pm.sendRequest goes straight to
-// the server, not through the proxy, so a script cannot trigger itself.
+// or mock phase. Mock requires onMock, starts with an empty 200 response,
+// and makes pm.request read-only. pm.variables are x's Locals; pm.globals
+// writes are returned for the app to save; pm.environment is read-only.
+// pm.sendRequest goes straight to the server, not through the proxy, so a
+// script cannot trigger itself. It is unavailable in the mock phase.
 func (s *ProxyScript) Run(ctx context.Context, x *capture.ScriptExchange, env ProxyEnv) (ProxyRun, error) {
-	hook := map[string]string{"request": "onRequest", "response": "onResponse"}[x.Phase]
+	if x.Phase == "mock" && !s.OnMock {
+		return ProxyRun{}, fmt.Errorf("mock script must export onMock")
+	}
+	hook := map[string]string{"request": "onRequest", "response": "onResponse", "mock": "onMock"}[x.Phase]
 	if hook == "" || hook == "onRequest" && !s.OnRequest || hook == "onResponse" && !s.OnResponse {
 		return ProxyRun{}, nil
 	}
@@ -93,7 +101,9 @@ func (s *ProxyScript) Run(ctx context.Context, x *capture.ScriptExchange, env Pr
 		info: scriptInfo{RequestName: x.Rule}, file: s.file, sourceMap: s.module.sourceMap,
 	}
 	run.target = func() string { return x.URL }
-	run.send = func(req *Prepared) (capture.Flow, error) { return sendDirect(ctx, req) }
+	if x.Phase != "mock" {
+		run.send = func(req *Prepared) (capture.Flow, error) { return sendDirect(ctx, req) }
+	}
 	req := &Prepared{Method: x.Method, URL: x.URL, Header: x.Header.Clone(), Body: string(x.Body)}
 	if req.Header == nil {
 		req.Header = http.Header{}
@@ -103,6 +113,13 @@ func (s *ProxyScript) Run(ctx context.Context, x *capture.ScriptExchange, env Pr
 	if x.Phase == "response" {
 		res = &jsResponse{Status: x.Status, Header: x.Response.Clone(), Body: string(x.ResponseBody), Bytes: len(x.ResponseBody), editable: true}
 		objects["res"] = res
+	}
+	if x.Phase == "mock" {
+		res = &jsResponse{Status: http.StatusOK, Header: http.Header{}, editable: true}
+		objects["res"] = res
+		if x.BinaryBody {
+			req.Body = ""
+		}
 	}
 	// The module starts on the first line, so its lines stay where the
 	// source map says.
@@ -120,7 +137,7 @@ func (s *ProxyScript) Run(ctx context.Context, x *capture.ScriptExchange, env Pr
 		return out, nil
 	}
 	x.Status, x.Response = res.Status, res.Header
-	if !x.BinaryResult {
+	if x.Phase == "mock" || !x.BinaryResult {
 		x.ResponseBody = []byte(res.Body)
 	}
 	return out, nil

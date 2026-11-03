@@ -220,6 +220,9 @@ const (
 	// RuleScript runs a script on a matching request and its response: the
 	// one its Target names, in the scripts folder (see ScriptRunner).
 	RuleScript RuleType = "script"
+	// RuleCodeMock answers locally using its script's onMock hook. Failures
+	// return a local error, never an upstream fallback.
+	RuleCodeMock RuleType = "code_mock"
 )
 
 // What a Block rule does.
@@ -455,6 +458,11 @@ func New(addr, caRootPath string) (*Server, error) {
 		s.rulesMu.RLock()
 		defer s.rulesMu.RUnlock()
 		return mayMapHost(s.rules, req.Host)
+	})
+	p.SetLazyInterceptRule(func(req *http.Request) bool {
+		s.rulesMu.RLock()
+		defer s.rulesMu.RUnlock()
+		return mayMatchHost(s.rules, req.Host, RuleCodeMock)
 	})
 	p.SetUpstreamProxy(func(*http.Request) (*url.URL, error) {
 		raw, _ := s.upstream.Load().(string)
@@ -1429,6 +1437,11 @@ func (a *addon) Response(f *proxy.Flow) {
 // buffering, and paces what goes upstream.
 func (a *addon) StreamRequestModifier(f *proxy.Flow, in io.Reader) io.Reader {
 	noCacheRequest(f)
+	// An oversized upload skipped Request. A matching Code Mock must fail
+	// locally rather than accidentally forwarding a request it cannot read.
+	if f.Stream && a.server.streamCodeMock(f) {
+		return in
+	}
 	// The engine skipped Request for a body past the buffering threshold, so
 	// this reader is all of it, the buffered prefix included: keep it.
 	if f.Stream && f.Request != nil && f.Request.Body == nil {
@@ -1624,6 +1637,8 @@ func (s *Server) applyRules(f *proxy.Flow) *proxy.Response {
 				Header:     headers,
 				Body:       body,
 			}
+		case RuleCodeMock:
+			return s.codeMock(f, r)
 		case RuleMapRemote:
 			s.mapRemote(f, r)
 			return nil

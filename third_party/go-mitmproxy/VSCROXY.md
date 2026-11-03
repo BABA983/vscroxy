@@ -90,6 +90,22 @@ Regression coverage lives in the desktop module's real-socket tests:
 `TestStructuredWebSocketSendsAuthHeadersAndCookiesWithVerifiedTLS` and
 `TestWebSocketKeepsThePathAndQuery` (alongside the existing WSS regression).
 
+## Local code mocks (`proxy.go`, `entry.go`, `attacker.go`)
+
+`SetLazyInterceptRule` selects intercepted CONNECT hosts whose upstream dial
+must wait until after request addons. Unlike dial fallback, it never contacts
+the original host to obtain its certificate. The existing SSL interception
+policy still decides whether to decrypt; bypassed tunnels are unchanged.
+Capture selects hosts potentially covered by an active Code Mock rule. A
+nonmatching decrypted request still dials its normal upstream on demand.
+
+`attack` also honors a response set by `StreamRequestModifier`: large uploads
+skip `Request`, and a Code Mock must reject an unavailable body locally rather
+than accidentally forwarding it. No other addon response semantics change.
+`TestCodeMockAnswersWithoutUpstreamConnection` checks actual HTTP/HTTPS
+upstream connection counts; `TestCodeMockRefusesUnreadableInputWithoutForwarding`
+covers both script and engine body limits and streamed gRPC input.
+
 ## `proxy/flow.go`, `Request` and `Response`
 
 `Request` gained `Trailer` and `Response` gained `Trailer` and `Proto`, so what

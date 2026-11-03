@@ -25,9 +25,10 @@ type ScriptRunner interface {
 // ScriptExchange is an exchange as a rule script reads and edits it. In the
 // request phase the request's fields are what the script may change; in the
 // response phase, the response's. A body that is not text, or is larger
-// than 1 MiB, is left out and stays as it is: Binary says so.
+// than 1 MiB, is left out and stays as it is: Binary says so. In the mock
+// phase the request is read-only and the script generates the response.
 type ScriptExchange struct {
-	Phase string // "request" or "response"
+	Phase string // "request", "response" or "mock"
 	Rule  string // the rule's name, or its script's
 	App   string
 
