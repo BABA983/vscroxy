@@ -47,6 +47,12 @@ func responseRule(kind RuleType) bool {
 	return kind == RuleMapLocal || kind == RuleMapRemote || kind == RuleBlock
 }
 
+// ScenarioRule reports whether a rule of kind may belong to a scenario:
+// those that change traffic, not breakpoints.
+func ScenarioRule(kind RuleType) bool {
+	return responseRule(kind) || kind == RuleScript
+}
+
 // firstResponseRule is the Map or Block rule that acts on req: the first
 // that matches, or for a WebSocket handshake the first Map Remote rule, since
 // the others do not act on WebSockets.
@@ -146,12 +152,13 @@ type RulePreview struct {
 	Reason string
 }
 
-// PreviewRules follows the proxy for one request: the first matching request
-// breakpoint pauses it, the first matching Map or Block rule answers or
-// redirects it, and the first matching response breakpoint pauses a response
-// that came from upstream, matched against the redirected URL. Breakpoints
-// act only while breaking is on. Only Map Remote acts on a WebSocket. It does not read response files, contact
-// upstreams or run scripts.
+// PreviewRules follows the proxy for one request: every matching Script rule
+// runs, in order, then the first matching request breakpoint pauses it, the
+// first matching Map or Block rule answers or redirects it, and the first
+// matching response breakpoint pauses a response that came from upstream,
+// matched against the redirected URL. Breakpoints act only while breaking is
+// on. Only Map Remote acts on a WebSocket. It does not read response files,
+// contact upstreams or run scripts, so it cannot know what a script changes.
 func PreviewRules(rules []Rule, req rules.Request, breaking bool) []RulePreview {
 	preview := make([]RulePreview, len(rules))
 	upstream := req
@@ -172,14 +179,16 @@ func PreviewRules(rules []Rule, req rules.Request, breaking bool) []RulePreview 
 	}
 	stage := func(r Rule) int { // the order the proxy reaches each kind in
 		switch {
-		case r.Type == RuleBreak:
+		case r.Type == RuleScript:
 			return 0
-		case responseRule(r.Type):
+		case r.Type == RuleBreak:
 			return 1
+		case responseRule(r.Type):
+			return 2
 		}
-		return 2
+		return 3
 	}
-	for phase := range 3 {
+	for phase := range 4 {
 		for i, r := range rules {
 			preview[i].Index = i
 			if stage(r) != phase {
@@ -196,7 +205,7 @@ func PreviewRules(rules []Rule, req rules.Request, breaking bool) []RulePreview 
 			case reason != "":
 			case responseRule(r.Type) && i != winner:
 				reason = fmt.Sprintf("shadowed by rule %d", winner+1)
-			case responseRule(r.Type):
+			case responseRule(r.Type) || r.Type == RuleScript:
 				act(i)
 			case !breaking:
 				reason = "breakpoints are off"
@@ -271,8 +280,8 @@ func ValidateRules(rules []Rule) error {
 				return fail("an ungrouped rule cannot activate a scenario")
 			}
 		} else {
-			if !responseRule(r.Type) {
-				return fail("only Map Local, Map Remote and Block rules can belong to a scenario")
+			if !ScenarioRule(r.Type) {
+				return fail("only Map Local, Map Remote, Block and Script rules can belong to a scenario")
 			}
 			if r.Scenario != strings.TrimSpace(r.Scenario) || !utf8.ValidString(r.Scenario) || strings.ContainsFunc(r.Scenario, unicode.IsControl) {
 				return fail("scenario names must be trimmed text without control characters")
@@ -322,6 +331,11 @@ func ValidateRules(rules []Rule) error {
 		case RuleBlock:
 			if !slices.Contains(BlockActions, r.Block) {
 				return fail(fmt.Sprintf("unknown Block action %q", r.Block))
+			}
+		case RuleScript:
+			name, ok := strings.CutSuffix(r.Target, ".js")
+			if !ok || CheckScriptName(name) != nil {
+				return fail("choose a script")
 			}
 		case RuleBreak, RuleBreakResponse:
 		default:

@@ -20,6 +20,10 @@ type exchangeDebug struct {
 	// hidden keeps the exchange out of the table; drop closes the client's
 	// connection once it is published. Block rules set them.
 	hidden, drop bool
+	// scripts are the Script rules whose onResponse waits for the response;
+	// locals are the exchange's pm.variables.
+	scripts []Rule
+	locals  map[string]string
 }
 
 func (s *Server) startDebug(f *proxy.Flow) {

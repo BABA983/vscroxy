@@ -1,180 +1,211 @@
 package capture
 
 import (
-	"errors"
-	"io/fs"
+	"context"
+	"fmt"
 	"net/http"
 	"net/url"
-	"os"
-	"slices"
-	"strconv"
-	"time"
+	"strings"
+	"unicode"
+	"unicode/utf8"
 
-	"github.com/dop251/goja"
 	"github.com/lqqyt2423/go-mitmproxy/proxy"
 )
 
-// scriptTimeout bounds top-level execution at load/reload and each hook.
-// A script that loops is interrupted rather than holding startup or the proxy.
-const scriptTimeout = 250 * time.Millisecond
-
-// Script is a JavaScript file with onRequest and onResponse hooks:
-//
-//	function onRequest(req) { req.headers["X-Debug"] = "1" }
-//	function onResponse(res) { if (res.status === 500) res.status = 200 }
-//
-// req and res expose method or status, url, headers and body. Only text
-// bodies are edited; binary bodies are left alone.
-type Script struct {
-	prog        *goja.Program
-	hasRequest  bool
-	hasResponse bool
+// ScriptRunner runs the scripts Script rules name. capture cannot run them
+// itself: the pm runtime is internal/request's, which builds on capture.
+type ScriptRunner interface {
+	// Hooks says which hooks the named script defines: neither when it is
+	// missing or does not parse.
+	Hooks(script string) (onRequest, onResponse bool)
+	// Run runs the hook of x's phase on x, which it edits in place.
+	Run(ctx context.Context, script string, x *ScriptExchange) error
 }
 
-// LoadScript reads and compiles a script. A missing file is no script.
-func LoadScript(path string) (*Script, error) {
-	src, err := os.ReadFile(path)
-	if errors.Is(err, fs.ErrNotExist) {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-	prog, err := goja.Compile(path, string(src), false)
-	if err != nil {
-		return nil, err
-	}
-	vm := goja.New()
-	stop := time.AfterFunc(scriptTimeout, func() { vm.Interrupt("script timed out") })
-	defer stop.Stop()
-	if _, err := vm.RunProgram(prog); err != nil {
-		return nil, err
-	}
-	_, hasRequest := goja.AssertFunction(vm.Get("onRequest"))
-	_, hasResponse := goja.AssertFunction(vm.Get("onResponse"))
-	return &Script{prog: prog, hasRequest: hasRequest, hasResponse: hasResponse}, nil
+// ScriptExchange is an exchange as a rule script reads and edits it. In the
+// request phase the request's fields are what the script may change; in the
+// response phase, the response's. A body that is not text, or is larger
+// than 1 MiB, is left out and stays as it is: Binary says so.
+type ScriptExchange struct {
+	Phase string // "request" or "response"
+	Rule  string // the rule's name, or its script's
+	App   string
+
+	Method       string
+	URL          string
+	Header       http.Header
+	Body         []byte
+	BinaryBody   bool
+	Status       int
+	Response     http.Header
+	ResponseBody []byte
+	BinaryResult bool
+	// Locals are pm.variables, which the scripts of one exchange share from
+	// its request to its response.
+	Locals map[string]string
 }
 
-// HasResponse reports whether the script edits responses.
-func (s *Script) HasResponse() bool { return s != nil && s.hasResponse }
-
-// applyRequest runs onRequest and writes its edits back to the flow.
-func (s *Script) applyRequest(f *proxy.Flow) error {
-	if s == nil || !s.hasRequest || f.Request == nil {
-		return nil
-	}
-	vm := goja.New()
-	stop := time.AfterFunc(scriptTimeout, func() { vm.Interrupt("script timed out") })
-	defer stop.Stop()
-	if _, err := vm.RunProgram(s.prog); err != nil {
-		return err
-	}
-	fn, ok := goja.AssertFunction(vm.Get("onRequest"))
-	if !ok {
-		return nil
-	}
-
-	obj := vm.NewObject()
-	obj.Set("method", f.Request.Method)
-	obj.Set("url", f.Request.URL.String())
-	obj.Set("body", string(f.Request.Body))
-	obj.Set("headers", headersObject(vm, f.Request.Header))
-	if _, err := fn(goja.Undefined(), obj); err != nil {
-		return err
-	}
-
-	if v := obj.Get("method"); present(v) {
-		if method := v.String(); method != "" {
-			f.Request.Method = method
-		}
-	}
-	if v := obj.Get("url"); present(v) {
-		if raw := v.String(); raw != "" {
-			if u, err := url.Parse(raw); err == nil {
-				f.Request.URL = u
-			}
-		}
-	}
-	if v := obj.Get("body"); present(v) {
-		f.Request.Body = []byte(v.String())
-		f.Request.Header.Del("Content-Length")
-	}
-	if v := obj.Get("headers"); present(v) {
-		f.Request.Header = readHeaders(vm, v)
+// CheckScriptName says what is wrong with a script's name, which names its
+// file: name.js in the scripts folder.
+func CheckScriptName(name string) error {
+	switch {
+	case strings.TrimSpace(name) == "":
+		return fmt.Errorf("enter a name")
+	case name != strings.TrimSpace(name) || strings.HasPrefix(name, "."):
+		return fmt.Errorf("names cannot start or end with a space or start with a dot")
+	case utf8.RuneCountInString(name) > 64:
+		return fmt.Errorf("names are at most 64 characters")
+	case strings.ContainsAny(name, `/\:*?"<>|`) || strings.ContainsFunc(name, unicode.IsControl):
+		return fmt.Errorf(`names cannot contain / \ : * ? " < > |`)
 	}
 	return nil
 }
 
-// applyResponse runs onResponse and writes its edits back to the flow.
-func (s *Script) applyResponse(f *proxy.Flow) error {
-	if s == nil || !s.hasResponse || f.Response == nil {
-		return nil
-	}
-	vm := goja.New()
-	stop := time.AfterFunc(scriptTimeout, func() { vm.Interrupt("script timed out") })
-	defer stop.Stop()
-	if _, err := vm.RunProgram(s.prog); err != nil {
-		return err
-	}
-	fn, ok := goja.AssertFunction(vm.Get("onResponse"))
-	if !ok {
-		return nil
-	}
-
-	obj := vm.NewObject()
-	obj.Set("status", f.Response.StatusCode)
-	obj.Set("body", string(f.Response.Body))
-	obj.Set("headers", headersObject(vm, f.Response.Header))
-	if _, err := fn(goja.Undefined(), obj); err != nil {
-		return err
-	}
-
-	if v := obj.Get("status"); present(v) {
-		if status := int(v.ToInteger()); status > 0 {
-			f.Response.StatusCode = status
-		}
-	}
-	if v := obj.Get("body"); present(v) {
-		f.Response.Body = []byte(v.String())
-	}
-	if v := obj.Get("headers"); present(v) {
-		f.Response.Header = readHeaders(vm, v)
-	}
-	return nil
+// SetScriptRunner sets what runs Script rules' scripts; without one they do
+// nothing.
+func (s *Server) SetScriptRunner(r ScriptRunner) {
+	s.scriptMu.Lock()
+	s.scripts = r
+	s.scriptMu.Unlock()
 }
 
-func present(v goja.Value) bool { return v != nil && !goja.IsUndefined(v) && !goja.IsNull(v) }
+func (s *Server) scriptRunner() ScriptRunner {
+	s.scriptMu.RLock()
+	defer s.scriptMu.RUnlock()
+	return s.scripts
+}
 
-func headersObject(vm *goja.Runtime, h http.Header) *goja.Object {
-	obj := vm.NewObject()
-	for key, values := range h {
-		// Keep the convenient string API for single values. Repeated fields
-		// are arrays: comma-joining is not valid for fields like Set-Cookie.
-		if len(values) == 1 {
-			obj.Set(key, values[0])
+// textBody is a body a script may read and edit.
+func textBody(body []byte, encoding string) bool {
+	return encoding == "" && len(body) <= maxScriptBody && utf8.Valid(body) && !strings.ContainsRune(string(body), 0)
+}
+
+// runRequestScripts runs the onRequest hooks of the Script rules that match
+// f, in their order, each seeing what the ones before it changed, and keeps
+// those with onResponse for its response.
+func (s *Server) runRequestScripts(f *proxy.Flow) {
+	runner := s.scriptRunner()
+	d := debugOf(f)
+	if runner == nil || d == nil || f.Request == nil || f.Request.URL == nil {
+		return
+	}
+	s.rulesMu.RLock()
+	list := s.rules
+	s.rulesMu.RUnlock()
+	for _, r := range list {
+		if r.Type != RuleScript {
+			continue
+		}
+		req := s.ruleRequest(f)
+		if !r.matches(req) {
+			continue
+		}
+		onRequest, onResponse := runner.Hooks(r.Target)
+		if !onRequest && !onResponse {
+			continue
+		}
+		s.hit(r)
+		if r.Scenario != "" {
+			recordAction(f, "Scenario · "+r.Scenario)
+		}
+		if onResponse {
+			d.scripts = append(d.scripts, r)
+		}
+		if !onRequest {
+			continue
+		}
+		if d.locals == nil {
+			d.locals = map[string]string{}
+		}
+		binary := !textBody(f.Request.Body, f.Request.Header.Get("Content-Encoding"))
+		x := &ScriptExchange{Phase: "request", Rule: scriptRuleName(r), App: req.App,
+			Method: f.Request.Method, URL: f.Request.URL.String(), Header: f.Request.Header.Clone(), BinaryBody: binary, Locals: d.locals}
+		if !binary {
+			x.Body = f.Request.Body
+		}
+		if err := runner.Run(scriptContext(f), r.Target, x); err != nil {
+			s.scriptErrors.Add(1)
+			recordAction(f, "Request script "+r.Target+" failed")
+			continue
+		}
+		if x.Method != "" {
+			f.Request.Method = x.Method
+		}
+		if u, err := url.Parse(x.URL); err == nil && u.Host != "" {
+			f.Request.URL = u
+		}
+		f.Request.Header = x.Header
+		if !binary && string(x.Body) != string(f.Request.Body) {
+			f.Request.Body = x.Body
+			f.Request.Header.Del("Content-Length")
+		}
+		recordAction(f, "Request script "+r.Target)
+	}
+}
+
+// scriptsResponse reports whether a script will edit f's response, so the
+// Response hook leaves publishing to the stream modifier.
+func scriptsResponse(f *proxy.Flow) bool {
+	d := debugOf(f)
+	return d != nil && len(d.scripts) > 0
+}
+
+// runResponseScripts runs the onResponse hooks of the rules that matched f's
+// request, with body as f's decoded response body. It reports whether one
+// ran, and whether one changed the body, which f.Response.Body then holds.
+func (s *Server) runResponseScripts(f *proxy.Flow, body []byte) (ran, bodyEdited bool) {
+	runner := s.scriptRunner()
+	d := debugOf(f)
+	if runner == nil || d == nil || f.Response == nil {
+		return false, false
+	}
+	binary := !textBody(body, "")
+	for _, r := range d.scripts {
+		x := &ScriptExchange{Phase: "response", Rule: scriptRuleName(r), App: s.clientProcess(f).Name,
+			Method: f.Request.Method, URL: f.Request.URL.String(), Header: f.Request.Header.Clone(),
+			Status: f.Response.StatusCode, Response: f.Response.Header.Clone(), BinaryResult: binary, Locals: d.locals}
+		if textBody(f.Request.Body, f.Request.Header.Get("Content-Encoding")) {
+			x.Body = f.Request.Body
 		} else {
-			obj.Set(key, slices.Clone(values))
+			x.BinaryBody = true
 		}
+		if !binary {
+			x.ResponseBody = body
+		}
+		if x.Response == nil {
+			x.Response = http.Header{}
+		}
+		if err := runner.Run(scriptContext(f), r.Target, x); err != nil {
+			s.scriptErrors.Add(1)
+			recordAction(f, "Response script "+r.Target+" failed")
+			continue
+		}
+		ran = true
+		if x.Status > 0 {
+			f.Response.StatusCode = x.Status
+		}
+		f.Response.Header = x.Response
+		if !binary && string(x.ResponseBody) != string(body) {
+			body, bodyEdited = x.ResponseBody, true
+		}
+		recordAction(f, "Response script "+r.Target)
 	}
-	return obj
+	if bodyEdited {
+		f.Response.Body = body
+	}
+	return ran, bodyEdited
 }
 
-func readHeaders(vm *goja.Runtime, v goja.Value) http.Header {
-	h := make(http.Header)
-	obj := v.ToObject(vm)
-	for _, key := range obj.Keys() {
-		value := obj.Get(key)
-		if array, ok := value.(*goja.Object); ok && array.ClassName() == "Array" {
-			// Only populated indices are values; a sparse array's length can
-			// be enormous without containing that many headers.
-			for _, index := range array.Keys() {
-				if _, err := strconv.ParseUint(index, 10, 32); err == nil {
-					h.Add(key, array.Get(index).String())
-				}
-			}
-		} else if present(value) {
-			h.Set(key, value.String())
-		}
+// scriptContext is the context a hook runs in: the request's values, but not
+// its cancellation, which comes once the request has gone upstream, before
+// the response hook. Scripts have their own time limits.
+func scriptContext(f *proxy.Flow) context.Context {
+	return context.WithoutCancel(f.Request.Raw().Context())
+}
+
+func scriptRuleName(r Rule) string {
+	if r.Name != "" {
+		return r.Name
 	}
-	return h
+	return strings.TrimSuffix(r.Target, ".js")
 }

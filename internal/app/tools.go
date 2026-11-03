@@ -1,8 +1,8 @@
 package app
 
-// Tools is the window for what changes traffic and is switched often: rules
-// and Host profiles; scenarios, scripts and mocks move here with the rest of
-// the rules upgrade. It shares the main window's state, as Settings does.
+// Tools is the window for what changes traffic and is switched often: rules,
+// scenarios, rule scripts, Host profiles and mocks. It shares the main
+// window's state, as Settings does.
 
 import (
 	"fmt"
@@ -19,7 +19,8 @@ import (
 	"github.com/oneo-me/onevra/source/icons/lucide"
 )
 
-// openTools shows the Tools window on page ("rules" or "hosts"), focused if
+// openTools shows the Tools window on page ("rules", "scenarios", "scripts",
+// "hosts" or "mocks"), focused if
 // already open. Without a main window (headless tests) it is a dialog instead.
 func (a *app) openTools(page string) {
 	a.profiles.menuOpen = false
@@ -75,12 +76,19 @@ func (a *app) toolsView(c *ui.Context) {
 	t := c.Theme()
 	a.drainHosts()
 	if a.toolsMenuAction == "request.save" {
-		if a.toolsPage == "rules" {
+		switch a.toolsPage {
+		case "rules", "mocks":
 			if a.ruleUI.open {
 				a.saveRule()
 			}
-		} else if i, ok := a.profileToSave(); ok {
-			a.saveProfile(i)
+		case "scripts":
+			if name, ok := a.scriptToSave(); ok {
+				a.saveScript(name)
+			}
+		case "hosts":
+			if i, ok := a.profileToSave(); ok {
+				a.saveProfile(i)
+			}
 		}
 	}
 	a.toolsMenuAction = ""
@@ -128,29 +136,30 @@ func (a *app) toolsContent(c *ui.Context, t *ui.Theme, active, window bool) {
 			top = max(c.TitleBar().Height+t.Space(1), t.Space(4))
 		}
 		ui.Sidebar(c, &a.toolsPage, func() {
-			uikit.SidebarItem(c, "rules", rulesIcon, "Rules", a.toolsPage == "rules", active).Label("Tools category: Rules")
-			uikit.SidebarItem(c, "hosts", hostsIcon, "Host profiles", a.toolsPage == "hosts", active).Label("Tools category: Host profiles")
-			// The rest arrive with the rules upgrade; until then they are
-			// where they were.
-			for _, later := range []struct {
+			for _, page := range []struct {
+				id    string
 				icon  *ui.SVG
 				label string
-			}{{layersIcon, "Scenarios"}, {lucide.FileCode(), "Scripts"}, {lucide.Server(), "Mocks"}} {
-				ui.Row(c).Height(uikit.HeightControl).Padding(0, t.Space(2)).Gap(t.Space(2)).AlignItems(ui.Center).
-					Tooltip("Not here yet").Children(func() {
-					ui.Icon(c, later.icon).Size(uikit.IconInline, uikit.IconInline).TextColor(pal.TextFaint)
-					ui.Text(c, later.label).FontSize(uikit.TextBody).TextColor(pal.TextFaint)
-				})
+			}{{"rules", rulesIcon, "Rules"}, {"scenarios", layersIcon, "Scenarios"}, {"scripts", scriptsIcon, "Scripts"},
+				{"hosts", hostsIcon, "Host profiles"}, {"mocks", mocksIcon, "Mocks"}} {
+				uikit.SidebarItem(c, page.id, page.icon, page.label, a.toolsPage == page.id, active).Label("Tools category: " + page.label)
 			}
 		}).Width(180).Padding(top, t.Space(2), t.Space(2), t.Space(2)).Gap(t.Space(0.5)).Background(pal.Panel)
 		ui.Divider(c)
-		if a.toolsPage == "rules" {
+		switch a.toolsPage {
+		case "rules", "mocks":
 			a.rulesPage(c, t, top, active)
-		} else {
+		case "scenarios":
+			a.scenariosPage(c, t, top, active)
+		case "scripts":
+			a.scriptsPage(c, t, top, active)
+		default:
 			a.hostProfilesPage(c, t, window)
 		}
 	})
 }
+
+var mocksIcon = lucide.Server()
 
 // hostProfilesPage is the profiles in priority order beside the chosen one's
 // hosts file.

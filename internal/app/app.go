@@ -236,22 +236,24 @@ type app struct {
 	lastFlow            atomic.Int64
 	collectionRecording *collectionRecording
 
-	srv         *capture.Server
-	win         *mygo.Window
-	control     *desktopControl
-	caPath      string
-	certificate certificateSetup
-	systemProxy proxySetup
-	rulesPath   string
-	files       map[string]*store.File // see file
-	scriptPath  string
-	rules       []capture.Rule
-	ruleUI      ruleEditor
-	throttle    capture.Throttle
-	upstream    string
-	errText     string
-	dropped     int64
-	scriptErrs  int64
+	srv          *capture.Server
+	win          *mygo.Window
+	control      *desktopControl
+	caPath       string
+	certificate  certificateSetup
+	systemProxy  proxySetup
+	rulesPath    string
+	files        map[string]*store.File // see file
+	scripts      scriptStore
+	rules        []capture.Rule
+	ruleUI       ruleEditor
+	configImport configImport
+	scenarioUI   scenarioUI
+	throttle     capture.Throttle
+	upstream     string
+	errText      string
+	dropped      int64
+	scriptErrs   int64
 
 	upstreamOpen bool
 	upstreamAddr string
@@ -474,7 +476,7 @@ func newApp() *app {
 		a.allowPath = filepath.Join(home, ".vscroxy", "allow.txt")
 		a.allowAppsPath = filepath.Join(home, ".vscroxy", "allow-apps.txt")
 		a.profiles.dir = filepath.Join(home, ".vscroxy", "tools", "hosts")
-		a.scriptPath = filepath.Join(home, ".vscroxy", "script.js")
+		a.scripts.dir = filepath.Join(home, ".vscroxy", "tools", "scripts")
 		a.envsPath = filepath.Join(home, ".vscroxy", "env.json")
 		a.vault.path = filepath.Join(home, ".vscroxy", "vault.json")
 		a.vault.keyPath = filepath.Join(home, ".vscroxy", "vault.key")
@@ -637,17 +639,7 @@ func (a *app) reloadConfig() {
 			a.bpTemplates = list
 		}
 	}
-	if a.scriptPath == "" {
-		return
-	}
-	script, err := capture.LoadScript(a.scriptPath)
-	if err != nil {
-		unreadable(a.scriptPath, err)
-		return
-	}
-	if a.srv != nil {
-		a.srv.SetScript(script)
-	}
+	a.loadScripts()
 }
 
 // invalidate asks for a frame, so what a goroutine changed shows.
@@ -843,7 +835,7 @@ func (a *app) drain() {
 	a.requestResults = nil
 	err := a.err
 	a.mu.Unlock()
-	if len(pending) > 0 && a.toolsPage == "rules" {
+	if len(pending) > 0 && a.toolsPage != "hosts" {
 		a.invalidateTools() // for the rules' hit counts
 	}
 	for _, result := range results {
@@ -1277,6 +1269,7 @@ func (a *app) view(c *ui.Context) {
 	a.dark = a.appearance == "dark" || a.appearance == "" && c.Theme().Dark
 	c.SetTheme(uikit.Theme(a.dark))
 	a.drain()
+	a.scripts.setEnv(a.globals, a.activeVars())
 	// The Settings window shows these checks too: it redraws when one
 	// finishes, and shows the messages while it is in front.
 	busy := [3]bool{a.certificate.checking, a.systemProxy.checking, a.systemProxy.applying}
@@ -1374,6 +1367,7 @@ func (a *app) view(c *ui.Context) {
 	a.upstreamModal(c, t)
 	a.sslModal(c, t)
 	a.toolsModal(c, t)
+	a.configImportDialog(c, t)
 	a.dnsRuleModal(c, t)
 	a.hostListModal(c, t, &a.ignoreAppsOpen, "Ignored apps",
 		"Apps whose flows stay out of the table, one name per line, as the Apps section spells them. They are still proxied.",
@@ -3405,25 +3399,7 @@ func (a *app) decryptHost(host string) {
 // persistSettings writes what changed since the last write, at most every
 // 400ms, so dragging a divider does not write a file a frame.
 func (a *app) persistSettings() error {
-	now := settings{
-		Appearance:       a.appearance,
-		SidebarWidth:     a.sidebarWidth,
-		TablePercent:     a.tablePercent,
-		InspectorLayout:  a.workbench.layout,
-		SideTablePercent: a.workbench.sidePercent,
-		SidebarHidden:    a.workbench.sidebarHidden,
-		Columns:          savedLayout(a.columns),
-		CustomColumns:    a.customColumns,
-		HiddenColumns:    a.hiddenColumns,
-		KeyLogPath:       a.keyLogPath,
-		ProxyPort:        a.proxyPort,
-		VaultScripts:     a.vault.scripts,
-		Guide:            a.guide,
-		AllowList:        a.allowOn,
-		FlowLimit:        a.flowLimit,
-		MemoryLimit:      a.memoryLimit,
-		DiskLimit:        a.diskLimit,
-	}
+	now := a.currentSettings()
 	if sameSettings(now, a.saved) || time.Since(a.lastSave) < 400*time.Millisecond {
 		return nil
 	}

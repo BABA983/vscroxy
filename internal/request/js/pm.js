@@ -292,19 +292,33 @@
 		return a;
 	}
 
+	// makeResponse is pm.response. A rule script's response is editable: code
+	// can be assigned, headers changed and setBody replaces the body.
 	function makeResponse(r) {
 		var res = {
 			code: r.code,
 			status: r.status,
 			responseTime: r.time,
 			responseSize: r.size,
-			headers: headerList(function () { return r.headers; }),
+			headers: headerList(r.headers, r.add, r.upsert, r.remove),
 			text: function () { return r.body; },
 			json: function () { return parseJSON(r.body); },
 			reason: function () { return r.status; },
 			size: function () { return { body: r.body.length, total: r.size }; },
 		};
 		res.stream = r.body;
+		if (r.setCode) {
+			Object.defineProperty(res, "code", {
+				enumerable: true,
+				get: function () { return r.code; },
+				set: function (v) { r.status = r.setCode(Number(v)); r.code = Number(v); res.status = r.status; },
+			});
+			res.setBody = function (v) {
+				r.body = typeof v === "string" ? v : JSON.stringify(v);
+				r.setBody(r.body);
+				res.stream = r.body;
+			};
+		}
 		Object.defineProperty(res, "to", { get: function () { return assertions(res, false); } });
 		return res;
 	}
@@ -424,12 +438,14 @@
 		error: function () { host.log("error", format(arguments)); },
 		clear: function () {},
 	};
-	var lodash;
+	var lodash, cryptojs;
 	global.require = function (name) {
 		if (name === "chai") return chai;
 		if (name === "lodash") return lodash || (lodash = host.lodash());
+		if (name === "crypto-js") return cryptojs || (cryptojs = host.cryptojs());
 		throw new Error("require(\"" + name + "\") is not available in vscroxy scripts");
 	};
+	if (host.env) global.process = { env: Object.freeze(host.env) };
 	global.atob = host.atob;
 	global.btoa = host.btoa;
 

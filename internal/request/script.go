@@ -3,8 +3,10 @@ package request
 import (
 	"cmp"
 	"context"
+	"crypto/rand"
 	_ "embed"
 	"encoding/base64"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"maps"
@@ -38,6 +40,12 @@ var ajvSource string
 //go:embed js/lodash.js
 var lodashSource string
 
+// CryptoJS 4.2.0 is Postman's crypto-js, loaded on first require like Lodash
+// (MIT, see THIRD_PARTY_NOTICES.md). Its random numbers come from Go.
+//
+//go:embed js/crypto-js.js
+var cryptoJSSource string
+
 //go:embed js/pm.js
 var pmSource string
 
@@ -49,6 +57,11 @@ var (
 	})
 	lodashProgram = sync.OnceValue(func() *goja.Program {
 		return goja.MustCompile("lodash.js", "(function () { var module = {exports: {}}, exports = module.exports;\n"+lodashSource+"\nreturn module.exports; })()", false)
+	})
+	cryptoJSProgram = sync.OnceValue(func() *goja.Program {
+		return goja.MustCompile("crypto-js.js", "(function (crypto) { var module = {exports: {}}, exports = module.exports;\n"+
+			"var require = function (name) { if (name === \"crypto\") return crypto; throw new Error(\"Cannot find module \" + name); };\n"+
+			cryptoJSSource+"\nreturn module.exports; })", false)
 	})
 	pmProgram = sync.OnceValue(func() *goja.Program { return goja.MustCompile("pm.js", pmSource, false) })
 )
@@ -101,13 +114,16 @@ func (r *Prepared) edited(name string) {
 	}
 }
 
-// jsResponse is the response pm.response is built from.
+// jsResponse is the response pm.response is built from. A rule script's
+// response is editable: its code, headers and body change what the client
+// gets.
 type jsResponse struct {
-	Status int
-	Body   string
-	Header http.Header
-	Millis int
-	Bytes  int
+	Status   int
+	Body     string
+	Header   http.Header
+	Millis   int
+	Bytes    int
+	editable bool
 }
 
 // Write is a script's change to a variable scope the run does not own:
@@ -158,6 +174,10 @@ type scriptRun struct {
 	info                         scriptInfo
 	skipped                      bool
 	next                         *string
+	// readOnly are the scopes a script may read but not write; env is
+	// process.env, which only rule scripts have.
+	readOnly map[string]bool
+	env      map[string]string
 	// target is the URL the scripts' request goes to, for cookies and the
 	// vault. send, vault and cookies are nil where a run cannot offer them.
 	target  func() string
@@ -232,7 +252,7 @@ func (r *scriptRun) set(scope, name, value string, unset bool) error {
 		return errors.New("variable names cannot be empty")
 	}
 	m := r.scope(scope)
-	if m == nil || scope == "iterationData" {
+	if m == nil || scope == "iterationData" || r.readOnly[scope] {
 		return fmt.Errorf("pm.%s is read-only", scope)
 	}
 	if scope == "collectionVariables" && r.root == "" {
@@ -439,8 +459,11 @@ func (run *scriptRun) host(ctx context.Context, vm *goja.Runtime, clock *budget,
 		run.target = func() string { return "" }
 	}
 	event := "test"
-	if strings.HasPrefix(run.phase, "pre-request") {
+	switch {
+	case strings.HasPrefix(run.phase, "pre-request"):
 		event = "prerequest"
+	case run.phase == "request" || run.phase == "response": // a rule script's hook
+		event = run.phase
 	}
 	info := run.info
 	info.Iterations = max(info.Iterations, 1)
@@ -451,6 +474,26 @@ func (run *scriptRun) host(ctx context.Context, vm *goja.Runtime, clock *budget,
 	set := func(name string, value any) { h.Set(name, value) }
 	set("ajv", func() (goja.Value, error) { return vm.RunProgram(ajvProgram()) })
 	set("lodash", func() (goja.Value, error) { return vm.RunProgram(lodashProgram()) })
+	set("cryptojs", func() (goja.Value, error) {
+		load, err := vm.RunProgram(cryptoJSProgram())
+		if err != nil {
+			return nil, err
+		}
+		fn, _ := goja.AssertFunction(load)
+		random := vm.NewObject()
+		random.Set("getRandomValues", func(array *goja.Object) *goja.Object {
+			for i := range int(array.Get("length").ToInteger()) {
+				var b [4]byte
+				_, _ = rand.Read(b[:])
+				array.Set(strconv.Itoa(i), binary.LittleEndian.Uint32(b[:]))
+			}
+			return array
+		})
+		return fn(goja.Undefined(), random)
+	})
+	if run.env != nil {
+		set("env", object(run.env))
+	}
 	set("info", map[string]any{
 		"eventName": event, "iteration": info.Iteration, "iterationCount": info.Iterations,
 		"requestName": info.RequestName, "requestId": info.RequestID, "environment": info.Environment,
@@ -612,8 +655,24 @@ func responseObject(vm *goja.Runtime, res *jsResponse, pairs func(http.Header) g
 	obj.Set("status", http.StatusText(res.Status))
 	obj.Set("time", res.Millis)
 	obj.Set("size", res.Bytes)
-	obj.Set("headers", pairs(res.Header))
+	obj.Set("headers", func() goja.Value { return pairs(res.Header) })
 	obj.Set("body", res.Body)
+	if res.editable {
+		if res.Header == nil {
+			res.Header = http.Header{}
+		}
+		obj.Set("setCode", func(code int) (string, error) {
+			if code < 100 || code > 999 {
+				return "", fmt.Errorf("pm.response.code: %d is not an HTTP status", code)
+			}
+			res.Status = code
+			return http.StatusText(code), nil
+		})
+		obj.Set("setBody", func(body string) { res.Body = body })
+		obj.Set("add", res.Header.Add)
+		obj.Set("upsert", res.Header.Set)
+		obj.Set("remove", res.Header.Del)
+	}
 	return obj
 }
 

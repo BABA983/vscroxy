@@ -876,8 +876,12 @@ func (a *app) requestEditor(c *ui.Context, t *ui.Theme, d *requestDocument, orig
 			case composeTabBody:
 				a.requestBodyEditor(c, d, t)
 			case composeTabScripts:
-				ui.Row(c).Children(func() {
+				ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 					uikit.Segmented(c, &d.scriptTab, "Pre-request", "Post-response")
+					ui.Spacer(c)
+					if st := map[bool]*editor.State{false: d.preEditor, true: d.postEditor}[d.scriptTab == 1]; st != nil {
+						snippetMenu(c, st, false)
+					}
 				})
 				a.requestScriptText(c, d)
 			case composeTabChecks:

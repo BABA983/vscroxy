@@ -1295,80 +1295,87 @@ func TestBreakpointDurationExcludesPause(t *testing.T) {
 	}
 }
 
-func startServerWithScript(t *testing.T, source string) *Server {
+// fakeScripts runs Go functions as the scripts Script rules name.
+type fakeScripts map[string][2]func(x *ScriptExchange) error
+
+func (f fakeScripts) Hooks(script string) (bool, bool) {
+	return f[script][0] != nil, f[script][1] != nil
+}
+
+func (f fakeScripts) Run(_ context.Context, script string, x *ScriptExchange) error {
+	hook := f[script][0]
+	if x.Phase == "response" {
+		hook = f[script][1]
+	}
+	return hook(x)
+}
+
+func startServerWithScripts(t *testing.T, scripts fakeScripts, list ...Rule) *Server {
 	t.Helper()
 	s, _ := startServer(t)
-	path := filepath.Join(t.TempDir(), "script.js")
-	if err := os.WriteFile(path, []byte(source), 0o600); err != nil {
-		t.Fatalf("write script: %v", err)
+	s.SetScriptRunner(scripts)
+	if err := s.SetRules(list); err != nil {
+		t.Fatal(err)
 	}
-	sc, err := LoadScript(path)
-	if err != nil {
-		t.Fatalf("load script: %v", err)
-	}
-	s.SetScript(sc)
 	return s
 }
 
-func TestScriptRequest(t *testing.T) {
+// Every matching Script rule runs, in order, each seeing what the ones
+// before it changed; pm.variables carry from request to response.
+func TestScriptRulesRunInOrder(t *testing.T) {
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Header.Get("X-From-Script") != "yes" {
-			t.Errorf("script header missing: %v", r.Header)
+		if r.Header.Get("X-From-Script") != "yes" || r.URL.Path != "/new" || r.Header.Get("X-Skipped") != "" {
+			t.Errorf("upstream got %s %v", r.URL.Path, r.Header)
 		}
-		if r.URL.Path != "/new" {
-			t.Errorf("path = %q, want /new", r.URL.Path)
-		}
-		fmt.Fprint(w, "ok")
-	}))
-	defer upstream.Close()
-
-	s := startServerWithScript(t, `
-function onRequest(req) {
-  req.headers["X-From-Script"] = "yes"
-  req.url = req.url.replace("/old", "/new")
-}`)
-	resp, err := clientFor(t, s, nil).Get(upstream.URL + "/old")
-	if err != nil {
-		t.Fatalf("request: %v", err)
-	}
-	_ = resp.Body.Close()
-
-	f := waitFlow(t, s)
-	if !strings.HasSuffix(f.URL, "/new") {
-		t.Fatalf("flow URL = %q, want the scripted URL", f.URL)
-	}
-}
-
-func TestScriptResponse(t *testing.T) {
-	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		fmt.Fprint(w, "original")
 	}))
 	defer upstream.Close()
-
-	s := startServerWithScript(t, `
-function onResponse(res) {
-  res.status = 201
-  res.body = JSON.stringify({scripted: true})
-  res.headers["X-Script"] = "1"
-  res.headers["Set-Cookie"] = ["session=from-script; Path=/", "csrf=separate; Path=/"]
-}`)
-	resp, err := clientFor(t, s, nil).Get(upstream.URL + "/boom")
+	var order []string
+	s := startServerWithScripts(t, fakeScripts{
+		"first.js": {func(x *ScriptExchange) error {
+			order = append(order, "first")
+			x.Header.Set("X-From-Script", "yes")
+			x.Locals["seen"] = "1"
+			return nil
+		}, nil},
+		"second.js": {func(x *ScriptExchange) error {
+			order = append(order, "second:"+x.Header.Get("X-From-Script"))
+			x.URL = strings.Replace(x.URL, "/old", "/new", 1)
+			return nil
+		}, func(x *ScriptExchange) error {
+			if x.Locals["seen"] != "1" || string(x.ResponseBody) != "original" {
+				t.Errorf("response hook: locals %v, body %q", x.Locals, x.ResponseBody)
+			}
+			x.Status, x.ResponseBody = 201, []byte(`{"scripted":true}`)
+			x.Response["Set-Cookie"] = []string{"session=from-script; Path=/", "csrf=separate; Path=/"}
+			return nil
+		}},
+		"off.js": {func(x *ScriptExchange) error { x.Header.Set("X-Skipped", "1"); return nil }, nil},
+	},
+		Rule{Type: RuleScript, Match: "/old", Target: "first.js"},
+		Rule{Type: RuleScript, Match: "/elsewhere", Target: "off.js"},
+		Rule{Type: RuleScript, Match: "/old", Target: "off.js", Scenario: "Off"},
+		Rule{Type: RuleScript, Match: "/old", Target: "second.js"},
+	)
+	resp, err := clientFor(t, s, nil).Get(upstream.URL + "/old")
 	if err != nil {
-		t.Fatalf("request: %v", err)
+		t.Fatal(err)
 	}
 	body, _ := io.ReadAll(resp.Body)
 	_ = resp.Body.Close()
-	if resp.StatusCode != 201 || string(body) != `{"scripted":true}` || resp.Header.Get("X-Script") != "1" {
-		t.Fatalf("client got %d %q %q", resp.StatusCode, body, resp.Header.Get("X-Script"))
+	if resp.StatusCode != 201 || string(body) != `{"scripted":true}` {
+		t.Fatalf("client got %d %q", resp.StatusCode, body)
 	}
 	if cookies := resp.Cookies(); len(cookies) != 2 || cookies[0].Value != "from-script" || cookies[1].Value != "separate" {
-		t.Fatalf("scripted cookie array = %q", resp.Header.Values("Set-Cookie"))
+		t.Fatalf("cookies = %q", resp.Header.Values("Set-Cookie"))
 	}
-
+	if !slices.Equal(order, []string{"first", "second:yes"}) {
+		t.Fatalf("order = %v", order)
+	}
 	f := waitFlow(t, s)
-	if f.Status != 201 || !strings.Contains(f.ResponseBody, "scripted") {
-		t.Fatalf("flow = %d %q", f.Status, f.ResponseBody)
+	if !strings.HasSuffix(f.URL, "/new") || f.Status != 201 || !strings.Contains(f.ResponseBody, "scripted") {
+		t.Fatalf("flow = %s %d %q", f.URL, f.Status, f.ResponseBody)
 	}
 }
 
@@ -1382,7 +1389,8 @@ func TestEmptyHooksPreserveRepeatedHeaders(t *testing.T) {
 		fmt.Fprint(w, "ok")
 	}))
 	defer upstream.Close()
-	s := startServerWithScript(t, `function onRequest(req) {} function onResponse(res) {}`)
+	nothing := func(*ScriptExchange) error { return nil }
+	s := startServerWithScripts(t, fakeScripts{"empty.js": {nothing, nothing}}, Rule{Type: RuleScript, Match: "/", Target: "empty.js"})
 	req, _ := http.NewRequestWithContext(t.Context(), "GET", upstream.URL, nil)
 	req.Header["X-Repeat"] = []string{"first", "second"}
 	resp, err := clientFor(t, s, nil).Do(req)
@@ -1395,42 +1403,26 @@ func TestEmptyHooksPreserveRepeatedHeaders(t *testing.T) {
 	}
 }
 
-func TestScriptLoadTimeout(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "script.js")
-	if err := os.WriteFile(path, []byte(`while (true) {}`), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	done := make(chan error, 1)
-	go func() { _, err := LoadScript(path); done <- err }()
-	select {
-	case err := <-done:
-		if err == nil || !strings.Contains(err.Error(), "timed out") {
-			t.Fatalf("load error = %v", err)
-		}
-	case <-time.After(3 * time.Second):
-		t.Fatal("top-level script execution was not interrupted")
-	}
-}
-
-func TestScriptTimeout(t *testing.T) {
+// A failing script leaves the exchange as it was, and is counted.
+func TestScriptErrorsAreCounted(t *testing.T) {
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("X-Half") != "" {
+			t.Errorf("a failed hook's edit reached the server")
+		}
 		fmt.Fprint(w, "ok")
 	}))
 	defer upstream.Close()
-
-	s := startServerWithScript(t, `
-function onRequest(req) { while (true) {} }`)
-	start := time.Now()
+	s := startServerWithScripts(t, fakeScripts{"bad.js": {func(x *ScriptExchange) error {
+		x.Header.Set("X-Half", "1")
+		return errors.New("script timed out")
+	}, nil}}, Rule{Type: RuleScript, Match: "/", Target: "bad.js"})
 	resp, err := clientFor(t, s, nil).Get(upstream.URL + "/loop")
 	if err != nil {
-		t.Fatalf("request: %v", err)
+		t.Fatal(err)
 	}
 	_ = resp.Body.Close()
-	if elapsed := time.Since(start); elapsed > 3*time.Second {
-		t.Fatalf("script held the request for %v", elapsed)
-	}
-	if s.ScriptErrors() == 0 {
-		t.Fatal("the interrupted script was not counted")
+	if resp.StatusCode != 200 || s.ScriptErrors() == 0 {
+		t.Fatalf("status %d, script errors %d", resp.StatusCode, s.ScriptErrors())
 	}
 }
 

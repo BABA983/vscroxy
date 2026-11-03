@@ -49,9 +49,9 @@ type ruleEditor struct {
 	list               ui.ListState
 }
 
-var ruleTypes = []capture.RuleType{capture.RuleMapLocal, capture.RuleMapRemote, capture.RuleBlock, capture.RuleBreak, capture.RuleBreakResponse}
-var ruleLabels = []string{"Map Local", "Map Remote", "Block", "Request breakpoint", "Response breakpoint"}
-var ruleIcons = []*ui.SVG{fileInputIcon, lucide.ArrowRightLeft(), lucide.Ban(), breakIcon, breakIcon}
+var ruleTypes = []capture.RuleType{capture.RuleMapLocal, capture.RuleMapRemote, capture.RuleBlock, capture.RuleScript, capture.RuleBreak, capture.RuleBreakResponse}
+var ruleLabels = []string{"Map Local", "Map Remote", "Block", "Script", "Request breakpoint", "Response breakpoint"}
+var ruleIcons = []*ui.SVG{fileInputIcon, lucide.ArrowRightLeft(), lucide.Ban(), scriptsIcon, breakIcon, breakIcon}
 var hideIcon = lucide.EyeOff()
 var rulesIcon = lucide.SlidersHorizontal()
 
@@ -236,10 +236,8 @@ func (a *app) saveRule() {
 			}
 			r.Target = filepath.Join(filepath.Dir(a.rulesPath), "mocks", rand.Text()+ext)
 		}
-	} else {
-		if r.Type != capture.RuleMapRemote {
-			r.Target = ""
-		}
+	} else if r.Type != capture.RuleMapRemote && r.Type != capture.RuleScript {
+		r.Target = ""
 	}
 	r.PathFrom, r.PathTo = strings.TrimSpace(r.PathFrom), strings.TrimSpace(r.PathTo)
 	if r.Type != capture.RuleMapRemote {
@@ -393,14 +391,40 @@ func ruleTest(s string) (req rules.Request, ok bool) {
 	return req, true
 }
 
+// ruleRows are the rules the page lists, by index: on Mocks, only the
+// Map Local rules.
+func (a *app) ruleRows() []int {
+	var rows []int
+	for i, r := range a.rules {
+		if a.toolsPage != "mocks" || r.Type == capture.RuleMapLocal {
+			rows = append(rows, i)
+		}
+	}
+	return rows
+}
+
 // rulesPage is the rules in the order they are tried beside the one being
 // edited. Testing a request numbers the rules that act on it in the order
-// they act, and fades the others.
+// they act, and fades the others. Mocks is the same page for the Map Local
+// rules alone.
 func (a *app) rulesPage(c *ui.Context, t *ui.Theme, top float32, active bool) {
 	e := &a.ruleUI
+	mocks := a.toolsPage == "mocks"
 	if e.index >= len(a.rules) { // the rules were reloaded from disk
 		a.discardRuleDraft()
 		e.open, e.index = false, -1
+	}
+	rows := a.ruleRows()
+	// Mocks shows a mock: one of its rows, or a new Map Local rule.
+	if mocks && e.open && (e.index >= 0 && !slices.Contains(rows, e.index) || e.index < 0 && e.kind != "Map Local") {
+		e.open = false
+	}
+	if !e.open && len(rows) > 0 {
+		a.editRule(rows[0], a.rules[rows[0]])
+	}
+	title, kind := "Rules", capture.RuleMapRemote
+	if mocks {
+		title, kind = "Mocks", capture.RuleMapLocal
 	}
 	var preview []capture.RulePreview
 	req, testing := ruleTest(e.test)
@@ -409,13 +433,15 @@ func (a *app) rulesPage(c *ui.Context, t *ui.Theme, top float32, active bool) {
 	}
 	ui.Column(c).Width(300).MinHeight(0).Padding(top, t.Space(3), t.Space(3), t.Space(3)).Gap(t.Space(2)).Children(func() {
 		ui.Row(c).Gap(t.Space(1)).AlignItems(ui.Center).Children(func() {
-			ui.Text(c, "Rules").FontSize(uikit.TextTitle).FontWeight(600).TextColor(t.Text).Grow(1)
+			ui.Text(c, title).FontSize(uikit.TextTitle).FontWeight(600).TextColor(t.Text).Grow(1)
 			if uikit.IconButton(c, "New rule", "New rule", plusIcon).Clicked() {
-				a.editRule(-1, capture.Rule{Type: capture.RuleMapRemote})
+				a.editRule(-1, capture.Rule{Type: kind})
 			}
 		})
 		uikit.Input(c, &e.test).Label("Test a request").Placeholder("Test: GET https://api.example.com @ App; Header: value").Tooltip("[METHOD] URL [@ App]; Header: value; …").Font(uikit.FontMono).FillWidth()
 		switch {
+		case strings.TrimSpace(e.test) == "" && mocks:
+			uikit.Meta(c, "Map Local rules: answers from local files, tried from the top.")
 		case strings.TrimSpace(e.test) == "":
 			uikit.Meta(c, "Rules are tried from the top.")
 		case !testing:
@@ -432,14 +458,18 @@ func (a *app) rulesPage(c *ui.Context, t *ui.Theme, top float32, active bool) {
 			uikit.Meta(c, summary).SingleLine()
 		}
 		a.ruleScenario(c)
-		a.ruleList(c, t, preview, active)
+		a.ruleList(c, t, rows, preview, active)
 	})
 	ui.Divider(c)
 	ui.Column(c).Grow(1).MinWidth(0).MinHeight(0).Padding(top, t.Space(4), t.Space(3), t.Space(4)).Gap(t.Space(3)).Children(func() {
 		if !e.open {
-			uikit.EmptyState(c, "No rules", "Map, redirect, block or pause matching requests. Create one here, or from a request’s Tools menu.", func() {
+			empty, hint := "No rules", "Map, redirect, block, script or pause matching requests. Create one here, or from a request’s Tools menu."
+			if mocks {
+				empty, hint = "No mocks", "Answer requests from local files. Make one here, from a request’s Tools menu, from a saved example’s Mock, or with a collection’s Mock from examples."
+			}
+			uikit.EmptyState(c, empty, hint, func() {
 				if uikit.PrimaryButton(c, "New rule").Clicked() {
-					a.editRule(-1, capture.Rule{Type: capture.RuleMapRemote})
+					a.editRule(-1, capture.Rule{Type: kind})
 				}
 			})
 			return
@@ -450,8 +480,9 @@ func (a *app) rulesPage(c *ui.Context, t *ui.Theme, top float32, active bool) {
 		next := slices.Delete(slices.Clone(a.rules), e.index, e.index+1)
 		if a.applyRuleChanges(next) {
 			e.open = false
-			if len(next) > 0 {
-				i := min(e.index, len(next)-1)
+			if rows := a.ruleRows(); len(rows) > 0 {
+				at, _ := slices.BinarySearch(rows, e.index)
+				i := rows[min(at, len(rows)-1)]
 				a.editRule(i, next[i])
 			}
 		}
@@ -489,21 +520,33 @@ func (a *app) ruleScenario(c *ui.Context) {
 
 // ruleList is the rules with their switches, in the order they are tried;
 // dragging a row moves it.
-func (a *app) ruleList(c *ui.Context, t *ui.Theme, preview []capture.RulePreview, active bool) {
+func (a *app) ruleList(c *ui.Context, t *ui.Theme, rows []int, preview []capture.RulePreview, active bool) {
 	e := &a.ruleUI
-	choice := e.index
+	choice := slices.Index(rows, e.index)
 	e.list.Selected = &choice
-	e.list.Key = func(i int) any { return i }
-	e.list.Label = func(i int) string { return fmt.Sprintf("Rule %d: %s", i+1, cmp.Or(a.rules[i].Name, a.rules[i].Match)) }
-	e.list.Reorder = a.moveRules
+	e.list.Key = func(row int) any { return rows[row] }
+	e.list.Label = func(row int) string {
+		i := rows[row]
+		return fmt.Sprintf("Rule %d: %s", i+1, cmp.Or(a.rules[i].Name, a.rules[i].Match))
+	}
+	e.list.Reorder = func(moved []int, to int) {
+		at := len(a.rules)
+		if to < len(rows) {
+			at = rows[to]
+		}
+		for k, row := range moved {
+			moved[k] = rows[row]
+		}
+		a.moveRules(moved, at)
+	}
 	// A pick list, as the Host profiles: the rows draw the rounded selection.
 	pick := *t
 	pick.Accent, pick.AccentText = ui.Color{}, t.Text
 	c.SetTheme(&pick)
-	ui.List(c, &e.list, len(a.rules)).Label("Rules").Grow(1).MinHeight(0).Gap(t.Space(0.5)).Rows(func(row ui.ListRow) {
+	ui.List(c, &e.list, len(rows)).Label("Rules").Grow(1).MinHeight(0).Gap(t.Space(0.5)).Rows(func(row ui.ListRow) {
 		c := row.Context
 		c.SetTheme(t)
-		i := row.Index
+		i := rows[row.Index]
 		r := a.rules[i]
 		line := ui.Row(c).Height(uikit.HeightLarge+12).Padding(0, t.Space(2)).Gap(t.Space(2)).AlignItems(ui.Center).Radius(uikit.RadiusControl)
 		if row.Selected() {
@@ -556,8 +599,8 @@ func (a *app) ruleList(c *ui.Context, t *ui.Theme, preview []capture.RulePreview
 		})
 	})
 	c.SetTheme(t)
-	if choice != e.index && choice >= 0 && choice < len(a.rules) {
-		a.editRule(choice, a.rules[choice])
+	if choice >= 0 && choice < len(rows) && rows[choice] != e.index {
+		a.editRule(rows[choice], a.rules[rows[choice]])
 	}
 }
 
@@ -596,9 +639,11 @@ func (a *app) ruleDetail(c *ui.Context, t *ui.Theme) {
 	// Each rule's form starts at its top, not where the last one was scrolled.
 	ui.Scroll(c.Key(fmt.Sprint("rule-form", e.index))).Grow(1).MinHeight(0).Children(func() {
 		ui.Form(c, func() {
-			ui.Field(c, "Type", func() {
-				uikit.Select(c, &e.kind, ruleLabels).Label("Rule type").Width(200)
-			})
+			if a.toolsPage != "mocks" {
+				ui.Field(c, "Type", func() {
+					uikit.Select(c, &e.kind, ruleLabels).Label("Rule type").Width(200)
+				})
+			}
 			ui.Field(c, "Method", func() {
 				uikit.Input(c, &e.draft.Method).Width(95).Label("Match method").Placeholder("Any").Font(uikit.FontMono)
 			})
@@ -678,6 +723,9 @@ func (a *app) ruleDetail(c *ui.Context, t *ui.Theme) {
 						e.draft.Block = capture.BlockActions[choice]
 					})
 				}).Description(blockHelp[max(slices.Index(capture.BlockActions, e.draft.Block), 0)])
+			case "Script":
+				ui.Field(c, "Script", func() { a.ruleScriptField(c, t) }).
+					Description("Its onRequest edits the request before it goes upstream, its onResponse the response before the client gets it. Every matching Script rule runs, in order, before the other rules.")
 			default:
 				ui.Field(c, "Pauses", func() { uikit.Body(c, "While Breakpoints is on") }).
 					Description("Continue or abort in the breakpoint dialog.")
@@ -723,6 +771,38 @@ func ruleSummary(r capture.Rule) string {
 		parts = append(parts, fmt.Sprintf("+%d %s", n, plural(n, "header", "headers")))
 	}
 	return strings.TrimSpace(strings.Join(parts, " "))
+}
+
+// ruleScriptField chooses the script a Script rule runs.
+func (a *app) ruleScriptField(c *ui.Context, t *ui.Theme) {
+	e := &a.ruleUI
+	ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).FillWidth().Children(func() {
+		current := strings.TrimSuffix(e.draft.Target, ".js")
+		label := cmp.Or(current, "Choose a script")
+		if current != "" && !slices.Contains(a.scripts.names, current) {
+			label = current + " (missing)"
+		}
+		uikit.MenuSelect(c, label, func(m *ui.Menu) {
+			for _, name := range a.scripts.names {
+				if m.Item(name).Radio(name == current).Chosen() {
+					e.draft.Target = scriptFile(name)
+				}
+			}
+			if len(a.scripts.names) > 0 {
+				m.Separator()
+			}
+			if m.Item("New script").Chosen() {
+				if name, ok := a.newScript(cmp.Or(strings.TrimSpace(e.draft.Name), "Untitled"), newScriptText); ok {
+					e.draft.Target = scriptFile(name)
+				}
+			}
+		}).Label("Rule script").Width(240)
+		if current != "" && slices.Contains(a.scripts.names, current) {
+			if uikit.SecondaryButton(c, "Edit script").Tooltip("Defines " + scriptHooks(&a.scripts, current)).Clicked() {
+				a.openScript(current)
+			}
+		}
+	})
 }
 
 // ruleHeaderConditions edits the request headers the draft needs.

@@ -119,9 +119,9 @@
 | Map Remote：换 scheme 和 host | 已有 | | |
 | Map Remote：换端口和路径、是否保留原 Host header、WebSocket | 已有 | 端口写在目标 URL 里；路径前缀改写；WebSocket（含解密的 wss）跟随第一条匹配的 Map Remote。原主机连不上、且有启用的 Map Remote 可能匹配它时，改用生成的证书 | M4 |
 | Scenario（规则分组切换） | 已有 | | |
-| 脚本：挂在规则上、app 内编辑、`pm` 风格 API | 部分 | 现在是全局 `script.js`，手改文件 | M4 |
-| 脚本：异步发请求、规则间共享状态、读系统环境变量 | 缺少 | | M4 |
-| 脚本：内置库（lodash、crypto-js 等）、代码片段库、自定义 addon | 缺少 | 和请求脚本共用 | M4 |
+| 脚本：挂在规则上、app 内编辑、`pm` 风格 API | 已有 | Script 规则运行 `tools/scripts/*.js` 的 onRequest／onResponse；Tools → Scripts 编辑，带 Console；全局 `script.js` 已删除 | M4 |
+| 脚本：异步发请求、规则间共享状态、读系统环境变量 | 已有 | `pm.sendRequest` 直连服务器；`pm.variables` 跨同一请求的脚本，`pm.globals` 跨规则并保存；`process.env` | M4 |
+| 脚本：内置库（lodash、crypto-js 等）、代码片段库、自定义 addon | 部分 | lodash、crypto-js 4.2.0、chai 和 Insert snippet 与请求脚本共用；自定义 addon 未做 | M4 |
 | 脚本：WebSocket 消息钩子 | 缺少 | | M8 |
 | 网络条件：全局预设 | 已有 | 3G / 4G / DSL | |
 | 网络条件：自定义预设、丢包、按 host/规则生效 | 缺少 | | M5 |
@@ -132,7 +132,7 @@
 | Repeat、Edit & repeat、批量重放 | 已有 | | |
 | 高级重放：重复 N 次、并发、间隔 | 缺少 | | M5 |
 | GraphQL：按 operation 名匹配规则、格式化 query | 缺少 | | M5 |
-| 规则和设置的导入导出（备份、分享） | 缺少 | | M4 |
+| 规则和设置的导入导出（备份、分享） | 已有 | Settings → General：一个 JSON，含设置、名单、规则和 mock 文件、脚本、Host 方案、断点模板；不含密钥和变量；导入按部分替换 | M4 |
 
 ### 4.4 导入、导出、分享
 
@@ -279,15 +279,15 @@ Cookie 和其他 API key 保留为变量 header，避免把多个认证机制硬
 
 ### M4：规则引擎升级（Tools 窗口）
 
-- Tools 管理窗口：规则、Scenario、脚本、Host 方案集中管理。（规则页已完成：规则从弹窗移进 Tools，测试请求时按作用顺序标号，显示命中数和 Scenario。）
+- Tools 管理窗口：规则、Scenario、脚本、Host 方案集中管理。（已完成：Scenarios、Scripts、Mocks 页已开放；规则页：规则从弹窗移进 Tools，测试请求时按作用顺序标号，显示命中数和 Scenario。）
 - 规则匹配：通配符、正则、method、App、header。（已完成）
 - Map Local：app 内编辑响应、目录映射。（已完成）
 - Map Remote：端口、路径、Host header、WebSocket。（已完成，含原主机不可达时的 HTTPS 映射）
 - Block：隐藏或拦截、断开连接、按 App。（已完成）
 - Breakpoint 模板。（已完成）
-- 规则脚本：`pm` 风格 API、编辑器、异步请求、共享状态、环境变量、内置库、代码片段；`script.js` 迁移。
+- 规则脚本：`pm` 风格 API、编辑器、异步请求、共享状态、环境变量、内置库、代码片段；`script.js` 迁移。（已完成，`script.js` 按原型规则直接删除不迁移；自定义 addon 未做）
 - Example → Mock 规则、集合 → Scenario。（已完成：URL 填入当前变量后转成正则，`:id` 和未知变量匹配一段，查询串不限；同一请求的其他 Example 用 `X-Mock-Response-Name` 选择；主机不可达时 Map Local 也用生成的证书）
-- 规则和设置的导入导出。
+- 规则和设置的导入导出。（已完成）
 
 ### M5：检查器和调试增强
 

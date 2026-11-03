@@ -348,7 +348,7 @@ an app after `@` and headers after `;`
 (`POST https://api.example.com/v1/orders @ Google Chrome; X-Env: staging`; GET
 and https otherwise). The rules that
 would act on it are numbered in the order they act: the first matching request
-breakpoint, then the Map or Block rule that wins, then the first matching
+breakpoint (after every matching Script rule), then the Map or Block rule that wins, then the first matching
 response breakpoint for a response from upstream, matched against the URL a
 Map Remote rule sent it to. The other rules fade; hovering one says why it does
 not act (disabled, inactive scenario, shadowed by a rule above, URL or method
@@ -401,8 +401,14 @@ Selection lives in the same `rules.json` snapshot (`scenario` and matching
 selection states and multiple active groups are rejected on load/save/apply.
 Changes affect new requests, never an in-flight response. Captured **Applied**
 evidence includes the scenario that actually won, so later switches do not
-rewrite its provenance. Mock payload files stay local; this is not a
-portable scenario export or a delay/fault-injection engine.
+rewrite its provenance. Map Local, Map Remote, Block and Script rules can belong
+to a scenario. This is not a delay/fault-injection engine.
+
+**Tools → Scenarios** lists the scenarios with their switches (one on at a time)
+and the rules in each: rename a scenario, rebuild one made from a collection's
+examples, ungroup its rules, or delete it with its rules and the mock files
+only they answer from. **Tools → Mocks** is the Rules page for the Map Local
+rules alone; a new rule there is a Map Local rule.
 
 ```json
 [
@@ -561,38 +567,55 @@ breakpoint.
 
 ## Scripts
 
-`~/.vscroxy/script.js` may define `onRequest(req)` and `onResponse(res)`.
-`req` has `method`, `url`, `headers` and `body`; `res` has `status`, `headers`
-and `body`. Edits are written back before the request goes upstream and before
-the response reaches the client.
+Rule scripts change requests and responses with JavaScript and the same `pm`
+API as request scripts. **Tools → Scripts** lists them, with the hooks each
+defines and how many rules run it; the chosen one is edited beside a
+**Console** of what it printed and the errors it hit as its rules ran (the last
+500 lines). **Insert snippet** adds common code. **Save** (Ctrl/Cmd+S) applies
+to new requests. Each script is a file under `~/.vscroxy/tools/scripts/`
+(`Name.js`) that can be edited by hand or kept in Git; **Reload configuration**
+reads them again. A script that does not parse is marked in the list and the
+editor, and its rules do nothing.
+
+A **Script** rule in **Tools → Rules** runs one script on the traffic it
+matches (URL, method, apps, headers and scenario, as other rules). Every
+matching Script rule runs, in order, before breakpoints and the Map and Block
+rules, each seeing what the ones before it changed.
 
 ```js
-function onRequest(req) {
-  if (req.url.includes("/v1/old")) req.url = req.url.replace("/v1/old", "/v1/new");
-  req.headers["X-Debug"] = "1";
+function onRequest() {
+  pm.request.headers.upsert("Authorization", "Bearer " + process.env.API_TOKEN);
+  pm.request.url.query.upsert("debug", "1");
+  pm.variables.set("startedAt", Date.now());
 }
 
-function onResponse(res) {
-  if (res.status === 404) {
-    res.status = 200;
-    res.body = JSON.stringify({ ok: true });
-    res.headers["Content-Type"] = "application/json";
+async function onResponse() {
+  console.log(pm.response.code, Date.now() - Number(pm.variables.get("startedAt")), "ms");
+  if (pm.response.code >= 500) {
+    pm.response.code = 200;
+    pm.response.setBody({ ok: true });
+    pm.response.headers.upsert("Content-Type", "application/json");
   }
 }
 ```
 
-Single header values are strings; repeated values are arrays of strings.
-For example, `res.headers["Set-Cookie"] = ["session=abc; Path=/", "csrf=xyz; Path=/"]`
-keeps two independent cookies. Assign a string to replace a field, an array for
-multiple values, or delete the property to remove it. Empty hooks preserve
-repeated fields.
-
-Each hook runs in a fresh sandbox with a 250 ms limit and no files or
-network; a hook that loops is interrupted and counted in the status bar.
-Top-level execution during startup/reload has the same 250 ms limit; a failed
-load returns an error instead of blocking initialization or replacing the active script.
-Streaming and SSE responses skip the response hook. **Reload configuration**
-rereads both the rules and the script.
+- `onRequest` edits `pm.request` (method, URL, headers, raw body) before it
+  goes upstream; `onResponse` edits `pm.response` before the client gets it:
+  assign `pm.response.code`, change `pm.response.headers` (`add`, `upsert`,
+  `remove`), and `pm.response.setBody(text or object)`. Either may be `async`.
+- `pm.variables` belong to one exchange, from its `onRequest` to its
+  `onResponse`, across every script that runs on it. `pm.globals` is shared by
+  all rules and saved; `pm.environment` reads the active environment and is
+  read-only here. `process.env` reads the system's environment variables.
+- `pm.sendRequest` goes straight to the server, not through the proxy, so a
+  script's own rule never matches it; it waits up to 30 seconds.
+- `require('crypto-js')`, `require('lodash')` and `require('chai')` work, as in
+  request scripts.
+- Bodies that are binary, compressed on the request side, or larger than 1 MiB
+  are not handed to the script and stay as they are. Streaming and SSE
+  responses skip `onResponse`.
+- Each hook has two seconds of run time; one that fails or times out leaves the
+  exchange as it was, is counted in the status bar and shows in the Console.
 
 ## Bodies
 
@@ -1146,7 +1169,8 @@ negated check. Local `$ref` references work; other schemas can be supplied with
 Async schemas (`$async`) are not supported. Validation runs within the script's
 normal time budget; scripts that do not use schema assertions do not load Ajv.
 
-**Script libraries**: `require('chai')` and `require('lodash')` are available
+**Script libraries**: `require('chai')`, `require('lodash')` and
+`require('crypto-js')` (CryptoJS 4.2.0, random numbers from the system) are available
 (also through `pm.require`). Lodash 4.18.1 is embedded in the app: no Node.js,
 npm installation or network download is needed. Use `const _ = require('lodash')`;
 there is no global `_` or legacy Lodash 3 alias. It loads on first use and is
@@ -1162,9 +1186,9 @@ pm.test('IDs are unique', () => {
 });
 ```
 
-Only these exact module names are supported, not npm packages, file paths,
+**Insert snippet** above the editor adds common code. Only these exact module names are supported, not npm packages, file paths,
 URLs or Lodash submodules such as `lodash/fp`. Other Postman sandbox libraries
-(moment, crypto-js, cheerio and so on), `pm.visualizer` and timers are not
+(moment, cheerio and so on), `pm.visualizer` and timers are not
 available. Lodash functions that need timers (`delay`, `defer`, `debounce`,
 `throttle`) are therefore not supported.
 
@@ -1701,6 +1725,14 @@ only: an app's icon lives in its executable's resources, which are not read
 yet.
 
 ## Settings
+
+**Settings → General → Back up and share** exports one JSON file with the
+settings, ignore and allow lists, HTTPS decryption, rules with the response
+files they answer from (up to 8 MiB each; folders stay paths), rule scripts,
+Host profiles and breakpoint templates. Secrets, variables and this computer's
+key log path are never included. **Import…** shows what a file holds and
+replaces only the parts chosen; imported mock files go into
+`~/.vscroxy/mocks/`, scripts of the same name are replaced.
 
 What you set stays between launches: the dark theme, the sidebar's width, how
 the table and the detail pane share the window, the inspector layout and sidebar

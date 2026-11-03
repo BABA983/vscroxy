@@ -217,6 +217,9 @@ const (
 	RuleBreak RuleType = "break"
 	// RuleBreakResponse pauses a matching response until the UI decides.
 	RuleBreakResponse RuleType = "break_response"
+	// RuleScript runs a script on a matching request and its response: the
+	// one its Target names, in the scripts folder (see ScriptRunner).
+	RuleScript RuleType = "script"
 )
 
 // What a Block rule does.
@@ -373,7 +376,7 @@ type Server struct {
 	}
 
 	scriptMu     sync.RWMutex
-	script       *Script
+	scripts      ScriptRunner
 	scriptErrors atomic.Int64
 
 	throttleMu sync.RWMutex
@@ -769,19 +772,6 @@ func (s *Server) hit(r Rule) {
 	}
 	s.hits[r.key()]++
 	s.rulesMu.Unlock()
-}
-
-// SetScript replaces the script the proxy runs. A nil script runs nothing.
-func (s *Server) SetScript(script *Script) {
-	s.scriptMu.Lock()
-	s.script = script
-	s.scriptMu.Unlock()
-}
-
-func (s *Server) currentScript() *Script {
-	s.scriptMu.RLock()
-	defer s.scriptMu.RUnlock()
-	return s.script
 }
 
 // SetUpstream sends every request through another proxy, as an empty string
@@ -1236,12 +1226,7 @@ func (a *addon) Request(f *proxy.Flow) {
 	// The buffered body and its trailers are complete before a breakpoint
 	// or a rule can publish a local response and short-circuit the exchange.
 	a.server.keepTrailers(f, "req", f.Request.Trailers())
-	script := a.server.currentScript()
-	if err := script.applyRequest(f); err != nil {
-		a.server.scriptErrors.Add(1)
-	} else if script != nil && script.hasRequest {
-		recordAction(f, "Request script")
-	}
+	a.server.runRequestScripts(f)
 	if d := a.server.maybeBreak(f, PhaseRequest); d != nil {
 		recordAction(f, "Request breakpoint applied")
 		if d.Abort {
@@ -1331,7 +1316,7 @@ func (a *addon) Response(f *proxy.Flow) {
 	// A response script or breakpoint edits the body in
 	// StreamResponseModifier, the only place the proxy still lets the reader
 	// be replaced: publish there, once the edits are in.
-	if a.server.currentScript().HasResponse() || a.server.willBreakResponse(f) {
+	if scriptsResponse(f) || a.server.willBreakResponse(f) {
 		return
 	}
 	a.server.publish(f)
@@ -1365,25 +1350,16 @@ func (a *addon) StreamResponseModifier(f *proxy.Flow, in io.Reader) io.Reader {
 		}
 		return a.server.throttleDown(in)
 	}
-	sc := a.server.currentScript()
-	scripted := sc.HasResponse()
+	scripted := scriptsResponse(f)
 	breaking := a.server.willBreakResponse(f)
 	if !scripted && !breaking {
 		return a.server.throttleDown(in)
 	}
-	body, err := f.Response.DecodedBody()
-	scripted = scripted && err == nil && len(body) <= maxScriptBody
-	if scripted {
-		f.Response.Body = body
-		if err := sc.applyResponse(f); err != nil {
-			a.server.scriptErrors.Add(1)
-		} else {
-			recordAction(f, "Response script")
-		}
-		clearBodyEncoding(f.Response.Header)
+	edited, bodyEdited := false, false
+	// A body the engine cannot decode is left to the breakpoint alone.
+	if body, err := f.Response.DecodedBody(); scripted && err == nil {
+		edited, bodyEdited = a.server.runResponseScripts(f, body)
 	}
-	edited := scripted
-	bodyEdited := scripted
 	if breaking {
 		if d := a.server.maybeBreak(f, PhaseResponse); d != nil {
 			recordAction(f, "Response breakpoint applied")
@@ -1403,7 +1379,7 @@ func (a *addon) StreamResponseModifier(f *proxy.Flow, in io.Reader) io.Reader {
 	a.server.publish(f)
 	// reply writes the returned reader and response.Body both: keep the
 	// reader, which carries the edit, and clear the field.
-	body = f.Response.Body
+	body := f.Response.Body
 	f.Response.Body = nil
 	return a.server.throttleDown(bytes.NewReader(body))
 }

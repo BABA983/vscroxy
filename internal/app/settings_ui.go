@@ -43,7 +43,18 @@ func (a *app) generalSettings(c *ui.Context, t *ui.Theme) {
 						a.reloadConfig()
 					}
 				})
-			}).Description("Read rules, Host profiles, ignore lists and the capture script from disk again.")
+			}).Description("Read rules, scripts, Host profiles and ignore lists from disk again.")
+			ui.Field(c, "Back up and share", func() {
+				ui.Row(c).Gap(t.Space(2)).Children(func() {
+					if uikit.SecondaryButton(c, "Export…").Clicked() {
+						a.chooseConfigExport()
+					}
+					if uikit.SecondaryButton(c, "Import…").Clicked() {
+						a.leaveSettings()
+						a.chooseConfigImport()
+					}
+				})
+			}).Description("One file with the settings, lists, rules and the files they answer from, rule scripts, Host profiles and breakpoint templates. Never secrets or variables.")
 		})
 		uikit.SettingsGroup(c, "Help", func() {
 			ui.Field(c, "Setup guide", func() {

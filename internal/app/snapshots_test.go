@@ -461,6 +461,36 @@ func TestUISnapshots(t *testing.T) {
 			a.openTools("rules")
 		}, want: "Get project · Not found"},
 		{name: "tools-rules-empty", setup: func(a *app) { a.openRules() }, want: "No rules"},
+		{name: "tools-rules-script", setup: func(a *app) {
+			snapshotRules(a)
+			snapshotScripts(a)
+			a.rules = append(a.rules, capture.Rule{Name: "Debug headers", Type: capture.RuleScript, Match: "api.example.com/v1/", Target: "Debug headers.js"})
+			a.editRule(len(a.rules)-1, a.rules[len(a.rules)-1])
+			a.openTools("rules")
+		}, want: "Edit script"},
+		{name: "tools-scripts", setup: func(a *app) {
+			snapshotScripts(a)
+			a.rules = []capture.Rule{{Name: "Debug headers", Type: capture.RuleScript, Match: "api.example.com/v1/", Target: "Debug headers.js"}}
+			a.openScript("Debug headers")
+		}, want: "Run by 1 rule"},
+		{name: "tools-scripts-problem", setup: func(a *app) {
+			snapshotScripts(a)
+			a.openScript("Broken")
+		}, want: "No rule runs it yet"},
+		{name: "tools-scripts-empty", setup: func(a *app) { a.openTools("scripts") }, want: "No scripts"},
+		{name: "tools-scenarios", setup: func(a *app) { snapshotRules(a); a.openTools("scenarios") }, want: "On: its rules apply"},
+		{name: "tools-scenarios-empty", setup: func(a *app) { a.openTools("scenarios") }, want: "No scenarios"},
+		{name: "tools-mocks", setup: func(a *app) { snapshotRules(a); a.openTools("mocks") }, want: "Map Local rules: answers from local files"},
+		{name: "tools-mocks-empty", setup: func(a *app) { a.openTools("mocks") }, want: "No mocks"},
+		{name: "dialog-config-import", setup: func(a *app) {
+			snapshotRules(a)
+			b, _ := a.exportConfig()
+			b.Exported = snapshotTime
+			b.Mocks = map[string][]byte{"user.json": []byte("{}")}
+			b.Scripts = map[string]string{"Debug headers": ""}
+			b.Hosts = &hosts.Set{Profiles: []hosts.Profile{{Name: "Staging"}, {Name: "Default"}}}
+			a.configImport = configImport{open: true, path: "/Users/me/vscroxy-config.json", bundle: b, parts: [3]bool{true, true, false}}
+		}, want: "Rules, mocks and scripts", short: true},
 		{name: "dialog-breakpoint", setup: snapshotBreakpoint, want: "Breakpoint · request paused", short: true},
 		{name: "dialog-breakpoint-readonly", setup: func(a *app) {
 			snapshotBreakpoint(a)
@@ -812,6 +842,29 @@ func snapshotRules(a *app) {
 		{Name: "Pause user requests", Type: capture.RuleBreak, Match: "/v1/users"},
 		{Name: "Inspect payments", Type: capture.RuleBreakResponse, Match: "/v1/payments", Method: "POST"},
 		{Name: "Offline users", Type: capture.RuleBlock, Match: "api.example.com/v1/users", Scenario: "Offline demo", ScenarioActive: true},
+	}
+}
+
+func snapshotScripts(a *app) {
+	s := &a.scripts
+	s.names = []string{"Broken", "Debug headers"}
+	s.texts = map[string]string{
+		"Debug headers": "// Tag requests to the API, and see what came back.\nfunction onRequest() {\n  pm.request.headers.upsert(\"X-Debug\", \"1\");\n  pm.variables.set(\"startedAt\", Date.now());\n}\n\nfunction onResponse() {\n  console.log(pm.response.code, Date.now() - Number(pm.variables.get(\"startedAt\")), \"ms\");\n  if (pm.response.code >= 500) pm.response.code = 200;\n}\n",
+		"Broken":        "function onRequest() {\n  pm.request.headers.upsert(\n}\n",
+	}
+	s.problems = map[string]error{}
+	s.parsed = map[string]*request.ProxyScript{}
+	for name, text := range s.texts {
+		if p, err := request.ParseProxyScript(text); err != nil {
+			s.problems[name] = err
+		} else {
+			s.parsed[scriptFile(name)] = p
+		}
+	}
+	s.console = []scriptLog{
+		{at: snapshotTime, script: "Debug headers", rule: "Debug headers", phase: "response", kind: "log", text: "200 48 ms"},
+		{at: snapshotTime.Add(2 * time.Second), script: "Debug headers", rule: "Debug headers", phase: "response", kind: "log", text: "503 112 ms"},
+		{at: snapshotTime.Add(3 * time.Second), script: "Debug headers", rule: "Debug headers", phase: "request", kind: "error", text: "TypeError: Cannot read property 'id' of undefined at request.js:4:12(9)"},
 	}
 }
 
