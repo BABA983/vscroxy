@@ -129,6 +129,25 @@ func main() {
 }'
 `,
 	}
+	want["Node.js (fetch)"] = "// Node.js 18+; save as .mjs. No browser cookie jar or CORS restrictions.\n" + want["JavaScript (fetch)"]
+	want["PowerShell"] = `# PowerShell 7+; scripts and variables are not evaluated by vscroxy.
+$request = @{
+  Uri = "https://api.example.com/items?a=1&b=%20x"
+  CustomMethod = "POST"
+  MaximumRedirection = 0
+  SkipHttpErrorCheck = $true
+  SkipHeaderValidation = $true
+  ContentType = "application/json"
+  Headers = @{
+    "X-Dup" = "a, b"
+    "X-Quote" = "say ` + bt + `"hi` + bt + `" \ 'x'"
+  }
+  Body = [System.Text.Encoding]::UTF8.GetBytes("{$([char]10)  ` + bt + `"q` + bt + `": ` + bt + `"say \` + bt + `"hi\` + bt + `"` + bt + `",$([char]10)  ` + bt + `"tpl` + bt + `": ` + bt + `"` + bt + `${x} ` + bt + bt + `tick` + bt + bt + bt + `"$([char]10)}")
+}
+$response = Invoke-WebRequest @request
+$response.StatusCode
+$response.Content
+`
 	for _, language := range SnippetLanguages {
 		got, err := Snippet(language, snippetRequest())
 		if err != nil {

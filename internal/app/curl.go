@@ -40,6 +40,12 @@ var curlSkip = map[string]bool{
 // curlCommand writes the flow's request as a curl command line, the way it
 // would be run from a terminal.
 func curlCommand(f flow) (string, error) {
+	return curlCommandFor(f, false)
+}
+
+// CMD uses curl.exe, never PowerShell's historical curl alias. Its command
+// line and encoding limits are stricter than Bash's; refuse lossy output.
+func curlCommandFor(f flow, cmd bool) (string, error) {
 	if f.kind == "connect" || f.kind == "ws" || len(f.reqTrailer) > 0 {
 		return "", errors.New("cURL export requires an HTTP request without request trailers; tunnels and WebSocket exchanges are not replayable this way")
 	}
@@ -98,11 +104,22 @@ func curlCommand(f flow) (string, error) {
 	stdinBody := len(body)+3*strings.Count(body, "'")+2 > 32<<10 || !utf8.ValidString(body) || strings.IndexFunc(body, func(r rune) bool {
 		return unicode.IsControl(r) && r != '\n' && r != '\t'
 	}) >= 0
+	quote := shellQuote
+	if cmd {
+		if stdinBody {
+			return "", errors.New("CMD cannot preserve this binary, control-byte or large body; copy as cURL (Bash) instead")
+		}
+		quote = cmdQuote
+	}
 	var b strings.Builder
 	if stdinBody {
 		b.WriteString("base64 -d <<'VSCROXY_BODY' | ")
 	}
-	b.WriteString("curl -q --path-as-is")
+	if cmd {
+		b.WriteString("curl.exe -q --path-as-is")
+	} else {
+		b.WriteString("curl -q --path-as-is")
+	}
 	if strings.ContainsAny(f.url, "{}[]") {
 		b.WriteString(" --globoff")
 	}
@@ -117,7 +134,7 @@ func curlCommand(f flow) (string, error) {
 		}
 		b.WriteString(" --head")
 	} else if method != "GET" || hasBody {
-		b.WriteString(" -X " + shellQuote(method))
+		b.WriteString(" -X " + quote(method))
 	}
 	for _, key := range slices.Sorted(maps.Keys(headers)) {
 		if skip[strings.ToLower(key)] {
@@ -131,7 +148,7 @@ func curlCommand(f flow) (string, error) {
 			if len(line) > 32<<10 {
 				return "", errors.New("request header exceeds the portable cURL argument limit (32 KiB)")
 			}
-			b.WriteString(" -H " + shellQuote(line))
+			b.WriteString(" -H " + quote(line))
 		}
 	}
 	if headers.Get("Accept-Encoding") != "" && !skip["accept-encoding"] {
@@ -139,20 +156,20 @@ func curlCommand(f flow) (string, error) {
 	}
 	for _, name := range []string{"Accept", "User-Agent", "Content-Type"} {
 		if len(headers.Values(name)) == 0 || skip[strings.ToLower(name)] {
-			b.WriteString(" -H " + shellQuote(name+":"))
+			b.WriteString(" -H " + quote(name+":"))
 		}
 	}
 	if hasBody {
 		if stdinBody {
 			b.WriteString(" --data-binary @-")
 		} else {
-			b.WriteString(" --data-raw " + shellQuote(body))
+			b.WriteString(" --data-raw " + quote(body))
 		}
 	}
 	if len(f.url) > 32<<10 || b.Len() > 128<<10 {
 		return "", errors.New("request URL or headers exceed the portable cURL argument limit")
 	}
-	b.WriteString(" --url " + shellQuote(f.url))
+	b.WriteString(" --url " + quote(f.url))
 	if stdinBody {
 		encoded := base64.StdEncoding.EncodeToString([]byte(body))
 		for len(encoded) > 0 {
@@ -168,7 +185,41 @@ func curlCommand(f flow) (string, error) {
 	if !utf8.ValidString(b.String()) || strings.ContainsRune(b.String(), 0) {
 		return "", errors.New("cURL arguments must be UTF-8 text without NUL bytes")
 	}
+	if cmd {
+		// ! is expanded even inside quotes with delayed expansion enabled;
+		// non-ASCII command text depends on the console's active code page.
+		if len(b.String()) > 8000 || strings.ContainsFunc(b.String(), func(r rune) bool { return r > 126 || r == '!' || r < 32 && r != '\n' }) {
+			return "", errors.New("CMD export requires ASCII without delayed-expansion markers and at most 8000 characters; use Bash or PowerShell instead")
+		}
+	}
 	return b.String(), nil
+}
+
+// Adapted from Chromium DevTools generateCurlCommand's escapeStringWin.
+// Quotes survive both cmd.exe and the Windows C runtime argument parser.
+// See THIRD_PARTY_NOTICES.md. Intended for interactive CMD, not .bat files.
+func cmdQuote(s string) string {
+	var b strings.Builder
+	b.WriteString(`^"`)
+	s = strings.ReplaceAll(strings.ReplaceAll(s, `\`, `\\`), `"`, `\"`)
+	for i, r := range s {
+		switch {
+		case r == '\n':
+			b.WriteString("^\n\n")
+		case r == '%':
+			b.WriteString("^%")
+			if i+1 < len(s) && (s[i+1] >= 'a' && s[i+1] <= 'z' || s[i+1] >= 'A' && s[i+1] <= 'Z' || s[i+1] >= '0' && s[i+1] <= '9' || s[i+1] == '_') {
+				b.WriteByte('^')
+			}
+		case r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || strings.ContainsRune(" _-:=+~'/.,?;*", r):
+			b.WriteRune(r)
+		default:
+			b.WriteByte('^')
+			b.WriteRune(r)
+		}
+	}
+	b.WriteString(`^"`)
+	return b.String()
 }
 
 // shellQuote quotes s for a POSIX shell, so a body with quotes survives.

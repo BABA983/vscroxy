@@ -54,6 +54,22 @@ func TestCurlCommandGetsOnlyTheURL(t *testing.T) {
 	}
 }
 
+func TestCurlCMD(t *testing.T) {
+	got, err := curlCommandFor(flow{method: "PATCH", url: "https://example.test/?x=%PATH%&q=1", reqHeader: http.Header{"Content-Type": {"application/json"}}, reqBody: "{\n\"path\":\"C:\\tmp\"\n}"}, true)
+	want := "curl.exe -q --path-as-is -X ^\"PATCH^\" -H ^\"Content-Type: application/json^\" -H ^\"Accept:^\" -H ^\"User-Agent:^\" --data-raw ^\"^{^\n\n^\\^\"path^\\^\":^\\^\"C:^\\^\\tmp^\\^\"^\n\n^}^\" --url ^\"https://example.test/?x=^%^PATH^%^&q=1^\""
+	if err != nil || got != want {
+		t.Fatalf("CMD = %q, %v; want %q", got, err, want)
+	}
+	for _, body := range []string{"中文", "delayed!value", "a\rb", "a\x00b", strings.Repeat("x", 8000)} {
+		if _, err := curlCommandFor(flow{url: "https://example.test", reqBody: body}, true); err == nil {
+			t.Fatalf("CMD accepted lossy body %q", body[:min(len(body), 30)])
+		}
+	}
+	if _, err := curlCommandFor(flow{url: "https://example.test", reqBody: "preview", reqSize: 99}, true); err == nil {
+		t.Fatal("CMD accepted a truncated capture")
+	}
+}
+
 func TestParseCurlRequestData(t *testing.T) {
 	for _, tc := range []struct {
 		name, command, method, url, body string

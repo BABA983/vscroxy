@@ -16,7 +16,7 @@ import (
 )
 
 // SnippetLanguages lists the languages Snippet writes, in menu order.
-var SnippetLanguages = []string{"JavaScript (fetch)", "Node.js (axios)", "Python (requests)", "Go (net/http)", "HTTPie"}
+var SnippetLanguages = []string{"JavaScript (fetch)", "Node.js (fetch)", "PowerShell", "Node.js (axios)", "Python (requests)", "Go (net/http)", "HTTPie"}
 
 // snippetSkip are the headers every client computes itself. Host is kept
 // only when it names another host than the URL does.
@@ -68,7 +68,11 @@ func Snippet(language string, req *Prepared) (string, error) {
 	}
 	switch language {
 	case "JavaScript (fetch)":
-		return fetchSnippet(method, req, headers)
+		return fetchSnippet(method, req, headers, false)
+	case "Node.js (fetch)":
+		return fetchSnippet(method, req, headers, true)
+	case "PowerShell":
+		return powerShellSnippet(method, req, headers)
 	case "Node.js (axios)":
 		return axiosSnippet(method, req, headers), nil
 	case "Python (requests)":
@@ -106,11 +110,14 @@ func joined(h snippetHeader, language string) (string, error) {
 	return strings.Join(h.values, ", "), nil
 }
 
-func fetchSnippet(method string, req *Prepared, headers []snippetHeader) (string, error) {
+func fetchSnippet(method string, req *Prepared, headers []snippetHeader, node bool) (string, error) {
 	if req.Body != "" && (strings.EqualFold(method, "GET") || strings.EqualFold(method, "HEAD")) {
 		return "", fmt.Errorf("fetch cannot send a body with %s; copy it as cURL instead", method)
 	}
 	var b strings.Builder
+	if node {
+		b.WriteString("// Node.js 18+; save as .mjs. No browser cookie jar or CORS restrictions.\n")
+	}
 	b.WriteString("const response = await fetch(" + cQuote(req.URL, true, false) + ", {\n")
 	b.WriteString("  method: " + cQuote(method, true, false) + ",\n")
 	if len(headers) > 0 {
