@@ -184,6 +184,48 @@ type protoResult struct {
 
 func grpcContentType(ct string) bool { return strings.HasPrefix(ct, "application/grpc") }
 
+// A WebSocket data message is raw protobuf, never a guessed gRPC envelope.
+// Read the complete retained payload off-thread, and refuse partial evidence.
+func inspectProtoMessage(ctx context.Context, m messageView, schema *protoSchema, name string) protoResult {
+	var result protoResult
+	data := []byte(m.data)
+	if m.file != "" {
+		var err error
+		data, err = readProtoFile(m.file)
+		if err != nil {
+			result.problem = err.Error()
+			return result
+		}
+	}
+	if len(data) < m.size {
+		result.problem = fmt.Sprintf("Incomplete message: %d of %d bytes retained", len(data), m.size)
+		return result
+	}
+	if len(data) > 16<<20 {
+		result.problem = "Protobuf inspection is limited to 16 MiB per message"
+		return result
+	}
+	if err := ctx.Err(); err != nil {
+		result.problem = err.Error()
+		return result
+	}
+	desc, err := schema.message(name, "", false)
+	if err == nil {
+		if desc != nil {
+			result.typeName = string(desc.FullName())
+		}
+		var text string
+		text, err = protoMessageText(data, schema, desc)
+		if err == nil {
+			result.messages = []protoMessage{{text: text, size: len(data)}}
+		}
+	}
+	if err != nil {
+		result.problem = err.Error()
+	}
+	return result
+}
+
 // inspectProto reads the complete retained body, not the formatted Body preview.
 // A gRPC envelope is parsed only for a gRPC content type, never guessed from a
 // leading zero byte. Every frame is accounted for, including empty messages.

@@ -21,6 +21,8 @@ type websocketWorkbench struct {
 	subprotocols, encoding                           string
 	session                                          *wsSession
 	picked                                           int
+	viewMode                                         int
+	protobuf                                         protoInspector
 	reader                                           *editor.State
 	sent                                             chan error
 	sending                                          bool
@@ -160,17 +162,14 @@ func (a *app) socketModal(c *ui.Context, t *ui.Theme) {
 						}
 						if b.Clicked() {
 							s.picked = e.Sequence
-							text := e.Detail
-							if e.Direction != "" {
-								text = string(e.Data)
-								if e.Kind == websocket.BinaryMessage || !utf8.Valid(e.Data) {
-									text = hex.Dump(e.Data)
-								}
+							s.viewMode = 0
+							if e.Kind == websocket.BinaryMessage {
+								s.viewMode = 1
 							}
-							if len(e.Data) < e.Size {
-								text += fmt.Sprintf("\nRetained %d of %d bytes", len(e.Data), e.Size)
+							if !utf8.Valid(e.Data) {
+								s.viewMode = 1
 							}
-							s.reader = &editor.State{Buffer: editor.NewBuffer(text), ReadOnly: true, NoScrollPastEnd: true, Label: "Session payload"}
+							s.reader = &editor.State{Buffer: editor.NewBuffer(e.Detail), ReadOnly: true, NoScrollPastEnd: true, Label: "Session payload"}
 						}
 					}
 				})
@@ -178,13 +177,34 @@ func (a *app) socketModal(c *ui.Context, t *ui.Theme) {
 					if s.reader == nil {
 						uikit.Hint(c, "Select a message or connection event. Binary payloads display as hex.")
 					} else {
+						for _, e := range events {
+							if e.Sequence != s.picked || e.Direction == "" {
+								continue
+							}
+							uikit.Segmented(c, &s.viewMode, "Text", "Hex", "Protobuf").Label("Session payload format")
+							if s.viewMode == 2 {
+								s.protobuf.message(c, a, fmt.Sprintf("socket:%p:%d", s.session, e.Sequence), messageView{data: string(e.Data), size: e.Size})
+								return
+							}
+							text := string(e.Data)
+							if s.viewMode == 1 {
+								text = hex.Dump(e.Data)
+							}
+							if len(e.Data) < e.Size {
+								text += fmt.Sprintf("\nRetained %d of %d bytes", len(e.Data), e.Size)
+							}
+							if s.reader.Buffer.String() != text {
+								s.reader.Buffer = editor.NewBuffer(text)
+							}
+							break
+						}
 						requestCodeEditor(c, s.reader)
 					}
 				})
 			})
 			uikit.Meta(c, "Latest 200 events · 64 KiB retained per message · 1 MiB receive/send limit. Close codes are shown only when a peer close frame was observed. Full proxy-captured traffic remains in Capture.")
 			uikit.DialogFooter(c).Children(func() {
-				if uikit.SecondaryButton(c, "Copy shown payload").Disabled(s.reader == nil).Tooltip("Copies displayed text/hex, not hidden bytes; review secrets before sharing").Clicked() {
+				if uikit.SecondaryButton(c, "Copy shown payload").Disabled(s.reader == nil || s.viewMode == 2).Tooltip("Copies displayed text/hex; use Copy decoded in Protobuf mode").Clicked() {
 					c.Services().WriteClipboard(s.reader.Buffer.String())
 				}
 				if uikit.SecondaryButton(c, "Disconnect & close").Clicked() {
@@ -195,5 +215,8 @@ func (a *app) socketModal(c *ui.Context, t *ui.Theme) {
 		})
 	}).Dismissed() {
 		s.session.disconnect()
+	}
+	if !s.open {
+		s.protobuf.stop()
 	}
 }

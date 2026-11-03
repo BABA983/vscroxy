@@ -65,8 +65,7 @@ func (p *protoInspector) stop() {
 	p.key = ""
 }
 
-func (p *protoInspector) inspect(c *ui.Context, a *app, f flow, response bool) {
-	key := fmt.Sprintf("%d:%t:%s:%p", f.id, response, p.name, p.schema)
+func (p *protoInspector) inspect(c *ui.Context, a *app, key string, read func(context.Context) protoResult) {
 	if key != p.key {
 		p.stop()
 		p.key, p.selected, p.query = key, 0, ""
@@ -74,9 +73,8 @@ func (p *protoInspector) inspect(c *ui.Context, a *app, f flow, response bool) {
 		ctx, cancel := context.WithCancel(context.Background())
 		answers := make(chan protoResult, 1)
 		p.cancel, p.answers = cancel, answers
-		schema, name := p.schema, p.name
 		go func() {
-			result := inspectProto(ctx, f, response, schema, name)
+			result := read(ctx)
 			select {
 			case answers <- result:
 				a.invalidate()
@@ -95,8 +93,34 @@ func (p *protoInspector) inspect(c *ui.Context, a *app, f flow, response bool) {
 }
 
 func (p *protoInspector) view(c *ui.Context, a *app, f flow, side int) {
-	t := c.Theme()
 	response := side == 0
+	p.controls(c, p)
+	schema, name := p.schema, p.name
+	p.inspect(c, a, fmt.Sprintf("%d:%t:%s:%p", f.id, response, name, schema), func(ctx context.Context) protoResult {
+		return inspectProto(ctx, f, response, schema, name)
+	})
+	if grpcContentType(f.contentType(response)) {
+		uikit.Meta(c, grpcStatus(f)).Padding(0, c.Theme().Space(3), c.Theme().Space(2), c.Theme().Space(3))
+	}
+	p.resultView(c, a)
+}
+
+func (p *protoInspector) message(c *ui.Context, a *app, key string, m messageView) {
+	p.schema = a.protobuf.schema
+	ui.Scroll(c).Label("Message Protobuf reader").Grow(1).MinHeight(0).FillWidth().Children(func() {
+		ui.Column(c).Fill().MinHeight(320).Children(func() {
+			p.controls(c, &a.protobuf)
+			schema, name := p.schema, p.name
+			p.inspect(c, a, fmt.Sprintf("message:%s:%s:%p", key, name, schema), func(ctx context.Context) protoResult {
+				return inspectProtoMessage(ctx, m, schema, name)
+			})
+			p.resultView(c, a)
+		})
+	})
+}
+
+func (p *protoInspector) controls(c *ui.Context, registry *protoInspector) {
+	t := c.Theme()
 	// Keep the type and its schema together; only search wraps in a narrow
 	// inspector. Both fields share the surrounding controls' density.
 	ui.Row(c).Padding(t.Space(2), t.Space(3)).Gap(t.Space(2)).Wrap().AlignItems(ui.Center).Children(func() {
@@ -109,12 +133,12 @@ func (p *protoInspector) view(c *ui.Context, a *app, f flow, side int) {
 				p.name = "Auto"
 			}
 			field := ui.Combobox(c, &p.name, options).Label("Protobuf message type").
-				Tooltip("Message type · Auto resolves the gRPC method using the loaded schema").
+				Tooltip("Auto resolves HTTP gRPC methods; WebSocket messages remain schema-less until you choose a type").
 				Grow(1).MinWidth(0).Height(uikit.HeightControl).Padding(0, t.Space(2)).
 				FontSize(uikit.TextBody).Radius(uikit.RadiusControl).FocusRing(false)
 			uikit.FieldFace(c, field, field.Focused())
 			if uikit.SecondaryButton(c, "Schema…").Shrink(0).Clicked() {
-				p.open = true
+				registry.open = true
 			}
 		})
 		search := ui.SearchField(c, &p.query).Label("Search protobuf messages").Placeholder("Search messages…").
@@ -122,16 +146,19 @@ func (p *protoInspector) view(c *ui.Context, a *app, f flow, side int) {
 			FontSize(uikit.TextBody).Radius(uikit.RadiusControl).FocusRing(false)
 		uikit.FieldFace(c, search, search.Focused())
 	})
-	p.inspect(c, a, f, response)
-	if grpcContentType(f.contentType(response)) {
-		uikit.Meta(c, grpcStatus(f)).Padding(0, t.Space(3), t.Space(2), t.Space(3))
-	}
+}
+
+func (p *protoInspector) resultView(c *ui.Context, a *app) {
+	t := c.Theme()
 	if p.answers != nil {
-		uikit.Hint(c, "Reading complete retained body…").Padding(t.Space(3))
+		uikit.Hint(c, "Reading complete retained payload…").Padding(t.Space(3))
 		return
 	}
 	if p.result.problem != "" {
 		ui.Text(c, p.result.problem).FontSize(uikit.TextMeta).TextColor(t.Danger).Padding(0, t.Space(3), t.Space(2), t.Space(3))
+		if len(p.result.messages) == 0 {
+			return
+		}
 	}
 	note := "Schema-less: field numbers, not names. Load a schema to resolve types."
 	if p.result.typeName != "" {

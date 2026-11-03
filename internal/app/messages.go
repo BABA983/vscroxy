@@ -333,13 +333,21 @@ func (m messageView) detail(c *ui.Context, a *app, f flow, p *messagePanel) {
 			}
 		})
 		ui.Row(c).Padding(0, t.Space(3), t.Space(2), t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-			uikit.Segmented(c, &p.mode, "Text", "Hex").Label("Show as")
+			modes := []string{"Text", "Hex"}
+			if f.kind == "ws" && (m.kind == "text" || m.kind == "binary") {
+				modes = append(modes, "Protobuf")
+			}
+			uikit.Segmented(c, &p.mode, modes...).Label("Show as")
 			uikit.Meta(c, m.meta()).SingleLine().Grow(1).Tooltip(m.meta())
 		})
 		ui.Divider(c)
 		if p.loadedError != "" {
 			ui.Text(c, "Payload unavailable; showing inline preview: "+p.loadedError).FontSize(uikit.TextMeta).
 				TextColor(t.Danger).Background(t.Danger.Alpha(0.12)).Padding(t.Space(1), t.Space(3)).FillWidth()
+		}
+		if p.mode == 2 {
+			a.protobuf.message(c, a, fmt.Sprintf("capture:%d:%d", f.id, m.seq), m)
+			return
 		}
 		if len(payload) == 0 {
 			uikit.Hint(c, "Empty message").Padding(t.Space(3))
@@ -421,6 +429,8 @@ type messagePanel struct {
 	mode       int // 0 text, 1 hex
 	modeFor    int
 	split      float32
+	rowHeight  float32
+	panes      ui.Handle
 	list       ui.ListState
 	paused     bool
 	frozen     []messageView
@@ -547,7 +557,14 @@ func (p *messagePanel) view(c *ui.Context, a *app, f flow, list []messageView) {
 		p.selected = len(visible) - 1
 	}
 	p.selected = min(max(p.selected, 0), max(len(visible)-1, 0))
-	ui.Split(c, &p.split, func() {
+	panes, position := ui.Split, &p.split
+	if width := p.panes.Bounds(c).W; width > 0 && width < 640 {
+		panes, position = ui.SplitVertical, &p.rowHeight
+		if p.rowHeight == 0 {
+			p.rowHeight = 120
+		}
+	}
+	panes(c, position, func() {
 		p.list.Key = func(i int) any {
 			if seq := visible[i].seq; seq > 0 {
 				return seq
@@ -589,7 +606,7 @@ func (p *messagePanel) view(c *ui.Context, a *app, f flow, list []messageView) {
 			p.selected = len(visible) - 1
 		}
 		visible[p.selected].detail(c, a, f, p)
-	}).Grow(1)
+	}).Bind(&p.panes).Grow(1)
 	if p.exportOpen {
 		p.exportModal(c, a, f, list, visible)
 	}

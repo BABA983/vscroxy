@@ -176,6 +176,13 @@ func TestUISnapshots(t *testing.T) {
 				{seq: 2, direction: "in", kind: "text", data: `{"symbol":"GO","price":73}`, size: 26, kept: 26, at: snapshotTime.Add(time.Second)},
 			}}
 		}, want: "Messages"},
+		{name: "capture-ws-protobuf", setup: func(a *app) {
+			a.flows[0].kind, a.flows[0].status = "ws", 101
+			a.frames = map[int][]frame{1: {{seq: 1, direction: "in", kind: "binary", data: "\x08\x49\x12\x04Demo", size: 8, kept: 8, at: snapshotTime}}}
+		}, act: func(t *testing.T, tt *ui.Tester) {
+			click("Messages")(t, tt)
+			click("Protobuf")(t, tt)
+		}, want: "1 of 1 messages"},
 		{name: "capture-sse", setup: func(a *app) {
 			a.flows[0].kind = "sse"
 			a.frames = map[int][]frame{1: {{seq: 1, direction: "in", kind: "event", eventName: "price", eventID: "73", data: "updated", size: 7, kept: 7, at: snapshotTime}}}
@@ -582,6 +589,20 @@ func TestUISnapshots(t *testing.T) {
 		{name: "dialog-protobuf", setup: func(a *app) { a.protobuf.open, a.protobuf.problem = true, "Missing import: common.proto" }, want: "Protobuf schema", short: true},
 		{name: "dialog-protobuf-busy", setup: func(a *app) { a.protobuf.open, a.protobuf.loading = true, true }, want: "Compiling and linking schema…"},
 		{name: "dialog-socket", setup: func(a *app) { a.socket.open, a.socket.url = true, "wss://api.example.com/events" }, want: "WebSocket session · Not connected", short: true},
+		{name: "dialog-socket-protobuf", setup: func(a *app) {
+			a.socket.open, a.socket.url = true, "wss://api.example.com/events"
+			a.socket.session = &wsSession{state: "Disconnected", events: []wsSessionEvent{{Sequence: 1, At: snapshotTime, Direction: "In", Kind: websocket.BinaryMessage, Data: []byte("\x08\x49\x12\x04Demo"), Size: 8}}}
+		}, act: func(t *testing.T, tt *ui.Tester) {
+			click("Session message 1")(t, tt)
+			click("Protobuf")(t, tt)
+		}, want: "1 of 1 messages", short: true},
+		{name: "dialog-socket-truncated", setup: func(a *app) {
+			a.socket.open, a.socket.url = true, "wss://api.example.com/events"
+			a.socket.session = &wsSession{state: "Disconnected", events: []wsSessionEvent{{Sequence: 1, At: snapshotTime, Direction: "In", Kind: websocket.BinaryMessage, Data: []byte("\x08\x49"), Size: 512}}}
+		}, act: func(t *testing.T, tt *ui.Tester) {
+			click("Session message 1")(t, tt)
+			click("Protobuf")(t, tt)
+		}, want: "Incomplete message: 2 of 512 bytes retained", short: true},
 		{name: "dialog-socket-payload", setup: func(a *app) {
 			a.socket.open, a.socket.url = true, "wss://api.example.com/events"
 			a.socket.encoding, a.socket.message, a.socket.subprotocols = "Hex", "01 7f a3", "events.v2, events.v1"
@@ -792,6 +813,7 @@ func TestUISnapshots(t *testing.T) {
 							a.appearance = appearanceOf(dark)
 							a.workbench.layout = layout
 							t.Cleanup(a.protobuf.stop)
+							t.Cleanup(a.socket.protobuf.stop)
 							if state.setup != nil {
 								state.setup(a)
 							}
@@ -813,7 +835,7 @@ func TestUISnapshots(t *testing.T) {
 							// an arbitrary sleep, and never capture an intermediate frame.
 							deadline := time.NewTimer(time.Minute)
 							defer deadline.Stop()
-							for a.protobuf.answers != nil {
+							for a.protobuf.answers != nil || a.socket.protobuf.answers != nil {
 								select {
 								case <-deadline.C:
 									t.Fatal("protobuf render did not settle")

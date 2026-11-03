@@ -948,6 +948,17 @@ the same connection, search retained payloads/events and filter In/Out/Events.
 Select a message to read/copy text or binary hex; copying includes any truncation
 notice and copies displayed text/hex, not a binary clipboard format.
 
+Both the live session payload and Capture's WebSocket **Messages** detail offer
+an explicit **Protobuf** view. It decodes one complete raw protobuf message,
+never guesses a gRPC envelope or a schema from the bytes. **Auto** shows field
+numbers; import a schema with **Schema…** and choose its message type for named
+fields. The schema registry is shared with the HTTP body inspector; type and
+selection in the live panel are independent. **Copy decoded** copies the full
+decoded text; Text/Hex and their raw copy actions remain available. Truncated
+payloads, missing spill files and malformed protobuf show an error, not a
+partial message presented as complete. Inspection is off-thread and limited to
+16 MiB per message (the live timeline's smaller retention limit still applies).
+
 The timeline keeps the latest 200 events, at most 64 KiB per payload, original
 byte counts and an eviction count. Messages over 1 MiB end the receive stream;
 sends are also limited to 1 MiB. It follows the bottom until scrolled away;

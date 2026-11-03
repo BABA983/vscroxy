@@ -323,7 +323,7 @@ Cookie 和其他 API key 保留为变量 header，避免把多个认证机制硬
 ### M8：协议扩展
 
 - gRPC 客户端首版已完成（[使用指南](guide.md#interactive-grpc-requests)）：独立引擎与请求文档两个提交阶段；proto／descriptor set 导入、v1／v1alpha 反射、四种调用方式、双向实时收发、metadata／trailers／结构化错误状态、deadline／取消，schema 随请求保存。TLS 校验；HTTPS 通过运行中的抓包代理，h2c 明确直连不抓包。暂不接 HTTP 脚本／Checks／Runner／History；无自动重连或重发。
-- WebSocket：二进制与子协议已完成（Hex／Base64 发送、WS／WSS 双侧协商）；消息断点、脚本钩子、消息 Protobuf 解码待做。
+- WebSocket：二进制与子协议已完成（Hex／Base64 发送、WS／WSS 双侧协商）；实时会话与抓包消息的显式 Protobuf 解码已完成（复用 schema，拒绝截断消息）；消息断点、脚本钩子待做。
 - SSE 客户端、Socket.IO 客户端、MCP 客户端、MQTT 客户端。
 
 ### M9：自动化和生态

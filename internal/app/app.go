@@ -1438,7 +1438,8 @@ func (a *app) view(c *ui.Context) {
 			protobufShowing = true
 		}
 	}
-	if !bodyShowing || !protobufShowing {
+	messageProtoShowing := a.page.capture() && ok && a.inspect.pane == inspectorMessages && a.messageUI.mode == 2
+	if !messageProtoShowing && (!bodyShowing || !protobufShowing) {
 		a.protobuf.stop()
 	}
 	// Last, since every SetTheme above paints the root again: the sidebar's
@@ -2362,6 +2363,7 @@ func Run() error {
 	defer a.views.stopSearch()
 	defer a.messageUI.stopSearch()
 	defer a.protobuf.stop()
+	defer a.socket.protobuf.stop()
 	defer func() {
 		if a.runner.cancel != nil {
 			a.runner.cancel()

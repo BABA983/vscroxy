@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"runtime"
 	"slices"
 	"strings"
@@ -15,6 +17,84 @@ import (
 	"github.com/egoist/mygo/ui"
 	"github.com/gorilla/websocket"
 )
+
+func TestWebSocketMessageProtobufViews(t *testing.T) {
+	_, schema, _ := protoFixture(t)
+	data := []byte("\x0a\x05alpha\x10\x03")
+	file := filepath.Join(t.TempDir(), "message.bin")
+	if err := os.WriteFile(file, data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	for _, surface := range []string{"session", "capture"} {
+		for _, tc := range []struct {
+			name, data, file, want string
+			size                   int
+		}{
+			{"complete", string(data), "", `title: "alpha" delta: -2`, len(data)},
+			{"empty", "", "", "(empty message)", 0},
+			{"truncated-valid-prefix", string(data[:7]), "", "Incomplete message: 7 of 9 bytes retained", len(data)},
+			{"malformed", "\x0a\x05a", "", "cannot parse invalid wire-format data", 3},
+			{"spill", "\x0a", file, `title: "alpha" delta: -2`, len(data)},
+			{"missing-spill", string(data), file + ".missing", "no such file", len(data)},
+		} {
+			if surface == "session" && tc.file != "" {
+				continue
+			}
+			t.Run(surface+"/"+tc.name, func(t *testing.T) {
+				a := workspaceApp()
+				a.protobuf.schema = schema
+				m := messageView{seq: 1, kind: "binary", direction: "in", data: tc.data, file: tc.file, size: tc.size, kept: tc.size}
+				var view func(*ui.Context)
+				if surface == "session" {
+					a.socket = websocketWorkbench{open: true, session: &wsSession{state: "Disconnected", events: []wsSessionEvent{{Sequence: 1, Direction: "In", Kind: websocket.BinaryMessage, Data: []byte(tc.data), Size: tc.size}}}}
+					view = a.view
+				} else {
+					a.flows = []flow{{id: 10, method: "GET", kind: "ws", status: 101, host: "socket.example.com", path: "/events"}}
+					a.frames = map[int][]frame{10: {m}}
+					a.applyFilter()
+					view = a.view
+				}
+				t.Cleanup(a.protobuf.stop)
+				t.Cleanup(a.socket.protobuf.stop)
+				tt := ui.NewTester(view, 1280, 800)
+				click := func(label string) {
+					t.Helper()
+					if err := tt.Click(label); err != nil {
+						t.Fatal(err)
+					}
+				}
+				if surface == "session" {
+					click("Session message 1")
+				}
+				click("Protobuf")
+				click("Protobuf message type")
+				tt.Key(ui.Ctrl, ui.KeyA)
+				tt.Type("api.Output")
+				tt.Key(0, ui.KeyEnter)
+				deadline := time.Now().Add(10 * time.Second)
+				for {
+					text := strings.Join(strings.Fields(strings.Join(tt.Texts(), " ")), " ")
+					if strings.Contains(text, tc.want) {
+						break
+					}
+					if time.Now().After(deadline) {
+						t.Fatalf("missing %q: %s", tc.want, text)
+					}
+					runtime.Gosched()
+					tt.Frame()
+				}
+				if tc.name == "complete" || tc.name == "spill" || tc.name == "empty" {
+					click("Copy decoded")
+					if got := strings.Join(strings.Fields(tt.Clipboard()), " "); got != tc.want {
+						t.Fatalf("copied %q, want %q", got, tc.want)
+					}
+				} else if _, ok := tt.Find("Copy decoded"); ok {
+					t.Fatal("incomplete or invalid message offered a decoded result")
+				}
+			})
+		}
+	}
+}
 
 func TestWebSocketSessionUIBinaryEncodingsAndSubprotocol(t *testing.T) {
 	upgrader := websocket.Upgrader{Subprotocols: []string{"bytes.v2"}}
