@@ -31,12 +31,13 @@ func New(controlFile string, options Options) (*mcp.Server, error) {
 		return nil, err
 	}
 	server := mcp.NewServer(&mcp.Implementation{Name: "vscroxy", Version: "0.1.0"}, &mcp.ServerOptions{
-		Instructions: "Inspect the running vscroxy desktop. Mutations require the startup --allow-write capability; raw details require --allow-sensitive." + untrusted,
+		Instructions: "Inspect the running vscroxy desktop. Mutations require the startup --allow-write capability; raw details require --allow-sensitive. Collection recording persists captured content, possibly including sensitive query/body values, without disclosing raw values in its results; it does not require --allow-sensitive." + untrusted,
 		// Do not log arguments, raw results, or SDK/backend exception strings.
 		Logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
 	})
 	query := &mcp.ToolAnnotations{ReadOnlyHint: true, DestructiveHint: new(false), OpenWorldHint: new(false), IdempotentHint: true}
 	register[emptyParams](server, client, options, "status", "Read desktop status.", query)
+	register[emptyParams](server, client, options, "collection-recording.get", "Read the collection recording status, configuration and counts, never raw captured values. Recording does not resume across desktop launches.", query)
 	register[systemProxyGetParams](server, client, options, "system-proxy.get", "Poll the last OS system-proxy read: checked/checking/applying, status, capture target and controlled problem. The first call or refresh=true starts a read-only OS check; never restores or writes settings. A pending operation's status may predate its completion. Does not prove all apps use this proxy.", query)
 	register[emptyParams](server, client, options, "collections.list", "List saved collections.", query)
 	register[requestsListParams](server, client, options, "requests.list", "List saved request summaries, optionally filtered by collection.", query)
@@ -49,6 +50,8 @@ func New(controlFile string, options Options) (*mcp.Server, error) {
 	if options.AllowWrite {
 		run := &mcp.ToolAnnotations{DestructiveHint: new(true), OpenWorldHint: new(true)}
 		local := &mcp.ToolAnnotations{DestructiveHint: new(true), OpenWorldHint: new(false), IdempotentHint: true}
+		register[collectionRecordingStartParams](server, client, options, "collection-recording.start", "Record only subsequent completed ambient HTTP traffic into the chosen collection/subfolders and the existing environment's local Current values. Repeated endpoints update Examples only. Optional hosts and apps match exactly: OR within each list, AND across the lists; empty or omitted lists match all. Persists captured content, possibly including sensitive query/body values, but returns only status/configuration/counts, never raw values; requires --allow-write, not --allow-sensitive. Never sends requests or changes the OS proxy. Recording does not resume across desktop launches.", &mcp.ToolAnnotations{DestructiveHint: new(true), OpenWorldHint: new(false)})
+		register[emptyParams](server, client, options, "collection-recording.stop", "Immediately disable collection recording acceptance and discard queued and in-flight conversions, with no post-stop writes. Return a status snapshot; busy may remain true until the current body read finishes. Never sends requests or changes the OS proxy.", local)
 		register[requestRunParams](server, client, options, "request.run", "Run a saved request against real external endpoints; may have destructive side effects. Immediately returns a job ID; poll runs.get. Iterations default to 1 (1–1000); total attempts are bounded to 1000. Variables are not persisted.", run)
 		register[collectionRunParams](server, client, options, "collection.run", "Run a saved collection against real external endpoints; may have destructive side effects. Immediately returns a job ID; poll runs.get. Iterations default to 1 (1–1000); total attempts are bounded to 1000. Variables are not persisted.", run)
 		register[idParams](server, client, options, "runs.cancel", "Cancel a desktop run. Already completed external side effects cannot be undone.", local)
@@ -61,6 +64,13 @@ func New(controlFile string, options Options) (*mcp.Server, error) {
 }
 
 type emptyParams struct{}
+
+type collectionRecordingStartParams struct {
+	Collection  string   `json:"collection" jsonschema:"Nonempty destination collection path, not a filesystem path"`
+	Environment string   `json:"environment" jsonschema:"Nonempty existing environment name, not a filesystem path"`
+	Hosts       []string `json:"hosts,omitempty" jsonschema:"Optional exact HTTP hostname or host:port filters; no schemes or wildcards; at most 32 unique entries; empty means all hosts"`
+	Apps        []string `json:"apps,omitempty" jsonschema:"Optional exact process labels; at most 32 unique entries; empty means all apps"`
+}
 
 type systemProxyGetParams struct {
 	Refresh bool `json:"refresh,omitzero" jsonschema:"Read current OS settings again; false polls the last check"`
@@ -147,6 +157,22 @@ func register[In any](server *mcp.Server, client *control.Client, options Option
 			// Preserve an explicitly empty root filter, but do not accept null
 			// as a second spelling of the omitted optional string.
 			property.Type, property.Types = "string", nil
+			if action == "collection-recording.start" {
+				property.MinLength = new(1)
+			}
+		case "environment":
+			if action == "collection-recording.start" {
+				property.MinLength = new(1)
+			}
+		case "hosts", "apps":
+			property.Type, property.Types = "array", nil
+			property.MaxItems, property.UniqueItems = new(32), true
+			property.Items.MinLength = new(1)
+			if name == "hosts" {
+				// The desktop validates hostname/port semantics. Reject URL,
+				// wildcard and whitespace syntax before forwarding the call.
+				property.Items.Pattern = `^[^\s/?#@*]+$`
+			}
 		case "index":
 			property.Minimum = new(0.0)
 		case "limit":

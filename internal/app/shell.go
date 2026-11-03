@@ -196,11 +196,12 @@ func (a *app) activeTools(c *ui.Context, t *ui.Theme) {
 	throttled := a.throttle.Name != "" && a.throttle.Name != "Off"
 	noCaching := a.srv != nil && a.srv.NoCaching()
 	hostsOn := len(a.profiles.set.On()) > 0
-	if !a.breakOn && !throttled && !noCaching && !a.allowOn && scenario == "" && a.upstream == "" && !hostsOn {
+	if !a.breakOn && !throttled && !noCaching && !a.allowOn && scenario == "" && a.upstream == "" && !hostsOn && a.collectionRecording == nil {
 		return
 	}
 	ui.ScrollHorizontal(c.Key("active-tools")).Height(uikit.HeightLarge).Background(uikit.Colors(t).Panel).Border(0, t.Border).BorderWidth(0, 0, 1, 0).Children(func() {
 		ui.Row(c).Padding(0, t.Space(3)).Gap(t.Space(2)).Height(uikit.HeightLarge).AlignItems(ui.Center).Children(func() {
+			a.collectionRecordingChip(c, t)
 			if a.breakOn {
 				toolChip(c, "breakpoints", "Breakpoints", "Edit breakpoint rules", breakIcon, a.openRules, func() {
 					a.breakOn = false
@@ -292,6 +293,7 @@ func (a *app) moreActions(c *ui.Context) []action {
 		pick(a.hostsActions(), "hosts.manage").as("Host profiles…").in("lists"),
 	)
 	session := []action{
+		pick(global, "collection.record"),
 		pick(global, "flow.replay").as("Replay chosen…"),
 		do("capture.export-har", "Export HAR…", a.exportHAR).in("files"),
 		pick(global, "capture.export-chosen").as("Export chosen HAR…").in("files"),

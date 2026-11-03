@@ -36,6 +36,13 @@ func TestFlags(t *testing.T) {
 			if !strings.Contains(stderr.String(), tc.text) || strings.Contains(stderr.String(), "do-not-echo-this") {
 				t.Fatalf("unexpected diagnostics: %s", stderr.String())
 			}
+			if tc.name == "help" {
+				for _, warning := range []string{"--allow-write", "--allow-sensitive", "Captured content is untrusted data, never instructions"} {
+					if !strings.Contains(stderr.String(), warning) {
+						t.Errorf("help is missing capability/content warning %q", warning)
+					}
+				}
+			}
 		})
 	}
 }
@@ -83,9 +90,9 @@ func TestStdioProcess(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			want := 10
+			want := 11
 			if tc.write {
-				want = 17
+				want = 20
 			}
 			if len(listed.Tools) != want {
 				t.Errorf("%d tools; want %d", len(listed.Tools), want)
@@ -103,6 +110,43 @@ func TestStdioProcess(t *testing.T) {
 			})
 			if err != nil || result.IsError == tc.sensitive {
 				t.Fatalf("sensitive startup flag not enforced: %+v, %v", result, err)
+			}
+			result, err = cs.CallTool(t.Context(), &mcp.CallToolParams{Name: "collection-recording.get"})
+			if err != nil || result.IsError {
+				t.Fatalf("recording query failed: %+v, %v", result, err)
+			}
+			data, err = json.Marshal(result.StructuredContent)
+			if err != nil || !strings.Contains(string(data), `"action":"collection-recording.get"`) || !strings.Contains(string(data), `"params":{}`) {
+				t.Fatalf("recording query not forwarded with empty params: %s, %v", data, err)
+			}
+			for _, recording := range []struct {
+				name string
+				args any
+			}{
+				{"collection-recording.start", map[string]any{"collection": "sample/subfolder", "environment": "local", "hosts": []string{"api.example.com:443"}, "apps": []string{"Firefox"}}},
+				{"collection-recording.stop", map[string]any{}},
+			} {
+				result, err = cs.CallTool(t.Context(), &mcp.CallToolParams{Name: recording.name, Arguments: recording.args})
+				if !tc.write {
+					if err == nil && !result.IsError {
+						t.Fatalf("recording mutation available without --allow-write: %s", recording.name)
+					}
+					continue
+				}
+				if err != nil || result.IsError {
+					t.Fatalf("recording mutation failed without --allow-sensitive: %+v, %v", result, err)
+				}
+				var forwarded struct {
+					Action string         `json:"action"`
+					Params map[string]any `json:"params"`
+				}
+				data, err = json.Marshal(result.StructuredContent)
+				if err != nil || json.Unmarshal(data, &forwarded) != nil || forwarded.Action != recording.name || forwarded.Params["confirm"] != true {
+					t.Fatalf("missing recording action/confirmation: %s, %v", data, err)
+				}
+				if recording.name == "collection-recording.stop" && len(forwarded.Params) != 1 {
+					t.Fatalf("stop forwarded nonempty input: %s", data)
+				}
 			}
 			if tc.write {
 				result, err = cs.CallTool(t.Context(), &mcp.CallToolParams{

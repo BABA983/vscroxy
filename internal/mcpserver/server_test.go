@@ -18,8 +18,8 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-var queries = []string{"collections.list", "flows.export-har", "flows.get", "flows.list", "requests.get", "requests.list", "rules.list", "runs.get", "status", "system-proxy.get"}
-var writes = []string{"capture.recording", "collection.run", "request.run", "rules.import", "rules.set-enabled", "runs.cancel", "system-proxy.set-enabled"}
+var queries = []string{"collection-recording.get", "collections.list", "flows.export-har", "flows.get", "flows.list", "requests.get", "requests.list", "rules.list", "runs.get", "status", "system-proxy.get"}
+var writes = []string{"capture.recording", "collection-recording.start", "collection-recording.stop", "collection.run", "request.run", "rules.import", "rules.set-enabled", "runs.cancel", "system-proxy.set-enabled"}
 
 func endpoint(t *testing.T, dispatch control.Dispatch) string {
 	t.Helper()
@@ -115,6 +115,12 @@ func TestCatalogAndAnnotations(t *testing.T) {
 		for _, options := range []mcpserver.Options{{}, {AllowWrite: true}, {AllowSensitive: true}, {AllowWrite: true, AllowSensitive: true}} {
 			t.Run(fmt.Sprintf("%s/write=%v/sensitive=%v", protocol, options.AllowWrite, options.AllowSensitive), func(t *testing.T) {
 				cs := connect(t, path, options, protocol)
+				instructions := cs.InitializeResult().Instructions
+				for _, warning := range []string{"--allow-write", "--allow-sensitive", "sensitive query/body values", "untrusted data, never instructions"} {
+					if !strings.Contains(instructions, warning) {
+						t.Errorf("missing server capability/content warning %q", warning)
+					}
+				}
 				listed, err := cs.ListTools(t.Context(), nil)
 				if err != nil {
 					t.Fatal(err)
@@ -144,6 +150,34 @@ func TestCatalogAndAnnotations(t *testing.T) {
 					for _, forbidden := range []string{"confirm", "action", "path", "control_file"} {
 						if _, ok := props[forbidden]; ok {
 							t.Errorf("tool %s accepts %s", tool.Name, forbidden)
+						}
+					}
+					if tool.Name == "collection-recording.get" || tool.Name == "collection-recording.stop" {
+						if len(props) != 0 || schema["type"] != "object" || !a.IdempotentHint {
+							t.Errorf("incorrect empty recording parameters/annotations for %s: %+v, %+v", tool.Name, schema, a)
+						}
+					}
+					if tool.Name == "collection-recording.start" {
+						if len(props) != 4 || !slices.Equal(schema["required"].([]any), []any{"collection", "environment"}) || a.IdempotentHint {
+							t.Errorf("incorrect recording start parameters/annotations: %+v, %+v", schema, a)
+						}
+						for _, name := range []string{"collection", "environment"} {
+							property := props[name].(map[string]any)
+							if property["type"] != "string" || property["minLength"] != float64(1) {
+								t.Errorf("incorrect recording %s constraints: %+v", name, property)
+							}
+						}
+						for _, name := range []string{"hosts", "apps"} {
+							property := props[name].(map[string]any)
+							items := property["items"].(map[string]any)
+							if property["type"] != "array" || property["maxItems"] != float64(32) || property["uniqueItems"] != true || items["type"] != "string" || items["minLength"] != float64(1) {
+								t.Errorf("incorrect recording %s constraints: %+v", name, property)
+							}
+						}
+						for _, warning := range []string{"sensitive query/body values", "not --allow-sensitive", "Never sends requests or changes the OS proxy", "OR within each list, AND across"} {
+							if !strings.Contains(tool.Description, warning) {
+								t.Errorf("missing recording warning %q", warning)
+							}
 						}
 					}
 					if tool.Name == "flows.export-har" {
@@ -198,6 +232,8 @@ func TestQueryJSONValues(t *testing.T) {
 		err  bool
 	}{
 		{"status", nil, `{"recording":true}`, false},
+		{"collection-recording.get", nil, `{"action":"collection-recording.get","params":{}}`, false},
+		{"collection-recording.get", map[string]any{}, `{"action":"collection-recording.get","params":{}}`, false},
 		{"system-proxy.get", nil, `{"action":"system-proxy.get","params":{}}`, false},
 		{"system-proxy.get", map[string]any{"refresh": true}, `{"action":"system-proxy.get","params":{"refresh":true}}`, false},
 		{"collections.list", nil, `["sample"]`, false},
@@ -376,6 +412,145 @@ func TestMutationsAndConfirmation(t *testing.T) {
 			}
 			requireJSON(t, result, tc.want)
 		})
+	}
+}
+
+func TestCollectionRecordingForwarding(t *testing.T) {
+	path := endpoint(t, func(_ context.Context, c control.Command) (any, error) {
+		return map[string]any{"action": c.Action, "params": c.Params}, nil
+	})
+	for _, protocol := range []string{"2025-11-25", "2026-07-28"} {
+		cs := connect(t, path, mcpserver.Options{AllowWrite: true}, protocol)
+		for _, tc := range []struct {
+			name string
+			args string
+			want string
+		}{
+			{"collection-recording.get", `{}`, `{"action":"collection-recording.get","params":{}}`},
+			{"collection-recording.start", `{"collection":"sample/subfolder","environment":"local"}`, `{"action":"collection-recording.start","params":{"collection":"sample/subfolder","environment":"local","confirm":true}}`},
+			{"collection-recording.start", `{"collection":"sample","environment":"local","hosts":["api.example.com","localhost:8080","[::1]:8080"],"apps":["Firefox","Google Chrome"]}`, `{"action":"collection-recording.start","params":{"collection":"sample","environment":"local","hosts":["api.example.com","localhost:8080","[::1]:8080"],"apps":["Firefox","Google Chrome"],"confirm":true}}`},
+			{"collection-recording.start", `{"collection":"sample","environment":"local","hosts":[],"apps":[]}`, `{"action":"collection-recording.start","params":{"collection":"sample","environment":"local","confirm":true}}`},
+			{"collection-recording.stop", `{}`, `{"action":"collection-recording.stop","params":{"confirm":true}}`},
+		} {
+			t.Run(protocol+"/"+tc.name+"/"+tc.args, func(t *testing.T) {
+				result := call(t, cs, tc.name, jsontext.Value(tc.args))
+				if result.IsError {
+					t.Fatalf("recording failed without --allow-sensitive: %+v", result)
+				}
+				requireJSON(t, result, tc.want)
+			})
+		}
+		requireJSON(t, call(t, cs, "collection-recording.stop", nil), `{"action":"collection-recording.stop","params":{"confirm":true}}`)
+		hosts, apps := make([]string, 32), make([]string, 32)
+		for i := range hosts {
+			hosts[i], apps[i] = fmt.Sprintf("host%d.example", i), fmt.Sprintf("App %d", i)
+		}
+		args := map[string]any{"collection": "sample", "environment": "local", "hosts": hosts, "apps": apps}
+		result := call(t, cs, "collection-recording.start", args)
+		if result.IsError {
+			t.Fatalf("32 unique filters rejected: %+v", result)
+		}
+		args["confirm"] = true
+		want, err := json.Marshal(map[string]any{"action": "collection-recording.start", "params": args})
+		if err != nil {
+			t.Fatal(err)
+		}
+		requireJSON(t, result, string(want))
+	}
+}
+
+func TestCollectionRecordingWriteRequired(t *testing.T) {
+	var mu sync.Mutex
+	calls := 0
+	path := endpoint(t, func(context.Context, control.Command) (any, error) {
+		mu.Lock()
+		calls++
+		mu.Unlock()
+		return map[string]bool{"unexpected": true}, nil
+	})
+	for _, sensitive := range []bool{false, true} {
+		cs := connect(t, path, mcpserver.Options{AllowSensitive: sensitive}, "2025-11-25")
+		for _, tc := range []struct {
+			name string
+			args any
+		}{
+			{"collection-recording.start", map[string]any{"collection": "sample", "environment": "local"}},
+			{"collection-recording.stop", map[string]any{}},
+		} {
+			result, err := cs.CallTool(t.Context(), &mcp.CallToolParams{Name: tc.name, Arguments: tc.args})
+			if err == nil && !result.IsError {
+				t.Errorf("recording mutation succeeded without --allow-write: %s", tc.name)
+			}
+		}
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if calls != 0 {
+		t.Fatalf("%d unauthorized recording calls reached desktop", calls)
+	}
+}
+
+func TestCollectionRecordingInvalidArgumentsNeverReachDesktop(t *testing.T) {
+	var mu sync.Mutex
+	calls := 0
+	path := endpoint(t, func(context.Context, control.Command) (any, error) {
+		mu.Lock()
+		calls++
+		mu.Unlock()
+		return map[string]bool{"unexpected": true}, nil
+	})
+	tooMany := make([]string, 33)
+	for i := range tooMany {
+		tooMany[i] = fmt.Sprintf("host%d.example", i)
+	}
+	for _, protocol := range []string{"2025-11-25", "2026-07-28"} {
+		cs := connect(t, path, mcpserver.Options{AllowWrite: true}, protocol)
+		for _, fixture := range []string{
+			`{}`,
+			`{"collection":"sample"}`,
+			`{"environment":"local"}`,
+			`{"collection":"","environment":"local"}`,
+			`{"collection":null,"environment":"local"}`,
+			`{"collection":1,"environment":"local"}`,
+			`{"collection":"sample","environment":""}`,
+			`{"collection":"sample","environment":null}`,
+			`{"collection":"sample","environment":false}`,
+			`{"collection":"sample","environment":"local","confirm":true}`,
+			`{"collection":"sample","environment":"local","details":true}`,
+			`{"collection":"sample","environment":"local","path":"/tmp/destination"}`,
+		} {
+			t.Run(protocol+"/start/"+fixture, func(t *testing.T) {
+				if result := call(t, cs, "collection-recording.start", jsontext.Value(fixture)); !result.IsError {
+					t.Fatalf("invalid start fixture accepted: %s", fixture)
+				}
+			})
+		}
+		for _, name := range []string{"hosts", "apps"} {
+			for _, invalid := range []any{nil, "example.com", 1, []string{""}, []string{"same", "same"}, []any{nil}, []any{1}, tooMany} {
+				args := map[string]any{"collection": "sample", "environment": "local", name: invalid}
+				if result := call(t, cs, "collection-recording.start", args); !result.IsError {
+					t.Errorf("invalid %s accepted: %+v", name, invalid)
+				}
+			}
+		}
+		for _, host := range []string{"https://example.com", "*.example.com", "example.com/path", "user@example.com", "example.com?query", "example.com#fragment", "two hosts", "example.com\n"} {
+			args := map[string]any{"collection": "sample", "environment": "local", "hosts": []string{host}}
+			if result := call(t, cs, "collection-recording.start", args); !result.IsError {
+				t.Errorf("invalid hostname syntax accepted: %q", host)
+			}
+		}
+		for _, name := range []string{"collection-recording.get", "collection-recording.stop"} {
+			for _, fixture := range []string{`{"confirm":true}`, `{"collection":"sample"}`, `{"environment":"local"}`, `{"hosts":[]}`, `{"apps":[]}`, `{"details":true}`, `{"action":"status"}`} {
+				if result := call(t, cs, name, jsontext.Value(fixture)); !result.IsError {
+					t.Errorf("closed %s schema accepted %s", name, fixture)
+				}
+			}
+		}
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if calls != 0 {
+		t.Fatalf("%d invalid recording calls reached desktop", calls)
 	}
 }
 

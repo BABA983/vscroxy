@@ -220,7 +220,7 @@
 | **"整理成集合"向导**（6.1） | 已有 | M3 |
 | 保存时附带抓到的响应作为 Example | 已有 | M3 |
 | 抓到的流量识别出对应的已保存请求 | 已有 | M3 |
-| **录制到集合**（6.2） | 缺少 | M9 |
+| **录制到集合**（6.2） | 已有：原生 UI／CLI／MCP，Host／App 过滤、环境变量、重复接口 Example 更新、安全停止 | M9 |
 | Example → Mock 规则，集合 → Scenario | 已有 | M4 |
 | 登录 token 链路识别，建议生成提取脚本 | 缺少 | M9 |
 | **Host 方案**（第 7 节） | 已有 | M2 |
@@ -275,7 +275,7 @@ Host／Path prefix／Flat 组织、拖动和排序，环境 Current value／Vaul
 最近成功及各错误状态 Examples，可选独立 OpenAPI 草稿，以及 Matches 弹层的打开／追加示例。
 Current value 仅本机明文存储且不导出；集合 Auth 只共享一致的 Authorization，
 Cookie 和其他 API key 保留为变量 header，避免把多个认证机制硬塞进单一 Auth。
-连续录制、Example → Mock 和 token 链路识别仍属于后续里程碑。
+连续录制已在 M9 实现（见 6.2），Example → Mock 已在 M4 实现；token 链路识别仍待做。
 
 ### M4：规则引擎升级（Tools 窗口）
 
@@ -330,7 +330,7 @@ Cookie 和其他 API key 保留为变量 header，避免把多个认证机制硬
 
 - 本地控制接口、CLI／MCP 共用动作闭环已完成：查询、录制／规则开关、系统代理修改与回读、受控 HAR 导出、追加规则导入创建和请求／集合运行。
 - 命令行运行集合及 CI 报告已完成（见 [自动化指南](automation.md)）；Runner 性能测试待做。
-- 录制到集合、token 链路识别。
+- 录制到集合已完成：原生入口、CLI／MCP 共用动作、Host／App 过滤、环境 Current 凭据引用和 Example 归并；token 链路识别待做。
 - 代码 Mock、`pm.visualizer`、可复用脚本库。
 - 更多代码生成语言。
 - 第三方主题导入。
@@ -361,6 +361,14 @@ Cookie 和其他 API key 保留为变量 header，避免把多个认证机制硬
 ### 6.2 录制到集合
 
 开启 "Record into collection" 并设置过滤条件（host、App），之后符合条件的新流量按 6.1 的规则自动追加进指定集合，重复接口只更新 Example。适合"把 App 点一遍，接口集合就出来了"。
+
+首版已实现：Capture More／Collections／命令面板／Host 和 App 菜单入口，运行状态和停止 chip，
+以及 CLI／MCP 的 `collection-recording.get/start/stop` 共用动作。选择已有环境；Host／App 精确匹配，
+数字／UUID 路径推断，生成 Host／路径变量，凭据 header 使用仅本机 Current 引用（明文、不导出，非 Vault）。
+重复接口保留手写请求和手动 Examples，仅更新录制专属的最近成功及各状态响应。
+只保存完整 UTF-8 请求／响应（每侧最多 5 MiB）；静态资源、流、失败连接和自身 Send／Runner／Replay 排除。
+有界后台转换；丢包、过载和保存冲突停止，Stop 丢弃未保存工作且不再写入，重启不自动恢复。
+其他 headers／query／正文仍可能含秘密，分享前须审阅。具体合约见 [自动化指南](automation.md#record-live-traffic-into-a-collection)。
 
 ### 6.3 双向打通
 

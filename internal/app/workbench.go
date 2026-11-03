@@ -332,6 +332,7 @@ func (a *app) captureConditions(c *ui.Context) {
 func (a *app) captureActions() []action {
 	actions := []action{
 		do("tools.rules", "Debugging rules…", a.openRules),
+		do("collection.record", "Record into collection…", func() { a.openCollectionRecording("", "", "") }),
 		do("capture.saved-filters", "Save filter…", func() { a.views.openSaved(a) }),
 	}
 	for _, index := range []int{6, 7} {
@@ -472,6 +473,7 @@ func (a *app) actions(c *ui.Context) []action {
 		}).when(a.srv != nil, ""),
 		do("capture.recording", recording, func() { a.recordingPaused = !a.recordingPaused }).
 			when(a.srv != nil && a.srv.Running(), ""),
+		do("collection.record", "Record into collection…", func() { a.openCollectionRecording("", "", "") }),
 		do("view.layout-right", "Layout: Side by side", func() { w.layout, w.focused = "right", false }).
 			checked(checkbox(w.layout == "right")),
 		do("view.layout-bottom", "Layout: Stacked", func() { w.layout, w.focused = "bottom", false }).

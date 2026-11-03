@@ -172,19 +172,20 @@ type app struct {
 
 	// detailFor is the flow the detail panes were built from, so the text and
 	// the diff buffers are rebuilt only when the choice changes.
-	detailFor    int
-	body         string
-	reqBody      string
-	diff         *editor.DiffState
-	diffBaseline bool
-	analysis     captureAnalysis
-	replayUI     replaySetup
-	bulkSaveUI   collectionSave // saves the chosen rows into a collection
-	collectionUI collectionWizard
-	matchUI      requestMatchState
-	frames       map[int][]frame
-	messageUI    messagePanel
-	frameLost    atomic.Int64
+	detailFor          int
+	body               string
+	reqBody            string
+	diff               *editor.DiffState
+	diffBaseline       bool
+	analysis           captureAnalysis
+	replayUI           replaySetup
+	bulkSaveUI         collectionSave // saves the chosen rows into a collection
+	collectionUI       collectionWizard
+	recordCollectionUI collectionRecordingEditor
+	matchUI            requestMatchState
+	frames             map[int][]frame
+	messageUI          messagePanel
+	frameLost          atomic.Int64
 
 	// inspect is the inspector's own view, so the request and the response
 	// keep independent tabs and body representations while both are on
@@ -1419,6 +1420,7 @@ func (a *app) view(c *ui.Context) {
 	a.replayModal(c, t)
 	a.collectionSaveModal(c, t)
 	a.collectionWizardModal(c, t)
+	a.collectionRecordingModal(c, t)
 	a.protobuf.modal(c, a)
 	a.views.capture(a)
 	if !a.page.capture() || a.inspect.pane != inspectorMessages {
@@ -1652,6 +1654,7 @@ func (a *app) sidebar(c *ui.Context) {
 					uikit.SidebarItem(c, "host:"+d.name, domainIcon, d.name, a.sidebarChoice == "host:"+d.name, !a.windowBehind).PopoverMenu(func(m *ui.Menu) {
 						actionMenu(m, []action{
 							do("collection.from-host", "Create collection…", func() { a.openCollectionWizard(a.collectionScope(d.name, "")) }),
+							do("collection.record-host", "Record into collection…", func() { a.openCollectionRecording("", d.name, "") }),
 							do("dns.map-host", "Map this host…", func() { a.openDNSRule(hostOnly(d.name), "") }),
 						})
 					}).Children(func() {
@@ -1778,6 +1781,7 @@ func (a *app) clientActions(name string, apps []capture.SSLApp) []action {
 	}
 	return append(actions,
 		do("collection.from-app", "Create collection…", func() { a.openCollectionWizard(a.collectionScope("", name)) }).in("collection"),
+		do("collection.record-app", "Record into collection…", func() { a.openCollectionRecording("", "", name) }).in("collection"),
 		do("https.rules", "View HTTPS rules…", func() { a.sslOpen = true }),
 		do("dns.map-client", "Map a host for "+name+"…", func() { a.openDNSRule("", name) }).in("map"),
 	)
@@ -1791,6 +1795,7 @@ func (a *app) collectionsActions() []action {
 	return []action{
 		do("collection.import", "Import…", a.importRequests),
 		do("request.import-curl", "Import cURL…", a.openCurlImport),
+		do("collection.record", "Record into collection…", func() { a.openCollectionRecording("", "", "") }).in("run"),
 		do("environment.manage", "Environments…", a.openVars).in("run"),
 		do("history.show", "History", a.showRunRecords).in("run"),
 		do("runner.open", "Runner…", a.openRunner).in("run"),

@@ -170,7 +170,13 @@ The API deliberately has no arbitrary filesystem action.
 
 Collection recording is separate from the capture Record/Pause switch. It is
 off at launch and never resumes automatically. Start with a nonempty collection
-name (new or existing) and an **existing** environment for generated variables:
+name (new or existing) and an **existing** environment for generated variables.
+
+In the desktop, use Capture's More menu, Collections' options, the command
+palette, or a host/App sidebar menu → **Record into collection…**. Review the
+local-save notice before Start. The persistent status chip opens scope/counters
+and can stop recording even when a CLI/MCP client started it. Closing the dialog
+does not stop recording; its explicit Stop button does.
 
 ```sh copy Copy Collection Recording
 bin/vscroxy-cli control --file "$HOME/.vscroxy/control.json" \
@@ -329,8 +335,8 @@ paths (replace both placeholders; shell `$HOME` expansion is not assumed):
 }
 ```
 
-The default catalog contains ten read-only tools, named like desktop actions:
-`status`, `system-proxy.get`, `collections.list`, `requests.list`, `requests.get`, `flows.list`,
+The default catalog contains eleven read-only tools, named like desktop actions:
+`status`, `collection-recording.get`, `system-proxy.get`, `collections.list`, `requests.list`, `requests.get`, `flows.list`,
 `flows.get`, `flows.export-har`, `rules.list`, and `runs.get`. Every tool has a typed, closed input
 schema and an explicit read-only/destructive/open-world annotation. Results are
 JSON structured content with a JSON text fallback. Application rejections set
@@ -340,9 +346,14 @@ Two **independent startup capabilities**, never tool parameters, widen access:
 
 - `--allow-write` registers `request.run`, `collection.run`, `runs.cancel`,
   `capture.recording`, `rules.set-enabled`, `rules.import`, and
-  `system-proxy.set-enabled`. It explicitly authorizes those
+  `system-proxy.set-enabled`, plus `collection-recording.start` and
+  `collection-recording.stop` (20 tools in total). It explicitly authorizes those
   tools to supply the desktop's confirmation. Request execution can affect real
   external systems; enable it only for a trusted client and trusted collections.
+  Collection recording persists captured content locally, potentially including
+  sensitive query/body values; `--allow-write` authorizes that persistence without
+  requiring `--allow-sensitive`. Recording results contain only configuration,
+  state and counts, not raw captured values.
 - `--allow-sensitive` permits an explicitly requested `details:true` on
   `requests.get` / `flows.get` / `flows.export-har`. It does not register mutations or change the
   default query response. Raw headers, query values, bodies and saved scripts
