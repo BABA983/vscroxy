@@ -965,11 +965,12 @@ func TestBinaryBodyInactive(t *testing.T) {
 
 func TestWriteCollectionWarnsAboutInvalidChecks(t *testing.T) {
 	r := request.Request{ID: "r", Name: "Bad", Collection: "Shop", Method: "GET", URL: "https://x.test", Post: "// mine", Checks: request.Checks{Status: "abc"}}
+	r.TokenSources = []request.TokenSource{{Environment: "Local", Variable: "token"}}
 	data, warnings, err := postman.WriteCollection("Shop", []request.Request{r}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := []string{"Invalid checks on 1 request are not exported"}; !slices.Equal(warnings, want) {
+	if want := []string{"Invalid checks on 1 request are not exported", "Native pre-setup token invalidation on 1 request is not exported; script fallback remains but cannot cover inherited or compilation failures"}; !slices.Equal(warnings, want) {
 		t.Errorf("warnings = %q, want %q", warnings, want)
 	}
 	got, err := postman.ReadCollection(data)

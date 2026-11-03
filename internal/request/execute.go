@@ -78,6 +78,20 @@ func (r Request) Execute(ctx context.Context, srv *capture.Server, in Context, v
 			out.Console = append(out.Console, ConsoleMessage{run.phase, "error", out.Err.Error()})
 		}
 	}()
+	// A source attempt invalidates old tokens even when declarative checks,
+	// inherited scripts, or compilation of its own script fail before Pre.
+	// Clear every available matching slot before reporting a missing one.
+	for _, source := range r.TokenSources {
+		_, exists := run.vars[source.Variable]
+		if source.Environment == "" || source.Environment != in.Environment || source.Variable == "" || !exists {
+			out.Err = errors.New("select the token source environment with its local Current slots")
+			continue
+		}
+		run.vars[source.Variable] = ""
+	}
+	if out.Err != nil {
+		return out
+	}
 	status, _, _, err := r.Checks.Parse()
 	if err != nil {
 		out.Err = err

@@ -25,6 +25,10 @@ type requestMatchState struct {
 // matchingRequests only reads saved templates and ordinary variable scopes.
 // In particular it must not prepare/send requests, run scripts or open the vault.
 func (a *app) matchingRequests(f flow) []savedRequest {
+	return a.matchingRequestsWithVars(f, a.activeVars())
+}
+
+func (a *app) matchingRequestsWithVars(f flow, environment map[string]string) []savedRequest {
 	if f.kind != "" || f.method == "CONNECT" {
 		return nil
 	}
@@ -34,7 +38,7 @@ func (a *app) matchingRequests(f flow) []savedRequest {
 	}
 	var matches []savedRequest
 	for _, r := range a.requests {
-		vars := a.inheritance(r.Collection).Values(a.activeVars())
+		vars := a.inheritance(r.Collection).Values(environment)
 		method := strings.ToUpper(strings.TrimSpace(cmp.Or(request.ExpandVars(r.Method, vars), "GET")))
 		if method != f.method {
 			continue

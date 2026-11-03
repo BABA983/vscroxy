@@ -46,8 +46,16 @@ type Request struct {
 	Pre    string `json:"pre,omitempty"`
 	Post   string `json:"post,omitempty"`
 	Checks Checks `json:"checks,omitzero"`
+	// TokenSources invalidate their environment values before checks or any
+	// inherited/authored script can fail. Extraction remains in Post.
+	TokenSources []TokenSource `json:"tokenSources,omitempty"`
 	// Examples are responses kept with the request, as Postman's are.
 	Examples []Example `json:"examples,omitempty"`
+}
+
+type TokenSource struct {
+	Environment string `json:"environment"`
+	Variable    string `json:"variable"`
 }
 
 // GraphQLBody keeps authored templates separate from the JSON envelope sent.

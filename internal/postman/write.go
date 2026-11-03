@@ -172,6 +172,9 @@ func WriteCollection(name string, requests []request.Request, folders []request.
 			if _, err := r.Checks.Script(); err != nil {
 				warn.add("checks", "", 1)
 			}
+			if len(r.TokenSources) > 0 {
+				warn.add("token source", "", 1)
+			}
 		}
 	}
 	var out outCollection

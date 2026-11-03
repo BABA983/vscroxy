@@ -60,25 +60,26 @@ type requestDocument struct {
 	headerWarn bool
 	// headerOff are the switched-off rows while the bulk editor shows the
 	// block, which has no way to say a row is disabled.
-	headerOff   []request.Field
-	bulkEditor  *editor.State
-	bulkFor     string
-	auth        request.Auth
-	bodyMode    string
-	bodyFile    string
-	graphql     request.GraphQLBody
-	graphqlTab  int
-	queryEditor *editor.State
-	queryFor    string
-	varsEditor  *editor.State
-	varsFor     string
-	formFields  []request.Field
-	queryRows   []request.Field
-	querySource string
-	queryError  string
-	composePre  string
-	composePost string
-	checks      request.Checks
+	headerOff    []request.Field
+	bulkEditor   *editor.State
+	bulkFor      string
+	auth         request.Auth
+	bodyMode     string
+	bodyFile     string
+	graphql      request.GraphQLBody
+	graphqlTab   int
+	queryEditor  *editor.State
+	queryFor     string
+	varsEditor   *editor.State
+	varsFor      string
+	formFields   []request.Field
+	queryRows    []request.Field
+	querySource  string
+	queryError   string
+	composePre   string
+	composePost  string
+	checks       request.Checks
+	tokenSources []request.TokenSource
 	// examples are the draft's kept responses; example is the one shown,
 	// exampleView its Body, Headers or Request view.
 	examples        []request.Example
@@ -159,7 +160,7 @@ func (d *requestDocument) value() savedRequest {
 		Auth: d.auth, BodyMode: d.bodyMode, BodyFile: d.bodyFile, Form: slices.Clone(d.formFields),
 		GraphQL: d.graphql,
 		Checks:  d.checks, HeaderList: headerRowsKept(d.headerRows),
-		Examples: slices.Clone(d.examples),
+		Examples: slices.Clone(d.examples), TokenSources: slices.Clone(d.tokenSources),
 	}
 	if len(d.headerRows) > 0 {
 		r.Headers = headerRowsText(d.headerRows)
@@ -223,6 +224,7 @@ func (d *requestDocument) load(r savedRequest, key string) {
 	d.composeHeaders, d.composeBody = r.Headers, r.Body
 	d.headerRows, d.headerFor = slices.Clone(r.HeaderList), ""
 	d.composePre, d.composePost, d.checks = r.Pre, r.Post, r.Checks
+	d.tokenSources = slices.Clone(r.TokenSources)
 	d.examples, d.example, d.exampleEditor = slices.Clone(r.Examples), 0, nil
 	d.auth, d.bodyMode, d.formFields = r.Auth, cmp.Or(r.BodyMode, "Raw"), slices.Clone(r.Form)
 	d.bodyFile = r.BodyFile

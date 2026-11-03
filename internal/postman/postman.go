@@ -175,6 +175,8 @@ func (k warning) text(n int) string {
 			" the signature to the query; vscroxy sends it in headers"
 	case "checks":
 		return "Invalid checks on " + count(n, "request are", "requests are") + " not exported"
+	case "token source":
+		return "Native pre-setup token invalidation on " + count(n, "request is", "requests is") + " not exported; script fallback remains but cannot cover inherited or compilation failures"
 	}
 	return fmt.Sprintf("%s %s: %d", k.what, k.detail, n)
 }
