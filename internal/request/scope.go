@@ -47,6 +47,8 @@ type Context struct {
 	// Data is the Runner data file's row for this iteration, over the
 	// environment and under pm.variables, as in Postman.
 	Data map[string]string
+	// Addons are the user's modules scripts require by name, as source.
+	Addons map[string]string
 }
 
 // scriptRun is the scope state the scripts of r's send start from.
@@ -54,7 +56,8 @@ func (c Context) scriptRun(r Request, vars map[string]string) *scriptRun {
 	run := &scriptRun{
 		vars: maps.Clone(vars), locals: maps.Clone(c.Locals), globals: maps.Clone(c.Globals), data: c.Data,
 		collection: map[string]string{}, folders: map[string]string{}, phase: "setup",
-		info: scriptInfo{Iteration: c.Iteration, Iterations: c.Iterations, RequestName: r.Name, RequestID: r.ID, Environment: c.Environment},
+		info:   scriptInfo{Iteration: c.Iteration, Iterations: c.Iterations, RequestName: r.Name, RequestID: r.ID, Environment: c.Environment},
+		addons: c.Addons,
 	}
 	if run.vars == nil {
 		run.vars = map[string]string{}

@@ -2,7 +2,7 @@ package app
 
 // Import and export of the configuration, for backups and sharing: one JSON
 // file with the settings and lists, the rules with the files they answer
-// from, the rule scripts, the Host profiles and the breakpoint templates.
+// from, the rule scripts and addons, the Host profiles and the breakpoint templates.
 // Secrets (the vault) and variables are not part of it.
 
 import (
@@ -43,6 +43,7 @@ type configBundle struct {
 	Rules     []capture.Rule    `json:"rules,omitempty"`
 	Mocks     map[string][]byte `json:"mocks,omitempty"`
 	Scripts   map[string]string `json:"scripts,omitempty"`
+	Addons    map[string]string `json:"addons,omitempty"`
 	Templates []bpTemplate      `json:"breakpointTemplates,omitempty"`
 
 	Hosts     *hosts.Set        `json:"hosts,omitempty"`
@@ -145,6 +146,12 @@ func (a *app) exportConfig() (b configBundle, notes []string) {
 	for _, name := range a.scripts.names {
 		b.Scripts[name] = a.scripts.texts[name]
 	}
+	if len(a.addons.names) > 0 {
+		b.Addons = map[string]string{}
+		for _, name := range a.addons.names {
+			b.Addons[name] = a.addons.texts[name]
+		}
+	}
 	if a.profiles.problem == nil && len(a.profiles.set.Profiles) > 0 {
 		set := a.profiles.set
 		set.Profiles = slices.Clone(set.Profiles)
@@ -196,6 +203,11 @@ func parseConfig(data []byte) (configBundle, error) {
 	for name := range b.Scripts {
 		if err := capture.CheckScriptName(name); err != nil {
 			return b, fmt.Errorf("script %q: %w", name, err)
+		}
+	}
+	for name := range b.Addons {
+		if err := checkAddonName(name); err != nil {
+			return b, fmt.Errorf("addon %q: %w", name, err)
 		}
 	}
 	if b.Hosts != nil {
@@ -260,7 +272,12 @@ func (a *app) importConfig(b configBundle, parts [3]bool) error {
 			return err
 		}
 		for _, name := range slices.Sorted(maps.Keys(b.Scripts)) {
-			if err := a.writeScript(name, b.Scripts[name]); err != nil {
+			if err := a.writeScript(&a.scripts, name, b.Scripts[name]); err != nil {
+				return err
+			}
+		}
+		for _, name := range slices.Sorted(maps.Keys(b.Addons)) {
+			if err := a.writeScript(&a.addons, name, b.Addons[name]); err != nil {
 				return err
 			}
 		}
@@ -384,7 +401,7 @@ func (a *app) readConfigImport(path string, data []byte) {
 		return
 	}
 	a.configImport = configImport{open: true, path: path, bundle: b}
-	a.configImport.parts = [3]bool{len(b.Rules)+len(b.Scripts)+len(b.Templates) > 0, b.Hosts != nil, b.Settings != nil}
+	a.configImport.parts = [3]bool{len(b.Rules)+len(b.Scripts)+len(b.Addons)+len(b.Templates) > 0, b.Hosts != nil, b.Settings != nil}
 }
 
 // configImportDialog lists what the file holds; the parts chosen replace
@@ -410,10 +427,10 @@ func (a *app) configImportDialog(c *ui.Context, t *ui.Theme) {
 						in.parts[i] = false
 					}
 				}
-				part(partRules, len(b.Rules)+len(b.Scripts)+len(b.Templates) > 0, "Rules, mocks and scripts",
-					fmt.Sprintf("%d %s, %d mock %s, %d %s, %d breakpoint %s. Scripts with the same name are replaced.",
+				part(partRules, len(b.Rules)+len(b.Scripts)+len(b.Addons)+len(b.Templates) > 0, "Rules, mocks and scripts",
+					fmt.Sprintf("%d %s, %d mock %s, %d %s, %d %s, %d breakpoint %s. Scripts and addons with the same name are replaced.",
 						len(b.Rules), plural(len(b.Rules), "rule", "rules"), len(b.Mocks), plural(len(b.Mocks), "file", "files"),
-						len(b.Scripts), plural(len(b.Scripts), "script", "scripts"), len(b.Templates), plural(len(b.Templates), "template", "templates")))
+						len(b.Scripts), plural(len(b.Scripts), "script", "scripts"), len(b.Addons), plural(len(b.Addons), "addon", "addons"), len(b.Templates), plural(len(b.Templates), "template", "templates")))
 				profiles := 0
 				if b.Hosts != nil {
 					profiles = len(b.Hosts.Profiles)

@@ -132,3 +132,31 @@ func consoleText(list []ConsoleMessage) string {
 	}
 	return b.String()
 }
+
+func TestAddonsAreRequiredOncePerScript(t *testing.T) {
+	addons := map[string]string{
+		"counter": `var n = 0; module.exports = { next: () => ++n, other: require("helper").name };`,
+		"helper":  `exports.name = "helper"; exports.counter = require("counter");`, // a cycle, as in Node
+		"broken":  `throw new Error("addon failed")`,
+	}
+	s, _ := ParseProxyScript(`function onRequest() {
+	const counter = require("counter");
+	counter.next();
+	pm.request.headers.upsert("X-Count", String(require("counter").next()));
+	pm.request.headers.upsert("X-Other", counter.other);
+	try { require("broken") } catch (e) { pm.request.headers.upsert("X-Broken", e.message) }
+	try { require("missing") } catch (e) { pm.request.headers.upsert("X-Missing", e.message) }
+}`)
+	x := &capture.ScriptExchange{Phase: "request", URL: "https://api.test/", Header: http.Header{}}
+	if _, err := s.Run(t.Context(), x, ProxyEnv{Addons: addons}); err != nil {
+		t.Fatal(err)
+	}
+	if x.Header.Get("X-Count") != "2" || x.Header.Get("X-Other") != "helper" || x.Header.Get("X-Broken") != "addon failed" ||
+		!strings.Contains(x.Header.Get("X-Missing"), "is not available") {
+		t.Fatalf("headers = %v", x.Header)
+	}
+	// Each run starts again: module state does not leak between exchanges.
+	if _, err := s.Run(t.Context(), x, ProxyEnv{Addons: addons}); err != nil || x.Header.Get("X-Count") != "2" {
+		t.Fatalf("second run count = %q, %v", x.Header.Get("X-Count"), err)
+	}
+}

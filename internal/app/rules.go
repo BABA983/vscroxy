@@ -792,7 +792,7 @@ func (a *app) ruleScriptField(c *ui.Context, t *ui.Theme) {
 				m.Separator()
 			}
 			if m.Item("New script").Chosen() {
-				if name, ok := a.newScript(cmp.Or(strings.TrimSpace(e.draft.Name), "Untitled"), newScriptText); ok {
+				if name, ok := a.newScript(&a.scripts, cmp.Or(strings.TrimSpace(e.draft.Name), "Untitled"), newScriptText); ok {
 					e.draft.Target = scriptFile(name)
 				}
 			}

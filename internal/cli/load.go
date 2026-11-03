@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"maps"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 
@@ -126,4 +127,28 @@ func readEnvironment(path, selected string) (name string, vars, globals map[stri
 		return "", nil, nil, fmt.Errorf("environment not found")
 	}
 	return "", vars, globals, nil
+}
+
+// readAddons reads the addons in dir, name.js each, as the desktop app
+// keeps them; no dir is no addons.
+func readAddons(dir string) (map[string]string, error) {
+	if dir == "" {
+		return nil, nil
+	}
+	files, err := filepath.Glob(filepath.Join(dir, "*.js"))
+	if err != nil {
+		return nil, err
+	}
+	if _, err := os.Stat(dir); err != nil {
+		return nil, err
+	}
+	addons := map[string]string{}
+	for _, file := range files {
+		data, err := os.ReadFile(file)
+		if err != nil {
+			return nil, err
+		}
+		addons[strings.TrimSuffix(filepath.Base(file), ".js")] = string(data)
+	}
+	return addons, nil
 }

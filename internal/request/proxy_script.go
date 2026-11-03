@@ -64,9 +64,11 @@ func ParseProxyScript(src string) (*ProxyScript, error) {
 
 // ProxyEnv is what rule scripts share besides their exchange: snapshots of
 // the globals and the active environment, and the system's environment
-// variables, process.env.
+// variables, process.env, and the addons.
 type ProxyEnv struct {
 	Globals, Environment, OS map[string]string
+	// Addons are the modules scripts require by name, as source.
+	Addons map[string]string
 }
 
 // ProxyRun is what a hook printed, and the globals it set, in order.
@@ -90,7 +92,7 @@ func (s *ProxyScript) Run(ctx context.Context, x *capture.ScriptExchange, env Pr
 	}
 	run := &scriptRun{
 		vars: maps.Clone(env.Environment), locals: x.Locals, globals: maps.Clone(env.Globals), env: env.OS,
-		readOnly: map[string]bool{"environment": true}, phase: x.Phase,
+		readOnly: map[string]bool{"environment": true}, phase: x.Phase, addons: env.Addons,
 		info: scriptInfo{RequestName: x.Rule},
 	}
 	run.target = func() string { return x.URL }

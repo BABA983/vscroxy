@@ -617,6 +617,25 @@ async function onResponse() {
 - Each hook has two seconds of run time; one that fails or times out leaves the
   exchange as it was, is counted in the status bar and shows in the Console.
 
+**Addons** are your own modules for request and rule scripts. **Tools →
+Scripts → Addons** edits them; each is a file under `~/.vscroxy/tools/addons/`
+(`name.js`), and scripts load what it puts in `module.exports` with
+`require("name")`. An addon can require the built-in libraries and other
+addons; it runs once per script run, so state does not carry between
+exchanges. The list says how many scripts require each. Names cannot be
+`chai`, `lodash` or `crypto-js`. Configuration export includes them.
+`vscroxy-cli run --addons DIR` loads them for headless runs.
+
+```js
+// addons/sign.js
+const CryptoJS = require("crypto-js");
+module.exports = { sign: (text, key) => CryptoJS.HmacSHA256(text, key).toString() };
+
+// a script
+const { sign } = require("sign");
+pm.request.headers.upsert("X-Signature", sign(pm.request.body.raw, process.env.SIGNING_KEY));
+```
+
 ## Bodies
 
 The Body tab shows the response or the request, as **Pretty** text, as a
@@ -1186,7 +1205,7 @@ pm.test('IDs are unique', () => {
 });
 ```
 
-**Insert snippet** above the editor adds common code. Only these exact module names are supported, not npm packages, file paths,
+**Insert snippet** above the editor adds common code. Besides addons (see Scripts above), only these exact module names are supported, not npm packages, file paths,
 URLs or Lodash submodules such as `lodash/fp`. Other Postman sandbox libraries
 (moment, cheerio and so on), `pm.visualizer` and timers are not
 available. Lodash functions that need timers (`delay`, `defer`, `debounce`,
@@ -1728,7 +1747,7 @@ yet.
 
 **Settings → General → Back up and share** exports one JSON file with the
 settings, ignore and allow lists, HTTPS decryption, rules with the response
-files they answer from (up to 8 MiB each; folders stay paths), rule scripts,
+files they answer from (up to 8 MiB each; folders stay paths), rule scripts, addons,
 Host profiles and breakpoint templates. Secrets, variables and this computer's
 key log path are never included. **Import…** shows what a file holds and
 replaces only the parts chosen; imported mock files go into

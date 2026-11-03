@@ -478,6 +478,14 @@ func TestUISnapshots(t *testing.T) {
 			a.openScript("Broken")
 		}, want: "No rule runs it yet"},
 		{name: "tools-scripts-empty", setup: func(a *app) { a.openTools("scripts") }, want: "No scripts"},
+		{name: "tools-addons", setup: func(a *app) {
+			snapshotScripts(a)
+			a.addons = scriptStore{addon: true, names: []string{"sign"}, texts: map[string]string{"sign": newAddonText("sign")}, problems: map[string]error{}}
+			a.scripts.texts["Debug headers"] += "\nconst { sign } = require(\"sign\");\n"
+			a.addonsShown = true
+			a.openTools("scripts")
+		}, want: "Required by 1 script"},
+		{name: "tools-addons-empty", setup: func(a *app) { a.addons.addon, a.addonsShown = true, true; a.openTools("scripts") }, want: "No addons"},
 		{name: "tools-scenarios", setup: func(a *app) { snapshotRules(a); a.openTools("scenarios") }, want: "On: its rules apply"},
 		{name: "tools-scenarios-empty", setup: func(a *app) { a.openTools("scenarios") }, want: "No scenarios"},
 		{name: "tools-mocks", setup: func(a *app) { snapshotRules(a); a.openTools("mocks") }, want: "Map Local rules: answers from local files"},

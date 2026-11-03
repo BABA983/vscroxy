@@ -245,6 +245,8 @@ type app struct {
 	rulesPath    string
 	files        map[string]*store.File // see file
 	scripts      scriptStore
+	addons       scriptStore
+	addonsShown  bool // the Scripts page shows the addons
 	rules        []capture.Rule
 	ruleUI       ruleEditor
 	configImport configImport
@@ -477,6 +479,7 @@ func newApp() *app {
 		a.allowAppsPath = filepath.Join(home, ".vscroxy", "allow-apps.txt")
 		a.profiles.dir = filepath.Join(home, ".vscroxy", "tools", "hosts")
 		a.scripts.dir = filepath.Join(home, ".vscroxy", "tools", "scripts")
+		a.addons.dir, a.addons.addon = filepath.Join(home, ".vscroxy", "tools", "addons"), true
 		a.envsPath = filepath.Join(home, ".vscroxy", "env.json")
 		a.vault.path = filepath.Join(home, ".vscroxy", "vault.json")
 		a.vault.keyPath = filepath.Join(home, ".vscroxy", "vault.key")
@@ -1269,7 +1272,7 @@ func (a *app) view(c *ui.Context) {
 	a.dark = a.appearance == "dark" || a.appearance == "" && c.Theme().Dark
 	c.SetTheme(uikit.Theme(a.dark))
 	a.drain()
-	a.scripts.setEnv(a.globals, a.activeVars())
+	a.scripts.setEnv(a.globals, a.activeVars(), a.addons.sources())
 	// The Settings window shows these checks too: it redraws when one
 	// finishes, and shows the messages while it is in front.
 	busy := [3]bool{a.certificate.checking, a.systemProxy.checking, a.systemProxy.applying}

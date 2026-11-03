@@ -42,6 +42,7 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	envPath := flags.String("env", "", "Explicit native env.json or Postman environment/globals file")
 	envName := flags.String("environment", "", "Environment name in --env; defaults to its active environment")
 	dataPath := flags.String("data", "", "CSV or JSON iteration data")
+	addonsDir := flags.String("addons", "", "Folder of addons scripts require by name, as ~/.vscroxy/tools/addons")
 	iterations := flags.Int("iterations", 0, "Iterations, 1–1000; default is data row count or 1")
 	bail := flags.Bool("bail", false, "Stop after the first failed attempt")
 	timeout := flags.Duration("timeout", 5*time.Minute, "Whole-run timeout (must be positive)")
@@ -84,6 +85,11 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	}
 	for _, warning := range warnings {
 		fmt.Fprintln(stderr, "Import warning:", warning)
+	}
+	addons, err := readAddons(*addonsDir)
+	if err != nil {
+		fmt.Fprintln(stderr, "Could not load addons:", err)
+		return 2
 	}
 	name, values, globals, err := readEnvironment(*envPath, *envName)
 	if err != nil {
@@ -159,7 +165,7 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	tokens := &request.Tokens{}
 	steps := make([]runner.Step, len(requests))
 	for i, r := range requests {
-		steps[i] = runner.Step{Request: r, Context: request.Context{Environment: name, Folders: request.Chain(folders, r.Collection), Globals: globals, Tokens: tokens}}
+		steps[i] = runner.Step{Request: r, Context: request.Context{Environment: name, Folders: request.Chain(folders, r.Collection), Globals: globals, Tokens: tokens, Addons: addons}}
 	}
 	runCtx, cancel := context.WithTimeout(ctx, *timeout)
 	defer cancel()

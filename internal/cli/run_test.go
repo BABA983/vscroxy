@@ -243,3 +243,27 @@ func TestRunDoesNotOverwriteInputs(t *testing.T) {
 		t.Fatal("input overwritten")
 	}
 }
+
+func TestRunLoadsAddons(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("X-Sig") != "addon-ok" {
+			http.Error(w, "addon did not run", 400)
+		}
+	}))
+	defer upstream.Close()
+	root := t.TempDir()
+	r := request.Request{ID: "one", Name: "One", Collection: "Shop", Method: "GET", URL: upstream.URL,
+		Pre: `pm.request.headers.upsert("X-Sig", require("sig").value)`, Checks: request.Checks{Status: "200"}}
+	write(t, filepath.Join(root, "collections", "Shop", "One.request.json"), r)
+	addons := filepath.Join(root, "addons")
+	_ = os.MkdirAll(addons, 0o700)
+	_ = os.WriteFile(filepath.Join(addons, "sig.js"), []byte(`module.exports = { value: "addon-ok" };`), 0o600)
+	var out, errOut bytes.Buffer
+	if code := cli.Run(t.Context(), []string{"run", "--addons", addons, filepath.Join(root, "collections")}, &out, &errOut); code != 0 {
+		t.Fatalf("with addons: exit=%d stdout=%s stderr=%s", code, &out, &errOut)
+	}
+	out.Reset()
+	if code := cli.Run(t.Context(), []string{"run", filepath.Join(root, "collections")}, &out, &errOut); code == 0 {
+		t.Fatalf("without --addons the run passed: %s", &out)
+	}
+}

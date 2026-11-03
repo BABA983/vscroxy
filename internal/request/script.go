@@ -49,6 +49,10 @@ var cryptoJSSource string
 //go:embed js/pm.js
 var pmSource string
 
+// Libraries are the modules require loads built in; an addon cannot take
+// one of these names.
+var Libraries = []string{"chai", "lodash", "crypto-js"}
+
 // The libraries compile once; every script still gets a fresh runtime.
 var (
 	chaiProgram = sync.OnceValue(func() *goja.Program { return goja.MustCompile("chai.js", chaiSource, false) })
@@ -178,6 +182,8 @@ type scriptRun struct {
 	// process.env, which only rule scripts have.
 	readOnly map[string]bool
 	env      map[string]string
+	// addons are the user's modules require loads by name, as source.
+	addons map[string]string
 	// target is the URL the scripts' request goes to, for cookies and the
 	// vault. send, vault and cookies are nil where a run cannot offer them.
 	target  func() string
@@ -494,6 +500,15 @@ func (run *scriptRun) host(ctx context.Context, vm *goja.Runtime, clock *budget,
 	if run.env != nil {
 		set("env", object(run.env))
 	}
+	// addon compiles an addon as a function of module, exports and require;
+	// pm.js runs it once per script and caches what it exports.
+	set("addon", func(name string) (goja.Value, error) {
+		src, ok := run.addons[name]
+		if !ok {
+			return goja.Undefined(), nil
+		}
+		return vm.RunScript("addons/"+name+".js", "(function (module, exports, require) {"+src+"\n})")
+	})
 	set("info", map[string]any{
 		"eventName": event, "iteration": info.Iteration, "iterationCount": info.Iterations,
 		"requestName": info.RequestName, "requestId": info.RequestID, "environment": info.Environment,

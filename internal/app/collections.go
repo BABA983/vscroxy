@@ -29,7 +29,7 @@ type folderEditor struct {
 // inheritance is what a request filed under path takes from its collection,
 // folders and the globals. The vault joins it only for a send (sendContext).
 func (a *app) inheritance(path string) request.Context {
-	return request.Context{Folders: request.Chain(a.folders, path), Globals: maps.Clone(a.globals)}
+	return request.Context{Folders: request.Chain(a.folders, path), Globals: maps.Clone(a.globals), Addons: a.addons.sources()}
 }
 
 // openFolder edits the settings of the collection or folder at path.

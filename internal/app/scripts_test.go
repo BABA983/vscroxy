@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/baba983/vscroxy/internal/capture"
+	"github.com/baba983/vscroxy/internal/request"
 )
 
 // A script saved on the Scripts page runs on the traffic a Script rule
@@ -31,7 +32,7 @@ func TestScriptRuleRunsTheSavedScript(t *testing.T) {
 	a.rulesPath = filepath.Join(dir, "rules.json")
 	a.scripts.dir = filepath.Join(dir, "tools", "scripts")
 	a.loadScripts()
-	name, ok := a.newScript("Debug", `function onRequest() {
+	name, ok := a.newScript(&a.scripts, "Debug", `function onRequest() {
   pm.request.headers.upsert("X-Debug", process.env.VSCROXY_SCRIPT_TEST);
   pm.variables.set("seen", "1");
 }
@@ -44,7 +45,7 @@ function onResponse() {
 		t.Fatal("new script failed")
 	}
 	t.Setenv("VSCROXY_SCRIPT_TEST", "from-env")
-	a.scripts.setEnv(nil, nil)
+	a.scripts.setEnv(nil, nil, nil)
 	if !a.applyRuleChanges([]capture.Rule{{Name: "Debug", Type: capture.RuleScript, Match: "/fail", Target: scriptFile(name)}}) {
 		t.Fatal(a.ruleUI.problem)
 	}
@@ -93,8 +94,10 @@ func TestConfigExportImportRoundTrip(t *testing.T) {
 	mock := filepath.Join(src, "elsewhere", "user.json")
 	_ = os.MkdirAll(filepath.Dir(mock), 0o700)
 	_ = os.WriteFile(mock, []byte(`{"id":42}`), 0o600)
+	a.addons.dir = filepath.Join(src, "tools", "addons")
 	a.loadScripts()
-	a.newScript("Auth", "function onRequest() {}\n")
+	a.newScript(&a.scripts, "Auth", "function onRequest() {}\n")
+	a.newScript(&a.addons, "sign", "")
 	a.newProfile("Staging", "10.0.0.1 api.test\n", "")
 	a.ignoreText = "telemetry.test"
 	rules := []capture.Rule{
@@ -124,6 +127,7 @@ func TestConfigExportImportRoundTrip(t *testing.T) {
 	c.srv = requestProxy(t) // Reload configuration reads Host profiles for a running proxy
 	c.rulesPath = filepath.Join(dst, "rules.json")
 	c.scripts.dir = filepath.Join(dst, "tools", "scripts")
+	c.addons.dir = filepath.Join(dst, "tools", "addons")
 	c.profiles.dir = filepath.Join(dst, "tools", "hosts")
 	c.ignorePath = filepath.Join(dst, "ignore.txt")
 	parsed, err := parseConfig(data)
@@ -142,6 +146,9 @@ func TestConfigExportImportRoundTrip(t *testing.T) {
 	if c.scripts.texts["Auth"] != "function onRequest() {}\n" {
 		t.Fatalf("scripts = %v", c.scripts.texts)
 	}
+	if c.addons.texts["sign"] != newAddonText("sign") || c.addons.problems["sign"] != nil {
+		t.Fatalf("addons = %v, %v", c.addons.texts, c.addons.problems)
+	}
 	if len(c.profiles.set.Profiles) != 1 || c.profiles.set.Profiles[0].Text != "10.0.0.1 api.test\n" {
 		t.Fatalf("profiles = %+v", c.profiles.set.Profiles)
 	}
@@ -155,5 +162,53 @@ func TestConfigExportImportRoundTrip(t *testing.T) {
 	broken, _ := json.Marshal(parsed)
 	if _, err := parseConfig(broken); err == nil {
 		t.Fatal("a configuration missing its mock files was accepted")
+	}
+}
+
+// An addon saved on the Scripts page is what require("name") loads, in a
+// rule script on proxied traffic and in a request script alike.
+func TestAddonsLoadInRuleAndRequestScripts(t *testing.T) {
+	var got http.Header
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		got = r.Header.Clone()
+		fmt.Fprint(w, "ok")
+	}))
+	defer upstream.Close()
+	dir := t.TempDir()
+	a := workspaceApp()
+	a.srv = requestProxy(t)
+	a.rulesPath = filepath.Join(dir, "rules.json")
+	a.scripts.dir = filepath.Join(dir, "tools", "scripts")
+	a.addons.dir = filepath.Join(dir, "tools", "addons")
+	a.loadScripts()
+	if err := a.writeScript(&a.addons, "tag", `module.exports = { tag: (who) => who + ":" + require("lodash").kebabCase("Shared Addon") };`); err != nil {
+		t.Fatal(err)
+	}
+	name, _ := a.newScript(&a.scripts, "Tag", `function onRequest() { pm.request.headers.upsert("X-Tag", require("tag").tag("rule")); }`)
+	a.scripts.setEnv(nil, nil, a.addons.sources())
+	if !a.applyRuleChanges([]capture.Rule{{Type: capture.RuleScript, Match: "/rule", Target: scriptFile(name)}}) {
+		t.Fatal(a.ruleUI.problem)
+	}
+	addr, _ := url.Parse("http://" + a.srv.Addr())
+	resp, err := (&http.Client{Transport: &http.Transport{Proxy: http.ProxyURL(addr), DisableKeepAlives: true}}).Get(upstream.URL + "/rule")
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if got.Get("X-Tag") != "rule:shared-addon" {
+		t.Fatalf("rule script header = %q; console %+v", got.Get("X-Tag"), a.scripts.console)
+	}
+
+	r := request.Request{Method: "GET", URL: upstream.URL, Pre: `pm.request.headers.upsert("X-Tag", require("tag").tag("request"))`}
+	out := r.Execute(t.Context(), a.srv, a.inheritance(""), nil, nil)
+	if out.Err != nil || got.Get("X-Tag") != "request:shared-addon" {
+		t.Fatalf("request script header = %q, %v", got.Get("X-Tag"), out.Err)
+	}
+	if n, _ := a.scriptUsers(&a.addons, "tag"); n != 1 {
+		t.Errorf("addon users = %d, want the one rule script", n)
+	}
+	// A name require already loads is not an addon's.
+	if _, ok := a.newScript(&a.addons, "lodash", ""); ok {
+		t.Error("an addon named lodash was saved")
 	}
 }
