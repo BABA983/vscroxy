@@ -880,7 +880,7 @@ func (a *app) requestEditor(c *ui.Context, t *ui.Theme, d *requestDocument, orig
 					uikit.Segmented(c, &d.scriptTab, "Pre-request", "Post-response")
 					ui.Spacer(c)
 					if st := map[bool]*editor.State{false: d.preEditor, true: d.postEditor}[d.scriptTab == 1]; st != nil {
-						snippetMenu(c, st, false)
+						snippetMenu(c, st, "request")
 					}
 				})
 				a.requestScriptText(c, d)

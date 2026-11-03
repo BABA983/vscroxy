@@ -184,6 +184,9 @@ type scriptRun struct {
 	env      map[string]string
 	// addons are the user's modules require loads by name, as source.
 	addons map[string]string
+	// file names the script in errors, by its phase when empty; sourceMap
+	// maps a converted module's lines back to the file as written.
+	file, sourceMap string
 	// target is the URL the scripts' request goes to, for cookies and the
 	// vault. send, vault and cookies are nil where a run cannot offer them.
 	target  func() string
@@ -394,8 +397,8 @@ func runScriptContext(ctx context.Context, src string, run *scriptRun, objects m
 	}
 	// Postman runs a script as an async function body, so top-level await
 	// works. The wrapper shares the first line so error lines stay true.
-	file := cmp.Or(run.phase, "request") + ".js"
-	result, err := vm.RunScript(file, "(async function () {"+src+"\n})()")
+	file := cmp.Or(run.file, cmp.Or(run.phase, "request")+".js")
+	result, err := vm.RunScript(file, "(async function () {"+src+"\n})()\n"+run.sourceMap)
 	if err != nil {
 		return err
 	}
@@ -500,14 +503,20 @@ func (run *scriptRun) host(ctx context.Context, vm *goja.Runtime, clock *budget,
 	if run.env != nil {
 		set("env", object(run.env))
 	}
-	// addon compiles an addon as a function of module, exports and require;
-	// pm.js runs it once per script and caches what it exports.
+	// addon compiles an addon, an ES or CommonJS module, as a function of
+	// module, exports and require; pm.js runs it once per script and caches
+	// what it exports.
 	set("addon", func(name string) (goja.Value, error) {
 		src, ok := run.addons[name]
 		if !ok {
 			return goja.Undefined(), nil
 		}
-		return vm.RunScript("addons/"+name+".js", "(function (module, exports, require) {"+src+"\n})")
+		m, err := addonModule(name, src)
+		if err != nil {
+			return nil, fmt.Errorf("addon %q: %w", name, err)
+		}
+		// goja reads the source map from the last line before "})".
+		return vm.RunScript("addons/"+name+".js", "(function (module, exports, require) {"+m.code+"\n"+m.sourceMap+"\n})")
 	})
 	set("info", map[string]any{
 		"eventName": event, "iteration": info.Iteration, "iterationCount": info.Iterations,

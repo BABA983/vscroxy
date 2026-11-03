@@ -135,6 +135,15 @@ func (s *scriptStore) setEnv(globals, environment, addons map[string]string) {
 	s.mu.Unlock()
 }
 
+// parse converts a rule script and finds its hooks, or checks that an
+// addon converts; an addon has no hooks, so no ProxyScript.
+func (s *scriptStore) parse(name, text string) (*request.ProxyScript, error) {
+	if s.addon {
+		return nil, request.CheckModule(name, text)
+	}
+	return request.ParseProxyScript(name, text)
+}
+
 // sources are the addons that parse, by name, as scripts require them.
 func (s *scriptStore) sources() map[string]string {
 	out := map[string]string{}
@@ -198,9 +207,9 @@ func (a *app) loadScriptDir(s *scriptStore) {
 		}
 		s.names = append(s.names, name)
 		s.texts[name] = string(data)
-		if p, err := request.ParseProxyScript(string(data)); err != nil {
+		if p, err := s.parse(name, string(data)); err != nil {
 			s.problems[name] = err
-		} else {
+		} else if p != nil {
 			parsed[f.Name()] = p
 		}
 	}
@@ -241,12 +250,12 @@ func (a *app) writeScript(s *scriptStore, name, text string) error {
 		s.texts, s.problems = map[string]string{}, map[string]error{}
 	}
 	s.texts[name] = text
-	p, err := request.ParseProxyScript(text)
+	p, err := s.parse(name, text)
 	s.mu.Lock()
 	if s.parsed == nil {
 		s.parsed = map[string]*request.ProxyScript{}
 	}
-	if err != nil {
+	if err != nil || p == nil {
 		delete(s.parsed, scriptFile(name))
 	} else {
 		s.parsed[scriptFile(name)] = p
@@ -264,26 +273,28 @@ func (a *app) writeScript(s *scriptStore, name, text string) error {
 }
 
 const newScriptText = `// Runs on the exchanges the Script rules using it match, with the pm API.
+// import works for lodash, crypto-js, chai and your addons.
+
 // Change pm.request before it goes upstream:
-function onRequest() {
+export function onRequest() {
   pm.request.headers.upsert("X-Debug", "1");
 }
 
 // Change pm.response before the client gets it:
-function onResponse() {
+export function onResponse() {
   // if (pm.response.code === 500) pm.response.code = 200;
 }
 `
 
 // newAddonText is a new addon's text, for its name.
 func newAddonText(name string) string {
-	return `// What an addon exports, request and rule scripts get with require("` + name + `").
-module.exports = {
-  sign(text, key) {
-    const CryptoJS = require("crypto-js");
-    return CryptoJS.HmacSHA256(text, key).toString();
-  },
-};
+	return `// What an addon exports, rule scripts and other addons import from "` + name + `";
+// request scripts get it with require("` + name + `").
+import CryptoJS from "crypto-js";
+
+export function sign(text, key) {
+  return CryptoJS.HmacSHA256(text, key).toString();
+}
 `
 }
 
@@ -344,9 +355,15 @@ func (a *app) scriptUsers(s *scriptStore, name string) (int, string) {
 	return n, fmt.Sprintf("Required by %d %s", n, plural(n, "script", "scripts"))
 }
 
-// requires reports whether src requires the module name, as written.
+// requires reports whether src imports or requires the module name, as
+// written.
 func requires(src, name string) bool {
-	return strings.Contains(src, `require("`+name+`")`) || strings.Contains(src, `require('`+name+`')`)
+	for _, form := range []string{`require("%s")`, `require('%s')`, `from "%s"`, `from '%s'`, `import "%s"`, `import '%s'`} {
+		if strings.Contains(src, fmt.Sprintf(form, name)) {
+			return true
+		}
+	}
+	return false
 }
 
 // renameScript renames a script's file and the rules that run it, or an
@@ -467,18 +484,27 @@ func (a *app) openScript(name string) {
 	a.openTools("scripts")
 }
 
-// scriptSnippets are what Insert snippet offers: rule scripts get their
-// hooks; request scripts the rest, which both share.
-func scriptSnippets(rule bool) [][2]string {
+// scriptSnippets are what Insert snippet offers for a "request" script, a
+// "rule" script or an "addon": modules import where request scripts
+// require, and rule scripts also get their hooks' snippets.
+func scriptSnippets(kind string) [][2]string {
 	shared := [][2]string{
 		{"Log a value", "console.log(pm.request.url.toString());\n"},
 		{"Read and set a global", "const count = Number(pm.globals.get(\"count\") || 0) + 1;\npm.globals.set(\"count\", count);\n"},
 		{"Send a request", "const res = await pm.sendRequest(\"https://example.com/token\");\nconsole.log(res.code, res.json());\n"},
-		{"Hash with crypto-js", "const CryptoJS = require(\"crypto-js\");\nconst signature = CryptoJS.HmacSHA256(pm.request.body.raw, \"secret\").toString(CryptoJS.enc.Hex);\n"},
-		{"Use lodash", "const _ = require(\"lodash\");\nconst ids = _.map(pm.response.json().items, \"id\");\n"},
 	}
-	if !rule {
-		return shared
+	if kind == "request" {
+		return append(shared,
+			[2]string{"Hash with crypto-js", "const CryptoJS = require(\"crypto-js\");\nconst signature = CryptoJS.HmacSHA256(pm.request.body.raw, \"secret\").toString(CryptoJS.enc.Hex);\n"},
+			[2]string{"Use lodash", "const _ = require(\"lodash\");\nconst ids = _.map(pm.response.json().items, \"id\");\n"})
+	}
+	// Rule scripts and addons are modules: they import at the top.
+	shared = append(shared,
+		[2]string{"Import crypto-js", "import CryptoJS from \"crypto-js\";\n"},
+		[2]string{"Import lodash", "import _ from \"lodash\";\n"},
+		[2]string{"Import an addon", "import { sign } from \"sign\";\n"})
+	if kind == "addon" {
+		return append(shared, [2]string{"Export a function", "export function sign(text) {\n  return text;\n}\n"})
 	}
 	return append([][2]string{
 		{"Add a request header", "pm.request.headers.upsert(\"X-Debug\", \"1\");\n"},
@@ -493,9 +519,9 @@ func scriptSnippets(rule bool) [][2]string {
 }
 
 // snippetMenu inserts a snippet at the caret of st.
-func snippetMenu(c *ui.Context, st *editor.State, rule bool) {
+func snippetMenu(c *ui.Context, st *editor.State, kind string) {
 	uikit.MenuSelect(c, "Insert snippet", func(m *ui.Menu) {
-		for _, s := range scriptSnippets(rule) {
+		for _, s := range scriptSnippets(kind) {
 			if m.Item(s[0]).Chosen() {
 				st.Insert(s[1])
 			}
@@ -515,7 +541,7 @@ func (a *app) scriptsPage(c *ui.Context, t *ui.Theme, top float32, active bool) 
 	}
 	what, base, about := "script", "Untitled", "A Script rule runs one on the traffic it matches."
 	if s.addon {
-		what, base, about = "addon", "helpers", "Modules request and rule scripts load with require(\"name\")."
+		what, base, about = "addon", "helpers", "Modules rule scripts import, and request scripts require, by name."
 	}
 	ui.Column(c).Width(268).MinHeight(0).Padding(top, t.Space(3), t.Space(3), t.Space(3)).Gap(t.Space(2)).Children(func() {
 		ui.Row(c).Gap(t.Space(1)).AlignItems(ui.Center).Children(func() {
@@ -543,7 +569,7 @@ func (a *app) scriptsPage(c *ui.Context, t *ui.Theme, top float32, active bool) 
 		if s.choice == "" {
 			title, hint := "No scripts", "Change requests and responses with JavaScript and the pm API, for the traffic a Script rule matches."
 			if s.addon {
-				title, hint = "No addons", "Code to share between scripts: what an addon puts in module.exports, request and rule scripts get with require(\"its name\")."
+				title, hint = "No addons", "Code to share between scripts: what an addon exports, rule scripts import from \"its name\" and request scripts require."
 			}
 			uikit.EmptyState(c, title, hint, func() {
 				if uikit.PrimaryButton(c, "New "+what).Clicked() {
@@ -588,7 +614,7 @@ func (a *app) scriptList(c *ui.Context, t *ui.Theme, s *scriptStore, active bool
 				if err := s.problems[name]; err != nil {
 					ui.Text(c, err.Error()).FontSize(uikit.TextMeta).TextColor(t.Danger).SingleLine()
 				} else if s.addon {
-					uikit.Meta(c, `require("`+name+`")`).Font(uikit.FontMono).SingleLine()
+					uikit.Meta(c, `from "`+name+`"`).Font(uikit.FontMono).SingleLine()
 				} else {
 					uikit.Meta(c, scriptHooks(s, name)).Font(uikit.FontMono).SingleLine()
 				}
@@ -640,7 +666,7 @@ func (a *app) scriptEditor(c *ui.Context, t *ui.Theme, s *scriptStore, name stri
 			a.renameScript(s, name, strings.TrimSpace(s.name))
 		}
 		ui.Spacer(c)
-		snippetMenu(c, st, !s.addon)
+		snippetMenu(c, st, map[bool]string{false: "rule", true: "addon"}[s.addon])
 		uikit.MoreMenu(c, what+" actions", func(m *ui.Menu) {
 			actions := []action{do("scripts.rename", "Rename", func() { a.renameScript(s, name, strings.TrimSpace(s.name)) }).
 				when(strings.TrimSpace(s.name) != name, "Type the new name first").in("edit")}
@@ -675,9 +701,9 @@ func (a *app) scriptEditor(c *ui.Context, t *ui.Theme, s *scriptStore, name stri
 		note := "No rule runs it yet; add a Script rule in Rules."
 		switch {
 		case s.addon && users > 0:
-			note = usedBy + ` · scripts load it with require("` + name + `").`
+			note = usedBy + ` · import it from "` + name + `", or require it.`
 		case s.addon:
-			note = `Load it in a request or rule script with require("` + name + `").`
+			note = `Import it in a rule script from "` + name + `", or require it in a request script.`
 		case users > 0:
 			note = usedBy + " · changes apply to new requests."
 		}

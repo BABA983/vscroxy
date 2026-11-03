@@ -481,7 +481,6 @@ func TestUISnapshots(t *testing.T) {
 		{name: "tools-addons", setup: func(a *app) {
 			snapshotScripts(a)
 			a.addons = scriptStore{addon: true, names: []string{"sign"}, texts: map[string]string{"sign": newAddonText("sign")}, problems: map[string]error{}}
-			a.scripts.texts["Debug headers"] += "\nconst { sign } = require(\"sign\");\n"
 			a.addonsShown = true
 			a.openTools("scripts")
 		}, want: "Required by 1 script"},
@@ -857,13 +856,13 @@ func snapshotScripts(a *app) {
 	s := &a.scripts
 	s.names = []string{"Broken", "Debug headers"}
 	s.texts = map[string]string{
-		"Debug headers": "// Tag requests to the API, and see what came back.\nfunction onRequest() {\n  pm.request.headers.upsert(\"X-Debug\", \"1\");\n  pm.variables.set(\"startedAt\", Date.now());\n}\n\nfunction onResponse() {\n  console.log(pm.response.code, Date.now() - Number(pm.variables.get(\"startedAt\")), \"ms\");\n  if (pm.response.code >= 500) pm.response.code = 200;\n}\n",
-		"Broken":        "function onRequest() {\n  pm.request.headers.upsert(\n}\n",
+		"Debug headers": "// Tag requests to the API, and see what came back.\nimport { sign } from \"sign\";\n\nexport function onRequest() {\n  pm.request.headers.upsert(\"X-Signature\", sign(pm.request.body.raw, process.env.SIGNING_KEY));\n  pm.request.headers.upsert(\"X-Debug\", \"1\");\n  pm.variables.set(\"startedAt\", Date.now());\n}\n\nexport function onResponse() {\n  console.log(pm.response.code, Date.now() - Number(pm.variables.get(\"startedAt\")), \"ms\");\n  if (pm.response.code >= 500) pm.response.code = 200;\n}\n",
+		"Broken":        "export function onRequest() {\n  pm.request.headers.upsert(\n}\n",
 	}
 	s.problems = map[string]error{}
 	s.parsed = map[string]*request.ProxyScript{}
 	for name, text := range s.texts {
-		if p, err := request.ParseProxyScript(text); err != nil {
+		if p, err := request.ParseProxyScript(name, text); err != nil {
 			s.problems[name] = err
 		} else {
 			s.parsed[scriptFile(name)] = p
@@ -872,7 +871,7 @@ func snapshotScripts(a *app) {
 	s.console = []scriptLog{
 		{at: snapshotTime, script: "Debug headers", rule: "Debug headers", phase: "response", kind: "log", text: "200 48 ms"},
 		{at: snapshotTime.Add(2 * time.Second), script: "Debug headers", rule: "Debug headers", phase: "response", kind: "log", text: "503 112 ms"},
-		{at: snapshotTime.Add(3 * time.Second), script: "Debug headers", rule: "Debug headers", phase: "request", kind: "error", text: "TypeError: Cannot read property 'id' of undefined at request.js:4:12(9)"},
+		{at: snapshotTime.Add(3 * time.Second), script: "Debug headers", rule: "Debug headers", phase: "request", kind: "error", text: "TypeError: Cannot read property 'id' of undefined at onRequest (Debug headers.js:5:58(9))"},
 	}
 }
 

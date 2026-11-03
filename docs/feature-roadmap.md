@@ -121,7 +121,7 @@
 | Scenario（规则分组切换） | 已有 | | |
 | 脚本：挂在规则上、app 内编辑、`pm` 风格 API | 已有 | Script 规则运行 `tools/scripts/*.js` 的 onRequest／onResponse；Tools → Scripts 编辑，带 Console；全局 `script.js` 已删除 | M4 |
 | 脚本：异步发请求、规则间共享状态、读系统环境变量 | 已有 | `pm.sendRequest` 直连服务器；`pm.variables` 跨同一请求的脚本，`pm.globals` 跨规则并保存；`process.env` | M4 |
-| 脚本：内置库（lodash、crypto-js 等）、代码片段库、自定义 addon | 已有 | lodash、crypto-js 4.2.0、chai 和 Insert snippet 与请求脚本共用；addon 是 `tools/addons/*.js`，`require("名字")` 加载，Tools → Scripts → Addons 编辑，CLI 用 `--addons` | M4 |
+| 脚本：内置库（lodash、crypto-js 等）、代码片段库、自定义 addon | 已有 | lodash、crypto-js 4.2.0、chai 和 Insert snippet 与请求脚本共用；规则脚本和 addon 是 ES 模块（esbuild 转成 CommonJS 后由 goja 运行，source map 指回原行号，不支持顶层 await），addon 在 `tools/addons/*.js`，规则脚本 `import`、请求脚本 `require` 加载，Tools → Scripts → Addons 编辑，CLI 用 `--addons` | M4 |
 | 脚本：WebSocket 消息钩子 | 缺少 | | M8 |
 | 网络条件：全局预设 | 已有 | 3G / 4G / DSL | |
 | 网络条件：自定义预设、丢包、按 host/规则生效 | 缺少 | | M5 |

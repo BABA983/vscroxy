@@ -577,19 +577,27 @@ to new requests. Each script is a file under `~/.vscroxy/tools/scripts/`
 reads them again. A script that does not parse is marked in the list and the
 editor, and its rules do nothing.
 
+A rule script is an ES module: it exports its hooks and may `import` the
+built-in libraries and addons. vscroxy converts it with esbuild before running
+it, so newer syntax (optional chaining, `??`, object spread, class fields)
+works, and errors name the line as you wrote it. Top-level `await` is not
+supported; await inside the hooks.
+
 A **Script** rule in **Tools → Rules** runs one script on the traffic it
 matches (URL, method, apps, headers and scenario, as other rules). Every
 matching Script rule runs, in order, before breakpoints and the Map and Block
 rules, each seeing what the ones before it changed.
 
 ```js
-function onRequest() {
+import _ from "lodash";
+
+export function onRequest() {
   pm.request.headers.upsert("Authorization", "Bearer " + process.env.API_TOKEN);
   pm.request.url.query.upsert("debug", "1");
   pm.variables.set("startedAt", Date.now());
 }
 
-async function onResponse() {
+export async function onResponse() {
   console.log(pm.response.code, Date.now() - Number(pm.variables.get("startedAt")), "ms");
   if (pm.response.code >= 500) {
     pm.response.code = 200;
@@ -609,8 +617,9 @@ async function onResponse() {
   read-only here. `process.env` reads the system's environment variables.
 - `pm.sendRequest` goes straight to the server, not through the proxy, so a
   script's own rule never matches it; it waits up to 30 seconds.
-- `require('crypto-js')`, `require('lodash')` and `require('chai')` work, as in
-  request scripts.
+- `import CryptoJS from "crypto-js"`, `import _ from "lodash"` and
+  `import chai from "chai"` load the built-in libraries; `require(...)` also
+  works.
 - Bodies that are binary, compressed on the request side, or larger than 1 MiB
   are not handed to the script and stay as they are. Streaming and SSE
   responses skip `onResponse`.
@@ -619,21 +628,29 @@ async function onResponse() {
 
 **Addons** are your own modules for request and rule scripts. **Tools →
 Scripts → Addons** edits them; each is a file under `~/.vscroxy/tools/addons/`
-(`name.js`), and scripts load what it puts in `module.exports` with
-`require("name")`. An addon can require the built-in libraries and other
-addons; it runs once per script run, so state does not carry between
-exchanges. The list says how many scripts require each. Names cannot be
-`chai`, `lodash` or `crypto-js`. Configuration export includes them.
-`vscroxy-cli run --addons DIR` loads them for headless runs.
+(`name.js`). An addon is an ES module like a rule script: what it exports,
+rule scripts and other addons import `from "name"`, and request scripts, which
+stay Postman's CommonJS, get with `require("name")` (a default export is at
+`.default`). An addon written as CommonJS, with `module.exports`, works too.
+An addon can import the built-in libraries and other addons; it runs once per
+script run, so state does not carry between exchanges. The list says how many
+scripts import or require each. Names cannot be `chai`, `lodash` or
+`crypto-js`. Configuration export includes them. `vscroxy-cli run --addons DIR`
+loads them for headless runs.
 
 ```js
 // addons/sign.js
-const CryptoJS = require("crypto-js");
-module.exports = { sign: (text, key) => CryptoJS.HmacSHA256(text, key).toString() };
+import CryptoJS from "crypto-js";
+export const sign = (text, key) => CryptoJS.HmacSHA256(text, key).toString();
 
-// a script
+// a rule script
+import { sign } from "sign";
+export function onRequest() {
+  pm.request.headers.upsert("X-Signature", sign(pm.request.body.raw, process.env.SIGNING_KEY));
+}
+
+// a request script
 const { sign } = require("sign");
-pm.request.headers.upsert("X-Signature", sign(pm.request.body.raw, process.env.SIGNING_KEY));
 ```
 
 ## Bodies

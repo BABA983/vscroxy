@@ -11,23 +11,46 @@ import (
 )
 
 func TestParseProxyScriptFindsHooks(t *testing.T) {
-	s, err := ParseProxyScript("// only the response\nasync function onResponse() {}\nconst onRequest = 1;\nfunction helper() { function onRequest() {} }")
+	s, err := ParseProxyScript("t", "// only the response\nexport async function onResponse() {}\nfunction onRequest() {}\nexport function helper() {}")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if s.OnRequest || !s.OnResponse {
-		t.Fatalf("hooks = %v, %v: only top-level declarations count", s.OnRequest, s.OnResponse)
+		t.Fatalf("hooks = %v, %v: only exported hooks count", s.OnRequest, s.OnResponse)
 	}
-	_, err = ParseProxyScript("function onRequest() {\n  pm.request.headers.upsert(\n}")
-	var problem ScriptProblem
-	if !errors.As(err, &problem) || problem.Line != 3 {
-		t.Fatalf("err = %#v, want a problem on line 3", err)
+	for src, line := range map[string]int{
+		"export function onRequest() {\n  pm.request.headers.upsert(\n}":                 3,
+		"const token = 1;\nawait pm.sendRequest(\"x\");\nexport function onRequest() {}": 2,
+	} {
+		_, err = ParseProxyScript("t", src)
+		var problem ScriptProblem
+		if !errors.As(err, &problem) || problem.Line != line {
+			t.Errorf("%q: err = %#v, want a problem on line %d", src, err, line)
+		}
+	}
+}
+
+// Syntax newer than goja runs, and errors name the line as written, not as
+// converted.
+func TestProxyScriptErrorsPointAtTheSource(t *testing.T) {
+	s, err := ParseProxyScript("Debug", "import _ from \"lodash\";\nconst seen = {..._.pick({a: 1}, \"a\")};\n\nexport function onRequest() {\n  pm.request.headers.upsert(\"X-A\", String(seen?.a ?? 0));\n}\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	x := &capture.ScriptExchange{Phase: "request", URL: "https://api.test/", Header: http.Header{}}
+	if _, err := s.Run(t.Context(), x, ProxyEnv{}); err != nil || x.Header.Get("X-A") != "1" {
+		t.Fatalf("X-A = %q, %v", x.Header.Get("X-A"), err)
+	}
+	s, _ = ParseProxyScript("Debug", "// first\nimport _ from \"lodash\";\n\nexport function onRequest() {\n  const x = null;\n  return x.y;\n}\n")
+	_, err = s.Run(t.Context(), x, ProxyEnv{})
+	if err == nil || !strings.Contains(err.Error(), "Debug.js:6:") {
+		t.Fatalf("err = %v, want it at Debug.js line 6", err)
 	}
 }
 
 func TestProxyScriptEditsTheRequest(t *testing.T) {
-	s, err := ParseProxyScript(`
-function onRequest() {
+	s, err := ParseProxyScript("Auth", `
+export function onRequest() {
 	pm.request.headers.upsert("Authorization", "Bearer " + process.env.VSCROXY_TEST_TOKEN);
 	pm.request.headers.remove("X-Drop");
 	pm.request.url.query.upsert("page", "2");
@@ -62,8 +85,8 @@ function _sum(a, b) { return Number(a) + b; }`)
 }
 
 func TestProxyScriptEditsTheResponse(t *testing.T) {
-	s, err := ParseProxyScript(`
-async function onResponse() {
+	s, err := ParseProxyScript("Edit", `
+export async function onResponse() {
 	const CryptoJS = require("crypto-js");
 	const body = pm.response.json();
 	body.sig = CryptoJS.HmacSHA256("data", "key").toString();
@@ -90,7 +113,7 @@ async function onResponse() {
 }
 
 func TestProxyScriptLimits(t *testing.T) {
-	s, _ := ParseProxyScript(`function onRequest() { pm.environment.set("a", "1") }`)
+	s, _ := ParseProxyScript("t", `export function onRequest() { pm.environment.set("a", "1") }`)
 	x := &capture.ScriptExchange{Phase: "request", URL: "https://api.test/", Header: http.Header{}}
 	if _, err := s.Run(t.Context(), x, ProxyEnv{}); err == nil || !strings.Contains(err.Error(), "read-only") {
 		t.Fatalf("err = %v: the environment is read-only to rule scripts", err)
@@ -100,7 +123,7 @@ func TestProxyScriptLimits(t *testing.T) {
 		t.Fatal(err)
 	}
 	// A binary body is not handed to the script, nor replaced.
-	s, _ = ParseProxyScript(`function onRequest() { pm.request.body.raw = "text" }`)
+	s, _ = ParseProxyScript("t", `export function onRequest() { pm.request.body.raw = "text" }`)
 	x = &capture.ScriptExchange{Phase: "request", URL: "https://api.test/", Header: http.Header{}, BinaryBody: true}
 	if _, err := s.Run(t.Context(), x, ProxyEnv{}); err != nil || x.Body != nil {
 		t.Fatalf("binary body = %q, %v", x.Body, err)
@@ -115,8 +138,8 @@ func TestProxyScriptSendsDirectly(t *testing.T) {
 	}))
 	defer server.Close()
 	t.Setenv("HTTP_PROXY", "http://127.0.0.1:1")
-	s, _ := ParseProxyScript(`async function onRequest() {
-	const res = await pm.sendRequest("` + server.URL + `/token");
+	s, _ := ParseProxyScript("t", `export async function onRequest() {
+	const res = await pm.sendRequest("`+server.URL+`/token");
 	pm.request.headers.upsert("X-Token", res.json().token);
 }`)
 	x := &capture.ScriptExchange{Phase: "request", URL: "https://api.test/", Header: http.Header{}}
@@ -139,7 +162,7 @@ func TestAddonsAreRequiredOncePerScript(t *testing.T) {
 		"helper":  `exports.name = "helper"; exports.counter = require("counter");`, // a cycle, as in Node
 		"broken":  `throw new Error("addon failed")`,
 	}
-	s, _ := ParseProxyScript(`function onRequest() {
+	s, _ := ParseProxyScript("t", `export function onRequest() {
 	const counter = require("counter");
 	counter.next();
 	pm.request.headers.upsert("X-Count", String(require("counter").next()));
@@ -158,5 +181,40 @@ func TestAddonsAreRequiredOncePerScript(t *testing.T) {
 	// Each run starts again: module state does not leak between exchanges.
 	if _, err := s.Run(t.Context(), x, ProxyEnv{Addons: addons}); err != nil || x.Header.Get("X-Count") != "2" {
 		t.Fatalf("second run count = %q, %v", x.Header.Get("X-Count"), err)
+	}
+}
+
+// An ES module addon imports libraries and other addons; a CommonJS one
+// still works; request scripts require either.
+func TestESModuleAddons(t *testing.T) {
+	addons := map[string]string{
+		"sign":   "import CryptoJS from \"crypto-js\";\nimport { prefix } from \"legacy\";\nexport const sign = (text) => prefix + CryptoJS.SHA256(text).toString().slice(0, 8);\nexport default { name: \"sign\" };\n",
+		"legacy": "module.exports = { prefix: \"v1:\" };",
+		"broken": "export const x = ;",
+	}
+	s, err := ParseProxyScript("Sign", `import { sign } from "sign";
+import def from "sign";
+export function onRequest() {
+	pm.request.headers.upsert("X-Sig", sign("data") + " " + def.name);
+	try { require("broken") } catch (e) { pm.request.headers.upsert("X-Broken", e.message) }
+}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	x := &capture.ScriptExchange{Phase: "request", URL: "https://api.test/", Header: http.Header{}}
+	if _, err := s.Run(t.Context(), x, ProxyEnv{Addons: addons}); err != nil {
+		t.Fatal(err)
+	}
+	// SHA-256("data") starts 3a6eb079, as sha256sum computes it.
+	if x.Header.Get("X-Sig") != "v1:3a6eb079 sign" || !strings.Contains(x.Header.Get("X-Broken"), `addon "broken": line 1`) {
+		t.Fatalf("headers = %v", x.Header)
+	}
+	run := &scriptRun{addons: addons}
+	req := &Prepared{Method: "GET", URL: "https://api.test/", Header: http.Header{}}
+	if err := runScript(`pm.request.headers.upsert("X-Sig", require("sign").sign("data") + " " + require("sign").default.name)`, run, map[string]any{"req": req}); err != nil {
+		t.Fatal(err)
+	}
+	if req.Header.Get("X-Sig") != "v1:3a6eb079 sign" {
+		t.Fatalf("request script header = %q", req.Header.Get("X-Sig"))
 	}
 }

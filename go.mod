@@ -11,6 +11,7 @@ require (
 	github.com/dop251/goja v0.0.0-20261019185110-cf7b1419c9c0
 	github.com/ebitengine/purego v0.11.2
 	github.com/egoist/mygo v0.7.3
+	github.com/evanw/esbuild v0.28.2
 	github.com/getkin/kin-openapi v0.151.0
 	github.com/google/jsonschema-go v0.4.3
 	github.com/google/uuid v1.6.0

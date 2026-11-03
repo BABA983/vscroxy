@@ -2,7 +2,6 @@ package request
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"maps"
@@ -11,20 +10,22 @@ import (
 	"time"
 
 	"github.com/baba983/vscroxy/internal/capture"
-	"github.com/dop251/goja/ast"
-	"github.com/dop251/goja/parser"
 )
 
 // ProxyScript is the script a Script rule runs on the exchanges it matches:
-// a file that declares onRequest, onResponse or both, which run with the
-// same pm API as request scripts. onRequest edits pm.request before it goes
-// upstream; onResponse edits pm.response before the client gets it:
+// an ES module that exports onRequest, onResponse or both, which run with
+// the same pm API as request scripts. onRequest edits pm.request before it
+// goes upstream; onResponse edits pm.response before the client gets it:
 //
-//	function onRequest() { pm.request.headers.upsert("X-Debug", "1") }
-//	async function onResponse() { if (pm.response.code === 500) pm.response.code = 200 }
+//	import { sign } from "sign";
+//	export function onRequest() { pm.request.headers.upsert("X-Sig", sign(pm.request.body.raw)) }
+//	export async function onResponse() { if (pm.response.code === 500) pm.response.code = 200 }
+//
+// It may import the built-in libraries and addons.
 type ProxyScript struct {
-	Source                string
 	OnRequest, OnResponse bool
+	file                  string
+	module                module
 }
 
 // ScriptProblem is where a script does not parse.
@@ -37,26 +38,22 @@ func (p ScriptProblem) Error() string {
 	return fmt.Sprintf("line %d: %s", p.Line, p.Message)
 }
 
-// ParseProxyScript finds the hooks src declares at its top level, without
-// running it. A script that does not parse is a ScriptProblem.
-func ParseProxyScript(src string) (*ProxyScript, error) {
-	program, err := parser.ParseFile(nil, "", src, 0)
+// ParseProxyScript converts src, the script name.js, and finds the hooks it
+// exports, without running it. A script that does not parse, or awaits at
+// its top level, is a ScriptProblem.
+func ParseProxyScript(name, src string) (*ProxyScript, error) {
+	file := name + ".js"
+	m, err := compileModule(file, src)
 	if err != nil {
-		var list parser.ErrorList
-		if errors.As(err, &list) && len(list) > 0 {
-			return nil, ScriptProblem{Line: list[0].Position.Line, Column: list[0].Position.Column, Message: list[0].Message}
-		}
 		return nil, err
 	}
-	s := &ProxyScript{Source: src}
-	for _, statement := range program.Body {
-		if fn, ok := statement.(*ast.FunctionDeclaration); ok && fn.Function.Name != nil {
-			switch fn.Function.Name.Name {
-			case "onRequest":
-				s.OnRequest = true
-			case "onResponse":
-				s.OnResponse = true
-			}
+	s := &ProxyScript{file: file, module: m}
+	for _, export := range m.exports {
+		switch export {
+		case "onRequest":
+			s.OnRequest = true
+		case "onResponse":
+			s.OnResponse = true
 		}
 	}
 	return s, nil
@@ -93,7 +90,7 @@ func (s *ProxyScript) Run(ctx context.Context, x *capture.ScriptExchange, env Pr
 	run := &scriptRun{
 		vars: maps.Clone(env.Environment), locals: x.Locals, globals: maps.Clone(env.Globals), env: env.OS,
 		readOnly: map[string]bool{"environment": true}, phase: x.Phase, addons: env.Addons,
-		info: scriptInfo{RequestName: x.Rule},
+		info: scriptInfo{RequestName: x.Rule}, file: s.file, sourceMap: s.module.sourceMap,
 	}
 	run.target = func() string { return x.URL }
 	run.send = func(req *Prepared) (capture.Flow, error) { return sendDirect(ctx, req) }
@@ -107,9 +104,10 @@ func (s *ProxyScript) Run(ctx context.Context, x *capture.ScriptExchange, env Pr
 		res = &jsResponse{Status: x.Status, Header: x.Response.Clone(), Body: string(x.ResponseBody), Bytes: len(x.ResponseBody), editable: true}
 		objects["res"] = res
 	}
-	// The hook runs where the script's own declarations are in scope; the
-	// newline keeps a last line comment from swallowing the call.
-	err := runScriptContext(ctx, s.Source+"\nreturn await "+hook+"();", run, objects)
+	// The module starts on the first line, so its lines stay where the
+	// source map says.
+	err := runScriptContext(ctx, "var module = {exports: {}}, exports = module.exports;"+s.module.code+
+		"\nreturn await module.exports."+hook+"();", run, objects)
 	out := ProxyRun{Console: run.console, Writes: run.writes}
 	if err != nil {
 		return out, err

@@ -2,6 +2,7 @@ package app
 
 import (
 	"encoding/json/v2"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -32,11 +33,11 @@ func TestScriptRuleRunsTheSavedScript(t *testing.T) {
 	a.rulesPath = filepath.Join(dir, "rules.json")
 	a.scripts.dir = filepath.Join(dir, "tools", "scripts")
 	a.loadScripts()
-	name, ok := a.newScript(&a.scripts, "Debug", `function onRequest() {
+	name, ok := a.newScript(&a.scripts, "Debug", `export function onRequest() {
   pm.request.headers.upsert("X-Debug", process.env.VSCROXY_SCRIPT_TEST);
   pm.variables.set("seen", "1");
 }
-function onResponse() {
+export function onResponse() {
   console.log("was", pm.response.code, pm.variables.get("seen"));
   pm.response.code = 200;
   pm.response.setBody({ok: true});
@@ -96,7 +97,7 @@ func TestConfigExportImportRoundTrip(t *testing.T) {
 	_ = os.WriteFile(mock, []byte(`{"id":42}`), 0o600)
 	a.addons.dir = filepath.Join(src, "tools", "addons")
 	a.loadScripts()
-	a.newScript(&a.scripts, "Auth", "function onRequest() {}\n")
+	a.newScript(&a.scripts, "Auth", "export function onRequest() {}\n")
 	a.newScript(&a.addons, "sign", "")
 	a.newProfile("Staging", "10.0.0.1 api.test\n", "")
 	a.ignoreText = "telemetry.test"
@@ -143,7 +144,7 @@ func TestConfigExportImportRoundTrip(t *testing.T) {
 	if body, _ := os.ReadFile(c.rules[0].Target); string(body) != `{"id":42}` {
 		t.Fatalf("mock = %q", body)
 	}
-	if c.scripts.texts["Auth"] != "function onRequest() {}\n" {
+	if c.scripts.texts["Auth"] != "export function onRequest() {}\n" {
 		t.Fatalf("scripts = %v", c.scripts.texts)
 	}
 	if c.addons.texts["sign"] != newAddonText("sign") || c.addons.problems["sign"] != nil {
@@ -165,8 +166,8 @@ func TestConfigExportImportRoundTrip(t *testing.T) {
 	}
 }
 
-// An addon saved on the Scripts page is what require("name") loads, in a
-// rule script on proxied traffic and in a request script alike.
+// An addon saved on the Scripts page is what a rule script on proxied
+// traffic imports and a request script requires.
 func TestAddonsLoadInRuleAndRequestScripts(t *testing.T) {
 	var got http.Header
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -181,10 +182,10 @@ func TestAddonsLoadInRuleAndRequestScripts(t *testing.T) {
 	a.scripts.dir = filepath.Join(dir, "tools", "scripts")
 	a.addons.dir = filepath.Join(dir, "tools", "addons")
 	a.loadScripts()
-	if err := a.writeScript(&a.addons, "tag", `module.exports = { tag: (who) => who + ":" + require("lodash").kebabCase("Shared Addon") };`); err != nil {
+	if err := a.writeScript(&a.addons, "tag", "import _ from \"lodash\";\nexport const tag = (who) => who + \":\" + _.kebabCase(\"Shared Addon\");\n"); err != nil {
 		t.Fatal(err)
 	}
-	name, _ := a.newScript(&a.scripts, "Tag", `function onRequest() { pm.request.headers.upsert("X-Tag", require("tag").tag("rule")); }`)
+	name, _ := a.newScript(&a.scripts, "Tag", "import { tag } from \"tag\";\nexport function onRequest() { pm.request.headers.upsert(\"X-Tag\", tag(\"rule\")); }")
 	a.scripts.setEnv(nil, nil, a.addons.sources())
 	if !a.applyRuleChanges([]capture.Rule{{Type: capture.RuleScript, Match: "/rule", Target: scriptFile(name)}}) {
 		t.Fatal(a.ruleUI.problem)
@@ -210,5 +211,32 @@ func TestAddonsLoadInRuleAndRequestScripts(t *testing.T) {
 	// A name require already loads is not an addon's.
 	if _, ok := a.newScript(&a.addons, "lodash", ""); ok {
 		t.Error("an addon named lodash was saved")
+	}
+}
+
+// A rule script that does not convert is marked where it fails, and does
+// nothing; an addon that does not is marked too, and scripts cannot load it.
+func TestScriptProblemsAreMarked(t *testing.T) {
+	dir := t.TempDir()
+	a := workspaceApp()
+	a.scripts.dir, a.addons.dir = filepath.Join(dir, "scripts"), filepath.Join(dir, "addons")
+	a.loadScripts()
+	a.newScript(&a.scripts, "Waits", "export function onRequest() {}\nawait pm.sendRequest(\"https://example.com\");\n")
+	a.newScript(&a.addons, "half", "")
+	if err := a.writeScript(&a.addons, "half", "export const x = ;\n"); err != nil {
+		t.Fatal(err)
+	}
+	var problem request.ScriptProblem
+	if !errors.As(a.scripts.problems["Waits"], &problem) || problem.Line != 2 || !strings.Contains(problem.Message, "await") {
+		t.Errorf("rule script problem = %v", a.scripts.problems["Waits"])
+	}
+	if on, _ := a.scripts.Hooks("Waits.js"); on {
+		t.Error("a script that does not convert still runs")
+	}
+	if !errors.As(a.addons.problems["half"], &problem) || problem.Line != 1 {
+		t.Errorf("addon problem = %v", a.addons.problems["half"])
+	}
+	if _, ok := a.addons.sources()["half"]; ok {
+		t.Error("scripts can load an addon that does not convert")
 	}
 }
