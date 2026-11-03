@@ -584,6 +584,7 @@ func TestUISnapshots(t *testing.T) {
 		{name: "dialog-socket", setup: func(a *app) { a.socket.open, a.socket.url = true, "wss://api.example.com/events" }, want: "WebSocket session · Not connected", short: true},
 		{name: "dialog-socket-payload", setup: func(a *app) {
 			a.socket.open, a.socket.url = true, "wss://api.example.com/events"
+			a.socket.encoding, a.socket.message, a.socket.subprotocols = "Hex", "01 7f a3", "events.v2, events.v1"
 			a.socket.session = &wsSession{state: "Disconnected", events: []wsSessionEvent{
 				{Sequence: 1, At: snapshotTime, Direction: "In", Kind: websocket.TextMessage, Data: []byte(`{"event":"ready"}`), Size: 17},
 				{Sequence: 2, At: snapshotTime.Add(time.Second), Direction: "In", Kind: websocket.BinaryMessage, Data: []byte{0x01, 0x7f, 0xa3}, Size: 512},

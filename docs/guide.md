@@ -934,7 +934,16 @@ the active request draft has a WS URL, it prepares that draft's URL, auth,
 headers and body using current variables, without running scripts or sending.
 Otherwise enter a `ws://` or `wss://` target and handshake headers. **Connect**
 performs the handshake through the capture proxy using the Requests cookie jar
-and verified TLS. It sends no message until **Send text**. Send repeatedly on
+and verified TLS. **Subprotocols** offers comma-separated HTTP tokens in client
+preference order; the server selects one or none, and the handshake event records
+the actual selection. WS and decrypted WSS preserve negotiation through both
+proxy handshakes. Duplicate/invalid tokens or an unoffered selection fail rather
+than silently falling back to another protocol.
+
+It sends no message until **Send text** / **Send binary**. Select **Text** for
+UTF-8 text, **Hex** for binary bytes (whitespace allowed), or **Base64** for padded
+base64 binary input. Invalid encoding sends nothing. Empty binary messages are
+valid, and bytes are never converted through UTF-8. Send repeatedly on
 the same connection, search retained payloads/events and filter In/Out/Events.
 Select a message to read/copy text or binary hex; copying includes any truncation
 notice and copies displayed text/hex, not a binary clipboard format.
@@ -952,8 +961,7 @@ still appear in Capture with its existing retention/export capabilities.
 new **Connect** starts a fresh timeline. No automatic reconnect or restart
 restore occurs. The timeline is session-local, not an experiment or a saved
 conversation. HTTP Requests/Runner's one-shot WS sender remains available.
-Interactive binary sending, subprotocol negotiation, automatic SSE reconnect
-and live gRPC timelines are not provided by this panel.
+Automatic SSE reconnect and live gRPC timelines are not provided by this panel.
 
 ## Protobuf and gRPC
 

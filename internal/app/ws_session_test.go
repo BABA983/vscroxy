@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -14,6 +15,94 @@ import (
 	"github.com/egoist/mygo/ui"
 	"github.com/gorilla/websocket"
 )
+
+func TestWebSocketSessionUIBinaryEncodingsAndSubprotocol(t *testing.T) {
+	upgrader := websocket.Upgrader{Subprotocols: []string{"bytes.v2"}}
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+		defer c.Close()
+		for {
+			kind, data, err := c.ReadMessage()
+			if err != nil {
+				return
+			}
+			if err := c.WriteMessage(kind, data); err != nil {
+				return
+			}
+		}
+	}))
+	defer upstream.Close()
+	a := workspaceApp()
+	a.srv = requestProxy(t)
+	a.socket = websocketWorkbench{open: true, url: "ws" + strings.TrimPrefix(upstream.URL, "http"), subprotocols: "bytes.v1, bytes.v2"}
+	t.Cleanup(func() { a.socket.session.disconnect() })
+	tt := ui.NewTester(a.view, 1100, 800)
+	click := func(label string) {
+		t.Helper()
+		if err := tt.Click(label); err != nil {
+			t.Fatal(err)
+		}
+	}
+	wait := func(ready func() bool) {
+		t.Helper()
+		deadline := time.Now().Add(10 * time.Second)
+		for !ready() {
+			if time.Now().After(deadline) {
+				t.Fatalf("WebSocket did not settle: %v", tt.Texts())
+			}
+			runtime.Gosched()
+			tt.Frame()
+		}
+		tt.Frame()
+	}
+	click("Connect")
+	wait(func() bool { state, _, _ := a.socket.session.snapshot(); return state == "Connected" })
+	for _, tc := range []struct {
+		encoding, text string
+		kind           int
+		want           []byte
+	}{
+		{"Hex", "ff 00 73 c3 28", websocket.BinaryMessage, []byte{255, 0, 115, 195, 40}},
+		{"Hex", "", websocket.BinaryMessage, []byte{}},
+		{"Base64", "AAH/AHM=", websocket.BinaryMessage, []byte{0, 1, 255, 0, 115}},
+		{"Text", "hello 界", websocket.TextMessage, []byte("hello 界")},
+	} {
+		click("WebSocket message encoding")
+		click(tc.encoding)
+		click("WebSocket message")
+		tt.Key(ui.Ctrl, ui.KeyA)
+		tt.Type(tc.text)
+		label := "Send binary"
+		if tc.kind == websocket.TextMessage {
+			label = "Send text"
+		}
+		click(label)
+		wait(func() bool {
+			_, events, _ := a.socket.session.snapshot()
+			return !a.socket.sending && slices.ContainsFunc(events, func(e wsSessionEvent) bool {
+				return e.Direction == "In" && e.Kind == tc.kind && bytes.Equal(e.Data, tc.want)
+			})
+		})
+	}
+	_, events, _ := a.socket.session.snapshot()
+	if !strings.Contains(events[0].Detail, "subprotocol: bytes.v2") {
+		t.Fatalf("negotiation not inspectable: %s", events[0].Detail)
+	}
+	before := len(events)
+	click("WebSocket message encoding")
+	click("Hex")
+	click("WebSocket message")
+	tt.Key(ui.Ctrl, ui.KeyA)
+	tt.Type("0xz")
+	click("Send binary")
+	_, events, _ = a.socket.session.snapshot()
+	if !tt.HasText("Invalid Hex message; nothing sent") || len(events) != before {
+		t.Fatal("malformed hex was sent or no validation shown")
+	}
+}
 
 func TestWebSocketSessionKeepsConnectionAndRecordsPeerClose(t *testing.T) {
 	upgrader := websocket.Upgrader{}

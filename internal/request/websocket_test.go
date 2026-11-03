@@ -1,11 +1,14 @@
 package request
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -48,6 +51,94 @@ func TestIsWebSocket(t *testing.T) {
 		if got := IsWebSocket(raw); got != want {
 			t.Errorf("isWebSocket(%q) = %v, want %v", raw, got, want)
 		}
+	}
+}
+
+func TestWebSocketSubprotocolAndBinaryThroughWSAndWSS(t *testing.T) {
+	for _, secure := range []bool{false, true} {
+		for _, protocol := range []string{"binary.v2", ""} {
+			t.Run(fmt.Sprintf("TLS=%t/selected=%s", secure, protocol), func(t *testing.T) {
+				upgrader := websocket.Upgrader{}
+				if protocol != "" {
+					upgrader.Subprotocols = []string{protocol}
+				}
+				upstream := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					if r.Header.Get("Authorization") != "Bearer local-only" || !slices.Equal(websocket.Subprotocols(r), []string{"binary.v1", "binary.v2"}) {
+						http.Error(w, "wrong handshake", 400)
+						return
+					}
+					c, err := upgrader.Upgrade(w, r, nil)
+					if err != nil {
+						return
+					}
+					defer c.Close()
+					kind, data, err := c.ReadMessage()
+					if err == nil {
+						c.WriteMessage(kind, data)
+					}
+				}))
+				if secure {
+					upstream.StartTLS()
+				} else {
+					upstream.Start()
+				}
+				defer upstream.Close()
+				proxy := testProxy(t)
+				proxy.SetSSL(capture.SSLConfig{All: true})
+				header := http.Header{"Authorization": {"Bearer local-only"}, "Sec-Websocket-Protocol": {"binary.v1, binary.v2"}}
+				ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+				defer cancel()
+				c, err := DialWebSocket(ctx, proxy.Addr(), &Prepared{URL: "ws" + strings.TrimPrefix(upstream.URL, "http"), Header: header}, proxy.CACertificate(), nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer c.Close()
+				if c.Subprotocol() != protocol || header.Get("Sec-WebSocket-Protocol") != "binary.v1, binary.v2" {
+					t.Fatalf("wrong selection or mutated authored headers: %q", c.Subprotocol())
+				}
+				want := []byte{0xff, 0, 0x73, 0xc3, 0x28}
+				c.SetReadDeadline(time.Now().Add(5 * time.Second))
+				if err := c.WriteMessage(websocket.BinaryMessage, want); err != nil {
+					t.Fatal(err)
+				}
+				kind, got, err := c.ReadMessage()
+				if err != nil || kind != websocket.BinaryMessage || !bytes.Equal(got, want) {
+					t.Fatalf("binary changed: kind=%d bytes=%x err=%v", kind, got, err)
+				}
+			})
+		}
+	}
+	for _, value := range []string{"one, one", "one,,two", "has space", "bad\r\nvalue"} {
+		if c, err := DialWebSocket(t.Context(), "", &Prepared{Header: http.Header{"Sec-Websocket-Protocol": {value}}}, nil, nil); err == nil {
+			c.Close()
+			t.Fatalf("accepted invalid protocols %q", value)
+		}
+	}
+	for _, secure := range []bool{false, true} {
+		t.Run(fmt.Sprintf("reject-unoffered/TLS=%t", secure), func(t *testing.T) {
+			upstream := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				upgrader := websocket.Upgrader{}
+				c, err := upgrader.Upgrade(w, r, http.Header{"Sec-Websocket-Protocol": {"unoffered"}})
+				if err == nil {
+					c.Close()
+				}
+			}))
+			if secure {
+				upstream.StartTLS()
+			} else {
+				upstream.Start()
+			}
+			defer upstream.Close()
+			proxy := testProxy(t)
+			proxy.SetSSL(capture.SSLConfig{All: true})
+			ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+			defer cancel()
+			c, err := DialWebSocket(ctx, proxy.Addr(), &Prepared{URL: "ws" + strings.TrimPrefix(upstream.URL, "http"), Header: http.Header{"Sec-Websocket-Protocol": {"offered"}}}, proxy.CACertificate(), nil)
+			if err == nil {
+				c.Close()
+				t.Fatal("accepted an unoffered upstream protocol")
+			}
+		})
 	}
 }
 

@@ -101,6 +101,16 @@ Regression coverage lives in the desktop module's real-socket tests:
 `TestStructuredWebSocketSendsAuthHeadersAndCookiesWithVerifiedTLS` and
 `TestWebSocketKeepsThePathAndQuery` (alongside the existing WSS regression).
 
+## WebSocket subprotocols
+
+Both WS and decrypted WSS upstream dialers offer the client's subprotocols via
+`Dialer.Subprotocols` instead of losing them with regenerated handshake headers.
+The downstream upgrader selects only the protocol actually selected upstream,
+never its own independent preference. An upstream selection not offered by the
+client fails the handshake. `TestWebSocketSubprotocolAndBinaryThroughWSAndWSS`
+in `internal/request` covers both transports, server selection/no selection,
+auth and binary payloads with invalid UTF-8.
+
 ## Local code mocks (`proxy.go`, `entry.go`, `attacker.go`)
 
 `SetLazyInterceptRule` selects intercepted CONNECT hosts whose upstream dial

@@ -4,9 +4,11 @@ import (
 	"bufio"
 	"context"
 	"crypto/tls"
+	"fmt"
 	"net"
 	"net/http"
 	"net/url"
+	"slices"
 
 	"github.com/gorilla/websocket"
 	log "github.com/sirupsen/logrus"
@@ -130,6 +132,7 @@ func (h *webSocketHandler) handle(serverConn, clientConn net.Conn, f *Flow) erro
 		NetDial: func(network, addr string) (net.Conn, error) {
 			return serverConn, nil
 		},
+		Subprotocols:    websocket.Subprotocols(clientReq),
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: h.proxy.Opts.SslInsecure},
 		// 使用已有的连接，不需要重新拨号
 		HandshakeTimeout: 0,
@@ -145,6 +148,9 @@ func (h *webSocketHandler) handle(serverConn, clientConn net.Conn, f *Flow) erro
 		return err
 	}
 	defer serverWS.Close()
+	if selected := serverWS.Subprotocol(); selected != "" && !slices.Contains(dialer.Subprotocols, selected) {
+		return fmt.Errorf("upstream selected an unoffered WebSocket subprotocol")
+	}
 
 	log.Debugf("Server WebSocket connected, subprotocol: %s", serverWS.Subprotocol())
 
@@ -154,6 +160,7 @@ func (h *webSocketHandler) handle(serverConn, clientConn net.Conn, f *Flow) erro
 	upgrader := &websocket.Upgrader{
 		ReadBufferSize:  1024,
 		WriteBufferSize: 1024,
+		Subprotocols:    []string{serverWS.Subprotocol()},
 		CheckOrigin: func(r *http.Request) bool {
 			return true // 代理模式下总是允许
 		},
@@ -308,6 +315,7 @@ func (h *webSocketHandler) handleWSS(res http.ResponseWriter, req *http.Request,
 		NetDial: func(network, addr string) (net.Conn, error) {
 			return serverConn.Conn, nil
 		},
+		Subprotocols: websocket.Subprotocols(req),
 		TLSClientConfig: &tls.Config{
 			InsecureSkipVerify: h.proxy.Opts.SslInsecure,
 		},
@@ -320,10 +328,14 @@ func (h *webSocketHandler) handleWSS(res http.ResponseWriter, req *http.Request,
 		return err
 	}
 	defer serverWS.Close()
+	if selected := serverWS.Subprotocol(); selected != "" && !slices.Contains(dialer.Subprotocols, selected) {
+		return fmt.Errorf("upstream selected an unoffered WebSocket subprotocol")
+	}
 
 	upgrader := &websocket.Upgrader{
 		ReadBufferSize:  1024,
 		WriteBufferSize: 1024,
+		Subprotocols:    []string{serverWS.Subprotocol()},
 		CheckOrigin: func(r *http.Request) bool {
 			return true // 代理模式下总是允许
 		},

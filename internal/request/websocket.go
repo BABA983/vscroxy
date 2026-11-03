@@ -9,10 +9,12 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/gorilla/websocket"
+	"golang.org/x/net/http/httpguts"
 )
 
 // maxWSReplies bounds what a composed WebSocket keeps: the first answers say
@@ -67,6 +69,18 @@ func wsSend(ctx context.Context, proxyAddr string, req *Prepared, ca []byte, jar
 }
 
 func DialWebSocket(ctx context.Context, proxyAddr string, req *Prepared, ca []byte, jar http.CookieJar) (*websocket.Conn, error) {
+	header := req.Header.Clone()
+	var protocols []string
+	for _, value := range header.Values("Sec-WebSocket-Protocol") {
+		for part := range strings.SplitSeq(value, ",") {
+			protocol := strings.TrimSpace(part)
+			if !httpguts.ValidHeaderFieldName(protocol) || slices.Contains(protocols, protocol) {
+				return nil, fmt.Errorf("WebSocket subprotocols must be unique HTTP tokens separated by commas")
+			}
+			protocols = append(protocols, protocol)
+		}
+	}
+	header.Del("Sec-WebSocket-Protocol")
 	roots, err := x509.SystemCertPool()
 	if err != nil {
 		roots = x509.NewCertPool()
@@ -81,17 +95,22 @@ func DialWebSocket(ctx context.Context, proxyAddr string, req *Prepared, ca []by
 	dialer := websocket.Dialer{
 		HandshakeTimeout: 10 * time.Second,
 		TLSClientConfig:  &tls.Config{RootCAs: roots},
+		Subprotocols:     protocols,
 		Jar:              jar,
 		Proxy: func(*http.Request) (*url.URL, error) {
 			return url.Parse("http://" + proxyAddr)
 		},
 	}
-	conn, resp, err := dialer.DialContext(ctx, req.URL, req.Header)
+	conn, resp, err := dialer.DialContext(ctx, req.URL, header)
 	if err != nil {
 		if resp != nil {
 			return nil, fmt.Errorf("%s: %w", resp.Status, err)
 		}
 		return nil, err
+	}
+	if selected := conn.Subprotocol(); selected != "" && !slices.Contains(protocols, selected) {
+		conn.Close()
+		return nil, fmt.Errorf("server selected an unoffered WebSocket subprotocol")
 	}
 	return conn, nil
 }

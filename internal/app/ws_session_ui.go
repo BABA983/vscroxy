@@ -1,14 +1,15 @@
 package app
 
 import (
+	"encoding/base64"
 	"encoding/hex"
 	"fmt"
-	"github.com/baba983/vscroxy/internal/uikit"
 	"math"
 	"strings"
 	"unicode/utf8"
 
 	"github.com/baba983/vscroxy/internal/request"
+	"github.com/baba983/vscroxy/internal/uikit"
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/editor"
 	"github.com/gorilla/websocket"
@@ -17,6 +18,7 @@ import (
 type websocketWorkbench struct {
 	open                                             bool
 	url, headers, message, query, direction, problem string
+	subprotocols, encoding                           string
 	session                                          *wsSession
 	picked                                           int
 	reader                                           *editor.State
@@ -34,6 +36,8 @@ func (a *app) openSocket() {
 			if err != nil {
 				s.problem = err.Error()
 			} else {
+				s.subprotocols = r.Header.Get("Sec-WebSocket-Protocol")
+				r.Header.Del("Sec-WebSocket-Protocol")
 				s.url, s.headers, s.message = r.URL, request.HeaderBlock(r.Header), r.Body
 			}
 		}
@@ -65,27 +69,57 @@ func (a *app) socketModal(c *ui.Context, t *ui.Theme) {
 				ui.Row(c).Gap(t.Space(2)).Children(func() {
 					uikit.Input(c, &s.url).Label("WebSocket URL").Placeholder("ws://127.0.0.1:8080/socket").Grow(1).MinWidth(0).Font(uikit.FontMono).Disabled(active)
 					if uikit.SecondaryButton(c, "Connect").Disabled(active || a.srv == nil || !a.srv.Running() || !request.IsWebSocket(s.url)).Clicked() {
-						s.session = openWSSession(a.srv.Addr(), &request.Prepared{Method: "GET", URL: s.url, Header: request.ParseHeaderBlock(s.headers)}, a.srv.CACertificate(), a.requestCookies(), a.invalidate)
-						s.problem = ""
-						s.picked = 0
-						s.reader = nil
+						header := request.ParseHeaderBlock(s.headers)
+						if s.subprotocols != "" && header.Get("Sec-WebSocket-Protocol") != "" {
+							s.problem = "Enter subprotocols in the dedicated field or headers, not both"
+						} else {
+							if s.subprotocols != "" {
+								header.Set("Sec-WebSocket-Protocol", s.subprotocols)
+							}
+							s.session = openWSSession(a.srv.Addr(), &request.Prepared{Method: "GET", URL: s.url, Header: header}, a.srv.CACertificate(), a.requestCookies(), a.invalidate)
+							s.problem = ""
+							s.picked = 0
+							s.reader = nil
+						}
 					}
 					if uikit.SecondaryButton(c, "Disconnect").Disabled(!active).Clicked() {
 						s.session.disconnect()
 					}
 				})
+				uikit.Input(c, &s.subprotocols).Label("WebSocket subprotocols").Placeholder("Subprotocols in preference order, e.g. chat.v2, chat.v1").Disabled(active)
 				ui.TextArea(c, &s.headers).Label("WebSocket handshake headers").Placeholder("Authorization: Bearer …").Height(54).Font(uikit.FontMono).FontSize(uikit.TextBody).Radius(uikit.RadiusControl).Disabled(active)
 				if s.problem != "" {
 					ui.Text(c, s.problem).FontSize(uikit.TextBody).TextColor(t.Danger)
 				}
 				ui.Row(c).Gap(t.Space(2)).Children(func() {
-					uikit.Input(c, &s.message).Label("WebSocket message").Placeholder("Text message").Grow(1).MinWidth(0).Font(uikit.FontMono)
-					if uikit.PrimaryButton(c, "Send text").Disabled(state != "Connected" || s.sending).Clicked() {
-						s.problem = ""
-						s.sent = make(chan error, 1)
-						s.sending = true
-						session, data, done := s.session, []byte(s.message), s.sent
-						go func() { done <- session.send(websocket.TextMessage, data); a.invalidate() }()
+					if s.encoding == "" {
+						s.encoding = "Text"
+					}
+					uikit.Select(c, &s.encoding, []string{"Text", "Hex", "Base64"}).Label("WebSocket message encoding").Width(110)
+					uikit.Input(c, &s.message).Label("WebSocket message").Placeholder("Text, hex bytes or padded base64").Grow(1).MinWidth(0).Font(uikit.FontMono)
+					label := "Send text"
+					if s.encoding != "Text" {
+						label = "Send binary"
+					}
+					if uikit.PrimaryButton(c, label).Disabled(state != "Connected" || s.sending).Clicked() {
+						kind, data, err := websocket.TextMessage, []byte(s.message), error(nil)
+						switch s.encoding {
+						case "Hex":
+							kind = websocket.BinaryMessage
+							data, err = hex.DecodeString(strings.Join(strings.Fields(s.message), ""))
+						case "Base64":
+							kind = websocket.BinaryMessage
+							data, err = base64.StdEncoding.DecodeString(s.message)
+						}
+						if err != nil {
+							s.problem = "Invalid " + s.encoding + " message; nothing sent"
+						} else {
+							s.problem = ""
+							s.sent = make(chan error, 1)
+							s.sending = true
+							session, done := s.session, s.sent
+							go func() { done <- session.send(kind, data); a.invalidate() }()
+						}
 					}
 				})
 				ui.Row(c).Gap(t.Space(2)).Wrap().Children(func() {

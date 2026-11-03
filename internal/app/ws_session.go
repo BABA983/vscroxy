@@ -8,6 +8,7 @@ import (
 	"slices"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/baba983/vscroxy/internal/request"
 	"github.com/gorilla/websocket"
@@ -60,7 +61,11 @@ func openWSSession(proxy string, req *request.Prepared, ca []byte, jar http.Cook
 			s.state = "Connected"
 		}
 		s.mu.Unlock()
-		s.add(wsSessionEvent{Detail: "Handshake accepted · " + req.URL})
+		protocol := c.Subprotocol()
+		if protocol == "" {
+			protocol = "none"
+		}
+		s.add(wsSessionEvent{Detail: "Handshake accepted · " + req.URL + " · subprotocol: " + protocol})
 		for {
 			kind, data, err := c.ReadMessage()
 			if err != nil {
@@ -117,6 +122,12 @@ func (s *wsSession) finish(err error) {
 }
 
 func (s *wsSession) send(kind int, data []byte) error {
+	if kind != websocket.TextMessage && kind != websocket.BinaryMessage {
+		return fmt.Errorf("send a text or binary data message")
+	}
+	if kind == websocket.TextMessage && !utf8.Valid(data) {
+		return fmt.Errorf("text messages must be valid UTF-8; use binary for arbitrary bytes")
+	}
 	if len(data) > 1<<20 {
 		return fmt.Errorf("messages are limited to 1 MiB")
 	}
