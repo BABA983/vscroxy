@@ -2480,18 +2480,21 @@ func (a *app) flowActions(c *ui.Context, f flow) []action {
 	if chosen := a.selectedFlows(); len(chosen) > 1 {
 		actions = append(actions, do("flow.save-chosen", fmt.Sprintf("Save %d requests to collection…", len(chosen)), func() { a.openCollectionSave(chosen) }))
 	}
-	actions = append(actions,
-		submenu("Copy",
-			do("flow.copy-url", "URL", func() {
-				services.WriteClipboard(f.url)
-				a.done("Copied URL")
-			}),
-			pick(requests, "flow.copy-curl").as("cURL"),
-			do("flow.copy-response", "Response body", func() {
-				services.WriteClipboard(f.body(true))
-				a.done("Copied response body")
-			}).when(f.resBody != "", "The response has no body"),
-		).in("copy"))
+	var formats []action
+	for _, format := range requestCopyFormats {
+		formats = append(formats, pick(requests, format.id))
+	}
+	formats = append(formats, pick(requests, "flow.copy-har"), pick(requests, "flow.copy-har-raw"))
+	copyItems := []action{do("flow.copy-url", "URL", func() {
+		services.WriteClipboard(f.url)
+		a.done("Copied URL")
+	})}
+	copyItems = append(copyItems, copyAsMenu(formats).items...)
+	copyItems = append(copyItems, do("flow.copy-response", "Response body", func() {
+		services.WriteClipboard(f.body(true))
+		a.done("Copied response body")
+	}).when(f.resBody != "", "The response has no body"))
+	actions = append(actions, submenu("Copy", copyItems...).in("copy"))
 	if f.kind == "" && f.url != "" {
 		actions = append(actions, do("flow.open-browser", "Open in browser", func() { services.OpenURL(f.url) }).in("copy"))
 	}

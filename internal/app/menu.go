@@ -45,10 +45,16 @@ func (a *app) menu() *mygo.Menu {
 	} else {
 		file.Submenu = append(file.Submenu, preferences, mygo.Separator(), &mygo.MenuItem{Role: mygo.RoleQuit})
 	}
+	var copyFormats []*mygo.MenuItem
+	for _, format := range requestCopyFormats[1:] {
+		copyFormats = append(copyFormats, command(format.id, format.label))
+	}
+	copyFormats = append(copyFormats, command("flow.copy-har", "HAR (sanitized)"), command("flow.copy-har-raw", "HAR (with sensitive data)"))
 	items = append(items, file, &mygo.MenuItem{Role: mygo.RoleEditMenu}, &mygo.MenuItem{Label: "Request", Submenu: []*mygo.MenuItem{
 		command("flow.edit", "Edit request"),
 		command("flow.replay", "Replay selected…"),
 		command("flow.copy-curl", "Copy as cURL"),
+		{Label: "Copy as…", Submenu: copyFormats},
 		mygo.Separator(),
 		command("request.send", "Send request"),
 		command("request.compare-source", "Compare with source"),

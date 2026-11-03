@@ -89,6 +89,43 @@ attempts; `2` setup/output errors, attempt-budget exhaustion or execution errors
 report includes partial metrics on cancellation/deadline; output errors take
 precedence and return `2`.
 
+## Copying requests and code
+
+The capture inspector's **Copy as…**, request options, traffic row menus and
+native Request menu offer cURL (Bash), cURL (Windows CMD), PowerShell 7+,
+browser fetch and Node.js 18+ fetch. **Generate code…** also retains axios,
+Python requests, Go net/http and HTTPie. No Node or PowerShell runtime is
+needed by vscroxy; those runtimes are only needed to execute the copied code.
+
+Capture actions copy the original exchange; request-tab actions copy the
+active draft, including unsaved edits and inherited auth. Copy never sends a
+request or runs scripts. `{{variables}}` remain literal, but captured credentials,
+literal auth and any already-cached OAuth token can be included. Review before
+sharing. Full retained request bodies are used, not display previews; missing,
+partial or unsupported bodies fail without replacing the clipboard.
+
+- CMD output is for **interactive cmd.exe**, not PowerShell or `.bat` files.
+  It uses `curl.exe`, Chromium DevTools-style escaping, and conservative limits:
+  ASCII, no `!`/delayed expansion, no binary/control-byte body, at most 8000
+  command characters. Use Bash for binary bodies or PowerShell for Unicode.
+- PowerShell uses native `Invoke-WebRequest`, UTF-8 body bytes and no automatic
+  redirects. It refuses representations it cannot preserve, including GET/HEAD
+  bodies, non-ASCII header values and POST without explicit Content-Type.
+- Fetch refuses GET/HEAD bodies and an alternate Host. Browser fetch is subject
+  to CORS, browser cookies and forbidden-header policies; it is not a byte-exact
+  replay client. Node fetch has no browser cookie jar or browser CORS checks.
+
+Captured HTTP requests can also be copied as **HAR (sanitized)** or explicitly
+**HAR (with sensitive data)**, including bulk selections and imported sessions.
+Sanitized copies use the same default redaction as file exports and never read
+body spill files. Raw copies include complete request/response bodies (base64
+for binary data); missing or incomplete bodies fail the whole copy. Clipboard
+HAR shares automation's limits: 1–200 HTTP exchanges, 1 MiB metadata, 4 MiB
+combined bodies and 8 MiB output. Streams and tunnels are not supported.
+
+cURL import remains Bash/POSIX-only with its existing supported flags; adding
+copy formats does not add CMD/PowerShell import or `--location` support.
+
 ## Source layout
 
 - `cmd/vscroxy/` is the executable entry point, including proxy-guard mode.

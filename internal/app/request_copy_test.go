@@ -1,0 +1,176 @@
+package app
+
+import (
+	"encoding/json/v2"
+	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	"github.com/egoist/mygo/ui"
+)
+
+func TestRequestCopyCapturedMenu(t *testing.T) {
+	const body = `{"retained":"full-body-only"}`
+	path := filepath.Join(t.TempDir(), "request.body")
+	if err := os.WriteFile(path, []byte(body), 0600); err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct{ label, prefix string }{
+		{"cURL (Bash)", "curl -q"}, {"cURL (CMD)", "curl.exe -q"},
+		{"PowerShell", "# PowerShell 7+"}, {"fetch (browser)", "const response = await fetch("},
+		{"fetch (Node.js)", "// Node.js 18+"},
+	} {
+		t.Run(tc.label, func(t *testing.T) {
+			a := workspaceApp()
+			a.flows[0].method = "POST"
+			a.flows[0].reqHeader = http.Header{"Content-Type": {"application/json"}, "X-Original": {"captured"}}
+			a.flows[0].reqFile, a.flows[0].reqBody, a.flows[0].reqSize = path, "preview-only", len(body)
+			tt := ui.NewTester(a.view, 960, 600)
+			if err := tt.Click("Copy as…"); err != nil {
+				t.Fatal(err)
+			}
+			if err := chooseMenu(tt, tc.label); err != nil {
+				t.Fatal(err)
+			}
+			got := tt.Clipboard()
+			if !strings.HasPrefix(got, tc.prefix) || !strings.Contains(got, "full-body-only") || !strings.Contains(got, "X-Original") || strings.Contains(got, "preview-only") {
+				t.Fatalf("incorrect captured export: %q", got)
+			}
+			// A failed export must not replace the previous clipboard contents.
+			a.flows[0].reqFile = path + ".missing"
+			a.liveFor = 0
+			tt.Frame()
+			if err := tt.Click("Copy as…"); err != nil {
+				t.Fatal(err)
+			}
+			if err := chooseMenu(tt, tc.label); err != nil {
+				t.Fatal(err)
+			}
+			if tt.Clipboard() != got {
+				t.Fatal("failed export replaced clipboard")
+			}
+		})
+	}
+}
+
+func TestRequestCopyUsesActiveDraftWithoutExecution(t *testing.T) {
+	a := workspaceApp()
+	openDraft(a, a.flows[0])
+	d := a.requestDocument
+	d.composeMethod, d.composeURL = "POST", "https://edited.example.test/{{path}}"
+	d.composeHeaders, d.composeBody = "Content-Type: application/json", `{"token":"{{token}}"}`
+	d.headerRows, d.headerFor = parseHeaderRows(d.composeHeaders), d.composeHeaders
+	d.composePre = `throw new Error("must not run")`
+	tt := ui.NewTester(a.view, 1280, 800)
+	if err := tt.Click("Request options"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.Click("Copy as…"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.Click("PowerShell"); err != nil {
+		t.Fatal(err)
+	}
+	if got := tt.Clipboard(); !strings.Contains(got, "edited.example.test/{{path}}") || !strings.Contains(got, "{{token}}") || strings.Contains(got, "must not run") {
+		t.Fatalf("did not export the unexpanded draft: %q", got)
+	}
+	if a.flows[0].url != "https://api.example.com/projects" || a.requests[0].URL != "https://api.example.com/projects" || a.composeWaiting {
+		t.Fatal("copy changed originals or sent a request")
+	}
+}
+
+func TestRequestCopyHAR(t *testing.T) {
+	const body = "\x00\xff\x01binary"
+	path := filepath.Join(t.TempDir(), "response.body")
+	if err := os.WriteFile(path, []byte(body), 0600); err != nil {
+		t.Fatal(err)
+	}
+	a := workspaceApp()
+	flows := []flow{{id: 7, method: "POST", url: "https://user:password@example.test/a?secret=query-value", reqHeader: http.Header{"Authorization": {"Bearer synthetic-secret"}}, reqBody: "request-secret", respHeader: http.Header{"Set-Cookie": {"session=synthetic-cookie"}}, resFile: path, resBody: "preview", resSize: len(body), status: 201}, a.flows[0]}
+	// The same menu supports imported/session flows, not just live IDs.
+	tt := ui.NewTester(func(c *ui.Context) {
+		ui.Button(c, "Copy").PopoverMenuButton(func(m *ui.Menu) { actionMenu(m, copyAsMenu(a.harCopyActions(c, flows)).items) })
+	}, 960, 600)
+	for _, raw := range []bool{false, true} {
+		if err := tt.Click("Copy"); err != nil {
+			t.Fatal(err)
+		}
+		label := "HAR (sanitized)"
+		if raw {
+			label = "HAR (with sensitive data)"
+		}
+		if err := chooseMenu(tt, label); err != nil {
+			t.Fatal(err)
+		}
+		got := tt.Clipboard()
+		var doc harFile
+		if err := json.Unmarshal([]byte(got), &doc); err != nil || len(doc.Log.Entries) != 2 {
+			t.Fatalf("invalid clipboard HAR: %v", err)
+		}
+		if !raw {
+			for _, secret := range []string{"password", "query-value", "synthetic-secret", "synthetic-cookie", "request-secret", "preview"} {
+				if strings.Contains(got, secret) {
+					t.Fatalf("sanitized HAR contains %s", secret)
+				}
+			}
+		} else {
+			f, ok := harFlow(doc.Log.Entries[0])
+			if !ok || f.body(true) != body || f.reqBody != "request-secret" || f.reqHeader.Get("Authorization") != "Bearer synthetic-secret" {
+				t.Fatal("raw HAR did not preserve complete binary response and credentials")
+			}
+		}
+	}
+	previous := tt.Clipboard()
+	if err := os.Remove(path); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.Click("Copy"); err != nil {
+		t.Fatal(err)
+	}
+	if err := chooseMenu(tt, "HAR (with sensitive data)"); err != nil {
+		t.Fatal(err)
+	}
+	if tt.Clipboard() != previous || flows[0].reqHeader.Get("Authorization") != "Bearer synthetic-secret" {
+		t.Fatal("failed HAR copy changed clipboard or original")
+	}
+}
+
+func TestRequestCopyCodeDialog(t *testing.T) {
+	for _, language := range []string{"cURL (CMD)", "PowerShell", "Node.js (fetch)", "JavaScript (fetch)"} {
+		t.Run(language, func(t *testing.T) {
+			a := workspaceApp()
+			f := a.flows[0]
+			f.method, f.reqBody = "POST", `{"message":"你好"}`
+			f.reqHeader = http.Header{"Content-Type": {"application/json"}}
+			openDraft(a, f)
+			a.code.language = language
+			a.openCode()
+			tt := ui.NewTester(a.view, 960, 600)
+			if language == "cURL (CMD)" {
+				if !tt.HasText("CMD export requires ASCII without delayed-expansion markers and at most 8000 characters; use Bash or PowerShell instead") {
+					t.Fatal("missing controlled CMD error")
+				}
+				_ = tt.Click("Copy")
+				if tt.Clipboard() != "" {
+					t.Fatal("unsupported format was copied")
+				}
+			} else {
+				if err := tt.Click("Copy"); err != nil {
+					t.Fatal(err)
+				}
+				if tt.Clipboard() == "" {
+					t.Fatal("code dialog did not copy code")
+				}
+			}
+			if err := tt.Click("Close"); err != nil {
+				t.Fatal(err)
+			}
+			tt.Frame()
+			if tt.HasText("Code language") {
+				t.Fatal("code modal did not close")
+			}
+		})
+	}
+}

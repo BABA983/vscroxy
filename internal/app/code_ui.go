@@ -18,7 +18,7 @@ type codeDialog struct {
 }
 
 // codeLanguages are cURL, which curl.go writes, then the snippet languages.
-var codeLanguages = append([]string{"cURL"}, request.SnippetLanguages...)
+var codeLanguages = append([]string{"cURL", "cURL (CMD)"}, request.SnippetLanguages...)
 
 // draftPrepared is the draft as cURL and code show it: its own or inherited
 // auth and encoded body, with {{variables}} left as they are and no script
@@ -36,16 +36,6 @@ func (a *app) draftPrepared(d *requestDocument) (*request.Prepared, error) {
 	return r.Prepare(nil)
 }
 
-// copyDraftCurl copies the draft as a cURL command.
-func (a *app) copyDraftCurl(c *ui.Context, d *requestDocument) {
-	req, err := a.draftPrepared(d)
-	if err != nil {
-		a.fail("Copy cURL", err)
-		return
-	}
-	a.copyCurl(c, flow{method: req.Method, url: req.URL, reqHeader: req.Header, reqBody: req.Body})
-}
-
 func (a *app) openCode() {
 	a.code = codeDialog{open: true, language: a.code.language}
 	if !slices.Contains(codeLanguages, a.code.language) {
@@ -59,10 +49,7 @@ func (a *app) codeText(d *requestDocument) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if a.code.language == "cURL" {
-		return curlCommand(flow{method: req.Method, url: req.URL, reqHeader: req.Header, reqBody: req.Body})
-	}
-	return request.Snippet(a.code.language, req)
+	return requestCopyText(flow{method: req.Method, url: req.URL, reqHeader: req.Header, reqBody: req.Body}, a.code.language)
 }
 
 func (a *app) codeModal(c *ui.Context, t *ui.Theme) {
@@ -94,6 +81,12 @@ func (a *app) codeModal(c *ui.Context, t *ui.Theme) {
 			})
 			ui.Scroll(c).MinHeight(0).Shrink(1).MaxHeight(100).Gap(t.Space(2)).Children(func() {
 				uikit.Hint(c, "{{variables}} stay as written and scripts do not run; replace them before running the code.")
+				if s.language == "JavaScript (fetch)" {
+					uikit.Hint(c, "Browser fetch follows browser cookie, forbidden-header and CORS policies. Use Node.js or cURL outside the browser.")
+				}
+				if s.language == "cURL (CMD)" {
+					uikit.Hint(c, "Paste into interactive Windows CMD, not PowerShell or a .bat file. ASCII only; use Bash or PowerShell for Unicode.")
+				}
 				if s.problem != "" {
 					ui.Text(c, s.problem).FontSize(uikit.TextBody).TextColor(t.Danger)
 				}
@@ -117,13 +110,13 @@ func (a *app) codeModal(c *ui.Context, t *ui.Theme) {
 // codeLanguage is the highlighter for a code language, if the editor has one.
 func codeLanguage(language string) string {
 	switch language {
-	case "JavaScript (fetch)", "Node.js (axios)":
+	case "JavaScript (fetch)", "Node.js (fetch)", "Node.js (axios)":
 		return "JavaScript"
 	case "Python (requests)":
 		return "Python"
 	case "Go (net/http)":
 		return "Go"
-	case "cURL", "HTTPie":
+	case "cURL", "cURL (CMD)", "HTTPie":
 		return "Shell"
 	}
 	return ""

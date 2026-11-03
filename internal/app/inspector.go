@@ -591,7 +591,7 @@ func (a *app) inspectorActions(c *ui.Context, f flow) []action {
 		do("flow.save-evidence", "Save evidence to Sessions", func() { a.saveEvidence(f) }).in("flow"),
 		do("flow.connection-details", "Connection details", func() { a.connOpen = !a.connOpen }).in("flow"),
 		do("flow.history", "History", func() { a.openDebugHistory(newDebugSource(f)) }).in("flow"),
-		do("flow.copy-curl", "Copy as cURL", func() { a.copyCurl(c, f) }).in("flow"),
+		copyAsMenu(append(a.requestCopyActions(c, f, nil), a.harCopyActions(c, []flow{f})...)).in("flow"),
 	)
 	for _, x := range a.pickActions(c, "view.focus-inspector", "view.layout-right", "view.layout-bottom") {
 		actions = append(actions, x.in("view"))

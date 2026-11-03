@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"slices"
 	"unicode/utf8"
 
 	"github.com/baba983/vscroxy/internal/control"
@@ -35,11 +36,32 @@ func (a *app) controlHAR(command control.Command) (any, error) {
 		wanted[id] = i
 	}
 	selected := make([]flow, len(p.IDs))
-	found, metadata := 0, 0
+	found := 0
 	for _, f := range a.flows {
 		i, ok := wanted[f.id]
 		if !ok || !f.live || f.kind != "" {
 			continue
+		}
+		selected[i], found = f, found+1
+	}
+	if found != len(selected) {
+		return nil, errors.New("a selected live HTTP flow is unavailable; list flows again")
+	}
+	return harExportWork(selected, p.Details)
+}
+
+// Snapshot on the UI thread; clipboard and control exports share bounded,
+// complete-body serialization in a worker. Redacted jobs retain no payloads.
+func harExportWork(flows []flow, details bool) (controlWork, error) {
+	if len(flows) == 0 || len(flows) > 200 {
+		return nil, errors.New("HAR export requires 1–200 HTTP flows")
+	}
+	selected := slices.Clone(flows)
+	metadata := 0
+	for i := range selected {
+		f := &selected[i]
+		if f.kind != "" {
+			return nil, errors.New("HAR export requires HTTP flows without streams or tunnels")
 		}
 		metadata += len(f.url) + len(f.method) + len(f.reqHeaders) + len(f.resHeaders)
 		for _, h := range []http.Header{f.reqHeader, f.respHeader} {
@@ -54,15 +76,11 @@ func (a *app) controlHAR(command control.Command) (any, error) {
 			return nil, errors.New("HAR metadata exceeds 1 MiB; select fewer flows")
 		}
 		f.reqHeader, f.respHeader = f.reqHeader.Clone(), f.respHeader.Clone()
-		if !p.Details {
+		if !details {
 			// Never open spill files or keep payloads in a redacted export job.
 			f.reqBody, f.resBody, f.reqFile, f.resFile = "", "", "", ""
 			f.reqError, f.resError = "", ""
 		}
-		selected[i], found = f, found+1
-	}
-	if found != len(selected) {
-		return nil, errors.New("a selected live HTTP flow is unavailable; list flows again")
 	}
 	return controlWork(func(ctx context.Context) (any, error) {
 		remaining := controlHARBodyLimit
@@ -71,7 +89,7 @@ func (a *app) controlHAR(command control.Command) (any, error) {
 			if err := ctx.Err(); err != nil {
 				return nil, errors.New("HAR export canceled")
 			}
-			if !p.Details {
+			if !details {
 				continue
 			}
 			for _, side := range []struct {
@@ -102,7 +120,7 @@ func (a *app) controlHAR(command control.Command) (any, error) {
 				e.Request.PostData.Encoding = "base64"
 			}
 		}
-		if !p.Details {
+		if !details {
 			redactHAR(&doc, safeExportOptions())
 		}
 		data, err := json.Marshal(doc)

@@ -46,33 +46,9 @@ func curlCommand(f flow) (string, error) {
 // CMD uses curl.exe, never PowerShell's historical curl alias. Its command
 // line and encoding limits are stricter than Bash's; refuse lossy output.
 func curlCommandFor(f flow, cmd bool) (string, error) {
-	if f.kind == "connect" || f.kind == "ws" || len(f.reqTrailer) > 0 {
-		return "", errors.New("cURL export requires an HTTP request without request trailers; tunnels and WebSocket exchanges are not replayable this way")
-	}
-	if f.reqError != "" {
-		return "", fmt.Errorf("request body is incomplete: %s", f.reqError)
-	}
-	if f.reqSize > 16<<20 {
-		return "", errors.New("cURL clipboard export is limited to 16 MiB")
-	}
-	body := f.reqBody
-	if f.reqFile != "" {
-		file, err := os.Open(f.reqFile)
-		if err != nil {
-			return "", fmt.Errorf("read request body: %w", err)
-		}
-		defer file.Close()
-		data, err := io.ReadAll(io.LimitReader(file, 16<<20+1))
-		if err != nil {
-			return "", fmt.Errorf("read request body: %w", err)
-		}
-		body = string(data)
-	}
-	if len(body) > 16<<20 {
-		return "", errors.New("cURL clipboard export is limited to 16 MiB")
-	}
-	if f.reqSize > len(body) {
-		return "", errors.New("request body is incomplete; refusing to copy a truncated request")
+	body, err := copyRequestBody(f)
+	if err != nil {
+		return "", err
 	}
 	headers := http.Header{}
 	for key, values := range f.reqHeader {
@@ -193,6 +169,39 @@ func curlCommandFor(f flow, cmd bool) (string, error) {
 		}
 	}
 	return b.String(), nil
+}
+
+// All request-copy formats use retained full bodies, never display previews.
+func copyRequestBody(f flow) (string, error) {
+	if f.kind == "connect" || f.kind == "ws" || len(f.reqTrailer) > 0 {
+		return "", errors.New("request export requires HTTP without request trailers; tunnels and WebSocket exchanges are not replayable this way")
+	}
+	if f.reqError != "" {
+		return "", errors.New("request body is incomplete")
+	}
+	if f.reqSize > 16<<20 {
+		return "", errors.New("request clipboard export is limited to 16 MiB")
+	}
+	body := f.reqBody
+	if f.reqFile != "" {
+		file, err := os.Open(f.reqFile)
+		if err != nil {
+			return "", errors.New("request body is unavailable")
+		}
+		defer file.Close()
+		data, err := io.ReadAll(io.LimitReader(file, 16<<20+1))
+		if err != nil {
+			return "", errors.New("request body could not be read")
+		}
+		body = string(data)
+	}
+	if len(body) > 16<<20 {
+		return "", errors.New("request clipboard export is limited to 16 MiB")
+	}
+	if f.reqSize > len(body) {
+		return "", errors.New("request body is incomplete; refusing to copy a truncated request")
+	}
+	return body, nil
 }
 
 // Adapted from Chromium DevTools generateCurlCommand's escapeStringWin.
@@ -460,16 +469,6 @@ func curlLiteral(parts []syntax.WordPart, quoted bool) (string, error) {
 
 func (a *app) openCurlImport() {
 	a.curlOpen, a.curlInput, a.curlProblem = true, "", ""
-}
-
-func (a *app) copyCurl(c *ui.Context, f flow) {
-	command, err := curlCommand(f)
-	if err != nil {
-		a.fail("Copy cURL", err)
-		return
-	}
-	c.Services().WriteClipboard(command)
-	a.done("Copied cURL command; review credentials before sharing")
 }
 
 func (a *app) curlImportModal(c *ui.Context, t *ui.Theme) {

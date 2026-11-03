@@ -559,7 +559,8 @@ func (a *app) documentActions(c *ui.Context, d *requestDocument) []action {
 			r.ID, r.Name = "", uniqueRequestName(a.requests, r.Name+" copy")
 			a.addDocument(r, "")
 		}),
-		do("request.copy-curl", "Copy as cURL", func() { a.copyDraftCurl(c, d) }),
+		do("request.copy-curl", "Copy as cURL", func() { a.copyRequest(c, flow{}, d, "cURL") }),
+		copyAsMenu(a.requestCopyActions(c, flow{}, d)),
 		do("request.code", "Generate code…", a.openCode),
 		do("request.history", "History", func() { a.openSendHistory(d) }),
 		do("collection.settings", settingsLabel(d.composeCollection), func() { a.openFolder(d.composeCollection) }).

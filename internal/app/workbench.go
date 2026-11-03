@@ -367,12 +367,12 @@ func (a *app) requestActions(c *ui.Context, f flow, current bool) []action {
 		replayable = replayable && flow.kind == "" && flow.url != ""
 	}
 	copyable := current && !bulk && f.kind == "" && f.url != ""
-	copyRequest := func() { a.copyCurl(c, f) }
+	var draft *requestDocument
 	if d := a.requestDocument; !a.page.capture() && d != nil {
 		copyable = true
-		copyRequest = func() { a.copyDraftCurl(c, d) }
+		draft = d
 	}
-	return []action{
+	actions := []action{
 		do("collection.from-capture", "Create collection…", func() { a.openCollectionWizard(selected) }).
 			when(current && len(selected) > 0, "Select captured requests first"),
 		do("tokens.from-capture", "Recognize token links…", func() { a.openTokenLinks(selected) }).
@@ -381,8 +381,17 @@ func (a *app) requestActions(c *ui.Context, f flow, current bool) []action {
 			when(current && !bulk && f.kind == "", inspectOne).keys(ui.Cmd|ui.Alt, ui.KeyEnter),
 		do("flow.replay", "Replay selected…", func() { a.openReplay(selected) }).
 			when(replayable, "Choose HTTP requests only; tunnels and streams cannot be replayed").keys(ui.Cmd, ui.KeyR),
-		do("flow.copy-curl", "Copy as cURL", copyRequest).when(copyable, inspectOne).keys(ui.Cmd|ui.Alt, ui.KeyC),
 	}
+	for _, item := range a.requestCopyActions(c, f, draft) {
+		if item.id == "flow.copy-curl" {
+			item = item.keys(ui.Cmd|ui.Alt, ui.KeyC)
+		}
+		actions = append(actions, item.when(copyable, inspectOne))
+	}
+	for _, item := range a.harCopyActions(c, selected) {
+		actions = append(actions, item.when(current && a.page.capture(), "Inspect captured requests first"))
+	}
+	return actions
 }
 
 // actions are the global commands: the palette lists them, the menu bar and

@@ -176,14 +176,13 @@ func (a *app) capturedHeader(c *ui.Context, t *ui.Theme, f flow, d *requestDocum
 				a.openDiagnostics(&f, diagnoseMac)
 			}
 		}
-		copy := uikit.ToolbarButton(c, "Copy as cURL", "Copy the captured request as cURL", false).Padding(0, t.Space(1))
-		if copy.Clicked() {
-			a.copyCurl(c, f)
-		}
+		copy := uikit.ToolbarButton(c, "Copy as…", "Copy the original captured request; may include credentials", false).Padding(0, t.Space(1)).PopoverMenuButton(func(m *ui.Menu) {
+			actionMenu(m, copyAsMenu(append(a.requestCopyActions(c, f, nil), a.harCopyActions(c, []flow{f})...)).items)
+		})
 		copy.Children(func() {
 			ui.Icon(c, copyIcon).Size(uikit.IconInline, uikit.IconInline)
 			if !compact {
-				uikit.Body(c, "Copy as cURL")
+				uikit.Body(c, "Copy as…")
 			}
 		})
 		info := uikit.IconButton(c, "Connection details", "Connection: addresses, DNS and TLS", infoIcon)
