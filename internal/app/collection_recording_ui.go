@@ -63,6 +63,13 @@ func (a *app) collectionRecordingModal(c *ui.Context, t *ui.Theme) {
 					if s.Problem != "" {
 						ui.Text(c, s.Problem).FontSize(uikit.TextBody).TextColor(t.Danger)
 					}
+					if !running {
+						uikit.SecondaryButton(c, "Review recorded token links").Disabled(len(s.evidence) == 0).OnClick(func() {
+							w.open = false
+							a.openTokenLinks(s.evidence)
+						})
+					}
+					uikit.Hint(c, "Token-link evidence is bounded in memory (200 flows, 4 MiB); older or oversized captures are omitted. It is lost on restart, a new recording, or dismissing this status. Review never applies changes automatically.")
 				}
 				ui.Column(c).Gap(t.Space(3)).Disabled(running).Children(func() {
 					ui.Field(c, "Destination collection", func() {

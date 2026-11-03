@@ -95,6 +95,9 @@ func (a *app) dispatchControl(ctx context.Context, command control.Command, upda
 }
 
 func (a *app) closeControl() {
+	if a.tokenLinks != nil {
+		a.tokenLinks.close()
+	}
 	c := a.control
 	if c == nil {
 		return
@@ -214,6 +217,8 @@ func (a *app) controlValue(command control.Command) (any, error) {
 		return a.controlSystemProxy(command)
 	case "collection-recording.get", "collection-recording.start", "collection-recording.stop":
 		return a.controlCollectionRecording(command)
+	case "token-links.analyze", "token-links.get", "token-links.prepare", "token-links.apply":
+		return a.controlTokenLinks(command)
 	case "capture.recording":
 		p, err := controlParams[struct {
 			Enabled *bool `json:"enabled"`

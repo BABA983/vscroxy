@@ -6,6 +6,7 @@ import (
 	"encoding/json/v2"
 	"errors"
 	"fmt"
+	"maps"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -18,8 +19,8 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-var queries = []string{"collection-recording.get", "collections.list", "flows.export-har", "flows.get", "flows.list", "requests.get", "requests.list", "rules.list", "runs.get", "status", "system-proxy.get"}
-var writes = []string{"capture.recording", "collection-recording.start", "collection-recording.stop", "collection.run", "request.run", "rules.import", "rules.set-enabled", "runs.cancel", "system-proxy.set-enabled"}
+var queries = []string{"collection-recording.get", "collections.list", "flows.export-har", "flows.get", "flows.list", "requests.get", "requests.list", "rules.list", "runs.get", "status", "system-proxy.get", "token-links.analyze", "token-links.get", "token-links.prepare"}
+var writes = []string{"capture.recording", "collection-recording.start", "collection-recording.stop", "collection.run", "request.run", "rules.import", "rules.set-enabled", "runs.cancel", "system-proxy.set-enabled", "token-links.apply"}
 
 func endpoint(t *testing.T, dispatch control.Dispatch) string {
 	t.Helper()
@@ -696,5 +697,261 @@ func TestCancellationReachesControl(t *testing.T) {
 func TestDiscoveryRequired(t *testing.T) {
 	if _, err := mcpserver.New(filepath.Join(t.TempDir(), "missing"), mcpserver.Options{}); err == nil {
 		t.Fatal("missing discovery accepted")
+	}
+}
+
+func TestTokenLinksSchemasAndWarnings(t *testing.T) {
+	path := endpoint(t, func(context.Context, control.Command) (any, error) { return nil, nil })
+	for _, protocol := range []string{"2025-11-25", "2026-07-28"} {
+		cs := connect(t, path, mcpserver.Options{AllowWrite: true}, protocol)
+		listed, err := cs.ListTools(t.Context(), nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, tool := range listed.Tools {
+			if !strings.HasPrefix(tool.Name, "token-links.") {
+				continue
+			}
+			schema := tool.InputSchema.(map[string]any)
+			props := schema["properties"].(map[string]any)
+			var required []any
+			switch tool.Name {
+			case "token-links.analyze":
+				required = []any{"ids"}
+				ids := props["ids"].(map[string]any)
+				items := ids["items"].(map[string]any)
+				if ids["type"] != "array" || ids["minItems"] != float64(1) || ids["maxItems"] != float64(200) || ids["uniqueItems"] != true || items["type"] != "integer" || items["minimum"] != float64(1) {
+					t.Errorf("incorrect token analysis constraints: %+v", ids)
+				}
+				for _, warning := range []string{"asynchronous", "imported snapshots", "same-origin", "ambiguous", "token/access_token/id_token", "Do not blindly retry"} {
+					if !strings.Contains(tool.Description, warning) {
+						t.Errorf("missing analysis warning %q", warning)
+					}
+				}
+			case "token-links.get":
+				required = []any{"id"}
+				if !strings.Contains(tool.Description, "never token values") || !strings.Contains(tool.Description, "JSON path segments") {
+					t.Errorf("missing redacted polling contract: %s", tool.Description)
+				}
+			case "token-links.prepare":
+				required = []any{"id", "index", "collection", "environment", "variable"}
+				index := props["index"].(map[string]any)
+				variable := props["variable"].(map[string]any)
+				collection := props["collection"].(map[string]any)
+				environment := props["environment"].(map[string]any)
+				if index["type"] != "integer" || index["minimum"] != float64(0) || index["maximum"] != float64(199) || variable["type"] != "string" || variable["pattern"] != `^[A-Za-z_][A-Za-z0-9_]*$` || variable["maxLength"] != float64(64) || collection["type"] != "string" || collection["minLength"] != nil || environment["type"] != "string" || environment["minLength"] != float64(1) {
+					t.Errorf("incorrect prepare constraints: %+v", props)
+				}
+				for _, warning := range []string{"only generated fragments", "never authored content or credentials", "sourcePre/sourcePost/consumerPre", "no scripts executed, files written or network calls", "Do not blindly retry"} {
+					if !strings.Contains(tool.Description, warning) {
+						t.Errorf("missing prepare warning %q", warning)
+					}
+				}
+			case "token-links.apply":
+				required = []any{"key"}
+				for _, warning := range []string{"preserving authored scripts", "empty private Current", "plaintext, not Vault", "run login first", "dirty drafts", "stale targets", "variable conflicts", "active collection recording", "No network calls", "not --allow-sensitive", "do not blindly retry"} {
+					if !strings.Contains(tool.Description, warning) {
+						t.Errorf("missing apply warning %q", warning)
+					}
+				}
+			}
+			if len(props) != len(required) || !slices.Equal(schema["required"].([]any), required) || schema["additionalProperties"] != false {
+				t.Errorf("incorrect closed schema for %s: %+v", tool.Name, schema)
+			}
+			for _, name := range []string{"id", "key"} {
+				if property, ok := props[name].(map[string]any); ok && (property["type"] != "string" || property["minLength"] != float64(1)) {
+					t.Errorf("incorrect %s constraint for %s: %+v", name, tool.Name, property)
+				}
+			}
+			if tool.Annotations.IdempotentHint != (tool.Name == "token-links.get") {
+				t.Errorf("incorrect token-link idempotency for %s: %+v", tool.Name, tool.Annotations)
+			}
+			for _, warning := range []string{"replaced", "closed", "restarted", "expired"} {
+				if !strings.Contains(strings.ToLower(tool.Description), warning) {
+					t.Errorf("missing lifecycle warning %q on %s", warning, tool.Name)
+				}
+			}
+		}
+	}
+}
+
+func TestTokenLinksForwardingWithoutSensitive(t *testing.T) {
+	path := endpoint(t, func(_ context.Context, c control.Command) (any, error) {
+		return map[string]any{"action": c.Action, "params": c.Params}, nil
+	})
+	ids := make([]int, 200)
+	for i := range ids {
+		ids[i] = i + 1
+	}
+	for _, protocol := range []string{"2025-11-25", "2026-07-28"} {
+		for _, write := range []bool{false, true} {
+			cs := connect(t, path, mcpserver.Options{AllowWrite: write}, protocol)
+			for _, tc := range []struct {
+				name string
+				args map[string]any
+			}{
+				{"token-links.analyze", map[string]any{"ids": []int{7, 2}}},
+				{"token-links.analyze", map[string]any{"ids": ids}},
+				{"token-links.get", map[string]any{"id": "analysis-id"}},
+				{"token-links.prepare", map[string]any{"id": "analysis-id", "index": 0, "collection": "", "environment": "local", "variable": "_accessToken1"}},
+				{"token-links.prepare", map[string]any{"id": "analysis-id", "index": 199, "collection": "sample/subfolder", "environment": "local", "variable": strings.Repeat("A", 64)}},
+				{"token-links.apply", map[string]any{"key": "proposal-id"}},
+			} {
+				if tc.name == "token-links.apply" && !write {
+					continue
+				}
+				result := call(t, cs, tc.name, tc.args)
+				if result.IsError {
+					t.Fatalf("%s failed without --allow-sensitive: %+v", tc.name, result)
+				}
+				if tc.name == "token-links.apply" {
+					tc.args["confirm"] = true
+				}
+				want, err := json.Marshal(map[string]any{"action": tc.name, "params": tc.args})
+				if err != nil {
+					t.Fatal(err)
+				}
+				requireJSON(t, result, string(want))
+			}
+		}
+	}
+}
+
+func TestTokenLinksInvalidArgumentsAndDefaultDenial(t *testing.T) {
+	var mu sync.Mutex
+	calls := 0
+	path := endpoint(t, func(context.Context, control.Command) (any, error) {
+		mu.Lock()
+		calls++
+		mu.Unlock()
+		return map[string]bool{"unexpected": true}, nil
+	})
+	tooMany := make([]int, 201)
+	for i := range tooMany {
+		tooMany[i] = i + 1
+	}
+	for _, protocol := range []string{"2025-11-25", "2026-07-28"} {
+		for _, sensitive := range []bool{false, true} {
+			cs := connect(t, path, mcpserver.Options{AllowSensitive: sensitive}, protocol)
+			result, err := cs.CallTool(t.Context(), &mcp.CallToolParams{Name: "token-links.apply", Arguments: map[string]any{"key": "proposal-id"}})
+			if err == nil && !result.IsError {
+				t.Fatal("token-links.apply available without --allow-write")
+			}
+		}
+		cs := connect(t, path, mcpserver.Options{AllowWrite: true}, protocol)
+		for _, invalid := range []any{nil, []int{}, tooMany, []int{1, 1}, []int{0}, []int{-1}, []float64{1.5}, []string{"1"}, []any{nil}, 1, "1"} {
+			if result := call(t, cs, "token-links.analyze", map[string]any{"ids": invalid}); !result.IsError {
+				t.Errorf("invalid analysis IDs accepted: %+v", invalid)
+			}
+		}
+		for _, tc := range []struct {
+			name string
+			args map[string]any
+		}{
+			{"token-links.analyze", map[string]any{"ids": []int{1}}},
+			{"token-links.get", map[string]any{"id": "analysis-id"}},
+			{"token-links.prepare", map[string]any{"id": "analysis-id", "index": 0, "collection": "", "environment": "local", "variable": "token"}},
+			{"token-links.apply", map[string]any{"key": "proposal-id"}},
+		} {
+			for key := range tc.args {
+				for _, invalid := range []any{nil, true, []any{}} {
+					args := maps.Clone(tc.args)
+					args[key] = invalid
+					if result := call(t, cs, tc.name, args); !result.IsError {
+						t.Errorf("%s accepted invalid %s: %+v", tc.name, key, invalid)
+					}
+				}
+				args := maps.Clone(tc.args)
+				delete(args, key)
+				if result := call(t, cs, tc.name, args); !result.IsError {
+					t.Errorf("%s accepted missing %s", tc.name, key)
+				}
+			}
+			for _, extra := range []string{"confirm", "details", "action", "path", "script"} {
+				args := maps.Clone(tc.args)
+				args[extra] = true
+				if result := call(t, cs, tc.name, args); !result.IsError {
+					t.Errorf("%s accepted extra %s", tc.name, extra)
+				}
+			}
+		}
+		for _, tc := range []struct {
+			name string
+			args any
+		}{
+			{"token-links.get", map[string]any{"id": ""}},
+			{"token-links.get", map[string]any{"id": 1}},
+			{"token-links.apply", map[string]any{"key": ""}},
+			{"token-links.apply", map[string]any{"key": 1}},
+		} {
+			if result := call(t, cs, tc.name, tc.args); !result.IsError {
+				t.Errorf("%s accepted invalid input: %+v", tc.name, tc.args)
+			}
+		}
+		for key, invalids := range map[string][]any{
+			"id":          {"", 1},
+			"index":       {-1, 200, 0.5, "0"},
+			"collection":  {1},
+			"environment": {"", 1},
+			"variable":    {"", "1token", "with-dash", "with.dot", "two words", "tökén", "token\n", strings.Repeat("a", 65), 1},
+		} {
+			for _, invalid := range invalids {
+				args := map[string]any{"id": "analysis-id", "index": 0, "collection": "", "environment": "local", "variable": "token"}
+				args[key] = invalid
+				if result := call(t, cs, "token-links.prepare", args); !result.IsError {
+					t.Errorf("prepare accepted invalid %s: %+v", key, invalid)
+				}
+			}
+		}
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if calls != 0 {
+		t.Fatalf("%d invalid or unauthorized token-link calls reached desktop", calls)
+	}
+}
+
+func TestTokenLinksBackendResultsForwardedOnce(t *testing.T) {
+	for _, protocol := range []string{"2025-11-25", "2026-07-28"} {
+		for _, tc := range []struct {
+			name string
+			args any
+			want string
+			err  bool
+		}{
+			{"token-links.analyze", map[string]any{"ids": []int{7, 9}}, `{"id":"analysis-id","done":false}`, false},
+			{"token-links.get", map[string]any{"id": "analysis-id"}, `{"id":"analysis-id","done":false,"links":[],"skipped":0,"problem":""}`, false},
+			{"token-links.get", map[string]any{"id": "analysis-id"}, `{"id":"analysis-id","done":true,"links":[{"source":7,"path":["data","access_token"],"consumers":[9]}],"skipped":1,"problem":""}`, false},
+			{"token-links.prepare", map[string]any{"id": "analysis-id", "index": 0, "collection": "", "environment": "local", "variable": "token"}, `{"id":"proposal-id","source":"saved-login","consumers":["saved-api"],"environment":"local","variable":"token","sourcePre":"/* generated pre */","sourcePost":"/* generated post */","consumerPre":"/* generated consumer */"}`, false},
+			{"token-links.apply", map[string]any{"key": "proposal-id"}, `{"applied":true}`, false},
+			{"token-links.get", map[string]any{"id": "old-analysis"}, `{"error":"token analysis expired"}`, true},
+			{"token-links.prepare", map[string]any{"id": "old-analysis", "index": 0, "collection": "", "environment": "local", "variable": "token"}, `{"error":"token analysis replaced"}`, true},
+			{"token-links.apply", map[string]any{"key": "old-proposal"}, `{"error":"token proposal is stale"}`, true},
+		} {
+			t.Run(protocol+"/"+tc.name+"/"+tc.want, func(t *testing.T) {
+				var mu sync.Mutex
+				calls := 0
+				path := endpoint(t, func(_ context.Context, c control.Command) (any, error) {
+					mu.Lock()
+					defer mu.Unlock()
+					calls++
+					if c.Action != tc.name {
+						return nil, errors.New("unexpected token-link action")
+					}
+					return jsontext.Value(tc.want), nil
+				})
+				cs := connect(t, path, mcpserver.Options{AllowWrite: true}, protocol)
+				result := call(t, cs, tc.name, tc.args)
+				if result.IsError != tc.err {
+					t.Fatalf("IsError=%v; want %v: %+v", result.IsError, tc.err, result)
+				}
+				requireJSON(t, result, tc.want)
+				mu.Lock()
+				defer mu.Unlock()
+				if calls != 1 {
+					t.Fatalf("%s forwarded %d times; want exactly once, including on failure", tc.name, calls)
+				}
+			})
+		}
 	}
 }

@@ -31,7 +31,7 @@ func New(controlFile string, options Options) (*mcp.Server, error) {
 		return nil, err
 	}
 	server := mcp.NewServer(&mcp.Implementation{Name: "vscroxy", Version: "0.1.0"}, &mcp.ServerOptions{
-		Instructions: "Inspect the running vscroxy desktop. Mutations require the startup --allow-write capability; raw details require --allow-sensitive. Collection recording persists captured content, possibly including sensitive query/body values, without disclosing raw values in its results; it does not require --allow-sensitive." + untrusted,
+		Instructions: "Inspect the running vscroxy desktop. Mutations require the startup --allow-write capability; raw details require --allow-sensitive. Collection recording persists captured content, possibly including sensitive query/body values, without disclosing raw values in its results; it does not require --allow-sensitive. Token-link analysis and preparation are read-only staging without --allow-sensitive; applying a reviewed proposal requires --allow-write, not --allow-sensitive. One ephemeral analysis/proposal is shared with the desktop; replaced, closed, restarted or expired IDs fail. Never blindly retry staging or apply. Token Current values are local plaintext, not Vault: the new value starts empty; run login first." + untrusted,
 		// Do not log arguments, raw results, or SDK/backend exception strings.
 		Logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
 	})
@@ -47,6 +47,10 @@ func New(controlFile string, options Options) (*mcp.Server, error) {
 	register[flowsExportHARParams](server, client, options, "flows.export-har", "Export 1–200 unique live HTTP flow IDs as a HAR JSON document, without an envelope. By default bodies, header secrets, and query values are omitted. details=true exposes raw traffic, possibly including credentials, and requires --allow-sensitive. No file is written by the desktop.", query)
 	register[emptyParams](server, client, options, "rules.list", "List rule index, stale-edit fingerprint key, name, type, and enabled state.", query)
 	register[idParams](server, client, options, "runs.get", "Poll an asynchronous run by job ID. Returns done and a redacted report with at most 1000 attempts; run variables are not persisted.", query)
+	stage := &mcp.ToolAnnotations{ReadOnlyHint: true, DestructiveHint: new(false), OpenWorldHint: new(false)}
+	register[tokenLinksAnalyzeParams](server, client, options, "token-links.analyze", "Start bounded asynchronous token-link analysis of 1–200 unique positive HTTP capture IDs; imported snapshots are allowed. Returns {id,done}; poll token-links.get. Matches JSON token/access_token/id_token to later same-origin Bearer consumers only; ambiguous matches are refused. Never returns token values, executes scripts, writes files or sends requests. Read-only staging without --allow-sensitive. Replaces the single ephemeral analysis/proposal shared with the desktop; replaced, closed, restarted or expired IDs fail. Do not blindly retry.", stage)
+	register[tokenLinksGetParams](server, client, options, "token-links.get", "Poll an analysis ID from token-links.analyze. Returns id/done/links (source capture ID, JSON path segments, consumer capture IDs)/skipped/problem, never token values. Replaced, closed, restarted or expired IDs fail. Read-only; no scripts executed, files written or network calls; no --allow-sensitive required.", query)
+	register[tokenLinksPrepareParams](server, client, options, "token-links.prepare", "Stage one reviewed token link by analysis ID and zero-based link index (0–199), destination collection (explicit empty string means root), existing environment and variable name. Returns a proposal with id, source saved ID, consumers saved IDs, environment, variable, sourcePre/sourcePost/consumerPre and resetBeforeSetup: only generated fragments and native lifecycle binding, never authored content or credentials. The binding clears old source tokens before checks and inherited/authored setup failures; Postman export warns it cannot preserve that guarantee. Read-only: no scripts executed, files written or network calls; no --allow-sensitive required. Scripts are bound to the selected environment's private Current slot. One ephemeral analysis/proposal is shared with the desktop; replaced, closed, restarted or expired IDs fail. Do not blindly retry.", stage)
 	if options.AllowWrite {
 		run := &mcp.ToolAnnotations{DestructiveHint: new(true), OpenWorldHint: new(true)}
 		local := &mcp.ToolAnnotations{DestructiveHint: new(true), OpenWorldHint: new(false), IdempotentHint: true}
@@ -59,11 +63,32 @@ func New(controlFile string, options Options) (*mcp.Server, error) {
 		register[enabledParams](server, client, options, "system-proxy.set-enabled", "Attempt to enable or disable this computer's system proxy using the desktop's owned session and restoration path. Changes OS settings for other applications and may prompt for authorization. Returns accepted, not verified success; poll system-proxy.get until checking/applying are false and inspect status/problem. Enabling requires live capture; no arbitrary proxy target is accepted. Canceling this call does not undo an accepted OS operation.", local)
 		register[ruleEnabledParams](server, client, options, "rules.set-enabled", "Enable or disable a rule. Supply both index and the current fingerprint key from rules.list to prevent stale edits.", local)
 		register[rulesImportParams](server, client, options, "rules.import", "Append 1–100 rules from a native rules-file JSON array supplied as document text. One entry creates a rule. The whole batch is validated and saved before applying; existing rules and editor drafts are preserved. Not idempotent: do not blindly retry. Trusted rules only: Map Local can serve local files and Map Remote redirects future traffic.", &mcp.ToolAnnotations{DestructiveHint: new(true), OpenWorldHint: new(false)})
+		register[tokenLinksApplyParams](server, client, options, "token-links.apply", "Apply a reviewed proposal key from token-links.prepare. Writes generated scripts/references while preserving authored scripts and creates an empty private Current slot in the selected environment. Current is local plaintext, not Vault; run login first. Scripts are bound to that environment/current slot. Rejects dirty drafts, stale targets, variable conflicts and active collection recording. No network calls or script execution. Requires --allow-write, not --allow-sensitive. Replaced, closed, restarted or expired proposal IDs fail. Not idempotent: do not blindly retry.", &mcp.ToolAnnotations{DestructiveHint: new(true), OpenWorldHint: new(false)})
 	}
 	return server, nil
 }
 
 type emptyParams struct{}
+
+type tokenLinksAnalyzeParams struct {
+	IDs []int `json:"ids" jsonschema:"1–200 positive unique HTTP capture IDs; imported snapshots allowed"`
+}
+
+type tokenLinksGetParams struct {
+	ID string `json:"id" jsonschema:"Nonempty ephemeral analysis ID from token-links.analyze"`
+}
+
+type tokenLinksPrepareParams struct {
+	ID          string `json:"id" jsonschema:"Nonempty current analysis ID from token-links.analyze"`
+	Index       int    `json:"index" jsonschema:"Zero-based link index, 0–199"`
+	Collection  string `json:"collection" jsonschema:"Required destination collection path; explicit empty string selects root; not a filesystem path"`
+	Environment string `json:"environment" jsonschema:"Nonempty existing environment name, not a filesystem path"`
+	Variable    string `json:"variable" jsonschema:"Variable identifier, ASCII letter or underscore followed by ASCII letters, digits or underscores; maximum 64 characters"`
+}
+
+type tokenLinksApplyParams struct {
+	Key string `json:"key" jsonschema:"Nonempty current proposal ID from token-links.prepare; review generated fragments before applying"`
+}
 
 type collectionRecordingStartParams struct {
 	Collection  string   `json:"collection" jsonschema:"Nonempty destination collection path, not a filesystem path"`
@@ -161,9 +186,12 @@ func register[In any](server *mcp.Server, client *control.Client, options Option
 				property.MinLength = new(1)
 			}
 		case "environment":
-			if action == "collection-recording.start" {
+			if action == "collection-recording.start" || action == "token-links.prepare" {
 				property.MinLength = new(1)
 			}
+		case "variable":
+			property.Pattern = `^[A-Za-z_][A-Za-z0-9_]*$`
+			property.MinLength, property.MaxLength = new(1), new(64)
 		case "hosts", "apps":
 			property.Type, property.Types = "array", nil
 			property.MaxItems, property.UniqueItems = new(32), true
@@ -175,6 +203,9 @@ func register[In any](server *mcp.Server, client *control.Client, options Option
 			}
 		case "index":
 			property.Minimum = new(0.0)
+			if action == "token-links.prepare" {
+				property.Maximum = new(199.0)
+			}
 		case "limit":
 			property.Minimum, property.Maximum, property.Default = new(1.0), new(200.0), []byte("50")
 		case "iterations":

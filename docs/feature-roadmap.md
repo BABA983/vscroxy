@@ -330,7 +330,7 @@ Cookie 和其他 API key 保留为变量 header，避免把多个认证机制硬
 
 - 本地控制接口、CLI／MCP 共用动作闭环已完成：查询、录制／规则开关、系统代理修改与回读、受控 HAR 导出、追加规则导入创建和请求／集合运行。
 - 命令行运行集合及 CI 报告已完成（见 [自动化指南](automation.md)）；Runner 性能测试待做。
-- 录制到集合已完成：原生入口、CLI／MCP 共用动作、Host／App 过滤、环境 Current 凭据引用和 Example 归并；token 链路识别待做。
+- 录制到集合及首版 token 链路识别已完成：原生入口、CLI／MCP 共用动作、Host／App 过滤、Current 凭据引用和 Example 归并；JSON token → 同源 Bearer 的脱敏证据、显式审阅应用和失败关闭。Cookie／refresh／多跳链路暂不覆盖。
 - 代码 Mock、`pm.visualizer`、可复用脚本库。
 - 更多代码生成语言。
 - 第三方主题导入。
@@ -374,7 +374,7 @@ Cookie 和其他 API key 保留为变量 header，避免把多个认证机制硬
 
 - **集合 → 抓包**：任意 Example 一键"作为 Mock 响应"，生成一条 Map Local 规则；一个集合的全部 Examples 可以作为一个 Scenario 一起开关，这就是离线的 mock 服务。
 - **抓包 → 已有请求**：流量匹配到已保存请求的 method + 路径模板时，检查器里显示"对应请求：Get user"，一键打开，或把这次响应存为新的 Example。
-- **链路识别**：发现登录接口响应里的 token 被后续请求使用时，建议生成 post-response 脚本 `pm.environment.set("token", …)`。
+- **链路识别**（首版已完成）：从完整成功 JSON 响应中的 token 字段识别后续同源 Bearer 使用，只展示脱敏证据。选定已保存请求、环境和新变量后审阅，再显式 Apply；保留手写脚本，建立空 Current 和源请求早期清理绑定，生成提取及消费者守卫。录制停止后可直接审阅有界内存证据；CLI／MCP 同样支持 analyze/get/prepare/apply。详见 [自动化指南](automation.md#recognize-and-apply-token-links)。不推断 Cookie、refresh 或多跳依赖。
 
 ## 7. Host 方案（SwitchHosts 式）
 

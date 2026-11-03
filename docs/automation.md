@@ -139,6 +139,10 @@ mutation on transport timeout: its outcome may be unknown.
 | `collection-recording.get` | Recording configuration, active/busy state, added/updated/skipped/discarded counts and controlled problem |
 | `collection-recording.start` | Required `collection` and existing `environment`; optional exact `hosts` and `apps` lists (up to 32 each) |
 | `collection-recording.stop` | Stop accepting traffic and discard queued/in-flight conversions; already saved requests remain |
+| `token-links.analyze` | Required `ids` (1–200 unique positive HTTP IDs); returns analysis `id` and `done` |
+| `token-links.get` | Analysis `id`; returns `done`, masked source/path/consumer evidence, `skipped` and controlled `problem` |
+| `token-links.prepare` | Analysis `id`, zero-based `index`, required `collection` (explicit `""` = root), existing `environment`, new `variable`; returns a proposal |
+| `token-links.apply` | Reviewed proposal `key`; persists scripts/references and an empty private Current slot; requires confirmation |
 | `rules.set-enabled` | Required `index`, current `key` and boolean `enabled`; persists through the existing rules store |
 | `rules.import` | Required `document` string containing a native JSON array of 1–100 rules; append-only, all-or-nothing |
 
@@ -230,6 +234,78 @@ does not implicitly restart it. Already saved collection assets survive Quit.
 Opening the target environment editor stops recording before its draft snapshot;
 close that editor before starting again. Concurrent variable changes or deletions
 reject publication rather than overwriting an authored shared/Current value.
+
+### Recognize and apply token links
+
+Capture More → **Recognize token links…** analyzes selected captures (or the
+newest 200 HTTP captures). After stopping collection recording, its status form
+also offers **Review recorded token links** with the recorded collection and
+environment preselected. Recording retains only successfully saved evidence in
+memory: up to 200 exchanges / 4 MiB including metadata, with responses at most
+256 KiB each. `collection-recording.get.evidenceIds` lists the retained IDs;
+they remain analyzable after table eviction but disappear on dismissal, a new
+recording session or restart. Missing evidence fails rather than being invented
+from saved Examples.
+
+Inference is conservative: complete successful JSON responses with string
+`token`, `access_token`, `accessToken`, `id_token` or `idToken` fields matching an
+exact subsequent Bearer Authorization value on the **same origin**. The source
+must finish at least 1 ms before the estimated consumer start. Ambiguous fields
+or sources are excluded; this is evidence, not proof of authentication. Cookies,
+refresh flows and multi-hop dependencies are not inferred. Imported HTTP
+snapshots may be analyzed. Body I/O runs off the UI thread; metadata is capped
+at 64 KiB per flow, responses at 256 KiB and aggregate response reads at 4 MiB,
+with a 10-second analysis deadline and bounded JSON traversal. Uninspectable
+responses count as skipped; previews are never treated as complete bodies.
+
+```sh copy Copy Token Link Workflow
+bin/vscroxy-cli control --file "$HOME/.vscroxy/control.json" \
+  --params '{"ids":[41,42]}' token-links.analyze
+bin/vscroxy-cli control --file "$HOME/.vscroxy/control.json" \
+  --params '{"id":"ANALYSIS-ID"}' token-links.get
+bin/vscroxy-cli control --file "$HOME/.vscroxy/control.json" \
+  --params '{"id":"ANALYSIS-ID","index":0,"collection":"Shop","environment":"Local","variable":"linked_token"}' token-links.prepare
+# Inspect the generated fragments and resetBeforeSetup before applying.
+bin/vscroxy-cli control --file "$HOME/.vscroxy/control.json" \
+  --params '{"key":"PROPOSAL-ID"}' --confirm token-links.apply
+```
+
+Poll `get` until `done:true`, then check `problem` and the evidence. Analyze and
+prepare are read-only **staging**, not idempotent queries: they replace the one
+ephemeral analysis/proposal shared with the native UI. IDs expire ten minutes
+after analysis starts; replacement, closing the preview, Quit and restart also
+invalidate them. A successful proposal can only be applied once. Do not blindly
+retry staging or apply after a transport failure; inspect current state first.
+MCP exposes analyze/get/prepare by default; apply requires `--allow-write`.
+None returns token values or requires `--allow-sensitive`.
+
+Preparation requires each capture to match exactly one existing saved request
+in the destination collection/subfolders, using the chosen environment. It
+creates no requests. Apply preserves authored scripts: source Pre clearing is
+prepended, extraction and consumer guards appended; consumers must use explicit
+Bearer Auth or one explicit matching Authorization header. Other/inherited Auth,
+dirty or sending drafts, changed targets/scopes, variable collisions, open target
+environment editors and active/stopping recorders are refused. Review authored
+scripts for deliberate overrides; this is not a script sandbox.
+
+The proposal contains only saved request IDs, the selected environment/variable,
+generated `sourcePre`, `sourcePost`, `consumerPre`, and `resetBeforeSetup`.
+This native source binding invalidates the previous token **before checks and
+all inherited/authored setup**, including script compilation failures. Extraction
+checks status, JSON path and token syntax; generated JSON errors never include
+the response parser's potentially sensitive exception. Consumers fail before
+sending if the slot is missing, empty, invalid or shadowed. The slot starts
+**empty**: captured credentials are never seeded. Run the source before its
+consumers; subsequent iterations use freshly extracted tokens.
+
+Current is plaintext local storage, **not Vault**; environment export excludes
+it. Desktop remote runs and CLI runs keep variable changes isolated rather than
+writing them back to desktop files. The empty Current slot is saved before the
+request files: a failed multi-file save can leave the unused slot and partial
+files, so reload before preparing again. Native bindings survive editor saves;
+Postman export warns that it cannot preserve pre-setup invalidation. Exported
+script fallback remains, but cannot cover inherited or compilation failures in
+another runner.
 
 ### Control the system proxy
 
@@ -335,9 +411,11 @@ paths (replace both placeholders; shell `$HOME` expansion is not assumed):
 }
 ```
 
-The default catalog contains eleven read-only tools, named like desktop actions:
+The default catalog contains fourteen read-only tools, named like desktop actions:
 `status`, `collection-recording.get`, `system-proxy.get`, `collections.list`, `requests.list`, `requests.get`, `flows.list`,
-`flows.get`, `flows.export-har`, `rules.list`, and `runs.get`. Every tool has a typed, closed input
+`flows.get`, `flows.export-har`, `rules.list`, `runs.get`, `token-links.analyze`,
+`token-links.get`, and `token-links.prepare`. Analyze/prepare replace ephemeral
+staging despite being read-only; they are not idempotent. Every tool has a typed, closed input
 schema and an explicit read-only/destructive/open-world annotation. Results are
 JSON structured content with a JSON text fallback. Application rejections set
 MCP `isError`; a run job's acceptance still requires polling its final report.
@@ -347,7 +425,7 @@ Two **independent startup capabilities**, never tool parameters, widen access:
 - `--allow-write` registers `request.run`, `collection.run`, `runs.cancel`,
   `capture.recording`, `rules.set-enabled`, `rules.import`, and
   `system-proxy.set-enabled`, plus `collection-recording.start` and
-  `collection-recording.stop` (20 tools in total). It explicitly authorizes those
+  `collection-recording.stop`, and `token-links.apply` (24 tools in total). It explicitly authorizes those
   tools to supply the desktop's confirmation. Request execution can affect real
   external systems; enable it only for a trusted client and trusted collections.
   Collection recording persists captured content locally, potentially including

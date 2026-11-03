@@ -1,7 +1,11 @@
 package app
 
 import (
+	"reflect"
+	"slices"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/egoist/mygo/ui"
 )
@@ -86,4 +90,66 @@ func TestCollectionRecordingUIReflectsRemoteScopeAndGuardsRunningForm(t *testing
 		t.Fatal("persistent status control did not stop remote session")
 	}
 	tt.Frame()
+}
+
+func TestCollectionRecordingUIReviewsOnlyStoppedEvidence(t *testing.T) {
+	for _, size := range [][2]int{{960, 600}, {1280, 800}} {
+		a, client := recordingApp(t)
+		startRecording(t, client, nil)
+		flows := tokenPreviewFlows()
+		for i := range flows {
+			flows[i].at = a.collectionRecording.StartedAt.Add(time.Duration(i+1) * time.Second)
+		}
+		a.recordCollection(flows)
+		if len(a.collectionRecording.evidence) != 2 {
+			t.Fatal("saved evidence missing")
+		}
+		before := slices.Clone(a.requests)
+		a.openCollectionRecording("", "", "")
+		tt := ui.NewTester(a.view, size[0], size[1])
+		if tt.HasText("Review recorded token links") {
+			t.Fatal("review offered while recording is active")
+		}
+		a.collectionRecording.Busy = true
+		a.stopCollectionRecording("")
+		tt.Frame()
+		if tt.HasText("Review recorded token links") {
+			t.Fatal("review offered before the last worker finished")
+		}
+		a.collectionRecording.Busy = false
+		a.flows = nil // entry must use recorder evidence, not LIVE selection
+		a.applyFilter()
+		tt.Frame()
+		button, ok := tt.Find("Review recorded token links")
+		if !ok || button.Y < 0 || button.Y+button.H > float32(size[1]) {
+			t.Fatalf("review entry outside window: %+v", button)
+		}
+		if !strings.Contains(strings.Join(tt.Texts(), "\n"), "lost on restart") {
+			t.Fatal("in-memory evidence lifetime not explained")
+		}
+		if err := tt.Click("Review recorded token links"); err != nil {
+			t.Fatal(err)
+		}
+		tt.Frame()
+		w := a.tokenLinks
+		if a.recordCollectionUI.open || w == nil || !w.open || w.config.Collection != "Recorded" || w.config.Environment != "Local" || len(w.flows) != 2 || !tt.HasText("Response #1 → 1 Bearer requests") {
+			t.Fatal("review did not open retained evidence with recording scope")
+		}
+		if tt.HasText("preview-secret-token-123") || !reflect.DeepEqual(before, a.requests) || w.plan != nil || w.applied {
+			t.Fatal("review disclosed a token or mutated authored requests")
+		}
+		if err := tt.Click("Close token links"); err != nil {
+			t.Fatal(err)
+		}
+		tt.Frame()
+		if err := tt.Click("Dismiss recording status"); err != nil {
+			t.Fatal(err)
+		}
+		tt.Frame()
+		a.openCollectionRecording("", "", "")
+		tt.Frame()
+		if a.collectionRecording != nil || tt.HasText("Review recorded token links") {
+			t.Fatal("dismissed evidence returned")
+		}
+	}
 }

@@ -30,19 +30,22 @@ type collectionRecordingConfig struct {
 // writes and editor merges stay with the library owner on the UI thread.
 type collectionRecording struct {
 	collectionRecordingConfig
-	Active    bool      `json:"active"`
-	Busy      bool      `json:"busy"`
-	StartedAt time.Time `json:"startedAt,omitzero"`
-	Added     int       `json:"added"`
-	Updated   int       `json:"updated"`
-	Skipped   int       `json:"skipped"`
-	Discarded int       `json:"discarded"`
-	Problem   string    `json:"problem"`
-	queue     []flow
-	endpoints map[string]string // origin + method + inferred path → saved ID
-	latest    map[string]time.Time
-	dropped   int64
-	spills    map[string]recordingSpill
+	Active        bool      `json:"active"`
+	Busy          bool      `json:"busy"`
+	StartedAt     time.Time `json:"startedAt,omitzero"`
+	Added         int       `json:"added"`
+	Updated       int       `json:"updated"`
+	Skipped       int       `json:"skipped"`
+	Discarded     int       `json:"discarded"`
+	Problem       string    `json:"problem"`
+	EvidenceIDs   []int     `json:"evidenceIds"`
+	evidence      []flow    // bounded raw inference evidence, never exported or persisted
+	evidenceBytes int
+	queue         []flow
+	endpoints     map[string]string // origin + method + inferred path → saved ID
+	latest        map[string]time.Time
+	dropped       int64
+	spills        map[string]recordingSpill
 }
 
 type recordingSpill struct {
@@ -51,11 +54,12 @@ type recordingSpill struct {
 }
 
 type recordedCapture struct {
-	request savedRequest
-	example request.Example
-	shared  map[string]string
-	current map[string]string
-	before  environment
+	request  savedRequest
+	example  request.Example
+	shared   map[string]string
+	current  map[string]string
+	before   environment
+	evidence flow // worker-owned complete response, not the sanitized Example
 }
 
 func (a *app) controlCollectionRecording(command control.Command) (any, error) {
@@ -250,29 +254,7 @@ func (a *app) nextCollectionRecording() {
 	convert := func() {
 		result, err := prepareRecordedCapture(f, config, before, vars)
 		finish := func() {
-			a.releaseRecordingSpills(s, f)
-			s.Busy = false
-			if a.collectionRecording != s || !s.Active {
-				return
-			}
-			if a.srv.Dropped() != s.dropped {
-				s.Discarded++
-				a.stopCollectionRecording("Capture dropped traffic; reduce load and start recording again")
-				return
-			}
-			if a.systemProxy.quitting || a.systemProxy.quitReady || a.recordingPaused {
-				s.Discarded++
-				a.stopCollectionRecording("Capture was paused or the application is quitting")
-				return
-			}
-			if err != nil {
-				s.Skipped++ // no raw body/file/error text in diagnostics
-			} else if err := a.keepRecordedCapture(f, result); err != nil {
-				s.Discarded++
-				a.stopCollectionRecording(err.Error())
-				return
-			}
-			a.nextCollectionRecording()
+			a.finishRecordedCapture(s, f, result, err)
 		}
 		if win == nil {
 			finish()
@@ -285,6 +267,32 @@ func (a *app) nextCollectionRecording() {
 	} else {
 		go convert()
 	}
+}
+
+func (a *app) finishRecordedCapture(s *collectionRecording, f flow, result recordedCapture, err error) {
+	defer a.releaseRecordingSpills(s, f)
+	s.Busy = false
+	if a.collectionRecording != s || !s.Active {
+		return
+	}
+	if a.srv.Dropped() != s.dropped {
+		s.Discarded++
+		a.stopCollectionRecording("Capture dropped traffic; reduce load and start recording again")
+		return
+	}
+	if a.systemProxy.quitting || a.systemProxy.quitReady || a.recordingPaused {
+		s.Discarded++
+		a.stopCollectionRecording("Capture was paused or the application is quitting")
+		return
+	}
+	if err != nil {
+		s.Skipped++ // no raw body/file/error text in diagnostics
+	} else if err := a.keepRecordedCapture(f, result); err != nil {
+		s.Discarded++
+		a.stopCollectionRecording(err.Error())
+		return
+	}
+	a.nextCollectionRecording()
 }
 
 // Retention may evict the row, but queued/in-flight conversions still own its
@@ -397,7 +405,50 @@ func prepareRecordedCapture(f flow, config collectionRecordingConfig, before env
 	h := request.ParseHeaderBlock(ex.Headers)
 	h.Del("Set-Cookie")
 	ex.Headers = request.HeaderBlock(h)
-	return recordedCapture{request: r, example: ex, shared: shared, current: current, before: before}, nil
+	// Keep only what inference and request matching need. This deliberately
+	// comes from the complete raw exchange, never the substituted snapshot.
+	evidence := flow{id: f.id, live: f.live, at: f.at, millis: f.millis,
+		method: f.method, scheme: f.scheme, host: f.host, path: f.path, url: f.url,
+		status: f.status, reqHeaders: f.reqHeaders, resHeaders: f.resHeaders,
+		reqHeader: f.reqHeader, respHeader: f.respHeader, resBody: f.resBody, resSize: len(f.resBody)}
+	return recordedCapture{request: r, example: ex, shared: shared, current: current, before: before, evidence: evidence}, nil
+}
+
+// Payload bytes include metadata and header framing, not just response bodies.
+// The retained flows contain no other variable-sized fields.
+func recordedEvidenceBytes(f flow) int {
+	size := len(f.resBody)
+	for _, value := range []string{f.url, f.scheme, f.host, f.path, f.method, f.reqHeaders, f.resHeaders} {
+		size += len(value)
+	}
+	for _, h := range []map[string][]string{f.reqHeader, f.respHeader} {
+		for name, values := range h {
+			size += len(name) + 2
+			for _, value := range values {
+				size += len(value) + 2
+			}
+		}
+	}
+	return size
+}
+
+func (s *collectionRecording) retainEvidence(f flow) {
+	if f.id <= 0 || len(f.resBody) > tokenResponseLimit || !tokenMetadataOK(f) {
+		return
+	}
+	size := recordedEvidenceBytes(f)
+	for len(s.evidence) > 0 && (len(s.evidence) >= tokenSelectionLimit || s.evidenceBytes+size > tokenReadLimit) {
+		s.evidenceBytes -= recordedEvidenceBytes(s.evidence[0])
+		s.evidence[0] = flow{}
+		s.evidence = s.evidence[1:]
+	}
+	s.evidence = append(s.evidence, f)
+	s.evidenceBytes += size
+	s.EvidenceIDs = s.EvidenceIDs[:0]
+	for _, f := range s.evidence {
+		s.EvidenceIDs = append(s.EvidenceIDs, f.id)
+	}
+	slices.Sort(s.EvidenceIDs) // completion order need not be capture-ID order
 }
 
 func recordedEndpointKey(f flow) string {
@@ -496,6 +547,7 @@ func (a *app) keepRecordedCapture(f flow, result recordedCapture) error {
 	if err := a.persistRequests(list); err != nil {
 		return errors.New("Could not save recorded request; resolve the collection file conflict and restart")
 	}
+	s.retainEvidence(result.evidence)
 	s.endpoints[key] = r.ID
 	s.latest[result.example.ID] = f.at
 	if index < 0 {

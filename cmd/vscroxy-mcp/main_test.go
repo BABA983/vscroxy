@@ -4,10 +4,14 @@ import (
 	"bytes"
 	"context"
 	"encoding/json/v2"
+	"fmt"
+	"maps"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/baba983/vscroxy/internal/control"
@@ -90,9 +94,9 @@ func TestStdioProcess(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			want := 11
+			want := 14
 			if tc.write {
-				want = 20
+				want = 24
 			}
 			if len(listed.Tools) != want {
 				t.Errorf("%d tools; want %d", len(listed.Tools), want)
@@ -167,5 +171,100 @@ func TestStdioProcess(t *testing.T) {
 				t.Errorf("unexpected process diagnostics: %s", stderr.String())
 			}
 		})
+	}
+}
+
+func TestTokenLinksStdioProcess(t *testing.T) {
+	var calls atomic.Int64
+	path := filepath.Join(t.TempDir(), "control.json")
+	server, err := control.Start(path, func(_ context.Context, c control.Command) (any, error) {
+		calls.Add(1)
+		return map[string]any{"action": c.Action, "params": c.Params}, nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = server.Close() })
+	for _, protocol := range []string{"2025-11-25", "2026-07-28"} {
+		for _, write := range []bool{false, true} {
+			for _, sensitive := range []bool{false, true} {
+				t.Run(fmt.Sprintf("%s/write=%v/sensitive=%v", protocol, write, sensitive), func(t *testing.T) {
+					args := []string{"--control-file", path}
+					if write {
+						args = append(args, "--allow-write")
+					}
+					if sensitive {
+						args = append(args, "--allow-sensitive")
+					}
+					cmd := exec.CommandContext(t.Context(), os.Args[0], "-test.run=^TestStdioProcess$")
+					cmd.Env = append(os.Environ(), "VSCROXY_MCP_TEST_PROCESS=1", "VSCROXY_MCP_TEST_ARGS="+strings.Join(args, "\n"))
+					var stderr bytes.Buffer
+					cmd.Stderr = &stderr
+					client := mcp.NewClient(&mcp.Implementation{Name: "token-links-stdio-test", Version: "1"}, nil)
+					cs, err := client.Connect(t.Context(), &mcp.CommandTransport{Command: cmd}, &mcp.ClientSessionOptions{ProtocolVersion: protocol})
+					if err != nil {
+						t.Fatalf("initialize failed: %v; stderr: %s", err, stderr.String())
+					}
+					t.Cleanup(func() { _ = cs.Close() })
+					listed, err := cs.ListTools(t.Context(), nil)
+					if err != nil {
+						t.Fatal(err)
+					}
+					wantCount := 14
+					if write {
+						wantCount = 24
+					}
+					if len(listed.Tools) != wantCount {
+						t.Fatalf("%d tools; want %d", len(listed.Tools), wantCount)
+					}
+					for _, tc := range []struct {
+						name string
+						args map[string]any
+					}{
+						{"token-links.analyze", map[string]any{"ids": []any{float64(7), float64(2)}}},
+						{"token-links.get", map[string]any{"id": "analysis-id"}},
+						{"token-links.prepare", map[string]any{"id": "analysis-id", "index": float64(0), "collection": "", "environment": "local", "variable": "accessToken"}},
+						{"token-links.apply", map[string]any{"key": "proposal-id"}},
+					} {
+						before := calls.Load()
+						result, err := cs.CallTool(t.Context(), &mcp.CallToolParams{Name: tc.name, Arguments: tc.args})
+						if tc.name == "token-links.apply" && !write {
+							if err == nil && !result.IsError || calls.Load() != before {
+								t.Fatal("apply reached desktop without --allow-write")
+							}
+							continue
+						}
+						if err != nil || result.IsError || calls.Load() != before+1 {
+							t.Fatalf("%s forwarding failed: %+v, %v", tc.name, result, err)
+						}
+						want := maps.Clone(tc.args)
+						if tc.name == "token-links.apply" {
+							want["confirm"] = true
+						}
+						var forwarded struct {
+							Action string         `json:"action"`
+							Params map[string]any `json:"params"`
+						}
+						data, err := json.Marshal(result.StructuredContent)
+						if err != nil || json.Unmarshal(data, &forwarded) != nil || forwarded.Action != tc.name || !reflect.DeepEqual(forwarded.Params, want) {
+							t.Fatalf("incorrect %s forwarding: %s, %v", tc.name, data, err)
+						}
+						invalid := maps.Clone(tc.args)
+						invalid["confirm"] = true
+						before = calls.Load()
+						result, err = cs.CallTool(t.Context(), &mcp.CallToolParams{Name: tc.name, Arguments: invalid})
+						if err != nil || !result.IsError || calls.Load() != before {
+							t.Fatalf("closed %s schema accepted model confirmation: %+v, %v", tc.name, result, err)
+						}
+					}
+					if err := cs.Close(); err != nil {
+						t.Error(err)
+					}
+					if stderr.Len() != 0 {
+						t.Errorf("unexpected child diagnostics: %s", stderr.String())
+					}
+				})
+			}
+		}
 	}
 }

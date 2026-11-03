@@ -6,6 +6,7 @@ import (
 	"encoding/json/v2"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -372,15 +373,23 @@ func TestDesktopControlCollectionRecordingOwnsQueuedSpillsThroughRetention(t *te
 	startRecording(t, client, nil)
 	// The capture engine owns this real spill, so retention normally removes
 	// it. Hold the first worker to deterministically queue it before eviction.
+	body := `{"padding":"` + strings.Repeat("x", 96<<10) + `","access_token":"retained-token-123456"}`
+	requestBody := strings.Repeat("request payload ", 8<<10)
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "text/plain")
-		io.WriteString(w, strings.Repeat("retained-", 32<<10))
+		io.Copy(io.Discard, r.Body)
+		w.Header().Set("Content-Type", "application/json")
+		io.WriteString(w, body)
 	}))
 	defer upstream.Close()
 	proxy, _ := url.Parse("http://" + a.srv.Addr())
 	transport := &http.Transport{Proxy: http.ProxyURL(proxy)}
 	defer transport.CloseIdleConnections()
-	res, err := (&http.Client{Transport: transport, Timeout: 10 * time.Second}).Get(upstream.URL + "/large/42")
+	req, err := http.NewRequestWithContext(t.Context(), "POST", upstream.URL+"/large/42", strings.NewReader(requestBody))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Authorization", "Bearer raw-source-secret")
+	res, err := (&http.Client{Transport: transport, Timeout: 10 * time.Second}).Do(req)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -392,7 +401,7 @@ func TestDesktopControlCollectionRecordingOwnsQueuedSpillsThroughRetention(t *te
 	case <-t.Context().Done():
 		t.Fatal(t.Context().Err())
 	}
-	if wire.ResponseBodyFile == "" {
+	if wire.ResponseBodyFile == "" || wire.RequestBodyFile == "" {
 		t.Fatal("fixture did not produce a spill")
 	}
 	a.collectionRecording.Busy = true
@@ -402,12 +411,168 @@ func TestDesktopControlCollectionRecordingOwnsQueuedSpillsThroughRetention(t *te
 	if _, err := os.Stat(wire.ResponseBodyFile); err != nil {
 		t.Fatalf("retention deleted queued body: %v", err)
 	}
+	if len(a.collectionRecording.evidence) != 0 {
+		t.Fatal("unsaved queued traffic became evidence")
+	}
 	a.collectionRecording.Busy = false
 	a.nextCollectionRecording()
-	if len(a.requests) != 1 || a.requests[0].Examples[0].Body != strings.Repeat("retained-", 32<<10) {
+	if len(a.requests) != 1 || a.requests[0].Examples[0].Body != body {
 		t.Fatalf("evicted capture lost: %s", desktopCall(t, client, "collection-recording.get", nil))
 	}
-	if _, err := os.Stat(wire.ResponseBodyFile); !os.IsNotExist(err) {
-		t.Fatalf("evicted spill was not released after conversion: %v", err)
+	for _, file := range []string{wire.RequestBodyFile, wire.ResponseBodyFile} {
+		if _, err := os.Stat(file); !os.IsNotExist(err) {
+			t.Fatalf("evicted spill was not released after conversion: %v", err)
+		}
+	}
+	s := a.collectionRecording
+	if len(s.evidence) != 1 || !slices.Equal(s.EvidenceIDs, []int{wire.ID}) {
+		t.Fatal("saved capture evidence missing")
+	}
+	e := s.evidence[0]
+	if e.resBody != body || e.reqHeader.Get("Authorization") != "Bearer raw-source-secret" || e.reqBody != "" || e.reqFile != "" || e.resFile != "" || e.reqTrailer != nil || e.resTrailer != nil {
+		t.Fatal("evidence is incomplete, substituted, or retains request payloads/files/trailers")
+	}
+	// The token sits beyond the capture's display preview. Analysis must still
+	// find it after both engine spills and the source capture row are gone.
+	consumer := recordingFlow("/profile")
+	consumer.id, consumer.url, consumer.at = wire.ID+2, upstream.URL+"/profile", wire.At.Add(time.Second)
+	consumer.reqHeader.Set("Authorization", "Bearer retained-token-123456")
+	a.recordCollection([]flow{consumer})
+	a.stopCollectionRecording("")
+	analysis, err := recognizeTokenLinks(t.Context(), s.evidence)
+	if err != nil || len(analysis.Links) != 1 || analysis.Links[0].Source != wire.ID || !slices.Equal(analysis.Links[0].Consumers, []int{consumer.id}) {
+		t.Fatalf("retained evidence cannot infer link: %+v, %v", analysis, err)
+	}
+	status := desktopCall(t, client, "collection-recording.get", nil)
+	for _, secret := range []string{"raw-source-secret", "retained-token-123456", "padding", "reqHeader", "resBody", "evidenceBytes"} {
+		if strings.Contains(string(status), secret) {
+			t.Fatalf("raw evidence disclosed in status: %s", secret)
+		}
+	}
+	var exported collectionRecording
+	if err := json.Unmarshal(status, &exported); err != nil || !slices.Equal(exported.EvidenceIDs, []int{wire.ID, consumer.id}) {
+		t.Fatalf("evidence IDs not exported in order: %s, %v", status, err)
+	}
+	startRecording(t, client, nil)
+	if len(a.collectionRecording.evidence) != 0 || len(a.collectionRecording.EvidenceIDs) != 0 || a.collectionRecording.evidenceBytes != 0 {
+		t.Fatal("new recording retained previous session evidence")
+	}
+}
+
+func TestCollectionRecordingEvidenceRejectsUnsavedAndPostStopResults(t *testing.T) {
+	for _, reason := range []string{"stop", "replaced", "paused", "conversion", "variables", "library", "older"} {
+		t.Run(reason, func(t *testing.T) {
+			a, client := recordingApp(t)
+			startRecording(t, client, nil)
+			f := recordingFlow("/users/42")
+			a.recordCollection([]flow{f})
+			s := a.collectionRecording
+			f.id++
+			f.at = f.at.Add(time.Second)
+			f.resBody = `{"changed":true}`
+			before := a.envs[0]
+			result, err := prepareRecordedCapture(f, s.collectionRecordingConfig, before, map[string]string{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			result.before.Vars, result.before.Current = maps.Clone(before.Vars), maps.Clone(before.Current)
+			if len(s.evidence) != 1 {
+				t.Fatal("worker published evidence before a save")
+			}
+			s.Busy = true
+			switch reason {
+			case "stop":
+				a.stopCollectionRecording("")
+			case "replaced":
+				a.collectionRecording = &collectionRecording{}
+			case "paused":
+				a.recordingPaused = true
+			case "conversion":
+				err = fmt.Errorf("private conversion error")
+			case "variables":
+				for name := range result.current {
+					a.envs[0].Current[name] = "changed while preparing"
+				}
+			case "library":
+				for _, file := range libraryTree(t, a.library.root) {
+					if strings.HasSuffix(file, requestFileSuffix) {
+						if err := os.WriteFile(filepath.Join(a.library.root, filepath.FromSlash(file)), []byte("external edit"), 0600); err != nil {
+							t.Fatal(err)
+						}
+					}
+				}
+			case "older":
+				f.at = s.latest[result.example.ID].Add(-time.Nanosecond)
+			}
+			a.finishRecordedCapture(s, f, result, err)
+			if s.Busy || len(s.evidence) != 1 || !slices.Equal(s.EvidenceIDs, []int{10}) || s.evidence[0].id != 10 {
+				t.Fatal("unsaved/stopped work changed retained evidence")
+			}
+		})
+	}
+}
+
+func TestCollectionRecordingEvidenceBudgets(t *testing.T) {
+	// Exercise byte/count bounds without hundreds of filesystem saves. The
+	// production retain path accepts this worker-prepared minimal snapshot.
+	f := recordingFlow("/login")
+	f.reqBody, f.resTrailer = "must not retain request body", http.Header{"Trailer": {"must not retain"}}
+	result, err := prepareRecordedCapture(f, collectionRecordingConfig{Collection: "Recorded"}, environment{}, map[string]string{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	f = result.evidence
+	for _, tc := range []struct {
+		name     string
+		body     int
+		metadata int
+		count    int
+	}{
+		{"count", 2, 0, tokenSelectionLimit + 3},
+		{"bytes including metadata", tokenResponseLimit, 0, 18},
+		{"metadata contributes to eviction", 1, 60 << 10, 80},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s := &collectionRecording{}
+			f.resBody = strings.Repeat("x", tc.body)
+			f.reqHeaders = strings.Repeat("m", tc.metadata)
+			size := recordedEvidenceBytes(f)
+			for i := range tc.count {
+				f.id = i + 1
+				s.retainEvidence(f)
+			}
+			want := min(tc.count, tokenSelectionLimit, tokenReadLimit/size)
+			if len(s.evidence) != want || s.evidenceBytes != want*size || s.evidenceBytes > tokenReadLimit || s.EvidenceIDs[0] != tc.count-want+1 || s.EvidenceIDs[want-1] != tc.count {
+				t.Fatalf("wrong oldest-first eviction: count=%d bytes=%d IDs=%v", len(s.evidence), s.evidenceBytes, s.EvidenceIDs)
+			}
+		})
+	}
+	t.Run("inclusive limits and ordered IDs", func(t *testing.T) {
+		s := &collectionRecording{}
+		f := flow{id: 2, url: strings.Repeat("m", tokenMetadataLimit), resBody: strings.Repeat("b", tokenResponseLimit)}
+		s.retainEvidence(f)
+		f.id = 1
+		s.retainEvidence(f)
+		if len(s.evidence) != 2 || !slices.Equal(s.EvidenceIDs, []int{1, 2}) || s.evidenceBytes != 2*(tokenMetadataLimit+tokenResponseLimit) {
+			t.Fatal("inclusive limits rejected or capture IDs unordered")
+		}
+	})
+	for _, tc := range []struct {
+		name   string
+		change func(*flow)
+	}{
+		{"response", func(f *flow) { f.resBody = strings.Repeat("x", tokenResponseLimit+1) }},
+		{"metadata", func(f *flow) { f.reqHeaders = strings.Repeat("x", tokenMetadataLimit+1) }},
+		{"header framing", func(f *flow) { f.reqHeader = http.Header{"": make([]string, tokenMetadataLimit/2+1)} }},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s := &collectionRecording{}
+			f := result.evidence
+			tc.change(&f)
+			s.retainEvidence(f)
+			if len(s.evidence) != 0 || s.evidenceBytes != 0 || len(s.EvidenceIDs) != 0 {
+				t.Fatal("oversized evidence retained")
+			}
+		})
 	}
 }

@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"uuid"
 
 	"github.com/baba983/vscroxy/internal/uikit"
 	"github.com/egoist/mygo/ui"
@@ -17,6 +18,10 @@ import (
 // analysis may let an older worker publish into the current view.
 type tokenLinkPreview struct {
 	open, busy bool
+	id         string
+	expires    time.Time
+	valid      bool
+	visible    bool
 	cancel     context.CancelFunc
 	flows      []flow
 	analysis   tokenAnalysis
@@ -39,10 +44,14 @@ func (a *app) tokenLinkScope() []flow {
 }
 
 func (a *app) openTokenLinks(flows []flow) {
+	a.startTokenLinks(flows, true)
+}
+
+func (a *app) startTokenLinks(flows []flow, visible bool) *tokenLinkPreview {
 	if old := a.tokenLinks; old != nil && old.cancel != nil {
-		old.cancel()
+		old.close()
 	}
-	w := &tokenLinkPreview{open: true, busy: true, flows: slices.Clone(flows), config: tokenLinkConfig{Environment: a.activeEnv, Variable: "linked_token"}}
+	w := &tokenLinkPreview{id: uuid.New().String(), expires: time.Now().Add(10 * time.Minute), valid: true, visible: visible, open: visible, busy: true, flows: slices.Clone(flows), config: tokenLinkConfig{Environment: a.activeEnv, Variable: "linked_token"}}
 	if s := a.collectionRecording; s != nil {
 		w.config.Collection, w.config.Environment = s.Collection, s.Environment
 	}
@@ -57,11 +66,12 @@ func (a *app) openTokenLinks(flows []flow) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	w.cancel = cancel
 	win := a.win
+	snapshots := w.flows
 	work := func() {
-		result, err := recognizeTokenLinks(ctx, w.flows)
+		result, err := recognizeTokenLinks(ctx, snapshots)
 		cancel()
 		finish := func() {
-			if a.tokenLinks != w || !w.open {
+			if a.tokenLinks != w || !w.valid {
 				return
 			}
 			w.busy, w.analysis = false, result
@@ -80,11 +90,22 @@ func (a *app) openTokenLinks(flows []flow) {
 	} else {
 		go work()
 	}
+	return w
+}
+
+func (w *tokenLinkPreview) close() {
+	w.open, w.valid = false, false
+	w.cancel()
+	w.flows, w.analysis, w.plan = nil, tokenAnalysis{}, nil
 }
 
 func (a *app) tokenLinksModal(c *ui.Context, t *ui.Theme) {
 	w := a.tokenLinks
 	if w == nil || !w.open {
+		return
+	}
+	if !time.Now().Before(w.expires) {
+		w.close()
 		return
 	}
 	_, height := c.Size()
@@ -165,7 +186,7 @@ func (a *app) tokenLinksModal(c *ui.Context, t *ui.Theme) {
 					state = "Private slot saved · review save error"
 				}
 				uikit.Meta(c, state).Grow(1).MinWidth(0)
-				uikit.SecondaryButton(c, "Close token links").OnClick(func() { w.open = false; w.cancel() })
+				uikit.SecondaryButton(c, "Close token links").OnClick(w.close)
 				if !w.busy && w.problem == "" && !w.applied && len(w.analysis.Links) > 0 {
 					if w.plan == nil {
 						uikit.PrimaryButton(c, "Review token link changes").OnClick(func() {
@@ -192,6 +213,6 @@ func (a *app) tokenLinksModal(c *ui.Context, t *ui.Theme) {
 		})
 	})
 	if !w.open {
-		w.cancel()
+		w.close()
 	}
 }
