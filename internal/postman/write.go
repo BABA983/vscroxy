@@ -168,6 +168,10 @@ func WriteCollection(name string, requests []request.Request, folders []request.
 	warn := tally{}
 	for _, r := range requests {
 		if n := root.at(name, r.Collection); n != nil {
+			if r.Protocol != "" {
+				warn.add("protocol request", r.Protocol, 1)
+				continue // Collection v2.1 cannot represent gRPC calls.
+			}
 			n.requests = append(n.requests, r)
 			if _, err := r.Checks.Script(); err != nil {
 				warn.add("checks", "", 1)

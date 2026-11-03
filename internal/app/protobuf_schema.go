@@ -24,9 +24,10 @@ const maxProtoBytes = 32 << 20
 // message type from its wire fields: gRPC uses service/method descriptors and
 // raw protobuf uses the type the person chooses.
 type protoSchema struct {
-	files *protoregistry.Files
-	types *dynamicpb.Types
-	names []string
+	files   *protoregistry.Files
+	types   *dynamicpb.Types
+	names   []string
+	methods []string
 }
 
 func readProtoFile(path string) ([]byte, error) {
@@ -70,10 +71,36 @@ func parseProtoSchema(data []byte) (*protoSchema, error) {
 	}
 	files.RangeFiles(func(f protoreflect.FileDescriptor) bool {
 		messages(f.Messages())
+		for i := range f.Services().Len() {
+			service := f.Services().Get(i)
+			for j := range service.Methods().Len() {
+				s.methods = append(s.methods, "/"+string(service.FullName())+"/"+string(service.Methods().Get(j).Name()))
+			}
+		}
 		return true
 	})
 	slices.Sort(s.names)
+	slices.Sort(s.methods)
 	return s, nil
+}
+
+func (s *protoSchema) method(path string) (protoreflect.MethodDescriptor, error) {
+	if s == nil {
+		return nil, fmt.Errorf("import a schema or reflect services first")
+	}
+	service, name, ok := strings.Cut(strings.TrimPrefix(path, "/"), "/")
+	if !ok {
+		return nil, fmt.Errorf("select a gRPC service/method")
+	}
+	d, err := s.files.FindDescriptorByName(protoreflect.FullName(service + "." + name))
+	if err != nil {
+		return nil, err
+	}
+	m, ok := d.(protoreflect.MethodDescriptor)
+	if !ok {
+		return nil, fmt.Errorf("%s is not a gRPC method", path)
+	}
+	return m, nil
 }
 
 // importProtoSchema compiles .proto in-process (no protoc executable or shell).

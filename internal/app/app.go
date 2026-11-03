@@ -1274,6 +1274,7 @@ func (a *app) view(c *ui.Context) {
 	a.dark = a.appearance == "dark" || a.appearance == "" && c.Theme().Dark
 	c.SetTheme(uikit.Theme(a.dark))
 	a.drain()
+	a.drainGRPC()
 	a.scripts.setEnv(a.globals, a.activeVars(), a.addons.sources())
 	// The Settings window shows these checks too: it redraws when one
 	// finishes, and shows the messages while it is in front.
@@ -2347,6 +2348,9 @@ func Run() error {
 	cancelRequests := func() {
 		for _, d := range a.documents {
 			d.cancelSend()
+			if d.grpcUI != nil {
+				d.grpcUI.stop()
+			}
 		}
 	}
 	mygo.App.OnQuit(cancelRequests)
@@ -2847,6 +2851,10 @@ func (a *app) saveVars() {
 func (a *app) sendComposed() {
 	d := a.requestDocument
 	if d == nil || d.composeWaiting {
+		return
+	}
+	if d.protocol == "gRPC" {
+		a.sendGRPC(d)
 		return
 	}
 	if a.srv == nil || !a.srv.Running() {

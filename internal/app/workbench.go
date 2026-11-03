@@ -437,7 +437,7 @@ func (a *app) actions(c *ui.Context) []action {
 			}
 		}).when(capturing && len(a.visible) > 0 || editing, "").keys(ui.Cmd, ui.KeyL),
 		do("request.send", "Send request", a.sendComposed).
-			when(editing && !d.composeWaiting && a.srv != nil && a.srv.Running(), "Open a request draft with capture running; wait for any send in progress").keys(ui.Cmd, ui.KeyEnter),
+			when(editing && !d.composeWaiting && (d.protocol == "gRPC" || a.srv != nil && a.srv.Running()), "Open a request draft; HTTP sends require capture running").keys(ui.Cmd, ui.KeyEnter),
 		do("request.cancel-send", "Cancel send", func() { d.cancelSend() }).
 			when(editing && d.composeWaiting && d.sendCancel != nil && !d.sendCancelling, ""),
 		do("request.save", "Save request", func() {
@@ -553,6 +553,7 @@ func (a *app) actions(c *ui.Context) []action {
 		do("history.show", "Show History", a.showRunRecords),
 		do("flow.save-evidence", "Save evidence to Sessions", func() { a.saveEvidence(f) }).when(capturing && current, ""),
 	}...)
+	actions = append(actions, a.grpcActions(d, editing)...)
 	return actions
 }
 

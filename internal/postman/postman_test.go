@@ -979,6 +979,25 @@ func TestWriteCollectionWarnsAboutInvalidChecks(t *testing.T) {
 	}
 }
 
+func TestWriteCollectionSkipsProtocolCallsWithoutChangingHTTP(t *testing.T) {
+	requests := []request.Request{
+		{Name: "Echo", Collection: "Shop", Protocol: "gRPC", URL: "https://grpc.example", Body: `"message"`},
+		{Name: "Outside", Collection: "Other", Protocol: "gRPC"},
+		{Name: "List", Collection: "Shop", Method: "GET", URL: "https://http.example/items"},
+	}
+	data, warnings, err := postman.WriteCollection("Shop", requests, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(warnings, []string{"Skipped 1 gRPC request; Postman Collection v2.1 only supports HTTP requests"}) {
+		t.Fatalf("warnings: %q", warnings)
+	}
+	got, err := postman.ReadCollection(data)
+	if err != nil || len(got.Requests) != 1 || got.Requests[0].Name != "List" || got.Requests[0].URL != "https://http.example/items" {
+		t.Fatalf("protocol call exported as HTTP or HTTP lost: %+v, %v", got, err)
+	}
+}
+
 func TestWriteCollectionRejectsEmptyName(t *testing.T) {
 	if _, _, err := postman.WriteCollection("", nil, nil); err == nil {
 		t.Error("WriteCollection with no name succeeded")

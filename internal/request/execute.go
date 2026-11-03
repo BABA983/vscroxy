@@ -56,6 +56,9 @@ func WithRunKey(ctx context.Context, key string) context.Context {
 // vars are the environment's values; Execution.Vars returns them with the
 // scripts' writes, never the inherited, dynamic or vault values.
 func (r Request) Execute(ctx context.Context, srv *capture.Server, in Context, vars map[string]string, jar http.CookieJar) (out Execution) {
+	if r.Protocol != "" {
+		return Execution{Stage: "Request setup failed", Vars: vars, Err: fmt.Errorf("%s documents must be opened in their interactive protocol client; Runner supports HTTP and WebSocket sends", r.Protocol)}
+	}
 	run := in.scriptRun(r, vars)
 	runKey, _ := ctx.Value(debugRunKey{}).(string)
 	run.send = func(req *Prepared) (capture.Flow, error) {

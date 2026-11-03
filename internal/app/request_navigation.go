@@ -1,6 +1,7 @@
 package app
 
 import (
+	"cmp"
 	"fmt"
 	"slices"
 	"strings"
@@ -27,7 +28,7 @@ func (a *app) collectionTree(c *ui.Context) {
 		}
 	}
 	for _, r := range a.requests {
-		if query == "" || strings.Contains(strings.ToLower(r.Collection+" "+r.Name+" "+r.URL+" "+r.Method), query) {
+		if query == "" || strings.Contains(strings.ToLower(r.Collection+" "+r.Name+" "+r.URL+" "+cmp.Or(r.Protocol, r.Method)), query) {
 			addPath(r.Collection)
 		}
 	}
@@ -81,7 +82,8 @@ func (a *app) collectionTree(c *ui.Context) {
 			})
 		}
 		for _, r := range a.requests {
-			if r.Collection != parent || query != "" && !strings.Contains(strings.ToLower(r.Collection+" "+r.Name+" "+r.URL+" "+r.Method), query) {
+			method := cmp.Or(r.Protocol, r.Method)
+			if r.Collection != parent || query != "" && !strings.Contains(strings.ToLower(r.Collection+" "+r.Name+" "+r.URL+" "+method), query) {
 				continue
 			}
 			menu := func(m *ui.Menu) {
@@ -93,14 +95,14 @@ func (a *app) collectionTree(c *ui.Context) {
 			chosen := a.page == pageRequest && a.requestChoice == r.key()
 			edited := slices.ContainsFunc(a.documents, func(d *requestDocument) bool { return d.savedKey == r.key() && d.dirty() })
 			item := ui.TreeItem(c.Key(r.key()), "", nil, nil).Label(r.Name).Height(uikit.HeightControl).
-				Selected(chosen).Tooltip(r.Method + " " + r.URL).
+				Selected(chosen).Tooltip(method + " " + r.URL).
 				OnClick(func() { a.openSaved(r.key()) }).PopoverMenu(menu)
 			if chosen {
 				uikit.Selected(c, item, !a.windowBehind)
 			}
 			item.Children(func() {
-				ui.Row(c).Grow(1).FillHeight().Gap(c.Theme().Space(2)).AlignItems(ui.Center).Label(r.Method + "  " + r.Name).Children(func() {
-					uikit.MethodLabel(c, r.Method).FontSize(uikit.TextMeta).Width(38).Height(16)
+				ui.Row(c).Grow(1).FillHeight().Gap(c.Theme().Space(2)).AlignItems(ui.Center).Label(method + "  " + r.Name).Children(func() {
+					uikit.MethodLabel(c, method).FontSize(uikit.TextMeta).Width(38).Height(16)
 					uikit.Body(c, r.Name).SingleLine().Grow(1)
 					if edited {
 						unsavedDot(c)
@@ -133,7 +135,7 @@ func (a *app) unsavedRequests(c *ui.Context, query string) {
 	t := c.Theme()
 	var unsaved []*requestDocument
 	for _, d := range a.documents {
-		if d.savedKey == "" && (query == "" || strings.Contains(strings.ToLower(d.title()+" "+d.composeURL+" "+d.composeMethod), query)) {
+		if d.savedKey == "" && (query == "" || strings.Contains(strings.ToLower(d.title()+" "+d.composeURL+" "+cmp.Or(d.protocol, d.composeMethod)), query)) {
 			unsaved = append(unsaved, d)
 		}
 	}
@@ -142,16 +144,17 @@ func (a *app) unsavedRequests(c *ui.Context, query string) {
 	}
 	group := ui.TreeItem(c.Key("unsaved"), "", a.collectionShown(unsavedGroup), func() {
 		for _, d := range unsaved {
+			method := cmp.Or(d.protocol, d.composeMethod)
 			chosen := a.page == pageRequest && a.requestDocument == d
 			item := ui.TreeItem(c.Key(fmt.Sprint("unsaved:", d.id)), "", nil, nil).Label("Unsaved: " + d.title()).Height(uikit.HeightControl).
-				Selected(chosen).Tooltip(d.composeMethod + " " + d.composeURL).
+				Selected(chosen).Tooltip(method + " " + d.composeURL).
 				OnClick(func() { a.requestDocument, a.requestChoice, a.page = d, "", pageRequest })
 			if chosen {
 				uikit.Selected(c, item, !a.windowBehind)
 			}
 			item.Children(func() {
 				ui.Row(c).Grow(1).FillHeight().Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-					uikit.MethodLabel(c, d.composeMethod).FontSize(uikit.TextMeta).Width(38).Height(16)
+					uikit.MethodLabel(c, method).FontSize(uikit.TextMeta).Width(38).Height(16)
 					uikit.Body(c, d.title()).SingleLine().Grow(1)
 				})
 			})

@@ -999,6 +999,49 @@ sender uses HTTP/1.1, so native gRPC replay is not supported. Body-editing reque
 and response scripts/breakpoints are unavailable for streaming RPCs; Block,
 Map Local and Map Remote rules still apply before forwarding.
 
+### Interactive gRPC requests
+
+Create a **New request** and change its protocol from **HTTP** to **gRPC**.
+This is a normal request document, not a separate dialog. Enter an explicit
+`https://host:port` endpoint (TLS) or `http://host:port` (plaintext HTTP/2),
+without a method path or query. Under **Schema**, import a `.proto` or compiled
+descriptor set with its dependencies, or choose **Reflect services**. Reflection
+uses the document's metadata/auth, prefers v1 and falls back to v1alpha only if
+v1 is unimplemented. Discovery and source compilation are cancellable; a failed
+load keeps the previous schema. Compiled descriptors and the selected method
+are saved with this document, independent of the capture inspector's registry.
+
+Select a service/method and enter its protobuf JSON under **Message**. **Send**
+starts unary, server-streaming, client-streaming or bidirectional calls according
+to the descriptor. For client/bidirectional streams, the first message is sent
+immediately; **Send message** sends the current editor contents again, and
+**Finish sending** half-closes the send side without cancelling received replies.
+Bidirectional replies appear before finishing. **Cancel send** cancels the RPC;
+it cannot undo work already performed by the server. The default deadline is
+30 seconds, selectable up to one hour. Closing/reloading the document or quitting
+cancels its discovery and calls. No automatic reconnect or replay occurs.
+
+**Messages** retains the latest 200 input/output events with original byte counts,
+an eviction count and at most 64 KiB of UTF-8 preview each. **Copy shown message**
+copies that preview including any truncation notice. JSON and wire messages are
+limited to 1 MiB. **Metadata** separates initial metadata and final trailers;
+`-bin` values are entered/displayed as padded base64. **Status** shows the actual
+gRPC code, message and structured error details, including trailers-only errors.
+
+Metadata and JSON support the existing variables and host-restricted Vault.
+Auth supports inherited/explicit None, Basic, Bearer and header API keys.
+HTTP scripts (including inherited scripts), Checks and token bindings must be
+removed before calling: they are not silently skipped. Runner/CLI HTTP execution
+and HTTP code generation reject gRPC documents; Postman v2.1 export skips them
+with a warning. Calls/timelines are session-local, not HTTP History or Examples.
+
+TLS verifies certificates using system roots and the running proxy's CA.
+HTTPS uses capture while the proxy is running; enable HTTPS inspection for the
+target host to inspect it. Without capture it connects directly with verified
+TLS. Plaintext h2c always connects directly and is explicitly marked **not
+captured**, because the capture engine does not support h2c. This client does not
+add custom CA/mTLS settings or gRPC-Web support.
+
 ## Replay
 
 Select a flow and press **Replay**: the request goes out again through the

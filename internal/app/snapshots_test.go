@@ -26,6 +26,7 @@ import (
 	"github.com/baba983/vscroxy/internal/system"
 	"github.com/egoist/mygo/ui"
 	"github.com/gorilla/websocket"
+	"google.golang.org/grpc/metadata"
 )
 
 // snapshotProfiles is the Host profiles of the design: two on, with a
@@ -104,7 +105,38 @@ func TestUISnapshots(t *testing.T) {
 		a.composeURL += "?page=2"
 		a.composeTab = composeTabParams
 	}
+	grpcDraft := func(a *app) {
+		_, schema, data := protoFixture(t)
+		a.addDocument(savedRequest{Protocol: "gRPC", Name: "Fetch catalog", URL: "https://api.example.com:443",
+			Body: `{"query":"headphones"}`, GRPC: request.GRPCConfig{Method: "/api.Catalog/Fetch", Schema: data}}, "")
+		a.grpcState().schema, a.grpcState().loaded = schema, true
+	}
+	grpcStream := func(a *app) {
+		grpcDraft(a)
+		a.grpcState().session = &grpcSession{state: "gRPC OK", finished: true, seq: 3,
+			header: metadata.Pairs("content-type", "application/grpc", "x-trace", "catalog-73"), trailer: metadata.Pairs("x-result", "complete"),
+			events: []grpcEvent{
+				{seq: 1, at: snapshotTime, direction: "Out", text: `{"query":"headphones"}`, size: 22},
+				{seq: 2, at: snapshotTime.Add(time.Second), direction: "In", text: "{\n  \"title\": \"Studio headphones\",\n  \"delta\": -7,\n  \"counts\": [3, 9],\n  \"state\": \"ACTIVE\"\n}", size: 101},
+				{seq: 3, at: snapshotTime.Add(2 * time.Second), direction: "In", text: `{"title":"Travel headphones","delta":3}`, size: 39},
+			}}
+		for i := range a.grpcState().session.events {
+			e := &a.grpcState().session.events[i]
+			e.size = len(e.text)
+		}
+		a.grpcState().selected = 1
+	}
 	states := []snapshot{
+		{name: "requests-grpc-empty", setup: func(a *app) {
+			a.addDocument(savedRequest{Protocol: "gRPC", Name: "Untitled gRPC", URL: "https://api.example.com"}, "")
+		}, want: "No gRPC call yet"},
+		{name: "requests-grpc-schema", setup: func(a *app) { grpcDraft(a); a.grpcState().tab = 3 }, want: "1 method · descriptors saved with this request"},
+		{name: "requests-grpc-stream", setup: grpcStream, want: "gRPC OK"},
+		{name: "requests-grpc-metadata", setup: func(a *app) { grpcStream(a); a.grpcState().responseTab = 1 }, want: "Final trailers"},
+		{name: "requests-grpc-error", setup: func(a *app) {
+			grpcDraft(a)
+			a.grpcState().session = &grpcSession{state: "gRPC PermissionDenied", problem: "rpc error: code = PermissionDenied desc = Access to catalog denied", finished: true}
+		}, want: "gRPC PermissionDenied"},
 		{name: "capture-empty", setup: func(a *app) { a.flows = nil; a.recount(); a.applyFilter() }, want: "Capture is stopped"},
 		{name: "capture-selected", want: "Request inspector"},
 		{name: "capture-activity", setup: snapshotActivity, want: "Activity strip"},

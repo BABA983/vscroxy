@@ -1,7 +1,8 @@
-// Package request is an authored HTTP or WebSocket request and everything
+// Package request is an authored request and everything
 // that turns it into traffic: {{variable}} expansion, auth and form encoding,
 // pre-request and post-response scripts, declarative response checks, and
-// sending through the capture proxy so every send is also captured.
+// HTTP/WebSocket sending through the capture proxy. gRPC documents share
+// preparation, but their interactive transport lives in package grpcclient.
 //
 // It knows nothing about the window: the app stores requests, edits them
 // and shows an Execution's result.
@@ -30,12 +31,16 @@ type Request struct {
 	ID         string `json:"id,omitempty"`
 	Name       string `json:"name"`
 	Collection string `json:"collection,omitempty"`
-	Method     string `json:"method"`
-	URL        string `json:"url"`
-	Headers    string `json:"headers,omitempty"`
-	Body       string `json:"body,omitempty"`
-	Auth       Auth   `json:"auth,omitzero"`
-	BodyMode   string `json:"bodyMode,omitempty"`
+	// Empty Protocol is HTTP (including the existing ws/wss send). gRPC
+	// documents are interactive calls, not HTTP requests or Runner steps.
+	Protocol string     `json:"protocol,omitempty"`
+	GRPC     GRPCConfig `json:"grpc,omitzero"`
+	Method   string     `json:"method"`
+	URL      string     `json:"url"`
+	Headers  string     `json:"headers,omitempty"`
+	Body     string     `json:"body,omitempty"`
+	Auth     Auth       `json:"auth,omitzero"`
+	BodyMode string     `json:"bodyMode,omitempty"`
 	// BodyFile is a local path for Binary bodies; only the path is saved.
 	BodyFile string      `json:"bodyFile,omitempty"`
 	GraphQL  GraphQLBody `json:"graphql,omitzero"`
@@ -56,6 +61,14 @@ type Request struct {
 	TokenSources []TokenSource `json:"tokenSources,omitempty"`
 	// Examples are responses kept with the request, as Postman's are.
 	Examples []Example `json:"examples,omitempty"`
+}
+
+// GRPCConfig keeps compiled descriptors with the document, so it is portable
+// without source paths and does not depend on another tab's loaded schema.
+type GRPCConfig struct {
+	Method         string `json:"method,omitempty"`
+	Schema         []byte `json:"schema,omitempty"`
+	TimeoutSeconds int    `json:"timeoutSeconds,omitzero"`
 }
 
 type TokenSource struct {
@@ -122,6 +135,9 @@ type Field struct {
 // Prepare is the encoder shared by Send, Runner and cURL export.
 // Send/Runner run pre-scripts on templates first, then encode with final vars.
 func (r Request) Prepare(vars map[string]string) (*Prepared, error) {
+	if r.Protocol != "" {
+		return nil, fmt.Errorf("%s documents require their protocol client, not an HTTP send or code export", r.Protocol)
+	}
 	req := &Prepared{
 		Method: strings.ToUpper(strings.TrimSpace(cmp.Or(ExpandVars(r.Method, vars), "GET"))),
 		URL:    strings.TrimSpace(ExpandVars(r.URL, vars)), Body: ExpandVars(r.Body, vars),
