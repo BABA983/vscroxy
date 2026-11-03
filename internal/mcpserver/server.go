@@ -46,7 +46,7 @@ func New(controlFile string, options Options) (*mcp.Server, error) {
 	register[flowGetParams](server, client, options, "flows.get", "Read a captured flow summary. details=true exposes raw headers and bounded base64 bodies, possibly including credentials, and requires --allow-sensitive.", query)
 	register[flowsExportHARParams](server, client, options, "flows.export-har", "Export 1–200 unique live HTTP flow IDs as a HAR JSON document, without an envelope. By default bodies, header secrets, and query values are omitted. details=true exposes raw traffic, possibly including credentials, and requires --allow-sensitive. No file is written by the desktop.", query)
 	register[emptyParams](server, client, options, "rules.list", "List rule index, stale-edit fingerprint key, name, type, and enabled state.", query)
-	register[idParams](server, client, options, "runs.get", "Poll an asynchronous run by job ID. Returns done and a redacted report with at most 1000 attempts; run variables are not persisted.", query)
+	register[idParams](server, client, options, "runs.get", "Poll an asynchronous run or load by job ID. Normal runs return a redacted report with at most 1000 attempts. Loads return kind=load and bounded aggregate execution metrics only. Run variables are not persisted.", query)
 	stage := &mcp.ToolAnnotations{ReadOnlyHint: true, DestructiveHint: new(false), OpenWorldHint: new(false)}
 	register[tokenLinksAnalyzeParams](server, client, options, "token-links.analyze", "Start bounded asynchronous token-link analysis of 1–200 unique positive HTTP capture IDs; imported snapshots are allowed. Returns {id,done}; poll token-links.get. Matches JSON token/access_token/id_token to later same-origin Bearer consumers only; ambiguous matches are refused. Never returns token values, executes scripts, writes files or sends requests. Read-only staging without --allow-sensitive. Replaces the single ephemeral analysis/proposal shared with the desktop; replaced, closed, restarted or expired IDs fail. Do not blindly retry.", stage)
 	register[tokenLinksGetParams](server, client, options, "token-links.get", "Poll an analysis ID from token-links.analyze. Returns id/done/links (source capture ID, JSON path segments, consumer capture IDs)/skipped/problem, never token values. Replaced, closed, restarted or expired IDs fail. Read-only; no scripts executed, files written or network calls; no --allow-sensitive required.", query)
@@ -58,6 +58,7 @@ func New(controlFile string, options Options) (*mcp.Server, error) {
 		register[emptyParams](server, client, options, "collection-recording.stop", "Immediately disable collection recording acceptance and discard queued and in-flight conversions, with no post-stop writes. Return a status snapshot; busy may remain true until the current body read finishes. Never sends requests or changes the OS proxy.", local)
 		register[requestRunParams](server, client, options, "request.run", "Run a saved request against real external endpoints; may have destructive side effects. Immediately returns a job ID; poll runs.get. Iterations default to 1 (1–1000); total attempts are bounded to 1000. Variables are not persisted.", run)
 		register[collectionRunParams](server, client, options, "collection.run", "Run a saved collection against real external endpoints; may have destructive side effects. Immediately returns a job ID; poll runs.get. Iterations default to 1 (1–1000); total attempts are bounded to 1000. Variables are not persisted.", run)
+		register[collectionLoadParams](server, client, options, "collection.load", "Load-test a saved HTTP(S) collection with 1–64 isolated concurrent users for 1–600 seconds. Sends real requests with potentially destructive side effects; do not blindly retry. Closed workload, not fixed RPS: each user repeats Runner scripts/auth/checks/branching, retaining private variables, cookies and OAuth tokens. Returns a job ID; poll runs.get, cancel with runs.cancel. Reports execution latency (including scripts/auth/checks), not pure HTTP latency; primary response counts exclude auxiliary calls. No per-attempt capture, experiments or variable persistence. Max attempts defaults to 100000 (up to 1000000); request timeout defaults to 30 seconds (1–60). Startup --allow-write required, not --allow-sensitive. Only one native/remote collection run or load at a time.", run)
 		register[idParams](server, client, options, "runs.cancel", "Cancel a desktop run. Already completed external side effects cannot be undone.", local)
 		register[enabledParams](server, client, options, "capture.recording", "Enable or disable desktop capture recording.", local)
 		register[enabledParams](server, client, options, "system-proxy.set-enabled", "Attempt to enable or disable this computer's system proxy using the desktop's owned session and restoration path. Changes OS settings for other applications and may prompt for authorization. Returns accepted, not verified success; poll system-proxy.get until checking/applying are false and inspect status/problem. Enabling requires live capture; no arbitrary proxy target is accepted. Canceling this call does not undo an accepted OS operation.", local)
@@ -126,7 +127,17 @@ type flowsExportHARParams struct {
 }
 
 type idParams struct {
-	ID string `json:"id" jsonschema:"Run job ID returned by request.run or collection.run"`
+	ID string `json:"id" jsonschema:"Run job ID returned by request.run, collection.run or collection.load"`
+}
+
+type collectionLoadParams struct {
+	Collection            string `json:"collection" jsonschema:"Saved collection path; explicit empty string selects root; not a filesystem path"`
+	Environment           string `json:"environment,omitempty" jsonschema:"Optional saved environment name"`
+	Users                 int    `json:"users" jsonschema:"Concurrent virtual users, 1–64"`
+	DurationSeconds       int    `json:"durationSeconds" jsonschema:"Duration, 1–600 seconds; normal duration completion is not a timeout failure"`
+	RequestTimeoutSeconds int    `json:"requestTimeoutSeconds,omitzero" jsonschema:"Per-attempt timeout, 1–60 seconds; defaults to 30"`
+	MaxAttempts           int    `json:"maxAttempts,omitzero" jsonschema:"Global primary attempt budget, 1–1000000; defaults to 100000; auxiliary sends are not counted"`
+	Bail                  bool   `json:"bail,omitzero" jsonschema:"Stop all users after the first failed attempt"`
 }
 
 type requestRunParams struct {
@@ -210,6 +221,14 @@ func register[In any](server *mcp.Server, client *control.Client, options Option
 			property.Minimum, property.Maximum, property.Default = new(1.0), new(200.0), []byte("50")
 		case "iterations":
 			property.Minimum, property.Maximum, property.Default = new(1.0), new(1000.0), []byte("1")
+		case "users":
+			property.Minimum, property.Maximum = new(1.0), new(64.0)
+		case "durationSeconds":
+			property.Minimum, property.Maximum = new(1.0), new(600.0)
+		case "requestTimeoutSeconds":
+			property.Minimum, property.Maximum, property.Default = new(1.0), new(60.0), []byte("30")
+		case "maxAttempts":
+			property.Minimum, property.Maximum, property.Default = new(1.0), new(1000000.0), []byte("100000")
 		}
 	}
 	mcp.AddTool(server, &mcp.Tool{

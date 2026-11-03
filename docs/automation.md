@@ -76,6 +76,60 @@ The repository CI runs `docs/examples/ci/collection.json` against a local static
 fixture and uploads its JSON/JUnit reports. To use your own API, replace that
 fixture server with your test service and pass its URL as `base_url`.
 
+## Built-in collection load runs
+
+The desktop Collection Runner's **Load test…** opens a separate fixed-concurrency
+load panel. Choose a saved collection/environment, 1–64 users and 1s–10m duration;
+optionally stop on first failure. It uses saved library order, not unsaved editor
+or Runner reorder/enable drafts. The native panel uses 30s per execution and a
+100,000-primary-attempt budget. Closing the panel leaves work active; reopen it
+to Stop. Quit cancels and joins the worker. Results are volatile aggregates, not
+individual History/experiment entries. Ordinary native/remote collection runs
+and loads are mutually exclusive.
+
+The headless equivalent uses the same Runner execution lifecycle:
+
+```sh copy Copy Collection Load
+bin/vscroxy-cli load --folder Shop --env ./env.json --environment Local \
+  --users 4 --duration 30s --report-json ./reports/load.json ./collections
+```
+
+See the [load CLI flags and exit codes](../README.md#headless-load-runs). Only
+load-test systems you are authorized to exercise: collections, scripts and
+authentication can make real, destructive network calls. This is a **closed
+workload**, not a target RPS/arrival rate, ramp, distributed generator or
+capacity benchmark. Existing Runner per-send connections, proxy forwarding,
+rules/Host mapping, scripts and throttles still contribute overhead. Standalone
+CLI has a fresh proxy without desktop rules; desktop runs use its current rules.
+
+Each virtual user retains its own environment/local/global/collection variables,
+Cookie jar and fresh OAuth token cache across loops. No script writes reach
+environment/collection/Vault files, and script Vault access is disabled. Desktop
+loads can read start-time snapshots of already-unlocked scoped Vault secrets;
+interactive login/unlock is not started. An explicit `setNextRequest(null)` ends
+that user's sequence; unknown targets stop the load with an execution error.
+HTTP(S) only; variable/script-produced WebSocket targets are refused too.
+
+No load exchange is added to capture lists, retained body files, collection
+recording or experiments, including OAuth, redirects and `pm.sendRequest`.
+Normal simultaneous capture remains enabled. Proxy buffering and Replay's
+existing 8 MiB response preview for scripts/checks still apply: this is not a
+zero-overhead network client or an unlimited body-processing mode.
+
+Reports aggregate totals and per-selected-request metrics keyed by index/ID,
+never runtime errors, assertion names, Console, URLs, headers, bodies or variable
+values. HdrHistogram Go 1.4.0 (MIT), microseconds and three significant digits,
+computes mean/P50/P90/P95/P99/max **execution** times: the entire Runner Execute,
+including scripts, auth, primary HTTP and checks, for completed attempts including
+failures. Skips and load interruptions are excluded. Samples outside the one-hour
+histogram range increment `latencyOverflow` rather than silently clamping.
+`completed` excludes skips/interruptions; `failed` is a subset of completed;
+`failureRate=failed/completed`; `requestsPerSecond=completed/elapsed seconds`,
+not wire requests/s. Primary response counts/bytes exclude redirects and
+auxiliary calls. A per-request timeout counts as failure; normal duration
+completion cancels in-flight attempts into `interrupted`, not failed latency
+samples. No coordinated-omission correction or open-model latency claim is made.
+
 ## Control a running desktop
 
 Desktop control is **off by default**. Explicitly set `VSCROXY_CONTROL_FILE` to
@@ -133,7 +187,8 @@ mutation on transport timeout: its outcome may be unknown.
 | `rules.list` | Index, fingerprint `key`, name, type and enabled state |
 | `request.run` | Saved `id`, optional `environment`, `iterations` (1–1000), `bail`; returns job ID |
 | `collection.run` | `collection`, same run options; includes descendants |
-| `runs.get` | Job `id`; returns `done` and a redacted report |
+| `collection.load` | Required `collection` (explicit empty = root), `users` (1–64), `durationSeconds` (1–600); optional `environment`, `requestTimeoutSeconds` (1–60, default 30), `maxAttempts` (1–1000000, default 100000), `bail`; returns job ID |
+| `runs.get` | Job `id`; returns `done` and a redacted report; load jobs add `kind:"load"` and aggregate `report.total`/`report.requests` |
 | `runs.cancel` | Job `id`; cancellation cannot undo completed external effects |
 | `capture.recording` | Required boolean `enabled`; forwarding remains on |
 | `collection-recording.get` | Recording configuration, active/busy state, added/updated/skipped/discarded counts and controlled problem |
@@ -156,11 +211,28 @@ request secrets; remote runs never unlock it or enable script Vault writes.
 Desktop proxy rules/Host mapping still apply; interactive OAuth login is not
 started. Binary/Multipart paths resolve in the desktop process working directory.
 
-At most one remote run is active, with a 5-minute whole-run deadline, 30s per
-request and 1000-attempt budget including script jumps. The most recent 16 jobs
+At most one native/remote collection run or load is active. Ordinary remote runs
+have a 5-minute whole-run deadline, 30s per request and 1000-attempt budget
+including script jumps; loads use their separately bounded options. The most recent 16 jobs
 are retained **in memory only**, not desktop History. Polling/canceling requests
 does not implicitly cancel the job; use `runs.cancel` or Quit. A deliberate
 `setNextRequest(null)` is success; unknown targets/budget exhaustion are incomplete.
+
+```sh copy Copy Desktop Load
+bin/vscroxy-cli control --file "$HOME/.vscroxy/control.json" \
+  --params '{"collection":"Shop","users":4,"durationSeconds":30}' --confirm collection.load
+bin/vscroxy-cli control --file "$HOME/.vscroxy/control.json" \
+  --params '{"id":"JOB-ID"}' runs.get
+bin/vscroxy-cli control --file "$HOME/.vscroxy/control.json" \
+  --params '{"id":"JOB-ID"}' --confirm runs.cancel
+```
+
+Starting a load means accepted, not passed. Poll `done`; inspect
+`report.reason`, `report.total.failed` and `report.total.interrupted`. Normal
+duration completion has reason `duration`; `finished` means all users explicitly
+ended their sequences. `failure`, `attempt-limit`, `cancelled`, `timed-out`,
+`execution-error` or `invalid-input` must not be presented as successful duration
+completion. Do not blindly retry a start after a transport timeout.
 
 Default flow/request queries omit bodies, headers and auth, redact URL credentials,
 fragments and query values, but retain authored labels, host/path and parameter
@@ -422,10 +494,10 @@ MCP `isError`; a run job's acceptance still requires polling its final report.
 
 Two **independent startup capabilities**, never tool parameters, widen access:
 
-- `--allow-write` registers `request.run`, `collection.run`, `runs.cancel`,
+- `--allow-write` registers `request.run`, `collection.run`, `collection.load`, `runs.cancel`,
   `capture.recording`, `rules.set-enabled`, `rules.import`, and
   `system-proxy.set-enabled`, plus `collection-recording.start` and
-  `collection-recording.stop`, and `token-links.apply` (24 tools in total). It explicitly authorizes those
+  `collection-recording.stop`, and `token-links.apply` (25 tools in total). It explicitly authorizes those
   tools to supply the desktop's confirmation. Request execution can affect real
   external systems; enable it only for a trusted client and trusted collections.
   Collection recording persists captured content locally, potentially including

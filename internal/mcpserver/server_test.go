@@ -20,7 +20,7 @@ import (
 )
 
 var queries = []string{"collection-recording.get", "collections.list", "flows.export-har", "flows.get", "flows.list", "requests.get", "requests.list", "rules.list", "runs.get", "status", "system-proxy.get", "token-links.analyze", "token-links.get", "token-links.prepare"}
-var writes = []string{"capture.recording", "collection-recording.start", "collection-recording.stop", "collection.run", "request.run", "rules.import", "rules.set-enabled", "runs.cancel", "system-proxy.set-enabled", "token-links.apply"}
+var writes = []string{"capture.recording", "collection-recording.start", "collection-recording.stop", "collection.load", "collection.run", "request.run", "rules.import", "rules.set-enabled", "runs.cancel", "system-proxy.set-enabled", "token-links.apply"}
 
 func endpoint(t *testing.T, dispatch control.Dispatch) string {
 	t.Helper()
@@ -135,7 +135,7 @@ func TestCatalogAndAnnotations(t *testing.T) {
 				for _, tool := range listed.Tools {
 					names = append(names, tool.Name)
 					readOnly := slices.Contains(queries, tool.Name)
-					openWorld := tool.Name == "request.run" || tool.Name == "collection.run"
+					openWorld := tool.Name == "request.run" || tool.Name == "collection.run" || tool.Name == "collection.load"
 					a := tool.Annotations
 					if a == nil || a.ReadOnlyHint != readOnly || a.DestructiveHint == nil || *a.DestructiveHint == readOnly || a.OpenWorldHint == nil || *a.OpenWorldHint != openWorld {
 						t.Errorf("incorrect annotations for %s: %+v", tool.Name, a)
@@ -401,6 +401,8 @@ func TestMutationsAndConfirmation(t *testing.T) {
 		{"request.run", map[string]any{"id": "request-id"}, `{"action":"request.run","params":{"id":"request-id","iterations":1,"confirm":true}}`},
 		{"collection.run", map[string]any{"collection": ""}, `{"action":"collection.run","params":{"collection":"","iterations":1,"confirm":true}}`},
 		{"collection.run", map[string]any{"collection": "sample", "environment": "staging", "iterations": 1000, "bail": true}, `{"action":"collection.run","params":{"collection":"sample","environment":"staging","iterations":1000,"bail":true,"confirm":true}}`},
+		{"collection.load", map[string]any{"collection": "", "users": 1, "durationSeconds": 1}, `{"action":"collection.load","params":{"collection":"","users":1,"durationSeconds":1,"requestTimeoutSeconds":30,"maxAttempts":100000,"confirm":true}}`},
+		{"collection.load", map[string]any{"collection": "sample", "users": 64, "durationSeconds": 600, "requestTimeoutSeconds": 60, "maxAttempts": 1000000, "bail": true}, `{"action":"collection.load","params":{"collection":"sample","users":64,"durationSeconds":600,"requestTimeoutSeconds":60,"maxAttempts":1000000,"bail":true,"confirm":true}}`},
 		{"runs.cancel", map[string]any{"id": "job-id"}, `{"action":"runs.cancel","params":{"id":"job-id","confirm":true}}`},
 		{"rules.set-enabled", map[string]any{"index": 0, "key": "current-fingerprint", "enabled": false}, `{"action":"rules.set-enabled","params":{"index":0,"key":"current-fingerprint","enabled":false,"confirm":true}}`},
 		{"rules.import", map[string]any{"document": `[{"type":"block","match":"example.com"}]`}, `{"action":"rules.import","params":{"document":"[{\"type\":\"block\",\"match\":\"example.com\"}]","confirm":true}}`},
@@ -599,6 +601,18 @@ func TestInvalidArgumentsNeverReachDesktop(t *testing.T) {
 		{"flows.list", map[string]any{"limit": 201}},
 		{"request.run", map[string]any{"id": "x", "iterations": 0}},
 		{"collection.run", map[string]any{"collection": "x", "iterations": 1001}},
+		{"collection.load", map[string]any{"users": 1, "durationSeconds": 1}},
+		{"collection.load", map[string]any{"collection": "x", "durationSeconds": 1}},
+		{"collection.load", map[string]any{"collection": "x", "users": 0, "durationSeconds": 1}},
+		{"collection.load", map[string]any{"collection": "x", "users": 65, "durationSeconds": 1}},
+		{"collection.load", map[string]any{"collection": "x", "users": 1, "durationSeconds": 0}},
+		{"collection.load", map[string]any{"collection": "x", "users": 1, "durationSeconds": 601}},
+		{"collection.load", map[string]any{"collection": "x", "users": 1.5, "durationSeconds": 1}},
+		{"collection.load", map[string]any{"collection": "x", "users": 1, "durationSeconds": 1, "maxAttempts": 0}},
+		{"collection.load", map[string]any{"collection": "x", "users": 1, "durationSeconds": 1, "maxAttempts": 1000001}},
+		{"collection.load", map[string]any{"collection": "x", "users": 1, "durationSeconds": 1, "requestTimeoutSeconds": 0}},
+		{"collection.load", map[string]any{"collection": "x", "users": 1, "durationSeconds": 1, "requestTimeoutSeconds": 61}},
+		{"collection.load", map[string]any{"collection": "x", "users": 1, "durationSeconds": 1, "confirm": true}},
 		{"rules.set-enabled", map[string]any{"index": -1, "key": "x", "enabled": true}},
 		{"rules.set-enabled", map[string]any{"index": 0, "enabled": true}},
 		{"rules.set-enabled", map[string]any{"index": 0, "key": "", "enabled": true}},

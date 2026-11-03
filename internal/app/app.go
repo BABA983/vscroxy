@@ -382,12 +382,13 @@ type app struct {
 	requestResults  []requestResult
 	importReport    importReport
 	// tokens are the OAuth 2.0 access tokens of this session, never saved.
-	tokens   request.Tokens
-	oauth    oauthState
-	runner   collectionRunner
-	cookies  *cookieStore
-	cookieUI cookieEditor
-	exportUI exportReview
+	tokens     request.Tokens
+	oauth      oauthState
+	runner     collectionRunner
+	loadRunner collectionLoadRunner
+	cookies    *cookieStore
+	cookieUI   cookieEditor
+	exportUI   exportReview
 
 	// envs are the variables a request uses as {{name}}, one set in use.
 	envsPath    string
@@ -1280,6 +1281,7 @@ func (a *app) view(c *ui.Context) {
 	a.drainCertificate()
 	a.drainSystemProxy()
 	a.drainRunner()
+	a.drainLoadRunner()
 	a.drainHosts()
 	settings := a.settingsWin != nil
 	if settings && busy != [3]bool{a.certificate.checking, a.systemProxy.checking, a.systemProxy.applying} {
@@ -1413,6 +1415,7 @@ func (a *app) view(c *ui.Context) {
 	a.requestRenameModal(c, t)
 	a.headerWarnModal(c, t)
 	a.runnerModal(c, t)
+	a.loadRunnerModal(c, t)
 	a.cookiesModal(c, t)
 	a.exportModal(c, t)
 	a.replayModal(c, t)
@@ -2326,6 +2329,8 @@ func Run() error {
 	}
 	defer a.closeControl()
 	mygo.App.OnQuit(a.closeControl)
+	mygo.App.OnQuit(a.closeLoadRunner)
+	defer a.closeLoadRunner()
 	mygo.App.OnQuit(func() { a.stopCollectionRecording("") })
 	cleanupProxy := func() {
 		if err := a.systemProxy.close(); err != nil {

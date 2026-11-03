@@ -38,6 +38,7 @@ type controlJob struct {
 	done   bool
 	cancel context.CancelFunc
 	report runner.Report
+	load   *runner.LoadReport
 }
 
 func (a *app) startControl(path string) error {
@@ -275,6 +276,8 @@ func (a *app) controlValue(command control.Command) (any, error) {
 		return map[string]int{"imported": len(imported), "total": len(next)}, nil
 	case "request.run", "collection.run":
 		return a.startControlRun(command)
+	case "collection.load":
+		return a.startControlLoad(command)
 	case "runs.get", "runs.cancel":
 		p, err := controlParams[struct {
 			ID      string `json:"id"`
@@ -293,6 +296,10 @@ func (a *app) controlValue(command control.Command) (any, error) {
 		job.mu.Lock()
 		defer job.mu.Unlock()
 		// Marshal while locked; the HTTP worker never observes mutable results.
+		if job.load != nil {
+			data, err := json.Marshal(map[string]any{"id": job.id, "done": job.done, "kind": "load", "report": job.load})
+			return jsontext.Value(data), err
+		}
 		data, err := json.Marshal(map[string]any{"id": job.id, "done": job.done, "report": job.report})
 		return jsontext.Value(data), err
 	default:
@@ -342,50 +349,18 @@ func (a *app) startControlRun(command control.Command) (any, error) {
 	if a.control == nil || a.srv == nil || !a.srv.Running() {
 		return nil, errors.New("local proxy is not running")
 	}
-	for _, job := range a.control.jobs {
-		job.mu.Lock()
-		done := job.done
-		job.mu.Unlock()
-		if !done {
-			return nil, errors.New("a remote run is already active")
-		}
+	if a.remoteRunActive() || a.runner.running || a.loadRunner.running {
+		return nil, errors.New("a collection run or load is already active")
 	}
-	env := a.activeEnvironment()
-	if p.Environment != "" {
-		at := slices.IndexFunc(a.envs, func(e environment) bool { return e.Name == p.Environment })
-		if at < 0 {
-			return nil, errors.New("environment not found")
-		}
-		env = a.envs[at]
+	var collection *string
+	if command.Action == "collection.run" {
+		collection = p.Collection
+		p.ID = ""
 	}
-	var steps []runner.Step
-	tokens := &request.Tokens{}
-	for _, saved := range a.requests {
-		r := saved.Request
-		selected := command.Action == "request.run" && p.ID != "" && r.ID == p.ID
-		if command.Action == "collection.run" && p.Collection != nil {
-			selected = r.Collection == *p.Collection || *p.Collection != "" && strings.HasPrefix(r.Collection, *p.Collection+"/")
-		}
-		if !selected {
-			continue
-		}
-		r.Form, r.HeaderList = slices.Clone(r.Form), slices.Clone(r.HeaderList)
-		in := a.inheritance(r.Collection)
-		in.Environment, in.Tokens = env.Name, tokens
-		for i := range in.Folders {
-			in.Folders[i].Variables = slices.Clone(in.Folders[i].Variables)
-		}
-		// Remote runs may use an already unlocked Vault, but never unlock it,
-		// enable script Vault access or persist script writes themselves.
-		if a.vault.loaded {
-			in.Vault = slices.Clone(a.vault.secrets).Lookup
-		}
-		steps = append(steps, runner.Step{Request: r, Context: in})
+	steps, values, err := a.controlRunSteps(p.ID, collection, p.Environment)
+	if err != nil {
+		return nil, err
 	}
-	if len(steps) == 0 {
-		return nil, errors.New("no saved requests selected")
-	}
-	slices.SortStableFunc(steps, func(a, b runner.Step) int { return strings.Compare(a.Request.Collection, b.Request.Collection) })
 	iterations := 1
 	if p.Iterations != nil {
 		iterations = *p.Iterations
@@ -399,7 +374,7 @@ func (a *app) startControlRun(command control.Command) (any, error) {
 	}
 	c.jobs[job.id], c.order = job, append(c.order, job.id)
 	jar, _ := cookiejar.New(&cookiejar.Options{PublicSuffixList: publicsuffix.List})
-	srv, values := a.srv, env.values()
+	srv := a.srv
 	c.wg.Go(func() {
 		defer cancel()
 		start := time.Now()
@@ -418,4 +393,50 @@ func (a *app) startControlRun(command control.Command) (any, error) {
 		job.done = true
 	})
 	return map[string]string{"id": job.id}, nil
+}
+
+// Snapshot saved inputs on the UI thread; workers never consult live app state.
+func (a *app) controlRunSteps(id string, collection *string, environmentName string) ([]runner.Step, map[string]string, error) {
+	env := a.activeEnvironment()
+	if environmentName != "" {
+		at := slices.IndexFunc(a.envs, func(e environment) bool { return e.Name == environmentName })
+		if at < 0 {
+			return nil, nil, errors.New("environment not found")
+		}
+		env = a.envs[at]
+	}
+	var steps []runner.Step
+	tokens := &request.Tokens{}
+	for _, saved := range a.requests {
+		r := saved.Request
+		selected := id != "" && r.ID == id
+		if collection != nil {
+			selected = r.Collection == *collection || *collection != "" && strings.HasPrefix(r.Collection, *collection+"/")
+		}
+		if !selected {
+			continue
+		}
+		r.Form, r.HeaderList = slices.Clone(r.Form), slices.Clone(r.HeaderList)
+		r.TokenSources = slices.Clone(r.TokenSources)
+		in := a.inheritance(r.Collection)
+		in.Environment, in.Tokens = env.Name, tokens
+		for i := range in.Folders {
+			in.Folders[i].Variables = slices.Clone(in.Folders[i].Variables)
+		}
+		// Remote runs may use an already unlocked Vault, but never unlock it,
+		// enable script Vault access or persist script writes themselves.
+		if a.vault.loaded {
+			secrets := slices.Clone(a.vault.secrets)
+			for i := range secrets {
+				secrets[i].Domains = slices.Clone(secrets[i].Domains)
+			}
+			in.Vault = secrets.Lookup
+		}
+		steps = append(steps, runner.Step{Request: r, Context: in})
+	}
+	if len(steps) == 0 {
+		return nil, nil, errors.New("no saved requests selected")
+	}
+	slices.SortStableFunc(steps, func(a, b runner.Step) int { return strings.Compare(a.Request.Collection, b.Request.Collection) })
+	return steps, env.values(), nil
 }

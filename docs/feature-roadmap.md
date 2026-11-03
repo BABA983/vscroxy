@@ -191,7 +191,7 @@
 | Examples 作为 Mock 响应（本地 mock） | 已有 | 见 6.3；Examples 标签里的 Mock，集合菜单的 Mock from examples | M4 |
 | 代码 Mock（脚本写的 mock 服务，Postman `pm.mock`） | 缺少 | | M9 |
 | Runner：数据文件、迭代、setNextRequest | 已有 | | |
-| Runner：性能测试（虚拟用户、时长、指标） | 缺少 | | M9 |
+| Runner：性能测试（虚拟用户、时长、指标） | 已有首版 | 内置固定并发集合负载；复用 Runner、HdrHistogram 执行耗时；原生／CLI／MCP。无固定 RPS、爬坡或分布式压测 | M9 |
 | 命令行运行集合（CI，JUnit/JSON 报告） | 已有 | 独立无 UI CLI；本地集合/Postman、环境/数据文件、超时/取消/执行预算、私有报告 | M9 |
 | Cookies 管理 | 已有 | 只在内存里 | |
 | Cookies 可选持久化 | 缺少 | | M6 |
@@ -329,7 +329,7 @@ Cookie 和其他 API key 保留为变量 header，避免把多个认证机制硬
 ### M9：自动化和生态
 
 - 本地控制接口、CLI／MCP 共用动作闭环已完成：查询、录制／规则开关、系统代理修改与回读、受控 HAR 导出、追加规则导入创建和请求／集合运行。
-- 命令行运行集合及 CI 报告已完成（见 [自动化指南](automation.md)）；Runner 性能测试待做。
+- 命令行运行集合及 CI 报告、首版内置集合负载已完成（见 [自动化指南](automation.md)）：固定并发用户／时长、隔离状态、HdrHistogram 聚合执行指标；原生面板／CLI／MCP 共用 Runner。不含固定 RPS、爬坡或分布式压测。
 - 录制到集合及首版 token 链路识别已完成：原生入口、CLI／MCP 共用动作、Host／App 过滤、Current 凭据引用和 Example 归并；JSON token → 同源 Bearer 的脱敏证据、显式审阅应用和失败关闭。Cookie／refresh／多跳链路暂不覆盖。
 - 代码 Mock、`pm.visualizer`、可复用脚本库。
 - 更多代码生成语言。

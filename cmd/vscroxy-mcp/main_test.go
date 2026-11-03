@@ -96,7 +96,7 @@ func TestStdioProcess(t *testing.T) {
 			}
 			want := 14
 			if tc.write {
-				want = 24
+				want = 25
 			}
 			if len(listed.Tools) != want {
 				t.Errorf("%d tools; want %d", len(listed.Tools), want)
@@ -174,7 +174,7 @@ func TestStdioProcess(t *testing.T) {
 	}
 }
 
-func TestTokenLinksStdioProcess(t *testing.T) {
+func TestWorkflowStdioProcess(t *testing.T) {
 	var calls atomic.Int64
 	path := filepath.Join(t.TempDir(), "control.json")
 	server, err := control.Start(path, func(_ context.Context, c control.Command) (any, error) {
@@ -212,7 +212,7 @@ func TestTokenLinksStdioProcess(t *testing.T) {
 					}
 					wantCount := 14
 					if write {
-						wantCount = 24
+						wantCount = 25
 					}
 					if len(listed.Tools) != wantCount {
 						t.Fatalf("%d tools; want %d", len(listed.Tools), wantCount)
@@ -225,12 +225,14 @@ func TestTokenLinksStdioProcess(t *testing.T) {
 						{"token-links.get", map[string]any{"id": "analysis-id"}},
 						{"token-links.prepare", map[string]any{"id": "analysis-id", "index": float64(0), "collection": "", "environment": "local", "variable": "accessToken"}},
 						{"token-links.apply", map[string]any{"key": "proposal-id"}},
+						{"collection.load", map[string]any{"collection": "", "users": float64(3), "durationSeconds": float64(1), "requestTimeoutSeconds": float64(30), "maxAttempts": float64(100000), "bail": true}},
 					} {
 						before := calls.Load()
 						result, err := cs.CallTool(t.Context(), &mcp.CallToolParams{Name: tc.name, Arguments: tc.args})
-						if tc.name == "token-links.apply" && !write {
+						mutation := tc.name == "token-links.apply" || tc.name == "collection.load"
+						if mutation && !write {
 							if err == nil && !result.IsError || calls.Load() != before {
-								t.Fatal("apply reached desktop without --allow-write")
+								t.Fatalf("%s reached desktop without --allow-write", tc.name)
 							}
 							continue
 						}
@@ -238,7 +240,7 @@ func TestTokenLinksStdioProcess(t *testing.T) {
 							t.Fatalf("%s forwarding failed: %+v, %v", tc.name, result, err)
 						}
 						want := maps.Clone(tc.args)
-						if tc.name == "token-links.apply" {
+						if mutation {
 							want["confirm"] = true
 						}
 						var forwarded struct {

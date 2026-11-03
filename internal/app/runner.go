@@ -100,7 +100,7 @@ func (r *collectionRunner) load(requests []savedRequest) {
 
 func (a *app) startRunner() {
 	r := &a.runner
-	if r.running {
+	if r.running || a.loadRunner.running || a.remoteRunActive() {
 		return
 	}
 	n, err := strconv.Atoi(r.iterations)
@@ -366,6 +366,7 @@ func (a *app) runnerModal(c *ui.Context, t *ui.Theme) {
 			}
 			uikit.Meta(c, footer)
 			ui.Row(c).Gap(t.Space(2)).Justify(ui.End).Children(func() {
+				uikit.SecondaryButton(c, "Load test…").Disabled(r.running || a.remoteRunActive()).OnClick(a.openLoadRunner)
 				if uikit.SecondaryButton(c, "Close").Clicked() {
 					r.open = false
 				}
@@ -374,7 +375,7 @@ func (a *app) runnerModal(c *ui.Context, t *ui.Theme) {
 					r.cancel()
 					r.status = "Stopping…"
 				}
-				if uikit.PrimaryButton(c, "Run collection").Disabled(r.running || len(r.steps) == 0).Clicked() {
+				if uikit.PrimaryButton(c, "Run collection").Disabled(r.running || a.loadRunner.running || a.remoteRunActive() || len(r.steps) == 0).Clicked() {
 					a.startRunner()
 				}
 			})
