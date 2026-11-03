@@ -349,10 +349,16 @@ func TestWithoutRecordingPreservesRulesScriptsAndThrottles(t *testing.T) {
 		io.WriteString(w, payload)
 	}))
 	defer upstream.Close()
-	s := startServerWithScript(t, `
-function onRequest(req) { req.headers["X-Script"] = "yes" }
-function onResponse(res) { res.body = "changed:" + res.body; res.status = 201 }
-`)
+	s := startServerWithScripts(t, fakeScripts{
+		"change.js": {func(x *ScriptExchange) error {
+			x.Header.Set("X-Script", "yes")
+			return nil
+		}, func(x *ScriptExchange) error {
+			x.ResponseBody = append([]byte("changed:"), x.ResponseBody...)
+			x.Status = http.StatusCreated
+			return nil
+		}},
+	})
 	local := filepath.Join(t.TempDir(), "local.txt")
 	localBody := strings.Repeat("local", 20<<10)
 	if err := os.WriteFile(local, []byte(localBody), 0o600); err != nil {
@@ -362,6 +368,7 @@ function onResponse(res) { res.body = "changed:" + res.body; res.status = 201 }
 		{Type: RuleMapRemote, Match: "/mapped", Target: upstream.URL, PathFrom: "/mapped", PathTo: "/actual"},
 		{Type: RuleMapLocal, Match: "/local", Target: local},
 		{Type: RuleBlock, Match: "/blocked"},
+		{Type: RuleScript, Match: upstream.URL, Target: "change.js"},
 	}
 	if err := s.SetRules(rules); err != nil {
 		t.Fatal(err)
@@ -378,7 +385,7 @@ function onResponse(res) { res.body = "changed:" + res.body; res.status = 201 }
 		t.Fatal("suppressed send bypassed upload/download throttles")
 	}
 	s.SetThrottle(Throttle{})
-	s.SetScript(nil)
+	s.SetScriptRunner(nil)
 	reply, err = s.Replay(ctx, Flow{Method: "GET", URL: upstream.URL + "/local"})
 	if err != nil || reply.Status != 200 || reply.ResponseBody != localBody {
 		t.Fatalf("local response: %d, %v", reply.Status, err)
@@ -387,7 +394,7 @@ function onResponse(res) { res.body = "changed:" + res.body; res.status = 201 }
 	if err != nil || reply.Status != http.StatusForbidden {
 		t.Fatalf("blocked response: %d, %v", reply.Status, err)
 	}
-	for _, rule := range rules {
+	for _, rule := range rules[:3] {
 		if hits := s.RuleHits(rule); hits != 1 {
 			t.Errorf("rule %s hits = %d, want 1", rule.Type, hits)
 		}
