@@ -55,6 +55,12 @@ var ErrStepLimit = errors.New("maximum number of request attempts reached")
 // synchronous; an error stops the run, so consumers control delivery/backpressure.
 // Script writes are returned, never persisted by the engine.
 func Run(ctx context.Context, srv *capture.Server, steps []Step, opts Options, emit func(Result) error) (Summary, error) {
+	return run(ctx, srv, steps, opts, false, nil, emit)
+}
+
+// repeat is the load engine's unbounded iteration mode; reserve bounds total
+// attempts across users before any scripts or network operations begin.
+func run(ctx context.Context, srv *capture.Server, steps []Step, opts Options, repeat bool, reserve func() error, emit func(Result) error) (Summary, error) {
 	var summary Summary
 	if opts.Iterations < 1 || opts.Iterations > request.MaxDataRows {
 		return summary, fmt.Errorf("iterations must be between 1 and %d", request.MaxDataRows)
@@ -77,7 +83,7 @@ func Run(ctx context.Context, srv *capture.Server, steps []Step, opts Options, e
 	steps = slices.Clone(steps)
 	vars := maps.Clone(opts.Vars)
 	var locals map[string]string
-	for iteration := 1; iteration <= opts.Iterations; iteration++ {
+	for iteration := 1; repeat || iteration <= opts.Iterations; iteration++ {
 		for i := 0; i < len(steps); {
 			if err := ctx.Err(); err != nil {
 				return summary, err
@@ -85,9 +91,17 @@ func Run(ctx context.Context, srv *capture.Server, steps []Step, opts Options, e
 			if opts.MaxSteps > 0 && summary.Completed >= opts.MaxSteps {
 				return summary, ErrStepLimit
 			}
+			if reserve != nil {
+				if err := reserve(); err != nil {
+					return summary, err
+				}
+			}
 			step := steps[i]
 			in := step.Context
 			in.Iteration, in.Iterations, in.Locals = iteration-1, opts.Iterations, locals
+			if repeat {
+				in.Iterations = 0 // duration-limited: no predetermined iteration count
+			}
 			if len(opts.Data) > 0 {
 				in.Data = opts.Data[min(iteration, len(opts.Data))-1]
 			}

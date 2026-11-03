@@ -37,6 +37,9 @@ type Context struct {
 	ScriptVault bool
 	// Tokens keeps OAuth 2.0 access tokens; nil keeps them for one send.
 	Tokens *Tokens
+	// HTTPOnly rejects WebSocket URLs after scripts and variable expansion.
+	// Duration-based collection loads use it to keep every step HTTP(S).
+	HTTPOnly bool
 
 	// The run the request is part of: the active environment's name, the
 	// Runner iteration (from 0) of how many, and the pm.variables values

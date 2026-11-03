@@ -195,6 +195,10 @@ func (r Request) Execute(ctx context.Context, srv *capture.Server, in Context, v
 		out.Tests, out.Vars = run.tests, run.vars
 		return out
 	}
+	if in.HTTPOnly && IsWebSocket(req.URL) {
+		out.Stage, out.Err = "Request setup failed", errors.New("load runs support HTTP(S) requests only")
+		return out
+	}
 	out.Stage, run.phase = "Network error", "network"
 	if IsWebSocket(req.URL) {
 		out.Replies, out.Err = wsSend(ctx, srv.Addr(), req, srv.CACertificate(), jar, 2*time.Second)

@@ -1048,8 +1048,9 @@ func (s *Server) Replay(ctx context.Context, f Flow) (Flow, error) {
 type replaySourceKey struct{}
 
 type replayOrigin struct {
-	source int
-	run    string
+	source           int
+	run              string
+	withoutRecording bool
 }
 
 // ReplayWithCookies uses the request workspace's cookie jar, including across
@@ -1084,15 +1085,20 @@ func (s *Server) ReplayWithCookies(ctx context.Context, f Flow, jar http.CookieJ
 	}
 
 	proxyURL := &url.URL{Scheme: "http", Host: s.Addr()}
+	suppressed, _ := ctx.Value(withoutRecordingKey{}).(bool)
 	var addresses []string
 	finished := false // guarded by s.mu, including late transport dials
 	defer func() {
 		s.mu.Lock()
 		defer s.mu.Unlock()
 		finished = true
-		for _, addr := range addresses {
-			delete(s.replayClients, addr)
+		if !suppressed {
+			for _, addr := range addresses {
+				delete(s.replayClients, addr)
+			}
 		}
+		// Suppression must survive a canceled send until the proxy has read
+		// everything already sent on its socket. ClientDisconnected removes it.
 	}()
 	client := &http.Client{
 		Jar: jar,
@@ -1101,15 +1107,23 @@ func (s *Server) ReplayWithCookies(ctx context.Context, f Flow, jar http.CookieJ
 			TLSClientConfig: &tls.Config{RootCAs: s.roots},
 			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
 				conn, err := (&net.Dialer{}).DialContext(ctx, network, addr)
-				if err == nil && (f.ID != 0 || f.DebugRun != "") {
+				if err == nil && (f.ID != 0 || f.DebugRun != "" || suppressed) {
 					// Register before the transport can send anything. Each send
 					// owns its transport, so concurrent identical URLs cannot mix.
 					s.mu.Lock()
-					if !finished {
-						local := conn.LocalAddr().String()
-						s.replayClients[local] = replayOrigin{source: f.ID, run: f.DebugRun}
-						addresses = append(addresses, local)
+					select {
+					case <-s.closed:
+						finished = true
+					default:
 					}
+					if finished {
+						s.mu.Unlock()
+						_ = conn.Close()
+						return nil, net.ErrClosed
+					}
+					local := conn.LocalAddr().String()
+					s.replayClients[local] = replayOrigin{source: f.ID, run: f.DebugRun, withoutRecording: suppressed}
+					addresses = append(addresses, local)
 					s.mu.Unlock()
 				}
 				return conn, err
@@ -1178,6 +1192,9 @@ func (a *addon) Requestheaders(f *proxy.Flow) {
 			// Keep the link on the exchange even if its socket closes before
 			// capture finishes. No correlation header reaches the upstream.
 			*raw = *raw.WithContext(context.WithValue(raw.Context(), replaySourceKey{}, source))
+			if source.withoutRecording {
+				go a.server.awaitUnrecorded(f.Id, f.Done())
+			}
 		}
 	}
 	if f.Request.Method == "CONNECT" {
@@ -1653,6 +1670,7 @@ func (s *Server) noteClient(client *proxy.ClientConn, connected bool) {
 		s.mu.Lock()
 		if s.clients[addr].client == client {
 			delete(s.clients, addr)
+			delete(s.replayClients, addr.remote)
 		}
 		s.mu.Unlock()
 		return
@@ -1803,6 +1821,9 @@ func (s *Server) publishFlow(f *proxy.Flow, kind string, frames []Frame, status 
 		return 0
 	}
 	noCacheResponse(f)
+	if recordingSuppressed(f) {
+		return 0
+	}
 	var streamed *streamBodies
 	if len(bodies) > 0 {
 		streamed = bodies[0]
@@ -2150,6 +2171,9 @@ type frameInput struct {
 // shows rather than a message that vanishes. A flow the table never saw keeps
 // no messages at all.
 func (s *Server) emitFrame(f *proxy.Flow, in frameInput) {
+	if recordingSuppressed(f) {
+		return
+	}
 	s.mu.Lock()
 	id, ok := s.flowIDs[f.Id]
 	seq := 0

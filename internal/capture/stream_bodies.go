@@ -403,8 +403,8 @@ func (b *streamBodies) release() {
 // the transfer should use: every byte passes through untouched, and a copy
 // stays with the flow.
 func (s *Server) captureStream(f *proxy.Flow, side string, in io.Reader, enc string, want int) io.Reader {
-	if in == nil {
-		return nil
+	if in == nil || recordingSuppressed(f) {
+		return in
 	}
 	body := newStreamBody(s.bodyDir, side+"-"+f.Id.String(), enc, want)
 	s.mu.Lock()

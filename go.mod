@@ -6,6 +6,7 @@ go 1.27.3
 replace github.com/lqqyt2423/go-mitmproxy => ./third_party/go-mitmproxy
 
 require (
+	github.com/HdrHistogram/hdrhistogram-go v1.4.0
 	github.com/andybalholm/brotli v1.2.1
 	github.com/bufbuild/protocompile v0.14.1
 	github.com/dop251/goja v0.0.0-20261019185110-cf7b1419c9c0
