@@ -20,6 +20,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/baba983/vscroxy/internal/capture"
 )
 
 // Request is what a user authors and saves. Names and collection paths are
@@ -42,6 +44,9 @@ type Request struct {
 	// values and disabled rows. Headers stays the Key: Value block the send,
 	// export and script paths read, written from the enabled rows.
 	HeaderList []Field `json:"headerList,omitempty"`
+	// Redirects preserves imported cURL behavior. Zero keeps workspace defaults;
+	// declarative Checks still inspect the original response without redirecting.
+	Redirects capture.RedirectPolicy `json:"redirects,omitzero"`
 	// Pre runs before the send and may change it; Post sees the response.
 	Pre    string `json:"pre,omitempty"`
 	Post   string `json:"post,omitempty"`

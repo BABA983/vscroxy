@@ -1523,11 +1523,28 @@ URL, method, repeated headers, cookies, Basic credentials, user agent, referer,
 JSON/raw/form-encoded bodies and `--get` query data. Shell/environment/glob
 expansion is never run. `{{variables}}` remain placeholders.
 
+`--location` / `-L` follows up to 50 HTTP(S) redirects; `--no-location`
+disables it again (last option wins). Without these flags, imported requests do
+not follow redirects, matching curl rather than the workspace's default.
+This policy survives saving and reopening a native request and applies to Send
+and Runner. With 301/302/303, an inferred POST becomes GET and loses its body;
+an explicit `--request` / `-X` retains the chosen method, but still loses the body.
+307/308 retain the method and body. Explicit body headers survive; curl's implicit
+form Content-Type disappears with the body. No automatic Referer is added.
+Authorization is not forwarded to another scheme/host/port, and literal cookies
+are not forwarded to another hostname; stripped credentials stay stripped on
+later hops. Workspace cookie-jar rules still apply. Custom credential headers
+are ordinary headers and can cross origins, as in curl: review redirect targets.
+Adding declarative Checks still stops at the original response, as for other
+workspace requests. Copy/code generation represents the initial wire request,
+not this saved transfer policy.
+
 The importer never executes curl or reads local files/stdin. It rejects pipelines,
-substitutions, redirects, assignments, multiple URLs, `@file` bodies/headers,
+substitutions, shell redirections, assignments, multiple URLs, `@file` bodies/headers,
 multipart file uploads and unsupported options. Connection/security/redirect
-options such as `--insecure`, `--location` and `--config` are rejected rather than
-silently changing behavior. Output flags and `--compressed` are accepted but not
+options such as `--insecure`, `--location-trusted`, `--max-redirs`, `--post302`
+and `--config` are rejected rather than silently changing behavior. Output flags
+and `--compressed` are accepted but not
 applied; sending uses this app's proxy/client, not curl's transfer settings.
 PowerShell and Windows CMD quoting are not supported. Commands are limited to
 16 MiB.

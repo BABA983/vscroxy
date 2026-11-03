@@ -16,6 +16,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/baba983/vscroxy/internal/capture"
 	"github.com/baba983/vscroxy/internal/request"
 	"github.com/egoist/mygo/ui"
 	"golang.org/x/net/http/httpguts"
@@ -239,7 +240,7 @@ func shellQuote(s string) string {
 // parseCurl reads request data, never executes a shell or reads @files. Unknown
 // options fail rather than quietly changing authentication or transport behavior.
 func parseCurl(source string) (savedRequest, error) {
-	r := savedRequest{Name: "Imported cURL"}
+	r := savedRequest{Name: "Imported cURL", Redirects: capture.RedirectPolicy{Mode: capture.RedirectManual}}
 	if len(source) > 16<<20 {
 		return r, errors.New("cURL input is limited to 16 MiB")
 	}
@@ -288,6 +289,15 @@ func parseCurl(source string) (savedRequest, error) {
 			option, value, attached = arg[:2], arg[2:], true
 		}
 		switch option {
+		case "-L", "--location", "--no-location":
+			if attached {
+				return r, fmt.Errorf("%s takes no value", option)
+			}
+			r.Redirects.Mode = capture.RedirectCurl
+			if option == "--no-location" {
+				r.Redirects.Mode = capture.RedirectManual
+			}
+			continue
 		case "-G", "--get", "-I", "--head", "--compressed", "-g", "--globoff", "-q", "--disable", "--path-as-is", "-s", "--silent", "-S", "--show-error", "-sS", "-v", "--verbose", "-i", "--include":
 			if attached {
 				return r, fmt.Errorf("%s takes no value", option)
@@ -400,6 +410,10 @@ func parseCurl(source string) (savedRequest, error) {
 			contentType = "application/json"
 		}
 		defaults.Set("Content-Type", contentType)
+	}
+	if r.Redirects.Mode == capture.RedirectCurl {
+		r.Redirects.KeepMethod = r.Method != ""
+		r.Redirects.DropContentType = !jsonBody && !explicit["Content-Type"] && defaults.Get("Content-Type") != ""
 	}
 	if r.Method == "" {
 		r.Method = "GET"

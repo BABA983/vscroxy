@@ -79,6 +79,7 @@ type requestDocument struct {
 	composePre   string
 	composePost  string
 	checks       request.Checks
+	redirects    capture.RedirectPolicy
 	tokenSources []request.TokenSource
 	// examples are the draft's kept responses; example is the one shown,
 	// exampleView its Body, Headers or Request view.
@@ -159,7 +160,7 @@ func (d *requestDocument) value() savedRequest {
 		Body: d.composeBody, Pre: d.composePre, Post: d.composePost,
 		Auth: d.auth, BodyMode: d.bodyMode, BodyFile: d.bodyFile, Form: slices.Clone(d.formFields),
 		GraphQL: d.graphql,
-		Checks:  d.checks, HeaderList: headerRowsKept(d.headerRows),
+		Checks:  d.checks, Redirects: d.redirects, HeaderList: headerRowsKept(d.headerRows),
 		Examples: slices.Clone(d.examples), TokenSources: slices.Clone(d.tokenSources),
 	}
 	if len(d.headerRows) > 0 {
@@ -224,6 +225,7 @@ func (d *requestDocument) load(r savedRequest, key string) {
 	d.composeHeaders, d.composeBody = r.Headers, r.Body
 	d.headerRows, d.headerFor = slices.Clone(r.HeaderList), ""
 	d.composePre, d.composePost, d.checks = r.Pre, r.Post, r.Checks
+	d.redirects = r.Redirects
 	d.tokenSources = slices.Clone(r.TokenSources)
 	d.examples, d.example, d.exampleEditor = slices.Clone(r.Examples), 0, nil
 	d.auth, d.bodyMode, d.formFields = r.Auth, cmp.Or(r.BodyMode, "Raw"), slices.Clone(r.Form)

@@ -2675,9 +2675,12 @@ func TestCurlImportAndCopyKeepExistingDrafts(t *testing.T) {
 	if err := chooseMenu(tt, "Import cURL…"); err != nil {
 		t.Fatal(err)
 	}
-	paste(`curl 'https://example.test/api?x=7' -H 'X-Count: 19' --json '{"name":"it'\''s","count":7}'`)
+	paste(`curl --location --request POST 'https://example.test/api?x=7' -H 'X-Count: 19' --json '{"name":"it'\''s","count":7}'`)
 	if read("Method") != "POST" || read("URL") != "https://example.test/api?x=7" {
 		t.Fatal("imported request fields were not shown in a new tab")
+	}
+	if a.draft().Redirects.Mode != capture.RedirectCurl || !a.draft().Redirects.KeepMethod || a.composeWaiting || a.sentSet {
+		t.Fatal("import lost redirect behavior or sent the request automatically")
 	}
 	click("Request editor: Headers")
 	rows := a.requestDocument.headerRows

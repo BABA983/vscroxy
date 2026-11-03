@@ -1057,6 +1057,37 @@ type replayOrigin struct {
 // redirects. Ordinary capture replay deliberately does not inherit login state.
 // Regression checks stop at the original response instead of following redirects.
 func (s *Server) ReplayWithCookies(ctx context.Context, f Flow, jar http.CookieJar, followRedirects bool) (Flow, error) {
+	policy := RedirectPolicy{}
+	if !followRedirects {
+		policy.Mode = RedirectManual
+	}
+	return s.ReplayWithRedirects(ctx, f, jar, policy)
+}
+
+// RedirectPolicy keeps imported cURL transfer behavior distinct from ordinary
+// workspace sends. The zero value retains Go's standard ten-request limit.
+type RedirectPolicy struct {
+	Mode       string `json:"mode,omitempty"`
+	KeepMethod bool   `json:"keepMethod,omitzero"`
+	// DropContentType marks curl's implicit form Content-Type, not a -H header.
+	// It disappears with the body; explicitly authored headers survive redirects.
+	DropContentType bool `json:"dropContentType,omitzero"`
+}
+
+const (
+	RedirectDefault = ""
+	RedirectManual  = "manual"
+	RedirectCurl    = "curl"
+)
+
+// ReplayWithRedirects applies an authored redirect policy. cURL modes follow at
+// most 50 HTTP(S) hops; -X keeps the method, not a body dropped by 301/302/303.
+func (s *Server) ReplayWithRedirects(ctx context.Context, f Flow, jar http.CookieJar, policy RedirectPolicy) (Flow, error) {
+	switch policy.Mode {
+	case RedirectDefault, RedirectManual, RedirectCurl:
+	default:
+		return Flow{}, errors.New("unsupported request redirect policy")
+	}
 	rawURL := f.URL
 	if rawURL == "" {
 		rawURL = f.Scheme + "://" + f.Host + f.Path
@@ -1103,8 +1134,11 @@ func (s *Server) ReplayWithCookies(ctx context.Context, f Flow, jar http.CookieJ
 	client := &http.Client{
 		Jar: jar,
 		Transport: &http.Transport{
-			Proxy:           http.ProxyURL(proxyURL),
-			TLSClientConfig: &tls.Config{RootCAs: s.roots},
+			// The proxy pins its upstream to each client connection. Redirects
+			// must not reuse that socket for a different HTTP origin.
+			DisableKeepAlives: true,
+			Proxy:             http.ProxyURL(proxyURL),
+			TLSClientConfig:   &tls.Config{RootCAs: s.roots},
 			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
 				conn, err := (&net.Dialer{}).DialContext(ctx, network, addr)
 				if err == nil && (f.ID != 0 || f.DebugRun != "" || suppressed) {
@@ -1130,8 +1164,60 @@ func (s *Server) ReplayWithCookies(ctx context.Context, f Flow, jar http.CookieJ
 			},
 		},
 	}
-	if !followRedirects {
+	if policy.Mode == RedirectManual {
 		client.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+	} else if policy.Mode == RedirectCurl {
+		bodyDropped := false
+		client.CheckRedirect = func(next *http.Request, via []*http.Request) error {
+			if len(via) > 50 {
+				return errors.New("stopped after 50 redirects")
+			}
+			if next.URL.Scheme != "http" && next.URL.Scheme != "https" {
+				return errors.New("redirects require HTTP(S)")
+			}
+			if policy.KeepMethod {
+				next.Method = req.Method
+			}
+			switch next.Response.StatusCode {
+			case 301, 302, 303:
+				bodyDropped = true
+			}
+			for _, name := range []string{"Content-Type", "Content-Encoding", "Content-Language", "Content-Location"} {
+				if values := req.Header.Values(name); len(values) > 0 {
+					next.Header[name] = slices.Clone(values)
+				}
+			}
+			if bodyDropped && policy.DropContentType && req.Header.Get("Content-Type") == "application/x-www-form-urlencoded" {
+				next.Header.Del("Content-Type")
+			}
+			// curl does not enable automatic Referer generation without --auto-referer.
+			next.Header.Del("Referer")
+			if value := req.Header.Get("Referer"); value != "" {
+				next.Header.Set("Referer", value)
+			}
+			// Bound Authorization to the original origin; literal cookies to the
+			// original host (cookie domains do not include ports). Unlike Go's
+			// defaults, never widen either to subdomains or restore stripped values.
+			origin := func(u *url.URL) string {
+				port := u.Port()
+				if port == "" {
+					port = "80"
+					if u.Scheme == "https" {
+						port = "443"
+					}
+				}
+				return u.Scheme + "://" + net.JoinHostPort(strings.ToLower(u.Hostname()), port)
+			}
+			for _, previous := range via {
+				if origin(previous.URL) != origin(next.URL) {
+					next.Header.Del("Authorization")
+				}
+				if !strings.EqualFold(previous.URL.Hostname(), next.URL.Hostname()) {
+					next.Header.Del("Cookie")
+				}
+			}
+			return nil
+		}
 	}
 	defer client.CloseIdleConnections()
 	started := time.Now()

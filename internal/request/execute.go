@@ -207,8 +207,12 @@ func (r Request) Execute(ctx context.Context, srv *capture.Server, in Context, v
 			out.Err = fmt.Errorf("post-response scripts require an HTTP response")
 		}
 	} else {
+		policy := r.Redirects
+		if r.Checks != (Checks{}) {
+			policy.Mode = capture.RedirectManual
+		}
 		send := func() (capture.Flow, error) {
-			return srv.ReplayWithCookies(ctx, capture.Flow{DebugRun: runKey, Method: req.Method, URL: req.URL, RequestHeader: req.Header, RequestBody: req.Body}, jar, r.Checks == (Checks{}))
+			return srv.ReplayWithRedirects(ctx, capture.Flow{DebugRun: runKey, Method: req.Method, URL: req.URL, RequestHeader: req.Header, RequestBody: req.Body}, jar, policy)
 		}
 		got, err := send()
 		if err == nil && r.Auth.Type == AuthDigest {

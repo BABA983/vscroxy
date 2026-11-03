@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -12,6 +13,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -80,6 +82,7 @@ func TestParseCurlRequestData(t *testing.T) {
 		{"query encoding", `curl -G 'https://api.example.test/items?fixed=3#top' --data-urlencode 'q=a b&c' -d limit=7`, "GET", "https://api.example.test/items?fixed=3&q=a+b%26c&limit=7#top", "", http.Header{}},
 		{"json and explicit overrides", `curl https://api.example.test --json '{"x":' --json '7}' -u 'user:pass' -H 'Authorization: Bearer literal' -H 'Accept:' -H 'X-Empty;'`, "POST", "https://api.example.test", `{"x":7}`, http.Header{"Authorization": {"Bearer literal"}, "Content-Type": {"application/json"}, "X-Empty": {""}}},
 		{"basic auth and raw at", `curl https://api.example.test --user 'user:p:a ss' --data-raw '@not-a-file'`, "POST", "https://api.example.test", "@not-a-file", http.Header{"Authorization": {"Basic dXNlcjpwOmEgc3M="}, "Content-Type": {"application/x-www-form-urlencoded"}}},
+		{"apifox location", "curl --location --request POST 'https://api.example.test/sync' \\\n--header 'x-smartcloud-accessToken: fixture-token' \\\n--header 'User-Agent: Apifox/1.0.0 (https://apifox.com)' \\\n--header 'Content-Type: application/json' \\\n--header 'Connection: keep-alive' \\\n--data-raw '{\n    \"status\": \"PUBLISHED\",\n    \"pageSize\": 500\n}'", "POST", "https://api.example.test/sync", "{\n    \"status\": \"PUBLISHED\",\n    \"pageSize\": 500\n}", http.Header{"X-Smartcloud-Accesstoken": {"fixture-token"}, "User-Agent": {"Apifox/1.0.0 (https://apifox.com)"}, "Content-Type": {"application/json"}, "Connection": {"keep-alive"}}},
 		{"head query", `curl -I -G https://api.example.test --data-urlencode 'q=a+b'`, "HEAD", "https://api.example.test?q=a%2Bb", "", http.Header{}},
 		{"environment placeholders", `curl '{{base_url}}/items/{{id}}' -H 'Authorization: Bearer {{token}}'`, "GET", "{{base_url}}/items/{{id}}", "", http.Header{"Authorization": {"Bearer {{token}}"}}},
 	} {
@@ -95,13 +98,156 @@ func TestParseCurlRequestData(t *testing.T) {
 	}
 }
 
+func TestCurlImportRedirectSemantics(t *testing.T) {
+	srv := requestProxy(t)
+	for _, status := range []int{301, 302, 303, 307, 308} {
+		for _, tc := range []struct {
+			name, flags, method, body string
+			follow                    bool
+		}{
+			{"no location", "--data-raw payload", "POST", "payload", false},
+			{"location", "--location --data-raw payload", "GET", "", true},
+			{"explicit method", "-L --request POST --data-raw payload", "POST", "", true},
+			{"explicit patch", "--location -XPATCH --data-raw payload", "PATCH", "", true},
+			{"head", "-L --head", "HEAD", "", true},
+			{"last option disables", "-L --no-location --data-raw payload", "POST", "payload", false},
+			{"last option enables", "--no-location -L --data-raw payload", "GET", "", true},
+		} {
+			t.Run(fmt.Sprintf("%d/%s", status, tc.name), func(t *testing.T) {
+				upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					if r.URL.Path == "/start" {
+						w.Header().Set("Location", "/finish")
+						w.WriteHeader(status)
+						return
+					}
+					body, _ := io.ReadAll(r.Body)
+					w.Header().Set("X-Method", r.Method)
+					w.Header().Set("X-Body", string(body))
+					w.Header().Set("X-Content-Type", r.Header.Get("Content-Type"))
+					w.WriteHeader(http.StatusNoContent)
+				}))
+				defer upstream.Close()
+				r, err := parseCurl("curl " + tc.flags + " " + shellQuote(upstream.URL+"/start"))
+				if err != nil {
+					t.Fatal(err)
+				}
+				// Import -> editable draft -> saved library -> reopened draft -> Send.
+				a := workspaceApp()
+				a.addDocument(r, "")
+				r = a.draft()
+				r.ID = "imported"
+				loaded := libraryRoundTrip(t, []savedRequest{r})
+				a.addDocument(loaded[0], loaded[0].key())
+				got := a.draft().Execute(t.Context(), srv, request.Context{}, nil, nil)
+				if got.Err != nil || got.Response == nil {
+					t.Fatalf("send failed: %v", got.Err)
+				}
+				if !tc.follow {
+					if got.Response.Status != status {
+						t.Fatalf("without location followed redirect: %+v", got.Response)
+					}
+					return
+				}
+				method, body := tc.method, tc.body
+				if status == 307 || status == 308 {
+					if tc.name != "head" {
+						method, body = "POST", "payload"
+						if tc.name == "explicit patch" {
+							method = "PATCH"
+						}
+					}
+				}
+				if got.Response.Status != 204 || got.Response.ResponseHeader.Get("X-Method") != method || got.Response.ResponseHeader.Get("X-Body") != body {
+					t.Fatalf("response = %+v; want %s with body %q", got.Response, method, body)
+				}
+				contentType := ""
+				if (status == 307 || status == 308) && tc.name != "head" {
+					contentType = "application/x-www-form-urlencoded"
+				}
+				if got.Response.ResponseHeader.Get("X-Content-Type") != contentType {
+					t.Fatalf("implicit form Content-Type survived body removal or was lost: %+v", got.Response)
+				}
+			})
+		}
+	}
+}
+
+func TestCurlImportRedirectHeadersAndLimits(t *testing.T) {
+	srv := requestProxy(t)
+	for _, otherHost := range []bool{false, true} {
+		t.Run(fmt.Sprintf("other host %v", otherHost), func(t *testing.T) {
+			target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				body, _ := io.ReadAll(r.Body)
+				fmt.Fprintf(w, "%s|%s|%s|%s|%s|%s", r.Method, body, r.Header.Get("Content-Type"), r.Header.Get("Authorization"), r.Header.Get("Cookie"), r.Header.Get("Referer"))
+			}))
+			defer target.Close()
+			destination := target.URL
+			if otherHost {
+				destination = strings.Replace(destination, "127.0.0.1", "localhost", 1)
+			}
+			upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Header.Get("Authorization") != "Bearer fixture" || r.Header.Get("Cookie") != "session=fixture" {
+					t.Error("initial request lost credentials")
+				}
+				w.Header().Set("Location", destination)
+				w.WriteHeader(http.StatusFound)
+			}))
+			defer upstream.Close()
+			r, err := parseCurl("curl --location --request POST --data-raw payload -H 'Content-Type: application/json' -H 'Authorization: Bearer fixture' -H 'Cookie: session=fixture' " + shellQuote(upstream.URL))
+			if err != nil {
+				t.Fatal(err)
+			}
+			got := r.Execute(t.Context(), srv, request.Context{}, nil, nil)
+			want := "POST||application/json||session=fixture|"
+			if otherHost {
+				want = "POST||application/json|||"
+			}
+			if got.Err != nil || got.Response == nil || got.Response.ResponseBody != want {
+				t.Fatalf("cross-origin redirect = %+v, want %q", got, want)
+			}
+			// Checks retain their original-response contract, even for imported -L.
+			r.Checks = request.Checks{Status: "302"}
+			got = r.Execute(t.Context(), srv, request.Context{}, nil, nil)
+			if got.Err != nil || got.Response == nil || got.Response.Status != 302 {
+				t.Fatalf("Checks unexpectedly followed redirect: %+v", got)
+			}
+		})
+	}
+	for _, hops := range []int{12, 50, 51} {
+		t.Run(fmt.Sprintf("%d hops", hops), func(t *testing.T) {
+			upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				n, _ := strconv.Atoi(r.URL.Query().Get("n"))
+				if n == hops {
+					fmt.Fprint(w, "finished")
+					return
+				}
+				w.Header().Set("Location", fmt.Sprintf("/?n=%d", n+1))
+				w.WriteHeader(http.StatusTemporaryRedirect)
+			}))
+			defer upstream.Close()
+			r, err := parseCurl("curl -L " + shellQuote(upstream.URL))
+			if err != nil {
+				t.Fatal(err)
+			}
+			got := r.Execute(t.Context(), srv, request.Context{}, nil, nil)
+			if hops > 50 {
+				if got.Err == nil || !strings.Contains(got.Err.Error(), "50 redirects") {
+					t.Fatalf("redirect limit not enforced: %+v", got)
+				}
+			} else if got.Err != nil || got.Response == nil || got.Response.ResponseBody != "finished" {
+				t.Fatalf("allowed redirect chain failed: %+v", got)
+			}
+		})
+	}
+}
+
 func TestParseCurlRefusesExecutableOrUnsupportedInput(t *testing.T) {
 	for _, command := range []string{
 		"", "wget https://example.test", "curl 'unclosed", "curl",
 		"curl https://a.test https://b.test", "curl --url https://a.test --url https://b.test",
 		"curl https://a.test; touch /tmp/not-executed", "curl https://a.test | cat", "curl https://a.test && echo hi", "curl https://a.test > /tmp/not-written", "curl https://a.test &", "TOKEN=secret curl https://a.test",
 		"curl https://a.test -d $(touch /tmp/not-executed)", "curl https://a.test -d `id`", "curl https://a.test -H \"Authorization: $TOKEN\"", "curl https://a.test -d $((1+2))", "curl https://a.test -d <(cat /etc/passwd)",
-		"curl https://a.test --data @/etc/passwd", "curl https://a.test --data-binary @-", "curl https://a.test --data-urlencode x@file", "curl https://a.test -H @file", "curl https://a.test -b cookies.txt", "curl https://a.test --config config.txt", "curl https://a.test --form file=@private", "curl https://a.test --insecure", "curl https://a.test --location", "curl https://a.test -H $'X-Test: a\\nInjected: b'", "curl https://a.test -d $'a\\0b'", "curl https://a.test -X", "curl file:///etc/passwd",
+		"curl https://a.test --data @/etc/passwd", "curl https://a.test --data-binary @-", "curl https://a.test --data-urlencode x@file", "curl https://a.test -H @file", "curl https://a.test -b cookies.txt", "curl https://a.test --config config.txt", "curl https://a.test --form file=@private", "curl https://a.test --insecure", "curl https://a.test --location=true", "curl https://a.test --location-trusted", "curl https://a.test --max-redirs 2", "curl https://a.test --post302", "curl https://a.test -H $'X-Test: a\\nInjected: b'", "curl https://a.test -d $'a\\0b'", "curl https://a.test -X", "curl file:///etc/passwd",
 	} {
 		if _, err := parseCurl(command); err == nil {
 			t.Errorf("accepted unsafe or unsupported input: %q", command)
