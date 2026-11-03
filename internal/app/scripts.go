@@ -82,10 +82,16 @@ func (s *scriptStore) Run(ctx context.Context, file string, x *capture.ScriptExc
 	s.mu.RLock()
 	p, env := s.parsed[file], s.env
 	s.mu.RUnlock()
-	if p == nil {
+	if p == nil && x.Phase != "mock" {
 		return nil
 	}
-	out, err := p.Run(ctx, x, env)
+	var out request.ProxyRun
+	var err error
+	if p == nil {
+		err = errors.New("Code Mock script is missing or does not parse")
+	} else {
+		out, err = p.Run(ctx, x, env)
+	}
 	name := strings.TrimSuffix(file, ".js")
 	s.mu.Lock()
 	for _, m := range out.Console {
@@ -286,6 +292,20 @@ export function onResponse() {
 }
 `
 
+const newMockScriptText = `// Select this script in a Code Mock rule (Tools → Mocks or Rules).
+// Reads a complete text request and answers locally, without upstream I/O.
+// Errors return a local 502; pm.sendRequest is unavailable here.
+export function onMock() {
+  pm.response.code = 200;
+  pm.response.headers.upsert("Content-Type", "application/json");
+  pm.response.setBody({
+    ok: true,
+    method: pm.request.method,
+    path: pm.request.url.getPath()
+  });
+}
+`
+
 // newAddonText is a new addon's text, for its name.
 func newAddonText(name string) string {
 	return `// What an addon exports, rule scripts and other addons import from "` + name + `";
@@ -334,7 +354,7 @@ func (a *app) scriptUsers(s *scriptStore, name string) (int, string) {
 	n := 0
 	if !s.addon {
 		for _, r := range a.rules {
-			if r.Type == capture.RuleScript && r.Target == scriptFile(name) {
+			if (r.Type == capture.RuleScript || r.Type == capture.RuleCodeMock) && r.Target == scriptFile(name) {
 				n++
 			}
 		}
@@ -404,14 +424,14 @@ func (a *app) renameScript(s *scriptStore, old, name string) {
 	if !s.addon {
 		next, renamed := slices.Clone(a.rules), false
 		for i, r := range next {
-			if r.Type == capture.RuleScript && r.Target == scriptFile(old) {
+			if (r.Type == capture.RuleScript || r.Type == capture.RuleCodeMock) && r.Target == scriptFile(old) {
 				next[i].Target, renamed = scriptFile(name), true
 			}
 		}
 		if renamed && !a.applyRuleChanges(next) {
 			a.fail("Rename script", errors.New(a.ruleUI.problem))
 		}
-		if d := &a.ruleUI.draft; d.Type == capture.RuleScript && d.Target == scriptFile(old) {
+		if d := &a.ruleUI.draft; (d.Type == capture.RuleScript || d.Type == capture.RuleCodeMock) && d.Target == scriptFile(old) {
 			d.Target = scriptFile(name)
 		}
 	}
@@ -425,8 +445,8 @@ func (a *app) renameScript(s *scriptStore, old, name string) {
 	s.choice, s.nameFor = name, ""
 }
 
-// dropScript removes a script's or addon's file; rules that ran the script
-// do nothing, scripts that require the addon fail.
+// dropScript removes a script's or addon's file; Script rules skip a missing
+// script, Code Mocks return 502, and scripts requiring a missing addon fail.
 func (a *app) dropScript(s *scriptStore, name string) {
 	path := filepath.Join(s.dir, scriptFile(name))
 	if err := os.Remove(path); err != nil && !errors.Is(err, fs.ErrNotExist) {
@@ -469,7 +489,7 @@ func (a *app) saveScript(name string) {
 	case err != nil && s.addon:
 		a.warn("Addon saved · it does not parse, so require(\"" + name + "\") fails: " + err.Error())
 	case err != nil:
-		a.warn("Script saved · it does not parse, so its rules do nothing: " + err.Error())
+		a.warn("Script saved · it does not parse; Script rules skip it, Code Mocks return 502: " + err.Error())
 	case s.addon:
 		a.done("Addon saved · scripts load it from their next run")
 	default:
@@ -507,6 +527,7 @@ func scriptSnippets(kind string) [][2]string {
 		return append(shared, [2]string{"Export a function", "export function sign(text) {\n  return text;\n}\n"})
 	}
 	return append([][2]string{
+		{"Generate a local mock response", newMockScriptText},
 		{"Add a request header", "pm.request.headers.upsert(\"X-Debug\", \"1\");\n"},
 		{"Rewrite the URL", "pm.request.url = pm.request.url.toString().replace(\"/v1/\", \"/v2/\");\n"},
 		{"Add a query parameter", "pm.request.url.query.upsert(\"debug\", \"1\");\n"},
@@ -539,7 +560,7 @@ func (a *app) scriptsPage(c *ui.Context, t *ui.Theme, top float32, active bool) 
 			s.choice = s.names[0]
 		}
 	}
-	what, base, about := "script", "Untitled", "A Script rule runs one on the traffic it matches."
+	what, base, about := "script", "Untitled", "Script rules edit traffic; Code Mock rules answer locally."
 	if s.addon {
 		what, base, about = "addon", "helpers", "Modules rule scripts import, and request scripts require, by name."
 	}
@@ -580,7 +601,7 @@ func (a *app) scriptsPage(c *ui.Context, t *ui.Theme, top float32, active bool) 
 		}
 		a.scriptEditor(c, t, s, s.choice)
 	})
-	message := "Rules that run it stay, but do nothing until they run another."
+	message := "Rules remain: Script rules skip it; Code Mocks return a local 502 until another script is selected."
 	if s.addon {
 		message = "Scripts that require it fail until it is back."
 	}
@@ -631,13 +652,19 @@ func (a *app) scriptList(c *ui.Context, t *ui.Theme, s *scriptStore, active bool
 }
 
 func scriptHooks(s *scriptStore, name string) string {
-	onRequest, onResponse := s.Hooks(scriptFile(name))
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	var hooks []string
-	if onRequest {
-		hooks = append(hooks, "onRequest")
-	}
-	if onResponse {
-		hooks = append(hooks, "onResponse")
+	if p := s.parsed[scriptFile(name)]; p != nil {
+		if p.OnRequest {
+			hooks = append(hooks, "onRequest")
+		}
+		if p.OnResponse {
+			hooks = append(hooks, "onResponse")
+		}
+		if p.OnMock {
+			hooks = append(hooks, "onMock")
+		}
 	}
 	return cmp.Or(strings.Join(hooks, " · "), "No hooks")
 }
@@ -674,6 +701,9 @@ func (a *app) scriptEditor(c *ui.Context, t *ui.Theme, s *scriptStore, name stri
 				actions = append(actions, do("scripts.rule", "New rule running it", func() {
 					a.editRule(-1, capture.Rule{Name: name, Type: capture.RuleScript, Target: scriptFile(name)})
 					a.openTools("rules")
+				}).in("edit"), do("scripts.mock-rule", "New Code Mock rule", func() {
+					a.editRule(-1, capture.Rule{Name: name, Type: capture.RuleCodeMock, Target: scriptFile(name)})
+					a.openTools("mocks")
 				}).in("edit"))
 			}
 			actionMenu(m, append(actions, do("scripts.delete", "Delete…", func() { s.deleting = true }).in("danger")))
@@ -698,7 +728,7 @@ func (a *app) scriptEditor(c *ui.Context, t *ui.Theme, s *scriptStore, name stri
 	}
 	_, modified := a.scriptToSave()
 	ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-		note := "No rule runs it yet; add a Script rule in Rules."
+		note := "No rule runs it yet; add a Script or Code Mock rule."
 		switch {
 		case s.addon && users > 0:
 			note = usedBy + ` · import it from "` + name + `", or require it.`

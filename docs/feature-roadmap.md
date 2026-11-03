@@ -189,7 +189,7 @@
 | 客户端证书（按域名）、自定义 CA | 缺少 | | M6 |
 | Examples | 已有 | | |
 | Examples 作为 Mock 响应（本地 mock） | 已有 | 见 6.3；Examples 标签里的 Mock，集合菜单的 Mock from examples | M4 |
-| 代码 Mock（脚本写的 mock 服务，Postman `pm.mock`） | 缺少 | | M9 |
+| 代码 Mock（脚本生成本地响应） | 首版已有 | Code Mock 规则运行 `onMock`，读取 `pm.request`、生成 `pm.response`；复用编辑器／Scenario／配置导出，失败返回本地错误而不穿透原站；不是 Postman Node.js／`pm.mock` 服务兼容层 | M9 |
 | Runner：数据文件、迭代、setNextRequest | 已有 | | |
 | Runner：性能测试（虚拟用户、时长、指标） | 已有首版 | 内置固定并发集合负载；复用 Runner、HdrHistogram 执行耗时；原生／CLI／MCP。无固定 RPS、爬坡或分布式压测 | M9 |
 | 命令行运行集合（CI，JUnit/JSON 报告） | 已有 | 独立无 UI CLI；本地集合/Postman、环境/数据文件、超时/取消/执行预算、私有报告 | M9 |
@@ -332,7 +332,8 @@ Cookie 和其他 API key 保留为变量 header，避免把多个认证机制硬
 - 命令行运行集合及 CI 报告、首版内置集合负载已完成（见 [自动化指南](automation.md)）：固定并发用户／时长、隔离状态、HdrHistogram 聚合执行指标；原生面板／CLI／MCP 共用 Runner。不含固定 RPS、爬坡或分布式压测。
 - 录制到集合及首版 token 链路识别已完成：原生入口、CLI／MCP 共用动作、Host／App 过滤、Current 凭据引用和 Example 归并；JSON token → 同源 Bearer 的脱敏证据、显式审阅应用和失败关闭。Cookie／refresh／多跳链路暂不覆盖。
 - DevTools 式常用复制格式已完成：Bash／CMD cURL、原生 PowerShell、浏览器／Node fetch 和受限 HAR（默认脱敏、明确选择敏感内容）。生成器不增加运行时依赖；cURL 导入选项和其他语言仍独立待做。
-- 代码 Mock、`pm.visualizer`、可复用脚本库。
+- 首版代码 Mock 已完成（见[使用指南](guide.md#code-mocks)）：Code Mock 规则、`onMock` 动态本地响应、脚本编辑器与 Scenario；HTTP／已解密 HTTPS 不连接原站，失败关闭。Postman Node.js Mock／`pm.state` 等不在首版范围。
+- `pm.visualizer`、可复用脚本库。
 - 更多代码生成语言。
 - 第三方主题导入。
 - 左右分屏、检查器独立窗口、分享到 Gist。

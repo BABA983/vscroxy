@@ -49,9 +49,9 @@ type ruleEditor struct {
 	list               ui.ListState
 }
 
-var ruleTypes = []capture.RuleType{capture.RuleMapLocal, capture.RuleMapRemote, capture.RuleBlock, capture.RuleScript, capture.RuleBreak, capture.RuleBreakResponse}
-var ruleLabels = []string{"Map Local", "Map Remote", "Block", "Script", "Request breakpoint", "Response breakpoint"}
-var ruleIcons = []*ui.SVG{fileInputIcon, lucide.ArrowRightLeft(), lucide.Ban(), scriptsIcon, breakIcon, breakIcon}
+var ruleTypes = []capture.RuleType{capture.RuleMapLocal, capture.RuleMapRemote, capture.RuleBlock, capture.RuleScript, capture.RuleCodeMock, capture.RuleBreak, capture.RuleBreakResponse}
+var ruleLabels = []string{"Map Local", "Map Remote", "Block", "Script", "Code Mock", "Request breakpoint", "Response breakpoint"}
+var ruleIcons = []*ui.SVG{fileInputIcon, lucide.ArrowRightLeft(), lucide.Ban(), scriptsIcon, scriptsIcon, breakIcon, breakIcon}
 var hideIcon = lucide.EyeOff()
 var rulesIcon = lucide.SlidersHorizontal()
 
@@ -236,7 +236,7 @@ func (a *app) saveRule() {
 			}
 			r.Target = filepath.Join(filepath.Dir(a.rulesPath), "mocks", rand.Text()+ext)
 		}
-	} else if r.Type != capture.RuleMapRemote && r.Type != capture.RuleScript {
+	} else if r.Type != capture.RuleMapRemote && r.Type != capture.RuleScript && r.Type != capture.RuleCodeMock {
 		r.Target = ""
 	}
 	r.PathFrom, r.PathTo = strings.TrimSpace(r.PathFrom), strings.TrimSpace(r.PathTo)
@@ -392,11 +392,11 @@ func ruleTest(s string) (req rules.Request, ok bool) {
 }
 
 // ruleRows are the rules the page lists, by index: on Mocks, only the
-// Map Local rules.
+// Map Local and Code Mock rules.
 func (a *app) ruleRows() []int {
 	var rows []int
 	for i, r := range a.rules {
-		if a.toolsPage != "mocks" || r.Type == capture.RuleMapLocal {
+		if a.toolsPage != "mocks" || r.Type == capture.RuleMapLocal || r.Type == capture.RuleCodeMock {
 			rows = append(rows, i)
 		}
 	}
@@ -415,8 +415,8 @@ func (a *app) rulesPage(c *ui.Context, t *ui.Theme, top float32, active bool) {
 		e.open, e.index = false, -1
 	}
 	rows := a.ruleRows()
-	// Mocks shows a mock: one of its rows, or a new Map Local rule.
-	if mocks && e.open && (e.index >= 0 && !slices.Contains(rows, e.index) || e.index < 0 && e.kind != "Map Local") {
+	// Mocks shows a local response rule, including a new unsaved one.
+	if mocks && e.open && (e.index >= 0 && !slices.Contains(rows, e.index) || e.index < 0 && e.kind != "Map Local" && e.kind != "Code Mock") {
 		e.open = false
 	}
 	if !e.open && len(rows) > 0 {
@@ -441,7 +441,7 @@ func (a *app) rulesPage(c *ui.Context, t *ui.Theme, top float32, active bool) {
 		uikit.Input(c, &e.test).Label("Test a request").Placeholder("Test: GET https://api.example.com @ App; Header: value").Tooltip("[METHOD] URL [@ App]; Header: value; …").Font(uikit.FontMono).FillWidth()
 		switch {
 		case strings.TrimSpace(e.test) == "" && mocks:
-			uikit.Meta(c, "Map Local rules: answers from local files, tried from the top.")
+			uikit.Meta(c, "Local files and code mocks, tried from the top.")
 		case strings.TrimSpace(e.test) == "":
 			uikit.Meta(c, "Rules are tried from the top.")
 		case !testing:
@@ -465,7 +465,7 @@ func (a *app) rulesPage(c *ui.Context, t *ui.Theme, top float32, active bool) {
 		if !e.open {
 			empty, hint := "No rules", "Map, redirect, block, script or pause matching requests. Create one here, or from a request’s Tools menu."
 			if mocks {
-				empty, hint = "No mocks", "Answer requests from local files. Make one here, from a request’s Tools menu, from a saved example’s Mock, or with a collection’s Mock from examples."
+				empty, hint = "No mocks", "Answer requests from local files or JavaScript. Create a Map Local or Code Mock rule here; saved examples can also become mocks."
 			}
 			uikit.EmptyState(c, empty, hint, func() {
 				if uikit.PrimaryButton(c, "New rule").Clicked() {
@@ -639,11 +639,13 @@ func (a *app) ruleDetail(c *ui.Context, t *ui.Theme) {
 	// Each rule's form starts at its top, not where the last one was scrolled.
 	ui.Scroll(c.Key(fmt.Sprint("rule-form", e.index))).Grow(1).MinHeight(0).Children(func() {
 		ui.Form(c, func() {
-			if a.toolsPage != "mocks" {
-				ui.Field(c, "Type", func() {
-					uikit.Select(c, &e.kind, ruleLabels).Label("Rule type").Width(200)
-				})
-			}
+			ui.Field(c, "Type", func() {
+				labels := ruleLabels
+				if a.toolsPage == "mocks" {
+					labels = []string{"Map Local", "Code Mock"}
+				}
+				uikit.Select(c, &e.kind, labels).Label("Rule type").Width(200)
+			})
 			ui.Field(c, "Method", func() {
 				uikit.Input(c, &e.draft.Method).Width(95).Label("Match method").Placeholder("Any").Font(uikit.FontMono)
 			})
@@ -726,6 +728,9 @@ func (a *app) ruleDetail(c *ui.Context, t *ui.Theme) {
 			case "Script":
 				ui.Field(c, "Script", func() { a.ruleScriptField(c, t) }).
 					Description("Its onRequest edits the request before it goes upstream, its onResponse the response before the client gets it. Every matching Script rule runs, in order, before the other rules.")
+			case "Code Mock":
+				ui.Field(c, "Script", func() { a.ruleScriptField(c, t) }).
+					Description("onMock reads pm.request and builds pm.response locally. First matching response rule wins; errors return 502, never upstream. Text bodies up to 1 MiB; HTTPS requires inspection.")
 			default:
 				ui.Field(c, "Pauses", func() { uikit.Body(c, "While Breakpoints is on") }).
 					Description("Continue or abort in the breakpoint dialog.")
@@ -792,7 +797,11 @@ func (a *app) ruleScriptField(c *ui.Context, t *ui.Theme) {
 				m.Separator()
 			}
 			if m.Item("New script").Chosen() {
-				if name, ok := a.newScript(&a.scripts, cmp.Or(strings.TrimSpace(e.draft.Name), "Untitled"), newScriptText); ok {
+				text := newScriptText
+				if e.kind == "Code Mock" {
+					text = newMockScriptText
+				}
+				if name, ok := a.newScript(&a.scripts, cmp.Or(strings.TrimSpace(e.draft.Name), "Untitled"), text); ok {
 					e.draft.Target = scriptFile(name)
 				}
 			}

@@ -15,6 +15,7 @@ import (
 
 	"github.com/baba983/vscroxy/internal/capture"
 	"github.com/baba983/vscroxy/internal/request"
+	"github.com/egoist/mygo/ui"
 )
 
 // A script saved on the Scripts page runs on the traffic a Script rule
@@ -98,6 +99,7 @@ func TestConfigExportImportRoundTrip(t *testing.T) {
 	a.addons.dir = filepath.Join(src, "tools", "addons")
 	a.loadScripts()
 	a.newScript(&a.scripts, "Auth", "export function onRequest() {}\n")
+	a.newScript(&a.scripts, "Mock", newMockScriptText)
 	a.newScript(&a.addons, "sign", "")
 	a.newProfile("Staging", "10.0.0.1 api.test\n", "")
 	a.ignoreText = "telemetry.test"
@@ -106,6 +108,7 @@ func TestConfigExportImportRoundTrip(t *testing.T) {
 		{Name: "User again", Type: capture.RuleMapLocal, Match: "/me", Target: mock, Status: 200, Scenario: "Demo"},
 		{Name: "Folder", Type: capture.RuleMapLocal, Match: "/static/", Target: src},
 		{Name: "Auth", Type: capture.RuleScript, Match: "api.test", Target: "Auth.js"},
+		{Name: "Dynamic", Type: capture.RuleCodeMock, Match: "/dynamic", Target: "Mock.js", Scenario: "Demo"},
 	}
 	if !a.applyRuleChanges(rules) {
 		t.Fatal(a.ruleUI.problem)
@@ -138,7 +141,8 @@ func TestConfigExportImportRoundTrip(t *testing.T) {
 	if err := c.importConfig(parsed, [3]bool{true, true, true}); err != nil {
 		t.Fatal(err)
 	}
-	if len(c.rules) != 4 || c.rules[0].Target != c.rules[1].Target || filepath.Dir(c.rules[0].Target) != c.mocksDir() || c.rules[2].Target != src {
+	if len(c.rules) != 5 || c.rules[0].Target != c.rules[1].Target || filepath.Dir(c.rules[0].Target) != c.mocksDir() || c.rules[2].Target != src ||
+		c.rules[4].Type != capture.RuleCodeMock || c.rules[4].Target != "Mock.js" || scriptHooks(&c.scripts, "Mock") != "onMock" {
 		t.Fatalf("rules = %+v", c.rules)
 	}
 	if body, _ := os.ReadFile(c.rules[0].Target); string(body) != `{"id":42}` {
@@ -239,4 +243,93 @@ func TestScriptProblemsAreMarked(t *testing.T) {
 	if _, ok := a.addons.sources()["half"]; ok {
 		t.Error("scripts can load an addon that does not convert")
 	}
+}
+
+func TestCodeMockEditorAndSavedRuleLifecycle(t *testing.T) {
+	dir := t.TempDir()
+	a := workspaceApp()
+	a.srv, a.rulesPath = requestProxy(t), filepath.Join(dir, "rules.json")
+	a.scripts.dir, a.addons.dir = filepath.Join(dir, "scripts"), filepath.Join(dir, "addons")
+	a.loadScripts()
+	a.openTools("mocks")
+	tt := ui.NewTester(a.toolsView, 960, 600)
+	for _, label := range []string{"New rule", "Rule type", "Code Mock"} {
+		if err := tt.Click(label); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, field := range [][2]string{{"Rule name", "API mock"}, {"Match URL", "/mock"}} {
+		if err := tt.Click(field[0]); err != nil {
+			t.Fatal(err)
+		}
+		tt.Type(field[1])
+	}
+	for _, label := range []string{"Rule script", "New script", "Save rule"} {
+		if err := tt.Click(label); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if len(a.rules) != 1 || a.rules[0].Type != capture.RuleCodeMock || a.rules[0].Target != "API mock.js" ||
+		a.scripts.texts["API mock"] != newMockScriptText || scriptHooks(&a.scripts, "API mock") != "onMock" {
+		t.Fatalf("saved Code Mock = %+v, scripts=%v", a.rules, a.scripts.texts)
+	}
+	for _, dark := range []bool{false, true} {
+		a.appearance = appearanceOf(dark)
+		for _, width := range []int{960, 1280} {
+			tt.SetSize(width, 600)
+			tt.Frame()
+			if !tt.HasText("Edit script") || !tt.HasText("Code Mock") || !tt.HasText("Save rule") {
+				t.Fatalf("mock editor missing controls at width=%d dark=%v: %v", width, dark, tt.Texts())
+			}
+		}
+	}
+	if err := tt.Click("Edit script"); err != nil {
+		t.Fatal(err)
+	}
+	if !tt.HasText("onMock") || !tt.HasText("Run by 1 rule") {
+		t.Fatalf("mock script editor = %v", tt.Texts())
+	}
+	if err := tt.Click("Script actions"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.Click("New Code Mock rule"); err != nil {
+		t.Fatal(err)
+	}
+	if a.toolsPage != "mocks" || a.ruleUI.draft.Target != "API mock.js" || a.ruleUI.kind != "Code Mock" {
+		t.Fatalf("script action did not create a code mock: %+v", a.ruleUI)
+	}
+	// The saved files, not the draft/old runtime, must survive reload.
+	a.scripts.parsed = nil
+	a.loadScripts()
+	loaded, err := capture.LoadRules(a.rulesPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a.rules = loaded
+	if err := a.srv.SetRules(loaded); err != nil {
+		t.Fatal(err)
+	}
+	send := func(want int, body string) {
+		t.Helper()
+		got, err := a.srv.Replay(t.Context(), capture.Flow{Method: "POST", URL: "http://127.0.0.1:1/mock", RequestBody: "input"})
+		if err != nil || got.Status != want || got.ResponseBody != body {
+			t.Fatalf("mock reply = %d %q, %v; console=%v", got.Status, got.ResponseBody, err, a.scripts.console)
+		}
+	}
+	send(200, `{"ok":true,"method":"POST","path":"/mock"}`)
+	a.renameScript(&a.scripts, "API mock", "Renamed")
+	if a.rules[0].Target != "Renamed.js" || a.ruleUI.draft.Target != "Renamed.js" {
+		t.Fatalf("rename lost a saved or draft reference: %+v, %+v", a.rules, a.ruleUI.draft)
+	}
+	send(200, `{"ok":true,"method":"POST","path":"/mock"}`)
+	if err := a.writeScript(&a.scripts, "Renamed", `export function onMock() { throw new Error("private diagnostic"); }`); err != nil {
+		t.Fatal(err)
+	}
+	send(502, "code mock: script failed; see Scripts Console\n")
+	if err := a.writeScript(&a.scripts, "Renamed", "export function onMock( {"); err != nil {
+		t.Fatal(err)
+	}
+	send(502, "code mock: script failed; see Scripts Console\n")
+	a.dropScript(&a.scripts, "Renamed")
+	send(502, "code mock: script failed; see Scripts Console\n")
 }

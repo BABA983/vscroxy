@@ -575,7 +575,7 @@ defines and how many rules run it; the chosen one is edited beside a
 to new requests. Each script is a file under `~/.vscroxy/tools/scripts/`
 (`Name.js`) that can be edited by hand or kept in Git; **Reload configuration**
 reads them again. A script that does not parse is marked in the list and the
-editor, and its rules do nothing.
+editor: Script rules skip it; Code Mock rules return a local 502.
 
 A rule script is an ES module: it exports its hooks and may `import` the
 built-in libraries and addons. vscroxy converts it with esbuild before running
@@ -625,6 +625,61 @@ export async function onResponse() {
   responses skip `onResponse`.
 - Each hook has two seconds of run time; one that fails or times out leaves the
   exchange as it was, is counted in the status bar and shows in the Console.
+
+### Code mocks
+
+**Tools → Mocks → New rule → Type: Code Mock** answers matching HTTP requests
+with JavaScript instead of contacting their original server. Choose a script,
+or choose **New script** for an `onMock` template, then **Edit script**. Save
+both the script and the rule. The script's actions also offer **New Code Mock
+rule**, and a capture's **Tools → Code Mock…** starts a rule for its URL.
+
+```js
+export function onMock() {
+  const input = pm.request.body.raw ? JSON.parse(pm.request.body.raw) : {};
+  const missing = pm.request.url.query.get("missing") === "1";
+  pm.response.code = missing ? 404 : 201;
+  pm.response.headers.upsert("Content-Type", "application/json");
+  pm.response.setBody(missing ? { error: "Not found" } : {
+    id: 42, name: input.name || "Ada", path: pm.request.url.getPath()
+  });
+}
+```
+
+- `onMock` starts with an empty 200 response. It reads a **read-only**
+  `pm.request` and builds `pm.response` with the same `code`, `headers` and
+  `setBody` API as response scripts. An `async` hook and local addons work.
+  Only `onMock` runs for a Code Mock rule; its `onRequest`/`onResponse` exports
+  do not. Normal matching Script rules still run before the response rules.
+- Code Mock shares first-match order with Map Local, Map Remote and Block.
+  It supports the same URL/method/app/header/scenario conditions. A local
+  answer skips upstream response scripts and response breakpoints, just like
+  Map Local. Disabled or inactive rules do not intercept requests.
+- Missing/broken scripts, exceptions, timeouts and invalid output return a
+  local **502**, never an upstream fallback. Exception details stay in the
+  Scripts Console, not in the client's response. `pm.sendRequest` is
+  unavailable in `onMock`, including from addons.
+- Input must be complete, uncompressed UTF-8 text of at most **1 MiB**;
+  oversized/streamed input returns **413**, binary/compressed input **415**.
+  Generated bodies are at most **1 MiB**, headers **64 KiB**, status **200–599**.
+  Connection/framing and Content-Encoding headers are removed, length is
+  recalculated, and HEAD/204/205/304 responses send no body. The existing
+  two-second script execution budget applies; this is not a memory sandbox.
+- HTTPS needs inspection enabled for that app/host and the client to trust
+  vscroxy's CA. A potentially matching Code Mock host uses a generated
+  certificate **without first connecting upstream**; unmatched requests dial
+  upstream on demand. Such connections negotiate HTTP/1.1. Bypassed tunnels
+  and WebSockets are not code-mocked.
+- Scripts live in `tools/scripts/*.js`; rules, scenarios, renames, reload and
+  configuration export/import use existing storage. Environment variables
+  are read-only; globals retain the existing saved-write behavior. Each
+  exchange has a fresh JS runtime, not a persistent in-memory mock server.
+
+This is vscroxy's native proxy-rule API, **not** Postman's Node.js mock-server
+runtime or its `pm.mock.matchRequest`/`sendExample`, `pm.state` or datasets APIs.
+For static saved responses, continue using Examples and Map Local.
+
+### Addons
 
 **Addons** are your own modules for request and rule scripts. **Tools →
 Scripts → Addons** edits them; each is a file under `~/.vscroxy/tools/addons/`
