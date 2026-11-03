@@ -212,6 +212,8 @@ func (a *app) controlValue(command control.Command) (any, error) {
 		return a.controlHAR(command)
 	case "system-proxy.get", "system-proxy.set-enabled":
 		return a.controlSystemProxy(command)
+	case "collection-recording.get", "collection-recording.start", "collection-recording.stop":
+		return a.controlCollectionRecording(command)
 	case "capture.recording":
 		p, err := controlParams[struct {
 			Enabled *bool `json:"enabled"`
@@ -221,6 +223,9 @@ func (a *app) controlValue(command control.Command) (any, error) {
 			return nil, errors.New("enabled and confirm:true are required")
 		}
 		a.recordingPaused = !*p.Enabled
+		if a.recordingPaused {
+			a.stopCollectionRecording("Capture was paused; start collection recording again after resuming")
+		}
 		return map[string]bool{"recording": *p.Enabled}, nil
 	case "rules.set-enabled":
 		p, err := controlParams[struct {

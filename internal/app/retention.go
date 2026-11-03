@@ -125,8 +125,6 @@ func (a *app) trimFlows() (from, past int) {
 	a.views.rows = len(a.visible)
 	a.restoreSelection()
 	a.listCounts()
-	if a.srv != nil {
-		a.srv.Discard(files)
-	}
+	a.discardCaptureFiles(files)
 	return from, past
 }

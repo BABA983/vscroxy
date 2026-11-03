@@ -136,6 +136,9 @@ mutation on transport timeout: its outcome may be unknown.
 | `runs.get` | Job `id`; returns `done` and a redacted report |
 | `runs.cancel` | Job `id`; cancellation cannot undo completed external effects |
 | `capture.recording` | Required boolean `enabled`; forwarding remains on |
+| `collection-recording.get` | Recording configuration, active/busy state, added/updated/skipped/discarded counts and controlled problem |
+| `collection-recording.start` | Required `collection` and existing `environment`; optional exact `hosts` and `apps` lists (up to 32 each) |
+| `collection-recording.stop` | Stop accepting traffic and discard queued/in-flight conversions; already saved requests remain |
 | `rules.set-enabled` | Required `index`, current `key` and boolean `enabled`; persists through the existing rules store |
 | `rules.import` | Required `document` string containing a native JSON array of 1–100 rules; append-only, all-or-nothing |
 
@@ -162,6 +165,65 @@ discloses raw saved requests or live raw headers/URL and binary-safe base64 body
 previews (at most 64 KiB per side). Previews never open spill files and report
 truncation; they are not a full response download. Session tabs are not queried.
 The API deliberately has no arbitrary filesystem action.
+
+### Record live traffic into a collection
+
+Collection recording is separate from the capture Record/Pause switch. It is
+off at launch and never resumes automatically. Start with a nonempty collection
+name (new or existing) and an **existing** environment for generated variables:
+
+```sh copy Copy Collection Recording
+bin/vscroxy-cli control --file "$HOME/.vscroxy/control.json" \
+  --params '{"collection":"Recorded API","environment":"Local","hosts":["api.example.com"],"apps":["Browser"]}' \
+  --confirm collection-recording.start
+bin/vscroxy-cli control --file "$HOME/.vscroxy/control.json" collection-recording.get
+bin/vscroxy-cli control --file "$HOME/.vscroxy/control.json" \
+  --confirm collection-recording.stop
+```
+
+Only subsequently completed ambient HTTP traffic is eligible. Host filters are
+case-insensitive exact hostnames (any port) or host:port values; App filters are
+exact labels from the desktop sidebar. Entries within a list are OR; the host
+and App lists intersect. Empty/omitted lists mean all. Static resources,
+CONNECT, streams, network failures, editor/Runner sends and replays are excluded.
+Table search, view filters and importing sessions do not affect this scope.
+
+Endpoints group by origin, method and path template, inferring whole numeric or
+UUID segments, not arbitrary slugs. New requests are organized by path prefix,
+with stable namespaced host/path variables in the selected environment. Existing
+variables are never overwritten; the active environment is not switched.
+Authorization, Cookie, X-API-Key and API-Key headers become local **Current**
+references, including in Examples; response Set-Cookie is removed. Current values
+are plaintext local storage, excluded from environment exports, not Vault
+encryption. Other headers, URL queries and request/response bodies may still
+contain secrets: review recorded collections before sharing them.
+
+Repeated endpoints preserve the authored request and update only the recorder's
+own Example: latest success (2xx) and one per other HTTP status. Manual Examples
+and unsaved request edits are retained. Ambiguous matches stop recording rather
+than choose an arbitrary saved request. Deleted/moved recording targets also
+stop the session. Subsequent captures never change the initial request's path
+variable values or its authored payload/scripts/auth.
+
+Only complete UTF-8 bodies fitting the text-request/Example contract are saved,
+not previews or warning messages. Spill reads are bounded to 5 MiB per side;
+queued captures are limited to 1 MiB of in-memory payload/metadata each, with
+32 queued captures and one conversion worker. Accepted spills stay owned until
+conversion/discard even if table retention evicts their rows. Ineligible or
+unavailable bodies increment `skipped`. Recorder-queue overload, upstream capture
+loss or guarded-save conflicts **stop** the recorder with a controlled `problem`;
+resolve the cause before explicitly starting again.
+Variables save before their requests; a later library write failure can leave
+unused local variables, never a request referencing unsaved credentials.
+
+Stop is a write barrier, **not a flush**: queued/in-flight conversions are counted
+as `discarded`. `busy` may remain true until an outstanding read returns; a new
+session cannot start before it finishes, and its result cannot write after Stop.
+Pausing capture or quitting also stops collection recording; resuming capture
+does not implicitly restart it. Already saved collection assets survive Quit.
+Opening the target environment editor stops recording before its draft snapshot;
+close that editor before starting again. Concurrent variable changes or deletions
+reject publication rather than overwriting an authored shared/Current value.
 
 ### Control the system proxy
 

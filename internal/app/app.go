@@ -229,10 +229,11 @@ type app struct {
 	// traffic; unrecorded holds what it let pass, so their messages are not
 	// kept either. rate counts what was kept, and lastFlow is when capture
 	// last delivered anything, for the curve's clock.
-	recordingPaused bool
-	unrecorded      map[int]bool
-	rate            rateWindow
-	lastFlow        atomic.Int64
+	recordingPaused     bool
+	unrecorded          map[int]bool
+	rate                rateWindow
+	lastFlow            atomic.Int64
+	collectionRecording *collectionRecording
 
 	srv         *capture.Server
 	win         *mygo.Window
@@ -926,6 +927,12 @@ func (a *app) drain() {
 			a.bpTemplate, a.bpSaving, a.bpNote = "", false, ""
 		}
 	}
+	if a.recordingPaused {
+		a.stopCollectionRecording("Capture was paused; start collection recording again after resuming")
+	}
+	if s := a.collectionRecording; s != nil && s.Active && a.srv.Dropped() != s.dropped {
+		a.stopCollectionRecording("Capture dropped traffic; reduce load and start recording again")
+	}
 	if pending = a.record(pending); len(pending) == 0 {
 		return
 	}
@@ -1036,6 +1043,7 @@ func (a *app) drain() {
 	for i := start; i < len(a.flows); i++ {
 		a.count(&a.flows[i], 1)
 	}
+	a.recordCollection(a.flows[start:])
 	end := len(a.flows)
 	from, past := a.trimFlows()
 	var arrived []int
@@ -2314,6 +2322,7 @@ func Run() error {
 	}
 	defer a.closeControl()
 	mygo.App.OnQuit(a.closeControl)
+	mygo.App.OnQuit(func() { a.stopCollectionRecording("") })
 	cleanupProxy := func() {
 		if err := a.systemProxy.close(); err != nil {
 			slog.Error("release system proxy", "err", err)
@@ -2602,6 +2611,9 @@ func (a *app) openVars() {
 }
 
 func (a *app) editEnvironment(name string) {
+	if s := a.collectionRecording; s != nil && s.Active && s.Environment == name {
+		a.stopCollectionRecording("Recording stopped before opening its environment editor; restart after saving your edits")
+	}
 	a.varsGlobals = false
 	a.varsName, a.varsChoice, a.varsProblem = name, name, ""
 	a.varsRows, a.varsCurrent = nil, nil
@@ -2755,6 +2767,10 @@ func (a *app) saveVars() {
 	name := strings.TrimSpace(a.varsName)
 	if name == "" && !a.varsGlobals {
 		a.varsProblem = "The environment needs a name."
+		return
+	}
+	if s := a.collectionRecording; s != nil && !a.varsGlobals && name == s.Environment && a.varsChoice != name {
+		a.varsProblem = "Select the recording environment before editing it; this draft does not include its recorded variables."
 		return
 	}
 	vars := map[string]string{}
