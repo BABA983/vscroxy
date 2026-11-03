@@ -39,6 +39,56 @@ control of a running desktop.
 For external AI tools, build `go build -o bin/vscroxy-mcp ./cmd/vscroxy-mcp` and
 use the [MCP stdio configuration](docs/automation.md#mcp-stdio-server).
 
+### Headless load runs
+
+```sh
+vscroxy-cli load --folder Shop --env ./env.json --environment local \
+  --users 4 --duration 30s --report-json ./reports/load.json ./collections
+vscroxy-cli load --var base=http://127.0.0.1:8080 ./postman.json
+```
+
+Only run collections against systems you are authorized to load-test. Flags
+precede the native collections root or Postman collection JSON input:
+
+| Flag | Default / scope |
+| --- | --- |
+| `--folder` | All requests; select a collection/folder path including children |
+| `--env` | No environment; explicitly read native `env.json` or Postman environment/globals |
+| `--environment` | The environment file's active environment |
+| `--var KEY=VALUE` | Repeatable environment overrides; prefer `--env` for secrets |
+| `--users` | `1`, bounded to 1–64 |
+| `--duration` | `30s`, bounded to 1s–10m |
+| `--request-timeout` | `30s`, positive and at most 1m |
+| `--max-attempts` | `100000` total across all users, bounded to 1–1000000 |
+| `--bail` | `false`; stop all users after a failed attempt |
+| `--report-json` | Optional private aggregate JSON destination outside all inputs |
+
+This is a **closed workload**, not a target arrival rate: each user repeats the
+same 1–200 selected HTTP(S) steps, following script branches, until duration or an
+explicit `pm.execution.setNextRequest(null)` stop. Each user keeps independent
+cookies, OAuth tokens and script state between loops. The CLI uses an isolated
+temporary proxy and CA, never reads the desktop profile, and never persists
+script writes or mutates inputs. Collection scripts, auth and requests still
+make their authored network calls; no desktop rules or hooks are inherited.
+There is no iteration data, individual request/response logging, JUnit or
+raw-detail report mode. Reports cannot alias inputs, including symlinks or hard
+links. Reports replace atomically with mode 0600 (new directories 0700).
+
+The final summary reports completed, failed, skipped and load-interrupted
+attempts, completed attempts per elapsed second, and execution latency P50/P95/P99.
+Failures are a subset of completed attempts. Latency includes scripts, auth,
+network and checks for completed attempts, including failures; skips and load
+interruptions are excluded. JSON contains only aggregate metrics, saved request
+IDs and a controlled stop reason. Response counts/bytes describe the primary
+response, not redirects, OAuth or `pm.sendRequest` traffic. This measures the
+whole execution, **not server-only latency**.
+
+Exit codes: `0` normal duration or explicit stop without failures; `1` failed
+attempts; `2` setup/output errors, attempt-budget exhaustion or execution errors;
+`124` parent deadline; `130` cancellation (including Ctrl-C). A requested JSON
+report includes partial metrics on cancellation/deadline; output errors take
+precedence and return `2`.
+
 ## Source layout
 
 - `cmd/vscroxy/` is the executable entry point, including proxy-guard mode.
