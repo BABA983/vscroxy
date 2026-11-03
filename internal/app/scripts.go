@@ -68,13 +68,13 @@ type scriptStore struct {
 func scriptFile(name string) string { return name + ".js" }
 
 // Hooks implements capture.ScriptRunner.
-func (s *scriptStore) Hooks(file string) (bool, bool) {
+func (s *scriptStore) Hooks(file string) (bool, bool, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	if p := s.parsed[file]; p != nil {
-		return p.OnRequest, p.OnResponse
+		return p.OnRequest, p.OnResponse, p.OnMessage
 	}
-	return false, false
+	return false, false, false
 }
 
 // Run implements capture.ScriptRunner.
@@ -289,6 +289,12 @@ export function onRequest() {
 // Change pm.response before the client gets it:
 export function onResponse() {
   // if (pm.response.code === 500) pm.response.code = 200;
+}
+
+// Complete WebSocket data messages (not HTTP or control frames):
+export function onMessage(message) {
+  // if (message.direction === "out" && message.type === "text") message.setText(message.text());
+  // Binary bytes: message.base64() / message.setBase64("/wA="). Drop just this message: message.drop().
 }
 `
 
@@ -664,6 +670,9 @@ func scriptHooks(s *scriptStore, name string) string {
 		}
 		if p.OnMock {
 			hooks = append(hooks, "onMock")
+		}
+		if p.OnMessage {
+			hooks = append(hooks, "onMessage")
 		}
 	}
 	return cmp.Or(strings.Join(hooks, " · "), "No hooks")

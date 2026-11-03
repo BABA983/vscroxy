@@ -386,6 +386,25 @@ func TestPreviewRulesFollowsTheProxysOrder(t *testing.T) {
 	if got := steps(p); !slices.Equal(got, []int{0, 0, 0, 0, 0, 1}) || p[3].Reason != "does not act on WebSockets" || p[1].Reason != "does not act on WebSockets" {
 		t.Fatalf("WebSocket: %+v", p)
 	}
+	// Message hooks match the mapped URL; breakpoints win separately per
+	// direction, even when the Map Remote rule is listed after them.
+	wsRules := []capture.Rule{
+		{Type: capture.RuleScript, Match: "remote.test/v2/item", Target: "message.js"},
+		{Type: capture.RuleBreakMessage, Match: "remote.test/v2/item", Direction: "out"},
+		{Type: capture.RuleBreakMessage, Match: "remote.test/v2/item"},
+		{Type: capture.RuleBreakMessage, Match: "remote.test/v2/item", Direction: "in"},
+		{Type: capture.RuleBreak, Match: "/item"},
+		{Type: capture.RuleMapRemote, Match: "example.com/item", Target: "https://remote.test/v2"},
+		{Type: capture.RuleScript, Match: "example.com/item", Target: "original.js"},
+	}
+	p = capture.PreviewRules(wsRules, previewRequest("GET", "wss://example.com/item"), true)
+	if got := steps(p); !slices.Equal(got, []int{2, 3, 4, 0, 0, 1, 0}) || p[3].Reason == "" || p[6].Reason != "URL does not match" {
+		t.Fatalf("WebSocket message stages: %+v", p)
+	}
+	wsRules[1].Direction = "sideways"
+	if err := capture.ValidateRules(wsRules); err == nil {
+		t.Fatal("invalid message direction accepted")
+	}
 }
 
 func previewRequest(method, raw string) rules.Request {

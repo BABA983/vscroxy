@@ -396,9 +396,19 @@ func runScriptContext(ctx context.Context, src string, run *scriptRun, objects m
 		return err
 	}
 	// Postman runs a script as an async function body, so top-level await
-	// works. The wrapper shares the first line so error lines stay true.
+	// works. The wrapper shares the first line so error lines stay true. A
+	// proxy message is passed privately, never installed on pm or the global.
 	file := cmp.Or(run.file, cmp.Or(run.phase, "request")+".js")
-	result, err := vm.RunScript(file, "(async function () {"+src+"\n})()\n"+run.sourceMap)
+	function, err := vm.RunScript(file, "(async function (__proxyMessage) {"+src+"\n})\n"+run.sourceMap)
+	if err != nil {
+		return err
+	}
+	execute, _ := goja.AssertFunction(function)
+	argument := host.Get("message")
+	if argument == nil {
+		argument = goja.Undefined()
+	}
+	result, err := execute(goja.Undefined(), argument)
 	if err != nil {
 		return err
 	}
@@ -471,7 +481,7 @@ func (run *scriptRun) host(ctx context.Context, vm *goja.Runtime, clock *budget,
 	switch {
 	case strings.HasPrefix(run.phase, "pre-request"):
 		event = "prerequest"
-	case run.phase == "request" || run.phase == "response": // a rule script's hook
+	case run.phase == "request" || run.phase == "response" || run.phase == "message": // a rule script's hook
 		event = run.phase
 	}
 	info := run.info
@@ -654,7 +664,7 @@ func (run *scriptRun) host(ctx context.Context, vm *goja.Runtime, clock *budget,
 	if req, ok := objects["req"].(*Prepared); ok {
 		fields := map[string]*string{"method": &req.Method, "url": &req.URL, "body": &req.Body}
 		set("request", map[string]any{
-			"readOnly": run.phase == "mock",
+			"readOnly": run.phase == "mock" || run.phase == "message",
 			"get":      func(field string) string { return *fields[field] },
 			"set": func(field, value string) {
 				*fields[field] = value
@@ -670,6 +680,9 @@ func (run *scriptRun) host(ctx context.Context, vm *goja.Runtime, clock *budget,
 	}
 	if res, ok := objects["res"].(*jsResponse); ok {
 		set("response", responseObject(vm, res, pairs))
+	}
+	if message, ok := objects["message"].(*capture.ScriptMessage); ok {
+		set("message", messageObject(vm, message))
 	}
 	return h, nil
 }

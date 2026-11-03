@@ -17,7 +17,7 @@ import (
 type ScriptRunner interface {
 	// Hooks says which hooks the named script defines: neither when it is
 	// missing or does not parse.
-	Hooks(script string) (onRequest, onResponse bool)
+	Hooks(script string) (onRequest, onResponse, onMessage bool)
 	// Run runs the hook of x's phase on x, which it edits in place.
 	Run(ctx context.Context, script string, x *ScriptExchange) error
 }
@@ -28,7 +28,7 @@ type ScriptRunner interface {
 // than 1 MiB, is left out and stays as it is: Binary says so. In the mock
 // phase the request is read-only and the script generates the response.
 type ScriptExchange struct {
-	Phase string // "request", "response" or "mock"
+	Phase string // "request", "response", "mock" or "message"
 	Rule  string // the rule's name, or its script's
 	App   string
 
@@ -41,9 +41,19 @@ type ScriptExchange struct {
 	Response     http.Header
 	ResponseBody []byte
 	BinaryResult bool
+	Message      *ScriptMessage
 	// Locals are pm.variables, which the scripts of one exchange share from
 	// its request to its response.
 	Locals map[string]string
+}
+
+// ScriptMessage is one complete WebSocket data message. Edits apply only when
+// the hook succeeds. Locals on its exchange are shared for this connection.
+type ScriptMessage struct {
+	Type      string // "text" or "binary"
+	Direction string // "out" client to server, "in" server to client
+	Data      []byte
+	Drop      bool
 }
 
 // CheckScriptName says what is wrong with a script's name, which names its
@@ -101,7 +111,7 @@ func (s *Server) runRequestScripts(f *proxy.Flow) {
 		if !r.matches(req) {
 			continue
 		}
-		onRequest, onResponse := runner.Hooks(r.Target)
+		onRequest, onResponse, _ := runner.Hooks(r.Target)
 		if !onRequest && !onResponse {
 			continue
 		}

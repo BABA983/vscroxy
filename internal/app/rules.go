@@ -49,9 +49,9 @@ type ruleEditor struct {
 	list               ui.ListState
 }
 
-var ruleTypes = []capture.RuleType{capture.RuleMapLocal, capture.RuleMapRemote, capture.RuleBlock, capture.RuleScript, capture.RuleCodeMock, capture.RuleBreak, capture.RuleBreakResponse}
-var ruleLabels = []string{"Map Local", "Map Remote", "Block", "Script", "Code Mock", "Request breakpoint", "Response breakpoint"}
-var ruleIcons = []*ui.SVG{fileInputIcon, lucide.ArrowRightLeft(), lucide.Ban(), scriptsIcon, scriptsIcon, breakIcon, breakIcon}
+var ruleTypes = []capture.RuleType{capture.RuleMapLocal, capture.RuleMapRemote, capture.RuleBlock, capture.RuleScript, capture.RuleCodeMock, capture.RuleBreak, capture.RuleBreakResponse, capture.RuleBreakMessage}
+var ruleLabels = []string{"Map Local", "Map Remote", "Block", "Script", "Code Mock", "Request breakpoint", "Response breakpoint", "WebSocket message breakpoint"}
+var ruleIcons = []*ui.SVG{fileInputIcon, lucide.ArrowRightLeft(), lucide.Ban(), scriptsIcon, scriptsIcon, breakIcon, breakIcon, breakIcon}
 var hideIcon = lucide.EyeOff()
 var rulesIcon = lucide.SlidersHorizontal()
 
@@ -203,8 +203,11 @@ func (a *app) saveRule() {
 	}
 	r.Target = strings.TrimSpace(r.Target)
 	r.Scenario = strings.TrimSpace(r.Scenario)
-	if r.Type == capture.RuleBreak || r.Type == capture.RuleBreakResponse {
+	if r.Type == capture.RuleBreak || r.Type == capture.RuleBreakResponse || r.Type == capture.RuleBreakMessage {
 		r.Scenario = ""
+	}
+	if r.Type != capture.RuleBreakMessage {
+		r.Direction = ""
 	}
 	// Joining an active group inherits its group state, never its Disabled flags.
 	r.ScenarioActive = r.Scenario != "" && r.Scenario == capture.ActiveScenario(a.rules)
@@ -619,7 +622,7 @@ func ordinal(n int) string {
 // ruleDetail edits the chosen rule: what it matches, what it does, Save.
 func (a *app) ruleDetail(c *ui.Context, t *ui.Theme) {
 	e := &a.ruleUI
-	breakpoint := e.kind == "Request breakpoint" || e.kind == "Response breakpoint"
+	breakpoint := e.kind == "Request breakpoint" || e.kind == "Response breakpoint" || e.kind == "WebSocket message breakpoint"
 	ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 		uikit.Input(c, &e.draft.Name).Label("Rule name").Placeholder(cmp.Or(e.draft.Match, "Untitled rule")).Grow(1).MaxWidth(360).FontSize(uikit.TextTitle).Height(uikit.HeightLarge)
 		on := !e.draft.Disabled
@@ -727,10 +730,18 @@ func (a *app) ruleDetail(c *ui.Context, t *ui.Theme) {
 				}).Description(blockHelp[max(slices.Index(capture.BlockActions, e.draft.Block), 0)])
 			case "Script":
 				ui.Field(c, "Script", func() { a.ruleScriptField(c, t) }).
-					Description("Its onRequest edits the request before it goes upstream, its onResponse the response before the client gets it. Every matching Script rule runs, in order, before the other rules.")
+					Description("onRequest / onResponse edit HTTP; onMessage(message) edits or drops WebSocket data messages. Matching hooks run in rule order before their breakpoints. WSS requires inspection.")
 			case "Code Mock":
 				ui.Field(c, "Script", func() { a.ruleScriptField(c, t) }).
 					Description("onMock reads pm.request and builds pm.response locally. First matching response rule wins; errors return 502, never upstream. Text bodies up to 1 MiB; HTTPS requires inspection.")
+			case "WebSocket message breakpoint":
+				ui.Field(c, "Direction", func() {
+					labels := []string{"Both", "Server → client", "Client → server"}
+					values := []string{"", "in", "out"}
+					choice := max(0, slices.Index(values, e.draft.Direction))
+					uikit.Segmented(c, &choice, labels...).Label("WebSocket breakpoint direction")
+					e.draft.Direction = values[choice]
+				}).Description("While Breakpoints is on, edit text or binary base64, continue original, or drop only this message. WSS requires inspection; handshakes and control frames are not paused.")
 			default:
 				ui.Field(c, "Pauses", func() { uikit.Body(c, "While Breakpoints is on") }).
 					Description("Continue or abort in the breakpoint dialog.")

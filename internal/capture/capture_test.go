@@ -7,6 +7,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
@@ -1296,16 +1297,19 @@ func TestBreakpointDurationExcludesPause(t *testing.T) {
 }
 
 // fakeScripts runs Go functions as the scripts Script rules name.
-type fakeScripts map[string][2]func(x *ScriptExchange) error
+type fakeScripts map[string][3]func(x *ScriptExchange) error
 
-func (f fakeScripts) Hooks(script string) (bool, bool) {
-	return f[script][0] != nil, f[script][1] != nil
+func (f fakeScripts) Hooks(script string) (bool, bool, bool) {
+	return f[script][0] != nil, f[script][1] != nil, f[script][2] != nil
 }
 
 func (f fakeScripts) Run(_ context.Context, script string, x *ScriptExchange) error {
 	hook := f[script][0]
 	if x.Phase == "response" {
 		hook = f[script][1]
+	}
+	if x.Phase == "message" {
+		hook = f[script][2]
 	}
 	return hook(x)
 }
@@ -1685,6 +1689,183 @@ func TestWebSocketFrames(t *testing.T) {
 		t.Fatalf("second frame = %+v", in)
 	}
 	waitStreamEnd(t, s, f.ID, 2)
+}
+
+func waitMessageBreakpoint(t *testing.T, s *Server) Breakpoint {
+	t.Helper()
+	select {
+	case bp := <-s.Breakpoints():
+		if bp.Phase != PhaseMessage {
+			t.Fatalf("not a message pause: %+v", bp)
+		}
+		return bp
+	case <-time.After(10 * time.Second):
+		t.Fatal("message did not pause")
+		return Breakpoint{}
+	}
+}
+
+func TestWebSocketMessageBreakpoints(t *testing.T) {
+	for _, secure := range []bool{false, true} {
+		t.Run(fmt.Sprintf("TLS=%t", secure), func(t *testing.T) {
+			u := websocket.Upgrader{}
+			upstream := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				c, err := u.Upgrade(w, r, nil)
+				if err != nil {
+					return
+				}
+				defer c.Close()
+				for {
+					kind, data, err := c.ReadMessage()
+					if err != nil {
+						return
+					}
+					if c.WriteMessage(kind, data) != nil {
+						return
+					}
+				}
+			}))
+			if secure {
+				upstream.StartTLS()
+			} else {
+				upstream.Start()
+			}
+			defer upstream.Close()
+			s, ca := startServer(t)
+			s.SetSSL(SSLConfig{All: true})
+			if err := s.SetRules([]Rule{{Type: RuleBreakMessage, Match: "/socket"}}); err != nil {
+				t.Fatal(err)
+			}
+			s.SetBreak(true)
+			var c *websocket.Conn
+			if secure {
+				u, _ := url.Parse(upstream.URL)
+				c = dialWSS(t, s, ca, "localhost:"+u.Port(), "/socket")
+			} else {
+				c = dialWS(t, s, "ws"+strings.TrimPrefix(upstream.URL, "http")+"/socket")
+			}
+			c.SetReadDeadline(time.Now().Add(10 * time.Second))
+			resume := func(direction, kind, body string, d Decision) {
+				t.Helper()
+				bp := waitMessageBreakpoint(t, s)
+				if bp.Direction != direction || bp.MessageType != kind || bp.Body != body || bp.BodyReadOnly {
+					t.Fatalf("wrong current message: %+v", bp)
+				}
+				if !s.Resume(bp.ID, d) {
+					t.Fatal("pause expired")
+				}
+			}
+			read := func(kind int, want []byte) {
+				t.Helper()
+				k, got, err := c.ReadMessage()
+				if err != nil || k != kind || !bytes.Equal(got, want) {
+					t.Fatalf("got %d %x %v, want %d %x", k, got, err, kind, want)
+				}
+			}
+			if err := c.WriteMessage(websocket.TextMessage, []byte("original")); err != nil {
+				t.Fatal(err)
+			}
+			resume("out", "text", "original", Decision{Body: "edited-out"})
+			resume("in", "text", "edited-out", Decision{Body: "edited-in"})
+			read(websocket.TextMessage, []byte("edited-in"))
+			original, edited := []byte{255, 0, 115, 195, 40}, []byte{0, 254, 128, 1}
+			if err := c.WriteMessage(websocket.BinaryMessage, original); err != nil {
+				t.Fatal(err)
+			}
+			resume("out", "binary", base64.StdEncoding.EncodeToString(original), Decision{Body: base64.StdEncoding.EncodeToString(edited)})
+			resume("in", "binary", base64.StdEncoding.EncodeToString(edited), Decision{Original: true, Body: "invalid ignored edit"})
+			read(websocket.BinaryMessage, edited)
+			c.WriteMessage(websocket.TextMessage, []byte("drop-only-this"))
+			resume("out", "text", "drop-only-this", Decision{Abort: true})
+			// A following round trip is a barrier proving the dropped message
+			// was not forwarded, without timing an absence on the wire.
+			s.SetBreak(false)
+			c.WriteMessage(websocket.TextMessage, []byte("still-open"))
+			read(websocket.TextMessage, []byte("still-open"))
+			c.Close()
+			f := waitFlow(t, s)
+			for i, want := range []string{"edited-out", "edited-in", string(edited), string(edited), "drop-only-this", "still-open", "still-open"} {
+				fr := waitFrame(t, s).Frame
+				if fr.Seq != i+1 || fr.Data != want || (i == 4) != (fr.Kind == "dropped text") {
+					t.Fatalf("frame %d: %+v", i, fr)
+				}
+			}
+			waitStreamEnd(t, s, f.ID, 7)
+		})
+	}
+}
+
+func TestWebSocketDuplexPausesRelease(t *testing.T) {
+	for _, finish := range []string{"client close", "server close", "proxy shutdown", "breakpoints off"} {
+		t.Run(finish, func(t *testing.T) {
+			stop := make(chan struct{})
+			received := make(chan string, 1)
+			u := websocket.Upgrader{}
+			upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				c, err := u.Upgrade(w, r, nil)
+				if err != nil {
+					return
+				}
+				defer c.Close()
+				go func() { <-stop; c.Close() }()
+				c.WriteMessage(websocket.TextMessage, []byte("server-push"))
+				_, data, err := c.ReadMessage()
+				if err == nil {
+					received <- string(data)
+				}
+				<-stop
+			}))
+			defer upstream.Close()
+			defer close(stop)
+			s, _ := startServer(t)
+			s.SetSSL(SSLConfig{All: true})
+			if err := s.SetRules([]Rule{{Type: RuleBreakMessage, Match: "/socket"}}); err != nil {
+				t.Fatal(err)
+			}
+			s.SetBreak(true)
+			c := dialWS(t, s, "ws"+strings.TrimPrefix(upstream.URL, "http")+"/socket")
+			c.WriteMessage(websocket.TextMessage, []byte("client-send"))
+			one, two := waitMessageBreakpoint(t, s), waitMessageBreakpoint(t, s)
+			if one.Direction == two.Direction {
+				t.Fatal("duplex messages confused")
+			}
+			switch finish {
+			case "client close":
+				c.Close()
+			case "server close":
+				stop <- struct{}{}
+			case "proxy shutdown":
+				if err := s.Close(); err != nil {
+					t.Fatal(err)
+				}
+			case "breakpoints off":
+				s.SetBreak(false)
+				c.SetReadDeadline(time.Now().Add(10 * time.Second))
+				_, data, err := c.ReadMessage()
+				if err != nil || string(data) != "server-push" {
+					t.Fatalf("original push: %q %v", data, err)
+				}
+				select {
+				case data := <-received:
+					if data != "client-send" {
+						t.Fatal(data)
+					}
+				case <-time.After(10 * time.Second):
+					t.Fatal("original send not released")
+				}
+			}
+			for _, bp := range []Breakpoint{one, two} {
+				select {
+				case <-bp.Done:
+				case <-time.After(10 * time.Second):
+					t.Fatal("pause survived connection lifetime")
+				}
+				if s.Resume(bp.ID, Decision{Abort: true}) {
+					t.Fatal("expired pause accepted decision")
+				}
+			}
+		})
+	}
 }
 
 func TestSSEEvents(t *testing.T) {

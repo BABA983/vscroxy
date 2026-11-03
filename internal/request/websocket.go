@@ -48,6 +48,9 @@ func wsSend(ctx context.Context, proxyAddr string, req *Prepared, ca []byte, jar
 	defer stop()
 	conn.SetReadLimit(1 << 20)
 	if err := conn.WriteMessage(websocket.TextMessage, []byte(req.Body)); err != nil {
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
 		return nil, err
 	}
 	var replies []string
@@ -103,6 +106,9 @@ func DialWebSocket(ctx context.Context, proxyAddr string, req *Prepared, ca []by
 	}
 	conn, resp, err := dialer.DialContext(ctx, req.URL, header)
 	if err != nil {
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
 		if resp != nil {
 			return nil, fmt.Errorf("%s: %w", resp.Status, err)
 		}

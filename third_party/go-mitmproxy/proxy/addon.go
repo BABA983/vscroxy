@@ -1,6 +1,7 @@
 package proxy
 
 import (
+	"context"
 	"io"
 	"net/http"
 	"time"
@@ -46,7 +47,10 @@ type Addon interface {
 	AccessProxyServer(req *http.Request, res http.ResponseWriter)
 
 	WebSocketStart(*Flow)
-	WebSocketMessage(*Flow)
+	// The current complete data message is owned by this callback chain.
+	// Forwarding consumes its edited type/content/drop decision. The context
+	// ends with the connection; history is not a current-message API.
+	WebSocketMessage(context.Context, *Flow, *WebSocketMessage)
 	WebSocketEnd(*Flow)
 
 	// Server-Sent Events hooks
@@ -80,11 +84,11 @@ func (addon *BaseAddon) StreamRequestModifier(f *Flow, in io.Reader) io.Reader  
 func (addon *BaseAddon) StreamResponseModifier(f *Flow, in io.Reader) io.Reader       { return in }
 func (addon *BaseAddon) AccessProxyServer(req *http.Request, res http.ResponseWriter) {}
 func (addon *BaseAddon) WebSocketStart(*Flow)                                         {}
-func (addon *BaseAddon) WebSocketMessage(*Flow)                                       {}
+func (addon *BaseAddon) WebSocketMessage(context.Context, *Flow, *WebSocketMessage)   {}
 func (addon *BaseAddon) WebSocketEnd(*Flow)                                           {}
-func (addon *BaseAddon) SSEStart(*Flow)    {}
-func (addon *BaseAddon) SSEMessage(*Flow)  {}
-func (addon *BaseAddon) SSEEnd(*Flow)      {}
+func (addon *BaseAddon) SSEStart(*Flow)                                               {}
+func (addon *BaseAddon) SSEMessage(*Flow)                                             {}
+func (addon *BaseAddon) SSEEnd(*Flow)                                                 {}
 func (addon *BaseAddon) RequestError(*Flow, error)                                    {}
 func (addon *BaseAddon) HTTPConnectError(*Flow, error)                                {}
 
@@ -146,8 +150,7 @@ func (addon *LogAddon) WebSocketStart(f *Flow) {
 }
 
 // WebSocketMessage 记录 WebSocket 消息
-func (addon *LogAddon) WebSocketMessage(f *Flow) {
-	lastMsg := f.WebSocket.Messages[len(f.WebSocket.Messages)-1]
+func (addon *LogAddon) WebSocketMessage(_ context.Context, f *Flow, lastMsg *WebSocketMessage) {
 	direction := "C->S"
 	if !lastMsg.FromClient {
 		direction = "S->C"
@@ -220,7 +223,6 @@ func (addon *LogAddon) SSEEnd(f *Flow) {
 		eventCount,
 		time.Since(f.StartTime).Milliseconds())
 }
-
 
 type UpstreamCertAddon struct {
 	BaseAddon

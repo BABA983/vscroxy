@@ -197,6 +197,7 @@ type WebSocketMessage struct {
 	Content    []byte
 	FromClient bool
 	Timestamp  time.Time
+	Drop       bool
 }
 
 func (m *WebSocketMessage) MarshalJSON() ([]byte, error) {
@@ -235,8 +236,7 @@ func newWebSocketData() *WebSocketData {
 	}
 }
 
-func (wsData *WebSocketData) addMessage(msgType int, content []byte, fromClient bool) {
-	msg := newWebSocketMessage(msgType, content, fromClient)
+func (wsData *WebSocketData) addMessage(msg *WebSocketMessage) {
 	wsData.mu.Lock()
 	defer wsData.mu.Unlock()
 	wsData.Messages = append(wsData.Messages, msg)

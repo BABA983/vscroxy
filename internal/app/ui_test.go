@@ -359,6 +359,87 @@ func TestBreakpointDialogValidatesEditsAndKeepsOriginalActionReachable(t *testin
 	}
 }
 
+func TestWebSocketBreakpointOverSessionAndPayloadValidation(t *testing.T) {
+	for _, kind := range []string{"text", "binary", "read-only"} {
+		t.Run(kind, func(t *testing.T) {
+			a := workspaceApp()
+			a.socket.open = true
+			done := make(chan struct{})
+			a.bp = &capture.Breakpoint{ID: 1, Phase: capture.PhaseMessage, URL: "wss://api.example.com/socket", Direction: "out", MessageType: kind, Done: done, BodyReadOnly: kind == "read-only"}
+			a.bpOpen, a.bpBody = true, "original"
+			tt := ui.NewTester(a.view, 960, 600)
+			for _, label := range []string{"Breakpoint headers", "Abort status", "Save as template…"} {
+				if _, ok := tt.Find(label); ok {
+					t.Fatalf("HTTP-only control in message pause: %s", label)
+				}
+			}
+			if kind == "read-only" {
+				if _, ok := tt.Find("Message payload"); ok {
+					t.Fatal("large message offered an editable payload")
+				}
+				if err := tt.Click("Drop message"); err != nil {
+					t.Fatal(err)
+				}
+				if a.bp != nil || !a.socket.open {
+					t.Fatal("dropping dismissed the underlying session")
+				}
+				return
+			}
+			if err := tt.Click("Message payload"); err != nil {
+				t.Fatal(err)
+			}
+			tt.Key(ui.Ctrl, ui.KeyA)
+			tt.Type("AP6AAQ==")
+			if a.bpBody != "AP6AAQ==" || a.breakpointError() != "" {
+				t.Fatal("valid edit not accepted over session panel")
+			}
+			if kind == "binary" {
+				tt.Key(ui.Ctrl, ui.KeyA)
+				tt.Type("AA\n==")
+				if !tt.HasText("Enter canonical padded base64 for the binary message.") {
+					t.Fatalf("invalid base64 not explained: %v", tt.Texts())
+				}
+				if err := tt.Click("Apply & continue"); err != nil {
+					t.Fatal(err)
+				}
+				if a.bp == nil {
+					t.Fatal("invalid base64 continued")
+				}
+			}
+			tt.Key(0, ui.KeyEscape)
+			if a.bp == nil || !a.socket.open {
+				t.Fatal("Escape closed a live pause or its underlying session")
+			}
+			close(done)
+			tt.Frame()
+			if a.bp != nil || a.bpOpen {
+				t.Fatal("expired message pause remains actionable")
+			}
+		})
+	}
+}
+
+func TestWebSocketBreakpointDirectionSavedFromEditor(t *testing.T) {
+	a := workspaceApp()
+	a.rulesPath = filepath.Join(t.TempDir(), "rules.json")
+	a.openRules()
+	a.editRule(-1, capture.Rule{Type: capture.RuleBreakMessage, Match: "/socket"})
+	tt := ui.NewTester(a.view, 1280, 800)
+	if err := tt.Click("Client → server"); err != nil {
+		t.Fatal(err)
+	}
+	if a.ruleUI.draft.Direction != "out" {
+		t.Fatal("direction selection lost its bound value")
+	}
+	if err := tt.Click("Save rule"); err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := capture.LoadRules(a.rulesPath)
+	if err != nil || len(loaded) != 1 || loaded[0].Type != capture.RuleBreakMessage || loaded[0].Direction != "out" {
+		t.Fatalf("saved rule: %+v %v", loaded, err)
+	}
+}
+
 func TestBreakpointTemplatesSaveAMessageAndApplyItAtALaterPauseOfThatPhase(t *testing.T) {
 	a := workspaceApp()
 	a.bpTemplatesPath = filepath.Join(t.TempDir(), "breakpoint-templates.json")

@@ -187,7 +187,7 @@ func (m messageView) cut() int {
 
 // binary reports whether the message reads better as bytes than as text.
 func (m messageView) binary() bool {
-	return m.kind == "binary" || !utf8.ValidString(m.data) || strings.ContainsRune(m.data, 0)
+	return strings.HasSuffix(m.kind, "binary") || !utf8.ValidString(m.data) || strings.ContainsRune(m.data, 0)
 }
 
 // label names the message in the list: its kind, or the name of the SSE event
@@ -334,7 +334,7 @@ func (m messageView) detail(c *ui.Context, a *app, f flow, p *messagePanel) {
 		})
 		ui.Row(c).Padding(0, t.Space(3), t.Space(2), t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 			modes := []string{"Text", "Hex"}
-			if f.kind == "ws" && (m.kind == "text" || m.kind == "binary") {
+			if kind := strings.TrimPrefix(m.kind, "dropped "); f.kind == "ws" && (kind == "text" || kind == "binary") {
 				modes = append(modes, "Protobuf")
 			}
 			uikit.Segmented(c, &p.mode, modes...).Label("Show as")

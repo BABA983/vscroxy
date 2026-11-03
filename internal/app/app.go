@@ -3,6 +3,7 @@ package app
 import (
 	"cmp"
 	"context"
+	"encoding/base64"
 	"encoding/json/v2"
 	"errors"
 	"fmt"
@@ -24,6 +25,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+	"unicode/utf8"
 	"uuid"
 
 	"github.com/baba983/vscroxy/internal/appicon"
@@ -789,6 +791,10 @@ func (a *app) resolveBreak(abort, original bool) {
 	a.bp = nil
 	a.bpOpen = false
 	if abort {
+		if bp.Phase == capture.PhaseMessage {
+			a.inform("Dropped WebSocket message · connection remains open")
+			return
+		}
 		a.inform("Aborted " + bp.Method + " " + bp.URL)
 		return
 	}
@@ -802,6 +808,25 @@ func (a *app) resolveBreak(abort, original bool) {
 // Validate before parsing so a malformed line cannot silently delete a header.
 func (a *app) breakpointError() string {
 	if a.bp == nil {
+		return ""
+	}
+	if a.bp.Phase == capture.PhaseMessage {
+		if a.bp.BodyReadOnly {
+			return ""
+		}
+		data := []byte(a.bpBody)
+		if a.bp.MessageType == "binary" {
+			var err error
+			data, err = base64.StdEncoding.Strict().DecodeString(a.bpBody)
+			if err != nil || base64.StdEncoding.EncodeToString(data) != a.bpBody {
+				return "Enter canonical padded base64 for the binary message."
+			}
+		} else if !utf8.Valid(data) {
+			return "Text messages must be valid UTF-8."
+		}
+		if len(data) > 1<<20 {
+			return "Message edits are limited to 1 MiB."
+		}
 		return ""
 	}
 	if a.bp.Phase == capture.PhaseResponse {
@@ -904,10 +929,16 @@ func (a *app) drain() {
 	if a.bp == nil {
 		a.mu.Lock()
 		var next *capture.Breakpoint
-		if len(a.bps) > 0 {
+		for len(a.bps) > 0 {
 			bp := a.bps[0]
 			a.bps = a.bps[1:]
+			select {
+			case <-bp.Done:
+				continue
+			default:
+			}
 			next = &bp
+			break
 		}
 		a.mu.Unlock()
 		if next != nil {
@@ -1370,7 +1401,6 @@ func (a *app) view(c *ui.Context) {
 		})
 	})
 	a.settingsModal(c, t)
-	a.breakpointModal(c, t)
 	a.upstreamModal(c, t)
 	a.sslModal(c, t)
 	a.toolsModal(c, t)
@@ -1424,6 +1454,7 @@ func (a *app) view(c *ui.Context) {
 	a.collectionWizardModal(c, t)
 	a.collectionRecordingModal(c, t)
 	a.tokenLinksModal(c, t)
+	a.breakpointModal(c, t) // A live WebSocket's pause must cover its session panel.
 	a.protobuf.modal(c, a)
 	a.views.capture(a)
 	if !a.page.capture() || a.inspect.pane != inspectorMessages {
@@ -1515,6 +1546,13 @@ func (a *app) breakpointModal(c *ui.Context, t *ui.Theme) {
 	if a.bp == nil {
 		return
 	}
+	select {
+	case <-a.bp.Done:
+		a.bp, a.bpOpen = nil, false
+		return
+	default:
+	}
+	message := a.bp.Phase == capture.PhaseMessage
 	// Feedback from a previous decision must not cover this pause's footer,
 	// especially when queued breakpoints open in a small window.
 	c.CloseToast("")
@@ -1525,19 +1563,41 @@ func (a *app) breakpointModal(c *ui.Context, t *ui.Theme) {
 			if a.bp.Phase == capture.PhaseResponse {
 				title = "Breakpoint · response paused"
 			}
+			if message {
+				title = "Breakpoint · WebSocket message paused"
+			}
 			uikit.DialogTitle(c, title)
 			a.mu.Lock()
 			waiting := len(a.bps) + 1
 			a.mu.Unlock()
 			validation := a.breakpointError()
 			ui.Row(c).FillWidth().Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-				uikit.Meta(c, fmt.Sprintf("%d paused · changes apply only to this exchange", waiting)).Grow(1).MinWidth(0)
-				a.breakTemplates(c, t, validation == "")
+				if message {
+					uikit.Meta(c, fmt.Sprintf("%d paused · edits or drop affect only this message", waiting))
+				} else {
+					uikit.Meta(c, fmt.Sprintf("%d paused · changes apply only to this exchange", waiting)).Grow(1).MinWidth(0)
+					a.breakTemplates(c, t, validation == "")
+				}
 			})
 			if a.bpNote != "" {
 				uikit.Hint(c, a.bpNote)
 			}
 			ui.Scroll(c).Grow(1).MinHeight(0).FillWidth().Gap(t.Space(2)).Children(func() {
+				if message {
+					direction := "Server → client"
+					if a.bp.Direction == "out" {
+						direction = "Client → server"
+					}
+					uikit.Body(c, direction+" · "+a.bp.MessageType)
+					uikit.Hint(c, a.bp.URL).SingleLine().Tooltip(a.bp.URL)
+					if a.bp.BodyReadOnly {
+						uikit.Hint(c, "Message exceeds the editor limit or is invalid UTF-8. Continue unchanged or drop it.")
+					} else {
+						uikit.Meta(c, "UTF-8 text, or canonical padded base64 for binary · 1 MiB limit · opcode preserved")
+						ui.TextArea(c, &a.bpBody).Height(240).Label("Message payload").Font(uikit.FontMono).FontSize(uikit.TextBody).Radius(uikit.RadiusControl)
+					}
+					return
+				}
 				if a.bp.Phase == capture.PhaseResponse {
 					ui.Row(c).Gap(t.Space(2)).Children(func() {
 						uikit.Input(c, &a.bpStatus).Width(90).Label("Status")
@@ -1562,8 +1622,12 @@ func (a *app) breakpointModal(c *ui.Context, t *ui.Theme) {
 				ui.Text(c, validation).FontSize(uikit.TextBody).TextColor(t.Danger)
 			}
 			uikit.DialogFooter(c).Children(func() {
-				uikit.Select(c, &a.bpAbort, []string{"502 Bad Gateway", "429 Too Many Requests", "503 Service Unavailable"}).Width(200).Label("Abort status")
-				if uikit.SecondaryButton(c, "Abort").Clicked() {
+				abortLabel := "Drop message"
+				if !message {
+					uikit.Select(c, &a.bpAbort, []string{"502 Bad Gateway", "429 Too Many Requests", "503 Service Unavailable"}).Width(200).Label("Abort status")
+					abortLabel = "Abort"
+				}
+				if uikit.SecondaryButton(c, abortLabel).Clicked() {
 					a.resolveBreak(true, false)
 				}
 				if uikit.SecondaryButton(c, "Continue original").Clicked() {

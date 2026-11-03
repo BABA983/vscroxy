@@ -1,19 +1,24 @@
 package request
 
 import (
+	"bytes"
 	"context"
+	"encoding/base64"
+	"errors"
 	"fmt"
 	"io"
 	"maps"
 	"net/http"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/baba983/vscroxy/internal/capture"
+	"github.com/dop251/goja"
 )
 
 // ProxyScript is the script a Script rule runs on the exchanges it matches:
-// an ES module that exports onRequest, onResponse or onMock, which run with
+// an ES module that exports onRequest, onResponse, onMock or onMessage, which run with
 // the same pm API as request scripts. onRequest edits pm.request before it
 // goes upstream; onResponse edits pm.response before the client gets it:
 //
@@ -22,11 +27,12 @@ import (
 //	export async function onResponse() { if (pm.response.code === 500) pm.response.code = 200 }
 //
 // onMock builds a local response without sending a request upstream. It may
-// import the built-in libraries and addons.
+// import the built-in libraries and addons. onMessage(message) edits or drops
+// one WebSocket message; pm.request is its read-only handshake metadata.
 type ProxyScript struct {
-	OnRequest, OnResponse, OnMock bool
-	file                          string
-	module                        module
+	OnRequest, OnResponse, OnMock, OnMessage bool
+	file                                     string
+	module                                   module
 }
 
 // ScriptProblem is where a script does not parse.
@@ -57,6 +63,8 @@ func ParseProxyScript(name, src string) (*ProxyScript, error) {
 			s.OnResponse = true
 		case "onMock":
 			s.OnMock = true
+		case "onMessage":
+			s.OnMessage = true
 		}
 	}
 	return s, nil
@@ -82,15 +90,35 @@ type ProxyRun struct {
 // or mock phase. Mock requires onMock, starts with an empty 200 response,
 // and makes pm.request read-only. pm.variables are x's Locals; pm.globals
 // writes are returned for the app to save; pm.environment is read-only.
+// onMessage receives x.Message as its only argument, with transactional payload
+// edits and read-only type/direction properties. pm.request is read-only in this
+// phase, and capture supplies connection-scoped Locals.
 // pm.sendRequest goes straight to the server, not through the proxy, so a
 // script cannot trigger itself. It is unavailable in the mock phase.
 func (s *ProxyScript) Run(ctx context.Context, x *capture.ScriptExchange, env ProxyEnv) (ProxyRun, error) {
 	if x.Phase == "mock" && !s.OnMock {
 		return ProxyRun{}, fmt.Errorf("mock script must export onMock")
 	}
-	hook := map[string]string{"request": "onRequest", "response": "onResponse", "mock": "onMock"}[x.Phase]
-	if hook == "" || hook == "onRequest" && !s.OnRequest || hook == "onResponse" && !s.OnResponse {
+	hook := map[string]string{"request": "onRequest", "response": "onResponse", "mock": "onMock", "message": "onMessage"}[x.Phase]
+	if hook == "" || hook == "onRequest" && !s.OnRequest || hook == "onResponse" && !s.OnResponse || hook == "onMessage" && !s.OnMessage {
 		return ProxyRun{}, nil
+	}
+	var message *capture.ScriptMessage
+	if x.Phase == "message" {
+		if x.Message == nil {
+			return ProxyRun{}, errors.New("onMessage requires a message")
+		}
+		if len(x.Message.Data) > maxScriptMessage {
+			return ProxyRun{}, errors.New("message payload exceeds 1 MiB")
+		}
+		if x.Message.Type != "text" && x.Message.Type != "binary" {
+			return ProxyRun{}, errors.New("message type must be text or binary")
+		}
+		if x.Message.Type == "text" && !utf8.Valid(x.Message.Data) {
+			return ProxyRun{}, errors.New("text message must be valid UTF-8")
+		}
+		message = new(*x.Message)
+		message.Data = bytes.Clone(message.Data)
 	}
 	if x.Locals == nil {
 		x.Locals = map[string]string{}
@@ -109,6 +137,14 @@ func (s *ProxyScript) Run(ctx context.Context, x *capture.ScriptExchange, env Pr
 		req.Header = http.Header{}
 	}
 	objects := map[string]any{"req": req}
+	argument := ""
+	if message != nil {
+		objects["message"] = message
+		argument = "__proxyMessage"
+		if x.BinaryBody {
+			req.Body = ""
+		}
+	}
 	var res *jsResponse
 	if x.Phase == "response" {
 		res = &jsResponse{Status: x.Status, Header: x.Response.Clone(), Body: string(x.ResponseBody), Bytes: len(x.ResponseBody), editable: true}
@@ -124,10 +160,14 @@ func (s *ProxyScript) Run(ctx context.Context, x *capture.ScriptExchange, env Pr
 	// The module starts on the first line, so its lines stay where the
 	// source map says.
 	err := runScriptContext(ctx, "var module = {exports: {}}, exports = module.exports;"+s.module.code+
-		"\nreturn await module.exports."+hook+"();", run, objects)
+		"\nreturn await module.exports."+hook+"("+argument+");", run, objects)
 	out := ProxyRun{Console: run.console, Writes: run.writes}
 	if err != nil {
 		return out, err
+	}
+	if message != nil {
+		*x.Message = *message
+		return out, nil
 	}
 	if x.Phase == "request" {
 		x.Method, x.URL, x.Header = strings.ToUpper(req.Method), req.URL, req.Header
@@ -141,6 +181,74 @@ func (s *ProxyScript) Run(ctx context.Context, x *capture.ScriptExchange, env Pr
 		x.ResponseBody = []byte(res.Body)
 	}
 	return out, nil
+}
+
+const maxScriptMessage = 1 << 20
+
+// messageObject never exposes the Go byte slice to JavaScript. Binary data
+// crosses the runtime boundary only as padded base64, not as a UTF-8 string.
+func messageObject(vm *goja.Runtime, message *capture.ScriptMessage) *goja.Object {
+	obj := vm.NewObject()
+	readOnly := vm.ToValue(func() error { return errors.New("message.type and message.direction are read-only") })
+	obj.DefineAccessorProperty("type", vm.ToValue(func() string { return message.Type }), readOnly, goja.FLAG_FALSE, goja.FLAG_TRUE)
+	obj.DefineAccessorProperty("direction", vm.ToValue(func() string { return message.Direction }), readOnly, goja.FLAG_FALSE, goja.FLAG_TRUE)
+	obj.Set("text", func() (string, error) {
+		if message.Type != "text" {
+			return "", errors.New("message.text() is only available for text messages")
+		}
+		return string(message.Data), nil
+	})
+	obj.Set("base64", func() string { return base64.StdEncoding.EncodeToString(message.Data) })
+	obj.Set("setText", func(value goja.Value) error {
+		s, ok := value.(goja.String)
+		if !ok {
+			return errors.New("message.setText requires a string")
+		}
+		if s.Length() > maxScriptMessage {
+			return errors.New("message payload exceeds 1 MiB")
+		}
+		// Goja's String() replaces lone UTF-16 surrogates with U+FFFD. Reject
+		// those instead of silently changing the requested payload.
+		for i := 0; i < s.Length(); i++ {
+			c := s.CharAt(i)
+			if c >= 0xd800 && c <= 0xdbff {
+				i++
+				if i < s.Length() && s.CharAt(i) >= 0xdc00 && s.CharAt(i) <= 0xdfff {
+					continue
+				}
+			} else if c < 0xdc00 || c > 0xdfff {
+				continue
+			}
+			return errors.New("message.setText requires valid UTF-8 text")
+		}
+		text := s.String()
+		if len(text) > maxScriptMessage {
+			return errors.New("message payload exceeds 1 MiB")
+		}
+		message.Type, message.Data = "text", []byte(text)
+		return nil
+	})
+	obj.Set("setBase64", func(value goja.Value) error {
+		s, ok := value.(goja.String)
+		if !ok {
+			return errors.New("message.setBase64 requires a string")
+		}
+		if s.Length() > base64.StdEncoding.EncodedLen(maxScriptMessage) {
+			return errors.New("message payload exceeds 1 MiB")
+		}
+		encoded := s.String()
+		data, err := base64.StdEncoding.Strict().DecodeString(encoded)
+		if err != nil || base64.StdEncoding.EncodeToString(data) != encoded {
+			return errors.New("message.setBase64 requires valid padded base64")
+		}
+		if len(data) > maxScriptMessage {
+			return errors.New("message payload exceeds 1 MiB")
+		}
+		message.Type, message.Data = "binary", data
+		return nil
+	})
+	obj.Set("drop", func() { message.Drop = true })
+	return obj
 }
 
 // sendDirect sends a rule script's pm.sendRequest to the server itself,

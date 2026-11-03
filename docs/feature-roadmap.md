@@ -122,7 +122,7 @@
 | 脚本：挂在规则上、app 内编辑、`pm` 风格 API | 已有 | Script 规则运行 `tools/scripts/*.js` 的 onRequest／onResponse；Tools → Scripts 编辑，带 Console；全局 `script.js` 已删除 | M4 |
 | 脚本：异步发请求、规则间共享状态、读系统环境变量 | 已有 | `pm.sendRequest` 直连服务器；`pm.variables` 跨同一请求的脚本，`pm.globals` 跨规则并保存；`process.env` | M4 |
 | 脚本：内置库（lodash、crypto-js 等）、代码片段库、自定义 addon | 已有 | lodash、crypto-js 4.2.0、chai 和 Insert snippet 与请求脚本共用；规则脚本和 addon 是 ES 模块（esbuild 转成 CommonJS 后由 goja 运行，source map 指回原行号，不支持顶层 await），addon 在 `tools/addons/*.js`，规则脚本 `import`、请求脚本 `require` 加载，Tools → Scripts → Addons 编辑，CLI 用 `--addons` | M4 |
-| 脚本：WebSocket 消息钩子 | 缺少 | | M8 |
+| 脚本：WebSocket 消息钩子 | 已有 | `onMessage(message)` 双向文本／二进制编辑、单条 drop；连接级 locals 串行执行；WS／解密 WSS | M8 |
 | 网络条件：全局预设 | 已有 | 3G / 4G / DSL | |
 | 网络条件：自定义预设、丢包、按 host/规则生效 | 缺少 | | M5 |
 | No Caching | 已有 | | |
@@ -323,7 +323,7 @@ Cookie 和其他 API key 保留为变量 header，避免把多个认证机制硬
 ### M8：协议扩展
 
 - gRPC 客户端首版已完成（[使用指南](guide.md#interactive-grpc-requests)）：独立引擎与请求文档两个提交阶段；proto／descriptor set 导入、v1／v1alpha 反射、四种调用方式、双向实时收发、metadata／trailers／结构化错误状态、deadline／取消，schema 随请求保存。TLS 校验；HTTPS 通过运行中的抓包代理，h2c 明确直连不抓包。暂不接 HTTP 脚本／Checks／Runner／History；无自动重连或重发。
-- WebSocket：二进制与子协议已完成（Hex／Base64 发送、WS／WSS 双侧协商）；实时会话与抓包消息的显式 Protobuf 解码已完成（复用 schema，拒绝截断消息）；消息断点、脚本钩子待做。
+- WebSocket 三阶段已完成：① 二进制与子协议（Hex／Base64 发送、WS／WSS 双侧协商）；② 实时会话与抓包消息的显式 Protobuf 解码（复用 schema，拒绝截断消息）；③ 双向消息断点（文本／Base64 编辑、原样放行、单条丢弃）与 `onMessage(message)` 脚本钩子。WS／解密 WSS，脚本先于消息断点；不拦截握手和控制帧。脚本／编辑上限 1 MiB；断开、代理关闭、断点关闭或超时释放暂停，详见[使用指南](guide.md#websocket-message-interception)。
 - SSE 客户端、Socket.IO 客户端、MCP 客户端、MQTT 客户端。
 
 ### M9：自动化和生态

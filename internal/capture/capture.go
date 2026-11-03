@@ -217,6 +217,8 @@ const (
 	RuleBreak RuleType = "break"
 	// RuleBreakResponse pauses a matching response until the UI decides.
 	RuleBreakResponse RuleType = "break_response"
+	// RuleBreakMessage pauses complete WebSocket data messages, not handshakes.
+	RuleBreakMessage RuleType = "break_message"
 	// RuleScript runs a script on a matching request and its response: the
 	// one its Target names, in the scripts folder (see ScriptRunner).
 	RuleScript RuleType = "script"
@@ -270,6 +272,7 @@ type Rule struct {
 	// one group is active. Disabled remains an independent per-rule choice.
 	Scenario       string `json:"scenario,omitempty"`
 	ScenarioActive bool   `json:"scenarioActive,omitzero"`
+	Direction      string `json:"direction,omitempty"` // message breakpoint: "", "in" or "out"
 }
 
 // Phase is where a breakpoint paused an exchange.
@@ -278,6 +281,7 @@ type Phase int
 const (
 	PhaseRequest Phase = iota
 	PhaseResponse
+	PhaseMessage
 )
 
 // Breakpoint is an exchange paused for the UI to edit.
@@ -289,7 +293,10 @@ type Breakpoint struct {
 	Status       int
 	Body         string
 	Header       http.Header
-	BodyReadOnly bool // binary, undecodable or too large for the text editor
+	BodyReadOnly bool            // binary, undecodable or too large for the text editor
+	MessageType  string          // message phase: "text" or "binary" (Body is padded base64 for binary)
+	Direction    string          // message phase: "out" or "in"
+	Done         <-chan struct{} `json:"-"` // pause ended, including timeout/disconnect
 }
 
 // Decision is what the UI does with a paused exchange.
@@ -326,6 +333,9 @@ type Server struct {
 	clients       map[clientSocket]clientIdentity // active socket -> immutable ownership
 	replayClients map[string]replayOrigin         // replay socket address -> local send
 	closeOnce     sync.Once
+	socketMu      sync.Mutex
+	socketWG      sync.WaitGroup
+	sockets       map[uuid.UUID]bool
 
 	// bodyDir holds the bodies too large to keep in memory. It is removed
 	// when the server closes.
@@ -811,7 +821,17 @@ func (s *Server) Upstream() string {
 func (s *Server) ScriptErrors() int64 { return s.scriptErrors.Load() }
 
 // SetBreak turns breakpoints on or off. With them off, no request pauses.
-func (s *Server) SetBreak(on bool) { s.breakOn.Store(on) }
+func (s *Server) SetBreak(on bool) {
+	s.breakOn.Store(on)
+	if !on {
+		s.bpMu.Lock()
+		for id, ch := range s.bpWait {
+			ch <- Decision{Original: true}
+			delete(s.bpWait, id)
+		}
+		s.bpMu.Unlock()
+	}
+}
 
 // Breaking reports whether breakpoints are on.
 func (s *Server) Breaking() bool { return s.breakOn.Load() }
@@ -853,14 +873,8 @@ func (s *Server) maybeBreak(f *proxy.Flow, phase Phase) *Decision {
 		return nil
 	}
 	s.hit(r)
-	id := int(s.bpNext.Add(1))
-	ch := make(chan Decision, 1)
-	s.bpMu.Lock()
-	s.bpWait[id] = ch
-	s.bpMu.Unlock()
 
 	bp := Breakpoint{
-		ID:     id,
 		Phase:  phase,
 		Method: f.Request.Method,
 		URL:    raw,
@@ -879,35 +893,50 @@ func (s *Server) maybeBreak(f *proxy.Flow, phase Phase) *Decision {
 	if !bp.BodyReadOnly {
 		bp.Body = string(body)
 	}
-	select {
-	case s.breakpoints <- bp:
-	default:
-		s.bpMu.Lock()
-		delete(s.bpWait, id)
-		s.bpMu.Unlock()
-		return nil
-	}
 	pausedAt := time.Now()
-	var d *Decision
-	select {
-	case decided := <-ch:
-		if !decided.Original {
-			d = &decided
-		}
-	case <-s.closed:
-	case <-time.After(2 * time.Minute):
-	}
-	s.bpMu.Lock()
-	delete(s.bpWait, id)
-	s.bpMu.Unlock()
-	// The user's time at the breakpoint is not network time: move the start
-	// forward so the flow's duration stays the exchange's.
+	d := s.waitBreakpoint(context.Background(), bp)
+	// The user's time at the breakpoint is not network time.
 	s.mu.Lock()
 	if start, ok := s.started[f.Id]; ok {
 		s.started[f.Id] = start.Add(time.Since(pausedAt))
 	}
 	s.mu.Unlock()
 	return d
+}
+
+func (s *Server) waitBreakpoint(ctx context.Context, bp Breakpoint) *Decision {
+	id := int(s.bpNext.Add(1))
+	ch := make(chan Decision, 1)
+	done := make(chan struct{})
+	bp.ID, bp.Done = id, done
+	defer close(done)
+	s.bpMu.Lock()
+	if !s.breakOn.Load() || ctx.Err() != nil {
+		s.bpMu.Unlock()
+		return nil
+	}
+	s.bpWait[id] = ch
+	s.bpMu.Unlock()
+	defer func() {
+		s.bpMu.Lock()
+		delete(s.bpWait, id)
+		s.bpMu.Unlock()
+	}()
+	select {
+	case s.breakpoints <- bp:
+	default:
+		return nil
+	}
+	select {
+	case decided := <-ch:
+		if !decided.Original {
+			return &decided
+		}
+	case <-ctx.Done():
+	case <-s.closed:
+	case <-time.After(2 * time.Minute):
+	}
+	return nil
 }
 
 // ruleRequest is what the rules look at in an exchange, as it is now: after
@@ -1008,8 +1037,13 @@ func (s *Server) Close() error {
 	var err error
 	s.closeOnce.Do(func() {
 		s.listenMu.Lock()
+		s.socketMu.Lock()
 		close(s.closed)
+		s.socketMu.Unlock()
 		s.running.Store(false)
+		// net/http does not own hijacked WebSocket/CONNECT sockets.
+		s.DropConnections()
+		s.socketWG.Wait()
 		// Let net/http close its registered listener first. Closing the raw
 		// listener first races Serve's unregister with http.Server.Close,
 		// which can then report a duplicate close as a shutdown failure.
@@ -1370,27 +1404,53 @@ func (a *addon) Request(f *proxy.Flow) {
 }
 
 func (a *addon) WebSocketStart(f *proxy.Flow) {
+	s := a.server
+	s.socketMu.Lock()
+	select {
+	case <-s.closed:
+		s.socketMu.Unlock()
+		f.ConnContext.ClientConn.Conn.Close()
+		return
+	default:
+	}
+	if s.sockets == nil {
+		s.sockets = make(map[uuid.UUID]bool)
+	}
+	s.sockets[f.Id] = true
+	s.socketWG.Add(1)
+	s.socketMu.Unlock()
 	a.server.publishFlow(f, "ws", nil, http.StatusSwitchingProtocols)
 }
 
-func (a *addon) WebSocketMessage(f *proxy.Flow) {
-	if f.WebSocket == nil || len(f.WebSocket.Messages) == 0 {
-		return
-	}
-	m := f.WebSocket.Messages[len(f.WebSocket.Messages)-1]
+func (a *addon) WebSocketMessage(ctx context.Context, f *proxy.Flow, m *proxy.WebSocketMessage) {
+	a.server.interceptMessage(ctx, f, m)
 	direction := "in"
 	if m.FromClient {
 		direction = "out"
 	}
+	kind := wsFrameKind(m.Type)
+	if m.Drop {
+		kind = "dropped " + kind
+	}
 	a.server.emitFrame(f, frameInput{
 		Direction: direction,
-		Kind:      wsFrameKind(m.Type),
+		Kind:      kind,
 		Data:      m.Content,
 		At:        m.Timestamp,
 	})
 }
 
-func (a *addon) WebSocketEnd(f *proxy.Flow) { a.server.endFrames(f) }
+func (a *addon) WebSocketEnd(f *proxy.Flow) {
+	a.server.endFrames(f)
+	s := a.server
+	s.socketMu.Lock()
+	active := s.sockets[f.Id]
+	delete(s.sockets, f.Id)
+	s.socketMu.Unlock()
+	if active {
+		s.socketWG.Done()
+	}
+}
 
 func (a *addon) SSEStart(f *proxy.Flow) {
 	a.server.publishFlow(f, "sse", nil, 0)

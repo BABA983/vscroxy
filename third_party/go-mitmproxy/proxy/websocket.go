@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"net/url"
 	"slices"
+	"sync"
+	"time"
 
 	"github.com/gorilla/websocket"
 	log "github.com/sirupsen/logrus"
@@ -194,77 +196,89 @@ func (h *webSocketHandler) forwardMessages(clientWS, serverWS *websocket.Conn, f
 		}
 	}()
 
-	errChan := make(chan error, 2)
-
-	// 客户端 -> 服务器
-	go func() {
-		defer func() {
-			// 优雅关闭服务器连接
-			serverWS.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
-			serverWS.Close()
-		}()
-
-		for {
-			msgType, msg, err := clientWS.ReadMessage()
-			if err != nil {
-				// 判断是否是正常的关闭
-				if websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway) {
-					errChan <- nil // 正常关闭，不返回错误
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	errChan := make(chan error, 5)
+	fail := func(err error) {
+		select {
+		case errChan <- err:
+		default:
+		}
+		cancel()
+	}
+	var readers, writers sync.WaitGroup
+	// Local shutdown must release hooks even if both directions are paused.
+	readers.Go(func() {
+		select {
+		case <-f.ConnContext.ClientConn.Conn.(*wrapClientConn).closeChan:
+			fail(net.ErrClosed)
+		case <-ctx.Done():
+		}
+	})
+	forward := func(src, dst *websocket.Conn, fromClient bool) {
+		messages := make(chan *WebSocketMessage)
+		// One bounded lookahead keeps reading control/close frames while a
+		// message hook waits. A busy sender then gets normal TCP backpressure.
+		readers.Go(func() {
+			defer close(messages)
+			for {
+				kind, data, err := src.ReadMessage()
+				if err != nil {
+					fail(err)
 					return
 				}
-				errChan <- err
-				return
-			}
-
-			f.WebSocket.addMessage(msgType, msg, true)
-			for _, addon := range h.proxy.Addons {
-				addon.WebSocketMessage(f)
-			}
-
-			if err := serverWS.WriteMessage(msgType, msg); err != nil {
-				log.Errorf("Client -> Server: Write error: %v", err)
-				errChan <- err
-				return
-			}
-		}
-	}()
-
-	// 服务器 -> 客户端
-	go func() {
-		defer func() {
-			// 优雅关闭客户端连接
-			clientWS.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
-			clientWS.Close()
-		}()
-
-		for {
-			msgType, msg, err := serverWS.ReadMessage()
-			if err != nil {
-				// 判断是否是正常的关闭
-				if websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway) {
-					errChan <- nil // 正常关闭，不返回错误
+				select {
+				case messages <- newWebSocketMessage(kind, data, fromClient):
+				case <-ctx.Done():
 					return
 				}
-				errChan <- err
-				return
 			}
-
-			f.WebSocket.addMessage(msgType, msg, false)
-			for _, addon := range h.proxy.Addons {
-				addon.WebSocketMessage(f)
+		})
+		writers.Go(func() {
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case m, ok := <-messages:
+					if !ok {
+						return
+					}
+					for _, addon := range h.proxy.Addons {
+						addon.WebSocketMessage(ctx, f, m)
+					}
+					f.WebSocket.addMessage(m)
+					if !m.Drop {
+						if err := dst.WriteMessage(m.Type, m.Content); err != nil {
+							fail(err)
+							return
+						}
+					}
+				}
 			}
-
-			if err := clientWS.WriteMessage(msgType, msg); err != nil {
-				log.Errorf("Server -> Client: Write error: %v", err)
-				errChan <- err
-				return
-			}
-		}
-	}()
-
-	// 等待任一方向出错或关闭
+		})
+	}
+	forward(clientWS, serverWS, true)
+	forward(serverWS, clientWS, false)
+	<-ctx.Done()
+	// Let an already received last message finish, but bound a blocked write.
+	// A socket deadline is insufficient: gorilla resets it inside WriteMessage.
+	// Close is safe concurrently with readers/writers and cannot be reset.
+	forceClose := time.AfterFunc(time.Second, func() {
+		clientWS.Close()
+		serverWS.Close()
+	})
+	writers.Wait()
+	forceClose.Stop()
+	deadline := time.Now().Add(time.Second)
+	for _, c := range []*websocket.Conn{clientWS, serverWS} {
+		c.WriteControl(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""), deadline)
+		c.Close()
+	}
+	readers.Wait()
 	err := <-errChan
-	// 如果是正常关闭（nil），返回 nil
+	if websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway) {
+		return nil
+	}
 	return err
 }
 

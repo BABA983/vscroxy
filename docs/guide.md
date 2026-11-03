@@ -441,8 +441,9 @@ rules alone; a new rule there is a Map Local rule.
   query in `target` replaces the request's. `keepHost: true` sends the client's
   Host header instead of the target's, for servers that serve several sites
   by name. WebSocket handshakes follow the first matching Map Remote rule too,
-  as `ws` or `wss` to match the target; Map Local, Block and breakpoints do not
-  act on WebSockets. Inside a CONNECT tunnel (HTTPS and most WebSockets) the
+  as `ws` or `wss` to match the target; Map Local, Block and HTTP breakpoints do
+  not act on WebSockets. Message scripts and `break_message` run after mapping.
+  Inside a CONNECT tunnel (HTTPS and most WebSockets) the
   proxy first connects to the original host to copy its certificate. When that
   host cannot be reached and an active Map Remote or Map Local rule could
   match it, the proxy answers with a certificate it generates for the host
@@ -459,7 +460,9 @@ rules alone; a new rule there is a Map Local rule.
   lists, which match only hosts and apps, cannot express. Block rules do not
   act on WebSockets.
 - `break` pauses the request until you decide, and `break_response` pauses
-  the response (see below).
+  the response (see below). `break_message` pauses complete WebSocket data
+  messages, with `direction` empty for both, `"in"` for server → client, or
+  `"out"` for client → server (see [message interception](#websocket-message-interception)).
 
 **Settings → General → Reload configuration** rereads the file. A missing
 file means no rules.
@@ -561,6 +564,8 @@ Binary, undecodable and text bodies over 1 MiB are preserved read-only; their
 headers can still be edited. Streamed exchanges do not offer body breakpoints.
 The dialog shows the pending count; queued pauses appear in turn. The existing
 two-minute pause timeout continues the exchange unchanged if no decision arrives.
+Turning Breakpoints off releases all waiting pauses unchanged. Expired queued
+dialogs are skipped; an expired open dialog is dismissed on the next UI refresh.
 
 The flow's duration is the exchange's, not the time you spent at the
 breakpoint.
@@ -572,7 +577,7 @@ API as request scripts. **Tools → Scripts** lists them, with the hooks each
 defines and how many rules run it; the chosen one is edited beside a
 **Console** of what it printed and the errors it hit as its rules ran (the last
 500 lines). **Insert snippet** adds common code. **Save** (Ctrl/Cmd+S) applies
-to new requests. Each script is a file under `~/.vscroxy/tools/scripts/`
+to new requests or the next WebSocket message. Each script is a file under `~/.vscroxy/tools/scripts/`
 (`Name.js`) that can be edited by hand or kept in Git; **Reload configuration**
 reads them again. A script that does not parse is marked in the list and the
 editor: Script rules skip it; Code Mock rules return a local 502.
@@ -584,9 +589,11 @@ works, and errors name the line as you wrote it. Top-level `await` is not
 supported; await inside the hooks.
 
 A **Script** rule in **Tools → Rules** runs one script on the traffic it
-matches (URL, method, apps, headers and scenario, as other rules). Every
-matching Script rule runs, in order, before breakpoints and the Map and Block
-rules, each seeing what the ones before it changed.
+matches (URL, method, apps, headers and scenario, as other rules). For HTTP,
+every matching Script rule runs, in order, before breakpoints and the Map and
+Block rules, each seeing what the ones before it changed. WebSocket message
+hooks instead match the post-Map Remote handshake URL and run before message
+breakpoints, as described below.
 
 ```js
 import _ from "lodash";
@@ -973,6 +980,70 @@ new **Connect** starts a fresh timeline. No automatic reconnect or restart
 restore occurs. The timeline is session-local, not an experiment or a saved
 conversation. HTTP Requests/Runner's one-shot WS sender remains available.
 Automatic SSE reconnect and live gRPC timelines are not provided by this panel.
+
+### WebSocket message interception
+
+**Tools → Rules → WebSocket message breakpoint** (`break_message`) pauses
+complete text or binary messages while the toolbar's **Breakpoints** switch is
+on. Choose Both, Client → server (`out`), or Server → client (`in`). It works
+for proxied WS and inspected/decrypted WSS, including the interactive client;
+opaque tunnels are not inspected. Handshakes, ping/pong and close frames do not
+pause. Match conditions use the handshake method, headers, app and URL after
+Map Remote. The first matching breakpoint for each direction wins.
+
+- Edit UTF-8 text directly, or binary bytes as canonical padded standard
+  Base64. **Apply & continue** preserves the opcode and sends the edited bytes.
+  Invalid Base64/UTF-8 or edits over 1 MiB cannot be applied. Larger incoming
+  messages are read-only in the dialog, not silently truncated for editing.
+- **Continue original** preserves the message as it reached the breakpoint,
+  including successful script edits. **Drop message** suppresses only that
+  message; it does not close the connection. HTTP fields, abort status and
+  HTTP breakpoint templates are not offered here.
+- Either direction can pause without preventing the other from pausing.
+  The two-minute timeout and turning Breakpoints off continue unchanged.
+  Connection cancellation and proxy shutdown release pending waits; stale
+  decisions are rejected. Reading has bounded lookahead, not an unbounded
+  queue: a close behind more queued data may not be observed until the pause
+  resumes or times out.
+
+A **Script** rule can export `onMessage(message)`, including `async`. Matching
+hooks run in rule order before the message breakpoint. `pm.request` is read-only
+handshake metadata; HTTP `onRequest`/`onResponse` do not run for WebSockets.
+
+```js
+export function onMessage(message) {
+  if (message.direction === "out" && message.type === "text") {
+    if (message.text() === "heartbeat") { message.drop(); return; }
+    message.setText(message.text().replace("production", "staging"));
+  }
+  // message.base64() reads any payload losslessly.
+  // message.setBase64("AP6AAQ==") changes it to binary bytes 00 fe 80 01.
+}
+```
+
+`type` (`text`/`binary`) and `direction` (`in`/`out`) are read-only properties.
+`text()` reads text only; `base64()` reads either kind. `setText(string)` changes
+the payload and opcode to text; `setBase64(string)` to binary, using strict
+canonical padded standard Base64. `drop()` stops this message's remaining
+script chain and breakpoint. Empty payloads are valid. There is no `pm.message`
+or global `message` alias. `pm.info.eventName` is `message`.
+
+Incoming messages over 1 MiB skip scripts; setters enforce the same byte limit.
+A failed/invalid/timed-out hook preserves the message and connection-local
+variables as they were before that rule, logs its error to the Scripts Console,
+and lets later rules run. Successful earlier rules remain applied. The existing
+CPU budget and direct `pm.sendRequest` path apply, with connection cancellation.
+`pm.variables` last for one connection and are shared across both directions;
+script chains are serialized, but a paused dialog does not hold that lock.
+Every hook has a fresh JS runtime: use variables, not module closures, for state.
+Console output, `pm.globals` writes and external requests are not rolled back
+on script failure.
+
+Capture records the post-interception payload and labels suppressed messages
+`dropped text`/`dropped binary`; these are not extra wire messages or queue-loss
+gaps. Stream completion follows the end of both directions' message callbacks.
+The live client's sent timeline still records its original send intent; its
+received timeline shows what actually reached that client.
 
 ## Protobuf and gRPC
 

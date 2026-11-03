@@ -3,6 +3,7 @@ package request
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -16,16 +17,20 @@ import (
 )
 
 func TestParseProxyScriptFindsHooks(t *testing.T) {
-	s, err := ParseProxyScript("t", "// only the response\nexport async function onResponse() {}\nfunction onRequest() {}\nfunction onMock() {}\nexport function helper() {}")
+	s, err := ParseProxyScript("t", "// only the response\nexport async function onResponse() {}\nfunction onRequest() {}\nfunction onMock() {}\nfunction onMessage() {}\nexport function helper() {}")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if s.OnRequest || !s.OnResponse || s.OnMock {
-		t.Fatalf("hooks = %v, %v, %v: only exported hooks count", s.OnRequest, s.OnResponse, s.OnMock)
+	if s.OnRequest || !s.OnResponse || s.OnMock || s.OnMessage {
+		t.Fatalf("hooks = %+v: only exported hooks count", s)
 	}
 	s, err = ParseProxyScript("t", `function mock() {} export { mock as onMock };`)
 	if err != nil || s == nil || !s.OnMock || s.OnRequest || s.OnResponse {
 		t.Fatalf("mock hook = %+v, %v", s, err)
+	}
+	s, err = ParseProxyScript("t", `function message() {} export { message as onMessage };`)
+	if err != nil || s == nil || !s.OnMessage || s.OnRequest || s.OnResponse || s.OnMock {
+		t.Fatalf("message hook = %+v, %v", s, err)
 	}
 	for src, line := range map[string]int{
 		"export function onRequest() {\n  pm.request.headers.upsert(\n}":                 3,
@@ -409,5 +414,260 @@ export function onRequest() {
 	}
 	if req.Header.Get("X-Sig") != "v1:3a6eb079 sign" {
 		t.Fatalf("request script header = %q", req.Header.Get("X-Sig"))
+	}
+}
+
+func TestProxyScriptMessageBinaryIsLossless(t *testing.T) {
+	data := []byte{0, 255, 128, 192, 175, 237, 160, 128, 240, 159, 146, 169, 1}
+	edited := []byte{255, 0, 254, 128, 193}
+	encoded := base64.StdEncoding.EncodeToString(data)
+	for _, edit := range []bool{false, true} {
+		source := `export async function onMessage(message) {
+	if (arguments.length !== 1 || pm.message !== undefined || globalThis.message !== undefined) throw new Error("argument only");
+	if (message.type !== "binary" || message.direction !== "in") throw new Error("metadata");
+	let rejected = false;
+	try { message.text(); } catch (e) { rejected = e.message.includes("text messages"); }
+	if (!rejected) throw new Error("binary exposed as text");
+	if (message.base64() !== "` + encoded + `") throw new Error("bytes changed");
+	await Promise.resolve();
+	message.setBase64(message.base64());`
+		want := data
+		if edit {
+			source += `message.setBase64("` + base64.StdEncoding.EncodeToString(edited) + `");`
+			want = edited
+		}
+		source += `}`
+		s, err := ParseProxyScript("Binary", source)
+		if err != nil {
+			t.Fatal(err)
+		}
+		input := bytes.Clone(data)
+		x := &capture.ScriptExchange{Phase: "message", Message: &capture.ScriptMessage{Type: "binary", Direction: "in", Data: input}}
+		if _, err := s.Run(t.Context(), x, ProxyEnv{}); err != nil {
+			t.Fatal(err)
+		}
+		if x.Message.Type != "binary" || x.Message.Direction != "in" || x.Message.Drop || !bytes.Equal(x.Message.Data, want) || !bytes.Equal(input, data) {
+			t.Fatalf("edit=%v: message = %+v, original bytes = %x", edit, x.Message, input)
+		}
+	}
+}
+
+func TestProxyScriptMessageTextAndTypeChanges(t *testing.T) {
+	for name, tc := range map[string]struct {
+		kind, source, wantType string
+		data, want             []byte
+	}{
+		"text edit":      {"text", `if (message.text() !== "before") throw new Error("text"); message.setText("héllo\u0000🌍");`, "text", []byte("before"), []byte("héllo\x00🌍")},
+		"binary to text": {"binary", `message.setText("\uD83C\uDF0D"); if (message.text() !== "🌍") throw new Error("text");`, "text", []byte{255}, []byte("🌍")},
+		"text to binary": {"text", `message.setBase64("/wCA"); if (message.type !== "binary") throw new Error("type");`, "binary", []byte("before"), []byte{255, 0, 128}},
+		"empty text":     {"binary", `message.setText("");`, "text", []byte{255}, []byte{}},
+		"empty binary":   {"text", `message.setBase64("");`, "binary", []byte("before"), []byte{}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			s, err := ParseProxyScript("Text", `export function onMessage(message) { `+tc.source+` }`)
+			if err != nil {
+				t.Fatal(err)
+			}
+			x := &capture.ScriptExchange{Phase: "message", Message: &capture.ScriptMessage{Type: tc.kind, Direction: "out", Data: tc.data}}
+			if _, err := s.Run(t.Context(), x, ProxyEnv{}); err != nil {
+				t.Fatal(err)
+			}
+			if x.Message.Type != tc.wantType || x.Message.Direction != "out" || !bytes.Equal(x.Message.Data, tc.want) || x.Message.Drop {
+				t.Fatalf("message = %+v, want %s %x", x.Message, tc.wantType, tc.want)
+			}
+		})
+	}
+}
+
+func TestProxyScriptMessageDropAndConnectionState(t *testing.T) {
+	s, err := ParseProxyScript("Messages", `import { next } from "counter";
+export function onRequest() { throw new Error("wrong phase"); }
+export function onMessage(message) {
+	const n = next(pm.variables.get("count"));
+	pm.variables.set("count", String(n));
+	pm.globals.set("count", String(n));
+	message.setText(pm.environment.get("prefix") + process.env.SUFFIX + n);
+	if (message.direction === "out") message.drop();
+	console.log(pm.info.eventName, pm.info.requestName, n);
+}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	locals := map[string]string{}
+	env := ProxyEnv{Environment: map[string]string{"prefix": "value"}, OS: map[string]string{"SUFFIX": "-"},
+		Addons: map[string]string{"counter": `export const next = n => Number(n || 0) + 1;`}}
+	for i, direction := range []string{"out", "in"} {
+		x := &capture.ScriptExchange{Phase: "message", Rule: "Messages", Locals: locals,
+			Message: &capture.ScriptMessage{Type: "text", Direction: direction, Data: []byte("old")}}
+		out, err := s.Run(t.Context(), x, env)
+		if err != nil {
+			t.Fatal(err)
+		}
+		count := []string{"1", "2"}[i]
+		if x.Message.Drop != (direction == "out") || string(x.Message.Data) != "value-"+count || locals["count"] != count {
+			t.Fatalf("message = %+v, locals = %v", x.Message, locals)
+		}
+		if !reflect.DeepEqual(out.Writes, []Write{{Scope: "global", Name: "count", Value: count}}) || !strings.Contains(consoleText(out.Console), "message Messages "+count) {
+			t.Fatalf("output = %+v", out)
+		}
+	}
+}
+
+func TestProxyScriptMessageMetadataAndHandshakeAreReadOnly(t *testing.T) {
+	s, err := ParseProxyScript("ReadOnly", `export function onMessage(message) {
+	const before = JSON.stringify(pm.request.toJSON());
+	if (pm.request.method !== "GET" || pm.request.headers.get("X-Token") !== "abc" || pm.request.url.query.get("page") !== "2") throw new Error("handshake metadata");
+	[
+		() => { message.type = "binary"; },
+		() => { message.direction = "in"; },
+		() => { pm.request.method = "DELETE"; },
+		() => { pm.request.url = "https://changed.test/"; },
+		() => { pm.request.body.raw = "changed"; },
+		() => pm.request.body.update("changed"),
+		() => pm.request.headers.upsert("X-Token", "changed"),
+		() => pm.request.headers.clear(),
+		() => pm.request.url.query.upsert("page", "3"),
+		() => pm.request.url.update("https://changed.test/"),
+		() => { pm.request = {}; }
+	].forEach(edit => {
+		let rejected = false;
+		try { edit(); } catch (e) { rejected = e.message.includes("read-only"); }
+		if (!rejected || JSON.stringify(pm.request.toJSON()) !== before) throw new Error("mutation was allowed");
+	});
+	if (message.type !== "text" || message.direction !== "out") throw new Error("message metadata changed");
+	message.setText("changed");
+}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	x := &capture.ScriptExchange{Phase: "message", Method: "GET", URL: "https://api.test/?page=2", Header: http.Header{"X-Token": {"abc"}}, Body: []byte("original"),
+		Message: &capture.ScriptMessage{Type: "text", Direction: "out", Data: []byte("old")}}
+	if _, err := s.Run(t.Context(), x, ProxyEnv{}); err != nil {
+		t.Fatal(err)
+	}
+	if x.Method != "GET" || x.URL != "https://api.test/?page=2" || x.Header.Get("X-Token") != "abc" || string(x.Body) != "original" || string(x.Message.Data) != "changed" {
+		t.Fatalf("exchange = %+v", x)
+	}
+}
+
+func TestProxyScriptMessageFailuresAreTransactional(t *testing.T) {
+	for name, tc := range map[string]struct{ source, want string }{
+		"throw":               {`throw new Error("failed");`, "failed"},
+		"bad base64":          {`message.setBase64("not base64");`, "padded base64"},
+		"missing padding":     {`message.setBase64("Zg");`, "padded base64"},
+		"noncanonical bits":   {`message.setBase64("Zh==");`, "padded base64"},
+		"newline":             {`message.setBase64("Zg==\n");`, "padded base64"},
+		"URL alphabet":        {`message.setBase64("_w==");`, "padded base64"},
+		"oversize text":       {`message.setText("a".repeat(1048577));`, "1 MiB"},
+		"oversize UTF8":       {`message.setText("é".repeat(524289));`, "1 MiB"},
+		"oversize binary":     {`message.setBase64(pm.environment.get("oversize"));`, "1 MiB"},
+		"lone high surrogate": {`message.setText("\uD800");`, "UTF-8"},
+		"lone low surrogate":  {`message.setText("\uDC00");`, "UTF-8"},
+		"text argument":       {`message.setText(42);`, "requires a string"},
+		"base64 argument":     {`message.setBase64(null);`, "requires a string"},
+		"environment":         {`pm.environment.set("key", "value");`, "read-only"},
+		"pending":             {`await new Promise(() => {});`, "never finished"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			s, err := ParseProxyScript("Failure", "export async function onMessage(message) {\nmessage.setText('not published'); message.drop();\n"+tc.source+"\n}")
+			if err != nil {
+				t.Fatal(err)
+			}
+			message := &capture.ScriptMessage{Type: "binary", Direction: "in", Data: []byte{255, 128, 0, 254}}
+			want := *message
+			want.Data = bytes.Clone(message.Data)
+			x := &capture.ScriptExchange{Phase: "message", Message: message}
+			env := ProxyEnv{}
+			if name == "oversize binary" {
+				env.Environment = map[string]string{"oversize": base64.StdEncoding.EncodeToString(bytes.Repeat([]byte{255}, (1<<20)+1))}
+			}
+			if _, err := s.Run(t.Context(), x, env); err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("err = %v, want %q", err, tc.want)
+			} else if name == "throw" && !strings.Contains(err.Error(), "Failure.js:3:") {
+				t.Fatalf("error lost source location: %v", err)
+			}
+			if !reflect.DeepEqual(*message, want) {
+				t.Fatalf("failed hook published message: %+v, want %+v", message, want)
+			}
+		})
+	}
+}
+
+func TestProxyScriptMessagePayloadLimitBoundary(t *testing.T) {
+	data := bytes.Repeat([]byte("a"), 1<<20)
+	for _, kind := range []string{"text", "binary"} {
+		s, err := ParseProxyScript("Boundary", `export function onMessage(message) {
+	if (message.type === "text") message.setText(message.text());
+	else message.setBase64(message.base64());
+}`)
+		if err != nil {
+			t.Fatal(err)
+		}
+		x := &capture.ScriptExchange{Phase: "message", Message: &capture.ScriptMessage{Type: kind, Direction: "out", Data: bytes.Clone(data)}}
+		if _, err := s.Run(t.Context(), x, ProxyEnv{}); err != nil || x.Message.Type != kind || !bytes.Equal(x.Message.Data, data) {
+			t.Fatalf("%s: err = %v, bytes = %d", kind, err, len(x.Message.Data))
+		}
+	}
+}
+
+func TestProxyScriptMessageHookSelectionAndValidation(t *testing.T) {
+	s, err := ParseProxyScript("Missing", `throw new Error("must not run"); function onMessage() {}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Run(t.Context(), &capture.ScriptExchange{Phase: "message"}, ProxyEnv{}); err != nil {
+		t.Fatalf("unexported hook ran: %v", err)
+	}
+	s, err = ParseProxyScript("Validate", `export function onMessage(message) { message.setText("changed"); }`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, message := range []*capture.ScriptMessage{
+		nil,
+		{Type: "text", Data: []byte{255}},
+		{Type: "other"},
+		{Type: "binary", Data: make([]byte, (1<<20)+1)},
+	} {
+		if _, err := s.Run(t.Context(), &capture.ScriptExchange{Phase: "message", Message: message}, ProxyEnv{}); err == nil {
+			t.Errorf("invalid input accepted: %v", message == nil)
+		}
+	}
+}
+
+func TestProxyScriptMessageTimeoutAndCancellation(t *testing.T) {
+	s, err := ParseProxyScript("Loop", `export function onMessage(message) {
+	message.setText("not published"); message.drop();
+	for (;;) {}
+}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, mode := range []string{"budget", "deadline", "cancel"} {
+		t.Run(mode, func(t *testing.T) {
+			ctx := t.Context()
+			if mode == "deadline" {
+				var cancel context.CancelFunc
+				ctx, cancel = context.WithTimeout(ctx, 50*time.Millisecond)
+				defer cancel()
+			} else if mode == "cancel" {
+				var cancel context.CancelFunc
+				ctx, cancel = context.WithCancel(ctx)
+				defer cancel()
+				timer := time.AfterFunc(50*time.Millisecond, cancel)
+				defer timer.Stop()
+			}
+			x := &capture.ScriptExchange{Phase: "message", Message: &capture.ScriptMessage{Type: "binary", Direction: "out", Data: []byte{255, 0, 128}}}
+			_, err := s.Run(ctx, x, ProxyEnv{})
+			want := context.DeadlineExceeded
+			if mode == "cancel" {
+				want = context.Canceled
+			}
+			if !errors.Is(err, want) {
+				t.Fatalf("err = %v, want %v", err, want)
+			}
+			if x.Message.Type != "binary" || x.Message.Direction != "out" || x.Message.Drop || !bytes.Equal(x.Message.Data, []byte{255, 0, 128}) {
+				t.Fatalf("interrupted hook published message: %+v", x.Message)
+			}
+		})
 	}
 }

@@ -162,7 +162,7 @@
 		};
 	}
 
-	function readOnlyRequest() { throw new Error("pm.request is read-only in mock scripts"); }
+	function readOnlyRequest() { throw new Error("pm.request is read-only in this script phase"); }
 
 	function makeRequest(r) {
 		var set = r.readOnly ? readOnlyRequest : r.set;

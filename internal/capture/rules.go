@@ -147,7 +147,7 @@ func regexHost(expr string) (string, bool) {
 func (r Rule) key() string {
 	when, _ := json.Marshal(r.When)
 	return strings.Join([]string{string(r.Type), r.MatchMode, r.Match, r.Method, strings.Join(r.Apps, "\n"), string(when), r.Target,
-		r.PathFrom, r.PathTo, fmt.Sprint(r.KeepHost), r.Block}, "\x00")
+		r.PathFrom, r.PathTo, fmt.Sprint(r.KeepHost), r.Block, r.Direction}, "\x00")
 }
 
 // RulePreview explains a saved rule's part in one exchange. Step is its place
@@ -164,7 +164,8 @@ type RulePreview struct {
 // first matching Map or Block rule answers or redirects it, and the first
 // matching response breakpoint pauses a response that came from upstream,
 // matched against the redirected URL. Breakpoints act only while breaking is
-// on. Only Map Remote acts on a WebSocket. It does not read response files,
+// on. WebSockets apply Map Remote, then message scripts and direction-specific
+// message breakpoints. It does not read response files,
 // contact upstreams or run scripts, so it cannot know what a script changes.
 func PreviewRules(rules []Rule, req rules.Request, breaking bool) []RulePreview {
 	preview := make([]RulePreview, len(rules))
@@ -179,12 +180,26 @@ func PreviewRules(rules []Rule, req rules.Request, breaking bool) []RulePreview 
 	}
 	answered := winner >= 0 && rules[winner].Type != RuleMapRemote && rules[winner].Block != BlockHide
 	first := map[RuleType]int{}
+	messageFirst := map[string]bool{}
+	ws := webSocketURL(req.URL)
 	step := 0
 	act := func(i int) {
 		step++
 		preview[i].Step = step
 	}
 	stage := func(r Rule) int { // the order the proxy reaches each kind in
+		if ws {
+			switch r.Type {
+			case RuleMapRemote:
+				return 0
+			case RuleScript:
+				return 1
+			case RuleBreakMessage:
+				return 2
+			default:
+				return 3
+			}
+		}
 		switch {
 		case r.Type == RuleScript:
 			return 0
@@ -202,13 +217,15 @@ func PreviewRules(rules []Rule, req rules.Request, breaking bool) []RulePreview 
 				continue
 			}
 			at := req
-			if r.Type == RuleBreakResponse {
+			if r.Type == RuleBreakResponse || ws && (r.Type == RuleScript || r.Type == RuleBreakMessage) {
 				at = upstream
 			}
 			reason := r.matchReason(at)
 			switch {
-			case webSocketURL(req.URL) && r.Type != RuleMapRemote:
+			case ws && r.Type != RuleMapRemote && r.Type != RuleScript && r.Type != RuleBreakMessage:
 				reason = "does not act on WebSockets"
+			case !ws && r.Type == RuleBreakMessage:
+				reason = "requires a WebSocket message"
 			case reason != "":
 			case responseRule(r.Type) && i != winner:
 				reason = fmt.Sprintf("shadowed by rule %d", winner+1)
@@ -216,6 +233,18 @@ func PreviewRules(rules []Rule, req rules.Request, breaking bool) []RulePreview 
 				act(i)
 			case !breaking:
 				reason = "breakpoints are off"
+			case r.Type == RuleBreakMessage:
+				acts := false
+				for _, direction := range []string{"in", "out"} {
+					if (r.Direction == "" || r.Direction == direction) && !messageFirst[direction] {
+						messageFirst[direction], acts = true, true
+					}
+				}
+				if acts {
+					act(i)
+				} else {
+					reason = "an earlier rule pauses the selected message directions"
+				}
 			case r.Type == RuleBreakResponse && answered:
 				reason = fmt.Sprintf("rule %d answers first", winner+1)
 			default:
@@ -345,6 +374,10 @@ func ValidateRules(rules []Rule) error {
 				return fail("choose a script")
 			}
 		case RuleBreak, RuleBreakResponse:
+		case RuleBreakMessage:
+			if r.Direction != "" && r.Direction != "in" && r.Direction != "out" {
+				return fail("message direction must be in, out or empty for both")
+			}
 		default:
 			return fail("unknown rule type")
 		}

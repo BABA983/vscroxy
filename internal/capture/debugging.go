@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"slices"
+	"sync"
 
 	"github.com/lqqyt2423/go-mitmproxy/proxy"
 )
@@ -15,8 +16,9 @@ func (s *Server) NoCaching() bool      { return s.noCaching.Load() }
 
 type debugKey struct{}
 type exchangeDebug struct {
-	noCache bool
-	actions []string
+	messageMu sync.Mutex // serialize duplex scripts sharing connection locals
+	noCache   bool
+	actions   []string
 	// hidden keeps the exchange out of the table; drop closes the client's
 	// connection once it is published. Block rules set them.
 	hidden, drop bool

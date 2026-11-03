@@ -538,6 +538,23 @@ func TestUISnapshots(t *testing.T) {
 			a.configImport = configImport{open: true, path: "/Users/me/vscroxy-config.json", bundle: b, parts: [3]bool{true, true, false}}
 		}, want: "Rules, mocks and scripts", short: true},
 		{name: "dialog-breakpoint", setup: snapshotBreakpoint, want: "Breakpoint · request paused", short: true},
+		{name: "dialog-ws-breakpoint-text", setup: func(a *app) {
+			a.socket.open = true
+			a.bp = &capture.Breakpoint{Phase: capture.PhaseMessage, URL: "wss://api.example.com/socket", Direction: "out", MessageType: "text"}
+			a.bpOpen, a.bpBody = true, `{"action":"subscribe","topic":"prices"}`
+		}, want: "Breakpoint · WebSocket message paused", short: true},
+		{name: "dialog-ws-breakpoint-binary", setup: func(a *app) {
+			a.bp = &capture.Breakpoint{Phase: capture.PhaseMessage, URL: "wss://api.example.com/socket", Direction: "in", MessageType: "binary"}
+			a.bpOpen, a.bpBody = true, "AP6AAQ=="
+		}, want: "Server → client · binary", short: true},
+		{name: "dialog-ws-breakpoint-invalid", setup: func(a *app) {
+			a.bp = &capture.Breakpoint{Phase: capture.PhaseMessage, URL: "wss://api.example.com/socket", Direction: "out", MessageType: "binary"}
+			a.bpOpen, a.bpBody = true, "/wA"
+		}, want: "Enter canonical padded base64 for the binary message.", short: true},
+		{name: "dialog-ws-breakpoint-readonly", setup: func(a *app) {
+			a.bp = &capture.Breakpoint{Phase: capture.PhaseMessage, URL: "wss://api.example.com/socket", Direction: "in", MessageType: "binary", BodyReadOnly: true}
+			a.bpOpen = true
+		}, want: "Message exceeds the editor limit or is invalid UTF-8. Continue unchanged or drop it.", short: true},
 		{name: "dialog-breakpoint-readonly", setup: func(a *app) {
 			snapshotBreakpoint(a)
 			a.bp.Phase, a.bp.BodyReadOnly, a.bpStatus = capture.PhaseResponse, true, "503"

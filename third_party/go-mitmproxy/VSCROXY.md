@@ -5,7 +5,7 @@ Runtime packages copied verbatim from `github.com/lqqyt2423/go-mitmproxy v1.9.4`
 metadata. Upstream tests, examples, commands and unrelated addons are not copied.
 This is the existing capture engine, not another proxy implementation.
 
-The source patches are in `proxy/websocket.go`, `proxy/sse.go`, `proxy/flow.go`,
+The source patches are in `proxy/websocket.go`, `proxy/addon.go`, `proxy/sse.go`, `proxy/flow.go`,
 `proxy/attacker.go`, `proxy/proxy.go`, `proxy/entry.go` and `proxy/connection.go`.
 Everything else is upstream.
 
@@ -110,6 +110,29 @@ never its own independent preference. An upstream selection not offered by the
 client fails the handshake. `TestWebSocketSubprotocolAndBinaryThroughWSAndWSS`
 in `internal/request` covers both transports, server selection/no selection,
 auth and binary payloads with invalid UTF-8.
+
+## WebSocket message interception and lifetime
+
+`Addon.WebSocketMessage(context.Context, *Flow, *WebSocketMessage)` receives the
+current complete message explicitly. Forwarding consumes its edited Type,
+Content and Drop flag. Capture and LogAddon no longer guess the message from
+the last entry of a concurrently appended history. History appends stay locked.
+
+Each direction has a reader and a processor joined at connection end. An
+unbuffered handoff allows one message of lookahead while a hook pauses, then
+applies backpressure. Reading a close/error or closing the wrapped client
+cancels both hooks. A close behind queued data may wait until processing
+resumes. Shutdown gives pending writes a one-second grace period, forcibly
+closes sockets if they are still blocked, joins processors, closes sockets to
+release readers, joins them, then emits WebSocketEnd. The hook must honor its
+context; arbitrary third-party addons
+that ignore cancellation cannot be forcibly interrupted.
+
+Desktop real-socket tests `TestWebSocketMessageBreakpoints` (WS and decrypted
+WSS), `TestWebSocketDuplexPausesRelease` and
+`TestWebSocketSavedScriptDuplexLocalsAndMessageDecisions` cover byte-exact edits,
+isolated drops, duplex identity/locals, and release on peer/proxy close or
+breakpoints off. These tests also run with the race detector.
 
 ## Local code mocks (`proxy.go`, `entry.go`, `attacker.go`)
 

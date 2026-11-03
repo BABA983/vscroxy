@@ -1,6 +1,7 @@
 package app
 
 import (
+	"bytes"
 	"encoding/json/v2"
 	"errors"
 	"fmt"
@@ -12,10 +13,12 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/baba983/vscroxy/internal/capture"
 	"github.com/baba983/vscroxy/internal/request"
 	"github.com/egoist/mygo/ui"
+	"github.com/gorilla/websocket"
 )
 
 // A script saved on the Scripts page runs on the traffic a Script rule
@@ -81,6 +84,186 @@ export function onResponse() {
 	// On disk, as a file people can edit and keep in Git.
 	if data, err := os.ReadFile(filepath.Join(a.scripts.dir, "Debug.js")); err != nil || !strings.Contains(string(data), "onResponse") {
 		t.Fatalf("script file: %q, %v", data, err)
+	}
+}
+
+func TestWebSocketSavedScriptDuplexLocalsAndMessageDecisions(t *testing.T) {
+	const count = 24
+	received := make(chan []string, 1)
+	u := websocket.Upgrader{}
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c, err := u.Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+		defer c.Close()
+		for i := range count {
+			if c.WriteMessage(websocket.TextMessage, fmt.Appendf(nil, "server-%d", i)) != nil {
+				return
+			}
+		}
+		var messages []string
+		for range count {
+			_, data, err := c.ReadMessage()
+			if err != nil {
+				return
+			}
+			messages = append(messages, string(data))
+		}
+		received <- messages
+		for {
+			kind, data, err := c.ReadMessage()
+			if err != nil {
+				return
+			}
+			if c.WriteMessage(kind, data) != nil {
+				return
+			}
+		}
+	}))
+	defer upstream.Close()
+	a := workspaceApp()
+	a.srv = requestProxy(t)
+	a.srv.SetSSL(capture.SSLConfig{All: true})
+	a.rulesPath = filepath.Join(t.TempDir(), "rules.json")
+	a.scripts.dir = filepath.Join(t.TempDir(), "scripts")
+	a.loadScripts()
+	name, ok := a.newScript(&a.scripts, "Socket", `export function onMessage(message) {
+  if (message.type === "binary") {
+    if (message.direction === "out") message.setBase64("AP6AAQ==");
+    return;
+  }
+  const text = message.text();
+  if (text === "skip") { message.drop(); return; }
+  if (text === "fail" && message.direction === "out") {
+    message.setText("must-not-leak"); pm.variables.set("n", "999"); throw new Error("rollback");
+  }
+  const n = Number(pm.variables.get("n") || 0) + 1;
+  pm.variables.set("n", String(n));
+  message.setText(text + "|" + message.direction + "|" + n);
+}`)
+	if !ok || !a.applyRuleChanges([]capture.Rule{{Type: capture.RuleScript, Match: "/socket", Target: scriptFile(name)}}) {
+		t.Fatal("could not install saved message script")
+	}
+	addr, _ := url.Parse("http://" + a.srv.Addr())
+	dialer := websocket.Dialer{Proxy: http.ProxyURL(addr)}
+	c, _, err := dialer.DialContext(t.Context(), "ws"+strings.TrimPrefix(upstream.URL, "http")+"/socket", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	c.SetReadDeadline(time.Now().Add(10 * time.Second))
+	for i := range count {
+		if err := c.WriteMessage(websocket.TextMessage, fmt.Appendf(nil, "client-%d", i)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	seen := map[int]bool{}
+	check := func(data, prefix, direction string, index int) {
+		t.Helper()
+		var n int
+		want := fmt.Sprintf("%s-%d|%s|", prefix, index, direction)
+		if !strings.HasPrefix(data, want) {
+			t.Fatalf("wrong duplex identity: %q, want %q", data, want)
+		}
+		if _, err := fmt.Sscan(strings.TrimPrefix(data, want), &n); err != nil || n < 1 || n > 2*count || seen[n] {
+			t.Fatalf("lost/duplicated connection local: %q", data)
+		}
+		seen[n] = true
+	}
+	for i := range count {
+		_, data, err := c.ReadMessage()
+		if err != nil {
+			t.Fatal(err)
+		}
+		check(string(data), "server", "in", i)
+	}
+	select {
+	case messages := <-received:
+		for i, data := range messages {
+			check(data, "client", "out", i)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("upstream did not receive duplex messages")
+	}
+	for _, tc := range []struct {
+		kind       int
+		sent, want []byte
+	}{
+		{websocket.BinaryMessage, []byte{255, 0, 195, 40}, []byte{0, 254, 128, 1}},
+		{websocket.TextMessage, []byte("fail"), []byte(fmt.Sprintf("fail|in|%d", 2*count+1))},
+		{websocket.TextMessage, []byte("sentinel"), []byte(fmt.Sprintf("sentinel|out|%d|in|%d", 2*count+2, 2*count+3))},
+	} {
+		if string(tc.sent) == "sentinel" {
+			if err := c.WriteMessage(websocket.TextMessage, []byte("skip")); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if err := c.WriteMessage(tc.kind, tc.sent); err != nil {
+			t.Fatal(err)
+		}
+		kind, data, err := c.ReadMessage()
+		if err != nil || kind != tc.kind || !bytes.Equal(data, tc.want) {
+			t.Fatalf("message decision: %d %x %v, want %d %x", kind, data, err, tc.kind, tc.want)
+		}
+	}
+	if got := a.srv.ScriptErrors(); got != 1 {
+		t.Fatalf("script failures = %d", got)
+	}
+}
+
+func TestWebSocketDisconnectCancelsActiveScriptRequest(t *testing.T) {
+	entered, cancelled := make(chan struct{}), make(chan struct{})
+	dependency := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		close(entered)
+		<-r.Context().Done()
+		close(cancelled)
+	}))
+	defer dependency.Close()
+	u := websocket.Upgrader{}
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c, err := u.Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+		defer c.Close()
+		for {
+			if _, _, err := c.ReadMessage(); err != nil {
+				return
+			}
+		}
+	}))
+	defer upstream.Close()
+	a := workspaceApp()
+	a.srv = requestProxy(t)
+	a.srv.SetSSL(capture.SSLConfig{All: true})
+	a.rulesPath = filepath.Join(t.TempDir(), "rules.json")
+	a.scripts.dir = filepath.Join(t.TempDir(), "scripts")
+	a.loadScripts()
+	name, ok := a.newScript(&a.scripts, "Waiting", fmt.Sprintf(`export async function onMessage(message) { await pm.sendRequest(%q); }`, dependency.URL))
+	if !ok || !a.applyRuleChanges([]capture.Rule{{Type: capture.RuleScript, Match: "/socket", Target: scriptFile(name)}}) {
+		t.Fatal("could not install script")
+	}
+	addr, _ := url.Parse("http://" + a.srv.Addr())
+	dialer := websocket.Dialer{Proxy: http.ProxyURL(addr)}
+	c, _, err := dialer.DialContext(t.Context(), "ws"+strings.TrimPrefix(upstream.URL, "http")+"/socket", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	if err := c.WriteMessage(websocket.TextMessage, []byte("wait")); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-entered:
+	case <-time.After(10 * time.Second):
+		t.Fatal("script request did not start")
+	}
+	c.Close()
+	select {
+	case <-cancelled:
+	case <-time.After(10 * time.Second):
+		t.Fatal("script request survived socket disconnect")
 	}
 }
 
@@ -234,7 +417,7 @@ func TestScriptProblemsAreMarked(t *testing.T) {
 	if !errors.As(a.scripts.problems["Waits"], &problem) || problem.Line != 2 || !strings.Contains(problem.Message, "await") {
 		t.Errorf("rule script problem = %v", a.scripts.problems["Waits"])
 	}
-	if on, _ := a.scripts.Hooks("Waits.js"); on {
+	if on, _, _ := a.scripts.Hooks("Waits.js"); on {
 		t.Error("a script that does not convert still runs")
 	}
 	if !errors.As(a.addons.problems["half"], &problem) || problem.Line != 1 {
