@@ -260,6 +260,7 @@ type app struct {
 	configImport configImport
 	scenarioUI   scenarioUI
 	throttle     capture.Throttle
+	network      networkWorkbench
 	upstream     string
 	errText      string
 	dropped      int64
@@ -482,6 +483,7 @@ func newApp() *app {
 		}
 		a.caPath = filepath.Join(home, ".mitmproxy", "mitmproxy-ca-cert.pem")
 		a.rulesPath = filepath.Join(home, ".vscroxy", "rules.json")
+		a.network.path = filepath.Join(home, ".vscroxy", "network-presets.json")
 		a.bpTemplatesPath = filepath.Join(home, ".vscroxy", "breakpoint-templates.json")
 		a.sslPath = filepath.Join(home, ".vscroxy", "ssl.json")
 		a.library.root = filepath.Join(home, ".vscroxy", "collections")
@@ -587,6 +589,9 @@ func (a *app) loadRequestAssets() {
 func (a *app) reloadConfig() {
 	unreadable := func(path string, err error) {
 		a.fail(path+" could not be read and is left untouched", err)
+	}
+	if a.network.path != "" {
+		a.loadNetworkPresets()
 	}
 	if a.srv != nil {
 		a.loadHosts()
@@ -1454,6 +1459,7 @@ func (a *app) view(c *ui.Context) {
 	a.markModal(c, t)
 	a.views.modals(c, t, a)
 	a.columnModal(c, t)
+	a.networkModal(c, t)
 	a.keyLogModal(c, t)
 	a.closeRequestModal(c, t)
 	a.apiGenerationModal(c, t)

@@ -166,15 +166,13 @@ func (a *app) networkTools() []action {
 		do("network.no-caching", "No Caching", func() { a.srv.SetNoCaching(!a.srv.NoCaching()) }).
 			when(a.srv != nil, "Start capture first").checked(checkbox(a.srv != nil && a.srv.NoCaching())).in("caching"),
 	}
-	for _, preset := range capture.Presets {
+	for _, preset := range a.networkPresets() {
 		actions = append(actions, do("network.throttle", preset.Name, func() {
-			a.throttle = preset
-			if a.srv != nil {
-				a.srv.SetThrottle(preset)
-			}
+			a.setThrottle(preset)
 		}).checked(radio(a.throttle.Name == preset.Name || a.throttle.Name == "" && preset.Name == "Off")).in("throttle"))
 	}
 	return append(actions,
+		do("network.custom", "Custom presets…", a.openNetwork).in("throttle"),
 		do("network.upstream", "Upstream…", func() {
 			a.upstreamAddr = a.upstream
 			a.upstreamOpen = true
@@ -212,10 +210,7 @@ func (a *app) activeTools(c *ui.Context, t *ui.Theme) {
 			}
 			if throttled {
 				toolChip(c, "throttle", a.throttle.Name, "Change network conditions", networkIcon, nil, func() {
-					a.throttle = capture.Presets[0]
-					if a.srv != nil {
-						a.srv.SetThrottle(a.throttle)
-					}
+					a.setThrottle(capture.Presets[0])
 				}).PopoverMenuButton(func(m *ui.Menu) { actionMenu(m, a.networkTools()) })
 			}
 			if noCaching {

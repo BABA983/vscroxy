@@ -904,6 +904,19 @@ traffic alone. A request-disconnect failure percentage, when set, fails before
 HTTP forwarding and records a connection error; it is not TCP/IP packet loss.
 Clients may independently retry an idempotent request after a disconnect.
 
+**Tools / Network → Custom presets…** saves up to 32 custom profiles with
+separate download/upload bytes per second, latency in milliseconds and an
+integer request failure percentage. Rates accept 0–1073741824 bytes/s, latency
+0–60000 ms and failure 0–100%. Names are unique ignoring case; built-in names
+are reserved. **Copy active conditions** fills the numeric fields without
+changing the draft name. **Save & apply** validates and safely writes
+`~/.vscroxy/network-presets.json` before applying; damaged, externally changed
+or read-only files are left untouched. The standard **Reload** action reloads
+this file too. Only custom profiles are saved; global conditions restart Off.
+Deleting a preset requires confirmation and resets global conditions Off if
+that preset is active. The shared menu lists saved profiles; the active chip's
+close button also turns the global conditions Off.
+
 **Network → Upstream…** sends every request through another proxy, such as
 `http://127.0.0.1:8080`; **Upstream off** clears it. **Settings → Proxy → Upstream** edits the same
 address in place; leave it empty and apply to connect directly. The engine tunnels to the
