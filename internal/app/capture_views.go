@@ -57,13 +57,14 @@ type savedCaptureFilter struct {
 // captureTriage is shared by live views and portable saved filters. Numeric
 // conditions name their units in the UI; there are no implicit KiB conversions.
 type captureTriage struct {
-	Host     string `json:"host,omitempty"`
-	Client   string `json:"client,omitempty"`
-	Method   string `json:"method,omitempty"`
-	Duration string `json:"duration,omitempty"`
-	Size     string `json:"size,omitempty"`
-	Color    string `json:"color,omitempty"`
-	Note     string `json:"note,omitempty"`
+	Host      string `json:"host,omitempty"`
+	Client    string `json:"client,omitempty"`
+	Method    string `json:"method,omitempty"`
+	Duration  string `json:"duration,omitempty"`
+	Size      string `json:"size,omitempty"`
+	Color     string `json:"color,omitempty"`
+	Note      string `json:"note,omitempty"`
+	Operation string `json:"operation,omitempty"`
 }
 
 func numericCondition(value int, expression string) (bool, bool) {
@@ -100,6 +101,9 @@ func (q captureTriage) matches(f flow) bool {
 	if q.Host != "" && q.Host != f.host || q.Client != "" && q.Client != f.process {
 		return false
 	}
+	if q.Operation != "" && !f.hasOperation(q.Operation) {
+		return false
+	}
 	if q.Method != "" {
 		matched := false
 		for method := range strings.SplitSeq(q.Method, ",") {
@@ -119,6 +123,7 @@ func (q captureTriage) summary() []string {
 	var parts []string
 	for _, field := range []struct{ name, value string }{
 		{"host", q.Host}, {"app", q.Client},
+		{"operation", q.Operation},
 		{"method", q.Method}, {"duration ms", q.Duration}, {"response bytes", q.Size}, {"color", q.Color}, {"note", q.Note},
 	} {
 		if field.value != "" {
@@ -1015,6 +1020,12 @@ func (v *captureViews) filterModal(c *ui.Context, t *ui.Theme, a *app) {
 					uikit.Input(c, &v.editTriage.Client).Label("Filter app").Placeholder("Browser")
 				}).Grow(1)
 			})
+			ui.Field(c, "GraphQL operation (exact, case-sensitive)", func() {
+				uikit.Input(c, &v.editTriage.Operation).Label("Filter GraphQL operation").Placeholder("Search")
+			}).Description("Only verified selected operations match; persisted-only queries and unavailable bodies do not.")
+			if operation := strings.TrimSpace(v.editTriage.Operation); operation != "" {
+				problem = checkOperation(operation)
+			}
 			ui.Row(c).Gap(t.Space(3)).Children(func() {
 				ui.Field(c, "Method (comma-separated)", func() {
 					uikit.Input(c, &v.editTriage.Method).Label("Filter method").Placeholder("GET, POST")
@@ -1114,6 +1125,7 @@ func (v *captureViews) commitFilter(a *app) {
 	view.triage.Host = strings.TrimSpace(view.triage.Host)
 	view.triage.Client = strings.TrimSpace(view.triage.Client)
 	view.triage.Method = strings.TrimSpace(view.triage.Method)
+	view.triage.Operation = strings.TrimSpace(view.triage.Operation)
 	v.bind(a)
 	v.applyFilter(a)
 	if strings.TrimSpace(view.body) != "" {

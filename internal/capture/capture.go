@@ -35,6 +35,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/baba983/vscroxy/internal/dnsmap"
+	"github.com/baba983/vscroxy/internal/graphql"
 	"github.com/baba983/vscroxy/internal/hosts"
 	"github.com/baba983/vscroxy/internal/procinfo"
 	"github.com/baba983/vscroxy/internal/rules"
@@ -259,6 +260,8 @@ type Rule struct {
 	Apps []string `json:"apps,omitempty"`
 	// When are request headers the rule needs, all of them.
 	When []rules.HeaderCondition `json:"when,omitempty"`
+	// Operation requires a verified selected GraphQL operation, case-sensitive.
+	Operation string `json:"operation,omitempty"`
 	// PathFrom and PathTo rewrite a Map Remote path: a path starting with
 	// PathFrom starts with PathTo instead. KeepHost sends the client's Host
 	// header to the new target instead of the target's own.
@@ -942,8 +945,40 @@ func (s *Server) waitBreakpoint(ctx context.Context, bp Breakpoint) *Decision {
 // ruleRequest is what the rules look at in an exchange, as it is now: after
 // a Map Remote rule, the URL it was sent to.
 func (s *Server) ruleRequest(f *proxy.Flow) rules.Request {
-	return rules.Request{URL: f.Request.URL.String(), Method: f.Request.Method, Host: f.Request.URL.Hostname(),
+	req := rules.Request{URL: f.Request.URL.String(), Method: f.Request.Method, Host: f.Request.URL.Hostname(),
 		App: s.clientProcess(f).Name, Header: f.Request.Header}
+	s.rulesMu.RLock()
+	needed := slices.ContainsFunc(s.rules, func(r Rule) bool { return r.Operation != "" && !r.Disabled && (r.Scenario == "" || r.ScenarioActive) })
+	s.rulesMu.RUnlock()
+	if !needed {
+		return req
+	}
+	var body []byte
+	if req.Method == http.MethodPost {
+		// Streamed or oversized requests cannot supply verified operation names.
+		// Bound decompression as well as the GraphQL parser; never inspect a prefix.
+		if f.Request.Body == nil || len(f.Request.Body) > 1<<20 {
+			return req
+		}
+		decoder, err := newDecoder(req.Header.Get("Content-Encoding"), bytes.NewReader(f.Request.Body))
+		if err != nil {
+			return req
+		}
+		defer decoder.Close()
+		body, err = io.ReadAll(io.LimitReader(decoder, 1<<20+1))
+		if err != nil || len(body) > 1<<20 {
+			return req
+		}
+	}
+	operations, err := graphql.RequestOperations(req.Method, req.URL, req.Header.Get("Content-Type"), string(body))
+	if err == nil {
+		for _, op := range operations {
+			if op.Name != "" {
+				req.Operations = append(req.Operations, op.Name)
+			}
+		}
+	}
+	return req
 }
 
 // breakRule is the first breakpoint rule that pauses an exchange in phase.

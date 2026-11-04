@@ -658,6 +658,25 @@ func TestUISnapshots(t *testing.T) {
 			a.cookieUI = cookieEditor{open: true, url: "https://api.example.com/", name: "demo", value: "fake-cookie", path: "/", secure: true, httpOnly: true}
 		}, want: "Session Cookies", short: true},
 		{name: "capture-json-columns", setup: snapshotJSONColumns, want: "9007199254740993"},
+		{name: "capture-graphql", setup: snapshotGraphQL, want: "query Search"},
+		{name: "dialog-graphql-column", setup: func(a *app) {
+			a.openColumn()
+			a.columnDraft = graphqlColumn
+		}, want: "Selected operations from GET parameters"},
+		{name: "dialog-graphql-filter", setup: func(a *app) {
+			snapshotGraphQL(a)
+			a.views.init(a, "")
+			a.openFilter()
+			a.views.editTriage.Operation = "Search"
+		}, want: "GraphQL operation (exact, case-sensitive)"},
+		{name: "tools-graphql-rule", setup: func(a *app) {
+			r := capture.Rule{Name: "Search only", Type: capture.RuleBlock, Match: "/graphql", Operation: "Search"}
+			a.rules = []capture.Rule{r}
+			a.openTools("rules")
+			a.editRule(0, r)
+			a.ruleUI.test = "POST https://api.example.com/graphql"
+			a.ruleUI.testBody = `{"query":"query Search { items { id } } query Other { viewer { id } }","operationName":"Search"}`
+		}, want: "1 rule acts, in the order numbered"},
 		{name: "dialog-column", setup: func(a *app) { a.openColumn(); a.columnDraft.Name = "x-request-id" }, want: "Add column"},
 		{name: "dialog-json-column", setup: func(a *app) {
 			a.openColumn()
@@ -1075,6 +1094,21 @@ func snapshotActiveTools(a *app) {
 	_ = a.srv.SetUpstream(a.upstream)
 	a.rules = []capture.Rule{{Type: capture.RuleBlock, Match: "/offline", Scenario: "Offline", ScenarioActive: true}}
 	_ = a.srv.SetRules(a.rules)
+}
+
+func snapshotGraphQL(a *app) {
+	a.hiddenColumns = []string{"host", "remote", "client", "duration", "size", "captured"}
+	a.workbench.sidebarHidden = true
+	a.flows[0].method, a.flows[0].url, a.flows[0].path = "POST", "https://api.example.com/graphql", "/graphql"
+	a.flows[0].reqBody = `{"query":"query Other { viewer { id } } query Search { items { id name } }","operationName":"Search"}`
+	a.flows[0].reqHeader.Set("Content-Type", "application/json")
+	a.flows[1].method, a.flows[1].url, a.flows[1].path = "POST", "https://api.example.com/graphql", "/graphql"
+	a.flows[1].reqHeader = http.Header{"Content-Type": {"application/json"}}
+	a.flows[1].reqBody = `{"query":"mutation Save { saveItem { id } }"}`
+	invalid := a.flows[1]
+	invalid.id, invalid.reqBody = 3, `{"query":"query A { a } query B { b }"}`
+	a.flows = append(a.flows, invalid)
+	a.setCustomColumns([]customColumn{graphqlColumn})
 }
 
 func snapshotJSONColumns(a *app) {

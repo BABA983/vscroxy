@@ -228,6 +228,37 @@ bodies off-thread (including spill files), never a partial preview. Limits:
 cells; use the body inspector for them. Reading shows `…`, then the active
 sort updates without changing the selected capture or its original bytes.
 
+**GraphQL awareness**
+
+**Add column… → GraphQL operation** displays the selected operation's type
+and case-sensitive name, such as `query Search` or `mutation Save`.
+Anonymous operations show `(anonymous)`; batches keep request order.
+The column reads complete retained request bodies in the background and
+sorts lexically. Display text is capped at 4 KiB; exact matching uses the
+complete names. Missing or persisted-query-only evidence shows `—`;
+invalid, ambiguous or unavailable evidence shows **Unavailable**, never
+the names of unselected operations or a guessed name from `operationName`.
+
+**Filters… → GraphQL operation** or `operation:Search` in search selects
+an exact name, even without the column. Saved filters keep it. In
+**Tools → Rules**, **GraphQL operation** adds the same condition to URL,
+method, App and headers with AND. A batch matches when a verified selected
+member has the exact name; a malformed member invalidates the whole batch.
+The rule test accepts a **Test GraphQL body**; POST defaults to a JSON
+envelope, or set `; Content-Type: application/graphql` for a raw query.
+GET test requests use their URL parameters only. Live rules also decode
+supported request content-encodings, bounded to 1 MiB; streamed/unavailable
+or oversized request bodies cannot match an operation condition.
+
+Supported evidence is GET `query` / `operationName`, POST JSON envelopes
+(`application/json` or `application/*+json`), JSON batches and raw
+`application/graphql`. Multiple operations require an exact selector;
+duplicate names and non-lone anonymous operations are invalid. Limits:
+1 MiB input, depth 64, 16384 JSON tokens and 16384 GraphQL tokens shared
+across at most 32 batch entries. This is syntax and operation-identity
+inspection, not schema validation, fragment resolution or GraphQL execution.
+No schema fetch, request send or capture mutation occurs during inspection.
+
 The protocol tabs beside the search keep one kind of traffic in view: HTTP or
 HTTPS by scheme, WebSocket and SSE by kind, and JSON, images or HTML by the
 response's content type (the last two live in the toolbar's **⋯**). They narrow
@@ -1449,7 +1480,14 @@ not the file bytes; the receiving machine must have the file or select another.
 **Body → GraphQL**, with GraphQL/JSON highlighting, find and undo. Enter one
 query or mutation; multi-operation documents that need `operationName` still
 use a Raw JSON body. **Variables** is a JSON object, or blank to send `{}`;
-**Format** indents its JSON without expanding placeholders. Both fields support
+**Format** indents its JSON without expanding placeholders. On **Query**,
+**Format** uses the GraphQL parser/formatter, preserving parsed semantics
+and producing stable output. It never expands templates or edits Variables;
+invalid syntax or a format that cannot preserve semantics leaves the query
+unchanged and reports an error. Limits are 1 MiB source, depth 64 and 16384
+tokens. In particular, variable-definition directives are rejected because
+the upstream formatter would omit them. Block strings may become equivalent
+quoted strings; comment placement follows the upstream formatter. Both fields support
 `{{variables}}`, dynamic values, Vault references and pre-request script/Runner
 values. Expansion is textual, as with Raw JSON: escape JSON string values when
 needed. Sending validates the expanded variables as an object and encodes
@@ -1462,7 +1500,7 @@ edits but never sends them. Code/cURL export uses the same JSON encoding without
 expanding secrets (variables must already be valid JSON for code export).
 A script's explicit raw-body assignment or `pm.request.body.update(...)`
 replaces GraphQL encoding, as it does forms. Schema introspection, completions
-and query formatting are not included yet.
+and an authored operationName selector are not included yet.
 
 **Scripts** edits the pre-request and post-response scripts in the same reader as
 the body, with JavaScript highlighting, find and undo. **Send** runs through the

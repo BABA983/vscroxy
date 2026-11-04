@@ -1987,7 +1987,7 @@ func (a *app) table(c *ui.Context) {
 	remoteShown := slices.ContainsFunc(cols, func(col ui.TableColumn) bool { return col.ID == "remote" })
 	for _, cc := range a.customColumns {
 		width := float32(150)
-		if cc.body() {
+		if cc.derived() {
 			width = 240
 		}
 		cols = append(cols, ui.TableColumn{ID: cc.id(), Title: cc.title(), Width: width, Sortable: true})
@@ -2103,7 +2103,7 @@ func (a *app) table(c *ui.Context) {
 			if !ok {
 				return
 			}
-			if cc.body() {
+			if cc.derived() {
 				if cell := f.columnData[cc.id()]; cell != nil {
 					if cell.pending {
 						quiet("…").Tooltip("Reading retained body")

@@ -25,13 +25,19 @@ const (
 	sourceQuery          = "Query parameter"
 	sourceRequestJSON    = "Request JSON"
 	sourceResponseJSON   = "Response JSON"
+	sourceGraphQL        = "GraphQL operation"
 )
 
-var columnSources = []string{sourceHeader, sourceRequestHeader, sourceResponseHeader, sourceQuery, sourceRequestJSON, sourceResponseJSON}
+var columnSources = []string{sourceHeader, sourceRequestHeader, sourceResponseHeader, sourceQuery, sourceRequestJSON, sourceResponseJSON, sourceGraphQL}
+
+var graphqlColumn = customColumn{Source: sourceGraphQL, Name: "operation"}
 
 // id names the column in the saved layout, so its width and place stay.
 func (cc customColumn) id() string {
 	name := cc.Name
+	if cc.Source == sourceGraphQL {
+		name = "operation"
+	}
 	if cc.header() {
 		name = strings.ToLower(name)
 	}
@@ -51,6 +57,8 @@ func (cc customColumn) title() string {
 		return cc.Name + " (request JSON)"
 	case sourceResponseJSON:
 		return cc.Name + " (response JSON)"
+	case sourceGraphQL:
+		return "GraphQL operation"
 	}
 	return cc.Name
 }
@@ -142,6 +150,9 @@ func (a *app) columnModal(c *ui.Context, t *ui.Theme) {
 	}
 	draft := &a.columnDraft
 	name := strings.TrimSpace(draft.Name)
+	if draft.Source == sourceGraphQL {
+		name = "operation"
+	}
 	problem := ""
 	if draft.body() {
 		if err := inspect.ValidatePointer(name); err != nil {
@@ -171,6 +182,7 @@ func (a *app) columnModal(c *ui.Context, t *ui.Theme) {
 							sourceQuery:          "A parameter of the URL's query.",
 							sourceRequestJSON:    "Scalar request field. JSON pointer, case-sensitive; ~1 escapes / and ~0 escapes ~.",
 							sourceResponseJSON:   "Scalar response field. JSON pointer, case-sensitive; ~1 escapes / and ~0 escapes ~.",
+							sourceGraphQL:        "Selected operations from GET parameters or complete POST bodies. Names are case-sensitive; batches keep request order.",
 						}[draft.Source])
 					placeholder := "x-request-id"
 					if draft.Source == sourceQuery {
@@ -179,9 +191,13 @@ func (a *app) columnModal(c *ui.Context, t *ui.Theme) {
 					if draft.body() {
 						placeholder = "/data/user/id"
 					}
-					ui.Field(c, "Name", func() {
-						uikit.Input(c, &draft.Name).Label("Column name or JSON pointer").Placeholder(placeholder).AutoFocus()
-					}).Error(problem)
+					if draft.Source != sourceGraphQL {
+						ui.Field(c, "Name", func() {
+							uikit.Input(c, &draft.Name).Label("Column name or JSON pointer").Placeholder(placeholder).AutoFocus()
+						}).Error(problem)
+					} else if problem != "" {
+						uikit.Hint(c, problem)
+					}
 				})
 				if draft.body() {
 					uikit.Hint(c, "Reads complete retained JSON off-thread, up to 1 MiB. Scalar cells up to 4 KiB; unavailable bodies show an explanation. Sorting is lexical.").FillWidth()

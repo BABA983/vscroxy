@@ -88,7 +88,7 @@
 | 多个视图 tab、保存的筛选 | 已有 | | |
 | 自定义列：header、query | 已有 | | |
 | 自定义列：JSON body 字段、Remote IP | 已有 | 请求/响应标量 JSON pointer，后台完整正文读取；Remote IP 显隐 | M2 / M5 |
-| 自定义列：GraphQL operation | 缺少 | | M5 |
+| 自定义列：GraphQL operation | 已有 | 实际选中的 operation 类型／名称，后台完整正文解析，支持 batch | M5 |
 | 筛选：多条件 AND/OR 组合 | 部分 | 条件之间只能 AND | M5 |
 | 搜索支持通配符和正则 | 缺少 | 现在只匹配 host 和路径的子串 | M5 |
 | Body 全文搜索 | 已有 | | |
@@ -132,7 +132,7 @@
 | 上游代理：PAC、绕过名单、按 host 选择、认证 | 缺少 | | M7 |
 | Repeat、Edit & repeat、批量重放 | 已有 | | |
 | 高级重放：重复 N 次、并发、间隔 | 缺少 | | M5 |
-| GraphQL：按 operation 名匹配规则、格式化 query | 缺少 | | M5 |
+| GraphQL：按 operation 名匹配规则、格式化 query | 已有 | 精确筛选／规则与预览共用解析；query 格式化保留语义，失败不改原文 | M5 |
 | 规则和设置的导入导出（备份、分享） | 已有 | Settings → General：一个 JSON，含设置、名单、规则和 mock 文件、脚本、Host 方案、断点模板；不含密钥和变量；导入按部分替换 | M4 |
 
 ### 4.4 导入、导出、分享
@@ -171,7 +171,7 @@
 | Body：raw、urlencoded、multipart | 已有 | | |
 | Body：binary 文件 | 已有 | 只保存本地路径，每次发送原样读取，普通文件 ≤16 MiB；Send/Runner 共用，Postman 导入导出保留引用，支持 cURL 导出 | M6 |
 | Body：GraphQL（query + variables） | 已有 | 独立编辑与保存，变量展开、Send/Runner、Postman 导入导出、代码导出 | M6 |
-| GraphQL schema 自省和补全 | 缺少 | 基础 Body 已完成；不含 query 格式化和 operationName 选择 | M6 |
+| GraphQL schema 自省和补全 | 缺少 | 基础 Body 和 query 格式化已完成；operationName 编辑选择仍待做 | M6 |
 | Auth：Inherit、Bearer、Basic、API key、OAuth 2.0、Digest、AWS、JWT | 已有 | | |
 | Auth：OAuth 1.0、NTLM、Hawk、Akamai EdgeGrid | 缺少 | 按需求排 | M6 |
 | 环境、全局变量、集合/文件夹变量、Vault | 已有 | | |
@@ -296,8 +296,7 @@ Cookie 和其他 API key 保留为变量 header，避免把多个认证机制硬
 - 第二阶段已完成：JSONPath / jq 后台只读查询，保留大整数，支持取消和结果复制。
 - 第三阶段已完成：multipart 分段、表单字段表、MessagePack、XML 查看（抓包两侧和已发送响应）。
 - 第四阶段已完成：请求/响应 JSON 字段自定义列，保留大小写和整数精度，后台读取、字典序排序；Remote IP 显隐。
-- 自定义列：GraphQL operation。
-- GraphQL 感知：operation 列、按 operation 筛选和匹配规则、格式化 query。
+- 第五阶段已完成：GraphQL operation 列、精确 operation 筛选与规则／预览、保留语义的 query 格式化。GET／JSON POST／raw query／batch；只认实际选中且可验证的 operation，限制与边界见使用指南。
 - 耗时瀑布图。
 - 筛选的 AND/OR 组合，搜索支持通配符和正则。
 - 网络条件：自定义、丢包、按 host。

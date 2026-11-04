@@ -28,7 +28,7 @@ func (r Rule) matches(req rules.Request) bool {
 
 // matcher is what a rule matches.
 func (r Rule) matcher() rules.Matcher {
-	return rules.Matcher{URL: r.Match, URLMode: r.MatchMode, Method: r.Method, Apps: r.Apps, Headers: r.When}
+	return rules.Matcher{URL: r.Match, URLMode: r.MatchMode, Method: r.Method, Apps: r.Apps, Headers: r.When, Operation: r.Operation}
 }
 
 func (r Rule) matchReason(req rules.Request) string {
@@ -147,7 +147,7 @@ func regexHost(expr string) (string, bool) {
 func (r Rule) key() string {
 	when, _ := json.Marshal(r.When)
 	return strings.Join([]string{string(r.Type), r.MatchMode, r.Match, r.Method, strings.Join(r.Apps, "\n"), string(when), r.Target,
-		r.PathFrom, r.PathTo, fmt.Sprint(r.KeepHost), r.Block, r.Direction}, "\x00")
+		r.PathFrom, r.PathTo, fmt.Sprint(r.KeepHost), r.Block, r.Direction, r.Operation}, "\x00")
 }
 
 // RulePreview explains a saved rule's part in one exchange. Step is its place

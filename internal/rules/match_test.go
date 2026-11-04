@@ -45,11 +45,16 @@ func TestApp(t *testing.T) {
 }
 
 func TestMatcherNeedsEveryCondition(t *testing.T) {
-	m := Matcher{URL: "/api/", Method: "POST", Hosts: []string{"example.com"}, Apps: []string{"curl"}}
-	r := Request{URL: "https://api.example.com/api/users", Method: "POST", Host: "api.example.com", App: "curl"}
+	m := Matcher{URL: "/api/", Method: "POST", Hosts: []string{"example.com"}, Apps: []string{"curl"}, Operation: "Search"}
+	r := Request{URL: "https://api.example.com/api/users", Method: "POST", Host: "api.example.com", App: "curl", Operations: []string{"Other", "Search"}}
 	if !m.Match(r) {
 		t.Fatalf("Match(%+v) = false, want true", r)
 	}
+	r.Operations = []string{"search"}
+	if m.Match(r) {
+		t.Fatal("operation name matched case-insensitively")
+	}
+	r.Operations = []string{"Search"}
 	r.Method, r.App = "GET", "wget"
 	got := m.Mismatch(r)
 	if len(got) != 2 || got[0] != "method does not match" || got[1] != "app does not match" {
@@ -57,6 +62,12 @@ func TestMatcherNeedsEveryCondition(t *testing.T) {
 	}
 	if !(Matcher{}).Match(Request{}) {
 		t.Fatal("an empty matcher should match anything")
+	}
+	for _, operation := range []string{"Search*", " Search", "1Search", "用户", "A B"} {
+		m := Matcher{Operation: operation}
+		if m.Validate() == nil || m.Match(Request{Operations: []string{operation}}) {
+			t.Fatalf("invalid exact operation name %q accepted", operation)
+		}
 	}
 }
 

@@ -1468,6 +1468,25 @@ func TestRequestBodyEditorKeepsTheDraftInSync(t *testing.T) {
 	if d.queryEditor.Buffer.String() != `{ viewer { name } }` || d.varsEditor.Buffer.String() != `{"id":19}` {
 		t.Fatal("restored GraphQL text was overwritten by stale editor buffers")
 	}
+	if err := tt.Click("Query"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.Click("Format GraphQL query"); err != nil {
+		t.Fatal(err)
+	}
+	wantQuery := "query {\n  viewer {\n    name\n  }\n}\n"
+	if d.value().GraphQL.Query != wantQuery || d.queryEditor.Buffer.String() != wantQuery || d.graphql.Variables != `{"id":19}` || d.composeBody != `{"quantity": 0}` {
+		t.Fatal("query formatting changed variables/raw body or was overwritten by the editor: ", d.value())
+	}
+	// Formatting failure leaves authored templates untouched, never expands them.
+	d.graphql.Query = `query { viewer(id: {{id}}) { name } }`
+	tt.Frame()
+	if err := tt.Click("Format GraphQL query"); err != nil {
+		t.Fatal(err)
+	}
+	if d.value().GraphQL.Query != `query { viewer(id: {{id}}) { name } }` || !tt.HasText("Format GraphQL query") {
+		t.Fatal("invalid/template query was silently changed")
+	}
 }
 
 func TestCredentialsAreMaskedUntilRevealed(t *testing.T) {
@@ -3047,6 +3066,50 @@ func readField(t *testing.T, tt *ui.Tester, label string) string {
 	return tt.Clipboard()
 }
 
+func TestGraphQLRuleEditorPersistsAndPreviewsSelection(t *testing.T) {
+	a := workspaceApp()
+	a.rulesPath = filepath.Join(t.TempDir(), "rules.json")
+	a.openTools("rules")
+	a.editRule(-1, capture.Rule{Name: "Search only", Type: capture.RuleBlock, Match: "/graphql"})
+	tt := ui.NewTester(a.view, 1280, 800)
+	edit := func(label, value string) {
+		t.Helper()
+		if err := tt.Click(label); err != nil {
+			t.Fatal(err)
+		}
+		tt.Key(ui.Cmd, ui.KeyA)
+		tt.Type(value)
+	}
+	edit("Match GraphQL operation", "Search*")
+	if err := tt.Click("Save rule"); err != nil {
+		t.Fatal(err)
+	}
+	if len(a.rules) != 0 || !strings.Contains(a.ruleUI.problem, "exact name") {
+		t.Fatal("invalid operation rule saved: ", a.ruleUI.problem)
+	}
+	edit("Match GraphQL operation", "Search")
+	if err := tt.Click("Save rule"); err != nil {
+		t.Fatal(err)
+	}
+	saved, err := capture.LoadRules(a.rulesPath)
+	if err != nil || len(saved) != 1 || saved[0].Operation != "Search" {
+		t.Fatalf("operation lost: %+v, %v", saved, err)
+	}
+	edit("Test a request", "POST https://api.example.com/graphql")
+	edit("Test GraphQL body", `{"query":"query Search { a } query Other { b }","operationName":"Other"}`)
+	if !tt.HasText("No rule acts · it goes upstream unchanged") {
+		t.Fatal("unselected operation preview matched", tt.Texts())
+	}
+	edit("Test GraphQL body", `{"query":"query Search { a } query Other { b }","operationName":"Search"}`)
+	if !tt.HasText("1 rule acts, in the order numbered") {
+		t.Fatal("selected operation preview did not match", tt.Texts())
+	}
+	edit("Test GraphQL body", `{"query":"query Search { a } query Other { b }"}`)
+	if !tt.HasText("No rule acts · it goes upstream unchanged") || !tt.HasText("GraphQL not verified:") {
+		t.Fatal("ambiguous document retained stale preview", tt.Texts())
+	}
+}
+
 func TestRuleEditorPersistsOrderingTogglesAndCapturedMock(t *testing.T) {
 	a := workspaceApp()
 	a.rulesPath = filepath.Join(t.TempDir(), "rules.json")
@@ -4390,10 +4453,10 @@ func TestQuerySyntaxTurnsFinishedTokensIntoChips(t *testing.T) {
 	}
 	// Enter takes the last token too; quotes keep a value's spaces.
 	tt.Key(ui.Cmd, ui.KeyA)
-	tt.Type(`slow app:"Google Chrome" method:post`)
+	tt.Type(`slow app:"Google Chrome" method:post operation:Search`)
 	tt.Key(0, ui.KeyEnter)
 	tt.Frame()
-	if a.query != "" || a.filterTriage.Client != "Google Chrome" || a.filterTriage.Method != "POST" || a.filterTriage.Duration != ">=1000" ||
+	if a.query != "" || a.filterTriage.Client != "Google Chrome" || a.filterTriage.Method != "POST" || a.filterTriage.Duration != ">=1000" || a.filterTriage.Operation != "Search" ||
 		!tt.HasText(`Remove condition: app:"Google Chrome"`) || !tt.HasText("Remove condition: slow") {
 		t.Fatalf("query %q, triage %+v", a.query, a.filterTriage)
 	}

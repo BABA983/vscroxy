@@ -16,6 +16,8 @@ import (
 	"slices"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/baba983/vscroxy/internal/rules"
 )
 
 // queryKey is one key of the syntax and the condition it sets. check returns
@@ -32,6 +34,7 @@ var queryKeys = []queryKey{
 	{"host", "Exact host", func(a *app) *string { return &a.filterTriage.Host }, nil},
 	{"status", "Code, class or range", func(a *app) *string { return &a.filterStatus }, checkStatus},
 	{"method", "HTTP method", func(a *app) *string { return &a.filterTriage.Method }, nil},
+	{"operation", "Exact GraphQL operation", func(a *app) *string { return &a.filterTriage.Operation }, checkOperation},
 	{"duration", "Milliseconds", func(a *app) *string { return &a.filterTriage.Duration }, checkNumber("duration", "ms")},
 	{"size", "Response bytes", func(a *app) *string { return &a.filterTriage.Size }, checkNumber("size", "response bytes")},
 	{"header", "Name, or name: value", func(a *app) *string { return &a.filterHeader }, nil},
@@ -48,6 +51,13 @@ var queryKeys = []queryKey{
 // slowQuery is what the bare word "slow" sets: the same 1 s threshold as the
 // Duration column's highlight and the sidebar's Slow.
 var slowQuery = fmt.Sprintf(">=%d", slowMillis)
+
+func checkOperation(value string) string {
+	if err := (rules.Matcher{Operation: value}).Validate(); err != nil {
+		return err.Error()
+	}
+	return ""
+}
 
 func checkStatus(value string) string {
 	for part := range strings.SplitSeq(value, ",") {

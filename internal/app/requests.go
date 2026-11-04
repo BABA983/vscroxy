@@ -16,6 +16,7 @@ import (
 	"uuid"
 
 	"github.com/baba983/vscroxy/internal/capture"
+	"github.com/baba983/vscroxy/internal/graphql"
 	"github.com/baba983/vscroxy/internal/inspect"
 	"github.com/baba983/vscroxy/internal/request"
 	"github.com/egoist/mygo/ui"
@@ -864,17 +865,31 @@ func (a *app) requestEditor(c *ui.Context, t *ui.Theme, d *requestDocument, orig
 		uikit.Select(c, &d.bodyMode, []string{"Raw", "URL encoded", "Multipart", "Binary", "GraphQL"}).Label("Request body type").Width(132).FontSize(uikit.TextMeta)
 		text, seen := &d.composeBody, &d.bodyFor
 		formatLabel := "Format body"
+		formatHelp := "Indent the JSON text without expanding variables"
 		canFormat := d.bodyMode == "Raw"
 		if d.bodyMode == "GraphQL" && d.graphqlTab == 1 {
 			text, seen = &d.graphql.Variables, &d.varsFor
 			formatLabel, canFormat = "Format GraphQL variables", true
 		}
 		formatted, isJSON := indentJSON(*text)
-		ui.Row(c).Disabled(!isJSON || !canFormat).Children(func() {
-			if uikit.ToolbarButton(c, formatLabel, "Indent the JSON text without expanding variables", false).Children(func() {
+		query := d.bodyMode == "GraphQL" && d.graphqlTab == 0
+		if query {
+			formatLabel, formatHelp = "Format GraphQL query", "Format the GraphQL document without expanding variables or changing its operations"
+		}
+		ui.Row(c).Disabled(!query && (!isJSON || !canFormat)).Children(func() {
+			if uikit.ToolbarButton(c, formatLabel, formatHelp, false).Children(func() {
 				ui.Icon(c, formatIcon).Size(uikit.IconInline, uikit.IconInline)
 				ui.Text(c, "Format").FontSize(uikit.TextMeta)
 			}).Clicked() {
+				if query {
+					value, err := graphql.Format(d.graphql.Query)
+					if err != nil {
+						a.fail("Format GraphQL query", err)
+						return
+					}
+					d.graphql.Query, d.queryFor = value, ""
+					return
+				}
 				// Rebuild the editor rather than writing its old buffer back.
 				*text, *seen = formatted, ""
 			}

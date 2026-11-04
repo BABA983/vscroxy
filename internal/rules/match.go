@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"path"
 	"regexp"
+	"slices"
 	"strings"
 	"sync"
 
@@ -16,11 +17,12 @@ import (
 
 // Request is what a matcher looks at in an exchange.
 type Request struct {
-	URL    string // the full URL
-	Method string
-	Host   string // the host name, without a port
-	App    string // the client's executable name
-	Header http.Header
+	URL        string // the full URL
+	Method     string
+	Host       string // the host name, without a port
+	App        string // the client's executable name
+	Header     http.Header
+	Operations []string // verified selected GraphQL operation names
 }
 
 // How a Matcher's URL reads.
@@ -52,12 +54,13 @@ type HeaderCondition struct {
 // Matcher covers the requests that satisfy every condition it sets; an empty
 // field matches any request.
 type Matcher struct {
-	URL     string // read as URLMode says
-	URLMode string
-	Method  string   // the exact method
-	Hosts   []string // host patterns, see Host
-	Apps    []string // app patterns, see App
-	Headers []HeaderCondition
+	URL       string // read as URLMode says
+	URLMode   string
+	Method    string   // the exact method
+	Hosts     []string // host patterns, see Host
+	Apps      []string // app patterns, see App
+	Headers   []HeaderCondition
+	Operation string // exact, case-sensitive GraphQL operation name
 }
 
 // Match reports whether r satisfies every condition of m.
@@ -81,6 +84,9 @@ func (m Matcher) Mismatch(r Request) []string {
 	if len(m.Apps) > 0 && !App(r.App, m.Apps) {
 		reasons = append(reasons, "app does not match")
 	}
+	if m.Operation != "" && (!validOperation(m.Operation) || !slices.Contains(r.Operations, m.Operation)) {
+		reasons = append(reasons, "GraphQL operation does not match")
+	}
 	for _, h := range m.Headers {
 		values := r.Header.Values(h.Name)
 		switch {
@@ -95,6 +101,9 @@ func (m Matcher) Mismatch(r Request) []string {
 
 // Validate reports a pattern or condition the matcher cannot use.
 func (m Matcher) Validate() error {
+	if m.Operation != "" && !validOperation(m.Operation) {
+		return fmt.Errorf("GraphQL operation must be an exact name: [_A-Za-z][_0-9A-Za-z]*")
+	}
 	switch m.URLMode {
 	case URLContains, URLWildcard:
 	case URLRegex:
@@ -119,6 +128,11 @@ func (m Matcher) Validate() error {
 		}
 	}
 	return nil
+}
+
+func validOperation(name string) bool {
+	re, _ := compile(`^[_A-Za-z][_0-9A-Za-z]*$`)
+	return re.MatchString(name)
 }
 
 func (m Matcher) url(raw string) bool {

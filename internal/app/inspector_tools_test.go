@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -360,5 +361,86 @@ func TestInspectorJSONColumnsReadCompleteBodiesSortAndReplace(t *testing.T) {
 	tt.Frame()
 	if tt.HasText("Unavailable") || tt.HasText("9007199254740993") || a.flows[0].resBody != "preview is not JSON" {
 		t.Fatal("removed column persisted, or capture was changed")
+	}
+}
+
+func TestInspectorGraphQLOperationsSelectFilterAndInvalidate(t *testing.T) {
+	a := workspaceApp()
+	t.Cleanup(a.columnRead.stop)
+	file := filepath.Join(t.TempDir(), "request.json")
+	body := `{"query":"query Other { a } mutation Save { b }", "operationName":"Save"}`
+	if err := os.WriteFile(file, []byte(body), 0600); err != nil {
+		t.Fatal(err)
+	}
+	a.flows[0].method, a.flows[0].reqBody, a.flows[0].reqFile = "POST", "incomplete preview", file
+	a.flows[0].reqHeader.Set("Content-Type", "application/json")
+	a.flows[1].method, a.flows[1].url = "GET", "https://api.example.com/graphql?query="+url.QueryEscape(`query Search { items { id } }`)
+	a.setCustomColumns([]customColumn{graphqlColumn})
+	a.sort = ui.SortOrder{Column: graphqlColumn.id()}
+	tt := ui.NewTester(a.view, 1280, 800)
+	settle := func() {
+		waitInspection(t, tt, func() bool {
+			return a.columnRead.answers == nil && len(a.columnRead.queue) == 0 && !a.columnRead.dirty
+		})
+	}
+	settle()
+	if !tt.HasText("mutation Save") || !tt.HasText("query Search") || a.visible[0] != 0 {
+		t.Fatal("GET, retained POST selection or operation sorting incorrect: ", tt.Texts(), a.visible)
+	}
+	// The filter must work without the display column and preserve exact case.
+	a.setCustomColumns(nil)
+	a.filterTriage.Operation = "Save"
+	a.applyFilter()
+	tt.Frame()
+	settle()
+	if got := visibleIDs(a); len(got) != 1 || got[0] != a.flows[0].id {
+		t.Fatal("operation filter depends on visible column: ", got)
+	}
+	a.filterTriage.Operation = "save"
+	a.applyFilter()
+	if len(a.visible) != 0 {
+		t.Fatal("operation matching ignored case")
+	}
+	a.filterTriage.Operation = "Other"
+	a.applyFilter()
+	if len(a.visible) != 0 {
+		t.Fatal("unselected operation matched")
+	}
+	// A changed URL alone must invalidate a cached GET operation.
+	a.filterTriage.Operation = "Search"
+	a.flows[1].url = "https://api.example.com/graphql?query=" + url.QueryEscape(`query Renamed { items { id } }`)
+	a.applyFilter()
+	if len(a.visible) != 0 {
+		t.Fatal("stale operation matched changed metadata")
+	}
+	tt.Frame()
+	settle()
+	a.filterTriage.Operation = "Renamed"
+	a.applyFilter()
+	if got := visibleIDs(a); len(got) != 1 || got[0] != a.flows[1].id {
+		t.Fatal("changed GET URL not parsed", got)
+	}
+	// A batch matches a selected member; one malformed entry invalidates all.
+	a.flows[1].method = "POST"
+	a.flows[1].reqHeader = http.Header{"Content-Type": {"application/json"}}
+	a.flows[1].reqBody = `[{"query":"query Renamed { a }"},{"query":"{ b }"}]`
+	a.applyFilter()
+	tt.Frame()
+	settle()
+	if len(a.visible) != 1 {
+		t.Fatal("selected batch member did not match")
+	}
+	a.flows[1].reqBody = `[{"query":"query Renamed { a }"},{"query":"not GraphQL"}]`
+	a.setCustomColumns([]customColumn{graphqlColumn})
+	tt.Frame()
+	settle()
+	if len(a.visible) != 0 {
+		t.Fatal("partial batch result matched")
+	}
+	a.filterTriage.Operation = ""
+	a.applyFilter()
+	tt.Frame()
+	if !tt.HasText("Unavailable") || a.flows[0].reqBody != "incomplete preview" {
+		t.Fatal("parse failure not visible, or inspection changed the capture")
 	}
 }

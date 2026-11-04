@@ -2,6 +2,7 @@ package capture_test
 
 import (
 	"bytes"
+	"compress/gzip"
 	"encoding/json/v2"
 	"fmt"
 	"io"
@@ -54,6 +55,82 @@ func scenarioRequest(t *testing.T, client *http.Client, method, target string, s
 	got, err := io.ReadAll(resp.Body)
 	if err != nil || resp.StatusCode != status || string(got) != body {
 		t.Fatalf("%s %s: %d %q, want %d %q (read: %v)", method, target, resp.StatusCode, got, status, body, err)
+	}
+}
+
+func TestGraphQLOperationRulesFollowSelectedRequest(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { fmt.Fprint(w, "upstream") }))
+	defer upstream.Close()
+	s, client := scenarioProxy(t)
+	rule := capture.Rule{Type: capture.RuleBlock, Match: "/graphql", Block: capture.BlockRefuse, Operation: "Search"}
+	if err := s.SetRules([]capture.Rule{rule}); err != nil {
+		t.Fatal(err)
+	}
+	const selected = `{"query":"query Other { a } query Search { b }", "operationName":"Search"}`
+	cases := []struct {
+		name, method, query, contentType, body, encoding string
+		blocked                                          bool
+	}{
+		{"selected POST", "POST", "", "application/json", selected, "", true},
+		{"compressed POST", "POST", "", "application/json", selected, "gzip", true},
+		{"selected GET", "GET", "?query=" + url.QueryEscape("query Other { a } query Search { b }") + "&operationName=Search", "", "", "", true},
+		{"raw GraphQL", "POST", "", "application/graphql", "query Search { a }", "", true},
+		{"batch member", "POST", "", "application/json", `[{"query":"{ a }"},` + selected + `]`, "", true},
+		{"different selection", "POST", "", "application/json", `{"query":"query Other { a } query Search { b }", "operationName":"Other"}`, "", false},
+		{"ambiguous", "POST", "", "application/json", `{"query":"query Other { a } query Search { b }"}`, "", false},
+		{"case-sensitive", "POST", "", "application/json", `{"query":"query search { a }"}`, "", false},
+		{"name only", "POST", "", "application/json", `{"operationName":"Search","extensions":{"persistedQuery":{"version":1,"sha256Hash":"abc"}}}`, "", false},
+		{"string is not operation", "POST", "", "application/json", `{"query":"query Other { item(text: \"query Search { b }\") }"}`, "", false},
+		{"partial batch", "POST", "", "application/json", `[` + selected + `,{"query":"invalid"}]`, "", false},
+		{"decompression limit", "POST", "", "application/graphql", "query Search { a }" + strings.Repeat(" ", 1<<20), "gzip", false},
+	}
+	wantHits := 0
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			data := []byte(tc.body)
+			if tc.encoding == "gzip" {
+				var b bytes.Buffer
+				zw := gzip.NewWriter(&b)
+				if _, err := zw.Write(data); err != nil {
+					t.Fatal(err)
+				}
+				if err := zw.Close(); err != nil {
+					t.Fatal(err)
+				}
+				data = b.Bytes()
+			}
+			req, err := http.NewRequestWithContext(t.Context(), tc.method, upstream.URL+"/graphql"+tc.query, bytes.NewReader(data))
+			if err != nil {
+				t.Fatal(err)
+			}
+			req.Header.Set("Content-Type", tc.contentType)
+			req.Header.Set("Content-Encoding", tc.encoding)
+			resp, err := client.Do(req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer resp.Body.Close()
+			body, err := io.ReadAll(resp.Body)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if tc.blocked {
+				wantHits++
+				if resp.StatusCode != http.StatusForbidden {
+					t.Fatalf("not blocked: %d %s", resp.StatusCode, body)
+				}
+			} else if resp.StatusCode != http.StatusOK || string(body) != "upstream" {
+				t.Fatalf("unexpected interception: %d %s", resp.StatusCode, body)
+			}
+		})
+	}
+	if got := s.RuleHits(rule); got != wantHits {
+		t.Fatalf("rule hits = %d, want %d", got, wantHits)
+	}
+	// Operation is part of rule identity, not just its presentation.
+	rule.Operation = "Other"
+	if got := s.RuleHits(rule); got != 0 {
+		t.Fatalf("distinct operation shares hits: %d", got)
 	}
 }
 

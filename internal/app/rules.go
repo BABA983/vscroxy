@@ -16,6 +16,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/baba983/vscroxy/internal/capture"
+	"github.com/baba983/vscroxy/internal/graphql"
 	"github.com/baba983/vscroxy/internal/request"
 	"github.com/baba983/vscroxy/internal/rules"
 	"github.com/baba983/vscroxy/internal/store"
@@ -39,6 +40,10 @@ type ruleEditor struct {
 	problem        string
 	unsavedMock    string
 	test           string // see ruleTest
+	testBody       string
+	testFor        [2]string
+	testOperations []string
+	testProblem    string
 	apps           string // the draft's Apps, comma-separated
 	// body edits a Map Local file's response, read from bodyFor as bodyText;
 	// nil for a folder or a file it cannot edit, as bodyNote says.
@@ -432,6 +437,23 @@ func (a *app) rulesPage(c *ui.Context, t *ui.Theme, top float32, active bool) {
 	var preview []capture.RulePreview
 	req, testing := ruleTest(e.test)
 	if testing {
+		source := [2]string{e.test, e.testBody}
+		if source != e.testFor {
+			e.testFor, e.testOperations, e.testProblem = source, nil, ""
+			ops, err := graphql.RequestOperations(req.Method, req.URL, cmp.Or(req.Header.Get("Content-Type"), "application/json"), e.testBody)
+			if err != nil {
+				e.testProblem = err.Error()
+			} else {
+				for _, op := range ops {
+					if op.Name != "" {
+						e.testOperations = append(e.testOperations, op.Name)
+					}
+				}
+			}
+		}
+		req.Operations = e.testOperations
+	}
+	if testing {
 		preview = capture.PreviewRules(a.rules, req, a.breakOn)
 	}
 	ui.Column(c).Width(300).MinHeight(0).Padding(top, t.Space(3), t.Space(3), t.Space(3)).Gap(t.Space(2)).Children(func() {
@@ -442,6 +464,13 @@ func (a *app) rulesPage(c *ui.Context, t *ui.Theme, top float32, active bool) {
 			}
 		})
 		uikit.Input(c, &e.test).Label("Test a request").Placeholder("Test: GET https://api.example.com @ App; Header: value").Tooltip("[METHOD] URL [@ App]; Header: value; …").Font(uikit.FontMono).FillWidth()
+		if e.draft.Operation != "" || slices.ContainsFunc(a.rules, func(r capture.Rule) bool { return r.Operation != "" }) {
+			ui.TextArea(c, &e.testBody).Label("Test GraphQL body").Placeholder(`{"query":"query Search { items { id } }"}`).Height(80).FillWidth().Font(uikit.FontMono).FontSize(uikit.TextMeta).
+				Tooltip("POST uses JSON by default. For a raw query, add ; Content-Type: application/graphql to the test request. GET uses URL parameters only.")
+			if testing && e.testProblem != "" {
+				uikit.Hint(c, "GraphQL not verified: "+e.testProblem)
+			}
+		}
 		switch {
 		case strings.TrimSpace(e.test) == "" && mocks:
 			uikit.Meta(c, "Local files and code mocks, tried from the top.")
@@ -751,6 +780,9 @@ func (a *app) ruleDetail(c *ui.Context, t *ui.Theme) {
 					uikit.Input(c, &e.draft.Scenario).Label("Rule scenario").Placeholder("None").Width(200)
 				}).Description("A rule in a scenario applies only while that scenario is active.")
 			}
+			ui.Field(c, "GraphQL operation", func() {
+				uikit.Input(c, &e.draft.Operation).Label("Match GraphQL operation").Placeholder("Any").Font(uikit.FontMono).FillWidth()
+			}).Description("Exact selected operation name, case-sensitive. Unknown, ambiguous or unavailable queries do not match. All conditions combine with AND.")
 		})
 	})
 	ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
@@ -780,6 +812,9 @@ func ruleSummary(r capture.Rule) string {
 		match = "/" + match + "/"
 	}
 	parts := []string{r.Method, match}
+	if r.Operation != "" {
+		parts = append(parts, "operation:"+r.Operation)
+	}
 	if len(r.Apps) > 0 {
 		parts = append(parts, "@"+strings.Join(r.Apps, ","))
 	}

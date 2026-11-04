@@ -24,6 +24,7 @@ require (
 	github.com/ohler55/ojg v1.28.9
 	github.com/oneo-me/onevra/source v0.2026.16
 	github.com/sirupsen/logrus v1.9.4
+	github.com/vektah/gqlparser/v2 v2.5.64
 	github.com/vmihailenco/msgpack/v5 v5.4.1
 	golang.org/x/net v0.61.0
 	golang.org/x/sys v0.49.0
