@@ -4426,6 +4426,74 @@ func TestFilterTokensRemoveOnlyTheirOwnCondition(t *testing.T) {
 	}
 }
 
+func TestCapturePatternSearchControls(t *testing.T) {
+	for _, width := range []int{960, 1280} {
+		t.Run(fmt.Sprint(width), func(t *testing.T) {
+			a := workspaceApp()
+			tt := ui.NewTester(a.view, width, 600)
+			click := func(label string) {
+				t.Helper()
+				if err := tt.Click(label); err != nil {
+					t.Fatal(err)
+				}
+			}
+			edit := func(text string) {
+				t.Helper()
+				click("Search host or path")
+				tt.Key(ui.Cmd, ui.KeyA)
+				tt.Type(text)
+			}
+			click("Capture search mode")
+			tt.Key(0, ui.KeyEnd)
+			tt.Key(0, ui.KeyEnter)
+			edit(`/(projects|LOGIN)$`)
+			if a.searchMode != "Regex" || len(a.visible) != 2 {
+				t.Fatal("mode selection or case-insensitive regexp did not apply")
+			}
+			edit(`status:4xx `)
+			tt.Key(0, ui.KeyEnter)
+			if a.query != "status:4xx " || a.filterStatus != "" || len(a.visible) != 0 {
+				t.Fatal("pattern text was consumed as filter tokens")
+			}
+			edit("[")
+			tt.Key(0, ui.KeyEnter)
+			if !tt.HasText("Invalid search pattern") || len(a.visible) != 0 || !tt.Focused("Search host or path") {
+				t.Fatal("invalid regexp was not explained or stole editing focus")
+			}
+			edit(`LOGIN$`)
+			if a.searchProblem != "" || len(a.visible) != 1 {
+				t.Fatal("correcting the regexp left a stale error or matcher")
+			}
+			click("Capture search mode")
+			tt.Key(0, ui.KeyHome)
+			tt.Key(0, ui.KeyDown)
+			tt.Key(0, ui.KeyEnter)
+			edit("*/login")
+			if a.searchMode != "Wildcard" || len(a.visible) != 1 {
+				t.Fatal("wildcard mode did not match the whole host/path")
+			}
+			a.filterStatus = "4xx"
+			tt.Frame()
+			click("Edit condition: status:4xx")
+			if !a.views.filterOpen || a.filterStatus != "4xx" || a.query != "*/login" {
+				t.Fatalf("editing condition: dialog %t, status %q, query %q", a.views.filterOpen, a.filterStatus, a.query)
+			}
+			click("Cancel")
+			click("Reset all")
+			if a.searchMode != "" || a.filtersActive() || len(a.visible) != 2 || !tt.HasText("Text") {
+				t.Fatal("reset did not restore ordinary Text search")
+			}
+			a.flows = nil
+			a.searchMode, a.query = "Regex", "["
+			a.applyFilter()
+			tt.Frame()
+			if !tt.HasText("Invalid search pattern") {
+				t.Fatal("empty captures hid pattern validation behind the setup prompt")
+			}
+		})
+	}
+}
+
 func TestQuerySyntaxTurnsFinishedTokensIntoChips(t *testing.T) {
 	a := workspaceApp()
 	a.views.init(a, "")

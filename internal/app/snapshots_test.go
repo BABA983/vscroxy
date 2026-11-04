@@ -738,6 +738,25 @@ func TestUISnapshots(t *testing.T) {
 			a.views.capture(a)
 			a.applyFilter()
 		}, want: "Any content field may match"},
+		{name: "capture-search-text", want: "Capture search mode"},
+		{name: "capture-search-wildcard", setup: func(a *app) {
+			a.views.init(a, "")
+			a.searchMode, a.query = "Wildcard", "*.example.com/projects*"
+			a.views.capture(a)
+			a.applyFilter()
+		}, want: "Wildcard"},
+		{name: "capture-search-regex", setup: func(a *app) {
+			a.views.init(a, "")
+			a.searchMode, a.query = "Regex", `/(projects|LOGIN)$`
+			a.views.capture(a)
+			a.applyFilter()
+		}, want: "Regex"},
+		{name: "capture-search-error", setup: func(a *app) {
+			a.views.init(a, "")
+			a.searchMode, a.query = "Regex", "["
+			a.views.capture(a)
+			a.applyFilter()
+		}, want: "Invalid search pattern"},
 		{name: "tools-graphql-rule", setup: func(a *app) {
 			r := capture.Rule{Name: "Search only", Type: capture.RuleBlock, Match: "/graphql", Operation: "Search"}
 			a.rules = []capture.Rule{r}
@@ -995,7 +1014,7 @@ func TestUISnapshots(t *testing.T) {
 		}
 		for _, state := range states {
 			widths := []int{1280}
-			if strings.HasPrefix(state.name, "capture-timing") || state.name == "capture-form-xml" || state.name == "capture-multipart" || state.name == "capture-messagepack" || state.name == "capture-structured-error" {
+			if strings.HasPrefix(state.name, "capture-timing") || strings.HasPrefix(state.name, "capture-search") || state.name == "capture-form-xml" || state.name == "capture-multipart" || state.name == "capture-messagepack" || state.name == "capture-structured-error" {
 				widths = append(widths, 960)
 			}
 			if state.name == "capture-selected" || strings.HasPrefix(state.name, "capture-activity") || state.name == "capture-response-error" || state.name == "capture-no-response" || state.name == "capture-edited" || state.name == "capture-sent" || state.name == "capture-ws" || state.name == "capture-connect" || strings.HasPrefix(state.name, "requests-") || strings.HasPrefix(state.name, "secondary-") || strings.HasPrefix(state.name, "dialog-") || state.name == "active-tools" {

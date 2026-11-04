@@ -145,7 +145,24 @@ var captureProtocols = captureKinds[:6]
 
 func (a *app) captureToolbar(c *ui.Context, t *ui.Theme) {
 	width := a.contentWidth(c)
+	protocolWidth := min(302, width*0.36)
+	if width < 900 {
+		// Let the already-scrollable protocol tabs give up the mode
+		// selector's room, not the search input or its clickable chips.
+		protocolWidth = 128
+	}
 	ui.Row(c).Height(uikit.HeightBar).Padding(0, t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+		mode := cmp.Or(a.searchMode, "Text")
+		if uikit.Select(c.Key("capture-search-mode"), &mode, []string{"Text", "Wildcard", "Regex"}).Label("Capture search mode").
+			MinWidth(94).Width(94).Tooltip("Text: literal contains and key:value chips · Wildcard: * any text, ? one character, whole host/path · Regex: Go/RE2 · Patterns ignore case by default").Changed() {
+			a.searchMode = mode
+			if mode == "Text" {
+				a.searchMode = ""
+			}
+			a.queryProblem = ""
+			a.views.capture(a)
+			a.applyFilter()
+		}
 		box := ui.Row(c).Grow(1).MinWidth(160).Height(uikit.HeightControl).Gap(t.Space(1)).Padding(0, t.Space(1)).AlignItems(ui.Center)
 		uikit.FieldFace(c, box, a.search.Focused(c)).Children(func() {
 			// Chips first, then the input: a condition is narrowed one
@@ -158,11 +175,17 @@ func (a *app) captureToolbar(c *ui.Context, t *ui.Theme) {
 					a.captureConditions(c)
 				})
 			}
+			placeholder := "Search host or path, or status:>=400…"
+			if a.searchMode == "Wildcard" {
+				placeholder = "*.example.com/v1/*"
+			} else if a.searchMode == "Regex" {
+				placeholder = `/v[12]/(projects|users)\b`
+			}
 			cb := ui.ComboboxBase(c.Key("capture-search"), &a.query)
-			search := cb.Input.Bind(&a.search).Label("Search host or path").Placeholder("Search host or path, or status:>=400…").
-				Tooltip(cmp.Or(a.queryProblem, "Host and path text, plus status: host: app: method: duration: size: header: body: and slow · Space or Enter makes a chip · Ctrl/Cmd+F · Enter or ↓ moves to requests")).
+			search := cb.Input.Bind(&a.search).Label("Search host or path").Placeholder(placeholder).
+				Tooltip(cmp.Or(a.queryProblem, a.searchProblem, "Search host and path (including query) · Text supports key:value chips · Pattern modes treat the entire field as one expression · Ctrl/Cmd+F")).
 				Height(uikit.HeightCompact).Padding(0, t.Space(1)).FontSize(uikit.TextBody).Grow(1).MinWidth(min(200, width/5)).FocusRing(false)
-			if a.queryProblem != "" {
+			if a.queryProblem != "" || a.searchProblem != "" {
 				search.TextColor(t.Danger)
 			}
 			if a.queryCaret != nil {
@@ -214,7 +237,7 @@ func (a *app) captureToolbar(c *ui.Context, t *ui.Theme) {
 			// Typing highlights the first option for Enter to take. A key
 			// is only highlighted once asked for (Down): Enter after free
 			// text such as "st" searches it, not status:.
-			case !value && cb.Filtering():
+			case a.searchMode == "" && !value && cb.Filtering():
 				cb.SetOpen(false)
 				cb.SetOpen(true)
 			}
@@ -224,7 +247,7 @@ func (a *app) captureToolbar(c *ui.Context, t *ui.Theme) {
 			}
 			if search.Submitted() {
 				a.commitQuery(true)
-				if a.queryProblem == "" {
+				if a.queryProblem == "" && a.searchProblem == "" {
 					a.focusTraffic(c)
 				}
 			}
@@ -234,7 +257,7 @@ func (a *app) captureToolbar(c *ui.Context, t *ui.Theme) {
 				}
 			}
 		})
-		ui.ScrollHorizontal(c).Width(min(302, width*0.36)).Height(uikit.HeightControl).Children(func() {
+		ui.ScrollHorizontal(c).Width(protocolWidth).Height(uikit.HeightControl).Children(func() {
 			// Images and HTML live in the menu but remain valid selections.
 			// The kinds read as tabs over the list: the chosen one is the
 			// tabs' tinted chip, with no track behind them.
@@ -325,6 +348,12 @@ func (a *app) captureConditions(c *ui.Context) {
 			}
 			text := queryChip(key.name, *field)
 			uikit.QueryChip(c, text, func() {
+				if a.searchMode != "" {
+					// A pattern is not a container for key:value syntax.
+					// Edit the condition without overwriting that pattern.
+					a.openFilter()
+					return
+				}
 				*field = ""
 				a.query = strings.TrimSpace(strings.TrimSpace(a.query) + " " + text)
 				a.queryCaret = new(utf8.RuneCountInString(a.query))

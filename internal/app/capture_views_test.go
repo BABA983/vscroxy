@@ -83,6 +83,93 @@ func visibleIDs(a *app) []int {
 	return ids
 }
 
+func TestCaptureSearchModes(t *testing.T) {
+	for _, tc := range []struct {
+		name, mode, query, want string
+		problem                 bool
+	}{
+		{"literal case insensitive", "", "LOGIN", "[2 3]", false},
+		{"literal star stays literal", "", "*", "[5]", false},
+		{"wildcard whole host path", "Wildcard", "*.EXAMPLE.com/v1/*", "[1 4]", false},
+		{"wildcard is anchored", "Wildcard", "login", "[]", false},
+		{"wildcard one Unicode character", "Wildcard", "*.example.com/v1/?", "[4]", false},
+		{"wildcard quotes regex syntax", "Wildcard", "*/a.b", "[5]", false},
+		{"regex alternation and escapes", "Regex", `/v[12]/(projects|users)\?`, "[1]", false},
+		{"regex preserves case override", "Regex", `(?-i)/LOGIN$`, "[2]", false},
+		{"regex uppercase escape", "Regex", `\D+$`, "[2 3 4 5 6]", false},
+		{"regex defaults to ignore case", "Regex", `/LOGIN$`, "[2 3]", false},
+		{"wildcard empty", "Wildcard", "", "[1 2 3 4 5 6]", false},
+		{"regex empty", "Regex", "", "[1 2 3 4 5 6]", false},
+		{"regex invalid", "Regex", "[", "[]", true},
+		{"regex does not support backreferences", "Regex", `(a)\1`, "[]", true},
+		{"pattern byte boundary", "Regex", strings.Repeat("a", 4096), "[]", false},
+		{"oversize regex", "Regex", strings.Repeat("a", 4097), "[]", true},
+		{"oversize wildcard", "Wildcard", strings.Repeat("*", 4097), "[]", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			a := workspaceApp()
+			a.flows = []flow{
+				{id: 1, host: "api.example.com", path: "/v1/projects?expand=1"},
+				{id: 2, host: "api.example.com", path: "/LOGIN"},
+				{id: 3, host: "other.test", path: "/login"},
+				{id: 4, host: "api.example.com", path: "/v1/雪"},
+				{id: 5, host: "other.test", path: "/literal*/a.b"},
+				{id: 6, host: "other.test", path: "/aXb"},
+			}
+			a.searchMode, a.query = tc.mode, tc.query
+			a.applyFilter()
+			if got := fmt.Sprint(visibleIDs(a)); got != tc.want || (a.searchProblem != "") != tc.problem {
+				t.Fatalf("shown %s (want %s), problem %q", got, tc.want, a.searchProblem)
+			}
+			// Incremental arrivals must use the same matcher, not lowercase
+			// the pattern or fall back to literal contains.
+			a.visible, a.activityRows = nil, nil
+			a.showArrivals([]int{0, 1, 2, 3, 4, 5})
+			if got := fmt.Sprint(visibleIDs(a)); got != tc.want {
+				t.Fatalf("arrivals shown %s, want %s", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestCaptureSearchModeViewsAndSavedFilters(t *testing.T) {
+	a := workspaceApp()
+	v := &a.views
+	v.init(a, filepath.Join(t.TempDir(), "views.json"))
+	a.searchMode, a.query, a.filterAny, a.filterStatus = "Regex", `/(projects|login)$`, true, "4xx"
+	v.capture(a)
+	v.savedName = "Pattern"
+	v.saveCurrent(a)
+	if v.problem != "" {
+		t.Fatal(v.problem)
+	}
+	v.newView(a)
+	if a.searchMode != "" || a.query != "" {
+		t.Fatal("new view inherited pattern mode")
+	}
+	v.active = 0
+	v.bind(a)
+	v.applyFilter(a)
+	if a.searchMode != "Regex" || a.query != `/(projects|login)$` || len(a.visible) != 1 {
+		t.Fatal("switching views lost the mode or outer search scope")
+	}
+	b := workspaceApp()
+	b.views.init(b, v.path)
+	b.views.applySaved(b, "Pattern")
+	if b.searchMode != "Regex" || b.query != a.query || !b.filterAny || len(b.visible) != 1 {
+		t.Fatal("saved pattern mode did not survive restart")
+	}
+	b.searchMode, b.query = "Regex", "["
+	b.applyFilter()
+	if b.searchProblem == "" || len(b.visible) != 0 {
+		t.Fatal("invalid pattern did not fail closed")
+	}
+	b.views.resetFilters(b)
+	if b.searchMode != "" || b.searchProblem != "" || b.filtersActive() || len(b.visible) != 2 {
+		t.Fatal("reset did not restore Text and clear validation")
+	}
+}
+
 func TestCaptureFilterCombination(t *testing.T) {
 	a := workspaceApp()
 	a.flows = []flow{

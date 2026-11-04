@@ -13,6 +13,7 @@ import (
 	"cmp"
 	"fmt"
 	"maps"
+	"regexp"
 	"slices"
 	"strings"
 	"unicode/utf8"
@@ -51,6 +52,42 @@ var queryKeys = []queryKey{
 // slowQuery is what the bare word "slow" sets: the same 1 s threshold as the
 // Duration column's highlight and the sidebar's Slow.
 var slowQuery = fmt.Sprintf(">=%d", slowMillis)
+
+// captureSearch compiles once per filter pass, never per row or into the
+// rules' process-wide regexp cache. Pattern modes use the whole field, so
+// colons, quotes and whitespace in a pattern are not query-chip syntax.
+func (a *app) captureSearch() func(string) bool {
+	a.searchProblem = ""
+	pattern := a.query
+	if a.searchMode == "" {
+		needle := strings.ToLower(queryText(pattern))
+		return func(target string) bool { return strings.Contains(strings.ToLower(target), needle) }
+	}
+	var expr string
+	switch {
+	case len(pattern) > 4096:
+		a.searchProblem = "Search patterns are limited to 4096 bytes"
+	case a.searchMode == "Wildcard":
+		// Unlike rule URL patterns, capture search has no scheme: it
+		// matches host + path (including query), exactly as Text does.
+		expr = "(?is)^" + strings.NewReplacer(`\*`, ".*", `\?`, ".").Replace(regexp.QuoteMeta(pattern)) + "$"
+	case a.searchMode == "Regex":
+		expr = "(?i)" + pattern
+	default:
+		a.searchProblem = "Unknown capture search mode"
+	}
+	if a.searchProblem == "" {
+		if pattern == "" {
+			return func(string) bool { return true }
+		}
+		re, err := regexp.Compile(expr)
+		if err == nil {
+			return re.MatchString
+		}
+		a.searchProblem = "Invalid search pattern: " + err.Error()
+	}
+	return func(string) bool { return false }
+}
 
 func checkOperation(value string) string {
 	if err := (rules.Matcher{Operation: value}).Validate(); err != nil {
@@ -162,6 +199,9 @@ func queryText(q string) string {
 // and content fields use the Filters dialog's AND/OR combination.
 func (a *app) commitQuery(all bool) bool {
 	a.queryProblem = ""
+	if a.searchMode != "" {
+		return false
+	}
 	tokens := tokenizeQuery(a.query)
 	var kept []string
 	committed := false
@@ -245,6 +285,9 @@ func queryTokenAt(q string, caret int) (start, end int, prefix string) {
 // the keys only when the user asked for the list, by a click or Down
 // (asked), not after each space typed.
 func (a *app) querySuggestions(prefix string, asked bool) []querySuggestion {
+	if a.searchMode != "" {
+		return nil
+	}
 	var out []querySuggestion
 	key, typed, hasValue := strings.Cut(prefix, ":")
 	if !hasValue {

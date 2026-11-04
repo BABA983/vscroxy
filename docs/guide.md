@@ -267,8 +267,25 @@ captured and shown rows. Feedback appears in full in temporary toasts rather
 than staying in the footer indefinitely. The proxy indicator in the title bar
 opens Proxy settings.
 
-The search field matches **host and path only**; Ctrl/Cmd+F focuses it. Use
-**Filters…** for headers, bodies and status codes. Status accepts comma-separated
+The search field matches **host and path (including query) only**, not the
+scheme, headers or bodies; Ctrl/Cmd+F focuses it. Its mode selector defaults to
+**Text**: case-insensitive literal contains, with the existing `key:value`
+chips. **Wildcard** matches the whole host + path: `*` is any text (including
+slashes), `?` is one Unicode character, and all other characters are literal.
+For example, `*.example.com/projects*` matches that path on subdomains;
+`projects` alone is not a whole-host/path wildcard. **Regex** searches anywhere
+using Go/RE2 syntax, for example `/(projects|login)$`; it defaults to ignoring
+case, with `(?-i)` available for case-sensitive expressions. Backreferences and
+lookaround are unsupported. Both pattern modes treat the entire field as one
+expression: spaces, quotes and `status:` are not chip syntax. A malformed or
+over-4096-byte pattern shows an error and no results, never a fallback literal
+search. Empty patterns impose no search restriction. Modes and expressions stay
+with each independent view and saved filter; **Reset all** restores Text.
+Editing an existing content chip in pattern mode opens Filters without
+overwriting the expression. Compact windows scroll the protocol tabs to keep
+search and chip controls usable.
+
+Use **Filters…** for headers, bodies and status codes. Status accepts comma-separated
 alternatives (for example `4xx, 5xx`) and validates malformed expressions before
 applying them. A filtered-out list explains that captured traffic is hidden and
 offers **Show all requests**. Hidden rows are removed from the bulk selection.

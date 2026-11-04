@@ -71,8 +71,10 @@ type app struct {
 	// query is the search field: free host/path text and query syntax not
 	// yet turned into chips (query.go). queryProblem says why a token was
 	// not taken.
-	query        string
-	queryProblem string
+	query         string
+	queryProblem  string
+	searchMode    string // empty is Text; otherwise Wildcard or Regex
+	searchProblem string
 	// queryCaret is where the caret goes in the field once it shows a
 	// text set from elsewhere: a completion or a chip turned back into text.
 	queryCaret *int
@@ -1110,14 +1112,14 @@ func (a *app) applyFilter() {
 	if a.tallyStale() {
 		a.recount()
 	}
-	q := strings.ToLower(queryText(a.query))
+	match := a.captureSearch()
 	a.visible = a.visible[:0]
 	for i := range a.flows {
 		f := &a.flows[i]
 		if f.debugKey == "" {
 			f.debugKey = uuid.New().String()
 		}
-		if a.shows(f, q) {
+		if a.shows(f, match) {
 			a.visible = append(a.visible, i)
 		}
 	}
@@ -1142,10 +1144,10 @@ func (a *app) showArrivals(rows []int) {
 		a.applyFilter()
 		return
 	}
-	q := strings.ToLower(queryText(a.query))
+	match := a.captureSearch()
 	fresh := rows[:0]
 	for _, at := range rows {
-		if a.shows(&a.flows[at], q) {
+		if a.shows(&a.flows[at], match) {
 			fresh = append(fresh, at)
 		}
 	}
@@ -1191,9 +1193,9 @@ func (a *app) outsideActivity(at int) bool {
 	return t.Before(from) || !t.Before(to)
 }
 
-// shows reports whether a flow passes the sidebar choice, the search text q
-// (lower case) and the capture conditions, all but a view's body condition.
-func (a *app) shows(f *flow, q string) bool {
+// shows reports whether a flow passes the sidebar choice, the compiled search
+// and the capture conditions, all but a view's body condition.
+func (a *app) shows(f *flow, match func(string) bool) bool {
 	switch {
 	case !a.matchesChip(*f),
 		a.filter == "pinned" && !f.pinned,
@@ -1207,7 +1209,7 @@ func (a *app) shows(f *flow, q string) bool {
 	if client, ok := strings.CutPrefix(a.filter, "client:"); ok && f.process != client {
 		return false
 	}
-	if q != "" && !strings.Contains(strings.ToLower(f.host+f.path), q) {
+	if !match(f.host + f.path) {
 		return false
 	}
 	matched, active := a.matchesContent(*f)
@@ -1909,7 +1911,7 @@ func (a *app) showRunRecords() {
 func (a *app) table(c *ui.Context) {
 	t := c.Theme()
 	if len(a.visible) == 0 {
-		if len(a.flows) > 0 {
+		if len(a.flows) > 0 || a.searchProblem != "" {
 			note, failure := a.views.status()
 			title := "No matching requests"
 			hint := fmt.Sprintf("%d captured requests are hidden by this view's search or filters.", len(a.flows))
@@ -1918,6 +1920,9 @@ func (a *app) table(c *ui.Context) {
 				if failure {
 					title, hint = "No matches in searchable traffic", "Some bodies could not be searched in full; matches may be missing."
 				}
+			}
+			if a.searchProblem != "" {
+				title, hint = "Invalid search pattern", a.searchProblem
 			}
 			uikit.EmptyState(c, title, hint, func() {
 				if a.filterAny {
@@ -3087,7 +3092,7 @@ func (a *app) setKeyLog(path string) {
 
 // filtersActive includes every condition that can hide captured requests.
 func (a *app) filtersActive() bool {
-	return a.query != "" || a.conditionsActive()
+	return a.query != "" || a.searchMode != "" || a.conditionsActive()
 }
 
 // conditionsActive is filtersActive without the search field's own text:
@@ -3103,8 +3108,12 @@ func (a *app) filterSummary() string {
 	if a.filterAny {
 		parts = append(parts, "content: any (OR)")
 	}
-	if text := queryText(a.query); text != "" {
-		parts = append(parts, "URL "+text)
+	text := a.query
+	if a.searchMode == "" {
+		text = queryText(text)
+	}
+	if text != "" {
+		parts = append(parts, strings.TrimSpace("URL "+a.searchMode)+" "+text)
 	}
 	if a.filter != "" && a.filter != "all" {
 		parts = append(parts, a.filter)

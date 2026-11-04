@@ -151,7 +151,16 @@ func TestWebSocketSessionUIBinaryEncodingsAndSubprotocol(t *testing.T) {
 		{"Text", "hello 界", websocket.TextMessage, []byte("hello 界")},
 	} {
 		click("WebSocket message encoding")
-		click(tc.encoding)
+		// Select within this popup: the capture search mode also displays
+		// "Text" behind the dialog, so a global text lookup is ambiguous.
+		tt.Key(0, ui.KeyHome)
+		switch tc.encoding {
+		case "Hex":
+			tt.Key(0, ui.KeyDown)
+		case "Base64":
+			tt.Key(0, ui.KeyEnd)
+		}
+		tt.Key(0, ui.KeyEnter)
 		click("WebSocket message")
 		tt.Key(ui.Ctrl, ui.KeyA)
 		tt.Type(tc.text)
