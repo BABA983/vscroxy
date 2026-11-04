@@ -336,15 +336,15 @@ go test ./... -count=1
 CGO_ENABLED=0 go test ./... -count=1
 ```
 
-截图（输出目录必须不存在或为空；`~/.cache/mygo` 不可写时用独立的 `XDG_CACHE_HOME`，否则内嵌字体不生效）：
+截图（输出目录必须不存在或为空）：
 
 ```bash
 # 组件总览：Paper／Ink 各一张总览，加按钮的 hover／pressed
-XDG_CACHE_HOME=/tmp/vscroxy-ui-cache VSCROXY_UIKIT_SNAPSHOTS="$PWD/.amp/in/artifacts/uikit" \
+VSCROXY_UIKIT_SNAPSHOTS="$PWD/.amp/in/artifacts/uikit" \
   go test ./internal/uikit -run '^TestOverviewSnapshots$' -count=1
 
 # 界面矩阵：浅／深色 × 1280／960 等宽度，覆盖各界面、菜单、对话框和状态
-XDG_CACHE_HOME=/tmp/vscroxy-ui-cache VSCROXY_SNAPSHOTS="$PWD/.amp/in/artifacts/ui" \
+VSCROXY_SNAPSHOTS="$PWD/.amp/in/artifacts/ui" \
   go test ./internal/app -run '^TestUISnapshots$' -count=1
 ```
 

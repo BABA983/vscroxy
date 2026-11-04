@@ -44,14 +44,13 @@ port never falls back on conflict.
 ## MyGo
 
 The UI library's source, its `docs/` (the markdown the website is built from) and
-its `examples/` ship inside the module, pinned to the version in
-`go.mod`. `.agents/setup` links them at `~/.cache/mygo`.
+its `examples/` ship inside the module, pinned to the version in `go.mod`, in
+Go's module cache (`go env GOMODCACHE`, usually `~/go/pkg/mod`). `~/.cache/mygo`
+is MyGo's runtime cache for fonts and native libraries and must stay writable.
 
-Read `~/.cache/mygo/docs/ui/` before reaching for a widget, and
-`~/.cache/mygo/AGENTS.md` for how the library expects to be used. `go doc` works
-too, but the docs say what the widgets are for.
-
-To find them without the link:
+Find the module directory, then read its `docs/ui/` before reaching for a widget
+and its `AGENTS.md` for how the library expects to be used. `go doc` works too,
+but the docs say what the widgets are for.
 
 ```bash
 go list -m -f '{{.Dir}}' github.com/egoist/mygo
