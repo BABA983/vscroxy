@@ -187,15 +187,15 @@ func (a *app) devicesModal(c *ui.Context, t *ui.Theme) {
 						switch d.platform {
 						case 0:
 							uikit.Heading(c, "Set up iPhone / iPad")
-							uikit.Body(c, "1. Wi-Fi → your network → Configure Proxy → Manual. Enter the proxy IP and port shown here; authentication off.")
-							uikit.Body(c, "2. Open the certificate URL in Safari. Allow the profile, then install it in Settings → General → VPN & Device Management (or Profile Downloaded).")
-							uikit.Body(c, "3. General → About → Certificate Trust Settings → enable full trust for this CA.")
-							uikit.Body(c, "4. Enable SSL proxying for the hosts you inspect, then open an HTTPS page and check Capture.")
+							uikit.Prose(c, "1. Wi-Fi → your network → Configure Proxy → Manual. Enter the proxy IP and port shown here; authentication off.")
+							uikit.Prose(c, "2. Open the certificate URL in Safari. Allow the profile, then install it in Settings → General → VPN & Device Management (or Profile Downloaded).")
+							uikit.Prose(c, "3. General → About → Certificate Trust Settings → enable full trust for this CA.")
+							uikit.Prose(c, "4. Enable SSL proxying for the hosts you inspect, then open an HTTPS page and check Capture.")
 						case 1:
 							uikit.Heading(c, "Set up Android")
-							uikit.Body(c, "1. Edit your Wi-Fi network → Advanced → Proxy → Manual. Enter the proxy IP and port; save. Labels vary by vendor.")
-							uikit.Body(c, "2. Download the certificate URL. In Security / Encryption & credentials, choose Install a certificate → CA certificate, then select vscroxy-ca.cer.")
-							uikit.Body(c, "3. Enable SSL proxying for your hosts and open an HTTPS page. For your own debug app, opt in to user CAs with Network Security Configuration.")
+							uikit.Prose(c, "1. Edit your Wi-Fi network → Advanced → Proxy → Manual. Enter the proxy IP and port; save. Labels vary by vendor.")
+							uikit.Prose(c, "2. Download the certificate URL. In Security / Encryption & credentials, choose Install a certificate → CA certificate, then select vscroxy-ca.cer.")
+							uikit.Prose(c, "3. Enable SSL proxying for your hosts and open an HTTPS page. For your own debug app, opt in to user CAs with Network Security Configuration.")
 							uikit.Hint(c, "Many Android 7+ apps do not trust user-installed CAs. Certificate pinning and apps that ignore the system proxy need app-side changes; installing this CA does not bypass them.")
 						}
 					})

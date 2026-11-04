@@ -1400,7 +1400,7 @@ func (a *app) view(c *ui.Context) {
 		uikit.DialogColumn(c, uikit.DialogSmall).Children(func() {
 			uikit.DialogTitle(c, "Clear captured requests?")
 			ui.Scroll(c).MinHeight(0).Children(func() {
-				uikit.Body(c, "Unpinned requests will be removed from this session. Export any traffic you want to keep first.")
+				uikit.Prose(c, "Unpinned requests will be removed from this session. Export any traffic you want to keep first.")
 			})
 			uikit.DialogFooter(c).Children(func() {
 				if uikit.SecondaryButton(c, "Cancel").Clicked() {
@@ -2025,17 +2025,17 @@ func (a *app) table(c *ui.Context) {
 			uikit.RowMarker(c, focused)
 		}
 		text := func(s string) ui.Element {
-			return uikit.Body(c, s).Font(uikit.FontMono).FontSize(uikit.TextData).Height(15).FontFeatures("tnum").SingleLine()
+			return uikit.Body(c, s).Font(uikit.FontMono).FontSize(uikit.TextData).Height(15).FixedLineHeight(15).FontFeatures("tnum").SingleLine()
 		}
 		// Facts beside the request: its number, host, client, timing and size.
 		quiet := func(s string) ui.Element {
-			return uikit.Hint(c, s).Font(uikit.FontMono).FontSize(uikit.TextData).Height(15).FontFeatures("tnum").SingleLine()
+			return uikit.Hint(c, s).Font(uikit.FontMono).FontSize(uikit.TextData).Height(15).FixedLineHeight(15).FontFeatures("tnum").SingleLine()
 		}
 		switch cols[col].ID {
 		case "id":
 			quiet(fmt.Sprint(f.id))
 		case "method":
-			uikit.MethodLabel(c, f.method).FontSize(uikit.TextData).Height(15).TextColor(uikit.MethodColor(f.method, t)).Tooltip(f.method).PopoverMenu(a.rowMenu(c, f))
+			uikit.MethodLabel(c, f.method).FontSize(uikit.TextData).Height(15).FixedLineHeight(15).TextColor(uikit.MethodColor(f.method, t)).Tooltip(f.method).PopoverMenu(a.rowMenu(c, f))
 		case "host":
 			quiet(f.host).Tooltip(f.url).PopoverMenu(a.rowMenu(c, f))
 		case "remote":

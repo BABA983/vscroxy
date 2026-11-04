@@ -416,7 +416,7 @@ func (a *app) configImportDialog(c *ui.Context, t *ui.Theme) {
 		uikit.DialogColumn(c, 520).Children(func() {
 			uikit.DialogTitle(c, "Import configuration")
 			uikit.Meta(c, fmt.Sprintf("%s · exported %s", filepath.Base(in.path), b.Exported.Local().Format("2006-01-02 15:04")))
-			uikit.Body(c, "The parts you choose replace what vscroxy has now. Secrets and variables are never part of a configuration file.")
+			uikit.Prose(c, "The parts you choose replace what vscroxy has now. Secrets and variables are never part of a configuration file.")
 			ui.Column(c).Gap(t.Space(2)).Children(func() {
 				part := func(i int, available bool, label, detail string) {
 					ui.Column(c).Gap(t.Space(0.5)).Disabled(!available).Children(func() {

@@ -959,7 +959,7 @@ func (v *captureViews) sidebar(c *ui.Context, t *ui.Theme, a *app) {
 			}
 		})
 		if len(v.filters) > 0 {
-			uikit.Label(c, "SAVED FILTERS").LetterSpacing(0.5).Padding(t.Space(3), t.Space(2), t.Space(1), t.Space(2))
+			uikit.Label(c, "Saved filters").Padding(t.Space(3), t.Space(2), t.Space(1), t.Space(2))
 		}
 		for _, f := range v.filters {
 			active := v.activeView().saved(f.Name) == f

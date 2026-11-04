@@ -16,6 +16,13 @@ Geist, Arial, DejaVu Sans, PingFang SC, Microsoft YaHei UI, Noto Sans CJK SC, sa
 Geist Mono, Menlo, Consolas, DejaVu Sans Mono, PingFang SC, Microsoft YaHei UI, Noto Sans CJK SC, monospace
 ```
 
+The upstream 1.9.0 archive also ships `GeistSerif-Regular` and the Heart,
+Square and Triangle display variants. They are not bundled: Geist Serif has
+one weight and is a display face, and the app's hierarchy is sans for
+interface text plus mono for data. SF Pro and SF Mono are not bundled either;
+Apple's font documentation asks apps not to ship fonts that the system
+provides, so macOS reads them through `system-ui` and `monospace` at runtime.
+
 Embedded asset read failures panic as build invariant violations. Native font
 registration errors (for example, an unwritable Linux font cache) are logged,
 not fatal; the family lists let the text engine use installed fallback fonts.

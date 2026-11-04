@@ -83,7 +83,7 @@ func requestFieldsEditor(c *ui.Context, rows *[]request.Field, opts fieldsOption
 				ui.Box(c).Width(uikit.HeightControl)
 			}
 			if opts.file {
-				uikit.Label(c, "FILE").Width(64)
+				uikit.Label(c, "File").Width(64)
 			}
 			ui.Box(c).Width(uikit.HeightLarge)
 		})

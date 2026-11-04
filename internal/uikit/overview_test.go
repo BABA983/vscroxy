@@ -127,6 +127,14 @@ func (o *overview) view(c *ui.Context, dark bool) {
 					Meta(c, "Meta · 12 ms · 4.2 KB · 15:04:05")
 				})
 			})
+			// Chinese has no bundled face: these lines exercise the system
+			// fallback and the prose leading in both themes.
+			section("Chinese", func() {
+				Body(c, "Body · 抓取到的请求和响应都在这里。")
+				Mono(c, "Mono · 订单 42 / 中文数据")
+				Hint(c, "Hint · 开启代理后，抓到的流量会显示在这里。这是一段较长的中文说明，用来检查行高和换行。")
+				Meta(c, "Meta · 12 毫秒 · 4.2 KB · 15:04:05")
+			})
 			section("Inputs and toggles", func() {
 				row(func() {
 					Input(c, &o.text).Label("Host").Width(220)

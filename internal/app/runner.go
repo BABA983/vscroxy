@@ -285,7 +285,7 @@ func (a *app) runnerModal(c *ui.Context, t *ui.Theme) {
 			})
 			ui.Row(c).Grow(1).MinHeight(0).Border(1, t.Border).Radius(uikit.RadiusControl).AlignItems(ui.Stretch).Children(func() {
 				ui.Column(c).Width(300).Children(func() {
-					uikit.Label(c, "EXECUTION ORDER").Height(uikit.HeightTabs).Padding(t.Space(2)).
+					uikit.Label(c, "Execution order").Height(uikit.HeightTabs).Padding(t.Space(2)).
 						Border(0, t.Border).BorderWidth(0, 0, 1, 0)
 					move, delta := -1, 0
 					ui.Scroll(c).Grow(1).Children(func() {
@@ -312,7 +312,7 @@ func (a *app) runnerModal(c *ui.Context, t *ui.Theme) {
 				})
 				ui.Divider(c)
 				ui.Column(c).Grow(1).MinWidth(0).Children(func() {
-					uikit.Label(c, fmt.Sprintf("RESULTS · %d completed · %d failed", r.completed, r.failures)).Height(uikit.HeightTabs).Padding(t.Space(2)).FontFeatures("tnum").Border(0, t.Border).BorderWidth(0, 0, 1, 0)
+					uikit.Label(c, fmt.Sprintf("Results · %d completed · %d failed", r.completed, r.failures)).Height(uikit.HeightTabs).Padding(t.Space(2)).FontFeatures("tnum").Border(0, t.Border).BorderWidth(0, 0, 1, 0)
 					r.results.Selected = &r.picked
 					c.SetTheme(uikit.ListTheme(t, r.results.Handle.Focused(c)))
 					ui.List(c, &r.results, len(r.rows)).Grow(1).Rows(func(item ui.ListRow) {

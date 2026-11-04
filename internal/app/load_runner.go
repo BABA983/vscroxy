@@ -244,7 +244,7 @@ func (a *app) loadRunnerModal(c *ui.Context, t *ui.Theme) {
 			ui.Scroll(c).Grow(1).MinHeight(0).Gap(t.Space(3)).Children(func() {
 				ui.Row(c).Gap(t.Space(3)).Children(func() {
 					ui.Column(c).Grow(1).MinWidth(0).Gap(t.Space(1)).Children(func() {
-						uikit.Label(c, "SAVED COLLECTION")
+						uikit.Label(c, "Saved collection")
 						names := runnableCollections(a.requests)
 						if len(names) == 0 {
 							names = []string{""}
@@ -252,30 +252,30 @@ func (a *app) loadRunnerModal(c *ui.Context, t *ui.Theme) {
 						uikit.Select(c, &r.collection, names).Label("Load collection").FillWidth().Disabled(r.running)
 					})
 					ui.Column(c).Width(220).Gap(t.Space(1)).Children(func() {
-						uikit.Label(c, "ENVIRONMENT")
+						uikit.Label(c, "Environment")
 						names := append([]string{""}, a.envNames()...)
 						uikit.Select(c, &r.environment, names).Label("Load environment").FillWidth().Disabled(r.running)
 					})
 				})
 				ui.Row(c).Gap(t.Space(3)).AlignItems(ui.End).Children(func() {
 					ui.Column(c).Width(110).Gap(t.Space(1)).Children(func() {
-						uikit.Label(c, "USERS · 1–64")
+						uikit.Label(c, "Users · 1–64")
 						uikit.Input(c, &r.users).Label("Load users").FillWidth().Disabled(r.running)
 					})
 					ui.Column(c).Width(160).Gap(t.Space(1)).Children(func() {
-						uikit.Label(c, "DURATION · 1s–10m")
+						uikit.Label(c, "Duration · 1s–10m")
 						uikit.Input(c, &r.duration).Label("Load duration").FillWidth().Disabled(r.running)
 					})
 					ui.Checkbox(c, &r.stopOnFailure, "Stop on failure").FontSize(uikit.TextBody).Disabled(r.running)
 				})
 				uikit.Meta(c, "Budget: 30 s per execution · 100,000 attempts maximum · 1–200 saved requests")
 				ui.Column(c).Padding(t.Space(3)).Gap(t.Space(2)).Border(1, t.Border).Radius(uikit.RadiusControl).Children(func() {
-					uikit.Label(c, "VOLATILE AGGREGATES · EXECUTION TIME IN MILLISECONDS")
+					uikit.Label(c, "Volatile aggregates · execution time in milliseconds")
 					m := r.report.Total
 					loadMetricRow(c, t, [][2]string{{"Completed", fmt.Sprint(m.Completed)}, {"Failed", fmt.Sprint(m.Failed)}, {"Skipped", fmt.Sprint(m.Skipped)}, {"Interrupted", fmt.Sprint(m.Interrupted)}, {"Executions/s", fmt.Sprintf("%.1f", m.RequestsPerSec)}})
 					loadMetricRow(c, t, [][2]string{{"Mean ms", fmt.Sprintf("%.2f", m.MeanMillis)}, {"P50 ms", fmt.Sprintf("%.2f", m.P50Millis)}, {"P95 ms", fmt.Sprintf("%.2f", m.P95Millis)}, {"P99 ms", fmt.Sprintf("%.2f", m.P99Millis)}, {"Max ms", fmt.Sprintf("%.2f", m.MaxMillis)}})
 				})
-				uikit.Body(c, "Real requests may have side effects. Saved scripts, auth and checks are included; metrics cover execution time and primary responses only, not extra script/auth traffic.")
+				uikit.Prose(c, "Real requests may have side effects. Saved scripts, auth and checks are included; metrics cover execution time and primary responses only, not extra script/auth traffic.")
 				uikit.Meta(c, "Each user has isolated variables, cookies and tokens. Uses a start-time snapshot and an already-unlocked Vault; script Vault is disabled. No environment/request writes, experiment logs or capture records. Results disappear on restart.")
 			})
 			status := cmp.Or(r.status, "Ready · closing this panel keeps an active load running")

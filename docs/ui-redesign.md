@@ -142,16 +142,19 @@ uikit 组件总览设计稿（实现后以第 11 节的总览截图为准）：
 
 - 内嵌 Geist 1.9.0（400／500／600，界面）和同家族的 Geist Mono 1.9.0（400／700，数据），给 Windows、Linux 用，在 `internal/uikit/fonts`，来源和许可见那里的 README 和 `THIRD_PARTY_NOTICES.md`。注册失败只记录一次日志并回退。
 - macOS 上用系统字体：界面 `FontUI = "system-ui"`（SF Pro），数据 `FontMono = "monospace"`（SF Mono），中文走系统的级联；SF 的许可不允许内嵌。在 `font_darwin.go`；其他平台在 `font_other.go`。等宽从 JetBrains Mono 换成 Geist Mono（3.5）：JetBrains 字面宽、x 高大，像代码编辑器，显得重；Geist Mono 窄一些、更安静。界面字体同时从 Inter 换成 Geist（3.5）：Inter 在小字号下显得瘦长，Geist 字面更开、和 Geist Mono 同一家族，两者放在一起协调。
+- **不引入 Geist Serif。** 1.9.0 的归档里已经有 `GeistSerif-Regular` 和 Heart／Square／Triangle 三个衬线形状变体，但它们只有常规一个字重，是展示字体，没有界面角色；这个 app 的层级靠无衬线正文加等宽数据建立，衬线只适合网站或欢迎页的大标题。需要时单独引入，不要混进 uikit 的文字角色。
+- **SF Pro／SF Mono 只在 macOS 上以系统字体使用。** Apple 的字体文档明确要求不要打包系统自带或可下载的 SF 字体；运行时用 `system-ui`／`monospace` 取系统的那一份是允许的，Windows、Linux 上则没有合法来源，所以继续用内嵌的 Geist。
 - 中文不内嵌（一个字重就要 10 MB 以上），用系统字体回退。拉丁回退字体放在 CJK 字体前面，避免英文变宽、等宽失效：
   - 界面（Windows、Linux）：`Geist, Arial, DejaVu Sans, PingFang SC, Microsoft YaHei UI, Noto Sans CJK SC`。
   - 等宽（Windows、Linux）：`Geist Mono, Menlo, Consolas, DejaVu Sans Mono, PingFang SC, Microsoft YaHei UI, Noto Sans CJK SC`。
-- 中文界面的行高和按钮宽度要用中文截图单独检查。Linux 上没有 Noto Sans CJK 时，Settings → 外观提示安装（待做）。
+- 中文的成段说明用 `Prose`／`Hint`，行高 1.5 倍字号；单行标签仍用 `Body` 的紧凑行高。组件总览的 Chinese 一节固定渲染中英混排，作为每次改字体后的检查样张。中文界面的按钮宽度仍要用中文截图单独检查。Linux 上没有 Noto Sans CJK 时，Settings → 外观提示安装（待做）。
 
 ### 6.3 尺寸
 
 | Token | 值 | 用途 |
 | --- | --- | --- |
 | `TextMeta`／`TextData`／`TextBody`／`TextTitle`／`TextHeadline` | 11／12／13／15／18 | 计数和次要信息／表格里的等宽数据／正文、控件／标题／响应结论 |
+| `LineMeta`／`LineProse`／`LineTitle` | 1.45／1.5／1.3 | 次要信息／说明文字／标题的行高倍数；`Body` 和 `Mono` 保持字体自带的行高，避免撑高控件和表格行 |
 | `HeightCompact`／`HeightControl`／`HeightLarge` | 20／24／28 | 表格内和条栏里的小按钮／按钮、输入框、tab、侧栏条目、表格行／URL 栏和 Send（3.5 起，桌面工具的密度，和 Proxyman、Xcode 一致） |
 | `HeightTabs`／`HeightBar` | 28／44 | tab 行和面板头／标题栏和 Capture 工具栏 |
 | `RadiusControl`／`RadiusPanel`／`RadiusDialog` | 6／10／14 | 控件和 pill／弹层、卡片／对话框；嵌在容器内边距里的控件用容器圆角减内边距（分段控件的滑块是 6 − 2 = 4） |
@@ -176,11 +179,12 @@ uikit 组件总览设计稿（实现后以第 11 节的总览截图为准）：
 
 | 角色 | 样子 | 用途 |
 | --- | --- | --- |
-| `Heading` | 15，600 | 对话框、面板、检查器里的请求名 |
-| `Body` | 13，颜色继承 | 普通文字；在按钮和选中行里也对 |
+| `Heading` | 15，600，行高 1.3 | 对话框、面板、检查器里的请求名 |
+| `Body` | 13，颜色继承，字体自带行高 | 普通文字；在按钮和选中行里也对 |
+| `Prose` | Body，行高 1.5 | 成段的说明文字、设备设置步骤、导入提示 |
 | `Mono` | Body + 等宽 | URL、header、路径等数据 |
-| `Hint` | 13，次要色 | 控件下或空面板里的一句说明 |
-| `Meta` | 11，次要色 | 计数、时间、大小；会变化的数字加 `FontFeatures("tnum")` |
+| `Hint` | 13，次要色，行高 1.5 | 控件下或空面板里的一句说明，也是长句和中文正文的角色 |
+| `Meta` | 11，次要色，行高 1.45，`tnum` | 计数、时间、大小；数字默认等宽，不再逐个调用点开 |
 | `Label` | Meta + 600 | 字段名、分组标题（标题式大小写，不全大写，和 Finder 侧栏一致） |
 
 等宽的次要信息写成 `Meta(c, s).Font(uikit.FontMono)`。
@@ -378,3 +382,4 @@ VSCROXY_SNAPSHOTS="$PWD/.amp/in/artifacts/ui" \
 21. macOS 上侧栏占满窗口高度，红绿灯和品牌在侧栏顶部，录制 pill 居中在侧栏右边那一栏；Windows、Linux 的标题栏横跨窗口（3.5b）。
 22. 录制 pill 用方案 A（暂停按钮在 pill 内）；耗时条用方案 C（铺在 Duration 单元格里，不占新列，尽量利用空间）；慢请求的线是 1 秒（4）。
 23. 响应结论用方案 A（完整状态在第一行），尺寸允许调整：落地用 18px／48 高，而不是概念稿的 22px／60 高，给正文留空间；相邻的 Protobuf 工具栏同时按 24 高的控件规范协调（4.3）。
+24. 不引入 Geist Serif；排版优化集中在行高和层级：`Prose`／`Hint` 用 1.5 的行高承载长句和中文，`Meta` 用 1.45 并默认 `tnum`，标题用 1.3；`Body` 和 `Mono` 保持字体自带行高，避免撑高控件和 24 高的表格行。残留的全大写分组标签改成句首大写（2026-11-04）。

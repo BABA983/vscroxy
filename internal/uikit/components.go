@@ -410,8 +410,8 @@ func EmptyState(c *ui.Context, title, hint string, actions func()) {
 	t := c.Theme()
 	ui.Column(c).Fill().Center().Padding(t.Space(6)).Gap(t.Space(2)).Children(func() {
 		ui.Icon(c, emptyIcon).Size(IconLarge, IconLarge).TextColor(t.TextMuted).Margin(0, 0, t.Space(2), 0)
-		ui.Text(c, title).FontSize(TextTitle).TextColor(t.Text)
-		ui.Text(c, hint).FontSize(TextBody).TextColor(t.TextMuted)
+		Heading(c, title).TextColor(t.Text)
+		Hint(c, hint)
 		if actions != nil {
 			actions()
 		}

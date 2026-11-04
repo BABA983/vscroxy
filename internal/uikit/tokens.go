@@ -11,6 +11,13 @@ const (
 	TextTitle    = 15
 	TextData     = 12 // monospace data in tables, as dense as their 24px rows
 	TextHeadline = 18 // full response status, above its compact metadata
+	// Line heights are multiples of the font size. Meta stays compact so a
+	// table or bar keeps its rhythm; prose gets more air, which also keeps
+	// CJK paragraphs from feeling cramped. Body itself keeps the font's
+	// compact leading because it is also the label of controls and cells.
+	LineMeta  = 1.45
+	LineProse = 1.5
+	LineTitle = 1.3
 	// Desktop density, as in Proxyman and Xcode: controls and rows are 24,
 	// the URL bar and Send 28.
 	HeightCompact = 20
