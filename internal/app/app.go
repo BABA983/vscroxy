@@ -373,6 +373,7 @@ type app struct {
 	vault       vaultState
 	experiments experimentWorkbench
 	socket      websocketWorkbench
+	sse         sseWorkbench
 	sessions    sessionWorkspace
 
 	// The active document is embedded so the editor's fields always belong
@@ -1443,6 +1444,7 @@ func (a *app) view(c *ui.Context) {
 	a.clientSetupModal(c, t)
 	a.experimentsModal(c, t)
 	a.socketModal(c, t)
+	a.sseModal(c, t)
 	a.requestRenameModal(c, t)
 	a.headerWarnModal(c, t)
 	a.runnerModal(c, t)
@@ -2422,6 +2424,8 @@ func Run() error {
 	defer cancelRequests()
 	mygo.App.OnQuit(func() { a.socket.session.disconnect() })
 	defer func() { a.socket.session.disconnect() }()
+	mygo.App.OnQuit(func() { a.sse.session.stop() })
+	defer func() { a.sse.session.stop() }()
 	defer a.discardRuleDraft()
 	defer a.disableDevices()
 	defer a.views.stopSearch()

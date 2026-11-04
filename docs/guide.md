@@ -934,6 +934,46 @@ WSS verifies the system/proxy CAs rather than disabling certificate checks.
 The one-shot sender waits up to two seconds for five replies, capped at 1 MiB
 each; cancellation closes the socket. Post-response scripts require HTTP.
 
+### Interactive SSE sessions
+
+**Network / Commands → SSE session…** opens a GET-only live event-stream
+client. An active HTTP draft pre-fills its prepared URL and headers (including
+auth and current variables), without sending its body or running its scripts.
+You can also enter an absolute HTTP(S) URL and headers directly. **Connect SSE**
+starts a fresh timeline through the running capture proxy, using the Requests
+cookie jar and verified system/proxy CAs. HTTPS decryption follows the proxy's
+host settings. It sends `Accept: text/event-stream` and `Cache-Control: no-cache`;
+redirects use Go's standard sensitive-header policy.
+
+Events appear as they arrive, without waiting for the response to end. The
+decoder supports UTF-8, one initial BOM, LF/CRLF/CR line endings, multiline and
+empty `data`, custom/default event types, persistent/reset IDs and comments.
+An incomplete final block is discarded. Select an event to inspect its type,
+ID and data; select a connection event for the final URL and response headers.
+Search is case-insensitive across retained type, ID, payload and connection
+details. **Copy event ID** and **Copy shown SSE data** copy exactly the retained
+ID or displayed payload/details, including any truncation notice.
+
+**Reconnect on EOF / network failure** is off by default. When explicitly
+enabled before connecting, EOF or a network failure schedules another GET with
+the last committed `Last-Event-ID`; an empty ID clears that header. The default
+delay is 3 seconds. Numeric server `retry` values are bounded to 100 ms–5 min
+to avoid busy loops; values overflowing uint64 are ignored. HTTP 204 stops even
+with reconnect enabled. Other HTTP statuses, a non-`text/event-stream` content
+type, or a line/event exceeding 1 MiB fail the session instead of retrying.
+There is a 15-second response-header timeout, but no whole-stream timeout.
+
+The timeline keeps the latest 200 events (including connection events), original
+data byte counts and an eviction count. Each field retains at most a 64 KiB
+UTF-8 preview plus an explicit truncation notice. Search/copy use these previews,
+not evicted data; an evicted selection is cleared rather than copied stale.
+**Latest event** follows the list without changing the inspected payload.
+**Stop SSE**, Escape, clicking outside, closing the panel or quitting the app
+cancels receiving and reconnect waits. A new Connect starts over; the timeline
+is not saved or restored, and request scripts/Checks/Runner/History are not
+part of this live client. Proxy HTTP rules still apply; Capture separately
+retains traffic under its own limits and event framing.
+
 ### Interactive WebSocket sessions
 
 **Network / Commands → WebSocket session…** opens a separate live client. If

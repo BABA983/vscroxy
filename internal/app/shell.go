@@ -278,6 +278,7 @@ func (a *app) moreActions(c *ui.Context) []action {
 		do("network.diagnostics", "Connection diagnostics", func() { a.openDiagnostics(nil, diagnoseMac) }).in("tools"),
 		do("network.client", "Set up a local client…", a.openClientSetup).in("tools"),
 		pick(global, "network.websocket").in("tools"),
+		pick(global, "network.sse").in("tools"),
 	}
 	for _, x := range a.networkTools() {
 		if x.group == "caching" {

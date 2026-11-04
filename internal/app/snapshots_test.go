@@ -606,6 +606,34 @@ func TestUISnapshots(t *testing.T) {
 		{name: "dialog-protobuf", setup: func(a *app) { a.protobuf.open, a.protobuf.problem = true, "Missing import: common.proto" }, want: "Protobuf schema", short: true},
 		{name: "dialog-protobuf-busy", setup: func(a *app) { a.protobuf.open, a.protobuf.loading = true, true }, want: "Compiling and linking schema…"},
 		{name: "dialog-socket", setup: func(a *app) { a.socket.open, a.socket.url = true, "wss://api.example.com/events" }, want: "WebSocket session · Not connected", short: true},
+		{name: "dialog-sse", setup: func(a *app) { a.sse.open, a.sse.url = true, "https://api.example.com/events" }, want: "SSE session · Not connected", short: true},
+		{name: "dialog-sse-live", setup: func(a *app) {
+			a.sse = sseWorkbench{open: true, url: "https://api.example.com/events", session: &sseSession{state: "Connected", events: []sseSessionEvent{
+				{seq: 1, at: snapshotTime, detail: "Connected · https://api.example.com/events\n\nContent-Type: text/event-stream\nX-Trace: session-73"},
+				{seq: 2, at: snapshotTime.Add(time.Second), eventType: "price", id: "73", data: "{\n  \"symbol\": \"DEMO\",\n  \"price\": 128.75,\n  \"change\": -2.25\n}", size: 64},
+				{seq: 3, at: snapshotTime.Add(2 * time.Second), eventType: "message", id: "74", data: "ready", size: 5},
+			}}}
+		}, act: click("SSE event 2"), want: "Type: price · ID: 73", short: true},
+		{name: "dialog-sse-headers", setup: func(a *app) {
+			a.sse = sseWorkbench{open: true, url: "https://api.example.com/events", session: &sseSession{state: "Connected", events: []sseSessionEvent{
+				{seq: 1, at: snapshotTime, detail: "Connected · https://api.example.com/events\n\nCache-Control: no-cache\nContent-Type: text/event-stream\nX-Trace: session-73"},
+			}}}
+		}, act: click("SSE event 1"), want: "SSE event payload", short: true},
+		{name: "dialog-sse-retry", setup: func(a *app) {
+			a.sse = sseWorkbench{open: true, reconnect: true, url: "https://api.example.com/events", session: &sseSession{state: "Reconnecting", events: []sseSessionEvent{
+				{seq: 1, at: snapshotTime, detail: "Reconnecting in 3s · Last-Event-ID: 73"},
+			}}}
+		}, act: click("SSE event 1"), want: "SSE session · Reconnecting", short: true},
+		{name: "dialog-sse-failed", setup: func(a *app) {
+			a.sse = sseWorkbench{open: true, url: "https://api.example.com/events", session: &sseSession{state: "Failed", finished: true, events: []sseSessionEvent{
+				{seq: 1, at: snapshotTime, detail: "Stream failed: SSE requires HTTP 200 and text/event-stream; got 401 Unauthorized (text/plain)"},
+			}}}
+		}, act: click("SSE event 1"), want: "SSE session · Failed", short: true},
+		{name: "dialog-sse-truncated", setup: func(a *app) {
+			a.sse = sseWorkbench{open: true, url: "https://api.example.com/events", session: &sseSession{state: "Ended", finished: true, evicted: 8, events: []sseSessionEvent{
+				{seq: 207, at: snapshotTime, eventType: "message", id: "last", data: "Retained payload preview…\nRetained 65535 of 90000 bytes", size: 90000},
+			}}}
+		}, act: click("SSE event 207"), want: "SSE session · Ended", short: true},
 		{name: "dialog-socket-protobuf", setup: func(a *app) {
 			a.socket.open, a.socket.url = true, "wss://api.example.com/events"
 			a.socket.session = &wsSession{state: "Disconnected", events: []wsSessionEvent{{Sequence: 1, At: snapshotTime, Direction: "In", Kind: websocket.BinaryMessage, Data: []byte("\x08\x49\x12\x04Demo"), Size: 8}}}

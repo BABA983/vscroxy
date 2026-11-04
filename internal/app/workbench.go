@@ -504,6 +504,7 @@ func (a *app) actions(c *ui.Context) []action {
 			a.experiments.assetID, a.experiments.status, a.experiments.sourceFilter = "", "", ""
 		}),
 		do("network.websocket", "WebSocket session…", a.openSocket),
+		do("network.sse", "SSE session…", a.openSSE),
 		do("session.open", "Open session…", a.openSession),
 		do("session.save", "Save capture to Sessions", a.saveSession).when(capturing, ""),
 		do("network.client", "Set up a local client…", a.openClientSetup).when(a.srv != nil, ""),
