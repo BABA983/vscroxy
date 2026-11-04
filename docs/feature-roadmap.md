@@ -92,7 +92,7 @@
 | 搜索支持通配符和正则 | 缺少 | 现在只匹配 host 和路径的子串 | M5 |
 | Body 全文搜索 | 已有 | | |
 | Body 查看：Pretty、JSON 树、Hex、图片、HTML、Protobuf | 已有 | | |
-| Body 查看：multipart 分段、表单字段表、MessagePack、XML 格式化 | 缺少 | | M5 |
+| Body 查看：multipart 分段、表单字段表、MessagePack、XML 格式化 | 已有 | 后台只读解析，保留重名/整数/二进制证据；见使用指南限制 | M5 |
 | JSON 筛选：JSONPath、jq | 已有 | 后台只读有界子集，支持取消；详见使用指南 | M5 |
 | 快速解码：选中文字解 Base64、JWT、URL 编码、时间戳 | 已有 | 本地只读预览；JWT 不验证签名或 claims | M5 |
 | Cookies 标签（解析 Cookie 和 Set-Cookie） | 已有 | 抓包两侧和已发送响应；保留重名，默认遮罩 | M5 |
@@ -293,7 +293,7 @@ Cookie 和其他 API key 保留为变量 header，避免把多个认证机制硬
 
 - 第一阶段已完成：快速解码、Cookies 标签（抓包两侧和已发送响应）。
 - 第二阶段已完成：JSONPath / jq 后台只读查询，保留大整数，支持取消和结果复制。
-- multipart、表单、MessagePack、XML 查看。
+- 第三阶段已完成：multipart 分段、表单字段表、MessagePack、XML 查看（抓包两侧和已发送响应）。
 - 自定义列：JSON 字段、GraphQL operation。
 - GraphQL 感知：operation 列、按 operation 筛选和匹配规则、格式化 query。
 - 耗时瀑布图。

@@ -24,6 +24,7 @@ require (
 	github.com/ohler55/ojg v1.28.9
 	github.com/oneo-me/onevra/source v0.2026.16
 	github.com/sirupsen/logrus v1.9.4
+	github.com/vmihailenco/msgpack/v5 v5.4.1
 	golang.org/x/net v0.61.0
 	golang.org/x/sys v0.49.0
 	golang.org/x/text v0.43.0
@@ -47,6 +48,7 @@ require (
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.3 // indirect
 	github.com/segmentio/asm v1.1.3 // indirect
 	github.com/segmentio/encoding v0.5.4 // indirect
+	github.com/vmihailenco/tagparser/v2 v2.0.0 // indirect
 	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
 	golang.org/x/image v0.47.0 // indirect
 	golang.org/x/oauth2 v0.36.0 // indirect

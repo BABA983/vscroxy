@@ -226,6 +226,7 @@ type app struct {
 	protoFor     [2]string
 	protoOK      [2]bool
 	protobuf     protoInspector
+	structured   [2]structuredInspector
 
 	// newRows counts traffic that arrived while the list was paused, so the
 	// footer can offer to resume following without moving the reader.
@@ -1257,11 +1258,15 @@ func (a *app) syncDetail() {
 		a.detailFor = -1
 		a.connOpen = false
 		a.protobuf.stop()
+		a.structured[0].stop()
+		a.structured[1].stop()
 		return
 	}
 	if a.detailFor == f.id {
 		return
 	}
+	a.structured[0].stop()
+	a.structured[1].stop()
 	a.detailFor = f.id
 	a.connOpen = false
 	if f.kind == "" && a.inspect.pane == inspectorMessages {
@@ -2418,8 +2423,11 @@ func Run() error {
 	mygo.App.OnQuit(a.sessions.close)
 	defer a.sessions.close()
 	cancelRequests := func() {
+		a.structured[0].stop()
+		a.structured[1].stop()
 		for _, d := range a.documents {
 			d.cancelSend()
+			d.structured.stop()
 			if d.grpcUI != nil {
 				d.grpcUI.stop()
 			}

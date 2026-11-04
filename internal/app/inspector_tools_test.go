@@ -227,3 +227,98 @@ func TestInspectorJSONQueryErrorsCancellationAndNewSource(t *testing.T) {
 		t.Fatal("old job replaced new source")
 	}
 }
+
+func TestInspectorStructuredBodiesAutoCopyAndOriginal(t *testing.T) {
+	for _, tc := range []struct{ name, contentType, body, want string }{
+		{"request form", "application/x-www-form-urlencoded", "tag=one&tag=a+b&plus=%2B&flag", "4 form fields · original order"},
+		{"response multipart", "multipart/form-data; boundary=fixture", "--fixture\r\nContent-Disposition: form-data; name=\"tag\"\r\n\r\nhello\r\n--fixture--\r\n", "1 parts · files are not previewed"},
+		{"response XML", "application/xml", "<r><n>73</n><n>19</n></r>", "XML · read-only inspection"},
+		{"sent MessagePack", "application/msgpack", "\xcf\x00\x20\x00\x00\x00\x00\x00\x01", "MessagePack · read-only inspection"},
+		{"sent form", "application/x-www-form-urlencoded", "name=hello+world&name=second", "2 form fields · original order"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			a := workspaceApp()
+			side := 0
+			if strings.HasPrefix(tc.name, "request") {
+				side = 1
+				a.flows[0].reqBody, a.flows[0].reqHeader = tc.body, http.Header{"Content-Type": {tc.contentType}}
+			} else {
+				a.flows[0].resBody, a.flows[0].respHeader = tc.body, http.Header{"Content-Type": {tc.contentType}}
+			}
+			if strings.HasPrefix(tc.name, "sent") {
+				openDraft(a, a.flows[0])
+				a.sentSet = true
+				a.response = &capture.Flow{Status: 200, ResponseHeader: http.Header{"Content-Type": {tc.contentType}}, ResponseBody: tc.body}
+			}
+			t.Cleanup(func() {
+				a.structured[0].stop()
+				a.structured[1].stop()
+				if a.requestDocument != nil {
+					a.requestDocument.structured.stop()
+				}
+			})
+			tt := ui.NewTester(a.view, 1280, 800)
+			reader := &a.structured[side]
+			if strings.HasPrefix(tc.name, "sent") {
+				reader = &a.requestDocument.structured
+			}
+			waitInspection(t, tt, func() bool { return reader.job.answers == nil })
+			if !tt.HasText(tc.want) {
+				t.Fatal("Auto did not select structured viewer: ", tt.Texts())
+			}
+			if err := tt.Click("Copy view"); err != nil {
+				t.Fatal(err)
+			}
+			switch {
+			case strings.HasSuffix(tc.name, "XML"):
+				if tt.Clipboard() != "<r>\n  <n>73</n>\n  <n>19</n>\n</r>" {
+					t.Fatal("XML not formatted: ", tt.Clipboard())
+				}
+			case strings.HasSuffix(tc.name, "MessagePack"):
+				if tt.Clipboard() != "9007199254740993" {
+					t.Fatal("MessagePack integer rounded")
+				}
+			case strings.HasSuffix(tc.name, "form"):
+				if !strings.Contains(tt.Clipboard(), `"rawValue"`) || !strings.Contains(tt.Clipboard(), `"key"`) {
+					t.Fatal("copy lost form original/decoded spellings")
+				}
+			}
+			if strings.HasPrefix(tc.name, "sent") {
+				if a.response.ResponseBody != tc.body {
+					t.Fatal("inspection changed sent response")
+				}
+			} else if side == 1 && a.flows[0].reqBody != tc.body || side == 0 && a.flows[0].resBody != tc.body {
+				t.Fatal("inspection changed captured bytes")
+			}
+		})
+	}
+}
+
+func TestInspectorStructuredErrorsRemainVisibleAndResetOnNewFlow(t *testing.T) {
+	a := workspaceApp()
+	// These bytes are also valid protobuf. Auto must still use the declared
+	// MessagePack decoder, not confuse its optional format index with protobuf.
+	a.flows[0].resBody, a.flows[0].respHeader = "\x08\x01", http.Header{"Content-Type": {"application/msgpack"}}
+	t.Cleanup(a.structured[0].stop)
+	tt := ui.NewTester(a.view, 960, 600)
+	waitInspection(t, tt, func() bool { return a.structured[0].job.answers == nil })
+	if !tt.HasText("MessagePack requires exactly one value") {
+		t.Fatal(tt.Texts())
+	}
+	if err := tt.Click("Response body format"); err != nil {
+		t.Fatal(err)
+	}
+	if err := chooseMenu(tt, "Hex"); err != nil {
+		t.Fatal(err)
+	}
+	if !tt.HasText("08 01") {
+		t.Fatal("Hex no longer reaches original bytes: ", tt.Texts())
+	}
+	a.flows[1].resBody, a.flows[1].respHeader = "x=next", http.Header{"Content-Type": {"application/x-www-form-urlencoded"}}
+	a.picked = 1
+	tt.Frame()
+	waitInspection(t, tt, func() bool { return a.structured[0].job.answers == nil })
+	if !tt.HasText("1 form fields · original order") || tt.HasText("MessagePack requires exactly one value") {
+		t.Fatal("new flow retained the old decoder/error: ", tt.Texts())
+	}
+}

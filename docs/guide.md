@@ -778,10 +778,38 @@ previous results. Copy results never modifies or sends the source.
   Invalid, incomplete, unavailable or oversized bodies report an error rather
   than silently querying partial evidence. All errors discard partial results.
 
-**Auto** is the default: images/HTML use Preview, binary bodies use Hex,
-explicit protobuf/gRPC uses Protobuf, and text/JSON uses Pretty. A manual mode
+**Auto** is the default: images/HTML use Preview, explicit protobuf/gRPC uses
+Protobuf, the structured types below use their named view, other binary bodies
+use Hex, and text/JSON uses Pretty. Sent responses also offer Auto, Raw, Hex,
+Pretty, and the structured view when applicable. A manual mode
 applies to the current request side; changing requests or sides resets to Auto
 instead of leaving the next response in an incompatible display mode.
+
+**Form**, **Multipart**, **XML** and **MessagePack** inspect complete retained
+bodies off-thread, cached separately per capture side or sent response.
+Content-Type parameters, including multipart boundaries, are preserved. Invalid
+or incomplete data shows an error; it is not silently treated as a valid prefix.
+Pretty/Raw and Hex remain available. Copy view copies the interpretation only,
+never changing the captured bytes or a draft.
+
+- Form fields keep original order, repeated names, raw encodings, and the
+  difference between `flag` and `flag=`. `+` means space; `%2B` means `+`.
+  The table truncates long cells for readability; Copy view retains full data.
+- Multipart lists ordered parts, their names, original filenames, headers and
+  byte sizes. Only safe UTF-8 text fields preview (at most 4 KiB); file,
+  binary and transfer-encoded payloads never preview. Transfer encodings are
+  not decoded, and filenames are metadata, never filesystem paths to open.
+- XML indents element-only content while preserving mixed content, CDATA and
+  `xml:space="preserve"` subtrees. Prefixes, entities and attribute values
+  are not rewritten. Use Raw when inter-element whitespace is significant.
+  Only UTF-8 is supported; DTDs/directives and entity resolution are disabled.
+- MessagePack keeps signed/unsigned integers exact. `$map` entries preserve
+  order, repeated and non-string keys; `$binary` and `$extension` explicitly
+  show Base64 bytes and extension tags (including timestamps). Nonfinite floats
+  use a `$float` marker. This is a debugger notation, not round-trip JSON.
+- Limits: 1 MiB source, 2 MiB rendered text, 256 multipart parts, nesting depth
+  64 and 16384 nodes/fields. Parsing errors discard partial output. Large source
+  bodies are still available through their existing Raw/Hex/export paths.
 
 A body above 64 KiB is not held in memory: the capture core writes it to a
 spill file under a temporary directory and the flow keeps the first 64 KiB

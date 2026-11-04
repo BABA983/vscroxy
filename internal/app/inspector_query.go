@@ -62,6 +62,7 @@ func (b inspectionBody) read(ctx context.Context) (string, error) {
 type inspectionResult struct {
 	text string
 	err  error
+	body *inspect.BodyView
 }
 
 // Each run owns its answer channel. Replacing/closing a reader drops the old
@@ -72,6 +73,7 @@ type bodyInspection struct {
 	answers chan inspectionResult
 	result  *editor.State
 	problem string
+	body    *inspect.BodyView
 }
 
 func (j *bodyInspection) stop() {
@@ -81,16 +83,16 @@ func (j *bodyInspection) stop() {
 	j.cancel, j.answers = nil, nil
 }
 
-func (j *bodyInspection) start(services ui.Services, read func(context.Context) (string, error)) {
+func (j *bodyInspection) start(services ui.Services, read func(context.Context) inspectionResult) {
 	j.stop()
-	j.result, j.problem = nil, ""
+	j.result, j.problem, j.body = nil, "", nil
 	ctx, cancel := context.WithCancel(context.Background())
 	answers := make(chan inspectionResult, 1)
 	j.cancel, j.answers = cancel, answers
 	go func() {
-		text, err := read(ctx)
+		result := read(ctx)
 		select {
-		case answers <- inspectionResult{text, err}:
+		case answers <- result:
 			services.Invalidate()
 		case <-ctx.Done():
 		}
@@ -107,6 +109,7 @@ func (j *bodyInspection) poll(c *ui.Context) {
 		if result.err != nil {
 			j.problem = result.err.Error()
 		} else {
+			j.body = result.body
 			j.result = &editor.State{Buffer: editor.NewBuffer(result.text), ReadOnly: true, SoftWrap: true, NoScrollPastEnd: true, Label: "Inspection result"}
 		}
 	default:
@@ -189,12 +192,13 @@ func (a *app) jsonQueryModal(c *ui.Context) {
 				}
 				if uikit.PrimaryButton(c, "Run query").Clicked() {
 					source, dialect, expression := u.source, u.dialect, u.expression
-					u.job.start(c.Services(), func(ctx context.Context) (string, error) {
+					u.job.start(c.Services(), func(ctx context.Context) inspectionResult {
 						input, err := source.read(ctx)
 						if err != nil {
-							return "", err
+							return inspectionResult{err: err}
 						}
-						return inspect.Query(ctx, dialect, expression, input)
+						text, err := inspect.Query(ctx, dialect, expression, input)
+						return inspectionResult{text: text, err: err}
 					})
 				}
 			})

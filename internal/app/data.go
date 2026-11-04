@@ -273,6 +273,12 @@ func (f flow) bodyPreview(response bool) (body, notice string) {
 // contentType is the media type of the body on the side shown, taken from the
 // structured headers or the formatted block.
 func (f flow) contentType(response bool) string {
+	ct, _, _ := strings.Cut(f.bodyContentType(response), ";")
+	return strings.ToLower(strings.TrimSpace(ct))
+}
+
+// bodyContentType retains parameters such as a multipart boundary or charset.
+func (f flow) bodyContentType(response bool) string {
 	h, block := f.reqHeader, f.reqHeaders
 	if response {
 		h, block = f.respHeader, f.resHeaders
@@ -286,8 +292,7 @@ func (f flow) contentType(response bool) string {
 			}
 		}
 	}
-	ct, _, _ = strings.Cut(ct, ";")
-	return strings.ToLower(strings.TrimSpace(ct))
+	return strings.TrimSpace(ct)
 }
 
 func humanBytes(n int) string {

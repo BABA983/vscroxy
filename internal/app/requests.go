@@ -16,6 +16,7 @@ import (
 	"uuid"
 
 	"github.com/baba983/vscroxy/internal/capture"
+	"github.com/baba983/vscroxy/internal/inspect"
 	"github.com/baba983/vscroxy/internal/request"
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/editor"
@@ -125,6 +126,7 @@ type requestDocument struct {
 	responseEditor *editor.State
 	responseList   ui.ListState
 	cookieReveal   bool
+	structured     structuredInspector
 	// sent is exactly what the last send carried, so the screen can say
 	// whether the draft on it is the one that produced the response.
 	sent            savedRequest
@@ -226,6 +228,7 @@ func (a *app) newDocument(r savedRequest, key string) *requestDocument {
 // load puts r in the editor; a key says it is that saved asset, which is
 // then the baseline its unsaved changes are measured against.
 func (d *requestDocument) load(r savedRequest, key string) {
+	d.structured.stop()
 	if d.grpcUI != nil {
 		d.grpcUI.stop()
 		d.grpcUI = nil
@@ -287,6 +290,7 @@ func (a *app) closeDocument(d *requestDocument) {
 	if at < 0 {
 		return
 	}
+	d.structured.stop()
 	if d.grpcUI != nil {
 		d.grpcUI.stop()
 	}
@@ -1034,8 +1038,19 @@ func (a *app) requestResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 					uikit.CountedTabs(c, &d.responseTab, "Response tab", labels, counts)
 				}).Grow(1).FillHeight()
 				if d.responseTab == resViewBody && d.response != nil {
-					formats := []string{"Pretty", "Raw", "Hex"}
-					uikit.MenuSelect(c, formats[d.responseView], func(m *ui.Menu) {
+					formats := []string{"Auto", "Raw", "Hex", "Pretty"}
+					format := inspect.BodyFormat(d.response.ResponseHeader.Get("Content-Type"))
+					if format != "" {
+						formats = append(formats, format)
+					}
+					if d.responseView >= len(formats) {
+						d.responseView, d.responseEditor = 0, nil
+					}
+					shown := formats[d.responseView]
+					if d.responseView == 0 {
+						shown = cmp.Or(format, "Pretty")
+					}
+					uikit.MenuSelect(c, shown, func(m *ui.Menu) {
 						for i, name := range formats {
 							if m.Item(name).Checked(i == d.responseView).Chosen() {
 								d.responseView, d.responseEditor, d.responseList = i, nil, ui.ListState{}
@@ -1223,6 +1238,10 @@ func (a *app) responseBody(c *ui.Context, t *ui.Theme, d *requestDocument) {
 			if d.response.ResponseBodySize > len(d.response.ResponseBody) {
 				uikit.Meta(c, "Preview limited to 8 MiB; the complete body is in Capture.").Padding(t.Space(1), t.Space(3))
 			}
+		}
+		if r := d.response; r != nil && (d.responseView == 0 || d.responseView == 4) && inspect.BodyFormat(r.ResponseHeader.Get("Content-Type")) != "" {
+			d.structured.view(c, inspectionBody{r.ResponseBody, r.ResponseBodyFile, r.ResponseBodyError, r.ResponseBodySize}, r.ResponseHeader.Get("Content-Type"))
+			return
 		}
 		switch d.responseView {
 		case 1:

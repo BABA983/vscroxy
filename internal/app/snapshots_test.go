@@ -168,6 +168,28 @@ func TestUISnapshots(t *testing.T) {
 			a.flows[0].respHeader["Set-Cookie"] = []string{"session=fixture-value; Path=/; HttpOnly; Secure; SameSite=Lax", "theme=paper; Path=/account; Max-Age=3600"}
 			a.inspect.tab[1] = resTabCookies
 		}, want: "2 cookies · captured headers"},
+		{name: "capture-form-xml", setup: func(a *app) {
+			snapshotStructured(a)
+			a.workbench.focused = true
+			a.flows[0].respHeader.Set("Content-Type", "application/xml")
+			a.flows[0].resBody = `<catalog><project id="73"><name>Demo &amp; review</name><active>true</active></project><note>Hello <b>world</b> !</note></catalog>`
+		}, want: "4 form fields · original order"},
+		{name: "capture-multipart", setup: func(a *app) {
+			snapshotStructured(a)
+			a.workbench.focused = true
+		}, want: "3 parts · files are not previewed"},
+		{name: "capture-messagepack", setup: func(a *app) {
+			snapshotStructured(a)
+			a.workbench.focused = true
+			a.flows[0].respHeader.Set("Content-Type", "application/msgpack")
+			a.flows[0].resBody = "\x82\xa2id\xcf\x00\x20\x00\x00\x00\x00\x00\x01\xa4blob\xc4\x03\x00\xff\x80"
+		}, want: "MessagePack · read-only inspection"},
+		{name: "capture-structured-error", setup: func(a *app) {
+			snapshotStructured(a)
+			a.workbench.focused = true
+			a.flows[0].respHeader.Set("Content-Type", "application/xml")
+			a.flows[0].resBody = "<root><incomplete>"
+		}, want: "incomplete XML document"},
 		{name: "dialog-decode", setup: func(a *app) {
 			a.openDecoder(nil, "5L2g5aW977yM")
 		}, act: click("Decode"), want: "Decoded result"},
@@ -880,6 +902,9 @@ func TestUISnapshots(t *testing.T) {
 		}
 		for _, state := range states {
 			widths := []int{1280}
+			if state.name == "capture-form-xml" || state.name == "capture-multipart" || state.name == "capture-messagepack" || state.name == "capture-structured-error" {
+				widths = append(widths, 960)
+			}
 			if state.name == "capture-selected" || strings.HasPrefix(state.name, "capture-activity") || state.name == "capture-response-error" || state.name == "capture-no-response" || state.name == "capture-edited" || state.name == "capture-sent" || state.name == "capture-ws" || state.name == "capture-connect" || strings.HasPrefix(state.name, "requests-") || strings.HasPrefix(state.name, "secondary-") || strings.HasPrefix(state.name, "dialog-") || state.name == "active-tools" {
 				widths = append(widths, 960)
 			}
@@ -911,6 +936,13 @@ func TestUISnapshots(t *testing.T) {
 							t.Cleanup(a.protobuf.stop)
 							t.Cleanup(a.socket.protobuf.stop)
 							t.Cleanup(a.jsonQuery.job.stop)
+							t.Cleanup(func() {
+								a.structured[0].stop()
+								a.structured[1].stop()
+								if a.requestDocument != nil {
+									a.requestDocument.structured.stop()
+								}
+							})
 							if state.setup != nil {
 								state.setup(a)
 							}
@@ -932,7 +964,7 @@ func TestUISnapshots(t *testing.T) {
 							// an arbitrary sleep, and never capture an intermediate frame.
 							deadline := time.NewTimer(time.Minute)
 							defer deadline.Stop()
-							for a.protobuf.answers != nil || a.socket.protobuf.answers != nil || a.jsonQuery.job.answers != nil {
+							for a.protobuf.answers != nil || a.socket.protobuf.answers != nil || a.jsonQuery.job.answers != nil || a.structured[0].job.answers != nil || a.structured[1].job.answers != nil || (a.requestDocument != nil && a.requestDocument.structured.job.answers != nil) {
 								select {
 								case <-deadline.C:
 									t.Fatal("body inspection render did not settle")
@@ -1037,6 +1069,18 @@ func snapshotActiveTools(a *app) {
 	_ = a.srv.SetUpstream(a.upstream)
 	a.rules = []capture.Rule{{Type: capture.RuleBlock, Match: "/offline", Scenario: "Offline", ScenarioActive: true}}
 	_ = a.srv.SetRules(a.rules)
+}
+
+func snapshotStructured(a *app) {
+	a.inspect.tab = [2]int{reqTabBody, resTabBody}
+	a.flows[0].reqHeader.Set("Content-Type", "application/x-www-form-urlencoded")
+	a.flows[0].reqBody = "tag=first&tag=a+b&plus=%2B&flag"
+	a.flows[0].respHeader.Set("Content-Type", "multipart/form-data; boundary=fixture")
+	a.flows[0].resBody = strings.Join([]string{
+		"--fixture", `Content-Disposition: form-data; name="tag"`, "", "first",
+		"--fixture", `Content-Disposition: form-data; name="tag"`, "", "second",
+		"--fixture", `Content-Disposition: form-data; name="upload"; filename="sample.bin"`, "Content-Type: application/octet-stream", "", "\x00\xff\x01", "--fixture--", "",
+	}, "\r\n")
 }
 
 func snapshotApp() *app {

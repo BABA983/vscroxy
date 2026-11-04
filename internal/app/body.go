@@ -7,10 +7,12 @@ import (
 	"fmt"
 	"github.com/baba983/vscroxy/internal/uikit"
 	"io"
+	"slices"
 	"strconv"
 	"strings"
 	"unicode/utf8"
 
+	"github.com/baba983/vscroxy/internal/inspect"
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/editor"
 	"github.com/egoist/mygo/ui/richtext"
@@ -194,6 +196,9 @@ func (a *app) bodyModes(f flow, side int) []string {
 	if a.protoOK[side] {
 		modes = append(modes, "Protobuf")
 	}
+	if format := inspect.BodyFormat(f.bodyContentType(side == 0)); format != "" {
+		modes = append(modes, format)
+	}
 	return modes
 }
 
@@ -214,15 +219,15 @@ func (a *app) protobufOwner(f flow) int {
 			}
 			mode = a.autoBodyMode(f, side, body)
 		}
-		if mode == 5 {
+		if mode == 5 && modes[mode] == "Protobuf" {
 			return side
 		}
 	}
 	return -1
 }
 
-// autoBodyMode picks the representation a body reads best in, without
-// trusting the Content-Type alone.
+// autoBodyMode uses explicit formats where possible. A failed structured
+// decode stays visible as an error, with Pretty/Hex available for the evidence.
 func (a *app) autoBodyMode(f flow, side int, body string) int {
 	ct := f.contentType(side == 0)
 	switch {
@@ -230,6 +235,8 @@ func (a *app) autoBodyMode(f flow, side int, body string) int {
 		return 5
 	case strings.HasPrefix(ct, "image/"), strings.Contains(ct, "html"):
 		return 4
+	case inspect.BodyFormat(f.bodyContentType(side == 0)) != "":
+		return slices.Index(a.bodyModes(f, side), inspect.BodyFormat(f.bodyContentType(side == 0)))
 	case ct == "application/octet-stream", !utf8.ValidString(body), strings.ContainsRune(body, 0):
 		return 3
 	default:
@@ -270,6 +277,10 @@ func (a *app) bodySideView(c *ui.Context, f flow, side int) {
 	if notice := strings.TrimSpace(a.bodyNotice[side]); notice != "" {
 		ui.Text(c, notice).FontSize(uikit.TextMeta).TextColor(t.Warning).Background(t.Warning.Alpha(0.12)).
 			Padding(t.Space(1), t.Space(3)).FillWidth().Tooltip(notice)
+	}
+	if modes[mode] == inspect.BodyFormat(f.bodyContentType(side == 0)) {
+		a.structured[side].view(c, capturedInspectionBody(f, side), f.bodyContentType(side == 0))
+		return
 	}
 	if mode == 5 {
 		// One inspector reads one side: when both sides are protobuf, the
