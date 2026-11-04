@@ -46,6 +46,9 @@ type harEntry struct {
 	Response        harResponse `json:"response"`
 	Cache           struct{}    `json:"cache"`
 	Timings         harTimings  `json:"timings"`
+	// HAR's sequential fields cannot represent overlapping dial attempts or
+	// duplex traffic. Retain the exact observed timeline as a private extension.
+	Timing *capture.Timing `json:"_vscroxyTiming,omitzero"`
 }
 
 type harRequest struct {
@@ -150,6 +153,10 @@ func harFromFlows(flows []flow) harFile {
 				BodySize:    respSize,
 			},
 			Timings: harTimings{Wait: float64(f.millis)},
+			Timing:  f.timing,
+		}
+		if f.wait > 0 || f.download > 0 {
+			entry.Timings.Wait, entry.Timings.Receive = float64(f.wait), float64(f.download)
 		}
 		if reqText != "" {
 			entry.Request.PostData = &harPostData{
@@ -236,6 +243,7 @@ func harFlow(entry harEntry) (flow, bool) {
 	}
 	f.wait = int(entry.Timings.Wait)
 	f.download = int(entry.Timings.Receive)
+	f.timing = entry.Timing
 	return f, true
 }
 

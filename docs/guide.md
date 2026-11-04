@@ -2039,10 +2039,38 @@ contracts** in Commands opens the first one.
 
 ## Timing
 
-The **Timing** tab splits a flow's time into the wait for the server's first
-response byte and the download after it, as a bar and as numbers. A flow that
-never reached a server has no timing; the total in the table includes what the
-throttle adds, so it matches what the client saw.
+The captured response's **Timing** tab shows a request-local waterfall on one
+shared axis. **Requests → response → Timing** shows the same trace for that
+exact send, with **Inspect timing in Capture** linking to its final wire hop.
+Use **Focus inspector** or scroll the Timing pane when space is limited.
+
+The trace begins at proxy request headers and ends when capture publishes its
+snapshot. Observed phases are **Proxy** (client upload, rules and buffering
+before upstream activity), **Connection** acquisition, **DNS**, individual
+**TCP** attempts, **TLS**, **Send**, **Wait** to the first response byte, and
+**Receive** until publication. Bars use actual start offsets, not a cumulative
+sum: acquisition can contain DNS/TCP/TLS, and duplex send/receive can overlap.
+Never add overlapping durations to infer a total.
+
+Durations display sub-millisecond precision; hover a bar for exact offset,
+duration, endpoint detail and status. Zero/subpixel observations use a hairline,
+not a fabricated minimum duration. **Failed** marks a failed phase; **Open**
+means unfinished at capture, including live streaming bodies. Reused upstream
+connections and the bounded trace's truncation are indicated explicitly.
+Unobserved phases are omitted, not assumed to take zero time. Local responses
+can have only a Proxy phase, and failed dials can still have a trace.
+
+This is **proxy-observed**, not end-to-end client latency. Eager MITM connection
+setup before request headers belongs to the connection log, not this request's
+DNS/TCP/TLS. Downstream delivery and estimated throttle delay are not separately
+measured. SSE and other streaming snapshots stop at capture publication; they
+are not a final whole-stream duration.
+
+Session exports and HAR's private **`_vscroxyTiming`** extension preserve exact
+nanosecond offsets, overlap and state. HAR's standard wait/receive fields keep
+the available aggregate split; standard HAR fields alone do not reconstruct a
+request-local trace. Captures without a trace show **Aggregate timing only**
+when wait/download are available, otherwise **No timing for this flow**.
 
 ## System proxy and certificate
 

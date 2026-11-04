@@ -1294,13 +1294,12 @@ func (a *app) responseBody(c *ui.Context, t *ui.Theme, d *requestDocument) {
 	case resViewCookies:
 		a.responseCookies(c, t, d)
 	case resViewTiming:
-		ui.Scroll(c).Grow(1).Padding(t.Space(2), t.Space(3)).Gap(t.Space(2)).Children(func() {
+		ui.Column(c).Grow(1).FillWidth().Padding(t.Space(2), t.Space(3)).Gap(t.Space(2)).Children(func() {
 			if d.response == nil {
 				uikit.Hint(c, "No response yet")
 				return
 			}
 			uikit.Body(c, fmt.Sprintf("Total %d ms · %s", d.response.Millis, humanBytes(d.response.Bytes)))
-			uikit.Meta(c, "Per-phase timing (DNS, connect, TLS, wait, download) is recorded on the capture in Capture → Timing.")
 			index := a.sentFlowIndex(d)
 			if uikit.CompactButton(c, "Inspect timing in Capture").Disabled(index < 0).Clicked() {
 				if index >= 0 {
@@ -1312,6 +1311,8 @@ func (a *app) responseBody(c *ui.Context, t *ui.Theme, d *requestDocument) {
 			}
 			if index < 0 {
 				uikit.Meta(c, "This send's wire capture is not available in this session. History may retain its snapshot.")
+			} else {
+				a.timingView(c, a.flows[index])
 			}
 		})
 	case resViewTests:

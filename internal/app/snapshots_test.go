@@ -325,7 +325,46 @@ func TestUISnapshots(t *testing.T) {
 		}, want: "Choose what to decrypt"},
 		{name: "capture-headers", setup: func(a *app) { a.inspect.tab[1] = resTabHeaders }, want: "Content-Type"},
 		{name: "capture-raw", setup: func(a *app) { a.inspect.tab[1] = resTabRaw }, want: "Raw message"},
-		{name: "capture-timing", setup: func(a *app) { a.inspect.tab[1] = resTabTiming }, want: "Waiting"},
+		{name: "capture-timing", setup: snapshotTiming, want: "Timing waterfall"},
+		{name: "capture-timing-panel", setup: func(a *app) {
+			snapshotTiming(a)
+			a.workbench.focused = false
+		}, want: "Timing waterfall"},
+		{name: "capture-timing-aggregate", setup: func(a *app) { a.inspect.tab[1] = resTabTiming }, want: "Aggregate timing only"},
+		{name: "capture-timing-reused", setup: func(a *app) {
+			snapshotTiming(a)
+			a.flows[0].timing = &capture.Timing{TotalNS: 60_000_000, Reused: true, Phases: []capture.TimingPhase{
+				{Name: "Proxy", DurationNS: 200_000},
+				{Name: "Connection", StartNS: 200_000, DurationNS: 50_000},
+				{Name: "Send", StartNS: 250_000, DurationNS: 750_000},
+				{Name: "Wait", StartNS: 1_000_000, DurationNS: 40_000_000},
+				{Name: "Receive", StartNS: 41_000_000, DurationNS: 19_000_000},
+			}}
+		}, want: "Upstream connection reused"},
+		{name: "capture-timing-failed", setup: func(a *app) {
+			snapshotTiming(a)
+			a.flows[0].timing = &capture.Timing{TotalNS: 40_000_000, Phases: []capture.TimingPhase{
+				{Name: "Proxy", DurationNS: 5_000_000},
+				{Name: "TCP", StartNS: 5_000_000, DurationNS: 35_000_000, Detail: "tcp 203.0.113.7:443", Failed: true},
+			}}
+			a.flows[0].conn.error, a.flows[0].conn.errorStage = "connection refused", "TCP"
+		}, want: "Failed"},
+		{name: "capture-timing-duplex", setup: func(a *app) {
+			snapshotTiming(a)
+			a.flows[0].timing = &capture.Timing{TotalNS: 300_000_000, Phases: []capture.TimingPhase{
+				{Name: "Proxy", DurationNS: 1_000_000},
+				{Name: "Send", StartNS: 1_000_000, DurationNS: 299_000_000, Incomplete: true},
+				{Name: "Receive", StartNS: 50_000_000, DurationNS: 250_000_000, Incomplete: true},
+			}}
+		}, want: "Open"},
+		{name: "capture-timing-local", setup: func(a *app) {
+			snapshotTiming(a)
+			a.flows[0].timing = &capture.Timing{TotalNS: 450_000, Phases: []capture.TimingPhase{{Name: "Proxy", DurationNS: 450_000}}}
+		}, want: "0.45 ms"},
+		{name: "capture-timing-empty", setup: func(a *app) {
+			a.inspect.tab[1] = resTabTiming
+			a.flows[0].wait, a.flows[0].download = 0, 0
+		}, want: "No timing for this flow"},
 		{name: "requests-empty", setup: func(a *app) { a.page = pageRequest }, want: "Open a saved request or create a new one"},
 		{name: "requests-editing", setup: draft, want: "Send a request to see its response"},
 		{name: "requests-header-masked", setup: func(a *app) {
@@ -342,6 +381,14 @@ func TestUISnapshots(t *testing.T) {
 		}, want: "Remove header 1"},
 		{name: "requests-body", setup: func(a *app) { draft(a); a.composeTab = composeTabBody }, want: "Request body"},
 		{name: "requests-response", setup: response, want: "201 Created"},
+		{name: "requests-response-timing", setup: func(a *app) {
+			snapshotTiming(a)
+			a.workbench.focused = false
+			response(a)
+			a.response.Millis = 300
+			a.sentRun, a.flows[0].debugRun = "timing-fixture", "timing-fixture"
+			a.responseTab = resViewTiming
+		}, want: "Timing waterfall"},
 		{name: "requests-response-hex", setup: func(a *app) {
 			response(a)
 			a.response.ResponseBody = "\x00\xff\r\n{{token}}"
@@ -926,7 +973,7 @@ func TestUISnapshots(t *testing.T) {
 		}
 		for _, state := range states {
 			widths := []int{1280}
-			if state.name == "capture-form-xml" || state.name == "capture-multipart" || state.name == "capture-messagepack" || state.name == "capture-structured-error" {
+			if strings.HasPrefix(state.name, "capture-timing") || state.name == "capture-form-xml" || state.name == "capture-multipart" || state.name == "capture-messagepack" || state.name == "capture-structured-error" {
 				widths = append(widths, 960)
 			}
 			if state.name == "capture-selected" || strings.HasPrefix(state.name, "capture-activity") || state.name == "capture-response-error" || state.name == "capture-no-response" || state.name == "capture-edited" || state.name == "capture-sent" || state.name == "capture-ws" || state.name == "capture-connect" || strings.HasPrefix(state.name, "requests-") || strings.HasPrefix(state.name, "secondary-") || strings.HasPrefix(state.name, "dialog-") || state.name == "active-tools" {
@@ -1094,6 +1141,22 @@ func snapshotActiveTools(a *app) {
 	_ = a.srv.SetUpstream(a.upstream)
 	a.rules = []capture.Rule{{Type: capture.RuleBlock, Match: "/offline", Scenario: "Offline", ScenarioActive: true}}
 	_ = a.srv.SetRules(a.rules)
+}
+
+func snapshotTiming(a *app) {
+	a.inspect.tab[1] = resTabTiming
+	a.workbench.focused = true
+	a.flows[0].millis, a.flows[0].wait, a.flows[0].download = 300, 250, 50
+	a.flows[0].timing = &capture.Timing{TotalNS: 300_000_000, Phases: []capture.TimingPhase{
+		{Name: "Proxy", DurationNS: 8_000_000, Detail: "Client upload and proxy rules"},
+		{Name: "Connection", StartNS: 8_000_000, DurationNS: 62_000_000, Detail: "Acquisition includes DNS, TCP and TLS"},
+		{Name: "DNS", StartNS: 8_000_000, DurationNS: 12_000_000, Detail: "api.example.com"},
+		{Name: "TCP", StartNS: 20_000_000, DurationNS: 16_000_000, Detail: "tcp 203.0.113.7:443"},
+		{Name: "TLS", StartNS: 36_000_000, DurationNS: 34_000_000},
+		{Name: "Send", StartNS: 70_000_000, DurationNS: 6_000_000},
+		{Name: "Wait", StartNS: 76_000_000, DurationNS: 174_000_000},
+		{Name: "Receive", StartNS: 250_000_000, DurationNS: 50_000_000},
+	}}
 }
 
 func snapshotGraphQL(a *app) {

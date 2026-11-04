@@ -12,8 +12,60 @@ import (
 	"time"
 
 	"github.com/baba983/vscroxy/internal/capture"
+	"github.com/baba983/vscroxy/internal/uikit"
 	"github.com/egoist/mygo/ui"
 )
+
+func TestTimingWaterfallUsesOffsetsAndPreservesEvidence(t *testing.T) {
+	a := workspaceApp()
+	snapshotTiming(a)
+	var tcpColor ui.Color
+	tt := ui.NewTester(func(c *ui.Context) {
+		tcpColor = uikit.Colors(c.Theme()).Warning
+		ui.Column(c).Fill().Children(func() { a.timingView(c, a.flows[0]) })
+	}, 800, 1000)
+	r, ok := tt.Find("Timing phase 4: TCP")
+	if !ok {
+		t.Fatal("TCP bar missing: ", tt.Texts())
+	}
+	// TCP occupies 20–36 ms of a 300 ms axis, regardless of the overlapping
+	// Connection/DNS rows before it. A cumulative implementation misses 27 ms.
+	img := tt.Image()
+	inside := img.RGBAAt(int(r.X+r.W*27/300), int(r.Y+r.H/2))
+	before := img.RGBAAt(int(r.X+r.W*10/300), int(r.Y+r.H/2))
+	if inside.R != tcpColor.R || inside.G != tcpColor.G || inside.B != tcpColor.B || inside == before {
+		t.Fatalf("TCP bar not at its actual offset: inside=%v, before=%v, color=%v", inside, before, tcpColor)
+	}
+	a.flows[0].timing = &capture.Timing{TotalNS: 450_000, Reused: true, Truncated: true, Phases: []capture.TimingPhase{
+		{Name: "TCP", StartNS: 50_000, DurationNS: 400_000, Failed: true, Incomplete: true},
+	}}
+	tt.Frame()
+	for _, text := range []string{"Timing waterfall", "0.45 ms", "0.40 ms", "Failed", "Open", "Upstream connection reused", "Trace limit reached"} {
+		if !tt.HasText(text) {
+			t.Fatalf("lost %q: %v", text, tt.Texts())
+		}
+	}
+	a.flows[0].timing = &capture.Timing{Phases: []capture.TimingPhase{{Name: "Proxy"}}}
+	tt.Frame()
+	if !tt.HasText("Timing waterfall") || !tt.HasText("0.00 ms") {
+		t.Fatal("a real zero-duration observation was treated as missing")
+	}
+	a.flows[0].timing = &capture.Timing{TotalNS: 1, Phases: []capture.TimingPhase{{Name: "TCP", StartNS: 1, DurationNS: 1}}}
+	tt.Frame()
+	if !tt.HasText("Invalid timing data") {
+		t.Fatal("out-of-range imported timing was rendered as evidence")
+	}
+	a.flows[0].timing, a.flows[0].wait, a.flows[0].download = nil, 0, 0
+	tt.Frame()
+	if !tt.HasText("No timing for this flow") {
+		t.Fatal("missing trace was fabricated")
+	}
+	a.flows[0].wait, a.flows[0].download = 250, 50
+	tt.Frame()
+	if !tt.HasText("Aggregate timing only") || tt.HasText("Timing waterfall") {
+		t.Fatal("aggregate imports were presented as measured phase traces")
+	}
+}
 
 func TestInspectorCookiesPreserveScopeAndMaskValues(t *testing.T) {
 	a := workspaceApp()

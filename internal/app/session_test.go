@@ -78,6 +78,39 @@ func TestHARExport(t *testing.T) {
 	}
 }
 
+func TestHARTimingRoundTrip(t *testing.T) {
+	f := flow{method: "GET", url: "https://example.test/", status: 200, millis: 42, wait: 31, download: 11,
+		timing: &capture.Timing{TotalNS: 42_123_456, Reused: true, Truncated: true, Phases: []capture.TimingPhase{
+			{Name: "Connection", StartNS: 123, DurationNS: 30_000_000},
+			{Name: "TCP", StartNS: 456, DurationNS: 10_000_000, Failed: true},
+			{Name: "Receive", StartNS: 30_000_123, DurationNS: 12_123_333, Incomplete: true},
+		}},
+	}
+	path := filepath.Join(t.TempDir(), "timing.har")
+	if err := writeHAR(path, []flow{f}); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var har harFile
+	if err := json.Unmarshal(data, &har); err != nil {
+		t.Fatal(err)
+	}
+	entry := har.Log.Entries[0]
+	if entry.Timings.Wait != 31 || entry.Timings.Receive != 11 || entry.Time != 42 {
+		t.Fatalf("aggregate HAR timings lost: %+v", entry)
+	}
+	got, err := readHAR(path)
+	if err != nil || len(got) != 1 {
+		t.Fatalf("read: %+v, %v", got, err)
+	}
+	if !reflect.DeepEqual(got[0].timing, f.timing) || got[0].wait != 31 || got[0].download != 11 {
+		t.Fatalf("HAR lost overlapping offsets, precision or state: %+v", got[0])
+	}
+}
+
 func TestSessionRoundTrip(t *testing.T) {
 	flows := []flow{{
 		id: 7, method: "WS", scheme: "ws", host: "example.com", path: "/",

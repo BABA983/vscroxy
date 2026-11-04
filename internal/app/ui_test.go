@@ -5071,10 +5071,13 @@ func TestSendResultsSeparateFailuresAndLinkTheExactAttempt(t *testing.T) {
 			if err := tt.Click("Response tab: Timing"); err != nil {
 				t.Fatal(err)
 			}
+			if !tt.HasText("Timing waterfall") {
+				t.Fatal("this send's request-local timing was not shown inline: ", tt.Texts())
+			}
 			if err := tt.Click("Inspect timing in Capture"); err != nil {
 				t.Fatal(err)
 			}
-			if !a.page.capture() || a.pickedID == 900 || !tt.HasText("request sent, first byte back") && !tt.HasText("No timing for this flow") {
+			if !a.page.capture() || a.pickedID == 900 || !tt.HasText("Timing waterfall") {
 				t.Fatalf("timing target: page %d, capture %d, tab %d", a.page, a.pickedID, a.inspect.tab[1])
 			}
 		})
