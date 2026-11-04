@@ -7,11 +7,13 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"reflect"
 	"runtime"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/baba983/vscroxy/internal/capture"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -84,6 +86,12 @@ func TestSessionRoundTrip(t *testing.T) {
 		color: "Red", note: "the frame that breaks it",
 		actions: []string{"No Caching", "Map Remote · /api → https://staging.test/api"},
 		conn:    conn{log: "[TLS client] FAILED: certificate rejected\n", error: "certificate rejected", errorStage: "TLS client"},
+		wait:    13, download: 7,
+		timing: &capture.Timing{TotalNS: 20_500_000, Reused: true, Phases: []capture.TimingPhase{
+			{Name: "Proxy", DurationNS: 500_000},
+			{Name: "Wait", StartNS: 500_000, DurationNS: 13_000_000},
+			{Name: "Receive", StartNS: 13_500_000, DurationNS: 7_000_000, Incomplete: true},
+		}},
 	}}
 	frames := map[int][]frame{7: {
 		{direction: "out", kind: "text", data: "hi"},
@@ -109,6 +117,9 @@ func TestSessionRoundTrip(t *testing.T) {
 	}
 	if got[0].conn.log != flows[0].conn.log || got[0].conn.error != "certificate rejected" || got[0].conn.errorStage != "TLS client" {
 		t.Fatalf("connection diagnosis lost: %+v", got[0].conn)
+	}
+	if !reflect.DeepEqual(got[0].timing, flows[0].timing) || got[0].wait != 13 || got[0].download != 7 {
+		t.Fatalf("timing precision or state lost: %+v", got[0].timing)
 	}
 	if len(gotFrames[7]) != 2 || gotFrames[7][1].data != "hello" {
 		t.Fatalf("frames = %+v", gotFrames)

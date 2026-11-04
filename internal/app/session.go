@@ -347,6 +347,9 @@ type sessionFlow struct {
 	Status          int               `json:"status"`
 	Bytes           int               `json:"bytes"`
 	Millis          int               `json:"millis"`
+	Timing          *capture.Timing   `json:"timing,omitzero"`
+	Wait            int               `json:"wait,omitzero"`
+	Download        int               `json:"download,omitzero"`
 	ReqHeaders      string            `json:"reqHeaders"`
 	ResHeaders      string            `json:"resHeaders"`
 	ReqBody         string            `json:"reqBody"`
@@ -418,6 +421,7 @@ func sessionFrom(flows []flow, frames map[int][]frame) sessionFile {
 			ReplayOf: f.replayOf,
 			Actions:  slices.Clone(f.actions),
 			Status:   f.status, Bytes: f.bytes, Millis: f.millis,
+			Timing: f.timing, Wait: f.wait, Download: f.download,
 			ReqHeaders: f.reqHeaders, ResHeaders: f.resHeaders,
 			ReqBody: f.reqBody, ResBody: f.resBody,
 			ReqSize: f.reqSize, ResSize: f.resSize,

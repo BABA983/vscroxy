@@ -1046,6 +1046,7 @@ func (a *app) drain() {
 			},
 			wait:     f.Wait,
 			download: f.Download,
+			timing:   f.Timing,
 		})
 	}
 	checkpoint := a.experiments.log

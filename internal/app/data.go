@@ -61,6 +61,7 @@ type flow struct {
 	pinned      bool
 	wait        int
 	download    int
+	timing      *capture.Timing // immutable proxy-observed trace snapshot
 }
 
 // conn is what an exchange ran over, as the connection panel shows it.

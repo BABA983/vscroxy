@@ -279,6 +279,7 @@ func (f sessionFlow) flow() flow {
 		debugKey: f.DebugKey, debugRun: f.DebugRun,
 		method: f.Method, scheme: f.Scheme, host: f.Host, path: f.Path, url: f.URL,
 		status: f.Status, bytes: f.Bytes, millis: f.Millis,
+		timing: f.Timing, wait: f.Wait, download: f.Download,
 		reqHeaders: f.ReqHeaders, resHeaders: f.ResHeaders, reqBody: req, resBody: res,
 		reqSize: max(f.ReqSize, len(req)), resSize: max(f.ResSize, len(res)),
 		reqError: f.ReqError, resError: f.ResError, reqHeader: f.ReqHeader, respHeader: f.RespHeader,

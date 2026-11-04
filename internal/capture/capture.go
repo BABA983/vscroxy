@@ -167,6 +167,8 @@ type Flow struct {
 	// Both are zero when the exchange never reached a server.
 	Wait     int
 	Download int
+	// Timing contains request-local trace observations, not connection history.
+	Timing *Timing
 }
 
 // FrameEvent is a frame that arrived after its flow was published. A frame the
@@ -1368,9 +1370,11 @@ func (a *addon) Requestheaders(f *proxy.Flow) {
 		return
 	}
 	a.server.noteDNS(f)
+	start := time.Now()
 	a.server.mu.Lock()
-	a.server.started[f.Id] = time.Now()
+	a.server.started[f.Id] = start
 	a.server.mu.Unlock()
+	startTiming(f, start)
 	a.server.startDebug(f)
 	noCacheRequest(f)
 	if isWebSocket(f.Request.URL) {
@@ -2144,6 +2148,7 @@ func (s *Server) publishFlow(f *proxy.Flow, kind string, frames []Frame, status 
 		Millis:            millis,
 		Wait:              wait,
 		Download:          download,
+		Timing:            snapshotTiming(f, now, kind == "http" && f.Error == nil),
 		RequestHeaders:    formatRequest(f.Request, display),
 		ResponseHeaders:   respHeaders,
 		RequestBody:       reqBody,

@@ -829,6 +829,78 @@ func TestTimingSplitsWaitAndDownload(t *testing.T) {
 	if f.Wait+f.Download != f.Millis {
 		t.Fatalf("wait %d + download %d != total %d", f.Wait, f.Download, f.Millis)
 	}
+	if f.Timing == nil {
+		t.Fatal("missing request-local timing")
+	}
+	for _, name := range []string{"Proxy", "TCP", "Connection", "Send", "Wait", "Receive"} {
+		if !slices.ContainsFunc(f.Timing.Phases, func(p TimingPhase) bool { return p.Name == name && !p.Incomplete && !p.Failed }) {
+			t.Fatalf("missing completed %s: %+v", name, f.Timing)
+		}
+	}
+	for _, p := range f.Timing.Phases {
+		if p.StartNS < 0 || p.DurationNS < 0 || p.StartNS+p.DurationNS > f.Timing.TotalNS {
+			t.Fatalf("phase outside timeline: %+v, total %v", p, f.Timing.TotalNS)
+		}
+	}
+}
+
+func TestTimingIsRequestLocalAcrossReuseMappingAndFailure(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { io.WriteString(w, "ok") }))
+	defer upstream.Close()
+	tlsUpstream := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { io.WriteString(w, "tls") }))
+	defer tlsUpstream.Close()
+	s, _ := startServer(t)
+	client := clientFor(t, s, nil)
+	t.Cleanup(client.CloseIdleConnections)
+	get := func(target string) Flow {
+		t.Helper()
+		resp, err := client.Get(target)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, err = io.Copy(io.Discard, resp.Body)
+		resp.Body.Close()
+		if err != nil {
+			t.Fatal(err)
+		}
+		f := waitFlow(t, s)
+		if f.Timing == nil {
+			t.Fatal("missing timing", f)
+		}
+		return f
+	}
+	first := get(strings.Replace(upstream.URL, "127.0.0.1", "localhost", 1))
+	if !slices.ContainsFunc(first.Timing.Phases, func(p TimingPhase) bool { return p.Name == "DNS" }) {
+		t.Fatalf("DNS missing: %+v", first.Timing)
+	}
+	second := get(strings.Replace(upstream.URL, "127.0.0.1", "localhost", 1))
+	if !second.Timing.Reused || slices.ContainsFunc(second.Timing.Phases, func(p TimingPhase) bool { return p.Name == "TCP" || p.Name == "DNS" || p.Name == "TLS" }) {
+		t.Fatalf("reused request inherited setup: %+v", second.Timing)
+	}
+	if err := s.SetRules([]Rule{{Type: RuleMapRemote, Match: "/mapped", Target: tlsUpstream.URL}}); err != nil {
+		t.Fatal(err)
+	}
+	mapped := get(upstream.URL + "/mapped")
+	if !slices.ContainsFunc(mapped.Timing.Phases, func(p TimingPhase) bool { return p.Name == "TLS" && !p.Failed && !p.Incomplete }) {
+		t.Fatalf("separate TLS transport not traced: %+v", mapped.Timing)
+	}
+	if err := s.SetRules([]Rule{{Type: RuleBlock, Match: "/local", Block: BlockRefuse}}); err != nil {
+		t.Fatal(err)
+	}
+	local := get(upstream.URL + "/local")
+	if len(local.Timing.Phases) != 1 || local.Timing.Phases[0].Name != "Proxy" || local.Timing.Phases[0].DurationNS != local.Timing.TotalNS {
+		t.Fatalf("local reply invented network phases: %+v", local.Timing)
+	}
+	if err := s.SetRules(nil); err != nil {
+		t.Fatal(err)
+	}
+	// Independent failure control: do not reuse the previous target's socket.
+	client.CloseIdleConnections()
+	failed := get("http://" + freeAddr(t) + "/failure")
+	if !slices.ContainsFunc(failed.Timing.Phases, func(p TimingPhase) bool { return p.Name == "TCP" && p.Failed }) ||
+		slices.ContainsFunc(failed.Timing.Phases, func(p TimingPhase) bool { return p.Name == "Receive" }) {
+		t.Fatalf("failed dial showed success: %+v", failed.Timing)
+	}
 }
 
 func TestTunnelsUntilADomainIsDecrypted(t *testing.T) {
@@ -876,8 +948,14 @@ func TestTunnelsUntilADomainIsDecrypted(t *testing.T) {
 	if err != nil || string(data) != body {
 		t.Fatalf("HTTPS response = %q, %v", data, err)
 	}
-	if f := waitFlow(t, s); f.Status != 200 || f.Kind != "http" || f.Path != "/after" || f.ResponseBody != body {
+	f := waitFlow(t, s)
+	if f.Status != 200 || f.Kind != "http" || f.Path != "/after" || f.ResponseBody != body {
 		t.Fatalf("flow = %+v, want the decrypted path and complete JSON response", f)
+	}
+	// MITM setup predates the HTTP request. It belongs to connection history,
+	// not this request's axis, even on the first exchange of a new connection.
+	if f.Timing == nil || slices.ContainsFunc(f.Timing.Phases, func(p TimingPhase) bool { return p.Name == "DNS" || p.Name == "TCP" || p.Name == "TLS" }) {
+		t.Fatalf("pre-request setup charged to HTTP: %+v", f.Timing)
 	}
 	// IP clients send no SNI. Trust must still verify the certificate against
 	// the CONNECT target, without disabling TLS verification in the client.
