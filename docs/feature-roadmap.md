@@ -87,7 +87,8 @@
 | 排序、多选、Pin、颜色标记和备注 | 已有 | | |
 | 多个视图 tab、保存的筛选 | 已有 | | |
 | 自定义列：header、query | 已有 | | |
-| 自定义列：JSON body 字段、GraphQL operation、Remote IP | 缺少 | | M2 / M5 |
+| 自定义列：JSON body 字段、Remote IP | 已有 | 请求/响应标量 JSON pointer，后台完整正文读取；Remote IP 显隐 | M2 / M5 |
+| 自定义列：GraphQL operation | 缺少 | | M5 |
 | 筛选：多条件 AND/OR 组合 | 部分 | 条件之间只能 AND | M5 |
 | 搜索支持通配符和正则 | 缺少 | 现在只匹配 host 和路径的子串 | M5 |
 | Body 全文搜索 | 已有 | | |
@@ -294,7 +295,8 @@ Cookie 和其他 API key 保留为变量 header，避免把多个认证机制硬
 - 第一阶段已完成：快速解码、Cookies 标签（抓包两侧和已发送响应）。
 - 第二阶段已完成：JSONPath / jq 后台只读查询，保留大整数，支持取消和结果复制。
 - 第三阶段已完成：multipart 分段、表单字段表、MessagePack、XML 查看（抓包两侧和已发送响应）。
-- 自定义列：JSON 字段、GraphQL operation。
+- 第四阶段已完成：请求/响应 JSON 字段自定义列，保留大小写和整数精度，后台读取、字典序排序；Remote IP 显隐。
+- 自定义列：GraphQL operation。
 - GraphQL 感知：operation 列、按 operation 筛选和匹配规则、格式化 query。
 - 耗时瀑布图。
 - 筛选的 AND/OR 组合，搜索支持通配符和正则。

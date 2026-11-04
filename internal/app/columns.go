@@ -1,6 +1,7 @@
 package app
 
 import (
+	"github.com/baba983/vscroxy/internal/inspect"
 	"github.com/baba983/vscroxy/internal/uikit"
 	"net/url"
 	"slices"
@@ -9,8 +10,7 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// customColumn is a column the user added to the traffic table: a header
-// or a query parameter of each exchange.
+// customColumn reads a header, URL parameter, or scalar body field.
 type customColumn struct {
 	Source string `json:"source"`
 	Name   string `json:"name"`
@@ -23,13 +23,19 @@ const (
 	sourceRequestHeader  = "Request header"
 	sourceResponseHeader = "Response header"
 	sourceQuery          = "Query parameter"
+	sourceRequestJSON    = "Request JSON"
+	sourceResponseJSON   = "Response JSON"
 )
 
-var columnSources = []string{sourceHeader, sourceRequestHeader, sourceResponseHeader, sourceQuery}
+var columnSources = []string{sourceHeader, sourceRequestHeader, sourceResponseHeader, sourceQuery, sourceRequestJSON, sourceResponseJSON}
 
 // id names the column in the saved layout, so its width and place stay.
 func (cc customColumn) id() string {
-	return "custom:" + cc.Source + ":" + strings.ToLower(cc.Name)
+	name := cc.Name
+	if cc.header() {
+		name = strings.ToLower(name)
+	}
+	return "custom:" + cc.Source + ":" + name
 }
 
 // title is the column's heading: the name, marked by where it comes from.
@@ -41,6 +47,10 @@ func (cc customColumn) title() string {
 		return cc.Name + " (response)"
 	case sourceQuery:
 		return "?" + cc.Name
+	case sourceRequestJSON:
+		return cc.Name + " (request JSON)"
+	case sourceResponseJSON:
+		return cc.Name + " (response JSON)"
 	}
 	return cc.Name
 }
@@ -66,7 +76,9 @@ func (cc customColumn) value(f flow) string {
 }
 
 // header says the column holds a header, which the cell's menu can filter by.
-func (cc customColumn) header() bool { return cc.Source != sourceQuery }
+func (cc customColumn) header() bool {
+	return cc.Source == sourceHeader || cc.Source == sourceRequestHeader || cc.Source == sourceResponseHeader
+}
 
 // customColumnAt is the custom column with id, if it is one.
 func (a *app) customColumnAt(id string) (customColumn, bool) {
@@ -81,7 +93,7 @@ func (a *app) customColumnAt(id string) (customColumn, bool) {
 // always stays.
 var hideableColumns = []struct{ id, title string }{
 	{"id", "#"}, {"method", "Method"}, {"host", "Host"}, {"client", "Client"}, {"status", "Status"},
-	{"duration", "Duration"}, {"size", "Size"}, {"captured", "Time"},
+	{"remote", "Remote IP"}, {"duration", "Duration"}, {"size", "Size"}, {"captured", "Time"},
 }
 
 // columnsMenu is the table header's menu: the built-in columns to show or
@@ -131,6 +143,14 @@ func (a *app) columnModal(c *ui.Context, t *ui.Theme) {
 	draft := &a.columnDraft
 	name := strings.TrimSpace(draft.Name)
 	problem := ""
+	if draft.body() {
+		if err := inspect.ValidatePointer(name); err != nil {
+			problem = err.Error()
+		}
+	}
+	if len(a.customColumns) >= 16 {
+		problem = "At most 16 custom columns; remove one before adding another."
+	}
 	if name != "" && slices.ContainsFunc(a.customColumns, func(cc customColumn) bool {
 		return cc.id() == (customColumn{Source: draft.Source, Name: name}).id()
 	}) {
@@ -142,22 +162,30 @@ func (a *app) columnModal(c *ui.Context, t *ui.Theme) {
 			ui.Scroll(c).MinHeight(0).Gap(t.Space(3)).Children(func() {
 				ui.Form(c, func() {
 					ui.Field(c, "From", func() {
-						uikit.Select(c, &draft.Source, columnSources).Width(200)
+						uikit.Select(c, &draft.Source, columnSources).Label("Column source").Width(200)
 					}).
 						Description(map[string]string{
 							sourceHeader:         "The response's header, or the request's when the response has none.",
 							sourceRequestHeader:  "What the client sent.",
 							sourceResponseHeader: "What the server answered.",
 							sourceQuery:          "A parameter of the URL's query.",
+							sourceRequestJSON:    "Scalar request field. JSON pointer, case-sensitive; ~1 escapes / and ~0 escapes ~.",
+							sourceResponseJSON:   "Scalar response field. JSON pointer, case-sensitive; ~1 escapes / and ~0 escapes ~.",
 						}[draft.Source])
 					placeholder := "x-request-id"
 					if draft.Source == sourceQuery {
 						placeholder = "page"
 					}
+					if draft.body() {
+						placeholder = "/data/user/id"
+					}
 					ui.Field(c, "Name", func() {
-						uikit.Input(c, &draft.Name).Placeholder(placeholder).AutoFocus()
+						uikit.Input(c, &draft.Name).Label("Column name or JSON pointer").Placeholder(placeholder).AutoFocus()
 					}).Error(problem)
 				})
+				if draft.body() {
+					uikit.Hint(c, "Reads complete retained JSON off-thread, up to 1 MiB. Scalar cells up to 4 KiB; unavailable bodies show an explanation. Sorting is lexical.").FillWidth()
+				}
 				uikit.Meta(c, "Right-click the table's header to hide columns or remove this one.")
 			})
 			uikit.DialogFooter(c).Children(func() {
@@ -175,6 +203,10 @@ func (a *app) columnModal(c *ui.Context, t *ui.Theme) {
 
 // setCustomColumns changes the custom columns and keeps the choice.
 func (a *app) setCustomColumns(columns []customColumn) {
+	a.columnRead.stop()
+	for i := range a.flows {
+		a.flows[i].columnData = nil
+	}
 	a.customColumns = columns
 	a.applyFilter()
 	a.persistSettings()

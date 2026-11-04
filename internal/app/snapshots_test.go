@@ -657,7 +657,12 @@ func TestUISnapshots(t *testing.T) {
 		{name: "dialog-cookies", setup: func(a *app) {
 			a.cookieUI = cookieEditor{open: true, url: "https://api.example.com/", name: "demo", value: "fake-cookie", path: "/", secure: true, httpOnly: true}
 		}, want: "Session Cookies", short: true},
+		{name: "capture-json-columns", setup: snapshotJSONColumns, want: "9007199254740993"},
 		{name: "dialog-column", setup: func(a *app) { a.openColumn(); a.columnDraft.Name = "x-request-id" }, want: "Add column"},
+		{name: "dialog-json-column", setup: func(a *app) {
+			a.openColumn()
+			a.columnDraft = customColumn{Source: sourceResponseJSON, Name: "/data/user/id"}
+		}, want: "Scalar response field."},
 		{name: "dialog-folder", setup: func(a *app) { a.openFolder("Workspace") }, want: "Collection · Workspace", short: true},
 		{name: "dialog-code", setup: func(a *app) { draft(a); a.openCode() }, want: "Code language", short: true},
 		{name: "dialog-curl-error", setup: func(a *app) {
@@ -936,6 +941,7 @@ func TestUISnapshots(t *testing.T) {
 							t.Cleanup(a.protobuf.stop)
 							t.Cleanup(a.socket.protobuf.stop)
 							t.Cleanup(a.jsonQuery.job.stop)
+							t.Cleanup(a.columnRead.stop)
 							t.Cleanup(func() {
 								a.structured[0].stop()
 								a.structured[1].stop()
@@ -964,7 +970,7 @@ func TestUISnapshots(t *testing.T) {
 							// an arbitrary sleep, and never capture an intermediate frame.
 							deadline := time.NewTimer(time.Minute)
 							defer deadline.Stop()
-							for a.protobuf.answers != nil || a.socket.protobuf.answers != nil || a.jsonQuery.job.answers != nil || a.structured[0].job.answers != nil || a.structured[1].job.answers != nil || (a.requestDocument != nil && a.requestDocument.structured.job.answers != nil) {
+							for a.columnRead.dirty || a.columnRead.answers != nil || len(a.columnRead.queue) > 0 || a.protobuf.answers != nil || a.socket.protobuf.answers != nil || a.jsonQuery.job.answers != nil || a.structured[0].job.answers != nil || a.structured[1].job.answers != nil || (a.requestDocument != nil && a.requestDocument.structured.job.answers != nil) {
 								select {
 								case <-deadline.C:
 									t.Fatal("body inspection render did not settle")
@@ -1069,6 +1075,15 @@ func snapshotActiveTools(a *app) {
 	_ = a.srv.SetUpstream(a.upstream)
 	a.rules = []capture.Rule{{Type: capture.RuleBlock, Match: "/offline", Scenario: "Offline", ScenarioActive: true}}
 	_ = a.srv.SetRules(a.rules)
+}
+
+func snapshotJSONColumns(a *app) {
+	a.hiddenColumns = []string{"host", "remote", "client", "duration", "size", "captured"}
+	a.workbench.sidebarHidden = true
+	a.flows[0].resBody = `{"data":{"user":{"id":9007199254740993}}}`
+	a.flows[1].resBody = `{"data":{"user":{"id":37}}}`
+	a.flows[0].reqBody, a.flows[1].reqBody = `{"tenant":"north"}`, `{"tenant":"south"}`
+	a.setCustomColumns([]customColumn{{Source: sourceRequestJSON, Name: "/tenant"}, {Source: sourceResponseJSON, Name: "/data/user/id"}})
 }
 
 func snapshotStructured(a *app) {

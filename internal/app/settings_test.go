@@ -27,7 +27,7 @@ func TestSettingsRoundTrip(t *testing.T) {
 		SideTablePercent: 61,
 		SidebarHidden:    true,
 		Columns:          columnLayout{Order: []string{"status", "url"}, Widths: map[string]float32{"url": 320}},
-		CustomColumns:    []customColumn{{Source: sourceQuery, Name: "page"}},
+		CustomColumns:    []customColumn{{Source: sourceQuery, Name: "Page"}, {Source: sourceResponseJSON, Name: "/data/ID"}, {Source: sourceRequestJSON, Name: "/id"}},
 		HiddenColumns:    []string{"client"},
 		KeyLogPath:       "/tmp/keys.log",
 		ProxyPort:        9091,

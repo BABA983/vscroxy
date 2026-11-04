@@ -1,0 +1,142 @@
+package app
+
+import (
+	"context"
+	"time"
+
+	"github.com/baba983/vscroxy/internal/inspect"
+	"github.com/egoist/mygo/ui"
+)
+
+type columnCell struct {
+	source         inspectionBody
+	value, problem string
+	pending        bool
+}
+
+type columnJob struct {
+	cell   *columnCell
+	source inspectionBody
+	column customColumn
+}
+
+type columnAnswer struct {
+	cell           *columnCell
+	value, problem string
+}
+
+// A single bounded reader publishes small batches. Rendering and sorting only
+// read its UI-owned cache; workers only see immutable source snapshots.
+type columnReader struct {
+	dirty   bool
+	queue   []columnJob
+	cancel  context.CancelFunc
+	answers chan []columnAnswer
+}
+
+func (r *columnReader) stop() {
+	if r.cancel != nil {
+		r.cancel()
+	}
+	r.cancel, r.answers, r.queue = nil, nil, nil
+}
+
+func (a *app) syncColumnValues(c *ui.Context) {
+	r := &a.columnRead
+	changed := false
+	if r.answers != nil {
+		select {
+		case answers := <-r.answers:
+			r.cancel()
+			r.cancel, r.answers = nil, nil
+			for _, answer := range answers {
+				answer.cell.value, answer.cell.problem, answer.cell.pending = answer.value, answer.problem, false
+			}
+			changed = true
+		default:
+		}
+	}
+	if r.dirty {
+		r.dirty = false
+		for _, cc := range a.customColumns {
+			if !cc.body() {
+				continue
+			}
+			for i := range a.flows {
+				f := &a.flows[i]
+				side := 0
+				if cc.Source == sourceRequestJSON {
+					side = 1
+				}
+				source := capturedInspectionBody(*f, side)
+				if f.columnData == nil {
+					f.columnData = make(map[string]*columnCell)
+				}
+				cell := f.columnData[cc.id()]
+				if cell != nil && cell.source == source {
+					continue
+				}
+				cell = &columnCell{source: source, pending: true}
+				f.columnData[cc.id()] = cell
+				if source == (inspectionBody{}) {
+					cell.pending = false // an absent HTTP body is not malformed JSON
+					continue
+				}
+				r.queue = append(r.queue, columnJob{cell, source, cc})
+			}
+		}
+	}
+	if r.answers == nil && len(r.queue) > 0 {
+		n := min(32, len(r.queue))
+		jobs := append([]columnJob(nil), r.queue[:n]...)
+		clear(r.queue[:n])
+		r.queue = r.queue[n:]
+		ctx, cancel := context.WithCancel(context.Background())
+		answers := make(chan []columnAnswer, 1)
+		r.cancel, r.answers = cancel, answers
+		services := c.Services()
+		go func() {
+			results := make([]columnAnswer, 0, len(jobs))
+			for _, job := range jobs {
+				if ctx.Err() != nil {
+					return
+				}
+				text, err := job.source.read(ctx)
+				value := ""
+				if err == nil {
+					value, err = inspect.JSONField(ctx, text, job.column.Name)
+				}
+				answer := columnAnswer{cell: job.cell, value: value}
+				if err != nil {
+					answer.problem = err.Error()
+				}
+				results = append(results, answer)
+			}
+			select {
+			case answers <- results:
+				services.Invalidate()
+			case <-ctx.Done():
+			}
+		}()
+	}
+	if r.answers != nil {
+		c.After(50 * time.Millisecond)
+	}
+	if changed {
+		a.applyFilter() // sorting follows the values, not worker completion order
+	}
+}
+
+func (cc customColumn) body() bool {
+	return cc.Source == sourceRequestJSON || cc.Source == sourceResponseJSON
+}
+
+func (a *app) columnValue(cc customColumn, f flow) string {
+	if !cc.body() {
+		return cc.value(f)
+	}
+	if cell := f.columnData[cc.id()]; cell != nil {
+		return cell.value
+	}
+	return ""
+}

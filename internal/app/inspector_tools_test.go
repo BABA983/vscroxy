@@ -322,3 +322,43 @@ func TestInspectorStructuredErrorsRemainVisibleAndResetOnNewFlow(t *testing.T) {
 		t.Fatal("new flow retained the old decoder/error: ", tt.Texts())
 	}
 }
+
+func TestInspectorJSONColumnsReadCompleteBodiesSortAndReplace(t *testing.T) {
+	a := workspaceApp()
+	t.Cleanup(a.columnRead.stop)
+	file := filepath.Join(t.TempDir(), "body.json")
+	if err := os.WriteFile(file, []byte(`{"ID":9007199254740993,"id":7}`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	a.flows[0].resBody, a.flows[0].resFile = "preview is not JSON", file
+	a.flows[1].resBody = `{"ID":100,"id":31}`
+	a.flows[0].reqBody, a.flows[1].reqBody = `{"id":"request-first"}`, `{"id":"request-second"}`
+	large := customColumn{Source: sourceResponseJSON, Name: "/ID"}
+	small := customColumn{Source: sourceResponseJSON, Name: "/id"}
+	req := customColumn{Source: sourceRequestJSON, Name: "/id"}
+	a.setCustomColumns([]customColumn{large, small, req})
+	a.sort = ui.SortOrder{Column: large.id()}
+	tt := ui.NewTester(a.view, 1280, 800)
+	settle := func() {
+		waitInspection(t, tt, func() bool {
+			return a.columnRead.answers == nil && len(a.columnRead.queue) == 0 && !a.columnRead.dirty
+		})
+	}
+	settle()
+	if !tt.HasText("9007199254740993") || !tt.HasText("request-first") || a.columnValue(small, a.flows[0]) != "7" || a.visible[0] != 1 {
+		t.Fatal("column sides/case, complete retained body, integer precision or lexical sort wrong: ", tt.Texts(), a.visible)
+	}
+	// A changed body cannot keep a prior answer; malformed data is visible.
+	a.flows[1].resBody = `{"ID":1,"ID":2}`
+	a.applyFilter()
+	tt.Frame()
+	settle()
+	if !tt.HasText("Unavailable") || a.columnValue(large, a.flows[1]) != "" {
+		t.Fatal("malformed source kept old value", tt.Texts())
+	}
+	a.setCustomColumns([]customColumn{{Source: sourceQuery, Name: "page"}})
+	tt.Frame()
+	if tt.HasText("Unavailable") || tt.HasText("9007199254740993") || a.flows[0].resBody != "preview is not JSON" {
+		t.Fatal("removed column persisted, or capture was changed")
+	}
+}

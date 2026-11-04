@@ -44,6 +44,7 @@ type flow struct {
 	resError    string
 	reqHeader   http.Header
 	respHeader  http.Header
+	columnData  map[string]*columnCell // UI-owned derived values; never persisted as evidence
 	reqTrailer  http.Header
 	resTrailer  http.Header
 	resProto    string

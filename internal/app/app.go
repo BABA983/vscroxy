@@ -327,6 +327,7 @@ type app struct {
 	// hiddenColumns the built-in ones they took out; the filter fields narrow
 	// what it shows beyond the search box.
 	customColumns []customColumn
+	columnRead    columnReader
 	hiddenColumns []string
 	filterStatus  string
 	filterHeader  string
@@ -1103,6 +1104,7 @@ func (a *app) drain() {
 // applyFilter rebuilds the visible rows from the search text and the sidebar
 // choice, and keeps the choice on a row that still shows.
 func (a *app) applyFilter() {
+	a.columnRead.dirty = true
 	if a.tallyStale() {
 		a.recount()
 	}
@@ -1131,6 +1133,7 @@ func (a *app) applyFilter() {
 // showArrivals adds the rows among rows, new flows, that pass the filters,
 // merged into the table in its order, without walking the rows it has.
 func (a *app) showArrivals(rows []int) {
+	a.columnRead.dirty = true
 	if view := a.views.activeView(); view != nil && strings.TrimSpace(view.body) != "" {
 		// A body condition reads spilled bodies off the UI thread: the
 		// full pass starts those reads and hides rows until they answer.
@@ -1350,6 +1353,7 @@ func (a *app) view(c *ui.Context) {
 		a.sortApplied = a.sort
 		a.applyFilter()
 	}
+	a.syncColumnValues(c)
 	a.views.drain(a)
 	a.views.sync(a)
 	// Bulk actions must never include requests hidden by this view's filters.
@@ -1982,7 +1986,11 @@ func (a *app) table(c *ui.Context) {
 	cols = slices.DeleteFunc(cols, func(col ui.TableColumn) bool { return slices.Contains(a.hiddenColumns, col.ID) })
 	remoteShown := slices.ContainsFunc(cols, func(col ui.TableColumn) bool { return col.ID == "remote" })
 	for _, cc := range a.customColumns {
-		cols = append(cols, ui.TableColumn{ID: cc.id(), Title: cc.title(), Width: 150, Sortable: true})
+		width := float32(150)
+		if cc.body() {
+			width = 240
+		}
+		cols = append(cols, ui.TableColumn{ID: cc.id(), Title: cc.title(), Width: width, Sortable: true})
 	}
 	cols = append(cols, ui.TableColumn{Title: "", ID: "filler", Width: 14, Fixed: true})
 	state := &a.views.activeView().list
@@ -2095,7 +2103,19 @@ func (a *app) table(c *ui.Context) {
 			if !ok {
 				return
 			}
-			value := cc.value(f)
+			if cc.body() {
+				if cell := f.columnData[cc.id()]; cell != nil {
+					if cell.pending {
+						quiet("…").Tooltip("Reading retained body")
+						return
+					}
+					if cell.problem != "" {
+						quiet("Unavailable").Tooltip(cell.problem)
+						return
+					}
+				}
+			}
+			value := a.columnValue(cc, f)
 			if value == "" {
 				quiet("—")
 				return
@@ -2423,6 +2443,7 @@ func Run() error {
 	mygo.App.OnQuit(a.sessions.close)
 	defer a.sessions.close()
 	cancelRequests := func() {
+		a.columnRead.stop()
 		a.structured[0].stop()
 		a.structured[1].stop()
 		for _, d := range a.documents {
@@ -3238,7 +3259,7 @@ func (a *app) sortOrder() func(x, y int) int {
 			c = cmp.Compare(fx.millis, fy.millis)
 		default:
 			if cc, ok := a.customColumnAt(a.sort.Column); ok {
-				c = cmp.Compare(cc.value(fx), cc.value(fy))
+				c = cmp.Compare(a.columnValue(cc, fx), a.columnValue(cc, fy))
 			}
 		}
 		if desc {

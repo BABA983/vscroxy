@@ -211,11 +211,22 @@ chosen, and **Export chosen HAR…** writes just those.
 
 Right-click the table's header to hide or show the built-in columns (the URL
 always stays) or to **Add column…** from a header (the response's, or the
-request's when the response has none), a request or response header only, or
-a URL query parameter. Added columns sort like the others, a header cell's
-menu filters by its value, and the header menu removes them. The choice is
-kept in `settings.json`; an older single header column becomes the first
-added one.
+request's when the response has none), a request or response header only,
+a URL query parameter, or a **Request JSON / Response JSON** scalar field.
+JSON fields use case-sensitive RFC 6901 pointers such as `/data/user/id` or
+`/items/0/name`; `~1` escapes `/` and `~0` escapes `~`. Query parameter names
+are also case-sensitive; only header names ignore case.
+
+Added columns sort lexically like the others, a header cell's menu filters
+by its value, and the header menu removes columns or toggles built-ins,
+including **Remote IP**. Choices, ordering and widths stay in `settings.json`.
+At most 16 custom columns can be added. JSON columns read complete retained
+bodies off-thread (including spill files), never a partial preview. Limits:
+1 MiB input, depth 64, 16384 nodes and 4 KiB scalar cells. Missing fields show
+`—`; malformed, incomplete, unavailable or oversized evidence shows
+**Unavailable** with an explanation on hover. Objects/arrays are not scalar
+cells; use the body inspector for them. Reading shows `…`, then the active
+sort updates without changing the selected capture or its original bytes.
 
 The protocol tabs beside the search keep one kind of traffic in view: HTTP or
 HTTPS by scheme, WebSocket and SSE by kind, and JSON, images or HTML by the
