@@ -136,6 +136,9 @@ func (r Request) withDynamic(defined map[string]string) Request {
 	expand := func(s *string) { *s = expandDynamic(*s, defined) }
 	fields := []*string{&r.Method, &r.URL, &r.Headers, &r.Body, &r.BodyFile, &r.Auth.Token, &r.Auth.Username, &r.Auth.Password, &r.Auth.Key, &r.Auth.Value}
 	fields = append(fields, &r.GraphQL.Query, &r.GraphQL.Variables)
+	if r.Protocol == "Socket.IO" {
+		fields = append(fields, &r.SocketIO.Namespace, &r.SocketIO.Auth, &r.SocketIO.Event, &r.SocketIO.Attachments)
+	}
 	for _, s := range append(append(fields, r.Auth.AWS.fields()...), r.Auth.JWT.fields()...) {
 		expand(s)
 	}

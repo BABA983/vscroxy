@@ -102,7 +102,7 @@ func (a *app) collectionTree(c *ui.Context) {
 			}
 			item.Children(func() {
 				ui.Row(c).Grow(1).FillHeight().Gap(c.Theme().Space(2)).AlignItems(ui.Center).Label(method + "  " + r.Name).Children(func() {
-					uikit.MethodLabel(c, method).FontSize(uikit.TextMeta).Width(38).Height(16)
+					uikit.MethodLabel(c, method).FontSize(uikit.TextMeta).MinWidth(38).Shrink(0).Height(16)
 					uikit.Body(c, r.Name).SingleLine().Grow(1)
 					if edited {
 						unsavedDot(c)
@@ -154,7 +154,7 @@ func (a *app) unsavedRequests(c *ui.Context, query string) {
 			}
 			item.Children(func() {
 				ui.Row(c).Grow(1).FillHeight().Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-					uikit.MethodLabel(c, method).FontSize(uikit.TextMeta).Width(38).Height(16)
+					uikit.MethodLabel(c, method).FontSize(uikit.TextMeta).MinWidth(38).Shrink(0).Height(16)
 					uikit.Body(c, d.title()).SingleLine().Grow(1)
 				})
 			})

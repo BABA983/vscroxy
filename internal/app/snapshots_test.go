@@ -137,6 +137,31 @@ func TestUISnapshots(t *testing.T) {
 			grpcDraft(a)
 			a.grpcState().session = &grpcSession{state: "gRPC PermissionDenied", problem: "rpc error: code = PermissionDenied desc = Access to catalog denied", finished: true}
 		}, want: "gRPC PermissionDenied"},
+		{name: "requests-socketio-empty", setup: func(a *app) {
+			a.addDocument(savedRequest{Protocol: "Socket.IO", Name: "Socket.IO events", URL: "https://api.example.com/socket.io/", Body: "[]"}, "")
+		}, want: "No Socket.IO connection yet"},
+		{name: "requests-socketio-connection", setup: func(a *app) {
+			a.addDocument(savedRequest{Protocol: "Socket.IO", Name: "Admin events", URL: "https://api.example.com/socket.io/", SocketIO: request.SocketIOConfig{Namespace: "/admin", Auth: `{"token":"{{vault:socket-token}}"}`}}, "")
+			a.socketIOState().tab = 2
+		}, want: "Namespace auth JSON object · {{variables}} / {{vault:name}} supported; saved as authored"},
+		{name: "requests-socketio-attachments", setup: func(a *app) {
+			a.addDocument(savedRequest{Protocol: "Socket.IO", Name: "Binary events", URL: "https://api.example.com/socket.io/", Body: `[{"_placeholder":true,"num":0}]`, SocketIO: request.SocketIOConfig{Event: "bytes", Attachments: `["/wBJwyg=", ""]`}}, "")
+			a.socketIOState().tab = 1
+		}, want: "Socket.IO attachments JSON"},
+		{name: "requests-socketio-stream", setup: func(a *app) {
+			a.addDocument(savedRequest{Protocol: "Socket.IO", Name: "Admin events", URL: "https://api.example.com/socket.io/", Body: `["answer-73"]`, SocketIO: request.SocketIOConfig{Event: "echo", Namespace: "/admin", WantACK: true}}, "")
+			a.socketIOState().session = &socketIOSession{state: "Connected", conn: new(request.SocketIOConn), cancel: func() {}, owed: map[uint64]bool{7: true}, seq: 3, events: []socketIOEvent{
+				{seq: 1, at: snapshotTime, direction: "System", name: "Connected", text: "Namespace /admin · Socket ID local-fixture\nEngine.IO 4 · WebSocket only · No reconnect or replay", size: 102},
+				{seq: 2, at: snapshotTime.Add(time.Second), direction: "In", name: "question · #7", text: "[\n  \"answer me\"\n]", size: 17},
+				{seq: 3, at: snapshotTime.Add(2 * time.Second), direction: "In", name: "bytes-back", text: "[\n  {\n    \"nested\": [{\"_placeholder\": true, \"num\": 0}]\n  }\n]\n\nAttachment 0 · 5 B · base64\n/wBJwyg=", size: 105},
+			}}
+			a.composeWaiting, a.sendCancel = true, func() {}
+			a.socketIOState().selected = 2
+		}, want: "In · bytes-back"},
+		{name: "requests-socketio-error", setup: func(a *app) {
+			a.addDocument(savedRequest{Protocol: "Socket.IO", Name: "Denied namespace", URL: "https://api.example.com/socket.io/", SocketIO: request.SocketIOConfig{Namespace: "/admin"}}, "")
+			a.socketIOState().session = &socketIOSession{state: "Failed", problem: "Socket.IO namespace connection rejected (check namespace and auth)", finished: true}
+		}, want: "Socket.IO namespace connection rejected (check namespace and auth)"},
 		{name: "capture-empty", setup: func(a *app) { a.flows = nil; a.recount(); a.applyFilter() }, want: "Capture is stopped"},
 		{name: "capture-selected", want: "Request inspector"},
 		{name: "capture-activity", setup: snapshotActivity, want: "Activity strip"},

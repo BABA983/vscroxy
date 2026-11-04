@@ -555,6 +555,7 @@ func (a *app) actions(c *ui.Context) []action {
 		do("flow.save-evidence", "Save evidence to Sessions", func() { a.saveEvidence(f) }).when(capturing && current, ""),
 	}...)
 	actions = append(actions, a.grpcActions(d, editing)...)
+	actions = append(actions, a.socketIOActions(d, editing)...)
 	return actions
 }
 

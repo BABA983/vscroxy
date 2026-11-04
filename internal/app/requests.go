@@ -50,6 +50,8 @@ type requestDocument struct {
 	protocol          string
 	grpcConfig        request.GRPCConfig
 	grpcUI            *grpcDocument
+	socketIOConfig    request.SocketIOConfig
+	socketIOUI        *socketIODocument
 	composeHeaders    string
 	composeBody       string
 	// headerRows is the header table. composeHeaders stays the Key: Value
@@ -160,7 +162,7 @@ func (d *requestDocument) value() savedRequest {
 		ID: d.assetID, Source: d.origin,
 		Name: d.composeName, Collection: d.composeCollection,
 		Method: d.composeMethod, URL: d.composeURL, Headers: d.composeHeaders,
-		Protocol: d.protocol, GRPC: d.grpcConfig,
+		Protocol: d.protocol, GRPC: d.grpcConfig, SocketIO: d.socketIOConfig,
 		Body: d.composeBody, Pre: d.composePre, Post: d.composePost,
 		Auth: d.auth, BodyMode: d.bodyMode, BodyFile: d.bodyFile, Form: slices.Clone(d.formFields),
 		GraphQL: d.graphql,
@@ -227,10 +229,15 @@ func (d *requestDocument) load(r savedRequest, key string) {
 		d.grpcUI.stop()
 		d.grpcUI = nil
 	}
+	if d.socketIOUI != nil {
+		d.socketIOUI.stop()
+		d.socketIOUI = nil
+	}
 	d.savedKey, d.assetID = key, r.ID
 	d.composeName, d.composeCollection = r.Name, r.Collection
 	d.composeMethod, d.composeURL = cmp.Or(r.Method, "GET"), r.URL
 	d.protocol, d.grpcConfig = r.Protocol, r.GRPC
+	d.socketIOConfig = r.SocketIO
 	d.composeHeaders, d.composeBody = r.Headers, r.Body
 	d.headerRows, d.headerFor = slices.Clone(r.HeaderList), ""
 	d.composePre, d.composePost, d.checks = r.Pre, r.Post, r.Checks
@@ -281,6 +288,9 @@ func (a *app) closeDocument(d *requestDocument) {
 	}
 	if d.grpcUI != nil {
 		d.grpcUI.stop()
+	}
+	if d.socketIOUI != nil {
+		d.socketIOUI.stop()
 	}
 	a.documents = slices.Delete(a.documents, at, at+1)
 	if a.requestDocument == d {
@@ -670,22 +680,36 @@ var requestMethods = []string{"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "
 func (a *app) requestBar(c *ui.Context, t *ui.Theme, d *requestDocument, more func()) {
 	ui.Row(c).Height(48).Padding(t.Space(2), t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 		if !a.page.capture() {
-			protocol := cmp.Or(d.protocol, "HTTP")
-			uikit.Select(c, &protocol, []string{"HTTP", "gRPC"}).Label("Request protocol").Width(88).
-				Disabled(d.composeWaiting || d.grpcUI != nil && d.grpcUI.loading != nil).OnChange(func() {
-				d.protocol = protocol
-				if protocol == "HTTP" {
-					d.protocol = ""
+			uikit.SecondaryButton(c, cmp.Or(d.protocol, "HTTP")+" ▾").Label("Request protocol").Width(106).
+				Disabled(d.composeWaiting || d.grpcUI != nil && d.grpcUI.loading != nil).PopoverMenuButton(func(m *ui.Menu) {
+				for _, protocol := range []string{"HTTP", "gRPC", "Socket.IO"} {
+					if !m.Item(protocol).Radio(cmp.Or(d.protocol, "HTTP") == protocol).Chosen() {
+						continue
+					}
+					// A completed protocol session must not drain into the next
+					// protocol's job. Config stays saved, runtime state does not.
+					if d.grpcUI != nil {
+						d.grpcUI.stop()
+						d.grpcUI = nil
+					}
+					if d.socketIOUI != nil {
+						d.socketIOUI.stop()
+						d.socketIOUI = nil
+					}
+					d.protocol = protocol
+					if protocol == "HTTP" {
+						d.protocol = ""
+					}
 				}
 			})
 		}
 		field := ui.Row(c).Grow(1).Height(uikit.HeightLarge).AlignItems(ui.Center)
-		field.Disabled(d.protocol == "gRPC" && d.composeWaiting)
+		field.Disabled(d.protocol != "" && d.composeWaiting)
 		uikit.FieldFace(c, field, field.FocusWithin()).Children(func() {
 			// An editable dropdown: a click lists the common methods, and a method
 			// the list lacks is typed and kept as it is. The chevron and the hover
 			// background say it is a control, not a label.
-			control := ui.Row(c).Gap(t.Space(0.5)).Padding(0, t.Space(1)).AlignItems(ui.Center).Hidden(d.protocol == "gRPC")
+			control := ui.Row(c).Gap(t.Space(0.5)).Padding(0, t.Space(1)).AlignItems(ui.Center).Hidden(d.protocol != "")
 			if control.Hovered() {
 				control.Background(t.SurfaceHover)
 			}
@@ -749,6 +773,12 @@ func (a *app) requestBar(c *ui.Context, t *ui.Theme, d *requestDocument, more fu
 		if d.composeWaiting {
 			sendLabel = "Sending…"
 		}
+		if d.protocol == "Socket.IO" {
+			sendLabel = "Connect"
+			if d.composeWaiting {
+				sendLabel = "Active"
+			}
+		}
 		// A capture's inspector beside the list keeps its width for the URL:
 		// a narrower Send, and while sending only Cancel in its place (the
 		// response says it is sending).
@@ -762,6 +792,9 @@ func (a *app) requestBar(c *ui.Context, t *ui.Theme, d *requestDocument, more fu
 		}
 		if d.composeWaiting {
 			label := "Cancel"
+			if d.protocol == "Socket.IO" {
+				label = "Disconnect"
+			}
 			if d.sendCancelling && !narrow {
 				label = "Cancelling…"
 			}
@@ -804,6 +837,10 @@ func urlSpans(raw string, t *ui.Theme) []ui.Span {
 // requestEditor edits the request's parts; original, when set, reads the
 // captured request it came from in its own tab.
 func (a *app) requestEditor(c *ui.Context, t *ui.Theme, d *requestDocument, original func()) {
+	if d.protocol == "Socket.IO" {
+		a.socketIOEditor(c, t, d)
+		return
+	}
 	if d.protocol == "gRPC" {
 		a.grpcEditor(c, t, d)
 		return
@@ -954,6 +991,10 @@ func (a *app) requestSentState(c *ui.Context, t *ui.Theme, d *requestDocument) {
 // its own format, headers, cookies and timing, tied to the send that produced
 // it.
 func (a *app) requestResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
+	if d.protocol == "Socket.IO" {
+		a.socketIOResponse(c, t, d)
+		return
+	}
 	if d.protocol == "gRPC" {
 		a.grpcResponse(c, t, d)
 		return

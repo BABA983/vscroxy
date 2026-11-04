@@ -208,7 +208,7 @@
 | WebSocket 客户端：二进制消息、子协议 | 已有 | Hex／Base64 发送、原样二进制回显；WS／WSS 双侧握手协商和实际子协议显示 | M8 |
 | SSE 客户端（持续接收事件） | 首版已有 | HTTP(S) 实时 GET、事件类型／ID／数据、搜索复制、显式可选重连与 Last-Event-ID、取消及有界时间线 | M8 |
 | gRPC 客户端（导入 proto 或服务端反射） | 首版已有 | 请求文档、proto／descriptor set、v1／v1alpha 反射、四种调用、metadata／trailers／最终状态、取消和 deadline；HTTP Runner／脚本暂不支持 | M8 |
-| Socket.IO 客户端 | 缺少 | | M8 |
+| Socket.IO 客户端 | 首版已有 | 请求文档、EIO4／WebSocket、namespace／auth、JSON／二进制附件、双向 ACK、有界实时消息、取消；无轮询／重连／重发 | M8 |
 | MCP 客户端（调试 MCP server） | 缺少 | | M8 |
 | MQTT 客户端 | 缺少 | 需求少，最后做 | M8 |
 
@@ -325,7 +325,8 @@ Cookie 和其他 API key 保留为变量 header，避免把多个认证机制硬
 - gRPC 客户端首版已完成（[使用指南](guide.md#interactive-grpc-requests)）：独立引擎与请求文档两个提交阶段；proto／descriptor set 导入、v1／v1alpha 反射、四种调用方式、双向实时收发、metadata／trailers／结构化错误状态、deadline／取消，schema 随请求保存。TLS 校验；HTTPS 通过运行中的抓包代理，h2c 明确直连不抓包。暂不接 HTTP 脚本／Checks／Runner／History；无自动重连或重发。
 - WebSocket 三阶段已完成：① 二进制与子协议（Hex／Base64 发送、WS／WSS 双侧协商）；② 实时会话与抓包消息的显式 Protobuf 解码（复用 schema，拒绝截断消息）；③ 双向消息断点（文本／Base64 编辑、原样放行、单条丢弃）与 `onMessage(message)` 脚本钩子。WS／解密 WSS，脚本先于消息断点；不拦截握手和控制帧。脚本／编辑上限 1 MiB；断开、代理关闭、断点关闭或超时释放暂停，详见[使用指南](guide.md#websocket-message-interception)。
 - SSE 客户端首版已完成（[使用指南](guide.md#interactive-sse-sessions)）：独立接收引擎与原生会话面板两个提交阶段；HTTP(S) 经运行中的抓包代理、TLS 校验、UTF-8／多行／空事件／ID 重置、响应头与事件搜索复制、有界时间线。自动重连默认关闭；显式启用后支持 Last-Event-ID／retry，HTTP 204 停止；停止／关闭取消连接及重连等待。GET-only，暂不接请求脚本／Checks／Runner／History，不保存或恢复会话。
-- Socket.IO 客户端、MCP 客户端、MQTT 客户端。
+- Socket.IO 客户端首版已完成（[使用指南](guide.md#interactive-socketio-requests)）：协议引擎与请求文档两个提交阶段；EIO4／Socket.IO protocol 5、WebSocket-only、namespace／auth、JSON 与二进制附件、双向 ACK、搜索复制、有界时间线和取消。WS／解密 WSS 经抓包代理、TLS 校验、原作用域变量／Vault；官方 Socket.IO 4.8.4 服务端互通。无 polling／自动重连／重试／离线重放，不接 HTTP 脚本／Checks／Runner／History；配置保存，会话不恢复。
+- MCP 客户端、MQTT 客户端。
 
 ### M9：自动化和生态
 

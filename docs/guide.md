@@ -1129,6 +1129,54 @@ sender uses HTTP/1.1, so native gRPC replay is not supported. Body-editing reque
 and response scripts/breakpoints are unavailable for streaming RPCs; Block,
 Map Local and Map Remote rules still apply before forwarding.
 
+### Interactive Socket.IO requests
+
+Create a **New request** and choose **Socket.IO** in the protocol selector.
+The address bar is the Engine.IO HTTP(S) or WS(S) endpoint, for example
+`https://api.example.com/socket.io/?tenant=demo`; an empty/root path defaults
+to `/socket.io/`. A custom endpoint path is kept exactly. Under **Connection**,
+set a separate namespace (default `/`) and an optional JSON auth object.
+Namespace auth is distinct from the handshake's **Headers** / **HTTP auth**.
+Variables and host-restricted Vault references work in these fields and event
+arguments. The session snapshots its original endpoint and variable scope;
+switching environments cannot redirect it or change later message expansion.
+
+**Connect** opens a fresh session through the running capture proxy, sharing the
+Requests cookie jar and verifying system/proxy CAs. It does not emit the event
+draft automatically. Under **Event**, enter an event name and a JSON **argument
+array**, then **Emit event**. An empty editor means `[]`. **Request ACK** assigns
+a connection-local ID and shows incoming ACKs in the timeline. When the server
+asks for an ACK, select its numeric ID and **Reply ACK**, using the same argument
+array and attachments; each request can be answered only once.
+
+**Attachments** is a JSON array of canonical padded base64 strings, for example
+`["AP9J", ""]`. Each corresponds to a placeholder in the arguments, such as
+`[{"payload":{"_placeholder":true,"num":0}}, {"_placeholder":true,"num":1}]`.
+Indices start at zero; all attachments must be referenced. Empty base64 means
+an empty binary attachment, not no attachment. Incoming binary events/ACKs show
+their JSON placeholders and exact attachment bytes encoded as base64, including
+non-UTF-8 payloads. JSON numbers are not decoded through floating point.
+
+Search matches retained event names and payload previews, case-insensitively.
+**Copy shown message** copies the selected preview, including any truncation
+notice. The timeline retains the latest 200 connection/message events, byte
+counts and an eviction count, with a 64 KiB UTF-8 preview per field. Wire packets
+and their attachments together are limited to 1 MiB (or a smaller server limit
+when sending), with at most 32 attachments and 128 unanswered ACKs per direction.
+Reconnect to discard pending ACKs. The opening/namespace handshake has a
+10-second deadline; established reads follow server heartbeat settings, which
+ordinary events do not extend. Writes have a 5-second deadline.
+
+**Disconnect**, closing/reloading the document, or quitting cancels the session,
+including a pending handshake. Draft configuration is saved with the request;
+the live connection, ACK state and timeline are not saved or restored. Supports
+Socket.IO v3/v4 servers with the default parser, Engine.IO 4 and WebSocket-only
+transport. No polling fallback, automatic reconnect, retry, offline queue,
+Socket.IO v2 or alternate parsers. HTTP scripts/Checks/token bindings (including
+inherited scripts) must be removed, not silently skipped. HTTP Runner, code
+generation, History and Examples are not this client's execution API; Postman
+export skips non-HTTP documents with a warning. See [interoperability checks](socketio.md).
+
 ### Interactive gRPC requests
 
 Create a **New request** and change its protocol from **HTTP** to **gRPC**.

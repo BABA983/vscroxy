@@ -1307,6 +1307,7 @@ func (a *app) view(c *ui.Context) {
 	c.SetTheme(uikit.Theme(a.dark))
 	a.drain()
 	a.drainGRPC()
+	a.drainSocketIO()
 	a.scripts.setEnv(a.globals, a.activeVars(), a.addons.sources())
 	// The Settings window shows these checks too: it redraws when one
 	// finishes, and shows the messages while it is in front.
@@ -2418,6 +2419,9 @@ func Run() error {
 			if d.grpcUI != nil {
 				d.grpcUI.stop()
 			}
+			if d.socketIOUI != nil {
+				d.socketIOUI.stop()
+			}
 		}
 	}
 	mygo.App.OnQuit(cancelRequests)
@@ -2921,6 +2925,10 @@ func (a *app) saveVars() {
 func (a *app) sendComposed() {
 	d := a.requestDocument
 	if d == nil || d.composeWaiting {
+		return
+	}
+	if d.protocol == "Socket.IO" {
+		a.connectSocketIO(d)
 		return
 	}
 	if d.protocol == "gRPC" {

@@ -31,16 +31,17 @@ type Request struct {
 	ID         string `json:"id,omitempty"`
 	Name       string `json:"name"`
 	Collection string `json:"collection,omitempty"`
-	// Empty Protocol is HTTP (including the existing ws/wss send). gRPC
-	// documents are interactive calls, not HTTP requests or Runner steps.
-	Protocol string     `json:"protocol,omitempty"`
-	GRPC     GRPCConfig `json:"grpc,omitzero"`
-	Method   string     `json:"method"`
-	URL      string     `json:"url"`
-	Headers  string     `json:"headers,omitempty"`
-	Body     string     `json:"body,omitempty"`
-	Auth     Auth       `json:"auth,omitzero"`
-	BodyMode string     `json:"bodyMode,omitempty"`
+	// Empty Protocol is HTTP (including the existing ws/wss send). Protocol
+	// documents use their interactive clients, not HTTP sends or Runner steps.
+	Protocol string         `json:"protocol,omitempty"`
+	GRPC     GRPCConfig     `json:"grpc,omitzero"`
+	SocketIO SocketIOConfig `json:"socketio,omitzero"`
+	Method   string         `json:"method"`
+	URL      string         `json:"url"`
+	Headers  string         `json:"headers,omitempty"`
+	Body     string         `json:"body,omitempty"`
+	Auth     Auth           `json:"auth,omitzero"`
+	BodyMode string         `json:"bodyMode,omitempty"`
 	// BodyFile is a local path for Binary bodies; only the path is saved.
 	BodyFile string      `json:"bodyFile,omitempty"`
 	GraphQL  GraphQLBody `json:"graphql,omitzero"`
