@@ -89,7 +89,7 @@
 | 自定义列：header、query | 已有 | | |
 | 自定义列：JSON body 字段、Remote IP | 已有 | 请求/响应标量 JSON pointer，后台完整正文读取；Remote IP 显隐 | M2 / M5 |
 | 自定义列：GraphQL operation | 已有 | 实际选中的 operation 类型／名称，后台完整正文解析，支持 batch | M5 |
-| 筛选：多条件 AND/OR 组合 | 部分 | 条件之间只能 AND | M5 |
+| 筛选：多条件 AND/OR 组合 | 已有首版 | 内容字段可选全部／任一匹配，含完整正文；外层范围仍 AND，暂不支持嵌套组 | M5 |
 | 搜索支持通配符和正则 | 缺少 | 现在只匹配 host 和路径的子串 | M5 |
 | Body 全文搜索 | 已有 | | |
 | Body 查看：Pretty、JSON 树、Hex、图片、HTML、Protobuf | 已有 | | |
@@ -298,7 +298,8 @@ Cookie 和其他 API key 保留为变量 header，避免把多个认证机制硬
 - 第四阶段已完成：请求/响应 JSON 字段自定义列，保留大小写和整数精度，后台读取、字典序排序；Remote IP 显隐。
 - 第五阶段已完成：GraphQL operation 列、精确 operation 筛选与规则／预览、保留语义的 query 格式化。GET／JSON POST／raw query／batch；只认实际选中且可验证的 operation，限制与边界见使用指南。
 - 第六阶段已完成：耗时瀑布图，分两次提交请求级 trace／会话保留和原生 UI／HAR 导出。实际起始偏移、重叠阶段、复用、失败／未结束和亚毫秒精度；抓包和精确发送均可查看。不将请求前 MITM 建连、下游交付或估算限速冒充请求级测量。
-- 筛选的 AND/OR 组合，搜索支持通配符和正则。
+- 第七阶段已完成：内容筛选 All（AND）／Any（OR），含后台完整正文、独立视图与保存筛选。空字段不成为 OR 真值；搜索／侧栏／协议／时间仍收窄，暂不支持嵌套组。
+- 搜索支持通配符和正则。
 - 网络条件：自定义、丢包、按 host。
 - 高级重放。
 - Copy as Markdown/CSV、导出 CSV、抓包直接生成代码。

@@ -295,8 +295,17 @@ Saved filters appear as one-click buttons there; click an active
 button again to show all requests in that view. Filters supports comma-separated
 methods, duration in milliseconds, captured response-body bytes, color/marked
 state and case-insensitive note text. Numeric fields accept `<`, `<=`, `=`, `>=`
-or `>` with a non-negative integer. Conditions combine with AND; methods and
-status alternatives combine with OR. A removable token strip shows every active
+or `>` with a non-negative integer. **Match populated fields** defaults to
+**All (AND)**; choose **Any (OR)** to match any non-empty content field.
+Host, App, method, status, operation, header, body, duration, size, color and
+note are independent alternatives in OR mode; empty fields are not alternatives.
+Methods and status alternatives within one field always combine with OR.
+This is one flat group, not a nested Boolean expression language. Search text,
+sidebar, protocol/content-type and the time brush always narrow the group's
+results. A filter with no populated fields shows everything in that scope.
+The combination stays with each view and saved filter. **Content: OR** makes
+the non-default mode visible; removing it returns to AND without clearing fields.
+A removable token strip shows every active
 condition (URL, source, protocol and content filters); **Reset all** clears them.
 It appears only while conditions are active, keeping the normal toolbar to two rows.
 
@@ -305,7 +314,9 @@ spill files beyond the 8 MiB preview. Searches are case-insensitive, chunked,
 cancellable and off the UI thread (at most four readers); pending rows remain
 hidden until matched. Progress and unreadable/incomplete-body warnings appear
 with the views in the sidebar. Missing or incomplete bodies never silently match just their
-preview. URL/header/status filtering remains immediate.
+preview. In OR mode a proven metadata match displays immediately without needing
+a body read; other rows wait for full-body evidence. URL/header/status filtering
+remains immediate.
 
 Large HTTP uploads and downloads are kept from the actual streaming path,
 including chunked transfers. Capture decodes gzip, deflate, Brotli and Zstandard

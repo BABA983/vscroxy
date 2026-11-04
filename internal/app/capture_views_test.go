@@ -83,6 +83,138 @@ func visibleIDs(a *app) []int {
 	return ids
 }
 
+func TestCaptureFilterCombination(t *testing.T) {
+	a := workspaceApp()
+	a.flows = []flow{
+		{id: 1, host: "api.test", path: "/one", method: "GET", status: 200},
+		{id: 2, host: "api.test", path: "/two", method: "POST", status: 500},
+		{id: 3, host: "other.test", path: "/three", method: "GET", status: 404},
+		{id: 4, host: "other.test", path: "/four", method: "POST", status: 201},
+	}
+	a.views.init(a, filepath.Join(t.TempDir(), "views.json"))
+	a.filterStatus, a.filterTriage = "5xx", captureTriage{Host: "other.test", Method: "POST"}
+	a.applyFilter()
+	if got := fmt.Sprint(visibleIDs(a)); got != "[]" {
+		t.Fatal("AND did not require every populated field: ", got)
+	}
+	a.filterAny = true
+	a.applyFilter()
+	if got := fmt.Sprint(visibleIDs(a)); got != "[2 3 4]" {
+		t.Fatal("OR grouped triage fields instead of independent alternatives: ", got)
+	}
+	a.query = "/two"
+	a.applyFilter()
+	if got := fmt.Sprint(visibleIDs(a)); got != "[2]" {
+		t.Fatal("OR escaped the search scope: ", got)
+	}
+	a.query, a.filter = "", "errors"
+	a.applyFilter()
+	if got := fmt.Sprint(visibleIDs(a)); got != "[2 3]" {
+		t.Fatal("OR escaped the sidebar scope: ", got)
+	}
+	a.filter, a.filterStatus, a.filterTriage = "all", "599", captureTriage{}
+	a.applyFilter()
+	if len(a.visible) != 0 {
+		t.Fatal("empty fields became true OR alternatives")
+	}
+	a.filterStatus = ""
+	a.applyFilter()
+	if len(a.visible) != 4 {
+		t.Fatal("empty OR filter should not hide traffic")
+	}
+}
+
+func TestCaptureFilterCombinationControls(t *testing.T) {
+	a := workspaceApp()
+	tt := ui.NewTester(a.view, 960, 600)
+	for _, label := range []string{"Filters…", "Filter method"} {
+		if err := tt.Click(label); err != nil {
+			t.Fatal(err)
+		}
+	}
+	tt.Type("GET")
+	if err := tt.Click("Filter status"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Type("4xx")
+	if err := tt.Click("Filter combination"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Key(0, ui.KeyEnd)
+	tt.Key(0, ui.KeyEnter)
+	if err := tt.Click("Apply"); err != nil {
+		t.Fatal(err)
+	}
+	if !a.filterAny || fmt.Sprint(visibleIDs(a)) != "[1 2]" || !tt.HasText("Content: OR") {
+		t.Fatalf("OR controls did not apply: %v, %v", visibleIDs(a), tt.Texts())
+	}
+	if err := tt.Click("Remove condition: Content: OR"); err != nil {
+		t.Fatal(err)
+	}
+	if a.filterAny || len(a.visible) != 0 {
+		t.Fatal("removing OR did not require both remaining conditions")
+	}
+	if err := tt.Click("Reset all"); err != nil {
+		t.Fatal(err)
+	}
+	if len(a.visible) != 2 || a.filtersActive() {
+		t.Fatal("reset did not restore all requests")
+	}
+}
+
+func TestCaptureFilterORFullBodyAndViewIsolation(t *testing.T) {
+	a := workspaceApp()
+	path := filepath.Join(t.TempDir(), "body")
+	body := strings.Repeat("padding", 80_000) + "deep-needle"
+	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	a.flows = []flow{
+		{id: 1, method: "GET", host: "api.test", status: 500, resError: "unreadable"},
+		{id: 2, method: "GET", host: "api.test", status: 200, resFile: path, resSize: len(body)},
+		{id: 3, method: "GET", host: "api.test", status: 200, resBody: "deep-needle", resSize: 1 << 20},
+		{id: 4, method: "GET", host: "api.test", status: 200, resBody: "no match"},
+	}
+	v := &a.views
+	v.init(a, filepath.Join(t.TempDir(), "views.json"))
+	t.Cleanup(v.stopSearch)
+	v.activeView().any, v.activeView().status, v.activeView().body = true, "5xx", "deep-needle"
+	v.bind(a)
+	v.applyFilter(a)
+	if got := fmt.Sprint(visibleIDs(a)); got != "[1]" {
+		t.Fatal("OR must show proven metadata matches while bodies are pending: ", got)
+	}
+	settle(t, a, v)
+	if got := fmt.Sprint(visibleIDs(a)); got != "[1 2]" {
+		t.Fatal("OR lost the deep spill match or trusted a truncated preview: ", got)
+	}
+	v.capture(a)
+	v.savedName = "Union"
+	v.saveCurrent(a)
+	saved, err := loadCaptureFilters(&store.File{Path: v.path})
+	if err != nil || len(saved) != 1 || !saved[0].Any || saved[0].Body != "deep-needle" {
+		t.Fatalf("saved combination lost: %+v, %v", saved, err)
+	}
+	v.newView(a)
+	if a.filterAny || len(a.visible) != 4 {
+		t.Fatal("new view inherited OR or conditions")
+	}
+	v.applySaved(a, "Union")
+	settle(t, a, v)
+	if !a.filterAny || fmt.Sprint(visibleIDs(a)) != "[1 2]" {
+		t.Fatal("applying saved OR changed its meaning")
+	}
+	v.clearFilters(a)
+	if a.filterAny || len(a.visible) != 4 {
+		t.Fatal("Clear did not restore unfiltered AND")
+	}
+	v.activate(a, 0)
+	settle(t, a, v)
+	if !a.filterAny || fmt.Sprint(visibleIDs(a)) != "[1 2]" {
+		t.Fatal("another view's clear changed the original combination")
+	}
+}
+
 // TestCaptureViewsKeepTheirOwnConditions checks that narrowing one view leaves
 // another as it was, in both directions, and that closing one keeps the rest.
 func TestCaptureViewsKeepTheirOwnConditions(t *testing.T) {

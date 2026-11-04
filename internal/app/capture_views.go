@@ -52,6 +52,7 @@ type savedCaptureFilter struct {
 	Header string        `json:"header,omitempty"`
 	Body   string        `json:"body,omitempty"`
 	Triage captureTriage `json:"triage,omitzero"`
+	Any    bool          `json:"any,omitzero"`
 }
 
 // captureTriage is shared by live views and portable saved filters. Numeric
@@ -97,26 +98,50 @@ func numericCondition(value int, expression string) (bool, bool) {
 	}
 }
 
-func (q captureTriage) matches(f flow) bool {
-	if q.Host != "" && q.Host != f.host || q.Client != "" && q.Client != f.process {
-		return false
+// matchesContent evaluates the immediate content fields independently. Empty
+// fields are not OR alternatives. Full-body matching is owned by narrow.
+func (a *app) matchesContent(f flow) (matched, active bool) {
+	q := a.filterTriage
+	matched = !a.filterAny
+	check := func(value string, ok bool) {
+		if value == "" {
+			return
+		}
+		active = true
+		if a.filterAny {
+			matched = matched || ok
+		} else {
+			matched = matched && ok
+		}
 	}
-	if q.Operation != "" && !f.hasOperation(q.Operation) {
-		return false
+	check(q.Host, q.Host == f.host)
+	check(q.Client, q.Client == f.process)
+	if q.Operation != "" {
+		check(q.Operation, f.hasOperation(q.Operation))
 	}
 	if q.Method != "" {
-		matched := false
+		methodMatch := false
 		for method := range strings.SplitSeq(q.Method, ",") {
-			matched = matched || strings.EqualFold(strings.TrimSpace(method), f.method)
+			methodMatch = methodMatch || strings.EqualFold(strings.TrimSpace(method), f.method)
 		}
-		if !matched {
-			return false
-		}
+		check(q.Method, methodMatch)
 	}
 	duration, _ := numericCondition(f.millis, q.Duration)
 	size, _ := numericCondition(f.resSize, q.Size)
-	return duration && size && (q.Color == "" || q.Color == f.color || q.Color == "Marked" && f.color != "") &&
-		strings.Contains(strings.ToLower(f.note), strings.ToLower(q.Note))
+	check(q.Duration, duration)
+	check(q.Size, size)
+	check(q.Color, q.Color == f.color || q.Color == "Marked" && f.color != "")
+	check(q.Note, strings.Contains(strings.ToLower(f.note), strings.ToLower(q.Note)))
+	if a.filterStatus != "" {
+		check(a.filterStatus, statusMatches(a.filterStatus, f.status))
+	}
+	if a.filterHeader != "" {
+		check(a.filterHeader, headerMatches(f, a.filterHeader))
+	}
+	if a.filterBody != "" {
+		check(a.filterBody, strings.Contains(strings.ToLower(f.reqBody+f.resBody), strings.ToLower(a.filterBody)))
+	}
+	return matched, active
 }
 
 func (q captureTriage) summary() []string {
@@ -171,6 +196,7 @@ type captureConditions struct {
 	status   string
 	header   string
 	triage   captureTriage
+	any      bool
 	activity activityRange
 	sort     ui.SortOrder
 }
@@ -327,6 +353,7 @@ type captureViews struct {
 	editHeader string
 	editBody   string
 	editTriage captureTriage
+	editMatch  string
 
 	// savedOpen edits the filters saved by name.
 	savedOpen bool
@@ -393,7 +420,7 @@ func conditionsOf(a *app) captureConditions {
 	return captureConditions{
 		query: a.query, filter: a.filter, chip: a.chip,
 		status: a.filterStatus, header: a.filterHeader, sort: a.sort,
-		triage: a.filterTriage, activity: a.activity,
+		triage: a.filterTriage, any: a.filterAny, activity: a.activity,
 	}
 }
 
@@ -407,6 +434,7 @@ func (v *captureViews) bind(a *app) {
 	a.query, a.filter, a.chip = view.query, view.filter, view.chip
 	a.filterStatus, a.filterHeader = view.status, view.header
 	a.filterTriage = view.triage
+	a.filterAny = view.any
 	a.activity = view.activity
 	a.sort, a.picked = view.sort, view.picked
 	a.pickedID = view.pickedID
@@ -557,6 +585,12 @@ func (v *captureViews) narrow(a *app) {
 	var jobs []bodyJob
 	for _, at := range a.visible {
 		f := a.flows[at]
+		if view.any {
+			if matched, _ := a.matchesContent(f); matched {
+				kept = append(kept, at)
+				continue
+			}
+		}
 		if matched, known := v.cache.matches[f.id]; known {
 			if matched {
 				kept = append(kept, at)
@@ -829,6 +863,7 @@ func (v *captureViews) clearFilters(a *app) {
 	}
 	view.status, view.header, view.body = "", "", ""
 	view.triage = captureTriage{}
+	view.any = false
 	v.bind(a)
 	v.applyFilter(a)
 	a.done("Filters cleared")
@@ -890,6 +925,10 @@ func (v *captureViews) openFilter(a *app) {
 	}
 	v.editStatus, v.editHeader, v.editBody = view.status, view.header, view.body
 	v.editTriage = view.triage
+	v.editMatch = "All (AND)"
+	if view.any {
+		v.editMatch = "Any (OR)"
+	}
 	v.filterOpen = true
 }
 
@@ -1010,7 +1049,10 @@ func (v *captureViews) filterModal(c *ui.Context, t *ui.Theme, a *app) {
 	uikit.Modal(c, &v.filterOpen, func() {
 		ui.Column(c).Width(560).Gap(t.Space(2)).Children(func() {
 			uikit.DialogTitle(c, "Filter "+v.label(v.active))
-			uikit.Meta(c, "All fields combine with AND. Host and app match exactly. Status takes 404, 4xx, 200-299 or >=400; commas mean OR. Header values use case-insensitive contains on either side. Body searches both sides in full, including spilled files.")
+			ui.Field(c, "Match populated fields", func() {
+				uikit.Select(c, &v.editMatch, []string{"All (AND)", "Any (OR)"}).Label("Filter combination")
+			}).Description("Search, sidebar, protocol and time range always narrow these results.")
+			uikit.Meta(c, "Host and app match exactly. Status takes 404, 4xx, 200-299 or >=400; commas mean OR. Header values use case-insensitive contains on either side. Body searches both sides in full, including spilled files.")
 			problem := ""
 			ui.Row(c).Gap(t.Space(3)).Children(func() {
 				ui.Field(c, "Host (exact, including port)", func() {
@@ -1097,6 +1139,7 @@ func (v *captureViews) filterModal(c *ui.Context, t *ui.Theme, a *app) {
 				if uikit.SecondaryButton(c, "Clear").Clicked() {
 					v.editStatus, v.editHeader, v.editBody = "", "", ""
 					v.editTriage = captureTriage{}
+					v.editMatch = "All (AND)"
 					v.commitFilter(a)
 					v.filterOpen = false
 				}
@@ -1122,6 +1165,7 @@ func (v *captureViews) commitFilter(a *app) {
 	view.header = strings.TrimSpace(v.editHeader)
 	view.body = v.editBody
 	view.triage = v.editTriage
+	view.any = v.editMatch == "Any (OR)"
 	view.triage.Host = strings.TrimSpace(view.triage.Host)
 	view.triage.Client = strings.TrimSpace(view.triage.Client)
 	view.triage.Method = strings.TrimSpace(view.triage.Method)
@@ -1209,6 +1253,7 @@ func (v *captureViews) applySaved(a *app, name string) {
 	view.query, view.filter, view.chip = f.Query, f.Filter, f.Chip
 	view.status, view.header, view.body = f.Status, f.Header, f.Body
 	view.triage = f.Triage
+	view.any = f.Any
 	view.preset = f.Name
 	view.reveal = true
 	v.bind(a)
@@ -1254,7 +1299,7 @@ func (v *captureViews) saveCurrent(a *app) {
 
 func (v *captureView) saved(name string) savedCaptureFilter {
 	return savedCaptureFilter{Name: name, Query: v.query, Filter: v.filter, Chip: v.chip,
-		Status: v.status, Header: v.header, Body: v.body, Triage: v.triage}
+		Status: v.status, Header: v.header, Body: v.body, Triage: v.triage, Any: v.any}
 }
 
 // renameSaved renames the filter the dialog is renaming to the name typed.

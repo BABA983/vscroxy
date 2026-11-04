@@ -333,6 +333,7 @@ type app struct {
 	filterHeader  string
 	filterBody    string
 	filterTriage  captureTriage
+	filterAny     bool
 	activity      activityRange
 	activityRows  []int // matching rows before the time brush, for its full context
 	// activityCounts caches the strip's buckets until the rows, its end or
@@ -1206,11 +1207,13 @@ func (a *app) shows(f *flow, q string) bool {
 	if client, ok := strings.CutPrefix(a.filter, "client:"); ok && f.process != client {
 		return false
 	}
-	return (q == "" || strings.Contains(strings.ToLower(f.host+f.path), q)) &&
-		(a.filterStatus == "" || statusMatches(a.filterStatus, f.status)) &&
-		(a.filterHeader == "" || headerMatches(*f, a.filterHeader)) &&
-		a.filterTriage.matches(*f) &&
-		(a.filterBody == "" || strings.Contains(strings.ToLower(f.reqBody+f.resBody), strings.ToLower(a.filterBody)))
+	if q != "" && !strings.Contains(strings.ToLower(f.host+f.path), q) {
+		return false
+	}
+	matched, active := a.matchesContent(*f)
+	// An OR body alternative can match a row the immediate fields don't.
+	// narrow keeps only proven matches and schedules unknown full-body reads.
+	return matched || a.filterAny && (!active || strings.TrimSpace(a.views.bodyFilter()) != "")
 }
 
 // restoreSelection maps the stable choice to the table's current row index.
@@ -1917,7 +1920,11 @@ func (a *app) table(c *ui.Context) {
 				}
 			}
 			uikit.EmptyState(c, title, hint, func() {
-				uikit.Hint(c, "All conditions must match. Remove a condition above or edit the filters.")
+				if a.filterAny {
+					uikit.Hint(c, "Any content field may match; search and scope must still match. Edit the filters or broaden the scope.")
+				} else {
+					uikit.Hint(c, "All conditions must match. Remove a condition above or edit the filters.")
+				}
 				if note != "" {
 					color := t.TextMuted
 					if failure {
@@ -3087,12 +3094,15 @@ func (a *app) filtersActive() bool {
 // the conditions the field shows as chips.
 func (a *app) conditionsActive() bool {
 	return a.filter != "" && a.filter != "all" || a.chip != 0 ||
-		a.filterStatus != "" || a.filterHeader != "" || a.views.bodyFilter() != "" || a.filterTriage != (captureTriage{}) || a.activity.active()
+		a.filterStatus != "" || a.filterHeader != "" || a.views.bodyFilter() != "" || a.filterTriage != (captureTriage{}) || a.filterAny || a.activity.active()
 }
 
 // filterSummary is what the status bar says about the filters in use.
 func (a *app) filterSummary() string {
 	var parts []string
+	if a.filterAny {
+		parts = append(parts, "content: any (OR)")
+	}
 	if text := queryText(a.query); text != "" {
 		parts = append(parts, "URL "+text)
 	}

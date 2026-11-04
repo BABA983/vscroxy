@@ -283,18 +283,25 @@ func (a *app) captureToolbar(c *ui.Context, t *ui.Theme) {
 }
 
 // Conditions are chips inside the search field; overflow scrolls rather
-// than adding another toolbar row. All of them must match. A chip the query
-// syntax can write turns back into text when clicked, at the end of the
-// field, so it can be changed and committed again.
+// than adding another toolbar row. Content fields use the view's AND/OR mode;
+// scope conditions always narrow. A chip the query syntax can write turns back
+// into text at the end of the field, so it can be changed and committed again.
 func (a *app) captureConditions(c *ui.Context) {
 	t := c.Theme()
-	ui.Row(c).Gap(t.Space(1)).AlignItems(ui.Center).Tooltip("All conditions must match").Children(func() {
+	note := "All conditions must match"
+	if a.filterAny {
+		note = "Any content field may match (OR); search, sidebar, protocol and time range still narrow"
+	}
+	ui.Row(c).Gap(t.Space(1)).AlignItems(ui.Center).Tooltip(note).Children(func() {
 		changed := func() {
 			a.views.capture(a)
 			a.applyFilter()
 		}
 		chip := func(label string, clear func()) {
 			uikit.QueryChip(c, label, nil, func() { clear(); changed() })
+		}
+		if a.filterAny {
+			uikit.QueryChip(c, "Content: OR", a.openFilter, func() { a.filterAny = false; changed() })
 		}
 		if a.filter != "all" {
 			label := "Traffic: " + a.filter

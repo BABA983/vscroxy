@@ -716,6 +716,28 @@ func TestUISnapshots(t *testing.T) {
 			a.openFilter()
 			a.views.editTriage.Operation = "Search"
 		}, want: "GraphQL operation (exact, case-sensitive)"},
+		{name: "dialog-filter-all", setup: func(a *app) {
+			a.views.init(a, "")
+			a.openFilter()
+			a.views.editTriage.Method, a.views.editStatus = "GET", "4xx"
+		}, want: "All (AND)", short: true},
+		{name: "dialog-filter-any", setup: func(a *app) {
+			a.views.init(a, "")
+			a.openFilter()
+			a.views.editTriage.Method, a.views.editStatus, a.views.editMatch = "GET", "4xx", "Any (OR)"
+		}, want: "Any (OR)", short: true},
+		{name: "capture-filter-any", setup: func(a *app) {
+			a.views.init(a, "")
+			a.filterTriage.Method, a.filterStatus, a.filterAny = "GET", "4xx", true
+			a.views.capture(a)
+			a.applyFilter()
+		}, want: "Content: OR"},
+		{name: "capture-filter-any-empty", setup: func(a *app) {
+			a.views.init(a, "")
+			a.filterTriage.Method, a.filterStatus, a.filterAny = "DELETE", "5xx", true
+			a.views.capture(a)
+			a.applyFilter()
+		}, want: "Any content field may match"},
 		{name: "tools-graphql-rule", setup: func(a *app) {
 			r := capture.Rule{Name: "Search only", Type: capture.RuleBlock, Match: "/graphql", Operation: "Search"}
 			a.rules = []capture.Rule{r}

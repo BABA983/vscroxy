@@ -158,8 +158,8 @@ func queryText(q string) string {
 // commitQuery turns the finished tokens of the field into conditions, or
 // every token when all is set (Enter). A token with an invalid value stays
 // in the field and queryProblem says why. It reports whether a condition
-// changed. A key that is already set is replaced: conditions always combine
-// with AND, and one key holds one value, as in the Filters dialog.
+// changed. A key that is already set is replaced: one key holds one value,
+// and content fields use the Filters dialog's AND/OR combination.
 func (a *app) commitQuery(all bool) bool {
 	a.queryProblem = ""
 	tokens := tokenizeQuery(a.query)
