@@ -27,6 +27,22 @@ HTTP response or replacing its already-successful CONNECT status.
 The desktop's real-socket tests cover DNS/TCP failures, both TLS sides, successful
 TLS metadata and connection reuse, plus a rewritten target's separate transport.
 
+## Forward proxy connections that switch targets
+
+A client may keep one connection to the proxy and send requests for different
+hosts and ports over it. `attack` used the `ServerConn` dialled for the first
+request for every later request; that connection's transport returned its one
+socket for any address, so a new target's request went to the previous server,
+and the previous response could arrive as an unsolicited response on an idle
+channel. A request whose target differs from `ServerConn.Address` now retires
+that upstream (`ServerConn.retire` in `connection.go`) and dials the new target
+through the request's `dialFn`. Retiring closes the upstream socket without
+ending the client's connection, which is still waiting for this response.
+Intercepted CONNECT tunnels keep one target for the whole connection and are
+unchanged. `TestForwardProxyFollowsTargetOnOneConnection` in `internal/capture`
+covers a live switch, a switch back, an unreachable new target and the request
+after it, both directly and through an upstream proxy.
+
 ## SSE completion
 
 `attacker.go` pairs `SSEStart` with a deferred `SSEEnd` when the request handler

@@ -370,6 +370,101 @@ func TestFailedRequestShowsAnError(t *testing.T) {
 	}
 }
 
+// A client can send several targets over one forward-proxy connection. Each
+// target needs its own upstream socket: reusing the previous one would send
+// this request to the previous server, or hide an unreachable target.
+func TestForwardProxyFollowsTargetOnOneConnection(t *testing.T) {
+	for _, mode := range []struct {
+		name     string
+		upstream bool
+	}{
+		{"direct", false},
+		{"upstream proxy", true},
+	} {
+		t.Run(mode.name, func(t *testing.T) {
+			upstream := func(name string) *httptest.Server {
+				return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					fmt.Fprintf(w, "%s %s", name, r.Host)
+				}))
+			}
+			first, second := upstream("first"), upstream("second")
+			defer first.Close()
+			defer second.Close()
+			s, _ := startServer(t)
+			var upstreamAddr string
+			if mode.upstream {
+				inner, _ := startServer(t)
+				upstreamAddr = inner.Addr()
+				if err := s.SetUpstream("http://" + upstreamAddr); err != nil {
+					t.Fatal(err)
+				}
+			}
+			u, err := url.Parse("http://" + s.Addr())
+			if err != nil {
+				t.Fatal(err)
+			}
+			// One connection to the proxy, so every request shares its ConnContext.
+			transport := &http.Transport{Proxy: http.ProxyURL(u), MaxConnsPerHost: 1}
+			defer transport.CloseIdleConnections()
+			client := &http.Client{Transport: transport, Timeout: 5 * time.Second}
+			for i, tc := range []struct{ target, name string }{
+				{first.URL, "first"},
+				{second.URL, "second"},
+				{first.URL, "first"},
+			} {
+				resp, err := client.Get(tc.target)
+				if err != nil {
+					t.Fatalf("request %d to %s: %v", i+1, tc.target, err)
+				}
+				body, err := io.ReadAll(resp.Body)
+				resp.Body.Close()
+				host := strings.TrimPrefix(tc.target, "http://")
+				if err != nil || resp.StatusCode != http.StatusOK || string(body) != tc.name+" "+host {
+					t.Fatalf("request %d to %s: %d %q (%v), want 200 %q", i+1, tc.target, resp.StatusCode, body, err, tc.name+" "+host)
+				}
+				f := waitFlow(t, s)
+				if f.Host != host || f.Conn.Server != host {
+					t.Fatalf("request %d went to %q for %q, want %q", i+1, f.Conn.Server, f.Host, host)
+				}
+				if i > 0 && !f.Conn.Reused {
+					t.Fatalf("request %d did not reuse the client's proxy connection: %+v", i+1, f.Conn)
+				}
+				if mode.upstream && !strings.Contains(f.Conn.Log, "via proxy "+upstreamAddr) {
+					t.Fatalf("request %d did not go through the upstream proxy: %s", i+1, f.Conn.Log)
+				}
+			}
+			// An unreachable new target must fail to connect, not answer from the
+			// previous upstream's socket.
+			closed := freeAddr(t)
+			resp, err := client.Get("http://" + closed + "/failure")
+			if err != nil {
+				t.Fatal(err)
+			}
+			io.Copy(io.Discard, resp.Body)
+			resp.Body.Close()
+			f := waitFlow(t, s)
+			if resp.StatusCode != http.StatusBadGateway || f.Conn.ErrorStage != "TCP" {
+				t.Fatalf("unreachable target: status %d, connection %+v", resp.StatusCode, f.Conn)
+			}
+			// The failed dial must not poison the client's connection for the next
+			// target either.
+			resp, err = client.Get(second.URL)
+			if err != nil {
+				t.Fatal(err)
+			}
+			body, err := io.ReadAll(resp.Body)
+			resp.Body.Close()
+			if host := strings.TrimPrefix(second.URL, "http://"); err != nil || string(body) != "second "+host {
+				t.Fatalf("after a failed dial: %q (%v), want %q", body, err, "second "+host)
+			}
+			f = waitFlow(t, s)
+			if !f.Conn.Reused || f.Conn.Server != strings.TrimPrefix(second.URL, "http://") {
+				t.Fatalf("after a failed dial: %+v", f.Conn)
+			}
+		})
+	}
+}
+
 func TestConnectionLogDistinguishesTLSFailuresAndReuse(t *testing.T) {
 	upstream := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprint(w, "secure result")

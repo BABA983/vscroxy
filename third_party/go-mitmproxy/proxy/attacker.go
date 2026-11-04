@@ -716,6 +716,18 @@ func (a *attacker) attack(res http.ResponseWriter, req *http.Request) {
 		proxyReq = proxyReq.WithContext(httptrace.WithClientTrace(proxyReq.Context(), f.ConnContext.trace()))
 		proxyRes, err = a.client.Do(proxyReq)
 	} else {
+		// A client may keep one forward-proxy connection and send requests
+		// for several targets on it. The upstream socket and its transport
+		// belong to the target they were dialed for, and that transport hands
+		// its socket to any address, so a new target must dial its own.
+		// An intercepted tunnel keeps one target for the whole connection.
+		if sc := f.ConnContext.ServerConn; sc != nil && !f.ConnContext.ClientConn.Tls {
+			if addr := helper.CanonicalAddr(f.Request.URL); sc.Address != addr {
+				f.ConnContext.RecordEvent("TCP", "Closing the connection to "+sc.Address+" for "+addr, nil)
+				sc.retire()
+				f.ConnContext.ServerConn = nil
+			}
+		}
 		if f.ConnContext.ServerConn == nil && f.ConnContext.dialFn != nil {
 			if err := f.ConnContext.dialFn(req.Context()); err != nil {
 				for _, addon := range proxy.Addons {

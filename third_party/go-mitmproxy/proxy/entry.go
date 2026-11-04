@@ -99,10 +99,23 @@ type wrapServerConn struct {
 	net.Conn
 	proxy   *Proxy
 	connCtx *ConnContext
+	// keepClient keeps the client's connection open when this upstream ends.
+	// A forward proxy connection can outlive the target it was dialed for, so
+	// retiring that target must not end the client still waiting for an answer.
+	keepClient bool
 
 	closeMu  sync.Mutex
 	closed   bool
 	closeErr error
+}
+
+// retire closes this upstream but keeps the client's connection open: a
+// forward proxy connection can outlive the target it was dialed for.
+func (c *wrapServerConn) retire() error {
+	c.closeMu.Lock()
+	c.keepClient = true
+	c.closeMu.Unlock()
+	return c.Close()
 }
 
 func (c *wrapServerConn) Close() error {
@@ -115,10 +128,15 @@ func (c *wrapServerConn) Close() error {
 
 	c.closed = true
 	c.closeErr = c.Conn.Close()
+	keepClient := c.keepClient
 	c.closeMu.Unlock()
 
 	for _, addon := range c.proxy.Addons {
 		addon.ServerDisconnected(c.connCtx)
+	}
+
+	if keepClient {
+		return c.closeErr
 	}
 
 	if !c.connCtx.ClientConn.Tls {

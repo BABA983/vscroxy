@@ -78,6 +78,20 @@ func (c *ServerConn) TlsState() *tls.ConnectionState {
 	return c.tlsState
 }
 
+// retire closes the upstream socket but leaves the client's connection open:
+// a forward proxy connection can outlive the target it was dialed for, and its
+// transport would otherwise hand this socket to the next target's request.
+func (c *ServerConn) retire() {
+	if c.Conn == nil {
+		return
+	}
+	if w, ok := c.Conn.(*wrapServerConn); ok {
+		w.retire()
+		return
+	}
+	c.Conn.Close()
+}
+
 // connection context ctx key
 var connContextKey = new(struct{})
 
