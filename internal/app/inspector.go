@@ -43,6 +43,7 @@ const (
 	reqTabParams
 	reqTabBody
 	reqTabRaw
+	reqTabCookies
 )
 
 const (
@@ -50,15 +51,16 @@ const (
 	resTabBody
 	resTabRaw
 	resTabTiming
+	resTabCookies
 	resTabMessages
 )
 
 func requestTabLabels() []string {
-	return []string{"Headers", "Params", "Body", "Raw"}
+	return []string{"Headers", "Params", "Body", "Raw", "Cookies"}
 }
 
 func responseTabLabels(f flow) []string {
-	labels := []string{"Headers", "Body", "Raw", "Timing"}
+	labels := []string{"Headers", "Body", "Raw", "Timing", "Cookies"}
 	if f.kind == "ws" || f.kind == "sse" {
 		labels = append(labels, "Messages")
 	}
@@ -245,6 +247,8 @@ func (a *app) requestPane(c *ui.Context, f flow) {
 			a.bodySideView(c, f, 1)
 		case reqTabRaw:
 			a.rawSide(c, f, 1)
+		case reqTabCookies:
+			cookieView(c, f.reqHeader, false, &a.inspect.reveal[1])
 		}
 	})
 }
@@ -278,6 +282,8 @@ func (a *app) responsePane(c *ui.Context, f flow) {
 			a.rawSide(c, f, 0)
 		case resTabTiming:
 			a.timingView(c, f)
+		case resTabCookies:
+			cookieView(c, f.respHeader, true, &a.inspect.reveal[0])
 		case resTabMessages:
 			a.messages(c, f)
 		}
@@ -312,6 +318,13 @@ func (a *app) paneTabs(c *ui.Context, t *ui.Theme, side string, selected *int, l
 						if reader := a.bodyText[bodySide]; reader != nil {
 							reader.Run(editor.Find)
 						}
+					}),
+					do("body.decode", "Decode text…", func() {
+						body := a.body
+						if bodySide == 1 {
+							body = a.reqBody
+						}
+						a.openDecoder(a.bodyText[bodySide], body)
 					}),
 					do("body.copy", "Copy shown body", func() { a.copyPaneBody(c, bodySide) }),
 				})

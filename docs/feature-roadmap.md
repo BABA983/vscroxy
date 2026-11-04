@@ -94,8 +94,8 @@
 | Body 查看：Pretty、JSON 树、Hex、图片、HTML、Protobuf | 已有 | | |
 | Body 查看：multipart 分段、表单字段表、MessagePack、XML 格式化 | 缺少 | | M5 |
 | JSON 筛选：JSONPath、jq | 缺少 | | M5 |
-| 快速解码：选中文字解 Base64、JWT、URL 编码、时间戳 | 缺少 | | M5 |
-| Cookies 标签（解析 Cookie 和 Set-Cookie） | 缺少 | 抓包检查器里没有 | M5 |
+| 快速解码：选中文字解 Base64、JWT、URL 编码、时间戳 | 已有 | 本地只读预览；JWT 不验证签名或 claims | M5 |
+| Cookies 标签（解析 Cookie 和 Set-Cookie） | 已有 | 抓包两侧和已发送响应；保留重名，默认遮罩 | M5 |
 | 耗时瀑布图（DNS、连接、TLS、等待、下载） | 部分 | 现在只分两段，连接日志里有数据 | M5 |
 | Diff、两条对比、多选汇总 | 已有 | | |
 | Copy as：URL、cURL、body | 已有 | | |
@@ -291,7 +291,8 @@ Cookie 和其他 API key 保留为变量 header，避免把多个认证机制硬
 
 ### M5：检查器和调试增强
 
-- JSONPath / jq、快速解码、Cookies 标签。
+- 第一阶段已完成：快速解码、Cookies 标签（抓包两侧和已发送响应）。
+- JSONPath / jq。
 - multipart、表单、MessagePack、XML 查看。
 - 自定义列：JSON 字段、GraphQL operation。
 - GraphQL 感知：operation 列、按 operation 筛选和匹配规则、格式化 query。

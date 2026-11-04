@@ -735,6 +735,24 @@ they remain visible in every display mode and are still included in comparisons.
 An empty response for HEAD, 204 or 304 is explained as expected, not a capture
 failure. Unsupported previews offer direct text and hex alternatives.
 
+**Decode text…** in a captured Body pane's options, or **Decode selection…**
+in a text reader's context menu, opens a local scratch decoder. Sent responses
+also have a Decode button. A selection takes priority over the body; input is
+limited to 64 KiB. Supports standard/URL-safe Base64 (binary output is shown as
+hex), JWT header/payload, URL components, query values, and explicitly selected
+Unix seconds or milliseconds (shown in UTC). URL query decoding treats `+` as a
+space; component decoding does not. JWT decoding **does not verify signatures,
+expiry, issuer or other claims**. Copy result copies only the decoded preview;
+neither decoding nor editing its scratch input modifies or sends a request.
+
+Both captured sides have a **Cookies** tab, separate from the session cookie
+jar. Request Cookie pairs and response Set-Cookie lines preserve duplicate
+names. Response details include Domain, Path, Expires, Max-Age, SameSite,
+Secure, HttpOnly and Partitioned; missing attributes are not inferred from the
+live jar. Values are masked until explicitly revealed, and changing captures
+resets reveal. Sent responses use the same parsed, masked view. Invalid cookie
+headers are counted with a warning; Raw/Headers retains the original evidence.
+
 **Auto** is the default: images/HTML use Preview, binary bodies use Hex,
 explicit protobuf/gRPC uses Protobuf, and text/JSON uses Pretty. A manual mode
 applies to the current request side; changing requests or sides resets to Auto

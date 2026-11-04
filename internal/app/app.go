@@ -194,6 +194,7 @@ type app struct {
 	// keep independent tabs and body representations while both are on
 	// screen, and the exchange-wide views stay one click away.
 	inspect inspectorState
+	decoder quickDecoder
 
 	// The body panes are indexed the way the rest of the inspector is: 0 is
 	// the response, 1 the request. Readers survive leaving Capture to edit or
@@ -1451,6 +1452,7 @@ func (a *app) view(c *ui.Context) {
 	a.runnerModal(c, t)
 	a.loadRunnerModal(c, t)
 	a.cookiesModal(c, t)
+	a.decoderModal(c)
 	a.exportModal(c, t)
 	a.replayModal(c, t)
 	a.collectionSaveModal(c, t)

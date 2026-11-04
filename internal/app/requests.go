@@ -124,6 +124,7 @@ type requestDocument struct {
 	responseView   int
 	responseEditor *editor.State
 	responseList   ui.ListState
+	cookieReveal   bool
 	// sent is exactly what the last send carried, so the screen can say
 	// whether the draft on it is the one that produced the response.
 	sent            savedRequest
@@ -492,6 +493,7 @@ func (a *app) composeView(c *ui.Context, t *ui.Theme) {
 // responseArrived gives the first response the room it needs, unless the reader
 // has set the divider themselves.
 func (d *requestDocument) responseArrived() {
+	d.cookieReveal = false
 	if d.splitTouched {
 		return
 	}
@@ -1040,6 +1042,9 @@ func (a *app) requestResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 							}
 						}
 					}).Label("Response format").Tooltip("Response body format")
+					if uikit.SecondaryButton(c, "Decode…").Label("Decode response text").Clicked() {
+						a.openDecoder(d.responseEditor, d.response.ResponseBody)
+					}
 				}
 			} else {
 				ui.Text(c, "Response").FontSize(uikit.TextBody).FontWeight(600).Grow(1)
@@ -1220,6 +1225,7 @@ func (a *app) responseBody(c *ui.Context, t *ui.Theme, d *requestDocument) {
 				buf := editor.NewBuffer(body)
 				d.responseEditor = &editor.State{Buffer: buf, ReadOnly: true, NoScrollPastEnd: true, SoftWrap: true, Label: "Response body"}
 			}
+			a.decoderMenu(d.responseEditor)
 			editor.View(c, d.responseEditor).Grow(1)
 		case 2:
 			a.responseHex(c, d, body)
@@ -1236,6 +1242,7 @@ func (a *app) responseBody(c *ui.Context, t *ui.Theme, d *requestDocument) {
 				}
 				d.responseEditor = &editor.State{Buffer: buf, ReadOnly: true, NoScrollPastEnd: true, Label: "Response body"}
 			}
+			a.decoderMenu(d.responseEditor)
 			d.responseEditor.Theme = uikit.EditorTheme(t)
 			editor.View(c, d.responseEditor).Grow(1)
 		}
@@ -1355,16 +1362,7 @@ func (a *app) responseCookies(c *ui.Context, t *ui.Theme, d *requestDocument) {
 		uikit.Hint(c, "No response yet").Padding(t.Space(3))
 		return
 	}
-	cookies := d.response.ResponseHeader.Values("Set-Cookie")
-	if len(cookies) == 0 {
-		uikit.Hint(c, "This response set no cookies").Padding(t.Space(3))
-		return
-	}
-	ui.Scroll(c).Grow(1).Padding(t.Space(2), t.Space(3)).Gap(t.Space(1)).Children(func() {
-		for _, cookie := range cookies {
-			uikit.Mono(c, cookie).Selectable().SingleLine().Tooltip(cookie)
-		}
-	})
+	cookieView(c, d.response.ResponseHeader, true, &d.cookieReveal)
 }
 
 // responseHex renders a response body as a hex dump.

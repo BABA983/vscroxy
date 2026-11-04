@@ -164,6 +164,16 @@ func TestUISnapshots(t *testing.T) {
 		}, want: "Socket.IO namespace connection rejected (check namespace and auth)"},
 		{name: "capture-empty", setup: func(a *app) { a.flows = nil; a.recount(); a.applyFilter() }, want: "Capture is stopped"},
 		{name: "capture-selected", want: "Request inspector"},
+		{name: "capture-cookies", setup: func(a *app) {
+			a.flows[0].respHeader["Set-Cookie"] = []string{"session=fixture-value; Path=/; HttpOnly; Secure; SameSite=Lax", "theme=paper; Path=/account; Max-Age=3600"}
+			a.inspect.tab[1] = resTabCookies
+		}, want: "2 cookies · captured headers"},
+		{name: "dialog-decode", setup: func(a *app) {
+			a.openDecoder(nil, "5L2g5aW977yM")
+		}, act: click("Decode"), want: "Decoded result"},
+		{name: "dialog-decode-error", setup: func(a *app) {
+			a.openDecoder(nil, "not base64!")
+		}, act: click("Decode"), want: "invalid Base64; use standard or URL-safe encoding"},
 		{name: "capture-activity", setup: snapshotActivity, want: "Activity strip"},
 		{name: "capture-activity-range", setup: snapshotActivity, act: func(t *testing.T, tt *ui.Tester) {
 			plot, ok := tt.Find("Activity time range")
