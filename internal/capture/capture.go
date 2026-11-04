@@ -1389,6 +1389,9 @@ func (a *addon) Requestheaders(f *proxy.Flow) {
 	// a rule may answer the call itself. A breakpoint or a script that edits
 	// the body cannot, since the client is still sending it.
 	if f.Stream {
+		if a.server.applyNetwork(f) {
+			return
+		}
 		if resp := a.server.applyRules(f); resp != nil {
 			a.server.answer(f, resp)
 		}
@@ -1410,6 +1413,9 @@ func (a *addon) Request(f *proxy.Flow) {
 	// The buffered body and its trailers are complete before a breakpoint
 	// or a rule can publish a local response and short-circuit the exchange.
 	a.server.keepTrailers(f, "req", f.Request.Trailers())
+	if a.server.applyNetwork(f) {
+		return
+	}
 	a.server.runRequestScripts(f)
 	if d := a.server.maybeBreak(f, PhaseRequest); d != nil {
 		recordAction(f, "Request breakpoint applied")
@@ -1532,6 +1538,9 @@ func (a *addon) Response(f *proxy.Flow) {
 // buffering, and paces what goes upstream.
 func (a *addon) StreamRequestModifier(f *proxy.Flow, in io.Reader) io.Reader {
 	noCacheRequest(f)
+	if a.server.applyNetwork(f) {
+		return in
+	}
 	// An oversized upload skipped Request. A matching Code Mock must fail
 	// locally rather than accidentally forwarding a request it cannot read.
 	if f.Stream && a.server.streamCodeMock(f) {
@@ -1542,7 +1551,7 @@ func (a *addon) StreamRequestModifier(f *proxy.Flow, in io.Reader) io.Reader {
 	if f.Stream && f.Request != nil && f.Request.Body == nil {
 		in = a.server.captureStream(f, "req", in, contentEncoding(f.Request.Header), requestLength(f.Request))
 	}
-	return a.server.throttleUp(in)
+	return a.server.throttleUp(f, in)
 }
 
 // StreamResponseModifier runs the response script on the body before the
@@ -1550,7 +1559,7 @@ func (a *addon) StreamRequestModifier(f *proxy.Flow, in io.Reader) io.Reader {
 func (a *addon) StreamResponseModifier(f *proxy.Flow, in io.Reader) io.Reader {
 	noCacheResponse(f)
 	if f.Response == nil {
-		return a.server.throttleDown(in)
+		return a.server.throttleDown(f, in)
 	}
 	if f.Stream {
 		// An SSE stream publishes its own flow and events; any other streamed
@@ -1559,12 +1568,12 @@ func (a *addon) StreamResponseModifier(f *proxy.Flow, in io.Reader) io.Reader {
 		if !isSSE(f.Response) {
 			in = a.server.captureStream(f, "res", in, contentEncoding(f.Response.Header), declaredLength(f.Response.Header))
 		}
-		return a.server.throttleDown(in)
+		return a.server.throttleDown(f, in)
 	}
 	scripted := scriptsResponse(f)
 	breaking := a.server.willBreakResponse(f)
 	if !scripted && !breaking {
-		return a.server.throttleDown(in)
+		return a.server.throttleDown(f, in)
 	}
 	edited, bodyEdited := false, false
 	// A body the engine cannot decode is left to the breakpoint alone.
@@ -1581,7 +1590,7 @@ func (a *addon) StreamResponseModifier(f *proxy.Flow, in io.Reader) io.Reader {
 	}
 	if !edited {
 		a.server.publish(f)
-		return a.server.throttleDown(in)
+		return a.server.throttleDown(f, in)
 	}
 	if bodyEdited {
 		clearBodyEncoding(f.Response.Header)
@@ -1592,7 +1601,7 @@ func (a *addon) StreamResponseModifier(f *proxy.Flow, in io.Reader) io.Reader {
 	// reader, which carries the edit, and clear the field.
 	body := f.Response.Body
 	f.Response.Body = nil
-	return a.server.throttleDown(bytes.NewReader(body))
+	return a.server.throttleDown(f, bytes.NewReader(body))
 }
 
 // applyResponseDecision writes what the user chose at a response breakpoint.
@@ -1940,6 +1949,10 @@ func (s *Server) answer(f *proxy.Flow, resp *proxy.Response) {
 	s.publish(f)
 	if d := debugOf(f); d != nil && d.drop && f.ConnContext != nil && f.ConnContext.ClientConn != nil && f.ConnContext.ClientConn.Conn != nil {
 		_ = f.ConnContext.ClientConn.Conn.Close()
+	} else if f.Error == nil && f.Response != nil {
+		// Local answers skip the response modifier. Keep their body before
+		// moving it into the same paced download reader used upstream.
+		f.Response.BodyReader = s.throttleDown(f, f.Response.BodyReader)
 	}
 }
 
@@ -2119,15 +2132,12 @@ func (s *Server) publishFlow(f *proxy.Flow, kind string, frames []Frame, status 
 	shown, shownPath := display, display.RequestURI()
 	millis := int(now.Sub(start).Milliseconds())
 	if kind == "http" && streamed == nil {
-		// The throttle paces the body after this hook, so add what the
-		// transfer will take: the flow's time should match the client's. A
-		// streamed body is published as it ends, so its time is already in.
-		t := s.Throttle()
-		if t.DownPerSec > 0 && size > 0 {
-			millis += int(float64(size) / float64(t.DownPerSec) * 1000)
-		}
-		if t.UpPerSec > 0 && len(f.Request.Body) > 0 {
-			millis += int(float64(len(f.Request.Body)) / float64(t.UpPerSec) * 1000)
+		// Buffered downloads publish before their paced write: include that
+		// estimate using this exchange's conditions. Upload and latency have
+		// already elapsed. Streamed transfers include their actual read time.
+		t := s.flowThrottle(f)
+		if f.Error == nil && t.DownPerSec > 0 && f.Response != nil {
+			millis += int(float64(len(f.Response.Body)) / float64(t.DownPerSec) * 1000)
 		}
 	}
 	wait, download := 0, 0

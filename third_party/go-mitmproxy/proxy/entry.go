@@ -135,17 +135,17 @@ func (c *wrapServerConn) Close() error {
 		addon.ServerDisconnected(c.connCtx)
 	}
 
-	if keepClient {
+	// A Connection: close response is still being delivered downstream.
+	// Closing even the client's read half cancels its HTTP request context
+	// and aborts a paced response body. net/http closes after delivery.
+	if keepClient || c.connCtx.closeAfterResponse.Load() {
 		return c.closeErr
 	}
 
 	if !c.connCtx.ClientConn.Tls {
 		c.connCtx.ClientConn.Conn.(*wrapClientConn).Conn.(*net.TCPConn).CloseRead()
 	} else {
-		// if keep-alive connection close
-		if !c.connCtx.closeAfterResponse {
-			c.connCtx.ClientConn.Conn.Close()
-		}
+		c.connCtx.ClientConn.Conn.Close()
 	}
 
 	return c.closeErr

@@ -18,6 +18,7 @@ type debugKey struct{}
 type exchangeDebug struct {
 	messageMu sync.Mutex // serialize duplex scripts sharing connection locals
 	noCache   bool
+	network   *Throttle // immutable once selected, including an explicit Off
 	actions   []string
 	// hidden keeps the exchange out of the table; drop closes the client's
 	// connection once it is published. Block rules set them.

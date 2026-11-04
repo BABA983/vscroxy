@@ -754,7 +754,7 @@ func (a *attacker) attack(res http.ResponseWriter, req *http.Request) {
 	}
 
 	if proxyRes.Close {
-		f.ConnContext.closeAfterResponse = true
+		f.ConnContext.closeAfterResponse.Store(true)
 	}
 
 	defer proxyRes.Body.Close()

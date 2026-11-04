@@ -288,6 +288,17 @@ as a config and never served, and passes that instead.
 
 ## Maintaining this patch
 
+### Deliver a closing response before canceling downstream
+
+An upstream `Connection: close` response closes its transport as its body ends.
+Do not then close the plain HTTP client's read half: net/http treats that as
+request cancellation, so a buffered response still being paced downstream is
+aborted. As already intended for TLS, leave the client's lifetime to net/http
+after the response has been delivered. The close-after-response flag is atomic
+because the upstream transport closes on its own goroutine. The app's
+`TestWithoutRecordingPreservesRulesScriptsAndThrottles` exercises a scripted
+response sent through the real proxy with both directional limits enabled.
+
 On upgrade, compare these files to the new upstream source, reapply the changes
 if still needed, and rerun `go test -race ./...` from the repository root. Remove the
 `replace` and this directory once upstream preserves WS headers and capture

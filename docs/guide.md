@@ -890,9 +890,19 @@ large body costs memory. The directory is removed when the app closes.
 ## Network conditions
 
 The **Network** menu slows traffic to a preset: **3G**, **4G** or **DSL**.
-The throttle paces both directions and adds the preset's latency; a flow's
-time includes the transfer it will take, so it matches what the client sees.
-**Off** leaves traffic alone.
+Each HTTP exchange selects its conditions once before forwarding: later changes
+do not affect its upload or download. Rates pace each body's wire bytes by
+direction (not aggregate connection bandwidth); 0 means unlimited. Latency is
+one wait before forwarding, including an empty request/response, not a wait per
+body or TCP packet. Waiting can be interrupted by cancellation, body close or
+proxy shutdown. This applies to HTTP, inspected HTTPS and SSE, not WebSocket
+messages or opaque CONNECT tunnels. Local responses also use the download limit.
+The table's buffered-response time includes an estimated paced download;
+upload and latency are not counted twice. The timing waterfall remains the
+measured proxy timeline and excludes downstream delivery. **Off** leaves
+traffic alone. A request-disconnect failure percentage, when set, fails before
+HTTP forwarding and records a connection error; it is not TCP/IP packet loss.
+Clients may independently retry an idempotent request after a disconnect.
 
 **Network → Upstream…** sends every request through another proxy, such as
 `http://127.0.0.1:8080`; **Upstream off** clears it. **Settings → Proxy → Upstream** edits the same
