@@ -36,6 +36,17 @@ hook supplies completion time only, not a normal/error classification.
 `TestSSECompletionWithoutMessagesAndWithFullQueue` covers empty streams and
 completion evidence independent of the bounded message queue.
 
+`sse.go` recognizes LF, CRLF and lone CR line endings incrementally, including
+CRLF split across reads. Only a blank line dispatches a data-bearing block;
+EOF or a read failure discards an unfinished block. An empty `data` field still
+dispatches, empty data lines retain their newlines, and field parsing removes
+only one optional ASCII space after the colon rather than trimming values.
+The wrapper continues forwarding the original bytes unchanged. Capture keeps
+empty event payloads instead of substituting raw field text.
+`TestSSEEventFraming` and `TestSSEFramingAcrossReads` exercise Capture's
+`SSEMessage` path over real sockets, checking payloads, counts, incremental
+delivery and byte-for-byte forwarding.
+
 ## `proxy/proxy.go` and `proxy/entry.go`, listener ownership
 
 `Proxy.Serve(net.Listener)` accepts an already bound listener. `Start` still

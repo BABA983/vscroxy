@@ -1401,14 +1401,10 @@ func (a *addon) SSEMessage(f *proxy.Flow) {
 		return
 	}
 	e := f.SSE.Events[len(f.SSE.Events)-1]
-	data := e.Data
-	if data == "" {
-		data = e.Raw
-	}
 	a.server.emitFrame(f, frameInput{
 		Direction: "in",
 		Kind:      "event",
-		Data:      []byte(data),
+		Data:      []byte(e.Data),
 		At:        e.Time,
 		EventID:   e.ID,
 		EventName: e.Event,

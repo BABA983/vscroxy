@@ -1741,6 +1741,134 @@ func TestSSEEvents(t *testing.T) {
 	waitStreamEnd(t, s, f.ID, 2)
 }
 
+func TestSSEEventFraming(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		wire string
+		data []string
+	}{
+		{name: "empty data", wire: "data:\n\n", data: []string{""}},
+		{name: "colonless data", wire: "data\n\n", data: []string{""}},
+		{name: "CRLF", wire: "data: one\r\n\r\ndata: two\r\n\r\n", data: []string{"one", "two"}},
+		{name: "CR", wire: "data: one\r\rdata: two\r\r", data: []string{"one", "two"}},
+		{name: "mixed endings", wire: "data: one\r\n\ndata: two\n\r", data: []string{"one", "two"}},
+		{name: "whitespace and empty lines", wire: " data: ignored\ndata:  leading  \ndata:\ndata:\ttrailing \n\n", data: []string{" leading  \n\n\ttrailing "}},
+		{name: "empty data lines", wire: "data:\ndata:\n\n", data: []string{"\n"}},
+		{name: "no data", wire: ": heartbeat\n\nevent: tick\nid: 7\n\n\n"},
+		{name: "EOF after line", wire: "data:partial\n"},
+		{name: "EOF within line", wire: "data:partial"},
+		{name: "complete then EOF", wire: "data: complete\n\ndata:partial\n", data: []string{"complete"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			finish := make(chan struct{})
+			release := sync.OnceFunc(func() { close(finish) })
+			upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "text/event-stream")
+				io.WriteString(w, tc.wire)
+				w.(http.Flusher).Flush()
+				<-finish
+			}))
+			defer upstream.Close()
+			defer release()
+			s, _ := startServer(t)
+			resp, err := clientFor(t, s, nil).Get(upstream.URL)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer resp.Body.Close()
+			// Keep EOF separate from the bytes, as on a long-lived SSE stream.
+			body := make([]byte, len(tc.wire))
+			if _, err := io.ReadFull(resp.Body, body); err != nil {
+				t.Fatal(err)
+			}
+			release()
+			tail, err := io.ReadAll(resp.Body)
+			resp.Body.Close()
+			if err != nil || string(body) != tc.wire || len(tail) != 0 {
+				t.Fatalf("forwarded body = %q + %q, error %v; want original %q", body, tail, err, tc.wire)
+			}
+			f := waitFlow(t, s)
+			// Frames are emitted by Capture's SSEMessage hook. Completion gives
+			// an exact count, including unwanted EOF events or omitted empty data.
+			waitStreamEnd(t, s, f.ID, len(tc.data))
+			for i, want := range tc.data {
+				got := waitFrame(t, s)
+				if got.FlowID != f.ID || got.Frame.Seq != i+1 || got.Frame.Data != want || got.Frame.Size != len(want) || got.Frame.EventName != "message" {
+					t.Fatalf("event %d = %+v, want data %q (%d bytes)", i+1, got, want, len(want))
+				}
+			}
+		})
+	}
+}
+
+func TestSSEFramingAcrossReads(t *testing.T) {
+	steps := []struct {
+		wire  string
+		event *Frame
+	}{
+		{wire: "event: tick\r"},
+		{wire: "\n"},
+		{wire: "id: 7\r"},
+		{wire: "\n"},
+		{wire: "data: first\r"},
+		{wire: "\n"},
+		{wire: "data:\r"},
+		{wire: "\n"},
+		{wire: "\r", event: &Frame{Data: "first\n", EventName: "tick", EventID: "7"}},
+		{wire: "\n"},
+		{wire: "data:\r"},
+		{wire: "\r", event: &Frame{Data: "", EventName: "message"}},
+		{wire: "data: unfinished\n"},
+	}
+	next := make(chan struct{})
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		for _, step := range steps {
+			io.WriteString(w, step.wire)
+			w.(http.Flusher).Flush()
+			select {
+			case <-next:
+			case <-r.Context().Done():
+				return
+			}
+		}
+	}))
+	defer upstream.Close()
+	defer close(next)
+	s, _ := startServer(t)
+	resp, err := clientFor(t, s, nil).Get(upstream.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	f := waitFlow(t, s)
+	for i, step := range steps {
+		body := make([]byte, len(step.wire))
+		if _, err := io.ReadFull(resp.Body, body); err != nil || string(body) != step.wire {
+			t.Fatalf("step %d: forwarded %q, error %v; want %q", i, body, err, step.wire)
+		}
+		// The reader calls SSEMessage before forwarding bytes. The upstream
+		// waits here, forcing CR and LF into separate reads and proving that
+		// a lone CR dispatches without waiting for the next byte or EOF.
+		select {
+		case got := <-s.Frames():
+			want := step.event
+			if want == nil || got.FlowID != f.ID || got.Frame.Data != want.Data || got.Frame.EventName != want.EventName || got.Frame.EventID != want.EventID {
+				t.Fatalf("step %d: event = %+v, want %+v", i, got, want)
+			}
+		default:
+			if step.event != nil {
+				t.Fatalf("step %d: no event before the next write; want %+v", i, step.event)
+			}
+		}
+		next <- struct{}{}
+	}
+	if tail, err := io.ReadAll(resp.Body); err != nil || len(tail) != 0 {
+		t.Fatalf("tail = %q, error %v", tail, err)
+	}
+	waitStreamEnd(t, s, f.ID, 2)
+}
+
 func TestSSECompletionWithoutMessagesAndWithFullQueue(t *testing.T) {
 	for _, count := range []int{0, queue + 3} {
 		t.Run(strconv.Itoa(count), func(t *testing.T) {
