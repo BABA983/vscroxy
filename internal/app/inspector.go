@@ -326,6 +326,11 @@ func (a *app) paneTabs(c *ui.Context, t *ui.Theme, side string, selected *int, l
 						}
 						a.openDecoder(a.bodyText[bodySide], body)
 					}),
+					do("body.query", "Query JSON…", func() {
+						if f, ok := a.current(); ok {
+							a.openJSONQuery(capturedInspectionBody(f, bodySide))
+						}
+					}),
 					do("body.copy", "Copy shown body", func() { a.copyPaneBody(c, bodySide) }),
 				})
 				if bodySide == 0 {

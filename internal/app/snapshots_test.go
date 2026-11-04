@@ -174,6 +174,22 @@ func TestUISnapshots(t *testing.T) {
 		{name: "dialog-decode-error", setup: func(a *app) {
 			a.openDecoder(nil, "not base64!")
 		}, act: click("Decode"), want: "invalid Base64; use standard or URL-safe encoding"},
+		{name: "dialog-jsonpath", setup: func(a *app) {
+			a.openJSONQuery(capturedInspectionBody(a.flows[0], 0))
+			a.jsonQuery.expression = "$.projects[?(@.active == true)].name"
+		}, act: click("Run query"), want: "Inspection result"},
+		{name: "dialog-jq", setup: func(a *app) {
+			a.openJSONQuery(capturedInspectionBody(a.flows[0], 0))
+			a.jsonQuery.dialect, a.jsonQuery.expression = "jq", ".projects[] | select(.id > 40) | {id, name}"
+		}, act: click("Run query"), want: "Inspection result"},
+		{name: "dialog-query-empty", setup: func(a *app) {
+			a.openJSONQuery(capturedInspectionBody(a.flows[0], 0))
+			a.jsonQuery.dialect, a.jsonQuery.expression = "jq", "empty"
+		}, act: click("Run query"), want: "No results (empty jq stream)"},
+		{name: "dialog-query-error", setup: func(a *app) {
+			a.openJSONQuery(capturedInspectionBody(a.flows[0], 0))
+			a.jsonQuery.expression = "$["
+		}, act: click("Run query"), want: "invalid JSONPath syntax"},
 		{name: "capture-activity", setup: snapshotActivity, want: "Activity strip"},
 		{name: "capture-activity-range", setup: snapshotActivity, act: func(t *testing.T, tt *ui.Tester) {
 			plot, ok := tt.Find("Activity time range")
@@ -894,6 +910,7 @@ func TestUISnapshots(t *testing.T) {
 							a.workbench.layout = layout
 							t.Cleanup(a.protobuf.stop)
 							t.Cleanup(a.socket.protobuf.stop)
+							t.Cleanup(a.jsonQuery.job.stop)
 							if state.setup != nil {
 								state.setup(a)
 							}
@@ -911,14 +928,14 @@ func TestUISnapshots(t *testing.T) {
 							if state.act != nil {
 								state.act(t, tt)
 							}
-							// Protobuf decoding is asynchronous. Wait for completion, not
+							// Body inspection is asynchronous. Wait for completion, not
 							// an arbitrary sleep, and never capture an intermediate frame.
 							deadline := time.NewTimer(time.Minute)
 							defer deadline.Stop()
-							for a.protobuf.answers != nil || a.socket.protobuf.answers != nil {
+							for a.protobuf.answers != nil || a.socket.protobuf.answers != nil || a.jsonQuery.job.answers != nil {
 								select {
 								case <-deadline.C:
-									t.Fatal("protobuf render did not settle")
+									t.Fatal("body inspection render did not settle")
 								default:
 								}
 								runtime.Gosched()

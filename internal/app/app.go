@@ -193,8 +193,9 @@ type app struct {
 	// inspect is the inspector's own view, so the request and the response
 	// keep independent tabs and body representations while both are on
 	// screen, and the exchange-wide views stay one click away.
-	inspect inspectorState
-	decoder quickDecoder
+	inspect   inspectorState
+	decoder   quickDecoder
+	jsonQuery jsonQueryInspector
 
 	// The body panes are indexed the way the rest of the inspector is: 0 is
 	// the response, 1 the request. Readers survive leaving Capture to edit or
@@ -1453,6 +1454,7 @@ func (a *app) view(c *ui.Context) {
 	a.loadRunnerModal(c, t)
 	a.cookiesModal(c, t)
 	a.decoderModal(c)
+	a.jsonQueryModal(c)
 	a.exportModal(c, t)
 	a.replayModal(c, t)
 	a.collectionSaveModal(c, t)
@@ -2438,6 +2440,8 @@ func Run() error {
 	defer a.messageUI.stopSearch()
 	defer a.protobuf.stop()
 	defer a.socket.protobuf.stop()
+	mygo.App.OnQuit(a.jsonQuery.job.stop)
+	defer a.jsonQuery.job.stop()
 	defer func() {
 		if a.runner.cancel != nil {
 			a.runner.cancel()

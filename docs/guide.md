@@ -753,6 +753,31 @@ live jar. Values are masked until explicitly revealed, and changing captures
 resets reveal. Sent responses use the same parsed, masked view. Invalid cookie
 headers are counted with a warning; Raw/Headers retains the original evidence.
 
+**Query JSON…** in either captured Body pane's options or a sent response's
+format menu opens a read-only JSONPath/jq query over the complete retained body,
+including a spill file, not just its preview. Run/Cancel work off the UI thread;
+closing or replacing the query discards old answers. Editing a query clears its
+previous results. Copy results never modifies or sends the source.
+
+- **JSONPath** uses a bounded OjG/Goessner dialect, not RFC 9535. Supports `$`,
+  property/index selection, slices/unions, wildcards, one recursive descent,
+  and boolean/comparison filters on singular `@` paths. Returns an array of
+  matches, including `[]`. Filter arithmetic/functions/root references are
+  disabled. Selections preserve large integers; filters require signed 64-bit
+  integers and reject mixing floats with integers outside ±2^53 (use jq).
+- **jq** uses gojq with selection, pipes, constructors, comparisons, `select`,
+  `map`, `length`, `keys`, sorting/grouping, common type filters and bounded
+  streams. Results are newline-separated JSON values; an empty stream is
+  labeled explicitly. Integers retain arbitrary precision; decimal/exponent
+  arithmetic uses float64. This is not a shell or the full jq CLI: modules,
+  definitions, updates, multiplication, binary subtraction, formats,
+  interpolation, reduce/foreach, environment and external input are disabled.
+- Limits: strict UTF-8 JSON with unique object names, 1 MiB input, 4096-byte
+  expression, 2 MiB output, 4096 results, depth 64, 16384 nodes per value,
+  1024-byte numbers, 100000 work units, and a one-second execution budget.
+  Invalid, incomplete, unavailable or oversized bodies report an error rather
+  than silently querying partial evidence. All errors discard partial results.
+
 **Auto** is the default: images/HTML use Preview, binary bodies use Hex,
 explicit protobuf/gRPC uses Protobuf, and text/JSON uses Pretty. A manual mode
 applies to the current request side; changing requests or sides resets to Auto

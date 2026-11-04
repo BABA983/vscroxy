@@ -1041,6 +1041,11 @@ func (a *app) requestResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 								d.responseView, d.responseEditor, d.responseList = i, nil, ui.ListState{}
 							}
 						}
+						m.Separator()
+						if m.Item("Query JSON…").Chosen() {
+							r := d.response
+							a.openJSONQuery(inspectionBody{r.ResponseBody, r.ResponseBodyFile, r.ResponseBodyError, r.ResponseBodySize})
+						}
 					}).Label("Response format").Tooltip("Response body format")
 					if uikit.SecondaryButton(c, "Decode…").Label("Decode response text").Clicked() {
 						a.openDecoder(d.responseEditor, d.response.ResponseBody)
