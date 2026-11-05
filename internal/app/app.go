@@ -310,6 +310,26 @@ type app struct {
 	proxyPort        int
 	proxyPortInput   string
 	proxyPortProblem string
+	// SOCKS5 is configured for the next launch, like the HTTP port. The
+	// draft fields are what the settings page edits; the persisted fields
+	// are what currentSettings writes and the launch snapshot compares.
+	socksOn        bool
+	socksPort      int
+	socksAuth      bool
+	socksUsername  string
+	socksPassword  string
+	socksProblem   string
+	socksOnDraft   bool
+	socksPortInput string
+	socksAuthDraft bool
+	socksUserDraft string
+	socksPassDraft string
+	launchSOCKS    socksEntry
+	// reverses are the saved reverse proxy entries; reverseDraft is the
+	// add or edit dialog.
+	reverses       []reverseProxySetting
+	reverseDraft   reverseProxyDraft
+	reverseProblem string
 
 	// ignore keeps noise out of the table without stopping it at the proxy.
 	ignorePath string
@@ -524,6 +544,11 @@ func newApp() *app {
 			a.saved, a.proxyPort, a.vault.scripts = saved, saved.ProxyPort, saved.VaultScripts
 			a.cookiePersistence = saved.CookiePersistence
 			a.launchPort, a.launchKeyLog = saved.ProxyPort, saved.KeyLogPath
+			a.socksOn, a.socksPort, a.socksAuth = saved.SOCKSOn, saved.SOCKSPort, saved.SOCKSAuth
+			a.socksUsername, a.socksPassword = saved.SOCKSUsername, saved.SOCKSPassword
+			a.resetSOCKSDrafts()
+			a.launchSOCKS = a.socksEntry()
+			a.reverses = slices.Clone(saved.ReverseProxies)
 			a.allowOn = saved.AllowList
 			a.flowLimit, a.memoryLimit, a.diskLimit = saved.FlowLimit, saved.MemoryLimit, saved.DiskLimit
 			a.guide = a.guide || saved.Guide
@@ -546,6 +571,14 @@ func newApp() *app {
 		a.errText = err.Error()
 	} else {
 		a.srv = srv
+		if cfg, err := a.socksConfig(); err != nil {
+			a.socksProblem = err.Error()
+		} else if err := srv.SetSOCKS(cfg); err != nil {
+			a.socksProblem = err.Error()
+		}
+		if err := srv.SetReverseProxies(a.reverseConfigs()); err != nil {
+			a.reverseProblem = err.Error()
+		}
 		a.reloadConfig()
 	}
 	a.loadRequestAssets()
@@ -757,6 +790,14 @@ func (a *app) startCapture() {
 		a.mu.Unlock()
 		a.invalidate()
 		return
+	}
+	if err := a.srv.SOCKSError(); err != nil {
+		a.warn("SOCKS5 is not listening: " + err.Error())
+	}
+	for _, st := range a.srv.ReverseProxyStatus() {
+		if st.Error != "" {
+			a.warn("Reverse proxy: " + st.Error)
+		}
 	}
 	a.invalidate()
 	go a.collectBreakpoints()
@@ -1492,6 +1533,7 @@ func (a *app) view(c *ui.Context) {
 	a.columnModal(c, t)
 	a.networkModal(c, t)
 	a.keyLogModal(c, t)
+	a.reverseProxyModal(c, t)
 	a.closeRequestModal(c, t)
 	a.apiGenerationModal(c, t)
 	a.curlImportModal(c, t)

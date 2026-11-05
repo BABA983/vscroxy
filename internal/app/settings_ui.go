@@ -116,6 +116,8 @@ func (a *app) proxySettings(c *ui.Context, t *ui.Theme) {
 				})
 			}).Description("Send requests on through another proxy, such as a company one. Empty connects directly.")
 		})
+		a.socksSettings(c, t)
+		a.reverseProxySettings(c, t)
 	})
 }
 

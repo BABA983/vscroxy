@@ -605,6 +605,39 @@ func TestUISnapshots(t *testing.T) {
 		{name: "secondary-api-notes", setup: func(a *app) { snapshotAPI(a); a.activeAPI().tab = 2 }, want: "Review before publishing"},
 		{name: "settings", setup: func(a *app) { a.settingsOpen = true }, want: "Settings"},
 		{name: "dialog-settings-proxy", setup: func(a *app) { snapshotSettings(a, 1) }, want: "Save for next launch", short: true},
+		{name: "dialog-settings-socks", setup: func(a *app) {
+			snapshotSettings(a, 1)
+			a.socksOnDraft, a.socksPortInput = true, "7893"
+			a.socksAuthDraft, a.socksUserDraft, a.socksPassDraft = true, "device", "secret"
+		}, act: func(t *testing.T, tt *ui.Tester) {
+			tt.Scroll(600, 500, 0, 500)
+			tt.Advance(250 * time.Millisecond)
+		}, want: "Save SOCKS5 settings", short: true},
+		{name: "dialog-reverse-proxy", setup: func(a *app) {
+			a.openReverseProxy("")
+			a.reverseDraft.port, a.reverseDraft.target, a.reverseDraft.keepHost = "9000", "https://api.example.com/v1", true
+		}, want: "Add reverse proxy"},
+		{name: "dialog-reverse-proxy-conflict", setup: func(a *app) {
+			a.settingsPath = filepath.Join(t.TempDir(), "settings.json")
+			a.reverses = []reverseProxySetting{{ID: "one", Port: 9000, Target: "https://api.example.com/v1", Enabled: true}}
+			a.openReverseProxy("")
+			a.reverseDraft.port, a.reverseDraft.target = "9000", "http://127.0.0.1:8080"
+			a.saveReverseProxy()
+		}, want: "Port 9000 is already used by another reverse proxy"},
+		{name: "dialog-settings-proxy-entries", setup: func(a *app) {
+			snapshotSettings(a, 1)
+			a.socksOnDraft, a.socksPortInput = true, "7893"
+			a.socksAuthDraft, a.socksUserDraft, a.socksPassDraft = true, "device", "secret"
+			a.reverses = []reverseProxySetting{
+				{ID: "one", Port: 9000, Target: "https://api.example.com/v1", KeepHost: true, Enabled: true},
+				{ID: "two", Port: 9001, Target: "http://127.0.0.1:8080", Enabled: false},
+			}
+		}, act: func(t *testing.T, tt *ui.Tester) {
+			for range 3 {
+				tt.Scroll(600, 500, 0, 500)
+			}
+			tt.Advance(250 * time.Millisecond)
+		}, want: "Add reverse proxy…", short: true},
 		{name: "dialog-settings-https", setup: func(a *app) { snapshotSettings(a, 2) }, want: "TLS key log…", short: true},
 		{name: "dialog-settings-appearance", setup: func(a *app) { snapshotSettings(a, 3) }, want: "Settings"},
 		{name: "dialog-settings-capture", setup: func(a *app) { snapshotSettings(a, 4) }, want: "Settings"},

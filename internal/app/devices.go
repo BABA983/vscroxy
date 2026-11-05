@@ -94,7 +94,8 @@ func (a *app) enableDevices() {
 	}
 	gateway, err := lan.Start(lan.Config{
 		ListenAddr: net.JoinHostPort(d.ip, strconv.Itoa(port)), CertificateAddr: net.JoinHostPort(d.ip, strconv.Itoa(port+1)),
-		ProxyAddr: a.srv.Addr(), Allowed: strings.Fields(d.allowed), Certificate: a.srv.CACertificate(),
+		ProxyAddr: a.srv.Addr(), SOCKSAddr: a.srv.SOCKSAddr(),
+		Allowed: strings.Fields(d.allowed), Certificate: a.srv.CACertificate(),
 	})
 	if err != nil {
 		d.problem = err.Error()
@@ -166,6 +167,11 @@ func (a *app) devicesModal(c *ui.Context, t *ui.Theme) {
 						uikit.Heading(c, d.gateway.Addr()).Font(uikit.FontMono)
 						if uikit.SecondaryButton(c, "Copy proxy address").Clicked() {
 							c.Services().WriteClipboard(d.gateway.Addr())
+						}
+						if a.srv != nil && a.srv.SOCKSAddr() != "" {
+							uikit.Meta(c, "This address accepts HTTP and SOCKS5 proxies; both are limited to the allowed sources.")
+						} else {
+							uikit.Meta(c, "This address accepts an HTTP proxy. Turn on SOCKS5 in Settings → Proxy to accept SOCKS5 here too.")
 						}
 						ui.Divider(c)
 						uikit.Hint(c, "Open on your device to download the CA")

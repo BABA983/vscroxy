@@ -80,6 +80,12 @@ func (a *app) currentSettings() settings {
 		HiddenColumns:     a.hiddenColumns,
 		KeyLogPath:        a.keyLogPath,
 		ProxyPort:         a.proxyPort,
+		SOCKSOn:           a.socksOn,
+		SOCKSPort:         a.socksPort,
+		SOCKSAuth:         a.socksAuth,
+		SOCKSUsername:     a.socksUsername,
+		SOCKSPassword:     a.socksPassword,
+		ReverseProxies:    slices.Clone(a.reverses),
 		VaultScripts:      a.vault.scripts,
 		CookiePersistence: a.cookiePersistence,
 		Guide:             a.guide,
@@ -106,6 +112,7 @@ func (a *app) exportConfig() (b configBundle, notes []string) {
 	// The key log, setup guide and cookie retention are this computer's:
 	// a configuration file never turns cookie persistence on elsewhere.
 	s.KeyLogPath, s.Guide, s.CookiePersistence = "", false, false
+	s.SOCKSPassword = "" // a credential, never in a shared bundle
 	ssl := a.inspectionConfig()
 	b = configBundle{Format: configFormat, Version: 1, Exported: time.Now().UTC(), Settings: &s, SSL: &ssl,
 		Lists: map[string][]string{}, Rules: cloneRuleList(a.rules), Mocks: map[string][]byte{}, Scripts: map[string]string{},
@@ -354,6 +361,15 @@ func (a *app) applySettings(s settings) {
 	a.columns = s.Columns.layout()
 	a.customColumns, a.hiddenColumns = slices.Clone(s.CustomColumns), slices.Clone(s.HiddenColumns)
 	a.proxyPort, a.vault.scripts, a.allowOn = s.ProxyPort, s.VaultScripts, s.AllowList
+	a.socksOn, a.socksPort, a.socksAuth = s.SOCKSOn, s.SOCKSPort, s.SOCKSAuth
+	a.socksUsername, a.socksPassword = s.SOCKSUsername, s.SOCKSPassword
+	a.resetSOCKSDrafts()
+	a.reverses = slices.Clone(s.ReverseProxies)
+	if a.srv != nil {
+		if err := a.srv.SetReverseProxies(a.reverseConfigs()); err != nil {
+			a.reverseProblem = err.Error()
+		}
+	}
 	a.flowLimit, a.memoryLimit, a.diskLimit = s.FlowLimit, s.MemoryLimit, s.DiskLimit
 	a.proxyPortInput = ""
 	if s.ProxyPort != 0 {

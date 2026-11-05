@@ -38,6 +38,17 @@ type settings struct {
 	KeyLogPath string `json:"keyLogPath,omitempty"`
 	// ProxyPort is the fixed loopback port, or zero for automatic selection.
 	ProxyPort int `json:"proxyPort,omitzero"`
+	// SOCKSOn opens the SOCKS5 entry on the next launch; SOCKSPort is its
+	// fixed loopback port, or zero for automatic selection. SOCKSAuth asks
+	// clients for the RFC 1929 username and password.
+	SOCKSOn       bool   `json:"socksOn,omitzero"`
+	SOCKSPort     int    `json:"socksPort,omitzero"`
+	SOCKSAuth     bool   `json:"socksAuth,omitzero"`
+	SOCKSUsername string `json:"socksUsername,omitempty"`
+	SOCKSPassword string `json:"socksPassword,omitempty"`
+	// ReverseProxies are loopback ports that forward plaintext HTTP to a
+	// remote base URL.
+	ReverseProxies []reverseProxySetting `json:"reverseProxies,omitempty"`
 	// VaultScripts lets request scripts use pm.vault.
 	VaultScripts bool `json:"vaultScripts,omitzero"`
 	// CookiePersistence keeps persistent cookies across launches in the
@@ -53,6 +64,16 @@ type settings struct {
 	FlowLimit   int `json:"flowLimit,omitzero"`
 	MemoryLimit int `json:"memoryLimitMB,omitzero"`
 	DiskLimit   int `json:"diskLimitGB,omitzero"`
+}
+
+// reverseProxySetting is one saved reverse proxy entry. ID keeps a row's
+// identity across edits; the port and target are what it forwards.
+type reverseProxySetting struct {
+	ID       string `json:"id"`
+	Port     int    `json:"port"`
+	Target   string `json:"target"`
+	KeepHost bool   `json:"keepHost,omitzero"`
+	Enabled  bool   `json:"enabled,omitzero"`
 }
 
 func (s settings) proxyAddr() (string, error) {
@@ -150,6 +171,10 @@ func sameSettings(x, y settings) bool {
 		slices.Equal(x.HiddenColumns, y.HiddenColumns) &&
 		x.KeyLogPath == y.KeyLogPath &&
 		x.ProxyPort == y.ProxyPort &&
+		x.SOCKSOn == y.SOCKSOn && x.SOCKSPort == y.SOCKSPort &&
+		x.SOCKSAuth == y.SOCKSAuth && x.SOCKSUsername == y.SOCKSUsername &&
+		x.SOCKSPassword == y.SOCKSPassword &&
+		slices.Equal(x.ReverseProxies, y.ReverseProxies) &&
 		x.VaultScripts == y.VaultScripts &&
 		x.CookiePersistence == y.CookiePersistence &&
 		x.Guide == y.Guide &&
