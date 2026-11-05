@@ -212,6 +212,7 @@ func TestReadCollection(t *testing.T) {
 			Headers:    "content-type: application/x-www-form-urlencoded",
 			BodyMode:   "URL encoded",
 			Form:       []request.Field{{Name: "grant_type", Value: "password"}, {Name: "scope", Value: "admin", Disabled: true}},
+			Auth:       request.Auth{Type: request.AuthHawk, Hawk: request.HawkAuth{AuthID: "shop", Algorithm: "SHA256"}},
 		},
 		{
 			Name: "Upload avatar", Collection: "Shop API", Method: "PUT", URL: "{{baseUrl}}/me/avatar",
@@ -296,7 +297,6 @@ func TestReadCollection(t *testing.T) {
 	}
 
 	wantWarnings := []string{
-		"1 request uses hawk auth; imported as no auth",
 		"Dropped 1 request description",
 		"Dropped 1 request variable",
 		"Dropped 1 saved example that is unreadable or over 5 MiB",
@@ -582,6 +582,81 @@ func TestDigestAWSJWTRoundTrip(t *testing.T) {
 	requests[2].Auth.JWT = request.JWTAuth{Algorithm: "HS256", Payload: "{}", Header: "{}", Prefix: "Bearer", QueryParam: "token"}
 	if !reflect.DeepEqual(got.Requests, requests) {
 		t.Errorf("Requests:\n got %+v\nwant %+v", got.Requests, requests)
+	}
+}
+
+func TestOAuth1HawkEdgeGridRoundTrip(t *testing.T) {
+	requests := []request.Request{
+		{ID: "oauth1", Name: "OAuth 1.0", Collection: "Signed", Method: "POST", URL: "https://api.example.com/upload",
+			Auth: request.Auth{Type: request.AuthOAuth1, OAuth1: request.OAuth1Auth{
+				ConsumerKey: "{{ck}}", ConsumerSecret: "{{vault:cs}}", Token: "token", TokenSecret: "{{vault:ts}}",
+				PrivateKey: "{{vault:key}}", SignatureMethod: "HMAC-SHA256", Timestamp: "137131201", Nonce: "7d8f3e4a",
+				Version: "1.0", Realm: "Example", AddTo: "Header", IncludeBodyHash: true, AddEmptyParamsToSign: true,
+				Callback: "https://client.example.com/cb", Verifier: "verifier",
+			}}},
+		{ID: "oauth1-auto", Name: "OAuth 1.0 auto", Collection: "Signed", Method: "POST", URL: "https://api.example.com/form",
+			Auth: request.Auth{Type: request.AuthOAuth1, OAuth1: request.OAuth1Auth{
+				ConsumerKey: "ck", ConsumerSecret: "cs", SignatureMethod: "HMAC-SHA1", Version: "1.0", AddTo: "Auto",
+			}}},
+		{ID: "hawk", Name: "Hawk", Collection: "Signed", Method: "GET", URL: "https://api.example.com/me",
+			Auth: request.Auth{Type: request.AuthHawk, Hawk: request.HawkAuth{
+				AuthID: "dh37fgj492je", AuthKey: "{{vault:hawk}}", Algorithm: "SHA256", User: "ann",
+				Timestamp: "1353832234", Nonce: "j4h3g2", ExtraData: "some-app-ext-data",
+				App: "24s23423f34dx", Delegation: "234sz34tww3sd", IncludePayloadHash: true,
+			}}},
+		{ID: "edgegrid", Name: "EdgeGrid", Collection: "Signed", Method: "GET", URL: "https://api.example.com/check",
+			Auth: request.Auth{Type: request.AuthEdgeGrid, EdgeGrid: request.EdgeGridAuth{
+				AccessToken: "{{access}}", ClientToken: "{{client}}", ClientSecret: "{{vault:secret}}",
+				BaseURL: "https://control.akamai.com", Nonce: "nonce", Timestamp: "20160804T07:00:00+0000",
+				HeadersToSign: "X-Test1,X-Test2",
+			}}},
+	}
+	data, warnings, err := postman.WriteCollection("Signed", requests, nil)
+	if err != nil || len(warnings) != 0 {
+		t.Fatalf("%v, warnings %q", err, warnings)
+	}
+	compact := strings.Join(strings.Fields(string(data)), "")
+	for _, s := range []string{
+		`"type":"oauth1"`, `"type":"hawk"`, `"type":"edgegrid"`,
+		`"key":"includeBodyHash","value":true,"type":"boolean"`,
+		`"key":"includePayloadHash","value":true,"type":"boolean"`,
+		`"key":"addParamsToHeader","value":true,"type":"boolean"`,
+		`"key":"headersToSign","value":"X-Test1,X-Test2","type":"string"`,
+	} {
+		if !strings.Contains(compact, s) {
+			t.Errorf("export lacks %q:\n%s", s, data)
+		}
+	}
+	got, err := postman.ReadCollection(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Warnings) != 0 {
+		t.Errorf("re-import warnings = %q", got.Warnings)
+	}
+	if !reflect.DeepEqual(got.Requests, requests) {
+		t.Errorf("Requests:\n got %+v\nwant %+v", got.Requests, requests)
+	}
+}
+
+func TestReadNTLMIsUnsupported(t *testing.T) {
+	data := []byte(`{
+  "info": {"name": "Windows", "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"},
+  "item": [{"name": "NTLM", "request": {"url": "https://example.com/", "auth": {"type": "ntlm", "ntlm": [
+    {"key": "username", "value": "ann"}, {"key": "password", "value": "secret"},
+    {"key": "domain", "value": "EXAMPLE"}, {"key": "workstation", "value": "PC"}
+  ]}}}]
+}`)
+	got, err := postman.ReadCollection(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Requests) != 1 || got.Requests[0].Auth.Type != "" {
+		t.Fatalf("NTLM request = %+v", got.Requests)
+	}
+	want := []string{"1 request uses NTLM auth, which needs one connection for its challenge; imported as no auth"}
+	if !slices.Equal(got.Warnings, want) {
+		t.Errorf("Warnings:\n got %q\nwant %q", got.Warnings, want)
 	}
 }
 

@@ -446,6 +446,50 @@ func (r *reader) auth(v jsontext.Value, unsupported string) (auth request.Auth, 
 			j.AddTo = "Query"
 		}
 		return request.Auth{Type: request.AuthJWT, JWT: j}, true
+	case "oauth1":
+		method := strings.ToUpper(cmp.Or(strings.TrimSpace(params["signatureMethod"]), "HMAC-SHA1"))
+		if !slices.Contains(request.OAuth1Methods, method) {
+			r.warn.add(unsupported, "OAuth 1.0 with "+method+" signatures", 1)
+			return request.Auth{Type: "None"}, true
+		}
+		o := request.OAuth1Auth{
+			ConsumerKey: params["consumerKey"], ConsumerSecret: params["consumerSecret"],
+			Token: params["token"], TokenSecret: params["tokenSecret"], PrivateKey: params["privateKey"],
+			SignatureMethod: method, Timestamp: params["timestamp"], Nonce: params["nonce"],
+			Version: params["version"], Realm: params["realm"], Callback: params["callback"], Verifier: params["verifier"],
+			IncludeBodyHash: params["includeBodyHash"] == "true", AddEmptyParamsToSign: params["addEmptyParamsToSign"] == "true",
+		}
+		if params["addParamsToHeader"] == "true" {
+			o.AddTo = "Header"
+		} else {
+			o.AddTo = "Auto"
+		}
+		if params["disableHeaderEncoding"] == "true" {
+			r.warn.add("oauth1 header encoding", "", 1)
+		}
+		return request.Auth{Type: request.AuthOAuth1, OAuth1: o}, true
+	case "hawk":
+		algorithm := strings.ToUpper(cmp.Or(strings.TrimSpace(params["algorithm"]), "SHA256"))
+		if !slices.Contains(request.HawkAlgorithms, algorithm) {
+			r.warn.add(unsupported, "Hawk with "+algorithm+" MACs", 1)
+			return request.Auth{Type: "None"}, true
+		}
+		return request.Auth{Type: request.AuthHawk, Hawk: request.HawkAuth{
+			AuthID: params["authId"], AuthKey: params["authKey"], Algorithm: algorithm,
+			User: params["user"], Nonce: params["nonce"], Timestamp: params["timestamp"],
+			ExtraData: params["extraData"], App: params["app"], Delegation: params["delegation"],
+			IncludePayloadHash: params["includePayloadHash"] == "true",
+		}}, true
+	case "edgegrid":
+		return request.Auth{Type: request.AuthEdgeGrid, EdgeGrid: request.EdgeGridAuth{
+			AccessToken: params["accessToken"], ClientToken: params["clientToken"], ClientSecret: params["clientSecret"],
+			BaseURL: params["baseURL"], Nonce: params["nonce"], Timestamp: params["timestamp"], HeadersToSign: params["headersToSign"],
+		}}, true
+	case "ntlm":
+		// NTLM needs its Type 1/2/3 handshake on one connection; every send
+		// opens a new one, so importing it as no auth is honest.
+		r.warn.add(unsupported, "NTLM auth, which needs one connection for its challenge", 1)
+		return request.Auth{Type: "None"}, true
 	}
 	r.warn.add(unsupported, kind+" auth", 1)
 	return request.Auth{Type: "None"}, true

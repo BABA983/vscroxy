@@ -120,14 +120,17 @@ type outFormField struct {
 }
 
 type outAuth struct {
-	Type   string  `json:"type"`
-	Bearer []outKV `json:"bearer,omitempty"`
-	Basic  []outKV `json:"basic,omitempty"`
-	APIKey []outKV `json:"apikey,omitempty"`
-	OAuth2 []outKV `json:"oauth2,omitempty"`
-	Digest []outKV `json:"digest,omitempty"`
-	AWSv4  []outKV `json:"awsv4,omitempty"`
-	JWT    []outKV `json:"jwt,omitempty"`
+	Type     string  `json:"type"`
+	Bearer   []outKV `json:"bearer,omitempty"`
+	Basic    []outKV `json:"basic,omitempty"`
+	APIKey   []outKV `json:"apikey,omitempty"`
+	OAuth2   []outKV `json:"oauth2,omitempty"`
+	Digest   []outKV `json:"digest,omitempty"`
+	AWSv4    []outKV `json:"awsv4,omitempty"`
+	JWT      []outKV `json:"jwt,omitempty"`
+	OAuth1   []outKV `json:"oauth1,omitempty"`
+	Hawk     []outKV `json:"hawk,omitempty"`
+	EdgeGrid []outKV `json:"edgegrid,omitempty"`
 }
 
 type outKV struct {
@@ -366,6 +369,34 @@ func writeAuth(a request.Auth) *outAuth {
 			{"payload", cmp.Or(a.JWT.Payload, "{}"), "string"}, {"addTokenTo", addTo, "string"},
 			{"headerPrefix", cmp.Or(a.JWT.Prefix, "Bearer"), "string"}, {"queryParamKey", cmp.Or(a.JWT.QueryParam, "token"), "string"},
 			{"header", cmp.Or(a.JWT.Header, "{}"), "string"},
+		}}
+	case request.AuthOAuth1:
+		// Postman has one switch for headers versus the body and URL.
+		return &outAuth{Type: "oauth1", OAuth1: []outKV{
+			{"consumerKey", a.OAuth1.ConsumerKey, "string"}, {"consumerSecret", a.OAuth1.ConsumerSecret, "string"},
+			{"token", a.OAuth1.Token, "string"}, {"tokenSecret", a.OAuth1.TokenSecret, "string"},
+			{"privateKey", a.OAuth1.PrivateKey, "string"}, {"signatureMethod", cmp.Or(a.OAuth1.SignatureMethod, "HMAC-SHA1"), "string"},
+			{"timestamp", a.OAuth1.Timestamp, "string"}, {"nonce", a.OAuth1.Nonce, "string"},
+			{"version", cmp.Or(a.OAuth1.Version, "1.0"), "string"}, {"realm", a.OAuth1.Realm, "string"},
+			{"callback", a.OAuth1.Callback, "string"}, {"verifier", a.OAuth1.Verifier, "string"},
+			{"addParamsToHeader", a.OAuth1.AddTo == "" || a.OAuth1.AddTo == "Header", "boolean"},
+			{"includeBodyHash", a.OAuth1.IncludeBodyHash, "boolean"},
+			{"addEmptyParamsToSign", a.OAuth1.AddEmptyParamsToSign, "boolean"},
+		}}
+	case request.AuthHawk:
+		return &outAuth{Type: "hawk", Hawk: []outKV{
+			{"authId", a.Hawk.AuthID, "string"}, {"authKey", a.Hawk.AuthKey, "string"},
+			{"algorithm", strings.ToLower(cmp.Or(a.Hawk.Algorithm, "SHA256")), "string"},
+			{"user", a.Hawk.User, "string"}, {"nonce", a.Hawk.Nonce, "string"}, {"timestamp", a.Hawk.Timestamp, "string"},
+			{"extraData", a.Hawk.ExtraData, "string"}, {"app", a.Hawk.App, "string"}, {"delegation", a.Hawk.Delegation, "string"},
+			{"includePayloadHash", a.Hawk.IncludePayloadHash, "boolean"},
+		}}
+	case request.AuthEdgeGrid:
+		return &outAuth{Type: "edgegrid", EdgeGrid: []outKV{
+			{"accessToken", a.EdgeGrid.AccessToken, "string"}, {"clientToken", a.EdgeGrid.ClientToken, "string"},
+			{"clientSecret", a.EdgeGrid.ClientSecret, "string"}, {"baseURL", a.EdgeGrid.BaseURL, "string"},
+			{"nonce", a.EdgeGrid.Nonce, "string"}, {"timestamp", a.EdgeGrid.Timestamp, "string"},
+			{"headersToSign", a.EdgeGrid.HeadersToSign, "string"},
 		}}
 	}
 	return &outAuth{Type: "noauth"}

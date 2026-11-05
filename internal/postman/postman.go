@@ -173,6 +173,9 @@ func (k warning) text(n int) string {
 	case "aws query":
 		return count(n, "AWS Signature configuration adds", "AWS Signature configurations add") +
 			" the signature to the query; vscroxy sends it in headers"
+	case "oauth1 header encoding":
+		return count(n, "OAuth 1.0 configuration disables", "OAuth 1.0 configurations disable") +
+			" header encoding; vscroxy always encodes"
 	case "checks":
 		return "Invalid checks on " + count(n, "request are", "requests are") + " not exported"
 	case "protocol request":
