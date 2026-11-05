@@ -825,13 +825,26 @@ func TestUISnapshots(t *testing.T) {
 		}, want: "batch limit is 500"},
 		{name: "dialog-replay-summary", setup: func(a *app) {
 			a.openReplay(a.flows)
-			a.replayUI.total, a.replayUI.done, a.replayUI.failed = 6, 5, 1
+			a.replayUI.repeat, a.replayUI.concurrency, a.replayUI.interval = "3", "2", "250"
+			a.replayUI.total, a.replayUI.done, a.replayUI.failed, a.replayUI.canceled = 6, 5, 1, 0
 			a.replayUI.statuses = map[int]int{200: 4}
 			a.replayUI.latencySum, a.replayUI.latencyN = 800, 4
-			a.replayUI.started, a.replayUI.elapsed = snapshotTime.Add(-2*time.Second), 2*time.Second
+			a.replayUI.elapsed = 2 * time.Second
 			a.replayUI.finished = true
 			a.replayUI.problem = "connection reset by peer"
 		}, want: "200 × 4", short: true},
+		{name: "dialog-replay-canceled", setup: func(a *app) {
+			a.openReplay(a.flows)
+			a.replayUI.repeat, a.replayUI.concurrency, a.replayUI.interval = "3", "2", "250"
+			a.replayUI.total, a.replayUI.done, a.replayUI.failed, a.replayUI.canceled = 6, 5, 0, 1
+			a.replayUI.statuses = map[int]int{200: 4}
+			a.replayUI.latencySum, a.replayUI.latencyN = 800, 4
+			a.replayUI.elapsed = 2 * time.Second
+			a.replayUI.stopped, a.replayUI.finished = true, true
+		}, want: "1 canceled", short: true},
+		{name: "capture-replay-result", setup: func(a *app) {
+			a.replayResults = []replayResult{{source: a.flows[0], reply: capture.Flow{Status: 200}}}
+		}, want: "Inspect replay"},
 		{name: "dialog-export-csv", setup: func(a *app) { a.exportCSV() }, want: "Export CSV", short: true},
 		{name: "dialog-protobuf", setup: func(a *app) { a.protobuf.open, a.protobuf.problem = true, "Missing import: common.proto" }, want: "Protobuf schema", short: true},
 		{name: "dialog-protobuf-busy", setup: func(a *app) { a.protobuf.open, a.protobuf.loading = true, true }, want: "Compiling and linking schema…"},

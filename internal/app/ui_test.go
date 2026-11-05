@@ -2028,7 +2028,7 @@ func TestReplayResultDoesNotStealFocusAndKeepsItsSource(t *testing.T) {
 	a.srv = srv
 	source := a.flows[0]
 	source.url = upstream.URL + "/replay"
-	if err := a.replay(t.Context(), source); err != nil {
+	if _, err := a.replayFlow(t.Context(), source, true); err != nil {
 		t.Fatal(err)
 	}
 	tt := ui.NewTester(a.view, 1280, 800)
@@ -3654,7 +3654,7 @@ func TestBatchReplaySendsChosenRequestsInOrder(t *testing.T) {
 		time.Sleep(time.Millisecond)
 		tt.Frame()
 	}
-	if !tt.HasText("2/2 sent · 2 succeeded · 0 failed") || !a.page.capture() {
+	if !tt.HasText("2/2 started · 2 succeeded · 0 failed") || !a.page.capture() {
 		t.Fatalf("batch incomplete or stole focus: %v", tt.Texts())
 	}
 	if first, second := <-paths, <-paths; first != "GET /first" || second != "POST /second" {

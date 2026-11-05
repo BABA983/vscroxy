@@ -142,22 +142,26 @@ func TestAdvancedReplayRunsConcurrentlyAndSummarizesStatuses(t *testing.T) {
 		t.Fatalf("status distribution = %v, want 200×4 and 404×2", a.replayUI.statuses)
 	}
 	summary := a.replayUI.summary()
-	for _, want := range []string{"6/6 sent", "200 × 4", "404 × 2"} {
+	for _, want := range []string{"6/6 started", "200 × 4", "404 × 2"} {
 		if !strings.Contains(summary, want) {
 			t.Fatalf("summary %q lacks %q", summary, want)
 		}
 	}
-	if !tt.HasText("6/6 sent") {
+	if !tt.HasText("6/6 started") {
 		t.Fatal("the dialog did not show the completed batch")
 	}
 }
 
-func TestAdvancedReplayStopsAndIgnoresCanceledSends(t *testing.T) {
-	started := make(chan struct{}, 1)
+func TestAdvancedReplayCountsCompletedAndCanceledSends(t *testing.T) {
+	var calls atomic.Int32
+	started := make(chan int, 10)
 	release := make(chan struct{})
 	a, flows := replayTestApp(t, func(w http.ResponseWriter, r *http.Request) {
-		started <- struct{}{}
-		<-release
+		n := int(calls.Add(1))
+		started <- n
+		if n > 1 {
+			<-release
+		}
 		w.WriteHeader(http.StatusOK)
 	})
 	a.openReplay(flows[:1])
@@ -167,10 +171,15 @@ func TestAdvancedReplayStopsAndIgnoresCanceledSends(t *testing.T) {
 	if err := tt.Click("Send replays"); err != nil {
 		t.Fatal(err)
 	}
-	select {
-	case <-started:
-	case <-time.After(5 * time.Second):
-		t.Fatal("the first send did not reach the server")
+	for want := 1; want <= 2; want++ {
+		select {
+		case got := <-started:
+			if got != want {
+				t.Fatalf("start %d, want %d", got, want)
+			}
+		case <-time.After(5 * time.Second):
+			t.Fatalf("send %d did not reach the server", want)
+		}
 	}
 	if err := tt.Click("Stop replay"); err != nil {
 		t.Fatal(err)
@@ -180,11 +189,101 @@ func TestAdvancedReplayStopsAndIgnoresCanceledSends(t *testing.T) {
 	if !a.replayUI.stopped || !a.replayUI.finished {
 		t.Fatalf("stopped=%t finished=%t", a.replayUI.stopped, a.replayUI.finished)
 	}
-	if a.replayUI.done >= 10 {
-		t.Fatalf("sent %d requests after cancellation", a.replayUI.done)
+	if a.replayUI.done != 2 || a.replayUI.failed != 0 || a.replayUI.canceled != 1 {
+		t.Fatalf("done=%d failed=%d canceled=%d, want 2, 0 and 1", a.replayUI.done, a.replayUI.failed, a.replayUI.canceled)
 	}
-	if !strings.HasPrefix(a.replayUI.summary(), "0/10 sent") {
-		t.Fatalf("summary %q counted a canceled in-flight send", a.replayUI.summary())
+	if a.replayUI.statuses[200] != 1 {
+		t.Fatalf("status distribution = %v, want 200×1", a.replayUI.statuses)
+	}
+	summary := a.replayUI.summary()
+	for _, want := range []string{"2/10 started", "1 succeeded", "0 failed", "1 canceled", "200 × 1"} {
+		if !strings.Contains(summary, want) {
+			t.Fatalf("summary %q lacks %q", summary, want)
+		}
+	}
+	if !tt.HasText("1 canceled") {
+		t.Fatal("the dialog did not show the canceled count")
+	}
+}
+
+func TestAdvancedReplayReportsElapsedWithFinalOutcome(t *testing.T) {
+	a, flows := replayTestApp(t, func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, "ok")
+	})
+	a.openReplay(flows[:1])
+	a.replayUI.timeout = "0"
+	a.startReplay(0)
+	var final replayOutcome
+	for outcome := range a.replayUI.updates {
+		if outcome.final {
+			final = outcome
+		}
+	}
+	if !final.final || final.elapsed <= 0 {
+		t.Fatalf("final outcome = %+v, want elapsed time", final)
+	}
+}
+
+func TestReplayRecordsOnlySingleSendResult(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		flows int
+		want  int
+	}{{"single send", 1, 1}, {"batch", 2, 0}} {
+		t.Run(tc.name, func(t *testing.T) {
+			a, flows := replayTestApp(t, func(w http.ResponseWriter, r *http.Request) {
+				io.WriteString(w, "ok")
+			})
+			a.openReplay(flows[:tc.flows])
+			a.replayUI.timeout = "0"
+			a.startReplay(0)
+			for range a.replayUI.updates {
+			}
+			a.mu.Lock()
+			got := len(a.replayResults)
+			a.mu.Unlock()
+			if got != tc.want {
+				t.Fatalf("recorded results = %d, want %d", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestReplayDialogSingleSendRestoresInspectNotification(t *testing.T) {
+	a, flows := replayTestApp(t, func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, "ok")
+	})
+	a.openReplay(flows[:1])
+	a.replayUI.timeout = "0"
+	tt := ui.NewTester(a.view, 960, 600)
+	if err := tt.Click("Send replays"); err != nil {
+		t.Fatal(err)
+	}
+	waitReplay(t, a, tt)
+	tt.Frame()
+	if !tt.HasText("Replayed Capture #1") || !tt.HasText("Inspect replay") {
+		t.Fatalf("missing replay result notification: %v", tt.Texts())
+	}
+	if a.replayUI.done != 1 || a.replayUI.failed != 0 || a.replayUI.canceled != 0 {
+		t.Fatalf("done=%d failed=%d canceled=%d", a.replayUI.done, a.replayUI.failed, a.replayUI.canceled)
+	}
+}
+
+func TestReplaySettingsRejectsHugeIntervalBeforeDurationConversion(t *testing.T) {
+	for _, text := range []string{"60001", "9223372036854775807", "999999999999999999999"} {
+		r := replaySetup{flows: []flow{{}}, repeat: "1", concurrency: "1", interval: text}
+		settings, problem := r.settings()
+		if !strings.Contains(problem, "0–60000 ms") {
+			t.Fatalf("interval %q problem = %q", text, problem)
+		}
+		if settings.interval != -time.Millisecond {
+			t.Fatalf("interval %q converted to %v before validation", text, settings.interval)
+		}
+	}
+	r := replaySetup{flows: []flow{{}}, repeat: "1", concurrency: "1", interval: "60000"}
+	settings, problem := r.settings()
+	if problem != "" || settings.interval != time.Minute {
+		t.Fatalf("60000 ms = %v, problem %q", settings.interval, problem)
 	}
 }
 

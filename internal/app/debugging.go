@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"strconv"
@@ -51,6 +52,8 @@ type replayOutcome struct {
 	status   int
 	millis   int
 	canceled bool
+	final    bool
+	elapsed  time.Duration
 }
 
 type replaySetup struct {
@@ -62,8 +65,8 @@ type replaySetup struct {
 	interval    string
 	done        int
 	failed      int
+	canceled    int
 	total       int
-	started     time.Time
 	elapsed     time.Duration
 	statuses    map[int]int
 	latencySum  int64
@@ -94,8 +97,8 @@ func (a *app) openReplay(flows []flow) {
 	if r.interval == "" {
 		r.interval = "0"
 	}
-	r.done, r.failed, r.problem, r.open = 0, 0, "", true
-	r.total, r.elapsed, r.started, r.finished, r.stopped = 0, 0, time.Time{}, false, false
+	r.done, r.failed, r.canceled, r.problem, r.open = 0, 0, 0, "", true
+	r.total, r.elapsed, r.finished, r.stopped = 0, 0, false, false
 	r.statuses, r.latencySum, r.latencyN = nil, 0, 0
 }
 
@@ -113,7 +116,9 @@ func (r *replaySetup) settings() (replaySettings, string) {
 	if !concurrencyOK {
 		concurrency = 0
 	}
-	if !intervalOK {
+	// Validate the integer before converting to a Duration: a huge value must
+	// not wrap around into a valid-looking interval.
+	if !intervalOK || interval < 0 || interval > replayMaxIntervalMS {
 		interval = -1
 	}
 	s := replaySettings{repeat: repeat, concurrency: concurrency, interval: time.Duration(interval) * time.Millisecond}
@@ -131,18 +136,23 @@ func (a *app) startReplay(seconds int) {
 	r.cancel = cancel
 	flows := slices.Clone(r.flows)
 	r.total = len(flows) * settings.repeat
-	r.done, r.failed, r.problem = 0, 0, ""
-	r.started, r.elapsed, r.stopped, r.finished = time.Now(), 0, false, false
+	r.done, r.failed, r.canceled, r.problem = 0, 0, 0, ""
+	r.elapsed, r.stopped, r.finished = 0, false, false
 	r.statuses, r.latencySum, r.latencyN = map[int]int{}, 0, 0
-	updates := make(chan replayOutcome, r.total)
+	// One extra slot carries the final elapsed time, so it is measured when
+	// the last send finishes rather than when the UI next drains the channel.
+	updates := make(chan replayOutcome, r.total+1)
 	r.updates = updates
 	go a.runReplay(ctx, flows, settings, seconds, updates)
 }
 
 // runReplay dispatches in capture order and repeats. Workers overlap sends;
-// interval spaces successive starts, and cancellation stops new work while
-// in-flight requests receive the same context they would on their own.
+// interval spaces successive starts. A one-request, one-repeat batch records
+// its result like a single Replay. Cancellation stops new work and cancels
+// in-flight requests; only errors.Is(context.Canceled) is counted as canceled.
 func (a *app) runReplay(ctx context.Context, flows []flow, settings replaySettings, seconds int, updates chan<- replayOutcome) {
+	started := time.Now()
+	record := settings.repeat == 1 && len(flows) == 1
 	jobs := make(chan flow)
 	var workers sync.WaitGroup
 	for range settings.concurrency {
@@ -160,9 +170,15 @@ func (a *app) runReplay(ctx context.Context, flows []flow, settings replaySettin
 				} else {
 					requestCtx, finish = context.WithCancel(ctx)
 				}
-				reply, err := a.replayFlow(requestCtx, f, false)
+				reply, err := a.replayFlow(requestCtx, f, record)
 				finish()
-				updates <- replayOutcome{err: err, status: reply.Status, millis: reply.Millis, canceled: ctx.Err() != nil}
+				updates <- replayOutcome{
+					err:      err,
+					status:   reply.Status,
+					millis:   reply.Millis,
+					canceled: errors.Is(err, context.Canceled),
+				}
+				a.invalidate()
 			}
 		}()
 	}
@@ -192,14 +208,21 @@ scheduler:
 	}
 	close(jobs)
 	workers.Wait()
+	updates <- replayOutcome{final: true, elapsed: time.Since(started)}
+	a.invalidate()
 	close(updates)
+	a.invalidate()
 }
 
 func (r *replaySetup) summary() string {
+	succeeded := r.done - r.failed - r.canceled
 	parts := []string{
-		fmt.Sprintf("%d/%d sent", r.done, r.total),
-		fmt.Sprintf("%d succeeded", r.done-r.failed),
+		fmt.Sprintf("%d/%d started", r.done, r.total),
+		fmt.Sprintf("%d succeeded", succeeded),
 		fmt.Sprintf("%d failed", r.failed),
+	}
+	if r.canceled > 0 {
+		parts = append(parts, fmt.Sprintf("%d canceled", r.canceled))
 	}
 	if len(r.statuses) > 0 {
 		codes := make([]int, 0, len(r.statuses))
@@ -230,9 +253,6 @@ func (a *app) replayModal(c *ui.Context, t *ui.Theme) {
 			if !ok {
 				r.updates, r.cancel = nil, nil
 				r.finished = true
-				if !r.started.IsZero() {
-					r.elapsed = time.Since(r.started)
-				}
 				state := "finished"
 				if r.stopped {
 					state = "stopped"
@@ -240,23 +260,27 @@ func (a *app) replayModal(c *ui.Context, t *ui.Theme) {
 				a.inform("Replay " + state + " · " + r.summary())
 				break
 			}
-			if outcome.canceled {
+			if outcome.final {
+				r.elapsed = outcome.elapsed
 				continue
 			}
 			r.done++
-			if outcome.err != nil {
+			switch {
+			case outcome.canceled:
+				r.canceled++
+			case outcome.err != nil:
 				r.failed++
 				r.problem = outcome.err.Error()
-				continue
-			}
-			if outcome.status != 0 {
-				if r.statuses == nil {
-					r.statuses = map[int]int{}
+			default:
+				if outcome.status != 0 {
+					if r.statuses == nil {
+						r.statuses = map[int]int{}
+					}
+					r.statuses[outcome.status]++
 				}
-				r.statuses[outcome.status]++
+				r.latencySum += int64(outcome.millis)
+				r.latencyN++
 			}
-			r.latencySum += int64(outcome.millis)
-			r.latencyN++
 		default:
 			goto drained
 		}
@@ -313,9 +337,13 @@ drained:
 					}
 					ui.Progress(c, fraction).Label("Replay progress")
 					if r.updates != nil {
-						uikit.Body(c, fmt.Sprintf("%d/%d sent · %d failed", r.done, r.total, r.failed))
+						line := fmt.Sprintf("%d/%d started · %d failed", r.done, r.total, r.failed)
+						if r.canceled > 0 {
+							line += fmt.Sprintf(" · %d canceled", r.canceled)
+						}
+						uikit.Body(c, line)
 						if r.stopped {
-							uikit.Hint(c, "Stopping after in-flight requests finish.")
+							uikit.Hint(c, "Stopping: no new sends; in-flight requests are canceled.")
 						}
 					}
 				}
