@@ -18,6 +18,25 @@ type importedFolderLocal struct {
 	credentials map[string]bool
 }
 
+// libraryFolders are the folder settings that may be written to the library:
+// only Initial values remain. A Local row exists only as a Current value, so
+// it must not become an empty shared variable.
+func libraryFolders(folders []request.Folder) []request.Folder {
+	out := slices.Clone(folders)
+	for i := range out {
+		var vars []request.Variable
+		for _, v := range out[i].Variables {
+			if v.Local {
+				continue
+			}
+			v.Current, v.Credential, v.Revealed = "", false, false
+			vars = append(vars, v)
+		}
+		out[i].Variables = vars
+	}
+	return out
+}
+
 // importThirdParty merges one third-party export into the library. The
 // reader has already converted it to requests, folders and environments;
 // this owns the app's single library write and its report.
@@ -31,7 +50,6 @@ func (a *app) importThirdParty(result imports.Result, what string) {
 		for _, r := range collection.Requests {
 			incoming = append(incoming, savedRequest{Request: r})
 		}
-		incomingFolders = append(incomingFolders, collection.Folders...)
 		for _, folder := range collection.Folders {
 			local := importedFolderLocal{path: folder.Path, current: map[string]string{}, credentials: map[string]bool{}}
 			for _, v := range folder.Variables {
@@ -46,6 +64,7 @@ func (a *app) importThirdParty(result imports.Result, what string) {
 				incomingLocal = append(incomingLocal, local)
 			}
 		}
+		incomingFolders = append(incomingFolders, libraryFolders(collection.Folders)...)
 		warnings = append(warnings, collection.Warnings...)
 	}
 	if len(incoming) == 0 && len(result.Environments) == 0 {

@@ -237,10 +237,12 @@ func (a *app) importOpenAPICollection(doc *openapi3.T, fallback string, warnings
 		folders = []request.Folder{{Path: name, Variables: []request.Variable{{Name: "base_url"}}}}
 		title += " · set base_url in its settings"
 	}
+	replaced := replacedFolderPaths(a.requests, a.folders, folders, []imports.Collection{{Name: name}})
 	if err := a.addToLibrary(incoming, folders); err != nil {
 		a.fail("OpenAPI collection", err)
 		return
 	}
+	a.applyImportedFolderCurrent(replaced, nil)
 	a.page = pageRequest
 	a.reportImport(title, warnings)
 }

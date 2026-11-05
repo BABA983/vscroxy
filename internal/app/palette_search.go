@@ -174,7 +174,14 @@ func (a *app) paletteSearch(query string) paletteSearch {
 			})
 		}
 	}
-	for _, name := range slices.Sorted(maps.Keys(a.globals)) {
+	globals := map[string]bool{}
+	for name := range a.globals {
+		globals[name] = true
+	}
+	for name := range a.globalsCurrent {
+		globals[name] = true
+	}
+	for _, name := range slices.Sorted(maps.Keys(globals)) {
 		if !strings.Contains(strings.ToLower(name), query) || !room() {
 			continue
 		}

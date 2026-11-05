@@ -329,6 +329,63 @@ func TestImportReplacingCollectionDropsOldCurrent(t *testing.T) {
 	}
 }
 
+// A Postman collection import replaces its saved settings. The old
+// path-keyed Current value must not keep overriding the new Initial value.
+func TestPostmanReimportDropsOldFolderCurrent(t *testing.T) {
+	a := libraryApp(t)
+	a.envsPath = filepath.Join(t.TempDir(), "env.json")
+	a.requests = []savedRequest{{Request: request.Request{ID: "r1", Name: "List", Collection: "Shop", Method: "GET", URL: "https://old.example.com"}}}
+	a.folders = []request.Folder{{Path: "Shop", Variables: []request.Variable{{Name: "base", Initial: "old-shared"}}}}
+	a.folderCurrent = map[string]map[string]string{"Shop": {"base": "OLD-LOCAL"}}
+	a.folderCredentials = map[string]map[string]bool{"Shop": {"token": true}}
+	a.importData([]byte(`{"info":{"name":"Shop","schema":"https://schema.getpostman.com/json/collection/v2.1.0/collection.json"},
+"variable":[{"key":"base","value":"new-shared"}],
+"item":[{"id":"r1","name":"List","request":{"method":"GET","url":"{{base}}/orders"}}]}`), "shop.json")
+	if got := a.inheritance("Shop").Values(nil)["base"]; got != "new-shared" {
+		t.Fatalf("effective base = %q, want new-shared", got)
+	}
+	if _, ok := a.folderCurrent["Shop"]; ok {
+		t.Errorf("re-import kept the old Current value: %+v", a.folderCurrent)
+	}
+	if _, ok := a.folderCredentials["Shop"]; ok {
+		t.Errorf("re-import kept old credential marks: %+v", a.folderCredentials)
+	}
+	f, err := loadEnvs(&store.File{Path: a.envsPath})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := f.FolderCurrent["Shop"]; ok {
+		t.Errorf("env.json kept the old Current value: %+v", f.FolderCurrent)
+	}
+}
+
+// Hoppscotch secret folder variables belong only in env.json. The library
+// gets Initial rows only, with no empty row for a local-only secret.
+func TestHoppscotchFolderSecretStaysOutOfLibrary(t *testing.T) {
+	a := libraryApp(t)
+	a.envsPath = filepath.Join(t.TempDir(), "env.json")
+	a.importData([]byte(`{"v":12,"name":"Echo","folders":[{"v":12,"name":"Users",
+"variables":[{"key":"token","initialValue":"","currentValue":"secret-value","secret":true}],
+"requests":[{"v":"17","id":"r1","name":"List","method":"GET","endpoint":"https://echo.example.com/users"}]}]}`), "hoppscotch.json")
+	if got := a.folderCurrent["Echo/Users"]["token"]; got != "secret-value" {
+		t.Fatalf("local secret = %q, want secret-value; folders %+v", got, a.folders)
+	}
+	for _, folder := range a.folders {
+		for _, v := range folder.Variables {
+			if v.Name == "token" || v.Current != "" || v.Local || v.Credential {
+				t.Fatalf("library folder holds a local value: %+v", folder.Variables)
+			}
+		}
+	}
+	data, err := os.ReadFile(filepath.Join(a.library.root, "Echo", "Users", "folder.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(data), "secret-value") || strings.Contains(string(data), `"name": "token"`) || strings.Contains(string(data), `"name":"token"`) {
+		t.Fatalf("folder.json contains a local secret row: %s", data)
+	}
+}
+
 func TestImportBrunoDirectory(t *testing.T) {
 	a := libraryApp(t)
 	a.envsPath = filepath.Join(t.TempDir(), "environments.json")
