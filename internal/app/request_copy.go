@@ -44,19 +44,11 @@ func copyAsMenu(items []action) action {
 		if items[i].id == "flow.copy-curl" {
 			items[i].label = "cURL (Bash)"
 		}
+		if items[i].id == "flow.copy-raw" {
+			items[i].label = "Raw HTTP"
+		}
 	}
 	return submenu("Copy as…", items...)
-}
-
-func (a *app) harCopyActions(c *ui.Context, flows []flow) []action {
-	ok := len(flows) > 0 && len(flows) <= 200
-	for _, f := range flows {
-		ok = ok && f.kind == ""
-	}
-	return []action{
-		do("flow.copy-har", "Copy as HAR (sanitized)", func() { a.copyHAR(c, flows, false) }).when(ok, "Select 1–200 HTTP requests"),
-		do("flow.copy-har-raw", "Copy as HAR (with sensitive data)", func() { a.copyHAR(c, flows, true) }).when(ok, "Select 1–200 HTTP requests"),
-	}
 }
 
 func (a *app) copyRequest(c *ui.Context, f flow, d *requestDocument, format string) {

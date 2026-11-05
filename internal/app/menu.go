@@ -49,7 +49,8 @@ func (a *app) menu() *mygo.Menu {
 	for _, format := range requestCopyFormats[1:] {
 		copyFormats = append(copyFormats, command(format.id, format.label))
 	}
-	copyFormats = append(copyFormats, command("flow.copy-har", "HAR (sanitized)"), command("flow.copy-har-raw", "HAR (with sensitive data)"))
+	copyFormats = append(copyFormats, command("flow.copy-markdown", "Markdown table"), command("flow.copy-csv", "CSV"),
+		command("flow.copy-raw", "Raw HTTP"), command("flow.copy-har", "HAR (sanitized)"), command("flow.copy-har-raw", "HAR (with sensitive data)"))
 	items = append(items, file, &mygo.MenuItem{Role: mygo.RoleEditMenu}, &mygo.MenuItem{Label: "Request", Submenu: []*mygo.MenuItem{
 		command("flow.edit", "Edit request"),
 		command("flow.replay", "Replay selected…"),
