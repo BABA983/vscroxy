@@ -529,11 +529,89 @@ func insomniaBodyRequest(out *request.Request, body *insomniaBody, skips *Tally)
 // hasInsomniaTags says whether any imported string still contains an
 // Insomnia template tag, which this app cannot evaluate.
 func hasInsomniaTags(requests []request.Request, folders []request.Folder) bool {
-	return strings.Contains(fmt.Sprintf("%+v", requests), "{%") || strings.Contains(fmt.Sprintf("%+v", folders), "{%")
+	for _, r := range requests {
+		if insomniaRequestTagged(r) {
+			return true
+		}
+	}
+	for _, f := range folders {
+		if insomniaFolderTagged(f) {
+			return true
+		}
+	}
+	return false
+}
+
+func insomniaRequestTagged(r request.Request) bool {
+	if anyInsomniaTag(r.URL, r.Body, r.Headers, r.BodyFile, r.GraphQL.Query, r.GraphQL.Variables,
+		r.Name, r.Collection, r.Pre, r.Post, r.Checks.Status, r.Checks.Headers, r.Checks.JSON) {
+		return true
+	}
+	for _, row := range r.HeaderList {
+		if anyInsomniaTag(row.Name, row.Value) {
+			return true
+		}
+	}
+	for _, row := range r.Form {
+		if anyInsomniaTag(row.Name, row.Value) {
+			return true
+		}
+	}
+	return insomniaAuthTagged(r.Auth)
+}
+
+func insomniaFolderTagged(f request.Folder) bool {
+	if anyInsomniaTag(f.Path, f.Description, f.Pre, f.Post) || insomniaAuthTagged(f.Auth) {
+		return true
+	}
+	for _, row := range f.Variables {
+		if anyInsomniaTag(row.Name, row.Value) {
+			return true
+		}
+	}
+	return false
+}
+
+func insomniaAuthTagged(a request.Auth) bool {
+	return anyInsomniaTag(
+		a.Type, a.Token, a.Username, a.Password, a.Key, a.Value, a.Location,
+		a.OAuth2.Grant, a.OAuth2.AuthURL, a.OAuth2.TokenURL, a.OAuth2.ClientID,
+		a.OAuth2.ClientSecret, a.OAuth2.Scope, a.OAuth2.Username, a.OAuth2.Password,
+		a.OAuth2.RedirectURL, a.OAuth2.ClientAuth, a.OAuth2.HeaderPrefix,
+		a.AWS.AccessKey, a.AWS.SecretKey, a.AWS.Region, a.AWS.Service, a.AWS.SessionToken,
+		a.JWT.Algorithm, a.JWT.Secret, a.JWT.PrivateKey, a.JWT.Payload, a.JWT.Header,
+		a.JWT.Prefix, a.JWT.AddTo, a.JWT.QueryParam,
+		a.OAuth1.ConsumerKey, a.OAuth1.ConsumerSecret, a.OAuth1.Token, a.OAuth1.TokenSecret,
+		a.OAuth1.PrivateKey, a.OAuth1.SignatureMethod, a.OAuth1.Timestamp, a.OAuth1.Nonce,
+		a.OAuth1.Version, a.OAuth1.Realm, a.OAuth1.AddTo, a.OAuth1.Callback, a.OAuth1.Verifier,
+		a.Hawk.AuthID, a.Hawk.AuthKey, a.Hawk.Algorithm, a.Hawk.User, a.Hawk.Nonce,
+		a.Hawk.Timestamp, a.Hawk.ExtraData, a.Hawk.App, a.Hawk.Delegation,
+		a.EdgeGrid.AccessToken, a.EdgeGrid.ClientToken, a.EdgeGrid.ClientSecret,
+		a.EdgeGrid.BaseURL, a.EdgeGrid.Nonce, a.EdgeGrid.Timestamp, a.EdgeGrid.HeadersToSign,
+	)
 }
 
 func environmentsTagged(envs []Environment) bool {
-	return strings.Contains(fmt.Sprintf("%+v", envs), "{%")
+	for _, env := range envs {
+		if anyInsomniaTag(env.Name) {
+			return true
+		}
+		for _, value := range env.Values {
+			if anyInsomniaTag(value) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func anyInsomniaTag(values ...string) bool {
+	for _, value := range values {
+		if strings.Contains(value, "{%") {
+			return true
+		}
+	}
+	return false
 }
 
 func insomniaSettingsDiffer(resource *insomniaResource) bool {
