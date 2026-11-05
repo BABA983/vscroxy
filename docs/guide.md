@@ -227,20 +227,31 @@ on **Require username and password** for RFC 1929 authentication; each field is
 at most 255 bytes and both are stored in the private settings file. Without
 authentication, any local process that can reach the port may use it.
 
-SOCKS5 traffic enters the same capture pipeline as an HTTP CONNECT: HTTPS uses
-the current per-host and per-app decryption rules (decrypt or tunnel), plaintext
-HTTP is parsed and captured, and rules, Host profiles, network conditions,
-Allow/Block lists and the recording switch apply. A bypassed tunnel appears as
-a CONNECT row. The CONNECT success reply means the SOCKS negotiation succeeded;
-an unreachable upstream is reported by the request, where a failed dial appears
-as 502. The entry is for HTTP(S): a plaintext connection that is not HTTP is not
-forwarded as an arbitrary TCP tunnel. The configuration export omits the SOCKS5
-password; set it again after importing.
+SOCKS5 traffic enters the same capture pipeline as an HTTP CONNECT. The
+decryption policy is applied before any byte is read: a target that is not in
+the per-host or per-app decryption list is passed through as a raw TCP tunnel,
+including a server-first protocol, and appears as a CONNECT row. A decrypted
+target is inspected: TLS is intercepted, plaintext HTTP is parsed and captured,
+and rules, Host profiles, network conditions, Allow/Block lists and the
+recording switch apply. A decrypted target must start with TLS or an HTTP
+request; if it sends nothing, the connection is closed after 10 seconds.
+Plaintext HTTP to a target that is not in the decryption list is therefore not
+captured; add the host to HTTPS inspection if you need it. A nested `CONNECT`
+on a SOCKS connection is refused with 400, and even an absolute-form request
+stays on the target the SOCKS request named. The CONNECT success reply means
+the SOCKS negotiation succeeded; an unreachable upstream is reported by the
+request, where a failed dial appears as 502.
+
+The configuration export omits the SOCKS5 password. Import keeps this
+computer's password when one exists; if not, authentication is turned off and
+the import warns, rather than accepting an empty password.
 
 With device access on, the LAN gateway accepts HTTP or SOCKS5 on its address: a
 connection whose first byte is the SOCKS version is forwarded to the SOCKS5
 entry, and the same source-IP allowlist gates both. SOCKS5 must be on for that
-path; otherwise only the HTTP proxy is available there.
+path; otherwise only the HTTP proxy is available there. An admitted connection
+that sends no first byte for 30 seconds is closed, so a silent client cannot
+hold a gateway worker indefinitely.
 
 ### Reverse proxies
 
@@ -259,6 +270,14 @@ the same rules, scripts, breakpoints, network conditions and capture as any
 other request, and the table shows the remote URL. An HTTPS remote is reached by
 the app's own TLS client, and the exchange is captured even when the host is not
 in the decryption list.
+
+The remote certificate is verified against the system roots by default.
+**Allow self-signed certificates** turns verification off for one development
+server; the row then shows **Self-signed allowed**. With **Remote host**, the
+listener accepts only `localhost` or a loopback address, so a web page cannot
+reach it by resolving its own name to 127.0.0.1 (DNS rebinding). **Keep
+original** deliberately forwards the local Host and does not apply that
+restriction.
 
 Limits: the local listener is plaintext HTTP only; it does not terminate TLS.
 The capture's client address and app are the local app, not the caller that
