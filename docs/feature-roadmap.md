@@ -71,7 +71,7 @@
 | 长时间抓包的内存和磁盘上限、自动清理 | 已有 | Settings → Capture → Memory：条数、内存和磁盘上限，超出先删最旧的（Pin 的保留），连同落盘文件 | M1 |
 | Block list：通配符、正则、按 App、"隐藏"或"拦截"、断开连接 | 已有 | Block 规则的动作：拒绝（403）、断开连接、隐藏（照常代理但不进表格）；匹配用规则的通配符／正则／App／header | M4 |
 | 系统代理绕过名单（Bypass list） | 部分 | 保留系统原有的绕过设置，但不能在 app 里编辑 | M7 |
-| SOCKS5 代理入口 | 已有 | RFC 1928 CONNECT，可选 RFC 1929 用户名／密码；域名、IPv4、IPv6；与 HTTP CONNECT 同一条抓包流水线：解密名单内 MITM 并抓取明文 HTTP，名单外按原始 TCP 透传（CONNECT 行）；规则、Host 方案、网络条件、Allow／Block、录制生效；10 s peek 超时；嵌套 CONNECT 返回 400；Settings → Proxy 开关和固定端口（1024–65535，冲突不回退，空为自动）；设备接入的 IP 白名单经 LAN 网关同样生效 | M7 |
+| SOCKS5 代理入口 | 已有 | RFC 1928 CONNECT，可选 RFC 1929 用户名／密码；域名、IPv4、IPv6；与 HTTP 代理同一条抓包流水线：解密名单内 MITM 并抓取明文 HTTP，名单外 400 ms 嗅探首字节，HTTP 请求行交给 HTTP 前端并抓取，TLS／其他字节原样透传，服务器先发协议窗口后透传；规则、Host 方案、网络条件、Allow／Block、录制生效；10 s peek 超时；嵌套 CONNECT 返回 400；Settings → Proxy 开关和固定端口（1024–65535，冲突不回退，空为自动）；设备接入的 IP 白名单经 LAN 网关同样生效 | M7 |
 | 反向代理（本地端口直接转发到远端） | 已有 | Settings → Proxy：多条本地端口 → http／https 远端 URL，增删改、启停，Host 头改写或保留；经同一规则和抓包，HTTPS 远端由 app 发起 TLS 并默认校验证书（可按条目允许自签名）；Remote host 时只接受回环 Host；端口冲突逐条提示 | M7 |
 | 设备接入访问控制（IP 白名单） | 已有 | | |
 | 自定义证书：上游客户端证书（mTLS）、导入自定义根证书 | 缺少 | | M6 |
@@ -325,7 +325,7 @@ Cookie 和其他 API key 保留为变量 header，避免把多个认证机制硬
   浏览器只改变临时 profile；snap 浏览器（含 Ubuntu 的 `/usr/bin/firefox`、`/usr/bin/chromium-browser` 过渡包装脚本）使用 `~/snap/<name>/common/`。Android 用 `adb reverse`，旧代理和端口保存在 `~/.vscroxy/android-proxy.json`；Undo 恢复并移除对应 reverse，reverse 已消失时只警告并清除记录，Forget saved proxy 可清除过期记录；Java 先复制 JDK cacerts 再加 CA，JVM 选项含代理 host／port；Electron 不关闭证书校验。
   Chrome/Electron 在 Linux 走 NSS，不读取 app 的 CA 文件；Firefox 临时 profile 在 Linux/macOS 用 `certutil`，Windows 用 enterprise roots。
   临时 profile 不随 launcher 退出删除，崩溃遗留的在下次启动清理；不写 hosts，不修改用户全局配置。
-- SOCKS5 入口、反向代理已完成（见[使用指南](guide.md#socks5-and-reverse-proxies)）：SOCKS5 支持 CONNECT、可选 RFC 1929 认证、域名／IPv4／IPv6；解密名单内的 TLS 按既有规则 MITM 或抓取明文 HTTP，名单外按原始 TCP 透传；反向代理把本地端口转发到 http／https 远端，Host 可改写或保留，规则和抓包同样生效，远端证书默认校验。限制：SOCKS5 只支持 CONNECT（BIND／UDP ASSOCIATE 拒绝），解密名单内的目标必须是 HTTP(S) 且 10 s 内开始发送，名单外的明文 HTTP 不解析；反向代理本地侧只收明文 HTTP，Remote host 时只接受回环 Host，抓包中的客户端是本机 app。
+- SOCKS5 入口、反向代理已完成（见[使用指南](guide.md#socks5-and-reverse-proxies)）：SOCKS5 支持 CONNECT、可选 RFC 1929 认证、域名／IPv4／IPv6；解密名单内的 TLS 按既有规则 MITM 或抓取明文 HTTP；名单外先嗅探首字节，明文 HTTP 仍抓取，TLS／其他协议原样透传；反向代理把本地端口转发到 http／https 远端，Host 可改写或保留，规则和抓包同样生效，远端证书默认校验。限制：SOCKS5 只支持 CONNECT（BIND／UDP ASSOCIATE 拒绝），解密名单内的目标必须是 HTTP(S) 且 10 s 内开始发送；名单外服务器先发协议最多延迟一个嗅探窗口；反向代理本地侧只收明文 HTTP，Remote host 时只接受回环 Host，抓包中的客户端是本机 app。
 - 上游代理：PAC、绕过、按 host、认证；系统代理绕过名单。
 - 导入：Swagger 2、Insomnia、Bruno、Hoppscotch、PowerShell／CMD cURL 已完成（见[使用指南](guide.md#import-and-export)）；Charles 会话、Proxyman 日志待做。Insomnia v4/v5、Bruno 目录、Hoppscotch 集合与环境、Swagger 2 均转换为现有集合／请求／环境模型；脚本、测试和无法表达的请求设置会明确列入导入报告。
 

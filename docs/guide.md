@@ -227,20 +227,21 @@ on **Require username and password** for RFC 1929 authentication; each field is
 at most 255 bytes and both are stored in the private settings file. Without
 authentication, any local process that can reach the port may use it.
 
-SOCKS5 traffic enters the same capture pipeline as an HTTP CONNECT. The
-decryption policy is applied before any byte is read: a target that is not in
-the per-host or per-app decryption list is passed through as a raw TCP tunnel,
-including a server-first protocol, and appears as a CONNECT row. A decrypted
-target is inspected: TLS is intercepted, plaintext HTTP is parsed and captured,
-and rules, Host profiles, network conditions, Allow/Block lists and the
-recording switch apply. A decrypted target must start with TLS or an HTTP
-request; if it sends nothing, the connection is closed after 10 seconds.
-Plaintext HTTP to a target that is not in the decryption list is therefore not
-captured; add the host to HTTPS inspection if you need it. A nested `CONNECT`
-on a SOCKS connection is refused with 400, and even an absolute-form request
-stays on the target the SOCKS request named. The CONNECT success reply means
-the SOCKS negotiation succeeded; an unreachable upstream is reported by the
-request, where a failed dial appears as 502.
+SOCKS5 traffic enters the same capture pipeline as the HTTP proxy. The
+decryption policy is applied before any byte is read. A target that is not in
+the per-host or per-app decryption list is sniffed for a short window (400 ms)
+to tell plaintext HTTP from TLS. A request line with a known HTTP method is
+handed to the HTTP front end, pinned to the target and captured with rules,
+Host profiles, network conditions, Allow/Block lists and the recording switch;
+TLS, another protocol, or no bytes is passed through as a raw TCP tunnel, with
+any bytes already read preserved, and a server-first protocol is tunneled after
+that window. A decrypted target is inspected: TLS is intercepted, plaintext
+HTTP is parsed and captured, and the same pipeline applies; it must start with
+TLS or an HTTP request within 10 seconds. A nested `CONNECT` on a SOCKS
+connection is refused with 400, and even an absolute-form request stays on the
+target the SOCKS request named. The CONNECT success reply means the SOCKS
+negotiation succeeded; an unreachable upstream is reported by the request,
+where a failed dial appears as 502.
 
 The configuration export omits the SOCKS5 password. Import keeps this
 computer's password when one exists; if not, authentication is turned off and
