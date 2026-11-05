@@ -51,12 +51,16 @@ func (s Settings) Clone() Settings {
 	return out
 }
 
-// Follows reports whether the settings follow redirects.
+// Follows reports whether the settings follow redirects. A zero hop limit
+// stops at the first response even when following was also requested.
 func (s Settings) Follows() bool {
+	if s.MaxRedirects != nil && *s.MaxRedirects == 0 {
+		return false
+	}
 	return s.FollowRedirects == nil || *s.FollowRedirects
 }
 
-// MaxRedirects is the number of redirects the settings follow.
+// RedirectLimit is the number of redirects the settings follow.
 func (s Settings) RedirectLimit() int {
 	if s.MaxRedirects != nil {
 		return *s.MaxRedirects

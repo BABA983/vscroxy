@@ -301,9 +301,11 @@ func TestParseCurlTransferSettingsInEveryDialect(t *testing.T) {
 		})
 	}
 
-	// Zero means no redirects in both cURL and PowerShell.
+	// Zero means no redirects in both cURL and PowerShell, whichever option
+	// comes last.
 	for _, command := range []string{
 		`curl -L --max-redirs 0 https://example.test/`,
+		`curl --max-redirs 0 -L https://example.test/`,
 		`Invoke-WebRequest -Uri "https://example.test/" -MaximumRedirection 0`,
 	} {
 		got, _, err := ParseCurl(command)

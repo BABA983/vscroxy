@@ -176,6 +176,15 @@ func TestRequestRedirectSettings(t *testing.T) {
 	}
 }
 
+// A zero hop limit wins over an explicit follow flag, as Postman's
+// maxRedirects: 0 and curl's --max-redirs 0 mean.
+func TestZeroRedirectLimitStops(t *testing.T) {
+	follow := true
+	if (Settings{FollowRedirects: &follow, MaxRedirects: ptr(0)}).Follows() {
+		t.Fatal("zero hop limit followed redirects")
+	}
+}
+
 // Verification rejects a self-signed server whether the proxy tunnels the TLS
 // or intercepts it; turning it off accepts the certificate on both paths.
 func TestRequestCertificateVerification(t *testing.T) {

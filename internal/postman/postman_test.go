@@ -1240,7 +1240,7 @@ func TestPostmanRedirectSettingsInheritIndependently(t *testing.T) {
 				{"name": "Follow", "request": {"method": "GET", "url": "https://example.com/follow"},
 				 "protocolProfileBehavior": {"followRedirects": true}},
 				{"name": "Never", "request": {"method": "GET", "url": "https://example.com/never"},
-				 "protocolProfileBehavior": {"maxRedirects": 0}}
+				 "protocolProfileBehavior": {"followRedirects": true, "maxRedirects": 0}}
 			]
 		}]
 	}`)
