@@ -664,7 +664,7 @@ func TestUISnapshots(t *testing.T) {
 		{name: "tools-addons-empty", setup: func(a *app) { a.addons.addon, a.addonsShown = true, true; a.openTools("scripts") }, want: "No addons"},
 		{name: "tools-scenarios", setup: func(a *app) { snapshotRules(a); a.openTools("scenarios") }, want: "On: its rules apply"},
 		{name: "tools-scenarios-empty", setup: func(a *app) { a.openTools("scenarios") }, want: "No scenarios"},
-		{name: "tools-mocks", setup: func(a *app) { snapshotRules(a); a.openTools("mocks") }, want: "Map Local rules: answers from local files"},
+		{name: "tools-mocks", setup: func(a *app) { snapshotRules(a); a.openTools("mocks") }, want: "Local files and code mocks, tried from the top."},
 		{name: "tools-mocks-empty", setup: func(a *app) { a.openTools("mocks") }, want: "No mocks"},
 		{name: "dialog-config-import", setup: func(a *app) {
 			snapshotRules(a)
