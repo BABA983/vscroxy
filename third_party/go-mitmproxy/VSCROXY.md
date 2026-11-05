@@ -37,9 +37,14 @@ initial upstream dial or TLS handshake, as the HTTP front end's request context
 does for a CONNECT.
 
 - The target's `shouldIntercept` decision is made before any byte is read,
-  exactly as for HTTP CONNECT. A bypassed target is tunnelled byte for byte
-  without a peek, so a server-first protocol sends its banner immediately; it
-  is still shown through `Requestheaders` with a synthetic CONNECT request.
+  exactly as for HTTP CONNECT. A bypassed target gets a short
+  `Options.SOCKSSniffTimeout` (400 ms default) peek: a request line with a
+  known HTTP method goes to the HTTP front end and is captured, while TLS,
+  another protocol, or no bytes goes to the raw tunnel. Any peeked bytes stay
+  in the buffered connection for the tunnel, so a client-first non-HTTP
+  protocol is forwarded unchanged; a server-first protocol is delayed by at
+  most the sniff window. The tunnel is still shown through `Requestheaders`
+  with a synthetic CONNECT request.
 - A decrypted target is peeked with `Options.SOCKSPeekTimeout` (10 seconds by
   default). TLS goes through the eager or lazy MITM path: the eager path keeps
   its upstream certificate lookup, ALPN and HTTP/2 support, and the lazy path
@@ -59,8 +64,9 @@ does for a CONNECT.
 
 Real-socket coverage lives in `internal/capture/socks_test.go`: IPv4, IPv6 and
 domain greeting/request parsing, BIND and unsupported address types, RFC 1929
-success and failure, plaintext HTTP capture and rules, HTTPS both decrypted and
-bypassed, a server-first bypassed tunnel, a refused nested CONNECT and the
+success and failure, bypassed and decrypted plaintext HTTP capture with rules,
+HTTPS both decrypted and bypassed, a server-first bypassed tunnel, a
+client-first non-HTTP bypassed tunnel, a refused nested CONNECT and the
 decrypted peek timeout.
 
 ## Forward proxy connections that switch targets

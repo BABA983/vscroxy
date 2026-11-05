@@ -1,7 +1,9 @@
 package proxy
 
 import (
+	"bytes"
 	"context"
+	"errors"
 	"net"
 	"net/http"
 	"net/url"
@@ -14,12 +16,14 @@ import (
 
 // ServeSOCKSConn serves one connection whose destination a SOCKS5 CONNECT
 // agreed, before any HTTP byte arrived. The target's decryption policy is
-// applied before any byte is read, as it is for HTTP CONNECT: a target this
-// proxy does not decrypt is tunnelled byte for byte, so a server-first
-// protocol sends its banner without waiting for a peek. A decrypted target is
-// inspected: TLS goes through the ordinary attacker path, and plaintext is
-// parsed by the HTTP front end with its origin-form requests pinned to the
-// target. A decrypted target that sends neither closes after the peek timeout.
+// applied before any byte is read, as it is for HTTP CONNECT. A target this
+// proxy does not decrypt is sniffed briefly: a known HTTP request line is
+// handed to the HTTP front end and captured, while TLS or another protocol is
+// tunnelled byte for byte with the bytes already read. A server-first protocol
+// is tunnelled after that short window. A decrypted target is inspected: TLS
+// goes through the ordinary attacker path, and plaintext is parsed by the HTTP
+// front end with its origin-form requests pinned to the target. A decrypted
+// target that sends neither closes after the peek timeout.
 //
 // The caller owns conn until this method returns. It replies to the SOCKS
 // request before calling, because the client waits for that reply before it
@@ -50,8 +54,27 @@ func (proxy *Proxy) ServeSOCKSConn(conn net.Conn, target string, done <-chan str
 	req := socksConnectRequest(ctx, wc, target)
 	connCtx.Intercept = proxy.shouldIntercept == nil || proxy.shouldIntercept(req)
 	if !connCtx.Intercept {
-		// A bypassed target is a raw tunnel, exactly like a CONNECT this
-		// proxy does not decrypt. Do not peek: the target may speak first.
+		// A bypassed target still needs plaintext HTTP captured. Sniff one
+		// request line briefly; anything else is a raw tunnel, including the
+		// bytes already read and a server-first protocol with no bytes yet.
+		timeout := proxy.Opts.SOCKSSniffTimeout
+		if timeout <= 0 {
+			timeout = 400 * time.Millisecond
+		}
+		_ = wc.SetReadDeadline(time.Now().Add(timeout))
+		peek, err := wc.Peek(8)
+		_ = wc.SetReadDeadline(time.Time{})
+		if len(peek) > 0 && looksLikeHTTPRequest(peek) {
+			proxy.entry.serveSOCKSHTTP(wc)
+			return nil
+		}
+		if err != nil && len(peek) == 0 {
+			var netErr net.Error
+			if !errors.As(err, &netErr) || !netErr.Timeout() {
+				_ = wc.Close()
+				return err
+			}
+		}
 		proxy.entry.serveSOCKSTunnel(wc, req)
 		return nil
 	}
@@ -75,6 +98,24 @@ func (proxy *Proxy) ServeSOCKSConn(conn net.Conn, target string, done <-chan str
 	}
 	proxy.entry.serveSOCKSHTTP(wc)
 	return nil
+}
+
+// looksLikeHTTPRequest reports whether a sniffed prefix starts with a known
+// HTTP method followed by a space. It deliberately needs the space: a
+// client-first protocol that merely starts with the same letters is tunneled.
+func looksLikeHTTPRequest(prefix []byte) bool {
+	if i := bytes.IndexByte(prefix, '\n'); i >= 0 {
+		prefix = prefix[:i]
+	}
+	space := bytes.IndexByte(prefix, ' ')
+	if space <= 0 {
+		return false
+	}
+	switch string(prefix[:space]) {
+	case "GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "TRACE", "CONNECT":
+		return true
+	}
+	return false
 }
 
 // socksConnectRequest is the CONNECT envelope a SOCKS destination stands in

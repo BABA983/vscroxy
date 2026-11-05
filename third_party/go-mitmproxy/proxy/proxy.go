@@ -29,6 +29,9 @@ type Options struct {
 	// SOCKSPeekTimeout bounds how long a SOCKS connection whose target is
 	// decrypted may take to send its first bytes. Zero uses 10 seconds.
 	SOCKSPeekTimeout time.Duration
+	// SOCKSSniffTimeout bounds the peek for a target that is not decrypted,
+	// to tell plaintext HTTP from TLS or another protocol. Zero uses 400 ms.
+	SOCKSSniffTimeout time.Duration
 }
 
 // HeaderVerifyUpstream on a CONNECT asks the proxy to verify the upstream

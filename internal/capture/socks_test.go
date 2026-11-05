@@ -315,7 +315,6 @@ func TestSOCKS5PlainHTTPIsCapturedAndRulesApply(t *testing.T) {
 	host, port := hostPort(t, upstream.URL)
 
 	s := startSOCKSServer(t, SOCKSConfig{})
-	s.SetSSL(SSLConfig{All: true})
 	if err := s.SetRules([]Rule{{Type: RuleBlock, Match: "/blocked"}}); err != nil {
 		t.Fatal(err)
 	}
@@ -663,14 +662,15 @@ func TestSOCKS5BypassedTargetIsARawTunnel(t *testing.T) {
 	_, portText, _ := net.SplitHostPort(listener.Addr().String())
 	port, _ := strconv.Atoi(portText)
 
-	// No decryption rule: the connection is tunnelled without a peek, so a
-	// server-first protocol is not held waiting for client bytes.
+	// No decryption rule: the connection is sniffed for a short window, then
+	// tunnelled, so a server-first protocol is not held for the decrypted
+	// 10-second peek.
 	s := startSOCKSServer(t, SOCKSConfig{})
 	conn, reply := dialSOCKS5(t, s.SOCKSAddr(), 1, socksAddrBytes(t, "127.0.0.1", 1), port, "", "", 0x00)
 	if reply != 0 {
 		t.Fatalf("CONNECT reply %d", reply)
 	}
-	_ = conn.SetReadDeadline(time.Now().Add(time.Second))
+	_ = conn.SetReadDeadline(time.Now().Add(2 * time.Second))
 	banner, err := bufio.NewReader(conn).ReadString('\n')
 	if err != nil {
 		t.Fatalf("server-first banner: %v", err)
@@ -720,5 +720,47 @@ func TestSetSOCKSRejectsAuthenticationWithoutAPassword(t *testing.T) {
 	err = s.SetSOCKS(SOCKSConfig{Enabled: true, Addr: "127.0.0.1:0", Username: "alice"})
 	if err == nil || !strings.Contains(err.Error(), "password") {
 		t.Fatalf("SetSOCKS error = %v", err)
+	}
+}
+
+func TestSOCKS5BypassedClientFirstProtocolIsForwarded(t *testing.T) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer listener.Close()
+	go func() {
+		conn, err := listener.Accept()
+		if err != nil {
+			return
+		}
+		defer conn.Close()
+		line, err := bufio.NewReader(conn).ReadString('\n')
+		if err == nil && line == "PING\n" {
+			_, _ = io.WriteString(conn, "PONG\n")
+		}
+	}()
+	_, portText, _ := net.SplitHostPort(listener.Addr().String())
+	port, _ := strconv.Atoi(portText)
+
+	s := startSOCKSServer(t, SOCKSConfig{})
+	conn, reply := dialSOCKS5(t, s.SOCKSAddr(), 1, socksAddrBytes(t, "127.0.0.1", 1), port, "", "", 0x00)
+	if reply != 0 {
+		t.Fatalf("CONNECT reply %d", reply)
+	}
+	if _, err := io.WriteString(conn, "PING\n"); err != nil {
+		t.Fatal(err)
+	}
+	_ = conn.SetReadDeadline(time.Now().Add(2 * time.Second))
+	line, err := bufio.NewReader(conn).ReadString('\n')
+	if err != nil {
+		t.Fatalf("read reply: %v", err)
+	}
+	if line != "PONG\n" {
+		t.Fatalf("reply %q, want PONG", line)
+	}
+	f := waitFlow(t, s)
+	if f.Kind != "connect" || f.Method != "CONNECT" {
+		t.Fatalf("bypassed client-first flow %+v", f)
 	}
 }
