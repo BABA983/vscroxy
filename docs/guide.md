@@ -2166,9 +2166,10 @@ are not forwarded to another hostname; stripped credentials stay stripped on
 later hops. Workspace cookie-jar rules still apply. Custom credential headers
 are ordinary headers and can cross origins, as in curl: review redirect targets.
 Adding declarative Checks still stops at the original response, as for other
-workspace requests. Copied cURL carries the saved redirect, certificate and
-timeout choices; the other code generators represent the initial wire request
-only.
+workspace requests. Copied cURL carries only the redirect, certificate and
+timeout choices explicitly set on the request; inherited or default values are
+left to curl, so a default-follow request copied without `-L` does not follow.
+The other code generators represent the initial wire request only.
 
 The importer never executes curl or reads local files/stdin. It rejects pipelines,
 substitutions, shell redirections, assignments, multiple URLs, `@file` bodies/headers,

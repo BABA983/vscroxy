@@ -306,8 +306,10 @@ That path has no pre-dialed socket, so `attacker.attack` uses
 `attacker.verifiedClient` when `VerifyUpstream` is set: a separate transport
 that verifies certificates and disables keep-alives, never the inspection
 client's insecure pool. A failed check reaches the client as a 502 and is
-recorded on the flow. `TestRequestCertificateVerificationAfterMapRemote`
-reproduces this.
+recorded on the flow. If the configured upstream is itself an `https://` proxy,
+this path also verifies that proxy's own certificate, which is stricter than
+the inspection client's usual acceptance. `TestRequestCertificateVerificationAfterMapRemote`
+reproduces the rewritten-target check.
 
 `internal/capture.ReplayWithPolicy` sends the header for an authored request
 whose TLS setting verifies the certificate, and sets `InsecureSkipVerify` on the
