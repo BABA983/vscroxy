@@ -68,10 +68,61 @@ and the first decrypted request, which the guide selects as it closes. Each
 step completes on its own as the app sees it done. **Skip guide** closes it;
 **Show setup guide** in the command palette opens it again.
 
+## One-click client setup
+
+**Network → Set up a local client… → One-click** (also in **Commands**) starts a
+client already pointed at the current listener and CA. It never edits the hosts
+file or a shell profile; only the launched process tree, a temporary browser
+profile, an emulator setting or the app's own Java truststore changes.
+
+- **Terminal** opens a new window with `HTTP_PROXY`, `HTTPS_PROXY`, `ALL_PROXY`,
+  their lowercase forms, `NO_PROXY`/`no_proxy`, `NODE_EXTRA_CA_CERTS`,
+  `REQUESTS_CA_BUNDLE`, `SSL_CERT_FILE`, `CURL_CA_BUNDLE`, `GIT_SSL_CAINFO`,
+  `PIP_CERT` and `DENO_CERT`. Only that window changes. On Linux `$TERMINAL` is
+  preferred, then `x-terminal-emulator`, GNOME Terminal, Konsole, Xfce Terminal,
+  Alacritty, Kitty, WezTerm, foot and xterm; macOS uses Terminal.app; Windows
+  opens a new `cmd.exe` window.
+- **Chrome** starts with a temporary `--user-data-dir` and `--proxy-server`.
+  **Firefox** starts with a temporary profile whose `user.js` sets both HTTP and
+  HTTPS proxies. The main browser profiles are untouched. Neither action passes
+  a certificate-verification bypass. Chrome uses the system trust store on
+  macOS/Windows and NSS on Linux; on Linux, trust the CA system-wide or add it
+  with `certutil`. Firefox's temporary profile gets the CA through `certutil`
+  when NSS tools are installed; otherwise the app warns and Firefox may fall
+  back to enterprise roots.
+- **Android emulator** lists `adb devices -l`, runs
+  `adb reverse tcp:PORT tcp:PORT`, then
+  `adb shell settings put global http_proxy 127.0.0.1:PORT`. **Undo proxy** sets
+  `http_proxy :0` and removes the reverse listener. **Copy CA to device** pushes
+  only the public CA to `/sdcard/Download/vscroxy-ca.crt`; installing it and
+  trusting it remains a device-side step. Android 7+ apps do not trust
+  user-installed CAs, and the system store needs a rooted, writable-system
+  image; this app does not modify it. Apps that ignore the system proxy or pin
+  certificates still need app-side changes.
+- **iOS simulator** (macOS only) runs
+  `xcrun simctl keychain booted add-root-cert <CA>` on the booted simulator. It
+  does not configure a physical iPhone. The simulator may still require enabling
+  full trust under Settings → General → About → Certificate Trust Settings.
+- **Java** imports the public CA into the app's own
+  `~/.vscroxy/java/truststore.p12` with `keytool`. Review the command first;
+  **Import CA** asks for confirmation and replaces only that file, atomically.
+  Point the JVM at it with the shown
+  `-Djavax.net.ssl.trustStore=...` options. Only this CA is in that truststore,
+  so direct public TLS may fail until other CAs are added.
+- **Electron app** launches the chosen executable with `--proxy-server`. It
+  never passes `--ignore-certificate-errors`; certificate trust comes from the
+  OS store on macOS/Windows and NSS on Linux. Apps that set their own proxy or
+  pin certificates can ignore the flag.
+
+Temporary browser profiles stay in the system temporary directory; remove them
+when finished or let the OS clean them. Missing `adb`, `keytool`, `xcrun`,
+`certutil`, a terminal, Chrome or Firefox produces a notification naming the
+missing helper instead of failing silently.
+
 ## Connect a phone or another device
 
-For a local process, **Network → Set up a local client…** provides copyable cURL,
-Node.js (`https-proxy-agent`), Python (`requests`) and Go examples. They set the
+For copyable cURL, Node.js (`https-proxy-agent`), Python (`requests`) and Go
+examples, choose **Network → Set up a local client… → Examples**. They set the
 proxy and trust the public CA for that process only; they do not change the OS
 proxy, install a system CA or skip TLS verification. cURL uses POSIX shell syntax.
 Run the example yourself, then **Diagnose…** opens Connection diagnostics for
