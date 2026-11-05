@@ -3654,7 +3654,7 @@ func TestBatchReplaySendsChosenRequestsInOrder(t *testing.T) {
 		time.Sleep(time.Millisecond)
 		tt.Frame()
 	}
-	if !tt.HasText("2/2 sent · 0 failed") || !a.page.capture() {
+	if !tt.HasText("2/2 sent · 2 succeeded · 0 failed") || !a.page.capture() {
 		t.Fatalf("batch incomplete or stole focus: %v", tt.Texts())
 	}
 	if first, second := <-paths, <-paths; first != "GET /first" || second != "POST /second" {

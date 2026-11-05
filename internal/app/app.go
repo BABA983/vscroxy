@@ -694,8 +694,16 @@ func (a *app) revealCA() {
 // replay sends the flow's request again through the proxy, so the result is
 // captured like any other exchange.
 func (a *app) replay(ctx context.Context, f flow) error {
+	_, err := a.replayFlow(ctx, f, true)
+	return err
+}
+
+// replayFlow is the one send path for Replay and advanced batches. A batch
+// keeps its own summary instead of a toast per send, so only a single Replay
+// appends the inspectable result.
+func (a *app) replayFlow(ctx context.Context, f flow, record bool) (capture.Flow, error) {
 	if a.srv == nil || !a.srv.Running() || f.url == "" {
-		return fmt.Errorf("capture proxy is not available")
+		return capture.Flow{}, fmt.Errorf("capture proxy is not available")
 	}
 	reply, err := a.srv.Replay(ctx, capture.Flow{
 		ID:              f.id,
@@ -709,13 +717,15 @@ func (a *app) replay(ctx context.Context, f flow) error {
 		RequestBodyFile: f.reqFile,
 	})
 	if err != nil {
-		return err
+		return capture.Flow{}, err
 	}
-	a.mu.Lock()
-	a.replayResults = append(a.replayResults, replayResult{source: f, reply: reply})
-	a.mu.Unlock()
+	if record {
+		a.mu.Lock()
+		a.replayResults = append(a.replayResults, replayResult{source: f, reply: reply})
+		a.mu.Unlock()
+	}
 	a.invalidate()
-	return nil
+	return reply, nil
 }
 
 func (a *app) startCapture() {
