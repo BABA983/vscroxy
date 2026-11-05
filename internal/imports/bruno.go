@@ -13,7 +13,6 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/baba983/vscroxy/internal/capture"
 	"github.com/baba983/vscroxy/internal/request"
 )
 
@@ -284,7 +283,7 @@ func brunoRequest(indexed bruBlocks, method string, values map[string]string, me
 	if indexed.has("assert") {
 		brunoChecks(&out, indexed.pairs("assert"), warnings)
 	}
-	out.Redirects = brunoRedirects(indexed, warnings)
+	out.Settings.FollowRedirects = brunoRedirects(indexed, warnings)
 	FinishHeaders(&out)
 	return out, nil
 }
@@ -473,10 +472,10 @@ func brunoOAuth2(values map[string]string, warnings *[]string) request.Auth {
 	return request.Auth{Type: request.AuthOAuth2, OAuth2: o}
 }
 
-func brunoRedirects(indexed bruBlocks, warnings *[]string) capture.RedirectPolicy {
+func brunoRedirects(indexed bruBlocks, warnings *[]string) *bool {
 	values := bruMap(indexed.pairs("settings"))
 	if len(values) == 0 {
-		return capture.RedirectPolicy{}
+		return nil
 	}
 	for key := range values {
 		if key != "followRedirects" {
@@ -485,9 +484,10 @@ func brunoRedirects(indexed bruBlocks, warnings *[]string) capture.RedirectPolic
 		}
 	}
 	if strings.EqualFold(values["followRedirects"], "false") {
-		return capture.RedirectPolicy{Mode: capture.RedirectManual}
+		follow := false
+		return &follow
 	}
-	return capture.RedirectPolicy{}
+	return nil
 }
 
 // brunoAssertOperators are the comparison words Bruno accepts. Only eq (and

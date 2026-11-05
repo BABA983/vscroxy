@@ -49,7 +49,11 @@ type attacker struct {
 	// would leave two goroutines reading and writing the same fields.
 	h2Base   *http.Server
 	client   *http.Client
-	listener *attackerListener
+	// verifiedClient re-dials a rewritten target with certificate checks on.
+	// It keeps no idle connections: a verifying send must not reuse a socket
+	// opened under the inspection client's insecure policy.
+	verifiedClient *http.Client
+	listener       *attackerListener
 }
 
 func newAttacker(proxy *Proxy) (*attacker, error) {
@@ -76,6 +80,23 @@ func newAttacker(proxy *Proxy) (*attacker, error) {
 				return http.ErrUseLastResponse
 			},
 		},
+		verifiedClient: &http.Client{
+			Transport: &http.Transport{
+				Proxy:              proxy.realUpstreamProxy(),
+				ForceAttemptHTTP2:  true,
+				DisableCompression: true,
+				// A rewritten request has no pre-dialed upstream socket. Keep
+				// its verification independent from the inspection client's
+				// insecure, keep-alive pool.
+				DisableKeepAlives: true,
+				TLSClientConfig: &tls.Config{
+					KeyLogWriter: helper.GetTlsKeyLogWriter(),
+				},
+			},
+			CheckRedirect: func(req *http.Request, via []*http.Request) error {
+				return http.ErrUseLastResponse
+			},
+		},
 		listener: &attackerListener{
 			connChan: make(chan net.Conn),
 		},
@@ -96,6 +117,14 @@ func newAttacker(proxy *Proxy) (*attacker, error) {
 	}
 
 	return a, nil
+}
+
+// hostOnly is the host part of a CONNECT or dial address, without its port.
+func hostOnly(addr string) string {
+	if host, _, err := net.SplitHostPort(addr); err == nil {
+		return host
+	}
+	return strings.Trim(addr, "[]")
 }
 
 func newCa(opts *Options) (cert.CA, error) {
@@ -244,10 +273,19 @@ func (a *attacker) serverTlsHandshake(ctx context.Context, connCtx *ConnContext)
 	clientHello := connCtx.ClientConn.clientHello
 	serverConn := connCtx.ServerConn
 
+	// The capture engine accepts any certificate so it can inspect self-signed
+	// servers. A replay may ask for verification on its CONNECT instead.
+	verify := !proxy.Opts.SslInsecure || connCtx.VerifyUpstream
+	// A client connecting to an IP sends no SNI. Verify against the CONNECT
+	// host instead, which carries the IP the certificate's IP SAN must match.
+	serverName := clientHello.ServerName
+	if serverName == "" {
+		serverName = hostOnly(serverConn.Address)
+	}
 	serverTlsConfig := &tls.Config{
-		InsecureSkipVerify: proxy.Opts.SslInsecure,
+		InsecureSkipVerify: !verify,
 		KeyLogWriter:       helper.GetTlsKeyLogWriter(),
-		ServerName:         clientHello.ServerName,
+		ServerName:         serverName,
 		NextProtos:         clientHello.SupportedProtos,
 		// CurvePreferences:   clientHello.SupportedCurves, // todo: 如果打开会出错
 		CipherSuites: clientHello.CipherSuites,
@@ -280,7 +318,7 @@ func (a *attacker) serverTlsHandshake(ctx context.Context, connCtx *ConnContext)
 	serverTlsState := serverTlsConn.ConnectionState()
 	serverConn.tlsState = &serverTlsState
 	verification := "certificate verified"
-	if proxy.Opts.SslInsecure {
+	if !verify {
 		verification = "certificate verification skipped by proxy"
 	}
 	connCtx.RecordEvent("TLS upstream", tls.VersionName(serverTlsState.Version)+" · ALPN "+cmp.Or(serverTlsState.NegotiatedProtocol, "none")+" · "+verification, nil)
@@ -714,7 +752,11 @@ func (a *attacker) attack(res http.ResponseWriter, req *http.Request) {
 		f.UseSeparateClient = true
 		f.ConnContext.RecordEvent("HTTP", "Using a separate upstream transport for "+f.Request.URL.Host, nil)
 		proxyReq = proxyReq.WithContext(httptrace.WithClientTrace(proxyReq.Context(), f.ConnContext.trace()))
-		proxyRes, err = a.client.Do(proxyReq)
+		client := a.client
+		if f.ConnContext.VerifyUpstream {
+			client = a.verifiedClient
+		}
+		proxyRes, err = client.Do(proxyReq)
 	} else {
 		// A client may keep one forward-proxy connection and send requests
 		// for several targets on it. The upstream socket and its transport

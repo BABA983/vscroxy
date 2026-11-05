@@ -10,7 +10,6 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/baba983/vscroxy/internal/capture"
 	"github.com/baba983/vscroxy/internal/request"
 	"github.com/oasdiff/yaml"
 )
@@ -283,7 +282,7 @@ func readInsomniaV4(file insomniaFile) (Result, error) {
 		if insomniaSettingsDiffer(resource) {
 			requestSkips.Add("with request settings that were not imported")
 		}
-		out.Redirects = insomniaRedirects(insomniaSettings{FollowRedirects: resource.SettingFollowRedirects})
+		out.Settings.FollowRedirects = insomniaRedirects(insomniaSettings{FollowRedirects: resource.SettingFollowRedirects})
 		if out.URL == "" {
 			requestSkips.Add("with no URL; skipped")
 			continue
@@ -397,7 +396,7 @@ func readInsomniaV5(file insomniaFile) (Result, error) {
 			if insomniaSettingsDifferV5(item.Settings) {
 				requestSkips.Add("with request settings that were not imported")
 			}
-			out.Redirects = insomniaRedirects(item.Settings)
+			out.Settings.FollowRedirects = insomniaRedirects(item.Settings)
 			if out.URL == "" {
 				requestSkips.Add("with no URL; skipped")
 				continue
@@ -633,11 +632,12 @@ func insomniaSettingsDifferV5(settings insomniaSettings) bool {
 		settings.RenderRequestBody != nil && !*settings.RenderRequestBody
 }
 
-func insomniaRedirects(settings insomniaSettings) capture.RedirectPolicy {
+func insomniaRedirects(settings insomniaSettings) *bool {
 	if strings.EqualFold(settings.FollowRedirects, "off") {
-		return capture.RedirectPolicy{Mode: capture.RedirectManual}
+		follow := false
+		return &follow
 	}
-	return capture.RedirectPolicy{}
+	return nil
 }
 
 // authFromInsomnia maps the shared v4/v5 authentication object.

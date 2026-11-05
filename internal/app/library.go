@@ -320,7 +320,7 @@ func (a *app) refreshDocuments() {
 			continue
 		}
 		var disk requestDocument // the editor's form of what was read
-		disk.load(a.requests[at], a.requests[at].key())
+		disk.load(a, a.requests[at], a.requests[at].key())
 		if reflect.DeepEqual(disk.baseline, d.baseline) {
 			continue
 		}
@@ -328,7 +328,7 @@ func (a *app) refreshDocuments() {
 			kept++
 			continue
 		}
-		d.load(a.requests[at], a.requests[at].key())
+		d.load(a, a.requests[at], a.requests[at].key())
 	}
 	if kept > 0 {
 		a.warn(fmt.Sprintf("%d open %s unsaved changes to requests that changed on disk; saving replaces those changes", kept, plural(kept, "tab has", "tabs have")))

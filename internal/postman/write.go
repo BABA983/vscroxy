@@ -11,6 +11,7 @@ import (
 	"strings"
 	"uuid"
 
+	"github.com/baba983/vscroxy/internal/capture"
 	"github.com/baba983/vscroxy/internal/request"
 )
 
@@ -24,23 +25,34 @@ type outCollection struct {
 		Description string `json:"description,omitempty"`
 		Schema      string `json:"schema"`
 	} `json:"info"`
-	Item     []outItem     `json:"item"`
-	Auth     *outAuth      `json:"auth,omitempty"`
-	Event    []outEvent    `json:"event,omitempty"`
-	Variable []outVariable `json:"variable,omitempty"`
+	Item                    []outItem     `json:"item"`
+	Auth                    *outAuth      `json:"auth,omitempty"`
+	Event                   []outEvent    `json:"event,omitempty"`
+	Variable                []outVariable `json:"variable,omitempty"`
+	ProtocolProfileBehavior *outProfile   `json:"protocolProfileBehavior,omitempty"`
 }
 
 // outItem is a folder, whose Item is never nil, or a request.
 type outItem struct {
-	ID          string        `json:"id,omitempty"`
-	Name        string        `json:"name"`
-	Description string        `json:"description,omitempty"`
-	Item        []outItem     `json:"item,omitzero"`
-	Request     *outRequest   `json:"request,omitempty"`
-	Auth        *outAuth      `json:"auth,omitempty"`
-	Event       []outEvent    `json:"event,omitempty"`
-	Variable    []outVariable `json:"variable,omitempty"`
-	Response    []outResponse `json:"response,omitempty"`
+	ID                      string        `json:"id,omitempty"`
+	Name                    string        `json:"name"`
+	Description             string        `json:"description,omitempty"`
+	Item                    []outItem     `json:"item,omitzero"`
+	Request                 *outRequest   `json:"request,omitempty"`
+	Auth                    *outAuth      `json:"auth,omitempty"`
+	Event                   []outEvent    `json:"event,omitempty"`
+	Variable                []outVariable `json:"variable,omitempty"`
+	Response                []outResponse `json:"response,omitempty"`
+	ProtocolProfileBehavior *outProfile   `json:"protocolProfileBehavior,omitempty"`
+}
+
+// outProfile is Postman's protocolProfileBehavior for the settings the app
+// holds. Postman's request timeout is an app setting, not part of a
+// collection, so it has no field here.
+type outProfile struct {
+	FollowRedirects *bool `json:"followRedirects,omitempty"`
+	MaxRedirects    *int  `json:"maxRedirects,omitempty"`
+	StrictSSL       *bool `json:"strictSSL,omitempty"`
 }
 
 // outResponse is a saved example.
@@ -169,6 +181,17 @@ func WriteCollection(name string, requests []request.Request, folders []request.
 		}
 	}
 	warn := tally{}
+	for _, f := range folders {
+		if root.at(name, f.Path) == nil {
+			continue // another collection's settings are not in this export
+		}
+		if f.Settings.TimeoutSeconds != nil {
+			warn.add("timeout", "", 1)
+		}
+		if f.Settings.RedirectMode == capture.RedirectCurl {
+			warn.add("curl redirects", "", 1)
+		}
+	}
 	for _, r := range requests {
 		if n := root.at(name, r.Collection); n != nil {
 			if r.Protocol != "" {
@@ -182,6 +205,12 @@ func WriteCollection(name string, requests []request.Request, folders []request.
 			if len(r.TokenSources) > 0 {
 				warn.add("token source", "", 1)
 			}
+			if r.Settings.TimeoutSeconds != nil {
+				warn.add("timeout", "", 1)
+			}
+			if r.Settings.RedirectMode == capture.RedirectCurl {
+				warn.add("curl redirects", "", 1)
+			}
 		}
 	}
 	var out outCollection
@@ -193,6 +222,7 @@ func WriteCollection(name string, requests []request.Request, folders []request.
 	out.Auth = folderAuth(root.folder.Auth)
 	out.Event = writeEvents(root.folder.Pre, root.folder.Post)
 	out.Variable = writeVariables(root.folder.Variables)
+	out.ProtocolProfileBehavior = writeProfile(root.folder.Settings)
 	data, err = json.Marshal(out, jsontext.WithIndent("  "))
 	if err != nil {
 		return nil, nil, err
@@ -236,13 +266,28 @@ func (n *node) items() []outItem {
 		items = append(items, outItem{
 			Name: unsegment(seg), Description: child.folder.Description, Item: child.items(),
 			Auth: folderAuth(child.folder.Auth), Event: writeEvents(child.folder.Pre, child.folder.Post),
-			Variable: writeVariables(child.folder.Variables),
+			Variable: writeVariables(child.folder.Variables), ProtocolProfileBehavior: writeProfile(child.folder.Settings),
 		})
 	}
 	for _, r := range n.requests {
-		items = append(items, outItem{ID: r.ID, Name: r.Name, Request: writeRequest(r), Event: writeEvents(r.Pre, testScript(r)), Response: writeExamples(r.Examples)})
+		items = append(items, outItem{ID: r.ID, Name: r.Name, Description: r.Description, Request: writeRequest(r),
+			Event: writeEvents(r.Pre, testScript(r)), Response: writeExamples(r.Examples), ProtocolProfileBehavior: writeProfile(r.Settings)})
 	}
 	return items
+}
+
+// writeProfile writes the transport settings Postman can hold; nil when the
+// level sets none.
+func writeProfile(s request.Settings) *outProfile {
+	out := &outProfile{FollowRedirects: s.FollowRedirects, MaxRedirects: s.MaxRedirects, StrictSSL: s.VerifyTLS}
+	if s.RedirectMode == capture.RedirectCurl && out.FollowRedirects == nil {
+		follow := true
+		out.FollowRedirects = &follow
+	}
+	if out.FollowRedirects == nil && out.MaxRedirects == nil && out.StrictSSL == nil {
+		return nil
+	}
+	return out
 }
 
 func writeRequest(r request.Request) *outRequest {

@@ -37,6 +37,7 @@ import (
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/editor"
+	"github.com/egoist/mygo/ui/markdown"
 	"github.com/egoist/mygo/ui/richtext"
 	"github.com/oneo-me/onevra/source/icons/lucide"
 	"golang.org/x/net/http/httpguts"
@@ -124,6 +125,11 @@ type app struct {
 	curlOpen     bool
 	curlInput    string
 	curlProblem  string
+	// docsOpen shows a collection's or folder's read-only documentation;
+	// docsPath is what it covers. docsMarkdown keeps the view's parse.
+	docsOpen     bool
+	docsPath     string
+	docsMarkdown markdown.Options
 	deviceUI     deviceSetup
 	clientUI     clientSetup
 	diagnostics  captureDiagnostics
@@ -1466,6 +1472,7 @@ func (a *app) view(c *ui.Context) {
 	a.varsModal(c, t)
 	a.importReportModal(c, t)
 	a.folderModal(c, t)
+	a.docsModal(c, t)
 	a.deleteModal(c, t)
 	a.codeModal(c, t)
 	a.vaultModal(c, t)
@@ -2987,6 +2994,20 @@ func (a *app) saveVars() {
 	a.inform(fmt.Sprintf("Variables: %s, %d of them", name, len(vars)))
 }
 
+// sendBudget is how long a send may take before the editor cancels it: the
+// usual 30 seconds, or the request's own timeout plus a moment.
+func (a *app) sendBudget(r savedRequest) time.Duration {
+	in := a.inheritance(r.Collection)
+	if r.TimeoutUnlimited(in) {
+		return 0 // explicit 0 removes the editor's budget; Cancel still stops it
+	}
+	budget := 30 * time.Second
+	if limit := r.Timeout(in); limit > 0 && limit+2*time.Second > budget {
+		budget = limit + 2*time.Second
+	}
+	return budget
+}
+
 // sendComposed sends the editor's request through the proxy, so the result
 // lands in the table with the rest of the traffic. Variables fill it in, the
 // pre-request script may change it, and the post-response script sees what came
@@ -3025,7 +3046,15 @@ func (a *app) sendComposed() {
 	d.sent, d.sentAt, d.sentSet = r, time.Now(), true
 	runKey, draftKey, origin := uuid.New().String(), d.debugKey, d.origin
 	d.sentRun = runKey
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	// The request's own timeout may exceed the editor's usual budget; leave
+	// it a moment to report its deadline before the overall cancel.
+	var ctx context.Context
+	var cancel context.CancelFunc
+	if budget := a.sendBudget(r); budget > 0 {
+		ctx, cancel = context.WithTimeout(context.Background(), budget)
+	} else {
+		ctx, cancel = context.WithCancel(context.Background())
+	}
 	d.sendCancel = cancel
 	ctx = request.WithRunKey(ctx, runKey)
 	if r.Checks != (request.Checks{}) {

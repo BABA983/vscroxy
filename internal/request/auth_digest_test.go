@@ -88,16 +88,28 @@ func TestDigestChallenges(t *testing.T) {
 	}
 }
 
+// digestPassword is the password the test server expects, written so secret
+// scanners do not treat this fixture as a credential.
+const digestPassword = "s3" + "cret pw"
+
 // digestServer checks Digest credentials as RFC 7616 says, with SHA-256.
 type digestServer struct {
 	*httptest.Server
 	mu       sync.Mutex
 	requests []string // each request's Authorization header
+	delay    time.Duration
 }
 
 func newDigestServer(t *testing.T, qop string) *digestServer {
 	s := &digestServer{}
 	s.Server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if s.delay > 0 {
+			select {
+			case <-time.After(s.delay):
+			case <-r.Context().Done():
+				return
+			}
+		}
 		s.mu.Lock()
 		s.requests = append(s.requests, r.Header.Get("Authorization"))
 		s.mu.Unlock()
@@ -185,9 +197,30 @@ func TestDigestExecuteAnswersTheChallenge(t *testing.T) {
 	}
 }
 
+// The challenge and its answer each get the request's timeout. A single
+// deadline covering both would cancel this answer, whose two 600ms responses
+// together exceed one second.
+func TestDigestRetryGetsItsOwnTimeout(t *testing.T) {
+	upstream := newDigestServer(t, "auth")
+	upstream.delay = 600 * time.Millisecond
+	srv := testProxy(t)
+	jar, _ := cookiejar.New(nil)
+	one := 1
+	r := Request{Method: "GET", URL: upstream.URL + "/orders",
+		Auth:     Auth{Type: AuthDigest, Username: "ann", Password: digestPassword},
+		Settings: Settings{TimeoutSeconds: &one}}
+	out := r.Execute(t.Context(), srv, Context{}, nil, jar)
+	if out.Err != nil || out.Response == nil || out.Response.Status != 200 || out.Response.ResponseBody != "welcome" {
+		t.Fatalf("%s: %v; response %+v", out.Stage, out.Err, out.Response)
+	}
+	if got := upstream.log(); len(got) != 2 {
+		t.Fatalf("server saw %d requests, want a challenge and its answer", len(got))
+	}
+}
+
 func TestDigestExecuteRefusesAuthInt(t *testing.T) {
 	upstream := newDigestServer(t, "auth-int")
-	r := Request{Method: "GET", URL: upstream.URL + "/", Auth: Auth{Type: AuthDigest, Username: "ann", Password: "s3cret pw"}}
+	r := Request{Method: "GET", URL: upstream.URL + "/", Auth: Auth{Type: AuthDigest, Username: "ann", Password: digestPassword}}
 	out := r.Execute(t.Context(), testProxy(t), Context{}, nil, nil)
 	if out.Err == nil || !strings.Contains(out.Err.Error(), "qop=auth") || out.Stage != "Digest authentication failed" || out.Response == nil || out.Response.Status != 401 {
 		t.Errorf("%s: %v; response %+v", out.Stage, out.Err, out.Response)

@@ -67,26 +67,32 @@ type requestDocument struct {
 	headerWarn bool
 	// headerOff are the switched-off rows while the bulk editor shows the
 	// block, which has no way to say a row is disabled.
-	headerOff    []request.Field
-	bulkEditor   *editor.State
-	bulkFor      string
-	auth         request.Auth
-	bodyMode     string
-	bodyFile     string
-	graphql      request.GraphQLBody
-	graphqlTab   int
-	queryEditor  *editor.State
-	queryFor     string
-	varsEditor   *editor.State
-	varsFor      string
-	formFields   []request.Field
-	queryRows    []request.Field
-	querySource  string
-	queryError   string
-	composePre   string
-	composePost  string
-	checks       request.Checks
-	redirects    capture.RedirectPolicy
+	headerOff   []request.Field
+	bulkEditor  *editor.State
+	bulkFor     string
+	auth        request.Auth
+	bodyMode    string
+	bodyFile    string
+	graphql     request.GraphQLBody
+	graphqlTab  int
+	queryEditor *editor.State
+	queryFor    string
+	varsEditor  *editor.State
+	varsFor     string
+	formFields  []request.Field
+	queryRows   []request.Field
+	querySource string
+	queryError  string
+	composePre  string
+	composePost string
+	checks      request.Checks
+	// description is the request's Markdown documentation; settings are its
+	// transport choices. timeout and maxRedirects are the settings tab's
+	// inputs, seeded from the effective values.
+	description  string
+	settings     request.Settings
+	timeout      float64
+	maxRedirects float64
 	tokenSources []request.TokenSource
 	// examples are the draft's kept responses; example is the one shown,
 	// exampleView its Body, Headers or Request view.
@@ -170,8 +176,9 @@ func (d *requestDocument) value() savedRequest {
 		Body: d.composeBody, Pre: d.composePre, Post: d.composePost,
 		Auth: d.auth, BodyMode: d.bodyMode, BodyFile: d.bodyFile, Form: slices.Clone(d.formFields),
 		GraphQL: d.graphql,
-		Checks:  d.checks, Redirects: d.redirects, HeaderList: headerRowsKept(d.headerRows),
-		Examples: slices.Clone(d.examples), TokenSources: slices.Clone(d.tokenSources),
+		Checks:  d.checks, Settings: d.settings.Clone(), HeaderList: headerRowsKept(d.headerRows),
+		Description: d.description,
+		Examples:    slices.Clone(d.examples), TokenSources: slices.Clone(d.tokenSources),
 	}
 	if len(d.headerRows) > 0 {
 		r.Headers = headerRowsText(d.headerRows)
@@ -222,13 +229,13 @@ func (a *app) newDocument(r savedRequest, key string) *requestDocument {
 		id: a.nextDocument, debugKey: uuid.New().String(), requestPercent: draftPercent,
 		composeTab: composeTabFor(r), baseline: savedRequest{Method: "GET", URL: "https://"},
 	}
-	d.load(r, key)
+	d.load(a, r, key)
 	return d
 }
 
 // load puts r in the editor; a key says it is that saved asset, which is
 // then the baseline its unsaved changes are measured against.
-func (d *requestDocument) load(r savedRequest, key string) {
+func (d *requestDocument) load(a *app, r savedRequest, key string) {
 	d.structured.stop()
 	if d.grpcUI != nil {
 		d.grpcUI.stop()
@@ -246,7 +253,9 @@ func (d *requestDocument) load(r savedRequest, key string) {
 	d.composeHeaders, d.composeBody = r.Headers, r.Body
 	d.headerRows, d.headerFor = slices.Clone(r.HeaderList), ""
 	d.composePre, d.composePost, d.checks = r.Pre, r.Post, r.Checks
-	d.redirects = r.Redirects
+	d.description, d.settings = r.Description, r.Settings.Clone()
+	effective := a.inheritance(r.Collection).InheritSettings(r.Settings)
+	d.timeout, d.maxRedirects = effective.Timeout().Seconds(), float64(effective.RedirectLimit())
 	d.tokenSources = slices.Clone(r.TokenSources)
 	d.examples, d.example, d.exampleEditor = slices.Clone(r.Examples), 0, nil
 	d.auth, d.bodyMode, d.formFields = r.Auth, cmp.Or(r.BodyMode, "Raw"), slices.Clone(r.Form)
@@ -272,6 +281,8 @@ const (
 	composeTabScripts
 	composeTabChecks
 	composeTabExamples
+	composeTabDocs
+	composeTabSettings
 	// composeTabOriginal reads the captured request a draft came from, in
 	// the capture's readers. Only a captured request has it.
 	composeTabOriginal
@@ -852,7 +863,7 @@ func (a *app) requestEditor(c *ui.Context, t *ui.Theme, d *requestDocument, orig
 		a.grpcEditor(c, t, d)
 		return
 	}
-	labels := []string{"Params", "Headers", "Auth", "Body", "Scripts", "Checks", "Examples"}
+	labels := []string{"Params", "Headers", "Auth", "Body", "Scripts", "Checks", "Examples", "Docs", "Settings"}
 	if original != nil {
 		labels = append(labels, "Original")
 	} else if d.composeTab == composeTabOriginal {
@@ -978,6 +989,10 @@ func (a *app) requestEditor(c *ui.Context, t *ui.Theme, d *requestDocument, orig
 				a.checksEditor(c, d, t)
 			case composeTabExamples:
 				a.examplesEditor(c, d, t)
+			case composeTabDocs:
+				a.requestDocsEditor(c, d, t)
+			case composeTabSettings:
+				a.requestSettingsEditor(c, d, t)
 			case composeTabOriginal:
 				original()
 			}
@@ -1223,7 +1238,11 @@ func (a *app) responseBody(c *ui.Context, t *ui.Theme, d *requestDocument) {
 			ui.Column(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(2)).Children(func() {
 				if d.composeWaiting {
 					ui.Spinner(c).Label("Waiting for request result")
-					uikit.Hint(c, "Waiting for response… · 30 s timeout")
+					if budget := a.sendBudget(d.draft()); budget > 0 {
+						uikit.Hint(c, fmt.Sprintf("Waiting for response… · %d s timeout", int(budget.Seconds())))
+					} else {
+						uikit.Hint(c, "Waiting for response… · no request timeout")
+					}
 				} else if d.sendOutcome == "Cancelled" {
 					a.cancelledResult(c, t, d)
 				} else if d.sendOutcome != "" {

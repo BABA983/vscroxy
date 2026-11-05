@@ -102,6 +102,10 @@ type ConnContext struct {
 	Intercept  bool          `json:"intercept"` // Indicates whether to parse HTTPS
 	FlowCount  atomic.Uint32 `json:"-"`         // Number of HTTP requests made on the same connection
 
+	// VerifyUpstream makes an intercepted TLS handshake verify the server's
+	// certificate, as a CONNECT's HeaderVerifyUpstream asks.
+	VerifyUpstream bool `json:"-"`
+
 	proxy              *Proxy
 	closeAfterResponse atomic.Bool                 // after http response, http server will close the connection
 	dialFn             func(context.Context) error // when begin request, if there no ServerConn, use this func to dial

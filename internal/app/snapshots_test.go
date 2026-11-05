@@ -457,6 +457,32 @@ func TestUISnapshots(t *testing.T) {
 			a.composeTab = composeTabExamples
 			a.examples = []request.Example{{ID: "snapshot-example", Name: "Created project", Status: 201, Body: `{"id":73}`, Request: request.ExampleRequest{Method: "POST", URL: "{{baseUrl}}/projects"}}}
 		}, want: "Example name"},
+		{name: "requests-settings", setup: func(a *app) {
+			a.openSaved(a.requests[0].key())
+			a.composeTab = composeTabSettings
+		}, want: "Follow redirects"},
+		{name: "requests-settings-insecure", setup: func(a *app) {
+			a.openSaved(a.requests[0].key())
+			a.composeTab = composeTabSettings
+			off := false
+			a.requestDocument.settings.VerifyTLS = &off
+		}, want: "Certificate verification is off"},
+		{name: "requests-docs", setup: func(a *app) {
+			a.openSaved(a.requests[0].key())
+			a.composeTab = composeTabDocs
+			a.requestDocument.description = "## List projects\n\nReturns the projects in `{{baseUrl}}`.\n\n- `GET /projects`\n- Empty when there are none."
+		}, want: "Request description"},
+		{name: "collection-docs", setup: func(a *app) {
+			a.folders = []request.Folder{{Path: "Workspace/API", Description: "## Workspace API\n\nEndpoints for **projects**."}}
+			a.requests[0].Description = "Lists projects.\n\n- `GET /projects`\n- Returns `[]` when empty."
+			a.openDocs("Workspace/API")
+		}, want: "Documentation · Workspace/API"},
+		{name: "dialog-collection-defaults", setup: func(a *app) {
+			off := false
+			a.folders = []request.Folder{{Path: "Workspace/API", Settings: request.Settings{VerifyTLS: &off}}}
+			a.openFolder("Workspace/API")
+			a.folderUI.tab = 4
+		}, want: "Request defaults", short: true},
 		{name: "secondary-runner-empty", setup: func(a *app) { a.requests = nil; a.openRunner() }, want: "Collection Runner"},
 		{name: "secondary-runner-ready", setup: func(a *app) { a.runner.collection = "Workspace"; a.openRunner() }, want: "Run request 1"},
 		{name: "secondary-runner-results", setup: snapshotRunner, want: "Inspect retained run"},

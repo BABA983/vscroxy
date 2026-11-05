@@ -7,7 +7,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/baba983/vscroxy/internal/capture"
 	"github.com/baba983/vscroxy/internal/request"
 )
 
@@ -64,8 +63,8 @@ func TestReadInsomniaV4(t *testing.T) {
 		create.BodyMode != "Raw" || create.Body != `{"item":"widget"}` || create.Auth.Type != request.AuthInherit {
 		t.Errorf("Create order %+v", create)
 	}
-	if create.Redirects.Mode != capture.RedirectManual {
-		t.Errorf("follow redirects off: %+v", create.Redirects)
+	if create.Settings.Follows() {
+		t.Errorf("follow redirects off: %+v", create.Settings)
 	}
 	upload := requestNamed(t, collection, "Upload receipt")
 	if upload.BodyMode != "Multipart" || len(upload.Form) != 2 || !upload.Form[1].File || upload.Form[1].Value != "/tmp/receipt.png" {
@@ -115,7 +114,7 @@ func TestReadInsomniaV5(t *testing.T) {
 		t.Errorf("List flights %+v", list)
 	}
 	create := requestNamed(t, collection, "Create flight")
-	if create.URL != "{{base_url}}/flights/{{flight_id}}" || create.Body != `{"number":"IA918"}` || create.Redirects.Mode != capture.RedirectManual {
+	if create.URL != "{{base_url}}/flights/{{flight_id}}" || create.Body != `{"number":"IA918"}` || create.Settings.Follows() {
 		t.Errorf("Create flight %+v", create)
 	}
 	upload := requestNamed(t, collection, "Upload")

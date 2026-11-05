@@ -268,7 +268,7 @@ func TestParseCurlRefusesExecutableOrUnsupportedInput(t *testing.T) {
 		"curl https://a.test https://b.test", "curl --url https://a.test --url https://b.test",
 		"curl https://a.test; touch /tmp/not-executed", "curl https://a.test | cat", "curl https://a.test && echo hi", "curl https://a.test > /tmp/not-written", "curl https://a.test &", "TOKEN=secret curl https://a.test",
 		"curl https://a.test -d $(touch /tmp/not-executed)", "curl https://a.test -d `id`", "curl https://a.test -H \"Authorization: $TOKEN\"", "curl https://a.test -d $((1+2))", "curl https://a.test -d <(cat /etc/passwd)",
-		"curl https://a.test --data @/etc/passwd", "curl https://a.test --data-binary @-", "curl https://a.test --data-urlencode x@file", "curl https://a.test -H @file", "curl https://a.test -b cookies.txt", "curl https://a.test --config config.txt", "curl https://a.test --form file=@private", "curl https://a.test --insecure", "curl https://a.test --location=true", "curl https://a.test --location-trusted", "curl https://a.test --max-redirs 2", "curl https://a.test --post302", "curl https://a.test -H $'X-Test: a\\nInjected: b'", "curl https://a.test -d $'a\\0b'", "curl https://a.test -X", "curl file:///etc/passwd",
+		"curl https://a.test --data @/etc/passwd", "curl https://a.test --data-binary @-", "curl https://a.test --data-urlencode x@file", "curl https://a.test -H @file", "curl https://a.test -b cookies.txt", "curl https://a.test --config config.txt", "curl https://a.test --form file=@private", "curl https://a.test --location=true", "curl https://a.test --location-trusted", "curl https://a.test --max-time NaN", "curl https://a.test --post302", "curl https://a.test -H $'X-Test: a\\nInjected: b'", "curl https://a.test -d $'a\\0b'", "curl https://a.test -X", "curl file:///etc/passwd",
 	} {
 		if _, err := parseCurl(command); err == nil {
 			t.Errorf("accepted unsafe or unsupported input: %q", command)
@@ -469,5 +469,60 @@ func TestCurlCommandFromCompressedCapture(t *testing.T) {
 	output, err := cmd.CombinedOutput()
 	if err != nil || !strings.Contains(string(output), "accepted") {
 		t.Fatalf("replay of decoded capture failed: %v, %s", err, output)
+	}
+}
+
+// cURL's redirect, certificate and timeout options become request settings and
+// come back out in a copied command.
+func TestCurlTransferSettingsImportExport(t *testing.T) {
+	r, err := parseCurl("curl -L --max-redirs 3 -k --max-time 2.5 https://a.test/start")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.Settings.FollowRedirects == nil || !*r.Settings.FollowRedirects || r.Settings.RedirectMode != capture.RedirectCurl || r.Settings.MaxRedirects == nil || *r.Settings.MaxRedirects != 3 {
+		t.Fatalf("redirects = %+v, want curl with 3 hops", r.Settings)
+	}
+	if r.Settings.VerifyTLS == nil || *r.Settings.VerifyTLS {
+		t.Fatalf("verify TLS = %v, want off", r.Settings.VerifyTLS)
+	}
+	if r.Settings.TimeoutSeconds == nil || *r.Settings.TimeoutSeconds != 3 {
+		t.Fatalf("timeout = %v, want 3 seconds (2.5 rounded up)", r.Settings.TimeoutSeconds)
+	}
+	command, err := curlCommandForSettings(flow{method: "GET", url: r.URL}, r.Settings, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{" -L", " --max-redirs 3", " -k", " --max-time 3"} {
+		if !strings.Contains(command, want) {
+			t.Errorf("command %q lacks %q", command, want)
+		}
+	}
+	again, err := parseCurl(command)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(again.Settings, r.Settings) {
+		t.Errorf("round trip settings = %+v, want %+v", again.Settings, r.Settings)
+	}
+
+	// Unset settings inherit the defaults, so the command must not pin them.
+	command, err = curlCommandForSettings(flow{method: "GET", url: "https://a.test"}, request.Settings{}, false)
+	if err != nil || strings.Contains(command, " -L") || strings.Contains(command, " --max-redirs") || strings.Contains(command, " -k") || strings.Contains(command, " --max-time") {
+		t.Fatalf("default command = %q, %v", command, err)
+	}
+	follow := false
+	manual := request.Settings{FollowRedirects: &follow}
+	command, err = curlCommandForSettings(flow{method: "GET", url: "https://a.test"}, manual, false)
+	if err != nil || strings.Contains(command, " -L") {
+		t.Fatalf("manual command = %q, %v", command, err)
+	}
+
+	// -m is --max-time, and zero redirects stops even after -L.
+	r, err = parseCurl("curl -L --max-redirs 0 -m 0 https://a.test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.Settings.Follows() || r.Settings.TimeoutSeconds == nil || *r.Settings.TimeoutSeconds != 0 {
+		t.Fatalf("zero limits = %+v, want no redirects and an explicit unlimited timeout", r.Settings)
 	}
 }

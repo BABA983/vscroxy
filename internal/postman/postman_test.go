@@ -201,7 +201,7 @@ func TestReadCollection(t *testing.T) {
 		},
 		{
 			ID: "req-login", Name: "Login", Collection: "Shop API/Auth", Method: "POST", URL: "{{baseUrl}}/login",
-			BodyMode: "Raw", Body: `{"user":"{{user}}"}`,
+			BodyMode: "Raw", Body: `{"user":"{{user}}"}`, Description: "Logs in.",
 			HeaderList: []request.Field{{Name: "Content-Type", Value: "application/json"}},
 			Headers:    "Content-Type: application/json",
 			Post:       "const t = pm.response.json().token;\npm.collectionVariables.set('token', t);",
@@ -297,7 +297,6 @@ func TestReadCollection(t *testing.T) {
 	}
 
 	wantWarnings := []string{
-		"Dropped 1 request description",
 		"Dropped 1 request variable",
 		"Dropped 1 saved example that is unreadable or over 5 MiB",
 		"Dropped 2 disabled query parameters",
@@ -1159,3 +1158,112 @@ func TestDetect(t *testing.T) {
 		})
 	}
 }
+
+// Descriptions and the protocol profile behavior Postman can express survive
+// export and import at the collection, folder and request levels.
+func TestDescriptionAndTransferSettingsRoundTrip(t *testing.T) {
+	verify, followOff, followOn := false, false, true
+	folders := []request.Folder{
+		{Path: "Docs", Description: "# Collection\n\nWelcome to **Docs**."},
+		{Path: "Docs/Folder", Description: "Folder notes.",
+			Settings: request.Settings{VerifyTLS: &verify}},
+	}
+	requests := []request.Request{
+		{ID: "one", Name: "One", Collection: "Docs", Method: "GET", URL: "https://example.com/one",
+			Description: "## Request\n\nDoes a thing.",
+			Settings: request.Settings{
+				FollowRedirects: &followOff,
+				MaxRedirects:    ptr(4),
+			}},
+		{ID: "two", Name: "Two", Collection: "Docs/Folder", Method: "GET", URL: "https://example.com/two",
+			Description: "Plain text.",
+			Settings: request.Settings{
+				FollowRedirects: &followOn,
+				MaxRedirects:    ptr(2),
+				VerifyTLS:       &verify,
+			}},
+	}
+	data, warnings, err := postman.WriteCollection("Docs", requests, folders)
+	if err != nil || len(warnings) != 0 {
+		t.Fatalf("%v, warnings %q", err, warnings)
+	}
+	compact := strings.Join(strings.Fields(string(data)), "")
+	for _, s := range []string{
+		`"followRedirects":false`, `"maxRedirects":4`, `"strictSSL":false`,
+	} {
+		if !strings.Contains(compact, s) {
+			t.Errorf("export lacks %q:\n%s", s, data)
+		}
+	}
+	for _, s := range []string{
+		`# Collection\n\nWelcome to **Docs**.`,
+		`## Request\n\nDoes a thing.`,
+	} {
+		if !strings.Contains(string(data), s) {
+			t.Errorf("export lacks description %q:\n%s", s, data)
+		}
+	}
+	got, err := postman.ReadCollection(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Warnings) != 0 {
+		t.Errorf("re-import warnings = %q", got.Warnings)
+	}
+	if !reflect.DeepEqual(got.Folders, folders) {
+		t.Errorf("Folders:\n got %+v\nwant %+v", got.Folders, folders)
+	}
+	if len(got.Requests) != len(requests) {
+		t.Fatalf("got %d requests, want %d", len(got.Requests), len(requests))
+	}
+	byID := map[string]request.Request{}
+	for _, r := range got.Requests {
+		byID[r.ID] = r
+	}
+	for _, want := range requests {
+		if !reflect.DeepEqual(byID[want.ID], want) {
+			t.Errorf("request %q:\n got %+v\nwant %+v", want.ID, byID[want.ID], want)
+		}
+	}
+}
+
+// A folder's maxRedirects and a request's followRedirects are separate
+// Postman fields; enabling following at the request keeps the folder's limit.
+// maxRedirects 0 means "do not follow", not "use the default".
+func TestPostmanRedirectSettingsInheritIndependently(t *testing.T) {
+	data := []byte(`{
+		"info": {"name": "Shop", "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"},
+		"item": [{
+			"name": "Folder",
+			"protocolProfileBehavior": {"maxRedirects": 3},
+			"item": [
+				{"name": "Follow", "request": {"method": "GET", "url": "https://example.com/follow"},
+				 "protocolProfileBehavior": {"followRedirects": true}},
+				{"name": "Never", "request": {"method": "GET", "url": "https://example.com/never"},
+				 "protocolProfileBehavior": {"maxRedirects": 0}}
+			]
+		}]
+	}`)
+	got, err := postman.ReadCollection(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Warnings) != 0 {
+		t.Fatalf("warnings = %q", got.Warnings)
+	}
+	byName := map[string]request.Request{}
+	for _, r := range got.Requests {
+		byName[r.Name] = r
+	}
+	follow := byName["Follow"]
+	effective := request.Context{Folders: request.Chain(got.Folders, follow.Collection)}.InheritSettings(follow.Settings)
+	if !effective.Follows() || effective.RedirectLimit() != 3 {
+		t.Fatalf("folder max 3 + request follow = %+v, want following three hops", effective)
+	}
+	never := byName["Never"]
+	if never.Settings.Follows() || never.Settings.MaxRedirects != nil {
+		t.Fatalf("maxRedirects 0 = %+v, want following off without a pinned maximum", never.Settings)
+	}
+}
+
+func ptr[T any](v T) *T { return &v }

@@ -64,7 +64,8 @@ func (a *app) collectionTree(c *ui.Context) {
 				if slices.ContainsFunc(a.rules, func(r capture.Rule) bool { return r.Scenario == path }) {
 					mock = "Rebuild scenario “" + path + "” from examples"
 				}
-				actionMenu(m, append(a.folderSettingsActions(path),
+				actions := append([]action{do("collection.docs", "View documentation…", func() { a.openDocs(path) }).in("context")}, a.folderSettingsActions(path)...)
+				actionMenu(m, append(actions,
 					do("collection.mock", mock, func() { a.scenarioFromExamples(path) }).
 						when(a.examplesUnder(path), "Save a response as an example first").in("mock"),
 					do("collection.delete", "Delete “"+path+"”…", func() { a.confirmDeleteFolder(path) }).in("export")))

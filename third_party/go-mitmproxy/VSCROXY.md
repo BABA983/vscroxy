@@ -286,6 +286,42 @@ as a config and never served, and passes that instead.
   proxy, which a gRPC server will not answer. The replayed result does keep the
   response's trailers and protocol.
 
+## Per-send upstream certificate verification
+
+`proxy/proxy.go`, `proxy/connection.go`, `proxy/entry.go` and
+`proxy/attacker.go` honor `HeaderVerifyUpstream` (`X-Vscroxy-Verify-TLS: 1`) on a
+CONNECT. `entry.handleConnect` records it on the `ConnContext` and removes the
+header before the flow is created, so it is neither captured nor forwarded;
+`attacker.serverTlsHandshake` then stops skipping verification for that
+connection. The header can only make the inspection proxy stricter, never
+weaker: capture traffic keeps `SslInsecure`.
+
+An IP target sends no SNI. `attacker.serverTlsHandshake` verifies against the
+CONNECT host when `ClientHelloInfo.ServerName` is empty, so a certificate's IP
+SAN is checked instead of failing with "either ServerName or
+InsecureSkipVerify must be specified".
+
+A Map Remote rule or script can rewrite an intercepted request to another host.
+That path has no pre-dialed socket, so `attacker.attack` uses
+`attacker.verifiedClient` when `VerifyUpstream` is set: a separate transport
+that verifies certificates and disables keep-alives, never the inspection
+client's insecure pool. A failed check reaches the client as a 502 and is
+recorded on the flow. `TestRequestCertificateVerificationAfterMapRemote`
+reproduces this.
+
+`internal/capture.ReplayWithPolicy` sends the header for an authored request
+whose TLS setting verifies the certificate, and sets `InsecureSkipVerify` on the
+replay client for the tunneled leg when verification is off.
+`internal/request.TestRequestCertificateVerification` covers a self-signed
+server with TLS tunneled and intercepted, verification on and off;
+`TestRequestCertificateVerificationUsesTheIPAddress` covers the IP-SAN success
+case.
+
+WebSocket upstream dials are not covered: `proxy/websocket.go` still builds its
+`tls.Client` from `Options.SslInsecure` and does not read `VerifyUpstream`, so a
+WS/WSS send accepts any upstream certificate regardless of the request's TLS
+setting.
+
 ## Maintaining this patch
 
 ### Deliver a closing response before canceling downstream

@@ -137,8 +137,6 @@ func (k warning) text(n int) string {
 	switch k.what {
 	case "example":
 		return "Dropped " + count(n, "saved example that is unreadable or over 5 MiB", "saved examples that are unreadable or over 5 MiB")
-	case "description":
-		return "Dropped " + count(n, "request description", "request descriptions")
 	case "settings":
 		return "Dropped protocol profile, certificate or proxy settings on " + count(n, "item", "items")
 	case "request variable":
@@ -182,6 +180,10 @@ func (k warning) text(n int) string {
 		return "Skipped " + count(n, k.detail+" request", k.detail+" requests") + "; Postman Collection v2.1 only supports HTTP requests"
 	case "token source":
 		return "Native pre-setup token invalidation on " + count(n, "request is", "requests is") + " not exported; script fallback remains but cannot cover inherited or compilation failures"
+	case "timeout":
+		return count(n, "request timeout is", "request timeouts are") + " not part of Postman collections"
+	case "curl redirects":
+		return count(n, "cURL redirect rule is", "cURL redirect rules are") + " not part of Postman collections"
 	}
 	return fmt.Sprintf("%s %s: %d", k.what, k.detail, n)
 }

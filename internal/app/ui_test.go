@@ -2779,7 +2779,7 @@ func TestCurlImportAndCopyKeepExistingDrafts(t *testing.T) {
 	if read("Method") != "POST" || read("URL") != "https://example.test/api?x=7" {
 		t.Fatal("imported request fields were not shown in a new tab")
 	}
-	if a.draft().Redirects.Mode != capture.RedirectCurl || !a.draft().Redirects.KeepMethod || a.composeWaiting || a.sentSet {
+	if s := a.draft().Settings; s.FollowRedirects == nil || !*s.FollowRedirects || s.RedirectMode != capture.RedirectCurl || !s.KeepMethod || a.composeWaiting || a.sentSet {
 		t.Fatal("import lost redirect behavior or sent the request automatically")
 	}
 	click("Request editor: Headers")
@@ -5149,5 +5149,91 @@ func TestSendResultsSeparateFailuresAndLinkTheExactAttempt(t *testing.T) {
 				t.Fatalf("timing target: page %d, capture %d, tab %d", a.page, a.pickedID, a.inspect.tab[1])
 			}
 		})
+	}
+}
+
+// The collection's menu opens its read-only documentation with the folder's
+// Markdown and each request's method, URL and description.
+func TestCollectionDocumentationView(t *testing.T) {
+	a := workspaceApp()
+	a.folders = []request.Folder{{Path: "Workspace/API", Description: "## Workspace API\n\nEndpoints for **projects**."}}
+	a.requests[0].Description = "Lists projects."
+	tt := ui.NewTester(a.view, 960, 600)
+	if err := tt.Click("Collection actions: Workspace/API"); err != nil {
+		t.Fatal(err)
+	}
+	if err := chooseMenu(tt, "View documentation…"); err != nil {
+		t.Fatal(err)
+	}
+	if !a.docsOpen || a.docsPath != "Workspace/API" {
+		t.Fatalf("documentation = %v %q", a.docsOpen, a.docsPath)
+	}
+	if !tt.HasText("Documentation · Workspace/API") || !tt.HasText("Lists projects.") || !tt.HasText("https://api.example.com/projects") {
+		t.Fatalf("documentation view lacks its content: %v", tt.Texts())
+	}
+	tt.Click("Close")
+	if a.docsOpen {
+		t.Fatal("Close left the documentation view open")
+	}
+}
+
+// The Docs and Settings tabs edit the request itself, and Save writes both to
+// the library.
+func TestRequestDocsAndSettingsSave(t *testing.T) {
+	a := libraryApp(t)
+	a.requests = []savedRequest{{Request: request.Request{ID: "one", Name: "One", Collection: "Docs", Method: "GET", URL: "https://example.com"}}}
+	a.openSaved(a.requests[0].key())
+	a.composeTab = composeTabDocs
+	tt := ui.NewTester(a.view, 960, 600)
+	if err := tt.Click("Request description"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Type("## Notes\n\nWhat it does.")
+	if err := tt.Click("Request editor: Settings"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.Click("Verify TLS certificate"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.Click("Follow redirects"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.Click("Save"); err != nil {
+		t.Fatal(err)
+	}
+	if a.requests[0].Description != "## Notes\n\nWhat it does." {
+		t.Fatalf("description = %q", a.requests[0].Description)
+	}
+	if p := a.requests[0].Settings.VerifyTLS; p == nil || *p {
+		t.Fatalf("verify TLS = %v, want off", p)
+	}
+	if p := a.requests[0].Settings.FollowRedirects; p == nil || *p {
+		t.Fatalf("follow redirects = %v, want off", p)
+	}
+	loaded, err := loadLibraryRequests(a.library.root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(loaded) != 1 || loaded[0].Description != a.requests[0].Description || loaded[0].Settings.VerifyTLS == nil || *loaded[0].Settings.VerifyTLS {
+		t.Fatalf("saved request = %+v", loaded)
+	}
+}
+
+// A collection's Request defaults tab saves the transport values requests
+// under it inherit.
+func TestFolderRequestDefaultsSave(t *testing.T) {
+	a := libraryApp(t)
+	a.folders = []request.Folder{{Path: "Docs"}}
+	a.openFolder("Docs")
+	a.folderUI.tab = 4
+	tt := ui.NewTester(a.view, 960, 600)
+	if err := tt.Click("Verify TLS certificate"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.Click("Save settings"); err != nil {
+		t.Fatal(err)
+	}
+	if len(a.folders) != 1 || a.folders[0].Settings.VerifyTLS == nil || *a.folders[0].Settings.VerifyTLS {
+		t.Fatalf("folders = %+v, want TLS verification off", a.folders)
 	}
 }

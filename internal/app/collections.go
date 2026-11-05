@@ -19,17 +19,32 @@ type folderEditor struct {
 	open            bool
 	draft           request.Folder
 	name            string // the last part of draft.Path, as edited
-	tab             int    // auth, scripts, variables, description
+	tab             int    // auth, scripts, variables, description, request defaults
 	script          int    // pre-request, post-response
 	pre, post       *editor.State
 	preFor, postFor string
 	problem         string
+	// settings are the request defaults this level sets; timeout and
+	// maxRedirects are their inputs, seeded from the effective values.
+	settings     request.Settings
+	timeout      float64
+	maxRedirects float64
 }
 
 // inheritance is what a request filed under path takes from its collection,
 // folders and the globals. The vault joins it only for a send (sendContext).
 func (a *app) inheritance(path string) request.Context {
 	return request.Context{Folders: request.Chain(a.folders, path), Globals: maps.Clone(a.globals), Addons: a.addons.sources()}
+}
+
+// ancestorInheritance is what a level takes from above it, without its own
+// saved settings, so its editor can preview a draft.
+func (a *app) ancestorInheritance(path string) request.Context {
+	parent, _, found := strings.CutLast(path, "/")
+	if !found {
+		parent = ""
+	}
+	return a.inheritance(parent)
 }
 
 // openFolder edits the settings of the collection or folder at path.
@@ -42,6 +57,9 @@ func (a *app) openFolder(path string) {
 	}
 	f.draft.Auth.Type = cmp.Or(f.draft.Auth.Type, a.folderAuthTypes(path)[0])
 	f.draft.Auth.Location = cmp.Or(f.draft.Auth.Location, "Header")
+	f.settings = f.draft.Settings.Clone()
+	effective := a.ancestorInheritance(path).InheritSettings(f.settings)
+	f.timeout, f.maxRedirects = effective.Timeout().Seconds(), float64(effective.RedirectLimit())
 }
 
 // applyWrites saves what scripts changed beyond the environment: globals,
@@ -177,6 +195,7 @@ func (a *app) saveFolder() {
 		f.draft.Path = from[:strings.LastIndex(from, "/")+1] + name
 	}
 	draft := f.draft
+	draft.Settings = f.settings
 	draft.Variables = slices.DeleteFunc(slices.Clone(draft.Variables), func(v request.Field) bool {
 		return strings.TrimSpace(v.Name) == "" && v.Value == ""
 	})
@@ -221,7 +240,7 @@ func (a *app) folderModal(c *ui.Context, t *ui.Theme) {
 				})
 			})
 			uikit.Meta(c, "Renaming moves its requests, folders and settings together.")
-			uikit.Tabs(c, &f.tab, "", "Auth", "Scripts", "Variables", "Description")
+			uikit.Tabs(c, &f.tab, "", "Auth", "Scripts", "Variables", "Description", "Request defaults")
 			ui.Column(c).Grow(1).MinHeight(0).Gap(t.Space(2)).Children(func() {
 				switch f.tab {
 				case 0:
@@ -241,7 +260,9 @@ func (a *app) folderModal(c *ui.Context, t *ui.Theme) {
 					uikit.Meta(c, "Environment values override these; a folder's variables override its collection's.")
 					requestFieldsEditor(c, &f.draft.Variables, fieldsOptions{secret: true}, "variable")
 				case 3:
-					ui.TextArea(c, &f.draft.Description).Label("Description").Placeholder("What these requests are for").FontSize(uikit.TextBody).Radius(uikit.RadiusControl).Grow(1).MinHeight(0)
+					ui.TextArea(c, &f.draft.Description).Label("Description").Placeholder("What these requests are for").Font(uikit.FontMono).FontSize(uikit.TextBody).Radius(uikit.RadiusControl).Grow(1).MinHeight(0)
+				case 4:
+					a.folderSettingsEditor(c, f, t)
 				}
 			})
 			if f.problem != "" {

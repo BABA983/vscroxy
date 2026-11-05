@@ -4,9 +4,11 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/baba983/vscroxy/internal/request"
 )
@@ -277,5 +279,55 @@ func TestReloadRefreshesCleanTabs(t *testing.T) {
 	}
 	if got, _ := loadLibraryRequests(a.library.root); got[0].URL != "https://pulled-one" {
 		t.Errorf("saving the clean tab undid the outside change: %q", got[0].URL)
+	}
+}
+
+// Descriptions and transport settings are part of the request and folder
+// files, so a restart reads back exactly what was saved.
+func TestDescriptionAndSettingsSurviveDisk(t *testing.T) {
+	a := libraryApp(t)
+	timeout, max := 12, 3
+	verify, follow := false, false
+	wantRequest := savedRequest{Request: request.Request{
+		ID: "one", Name: "One", Collection: "Docs", Method: "GET", URL: "https://example.com",
+		Description: "# Notes\n\nHello.",
+		Settings: request.Settings{
+			TimeoutSeconds:  &timeout,
+			FollowRedirects: &follow,
+			MaxRedirects:    &max,
+			VerifyTLS:       &verify,
+		},
+	}}
+	wantFolder := request.Folder{Path: "Docs", Description: "Collection docs", Settings: request.Settings{VerifyTLS: &verify}}
+	a.folders = []request.Folder{wantFolder}
+	if err := a.persistRequests([]savedRequest{wantRequest}); err != nil {
+		t.Fatal(err)
+	}
+	requests, folders, _, err := loadLibrary(a.library.root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(requests) != 1 || !reflect.DeepEqual(requests[0], wantRequest) {
+		t.Fatalf("request = %+v, want %+v", requests, wantRequest)
+	}
+	if len(folders) != 1 || !reflect.DeepEqual(folders[0], wantFolder) {
+		t.Fatalf("folder = %+v, want %+v", folders, wantFolder)
+	}
+}
+
+// An explicit request timeout of 0 removes the editor's 30-second budget
+// instead of falling back to a folder's longer limit.
+func TestSendBudgetHonorsExplicitUnlimited(t *testing.T) {
+	a := libraryApp(t)
+	folderTimeout, zero := 600, 0
+	a.folders = []request.Folder{{Path: "Docs", Settings: request.Settings{TimeoutSeconds: &folderTimeout}}}
+	if got := a.sendBudget(savedRequest{Request: request.Request{Collection: "Docs"}}); got != 602*time.Second {
+		t.Fatalf("folder budget = %s, want the 600s limit plus a moment", got)
+	}
+	if got := a.sendBudget(savedRequest{Request: request.Request{Collection: "Docs", Settings: request.Settings{TimeoutSeconds: &zero}}}); got != 0 {
+		t.Fatalf("explicit unlimited budget = %s, want no editor deadline", got)
+	}
+	if got := a.sendBudget(savedRequest{Request: request.Request{}}); got != 30*time.Second {
+		t.Fatalf("default budget = %s, want 30s", got)
 	}
 }

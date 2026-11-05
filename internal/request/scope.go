@@ -12,9 +12,9 @@ import (
 const AuthInherit = "Inherit"
 
 // Folder is what a collection, or a folder inside one, gives the requests
-// under it: auth they can inherit, scripts that run around theirs and
-// variables they read. Path is the collection label requests carry: "Shop"
-// for a collection and "Shop/Orders" for a folder in it.
+// under it: auth they can inherit, scripts that run around theirs, variables
+// they read and transport defaults they inherit. Path is the collection label
+// requests carry: "Shop" for a collection and "Shop/Orders" for a folder in it.
 type Folder struct {
 	Path        string  `json:"path,omitempty"`
 	Description string  `json:"description,omitempty"`
@@ -22,6 +22,8 @@ type Folder struct {
 	Pre         string  `json:"pre,omitempty"`
 	Post        string  `json:"post,omitempty"`
 	Variables   []Field `json:"variables,omitempty"`
+	// Settings are the transport defaults requests under it inherit.
+	Settings Settings `json:"settings,omitzero"`
 }
 
 // Context is what a request inherits from where it lives and from the

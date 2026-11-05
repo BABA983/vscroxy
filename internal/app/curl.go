@@ -5,17 +5,20 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"github.com/baba983/vscroxy/internal/uikit"
 	"io"
 	"maps"
 	"net/http"
 	"os"
 	"slices"
+	"strconv"
 	"strings"
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/baba983/vscroxy/internal/capture"
 	"github.com/baba983/vscroxy/internal/imports"
+	"github.com/baba983/vscroxy/internal/request"
+	"github.com/baba983/vscroxy/internal/uikit"
 	"github.com/egoist/mygo/ui"
 	"golang.org/x/net/http/httpguts"
 )
@@ -43,6 +46,16 @@ func curlCommand(f flow) (string, error) {
 // CMD uses curl.exe, never PowerShell's historical curl alias. Its command
 // line and encoding limits are stricter than Bash's; refuse lossy output.
 func curlCommandFor(f flow, cmd bool) (string, error) {
+	return curlCommandWith(f, nil, cmd)
+}
+
+// curlCommandForSettings writes an authored request as curl, including its
+// transfer settings; nil settings keep the captured exchange's plain command.
+func curlCommandForSettings(f flow, settings request.Settings, cmd bool) (string, error) {
+	return curlCommandWith(f, &settings, cmd)
+}
+
+func curlCommandWith(f flow, settings *request.Settings, cmd bool) (string, error) {
 	body, err := copyRequestBody(f)
 	if err != nil {
 		return "", err
@@ -95,6 +108,23 @@ func curlCommandFor(f flow, cmd bool) (string, error) {
 	}
 	if strings.ContainsAny(f.url, "{}[]") {
 		b.WriteString(" --globoff")
+	}
+	if settings != nil {
+		// Only values the author set: cURL's own defaults fill the rest.
+		if settings.FollowRedirects != nil && !*settings.FollowRedirects {
+			// Manual: cURL stops at the first response without -L.
+		} else if settings.FollowRedirects != nil || settings.MaxRedirects != nil || settings.RedirectMode == capture.RedirectCurl {
+			b.WriteString(" -L")
+		}
+		if settings.MaxRedirects != nil && settings.Follows() {
+			b.WriteString(" --max-redirs " + strconv.Itoa(*settings.MaxRedirects))
+		}
+		if settings.VerifyTLS != nil && !*settings.VerifyTLS {
+			b.WriteString(" -k")
+		}
+		if settings.TimeoutSeconds != nil && *settings.TimeoutSeconds > 0 {
+			b.WriteString(" --max-time " + strconv.Itoa(*settings.TimeoutSeconds))
+		}
 	}
 	method := cmp.Or(strings.TrimSpace(f.method), "GET")
 	hasBody := body != "" || method != "HEAD" && headers.Get("Content-Length") != ""

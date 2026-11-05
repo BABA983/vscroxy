@@ -23,7 +23,7 @@ type Collection struct {
 	Name     string
 	Requests []request.Request
 	// Folders are the collection and the folders in it that carry settings:
-	// auth, scripts, variables or a description.
+	// auth, scripts, variables, transport defaults or a description.
 	Folders []request.Folder
 	// Warnings say, counted across the file, what the import dropped.
 	Warnings []string
@@ -160,8 +160,7 @@ func ReadCollection(data []byte) (Collection, error) {
 	name := segment(cmp.Or(strings.TrimSpace(file.Info.Name), "Postman collection"))
 	r := &reader{base: cmp.Or(file.Info.PostmanID, name), warn: tally{}}
 	r.out.Name = name
-	r.folder(name, file.Info.Description, file.Auth, file.Event, file.Variable, "collection auth")
-	r.settings(file.ProtocolProfileBehavior)
+	r.folder(name, file.Info.Description, file.Auth, file.Event, file.Variable, r.settings(file.ProtocolProfileBehavior), "collection auth")
 	if err := r.items(file.Item, name); err != nil {
 		return Collection{}, err
 	}
@@ -181,9 +180,8 @@ func (r *reader) items(items []pmItem, parent string) error {
 	seen := map[string]int{}
 	for _, it := range items {
 		if it.Item != nil {
-			r.settings(it.ProtocolProfileBehavior)
 			path := parent + "/" + segment(cmp.Or(it.Name, "Untitled folder"))
-			r.folder(path, it.Description, it.Auth, it.Event, it.Variable, "folder auth")
+			r.folder(path, it.Description, it.Auth, it.Event, it.Variable, r.settings(it.ProtocolProfileBehavior), "folder auth")
 			if err := r.items(*it.Item, path); err != nil {
 				return err
 			}
@@ -201,24 +199,70 @@ func (r *reader) items(items []pmItem, parent string) error {
 	return nil
 }
 
-// settings counts dropped protocol profile, certificate or proxy settings.
-func (r *reader) settings(values ...jsontext.Value) {
-	for _, v := range values {
+// pmProfile is Postman's protocolProfileBehavior as the app holds it.
+type pmProfile struct {
+	FollowRedirects *bool    `json:"followRedirects"`
+	MaxRedirects    *float64 `json:"maxRedirects"`
+	StrictSSL       *bool    `json:"strictSSL"`
+}
+
+// settings reads a protocolProfileBehavior into transport settings. Anything
+// Postman can express but the app cannot (body pruning, certificates, proxy)
+// is counted once per item.
+func (r *reader) settings(profile jsontext.Value, extra ...jsontext.Value) request.Settings {
+	var out request.Settings
+	dropped := false
+	if profile.Kind() == '{' {
+		var obj map[string]jsontext.Value
+		var p pmProfile
+		if json.Unmarshal(profile, &obj) != nil || json.Unmarshal(profile, &p) != nil {
+			dropped = true
+		} else {
+			for key := range obj {
+				switch key {
+				case "followRedirects", "maxRedirects", "strictSSL":
+				default:
+					dropped = true
+				}
+			}
+			out.FollowRedirects = p.FollowRedirects
+			if p.MaxRedirects != nil {
+				if n := int(*p.MaxRedirects); n >= 0 && *p.MaxRedirects == float64(n) {
+					if n == 0 {
+						// Postman reads 0 as "do not follow", not as the default.
+						follow := false
+						out.FollowRedirects = &follow
+					} else {
+						out.MaxRedirects = &n
+					}
+				} else {
+					dropped = true
+				}
+			}
+			out.VerifyTLS = p.StrictSSL
+		}
+	} else if k := profile.Kind(); k != 0 && k != 'n' {
+		dropped = true
+	}
+	for _, v := range extra {
 		if k := v.Kind(); k != 0 && k != 'n' {
-			r.warn.add("settings", "", 1)
-			return
+			dropped = true
 		}
 	}
+	if dropped {
+		r.warn.add("settings", "", 1)
+	}
+	return out
 }
 
 // folder records a level's settings when it has any.
-func (r *reader) folder(path string, description, auth jsontext.Value, events []pmEvent, vars []pmVariable, authWarning string) {
-	f := request.Folder{Path: path, Description: describe(description), Variables: variables(vars)}
+func (r *reader) folder(path string, description, auth jsontext.Value, events []pmEvent, vars []pmVariable, settings request.Settings, authWarning string) {
+	f := request.Folder{Path: path, Description: describe(description), Variables: variables(vars), Settings: settings}
 	f.Pre, f.Post = r.scripts(events)
 	if a, set := r.auth(auth, authWarning); set {
 		f.Auth = a
 	}
-	if f.Description != "" || f.Auth.Type != "" || f.Pre != "" || f.Post != "" || len(f.Variables) > 0 {
+	if f.Description != "" || f.Auth.Type != "" || f.Pre != "" || f.Post != "" || len(f.Variables) > 0 || f.Settings != (request.Settings{}) {
 		r.out.Folders = append(r.out.Folders, f)
 	}
 }
@@ -234,10 +278,10 @@ func (r *reader) request(it pmItem, parent string, ordinal int) error {
 	out.Pre, out.Post = r.scripts(it.Event)
 	out.Examples = r.examples(it.Response, out.ID)
 	r.warn.add("request variable", "", len(it.Variable))
-	hasDescription := describe(it.Description) != ""
+	out.Description = describe(it.Description)
 	if it.Request.Kind() == '"' {
 		out.URL = text(it.Request)
-		r.settings(it.ProtocolProfileBehavior)
+		out.Settings = r.settings(it.ProtocolProfileBehavior)
 	} else {
 		var req pmRequest
 		if err := json.Unmarshal(it.Request, &req); err != nil {
@@ -252,11 +296,10 @@ func (r *reader) request(it pmItem, parent string, ordinal int) error {
 				out.Auth = request.Auth{}
 			}
 		}
-		hasDescription = hasDescription || describe(req.Description) != ""
-		r.settings(it.ProtocolProfileBehavior, req.Proxy, req.Certificate)
-	}
-	if hasDescription {
-		r.warn.add("description", "", 1)
+		if out.Description == "" {
+			out.Description = describe(req.Description)
+		}
+		out.Settings = r.settings(it.ProtocolProfileBehavior, req.Proxy, req.Certificate)
 	}
 	out.Headers = headerBlock(out.HeaderList)
 	r.out.Requests = append(r.out.Requests, out)

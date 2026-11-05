@@ -235,9 +235,16 @@ func (e *entry) handleConnect(res http.ResponseWriter, req *http.Request) {
 	})
 
 	shouldIntercept := proxy.shouldIntercept == nil || proxy.shouldIntercept(req)
+	connCtx := req.Context().Value(connContextKey).(*ConnContext)
+	// A replay that wants the upstream certificate verified asks on its
+	// CONNECT. The header is the proxy's own signal, not part of the exchange.
+	if req.Header.Get(HeaderVerifyUpstream) == "1" {
+		connCtx.VerifyUpstream = true
+	}
+	req.Header.Del(HeaderVerifyUpstream)
 	f := newFlow()
 	f.Request = newRequest(req)
-	f.ConnContext = req.Context().Value(connContextKey).(*ConnContext)
+	f.ConnContext = connCtx
 	f.ConnContext.Intercept = shouldIntercept
 	defer f.finish()
 

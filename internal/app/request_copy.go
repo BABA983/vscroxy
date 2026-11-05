@@ -58,25 +58,33 @@ func (a *app) copyRequest(c *ui.Context, f flow, d *requestDocument, format stri
 			a.fail("Copy request", err)
 			return
 		}
-		a.copyText(c, format, func() (string, error) { return requestCopyTextPrepared(req, format) })
+		effective := a.transferSettings(d)
+		a.copyText(c, format, func() (string, error) { return requestCopyTextPrepared(req, format, &effective) })
 		return
 	}
 	f.reqHeader, f.reqTrailer = f.reqHeader.Clone(), f.reqTrailer.Clone()
-	a.copyText(c, format, func() (string, error) { return requestCopyText(f, format) })
+	a.copyText(c, format, func() (string, error) { return requestCopyText(f, format, nil) })
 }
 
 // requestCopyTextPrepared writes an already prepared draft. Passing Prepared
 // directly keeps a Binary body's source path, which Snippet uses to generate
 // a file reference instead of inlining bytes.
-func requestCopyTextPrepared(req *request.Prepared, format string) (string, error) {
+func requestCopyTextPrepared(req *request.Prepared, format string, settings *request.Settings) (string, error) {
 	if format == "cURL" || format == "cURL (CMD)" {
-		return curlCommandFor(flow{method: req.Method, url: req.URL, reqHeader: req.Header, reqBody: req.Body}, format == "cURL (CMD)")
+		f := flow{method: req.Method, url: req.URL, reqHeader: req.Header, reqBody: req.Body}
+		if settings != nil {
+			return curlCommandForSettings(f, *settings, format == "cURL (CMD)")
+		}
+		return curlCommandFor(f, format == "cURL (CMD)")
 	}
 	return requestSnippetText(req.Method, req.URL, req.Body, req.BodyFile, req.Header, false, format)
 }
 
-func requestCopyText(f flow, format string) (string, error) {
+func requestCopyText(f flow, format string, settings *request.Settings) (string, error) {
 	if format == "cURL" || format == "cURL (CMD)" {
+		if settings != nil {
+			return curlCommandForSettings(f, *settings, format == "cURL (CMD)")
+		}
 		return curlCommandFor(f, format == "cURL (CMD)")
 	}
 	body, err := copyRequestBody(f)

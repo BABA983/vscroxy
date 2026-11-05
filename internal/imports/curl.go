@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"math"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -261,7 +262,8 @@ func splitWindowsArgs(line string) ([]string, error) {
 // parseCurlArgs reads the options of one curl invocation. args[0] is the
 // executable.
 func parseCurlArgs(args []string) (request.Request, []string, error) {
-	r := request.Request{Name: "Imported cURL", Redirects: capture.RedirectPolicy{Mode: capture.RedirectManual}}
+	manual := false
+	r := request.Request{Name: "Imported cURL", Settings: request.Settings{FollowRedirects: &manual}}
 	if len(args) == 0 || !strings.EqualFold(args[0], "curl") && !strings.EqualFold(args[0], "curl.exe") {
 		return r, nil, errors.New("command must start with curl (Bash, CMD or PowerShell format)")
 	}
@@ -283,7 +285,7 @@ func parseCurlArgs(args []string) (request.Request, []string, error) {
 			continue
 		}
 		option, value, attached := strings.Cut(arg, "=")
-		if !strings.HasPrefix(arg, "--") && len(arg) > 2 && strings.ContainsRune("XHdbuAe", rune(arg[1])) {
+		if !strings.HasPrefix(arg, "--") && len(arg) > 2 && strings.ContainsRune("XHdbuAem", rune(arg[1])) {
 			option, value, attached = arg[:2], arg[2:], true
 		}
 		switch option {
@@ -291,10 +293,18 @@ func parseCurlArgs(args []string) (request.Request, []string, error) {
 			if attached {
 				return r, nil, fmt.Errorf("%s takes no value", option)
 			}
-			r.Redirects.Mode = capture.RedirectCurl
-			if option == "--no-location" {
-				r.Redirects.Mode = capture.RedirectManual
+			follow := option != "--no-location"
+			r.Settings.FollowRedirects = &follow
+			if follow {
+				r.Settings.RedirectMode = capture.RedirectCurl
 			}
+			continue
+		case "-k", "--insecure":
+			if attached {
+				return r, nil, fmt.Errorf("%s takes no value", option)
+			}
+			verify := false
+			r.Settings.VerifyTLS = &verify
 			continue
 		case "-G", "--get", "-I", "--head", "--compressed", "-g", "--globoff", "-q", "--disable", "--path-as-is", "-s", "--silent", "-S", "--show-error", "-sS", "-v", "--verbose", "-i", "--include":
 			if attached {
@@ -304,7 +314,7 @@ func parseCurlArgs(args []string) (request.Request, []string, error) {
 			head = head || option == "-I" || option == "--head"
 			globoff = globoff || option == "-g" || option == "--globoff"
 			continue
-		case "--url", "-X", "--request", "-H", "--header", "-d", "--data", "--data-ascii", "--data-raw", "--data-binary", "--data-urlencode", "--json", "-b", "--cookie", "-u", "--user", "-A", "--user-agent", "-e", "--referer":
+		case "--url", "-X", "--request", "-H", "--header", "-d", "--data", "--data-ascii", "--data-raw", "--data-binary", "--data-urlencode", "--json", "-b", "--cookie", "-u", "--user", "-A", "--user-agent", "-e", "--referer", "--max-redirs", "-m", "--max-time":
 			if !attached {
 				i++
 				if i >= len(args) {
@@ -354,6 +364,23 @@ func parseCurlArgs(args []string) (request.Request, []string, error) {
 			defaults.Set("User-Agent", value)
 		case "-e", "--referer":
 			defaults.Set("Referer", value)
+		case "--max-redirs":
+			n, err := strconv.Atoi(value)
+			if err != nil || n < 0 || n > 1000 {
+				return r, nil, errors.New("--max-redirs needs a whole number from 0 to 1000")
+			}
+			r.Settings.MaxRedirects = &n
+			if n == 0 {
+				follow := false
+				r.Settings.FollowRedirects = &follow
+			}
+		case "--max-time", "-m":
+			f, err := strconv.ParseFloat(value, 64)
+			if err != nil || math.IsNaN(f) || math.IsInf(f, 0) || f < 0 || f > 3600 {
+				return r, nil, errors.New("--max-time needs seconds from 0 to 3600")
+			}
+			n := int(math.Ceil(f))
+			r.Settings.TimeoutSeconds = &n
 		default:
 			if (option == "--json") != jsonBody && len(data) > 0 {
 				return r, nil, errors.New("mixing --json with other data options is not supported")
@@ -415,9 +442,9 @@ func parseCurlArgs(args []string) (request.Request, []string, error) {
 		}
 		defaults.Set("Content-Type", contentType)
 	}
-	if r.Redirects.Mode == capture.RedirectCurl {
-		r.Redirects.KeepMethod = r.Method != ""
-		r.Redirects.DropContentType = !jsonBody && !explicit["Content-Type"] && defaults.Get("Content-Type") != ""
+	if r.Settings.RedirectMode == capture.RedirectCurl {
+		r.Settings.KeepMethod = r.Method != ""
+		r.Settings.DropContentType = !jsonBody && !explicit["Content-Type"] && defaults.Get("Content-Type") != ""
 	}
 	if r.Method == "" {
 		r.Method = "GET"
@@ -594,7 +621,11 @@ func powerShellRequest(r *request.Request, statement, userAgent string, cookies,
 		switch name {
 		case "usebasicparsing":
 			continue
-		case "uri", "method", "contenttype", "websession", "maximumredirection":
+		case "skipcertificatecheck":
+			verify := false
+			r.Settings.VerifyTLS = &verify
+			continue
+		case "uri", "method", "contenttype", "websession", "maximumredirection", "timeoutsec":
 			i++
 			if i >= len(tokens) {
 				return warnings, fmt.Errorf("Invoke-WebRequest -%s needs a value", name)
@@ -613,7 +644,19 @@ func powerShellRequest(r *request.Request, statement, userAgent string, cookies,
 			case "websession":
 				webSession = value
 			case "maximumredirection":
-				return warnings, errors.New("Invoke-WebRequest -MaximumRedirection is not supported; imported redirect behavior uses the workspace default")
+				n, err := strconv.Atoi(value)
+				if err != nil || n < 0 || n > 1000 {
+					return warnings, errors.New("Invoke-WebRequest -MaximumRedirection needs a whole number from 0 to 1000")
+				}
+				follow := n > 0
+				r.Settings.FollowRedirects = &follow
+				r.Settings.MaxRedirects = &n
+			case "timeoutsec":
+				n, err := strconv.Atoi(value)
+				if err != nil || n < 0 || n > 3600 {
+					return warnings, errors.New("Invoke-WebRequest -TimeoutSec needs a whole number from 0 to 3600")
+				}
+				r.Settings.TimeoutSeconds = &n
 			}
 		case "headers":
 			i++

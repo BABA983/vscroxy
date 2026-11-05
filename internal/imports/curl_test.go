@@ -271,6 +271,51 @@ func TestPowerShellHeadersAreSorted(t *testing.T) {
 	}
 }
 
+// Redirect, certificate and timeout options map the same way in all three
+// dialects Chrome copies. PowerShell's switches are its own spelling.
+func TestParseCurlTransferSettingsInEveryDialect(t *testing.T) {
+	cases := []struct{ name, command string }{
+		{"bash", `curl -L --max-redirs 3 -k --max-time 2.5 https://example.test/`},
+		{"cmd", `curl.exe ^"https://example.test/^" -L --max-redirs 3 --insecure --max-time 2.5`},
+		{"powershell", `Invoke-WebRequest -Uri "https://example.test/" -MaximumRedirection 3 -SkipCertificateCheck -TimeoutSec 3`},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, warnings, err := ParseCurl(tc.command)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(warnings) != 0 {
+				t.Fatalf("warnings %q", warnings)
+			}
+			if got.Settings.FollowRedirects == nil || !*got.Settings.FollowRedirects ||
+				got.Settings.MaxRedirects == nil || *got.Settings.MaxRedirects != 3 {
+				t.Fatalf("redirects = %+v, want following three hops", got.Settings)
+			}
+			if got.Settings.VerifyTLS == nil || *got.Settings.VerifyTLS {
+				t.Fatalf("verify TLS = %v, want off", got.Settings.VerifyTLS)
+			}
+			if got.Settings.TimeoutSeconds == nil || *got.Settings.TimeoutSeconds != 3 {
+				t.Fatalf("timeout = %v, want 3 seconds", got.Settings.TimeoutSeconds)
+			}
+		})
+	}
+
+	// Zero means no redirects in both cURL and PowerShell.
+	for _, command := range []string{
+		`curl -L --max-redirs 0 https://example.test/`,
+		`Invoke-WebRequest -Uri "https://example.test/" -MaximumRedirection 0`,
+	} {
+		got, _, err := ParseCurl(command)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got.Settings.Follows() {
+			t.Errorf("%q = %+v, want redirects off", command, got.Settings)
+		}
+	}
+}
+
 func TestDetectCurlFindsChromeURLArgument(t *testing.T) {
 	got, _, err := ParseCurl("curl.exe -q --path-as-is --url ^\"https://x.test/a^\"")
 	if err != nil {

@@ -60,7 +60,8 @@ func (a *app) codeText(d *requestDocument) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return requestCopyTextPrepared(req, a.code.language)
+	effective := a.transferSettings(d)
+	return requestCopyTextPrepared(req, a.code.language, &effective)
 }
 
 func (a *app) codeModal(c *ui.Context, t *ui.Theme) {
@@ -97,6 +98,9 @@ func (a *app) codeModal(c *ui.Context, t *ui.Theme) {
 				}
 				if s.language == "cURL (CMD)" {
 					uikit.Hint(c, "Paste into interactive Windows CMD, not PowerShell or a .bat file. ASCII only; use Bash or PowerShell for Unicode.")
+				}
+				if s.language != "cURL" && s.language != "cURL (CMD)" {
+					uikit.Hint(c, "Native snippets leave redirect, timeout and TLS behavior to the language’s client; Copy as cURL carries the request’s settings.")
 				}
 				if hint := codeHints[s.language]; hint != "" {
 					uikit.Hint(c, hint)

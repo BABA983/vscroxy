@@ -106,7 +106,22 @@ func run(ctx context.Context, srv *capture.Server, steps []Step, opts Options, r
 				in.Data = opts.Data[min(iteration, len(opts.Data))-1]
 			}
 			before := maps.Clone(vars)
-			stepCtx, cancel := context.WithTimeout(ctx, opts.Timeout)
+			// A request's own timeout may exceed the run's default budget;
+			// leave it a second to report its deadline before the runner's.
+			// An explicit 0 removes the runner's budget instead.
+			timeout := opts.Timeout
+			if step.Request.TimeoutUnlimited(in) {
+				timeout = 0
+			} else if limit := step.Request.Timeout(in); limit > 0 && limit+time.Second > timeout {
+				timeout = limit + time.Second
+			}
+			var cancel context.CancelFunc
+			var stepCtx context.Context
+			if timeout > 0 {
+				stepCtx, cancel = context.WithTimeout(ctx, timeout)
+			} else {
+				stepCtx, cancel = context.WithCancel(ctx)
+			}
 			key := uuid.New().String()
 			start := time.Now()
 			got := step.Request.Execute(request.WithRunKey(stepCtx, key), srv, in, vars, opts.Cookies)

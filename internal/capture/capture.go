@@ -1140,17 +1140,20 @@ type replayOrigin struct {
 // redirects. Ordinary capture replay deliberately does not inherit login state.
 // Regression checks stop at the original response instead of following redirects.
 func (s *Server) ReplayWithCookies(ctx context.Context, f Flow, jar http.CookieJar, followRedirects bool) (Flow, error) {
-	policy := RedirectPolicy{}
+	policy := TransferPolicy{}
 	if !followRedirects {
-		policy.Mode = RedirectManual
+		policy.Redirects.Mode = RedirectManual
 	}
-	return s.ReplayWithRedirects(ctx, f, jar, policy)
+	return s.ReplayWithPolicy(ctx, f, jar, policy)
 }
 
 // RedirectPolicy keeps imported cURL transfer behavior distinct from ordinary
-// workspace sends. The zero value retains Go's standard ten-request limit.
+// workspace sends. The zero value follows Go's standard ten requests. Max is
+// the number of redirects to follow; zero keeps the mode's default: 10, or
+// 50 for cURL's -L.
 type RedirectPolicy struct {
 	Mode       string `json:"mode,omitempty"`
+	Max        int    `json:"max,omitempty"`
 	KeepMethod bool   `json:"keepMethod,omitzero"`
 	// DropContentType marks curl's implicit form Content-Type, not a -H header.
 	// It disappears with the body; explicitly authored headers survive redirects.
@@ -1163,13 +1166,49 @@ const (
 	RedirectCurl    = "curl"
 )
 
-// ReplayWithRedirects applies an authored redirect policy. cURL modes follow at
-// most 50 HTTP(S) hops; -X keeps the method, not a body dropped by 301/302/303.
-func (s *Server) ReplayWithRedirects(ctx context.Context, f Flow, jar http.CookieJar, policy RedirectPolicy) (Flow, error) {
-	switch policy.Mode {
+// Limit is the number of redirects to follow.
+func (p RedirectPolicy) Limit() int {
+	if p.Max > 0 {
+		return p.Max
+	}
+	if p.Mode == RedirectCurl {
+		return 50
+	}
+	return 10
+}
+
+// TransferPolicy is what an authored send asks of its HTTP transfer beyond the
+// request itself: its redirects and how it treats the server certificate.
+// Capture replay keeps the zero value: the proxy accepts an intercepted
+// upstream's certificate, and the replay client verifies a tunneled one.
+type TransferPolicy struct {
+	Redirects RedirectPolicy
+	// TLS is TLSDefault (the capture engine's inspection behavior), TLSVerify,
+	// or TLSInsecure. Authored requests default to TLSVerify.
+	TLS string
+}
+
+const (
+	TLSDefault  = ""
+	TLSVerify   = "verify"
+	TLSInsecure = "insecure"
+)
+
+// ReplayWithPolicy applies an authored transfer policy. cURL modes follow at
+// most 50 HTTP(S) hops unless Max says otherwise; -X keeps the method, not a
+// body dropped by 301/302/303. TLSVerify asks the proxy to verify an
+// intercepted upstream certificate and the client to verify a tunneled one;
+// TLSInsecure accepts any certificate on both legs.
+func (s *Server) ReplayWithPolicy(ctx context.Context, f Flow, jar http.CookieJar, policy TransferPolicy) (Flow, error) {
+	switch policy.Redirects.Mode {
 	case RedirectDefault, RedirectManual, RedirectCurl:
 	default:
 		return Flow{}, errors.New("unsupported request redirect policy")
+	}
+	switch policy.TLS {
+	case TLSDefault, TLSVerify, TLSInsecure:
+	default:
+		return Flow{}, errors.New("unsupported request TLS policy")
 	}
 	rawURL := f.URL
 	if rawURL == "" {
@@ -1221,7 +1260,15 @@ func (s *Server) ReplayWithRedirects(ctx context.Context, f Flow, jar http.Cooki
 			// must not reuse that socket for a different HTTP origin.
 			DisableKeepAlives: true,
 			Proxy:             http.ProxyURL(proxyURL),
-			TLSClientConfig:   &tls.Config{RootCAs: s.roots},
+			TLSClientConfig:   &tls.Config{RootCAs: s.roots, InsecureSkipVerify: policy.TLS == TLSInsecure},
+			// An intercepted upstream is verified by the proxy, not by this
+			// client, which only sees the proxy's own certificate.
+			GetProxyConnectHeader: func(context.Context, *url.URL, string) (http.Header, error) {
+				if policy.TLS != TLSVerify {
+					return nil, nil
+				}
+				return http.Header{proxy.HeaderVerifyUpstream: {"1"}}, nil
+			},
 			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
 				conn, err := (&net.Dialer{}).DialContext(ctx, network, addr)
 				if err == nil && (f.ID != 0 || f.DebugRun != "" || suppressed) {
@@ -1247,18 +1294,18 @@ func (s *Server) ReplayWithRedirects(ctx context.Context, f Flow, jar http.Cooki
 			},
 		},
 	}
-	if policy.Mode == RedirectManual {
+	if policy.Redirects.Mode == RedirectManual {
 		client.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
-	} else if policy.Mode == RedirectCurl {
+	} else if policy.Redirects.Mode == RedirectCurl {
 		bodyDropped := false
 		client.CheckRedirect = func(next *http.Request, via []*http.Request) error {
-			if len(via) > 50 {
-				return errors.New("stopped after 50 redirects")
+			if limit := policy.Redirects.Limit(); len(via) > limit {
+				return fmt.Errorf("stopped after %d redirects", limit)
 			}
 			if next.URL.Scheme != "http" && next.URL.Scheme != "https" {
 				return errors.New("redirects require HTTP(S)")
 			}
-			if policy.KeepMethod {
+			if policy.Redirects.KeepMethod {
 				next.Method = req.Method
 			}
 			switch next.Response.StatusCode {
@@ -1270,7 +1317,7 @@ func (s *Server) ReplayWithRedirects(ctx context.Context, f Flow, jar http.Cooki
 					next.Header[name] = slices.Clone(values)
 				}
 			}
-			if bodyDropped && policy.DropContentType && req.Header.Get("Content-Type") == "application/x-www-form-urlencoded" {
+			if bodyDropped && policy.Redirects.DropContentType && req.Header.Get("Content-Type") == "application/x-www-form-urlencoded" {
 				next.Header.Del("Content-Type")
 			}
 			// curl does not enable automatic Referer generation without --auto-referer.
@@ -1298,6 +1345,14 @@ func (s *Server) ReplayWithRedirects(ctx context.Context, f Flow, jar http.Cooki
 				if !strings.EqualFold(previous.URL.Hostname(), next.URL.Hostname()) {
 					next.Header.Del("Cookie")
 				}
+			}
+			return nil
+		}
+	} else {
+		limit := policy.Redirects.Limit()
+		client.CheckRedirect = func(_ *http.Request, via []*http.Request) error {
+			if len(via) > limit {
+				return fmt.Errorf("stopped after %d redirects", limit)
 			}
 			return nil
 		}

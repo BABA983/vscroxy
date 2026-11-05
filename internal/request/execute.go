@@ -42,6 +42,18 @@ type Execution struct {
 
 type debugRunKey struct{}
 
+// errRequestTimeout is the cause of a send's own deadline, distinct from the
+// caller's overall budget.
+var errRequestTimeout = errors.New("request timeout")
+
+// sendContext bounds the HTTP exchange by limit, when there is one.
+func sendContext(ctx context.Context, limit time.Duration) (context.Context, context.CancelFunc) {
+	if limit <= 0 {
+		return ctx, func() {}
+	}
+	return context.WithTimeoutCause(ctx, limit, errRequestTimeout)
+}
+
 // WithRunKey tags the sends Execute makes under ctx with key, so the captured
 // wire exchanges link back to this run. The key never leaves the process.
 func WithRunKey(ctx context.Context, key string) context.Context {
@@ -231,12 +243,19 @@ func (r Request) Execute(ctx context.Context, srv *capture.Server, in Context, v
 			out.Err = fmt.Errorf("post-response scripts require an HTTP response")
 		}
 	} else {
-		policy := r.Redirects
+		settings := in.InheritSettings(r.Settings)
+		policy := settings.Transfer()
 		if r.Checks != (Checks{}) {
-			policy.Mode = capture.RedirectManual
+			policy.Redirects.Mode = capture.RedirectManual
 		}
 		send := func() (capture.Flow, error) {
-			return srv.ReplayWithRedirects(ctx, capture.Flow{DebugRun: runKey, Method: req.Method, URL: req.URL, RequestHeader: req.Header, RequestBody: req.Body}, jar, policy)
+			attemptCtx, cancel := sendContext(ctx, settings.Timeout())
+			defer cancel()
+			got, err := srv.ReplayWithPolicy(attemptCtx, capture.Flow{DebugRun: runKey, Method: req.Method, URL: req.URL, RequestHeader: req.Header, RequestBody: req.Body}, jar, policy)
+			if err != nil && errors.Is(context.Cause(attemptCtx), errRequestTimeout) {
+				err = fmt.Errorf("no response within %s: %w", settings.Timeout(), context.DeadlineExceeded)
+			}
+			return got, err
 		}
 		got, err := send()
 		if err == nil && r.Auth.Type == AuthDigest {

@@ -26,6 +26,11 @@ type Options struct {
 	LogFilePath       string // Path to write logs to file
 }
 
+// HeaderVerifyUpstream on a CONNECT asks the proxy to verify the upstream
+// server's certificate instead of accepting any. It can only make an insecure
+// inspection proxy stricter, never weaker; the header is not forwarded.
+const HeaderVerifyUpstream = "X-Vscroxy-Verify-TLS"
+
 type Proxy struct {
 	Opts    *Options
 	Version string
