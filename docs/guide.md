@@ -175,8 +175,10 @@ Device access is **off on every launch**; consent and listeners are not persiste
    The same source-IP gate protects both listeners, before any proxy dial or HTTP
    parsing; forwarded headers cannot bypass it.
 3. Confirm that you trust the network/devices, then enable access. Configure the
-   device's manual HTTP proxy using the displayed address. No proxy authentication
-   is configured; this is restricted by source IP, not user identity.
+   device's manual HTTP proxy using the displayed address. The same address also
+   accepts a SOCKS5 proxy when **Settings → Proxy → SOCKS5** is on. No proxy
+   authentication is configured; this is restricted by source IP, not user identity,
+   and the same allowlist covers both entries.
 4. Open the displayed certificate URL on the device. It serves only the public
    CA certificate as DER, never a directory or signing key. Compare the CA's
    SHA-256 fingerprint in **Diagnostics** (Phone or tablet); obtain it over a
@@ -207,6 +209,61 @@ CONNECT/WebSocket tunnels, without stopping local capture. Disable before editin
 the address/allowlist. Turn off the device's manual proxy and remove the CA trust
 when finished debugging. Mobile application process attribution is unavailable;
 the capture's Client column may identify the desktop gateway instead.
+
+## SOCKS5 and reverse proxies
+
+### SOCKS5
+
+**Settings → Proxy → SOCKS5** adds a second loopback entry for clients that
+cannot use an HTTP proxy. Turn on **Enable SOCKS5 proxy**, choose a port, and
+click **Save SOCKS5 settings**. Like the HTTP port, the setting applies after a
+restart; the running address appears beside the switch. Leave the port blank
+for an OS-assigned loopback port; a fixed port from 1024 to 65535 never falls
+back, so a conflict leaves SOCKS5 off and shows the bind error.
+
+The entry speaks RFC 1928 CONNECT for domain names, IPv4 and IPv6. BIND and UDP
+ASSOCIATE are refused with the protocol's "command not supported" reply. Turn
+on **Require username and password** for RFC 1929 authentication; each field is
+at most 255 bytes and both are stored in the private settings file. Without
+authentication, any local process that can reach the port may use it.
+
+SOCKS5 traffic enters the same capture pipeline as an HTTP CONNECT: HTTPS uses
+the current per-host and per-app decryption rules (decrypt or tunnel), plaintext
+HTTP is parsed and captured, and rules, Host profiles, network conditions,
+Allow/Block lists and the recording switch apply. A bypassed tunnel appears as
+a CONNECT row. The CONNECT success reply means the SOCKS negotiation succeeded;
+an unreachable upstream is reported by the request, where a failed dial appears
+as 502. The entry is for HTTP(S): a plaintext connection that is not HTTP is not
+forwarded as an arbitrary TCP tunnel. The configuration export omits the SOCKS5
+password; set it again after importing.
+
+With device access on, the LAN gateway accepts HTTP or SOCKS5 on its address: a
+connection whose first byte is the SOCKS version is forwarded to the SOCKS5
+entry, and the same source-IP allowlist gates both. SOCKS5 must be on for that
+path; otherwise only the HTTP proxy is available there.
+
+### Reverse proxies
+
+**Settings → Proxy → Reverse proxies** maps loopback ports to remote base URLs.
+**Add reverse proxy…** asks for a local port (1024–65535) and an `http://` or
+`https://` URL. Each row can be switched off, edited or removed; changes apply
+at once. A port already used by another reverse proxy, the HTTP proxy or the
+SOCKS5 entry is refused with the reason; a port taken by another program is
+reported on its row and in a toast, without falling back to another port.
+
+A plaintext HTTP request to the local port is forwarded to the remote base URL:
+the local path is appended to the URL's path and the query is kept. **Host
+header** chooses between the remote host and the original Host the local client
+sent; the captured request shows the original when kept. Requests pass through
+the same rules, scripts, breakpoints, network conditions and capture as any
+other request, and the table shows the remote URL. An HTTPS remote is reached by
+the app's own TLS client, and the exchange is captured even when the host is not
+in the decryption list.
+
+Limits: the local listener is plaintext HTTP only; it does not terminate TLS.
+The capture's client address and app are the local app, not the caller that
+reached the local port. A target URL must not carry credentials, a query or a
+fragment.
 
 ## What is here
 
