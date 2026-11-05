@@ -729,3 +729,33 @@ func TestGatewayGateAppliesToSOCKS5(t *testing.T) {
 		t.Fatalf("denied SOCKS5 client reached a backend: http=%d socks=%d", httpBackend.count(), socksBackend.count())
 	}
 }
+
+func TestGatewayWaitsForADelayedFirstByte(t *testing.T) {
+	old := firstByteTimeout
+	firstByteTimeout = 100 * time.Millisecond
+	up := newUpstream(t, echo)
+	g := testGateway(t, up.addr, nil)
+	defer func() {
+		_ = g.Close()
+		firstByteTimeout = old
+	}()
+
+	// A client that sends within the wait is forwarded.
+	conn := dialGateway(t, g.Addr())
+	time.Sleep(40 * time.Millisecond)
+	if _, err := io.WriteString(conn, "GET / HTTP/1.1\r\nHost: example.test\r\n\r\n"); err != nil {
+		t.Fatalf("write after a short wait: %v", err)
+	}
+	got := make([]byte, 4)
+	if _, err := io.ReadFull(conn, got); err != nil || string(got) != "GET " {
+		t.Fatalf("short wait forwarded %q (%v)", got, err)
+	}
+
+	// A silent client is closed after the wait, so it cannot hold a worker
+	// indefinitely.
+	silent := dialGateway(t, g.Addr())
+	time.Sleep(200 * time.Millisecond)
+	if _, err := silent.Read(make([]byte, 1)); err == nil {
+		t.Fatal("a client that sent no first byte stayed open")
+	}
+}

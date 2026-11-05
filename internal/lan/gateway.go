@@ -45,6 +45,12 @@ const (
 	dialTimeout = 10 * time.Second
 )
 
+// firstByteTimeout bounds how long an admitted client may take to send the
+// first byte, which decides whether it goes to the HTTP or SOCKS5 entry. A
+// client that says nothing is closed; the previous direct forward would have
+// held the connection indefinitely.
+var firstByteTimeout = 30 * time.Second
+
 // helpText is what the certificate endpoint's root says: the two things a
 // device needs, and nothing about the machine it runs on.
 const helpText = `vscroxy certificate service
@@ -224,7 +230,7 @@ func (g *Gateway) forward(client *trackedConn) {
 	// address. The first byte tells them apart: 0x05 is the SOCKS version and
 	// no HTTP method starts with it. Peeking preserves the byte for the core.
 	br := bufio.NewReader(client)
-	_ = client.SetReadDeadline(time.Now().Add(dialTimeout))
+	_ = client.SetReadDeadline(time.Now().Add(firstByteTimeout))
 	first, err := br.Peek(1)
 	_ = client.SetReadDeadline(time.Time{})
 	if err != nil {
