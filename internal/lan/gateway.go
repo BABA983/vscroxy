@@ -9,6 +9,7 @@
 package lan
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"crypto/x509"
@@ -62,8 +63,14 @@ type Config struct {
 	// CertificateAddr is the CA endpoint's address, on the same IP as
 	// ListenAddr.
 	CertificateAddr string
-	// ProxyAddr is the capture core's listener, normally 127.0.0.1:7890.
+	// ProxyAddr is the capture core's HTTP listener, normally
+	// 127.0.0.1:7890.
 	ProxyAddr string
+	// SOCKSAddr is the capture core's SOCKS5 listener. When set, a connection
+	// that starts with the SOCKS version byte is forwarded there instead of
+	// to ProxyAddr; both remain behind the same source-IP gate. Empty sends
+	// every connection to ProxyAddr.
+	SOCKSAddr string
 	// Allowed lists the client addresses that may use either listener, as
 	// exact IPs or CIDR ranges.
 	Allowed []string
@@ -89,6 +96,7 @@ type Gateway struct {
 	addr      string
 	certAddr  string
 	proxyAddr string
+	socksAddr string
 	certDER   []byte
 
 	proxyLn *gatedListener
@@ -118,6 +126,7 @@ func Start(cfg Config) (*Gateway, error) {
 	}
 	g := &Gateway{
 		proxyAddr: s.proxyAddr,
+		socksAddr: s.socksAddr,
 		certDER:   s.certificate,
 		dialer:    &net.Dialer{Timeout: dialTimeout, KeepAlive: 30 * time.Second},
 		conns:     newConnSet(),
@@ -211,7 +220,21 @@ func (g *Gateway) acceptProxy() {
 func (g *Gateway) forward(client *trackedConn) {
 	defer client.Close()
 
-	raw, err := g.dialer.DialContext(g.ctx, "tcp", g.proxyAddr)
+	// A device may point its HTTP proxy or its SOCKS5 proxy at this same
+	// address. The first byte tells them apart: 0x05 is the SOCKS version and
+	// no HTTP method starts with it. Peeking preserves the byte for the core.
+	br := bufio.NewReader(client)
+	_ = client.SetReadDeadline(time.Now().Add(dialTimeout))
+	first, err := br.Peek(1)
+	_ = client.SetReadDeadline(time.Time{})
+	if err != nil {
+		return
+	}
+	backend := g.proxyAddr
+	if first[0] == 0x05 && g.socksAddr != "" {
+		backend = g.socksAddr
+	}
+	raw, err := g.dialer.DialContext(g.ctx, "tcp", backend)
 	if err != nil {
 		return
 	}
@@ -224,10 +247,18 @@ func (g *Gateway) forward(client *trackedConn) {
 	defer upstream.Close()
 
 	done := make(chan struct{}, 2)
-	go pipe(upstream, client, done)
+	go pipeFrom(upstream, br, done)
 	go pipe(client, upstream, done)
 	<-done
 	<-done
+}
+
+// pipeFrom copies one direction from a buffered reader and passes its end on
+// as a half-close, like pipe.
+func pipeFrom(dst *trackedConn, src io.Reader, done chan<- struct{}) {
+	_, _ = io.Copy(dst, src)
+	_ = dst.CloseWrite()
+	done <- struct{}{}
 }
 
 // pipe copies one direction and passes its end on as a half-close, so a client
@@ -313,6 +344,7 @@ type settings struct {
 	listenAddr  string
 	certAddr    string
 	proxyAddr   string
+	socksAddr   string
 	gate        gate
 	certificate []byte
 }
@@ -335,6 +367,12 @@ func (c Config) validate() (settings, error) {
 	if err != nil {
 		return settings{}, err
 	}
+	var socksAddr string
+	if c.SOCKSAddr != "" {
+		if socksAddr, err = coreAddress(c.SOCKSAddr); err != nil {
+			return settings{}, fmt.Errorf("SOCKSAddr: %w", err)
+		}
+	}
 	if err := caCertificate(c.Certificate); err != nil {
 		return settings{}, err
 	}
@@ -346,6 +384,7 @@ func (c Config) validate() (settings, error) {
 		listenAddr:  listenAddr,
 		certAddr:    certAddr,
 		proxyAddr:   coreAddr,
+		socksAddr:   socksAddr,
 		gate:        gate,
 		certificate: bytes.Clone(c.Certificate),
 	}, nil

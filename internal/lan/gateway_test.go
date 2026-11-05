@@ -669,3 +669,63 @@ func TestConfigIsImmutable(t *testing.T) {
 		t.Fatal("the served certificate changed with the caller's slice")
 	}
 }
+
+func TestGatewayRoutesSOCKS5ByFirstByte(t *testing.T) {
+	httpBackend := newUpstream(t, func(conn net.Conn) {
+		_, _ = io.WriteString(conn, "http")
+		_ = conn.Close()
+	})
+	socksBackend := newUpstream(t, func(conn net.Conn) {
+		_, _ = io.WriteString(conn, "socks")
+		_ = conn.Close()
+	})
+	g := testGateway(t, httpBackend.addr, func(c *Config) { c.SOCKSAddr = socksBackend.addr })
+
+	for _, tc := range []struct {
+		name string
+		send []byte
+		want string
+	}{
+		{"HTTP", []byte("GET / HTTP/1.1\r\nHost: example.test\r\n\r\n"), "http"},
+		{"SOCKS5", []byte{0x05, 0x01, 0x00}, "socks"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			conn := dialGateway(t, g.Addr())
+			if _, err := conn.Write(tc.send); err != nil {
+				t.Fatalf("write: %v", err)
+			}
+			got := make([]byte, len(tc.want))
+			if _, err := io.ReadFull(conn, got); err != nil {
+				t.Fatalf("read: %v", err)
+			}
+			if string(got) != tc.want {
+				t.Fatalf("answered %q, want %q", got, tc.want)
+			}
+		})
+	}
+	if httpBackend.count() != 1 || socksBackend.count() != 1 {
+		t.Fatalf("backends saw http=%d socks=%d, want one each", httpBackend.count(), socksBackend.count())
+	}
+}
+
+func TestGatewayGateAppliesToSOCKS5(t *testing.T) {
+	httpBackend := newUpstream(t, echo)
+	socksBackend := newUpstream(t, echo)
+	g := testGateway(t, httpBackend.addr, func(c *Config) {
+		c.SOCKSAddr = socksBackend.addr
+		c.Allowed = []string{"192.0.2.7"}
+	})
+	client := dialGateway(t, g.Addr())
+	if _, err := client.Write([]byte{0x05, 0x01, 0x00}); err != nil {
+		t.Fatalf("write SOCKS5 greeting: %v", err)
+	}
+	if _, err := client.Read(make([]byte, 1)); err == nil {
+		t.Fatal("the gateway served a SOCKS5 client that is not allowed")
+	}
+	if err := g.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if httpBackend.count() != 0 || socksBackend.count() != 0 {
+		t.Fatalf("denied SOCKS5 client reached a backend: http=%d socks=%d", httpBackend.count(), socksBackend.count())
+	}
+}
