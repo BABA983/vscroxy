@@ -207,7 +207,8 @@ app, status, duration and size. Search and protocol chips occupy separate rows;
 header sorts by that column. Ctrl-click adds a row to the choice and
 Shift-click chooses a range, which **Session → Choose all shown** and
 **Clear choice** also do without the keys; the status bar counts the rows
-chosen, and **Export chosen HAR…** writes just those.
+chosen, and **Export chosen HAR…** writes just those. **Export CSV…** writes the
+visible rows, and **Export chosen CSV…** writes the chosen ones.
 
 Right-click the table's header to hide or show the built-in columns (the URL
 always stays) or to **Add column…** from a header (the response's, or the
@@ -353,6 +354,22 @@ the URL, cURL and response body; then come **Open in browser**, **Filter
 captures**, **Pin** and **Mark…**. **Tools** creates a rule from the request
 (breakpoints, Mock this response, Map Remote, Block), maps its host in DNS or
 changes its HTTPS inspection. Investigation and regression actions come last.
+
+**Copy as…** in a row, the inspector or the native menu adds **Markdown table**,
+**CSV** and **Raw HTTP** to the cURL and HAR formats. The Markdown table and CSV
+use the table's visible columns in their saved order, including custom columns.
+Cells carry the underlying values: status code (or Failed/Tunnel), duration in
+milliseconds, size in bytes, and time as RFC 3339; the Path column carries the
+full request URL. CSV is UTF-8 with RFC 4180 quoting, doubled quotes and CRLF
+records. Cells whose first non-space character is `=`, `+`, `-` or `@` get a
+leading apostrophe so a spreadsheet does not evaluate them. Raw HTTP renders the
+request and response as HTTP/1.1 text with decoded bodies, so it is not a
+byte-for-byte capture. Binary bodies become `[binary body omitted: N bytes]`,
+bodies over 1 MiB are truncated with a marker, and missing or incomplete bodies
+say why. Multi-selection separates captures with `# Capture #N`; raw copy is
+limited to 50 requests and 4 MiB, while table formats allow 200 requests. Copy
+as stays unredacted like cURL/HAR copies; use Export CSV for the redaction
+dialog.
 
 **Create collection…** opens a six-step draft from selected captures, or from
 all captures under a domain/App through its sidebar context menu:
@@ -1053,15 +1070,29 @@ the proxy, and an app that connects to an address it already has.
 
 ## Export and sessions
 
-The **⋯** menu exports HAR 1.2 (HTTP flows only; HAR has no stream messages),
-saves capture to **Sessions**, or opens session files without replacing live traffic.
-**Export session…** exports the current historical session and its messages.
+The **⋯** menu exports HAR 1.2 (HTTP flows only; HAR has no stream messages) or
+CSV, saves capture to **Sessions**, or opens session files without replacing live
+traffic. **Export session…** exports the current historical session and its
+messages.
 
-Postman collections/environments/globals, HAR and session exports share an
-options dialog. All six redaction scopes start enabled: header/trailer values
-(except Content-Type and Accept) and cookies; query values; structured auth,
-URL credentials and fragments; variable values; bodies and stream messages;
-and scripts/Checks, session titles, descriptions, notes and diagnostics.
+**Export CSV…** (⋯ → Session, the command palette, or the selection bar) writes
+the current view's rows; **Export chosen CSV…** writes the selection. Columns,
+order and visibility match the table, including custom columns. Status is the
+numeric code (or Failed/Tunnel), Duration is milliseconds, Size is bytes, Time is
+RFC 3339, and Path is the full request URL. The file is UTF-8 with RFC 4180
+quoting and CRLF records; a cell whose first non-space character is `=`, `+`, `-`
+or `@` is prefixed with an apostrophe. The export dialog applies the same
+field-based scopes: header columns, URL query values, URL credentials and
+body-derived columns; variable and script scopes do not apply to table columns.
+A CSV export is limited to 10,000 rows.
+
+Postman collections/environments/globals, HAR, session and CSV exports share
+an options dialog. All six redaction scopes start enabled for JSON formats:
+header/trailer values (except Content-Type and Accept) and cookies; query
+values; structured auth, URL credentials and fragments; variable values; bodies
+and stream messages; and scripts/Checks, session titles, descriptions, notes and
+diagnostics. CSV shows only the scopes its columns use: headers, query, URL
+credentials and bodies.
 Disable individual scopes to retain them, or choose **Export unredacted** to
 preserve the original bytes. Removing scripts also removes Checks, since
 Postman stores exported Checks as scripts. Keep that scope unchecked when sharing
@@ -1417,8 +1448,17 @@ being trusted machine wide.
 Ctrl/Cmd+R opens replay options for the inspected request; Ctrl/Cmd+Alt+C copies it as cURL.
 **Session → Replay chosen…** snapshots the selected HTTP requests and sends them
 in capture order after confirmation. Choose a per-request timeout (30 seconds by
-default, 0 for no timeout), watch sent/failed counts, or stop the batch. Replaying
-can mutate server data; streams and tunnels are excluded.
+default, 0 for no timeout), repeat each request 1–100 times, run up to 8 sends
+concurrently, and space starts by 0–60,000 ms. A batch is capped at 500 sends;
+the dialog shows the total before sending and disables **Send replays** when a
+field or the cap is invalid. While it runs, the progress bar reports sent and
+failed counts; **Stop replay** stops new sends, cancels in-flight requests and
+waits for them to return. The completed dialog summarizes succeeded and failed
+counts, the status-code distribution, total elapsed time and average response
+time. Replaying can mutate server data; streams and tunnels are excluded.
+Advanced replay uses the same send path as a single Replay, so each result
+enters the capture table with its **Replay of #N** link and is excluded from
+collection recording.
 
 **Network → No Caching** (or **Settings → Capture → Caching**) is a
 session-only switch, also visible in the status bar. New exchanges strip conditional cache headers, send no-cache request
@@ -2107,7 +2147,8 @@ C# `HttpClient`, PHP cURL, Ruby `Net::HTTP` or Rust `reqwest`, with its auth and
 encoded body, and copies it. The **Copy as…** menu offers cURL, PowerShell,
 fetch and the seven native-language snippets; **Generate code…** also has
 axios, Python requests, Go and HTTPie. Captured requests use the original
-exchange. Like cURL, it leaves `{{variables}}` as written and runs no script.
+exchange; a captured request is already a request document, so selecting it
+makes the action available without saving or editing it first. Like cURL, it leaves `{{variables}}` as written and runs no script.
 Each language is written to send the same method, URL, headers and body bytes;
 libraries still add their own defaults (`User-Agent`, `Accept`,
 `Accept-Encoding`), `fetch` and requests join repeated headers into one, while
