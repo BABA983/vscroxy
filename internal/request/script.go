@@ -85,7 +85,10 @@ type Prepared struct {
 	Method string
 	URL    string
 	Body   string
-	Header http.Header
+	// BodyFile is the source of a Binary body. Code generators that can
+	// reference a file read it instead of inlining the bytes.
+	BodyFile string
+	Header   http.Header
 	// Only pre-script templates record explicit overrides of generated fields.
 	editedHeaders map[string]bool
 	editedBody    bool

@@ -244,7 +244,7 @@ func (r Request) Prepare(vars map[string]string) (*Prepared, error) {
 		if len(data) > 16<<20 {
 			return nil, fmt.Errorf("binary body exceeds 16 MiB")
 		}
-		req.Body = string(data)
+		req.Body, req.BodyFile = string(data), path
 		if req.Header.Get("Content-Type") == "" {
 			req.Set("Content-Type", "application/octet-stream")
 		}
