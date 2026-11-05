@@ -234,7 +234,7 @@ func (a *app) importOpenAPICollection(doc *openapi3.T, fallback string, warnings
 	var folders []request.Folder
 	title := fmt.Sprintf("Imported “%s” · %d %s", name, len(incoming), plural(len(incoming), "request", "requests"))
 	if base {
-		folders = []request.Folder{{Path: name, Variables: []request.Field{{Name: "base_url"}}}}
+		folders = []request.Folder{{Path: name, Variables: []request.Variable{{Name: "base_url"}}}}
 		title += " · set base_url in its settings"
 	}
 	if err := a.addToLibrary(incoming, folders); err != nil {

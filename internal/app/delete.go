@@ -74,6 +74,9 @@ func (a *app) deleteAssets(del deletion) error {
 	if err := a.writeLibrary(requests, folders); err != nil {
 		return err
 	}
+	if del.path != "" {
+		a.dropFolderCurrent(del.path)
+	}
 	for _, d := range slices.Clone(a.documents) {
 		if d.savedKey == "" || !slices.Contains(keys, d.savedKey) {
 			continue

@@ -2,6 +2,7 @@ package app
 
 import (
 	"cmp"
+	"errors"
 	"github.com/baba983/vscroxy/internal/uikit"
 	"maps"
 	"slices"
@@ -18,6 +19,7 @@ import (
 type folderEditor struct {
 	open            bool
 	draft           request.Folder
+	variables       []variableRow
 	name            string // the last part of draft.Path, as edited
 	tab             int    // auth, scripts, variables, description, request defaults
 	script          int    // pre-request, post-response
@@ -32,9 +34,34 @@ type folderEditor struct {
 }
 
 // inheritance is what a request filed under path takes from its collection,
-// folders and the globals. The vault joins it only for a send (sendContext).
+// folders and the globals. Each level's Current values override its Initial
+// values locally. The vault joins it only for a send (sendContext).
 func (a *app) inheritance(path string) request.Context {
-	return request.Context{Folders: request.Chain(a.folders, path), Globals: maps.Clone(a.globals), Addons: a.addons.sources()}
+	folders := request.Chain(a.folders, path)
+	for i := range folders {
+		folders[i].Variables = a.folderVariables(folders[i].Path, folders[i].Variables)
+	}
+	return request.Context{Folders: folders, Globals: a.globalValues(), Addons: a.addons.sources()}
+}
+
+// folderVariables resolves one level's Initial rows and local Current values.
+// A Current name without an Initial row still defines a local variable.
+func (a *app) folderVariables(path string, initial []request.Variable) []request.Variable {
+	vars := slices.Clone(initial)
+	current := a.folderCurrent[path]
+	seen := map[string]bool{}
+	for i := range vars {
+		name := strings.TrimSpace(vars[i].Name)
+		seen[name] = true
+		vars[i].Current = current[name]
+	}
+	for _, name := range slices.Sorted(maps.Keys(current)) {
+		if name == "" || seen[name] {
+			continue
+		}
+		vars = append(vars, request.Variable{Name: name, Current: current[name]})
+	}
+	return vars
 }
 
 // ancestorInheritance is what a level takes from above it, without its own
@@ -55,6 +82,7 @@ func (a *app) openFolder(path string) {
 		f.draft = a.folders[i]
 		f.draft.Variables = slices.Clone(f.draft.Variables)
 	}
+	f.variables = a.folderVariableRows(path)
 	f.draft.Auth.Type = cmp.Or(f.draft.Auth.Type, a.folderAuthTypes(path)[0])
 	f.draft.Auth.Location = cmp.Or(f.draft.Auth.Location, "Header")
 	f.settings = f.draft.Settings.Clone()
@@ -63,12 +91,14 @@ func (a *app) openFolder(path string) {
 }
 
 // applyWrites saves what scripts changed beyond the environment: globals,
-// collection variables and vault secrets. Each store saves once.
+// collection variables and vault secrets. Script writes are Current values:
+// global and collection Initial values stay as their shared files have them.
+// Each store saves once.
 func (a *app) applyWrites(writes []request.Write) {
 	if len(writes) == 0 {
 		return
 	}
-	globals, folders, secrets := maps.Clone(a.globals), slices.Clone(a.folders), slices.Clone(a.vault.secrets)
+	globals, folderCurrent, secrets := maps.Clone(a.globalsCurrent), maps.Clone(a.folderCurrent), slices.Clone(a.vault.secrets)
 	var touched [3]bool
 	for _, w := range writes {
 		switch w.Scope {
@@ -83,11 +113,25 @@ func (a *app) applyWrites(writes []request.Write) {
 			}
 			touched[0] = true
 		case "collection":
-			at := slices.IndexFunc(folders, func(f request.Folder) bool { return f.Path == w.Path })
-			if at < 0 {
-				folders, at = append(folders, request.Folder{Path: w.Path}), len(folders)
+			if folderCurrent == nil {
+				folderCurrent = map[string]map[string]string{}
 			}
-			folders[at].Variables = w.Fields(folders[at].Variables)
+			values := folderCurrent[w.Path]
+			if values == nil {
+				values = map[string]string{}
+			} else {
+				values = maps.Clone(values)
+			}
+			if w.Unset {
+				delete(values, w.Name)
+			} else {
+				values[w.Name] = w.Value
+			}
+			if len(values) == 0 {
+				delete(folderCurrent, w.Path)
+			} else {
+				folderCurrent[w.Path] = values
+			}
 			touched[1] = true
 		case "vault":
 			at := slices.IndexFunc(secrets, func(s vault.Secret) bool { return s.Name == w.Name })
@@ -103,18 +147,17 @@ func (a *app) applyWrites(writes []request.Write) {
 		}
 	}
 	var problems []string
-	if touched[0] {
+	if touched[0] || touched[1] {
 		if a.envsProblem != "" {
-			problems = append(problems, "globals: "+a.envsProblem)
-		} else if err := saveEnvs(a.file(a.envsPath), envFile{Active: a.activeEnv, Envs: a.envs, Globals: globals}); err != nil {
-			problems = append(problems, "globals: "+err.Error())
+			problems = append(problems, "variables: "+a.envsProblem)
 		} else {
-			a.globals = globals
-		}
-	}
-	if touched[1] {
-		if err := a.writeFolders(folders); err != nil {
-			problems = append(problems, "collection variables: "+err.Error())
+			f := a.localEnvs()
+			f.GlobalsCurrent, f.FolderCurrent = globals, folderCurrent
+			if err := saveEnvs(a.file(a.envsPath), f); err != nil {
+				problems = append(problems, "variables: "+err.Error())
+			} else {
+				a.globalsCurrent, a.folderCurrent = globals, folderCurrent
+			}
 		}
 	}
 	if touched[2] {
@@ -171,20 +214,14 @@ func (a *app) folderAuthTypes(path string) []string {
 	return authTypes
 }
 
-// saveFolder keeps the draft, replacing the folder's saved settings.
+// saveFolder keeps the draft, replacing the folder's saved settings. Its
+// Initial values go to the library; its Current values stay in env.json.
 func (a *app) saveFolder() {
 	f := &a.folderUI
-	seen := map[string]bool{}
-	for _, v := range f.draft.Variables {
-		name := strings.TrimSpace(v.Name)
-		if name == "" && v.Value == "" {
-			continue
-		}
-		if name == "" || seen[name] || strings.ContainsAny(name, "{}") {
-			f.problem = "Variable names must be nonempty, unique and contain no braces."
-			return
-		}
-		seen[name] = true
+	vars, current, err := folderVariablesOf(f.variables)
+	if err != nil {
+		f.problem = err.Error()
+		return
 	}
 	if name := strings.TrimSpace(f.name); name != f.draft.Path[strings.LastIndex(f.draft.Path, "/")+1:] {
 		from := f.draft.Path
@@ -196,9 +233,7 @@ func (a *app) saveFolder() {
 	}
 	draft := f.draft
 	draft.Settings = f.settings
-	draft.Variables = slices.DeleteFunc(slices.Clone(draft.Variables), func(v request.Field) bool {
-		return strings.TrimSpace(v.Name) == "" && v.Value == ""
-	})
+	draft.Variables = vars
 	if draft.Auth.Type == request.AuthInherit || draft.Auth.Type == "None" && !strings.Contains(draft.Path, "/") {
 		draft.Auth = request.Auth{Type: draft.Auth.Type}
 	}
@@ -207,8 +242,50 @@ func (a *app) saveFolder() {
 		f.problem = "Save failed: " + err.Error()
 		return
 	}
+	next := maps.Clone(a.folderCurrent)
+	if len(current) == 0 {
+		delete(next, draft.Path)
+	} else {
+		next[draft.Path] = current
+	}
+	envs := a.localEnvs()
+	envs.FolderCurrent = next
+	if err := saveEnvs(a.file(a.envsPath), envs); err != nil {
+		f.problem = "Settings saved, but local Current values were not: " + err.Error()
+		return
+	}
+	a.folderCurrent = next
 	f.open = false
 	a.done("Saved " + draft.Path + " settings")
+}
+
+// folderVariablesOf splits edited rows into the Initial rows the library
+// carries and the Current values kept locally. A Current name with no Initial
+// row stays local until the reader persists it.
+func folderVariablesOf(rows []variableRow) ([]request.Variable, map[string]string, error) {
+	var vars []request.Variable
+	current := map[string]string{}
+	seen := map[string]bool{}
+	for _, r := range rows {
+		name := strings.TrimSpace(r.Name)
+		if name == "" && !r.HasInitial && !r.HasCurrent && r.Initial == "" && r.Current == "" {
+			continue
+		}
+		if name == "" || strings.ContainsAny(name, "{}") {
+			return nil, nil, errors.New("variable names must be nonempty and contain no braces")
+		}
+		if seen[name] {
+			return nil, nil, errors.New("variable names must be unique")
+		}
+		seen[name] = true
+		if r.HasInitial || !r.HasCurrent || r.Initial != "" || r.Disabled {
+			vars = append(vars, request.Variable{Name: name, Initial: r.Initial, Disabled: r.Disabled})
+		}
+		if r.HasCurrent {
+			current[name] = r.Current
+		}
+	}
+	return vars, current, nil
 }
 
 // writeFolders saves the collection and folder settings, sorted by path,
@@ -258,7 +335,8 @@ func (a *app) folderModal(c *ui.Context, t *ui.Theme) {
 					}
 				case 2:
 					uikit.Meta(c, "Environment values override these; a folder's variables override its collection's.")
-					requestFieldsEditor(c, &f.draft.Variables, fieldsOptions{secret: true}, "variable")
+					uikit.Hint(c, "Initial values are shared and exported; Current values stay on this machine.")
+					a.variableTable(c, &f.variables, variableTableOptions{enable: true})
 				case 3:
 					ui.TextArea(c, &f.draft.Description).Label("Description").Placeholder("What these requests are for").Font(uikit.FontMono).FontSize(uikit.TextBody).Radius(uikit.RadiusControl).Grow(1).MinHeight(0)
 				case 4:

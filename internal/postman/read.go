@@ -367,11 +367,12 @@ func describe(v jsontext.Value) string {
 	return text(v)
 }
 
-// variables reads collection or folder variables.
-func variables(vars []pmVariable) []request.Field {
-	var out []request.Field
+// variables reads collection or folder variables. Postman's value is the
+// Initial value; Current values are local and never come from an import.
+func variables(vars []pmVariable) []request.Variable {
+	var out []request.Variable
 	for _, v := range vars {
-		out = append(out, request.Field{Name: cmp.Or(v.Key, v.ID), Value: text(v.Value), Disabled: v.Disabled})
+		out = append(out, request.Variable{Name: cmp.Or(v.Key, v.ID), Initial: text(v.Value), Disabled: v.Disabled})
 	}
 	return out
 }

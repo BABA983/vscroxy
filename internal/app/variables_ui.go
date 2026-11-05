@@ -1,0 +1,224 @@
+package app
+
+import (
+	"fmt"
+	"maps"
+	"slices"
+	"strings"
+
+	"github.com/baba983/vscroxy/internal/request"
+	"github.com/baba983/vscroxy/internal/uikit"
+	"github.com/egoist/mygo/ui"
+)
+
+// variableRow is one editable row of a variable scope. Initial is shared and
+// exportable; Current is local to this machine. HasInitial and HasCurrent keep
+// an explicitly empty value, which a map cannot tell from an absent one.
+type variableRow struct {
+	Name       string
+	Initial    string
+	Current    string
+	HasInitial bool
+	HasCurrent bool
+	Disabled   bool
+	Revealed   bool
+}
+
+// variableRowsOf shows a scope's Initial and Current values as one row per
+// name, including a Current name that has no Initial row.
+func variableRowsOf(initial, current map[string]string) []variableRow {
+	rows := make([]variableRow, 0, len(initial)+len(current))
+	for _, name := range slices.Sorted(maps.Keys(initial)) {
+		rows = append(rows, variableRow{Name: name, Initial: initial[name], HasInitial: true})
+	}
+	for _, name := range slices.Sorted(maps.Keys(current)) {
+		value := current[name]
+		if at := slices.IndexFunc(rows, func(r variableRow) bool { return r.Name == name }); at >= 0 {
+			rows[at].Current, rows[at].HasCurrent = value, true
+			continue
+		}
+		rows = append(rows, variableRow{Name: name, Current: value, HasCurrent: true})
+	}
+	slices.SortStableFunc(rows, func(a, b variableRow) int { return strings.Compare(a.Name, b.Name) })
+	return rows
+}
+
+// folderVariableRows shows one collection's or folder's Initial rows with its
+// local Current values, including names that only exist locally.
+func (a *app) folderVariableRows(path string) []variableRow {
+	var initial []request.Variable
+	for _, f := range a.folders {
+		if f.Path == path {
+			initial = f.Variables
+			break
+		}
+	}
+	rows := make([]variableRow, 0, len(initial)+len(a.folderCurrent[path]))
+	for _, v := range initial {
+		name := strings.TrimSpace(v.Name)
+		rows = append(rows, variableRow{Name: name, Initial: v.Initial, HasInitial: true, Disabled: v.Disabled})
+	}
+	for _, name := range slices.Sorted(maps.Keys(a.folderCurrent[path])) {
+		value := a.folderCurrent[path][name]
+		if at := slices.IndexFunc(rows, func(r variableRow) bool { return r.Name == name }); at >= 0 {
+			rows[at].Current, rows[at].HasCurrent = value, true
+			continue
+		}
+		rows = append(rows, variableRow{Name: name, Current: value, HasCurrent: true})
+	}
+	slices.SortStableFunc(rows, func(a, b variableRow) int { return strings.Compare(a.Name, b.Name) })
+	return rows
+}
+
+type variableTableOptions struct {
+	enable bool
+}
+
+// variableTable edits one scope's rows: name, Initial value, Current value,
+// and the actions that persist a Current value as Initial or reset it. It
+// reports whether any row changed.
+func (a *app) variableTable(c *ui.Context, rows *[]variableRow, opts variableTableOptions) bool {
+	t := c.Theme()
+	changed, remove := false, -1
+	ui.Column(c).Grow(1).MinHeight(0).Border(1, t.Border).Radius(uikit.RadiusControl).Children(func() {
+		ui.Row(c).Height(uikit.HeightControl).AlignItems(ui.Center).BorderWidth(0, 0, 1, 0).BorderColor(t.Border).Children(func() {
+			if opts.enable {
+				ui.Box(c).Width(uikit.HeightLarge).FillHeight().BorderWidth(0, 1, 0, 0).BorderColor(t.Border)
+			}
+			uikit.Label(c, "Name").Basis(0).Grow(1).MinWidth(0).FillHeight().Padding(t.Space(1), t.Space(2)).BorderWidth(0, 1, 0, 0).BorderColor(t.Border)
+			uikit.Label(c, "Initial").Basis(0).Grow(2).MinWidth(0).FillHeight().Padding(t.Space(1), t.Space(2)).BorderWidth(0, 1, 0, 0).BorderColor(t.Border)
+			uikit.Label(c, "Current").Basis(0).Grow(2).MinWidth(0).FillHeight().Padding(t.Space(1), t.Space(2)).BorderWidth(0, 1, 0, 0).BorderColor(t.Border)
+			ui.Box(c).Width(uikit.HeightControl * 4)
+		})
+		ui.Scroll(c).Grow(1).MinHeight(0).Children(func() {
+			for i := range *rows {
+				r := &(*rows)[i]
+				row := ui.Row(c).Key(i).Height(uikit.HeightControl).AlignItems(ui.Center).BorderWidth(0, 0, 1, 0).BorderColor(t.Border)
+				row.Children(func() {
+					if opts.enable {
+						ui.Box(c).Width(uikit.HeightLarge).FillHeight().Center().BorderWidth(0, 1, 0, 0).BorderColor(t.Border).Children(func() {
+							enabled := !r.Disabled
+							if ui.Checkbox(c, &enabled, "").Label(fmt.Sprintf("Enable variable %d", i+1)).Tooltip("Unchecked rows stay here and are not sent").Changed() {
+								r.Disabled, changed = !enabled, true
+							}
+						})
+					}
+					ui.Box(c).Basis(0).Grow(1).MinWidth(0).FillHeight().BorderWidth(0, 1, 0, 0).BorderColor(t.Border).Children(func() {
+						field := requestGridInput(c, &r.Name, "name", fmt.Sprintf("Variable name %d", i+1))
+						cellBorder(t, field, false, false)
+						if field.Changed() {
+							changed = true
+						}
+					})
+					secret := sensitiveVariable(r.Name)
+					ui.Box(c).Basis(0).Grow(2).MinWidth(0).FillHeight().BorderWidth(0, 1, 0, 0).BorderColor(t.Border).Children(func() {
+						field := requestGridInput(c, &r.Initial, "Shared value", fmt.Sprintf("Variable initial value %d", i+1))
+						if secret && !r.Revealed {
+							field.Password()
+						}
+						cellBorder(t, field, secret && !r.Revealed, secret && r.Revealed)
+						if field.Changed() {
+							r.HasInitial, changed = true, true
+						}
+					})
+					ui.Box(c).Basis(0).Grow(2).MinWidth(0).FillHeight().BorderWidth(0, 1, 0, 0).BorderColor(t.Border).Children(func() {
+						field := requestGridInput(c, &r.Current, "Use initial", fmt.Sprintf("Variable current value %d", i+1))
+						if secret && !r.Revealed {
+							field.Password()
+						}
+						cellBorder(t, field, secret && !r.Revealed, secret && r.Revealed)
+						if field.Changed() {
+							r.HasCurrent, changed = true, true
+						}
+					})
+					ui.Row(c).Width(uikit.HeightControl * 4).Children(func() {
+						if uikit.IconButton(c, fmt.Sprintf("Reveal variable %d", i+1), "Reveal or hide both values", eyeIcon).Clicked() {
+							r.Revealed = !r.Revealed
+						}
+						ui.Row(c).Disabled(!r.HasCurrent || r.Current == "").Children(func() {
+							if uikit.IconButton(c, fmt.Sprintf("Persist current value %d", i+1), "Persist current as initial: writes it to the shared file and exports", persistIcon).Clicked() {
+								r.Initial, r.HasInitial, changed = r.Current, true, true
+							}
+						})
+						ui.Row(c).Disabled(!r.HasCurrent).Children(func() {
+							if uikit.IconButton(c, fmt.Sprintf("Reset current value %d", i+1), "Reset current: use the initial value again", resetIcon).Clicked() {
+								if !r.HasInitial && r.Initial == "" {
+									remove = i // nothing shared remains, so the local-only row goes
+								} else {
+									r.Current, r.HasCurrent, changed = "", false, true
+								}
+							}
+						})
+						if uikit.IconButton(c, fmt.Sprintf("Remove variable %d", i+1), "Remove variable", closeIcon).Clicked() {
+							remove = i
+						}
+					})
+				})
+			}
+			if remove >= 0 {
+				*rows = slices.Delete(*rows, remove, remove+1)
+				changed = true
+			}
+			ui.Row(c).Disabled(a.envsProblem != "").Children(func() {
+				if uikit.ToolbarButton(c, "Add variable", "Add variable", false).Children(func() {
+					ui.Icon(c, plusIcon).Size(uikit.IconInline, uikit.IconInline)
+					uikit.Body(c, "Add variable")
+				}).Clicked() {
+					*rows = append(*rows, variableRow{})
+					changed = true
+				}
+			})
+		})
+	})
+	return changed
+}
+
+// persistAllCurrent copies every nonempty Current value into its Initial value.
+func persistAllCurrent(rows []variableRow) {
+	for i := range rows {
+		if rows[i].HasCurrent && rows[i].Current != "" {
+			rows[i].Initial, rows[i].HasInitial = rows[i].Current, true
+		}
+	}
+}
+
+// resetAllCurrent drops every local override, so Initial values apply again.
+func resetAllCurrent(rows []variableRow) {
+	for i := range rows {
+		rows[i].Current, rows[i].HasCurrent = "", false
+	}
+}
+
+func anyCurrent(rows []variableRow) bool {
+	return slices.ContainsFunc(rows, func(r variableRow) bool { return r.HasCurrent })
+}
+
+// variablesOf splits edited rows into the Initial values a shared file or an
+// export carries and the local Current values. A row with a name and no
+// Current value is an Initial row, even when its value is empty; a row with
+// only a Current value stays local until the reader persists it. It reports a
+// bad name.
+func variablesOf(rows []variableRow) (initial, current map[string]string, err error) {
+	initial, current = map[string]string{}, map[string]string{}
+	seen := map[string]bool{}
+	for _, r := range rows {
+		name := strings.TrimSpace(r.Name)
+		if name == "" && !r.HasInitial && !r.HasCurrent && r.Initial == "" && r.Current == "" {
+			continue
+		}
+		if name == "" || strings.ContainsAny(name, "{}") {
+			return nil, nil, fmt.Errorf("variable names must be nonempty and contain no braces")
+		}
+		if seen[name] {
+			return nil, nil, fmt.Errorf("variable names must be unique")
+		}
+		seen[name] = true
+		if r.HasInitial || !r.HasCurrent || r.Initial != "" {
+			initial[name] = r.Initial
+		}
+		if r.HasCurrent {
+			current[name] = r.Current
+		}
+	}
+	return initial, current, nil
+}

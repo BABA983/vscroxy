@@ -499,12 +499,12 @@ func TestCurrentValuesEditRoundTripAndScriptWritesStayLocal(t *testing.T) {
 	a.activeEnv = "Local"
 	a.openVars()
 	tt := ui.NewTester(a.view, 960, 600)
-	current, currentOK := tt.Find("Current variable value 1")
+	current, currentOK := tt.Find("Variable current value 1")
 	save, saveOK := tt.Find("Save")
 	if !currentOK || !saveOK || current.Y+current.H > save.Y {
 		t.Fatalf("current value is hidden behind the footer: field %+v, Save %+v", current, save)
 	}
-	if err := tt.Click("Current variable value 1"); err != nil {
+	if err := tt.Click("Variable current value 1"); err != nil {
 		t.Fatal(err)
 	}
 	tt.Key(ui.Cmd, ui.KeyA)
@@ -515,7 +515,7 @@ func TestCurrentValuesEditRoundTripAndScriptWritesStayLocal(t *testing.T) {
 	if a.varsOpen || a.activeVars()["token"] != "edited-private" {
 		t.Fatalf("current value edit not saved: %s", a.varsProblem)
 	}
-	a.applyVars("Local", a.activeVars(), map[string]string{"token": "script-private"}, a.envs[0].Current)
+	a.applyVars("Local", a.activeVars(), map[string]string{"token": "script-private"})
 	f, err := loadEnvs(&store.File{Path: a.envsPath})
 	if err != nil || f.Envs[0].Vars["token"] != "shared" || f.Envs[0].Current["token"] != "script-private" {
 		t.Fatalf("script promoted a private value to shared: %+v %v", f, err)

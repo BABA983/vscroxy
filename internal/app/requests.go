@@ -162,7 +162,6 @@ type requestResult struct {
 	environment string
 	varsBefore  map[string]string
 	vars        map[string]string
-	varsCurrent map[string]string
 	writes      []request.Write
 	experiment  *experimentRecord
 }

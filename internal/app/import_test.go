@@ -159,7 +159,7 @@ func TestImportOpenAPIWithoutServerAddsBaseURLVariable(t *testing.T) {
 	if got := importedRequests(t, a.requests); !reflect.DeepEqual(got, []imported{{Collection: "Tiny/ops", Name: "GET /ping", Method: "GET", URL: "{{base_url}}/ping"}}) {
 		t.Fatalf("requests %+v", got)
 	}
-	if !reflect.DeepEqual(a.folders, []request.Folder{{Path: "Tiny", Variables: []request.Field{{Name: "base_url"}}}}) {
+	if !reflect.DeepEqual(a.folders, []request.Folder{{Path: "Tiny", Variables: []request.Variable{{Name: "base_url"}}}}) {
 		t.Errorf("folders %+v", a.folders)
 	}
 	if _, ok := a.inheritance("Tiny/ops").Values(nil)["base_url"]; !ok {

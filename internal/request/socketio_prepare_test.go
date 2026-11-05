@@ -12,7 +12,7 @@ func TestSocketIOPrepareScopesAndVault(t *testing.T) {
 	if got := r.Variables(); !slices.Equal(got, []string{"bytes", "event", "host", "ns", "value", "vault:socket-token"}) {
 		t.Fatalf("Socket.IO arguments must ignore the former HTTP body mode: %v", got)
 	}
-	in := Context{Folders: []Folder{{Auth: Auth{Type: "Bearer", Token: "{{token}}"}, Variables: []Field{{Name: "ns", Value: "admin"}}}}, Globals: map[string]string{"value": "global"}, Vault: func(name, host string) (string, error) {
+	in := Context{Folders: []Folder{{Auth: Auth{Type: "Bearer", Token: "{{token}}"}, Variables: []Variable{{Name: "ns", Initial: "admin"}}}}, Globals: map[string]string{"value": "global"}, Vault: func(name, host string) (string, error) {
 		if name != "socket-token" || host != "api.example.test" {
 			return "", fmt.Errorf("host denied")
 		}

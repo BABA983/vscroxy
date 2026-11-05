@@ -332,7 +332,7 @@ func TestCollectionExamplesBecomeAScenarioThatAnswersForEachRequest(t *testing.T
 	a := workspaceApp()
 	a.page = pageRequest
 	a.rulesPath = filepath.Join(dir, "rules.json")
-	a.folders = []request.Folder{{Path: "Shop", Variables: []request.Field{{Name: "base", Value: "https://api.test"}}}}
+	a.folders = []request.Folder{{Path: "Shop", Variables: []request.Variable{{Name: "base", Initial: "https://api.test"}}}}
 	user := request.Example{Name: "200 OK", Status: 200, Headers: "Content-Type: application/json\nContent-Encoding: gzip", Body: `{"id":7}`,
 		Request: request.ExampleRequest{Method: "GET", URL: "{{base}}/users/:id"}}
 	missing := request.Example{Name: "Missing", Status: 404, Body: "no such user", Request: user.Request}

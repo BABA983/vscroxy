@@ -66,7 +66,7 @@ func TestLibraryKeepsOneFilePerRequestAndFolder(t *testing.T) {
 		{Request: request.Request{ID: "e", Name: "first", Collection: "Shop/50% off", Method: "GET"}},
 	}
 	folders := []request.Folder{
-		{Path: "Shop", Auth: request.Auth{Type: "Bearer", Token: "{{vault:t}}"}, Variables: []request.Field{{Name: "base", Value: "https://shop"}}},
+		{Path: "Shop", Auth: request.Auth{Type: "Bearer", Token: "{{vault:t}}"}, Variables: []request.Variable{{Name: "base", Initial: "https://shop"}}},
 		{Path: "Shop/CON", Pre: `console.log("con")`},
 		{Path: "Empty", Description: "settings, no requests"},
 	}
@@ -111,7 +111,7 @@ func TestLibraryKeepsOneFilePerRequestAndFolder(t *testing.T) {
 	if slices.Sort(paths); !slices.Equal(paths, []string{"Empty", "Shop", "Shop/CON"}) {
 		t.Errorf("folders with settings = %q", paths)
 	}
-	if i := slices.IndexFunc(loadedFolders, func(f request.Folder) bool { return f.Path == "Shop" }); loadedFolders[i].Auth.Token != "{{vault:t}}" || loadedFolders[i].Variables[0].Value != "https://shop" {
+	if i := slices.IndexFunc(loadedFolders, func(f request.Folder) bool { return f.Path == "Shop" }); loadedFolders[i].Auth.Token != "{{vault:t}}" || loadedFolders[i].Variables[0].Value() != "https://shop" {
 		t.Errorf("collection settings = %+v", loadedFolders[i])
 	}
 }

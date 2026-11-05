@@ -659,7 +659,11 @@ func (a *app) saveCollection(list []savedRequest, folders []request.Folder, vars
 			return
 		}
 	}
-	if err := saveEnvs(a.file(a.envsPath), envFile{Active: envName, Envs: envs, Globals: a.globals}); err != nil {
+	if err := func() error {
+		f := a.localEnvs()
+		f.Active, f.Envs = envName, envs
+		return saveEnvs(a.file(a.envsPath), f)
+	}(); err != nil {
 		w.problem = err.Error()
 		return
 	}

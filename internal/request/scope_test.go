@@ -36,10 +36,10 @@ func TestExecuteInheritsFromCollectionAndFolder(t *testing.T) {
 		Globals: map[string]string{"base": "http://global.invalid", "region": "global", "only": "g"},
 		Folders: []Folder{
 			{Path: "Shop", Auth: Auth{Type: "Bearer", Token: "{{vault:token}}"},
-				Variables: []Field{{Name: "base", Value: "http://collection.invalid"}, {Name: "region", Value: "eu"}, {Name: "off", Value: "x", Disabled: true}},
+				Variables: []Variable{{Name: "base", Initial: "http://collection.invalid"}, {Name: "region", Initial: "eu"}, {Name: "off", Initial: "x", Disabled: true}},
 				Pre:       `pm.environment.set("order", (pm.variables.get("order") || "") + "C")`, Post: `pm.environment.set("post", (pm.variables.get("post") || "") + "C")`},
 			{Path: "Shop/Orders", Auth: Auth{Type: AuthInherit},
-				Variables: []Field{{Name: "base", Value: upstream.URL}},
+				Variables: []Variable{{Name: "base", Initial: upstream.URL}},
 				Pre:       `pm.environment.set("order", (pm.variables.get("order") || "") + "F")`, Post: `pm.environment.set("post", (pm.variables.get("post") || "") + "F")`},
 		},
 		Vault: secrets.Lookup,

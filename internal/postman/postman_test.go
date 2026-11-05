@@ -280,15 +280,15 @@ func TestReadCollection(t *testing.T) {
 			Auth: request.Auth{Type: "Bearer", Token: "{{token}}"},
 			Pre:  "pm.variables.set('ts', Date.now());\nconsole.log('root');",
 			Post: "pm.test('ok', () => pm.response.to.be.ok);",
-			Variables: []request.Field{
-				{Name: "baseUrl", Value: "https://shop.example.com"},
-				{Name: "pageSize", Value: "20"},
-				{Name: "legacy", Value: "v1", Disabled: true},
+			Variables: []request.Variable{
+				{Name: "baseUrl", Initial: "https://shop.example.com"},
+				{Name: "pageSize", Initial: "20"},
+				{Name: "legacy", Initial: "v1", Disabled: true},
 			},
 		},
 		{
 			Path: orders, Description: "Order and return flows.", Auth: request.Auth{Type: "None"},
-			Pre: "console.log('orders');", Variables: []request.Field{{Name: "region", Value: "eu"}},
+			Pre: "console.log('orders');", Variables: []request.Variable{{Name: "region", Initial: "eu"}},
 		},
 		{Path: "Shop API/Auth", Auth: request.Auth{Type: request.AuthDigest, Username: "shop"}},
 	}
@@ -679,7 +679,7 @@ func TestCollectionRoundTrip(t *testing.T) {
 	folders := []request.Folder{
 		{
 			Path: "Shop", Description: "Root notes.", Auth: request.Auth{Type: "Basic", Username: "u", Password: "p"},
-			Pre: "first();\nsecond();", Variables: []request.Field{{Name: "host", Value: "example.com"}, {Name: "off", Value: "1", Disabled: true}},
+			Pre: "first();\nsecond();", Variables: []request.Variable{{Name: "host", Initial: "example.com"}, {Name: "off", Initial: "1", Disabled: true}},
 		},
 		{Path: "Shop/Orders∕Returns", Auth: request.Auth{Type: "None"}, Post: "after();"},
 		{Path: "Shop/Orders∕Returns/Deep", Description: "Deep.", Auth: request.Auth{Type: "API key", Key: "X-Key", Value: "{{key}}", Location: "Header"}},

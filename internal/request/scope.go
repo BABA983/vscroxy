@@ -16,12 +16,12 @@ const AuthInherit = "Inherit"
 // they read and transport defaults they inherit. Path is the collection label
 // requests carry: "Shop" for a collection and "Shop/Orders" for a folder in it.
 type Folder struct {
-	Path        string  `json:"path,omitempty"`
-	Description string  `json:"description,omitempty"`
-	Auth        Auth    `json:"auth,omitzero"`
-	Pre         string  `json:"pre,omitempty"`
-	Post        string  `json:"post,omitempty"`
-	Variables   []Field `json:"variables,omitempty"`
+	Path        string     `json:"path,omitempty"`
+	Description string     `json:"description,omitempty"`
+	Auth        Auth       `json:"auth,omitzero"`
+	Pre         string     `json:"pre,omitempty"`
+	Post        string     `json:"post,omitempty"`
+	Variables   []Variable `json:"variables,omitempty"`
 	// Settings are the transport defaults requests under it inherit.
 	Settings Settings `json:"settings,omitzero"`
 }
@@ -87,7 +87,7 @@ func (c Context) scriptRun(r Request, vars map[string]string) *scriptRun {
 		}
 		for _, v := range f.Variables {
 			if name := strings.TrimSpace(v.Name); name != "" && !v.Disabled {
-				scope[name] = v.Value
+				scope[name] = v.Value()
 			}
 		}
 	}
@@ -128,7 +128,7 @@ func (c Context) Apply(writes []Write, collection string) Context {
 			if len(c.Folders) == 0 || c.Folders[0].Path != root {
 				c.Folders = slices.Insert(c.Folders, 0, Folder{Path: root})
 			}
-			c.Folders[0].Variables = w.Fields(c.Folders[0].Variables)
+			c.Folders[0].Variables = w.Variables(c.Folders[0].Variables)
 		}
 	}
 	return c
@@ -198,7 +198,7 @@ func (c Context) inherited() (values, sources map[string]string) {
 	for _, f := range c.Folders {
 		for _, v := range f.Variables {
 			if name := strings.TrimSpace(v.Name); name != "" && !v.Disabled {
-				values[name], sources[name] = v.Value, "Collection: "+f.Path
+				values[name], sources[name] = v.Value(), "Collection: "+f.Path
 			}
 		}
 	}
