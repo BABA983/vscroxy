@@ -145,7 +145,7 @@ func (a *app) saveSOCKS() {
 func (a *app) socksSettings(c *ui.Context, t *ui.Theme) {
 	uikit.SettingsGroup(c, "SOCKS5", func() {
 		ui.Field(c, "Enable", func() {
-			ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+			ui.Row(c).Gap(t.Space(2)).Wrap().AlignItems(ui.Center).Children(func() {
 				ui.Switch(c, &a.socksOnDraft).Label("Enable SOCKS5 proxy")
 				if a.srv != nil && a.srv.SOCKSAddr() != "" {
 					uikit.Mono(c, a.srv.SOCKSAddr()).Selectable().TextColor(t.TextMuted)
