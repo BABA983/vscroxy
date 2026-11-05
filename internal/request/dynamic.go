@@ -139,7 +139,12 @@ func (r Request) withDynamic(defined map[string]string) Request {
 	if r.Protocol == "Socket.IO" {
 		fields = append(fields, &r.SocketIO.Namespace, &r.SocketIO.Auth, &r.SocketIO.Event, &r.SocketIO.Attachments)
 	}
-	for _, s := range append(append(fields, r.Auth.AWS.fields()...), r.Auth.JWT.fields()...) {
+	fields = append(fields, r.Auth.AWS.fields()...)
+	fields = append(fields, r.Auth.JWT.fields()...)
+	fields = append(fields, r.Auth.OAuth1.fields()...)
+	fields = append(fields, r.Auth.Hawk.fields()...)
+	fields = append(fields, r.Auth.EdgeGrid.fields()...)
+	for _, s := range fields {
 		expand(s)
 	}
 	r.Form = append([]Field(nil), r.Form...)

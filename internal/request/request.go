@@ -117,10 +117,13 @@ type Auth struct {
 	Value    string `json:"value,omitempty"`
 	Location string `json:"location,omitempty"`
 	OAuth2   OAuth2 `json:"oauth2,omitzero"`
-	// AWS and JWT configure the auth types of those names; Digest uses
-	// Username and Password.
-	AWS AWSAuth `json:"aws,omitzero"`
-	JWT JWTAuth `json:"jwt,omitzero"`
+	// AWS, JWT, OAuth 1.0, Hawk and EdgeGrid configure the auth types of
+	// those names; Digest uses Username and Password.
+	AWS      AWSAuth      `json:"aws,omitzero"`
+	JWT      JWTAuth      `json:"jwt,omitzero"`
+	OAuth1   OAuth1Auth   `json:"oauth1,omitzero"`
+	Hawk     HawkAuth     `json:"hawk,omitzero"`
+	EdgeGrid EdgeGridAuth `json:"edgegrid,omitzero"`
 }
 
 type Field struct {
@@ -181,7 +184,7 @@ func (r Request) Prepare(vars map[string]string) (*Prepared, error) {
 			req.Set(key, value)
 		}
 	case AuthDigest: // Execute answers the server's challenge; there is none yet.
-	case AuthAWS: // Signed below, after the body, as the last change.
+	case AuthAWS, AuthOAuth1, AuthHawk, AuthEdgeGrid: // Signed below, after the body.
 	case AuthJWT:
 		if err := r.Auth.JWT.expand(vars).apply(req); err != nil {
 			return nil, err
@@ -304,8 +307,21 @@ func (r Request) Prepare(vars map[string]string) (*Prepared, error) {
 	default:
 		return nil, fmt.Errorf("unsupported body type %q", r.BodyMode)
 	}
-	if r.Auth.Type == AuthAWS {
+	switch r.Auth.Type {
+	case AuthAWS:
 		if err := r.Auth.AWS.expand(vars).sign(req, now()); err != nil {
+			return nil, err
+		}
+	case AuthOAuth1:
+		if err := r.Auth.OAuth1.expand(vars).defaults().sign(req, now()); err != nil {
+			return nil, err
+		}
+	case AuthHawk:
+		if err := r.Auth.Hawk.expand(vars).sign(req); err != nil {
+			return nil, err
+		}
+	case AuthEdgeGrid:
+		if err := r.Auth.EdgeGrid.expand(vars).sign(req); err != nil {
 			return nil, err
 		}
 	}

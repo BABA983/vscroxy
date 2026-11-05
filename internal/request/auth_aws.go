@@ -146,7 +146,7 @@ func awsPath(raw string, s3 bool) string {
 				segment = decoded
 			}
 		}
-		segments[i] = awsEscape(segment)
+		segments[i] = percentEscape(segment)
 	}
 	return strings.Join(segments, "/")
 }
@@ -166,7 +166,7 @@ func awsQuery(raw string) string {
 		if decoded, err := url.QueryUnescape(value); err == nil {
 			value = decoded
 		}
-		pairs = append(pairs, [2]string{awsEscape(name), awsEscape(value)})
+		pairs = append(pairs, [2]string{percentEscape(name), percentEscape(value)})
 	}
 	slices.SortFunc(pairs, func(a, b [2]string) int {
 		return cmp.Or(strings.Compare(a[0], b[0]), strings.Compare(a[1], b[1]))
@@ -176,19 +176,4 @@ func awsQuery(raw string) string {
 		encoded[i] = pair[0] + "=" + pair[1]
 	}
 	return strings.Join(encoded, "&")
-}
-
-// awsEscape percent-encodes every byte but the unreserved A-Z a-z 0-9 - _ . ~,
-// in upper-case hex, as AWS signs.
-func awsEscape(s string) string {
-	var b strings.Builder
-	for i := range len(s) {
-		c := s[i]
-		if 'A' <= c && c <= 'Z' || 'a' <= c && c <= 'z' || '0' <= c && c <= '9' || c == '-' || c == '_' || c == '.' || c == '~' {
-			b.WriteByte(c)
-		} else {
-			fmt.Fprintf(&b, "%%%02X", c)
-		}
-	}
-	return b.String()
 }

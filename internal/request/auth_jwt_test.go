@@ -22,20 +22,28 @@ import (
 // generates, and only those.
 func TestAuthTypesVariables(t *testing.T) {
 	auth := Auth{Username: "{{u}}", Password: "{{vault:p}}",
-		AWS: AWSAuth{AccessKey: "{{a1}}", SecretKey: "{{vault:a2}}", Region: "{{a3}}", Service: "{{a4}}", SessionToken: "{{a5}}"},
-		JWT: JWTAuth{Algorithm: "{{x}}", Secret: "{{vault:j1}}", PrivateKey: "{{j2}}", Payload: `{"n":"{{j3}}"}`, Header: "{{j4}}", Prefix: "{{j5}}", AddTo: "{{x}}", QueryParam: "{{j6}}"}}
+		AWS:      AWSAuth{AccessKey: "{{a1}}", SecretKey: "{{vault:a2}}", Region: "{{a3}}", Service: "{{a4}}", SessionToken: "{{a5}}"},
+		JWT:      JWTAuth{Algorithm: "{{x}}", Secret: "{{vault:j1}}", PrivateKey: "{{j2}}", Payload: `{"n":"{{j3}}"}`, Header: "{{j4}}", Prefix: "{{j5}}", AddTo: "{{x}}", QueryParam: "{{j6}}"},
+		OAuth1:   OAuth1Auth{ConsumerKey: "{{o1}}", ConsumerSecret: "{{vault:o2}}", PrivateKey: "{{o3}}", Callback: "{{o4}}"},
+		Hawk:     HawkAuth{AuthID: "{{h1}}", AuthKey: "{{vault:h2}}", ExtraData: "{{h3}}"},
+		EdgeGrid: EdgeGridAuth{AccessToken: "{{e1}}", ClientSecret: "{{vault:e2}}", HeadersToSign: "{{e3}}"}}
 	for typ, want := range map[string][]string{
-		AuthDigest: {"u", "vault:p"},
-		AuthAWS:    {"a1", "a3", "a4", "a5", "vault:a2"},
-		AuthJWT:    {"j2", "j3", "j4", "j5", "j6", "vault:j1"},
+		AuthDigest:   {"u", "vault:p"},
+		AuthAWS:      {"a1", "a3", "a4", "a5", "vault:a2"},
+		AuthJWT:      {"j2", "j3", "j4", "j5", "j6", "vault:j1"},
+		AuthOAuth1:   {"o1", "o3", "o4", "vault:o2"},
+		AuthHawk:     {"h1", "h3", "vault:h2"},
+		AuthEdgeGrid: {"e1", "e3", "vault:e2"},
 	} {
 		auth.Type = typ
 		if got := (Request{Auth: auth}).Variables(); !reflect.DeepEqual(got, want) {
 			t.Errorf("%s: %q, want %q", typ, got, want)
 		}
 	}
-	r := Request{Auth: Auth{AWS: AWSAuth{SessionToken: "{{$randomInt}}"}, JWT: JWTAuth{Payload: `{"jti":"{{$guid}}"}`}}}.withDynamic(nil)
-	if strings.Contains(r.Auth.AWS.SessionToken, "{{") || strings.Contains(r.Auth.JWT.Payload, "{{") {
+	r := Request{Auth: Auth{AWS: AWSAuth{SessionToken: "{{$randomInt}}"}, JWT: JWTAuth{Payload: `{"jti":"{{$guid}}"}`},
+		OAuth1: OAuth1Auth{Nonce: "{{$guid}}"}, Hawk: HawkAuth{Nonce: "{{$randomInt}}"}, EdgeGrid: EdgeGridAuth{Nonce: "{{$guid}}"}}}.withDynamic(nil)
+	if strings.Contains(r.Auth.AWS.SessionToken, "{{") || strings.Contains(r.Auth.JWT.Payload, "{{") ||
+		strings.Contains(r.Auth.OAuth1.Nonce, "{{") || strings.Contains(r.Auth.Hawk.Nonce, "{{") || strings.Contains(r.Auth.EdgeGrid.Nonce, "{{") {
 		t.Errorf("dynamic variables left: %+v", r.Auth)
 	}
 }

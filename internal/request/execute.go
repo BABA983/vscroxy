@@ -123,12 +123,17 @@ func (r Request) Execute(ctx context.Context, srv *capture.Server, in Context, v
 	}
 	r.Body = template.Body
 	effective := run.effective()
-	authHeader := "Authorization"
-	if r.Auth.Type == "API key" {
+	authHeader, authInHeader := "Authorization", true
+	switch r.Auth.Type {
+	case "API key":
 		authHeader = ExpandVars(r.Auth.Key, effective)
+		authInHeader = r.Auth.Location != "Query"
+	case AuthJWT:
+		authInHeader = r.Auth.JWT.AddTo != "Query"
+	case AuthOAuth1:
+		authInHeader = oauth1AddsToHeader(r.Auth.OAuth1)
 	}
-	inQuery := r.Auth.Type == "API key" && r.Auth.Location == "Query" || r.Auth.Type == AuthJWT && r.Auth.JWT.AddTo == "Query"
-	if template.editedHeaders[http.CanonicalHeaderKey(authHeader)] && !inQuery {
+	if template.editedHeaders[http.CanonicalHeaderKey(authHeader)] && authInHeader {
 		r.Auth = Auth{}
 	}
 	out.Stage, run.phase = "Request setup failed", "setup"
@@ -180,9 +185,25 @@ func (r Request) Execute(ctx context.Context, srv *capture.Server, in Context, v
 			req.Header.Add(name, ExpandVars(expandDynamic(value, effective), effective))
 		}
 	}
-	if r.Auth.Type == AuthAWS {
-		// Sign again: the script's headers are part of what is signed.
+	// Sign again: the script's headers are part of what is signed.
+	switch r.Auth.Type {
+	case AuthAWS:
 		if err := r.Auth.AWS.expand(effective).sign(req, now()); err != nil {
+			out.Err = err
+			return out
+		}
+	case AuthOAuth1:
+		if err := r.Auth.OAuth1.expand(effective).defaults().sign(req, now()); err != nil {
+			out.Err = err
+			return out
+		}
+	case AuthHawk:
+		if err := r.Auth.Hawk.expand(effective).sign(req); err != nil {
+			out.Err = err
+			return out
+		}
+	case AuthEdgeGrid:
+		if err := r.Auth.EdgeGrid.expand(effective).sign(req); err != nil {
 			out.Err = err
 			return out
 		}

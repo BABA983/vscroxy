@@ -233,6 +233,18 @@ func (r Request) Variables() []string {
 		for _, f := range r.Auth.JWT.fields() {
 			texts = append(texts, *f)
 		}
+	case AuthOAuth1:
+		for _, f := range r.Auth.OAuth1.fields() {
+			texts = append(texts, *f)
+		}
+	case AuthHawk:
+		for _, f := range r.Auth.Hawk.fields() {
+			texts = append(texts, *f)
+		}
+	case AuthEdgeGrid:
+		for _, f := range r.Auth.EdgeGrid.fields() {
+			texts = append(texts, *f)
+		}
 	case "API key":
 		texts = append(texts, r.Auth.Key, r.Auth.Value)
 	}
