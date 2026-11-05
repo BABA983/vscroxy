@@ -299,11 +299,11 @@ func folderVariablesOf(rows []variableRow) ([]request.Variable, map[string]strin
 		if r.HasInitial || !r.HasCurrent || r.Initial != "" || r.Disabled {
 			vars = append(vars, request.Variable{Name: name, Initial: r.Initial, Disabled: r.Disabled})
 		}
+		if r.Credential {
+			credentials[name] = true
+		}
 		if r.HasCurrent {
 			current[name] = r.Current
-			if r.Credential {
-				credentials[name] = true
-			}
 		}
 	}
 	if len(credentials) == 0 {

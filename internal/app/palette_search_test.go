@@ -3,6 +3,7 @@ package app
 import (
 	"fmt"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/baba983/vscroxy/internal/request"
@@ -21,10 +22,12 @@ func paletteTestApp() *app {
 		{ID: "r3", Name: "Health", Method: "GET", URL: "https://status.example.com/health"},
 	}
 	a.envs = []environment{
-		{Name: "Local", Vars: map[string]string{"base_url": "https://api.example.com", "secret": "needle-value"}},
+		{Name: "Local", Vars: map[string]string{"base_url": "https://api.example.com", "secret": "needle-value"},
+			Current: map[string]string{"secret": "current-needle", "current_only": "current-only-needle"}},
 		{Name: "Staging", Vars: map[string]string{"base_url": "https://staging.example.com"}},
 	}
 	a.globals = map[string]string{"trace_id": "global-value"}
+	a.globalsCurrent = map[string]string{"global_current": "global-current-needle"}
 	a.requestGen++
 	return a
 }
@@ -49,6 +52,8 @@ func TestPaletteSearchMatchesAndOrdersLibraryAndVariables(t *testing.T) {
 		{"post", []string{"Create order"}},
 		{"status.example.com", []string{"Health"}},
 		{"base_url", []string{"base_url", "base_url"}},
+		{"current_only", []string{"current_only"}},
+		{"global_current", []string{"global_current"}},
 		{"local", []string{"Local"}},
 		{"trace", []string{"trace_id"}},
 	}
@@ -61,7 +66,7 @@ func TestPaletteSearchMatchesAndOrdersLibraryAndVariables(t *testing.T) {
 
 func TestPaletteSearchNeverMatchesVariableValues(t *testing.T) {
 	a := paletteTestApp()
-	for _, query := range []string{"needle", "global-value", "staging.example.com"} {
+	for _, query := range []string{"needle", "current-needle", "current-only-needle", "global-value", "global-current-needle", "staging.example.com"} {
 		if got := a.paletteSearchEntries(query); len(got) != 0 {
 			t.Errorf("query %q matched a variable value: %+v", query, got)
 		}
@@ -70,6 +75,13 @@ func TestPaletteSearchNeverMatchesVariableValues(t *testing.T) {
 	for _, entry := range entries {
 		if entry.detail == "https://api.example.com" || entry.detail == "https://staging.example.com" {
 			t.Fatalf("variable result exposed a value: %+v", entry)
+		}
+	}
+	for _, query := range []string{"current_only", "global_current"} {
+		for _, entry := range a.paletteSearchEntries(query) {
+			if strings.Contains(entry.detail, "needle") {
+				t.Fatalf("Current-only result exposed a value: %+v", entry)
+			}
 		}
 	}
 }

@@ -235,11 +235,11 @@ func variablesOf(rows []variableRow) (initial, current map[string]string, creden
 		if r.HasInitial || !r.HasCurrent || r.Initial != "" {
 			initial[name] = r.Initial
 		}
+		if r.Credential {
+			credentials[name] = true
+		}
 		if r.HasCurrent {
 			current[name] = r.Current
-			if r.Credential {
-				credentials[name] = true
-			}
 		}
 	}
 	if len(credentials) == 0 {

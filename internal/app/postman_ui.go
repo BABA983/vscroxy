@@ -79,19 +79,25 @@ func (a *app) importData(data []byte, path string) {
 		for i, r := range col.Requests {
 			incoming[i] = savedRequest{Request: r}
 		}
+		replaced := replacedFolderPaths(a.requests, a.folders, col.Folders, []imports.Collection{{Name: col.Name}})
 		merged := mergeRequests(a.requests, incoming)
 		if err := a.persistRequests(merged); err != nil {
 			a.fail("Import Postman collection", err)
 			return
 		}
 		a.requests = merged
+		settingsSaved := true
 		if len(col.Folders) > 0 {
 			folders := slices.DeleteFunc(slices.Clone(a.folders), func(f request.Folder) bool {
 				return slices.ContainsFunc(col.Folders, func(in request.Folder) bool { return in.Path == f.Path })
 			})
 			if err := a.writeFolders(append(folders, col.Folders...)); err != nil {
+				settingsSaved = false
 				col.Warnings = append(col.Warnings, "Collection and folder settings not saved: "+err.Error())
 			}
+		}
+		if settingsSaved {
+			a.applyImportedFolderCurrent(replaced, nil)
 		}
 		a.page = pageRequest
 		a.reportImport(fmt.Sprintf("Imported “%s” · %d %s", col.Name, len(col.Requests), plural(len(col.Requests), "request", "requests")), col.Warnings)

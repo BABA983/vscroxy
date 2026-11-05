@@ -349,6 +349,25 @@ func TestPersistAllCurrentSkipsCredentials(t *testing.T) {
 	}
 }
 
+// A credential row keeps its mark after Reset current and after a new Current
+// value is entered, so Persist current stays disabled for it.
+func TestCredentialMarkSurvivesResetAndRefill(t *testing.T) {
+	rows := []variableRow{{Name: "token", Initial: "shared", HasInitial: true, Credential: true}}
+	_, current, credentials, err := variablesOf(rows)
+	if err != nil || current["token"] != "" || !credentials["token"] {
+		t.Fatalf("after reset: current %v, credentials %v, err %v", current, credentials, err)
+	}
+	rows[0].HasCurrent, rows[0].Current = true, "new-local"
+	_, current, credentials, err = variablesOf(rows)
+	if err != nil || current["token"] != "new-local" || !credentials["token"] {
+		t.Fatalf("after refill: current %v, credentials %v, err %v", current, credentials, err)
+	}
+	_, _, folderCredentials, err := folderVariablesOf(rows)
+	if err != nil || !folderCredentials["token"] {
+		t.Fatalf("folder credentials after refill: %v, err %v", folderCredentials, err)
+	}
+}
+
 func TestVariableHintsPreferCurrentAndMaskCredentials(t *testing.T) {
 	a := workspaceApp()
 	a.envs = []environment{{Name: "Local",
