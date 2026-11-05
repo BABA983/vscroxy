@@ -12,6 +12,7 @@ import (
 	"image/color"
 	"image/png"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -720,8 +721,15 @@ func TestUISnapshots(t *testing.T) {
 			a.vault.problem = "Vault key unavailable; the original encrypted file has not been replaced."
 		}, want: "Delete all secrets and start over", short: true},
 		{name: "dialog-cookies", setup: func(a *app) {
-			a.cookieUI = cookieEditor{open: true, url: "https://api.example.com/", name: "demo", value: "fake-cookie", path: "/", secure: true, httpOnly: true}
-		}, want: "Session Cookies", short: true},
+			u := url.URL{Scheme: "https", Host: "api.example.com", Path: "/"}
+			a.requestCookies().SetCookies(&u, []*http.Cookie{
+				{Name: "session", Value: "fake-session", Path: "/", HttpOnly: true},
+				{Name: "theme", Value: "dark", Domain: "example.com", Path: "/", Secure: true, Expires: time.Date(2030, 1, 2, 3, 4, 0, 0, time.UTC)},
+			})
+			a.openCookies()
+			a.cookieUI.url, a.cookieUI.name, a.cookieUI.value = "https://api.example.com/", "demo", "fake-cookie"
+			a.cookieUI.path, a.cookieUI.secure, a.cookieUI.httpOnly = "/", true, true
+		}, want: "Keep cookies after quitting", short: true},
 		{name: "capture-json-columns", setup: snapshotJSONColumns, want: "9007199254740993"},
 		{name: "capture-graphql", setup: snapshotGraphQL, want: "query Search"},
 		{name: "dialog-graphql-column", setup: func(a *app) {

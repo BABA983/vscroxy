@@ -69,23 +69,24 @@ type configImport struct {
 // currentSettings are the settings as they are now.
 func (a *app) currentSettings() settings {
 	return settings{
-		Appearance:       a.appearance,
-		SidebarWidth:     a.sidebarWidth,
-		TablePercent:     a.tablePercent,
-		InspectorLayout:  a.workbench.layout,
-		SideTablePercent: a.workbench.sidePercent,
-		SidebarHidden:    a.workbench.sidebarHidden,
-		Columns:          savedLayout(a.columns),
-		CustomColumns:    a.customColumns,
-		HiddenColumns:    a.hiddenColumns,
-		KeyLogPath:       a.keyLogPath,
-		ProxyPort:        a.proxyPort,
-		VaultScripts:     a.vault.scripts,
-		Guide:            a.guide,
-		AllowList:        a.allowOn,
-		FlowLimit:        a.flowLimit,
-		MemoryLimit:      a.memoryLimit,
-		DiskLimit:        a.diskLimit,
+		Appearance:        a.appearance,
+		SidebarWidth:      a.sidebarWidth,
+		TablePercent:      a.tablePercent,
+		InspectorLayout:   a.workbench.layout,
+		SideTablePercent:  a.workbench.sidePercent,
+		SidebarHidden:     a.workbench.sidebarHidden,
+		Columns:           savedLayout(a.columns),
+		CustomColumns:     a.customColumns,
+		HiddenColumns:     a.hiddenColumns,
+		KeyLogPath:        a.keyLogPath,
+		ProxyPort:         a.proxyPort,
+		VaultScripts:      a.vault.scripts,
+		CookiePersistence: a.cookiePersistence,
+		Guide:             a.guide,
+		AllowList:         a.allowOn,
+		FlowLimit:         a.flowLimit,
+		MemoryLimit:       a.memoryLimit,
+		DiskLimit:         a.diskLimit,
 	}
 }
 
@@ -102,7 +103,9 @@ func (a *app) configLists() map[string]*string {
 // or too large stay paths on this computer.
 func (a *app) exportConfig() (b configBundle, notes []string) {
 	s := a.currentSettings()
-	s.KeyLogPath, s.Guide = "", false // this computer's
+	// The key log, setup guide and cookie retention are this computer's:
+	// a configuration file never turns cookie persistence on elsewhere.
+	s.KeyLogPath, s.Guide, s.CookiePersistence = "", false, false
 	ssl := a.inspectionConfig()
 	b = configBundle{Format: configFormat, Version: 1, Exported: time.Now().UTC(), Settings: &s, SSL: &ssl,
 		Lists: map[string][]string{}, Rules: cloneRuleList(a.rules), Mocks: map[string][]byte{}, Scripts: map[string]string{},
@@ -333,8 +336,8 @@ func (a *app) importConfig(b configBundle, parts [3]bool) error {
 	return nil
 }
 
-// applySettings uses imported settings, keeping this computer's key log and
-// setup guide, and saves them.
+// applySettings uses imported settings, keeping this computer's key log,
+// setup guide and cookie retention, and saves them.
 func (a *app) applySettings(s settings) {
 	a.appearance = s.Appearance
 	if s.SidebarWidth > 0 {

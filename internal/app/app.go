@@ -393,13 +393,15 @@ type app struct {
 	requestResults  []requestResult
 	importReport    importReport
 	// tokens are the OAuth 2.0 access tokens of this session, never saved.
-	tokens     request.Tokens
-	oauth      oauthState
-	runner     collectionRunner
-	loadRunner collectionLoadRunner
-	cookies    *cookieStore
-	cookieUI   cookieEditor
-	exportUI   exportReview
+	tokens            request.Tokens
+	oauth             oauthState
+	runner            collectionRunner
+	loadRunner        collectionLoadRunner
+	cookies           *cookieStore
+	cookiesPath       string
+	cookiePersistence bool
+	cookieUI          cookieEditor
+	exportUI          exportReview
 
 	// envs are the variables a request uses as {{name}}, one set in use.
 	envsPath    string
@@ -495,12 +497,14 @@ func newApp() *app {
 		a.scripts.dir = filepath.Join(home, ".vscroxy", "tools", "scripts")
 		a.addons.dir, a.addons.addon = filepath.Join(home, ".vscroxy", "tools", "addons"), true
 		a.envsPath = filepath.Join(home, ".vscroxy", "env.json")
+		a.cookiesPath = filepath.Join(home, ".vscroxy", "cookies.json")
 		a.vault.path = filepath.Join(home, ".vscroxy", "vault.json")
 		a.vault.keyPath = filepath.Join(home, ".vscroxy", "vault.key")
 		if saved, err := loadSettings(a.settingsPath); err != nil {
 			a.errText = err.Error()
 		} else {
 			a.saved, a.proxyPort, a.vault.scripts = saved, saved.ProxyPort, saved.VaultScripts
+			a.cookiePersistence = saved.CookiePersistence
 			a.launchPort, a.launchKeyLog = saved.ProxyPort, saved.KeyLogPath
 			a.allowOn = saved.AllowList
 			a.flowLimit, a.memoryLimit, a.diskLimit = saved.FlowLimit, saved.MemoryLimit, saved.DiskLimit
@@ -527,6 +531,7 @@ func newApp() *app {
 		a.reloadConfig()
 	}
 	a.loadRequestAssets()
+	a.loadCookies()
 	if a.settingsPath != "" {
 		saved := a.saved
 		a.appearance = saved.Appearance

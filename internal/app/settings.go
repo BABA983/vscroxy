@@ -40,6 +40,9 @@ type settings struct {
 	ProxyPort int `json:"proxyPort,omitzero"`
 	// VaultScripts lets request scripts use pm.vault.
 	VaultScripts bool `json:"vaultScripts,omitzero"`
+	// CookiePersistence keeps persistent cookies across launches in the
+	// local cookie file. Off by default: cookies are credentials.
+	CookiePersistence bool `json:"cookiePersistence,omitzero"`
 	// Guide keeps the setup guide open until it is finished or skipped.
 	Guide bool `json:"guide,omitzero"`
 	// AllowList narrows the table to the hosts and apps in allow.txt and
@@ -148,6 +151,7 @@ func sameSettings(x, y settings) bool {
 		x.KeyLogPath == y.KeyLogPath &&
 		x.ProxyPort == y.ProxyPort &&
 		x.VaultScripts == y.VaultScripts &&
+		x.CookiePersistence == y.CookiePersistence &&
 		x.Guide == y.Guide &&
 		x.AllowList == y.AllowList &&
 		x.FlowLimit == y.FlowLimit && x.MemoryLimit == y.MemoryLimit && x.DiskLimit == y.DiskLimit &&
