@@ -167,12 +167,21 @@ func (a *app) networkTools() []action {
 			when(a.srv != nil, "Start capture first").checked(checkbox(a.srv != nil && a.srv.NoCaching())).in("caching"),
 	}
 	for _, preset := range a.networkPresets() {
+		selected := a.throttle.Name == preset.Name || a.throttle.Name == "" && preset.Name == "Off"
+		if preset.Name == "Off" {
+			selected = selected && a.activeNetworkRules() == 0
+		}
 		actions = append(actions, do("network.throttle", preset.Name, func() {
-			a.setThrottle(preset)
-		}).checked(radio(a.throttle.Name == preset.Name || a.throttle.Name == "" && preset.Name == "Off")).in("throttle"))
+			if preset.Name == "Off" {
+				a.networkOff()
+			} else {
+				a.setThrottle(preset)
+			}
+		}).checked(radio(selected)).in("throttle"))
 	}
 	return append(actions,
 		do("network.custom", "Custom presets…", a.openNetwork).in("throttle"),
+		do("network.rules", "Network rules…", a.openNetworkRules).in("throttle"),
 		do("network.upstream", "Upstream…", func() {
 			a.upstreamAddr = a.upstream
 			a.upstreamOpen = true
@@ -192,9 +201,10 @@ func (a *app) networkTools() []action {
 func (a *app) activeTools(c *ui.Context, t *ui.Theme) {
 	scenario := capture.ActiveScenario(a.rules)
 	throttled := a.throttle.Name != "" && a.throttle.Name != "Off"
+	networkRules := a.activeNetworkRules()
 	noCaching := a.srv != nil && a.srv.NoCaching()
 	hostsOn := len(a.profiles.set.On()) > 0
-	if !a.breakOn && !throttled && !noCaching && !a.allowOn && scenario == "" && a.upstream == "" && !hostsOn && a.collectionRecording == nil {
+	if !a.breakOn && !throttled && networkRules == 0 && !noCaching && !a.allowOn && scenario == "" && a.upstream == "" && !hostsOn && a.collectionRecording == nil {
 		return
 	}
 	ui.ScrollHorizontal(c.Key("active-tools")).Height(uikit.HeightLarge).Background(uikit.Colors(t).Panel).Border(0, t.Border).BorderWidth(0, 0, 1, 0).Children(func() {
@@ -212,6 +222,11 @@ func (a *app) activeTools(c *ui.Context, t *ui.Theme) {
 				toolChip(c, "throttle", a.throttle.Name, "Change network conditions", networkIcon, nil, func() {
 					a.setThrottle(capture.Presets[0])
 				}).PopoverMenuButton(func(m *ui.Menu) { actionMenu(m, a.networkTools()) })
+			}
+			if networkRules > 0 {
+				toolChip(c, "network-rules", fmt.Sprintf("Network rules: %d", networkRules), "Edit scoped network conditions", networkIcon, a.openNetworkRules, func() {
+					a.disableNetworkRules()
+				})
 			}
 			if noCaching {
 				toolChip(c, "no-caching", "No Caching", "Change caching and network conditions", cacheIcon, nil, func() {

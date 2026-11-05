@@ -3,13 +3,18 @@ package capture
 import (
 	"bytes"
 	"context"
+	"encoding/json/v2"
 	"errors"
+	"fmt"
 	"io"
 	"math/rand/v2"
 	"net/http"
+	"slices"
 	"sync"
 	"time"
 
+	"github.com/baba983/vscroxy/internal/graphql"
+	"github.com/baba983/vscroxy/internal/rules"
 	"github.com/lqqyt2423/go-mitmproxy/proxy"
 )
 
@@ -17,12 +22,37 @@ import (
 // limit each body's wire bytes, not the connection's aggregate bandwidth.
 // Latency is paid once before forwarding, including for empty bodies.
 // FailurePercent disconnects requests, not TCP packets. Zero rates are unlimited.
+// Keep zero conditions in JSON so an explicit Off is not an empty object
+// omitted by Rule.Network's omitempty tag.
 type Throttle struct {
-	Name           string
-	DownPerSec     int
-	UpPerSec       int
-	Latency        time.Duration
-	FailurePercent int
+	Name           string        `json:"name,omitempty"`
+	DownPerSec     int           `json:"downPerSec"`
+	UpPerSec       int           `json:"upPerSec"`
+	Latency        time.Duration `json:"latency"`
+	FailurePercent int           `json:"failurePercent"`
+}
+
+// JSON durations are lossless nanoseconds, including programmatically imported
+// values finer than the editor's whole-millisecond granularity.
+type throttleJSON struct {
+	Name           string `json:"name,omitempty"`
+	DownPerSec     int    `json:"downPerSec"`
+	UpPerSec       int    `json:"upPerSec"`
+	Latency        int64  `json:"latency"`
+	FailurePercent int    `json:"failurePercent"`
+}
+
+func (t Throttle) MarshalJSON() ([]byte, error) {
+	return json.Marshal(throttleJSON{t.Name, t.DownPerSec, t.UpPerSec, int64(t.Latency), t.FailurePercent})
+}
+
+func (t *Throttle) UnmarshalJSON(data []byte) error {
+	var wire throttleJSON
+	if err := json.Unmarshal(data, &wire); err != nil {
+		return err
+	}
+	*t = Throttle{wire.Name, wire.DownPerSec, wire.UpPerSec, time.Duration(wire.Latency), wire.FailurePercent}
+	return nil
 }
 
 // Presets are the network conditions the UI offers.
@@ -84,9 +114,29 @@ func (s *Server) applyNetwork(f *proxy.Flow) bool {
 		return false
 	}
 	t := s.Throttle()
+	list := s.Rules()
+	var req rules.Request
+	if slices.ContainsFunc(list, func(r Rule) bool {
+		return r.Type == RuleNetwork && r.Operation != "" && !r.Disabled && (r.Scenario == "" || r.ScenarioActive)
+	}) {
+		req = s.networkRuleRequest(f)
+	} else {
+		req = s.ruleRequest(f)
+	}
+	i := firstNetworkRule(list, req)
+	if i >= 0 {
+		r := list[i]
+		t = *r.Network // including explicit Off; never merge with the global profile
+		s.hit(r)
+		if r.Scenario != "" {
+			recordAction(f, "Scenario · "+r.Scenario)
+		}
+		recordAction(f, "Network rule · "+r.Name+" · "+r.Match)
+	}
 	d.network = &t
-	if t.DownPerSec != 0 || t.UpPerSec != 0 || t.Latency != 0 || t.FailurePercent != 0 {
+	if i >= 0 || t.DownPerSec != 0 || t.UpPerSec != 0 || t.Latency != 0 || t.FailurePercent != 0 {
 		recordAction(f, "Network · "+t.Name)
+		recordAction(f, fmt.Sprintf("Network conditions · down %d B/s · up %d B/s · latency %s · failure %d%%", t.DownPerSec, t.UpPerSec, t.Latency, t.FailurePercent))
 	}
 	err := networkWait(f.Request.Raw().Context(), s.closed, nil, t.Latency)
 	if err == nil && t.FailurePercent > 0 && rand.IntN(100) < t.FailurePercent {
@@ -105,6 +155,38 @@ func (s *Server) applyNetwork(f *proxy.Flow) bool {
 		Body:       []byte("vscroxy: " + err.Error() + "\n"),
 	})
 	return true
+}
+
+// Unlike later rule hooks, network selection supplies exactly one snapshot:
+// parsing GraphQL must not reread the live rules. Never treat a streamed
+// prefix as a body.
+func (s *Server) networkRuleRequest(f *proxy.Flow) rules.Request {
+	req := rules.Request{URL: f.Request.URL.String(), Method: f.Request.Method, Host: f.Request.URL.Hostname(),
+		App: s.clientProcess(f).Name, Header: f.Request.Header}
+	var body []byte
+	if req.Method == http.MethodPost {
+		if f.Stream || f.Request.Body == nil || len(f.Request.Body) > 1<<20 {
+			return req
+		}
+		decoder, err := newDecoder(req.Header.Get("Content-Encoding"), bytes.NewReader(f.Request.Body))
+		if err != nil {
+			return req
+		}
+		defer decoder.Close()
+		body, err = io.ReadAll(io.LimitReader(decoder, 1<<20+1))
+		if err != nil || len(body) > 1<<20 {
+			return req
+		}
+	}
+	operations, err := graphql.RequestOperations(req.Method, req.URL, req.Header.Get("Content-Type"), string(body))
+	if err == nil {
+		for _, op := range operations {
+			if op.Name != "" {
+				req.Operations = append(req.Operations, op.Name)
+			}
+		}
+	}
+	return req
 }
 
 func (s *Server) throttleDown(f *proxy.Flow, in io.Reader) io.Reader {

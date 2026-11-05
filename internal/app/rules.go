@@ -45,6 +45,8 @@ type ruleEditor struct {
 	testOperations []string
 	testProblem    string
 	apps           string // the draft's Apps, comma-separated
+	network        networkDraft
+	networkPreset  string // copies values, never links a saved rule to a preset
 	// body edits a Map Local file's response, read from bodyFor as bodyText;
 	// nil for a folder or a file it cannot edit, as bodyNote says.
 	body               *editor.State
@@ -54,9 +56,9 @@ type ruleEditor struct {
 	list               ui.ListState
 }
 
-var ruleTypes = []capture.RuleType{capture.RuleMapLocal, capture.RuleMapRemote, capture.RuleBlock, capture.RuleScript, capture.RuleCodeMock, capture.RuleBreak, capture.RuleBreakResponse, capture.RuleBreakMessage}
-var ruleLabels = []string{"Map Local", "Map Remote", "Block", "Script", "Code Mock", "Request breakpoint", "Response breakpoint", "WebSocket message breakpoint"}
-var ruleIcons = []*ui.SVG{fileInputIcon, lucide.ArrowRightLeft(), lucide.Ban(), scriptsIcon, scriptsIcon, breakIcon, breakIcon, breakIcon}
+var ruleTypes = []capture.RuleType{capture.RuleMapLocal, capture.RuleMapRemote, capture.RuleBlock, capture.RuleScript, capture.RuleCodeMock, capture.RuleBreak, capture.RuleBreakResponse, capture.RuleBreakMessage, capture.RuleNetwork}
+var ruleLabels = []string{"Map Local", "Map Remote", "Block", "Script", "Code Mock", "Request breakpoint", "Response breakpoint", "WebSocket message breakpoint", "Network conditions"}
+var ruleIcons = []*ui.SVG{fileInputIcon, lucide.ArrowRightLeft(), lucide.Ban(), scriptsIcon, scriptsIcon, breakIcon, breakIcon, breakIcon, networkIcon}
 var hideIcon = lucide.EyeOff()
 var rulesIcon = lucide.SlidersHorizontal()
 
@@ -83,6 +85,11 @@ func (a *app) editRule(index int, r capture.Rule) {
 	// The draft must not edit the saved rule's slices in place.
 	e.draft.Apps, e.draft.When = nil, slices.Clone(r.When)
 	e.apps = strings.Join(r.Apps, ", ")
+	e.network, e.networkPreset = newNetworkDraft(capture.Throttle{}), ""
+	if r.Network != nil {
+		e.network = newNetworkDraft(*r.Network)
+		e.draft.Network = new(*r.Network)
+	}
 	e.body, e.bodyFor = nil, ""
 }
 
@@ -213,6 +220,16 @@ func (a *app) saveRule() {
 	}
 	if r.Type != capture.RuleBreakMessage {
 		r.Direction = ""
+	}
+	r.Network = nil
+	if r.Type == capture.RuleNetwork {
+		conditions, err := e.network.value()
+		if err != nil {
+			e.problem = err.Error()
+			return
+		}
+		conditions.Name = "Rule"
+		r.Network = &conditions
 	}
 	// Joining an active group inherits its group state, never its Disabled flags.
 	r.ScenarioActive = r.Scenario != "" && r.Scenario == capture.ActiveScenario(a.rules)
@@ -488,6 +505,11 @@ func (a *app) rulesPage(c *ui.Context, t *ui.Theme, top float32, active bool) {
 				summary = fmt.Sprintf("%d %s, in the order numbered", acting, plural(acting, "rule acts", "rules act"))
 			}
 			uikit.Meta(c, summary).SingleLine()
+			for _, p := range preview {
+				if p.Step > 0 && p.Reason != "" {
+					uikit.Meta(c, p.Reason)
+				}
+			}
 		}
 		a.ruleScenario(c)
 		a.ruleList(c, t, rows, preview, active)
@@ -587,8 +609,11 @@ func (a *app) ruleList(c *ui.Context, t *ui.Theme, rows []int, preview []capture
 		var p capture.RulePreview
 		if preview != nil {
 			p = preview[i]
+			if p.Reason != "" {
+				line.Tooltip(p.Reason)
+			}
 			if p.Step == 0 {
-				line.Opacity(0.45).Tooltip(p.Reason)
+				line.Opacity(0.45)
 			}
 		}
 		line.Children(func() {
@@ -695,6 +720,26 @@ func (a *app) ruleDetail(c *ui.Context, t *ui.Theme) {
 			}).Description("Comma-separated app names; * matches any text, as in Google Chrome*.")
 			ui.Field(c, "Headers", func() { a.ruleHeaderConditions(c, t) })
 			switch e.kind {
+			case "Network conditions":
+				ui.Field(c, "Copy preset", func() {
+					presets := a.networkPresets()
+					names := make([]string, 0, len(presets))
+					for _, p := range presets {
+						names = append(names, p.Name)
+					}
+					uikit.Select(c, &e.networkPreset, names).Label("Network rule preset").Placeholder("Choose a preset").Width(240).OnChange(func() {
+						for _, p := range a.networkPresets() {
+							if p.Name == e.networkPreset {
+								e.network = newNetworkDraft(p)
+								break
+							}
+						}
+					})
+				}).Description("Copies values. Later preset edits do not change this rule.")
+				ui.Field(c, "Conditions", func() { e.network.fields(c) }).Description("First matching network rule replaces global conditions before scripts and routing. All zero overrides to Off. Other Map/Block rules still act independently.")
+				ui.Field(c, "Scope", func() {
+					uikit.Meta(c, "HTTP, inspected HTTPS and SSE; not WebSocket or opaque CONNECT. Failure disconnects requests, not TCP packets. Streamed bodies cannot match a POST GraphQL operation.")
+				})
 			case "Map Local":
 				a.loadRuleBody()
 				ui.Field(c, "Response from", func() {

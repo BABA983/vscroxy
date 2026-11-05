@@ -45,7 +45,7 @@ type networkDraft struct {
 func newNetworkDraft(t capture.Throttle) networkDraft {
 	return networkDraft{
 		down: strconv.Itoa(t.DownPerSec), up: strconv.Itoa(t.UpPerSec),
-		latency: strconv.FormatInt(int64(t.Latency/time.Millisecond), 10),
+		latency: strconv.FormatFloat(float64(t.Latency)/float64(time.Millisecond), 'f', -1, 64),
 		failure: strconv.Itoa(t.FailurePercent),
 	}
 }
@@ -76,21 +76,16 @@ func (d networkDraft) value() (capture.Throttle, error) {
 }
 
 func (d *networkDraft) fields(c *ui.Context) {
-	t := c.Theme()
-	for _, row := range [][]struct {
+	for _, field := range []struct {
 		label string
 		value *string
 	}{
-		{{"Download (bytes/s)", &d.down}, {"Upload (bytes/s)", &d.up}},
-		{{"Latency (ms)", &d.latency}, {"Failure (%)", &d.failure}},
+		{"Download (bytes/s)", &d.down}, {"Upload (bytes/s)", &d.up},
+		{"Latency (ms)", &d.latency}, {"Failure (%)", &d.failure},
 	} {
-		ui.Row(c).Gap(t.Space(3)).Children(func() {
-			for _, field := range row {
-				ui.Field(c.Key(field.label), field.label, func() {
-					uikit.Input(c, field.value).Label(field.label)
-				}).Grow(1).MinWidth(0)
-			}
-		})
+		ui.Field(c.Key(field.label), field.label, func() {
+			uikit.Input(c, field.value).Label(field.label).FillWidth()
+		}).Grow(1).MinWidth(0)
 	}
 }
 
@@ -263,6 +258,48 @@ func (a *app) setThrottle(t capture.Throttle) bool {
 	a.network.problem = ""
 	a.inform("Network conditions: " + t.Name)
 	return true
+}
+
+func (a *app) activeNetworkRules() int {
+	count := 0
+	for _, r := range a.rules {
+		if r.Type == capture.RuleNetwork && !r.Disabled && (r.Scenario == "" || r.ScenarioActive) {
+			count++
+		}
+	}
+	return count
+}
+
+func (a *app) openNetworkRules() {
+	index := slices.IndexFunc(a.rules, func(r capture.Rule) bool { return r.Type == capture.RuleNetwork })
+	if index >= 0 {
+		a.editRule(index, a.rules[index])
+	} else {
+		a.editRule(-1, capture.Rule{Type: capture.RuleNetwork})
+	}
+	a.openTools("rules")
+}
+
+func (a *app) disableNetworkRules() bool {
+	next := slices.Clone(a.rules)
+	changed := false
+	for i, r := range next {
+		if r.Type == capture.RuleNetwork && !r.Disabled {
+			next[i].Disabled, changed = true, true
+		}
+	}
+	if changed && !a.applyRuleChanges(next) {
+		return a.networkProblem("Could not disable network rules", errors.New(a.ruleUI.problem))
+	}
+	return true
+}
+
+// Off must not leave a scoped condition active or silently arm an inactive
+// scenario. Only change the session after the disabled rules have been saved.
+func (a *app) networkOff() {
+	if a.disableNetworkRules() {
+		a.setThrottle(capture.Presets[0])
+	}
 }
 
 func (a *app) saveNetworkPreset(original string, p capture.Throttle) bool {

@@ -292,6 +292,7 @@ func TestConfigExportImportRoundTrip(t *testing.T) {
 		{Name: "Folder", Type: capture.RuleMapLocal, Match: "/static/", Target: src},
 		{Name: "Auth", Type: capture.RuleScript, Match: "api.test", Target: "Auth.js"},
 		{Name: "Dynamic", Type: capture.RuleCodeMock, Match: "/dynamic", Target: "Mock.js", Scenario: "Demo"},
+		{Name: "Slow", Type: capture.RuleNetwork, Match: "/slow", Scenario: "Demo", Network: new(capture.Throttle{DownPerSec: 1024, Latency: time.Millisecond})},
 	}
 	if !a.applyRuleChanges(rules) {
 		t.Fatal(a.ruleUI.problem)
@@ -324,8 +325,9 @@ func TestConfigExportImportRoundTrip(t *testing.T) {
 	if err := c.importConfig(parsed, [3]bool{true, true, true}); err != nil {
 		t.Fatal(err)
 	}
-	if len(c.rules) != 5 || c.rules[0].Target != c.rules[1].Target || filepath.Dir(c.rules[0].Target) != c.mocksDir() || c.rules[2].Target != src ||
-		c.rules[4].Type != capture.RuleCodeMock || c.rules[4].Target != "Mock.js" || scriptHooks(&c.scripts, "Mock") != "onMock" {
+	if len(c.rules) != 6 || c.rules[0].Target != c.rules[1].Target || filepath.Dir(c.rules[0].Target) != c.mocksDir() || c.rules[2].Target != src ||
+		c.rules[4].Type != capture.RuleCodeMock || c.rules[4].Target != "Mock.js" || scriptHooks(&c.scripts, "Mock") != "onMock" ||
+		c.rules[5].Network == nil || *c.rules[5].Network != *rules[5].Network {
 		t.Fatalf("rules = %+v", c.rules)
 	}
 	if body, _ := os.ReadFile(c.rules[0].Target); string(body) != `{"id":42}` {

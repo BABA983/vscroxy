@@ -125,7 +125,7 @@
 | 脚本：内置库（lodash、crypto-js 等）、代码片段库、自定义 addon | 已有 | lodash、crypto-js 4.2.0、chai 和 Insert snippet 与请求脚本共用；规则脚本和 addon 是 ES 模块（esbuild 转成 CommonJS 后由 goja 运行，source map 指回原行号，不支持顶层 await），addon 在 `tools/addons/*.js`，规则脚本 `import`、请求脚本 `require` 加载，Tools → Scripts → Addons 编辑，CLI 用 `--addons` | M4 |
 | 脚本：WebSocket 消息钩子 | 已有 | `onMessage(message)` 双向文本／二进制编辑、单条 drop；连接级 locals 串行执行；WS／解密 WSS | M8 |
 | 网络条件：全局预设 | 已有 | 3G / 4G / DSL | |
-| 网络条件：自定义预设、丢包、按 host/规则生效 | 缺少 | | M5 |
+| 网络条件：自定义预设、请求断连、按 host/规则生效 | 已有 | 自定义预设与规则作用域；失败率是请求断连，不是 TCP/IP 丢包；见使用指南限制 | M5 |
 | No Caching | 已有 | | |
 | DNS 映射（可按 App） | 已有 | 已升级为 Host 方案 | M2 |
 | 上游代理：HTTP、SOCKS5 | 已有 | 只能全局一个 | |
@@ -300,7 +300,7 @@ Cookie 和其他 API key 保留为变量 header，避免把多个认证机制硬
 - 第六阶段已完成：耗时瀑布图，分两次提交请求级 trace／会话保留和原生 UI／HAR 导出。实际起始偏移、重叠阶段、复用、失败／未结束和亚毫秒精度；抓包和精确发送均可查看。不将请求前 MITM 建连、下游交付或估算限速冒充请求级测量。
 - 第七阶段已完成：内容筛选 All（AND）／Any（OR），含后台完整正文、独立视图与保存筛选。空字段不成为 OR 真值；搜索／侧栏／协议／时间仍收窄，暂不支持嵌套组。
 - 第八阶段已完成：搜索 Text／Wildcard／Regex；通配符整串匹配、Go/RE2 默认忽略大小写，表达式最大 4096 字节，错误可恢复；新到流量、视图／保存筛选与重置保持一致，不把模式内容解析成条件 token。
-- 网络条件：自定义、丢包、按 host。
+- 网络条件：自定义、请求断连、按 host／完整规则作用域。（已完成：全局按请求／响应正文方向限速、可取消延迟与请求断连；自定义预设安全持久化；规则按原始 URL／方法／App／Headers／GraphQL operation／Scenario 匹配，首个命中替换全局条件，Off 保存失败不改运行状态。不是 TCP/IP 丢包，不覆盖 WS／不透明 CONNECT；限制见使用指南）
 - 高级重放。
 - Copy as Markdown/CSV、导出 CSV、抓包直接生成代码。
 

@@ -228,6 +228,8 @@ const (
 	// RuleCodeMock answers locally using its script's onMock hook. Failures
 	// return a local error, never an upstream fallback.
 	RuleCodeMock RuleType = "code_mock"
+	// RuleNetwork overrides global network conditions for a matching exchange.
+	RuleNetwork RuleType = "network"
 )
 
 // What a Block rule does.
@@ -255,6 +257,8 @@ type Rule struct {
 	Status   int         `json:"status,omitzero"`
 	Headers  http.Header `json:"headers,omitempty"`
 	Disabled bool        `json:"disabled,omitzero"`
+	// Network is required for network rules; an all-zero profile means Off.
+	Network *Throttle `json:"network,omitempty"`
 	// MatchMode says how Match reads: a part of the URL (empty), a
 	// "wildcard" for the whole URL or a "regex"; see rules.Matcher.
 	MatchMode string `json:"matchMode,omitempty"`

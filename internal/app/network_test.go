@@ -34,6 +34,16 @@ func networkFileBytes(t *testing.T, path string) []byte {
 	return data
 }
 
+func TestNetworkDraftDoesNotTruncateImportedLatency(t *testing.T) {
+	profile := capture.Throttle{Latency: time.Millisecond + time.Nanosecond}
+	if got := newNetworkDraft(profile).latency; got != "1.000001" {
+		t.Fatalf("fractional latency draft = %q", got)
+	}
+	if _, err := newNetworkDraft(profile).value(); err == nil {
+		t.Fatal("fractional latency was silently truncated")
+	}
+}
+
 func TestNetworkPresetsSaveUpdateDeleteAndRestart(t *testing.T) {
 	a := networkTestApp(t)
 	p := capture.Throttle{Name: " Mobile ", DownPerSec: 1234, UpPerSec: 5678, Latency: 321 * time.Millisecond, FailurePercent: 37}
@@ -385,6 +395,102 @@ func TestNetworkPresetsIntegrateWithToolsAndActiveChip(t *testing.T) {
 	}
 	if a.throttle != capture.Presets[0] || tt.HasText("Active tool: Mobile") {
 		t.Fatal("active chip did not turn conditions Off")
+	}
+}
+
+func TestNetworkRuleEditorCopiesConditionsAndPersists(t *testing.T) {
+	a := workspaceApp()
+	a.rulesPath = filepath.Join(t.TempDir(), "rules.json")
+	preset := capture.Throttle{Name: "Mobile", DownPerSec: 12345, UpPerSec: 6789, Latency: 123 * time.Millisecond, FailurePercent: 25}
+	a.network.presets = []capture.Throttle{preset}
+	a.openNetworkRules()
+	a.ruleUI.draft.Name, a.ruleUI.draft.Match = "Slow API", "/api"
+	tt := ui.NewTester(a.view, 1280, 800)
+	if err := tt.Click("Network rule preset"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Key(0, ui.KeyEnd)
+	tt.Key(0, ui.KeyEnter)
+	if err := tt.Click("Save rule"); err != nil {
+		t.Fatal(err)
+	}
+	saved, err := capture.LoadRules(a.rulesPath)
+	if err != nil || len(saved) != 1 || saved[0].Type != capture.RuleNetwork || saved[0].Network == nil {
+		t.Fatalf("missing saved network rule: %+v, %v; %s", saved, err, a.ruleUI.problem)
+	}
+	want := preset
+	want.Name = "Rule"
+	if *saved[0].Network != want {
+		t.Fatalf("preset values were not copied: %+v", saved[0].Network)
+	}
+	a.network.presets[0].DownPerSec = 1
+	if *a.rules[0].Network != want {
+		t.Fatal("changing a preset changed saved network conditions")
+	}
+	if err := tt.Click("Failure (%)"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Key(ui.Cmd, ui.KeyA)
+	tt.Type("101")
+	if err := tt.Click("Save rule"); err != nil {
+		t.Fatal(err)
+	}
+	if *a.rules[0].Network != want || !strings.Contains(a.ruleUI.problem, "Failure") {
+		t.Fatal("invalid rule conditions were saved")
+	}
+	// A preview describes the probabilistic branch, not guaranteed later steps.
+	a.ruleUI.test = "GET https://example.test/api"
+	tt.Frame()
+	if !tt.HasText("25% chance of disconnect; later steps assume the request continues") {
+		t.Fatal("preview concealed the conditional network failure", tt.Texts())
+	}
+	// Changing rule kinds removes the old network payload rather than keeping
+	// invalid hidden conditions. The failed draft never mutated the saved rule.
+	a.ruleUI.kind = "Block"
+	a.saveRule()
+	saved, err = capture.LoadRules(a.rulesPath)
+	if err != nil || len(saved) != 1 || saved[0].Type != capture.RuleBlock || saved[0].Network != nil {
+		t.Fatalf("type change retained a hidden network payload: %+v, %v", saved, err)
+	}
+}
+
+func TestNetworkOffPersistsAllRuleDisablesOrLeavesConditionsAlone(t *testing.T) {
+	a := workspaceApp()
+	a.srv = &capture.Server{}
+	a.setThrottle(capture.Presets[1])
+	a.rules = []capture.Rule{
+		{Type: capture.RuleNetwork, Match: "/active", Network: new(capture.Throttle{FailurePercent: 5})},
+		{Type: capture.RuleNetwork, Match: "/inactive", Scenario: "Later", Network: new(capture.Throttle{Latency: time.Second})},
+		{Type: capture.RuleBlock, Match: "/blocked"},
+	}
+	if err := a.srv.SetRules(a.rules); err != nil {
+		t.Fatal(err)
+	}
+	a.rulesPath = t.TempDir() // cannot overwrite a directory with a rules file
+	tt := ui.NewTester(a.view, 960, 600)
+	if err := tt.Click("Disable Network rules: 1"); err != nil {
+		t.Fatal(err)
+	}
+	if a.activeNetworkRules() != 1 || a.throttle != capture.Presets[1] || !tt.HasText("Active tool: Network rules: 1") {
+		t.Fatal("failed persistence concealed active rules or changed global conditions")
+	}
+	a.networkOff()
+	if a.srv.Throttle() != capture.Presets[1] || a.srv.Rules()[0].Disabled {
+		t.Fatal("failed Off modified the running configuration")
+	}
+	a.rulesPath = filepath.Join(t.TempDir(), "rules.json")
+	if err := tt.Click("Tools"); err != nil {
+		t.Fatal(err)
+	}
+	if err := chooseMenu(tt, "Off"); err != nil {
+		t.Fatal(err)
+	}
+	saved, err := capture.LoadRules(a.rulesPath)
+	if err != nil || len(saved) != 3 || !saved[0].Disabled || !saved[1].Disabled || saved[2].Disabled || a.srv.Throttle() != capture.Presets[0] || a.activeNetworkRules() != 0 {
+		t.Fatalf("Off left a rule armed or changed unrelated rules: %+v, %v", saved, err)
+	}
+	if tt.HasText("Active tool: Network rules: 1") || tt.HasText("Active tool: 3G") {
+		t.Fatal("Off left active network chips visible")
 	}
 }
 

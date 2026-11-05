@@ -558,6 +558,24 @@ func TestUISnapshots(t *testing.T) {
 		{name: "tools-hosts-empty", setup: func(a *app) { a.openTools("hosts") }, want: "No Host profiles"},
 		{name: "dialog-key-log", setup: func(a *app) { a.openKeyLog() }, want: "TLS key log"},
 		{name: "tools-rules", setup: func(a *app) { snapshotRules(a); a.srv = &capture.Server{}; a.openRules() }, want: "Scenario: Offline demo", short: true},
+		{name: "tools-rules-network", setup: func(a *app) {
+			a.network.presets = []capture.Throttle{{Name: "Unreliable mobile", DownPerSec: 12000, UpPerSec: 3400, Latency: 250 * time.Millisecond, FailurePercent: 25}}
+			a.rules = []capture.Rule{{Name: "Slow mobile API", Type: capture.RuleNetwork, Match: "api.example.com/v1", Network: new(a.network.presets[0])}}
+			a.openNetworkRules()
+		}, want: "Failure (%)", short: true},
+		{name: "tools-rules-network-zero", setup: func(a *app) {
+			a.rules = []capture.Rule{{Name: "Explicit Off", Type: capture.RuleNetwork, Match: "api.example.com/v1", Network: new(capture.Throttle)}}
+			a.openNetworkRules()
+		}, act: func(t *testing.T, tt *ui.Tester) {
+			tt.Scroll(900, 560, 0, 550)
+			tt.Advance(250 * time.Millisecond)
+		}, want: "All zero overrides to Off", short: true},
+		{name: "tools-rules-network-invalid", setup: func(a *app) {
+			a.rules = []capture.Rule{{Name: "Slow mobile API", Type: capture.RuleNetwork, Match: "api.example.com/v1", Network: new(capture.Throttle{FailurePercent: 25})}}
+			a.ruleUI.network.failure = "101"
+			a.saveRule()
+			a.openNetworkRules()
+		}, want: "Failure must be a whole number from 0 to 100", short: true},
 		{name: "tools-rules-test", setup: func(a *app) {
 			snapshotRules(a)
 			a.openRules()
@@ -1017,7 +1035,7 @@ func TestUISnapshots(t *testing.T) {
 			if strings.HasPrefix(state.name, "capture-timing") || strings.HasPrefix(state.name, "capture-search") || state.name == "capture-form-xml" || state.name == "capture-multipart" || state.name == "capture-messagepack" || state.name == "capture-structured-error" {
 				widths = append(widths, 960)
 			}
-			if state.name == "capture-selected" || strings.HasPrefix(state.name, "capture-activity") || state.name == "capture-response-error" || state.name == "capture-no-response" || state.name == "capture-edited" || state.name == "capture-sent" || state.name == "capture-ws" || state.name == "capture-connect" || strings.HasPrefix(state.name, "requests-") || strings.HasPrefix(state.name, "secondary-") || strings.HasPrefix(state.name, "dialog-") || state.name == "active-tools" {
+			if strings.HasPrefix(state.name, "tools-rules-network") || state.name == "capture-selected" || strings.HasPrefix(state.name, "capture-activity") || state.name == "capture-response-error" || state.name == "capture-no-response" || state.name == "capture-edited" || state.name == "capture-sent" || state.name == "capture-ws" || state.name == "capture-connect" || strings.HasPrefix(state.name, "requests-") || strings.HasPrefix(state.name, "secondary-") || strings.HasPrefix(state.name, "dialog-") || state.name == "active-tools" {
 				widths = append(widths, 960)
 			}
 			// Live traffic reads in both layouts: the inspector beside the

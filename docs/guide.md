@@ -917,6 +917,28 @@ Deleting a preset requires confirmation and resets global conditions Off if
 that preset is active. The shared menu lists saved profiles; the active chip's
 close button also turns the global conditions Off.
 
+**Tools / Network → Network rules…** opens the normal rule editor at a
+Network conditions rule. URL, method, app, headers, GraphQL operation and
+scenario matching work as for other rules. The first independently matching
+rule replaces the entire global profile, including an all-zero profile that
+explicitly selects Off; conditions are not merged. Map and Block winners are
+selected separately, and a 100% failure disconnects before later steps. An
+intermediate percentage in a rule preview means later steps assume that request
+continues. Selection and the numeric conditions are snapshotted once per
+exchange, so later edits or scenario changes do not affect it in flight.
+
+Rules use the original URL before scripts and routing. A complete buffered POST
+up to 1 MiB (including decompression) can match its verified GraphQL operation;
+a streamed or oversized POST has no operation match, while a GET still uses its
+URL query. Rules cover the same HTTP, inspected HTTPS and SSE traffic as global
+conditions, not WebSocket messages or opaque CONNECT tunnels. Choosing a preset
+in this editor copies its values; later preset edits do not update the rule.
+Network rules are included in configuration import/export (the separate custom
+preset list is not). The active-rule chip counts enabled rules in the current
+scenario. Its close action saves all network rules disabled, including inactive
+scenarios. **Off** does the same before clearing the global profile, and leaves
+both rule state and global conditions unchanged if the rules cannot be saved.
+
 **Network → Upstream…** sends every request through another proxy, such as
 `http://127.0.0.1:8080`; **Upstream off** clears it. **Settings → Proxy → Upstream** edits the same
 address in place; leave it empty and apply to connect directly. The engine tunnels to the

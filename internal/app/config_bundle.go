@@ -168,6 +168,9 @@ func cloneRuleList(list []capture.Rule) []capture.Rule {
 	for i := range out {
 		out[i].Headers = list[i].Headers.Clone()
 		out[i].Apps, out[i].When = slices.Clone(list[i].Apps), slices.Clone(list[i].When)
+		if list[i].Network != nil {
+			out[i].Network = new(*list[i].Network)
+		}
 	}
 	return out
 }

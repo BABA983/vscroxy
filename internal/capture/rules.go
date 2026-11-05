@@ -50,7 +50,17 @@ func responseRule(kind RuleType) bool {
 // ScenarioRule reports whether a rule of kind may belong to a scenario:
 // those that change traffic, not breakpoints.
 func ScenarioRule(kind RuleType) bool {
-	return responseRule(kind) || kind == RuleScript
+	return responseRule(kind) || kind == RuleScript || kind == RuleNetwork
+}
+
+// Network selection is independent of response selection, on the original request.
+func firstNetworkRule(list []Rule, req rules.Request) int {
+	if webSocketURL(req.URL) || req.Method == http.MethodConnect {
+		return -1
+	}
+	return slices.IndexFunc(list, func(r Rule) bool {
+		return r.Type == RuleNetwork && r.Network != nil && r.matches(req)
+	})
 }
 
 // firstResponseRule is the Map or Block rule that acts on req: the first
@@ -146,8 +156,14 @@ func regexHost(expr string) (string, bool) {
 // key is what a rule does, without its name and switches.
 func (r Rule) key() string {
 	when, _ := json.Marshal(r.When)
+	var network []byte
+	if r.Network != nil {
+		profile := *r.Network
+		profile.Name = "" // descriptive, not part of the rule's behavior
+		network = fmt.Appendf(nil, "%d,%d,%d,%d", profile.DownPerSec, profile.UpPerSec, profile.Latency, profile.FailurePercent)
+	}
 	return strings.Join([]string{string(r.Type), r.MatchMode, r.Match, r.Method, strings.Join(r.Apps, "\n"), string(when), r.Target,
-		r.PathFrom, r.PathTo, fmt.Sprint(r.KeepHost), r.Block, r.Direction, r.Operation}, "\x00")
+		r.PathFrom, r.PathTo, fmt.Sprint(r.KeepHost), r.Block, r.Direction, r.Operation, string(network)}, "\x00")
 }
 
 // RulePreview explains a saved rule's part in one exchange. Step is its place
@@ -159,8 +175,9 @@ type RulePreview struct {
 	Reason string
 }
 
-// PreviewRules follows the proxy for one request: every matching Script rule
-// runs, in order, then the first matching request breakpoint pauses it, the
+// PreviewRules follows the proxy for one request: the first matching Network
+// rule selects conditions, then every matching Script rule runs, in order,
+// then the first matching request breakpoint pauses it, the
 // first matching Map or Block rule answers or redirects it, and the first
 // matching response breakpoint pauses a response that came from upstream,
 // matched against the redirected URL. Breakpoints act only while breaking is
@@ -187,7 +204,39 @@ func PreviewRules(rules []Rule, req rules.Request, breaking bool) []RulePreview 
 		step++
 		preview[i].Step = step
 	}
+	networkWinner := firstNetworkRule(rules, req)
+	disconnected := false
+	for i, r := range rules {
+		preview[i].Index = i
+		if r.Type != RuleNetwork {
+			continue
+		}
+		reason := r.matchReason(req)
+		switch {
+		case ws:
+			reason = "does not act on WebSockets"
+		case req.Method == http.MethodConnect:
+			reason = "does not act on CONNECT tunnels"
+		case reason != "":
+		case r.Network == nil:
+			reason = "network conditions are missing"
+		case i != networkWinner:
+			reason = fmt.Sprintf("shadowed by rule %d", networkWinner+1)
+		default:
+			act(i)
+			disconnected = r.Network.FailurePercent == 100
+			if disconnected {
+				reason = "100% network failure disconnects the request before later rules"
+			} else if r.Network.FailurePercent > 0 {
+				reason = fmt.Sprintf("%d%% chance of disconnect; later steps assume the request continues", r.Network.FailurePercent)
+			}
+		}
+		preview[i].Reason = reason
+	}
 	stage := func(r Rule) int { // the order the proxy reaches each kind in
+		if r.Type == RuleNetwork {
+			return -1 // already selected before all other hooks
+		}
 		if ws {
 			switch r.Type {
 			case RuleMapRemote:
@@ -226,6 +275,8 @@ func PreviewRules(rules []Rule, req rules.Request, breaking bool) []RulePreview 
 				reason = "does not act on WebSockets"
 			case !ws && r.Type == RuleBreakMessage:
 				reason = "requires a WebSocket message"
+			case disconnected:
+				reason = fmt.Sprintf("rule %d disconnects the request before later rules", networkWinner+1)
 			case reason != "":
 			case responseRule(r.Type) && i != winner:
 				reason = fmt.Sprintf("shadowed by rule %d", winner+1)
@@ -294,6 +345,11 @@ func SelectScenario(rules []Rule, name string) ([]Rule, error) {
 func cloneRules(rules []Rule) []Rule {
 	copy := slices.Clone(rules)
 	for i := range copy {
+		copy[i].Apps = slices.Clone(rules[i].Apps)
+		copy[i].When = slices.Clone(rules[i].When)
+		if rules[i].Network != nil {
+			copy[i].Network = new(*rules[i].Network)
+		}
 		copy[i].Headers = make(http.Header)
 		for name, values := range rules[i].Headers {
 			for _, value := range values {
@@ -317,7 +373,7 @@ func ValidateRules(rules []Rule) error {
 			}
 		} else {
 			if !ScenarioRule(r.Type) {
-				return fail("only Map Local, Map Remote, Block, Script and Code Mock rules can belong to a scenario")
+				return fail("only Map Local, Map Remote, Block, Script, Code Mock and Network rules can belong to a scenario")
 			}
 			if r.Scenario != strings.TrimSpace(r.Scenario) || !utf8.ValidString(r.Scenario) || strings.ContainsFunc(r.Scenario, unicode.IsControl) {
 				return fail("scenario names must be trimmed text without control characters")
@@ -342,7 +398,17 @@ func ValidateRules(rules []Rule) error {
 		if r.Method != "" && !httpguts.ValidHeaderFieldName(r.Method) {
 			return fail("invalid HTTP method")
 		}
+		if r.Type != RuleNetwork && r.Network != nil {
+			return fail("only Network rules can carry network conditions")
+		}
 		switch r.Type {
+		case RuleNetwork:
+			if r.Network == nil {
+				return fail("Network rules require network conditions")
+			}
+			if err := r.Network.Validate(); err != nil {
+				return fail(err.Error())
+			}
 		case RuleMapRemote:
 			u, err := url.Parse(r.Target)
 			if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Hostname() == "" || u.User != nil || u.Fragment != "" {

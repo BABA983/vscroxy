@@ -17,6 +17,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/baba983/vscroxy/internal/capture"
 	"github.com/baba983/vscroxy/internal/rules"
@@ -642,5 +643,274 @@ func TestMapLocalFolderAnswersFromItsFilesOrTheServer(t *testing.T) {
 	}
 	if s.RuleHits(rule) != 2 {
 		t.Fatalf("hits %d, want the two answered", s.RuleHits(rule))
+	}
+}
+
+func TestNetworkRuleSnapshotsValidationAndPersistence(t *testing.T) {
+	s, _ := scenarioProxy(t)
+	list := []capture.Rule{{Type: capture.RuleNetwork, Match: "/item", Scenario: "Slow",
+		Network: new(capture.Throttle{DownPerSec: 123, UpPerSec: 456, Latency: 789, FailurePercent: 7}),
+		Apps:    []string{"client*"}, When: []rules.HeaderCondition{{Name: "X-Mode", Op: rules.HeaderEquals, Value: "test"}}},
+		{Type: capture.RuleNetwork, Match: "/off", Network: new(capture.Throttle)}}
+	if !capture.ScenarioRule(capture.RuleNetwork) {
+		t.Fatal("Network cannot belong to a scenario")
+	}
+	selected, err := capture.SelectScenario(list, "Slow")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SetRules(selected); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(t.TempDir(), "rules.json")
+	if err := capture.SaveRules(path, selected); err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := capture.LoadRules(path)
+	if err != nil || len(loaded) != 2 || capture.ActiveScenario(loaded) != "Slow" || loaded[1].Network == nil || *loaded[1].Network != (capture.Throttle{}) ||
+		loaded[0].Network == nil || *loaded[0].Network != *list[0].Network || !reflect.DeepEqual(loaded[0].Apps, list[0].Apps) || !reflect.DeepEqual(loaded[0].When, list[0].When) {
+		t.Fatalf("network round trip: %+v, %v", loaded, err)
+	}
+	baseline := s.Rules()
+	mutate := func(snapshot []capture.Rule) {
+		snapshot[0].Network.DownPerSec = 999
+		snapshot[0].Apps[0] = "changed"
+		snapshot[0].When[0].Value = "changed"
+	}
+	mutate(selected)
+	if list[0].Network.DownPerSec != 123 || list[0].Apps[0] != "client*" || list[0].When[0].Value != "test" {
+		t.Fatal("SelectScenario aliased its input")
+	}
+	mutate(s.Rules())
+	if !reflect.DeepEqual(baseline, s.Rules()) {
+		t.Fatal("SetRules/Rules did not own their snapshot")
+	}
+	before, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	invalid := []capture.Rule{
+		{Type: capture.RuleNetwork, Match: "x"},
+		{Type: capture.RuleBlock, Match: "x", Network: new(capture.Throttle)},
+		{Type: capture.RuleMapRemote, Match: "x", Target: "http://example.test", Network: new(capture.Throttle)},
+	}
+	for _, profile := range []capture.Throttle{{DownPerSec: -1}, {UpPerSec: -1}, {DownPerSec: 1<<30 + 1},
+		{UpPerSec: 1<<30 + 1}, {Latency: -1}, {Latency: time.Minute + 1}, {FailurePercent: -1}, {FailurePercent: 101}} {
+		invalid = append(invalid, capture.Rule{Type: capture.RuleNetwork, Match: "x", Network: new(profile)})
+	}
+	for _, r := range invalid {
+		bad := []capture.Rule{r}
+		if err := capture.ValidateRules(bad); err == nil {
+			t.Fatalf("validated invalid rule: %+v", r)
+		}
+		if err := s.SetRules(bad); err == nil || !reflect.DeepEqual(baseline, s.Rules()) {
+			t.Fatal("invalid snapshot changed runtime rules")
+		}
+		if err := capture.SaveRules(path, bad); err == nil {
+			t.Fatal("saved invalid network rule")
+		}
+		after, err := os.ReadFile(path)
+		if err != nil || !bytes.Equal(before, after) {
+			t.Fatal("failed save replaced rules")
+		}
+		data, err := json.Marshal(bad)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := capture.ParseRules(data); err == nil {
+			t.Fatal("parsed invalid network rule")
+		}
+	}
+}
+
+func TestNetworkRulePreviewOrderAndIndependentWinners(t *testing.T) {
+	list := []capture.Rule{
+		{Type: capture.RuleBreakResponse, Match: "remote.test/v2/item"},
+		{Type: capture.RuleMapRemote, Match: "/item", Target: "http://remote.test/v2"},
+		{Type: capture.RuleScript, Match: "/item", Target: "test.js"},
+		{Type: capture.RuleBreak, Match: "/item"},
+		{Type: capture.RuleNetwork, Match: "/item", Network: new(capture.Throttle), Disabled: true},
+		{Type: capture.RuleNetwork, Match: "/item", Network: new(capture.Throttle), Scenario: "Inactive"},
+		{Type: capture.RuleNetwork, Match: "example.test/item", Network: new(capture.Throttle)},
+		{Type: capture.RuleNetwork, Match: "/item", Network: new(capture.Throttle{FailurePercent: 100})},
+		{Type: capture.RuleBlock, Match: "/item"},
+	}
+	req := previewRequest("POST", "https://example.test/item")
+	check := func(p []capture.RulePreview, want []int) {
+		t.Helper()
+		for i, r := range p {
+			if r.Index != i || r.Step != want[i] {
+				t.Fatalf("preview order: %+v, want %v", p, want)
+			}
+		}
+	}
+	p := capture.PreviewRules(list, req, true)
+	check(p, []int{5, 4, 2, 3, 0, 0, 1, 0, 0})
+	if p[7].Reason != "shadowed by rule 7" || p[8].Reason != "shadowed by rule 2" || p[4].Reason != "disabled" || !strings.Contains(p[5].Reason, "inactive scenario") {
+		t.Fatalf("network/response shadowing not independent: %+v", p)
+	}
+	list[6].Network.FailurePercent = 100
+	p = capture.PreviewRules(list, req, true)
+	check(p, []int{0, 0, 0, 0, 0, 0, 1, 0, 0})
+	for _, i := range []int{0, 1, 2, 3, 8} {
+		if !strings.Contains(p[i].Reason, "rule 7 disconnects") {
+			t.Fatalf("100%% failure did not stop later hook: %+v", p)
+		}
+	}
+	list[6].Network.FailurePercent = 30
+	p = capture.PreviewRules(list, req, true)
+	check(p, []int{5, 4, 2, 3, 0, 0, 1, 0, 0})
+	if !strings.Contains(p[6].Reason, "30% chance") || !strings.Contains(p[6].Reason, "later steps assume") {
+		t.Fatalf("probabilistic preview promised certainty: %+v", p[6])
+	}
+	for _, req := range []rules.Request{previewRequest("GET", "wss://example.test/item"), previewRequest("CONNECT", "https://example.test/item")} {
+		p := capture.PreviewRules(list, req, true)
+		for _, i := range []int{4, 5, 6, 7} {
+			if p[i].Step != 0 || !strings.Contains(p[i].Reason, "does not act on") {
+				t.Fatalf("network applied to unsupported traffic: %+v", p)
+			}
+		}
+	}
+}
+
+func TestNetworkRulesMatchOriginalRequestAndOverrideGlobal(t *testing.T) {
+	const body = `{"query":"query Other { a } query Search { b }","operationName":"Search"}`
+	var upstreamHits atomic.Int32
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		upstreamHits.Add(1)
+		got, err := io.ReadAll(r.Body)
+		if err != nil || string(got) != body || r.URL.Path != "/v2/graphql" {
+			t.Errorf("rewritten request/body: %s %q, %v", r.URL, got, err)
+		}
+		fmt.Fprint(w, "mapped")
+	}))
+	defer upstream.Close()
+	s, client := scenarioProxy(t)
+	list := []capture.Rule{
+		{Type: capture.RuleNetwork, Match: "/graphql", Network: new(capture.Throttle{FailurePercent: 100}), Disabled: true},
+		{Type: capture.RuleNetwork, Match: "/graphql", Network: new(capture.Throttle{FailurePercent: 100}), Scenario: "Offline"},
+		{Type: capture.RuleNetwork, Match: "/graphql", Network: new(capture.Throttle{FailurePercent: 100}), Apps: []string{"no-such-network-test-app"}},
+		{Type: capture.RuleMapRemote, Match: "original.test/graphql", Target: upstream.URL + "/v2"},
+		{Name: "Explicit Off", Type: capture.RuleNetwork, Match: `^http://original\.test/graphql$`, MatchMode: rules.URLRegex,
+			Method: "POST", Operation: "Search", When: []rules.HeaderCondition{{Name: "X-Env", Op: rules.HeaderEquals, Value: "staging"}},
+			Network: new(capture.Throttle), Scenario: "Online", ScenarioActive: true},
+	}
+	if err := s.SetRules(list); err != nil {
+		t.Fatal(err)
+	}
+	do := func(method, target, input, env string, disconnect bool) capture.Flow {
+		t.Helper()
+		req, err := http.NewRequestWithContext(t.Context(), method, target, strings.NewReader(input))
+		if err != nil {
+			t.Fatal(err)
+		}
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("X-Env", env)
+		resp, err := client.Do(req)
+		if disconnect {
+			if err == nil {
+				resp.Body.Close()
+				t.Fatalf("expected disconnect, got HTTP %d", resp.StatusCode)
+			}
+		} else {
+			if err != nil {
+				t.Fatal(err)
+			}
+			got, err := io.ReadAll(resp.Body)
+			resp.Body.Close()
+			if err != nil || resp.StatusCode != 200 || string(got) != "mapped" {
+				t.Fatalf("mapped response: %d %q, %v", resp.StatusCode, got, err)
+			}
+		}
+		select {
+		case f := <-s.Flows():
+			return f
+		case <-t.Context().Done():
+			t.Fatal(t.Context().Err())
+			return capture.Flow{}
+		}
+	}
+	// With default global Off a nonmatching rule must not change traffic.
+	do("POST", "http://original.test/graphql", body, "prod", false)
+	if s.RuleHits(list[4]) != 0 {
+		t.Fatal("header mismatch counted a network hit")
+	}
+	if err := s.SetThrottle(capture.Throttle{Name: "Global disconnect", FailurePercent: 100}); err != nil {
+		t.Fatal(err)
+	}
+	f := do("POST", "http://original.test/graphql", body, "staging", false)
+	if !slices.Contains(f.Actions, "Network rule · Explicit Off · "+list[4].Match) || !slices.Contains(f.Actions, "Scenario · Online") ||
+		!slices.Contains(f.Actions, "Network conditions · down 0 B/s · up 0 B/s · latency 0s · failure 0%") {
+		t.Fatalf("missing selected-rule/conditions evidence: %v", f.Actions)
+	}
+	for _, tc := range []struct{ method, target, input, env string }{
+		{"POST", "http://original.test/graphql", body, "prod"},
+		{"GET", "http://original.test/graphql", body, "staging"},
+		{"POST", "http://original.test/graphql", `{"query":"query Other { a }"}`, "staging"},
+		{"POST", upstream.URL + "/graphql", body, "staging"},
+	} {
+		f := do(tc.method, tc.target, tc.input, tc.env, true)
+		if !slices.Contains(f.Actions, "Network · Global disconnect") {
+			t.Fatalf("nonmatching rule did not fall back to global: %v", f.Actions)
+		}
+	}
+	if s.RuleHits(list[4]) != 1 || s.RuleHits(list[3]) != 2 || upstreamHits.Load() != 2 {
+		t.Fatalf("rule/map/upstream hits: %d/%d/%d", s.RuleHits(list[4]), s.RuleHits(list[3]), upstreamHits.Load())
+	}
+	for _, i := range []int{0, 1, 2} {
+		if s.RuleHits(list[i]) != 0 {
+			t.Fatalf("disabled, inactive or app-mismatched rule %d counted a hit", i)
+		}
+	}
+	changed := list[4]
+	changed.Network = new(capture.Throttle{Name: "Only a descriptive name"})
+	if s.RuleHits(changed) != 1 {
+		t.Fatal("descriptive profile name reset hits")
+	}
+	for _, profile := range []capture.Throttle{{Latency: 1}, {DownPerSec: 1}, {UpPerSec: 1}, {FailurePercent: 1}} {
+		changed.Network = new(profile)
+		if s.RuleHits(changed) != 0 {
+			t.Fatalf("edited profile retained previous hits: %+v", profile)
+		}
+	}
+	// Activating Offline wins ahead of both the Off rule and Map Remote.
+	next, err := capture.SelectScenario(list, "Offline")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SetRules(next); err != nil {
+		t.Fatal(err)
+	}
+	do("POST", "http://original.test/graphql", body, "staging", true)
+	if s.RuleHits(next[1]) != 1 || s.RuleHits(list[3]) != 2 {
+		t.Fatal("scenario selection did not disconnect before mapping")
+	}
+}
+
+func TestNetworkRulesFirstMatchDoesNotShadowBlock(t *testing.T) {
+	s, client := scenarioProxy(t)
+	if err := s.SetThrottle(capture.Throttle{FailurePercent: 100}); err != nil {
+		t.Fatal(err)
+	}
+	list := []capture.Rule{
+		{Type: capture.RuleNetwork, MatchMode: rules.URLWildcard, Match: "example.test/item/*", Network: new(capture.Throttle)},
+		{Type: capture.RuleNetwork, Match: "/item/", Network: new(capture.Throttle{FailurePercent: 100})},
+		{Type: capture.RuleBlock, Match: "/item/"},
+	}
+	if err := s.SetRules(list); err != nil {
+		t.Fatal(err)
+	}
+	scenarioRequest(t, client, "POST", "http://example.test/item/1", 403, "blocked by vscroxy\n")
+	if s.RuleHits(list[0]) != 1 || s.RuleHits(list[1]) != 0 || s.RuleHits(list[2]) != 1 {
+		t.Fatal("network winner shadowed Block, or later network rule ran")
+	}
+	// A response rule earlier in the file does not shadow network selection.
+	list = []capture.Rule{list[2], list[0], list[1]}
+	if err := s.SetRules(list); err != nil {
+		t.Fatal(err)
+	}
+	scenarioRequest(t, client, "POST", "http://example.test/item/2", 403, "blocked by vscroxy\n")
+	if s.RuleHits(list[0]) != 2 || s.RuleHits(list[1]) != 2 || s.RuleHits(list[2]) != 0 {
+		t.Fatal("response rule order changed independent network selection")
 	}
 }
