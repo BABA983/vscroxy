@@ -39,12 +39,18 @@ func TestOneClickTerminalShowsTheEnvironmentAndOnlyThatWindow(t *testing.T) {
 		"Open terminal",
 		"HTTP_PROXY=http://" + a.srv.Addr(),
 		"NODE_EXTRA_CA_CERTS=" + a.caPath,
+		"SSL_CERT_FILE=" + a.clientBundlePath(),
+		"REQUESTS_CA_BUNDLE=" + a.clientBundlePath(),
 		"NO_PROXY=localhost,127.0.0.1,::1",
 		"Only that window changes",
+		"system roots",
 	} {
 		if !tt.HasText(want) {
 			t.Fatalf("missing %q: %v", want, tt.Texts())
 		}
+	}
+	if tt.HasText("ALL_PROXY") || tt.HasText("all_proxy") {
+		t.Fatal("terminal setup routes every protocol to the HTTP proxy")
 	}
 	if tt.HasText("--ignore-certificate-errors") {
 		t.Fatal("terminal setup mentions a TLS bypass")
@@ -81,6 +87,7 @@ func TestOneClickAndroidShowsReverseProxyAndCertificateLimits(t *testing.T) {
 		"Undo proxy",
 		"Copy CA to device",
 		"adb reverse",
+		"Undo restores the proxy value",
 		"Android 7+ apps do not trust user-installed CAs",
 	} {
 		if !tt.HasText(want) {
@@ -92,9 +99,21 @@ func TestOneClickAndroidShowsReverseProxyAndCertificateLimits(t *testing.T) {
 func TestOneClickJavaShowsAReviewableCommandBeforeConfirming(t *testing.T) {
 	a := oneClickApp(t)
 	a.clientUI.target = clientTargetJava
+	a.clientUI.javaCACerts = "/Library/Java/JavaVirtualMachines/jdk-27.jdk/Contents/Home/lib/security/cacerts"
 	tt := ui.NewTester(a.view, 960, 600)
-	if !tt.HasText("keytool -importcert -noprompt") || !tt.HasText(a.javaTruststorePath()) {
-		t.Fatalf("command missing: %v", tt.Texts())
+	for _, want := range []string{
+		"keytool -importkeystore -noprompt",
+		"keytool -importcert -noprompt",
+		a.javaTruststorePath(),
+		"-Dhttp.proxyHost=127.0.0.1",
+		"-Dhttps.proxyPort=",
+	} {
+		if !tt.HasText(want) {
+			t.Fatalf("missing %q: %v", want, tt.Texts())
+		}
+	}
+	if tt.HasText("direct public TLS may fail") {
+		t.Fatal("Java panel still warns about public TLS")
 	}
 	if err := tt.Click("Import…"); err != nil {
 		t.Fatal(err)
@@ -188,7 +207,7 @@ func TestOneClickTerminalMissingHelperIsReported(t *testing.T) {
 		tt.Frame()
 		time.Sleep(10 * time.Millisecond)
 	}
-	if !strings.Contains(a.message, "terminal emulator not found") || !strings.Contains(a.message, "xterm") {
+	if !strings.HasPrefix(a.message, "Open proxied terminal:") || !strings.Contains(a.message, "terminal emulator not found") || !strings.Contains(a.message, "xterm") {
 		t.Fatalf("missing terminal was not explained: %q", a.message)
 	}
 }

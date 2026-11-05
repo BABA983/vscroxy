@@ -1,6 +1,7 @@
 package app
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"os"
@@ -8,6 +9,7 @@ import (
 	"runtime"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/baba983/vscroxy/internal/clientsetup"
 )
@@ -51,8 +53,14 @@ type clientSetup struct {
 	androidLoaded  bool
 	androidLoading bool
 	androidProblem string
+	// androidApplied remembers the proxy that was present before this app
+	// changed it, and the port whose reverse listener it added.
+	androidApplied map[string]androidProxyState
 
 	javaConfirm bool
+	// javaCACerts is the resolved JDK cacerts for the Java panel. It is
+	// cleared when the dialog opens so a changed JDK is picked up.
+	javaCACerts string
 
 	electronPath string
 	last         string
@@ -63,12 +71,21 @@ type clientSetup struct {
 }
 
 type clientSetupResult struct {
-	action  string // devices, launch, android, undo, push, ios, java
-	what    string
-	command string
-	err     error
-	warning error
-	devices []clientsetup.AndroidDevice
+	action   string // devices, launch, android, undo, push, ios, java
+	what     string // action name, used when the action fails
+	success  string // result title, used when it succeeds
+	command  string
+	err      error
+	warning  error
+	devices  []clientsetup.AndroidDevice
+	serial   string
+	previous string
+	port     int
+}
+
+type androidProxyState struct {
+	previous string
+	port     int
 }
 
 type clientLaunch struct {
@@ -97,6 +114,7 @@ func (a *app) openClientSetup() {
 	if a.caPath != "" {
 		s.caPath = a.caPath
 	}
+	s.javaCACerts = ""
 	_ = a.clientSetupResults()
 }
 
@@ -121,7 +139,29 @@ func (a *app) clientProxy() clientsetup.Proxy {
 	if a.caPath != "" {
 		s.caPath = a.caPath
 	}
-	return clientsetup.Proxy{Addr: s.addr, CAPath: s.caPath}
+	return clientsetup.Proxy{Addr: s.addr, CAPath: s.caPath, BundlePath: a.clientBundlePath()}
+}
+
+// clientBundlePath is the app-owned system+CA bundle used by clients that
+// replace their trust store. It lives beside the settings file.
+func (a *app) clientBundlePath() string {
+	if a.settingsPath == "" {
+		return ""
+	}
+	return filepath.Join(filepath.Dir(a.settingsPath), "client-ca-bundle.pem")
+}
+
+// ensureClientBundle regenerates the bundle before a terminal launch. Without
+// system roots the terminal falls back to NODE_EXTRA_CA_CERTS only.
+func (a *app) ensureClientBundle(p *clientsetup.Proxy) error {
+	if p.BundlePath == "" {
+		return errors.New("no app settings directory for the CA bundle")
+	}
+	if err := clientsetup.EnsureTrustBundle(p.CAPath, p.BundlePath); err != nil {
+		p.BundlePath = ""
+		return err
+	}
+	return nil
 }
 
 func (a *app) clientProxyReady() (clientsetup.Proxy, error) {
@@ -190,10 +230,22 @@ func (a *app) drainClientSetup() {
 				if r.command != "" {
 					s.last = r.command
 				}
+				switch r.action {
+				case "android":
+					if s.androidApplied == nil {
+						s.androidApplied = make(map[string]androidProxyState)
+					}
+					if _, exists := s.androidApplied[r.serial]; !exists {
+						s.androidApplied[r.serial] = androidProxyState{previous: r.previous, port: r.port}
+					}
+				case "undo":
+					delete(s.androidApplied, r.serial)
+				}
+				title := cmp.Or(r.success, r.what)
 				if r.warning != nil {
-					a.notify(notice{level: noticeWarning, text: r.what, detail: r.warning.Error()})
+					a.notify(notice{level: noticeWarning, text: title, detail: r.warning.Error()})
 				} else {
-					a.notify(notice{level: noticeSuccess, text: r.what, detail: r.command})
+					a.notify(notice{level: noticeSuccess, text: title, detail: r.command})
 				}
 			}
 		default:
@@ -202,7 +254,7 @@ func (a *app) drainClientSetup() {
 	}
 }
 
-func (a *app) launchClient(what string, f func(clientsetup.Proxy) (clientLaunch, error)) {
+func (a *app) launchClient(what, success string, bundle bool, f func(clientsetup.Proxy) (clientLaunch, error)) {
 	p, err := a.clientProxyReady()
 	if err != nil {
 		a.fail(what, err)
@@ -210,16 +262,24 @@ func (a *app) launchClient(what string, f func(clientsetup.Proxy) (clientLaunch,
 	}
 	results := a.clientSetupResults()
 	go func() {
+		var warning error
+		if bundle {
+			warning = a.ensureClientBundle(&p)
+		}
 		launch, err := f(p)
 		if err == nil {
 			err = launch.command.Start()
 		}
+		if err != nil && launch.command.Cleanup != nil {
+			launch.command.Cleanup()
+		}
 		results <- clientSetupResult{
 			action:  "launch",
 			what:    what,
+			success: success,
 			command: commandString(launch.command),
 			err:     err,
-			warning: launch.warning,
+			warning: errors.Join(warning, launch.warning),
 		}
 		a.invalidate()
 	}()
@@ -235,14 +295,14 @@ func commandString(command clientsetup.Argv) string {
 }
 
 func (a *app) openProxiedTerminal() {
-	a.launchClient("Opened proxied terminal", func(p clientsetup.Proxy) (clientLaunch, error) {
+	a.launchClient("Open proxied terminal", "Opened proxied terminal", true, func(p clientsetup.Proxy) (clientLaunch, error) {
 		command, err := clientsetup.OpenTerminal(p)
 		return clientLaunch{command: command}, err
 	})
 }
 
 func (a *app) openProxiedChrome() {
-	a.launchClient("Opened proxied Chrome", func(p clientsetup.Proxy) (clientLaunch, error) {
+	a.launchClient("Open proxied Chrome", "Opened proxied Chrome", false, func(p clientsetup.Proxy) (clientLaunch, error) {
 		profile, err := os.MkdirTemp("", "vscroxy-chrome-*")
 		if err != nil {
 			return clientLaunch{}, err
@@ -256,12 +316,13 @@ func (a *app) openProxiedChrome() {
 			_ = os.RemoveAll(profile)
 			return clientLaunch{}, err
 		}
+		command.Cleanup = func() { _ = os.RemoveAll(profile) }
 		return clientLaunch{command: command}, nil
 	})
 }
 
 func (a *app) openProxiedFirefox() {
-	a.launchClient("Opened proxied Firefox", func(p clientsetup.Proxy) (clientLaunch, error) {
+	a.launchClient("Open proxied Firefox", "Opened proxied Firefox", false, func(p clientsetup.Proxy) (clientLaunch, error) {
 		profile, err := os.MkdirTemp("", "vscroxy-firefox-*")
 		if err != nil {
 			return clientLaunch{}, err
@@ -276,6 +337,7 @@ func (a *app) openProxiedFirefox() {
 			_ = os.RemoveAll(profile)
 			return clientLaunch{}, err
 		}
+		command.Cleanup = func() { _ = os.RemoveAll(profile) }
 		return clientLaunch{command: command, warning: warning}, nil
 	})
 }
@@ -286,7 +348,7 @@ func (a *app) launchElectronApp() {
 		a.warn("Choose an Electron app first")
 		return
 	}
-	a.launchClient("Launched Electron app", func(p clientsetup.Proxy) (clientLaunch, error) {
+	a.launchClient("Launch Electron app", "Launched Electron app", false, func(p clientsetup.Proxy) (clientLaunch, error) {
 		command, err := clientsetup.OpenElectron(path, p)
 		return clientLaunch{command: command}, err
 	})
@@ -357,13 +419,17 @@ func (a *app) applyAndroidProxy() {
 	serial := s.androidSerial
 	results := a.clientSetupResults()
 	go func() {
-		err := clientsetup.ApplyAndroidProxy(serial, port)
+		previous, err := clientsetup.ApplyAndroidProxy(serial, port)
 		commands, _ := clientsetup.AndroidProxyCommands(serial, port)
 		results <- clientSetupResult{
-			action:  "android",
-			what:    "Set Android proxy",
-			command: clientsetup.JoinCommands(commands, runtime.GOOS == "windows"),
-			err:     err,
+			action:   "android",
+			what:     "Set Android proxy",
+			success:  "Android proxy set",
+			command:  clientsetup.JoinCommands(commands, runtime.GOOS == "windows"),
+			err:      err,
+			serial:   serial,
+			previous: previous,
+			port:     port,
 		}
 		a.invalidate()
 	}()
@@ -371,26 +437,35 @@ func (a *app) applyAndroidProxy() {
 
 func (a *app) clearAndroidProxy() {
 	s := &a.clientUI
-	p := a.clientProxy()
-	_, port, err := p.HostPort()
-	if err != nil {
-		a.fail("Undo Android proxy", err)
-		return
-	}
 	if s.androidSerial == "" {
 		a.warn("Choose a connected Android device or emulator")
 		return
 	}
 	serial := s.androidSerial
+	port, previous := 0, ""
+	if p := a.clientProxy(); p.Addr != "" {
+		if _, current, err := p.HostPort(); err == nil {
+			port = current
+		}
+	}
+	if applied, ok := s.androidApplied[serial]; ok {
+		port, previous = applied.port, applied.previous
+	}
+	if port == 0 {
+		a.fail("Undo Android proxy", errors.New("the proxy port is not available"))
+		return
+	}
 	results := a.clientSetupResults()
 	go func() {
-		err := clientsetup.ClearAndroidProxy(serial, port)
-		commands, _ := clientsetup.AndroidUndoCommands(serial, port)
+		err := clientsetup.ClearAndroidProxy(serial, port, previous)
+		commands, _ := clientsetup.AndroidUndoCommands(serial, port, previous)
 		results <- clientSetupResult{
 			action:  "undo",
-			what:    "Undid Android proxy",
+			what:    "Undo Android proxy",
+			success: "Android proxy restored",
 			command: clientsetup.JoinCommands(commands, runtime.GOOS == "windows"),
 			err:     err,
+			serial:  serial,
 		}
 		a.invalidate()
 	}()
@@ -418,7 +493,8 @@ func (a *app) pushAndroidCA() {
 		err := command.Run()
 		results <- clientSetupResult{
 			action:  "push",
-			what:    "Copied CA to Android Downloads",
+			what:    "Copy CA to Android device",
+			success: "Copied CA to Android Downloads",
 			command: commandString(command),
 			err:     err,
 		}
@@ -440,7 +516,8 @@ func (a *app) installSimulatorCA() {
 		}
 		results <- clientSetupResult{
 			action:  "ios",
-			what:    "Installed CA in iOS simulator",
+			what:    "Install CA in iOS simulator",
+			success: "Installed CA in iOS simulator",
 			command: commandString(command),
 			err:     err,
 		}
@@ -468,15 +545,22 @@ func (a *app) importJavaCA() {
 	}
 	results := a.clientSetupResults()
 	go func() {
-		command, err := clientsetup.ImportJavaCA(p, keystore)
+		commands, err := clientsetup.ImportJavaCA(p, keystore)
 		results <- clientSetupResult{
 			action:  "java",
-			what:    "Imported CA into Java truststore",
-			command: commandString(command),
+			what:    "Import CA into Java truststore",
+			success: "Imported CA into Java truststore",
+			command: clientsetup.JoinCommands(commands, runtime.GOOS == "windows"),
 			err:     err,
 		}
 		a.invalidate()
 	}()
+}
+
+// cleanupClientDirs removes old temporary profiles and terminal scripts that a
+// crash left behind. A browser that is still running keeps a recent directory.
+func cleanupClientDirs() {
+	_, _ = clientsetup.CleanupOldDirs(os.TempDir(), 7*24*time.Hour)
 }
 
 // Examples configure only the requesting process. They never install a root

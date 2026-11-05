@@ -102,16 +102,27 @@ func (a *app) clientSetupOneClick(c *ui.Context, t *ui.Theme) {
 }
 
 func (a *app) clientTerminalPanel(c *ui.Context, t *ui.Theme, p clientsetup.Proxy, running bool) {
-	addr := cmp.Or(p.Addr, "127.0.0.1:7890")
-	proxy := "http://" + addr
-	ca := cmp.Or(p.CAPath, "~/.mitmproxy/mitmproxy-ca-cert.pem")
 	uikit.Hint(c, "Opens a new terminal window with the proxy and CA environment. Only that window changes.")
-	ui.Text(c, "HTTP_PROXY="+proxy+"\nHTTPS_PROXY="+proxy+"\nALL_PROXY="+proxy+"\nNO_PROXY="+clientsetup.NoProxy+"\nNODE_EXTRA_CA_CERTS="+ca).
-		Font(uikit.FontMono).FontSize(uikit.TextMeta).Selectable().MaxLines(5)
+	env, _ := clientsetup.Environment(p)
+	var preview []string
+	for _, entry := range env {
+		name, _, _ := strings.Cut(entry, "=")
+		switch name {
+		case "HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "NODE_EXTRA_CA_CERTS", "SSL_CERT_FILE", "REQUESTS_CA_BUNDLE":
+			preview = append(preview, entry)
+		}
+	}
+	ui.Text(c, strings.Join(preview, "\n")).Font(uikit.FontMono).FontSize(uikit.TextMeta).Selectable().MaxLines(7)
+	if p.BundlePath == "" {
+		ui.Text(c, "System CA bundle unavailable: only NODE_EXTRA_CA_CERTS is set, so undecrypted hosts use their own default trust.").
+			FontSize(uikit.TextMeta).TextColor(t.Warning).MaxLines(2)
+	} else {
+		uikit.Meta(c, "SSL_CERT_FILE, REQUESTS_CA_BUNDLE, CURL_CA_BUNDLE, GIT_SSL_CAINFO, PIP_CERT and DENO_CERT point at "+p.BundlePath+", a 0600 bundle of the system roots plus the vscroxy CA. Undecrypted hosts keep working.")
+	}
 	if uikit.PrimaryButton(c, "Open terminal").Disabled(!running).Clicked() {
 		a.openProxiedTerminal()
 	}
-	uikit.Meta(c, "Also sets the lowercase names and REQUESTS_CA_BUNDLE, SSL_CERT_FILE, CURL_CA_BUNDLE, GIT_SSL_CAINFO, PIP_CERT and DENO_CERT.")
+	uikit.Meta(c, "NODE_EXTRA_CA_CERTS adds the vscroxy CA to Node's default roots.")
 }
 
 func (a *app) clientChromePanel(c *ui.Context, t *ui.Theme, p clientsetup.Proxy, running bool) {
@@ -138,7 +149,11 @@ func (a *app) clientFirefoxPanel(c *ui.Context, t *ui.Theme, p clientsetup.Proxy
 	if uikit.PrimaryButton(c, "Open Firefox").Disabled(!running).Clicked() {
 		a.openProxiedFirefox()
 	}
-	uikit.Meta(c, "The temporary profile trusts the CA through certutil when NSS tools are installed; otherwise Firefox may use this system's enterprise roots. No TLS bypass is used.")
+	if runtime.GOOS == "windows" {
+		uikit.Meta(c, "Firefox uses the Windows root store through enterprise roots. Trust the CA in Settings → HTTPS first; no TLS bypass is used.")
+	} else {
+		uikit.Meta(c, "The temporary profile trusts the CA through certutil when NSS tools are installed; otherwise Firefox may use this system's enterprise roots. No TLS bypass is used.")
+	}
 }
 
 func (a *app) clientAndroidPanel(c *ui.Context, t *ui.Theme, p clientsetup.Proxy, running bool) {
@@ -175,7 +190,7 @@ func (a *app) clientAndroidPanel(c *ui.Context, t *ui.Theme, p clientsetup.Proxy
 			a.pushAndroidCA()
 		}
 	})
-	uikit.Meta(c, "Uses adb reverse, so 127.0.0.1 inside the device reaches this computer. Undo clears the global proxy and the reverse listener. Apps that ignore the system proxy or pin certificates need app-side changes.")
+	uikit.Meta(c, "Uses adb reverse, so 127.0.0.1 inside the device reaches this computer. Undo restores the proxy value that was set before vscroxy changed it, and removes the reverse listener it added. Apps that ignore the system proxy or pin certificates need app-side changes.")
 	uikit.Meta(c, "The CA is copied to Downloads only. Android 7+ apps do not trust user-installed CAs; installing it and enabling trust is a device-side step. System-store installation needs a rooted, writable-system emulator image and is not automated.")
 }
 
@@ -199,29 +214,35 @@ func (a *app) clientJavaPanel(c *ui.Context, t *ui.Theme, p clientsetup.Proxy, r
 		uikit.Meta(c, "The settings directory is unknown, so no truststore path is available.")
 		return
 	}
-	args, err := clientsetup.KeytoolArgs(p, keystore)
+	if s.javaCACerts == "" {
+		plan, err := clientsetup.JavaTruststorePlan(p, keystore)
+		if err != nil {
+			ui.Text(c, err.Error()).FontSize(uikit.TextMeta).TextColor(t.Danger).MaxLines(3).Tooltip(err.Error())
+			return
+		}
+		s.javaCACerts = plan.CACerts
+	}
+	commands, err := clientsetup.JavaTruststoreCommands(p, keystore, s.javaCACerts)
 	if err != nil {
-		uikit.Meta(c, "A CA is needed first: "+err.Error())
+		ui.Text(c, err.Error()).FontSize(uikit.TextMeta).TextColor(t.Danger).MaxLines(3).Tooltip(err.Error())
 		return
 	}
-	command := clientsetup.POSIXCommandLine("keytool", args)
-	if runtime.GOOS == "windows" {
-		command = clientsetup.WindowsCommandLine("keytool", args)
-	}
-	uikit.Hint(c, "Imports the public CA into this app's own truststore. No JDK files change.")
-	uikit.Meta(c, keystore).Font(uikit.FontMono).Selectable().MaxLines(2).Tooltip(keystore)
-	ui.Text(c, command).Font(uikit.FontMono).FontSize(uikit.TextMeta).Selectable().MaxLines(4)
+	command := clientsetup.JoinCommands(commands, runtime.GOOS == "windows")
+	uikit.Hint(c, "Copies the JDK's cacerts into this app's own truststore, then adds the public CA. No JDK files change.")
+	uikit.Meta(c, "JDK cacerts: "+s.javaCACerts).Font(uikit.FontMono).Selectable().MaxLines(2).Tooltip(s.javaCACerts)
+	uikit.Meta(c, "Truststore: "+keystore).Font(uikit.FontMono).Selectable().MaxLines(2).Tooltip(keystore)
+	ui.Text(c, command).Font(uikit.FontMono).FontSize(uikit.TextMeta).Selectable().MaxLines(8)
 	ui.Row(c).Gap(t.Space(2)).Wrap().Children(func() {
-		if uikit.SecondaryButton(c, "Copy command").Clicked() {
+		if uikit.SecondaryButton(c, "Copy commands").Clicked() {
 			c.Services().WriteClipboard(command)
-			a.done("Copied keytool command")
+			a.done("Copied keytool commands")
 		}
 		if uikit.PrimaryButton(c, "Import…").Disabled(!running).Clicked() {
 			s.javaConfirm = true
 		}
 	})
 	if s.javaConfirm {
-		uikit.Hint(c, "Replace only this app's truststore at the path above? The old file is kept if keytool fails.")
+		uikit.Hint(c, "Replace only this app's truststore? The old file is kept if any keytool step fails. The displayed commands write a temporary file first.")
 		ui.Row(c).Gap(t.Space(2)).Wrap().Children(func() {
 			if uikit.SecondaryButton(c, "Cancel").Clicked() {
 				s.javaConfirm = false
@@ -232,8 +253,15 @@ func (a *app) clientJavaPanel(c *ui.Context, t *ui.Theme, p clientsetup.Proxy, r
 			}
 		})
 	}
-	uikit.Meta(c, "Only this CA is in the truststore. Point the JVM at it; direct public TLS may fail until other CAs are added.")
-	ui.Text(c, strings.Join(clientsetup.JVMArgs(keystore), " ")).Font(uikit.FontMono).FontSize(uikit.TextMeta).Selectable().MaxLines(2)
+	uikit.Meta(c, "The truststore starts as a copy of the JDK's cacerts, so public TLS keeps working. The JVM options below also point the JVM at the proxy.")
+	args, err := clientsetup.JVMArgs(p, keystore)
+	if err == nil {
+		argsText := clientsetup.POSIXCommandLine("java", args)
+		if runtime.GOOS == "windows" {
+			argsText = clientsetup.WindowsCommandLine("java", args)
+		}
+		ui.Text(c, argsText).Font(uikit.FontMono).FontSize(uikit.TextMeta).Selectable().MaxLines(3)
+	}
 }
 
 func (a *app) clientElectronPanel(c *ui.Context, t *ui.Theme, p clientsetup.Proxy, running bool) {

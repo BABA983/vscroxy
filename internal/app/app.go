@@ -586,6 +586,7 @@ func newApp() *app {
 			a.fail("Sessions", err)
 		}
 	}
+	cleanupClientDirs()
 	return a
 }
 

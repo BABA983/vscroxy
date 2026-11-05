@@ -69,6 +69,12 @@ func AndroidDevices() ([]AndroidDevice, error) {
 	return ParseAndroidDevices(string(out)), nil
 }
 
+// AndroidProxyQueryCommand reads the device's current global proxy so undo can
+// restore it instead of assuming there was none.
+func AndroidProxyQueryCommand(serial string) Argv {
+	return adb(serial, "shell", "settings", "get", "global", "http_proxy")
+}
+
 // AndroidProxyCommands points the device's global HTTP proxy at the host
 // through adb reverse, so 127.0.0.1 inside the device reaches this computer.
 // Both commands are needed: the reverse listener first, then the setting.
@@ -83,16 +89,20 @@ func AndroidProxyCommands(serial string, port int) ([]Argv, error) {
 	}, nil
 }
 
-// AndroidUndoCommands clear the global proxy and then remove the reverse
-// listener. The proxy is cleared first so no request points at a listener that
-// is already gone.
-func AndroidUndoCommands(serial string, port int) ([]Argv, error) {
+// AndroidUndoCommands restore the proxy value that was present before the app
+// changed it, then remove the reverse listener it added. An empty or "null"
+// previous value clears the setting.
+func AndroidUndoCommands(serial string, port int, previous string) ([]Argv, error) {
 	if port < 1 || port > 65535 {
 		return nil, fmt.Errorf("proxy port %d is outside 1–65535", port)
 	}
 	p := strconv.Itoa(port)
+	restore := strings.TrimSpace(previous)
+	if restore == "" || strings.EqualFold(restore, "null") {
+		restore = ":0"
+	}
 	return []Argv{
-		adb(serial, "shell", "settings", "put", "global", "http_proxy", ":0"),
+		adb(serial, "shell", "settings", "put", "global", "http_proxy", restore),
 		adb(serial, "reverse", "--remove", "tcp:"+p),
 	}, nil
 }
@@ -106,18 +116,25 @@ func AndroidCACopyCommand(serial, caPath string) (Argv, error) {
 	return adb(serial, "push", caPath, "/sdcard/Download/vscroxy-ca.crt"), nil
 }
 
-// ApplyAndroidProxy runs the reverse and proxy commands in order.
-func ApplyAndroidProxy(serial string, port int) error {
+// ApplyAndroidProxy reads the previous proxy, then runs the reverse and proxy
+// commands in order. The previous value is returned so undo can restore it.
+func ApplyAndroidProxy(serial string, port int) (string, error) {
+	out, err := RunOutput(AndroidProxyQueryCommand(serial))
+	if err != nil {
+		return "", err
+	}
+	previous := strings.TrimSpace(string(out))
 	commands, err := AndroidProxyCommands(serial, port)
 	if err != nil {
-		return err
+		return previous, err
 	}
-	return runAll(commands)
+	return previous, runAll(commands)
 }
 
-// ClearAndroidProxy runs the undo commands in order.
-func ClearAndroidProxy(serial string, port int) error {
-	commands, err := AndroidUndoCommands(serial, port)
+// ClearAndroidProxy restores the previous proxy and removes the reverse
+// listener.
+func ClearAndroidProxy(serial string, port int, previous string) error {
+	commands, err := AndroidUndoCommands(serial, port, previous)
 	if err != nil {
 		return err
 	}
