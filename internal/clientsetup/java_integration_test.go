@@ -32,7 +32,7 @@ func TestJavaTruststoreImportsCACertsAndTheAppCA(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(commands) != 2 {
+	if len(commands) != 3 {
 		t.Fatalf("commands: %+v", commands)
 	}
 	out, err := exec.Command("keytool", "-list", "-keystore", keystore, "-storepass", "changeit").CombinedOutput()

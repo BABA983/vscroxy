@@ -69,9 +69,10 @@ func Environment(p Proxy) ([]string, error) {
 		// NODE_EXTRA_CA_CERTS adds a CA to Node's default roots.
 		"NODE_EXTRA_CA_CERTS=" + p.CAPath,
 	}
-	// These variables replace the client's trust store. Pointing them at the
-	// app CA alone would break every host that is tunneled instead of
+	// Most of these variables replace the client's trust store. Pointing them
+	// at the app CA alone would break every host that is tunneled instead of
 	// decrypted, so they are set only when a system+app bundle exists.
+	// DENO_CERT is additive, but the bundle is valid there too.
 	if bundle := strings.TrimSpace(p.BundlePath); bundle != "" {
 		env = append(env,
 			"REQUESTS_CA_BUNDLE="+bundle,

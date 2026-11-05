@@ -179,11 +179,12 @@ func (a *app) clientAndroidPanel(c *ui.Context, t *ui.Theme, p clientsetup.Proxy
 	case len(s.android) == 0:
 		uikit.Meta(c, "Start an emulator or connect a device with USB debugging, then Refresh.")
 	}
+	_, applied := s.androidApplied[s.androidSerial]
 	ui.Row(c).Gap(t.Space(2)).Wrap().Children(func() {
-		if uikit.PrimaryButton(c, "Set proxy").Disabled(!running || s.androidSerial == "").Clicked() {
+		if uikit.PrimaryButton(c, "Set proxy").Disabled(!running || s.androidSerial == "" || applied).Clicked() {
 			a.applyAndroidProxy()
 		}
-		if uikit.SecondaryButton(c, "Undo proxy").Disabled(s.androidSerial == "" || p.Addr == "").Clicked() {
+		if uikit.SecondaryButton(c, "Undo proxy").Disabled(s.androidSerial == "" || (!applied && p.Addr == "")).Clicked() {
 			a.clearAndroidProxy()
 		}
 		if uikit.SecondaryButton(c, "Copy CA to device").Disabled(!running || s.androidSerial == "").Clicked() {
@@ -214,13 +215,17 @@ func (a *app) clientJavaPanel(c *ui.Context, t *ui.Theme, p clientsetup.Proxy, r
 		uikit.Meta(c, "The settings directory is unknown, so no truststore path is available.")
 		return
 	}
-	if s.javaCACerts == "" {
-		plan, err := clientsetup.JavaTruststorePlan(p, keystore)
-		if err != nil {
-			ui.Text(c, err.Error()).FontSize(uikit.TextMeta).TextColor(t.Danger).MaxLines(3).Tooltip(err.Error())
-			return
+	if !s.javaChecked && s.javaCACerts == "" {
+		s.javaChecked = true
+		if plan, err := clientsetup.JavaTruststorePlan(p, keystore); err != nil {
+			s.javaProblem = err.Error()
+		} else {
+			s.javaCACerts = plan.CACerts
 		}
-		s.javaCACerts = plan.CACerts
+	}
+	if s.javaCACerts == "" {
+		ui.Text(c, cmp.Or(s.javaProblem, "JDK cacerts are unavailable.")).FontSize(uikit.TextMeta).TextColor(t.Danger).MaxLines(3).Tooltip(s.javaProblem)
+		return
 	}
 	commands, err := clientsetup.JavaTruststoreCommands(p, keystore, s.javaCACerts)
 	if err != nil {

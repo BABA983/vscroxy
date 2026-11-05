@@ -14,7 +14,6 @@ import (
 // JavaPlan is the reviewable Java setup: the keytool executable, the JDK's
 // cacerts source and the commands that build the app-owned truststore.
 type JavaPlan struct {
-	Keytool  string
 	CACerts  string
 	Commands []Argv
 }
@@ -26,7 +25,11 @@ func JavaTruststorePlan(p Proxy, keystore string) (JavaPlan, error) {
 	if err != nil {
 		return JavaPlan{}, err
 	}
-	cacerts, err := JavaCACertsPath(bin, os.Getenv("JAVA_HOME"))
+	javaHome := os.Getenv("JAVA_HOME")
+	if javaHome == "" {
+		javaHome = platformJavaHome()
+	}
+	cacerts, err := JavaCACertsPath(bin, javaHome)
 	if err != nil {
 		return JavaPlan{}, err
 	}
@@ -34,7 +37,7 @@ func JavaTruststorePlan(p Proxy, keystore string) (JavaPlan, error) {
 	if err != nil {
 		return JavaPlan{}, err
 	}
-	return JavaPlan{Keytool: bin, CACerts: cacerts, Commands: commands}, nil
+	return JavaPlan{CACerts: cacerts, Commands: commands}, nil
 }
 
 // JavaCACertsPath finds the JDK's cacerts from JAVA_HOME or the keytool path.
@@ -64,8 +67,9 @@ func JavaCACertsPath(keytoolPath, javaHome string) (string, error) {
 }
 
 // JavaTruststoreCommands copies the JDK's cacerts into a temporary PKCS#12
-// truststore, then adds the vscroxy CA. The caller renames the temporary file
-// only after both commands succeed.
+// truststore, adds the vscroxy CA, then renames the temporary file into place.
+// The rename is part of the displayed sequence so a person copying it gets a
+// working truststore too.
 func JavaTruststoreCommands(p Proxy, keystore, cacerts string) ([]Argv, error) {
 	if strings.TrimSpace(cacerts) == "" {
 		return nil, errors.New("JDK cacerts path is empty")
@@ -86,7 +90,18 @@ func JavaTruststoreCommands(p Proxy, keystore, cacerts string) ([]Argv, error) {
 	if err != nil {
 		return nil, err
 	}
-	return []Argv{copyCommand, {Name: "keytool", Args: importArgs}}, nil
+	return []Argv{copyCommand, {Name: "keytool", Args: importArgs}, javaRenameCommand(runtime.GOOS, keystore)}, nil
+}
+
+// javaRenameCommand is the final step a person copying the displayed commands
+// needs: replace the truststore with the temporary one after both keytool
+// steps succeed. ImportJavaCA runs the same sequence.
+func javaRenameCommand(goos, keystore string) Argv {
+	temporary := keystore + ".import"
+	if goos == "windows" {
+		return Argv{Name: "cmd", Args: []string{"/c", "move", "/Y", temporary, keystore}}
+	}
+	return Argv{Name: "mv", Args: []string{temporary, keystore}}
 }
 
 // ImportJavaCA builds the truststore and replaces the old one only after every
@@ -102,19 +117,10 @@ func ImportJavaCA(p Proxy, keystore string) ([]Argv, error) {
 	temporary := keystore + ".import"
 	_ = os.Remove(temporary)
 	for _, command := range plan.Commands {
-		out, err := exec.Command(plan.Keytool, command.Args...).CombinedOutput()
-		if err != nil {
+		if err := command.Run(); err != nil {
 			_ = os.Remove(temporary)
-			line := command.String(runtime.GOOS == "windows")
-			if msg := strings.TrimSpace(string(out)); msg != "" {
-				return plan.Commands, fmt.Errorf("%s: %s", line, firstLine(msg))
-			}
-			return plan.Commands, fmt.Errorf("%s: %w", line, err)
+			return plan.Commands, err
 		}
-	}
-	if err := replaceFile(temporary, keystore); err != nil {
-		_ = os.Remove(temporary)
-		return plan.Commands, err
 	}
 	return plan.Commands, nil
 }

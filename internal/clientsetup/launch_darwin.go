@@ -12,7 +12,7 @@ import (
 // OpenTerminal opens Terminal.app on a .command script that exports the proxy
 // environment and then starts the user's login shell.
 func OpenTerminal(p Proxy) (Argv, error) {
-	script, err := WritePOSIXTerminalScriptAs(p, "vscroxy-terminal-*.command")
+	script, err := WritePOSIXTerminalScriptAs(p, "terminal.command")
 	if err != nil {
 		return Argv{}, err
 	}
@@ -20,11 +20,12 @@ func OpenTerminal(p Proxy) (Argv, error) {
 		RemoveTerminalScript(script)
 		return Argv{}, err
 	}
-	return Argv{Name: "/usr/bin/open", Args: []string{"-a", "Terminal", script}}, nil
+	command := Argv{Name: "/usr/bin/open", Args: []string{"-a", "Terminal", script}}
+	command.OnStartError = func() { RemoveTerminalScript(script) }
+	return command, nil
 }
 
-// OpenChrome starts Chrome or Chromium on a separate temporary profile.
-func OpenChrome(p Proxy, profile string) (Argv, error) {
+func chromeBinary() (string, error) {
 	home, _ := os.UserHomeDir()
 	path, ok := findExecutable([]string{
 		"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
@@ -33,10 +34,31 @@ func OpenChrome(p Proxy, profile string) (Argv, error) {
 		filepath.Join(home, "Applications/Chromium.app/Contents/MacOS/Chromium"),
 	}, []string{"google-chrome", "chromium"})
 	if !ok {
-		return Argv{}, &MissingToolError{
+		return "", &MissingToolError{
 			Tool: "Google Chrome or Chromium",
 			Hint: "install Chrome, or put its executable on PATH",
 		}
+	}
+	return path, nil
+}
+
+func firefoxBinary() (string, error) {
+	home, _ := os.UserHomeDir()
+	path, ok := findExecutable([]string{
+		"/Applications/Firefox.app/Contents/MacOS/firefox",
+		filepath.Join(home, "Applications/Firefox.app/Contents/MacOS/firefox"),
+	}, []string{"firefox"})
+	if !ok {
+		return "", &MissingToolError{Tool: "Firefox", Hint: "install Firefox"}
+	}
+	return path, nil
+}
+
+// OpenChrome starts Chrome or Chromium on a separate temporary profile.
+func OpenChrome(p Proxy, profile string) (Argv, error) {
+	path, err := chromeBinary()
+	if err != nil {
+		return Argv{}, err
 	}
 	args, err := ChromeArgs(p, profile)
 	if err != nil {
@@ -47,13 +69,9 @@ func OpenChrome(p Proxy, profile string) (Argv, error) {
 
 // OpenFirefox starts Firefox on a separate temporary profile.
 func OpenFirefox(profile string) (Argv, error) {
-	home, _ := os.UserHomeDir()
-	path, ok := findExecutable([]string{
-		"/Applications/Firefox.app/Contents/MacOS/firefox",
-		filepath.Join(home, "Applications/Firefox.app/Contents/MacOS/firefox"),
-	}, []string{"firefox"})
-	if !ok {
-		return Argv{}, &MissingToolError{Tool: "Firefox", Hint: "install Firefox"}
+	path, err := firefoxBinary()
+	if err != nil {
+		return Argv{}, err
 	}
 	args, err := FirefoxArgs(profile)
 	if err != nil {

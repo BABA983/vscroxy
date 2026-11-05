@@ -130,11 +130,11 @@ func TestWindowsCommandLineKeepsPercentSignsForCopying(t *testing.T) {
 	}
 }
 
-func TestMergeEnvReplacesNamesIgnoringCase(t *testing.T) {
-	base := []string{"Path=C:\\Windows", "HTTP_PROXY=old", "http_proxy=old-lower"}
+func TestMergeEnvAppendsExtra(t *testing.T) {
+	base := []string{"Path=C:\\Windows", "=C:=C:\\work", "HTTP_PROXY=old"}
 	extra := []string{"HTTP_PROXY=new", "NODE_EXTRA_CA_CERTS=C:\\ca.pem"}
 	got := MergeEnv(base, extra)
-	want := []string{"Path=C:\\Windows", "HTTP_PROXY=new", "NODE_EXTRA_CA_CERTS=C:\\ca.pem"}
+	want := append(append([]string{}, base...), extra...)
 	if !slices.Equal(got, want) {
 		t.Fatalf("merged env:\n got %q\nwant %q", got, want)
 	}
@@ -303,8 +303,21 @@ func TestJavaTruststoreCommandsCopyCACertsThenAddTheCA(t *testing.T) {
 			"-storepass", "changeit",
 		}},
 	}
+	want = append(want, javaRenameCommand("linux", keystore))
 	if !slices.EqualFunc(commands, want, argvEqual) {
 		t.Fatalf("commands:\n got %+v\nwant %+v", commands, want)
+	}
+}
+
+func TestJavaRenameCommandUsesThePlatformMover(t *testing.T) {
+	keystore := "/Users/Jane Doe/truststore.p12"
+	posix := javaRenameCommand("linux", keystore)
+	if want := (Argv{Name: "mv", Args: []string{keystore + ".import", keystore}}); !argvEqual(posix, want) {
+		t.Fatalf("POSIX rename: %+v", posix)
+	}
+	windows := javaRenameCommand("windows", `C:\Users\Jane Doe\truststore.p12`)
+	if want := (Argv{Name: "cmd", Args: []string{"/c", "move", "/Y", `C:\Users\Jane Doe\truststore.p12.import`, `C:\Users\Jane Doe\truststore.p12`}}); !argvEqual(windows, want) {
+		t.Fatalf("Windows rename: %+v", windows)
 	}
 }
 
@@ -531,6 +544,20 @@ func TestPrepareFirefoxProfileWritesUserJSAndReportsMissingCertutil(t *testing.T
 	}
 }
 
+func TestWritePOSIXTerminalScriptUsesTheGivenFileName(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("POSIX permissions")
+	}
+	path, err := WritePOSIXTerminalScriptAs(testProxy(), "terminal.command")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(filepath.Dir(path)) })
+	if filepath.Base(path) != "terminal.command" {
+		t.Fatalf("script name %q", filepath.Base(path))
+	}
+}
+
 func TestWritePOSIXTerminalScriptIsExecutableAndUsesASpaceFreeDirectory(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("POSIX permissions")
@@ -654,24 +681,19 @@ func TestCleanupOldDirsOnlyRemovesThisAppsOldDirectories(t *testing.T) {
 	}
 }
 
-func TestArgvStartRunsCleanupAfterTheChildExits(t *testing.T) {
+func TestArgvStartDoesNotCleanUpAfterAProcessExits(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("sh is not available")
 	}
-	marker := filepath.Join(t.TempDir(), "cleaned")
-	command := Argv{Name: "sh", Args: []string{"-c", "exit 0"}, Cleanup: func() { _ = os.WriteFile(marker, nil, 0o600) }}
+	called := make(chan struct{}, 1)
+	command := Argv{Name: "sh", Args: []string{"-c", "exit 0"}, OnStartError: func() { called <- struct{}{} }}
 	if err := command.Start(); err != nil {
 		t.Fatal(err)
 	}
-	deadline := time.Now().Add(3 * time.Second)
-	for {
-		if _, err := os.Stat(marker); err == nil {
-			return
-		}
-		if time.Now().After(deadline) {
-			t.Fatal("cleanup did not run")
-		}
-		time.Sleep(10 * time.Millisecond)
+	select {
+	case <-called:
+		t.Fatal("a successful start ran the start-error cleanup after the process exited")
+	case <-time.After(300 * time.Millisecond):
 	}
 }
 
@@ -713,4 +735,150 @@ func countCertificates(data []byte) int {
 
 func argvEqual(a, b Argv) bool {
 	return a.Name == b.Name && slices.Equal(a.Args, b.Args)
+}
+
+func TestSnapProfileRootMapsSnapBinariesToTheirCommonDirectory(t *testing.T) {
+	for _, test := range []struct {
+		binary string
+		want   string
+		ok     bool
+	}{
+		{"/snap/firefox/1234/usr/lib/firefox/firefox", "/home/jane/snap/firefox/common", true},
+		{"/snap/chromium/current/usr/lib/chromium-browser/chromium-browser", "/home/jane/snap/chromium/common", true},
+		{"/snap/bin/firefox", "/home/jane/snap/firefox/common", true},
+		{"/usr/bin/firefox", "", false},
+	} {
+		got, ok := snapProfileRoot(test.binary, "/home/jane")
+		if got != test.want || ok != test.ok {
+			t.Errorf("%s: got %q %v, want %q %v", test.binary, got, ok, test.want, test.ok)
+		}
+	}
+	if _, ok := snapProfileRoot("/snap/firefox/1/firefox", ""); ok {
+		t.Fatal("empty home accepted")
+	}
+}
+
+func TestSnapProfileRootFollowsWrapperSymlinks(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("creating symlinks needs extra privileges on Windows")
+	}
+	dir := t.TempDir()
+	cases := []struct {
+		name   string
+		target string
+		want   string
+	}{
+		{"firefox", "/snap/bin/firefox", "/home/jane/snap/firefox/common"},
+		{"chromium-browser", "/usr/bin/snap", "/home/jane/snap/chromium/common"},
+		{"chrome", "/snap/chromium/1234/usr/lib/chromium/chromium", "/home/jane/snap/chromium/common"},
+	}
+	for _, test := range cases {
+		link := filepath.Join(dir, test.name)
+		if err := os.Symlink(test.target, link); err != nil {
+			t.Fatal(err)
+		}
+		got, ok := snapProfileRoot(link, "/home/jane")
+		if !ok || got != test.want {
+			t.Errorf("%s -> %s: got %q %v, want %q true", test.name, test.target, got, ok, test.want)
+		}
+	}
+}
+
+func TestCleanupOldDirsContinuesAfterARemovalError(t *testing.T) {
+	root := t.TempDir()
+	first := filepath.Join(root, "vscroxy-chrome-first")
+	second := filepath.Join(root, "vscroxy-firefox-second")
+	for _, dir := range []string{first, second} {
+		if err := os.MkdirAll(dir, 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	old := time.Now().Add(-48 * time.Hour)
+	for _, dir := range []string{first, second} {
+		if err := os.Chtimes(dir, old, old); err != nil {
+			t.Fatal(err)
+		}
+	}
+	originalRemove := removeAll
+	t.Cleanup(func() { removeAll = originalRemove })
+	removeAll = func(path string) error {
+		if path == first {
+			return errors.New("busy")
+		}
+		return os.RemoveAll(path)
+	}
+	removed, err := CleanupOldDirs(root, 24*time.Hour)
+	if err != nil || removed != 1 {
+		t.Fatalf("cleanup: removed %d, err %v", removed, err)
+	}
+	if _, err := os.Stat(second); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("second directory was not removed: %v", err)
+	}
+}
+
+func TestCleanupOldDirsSkipsAnotherUsersDirectory(t *testing.T) {
+	root := t.TempDir()
+	other := filepath.Join(root, "vscroxy-chrome-other")
+	if err := os.MkdirAll(other, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	old := time.Now().Add(-48 * time.Hour)
+	if err := os.Chtimes(other, old, old); err != nil {
+		t.Fatal(err)
+	}
+	originalOwner := ownedByCurrentUser
+	t.Cleanup(func() { ownedByCurrentUser = originalOwner })
+	ownedByCurrentUser = func(os.FileInfo) bool { return false }
+	removed, err := CleanupOldDirs(root, 24*time.Hour)
+	if err != nil || removed != 0 {
+		t.Fatalf("cleanup: removed %d, err %v", removed, err)
+	}
+	if _, err := os.Stat(other); err != nil {
+		t.Fatalf("another user's directory was removed: %v", err)
+	}
+}
+
+func TestAndroidProxyValueValidationRejectsShellText(t *testing.T) {
+	for _, value := range []string{"", "null; rm -rf /", "http://10.0.2.2:8080", "host name:8080", "10.0.2.2:0", "10.0.2.2:70000"} {
+		if validAndroidProxy(value) {
+			t.Fatalf("%q accepted", value)
+		}
+	}
+	for _, value := range []string{"null", ":0", "10.0.2.2:8888", "[::1]:8080"} {
+		if !validAndroidProxy(value) {
+			t.Fatalf("%q rejected", value)
+		}
+	}
+	if _, err := AndroidUndoCommands("emulator-5554", 7890, "10.0.2.2:8888; rm -rf /"); err == nil {
+		t.Fatal("unsafe previous value accepted by undo")
+	}
+}
+
+func TestApplyAndroidProxyRefusesAnUnexpectedPreviousValue(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("fake adb is a shell script")
+	}
+	dir := t.TempDir()
+	log := filepath.Join(dir, "adb.log")
+	binDir := filepath.Join(dir, "bin")
+	if err := os.MkdirAll(binDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	fake := filepath.Join(binDir, "adb")
+	script := "#!/bin/sh\nprintf '%s\\n' \"$*\" >> " + POSIXQuote(log) + "\n" +
+		"case \"$*\" in *\"settings get global http_proxy\"*) echo '10.0.2.2:8888; rm -rf /';; esac\n"
+	if err := os.WriteFile(fake, []byte(script), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", binDir)
+	if _, err := ApplyAndroidProxy("emulator-5554", 7890); err == nil {
+		t.Fatal("unexpected previous value accepted")
+	}
+	data, err := os.ReadFile(log)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(data), "reverse") || strings.Contains(string(data), "settings put") {
+		t.Fatalf("commands ran after an invalid value:\n%s", data)
+	}
 }

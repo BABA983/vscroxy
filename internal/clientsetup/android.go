@@ -2,6 +2,7 @@ package clientsetup
 
 import (
 	"fmt"
+	"net"
 	"strconv"
 	"strings"
 )
@@ -98,13 +99,42 @@ func AndroidUndoCommands(serial string, port int, previous string) ([]Argv, erro
 	}
 	p := strconv.Itoa(port)
 	restore := strings.TrimSpace(previous)
-	if restore == "" || strings.EqualFold(restore, "null") {
+	if restore == "" {
+		restore = ":0" // no record: clear rather than guess
+	}
+	if !validAndroidProxy(restore) {
+		return nil, fmt.Errorf("unexpected Android proxy value %q; refusing to pass it to the device shell", previous)
+	}
+	if strings.EqualFold(restore, "null") {
 		restore = ":0"
 	}
 	return []Argv{
 		adb(serial, "shell", "settings", "put", "global", "http_proxy", restore),
 		adb(serial, "reverse", "--remove", "tcp:"+p),
 	}, nil
+}
+
+// validAndroidProxy accepts only the values Android's settings command returns
+// for an unset or configured proxy. The value is passed to the device shell, so
+// hostnames are restricted to letters, digits, dots and hyphens.
+func validAndroidProxy(value string) bool {
+	value = strings.TrimSpace(value)
+	if value == "null" || value == ":0" {
+		return true
+	}
+	host, port, err := net.SplitHostPort(value)
+	if err != nil || host == "" {
+		return false
+	}
+	if net.ParseIP(host) == nil {
+		for _, r := range host {
+			if !(r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || r == '.' || r == '-') {
+				return false
+			}
+		}
+	}
+	n, err := strconv.Atoi(port)
+	return err == nil && n >= 1 && n <= 65535
 }
 
 // AndroidCACopyCommand copies only the public CA to the device's Downloads
@@ -124,6 +154,9 @@ func ApplyAndroidProxy(serial string, port int) (string, error) {
 		return "", err
 	}
 	previous := strings.TrimSpace(string(out))
+	if !validAndroidProxy(previous) {
+		return "", fmt.Errorf("Android returned an unexpected http_proxy value %q; refusing to change it", previous)
+	}
 	commands, err := AndroidProxyCommands(serial, port)
 	if err != nil {
 		return previous, err

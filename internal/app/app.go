@@ -303,6 +303,7 @@ type app struct {
 	// settings are what the window keeps between launches, besides its
 	// bounds, which MyGo saves with the window's StateKey.
 	settingsPath     string
+	androidProxyPath string
 	saved            settings
 	lastSave         time.Time
 	columns          ui.TableLayout
@@ -495,6 +496,7 @@ func newApp() *app {
 	// settings ask for has to be in the environment before it starts.
 	if home, err := os.UserHomeDir(); err == nil {
 		a.settingsPath = filepath.Join(home, ".vscroxy", "settings.json")
+		a.androidProxyPath = filepath.Join(home, ".vscroxy", "android-proxy.json")
 		// A first launch, before anything below creates the directory.
 		if _, err := os.Stat(filepath.Dir(a.settingsPath)); errors.Is(err, fs.ErrNotExist) {
 			a.guide = true
@@ -586,7 +588,8 @@ func newApp() *app {
 			a.fail("Sessions", err)
 		}
 	}
-	cleanupClientDirs()
+	a.loadAndroidProxyRecords()
+	go cleanupClientDirs()
 	return a
 }
 

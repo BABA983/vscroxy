@@ -13,9 +13,16 @@ var clientDirPrefixes = []string{
 	"vscroxy-terminal-",
 }
 
+// removeAll and ownedByCurrentUser are variables so tests can exercise a
+// directory that cannot be removed and one owned by another user.
+var (
+	removeAll          = os.RemoveAll
+	ownedByCurrentUser = platformOwnedByCurrentUser
+)
+
 // CleanupOldDirs removes this app's temporary profiles and terminal scripts
-// older than olderThan. A browser that is still running keeps a recent
-// directory; a crash leaves one that the next launch can remove.
+// older than olderThan. A directory owned by another user is left alone, and a
+// failure to remove one entry does not stop the rest of the sweep.
 func CleanupOldDirs(root string, olderThan time.Duration) (int, error) {
 	entries, err := os.ReadDir(root)
 	if err != nil {
@@ -28,11 +35,11 @@ func CleanupOldDirs(root string, olderThan time.Duration) (int, error) {
 			continue
 		}
 		info, err := entry.Info()
-		if err != nil || !info.ModTime().Before(cutoff) {
+		if err != nil || !info.ModTime().Before(cutoff) || !ownedByCurrentUser(info) {
 			continue
 		}
-		if err := os.RemoveAll(filepath.Join(root, entry.Name())); err != nil {
-			return removed, err
+		if err := removeAll(filepath.Join(root, entry.Name())); err != nil {
+			continue // a shared /tmp entry or a busy directory must not stop the sweep
 		}
 		removed++
 	}

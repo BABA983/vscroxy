@@ -31,11 +31,12 @@ func TestWindowsTerminalUsesCmdEnvAndANewConsole(t *testing.T) {
 }
 
 func envValue(env []string, name string) string {
+	value := ""
 	for _, entry := range env {
-		key, value, _ := strings.Cut(entry, "=")
+		key, candidate, _ := strings.Cut(entry, "=")
 		if strings.EqualFold(key, name) {
-			return value
+			value = candidate
 		}
 	}
-	return ""
+	return value
 }
