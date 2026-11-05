@@ -691,16 +691,10 @@ func (a *app) revealCA() {
 	}()
 }
 
-// replay sends the flow's request again through the proxy, so the result is
-// captured like any other exchange.
-func (a *app) replay(ctx context.Context, f flow) error {
-	_, err := a.replayFlow(ctx, f, true)
-	return err
-}
-
-// replayFlow is the one send path for Replay and advanced batches. A batch
-// keeps its own summary instead of a toast per send, so only a single Replay
-// appends the inspectable result.
+// replayFlow sends the flow's request again through the proxy, so the result
+// is captured like any other exchange. The scheduler records the inspectable
+// result for a one-request, one-repeat send; larger batches keep their own
+// summary instead of a toast per send.
 func (a *app) replayFlow(ctx context.Context, f flow, record bool) (capture.Flow, error) {
 	if a.srv == nil || !a.srv.Running() || f.url == "" {
 		return capture.Flow{}, fmt.Errorf("capture proxy is not available")
