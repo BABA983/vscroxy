@@ -20,6 +20,13 @@ var requestCopyFormats = []struct{ id, label, format string }{
 	{"flow.copy-powershell", "Copy as PowerShell", "PowerShell"},
 	{"flow.copy-fetch", "Copy as fetch (browser)", "JavaScript (fetch)"},
 	{"flow.copy-node-fetch", "Copy as fetch (Node.js)", "Node.js (fetch)"},
+	{"flow.copy-swift", "Copy as Swift", "Swift (URLSession)"},
+	{"flow.copy-kotlin", "Copy as Kotlin", "Kotlin (OkHttp)"},
+	{"flow.copy-java", "Copy as Java", "Java (java.net.http)"},
+	{"flow.copy-csharp", "Copy as C#", "C# (HttpClient)"},
+	{"flow.copy-php", "Copy as PHP", "PHP (cURL)"},
+	{"flow.copy-ruby", "Copy as Ruby", "Ruby (Net::HTTP)"},
+	{"flow.copy-rust", "Copy as Rust", "Rust (reqwest)"},
 }
 
 func (a *app) requestCopyActions(c *ui.Context, f flow, d *requestDocument) []action {
@@ -59,10 +66,21 @@ func (a *app) copyRequest(c *ui.Context, f flow, d *requestDocument, format stri
 			a.fail("Copy request", err)
 			return
 		}
-		f = flow{method: req.Method, url: req.URL, reqHeader: req.Header, reqBody: req.Body}
+		a.copyText(c, format, func() (string, error) { return requestCopyTextPrepared(req, format) })
+		return
 	}
 	f.reqHeader, f.reqTrailer = f.reqHeader.Clone(), f.reqTrailer.Clone()
 	a.copyText(c, format, func() (string, error) { return requestCopyText(f, format) })
+}
+
+// requestCopyTextPrepared writes an already prepared draft. Passing Prepared
+// directly keeps a Binary body's source path, which Snippet uses to generate
+// a file reference instead of inlining bytes.
+func requestCopyTextPrepared(req *request.Prepared, format string) (string, error) {
+	if format == "cURL" || format == "cURL (CMD)" {
+		return curlCommandFor(flow{method: req.Method, url: req.URL, reqHeader: req.Header, reqBody: req.Body}, format == "cURL (CMD)")
+	}
+	return requestSnippetText(req.Method, req.URL, req.Body, req.BodyFile, req.Header, false, format)
 }
 
 func requestCopyText(f flow, format string) (string, error) {
@@ -73,13 +91,20 @@ func requestCopyText(f flow, format string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	decoded := f.id != 0 && f.reqHeader.Get("Content-Encoding") != ""
+	return requestSnippetText(f.method, f.url, body, "", f.reqHeader, decoded, format)
+}
+
+// requestSnippetText removes headers clients compute themselves and then
+// writes the snippet. A captured decoded body also omits the stale encoding
+// and digest headers.
+func requestSnippetText(method, rawURL, body, bodyFile string, source http.Header, decoded bool, format string) (string, error) {
 	headers := http.Header{}
-	for _, name := range slices.Sorted(maps.Keys(f.reqHeader)) {
-		for _, value := range f.reqHeader[name] {
+	for _, name := range slices.Sorted(maps.Keys(source)) {
+		for _, value := range source[name] {
 			headers.Add(name, value)
 		}
 	}
-	decoded := f.id != 0 && headers.Get("Content-Encoding") != ""
 	for _, line := range headers.Values("Connection") {
 		for name := range strings.SplitSeq(line, ",") {
 			headers.Del(strings.TrimSpace(name))
@@ -90,7 +115,7 @@ func requestCopyText(f flow, format string) (string, error) {
 			delete(headers, name)
 		}
 	}
-	return request.Snippet(format, &request.Prepared{Method: f.method, URL: f.url, Header: headers, Body: body})
+	return request.Snippet(format, &request.Prepared{Method: method, URL: rawURL, Header: headers, Body: body, BodyFile: bodyFile})
 }
 
 func (a *app) copyHAR(c *ui.Context, flows []flow, details bool) {

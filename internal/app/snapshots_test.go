@@ -790,6 +790,7 @@ func TestUISnapshots(t *testing.T) {
 		}, want: "Scalar response field."},
 		{name: "dialog-folder", setup: func(a *app) { a.openFolder("Workspace") }, want: "Collection · Workspace", short: true},
 		{name: "dialog-code", setup: func(a *app) { draft(a); a.openCode() }, want: "Code language", short: true},
+		{name: "dialog-code-swift", setup: func(a *app) { draft(a); a.code.language = "Swift (URLSession)"; a.openCode() }, want: "Swift 5+; FoundationNetworking supplies URLSession on Linux.", short: true},
 		{name: "dialog-curl-error", setup: func(a *app) {
 			a.curlOpen, a.curlInput, a.curlProblem = true, "curl $(unsafe-command)", "shell substitutions are not supported; paste literal values instead"
 		}, want: "Import cURL", short: true},

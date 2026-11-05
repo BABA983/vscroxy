@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/baba983/vscroxy/internal/request"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -21,6 +22,9 @@ func TestRequestCopyCapturedMenu(t *testing.T) {
 		{"cURL (Bash)", "curl -q"}, {"cURL (CMD)", "curl.exe -q"},
 		{"PowerShell", "# PowerShell 7+"}, {"fetch (browser)", "const response = await fetch("},
 		{"fetch (Node.js)", "// Node.js 18+"},
+		{"Swift", "// Swift 5+"}, {"Kotlin", "// Kotlin with OkHttp"},
+		{"Java", "// Java 11+"}, {"C#", "// C# with .NET 6+"},
+		{"PHP", "<?php"}, {"Ruby", `require "net/http"`}, {"Rust", "// Cargo.toml: reqwest"},
 	} {
 		t.Run(tc.label, func(t *testing.T) {
 			a := workspaceApp()
@@ -138,7 +142,9 @@ func TestRequestCopyHAR(t *testing.T) {
 }
 
 func TestRequestCopyCodeDialog(t *testing.T) {
-	for _, language := range []string{"cURL (CMD)", "PowerShell", "Node.js (fetch)", "JavaScript (fetch)"} {
+	for _, language := range []string{"cURL (CMD)", "PowerShell", "Node.js (fetch)", "JavaScript (fetch)",
+		"Swift (URLSession)", "Kotlin (OkHttp)", "Java (java.net.http)", "C# (HttpClient)",
+		"PHP (cURL)", "Ruby (Net::HTTP)", "Rust (reqwest)"} {
 		t.Run(language, func(t *testing.T) {
 			a := workspaceApp()
 			f := a.flows[0]
@@ -170,6 +176,50 @@ func TestRequestCopyCodeDialog(t *testing.T) {
 			tt.Frame()
 			if tt.HasText("Code language") {
 				t.Fatal("code modal did not close")
+			}
+		})
+	}
+}
+
+func TestGeneratedCodeCarriesAuthAndEncodedBodies(t *testing.T) {
+	a := workspaceApp()
+	openDraft(a, a.flows[0])
+	d := a.requestDocument
+	d.composeMethod, d.composeURL = "POST", "https://api.example.com/items?tag=a&tag=b"
+	d.auth = request.Auth{Type: "Bearer", Token: "token-19"}
+	for _, tc := range []struct {
+		name, mode, fragment string
+		fields               []request.Field
+	}{
+		{"raw", "Raw", "hello", nil},
+		{"urlencoded", "URL encoded", "name=%E4%BD%A0%E5%A5%BD+%26+more", []request.Field{{Name: "name", Value: "你好 & more"}}},
+		{"multipart", "Multipart", "name=", []request.Field{{Name: "name", Value: "hello"}}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			d.bodyMode, d.formFields = tc.mode, tc.fields
+			d.composeBody = ""
+			if tc.mode == "Raw" {
+				d.composeBody = `{"name":"hello"}`
+			}
+			d.composeHeaders, d.headerRows, d.headerFor = "", nil, ""
+			for _, language := range []string{"Swift (URLSession)", "Kotlin (OkHttp)", "Java (java.net.http)", "C# (HttpClient)", "PHP (cURL)", "Ruby (Net::HTTP)", "Rust (reqwest)"} {
+				a.code.language = language
+				code, err := a.codeText(d)
+				if err != nil {
+					t.Fatalf("%s %s: %v", tc.name, language, err)
+				}
+				if !strings.Contains(code, "Authorization") || !strings.Contains(code, "Bearer token-19") {
+					t.Fatalf("%s %s lost expanded auth:\n%s", tc.name, language, code)
+				}
+				if !strings.Contains(code, "tag=a&tag=b") || !strings.Contains(code, tc.fragment) {
+					t.Fatalf("%s %s lost query or body:\n%s", tc.name, language, code)
+				}
+				if tc.mode == "URL encoded" && !strings.Contains(code, "application/x-www-form-urlencoded") {
+					t.Fatalf("%s %s lost the form Content-Type:\n%s", tc.name, language, code)
+				}
+				if tc.mode == "Multipart" && !strings.Contains(code, "multipart/form-data; boundary=") {
+					t.Fatalf("%s %s lost the multipart Content-Type:\n%s", tc.name, language, code)
+				}
 			}
 		})
 	}
