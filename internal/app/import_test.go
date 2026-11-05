@@ -1,10 +1,13 @@
 package app
 
 import (
+	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
 
+	"github.com/baba983/vscroxy/internal/imports"
 	"github.com/baba983/vscroxy/internal/request"
 	"github.com/egoist/mygo/ui"
 )
@@ -166,9 +169,122 @@ func TestImportOpenAPIWithoutServerAddsBaseURLVariable(t *testing.T) {
 
 func TestImportRejectsUnknownFilesListingEveryKind(t *testing.T) {
 	a := libraryApp(t)
-	a.importData([]byte(`{"swagger":"2.0"}`), "old.json")
-	if !strings.HasPrefix(a.message, "Import: not a Postman collection, environment or globals file, a HAR file or an OpenAPI 3.0/3.1 document") || len(a.requests) != 0 {
+	a.importData([]byte(`{"foo":"bar"}`), "unknown.json")
+	if !strings.HasPrefix(a.message, "Import: not a supported file (Postman, Insomnia, Hoppscotch, Swagger 2, HAR, OpenAPI 3.0/3.1)") || len(a.requests) != 0 {
 		t.Errorf("message %q, requests %d", a.message, len(a.requests))
+	}
+}
+
+func TestImportSwagger2Collection(t *testing.T) {
+	a := libraryApp(t)
+	a.importData([]byte(`swagger: "2.0"
+info: {title: Tiny, version: "1"}
+host: api.example.com
+basePath: /v1
+schemes: [https]
+paths:
+  /ping:
+    get:
+      tags: [ops]
+      responses: {"200": {description: ok}}
+`), "tiny.yaml")
+	want := []imported{{Collection: "Tiny/ops", Name: "GET /ping", Method: "GET", URL: "https://api.example.com/v1/ping"}}
+	if got := importedRequests(t, a.requests); !reflect.DeepEqual(got, want) {
+		t.Fatalf("requests\n got %+v\nwant %+v", got, want)
+	}
+	if !strings.HasPrefix(a.requests[0].ID, "swagger2-") {
+		t.Errorf("Swagger 2 request ID %q is not stable", a.requests[0].ID)
+	}
+	if a.message != "Imported “Tiny” · 1 request" || a.importReport.open {
+		t.Errorf("message %q, report %+v", a.message, a.importReport)
+	}
+}
+
+func TestImportInsomniaV4CollectionAndEnvironment(t *testing.T) {
+	a := libraryApp(t)
+	data, err := os.ReadFile(filepath.Join("..", "imports", "testdata", "insomnia-v4.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	a.importData(data, "insomnia.json")
+	if len(a.requests) != 4 || a.requests[0].Collection != "Shop API/Orders" || a.requests[0].URL != "{{base_url}}/orders?page=1" {
+		t.Fatalf("requests %+v", importedRequests(t, a.requests))
+	}
+	if len(a.envs) != 2 || a.envs[1].Name != "Staging" || a.envs[1].Vars["token"] != "staging-token" {
+		t.Errorf("environments %+v", a.envs)
+	}
+	if !a.importReport.open || !strings.Contains(strings.Join(a.importReport.lines, "\n"), "with a description") {
+		t.Errorf("report %+v", a.importReport)
+	}
+	var orders *request.Folder
+	for i := range a.folders {
+		if a.folders[i].Path == "Shop API/Orders" {
+			orders = &a.folders[i]
+		}
+	}
+	if orders == nil || orders.Auth.Type != "Basic" {
+		t.Errorf("folders %+v", a.folders)
+	}
+	// Importing the same export again updates the same requests.
+	a.importData(data, "insomnia.json")
+	if len(a.requests) != 4 {
+		t.Errorf("re-import made %d requests", len(a.requests))
+	}
+}
+
+func TestImportHoppscotchCollection(t *testing.T) {
+	a := libraryApp(t)
+	data, err := os.ReadFile(filepath.Join("..", "imports", "testdata", "hoppscotch.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	a.importData(data, "hoppscotch.json")
+	if len(a.requests) != 4 || a.requests[0].Collection != "Echo/Users" || a.requests[0].URL != "https://echo.example.com/users?page=1" {
+		t.Fatalf("requests %+v", importedRequests(t, a.requests))
+	}
+	if !a.importReport.open || !strings.Contains(strings.Join(a.importReport.lines, "\n"), "collection headers were dropped") {
+		t.Errorf("report %+v", a.importReport)
+	}
+}
+
+func TestImportHoppscotchEnvironment(t *testing.T) {
+	a := libraryApp(t)
+	data, err := os.ReadFile(filepath.Join("..", "imports", "testdata", "hoppscotch-env.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	a.importData(data, "hoppscotch-env.json")
+	if len(a.envs) != 2 || a.envs[0].Name != "Dev" || a.envs[0].Vars["token"] != "dev-token" || a.envs[1].Name != "Prod" {
+		t.Fatalf("environments %+v", a.envs)
+	}
+	if !a.importReport.open || a.importReport.title != "Imported 2 environments" {
+		t.Errorf("report %+v, message %q", a.importReport, a.message)
+	}
+}
+
+func TestImportBrunoDirectory(t *testing.T) {
+	a := libraryApp(t)
+	a.envsPath = filepath.Join(t.TempDir(), "environments.json")
+	result, err := imports.ReadBrunoDir(filepath.Join("..", "imports", "testdata", "bruno"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	a.importThirdParty(result, "Import Bruno collection")
+	if len(a.requests) != 6 || len(a.envs) != 1 || a.envs[0].Name != "Dev" {
+		t.Fatalf("requests %+v, environments %+v", importedRequests(t, a.requests), a.envs)
+	}
+	var users *request.Folder
+	for i := range a.folders {
+		if a.folders[i].Path == "Bruno Shop/Users" {
+			users = &a.folders[i]
+		}
+	}
+	if users == nil || users.Auth.Type != "Basic" || len(users.Variables) != 1 {
+		t.Errorf("folders %+v", a.folders)
+	}
+	a.importThirdParty(result, "Import Bruno collection")
+	if len(a.requests) != 6 {
+		t.Errorf("re-import made %d requests", len(a.requests))
 	}
 }
 

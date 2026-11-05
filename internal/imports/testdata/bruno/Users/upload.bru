@@ -1,0 +1,16 @@
+meta {
+  name: Upload
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{baseUrl}}/upload
+  body: multipartForm
+  auth: none
+}
+
+body:multipart-form {
+  note: hi
+  file: @file(/tmp/a.png)
+}

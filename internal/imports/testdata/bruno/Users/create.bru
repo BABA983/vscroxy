@@ -1,0 +1,30 @@
+meta {
+  name: Create user
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/users
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "name": "Ada"
+  }
+}
+
+vars:pre-request {
+  local: yes
+}
+
+assert {
+  res.status: 201
+  res.headers.Content-Type: eq application/json
+}

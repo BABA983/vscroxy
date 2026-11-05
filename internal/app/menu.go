@@ -29,6 +29,7 @@ func (a *app) menu() *mygo.Menu {
 	file := &mygo.MenuItem{Label: "File", Submenu: []*mygo.MenuItem{
 		command("request.new", "New request"),
 		command("request.import-curl", "Import cURL…"),
+		command("collection.import-folder", "Import Bruno collection…"),
 		command("request.save", "Save request"),
 		command("request.close", "Close request"),
 		mygo.Separator(),

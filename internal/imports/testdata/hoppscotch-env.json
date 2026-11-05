@@ -1,0 +1,17 @@
+[
+  {
+    "v": 2,
+    "name": "Dev",
+    "variables": [
+      {"key": "baseURL", "initialValue": "https://dev.example.com", "currentValue": "", "secret": false},
+      {"key": "token", "initialValue": "dev-token", "currentValue": "", "secret": true}
+    ]
+  },
+  {
+    "v": 1,
+    "name": "Prod",
+    "variables": [
+      {"key": "baseURL", "value": "https://api.example.com", "secret": false}
+    ]
+  }
+]

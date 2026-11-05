@@ -1,0 +1,27 @@
+headers {
+  X-Collection: yes
+}
+
+auth {
+  mode: bearer
+}
+
+auth:bearer {
+  token: {{collectionToken}}
+}
+
+vars:pre-request {
+  baseUrl: https://api.example.com
+}
+
+script:pre-request {
+  bru.setVar('collection-ran', 'yes');
+}
+
+tests {
+  test('collection', function() { expect(res.status).to.equal(200); });
+}
+
+docs {
+  Shared API.
+}

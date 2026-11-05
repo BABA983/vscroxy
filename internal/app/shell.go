@@ -319,6 +319,7 @@ func (a *app) moreActions(c *ui.Context) []action {
 		do("session.open", "Open session…", a.openSession).in("files"),
 		do("capture.import-har", "Import HAR…", a.importHAR).in("files"),
 		do("collection.import", "Import…", a.importRequests).in("import"),
+		do("collection.import-folder", "Import Bruno collection…", a.importCollectionFolder).in("import"),
 		do("request.import-curl", "Import cURL…", a.openCurlImport).in("import"),
 		do("api.generate", "Generate OpenAPI…", a.openAPIGeneration).
 			when(len(a.requests) > 0, "Save a request to a collection first").in("api"),
