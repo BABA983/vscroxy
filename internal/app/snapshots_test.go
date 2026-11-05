@@ -730,6 +730,10 @@ func TestUISnapshots(t *testing.T) {
 			a.cookieUI.url, a.cookieUI.name, a.cookieUI.value = "https://api.example.com/", "demo", "fake-cookie"
 			a.cookieUI.path, a.cookieUI.secure, a.cookieUI.httpOnly = "/", true, true
 		}, want: "Keep cookies after quitting", short: true},
+		{name: "commands-search", setup: func(a *app) {
+			a.workbench.openPalette()
+			a.workbench.query = "projects"
+		}, want: "List projects"},
 		{name: "capture-json-columns", setup: snapshotJSONColumns, want: "9007199254740993"},
 		{name: "capture-graphql", setup: snapshotGraphQL, want: "query Search"},
 		{name: "dialog-graphql-column", setup: func(a *app) {

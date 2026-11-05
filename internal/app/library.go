@@ -234,6 +234,7 @@ func (a *app) writeLibrary(requests []savedRequest, folders []request.Folder) er
 		}
 	}
 	a.requests, a.folders = requests, folders
+	a.requestGen++
 	return nil
 }
 
@@ -302,6 +303,7 @@ func (a *app) loadRequestLibrary() {
 		return
 	}
 	a.requests, a.folders, l.known = requests, folders, known
+	a.requestGen++
 }
 
 // refreshDocuments shows what was just read in the tabs of saved requests

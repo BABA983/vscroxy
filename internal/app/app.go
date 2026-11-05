@@ -95,7 +95,11 @@ type app struct {
 	sidebarChoice string
 	requestChoice string
 	requestQuery  string
-	renameOpen    bool
+	// requestGen changes with the library, so the command palette rebuilds
+	// its request index only when the requests do.
+	requestGen   int
+	requestIndex requestSearchIndex
+	renameOpen   bool
 	// saveAfterRename makes the rename dialog Save to collection.
 	saveAfterRename bool
 	settingsOpen    bool
@@ -3435,6 +3439,7 @@ func (a *app) openSaved(key string) {
 		if r.ID == "" {
 			r.ID = uuid.New().String()
 			a.requests[i] = r
+			a.requestGen++
 		}
 		a.addDocument(r, r.key())
 		return

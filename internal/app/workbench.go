@@ -618,7 +618,7 @@ func (a *app) commandPalette(c *ui.Context) {
 			uikit.DialogTitle(c, "Commands")
 			// Modal focuses its first input after remembering the opener. An
 			// explicit AutoFocus here would replace that remembered focus.
-			input := uikit.Input(c, &w.query).Label("Find command").Placeholder("Search actions…").
+			input := uikit.Input(c, &w.query).Label("Find command").Placeholder("Search commands, requests, environments…").
 				Height(uikit.HeightLarge).FontSize(uikit.TextBody).FillWidth()
 			if input.Changed() {
 				w.command = 0
@@ -626,18 +626,27 @@ func (a *app) commandPalette(c *ui.Context) {
 			}
 			// An empty query lists what can run now. A search also finds
 			// unavailable commands, after the available ones, so asking for
-			// one explains why it cannot run instead of hiding it.
+			// one explains why it cannot run instead of hiding it. Saved
+			// collections, requests and variables follow the available
+			// commands; their index is rebuilt only when the library changes.
 			query := strings.ToLower(strings.TrimSpace(w.query))
-			var matches, unavailable []action
+			var matches, unavailable []paletteEntry
 			for _, action := range a.actions(c) {
 				switch {
 				case action.id == "app.palette" || !strings.Contains(strings.ToLower(action.label), query):
 				case action.enabled:
-					matches = append(matches, action)
+					matches = append(matches, paletteEntry{
+						label: action.label, detail: action.hint(), meta: action.shortcut.String(),
+						enabled: true, action: true, run: action.run,
+					})
 				case query != "":
-					unavailable = append(unavailable, action)
+					unavailable = append(unavailable, paletteEntry{
+						label: action.label, detail: action.hint(), meta: action.shortcut.String(),
+						enabled: false, why: action.why(), action: true, run: action.run,
+					})
 				}
 			}
+			matches = append(matches, a.paletteSearchEntries(query)...)
 			matches = append(matches, unavailable...)
 			run := func() {
 				if w.command >= 0 && w.command < len(matches) && matches[w.command].enabled {
@@ -664,25 +673,25 @@ func (a *app) commandPalette(c *ui.Context) {
 			// marker, as menus have no selection to keep.
 			c.SetTheme(uikit.ListTheme(t, focused))
 			list := ui.List(c, &w.commands, len(matches), func(i int) {
-				action := matches[i]
-				b := uikit.RowButton(c, action.label).Disabled(!action.enabled).Height(uikit.HeightLarge).Padding(0, t.Space(3)).Tooltip(action.hint())
+				item := matches[i]
+				b := uikit.RowButton(c, item.label).Disabled(!item.enabled).Height(uikit.HeightLarge).Padding(0, t.Space(3)).Tooltip(item.detail)
 				// The list's highlight shows through; RowButton saw the row
 				// before Disabled, so an unavailable command drops its hover too.
-				if !action.enabled || i == w.command && !b.Pressed() {
+				if !item.enabled || i == w.command && !b.Pressed() {
 					b.Background(ui.Transparent)
 				}
 				b.Children(func() {
 					color := t.Text
-					if !action.enabled {
+					if !item.enabled {
 						color = uikit.Colors(t).TextFaint
 					}
-					label := action.label
-					if !action.enabled {
+					label := item.label
+					if !item.enabled {
 						label += " (unavailable)"
 					}
 					ui.Text(c, label).FontSize(uikit.TextBody).TextColor(color)
 					ui.Spacer(c)
-					ui.Text(c, action.shortcut.String()).FontSize(uikit.TextMeta).TextColor(color)
+					ui.Text(c, item.meta).FontSize(uikit.TextMeta).TextColor(color)
 				})
 				if b.Clicked() {
 					w.command = i
@@ -694,19 +703,22 @@ func (a *app) commandPalette(c *ui.Context) {
 				run()
 			}
 			if len(matches) == 0 {
-				uikit.Hint(c, "No matching commands")
+				uikit.Hint(c, "No matching commands, requests or environments")
 			} else if w.command >= 0 && w.command < len(matches) {
-				action := matches[w.command]
+				item := matches[w.command]
 				message := ""
-				if !action.enabled {
-					message = action.why()
-				} else if a.page.capture() {
+				switch {
+				case !item.enabled:
+					message = item.why
+				case !item.action:
+					message = item.detail
+				case a.page.capture():
 					if a.chosen.Len() > 1 {
 						message = fmt.Sprintf("Capture · %d selected requests", a.chosen.Len())
 					} else if f, ok := a.current(); ok {
 						message = fmt.Sprintf("Capture #%d · %s %s", f.id, f.method, f.path)
 					}
-				} else if !a.page.capture() && a.requestDocument != nil {
+				case !a.page.capture() && a.requestDocument != nil:
 					message = "Draft · " + a.title()
 				}
 				uikit.Meta(c, message).SingleLine().Tooltip(message)
