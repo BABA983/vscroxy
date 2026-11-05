@@ -1,0 +1,24 @@
+meta {
+  name: List users
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/users?page=1
+  body: none
+  auth: inherit
+}
+
+params:query {
+  page: 1
+}
+
+headers {
+  @description('Accept header: JSON')
+  Accept: application/json
+}
+
+docs {
+  Lists users.
+}

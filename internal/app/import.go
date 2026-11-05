@@ -14,6 +14,7 @@ import (
 	"strings"
 	"uuid"
 
+	"github.com/baba983/vscroxy/internal/imports"
 	"github.com/baba983/vscroxy/internal/request"
 	"github.com/egoist/mygo/ui"
 	"github.com/getkin/kin-openapi/openapi3"
@@ -202,11 +203,14 @@ func (a *app) importHARCollection(data []byte, path string) {
 // openAPIRequests are a document's operations as requests in collection,
 // each in a folder named after its first tag. base says whether any of
 // them reads {{base_url}}: the document has no absolute server for it.
-func openAPIRequests(doc *openapi3.T, collection string, list []savedRequest) (incoming []savedRequest, base bool) {
+func openAPIRequests(doc *openapi3.T, collection string, list []savedRequest, idPrefix string) (incoming []savedRequest, base bool) {
 	all := slices.Clone(list)
 	for _, endpoint := range apiOperations(doc) {
 		r := requestFromOperation(doc, endpoint)
 		r.ID = uuid.New().String()
+		if idPrefix != "" {
+			r.ID = imports.StableID(idPrefix, collection, endpoint.method, endpoint.path)
+		}
 		r.Collection = collection
 		if tags := endpoint.op.Tags; len(tags) > 0 && collectionSegment(tags[0]) != "" {
 			r.Collection += "/" + collectionSegment(tags[0])
@@ -220,9 +224,9 @@ func openAPIRequests(doc *openapi3.T, collection string, list []savedRequest) (i
 
 // importOpenAPICollection makes a new collection of a validated document's
 // operations, named after its title.
-func (a *app) importOpenAPICollection(doc *openapi3.T, fallback string) {
+func (a *app) importOpenAPICollection(doc *openapi3.T, fallback string, warnings []string, idPrefix string) {
 	name := a.newCollectionName(cmp.Or(collectionSegment(doc.Info.Title), collectionSegment(fallback), "OpenAPI"))
-	incoming, base := openAPIRequests(doc, name, a.requests)
+	incoming, base := openAPIRequests(doc, name, a.requests, idPrefix)
 	if len(incoming) == 0 {
 		a.warn("OpenAPI collection: the document has no operations")
 		return
@@ -238,7 +242,7 @@ func (a *app) importOpenAPICollection(doc *openapi3.T, fallback string) {
 		return
 	}
 	a.page = pageRequest
-	a.reportImport(title, nil)
+	a.reportImport(title, warnings)
 }
 
 // collectionSave is the dialog that saves the chosen captured rows into a

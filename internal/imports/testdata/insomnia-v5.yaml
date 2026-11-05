@@ -1,0 +1,70 @@
+type: collection.insomnia.rest/5.0
+schema_version: "5.1"
+name: Flights
+meta:
+  id: wrk_flights
+  description: Flight API.
+collection:
+  - name: Operations
+    meta:
+      id: fld_flights
+      description: Flight operations.
+    children:
+      - url: "{{ _.base_url }}/flights"
+        name: List flights
+        meta:
+          id: req_list
+          description: Lists flights.
+        method: GET
+        parameters:
+          - name: origin
+            value: YYZ
+            disabled: false
+          - name: draft
+            value: x
+            disabled: true
+        headers:
+          - name: Accept
+            value: application/json
+        authentication:
+          type: bearer
+          token: "{{ _.token }}"
+        scripts:
+          preRequest: "insomnia.request.addHeader('X-Script', 'yes');"
+          afterResponse: "insomnia.test('ok', () => {});"
+      - url: "{{ _.base_url }}/flights/:id"
+        name: Create flight
+        meta:
+          id: req_create
+        method: POST
+        pathParameters:
+          - name: id
+            value: "{{ _.flight_id }}"
+        body:
+          mimeType: application/json
+          text: '{"number":"IA918"}'
+        settings:
+          followRedirects: "off"
+  - url: https://api.example.com/upload
+    name: Upload
+    meta:
+      id: req_upload
+    method: POST
+    body:
+      mimeType: multipart/form-data
+      params:
+        - name: note
+          value: hello
+          type: text
+        - name: file
+          type: file
+          fileName: /tmp/a.png
+environments:
+  name: Base Environment
+  data:
+    base_url: https://api.example.com
+  subEnvironments:
+    - name: Staging
+      data:
+        base_url: https://staging.example.com
+        token: staging-token

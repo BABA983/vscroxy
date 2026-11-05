@@ -1890,6 +1890,7 @@ func (a *app) collectionsMenu(m *ui.Menu) { actionMenu(m, a.collectionsActions()
 func (a *app) collectionsActions() []action {
 	return []action{
 		do("collection.import", "Import…", a.importRequests),
+		do("collection.import-folder", "Import Bruno collection…", a.importCollectionFolder),
 		do("request.import-curl", "Import cURL…", a.openCurlImport),
 		do("collection.record", "Record into collection…", func() { a.openCollectionRecording("", "", "") }).in("run"),
 		do("environment.manage", "Environments…", a.openVars).in("run"),

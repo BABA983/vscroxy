@@ -1,0 +1,73 @@
+{
+  "v": 12,
+  "name": "Echo",
+  "variables": [
+    {"key": "baseUrl", "initialValue": "https://echo.example.com", "currentValue": "", "secret": false}
+  ],
+  "auth": {"authType": "bearer", "authActive": true, "token": "collection-token"},
+  "headers": [
+    {"key": "X-Collection", "value": "yes", "active": true}
+  ],
+  "folders": [
+    {
+      "v": 12,
+      "name": "Users",
+      "variables": [{"key": "team", "initialValue": "core", "currentValue": "", "secret": false}],
+      "auth": {"authType": "inherit", "authActive": true},
+      "requests": [
+        {
+          "v": "17",
+          "id": "req_1",
+          "name": "List users",
+          "method": "GET",
+          "endpoint": "https://echo.example.com/users",
+          "params": [
+            {"key": "page", "value": "1", "active": true},
+            {"key": "draft", "value": "x", "active": false}
+          ],
+          "headers": [
+            {"key": "Accept", "value": "application/json", "active": true},
+            {"key": "X-Off", "value": "no", "active": false}
+          ],
+          "auth": {"authType": "basic", "authActive": true, "username": "ada", "password": "secret"},
+          "body": {"contentType": null, "body": null},
+          "requestVariables": [{"key": "local", "value": "v", "active": true}],
+          "description": "List users."
+        }
+      ]
+    }
+  ],
+  "requests": [
+    {
+      "v": "17",
+      "id": "req_2",
+      "name": "Create user",
+      "method": "POST",
+      "endpoint": "https://echo.example.com/users",
+      "body": {"contentType": "application/json", "body": "{\"name\":\"Ada\"}"},
+      "auth": {"authType": "api-key", "authActive": true, "addTo": "HEADERS", "key": "X-API-Key", "value": "k"}
+    },
+    {
+      "v": "17",
+      "id": "req_3",
+      "name": "Upload",
+      "method": "POST",
+      "endpoint": "https://echo.example.com/upload",
+      "body": {
+        "contentType": "multipart/form-data",
+        "body": [
+          {"key": "note", "value": "hi", "active": true, "isFile": false},
+          {"key": "file", "value": [{}], "active": true, "isFile": true}
+        ]
+      }
+    },
+    {
+      "v": "17",
+      "id": "req_4",
+      "name": "Form",
+      "method": "POST",
+      "endpoint": "https://echo.example.com/form",
+      "body": {"contentType": "application/x-www-form-urlencoded", "body": "name: Ada\n# hidden: no"}
+    }
+  ]
+}

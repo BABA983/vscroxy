@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/baba983/vscroxy/internal/imports"
 	"github.com/baba983/vscroxy/internal/postman"
 	"github.com/baba983/vscroxy/internal/request"
 	"github.com/egoist/mygo"
@@ -40,6 +41,28 @@ func (a *app) importRequests() {
 			return
 		}
 		a.win.Update(func() { a.importData(data, paths[0]) })
+	}()
+}
+
+// importCollectionFolder reads a Bruno .bru collection directory. The native
+// dialog picks a directory because the collection is a tree of files, not one
+// export document.
+func (a *app) importCollectionFolder() {
+	go func() {
+		paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{
+			Title:       "Import Bruno collection",
+			ButtonLabel: "Import",
+			Directory:   true,
+		})
+		if err != nil || len(paths) == 0 {
+			return
+		}
+		result, err := imports.ReadBrunoDir(paths[0])
+		if err != nil {
+			a.fail("Import Bruno collection", err)
+			return
+		}
+		a.win.Update(func() { a.importThirdParty(result, "Import Bruno collection") })
 	}()
 }
 
@@ -113,6 +136,41 @@ func (a *app) importData(data []byte, path string) {
 		a.envs, a.globals = envs, globals
 		a.reportImport(title, env.Warnings)
 	default:
+		switch imports.Detect(data) {
+		case imports.InsomniaV4, imports.InsomniaV5:
+			result, err := imports.ReadInsomnia(data)
+			if err != nil {
+				a.fail("Import Insomnia", err)
+				return
+			}
+			a.importThirdParty(result, "Import Insomnia")
+			return
+		case imports.HoppscotchCollection:
+			result, err := imports.ReadHoppscotch(data)
+			if err != nil {
+				a.fail("Import Hoppscotch collection", err)
+				return
+			}
+			a.importThirdParty(result, "Import Hoppscotch collection")
+			return
+		case imports.HoppscotchEnvironment:
+			envs, err := imports.ReadHoppscotchEnvironment(data)
+			if err != nil {
+				a.fail("Import Hoppscotch environment", err)
+				return
+			}
+			a.importThirdParty(imports.Result{Environments: envs}, "Import Hoppscotch environment")
+			return
+		}
+		if imports.Detect(data) == imports.Swagger2 {
+			doc, warnings, err := imports.ReadSwagger2(data)
+			if err != nil {
+				a.fail("Import Swagger 2", err)
+				return
+			}
+			a.importOpenAPICollection(doc, strings.TrimSuffix(filepath.Base(path), filepath.Ext(path)), warnings, "swagger2")
+			return
+		}
 		if isHAR(data) {
 			a.importHARCollection(data, path)
 			return
@@ -123,10 +181,10 @@ func (a *app) importData(data []byte, path string) {
 				a.fail("Import OpenAPI", err)
 				return
 			}
-			a.importOpenAPICollection(doc, strings.TrimSuffix(filepath.Base(path), filepath.Ext(path)))
+			a.importOpenAPICollection(doc, strings.TrimSuffix(filepath.Base(path), filepath.Ext(path)), nil, "")
 			return
 		}
-		a.warn("Import: not a Postman collection, environment or globals file, a HAR file or an OpenAPI 3.0/3.1 document")
+		a.warn("Import: not a supported file (Postman, Insomnia, Hoppscotch, Swagger 2, HAR, OpenAPI 3.0/3.1); for Bruno choose Import Bruno collection…")
 	}
 }
 

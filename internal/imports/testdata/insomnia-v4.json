@@ -1,0 +1,112 @@
+{
+  "_type": "export",
+  "__export_format": 4,
+  "__export_date": "2026-10-01T10:00:00.000Z",
+  "__export_source": "insomnia.desktop.app:v2023.5.8",
+  "resources": [
+    {
+      "_id": "wrk_shop",
+      "_type": "workspace",
+      "parentId": null,
+      "name": "Shop API",
+      "description": "Orders and uploads."
+    },
+    {
+      "_id": "fld_orders",
+      "_type": "request_group",
+      "parentId": "wrk_shop",
+      "name": "Orders",
+      "description": "Order operations.",
+      "environment": {"team": "core"},
+      "authentication": {"type": "basic", "username": "ada", "password": "secret"},
+      "headers": [{"name": "X-Folder", "value": "orders"}],
+      "metaSortKey": -3
+    },
+    {
+      "_id": "fld_2026",
+      "_type": "request_group",
+      "parentId": "fld_orders",
+      "name": "2026",
+      "metaSortKey": -2
+    },
+    {
+      "_id": "req_list",
+      "_type": "request",
+      "parentId": "fld_orders",
+      "name": "List orders",
+      "description": "Lists orders.",
+      "method": "GET",
+      "url": "{{ _.base_url }}/orders",
+      "parameters": [{"name": "page", "value": "1", "disabled": false}, {"name": "draft", "value": "x", "disabled": true}],
+      "headers": [{"name": "Accept", "value": "application/json"}],
+      "authentication": {"type": "bearer", "token": "{{ _.token }}"},
+      "preRequestScript": "insomnia.request.addHeader('X-Script', 'yes');",
+      "metaSortKey": -1
+    },
+    {
+      "_id": "req_create",
+      "_type": "request",
+      "parentId": "fld_2026",
+      "name": "Create order",
+      "method": "POST",
+      "url": "{{ _.base_url }}/orders/:id",
+      "pathParameters": [{"name": "id", "value": "{{ _.order_id }}"}],
+      "headers": [{"name": "Content-Type", "value": "application/json"}],
+      "body": {"mimeType": "application/json", "text": "{\"item\":\"widget\"}"},
+      "authentication": {},
+      "settingFollowRedirects": "off",
+      "metaSortKey": -1
+    },
+    {
+      "_id": "req_upload",
+      "_type": "request",
+      "parentId": "fld_orders",
+      "name": "Upload receipt",
+      "method": "POST",
+      "url": "{{ _.base_url }}/receipts",
+      "body": {"mimeType": "multipart/form-data", "params": [
+        {"name": "note", "value": "hello", "type": "text"},
+        {"name": "file", "fileName": "/tmp/receipt.png", "type": "file"}
+      ]},
+      "metaSortKey": 1
+    },
+    {
+      "_id": "req_graphql",
+      "_type": "request",
+      "parentId": "fld_orders",
+      "name": "Order graph",
+      "method": "POST",
+      "url": "{{ _.base_url }}/graphql",
+      "body": {"mimeType": "application/graphql", "text": "{\"query\":\"query { order { id } }\",\"variables\":{\"id\":7}}"},
+      "metaSortKey": 2
+    },
+    {
+      "_id": "ws_1",
+      "_type": "websocket_request",
+      "parentId": "wrk_shop",
+      "name": "Live orders",
+      "url": "wss://api.example.com/orders"
+    },
+    {
+      "_id": "env_base",
+      "_type": "environment",
+      "parentId": "wrk_shop",
+      "name": "Base Environment",
+      "data": {"base_url": "https://api.example.com", "token": ""}
+    },
+    {
+      "_id": "env_staging",
+      "_type": "environment",
+      "parentId": "env_base",
+      "name": "Staging",
+      "data": {"base_url": "https://staging.example.com", "token": "staging-token"}
+    },
+    {
+      "_id": "jar_1",
+      "_type": "cookie_jar",
+      "parentId": "wrk_shop",
+      "name": "Default Jar",
+      "cookies": []
+    }
+  ]
+}

@@ -21,6 +21,7 @@ require (
 	github.com/klauspost/compress v1.18.6
 	github.com/lqqyt2423/go-mitmproxy v1.9.4
 	github.com/modelcontextprotocol/go-sdk v1.8.0
+	github.com/oasdiff/yaml v0.1.1
 	github.com/ohler55/ojg v1.28.9
 	github.com/oneo-me/onevra/source v0.2026.16
 	github.com/sirupsen/logrus v1.9.4
@@ -44,7 +45,6 @@ require (
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/google/pprof v0.0.0-20230207041349-798e818bf904 // indirect
 	github.com/itchyny/timefmt-go v0.1.9 // indirect
-	github.com/oasdiff/yaml v0.1.1 // indirect
 	github.com/oasdiff/yaml3 v0.0.14 // indirect
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.3 // indirect
 	github.com/segmentio/asm v1.1.3 // indirect

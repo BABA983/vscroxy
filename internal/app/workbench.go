@@ -561,6 +561,7 @@ func (a *app) actions(c *ui.Context) []action {
 			a.done(fmt.Sprintf("Reloaded %d %s from %s", len(a.requests), plural(len(a.requests), "request", "requests"), a.library.root))
 		}),
 		do("collection.import", "Import…", a.importRequests),
+		do("collection.import-folder", "Import Bruno collection…", a.importCollectionFolder),
 		do("collection.export-postman", "Export collection as Postman…", func() { a.exportPostman(collectionRoot(d.composeCollection)) }).
 			when(editing && d.composeCollection != "", ""),
 		do("app.settings", "Open settings…", func() { a.openSettings(-1) }).keys(ui.Cmd, ui.KeyComma),

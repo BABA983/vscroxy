@@ -143,7 +143,7 @@ func (a *app) apiView(c *ui.Context, t *ui.Theme) {
 				a.exportOpenAPI(d)
 			}
 			if uikit.SecondaryButton(c, "Create collection").Label("Create collection from OpenAPI").Disabled(!valid).Clicked() {
-				a.importOpenAPICollection(d.parsed, d.title())
+				a.importOpenAPICollection(d.parsed, d.title(), nil, "")
 			}
 			if uikit.PrimaryButton(c, "Save API").Clicked() {
 				a.saveAPI(d)

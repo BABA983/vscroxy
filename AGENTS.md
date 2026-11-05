@@ -7,7 +7,9 @@ The Go module and MyGo configuration live at the repository root.
 `cmd/vscroxy/` is the thin executable entry, including `--proxy-guard` mode.
 `internal/app/` owns the UI and application state. `internal/request/` owns an
 authored request and how it becomes traffic (variables, encoding, scripts,
-checks, sending); it never imports MyGo. `internal/uikit/` is the design system: tokens, the Paper/Ink themes, bundled
+checks, sending); it never imports MyGo. `internal/imports/` reads third-party
+exports (Insomnia, Bruno, Hoppscotch, Swagger 2, and Chrome's CMD/PowerShell
+cURL) into that model; it also never imports MyGo. `internal/uikit/` is the design system: tokens, the Paper/Ink themes, bundled
 fonts and shared components; it depends only on MyGo, and screens use its roles
 and components instead of colors and sizes. `internal/vault/` seals secrets and
 decides which hosts may receive them. `internal/postman/` converts Postman

@@ -1,0 +1,21 @@
+meta {
+  name: Graph
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{baseUrl}}/graphql
+  body: graphql
+  auth: none
+}
+
+body:graphql {
+  query { viewer { id } }
+}
+
+body:graphql:vars {
+  {
+    "id": 1
+  }
+}
