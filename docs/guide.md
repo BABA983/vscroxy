@@ -103,13 +103,19 @@ profile, an emulator setting or the app's own Java truststore changes.
   `certutil` is not NSS) and Firefox uses the Windows root store through
   enterprise roots. Snap Firefox and Chromium have a private `/tmp`; their
   profiles are placed under `~/snap/<name>/common/` so the snap can see them.
+  This also recognizes Ubuntu's transitional `/usr/bin/firefox` and
+  `/usr/bin/chromium-browser` shell wrappers that exec `/snap/bin/...`.
 - **Android emulator** lists `adb devices -l`, runs
   `adb reverse tcp:PORT tcp:PORT`, then
   `adb shell settings put global http_proxy 127.0.0.1:PORT`. The app reads the
   previous `http_proxy` first and saves it with the port in
   `~/.vscroxy/android-proxy.json`; **Undo proxy** restores that value (or clears
   it with `:0` if it was unset) and removes the reverse listener it added. The
-  value is accepted only when it is `null`, `:0` or `host:port`.
+  value is accepted only when it is `null`, `:0` or `host:port`. If an emulator
+  restart already removed the reverse listener, the restore still succeeds and
+  the app warns instead of keeping a stale record. **Forget saved proxy** clears
+  only the local record, for a restarted emulator, a reused serial, or a saved
+  value that no longer validates.
   **Copy CA to device** pushes
   only the public CA to `/sdcard/Download/vscroxy-ca.crt`; installing it and
   trusting it remains a device-side step. Android 7+ apps do not trust
@@ -145,7 +151,9 @@ naming the missing helper instead of failing silently.
 
 Windows exports the ROOT certificate store on demand. The app regenerates the
 terminal CA bundle before each launch, so roots added after an earlier launch
-are included.
+are included. Windows also lazy-loads some public roots; a root that Windows has
+not fetched yet may be missing until Windows updates the store, after which the
+next launch includes it.
 
 ## Connect a phone or another device
 
