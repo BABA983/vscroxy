@@ -4,9 +4,12 @@ import (
 	"bytes"
 	"encoding/csv"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 )
 
 func captureTableRow(t *testing.T, a *app, f flow) map[string]string {
@@ -260,5 +263,96 @@ func TestRawHTTPLimits(t *testing.T) {
 	}
 	if _, err := rawHTTP(flows); err == nil || !strings.Contains(err.Error(), "limited to 50") {
 		t.Fatalf("flow limit error = %v", err)
+	}
+}
+
+func TestCSVSafeKeepsNumbersAndEscapesFormulas(t *testing.T) {
+	for _, tc := range []struct{ in, want string }{
+		{"-5", "-5"},
+		{"-5.5", "-5.5"},
+		{"-1e3", "-1e3"},
+		{"+5", "+5"},
+		{"  -5", "  -5"},
+		{"-1+2", "'-1+2"},
+		{"-CMD", "'-CMD"},
+		{"+SUM(A1)", "'+SUM(A1)"},
+		{"=1+1", "'=1+1"},
+		{"@cmd", "'@cmd"},
+		{"-", "'-"},
+	} {
+		if got := csvSafe(tc.in); got != tc.want {
+			t.Fatalf("csvSafe(%q) = %q, want %q", tc.in, got, tc.want)
+		}
+	}
+}
+
+func TestRawHTTPDropsDecodedBodyFramingHeadersAndKeepsWireOrder(t *testing.T) {
+	f := flow{
+		id: 1, method: "POST", host: "api.example.com", path: "/p", url: "https://api.example.com/p",
+		status: 200, reqBody: "hello", reqSize: 5, resBody: "world", resSize: 5,
+		reqHeader: http.Header{
+			"Content-Encoding": {"gzip"}, "Content-Length": {"10"}, "Transfer-Encoding": {"chunked"},
+			"Content-MD5": {"m"}, "Digest": {"d"}, "Content-Digest": {"cd"}, "Repr-Digest": {"rd"},
+			"Z-Last": {"z"}, "X-Request": {"r"},
+		},
+		respHeader: http.Header{
+			"Content-Encoding": {"br"}, "Content-Length": {"20"}, "Transfer-Encoding": {"chunked"},
+			"X-Response": {"s"},
+		},
+	}
+	text, err := rawHTTP([]flow{f})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"Content-Encoding", "Content-Length", "Transfer-Encoding", "Content-MD5", "Digest", "Content-Digest", "Repr-Digest"} {
+		if strings.Contains(text, name+":") {
+			t.Fatalf("decoded body kept framing header %s:\n%s", name, text)
+		}
+	}
+	for _, want := range []string{"X-Request: r", "Z-Last: z", "X-Response: s"} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("raw text lacks %q:\n%s", want, text)
+		}
+	}
+	ordered := rawHeaders(http.Header{"Z": {"z"}, "A": {"a"}, "X-Extra": {"x"}}, "GET / HTTP/1.1\nZ: z\nA: a")
+	var names []string
+	for _, h := range ordered {
+		names = append(names, h.name)
+	}
+	if strings.Join(names, ",") != "Z,A,X-Extra" {
+		t.Fatalf("header order = %v, want captured order then missing headers", names)
+	}
+	fallback := rawHeaders(http.Header{"Z": {"z"}, "A": {"a"}}, "")
+	if fallback[0].name != "A" || fallback[1].name != "Z" {
+		t.Fatalf("structured-only order = %v, want sorted", fallback)
+	}
+}
+
+func TestRawHTTPTruncatesUTF8AtCharacterBoundary(t *testing.T) {
+	body := strings.Repeat("中", rawCopyBodyLimit/3+10)
+	for _, useFile := range []bool{false, true} {
+		f := flow{id: 1, method: "GET", path: "/p", status: 200, resSize: len(body)}
+		if useFile {
+			path := filepath.Join(t.TempDir(), "body.txt")
+			if err := os.WriteFile(path, []byte(body), 0600); err != nil {
+				t.Fatal(err)
+			}
+			f.resFile = path
+		} else {
+			f.resBody = body
+		}
+		text, err := rawHTTP([]flow{f})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(text, "[binary body omitted") {
+			t.Fatalf("file=%t: large UTF-8 body was marked binary", useFile)
+		}
+		if !strings.Contains(text, "[body truncated:") {
+			t.Fatalf("file=%t: missing truncation marker:\n%s", useFile, text)
+		}
+		if !utf8.ValidString(text) {
+			t.Fatalf("file=%t: truncation split a UTF-8 character", useFile)
+		}
 	}
 }

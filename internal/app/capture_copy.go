@@ -273,7 +273,12 @@ func csvSafe(value string) string {
 		return value
 	}
 	switch trimmed[0] {
-	case '=', '+', '-', '@':
+	case '+', '-':
+		if _, err := strconv.ParseFloat(trimmed, 64); err == nil {
+			return value // A complete number such as -5 stays a number.
+		}
+		return "'" + value
+	case '=', '@':
 		return "'" + value
 	}
 	return value
@@ -327,19 +332,40 @@ func (a *app) copyRaw(c *ui.Context, flows []flow) {
 
 type rawHeader struct{ name, value string }
 
+// Decoded bodies are reframed, so these wire headers no longer describe the
+// bytes. The list matches capture.clearBodyEncoding.
+var rawFramingHeaders = map[string]bool{
+	"content-length":    true,
+	"transfer-encoding": true,
+	"content-encoding":  true,
+	"content-md5":       true,
+	"digest":            true,
+	"content-digest":    true,
+	"repr-digest":       true,
+}
+
+// rawHeaders keeps the captured wire order when the formatted block has it,
+// then adds any structured headers the block lacks. Structured-only captures
+// have no order left, so their names are sorted.
 func rawHeaders(structured http.Header, formatted string) []rawHeader {
-	if len(structured) > 0 {
-		var headers []rawHeader
-		for _, name := range slices.Sorted(maps.Keys(structured)) {
-			if strings.HasPrefix(name, ":") {
-				continue // HTTP/2 pseudo-headers are not HTTP/1.1 header lines.
-			}
-			for _, value := range structured[name] {
-				headers = append(headers, rawHeader{name, value})
-			}
-		}
-		return headers
+	headers := formattedRawHeaders(formatted)
+	seen := make(map[string]bool, len(headers))
+	for _, h := range headers {
+		seen[strings.ToLower(h.name)] = true
 	}
+	for _, name := range slices.Sorted(maps.Keys(structured)) {
+		lower := strings.ToLower(name)
+		if strings.HasPrefix(name, ":") || seen[lower] {
+			continue // HTTP/2 pseudo-headers are not HTTP/1.1 header lines.
+		}
+		for _, value := range structured[name] {
+			headers = append(headers, rawHeader{name, value})
+		}
+	}
+	return slices.DeleteFunc(headers, func(h rawHeader) bool { return rawFramingHeaders[strings.ToLower(h.name)] })
+}
+
+func formattedRawHeaders(formatted string) []rawHeader {
 	var headers []rawHeader
 	for i, line := range strings.Split(strings.ReplaceAll(formatted, "\r\n", "\n"), "\n") {
 		if strings.TrimSpace(line) == "" || i == 0 && (strings.HasPrefix(line, "HTTP/") || strings.Contains(line, " HTTP/")) {
@@ -465,11 +491,25 @@ func rawBody(f flow, response bool) string {
 	if size == 0 {
 		size = len(body)
 	}
-	if !rawText(body) {
+	visible := body
+	truncated := len(body) > rawCopyBodyLimit
+	if truncated {
+		// A byte limit can land inside a multi-byte character. Cut before the
+		// partial rune so a large UTF-8 body is not mistaken for binary data.
+		cut := rawCopyBodyLimit
+		for cut > 0 && !utf8.RuneStart(body[cut]) {
+			cut--
+		}
+		if cut == 0 {
+			return fmt.Sprintf("[binary body omitted: %d bytes]", size)
+		}
+		visible = body[:cut]
+	}
+	if !rawText(visible) {
 		return fmt.Sprintf("[binary body omitted: %d bytes]", size)
 	}
-	if len(body) > rawCopyBodyLimit {
-		return body[:rawCopyBodyLimit] + fmt.Sprintf("\r\n[body truncated: %d of %d bytes]", rawCopyBodyLimit, size)
+	if truncated {
+		return visible + fmt.Sprintf("\r\n[body truncated: %d of %d bytes]", len(visible), size)
 	}
 	if len(body) < size {
 		return body + fmt.Sprintf("\r\n[body incomplete: %d of %d bytes]", len(body), size)
