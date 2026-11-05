@@ -24,7 +24,7 @@ var HawkAlgorithms = []string{"SHA256", "SHA1"}
 // HawkAuth is how a request is signed with Hawk. Every text field may use
 // {{variables}}.
 type HawkAuth struct {
-	AuthID string `json:"authId,omitempty"`
+	AuthID  string `json:"authId,omitempty"`
 	AuthKey string `json:"authKey,omitempty"`
 	// Algorithm is SHA256 (empty) or SHA1.
 	Algorithm string `json:"algorithm,omitempty"`
