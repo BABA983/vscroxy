@@ -178,10 +178,16 @@ func TestBinaryBodySurvivesSavingAndRunner(t *testing.T) {
 	if err != nil || !bytes.Equal([]byte(prepared.Body), payload) {
 		t.Fatalf("code generation changed binary bytes: %v", err)
 	}
+	// Text-only snippets refuse binary bytes; languages that can read the
+	// source file reference the path instead of inlining the bytes.
 	for _, language := range request.SnippetLanguages {
 		a.code.language = language
-		if _, err := a.codeText(a.requestDocument); err == nil {
-			t.Errorf("%s accepted invalid UTF-8 as a text body", language)
+		code, err := a.codeText(a.requestDocument)
+		if err != nil {
+			continue
+		}
+		if !strings.Contains(code, path) || strings.Contains(code, "{{unchanged}}") || strings.Contains(code, "\x00") {
+			t.Errorf("%s accepted invalid UTF-8 without a file reference: %q", language, code)
 		}
 	}
 	a.srv, a.requests = requestProxy(t), loaded

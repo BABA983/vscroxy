@@ -20,6 +20,17 @@ type codeDialog struct {
 // codeLanguages are cURL, which curl.go writes, then the snippet languages.
 var codeLanguages = append([]string{"cURL", "cURL (CMD)"}, request.SnippetLanguages...)
 
+// codeHints name the runtime or dependency a generated snippet needs.
+var codeHints = map[string]string{
+	"Swift (URLSession)":   "Swift 5+; FoundationNetworking supplies URLSession on Linux.",
+	"Kotlin (OkHttp)":      "Kotlin 1.9+ with OkHttp 4.x.",
+	"Java (java.net.http)": "Java 11+; save as Main.java.",
+	"C# (HttpClient)":      "C# 10+ with .NET 6+.",
+	"PHP (cURL)":           "PHP 8+ with the cURL extension.",
+	"Ruby (Net::HTTP)":     "Ruby 3+.",
+	"Rust (reqwest)":       "Rust 1.70+ with reqwest's blocking feature.",
+}
+
 // draftPrepared is the draft as cURL and code show it: its own or inherited
 // auth and encoded body, with {{variables}} left as they are and no script
 // run, so no secret is expanded into what is copied.
@@ -49,7 +60,7 @@ func (a *app) codeText(d *requestDocument) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return requestCopyText(flow{method: req.Method, url: req.URL, reqHeader: req.Header, reqBody: req.Body}, a.code.language)
+	return requestCopyTextPrepared(req, a.code.language)
 }
 
 func (a *app) codeModal(c *ui.Context, t *ui.Theme) {
@@ -87,6 +98,9 @@ func (a *app) codeModal(c *ui.Context, t *ui.Theme) {
 				if s.language == "cURL (CMD)" {
 					uikit.Hint(c, "Paste into interactive Windows CMD, not PowerShell or a .bat file. ASCII only; use Bash or PowerShell for Unicode.")
 				}
+				if hint := codeHints[s.language]; hint != "" {
+					uikit.Hint(c, hint)
+				}
 				if s.problem != "" {
 					ui.Text(c, s.problem).FontSize(uikit.TextBody).TextColor(t.Danger)
 				}
@@ -116,6 +130,20 @@ func codeLanguage(language string) string {
 		return "Python"
 	case "Go (net/http)":
 		return "Go"
+	case "Swift (URLSession)":
+		return "Swift"
+	case "Kotlin (OkHttp)":
+		return "Kotlin"
+	case "Java (java.net.http)":
+		return "Java"
+	case "C# (HttpClient)":
+		return "C#"
+	case "PHP (cURL)":
+		return "PHP"
+	case "Ruby (Net::HTTP)":
+		return "Ruby"
+	case "Rust (reqwest)":
+		return "Rust"
 	case "cURL", "cURL (CMD)", "HTTPie":
 		return "Shell"
 	}
