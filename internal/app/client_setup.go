@@ -2,6 +2,7 @@ package app
 
 import (
 	"cmp"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"os"
@@ -12,6 +13,7 @@ import (
 	"time"
 
 	"github.com/baba983/vscroxy/internal/clientsetup"
+	"github.com/baba983/vscroxy/internal/store"
 )
 
 // One-click targets. The labels are the picker's values, so a target can be
@@ -58,9 +60,11 @@ type clientSetup struct {
 	androidApplied map[string]androidProxyState
 
 	javaConfirm bool
-	// javaCACerts is the resolved JDK cacerts for the Java panel. It is
-	// cleared when the dialog opens so a changed JDK is picked up.
+	// javaCACerts, javaProblem and javaChecked cache the Java lookup. A failed
+	// lookup must not rerun LookPath and stat on every frame.
 	javaCACerts string
+	javaProblem string
+	javaChecked bool
 
 	electronPath string
 	last         string
@@ -84,8 +88,8 @@ type clientSetupResult struct {
 }
 
 type androidProxyState struct {
-	previous string
-	port     int
+	Previous string `json:"previous"`
+	Port     int    `json:"port"`
 }
 
 type clientLaunch struct {
@@ -114,7 +118,7 @@ func (a *app) openClientSetup() {
 	if a.caPath != "" {
 		s.caPath = a.caPath
 	}
-	s.javaCACerts = ""
+	s.javaCACerts, s.javaProblem, s.javaChecked = "", "", false
 	_ = a.clientSetupResults()
 }
 
@@ -236,10 +240,12 @@ func (a *app) drainClientSetup() {
 						s.androidApplied = make(map[string]androidProxyState)
 					}
 					if _, exists := s.androidApplied[r.serial]; !exists {
-						s.androidApplied[r.serial] = androidProxyState{previous: r.previous, port: r.port}
+						s.androidApplied[r.serial] = androidProxyState{Previous: r.previous, Port: r.port}
+						a.saveAndroidProxyRecords()
 					}
 				case "undo":
 					delete(s.androidApplied, r.serial)
+					a.saveAndroidProxyRecords()
 				}
 				title := cmp.Or(r.success, r.what)
 				if r.warning != nil {
@@ -270,8 +276,8 @@ func (a *app) launchClient(what, success string, bundle bool, f func(clientsetup
 		if err == nil {
 			err = launch.command.Start()
 		}
-		if err != nil && launch.command.Cleanup != nil {
-			launch.command.Cleanup()
+		if err != nil && launch.command.OnStartError != nil {
+			launch.command.OnStartError()
 		}
 		results <- clientSetupResult{
 			action:  "launch",
@@ -303,7 +309,7 @@ func (a *app) openProxiedTerminal() {
 
 func (a *app) openProxiedChrome() {
 	a.launchClient("Open proxied Chrome", "Opened proxied Chrome", false, func(p clientsetup.Proxy) (clientLaunch, error) {
-		profile, err := os.MkdirTemp("", "vscroxy-chrome-*")
+		profile, err := clientsetup.BrowserProfile("chrome")
 		if err != nil {
 			return clientLaunch{}, err
 		}
@@ -316,14 +322,14 @@ func (a *app) openProxiedChrome() {
 			_ = os.RemoveAll(profile)
 			return clientLaunch{}, err
 		}
-		command.Cleanup = func() { _ = os.RemoveAll(profile) }
+		command.OnStartError = func() { _ = os.RemoveAll(profile) }
 		return clientLaunch{command: command}, nil
 	})
 }
 
 func (a *app) openProxiedFirefox() {
 	a.launchClient("Open proxied Firefox", "Opened proxied Firefox", false, func(p clientsetup.Proxy) (clientLaunch, error) {
-		profile, err := os.MkdirTemp("", "vscroxy-firefox-*")
+		profile, err := clientsetup.BrowserProfile("firefox")
 		if err != nil {
 			return clientLaunch{}, err
 		}
@@ -337,7 +343,7 @@ func (a *app) openProxiedFirefox() {
 			_ = os.RemoveAll(profile)
 			return clientLaunch{}, err
 		}
-		command.Cleanup = func() { _ = os.RemoveAll(profile) }
+		command.OnStartError = func() { _ = os.RemoveAll(profile) }
 		return clientLaunch{command: command, warning: warning}, nil
 	})
 }
@@ -410,6 +416,10 @@ func (a *app) applyAndroidProxy() {
 		a.warn("Choose a connected Android device or emulator")
 		return
 	}
+	if _, exists := s.androidApplied[s.androidSerial]; exists {
+		a.warn("Undo the existing Android proxy before setting it again")
+		return
+	}
 	for _, device := range s.android {
 		if device.Serial == s.androidSerial && device.State != "device" {
 			a.warn("Android device " + device.Serial + " is " + device.State + "; authorize or reconnect it first")
@@ -449,7 +459,7 @@ func (a *app) clearAndroidProxy() {
 		}
 	}
 	if applied, ok := s.androidApplied[serial]; ok {
-		port, previous = applied.port, applied.previous
+		port, previous = applied.Port, applied.Previous
 	}
 	if port == 0 {
 		a.fail("Undo Android proxy", errors.New("the proxy port is not available"))
@@ -557,10 +567,71 @@ func (a *app) importJavaCA() {
 	}()
 }
 
+// loadAndroidProxyRecords reads the previous proxy values saved by earlier
+// runs. The file is app-owned; a damaged file is reported, not overwritten.
+func (a *app) loadAndroidProxyRecords() {
+	if a.androidProxyPath == "" {
+		return
+	}
+	data, err := os.ReadFile(a.androidProxyPath)
+	if errors.Is(err, os.ErrNotExist) {
+		return
+	}
+	if err != nil {
+		a.fail("Android proxy records", err)
+		return
+	}
+	var records map[string]androidProxyState
+	if err := json.Unmarshal(data, &records); err != nil {
+		a.fail("Android proxy records", err)
+		return
+	}
+	a.clientUI.androidApplied = records
+}
+
+// saveAndroidProxyRecords keeps undo information across restarts. It stores only
+// the previous proxy and the port whose reverse listener was added.
+func (a *app) saveAndroidProxyRecords() {
+	if a.androidProxyPath == "" {
+		return
+	}
+	data, err := json.Marshal(a.clientUI.androidApplied)
+	if err == nil {
+		err = store.WriteFile(a.androidProxyPath, append(data, '\n'))
+	}
+	if err != nil {
+		a.fail("Save Android proxy records", err)
+	}
+}
+
 // cleanupClientDirs removes old temporary profiles and terminal scripts that a
 // crash left behind. A browser that is still running keeps a recent directory.
 func cleanupClientDirs() {
-	_, _ = clientsetup.CleanupOldDirs(os.TempDir(), 7*24*time.Hour)
+	roots := cleanupRoots(os.TempDir(), runtime.GOOS)
+	if home, err := os.UserHomeDir(); err == nil && runtime.GOOS == "linux" {
+		if entries, readErr := os.ReadDir(filepath.Join(home, "snap")); readErr == nil {
+			for _, entry := range entries {
+				if entry.IsDir() {
+					roots = append(roots, filepath.Join(home, "snap", entry.Name(), "common"))
+				}
+			}
+		}
+	}
+	for _, root := range roots {
+		_, _ = clientsetup.CleanupOldDirs(root, 7*24*time.Hour)
+	}
+}
+
+// cleanupRoots includes /tmp because terminal scripts live there even when
+// TMPDIR points somewhere else on macOS.
+func cleanupRoots(temp, goos string) []string {
+	if goos == "windows" {
+		return []string{temp}
+	}
+	if filepath.Clean(temp) == "/tmp" {
+		return []string{temp}
+	}
+	return []string{temp, "/tmp"}
 }
 
 // Examples configure only the requesting process. They never install a root

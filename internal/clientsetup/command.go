@@ -1,6 +1,7 @@
 package clientsetup
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"os"
@@ -44,9 +45,11 @@ type Argv struct {
 	Env []string
 	// NewConsole asks Windows to create a console window for the child.
 	NewConsole bool
-	// Cleanup runs after a started child exits, such as removing a temporary
-	// browser profile.
-	Cleanup func()
+	// OnStartError removes resources such as a temporary browser profile when
+	// the client could not be started. It must not run after a successful
+	// start: Firefox and Chrome launchers may exit while the real browser is
+	// still using the profile.
+	OnStartError func()
 }
 
 // String renders the command for a person to review or copy.
@@ -85,8 +88,9 @@ func (c Argv) Run() error {
 
 // Start launches a long-lived client and releases it from this process. The
 // caller does not wait for a terminal or a browser; a background Wait reaps it
-// when it exits instead of leaving a zombie for the app's lifetime. Cleanup
-// runs after the child exits.
+// when it exits instead of leaving a zombie for the app's lifetime. It does not
+// remove a browser profile on exit: launcher processes can exit while the real
+// browser is still running.
 func (c Argv) Start() error {
 	bin, err := toolPath(c.Name)
 	if err != nil {
@@ -96,25 +100,24 @@ func (c Argv) Start() error {
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("start %s: %w", c.Name, err)
 	}
-	go func() {
-		_ = cmd.Wait()
-		if c.Cleanup != nil {
-			c.Cleanup()
-		}
-	}()
+	go func() { _ = cmd.Wait() }()
 	return nil
 }
 
-// RunOutput returns a helper's standard output.
+// RunOutput returns a helper's standard output. Standard error is used only in
+// the error message, never returned as data: adb writes daemon chatter there.
 func RunOutput(c Argv) ([]byte, error) {
 	bin, err := toolPath(c.Name)
 	if err != nil {
 		return nil, err
 	}
-	out, err := c.command(bin).CombinedOutput()
+	cmd := c.command(bin)
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	out, err := cmd.Output()
 	if err != nil {
 		line := c.String(runtime.GOOS == "windows")
-		if msg := strings.TrimSpace(string(out)); msg != "" {
+		if msg := strings.TrimSpace(stderr.String()); msg != "" {
 			return nil, fmt.Errorf("%s: %s", line, firstLine(msg))
 		}
 		return nil, fmt.Errorf("%s: %w", line, err)
@@ -146,35 +149,13 @@ func JoinCommands(commands []Argv, windows bool) string {
 	return strings.Join(parts, " && ")
 }
 
-// MergeEnv returns base with extra's names replaced, ignoring case because
-// Windows environment names are case-insensitive. Duplicate names in base are
-// removed, so a child never sees two HTTP_PROXY entries.
+// MergeEnv appends extra to base. exec deduplicates names (case-insensitively
+// on Windows) and keeps the last value, so later entries win without this
+// function rewriting names such as =C:.
 func MergeEnv(base, extra []string) []string {
 	merged := make([]string, 0, len(base)+len(extra))
-	index := make(map[string]int, len(base))
-	for _, entry := range base {
-		name, _, _ := strings.Cut(entry, "=")
-		key := strings.ToUpper(name)
-		if _, exists := index[key]; exists {
-			continue
-		}
-		index[key] = len(merged)
-		merged = append(merged, entry)
-	}
-	for _, entry := range extra {
-		name, value, _ := strings.Cut(entry, "=")
-		key := strings.ToUpper(name)
-		if at, exists := index[key]; exists {
-			// Keep the first spelling of a name; Windows treats names
-			// case-insensitively, so a second casing would be a duplicate.
-			existing, _, _ := strings.Cut(merged[at], "=")
-			merged[at] = existing + "=" + value
-			continue
-		}
-		index[key] = len(merged)
-		merged = append(merged, entry)
-	}
-	return merged
+	merged = append(merged, base...)
+	return append(merged, extra...)
 }
 
 // findExecutable prefers an explicit path, then a name on PATH.

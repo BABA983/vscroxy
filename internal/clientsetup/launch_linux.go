@@ -33,7 +33,9 @@ func OpenTerminal(p Proxy) (Argv, error) {
 		if err != nil {
 			return Argv{}, err
 		}
-		return Argv{Name: bin, Args: terminalArgs(bin, script)}, nil
+		command := Argv{Name: bin, Args: terminalArgs(bin, script)}
+		command.OnStartError = func() { RemoveTerminalScript(script) }
+		return command, nil
 	}
 	return Argv{}, &MissingToolError{
 		Tool: "terminal emulator",
@@ -57,14 +59,30 @@ func terminalArgs(terminal, script string) []string {
 	}
 }
 
-// OpenChrome starts Chrome or Chromium on a separate temporary profile.
-func OpenChrome(p Proxy, profile string) (Argv, error) {
+func chromeBinary() (string, error) {
 	path, ok := findExecutable(nil, []string{"google-chrome", "google-chrome-stable", "chromium", "chromium-browser"})
 	if !ok {
-		return Argv{}, &MissingToolError{
+		return "", &MissingToolError{
 			Tool: "Google Chrome or Chromium",
 			Hint: "install one, or put google-chrome or chromium on PATH",
 		}
+	}
+	return path, nil
+}
+
+func firefoxBinary() (string, error) {
+	path, ok := findExecutable(nil, []string{"firefox", "firefox-esr"})
+	if !ok {
+		return "", &MissingToolError{Tool: "Firefox", Hint: "install Firefox, or put firefox on PATH"}
+	}
+	return path, nil
+}
+
+// OpenChrome starts Chrome or Chromium on a separate temporary profile.
+func OpenChrome(p Proxy, profile string) (Argv, error) {
+	path, err := chromeBinary()
+	if err != nil {
+		return Argv{}, err
 	}
 	args, err := ChromeArgs(p, profile)
 	if err != nil {
@@ -75,9 +93,9 @@ func OpenChrome(p Proxy, profile string) (Argv, error) {
 
 // OpenFirefox starts Firefox on a separate temporary profile.
 func OpenFirefox(profile string) (Argv, error) {
-	path, ok := findExecutable(nil, []string{"firefox", "firefox-esr"})
-	if !ok {
-		return Argv{}, &MissingToolError{Tool: "Firefox", Hint: "install Firefox, or put firefox on PATH"}
+	path, err := firefoxBinary()
+	if err != nil {
+		return Argv{}, err
 	}
 	args, err := FirefoxArgs(profile)
 	if err != nil {

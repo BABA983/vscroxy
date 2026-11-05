@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -107,6 +108,8 @@ func TestOneClickJavaShowsAReviewableCommandBeforeConfirming(t *testing.T) {
 		a.javaTruststorePath(),
 		"-Dhttp.proxyHost=127.0.0.1",
 		"-Dhttps.proxyPort=",
+		"mv ",
+		".import",
 	} {
 		if !tt.HasText(want) {
 			t.Fatalf("missing %q: %v", want, tt.Texts())
@@ -209,5 +212,174 @@ func TestOneClickTerminalMissingHelperIsReported(t *testing.T) {
 	}
 	if !strings.HasPrefix(a.message, "Open proxied terminal:") || !strings.Contains(a.message, "terminal emulator not found") || !strings.Contains(a.message, "xterm") {
 		t.Fatalf("missing terminal was not explained: %q", a.message)
+	}
+}
+
+func TestOneClickFirefoxKeepsTheProfileAfterTheLauncherExits(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("fake Firefox is a shell script")
+	}
+	a := oneClickApp(t)
+	binDir := t.TempDir()
+	log := filepath.Join(t.TempDir(), "firefox args")
+	fake := filepath.Join(binDir, "firefox")
+	script := "#!/bin/sh\nprintf '%s\\n' \"$*\" > " + clientsetup.POSIXQuote(log) + "\nexit 0\n"
+	if err := os.WriteFile(fake, []byte(script), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", binDir)
+	t.Setenv("TERMINAL", "")
+	a.clientUI.target = clientTargetFirefox
+	tt := ui.NewTester(a.view, 960, 600)
+	if err := tt.Click("Open Firefox"); err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	var args string
+	for time.Now().Before(deadline) {
+		data, err := os.ReadFile(log)
+		if err == nil {
+			args = string(data)
+			break
+		}
+		tt.Frame()
+		time.Sleep(10 * time.Millisecond)
+	}
+	if args == "" {
+		t.Fatal("fake Firefox did not run")
+	}
+	fields := strings.Fields(args)
+	profile := ""
+	for i, field := range fields {
+		if field == "-profile" && i+1 < len(fields) {
+			profile = fields[i+1]
+			break
+		}
+	}
+	if profile == "" {
+		t.Fatalf("no profile in %q", args)
+	}
+	time.Sleep(200 * time.Millisecond) // let the launcher's Wait return
+	if _, err := os.Stat(filepath.Join(profile, "user.js")); err != nil {
+		t.Fatalf("profile was removed after the launcher exited: %v", err)
+	}
+}
+
+func TestOneClickJavaCachesAMissingTool(t *testing.T) {
+	a := oneClickApp(t)
+	a.clientUI.target = clientTargetJava
+	t.Setenv("PATH", "")
+	t.Setenv("JAVA_HOME", "")
+	tt := ui.NewTester(a.view, 960, 600)
+	tt.Frame()
+	if !a.clientUI.javaChecked || a.clientUI.javaProblem == "" || a.clientUI.javaCACerts != "" {
+		t.Fatalf("missing keytool was not cached: checked=%v problem=%q cacerts=%q", a.clientUI.javaChecked, a.clientUI.javaProblem, a.clientUI.javaCACerts)
+	}
+	problem := a.clientUI.javaProblem
+	jdk := t.TempDir()
+	binDir := filepath.Join(jdk, "bin")
+	cacerts := filepath.Join(jdk, "lib", "security", "cacerts")
+	if err := os.MkdirAll(binDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Dir(cacerts), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(cacerts, []byte("cacerts"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(binDir, "keytool"), nil, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", binDir)
+	t.Setenv("JAVA_HOME", jdk)
+	tt = ui.NewTester(a.view, 960, 600)
+	tt.Frame()
+	if a.clientUI.javaCACerts != "" || a.clientUI.javaProblem != problem {
+		t.Fatalf("failed lookup was retried: cacerts=%q problem=%q", a.clientUI.javaCACerts, a.clientUI.javaProblem)
+	}
+}
+
+func TestAndroidProxyRecordsPersistAcrossRuns(t *testing.T) {
+	a := workspaceApp()
+	a.androidProxyPath = filepath.Join(t.TempDir(), "android-proxy.json")
+	a.clientUI.androidApplied = map[string]androidProxyState{
+		"emulator-5554": {Previous: "10.0.2.2:8888", Port: 7890},
+	}
+	a.saveAndroidProxyRecords()
+	info, err := os.Stat(a.androidProxyPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Mode().Perm() != 0o600 {
+		t.Fatalf("mode %v, want 0600", info.Mode().Perm())
+	}
+	a.clientUI.androidApplied = nil
+	a.loadAndroidProxyRecords()
+	state, ok := a.clientUI.androidApplied["emulator-5554"]
+	if !ok || state.Previous != "10.0.2.2:8888" || state.Port != 7890 {
+		t.Fatalf("records: %+v", a.clientUI.androidApplied)
+	}
+	delete(a.clientUI.androidApplied, "emulator-5554")
+	a.saveAndroidProxyRecords()
+	a.clientUI.androidApplied = nil
+	a.loadAndroidProxyRecords()
+	if len(a.clientUI.androidApplied) != 0 {
+		t.Fatalf("records not cleared: %+v", a.clientUI.androidApplied)
+	}
+}
+
+func TestCleanupRootsIncludesTmpForMacOS(t *testing.T) {
+	if got, want := cleanupRoots("/var/folders/x", "darwin"), []string{"/var/folders/x", "/tmp"}; !slices.Equal(got, want) {
+		t.Fatalf("darwin roots: got %q want %q", got, want)
+	}
+	if got, want := cleanupRoots("/tmp", "linux"), []string{"/tmp"}; !slices.Equal(got, want) {
+		t.Fatalf("linux roots: got %q want %q", got, want)
+	}
+	if got, want := cleanupRoots(`C:\Temp`, "windows"), []string{`C:\Temp`}; !slices.Equal(got, want) {
+		t.Fatalf("windows roots: got %q want %q", got, want)
+	}
+}
+
+func TestOneClickAndroidPersistsAndClearsUndoState(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("fake adb is a shell script")
+	}
+	a := oneClickApp(t)
+	a.androidProxyPath = filepath.Join(t.TempDir(), "android-proxy.json")
+	a.clientUI.target = clientTargetAndroid
+	a.clientUI.androidLoaded = true
+	a.clientUI.android = []clientsetup.AndroidDevice{{Serial: "emulator-5554", State: "device", Model: "Pixel_7"}}
+	a.clientUI.androidSerial = "emulator-5554"
+	binDir := t.TempDir()
+	fake := filepath.Join(binDir, "adb")
+	script := "#!/bin/sh\ncase \"$*\" in *\"settings get global http_proxy\"*) echo '10.0.2.2:8888';; esac\nexit 0\n"
+	if err := os.WriteFile(fake, []byte(script), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", binDir)
+	tt := ui.NewTester(a.view, 960, 600)
+	if err := tt.Click("Set proxy"); err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for len(a.clientUI.androidApplied) == 0 && time.Now().Before(deadline) {
+		tt.Frame()
+		time.Sleep(10 * time.Millisecond)
+	}
+	state, ok := a.clientUI.androidApplied["emulator-5554"]
+	if !ok || state.Previous != "10.0.2.2:8888" || state.Port == 0 {
+		t.Fatalf("applied state: %+v", a.clientUI.androidApplied)
+	}
+	if err := tt.Click("Undo proxy"); err != nil {
+		t.Fatal(err)
+	}
+	deadline = time.Now().Add(5 * time.Second)
+	for len(a.clientUI.androidApplied) > 0 && time.Now().Before(deadline) {
+		tt.Frame()
+		time.Sleep(10 * time.Millisecond)
+	}
+	if len(a.clientUI.androidApplied) != 0 {
+		t.Fatalf("undo did not clear state: %+v", a.clientUI.androidApplied)
 	}
 }

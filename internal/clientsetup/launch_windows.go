@@ -33,14 +33,30 @@ func OpenTerminal(p Proxy) (Argv, error) {
 	}, nil
 }
 
-// OpenChrome starts Chrome or Chromium on a separate temporary profile.
-func OpenChrome(p Proxy, profile string) (Argv, error) {
+func chromeBinary() (string, error) {
 	path, ok := findExecutable(windowsChromePaths(), []string{"chrome.exe", "chromium.exe"})
 	if !ok {
-		return Argv{}, &MissingToolError{
+		return "", &MissingToolError{
 			Tool: "Google Chrome or Chromium",
 			Hint: "install Chrome, or put chrome.exe on PATH",
 		}
+	}
+	return path, nil
+}
+
+func firefoxBinary() (string, error) {
+	path, ok := findExecutable(windowsFirefoxPaths(), []string{"firefox.exe"})
+	if !ok {
+		return "", &MissingToolError{Tool: "Firefox", Hint: "install Firefox"}
+	}
+	return path, nil
+}
+
+// OpenChrome starts Chrome or Chromium on a separate temporary profile.
+func OpenChrome(p Proxy, profile string) (Argv, error) {
+	path, err := chromeBinary()
+	if err != nil {
+		return Argv{}, err
 	}
 	args, err := ChromeArgs(p, profile)
 	if err != nil {
@@ -51,9 +67,9 @@ func OpenChrome(p Proxy, profile string) (Argv, error) {
 
 // OpenFirefox starts Firefox on a separate temporary profile.
 func OpenFirefox(profile string) (Argv, error) {
-	path, ok := findExecutable(windowsFirefoxPaths(), []string{"firefox.exe"})
-	if !ok {
-		return Argv{}, &MissingToolError{Tool: "Firefox", Hint: "install Firefox"}
+	path, err := firefoxBinary()
+	if err != nil {
+		return Argv{}, err
 	}
 	args, err := FirefoxArgs(profile)
 	if err != nil {

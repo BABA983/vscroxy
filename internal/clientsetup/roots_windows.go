@@ -10,7 +10,7 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-// platformSystemRoots exports the machine's Root certificate store. Using the
+// platformSystemRoots exports the Root certificate store. Using the
 // CryptoAPI avoids certutil's text output and works without a console.
 func platformSystemRoots() ([]byte, error) {
 	store, err := windows.CertOpenSystemStore(0, windows.StringToUTF16Ptr("ROOT"))
