@@ -1805,8 +1805,11 @@ credentials.
 
 **Import…** in the sidebar footer, **Session → Import…** and the command
 palette read a Postman Collection v2.0 or v2.1 file, an environment or a
-globals export, a HAR file or an OpenAPI 3.0 or 3.1 document (JSON or YAML),
-telling them apart by their contents.
+globals export, an Insomnia v4 JSON or v5 YAML export, a Hoppscotch
+collection or environment JSON export, a Swagger 2.0 document, a HAR file or
+an OpenAPI 3.0 or 3.1 document (JSON or YAML), telling them apart by their
+contents. **Import Bruno collection…** in the same menus reads a `.bru`
+collection directory.
 
 A **HAR** file becomes a collection named after the file: every HTTP(S) entry,
 in order, converted as **Save as request** converts a captured row, up to 1000
@@ -1817,6 +1820,45 @@ its title, with a folder per operation's first tag; each request is the draft
 uses `{{base_url}}`, and the collection gets an empty `base_url` variable to
 fill in. **Create collection** in the API editor does the same for an open,
 validated contract. A name already in use gets a number: “Pet Store 2”.
+
+An **Insomnia** export becomes one collection per workspace (v4) or its
+top-level collection (v5). Request groups and `children` become folders;
+folder and collection variables, auth, descriptions and request bodies are
+kept. The shared Insomnia body model maps JSON, text, XML, YAML, EDN, GraphQL,
+urlencoded and multipart bodies; binary bodies keep their `fileName` as a local
+path. Environments are merged by name, and a v4/v5 sub-environment inherits
+its base values. Insomnia scripts use the `insomnia` API, request descriptions
+have no field here, and cookie jars, API specs, tests and gRPC/WebSocket
+requests are not imported; each is listed after the import.
+
+A **Hoppscotch** export may be one collection object or a workspace array.
+Nested folders, collection and folder variables, auth, request variables and
+the JSON, raw, urlencoded, multipart and GraphQL body shapes are kept.
+Collection and folder headers have no field in a folder's settings and are
+listed as dropped. Request scripts use the `pw` API, request descriptions have
+no field, and saved examples are not imported; each is listed after the import.
+Environment exports (one object or an array) merge into environments of the
+same name.
+
+**Import Bruno collection…** picks a directory with `bruno.json`,
+`collection.bru`, `folder.bru` files and `environments/*.bru`. Nested folders,
+collection/folder/request variables, auth, docs and the JSON, text, XML, SPARQL,
+GraphQL, urlencoded, multipart and file bodies are kept. Collection and folder
+headers are copied into each request beneath them and listed, because folder
+settings have no header table here. Bruno `script:*`, `tests` and most `assert`
+entries use Bruno's API and are listed as not imported; simple `res.status` and
+`res.headers.*` assertions become response Checks. Environment `vars` are
+imported; `vars:secret` holds only names, so those values stay outside the
+collection and are listed.
+
+A **Swagger 2.0** document is converted to OpenAPI 3.0 and then imported like
+an OpenAPI document: one collection named after `info.title`, a folder per
+first tag, the first server as the base URL and path/required query/header
+parameters as `{{variables}}`. Request bodies are schemas without invented
+example values. Security requirements are not applied to requests. Operation
+level `consumes`, form-data fields, file uploads and multiple schemes are
+listed after the import. The API editor still accepts only OpenAPI 3.0/3.1
+documents; use **Import…** for a Swagger 2 collection.
 
 A Postman collection
 becomes requests under its name, its folders become collection
@@ -2012,13 +2054,21 @@ Postman importer. The separate `vscroxy-regression` sharing/import format is ret
 ### cURL
 
 **Import cURL…** is available at the bottom of the Requests sidebar, in
-**Session**, and in the native **File** menu. Paste one Bash/POSIX command to
-open a new, unsent tab without replacing another draft or saving it automatically.
-Single/double quotes, escaped newlines, Bash `$'…'` strings, inline short options
-and `--option=value` are supported. Import reads literal request data only:
-URL, method, repeated headers, cookies, Basic credentials, user agent, referer,
-JSON/raw/form-encoded bodies and `--get` query data. Shell/environment/glob
-expansion is never run. `{{variables}}` remain placeholders.
+**Session**, and in the native **File** menu. Paste one Bash/POSIX command,
+Chrome's **Copy as cURL (cmd)** output, or Chrome's **Copy as PowerShell**
+output to open a new, unsent tab without replacing another draft or saving it
+automatically. Bash single/double quotes, escaped newlines, `$'…'` strings,
+inline short options and `--option=value` are supported. CMD output is decoded
+through cmd.exe's `^`/`^"` quoting, including `^^%` for a literal percent and
+`^` line continuations, then read as the same cURL request. PowerShell output
+is read as `Invoke-WebRequest -Uri … -Method … -Headers @{…} -ContentType …
+-Body …`, including backtick line continuations, the session prelude's
+`UserAgent` and cookies, and Chrome's
+`([System.Text.Encoding]::UTF8.GetBytes("…"))` body wrapper. Import reads
+literal request data only: URL, method, repeated headers, cookies, Basic
+credentials, user agent, referer, JSON/raw/form-encoded bodies and `--get`
+query data. Shell/environment/glob expansion and PowerShell interpolation are
+never run. `{{variables}}` remain placeholders.
 
 `--location` / `-L` follows up to 50 HTTP(S) redirects; `--no-location`
 disables it again (last option wins). Without these flags, imported requests do
@@ -2043,7 +2093,11 @@ options such as `--insecure`, `--location-trusted`, `--max-redirs`, `--post302`
 and `--config` are rejected rather than silently changing behavior. Output flags
 and `--compressed` are accepted but not
 applied; sending uses this app's proxy/client, not curl's transfer settings.
-PowerShell and Windows CMD quoting are not supported. Commands are limited to
+CMD and PowerShell commands accept the same request data but not every
+PowerShell parameter: `-UseBasicParsing`, `-Uri`, `-Method`, `-Headers`,
+`-ContentType`, `-Body` and `-WebSession` are read, and any other parameter is
+reported instead of dropped. A PowerShell import keeps the workspace's normal
+redirect behavior, unlike cURL's no-follow default. Commands are limited to
 16 MiB.
 
 **Generate code…** (request **⋯** menu or command palette) shows the draft as
@@ -2150,9 +2204,10 @@ Specifications live in `~/.vscroxy/apis.json`. Saving requests does not update
 them. A generated specification tracks its source collection and shows a warning
 when saved requests change; **Generate new draft** creates another specification,
 never overwriting hand edits. There is no automatic/bidirectional sync, multi-file
-bundling, Swagger 2 import or schema inference yet. Unsaved API editors and source
-links are session-local; saved contracts are restored after restart. **API
-contracts** in Commands opens the first one.
+bundling, Swagger 2 import in the API editor or schema inference yet; the
+collection importer reads Swagger 2 and converts it to OpenAPI 3.0. Unsaved API
+editors and source links are session-local; saved contracts are restored after
+restart. **API contracts** in Commands opens the first one.
 
 ## Timing
 
