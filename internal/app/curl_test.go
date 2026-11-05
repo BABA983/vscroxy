@@ -241,6 +241,27 @@ func TestCurlImportRedirectHeadersAndLimits(t *testing.T) {
 	}
 }
 
+func TestCurlImportAcceptsCMDAndPowerShell(t *testing.T) {
+	cmd := `curl ^"https://api.example.com/items^" ^` + "\n" +
+		`  -X ^"POST^" ^` + "\n" +
+		`  -H ^"Accept: application/json^" ^` + "\n" +
+		`  --data-raw ^"^{^` + "\n\n" + `^\^"name^\^":^\^"Ada^\^"^` + "\n\n" + `^}^"`
+	r, err := parseCurl(cmd)
+	if err != nil || r.Method != "POST" || r.Body != "{\n\"name\":\"Ada\"\n}" || request.ParseHeaderBlock(r.Headers).Get("Accept") != "application/json" {
+		t.Fatalf("CMD import %+v, %v", r, err)
+	}
+	ps := "$session = New-Object Microsoft.PowerShell.Commands.WebRequestSession\n" +
+		"$session.UserAgent = \"fixture-agent\"\n" +
+		"Invoke-WebRequest -UseBasicParsing -Uri \"https://api.example.com/items\" `\n" +
+		"-Method \"PATCH\" `\n" +
+		"-Headers @{\n\"accept\"=\"application/json\"\n} `\n" +
+		"-Body \"hello\""
+	r, err = parseCurl(ps)
+	if err != nil || r.Method != "PATCH" || r.Body != "hello" || request.ParseHeaderBlock(r.Headers).Get("User-Agent") != "fixture-agent" {
+		t.Fatalf("PowerShell import %+v, %v", r, err)
+	}
+}
+
 func TestParseCurlRefusesExecutableOrUnsupportedInput(t *testing.T) {
 	for _, command := range []string{
 		"", "wget https://example.test", "curl 'unclosed", "curl",
