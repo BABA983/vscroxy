@@ -175,8 +175,8 @@
 | Auth：Inherit、Bearer、Basic、API key、OAuth 2.0、OAuth 1.0、Digest、AWS、JWT、Hawk、Akamai EdgeGrid | 已有 | OAuth 1.0：HMAC-SHA1/SHA256、PLAINTEXT、RSA-SHA1/256/512，header／query／body 位置、body hash、Postman oauth1 导入导出；Hawk：SHA-256/SHA-1、payload hash、ext／app／delegation；EdgeGrid：Base URL、签名头列表、POST 正文 hash | |
 | Auth：NTLM | 缺少 | 需要同一连接完成 Type 1/2/3 质询；Send／Runner 每次发送新建连接（`capture.ReplayWithRedirects` 禁用 keep-alive，代理按下游连接固定上游），无法握手；Postman 导入警告并置为 None | M6 |
 | 环境、全局变量、集合/文件夹变量、Vault | 已有 | | |
-| 变量分"可提交的初始值"和"仅本地的当前值" | 缺少 | 对放进 Git 的集合很重要 | M6 |
-| `{{变量}}` 自动补全、悬停预览、未定义高亮 | 缺少 | | M6 |
+| 变量分"可提交的初始值"和"仅本地的当前值" | 已有 | 环境、全局、集合/文件夹变量都有 Initial 和 Current；发送用非空 Current，否则 Initial；脚本写 Current；变量表和文件夹设置可持久化或重置 Current；Postman 导入导出只用 Initial。M3 向导和录制的凭据引用复用同一套环境 Current | M6 |
+| `{{变量}}` 自动补全、悬停预览、未定义高亮 | 已有 | URL、Params、Headers、Body（raw/GraphQL/form/binary 路径）和 Auth；补全列出环境/集合/文件夹/全局/动态/Vault（Vault 解锁时），悬停显示值与来源并遮罩敏感值，未定义用危险色或诊断下划线。单行输入是整字段悬停，代码编辑器是精确 token；编辑器补全在变量名首字符或 Ctrl+Space 后出现 | M6 |
 | 动态变量 | 部分 | 已有 32 个：补齐常用姓名、电话、国家代码、经纬度、IPv6/MAC、域名/URL、示例邮箱、版本、价格、颜色和星期/月；内置小型词库，尚非完整 Faker | M6 |
 | `pm` 脚本 API、Console、测试 | 已有 | | |
 | 脚本沙箱库（lodash、crypto-js、moment 等） | 部分 | 已内嵌 Lodash 4.18.1，支持 `require('lodash')`，按脚本隔离；无定时器，暂不支持 delay/debounce 等；crypto-js、moment 等仍缺少 | M6 |
@@ -272,7 +272,7 @@
 - 抓包 → OpenAPI 串进向导。
 
 首版已实现：六步草稿向导，多选／域名／App 入口，数字和 UUID 路径推断及手动拆合，
-Host／Path prefix／Flat 组织、拖动和排序，环境 Current value／Vault 凭据引用，
+Host／Path prefix／Flat 组织、拖动和排序，环境 Current 值（与全局/集合/文件夹同一套 Initial/Current 模型）／Vault 凭据引用，
 最近成功及各错误状态 Examples，可选独立 OpenAPI 草稿，以及 Matches 弹层的打开／追加示例。
 Current value 仅本机明文存储且不导出；集合 Auth 只共享一致的 Authorization，
 Cookie 和其他 API key 保留为变量 header，避免把多个认证机制硬塞进单一 Auth。
@@ -310,7 +310,7 @@ Cookie 和其他 API key 保留为变量 header，避免把多个认证机制硬
 - Body：binary、GraphQL 基础已完成；GraphQL schema 自省、补全和 operationName 选择待做。
 - 请求描述、集合文档视图和单个请求的设置已完成：Markdown 描述随请求、文件夹和集合落盘，集合菜单的 View documentation… 只读渲染并列出请求；超时、重定向（含最大次数）和证书校验在请求 Settings 页与文件夹/集合的 Request defaults 设置，Send 和 Runner 生效，Postman 的 `protocolProfileBehavior` 与 cURL 参数往返；关闭证书校验有明确警告。
 - 证书：请求侧的客户端证书和自定义 CA；抓包侧的上游 mTLS 和自定义根证书。
-- 变量：初始值/当前值、自动补全和悬停、完整动态变量（常用项已扩至 32 个，仍未覆盖完整 Faker）。
+- 变量：初始值/当前值已完成（环境、全局、集合/文件夹；脚本写 Current；变量表可持久化/重置；Postman 导入导出用 Initial）；`{{变量}}` 自动补全、悬停预览和未定义高亮已完成（单行输入整字段悬停，代码编辑器精确 token；动态变量 32 个，仍未覆盖完整 Faker）。
 - 脚本：沙箱库；`have.jsonSchema` 已完成（Ajv 6.12.6，无 UI 改动）。
 - Postman Collection v3 导入导出。
 - OAuth 1.0、Hawk、Akamai EdgeGrid 已完成，含变量展开、Vault、Send／Runner、Postman 导入导出和代码导出；NTLM 因需要同一连接完成质询握手，当前发送路径每次新建连接，未实现。

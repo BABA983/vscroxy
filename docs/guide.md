@@ -1833,10 +1833,21 @@ its requests, folders and settings move together, and open tabs follow.
   file's row, then run input (the active environment or a preceding Runner
   step), then the nearest folder up to the collection, then globals. Disabled
   rows are skipped. **Request variables** names the source of each value.
-- **Current values** in Variables override shared environment values locally.
-  They are masked by default, saved locally in plaintext and omitted from
-  Postman environment exports. Use Vault when encryption is required. Script
-  updates to an existing Current value stay local too.
+- **Initial and Current values**: every environment, global, collection and
+  folder variable has a shared **Initial** value and a local **Current** value.
+  Initial is saved with the environment export or the collection directory, so
+  it can be committed to Git. Current stays in `~/.vscroxy/env.json` on this
+  machine and is never written to the collection directory or an export. Sends
+  use a nonempty Current and fall back to Initial when Current is empty.
+  Scripts (`pm.environment.set`, `pm.globals.set`,
+  `pm.collectionVariables.set` and their `unset`) write Current only; Initial
+  stays as the shared file has it. The Variables dialog and a collection's or
+  folder's Variables tab show both columns. **Persist current** copies Current
+  into Initial (so the next save or export carries it); **Reset current** drops
+  the local override. Credential-like names (`token`, `secret`, `password`,
+  `key`, `authorization`, `cookie`, `session`) are masked until the eye reveals
+  them. Postman environment, globals and collection imports map Postman's
+  `value` to Initial; exports write Initial and never Current.
 - **Dynamic variables** follow Postman's names and are generated for every
   occurrence on every send, written as `{{$guid}}`. In scripts, use
   `pm.variables.replaceIn('{{$randomFirstName}}')`. Names are case-sensitive;
@@ -1855,6 +1866,21 @@ its requests, folders and settings move together, and open tabs follow.
     (−180 to 180). Coordinates have four decimal places.
   - **Other test data**: `$randomPrice` (0.00–1000.00, two decimal places),
     `$randomWeekday`, `$randomMonth` (English names).
+
+**Variable hints** appear in the URL, Params, Headers, Body (raw, GraphQL,
+form and binary path) and Auth fields. Typing `{{` opens a list of variables
+from the active environment, the request's collection and folders, globals,
+the dynamic `$...` names, and Vault names when the Vault is unlocked; each row
+names its scope. Choosing one inserts `{{name}}`. In a single-line input the
+list is a popover below the field; in the raw body and GraphQL editors it
+appears below the caret after the first variable-name character or on
+Ctrl+Space (the editor does not open a list for the bare braces). Hovering a
+field shows every variable in it with the resolved value and source; hovering
+a token in a code editor shows that token. Vault values and credential-like
+names are masked. A name no scope defines is shown in the danger color in a
+single-line field and underlined with an "Undefined variable" diagnostic in a
+code editor; it stays literal when sent. Vault names are listed only once the
+Vault is unlocked, so unlocking is not a side effect of opening a completion.
 
 These use small built-in sample vocabularies, not the full Faker dataset or its
 locale coverage. Generated fields are independent: a full name is not tied to
