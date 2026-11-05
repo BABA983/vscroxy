@@ -80,13 +80,17 @@ profile, an emulator setting or the app's own Java truststore changes.
   window changes. The app also writes
   `~/.vscroxy/client-ca-bundle.pem` (0600) containing the system roots plus the
   vscroxy CA, and points `REQUESTS_CA_BUNDLE`, `SSL_CERT_FILE`,
-  `CURL_CA_BUNDLE`, `GIT_SSL_CAINFO`, `PIP_CERT` and `DENO_CERT` at it. Those
-  variables replace a client's trust store, so the bundle keeps hosts that are
-  tunneled rather than decrypted working; pointing them at the app CA alone
-  would make every undecrypted HTTPS host fail. If no system bundle can be
-  found, the app sets only `NODE_EXTRA_CA_CERTS` and warns. On Linux `$TERMINAL`
-  is preferred, then `x-terminal-emulator`, GNOME Terminal, Konsole, Xfce
-  Terminal, Alacritty, Kitty, WezTerm, foot and xterm; macOS uses Terminal.app;
+  `CURL_CA_BUNDLE`, `GIT_SSL_CAINFO`, `PIP_CERT` and `DENO_CERT` at it. Most
+  of those variables replace a client's trust store, so the bundle keeps hosts
+  that are tunneled rather than decrypted working; pointing them at the app CA
+  alone would make every undecrypted HTTPS host fail. `DENO_CERT` adds the
+  bundle's CAs rather than replacing Deno's stores, and `NODE_EXTRA_CA_CERTS`
+  likewise adds to Node's roots. If no system bundle can be found, the app sets
+  only `NODE_EXTRA_CA_CERTS` and warns. On macOS the bundle includes both System
+  Roots and the System keychain, where enterprise roots are installed. On Linux
+  `$TERMINAL` is preferred, then `x-terminal-emulator`, GNOME Terminal, Konsole,
+  Xfce Terminal, Alacritty, Kitty, WezTerm, foot and xterm; macOS uses
+  Terminal.app;
   Windows opens a new `cmd.exe` window with the variables in its environment,
   not a batch file, so non-ASCII paths are safe.
 - **Chrome** starts with a temporary `--user-data-dir` and `--proxy-server`.
@@ -97,13 +101,15 @@ profile, an emulator setting or the app's own Java truststore changes.
   with `certutil`. Firefox's temporary profile gets the CA through `certutil`
   when NSS tools are installed; on Windows the app skips NSS (System32's
   `certutil` is not NSS) and Firefox uses the Windows root store through
-  enterprise roots.
+  enterprise roots. Snap Firefox and Chromium have a private `/tmp`; their
+  profiles are placed under `~/snap/<name>/common/` so the snap can see them.
 - **Android emulator** lists `adb devices -l`, runs
   `adb reverse tcp:PORT tcp:PORT`, then
   `adb shell settings put global http_proxy 127.0.0.1:PORT`. The app reads the
-  previous `http_proxy` first; **Undo proxy** restores the value remembered from
-  this app session (or clears it with `:0` if it was unset) and removes the
-  reverse listener it added.
+  previous `http_proxy` first and saves it with the port in
+  `~/.vscroxy/android-proxy.json`; **Undo proxy** restores that value (or clears
+  it with `:0` if it was unset) and removes the reverse listener it added. The
+  value is accepted only when it is `null`, `:0` or `host:port`.
   **Copy CA to device** pushes
   only the public CA to `/sdcard/Download/vscroxy-ca.crt`; installing it and
   trusting it remains a device-side step. Android 7+ apps do not trust
@@ -116,8 +122,9 @@ profile, an emulator setting or the app's own Java truststore changes.
   full trust under Settings → General → About → Certificate Trust Settings.
 - **Java** builds the app's own `~/.vscroxy/java/truststore.p12` with
   `keytool`: it first copies the JDK's `lib/security/cacerts`, then adds the
-  public CA. Review the two commands first; **Import CA** asks for confirmation
-  and replaces only that file, atomically. The JVM does not read
+  public CA, then renames the temporary truststore into place. Review the
+  commands first; **Import CA** asks for confirmation and replaces only that
+  file, atomically. The JVM does not read
   `HTTP_PROXY`/`HTTPS_PROXY`, so the shown options include
   `-Djavax.net.ssl.trustStore=...` and `-Dhttp.proxyHost`/`-Dhttps.proxyHost`
   (plus ports and `-Dhttp.nonProxyHosts`). The truststore starts with the JDK's
@@ -128,11 +135,17 @@ profile, an emulator setting or the app's own Java truststore changes.
   pin certificates can ignore the flag.
 
 Temporary browser profiles stay in the system temporary directory
-(`vscroxy-chrome-*`, `vscroxy-firefox-*`); the app removes one when its browser
-exits and removes old ones left by a crash on the next launch. Terminal scripts
-remove themselves when they start. Missing `adb`, `keytool`, `xcrun`,
-`certutil`, a terminal, Chrome or Firefox produces a notification naming the
-missing helper instead of failing silently.
+(`vscroxy-chrome-*`, `vscroxy-firefox-*`), or under `~/snap/<name>/common/` for
+a snap. They are not removed when the launcher process exits, because Firefox
+and Chrome launchers can exit while the real browser is still using the
+profile; old directories left by a crash are removed at the next launch.
+Terminal scripts remove themselves when they start. Missing `adb`, `keytool`,
+`xcrun`, `certutil`, a terminal, Chrome or Firefox produces a notification
+naming the missing helper instead of failing silently.
+
+Windows exports the ROOT certificate store on demand. The app regenerates the
+terminal CA bundle before each launch, so roots added after an earlier launch
+are included.
 
 ## Connect a phone or another device
 
