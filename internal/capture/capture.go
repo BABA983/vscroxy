@@ -375,8 +375,10 @@ type Server struct {
 
 	// roots are the CAs a replay trusts: the system's and this proxy's, so
 	// a replay of an HTTPS flow succeeds without trusting the CA machine
-	// wide.
-	roots *x509.CertPool
+	// wide. caPool holds only this proxy's CA, for traffic that must come
+	// from this proxy rather than the real server.
+	roots  *x509.CertPool
+	caPool *x509.CertPool
 
 	rulesMu sync.RWMutex
 	rules   []Rule
@@ -409,6 +411,27 @@ type Server struct {
 	ignoreList atomic.Value // []string
 	ignoreApps atomic.Value // []string
 	allowList  atomic.Value // AllowList
+
+	// socks is the additional SOCKS5 entry. Its listener and connections
+	// belong to this server, so closing capture ends both.
+	socksMu    sync.Mutex
+	socksCfg   SOCKSConfig
+	socksLn    net.Listener
+	socksAddr  string
+	socksErr   error
+	socksConns map[net.Conn]struct{}
+	socksWG    sync.WaitGroup
+
+	// reverses are the reverse proxy entries. They forward through this
+	// server's own HTTP listener, so rules and capture apply to them.
+	reverseMu      sync.Mutex
+	reverseCfg     []ReverseProxy
+	reverseTargets map[string]*url.URL
+	reverses       []*reverseEntry
+	reverseStatus  map[string]ReverseProxyStatus
+	// reverseToken marks requests the reverse proxies send through this
+	// listener, so their HTTPS tunnels are always decrypted for capture.
+	reverseToken string
 
 	breakOn     atomic.Bool
 	noCaching   atomic.Bool
@@ -445,6 +468,8 @@ func New(addr, caRootPath string) (*Server, error) {
 		streams:       make(map[uuid.UUID]*streamBodies),
 		trailers:      make(map[uuid.UUID]*flowTrailers),
 		closed:        make(chan struct{}),
+		reverseToken:  uuid.NewString(),
+		reverseStatus: make(map[string]ReverseProxyStatus),
 	}
 	p, err := proxy.NewProxy(&proxy.Options{
 		Addr:              addr,
@@ -457,6 +482,12 @@ func New(addr, caRootPath string) (*Server, error) {
 	}
 	p.AddAddon(&addon{server: s})
 	p.SetShouldInterceptRule(func(req *http.Request) bool {
+		// A reverse proxy's own HTTPS tunnel is captured regardless of the
+		// decryption lists: it exists to be seen. Only this app knows the
+		// per-run token, and the addon removes it from the exchange.
+		if req.Header.Get(reverseTokenHeader) == s.reverseToken {
+			return true
+		}
 		// RemoteAddr is supplied by the proxy's HTTP server, never a header.
 		// Ownership was resolved from both ends of this accepted socket.
 		var process procinfo.Process
@@ -491,11 +522,16 @@ func New(addr, caRootPath string) (*Server, error) {
 		return url.Parse(raw)
 	})
 	s.proxy = p
-	if pool, err := x509.SystemCertPool(); err == nil {
-		ca := p.GetCertificate()
-		pool.AddCert(&ca)
-		s.roots = pool
+	pool, err := x509.SystemCertPool()
+	if err != nil || pool == nil {
+		pool = x509.NewCertPool()
 	}
+	ca := p.GetCertificate()
+	pool.AddCert(&ca)
+	s.roots = pool
+	own := x509.NewCertPool()
+	own.AddCert(&ca)
+	s.caPool = own
 	if dir, err := os.MkdirTemp("", "vscroxy-bodies-"); err == nil {
 		s.bodyDir = dir
 	}
@@ -1045,13 +1081,14 @@ func LoadRules(path string) ([]Rule, error) {
 // It never mistakes another application's listener for this proxy.
 func (s *Server) Start() error {
 	s.listenMu.Lock()
-	defer s.listenMu.Unlock()
 	select {
 	case <-s.closed:
+		s.listenMu.Unlock()
 		return net.ErrClosed
 	default:
 	}
 	if s.listener != nil {
+		s.listenMu.Unlock()
 		return errors.New("proxy already started")
 	}
 	ln, err := net.Listen("tcp", s.addr)
@@ -1059,9 +1096,11 @@ func (s *Server) Start() error {
 		var fallbackErr error
 		ln, fallbackErr = net.Listen("tcp", "127.0.0.1:0")
 		if fallbackErr != nil {
+			s.listenMu.Unlock()
 			return fmt.Errorf("preferred proxy address: %w; automatic port: %w", err, fallbackErr)
 		}
 	} else if err != nil {
+		s.listenMu.Unlock()
 		return err
 	}
 	s.listener, s.addr = ln, ln.Addr().String()
@@ -1070,6 +1109,13 @@ func (s *Server) Start() error {
 		_ = s.proxy.Serve(ln)
 		s.running.Store(false)
 	}()
+	// The extra entries belong to this listener's lifetime: start them while
+	// the listener lock is held, so a concurrent Close cannot miss them.
+	// Reverse proxies bind first, so an automatic SOCKS5 port cannot land on
+	// one of their fixed ports.
+	s.startReverseProxies(s.addr, "")
+	s.startSOCKS()
+	s.listenMu.Unlock()
 	return nil
 }
 
@@ -1082,6 +1128,9 @@ func (s *Server) Close() error {
 		close(s.closed)
 		s.socketMu.Unlock()
 		s.running.Store(false)
+		// The extra entries are this server's own listeners and connections.
+		s.stopSOCKS()
+		s.stopReverseProxies()
 		// net/http does not own hijacked WebSocket/CONNECT sockets.
 		s.DropConnections()
 		s.socketWG.Wait()
@@ -1235,6 +1284,13 @@ func (s *Server) ReplayWithPolicy(ctx context.Context, f Flow, jar http.CookieJa
 	}
 	for _, header := range hopHeaders {
 		req.Header.Del(header)
+	}
+	// A captured Host header is sent as the request's Host, which Go's
+	// transport takes from Request.Host rather than Header. Ordinary proxy
+	// captures have none: their URL names the host.
+	if host := req.Header.Get("Host"); host != "" {
+		req.Host = host
+		req.Header.Del("Host")
 	}
 
 	proxyURL := &url.URL{Scheme: "http", Host: s.Addr()}
@@ -1401,6 +1457,17 @@ func (a *addon) ClientDisconnected(client *proxy.ClientConn) {
 func (a *addon) Requestheaders(f *proxy.Flow) {
 	if f.Request == nil {
 		return
+	}
+	// A reverse proxy names the remote in the request so the engine dials
+	// and records it, and carries the local client's Host beside it when the
+	// entry keeps that Host. Restore it before rules, scripts or the table
+	// see the request; the marker never leaves this process.
+	if a.server.reverseToken != "" && f.Request.Header.Get(reverseTokenHeader) == a.server.reverseToken {
+		f.Request.Header.Del(reverseTokenHeader)
+		if host := f.Request.Header.Get(reverseHostHeader); host != "" && f.Request.Method != http.MethodConnect {
+			f.Request.Header.Set("Host", host)
+		}
+		f.Request.Header.Del(reverseHostHeader)
 	}
 	if raw := f.Request.Raw(); raw != nil {
 		// Keep the socket's identity on the exchange before it disconnects.
@@ -2578,8 +2645,19 @@ func bodyText(b []byte, err error) string {
 func formatRequest(r *proxy.Request, u *url.URL) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "%s %s %s\n", r.Method, u.RequestURI(), r.Proto)
-	fmt.Fprintf(&b, "Host: %s\n", u.Host)
-	writeHeaders(&b, r.Header)
+	host := u.Host
+	if h := r.Header.Get("Host"); h != "" {
+		host = h
+	}
+	fmt.Fprintf(&b, "Host: %s\n", host)
+	for _, key := range slices.Sorted(maps.Keys(r.Header)) {
+		if strings.EqualFold(key, "Host") {
+			continue
+		}
+		for _, value := range r.Header[key] {
+			fmt.Fprintf(&b, "%s: %s\n", key, value)
+		}
+	}
 	return strings.TrimRight(b.String(), "\n")
 }
 
