@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"encoding/base64"
+	"encoding/csv"
 	"encoding/json/v2"
 	"net/http"
 	"net/http/httptest"
@@ -345,5 +346,66 @@ func TestExportReviewOwnsCopyAndRequiresFreshConsent(t *testing.T) {
 	tt.Frame()
 	if a.exportUI.unredacted || a.exportUI.reviewed {
 		t.Fatal("a new export reused unredacted mode or consent")
+	}
+}
+
+func TestCSVExportUsesVisibleRowsAndRedaction(t *testing.T) {
+	a := workspaceApp()
+	a.hiddenColumns = []string{"client"}
+	a.flows[0].url = "https://user:pass@api.example.com/projects?token=secret"
+	a.flows[0].path = "/projects?token=secret"
+	a.applyFilter()
+	a.exportCSV()
+	if !a.exportUI.open || a.exportUI.csv == nil || a.exportUI.title != "Export CSV" || a.exportUI.file != "vscroxy.csv" {
+		t.Fatalf("export dialog = %+v", a.exportUI)
+	}
+	if a.exportUI.data != nil {
+		t.Fatal("CSV export retained a second JSON copy")
+	}
+	data, err := a.exportUI.csv.csv(safeExportOptions())
+	if err != nil {
+		t.Fatal(err)
+	}
+	rows, err := csv.NewReader(bytes.NewReader(data)).ReadAll()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 3 {
+		t.Fatalf("rows = %d, want header and two visible requests", len(rows))
+	}
+	for _, name := range rows[0] {
+		if name == "Client" {
+			t.Fatal("hidden column was exported")
+		}
+	}
+	found := false
+	for _, value := range rows[1] {
+		if value == "https://api.example.com/projects?token=REDACTED" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("URL query or credentials were not redacted: %v", rows[1])
+	}
+
+	a.chosen.Add(2)
+	a.exportChosenCSV()
+	if a.exportUI.file != "vscroxy-chosen.csv" || len(a.exportUI.csv.rows) != 1 {
+		t.Fatalf("chosen CSV export = %q with %d rows", a.exportUI.file, len(a.exportUI.csv.rows))
+	}
+}
+
+func TestCSVExportRejectsTooManyRows(t *testing.T) {
+	a := workspaceApp()
+	flows := make([]flow, csvExportRowLimit+1)
+	a.exportCSVFlows(flows, "vscroxy.csv")
+	if a.exportUI.open {
+		t.Fatal("oversized CSV export opened a dialog")
+	}
+	a.mu.Lock()
+	message := a.message
+	a.mu.Unlock()
+	if !strings.Contains(message, "limited to 10000") {
+		t.Fatalf("notice = %q", message)
 	}
 }

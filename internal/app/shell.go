@@ -308,6 +308,8 @@ func (a *app) moreActions(c *ui.Context) []action {
 		pick(global, "flow.replay").as("Replay chosen…"),
 		do("capture.export-har", "Export HAR…", a.exportHAR).in("files"),
 		pick(global, "capture.export-chosen").as("Export chosen HAR…").in("files"),
+		do("capture.export-csv", "Export CSV…", a.exportCSV).in("files"),
+		pick(global, "capture.export-chosen-csv").as("Export chosen CSV…").in("files"),
 		do("capture.choose-shown", "Choose all shown", func() {
 			for _, at := range a.visible {
 				a.chosen.Add(a.flows[at].id)
