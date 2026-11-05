@@ -268,7 +268,7 @@ func brunoRequest(indexed bruBlocks, method string, values map[string]string, me
 		out.Auth.Type = request.AuthInherit
 	}
 	brunoBody(&out, values["body"], indexed, root, warnings)
-	if script := VariableScript(bruVariables(indexed.pairs("vars:pre-request"))); script != "" {
+	if script := VariableScript(VariableFields(bruVariables(indexed.pairs("vars:pre-request")))); script != "" {
 		out.Pre = JoinScript(script, out.Pre)
 	}
 	if indexed.has("vars:post-response") {
@@ -296,16 +296,16 @@ func bruFields(pairs []bruPair) []request.Field {
 	return fields
 }
 
-func bruVariables(pairs []bruPair) []request.Field {
-	var fields []request.Field
+func bruVariables(pairs []bruPair) []request.Variable {
+	var vars []request.Variable
 	for _, pair := range pairs {
 		name := strings.TrimPrefix(pair.key, "@")
 		if name == "" {
 			continue
 		}
-		fields = append(fields, request.Field{Name: name, Value: pair.value, Disabled: pair.disabled})
+		vars = append(vars, request.Variable{Name: name, Initial: pair.value, Disabled: pair.disabled})
 	}
-	return fields
+	return vars
 }
 
 func brunoBody(out *request.Request, mode string, indexed bruBlocks, root string, warnings *[]string) {

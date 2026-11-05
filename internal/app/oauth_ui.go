@@ -43,6 +43,9 @@ func (a *app) oauthFields(c *ui.Context, auth *request.Auth, collection string) 
 	input := func(value *string, label string) ui.Element {
 		return a.variableInput(c, "oauth-"+label, value, label, collection)
 	}
+	password := func(value *string, label string) ui.Element {
+		return a.variablePasswordInput(c, "oauth-"+label, value, label, collection)
+	}
 	ui.Field(c, "Grant type", func() { uikit.Select(c, &o.Grant, request.Grants).Width(240) })
 	if interactive {
 		ui.Field(c, "Authorization URL", func() {
@@ -54,12 +57,12 @@ func (a *app) oauthFields(c *ui.Context, auth *request.Auth, collection string) 
 	})
 	ui.Field(c, "Client ID", func() { input(&o.ClientID, "Client ID") })
 	ui.Field(c, "Client secret", func() {
-		input(&o.ClientSecret, "Client secret").Placeholder("{{vault:client_secret}}, empty for a public client").Password()
+		password(&o.ClientSecret, "Client secret").Placeholder("{{vault:client_secret}}, empty for a public client")
 	})
 	ui.Field(c, "Scope", func() { input(&o.Scope, "Scope").Placeholder("Space-separated, optional") })
 	if o.Grant == request.GrantPassword {
 		ui.Field(c, "Username", func() { input(&o.Username, "Username") })
-		ui.Field(c, "Password", func() { input(&o.Password, "Password").Password() })
+		ui.Field(c, "Password", func() { password(&o.Password, "Password") })
 	}
 	if interactive {
 		ui.Field(c, "Callback URL", func() {

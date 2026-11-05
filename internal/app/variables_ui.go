@@ -20,24 +20,27 @@ type variableRow struct {
 	Current    string
 	HasInitial bool
 	HasCurrent bool
+	// Credential marks a Current value that came from a credential slot; it
+	// stays local and Persist current skips it.
+	Credential bool
 	Disabled   bool
 	Revealed   bool
 }
 
 // variableRowsOf shows a scope's Initial and Current values as one row per
 // name, including a Current name that has no Initial row.
-func variableRowsOf(initial, current map[string]string) []variableRow {
+func variableRowsOf(initial, current map[string]string, credentials map[string]bool) []variableRow {
 	rows := make([]variableRow, 0, len(initial)+len(current))
 	for _, name := range slices.Sorted(maps.Keys(initial)) {
-		rows = append(rows, variableRow{Name: name, Initial: initial[name], HasInitial: true})
+		rows = append(rows, variableRow{Name: name, Initial: initial[name], HasInitial: true, Credential: credentials[name]})
 	}
 	for _, name := range slices.Sorted(maps.Keys(current)) {
 		value := current[name]
 		if at := slices.IndexFunc(rows, func(r variableRow) bool { return r.Name == name }); at >= 0 {
-			rows[at].Current, rows[at].HasCurrent = value, true
+			rows[at].Current, rows[at].HasCurrent, rows[at].Credential = value, true, rows[at].Credential || credentials[name]
 			continue
 		}
-		rows = append(rows, variableRow{Name: name, Current: value, HasCurrent: true})
+		rows = append(rows, variableRow{Name: name, Current: value, HasCurrent: true, Credential: credentials[name]})
 	}
 	slices.SortStableFunc(rows, func(a, b variableRow) int { return strings.Compare(a.Name, b.Name) })
 	return rows
@@ -54,17 +57,18 @@ func (a *app) folderVariableRows(path string) []variableRow {
 		}
 	}
 	rows := make([]variableRow, 0, len(initial)+len(a.folderCurrent[path]))
+	credentials := a.folderCredentials[path]
 	for _, v := range initial {
 		name := strings.TrimSpace(v.Name)
-		rows = append(rows, variableRow{Name: name, Initial: v.Initial, HasInitial: true, Disabled: v.Disabled})
+		rows = append(rows, variableRow{Name: name, Initial: v.Initial, HasInitial: true, Disabled: v.Disabled, Credential: credentials[name]})
 	}
 	for _, name := range slices.Sorted(maps.Keys(a.folderCurrent[path])) {
 		value := a.folderCurrent[path][name]
 		if at := slices.IndexFunc(rows, func(r variableRow) bool { return r.Name == name }); at >= 0 {
-			rows[at].Current, rows[at].HasCurrent = value, true
+			rows[at].Current, rows[at].HasCurrent, rows[at].Credential = value, true, rows[at].Credential || credentials[name]
 			continue
 		}
-		rows = append(rows, variableRow{Name: name, Current: value, HasCurrent: true})
+		rows = append(rows, variableRow{Name: name, Current: value, HasCurrent: true, Credential: credentials[name]})
 	}
 	slices.SortStableFunc(rows, func(a, b variableRow) int { return strings.Compare(a.Name, b.Name) })
 	return rows
@@ -110,7 +114,7 @@ func (a *app) variableTable(c *ui.Context, rows *[]variableRow, opts variableTab
 							changed = true
 						}
 					})
-					secret := sensitiveVariable(r.Name)
+					secret := r.Credential || sensitiveVariable(r.Name)
 					ui.Box(c).Basis(0).Grow(2).MinWidth(0).FillHeight().BorderWidth(0, 1, 0, 0).BorderColor(t.Border).Children(func() {
 						field := requestGridInput(c, &r.Initial, "Shared value", fmt.Sprintf("Variable initial value %d", i+1))
 						if secret && !r.Revealed {
@@ -123,10 +127,10 @@ func (a *app) variableTable(c *ui.Context, rows *[]variableRow, opts variableTab
 					})
 					ui.Box(c).Basis(0).Grow(2).MinWidth(0).FillHeight().BorderWidth(0, 1, 0, 0).BorderColor(t.Border).Children(func() {
 						field := requestGridInput(c, &r.Current, "Use initial", fmt.Sprintf("Variable current value %d", i+1))
-						if secret && !r.Revealed {
+						if !r.Revealed {
 							field.Password()
 						}
-						cellBorder(t, field, secret && !r.Revealed, secret && r.Revealed)
+						cellBorder(t, field, !r.Revealed, r.Revealed)
 						if field.Changed() {
 							r.HasCurrent, changed = true, true
 						}
@@ -135,8 +139,13 @@ func (a *app) variableTable(c *ui.Context, rows *[]variableRow, opts variableTab
 						if uikit.IconButton(c, fmt.Sprintf("Reveal variable %d", i+1), "Reveal or hide both values", eyeIcon).Clicked() {
 							r.Revealed = !r.Revealed
 						}
-						ui.Row(c).Disabled(!r.HasCurrent || r.Current == "").Children(func() {
-							if uikit.IconButton(c, fmt.Sprintf("Persist current value %d", i+1), "Persist current as initial: writes it to the shared file and exports", persistIcon).Clicked() {
+						blocked := r.Credential || sensitiveVariable(r.Name)
+						persistTooltip := "Persist current as initial: writes it to the shared file and exports"
+						if blocked {
+							persistTooltip = "Sensitive values stay local; edit Initial explicitly if you need to export it"
+						}
+						ui.Row(c).Disabled(!r.HasCurrent || r.Current == "" || blocked).Children(func() {
+							if uikit.IconButton(c, fmt.Sprintf("Persist current value %d", i+1), persistTooltip, persistIcon).Clicked() {
 								r.Initial, r.HasInitial, changed = r.Current, true, true
 							}
 						})
@@ -173,13 +182,22 @@ func (a *app) variableTable(c *ui.Context, rows *[]variableRow, opts variableTab
 	return changed
 }
 
-// persistAllCurrent copies every nonempty Current value into its Initial value.
-func persistAllCurrent(rows []variableRow) {
+// persistAllCurrent copies non-sensitive Current values into Initial values.
+// Credential slots and credential-like names stay local; the counts say what
+// happened so the dialog can report skipped values.
+func persistAllCurrent(rows []variableRow) (persisted, skipped int) {
 	for i := range rows {
-		if rows[i].HasCurrent && rows[i].Current != "" {
-			rows[i].Initial, rows[i].HasInitial = rows[i].Current, true
+		if !rows[i].HasCurrent || rows[i].Current == "" {
+			continue
 		}
+		if rows[i].Credential || sensitiveVariable(rows[i].Name) {
+			skipped++
+			continue
+		}
+		rows[i].Initial, rows[i].HasInitial = rows[i].Current, true
+		persisted++
 	}
+	return persisted, skipped
 }
 
 // resetAllCurrent drops every local override, so Initial values apply again.
@@ -198,8 +216,9 @@ func anyCurrent(rows []variableRow) bool {
 // Current value is an Initial row, even when its value is empty; a row with
 // only a Current value stays local until the reader persists it. It reports a
 // bad name.
-func variablesOf(rows []variableRow) (initial, current map[string]string, err error) {
+func variablesOf(rows []variableRow) (initial, current map[string]string, credentials map[string]bool, err error) {
 	initial, current = map[string]string{}, map[string]string{}
+	credentials = map[string]bool{}
 	seen := map[string]bool{}
 	for _, r := range rows {
 		name := strings.TrimSpace(r.Name)
@@ -207,10 +226,10 @@ func variablesOf(rows []variableRow) (initial, current map[string]string, err er
 			continue
 		}
 		if name == "" || strings.ContainsAny(name, "{}") {
-			return nil, nil, fmt.Errorf("variable names must be nonempty and contain no braces")
+			return nil, nil, nil, fmt.Errorf("variable names must be nonempty and contain no braces")
 		}
 		if seen[name] {
-			return nil, nil, fmt.Errorf("variable names must be unique")
+			return nil, nil, nil, fmt.Errorf("variable names must be unique")
 		}
 		seen[name] = true
 		if r.HasInitial || !r.HasCurrent || r.Initial != "" {
@@ -218,7 +237,13 @@ func variablesOf(rows []variableRow) (initial, current map[string]string, err er
 		}
 		if r.HasCurrent {
 			current[name] = r.Current
+			if r.Credential {
+				credentials[name] = true
+			}
 		}
 	}
-	return initial, current, nil
+	if len(credentials) == 0 {
+		credentials = nil
+	}
+	return initial, current, credentials, nil
 }

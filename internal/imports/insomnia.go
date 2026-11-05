@@ -457,12 +457,12 @@ func pairFields(pairs []insomniaPair) []request.Field {
 	return fields
 }
 
-func fieldsFromMap(values map[string]any) []request.Field {
-	var fields []request.Field
+func fieldsFromMap(values map[string]any) []request.Variable {
+	var vars []request.Variable
 	for _, name := range sortedKeys(values) {
-		fields = append(fields, request.Field{Name: name, Value: valueText(values[name])})
+		vars = append(vars, request.Variable{Name: name, Initial: valueText(values[name])})
 	}
-	return fields
+	return vars
 }
 
 func sortedKeys[V any](m map[string]V) []string {
@@ -564,7 +564,7 @@ func insomniaFolderTagged(f request.Folder) bool {
 		return true
 	}
 	for _, row := range f.Variables {
-		if anyInsomniaTag(row.Name, row.Value) {
+		if anyInsomniaTag(row.Name, row.Initial, row.Current) {
 			return true
 		}
 	}
@@ -767,49 +767,74 @@ func insomniaV4Environments(resources []insomniaResource) []Environment {
 func insomniaV5Environments(base insomniaEnvironment) ([]Environment, []string) {
 	var out []Environment
 	var warnings []string
-	baseValues, baseWarning := insomniaEnvironmentValues(base)
+	baseValues, baseCurrent, baseWarning := insomniaEnvironmentValues(base)
 	if baseWarning != "" {
 		warnings = append(warnings, baseWarning)
 	}
-	if base.Name != "" || len(baseValues) > 0 {
-		out = append(out, Environment{Name: cmp.Or(strings.TrimSpace(base.Name), "Base Environment"), Values: baseValues, Warnings: warnings})
+	if base.Name != "" || len(baseValues) > 0 || len(baseCurrent) > 0 {
+		out = append(out, Environment{Name: cmp.Or(strings.TrimSpace(base.Name), "Base Environment"), Values: baseValues, Current: baseCurrent, Credentials: credentialMap(baseCurrent), Warnings: warnings})
 	}
 	for _, sub := range base.SubEnvironments {
 		values := map[string]string{}
 		for name, value := range baseValues {
 			values[name] = value
 		}
-		subValues, subWarning := insomniaEnvironmentValues(sub)
+		current := map[string]string{}
+		for name, value := range baseCurrent {
+			current[name] = value
+		}
+		subValues, subCurrent, subWarning := insomniaEnvironmentValues(sub)
 		for name, value := range subValues {
 			values[name] = value
+		}
+		for name, value := range subCurrent {
+			current[name] = value
+		}
+		if len(current) == 0 {
+			current = nil
 		}
 		subWarnings := slices.Clone(warnings)
 		if subWarning != "" {
 			subWarnings = append(subWarnings, subWarning)
 		}
-		out = append(out, Environment{Name: cmp.Or(strings.TrimSpace(sub.Name), "Imported environment"), Values: values, Warnings: subWarnings})
+		out = append(out, Environment{Name: cmp.Or(strings.TrimSpace(sub.Name), "Imported environment"), Values: values, Current: current, Credentials: credentialMap(current), Warnings: subWarnings})
 	}
 	return out, warnings
 }
 
-func insomniaEnvironmentValues(env insomniaEnvironment) (map[string]string, string) {
-	values := mapStringString(env.Data)
-	secret := false
+func insomniaEnvironmentValues(env insomniaEnvironment) (values, current map[string]string, warning string) {
+	values = mapStringString(env.Data)
 	if len(values) == 0 && len(env.KVPairData) > 0 {
 		values = map[string]string{}
 		for _, pair := range env.KVPairData {
 			if !pair.Enabled {
 				continue
 			}
+			if pair.IsConfidential || strings.EqualFold(pair.Type, "secret") {
+				if current == nil {
+					current = map[string]string{}
+				}
+				current[pair.Name] = valueText(pair.Value)
+				continue
+			}
 			values[pair.Name] = valueText(pair.Value)
-			secret = secret || pair.IsConfidential || strings.EqualFold(pair.Type, "secret")
 		}
 	}
-	secret = secret || len(env.ConfidentialKeys) > 0
-	if secret {
-		return values, "confidential variables were imported as ordinary local variables"
+	for _, name := range env.ConfidentialKeys {
+		value, ok := values[name]
+		if !ok {
+			continue
+		}
+		if current == nil {
+			current = map[string]string{}
+		}
+		current[name] = value
+		delete(values, name)
 	}
-	return values, ""
+	if len(current) > 0 {
+		return values, current, "confidential variables were imported as local Current values"
+	}
+	return values, nil, ""
 }
 
 func mapStringString(values map[string]any) map[string]string {

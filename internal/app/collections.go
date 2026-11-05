@@ -41,7 +41,7 @@ func (a *app) inheritance(path string) request.Context {
 	for i := range folders {
 		folders[i].Variables = a.folderVariables(folders[i].Path, folders[i].Variables)
 	}
-	return request.Context{Folders: folders, Globals: a.globalValues(), Addons: a.addons.sources()}
+	return request.Context{Folders: folders, Globals: a.globalValues(), GlobalsInitial: maps.Clone(a.globals), Addons: a.addons.sources()}
 }
 
 // folderVariables resolves one level's Initial rows and local Current values.
@@ -59,7 +59,7 @@ func (a *app) folderVariables(path string, initial []request.Variable) []request
 		if name == "" || seen[name] {
 			continue
 		}
-		vars = append(vars, request.Variable{Name: name, Current: current[name]})
+		vars = append(vars, request.Variable{Name: name, Current: current[name], Local: true})
 	}
 	return vars
 }
@@ -98,7 +98,7 @@ func (a *app) applyWrites(writes []request.Write) {
 	if len(writes) == 0 {
 		return
 	}
-	globals, folderCurrent, secrets := maps.Clone(a.globalsCurrent), maps.Clone(a.folderCurrent), slices.Clone(a.vault.secrets)
+	globals, folderCurrent, folderCredentials, secrets := maps.Clone(a.globalsCurrent), maps.Clone(a.folderCurrent), maps.Clone(a.folderCredentials), slices.Clone(a.vault.secrets)
 	var touched [3]bool
 	for _, w := range writes {
 		switch w.Scope {
@@ -124,6 +124,12 @@ func (a *app) applyWrites(writes []request.Write) {
 			}
 			if w.Unset {
 				delete(values, w.Name)
+				if marked := folderCredentials[w.Path]; marked != nil {
+					delete(marked, w.Name)
+					if len(marked) == 0 {
+						delete(folderCredentials, w.Path)
+					}
+				}
 			} else {
 				values[w.Name] = w.Value
 			}
@@ -152,11 +158,11 @@ func (a *app) applyWrites(writes []request.Write) {
 			problems = append(problems, "variables: "+a.envsProblem)
 		} else {
 			f := a.localEnvs()
-			f.GlobalsCurrent, f.FolderCurrent = globals, folderCurrent
+			f.GlobalsCurrent, f.FolderCurrent, f.FolderCredentials = globals, folderCurrent, folderCredentials
 			if err := saveEnvs(a.file(a.envsPath), f); err != nil {
 				problems = append(problems, "variables: "+err.Error())
 			} else {
-				a.globalsCurrent, a.folderCurrent = globals, folderCurrent
+				a.globalsCurrent, a.folderCurrent, a.folderCredentials = globals, folderCurrent, folderCredentials
 			}
 		}
 	}
@@ -218,7 +224,7 @@ func (a *app) folderAuthTypes(path string) []string {
 // Initial values go to the library; its Current values stay in env.json.
 func (a *app) saveFolder() {
 	f := &a.folderUI
-	vars, current, err := folderVariablesOf(f.variables)
+	vars, current, credentials, err := folderVariablesOf(f.variables)
 	if err != nil {
 		f.problem = err.Error()
 		return
@@ -243,18 +249,30 @@ func (a *app) saveFolder() {
 		return
 	}
 	next := maps.Clone(a.folderCurrent)
+	if next == nil {
+		next = map[string]map[string]string{}
+	}
 	if len(current) == 0 {
 		delete(next, draft.Path)
 	} else {
 		next[draft.Path] = current
 	}
+	nextCredentials := maps.Clone(a.folderCredentials)
+	if nextCredentials == nil {
+		nextCredentials = map[string]map[string]bool{}
+	}
+	if len(credentials) == 0 {
+		delete(nextCredentials, draft.Path)
+	} else {
+		nextCredentials[draft.Path] = credentials
+	}
 	envs := a.localEnvs()
-	envs.FolderCurrent = next
+	envs.FolderCurrent, envs.FolderCredentials = next, nextCredentials
 	if err := saveEnvs(a.file(a.envsPath), envs); err != nil {
 		f.problem = "Settings saved, but local Current values were not: " + err.Error()
 		return
 	}
-	a.folderCurrent = next
+	a.folderCurrent, a.folderCredentials = next, nextCredentials
 	f.open = false
 	a.done("Saved " + draft.Path + " settings")
 }
@@ -262,9 +280,9 @@ func (a *app) saveFolder() {
 // folderVariablesOf splits edited rows into the Initial rows the library
 // carries and the Current values kept locally. A Current name with no Initial
 // row stays local until the reader persists it.
-func folderVariablesOf(rows []variableRow) ([]request.Variable, map[string]string, error) {
+func folderVariablesOf(rows []variableRow) ([]request.Variable, map[string]string, map[string]bool, error) {
 	var vars []request.Variable
-	current := map[string]string{}
+	current, credentials := map[string]string{}, map[string]bool{}
 	seen := map[string]bool{}
 	for _, r := range rows {
 		name := strings.TrimSpace(r.Name)
@@ -272,10 +290,10 @@ func folderVariablesOf(rows []variableRow) ([]request.Variable, map[string]strin
 			continue
 		}
 		if name == "" || strings.ContainsAny(name, "{}") {
-			return nil, nil, errors.New("variable names must be nonempty and contain no braces")
+			return nil, nil, nil, errors.New("variable names must be nonempty and contain no braces")
 		}
 		if seen[name] {
-			return nil, nil, errors.New("variable names must be unique")
+			return nil, nil, nil, errors.New("variable names must be unique")
 		}
 		seen[name] = true
 		if r.HasInitial || !r.HasCurrent || r.Initial != "" || r.Disabled {
@@ -283,9 +301,15 @@ func folderVariablesOf(rows []variableRow) ([]request.Variable, map[string]strin
 		}
 		if r.HasCurrent {
 			current[name] = r.Current
+			if r.Credential {
+				credentials[name] = true
+			}
 		}
 	}
-	return vars, current, nil
+	if len(credentials) == 0 {
+		credentials = nil
+	}
+	return vars, current, credentials, nil
 }
 
 // writeFolders saves the collection and folder settings, sorted by path,

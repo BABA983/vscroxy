@@ -593,7 +593,7 @@ func (a *app) saveCollection(list []savedRequest, folders []request.Folder, vars
 		envs = append(envs, environment{Name: envName})
 		at = len(envs) - 1
 	}
-	envs[at].Vars, envs[at].Current = maps.Clone(envs[at].Vars), maps.Clone(envs[at].Current)
+	envs[at].Vars, envs[at].Current, envs[at].Credentials = maps.Clone(envs[at].Vars), maps.Clone(envs[at].Current), maps.Clone(envs[at].Credentials)
 	if envs[at].Vars == nil {
 		envs[at].Vars = map[string]string{}
 	}
@@ -606,6 +606,10 @@ func (a *app) saveCollection(list []savedRequest, folders []request.Folder, vars
 		target := envs[at].Vars
 		if private {
 			target = envs[at].Current
+			if envs[at].Credentials == nil {
+				envs[at].Credentials = map[string]bool{}
+			}
+			envs[at].Credentials[name] = true
 		}
 		if old, exists := effective[name]; exists && old != value {
 			w.problem = "Environment variable “" + name + "” already has a different value; rename the variable or choose a new environment."

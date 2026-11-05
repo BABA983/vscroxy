@@ -27,50 +27,70 @@ type variableCompletion struct {
 // completion. key names the field for the one open completion.
 func (a *app) variableInput(c *ui.Context, key string, value *string, label, collection string) ui.Element {
 	in := uikit.InputControl(c, value).Label(label)
-	a.attachVariables(c, in, key, value, label, collection)
+	a.attachVariables(c, in, key, value, label, collection, false)
+	return uikit.FieldFace(c, in, in.Focused())
+}
+
+// variablePasswordInput is variableInput for a field that hides its text. The
+// hover preview masks every value, not only credential-like names.
+func (a *app) variablePasswordInput(c *ui.Context, key string, value *string, label, collection string) ui.Element {
+	in := uikit.InputControl(c, value).Label(label).Password()
+	a.attachVariables(c, in, key, value, label, collection, true)
 	return uikit.FieldFace(c, in, in.Focused())
 }
 
 // variableTextArea is ui.TextArea with the same variable help.
 func (a *app) variableTextArea(c *ui.Context, key string, value *string, label, collection string) ui.Element {
 	in := ui.TextArea(c, value).Label(label)
-	a.attachVariables(c, in, key, value, label, collection)
+	a.attachVariables(c, in, key, value, label, collection, false)
+	return in
+}
+
+// variableSensitiveTextArea is variableTextArea whose hover masks values, for
+// private keys and similar credentials.
+func (a *app) variableSensitiveTextArea(c *ui.Context, key string, value *string, label, collection string) ui.Element {
+	in := ui.TextArea(c, value).Label(label)
+	a.attachVariables(c, in, key, value, label, collection, true)
 	return in
 }
 
 // variableGridInput is requestGridInput with the same variable help, for the
-// Params, Headers and form tables.
-func (a *app) variableGridInput(c *ui.Context, key string, value *string, placeholder, label, collection string) ui.Element {
+// Params, Headers and form tables. mask hides every hover value.
+func (a *app) variableGridInput(c *ui.Context, key string, value *string, placeholder, label, collection string, mask bool) ui.Element {
 	in := ui.TextInputBase(c, value).Label(label).Placeholder(placeholder).FillWidth().MinWidth(0).
 		FillHeight().Padding(0, c.Theme().Space(2)).Font(uikit.FontMono).FontSize(uikit.TextBody).
 		Border(1, ui.Color{})
-	a.attachVariables(c, in, key, value, label, collection)
+	a.attachVariables(c, in, key, value, label, collection, mask)
 	return in
 }
 
 // attachVariables paints defined references in the accent color and undefined
-// ones in danger, then adds the hover preview and completion.
-func (a *app) attachVariables(c *ui.Context, in ui.Element, key string, value *string, label, collection string) {
+// ones in danger, then adds the hover preview and completion. It builds the
+// hint set once for the field.
+func (a *app) attachVariables(c *ui.Context, in ui.Element, key string, value *string, label, collection string, mask bool) {
+	var set variableSet
 	if strings.Contains(*value, "{{") {
+		set = a.variableHintSet(collection)
 		t := c.Theme()
-		for _, mark := range a.variableMarks(*value, collection) {
+		marks := variableMarksWith(set, *value)
+		for _, mark := range marks {
 			color := t.Accent
 			if !mark.Defined {
 				color = t.Danger
 			}
 			in.TextRanges(ui.TextRange{Start: mark.Start, End: mark.End, Color: color, Weight: 600})
 		}
-		a.variableTooltip(c, in, *value, collection)
+		a.variableTooltip(c, in, marks, mask)
 	}
 	a.syncVariableCompletion(in, key, value)
-	a.variablePopover(c, in, key, value, collection)
+	a.variablePopover(c, in, key, value, set)
 }
 
 // variableTooltip lists the field's references, each with its resolved value
 // and scope. Text inputs have no per-run hover in MyGo, so the preview covers
 // the field rather than the rune under the pointer; editor hovers are exact.
-func (a *app) variableTooltip(c *ui.Context, anchor ui.Element, text, collection string) {
-	marks := a.variableMarks(text, collection)
+// mask hides every value, for a password or private-key field.
+func (a *app) variableTooltip(c *ui.Context, anchor ui.Element, marks []variableMark, mask bool) {
 	if len(marks) == 0 {
 		return
 	}
@@ -92,7 +112,11 @@ func (a *app) variableTooltip(c *ui.Context, anchor ui.Element, text, collection
 				})
 				value := "stays literal when sent"
 				if mark.Defined {
-					value = mark.Hint.display()
+					if mask {
+						value = "••••••"
+					} else {
+						value = mark.Hint.display()
+					}
 				}
 				ui.Text(c, value).Font(uikit.FontMono).FontSize(uikit.TextMeta).TextColor(t.InverseText.Alpha(0.86)).SingleLine().Ellipsis("…")
 			}
@@ -140,7 +164,7 @@ func (a *app) syncVariableCompletion(in ui.Element, key string, value *string) {
 
 // variablePopover shows the filtered variables below the field and handles
 // Up/Down/Enter/Tab/Escape while the field keeps the keyboard.
-func (a *app) variablePopover(c *ui.Context, anchor ui.Element, key string, value *string, collection string) {
+func (a *app) variablePopover(c *ui.Context, anchor ui.Element, key string, value *string, set variableSet) {
 	if a.varsComplete.field != key || !a.varsComplete.open {
 		return
 	}
@@ -149,7 +173,7 @@ func (a *app) variablePopover(c *ui.Context, anchor ui.Element, key string, valu
 		return
 	}
 	var items []variableHint
-	for _, hint := range a.variableHints(collection) {
+	for _, hint := range set.list {
 		if prefix != "" && !strings.HasPrefix(strings.ToLower(hint.Name), strings.ToLower(prefix)) {
 			continue
 		}
@@ -320,9 +344,10 @@ func (a *app) setVariableDiagnostics(state *editor.State, text, collection strin
 		state.SetDiagnostics(state.Buffer.Version(), nil)
 		return
 	}
+	set := a.variableHintSet(collection)
 	var diagnostics []editor.Diagnostic
 	for _, ref := range request.VariableRefs(text) {
-		if _, ok := a.variableHint(collection, ref.Name); !ok {
+		if _, ok := set.hint(ref.Name); !ok {
 			diagnostics = append(diagnostics, editor.Diagnostic{
 				Start: ref.Start, End: ref.End, Severity: editor.SeverityError,
 				Message: "Undefined variable: " + ref.Name, Source: "variables",

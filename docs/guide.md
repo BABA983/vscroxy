@@ -1840,16 +1840,25 @@ its requests, folders and settings move together, and open tabs follow.
   Initial is saved with the environment export or the collection directory, so
   it can be committed to Git. Current stays in `~/.vscroxy/env.json` on this
   machine and is never written to the collection directory or an export. Sends
-  use a nonempty Current and fall back to Initial when Current is empty.
-  Scripts (`pm.environment.set`, `pm.globals.set`,
+  use a nonempty Current and fall back to Initial when Current is empty; an
+  explicit empty Current therefore means “no local override”, as in Postman. A
+  Current-only row with no Initial still defines an empty local value, which
+  credential slots use. Scripts (`pm.environment.set`, `pm.globals.set`,
   `pm.collectionVariables.set` and their `unset`) write Current only; Initial
-  stays as the shared file has it. The Variables dialog and a collection's or
-  folder's Variables tab show both columns. **Persist current** copies Current
-  into Initial (so the next save or export carries it); **Reset current** drops
-  the local override. Credential-like names (`token`, `secret`, `password`,
-  `key`, `authorization`, `cookie`, `session`) are masked until the eye reveals
-  them. Postman environment, globals and collection imports map Postman's
-  `value` to Initial; exports write Initial and never Current.
+  stays as the shared file has it. An `unset` clears the Current override, so
+  the Initial value applies again during the rest of the run and on later
+  sends, and a Current-only name becomes undefined. The Variables dialog and a
+  collection's or folder's Variables tab show both columns. **Persist current**
+  copies a non-sensitive Current into Initial (so the next save or export
+  carries it); credential slots and credential-like names stay local, and the
+  bulk action reports how many it skipped. Names are split on camelCase and
+  separators before masking, so `accessToken`, `apiKey`, `clientSecret`,
+  `pwd`, `pass`, `bearer` and `jwt` are treated like `token` and `password`.
+  **Reset current** drops the local override. The Current column is masked by
+  default; the eye reveals both columns. Postman environment, globals and
+  collection imports map Postman's `value` to Initial; Hoppscotch and Insomnia
+  current or confidential values become local Current values. Exports write
+  Initial and never Current.
 - **Dynamic variables** follow Postman's names and are generated for every
   occurrence on every send, written as `{{$guid}}`. In scripts, use
   `pm.variables.replaceIn('{{$randomFirstName}}')`. Names are case-sensitive;
@@ -1926,18 +1935,21 @@ folder and collection variables, auth, descriptions and request bodies are
 kept. The shared Insomnia body model maps JSON, text, XML, YAML, EDN, GraphQL,
 urlencoded and multipart bodies; binary bodies keep their `fileName` as a local
 path. Environments are merged by name, and a v4/v5 sub-environment inherits
-its base values. Insomnia scripts use the `insomnia` API, request descriptions
-have no field here, and cookie jars, API specs, tests and gRPC/WebSocket
-requests are not imported; each is listed after the import.
+its base values. Confidential environment values become local Current values,
+so they are not exported. Insomnia scripts use the `insomnia` API, request
+descriptions have no field here, and cookie jars, API specs, tests and
+gRPC/WebSocket requests are not imported; each is listed after the import.
 
 A **Hoppscotch** export may be one collection object or a workspace array.
 Nested folders, collection and folder variables, auth, request variables and
 the JSON, raw, urlencoded, multipart and GraphQL body shapes are kept.
 Collection and folder headers have no field in a folder's settings and are
-listed as dropped. Request scripts use the `pw` API, request descriptions have
-no field, and saved examples are not imported; each is listed after the import.
-Environment exports (one object or an array) merge into environments of the
-same name.
+listed as dropped. `initialValue` becomes Initial; `currentValue` and secret
+values become local Current values, never exported, and a secret is marked so
+**Persist current** leaves it local. Request scripts use the `pw` API, request
+descriptions have no field, and saved examples are not imported; each is listed
+after the import. Environment exports (one object or an array) merge into
+environments of the same name.
 
 **Import Bruno collection…** picks a directory with `bruno.json`,
 `collection.bru`, `folder.bru` files and `environments/*.bru`. Nested folders,
@@ -1998,9 +2010,10 @@ reporting the same pass or fail. Numbers compare as JavaScript numbers there, so
 two integers beyond 2^53 that Checks tells apart may compare equal. Invalid
 Checks are left out with a warning. Importing the file back gives a script, not
 Checks. **Export as Postman…** in
-**Variables** writes the environment or globals on screen. The common export
-options control auth, variables and scripts; the default script removal also
-removes generated Checks. Vault references are never resolved to secrets for export.
+**Variables** writes the environment or globals on screen. It writes Initial
+values only; local Current values are never exported. The common export options
+control auth, variables and scripts; the default script removal also removes
+generated Checks. Vault references are never resolved to secrets for export.
 
 **Vault…** (sidebar footer, request **⋯** menu or command palette) keeps secrets
 as name, value and optional allowed domains. Reference one anywhere a variable

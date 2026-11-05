@@ -9,6 +9,7 @@ import (
 
 	"github.com/baba983/vscroxy/internal/imports"
 	"github.com/baba983/vscroxy/internal/request"
+	"github.com/baba983/vscroxy/internal/store"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -254,11 +255,77 @@ func TestImportHoppscotchEnvironment(t *testing.T) {
 		t.Fatal(err)
 	}
 	a.importData(data, "hoppscotch-env.json")
-	if len(a.envs) != 2 || a.envs[0].Name != "Dev" || a.envs[0].Vars["token"] != "dev-token" || a.envs[1].Name != "Prod" {
+	if len(a.envs) != 2 || a.envs[0].Name != "Dev" || a.envs[0].Current["token"] != "dev-token" || !a.envs[0].Credentials["token"] || a.envs[0].Vars["token"] != "" || a.envs[1].Name != "Prod" {
 		t.Fatalf("environments %+v", a.envs)
 	}
 	if !a.importReport.open || a.importReport.title != "Imported 2 environments" {
 		t.Errorf("report %+v, message %q", a.importReport, a.message)
+	}
+}
+
+// Importing environments must not drop the local values of the other scopes
+// from env.json. The new environment's own Current values stay local.
+func TestImportEnvironmentKeepsOtherLocalScopes(t *testing.T) {
+	a := libraryApp(t)
+	a.envsPath = filepath.Join(t.TempDir(), "env.json")
+	a.activeEnv = "Local"
+	a.envs = []environment{{Name: "Local", Vars: map[string]string{"base": "https://initial"}}}
+	a.globals = map[string]string{"team": "team-initial"}
+	a.globalsCurrent = map[string]string{"team": "team-local"}
+	a.folderCurrent = map[string]map[string]string{"Shop": {"base": "folder-local"}}
+	a.folderCredentials = map[string]map[string]bool{"Shop": {"token": true}}
+	if err := a.saveLocalEnvs(); err != nil {
+		t.Fatal(err)
+	}
+	a.importThirdParty(imports.Result{Environments: []imports.Environment{{
+		Name: "Imported", Values: map[string]string{"base": "https://imported"},
+		Current: map[string]string{"token": "secret"}, Credentials: map[string]bool{"token": true},
+	}}}, "Import environment")
+	f, err := loadEnvs(&store.File{Path: a.envsPath})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if f.GlobalsCurrent["team"] != "team-local" || f.FolderCurrent["Shop"]["base"] != "folder-local" || !f.FolderCredentials["Shop"]["token"] {
+		t.Fatalf("other local scopes were dropped: %+v", f)
+	}
+	var imported *environment
+	for i := range f.Envs {
+		if f.Envs[i].Name == "Imported" {
+			imported = &f.Envs[i]
+		}
+	}
+	if imported == nil || imported.Vars["base"] != "https://imported" || imported.Current["token"] != "secret" || !imported.Credentials["token"] {
+		t.Fatalf("imported environment = %+v", imported)
+	}
+}
+
+// Re-importing a collection replaces its settings; the old path-keyed Current
+// values must not attach to the new requests.
+func TestImportReplacingCollectionDropsOldCurrent(t *testing.T) {
+	a := libraryApp(t)
+	a.envsPath = filepath.Join(t.TempDir(), "env.json")
+	a.requests = []savedRequest{{Request: request.Request{ID: "old", Name: "Old", Collection: "Shop", Method: "GET", URL: "https://old.example.com"}}}
+	a.folders = []request.Folder{{Path: "Shop", Variables: []request.Variable{{Name: "base", Initial: "shared"}}}}
+	a.folderCurrent = map[string]map[string]string{
+		"Shop":      {"base": "old-local"},
+		"Shop/Old":  {"nested": "old-nested"},
+		"Elsewhere": {"keep": "elsewhere-local"},
+	}
+	a.folderCredentials = map[string]map[string]bool{"Shop": {"token": true}, "Elsewhere": {"token": true}}
+	a.importThirdParty(imports.Result{Collections: []imports.Collection{{
+		Name: "Shop", Requests: []request.Request{{Name: "New", Method: "GET", URL: "https://new.example.com"}},
+	}}}, "Import collection")
+	if _, ok := a.folderCurrent["Shop"]; ok {
+		t.Errorf("replaced collection kept Current values: %+v", a.folderCurrent)
+	}
+	if _, ok := a.folderCurrent["Shop/Old"]; ok {
+		t.Errorf("replaced collection kept a descendant's Current values: %+v", a.folderCurrent)
+	}
+	if _, ok := a.folderCredentials["Shop"]; ok {
+		t.Errorf("replaced collection kept credential marks: %+v", a.folderCredentials)
+	}
+	if a.folderCurrent["Elsewhere"]["keep"] != "elsewhere-local" || !a.folderCredentials["Elsewhere"]["token"] {
+		t.Errorf("an unrelated collection's Current values changed: %+v / %+v", a.folderCurrent, a.folderCredentials)
 	}
 }
 

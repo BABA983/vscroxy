@@ -458,6 +458,19 @@ func TestUISnapshots(t *testing.T) {
 			a.composeTab, a.auth.Type = composeTabAuth, "Basic"
 			a.auth.Username = "{{baseUrl}}/{{missing}}"
 		}, want: "Basic"},
+		{name: "requests-auth-basic-password-hover", setup: func(a *app) {
+			draft(a)
+			a.envs[0].Vars["pass"] = "local-password"
+			a.composeTab, a.auth.Type = composeTabAuth, "Basic"
+			a.auth.Password = "{{pass}}"
+		}, act: func(t *testing.T, tt *ui.Tester) {
+			rect, ok := tt.Find("Password")
+			if !ok {
+				t.Fatal("Password field missing")
+			}
+			tt.Move(rect.X+120, rect.Y+rect.H/2)
+			tt.Advance(700 * time.Millisecond)
+		}, want: "••••••"},
 		{name: "requests-bulk-headers", setup: func(a *app) { draft(a); a.headerBulk = true }, want: "Request headers"},
 		{name: "requests-params", setup: func(a *app) {
 			draft(a)

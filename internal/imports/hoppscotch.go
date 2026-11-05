@@ -82,19 +82,38 @@ func ReadHoppscotchEnvironment(data []byte) ([]Environment, error) {
 	}
 	var out []Environment
 	for _, environment := range environments {
-		values := map[string]string{}
-		secret := false
+		values, current, credentials := map[string]string{}, map[string]string{}, map[string]bool{}
+		secret, local := false, false
 		for _, variable := range environment.Variables {
 			if variable.Key == "" {
 				continue
 			}
-			value := cmp.Or(variable.InitialValue, variable.CurrentValue, valueText(variable.Value))
-			values[variable.Key] = value
-			secret = secret || variable.Secret
+			initial := cmp.Or(variable.InitialValue, valueText(variable.Value))
+			switch {
+			case variable.Secret:
+				secret = true
+				current[variable.Key] = cmp.Or(variable.CurrentValue, initial)
+				credentials[variable.Key] = true
+			case variable.CurrentValue != "" && variable.CurrentValue != initial:
+				values[variable.Key] = initial
+				current[variable.Key] = variable.CurrentValue
+				local = true
+			default:
+				values[variable.Key] = initial
+			}
 		}
-		env := Environment{Name: cmp.Or(strings.TrimSpace(environment.Name), "Imported environment"), Values: values}
+		if len(current) == 0 {
+			current = nil
+		}
+		if len(credentials) == 0 {
+			credentials = nil
+		}
+		env := Environment{Name: cmp.Or(strings.TrimSpace(environment.Name), "Imported environment"), Values: values, Current: current, Credentials: credentials}
 		if secret {
-			env.Warnings = append(env.Warnings, "confidential variables were imported as ordinary local variables")
+			env.Warnings = append(env.Warnings, "confidential variables were imported as local Current values")
+		}
+		if local {
+			env.Warnings = append(env.Warnings, "current values were imported as local Current values")
 		}
 		out = append(out, env)
 	}
@@ -286,19 +305,34 @@ func hoppPairFields(pairs []hoppPair) []request.Field {
 	return fields
 }
 
-func hoppVariables(variables []hoppVariable, warnings *[]string) []request.Field {
-	var fields []request.Field
+func hoppVariables(variables []hoppVariable, warnings *[]string) []request.Variable {
+	var vars []request.Variable
+	secret, local := false, false
 	for _, variable := range variables {
 		if variable.Key == "" {
 			continue
 		}
-		value := cmp.Or(variable.InitialValue, variable.CurrentValue, valueText(variable.Value))
-		fields = append(fields, request.Field{Name: variable.Key, Value: value})
-		if variable.Secret {
-			*warnings = append(*warnings, "confidential variables were imported as ordinary local variables")
+		initial := cmp.Or(variable.InitialValue, valueText(variable.Value))
+		v := request.Variable{Name: variable.Key, Initial: initial}
+		switch {
+		case variable.Secret:
+			secret = true
+			v.Initial = ""
+			v.Current = cmp.Or(variable.CurrentValue, initial)
+			v.Local, v.Credential = true, true
+		case variable.CurrentValue != "" && variable.CurrentValue != initial:
+			v.Current = variable.CurrentValue
+			local = true
 		}
+		vars = append(vars, v)
 	}
-	return fields
+	if secret {
+		*warnings = append(*warnings, "confidential variables were imported as local Current values")
+	}
+	if local {
+		*warnings = append(*warnings, "current values were imported as local Current values")
+	}
+	return vars
 }
 
 func hoppBodyRequest(out *request.Request, body *hoppBody, warnings *[]string) {

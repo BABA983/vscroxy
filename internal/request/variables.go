@@ -14,8 +14,14 @@ type Variable struct {
 	Name    string `json:"name"`
 	Initial string `json:"initial,omitempty"`
 	// Current is local: json:"-" keeps it out of every collection file.
-	Current  string `json:"-"`
-	Disabled bool   `json:"disabled,omitempty"`
+	Current string `json:"-"`
+	// Local marks a row that exists only as a Current value. It is never
+	// written to the library; clearing its Current removes the row.
+	Local bool `json:"-"`
+	// Credential marks a local value that came from a credential slot. It is
+	// never written to the library and Persist current leaves it local.
+	Credential bool `json:"-"`
+	Disabled   bool `json:"disabled,omitempty"`
 	// Revealed is the table's own state, never saved.
 	Revealed bool `json:"-"`
 }

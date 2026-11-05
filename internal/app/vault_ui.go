@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/baba983/vscroxy/internal/uikit"
 	"io/fs"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -124,6 +125,7 @@ func (a *app) vaultKey(create bool) (key []byte, inFile bool, err error) {
 func (a *app) sendContext(r request.Request) request.Context {
 	in := a.inheritance(r.Collection)
 	in.Environment, in.ScriptVault, in.Tokens = a.activeEnv, a.vault.scripts, &a.tokens
+	in.EnvironmentInitial = maps.Clone(a.activeEnvironment().Vars)
 	r.Auth, _ = in.InheritAuth(r.Auth)
 	names := r.Variables()
 	if r.Auth.Type == request.AuthOAuth2 {
