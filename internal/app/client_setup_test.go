@@ -1,6 +1,7 @@
 package app
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -86,6 +87,7 @@ func TestOneClickAndroidShowsReverseProxyAndCertificateLimits(t *testing.T) {
 		"emulator-5554 · Pixel_7 · device",
 		"Set proxy",
 		"Undo proxy",
+		"Forget saved proxy",
 		"Copy CA to device",
 		"adb reverse",
 		"Undo restores the proxy value",
@@ -326,6 +328,154 @@ func TestAndroidProxyRecordsPersistAcrossRuns(t *testing.T) {
 	a.loadAndroidProxyRecords()
 	if len(a.clientUI.androidApplied) != 0 {
 		t.Fatalf("records not cleared: %+v", a.clientUI.androidApplied)
+	}
+}
+
+func TestOneClickAndroidClearsRecordWhenReverseIsGone(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("fake adb is a shell script")
+	}
+	a := oneClickApp(t)
+	a.androidProxyPath = filepath.Join(t.TempDir(), "android-proxy.json")
+	a.clientUI.target = clientTargetAndroid
+	a.clientUI.androidLoaded = true
+	a.clientUI.android = []clientsetup.AndroidDevice{{Serial: "emulator-5554", State: "device", Model: "Pixel_7"}}
+	a.clientUI.androidSerial = "emulator-5554"
+	a.clientUI.androidApplied = map[string]androidProxyState{
+		"emulator-5554": {Previous: "10.0.2.2:8888", Port: 7890},
+	}
+	binDir := t.TempDir()
+	fake := filepath.Join(binDir, "adb")
+	script := "#!/bin/sh\ncase \"$*\" in *\"reverse --remove\"*) echo 'listener not found' >&2; exit 1;; esac\nexit 0\n"
+	if err := os.WriteFile(fake, []byte(script), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", binDir)
+	tt := ui.NewTester(a.view, 960, 600)
+	if err := tt.Click("Undo proxy"); err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for len(a.clientUI.androidApplied) > 0 && time.Now().Before(deadline) {
+		tt.Frame()
+		time.Sleep(10 * time.Millisecond)
+	}
+	if len(a.clientUI.androidApplied) != 0 {
+		t.Fatalf("stale record survived a missing reverse listener: %+v", a.clientUI.androidApplied)
+	}
+	if !strings.Contains(a.message, "listener not found") {
+		t.Fatalf("missing warning: %q", a.message)
+	}
+}
+
+func TestOneClickAndroidForgetsSavedProxy(t *testing.T) {
+	a := oneClickApp(t)
+	a.androidProxyPath = filepath.Join(t.TempDir(), "android-proxy.json")
+	a.clientUI.target = clientTargetAndroid
+	a.clientUI.androidLoaded = true
+	a.clientUI.android = []clientsetup.AndroidDevice{{Serial: "emulator-5554", State: "device", Model: "Pixel_7"}}
+	a.clientUI.androidSerial = "emulator-5554"
+	a.clientUI.androidApplied = map[string]androidProxyState{
+		"emulator-5554": {Previous: "10.0.2.2:8888; rm -rf /", Port: 7890},
+	}
+	tt := ui.NewTester(a.view, 960, 600)
+	if err := tt.Click("Forget saved proxy"); err != nil {
+		t.Fatal(err)
+	}
+	if len(a.clientUI.androidApplied) != 0 {
+		t.Fatalf("record not forgotten: %+v", a.clientUI.androidApplied)
+	}
+	if !strings.Contains(a.message, "Forgot saved Android proxy") {
+		t.Fatalf("missing confirmation: %q", a.message)
+	}
+}
+
+func TestOneClickAndroidRejectsItsOwnPreviousProxy(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("fake adb is a shell script")
+	}
+	a := oneClickApp(t)
+	a.androidProxyPath = filepath.Join(t.TempDir(), "android-proxy.json")
+	a.clientUI.androidSerial = "emulator-5554"
+	a.clientUI.android = []clientsetup.AndroidDevice{{Serial: "emulator-5554", State: "device", Model: "Pixel_7"}}
+	binDir := t.TempDir()
+	fake := filepath.Join(binDir, "adb")
+	script := "#!/bin/sh\ncase \"$*\" in *\"settings get global http_proxy\"*) echo '" + a.srv.Addr() + "'; esac\nexit 0\n"
+	if err := os.WriteFile(fake, []byte(script), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", binDir)
+	a.applyAndroidProxy()
+	deadline := time.Now().Add(5 * time.Second)
+	for a.clientUI.androidPending && time.Now().Before(deadline) {
+		a.drainClientSetup()
+		time.Sleep(10 * time.Millisecond)
+	}
+	if len(a.clientUI.androidApplied) != 0 {
+		t.Fatalf("recorded vscroxy itself as the previous proxy: %+v", a.clientUI.androidApplied)
+	}
+	if !strings.Contains(a.message, "already points at vscroxy") {
+		t.Fatalf("missing refusal: %q", a.message)
+	}
+}
+
+func TestOneClickAndroidPendingBlocksASecondSet(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("fake adb is a shell script")
+	}
+	a := oneClickApp(t)
+	a.androidProxyPath = filepath.Join(t.TempDir(), "android-proxy.json")
+	a.clientUI.androidSerial = "emulator-5554"
+	a.clientUI.android = []clientsetup.AndroidDevice{{Serial: "emulator-5554", State: "device", Model: "Pixel_7"}}
+	log := filepath.Join(t.TempDir(), "adb.log")
+	binDir := t.TempDir()
+	fake := filepath.Join(binDir, "adb")
+	script := "#!/bin/sh\nprintf '%s\\n' \"$*\" >> " + clientsetup.POSIXQuote(log) + "\n" +
+		"case \"$*\" in *\"settings get global http_proxy\"*) echo '10.0.2.2:8888'; sleep 0.2;; esac\n" +
+		"exit 0\n"
+	if err := os.WriteFile(fake, []byte(script), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", binDir)
+	a.applyAndroidProxy()
+	if !a.clientUI.androidPending {
+		t.Fatal("pending flag was not set")
+	}
+	a.applyAndroidProxy()
+	deadline := time.Now().Add(5 * time.Second)
+	for a.clientUI.androidPending && time.Now().Before(deadline) {
+		a.drainClientSetup()
+		time.Sleep(10 * time.Millisecond)
+	}
+	data, err := os.ReadFile(log)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.Count(string(data), "settings get global http_proxy"); got != 1 {
+		t.Fatalf("second Set ran while pending: %d queries\n%s", got, data)
+	}
+	if state, ok := a.clientUI.androidApplied["emulator-5554"]; !ok || state.Previous != "10.0.2.2:8888" {
+		t.Fatalf("record: %+v", a.clientUI.androidApplied)
+	}
+}
+
+func TestAndroidProxyCorruptFileIsPreserved(t *testing.T) {
+	a := workspaceApp()
+	a.androidProxyPath = filepath.Join(t.TempDir(), "android-proxy.json")
+	if err := os.WriteFile(a.androidProxyPath, []byte("{broken"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	a.loadAndroidProxyRecords()
+	if _, err := os.Stat(a.androidProxyPath); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("damaged file still at the original path: %v", err)
+	}
+	backups, err := filepath.Glob(a.androidProxyPath + ".corrupt-*")
+	if err != nil || len(backups) != 1 {
+		t.Fatalf("backups: %v %v", backups, err)
+	}
+	data, err := os.ReadFile(backups[0])
+	if err != nil || string(data) != "{broken" {
+		t.Fatalf("backup contents: %q %v", data, err)
 	}
 }
 

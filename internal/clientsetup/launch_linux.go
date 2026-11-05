@@ -67,7 +67,7 @@ func chromeBinary() (string, error) {
 			Hint: "install one, or put google-chrome or chromium on PATH",
 		}
 	}
-	return path, nil
+	return browserBinary(path), nil
 }
 
 func firefoxBinary() (string, error) {
@@ -75,7 +75,7 @@ func firefoxBinary() (string, error) {
 	if !ok {
 		return "", &MissingToolError{Tool: "Firefox", Hint: "install Firefox, or put firefox on PATH"}
 	}
-	return path, nil
+	return browserBinary(path), nil
 }
 
 // OpenChrome starts Chrome or Chromium on a separate temporary profile.

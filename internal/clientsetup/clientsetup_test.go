@@ -376,8 +376,8 @@ func TestApplyAndroidProxyReadsThePreviousValue(t *testing.T) {
 	if err != nil || previous != "10.0.2.2:8888" {
 		t.Fatalf("apply: previous %q err %v", previous, err)
 	}
-	if err := ClearAndroidProxy("emulator-5554", 7890, previous); err != nil {
-		t.Fatal(err)
+	if warning, err := ClearAndroidProxy("emulator-5554", 7890, previous); err != nil || warning != nil {
+		t.Fatalf("clear: warning %v err %v", warning, err)
 	}
 	data, err := os.ReadFile(log)
 	if err != nil {
@@ -394,6 +394,72 @@ func TestApplyAndroidProxyReadsThePreviousValue(t *testing.T) {
 		if !slices.Contains(lines, want) {
 			t.Fatalf("adb log missing %q:\n%s", want, data)
 		}
+	}
+}
+
+func TestClearAndroidProxyWarnsWhenTheReverseListenerIsGone(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("fake adb is a shell script")
+	}
+	dir := t.TempDir()
+	log := filepath.Join(dir, "adb.log")
+	binDir := filepath.Join(dir, "bin")
+	if err := os.MkdirAll(binDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	fake := filepath.Join(binDir, "adb")
+	script := "#!/bin/sh\nprintf '%s\\n' \"$*\" >> " + POSIXQuote(log) + "\n" +
+		"case \"$*\" in *\"reverse --remove\"*) echo 'listener not found' >&2; exit 1;; esac\n" +
+		"exit 0\n"
+	if err := os.WriteFile(fake, []byte(script), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", binDir)
+	warning, err := ClearAndroidProxy("emulator-5554", 7890, "10.0.2.2:8888")
+	if err != nil {
+		t.Fatalf("restore failed: %v", err)
+	}
+	if warning == nil || !strings.Contains(warning.Error(), "listener not found") {
+		t.Fatalf("warning: %v", warning)
+	}
+	data, err := os.ReadFile(log)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(data), "settings put global http_proxy 10.0.2.2:8888") ||
+		!strings.Contains(string(data), "reverse --remove tcp:7890") {
+		t.Fatalf("adb log:\n%s", data)
+	}
+}
+
+func TestClearAndroidProxyDoesNotRemoveTheListenerWhenRestoreFails(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("fake adb is a shell script")
+	}
+	dir := t.TempDir()
+	log := filepath.Join(dir, "adb.log")
+	binDir := filepath.Join(dir, "bin")
+	if err := os.MkdirAll(binDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	fake := filepath.Join(binDir, "adb")
+	script := "#!/bin/sh\nprintf '%s\\n' \"$*\" >> " + POSIXQuote(log) + "\n" +
+		"case \"$*\" in *\"settings put\"*) exit 1;; esac\n" +
+		"exit 0\n"
+	if err := os.WriteFile(fake, []byte(script), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", binDir)
+	warning, err := ClearAndroidProxy("emulator-5554", 7890, "10.0.2.2:8888")
+	if err == nil || warning != nil {
+		t.Fatalf("warning %v err %v", warning, err)
+	}
+	data, err := os.ReadFile(log)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(data), "reverse --remove") {
+		t.Fatalf("reverse was removed after a failed restore:\n%s", data)
 	}
 }
 
@@ -746,7 +812,7 @@ func TestSnapProfileRootMapsSnapBinariesToTheirCommonDirectory(t *testing.T) {
 		{"/snap/firefox/1234/usr/lib/firefox/firefox", "/home/jane/snap/firefox/common", true},
 		{"/snap/chromium/current/usr/lib/chromium-browser/chromium-browser", "/home/jane/snap/chromium/common", true},
 		{"/snap/bin/firefox", "/home/jane/snap/firefox/common", true},
-		{"/usr/bin/firefox", "", false},
+		{"/opt/vscroxy/not-a-browser", "", false},
 	} {
 		got, ok := snapProfileRoot(test.binary, "/home/jane")
 		if got != test.want || ok != test.ok {
@@ -755,6 +821,59 @@ func TestSnapProfileRootMapsSnapBinariesToTheirCommonDirectory(t *testing.T) {
 	}
 	if _, ok := snapProfileRoot("/snap/firefox/1/firefox", ""); ok {
 		t.Fatal("empty home accepted")
+	}
+}
+
+func TestSnapLauncherReadsTransitionalWrapperScript(t *testing.T) {
+	root := t.TempDir()
+	binDir := filepath.Join(root, "snap", "bin")
+	if err := os.MkdirAll(binDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	firefox := filepath.Join(binDir, "firefox")
+	if err := os.WriteFile(firefox, []byte("#!/bin/sh\n"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	wrapper := filepath.Join(t.TempDir(), "firefox")
+	if err := os.WriteFile(wrapper, []byte("#!/bin/sh\nexec "+firefox+" \"$@\"\n"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	got, ok := snapLauncherAt(wrapper, binDir)
+	if !ok || got != firefox {
+		t.Fatalf("wrapper: got %q %v, want %q true", got, ok, firefox)
+	}
+
+	chromium := filepath.Join(binDir, "chromium")
+	if err := os.WriteFile(chromium, []byte("#!/bin/sh\n"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	browserWrapper := filepath.Join(t.TempDir(), "chromium-browser")
+	if err := os.WriteFile(browserWrapper, []byte("#!/bin/sh\nexec "+chromium+" \"$@\"\n"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	got, ok = snapLauncherAt(browserWrapper, binDir)
+	if !ok || got != chromium {
+		t.Fatalf("chromium wrapper: got %q %v, want %q true", got, ok, chromium)
+	}
+}
+
+func TestSnapLauncherFindsTheBaseNameBesideAWrapper(t *testing.T) {
+	root := t.TempDir()
+	binDir := filepath.Join(root, "snap", "bin")
+	if err := os.MkdirAll(binDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	firefox := filepath.Join(binDir, "firefox")
+	if err := os.WriteFile(firefox, []byte("#!/bin/sh\n"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	wrapper := filepath.Join(t.TempDir(), "firefox")
+	if err := os.WriteFile(wrapper, nil, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	got, ok := snapLauncherAt(wrapper, binDir)
+	if !ok || got != firefox {
+		t.Fatalf("base name: got %q %v, want %q true", got, ok, firefox)
 	}
 }
 
