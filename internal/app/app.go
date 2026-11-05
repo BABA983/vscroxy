@@ -2627,7 +2627,8 @@ func (a *app) flowActions(c *ui.Context, f flow) []action {
 	for _, format := range requestCopyFormats {
 		formats = append(formats, pick(requests, format.id))
 	}
-	formats = append(formats, pick(requests, "flow.copy-har"), pick(requests, "flow.copy-har-raw"))
+	formats = append(formats, pick(requests, "flow.copy-markdown"), pick(requests, "flow.copy-csv"),
+		pick(requests, "flow.copy-raw"), pick(requests, "flow.copy-har"), pick(requests, "flow.copy-har-raw"))
 	copyItems := []action{do("flow.copy-url", "URL", func() {
 		services.WriteClipboard(f.url)
 		a.done("Copied URL")

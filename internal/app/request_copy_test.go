@@ -95,7 +95,7 @@ func TestRequestCopyHAR(t *testing.T) {
 	flows := []flow{{id: 7, method: "POST", url: "https://user:password@example.test/a?secret=query-value", reqHeader: http.Header{"Authorization": {"Bearer synthetic-secret"}}, reqBody: "request-secret", respHeader: http.Header{"Set-Cookie": {"session=synthetic-cookie"}}, resFile: path, resBody: "preview", resSize: len(body), status: 201}, a.flows[0]}
 	// The same menu supports imported/session flows, not just live IDs.
 	tt := ui.NewTester(func(c *ui.Context) {
-		ui.Button(c, "Copy").PopoverMenuButton(func(m *ui.Menu) { actionMenu(m, copyAsMenu(a.harCopyActions(c, flows)).items) })
+		ui.Button(c, "Copy").PopoverMenuButton(func(m *ui.Menu) { actionMenu(m, copyAsMenu(a.captureCopyActions(c, flows)).items) })
 	}, 960, 600)
 	for _, raw := range []bool{false, true} {
 		if err := tt.Click("Copy"); err != nil {
@@ -222,5 +222,16 @@ func TestGeneratedCodeCarriesAuthAndEncodedBodies(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestCaptureCanGenerateCodeWithoutOpeningADraft(t *testing.T) {
+	a := workspaceApp()
+	a.syncDocument()
+	if a.requestDocument == nil {
+		t.Fatal("the selected capture did not open as a request document")
+	}
+	if x := pick(a.actions(nil), "request.code"); !x.enabled {
+		t.Fatalf("Generate code is unavailable for a capture: %s", x.why())
 	}
 }

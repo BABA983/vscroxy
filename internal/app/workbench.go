@@ -424,7 +424,7 @@ func (a *app) requestActions(c *ui.Context, f flow, current bool) []action {
 		}
 		actions = append(actions, item.when(copyable, inspectOne))
 	}
-	for _, item := range a.harCopyActions(c, selected) {
+	for _, item := range a.captureCopyActions(c, selected) {
 		actions = append(actions, item.when(current && a.page.capture(), "Inspect captured requests first"))
 	}
 	return actions

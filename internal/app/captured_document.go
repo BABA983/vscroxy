@@ -177,7 +177,7 @@ func (a *app) capturedHeader(c *ui.Context, t *ui.Theme, f flow, d *requestDocum
 			}
 		}
 		copy := uikit.ToolbarButton(c, "Copy as…", "Copy the original captured request; may include credentials", false).Padding(0, t.Space(1)).PopoverMenuButton(func(m *ui.Menu) {
-			actionMenu(m, copyAsMenu(append(a.requestCopyActions(c, f, nil), a.harCopyActions(c, []flow{f})...)).items)
+			actionMenu(m, copyAsMenu(append(a.requestCopyActions(c, f, nil), a.captureCopyActions(c, []flow{f})...)).items)
 		})
 		copy.Children(func() {
 			ui.Icon(c, copyIcon).Size(uikit.IconInline, uikit.IconInline)
