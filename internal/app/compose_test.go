@@ -177,7 +177,7 @@ func TestEnvironmentTablePreservesValuesAndRejectsDuplicateKeys(t *testing.T) {
 	a := workspaceApp()
 	a.envsPath = filepath.Join(t.TempDir(), "env.json")
 	a.openVars()
-	a.varsRows = []request.Field{{Name: "base", Value: "http://a.test"}, {Name: "empty"}, {Name: "spaced", Value: "  = x  "}}
+	a.varsRows = []variableRow{{Name: "base", Initial: "http://a.test", HasInitial: true}, {Name: "empty"}, {Name: "spaced", Initial: "  = x  ", HasInitial: true}}
 	a.saveVars()
 	f, err := loadEnvs(&store.File{Path: a.envsPath})
 	envs := f.Envs
@@ -185,7 +185,7 @@ func TestEnvironmentTablePreservesValuesAndRejectsDuplicateKeys(t *testing.T) {
 		t.Fatalf("environment table lost literal values: %+v %v", envs, err)
 	}
 	a.openVars()
-	a.varsRows = append(a.varsRows, request.Field{Name: " base ", Value: "replacement"})
+	a.varsRows = append(a.varsRows, variableRow{Name: " base ", Initial: "replacement", HasInitial: true})
 	a.saveVars()
 	if !a.varsOpen || a.varsProblem == "" || a.activeVars()["base"] != "http://a.test" {
 		t.Fatal("duplicate key silently replaced a value")

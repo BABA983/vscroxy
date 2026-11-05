@@ -376,6 +376,7 @@ func (a *app) renameFolder(from, name string) error {
 	if err := a.writeLibrary(requests, folders); err != nil {
 		return err
 	}
+	a.moveFolderCurrent(from, to)
 	for _, d := range a.documents {
 		if under(d.composeCollection, from) {
 			d.composeCollection = moved(d.composeCollection)
@@ -395,4 +396,48 @@ func (a *app) renameFolder(from, name string) error {
 		a.runner.load(a.requests)
 	}
 	return nil
+}
+
+// moveFolderCurrent follows a rename, so a collection's or folder's local
+// Current values stay with it instead of a stale path.
+func (a *app) moveFolderCurrent(from, to string) {
+	if len(a.folderCurrent) == 0 {
+		return
+	}
+	under := func(p, root string) bool { return p == root || strings.HasPrefix(p, root+"/") }
+	next := maps.Clone(a.folderCurrent)
+	for p, values := range a.folderCurrent {
+		if under(p, from) {
+			delete(next, p)
+			next[to+strings.TrimPrefix(p, from)] = values
+		}
+	}
+	a.saveFolderCurrent(next)
+}
+
+// dropFolderCurrent removes the local Current values of a deleted collection
+// or folder, and of everything under it.
+func (a *app) dropFolderCurrent(path string) {
+	if len(a.folderCurrent) == 0 {
+		return
+	}
+	next := maps.Clone(a.folderCurrent)
+	for p := range a.folderCurrent {
+		if within(p, path) {
+			delete(next, p)
+		}
+	}
+	a.saveFolderCurrent(next)
+}
+
+// saveFolderCurrent keeps the library's Current values in env.json, which is
+// the only place they are written.
+func (a *app) saveFolderCurrent(next map[string]map[string]string) {
+	f := a.localEnvs()
+	f.FolderCurrent = next
+	if err := saveEnvs(a.file(a.envsPath), f); err != nil {
+		a.fail("Variables", err)
+		return
+	}
+	a.folderCurrent = next
 }

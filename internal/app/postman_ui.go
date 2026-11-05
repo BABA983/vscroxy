@@ -129,7 +129,12 @@ func (a *app) importData(data []byte, path string) {
 			envs[at].Vars = vars
 			title = fmt.Sprintf("Imported environment “%s” · %d %s", name, len(env.Values), plural(len(env.Values), "variable", "variables"))
 		}
-		if err := saveEnvs(a.file(a.envsPath), envFile{Active: a.activeEnv, Envs: envs, Globals: globals}); err != nil {
+		if err := func() error {
+			f := a.localEnvs()
+			f.Envs = envs
+			f.Globals = globals
+			return saveEnvs(a.file(a.envsPath), f)
+		}(); err != nil {
 			a.fail("Import Postman environment", err)
 			return
 		}
@@ -238,13 +243,14 @@ func (a *app) exportPostman(name string) {
 	a.saveExport("Export Postman collection", strings.ReplaceAll(name, "∕", "-")+".postman_collection.json", data, warnings)
 }
 
-// exportPostmanVariables writes the variables dialog's rows, as they are on
-// screen, as a Postman environment or globals file.
+// exportPostmanVariables writes the variables dialog's Initial values, as
+// they are on screen, as a Postman environment or globals file. Current
+// values are local and never exported.
 func (a *app) exportPostmanVariables() {
 	values := map[string]string{}
 	for _, row := range a.varsRows {
 		if name := strings.TrimSpace(row.Name); name != "" {
-			values[name] = row.Value
+			values[name] = row.Initial
 		}
 	}
 	name := "globals"

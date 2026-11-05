@@ -46,8 +46,8 @@ func TestCapturedRequestMatchingBoundaries(t *testing.T) {
 			a.requests = []savedRequest{{Name: "Get project", Collection: "Shop/Projects", Method: tc.method, URL: tc.template}}
 			a.globals = map[string]string{"base": "https://global.example.com"}
 			a.folders = []request.Folder{
-				{Path: "Shop", Variables: []request.Field{{Name: "base", Value: "https://collection.example.com"}}},
-				{Path: "Shop/Projects", Variables: []request.Field{{Name: "base", Value: "https://folder.example.com"}}},
+				{Path: "Shop", Variables: []request.Variable{{Name: "base", Initial: "https://collection.example.com"}}},
+				{Path: "Shop/Projects", Variables: []request.Variable{{Name: "base", Initial: "https://folder.example.com"}}},
 			}
 			a.activeEnv = "Local"
 			a.envs = []environment{{Name: "Local", Vars: map[string]string{
@@ -69,8 +69,8 @@ func TestCapturedRequestMatchingBoundaries(t *testing.T) {
 	a.requests[0].Collection, a.requests[0].URL = "Shop/Projects", "{{base}}/projects"
 	a.globals = map[string]string{"base": "https://global.example.com"}
 	a.folders = []request.Folder{
-		{Path: "Shop", Variables: []request.Field{{Name: "base", Value: "https://collection.example.com"}}},
-		{Path: "Shop/Projects", Variables: []request.Field{{Name: "base", Value: "https://api.example.com"}, {Name: "base", Value: "https://disabled.example.com", Disabled: true}}},
+		{Path: "Shop", Variables: []request.Variable{{Name: "base", Initial: "https://collection.example.com"}}},
+		{Path: "Shop/Projects", Variables: []request.Variable{{Name: "base", Initial: "https://api.example.com"}, {Name: "base", Initial: "https://disabled.example.com", Disabled: true}}},
 	}
 	if got := a.matchingRequests(a.flows[0]); len(got) != 1 {
 		t.Fatalf("folder matching = %+v", got)

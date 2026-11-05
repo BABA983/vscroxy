@@ -38,7 +38,7 @@ func TestPostmanScriptsThroughTheProxy(t *testing.T) {
 	jar, _ := cookiejar.New(nil)
 	in := Context{
 		Globals: map[string]string{"g": "1"},
-		Folders: []Folder{{Path: "Shop", Variables: []Field{{Name: "base", Value: upstream.URL}},
+		Folders: []Folder{{Path: "Shop", Variables: []Variable{{Name: "base", Initial: upstream.URL}},
 			Pre: `pm.collectionVariables.set("seen", "yes"); pm.globals.unset("g")`}},
 	}
 	r := Request{Name: "List orders", Method: "GET", Collection: "Shop/Orders",
@@ -122,7 +122,7 @@ pm.collectionVariables.set("lastStatus", pm.response.code);`}
 	if _, ok := next.Globals["g"]; ok || in.Globals["g"] != "1" {
 		t.Errorf("Apply globals = %v (original %v): it must remove g without mutating the original", next.Globals, in.Globals)
 	}
-	if got := next.Folders[0].Variables; len(got) != 3 || got[1] != (Field{Name: "seen", Value: "yes"}) || got[2] != (Field{Name: "lastStatus", Value: "200"}) {
+	if got := next.Folders[0].Variables; len(got) != 3 || got[1] != (Variable{Name: "seen", Current: "yes"}) || got[2] != (Variable{Name: "lastStatus", Current: "200"}) {
 		t.Errorf("Apply collection variables = %+v", got)
 	}
 	if other := in.Apply(out.Writes, "Elsewhere"); len(other.Folders[0].Variables) != 1 {

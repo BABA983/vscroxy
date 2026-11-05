@@ -2580,7 +2580,7 @@ func TestConcurrentRequestTabsOwnTheirResponses(t *testing.T) {
 		t.Fatal(err)
 	}
 	click("Reveal variable 1")
-	click("Variable value 1")
+	click("Variable initial value 1")
 	tt.Key(ui.Cmd, ui.KeyA)
 	tt.Key(ui.Cmd, ui.KeyC)
 	if tt.Clipboard() != "staging" {
@@ -2594,8 +2594,12 @@ func TestConcurrentRequestTabsOwnTheirResponses(t *testing.T) {
 		t.Fatal(err)
 	}
 	for i, want := range []string{"yes", "original", "yes"} {
+		column := "Variable initial value %d"
+		if i != 1 {
+			column = "Variable current value %d"
+		}
 		click(fmt.Sprintf("Reveal variable %d", i+1))
-		click(fmt.Sprintf("Variable value %d", i+1))
+		click(fmt.Sprintf(column, i+1))
 		tt.Key(ui.Cmd, ui.KeyA)
 		tt.Key(ui.Cmd, ui.KeyC)
 		if tt.Clipboard() != want {

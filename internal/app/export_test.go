@@ -138,8 +138,8 @@ func exportFixtures(t *testing.T) []exportFixture {
 		Examples: []request.Example{{Name: "Example to review", Status: 201, Headers: "Set-Cookie: header-cookie", Body: "body-example",
 			Request: request.ExampleRequest{Method: "POST", URL: url, Headers: "X-Example: header-example", Body: "body-original"}}}}
 	folders := []request.Folder{
-		{Path: "Collection", Description: "notes-collection", Pre: `throw "notes-root"`, Auth: request.Auth{Type: "Basic", Username: "auth-root-user", Password: "auth-root-password"}, Variables: []request.Field{{Name: "root", Value: "variable-root"}}},
-		{Path: "Collection/Folder", Description: "notes-folder", Post: `throw "notes-folder-post"`, Auth: request.Auth{Type: "Bearer", Token: "auth-folder"}, Variables: []request.Field{{Name: "folder", Value: "variable-folder", Disabled: true}}},
+		{Path: "Collection", Description: "notes-collection", Pre: `throw "notes-root"`, Auth: request.Auth{Type: "Basic", Username: "auth-root-user", Password: "auth-root-password"}, Variables: []request.Variable{{Name: "root", Initial: "variable-root"}}},
+		{Path: "Collection/Folder", Description: "notes-folder", Post: `throw "notes-folder-post"`, Auth: request.Auth{Type: "Bearer", Token: "auth-folder"}, Variables: []request.Variable{{Name: "folder", Initial: "variable-folder", Disabled: true}}},
 	}
 	collection, _, err := postman.WriteCollection("Collection", []request.Request{r,
 		{Name: "Upload", Collection: "Collection/Folder", Method: "POST", URL: "https://example.test/upload", BodyMode: "Binary", BodyFile: "/private/body-file-path.bin"},

@@ -55,6 +55,8 @@ var (
 	checkIcon         = lucide.Check()
 	warningIcon       = lucide.TriangleAlert()
 	saveIcon          = lucide.Save()
+	persistIcon       = lucide.ArrowUpToLine()
+	resetIcon         = lucide.Undo2()
 )
 
 // settingsModal is Settings without a main window to open its own beside,

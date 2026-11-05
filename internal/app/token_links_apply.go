@@ -46,6 +46,9 @@ func (a *app) tokenVariableAvailable(name string) bool {
 	if _, ok := a.globals[name]; ok {
 		return false
 	}
+	if _, ok := a.globalsCurrent[name]; ok {
+		return false
+	}
 	for _, e := range a.envs {
 		if _, ok := e.Vars[name]; ok {
 			return false
@@ -55,7 +58,12 @@ func (a *app) tokenVariableAvailable(name string) bool {
 		}
 	}
 	for _, f := range a.folders {
-		if slices.ContainsFunc(f.Variables, func(v request.Field) bool { return v.Name == name }) {
+		if slices.ContainsFunc(f.Variables, func(v request.Variable) bool { return v.Name == name }) {
+			return false
+		}
+	}
+	for _, values := range a.folderCurrent {
+		if _, ok := values[name]; ok {
 			return false
 		}
 	}
@@ -195,7 +203,11 @@ func (a *app) applyTokenLink(p *tokenLinkPlan) error {
 			envs[at].Current = map[string]string{}
 		}
 		envs[at].Current[p.Variable] = "" // Never seed captured, potentially expired credentials.
-		if err := saveEnvs(a.file(a.envsPath), envFile{Active: a.activeEnv, Envs: envs, Globals: a.globals}); err != nil {
+		if err := func() error {
+			f := a.localEnvs()
+			f.Envs = envs
+			return saveEnvs(a.file(a.envsPath), f)
+		}(); err != nil {
 			return errors.New("could not reserve private Current value; reload environments before retrying")
 		}
 		a.envs = envs

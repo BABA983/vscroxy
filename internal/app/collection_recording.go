@@ -237,14 +237,14 @@ func (a *app) nextCollectionRecording() {
 	s.Busy = true
 	// Reserve all effective scope names; never hide a private credential under
 	// a folder/global override or replace a reader's existing variable value.
-	vars := maps.Clone(a.globals)
+	vars := a.globalValues()
 	if vars == nil {
 		vars = map[string]string{}
 	}
 	maps.Copy(vars, a.envs[env].values())
 	for _, folder := range a.folders {
 		for _, v := range folder.Variables {
-			vars[v.Name] = v.Value
+			vars[v.Name] = v.Value()
 		}
 	}
 	config := s.collectionRecordingConfig
@@ -528,7 +528,7 @@ func (a *app) keepRecordedCapture(f flow, result recordedCapture) error {
 			}
 			for _, folder := range a.folders {
 				for _, v := range folder.Variables {
-					if v.Name == name && v.Value != value {
+					if v.Name == name && v.Value() != value {
 						return errors.New("Recording variable conflicts with a folder value; restart recording")
 					}
 				}
@@ -539,7 +539,11 @@ func (a *app) keepRecordedCapture(f flow, result recordedCapture) error {
 	// Dependencies first. A later library conflict may leave unused variables,
 	// never a request referencing a value that wasn't saved. No raw error text
 	// (which may quote a capture) enters notifications or control responses.
-	if err := saveEnvs(a.file(a.envsPath), envFile{Active: a.activeEnv, Envs: envs, Globals: a.globals}); err != nil {
+	if err := func() error {
+		f := a.localEnvs()
+		f.Envs = envs
+		return saveEnvs(a.file(a.envsPath), f)
+	}(); err != nil {
 		return errors.New("Could not save recording variables; resolve the environment file conflict and restart")
 	}
 	a.envs = envs

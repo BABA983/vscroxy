@@ -414,18 +414,21 @@ type app struct {
 	exportUI          exportReview
 
 	// envs are the variables a request uses as {{name}}, one set in use.
-	envsPath    string
-	envsProblem string
-	envs        []environment
-	activeEnv   string
-	globals     map[string]string
-	varsGlobals bool // the Variables dialog edits the globals
-	varsOpen    bool
-	varsName    string
-	varsChoice  string
-	varsRows    []request.Field
-	varsCurrent []request.Field
-	varsProblem string
+	envsPath       string
+	envsProblem    string
+	envs           []environment
+	activeEnv      string
+	globals        map[string]string
+	globalsCurrent map[string]string
+	// folderCurrent holds collection and folder Current values by path and
+	// name; their Initial values live in the library.
+	folderCurrent map[string]map[string]string
+	varsGlobals   bool // the Variables dialog edits the globals
+	varsOpen      bool
+	varsName      string
+	varsChoice    string
+	varsRows      []variableRow
+	varsProblem   string
 
 	breakOn   bool
 	bp        *capture.Breakpoint
@@ -591,7 +594,7 @@ func (a *app) loadRequestAssets() {
 	if f, err := loadEnvs(a.file(a.envsPath)); err != nil {
 		a.envsProblem = fmt.Sprintf("Variables (%s): %v", a.envsPath, err)
 	} else {
-		a.envs, a.activeEnv, a.globals, a.envsProblem = f.Envs, f.Active, f.Globals, ""
+		a.envs, a.activeEnv, a.globals, a.globalsCurrent, a.folderCurrent, a.envsProblem = f.Envs, f.Active, f.Globals, f.GlobalsCurrent, f.FolderCurrent, ""
 		if a.activeEnv == "" && len(a.envs) > 0 {
 			a.activeEnv = a.envs[0].Name
 		}
@@ -927,7 +930,7 @@ func (a *app) drain() {
 			}
 		}
 		if result.vars != nil && !maps.Equal(result.varsBefore, result.vars) {
-			a.applyVars(result.environment, result.varsBefore, result.vars, result.varsCurrent)
+			a.applyVars(result.environment, result.varsBefore, result.vars)
 		}
 		a.applyWrites(result.writes)
 		if result.experiment != nil {
@@ -2727,8 +2730,9 @@ func (a *app) activeVars() map[string]string {
 
 // applyVars merges only the variables changed by this run. Another tab may
 // have completed or the user may have edited the environment in the meantime.
-// current is the run's original private scope, not the current editor's rows.
-func (a *app) applyVars(name string, before, vars, current map[string]string) {
+// Script writes are Current values: the environment's Initial values, which
+// exports carry, stay as they were.
+func (a *app) applyVars(name string, before, vars map[string]string) {
 	if a.envsProblem != "" {
 		a.warn("Variables not saved: " + a.envsProblem)
 		return
@@ -2736,36 +2740,26 @@ func (a *app) applyVars(name string, before, vars, current map[string]string) {
 	name = cmp.Or(name, "default")
 	at := slices.IndexFunc(a.envs, func(e environment) bool { return e.Name == name })
 	if at < 0 {
-		a.envs = append(a.envs, environment{Name: name, Vars: map[string]string{}})
+		a.envs = append(a.envs, environment{Name: name})
 		at = len(a.envs) - 1
 	}
-	if a.envs[at].Vars == nil {
-		a.envs[at].Vars = map[string]string{}
+	if a.envs[at].Current == nil {
+		a.envs[at].Current = map[string]string{}
 	}
 	for key, value := range vars {
 		if old, ok := before[key]; !ok || value != old {
-			_, wasPrivate := current[key]
-			_, isPrivate := a.envs[at].Current[key]
-			if wasPrivate || isPrivate {
-				if a.envs[at].Current == nil {
-					a.envs[at].Current = map[string]string{}
-				}
-				a.envs[at].Current[key] = value
-			} else {
-				a.envs[at].Vars[key] = value
-			}
+			a.envs[at].Current[key] = value
 		}
 	}
 	for key := range before {
 		if _, ok := vars[key]; !ok {
-			delete(a.envs[at].Vars, key) // pm.environment.unset
-			delete(a.envs[at].Current, key)
+			delete(a.envs[at].Current, key) // pm.environment.unset
 		}
 	}
 	if a.activeEnv == "" {
 		a.activeEnv = name
 	}
-	if err := saveEnvs(a.file(a.envsPath), envFile{Active: a.activeEnv, Envs: a.envs, Globals: a.globals}); err != nil {
+	if err := a.saveLocalEnvs(); err != nil {
 		a.fail("Variables", err)
 	}
 }
@@ -2782,11 +2776,10 @@ func (a *app) editEnvironment(name string) {
 	}
 	a.varsGlobals = false
 	a.varsName, a.varsChoice, a.varsProblem = name, name, ""
-	a.varsRows, a.varsCurrent = nil, nil
+	a.varsRows = nil
 	for _, env := range a.envs {
 		if env.Name == name {
-			a.varsRows = fieldsOf(env.Vars)
-			a.varsCurrent = fieldsOf(env.Current)
+			a.varsRows = variableRowsOf(env.Vars, env.Current)
 		}
 	}
 }
@@ -2794,122 +2787,70 @@ func (a *app) editEnvironment(name string) {
 // editGlobals puts the global variables, beneath every environment, in the
 // Variables dialog.
 func (a *app) editGlobals() {
-	a.varsGlobals, a.varsProblem, a.varsRows = true, "", fieldsOf(a.globals)
+	a.varsGlobals, a.varsProblem, a.varsRows = true, "", variableRowsOf(a.globals, a.globalsCurrent)
 }
 
-func fieldsOf(vars map[string]string) []request.Field {
-	var rows []request.Field
-	for _, key := range slices.Sorted(maps.Keys(vars)) {
-		rows = append(rows, request.Field{Name: key, Value: vars[key]})
-	}
-	return rows
-}
-
-// varsModal edits the variables of one environment, the one a request fills its
-// {{name}} from.
+// varsModal edits the variables of one environment, or the globals: each row
+// has a shared Initial value and a local Current value.
 func (a *app) varsModal(c *ui.Context, t *ui.Theme) {
 	if !a.varsOpen {
 		return
 	}
 	_, height := c.Size()
 	uikit.Modal(c, &a.varsOpen, func() {
-		uikit.DialogColumn(c, uikit.DialogMedium).Height(min(560, height-80)).Children(func() {
+		uikit.DialogColumn(c, uikit.DialogLarge).Height(min(600, height-80)).Children(func() {
 			uikit.DialogTitle(c, "Variables")
-			ui.Scroll(c).Grow(1).MinHeight(0).FillWidth().Gap(t.Space(3)).Children(func() {
-				if a.envsProblem != "" {
-					ui.Text(c, "Variables are read-only. Close this dialog, repair or move env.json aside, then reload local assets.").FontSize(uikit.TextMeta).TextColor(t.Danger)
+			if a.envsProblem != "" {
+				ui.Text(c, "Variables are read-only. Close this dialog, repair or move env.json aside, then reload local assets.").FontSize(uikit.TextMeta).TextColor(t.Danger)
+			}
+			scope := 0
+			if a.varsGlobals {
+				scope = 1
+			}
+			if uikit.Segmented(c, &scope, "Environments", "Globals").Changed() {
+				if scope == 1 {
+					a.editGlobals()
+				} else {
+					a.editEnvironment(cmp.Or(a.activeEnv, "default"))
 				}
-				scope := 0
-				if a.varsGlobals {
-					scope = 1
-				}
-				if uikit.Segmented(c, &scope, "Environments", "Globals").Changed() {
-					if scope == 1 {
-						a.editGlobals()
-					} else {
-						a.editEnvironment(cmp.Or(a.activeEnv, "default"))
+			}
+			if a.varsGlobals {
+				uikit.Meta(c, "Every request reads these, whatever the environment. Collection, folder and environment values override them.")
+			} else {
+				uikit.Meta(c, "Use {{name}} in requests. Environment values override collection values and globals.")
+				ui.Row(c).Gap(t.Space(2)).Children(func() {
+					if names := a.envNames(); len(names) > 0 {
+						if uikit.Select(c, &a.varsChoice, names).Label("Edit environment").Grow(1).MinWidth(0).Changed() {
+							a.editEnvironment(a.varsChoice)
+						}
+					}
+					if uikit.SecondaryButton(c, "New environment").Clicked() {
+						a.editEnvironment("")
+					}
+				})
+				uikit.Input(c, &a.varsName).Label("Environment")
+			}
+			uikit.Hint(c, "Initial values are shared and exported; Current values stay on this machine, in plaintext. Use Vault for encryption.")
+			ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+				ui.Spacer(c)
+				if anyCurrent(a.varsRows) {
+					if uikit.SecondaryButton(c, "Persist all current").Tooltip("Write every Current value into its Initial value").Clicked() {
+						persistAllCurrent(a.varsRows)
+					}
+					if uikit.SecondaryButton(c, "Reset all current").Tooltip("Drop every local override and use Initial values again").Clicked() {
+						resetAllCurrent(a.varsRows)
 					}
 				}
-				if a.varsGlobals {
-					uikit.Meta(c, "Every request reads these, whatever the environment. Collection, folder and environment values override them. Stored locally in plaintext; keep secrets in the Vault.")
-				} else {
-					uikit.Meta(c, "Use {{name}} in requests. Environment values override collection values and globals. Stored locally in plaintext; keep secrets in the Vault.")
-					ui.Row(c).Gap(t.Space(2)).Children(func() {
-						if names := a.envNames(); len(names) > 0 {
-							if uikit.Select(c, &a.varsChoice, names).Label("Edit environment").Grow(1).MinWidth(0).Changed() {
-								a.editEnvironment(a.varsChoice)
-							}
-						}
-						if uikit.SecondaryButton(c, "New environment").Clicked() {
-							a.editEnvironment("")
-						}
-					})
-					uikit.Input(c, &a.varsName).Label("Environment")
-				}
-				tableHeight := float32(224)
-				if !a.varsGlobals {
-					// Leave room for local overrides instead of blank shared rows.
-					tableHeight = min(tableHeight, uikit.HeightControl*float32(len(a.varsRows)+2)+2)
-				}
-				ui.Column(c).Height(tableHeight).Border(1, t.Border).Radius(uikit.RadiusControl).Children(func() {
-					ui.Row(c).Height(uikit.HeightControl).AlignItems(ui.Center).BorderWidth(0, 0, 1, 0).BorderColor(t.Border).Children(func() {
-						uikit.Meta(c, "NAME").Basis(0).Grow(1).Padding(0, t.Space(2))
-						uikit.Meta(c, "VALUE").Basis(0).Grow(2).Padding(0, t.Space(2))
-						ui.Box(c).Width(56)
-					})
-					ui.Scroll(c).Grow(1).MinHeight(0).FillWidth().Children(func() {
-						remove := -1
-						for i := range a.varsRows {
-							r := &a.varsRows[i]
-							row := ui.Row(c).Key(i).Height(uikit.HeightControl).AlignItems(ui.Center).BorderWidth(0, 0, 1, 0).BorderColor(t.Border)
-							row.Children(func() {
-								ui.Box(c).Basis(0).Grow(1).MinWidth(0).FillHeight().BorderWidth(0, 1, 0, 0).BorderColor(t.Border).Children(func() {
-									field := requestGridInput(c, &r.Name, "base_url", fmt.Sprintf("Variable name %d", i+1)).ReadOnly(a.envsProblem != "")
-									cellBorder(t, field, false, false)
-								})
-								ui.Box(c).Basis(0).Grow(2).MinWidth(0).FillHeight().Children(func() {
-									value := requestGridInput(c, &r.Value, "Value", fmt.Sprintf("Variable value %d", i+1)).ReadOnly(a.envsProblem != "")
-									if !r.Revealed {
-										value.Password()
-									}
-									cellBorder(t, value, !r.Revealed, r.Revealed)
-								})
-								if uikit.IconButton(c, fmt.Sprintf("Reveal variable %d", i+1), "Reveal or hide variable value", eyeIcon).Clicked() {
-									r.Revealed = !r.Revealed
-								}
-								ui.Row(c).Disabled(a.envsProblem != "").Children(func() {
-									button := uikit.IconButton(c, fmt.Sprintf("Remove variable %d", i+1), "Remove variable", closeIcon)
-									if !row.Hovered() && !row.FocusWithin() {
-										button.Opacity(0)
-									}
-									if button.Clicked() {
-										remove = i
-									}
-								})
-							})
-						}
-						if remove >= 0 {
-							a.varsRows = slices.Delete(a.varsRows, remove, remove+1)
-						}
-						ui.Row(c).Disabled(a.envsProblem != "").Children(func() {
-							if uikit.ToolbarButton(c, "Add variable", "Add variable", false).Children(func() {
-								ui.Icon(c, plusIcon).Size(uikit.IconInline, uikit.IconInline)
-								uikit.Body(c, "Add variable")
-							}).Clicked() {
-								a.varsRows = append(a.varsRows, request.Field{})
-							}
-						})
-					})
-				})
-				if !a.varsGlobals {
-					a.currentVariablesEditor(c, t)
-				}
-				if a.varsProblem != "" {
-					ui.Text(c, a.varsProblem).FontSize(uikit.TextMeta).TextColor(t.Danger)
-				}
 			})
+			tableHeight := min(float32(320), uikit.HeightControl*float32(len(a.varsRows)+2)+2)
+			ui.Column(c).Height(tableHeight).Disabled(a.envsProblem != "").Children(func() {
+				a.variableTable(c, &a.varsRows, variableTableOptions{})
+			})
+			if a.varsProblem != "" {
+				ui.Text(c, a.varsProblem).FontSize(uikit.TextMeta).TextColor(t.Danger)
+			}
 			uikit.DialogFooter(c).Children(func() {
-				if uikit.SecondaryButton(c, "Export as Postman…").Tooltip("Writes the rows shown here, saved or not, in Postman's environment format").Clicked() {
+				if uikit.SecondaryButton(c, "Export as Postman…").Tooltip("Writes the Initial values shown here, saved or not, in Postman's environment format; Current values are excluded").Clicked() {
 					a.exportPostmanVariables()
 				}
 				ui.Spacer(c)
@@ -2924,7 +2865,9 @@ func (a *app) varsModal(c *ui.Context, t *ui.Theme) {
 	})
 }
 
-// saveVars keeps the edited environment and puts it in use.
+// saveVars keeps the edited environment or globals and puts an environment in
+// use. Only Initial values reach the shared environment format; Current values
+// stay in the local file.
 func (a *app) saveVars() {
 	if a.envsProblem != "" {
 		a.warn("Variables not saved: " + a.envsProblem)
@@ -2939,59 +2882,43 @@ func (a *app) saveVars() {
 		a.varsProblem = "Select the recording environment before editing it; this draft does not include its recorded variables."
 		return
 	}
-	vars := map[string]string{}
-	for _, row := range a.varsRows {
-		key := strings.TrimSpace(row.Name)
-		if key == "" && row.Value == "" {
-			continue
-		}
-		if _, duplicate := vars[key]; key == "" || duplicate || strings.ContainsAny(key, "{}") {
-			a.varsProblem = "Variable names must be nonempty, unique and contain no braces."
-			return
-		}
-		vars[key] = row.Value // Empty and whitespace values are significant.
+	initial, current, err := variablesOf(a.varsRows)
+	if err != nil {
+		a.varsProblem = "Variable names must be nonempty, unique and contain no braces."
+		return
 	}
 	if a.varsGlobals {
-		if err := saveEnvs(a.file(a.envsPath), envFile{Active: a.activeEnv, Envs: a.envs, Globals: vars}); err != nil {
+		f := a.localEnvs()
+		f.Globals, f.GlobalsCurrent = initial, current
+		if err := saveEnvs(a.file(a.envsPath), f); err != nil {
 			a.varsProblem = "Save failed: " + err.Error()
 			return
 		}
-		a.globals, a.varsOpen = vars, false
-		a.inform(fmt.Sprintf("Globals: %d of them", len(vars)))
+		a.globals, a.globalsCurrent, a.varsOpen = initial, current, false
+		a.inform(fmt.Sprintf("Globals: %d of them", len(initial)))
 		return
 	}
 	envs := slices.Clone(a.envs)
-	current := map[string]string{}
-	for _, row := range a.varsCurrent {
-		key := strings.TrimSpace(row.Name)
-		if key == "" && row.Value == "" {
-			continue
-		}
-		if _, duplicate := current[key]; key == "" || duplicate || strings.ContainsAny(key, "{}") {
-			a.varsProblem = "Current variable names must be nonempty, unique and contain no braces."
-			return
-		}
-		current[key] = row.Value
-	}
 	found := false
 	for i, e := range envs {
 		if e.Name == name {
-			envs[i].Vars = vars
-			envs[i].Current = current
+			envs[i].Vars, envs[i].Current = initial, current
 			found = true
 			break
 		}
 	}
 	if !found {
-		envs = append(envs, environment{Name: name, Vars: vars, Current: current})
+		envs = append(envs, environment{Name: name, Vars: initial, Current: current})
 	}
-	if err := saveEnvs(a.file(a.envsPath), envFile{Active: name, Envs: envs, Globals: a.globals}); err != nil {
+	f := a.localEnvs()
+	f.Active, f.Envs = name, envs
+	if err := saveEnvs(a.file(a.envsPath), f); err != nil {
 		a.varsProblem = "Save failed: " + err.Error()
 		return
 	}
 	a.envs, a.activeEnv = envs, name
 	a.varsOpen = false
-	a.inform(fmt.Sprintf("Variables: %s, %d of them", name, len(vars)))
+	a.inform(fmt.Sprintf("Variables: %s, %d of them", name, len(initial)))
 }
 
 // sendBudget is how long a send may take before the editor cancels it: the
@@ -3041,7 +2968,6 @@ func (a *app) sendComposed() {
 	d.sendOutcome, d.sendCancelling, d.sendDetails = "", false, false
 	d.composeWaiting, d.composeResult = true, "Sending…"
 	r, env, vars, srv, jar := d.draft(), a.activeEnv, a.activeVars(), a.srv, a.requestCookies()
-	current := maps.Clone(a.activeEnvironment().Current)
 	in := a.sendContext(r.Request)
 	d.sent, d.sentAt, d.sentSet = r, time.Now(), true
 	runKey, draftKey, origin := uuid.New().String(), d.debugKey, d.origin
@@ -3063,7 +2989,7 @@ func (a *app) sendComposed() {
 	go func() {
 		defer cancel()
 		got := r.Execute(ctx, srv, in, vars, jar)
-		result := requestResult{document: d, environment: env, summary: runSummary(got), outcome: got.Outcome(), response: got.Response, tests: got.Tests, replies: got.Replies, console: got.Console, varsBefore: vars, vars: got.Vars, varsCurrent: current, writes: got.Writes}
+		result := requestResult{document: d, environment: env, summary: runSummary(got), outcome: got.Outcome(), response: got.Response, tests: got.Tests, replies: got.Replies, console: got.Console, varsBefore: vars, vars: got.Vars, writes: got.Writes}
 		record := snapshotExperiment(0, r, env, got)
 		record.RunKey, record.DraftKey, record.Source = runKey, draftKey, origin
 		result.experiment = &record

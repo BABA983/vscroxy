@@ -190,9 +190,9 @@ func TestDamagedAssetsStayUntouchedUntilExplicitReload(t *testing.T) {
 	}
 	a.saveCapture(flow{method: "GET", url: "https://example.test"})
 	a.openVars()
-	a.varsRows = []request.Field{{Name: "token", Value: "new"}}
+	a.varsRows = []variableRow{{Name: "token", Initial: "new", HasInitial: true}}
 	a.saveVars()
-	a.applyVars("dev", nil, map[string]string{"token": "from-script"}, nil)
+	a.applyVars("dev", nil, map[string]string{"token": "from-script"})
 	a.varsOpen = false
 	for _, name := range damaged {
 		data, err := os.ReadFile(filepath.Join(dir, name))
@@ -218,7 +218,7 @@ func TestDamagedAssetsStayUntouchedUntilExplicitReload(t *testing.T) {
 		t.Fatal("explicit reload did not restore saving after files were moved aside")
 	}
 	a.openVars()
-	a.varsRows = []request.Field{{Name: "token", Value: "recovered"}}
+	a.varsRows = []variableRow{{Name: "token", Initial: "recovered", HasInitial: true}}
 	a.saveVars()
 	f, err := loadEnvs(&store.File{Path: filepath.Join(dir, "env.json")})
 	envs := f.Envs

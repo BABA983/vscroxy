@@ -9,7 +9,7 @@ import (
 func TestPrepareGRPCScopesVaultAndHTTPBoundaries(t *testing.T) {
 	r := Request{Protocol: "gRPC", Collection: "API", URL: "https://{{host}}", Body: `{"name":"{{name}}"}`,
 		Headers: "x-tag: {{tag}}", Auth: Auth{Type: AuthInherit}, BodyMode: "Binary", BodyFile: "/not/read"}
-	in := Context{Globals: map[string]string{"host": "wrong.example", "name": "global"}, Folders: []Folder{{Path: "API", Auth: Auth{Type: "Bearer", Token: "{{vault:token}}"}, Variables: []Field{{Name: "tag", Value: "folder-73"}}}}, Vault: func(name, host string) (string, error) {
+	in := Context{Globals: map[string]string{"host": "wrong.example", "name": "global"}, Folders: []Folder{{Path: "API", Auth: Auth{Type: "Bearer", Token: "{{vault:token}}"}, Variables: []Variable{{Name: "tag", Initial: "folder-73"}}}}, Vault: func(name, host string) (string, error) {
 		if name != "token" || host != "api.example" {
 			return "", fmt.Errorf("host not authorized")
 		}

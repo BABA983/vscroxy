@@ -511,10 +511,12 @@ func writeEvents(pre, post string) []outEvent {
 	return events
 }
 
-func writeVariables(vars []request.Field) []outVariable {
+// writeVariables writes a collection's or folder's Initial values as
+// Postman's value. Current values are local and never exported.
+func writeVariables(vars []request.Variable) []outVariable {
 	var out []outVariable
 	for _, v := range vars {
-		out = append(out, outVariable{Key: v.Name, Value: v.Value, Type: "string", Disabled: v.Disabled})
+		out = append(out, outVariable{Key: v.Name, Value: v.Initial, Type: "string", Disabled: v.Disabled})
 	}
 	return out
 }

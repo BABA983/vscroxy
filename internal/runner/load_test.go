@@ -102,7 +102,7 @@ func TestLoadUsersKeepIndependentScopesCookiesAndTokens(t *testing.T) {
 	}))
 	defer host.Close()
 	vars, globals := map[string]string{"count": "0"}, map[string]string{"g": "0"}
-	folders := []request.Folder{{Path: "API", Variables: []request.Field{{Name: "c", Value: "0"}}}}
+	folders := []request.Folder{{Path: "API", Variables: []request.Variable{{Name: "c", Initial: "0"}}}}
 	steps := []runner.Step{{Request: request.Request{ID: "one", Collection: "API", URL: host.URL, Auth: request.Auth{Type: request.AuthOAuth2, OAuth2: request.OAuth2{Grant: request.GrantClientCredentials, TokenURL: host.URL + "/oauth", ClientID: "test"}}, Pre: `
 const n = pm.info.iteration + 1;
 if (+pm.environment.get("count") !== n-1 || +pm.globals.get("g") !== n-1 || +pm.collectionVariables.get("c") !== n-1) throw new Error("scope crossed users or reset between loops");
@@ -119,7 +119,7 @@ pm.request.headers.upsert({key:"X-Iteration",value:String(n)});`, Post: `if (pm.
 		}
 	}
 	after, _ := json.Marshal(steps[0].Request)
-	if string(before) != string(after) || !maps.Equal(vars, map[string]string{"count": "0"}) || !maps.Equal(globals, map[string]string{"g": "0"}) || folders[0].Variables[0].Value != "0" {
+	if string(before) != string(after) || !maps.Equal(vars, map[string]string{"count": "0"}) || !maps.Equal(globals, map[string]string{"g": "0"}) || folders[0].Variables[0].Value() != "0" {
 		t.Fatal("load mutated caller inputs")
 	}
 }

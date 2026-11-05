@@ -1,0 +1,236 @@
+package app
+
+import (
+	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	"github.com/baba983/vscroxy/internal/postman"
+	"github.com/baba983/vscroxy/internal/request"
+	"github.com/baba983/vscroxy/internal/store"
+	"github.com/egoist/mygo/ui"
+)
+
+// One send sees each scope's Current value before its Initial value, and an
+// empty Current falls back to Initial. Locals and the data row stay above the
+// environment, as in Postman.
+func TestVariableScopesPreferCurrentOverInitial(t *testing.T) {
+	var got http.Header
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		got = r.Header.Clone()
+		fmt.Fprint(w, "ok")
+	}))
+	defer upstream.Close()
+	a := workspaceApp()
+	a.srv = requestProxy(t)
+	a.envsPath = filepath.Join(t.TempDir(), "env.json")
+	a.envs = []environment{{Name: "Local",
+		Vars: map[string]string{
+			"env": "env-initial", "env_fallback": "env-initial-fallback", "env_initial": "env-initial-only",
+			"local": "env-local", "data": "env-data",
+		},
+		Current: map[string]string{"env": "env-current", "env_fallback": "", "env_only": "env-current-only"},
+	}}
+	a.activeEnv = "Local"
+	a.globals = map[string]string{
+		"global": "global-initial", "global_fallback": "global-initial-fallback", "global_initial": "global-initial-only",
+	}
+	a.globalsCurrent = map[string]string{"global": "global-current", "global_fallback": "", "global_only": "global-current-only"}
+	a.folders = []request.Folder{
+		{Path: "Shop", Variables: []request.Variable{
+			{Name: "collection", Initial: "collection-initial"},
+			{Name: "collection_fallback", Initial: "collection-initial-fallback"},
+			{Name: "collection_initial", Initial: "collection-initial-only"},
+			{Name: "disabled", Initial: "disabled-initial", Disabled: true},
+		}},
+		{Path: "Shop/Orders", Variables: []request.Variable{
+			{Name: "folder", Initial: "folder-initial"},
+			{Name: "folder_fallback", Initial: "folder-initial-fallback"},
+			{Name: "folder_initial", Initial: "folder-initial-only"},
+		}},
+	}
+	a.folderCurrent = map[string]map[string]string{
+		"Shop":        {"collection": "collection-current", "collection_fallback": "", "collection_only": "collection-current-only"},
+		"Shop/Orders": {"folder": "folder-current", "folder_fallback": ""},
+	}
+	r := request.Request{Method: "GET", Collection: "Shop/Orders", URL: upstream.URL,
+		Headers: strings.Join([]string{
+			"X-Env: {{env}}", "X-Env-Fallback: {{env_fallback}}", "X-Env-Initial: {{env_initial}}", "X-Env-Only: {{env_only}}",
+			"X-Global: {{global}}", "X-Global-Fallback: {{global_fallback}}", "X-Global-Initial: {{global_initial}}", "X-Global-Only: {{global_only}}",
+			"X-Collection: {{collection}}", "X-Collection-Fallback: {{collection_fallback}}", "X-Collection-Initial: {{collection_initial}}", "X-Collection-Only: {{collection_only}}",
+			"X-Folder: {{folder}}", "X-Folder-Fallback: {{folder_fallback}}", "X-Folder-Initial: {{folder_initial}}",
+			"X-Local: {{local}}", "X-Data: {{data}}", "X-Disabled: {{disabled}}",
+		}, "\n"),
+		Pre: `pm.variables.set("local", "local-value")`,
+	}
+	in := a.sendContext(r)
+	in.Data = map[string]string{"data": "data-value"}
+	out := r.Execute(t.Context(), a.srv, in, a.activeVars(), nil)
+	if out.Err != nil {
+		t.Fatalf("%s: %v", out.Stage, out.Err)
+	}
+	for name, want := range map[string]string{
+		"X-Env": "env-current", "X-Env-Fallback": "env-initial-fallback", "X-Env-Initial": "env-initial-only", "X-Env-Only": "env-current-only",
+		"X-Global": "global-current", "X-Global-Fallback": "global-initial-fallback", "X-Global-Initial": "global-initial-only", "X-Global-Only": "global-current-only",
+		"X-Collection": "collection-current", "X-Collection-Fallback": "collection-initial-fallback", "X-Collection-Initial": "collection-initial-only", "X-Collection-Only": "collection-current-only",
+		"X-Folder": "folder-current", "X-Folder-Fallback": "folder-initial-fallback", "X-Folder-Initial": "folder-initial-only",
+		"X-Local": "local-value", "X-Data": "data-value", "X-Disabled": "{{disabled}}",
+	} {
+		if got.Get(name) != want {
+			t.Errorf("%s = %q, want %q", name, got.Get(name), want)
+		}
+	}
+	sources := map[string]string{}
+	for _, v := range out.Variables {
+		sources[v.Name] = v.Source
+	}
+	for name, want := range map[string]string{
+		"env": "Run input", "collection": "Collection: Shop", "folder": "Collection: Shop/Orders",
+		"global": "Global", "local": "Pre-request script", "data": "Data file",
+	} {
+		if sources[name] != want {
+			t.Errorf("source of %s = %q, want %q", name, sources[name], want)
+		}
+	}
+}
+
+// Script writes are Current values: they never rewrite an environment's,
+// global's or collection's Initial value, and an export carries Initial only.
+func TestScriptWritesAreCurrentAndExportsCarryInitial(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, "ok")
+	}))
+	defer upstream.Close()
+	a := workspaceApp()
+	a.srv = requestProxy(t)
+	a.envsPath = filepath.Join(t.TempDir(), "env.json")
+	a.envs = []environment{{Name: "Local",
+		Vars:    map[string]string{"public": "initial", "untouched": "keep"},
+		Current: map[string]string{"token": "old-local"},
+	}}
+	a.activeEnv = "Local"
+	a.globals = map[string]string{"team": "initial-team"}
+	a.folders = []request.Folder{{Path: "Shop", Variables: []request.Variable{{Name: "polls", Initial: "0"}}}}
+	r := request.Request{Method: "GET", Collection: "Shop", URL: upstream.URL,
+		Pre: `pm.environment.set("public", "script"); pm.environment.set("token", "new-local"); pm.globals.set("team", "script-team"); pm.collectionVariables.set("polls", "3")`}
+	before := a.activeVars()
+	out := r.Execute(t.Context(), a.srv, a.sendContext(r), before, nil)
+	if out.Err != nil {
+		t.Fatalf("%s: %v", out.Stage, out.Err)
+	}
+	a.applyVars("Local", before, out.Vars)
+	a.applyWrites(out.Writes)
+
+	env := a.envs[0]
+	if env.Vars["public"] != "initial" || env.Vars["untouched"] != "keep" || env.Vars["token"] != "" {
+		t.Errorf("script rewrote Initial environment values: %+v", env.Vars)
+	}
+	if env.Current["public"] != "script" || env.Current["token"] != "new-local" {
+		t.Errorf("script writes did not land in Current: %+v", env.Current)
+	}
+	if a.globals["team"] != "initial-team" || a.globalsCurrent["team"] != "script-team" {
+		t.Errorf("global write changed Initial: %+v / %+v", a.globals, a.globalsCurrent)
+	}
+	if len(a.folders) != 1 || a.folders[0].Variables[0].Initial != "0" || a.folders[0].Variables[0].Current != "" {
+		t.Errorf("collection write changed Initial: %+v", a.folders)
+	}
+	if a.folderCurrent["Shop"]["polls"] != "3" {
+		t.Errorf("collection write did not stay local: %+v", a.folderCurrent)
+	}
+
+	// The local file round-trips every scope.
+	f, err := loadEnvs(&store.File{Path: a.envsPath})
+	if err != nil || f.Envs[0].Current["public"] != "script" || f.GlobalsCurrent["team"] != "script-team" || f.FolderCurrent["Shop"]["polls"] != "3" {
+		t.Fatalf("local file = %+v, %v", f, err)
+	}
+
+	// Postman environment and globals exports carry Initial values only.
+	a.openVars()
+	a.exportPostmanVariables()
+	exported := string(a.exportUI.data)
+	if !strings.Contains(exported, `"initial"`) || !strings.Contains(exported, `"keep"`) || strings.Contains(exported, `"script"`) || strings.Contains(exported, `"new-local"`) {
+		t.Errorf("environment export = %s", exported)
+	}
+	a.editGlobals()
+	a.exportPostmanVariables()
+	exported = string(a.exportUI.data)
+	if !strings.Contains(exported, `"initial-team"`) || strings.Contains(exported, `"script-team"`) {
+		t.Errorf("globals export = %s", exported)
+	}
+
+	// A collection file cannot carry a Current value at all.
+	data, _, err := postman.WriteCollection("Shop", nil, []request.Folder{{Path: "Shop", Variables: []request.Variable{
+		{Name: "base", Initial: "shared", Current: "local-secret"},
+	}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(data), `"shared"`) || strings.Contains(string(data), "local-secret") {
+		t.Errorf("collection export = %s", data)
+	}
+}
+
+// Collection Current values follow a rename, disappear with a deletion, and
+// never enter the collection directory.
+func TestFolderCurrentFollowsRenameAndDeletion(t *testing.T) {
+	a := workspaceApp()
+	a.envsPath = filepath.Join(t.TempDir(), "env.json")
+	a.folders = []request.Folder{{Path: "Shop", Variables: []request.Variable{{Name: "base", Initial: "shared"}}}}
+	a.folderCurrent = map[string]map[string]string{"Shop": {"base": "local", "only": "local-only"}}
+	if got := a.inheritance("Shop").Values(nil); got["base"] != "local" || got["only"] != "local-only" {
+		t.Fatalf("inheritance = %v", got)
+	}
+	if err := a.saveLocalEnvs(); err != nil {
+		t.Fatal(err)
+	}
+	f, err := loadEnvs(&store.File{Path: a.envsPath})
+	if err != nil || f.FolderCurrent["Shop"]["base"] != "local" {
+		t.Fatalf("local file = %+v, %v", f, err)
+	}
+	if err := a.renameFolder("Shop", "Store"); err != nil {
+		t.Fatal(err)
+	}
+	if a.folderCurrent["Shop"] != nil || a.folderCurrent["Store"]["base"] != "local" {
+		t.Fatalf("rename left Current values at the old path: %+v", a.folderCurrent)
+	}
+	if err := a.deleteAssets(deletion{path: "Store"}); err != nil {
+		t.Fatal(err)
+	}
+	if len(a.folderCurrent) != 0 {
+		t.Fatalf("deletion left Current values: %+v", a.folderCurrent)
+	}
+}
+
+// The table's actions turn a local override into a shared Initial value, or
+// drop it so Initial applies again.
+func TestVariablesTablePersistsAndResetsCurrent(t *testing.T) {
+	a := workspaceApp()
+	a.envsPath = filepath.Join(t.TempDir(), "env.json")
+	a.envs = []environment{{Name: "Local", Vars: map[string]string{"token": "shared"}, Current: map[string]string{"token": "private"}}}
+	a.activeEnv = "Local"
+	a.openVars()
+	tt := ui.NewTester(a.view, 1280, 800)
+	if err := tt.Click("Persist current value 1"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.Click("Save"); err != nil {
+		t.Fatal(err)
+	}
+	if a.envs[0].Vars["token"] != "private" || a.envs[0].Current["token"] != "private" {
+		t.Fatalf("persist = %+v", a.envs[0])
+	}
+	a.openVars()
+	tt.Frame()
+	if err := tt.Click("Reset current value 1"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.Click("Save"); err != nil {
+		t.Fatal(err)
+	}
+	if a.envs[0].Vars["token"] != "private" || a.envs[0].Current["token"] != "" {
+		t.Fatalf("reset = %+v", a.envs[0])
+	}
+}

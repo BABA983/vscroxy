@@ -598,7 +598,7 @@ func TestInFlightCurrentCredentialsStayOutOfExports(t *testing.T) {
 					wait(func() bool { return unset.composeWaiting })
 				} else {
 					a.openVars()
-					a.varsCurrent = nil
+					a.varsRows = slices.DeleteFunc(a.varsRows, func(r variableRow) bool { return r.Name == "token" })
 					a.saveVars()
 				}
 				if _, exists := a.activeVars()["token"]; exists {
@@ -610,16 +610,16 @@ func TestInFlightCurrentCredentialsStayOutOfExports(t *testing.T) {
 				})
 				a.openVars()
 				a.exportPostmanVariables()
-				if strings.Contains(string(a.exportUI.data), "private-refreshed") || !strings.Contains(string(a.exportUI.data), "updated") {
-					t.Fatal("completion exported a private token or lost a shared variable update")
+				if strings.Contains(string(a.exportUI.data), "private-refreshed") || strings.Contains(string(a.exportUI.data), "updated") || !strings.Contains(string(a.exportUI.data), "old") {
+					t.Fatal("export must carry Initial values and never a Current value")
 				}
 				envs, err := loadEnvs(a.file(a.envsPath))
 				if err != nil || len(envs.Envs) != 1 {
 					t.Fatalf("environment not saved: %v", err)
 				}
 				env := envs.Envs[0]
-				if env.Current["token"] != "private-refreshed" || env.Vars["token"] != "" || env.Vars["public"] != "updated" || env.Vars["untouched"] != "keep" {
-					t.Fatal("completion lost private scope or unrelated environment values")
+				if env.Vars["public"] != "old" || env.Vars["untouched"] != "keep" || env.Current["public"] != "updated" || env.Current["token"] != "private-refreshed" {
+					t.Fatalf("script writes must stay Current and leave Initial values alone: %+v", env)
 				}
 			})
 		}
@@ -744,9 +744,8 @@ pm.execution.setNextRequest(n < 3 ? "02 Poll" : "04 Done")`}},
 	if a.runner.failures != 0 || len(a.runner.rows[4].tests) != 2 {
 		t.Fatalf("rows %+v", a.runner.rows)
 	}
-	if a.globals["started"] != "yes" || len(a.folders) != 1 || a.folders[0].Path != "Loop" ||
-		!reflect.DeepEqual(a.folders[0].Variables, []request.Field{{Name: "polls", Value: "3"}}) {
-		t.Errorf("saved globals %v, collections %+v", a.globals, a.folders)
+	if a.globalsCurrent["started"] != "yes" || a.folderCurrent["Loop"]["polls"] != "3" || len(a.folders) != 0 {
+		t.Errorf("saved globals %v, collection Current values %v, folders %+v", a.globalsCurrent, a.folderCurrent, a.folders)
 	}
 	if _, ok := a.activeVars()["count"]; ok {
 		t.Error("pm.variables must not be saved to the environment")

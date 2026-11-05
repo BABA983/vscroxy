@@ -144,20 +144,21 @@ type Write struct {
 	Unset bool
 }
 
-// Fields applies w to a scope's variable rows: a set updates the first
-// enabled row of that name or adds one, an unset removes every row of it.
-func (w Write) Fields(fields []Field) []Field {
+// Variables applies w to a scope's variable rows: a set writes the first
+// enabled row's Current value or adds a row, and an unset removes every row of
+// that name. Initial values are the shared asset's and stay untouched.
+func (w Write) Variables(vars []Variable) []Variable {
 	if w.Unset {
-		return slices.DeleteFunc(slices.Clone(fields), func(f Field) bool { return strings.TrimSpace(f.Name) == w.Name })
+		return slices.DeleteFunc(slices.Clone(vars), func(v Variable) bool { return strings.TrimSpace(v.Name) == w.Name })
 	}
-	fields = slices.Clone(fields)
-	for i, f := range fields {
-		if strings.TrimSpace(f.Name) == w.Name && !f.Disabled {
-			fields[i].Value = w.Value
-			return fields
+	vars = slices.Clone(vars)
+	for i, v := range vars {
+		if strings.TrimSpace(v.Name) == w.Name && !v.Disabled {
+			vars[i].Current = w.Value
+			return vars
 		}
 	}
-	return append(fields, Field{Name: w.Name, Value: w.Value})
+	return append(vars, Variable{Name: w.Name, Current: w.Value})
 }
 
 // scriptRun is the state the scripts of one send share: the variable scopes

@@ -2,18 +2,15 @@ package app
 
 import (
 	"encoding/json/v2"
-	"fmt"
-	"maps"
-	"slices"
 
 	"github.com/baba983/vscroxy/internal/request"
 	"github.com/baba983/vscroxy/internal/store"
-	"github.com/baba983/vscroxy/internal/uikit"
-	"github.com/egoist/mygo/ui"
 )
 
 // environment is a named set of variables a composed request uses as {{name}},
 // kept with the others so a request can move between a dev and a live host.
+// Vars are the Initial values, which exports write. Current overrides them on
+// this machine only and is never exported.
 type environment struct {
 	Name string            `json:"name"`
 	Vars map[string]string `json:"vars,omitempty"`
@@ -21,21 +18,24 @@ type environment struct {
 	Current map[string]string `json:"current,omitempty"`
 }
 
+// values are what a send reads: a nonempty Current wins, an empty one falls
+// back to Initial.
 func (e environment) values() map[string]string {
-	values := maps.Clone(e.Vars)
-	if values == nil {
-		values = map[string]string{}
-	}
-	maps.Copy(values, e.Current)
-	return values
+	return request.Values(e.Vars, e.Current)
 }
 
 // envFile is what the environments file holds: the environments, the one in
-// use, and the global variables every environment sits above.
+// use, the global variables every environment sits above, and the Current
+// values of collection and folder variables, which stay out of the library.
 type envFile struct {
 	Active  string            `json:"active"`
 	Envs    []environment     `json:"environments"`
 	Globals map[string]string `json:"globals,omitempty"`
+	// GlobalsCurrent overrides global Initial values on this machine only.
+	GlobalsCurrent map[string]string `json:"globalsCurrent,omitempty"`
+	// FolderCurrent holds each collection's and folder's local Current
+	// values by path and variable name. Initial values live in the library.
+	FolderCurrent map[string]map[string]string `json:"folderCurrent,omitempty"`
 }
 
 // loadEnvs reads the environments file; a missing file has none. One that
@@ -67,28 +67,21 @@ func saveEnvs(file *store.File, f envFile) error {
 	return file.Write(append(data, '\n'))
 }
 
-func (a *app) currentVariablesEditor(c *ui.Context, t *ui.Theme) {
-	uikit.Body(c, "Current values · local only")
-	uikit.Hint(c, "Override shared values for sends. Not included in environment exports; stored locally in plaintext. Use Vault for encryption.")
-	remove := -1
-	ui.Column(c).Gap(t.Space(1)).Disabled(a.envsProblem != "").Children(func() {
-		for i := range a.varsCurrent {
-			r := &a.varsCurrent[i]
-			ui.Row(c.Key(i)).Gap(t.Space(1)).Children(func() {
-				uikit.Input(c, &r.Name).Label(fmt.Sprintf("Current variable name %d", i+1)).Basis(0).Grow(1)
-				value := uikit.Input(c, &r.Value).Label(fmt.Sprintf("Current variable value %d", i+1)).Basis(0).Grow(2)
-				if !r.Revealed {
-					value.Password()
-				}
-				uikit.IconButton(c, fmt.Sprintf("Reveal current variable %d", i+1), "Reveal or hide current value", eyeIcon).OnClick(func() { r.Revealed = !r.Revealed })
-				if uikit.IconButton(c, fmt.Sprintf("Remove current variable %d", i+1), "Remove current value", closeIcon).Clicked() {
-					remove = i
-				}
-			})
-		}
-		uikit.SecondaryButton(c, "Add current value").OnClick(func() { a.varsCurrent = append(a.varsCurrent, request.Field{}) })
-	})
-	if remove >= 0 {
-		a.varsCurrent = slices.Delete(a.varsCurrent, remove, remove+1)
-	}
+// localEnvs is the whole local variables file: every save writes all scopes,
+// so one editor never drops another's Current values.
+func (a *app) localEnvs() envFile {
+	return envFile{Active: a.activeEnv, Envs: a.envs, Globals: a.globals,
+		GlobalsCurrent: a.globalsCurrent, FolderCurrent: a.folderCurrent}
+}
+
+// saveLocalEnvs writes the environments, globals and local collection Current
+// values as they are in memory.
+func (a *app) saveLocalEnvs() error {
+	return saveEnvs(a.file(a.envsPath), a.localEnvs())
+}
+
+// globalValues are what a send reads from globals: a nonempty Current wins,
+// an empty one falls back to Initial.
+func (a *app) globalValues() map[string]string {
+	return request.Values(a.globals, a.globalsCurrent)
 }

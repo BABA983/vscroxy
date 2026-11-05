@@ -40,7 +40,7 @@ func TestReadTree(t *testing.T) {
 		"z.request.json":                   `{"name":"Z","id":"same"}`,
 		"b.request.json":                   `{"name":"B"}`,
 		"c.request.json":                   `{"name":"C"}`,
-		"%5A/folder.json":                  `{"path":"wrong","auth":{"type":"Bearer","token":"token"},"pre":"before","post":"after","variables":[{"name":"base","value":"example"}]}`,
+		"%5A/folder.json":                  `{"path":"wrong","auth":{"type":"Bearer","token":"token"},"pre":"before","post":"after","variables":[{"name":"base","initial":"example"}]}`,
 		"%5A/one.request.json":             `{"name":"In Z"}`,
 		"%5A/50%25%20off/two.request.json": `{"name":"Nested"}`,
 		"Alpha/folder.json":                `{"description":"collection"}`,
@@ -78,7 +78,7 @@ func TestReadTree(t *testing.T) {
 	wantFolders := []request.Folder{
 		{Path: "Alpha", Description: "collection"},
 		{Path: "Settings", Description: "no requests"},
-		{Path: "Z", Auth: request.Auth{Type: "Bearer", Token: "token"}, Pre: "before", Post: "after", Variables: []request.Field{{Name: "base", Value: "example"}}},
+		{Path: "Z", Auth: request.Auth{Type: "Bearer", Token: "token"}, Pre: "before", Post: "after", Variables: []request.Variable{{Name: "base", Initial: "example"}}},
 	}
 	if !reflect.DeepEqual(folders, wantFolders) {
 		t.Errorf("folders = %+v, want %+v", folders, wantFolders)
