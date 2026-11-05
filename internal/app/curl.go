@@ -9,19 +9,15 @@ import (
 	"io"
 	"maps"
 	"net/http"
-	"net/url"
 	"os"
 	"slices"
 	"strings"
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/baba983/vscroxy/internal/capture"
-	"github.com/baba983/vscroxy/internal/request"
+	"github.com/baba983/vscroxy/internal/imports"
 	"github.com/egoist/mygo/ui"
 	"golang.org/x/net/http/httpguts"
-	"mvdan.cc/sh/v3/expand"
-	"mvdan.cc/sh/v3/syntax"
 )
 
 // curlSkip removes wire framing and hop-by-hop headers. Host is retained:
@@ -237,248 +233,18 @@ func shellQuote(s string) string {
 	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 }
 
-// parseCurl reads request data, never executes a shell or reads @files. Unknown
-// options fail rather than quietly changing authentication or transport behavior.
+// parseCurl reads one request from a Bash/POSIX curl command, Chrome's
+// Copy as cURL (cmd) output, or Chrome's Copy as PowerShell output.
 func parseCurl(source string) (savedRequest, error) {
-	r := savedRequest{Name: "Imported cURL", Redirects: capture.RedirectPolicy{Mode: capture.RedirectManual}}
-	if len(source) > 16<<20 {
-		return r, errors.New("cURL input is limited to 16 MiB")
-	}
-	file, err := syntax.NewParser(syntax.Variant(syntax.LangBash)).Parse(strings.NewReader(source), "")
-	if err != nil {
-		return r, fmt.Errorf("invalid shell quoting: %w", err)
-	}
-	if len(file.Stmts) != 1 {
-		return r, errors.New("paste exactly one curl command")
-	}
-	stmt := file.Stmts[0]
-	call, ok := stmt.Cmd.(*syntax.CallExpr)
-	if !ok || len(stmt.Redirs) > 0 || stmt.Background || stmt.Negated || stmt.Coprocess || stmt.Disown || len(call.Assigns) > 0 {
-		return r, errors.New("shell operators, redirections and assignments are not supported")
-	}
-	var args []string
-	for _, word := range call.Args {
-		value, err := curlLiteral(word.Parts, false)
-		if err != nil {
-			return r, err
-		}
-		args = append(args, value)
-	}
-	if len(args) == 0 || args[0] != "curl" && args[0] != "curl.exe" {
-		return r, errors.New("command must start with curl (Bash/POSIX format)")
-	}
-	headers, explicit := http.Header{}, map[string]bool{}
-	defaults := http.Header{}
-	var data []string
-	var get, head, jsonBody, afterDash bool
-	for i := 1; i < len(args); i++ {
-		arg := args[i]
-		if arg == "--" && !afterDash {
-			afterDash = true
-			continue
-		}
-		if afterDash || !strings.HasPrefix(arg, "-") {
-			if r.URL != "" {
-				return r, errors.New("multiple URLs are not supported; import one request at a time")
-			}
-			r.URL = arg
-			continue
-		}
-		option, value, attached := strings.Cut(arg, "=")
-		if !strings.HasPrefix(arg, "--") && len(arg) > 2 && strings.ContainsRune("XHdbuAe", rune(arg[1])) {
-			option, value, attached = arg[:2], arg[2:], true
-		}
-		switch option {
-		case "-L", "--location", "--no-location":
-			if attached {
-				return r, fmt.Errorf("%s takes no value", option)
-			}
-			r.Redirects.Mode = capture.RedirectCurl
-			if option == "--no-location" {
-				r.Redirects.Mode = capture.RedirectManual
-			}
-			continue
-		case "-G", "--get", "-I", "--head", "--compressed", "-g", "--globoff", "-q", "--disable", "--path-as-is", "-s", "--silent", "-S", "--show-error", "-sS", "-v", "--verbose", "-i", "--include":
-			if attached {
-				return r, fmt.Errorf("%s takes no value", option)
-			}
-			get = get || option == "-G" || option == "--get"
-			head = head || option == "-I" || option == "--head"
-			continue
-		case "--url", "-X", "--request", "-H", "--header", "-d", "--data", "--data-ascii", "--data-raw", "--data-binary", "--data-urlencode", "--json", "-b", "--cookie", "-u", "--user", "-A", "--user-agent", "-e", "--referer":
-			if !attached {
-				i++
-				if i >= len(args) {
-					return r, fmt.Errorf("%s needs a value", option)
-				}
-				value = args[i]
-			}
-		default:
-			return r, fmt.Errorf("unsupported cURL option %s; no request was imported", option)
-		}
-		switch option {
-		case "--url":
-			if r.URL != "" {
-				return r, errors.New("multiple URLs are not supported")
-			}
-			r.URL = value
-		case "-X", "--request":
-			if !httpguts.ValidHeaderFieldName(value) {
-				return r, errors.New("invalid HTTP method")
-			}
-			r.Method = value
-		case "-H", "--header":
-			name, v, colon := strings.Cut(value, ":")
-			if !colon {
-				name = strings.TrimSuffix(value, ";")
-			}
-			if !httpguts.ValidHeaderFieldName(name) || !httpguts.ValidHeaderFieldValue(v) {
-				return r, errors.New("invalid literal header; @header files are not supported")
-			}
-			explicit[http.CanonicalHeaderKey(name)] = true
-			if colon && strings.TrimSpace(v) != "" || strings.HasSuffix(value, ";") && !colon {
-				headers.Add(name, strings.TrimSpace(v))
-			} else {
-				headers.Del(name)
-			}
-		case "-b", "--cookie":
-			if !strings.Contains(value, "=") {
-				return r, errors.New("cookie files are not read; use a literal name=value cookie")
-			}
-			defaults.Set("Cookie", strings.TrimPrefix(defaults.Get("Cookie")+"; "+value, "; "))
-		case "-u", "--user":
-			if !strings.Contains(value, ":") {
-				return r, errors.New("use --user 'username:password'; interactive password prompts are not supported")
-			}
-			defaults.Set("Authorization", "Basic "+base64.StdEncoding.EncodeToString([]byte(value)))
-		case "-A", "--user-agent":
-			defaults.Set("User-Agent", value)
-		case "-e", "--referer":
-			defaults.Set("Referer", value)
-		default:
-			if (option == "--json") != jsonBody && len(data) > 0 {
-				return r, errors.New("mixing --json with other data options is not supported")
-			}
-			jsonBody = option == "--json"
-			if option == "--data-urlencode" {
-				if name, content, found := strings.Cut(value, "="); found {
-					value = url.QueryEscape(content)
-					if name != "" {
-						value = name + "=" + value
-					}
-				} else if strings.Contains(value, "@") {
-					return r, errors.New("@files and stdin are not read; paste a literal request body")
-				} else {
-					value = url.QueryEscape(value)
-				}
-			} else if option != "--data-raw" && strings.HasPrefix(value, "@") {
-				return r, errors.New("@files and stdin are not read; paste a literal request body")
-			}
-			data = append(data, value)
-		}
-	}
-	checkURL := r.URL
-	if match := requestVariable.FindStringIndex(checkURL); match != nil && match[0] == 0 {
-		checkURL = "https://placeholder.invalid" + checkURL[match[1]:]
-	}
-	u, err := url.Parse(requestVariable.ReplaceAllString(checkURL, "placeholder"))
-	if err != nil || u.Host == "" || u.Scheme != "http" && u.Scheme != "https" {
-		return r, errors.New("one absolute HTTP(S) URL is required ({{base_url}} is also supported)")
-	}
-	if head && len(data) > 0 && !get {
-		return r, errors.New("--head with a request body is not supported")
-	}
-	body := strings.Join(data, "&")
-	if jsonBody {
-		body = strings.Join(data, "")
-		defaults.Set("Accept", "application/json")
-	}
-	if get && len(data) > 0 {
-		base, fragment, hasFragment := strings.Cut(r.URL, "#")
-		separator := "?"
-		if strings.Contains(base, "?") {
-			separator = "&"
-		}
-		r.URL = base + separator + body
-		if hasFragment {
-			r.URL += "#" + fragment
-		}
-	} else if len(data) > 0 {
-		r.Body = body
-		contentType := "application/x-www-form-urlencoded"
-		if jsonBody {
-			contentType = "application/json"
-		}
-		defaults.Set("Content-Type", contentType)
-	}
-	if r.Redirects.Mode == capture.RedirectCurl {
-		r.Redirects.KeepMethod = r.Method != ""
-		r.Redirects.DropContentType = !jsonBody && !explicit["Content-Type"] && defaults.Get("Content-Type") != ""
-	}
-	if r.Method == "" {
-		r.Method = "GET"
-		if head {
-			r.Method = "HEAD"
-		} else if len(data) > 0 && !get {
-			r.Method = "POST"
-		}
-	}
-	for name, values := range defaults {
-		if !explicit[name] {
-			headers[name] = values
-		}
-	}
-	for _, values := range headers {
-		for _, value := range values {
-			if !httpguts.ValidHeaderFieldValue(value) {
-				return r, errors.New("invalid HTTP header value")
-			}
-		}
-	}
-	r.Headers = request.HeaderBlock(headers)
-	return r, nil
+	r, _, err := imports.ParseCurl(source)
+	return savedRequest{Request: r}, err
 }
 
-// Decode literal quoting only. No shell/environment/glob expansion is run.
-func curlLiteral(parts []syntax.WordPart, quoted bool) (string, error) {
-	var b strings.Builder
-	for _, part := range parts {
-		switch p := part.(type) {
-		case *syntax.Lit:
-			for i := 0; i < len(p.Value); i++ {
-				if p.Value[i] == '\\' && i+1 < len(p.Value) && (!quoted || strings.ContainsRune("$`\"\\", rune(p.Value[i+1]))) {
-					i++
-				}
-				b.WriteByte(p.Value[i])
-			}
-		case *syntax.SglQuoted:
-			value := p.Value
-			if p.Dollar {
-				var err error
-				value, _, err = expand.Format(nil, value, nil)
-				if err != nil {
-					return "", err
-				}
-			}
-			b.WriteString(value)
-		case *syntax.DblQuoted:
-			if p.Dollar {
-				return "", errors.New("locale-translated shell strings are not supported")
-			}
-			value, err := curlLiteral(p.Parts, true)
-			if err != nil {
-				return "", err
-			}
-			b.WriteString(value)
-		default:
-			return "", errors.New("shell substitutions are not supported; paste literal values instead")
-		}
-	}
-	value := b.String()
-	if strings.ContainsRune(value, 0) || !utf8.ValidString(value) {
-		return "", errors.New("cURL arguments must be UTF-8 text without NUL bytes")
-	}
-	return value, nil
+// parseCurlImport also returns what the command held but the request cannot:
+// a cookie's domain/path, for example.
+func parseCurlImport(source string) (savedRequest, []string, error) {
+	r, warnings, err := imports.ParseCurl(source)
+	return savedRequest{Request: r}, warnings, err
 }
 
 func (a *app) openCurlImport() {
@@ -493,7 +259,7 @@ func (a *app) curlImportModal(c *ui.Context, t *ui.Theme) {
 		uikit.DialogColumn(c, uikit.DialogMedium).Children(func() {
 			uikit.DialogTitle(c, "Import cURL")
 			ui.Scroll(c).MinHeight(0).Shrink(1).Gap(t.Space(4)).Children(func() {
-				uikit.Hint(c, "Paste one Bash/POSIX curl command. It opens an unsent request tab; nothing is executed.")
+				uikit.Hint(c, "Paste one curl command (Bash, Windows CMD, or PowerShell). It opens an unsent request tab; nothing is executed.")
 				if ui.TextArea(c, &a.curlInput).Height(190).Font(uikit.FontMono).FontSize(uikit.TextBody).Radius(uikit.RadiusControl).Label("cURL command").Placeholder("curl 'https://api.example.com/projects' \\\n  -H 'Accept: application/json'").AutoFocus().Changed() {
 					a.curlProblem = ""
 				}
@@ -506,13 +272,17 @@ func (a *app) curlImportModal(c *ui.Context, t *ui.Theme) {
 					a.curlOpen, a.curlInput = false, ""
 				}
 				if uikit.PrimaryButton(c, "Import request").Disabled(strings.TrimSpace(a.curlInput) == "").Clicked() {
-					r, err := parseCurl(a.curlInput)
+					r, warnings, err := parseCurlImport(a.curlInput)
 					if err != nil {
 						a.curlProblem = err.Error()
 						return
 					}
 					a.addDocument(r, "")
 					a.curlOpen, a.curlInput = false, ""
+					if len(warnings) > 0 {
+						a.warn("Imported cURL; " + strings.Join(warnings, "; "))
+						return
+					}
 					a.done("Imported cURL as an unsent request; review headers and body before sending")
 				}
 			})
