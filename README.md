@@ -137,12 +137,15 @@ for binary data); missing or incomplete bodies fail the whole copy. Clipboard
 HAR shares automation's limits: 1–200 HTTP exchanges, 1 MiB metadata, 4 MiB
 combined bodies and 8 MiB output. Streams and tunnels are not supported.
 
-cURL import remains Bash/POSIX-only; CMD/PowerShell import is not supported.
-`--location` / `-L` and `--no-location` preserve redirect behavior through native
-save/reopen and execution, including explicit `-X` methods and a 50-hop limit.
-Without `-L`, imported requests stop at the original response. Declarative Checks
-also retain that original-response behavior. See the guide for credential and
-request-body boundaries.
+cURL import reads Bash/POSIX, Chrome's CMD output and Chrome's PowerShell
+`Invoke-WebRequest` output. `--location` / `-L` and `--no-location` preserve
+redirect behavior through native save/reopen and execution, including explicit
+`-X` methods; `--max-redirs` sets the hop limit (50 when unset). `--insecure` /
+`-k` turns certificate verification off and `--max-time` / `-m` sets the request
+timeout. PowerShell's `-MaximumRedirection`, `-SkipCertificateCheck` and
+`-TimeoutSec` map to the same settings. Without `-L`, imported requests stop at
+the original response. Declarative Checks also retain that original-response
+behavior. See the guide for credential and request-body boundaries.
 
 ## Source layout
 

@@ -185,8 +185,8 @@
 | 可复用脚本库（Postman Packages） | 缺少 | | M9 |
 | Checks（无代码断言） | 已有 | 导出 Postman 时转成 `pm.test`，结果与 Checks 一致；无效的 Checks 跳过并警告 | M1 |
 | 集合、文件夹、设置、落盘为目录 | 已有 | | |
-| 请求描述、集合文档视图 | 缺少 | Postman 导入时会丢 | M6 |
-| 单个请求的设置：超时、跟随重定向、证书校验 | 缺少 | Postman 导入时会丢 | M6 |
+| 请求描述、集合文档视图 | 已有 | 请求、文件夹、集合的 Markdown 描述随资产落盘，在请求 Docs 页和层级设置里编辑；集合菜单的 View documentation… 只读渲染描述并列出请求的 method、URL 和描述；Postman 导入导出保留 | M6 |
+| 单个请求的设置：超时、跟随重定向、证书校验 | 已有 | 请求 Settings 页和文件夹/集合的 Request defaults；Send 和 Runner 生效；跟随与最大次数分别继承，`maxRedirects: 0` 视为不跟随；Postman `protocolProfileBehavior` 的 `followRedirects`、`maxRedirects`、`strictSSL` 往返，cURL（Bash/CMD/PowerShell）的 `-L`、`--max-redirs`、`-k`、`--max-time` 与 PowerShell 对应参数往返；Postman 没有请求超时字段；关闭校验有明确警告 | M6 |
 | 客户端证书（按域名）、自定义 CA | 缺少 | | M6 |
 | Examples | 已有 | | |
 | Examples 作为 Mock 响应（本地 mock） | 已有 | 见 6.3；Examples 标签里的 Mock，集合菜单的 Mock from examples | M4 |
@@ -308,7 +308,7 @@ Cookie 和其他 API key 保留为变量 header，避免把多个认证机制硬
 ### M6：Postman 兼容补齐
 
 - Body：binary、GraphQL 基础已完成；GraphQL schema 自省、补全和 operationName 选择待做。
-- 请求描述和集合文档、单个请求的设置。
+- 请求描述、集合文档视图和单个请求的设置已完成：Markdown 描述随请求、文件夹和集合落盘，集合菜单的 View documentation… 只读渲染并列出请求；超时、重定向（含最大次数）和证书校验在请求 Settings 页与文件夹/集合的 Request defaults 设置，Send 和 Runner 生效，Postman 的 `protocolProfileBehavior` 与 cURL 参数往返；关闭证书校验有明确警告。
 - 证书：请求侧的客户端证书和自定义 CA；抓包侧的上游 mTLS 和自定义根证书。
 - 变量：初始值/当前值、自动补全和悬停、完整动态变量（常用项已扩至 32 个，仍未覆盖完整 Faker）。
 - 脚本：沙箱库；`have.jsonSchema` 已完成（Ajv 6.12.6，无 UI 改动）。

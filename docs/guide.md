@@ -1518,7 +1518,8 @@ and environment management — sit at the
 right. Method, URL and **Send** are the main action row; the method is an
 editable dropdown with its own chevron, so the common verbs are a click away and
 one the list lacks is still typed and kept. **Params**,
-**Headers**, **Auth**, **Body**, **Scripts** and **Checks** select what is being
+**Headers**, **Auth**, **Body**, **Scripts**, **Checks**, **Examples**,
+**Docs** and **Settings** select what is being
 edited. **Params** and **Headers** are tables of an enable box, a key and a
 value under **KEY** and **VALUE** titles, so order, duplicate names, empty
 values and switched-off rows survive; a cell keeps a quiet border until the
@@ -1582,6 +1583,18 @@ round-trip, with an OAuth 1.0 header/body switch that imports as Automatic
 when Postman sets `addParamsToHeader` false. **Inherit** (the default for new
 requests) uses the nearest folder or collection auth and says which one it is;
 see [Collections, variables and the vault](#collections-variables-and-the-vault).
+
+**Docs** edits the request's Markdown description, which the collection's
+documentation view renders. **Settings** sets its transport choices: a timeout
+in seconds (0–3600; 0 waits without a request limit), whether to follow
+redirects and how many, and whether to verify the TLS certificate. Unset values
+inherit the collection's and folder's **Request defaults**; the panel says when
+it is using them and offers **Use collection defaults** to go back. Turning
+certificate verification off accepts any certificate, including an impostor's:
+the panel warns, and the setting applies to Send and Runner. An explicit 0
+removes the editor's and Runner's per-request budget as well; **Stop** still
+cancels the send. Checks keep inspecting the original response, so a request
+with Checks stops at the first 3xx even when it would otherwise follow.
 
 **OAuth 2.0** gets an access token with the authorization code grant with PKCE
 (the default), the authorization code grant, client credentials or the
@@ -1852,6 +1865,13 @@ network, and does not guarantee that phone numbers or IP addresses are reserved
 or reachable. Passwords and the other random values are test data, not production
 credentials.
 
+A level's **Description** is Markdown. The collection or folder menu's **View
+documentation…** shows it read-only, followed by every request under it with its
+method, name, URL and description. Request descriptions are edited on the
+request's **Docs** tab. **Request defaults** in the same settings dialog set the
+timeout, redirect behavior and TLS verification requests under that level
+inherit; a request's **Settings** tab overrides them field by field.
+
 #### Import and export
 
 **Import…** in the sidebar footer, **Session → Import…** and the command
@@ -1921,10 +1941,18 @@ into the environment of the same name; globals merge into globals.
 
 Saved examples become the requests' examples, both ways. Postman binary file
 bodies retain `file.src` as a local file reference, without reading the file
-during import or export. What has no equivalent yet is listed after the import:
-request descriptions, auth other than Bearer, Basic, API key, OAuth 2.0, Digest, AWS
-Signature and JWT Bearer (imported as no auth), disabled query parameters and
-per-request settings. Digest keeps only the username and password: the rest
+during import or export. Descriptions at collection, folder and request level
+are kept, and so is `protocolProfileBehavior`: `followRedirects`,
+`maxRedirects` and `strictSSL` become the request's redirect and TLS settings at
+whichever level they appear. `followRedirects` and `maxRedirects` inherit
+independently, so a request that turns following on keeps a folder's hop limit;
+`maxRedirects: 0` stops at the first response. Postman's request timeout is an app setting, not
+part of a collection, so it is neither imported nor exported; vscroxy keeps its
+own timeout in the request file and warns when exporting one. What has no
+equivalent is listed after the import: auth other than Bearer, Basic, API key,
+OAuth 2.0, Digest, AWS Signature and JWT Bearer (imported as no auth), disabled
+query parameters, and protocol profile keys the app does not send, such as body
+pruning. Digest keeps only the username and password: the rest
 comes from the server's challenge. AWS Signature always signs in headers, and
 a JWT algorithm vscroxy cannot sign with (such as EdDSA) becomes no auth. OAuth 2.0 keeps its grant, URLs, client, scope, client
 authentication and header prefix; the implicit grant becomes no auth, a
@@ -2093,10 +2121,11 @@ the inline response limit is 8 MiB. All checks must pass.
 
 **Send** and **Runner…** execute these same checks and show pass/fail results.
 An explicitly expected 4xx/5xx is not a Runner failure. Requests with Checks stop
-at redirects to assert the original response; ordinary requests still follow
-redirects. Missing required variables stop the case before sending. Rerunning is
-not a dry run: POST/PUT/DELETE and other requests can change server data, and the
-existing Requests/Runner session cookie jar still applies locally.
+at redirects to assert the original response; ordinary requests follow them
+unless their Settings turn that off. Missing required variables stop the case
+before sending. Rerunning is not a dry run: POST/PUT/DELETE and other requests
+can change server data, and the existing Requests/Runner session cookie jar
+still applies locally.
 
 Regression cases are ordinary collection requests with Checks. Share them with
 Postman export and the common redaction options above; import through the normal
@@ -2121,11 +2150,14 @@ credentials, user agent, referer, JSON/raw/form-encoded bodies and `--get`
 query data. Shell/environment/glob expansion and PowerShell interpolation are
 never run. `{{variables}}` remain placeholders.
 
-`--location` / `-L` follows up to 50 HTTP(S) redirects; `--no-location`
-disables it again (last option wins). Without these flags, imported requests do
-not follow redirects, matching curl rather than the workspace's default.
-This policy survives saving and reopening a native request and applies to Send
-and Runner. With 301/302/303, an inferred POST becomes GET and loses its body;
+`--location` / `-L` follows HTTP(S) redirects; `--no-location` disables it
+again (last option wins). `--max-redirs N` sets the hop limit (0–1000; curl's
+50 when unset), `--insecure` / `-k` turns certificate verification off, and
+`-m` / `--max-time N` sets the request timeout in seconds (fractions round up,
+0 means no limit). Without `-L`, imported requests do not follow redirects,
+matching curl rather than the workspace's default. These choices survive saving
+and reopening a native request and apply to Send and Runner. With 301/302/303,
+an inferred POST becomes GET and loses its body;
 an explicit `--request` / `-X` retains the chosen method, but still loses the body.
 307/308 retain the method and body. Explicit body headers survive; curl's implicit
 form Content-Type disappears with the body. No automatic Referer is added.
@@ -2134,22 +2166,24 @@ are not forwarded to another hostname; stripped credentials stay stripped on
 later hops. Workspace cookie-jar rules still apply. Custom credential headers
 are ordinary headers and can cross origins, as in curl: review redirect targets.
 Adding declarative Checks still stops at the original response, as for other
-workspace requests. Copy/code generation represents the initial wire request,
-not this saved transfer policy.
+workspace requests. Copied cURL carries the saved redirect, certificate and
+timeout choices; the other code generators represent the initial wire request
+only.
 
 The importer never executes curl or reads local files/stdin. It rejects pipelines,
 substitutions, shell redirections, assignments, multiple URLs, `@file` bodies/headers,
-multipart file uploads and unsupported options. Connection/security/redirect
-options such as `--insecure`, `--location-trusted`, `--max-redirs`, `--post302`
+multipart file uploads and unsupported options. `--location-trusted`, `--post302`
 and `--config` are rejected rather than silently changing behavior. Output flags
-and `--compressed` are accepted but not
-applied; sending uses this app's proxy/client, not curl's transfer settings.
+and `--compressed` are accepted but not applied; sending uses this app's
+proxy/client, not curl's connection-level flags.
 CMD and PowerShell commands accept the same request data but not every
 PowerShell parameter: `-UseBasicParsing`, `-Uri`, `-Method`, `-Headers`,
-`-ContentType`, `-Body` and `-WebSession` are read, and any other parameter is
-reported instead of dropped. A PowerShell import keeps the workspace's normal
-redirect behavior, unlike cURL's no-follow default. Commands are limited to
-16 MiB.
+`-ContentType`, `-Body` and `-WebSession` are read, as are
+`-MaximumRedirection` (0 stops), `-SkipCertificateCheck` and `-TimeoutSec`.
+Any other parameter is reported instead of dropped. Without
+`-MaximumRedirection`, a PowerShell import also stops at the original response,
+like cURL without `-L`, rather than taking the workspace default. Commands are
+limited to 16 MiB.
 
 **Generate code…** (request **⋯** menu or command palette) shows the draft as
 cURL, JavaScript `fetch`, Node.js `fetch`/axios, PowerShell, Python requests,
@@ -2185,8 +2219,14 @@ headers and an explicit Host are preserved; wire framing and connection-only
 headers are removed. Captured decoded bodies omit stale content-encoding/digest
 headers, while drafts retain their authored encodings. Curl's default Accept,
 User-Agent and Content-Type are suppressed when absent, and a captured
-Accept-Encoding also enables response decompression. TLS verification stays on;
-the command ignores `.curlrc` but still uses curl's normal proxy environment.
+Accept-Encoding also enables response decompression. A draft's command carries
+only explicitly set transfer choices: `-L` when following was turned on or a
+hop limit was set, `--max-redirs N` for that limit, `-k` when certificate
+verification is off, and `--max-time N` when it has a timeout. Inherited or
+default values are not pinned, so curl's own defaults apply; a captured
+exchange has no saved settings and keeps curl's defaults and TLS verification
+on. The command ignores `.curlrc` but still uses curl's normal proxy
+environment.
 
 Captured spill files are read in full. Small text bodies use `--data-raw` (a
 leading `@` stays literal). Binary/NUL bodies and text whose shell-quoted form
