@@ -71,6 +71,9 @@ func (s *Server) SetSOCKS(c SOCKSConfig) error {
 	if c.Username == "" && c.Password != "" {
 		return errors.New("SOCKS5 password needs a username")
 	}
+	if c.Username != "" && c.Password == "" {
+		return errors.New("SOCKS5 authentication needs a password")
+	}
 	s.socksMu.Lock()
 	defer s.socksMu.Unlock()
 	if s.running.Load() {

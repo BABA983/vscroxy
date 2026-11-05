@@ -10,6 +10,7 @@ import (
 	"net/http/httptrace"
 	"net/url"
 	"sync"
+	"time"
 
 	"github.com/lqqyt2423/go-mitmproxy/cert"
 	"github.com/lqqyt2423/go-mitmproxy/internal/helper"
@@ -25,6 +26,9 @@ type Options struct {
 	NewCaFunc         func() (cert.CA, error) //创建 Ca 的函数
 	Upstream          string
 	LogFilePath       string // Path to write logs to file
+	// SOCKSPeekTimeout bounds how long a SOCKS connection whose target is
+	// decrypted may take to send its first bytes. Zero uses 10 seconds.
+	SOCKSPeekTimeout time.Duration
 }
 
 // HeaderVerifyUpstream on a CONNECT asks the proxy to verify the upstream

@@ -36,16 +36,21 @@ target. Closing `done` (the capture server's shutdown signal) cancels the
 initial upstream dial or TLS handshake, as the HTTP front end's request context
 does for a CONNECT.
 
-- A TLS client gets the HTTP CONNECT policy: `shouldIntercept` decides between
-  the eager or lazy MITM path and a byte-for-byte tunnel. The eager path keeps
-  its upstream certificate lookup, ALPN and HTTP/2 support; the lazy path and
-  `SetDialFallbackRule` behave as they do after CONNECT. A bypassed tunnel is
-  still shown through `Requestheaders` with a synthetic CONNECT request.
+- The target's `shouldIntercept` decision is made before any byte is read,
+  exactly as for HTTP CONNECT. A bypassed target is tunnelled byte for byte
+  without a peek, so a server-first protocol sends its banner immediately; it
+  is still shown through `Requestheaders` with a synthetic CONNECT request.
+- A decrypted target is peeked with `Options.SOCKSPeekTimeout` (10 seconds by
+  default). TLS goes through the eager or lazy MITM path: the eager path keeps
+  its upstream certificate lookup, ALPN and HTTP/2 support, and the lazy path
+  and `SetDialFallbackRule` behave as they do after CONNECT. A target that
+  sends no bytes is closed when the peek times out.
 - A plaintext client is handed to the ordinary HTTP front end. The target is in
   `ConnContext.TransparentTarget`; `entry.ServeHTTP` fills an origin-form
-  request's missing scheme and host from it, and pins even an absolute-form
-  request to it. One SOCKS request therefore opens exactly one target, and the
-  usual rules, scripts, breakpoints, capture and upstream proxy apply.
+  request's missing scheme and host from it, pins even an absolute-form request
+  to it, and refuses a nested CONNECT with 400 before the HTTP CONNECT path can
+  open a second target. One SOCKS request therefore opens exactly one target,
+  and the usual rules, scripts, breakpoints, capture and upstream proxy apply.
 - `wrapListener.Accept` returns an already-wrapped `*wrapClientConn` unchanged:
   `ServeSOCKSConn` registers that client once, before the HTTP server parses a
   request, so one socket keeps one identity and one `ClientConnected` event.
@@ -54,8 +59,9 @@ does for a CONNECT.
 
 Real-socket coverage lives in `internal/capture/socks_test.go`: IPv4, IPv6 and
 domain greeting/request parsing, BIND and unsupported address types, RFC 1929
-success and failure, plaintext HTTP capture and rules, and HTTPS both decrypted
-and bypassed.
+success and failure, plaintext HTTP capture and rules, HTTPS both decrypted and
+bypassed, a server-first bypassed tunnel, a refused nested CONNECT and the
+decrypted peek timeout.
 
 ## Forward proxy connections that switch targets
 
@@ -343,7 +349,9 @@ reproduces the rewritten-target check.
 
 `internal/capture.ReplayWithPolicy` sends the header for an authored request
 whose TLS setting verifies the certificate, and sets `InsecureSkipVerify` on the
-replay client for the tunneled leg when verification is off.
+replay client for the tunneled leg when verification is off. A reverse proxy
+entry sends the same header for its HTTPS targets unless that entry explicitly
+allows a self-signed certificate.
 `internal/request.TestRequestCertificateVerification` covers a self-signed
 server with TLS tunneled and intercepted, verification on and off;
 `TestRequestCertificateVerificationUsesTheIPAddress` covers the IP-SAN success

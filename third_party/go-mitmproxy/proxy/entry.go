@@ -208,18 +208,25 @@ func (e *entry) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 			return
 		}
 	}
-	// proxy via connect tunnel
-	if req.Method == "CONNECT" {
-		e.handleConnect(res, req)
-		return
-	}
-
-	if ctx, ok := req.Context().Value(connContextKey).(*ConnContext); ok && ctx != nil && ctx.TransparentTarget != "" {
-		// The destination was agreed outside HTTP (SOCKS5), so a client that
-		// sends origin-form requests has named no host. Pin even an
-		// absolute-form target to it: one SOCKS request opens one target.
+	ctx, _ := req.Context().Value(connContextKey).(*ConnContext)
+	if ctx != nil && ctx.TransparentTarget != "" {
+		// The destination was agreed outside HTTP (SOCKS5). A nested CONNECT
+		// would open a second target on the same request, so it is refused
+		// before the HTTP CONNECT path can hijack the connection. An
+		// origin-form request gets the missing host; an absolute-form one is
+		// still pinned to the same destination.
+		if req.Method == "CONNECT" {
+			res.Header().Set("Content-Type", "text/plain; charset=utf-8")
+			res.WriteHeader(http.StatusBadRequest)
+			io.WriteString(res, "vscroxy: a SOCKS connection is pinned to its target\n")
+			return
+		}
 		req.URL.Scheme = "http"
 		req.URL.Host = ctx.TransparentTarget
+	} else if req.Method == "CONNECT" {
+		// proxy via connect tunnel
+		e.handleConnect(res, req)
+		return
 	} else if !req.URL.IsAbs() || req.URL.Host == "" {
 		res = helper.NewResponseCheck(res)
 		for _, addon := range proxy.Addons {

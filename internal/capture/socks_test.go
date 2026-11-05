@@ -22,9 +22,17 @@ import (
 // loopback port the OS chooses.
 func startSOCKSServer(t *testing.T, cfg SOCKSConfig) *Server {
 	t.Helper()
+	return startSOCKSServerWith(t, cfg, nil)
+}
+
+func startSOCKSServerWith(t *testing.T, cfg SOCKSConfig, change func(*Server)) *Server {
+	t.Helper()
 	s, err := New("127.0.0.1:0", t.TempDir())
 	if err != nil {
 		t.Fatalf("new server: %v", err)
+	}
+	if change != nil {
+		change(s)
 	}
 	cfg.Enabled = true
 	if cfg.Addr == "" {
@@ -167,9 +175,9 @@ func TestSOCKS5HandshakeAddressTypesCommandsAndAuth(t *testing.T) {
 		addr []byte
 		port int
 	}{
-		{"IPv4", 1, net.ParseIP("192.0.2.10").To4(), 8080},
-		{"IPv6", 4, net.ParseIP("2001:db8::10").To16(), 8443},
-		{"domain", 3, append([]byte{byte(len("example.test"))}, "example.test"...), 80},
+		{"IPv4", 1, net.ParseIP("127.0.0.1").To4(), 1},
+		{"IPv6", 4, net.ParseIP("::1").To16(), 1},
+		{"domain", 3, append([]byte{byte(len("localhost"))}, "localhost"...), 1},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			_, reply := dialSOCKS5(t, proxy, tc.atyp, tc.addr, tc.port, "", "", 0x00, 0x02)
@@ -307,6 +315,7 @@ func TestSOCKS5PlainHTTPIsCapturedAndRulesApply(t *testing.T) {
 	host, port := hostPort(t, upstream.URL)
 
 	s := startSOCKSServer(t, SOCKSConfig{})
+	s.SetSSL(SSLConfig{All: true})
 	if err := s.SetRules([]Rule{{Type: RuleBlock, Match: "/blocked"}}); err != nil {
 		t.Fatal(err)
 	}
@@ -371,6 +380,7 @@ func TestSOCKS5IPv6AndDomainReachTheUpstream(t *testing.T) {
 	host, port := hostPort(t, upstream.URL)
 
 	s := startSOCKSServer(t, SOCKSConfig{})
+	s.SetSSL(SSLConfig{All: true})
 	for _, tc := range []struct {
 		name string
 		atyp byte
@@ -484,6 +494,7 @@ func TestSOCKS5PlainHTTPKeepsOneConnectionForSeveralRequests(t *testing.T) {
 	host, port := hostPort(t, upstream.URL)
 
 	s := startSOCKSServer(t, SOCKSConfig{})
+	s.SetSSL(SSLConfig{All: true})
 	conn, reply := dialSOCKS5(t, s.SOCKSAddr(), 1, socksAddrBytes(t, host, 1), port, "", "", 0x00)
 	if reply != 0 {
 		t.Fatalf("CONNECT reply %d", reply)
@@ -562,6 +573,7 @@ func TestSOCKS5HostProfileMapsTheDial(t *testing.T) {
 	_, port := hostPort(t, upstream.URL)
 
 	s := startSOCKSServer(t, SOCKSConfig{})
+	s.SetSSL(SSLConfig{All: true})
 	setHosts(t, s, "127.0.0.1 every.test")
 	conn, reply := dialSOCKS5(t, s.SOCKSAddr(), 3, socksAddrBytes(t, "every.test", 3), port, "", "", 0x00)
 	if reply != 0 {
@@ -583,5 +595,130 @@ func TestSOCKS5HostProfileMapsTheDial(t *testing.T) {
 	}
 	if want := "every.test → 127.0.0.1"; f.DNSMapped != want || f.HostProfile != "Test:1" {
 		t.Fatalf("DNSMapped %q from %q, want %q from Test:1", f.DNSMapped, f.HostProfile, want)
+	}
+}
+
+func TestSOCKS5NestedConnectIsRefused(t *testing.T) {
+	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	defer target.Close()
+	host, port := hostPort(t, target.URL)
+
+	reached := make(chan struct{}, 1)
+	second, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer second.Close()
+	go func() {
+		for {
+			conn, err := second.Accept()
+			if err != nil {
+				return
+			}
+			select {
+			case reached <- struct{}{}:
+			default:
+			}
+			_ = conn.Close()
+		}
+	}()
+
+	s := startSOCKSServer(t, SOCKSConfig{})
+	s.SetSSL(SSLConfig{All: true})
+	conn, reply := dialSOCKS5(t, s.SOCKSAddr(), 1, socksAddrBytes(t, host, 1), port, "", "", 0x00)
+	if reply != 0 {
+		t.Fatalf("CONNECT reply %d", reply)
+	}
+	fmt.Fprintf(conn, "CONNECT %s HTTP/1.1\r\nHost: %s\r\n\r\n", second.Addr(), second.Addr())
+	resp, err := http.ReadResponse(bufio.NewReader(conn), nil)
+	if err != nil {
+		t.Fatalf("read nested CONNECT response: %v", err)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusBadRequest || !strings.Contains(string(body), "pinned") {
+		t.Fatalf("nested CONNECT = %d %q, want 400 pinned", resp.StatusCode, body)
+	}
+	select {
+	case <-reached:
+		t.Fatal("nested CONNECT reached the second target")
+	case <-time.After(100 * time.Millisecond):
+	}
+}
+
+func TestSOCKS5BypassedTargetIsARawTunnel(t *testing.T) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer listener.Close()
+	go func() {
+		conn, err := listener.Accept()
+		if err != nil {
+			return
+		}
+		defer conn.Close()
+		_, _ = io.WriteString(conn, "220 banner first\r\n")
+	}()
+	_, portText, _ := net.SplitHostPort(listener.Addr().String())
+	port, _ := strconv.Atoi(portText)
+
+	// No decryption rule: the connection is tunnelled without a peek, so a
+	// server-first protocol is not held waiting for client bytes.
+	s := startSOCKSServer(t, SOCKSConfig{})
+	conn, reply := dialSOCKS5(t, s.SOCKSAddr(), 1, socksAddrBytes(t, "127.0.0.1", 1), port, "", "", 0x00)
+	if reply != 0 {
+		t.Fatalf("CONNECT reply %d", reply)
+	}
+	_ = conn.SetReadDeadline(time.Now().Add(time.Second))
+	banner, err := bufio.NewReader(conn).ReadString('\n')
+	if err != nil {
+		t.Fatalf("server-first banner: %v", err)
+	}
+	if banner != "220 banner first\r\n" {
+		t.Fatalf("banner %q", banner)
+	}
+	f := waitFlow(t, s)
+	if f.Kind != "connect" || f.Method != "CONNECT" {
+		t.Fatalf("bypassed tunnel flow %+v", f)
+	}
+}
+
+func TestSOCKS5DecryptedPeekHasATimeout(t *testing.T) {
+	target, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer target.Close()
+	_, portText, _ := net.SplitHostPort(target.Addr().String())
+	port, _ := strconv.Atoi(portText)
+
+	s := startSOCKSServerWith(t, SOCKSConfig{}, func(s *Server) {
+		s.proxy.Opts.SOCKSPeekTimeout = 100 * time.Millisecond
+	})
+	s.SetSSL(SSLConfig{All: true})
+	conn, reply := dialSOCKS5(t, s.SOCKSAddr(), 1, socksAddrBytes(t, "127.0.0.1", 1), port, "", "", 0x00)
+	if reply != 0 {
+		t.Fatalf("CONNECT reply %d", reply)
+	}
+	_ = conn.SetReadDeadline(time.Now().Add(time.Second))
+	started := time.Now()
+	if _, err := conn.Read(make([]byte, 1)); err == nil {
+		t.Fatal("a decrypted target that sent nothing stayed open")
+	}
+	if elapsed := time.Since(started); elapsed > 800*time.Millisecond {
+		t.Fatalf("peek timeout took %s", elapsed)
+	}
+}
+
+func TestSetSOCKSRejectsAuthenticationWithoutAPassword(t *testing.T) {
+	s, err := New("127.0.0.1:0", t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = s.Close() })
+	err = s.SetSOCKS(SOCKSConfig{Enabled: true, Addr: "127.0.0.1:0", Username: "alice"})
+	if err == nil || !strings.Contains(err.Error(), "password") {
+		t.Fatalf("SetSOCKS error = %v", err)
 	}
 }

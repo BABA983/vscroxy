@@ -6,17 +6,20 @@ import (
 	"net/http"
 	"net/url"
 	"sync"
+	"time"
 
 	"github.com/lqqyt2423/go-mitmproxy/internal/helper"
 	log "github.com/sirupsen/logrus"
 )
 
 // ServeSOCKSConn serves one connection whose destination a SOCKS5 CONNECT
-// agreed, before any HTTP byte arrived. A TLS client gets the same interception
-// policy as an HTTP CONNECT: a decrypted client is served through the ordinary
-// attacker path, a bypassed one is tunnelled byte for byte. A plaintext client
-// is parsed by the ordinary HTTP front end, with its origin-form requests
-// pinned to target.
+// agreed, before any HTTP byte arrived. The target's decryption policy is
+// applied before any byte is read, as it is for HTTP CONNECT: a target this
+// proxy does not decrypt is tunnelled byte for byte, so a server-first
+// protocol sends its banner without waiting for a peek. A decrypted target is
+// inspected: TLS goes through the ordinary attacker path, and plaintext is
+// parsed by the HTTP front end with its origin-form requests pinned to the
+// target. A decrypted target that sends neither closes after the peek timeout.
 //
 // The caller owns conn until this method returns. It replies to the SOCKS
 // request before calling, because the client waits for that reply before it
@@ -44,26 +47,39 @@ func (proxy *Proxy) ServeSOCKSConn(conn net.Conn, target string, done <-chan str
 		}()
 	}
 
+	req := socksConnectRequest(ctx, wc, target)
+	connCtx.Intercept = proxy.shouldIntercept == nil || proxy.shouldIntercept(req)
+	if !connCtx.Intercept {
+		// A bypassed target is a raw tunnel, exactly like a CONNECT this
+		// proxy does not decrypt. Do not peek: the target may speak first.
+		proxy.entry.serveSOCKSTunnel(wc, req)
+		return nil
+	}
+
+	// A decrypted target must start with TLS or an HTTP request. Bound the
+	// wait so a server-first protocol cannot hold the connection forever.
+	timeout := proxy.Opts.SOCKSPeekTimeout
+	if timeout <= 0 {
+		timeout = 10 * time.Second
+	}
+	_ = wc.SetReadDeadline(time.Now().Add(timeout))
 	peek, err := wc.Peek(3)
+	_ = wc.SetReadDeadline(time.Time{})
 	if err != nil {
 		_ = wc.Close()
 		return err
 	}
 	if helper.IsTls(peek) {
-		proxy.entry.serveSOCKSTunnel(ctx, wc, target)
+		proxy.entry.serveSOCKSTunnel(wc, req)
 		return nil
 	}
 	proxy.entry.serveSOCKSHTTP(wc)
 	return nil
 }
 
-// serveSOCKSTunnel applies the CONNECT policy to an already negotiated
-// connection: it publishes the tunnel when it will not decrypt, and otherwise
-// runs the same eager or lazy MITM the HTTP CONNECT path uses.
-func (e *entry) serveSOCKSTunnel(baseCtx context.Context, cconn *wrapClientConn, target string) {
-	proxy := e.proxy
-	ctx := cconn.connCtx
-
+// socksConnectRequest is the CONNECT envelope a SOCKS destination stands in
+// for. Addons see it before the tunnel is published or intercepted.
+func socksConnectRequest(baseCtx context.Context, cconn *wrapClientConn, target string) *http.Request {
 	req := &http.Request{
 		Method:     http.MethodConnect,
 		Host:       target,
@@ -74,13 +90,20 @@ func (e *entry) serveSOCKSTunnel(baseCtx context.Context, cconn *wrapClientConn,
 		Header:     make(http.Header),
 		RemoteAddr: cconn.RemoteAddr().String(),
 	}
-	req = req.WithContext(context.WithValue(context.WithValue(baseCtx, connContextKey, ctx), http.LocalAddrContextKey, cconn.LocalAddr()))
+	return req.WithContext(context.WithValue(context.WithValue(baseCtx, connContextKey, cconn.connCtx), http.LocalAddrContextKey, cconn.LocalAddr()))
+}
+
+// serveSOCKSTunnel applies the CONNECT policy to an already negotiated
+// connection: it publishes the tunnel when it will not decrypt, and otherwise
+// runs the same eager or lazy MITM the HTTP CONNECT path uses.
+func (e *entry) serveSOCKSTunnel(cconn *wrapClientConn, req *http.Request) {
+	proxy := e.proxy
+	ctx := cconn.connCtx
 
 	f := newFlow()
 	f.Request = newRequest(req)
 	f.ConnContext = ctx
 	defer f.finish()
-	ctx.Intercept = proxy.shouldIntercept == nil || proxy.shouldIntercept(req)
 
 	// The tunnel has no HTTP request of its own to show; Requestheaders still
 	// records its host and publishes the row of one this proxy will not read.
