@@ -100,7 +100,7 @@ func (a *app) requestFieldsEditor(c *ui.Context, rows *[]request.Field, opts fie
 						}
 					})
 					ui.Box(c).Basis(0).Grow(1).MinWidth(0).FillHeight().BorderWidth(0, 1, 0, 0).BorderColor(t.Border).Children(func() {
-						field := a.variableGridInput(c, fmt.Sprintf("%s-key-%d", noun, i+1), &r.Name, "Key", fmt.Sprintf("%s key %d", noun, i+1), opts.collection)
+						field := a.variableGridInput(c, fmt.Sprintf("%s-key-%d", noun, i+1), &r.Name, "Key", fmt.Sprintf("%s key %d", noun, i+1), opts.collection, false)
 						cellBorder(t, field, false, false)
 						if field.Changed() {
 							changed = true
@@ -112,7 +112,7 @@ func (a *app) requestFieldsEditor(c *ui.Context, rows *[]request.Field, opts fie
 					secret := opts.secret && sensitiveHeader(r.Name)
 					masked := secret && !r.Revealed
 					ui.Box(c).Basis(0).Grow(2).MinWidth(0).FillHeight().Children(func() {
-						value := a.variableGridInput(c, fmt.Sprintf("%s-value-%d", noun, i+1), &r.Value, "Value", fmt.Sprintf("%s value %d", noun, i+1), opts.collection)
+						value := a.variableGridInput(c, fmt.Sprintf("%s-value-%d", noun, i+1), &r.Value, "Value", fmt.Sprintf("%s value %d", noun, i+1), opts.collection, masked)
 						if masked {
 							value.Password()
 						}
@@ -365,6 +365,12 @@ func (a *app) authFields(c *ui.Context, auth *request.Auth, types []string, coll
 	area := func(value *string, label string) ui.Element {
 		return a.variableTextArea(c, "auth-"+label, value, label, collection)
 	}
+	password := func(value *string, label string) ui.Element {
+		return a.variablePasswordInput(c, "auth-"+label, value, label, collection)
+	}
+	sensitiveArea := func(value *string, label string) ui.Element {
+		return a.variableSensitiveTextArea(c, "auth-"+label, value, label, collection)
+	}
 	ui.Form(c, func() {
 		ui.Field(c, "Type", func() {
 			uikit.Select(c, &auth.Type, types).Label("Authorization type").Width(240)
@@ -372,14 +378,14 @@ func (a *app) authFields(c *ui.Context, auth *request.Auth, types []string, coll
 		switch auth.Type {
 		case "Bearer":
 			ui.Field(c, "Bearer token", func() {
-				input(&auth.Token, "Bearer token").Placeholder("{{token}}").Password()
+				password(&auth.Token, "Bearer token").Placeholder("{{token}}")
 			})
 		case "Basic":
 			ui.Field(c, "Username", func() { input(&auth.Username, "Username") })
-			ui.Field(c, "Password", func() { input(&auth.Password, "Password").Password() })
+			ui.Field(c, "Password", func() { password(&auth.Password, "Password") })
 		case "API key":
 			ui.Field(c, "API key name", func() { input(&auth.Key, "API key name") })
-			ui.Field(c, "API key value", func() { input(&auth.Value, "API key value").Password() })
+			ui.Field(c, "API key value", func() { password(&auth.Value, "API key value") })
 			ui.Field(c, "Location", func() {
 				uikit.Select(c, &auth.Location, []string{"Header", "Query"}).Label("API key location").Width(160)
 			})
@@ -396,16 +402,16 @@ func (a *app) authFields(c *ui.Context, auth *request.Auth, types []string, coll
 			}
 			ui.Field(c, "Consumer key", func() { input(&o.ConsumerKey, "Consumer key") })
 			ui.Field(c, "Consumer secret", func() {
-				input(&o.ConsumerSecret, "Consumer secret").Placeholder("{{vault:oauth1_secret}}").Password()
+				password(&o.ConsumerSecret, "Consumer secret").Placeholder("{{vault:oauth1_secret}}")
 			})
 			ui.Field(c, "Token", func() { input(&o.Token, "Token").Placeholder("Optional for two-legged auth") })
-			ui.Field(c, "Token secret", func() { input(&o.TokenSecret, "Token secret").Password() })
+			ui.Field(c, "Token secret", func() { password(&o.TokenSecret, "Token secret") })
 			ui.Field(c, "Signature method", func() {
 				uikit.Select(c, &o.SignatureMethod, request.OAuth1Methods).Width(180)
 			})
 			if strings.HasPrefix(o.SignatureMethod, "RSA-") {
 				ui.Field(c, "Private key", func() {
-					area(&o.PrivateKey, "Private key").Height(72).Font(uikit.FontMono).FontSize(uikit.TextBody).Radius(uikit.RadiusControl).Placeholder("-----BEGIN PRIVATE KEY----- … or {{vault:oauth1_key}}")
+					sensitiveArea(&o.PrivateKey, "Private key").Height(72).Font(uikit.FontMono).FontSize(uikit.TextBody).Radius(uikit.RadiusControl).Placeholder("-----BEGIN PRIVATE KEY----- … or {{vault:oauth1_key}}")
 				})
 			}
 			ui.Field(c, "Add authorization to", func() {
@@ -432,20 +438,20 @@ func (a *app) authFields(c *ui.Context, auth *request.Auth, types []string, coll
 			ui.Field(c, "Verifier", func() { input(&o.Verifier, "Verifier").Placeholder("Optional, oauth_verifier") })
 		case request.AuthDigest:
 			ui.Field(c, "Username", func() { input(&auth.Username, "Username") })
-			ui.Field(c, "Password", func() { input(&auth.Password, "Password").Password() }).
+			ui.Field(c, "Password", func() { password(&auth.Password, "Password") }).
 				Description("The first send gets the server's challenge; vscroxy answers it and sends again.")
 		case request.AuthAWS:
 			aws := &auth.AWS
 			ui.Field(c, "Access key", func() { input(&aws.AccessKey, "Access key") })
 			ui.Field(c, "Secret key", func() {
-				input(&aws.SecretKey, "Secret key").Placeholder("{{vault:aws_secret}}").Password()
+				password(&aws.SecretKey, "Secret key").Placeholder("{{vault:aws_secret}}")
 			})
 			ui.Field(c, "Region", func() { input(&aws.Region, "Region").Placeholder("us-east-1").Width(260) })
 			ui.Field(c, "Service", func() {
 				input(&aws.Service, "Service").Placeholder("e.g. execute-api or s3").Width(260)
 			})
 			ui.Field(c, "Session token", func() {
-				input(&aws.SessionToken, "Session token").Placeholder("Optional").Password()
+				password(&aws.SessionToken, "Session token").Placeholder("Optional")
 			})
 		case request.AuthJWT:
 			jwt := &auth.JWT
@@ -459,12 +465,12 @@ func (a *app) authFields(c *ui.Context, auth *request.Auth, types []string, coll
 			ui.Field(c, "Algorithm", func() { uikit.Select(c, &jwt.Algorithm, request.JWTAlgorithms).Width(160) })
 			if strings.HasPrefix(jwt.Algorithm, "HS") {
 				ui.Field(c, "Secret", func() {
-					input(&jwt.Secret, "Secret").Placeholder("{{vault:jwt_secret}}").Password()
+					password(&jwt.Secret, "Secret").Placeholder("{{vault:jwt_secret}}")
 				})
 				ui.Field(c, "", func() { ui.Checkbox(c, &jwt.SecretBase64, "Secret is base64-encoded") })
 			} else {
 				ui.Field(c, "Private key", func() {
-					area(&jwt.PrivateKey, "Private key").Height(72).Font(uikit.FontMono).FontSize(uikit.TextBody).Radius(uikit.RadiusControl).Placeholder("-----BEGIN PRIVATE KEY----- … or {{vault:jwt_key}}")
+					sensitiveArea(&jwt.PrivateKey, "Private key").Height(72).Font(uikit.FontMono).FontSize(uikit.TextBody).Radius(uikit.RadiusControl).Placeholder("-----BEGIN PRIVATE KEY----- … or {{vault:jwt_key}}")
 				})
 			}
 			ui.Field(c, "Payload", func() {
@@ -493,7 +499,7 @@ func (a *app) authFields(c *ui.Context, auth *request.Auth, types []string, coll
 			}
 			ui.Field(c, "Auth ID", func() { input(&h.AuthID, "Auth ID") })
 			ui.Field(c, "Auth key", func() {
-				input(&h.AuthKey, "Auth key").Placeholder("{{vault:hawk_key}}").Password()
+				password(&h.AuthKey, "Auth key").Placeholder("{{vault:hawk_key}}")
 			})
 			ui.Field(c, "Algorithm", func() {
 				uikit.Select(c, &h.Algorithm, request.HawkAlgorithms).Width(160)
@@ -515,7 +521,7 @@ func (a *app) authFields(c *ui.Context, auth *request.Auth, types []string, coll
 			ui.Field(c, "Access token", func() { input(&e.AccessToken, "Access token") })
 			ui.Field(c, "Client token", func() { input(&e.ClientToken, "Client token") })
 			ui.Field(c, "Client secret", func() {
-				input(&e.ClientSecret, "Client secret").Placeholder("{{vault:edgegrid_secret}}").Password()
+				password(&e.ClientSecret, "Client secret").Placeholder("{{vault:edgegrid_secret}}")
 			})
 			ui.Field(c, "Base URL", func() {
 				input(&e.BaseURL, "Base URL").Placeholder("Request host by default")

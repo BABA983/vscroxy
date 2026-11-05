@@ -10,7 +10,6 @@ import (
 	"unicode/utf8"
 
 	"github.com/baba983/vscroxy/internal/request"
-	"github.com/baba983/vscroxy/internal/vault"
 	"github.com/egoist/mygo/ui/editor"
 )
 
@@ -65,20 +64,59 @@ func oneLine(value string) string {
 // sensitiveVariable reports whether a variable name usually holds a credential,
 // so previews mask its value even outside the Vault.
 func sensitiveVariable(name string) bool {
-	lower := strings.ToLower(name)
-	for _, part := range strings.FieldsFunc(lower, func(r rune) bool { return !unicode.IsLetter(r) && !unicode.IsDigit(r) }) {
-		switch part {
-		case "authorization", "cookie", "credential", "credentials", "key", "keys", "passwd", "password", "secret", "secrets", "session", "token", "tokens":
-			return true
+	// Split camelCase before lowercasing, so accessToken and apiKey keep
+	// their credential word; then split separators such as _ and -.
+	var words []string
+	runes, from := []rune(name), 0
+	for i := 1; i < len(runes); i++ {
+		prev, cur := runes[i-1], runes[i]
+		nextLower := i+1 < len(runes) && unicode.IsLower(runes[i+1])
+		if unicode.IsUpper(cur) && (unicode.IsLower(prev) || unicode.IsDigit(prev) || unicode.IsUpper(prev) && nextLower) {
+			words = append(words, string(runes[from:i]))
+			from = i
+		}
+	}
+	words = append(words, string(runes[from:]))
+	for _, word := range words {
+		for _, part := range strings.FieldsFunc(strings.ToLower(word), func(r rune) bool { return !unicode.IsLetter(r) && !unicode.IsDigit(r) }) {
+			switch part {
+			case "authorization", "cookie", "credential", "credentials", "key", "keys",
+				"passwd", "password", "pass", "pwd", "secret", "secrets", "session",
+				"token", "tokens", "bearer", "jwt", "auth", "apikey", "accesskey",
+				"secretkey", "clientsecret", "authtoken", "accesstoken", "refreshtoken", "sessionid":
+				return true
+			}
 		}
 	}
 	return false
 }
 
-// variableHints lists every variable an editor at collection can use, highest
-// scope last, plus Dynamic and Vault names. A defined name shadows a Dynamic
-// one, as a send does.
-func (a *app) variableHints(collection string) []variableHint {
+// variableSet is one resolution of a request's scopes, with the list the
+// completion shows and the lookup marks and hovers use.
+type variableSet struct {
+	list        []variableHint
+	byName      map[string]variableHint
+	vaultLocked bool
+}
+
+// hint resolves one name in this set. While the Vault is locked, a
+// {{vault:name}} reference is not undefined: only opening the Vault can tell.
+func (s variableSet) hint(name string) (variableHint, bool) {
+	if h, ok := s.byName[name]; ok {
+		return h, true
+	}
+	if s.vaultLocked {
+		if _, ok := strings.CutPrefix(name, "vault:"); ok {
+			return variableHint{Name: name, Scope: "Vault", Vault: true, Sensitive: true, Defined: true}, true
+		}
+	}
+	return variableHint{}, false
+}
+
+// variableHintSet lists every variable an editor at collection can use,
+// highest scope last, plus Dynamic and Vault names. A defined name shadows a
+// Dynamic one, as a send does.
+func (a *app) variableHintSet(collection string) variableSet {
 	byName := map[string]variableHint{}
 	add := func(h variableHint) {
 		if h.Name == "" {
@@ -135,9 +173,21 @@ func (a *app) variableHints(collection string) []variableHint {
 			}
 		}
 		addValues(scope, values, current)
+		for name := range a.folderCredentials[path] {
+			if h, ok := byName[name]; ok {
+				h.Sensitive = true
+				byName[name] = h
+			}
+		}
 	}
 	env := a.activeEnvironment()
 	addValues("Environment · "+env.Name, env.Vars, env.Current)
+	for name := range env.Credentials {
+		if h, ok := byName[name]; ok {
+			h.Sensitive = true
+			byName[name] = h
+		}
+	}
 
 	if a.vault.loaded {
 		for _, secret := range a.vault.secrets {
@@ -149,11 +199,16 @@ func (a *app) variableHints(collection string) []variableHint {
 			byName[name] = variableHint{Name: name, Scope: "Dynamic", Dynamic: true, Defined: true}
 		}
 	}
-	hints := slices.Collect(maps.Values(byName))
-	slices.SortFunc(hints, func(x, y variableHint) int {
+	list := slices.Collect(maps.Values(byName))
+	slices.SortFunc(list, func(x, y variableHint) int {
 		return cmp.Or(cmp.Compare(variableScopeRank(x), variableScopeRank(y)), strings.Compare(x.Name, y.Name))
 	})
-	return hints
+	return variableSet{list: list, byName: byName, vaultLocked: !a.vault.loaded}
+}
+
+// variableHints is the completion list alone.
+func (a *app) variableHints(collection string) []variableHint {
+	return a.variableHintSet(collection).list
 }
 
 // variableScopeRank orders the completion list from the nearest scope out.
@@ -193,20 +248,7 @@ func variablePathChain(collection string) []string {
 // variableHint finds one name as variableHints resolves it. A Vault reference
 // is not undefined while the Vault is locked: only opening it can tell.
 func (a *app) variableHint(collection, name string) (variableHint, bool) {
-	for _, h := range a.variableHints(collection) {
-		if h.Name == name {
-			return h, true
-		}
-	}
-	if secret, ok := strings.CutPrefix(name, "vault:"); ok {
-		if !a.vault.loaded {
-			return variableHint{Name: name, Scope: "Vault", Vault: true, Sensitive: true, Defined: true}, true
-		}
-		if slices.ContainsFunc(a.vault.secrets, func(s vault.Secret) bool { return s.Name == secret }) {
-			return variableHint{Name: name, Scope: "Vault", Vault: true, Sensitive: true, Defined: true}, true
-		}
-	}
-	return variableHint{}, false
+	return a.variableHintSet(collection).hint(name)
 }
 
 // variableMark is one {{name}} with its rune offsets and resolution.
@@ -220,13 +262,19 @@ type variableMark struct {
 
 // variableMarks resolves the references in text for inline styling.
 func (a *app) variableMarks(text, collection string) []variableMark {
+	return variableMarksWith(a.variableHintSet(collection), text)
+}
+
+// variableMarksWith resolves references against a set already built for the
+// frame, so a field does not rebuild and sort every scope per reference.
+func variableMarksWith(set variableSet, text string) []variableMark {
 	refs := request.VariableRefs(text)
 	if len(refs) == 0 {
 		return nil
 	}
 	marks := make([]variableMark, 0, len(refs))
 	for _, ref := range refs {
-		hint, ok := a.variableHint(collection, ref.Name)
+		hint, ok := set.hint(ref.Name)
 		marks = append(marks, variableMark{
 			Ref: ref, Hint: hint, Defined: ok,
 			Start: utf8.RuneCountInString(text[:ref.Start]), End: utf8.RuneCountInString(text[:ref.End]),

@@ -40,13 +40,17 @@ type Collection struct {
 	Warnings []string
 }
 
-// Environment is one imported environment. Values are the variables the
-// export held; secrets are values too, with a warning that they are stored
-// as ordinary local variables.
+// Environment is one imported environment. Values are the Initial values the
+// export held. Current holds local-only values such as secrets and a source's
+// current values, so they are never exported. Credentials marks the Current
+// names that came from a secret, so Persist current leaves them local.
+// Warnings say what was kept locally or could not be brought over.
 type Environment struct {
-	Name     string
-	Values   map[string]string
-	Warnings []string
+	Name        string
+	Values      map[string]string
+	Current     map[string]string
+	Credentials map[string]bool
+	Warnings    []string
 }
 
 // Result is everything one export holds. An export may contain several
@@ -140,6 +144,28 @@ func SetGraphQLBody(r *request.Request, query, variables string) {
 	r.BodyMode = "GraphQL"
 	r.GraphQL.Query = query
 	r.GraphQL.Variables = variables
+}
+
+// credentialMap marks every name of a confidential values map.
+func credentialMap(values map[string]string) map[string]bool {
+	if len(values) == 0 {
+		return nil
+	}
+	names := make(map[string]bool, len(values))
+	for name := range values {
+		names[name] = true
+	}
+	return names
+}
+
+// VariableFields turns a scope's variables into the fields VariableScript
+// takes, using the value a send would read.
+func VariableFields(vars []request.Variable) []request.Field {
+	var fields []request.Field
+	for _, v := range vars {
+		fields = append(fields, request.Field{Name: v.Name, Value: request.Prefer(v.Initial, v.Current), Disabled: v.Disabled})
+	}
+	return fields
 }
 
 // VariableScript is a pre-request script that sets fields as local variables,

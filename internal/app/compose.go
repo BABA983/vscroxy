@@ -16,6 +16,9 @@ type environment struct {
 	Vars map[string]string `json:"vars,omitempty"`
 	// Current overrides shared values locally and is never exported.
 	Current map[string]string `json:"current,omitempty"`
+	// Credentials marks Current names that hold credentials from the wizard,
+	// recording or token links, so Persist current leaves them local.
+	Credentials map[string]bool `json:"credentials,omitempty"`
 }
 
 // values are what a send reads: a nonempty Current wins, an empty one falls
@@ -36,6 +39,9 @@ type envFile struct {
 	// FolderCurrent holds each collection's and folder's local Current
 	// values by path and variable name. Initial values live in the library.
 	FolderCurrent map[string]map[string]string `json:"folderCurrent,omitempty"`
+	// FolderCredentials marks folder Current names that hold credentials, so
+	// Persist current leaves them local.
+	FolderCredentials map[string]map[string]bool `json:"folderCredentials,omitempty"`
 }
 
 // loadEnvs reads the environments file; a missing file has none. One that
@@ -71,7 +77,7 @@ func saveEnvs(file *store.File, f envFile) error {
 // so one editor never drops another's Current values.
 func (a *app) localEnvs() envFile {
 	return envFile{Active: a.activeEnv, Envs: a.envs, Globals: a.globals,
-		GlobalsCurrent: a.globalsCurrent, FolderCurrent: a.folderCurrent}
+		GlobalsCurrent: a.globalsCurrent, FolderCurrent: a.folderCurrent, FolderCredentials: a.folderCredentials}
 }
 
 // saveLocalEnvs writes the environments, globals and local collection Current

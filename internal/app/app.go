@@ -421,15 +421,17 @@ type app struct {
 	globals        map[string]string
 	globalsCurrent map[string]string
 	// folderCurrent holds collection and folder Current values by path and
-	// name; their Initial values live in the library.
-	folderCurrent map[string]map[string]string
-	varsGlobals   bool // the Variables dialog edits the globals
-	varsOpen      bool
-	varsName      string
-	varsChoice    string
-	varsRows      []variableRow
-	varsProblem   string
-	varsComplete  variableCompletion
+	// name; their Initial values live in the library. folderCredentials marks
+	// the ones that came from a credential slot.
+	folderCurrent     map[string]map[string]string
+	folderCredentials map[string]map[string]bool
+	varsGlobals       bool // the Variables dialog edits the globals
+	varsOpen          bool
+	varsName          string
+	varsChoice        string
+	varsRows          []variableRow
+	varsProblem       string
+	varsComplete      variableCompletion
 
 	breakOn   bool
 	bp        *capture.Breakpoint
@@ -595,7 +597,7 @@ func (a *app) loadRequestAssets() {
 	if f, err := loadEnvs(a.file(a.envsPath)); err != nil {
 		a.envsProblem = fmt.Sprintf("Variables (%s): %v", a.envsPath, err)
 	} else {
-		a.envs, a.activeEnv, a.globals, a.globalsCurrent, a.folderCurrent, a.envsProblem = f.Envs, f.Active, f.Globals, f.GlobalsCurrent, f.FolderCurrent, ""
+		a.envs, a.activeEnv, a.globals, a.globalsCurrent, a.folderCurrent, a.folderCredentials, a.envsProblem = f.Envs, f.Active, f.Globals, f.GlobalsCurrent, f.FolderCurrent, f.FolderCredentials, ""
 		if a.activeEnv == "" && len(a.envs) > 0 {
 			a.activeEnv = a.envs[0].Name
 		}
@@ -931,7 +933,7 @@ func (a *app) drain() {
 			}
 		}
 		if result.vars != nil && !maps.Equal(result.varsBefore, result.vars) {
-			a.applyVars(result.environment, result.varsBefore, result.vars)
+			a.applyVars(result.environment, result.varsBefore, result.vars, result.writes...)
 		}
 		a.applyWrites(result.writes)
 		if result.experiment != nil {
@@ -2733,7 +2735,7 @@ func (a *app) activeVars() map[string]string {
 // have completed or the user may have edited the environment in the meantime.
 // Script writes are Current values: the environment's Initial values, which
 // exports carry, stay as they were.
-func (a *app) applyVars(name string, before, vars map[string]string) {
+func (a *app) applyVars(name string, before, vars map[string]string, writes ...request.Write) {
 	if a.envsProblem != "" {
 		a.warn("Variables not saved: " + a.envsProblem)
 		return
@@ -2747,7 +2749,16 @@ func (a *app) applyVars(name string, before, vars map[string]string) {
 	if a.envs[at].Current == nil {
 		a.envs[at].Current = map[string]string{}
 	}
+	unset := map[string]bool{}
+	for _, w := range writes {
+		if w.Scope == "environment" && w.Unset {
+			unset[w.Name] = true
+		}
+	}
 	for key, value := range vars {
+		if unset[key] {
+			continue
+		}
 		if old, ok := before[key]; !ok || value != old {
 			a.envs[at].Current[key] = value
 		}
@@ -2755,7 +2766,12 @@ func (a *app) applyVars(name string, before, vars map[string]string) {
 	for key := range before {
 		if _, ok := vars[key]; !ok {
 			delete(a.envs[at].Current, key) // pm.environment.unset
+			delete(a.envs[at].Credentials, key)
 		}
+	}
+	for key := range unset {
+		delete(a.envs[at].Current, key)
+		delete(a.envs[at].Credentials, key)
 	}
 	if a.activeEnv == "" {
 		a.activeEnv = name
@@ -2780,7 +2796,7 @@ func (a *app) editEnvironment(name string) {
 	a.varsRows = nil
 	for _, env := range a.envs {
 		if env.Name == name {
-			a.varsRows = variableRowsOf(env.Vars, env.Current)
+			a.varsRows = variableRowsOf(env.Vars, env.Current, env.Credentials)
 		}
 	}
 }
@@ -2788,7 +2804,7 @@ func (a *app) editEnvironment(name string) {
 // editGlobals puts the global variables, beneath every environment, in the
 // Variables dialog.
 func (a *app) editGlobals() {
-	a.varsGlobals, a.varsProblem, a.varsRows = true, "", variableRowsOf(a.globals, a.globalsCurrent)
+	a.varsGlobals, a.varsProblem, a.varsRows = true, "", variableRowsOf(a.globals, a.globalsCurrent, nil)
 }
 
 // varsModal edits the variables of one environment, or the globals: each row
@@ -2835,8 +2851,11 @@ func (a *app) varsModal(c *ui.Context, t *ui.Theme) {
 			ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 				ui.Spacer(c)
 				if anyCurrent(a.varsRows) {
-					if uikit.SecondaryButton(c, "Persist all current").Tooltip("Write every Current value into its Initial value").Clicked() {
-						persistAllCurrent(a.varsRows)
+					if uikit.SecondaryButton(c, "Persist all current").Tooltip("Write non-sensitive Current values into Initial; credentials stay local").Clicked() {
+						persisted, skipped := persistAllCurrent(a.varsRows)
+						if skipped > 0 {
+							a.inform(fmt.Sprintf("Persisted %d values; %d sensitive values stayed local", persisted, skipped))
+						}
 					}
 					if uikit.SecondaryButton(c, "Reset all current").Tooltip("Drop every local override and use Initial values again").Clicked() {
 						resetAllCurrent(a.varsRows)
@@ -2883,7 +2902,7 @@ func (a *app) saveVars() {
 		a.varsProblem = "Select the recording environment before editing it; this draft does not include its recorded variables."
 		return
 	}
-	initial, current, err := variablesOf(a.varsRows)
+	initial, current, credentials, err := variablesOf(a.varsRows)
 	if err != nil {
 		a.varsProblem = "Variable names must be nonempty, unique and contain no braces."
 		return
@@ -2903,13 +2922,13 @@ func (a *app) saveVars() {
 	found := false
 	for i, e := range envs {
 		if e.Name == name {
-			envs[i].Vars, envs[i].Current = initial, current
+			envs[i].Vars, envs[i].Current, envs[i].Credentials = initial, current, credentials
 			found = true
 			break
 		}
 	}
 	if !found {
-		envs = append(envs, environment{Name: name, Vars: initial, Current: current})
+		envs = append(envs, environment{Name: name, Vars: initial, Current: current, Credentials: credentials})
 	}
 	f := a.localEnvs()
 	f.Active, f.Envs = name, envs

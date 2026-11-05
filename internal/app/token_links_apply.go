@@ -199,10 +199,15 @@ func (a *app) applyTokenLink(p *tokenLinkPlan) error {
 		envs := slices.Clone(a.envs)
 		at := slices.IndexFunc(envs, func(e environment) bool { return e.Name == p.Environment })
 		envs[at].Current = maps.Clone(envs[at].Current)
+		envs[at].Credentials = maps.Clone(envs[at].Credentials)
 		if envs[at].Current == nil {
 			envs[at].Current = map[string]string{}
 		}
+		if envs[at].Credentials == nil {
+			envs[at].Credentials = map[string]bool{}
+		}
 		envs[at].Current[p.Variable] = "" // Never seed captured, potentially expired credentials.
+		envs[at].Credentials[p.Variable] = true
 		if err := func() error {
 			f := a.localEnvs()
 			f.Envs = envs

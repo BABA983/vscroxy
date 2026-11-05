@@ -145,11 +145,24 @@ type Write struct {
 }
 
 // Variables applies w to a scope's variable rows: a set writes the first
-// enabled row's Current value or adds a row, and an unset removes every row of
-// that name. Initial values are the shared asset's and stay untouched.
+// enabled row's Current value or adds a local row, and an unset clears the
+// Current value so the Initial value applies again. A row that only existed
+// locally disappears. Initial values are the shared asset's and stay untouched.
 func (w Write) Variables(vars []Variable) []Variable {
 	if w.Unset {
-		return slices.DeleteFunc(slices.Clone(vars), func(v Variable) bool { return strings.TrimSpace(v.Name) == w.Name })
+		vars = slices.Clone(vars)
+		var out []Variable
+		for _, v := range vars {
+			if strings.TrimSpace(v.Name) != w.Name {
+				out = append(out, v)
+				continue
+			}
+			v.Current = ""
+			if !v.Local {
+				out = append(out, v)
+			}
+		}
+		return out
 	}
 	vars = slices.Clone(vars)
 	for i, v := range vars {
@@ -158,7 +171,7 @@ func (w Write) Variables(vars []Variable) []Variable {
 			return vars
 		}
 	}
-	return append(vars, Variable{Name: w.Name, Current: w.Value})
+	return append(vars, Variable{Name: w.Name, Current: w.Value, Local: true})
 }
 
 // scriptRun is the state the scripts of one send share: the variable scopes
@@ -167,6 +180,9 @@ type scriptRun struct {
 	// vars are the environment's and this run's values, what
 	// pm.environment.set writes; locals are pm.variables.
 	vars, locals map[string]string
+	// The Initial values behind the effective maps, so an unset falls back
+	// to them instead of leaving the name undefined for later steps.
+	environmentInitial, globalsInitial, collectionInitial map[string]string
 	// data is the Runner data file's row, pm.iterationData.
 	data map[string]string
 	// globals and collection are written through and reported as writes;
@@ -260,6 +276,20 @@ func (r *scriptRun) scope(name string) map[string]string {
 	return nil
 }
 
+// initial returns the Initial values behind a scope's effective map. Locals
+// and iteration data have none.
+func (r *scriptRun) initial(scope string) map[string]string {
+	switch scope {
+	case "environment":
+		return r.environmentInitial
+	case "globals":
+		return r.globalsInitial
+	case "collectionVariables":
+		return r.collectionInitial
+	}
+	return nil
+}
+
 func (r *scriptRun) set(scope, name, value string, unset bool) error {
 	if name == "" {
 		return errors.New("variable names cannot be empty")
@@ -272,7 +302,11 @@ func (r *scriptRun) set(scope, name, value string, unset bool) error {
 		return errors.New("pm.collectionVariables: this request is not saved in a collection")
 	}
 	if unset {
-		delete(m, name)
+		if initial, ok := r.initial(scope)[name]; ok {
+			m[name] = initial
+		} else {
+			delete(m, name)
+		}
 	} else {
 		m[name] = value
 	}
@@ -281,6 +315,16 @@ func (r *scriptRun) set(scope, name, value string, unset bool) error {
 	}
 	r.written[name] = true
 	switch scope {
+	case "environment":
+		if unset {
+			r.writes = append(r.writes, Write{Scope: "environment", Name: name, Unset: true})
+		} else {
+			// A set after an unset leaves the variable defined; do not let
+			// the earlier unset delete the new Current value afterwards.
+			r.writes = slices.DeleteFunc(r.writes, func(w Write) bool {
+				return w.Scope == "environment" && w.Name == name && w.Unset
+			})
+		}
 	case "globals":
 		r.writes = append(r.writes, Write{Scope: "global", Name: name, Value: value, Unset: unset})
 	case "collectionVariables":

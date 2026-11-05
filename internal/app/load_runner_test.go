@@ -132,6 +132,7 @@ func TestLoadRunnerLayouts(t *testing.T) {
 
 func TestLoadRunnerSnapshotsSavedInputs(t *testing.T) {
 	a := workspaceApp()
+	a.envs = []environment{{Name: "chosen", Vars: map[string]string{"env": "original"}}}
 	a.globals = map[string]string{"base": "original"}
 	a.folders = []request.Folder{{Path: "Shop", Variables: []request.Variable{{Name: "folder", Initial: "original"}}}}
 	a.requests = []savedRequest{{ID: "saved", Name: "Saved", Collection: "Shop", Form: []request.Field{{Name: "body", Value: "original"}}, HeaderList: []request.Field{{Name: "X-Test", Value: "original"}}}}
@@ -140,13 +141,14 @@ func TestLoadRunnerSnapshotsSavedInputs(t *testing.T) {
 	steps := a.loadRunnerSteps("Shop", "chosen")
 	a.requests[0].Form[0].Value, a.requests[0].HeaderList[0].Value = "edited", "edited"
 	a.folders[0].Variables[0].Initial, a.globals["base"] = "edited", "edited"
+	a.envs[0].Vars["env"] = "edited"
 	a.vault.secrets[0].Value, a.vault.secrets[0].Domains[0] = "edited", "other.test"
 	if len(steps) != 1 {
 		t.Fatal("saved request missing")
 	}
 	s := steps[0]
 	secret, err := s.Context.Vault("token", "allowed.test")
-	if err != nil || secret != "original" || s.Request.Form[0].Value != "original" || s.Request.HeaderList[0].Value != "original" || s.Context.Folders[0].Variables[0].Value() != "original" || s.Context.Globals["base"] != "original" || s.Context.Environment != "chosen" || s.Context.ScriptVault || s.Context.Tokens != nil {
+	if err != nil || secret != "original" || s.Request.Form[0].Value != "original" || s.Request.HeaderList[0].Value != "original" || s.Context.Folders[0].Variables[0].Value() != "original" || s.Context.Globals["base"] != "original" || s.Context.EnvironmentInitial["env"] != "original" || s.Context.Environment != "chosen" || s.Context.ScriptVault || s.Context.Tokens != nil {
 		t.Fatalf("snapshot retained live state: %+v; vault error %v", s.Context, err)
 	}
 	a.vault.loaded = false

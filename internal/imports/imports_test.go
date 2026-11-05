@@ -185,11 +185,61 @@ func TestReadHoppscotchEnvironment(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := []Environment{
-		{Name: "Dev", Values: map[string]string{"baseURL": "https://dev.example.com", "token": "dev-token"}, Warnings: []string{"confidential variables were imported as ordinary local variables"}},
+		{Name: "Dev", Values: map[string]string{"baseURL": "https://dev.example.com"}, Current: map[string]string{"token": "dev-token"}, Credentials: map[string]bool{"token": true}, Warnings: []string{"confidential variables were imported as local Current values"}},
 		{Name: "Prod", Values: map[string]string{"baseURL": "https://api.example.com"}},
 	}
 	if !reflect.DeepEqual(envs, want) {
 		t.Fatalf("environments\n got %+v\nwant %+v", envs, want)
+	}
+}
+
+// Hoppscotch's currentValue is local-only. It must never become Initial, and
+// a secret's value must stay local and be marked as a credential.
+func TestReadHoppscotchKeepsCurrentValuesLocal(t *testing.T) {
+	envs, err := ReadHoppscotchEnvironment([]byte(`[
+		{"v":2,"name":"Dev","variables":[
+			{"key":"base","initialValue":"https://initial","currentValue":"https://current","secret":false},
+			{"key":"token","initialValue":"shared","currentValue":"local","secret":true},
+			{"key":"onlyCurrent","initialValue":"","currentValue":"local-only","secret":false}
+		]}
+	]`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []Environment{{
+		Name:   "Dev",
+		Values: map[string]string{"base": "https://initial", "onlyCurrent": ""},
+		Current: map[string]string{
+			"base": "https://current", "token": "local", "onlyCurrent": "local-only",
+		},
+		Credentials: map[string]bool{"token": true},
+		Warnings: []string{
+			"confidential variables were imported as local Current values",
+			"current values were imported as local Current values",
+		},
+	}}
+	if !reflect.DeepEqual(envs, want) {
+		t.Fatalf("environments\n got %+v\nwant %+v", envs, want)
+	}
+}
+
+// A Hoppscotch collection or folder secret has no shared Initial value: only
+// the name and its local Current value survive, marked as a credential.
+func TestHoppscotchFolderSecretsStayLocal(t *testing.T) {
+	var warnings []string
+	vars := hoppVariables([]hoppVariable{
+		{Key: "secret", InitialValue: "shared", CurrentValue: "local", Secret: true},
+		{Key: "base", InitialValue: "https://initial", CurrentValue: "https://current"},
+	}, &warnings)
+	want := []request.Variable{
+		{Name: "secret", Current: "local", Local: true, Credential: true},
+		{Name: "base", Initial: "https://initial", Current: "https://current"},
+	}
+	if !reflect.DeepEqual(vars, want) {
+		t.Fatalf("variables\n got %+v\nwant %+v", vars, want)
+	}
+	if !reflect.DeepEqual(warnings, []string{"confidential variables were imported as local Current values", "current values were imported as local Current values"}) {
+		t.Fatalf("warnings = %q", warnings)
 	}
 }
 
@@ -494,7 +544,7 @@ func TestInsomniaTagScannerChecksImportedStringsDirectly(t *testing.T) {
 		{name: "form row", request: request.Request{Form: []request.Field{{Name: "when", Value: "{% now %}"}}}, requestTag: true},
 		{name: "auth token", request: request.Request{Auth: request.Auth{Token: "{% response 'body' %}"}}, requestTag: true},
 		{name: "auth oauth2", request: request.Request{Auth: request.Auth{OAuth2: request.OAuth2{ClientSecret: "{% now %}"}}}, requestTag: true},
-		{name: "folder variable", folder: request.Folder{Variables: []request.Field{{Name: "when", Value: "{% now %}"}}}, requestTag: true},
+		{name: "folder variable", folder: request.Folder{Variables: []request.Variable{{Name: "when", Initial: "{% now %}"}}}, requestTag: true},
 		{name: "environment name", env: Environment{Name: "{% now %}"}, envTag: true},
 		{name: "environment value", env: Environment{Name: "Dev", Values: map[string]string{"when": "{% now %}"}}, envTag: true},
 	}

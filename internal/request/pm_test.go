@@ -122,7 +122,7 @@ pm.collectionVariables.set("lastStatus", pm.response.code);`}
 	if _, ok := next.Globals["g"]; ok || in.Globals["g"] != "1" {
 		t.Errorf("Apply globals = %v (original %v): it must remove g without mutating the original", next.Globals, in.Globals)
 	}
-	if got := next.Folders[0].Variables; len(got) != 3 || got[1] != (Variable{Name: "seen", Current: "yes"}) || got[2] != (Variable{Name: "lastStatus", Current: "200"}) {
+	if got := next.Folders[0].Variables; len(got) != 3 || got[1] != (Variable{Name: "seen", Current: "yes", Local: true}) || got[2] != (Variable{Name: "lastStatus", Current: "200", Local: true}) {
 		t.Errorf("Apply collection variables = %+v", got)
 	}
 	if other := in.Apply(out.Writes, "Elsewhere"); len(other.Folders[0].Variables) != 1 {

@@ -2,6 +2,7 @@ package request
 
 import (
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -35,6 +36,78 @@ func TestValuesKeepsCurrentOnlyNamesDefined(t *testing.T) {
 	want := map[string]string{"shared": "local", "empty": "initial-empty", "only": "local-only", "emptyOnly": ""}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("Values = %v, want %v", got, want)
+	}
+}
+
+// An unset in a script clears the Current override and falls back to Initial
+// during the run; the saved Current is cleared afterwards, never Initial.
+func TestUnsetFallsBackToInitial(t *testing.T) {
+	in := Context{
+		Globals:            map[string]string{"team": "team-current"},
+		GlobalsInitial:     map[string]string{"team": "team-initial"},
+		EnvironmentInitial: map[string]string{"env": "env-initial"},
+		Folders: []Folder{{Path: "Shop", Variables: []Variable{
+			{Name: "collection", Initial: "collection-initial", Current: "collection-current"},
+			{Name: "local-only", Initial: "initial-only"},
+		}}},
+	}
+	run := in.scriptRun(Request{Collection: "Shop"}, map[string]string{
+		"env": "env-current", "only": "only-current", "collection": "collection-current",
+	})
+	if err := run.set("environment", "env", "", true); err != nil {
+		t.Fatal(err)
+	}
+	if err := run.set("environment", "only", "", true); err != nil {
+		t.Fatal(err)
+	}
+	if err := run.set("globals", "team", "", true); err != nil {
+		t.Fatal(err)
+	}
+	if err := run.set("collectionVariables", "collection", "", true); err != nil {
+		t.Fatal(err)
+	}
+	if run.vars["env"] != "env-initial" || run.globals["team"] != "team-initial" || run.collection["collection"] != "collection-initial" {
+		t.Errorf("run values = %+v / %+v / %+v", run.vars, run.globals, run.collection)
+	}
+	if _, ok := run.vars["only"]; ok {
+		t.Errorf("Current-only name stayed defined: %+v", run.vars)
+	}
+	if len(run.writes) != 4 {
+		t.Fatalf("writes = %+v, want two environment, global and collection unsets", run.writes)
+	}
+	if err := run.set("environment", "reborn", "", true); err != nil {
+		t.Fatal(err)
+	}
+	if err := run.set("environment", "reborn", "new", false); err != nil {
+		t.Fatal(err)
+	}
+	if run.vars["reborn"] != "new" || slices.ContainsFunc(run.writes, func(w Write) bool {
+		return w.Scope == "environment" && w.Name == "reborn" && w.Unset
+	}) {
+		t.Errorf("set after unset = %q, writes %+v", run.vars["reborn"], run.writes)
+	}
+
+	next := in.Apply([]Write{
+		{Scope: "global", Name: "team", Unset: true},
+		{Scope: "collection", Path: "Shop", Name: "collection", Unset: true},
+	}, "Shop")
+	if next.Globals["team"] != "team-initial" {
+		t.Errorf("Apply global unset = %q, want team-initial", next.Globals["team"])
+	}
+	if got := next.Folders[0].Variables[0]; got.Initial != "collection-initial" || got.Current != "" {
+		t.Errorf("Apply collection unset = %+v, want Initial kept and Current cleared", got)
+	}
+	vars := []Variable{
+		{Name: "collection", Initial: "collection-initial", Current: "collection-current"},
+		{Name: "local-only", Current: "local", Local: true},
+	}
+	got := Write{Scope: "collection", Name: "collection", Unset: true}.Variables(vars)
+	if len(got) != 2 || got[0].Name != "collection" || got[0].Initial != "collection-initial" || got[0].Current != "" {
+		t.Errorf("Write.Variables = %+v, want the Initial row and the unrelated local row", got)
+	}
+	got = Write{Scope: "collection", Name: "local-only", Unset: true}.Variables(got)
+	if len(got) != 1 || got[0].Name != "collection" {
+		t.Errorf("Write.Variables for a local-only row = %+v, want it removed", got)
 	}
 }
 

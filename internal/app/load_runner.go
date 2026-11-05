@@ -58,7 +58,7 @@ func (a *app) openLoadRunner() {
 
 // loadRunnerSteps snapshots the saved library, not the editor or ordinary
 // Runner's reordered/enabled draft. Vault access never prompts for an unlock.
-func (a *app) loadRunnerSteps(collection, environment string) []runner.Step {
+func (a *app) loadRunnerSteps(collection, environmentName string) []runner.Step {
 	var steps []runner.Step
 	for _, saved := range a.requests {
 		r := saved.Request
@@ -69,7 +69,10 @@ func (a *app) loadRunnerSteps(collection, environment string) []runner.Step {
 		r.TokenSources, r.Examples = slices.Clone(r.TokenSources), slices.Clone(r.Examples)
 		in := a.inheritance(r.Collection)
 		in.Globals = maps.Clone(in.Globals)
-		in.Environment = environment
+		in.Environment = environmentName
+		if at := slices.IndexFunc(a.envs, func(e environment) bool { return e.Name == environmentName }); at >= 0 {
+			in.EnvironmentInitial = maps.Clone(a.envs[at].Vars)
+		}
 		for i := range in.Folders {
 			in.Folders[i].Variables = slices.Clone(in.Folders[i].Variables)
 		}

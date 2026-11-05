@@ -761,7 +761,12 @@ func (a *app) requestBar(c *ui.Context, t *ui.Theme, d *requestDocument, more fu
 			ui.Box(c).Width(1).Height(18).Background(t.Border)
 			input := ui.TextInputBase(c, &d.composeURL).Bind(&d.urlInput).Grow(1).Height(uikit.HeightControl).Padding(0, t.Space(2)).Label("URL").
 				Placeholder("https://api.example.com/v1/resource").Font(uikit.FontMono).FontSize(uikit.TextBody)
-			marks := a.variableMarks(d.composeURL, d.composeCollection)
+			var set variableSet
+			var marks []variableMark
+			if strings.Contains(d.composeURL, "{{") {
+				set = a.variableHintSet(d.composeCollection)
+				marks = variableMarksWith(set, d.composeURL)
+			}
 			for _, mark := range marks {
 				color := t.Accent
 				if !mark.Defined {
@@ -769,9 +774,9 @@ func (a *app) requestBar(c *ui.Context, t *ui.Theme, d *requestDocument, more fu
 				}
 				input.TextRanges(ui.TextRange{Start: mark.Start, End: mark.End, Color: color, Weight: 600})
 			}
-			a.variableTooltip(c, input, d.composeURL, d.composeCollection)
+			a.variableTooltip(c, input, marks, false)
 			a.syncVariableCompletion(input, "URL", &d.composeURL)
-			a.variablePopover(c, input, "URL", &d.composeURL, d.composeCollection)
+			a.variablePopover(c, input, "URL", &d.composeURL, set)
 			spans := urlSpans(d.composeURL, t, marks)
 			hasVariables := len(marks) > 0
 			if !input.Focused() && hasVariables {

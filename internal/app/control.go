@@ -9,6 +9,7 @@ import (
 	"encoding/json/jsontext"
 	"encoding/json/v2"
 	"errors"
+	"maps"
 	"net/http/cookiejar"
 	"slices"
 	"strings"
@@ -419,7 +420,7 @@ func (a *app) controlRunSteps(id string, collection *string, environmentName str
 		r.Form, r.HeaderList = slices.Clone(r.Form), slices.Clone(r.HeaderList)
 		r.TokenSources = slices.Clone(r.TokenSources)
 		in := a.inheritance(r.Collection)
-		in.Environment, in.Tokens = env.Name, tokens
+		in.Environment, in.Tokens, in.EnvironmentInitial = env.Name, tokens, maps.Clone(env.Vars)
 		for i := range in.Folders {
 			in.Folders[i].Variables = slices.Clone(in.Folders[i].Variables)
 		}

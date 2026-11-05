@@ -401,43 +401,72 @@ func (a *app) renameFolder(from, name string) error {
 // moveFolderCurrent follows a rename, so a collection's or folder's local
 // Current values stay with it instead of a stale path.
 func (a *app) moveFolderCurrent(from, to string) {
-	if len(a.folderCurrent) == 0 {
+	if len(a.folderCurrent) == 0 && len(a.folderCredentials) == 0 {
 		return
 	}
 	under := func(p, root string) bool { return p == root || strings.HasPrefix(p, root+"/") }
 	next := maps.Clone(a.folderCurrent)
+	if next == nil {
+		next = map[string]map[string]string{}
+	}
+	credentials := maps.Clone(a.folderCredentials)
+	if credentials == nil {
+		credentials = map[string]map[string]bool{}
+	}
 	for p, values := range a.folderCurrent {
 		if under(p, from) {
 			delete(next, p)
 			next[to+strings.TrimPrefix(p, from)] = values
 		}
 	}
-	a.saveFolderCurrent(next)
+	for p, values := range a.folderCredentials {
+		if under(p, from) {
+			delete(credentials, p)
+			credentials[to+strings.TrimPrefix(p, from)] = values
+		}
+	}
+	if err := a.saveFolderCurrent(next, credentials); err != nil {
+		a.fail("Variables", err)
+	}
 }
 
 // dropFolderCurrent removes the local Current values of a deleted collection
 // or folder, and of everything under it.
 func (a *app) dropFolderCurrent(path string) {
-	if len(a.folderCurrent) == 0 {
+	if len(a.folderCurrent) == 0 && len(a.folderCredentials) == 0 {
 		return
 	}
 	next := maps.Clone(a.folderCurrent)
+	if next == nil {
+		next = map[string]map[string]string{}
+	}
+	credentials := maps.Clone(a.folderCredentials)
+	if credentials == nil {
+		credentials = map[string]map[string]bool{}
+	}
 	for p := range a.folderCurrent {
 		if within(p, path) {
 			delete(next, p)
 		}
 	}
-	a.saveFolderCurrent(next)
+	for p := range a.folderCredentials {
+		if within(p, path) {
+			delete(credentials, p)
+		}
+	}
+	if err := a.saveFolderCurrent(next, credentials); err != nil {
+		a.fail("Variables", err)
+	}
 }
 
 // saveFolderCurrent keeps the library's Current values in env.json, which is
 // the only place they are written.
-func (a *app) saveFolderCurrent(next map[string]map[string]string) {
+func (a *app) saveFolderCurrent(next map[string]map[string]string, credentials map[string]map[string]bool) error {
 	f := a.localEnvs()
-	f.FolderCurrent = next
+	f.FolderCurrent, f.FolderCredentials = next, credentials
 	if err := saveEnvs(a.file(a.envsPath), f); err != nil {
-		a.fail("Variables", err)
-		return
+		return err
 	}
-	a.folderCurrent = next
+	a.folderCurrent, a.folderCredentials = next, credentials
+	return nil
 }

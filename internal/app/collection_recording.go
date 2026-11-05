@@ -505,12 +505,15 @@ func (a *app) keepRecordedCapture(f flow, result recordedCapture) error {
 	}
 	envs := slices.Clone(a.envs)
 	e := &envs[env]
-	e.Vars, e.Current = maps.Clone(e.Vars), maps.Clone(e.Current)
+	e.Vars, e.Current, e.Credentials = maps.Clone(e.Vars), maps.Clone(e.Current), maps.Clone(e.Credentials)
 	if e.Vars == nil {
 		e.Vars = map[string]string{}
 	}
 	if e.Current == nil {
 		e.Current = map[string]string{}
+	}
+	if e.Credentials == nil {
+		e.Credentials = map[string]bool{}
 	}
 	for _, set := range []struct{ values, target map[string]string }{{result.shared, e.Vars}, {result.current, e.Current}} {
 		for name, value := range set.values {
@@ -534,6 +537,9 @@ func (a *app) keepRecordedCapture(f flow, result recordedCapture) error {
 				}
 			}
 			set.target[name] = value
+			if _, recorded := result.current[name]; recorded {
+				e.Credentials[name] = true
+			}
 		}
 	}
 	// Dependencies first. A later library conflict may leave unused variables,

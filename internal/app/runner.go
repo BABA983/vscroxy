@@ -232,7 +232,7 @@ func (a *app) drainRunner() {
 				r.picked = max(0, r.picked-1)
 			}
 			if !maps.Equal(event.before, event.vars) {
-				a.applyVars(r.environment, event.before, event.vars)
+				a.applyVars(r.environment, event.before, event.vars, event.writes...)
 			}
 			a.applyWrites(event.writes)
 		default:

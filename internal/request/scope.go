@@ -33,6 +33,12 @@ type Context struct {
 	Folders []Folder
 	// Globals are the workspace's variables, the lowest scope.
 	Globals map[string]string
+	// GlobalsInitial are the shared Initial values behind Globals, so an
+	// unset in a script falls back to them within the run.
+	GlobalsInitial map[string]string
+	// EnvironmentInitial are the active environment's Initial values behind
+	// the vars passed to Execute, for the same fallback.
+	EnvironmentInitial map[string]string
 	// Vault reads {{vault:name}} for a request to host; nil has no vault.
 	Vault func(name, host string) (string, error)
 	// ScriptVault lets scripts read and change the vault with pm.vault.
@@ -60,7 +66,8 @@ type Context struct {
 func (c Context) scriptRun(r Request, vars map[string]string) *scriptRun {
 	run := &scriptRun{
 		vars: maps.Clone(vars), locals: maps.Clone(c.Locals), globals: maps.Clone(c.Globals), data: c.Data,
-		collection: map[string]string{}, folders: map[string]string{}, phase: "setup",
+		environmentInitial: maps.Clone(c.EnvironmentInitial), globalsInitial: maps.Clone(c.GlobalsInitial),
+		collection: map[string]string{}, collectionInitial: map[string]string{}, folders: map[string]string{}, phase: "setup",
 		info:   scriptInfo{Iteration: c.Iteration, Iterations: c.Iterations, RequestName: r.Name, RequestID: r.ID, Environment: c.Environment},
 		addons: c.Addons,
 	}
@@ -88,6 +95,9 @@ func (c Context) scriptRun(r Request, vars map[string]string) *scriptRun {
 		for _, v := range f.Variables {
 			if name := strings.TrimSpace(v.Name); name != "" && !v.Disabled {
 				scope[name] = v.Value()
+				if f.Path == run.root {
+					run.collectionInitial[name] = v.Initial
+				}
 			}
 		}
 	}
@@ -117,7 +127,11 @@ func (c Context) Apply(writes []Write, collection string) Context {
 				}
 			}
 			if w.Unset {
-				delete(c.Globals, w.Name)
+				if initial, ok := c.GlobalsInitial[w.Name]; ok {
+					c.Globals[w.Name] = initial
+				} else {
+					delete(c.Globals, w.Name)
+				}
 			} else {
 				c.Globals[w.Name] = w.Value
 			}

@@ -175,6 +175,94 @@ func TestScriptWritesAreCurrentAndExportsCarryInitial(t *testing.T) {
 	}
 }
 
+// A fresh environment has no folderCurrent map at all; saving a folder's
+// Current value must create it instead of panicking on a nil map.
+func TestSaveFolderCreatesMissingCurrentMap(t *testing.T) {
+	a := workspaceApp()
+	a.envsPath = filepath.Join(t.TempDir(), "env.json")
+	a.folders = []request.Folder{{Path: "Shop", Variables: []request.Variable{{Name: "base", Initial: "shared"}}}}
+	a.folderCurrent = nil
+	a.folderCredentials = nil
+	a.folderUI = folderEditor{
+		open: true, name: "Shop", draft: request.Folder{Path: "Shop"},
+		variables: []variableRow{{Name: "base", Initial: "shared", HasInitial: true, Current: "local", HasCurrent: true}},
+	}
+	a.saveFolder()
+	if a.folderUI.problem != "" {
+		t.Fatalf("save failed: %s", a.folderUI.problem)
+	}
+	if got := a.folderCurrent["Shop"]["base"]; got != "local" {
+		t.Fatalf("in-memory Current = %q, want local", got)
+	}
+	f, err := loadEnvs(&store.File{Path: a.envsPath})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := f.FolderCurrent["Shop"]["base"]; got != "local" {
+		t.Fatalf("saved Current = %q, want local; file %+v", got, f)
+	}
+}
+
+// A script unset removes the local override and falls back to the Initial
+// value, both during the send and after it; a Current-only name disappears.
+func TestScriptUnsetFallsBackToInitial(t *testing.T) {
+	var got http.Header
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		got = r.Header.Clone()
+		fmt.Fprint(w, "ok")
+	}))
+	defer upstream.Close()
+	a := workspaceApp()
+	a.srv = requestProxy(t)
+	a.envsPath = filepath.Join(t.TempDir(), "env.json")
+	a.envs = []environment{{Name: "Local",
+		Vars:    map[string]string{"env": "env-initial", "gone": "gone-initial"},
+		Current: map[string]string{"env": "env-current", "gone": "gone-current", "only": "only-current"},
+	}}
+	a.activeEnv = "Local"
+	a.globals = map[string]string{"team": "team-initial"}
+	a.globalsCurrent = map[string]string{"team": "team-current"}
+	a.folders = []request.Folder{{Path: "Shop", Variables: []request.Variable{{Name: "collection", Initial: "collection-initial"}}}}
+	a.folderCurrent = map[string]map[string]string{"Shop": {"collection": "collection-current"}}
+	r := request.Request{Method: "GET", Collection: "Shop", URL: upstream.URL,
+		Headers: strings.Join([]string{
+			"X-Env: {{env}}", "X-Gone: {{gone}}", "X-Only: {{only}}",
+			"X-Global: {{team}}", "X-Collection: {{collection}}",
+		}, "\n"),
+		Pre: `pm.environment.unset("env"); pm.environment.unset("gone"); pm.environment.unset("only"); pm.globals.unset("team"); pm.collectionVariables.unset("collection")`,
+	}
+	before := a.activeVars()
+	out := r.Execute(t.Context(), a.srv, a.sendContext(r), before, nil)
+	if out.Err != nil {
+		t.Fatalf("%s: %v", out.Stage, out.Err)
+	}
+	for name, want := range map[string]string{
+		"X-Env": "env-initial", "X-Gone": "gone-initial", "X-Only": "{{only}}",
+		"X-Global": "team-initial", "X-Collection": "collection-initial",
+	} {
+		if got.Get(name) != want {
+			t.Errorf("%s = %q, want %q", name, got.Get(name), want)
+		}
+	}
+	a.applyVars("Local", before, out.Vars, out.Writes...)
+	a.applyWrites(out.Writes)
+	if a.envs[0].Current["env"] != "" || a.envs[0].Current["gone"] != "" {
+		t.Errorf("unset left Current values: %+v", a.envs[0].Current)
+	}
+	if _, ok := a.envs[0].Current["only"]; ok {
+		t.Errorf("unset left a Current-only value: %+v", a.envs[0].Current)
+	}
+	if a.globalsCurrent["team"] != "" {
+		t.Errorf("global unset left a Current value: %+v", a.globalsCurrent)
+	}
+	if _, ok := a.folderCurrent["Shop"]; ok {
+		t.Errorf("collection unset left a Current value: %+v", a.folderCurrent)
+	}
+	if a.envs[0].Vars["env"] != "env-initial" || a.globals["team"] != "team-initial" || a.folders[0].Variables[0].Initial != "collection-initial" {
+		t.Errorf("unset changed Initial values: %+v / %+v / %+v", a.envs[0].Vars, a.globals, a.folders)
+	}
+}
+
 // Collection Current values follow a rename, disappear with a deletion, and
 // never enter the collection directory.
 func TestFolderCurrentFollowsRenameAndDeletion(t *testing.T) {
@@ -211,7 +299,7 @@ func TestFolderCurrentFollowsRenameAndDeletion(t *testing.T) {
 func TestVariablesTablePersistsAndResetsCurrent(t *testing.T) {
 	a := workspaceApp()
 	a.envsPath = filepath.Join(t.TempDir(), "env.json")
-	a.envs = []environment{{Name: "Local", Vars: map[string]string{"token": "shared"}, Current: map[string]string{"token": "private"}}}
+	a.envs = []environment{{Name: "Local", Vars: map[string]string{"base": "shared"}, Current: map[string]string{"base": "private"}}}
 	a.activeEnv = "Local"
 	a.openVars()
 	tt := ui.NewTester(a.view, 1280, 800)
@@ -221,7 +309,7 @@ func TestVariablesTablePersistsAndResetsCurrent(t *testing.T) {
 	if err := tt.Click("Save"); err != nil {
 		t.Fatal(err)
 	}
-	if a.envs[0].Vars["token"] != "private" || a.envs[0].Current["token"] != "private" {
+	if a.envs[0].Vars["base"] != "private" || a.envs[0].Current["base"] != "private" {
 		t.Fatalf("persist = %+v", a.envs[0])
 	}
 	a.openVars()
@@ -232,8 +320,32 @@ func TestVariablesTablePersistsAndResetsCurrent(t *testing.T) {
 	if err := tt.Click("Save"); err != nil {
 		t.Fatal(err)
 	}
-	if a.envs[0].Vars["token"] != "private" || a.envs[0].Current["token"] != "" {
+	if a.envs[0].Vars["base"] != "private" || a.envs[0].Current["base"] != "" {
 		t.Fatalf("reset = %+v", a.envs[0])
+	}
+}
+
+// Persisting all current values leaves credential slots and credential-like
+// names local, including camelCase names, and reports what it skipped.
+func TestPersistAllCurrentSkipsCredentials(t *testing.T) {
+	rows := []variableRow{
+		{Name: "base_url", Initial: "https://shared", Current: "https://local", HasInitial: true, HasCurrent: true},
+		{Name: "accessToken", Initial: "shared-token", Current: "local-token", HasInitial: true, HasCurrent: true},
+		{Name: "session", Initial: "", Current: "local-session", HasInitial: true, HasCurrent: true, Credential: true},
+		{Name: "unchanged", Initial: "same", HasInitial: true},
+	}
+	persisted, skipped := persistAllCurrent(rows)
+	if persisted != 1 || skipped != 2 {
+		t.Fatalf("persisted %d, skipped %d; want 1 and 2", persisted, skipped)
+	}
+	if rows[0].Initial != "https://local" {
+		t.Errorf("ordinary Current was not persisted: %+v", rows[0])
+	}
+	if rows[1].Initial != "shared-token" || rows[2].Initial != "" {
+		t.Errorf("a credential was persisted: %+v / %+v", rows[1], rows[2])
+	}
+	if rows[1].Current != "local-token" || rows[2].Current != "local-session" {
+		t.Errorf("Current values changed: %+v / %+v", rows[1], rows[2])
 	}
 }
 
@@ -429,6 +541,9 @@ func TestSensitiveVariableNames(t *testing.T) {
 	for name, want := range map[string]bool{
 		"token": true, "access_token": true, "client_secret": true, "api_key": true,
 		"authorization": true, "cookie": true, "password": true, "session_id": true,
+		"accessToken": true, "apiKey": true, "clientSecret": true, "authToken": true,
+		"APIToken": true, "HTTPSecret": true,
+		"pwd": true, "pass": true, "bearer": true, "jwt": true, "x-api-key": true,
 		"base_url": false, "monkey": false, "keyboard": false, "region": false,
 	} {
 		if got := sensitiveVariable(name); got != want {
