@@ -2047,14 +2047,29 @@ PowerShell and Windows CMD quoting are not supported. Commands are limited to
 16 MiB.
 
 **Generate code…** (request **⋯** menu or command palette) shows the draft as
-cURL, JavaScript `fetch`, Node.js axios, Python requests, Go `net/http` or
-HTTPie, with its auth and encoded body, and copies it. Like cURL, it leaves
-`{{variables}}` as written and runs no script. Each language is written to send
-the same method, URL, headers and body bytes; libraries still add their own
-defaults (`User-Agent`, `Accept`, `Accept-Encoding`), and `fetch` and requests
-join repeated headers into one. What a language cannot send exactly is refused
-with a reason instead: binary bodies (use cURL), `fetch` with a body on GET or
-a `Host` other than the URL's, and HTTPie with values it would alter.
+cURL, JavaScript `fetch`, Node.js `fetch`/axios, PowerShell, Python requests,
+Go `net/http`, HTTPie, Swift `URLSession`, Kotlin OkHttp, Java `java.net.http`,
+C# `HttpClient`, PHP cURL, Ruby `Net::HTTP` or Rust `reqwest`, with its auth and
+encoded body, and copies it. The **Copy as…** menu offers cURL, PowerShell,
+fetch and the seven native-language snippets; **Generate code…** also has
+axios, Python requests, Go and HTTPie. Captured requests use the original
+exchange. Like cURL, it leaves `{{variables}}` as written and runs no script.
+Each language is written to send the same method, URL, headers and body bytes;
+libraries still add their own defaults (`User-Agent`, `Accept`,
+`Accept-Encoding`), `fetch` and requests join repeated headers into one, while
+Ruby `Net::HTTP` and C# `HttpClient` join repeated values with `, `. What a
+language cannot send exactly is refused with a reason instead: a binary
+body with no source file (use cURL), `fetch` with a body on GET or a `Host`
+other than the URL's, HTTPie with values it would alter, OkHttp with a
+GET/HEAD body, and Java, Kotlin and C# with a non-ASCII header value (their
+HTTP clients reject or replace it). Kotlin needs OkHttp and Rust needs reqwest
+with the blocking feature; the other snippets use standard libraries. A
+Binary body draft reads its selected file in every native snippet instead of
+inlining the bytes; the generated code reads the saved path as written, so
+prefer an absolute path or run the code from the same directory. Multipart
+bodies are exported as the assembled bytes, so a multipart body with non-UTF-8
+file content still uses cURL. Generating code adds no runtime dependency to
+vscroxy.
 
 **Copy cURL** beside **Send** copies the active draft; **Copy as cURL** in a
 captured row's menu copies that exchange. Variables stay unexpanded and scripts
@@ -2079,8 +2094,9 @@ Missing/incomplete bodies, request trailers, CONNECT/WebSocket rows, oversized
 header/URL arguments, HEAD with a body, and commands over 16 MiB produce an
 error without replacing the clipboard. Multipart drafts read their selected
 files and export the assembled bytes, including binary parts. Binary drafts
-likewise export the selected file's bytes, not a path reference. Non-UTF-8
-bodies use cURL; the text-only code snippets report an error instead of changing
+export the selected file's bytes in cURL, not a path reference; native snippets
+reference the selected file instead. Captured non-UTF-8 bodies without a source
+file use cURL, and the text-only snippets report an error instead of changing
 the bytes. Credentials and
 cookies are included: review before sharing. Expired credentials, body-sensitive
 signatures and application-specific client certificates may still require manual

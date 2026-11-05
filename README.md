@@ -93,9 +93,12 @@ precedence and return `2`.
 
 The capture inspector's **Copy as…**, request options, traffic row menus and
 native Request menu offer cURL (Bash), cURL (Windows CMD), PowerShell 7+,
-browser fetch and Node.js 18+ fetch. **Generate code…** also retains axios,
-Python requests, Go net/http and HTTPie. No Node or PowerShell runtime is
-needed by vscroxy; those runtimes are only needed to execute the copied code.
+browser fetch, Node.js 18+ fetch, Swift URLSession, Kotlin OkHttp, Java 11+
+java.net.http, C# HttpClient, PHP cURL, Ruby Net::HTTP and Rust reqwest.
+**Generate code…** also retains axios, Python requests, Go net/http and HTTPie.
+No Node, PowerShell, Swift, Kotlin, Java, .NET, PHP, Ruby or Rust runtime is
+needed by vscroxy; those runtimes and libraries are only needed to execute the
+copied code.
 
 Capture actions copy the original exchange; request-tab actions copy the
 active draft, including unsaved edits and inherited auth. Copy never sends a
@@ -114,6 +117,17 @@ partial or unsupported bodies fail without replacing the clipboard.
 - Fetch refuses GET/HEAD bodies and an alternate Host. Browser fetch is subject
   to CORS, browser cookies and forbidden-header policies; it is not a byte-exact
   replay client. Node fetch has no browser cookie jar or browser CORS checks.
+- Swift URLSession, Java 11+ java.net.http, C# HttpClient, PHP cURL and Ruby
+  Net::HTTP use their standard libraries; Kotlin needs OkHttp and Rust needs
+  reqwest with the blocking feature. OkHttp refuses GET/HEAD bodies.
+- Binary body drafts reference their selected file in the native snippets;
+  captured binary bodies without a source file still use cURL. Multipart bodies
+  are exported as assembled bytes, so binary multipart parts also use cURL.
+- Ruby Net::HTTP and C# HttpClient join repeated header values with `, `
+  (HTTP list syntax); Cookie is joined with `; `.
+- Java HttpClient, Kotlin OkHttp and C# HttpClient refuse non-ASCII header
+  values, which those clients reject or replace; Swift, PHP, Ruby and Rust send
+  the UTF-8 bytes.
 
 Captured HTTP requests can also be copied as **HAR (sanitized)** or explicitly
 **HAR (with sensitive data)**, including bulk selections and imported sessions.
