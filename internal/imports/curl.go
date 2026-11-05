@@ -30,10 +30,12 @@ const (
 
 var curlVariable = regexp.MustCompile(`\{\{([A-Za-z_][A-Za-z0-9_]*)\}\}`)
 
-// DetectCurl names the dialect of source without parsing it. Chrome's CMD
-// output is the only one that carries caret-quoted arguments; PowerShell's
+// DetectCurl names the dialect of source without parsing it. PowerShell's
 // Copy as PowerShell output starts with its session prelude or
-// Invoke-WebRequest.
+// Invoke-WebRequest. Everything else is parsed as Bash first, because cmd.exe
+// quoting can look like ordinary shell text when it appears inside a value;
+// only a caret-prefixed first argument, a caret-prefixed --url value, or a
+// failed Bash parse with a CMD continuation marks Chrome's CMD output.
 func DetectCurl(source string) CurlStyle {
 	source = strings.TrimSpace(strings.TrimPrefix(source, "\ufeff"))
 	lower := strings.ToLower(source)
@@ -44,91 +46,49 @@ func DetectCurl(source string) CurlStyle {
 	if !strings.HasPrefix(lower, "curl ") && !strings.HasPrefix(lower, "curl.exe ") {
 		return CurlBash
 	}
-	// CMD is only certain when the first argument, or the value of --url,
-	// starts with cmd.exe's caret-quoted form. A Bash body may contain ^"
-	// literally, and curl.exe with POSIX quoting is still Bash.
-	tokens := curlTokens(source)
-	if len(tokens) < 2 {
+	if args, err := parseCurlBash(source); err == nil {
+		if curlArgsAreCMD(args) {
+			return CurlCMD
+		}
 		return CurlBash
 	}
-	if strings.HasPrefix(tokens[1], `^"`) {
+	// Bash parsing rejects cmd.exe's ^ line continuation and its caret
+	// quoting when they split the command. Do not treat every Bash error as
+	// CMD: shell substitutions and operators must keep failing as Bash.
+	if hasCMDQuoteOrContinuation(source) {
 		return CurlCMD
-	}
-	for i := 1; i < len(tokens); i++ {
-		if tokens[i] == "--url" && i+1 < len(tokens) && strings.HasPrefix(tokens[i+1], `^"`) {
-			return CurlCMD
-		}
-		if strings.HasPrefix(tokens[i], `--url=^"`) {
-			return CurlCMD
-		}
 	}
 	return CurlBash
 }
 
-// curlTokens splits a command into top-level words without expanding it. It
-// only needs to tell a quoted Bash argument from Chrome's ^" CMD argument.
-func curlTokens(source string) []string {
-	var tokens []string
-	for i := 0; i < len(source); {
-		for i < len(source) && (source[i] == ' ' || source[i] == '\t' || source[i] == '\r' || source[i] == '\n') {
-			i++
-		}
-		if i >= len(source) {
-			break
-		}
-		start := i
-		switch {
-		case source[i] == '\'':
-			i++
-			for i < len(source) {
-				if source[i] == '\\' {
-					i += 2
-					continue
-				}
-				if source[i] == '\'' {
-					i++
-					break
-				}
-				i++
-			}
-		case source[i] == '"':
-			i++
-			for i < len(source) {
-				if source[i] == '\\' {
-					i += 2
-					continue
-				}
-				if source[i] == '"' {
-					i++
-					break
-				}
-				i++
-			}
-		case strings.HasPrefix(source[i:], `^"`):
-			i += 2
-			for i < len(source) {
-				if strings.HasPrefix(source[i:], `^\^"`) {
-					i += 4
-					continue
-				}
-				if strings.HasPrefix(source[i:], `^"`) {
-					i += 2
-					break
-				}
-				if source[i] == '^' && i+1 < len(source) {
-					i += 2
-					continue
-				}
-				i++
-			}
-		default:
-			for i < len(source) && source[i] != ' ' && source[i] != '\t' && source[i] != '\r' && source[i] != '\n' {
-				i++
-			}
-		}
-		tokens = append(tokens, source[start:i])
+func curlArgsAreCMD(args []string) bool {
+	if len(args) < 2 {
+		return false
 	}
-	return tokens
+	if strings.HasPrefix(args[1], "^") {
+		return true
+	}
+	for i := 1; i < len(args); i++ {
+		if args[i] == "--url" && i+1 < len(args) && strings.HasPrefix(args[i+1], "^") {
+			return true
+		}
+		if strings.HasPrefix(args[i], "--url=^") {
+			return true
+		}
+	}
+	return false
+}
+
+func hasCMDQuoteOrContinuation(source string) bool {
+	if strings.Contains(source, `^"`) {
+		return true
+	}
+	for line := range strings.SplitSeq(source, "\n") {
+		if strings.HasSuffix(strings.TrimRight(line, " \t\r"), "^") {
+			return true
+		}
+	}
+	return false
 }
 
 // ParseCurl reads one request from a Bash/POSIX curl command, Chrome's

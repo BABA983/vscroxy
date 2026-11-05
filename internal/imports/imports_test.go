@@ -478,6 +478,42 @@ func TestInsomniaNormalizesBodiesAndWarnsAboutTags(t *testing.T) {
 	}
 }
 
+func TestInsomniaTagScannerChecksImportedStringsDirectly(t *testing.T) {
+	tests := []struct {
+		name       string
+		request    request.Request
+		folder     request.Folder
+		env        Environment
+		requestTag bool
+		envTag     bool
+	}{
+		{name: "lone percent", request: request.Request{URL: "https://x.test/%20", Body: "100% done"}},
+		{name: "URL", request: request.Request{URL: "https://x.test/{% url 'base' %}"}, requestTag: true},
+		{name: "body", request: request.Request{Body: `{"when":"{% response 'body' %}"}`}, requestTag: true},
+		{name: "header block", request: request.Request{Headers: "X-When: {% now %}"}, requestTag: true},
+		{name: "header row", request: request.Request{HeaderList: []request.Field{{Name: "X-When", Value: "{% now %}"}}}, requestTag: true},
+		{name: "form row", request: request.Request{Form: []request.Field{{Name: "when", Value: "{% now %}"}}}, requestTag: true},
+		{name: "auth token", request: request.Request{Auth: request.Auth{Token: "{% response 'body' %}"}}, requestTag: true},
+		{name: "auth oauth2", request: request.Request{Auth: request.Auth{OAuth2: request.OAuth2{ClientSecret: "{% now %}"}}}, requestTag: true},
+		{name: "folder variable", folder: request.Folder{Variables: []request.Field{{Name: "when", Value: "{% now %}"}}}, requestTag: true},
+		{name: "environment name", env: Environment{Name: "{% now %}"}, envTag: true},
+		{name: "environment value", env: Environment{Name: "Dev", Values: map[string]string{"when": "{% now %}"}}, envTag: true},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			requests := []request.Request{test.request}
+			folders := []request.Folder{test.folder}
+			if got := hasInsomniaTags(requests, folders); got != test.requestTag {
+				t.Errorf("hasInsomniaTags = %v, want %v", got, test.requestTag)
+			}
+			envs := []Environment{test.env}
+			if got := environmentsTagged(envs); got != test.envTag {
+				t.Errorf("environmentsTagged = %v, want %v", got, test.envTag)
+			}
+		})
+	}
+}
+
 func TestInsomniaV5CookieSettingsWarn(t *testing.T) {
 	result, err := ReadInsomnia([]byte(`type: collection.insomnia.rest/5.0
 schema_version: "5.1"

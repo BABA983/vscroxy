@@ -37,6 +37,28 @@ func TestParseCurlCMDChromeOutput(t *testing.T) {
 	}
 }
 
+func TestParseCurlOlderCMDPlainQuotesAndCaretContinuation(t *testing.T) {
+	// Older Chrome builds wrote ordinary double quotes and used a caret at
+	// the end of the line as cmd.exe's continuation, rather than ^" quoting.
+	command := "curl \"https://x.test/\" ^\n  -H \"a: b\""
+	if got := DetectCurl(command); got != CurlCMD {
+		t.Fatalf("DetectCurl = %v, want CurlCMD", got)
+	}
+	got, warnings, err := ParseCurl(command)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(warnings) != 0 {
+		t.Fatalf("warnings %q", warnings)
+	}
+	if got.URL != "https://x.test/" || got.Method != "GET" {
+		t.Fatalf("request %+v", got)
+	}
+	if value := request.ParseHeaderBlock(got.Headers).Get("A"); value != "b" {
+		t.Fatalf("A header = %q, want %q", value, "b")
+	}
+}
+
 func TestParseCurlCMDKeepsPercentAndLineContinuations(t *testing.T) {
 	got, _, err := ParseCurl("curl.exe ^\"https://example.test/?x=^%^PATH^%^&q=1^\" ^\r\n  -H ^\"X-Test: a^&b^\"")
 	if err != nil {
@@ -152,6 +174,18 @@ func TestDetectCurlKeepsBashWhenCaretTextIsNotTheFirstArgument(t *testing.T) {
 	}
 	if got.Body != `--url ^"x"` {
 		t.Fatalf("Bash body with --url text changed: %+v", got)
+	}
+	// Adjacent quoted fragments are one Bash word. The caret text is part
+	// of the body, not a cmd.exe first argument or --url value.
+	got, _, err = ParseCurl(`curl -H 'X: a' --data-raw 'it'\''s --url ^"x' https://x.test/`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.URL != "https://x.test/" || got.Body != `it's --url ^"x` || got.Method != "POST" {
+		t.Fatalf("Bash adjacent quotes changed: %+v", got)
+	}
+	if value := request.ParseHeaderBlock(got.Headers).Get("X"); value != "a" {
+		t.Fatalf("X header = %q, want %q", value, "a")
 	}
 }
 
