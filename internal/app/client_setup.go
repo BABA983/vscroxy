@@ -56,8 +56,10 @@ type clientSetup struct {
 	androidLoading bool
 	androidProblem string
 	// androidApplied remembers the proxy that was present before this app
-	// changed it, and the port whose reverse listener it added.
+	// changed it, and the port whose reverse listener it added. androidPending
+	// blocks a second Set action while the first adb round trip is in flight.
 	androidApplied map[string]androidProxyState
+	androidPending bool
 
 	javaConfirm bool
 	// javaCACerts, javaProblem and javaChecked cache the Java lookup. A failed
@@ -225,6 +227,9 @@ func (a *app) drainClientSetup() {
 					}
 				}
 			default:
+				if r.action == "android" {
+					s.androidPending = false
+				}
 				if r.err != nil {
 					s.problem = r.err.Error()
 					a.fail(r.what, r.err)
@@ -236,6 +241,11 @@ func (a *app) drainClientSetup() {
 				}
 				switch r.action {
 				case "android":
+					if androidProxyIsOurProxy(r.previous, r.port) {
+						s.problem = "The device already points at vscroxy; use Undo proxy to clear it"
+						a.warn(s.problem)
+						continue
+					}
 					if s.androidApplied == nil {
 						s.androidApplied = make(map[string]androidProxyState)
 					}
@@ -420,6 +430,9 @@ func (a *app) applyAndroidProxy() {
 		a.warn("Undo the existing Android proxy before setting it again")
 		return
 	}
+	if s.androidPending {
+		return
+	}
 	for _, device := range s.android {
 		if device.Serial == s.androidSerial && device.State != "device" {
 			a.warn("Android device " + device.Serial + " is " + device.State + "; authorize or reconnect it first")
@@ -427,6 +440,7 @@ func (a *app) applyAndroidProxy() {
 		}
 	}
 	serial := s.androidSerial
+	s.androidPending = true
 	results := a.clientSetupResults()
 	go func() {
 		previous, err := clientsetup.ApplyAndroidProxy(serial, port)
@@ -467,7 +481,7 @@ func (a *app) clearAndroidProxy() {
 	}
 	results := a.clientSetupResults()
 	go func() {
-		err := clientsetup.ClearAndroidProxy(serial, port, previous)
+		warning, err := clientsetup.ClearAndroidProxy(serial, port, previous)
 		commands, _ := clientsetup.AndroidUndoCommands(serial, port, previous)
 		results <- clientSetupResult{
 			action:  "undo",
@@ -475,10 +489,30 @@ func (a *app) clearAndroidProxy() {
 			success: "Android proxy restored",
 			command: clientsetup.JoinCommands(commands, runtime.GOOS == "windows"),
 			err:     err,
+			warning: warning,
 			serial:  serial,
 		}
 		a.invalidate()
 	}()
+}
+
+// forgetAndroidProxy clears only the app's saved undo record. It is for a
+// listener that no longer exists (an emulator restart) or a reused serial whose
+// old proxy value must not be restored.
+func (a *app) forgetAndroidProxy() {
+	s := &a.clientUI
+	serial := s.androidSerial
+	if serial == "" {
+		a.warn("Choose a connected Android device or emulator")
+		return
+	}
+	if _, ok := s.androidApplied[serial]; !ok {
+		a.warn("No saved Android proxy for " + serial)
+		return
+	}
+	delete(s.androidApplied, serial)
+	a.saveAndroidProxyRecords()
+	a.done("Forgot saved Android proxy for " + serial)
 }
 
 func (a *app) pushAndroidCA() {
@@ -568,7 +602,7 @@ func (a *app) importJavaCA() {
 }
 
 // loadAndroidProxyRecords reads the previous proxy values saved by earlier
-// runs. The file is app-owned; a damaged file is reported, not overwritten.
+// runs. A damaged file is moved aside before it can be overwritten.
 func (a *app) loadAndroidProxyRecords() {
 	if a.androidProxyPath == "" {
 		return
@@ -583,10 +617,20 @@ func (a *app) loadAndroidProxyRecords() {
 	}
 	var records map[string]androidProxyState
 	if err := json.Unmarshal(data, &records); err != nil {
-		a.fail("Android proxy records", err)
+		backup := fmt.Sprintf("%s.corrupt-%d", a.androidProxyPath, time.Now().UnixNano())
+		if renameErr := os.Rename(a.androidProxyPath, backup); renameErr != nil {
+			a.androidProxyPath = "" // never overwrite a damaged file behind the user's back
+			a.fail("Android proxy records", fmt.Errorf("%w; could not move damaged file: %v", err, renameErr))
+			return
+		}
+		a.fail("Android proxy records", fmt.Errorf("%w; moved damaged file to %s", err, backup))
 		return
 	}
 	a.clientUI.androidApplied = records
+}
+
+func androidProxyIsOurProxy(previous string, port int) bool {
+	return port > 0 && strings.EqualFold(strings.TrimSpace(previous), fmt.Sprintf("127.0.0.1:%d", port))
 }
 
 // saveAndroidProxyRecords keeps undo information across restarts. It stores only

@@ -1,6 +1,7 @@
 package clientsetup
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"strconv"
@@ -164,14 +165,28 @@ func ApplyAndroidProxy(serial string, port int) (string, error) {
 	return previous, runAll(commands)
 }
 
-// ClearAndroidProxy restores the previous proxy and removes the reverse
-// listener.
-func ClearAndroidProxy(serial string, port int, previous string) error {
+// ClearAndroidProxy restores the previous proxy, then removes the reverse
+// listener. The restore is the part that must succeed: after an emulator
+// restart or adb server restart the listener is already gone, and "listener
+// not found" must not leave a stale undo record behind. That removal failure is
+// returned as a warning, not an error.
+func ClearAndroidProxy(serial string, port int, previous string) (warning error, err error) {
 	commands, err := AndroidUndoCommands(serial, port, previous)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	return runAll(commands)
+	if len(commands) == 0 {
+		return nil, errors.New("Android undo produced no commands")
+	}
+	if err := commands[0].Run(); err != nil {
+		return nil, err
+	}
+	if len(commands) > 1 {
+		if err := commands[1].Run(); err != nil {
+			return fmt.Errorf("proxy restored, but removing the adb reverse listener failed: %w", err), nil
+		}
+	}
+	return nil, nil
 }
 
 // PushAndroidCA copies the public CA to Downloads.

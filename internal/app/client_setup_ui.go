@@ -181,17 +181,20 @@ func (a *app) clientAndroidPanel(c *ui.Context, t *ui.Theme, p clientsetup.Proxy
 	}
 	_, applied := s.androidApplied[s.androidSerial]
 	ui.Row(c).Gap(t.Space(2)).Wrap().Children(func() {
-		if uikit.PrimaryButton(c, "Set proxy").Disabled(!running || s.androidSerial == "" || applied).Clicked() {
+		if uikit.PrimaryButton(c, "Set proxy").Disabled(!running || s.androidSerial == "" || applied || s.androidPending).Clicked() {
 			a.applyAndroidProxy()
 		}
 		if uikit.SecondaryButton(c, "Undo proxy").Disabled(s.androidSerial == "" || (!applied && p.Addr == "")).Clicked() {
 			a.clearAndroidProxy()
 		}
+		if uikit.SecondaryButton(c, "Forget saved proxy").Disabled(!applied).Clicked() {
+			a.forgetAndroidProxy()
+		}
 		if uikit.SecondaryButton(c, "Copy CA to device").Disabled(!running || s.androidSerial == "").Clicked() {
 			a.pushAndroidCA()
 		}
 	})
-	uikit.Meta(c, "Uses adb reverse, so 127.0.0.1 inside the device reaches this computer. Undo restores the proxy value that was set before vscroxy changed it, and removes the reverse listener it added. Apps that ignore the system proxy or pin certificates need app-side changes.")
+	uikit.Meta(c, "Uses adb reverse, so 127.0.0.1 inside the device reaches this computer. Undo restores the proxy value that was set before vscroxy changed it, and removes the reverse listener it added. Forget saved proxy clears only the local undo record after an emulator restart or serial reuse. Apps that ignore the system proxy or pin certificates need app-side changes.")
 	uikit.Meta(c, "The CA is copied to Downloads only. Android 7+ apps do not trust user-installed CAs; installing it and enabling trust is a device-side step. System-store installation needs a rooted, writable-system emulator image and is not automated.")
 }
 

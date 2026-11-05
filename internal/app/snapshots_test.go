@@ -1028,6 +1028,15 @@ func TestUISnapshots(t *testing.T) {
 				androidLoaded: true, androidSerial: "emulator-5554",
 				android: []clientsetup.AndroidDevice{{Serial: "emulator-5554", State: "device", Model: "Pixel_7"}}}
 		}, want: "Set proxy", short: true},
+		{name: "dialog-client-oneclick-android-saved", setup: func(a *app) {
+			a.clientUI = clientSetup{open: true, tab: 0, target: clientTargetAndroid,
+				addr: "127.0.0.1:7890", caPath: "/Users/me/.mitmproxy/mitmproxy-ca-cert.pem",
+				androidLoaded: true, androidSerial: "emulator-5554",
+				android: []clientsetup.AndroidDevice{{Serial: "emulator-5554", State: "device", Model: "Pixel_7"}},
+				androidApplied: map[string]androidProxyState{
+					"emulator-5554": {Previous: "10.0.2.2:8888", Port: 7890},
+				}}
+		}, want: "Forget saved proxy", short: true},
 		{name: "dialog-client-oneclick-android-missing", setup: func(a *app) {
 			a.clientUI = clientSetup{open: true, tab: 0, target: clientTargetAndroid,
 				addr: "127.0.0.1:7890", caPath: "/Users/me/.mitmproxy/mitmproxy-ca-cert.pem",
