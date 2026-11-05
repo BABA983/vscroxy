@@ -572,9 +572,9 @@ func TestUISnapshots(t *testing.T) {
 		}, want: "All zero overrides to Off", short: true},
 		{name: "tools-rules-network-invalid", setup: func(a *app) {
 			a.rules = []capture.Rule{{Name: "Slow mobile API", Type: capture.RuleNetwork, Match: "api.example.com/v1", Network: new(capture.Throttle{FailurePercent: 25})}}
+			a.openNetworkRules()
 			a.ruleUI.network.failure = "101"
 			a.saveRule()
-			a.openNetworkRules()
 		}, want: "Failure must be a whole number from 0 to 100", short: true},
 		{name: "tools-rules-test", setup: func(a *app) {
 			snapshotRules(a)
