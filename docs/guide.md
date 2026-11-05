@@ -361,15 +361,17 @@ use the table's visible columns in their saved order, including custom columns.
 Cells carry the underlying values: status code (or Failed/Tunnel), duration in
 milliseconds, size in bytes, and time as RFC 3339; the Path column carries the
 full request URL. CSV is UTF-8 with RFC 4180 quoting, doubled quotes and CRLF
-records. Cells whose first non-space character is `=`, `+`, `-` or `@` get a
-leading apostrophe so a spreadsheet does not evaluate them. Raw HTTP renders the
-request and response as HTTP/1.1 text with decoded bodies, so it is not a
-byte-for-byte capture. Binary bodies become `[binary body omitted: N bytes]`,
-bodies over 1 MiB are truncated with a marker, and missing or incomplete bodies
-say why. Multi-selection separates captures with `# Capture #N`; raw copy is
-limited to 50 requests and 4 MiB, while table formats allow 200 requests. Copy
-as stays unredacted like cURL/HAR copies; use Export CSV for the redaction
-dialog.
+records. Cells that begin with `=` or `@`, or with `+`/`-` followed by
+non-numeric text, get a leading apostrophe; complete numbers such as `-5` stay
+numbers. Raw HTTP renders the request and response as HTTP/1.1 text with decoded
+bodies, so it is not a byte-for-byte capture. Header lines keep their captured
+order when available; Content-Encoding, Content-Length, Transfer-Encoding and
+digest headers are omitted because the bodies are decoded and reframed. Binary
+bodies become `[binary body omitted: N bytes]`, bodies over 1 MiB are truncated
+at a character boundary with a marker, and missing or incomplete bodies say why.
+Multi-selection separates captures with `# Capture #N`; raw copy is limited to
+50 requests and 4 MiB, while table formats allow 200 requests. Copy as stays
+unredacted like cURL/HAR copies; use Export CSV for the redaction dialog.
 
 **Create collection…** opens a six-step draft from selected captures, or from
 all captures under a domain/App through its sidebar context menu:
@@ -1080,8 +1082,9 @@ the current view's rows; **Export chosen CSV…** writes the selection. Columns,
 order and visibility match the table, including custom columns. Status is the
 numeric code (or Failed/Tunnel), Duration is milliseconds, Size is bytes, Time is
 RFC 3339, and Path is the full request URL. The file is UTF-8 with RFC 4180
-quoting and CRLF records; a cell whose first non-space character is `=`, `+`, `-`
-or `@` is prefixed with an apostrophe. The export dialog applies the same
+quoting and CRLF records; a cell that begins with `=` or `@`, or with `+`/`-`
+followed by non-numeric text, is prefixed with an apostrophe, while complete
+numbers such as `-5` stay numbers. The export dialog applies the same
 field-based scopes: header columns, URL query values, URL credentials and
 body-derived columns; variable and script scopes do not apply to table columns.
 A CSV export is limited to 10,000 rows.
@@ -1451,14 +1454,16 @@ in capture order after confirmation. Choose a per-request timeout (30 seconds by
 default, 0 for no timeout), repeat each request 1–100 times, run up to 8 sends
 concurrently, and space starts by 0–60,000 ms. A batch is capped at 500 sends;
 the dialog shows the total before sending and disables **Send replays** when a
-field or the cap is invalid. While it runs, the progress bar reports sent and
-failed counts; **Stop replay** stops new sends, cancels in-flight requests and
-waits for them to return. The completed dialog summarizes succeeded and failed
-counts, the status-code distribution, total elapsed time and average response
-time. Replaying can mutate server data; streams and tunnels are excluded.
-Advanced replay uses the same send path as a single Replay, so each result
-enters the capture table with its **Replay of #N** link and is excluded from
-collection recording.
+field or the cap is invalid. While it runs, the progress bar reports started,
+failed and canceled counts; **Stop replay** stops new sends, cancels in-flight
+requests and waits for them to return. The completed dialog summarizes
+succeeded, failed and canceled counts, the status-code distribution, total
+elapsed time and average response time. A single request sent once also shows
+the usual **Replayed Capture #N → status** notification with **Inspect replay**;
+larger batches use only the dialog summary. Replaying can mutate server data;
+streams and tunnels are excluded. Advanced replay uses the same send path as a
+single Replay, so each result enters the capture table with its **Replay of #N**
+link and is excluded from collection recording.
 
 **Network → No Caching** (or **Settings → Capture → Caching**) is a
 session-only switch, also visible in the status bar. New exchanges strip conditional cache headers, send no-cache request
