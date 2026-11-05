@@ -148,7 +148,9 @@ $response = Invoke-WebRequest @request
 $response.StatusCode
 $response.Content
 `
-	for _, language := range SnippetLanguages {
+	// Native-language snippets have their own exact-output test in
+	// snippet_native_test.go.
+	for _, language := range []string{"JavaScript (fetch)", "Node.js (fetch)", "PowerShell", "Node.js (axios)", "Python (requests)", "Go (net/http)", "HTTPie"} {
 		got, err := Snippet(language, snippetRequest())
 		if err != nil {
 			t.Fatalf("%s: %v", language, err)
@@ -157,8 +159,8 @@ $response.Content
 			t.Errorf("%s:\n%s\nwant:\n%s", language, got, want[language])
 		}
 	}
-	if len(want) != len(SnippetLanguages) {
-		t.Errorf("tested %d languages, SnippetLanguages has %d", len(want), len(SnippetLanguages))
+	if len(want) != 7 {
+		t.Errorf("tested %d languages", len(want))
 	}
 }
 
@@ -221,10 +223,17 @@ func TestSnippetDropsComputedHeaders(t *testing.T) {
 func TestSnippetKeepsAnotherHost(t *testing.T) {
 	req := &Prepared{Method: "GET", URL: "http://127.0.0.1:8080/", Header: http.Header{"Host": {"virtual.example"}}}
 	for language, want := range map[string]string{
-		"Node.js (axios)":   `"Host": "virtual.example",`,
-		"Python (requests)": `"Host": "virtual.example",`,
-		"Go (net/http)":     `req.Host = "virtual.example"`,
-		"HTTPie":            `Host:virtual.example \`,
+		"Node.js (axios)":      `"Host": "virtual.example",`,
+		"Python (requests)":    `"Host": "virtual.example",`,
+		"Go (net/http)":        `req.Host = "virtual.example"`,
+		"HTTPie":               `Host:virtual.example \`,
+		"Swift (URLSession)":   `request.setValue("virtual.example", forHTTPHeaderField: "Host")`,
+		"Kotlin (OkHttp)":      `.addHeader("Host", "virtual.example")`,
+		"Java (java.net.http)": `builder.header("Host", "virtual.example");`,
+		"C# (HttpClient)":      `request.Headers.Host = "virtual.example";`,
+		"PHP (cURL)":           `"Host: virtual.example",`,
+		"Ruby (Net::HTTP)":     `request["Host"] = "virtual.example"`,
+		"Rust (reqwest)":       `HeaderName::from_bytes(b"Host")?`,
 	} {
 		if got, err := Snippet(language, req); err != nil || !strings.Contains(got, want) {
 			t.Errorf("%s (%v) has no %s:\n%s", language, err, want, got)

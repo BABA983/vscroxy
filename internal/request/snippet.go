@@ -16,7 +16,16 @@ import (
 )
 
 // SnippetLanguages lists the languages Snippet writes, in menu order.
-var SnippetLanguages = []string{"JavaScript (fetch)", "Node.js (fetch)", "PowerShell", "Node.js (axios)", "Python (requests)", "Go (net/http)", "HTTPie"}
+var SnippetLanguages = []string{
+	"JavaScript (fetch)", "Node.js (fetch)", "PowerShell", "Node.js (axios)",
+	"Python (requests)", "Go (net/http)", "HTTPie",
+	"Swift (URLSession)", "Kotlin (OkHttp)", "Java (java.net.http)",
+	"C# (HttpClient)", "PHP (cURL)", "Ruby (Net::HTTP)", "Rust (reqwest)",
+}
+
+// errBinarySnippet is returned when a language cannot carry a body without
+// a source file to read it from.
+var errBinarySnippet = errors.New("the body is binary; copy it as cURL instead")
 
 // snippetSkip are the headers every client computes itself. Host is kept
 // only when it names another host than the URL does.
@@ -39,8 +48,8 @@ type snippetHeader struct {
 
 // Snippet writes code that sends req in language.
 func Snippet(language string, req *Prepared) (string, error) {
-	if !utf8.ValidString(req.Body) {
-		return "", errors.New("the body is binary; copy it as cURL instead")
+	if !utf8.ValidString(req.Body) && (req.BodyFile == "" || !snippetReadsFile(language)) {
+		return "", errBinarySnippet
 	}
 	method := cmp.Or(req.Method, "GET")
 	if !httpguts.ValidHeaderFieldName(method) {
@@ -81,6 +90,20 @@ func Snippet(language string, req *Prepared) (string, error) {
 		return goSnippet(method, req, headers), nil
 	case "HTTPie":
 		return httpieSnippet(method, req, headers)
+	case "Swift (URLSession)":
+		return swiftSnippet(method, req, headers)
+	case "Kotlin (OkHttp)":
+		return kotlinSnippet(method, req, headers)
+	case "Java (java.net.http)":
+		return javaSnippet(method, req, headers)
+	case "C# (HttpClient)":
+		return csharpSnippet(method, req, headers)
+	case "PHP (cURL)":
+		return phpSnippet(method, req, headers)
+	case "Ruby (Net::HTTP)":
+		return rubySnippet(method, req, headers)
+	case "Rust (reqwest)":
+		return rustSnippet(method, req, headers)
 	}
 	return "", fmt.Errorf("no code snippet for %q", language)
 }
