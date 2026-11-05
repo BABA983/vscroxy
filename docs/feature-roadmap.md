@@ -203,8 +203,8 @@
 | 代码生成：Swift、Kotlin、Java、C#、PHP、Ruby、Rust | 已有 | Swift URLSession、Kotlin OkHttp、Java 11+ java.net.http、C# HttpClient、PHP cURL、Ruby Net::HTTP、Rust reqwest；抓包／草稿共用 Generate code… 与 Copy as… 入口；Binary body 引用源文件，其他文本 body 内联；非 UTF-8 抓包 body 仍用 cURL | M9 |
 | 导入：Postman v2.0/2.1、环境、OpenAPI 3.x、cURL、HAR | 已有 | | |
 | 导入：Postman Collection v3 | 缺少 | Postman v12 的新格式 | M6 |
-| 导入：Swagger 2、Insomnia、Bruno、Hoppscotch | 缺少 | | M7 |
-| 导入：PowerShell / CMD 风格的 cURL | 缺少 | | M7 |
+| 导入：Swagger 2、Insomnia、Bruno、Hoppscotch | 已有 | Swagger 2 转 OpenAPI 3 后复用集合导入；Insomnia v4 JSON／v5 YAML（集合与环境）；Bruno `.bru` 目录；Hoppscotch 集合／环境 JSON。文件夹、变量、auth、body 类型和描述尽量保留，无法表达的部分在导入报告中列出 | M7 |
+| 导入：PowerShell / CMD 风格的 cURL | 已有 | Chrome Copy as cURL (cmd) 与 Copy as PowerShell (Invoke-WebRequest)；复用 cURL 导入入口和请求模型，未支持的参数明确报错 | M7 |
 | WebSocket 客户端（文本） | 已有 | | |
 | WebSocket 客户端：二进制消息、子协议 | 已有 | Hex／Base64 发送、原样二进制回显；WS／WSS 双侧握手协商和实际子协议显示 | M8 |
 | SSE 客户端（持续接收事件） | 首版已有 | HTTP(S) 实时 GET、事件类型／ID／数据、搜索复制、显式可选重连与 Last-Event-ID、取消及有界时间线 | M8 |
@@ -321,7 +321,7 @@ Cookie 和其他 API key 保留为变量 header，避免把多个认证机制硬
 - 一键接入：终端、浏览器、Android 模拟器、iOS 模拟器、Java、Electron。
 - SOCKS5 入口、反向代理。
 - 上游代理：PAC、绕过、按 host、认证；系统代理绕过名单。
-- 导入：Swagger 2、Insomnia、Bruno、Hoppscotch、Charles、Proxyman 日志、PowerShell cURL。
+- 导入：Swagger 2、Insomnia、Bruno、Hoppscotch、PowerShell／CMD cURL 已完成（见[使用指南](guide.md#import-and-export)）；Charles 会话、Proxyman 日志待做。Insomnia v4/v5、Bruno 目录、Hoppscotch 集合与环境、Swagger 2 均转换为现有集合／请求／环境模型；脚本、测试和无法表达的请求设置会明确列入导入报告。
 
 ### M8：协议扩展
 
