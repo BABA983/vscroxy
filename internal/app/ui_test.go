@@ -3751,7 +3751,7 @@ func TestClientSetupCopiedCommandProducesLiveDecryptionEvidence(t *testing.T) {
 	a := workspaceApp()
 	a.srv, a.caPath, a.sslAll = srv, filepath.Join(dir, "mitmproxy-ca-cert.pem"), true
 	a.openClientSetup()
-	a.clientUI.url = upstream.URL
+	a.clientUI.tab, a.clientUI.url = 1, upstream.URL
 	// An imported capture with the same URL must never prove live setup.
 	a.flows = []flow{{id: 9, scheme: "https", url: upstream.URL, at: time.Now(), reqHeaders: "GET /"}}
 	tt := ui.NewTester(a.view, 960, 600)

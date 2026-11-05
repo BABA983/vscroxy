@@ -3,10 +3,11 @@ package app
 import (
 	"cmp"
 	"fmt"
-	"github.com/baba983/vscroxy/internal/uikit"
+	"runtime"
 	"strings"
 	"unicode/utf8"
 
+	"github.com/baba983/vscroxy/internal/uikit"
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/editor"
@@ -437,6 +438,7 @@ func (a *app) actions(c *ui.Context) []action {
 	w := &a.workbench
 	f, current := a.current()
 	capturing := a.page.capture()
+	proxyReady := a.srv != nil && a.srv.Running()
 	d := a.requestDocument
 	// A captured request in LIVE is a document too; tabs are COLLECTIONS'.
 	editing := d != nil && (a.page == pageLive || a.page == pageRequest)
@@ -547,6 +549,14 @@ func (a *app) actions(c *ui.Context) []action {
 		do("session.open", "Open session…", a.openSession),
 		do("session.save", "Save capture to Sessions", a.saveSession).when(capturing, ""),
 		do("network.client", "Set up a local client…", a.openClientSetup).when(a.srv != nil, ""),
+		do("network.terminal", "Open a proxied terminal", a.openProxiedTerminal).when(proxyReady, "Start capture first"),
+		do("network.chrome", "Open proxied Chrome", a.openProxiedChrome).when(proxyReady, "Start capture first"),
+		do("network.firefox", "Open proxied Firefox", a.openProxiedFirefox).when(proxyReady, "Start capture first"),
+		do("network.android", "Set up an Android emulator…", func() { a.openClientSetupTarget(clientTargetAndroid) }),
+		do("network.ios", "Install CA in iOS simulator…", func() { a.openClientSetupTarget(clientTargetIOS) }).
+			when(runtime.GOOS == "darwin", "iOS simulators are available only on macOS"),
+		do("network.java", "Import CA into Java truststore…", func() { a.openClientSetupTarget(clientTargetJava) }),
+		do("network.electron", "Launch an Electron app…", func() { a.openClientSetupTarget(clientTargetElectron) }),
 		do("network.devices", "Connect a device…", a.openDevices).when(a.srv != nil, ""),
 		do("tools.rules", "Manage debugging rules…", a.openRules),
 	}...)

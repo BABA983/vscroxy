@@ -250,7 +250,7 @@ func (a *app) deviceSettings(c *ui.Context, t *ui.Theme) {
 						a.openClientSetup()
 					}
 				})
-			}).Description("Point one program at the proxy: cURL, Node.js, Python or Go.")
+			}).Description("Point one program at the proxy, or open a terminal, browser, emulator or Java app already configured.")
 		})
 	})
 }

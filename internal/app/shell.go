@@ -284,9 +284,19 @@ func (a *app) moreMenu(c *ui.Context, m *ui.Menu) { actionMenu(m, a.moreActions(
 
 func (a *app) moreActions(c *ui.Context) []action {
 	global := a.actions(c)
+	oneClick := []action{
+		pick(global, "network.terminal"),
+		pick(global, "network.chrome"),
+		pick(global, "network.firefox"),
+		pick(global, "network.android"),
+		pick(global, "network.ios"),
+		pick(global, "network.java"),
+		pick(global, "network.electron"),
+	}
 	network := []action{
 		do("network.diagnostics", "Connection diagnostics", func() { a.openDiagnostics(nil, diagnoseMac) }).in("tools"),
 		do("network.client", "Set up a local client…", a.openClientSetup).in("tools"),
+		submenu("One-click setup", oneClick...).in("tools"),
 		pick(global, "network.websocket").in("tools"),
 		pick(global, "network.sse").in("tools"),
 	}

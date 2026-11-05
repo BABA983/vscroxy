@@ -1348,6 +1348,7 @@ func (a *app) view(c *ui.Context) {
 	busy := [3]bool{a.certificate.checking, a.systemProxy.checking, a.systemProxy.applying}
 	a.drainCertificate()
 	a.drainSystemProxy()
+	a.drainClientSetup()
 	a.drainRunner()
 	a.drainLoadRunner()
 	a.drainHosts()
