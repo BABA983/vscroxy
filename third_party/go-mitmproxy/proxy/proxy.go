@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptrace"
 	"net/url"
+	"sync"
 
 	"github.com/lqqyt2423/go-mitmproxy/cert"
 	"github.com/lqqyt2423/go-mitmproxy/internal/helper"
@@ -44,6 +45,12 @@ type Proxy struct {
 	lazyIntercept    func(req *http.Request) bool              // see SetLazyInterceptRule
 	upstreamProxy    func(req *http.Request) (*url.URL, error) // req is received by proxy.server, not client request
 	authProxy        func(res http.ResponseWriter, req *http.Request) (bool, error)
+
+	// socksHTTP carries plaintext connections whose target a SOCKS5 CONNECT
+	// agreed. It is served by entry.server, which parses their origin-form
+	// requests; TLS connections go straight to the interception path.
+	socksOnce sync.Once
+	socksHTTP *connListener
 }
 
 // proxy.server req context key

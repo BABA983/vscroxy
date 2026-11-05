@@ -105,6 +105,11 @@ type ConnContext struct {
 	// VerifyUpstream makes an intercepted TLS handshake verify the server's
 	// certificate, as a CONNECT's HeaderVerifyUpstream asks.
 	VerifyUpstream bool `json:"-"`
+	// TransparentTarget is the destination agreed outside HTTP, as in a
+	// SOCKS5 CONNECT. An origin-form request on such a connection is sent to
+	// this target; an absolute-form one is still pinned to it. Empty for the
+	// HTTP proxy, whose absolute URL already names the destination.
+	TransparentTarget string `json:"transparentTarget,omitempty"`
 
 	proxy              *Proxy
 	closeAfterResponse atomic.Bool                 // after http response, http server will close the connection

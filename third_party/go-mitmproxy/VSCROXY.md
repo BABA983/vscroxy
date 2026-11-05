@@ -6,8 +6,8 @@ metadata. Upstream tests, examples, commands and unrelated addons are not copied
 This is the existing capture engine, not another proxy implementation.
 
 The source patches are in `proxy/websocket.go`, `proxy/addon.go`, `proxy/sse.go`, `proxy/flow.go`,
-`proxy/attacker.go`, `proxy/proxy.go`, `proxy/entry.go` and `proxy/connection.go`.
-Everything else is upstream.
+`proxy/attacker.go`, `proxy/proxy.go`, `proxy/entry.go` and `proxy/connection.go`;
+`proxy/socks.go` is new. Everything else is upstream.
 
 ## Connection diagnostics
 
@@ -26,6 +26,36 @@ HTTP response or replacing its already-successful CONNECT status.
 
 The desktop's real-socket tests cover DNS/TCP failures, both TLS sides, successful
 TLS metadata and connection reuse, plus a rewritten target's separate transport.
+
+## SOCKS5-negotiated connections (`proxy/socks.go`, `proxy/entry.go`, `proxy/connection.go`)
+
+`Proxy.ServeSOCKSConn(conn, target, done)` serves one connection whose
+destination a SOCKS5 CONNECT agreed, before any HTTP byte arrived. The SOCKS
+protocol itself stays in the desktop module; this seam only needs the agreed
+target. Closing `done` (the capture server's shutdown signal) cancels the
+initial upstream dial or TLS handshake, as the HTTP front end's request context
+does for a CONNECT.
+
+- A TLS client gets the HTTP CONNECT policy: `shouldIntercept` decides between
+  the eager or lazy MITM path and a byte-for-byte tunnel. The eager path keeps
+  its upstream certificate lookup, ALPN and HTTP/2 support; the lazy path and
+  `SetDialFallbackRule` behave as they do after CONNECT. A bypassed tunnel is
+  still shown through `Requestheaders` with a synthetic CONNECT request.
+- A plaintext client is handed to the ordinary HTTP front end. The target is in
+  `ConnContext.TransparentTarget`; `entry.ServeHTTP` fills an origin-form
+  request's missing scheme and host from it, and pins even an absolute-form
+  request to it. One SOCKS request therefore opens exactly one target, and the
+  usual rules, scripts, breakpoints, capture and upstream proxy apply.
+- `wrapListener.Accept` returns an already-wrapped `*wrapClientConn` unchanged:
+  `ServeSOCKSConn` registers that client once, before the HTTP server parses a
+  request, so one socket keeps one identity and one `ClientConnected` event.
+- The plaintext path uses a small channel listener served by the same
+  `entry.server`. Closing the proxy closes it with the other listeners.
+
+Real-socket coverage lives in `internal/capture/socks_test.go`: IPv4, IPv6 and
+domain greeting/request parsing, BIND and unsupported address types, RFC 1929
+success and failure, plaintext HTTP capture and rules, and HTTPS both decrypted
+and bypassed.
 
 ## Forward proxy connections that switch targets
 

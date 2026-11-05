@@ -24,6 +24,13 @@ func (l *wrapListener) Accept() (net.Conn, error) {
 		return nil, err
 	}
 
+	// A connection a protocol other than HTTP negotiated (SOCKS5) was wrapped
+	// and registered by ServeSOCKSConn already; wrapping it twice would make
+	// two client identities for one socket.
+	if wc, ok := c.(*wrapClientConn); ok {
+		return wc, nil
+	}
+
 	proxy := l.proxy
 	wc := newWrapClientConn(c, proxy)
 	connCtx := newConnContext(wc, proxy)
@@ -207,7 +214,13 @@ func (e *entry) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	if !req.URL.IsAbs() || req.URL.Host == "" {
+	if ctx, ok := req.Context().Value(connContextKey).(*ConnContext); ok && ctx != nil && ctx.TransparentTarget != "" {
+		// The destination was agreed outside HTTP (SOCKS5), so a client that
+		// sends origin-form requests has named no host. Pin even an
+		// absolute-form target to it: one SOCKS request opens one target.
+		req.URL.Scheme = "http"
+		req.URL.Host = ctx.TransparentTarget
+	} else if !req.URL.IsAbs() || req.URL.Host == "" {
 		res = helper.NewResponseCheck(res)
 		for _, addon := range proxy.Addons {
 			addon.AccessProxyServer(req, res)
