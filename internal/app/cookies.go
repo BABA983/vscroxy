@@ -49,17 +49,29 @@ type cookieFile struct {
 	Cookies []cookieRecord `json:"cookies"`
 }
 
+const cookieSaveDelay = 500 * time.Millisecond
+
 // cookieStore keeps metadata for inspection/removal; Go's jar remains the
 // authority for domain/path/Secure matching and expiry, including redirects.
 // It is shared by Requests, Runner, scripts and the interactive clients, and
 // never used by raw Replay. Persistent cookies may be written to path, which
 // holds nothing else and is private (0600).
+//
+// Writes are debounced: SetCookies only marks the persistent records dirty,
+// and a timer writes them after cookieSaveDelay. Readers never wait for the
+// disk, and a response that sets only session cookies never writes a file.
 type cookieStore struct {
 	mu        sync.Mutex
 	jar       *cookiejar.Jar
 	items     map[string]storedCookie
 	path      string
 	persist   bool
+	delay     time.Duration
+	dirty     bool
+	saveTimer *time.Timer
+	lastSaved string
+	writes    int // successful file writes; tests use it to prove debouncing
+	writeMu   sync.Mutex
 	problem   error
 	onProblem func(error)
 }
@@ -76,6 +88,9 @@ func (s *cookieStore) init() {
 	if s.items == nil {
 		s.items = make(map[string]storedCookie)
 	}
+	if s.delay == 0 {
+		s.delay = cookieSaveDelay
+	}
 }
 
 func (s *cookieStore) Cookies(u *url.URL) []*http.Cookie {
@@ -89,9 +104,11 @@ func (s *cookieStore) SetCookies(u *url.URL, cookies []*http.Cookie) {
 	s.mu.Lock()
 	s.init()
 	s.setCookiesLocked(u, cookies)
-	err := s.saveLocked()
+	err := s.changedLocked()
 	s.mu.Unlock()
-	s.report(err)
+	if err != nil {
+		s.report(err)
+	}
 }
 
 // setCookiesLocked records what the jar accepted. It never writes the file,
@@ -168,9 +185,13 @@ func (s *cookieStore) remove(key string) {
 	s.init()
 	delete(s.items, key)
 	s.rebuildJarLocked()
-	err := s.saveLocked()
+	err := s.changedLocked()
 	s.mu.Unlock()
-	s.report(err)
+	if err != nil {
+		s.report(err)
+		return
+	}
+	s.report(s.flushNow())
 }
 
 // clearDomain removes every cookie whose effective domain is domain, exact
@@ -185,17 +206,25 @@ func (s *cookieStore) clearDomain(domain string) {
 		}
 	}
 	s.rebuildJarLocked()
-	err := s.saveLocked()
+	err := s.changedLocked()
 	s.mu.Unlock()
-	s.report(err)
+	if err != nil {
+		s.report(err)
+		return
+	}
+	s.report(s.flushNow())
 }
 
 func (s *cookieStore) clear() {
 	s.mu.Lock()
 	s.jar, s.items = newCookieJar(), make(map[string]storedCookie)
-	err := s.saveLocked()
+	err := s.changedLocked()
 	s.mu.Unlock()
-	s.report(err)
+	if err != nil {
+		s.report(err)
+		return
+	}
+	s.report(s.flushNow())
 }
 
 func (s *cookieStore) rebuildJarLocked() {
@@ -205,12 +234,11 @@ func (s *cookieStore) rebuildJarLocked() {
 	}
 }
 
-// saveLocked writes persistent cookies and never session or expired ones.
-// With nothing to keep it removes the file, so a cleared jar leaves no values
-// behind.
-func (s *cookieStore) saveLocked() error {
+// persistentStateLocked is the file's next contents: persistent cookies only,
+// in a stable order, or nil when nothing should remain on disk.
+func (s *cookieStore) persistentStateLocked() ([]byte, error) {
 	if !s.persist || s.path == "" {
-		return nil
+		return nil, nil
 	}
 	now := time.Now()
 	var records []cookieRecord
@@ -225,10 +253,7 @@ func (s *cookieStore) saveLocked() error {
 		})
 	}
 	if len(records) == 0 {
-		if err := os.Remove(s.path); err != nil && !errors.Is(err, fs.ErrNotExist) {
-			return err
-		}
-		return nil
+		return nil, nil
 	}
 	slices.SortFunc(records, func(a, b cookieRecord) int {
 		return strings.Compare(a.Origin+"\x00"+a.Domain+"\x00"+a.Path+"\x00"+a.Name,
@@ -236,9 +261,111 @@ func (s *cookieStore) saveLocked() error {
 	})
 	data, err := json.Marshal(cookieFile{Cookies: records})
 	if err != nil {
+		return nil, err
+	}
+	return append(data, '\n'), nil
+}
+
+// changedLocked compares the persistent records with what is on disk and
+// schedules one debounced write when they differ. Session-only changes never
+// mark the store dirty.
+func (s *cookieStore) changedLocked() error {
+	if !s.persist || s.path == "" {
+		return nil
+	}
+	data, err := s.persistentStateLocked()
+	if err != nil {
 		return err
 	}
-	return store.WriteFile(s.path, append(data, '\n'))
+	if string(data) == s.lastSaved {
+		return nil
+	}
+	s.dirty = true
+	if s.saveTimer == nil {
+		s.saveTimer = time.AfterFunc(s.delay, func() { s.report(s.flush()) })
+	}
+	return nil
+}
+
+// flush writes the latest persistent records outside the reader lock. The
+// write mutex keeps a snapshot and its write in order, so two flushes cannot
+// replace a newer file with an older snapshot.
+func (s *cookieStore) flush() error {
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+	s.mu.Lock()
+	if s.saveTimer != nil {
+		s.saveTimer.Stop()
+		s.saveTimer = nil
+	}
+	if !s.dirty || !s.persist || s.path == "" {
+		s.mu.Unlock()
+		return nil
+	}
+	data, err := s.persistentStateLocked()
+	if err != nil {
+		s.mu.Unlock()
+		return err
+	}
+	s.dirty = false
+	path := s.path
+	s.mu.Unlock()
+
+	err = writeCookieData(path, data)
+	s.mu.Lock()
+	if err == nil {
+		s.lastSaved = string(data)
+		if len(data) > 0 {
+			s.writes++
+		}
+	} else {
+		s.dirty = true
+	}
+	s.mu.Unlock()
+	return err
+}
+
+// flushNow stops the timer and writes synchronously, for an explicit clear or
+// app exit. Waiting on writeMu makes a concurrent debounced write finish
+// first, then this writes whatever changed after its snapshot.
+func (s *cookieStore) flushNow() error {
+	// A response may set a cookie while the first write runs. Stop the timer
+	// and write twice at most, so exit catches that change without waiting on
+	// a stream that keeps changing.
+	for range 2 {
+		s.mu.Lock()
+		if s.saveTimer != nil {
+			s.saveTimer.Stop()
+			s.saveTimer = nil
+		}
+		s.mu.Unlock()
+		if err := s.flush(); err != nil {
+			return err
+		}
+		s.mu.Lock()
+		dirty := s.dirty
+		s.mu.Unlock()
+		if !dirty {
+			return nil
+		}
+	}
+	return nil
+}
+
+func writeCookieData(path string, data []byte) error {
+	if len(data) == 0 {
+		if err := os.Remove(path); err != nil && !errors.Is(err, fs.ErrNotExist) {
+			return err
+		}
+		return nil
+	}
+	return store.WriteFile(path, data)
+}
+
+func (s *cookieStore) writeCount() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.writes
 }
 
 // load puts records read from disk into the jar. Invalid, expired and session
@@ -269,18 +396,49 @@ func (s *cookieStore) load(records []cookieRecord) {
 // removing the file so turning persistence off leaves no values behind.
 func (s *cookieStore) setPersist(on bool) error {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	s.init()
 	s.persist = on
 	if on {
-		return s.saveLocked()
+		err := s.changedLocked()
+		s.mu.Unlock()
+		if err != nil {
+			return err
+		}
+		return s.flushNow()
 	}
-	if s.path == "" {
+	if s.saveTimer != nil {
+		s.saveTimer.Stop()
+		s.saveTimer = nil
+	}
+	s.dirty, s.lastSaved = false, ""
+	path := s.path
+	s.mu.Unlock()
+	if path == "" {
 		return nil
 	}
-	if err := os.Remove(s.path); err != nil && !errors.Is(err, fs.ErrNotExist) {
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+	if err := os.Remove(path); err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return err
 	}
+	return nil
+}
+
+// settle records the file's loaded state as saved, so a later session-only
+// change does not rewrite it.
+func (s *cookieStore) settle() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.saveTimer != nil {
+		s.saveTimer.Stop()
+		s.saveTimer = nil
+	}
+	s.dirty = false
+	data, err := s.persistentStateLocked()
+	if err != nil {
+		return err
+	}
+	s.lastSaved = string(data)
 	return nil
 }
 
@@ -351,7 +509,10 @@ func (a *app) loadCookies() {
 	s.path, s.persist = a.cookiesPath, a.cookiePersistence
 	s.mu.Unlock()
 	if !a.cookiePersistence {
-		if err := os.Remove(a.cookiesPath); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		s.writeMu.Lock()
+		err := os.Remove(a.cookiesPath)
+		s.writeMu.Unlock()
+		if err != nil && !errors.Is(err, fs.ErrNotExist) {
 			s.report(err)
 		}
 		return
@@ -362,6 +523,19 @@ func (a *app) loadCookies() {
 		return
 	}
 	s.load(records)
+	if err := s.settle(); err != nil {
+		s.report(err)
+	}
+}
+
+// flushCookies writes a pending debounced jar change before the app exits.
+func (a *app) flushCookies() {
+	if a.cookies == nil {
+		return
+	}
+	if err := a.cookies.flushNow(); err != nil {
+		a.fail("Cookies", err)
+	}
 }
 
 // setCookiePersistence saves the choice and the jar together, so the file and
@@ -479,7 +653,7 @@ func (a *app) cookiesModal(c *ui.Context, t *ui.Theme) {
 					for _, item := range groups[domain] {
 						ui.Row(c).Key(item.key).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 							ui.Column(c).Grow(1).Gap(t.Space(1)).Children(func() {
-								value := "••••••••  masked"
+								value := "••••••••"
 								if e.reveal[item.key] {
 									value = item.cookie.Value
 								}
@@ -488,7 +662,14 @@ func (a *app) cookiesModal(c *ui.Context, t *ui.Theme) {
 								if !item.cookie.Expires.IsZero() {
 									expires = "Expires " + item.cookie.Expires.Local().Format("2006-01-02 15:04")
 								}
-								uikit.Meta(c, fmt.Sprintf("%s · %s · Secure %t · HttpOnly %t", item.cookie.Path, expires, item.cookie.Secure, item.cookie.HttpOnly))
+								attrs := []string{item.cookie.Path, expires}
+								if item.cookie.Secure {
+									attrs = append(attrs, "Secure")
+								}
+								if item.cookie.HttpOnly {
+									attrs = append(attrs, "HttpOnly")
+								}
+								uikit.Meta(c, strings.Join(attrs, " · "))
 							})
 							label := fmt.Sprintf("Reveal cookie %s %s", item.cookie.Name, item.cookie.Path)
 							if e.reveal[item.key] {

@@ -222,6 +222,28 @@ func TestLibraryLeavesOutsideChangesAlone(t *testing.T) {
 	}
 }
 
+func TestLibraryLoadFailureInvalidatesPaletteIndex(t *testing.T) {
+	a := libraryApp(t)
+	if err := a.writeLibrary([]savedRequest{{Request: request.Request{ID: "visible", Name: "Visible", Method: "GET", URL: "https://api.example.com/visible"}}}, nil); err != nil {
+		t.Fatal(err)
+	}
+	if got := a.paletteSearchEntries("visible"); len(got) != 1 {
+		t.Fatalf("initial palette search = %+v", got)
+	}
+	gen := a.requestGen
+	path := filepath.Join(a.library.root, "Visible.request.json")
+	if err := os.WriteFile(path, []byte("{damaged"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	a.loadRequestLibrary()
+	if a.requestsProblem == "" || a.requestGen == gen {
+		t.Fatalf("load failure did not invalidate the index: problem=%q gen=%d", a.requestsProblem, a.requestGen)
+	}
+	if got := a.paletteSearchEntries("visible"); len(got) != 0 {
+		t.Fatalf("palette still lists removed requests: %+v", got)
+	}
+}
+
 func TestLibraryRefusesNamesOnlyLetterCaseApart(t *testing.T) {
 	a := libraryApp(t)
 	err := a.writeLibrary([]savedRequest{

@@ -195,10 +195,10 @@
 | Runner：性能测试（虚拟用户、时长、指标） | 已有首版 | 内置固定并发集合负载；复用 Runner、HdrHistogram 执行耗时；原生／CLI／MCP。无固定 RPS、爬坡或分布式压测 | M9 |
 | 命令行运行集合（CI，JUnit/JSON 报告） | 已有 | 独立无 UI CLI；本地集合/Postman、环境/数据文件、超时/取消/执行预算、私有报告 | M9 |
 | Cookies 管理 | 已有 | 按域名分组，值默认遮罩；可按域名或全部清除 | |
-| Cookies 可选持久化 | 已有 | 默认关闭；持久 Cookie 落盘到 `~/.vscroxy/cookies.json`（0600），Session Cookie 永不落盘；不进集合、导出或配置导入导出 | M6 |
+| Cookies 可选持久化 | 已有 | 默认关闭；持久 Cookie 落盘到 `~/.vscroxy/cookies.json`（0600），约 500 ms 防抖写入并在退出时 flush，Session Cookie 永不落盘；不进集合、导出或配置导入导出 | M6 |
 | 响应：Pretty、Raw、Hex、预览、测试结果、耗时 | 已有 | | |
 | 响应保存到文件 | 已有 | Requests 保存按钮／Capture Body 菜单；原样保存已解压正文，流式读取完整落盘内容，拒绝不完整正文 | M6 |
-| 全局搜索（集合、请求、环境） | 已有 | 并进命令面板；搜索集合、文件夹、请求名称／method／URL、环境名和变量名，不搜索变量值；请求索引随集合变化更新 | M6 |
+| 全局搜索（集合、请求、环境） | 已有 | 并进命令面板；搜索集合、文件夹、请求名称／method／URL、环境名和变量名，不搜索变量值；请求索引随集合变化更新，宽泛查询最多显示 50 条并提示剩余数量 | M6 |
 | 代码生成：cURL、fetch、axios、Python、Go、HTTPie | 已有 | 补齐 Bash／CMD cURL、PowerShell 7+、浏览器／Node fetch；抓包／草稿共用复制入口，另有脱敏／原样 HAR 复制 | M9 |
 | 代码生成：Swift、Kotlin、Java、C#、PHP、Ruby、Rust | 已有 | Swift URLSession、Kotlin OkHttp、Java 11+ java.net.http、C# HttpClient、PHP cURL、Ruby Net::HTTP、Rust reqwest；抓包／草稿共用 Generate code… 与 Copy as… 入口；Binary body 引用源文件，其他文本 body 内联；非 UTF-8 抓包 body 仍用 cURL | M9 |
 | 导入：Postman v2.0/2.1、环境、OpenAPI 3.x、cURL、HAR | 已有 | | |
@@ -314,7 +314,7 @@ Cookie 和其他 API key 保留为变量 header，避免把多个认证机制硬
 - 脚本：沙箱库；`have.jsonSchema` 已完成（Ajv 6.12.6，无 UI 改动）。
 - Postman Collection v3 导入导出。
 - OAuth 1.0、Hawk、Akamai EdgeGrid 已完成，含变量展开、Vault、Send／Runner、Postman 导入导出和代码导出；NTLM 因需要同一连接完成质询握手，当前发送路径每次新建连接，未实现。
-- Cookies 可选持久化、全局搜索已完成：Cookie 默认仅在内存（可选保留，0600 本地文件，Session Cookie 不落盘，按域名／全部清除，值默认遮罩）；命令面板可搜索集合、文件夹、请求、环境和变量名，不搜索变量值，请求索引随集合更新。响应保存到文件已完成（含二进制和完整落盘正文）。
+- Cookies 可选持久化、全局搜索已完成：Cookie 默认仅在内存（可选保留，0600 本地文件，约 500 ms 防抖写入并退出时 flush，Session Cookie 不落盘，按域名／全部清除，值默认遮罩）；命令面板可搜索集合、文件夹、请求、环境和变量名，不搜索变量值，请求索引随集合更新，宽泛查询最多 50 条并提示剩余数量。响应保存到文件已完成（含二进制和完整落盘正文）。
 - UI 改版第 6 步（VS Code 主题）在 M3 到 M6 期间穿插完成。
 
 ### M7：接入和网络

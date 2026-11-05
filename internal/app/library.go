@@ -300,6 +300,7 @@ func (a *app) loadRequestLibrary() {
 	if err != nil {
 		a.requests, a.folders, l.known = nil, nil, nil
 		a.requestsProblem = fmt.Sprintf("Requests (%s): %v", l.root, err)
+		a.requestGen++
 		return
 	}
 	a.requests, a.folders, l.known = requests, folders, known

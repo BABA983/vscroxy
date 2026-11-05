@@ -134,6 +134,37 @@ func TestCommandPaletteOpensRequestAndEnvironmentResults(t *testing.T) {
 	}
 }
 
+func TestPaletteSearchLimitsBroadResults(t *testing.T) {
+	a := workspaceApp()
+	a.requests = make([]savedRequest, 80)
+	for i := range a.requests {
+		a.requests[i] = savedRequest{ID: fmt.Sprintf("r%d", i), Name: fmt.Sprintf("Entry %02d", i), Method: "GET", URL: "https://api.example.com/entry"}
+	}
+	a.requestGen++
+	got := a.paletteSearch("entry")
+	if len(got.entries) != paletteResultLimit || got.more != 80-paletteResultLimit {
+		t.Fatalf("broad search = %d entries, %d more", len(got.entries), got.more)
+	}
+	if got.entries[0].label != "Entry 00" || got.entries[len(got.entries)-1].label != "Entry 49" {
+		t.Fatalf("broad search kept the wrong prefix: %q .. %q", got.entries[0].label, got.entries[len(got.entries)-1].label)
+	}
+}
+
+func TestCommandPaletteShowsBroadResultOverflow(t *testing.T) {
+	a := workspaceApp()
+	a.requests = make([]savedRequest, 80)
+	for i := range a.requests {
+		a.requests[i] = savedRequest{ID: fmt.Sprintf("r%d", i), Name: fmt.Sprintf("Entry %02d", i), Method: "GET", URL: "https://api.example.com/entry"}
+	}
+	a.requestGen++
+	tt := ui.NewTester(a.view, 1100, 720)
+	tt.Key(ui.Cmd, ui.KeyK)
+	tt.Type("entry")
+	if !tt.HasText("30 more results · narrow the search") {
+		t.Fatalf("missing overflow count: %v", tt.Texts())
+	}
+}
+
 func TestPaletteSearchIndexUpdatesWithTheLibrary(t *testing.T) {
 	a := workspaceApp()
 	a.requests = []savedRequest{{ID: "one", Name: "Alpha", Method: "GET", URL: "https://api.example.com/alpha"}}
@@ -168,6 +199,27 @@ func BenchmarkPaletteSearch5000RequestsWarm(b *testing.B) {
 	for b.Loop() {
 		if got := a.paletteSearchEntries("items/4999"); len(got) != 1 {
 			b.Fatalf("matches = %d", len(got))
+		}
+	}
+}
+
+func BenchmarkPaletteSearch5000RequestsBroad(b *testing.B) {
+	a := workspaceApp()
+	a.requests = make([]savedRequest, 5000)
+	for i := range a.requests {
+		a.requests[i] = savedRequest{
+			ID: fmt.Sprintf("r%d", i), Name: fmt.Sprintf("Request %04d", i),
+			Collection: fmt.Sprintf("Collection %d", i/100), Method: "GET",
+			URL: fmt.Sprintf("https://api.example.com/items/%d", i),
+		}
+	}
+	a.requestGen++
+	a.paletteSearch("warm the index")
+	b.ResetTimer()
+	for b.Loop() {
+		got := a.paletteSearch("request")
+		if len(got.entries) != paletteResultLimit || got.more != 5000-paletteResultLimit {
+			b.Fatalf("broad search = %d entries, %d more", len(got.entries), got.more)
 		}
 	}
 }

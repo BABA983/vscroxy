@@ -2462,6 +2462,8 @@ func Run() error {
 	mygo.App.OnQuit(a.closeControl)
 	mygo.App.OnQuit(a.closeLoadRunner)
 	defer a.closeLoadRunner()
+	mygo.App.OnQuit(a.flushCookies)
+	defer a.flushCookies()
 	mygo.App.OnQuit(func() { a.stopCollectionRecording("") })
 	cleanupProxy := func() {
 		if err := a.systemProxy.close(); err != nil {
