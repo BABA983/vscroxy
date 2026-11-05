@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net"
 	"net/http"
 	"net/http/httptest"
 	"slices"
@@ -17,16 +16,10 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-// testProxy is a running capture proxy on a free loopback port.
+// testProxy is a running capture proxy on an OS-assigned loopback port.
 func testProxy(t *testing.T) *capture.Server {
 	t.Helper()
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatal(err)
-	}
-	addr := ln.Addr().String()
-	ln.Close()
-	srv, err := capture.New(addr, t.TempDir())
+	srv, err := capture.New("127.0.0.1:0", t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}

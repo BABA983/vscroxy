@@ -22,9 +22,13 @@ type Step struct {
 }
 
 type Options struct {
-	Iterations    int
-	Timeout       time.Duration // per request; zero uses 30 seconds
-	MaxSteps      int           // zero is unlimited; counts script jumps too
+	Iterations int
+	// Timeout is the caller's per-request cap; zero uses the desktop default
+	// of 30 seconds and lets a request's own timeout raise or remove it. A
+	// non-zero caller cap always wins over a request's longer or unlimited
+	// setting.
+	Timeout       time.Duration
+	MaxSteps      int // zero is unlimited; counts script jumps too
 	StopOnFailure bool
 	Data          []map[string]string
 	Vars          map[string]string
@@ -77,6 +81,9 @@ func run(ctx context.Context, srv *capture.Server, steps []Step, opts Options, r
 	if opts.MaxSteps < 0 {
 		return summary, fmt.Errorf("maximum steps must not be negative")
 	}
+	// Keep whether the caller supplied a cap before applying the desktop
+	// default. Only the desktop Runner may let a request raise or remove it.
+	callerTimeout := opts.Timeout
 	if opts.Timeout == 0 {
 		opts.Timeout = 30 * time.Second
 	}
@@ -106,13 +113,20 @@ func run(ctx context.Context, srv *capture.Server, steps []Step, opts Options, r
 				in.Data = opts.Data[min(iteration, len(opts.Data))-1]
 			}
 			before := maps.Clone(vars)
-			// A request's own timeout may exceed the run's default budget;
-			// leave it a second to report its deadline before the runner's.
-			// An explicit 0 removes the runner's budget instead.
+			// A request's own timeout may exceed the desktop default; leave
+			// it a second to report its deadline before the runner's. A caller
+			// cap (CLI, MCP or load) always wins: a request can shorten it,
+			// while a request timeout of 0 means no extra limit, not "ignore
+			// the caller". The desktop's explicit 0 removes its budget.
 			timeout := opts.Timeout
-			if step.Request.TimeoutUnlimited(in) {
-				timeout = 0
-			} else if limit := step.Request.Timeout(in); limit > 0 && limit+time.Second > timeout {
+			limit := step.Request.Timeout(in)
+			if callerTimeout == 0 {
+				if step.Request.TimeoutUnlimited(in) {
+					timeout = 0
+				} else if limit > 0 && limit+time.Second > timeout {
+					timeout = limit + time.Second
+				}
+			} else if limit > 0 && limit+time.Second < timeout {
 				timeout = limit + time.Second
 			}
 			var cancel context.CancelFunc

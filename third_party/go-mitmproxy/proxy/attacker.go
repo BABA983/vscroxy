@@ -276,10 +276,11 @@ func (a *attacker) serverTlsHandshake(ctx context.Context, connCtx *ConnContext)
 	// The capture engine accepts any certificate so it can inspect self-signed
 	// servers. A replay may ask for verification on its CONNECT instead.
 	verify := !proxy.Opts.SslInsecure || connCtx.VerifyUpstream
-	// A client connecting to an IP sends no SNI. Verify against the CONNECT
-	// host instead, which carries the IP the certificate's IP SAN must match.
+	// A client connecting to an IP sends no SNI. When verifying, use the
+	// CONNECT host, which carries the IP the certificate's IP SAN must match;
+	// inspection traffic keeps its previous empty ServerName behavior.
 	serverName := clientHello.ServerName
-	if serverName == "" {
+	if serverName == "" && verify {
 		serverName = hostOnly(serverConn.Address)
 	}
 	serverTlsConfig := &tls.Config{
