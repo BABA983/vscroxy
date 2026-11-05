@@ -415,6 +415,49 @@ func TestUISnapshots(t *testing.T) {
 			draft(a)
 			a.composeURL = "{{baseUrl}}/projects?q={{query}}&page=1"
 		}, act: click("Request editor: Headers"), want: "Request variables"},
+		{name: "requests-url-completion", setup: func(a *app) {
+			draft(a)
+			a.composeURL = ""
+		}, act: func(t *testing.T, tt *ui.Tester) {
+			if err := tt.Click("URL"); err != nil {
+				t.Fatal(err)
+			}
+			tt.Frame()
+			tt.Type("{{ba")
+		}, want: "baseUrl"},
+		{name: "requests-url-hover", setup: func(a *app) {
+			draft(a)
+			a.composeURL = "{{baseUrl}}/projects?q={{missing}}"
+		}, act: func(t *testing.T, tt *ui.Tester) {
+			rect, ok := tt.Find("URL")
+			if !ok {
+				t.Fatal("URL field missing")
+			}
+			tt.Move(rect.X+24, rect.Y+rect.H/2)
+			tt.Advance(700 * time.Millisecond)
+		}, want: "https://api.example.com"},
+		{name: "requests-url-undefined", setup: func(a *app) {
+			draft(a)
+			a.composeURL = "{{baseUrl}}/projects?q={{missing}}"
+		}, want: "URL"},
+		{name: "requests-body-completion", setup: func(a *app) {
+			draft(a)
+			a.composeTab, a.requestDocument.bodyMode, a.requestDocument.composeBody = composeTabBody, "Raw", ""
+		}, act: func(t *testing.T, tt *ui.Tester) {
+			if err := tt.Click("Request body"); err != nil {
+				t.Fatal(err)
+			}
+			tt.Frame()
+			for _, text := range []string{"{", "{", "b"} {
+				tt.Type(text)
+				tt.Frame()
+			}
+		}, want: "baseUrl"},
+		{name: "requests-auth-basic-variable", setup: func(a *app) {
+			draft(a)
+			a.composeTab, a.auth.Type = composeTabAuth, "Basic"
+			a.auth.Username = "{{baseUrl}}/{{missing}}"
+		}, want: "Basic"},
 		{name: "requests-bulk-headers", setup: func(a *app) { draft(a); a.headerBulk = true }, want: "Request headers"},
 		{name: "requests-params", setup: func(a *app) {
 			draft(a)
@@ -1086,9 +1129,15 @@ func TestUISnapshots(t *testing.T) {
 		}, want: "Nothing is saved until Create.", short: true})
 	}
 	states = append(states, snapshot{name: "dialog-current-values", setup: func(a *app) {
-		a.envs[0].Current = map[string]string{"authorization": "Bearer local-only-fixture"}
+		a.envs[0].Current = map[string]string{"authorization": "Bearer local-only-fixture", "baseUrl": "https://local.example.com"}
 		a.openVars()
-	}, want: "Current values · local only", short: true})
+	}, want: "Persist all current", short: true})
+	states = append(states, snapshot{name: "dialog-folder-variables", setup: func(a *app) {
+		a.folders = []request.Folder{{Path: "Workspace", Variables: []request.Variable{{Name: "baseUrl", Initial: "https://api.example.com"}, {Name: "region", Initial: "eu"}}}}
+		a.folderCurrent = map[string]map[string]string{"Workspace": {"region": "us", "token": "local-secret"}}
+		a.openFolder("Workspace")
+		a.folderUI.tab = 2
+	}, want: "Variable current value 3", short: true})
 	states = append(states, snapshot{name: "collection-matched", setup: func(a *app) {
 		a.requests[0].Name = "Get project"
 		a.requests[0].URL = "https://api.example.com/projects"

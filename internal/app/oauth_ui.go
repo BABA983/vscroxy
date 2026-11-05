@@ -40,27 +40,30 @@ func (a *app) oauthFields(c *ui.Context, auth *request.Auth, collection string) 
 	if o.ClientAuth == "Body" {
 		clientAuth = "In body"
 	}
+	input := func(value *string, label string) ui.Element {
+		return a.variableInput(c, "oauth-"+label, value, label, collection)
+	}
 	ui.Field(c, "Grant type", func() { uikit.Select(c, &o.Grant, request.Grants).Width(240) })
 	if interactive {
 		ui.Field(c, "Authorization URL", func() {
-			uikit.Input(c, &o.AuthURL).Placeholder("https://login.example.com/authorize")
+			input(&o.AuthURL, "Authorization URL").Placeholder("https://login.example.com/authorize")
 		})
 	}
 	ui.Field(c, "Access token URL", func() {
-		uikit.Input(c, &o.TokenURL).Placeholder("https://login.example.com/token")
+		input(&o.TokenURL, "Access token URL").Placeholder("https://login.example.com/token")
 	})
-	ui.Field(c, "Client ID", func() { uikit.Input(c, &o.ClientID) })
+	ui.Field(c, "Client ID", func() { input(&o.ClientID, "Client ID") })
 	ui.Field(c, "Client secret", func() {
-		uikit.Input(c, &o.ClientSecret).Placeholder("{{vault:client_secret}}, empty for a public client").Password()
+		input(&o.ClientSecret, "Client secret").Placeholder("{{vault:client_secret}}, empty for a public client").Password()
 	})
-	ui.Field(c, "Scope", func() { uikit.Input(c, &o.Scope).Placeholder("Space-separated, optional") })
+	ui.Field(c, "Scope", func() { input(&o.Scope, "Scope").Placeholder("Space-separated, optional") })
 	if o.Grant == request.GrantPassword {
-		ui.Field(c, "Username", func() { uikit.Input(c, &o.Username) })
-		ui.Field(c, "Password", func() { uikit.Input(c, &o.Password).Password() })
+		ui.Field(c, "Username", func() { input(&o.Username, "Username") })
+		ui.Field(c, "Password", func() { input(&o.Password, "Password").Password() })
 	}
 	if interactive {
 		ui.Field(c, "Callback URL", func() {
-			uikit.Input(c, &o.RedirectURL).Placeholder("http://127.0.0.1 on any free port")
+			input(&o.RedirectURL, "Callback URL").Placeholder("http://127.0.0.1 on any free port")
 		}).Description("Register it with the provider; the sign-in opens in your browser and returns there.")
 	}
 	ui.Field(c, "Client authentication", func() {
@@ -71,7 +74,7 @@ func (a *app) oauthFields(c *ui.Context, auth *request.Auth, collection string) 
 			}
 		}
 	})
-	ui.Field(c, "Header prefix", func() { uikit.Input(c, &o.HeaderPrefix).Placeholder("Bearer").Width(150) })
+	ui.Field(c, "Header prefix", func() { input(&o.HeaderPrefix, "Header prefix").Placeholder("Bearer").Width(150) })
 
 	in, cfg, err := a.oauthConfig(*auth, collection)
 	s := &a.oauth

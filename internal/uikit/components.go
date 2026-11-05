@@ -136,9 +136,16 @@ func SwatchButton(c *ui.Context, label string, color ui.Color, chosen bool) ui.E
 // with a hairline, and a soft accent halo instead of the focus ring while
 // it has the focus.
 func Input(c *ui.Context, value *string) ui.Element {
-	t := c.Theme()
-	in := ui.TextInput(c, value).Height(HeightControl).Padding(0, t.Space(2)).FontSize(TextBody).Radius(RadiusControl).FocusRing(false)
+	in := InputControl(c, value)
 	return FieldFace(c, in, in.Focused())
+}
+
+// InputControl is Input's text input without the field face, for a field that
+// styles runs of its text before wrapping it with FieldFace. It keeps the
+// control's height, padding and font, so the field looks like Input.
+func InputControl(c *ui.Context, value *string) ui.Element {
+	t := c.Theme()
+	return ui.TextInput(c, value).Height(HeightControl).Padding(0, t.Space(2)).FontSize(TextBody).Radius(RadiusControl).FocusRing(false)
 }
 
 // FieldFace gives a text field, or a row holding one with its own controls
