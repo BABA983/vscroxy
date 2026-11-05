@@ -107,6 +107,7 @@ func (a *app) desktopContent(c *ui.Context) {
 								ui.Text(c, fmt.Sprintf("%d selected", a.chosen.Len())).FontSize(uikit.TextMeta).FontWeight(600).Grow(1)
 								a.actionButton(c, "flow.replay", "Replay…")
 								a.actionButton(c, "capture.export-chosen", "Export HAR…")
+								a.actionButton(c, "capture.export-chosen-csv", "Export CSV…")
 								if uikit.CompactButton(c, "Clear selection").Clicked() {
 									a.chosen.Clear()
 								}
@@ -499,6 +500,8 @@ func (a *app) actions(c *ui.Context) []action {
 		do("request.previous-tab", "Previous open request", func() { a.cycleDocument(-1) }).
 			when(len(a.documents) > 0, "Open a request first").keys(ui.Ctrl|ui.Shift, ui.KeyTab),
 		do("capture.export-chosen", "Export selected HAR…", a.exportChosen).when(capturing && a.chosen.Len() > 0, ""),
+		do("capture.export-csv", "Export CSV…", a.exportCSV).when(capturing && len(a.visible) > 0, "No visible requests to export"),
+		do("capture.export-chosen-csv", "Export chosen CSV…", a.exportChosenCSV).when(capturing && a.chosen.Len() > 0, "Choose requests first"),
 		do("view.focus-inspector", focus, func() {
 			w.focused = !w.focused
 			if w.focused {

@@ -38,6 +38,7 @@ type exportReview struct {
 	data                       []byte
 	warnings                   []string
 	options                    exportOptions
+	csv                        *captureTable
 }
 
 // reviewExport is called on the UI thread, with already-marshaled bytes. It
@@ -45,6 +46,13 @@ type exportReview struct {
 func (a *app) reviewExport(title, file string, data []byte, warnings []string) {
 	a.exportUI = exportReview{open: true, title: title, file: file, data: bytes.Clone(data),
 		warnings: slices.Clone(warnings), options: safeExportOptions()}
+}
+
+// reviewCSV keeps the table's cells and applies the redaction scopes when the
+// user saves, so changing an option never rewrites the captured traffic.
+func (a *app) reviewCSV(title, file string, table captureTable, warnings []string) {
+	a.exportUI = exportReview{open: true, title: title, file: file,
+		warnings: slices.Clone(warnings), options: safeExportOptions(), csv: &table}
 }
 
 func (a *app) exportModal(c *ui.Context, t *ui.Theme) {
@@ -61,12 +69,26 @@ func (a *app) exportModal(c *ui.Context, t *ui.Theme) {
 				before, raw := s.options, s.unredacted
 				ui.Checkbox(c.Key("export-unredacted"), &s.unredacted, "Export unredacted (include original values)")
 				if !s.unredacted {
-					ui.Checkbox(c.Key("export-headers"), &s.options.Headers, "Headers, trailers and cookies").Tooltip("Replace every header and trailer value except Content-Type and Accept; remove cookies.")
+					headersLabel := "Headers, trailers and cookies"
+					headersTip := "Replace every header and trailer value except Content-Type and Accept; remove cookies."
+					if s.csv != nil {
+						headersLabel = "Header columns"
+						headersTip = "Replace header-derived cells except Content-Type and Accept."
+					}
+					ui.Checkbox(c.Key("export-headers"), &s.options.Headers, headersLabel).Tooltip(headersTip)
 					ui.Checkbox(c.Key("export-query"), &s.options.Query, "URL query values").Tooltip("Replace all query values, including structured copies.")
 					ui.Checkbox(c.Key("export-auth"), &s.options.Auth, "Authorization and URL credentials").Tooltip("Remove structured auth, URL userinfo and fragments; header values are controlled separately.")
-					ui.Checkbox(c.Key("export-variables"), &s.options.Variables, "Collection, folder and environment variables").Tooltip("Replace every variable value, including disabled entries.")
-					ui.Checkbox(c.Key("export-bodies"), &s.options.Bodies, "Bodies and stream messages").Tooltip("Remove request and response bodies, binary payloads and all stream messages.")
-					ui.Checkbox(c.Key("export-notes"), &s.options.ScriptsNotes, "Scripts, Checks and private notes").Tooltip("Remove scripts (including exported Checks), session titles, descriptions, notes and diagnostics.")
+					if s.csv == nil {
+						ui.Checkbox(c.Key("export-variables"), &s.options.Variables, "Collection, folder and environment variables").Tooltip("Replace every variable value, including disabled entries.")
+					}
+					bodyLabel, bodyTip := "Bodies and stream messages", "Remove request and response bodies, binary payloads and all stream messages."
+					if s.csv != nil {
+						bodyLabel, bodyTip = "Body-derived columns", "Replace request and response JSON cells."
+					}
+					ui.Checkbox(c.Key("export-bodies"), &s.options.Bodies, bodyLabel).Tooltip(bodyTip)
+					if s.csv == nil {
+						ui.Checkbox(c.Key("export-notes"), &s.options.ScriptsNotes, "Scripts, Checks and private notes").Tooltip("Remove scripts (including exported Checks), session titles, descriptions, notes and diagnostics.")
+					}
 				}
 				if before != s.options || raw != s.unredacted {
 					s.reviewed = false
@@ -75,6 +97,9 @@ func (a *app) exportModal(c *ui.Context, t *ui.Theme) {
 					Tooltip("Paths, hosts, names, parameter names, Content-Type/Accept, assertion values and unselected fields may contain secrets. Removing scripts also removes Postman Checks.")
 				for _, warning := range s.warnings {
 					uikit.Body(c, "• "+warning)
+				}
+				if s.csv != nil {
+					uikit.Meta(c, "CSV uses the table's visible columns. Cells that could be spreadsheet formulas are prefixed with an apostrophe.")
 				}
 			})
 			ui.Checkbox(c.Key("export-review"), &s.reviewed, "I understand the scope and will review the exported file before sharing")
@@ -92,12 +117,57 @@ func (a *app) exportModal(c *ui.Context, t *ui.Theme) {
 	})
 }
 
+const csvExportRowLimit = 10_000
+
+// visibleFlows is the current view's rows in table order, without a selection.
+func (a *app) visibleFlows() []flow {
+	flows := make([]flow, 0, len(a.visible))
+	for _, i := range a.visible {
+		if i >= 0 && i < len(a.flows) {
+			flows = append(flows, a.flows[i])
+		}
+	}
+	return flows
+}
+
+func (a *app) exportCSV() {
+	a.exportCSVFlows(a.visibleFlows(), "vscroxy.csv")
+}
+
+func (a *app) exportChosenCSV() {
+	flows := a.selectedFlows()
+	if len(flows) == 0 {
+		a.warn("Export CSV: no request chosen")
+		return
+	}
+	a.exportCSVFlows(flows, "vscroxy-chosen.csv")
+}
+
+func (a *app) exportCSVFlows(flows []flow, file string) {
+	if len(flows) == 0 {
+		a.warn("Export CSV: no requests to export")
+		return
+	}
+	if len(flows) > csvExportRowLimit {
+		a.fail("Export CSV", fmt.Errorf("CSV export is limited to %d requests; narrow the view or choose fewer", csvExportRowLimit))
+		return
+	}
+	table, warnings := a.snapshotCaptureTable(flows)
+	a.reviewCSV("Export CSV", file, table, warnings)
+}
+
 func (a *app) writeReviewedExport(job exportReview) {
 	options := job.options
 	if job.unredacted {
 		options = exportOptions{}
 	}
-	data, err := redactExport(job.data, options)
+	var data []byte
+	var err error
+	if job.csv != nil {
+		data, err = job.csv.csv(options)
+	} else {
+		data, err = redactExport(job.data, options)
+	}
 	if err != nil {
 		a.fail(job.title, err)
 		return
