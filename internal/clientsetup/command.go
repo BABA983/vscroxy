@@ -39,6 +39,14 @@ var toolHints = map[string]string{
 type Argv struct {
 	Name string
 	Args []string
+	// Env, when non-nil, is the complete environment for the child. Windows
+	// uses it to open a terminal with the proxy variables without a batch file.
+	Env []string
+	// NewConsole asks Windows to create a console window for the child.
+	NewConsole bool
+	// Cleanup runs after a started child exits, such as removing a temporary
+	// browser profile.
+	Cleanup func()
 }
 
 // String renders the command for a person to review or copy.
@@ -49,13 +57,22 @@ func (c Argv) String(windows bool) string {
 	return POSIXCommandLine(c.Name, c.Args)
 }
 
+func (c Argv) command(bin string) *exec.Cmd {
+	cmd := exec.Command(bin, c.Args...)
+	if c.Env != nil {
+		cmd.Env = c.Env
+	}
+	configureStart(cmd, c.NewConsole)
+	return cmd
+}
+
 // Run waits for the command and returns its output in the error when it fails.
 func (c Argv) Run() error {
 	bin, err := toolPath(c.Name)
 	if err != nil {
 		return err
 	}
-	out, err := exec.Command(bin, c.Args...).CombinedOutput()
+	out, err := c.command(bin).CombinedOutput()
 	if err != nil {
 		line := c.String(runtime.GOOS == "windows")
 		if msg := strings.TrimSpace(string(out)); msg != "" {
@@ -68,17 +85,23 @@ func (c Argv) Run() error {
 
 // Start launches a long-lived client and releases it from this process. The
 // caller does not wait for a terminal or a browser; a background Wait reaps it
-// when it exits instead of leaving a zombie for the app's lifetime.
+// when it exits instead of leaving a zombie for the app's lifetime. Cleanup
+// runs after the child exits.
 func (c Argv) Start() error {
 	bin, err := toolPath(c.Name)
 	if err != nil {
 		return err
 	}
-	cmd := exec.Command(bin, c.Args...)
+	cmd := c.command(bin)
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("start %s: %w", c.Name, err)
 	}
-	go func() { _ = cmd.Wait() }()
+	go func() {
+		_ = cmd.Wait()
+		if c.Cleanup != nil {
+			c.Cleanup()
+		}
+	}()
 	return nil
 }
 
@@ -88,7 +111,7 @@ func RunOutput(c Argv) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	out, err := exec.Command(bin, c.Args...).CombinedOutput()
+	out, err := c.command(bin).CombinedOutput()
 	if err != nil {
 		line := c.String(runtime.GOOS == "windows")
 		if msg := strings.TrimSpace(string(out)); msg != "" {
@@ -121,6 +144,37 @@ func JoinCommands(commands []Argv, windows bool) string {
 		parts = append(parts, command.String(windows))
 	}
 	return strings.Join(parts, " && ")
+}
+
+// MergeEnv returns base with extra's names replaced, ignoring case because
+// Windows environment names are case-insensitive. Duplicate names in base are
+// removed, so a child never sees two HTTP_PROXY entries.
+func MergeEnv(base, extra []string) []string {
+	merged := make([]string, 0, len(base)+len(extra))
+	index := make(map[string]int, len(base))
+	for _, entry := range base {
+		name, _, _ := strings.Cut(entry, "=")
+		key := strings.ToUpper(name)
+		if _, exists := index[key]; exists {
+			continue
+		}
+		index[key] = len(merged)
+		merged = append(merged, entry)
+	}
+	for _, entry := range extra {
+		name, value, _ := strings.Cut(entry, "=")
+		key := strings.ToUpper(name)
+		if at, exists := index[key]; exists {
+			// Keep the first spelling of a name; Windows treats names
+			// case-insensitively, so a second casing would be a duplicate.
+			existing, _, _ := strings.Cut(merged[at], "=")
+			merged[at] = existing + "=" + value
+			continue
+		}
+		index[key] = len(merged)
+		merged = append(merged, entry)
+	}
+	return merged
 }
 
 // findExecutable prefers an explicit path, then a name on PATH.

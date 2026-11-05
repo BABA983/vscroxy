@@ -9,10 +9,12 @@ import (
 	"strings"
 )
 
-// OpenTerminal opens a new cmd.exe window that runs the generated batch file
-// and stays open. The environment lives only in that window.
+// OpenTerminal opens a new cmd.exe window whose environment points at the
+// proxy. Passing the environment directly avoids a batch file and its OEM code
+// page, so non-ASCII user names and paths work. The window stays open at a
+// prompt and only its process tree changes.
 func OpenTerminal(p Proxy) (Argv, error) {
-	script, err := WriteWindowsTerminalScript(p)
+	env, err := Environment(p)
 	if err != nil {
 		return Argv{}, err
 	}
@@ -21,10 +23,14 @@ func OpenTerminal(p Proxy) (Argv, error) {
 		comspec = "cmd.exe"
 	}
 	if _, err := toolPath(comspec); err != nil {
-		RemoveTerminalScript(script)
 		return Argv{}, err
 	}
-	return Argv{Name: comspec, Args: []string{"/c", WindowsStartLine(script)}}, nil
+	return Argv{
+		Name:       comspec,
+		Args:       []string{"/k"},
+		Env:        MergeEnv(os.Environ(), env),
+		NewConsole: true,
+	}, nil
 }
 
 // OpenChrome starts Chrome or Chromium on a separate temporary profile.
