@@ -169,7 +169,7 @@
 | HTTP 请求编辑、tab、草稿恢复 | 已有 | | |
 | Params、Headers（启用开关、批量编辑、敏感值遮罩） | 已有 | | |
 | Body：raw、urlencoded、multipart | 已有 | | |
-| Body：binary 文件 | 已有 | 只保存本地路径，每次发送原样读取，普通文件 ≤16 MiB；Send/Runner 共用，Postman 导入导出保留引用，支持 cURL 导出 | M6 |
+| Body：binary 文件 | 已有 | 只保存本地路径，每次发送原样读取，普通文件 ≤16 MiB；Send/Runner 共用，Postman 导入导出保留引用，cURL 与原生代码生成导出引用源文件 | M6 |
 | Body：GraphQL（query + variables） | 已有 | 独立编辑与保存，变量展开、Send/Runner、Postman 导入导出、代码导出 | M6 |
 | GraphQL schema 自省和补全 | 缺少 | 基础 Body 和 query 格式化已完成；operationName 编辑选择仍待做 | M6 |
 | Auth：Inherit、Bearer、Basic、API key、OAuth 2.0、Digest、AWS、JWT | 已有 | | |
@@ -200,7 +200,7 @@
 | 响应保存到文件 | 已有 | Requests 保存按钮／Capture Body 菜单；原样保存已解压正文，流式读取完整落盘内容，拒绝不完整正文 | M6 |
 | 全局搜索（集合、请求、环境） | 缺少 | 并进命令面板 | M6 |
 | 代码生成：cURL、fetch、axios、Python、Go、HTTPie | 已有 | 补齐 Bash／CMD cURL、PowerShell 7+、浏览器／Node fetch；抓包／草稿共用复制入口，另有脱敏／原样 HAR 复制 | M9 |
-| 代码生成：Swift、Kotlin、Java、C#、PHP、Ruby、Rust | 缺少 | | M9 |
+| 代码生成：Swift、Kotlin、Java、C#、PHP、Ruby、Rust | 已有 | Swift URLSession、Kotlin OkHttp、Java 11+ java.net.http、C# HttpClient、PHP cURL、Ruby Net::HTTP、Rust reqwest；抓包／草稿共用 Generate code… 与 Copy as… 入口；Binary body 引用源文件，其他文本 body 内联；非 UTF-8 抓包 body 仍用 cURL | M9 |
 | 导入：Postman v2.0/2.1、环境、OpenAPI 3.x、cURL、HAR | 已有 | | |
 | 导入：Postman Collection v3 | 缺少 | Postman v12 的新格式 | M6 |
 | 导入：Swagger 2、Insomnia、Bruno、Hoppscotch | 缺少 | | M7 |
@@ -336,10 +336,10 @@ Cookie 和其他 API key 保留为变量 header，避免把多个认证机制硬
 - 本地控制接口、CLI／MCP 共用动作闭环已完成：查询、录制／规则开关、系统代理修改与回读、受控 HAR 导出、追加规则导入创建和请求／集合运行。
 - 命令行运行集合及 CI 报告、首版内置集合负载已完成（见 [自动化指南](automation.md)）：固定并发用户／时长、隔离状态、HdrHistogram 聚合执行指标；原生面板／CLI／MCP 共用 Runner。不含固定 RPS、爬坡或分布式压测。
 - 录制到集合及首版 token 链路识别已完成：原生入口、CLI／MCP 共用动作、Host／App 过滤、Current 凭据引用和 Example 归并；JSON token → 同源 Bearer 的脱敏证据、显式审阅应用和失败关闭。Cookie／refresh／多跳链路暂不覆盖。
-- DevTools 式常用复制格式已完成：Bash／CMD cURL、原生 PowerShell、浏览器／Node fetch 和受限 HAR（默认脱敏、明确选择敏感内容）。生成器不增加运行时依赖；cURL 导入选项和其他语言仍独立待做。
+- DevTools 式常用复制格式已完成：Bash／CMD cURL、原生 PowerShell、浏览器／Node fetch 和受限 HAR（默认脱敏、明确选择敏感内容）。生成器不增加运行时依赖；cURL 导入选项仍独立待做。
 - 首版代码 Mock 已完成（见[使用指南](guide.md#code-mocks)）：Code Mock 规则、`onMock` 动态本地响应、脚本编辑器与 Scenario；HTTP／已解密 HTTPS 不连接原站，失败关闭。Postman Node.js Mock／`pm.state` 等不在首版范围。
+- 更多代码生成语言已完成（见[使用指南](guide.md#curl)）：Swift URLSession、Kotlin OkHttp、Java java.net.http、C# HttpClient、PHP cURL、Ruby Net::HTTP、Rust reqwest；method、query、重复／空 header、raw／urlencoded／multipart／GraphQL body 和已展开的 auth header 原样输出，Binary body 引用本地文件。生成器本身不增加运行时依赖；OkHttp／reqwest 由目标项目提供，非 UTF-8 的抓包 body 仍只支持 cURL。
 - `pm.visualizer`、可复用脚本库。
-- 更多代码生成语言。
 - 第三方主题导入。
 - 左右分屏、检查器独立窗口、分享到 Gist。
 
