@@ -87,7 +87,7 @@ func parseBru(data []byte) ([]bruBlock, map[string]string, error) {
 			if isBruTextTag(tag) {
 				block.text = bruOutdent(content)
 			} else {
-				pairs, err := parseBruPairs(content)
+				pairs, err := parseBruPairs(content, start+1)
 				if err != nil {
 					return nil, nil, fmt.Errorf("block %q: %w", tag, err)
 				}
@@ -125,9 +125,31 @@ func bruOutdent(content string) string {
 	return strings.TrimSuffix(strings.Join(lines, "\n"), "\n")
 }
 
+// splitBruPair splits a dictionary row at the colon after its key. A quoted
+// key may contain colons, so its closing quote is found before the split.
+func splitBruPair(line string) (key, rest string, ok bool) {
+	if strings.HasPrefix(line, "\"") {
+		for i := 1; i < len(line); i++ {
+			switch line[i] {
+			case '\\':
+				i++
+			case '"':
+				after := strings.TrimSpace(line[i+1:])
+				if !strings.HasPrefix(after, ":") {
+					return "", "", false
+				}
+				return line[:i+1], strings.TrimSpace(after[1:]), true
+			}
+		}
+		return "", "", false
+	}
+	key, rest, ok = strings.Cut(line, ":")
+	return key, strings.TrimSpace(rest), ok
+}
+
 // parseBruPairs reads dictionary rows, including quoted keys, ~ disabled
 // rows, ”' multiline values and @description annotations.
-func parseBruPairs(content string) ([]bruPair, error) {
+func parseBruPairs(content string, firstLine int) ([]bruPair, error) {
 	lines := strings.Split(content, "\n")
 	var pairs []bruPair
 	for i := 0; i < len(lines); i++ {
@@ -154,19 +176,18 @@ func parseBruPairs(content string) ([]bruPair, error) {
 			disabled = true
 			line = strings.TrimSpace(strings.TrimPrefix(line, "~"))
 		}
-		key, rest, ok := strings.Cut(line, ":")
+		key, rest, ok := splitBruPair(line)
 		if !ok {
-			return nil, fmt.Errorf("line %q is not key: value", line)
+			return nil, fmt.Errorf("line %d: expected key: value", firstLine+i)
 		}
 		key = strings.TrimSpace(key)
 		if strings.HasPrefix(key, "\"") {
 			unquoted, err := strconv.Unquote(key)
 			if err != nil {
-				return nil, fmt.Errorf("invalid quoted key %q", key)
+				return nil, fmt.Errorf("line %d: invalid quoted key", firstLine+i)
 			}
 			key = unquoted
 		}
-		rest = strings.TrimSpace(rest)
 		pair := bruPair{key: key, disabled: disabled}
 		if rest == "'''" {
 			var value []string
@@ -183,7 +204,7 @@ func parseBruPairs(content string) ([]bruPair, error) {
 				value = append(value, strings.TrimPrefix(lines[i], "    "))
 			}
 			if !closed {
-				return nil, fmt.Errorf("multiline value for %q is not closed", key)
+				return nil, fmt.Errorf("line %d: multiline value is not closed", firstLine+i)
 			}
 			pair.value = strings.TrimSpace(strings.Join(value, "\n"))
 			pair.multiline = true

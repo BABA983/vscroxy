@@ -255,8 +255,12 @@ func TestReadBrunoDir(t *testing.T) {
 		t.Errorf("request variables %q", create.Pre)
 	}
 	upload := requestNamed(t, collection, "Upload")
-	if upload.BodyMode != "Multipart" || !upload.Form[1].File || upload.Form[1].Value != "/tmp/a.png" {
-		t.Errorf("Upload %+v", upload)
+	absUpload, err := filepath.Abs(filepath.Join("testdata", "bruno", "files", "a.png"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if upload.BodyMode != "Multipart" || !upload.Form[1].File || upload.Form[1].Value != absUpload {
+		t.Errorf("Upload %+v, want file %q", upload, absUpload)
 	}
 	binary := requestNamed(t, collection, "Binary")
 	if binary.BodyMode != "Binary" || binary.BodyFile != "/tmp/b.bin" || request.ParseHeaderBlock(binary.Headers).Get("Content-Type") != "application/octet-stream" {
@@ -423,5 +427,175 @@ func TestParseBruRejectsMalformedInput(t *testing.T) {
 		if _, _, err := parseBru([]byte(data)); err == nil {
 			t.Errorf("accepted malformed .bru %q", data)
 		}
+	}
+}
+
+func TestInsomniaAuthDetails(t *testing.T) {
+	var warnings Tally
+	query := authFromInsomnia(map[string]any{"type": "apikey", "key": "k", "value": "v", "addTo": "queryParams"}, &warnings)
+	if query.Type != "API key" || query.Location != "Query" {
+		t.Errorf("query API key %+v", query)
+	}
+	cookie := authFromInsomnia(map[string]any{"type": "apikey", "key": "session", "value": "abc", "addTo": "cookie"}, &warnings)
+	if cookie.Type != "API key" || cookie.Key != "Cookie" || cookie.Value != "session=abc" || cookie.Location != "Header" {
+		t.Errorf("cookie API key %+v", cookie)
+	}
+	prefix := authFromInsomnia(map[string]any{"type": "bearer", "token": "abc", "prefix": "Token"}, &warnings)
+	if prefix.Type != "API key" || prefix.Value != "Token abc" {
+		t.Errorf("bearer prefix %+v", prefix)
+	}
+	noPrefix := authFromInsomnia(map[string]any{"type": "bearer", "token": "abc", "prefix": "NO_PREFIX"}, &warnings)
+	if noPrefix.Type != "API key" || noPrefix.Value != "abc" {
+		t.Errorf("NO_PREFIX bearer %+v", noPrefix)
+	}
+	if len(warnings.Lines()) != 3 {
+		t.Errorf("warnings %q", warnings.Lines())
+	}
+}
+
+func TestInsomniaNormalizesBodiesAndWarnsAboutTags(t *testing.T) {
+	data := []byte(`{"_type":"export","__export_format":4,"resources":[
+		{"_id":"wrk","_type":"workspace","name":"Templates"},
+		{"_id":"req","_type":"request","parentId":"wrk","name":"Tagged","method":"POST","url":"{{ _.base_url }}/x",
+		 "body":{"mimeType":"application/json","text":"{\"token\":\"{{ _.token }}\",\"when\":\"{% response 'body' %}\"}"}}
+	]}`)
+	result, err := ReadInsomnia(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := result.Collections[0].Requests[0]
+	if r.Body != `{"token":"{{token}}","when":"{% response 'body' %}"}` {
+		t.Errorf("body %q", r.Body)
+	}
+	if !strings.Contains(strings.Join(result.Collections[0].Warnings, "\n"), "template tags") {
+		t.Errorf("warnings %q", result.Collections[0].Warnings)
+	}
+	var out request.Request
+	var skips Tally
+	insomniaBodyRequest(&out, &insomniaBody{MimeType: "application/graphql", Text: `{"query":"query { x(id: \"{{ _.id }}\") }"}`}, &skips)
+	if out.GraphQL.Query != `query { x(id: "{{id}}") }` {
+		t.Errorf("GraphQL query %q", out.GraphQL.Query)
+	}
+}
+
+func TestInsomniaV5CookieSettingsWarn(t *testing.T) {
+	result, err := ReadInsomnia([]byte(`type: collection.insomnia.rest/5.0
+schema_version: "5.1"
+name: Cookies
+collection:
+  - url: https://x.test
+    name: Get
+    meta: {id: req_1}
+    method: GET
+    settings:
+      followRedirects: global
+      cookies:
+        send: false
+        store: false
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(strings.Join(result.Collections[0].Warnings, "\n"), "request settings") {
+		t.Errorf("warnings %q", result.Collections[0].Warnings)
+	}
+}
+
+func TestHoppscotchUnsupportedRequestAuthWarns(t *testing.T) {
+	data := []byte(`{"v":12,"name":"Auth","requests":[
+		{"v":"17","name":"Hawk","method":"GET","endpoint":"https://x.test","auth":{"authType":"hawk","authActive":true}},
+		{"v":"17","name":"Disabled","method":"GET","endpoint":"https://x.test","auth":{"authType":"basic","authActive":false,"username":"a","password":"b"}},
+		{"v":"17","name":"JWT","method":"GET","endpoint":"https://x.test","auth":{"authType":"jwt","authActive":true,"algorithm":"EdDSA","secret":"s"}}
+	]}`)
+	result, err := ReadHoppscotch(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	joined := strings.Join(result.Collections[0].Warnings, "\n")
+	for _, want := range []string{"hawk auth", "disabled auth", "EdDSA"} {
+		if !strings.Contains(joined, want) {
+			t.Errorf("warnings %q missing %q", result.Collections[0].Warnings, want)
+		}
+	}
+}
+
+func TestBruQuotedKeyMayContainAColon(t *testing.T) {
+	blocks, _, err := parseBru([]byte("headers {\n  \"a:b\": 1\n}\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	pairs := indexBru(blocks).pairs("headers")
+	if len(pairs) != 1 || pairs[0].key != "a:b" || pairs[0].value != "1" {
+		t.Fatalf("pairs %+v", pairs)
+	}
+}
+
+func TestBrunoAssertOnlyMapsExactComparisons(t *testing.T) {
+	var out request.Request
+	var warnings []string
+	brunoChecks(&out, []bruPair{
+		{key: "res.status", value: "neq 200"},
+		{key: "res.headers.Content-Type", value: "contains json"},
+		{key: "res.status", value: "eq 201"},
+		{key: "res.headers.X-Test", value: "ok"},
+	}, &warnings)
+	if out.Checks.Status != "201" || out.Checks.Headers != "X-Test: ok" {
+		t.Fatalf("checks %+v", out.Checks)
+	}
+	joined := strings.Join(warnings, "\n")
+	for _, want := range []string{"operator neq", "operator contains"} {
+		if !strings.Contains(joined, want) {
+			t.Errorf("warnings %q missing %q", warnings, want)
+		}
+	}
+}
+
+func TestBruParseErrorsDoNotIncludeLineContents(t *testing.T) {
+	_, _, err := parseBru([]byte("auth:bearer {\n  token: super-secret\n  not-a-pair\n}\n"))
+	if err == nil {
+		t.Fatal("accepted a malformed block")
+	}
+	if strings.Contains(err.Error(), "super-secret") || strings.Contains(err.Error(), "not-a-pair") {
+		t.Fatalf("error leaked line contents: %v", err)
+	}
+	if !strings.Contains(err.Error(), "line 3") {
+		t.Fatalf("error has no line number: %v", err)
+	}
+}
+
+func TestReadBrunoDirSkipsNonRegularFiles(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "bruno.json"), []byte(`{"version":"1","name":"Links","type":"collection"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	target := filepath.Join(t.TempDir(), "target.bru")
+	if err := os.WriteFile(target, []byte("meta {\n  name: Target\n}\n\nget {\n  url: https://x.test\n  body: none\n  auth: none\n}\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(target, filepath.Join(dir, "link.bru")); err != nil {
+		t.Skipf("symlinks unavailable: %v", err)
+	}
+	result, err := ReadBrunoDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Collections) != 1 || len(result.Collections[0].Requests) != 0 {
+		t.Fatalf("requests %+v", result.Collections)
+	}
+	if !strings.Contains(strings.Join(result.Collections[0].Warnings, "\n"), "non-regular") {
+		t.Errorf("warnings %q", result.Collections[0].Warnings)
+	}
+}
+
+func TestReadBrunoFileLimit(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "large.bru")
+	if err := os.WriteFile(path, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Truncate(path, maxBrunoFile+1); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := readBrunoFile(path); err == nil {
+		t.Fatal("read a file over 16 MiB")
 	}
 }

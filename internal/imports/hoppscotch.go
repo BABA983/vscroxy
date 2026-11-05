@@ -246,7 +246,7 @@ func hoppRequestValue(input hoppRequest, parent string, index int, warnings *[]s
 		}
 		out.HeaderList = append(out.HeaderList, request.Field{Name: normalizeTags(header.Key), Value: valueText(header.Value)})
 	}
-	out.Auth = hoppAuth(input.Auth, nil)
+	out.Auth = hoppAuth(input.Auth, warnings)
 	if out.Auth.Type == "" {
 		out.Auth.Type = request.AuthInherit
 	}

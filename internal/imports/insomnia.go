@@ -96,6 +96,10 @@ type insomniaSettings struct {
 	StoreCookies             *bool  `json:"storeCookies"`
 	SendCookies              *bool  `json:"sendCookies"`
 	DisableRenderRequestBody *bool  `json:"disableRenderRequestBody"`
+	Cookies                  struct {
+		Send  *bool `json:"send"`
+		Store *bool `json:"store"`
+	} `json:"cookies"`
 }
 
 type insomniaBody struct {
@@ -298,6 +302,13 @@ func readInsomniaV4(file insomniaFile) (Result, error) {
 	if unsupported > 0 {
 		warnings = append(warnings, fmt.Sprintf("%d %s of other types (API specs, cookies, tests, gRPC/WebSocket requests) were skipped", unsupported, plural(unsupported, "resource", "resources")))
 	}
+	tagged := false
+	for _, collection := range collections {
+		tagged = tagged || hasInsomniaTags(collection.Requests, collection.Folders)
+	}
+	if tagged {
+		warnings = append(warnings, "Insomnia template tags ({% ... %}) were imported literally")
+	}
 	var result Result
 	for _, id := range workspaceOrder {
 		collection := collections[workspaces[id]]
@@ -310,6 +321,9 @@ func readInsomniaV4(file insomniaFile) (Result, error) {
 		result.Warnings = append(result.Warnings, "cookie jars were not imported; cookies are kept in memory only")
 	}
 	result.Environments = insomniaV4Environments(file.Resources)
+	if environmentsTagged(result.Environments) {
+		result.Warnings = append(result.Warnings, "Insomnia template tags ({% ... %}) in environment variables were imported literally")
+	}
 	return result, nil
 }
 
@@ -320,6 +334,9 @@ func readInsomniaV5(file insomniaFile) (Result, error) {
 		result.Environments, _ = insomniaV5Environments(file.Environments)
 		if len(result.Environments) == 0 {
 			return Result{}, fmt.Errorf("the environment export has no environments")
+		}
+		if environmentsTagged(result.Environments) {
+			result.Warnings = append(result.Warnings, "Insomnia template tags ({% ... %}) in environment variables were imported literally")
 		}
 		return result, nil
 	}
@@ -406,8 +423,14 @@ func readInsomniaV5(file insomniaFile) (Result, error) {
 	if len(file.Certificates) > 0 && string(file.Certificates) != "null" {
 		collection.Warnings = append(collection.Warnings, "client certificates were not imported")
 	}
+	if hasInsomniaTags(collection.Requests, collection.Folders) {
+		collection.Warnings = append(collection.Warnings, "Insomnia template tags ({% ... %}) were imported literally")
+	}
 	result.Collections = []Collection{collection}
 	result.Environments, _ = insomniaV5Environments(file.Environments)
+	if environmentsTagged(result.Environments) {
+		result.Warnings = append(result.Warnings, "Insomnia template tags ({% ... %}) in environment variables were imported literally")
+	}
 	return result, nil
 }
 
@@ -458,13 +481,14 @@ func insomniaBodyRequest(out *request.Request, body *insomniaBody, skips *Tally)
 	}
 	switch body.MimeType {
 	case "application/json", "text/plain", "application/xml", "text/yaml", "application/edn":
-		SetRawBody(out, body.MimeType, body.Text)
+		SetRawBody(out, body.MimeType, normalizeTags(body.Text))
 	case "application/graphql":
+		text := normalizeTags(body.Text)
 		var graphql struct {
 			Query     string `json:"query"`
 			Variables any    `json:"variables"`
 		}
-		if json.Unmarshal([]byte(body.Text), &graphql) == nil && graphql.Query != "" {
+		if json.Unmarshal([]byte(text), &graphql) == nil && graphql.Query != "" {
 			variables := ""
 			if graphql.Variables != nil {
 				if data, err := json.Marshal(graphql.Variables); err == nil {
@@ -473,7 +497,7 @@ func insomniaBodyRequest(out *request.Request, body *insomniaBody, skips *Tally)
 			}
 			SetGraphQLBody(out, graphql.Query, variables)
 		} else {
-			SetRawBody(out, body.MimeType, body.Text)
+			SetRawBody(out, body.MimeType, text)
 			skips.Add("with a GraphQL body that is not a query/variables object; imported as raw text")
 		}
 	case "application/x-www-form-urlencoded":
@@ -497,9 +521,19 @@ func insomniaBodyRequest(out *request.Request, body *insomniaBody, skips *Tally)
 			skips.Add("with a binary body and no local file; imported without a body")
 		}
 	default:
-		SetRawBody(out, body.MimeType, body.Text)
+		SetRawBody(out, body.MimeType, normalizeTags(body.Text))
 		skips.Add("with a " + body.MimeType + " body; imported as raw text")
 	}
+}
+
+// hasInsomniaTags says whether any imported string still contains an
+// Insomnia template tag, which this app cannot evaluate.
+func hasInsomniaTags(requests []request.Request, folders []request.Folder) bool {
+	return strings.Contains(fmt.Sprintf("%+v", requests), "{%") || strings.Contains(fmt.Sprintf("%+v", folders), "{%")
+}
+
+func environmentsTagged(envs []Environment) bool {
+	return strings.Contains(fmt.Sprintf("%+v", envs), "{%")
 }
 
 func insomniaSettingsDiffer(resource *insomniaResource) bool {
@@ -513,6 +547,8 @@ func insomniaSettingsDiffer(resource *insomniaResource) bool {
 func insomniaSettingsDifferV5(settings insomniaSettings) bool {
 	return settings.StoreCookies != nil && !*settings.StoreCookies ||
 		settings.SendCookies != nil && !*settings.SendCookies ||
+		settings.Cookies.Send != nil && !*settings.Cookies.Send ||
+		settings.Cookies.Store != nil && !*settings.Cookies.Store ||
 		settings.DisableRenderRequestBody != nil && *settings.DisableRenderRequestBody ||
 		settings.EncodeURL != nil && !*settings.EncodeURL ||
 		settings.RebuildPath != nil && !*settings.RebuildPath ||
@@ -538,18 +574,28 @@ func authFromInsomnia(auth map[string]any, skips *Tally) request.Auth {
 	case "basic":
 		return request.Auth{Type: "Basic", Username: valueText(auth["username"]), Password: valueText(auth["password"])}
 	case "bearer":
-		token, prefix := valueText(auth["token"]), valueText(auth["prefix"])
-		if prefix != "" && !strings.EqualFold(strings.TrimSpace(prefix), "bearer") {
+		token, prefix := valueText(auth["token"]), strings.TrimSpace(valueText(auth["prefix"]))
+		switch {
+		case strings.EqualFold(prefix, "NO_PREFIX"):
+			skips.Add("with NO_PREFIX bearer auth; imported as an Authorization API key")
+			return request.Auth{Type: "API key", Key: "Authorization", Value: token, Location: "Header"}
+		case prefix != "" && !strings.EqualFold(prefix, "bearer"):
 			skips.Add("with a custom bearer prefix; imported as an Authorization API key")
-			return request.Auth{Type: "API key", Key: "Authorization", Value: prefix + token, Location: "Header"}
+			return request.Auth{Type: "API key", Key: "Authorization", Value: prefix + " " + token, Location: "Header"}
+		default:
+			return request.Auth{Type: "Bearer", Token: token}
 		}
-		return request.Auth{Type: "Bearer", Token: token}
 	case "apikey":
-		location := "Header"
-		if strings.EqualFold(valueText(auth["addTo"]), "query") {
-			location = "Query"
+		key, value := valueText(auth["key"]), valueText(auth["value"])
+		switch strings.ToLower(valueText(auth["addTo"])) {
+		case "query", "queryparams":
+			return request.Auth{Type: "API key", Key: key, Value: value, Location: "Query"}
+		case "cookie":
+			skips.Add("with a cookie API key; imported as a Cookie header")
+			return request.Auth{Type: "API key", Key: "Cookie", Value: key + "=" + value, Location: "Header"}
+		default:
+			return request.Auth{Type: "API key", Key: key, Value: value, Location: "Header"}
 		}
-		return request.Auth{Type: "API key", Key: valueText(auth["key"]), Value: valueText(auth["value"]), Location: location}
 	case "digest":
 		return request.Auth{Type: request.AuthDigest, Username: valueText(auth["username"]), Password: valueText(auth["password"])}
 	case "oauth2":
