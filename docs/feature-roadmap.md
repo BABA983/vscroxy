@@ -155,11 +155,11 @@
 | CA 安装和信任检查 | 已有 | | |
 | 局域网设备接入（iOS/Android 引导） | 已有 | | |
 | 本地客户端配置示例 | 已有 | | |
-| 一键打开已配好代理的终端（设置 `HTTP_PROXY`、`NODE_EXTRA_CA_CERTS`、`REQUESTS_CA_BUNDLE`、`SSL_CERT_FILE` 等） | 已有 | 独立窗口；大小写代理变量、`NO_PROXY` 和 CA bundle 变量；只影响该窗口 | M7 |
+| 一键打开已配好代理的终端（设置 `HTTP_PROXY`、`NODE_EXTRA_CA_CERTS`、`REQUESTS_CA_BUNDLE`、`SSL_CERT_FILE` 等） | 已有 | 独立窗口；替换型信任变量指向系统根证书 + app CA 的 0600 bundle；只影响该窗口 | M7 |
 | 一键打开已配好代理的 Chrome/Firefox（独立配置） | 已有 | 临时 profile；Chrome `--proxy-server`／`--user-data-dir`，Firefox `user.js`；不关闭 TLS 校验 | M7 |
-| Android 模拟器自动配置（adb 设代理、装证书） | 已有 | `adb reverse` + 可撤销的 global proxy；CA 只复制到 Downloads，系统信任需手动或 root 镜像 | M7 |
+| Android 模拟器自动配置（adb 设代理、装证书） | 已有 | `adb reverse` + 可撤销的 global proxy；Undo 恢复原值并移除对应 reverse；CA 只复制到 Downloads，系统信任需手动或 root 镜像 | M7 |
 | iOS 模拟器自动装证书（macOS，simctl） | 已有 | 仅已启动的模拟器，不配置真机 | M7 |
-| Java keystore 导入证书 | 已有 | app 自有 PKCS#12 truststore；先审阅 keytool 命令，确认后导入 | M7 |
+| Java keystore 导入证书 | 已有 | app 自有 PKCS#12 truststore；先从 JDK cacerts 复制系统根证书，再加 app CA；JVM 选项含代理 host／port；先审阅命令再确认 | M7 |
 | Electron App 带代理参数启动 | 已有 | `--proxy-server`；不传 `--ignore-certificate-errors`；信任取决于系统／NSS 或应用自身 | M7 |
 
 ### 4.6 请求（Postman 相关）
@@ -320,9 +320,10 @@ Cookie 和其他 API key 保留为变量 header，避免把多个认证机制硬
 ### M7：接入和网络
 
 - 一键接入已完成（[使用指南](guide.md#one-click-client-setup)）：终端、Chrome、Firefox、Android 模拟器、iOS 模拟器（仅 macOS）、Java truststore、Electron。
-  终端和浏览器只改变新进程或临时 profile；Android 用 `adb reverse` 和可撤销的 global proxy；Java 只写 app 自己的 truststore；Electron 不关闭证书校验。
-  Chrome/Electron 在 Linux 走 NSS，不读取 app 的 CA 文件；Firefox 临时 profile 在 `certutil` 可用时导入 CA，缺失时明确提示。
-  临时 profile 留在系统临时目录；不写 hosts，不修改用户全局配置。
+  终端把替换型信任变量指向系统根证书 + app CA 的 0600 bundle，未解密 host 仍可验证；找不到系统 bundle 时只设 `NODE_EXTRA_CA_CERTS` 并警告。
+  浏览器只改变临时 profile；Android 用 `adb reverse`，Undo 恢复原代理并移除对应 reverse；Java 先复制 JDK cacerts 再加 CA，JVM 选项含代理 host／port；Electron 不关闭证书校验。
+  Chrome/Electron 在 Linux 走 NSS，不读取 app 的 CA 文件；Firefox 临时 profile 在 Linux/macOS 用 `certutil`，Windows 用 enterprise roots。
+  临时 profile 在浏览器退出时删除，崩溃遗留的在下次启动清理；不写 hosts，不修改用户全局配置。
 - SOCKS5 入口、反向代理。
 - 上游代理：PAC、绕过、按 host、认证；系统代理绕过名单。
 - 导入：Swagger 2、Insomnia、Bruno、Hoppscotch、PowerShell／CMD cURL 已完成（见[使用指南](guide.md#import-and-export)）；Charles 会话、Proxyman 日志待做。Insomnia v4/v5、Bruno 目录、Hoppscotch 集合与环境、Swagger 2 均转换为现有集合／请求／环境模型；脚本、测试和无法表达的请求设置会明确列入导入报告。

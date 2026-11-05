@@ -75,25 +75,36 @@ client already pointed at the current listener and CA. It never edits the hosts
 file or a shell profile; only the launched process tree, a temporary browser
 profile, an emulator setting or the app's own Java truststore changes.
 
-- **Terminal** opens a new window with `HTTP_PROXY`, `HTTPS_PROXY`, `ALL_PROXY`,
-  their lowercase forms, `NO_PROXY`/`no_proxy`, `NODE_EXTRA_CA_CERTS`,
-  `REQUESTS_CA_BUNDLE`, `SSL_CERT_FILE`, `CURL_CA_BUNDLE`, `GIT_SSL_CAINFO`,
-  `PIP_CERT` and `DENO_CERT`. Only that window changes. On Linux `$TERMINAL` is
-  preferred, then `x-terminal-emulator`, GNOME Terminal, Konsole, Xfce Terminal,
-  Alacritty, Kitty, WezTerm, foot and xterm; macOS uses Terminal.app; Windows
-  opens a new `cmd.exe` window.
+- **Terminal** opens a new window with `HTTP_PROXY`, `HTTPS_PROXY`, their
+  lowercase forms, `NO_PROXY`/`no_proxy` and `NODE_EXTRA_CA_CERTS`. Only that
+  window changes. The app also writes
+  `~/.vscroxy/client-ca-bundle.pem` (0600) containing the system roots plus the
+  vscroxy CA, and points `REQUESTS_CA_BUNDLE`, `SSL_CERT_FILE`,
+  `CURL_CA_BUNDLE`, `GIT_SSL_CAINFO`, `PIP_CERT` and `DENO_CERT` at it. Those
+  variables replace a client's trust store, so the bundle keeps hosts that are
+  tunneled rather than decrypted working; pointing them at the app CA alone
+  would make every undecrypted HTTPS host fail. If no system bundle can be
+  found, the app sets only `NODE_EXTRA_CA_CERTS` and warns. On Linux `$TERMINAL`
+  is preferred, then `x-terminal-emulator`, GNOME Terminal, Konsole, Xfce
+  Terminal, Alacritty, Kitty, WezTerm, foot and xterm; macOS uses Terminal.app;
+  Windows opens a new `cmd.exe` window with the variables in its environment,
+  not a batch file, so non-ASCII paths are safe.
 - **Chrome** starts with a temporary `--user-data-dir` and `--proxy-server`.
   **Firefox** starts with a temporary profile whose `user.js` sets both HTTP and
   HTTPS proxies. The main browser profiles are untouched. Neither action passes
   a certificate-verification bypass. Chrome uses the system trust store on
   macOS/Windows and NSS on Linux; on Linux, trust the CA system-wide or add it
   with `certutil`. Firefox's temporary profile gets the CA through `certutil`
-  when NSS tools are installed; otherwise the app warns and Firefox may fall
-  back to enterprise roots.
+  when NSS tools are installed; on Windows the app skips NSS (System32's
+  `certutil` is not NSS) and Firefox uses the Windows root store through
+  enterprise roots.
 - **Android emulator** lists `adb devices -l`, runs
   `adb reverse tcp:PORT tcp:PORT`, then
-  `adb shell settings put global http_proxy 127.0.0.1:PORT`. **Undo proxy** sets
-  `http_proxy :0` and removes the reverse listener. **Copy CA to device** pushes
+  `adb shell settings put global http_proxy 127.0.0.1:PORT`. The app reads the
+  previous `http_proxy` first; **Undo proxy** restores the value remembered from
+  this app session (or clears it with `:0` if it was unset) and removes the
+  reverse listener it added.
+  **Copy CA to device** pushes
   only the public CA to `/sdcard/Download/vscroxy-ca.crt`; installing it and
   trusting it remains a device-side step. Android 7+ apps do not trust
   user-installed CAs, and the system store needs a rooted, writable-system
@@ -103,19 +114,23 @@ profile, an emulator setting or the app's own Java truststore changes.
   `xcrun simctl keychain booted add-root-cert <CA>` on the booted simulator. It
   does not configure a physical iPhone. The simulator may still require enabling
   full trust under Settings → General → About → Certificate Trust Settings.
-- **Java** imports the public CA into the app's own
-  `~/.vscroxy/java/truststore.p12` with `keytool`. Review the command first;
-  **Import CA** asks for confirmation and replaces only that file, atomically.
-  Point the JVM at it with the shown
-  `-Djavax.net.ssl.trustStore=...` options. Only this CA is in that truststore,
-  so direct public TLS may fail until other CAs are added.
+- **Java** builds the app's own `~/.vscroxy/java/truststore.p12` with
+  `keytool`: it first copies the JDK's `lib/security/cacerts`, then adds the
+  public CA. Review the two commands first; **Import CA** asks for confirmation
+  and replaces only that file, atomically. The JVM does not read
+  `HTTP_PROXY`/`HTTPS_PROXY`, so the shown options include
+  `-Djavax.net.ssl.trustStore=...` and `-Dhttp.proxyHost`/`-Dhttps.proxyHost`
+  (plus ports and `-Dhttp.nonProxyHosts`). The truststore starts with the JDK's
+  public roots, so direct public TLS keeps working.
 - **Electron app** launches the chosen executable with `--proxy-server`. It
   never passes `--ignore-certificate-errors`; certificate trust comes from the
   OS store on macOS/Windows and NSS on Linux. Apps that set their own proxy or
   pin certificates can ignore the flag.
 
-Temporary browser profiles stay in the system temporary directory; remove them
-when finished or let the OS clean them. Missing `adb`, `keytool`, `xcrun`,
+Temporary browser profiles stay in the system temporary directory
+(`vscroxy-chrome-*`, `vscroxy-firefox-*`); the app removes one when its browser
+exits and removes old ones left by a crash on the next launch. Terminal scripts
+remove themselves when they start. Missing `adb`, `keytool`, `xcrun`,
 `certutil`, a terminal, Chrome or Firefox produces a notification naming the
 missing helper instead of failing silently.
 
