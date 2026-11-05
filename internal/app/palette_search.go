@@ -92,31 +92,57 @@ func (a *app) requestSearch() requestSearchIndex {
 	return idx
 }
 
-// paletteSearchEntries finds collections, folders, requests, environments and
-// variable names. Variable values are never part of a label, detail or
-// haystack, so typing a secret cannot reveal that it exists.
+// paletteResultLimit bounds resource rows in one palette frame. A broad
+// query can match every saved request; building thousands of rows and their
+// closures every frame is wasted work when only a few can be seen.
+const paletteResultLimit = 50
+
+type paletteSearch struct {
+	entries []paletteEntry
+	more    int
+}
+
+// paletteSearchEntries is paletteSearch without the overflow count.
 func (a *app) paletteSearchEntries(query string) []paletteEntry {
+	return a.paletteSearch(query).entries
+}
+
+// paletteSearch finds collections, folders, requests, environments and
+// variable names. Variable values are never part of a label, detail or
+// haystack, so typing a secret cannot reveal that it exists. The first
+// paletteResultLimit matches are returned; more counts the rest.
+func (a *app) paletteSearch(query string) paletteSearch {
 	query = strings.ToLower(strings.TrimSpace(query))
 	if query == "" {
-		return nil
+		return paletteSearch{}
 	}
 	idx := a.requestSearch()
-	var out []paletteEntry
+	out := paletteSearch{}
+	// room reports whether one more row fits, counting the rest as overflow.
+	// It runs before a row and its closure are built, so a broad query does
+	// not allocate thousands of discarded entries.
+	room := func() bool {
+		if len(out.entries) >= paletteResultLimit {
+			out.more++
+			return false
+		}
+		return true
+	}
 	for _, p := range idx.paths {
-		if strings.Contains(p.haystack, query) {
+		if strings.Contains(p.haystack, query) && room() {
 			path := p.path
-			out = append(out, paletteEntry{
+			out.entries = append(out.entries, paletteEntry{
 				label: p.label, detail: p.kind + " · " + path, meta: p.kind, enabled: true,
 				run: func() { a.revealCollection(path) },
 			})
 		}
 	}
 	for _, r := range idx.requests {
-		if !strings.Contains(r.haystack, query) {
+		if !strings.Contains(r.haystack, query) || !room() {
 			continue
 		}
 		key := r.key
-		out = append(out, paletteEntry{
+		out.entries = append(out.entries, paletteEntry{
 			label: r.label, detail: r.detail, meta: "Request", enabled: true,
 			run: func() { a.openSaved(key) },
 		})
@@ -125,8 +151,8 @@ func (a *app) paletteSearchEntries(query string) []paletteEntry {
 	slices.SortFunc(envs, func(x, y environment) int { return strings.Compare(x.Name, y.Name) })
 	for _, env := range envs {
 		name := env.Name
-		if strings.Contains(strings.ToLower(name), query) {
-			out = append(out, paletteEntry{
+		if strings.Contains(strings.ToLower(name), query) && room() {
+			out.entries = append(out.entries, paletteEntry{
 				label: name, detail: "Environment · " + name, meta: "Environment", enabled: true,
 				run: func() { a.openEnvironment(name) },
 			})
@@ -139,20 +165,20 @@ func (a *app) paletteSearchEntries(query string) []paletteEntry {
 			names[key] = true
 		}
 		for _, variable := range slices.Sorted(maps.Keys(names)) {
-			if !strings.Contains(strings.ToLower(variable), query) {
+			if !strings.Contains(strings.ToLower(variable), query) || !room() {
 				continue
 			}
-			out = append(out, paletteEntry{
+			out.entries = append(out.entries, paletteEntry{
 				label: variable, detail: "Variable · " + name, meta: "Variable", enabled: true,
 				run: func() { a.openEnvironment(name) },
 			})
 		}
 	}
 	for _, name := range slices.Sorted(maps.Keys(a.globals)) {
-		if !strings.Contains(strings.ToLower(name), query) {
+		if !strings.Contains(strings.ToLower(name), query) || !room() {
 			continue
 		}
-		out = append(out, paletteEntry{
+		out.entries = append(out.entries, paletteEntry{
 			label: name, detail: "Global variable", meta: "Variable", enabled: true,
 			run: func() {
 				a.editGlobals()

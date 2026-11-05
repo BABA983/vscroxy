@@ -46,6 +46,7 @@ func TestCookiePersistenceRoundTripPreservesScopeAndPrivacy(t *testing.T) {
 		{Name: "host", Value: "host-value", Path: "/app", Expires: expires, HttpOnly: true},
 		{Name: "domain", Value: "domain-value", Domain: "example.com", Path: "/", Expires: expires, Secure: true, HttpOnly: true},
 	})
+	a.flushCookies()
 
 	info, err := os.Stat(path)
 	if err != nil {
@@ -92,6 +93,7 @@ func TestCookiePersistenceKeepsOnlyTheCookieOrigin(t *testing.T) {
 	a := cookieTestApp(t, path, true)
 	u, _ := url.Parse("https://private-user:private-pass@api.example.com/app/login?token=query-secret#fragment")
 	a.requestCookies().SetCookies(u, []*http.Cookie{{Name: "keep", Value: "v", Path: "/", Expires: time.Now().Add(time.Hour)}})
+	a.flushCookies()
 	data, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatal(err)
@@ -179,6 +181,114 @@ func TestCookiesStayInMemoryByDefaultAndTurningOffRemovesTheFile(t *testing.T) {
 	}
 }
 
+func setCookieSaveDelay(s *cookieStore, delay time.Duration) {
+	s.mu.Lock()
+	s.delay = delay
+	s.mu.Unlock()
+}
+
+func waitCookieWrites(t *testing.T, s *cookieStore, want int) {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		if got := s.writeCount(); got == want {
+			return
+		} else if time.Now().After(deadline) {
+			t.Fatalf("cookie writes = %d, want %d", got, want)
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+}
+
+func TestCookiePersistenceSessionOnlyNeverWrites(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "cookies.json")
+	a := cookieTestApp(t, path, true)
+	s := a.requestCookies()
+	setCookieSaveDelay(s, 10*time.Millisecond)
+	u, _ := url.Parse("https://api.example.com/")
+	s.SetCookies(u, []*http.Cookie{{Name: "session", Value: "only-memory", Path: "/"}})
+	time.Sleep(60 * time.Millisecond)
+	if got := s.writeCount(); got != 0 {
+		t.Fatalf("session-only cookie wrote %d times", got)
+	}
+	if _, err := os.Stat(path); !errors.Is(err, fs.ErrNotExist) {
+		t.Fatalf("session-only cookie created a file: %v", err)
+	}
+
+	// With a persistent file already present, a session-only response leaves
+	// it untouched as well.
+	s.SetCookies(u, []*http.Cookie{{Name: "keep", Value: "v", Path: "/", Expires: time.Now().Add(time.Hour)}})
+	a.flushCookies()
+	writes := s.writeCount()
+	s.SetCookies(u, []*http.Cookie{{Name: "another-session", Value: "memory", Path: "/"}})
+	time.Sleep(30 * time.Millisecond)
+	if got := s.writeCount(); got != writes {
+		t.Fatalf("session-only change rewrote the file: writes %d -> %d", writes, got)
+	}
+}
+
+func TestCookiePersistenceDebouncesConsecutiveChanges(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "cookies.json")
+	a := cookieTestApp(t, path, true)
+	s := a.requestCookies()
+	setCookieSaveDelay(s, 100*time.Millisecond)
+	u, _ := url.Parse("https://api.example.com/")
+	for i := range 5 {
+		s.SetCookies(u, []*http.Cookie{{Name: "keep", Value: fmt.Sprint(i), Path: "/", Expires: time.Now().Add(time.Hour)}})
+	}
+	waitCookieWrites(t, s, 1)
+	time.Sleep(150 * time.Millisecond)
+	if got := s.writeCount(); got != 1 {
+		t.Fatalf("consecutive changes wrote %d times, want one debounced write", got)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(data), `"value":"4"`) {
+		t.Fatalf("debounced write did not keep the last value: %s", data)
+	}
+}
+
+func TestCookiePersistenceSkipsUnchangedRecords(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "cookies.json")
+	a := cookieTestApp(t, path, true)
+	s := a.requestCookies()
+	setCookieSaveDelay(s, 10*time.Millisecond)
+	u, _ := url.Parse("https://api.example.com/")
+	cookie := &http.Cookie{Name: "keep", Value: "same", Path: "/", Expires: time.Now().Add(time.Hour).Truncate(time.Second)}
+	s.SetCookies(u, []*http.Cookie{cookie})
+	a.flushCookies()
+	if got := s.writeCount(); got != 1 {
+		t.Fatalf("first write count = %d", got)
+	}
+	s.SetCookies(u, []*http.Cookie{cookie})
+	time.Sleep(50 * time.Millisecond)
+	if got := s.writeCount(); got != 1 {
+		t.Fatalf("unchanged persistent records wrote %d times, want one", got)
+	}
+}
+
+func TestCookiePersistenceFlushesOnExit(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "cookies.json")
+	a := cookieTestApp(t, path, true)
+	s := a.requestCookies()
+	setCookieSaveDelay(s, time.Hour)
+	u, _ := url.Parse("https://api.example.com/")
+	s.SetCookies(u, []*http.Cookie{{Name: "keep", Value: "exit", Path: "/", Expires: time.Now().Add(time.Hour)}})
+	if _, err := os.Stat(path); !errors.Is(err, fs.ErrNotExist) {
+		t.Fatalf("debounced write happened before exit: %v", err)
+	}
+	a.flushCookies()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("exit did not flush the cookie file: %v", err)
+	}
+	if !strings.Contains(string(data), `"value":"exit"`) || s.writeCount() != 1 {
+		t.Fatalf("exit flush = %s, writes=%d", data, s.writeCount())
+	}
+}
+
 func TestPersistedCookieJarFeedsSendAndPmCookies(t *testing.T) {
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if c, err := r.Cookie("keep"); err != nil || c.Value != "v" {
@@ -216,14 +326,20 @@ func TestCookieManagerMasksValuesAndClearsByDomain(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "cookies.json")
 	a := cookieTestApp(t, path, true)
 	u, _ := url.Parse("https://api.example.com/")
-	a.requestCookies().SetCookies(u, []*http.Cookie{{Name: "session", Value: "super-secret", Domain: "example.com", Path: "/", Expires: time.Now().Add(time.Hour)}})
+	a.requestCookies().SetCookies(u, []*http.Cookie{{Name: "session", Value: "super-secret", Domain: "example.com", Path: "/", Expires: time.Now().Add(time.Hour), Secure: true, HttpOnly: true}})
 	a.openCookies()
 	tt := ui.NewTester(a.view, 1000, 760)
-	if !tt.HasText("session = ••••••••  masked") {
+	if !tt.HasText("session = ••••••••") {
 		t.Fatalf("cookie value was not masked: %v", tt.Texts())
 	}
 	if tt.HasText("session = super-secret") {
 		t.Fatal("cookie value was visible before reveal")
+	}
+	if tt.HasText("Secure false") || tt.HasText("HttpOnly false") {
+		t.Fatalf("cookie attributes showed false: %v", tt.Texts())
+	}
+	if !tt.HasText("Secure · HttpOnly") {
+		t.Fatalf("true cookie attributes were not shown as labels: %v", tt.Texts())
 	}
 	if err := tt.Click("Reveal cookie session /"); err != nil {
 		t.Fatal(err)

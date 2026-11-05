@@ -646,7 +646,8 @@ func (a *app) commandPalette(c *ui.Context) {
 					})
 				}
 			}
-			matches = append(matches, a.paletteSearchEntries(query)...)
+			assets := a.paletteSearch(query)
+			matches = append(matches, assets.entries...)
 			matches = append(matches, unavailable...)
 			run := func() {
 				if w.command >= 0 && w.command < len(matches) && matches[w.command].enabled {
@@ -722,6 +723,9 @@ func (a *app) commandPalette(c *ui.Context) {
 					message = "Draft · " + a.title()
 				}
 				uikit.Meta(c, message).SingleLine().Tooltip(message)
+			}
+			if assets.more > 0 {
+				uikit.Meta(c, fmt.Sprintf("%d more results · narrow the search", assets.more)).SingleLine()
 			}
 			uikit.Meta(c, "↑ ↓ Choose · Enter Run · Esc Close")
 		})

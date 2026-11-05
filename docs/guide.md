@@ -1696,8 +1696,10 @@ cleared by domain or cleared all. **Keep cookies after quitting** is off by
 default because cookie values are credentials. When it is on, only cookies with
 an expiry are saved to `~/.vscroxy/cookies.json` (0600); session cookies are
 never written, and the file is outside collections, exports and configuration
-import/export. Turning the option off removes the file. Raw capture Replay does
-not use this jar. Saved auth, environment variables and request history may
+import/export. Writes are debounced by about half a second and flushed on quit;
+a response that sets only session cookies never writes. Turning the option off
+removes the file. Raw capture Replay does not use this jar. Saved auth,
+environment variables and request history may
 contain credentials: local files are private (0600), not encrypted. Prefer
 `{{variables}}` and review exports before sharing. OpenAPI
 draft generation explicitly warns that structured forms and auth need manual
@@ -2505,8 +2507,9 @@ search covers name, method and URL; collection and folder search also covers
 their description. Variable values are never searched or shown. Choosing a
 request opens it; choosing an environment, variable or global opens Variables;
 choosing a collection or folder reveals it in the sidebar. The request index is
-rebuilt when the library changes, so large collections stay responsive. Use
-arrows and Enter to choose, Escape to dismiss and restore the previous focus.
+rebuilt when the library changes, so large collections stay responsive. A broad
+search shows at most 50 saved-resource matches and says how many more it hid.
+Use arrows and Enter to choose, Escape to dismiss and restore the previous focus.
 With an empty search the list holds only what can run now; a search also lists
 unavailable matches last, each explaining why. Commands show their shortcut and
 current target.
