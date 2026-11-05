@@ -1490,8 +1490,9 @@ the table. Disabled rows stay in the request file
 (`headerList`) but never in the block that is sent, copied or exported. Params
 edits the URL's query the same way, and only enabled rows reach it. Auth supports
 **Inherit**, Bearer, Basic, API keys in a header or query parameter, OAuth
-2.0, Digest, AWS Signature and JWT Bearer; explicit auth replaces that header
-unless the pre-script explicitly sets/removes it. **Digest** sends once, and
+2.0, OAuth 1.0, Digest, AWS Signature, JWT Bearer, Hawk and Akamai EdgeGrid;
+explicit auth replaces that header unless the pre-script explicitly sets or
+removes it. **Digest** sends once, and
 when the answer is a 401 with a Digest challenge (MD5, SHA-256 or their -sess
 forms, qop `auth` or none) sends again with the answer; both exchanges are in
 Capture, and checks and scripts see the second. A challenge it cannot answer,
@@ -1506,9 +1507,36 @@ token per send with HS256/384/512 (a secret, optionally base64), RS, PS or ES
 256/384/512 (a PEM private key), from a JSON payload and optional extra header
 fields, and sends it after a prefix (`Bearer`) or as a query parameter
 (`token`). Nothing is added to the payload, so set `exp` or `iat` yourself;
-`{{$timestamp}}` works there. **Inherit** (the default for new requests) uses the nearest
-folder or collection auth and says which one it is; see [Collections, variables
-and the vault](#collections-variables-and-the-vault).
+`{{$timestamp}}` works there. **OAuth 1.0** signs with HMAC-SHA1,
+HMAC-SHA256, PLAINTEXT or RSA-SHA1/256/512, from a consumer key and secret, an
+optional token and secret, and a PEM private key for RSA. **Add authorization
+to** sends the parameters in `Authorization`, the query, or a form body;
+**Automatic** follows Postman and uses a URL-encoded POST/PUT body, the query
+otherwise. **Body hash** adds `oauth_body_hash` for a body that is not
+form-encoded. Timestamp, nonce, version, realm, callback and verifier are
+optional; an empty timestamp and nonce are generated per send, and version
+defaults to 1.0. Every field takes `{{variables}}` and `{{vault:name}}`, and a
+vault secret is unlocked for the request's host. **Hawk** signs with SHA-256
+(the default) or SHA-1 from an auth ID and key. **Payload hash** covers
+`Content-Type` and the body; **ext**, **App** and **Delegation** add the
+protocol's application data and Oz IDs. Timestamp and nonce are generated per
+send when empty. Postman's Hawk **User** is kept for round-trips but is not
+part of the MAC. **Akamai EdgeGrid** signs with the access token, client token
+and client secret. **Base URL** overrides the host in the signature (a scheme
+and path are ignored), and **Headers to sign** is a comma-separated, ordered
+list of header names; POST bodies are hashed automatically. Timestamp and
+nonce are generated per send when empty. Copied cURL and code carry the signed
+header, query or body as they carry AWS and JWT signatures, so an OAuth 1.0
+signature is only valid for the timestamp and nonce it was made with.
+**NTLM** is not offered: its Type 1/2/3 challenge needs the same connection
+for every step, while each send opens a new connection (the replay transport
+disables keep-alives and the proxy pins an upstream connection to its
+downstream one). Postman collections that use NTLM import as no auth with a
+warning naming this; Postman's `oauth1`, `hawk` and `edgegrid` auth objects
+round-trip, with an OAuth 1.0 header/body switch that imports as Automatic
+when Postman sets `addParamsToHeader` false. **Inherit** (the default for new
+requests) uses the nearest folder or collection auth and says which one it is;
+see [Collections, variables and the vault](#collections-variables-and-the-vault).
 
 **OAuth 2.0** gets an access token with the authorization code grant with PKCE
 (the default), the authorization code grant, client credentials or the

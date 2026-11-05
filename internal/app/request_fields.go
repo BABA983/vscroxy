@@ -348,7 +348,8 @@ func (a *app) authEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
 }
 
 // authTypes are the auth a request or folder sets itself.
-var authTypes = []string{"None", "Bearer", "Basic", "API key", request.AuthOAuth2, request.AuthDigest, request.AuthAWS, request.AuthJWT}
+var authTypes = []string{"None", "Bearer", "Basic", "API key", request.AuthOAuth2, request.AuthOAuth1,
+	request.AuthDigest, request.AuthAWS, request.AuthJWT, request.AuthHawk, request.AuthEdgeGrid}
 
 // authFields edits one Auth, a request's or a folder's; collection is where
 // it is used, for the variables an OAuth 2.0 token request expands.
@@ -377,6 +378,51 @@ func (a *app) authFields(c *ui.Context, auth *request.Auth, types []string, coll
 			})
 		case request.AuthOAuth2:
 			a.oauthFields(c, auth, collection)
+		case request.AuthOAuth1:
+			o := &auth.OAuth1
+			if o.SignatureMethod == "" {
+				o.SignatureMethod = request.OAuth1Methods[0]
+			}
+			addTo := cmp.Or(o.AddTo, "Header")
+			if addTo == "Auto" {
+				addTo = "Automatic"
+			}
+			ui.Field(c, "Consumer key", func() { uikit.Input(c, &o.ConsumerKey) })
+			ui.Field(c, "Consumer secret", func() {
+				uikit.Input(c, &o.ConsumerSecret).Placeholder("{{vault:oauth1_secret}}").Password()
+			})
+			ui.Field(c, "Token", func() { uikit.Input(c, &o.Token).Placeholder("Optional for two-legged auth") })
+			ui.Field(c, "Token secret", func() { uikit.Input(c, &o.TokenSecret).Password() })
+			ui.Field(c, "Signature method", func() {
+				uikit.Select(c, &o.SignatureMethod, request.OAuth1Methods).Width(180)
+			})
+			if strings.HasPrefix(o.SignatureMethod, "RSA-") {
+				ui.Field(c, "Private key", func() {
+					ui.TextArea(c, &o.PrivateKey).Height(72).Font(uikit.FontMono).FontSize(uikit.TextBody).Radius(uikit.RadiusControl).Placeholder("-----BEGIN PRIVATE KEY----- … or {{vault:oauth1_key}}")
+				})
+			}
+			ui.Field(c, "Add authorization to", func() {
+				if uikit.Select(c, &addTo, []string{"Header", "Query", "Body", "Automatic"}).Width(180).Changed() {
+					o.AddTo = addTo
+					if addTo == "Header" {
+						o.AddTo = ""
+					} else if addTo == "Automatic" {
+						o.AddTo = "Auto"
+					}
+				}
+			}).Description("Automatic uses a form body for POST or PUT, the query otherwise.")
+			ui.Field(c, "Body hash", func() {
+				ui.Checkbox(c, &o.IncludeBodyHash, "Hash a non-form body")
+			}).Description("Adds oauth_body_hash; form bodies are signed as parameters.")
+			ui.Field(c, "Empty parameters", func() {
+				ui.Checkbox(c, &o.AddEmptyParamsToSign, "Include in the signature")
+			})
+			ui.Field(c, "Timestamp", func() { uikit.Input(c, &o.Timestamp).Placeholder("Now").Width(200) })
+			ui.Field(c, "Nonce", func() { uikit.Input(c, &o.Nonce).Placeholder("Random").Width(200) })
+			ui.Field(c, "Version", func() { uikit.Input(c, &o.Version).Placeholder("1.0").Width(120) })
+			ui.Field(c, "Realm", func() { uikit.Input(c, &o.Realm).Placeholder("Optional") })
+			ui.Field(c, "Callback URL", func() { uikit.Input(c, &o.Callback).Placeholder("Optional, oauth_callback") })
+			ui.Field(c, "Verifier", func() { uikit.Input(c, &o.Verifier).Placeholder("Optional, oauth_verifier") })
 		case request.AuthDigest:
 			ui.Field(c, "Username", func() { uikit.Input(c, &auth.Username) })
 			ui.Field(c, "Password", func() { uikit.Input(c, &auth.Password).Password() }).
@@ -433,6 +479,45 @@ func (a *app) authFields(c *ui.Context, auth *request.Auth, types []string, coll
 			} else {
 				ui.Field(c, "Header prefix", func() { uikit.Input(c, &jwt.Prefix).Placeholder("Bearer").Width(150) })
 			}
+		case request.AuthHawk:
+			h := &auth.Hawk
+			if h.Algorithm == "" {
+				h.Algorithm = request.HawkAlgorithms[0]
+			}
+			ui.Field(c, "Auth ID", func() { uikit.Input(c, &h.AuthID) })
+			ui.Field(c, "Auth key", func() {
+				uikit.Input(c, &h.AuthKey).Placeholder("{{vault:hawk_key}}").Password()
+			})
+			ui.Field(c, "Algorithm", func() {
+				uikit.Select(c, &h.Algorithm, request.HawkAlgorithms).Width(160)
+			})
+			ui.Field(c, "Payload hash", func() {
+				ui.Checkbox(c, &h.IncludePayloadHash, "Include payload hash")
+			}).Description("Covers Content-Type and the body in the MAC.")
+			ui.Field(c, "Timestamp", func() { uikit.Input(c, &h.Timestamp).Placeholder("Now").Width(200) })
+			ui.Field(c, "Nonce", func() { uikit.Input(c, &h.Nonce).Placeholder("Random").Width(200) })
+			ui.Field(c, "ext", func() { uikit.Input(c, &h.ExtraData).Placeholder("Application-specific data, optional") })
+			ui.Field(c, "App", func() { uikit.Input(c, &h.App).Placeholder("Oz application ID, optional") })
+			ui.Field(c, "Delegation", func() { uikit.Input(c, &h.Delegation).Placeholder("Oz delegated-by ID, optional") })
+			if h.User != "" {
+				ui.Field(c, "User", func() { uikit.Input(c, &h.User) }).
+					Description("Kept for Postman; the request MAC does not cover it.")
+			}
+		case request.AuthEdgeGrid:
+			e := &auth.EdgeGrid
+			ui.Field(c, "Access token", func() { uikit.Input(c, &e.AccessToken) })
+			ui.Field(c, "Client token", func() { uikit.Input(c, &e.ClientToken) })
+			ui.Field(c, "Client secret", func() {
+				uikit.Input(c, &e.ClientSecret).Placeholder("{{vault:edgegrid_secret}}").Password()
+			})
+			ui.Field(c, "Base URL", func() {
+				uikit.Input(c, &e.BaseURL).Placeholder("Request host by default")
+			}).Description("The host the signature covers; a scheme and path are ignored.")
+			ui.Field(c, "Timestamp", func() { uikit.Input(c, &e.Timestamp).Placeholder("Now").Width(240) })
+			ui.Field(c, "Nonce", func() { uikit.Input(c, &e.Nonce).Placeholder("Random UUID").Width(240) })
+			ui.Field(c, "Headers to sign", func() {
+				uikit.Input(c, &e.HeadersToSign).Placeholder("Comma-separated, e.g. X-Test1,X-Test2")
+			}).Description("Names are signed in this order, with whitespace collapsed.")
 		}
 	}).Gap(t.Space(3))
 }

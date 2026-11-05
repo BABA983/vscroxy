@@ -172,8 +172,8 @@
 | Body：binary 文件 | 已有 | 只保存本地路径，每次发送原样读取，普通文件 ≤16 MiB；Send/Runner 共用，Postman 导入导出保留引用，支持 cURL 导出 | M6 |
 | Body：GraphQL（query + variables） | 已有 | 独立编辑与保存，变量展开、Send/Runner、Postman 导入导出、代码导出 | M6 |
 | GraphQL schema 自省和补全 | 缺少 | 基础 Body 和 query 格式化已完成；operationName 编辑选择仍待做 | M6 |
-| Auth：Inherit、Bearer、Basic、API key、OAuth 2.0、Digest、AWS、JWT | 已有 | | |
-| Auth：OAuth 1.0、NTLM、Hawk、Akamai EdgeGrid | 缺少 | 按需求排 | M6 |
+| Auth：Inherit、Bearer、Basic、API key、OAuth 2.0、OAuth 1.0、Digest、AWS、JWT、Hawk、Akamai EdgeGrid | 已有 | OAuth 1.0：HMAC-SHA1/SHA256、PLAINTEXT、RSA-SHA1/256/512，header／query／body 位置、body hash、Postman oauth1 导入导出；Hawk：SHA-256/SHA-1、payload hash、ext／app／delegation；EdgeGrid：Base URL、签名头列表、POST 正文 hash | |
+| Auth：NTLM | 缺少 | 需要同一连接完成 Type 1/2/3 质询；Send／Runner 每次发送新建连接（`capture.ReplayWithRedirects` 禁用 keep-alive，代理按下游连接固定上游），无法握手；Postman 导入警告并置为 None | M6 |
 | 环境、全局变量、集合/文件夹变量、Vault | 已有 | | |
 | 变量分"可提交的初始值"和"仅本地的当前值" | 缺少 | 对放进 Git 的集合很重要 | M6 |
 | `{{变量}}` 自动补全、悬停预览、未定义高亮 | 缺少 | | M6 |
@@ -312,7 +312,7 @@ Cookie 和其他 API key 保留为变量 header，避免把多个认证机制硬
 - 变量：初始值/当前值、自动补全和悬停、完整动态变量（常用项已扩至 32 个，仍未覆盖完整 Faker）。
 - 脚本：沙箱库；`have.jsonSchema` 已完成（Ajv 6.12.6，无 UI 改动）。
 - Postman Collection v3 导入导出。
-- OAuth 1.0 等补充认证。
+- OAuth 1.0、Hawk、Akamai EdgeGrid 已完成，含变量展开、Vault、Send／Runner、Postman 导入导出和代码导出；NTLM 因需要同一连接完成质询握手，当前发送路径每次新建连接，未实现。
 - Cookies 持久化、全局搜索；响应保存到文件已完成（含二进制和完整落盘正文）。
 - UI 改版第 6 步（VS Code 主题）在 M3 到 M6 期间穿插完成。
 
