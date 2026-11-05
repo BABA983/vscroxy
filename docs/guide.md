@@ -834,7 +834,7 @@ space; component decoding does not. JWT decoding **does not verify signatures,
 expiry, issuer or other claims**. Copy result copies only the decoded preview;
 neither decoding nor editing its scratch input modifies or sends a request.
 
-Both captured sides have a **Cookies** tab, separate from the session cookie
+Both captured sides have a **Cookies** tab, separate from the request cookie
 jar. Request Cookie pairs and response Set-Cookie lines preserve duplicate
 names. Response details include Domain, Path, Expires, Max-Age, SameSite,
 Secure, HttpOnly and Partitioned; missing attributes are not inferred from the
@@ -1675,12 +1675,18 @@ Capture instead. Canceling the native save dialog writes nothing. The selected
 response is fixed when saving starts, even if another request is sent meanwhile.
 Saved bodies may contain credentials; review them before sharing.
 
-**Cookies…** manages the in-memory cookie jar shared by Requests and Runner.
-Set-Cookie, redirects, domain/path restrictions, expiry and Secure are respected.
-Cookies can be inspected, added, deleted or cleared; they are not persisted and
-raw capture Replay does not use this jar. Saved auth, environment variables and
-request history may contain credentials: local files are private (0600), not
-encrypted. Prefer `{{variables}}` and review exports before sharing. OpenAPI
+**Cookies…** manages the cookie jar shared by Requests, Runner, request scripts
+and the interactive SSE, WebSocket and Socket.IO clients. Set-Cookie, redirects,
+domain/path restrictions, expiry, Secure and HttpOnly are respected. Values are
+masked by default; reveal one row to read it. Cookies can be added, deleted,
+cleared by domain or cleared all. **Keep cookies after quitting** is off by
+default because cookie values are credentials. When it is on, only cookies with
+an expiry are saved to `~/.vscroxy/cookies.json` (0600); session cookies are
+never written, and the file is outside collections, exports and configuration
+import/export. Turning the option off removes the file. Raw capture Replay does
+not use this jar. Saved auth, environment variables and request history may
+contain credentials: local files are private (0600), not encrypted. Prefer
+`{{variables}}` and review exports before sharing. OpenAPI
 draft generation explicitly warns that structured forms and auth need manual
 schema/security definitions; it does not copy their secrets or file paths.
 
@@ -2452,8 +2458,14 @@ toggles the sidebar. **View → Reset desktop layout** restores the defaults.
 Selecting multiple requests reveals **Replay**, **Export HAR** and **Clear
 selection** directly above the table; replay settings snapshot the entire choice.
 
-**Commands** (Cmd/Ctrl+K) searches capture actions, layouts, setup and settings.
-Use arrows and Enter to choose, Escape to dismiss and restore the previous focus.
+**Commands** (Cmd/Ctrl+K) searches capture actions, layouts, setup and settings,
+then collections, folders, requests, environments and variable names. Request
+search covers name, method and URL; collection and folder search also covers
+their description. Variable values are never searched or shown. Choosing a
+request opens it; choosing an environment, variable or global opens Variables;
+choosing a collection or folder reveals it in the sidebar. The request index is
+rebuilt when the library changes, so large collections stay responsive. Use
+arrows and Enter to choose, Escape to dismiss and restore the previous focus.
 With an empty search the list holds only what can run now; a search also lists
 unavailable matches last, each explaining why. Commands show their shortcut and
 current target.
@@ -2497,7 +2509,8 @@ The design takes **Edit and Repeat** from [Proxyman](https://docs.proxyman.com/a
 and the explicit **Send** chord documented by [Postman](https://blog.postman.com/boost-your-productivity-in-postman-with-these-4-keyboard-shortcuts/).
 Unlike [Proxyman's Repeat](https://docs.proxyman.com/advanced-features/repeat),
 Cmd/Ctrl+Enter in Capture does not immediately replay traffic. Cmd/Ctrl+K retains
-our existing command palette; it is not Postman's resource search. Some official
+our existing command palette, now with saved requests and environments in the
+same list rather than a separate Postman-style resource tab. Some official
 references are macOS-only or historical, so we deliberately define one consistent
 vscroxy mapping instead of silently inheriting conflicting shortcuts.
 
