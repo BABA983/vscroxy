@@ -361,8 +361,20 @@ func (a *app) applySettings(s settings) {
 	a.columns = s.Columns.layout()
 	a.customColumns, a.hiddenColumns = slices.Clone(s.CustomColumns), slices.Clone(s.HiddenColumns)
 	a.proxyPort, a.vault.scripts, a.allowOn = s.ProxyPort, s.VaultScripts, s.AllowList
-	a.socksOn, a.socksPort, a.socksAuth = s.SOCKSOn, s.SOCKSPort, s.SOCKSAuth
-	a.socksUsername, a.socksPassword = s.SOCKSUsername, s.SOCKSPassword
+	// A shared bundle never carries the SOCKS5 password. Keep this
+	// computer's password when the imported entry asks for authentication;
+	// without one, authentication cannot be on, so turn it off instead of
+	// accepting any username with an empty password.
+	socksAuth, socksPassword := s.SOCKSAuth, s.SOCKSPassword
+	if socksAuth && socksPassword == "" {
+		socksPassword = a.socksPassword
+		if socksPassword == "" {
+			socksAuth = false
+			a.warn("Imported SOCKS5 authentication is off: the configuration has no password. Set one to turn it on.")
+		}
+	}
+	a.socksOn, a.socksPort, a.socksAuth = s.SOCKSOn, s.SOCKSPort, socksAuth
+	a.socksUsername, a.socksPassword = s.SOCKSUsername, socksPassword
 	a.resetSOCKSDrafts()
 	a.reverses = slices.Clone(s.ReverseProxies)
 	if a.srv != nil {

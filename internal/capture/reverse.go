@@ -4,8 +4,9 @@ package capture
 // to a configured remote base URL. The request is sent through this app's own
 // proxy listener, so the engine's rules, scripts, breakpoints and capture
 // pipeline apply exactly as they do to a client that used the proxy directly.
-// An HTTPS remote is reached by this app's TLS client, with the proxy's CA
-// trusted; the engine decrypts that tunnel for capture.
+// An HTTPS remote is reached by this app's TLS client; the engine decrypts
+// that tunnel for capture and verifies the real remote certificate unless the
+// entry allows a self-signed one.
 
 import (
 	"crypto/tls"
@@ -21,6 +22,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/lqqyt2423/go-mitmproxy/proxy"
 )
 
 const (
@@ -44,6 +47,10 @@ type ReverseProxy struct {
 	Target   string
 	KeepHost bool
 	Enabled  bool
+	// Insecure turns off certificate verification for the remote HTTPS
+	// target. It is off by default; only a development server with a
+	// self-signed certificate should set it.
+	Insecure bool
 }
 
 // ReverseProxyStatus is one entry's runtime state: the bound address, or why
@@ -183,6 +190,13 @@ func (s *Server) startReverseLocked(r ReverseProxy, httpAddr, socksAddr string) 
 		return err
 	}
 
+	connectHeader := http.Header{reverseTokenHeader: {s.reverseToken}}
+	if !r.Insecure {
+		// The engine verifies the real remote certificate, not just this
+		// proxy's own interception certificate. The header is the same one a
+		// verified request send uses; it is removed before the flow exists.
+		connectHeader.Set(proxy.HeaderVerifyUpstream, "1")
+	}
 	transport := &http.Transport{
 		Proxy: http.ProxyURL(&url.URL{Scheme: "http", Host: httpAddr}),
 		TLSClientConfig: &tls.Config{
@@ -209,7 +223,7 @@ func (s *Server) startReverseLocked(r ReverseProxy, httpAddr, socksAddr string) 
 		},
 		ForceAttemptHTTP2:  true,
 		DisableCompression: true,
-		ProxyConnectHeader: http.Header{reverseTokenHeader: {s.reverseToken}},
+		ProxyConnectHeader: connectHeader,
 		MaxIdleConns:       16,
 		IdleConnTimeout:    90 * time.Second,
 	}
@@ -233,8 +247,21 @@ func (s *Server) startReverseLocked(r ReverseProxy, httpAddr, socksAddr string) 
 			http.Error(w, "vscroxy reverse proxy: "+err.Error(), http.StatusBadGateway)
 		},
 	}
+	var serve http.Handler = handler
+	if !r.KeepHost {
+		// A web page can resolve its own name to 127.0.0.1 and reach this
+		// listener. With the remote Host there is no reason to accept such a
+		// name: only localhost or a loopback literal may call it.
+		serve = http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+			if !loopbackHost(req.Host) {
+				http.Error(w, "vscroxy reverse proxy: use localhost or a loopback address", http.StatusForbidden)
+				return
+			}
+			handler.ServeHTTP(w, req)
+		})
+	}
 	server := &http.Server{
-		Handler:           handler,
+		Handler:           serve,
 		ReadHeaderTimeout: 10 * time.Second,
 		IdleTimeout:       60 * time.Second,
 		ErrorLog:          slog.NewLogLogger(slog.DiscardHandler, slog.LevelError),
@@ -306,6 +333,23 @@ func singleJoiningSlash(a, b string) string {
 func isIPLiteral(host string) bool {
 	_, err := netip.ParseAddr(host)
 	return err == nil
+}
+
+// loopbackHost reports whether a Host header names this machine. It accepts
+// localhost and any loopback literal, with or without a port, and rejects a
+// name that merely resolves to a loopback address (DNS rebinding).
+func loopbackHost(host string) bool {
+	host = strings.TrimSpace(host)
+	if h, _, err := net.SplitHostPort(host); err == nil {
+		host = h
+	}
+	host = strings.Trim(host, "[]")
+	host = strings.TrimSuffix(host, ".")
+	if strings.EqualFold(host, "localhost") {
+		return true
+	}
+	ip, err := netip.ParseAddr(host)
+	return err == nil && ip.Unmap().IsLoopback()
 }
 
 // portOf returns the numeric port of an address, or "" when it has none.

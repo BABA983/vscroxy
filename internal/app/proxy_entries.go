@@ -76,6 +76,9 @@ func (a *app) socksConfig() (capture.SOCKSConfig, error) {
 		if a.socksUsername == "" {
 			return capture.SOCKSConfig{}, fmt.Errorf("SOCKS5 authentication needs a username")
 		}
+		if a.socksPassword == "" {
+			return capture.SOCKSConfig{}, fmt.Errorf("SOCKS5 authentication needs a password")
+		}
 		if len(a.socksUsername) > 255 || len(a.socksPassword) > 255 {
 			return capture.SOCKSConfig{}, fmt.Errorf("SOCKS5 username and password must each be at most 255 bytes")
 		}
@@ -119,6 +122,10 @@ func (a *app) saveSOCKS() {
 		pass = a.socksPassDraft
 		if user == "" {
 			a.socksProblem = "Enter a username, or turn authentication off"
+			return
+		}
+		if pass == "" {
+			a.socksProblem = "Enter a password, or turn authentication off"
 			return
 		}
 		if len(user) > 255 || len(pass) > 255 {
@@ -202,13 +209,14 @@ type reverseProxyDraft struct {
 	port     string
 	target   string
 	keepHost bool
+	insecure bool
 	problem  string
 }
 
 func (a *app) reverseConfigs() []capture.ReverseProxy {
 	out := make([]capture.ReverseProxy, len(a.reverses))
 	for i, r := range a.reverses {
-		out[i] = capture.ReverseProxy{ID: r.ID, Port: r.Port, Target: r.Target, KeepHost: r.KeepHost, Enabled: r.Enabled}
+		out[i] = capture.ReverseProxy{ID: r.ID, Port: r.Port, Target: r.Target, KeepHost: r.KeepHost, Enabled: r.Enabled, Insecure: r.Insecure}
 	}
 	return out
 }
@@ -236,7 +244,7 @@ func (a *app) openReverseProxy(id string) {
 	if id != "" {
 		for _, r := range a.reverses {
 			if r.ID == id {
-				d.port, d.target, d.keepHost = strconv.Itoa(r.Port), r.Target, r.KeepHost
+				d.port, d.target, d.keepHost, d.insecure = strconv.Itoa(r.Port), r.Target, r.KeepHost, r.Insecure
 				break
 			}
 		}
@@ -269,7 +277,7 @@ func (a *app) saveReverseProxy() {
 		d.problem = "The remote URL must not carry credentials, a query or a fragment"
 		return
 	}
-	entry := reverseProxySetting{ID: d.editing, Port: port, Target: target, KeepHost: d.keepHost, Enabled: true}
+	entry := reverseProxySetting{ID: d.editing, Port: port, Target: target, KeepHost: d.keepHost, Enabled: true, Insecure: d.insecure}
 	if entry.ID == "" {
 		entry.ID = uuid.NewString()
 		a.reverses = append(a.reverses, entry)
@@ -340,6 +348,10 @@ func (a *app) reverseProxySettings(c *ui.Context, t *ui.Theme) {
 			if r.KeepHost {
 				mode = "Keep original Host"
 			}
+			tlsMode := "Verify TLS"
+			if r.Insecure {
+				tlsMode = "Self-signed allowed"
+			}
 			state := "Off"
 			if r.Enabled {
 				switch {
@@ -367,7 +379,7 @@ func (a *app) reverseProxySettings(c *ui.Context, t *ui.Theme) {
 						a.removeReverseProxy(r.ID)
 					}
 				})
-			}).Description(mode + " · " + state)
+			}).Description(mode + " · " + tlsMode + " · " + state)
 			if st.Error != "" && r.Enabled {
 				field = field.Error(st.Error)
 			}
@@ -432,6 +444,9 @@ func (a *app) reverseProxyModal(c *ui.Context, t *ui.Theme) {
 					d.keepHost = choice == 1
 				})
 				uikit.Meta(c, "Remote host sends the target's authority. Keep original forwards the Host the local client sent.")
+				ui.Field(c, "Remote certificate", func() {
+					ui.Switch(c, &d.insecure).Label("Allow self-signed certificates")
+				}).Description("Off by default: the app verifies the remote certificate. Turn this on only for a development server whose certificate is not trusted.")
 				if d.problem != "" {
 					ui.Text(c, d.problem).FontSize(uikit.TextBody).TextColor(t.Danger)
 				}

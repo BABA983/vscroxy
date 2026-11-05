@@ -629,7 +629,7 @@ func TestUISnapshots(t *testing.T) {
 			a.socksOnDraft, a.socksPortInput = true, "7893"
 			a.socksAuthDraft, a.socksUserDraft, a.socksPassDraft = true, "device", "secret"
 			a.reverses = []reverseProxySetting{
-				{ID: "one", Port: 9000, Target: "https://api.example.com/v1", KeepHost: true, Enabled: true},
+				{ID: "one", Port: 9000, Target: "https://api.example.com/v1", KeepHost: true, Enabled: true, Insecure: true},
 				{ID: "two", Port: 9001, Target: "http://127.0.0.1:8080", Enabled: false},
 			}
 		}, act: func(t *testing.T, tt *ui.Tester) {

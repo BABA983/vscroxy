@@ -4,6 +4,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -46,6 +47,11 @@ func TestSOCKS5SettingsSaveValidateAndRestartState(t *testing.T) {
 	if a.socksProblem == "" || a.socksUsername != "alice" {
 		t.Fatalf("missing username: problem %q, user %q", a.socksProblem, a.socksUsername)
 	}
+	a.socksUserDraft, a.socksPassDraft = "alice", ""
+	a.saveSOCKS()
+	if !strings.Contains(a.socksProblem, "password") || a.socksPassword != "secret" {
+		t.Fatalf("missing password: problem %q, password %q", a.socksProblem, a.socksPassword)
+	}
 
 	// The fixed SOCKS5 port cannot collide with the HTTP proxy or a reverse
 	// proxy, either.
@@ -69,20 +75,20 @@ func TestReverseProxyAddEditToggleRemove(t *testing.T) {
 	a.settingsPath = filepath.Join(t.TempDir(), "settings.json")
 
 	a.openReverseProxy("")
-	a.reverseDraft.port, a.reverseDraft.target, a.reverseDraft.keepHost = "9002", "https://api.example.com/v1", true
+	a.reverseDraft.port, a.reverseDraft.target, a.reverseDraft.keepHost, a.reverseDraft.insecure = "9002", "https://api.example.com/v1", true, true
 	a.saveReverseProxy()
 	if a.reverseDraft.problem != "" || len(a.reverses) != 1 {
 		t.Fatalf("add: problem %q, entries %+v", a.reverseDraft.problem, a.reverses)
 	}
 	id := a.reverses[0].ID
-	if id == "" || a.reverses[0].Port != 9002 || !a.reverses[0].KeepHost || !a.reverses[0].Enabled {
+	if id == "" || a.reverses[0].Port != 9002 || !a.reverses[0].KeepHost || !a.reverses[0].Enabled || !a.reverses[0].Insecure {
 		t.Fatalf("added %+v", a.reverses[0])
 	}
 	saved, err := loadSettings(a.settingsPath)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(saved.ReverseProxies) != 1 || saved.ReverseProxies[0].Target != "https://api.example.com/v1" {
+	if len(saved.ReverseProxies) != 1 || saved.ReverseProxies[0].Target != "https://api.example.com/v1" || !saved.ReverseProxies[0].Insecure {
 		t.Fatalf("persisted %+v", saved.ReverseProxies)
 	}
 
@@ -174,6 +180,9 @@ func TestProxySettingsExposeSOCKS5AndReverseProxies(t *testing.T) {
 		t.Fatal(err)
 	}
 	tt.Type("https://api.example.com")
+	if _, ok := tt.Find("Allow self-signed certificates"); !ok {
+		t.Fatal("the reverse proxy dialog does not show the certificate option")
+	}
 	if err := tt.Click("Save"); err != nil {
 		t.Fatal(err)
 	}
@@ -182,5 +191,60 @@ func TestProxySettingsExposeSOCKS5AndReverseProxies(t *testing.T) {
 	}
 	if _, err := os.Stat(a.settingsPath); err != nil {
 		t.Fatalf("settings were not saved: %v", err)
+	}
+}
+
+func TestConfigImportKeepsTheLocalSOCKSPassword(t *testing.T) {
+	a := workspaceApp()
+	a.settingsPath = filepath.Join(t.TempDir(), "settings.json")
+	a.socksOn, a.socksAuth, a.socksUsername, a.socksPassword = true, true, "alice", "local-secret"
+
+	a.applySettings(settings{SOCKSOn: true, SOCKSAuth: true, SOCKSUsername: "bob"})
+	if !a.socksAuth || a.socksUsername != "bob" || a.socksPassword != "local-secret" {
+		t.Fatalf("imported SOCKS5 = %+v, want auth on with the local password", a.socksEntry())
+	}
+	saved, err := loadSettings(a.settingsPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !saved.SOCKSAuth || saved.SOCKSPassword != "local-secret" {
+		t.Fatalf("persisted SOCKS5 = %+v", saved)
+	}
+}
+
+func TestConfigImportDisablesAuthWithoutAnyPassword(t *testing.T) {
+	a := workspaceApp()
+	a.settingsPath = filepath.Join(t.TempDir(), "settings.json")
+	a.socksOn, a.socksAuth, a.socksUsername, a.socksPassword = true, false, "", ""
+
+	a.applySettings(settings{SOCKSOn: true, SOCKSAuth: true, SOCKSUsername: "bob"})
+	if a.socksAuth || a.socksPassword != "" {
+		t.Fatalf("imported SOCKS5 = %+v, want authentication off without a password", a.socksEntry())
+	}
+	a.mu.Lock()
+	notices := slices.Clone(a.notices)
+	a.mu.Unlock()
+	found := false
+	for _, n := range notices {
+		if strings.Contains(n.text, "SOCKS5 authentication is off") {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("no warning for disabled SOCKS5 authentication: %+v", notices)
+	}
+	saved, err := loadSettings(a.settingsPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if saved.SOCKSAuth || saved.SOCKSPassword != "" {
+		t.Fatalf("persisted SOCKS5 = %+v", saved)
+	}
+
+	// The configuration path itself refuses authentication without a
+	// password, so a hand-edited settings file cannot start in that state.
+	a.socksAuth, a.socksUsername, a.socksPassword = true, "bob", ""
+	if _, err := a.socksConfig(); err == nil || !strings.Contains(err.Error(), "password") {
+		t.Fatalf("socksConfig error = %v", err)
 	}
 }

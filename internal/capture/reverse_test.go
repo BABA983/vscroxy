@@ -3,13 +3,16 @@ package capture
 import (
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
 )
 
 func freePort(t *testing.T) int {
@@ -91,7 +94,7 @@ func TestReverseProxyForwardsPathsAndHostHeader(t *testing.T) {
 		t.Fatal(err)
 	}
 	addr = reverseAddr(t, s, "one")
-	resp, body = getReverse(t, addr, "/item", "local.example")
+	resp, body = getReverse(t, addr, "/item", "")
 	wantHost := strings.TrimPrefix(upstream.URL, "http://")
 	if resp.StatusCode != 200 || body != wantHost+" /base/item" {
 		t.Fatalf("remote Host: %d %q, want %q", resp.StatusCode, body, wantHost+" /base/item")
@@ -120,7 +123,7 @@ func TestReverseProxyHTTPSRemoteAndRules(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := s.SetReverseProxies([]ReverseProxy{{
-		ID: "tls", Port: port, Target: upstream.URL, Enabled: true,
+		ID: "tls", Port: port, Target: upstream.URL, Enabled: true, Insecure: true,
 	}}); err != nil {
 		t.Fatal(err)
 	}
@@ -212,7 +215,7 @@ func TestReverseProxyHTTPSKeepsOriginalHost(t *testing.T) {
 	s, _ := startServer(t)
 	port := freePort(t)
 	if err := s.SetReverseProxies([]ReverseProxy{{
-		ID: "tls", Port: port, Target: upstream.URL, KeepHost: true, Enabled: true,
+		ID: "tls", Port: port, Target: upstream.URL, KeepHost: true, Enabled: true, Insecure: true,
 	}}); err != nil {
 		t.Fatal(err)
 	}
@@ -265,7 +268,7 @@ func TestReverseProxyHTTPSWithADNSName(t *testing.T) {
 	local := freePort(t)
 	target := "https://localhost:" + strconv.Itoa(port)
 	if err := s.SetReverseProxies([]ReverseProxy{{
-		ID: "dns", Port: local, Target: target, Enabled: true,
+		ID: "dns", Port: local, Target: target, Enabled: true, Insecure: true,
 	}}); err != nil {
 		t.Fatal(err)
 	}
@@ -276,5 +279,100 @@ func TestReverseProxyHTTPSWithADNSName(t *testing.T) {
 	f := waitFlow(t, s)
 	if f.Scheme != "https" || f.Host != "localhost:"+strconv.Itoa(port) || f.URL != target+"/secure" {
 		t.Fatalf("captured %+v", f)
+	}
+}
+
+func TestReverseProxyVerifiesTheRemoteCertificateByDefault(t *testing.T) {
+	reached := make(chan struct{}, 1)
+	upstream := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		select {
+		case reached <- struct{}{}:
+		default:
+		}
+		fmt.Fprint(w, "must not be reached")
+	}))
+	upstream.Config.ErrorLog = log.New(io.Discard, "", 0)
+	upstream.StartTLS()
+	defer upstream.Close()
+
+	s, _ := startServer(t)
+	port := freePort(t)
+	if err := s.SetReverseProxies([]ReverseProxy{{
+		ID: "verified", Port: port, Target: upstream.URL, Enabled: true,
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	resp, body := getReverse(t, reverseAddr(t, s, "verified"), "/secure", "")
+	if resp.StatusCode != http.StatusBadGateway {
+		t.Fatalf("self-signed remote = %d %q, want 502", resp.StatusCode, body)
+	}
+	select {
+	case <-reached:
+		t.Fatal("a self-signed remote received the request")
+	case <-time.After(100 * time.Millisecond):
+	}
+}
+
+func TestLoopbackHost(t *testing.T) {
+	for _, tc := range []struct {
+		host string
+		want bool
+	}{
+		{"localhost", true},
+		{"localhost:9000", true},
+		{"LOCALHOST.", true},
+		{"127.0.0.1", true},
+		{"127.0.0.1:9000", true},
+		{"127.0.0.2:9000", true},
+		{"[::1]:9000", true},
+		{"::1", true},
+		{"evil.example", false},
+		{"localhost.evil", false},
+		{"127.0.0.1.nip.io", false},
+		{"0.0.0.0:9000", false},
+		{"", false},
+	} {
+		if got := loopbackHost(tc.host); got != tc.want {
+			t.Errorf("loopbackHost(%q) = %t, want %t", tc.host, got, tc.want)
+		}
+	}
+}
+
+func TestReverseProxyRejectsNonLoopbackHostWhenRewriting(t *testing.T) {
+	var hits atomic.Int64
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hits.Add(1)
+		fmt.Fprint(w, r.Host)
+	}))
+	defer upstream.Close()
+
+	s, _ := startServer(t)
+	port := freePort(t)
+	if err := s.SetReverseProxies([]ReverseProxy{{
+		ID: "rewrite", Port: port, Target: upstream.URL, Enabled: true,
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	addr := reverseAddr(t, s, "rewrite")
+
+	resp, body := getReverse(t, addr, "/", "evil.example")
+	if resp.StatusCode != http.StatusForbidden || !strings.Contains(body, "localhost") {
+		t.Fatalf("non-loopback Host = %d %q, want 403", resp.StatusCode, body)
+	}
+	if hits.Load() != 0 {
+		t.Fatalf("a non-loopback Host reached the upstream %d times", hits.Load())
+	}
+
+	// Keep original Host is an explicit choice to forward a virtual host, so
+	// the same name is allowed and reaches the upstream unchanged.
+	if err := s.SetReverseProxies([]ReverseProxy{{
+		ID: "rewrite", Port: port, Target: upstream.URL, KeepHost: true, Enabled: true,
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	addr = reverseAddr(t, s, "rewrite")
+	resp, body = getReverse(t, addr, "/", "evil.example")
+	if resp.StatusCode != http.StatusOK || body != "evil.example" {
+		t.Fatalf("kept Host = %d %q", resp.StatusCode, body)
 	}
 }

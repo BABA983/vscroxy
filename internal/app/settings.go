@@ -74,6 +74,9 @@ type reverseProxySetting struct {
 	Target   string `json:"target"`
 	KeepHost bool   `json:"keepHost,omitzero"`
 	Enabled  bool   `json:"enabled,omitzero"`
+	// Insecure allows a self-signed certificate on the remote target. Off by
+	// default; the app verifies the real remote, not only the local proxy.
+	Insecure bool `json:"insecure,omitzero"`
 }
 
 func (s settings) proxyAddr() (string, error) {
