@@ -7,11 +7,13 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/baba983/vscroxy/internal/postman"
 	"github.com/baba983/vscroxy/internal/request"
 	"github.com/baba983/vscroxy/internal/store"
 	"github.com/egoist/mygo/ui"
+	"github.com/egoist/mygo/ui/editor"
 )
 
 // One send sees each scope's Current value before its Initial value, and an
@@ -232,5 +234,205 @@ func TestVariablesTablePersistsAndResetsCurrent(t *testing.T) {
 	}
 	if a.envs[0].Vars["token"] != "private" || a.envs[0].Current["token"] != "" {
 		t.Fatalf("reset = %+v", a.envs[0])
+	}
+}
+
+func TestVariableHintsPreferCurrentAndMaskCredentials(t *testing.T) {
+	a := workspaceApp()
+	a.envs = []environment{{Name: "Local",
+		Vars:    map[string]string{"base": "https://initial", "token": "shared-token"},
+		Current: map[string]string{"base": "https://current", "token": "private-token"},
+	}}
+	a.activeEnv = "Local"
+	a.globals = map[string]string{"team": "core"}
+	a.folders = []request.Folder{{Path: "Shop", Variables: []request.Variable{
+		{Name: "region", Initial: "eu"},
+		{Name: "fallback", Initial: "from-initial"},
+	}}}
+	a.folderCurrent = map[string]map[string]string{"Shop": {"fallback": ""}}
+	hints := map[string]variableHint{}
+	for _, h := range a.variableHints("Shop") {
+		hints[h.Name] = h
+	}
+	for name, want := range map[string]struct{ value, source, display string }{
+		"base":     {"https://current", "Environment · Local · current", "https://current"},
+		"token":    {"private-token", "Environment · Local · current", "••••••"},
+		"region":   {"eu", "Collection · Shop · initial", "eu"},
+		"fallback": {"from-initial", "Collection · Shop · initial", "from-initial"},
+		"team":     {"core", "Global · initial", "core"},
+	} {
+		h, ok := hints[name]
+		if !ok || h.Value != want.value || h.source() != want.source || h.display() != want.display {
+			t.Errorf("%s = %+v (%q, %q), want value %q source %q display %q", name, h, h.source(), h.display(), want.value, want.source, want.display)
+		}
+	}
+	if h, ok := hints["$guid"]; !ok || !h.Dynamic || h.display() != "generated at send" {
+		t.Errorf("dynamic hint = %+v, %v", h, ok)
+	}
+	marks := a.variableMarks("{{base}} {{missing}} {{token}} {{$guid}}", "Shop")
+	if len(marks) != 4 || !marks[0].Defined || marks[1].Defined || !marks[2].Defined || !marks[3].Defined {
+		t.Fatalf("marks = %+v", marks)
+	}
+	if marks[2].Hint.display() != "••••••" || marks[1].Hint.display() != "(empty)" {
+		t.Errorf("mark display = %q / %q", marks[2].Hint.display(), marks[1].Hint.display())
+	}
+}
+
+func TestVariableTokenEditing(t *testing.T) {
+	for _, tc := range []struct {
+		name, text, insert string
+		caret, start       int
+		want               string
+		after              int
+	}{
+		{"open at end", "{{base", "baseUrl", 6, 0, "{{baseUrl}}", 11},
+		{"existing close", "{{base}}/x", "baseUrl", 6, 0, "{{baseUrl}}/x", 11},
+		{"middle of text", "a/{{ba?q=1", "baseUrl", 6, 2, "a/{{baseUrl}}?q=1", 13},
+		{"no token", "plain", "baseUrl", 5, 0, "", 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			start, _, ok := openVariableToken(tc.text, tc.caret)
+			if ok != (tc.want != "") || start != tc.start {
+				t.Fatalf("openVariableToken = %d, %v", start, ok)
+			}
+			got, after, ok := replaceVariableToken(tc.text, tc.insert, tc.caret)
+			if ok != (tc.want != "") || got != tc.want || after != tc.after {
+				t.Fatalf("replace = %q, %d, %v; want %q, %d", got, after, ok, tc.want, tc.after)
+			}
+		})
+	}
+	if got := runeToByte("a中b", 2); got != len("a中") {
+		t.Errorf("runeToByte = %d", got)
+	}
+}
+
+func TestVariableCompletionAndHoverInURL(t *testing.T) {
+	a := workspaceApp()
+	a.envs = []environment{{Name: "Local", Vars: map[string]string{"baseUrl": "https://api.example.com"}}}
+	a.activeEnv = "Local"
+	openDraft(a, a.flows[0])
+	a.composeURL = ""
+	tt := ui.NewTester(a.view, 1280, 800)
+	tt.Frame()
+	a.urlInput.Focus()
+	tt.Frame()
+	tt.Type("{{ba")
+	tt.Frame()
+	if !tt.HasText("baseUrl") || !tt.HasText("Environment · Local · initial") {
+		t.Fatalf("no variable completion: %v", tt.Texts())
+	}
+	if err := tt.Click("baseUrl"); err != nil {
+		t.Fatal(err)
+	}
+	if a.composeURL != "{{baseUrl}}" {
+		t.Fatalf("completion wrote %q", a.composeURL)
+	}
+	a.composeURL = "{{baseUrl}}/projects?q={{missing}}"
+	tt.Frame()
+	rect, ok := tt.Find("URL")
+	if !ok {
+		t.Fatal("URL field missing")
+	}
+	tt.Move(rect.X+24, rect.Y+rect.H/2)
+	tt.Advance(700 * time.Millisecond)
+	tt.Frame()
+	if !tt.HasText("https://api.example.com") || !tt.HasText("undefined") {
+		t.Fatalf("hover preview missing: %v", tt.Texts())
+	}
+}
+
+func TestVariableCompletionInBodyEditor(t *testing.T) {
+	a := workspaceApp()
+	a.envs = []environment{{Name: "Local", Vars: map[string]string{"baseUrl": "https://api.example.com"}}}
+	a.activeEnv = "Local"
+	openDraft(a, a.flows[0])
+	d := a.requestDocument
+	d.composeTab, d.bodyMode, d.composeBody = composeTabBody, "Raw", ""
+	tt := ui.NewTester(a.view, 1280, 800)
+	if err := tt.Click("Request body"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	for _, text := range []string{"{", "{", "b", "a"} {
+		tt.Type(text)
+		tt.Frame()
+	}
+	if !tt.HasText("baseUrl") {
+		t.Fatalf("no editor completion: %v", tt.Texts())
+	}
+}
+
+func TestVariableCompletionInHeaderAndAuthFields(t *testing.T) {
+	a := workspaceApp()
+	a.envs = []environment{{Name: "Local", Vars: map[string]string{"baseUrl": "https://api.example.com"}}}
+	a.activeEnv = "Local"
+	openDraft(a, a.flows[0])
+	d := a.requestDocument
+	d.composeTab = composeTabHeaders
+	d.headerRows = []request.Field{{Name: "X-Test"}}
+	tt := ui.NewTester(a.view, 1280, 800)
+	if err := tt.Click("header value 1"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	tt.Type("{{ba")
+	tt.Frame()
+	if !tt.HasText("baseUrl") {
+		t.Fatalf("no header completion: %v", tt.Texts())
+	}
+	if err := tt.Click("baseUrl"); err != nil {
+		t.Fatal(err)
+	}
+	if got := d.headerRows[0].Value; got != "{{baseUrl}}" {
+		t.Fatalf("header value = %q", got)
+	}
+
+	d.composeTab, d.auth.Type, d.auth.Token = composeTabAuth, "Bearer", ""
+	tt.Frame()
+	if err := tt.Click("Bearer token"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	tt.Type("{{ba")
+	tt.Frame()
+	if !tt.HasText("baseUrl") {
+		t.Fatalf("no auth completion: %v", tt.Texts())
+	}
+	if err := tt.Click("baseUrl"); err != nil {
+		t.Fatal(err)
+	}
+	if d.auth.Token != "{{baseUrl}}" {
+		t.Fatalf("auth token = %q", d.auth.Token)
+	}
+}
+
+func TestVariableHoverInBodyEditor(t *testing.T) {
+	a := workspaceApp()
+	a.envs = []environment{{Name: "Local", Vars: map[string]string{"baseUrl": "https://api.example.com"}}}
+	a.activeEnv = "Local"
+	openDraft(a, a.flows[0])
+	d := a.requestDocument
+	d.composeTab, d.bodyMode, d.composeBody = composeTabBody, "Raw", "{{baseUrl}}"
+	tt := ui.NewTester(a.view, 1280, 800)
+	tt.Frame()
+	if d.bodyEditor == nil || d.bodyEditor.OnHover == nil {
+		t.Fatal("body editor hover is not wired")
+	}
+	d.bodyEditor.OnHover(editor.HoverRequest{Offset: 2})
+	tt.Frame()
+	if !tt.HasText("https://api.example.com") || !tt.HasText("Environment · Local · initial") {
+		t.Fatalf("no editor hover: %v", tt.Texts())
+	}
+}
+
+func TestSensitiveVariableNames(t *testing.T) {
+	for name, want := range map[string]bool{
+		"token": true, "access_token": true, "client_secret": true, "api_key": true,
+		"authorization": true, "cookie": true, "password": true, "session_id": true,
+		"base_url": false, "monkey": false, "keyboard": false, "region": false,
+	} {
+		if got := sensitiveVariable(name); got != want {
+			t.Errorf("sensitiveVariable(%q) = %v, want %v", name, got, want)
+		}
 	}
 }

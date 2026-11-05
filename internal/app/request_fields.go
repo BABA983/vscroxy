@@ -43,7 +43,7 @@ func (a *app) paramsEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
 	if d.queryError != "" {
 		ui.Text(c, d.queryError).FontSize(uikit.TextMeta).TextColor(t.Danger)
 	}
-	if requestFieldsEditor(c, &d.queryRows, fieldsOptions{}, "parameter") {
+	if a.requestFieldsEditor(c, &d.queryRows, fieldsOptions{collection: d.composeCollection}, "parameter") {
 		u, err := url.Parse(d.composeURL)
 		if err == nil {
 			var parts []string
@@ -63,13 +63,14 @@ func (a *app) paramsEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
 // fieldsOptions says what a row table edits: file parts carry a File flag,
 // and header values are masked while their key is a credential.
 type fieldsOptions struct {
-	file   bool
-	secret bool
+	file       bool
+	secret     bool
+	collection string
 }
 
 // Fields are rows rather than a map: duplicate names, disabled entries and file
 // parts all survive saving. Only Send/export reads a selected file.
-func requestFieldsEditor(c *ui.Context, rows *[]request.Field, opts fieldsOptions, noun string, actions ...func()) bool {
+func (a *app) requestFieldsEditor(c *ui.Context, rows *[]request.Field, opts fieldsOptions, noun string, actions ...func()) bool {
 	t := c.Theme()
 	changed, remove := false, -1
 	ui.Column(c).Grow(1).MinHeight(0).Border(1, t.Border).Radius(uikit.RadiusControl).Children(func() {
@@ -99,7 +100,7 @@ func requestFieldsEditor(c *ui.Context, rows *[]request.Field, opts fieldsOption
 						}
 					})
 					ui.Box(c).Basis(0).Grow(1).MinWidth(0).FillHeight().BorderWidth(0, 1, 0, 0).BorderColor(t.Border).Children(func() {
-						field := requestGridInput(c, &r.Name, "Key", fmt.Sprintf("%s key %d", noun, i+1))
+						field := a.variableGridInput(c, fmt.Sprintf("%s-key-%d", noun, i+1), &r.Name, "Key", fmt.Sprintf("%s key %d", noun, i+1), opts.collection)
 						cellBorder(t, field, false, false)
 						if field.Changed() {
 							changed = true
@@ -111,7 +112,7 @@ func requestFieldsEditor(c *ui.Context, rows *[]request.Field, opts fieldsOption
 					secret := opts.secret && sensitiveHeader(r.Name)
 					masked := secret && !r.Revealed
 					ui.Box(c).Basis(0).Grow(2).MinWidth(0).FillHeight().Children(func() {
-						value := requestGridInput(c, &r.Value, "Value", fmt.Sprintf("%s value %d", noun, i+1))
+						value := a.variableGridInput(c, fmt.Sprintf("%s-value-%d", noun, i+1), &r.Value, "Value", fmt.Sprintf("%s value %d", noun, i+1), opts.collection)
 						if masked {
 							value.Password()
 						}
@@ -322,7 +323,7 @@ func (a *app) headerEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
 	if len(d.headerRows) == 0 {
 		d.headerRows = []request.Field{{}}
 	}
-	if requestFieldsEditor(c, &d.headerRows, fieldsOptions{secret: true}, "header") {
+	if a.requestFieldsEditor(c, &d.headerRows, fieldsOptions{secret: true, collection: d.composeCollection}, "header") {
 		d.composeHeaders = headerRowsText(d.headerRows)
 		d.headerFor = d.composeHeaders
 	}
@@ -358,6 +359,12 @@ func (a *app) authFields(c *ui.Context, auth *request.Auth, types []string, coll
 	if auth.Type != request.AuthInherit {
 		uikit.Meta(c, "Prefer {{variables}} or {{vault:name}} for secrets; these fields are saved in plaintext.")
 	}
+	input := func(value *string, label string) ui.Element {
+		return a.variableInput(c, "auth-"+label, value, label, collection)
+	}
+	area := func(value *string, label string) ui.Element {
+		return a.variableTextArea(c, "auth-"+label, value, label, collection)
+	}
 	ui.Form(c, func() {
 		ui.Field(c, "Type", func() {
 			uikit.Select(c, &auth.Type, types).Label("Authorization type").Width(240)
@@ -365,14 +372,14 @@ func (a *app) authFields(c *ui.Context, auth *request.Auth, types []string, coll
 		switch auth.Type {
 		case "Bearer":
 			ui.Field(c, "Bearer token", func() {
-				uikit.Input(c, &auth.Token).Label("Bearer token").Placeholder("{{token}}").Password()
+				input(&auth.Token, "Bearer token").Placeholder("{{token}}").Password()
 			})
 		case "Basic":
-			ui.Field(c, "Username", func() { uikit.Input(c, &auth.Username).Label("Username") })
-			ui.Field(c, "Password", func() { uikit.Input(c, &auth.Password).Label("Password").Password() })
+			ui.Field(c, "Username", func() { input(&auth.Username, "Username") })
+			ui.Field(c, "Password", func() { input(&auth.Password, "Password").Password() })
 		case "API key":
-			ui.Field(c, "API key name", func() { uikit.Input(c, &auth.Key).Label("API key name") })
-			ui.Field(c, "API key value", func() { uikit.Input(c, &auth.Value).Label("API key value").Password() })
+			ui.Field(c, "API key name", func() { input(&auth.Key, "API key name") })
+			ui.Field(c, "API key value", func() { input(&auth.Value, "API key value").Password() })
 			ui.Field(c, "Location", func() {
 				uikit.Select(c, &auth.Location, []string{"Header", "Query"}).Label("API key location").Width(160)
 			})
@@ -387,18 +394,18 @@ func (a *app) authFields(c *ui.Context, auth *request.Auth, types []string, coll
 			if addTo == "Auto" {
 				addTo = "Automatic"
 			}
-			ui.Field(c, "Consumer key", func() { uikit.Input(c, &o.ConsumerKey) })
+			ui.Field(c, "Consumer key", func() { input(&o.ConsumerKey, "Consumer key") })
 			ui.Field(c, "Consumer secret", func() {
-				uikit.Input(c, &o.ConsumerSecret).Placeholder("{{vault:oauth1_secret}}").Password()
+				input(&o.ConsumerSecret, "Consumer secret").Placeholder("{{vault:oauth1_secret}}").Password()
 			})
-			ui.Field(c, "Token", func() { uikit.Input(c, &o.Token).Placeholder("Optional for two-legged auth") })
-			ui.Field(c, "Token secret", func() { uikit.Input(c, &o.TokenSecret).Password() })
+			ui.Field(c, "Token", func() { input(&o.Token, "Token").Placeholder("Optional for two-legged auth") })
+			ui.Field(c, "Token secret", func() { input(&o.TokenSecret, "Token secret").Password() })
 			ui.Field(c, "Signature method", func() {
 				uikit.Select(c, &o.SignatureMethod, request.OAuth1Methods).Width(180)
 			})
 			if strings.HasPrefix(o.SignatureMethod, "RSA-") {
 				ui.Field(c, "Private key", func() {
-					ui.TextArea(c, &o.PrivateKey).Height(72).Font(uikit.FontMono).FontSize(uikit.TextBody).Radius(uikit.RadiusControl).Placeholder("-----BEGIN PRIVATE KEY----- … or {{vault:oauth1_key}}")
+					area(&o.PrivateKey, "Private key").Height(72).Font(uikit.FontMono).FontSize(uikit.TextBody).Radius(uikit.RadiusControl).Placeholder("-----BEGIN PRIVATE KEY----- … or {{vault:oauth1_key}}")
 				})
 			}
 			ui.Field(c, "Add authorization to", func() {
@@ -417,28 +424,28 @@ func (a *app) authFields(c *ui.Context, auth *request.Auth, types []string, coll
 			ui.Field(c, "Empty parameters", func() {
 				ui.Checkbox(c, &o.AddEmptyParamsToSign, "Include in the signature")
 			})
-			ui.Field(c, "Timestamp", func() { uikit.Input(c, &o.Timestamp).Placeholder("Now").Width(200) })
-			ui.Field(c, "Nonce", func() { uikit.Input(c, &o.Nonce).Placeholder("Random").Width(200) })
-			ui.Field(c, "Version", func() { uikit.Input(c, &o.Version).Placeholder("1.0").Width(120) })
-			ui.Field(c, "Realm", func() { uikit.Input(c, &o.Realm).Placeholder("Optional") })
-			ui.Field(c, "Callback URL", func() { uikit.Input(c, &o.Callback).Placeholder("Optional, oauth_callback") })
-			ui.Field(c, "Verifier", func() { uikit.Input(c, &o.Verifier).Placeholder("Optional, oauth_verifier") })
+			ui.Field(c, "Timestamp", func() { input(&o.Timestamp, "Timestamp").Placeholder("Now").Width(200) })
+			ui.Field(c, "Nonce", func() { input(&o.Nonce, "Nonce").Placeholder("Random").Width(200) })
+			ui.Field(c, "Version", func() { input(&o.Version, "Version").Placeholder("1.0").Width(120) })
+			ui.Field(c, "Realm", func() { input(&o.Realm, "Realm").Placeholder("Optional") })
+			ui.Field(c, "Callback URL", func() { input(&o.Callback, "Callback URL").Placeholder("Optional, oauth_callback") })
+			ui.Field(c, "Verifier", func() { input(&o.Verifier, "Verifier").Placeholder("Optional, oauth_verifier") })
 		case request.AuthDigest:
-			ui.Field(c, "Username", func() { uikit.Input(c, &auth.Username) })
-			ui.Field(c, "Password", func() { uikit.Input(c, &auth.Password).Password() }).
+			ui.Field(c, "Username", func() { input(&auth.Username, "Username") })
+			ui.Field(c, "Password", func() { input(&auth.Password, "Password").Password() }).
 				Description("The first send gets the server's challenge; vscroxy answers it and sends again.")
 		case request.AuthAWS:
 			aws := &auth.AWS
-			ui.Field(c, "Access key", func() { uikit.Input(c, &aws.AccessKey) })
+			ui.Field(c, "Access key", func() { input(&aws.AccessKey, "Access key") })
 			ui.Field(c, "Secret key", func() {
-				uikit.Input(c, &aws.SecretKey).Placeholder("{{vault:aws_secret}}").Password()
+				input(&aws.SecretKey, "Secret key").Placeholder("{{vault:aws_secret}}").Password()
 			})
-			ui.Field(c, "Region", func() { uikit.Input(c, &aws.Region).Placeholder("us-east-1").Width(260) })
+			ui.Field(c, "Region", func() { input(&aws.Region, "Region").Placeholder("us-east-1").Width(260) })
 			ui.Field(c, "Service", func() {
-				uikit.Input(c, &aws.Service).Placeholder("e.g. execute-api or s3").Width(260)
+				input(&aws.Service, "Service").Placeholder("e.g. execute-api or s3").Width(260)
 			})
 			ui.Field(c, "Session token", func() {
-				uikit.Input(c, &aws.SessionToken).Placeholder("Optional").Password()
+				input(&aws.SessionToken, "Session token").Placeholder("Optional").Password()
 			})
 		case request.AuthJWT:
 			jwt := &auth.JWT
@@ -452,19 +459,19 @@ func (a *app) authFields(c *ui.Context, auth *request.Auth, types []string, coll
 			ui.Field(c, "Algorithm", func() { uikit.Select(c, &jwt.Algorithm, request.JWTAlgorithms).Width(160) })
 			if strings.HasPrefix(jwt.Algorithm, "HS") {
 				ui.Field(c, "Secret", func() {
-					uikit.Input(c, &jwt.Secret).Placeholder("{{vault:jwt_secret}}").Password()
+					input(&jwt.Secret, "Secret").Placeholder("{{vault:jwt_secret}}").Password()
 				})
 				ui.Field(c, "", func() { ui.Checkbox(c, &jwt.SecretBase64, "Secret is base64-encoded") })
 			} else {
 				ui.Field(c, "Private key", func() {
-					ui.TextArea(c, &jwt.PrivateKey).Height(72).Font(uikit.FontMono).FontSize(uikit.TextBody).Radius(uikit.RadiusControl).Placeholder("-----BEGIN PRIVATE KEY----- … or {{vault:jwt_key}}")
+					area(&jwt.PrivateKey, "Private key").Height(72).Font(uikit.FontMono).FontSize(uikit.TextBody).Radius(uikit.RadiusControl).Placeholder("-----BEGIN PRIVATE KEY----- … or {{vault:jwt_key}}")
 				})
 			}
 			ui.Field(c, "Payload", func() {
-				ui.TextArea(c, &jwt.Payload).Height(72).Font(uikit.FontMono).FontSize(uikit.TextBody).Radius(uikit.RadiusControl).Placeholder(`{"sub": "{{user_id}}"}`)
+				area(&jwt.Payload, "Payload").Height(72).Font(uikit.FontMono).FontSize(uikit.TextBody).Radius(uikit.RadiusControl).Placeholder(`{"sub": "{{user_id}}"}`)
 			})
 			ui.Field(c, "Extra header", func() {
-				uikit.Input(c, &jwt.Header).Placeholder(`Optional, e.g. {"kid": "key-1"}`).Font(uikit.FontMono)
+				input(&jwt.Header, "Extra header").Placeholder(`Optional, e.g. {"kid": "key-1"}`).Font(uikit.FontMono)
 			})
 			ui.Field(c, "Add token to", func() {
 				if uikit.Select(c, &addTo, []string{"Header", "Query"}).Width(160).Changed() {
@@ -475,18 +482,18 @@ func (a *app) authFields(c *ui.Context, auth *request.Auth, types []string, coll
 				}
 			})
 			if jwt.AddTo == "Query" {
-				ui.Field(c, "Query parameter", func() { uikit.Input(c, &jwt.QueryParam).Placeholder("token").Width(200) })
+				ui.Field(c, "Query parameter", func() { input(&jwt.QueryParam, "Query parameter").Placeholder("token").Width(200) })
 			} else {
-				ui.Field(c, "Header prefix", func() { uikit.Input(c, &jwt.Prefix).Placeholder("Bearer").Width(150) })
+				ui.Field(c, "Header prefix", func() { input(&jwt.Prefix, "Header prefix").Placeholder("Bearer").Width(150) })
 			}
 		case request.AuthHawk:
 			h := &auth.Hawk
 			if h.Algorithm == "" {
 				h.Algorithm = request.HawkAlgorithms[0]
 			}
-			ui.Field(c, "Auth ID", func() { uikit.Input(c, &h.AuthID) })
+			ui.Field(c, "Auth ID", func() { input(&h.AuthID, "Auth ID") })
 			ui.Field(c, "Auth key", func() {
-				uikit.Input(c, &h.AuthKey).Placeholder("{{vault:hawk_key}}").Password()
+				input(&h.AuthKey, "Auth key").Placeholder("{{vault:hawk_key}}").Password()
 			})
 			ui.Field(c, "Algorithm", func() {
 				uikit.Select(c, &h.Algorithm, request.HawkAlgorithms).Width(160)
@@ -494,29 +501,29 @@ func (a *app) authFields(c *ui.Context, auth *request.Auth, types []string, coll
 			ui.Field(c, "Payload hash", func() {
 				ui.Checkbox(c, &h.IncludePayloadHash, "Include payload hash")
 			}).Description("Covers Content-Type and the body in the MAC.")
-			ui.Field(c, "Timestamp", func() { uikit.Input(c, &h.Timestamp).Placeholder("Now").Width(200) })
-			ui.Field(c, "Nonce", func() { uikit.Input(c, &h.Nonce).Placeholder("Random").Width(200) })
-			ui.Field(c, "ext", func() { uikit.Input(c, &h.ExtraData).Placeholder("Application-specific data, optional") })
-			ui.Field(c, "App", func() { uikit.Input(c, &h.App).Placeholder("Oz application ID, optional") })
-			ui.Field(c, "Delegation", func() { uikit.Input(c, &h.Delegation).Placeholder("Oz delegated-by ID, optional") })
+			ui.Field(c, "Timestamp", func() { input(&h.Timestamp, "Timestamp").Placeholder("Now").Width(200) })
+			ui.Field(c, "Nonce", func() { input(&h.Nonce, "Nonce").Placeholder("Random").Width(200) })
+			ui.Field(c, "ext", func() { input(&h.ExtraData, "ext").Placeholder("Application-specific data, optional") })
+			ui.Field(c, "App", func() { input(&h.App, "App").Placeholder("Oz application ID, optional") })
+			ui.Field(c, "Delegation", func() { input(&h.Delegation, "Delegation").Placeholder("Oz delegated-by ID, optional") })
 			if h.User != "" {
-				ui.Field(c, "User", func() { uikit.Input(c, &h.User) }).
+				ui.Field(c, "User", func() { input(&h.User, "User") }).
 					Description("Kept for Postman; the request MAC does not cover it.")
 			}
 		case request.AuthEdgeGrid:
 			e := &auth.EdgeGrid
-			ui.Field(c, "Access token", func() { uikit.Input(c, &e.AccessToken) })
-			ui.Field(c, "Client token", func() { uikit.Input(c, &e.ClientToken) })
+			ui.Field(c, "Access token", func() { input(&e.AccessToken, "Access token") })
+			ui.Field(c, "Client token", func() { input(&e.ClientToken, "Client token") })
 			ui.Field(c, "Client secret", func() {
-				uikit.Input(c, &e.ClientSecret).Placeholder("{{vault:edgegrid_secret}}").Password()
+				input(&e.ClientSecret, "Client secret").Placeholder("{{vault:edgegrid_secret}}").Password()
 			})
 			ui.Field(c, "Base URL", func() {
-				uikit.Input(c, &e.BaseURL).Placeholder("Request host by default")
+				input(&e.BaseURL, "Base URL").Placeholder("Request host by default")
 			}).Description("The host the signature covers; a scheme and path are ignored.")
-			ui.Field(c, "Timestamp", func() { uikit.Input(c, &e.Timestamp).Placeholder("Now").Width(240) })
-			ui.Field(c, "Nonce", func() { uikit.Input(c, &e.Nonce).Placeholder("Random UUID").Width(240) })
+			ui.Field(c, "Timestamp", func() { input(&e.Timestamp, "Timestamp").Placeholder("Now").Width(240) })
+			ui.Field(c, "Nonce", func() { input(&e.Nonce, "Nonce").Placeholder("Random UUID").Width(240) })
 			ui.Field(c, "Headers to sign", func() {
-				uikit.Input(c, &e.HeadersToSign).Placeholder("Comma-separated, e.g. X-Test1,X-Test2")
+				input(&e.HeadersToSign, "Headers to sign").Placeholder("Comma-separated, e.g. X-Test1,X-Test2")
 			}).Description("Names are signed in this order, with whitespace collapsed.")
 		}
 	}).Gap(t.Space(3))
@@ -534,14 +541,18 @@ func (a *app) requestBodyEditor(c *ui.Context, d *requestDocument, t *ui.Theme) 
 		if d.graphqlTab == 1 {
 			uikit.Hint(c, "JSON object · {{variables}} supported · blank sends {}")
 			authoredText(c.Key("graphql-variables"), &d.graphql.Variables, &d.varsEditor, &d.varsFor, "GraphQL variables", "json")
+			a.wireVariableEditor(d.varsEditor, d.composeCollection)
+			a.setVariableDiagnostics(d.varsEditor, d.graphql.Variables, d.composeCollection)
 		} else {
 			uikit.Hint(c, "Query or mutation · {{variables}} supported · sent as JSON")
 			authoredText(c.Key("graphql-query"), &d.graphql.Query, &d.queryEditor, &d.queryFor, "GraphQL query", "GraphQL")
+			a.wireVariableEditor(d.queryEditor, d.composeCollection)
+			a.setVariableDiagnostics(d.queryEditor, d.graphql.Query, d.composeCollection)
 		}
 	} else if d.bodyMode == "Binary" {
 		uikit.Meta(c, "BINARY FILE · up to 16 MiB, sent unchanged")
 		ui.Row(c).Gap(t.Space(2)).Wrap().AlignItems(ui.Center).Children(func() {
-			uikit.Input(c, &d.bodyFile).Label("Binary body file").Placeholder("Local path or {{upload_path}}").Font(uikit.FontMono).Grow(1).MinWidth(120)
+			a.variableInput(c, "body-file", &d.bodyFile, "Binary body file", d.composeCollection).Placeholder("Local path or {{upload_path}}").Font(uikit.FontMono).Grow(1).MinWidth(120)
 			if uikit.SecondaryButton(c, "Choose file…").Label("Choose binary body file").Clicked() && a.win != nil {
 				win, before := a.win, d.bodyFile
 				go func() {
@@ -559,7 +570,7 @@ func (a *app) requestBodyEditor(c *ui.Context, d *requestDocument, t *ui.Theme) 
 		uikit.Hint(c, "Only the path is saved. Content-Type defaults to application/octet-stream.")
 	} else {
 		uikit.Meta(c, "FORM DATA · file values are local paths, 16 MiB in total")
-		requestFieldsEditor(c, &d.formFields, fieldsOptions{file: true}, "field", func() {
+		a.requestFieldsEditor(c, &d.formFields, fieldsOptions{file: true, collection: d.composeCollection}, "field", func() {
 			if uikit.ToolbarButton(c, "Attach file…", "Add a file part; only the local path is stored", false).Children(func() {
 				ui.Icon(c, fileInputIcon).Size(uikit.IconInline, uikit.IconInline)
 				uikit.Body(c, "Attach file…")
@@ -616,6 +627,8 @@ func (a *app) requestBodyText(c *ui.Context, d *requestDocument) {
 		d.bodyFor = d.composeBody
 	}
 	requestCodeEditor(c, d.bodyEditor)
+	a.wireVariableEditor(d.bodyEditor, d.composeCollection)
+	a.setVariableDiagnostics(d.bodyEditor, d.composeBody, d.composeCollection)
 	if text := d.bodyEditor.Buffer.String(); text != d.composeBody {
 		d.composeBody = text
 		d.bodyFor = text

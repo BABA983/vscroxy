@@ -429,6 +429,7 @@ type app struct {
 	varsChoice    string
 	varsRows      []variableRow
 	varsProblem   string
+	varsComplete  variableCompletion
 
 	breakOn   bool
 	bp        *capture.Breakpoint

@@ -12,7 +12,6 @@ import (
 	"slices"
 	"strings"
 	"time"
-	"unicode/utf8"
 	"uuid"
 
 	"github.com/baba983/vscroxy/internal/capture"
@@ -762,17 +761,19 @@ func (a *app) requestBar(c *ui.Context, t *ui.Theme, d *requestDocument, more fu
 			ui.Box(c).Width(1).Height(18).Background(t.Border)
 			input := ui.TextInputBase(c, &d.composeURL).Bind(&d.urlInput).Grow(1).Height(uikit.HeightControl).Padding(0, t.Space(2)).Label("URL").
 				Placeholder("https://api.example.com/v1/resource").Font(uikit.FontMono).FontSize(uikit.TextBody)
-			spans := urlSpans(d.composeURL, t)
-			at := 0
-			hasVariables := false
-			for _, span := range spans {
-				end := at + utf8.RuneCountInString(span.Text)
-				if span.Background.A > 0 {
-					hasVariables = true
-					input.TextRanges(ui.TextRange{Start: at, End: end, Color: t.Accent, Weight: 600})
+			marks := a.variableMarks(d.composeURL, d.composeCollection)
+			for _, mark := range marks {
+				color := t.Accent
+				if !mark.Defined {
+					color = t.Danger
 				}
-				at = end
+				input.TextRanges(ui.TextRange{Start: mark.Start, End: mark.End, Color: color, Weight: 600})
 			}
+			a.variableTooltip(c, input, d.composeURL, d.composeCollection)
+			a.syncVariableCompletion(input, "URL", &d.composeURL)
+			a.variablePopover(c, input, "URL", &d.composeURL, d.composeCollection)
+			spans := urlSpans(d.composeURL, t, marks)
+			hasVariables := len(marks) > 0
 			if !input.Focused() && hasVariables {
 				// Paint chips only at rest. The same native input always owns
 				// selection, undo, clipboard and IME; editing shows styled text.
@@ -826,25 +827,26 @@ func (a *app) requestBar(c *ui.Context, t *ui.Theme, d *requestDocument, more fu
 }
 
 // urlSpans styles references, never expands them or reads their secret values.
-func urlSpans(raw string, t *ui.Theme) []ui.Span {
+func urlSpans(raw string, t *ui.Theme, marks []variableMark) []ui.Span {
+	plain := func(text string) ui.Span {
+		return ui.Span{Text: text, Font: uikit.FontMono, Size: uikit.TextBody, Color: t.Text}
+	}
 	var spans []ui.Span
-	for raw != "" {
-		start := strings.Index(raw, "{{")
-		if start < 0 {
-			spans = append(spans, ui.Span{Text: raw, Font: uikit.FontMono, Size: uikit.TextBody, Color: t.Text})
-			break
+	at := 0
+	for _, mark := range marks {
+		if mark.Ref.Start > at {
+			spans = append(spans, plain(raw[at:mark.Ref.Start]))
 		}
-		end := strings.Index(raw[start+2:], "}}")
-		if end < 0 {
-			spans = append(spans, ui.Span{Text: raw, Font: uikit.FontMono, Size: uikit.TextBody, Color: t.Text})
-			break
+		color := t.Accent
+		if !mark.Defined {
+			color = t.Danger
 		}
-		if start > 0 {
-			spans = append(spans, ui.Span{Text: raw[:start], Font: uikit.FontMono, Size: uikit.TextBody, Color: t.Text})
-		}
-		end += start + 4
-		spans = append(spans, ui.Span{Text: raw[start:end], Font: uikit.FontMono, Size: uikit.TextBody, Color: t.Accent, Weight: 600, Background: t.Accent.Alpha(0.12), Radius: uikit.RadiusControl})
-		raw = raw[end:]
+		spans = append(spans, ui.Span{Text: raw[mark.Ref.Start:mark.Ref.End], Font: uikit.FontMono, Size: uikit.TextBody,
+			Color: color, Weight: 600, Background: color.Alpha(0.12), Radius: uikit.RadiusControl})
+		at = mark.Ref.End
+	}
+	if at < len(raw) {
+		spans = append(spans, plain(raw[at:]))
 	}
 	return spans
 }
