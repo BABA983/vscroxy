@@ -136,7 +136,8 @@ func (a *app) importData(data []byte, path string) {
 		a.envs, a.globals = envs, globals
 		a.reportImport(title, env.Warnings)
 	default:
-		switch imports.Detect(data) {
+		format := imports.Detect(data)
+		switch format {
 		case imports.InsomniaV4, imports.InsomniaV5:
 			result, err := imports.ReadInsomnia(data)
 			if err != nil {
@@ -162,7 +163,7 @@ func (a *app) importData(data []byte, path string) {
 			a.importThirdParty(imports.Result{Environments: envs}, "Import Hoppscotch environment")
 			return
 		}
-		if imports.Detect(data) == imports.Swagger2 {
+		if format == imports.Swagger2 {
 			doc, warnings, err := imports.ReadSwagger2(data)
 			if err != nil {
 				a.fail("Import Swagger 2", err)

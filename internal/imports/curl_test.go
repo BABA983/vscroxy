@@ -130,3 +130,126 @@ func TestParseCurlRefusesMalformedCMD(t *testing.T) {
 		}
 	}
 }
+
+func TestDetectCurlKeepsBashWhenCaretTextIsNotTheFirstArgument(t *testing.T) {
+	got, _, err := ParseCurl(`curl https://x.test/ --data-raw 'q=^"x"'`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Body != `q=^"x"` || got.Method != "POST" {
+		t.Fatalf("Bash body changed: %+v", got)
+	}
+	got, _, err = ParseCurl(`curl.exe 'https://x.test/a b'`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.URL != "https://x.test/a b" || got.Method != "GET" {
+		t.Fatalf("curl.exe POSIX command: %+v", got)
+	}
+	got, _, err = ParseCurl(`curl https://x.test/ --data-raw '--url ^"x"'`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Body != `--url ^"x"` {
+		t.Fatalf("Bash body with --url text changed: %+v", got)
+	}
+}
+
+func TestParseCurlUnescapesChromeURLGlobs(t *testing.T) {
+	got, _, err := ParseCurl(`curl 'https://x.test/a\[b\]/\{c\}'`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.URL != "https://x.test/a[b]/{c}" {
+		t.Fatalf("Bash URL %q", got.URL)
+	}
+	cmd := "curl ^\"https://x.test/a^\\^[b^\\^]^\""
+	got, _, err = ParseCurl(cmd)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.URL != "https://x.test/a[b]" {
+		t.Fatalf("CMD URL %q", got.URL)
+	}
+}
+
+func TestPowerShellCombinesUTF16SurrogatePairs(t *testing.T) {
+	command := "Invoke-WebRequest -Uri \"https://x.test\" -Body \"$([char]55357)$([char]56832)\""
+	got, _, err := ParseCurl(command)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Body != "😀" {
+		t.Fatalf("body %q", got.Body)
+	}
+	command = "Invoke-WebRequest -Uri \"https://x.test\" -Body \"$([char]55357)\""
+	got, _, err = ParseCurl(command)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Body != "\uFFFD" {
+		t.Fatalf("lone surrogate body %q", got.Body)
+	}
+}
+
+func TestPowerShellDropsHTTP2PseudoHeaders(t *testing.T) {
+	command := `Invoke-WebRequest -Uri "https://x.test" -Headers @{ "authority"="x.test"; "method"="GET"; "path"="/"; "scheme"="https"; "accept"="application/json" }`
+	got, _, err := ParseCurl(command)
+	if err != nil {
+		t.Fatal(err)
+	}
+	headers := request.ParseHeaderBlock(got.Headers)
+	for _, name := range []string{"Authority", "Method", "Path", "Scheme"} {
+		if headers.Get(name) != "" {
+			t.Errorf("pseudo header %s was imported: %q", name, got.Headers)
+		}
+	}
+	if headers.Get("Accept") != "application/json" {
+		t.Errorf("Accept header missing: %q", got.Headers)
+	}
+}
+
+func TestPowerShellRejectsHeaderInjection(t *testing.T) {
+	for _, command := range []string{
+		"$session = New-Object Microsoft.PowerShell.Commands.WebRequestSession\n$session.UserAgent = \"ok\r\nX-Injected: yes\"\nInvoke-WebRequest -Uri \"https://x.test\"",
+		"$session = New-Object Microsoft.PowerShell.Commands.WebRequestSession\n$session.Cookies.Add((New-Object System.Net.Cookie(\"a\", \"b\r\nX-Injected: yes\", \"/\", \"x.test\")))\nInvoke-WebRequest -Uri \"https://x.test\"",
+	} {
+		if _, _, err := ParseCurl(command); err == nil {
+			t.Errorf("accepted injected PowerShell input: %q", command)
+		} else if strings.Contains(err.Error(), "X-Injected") {
+			t.Errorf("injection error leaked the header: %v", err)
+		}
+	}
+}
+
+func TestPowerShellHeadersAreSorted(t *testing.T) {
+	command := `Invoke-WebRequest -Uri "https://x.test" -Headers @{ "zeta"="1"; "alpha"="2" }`
+	got, _, err := ParseCurl(command)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var names []string
+	for _, row := range got.HeaderList {
+		names = append(names, row.Name)
+	}
+	if !reflect.DeepEqual(names, []string{"Alpha", "Zeta"}) {
+		t.Fatalf("header order %q", names)
+	}
+}
+
+func TestDetectCurlFindsChromeURLArgument(t *testing.T) {
+	got, _, err := ParseCurl("curl.exe -q --path-as-is --url ^\"https://x.test/a^\"")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.URL != "https://x.test/a" {
+		t.Fatalf("CMD --url import %+v", got)
+	}
+	got, _, err = ParseCurl("curl --url=^\"https://x.test/b^\"")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.URL != "https://x.test/b" {
+		t.Fatalf("CMD --url= import %+v", got)
+	}
+}

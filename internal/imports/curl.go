@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"unicode/utf16"
 	"unicode/utf8"
 
 	"github.com/baba983/vscroxy/internal/capture"
@@ -39,13 +40,95 @@ func DetectCurl(source string) CurlStyle {
 	switch {
 	case strings.HasPrefix(lower, "$session"), strings.HasPrefix(lower, "invoke-webrequest"), strings.HasPrefix(lower, "invoke-restmethod"):
 		return CurlPowerShell
-	case strings.HasPrefix(lower, "curl.exe"):
-		return CurlCMD
-	case strings.HasPrefix(lower, "curl") && (strings.Contains(source, `^"`) || strings.Contains(source, "^\n") || strings.Contains(source, "^\r\n")):
-		return CurlCMD
-	default:
+	}
+	if !strings.HasPrefix(lower, "curl ") && !strings.HasPrefix(lower, "curl.exe ") {
 		return CurlBash
 	}
+	// CMD is only certain when the first argument, or the value of --url,
+	// starts with cmd.exe's caret-quoted form. A Bash body may contain ^"
+	// literally, and curl.exe with POSIX quoting is still Bash.
+	tokens := curlTokens(source)
+	if len(tokens) < 2 {
+		return CurlBash
+	}
+	if strings.HasPrefix(tokens[1], `^"`) {
+		return CurlCMD
+	}
+	for i := 1; i < len(tokens); i++ {
+		if tokens[i] == "--url" && i+1 < len(tokens) && strings.HasPrefix(tokens[i+1], `^"`) {
+			return CurlCMD
+		}
+		if strings.HasPrefix(tokens[i], `--url=^"`) {
+			return CurlCMD
+		}
+	}
+	return CurlBash
+}
+
+// curlTokens splits a command into top-level words without expanding it. It
+// only needs to tell a quoted Bash argument from Chrome's ^" CMD argument.
+func curlTokens(source string) []string {
+	var tokens []string
+	for i := 0; i < len(source); {
+		for i < len(source) && (source[i] == ' ' || source[i] == '\t' || source[i] == '\r' || source[i] == '\n') {
+			i++
+		}
+		if i >= len(source) {
+			break
+		}
+		start := i
+		switch {
+		case source[i] == '\'':
+			i++
+			for i < len(source) {
+				if source[i] == '\\' {
+					i += 2
+					continue
+				}
+				if source[i] == '\'' {
+					i++
+					break
+				}
+				i++
+			}
+		case source[i] == '"':
+			i++
+			for i < len(source) {
+				if source[i] == '\\' {
+					i += 2
+					continue
+				}
+				if source[i] == '"' {
+					i++
+					break
+				}
+				i++
+			}
+		case strings.HasPrefix(source[i:], `^"`):
+			i += 2
+			for i < len(source) {
+				if strings.HasPrefix(source[i:], `^\^"`) {
+					i += 4
+					continue
+				}
+				if strings.HasPrefix(source[i:], `^"`) {
+					i += 2
+					break
+				}
+				if source[i] == '^' && i+1 < len(source) {
+					i += 2
+					continue
+				}
+				i++
+			}
+		default:
+			for i < len(source) && source[i] != ' ' && source[i] != '\t' && source[i] != '\r' && source[i] != '\n' {
+				i++
+			}
+		}
+		tokens = append(tokens, source[start:i])
+	}
+	return tokens
 }
 
 // ParseCurl reads one request from a Bash/POSIX curl command, Chrome's
@@ -121,7 +204,7 @@ func parseCurlCMD(source string) ([]string, error) {
 }
 
 // cmdUnescape reverses cmd.exe's caret quoting. Chrome writes ^" around each
-// argument, ^% for %, ^^\n\n for a newline in an argument and ^<newline> for
+// argument, ^% for %, ^\n\n for a newline in an argument and ^<newline> for
 // a line continuation.
 func cmdUnescape(source string) (string, error) {
 	var b strings.Builder
@@ -136,11 +219,6 @@ func cmdUnescape(source string) (string, error) {
 		}
 		next := source[i+1]
 		switch {
-		case next == '^' && i+2 < len(source) && source[i+2] == '%':
-			// Chrome's ^^% keeps a percent that starts a variable name from
-			// being expanded by cmd.exe.
-			b.WriteByte('%')
-			i += 2
 		case next == '%':
 			b.WriteByte('%')
 			i++
@@ -230,7 +308,7 @@ func parseCurlArgs(args []string) (request.Request, []string, error) {
 	headers, explicit := http.Header{}, map[string]bool{}
 	defaults := http.Header{}
 	var data []string
-	var get, head, jsonBody, afterDash bool
+	var get, head, jsonBody, globoff, afterDash bool
 	for i := 1; i < len(args); i++ {
 		arg := args[i]
 		if arg == "--" && !afterDash {
@@ -264,6 +342,7 @@ func parseCurlArgs(args []string) (request.Request, []string, error) {
 			}
 			get = get || option == "-G" || option == "--get"
 			head = head || option == "-I" || option == "--head"
+			globoff = globoff || option == "-g" || option == "--globoff"
 			continue
 		case "--url", "-X", "--request", "-H", "--header", "-d", "--data", "--data-ascii", "--data-raw", "--data-binary", "--data-urlencode", "--json", "-b", "--cookie", "-u", "--user", "-A", "--user-agent", "-e", "--referer":
 			if !attached {
@@ -336,6 +415,11 @@ func parseCurlArgs(args []string) (request.Request, []string, error) {
 			}
 			data = append(data, value)
 		}
+	}
+	if !globoff {
+		// Chrome escapes URL brackets and braces so curl does not read them as
+		// a glob; without -g/--globoff, put the literal characters back.
+		r.URL = strings.NewReplacer(`\[`, "[", `\]`, "]", `\{`, "{", `\}`, "}").Replace(r.URL)
 	}
 	checkURL := r.URL
 	if match := curlVariable.FindStringIndex(checkURL); match != nil && match[0] == 0 {
@@ -474,21 +558,18 @@ func parsePowerShell(source string) (request.Request, []string, error) {
 			if err != nil {
 				return r, nil, fmt.Errorf("PowerShell session user agent: %w", err)
 			}
+			if !httpguts.ValidHeaderFieldValue(userAgent) {
+				return r, nil, errors.New("invalid PowerShell session user agent")
+			}
 		case strings.HasPrefix(statement, "$session.Cookies.Add"):
 			name, value, path, domain, err := powerShellCookie(statement)
 			if err != nil {
 				return r, nil, err
 			}
+			if !httpguts.ValidHeaderFieldName(name) || !httpguts.ValidHeaderFieldValue(value) {
+				return r, nil, errors.New("invalid PowerShell cookie")
+			}
 			cookies = append(cookies, powerShellCookieValue{name + "=" + value, path, domain})
-		case strings.HasPrefix(statement, "Invoke-WebRequest"):
-			if sawInvoke {
-				return r, nil, errors.New("paste exactly one Invoke-WebRequest command")
-			}
-			sawInvoke = true
-			warnings, err = powerShellRequest(&r, statement, userAgent, cookieValues(cookies), warnings)
-			if err != nil {
-				return r, nil, err
-			}
 		case strings.HasPrefix(strings.ToLower(statement), "invoke-webrequest"):
 			if sawInvoke {
 				return r, nil, errors.New("paste exactly one Invoke-WebRequest command")
@@ -605,14 +686,7 @@ func powerShellRequest(r *request.Request, statement, userAgent string, cookies,
 	if r.Method == "" {
 		r.Method = "GET"
 	}
-	for name, values := range headers {
-		for _, value := range values {
-			if !httpguts.ValidHeaderFieldName(name) || !httpguts.ValidHeaderFieldValue(value) {
-				return warnings, fmt.Errorf("invalid PowerShell header %q", name)
-			}
-			r.HeaderList = append(r.HeaderList, request.Field{Name: name, Value: value})
-		}
-	}
+	r.HeaderList = append(r.HeaderList, HeadersOf(headers)...)
 	if userAgent != "" {
 		AddHeader(r, "User-Agent", userAgent)
 	}
@@ -830,11 +904,23 @@ func powerShellQuoted(s string, start int) (string, int, error) {
 			continue
 		}
 		if c == '$' && quote == '"' {
-			value, next, ok := powerShellChar(s, i)
+			unit, next, ok := powerShellCodeUnit(s, i)
 			if !ok {
 				return "", 0, errors.New("PowerShell variables in strings are not supported; paste literal values")
 			}
-			b.WriteRune(value)
+			if utf16.IsSurrogate(rune(unit)) {
+				if unit >= 0xD800 && unit <= 0xDBFF {
+					if low, after, ok := powerShellCodeUnit(s, next); ok && low >= 0xDC00 && low <= 0xDFFF {
+						b.WriteRune(utf16.DecodeRune(rune(unit), rune(low)))
+						i = after - 1
+						continue
+					}
+				}
+				b.WriteRune(utf8.RuneError)
+				i = next - 1
+				continue
+			}
+			b.WriteRune(rune(unit))
 			i = next - 1
 			continue
 		}
@@ -843,8 +929,9 @@ func powerShellQuoted(s string, start int) (string, int, error) {
 	return "", 0, errors.New("unclosed PowerShell string")
 }
 
-// powerShellChar reads Chrome's $([char]N) escape.
-func powerShellChar(s string, start int) (rune, int, bool) {
+// powerShellCodeUnit reads Chrome's $([char]N) escape. N is a UTF-16 code
+// unit; a surrogate pair is combined by the caller.
+func powerShellCodeUnit(s string, start int) (uint16, int, bool) {
 	const prefix = "$([char]"
 	if !strings.HasPrefix(s[start:], prefix) {
 		return 0, start, false
@@ -855,10 +942,10 @@ func powerShellChar(s string, start int) (rune, int, bool) {
 	}
 	number := strings.TrimSpace(s[start+len(prefix) : start+len(prefix)+end])
 	n, err := strconv.Atoi(number)
-	if err != nil || n < 0 || n > utf8.MaxRune {
+	if err != nil || n < 0 || n > 0xFFFF {
 		return 0, start, false
 	}
-	return rune(n), start + len(prefix) + end + 1, true
+	return uint16(n), start + len(prefix) + end + 1, true
 }
 
 // powerShellString reads a complete quoted PowerShell string.
@@ -881,13 +968,14 @@ func powerShellValue(token psToken) (string, error) {
 	if token.value == "" {
 		return "", errors.New("empty value")
 	}
-	if strings.HasPrefix(token.value, "$") && !token.quoted {
-		return token.value, nil
-	}
 	return token.value, nil
 }
 
 // powerShellHeaders reads @{ "name" = "value"; ... } into a header.
+var powerShellPseudoHeaders = map[string]bool{
+	"authority": true, "method": true, "path": true, "scheme": true, "version": true, "protocol": true,
+}
+
 func powerShellHeaders(tokens []psToken, at int) (http.Header, int, error) {
 	headers := http.Header{}
 	for at < len(tokens) {
@@ -908,6 +996,10 @@ func powerShellHeaders(tokens []psToken, at int) (http.Header, int, error) {
 		value, err := powerShellValue(tokens[at+2])
 		if err != nil {
 			return nil, 0, err
+		}
+		if powerShellPseudoHeaders[strings.ToLower(name)] {
+			at += 3
+			continue
 		}
 		if !httpguts.ValidHeaderFieldName(name) || !httpguts.ValidHeaderFieldValue(value) {
 			return nil, 0, fmt.Errorf("invalid PowerShell header %q", name)

@@ -6,6 +6,7 @@ import (
 	"encoding/json/v2"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"slices"
@@ -16,14 +17,49 @@ import (
 	"github.com/baba983/vscroxy/internal/request"
 )
 
+const maxBrunoFile = 16 << 20
+
+var errBrunoNotRegular = errors.New("not a regular file")
+
+// readBrunoFile reads a collection file without following symlinks or
+// reading more than the import limit.
+func readBrunoFile(path string) ([]byte, error) {
+	info, err := os.Lstat(path)
+	if err != nil {
+		return nil, err
+	}
+	if !info.Mode().IsRegular() {
+		return nil, errBrunoNotRegular
+	}
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+	data, err := io.ReadAll(io.LimitReader(file, maxBrunoFile+1))
+	if err != nil {
+		return nil, err
+	}
+	if len(data) > maxBrunoFile {
+		return nil, errors.New("file is larger than 16 MiB")
+	}
+	return data, nil
+}
+
 // ReadBrunoDir reads a Bruno .bru collection directory. It never executes a
 // script, reads a referenced upload or follows an extends outside the
 // collection's environments folder.
 func ReadBrunoDir(dir string) (Result, error) {
 	configPath := filepath.Join(dir, "bruno.json")
-	data, err := os.ReadFile(configPath)
+	data, err := readBrunoFile(configPath)
 	if err != nil {
-		return Result{}, fmt.Errorf("choose a Bruno collection folder (bruno.json was not found): %w", err)
+		if errors.Is(err, errBrunoNotRegular) {
+			return Result{}, errors.New("bruno.json must be a regular file")
+		}
+		if errors.Is(err, os.ErrNotExist) {
+			return Result{}, fmt.Errorf("choose a Bruno collection folder (bruno.json was not found): %w", err)
+		}
+		return Result{}, fmt.Errorf("read bruno.json: %w", err)
 	}
 	var config brunoConfig
 	if err := json.Unmarshal(data, &config); err != nil {
@@ -38,12 +74,14 @@ func ReadBrunoDir(dir string) (Result, error) {
 	if config.Proxy.Kind() != 0 || config.ClientCertificates.Kind() != 0 || config.Scripts.Kind() != 0 || config.Presets.Kind() != 0 {
 		warnings = append(warnings, "collection proxy, client certificates or collection scripts were not imported")
 	}
-	if file, err := os.ReadFile(filepath.Join(dir, "collection.bru")); err == nil {
+	if file, err := readBrunoFile(filepath.Join(dir, "collection.bru")); err == nil {
 		blocks, _, err := parseBru(file)
 		if err != nil {
 			return Result{}, fmt.Errorf("read collection.bru: %w", err)
 		}
 		root.settings, root.headers = brunoFolderSettings(blocks, name, &warnings)
+	} else if errors.Is(err, errBrunoNotRegular) {
+		warnings = append(warnings, "collection.bru was skipped because it is not a regular file")
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return Result{}, fmt.Errorf("read collection.bru: %w", err)
 	}
@@ -56,10 +94,11 @@ func ReadBrunoDir(dir string) (Result, error) {
 	if len(root.settings.Variables) > 0 || root.settings.Auth.Type != "" || root.settings.Description != "" {
 		collection.Folders = append(collection.Folders, root.settings)
 	}
-	environments, _, err := readBrunoEnvironments(filepath.Join(dir, "environments"))
+	environments, envWarnings, err := readBrunoEnvironments(filepath.Join(dir, "environments"))
 	if err != nil {
 		return Result{}, err
 	}
+	collection.Warnings = dedupe(append(collection.Warnings, envWarnings...))
 	return Result{Collections: []Collection{collection}, Environments: environments}, nil
 }
 
@@ -113,7 +152,7 @@ func readBrunoTree(root, dir string, folder *brunoFolder, warnings *[]string) er
 		folderPath := filepath.Join(dir, entry.Name())
 		childName := entry.Name()
 		var blocks bruBlocks
-		if data, err := os.ReadFile(filepath.Join(folderPath, "folder.bru")); err == nil {
+		if data, err := readBrunoFile(filepath.Join(folderPath, "folder.bru")); err == nil {
 			parsed, _, err := parseBru(data)
 			if err != nil {
 				return fmt.Errorf("read %s: %w", filepath.Join(folderPath, "folder.bru"), err)
@@ -123,6 +162,8 @@ func readBrunoTree(root, dir string, folder *brunoFolder, warnings *[]string) er
 			childName = cmp.Or(meta.name, childName)
 			child.settings, child.headers = brunoFolderSettings(parsed, "", warnings)
 			child.settings.Path = folder.path + "/" + Segment(childName)
+		} else if errors.Is(err, errBrunoNotRegular) {
+			*warnings = append(*warnings, "folder.bru was skipped because it is not a regular file")
 		} else if !errors.Is(err, os.ErrNotExist) {
 			return fmt.Errorf("read folder.bru: %w", err)
 		} else {
@@ -139,7 +180,11 @@ func readBrunoTree(root, dir string, folder *brunoFolder, warnings *[]string) er
 			continue
 		}
 		path := filepath.Join(dir, entry.Name())
-		data, err := os.ReadFile(path)
+		data, err := readBrunoFile(path)
+		if errors.Is(err, errBrunoNotRegular) {
+			*warnings = append(*warnings, "non-regular .bru files were skipped")
+			continue
+		}
 		if err != nil {
 			return fmt.Errorf("read %s: %w", path, err)
 		}
@@ -158,7 +203,7 @@ func readBrunoTree(root, dir string, folder *brunoFolder, warnings *[]string) er
 			*warnings = append(*warnings, "requests without a method block were skipped")
 			continue
 		}
-		req, err := brunoRequest(indexed, method, values, meta, path, folder.path, warnings)
+		req, err := brunoRequest(indexed, method, values, meta, path, folder.path, root, warnings)
 		if err != nil {
 			return fmt.Errorf("%s: %w", path, err)
 		}
@@ -190,7 +235,7 @@ func brunoFolderSettings(blocks []bruBlock, path string, warnings *[]string) (re
 	return folder, bruFields(indexed.pairs("headers"))
 }
 
-func brunoRequest(indexed bruBlocks, method string, values map[string]string, meta bruMeta, file, parent string, warnings *[]string) (request.Request, error) {
+func brunoRequest(indexed bruBlocks, method string, values map[string]string, meta bruMeta, file, parent, root string, warnings *[]string) (request.Request, error) {
 	out := request.Request{
 		ID:         StableID("bruno", parent, filepath.Base(file)),
 		Name:       cmp.Or(strings.TrimSpace(meta.name), strings.TrimSuffix(filepath.Base(file), ".bru")),
@@ -223,7 +268,7 @@ func brunoRequest(indexed bruBlocks, method string, values map[string]string, me
 	if out.Auth.Type == "" {
 		out.Auth.Type = request.AuthInherit
 	}
-	brunoBody(&out, values["body"], indexed, warnings)
+	brunoBody(&out, values["body"], indexed, root, warnings)
 	if script := VariableScript(bruVariables(indexed.pairs("vars:pre-request"))); script != "" {
 		out.Pre = JoinScript(script, out.Pre)
 	}
@@ -264,7 +309,7 @@ func bruVariables(pairs []bruPair) []request.Field {
 	return fields
 }
 
-func brunoBody(out *request.Request, mode string, indexed bruBlocks, warnings *[]string) {
+func brunoBody(out *request.Request, mode string, indexed bruBlocks, root string, warnings *[]string) {
 	if mode == "" && indexed.has("body") {
 		SetRawBody(out, "application/json", indexed.text("body"))
 		return
@@ -290,7 +335,7 @@ func brunoBody(out *request.Request, mode string, indexed bruBlocks, warnings *[
 		for _, pair := range indexed.pairs("body:multipart-form") {
 			field := request.Field{Name: pair.key, Value: pair.value, Disabled: pair.disabled}
 			if path, ok := brunoFileValue(pair.value); ok {
-				field.File, field.Value = true, path
+				field.File, field.Value = true, brunoPath(root, path)
 				if strings.Contains(pair.value, "|") {
 					*warnings = append(*warnings, "multipart fields with several files imported the first one")
 				}
@@ -315,7 +360,7 @@ func brunoBody(out *request.Request, mode string, indexed bruBlocks, warnings *[
 			if !ok {
 				path = pair.value
 			}
-			out.BodyMode, out.BodyFile = "Binary", path
+			out.BodyMode, out.BodyFile = "Binary", brunoPath(root, path)
 			if pair.contentType != "" {
 				AddHeader(out, "Content-Type", pair.contentType)
 			}
@@ -328,6 +373,18 @@ func brunoBody(out *request.Request, mode string, indexed bruBlocks, warnings *[
 	default:
 		*warnings = append(*warnings, "use of the "+mode+" body was skipped")
 	}
+}
+
+// brunoPath resolves a Bruno @file path against the collection directory.
+func brunoPath(root, path string) string {
+	if path == "" || filepath.IsAbs(path) {
+		return path
+	}
+	absolute, err := filepath.Abs(filepath.Join(root, filepath.FromSlash(path)))
+	if err != nil {
+		return filepath.Clean(filepath.Join(root, filepath.FromSlash(path)))
+	}
+	return absolute
 }
 
 // brunoFileValue reads @file(path) and returns the first path.
@@ -433,8 +490,34 @@ func brunoRedirects(indexed bruBlocks, warnings *[]string) capture.RedirectPolic
 	return capture.RedirectPolicy{}
 }
 
-// brunoChecks maps the simple status and response-header assertions; other
-// Bruno assertions are reported.
+// brunoAssertOperators are the comparison words Bruno accepts. Only eq (and
+// a bare operand) is an exact check here; the rest have no Checks equivalent.
+var brunoAssertOperators = map[string]bool{
+	"eq": true, "neq": true, "gt": true, "gte": true, "lt": true, "lte": true,
+	"in": true, "notIn": true, "contains": true, "notContains": true,
+	"length": true, "matches": true, "notMatches": true, "startsWith": true,
+	"endsWith": true, "between": true, "isEmpty": true, "isNotEmpty": true,
+	"isNull": true, "isUndefined": true, "isDefined": true, "isTruthy": true,
+	"isFalsy": true, "isJson": true, "isNumber": true, "isString": true,
+	"isBoolean": true, "isArray": true,
+}
+
+// brunoAssertOperand returns the exact value to compare, or false for an
+// operator this app cannot evaluate.
+func brunoAssertOperand(value string) (string, bool) {
+	value = strings.TrimSpace(value)
+	operator, rest, _ := strings.Cut(value, " ")
+	if !brunoAssertOperators[operator] {
+		return value, true
+	}
+	if operator != "eq" {
+		return "", false
+	}
+	return strings.TrimSpace(rest), true
+}
+
+// brunoChecks maps exact status and response-header assertions; other
+// operators are reported rather than turned into an invalid check.
 func brunoChecks(out *request.Request, pairs []bruPair, warnings *[]string) {
 	for _, pair := range pairs {
 		if pair.disabled {
@@ -442,9 +525,12 @@ func brunoChecks(out *request.Request, pairs []bruPair, warnings *[]string) {
 		}
 		key := strings.TrimPrefix(pair.key, "$")
 		key = strings.TrimPrefix(key, "res.")
-		value := strings.TrimSpace(pair.value)
-		value = strings.TrimPrefix(value, "eq ")
-		value = strings.TrimSpace(value)
+		value, exact := brunoAssertOperand(pair.value)
+		if !exact {
+			operator, _, _ := strings.Cut(strings.TrimSpace(pair.value), " ")
+			*warnings = append(*warnings, "response assertion operator "+operator+" was not imported")
+			continue
+		}
 		switch {
 		case key == "status":
 			out.Checks.Status = value
@@ -515,12 +601,17 @@ func readBrunoEnvironments(dir string) ([]Environment, []string, error) {
 		secrets []string
 	}
 	var raw []rawEnv
+	var warnings []string
 	for _, entry := range entries {
 		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".bru") {
 			continue
 		}
 		path := filepath.Join(dir, entry.Name())
-		data, err := os.ReadFile(path)
+		data, err := readBrunoFile(path)
+		if errors.Is(err, errBrunoNotRegular) {
+			warnings = append(warnings, "non-regular environment files were skipped")
+			continue
+		}
 		if err != nil {
 			return nil, nil, fmt.Errorf("read %s: %w", path, err)
 		}
@@ -551,7 +642,6 @@ func readBrunoEnvironments(dir string) ([]Environment, []string, error) {
 		byName[env.name] = env
 	}
 	var out []Environment
-	var warnings []string
 	for _, env := range raw {
 		values := map[string]string{}
 		if base, ok := byName[env.extends]; ok {
