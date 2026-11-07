@@ -152,7 +152,10 @@ func (a *app) requestFieldsEditor(c *ui.Context, rows *[]request.Field, opts fie
 					}
 					ui.Box(c).Width(uikit.HeightLarge).Center().Children(func() {
 						label := fmt.Sprintf("Remove %s %d", noun, i+1)
-						button := uikit.IconButton(c, label, label, closeIcon)
+						// The action column ends at the grid's edge, so keep
+						// its focus ring inside the button instead of clipping
+						// it against the table border.
+						button := uikit.IconButton(c, label, label, closeIcon).FocusRingOffset(-2)
 						// Keep the control mounted, named and in the Tab order even
 						// while quiet. Any focus in the row reveals its action.
 						if !row.Hovered() && !row.FocusWithin() {
