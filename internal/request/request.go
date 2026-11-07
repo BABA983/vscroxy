@@ -21,6 +21,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/baba983/vscroxy/internal/graphql"
 )
 
 // Request is what a user authors and saves. Names and collection paths are
@@ -78,9 +80,15 @@ type TokenSource struct {
 
 // GraphQLBody keeps authored templates separate from the JSON envelope sent.
 // Variables is JSON text, not a map, so placeholders and large numbers survive.
+// OperationName selects one operation when the document defines several; a
+// single named operation is selected automatically. Schema is SDL kept with
+// the request, like a gRPC descriptor, so completion needs no network.
 type GraphQLBody struct {
-	Query     string `json:"query,omitempty"`
-	Variables string `json:"variables,omitempty"`
+	Query         string `json:"query,omitempty"`
+	Variables     string `json:"variables,omitempty"`
+	OperationName string `json:"operationName,omitempty"`
+	Schema        string `json:"schema,omitempty"`
+	SchemaSource  string `json:"schemaSource,omitempty"`
 }
 
 // Example is a response kept with a request, with the request that got it.
@@ -198,6 +206,10 @@ func (r Request) Prepare(vars map[string]string) (*Prepared, error) {
 		if strings.TrimSpace(query) == "" {
 			return nil, fmt.Errorf("enter a GraphQL query")
 		}
+		operationName, err := graphql.SelectOperation(query, r.GraphQL.OperationName)
+		if err != nil {
+			return nil, err
+		}
 		variables := strings.TrimSpace(ExpandVars(r.GraphQL.Variables, vars))
 		if variables == "" {
 			variables = "{}"
@@ -207,9 +219,10 @@ func (r Request) Prepare(vars map[string]string) (*Prepared, error) {
 			return nil, fmt.Errorf("GraphQL variables must be a JSON object after variable expansion")
 		}
 		data, err := json.Marshal(struct {
-			Query     string         `json:"query"`
-			Variables jsontext.Value `json:"variables"`
-		}{query, value})
+			Query         string         `json:"query"`
+			OperationName string         `json:"operationName,omitempty"`
+			Variables     jsontext.Value `json:"variables"`
+		}{query, operationName, value})
 		if err != nil {
 			return nil, fmt.Errorf("encode GraphQL body: %w", err)
 		}

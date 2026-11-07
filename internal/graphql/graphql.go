@@ -221,6 +221,53 @@ func envelopeOperations(envelope map[string]jsontext.Value, remaining *int) ([]O
 	return ops, true, err
 }
 
+// Operations returns an executable document's operations in document order.
+// It applies the same source, depth and token limits as formatting.
+func Operations(source string) ([]Operation, error) {
+	remaining := maxTokens
+	doc, err := parse(source, &remaining)
+	if err != nil {
+		return nil, err
+	}
+	ops := make([]Operation, 0, len(doc.Operations))
+	for _, op := range doc.Operations {
+		ops = append(ops, Operation{Name: op.Name, Type: string(op.Operation)})
+	}
+	return ops, nil
+}
+
+// SelectOperation returns the operationName an HTTP envelope must carry.
+// A document with one operation selects it automatically, even when a stale
+// saved name was requested, and a named one is still sent explicitly so a
+// server that logs operation names sees it. A document with several
+// operations requires requested to name one; without it, the send fails
+// before reaching the server, as the GraphQL specification requires a choice.
+func SelectOperation(source, requested string) (string, error) {
+	// A send is bounded by the source size, not the editor's smaller token
+	// budget: a large valid document must still be sendable.
+	remaining := maxSource
+	doc, err := parse(source, &remaining)
+	if err != nil {
+		return "", err
+	}
+	if len(doc.Operations) == 1 {
+		// One operation needs no choice; a stale saved name must not block it.
+		return doc.Operations[0].Name, nil
+	}
+	if requested == "" {
+		return "", fmt.Errorf("graphql: the document defines %d operations; choose one", len(doc.Operations))
+	}
+	if !validName(requested) {
+		return "", errors.New("graphql: invalid operationName")
+	}
+	for _, op := range doc.Operations {
+		if op.Name == requested {
+			return requested, nil
+		}
+	}
+	return "", errors.New("graphql: operationName does not select an operation")
+}
+
 func validName(name string) bool {
 	// The library lexer defines names; do not infer them from document text.
 	if name == "" || len(name) > maxSource || !utf8.ValidString(name) {

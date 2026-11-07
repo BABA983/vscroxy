@@ -17,6 +17,7 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/baba983/vscroxy/internal/graphql"
 	"github.com/baba983/vscroxy/internal/vault"
 )
 
@@ -407,5 +408,62 @@ func TestChainAndInheritAuth(t *testing.T) {
 	}
 	if auth, from := (Context{}).InheritAuth(Auth{Type: AuthInherit}); auth.Type != "None" || from != "" {
 		t.Error("nothing to inherit must send no auth")
+	}
+}
+
+func TestGraphQLOperationNameSelection(t *testing.T) {
+	multi := Request{Method: "POST", URL: "https://example.test/graphql", BodyMode: "GraphQL",
+		GraphQL: GraphQLBody{Query: "query Read { viewer { id } } mutation Write { save { id } }"}}
+	if _, err := multi.Prepare(nil); err == nil {
+		t.Fatal("a multi-operation document without a choice was sent")
+	}
+	multi.GraphQL.OperationName = "Write"
+	prepared, err := multi.Prepare(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var envelope struct {
+		Query         string `json:"query"`
+		OperationName string `json:"operationName"`
+	}
+	if err := json.Unmarshal([]byte(prepared.Body), &envelope); err != nil {
+		t.Fatal(err)
+	}
+	if envelope.OperationName != "Write" || envelope.Query != multi.GraphQL.Query {
+		t.Fatalf("multi-operation envelope = %+v", envelope)
+	}
+	multi.GraphQL.OperationName = "Missing"
+	if _, err := multi.Prepare(nil); err == nil {
+		t.Fatal("an operationName that selects nothing was sent")
+	}
+	multi.GraphQL = GraphQLBody{Query: "query Read { viewer { id } }", OperationName: "Stale"}
+	prepared, err = multi.Prepare(nil)
+	if err != nil || !strings.Contains(prepared.Body, `"operationName":"Read"`) {
+		t.Fatalf("single named operation = %s, %v", prepared.Body, err)
+	}
+	multi.GraphQL = GraphQLBody{Query: "{ viewer { id } }"}
+	prepared, err = multi.Prepare(nil)
+	if err != nil || strings.Contains(prepared.Body, "operationName") {
+		t.Fatalf("anonymous operation = %s, %v", prepared.Body, err)
+	}
+}
+
+func TestGraphQLOperationNameReachesExports(t *testing.T) {
+	r := Request{Method: "POST", URL: "https://example.test/graphql", BodyMode: "GraphQL",
+		GraphQL: GraphQLBody{Query: "query Read { viewer { id } } mutation Write { save { id } }", OperationName: "Write"}}
+	prepared, err := r.Prepare(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	snippet, err := Snippet("JavaScript (fetch)", prepared)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(snippet, "operationName") || !strings.Contains(snippet, `Write`) {
+		t.Fatalf("snippet lost operationName:\n%s", snippet)
+	}
+	ops, err := graphql.RequestOperations("POST", "", "application/json", prepared.Body)
+	if err != nil || len(ops) != 1 || ops[0].Name != "Write" || ops[0].Type != "mutation" {
+		t.Fatalf("capture recognition = %+v, %v", ops, err)
 	}
 }

@@ -39,6 +39,7 @@ require (
 )
 
 require (
+	github.com/agnivade/levenshtein v1.2.2 // indirect
 	github.com/dlclark/regexp2/v2 v2.8.1 // indirect
 	github.com/go-openapi/jsonpointer v0.22.5 // indirect
 	github.com/go-openapi/swag/jsonname v0.25.5 // indirect
