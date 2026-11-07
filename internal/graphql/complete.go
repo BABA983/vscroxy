@@ -82,6 +82,48 @@ func lexQuery(source string) []queryToken {
 	return out
 }
 
+// MaskTemplates replaces each {{...}} with an identifier of the same rune
+// count, so a lexer sees a value instead of nested braces. Rune positions stay
+// aligned with the original source; completion and hover map them back to byte
+// offsets in the original text.
+func MaskTemplates(source string) string {
+	var b strings.Builder
+	for {
+		start := strings.Index(source, "{{")
+		if start < 0 {
+			b.WriteString(source)
+			return b.String()
+		}
+		end := strings.Index(source[start+2:], "}}")
+		if end < 0 {
+			b.WriteString(source)
+			return b.String()
+		}
+		b.WriteString(source[:start])
+		span := source[start : start+2+end+2]
+		b.WriteString(strings.Repeat("x", utf8.RuneCountInString(span)))
+		source = source[start+2+end+2:]
+	}
+}
+
+// inComment reports whether caret is inside a # comment. The token stream used
+// for completion skips comments, so this needs its own pass.
+func inComment(source string, caret int) bool {
+	l := lexer.New(&ast.Source{Name: "query", Input: source})
+	for {
+		t, err := l.ReadToken()
+		if err != nil || t.Kind == lexer.EOF {
+			return false
+		}
+		if t.Kind == lexer.Comment && t.Pos.Start <= caret && caret <= t.Pos.End {
+			return true
+		}
+		if t.Pos.Start > caret {
+			return false
+		}
+	}
+}
+
 func runeIndex(source string, byteOffset int) int {
 	byteOffset = min(max(byteOffset, 0), len(source))
 	return utf8.RuneCountInString(source[:byteOffset])
@@ -108,8 +150,12 @@ func (s *Schema) Complete(source string, byteOffset int) CompletionResult {
 	if s == nil || s.ast == nil {
 		return CompletionResult{Start: byteOffset}
 	}
-	tokens := lexQuery(source)
 	caret := runeIndex(source, byteOffset)
+	masked := MaskTemplates(source)
+	if inComment(masked, caret) {
+		return CompletionResult{Start: byteOffset}
+	}
+	tokens := lexQuery(masked)
 	for _, t := range tokens {
 		if (t.kind == lexer.String || t.kind == lexer.BlockString) && t.start <= caret && caret <= t.end {
 			return CompletionResult{Start: byteOffset}
@@ -218,10 +264,12 @@ func (p *completer) rootName() string {
 		if p.schema.Mutation != nil {
 			return p.schema.Mutation.Name
 		}
+		return ""
 	case ast.Subscription:
 		if p.schema.Subscription != nil {
 			return p.schema.Subscription.Name
 		}
+		return ""
 	}
 	if p.schema.Query != nil {
 		return p.schema.Query.Name
@@ -786,13 +834,14 @@ func (s *Schema) Hover(source string, byteOffset int) (Hover, bool) {
 	if s == nil || s.ast == nil {
 		return Hover{}, false
 	}
+	masked := MaskTemplates(source)
 	remaining := maxTokens
-	doc, err := parse(source, &remaining)
+	doc, err := parse(masked, &remaining)
 	if err != nil {
 		return Hover{}, false
 	}
 	validator.Validate(s.ast, doc)
-	tokens := lexQuery(source)
+	tokens := lexQuery(masked)
 	caret := runeIndex(source, byteOffset)
 	var tok *queryToken
 	for i := range tokens {

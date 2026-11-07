@@ -417,34 +417,82 @@ func TestGraphQLOperationNameSelection(t *testing.T) {
 	if _, err := multi.Prepare(nil); err == nil {
 		t.Fatal("a multi-operation document without a choice was sent")
 	}
-	multi.GraphQL.OperationName = "Write"
+	decode := func(t *testing.T, body string) (query, operationName string) {
+		t.Helper()
+		var envelope struct {
+			Query         string `json:"query"`
+			OperationName string `json:"operationName"`
+		}
+		if err := json.Unmarshal([]byte(body), &envelope); err != nil {
+			t.Fatal(err)
+		}
+		return envelope.Query, envelope.OperationName
+	}
+	for _, name := range []string{"Write", "Missing"} {
+		multi.GraphQL.OperationName = name
+		prepared, err := multi.Prepare(nil)
+		if err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		query, operation := decode(t, prepared.Body)
+		if query != multi.GraphQL.Query || operation != name {
+			t.Fatalf("%s envelope = %q, %q", name, query, operation)
+		}
+	}
+	multi.GraphQL = GraphQLBody{Query: "query Read { viewer { id } }", OperationName: "Stale"}
 	prepared, err := multi.Prepare(nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	var envelope struct {
-		Query         string `json:"query"`
-		OperationName string `json:"operationName"`
+	if _, operation := decode(t, prepared.Body); operation != "Stale" {
+		t.Fatalf("single operation lost the saved name: %q", operation)
 	}
-	if err := json.Unmarshal([]byte(prepared.Body), &envelope); err != nil {
+	multi.GraphQL = GraphQLBody{Query: "query Read { viewer { id } }"}
+	prepared, err = multi.Prepare(nil)
+	if err != nil {
 		t.Fatal(err)
 	}
-	if envelope.OperationName != "Write" || envelope.Query != multi.GraphQL.Query {
-		t.Fatalf("multi-operation envelope = %+v", envelope)
-	}
-	multi.GraphQL.OperationName = "Missing"
-	if _, err := multi.Prepare(nil); err == nil {
-		t.Fatal("an operationName that selects nothing was sent")
-	}
-	multi.GraphQL = GraphQLBody{Query: "query Read { viewer { id } }", OperationName: "Stale"}
-	prepared, err = multi.Prepare(nil)
-	if err != nil || !strings.Contains(prepared.Body, `"operationName":"Read"`) {
-		t.Fatalf("single named operation = %s, %v", prepared.Body, err)
+	if _, operation := decode(t, prepared.Body); operation != "Read" {
+		t.Fatalf("single operation was not selected automatically: %q", operation)
 	}
 	multi.GraphQL = GraphQLBody{Query: "{ viewer { id } }"}
 	prepared, err = multi.Prepare(nil)
-	if err != nil || strings.Contains(prepared.Body, "operationName") {
-		t.Fatalf("anonymous operation = %s, %v", prepared.Body, err)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, operation := decode(t, prepared.Body); operation != "" {
+		t.Fatalf("anonymous operation carried %q", operation)
+	}
+	// Malformed documents and missing variables are sent to the server so an
+	// API client can test its error handling. A saved name still goes along.
+	malformed := []string{
+		`{ user(id: 1) { name }`,
+		`{ user(id: {{missing}}) { id } }`,
+		strings.Repeat("{ f", 65) + strings.Repeat("}", 65),
+		`query A { a } query A { b }`,
+		`fragment Only on Query { viewer { id } }`,
+	}
+	for _, query := range malformed {
+		r := Request{Method: "POST", URL: "https://example.test/graphql", BodyMode: "GraphQL",
+			GraphQL: GraphQLBody{Query: query}}
+		prepared, err := r.Prepare(nil)
+		if err != nil {
+			t.Errorf("malformed document %q was refused: %v", query, err)
+			continue
+		}
+		gotQuery, operation := decode(t, prepared.Body)
+		if gotQuery != query || operation != "" {
+			t.Errorf("malformed envelope = %q, %q", gotQuery, operation)
+		}
+		r.GraphQL.OperationName = "Chosen"
+		prepared, err = r.Prepare(nil)
+		if err != nil {
+			t.Errorf("malformed document with a name %q was refused: %v", query, err)
+			continue
+		}
+		if _, operation := decode(t, prepared.Body); operation != "Chosen" {
+			t.Errorf("malformed document lost the saved name: %q", operation)
+		}
 	}
 }
 

@@ -316,7 +316,7 @@ const testIntrospection = `{
         {"kind": "OBJECT", "name": "Query", "description": "The root query.", "fields": [
           {"name": "viewer", "description": "The signed-in user.", "args": [], "type": {"kind": "NON_NULL", "name": null, "ofType": {"kind": "OBJECT", "name": "User", "ofType": null}}, "isDeprecated": false, "deprecationReason": null},
           {"name": "search", "description": "Search projects.", "args": [
-            {"name": "query", "description": null, "type": {"kind": "NON_NULL", "name": null, "ofType": {"kind": "SCALAR", "name": "String", "ofType": null}}, "defaultValue": null},
+            {"name": "query", "description": "Search text.", "type": {"kind": "NON_NULL", "name": null, "ofType": {"kind": "SCALAR", "name": "String", "ofType": null}}, "defaultValue": null},
             {"name": "limit", "description": null, "type": {"kind": "SCALAR", "name": "Int", "ofType": null}, "defaultValue": "10"}
           ], "type": {"kind": "LIST", "name": null, "ofType": {"kind": "NON_NULL", "name": null, "ofType": {"kind": "UNION", "name": "SearchResult", "ofType": null}}}, "isDeprecated": false, "deprecationReason": null}
         ], "inputFields": null, "interfaces": [], "enumValues": null, "possibleTypes": null},
@@ -359,6 +359,9 @@ func TestSchemaFromIntrospection(t *testing.T) {
 	if !strings.Contains(schema.SDL(), "type User implements Node") || !strings.Contains(schema.SDL(), `viewer: User!`) {
 		t.Fatalf("introspection SDL:\n%s", schema.SDL())
 	}
+	if !strings.Contains(schema.SDL(), `"Search text." query: String!`) {
+		t.Fatalf("argument description missing:\n%s", schema.SDL())
+	}
 }
 
 func TestIntrospectionDisabled(t *testing.T) {
@@ -385,5 +388,100 @@ func TestIntrospectionCustomRootType(t *testing.T) {
 	}
 	if got := completionAt(t, schema, "query Q { vi", "vi"); !hasLabel(got.Items, "viewer") {
 		t.Fatalf("completion = %v", labels(got.Items))
+	}
+}
+
+func TestIntrospectionDoesNotInferUnusedRootNames(t *testing.T) {
+	data := `{"data":{"__schema":{"queryType":{"name":"Query"},"mutationType":null,"subscriptionType":null,"types":[
+		{"kind":"OBJECT","name":"Query","description":null,"fields":[{"name":"viewer","description":null,"args":[],"type":{"kind":"SCALAR","name":"String","ofType":null},"isDeprecated":false,"deprecationReason":null}],"inputFields":null,"interfaces":[],"enumValues":null,"possibleTypes":null},
+		{"kind":"OBJECT","name":"Mutation","description":null,"fields":[{"name":"save","description":null,"args":[],"type":{"kind":"SCALAR","name":"String","ofType":null},"isDeprecated":false,"deprecationReason":null}],"inputFields":null,"interfaces":[],"enumValues":null,"possibleTypes":null},
+		{"kind":"OBJECT","name":"Subscription","description":null,"fields":[{"name":"plan","description":null,"args":[],"type":{"kind":"SCALAR","name":"String","ofType":null},"isDeprecated":false,"deprecationReason":null}],"inputFields":null,"interfaces":[],"enumValues":null,"possibleTypes":null}
+	],"directives":[]}}}`
+	schema, err := graphql.ParseIntrospection([]byte(data))
+	if err != nil {
+		t.Fatal(err)
+	}
+	sdl := schema.SDL()
+	if !strings.Contains(sdl, "schema {") || !strings.Contains(sdl, "query: Query") {
+		t.Fatalf("schema block missing:\n%s", sdl)
+	}
+	if strings.Contains(sdl, "mutation: Mutation") || strings.Contains(sdl, "subscription: Subscription") {
+		t.Fatalf("unused root inferred:\n%s", sdl)
+	}
+	if got := schema.Diagnostics(`subscription { plan }`); len(got) == 0 {
+		t.Fatal("an unused Subscription type became the subscription root")
+	}
+	if got := schema.Diagnostics(`mutation { save }`); len(got) == 0 {
+		t.Fatal("an unused Mutation type became the mutation root")
+	}
+	if got := schema.Diagnostics(`query { viewer }`); len(got) != 0 {
+		t.Fatalf("query diagnostics = %+v", got)
+	}
+	if got := schema.Complete("subscription { ", len("subscription { ")); len(got.Items) != 0 {
+		t.Fatalf("subscription completion used the query root: %v", labels(got.Items))
+	}
+	if got := schema.Complete("mutation { ", len("mutation { ")); len(got.Items) != 0 {
+		t.Fatalf("mutation completion used the query root: %v", labels(got.Items))
+	}
+}
+
+func TestTemplateArgumentCompletionAndHover(t *testing.T) {
+	schema := loadTestSchema(t)
+	source := "query Q { node(id: {{uid}}) { "
+	got := schema.Complete(source, len(source))
+	if !hasLabel(got.Items, "id") || hasLabel(got.Items, "viewer") {
+		t.Fatalf("completion after a template = %v", labels(got.Items))
+	}
+	source = "query Q { node(id: {{uid}}) { id } }"
+	at := strings.LastIndex(source, "id")
+	hover, ok := schema.Hover(source, at+1)
+	if !ok || !strings.Contains(hover.Text, "id: ID!") || source[hover.Start:hover.End] != "id" {
+		t.Fatalf("hover after a template = %q, %v", hover.Text, ok)
+	}
+	// A non-ASCII template must not shift the byte ranges around it.
+	source = "query Q { node(id: {{变量}}) { id } }"
+	at = strings.LastIndex(source, "id")
+	hover, ok = schema.Hover(source, at+1)
+	if !ok || source[hover.Start:hover.End] != "id" {
+		t.Fatalf("hover after a Unicode template = %+v, %v", hover, ok)
+	}
+	source = "query Q { node(id: {{变量}}) { id"
+	at = strings.LastIndex(source, "id")
+	if got := schema.Complete(source, len(source)); got.Start != at {
+		t.Fatalf("completion after a Unicode template starts at %d, want %d", got.Start, at)
+	}
+}
+
+func TestCompletionInsideComment(t *testing.T) {
+	schema := loadTestSchema(t)
+	for _, source := range []string{
+		"query Q { viewer { # fr",
+		"query Q { viewer { # fr } }",
+		"query Q { viewer { # 中文 🦊",
+	} {
+		if got := schema.Complete(source, len(source)); len(got.Items) != 0 {
+			t.Errorf("completion in comment %q = %v", source, labels(got.Items))
+		}
+	}
+}
+
+func TestSchemaSizeLimits(t *testing.T) {
+	sdl := "type Query { viewer: String }\n#" + strings.Repeat("x", 4<<20)
+	if _, err := graphql.ParseSDL([]byte(sdl)); err == nil {
+		t.Fatal("an SDL document over 4 MiB was accepted")
+	}
+	padded := append([]byte(strings.Repeat(" ", 5<<20)), []byte(testIntrospection)...)
+	if _, err := graphql.ParseIntrospection(padded); err != nil {
+		t.Fatalf("a 5 MiB introspection JSON was refused: %v", err)
+	}
+	if _, err := graphql.ParseSchema(padded); err != nil {
+		t.Fatalf("a 5 MiB introspection file was refused: %v", err)
+	}
+	tooBig := append([]byte(strings.Repeat(" ", 8<<20)), []byte(testIntrospection)...)
+	if _, err := graphql.ParseIntrospection(tooBig); err == nil {
+		t.Fatal("an introspection JSON over 8 MiB was accepted")
+	}
+	if _, err := graphql.ParseSchema(tooBig); err == nil {
+		t.Fatal("a schema over 8 MiB was accepted")
 	}
 }

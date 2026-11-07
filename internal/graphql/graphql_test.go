@@ -274,3 +274,25 @@ func FuzzRequestOperations(f *testing.F) {
 		}
 	})
 }
+
+func TestOperationsLargeDocument(t *testing.T) {
+	var b strings.Builder
+	for _, name := range []string{"A", "B"} {
+		b.WriteString("query " + name + " {")
+		for i := range 3000 {
+			fmt.Fprintf(&b, " f%d(a: 1)", i)
+		}
+		b.WriteString(" }")
+	}
+	source := b.String()
+	if len(source) > 1<<20 {
+		t.Fatalf("fixture is %d bytes", len(source))
+	}
+	ops, err := graphql.Operations(source)
+	if err != nil || len(ops) != 2 || ops[0].Name != "A" || ops[1].Name != "B" {
+		t.Fatalf("Operations = %+v, %v", ops, err)
+	}
+	if name, err := graphql.SelectOperation(source, "B"); err != nil || name != "B" {
+		t.Fatalf("SelectOperation = %q, %v", name, err)
+	}
+}

@@ -222,9 +222,10 @@ func envelopeOperations(envelope map[string]jsontext.Value, remaining *int) ([]O
 }
 
 // Operations returns an executable document's operations in document order.
-// It applies the same source, depth and token limits as formatting.
+// It is bounded by the source size rather than the formatter's smaller token
+// budget, so the operation selector still works for a large document.
 func Operations(source string) ([]Operation, error) {
-	remaining := maxTokens
+	remaining := maxSource
 	doc, err := parse(source, &remaining)
 	if err != nil {
 		return nil, err
@@ -237,35 +238,36 @@ func Operations(source string) ([]Operation, error) {
 }
 
 // SelectOperation returns the operationName an HTTP envelope must carry.
-// A document with one operation selects it automatically, even when a stale
-// saved name was requested, and a named one is still sent explicitly so a
-// server that logs operation names sees it. A document with several
-// operations requires requested to name one; without it, the send fails
-// before reaching the server, as the GraphQL specification requires a choice.
+//
+// A malformed document is sent as authored, because API clients need to test
+// the server's own error handling; a saved name is still included so the
+// server can report that too. A parseable document with one operation selects
+// it when no name is saved. A parseable document with several operations
+// requires a choice before sending, as the GraphQL specification requires.
+// A saved name is sent even when it no longer matches an operation: the
+// server's error is more useful than silently replacing the user's choice.
+// A parseable document with no operations is also sent for the server to
+// explain; only several operations require a local choice.
 func SelectOperation(source, requested string) (string, error) {
 	// A send is bounded by the source size, not the editor's smaller token
 	// budget: a large valid document must still be sendable.
 	remaining := maxSource
 	doc, err := parse(source, &remaining)
 	if err != nil {
-		return "", err
+		return requested, nil
+	}
+	if requested != "" {
+		return requested, nil
 	}
 	if len(doc.Operations) == 1 {
-		// One operation needs no choice; a stale saved name must not block it.
 		return doc.Operations[0].Name, nil
 	}
-	if requested == "" {
+	if len(doc.Operations) > 1 {
 		return "", fmt.Errorf("graphql: the document defines %d operations; choose one", len(doc.Operations))
 	}
-	if !validName(requested) {
-		return "", errors.New("graphql: invalid operationName")
-	}
-	for _, op := range doc.Operations {
-		if op.Name == requested {
-			return requested, nil
-		}
-	}
-	return "", errors.New("graphql: operationName does not select an operation")
+	// A parseable document with no operations is not executable, but it is
+	// still the caller's document: send it and let the server explain.
+	return "", nil
 }
 
 func validName(name string) bool {

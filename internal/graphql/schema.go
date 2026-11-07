@@ -13,9 +13,14 @@ import (
 	"github.com/vektah/gqlparser/v2/ast"
 )
 
-// MaxSchemaBytes bounds an SDL document or an introspection response kept with
-// a request. A schema is a build artifact of the API, not request content.
-const MaxSchemaBytes = 4 << 20
+// MaxSchemaBytes bounds the SDL kept with a request. MaxIntrospectionBytes
+// bounds the raw JSON it is read from: an introspection response is verbose,
+// and a formatted GitHub schema is about 5 MB while its SDL is under 900 KB.
+// The latter matches the 8 MiB response limit of ReplayWithPolicy.
+const (
+	MaxSchemaBytes        = 4 << 20
+	MaxIntrospectionBytes = 8 << 20
+)
 
 // IntrospectionQuery is the standard schema query. It asks only for fields
 // every GraphQL server has exposed since the June 2018 specification, so an
@@ -122,8 +127,8 @@ type Schema struct {
 // ParseSchema loads an SDL document or a standard introspection result. JSON
 // may be wrapped in {"data":{"__schema":…}} or hold __schema at the top level.
 func ParseSchema(data []byte) (*Schema, error) {
-	if len(data) > MaxSchemaBytes {
-		return nil, fmt.Errorf("schema exceeds %d KiB", MaxSchemaBytes>>10)
+	if len(data) > MaxIntrospectionBytes {
+		return nil, fmt.Errorf("schema exceeds %d KiB", MaxIntrospectionBytes>>10)
 	}
 	trimmed := bytes.TrimPrefix(bytes.TrimSpace(data), []byte{0xEF, 0xBB, 0xBF})
 	if len(trimmed) == 0 {
@@ -295,7 +300,7 @@ type introspectionProblem struct {
 // IntrospectionProblem returns the server's first GraphQL error message, one
 // line and bounded, or "". It never includes the request.
 func IntrospectionProblem(data []byte) string {
-	if len(data) > MaxSchemaBytes {
+	if len(data) > MaxIntrospectionBytes {
 		return ""
 	}
 	var probe introspectionProblem
@@ -316,8 +321,8 @@ func IntrospectionProblem(data []byte) string {
 // disabled introspection usually answers with errors and no data; the error
 // then says so, because that is the reason a person can act on.
 func ParseIntrospection(data []byte) (*Schema, error) {
-	if len(data) > MaxSchemaBytes {
-		return nil, fmt.Errorf("introspection response exceeds %d KiB", MaxSchemaBytes>>10)
+	if len(data) > MaxIntrospectionBytes {
+		return nil, fmt.Errorf("introspection response exceeds %d KiB", MaxIntrospectionBytes>>10)
 	}
 	var envelope struct {
 		Data *struct {
@@ -384,9 +389,30 @@ func sdlFromIntrospection(s *introspectionSchema) (string, error) {
 	if q := s.QueryType; q == nil || q.Name == nil {
 		return "", errors.New("the introspection result has no query type")
 	}
-	defaultRoots := s.QueryType.Name != nil && *s.QueryType.Name == "Query" &&
-		(s.MutationType == nil || s.MutationType.Name != nil && *s.MutationType.Name == "Mutation") &&
-		(s.SubscriptionType == nil || s.SubscriptionType.Name != nil && *s.SubscriptionType.Name == "Subscription")
+	// Omitting the schema definition means types named Query, Mutation and
+	// Subscription are the roots. A type with one of those names that is not
+	// the corresponding root must be excluded by writing the block, or
+	// gqlparser would silently make it a root.
+	names := make(map[string]bool, len(s.Types))
+	for _, typ := range s.Types {
+		names[typ.Name] = true
+	}
+	queryName := ""
+	if s.QueryType != nil && s.QueryType.Name != nil {
+		queryName = *s.QueryType.Name
+	}
+	mutationName, subscriptionName := "", ""
+	if s.MutationType != nil && s.MutationType.Name != nil {
+		mutationName = *s.MutationType.Name
+	}
+	if s.SubscriptionType != nil && s.SubscriptionType.Name != nil {
+		subscriptionName = *s.SubscriptionType.Name
+	}
+	defaultRoots := queryName == "Query" &&
+		(mutationName == "" || mutationName == "Mutation") &&
+		(subscriptionName == "" || subscriptionName == "Subscription") &&
+		!(mutationName != "Mutation" && names["Mutation"]) &&
+		!(subscriptionName != "Subscription" && names["Subscription"])
 	if !defaultRoots {
 		b.WriteString("schema {\n")
 		for _, line := range roots {
@@ -523,11 +549,17 @@ func writeIntrospectionType(b *strings.Builder, typ introspectionType) error {
 }
 
 // writeInputValue writes an argument or input field. An empty indent writes it
-// inline in a field's argument list, where SDL cannot carry a description.
+// inline in a field's argument list, where the SDL grammar still allows a
+// quoted Description before the name.
 func writeInputValue(b *strings.Builder, value introspectionInputValue, indent string) error {
 	if indent != "" {
 		writeDescription(b, value.Description, indent)
 		b.WriteString(indent)
+	} else if value.Description != nil && strings.TrimSpace(*value.Description) != "" {
+		quoted, err := json.Marshal(*value.Description)
+		if err == nil {
+			b.WriteString(string(quoted) + " ")
+		}
 	}
 	b.WriteString(value.Name + ": ")
 	t, err := renderTypeRef(value.Type)
