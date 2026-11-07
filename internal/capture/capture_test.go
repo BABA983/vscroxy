@@ -2964,3 +2964,20 @@ func TestMockOfAnExampleAnswersForAnUnresolvableHTTPSHost(t *testing.T) {
 		t.Fatal("a CONNECT to a host the mock does not name succeeded")
 	}
 }
+
+func TestReserveIDsSharesTheLiveCounter(t *testing.T) {
+	var server Server
+	if first := server.ReserveIDs(3); first != 1 {
+		t.Fatalf("first reserved ID = %d, want 1", first)
+	}
+	if next := int(server.nextID.Add(1)); next != 4 {
+		t.Fatalf("next live ID = %d, want 4", next)
+	}
+	if first := server.ReserveIDs(0); first != 0 {
+		t.Fatalf("zero reservation = %d", first)
+	}
+	var nilServer *Server
+	if first := nilServer.ReserveIDs(2); first != 0 {
+		t.Fatalf("nil server reservation = %d", first)
+	}
+}

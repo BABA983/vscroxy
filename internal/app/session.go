@@ -593,25 +593,35 @@ func (a *app) importHAR() {
 		if err != nil || len(paths) == 0 {
 			return
 		}
-		flows, err := readHAR(paths[0])
-		if err != nil {
-			a.fail("HAR", err)
-			return
-		}
-		a.win.Update(func() {
-			next := 0
-			if n := len(a.flows); n > 0 {
-				next = a.flows[n-1].id
-			}
-			for i := range flows {
-				flows[i].id = next + i + 1
-			}
-			a.flows = append(a.flows, flows...)
-			a.recount()
-			a.applyFilter()
-		})
-		a.done(fmt.Sprintf("Imported %d flows from %s", len(flows), paths[0]))
+		a.importHARPath(paths[0])
 	}()
+}
+
+// importHARPath reads a HAR file and appends it. Drop handling and the Import
+// HAR dialog share it.
+func (a *app) importHARPath(path string) {
+	flows, err := readHAR(path)
+	if err != nil {
+		a.fail("HAR", err)
+		return
+	}
+	a.win.Update(func() { a.addHARFlows(flows) })
+	a.done(fmt.Sprintf("Imported %d flows from %s", len(flows), path))
+}
+
+// addHARFlows appends HAR rows, reserving their IDs from the live capture
+// counter so traffic captured later cannot collide with them.
+func (a *app) addHARFlows(flows []flow) {
+	if len(flows) == 0 {
+		return
+	}
+	first := a.reserveFlowIDs(len(flows))
+	for i := range flows {
+		flows[i].id = first + i
+	}
+	a.flows = append(a.flows, flows...)
+	a.recount()
+	a.applyFilter()
 }
 
 func (a *app) saveSession() {

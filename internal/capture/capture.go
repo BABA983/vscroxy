@@ -901,6 +901,18 @@ func (s *Server) SetBreak(on bool) {
 // Breaking reports whether breakpoints are on.
 func (s *Server) Breaking() bool { return s.breakOn.Load() }
 
+// ReserveIDs claims n consecutive IDs from the capture sequence, so imported
+// rows cannot collide with later live traffic. It returns the first reserved
+// ID, or 0 when n is not positive. The capture engine allocates live flows
+// from the same counter.
+func (s *Server) ReserveIDs(n int) int {
+	if s == nil || n <= 0 {
+		return 0
+	}
+	first := s.nextID.Add(int64(n)) - int64(n) + 1
+	return int(first)
+}
+
 // Frames is the stream of WebSocket messages and SSE events, by flow.
 func (s *Server) Frames() <-chan FrameEvent { return s.frames }
 

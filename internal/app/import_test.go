@@ -2,12 +2,17 @@ package app
 
 import (
 	"bytes"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/baba983/vscroxy/internal/capture"
 	"github.com/baba983/vscroxy/internal/imports"
 	"github.com/baba983/vscroxy/internal/request"
 	"github.com/baba983/vscroxy/internal/store"
@@ -494,11 +499,11 @@ func TestImportCharlesCaptureAppendsFlows(t *testing.T) {
 	if a.pickedID != 3 {
 		t.Errorf("picked = %d, want the first imported exchange", a.pickedID)
 	}
-	if !a.importReport.open || !strings.Contains(a.importReport.title, "4 exchanges") {
+	if a.importReport.open || !strings.Contains(a.message, "4 exchanges") {
 		t.Fatalf("report = %+v, message %q", a.importReport, a.message)
 	}
-	if len(a.importReport.lines) != 1 || !strings.Contains(a.importReport.lines[0], "WebSocket message frames") {
-		t.Errorf("warnings = %q", a.importReport.lines)
+	if frames := a.frames[a.flows[4].id]; len(frames) != 3 {
+		t.Errorf("Charles WebSocket frames = %+v", frames)
 	}
 }
 
@@ -557,5 +562,123 @@ func TestImportNativeCharlesExplainsTheConversion(t *testing.T) {
 		if !strings.Contains(a.message, want) {
 			t.Errorf("message %q does not mention %q", a.message, want)
 		}
+	}
+}
+
+func TestDroppedImportKindRoutesByFormat(t *testing.T) {
+	for _, test := range []struct {
+		path string
+		dir  bool
+		want droppedKind
+	}{
+		{"traffic.har", false, droppedHAR},
+		{"traffic.HAR", false, droppedHAR},
+		{"traffic.json", false, droppedHAR},
+		{"session.chlsj", false, droppedCapture},
+		{"session.chlsx", false, droppedCapture},
+		{"session.chls", false, droppedCapture},
+		{"log.proxymanlogv2", false, droppedCapture},
+		{"log.proxymanlog", false, droppedCapture},
+		{"log.proxymanlog", true, droppedCaptureDir},
+		{"notes.txt", false, droppedUnknown},
+		{"folder.har", true, droppedUnknown},
+	} {
+		if got := droppedImportKind(test.path, test.dir); got != test.want {
+			t.Errorf("droppedImportKind(%q, %v) = %v, want %v", test.path, test.dir, got, test.want)
+		}
+	}
+}
+
+func captureIDApp(t *testing.T) (*app, *capture.Server) {
+	t.Helper()
+	a := workspaceApp()
+	a.flows, a.visible, a.frames = nil, nil, nil
+	srv, err := capture.New("127.0.0.1:0", t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := srv.Start(); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = srv.Close() })
+	a.srv = srv
+	return a, srv
+}
+
+func nextLiveFlowID(t *testing.T, srv *capture.Server) int {
+	t.Helper()
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain")
+		_, _ = w.Write([]byte("live"))
+	}))
+	t.Cleanup(upstream.Close)
+	proxyURL, err := url.Parse("http://" + srv.Addr())
+	if err != nil {
+		t.Fatal(err)
+	}
+	client := &http.Client{Transport: &http.Transport{Proxy: http.ProxyURL(proxyURL)}}
+	t.Cleanup(client.CloseIdleConnections)
+	response, err := client.Get(upstream.URL + "/live")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = response.Body.Close()
+	select {
+	case live := <-srv.Flows():
+		return live.ID
+	case <-time.After(5 * time.Second):
+		t.Fatal("live capture did not publish a flow")
+		return 0
+	}
+}
+
+func TestCaptureImportReservesIDsAgainstLiveTraffic(t *testing.T) {
+	a, srv := captureIDApp(t)
+	dir := t.TempDir()
+	for name, fixture := range map[string]string{
+		"request_0_1001": "proxyman-request_0_1001.json",
+		"request_1_1002": "proxyman-request_1_1002.json",
+		"request_2_1003": "proxyman-request_2_1003.json",
+		"request_3_1004": "proxyman-request_3_1004.json",
+	} {
+		data, err := os.ReadFile(filepath.Join("..", "imports", "testdata", fixture))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, name), data, 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	result, err := imports.ReadProxymanDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a.addCaptureImport(result, dir)
+	websocket := a.flows[1]
+	if websocket.id != 2 || len(a.frames[websocket.id]) != 4 {
+		t.Fatalf("imported WebSocket = %+v frames %+v", websocket, a.frames[websocket.id])
+	}
+	before := len(a.frames[websocket.id])
+	liveID := nextLiveFlowID(t, srv)
+	if liveID <= 4 {
+		t.Fatalf("live flow ID = %d; imported IDs were 1 through 4", liveID)
+	}
+	a.addFrame(capture.FrameEvent{FlowID: liveID, Frame: capture.Frame{Seq: 1, Direction: "in", Kind: "text", Data: "live"}})
+	if got := len(a.frames[websocket.id]); got != before {
+		t.Fatalf("live frame leaked into imported flow: %d frames, want %d", got, before)
+	}
+	if got := len(a.frames[liveID]); got != 1 {
+		t.Fatalf("live flow has %d frames, want 1", got)
+	}
+}
+
+func TestHARImportReservesIDsAgainstLiveTraffic(t *testing.T) {
+	a, srv := captureIDApp(t)
+	a.addHARFlows([]flow{{method: "GET", scheme: "https", host: "api.example.com", path: "/imported", url: "https://api.example.com/imported", status: 200}})
+	if len(a.flows) != 1 || a.flows[0].id != 1 {
+		t.Fatalf("imported flows = %+v", a.flows)
+	}
+	if liveID := nextLiveFlowID(t, srv); liveID <= 1 {
+		t.Fatalf("live flow ID = %d; the HAR row used ID 1", liveID)
 	}
 }

@@ -58,15 +58,53 @@ func (a *app) importDropped(paths []string) {
 		path := paths[0]
 		info, err := os.Lstat(path)
 		if err != nil {
-			a.fail("Import capture", err)
+			a.fail("Import", err)
 			return
 		}
-		if info.IsDir() {
+		if info.Mode()&os.ModeSymlink != 0 {
+			a.warn("Import: choose a real file or folder, not a symbolic link")
+			return
+		}
+		switch droppedImportKind(path, info.IsDir()) {
+		case droppedHAR:
+			a.importHARPath(path)
+		case droppedCapture:
+			a.importCaptureFile(path)
+		case droppedCaptureDir:
 			a.importCaptureDir(path)
-			return
+		default:
+			a.warn("Import: unsupported file type. Drop a HAR (.har), Charles (.chlsj, .chlsx), or Proxyman (.proxymanlogv2, .proxymanlog) file")
 		}
-		a.importCaptureFile(path)
 	}()
+}
+
+type droppedKind int
+
+const (
+	droppedUnknown droppedKind = iota
+	droppedHAR
+	droppedCapture
+	droppedCaptureDir
+)
+
+// droppedImportKind decides which importer owns a dropped path. HAR files keep
+// using the HAR importer; only the formats the capture importer knows go
+// there, and a .proxymanlog folder is a capture folder.
+func droppedImportKind(path string, isDir bool) droppedKind {
+	if isDir {
+		if strings.EqualFold(filepath.Ext(path), ".proxymanlog") {
+			return droppedCaptureDir
+		}
+		return droppedUnknown
+	}
+	switch strings.ToLower(filepath.Ext(path)) {
+	case ".har", ".json":
+		return droppedHAR
+	case ".chlsj", ".chlsx", ".chls", ".proxymanlogv2", ".proxymanlog":
+		return droppedCapture
+	default:
+		return droppedUnknown
+	}
 }
 
 // importCaptureFile reads and parses one path off the UI thread, then appends
@@ -78,6 +116,24 @@ func (a *app) importCaptureFile(path string) {
 		return
 	}
 	a.win.Update(func() { a.addCaptureImport(result, path) })
+}
+
+// reserveFlowIDs returns the first ID for a batch of imported flows. The live
+// capture engine allocates from the same counter, so reserving the batch keeps
+// later traffic from reusing an imported ID. Without a server (tests and early
+// startup) the table's last ID is the only counter there is.
+func (a *app) reserveFlowIDs(n int) int {
+	if n <= 0 {
+		return 0
+	}
+	if a.srv != nil {
+		return a.srv.ReserveIDs(n)
+	}
+	next := 0
+	if len(a.flows) > 0 {
+		next = a.flows[len(a.flows)-1].id
+	}
+	return next + 1
 }
 
 func (a *app) importCaptureDir(path string) {
@@ -135,16 +191,13 @@ func (a *app) addCaptureImport(result imports.Capture, source string) {
 		return
 	}
 	start := len(a.flows)
-	next := 0
-	if start > 0 {
-		next = a.flows[start-1].id
-	}
+	first := a.reserveFlowIDs(len(result.Flows))
 	if a.frames == nil {
 		a.frames = make(map[int][]frame)
 	}
 	for i, captured := range result.Flows {
 		f, frames := captureFlow(captured)
-		f.id = next + i + 1
+		f.id = first + i
 		a.flows = append(a.flows, f)
 		if len(frames) > 0 {
 			a.frames[f.id] = frames
@@ -198,6 +251,9 @@ func captureFlow(captured imports.CaptureFlow) (flow, []frame) {
 	}
 	if captured.Error != "" {
 		f.conn.errorStage = "HTTP"
+		if f.kind == "connect" {
+			f.conn.errorStage = "CONNECT"
+		}
 	}
 	if f.reqSize < len(f.reqBody) {
 		f.reqSize = len(f.reqBody)
@@ -213,9 +269,6 @@ func captureFlow(captured imports.CaptureFlow) (flow, []frame) {
 	}
 	frames := make([]frame, 0, len(captured.Frames))
 	for i, message := range captured.Frames {
-		if f.kind == "ws" {
-			f.bytes += len(message.Data)
-		}
 		at := message.At
 		if at.IsZero() {
 			at = f.at
