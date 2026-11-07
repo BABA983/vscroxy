@@ -15,6 +15,7 @@ import (
 
 	"github.com/baba983/vscroxy/internal/certs"
 	"github.com/baba983/vscroxy/internal/testcert"
+	upstreamcfg "github.com/baba983/vscroxy/internal/upstream"
 	"github.com/gorilla/websocket"
 )
 
@@ -288,7 +289,7 @@ func TestMapRemoteUsesDefaultPortForClientCertificate(t *testing.T) {
 
 	s, _ := startServer(t)
 	s.SetSSL(SSLConfig{All: true})
-	if err := s.SetUpstream("http://" + proxy.Listener.Addr().String()); err != nil {
+	if err := s.SetUpstreamConfig(upstreamcfg.Settings{Default: "http://" + proxy.Listener.Addr().String()}, nil); err != nil {
 		t.Fatal(err)
 	}
 	s.SetCertificates(certs.Settings{Clients: []certs.Client{{
@@ -347,7 +348,7 @@ func TestWSSUsesDefaultPortForClientCertificate(t *testing.T) {
 
 	s, caPath := startServer(t)
 	s.SetSSL(SSLConfig{All: true})
-	if err := s.SetUpstream("http://" + proxy.Listener.Addr().String()); err != nil {
+	if err := s.SetUpstreamConfig(upstreamcfg.Settings{Default: "http://" + proxy.Listener.Addr().String()}, nil); err != nil {
 		t.Fatal(err)
 	}
 	s.SetCertificates(certs.Settings{Clients: []certs.Client{{

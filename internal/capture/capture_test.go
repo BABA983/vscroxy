@@ -34,6 +34,7 @@ import (
 	"github.com/baba983/vscroxy/internal/certs"
 	"github.com/baba983/vscroxy/internal/hosts"
 	"github.com/baba983/vscroxy/internal/rules"
+	upstreamcfg "github.com/baba983/vscroxy/internal/upstream"
 )
 
 // freeAddr reserves an address the proxy can listen on.
@@ -409,7 +410,7 @@ func TestForwardProxyFollowsTargetOnOneConnection(t *testing.T) {
 			if mode.upstream {
 				inner, _ := startServer(t)
 				upstreamAddr = inner.Addr()
-				if err := s.SetUpstream("http://" + upstreamAddr); err != nil {
+				if err := s.SetUpstreamConfig(upstreamcfg.Settings{Default: "http://" + upstreamAddr}, nil); err != nil {
 					t.Fatal(err)
 				}
 			}
@@ -2565,10 +2566,10 @@ func TestUpstreamProxy(t *testing.T) {
 	inner, _ := startServer(t)
 	outer, caPath := startServer(t)
 	outer.SetSSL(SSLConfig{All: true})
-	if err := outer.SetUpstream("http://" + inner.Addr()); err != nil {
+	if err := outer.SetUpstreamConfig(upstreamcfg.Settings{Default: "http://" + inner.Addr()}, nil); err != nil {
 		t.Fatalf("set upstream: %v", err)
 	}
-	if got := outer.Upstream(); got != "http://"+inner.Addr() {
+	if got := outer.UpstreamConfig().Default; got != "http://"+inner.Addr() {
 		t.Fatalf("upstream = %q", got)
 	}
 
@@ -2600,11 +2601,11 @@ func TestUpstreamProxy(t *testing.T) {
 		t.Fatalf("inner flow = %+v, want the tunnel", f)
 	}
 
-	if err := outer.SetUpstream("not a proxy"); err == nil {
+	if err := outer.SetUpstreamConfig(upstreamcfg.Settings{Default: "not a proxy"}, nil); err == nil {
 		t.Fatal("an address without a scheme was accepted")
 	}
-	if err := outer.SetUpstream(""); err != nil || outer.Upstream() != "" {
-		t.Fatalf("clearing upstream: %v, %q", err, outer.Upstream())
+	if err := outer.SetUpstreamConfig(upstreamcfg.Settings{}, nil); err != nil || outer.UpstreamConfig().Default != "" {
+		t.Fatalf("clearing upstream: %v, %q", err, outer.UpstreamConfig().Default)
 	}
 }
 

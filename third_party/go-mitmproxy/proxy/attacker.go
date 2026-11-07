@@ -11,6 +11,7 @@ import (
 	"net/http/httptrace"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/lqqyt2423/go-mitmproxy/cert"
 	"github.com/lqqyt2423/go-mitmproxy/internal/helper"
@@ -231,19 +232,45 @@ func (a *attacker) initHttpDialFn(req *http.Request) {
 }
 
 // upstreamClient dials a rewritten target itself, so its TLS configuration
-// can name that target and present its client certificate. It keeps no idle
+// can name that target and present its client certificate. Its dialer uses the
+// same ordered upstream candidates as the main path, so a rewritten request
+// gets the same host rules, PAC fallback and credentials. It keeps no idle
 // connections: it is built per request and must not leave sockets behind.
-func (a *attacker) upstreamClient(address string, verify bool) (*http.Client, error) {
+func (a *attacker) upstreamClient(req *http.Request, address string, verify bool) (*http.Client, error) {
 	tlsConfig, err := a.proxy.upstreamTLSConfig(address, verify)
 	if err != nil {
 		return nil, err
 	}
 	transport := &http.Transport{
-		Proxy:              a.proxy.realUpstreamProxy(),
 		ForceAttemptHTTP2:  true,
 		DisableCompression: true,
 		DisableKeepAlives:  true,
 		TLSClientConfig:    tlsConfig,
+	}
+	// A plain HTTP target through an HTTP(S) upstream keeps net/http's
+	// absolute-URI forwarding, as it did before ordered candidates. CONNECT
+	// to port 80 is not universally allowed, and Map Remote must not regress.
+	candidates, err := a.proxy.getUpstreamProxies(req, address)
+	if err != nil {
+		return nil, err
+	}
+	if req.URL != nil && req.URL.Scheme == "http" && len(candidates) > 0 && candidates[0].URL != nil &&
+		(candidates[0].URL.Scheme == "http" || candidates[0].URL.Scheme == "https") {
+		transport.Proxy = http.ProxyURL(candidates[0].URL)
+		if candidates[0].URL.Scheme == "https" {
+			proxyTLS, err := a.proxy.proxyTLSConfig()
+			if err != nil {
+				return nil, err
+			}
+			transport.TLSClientConfig = proxyTLS
+		}
+		transport.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
+			return (&net.Dialer{Timeout: 8 * time.Second}).DialContext(ctx, network, addr)
+		}
+	} else {
+		transport.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
+			return a.proxy.dialUpstream(ctx, req, addr)
+		}
 	}
 	return &http.Client{
 		Transport: transport,
@@ -704,8 +731,7 @@ func (a *attacker) attack(res http.ResponseWriter, req *http.Request) {
 		}
 	}
 
-	proxyReqCtx := context.WithValue(req.Context(), proxyReqCtxKey, req)
-	proxyReq, err := http.NewRequestWithContext(proxyReqCtx, f.Request.Method, f.Request.URL.String(), reqBody)
+	proxyReq, err := http.NewRequestWithContext(req.Context(), f.Request.Method, f.Request.URL.String(), reqBody)
 	if err != nil {
 		for _, addon := range proxy.Addons {
 			addon.RequestError(f, err)
@@ -745,7 +771,7 @@ func (a *attacker) attack(res http.ResponseWriter, req *http.Request) {
 		f.ConnContext.RecordEvent("HTTP", "Using a separate upstream transport for "+f.Request.URL.Host, nil)
 		proxyReq = proxyReq.WithContext(httptrace.WithClientTrace(proxyReq.Context(), f.ConnContext.trace()))
 		verify := !a.proxy.Opts.SslInsecure || f.ConnContext.VerifyUpstream
-		client, clientErr := a.upstreamClient(helper.CanonicalAddr(f.Request.URL), verify)
+		client, clientErr := a.upstreamClient(proxyReq, helper.CanonicalAddr(f.Request.URL), verify)
 		if clientErr != nil {
 			for _, addon := range proxy.Addons {
 				addon.RequestError(f, clientErr)

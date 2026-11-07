@@ -32,6 +32,9 @@ type Options struct {
 	// SOCKSSniffTimeout bounds the peek for a target that is not decrypted,
 	// to tell plaintext HTTP from TLS or another protocol. Zero uses 400 ms.
 	SOCKSSniffTimeout time.Duration
+	// UpstreamDialTimeout bounds one upstream candidate's dial, TLS
+	// handshake and CONNECT together. Zero uses 8 seconds.
+	UpstreamDialTimeout time.Duration
 	// ClientCertificate returns the client certificate to present to an
 	// upstream host:port, or nil when none is configured. An error aborts the
 	// handshake instead of continuing without the certificate.
@@ -46,6 +49,14 @@ type Options struct {
 // inspection proxy stricter, never weaker; the header is not forwarded.
 const HeaderVerifyUpstream = "X-Vscroxy-Verify-TLS"
 
+// UpstreamProxy is one place a request can go, in preference order. A nil URL
+// is a direct connection. Reason is a user-facing explanation that is recorded
+// in the connection log and never contains credentials.
+type UpstreamProxy struct {
+	URL    *url.URL
+	Reason string
+}
+
 type Proxy struct {
 	Opts    *Options
 	Version string
@@ -54,10 +65,10 @@ type Proxy struct {
 	entry            *entry
 	attacker         *attacker
 	webSocketHandler *webSocketHandler
-	shouldIntercept  func(req *http.Request) bool              // req is received by proxy.server
-	dialFallback     func(req *http.Request) bool              // see SetDialFallbackRule
-	lazyIntercept    func(req *http.Request) bool              // see SetLazyInterceptRule
-	upstreamProxy    func(req *http.Request) (*url.URL, error) // req is received by proxy.server, not client request
+	shouldIntercept  func(req *http.Request) bool                                     // req is received by proxy.server
+	dialFallback     func(req *http.Request) bool                                     // see SetDialFallbackRule
+	lazyIntercept    func(req *http.Request) bool                                     // see SetLazyInterceptRule
+	upstreamProxy    func(req *http.Request, address string) ([]UpstreamProxy, error) // req is received by proxy.server, not client request
 	authProxy        func(res http.ResponseWriter, req *http.Request) (bool, error)
 
 	// socksHTTP carries plaintext connections whose target a SOCKS5 CONNECT
@@ -66,9 +77,6 @@ type Proxy struct {
 	socksOnce sync.Once
 	socksHTTP *connListener
 }
-
-// proxy.server req context key
-var proxyReqCtxKey = new(struct{})
 
 // Version is the release version of the proxy library.
 var Version = "1.9.4"
@@ -159,26 +167,30 @@ func (proxy *Proxy) SetLazyInterceptRule(rule func(req *http.Request) bool) {
 	proxy.lazyIntercept = rule
 }
 
-func (proxy *Proxy) SetUpstreamProxy(fn func(req *http.Request) (*url.URL, error)) {
+func (proxy *Proxy) SetUpstreamProxy(fn func(req *http.Request, address string) ([]UpstreamProxy, error)) {
 	proxy.upstreamProxy = fn
 }
 
-func (proxy *Proxy) realUpstreamProxy() func(*http.Request) (*url.URL, error) {
-	return func(cReq *http.Request) (*url.URL, error) {
-		req := cReq.Context().Value(proxyReqCtxKey).(*http.Request)
-		return proxy.getUpstreamProxyUrl(req)
-	}
-}
-
-func (proxy *Proxy) getUpstreamProxyUrl(req *http.Request) (*url.URL, error) {
+// getUpstreamProxies returns the ordered candidates for a destination. The
+// hook is authoritative; without one, Options.Upstream or the environment
+// supplies a single proxy.
+func (proxy *Proxy) getUpstreamProxies(req *http.Request, address string) ([]UpstreamProxy, error) {
 	if proxy.upstreamProxy != nil {
-		return proxy.upstreamProxy(req)
+		return proxy.upstreamProxy(req, address)
 	}
 	if len(proxy.Opts.Upstream) > 0 {
-		return url.Parse(proxy.Opts.Upstream)
+		u, err := url.Parse(proxy.Opts.Upstream)
+		if err != nil {
+			return nil, err
+		}
+		return []UpstreamProxy{{URL: u}}, nil
 	}
-	cReq := &http.Request{URL: &url.URL{Scheme: "https", Host: req.Host}}
-	return http.ProxyFromEnvironment(cReq)
+	cReq := &http.Request{URL: &url.URL{Scheme: "https", Host: address}}
+	u, err := http.ProxyFromEnvironment(cReq)
+	if err != nil {
+		return nil, err
+	}
+	return []UpstreamProxy{{URL: u}}, nil
 }
 
 // upstreamTLSConfig builds the client side of an intercepted upstream TLS
@@ -208,36 +220,104 @@ func (proxy *Proxy) upstreamTLSConfig(address string, verify bool) (*tls.Config,
 	return config, nil
 }
 
+// ErrUpstreamAuth marks an upstream proxy that rejected the configured
+// credentials. It stops the candidate fallback: trying the next proxy (or
+// DIRECT) after a 407 or a SOCKS5 authentication failure would silently
+// bypass the proxy the user configured.
+var ErrUpstreamAuth = helper.ErrProxyAuth
+
+// ErrUpstreamResponse marks a proxy's non-200 CONNECT response. Like an
+// authentication failure it is final: a 403 or 502 is the proxy's policy, not
+// a transport failure that another candidate may bypass.
+var ErrUpstreamResponse = helper.ErrProxyResponse
+
 func (proxy *Proxy) getUpstreamConn(ctx context.Context, req *http.Request) (net.Conn, error) {
+	return proxy.dialUpstream(ctx, req, helper.CanonicalAddr(req.URL))
+}
+
+// proxyTLSConfig verifies an https upstream proxy with the system roots and
+// the app's custom roots. It never skips verification: Basic credentials are
+// sent to the proxy after this handshake, so an unverified proxy would receive
+// them.
+func (proxy *Proxy) proxyTLSConfig() (*tls.Config, error) {
+	config := &tls.Config{MinVersion: tls.VersionTLS12}
+	if proxy.Opts.RootCAs != nil {
+		roots, err := proxy.Opts.RootCAs()
+		if err != nil {
+			return nil, err
+		}
+		config.RootCAs = roots
+	}
+	return config, nil
+}
+
+// dialUpstream tries the request's candidates in order and returns the first
+// connection. A proxy authentication failure or HTTP response stops the
+// fallback; other failures try the next candidate, including a final DIRECT.
+// Each candidate has its own total deadline for dial, TLS and CONNECT. Proxy
+// TLS roots are loaded only for an https candidate, so an unrelated broken
+// certificate setting does not affect a direct request.
+func (proxy *Proxy) dialUpstream(ctx context.Context, req *http.Request, address string) (net.Conn, error) {
 	cc := req.Context().Value(connContextKey).(*ConnContext)
 	ctx = httptrace.WithClientTrace(ctx, cc.trace())
-	proxyUrl, err := proxy.getUpstreamProxyUrl(req)
+	candidates, err := proxy.getUpstreamProxies(req, address)
 	if err != nil {
 		cc.RecordEvent("TCP", "Upstream proxy configuration", err)
 		return nil, err
 	}
-	var conn net.Conn
-	address := helper.CanonicalAddr(req.URL)
-	target := address
-	if proxyUrl != nil {
-		target += " via proxy " + proxyUrl.Host
+	if len(candidates) == 0 {
+		candidates = []UpstreamProxy{{}}
 	}
-	cc.RecordEvent("TCP", "Connecting to "+target, nil)
-	if proxyUrl != nil {
-		conn, err = helper.GetProxyConn(ctx, proxyUrl, address, proxy.Opts.SslInsecure)
-	} else {
-		conn, err = (&net.Dialer{}).DialContext(ctx, "tcp", address)
+	timeout := proxy.Opts.UpstreamDialTimeout
+	if timeout <= 0 {
+		timeout = 8 * time.Second
 	}
-	if err != nil {
-		stage := "TCP"
-		if _, ok := errors.AsType[*net.DNSError](err); ok {
-			stage = "DNS"
+	var failures []error
+	for _, candidate := range candidates {
+		target := address
+		if candidate.URL != nil {
+			target += " via proxy " + candidate.URL.Host
 		}
-		cc.RecordEvent(stage, "Could not connect to "+target, err)
-	} else {
+		if candidate.Reason != "" {
+			cc.RecordEvent("Upstream", candidate.Reason, nil)
+		}
+		cc.RecordEvent("TCP", "Connecting to "+target, nil)
+		candidateCtx, cancel := context.WithTimeout(ctx, timeout)
+		var conn net.Conn
+		if candidate.URL != nil {
+			var proxyTLS *tls.Config
+			if candidate.URL.Scheme == "https" {
+				proxyTLS, err = proxy.proxyTLSConfig()
+				if err != nil {
+					cancel()
+					cc.RecordEvent("TLS upstream", "Upstream proxy TLS configuration failed", err)
+					return nil, err
+				}
+			}
+			conn, err = helper.GetProxyConn(candidateCtx, candidate.URL, address, proxyTLS)
+		} else {
+			conn, err = (&net.Dialer{}).DialContext(candidateCtx, "tcp", address)
+		}
+		cancel()
+		if err != nil {
+			stage := "TCP"
+			if _, ok := errors.AsType[*net.DNSError](err); ok {
+				stage = "DNS"
+			}
+			cc.RecordEvent(stage, "Could not connect to "+target, err)
+			failures = append(failures, err)
+			if errors.Is(err, ErrUpstreamAuth) || errors.Is(err, ErrUpstreamResponse) {
+				break
+			}
+			continue
+		}
 		cc.RecordEvent("TCP", "Connected to "+conn.RemoteAddr().String(), nil)
+		return conn, nil
 	}
-	return conn, err
+	if len(failures) == 1 {
+		return nil, failures[0]
+	}
+	return nil, errors.Join(failures...)
 }
 
 func (proxy *Proxy) SetAuthProxy(fn func(res http.ResponseWriter, req *http.Request) (bool, error)) {

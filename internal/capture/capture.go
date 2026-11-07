@@ -40,6 +40,7 @@ import (
 	"github.com/baba983/vscroxy/internal/hosts"
 	"github.com/baba983/vscroxy/internal/procinfo"
 	"github.com/baba983/vscroxy/internal/rules"
+	"github.com/baba983/vscroxy/internal/upstream"
 )
 
 func init() {
@@ -408,7 +409,7 @@ type Server struct {
 	throttleMu sync.RWMutex
 	throttle   Throttle
 
-	upstream   atomic.Value // string
+	upstream   atomic.Value // *upstreamSnapshot
 	ssl        atomic.Value // SSLConfig
 	ignoreList atomic.Value // []string
 	ignoreApps atomic.Value // []string
@@ -523,12 +524,12 @@ func New(addr, caRootPath string) (*Server, error) {
 		defer s.rulesMu.RUnlock()
 		return mayMatchHost(s.rules, req.Host, RuleCodeMock)
 	})
-	p.SetUpstreamProxy(func(*http.Request) (*url.URL, error) {
-		raw, _ := s.upstream.Load().(string)
-		if raw == "" {
+	p.SetUpstreamProxy(func(req *http.Request, address string) ([]proxy.UpstreamProxy, error) {
+		snapshot, _ := s.upstream.Load().(*upstreamSnapshot)
+		if snapshot == nil {
 			return nil, nil
 		}
-		return url.Parse(raw)
+		return snapshot.resolve(req, address)
 	})
 	s.proxy = p
 	ca := p.GetCertificate()
@@ -857,29 +858,138 @@ func (s *Server) hit(r Rule) {
 	s.rulesMu.Unlock()
 }
 
-// SetUpstream sends every request through another proxy, as an empty string
-// turns that off. The address needs a scheme and a host, such as
-// http://127.0.0.1:8080.
-func (s *Server) SetUpstream(raw string) error {
-	if raw == "" {
-		s.upstream.Store("")
-		return nil
+// upstreamSnapshot is one immutable upstream configuration. Passwords live in
+// the upstream.Config's credential URLs and are never part of settings.
+type upstreamSnapshot struct {
+	settings upstream.Settings
+	cfg      *upstream.Config
+	err      error
+}
+
+func (u *upstreamSnapshot) resolve(req *http.Request, address string) ([]proxy.UpstreamProxy, error) {
+	if u.err != nil {
+		return nil, u.err
 	}
-	u, err := url.Parse(raw)
+	if u.cfg == nil {
+		return nil, nil
+	}
+	host, port := splitHostPort(address)
+	decision, err := u.cfg.ResolveContext(req.Context(), upstreamURL(req, address), host, port)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]proxy.UpstreamProxy, len(decision.Candidates))
+	for i, candidate := range decision.Candidates {
+		out[i].Reason = candidate.Reason
+		if candidate.Proxy != nil {
+			out[i].URL = candidate.Proxy.URL
+		}
+	}
+	return out, nil
+}
+
+func splitHostPort(address string) (string, int) {
+	host, rawPort, err := net.SplitHostPort(address)
+	if err != nil {
+		return strings.Trim(address, "[]"), 0
+	}
+	port, _ := strconv.Atoi(rawPort)
+	return host, port
+}
+
+// upstreamURL is what a PAC script sees. HTTPS (and WSS) uses the origin
+// only, as browsers do, so a script matching https://example.com/* works for
+// a CONNECT on any port. HTTP keeps its path and query.
+func upstreamURL(req *http.Request, address string) string {
+	host, port, err := net.SplitHostPort(address)
+	if err != nil {
+		host, port = strings.Trim(address, "[]"), ""
+	}
+	scheme := "http"
+	if req.Method == http.MethodConnect {
+		scheme = "https"
+	} else if req.URL != nil {
+		switch req.URL.Scheme {
+		case "https", "wss":
+			scheme = "https"
+		case "http", "ws":
+			scheme = "http"
+		}
+	}
+	if scheme == "https" {
+		authority := host
+		if port != "" && port != "443" {
+			authority = net.JoinHostPort(host, port)
+		} else if strings.Contains(host, ":") {
+			authority = "[" + host + "]"
+		}
+		return "https://" + authority + "/"
+	}
+	if req.URL != nil && req.URL.Host != "" {
+		if reqHost, _, err := net.SplitHostPort(address); err == nil && strings.EqualFold(req.URL.Hostname(), reqHost) {
+			u := *req.URL
+			if u.Scheme == "" || u.Scheme == "ws" {
+				u.Scheme = "http"
+			}
+			return u.String()
+		}
+	}
+	return "http://" + address + "/"
+}
+
+// SetUpstreamConfig replaces the host rules, bypass list, PAC script and
+// default upstream. Passwords are supplied separately and are never part of
+// the settings. Invalid configuration leaves the running one unchanged, so a
+// failed edit cannot silently turn a working proxy into a direct connection.
+func (s *Server) SetUpstreamConfig(settings upstream.Settings, passwords map[string]string) error {
+	settings = settings.Normalize()
+	cfg, err := upstream.New(settings, passwords)
 	if err != nil {
 		return err
 	}
-	if u.Scheme == "" || u.Host == "" {
-		return fmt.Errorf("upstream %q needs a scheme and a host", raw)
-	}
-	s.upstream.Store(u.String())
+	s.upstream.Store(&upstreamSnapshot{settings: settings.Clone(), cfg: cfg})
 	return nil
 }
 
-// Upstream is the proxy every request goes through, or empty.
-func (s *Server) Upstream() string {
-	raw, _ := s.upstream.Load().(string)
-	return raw
+// SetUpstreamConfigFailClosed is SetUpstreamConfig for startup, where no
+// previous configuration exists. A load failure is stored and returned for
+// every request, so an unreachable PAC URL or VPN does not silently send
+// traffic directly.
+func (s *Server) SetUpstreamConfigFailClosed(settings upstream.Settings, passwords map[string]string) error {
+	settings = settings.Normalize()
+	cfg, err := upstream.New(settings, passwords)
+	if err != nil {
+		s.upstream.Store(&upstreamSnapshot{settings: settings.Clone(), err: err})
+		return err
+	}
+	s.upstream.Store(&upstreamSnapshot{settings: settings.Clone(), cfg: cfg})
+	return nil
+}
+
+// SetUpstreamUnavailable installs a temporary error for requests while a
+// configuration is loading. It is replaced by SetUpstreamConfig or
+// SetUpstreamConfigFailClosed.
+func (s *Server) SetUpstreamUnavailable(settings upstream.Settings, err error) {
+	s.upstream.Store(&upstreamSnapshot{settings: settings.Clone(), err: err})
+}
+
+// UpstreamError is the error the active configuration failed with, or nil.
+func (s *Server) UpstreamError() error {
+	snapshot, _ := s.upstream.Load().(*upstreamSnapshot)
+	if snapshot == nil {
+		return nil
+	}
+	return snapshot.err
+}
+
+// UpstreamConfig returns the active host rules, bypass list, PAC source and
+// default upstream, without passwords.
+func (s *Server) UpstreamConfig() upstream.Settings {
+	snapshot, _ := s.upstream.Load().(*upstreamSnapshot)
+	if snapshot == nil {
+		return upstream.Settings{}
+	}
+	return snapshot.settings.Clone()
 }
 
 // ScriptErrors counts the hooks that failed or timed out.
