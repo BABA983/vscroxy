@@ -2213,16 +2213,20 @@ Content-Encoding, the body is decompressed for the Body tab while the header
 stays as it was on the wire; the decoded output is capped at 32 MiB per body
 and 512 MiB of retained bodies and messages per import, and a failure keeps
 the original bytes and is listed in the import report. Once that budget is
-spent, later bodies and messages are dropped with one warning. Status
+spent, later bodies and messages are dropped with one warning. Decompression
+itself is capped at 1 GiB of produced bytes per import, including failed and
+oversized attempts, so a small file cannot spend minutes inflating bodies.
+Status
 falls back to the `:status` pseudo-header or the response `firstLine` when the
 exporter omitted it. Start time, duration, wait/download split, remote and
 client IP, TLS protocol, cipher suite and, for Proxyman, the peer certificate
 fields are mapped. Charles stores WebSocket frames in the encoded bodies of a
 `webSocket:true` transaction; those frames fill the **Messages** tab. Proxyman
 `websocketMessageStorage` messages do the same with direction,
-text/binary/control type and payload. Frames that are malformed, truncated,
-permessage-deflate compressed or beyond the message limit are reported rather
-than shown as an HTTP body.
+text/binary/control type and payload. A permessage-deflate (RSV1) message is
+skipped with a warning while later frames continue to import; frames that are
+malformed, truncated or beyond the message limit are reported rather than
+shown as an HTTP body.
 Native `.chls` is a Java-serialized object stream, which this app does not
 deserialize; the import stops with a message to export `.chlsj` or HAR from
 Charles instead.
@@ -2230,7 +2234,8 @@ Charles instead.
 Capture imports are bounded: at most 128 MiB per file or Proxyman entry, 2000
 exchanges, 1000 headers per side, 100,000 WebSocket messages per flow and
 200,000 per import, 32 MiB per body, 512 MiB of retained bodies plus message
-bytes, and 256 MiB of expanded archive. XML nesting deeper than 64 elements is
+bytes, 1 GiB of decompression work, and 256 MiB of expanded archive. XML
+nesting deeper than 64 elements is
 rejected before decoding. The entry, header and message limits apply while
 decoding, so a small file cannot allocate a huge list. Symbolic links are not
 followed, zip members must be flat `request_<n>_<id>` entries, and a malformed
