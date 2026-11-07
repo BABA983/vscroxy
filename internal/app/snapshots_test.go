@@ -536,28 +536,53 @@ func TestUISnapshots(t *testing.T) {
 			tt.Frame()
 			tt.Type("query Q { viewer { na")
 		}, want: "name"},
-		{name: "requests-graphql-hover", setup: func(a *app) {
+		{name: "requests-graphql-template-completion", setup: func(a *app) {
 			d := graphqlDraft(a)
-			d.graphql.Query = "query Q {\n  viewer {\n    name\n    role\n  }\n}"
-			graphqlHoverDoc = d
+			d.graphql.Query, d.graphql.OperationName = "query Q { node(id: {{uid}}) { ", ""
+			graphqlSnapshotDoc = d
 		}, act: func(t *testing.T, tt *ui.Tester) {
 			tt.Frame()
-			graphqlHoverDoc.queryEditor.OnHover(editor.HoverRequest{Offset: strings.Index(graphqlHoverDoc.graphql.Query, "name") + 1})
+			graphqlSnapshotDoc.queryEditor.OnCompletion(editor.CompletionRequest{Offset: len(graphqlSnapshotDoc.graphql.Query)})
+			tt.Frame()
+		}, want: "ID!"},
+		{name: "requests-graphql-comment", setup: func(a *app) {
+			d := graphqlDraft(a)
+			d.graphql.Query, d.graphql.OperationName = "query Q { viewer { # fr", ""
+			graphqlSnapshotDoc = d
+		}, act: func(t *testing.T, tt *ui.Tester) {
+			tt.Frame()
+			graphqlSnapshotDoc.queryEditor.OnCompletion(editor.CompletionRequest{Offset: len(graphqlSnapshotDoc.graphql.Query)})
+			tt.Frame()
+			if tt.HasText("String!") {
+				t.Fatalf("completion opened inside a comment: %v", tt.Texts())
+			}
+		}, want: "Schema · 9 types"},
+		{name: "requests-graphql-hover", setup: func(a *app) {
+			d := graphqlDraft(a)
+			d.graphql.Query, d.graphql.OperationName = "query Q {\n  viewer {\n    name\n    role\n  }\n}", "Q"
+			graphqlSnapshotDoc = d
+		}, act: func(t *testing.T, tt *ui.Tester) {
+			tt.Frame()
+			graphqlSnapshotDoc.queryEditor.OnHover(editor.HoverRequest{Offset: strings.Index(graphqlSnapshotDoc.graphql.Query, "name") + 1})
 			tt.Frame()
 		}, want: "name: String!"},
 		{name: "requests-graphql-diagnostics", setup: func(a *app) {
 			d := graphqlDraft(a)
-			d.graphql.Query = "query Q {\n  viewer {\n    nope\n  }\n}"
-			graphqlHoverDoc = d
+			d.graphql.Query, d.graphql.OperationName = "query Q {\n  viewer {\n    nope\n  }\n}", "Q"
+			graphqlSnapshotDoc = d
 		}, act: func(t *testing.T, tt *ui.Tester) {
 			tt.Frame()
-			start := strings.Index(graphqlHoverDoc.graphql.Query, "nope")
-			graphqlHoverDoc.queryEditor.ShowHover(start, start+len("nope"), "", nil)
+			start := strings.Index(graphqlSnapshotDoc.graphql.Query, "nope")
+			graphqlSnapshotDoc.queryEditor.ShowHover(start, start+len("nope"), "", nil)
 			tt.Frame()
 		}, want: "Cannot query field"},
 		{name: "requests-graphql-operation", setup: func(a *app) { graphqlDraft(a) }, act: click("GraphQL operation"), want: "Search"},
 		{name: "requests-graphql-operation-unselected", setup: func(a *app) {
 			graphqlDraft(a).graphql.OperationName = ""
+		}, want: "Select operation"},
+		{name: "requests-graphql-operation-stale", setup: func(a *app) {
+			d := graphqlDraft(a)
+			d.graphql.Query, d.graphql.OperationName = "query Writ { viewer { id } }", "Write"
 		}, want: "Select operation"},
 		{name: "requests-graphql-variables-skeleton", setup: func(a *app) {
 			d := graphqlDraft(a)
@@ -1467,7 +1492,7 @@ func TestUISnapshots(t *testing.T) {
 	t.Logf("wrote %d artifacts to %s", len(manifest.Files), dir)
 }
 
-var graphqlHoverDoc *requestDocument
+var graphqlSnapshotDoc *requestDocument
 
 var snapshotTime = time.Date(2026, 1, 15, 10, 30, 0, 0, time.UTC)
 

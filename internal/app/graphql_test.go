@@ -2,9 +2,12 @@ package app
 
 import (
 	"encoding/json/v2"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -337,6 +340,27 @@ func TestGraphQLOperationsIgnoreTemplates(t *testing.T) {
 	}
 }
 
+func TestGraphQLSelectorShowsLargeDocument(t *testing.T) {
+	a, d := graphQLDraft(t)
+	var b strings.Builder
+	for _, name := range []string{"Read", "Write"} {
+		b.WriteString("query " + name + " {")
+		for i := range 3000 {
+			fmt.Fprintf(&b, " f%d(a: 1)", i)
+		}
+		b.WriteString(" }")
+	}
+	d.graphql.Query, d.graphql.OperationName = b.String(), ""
+	tt := ui.NewTester(a.view, 1280, 800)
+	tt.Frame()
+	if !tt.HasText("Select operation") {
+		t.Fatalf("large multi-operation document has no selector: %v", tt.Texts())
+	}
+	if ops, err := d.graphqlOperations(); err != nil || len(ops) != 2 {
+		t.Fatalf("operations = %+v, %v", ops, err)
+	}
+}
+
 func TestGraphQLVariablesSkeletonKeepsAuthoredValues(t *testing.T) {
 	a, d := graphQLDraft(t)
 	d.graphql.Schema = appGraphQLSchema
@@ -345,5 +369,64 @@ func TestGraphQLVariablesSkeletonKeepsAuthoredValues(t *testing.T) {
 	a.generateGraphQLVariables(d, d.graphqlSchema(), []graphql.Operation{{Name: "Q", Type: "query"}})
 	if d.graphql.Variables != `{"q":"authored"}` {
 		t.Fatalf("authored variables were overwritten: %s", d.graphql.Variables)
+	}
+}
+
+func TestLoadGraphQLSchemaFileLimits(t *testing.T) {
+	dir := t.TempDir()
+	jsonPath := filepath.Join(dir, "schema.json")
+	padded := append([]byte(strings.Repeat(" ", 5<<20)), []byte(appIntrospection)...)
+	if err := os.WriteFile(jsonPath, padded, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if schema, err := loadGraphQLSchemaFile(jsonPath); err != nil || schema == nil {
+		t.Fatalf("5 MiB introspection file: %v", err)
+	}
+	sdlPath := filepath.Join(dir, "schema.graphql")
+	if err := os.WriteFile(sdlPath, []byte("type Query { viewer: String }\n#"+strings.Repeat("x", 4<<20)), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := loadGraphQLSchemaFile(sdlPath); err == nil {
+		t.Fatal("an SDL file over 4 MiB was accepted")
+	}
+	tooBigPath := filepath.Join(dir, "too-big.json")
+	if err := os.WriteFile(tooBigPath, append([]byte(strings.Repeat(" ", 8<<20)), []byte(appIntrospection)...), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := loadGraphQLSchemaFile(tooBigPath); err == nil {
+		t.Fatal("a schema file over 8 MiB was accepted")
+	}
+}
+
+func TestGraphQLOperationSelectionSurvivesEditing(t *testing.T) {
+	a, d := graphQLDraft(t)
+	multi := `query Read { viewer { id } } mutation Write { saveItem(input: {name: "x"}) { id } }`
+	d.graphql.Query, d.graphql.OperationName = multi, "Write"
+	tt := ui.NewTester(a.view, 1280, 800)
+	tt.Frame()
+	if tt.HasText("Select operation") {
+		t.Fatalf("a matching selection showed the placeholder: %v", tt.Texts())
+	}
+	d.graphql.Query = "query Writ { viewer { id } }"
+	tt.Frame()
+	if d.graphql.OperationName != "Write" {
+		t.Fatalf("editing cleared the saved operation: %q", d.graphql.OperationName)
+	}
+	if !tt.HasText("Select operation") {
+		t.Fatalf("a stale selection did not show the placeholder: %v", tt.Texts())
+	}
+	d.graphql.Query = multi
+	tt.Frame()
+	if d.graphql.OperationName != "Write" || tt.HasText("Select operation") {
+		t.Fatalf("the selection did not return: %q, %v", d.graphql.OperationName, tt.Texts())
+	}
+	prepared, err := d.draft().Prepare(nil)
+	if err != nil || !strings.Contains(prepared.Body, `"operationName":"Write"`) {
+		t.Fatalf("send body = %s, %v", prepared.Body, err)
+	}
+	d.graphql.Query = "query Write {"
+	tt.Frame()
+	if d.graphql.OperationName != "Write" {
+		t.Fatalf("a malformed edit cleared the saved operation: %q", d.graphql.OperationName)
 	}
 }

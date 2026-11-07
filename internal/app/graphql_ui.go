@@ -94,31 +94,10 @@ func (d *requestDocument) graphqlOperations() ([]graphql.Operation, error) {
 		if g.opsErr != nil && strings.Contains(d.graphql.Query, "{{") {
 			// The selector describes the document before variables expand;
 			// a template in a selection is not a syntax error there.
-			g.ops, g.opsErr = graphql.Operations(maskGraphQLTemplates(d.graphql.Query))
+			g.ops, g.opsErr = graphql.Operations(graphql.MaskTemplates(d.graphql.Query))
 		}
 	}
 	return g.ops, g.opsErr
-}
-
-// maskGraphQLTemplates replaces {{name}} with a name so the operation list can
-// be read before the send expands the templates. It never changes the query.
-func maskGraphQLTemplates(query string) string {
-	var b strings.Builder
-	for {
-		start := strings.Index(query, "{{")
-		if start < 0 {
-			b.WriteString(query)
-			return b.String()
-		}
-		end := strings.Index(query[start+2:], "}}")
-		if end < 0 {
-			b.WriteString(query)
-			return b.String()
-		}
-		b.WriteString(query[:start])
-		b.WriteString("template")
-		query = query[start+2+end+2:]
-	}
 }
 
 // graphqlDocuments are the tabs and capture drafts that may have a schema
@@ -249,21 +228,7 @@ func (a *app) chooseGraphQLSchema(d *requestDocument) {
 			return
 		}
 		path := paths[0]
-		var data []byte
-		info, err := os.Stat(path)
-		if err == nil && !info.Mode().IsRegular() {
-			err = errors.New("the schema must be a regular file")
-		}
-		if err == nil && info.Size() > graphql.MaxSchemaBytes {
-			err = fmt.Errorf("schema exceeds %d KiB", graphql.MaxSchemaBytes>>10)
-		}
-		if err == nil {
-			data, err = os.ReadFile(path)
-		}
-		var schema *graphql.Schema
-		if err == nil {
-			schema, err = graphql.ParseSchema(data)
-		}
+		schema, err := loadGraphQLSchemaFile(path)
 		win.Update(func() {
 			g := d.graphqlState()
 			if err != nil {
@@ -276,6 +241,27 @@ func (a *app) chooseGraphQLSchema(d *requestDocument) {
 	}()
 }
 
+// loadGraphQLSchemaFile reads SDL or introspection JSON. The raw file may be
+// up to the introspection limit; ParseSchema still enforces the smaller SDL
+// limit on what is kept.
+func loadGraphQLSchemaFile(path string) (*graphql.Schema, error) {
+	info, err := os.Stat(path)
+	if err != nil {
+		return nil, err
+	}
+	if !info.Mode().IsRegular() {
+		return nil, errors.New("the schema must be a regular file")
+	}
+	if info.Size() > graphql.MaxIntrospectionBytes {
+		return nil, fmt.Errorf("schema file exceeds %d KiB", graphql.MaxIntrospectionBytes>>10)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	return graphql.ParseSchema(data)
+}
+
 // graphqlSchemaRow is the compact toolbar under the Query/Variables switch:
 // schema state, fetch/load actions, the operation selector and, on Variables,
 // the skeleton action.
@@ -283,9 +269,7 @@ func (a *app) graphqlSchemaRow(c *ui.Context, d *requestDocument) {
 	g := d.graphqlState()
 	t := c.Theme()
 	ops, opsErr := d.graphqlOperations()
-	if opsErr == nil && len(ops) > 1 && d.graphql.OperationName != "" && !slices.ContainsFunc(ops, func(op graphql.Operation) bool { return op.Name == d.graphql.OperationName }) {
-		d.graphql.OperationName = ""
-	}
+	matchesSaved := slices.ContainsFunc(ops, func(op graphql.Operation) bool { return op.Name == d.graphql.OperationName })
 	ui.Row(c).Gap(t.Space(2)).Wrap().AlignItems(ui.Center).Children(func() {
 		schema := d.graphqlSchema()
 		statusText, statusTip, statusDanger := "No schema", "Fetch introspection or load an SDL or introspection JSON file to complete and check fields.", false
@@ -329,13 +313,15 @@ func (a *app) graphqlSchemaRow(c *ui.Context, d *requestDocument) {
 					names[i] = op.Name
 				}
 				choice := d.graphql.OperationName
-				if choice == "" {
+				if choice == "" || !slices.Contains(names, choice) {
 					choice = "Select operation"
 				}
 				selectElement := uikit.Select(c, &choice, names).Label("GraphQL operation").Width(170).FontSize(uikit.TextMeta)
 				if selectElement.Changed() && choice != "Select operation" {
 					d.graphql.OperationName = choice
 				}
+			case len(ops) == 1 && d.graphql.OperationName != "" && !matchesSaved:
+				uikit.Meta(c, "Select operation").Tooltip("The saved operation no longer exists; Send will include it for the server to report")
 			case len(ops) == 1 && ops[0].Name != "":
 				uikit.Meta(c, "Operation · "+ops[0].Name).Tooltip("The document's only operation; sent as operationName")
 			case len(ops) == 1:
@@ -343,8 +329,9 @@ func (a *app) graphqlSchemaRow(c *ui.Context, d *requestDocument) {
 			}
 		}
 		if d.graphqlTab == 1 {
+			validChoice := matchesSaved || (len(ops) == 1 && d.graphql.OperationName == "")
 			generate := uikit.SecondaryButton(c, "Generate variables").Disabled(
-				g.loading != nil || schema == nil || strings.TrimSpace(d.graphql.Variables) != "" || d.graphql.OperationName == "" && len(ops) != 1)
+				g.loading != nil || schema == nil || strings.TrimSpace(d.graphql.Variables) != "" || !validChoice)
 			generate.Tooltip("Fill an empty variables editor from the selected operation's variable definitions")
 			if generate.Clicked() {
 				a.generateGraphQLVariables(d, schema, ops)
@@ -368,7 +355,7 @@ func (a *app) generateGraphQLVariables(d *requestDocument, schema *graphql.Schem
 	}
 	query := d.graphql.Query
 	if strings.Contains(query, "{{") {
-		query = maskGraphQLTemplates(query)
+		query = graphql.MaskTemplates(query)
 	}
 	skeleton, err := schema.Variables(query, name)
 	if err != nil {
@@ -400,6 +387,7 @@ func (a *app) wireGraphQLQueryEditor(d *requestDocument) {
 		}
 		result := schema.Complete(text, r.Offset)
 		if len(result.Items) == 0 {
+			state.ShowCompletions(result.Start, nil)
 			return
 		}
 		state.ShowCompletions(result.Start, graphqlCompletionItems(result.Items))
