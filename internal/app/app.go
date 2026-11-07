@@ -1625,7 +1625,7 @@ func (a *app) upstreamModal(c *ui.Context, t *ui.Theme) {
 	uikit.Modal(c, &a.upstreamOpen, func() {
 		uikit.DialogColumn(c, uikit.DialogSmall).Children(func() {
 			uikit.DialogTitle(c, "Upstream proxy")
-			ui.Scroll(c).MinHeight(0).Children(func() {
+			ui.Scroll(c).MinHeight(0).Padding(0, t.Space(1)).Children(func() {
 				uikit.Input(c, &a.upstreamAddr).Placeholder("http://127.0.0.1:8080").Label("Address")
 			})
 			uikit.DialogFooter(c).Children(func() {
@@ -1689,7 +1689,7 @@ func (a *app) breakpointModal(c *ui.Context, t *ui.Theme) {
 			if a.bpNote != "" {
 				uikit.Hint(c, a.bpNote)
 			}
-			ui.Scroll(c).Grow(1).MinHeight(0).FillWidth().Gap(t.Space(2)).Children(func() {
+			ui.Scroll(c).Grow(1).MinHeight(0).FillWidth().Gap(t.Space(2)).Padding(0, t.Space(1)).Children(func() {
 				if message {
 					direction := "Server → client"
 					if a.bp.Direction == "out" {
@@ -2319,7 +2319,7 @@ func (a *app) markModal(c *ui.Context, t *ui.Theme) {
 	uikit.Modal(c, &a.markOpen, func() {
 		uikit.DialogColumn(c, uikit.DialogSmall).Children(func() {
 			uikit.DialogTitle(c, "Mark the request")
-			ui.Scroll(c).MinHeight(0).Gap(t.Space(3)).Children(func() {
+			ui.Scroll(c).MinHeight(0).Gap(t.Space(3)).Padding(0, t.Space(1)).Children(func() {
 				uikit.Meta(c, "A color shows in the table beside the method, and the note in the URL cell and the detail header.")
 				ui.Row(c).Gap(t.Space(2)).Wrap().AlignItems(ui.Center).Children(func() {
 					for _, color := range uikit.MarkColors {
@@ -3098,7 +3098,7 @@ func (a *app) keyLogModal(c *ui.Context, t *ui.Theme) {
 	uikit.Modal(c, &a.keyLogOpen, func() {
 		uikit.DialogColumn(c, uikit.DialogMedium).Children(func() {
 			uikit.DialogTitle(c, "TLS key log")
-			ui.Scroll(c).MinHeight(0).Gap(t.Space(3)).Children(func() {
+			ui.Scroll(c).MinHeight(0).Gap(t.Space(3)).Padding(0, t.Space(1)).Children(func() {
 				uikit.Meta(c, "The secrets go to a file Wireshark reads (SSLKEYLOGFILE), so it can decrypt this capture. The engine reads the variable once, when it first handshakes, so a change here takes effect from the next launch.")
 				uikit.Input(c, &a.keyLogInput).Placeholder("~/.vscroxy/keys.log").Label("File")
 			})
@@ -3349,7 +3349,7 @@ func (a *app) hostListModal(c *ui.Context, t *ui.Theme, open *bool, title, hint,
 	uikit.Modal(c, open, func() {
 		uikit.DialogColumn(c, uikit.DialogMedium).Children(func() {
 			uikit.DialogTitle(c, title)
-			ui.Scroll(c).MinHeight(0).Gap(t.Space(3)).Children(func() {
+			ui.Scroll(c).MinHeight(0).Gap(t.Space(3)).Padding(0, t.Space(1)).Children(func() {
 				uikit.Meta(c, hint)
 				ui.TextArea(c, text).Height(140).Label(title).FontSize(uikit.TextBody).Radius(uikit.RadiusControl)
 			})
@@ -3517,7 +3517,7 @@ func (a *app) sslModal(c *ui.Context, t *ui.Theme) {
 	uikit.Modal(c, &a.sslOpen, func() {
 		uikit.DialogColumn(c, uikit.DialogMedium).Height(min(510, height-80)).Children(func() {
 			uikit.DialogTitle(c, "SSL proxying")
-			ui.Scroll(c).Grow(1).MinHeight(0).FillWidth().Gap(t.Space(3)).Children(func() {
+			ui.Scroll(c).Grow(1).MinHeight(0).FillWidth().Gap(t.Space(3)).Padding(0, t.Space(1)).Children(func() {
 				uikit.Meta(c, "Enable a domain or a local executable. New connections only; clients must trust the CA. Enabling a rule does not prove decryption succeeded.")
 				ui.Row(c).Gap(t.Space(2)).MinHeight(uikit.HeightControl).AlignItems(ui.Center).Children(func() {
 					ui.Switch(c, &draft.All).Label("Decrypt every domain")
@@ -3701,7 +3701,7 @@ func (a *app) dnsRuleModal(c *ui.Context, t *ui.Theme) {
 	uikit.Modal(c, &a.dnsRuleOpen, func() {
 		uikit.DialogColumn(c, uikit.DialogSmall).Children(func() {
 			uikit.DialogTitle(c, "Map a host")
-			ui.Scroll(c).MinHeight(0).Gap(t.Space(3)).Children(func() {
+			ui.Scroll(c).MinHeight(0).Gap(t.Space(3)).Padding(0, t.Space(1)).Children(func() {
 				uikit.Meta(c, "The request keeps its name, URL, Host header and SNI; the proxy dials the address instead.")
 				uikit.Input(c, &a.dnsRuleHost).Label("Host")
 				uikit.Input(c, &a.dnsRuleAddr).Label("Address")

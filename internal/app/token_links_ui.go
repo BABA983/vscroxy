@@ -114,7 +114,7 @@ func (a *app) tokenLinksModal(c *ui.Context, t *ui.Theme) {
 			uikit.DialogTitle(c, "Token links")
 			uikit.Hint(c, fmt.Sprintf("%d selected captures · JSON response → later Bearer Authorization · same origin only", len(w.flows)))
 			uikit.Hint(c, "Evidence, not proof of authentication. Values are hidden. Changes require review and explicit Apply; no requests are sent.")
-			ui.Scroll(c).Grow(1).MinHeight(0).Gap(t.Space(3)).Children(func() {
+			ui.Scroll(c).Grow(1).MinHeight(0).Gap(t.Space(3)).Padding(0, t.Space(1)).Children(func() {
 				if w.busy {
 					ui.Spinner(c).Size(20, 20)
 					uikit.Body(c, "Analyzing complete JSON responses…")

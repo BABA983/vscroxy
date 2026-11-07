@@ -288,7 +288,7 @@ func (p *protoInspector) modal(c *ui.Context, a *app) {
 	uikit.Modal(c, &p.open, func() {
 		uikit.DialogColumn(c, uikit.DialogMedium).Children(func() {
 			uikit.DialogTitle(c, "Protobuf schema")
-			ui.Scroll(c).MinHeight(0).Shrink(1).Gap(t.Space(4)).Children(func() {
+			ui.Scroll(c).MinHeight(0).Shrink(1).Gap(t.Space(4)).Padding(0, t.Space(1)).Children(func() {
 				uikit.Hint(c, "Import a .proto source or a binary FileDescriptorSet (.pb / .protoset). gRPC methods select input/output types automatically; raw protobuf needs a message type. A successful load replaces the current registry.")
 				if p.schema != nil {
 					uikit.Meta(c, fmt.Sprintf("Loaded: %d message types", len(p.schema.names)))

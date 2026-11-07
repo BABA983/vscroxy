@@ -244,7 +244,7 @@ func (a *app) loadRunnerModal(c *ui.Context, t *ui.Theme) {
 		ui.Column(c).Width(min(820, width-100)).Height(min(570, height-100)).Gap(t.Space(2)).Children(func() {
 			uikit.DialogTitle(c, "Collection load test")
 			uikit.Meta(c, "Fixed concurrent users · closed model · HTTP(S) only · no target RPS or ramping")
-			ui.Scroll(c).Grow(1).MinHeight(0).Gap(t.Space(3)).Children(func() {
+			ui.Scroll(c).Grow(1).MinHeight(0).Gap(t.Space(3)).Padding(0, t.Space(1)).Children(func() {
 				ui.Row(c).Gap(t.Space(3)).Children(func() {
 					ui.Column(c).Grow(1).MinWidth(0).Gap(t.Space(1)).Children(func() {
 						uikit.Label(c, "Saved collection")

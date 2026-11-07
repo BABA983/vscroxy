@@ -318,7 +318,7 @@ func (a *app) collectionSaveModal(c *ui.Context, t *ui.Theme) {
 			if slices.Contains(names, name) {
 				hint = "Adds to the end of this collection."
 			}
-			ui.Scroll(c).MinHeight(0).Shrink(1).Gap(t.Space(4)).Children(func() {
+			ui.Scroll(c).MinHeight(0).Shrink(1).Gap(t.Space(4)).Padding(0, t.Space(1)).Children(func() {
 				uikit.Hint(c, "Saved in capture order, not sent. Tunnels, WebSocket connections and incomplete or non-UTF-8 bodies are skipped.")
 				ui.Form(c, func() {
 					ui.Field(c, "Collection", func() {

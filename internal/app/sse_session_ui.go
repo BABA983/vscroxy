@@ -48,7 +48,7 @@ func (a *app) sseModal(c *ui.Context, t *ui.Theme) {
 	if uikit.Modal(c, &s.open, func() {
 		uikit.DialogColumn(c, uikit.DialogLarge).Height(h - 100).Children(func() {
 			uikit.DialogTitle(c, "SSE session · "+state)
-			ui.Scroll(c).MaxHeight(240).MinHeight(0).Shrink(1).Gap(t.Space(2)).Children(func() {
+			ui.Scroll(c).MaxHeight(240).MinHeight(0).Shrink(1).Gap(t.Space(2)).Padding(0, t.Space(1)).Children(func() {
 				uikit.Hint(c, "GET event streams through the capture proxy. No request-document scripts. Connect starts a fresh timeline; closing stops receiving and reconnecting. Headers and cookies may contain secrets.")
 				ui.Row(c).Gap(t.Space(2)).Children(func() {
 					uikit.Input(c, &s.url).Label("SSE URL").Placeholder("https://api.example.com/events").Grow(1).MinWidth(0).Font(uikit.FontMono).Disabled(!finished)

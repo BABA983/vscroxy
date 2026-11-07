@@ -8,7 +8,7 @@ import (
 )
 
 func (a *app) checksEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
-	ui.Scroll(c).Grow(1).Gap(t.Space(3)).Children(func() {
+	ui.Scroll(c).Grow(1).Gap(t.Space(3)).Padding(0, t.Space(1)).Children(func() {
 		uikit.Meta(c, "RESPONSE CHECKS · all must pass · used by Send and Collection Runner")
 		ui.Form(c, func() {
 			ui.Field(c, "Expected status", func() {

@@ -632,7 +632,7 @@ func (a *app) cookiesModal(c *ui.Context, t *ui.Theme) {
 			if problem := a.requestCookies().problemText(); problem != "" {
 				ui.Text(c, "The local cookie file was not read or written: "+problem).FontSize(uikit.TextMeta).TextColor(t.Danger)
 			}
-			ui.Scroll(c).Grow(1).MinHeight(0).Gap(t.Space(3)).Children(func() {
+			ui.Scroll(c).Grow(1).MinHeight(0).Gap(t.Space(3)).Padding(0, t.Space(1)).Children(func() {
 				items := a.requestCookies().snapshot()
 				if len(items) == 0 {
 					uikit.Hint(c, "No cookies yet. Send a request or add one below.")

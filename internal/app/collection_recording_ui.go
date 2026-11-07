@@ -50,7 +50,7 @@ func (a *app) collectionRecordingModal(c *ui.Context, t *ui.Theme) {
 			uikit.DialogTitle(c, "Record into collection")
 			s := a.collectionRecording
 			running := s != nil && (s.Active || s.Busy)
-			ui.Scroll(c).MinHeight(0).Shrink(1).Gap(t.Space(3)).Children(func() {
+			ui.Scroll(c).MinHeight(0).Shrink(1).Gap(t.Space(3)).Padding(0, t.Space(1)).Children(func() {
 				if s != nil {
 					state := "Stopped"
 					if s.Active {

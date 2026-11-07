@@ -268,7 +268,7 @@ func (a *app) grpcEditor(c *ui.Context, t *ui.Theme, d *requestDocument) {
 			case 2:
 				ui.Column(c).Fill().Disabled(d.composeWaiting).Children(func() { a.authEditor(c, d, t) })
 			case 3:
-				ui.Scroll(c).Grow(1).Gap(t.Space(2)).Disabled(d.composeWaiting).Children(func() {
+				ui.Scroll(c).Grow(1).Gap(t.Space(2)).Disabled(d.composeWaiting).Padding(0, t.Space(1)).Children(func() {
 					uikit.Hint(c, "Import .proto / descriptor set, or discover services using server reflection.")
 					uikit.Input(c, &g.source).Label("gRPC schema file").Placeholder("/path/to/service.proto").Disabled(g.loading != nil)
 					ui.TextArea(c, &g.roots).Label("gRPC include roots").Placeholder("Include roots, one per line").Height(50).Disabled(g.loading != nil)

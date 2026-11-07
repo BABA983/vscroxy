@@ -150,7 +150,8 @@ func InputControl(c *ui.Context, value *string) ui.Element {
 
 // FieldFace gives a text field, or a row holding one with its own controls
 // (a search box, the URL bar), the field look: a neutral fill with a
-// hairline, and an accent edge and halo while focused.
+// hairline, and an accent edge and halo while focused. A scroll container
+// around a field leaves Space(1) at each side for that halo.
 func FieldFace(c *ui.Context, field ui.Element, focused bool) ui.Element {
 	t := c.Theme()
 	field.Background(neutral(t, 0.6)).Border(1, t.Text.Alpha(0.1)).Radius(RadiusControl)

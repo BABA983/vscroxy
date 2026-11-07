@@ -66,7 +66,7 @@ func (a *app) socketModal(c *ui.Context, t *ui.Theme) {
 	if uikit.Modal(c, &s.open, func() {
 		uikit.DialogColumn(c, uikit.DialogLarge).Height(h - 100).Children(func() {
 			uikit.DialogTitle(c, "WebSocket session · "+state)
-			ui.Scroll(c).MaxHeight(260).MinHeight(0).Shrink(1).Gap(t.Space(2)).Children(func() {
+			ui.Scroll(c).MaxHeight(260).MinHeight(0).Shrink(1).Gap(t.Space(2)).Padding(0, t.Space(1)).Children(func() {
 				uikit.Hint(c, "Connect starts a fresh timeline. No automatic reconnect or restore. Proxy message scripts and breakpoints apply; request-document scripts do not. Closing disconnects. Auth and cookies may contain secrets.")
 				ui.Row(c).Gap(t.Space(2)).Children(func() {
 					uikit.Input(c, &s.url).Label("WebSocket URL").Placeholder("ws://127.0.0.1:8080/socket").Grow(1).MinWidth(0).Font(uikit.FontMono).Disabled(active)

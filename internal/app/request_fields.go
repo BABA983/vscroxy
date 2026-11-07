@@ -330,7 +330,7 @@ func (a *app) headerEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
 }
 
 func (a *app) authEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
-	ui.Scroll(c).Grow(1).Gap(t.Space(3)).Children(func() {
+	ui.Scroll(c).Grow(1).Gap(t.Space(3)).Padding(0, t.Space(1)).Children(func() {
 		a.authFields(c, &d.auth, append([]string{request.AuthInherit}, authTypes...), d.composeCollection)
 		if d.auth.Type == request.AuthInherit {
 			resolved, from := a.inheritance(d.composeCollection).InheritAuth(d.auth)

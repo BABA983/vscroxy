@@ -345,7 +345,7 @@ func (a *app) folderModal(c *ui.Context, t *ui.Theme) {
 			ui.Column(c).Grow(1).MinHeight(0).Gap(t.Space(2)).Children(func() {
 				switch f.tab {
 				case 0:
-					ui.Scroll(c).Grow(1).MinHeight(0).Gap(t.Space(2)).Children(func() {
+					ui.Scroll(c).Grow(1).MinHeight(0).Gap(t.Space(2)).Padding(0, t.Space(1)).Children(func() {
 						a.authFields(c, &f.draft.Auth, a.folderAuthTypes(f.draft.Path), f.draft.Path)
 					})
 					uikit.Meta(c, "Requests whose Auth is Inherit send this.")

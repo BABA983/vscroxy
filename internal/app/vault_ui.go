@@ -256,7 +256,7 @@ func (a *app) vaultModal(c *ui.Context, t *ui.Theme) {
 				}
 				ui.Box(c).Width(76) // the two row buttons and the gap between them
 			})
-			ui.Scroll(c).Grow(1).MinHeight(0).FillWidth().Gap(t.Space(2)).Padding(0, t.Space(2), 0, 0).Children(func() {
+			ui.Scroll(c).Grow(1).MinHeight(0).FillWidth().Gap(t.Space(2)).Padding(0, t.Space(2), 0, t.Space(1)).Children(func() {
 				remove := -1
 				for i := range v.rows {
 					r := &v.rows[i]

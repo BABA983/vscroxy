@@ -140,7 +140,7 @@ func (a *app) devicesModal(c *ui.Context, t *ui.Theme) {
 			})
 			uikit.Hint(c, "Same Wi-Fi / LAN. Only listed source addresses can connect. Local capture stays on loopback.")
 			ui.Row(c).Grow(1).MinHeight(0).Gap(t.Space(6)).AlignItems(ui.Stretch).Children(func() {
-				ui.Scroll(c).BasisPercent(44).Grow(1).MinWidth(0).Gap(t.Space(3)).Padding(0, t.Space(2), 0, 0).Children(func() {
+				ui.Scroll(c).BasisPercent(44).Grow(1).MinWidth(0).Gap(t.Space(3)).Padding(0, t.Space(2), 0, t.Space(1)).Children(func() {
 					if d.gateway == nil {
 						ui.Text(c, "1  Choose a network address").FontSize(uikit.TextBody).FontWeight(600)
 						ui.Form(c, func() {

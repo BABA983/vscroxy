@@ -170,7 +170,7 @@ func (a *app) columnModal(c *ui.Context, t *ui.Theme) {
 	uikit.Modal(c, &a.columnOpen, func() {
 		uikit.DialogColumn(c, uikit.DialogSmall).Children(func() {
 			uikit.DialogTitle(c, "Add column")
-			ui.Scroll(c).MinHeight(0).Gap(t.Space(3)).Children(func() {
+			ui.Scroll(c).MinHeight(0).Gap(t.Space(3)).Padding(0, t.Space(1)).Children(func() {
 				ui.Form(c, func() {
 					ui.Field(c, "From", func() {
 						uikit.Select(c, &draft.Source, columnSources).Label("Column source").Width(200)
