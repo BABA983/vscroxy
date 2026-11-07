@@ -145,7 +145,7 @@
 | 抓包流量 → OpenAPI | 已有 | 向导完成页可同时生成独立草稿 | M3 |
 | 导出 CSV | 已有 | 当前视图或选中；列与表格可见列一致；RFC 4180、公式注入防护；沿用导出脱敏 | M5 |
 | 导出时脱敏选项 | 已有 | Postman、HAR、会话共用六类脱敏选项；CSV 使用其中适用的四类；默认全部启用，可明确原样导出，需确认范围 | M1 |
-| 导入 Charles 会话（.chls）、Proxyman 日志 | 部分 | Charles `.chlsj`（JSON）与 `.chlsx`（XML）会话、Proxyman `.proxymanlogv2` 归档和旧 `.proxymanlog` 目录进入抓包列表：方法、URL、请求／响应 header（保留重复）、body（含二进制、base64、gzip 等编码）、状态码、时间／耗时、远端 IP、TLS 协议／密码套件／证书；Proxyman 的 WebSocket 消息映射到 Messages。原生 `.chls` 是 Java 序列化对象流，不反序列化，导入时提示在 Charles 导出为 `.chlsj` 或 HAR；Charles 的 JSON／XML 导出不含 WebSocket 帧，只导入升级请求 | M7 |
+| 导入 Charles 会话（.chls）、Proxyman 日志 | 部分 | Charles `.chlsj`（JSON）与 `.chlsx`（XML）会话、Proxyman `.proxymanlogv2` 归档和旧 `.proxymanlog` 目录进入抓包列表：方法、URL、请求／响应 header（保留重复，单侧最多 1000 个）、body（二进制、base64；源标记为未解码且带 gzip／deflate／br 时按 Content-Encoding 解压，输出上限 32 MiB）、状态码（含 `:status`／`firstLine` 回退）、时间／耗时、远端／客户端 IP、TLS 协议／密码套件／证书。Charles 的 WebSocket 帧从 `webSocket:true` 事务的 encoded body 解析；Proxyman 的 `websocketMessageStorage` 映射到 Messages（单条流最多 10 万帧）。原生 `.chls` 是 Java 序列化对象流，不反序列化，导入时提示在 Charles 导出为 `.chlsj` 或 HAR；Charles 中无法识别或截断的 WebSocket 帧只保留可解析部分并写入导入报告 | M7 |
 | 分享到 GitHub Gist | 缺少 | | M9 |
 
 ### 4.5 设备和接入
@@ -327,7 +327,7 @@ Cookie 和其他 API key 保留为变量 header，避免把多个认证机制硬
   临时 profile 不随 launcher 退出删除，崩溃遗留的在下次启动清理；不写 hosts，不修改用户全局配置。
 - SOCKS5 入口、反向代理已完成（见[使用指南](guide.md#socks5-and-reverse-proxies)）：SOCKS5 支持 CONNECT、可选 RFC 1929 认证、域名／IPv4／IPv6；解密名单内的 TLS 按既有规则 MITM 或抓取明文 HTTP；名单外先嗅探首字节，明文 HTTP 仍抓取，TLS／其他协议原样透传；反向代理把本地端口转发到 http／https 远端，Host 可改写或保留，规则和抓包同样生效，远端证书默认校验。限制：SOCKS5 只支持 CONNECT（BIND／UDP ASSOCIATE 拒绝），解密名单内的目标必须是 HTTP(S) 且 10 s 内开始发送；名单外服务器先发协议最多延迟一个嗅探窗口；反向代理本地侧只收明文 HTTP，Remote host 时只接受回环 Host，抓包中的客户端是本机 app。
 - 上游代理：PAC、绕过、按 host、认证；系统代理绕过名单。
-- 导入：Swagger 2、Insomnia、Bruno、Hoppscotch、PowerShell／CMD cURL 已完成（见[使用指南](guide.md#import-and-export)）；Charles `.chlsj`／`.chlsx`、Proxyman `.proxymanlogv2`／`.proxymanlog` 已完成。Insomnia v4/v5、Bruno 目录、Hoppscotch 集合与环境、Swagger 2 均转换为现有集合／请求／环境模型；脚本、测试和无法表达的请求设置会明确列入导入报告。抓包会话复用 HAR 导入的列表路径，保留两侧 header（含重复）、二进制／base64／gzip body、状态、起止时间与耗时、远端 IP、TLS 信息和 Proxyman WebSocket 消息。原生 `.chls` 是 Java 序列化对象流，不执行反序列化，导入时提示从 Charles 导出 `.chlsj` 或 HAR；Charles JSON／XML 不含 WebSocket 帧，只导入升级请求。文件、条目和正文大小有上限，不跟随符号链接，畸形输入返回错误。
+- 导入：Swagger 2、Insomnia、Bruno、Hoppscotch、PowerShell／CMD cURL 已完成（见[使用指南](guide.md#import-and-export)）；Charles `.chlsj`／`.chlsx`、Proxyman `.proxymanlogv2`／`.proxymanlog` 已完成。Insomnia v4/v5、Bruno 目录、Hoppscotch 集合与环境、Swagger 2 均转换为现有集合／请求／环境模型；脚本、测试和无法表达的请求设置会明确列入导入报告。抓包会话复用 HAR 导入的列表路径，并和抓包引擎共用 ID 计数器，先导入后抓包不会撞 ID。保留两侧 header（含重复）、二进制／base64 body、源标记为未解码的 gzip／deflate／br body 会解压、状态（含 `:status`／`firstLine` 回退）、起止时间与耗时、远端／客户端 IP、TLS 信息；Charles 的 WebSocket 帧从 encoded body 解析，Proxyman 的 `websocketMessageStorage` 映射到 Messages。原生 `.chls` 是 Java 序列化对象流，不执行反序列化，导入时提示从 Charles 导出 `.chlsj` 或 HAR；Charles 中无法识别或截断的 WebSocket 帧只保留可解析部分并写入报告。文件、条目、header、消息和正文大小有上限，解析流式限制条目和 header，不跟随符号链接，畸形输入返回错误。
 
 ### M8：协议扩展
 

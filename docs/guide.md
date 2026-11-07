@@ -2200,23 +2200,34 @@ validated contract. A name already in use gets a number: “Pet Store 2”.
 
 **Session → Import capture session…**, the command palette, and a file dropped
 on the window read Charles' JSON Session File (`.chlsj`) and XML Session File
-(`.chlsx`), and Proxyman's `.proxymanlogv2` archive. **Session → Import
-Proxyman log folder…** reads the older `.proxymanlog` directory (a nested
-directory is found one level down). The exchanges join the live traffic table
-in capture order, not a saved session; **Save session…** keeps them. Both
-sides keep their headers, including repeated names, and their bodies as
-exported: binary and base64 bodies stay bytes, and a body the exporter marked
-with gzip/deflate/br is not decompressed again. Status, start time, duration,
-wait/download split, remote IP, TLS protocol, cipher suite and, for Proxyman,
-the peer certificate fields are mapped. Proxyman WebSocket messages fill the
-**Messages** tab with direction, text/binary/control type and payload; Charles'
-JSON and XML exports contain the WebSocket upgrade but not its frames, and the
-import report says so. Native `.chls` is a Java-serialized object stream, which
-this app does not deserialize; the import stops with a message to export
-`.chlsj` or HAR from Charles instead.
+(`.chlsx`), and Proxyman's `.proxymanlogv2` archive. A dropped `.har` still
+goes to the HAR importer, and an unsupported dropped file says which formats
+are accepted. **Session → Import Proxyman log folder…** reads the older
+`.proxymanlog` directory (a nested directory is found one level down, never
+deeper). The exchanges join the live traffic table in capture order, not a
+saved session; **Save session…** keeps them. Both sides keep their headers,
+including repeated names (up to 1000 per side), and their bodies: binary and
+base64 bodies stay bytes. When the exporter says the body is still encoded
+(`decoded` is not true) and records gzip, deflate or Brotli as its
+Content-Encoding, the body is decompressed for the Body tab while the header
+stays as it was on the wire; the decoded output is capped at 32 MiB, and a
+failure keeps the original bytes and is listed in the import report. Status
+falls back to the `:status` pseudo-header or the response `firstLine` when the
+exporter omitted it. Start time, duration, wait/download split, remote and
+client IP, TLS protocol, cipher suite and, for Proxyman, the peer certificate
+fields are mapped. Charles stores WebSocket frames in the encoded bodies of a
+`webSocket:true` transaction; those frames fill the **Messages** tab. Proxyman
+`websocketMessageStorage` messages do the same with direction,
+text/binary/control type and payload. Frames that are malformed, truncated or
+beyond the message limit are reported rather than shown as an HTTP body.
+Native `.chls` is a Java-serialized object stream, which this app does not
+deserialize; the import stops with a message to export `.chlsj` or HAR from
+Charles instead.
 
 Capture imports are bounded: at most 128 MiB per file or Proxyman entry, 2000
-exchanges, 32 MiB per body and 256 MiB of expanded archive. Symbolic links are
+exchanges, 1000 headers per side, 100,000 WebSocket messages per flow, 32 MiB
+per body and 256 MiB of expanded archive. The entry and header limits apply
+while decoding, so a small file cannot allocate a huge list. Symbolic links are
 not followed, zip members must be flat `request_<n>_<id>` entries, and a
 malformed or truncated file is reported as an error without changing the
 table. What was skipped, capped or unavailable is listed after the import.
