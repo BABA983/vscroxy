@@ -284,7 +284,9 @@ func TestNetworkModalEditsAndConfirmsDeletionAt960(t *testing.T) {
 	}
 	edit := func(label, value string) {
 		t.Helper()
-		click(label)
+		if err := clickLabel(tt, label); err != nil {
+			t.Fatal(err)
+		}
 		tt.Key(ui.Cmd, ui.KeyA)
 		tt.Type(value)
 		tt.Frame()
@@ -427,7 +429,7 @@ func TestNetworkRuleEditorCopiesConditionsAndPersists(t *testing.T) {
 	if *a.rules[0].Network != want {
 		t.Fatal("changing a preset changed saved network conditions")
 	}
-	if err := tt.Click("Failure (%)"); err != nil {
+	if err := clickLabel(tt, "Failure (%)"); err != nil {
 		t.Fatal(err)
 	}
 	tt.Key(ui.Cmd, ui.KeyA)
@@ -519,7 +521,7 @@ func TestNetworkSnapshots(t *testing.T) {
 		for _, state := range []string{"preset", "invalid", "delete"} {
 			switch state {
 			case "invalid":
-				if err := tt.Click("Failure (%)"); err != nil {
+				if err := clickLabel(tt, "Failure (%)"); err != nil {
 					t.Fatal(err)
 				}
 				tt.Key(ui.Cmd, ui.KeyA)

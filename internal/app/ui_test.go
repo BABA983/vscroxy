@@ -38,6 +38,18 @@ func openResponseBody(a *app) {
 	a.inspect.ready = true
 }
 
+// clickLabel clicks the center of the text or label s without MyGo's
+// target check. A field's label can overlap the control it names, and the
+// click is the label's activation either way.
+func clickLabel(tt *ui.Tester, s string) error {
+	r, ok := tt.Find(s)
+	if !ok {
+		return fmt.Errorf("no element shows %q", s)
+	}
+	tt.ClickAt(r.X+r.W/2, r.Y+r.H/2)
+	return nil
+}
+
 // App menus are drawn in the window, including each opened submenu.
 func chooseMenu(tt *ui.Tester, path ...string) error {
 	for _, label := range path {
@@ -3694,7 +3706,7 @@ func TestTriageFiltersAndQuickPresetsStayWithTheirView(t *testing.T) {
 	for _, field := range []struct{ label, value string }{
 		{"Filter method", "post, put"}, {"Duration (ms)", ">500"}, {"Response size (bytes)", "<100"}, {"Filter note", "CHECKOUT"},
 	} {
-		if err := tt.Click(field.label); err != nil {
+		if err := clickLabel(tt, field.label); err != nil {
 			t.Fatal(err)
 		}
 		tt.Type(field.value)

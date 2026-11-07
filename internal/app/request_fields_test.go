@@ -684,7 +684,9 @@ func TestCollectionSettingsGiveRequestsTheirAuth(t *testing.T) {
 	}
 	click("Authorization type")
 	click("Bearer")
-	click("Bearer token")
+	if err := clickLabel(tt, "Bearer token"); err != nil {
+		t.Fatal(err)
+	}
 	tt.Type("{{vault:api}}")
 	click("Save settings")
 	data, err := os.ReadFile(filepath.Join(a.library.root, "Workspace", "API", "folder.json"))
