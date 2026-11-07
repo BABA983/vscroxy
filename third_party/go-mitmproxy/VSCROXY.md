@@ -101,19 +101,26 @@ decision, not a transport failure that another candidate may bypass.
 
 `attacker.upstreamClient`, the separate transport for a rewritten target, uses
 the same host rules, PAC order and credentials as the main path. A plain HTTP
-target through an HTTP(S) upstream keeps net/http's absolute-URI forwarding, so
-Map Remote does not need the upstream to allow CONNECT to port 80; an HTTPS
-target or a SOCKS/DIRECT candidate uses `dialUpstream`. An `https://` upstream's
-own certificate is always verified with the system roots and the app's custom
-roots, independently of whether the target certificate is verified; Basic
-credentials are sent only after that handshake. `helper.GetProxyConn` builds
-Basic credentials from the raw username and password, not `url.User.String()`,
-which would percent-encode reserved password characters.
+target through an HTTP(S) upstream keeps net/http's absolute-URI forwarding:
+candidates are tried in order, each proxy gets an 8-second TCP dial, and a
+DIRECT candidate dials the target directly. The first candidate whose TCP
+connection succeeds carries the request; a 407 or other HTTP response from it
+is final. Map Remote therefore does not need the upstream to allow CONNECT to
+port 80; an HTTPS target or a SOCKS candidate uses `dialUpstream`. An
+`https://` upstream's own certificate is always verified with the system roots
+and the app's custom roots, independently of whether the target certificate is
+verified; Basic credentials are sent only after that handshake.
+`helper.GetProxyConn` builds Basic credentials from the raw username and
+password, not `url.User.String()`, which would percent-encode reserved password
+characters.
 
 The connection log shows the selection reason before the dial. Credentials are
 never part of `Reason`, and the helper's errors do not include them.
 `internal/capture` supplies the hook from `internal/upstream`; PAC evaluation,
-host rules and the bypass list live there, not in this package.
+host rules and the bypass list live there, not in this package. A failed
+upstream HTTP exchange now writes `vscroxy: <reason>` into the 502 body and
+records the same error in `ConnContext`, so authored sends and the inspector
+show why the request failed.
 
 ## SSE completion
 

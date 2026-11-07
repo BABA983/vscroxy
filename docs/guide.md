@@ -1143,9 +1143,9 @@ default upstream. A rule or the default may say `direct`.
 - **Bypass** entries are one per line, or separated by commas or semicolons: an
   exact host, `*.example.com`, a leading `.example.com` (the domain and its
   subdomains), a CIDR such as `10.0.0.0/8`, `localhost`, `<local>` (a host
-  without a dot; Windows only), or `*`. An optional `:port` limits an entry.
-  CIDR and IP entries match IP literals; the app does not resolve a hostname to
-  decide a bypass. Bypass wins over rules, PAC and the default.
+  without a dot), or `*`. An optional `:port` limits an entry. CIDR and IP
+  entries match IP literals; the app does not resolve a hostname to decide a
+  bypass. Bypass wins over rules, PAC and the default.
 - **Credentials** are a username and password per proxy endpoint. HTTP and HTTPS
   upstreams receive Basic `Proxy-Authorization`; SOCKS5 uses RFC 1929
   username/password. Passwords are sealed in
@@ -1156,6 +1156,17 @@ default upstream. A rule or the default may say `direct`.
 - The **connection log** shows an **Upstream** line for the rule, bypass entry
   or PAC result, and each failed candidate before a fallback. Credentials are
   never shown.
+- A startup PAC load runs off the UI thread. While it loads, requests fail
+  closed with a 502 whose body names the reason, and the toolbar shows
+  **Upstream loading**. If it fails, the toolbar shows **Upstream error** and
+  Settings offers **Retry**; **Upstream off** remains available in both states.
+  A URL PAC retries after 5 seconds, then 15 seconds, 60 seconds, and every
+  5 minutes. A successful save or import replaces the failed snapshot; an
+  older load result never overwrites it.
+- `Map Remote` to a plain HTTP target through an HTTP(S) upstream uses
+  absolute-URI forwarding. It tries the PAC candidates in order, using the
+  first proxy that accepts a TCP connection, and falls back to a DIRECT
+  candidate. A proxy's 407 or other HTTP response is final.
 
 The rules apply to captured traffic and to the app's own requests: Send, Runner,
 CLI, WebSocket, SSE, Socket.IO, gRPC over HTTPS and reverse proxies all reach
