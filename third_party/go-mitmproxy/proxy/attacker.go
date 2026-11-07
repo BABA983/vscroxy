@@ -48,12 +48,7 @@ type attacker struct {
 	// net/http fills such a copy in as it starts, so serving this one too
 	// would leave two goroutines reading and writing the same fields.
 	h2Base   *http.Server
-	client   *http.Client
-	// verifiedClient re-dials a rewritten target with certificate checks on.
-	// It keeps no idle connections: a verifying send must not reuse a socket
-	// opened under the inspection client's insecure policy.
-	verifiedClient *http.Client
-	listener       *attackerListener
+	listener *attackerListener
 }
 
 func newAttacker(proxy *Proxy) (*attacker, error) {
@@ -65,38 +60,6 @@ func newAttacker(proxy *Proxy) (*attacker, error) {
 	a := &attacker{
 		proxy: proxy,
 		ca:    ca,
-		client: &http.Client{
-			Transport: &http.Transport{
-				Proxy:              proxy.realUpstreamProxy(),
-				ForceAttemptHTTP2:  true,
-				DisableCompression: true, // To get the original response from the server, set Transport.DisableCompression to true.
-				TLSClientConfig: &tls.Config{
-					InsecureSkipVerify: proxy.Opts.SslInsecure,
-					KeyLogWriter:       helper.GetTlsKeyLogWriter(),
-				},
-			},
-			CheckRedirect: func(req *http.Request, via []*http.Request) error {
-				// 禁止自动重定向
-				return http.ErrUseLastResponse
-			},
-		},
-		verifiedClient: &http.Client{
-			Transport: &http.Transport{
-				Proxy:              proxy.realUpstreamProxy(),
-				ForceAttemptHTTP2:  true,
-				DisableCompression: true,
-				// A rewritten request has no pre-dialed upstream socket. Keep
-				// its verification independent from the inspection client's
-				// insecure, keep-alive pool.
-				DisableKeepAlives: true,
-				TLSClientConfig: &tls.Config{
-					KeyLogWriter: helper.GetTlsKeyLogWriter(),
-				},
-			},
-			CheckRedirect: func(req *http.Request, via []*http.Request) error {
-				return http.ErrUseLastResponse
-			},
-		},
 		listener: &attackerListener{
 			connChan: make(chan net.Conn),
 		},
@@ -267,6 +230,29 @@ func (a *attacker) initHttpDialFn(req *http.Request) {
 	}
 }
 
+// upstreamClient dials a rewritten target itself, so its TLS configuration
+// can name that target and present its client certificate. It keeps no idle
+// connections: it is built per request and must not leave sockets behind.
+func (a *attacker) upstreamClient(address string, verify bool) (*http.Client, error) {
+	tlsConfig, err := a.proxy.upstreamTLSConfig(address, verify)
+	if err != nil {
+		return nil, err
+	}
+	transport := &http.Transport{
+		Proxy:              a.proxy.realUpstreamProxy(),
+		ForceAttemptHTTP2:  true,
+		DisableCompression: true,
+		DisableKeepAlives:  true,
+		TLSClientConfig:    tlsConfig,
+	}
+	return &http.Client{
+		Transport: transport,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}, nil
+}
+
 // send clientHello to server, server handshake
 func (a *attacker) serverTlsHandshake(ctx context.Context, connCtx *ConnContext) error {
 	proxy := a.proxy
@@ -283,14 +269,15 @@ func (a *attacker) serverTlsHandshake(ctx context.Context, connCtx *ConnContext)
 	if serverName == "" && verify {
 		serverName = hostOnly(serverConn.Address)
 	}
-	serverTlsConfig := &tls.Config{
-		InsecureSkipVerify: !verify,
-		KeyLogWriter:       helper.GetTlsKeyLogWriter(),
-		ServerName:         serverName,
-		NextProtos:         clientHello.SupportedProtos,
-		// CurvePreferences:   clientHello.SupportedCurves, // todo: 如果打开会出错
-		CipherSuites: clientHello.CipherSuites,
+	serverTlsConfig, err := proxy.upstreamTLSConfig(serverConn.Address, verify)
+	if err != nil {
+		connCtx.RecordEvent("TLS upstream", "Upstream TLS configuration failed", err)
+		return err
 	}
+	serverTlsConfig.ServerName = serverName
+	serverTlsConfig.NextProtos = clientHello.SupportedProtos
+	// CurvePreferences:   clientHello.SupportedCurves, // todo: 如果打开会出错
+	serverTlsConfig.CipherSuites = clientHello.CipherSuites
 	if len(clientHello.SupportedVersions) > 0 {
 		minVersion, maxVersion := uint16(0xffff), uint16(0)
 		for _, v := range clientHello.SupportedVersions {
@@ -753,9 +740,13 @@ func (a *attacker) attack(res http.ResponseWriter, req *http.Request) {
 		f.UseSeparateClient = true
 		f.ConnContext.RecordEvent("HTTP", "Using a separate upstream transport for "+f.Request.URL.Host, nil)
 		proxyReq = proxyReq.WithContext(httptrace.WithClientTrace(proxyReq.Context(), f.ConnContext.trace()))
-		client := a.client
-		if f.ConnContext.VerifyUpstream {
-			client = a.verifiedClient
+		client, clientErr := a.upstreamClient(f.Request.URL.Host, f.ConnContext.VerifyUpstream)
+		if clientErr != nil {
+			for _, addon := range proxy.Addons {
+				addon.RequestError(f, clientErr)
+			}
+			res.WriteHeader(502)
+			return
 		}
 		proxyRes, err = client.Do(proxyReq)
 	} else {

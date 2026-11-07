@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/base64"
 	"errors"
 	"fmt"
@@ -89,7 +90,7 @@ func grpcMetadata(header http.Header) (metadata.MD, error) {
 }
 
 func openGRPCSession(ctx context.Context, cancel context.CancelFunc, input request.Request, scope request.Context, vars map[string]string,
-	req *request.Prepared, schema *protoSchema, method protoreflect.MethodDescriptor, proxy string, ca []byte, notify func()) *grpcSession {
+	req *request.Prepared, schema *protoSchema, method protoreflect.MethodDescriptor, proxy string, tlsConfig *tls.Config, notify func()) *grpcSession {
 	s := &grpcSession{cancel: cancel, done: make(chan struct{}), notify: notify, state: "Connecting", sending: true,
 		input: input, scope: scope, vars: maps.Clone(vars)}
 	go func() {
@@ -113,7 +114,7 @@ func openGRPCSession(ctx context.Context, cancel context.CancelFunc, input reque
 			s.mu.Unlock()
 			s.changed()
 		}()
-		conn, err := grpcclient.Dial(req.URL, proxy, ca)
+		conn, err := grpcclient.DialWithTLS(req.URL, proxy, tlsConfig)
 		if err != nil {
 			final = err
 			return

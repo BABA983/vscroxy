@@ -236,14 +236,23 @@ func (r Request) Execute(ctx context.Context, srv *capture.Server, in Context, v
 		return out
 	}
 	out.Stage, run.phase = "Network error", "network"
+	settings := in.InheritSettings(r.Settings)
+	// Load the configured client certificate and roots before the request
+	// reaches the proxy, so a missing file or bad passphrase is reported here
+	// instead of as an opaque CONNECT failure.
+	if in.Certificates.Configured() && srv != nil {
+		if err := in.Certificates.ValidateURL(req.URL, srv.CACertificate(), !settings.Verifies()); err != nil {
+			out.Stage, out.Err = "Request setup failed", err
+			return out
+		}
+	}
 	if IsWebSocket(req.URL) {
-		out.Replies, out.Err = wsSend(ctx, srv.Addr(), req, srv.CACertificate(), jar, 2*time.Second)
+		out.Replies, out.Err = wsSend(ctx, srv.Addr(), req, srv.CACertificate(), in.Certificates, jar, 2*time.Second)
 		if out.Err == nil && (r.Post != "" || slices.ContainsFunc(in.Folders, func(f Folder) bool { return f.Post != "" })) {
 			out.Stage = "Post-response script failed"
 			out.Err = fmt.Errorf("post-response scripts require an HTTP response")
 		}
 	} else {
-		settings := in.InheritSettings(r.Settings)
 		policy := settings.Transfer()
 		if r.Checks != (Checks{}) {
 			policy.Redirects.Mode = capture.RedirectManual

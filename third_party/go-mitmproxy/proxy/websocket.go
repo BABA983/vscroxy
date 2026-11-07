@@ -3,7 +3,6 @@ package proxy
 import (
 	"bufio"
 	"context"
-	"crypto/tls"
 	"fmt"
 	"net"
 	"net/http"
@@ -134,10 +133,16 @@ func (h *webSocketHandler) handle(serverConn, clientConn net.Conn, f *Flow) erro
 		NetDial: func(network, addr string) (net.Conn, error) {
 			return serverConn, nil
 		},
-		Subprotocols:    websocket.Subprotocols(clientReq),
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: h.proxy.Opts.SslInsecure},
-		// 使用已有的连接，不需要重新拨号
+		Subprotocols:     websocket.Subprotocols(clientReq),
 		HandshakeTimeout: 0,
+	}
+	if target.Scheme == "wss" {
+		verify := !h.proxy.Opts.SslInsecure || f.ConnContext.VerifyUpstream
+		tlsConfig, configErr := h.proxy.upstreamTLSConfig(target.Host, verify)
+		if configErr != nil {
+			return configErr
+		}
+		dialer.TLSClientConfig = tlsConfig
 	}
 
 	serverURL := target.String()
@@ -325,14 +330,17 @@ func (h *webSocketHandler) handleWSS(res http.ResponseWriter, req *http.Request,
 	}
 
 	// 步骤 4: 创建 Dialer，使用自定义 NetDial
+	verify := !h.proxy.Opts.SslInsecure || connCtx.VerifyUpstream
+	tlsConfig, err := h.proxy.upstreamTLSConfig(target.Host, verify)
+	if err != nil {
+		return err
+	}
 	dialer := &websocket.Dialer{
 		NetDial: func(network, addr string) (net.Conn, error) {
 			return serverConn.Conn, nil
 		},
-		Subprotocols: websocket.Subprotocols(req),
-		TLSClientConfig: &tls.Config{
-			InsecureSkipVerify: h.proxy.Opts.SslInsecure,
-		},
+		Subprotocols:    websocket.Subprotocols(req),
+		TLSClientConfig: tlsConfig,
 	}
 
 	upstreamHeader := cloneHeaderWithoutWSHandshake(f.Request.Header)

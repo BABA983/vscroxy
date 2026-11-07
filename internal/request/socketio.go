@@ -15,6 +15,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/baba983/vscroxy/internal/certs"
 	"github.com/gorilla/websocket"
 )
 
@@ -56,7 +57,7 @@ type SocketIOConn struct {
 	ctx           context.Context
 }
 
-func DialSocketIO(ctx context.Context, proxy string, req *Prepared, cfg SocketIOConfig, ca []byte, jar http.CookieJar) (*SocketIOConn, error) {
+func DialSocketIO(ctx context.Context, proxy string, req *Prepared, cfg SocketIOConfig, ca []byte, certificates certs.Settings, jar http.CookieJar) (*SocketIOConn, error) {
 	if proxy == "" {
 		return nil, errors.New("Socket.IO requires a running capture proxy")
 	}
@@ -96,7 +97,7 @@ func DialSocketIO(ctx context.Context, proxy string, req *Prepared, cfg SocketIO
 	u.RawQuery = q.Encode()
 	r := *req
 	r.URL, r.Body = u.String(), ""
-	ws, err := DialWebSocket(ctx, proxy, &r, ca, jar)
+	ws, err := DialWebSocket(ctx, proxy, &r, ca, certificates, jar)
 	if err != nil {
 		return nil, err
 	}

@@ -3,14 +3,17 @@ package app
 import (
 	"cmp"
 	"context"
+	"crypto/tls"
 	"encoding/base64"
 	"fmt"
 	"maps"
+	"net/url"
 	"slices"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/baba983/vscroxy/internal/certs"
 	"github.com/baba983/vscroxy/internal/grpcclient"
 	"github.com/baba983/vscroxy/internal/request"
 	"github.com/baba983/vscroxy/internal/uikit"
@@ -110,14 +113,23 @@ func (a *app) loadGRPCSchema(d *requestDocument, reflect, saved bool) {
 			roots = append(roots, root)
 		}
 	}
-	proxy, ca := a.grpcProxy()
+	var proxy string
+	var tlsConfig *tls.Config
+	if reflect {
+		var configErr error
+		proxy, tlsConfig, configErr = a.grpcTLSConfig(prepared.URL)
+		if configErr != nil {
+			g.problem = configErr.Error()
+			return
+		}
+	}
 	go func() {
 		defer cancel()
 		var schema *protoSchema
 		var err error
 		switch {
 		case reflect:
-			conn, dialErr := grpcclient.Dial(prepared.URL, proxy, ca)
+			conn, dialErr := grpcclient.DialWithTLS(prepared.URL, proxy, tlsConfig)
 			err = dialErr
 			if err == nil {
 				defer conn.Close()
@@ -143,11 +155,24 @@ func (a *app) loadGRPCSchema(d *requestDocument, reflect, saved bool) {
 	}()
 }
 
-func (a *app) grpcProxy() (string, []byte) {
-	if a.srv != nil && a.srv.Running() {
-		return a.srv.Addr(), a.srv.CACertificate()
+func (a *app) grpcTLSConfig(endpoint string) (string, *tls.Config, error) {
+	u, err := url.Parse(endpoint)
+	if err != nil {
+		return "", nil, err
 	}
-	return "", nil
+	proxy := ""
+	var proxyCA []byte
+	if a.srv != nil && a.srv.Running() {
+		proxy, proxyCA = a.srv.Addr(), a.srv.CACertificate()
+	}
+	if u.Scheme != "https" {
+		return proxy, nil, nil
+	}
+	config, err := a.certificates.TLSConfig(certs.Address(u), proxyCA, false)
+	if err != nil {
+		return "", nil, err
+	}
+	return proxy, config, nil
 }
 
 func (a *app) sendGRPC(d *requestDocument) {
@@ -174,8 +199,13 @@ func (a *app) sendGRPC(d *requestDocument) {
 		return
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(seconds)*time.Second)
-	proxy, ca := a.grpcProxy()
-	g.session = openGRPCSession(ctx, cancel, r, in, vars, req, g.schema, method, proxy, ca, a.invalidate)
+	proxy, tlsConfig, err := a.grpcTLSConfig(req.URL)
+	if err != nil {
+		cancel()
+		g.problem = err.Error()
+		return
+	}
+	g.session = openGRPCSession(ctx, cancel, r, in, vars, req, g.schema, method, proxy, tlsConfig, a.invalidate)
 	g.problem, g.readerKey, g.reader, g.selected = "", "", nil, 0
 	d.composeWaiting, d.sendCancel, d.sendCancelling = true, cancel, false
 	d.historyPick, d.comparing = 0, false

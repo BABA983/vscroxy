@@ -1,6 +1,7 @@
 package app
 
 import (
+	"encoding/json/v2"
 	"fmt"
 	"net"
 	"net/http"
@@ -12,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/baba983/vscroxy/internal/capture"
+	"github.com/baba983/vscroxy/internal/certs"
 	"github.com/baba983/vscroxy/internal/request"
 	"github.com/baba983/vscroxy/internal/store"
 	"github.com/egoist/mygo/ui"
@@ -32,6 +34,11 @@ func TestSettingsRoundTrip(t *testing.T) {
 		HiddenColumns:    []string{"client"},
 		KeyLogPath:       "/tmp/keys.log",
 		ProxyPort:        9091,
+		Certificates: certs.Settings{
+			Clients:          []certs.Client{{ID: "one", Host: "api.example.com", Format: certs.FormatPEM, CertFile: "/tmp/client.pem", KeyFile: "/tmp/client.key"}},
+			RootCAs:          []string{"/tmp/root.pem"},
+			TrustSystemRoots: new(false),
+		},
 	}
 	if err := writeSettings(path, want); err != nil {
 		t.Fatalf("write: %v", err)
@@ -45,6 +52,38 @@ func TestSettingsRoundTrip(t *testing.T) {
 	}
 	if layout := got.Columns.layout(); layout.Widths["url"] != 320 || layout.Order[1] != "url" {
 		t.Fatalf("layout = %+v", layout)
+	}
+	changed := want
+	changed.Certificates.RootCAs = []string{"/tmp/other.pem"}
+	if sameSettings(want, changed) {
+		t.Fatal("a changed certificate root did not change the settings")
+	}
+}
+
+func TestCertificatePassphrasesNeverReachSettingsOrExports(t *testing.T) {
+	settingsValue := settings{Certificates: certs.Settings{
+		Clients: []certs.Client{{ID: "one", Host: "api.example.com", Format: certs.FormatPKCS12, CertFile: "/tmp/client.p12"}},
+		Secrets: map[string]string{"one": "never-export-me"},
+	}}
+	path := filepath.Join(t.TempDir(), "settings.json")
+	if err := writeSettings(path, settingsValue); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(data), "never-export-me") {
+		t.Fatalf("settings.json contains the passphrase: %s", data)
+	}
+	a := &app{certificates: settingsValue.Certificates}
+	bundle, _ := a.exportConfig()
+	data, err = json.Marshal(bundle)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(data), "never-export-me") {
+		t.Fatalf("configuration export contains the passphrase: %s", data)
 	}
 }
 

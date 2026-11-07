@@ -11,6 +11,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/baba983/vscroxy/internal/certs"
 	"github.com/baba983/vscroxy/internal/request"
 )
 
@@ -36,13 +37,13 @@ type sseSessionEvent struct {
 	detail              string
 }
 
-func openSSESession(proxy string, req *request.Prepared, ca []byte, jar http.CookieJar, reconnect bool, notify func()) *sseSession {
+func openSSESession(proxy string, req *request.Prepared, ca []byte, certificates certs.Settings, jar http.CookieJar, reconnect bool, notify func()) *sseSession {
 	ctx, cancel := context.WithCancel(context.Background())
 	s := &sseSession{state: "Connecting", cancel: cancel, done: make(chan struct{}), notify: notify}
 	go func() {
 		defer close(s.done)
 		defer cancel()
-		err := request.ReceiveSSE(ctx, proxy, req, ca, jar, reconnect, func(u request.SSEUpdate) {
+		err := request.ReceiveSSE(ctx, proxy, req, ca, certificates, jar, reconnect, func(u request.SSEUpdate) {
 			s.mu.Lock()
 			if s.stopping {
 				s.mu.Unlock()

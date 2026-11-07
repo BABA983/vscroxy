@@ -68,6 +68,8 @@ type configImport struct {
 
 // currentSettings are the settings as they are now.
 func (a *app) currentSettings() settings {
+	certificates := a.certificates.Clone()
+	certificates.Secrets, certificates.SecretsProblem = nil, ""
 	return settings{
 		Appearance:        a.appearance,
 		SidebarWidth:      a.sidebarWidth,
@@ -87,6 +89,7 @@ func (a *app) currentSettings() settings {
 		SOCKSUsername:     a.socksUsername,
 		SOCKSPassword:     a.socksPassword,
 		ReverseProxies:    slices.Clone(a.reverses),
+		Certificates:      certificates,
 		VaultScripts:      a.vault.scripts,
 		CookiePersistence: a.cookiePersistence,
 		Guide:             a.guide,
@@ -381,7 +384,15 @@ func (a *app) applySettings(s settings) {
 	a.socksUsername, a.socksPassword = s.SOCKSUsername, socksPassword
 	a.resetSOCKSDrafts()
 	a.reverses = slices.Clone(s.ReverseProxies)
+	// Imported certificate paths and hosts replace this computer's; sealed
+	// passphrases stay by ID, so an entry with a new ID needs its passphrase
+	// again. Nothing secret is part of a bundle.
+	secrets := a.certificates.Secrets
+	a.certificates = s.Certificates.Normalize()
+	a.certificates.Secrets = secrets
+	a.certificateUI.loaded, a.certificateUI.dirty = false, false
 	if a.srv != nil {
+		a.srv.SetCertificates(a.certificates)
 		if err := a.srv.SetReverseProxies(a.reverseConfigs()); err != nil {
 			a.reverseProblem = err.Error()
 		}
@@ -454,7 +465,7 @@ func (a *app) configImportDialog(c *ui.Context, t *ui.Theme) {
 		uikit.DialogColumn(c, 520).Children(func() {
 			uikit.DialogTitle(c, "Import configuration")
 			uikit.Meta(c, fmt.Sprintf("%s · exported %s", filepath.Base(in.path), b.Exported.Local().Format("2006-01-02 15:04")))
-			uikit.Prose(c, "The parts you choose replace what vscroxy has now. Secrets and variables are never part of a configuration file.")
+			uikit.Prose(c, "The parts you choose replace what vscroxy has now. Secrets and variables are never part of a configuration file. Certificate paths are kept, but their files and passphrases are not included.")
 			ui.Column(c).Gap(t.Space(2)).Children(func() {
 				part := func(i int, available bool, label, detail string) {
 					ui.Column(c).Gap(t.Space(0.5)).Disabled(!available).Children(func() {
@@ -474,7 +485,7 @@ func (a *app) configImportDialog(c *ui.Context, t *ui.Theme) {
 					profiles = len(b.Hosts.Profiles)
 				}
 				part(partHosts, b.Hosts != nil, "Host profiles", fmt.Sprintf("%d %s, with their switches and order.", profiles, plural(profiles, "profile", "profiles")))
-				part(partSettings, b.Settings != nil, "Settings and lists", "Appearance, layout, proxy port, HTTPS decryption, and the ignore and allow lists.")
+				part(partSettings, b.Settings != nil, "Settings and lists", "Appearance, layout, proxy port, HTTPS decryption, certificates, and the ignore and allow lists.")
 			})
 			uikit.DialogFooter(c).Children(func() {
 				if uikit.SecondaryButton(c, "Cancel").Clicked() {

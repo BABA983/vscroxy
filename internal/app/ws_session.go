@@ -10,6 +10,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/baba983/vscroxy/internal/certs"
 	"github.com/baba983/vscroxy/internal/request"
 	"github.com/gorilla/websocket"
 )
@@ -41,12 +42,12 @@ type wsSessionEvent struct {
 	CloseCode int
 }
 
-func openWSSession(proxy string, req *request.Prepared, ca []byte, jar http.CookieJar, notify func()) *wsSession {
+func openWSSession(proxy string, req *request.Prepared, ca []byte, certificates certs.Settings, jar http.CookieJar, notify func()) *wsSession {
 	ctx, cancel := context.WithCancel(context.Background())
 	s := &wsSession{state: "Connecting", cancel: cancel, done: make(chan struct{}), notify: notify}
 	go func() {
 		defer close(s.done)
-		c, err := request.DialWebSocket(ctx, proxy, req, ca, jar)
+		c, err := request.DialWebSocket(ctx, proxy, req, ca, certificates, jar)
 		if err != nil {
 			s.finish(err)
 			return

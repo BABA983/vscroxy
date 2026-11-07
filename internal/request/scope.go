@@ -5,6 +5,8 @@ import (
 	"maps"
 	"slices"
 	"strings"
+
+	"github.com/baba983/vscroxy/internal/certs"
 )
 
 // AuthInherit is the Auth type that takes the nearest folder's auth, or the
@@ -41,6 +43,10 @@ type Context struct {
 	EnvironmentInitial map[string]string
 	// Vault reads {{vault:name}} for a request to host; nil has no vault.
 	Vault func(name, host string) (string, error)
+	// Certificates are the client certificates and extra roots this send
+	// presents and trusts. The zero value trusts the system roots and adds no
+	// client certificate. Files are read on each send.
+	Certificates certs.Settings
 	// ScriptVault lets scripts read and change the vault with pm.vault.
 	ScriptVault bool
 	// Tokens keeps OAuth 2.0 access tokens; nil keeps them for one send.

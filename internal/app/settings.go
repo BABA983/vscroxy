@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/baba983/vscroxy/internal/certs"
 	"github.com/baba983/vscroxy/internal/store"
 	"github.com/egoist/mygo/ui"
 )
@@ -52,6 +53,10 @@ type settings struct {
 	// ReverseProxies are loopback ports that forward plaintext HTTP to a
 	// remote base URL.
 	ReverseProxies []reverseProxySetting `json:"reverseProxies,omitempty"`
+	// Certificates are the client certificates and extra roots for sends and
+	// captured upstream TLS. Passphrases are sealed separately and never
+	// appear here.
+	Certificates certs.Settings `json:"certificates,omitzero"`
 	// VaultScripts lets request scripts use pm.vault.
 	VaultScripts bool `json:"vaultScripts,omitzero"`
 	// CookiePersistence keeps persistent cookies across launches in the
@@ -182,6 +187,7 @@ func sameSettings(x, y settings) bool {
 		x.SOCKSAuth == y.SOCKSAuth && x.SOCKSUsername == y.SOCKSUsername &&
 		x.SOCKSPassword == y.SOCKSPassword &&
 		slices.Equal(x.ReverseProxies, y.ReverseProxies) &&
+		x.Certificates.Equal(y.Certificates) &&
 		x.VaultScripts == y.VaultScripts &&
 		x.CookiePersistence == y.CookiePersistence &&
 		x.Guide == y.Guide &&

@@ -34,6 +34,7 @@ import (
 	"github.com/lqqyt2423/go-mitmproxy/proxy"
 	"github.com/sirupsen/logrus"
 
+	"github.com/baba983/vscroxy/internal/certs"
 	"github.com/baba983/vscroxy/internal/dnsmap"
 	"github.com/baba983/vscroxy/internal/graphql"
 	"github.com/baba983/vscroxy/internal/hosts"
@@ -373,12 +374,13 @@ type Server struct {
 	lastDNS atomic.Value // DNSHit
 	dnsHits map[uuid.UUID]DNSHit
 
-	// roots are the CAs a replay trusts: the system's and this proxy's, so
-	// a replay of an HTTPS flow succeeds without trusting the CA machine
-	// wide. caPool holds only this proxy's CA, for traffic that must come
-	// from this proxy rather than the real server.
-	roots  *x509.CertPool
+	// caPool holds only this proxy's CA, for traffic that must come from
+	// this proxy rather than the real server.
 	caPool *x509.CertPool
+	// certs holds the client certificates and extra roots shared by authored
+	// sends, intercepted upstream TLS and reverse proxies. Files are read on
+	// each handshake.
+	certs atomic.Value // certs.Settings
 
 	rulesMu sync.RWMutex
 	rules   []Rule
@@ -471,11 +473,18 @@ func New(addr, caRootPath string) (*Server, error) {
 		reverseToken:  uuid.NewString(),
 		reverseStatus: make(map[string]ReverseProxyStatus),
 	}
+	s.certs.Store(certs.Settings{})
 	p, err := proxy.NewProxy(&proxy.Options{
 		Addr:              addr,
 		CaRootPath:        caRootPath,
 		SslInsecure:       true, // a debugging proxy inspects self-signed upstreams too
 		StreamLargeBodies: 8 << 20,
+		ClientCertificate: func(address string) (*tls.Certificate, error) {
+			return s.certificates().ClientCertificate(address)
+		},
+		RootCAs: func() (*x509.CertPool, error) {
+			return s.certificates().RootPool(nil)
+		},
 	})
 	if err != nil {
 		return nil, err
@@ -522,13 +531,7 @@ func New(addr, caRootPath string) (*Server, error) {
 		return url.Parse(raw)
 	})
 	s.proxy = p
-	pool, err := x509.SystemCertPool()
-	if err != nil || pool == nil {
-		pool = x509.NewCertPool()
-	}
 	ca := p.GetCertificate()
-	pool.AddCert(&ca)
-	s.roots = pool
 	own := x509.NewCertPool()
 	own.AddCert(&ca)
 	s.caPool = own
@@ -557,6 +560,23 @@ func (s *Server) Running() bool { return s.running.Load() }
 func (s *Server) CACertificate() []byte {
 	ca := s.proxy.GetCertificate()
 	return bytes.Clone(ca.Raw)
+}
+
+// SetCertificates replaces the client certificates and extra roots used by
+// authored sends, intercepted upstream TLS and reverse proxies. The snapshot
+// is immutable: later edits in the caller do not change an in-flight send.
+func (s *Server) SetCertificates(settings certs.Settings) {
+	s.certs.Store(settings.Clone())
+}
+
+// Certificates returns a copy of the active certificate settings.
+func (s *Server) Certificates() certs.Settings {
+	return s.certificates().Clone()
+}
+
+func (s *Server) certificates() certs.Settings {
+	settings, _ := s.certs.Load().(certs.Settings)
+	return settings
 }
 
 // Flows is the stream of captured exchanges. It closes when the server does.
@@ -1243,6 +1263,31 @@ const (
 	TLSInsecure = "insecure"
 )
 
+// replayTLSConfig is the client side of a replay: it verifies the proxy's
+// interception certificate (or a tunneled server), and presents the client
+// certificate configured for the target. insecure skips verification but still
+// loads the client certificate.
+func (s *Server) replayTLSConfig(rawURL string, insecure bool) (*tls.Config, error) {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return nil, err
+	}
+	if u.Scheme != "https" {
+		// A redirect may switch to HTTPS. Trust the system, custom roots and
+		// this proxy, but do not present a client certificate for an HTTP
+		// host: the redirect target is not known here.
+		if insecure {
+			return &tls.Config{InsecureSkipVerify: true}, nil
+		}
+		roots, err := s.certificates().RootPool(s.CACertificate())
+		if err != nil {
+			return nil, err
+		}
+		return &tls.Config{RootCAs: roots}, nil
+	}
+	return s.certificates().TLSConfig(certs.Address(u), s.CACertificate(), insecure)
+}
+
 // ReplayWithPolicy applies an authored transfer policy. cURL modes follow at
 // most 50 HTTP(S) hops unless Max says otherwise; -X keeps the method, not a
 // body dropped by 301/302/303. TLSVerify asks the proxy to verify an
@@ -1309,6 +1354,10 @@ func (s *Server) ReplayWithPolicy(ctx context.Context, f Flow, jar http.CookieJa
 		// Suppression must survive a canceled send until the proxy has read
 		// everything already sent on its socket. ClientDisconnected removes it.
 	}()
+	tlsConfig, err := s.replayTLSConfig(rawURL, policy.TLS == TLSInsecure)
+	if err != nil {
+		return Flow{}, err
+	}
 	client := &http.Client{
 		Jar: jar,
 		Transport: &http.Transport{
@@ -1316,7 +1365,7 @@ func (s *Server) ReplayWithPolicy(ctx context.Context, f Flow, jar http.CookieJa
 			// must not reuse that socket for a different HTTP origin.
 			DisableKeepAlives: true,
 			Proxy:             http.ProxyURL(proxyURL),
-			TLSClientConfig:   &tls.Config{RootCAs: s.roots, InsecureSkipVerify: policy.TLS == TLSInsecure},
+			TLSClientConfig:   tlsConfig,
 			// An intercepted upstream is verified by the proxy, not by this
 			// client, which only sees the proxy's own certificate.
 			GetProxyConnectHeader: func(context.Context, *url.URL, string) (http.Header, error) {

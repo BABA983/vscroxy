@@ -32,6 +32,13 @@ type Options struct {
 	// SOCKSSniffTimeout bounds the peek for a target that is not decrypted,
 	// to tell plaintext HTTP from TLS or another protocol. Zero uses 400 ms.
 	SOCKSSniffTimeout time.Duration
+	// ClientCertificate returns the client certificate to present to an
+	// upstream host:port, or nil when none is configured. An error aborts the
+	// handshake instead of continuing without the certificate.
+	ClientCertificate func(address string) (*tls.Certificate, error)
+	// RootCAs returns the roots to verify an upstream certificate. A nil
+	// function keeps the system pool; an error aborts the handshake.
+	RootCAs func() (*x509.CertPool, error)
 }
 
 // HeaderVerifyUpstream on a CONNECT asks the proxy to verify the upstream
@@ -172,6 +179,33 @@ func (proxy *Proxy) getUpstreamProxyUrl(req *http.Request) (*url.URL, error) {
 	}
 	cReq := &http.Request{URL: &url.URL{Scheme: "https", Host: req.Host}}
 	return http.ProxyFromEnvironment(cReq)
+}
+
+// upstreamTLSConfig builds the client side of an intercepted upstream TLS
+// connection: the configured client certificate for address and, when verify
+// is on, the configured roots. An error must abort the handshake.
+func (proxy *Proxy) upstreamTLSConfig(address string, verify bool) (*tls.Config, error) {
+	config := &tls.Config{
+		InsecureSkipVerify: !verify,
+		KeyLogWriter:       helper.GetTlsKeyLogWriter(),
+	}
+	if verify && proxy.Opts.RootCAs != nil {
+		roots, err := proxy.Opts.RootCAs()
+		if err != nil {
+			return nil, err
+		}
+		config.RootCAs = roots
+	}
+	if proxy.Opts.ClientCertificate != nil {
+		cert, err := proxy.Opts.ClientCertificate(address)
+		if err != nil {
+			return nil, err
+		}
+		if cert != nil {
+			config.Certificates = []tls.Certificate{*cert}
+		}
+	}
+	return config, nil
 }
 
 func (proxy *Proxy) getUpstreamConn(ctx context.Context, req *http.Request) (net.Conn, error) {

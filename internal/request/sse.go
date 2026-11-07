@@ -5,7 +5,6 @@ import (
 	"cmp"
 	"context"
 	"crypto/tls"
-	"crypto/x509"
 	"errors"
 	"fmt"
 	"io"
@@ -17,6 +16,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/baba983/vscroxy/internal/certs"
 	"golang.org/x/text/encoding/unicode"
 )
 
@@ -38,7 +38,7 @@ type SSEUpdate struct {
 // failure, HTTP 204 or cancellation. Reconnect is explicit opt-in. Requests and
 // headers are snapshotted; redirect handling uses net/http's credential policy.
 // No request scripts run. A complete event/line is limited to 1 MiB.
-func ReceiveSSE(ctx context.Context, proxy string, req *Prepared, ca []byte, jar http.CookieJar, reconnect bool, emit func(SSEUpdate)) error {
+func ReceiveSSE(ctx context.Context, proxy string, req *Prepared, ca []byte, certificates certs.Settings, jar http.CookieJar, reconnect bool, emit func(SSEUpdate)) error {
 	u, err := url.Parse(req.URL)
 	if err != nil || u.Hostname() == "" || u.Scheme != "http" && u.Scheme != "https" || u.User != nil {
 		return errors.New("SSE requires an absolute HTTP(S) URL without embedded credentials")
@@ -50,20 +50,16 @@ func ReceiveSSE(ctx context.Context, proxy string, req *Prepared, ca []byte, jar
 	if err != nil || proxy == "" || proxyURL.Hostname() == "" {
 		return errors.New("SSE requires a running capture proxy")
 	}
-	roots, err := x509.SystemCertPool()
-	if err != nil {
-		roots = x509.NewCertPool()
-	}
-	if len(ca) > 0 {
-		cert, err := x509.ParseCertificate(ca)
+	var tlsConfig *tls.Config
+	if u.Scheme == "https" {
+		tlsConfig, err = certificates.TLSConfig(certs.Address(u), ca, false)
 		if err != nil {
 			return err
 		}
-		roots.AddCert(cert)
 	}
 	transport := http.DefaultTransport.(*http.Transport).Clone()
 	transport.Proxy = http.ProxyURL(proxyURL)
-	transport.TLSClientConfig = &tls.Config{RootCAs: roots}
+	transport.TLSClientConfig = tlsConfig
 	transport.ResponseHeaderTimeout = 15 * time.Second
 	defer transport.CloseIdleConnections()
 	client := &http.Client{Transport: transport, Jar: jar}

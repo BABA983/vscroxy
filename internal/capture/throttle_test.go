@@ -235,7 +235,7 @@ func TestNetworkConditionsLocalAndHTTPS(t *testing.T) {
 	}))
 	defer upstream.Close()
 	s, _ := startServer(t)
-	s.roots.AddCert(upstream.Certificate())
+	trustUpstream(t, s, upstream)
 	s.SetSSL(SSLConfig{All: true})
 	file := filepath.Join(t.TempDir(), "response.txt")
 	if err := os.WriteFile(file, []byte(payload), 0o600); err != nil {
@@ -383,7 +383,7 @@ func TestNetworkRuleRatesHTTPSLocalAndSSE(t *testing.T) {
 	}))
 	defer upstream.Close()
 	s, ca := startServer(t)
-	s.roots.AddCert(upstream.Certificate())
+	trustUpstream(t, s, upstream)
 	s.SetSSL(SSLConfig{All: true})
 	client := clientFor(t, s, sslTestRoots(t, ca))
 	defer client.CloseIdleConnections()

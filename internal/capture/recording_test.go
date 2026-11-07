@@ -328,7 +328,7 @@ func TestWithoutRecordingUndecryptedHTTPS(t *testing.T) {
 	s, _ := startServer(t)
 	// Trust the fixture's self-signed certificate while leaving interception
 	// disabled. Only the CONNECT envelope is visible to the proxy in this case.
-	s.roots.AddCert(upstream.Certificate())
+	trustUpstream(t, s, upstream)
 	reply, err := s.Replay(WithoutRecording(t.Context()), Flow{Method: "GET", URL: upstream.URL})
 	if err != nil || reply.ResponseBody != "tunneled" {
 		t.Fatalf("tunneled response: %q, %v", reply.ResponseBody, err)

@@ -8,6 +8,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/base64"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"io"
@@ -30,6 +31,7 @@ import (
 	"github.com/gorilla/websocket"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
+	"github.com/baba983/vscroxy/internal/certs"
 	"github.com/baba983/vscroxy/internal/hosts"
 	"github.com/baba983/vscroxy/internal/rules"
 )
@@ -73,6 +75,18 @@ func clientFor(t *testing.T, s *Server, roots *x509.CertPool) *http.Client {
 		tr.TLSClientConfig = &tls.Config{RootCAs: roots}
 	}
 	return &http.Client{Transport: tr, Timeout: 5 * time.Second}
+}
+
+// trustUpstream trusts an httptest server's self-signed certificate through
+// the same settings a user configures, so a replay's client leg verifies it.
+func trustUpstream(t *testing.T, s *Server, upstream *httptest.Server) {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "upstream.pem")
+	data := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: upstream.Certificate().Raw})
+	if err := os.WriteFile(path, data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	s.SetCertificates(certs.Settings{RootCAs: []string{path}})
 }
 
 func waitFrame(t *testing.T, s *Server) FrameEvent {
@@ -1319,7 +1333,7 @@ func TestConcurrentReplayLineageSurvivesHTTPSRedirects(t *testing.T) {
 		})
 	}
 	wg.Go(func() {
-		client := clientFor(t, s, s.roots)
+		client := clientFor(t, s, s.caPool)
 		defer client.CloseIdleConnections()
 		r, err := client.Get(upstream.URL + "/finish")
 		if err != nil {

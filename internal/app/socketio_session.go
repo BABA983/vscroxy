@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/baba983/vscroxy/internal/certs"
 	"github.com/baba983/vscroxy/internal/request"
 	"github.com/gorilla/websocket"
 )
@@ -97,13 +98,13 @@ func socketIOMessageText(m request.SocketIOMessage) (string, string) {
 	return name, text
 }
 
-func openSocketIOSession(proxy string, ca []byte, jar http.CookieJar, input request.Request, scope request.Context, vars map[string]string, req *request.Prepared, cfg request.SocketIOConfig, notify func()) *socketIOSession {
+func openSocketIOSession(proxy string, ca []byte, certificates certs.Settings, jar http.CookieJar, input request.Request, scope request.Context, vars map[string]string, req *request.Prepared, cfg request.SocketIOConfig, notify func()) *socketIOSession {
 	ctx, cancel := context.WithCancel(context.Background())
 	s := &socketIOSession{state: "Connecting", cancel: cancel, done: make(chan struct{}), notify: notify, owed: map[uint64]bool{}, input: input, scope: scope, vars: maps.Clone(vars)}
 	go func() {
 		defer close(s.done)
 		defer cancel()
-		conn, err := request.DialSocketIO(ctx, proxy, req, cfg, ca, jar)
+		conn, err := request.DialSocketIO(ctx, proxy, req, cfg, ca, certificates, jar)
 		if err == nil {
 			defer conn.Close()
 			s.mu.Lock()

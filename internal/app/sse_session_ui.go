@@ -57,7 +57,7 @@ func (a *app) sseModal(c *ui.Context, t *ui.Theme) {
 						if err != nil || u.Hostname() == "" || u.Scheme != "http" && u.Scheme != "https" || u.User != nil {
 							s.problem = "Enter an absolute HTTP(S) URL without embedded credentials"
 						} else {
-							s.session = openSSESession(a.srv.Addr(), &request.Prepared{Method: "GET", URL: s.url, Header: request.ParseHeaderBlock(s.headers)}, a.srv.CACertificate(), a.requestCookies(), s.reconnect, a.invalidate)
+							s.session = openSSESession(a.srv.Addr(), &request.Prepared{Method: "GET", URL: s.url, Header: request.ParseHeaderBlock(s.headers)}, a.srv.CACertificate(), a.certificates, a.requestCookies(), s.reconnect, a.invalidate)
 							s.problem, s.query, s.picked, s.reader = "", "", 0, nil
 							s.scroll = ui.ScrollState{}
 						}

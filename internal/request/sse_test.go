@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/baba983/vscroxy/internal/capture"
+	"github.com/baba983/vscroxy/internal/certs"
 )
 
 func TestSSEParsingThroughHTTPAndHTTPS(t *testing.T) {
@@ -42,7 +43,7 @@ func TestSSEParsingThroughHTTPAndHTTPS(t *testing.T) {
 			proxy := testProxy(t)
 			proxy.SetSSL(capture.SSLConfig{All: true})
 			var got []SSEEvent
-			err := ReceiveSSE(t.Context(), proxy.Addr(), &Prepared{URL: server.URL, Header: http.Header{"Authorization": {"Bearer test"}}}, proxy.CACertificate(), nil, false, func(u SSEUpdate) {
+			err := ReceiveSSE(t.Context(), proxy.Addr(), &Prepared{URL: server.URL, Header: http.Header{"Authorization": {"Bearer test"}}}, proxy.CACertificate(), certs.Settings{}, nil, false, func(u SSEUpdate) {
 				if u.Event != nil {
 					got = append(got, *u.Event)
 				}
@@ -85,7 +86,7 @@ func TestSSEReconnectIDsCookiesAnd204(t *testing.T) {
 	proxy := testProxy(t)
 	jar, _ := cookiejar.New(nil)
 	var got []SSEUpdate
-	err := ReceiveSSE(t.Context(), proxy.Addr(), &Prepared{URL: server.URL + "/start", Header: http.Header{"Last-Event-Id": {"initial"}}}, nil, jar, true, func(u SSEUpdate) { got = append(got, u) })
+	err := ReceiveSSE(t.Context(), proxy.Addr(), &Prepared{URL: server.URL + "/start", Header: http.Header{"Last-Event-Id": {"initial"}}}, nil, certs.Settings{}, jar, true, func(u SSEUpdate) { got = append(got, u) })
 	if err != nil || calls.Load() != 2 || len(got) != 4 || got[1].Event == nil || got[1].Event.Data != "first" || got[2].State != "Reconnecting" || got[2].Retry != 100*time.Millisecond || got[3].State != "Stopped" {
 		t.Fatalf("updates=%+v calls=%d err=%v", got, calls.Load(), err)
 	}
@@ -114,7 +115,7 @@ func TestSSELiveDeliveryAndCancellation(t *testing.T) {
 	var data []string
 	done := make(chan error, 1)
 	go func() {
-		done <- ReceiveSSE(ctx, proxy.Addr(), &Prepared{URL: server.URL}, nil, nil, false, func(u SSEUpdate) {
+		done <- ReceiveSSE(ctx, proxy.Addr(), &Prepared{URL: server.URL}, nil, certs.Settings{}, nil, false, func(u SSEUpdate) {
 			if u.Event == nil {
 				return
 			}
@@ -151,7 +152,7 @@ func TestSSECancelReconnectAndResetID(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 	var reconnects int
-	err := ReceiveSSE(ctx, proxy.Addr(), &Prepared{URL: server.URL, Header: http.Header{"Last-Event-Id": {"old"}}}, nil, nil, true, func(u SSEUpdate) {
+	err := ReceiveSSE(ctx, proxy.Addr(), &Prepared{URL: server.URL, Header: http.Header{"Last-Event-Id": {"old"}}}, nil, certs.Settings{}, nil, true, func(u SSEUpdate) {
 		if u.State == "Reconnecting" {
 			reconnects++
 			if reconnects == 2 {
@@ -172,7 +173,7 @@ func TestSSEDoesNotTrustUninstalledCA(t *testing.T) {
 	defer server.Close()
 	proxy := testProxy(t)
 	proxy.SetSSL(capture.SSLConfig{All: true})
-	err := ReceiveSSE(t.Context(), proxy.Addr(), &Prepared{URL: server.URL}, nil, nil, false, func(u SSEUpdate) {
+	err := ReceiveSSE(t.Context(), proxy.Addr(), &Prepared{URL: server.URL}, nil, certs.Settings{}, nil, false, func(u SSEUpdate) {
 		if u.Event != nil {
 			t.Error("accepted stream with untrusted certificate")
 		}
@@ -201,7 +202,7 @@ func TestSSERejectsResponsesAndOversizedEvents(t *testing.T) {
 			defer server.Close()
 			proxy := testProxy(t)
 			var events int
-			err := ReceiveSSE(t.Context(), proxy.Addr(), &Prepared{URL: server.URL}, nil, nil, true, func(u SSEUpdate) {
+			err := ReceiveSSE(t.Context(), proxy.Addr(), &Prepared{URL: server.URL}, nil, certs.Settings{}, nil, true, func(u SSEUpdate) {
 				if u.Event != nil {
 					events++
 				}

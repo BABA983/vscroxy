@@ -58,7 +58,7 @@ func (a *app) connectSocketIO(d *requestDocument) {
 		return
 	}
 	cfg.Namespace = cmp.Or(cfg.Namespace, "/")
-	u.session = openSocketIOSession(a.srv.Addr(), a.srv.CACertificate(), a.requestCookies(), r, in, vars, prepared, cfg, a.invalidate)
+	u.session = openSocketIOSession(a.srv.Addr(), a.srv.CACertificate(), a.certificates, a.requestCookies(), r, in, vars, prepared, cfg, a.invalidate)
 	u.problem, u.query, u.readerKey, u.reader, u.selected = "", "", "", nil, 0
 	u.list = ui.ListState{}
 	d.composeWaiting, d.sendCancel, d.sendCancelling = true, u.session.cancel, false

@@ -3,7 +3,6 @@ package request
 import (
 	"context"
 	"crypto/tls"
-	"crypto/x509"
 	"errors"
 	"fmt"
 	"net"
@@ -13,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/baba983/vscroxy/internal/certs"
 	"github.com/gorilla/websocket"
 	"golang.org/x/net/http/httpguts"
 )
@@ -38,8 +38,8 @@ func IsWebSocket(rawURL string) bool {
 // wsSend opens a WebSocket through the proxy, sends one text message and
 // collects what comes back until wait is over. The exchange is captured like
 // any other, so the frames show in the table too.
-func wsSend(ctx context.Context, proxyAddr string, req *Prepared, ca []byte, jar http.CookieJar, wait time.Duration) ([]string, error) {
-	conn, err := DialWebSocket(ctx, proxyAddr, req, ca, jar)
+func wsSend(ctx context.Context, proxyAddr string, req *Prepared, ca []byte, certificates certs.Settings, jar http.CookieJar, wait time.Duration) ([]string, error) {
+	conn, err := DialWebSocket(ctx, proxyAddr, req, ca, certificates, jar)
 	if err != nil {
 		return nil, err
 	}
@@ -71,7 +71,7 @@ func wsSend(ctx context.Context, proxyAddr string, req *Prepared, ca []byte, jar
 	return replies, nil
 }
 
-func DialWebSocket(ctx context.Context, proxyAddr string, req *Prepared, ca []byte, jar http.CookieJar) (*websocket.Conn, error) {
+func DialWebSocket(ctx context.Context, proxyAddr string, req *Prepared, ca []byte, certificates certs.Settings, jar http.CookieJar) (*websocket.Conn, error) {
 	header := req.Header.Clone()
 	var protocols []string
 	for _, value := range header.Values("Sec-WebSocket-Protocol") {
@@ -84,20 +84,20 @@ func DialWebSocket(ctx context.Context, proxyAddr string, req *Prepared, ca []by
 		}
 	}
 	header.Del("Sec-WebSocket-Protocol")
-	roots, err := x509.SystemCertPool()
+	u, err := url.Parse(req.URL)
 	if err != nil {
-		roots = x509.NewCertPool()
+		return nil, err
 	}
-	if len(ca) > 0 {
-		cert, err := x509.ParseCertificate(ca)
+	var tlsConfig *tls.Config
+	if u.Scheme == "wss" {
+		tlsConfig, err = certificates.TLSConfig(certs.Address(u), ca, false)
 		if err != nil {
 			return nil, err
 		}
-		roots.AddCert(cert)
 	}
 	dialer := websocket.Dialer{
 		HandshakeTimeout: 10 * time.Second,
-		TLSClientConfig:  &tls.Config{RootCAs: roots},
+		TLSClientConfig:  tlsConfig,
 		Subprotocols:     protocols,
 		Jar:              jar,
 		Proxy: func(*http.Request) (*url.URL, error) {

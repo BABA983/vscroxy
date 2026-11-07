@@ -31,6 +31,7 @@ import (
 	"github.com/baba983/vscroxy/internal/appicon"
 	"github.com/baba983/vscroxy/internal/applog"
 	"github.com/baba983/vscroxy/internal/capture"
+	"github.com/baba983/vscroxy/internal/certs"
 	"github.com/baba983/vscroxy/internal/request"
 	"github.com/baba983/vscroxy/internal/store"
 	"github.com/baba983/vscroxy/internal/system"
@@ -311,6 +312,11 @@ type app struct {
 	proxyPort        int
 	proxyPortInput   string
 	proxyPortProblem string
+	// certificates are the client certificates and extra roots shared by
+	// sends and captured upstream TLS; certificateUI is the Settings draft.
+	certificates  certs.Settings
+	certificateUI certificateEditor
+	certProblem   string
 	// SOCKS5 is configured for the next launch, like the HTTP port. The
 	// draft fields are what the settings page edits; the persisted fields
 	// are what currentSettings writes and the launch snapshot compares.
@@ -543,6 +549,8 @@ func newApp() *app {
 			a.errText = err.Error()
 		} else {
 			a.saved, a.proxyPort, a.vault.scripts = saved, saved.ProxyPort, saved.VaultScripts
+			a.certificates = saved.Certificates.Normalize()
+			a.saved.Certificates = a.certificates
 			a.cookiePersistence = saved.CookiePersistence
 			a.launchPort, a.launchKeyLog = saved.ProxyPort, saved.KeyLogPath
 			a.socksOn, a.socksPort, a.socksAuth = saved.SOCKSOn, saved.SOCKSPort, saved.SOCKSAuth
@@ -562,6 +570,13 @@ func newApp() *app {
 			}
 		}
 	}
+	if a.settingsPath != "" {
+		if secrets, err := certs.SecretStoreFor(a.settingsPath).Load(); err != nil {
+			a.certProblem = err.Error()
+		} else {
+			a.certificates.Secrets = secrets
+		}
+	}
 	addr, err := a.saved.proxyAddr()
 	var srv *capture.Server
 	if err == nil {
@@ -572,6 +587,7 @@ func newApp() *app {
 		a.errText = err.Error()
 	} else {
 		a.srv = srv
+		srv.SetCertificates(a.certificates)
 		if cfg, err := a.socksConfig(); err != nil {
 			a.socksProblem = err.Error()
 		} else if err := srv.SetSOCKS(cfg); err != nil {

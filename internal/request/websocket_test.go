@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/baba983/vscroxy/internal/capture"
+	"github.com/baba983/vscroxy/internal/certs"
 	"github.com/gorilla/websocket"
 )
 
@@ -81,7 +82,7 @@ func TestWebSocketSubprotocolAndBinaryThroughWSAndWSS(t *testing.T) {
 				header := http.Header{"Authorization": {"Bearer local-only"}, "Sec-Websocket-Protocol": {"binary.v1, binary.v2"}}
 				ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 				defer cancel()
-				c, err := DialWebSocket(ctx, proxy.Addr(), &Prepared{URL: "ws" + strings.TrimPrefix(upstream.URL, "http"), Header: header}, proxy.CACertificate(), nil)
+				c, err := DialWebSocket(ctx, proxy.Addr(), &Prepared{URL: "ws" + strings.TrimPrefix(upstream.URL, "http"), Header: header}, proxy.CACertificate(), certs.Settings{}, nil)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -102,7 +103,7 @@ func TestWebSocketSubprotocolAndBinaryThroughWSAndWSS(t *testing.T) {
 		}
 	}
 	for _, value := range []string{"one, one", "one,,two", "has space", "bad\r\nvalue"} {
-		if c, err := DialWebSocket(t.Context(), "", &Prepared{Header: http.Header{"Sec-Websocket-Protocol": {value}}}, nil, nil); err == nil {
+		if c, err := DialWebSocket(t.Context(), "", &Prepared{Header: http.Header{"Sec-Websocket-Protocol": {value}}}, nil, certs.Settings{}, nil); err == nil {
 			c.Close()
 			t.Fatalf("accepted invalid protocols %q", value)
 		}
@@ -126,7 +127,7 @@ func TestWebSocketSubprotocolAndBinaryThroughWSAndWSS(t *testing.T) {
 			proxy.SetSSL(capture.SSLConfig{All: true})
 			ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 			defer cancel()
-			c, err := DialWebSocket(ctx, proxy.Addr(), &Prepared{URL: "ws" + strings.TrimPrefix(upstream.URL, "http"), Header: http.Header{"Sec-Websocket-Protocol": {"offered"}}}, proxy.CACertificate(), nil)
+			c, err := DialWebSocket(ctx, proxy.Addr(), &Prepared{URL: "ws" + strings.TrimPrefix(upstream.URL, "http"), Header: http.Header{"Sec-Websocket-Protocol": {"offered"}}}, proxy.CACertificate(), certs.Settings{}, nil)
 			if err == nil {
 				c.Close()
 				t.Fatal("accepted an unoffered upstream protocol")
@@ -164,7 +165,7 @@ func TestWSSendThroughTheProxy(t *testing.T) {
 	target := "ws://" + strings.TrimPrefix(upstream.URL, "http://")
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	replies, err := wsSend(ctx, proxyAddr, &Prepared{URL: target, Body: "hello"}, srv.CACertificate(), nil, time.Second)
+	replies, err := wsSend(ctx, proxyAddr, &Prepared{URL: target, Body: "hello"}, srv.CACertificate(), certs.Settings{}, nil, time.Second)
 	if err != nil {
 		t.Fatalf("send: %v", err)
 	}
@@ -207,7 +208,7 @@ func TestWebSocketCancellationInterruptsTheReplyWait(t *testing.T) {
 	defer cancel()
 	done := make(chan error, 1)
 	go func() {
-		_, err := wsSend(ctx, srv.Addr(), &Prepared{URL: "ws" + upstream.URL[4:], Body: "hello"}, srv.CACertificate(), nil, time.Minute)
+		_, err := wsSend(ctx, srv.Addr(), &Prepared{URL: "ws" + upstream.URL[4:], Body: "hello"}, srv.CACertificate(), certs.Settings{}, nil, time.Minute)
 		done <- err
 	}()
 	select {

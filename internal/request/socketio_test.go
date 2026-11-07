@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/baba983/vscroxy/internal/capture"
+	"github.com/baba983/vscroxy/internal/certs"
 	"github.com/gorilla/websocket"
 )
 
@@ -87,7 +88,7 @@ func TestSocketIOProtocolThroughWSAndWSS(t *testing.T) {
 			jar, _ := cookiejar.New(nil)
 			u, _ := url.Parse(endpoint)
 			jar.SetCookies(u, []*http.Cookie{{Name: "session", Value: "fixture"}})
-			c, err := DialSocketIO(t.Context(), proxy.Addr(), &Prepared{URL: endpoint + "/custom/?client=73&EIO=3&transport=polling&sid=stale", Header: http.Header{"Authorization": {"Bearer fixture"}}}, SocketIOConfig{Namespace: "/admin", Auth: `{"token":"fixture"}`}, proxy.CACertificate(), jar)
+			c, err := DialSocketIO(t.Context(), proxy.Addr(), &Prepared{URL: endpoint + "/custom/?client=73&EIO=3&transport=polling&sid=stale", Header: http.Header{"Authorization": {"Bearer fixture"}}}, SocketIOConfig{Namespace: "/admin", Auth: `{"token":"fixture"}`}, proxy.CACertificate(), certs.Settings{}, jar)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -153,7 +154,7 @@ func TestSocketIOCancellationAndInvalidPeers(t *testing.T) {
 			defer cancel()
 			result := make(chan error, 1)
 			go func() {
-				c, err := DialSocketIO(ctx, proxy.Addr(), &Prepared{URL: endpoint}, SocketIOConfig{}, nil, nil)
+				c, err := DialSocketIO(ctx, proxy.Addr(), &Prepared{URL: endpoint}, SocketIOConfig{}, nil, certs.Settings{}, nil)
 				if err == nil {
 					defer c.Close()
 					_, err = c.Read()
@@ -183,7 +184,7 @@ func TestSocketIOCancellationAndInvalidPeers(t *testing.T) {
 				}
 				ws.ReadMessage()
 			})
-			c, err := DialSocketIO(t.Context(), proxy.Addr(), &Prepared{URL: endpoint}, SocketIOConfig{}, nil, nil)
+			c, err := DialSocketIO(t.Context(), proxy.Addr(), &Prepared{URL: endpoint}, SocketIOConfig{}, nil, certs.Settings{}, nil)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -209,7 +210,7 @@ func TestSocketIOHeartbeatNotExtendedByEvents(t *testing.T) {
 	})
 	ctx, cancel := context.WithTimeout(t.Context(), 3*time.Second)
 	defer cancel()
-	c, err := DialSocketIO(ctx, proxy.Addr(), &Prepared{URL: endpoint}, SocketIOConfig{}, nil, nil)
+	c, err := DialSocketIO(ctx, proxy.Addr(), &Prepared{URL: endpoint}, SocketIOConfig{}, nil, certs.Settings{}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -253,7 +254,7 @@ func TestSocketIOOfficialServer(t *testing.T) {
 	proxy := testProxy(t)
 	for _, ns := range []string{"/", "/admin"} {
 		t.Run(ns, func(t *testing.T) {
-			c, err := DialSocketIO(t.Context(), proxy.Addr(), &Prepared{URL: endpoint + "?client=73"}, SocketIOConfig{Namespace: ns, Auth: `{"token":"fixture"}`}, nil, nil)
+			c, err := DialSocketIO(t.Context(), proxy.Addr(), &Prepared{URL: endpoint + "?client=73"}, SocketIOConfig{Namespace: ns, Auth: `{"token":"fixture"}`}, nil, certs.Settings{}, nil)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -306,7 +307,7 @@ func TestSocketIOOfficialServer(t *testing.T) {
 			}
 		})
 	}
-	if _, err := DialSocketIO(t.Context(), proxy.Addr(), &Prepared{URL: endpoint}, SocketIOConfig{Namespace: "/deny"}, nil, nil); err == nil {
+	if _, err := DialSocketIO(t.Context(), proxy.Addr(), &Prepared{URL: endpoint}, SocketIOConfig{Namespace: "/deny"}, nil, certs.Settings{}, nil); err == nil {
 		t.Fatal("namespace refusal accepted")
 	}
 }

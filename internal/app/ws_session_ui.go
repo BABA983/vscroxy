@@ -78,7 +78,7 @@ func (a *app) socketModal(c *ui.Context, t *ui.Theme) {
 							if s.subprotocols != "" {
 								header.Set("Sec-WebSocket-Protocol", s.subprotocols)
 							}
-							s.session = openWSSession(a.srv.Addr(), &request.Prepared{Method: "GET", URL: s.url, Header: header}, a.srv.CACertificate(), a.requestCookies(), a.invalidate)
+							s.session = openWSSession(a.srv.Addr(), &request.Prepared{Method: "GET", URL: s.url, Header: header}, a.srv.CACertificate(), a.certificates, a.requestCookies(), a.invalidate)
 							s.problem = ""
 							s.picked = 0
 							s.reader = nil

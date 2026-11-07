@@ -36,19 +36,11 @@ const MaxMessageBytes = 1 << 20
 // HTTPS uses the capture proxy when supplied. Plaintext h2c goes directly:
 // the capture engine does not support h2c. No ambient proxy is used.
 func Dial(endpoint, proxy string, ca []byte) (*grpc.ClientConn, error) {
-	u, err := url.Parse(endpoint)
-	if err != nil || u.Hostname() == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" || u.Path != "" && u.Path != "/" || u.Scheme != "http" && u.Scheme != "https" {
-		return nil, fmt.Errorf("use an http:// or https:// gRPC endpoint without a path, credentials or query")
+	u, err := parseEndpoint(endpoint)
+	if err != nil {
+		return nil, err
 	}
-	port := u.Port()
-	if port == "" {
-		port = "443"
-		if u.Scheme == "http" {
-			port = "80"
-		}
-	}
-	target := net.JoinHostPort(u.Hostname(), port)
-	var transport credentials.TransportCredentials = insecure.NewCredentials()
+	var tlsConfig *tls.Config
 	if u.Scheme == "https" {
 		roots, err := x509.SystemCertPool()
 		if err != nil {
@@ -61,7 +53,65 @@ func Dial(endpoint, proxy string, ca []byte) (*grpc.ClientConn, error) {
 			}
 			roots.AddCert(cert)
 		}
-		transport = credentials.NewTLS(&tls.Config{RootCAs: roots, ServerName: u.Hostname(), MinVersion: tls.VersionTLS12})
+		tlsConfig = &tls.Config{RootCAs: roots}
+	}
+	return dial(u, proxy, tlsConfig)
+}
+
+// DialWithTLS is Dial with a caller-built client TLS configuration: it can
+// present a client certificate and trust the same custom roots as a request
+// send. The endpoint still supplies the server name and TLS 1.2 minimum.
+func DialWithTLS(endpoint, proxy string, tlsConfig *tls.Config) (*grpc.ClientConn, error) {
+	u, err := parseEndpoint(endpoint)
+	if err != nil {
+		return nil, err
+	}
+	if u.Scheme == "https" {
+		if tlsConfig == nil {
+			roots, err := x509.SystemCertPool()
+			if err != nil {
+				roots = x509.NewCertPool()
+			}
+			tlsConfig = &tls.Config{RootCAs: roots}
+		} else {
+			tlsConfig = tlsConfig.Clone()
+		}
+		if tlsConfig.ServerName == "" {
+			tlsConfig.ServerName = u.Hostname()
+		}
+		if tlsConfig.MinVersion == 0 {
+			tlsConfig.MinVersion = tls.VersionTLS12
+		}
+	}
+	return dial(u, proxy, tlsConfig)
+}
+
+func parseEndpoint(endpoint string) (*url.URL, error) {
+	u, err := url.Parse(endpoint)
+	if err != nil || u.Hostname() == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" || u.Path != "" && u.Path != "/" || u.Scheme != "http" && u.Scheme != "https" {
+		return nil, fmt.Errorf("use an http:// or https:// gRPC endpoint without a path, credentials or query")
+	}
+	return u, nil
+}
+
+func dial(u *url.URL, proxy string, tlsConfig *tls.Config) (*grpc.ClientConn, error) {
+	port := u.Port()
+	if port == "" {
+		port = "443"
+		if u.Scheme == "http" {
+			port = "80"
+		}
+	}
+	target := net.JoinHostPort(u.Hostname(), port)
+	var transport credentials.TransportCredentials = insecure.NewCredentials()
+	if u.Scheme == "https" {
+		if tlsConfig.ServerName == "" {
+			tlsConfig.ServerName = u.Hostname()
+		}
+		if tlsConfig.MinVersion == 0 {
+			tlsConfig.MinVersion = tls.VersionTLS12
+		}
+		transport = credentials.NewTLS(tlsConfig)
 	}
 	return grpc.NewClient("passthrough:///"+target,
 		grpc.WithTransportCredentials(transport),

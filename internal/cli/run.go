@@ -141,6 +141,12 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 	defer srv.Close()
+	certificates, err := loadCertificates()
+	if err != nil {
+		fmt.Fprintln(stderr, "Could not load certificate settings:", err)
+		return 2
+	}
+	srv.SetCertificates(certificates)
 	if err := srv.Start(); err != nil {
 		fmt.Fprintln(stderr, "Could not start isolated proxy.")
 		return 2
@@ -168,7 +174,7 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	tokens := &request.Tokens{}
 	steps := make([]runner.Step, len(requests))
 	for i, r := range requests {
-		steps[i] = runner.Step{Request: r, Context: request.Context{Environment: name, Folders: request.Chain(folders, r.Collection), Globals: globals, Tokens: tokens, Addons: addons}}
+		steps[i] = runner.Step{Request: r, Context: request.Context{Environment: name, Folders: request.Chain(folders, r.Collection), Globals: globals, Tokens: tokens, Addons: addons, Certificates: certificates}}
 	}
 	runCtx, cancel := context.WithTimeout(ctx, *timeout)
 	defer cancel()

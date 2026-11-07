@@ -420,6 +420,7 @@ func (a *app) controlRunSteps(id string, collection *string, environmentName str
 		r.Form, r.HeaderList = slices.Clone(r.Form), slices.Clone(r.HeaderList)
 		r.TokenSources = slices.Clone(r.TokenSources)
 		in := a.inheritance(r.Collection)
+		in.Certificates = a.certificates.Clone()
 		in.Environment, in.Tokens, in.EnvironmentInitial = env.Name, tokens, maps.Clone(env.Vars)
 		for i := range in.Folders {
 			in.Folders[i].Variables = slices.Clone(in.Folders[i].Variables)
