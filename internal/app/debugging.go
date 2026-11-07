@@ -307,7 +307,9 @@ drained:
 	uikit.Modal(c, &r.open, func() {
 		uikit.DialogColumn(c, uikit.DialogMedium).Children(func() {
 			uikit.DialogTitle(c, fmt.Sprintf("Replay %d requests", len(r.flows)))
-			ui.Scroll(c).MinHeight(0).Shrink(1).Gap(t.Space(4)).Children(func() {
+			// Leave room for the input's focus halo: a scroll clips what
+			// reaches past its content edge.
+			ui.Scroll(c).MinHeight(0).Shrink(1).Gap(t.Space(4)).Padding(0, t.Space(1)).Children(func() {
 				uikit.Hint(c, "Sends in capture order through the current rules. POST, PUT, PATCH and DELETE can change server data. WebSocket, SSE and tunnels are excluded.")
 				ui.Field(c, "Timeout per request (seconds; 0 = no timeout)", func() {
 					uikit.Input(c, &r.timeout).Label("Replay timeout").Disabled(r.updates != nil)
