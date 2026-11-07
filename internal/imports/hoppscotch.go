@@ -168,7 +168,6 @@ type hoppRequest struct {
 	Description      any                       `json:"description"`
 	Query            string                    `json:"query"`
 	Variables        any                       `json:"variables"`
-	OperationName    string                    `json:"operationName"`
 }
 
 type hoppBody struct {
@@ -273,7 +272,6 @@ func hoppRequestValue(input hoppRequest, parent string, index int, warnings *[]s
 	if input.Query != "" {
 		out.BodyMode = "GraphQL"
 		out.GraphQL.Query = input.Query
-		out.GraphQL.OperationName = input.OperationName
 		if input.Variables != nil {
 			if data, err := json.Marshal(input.Variables); err == nil {
 				out.GraphQL.Variables = string(data)
