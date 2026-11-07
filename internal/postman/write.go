@@ -113,8 +113,9 @@ type outFile struct {
 }
 
 type outGraphQL struct {
-	Query     string `json:"query"`
-	Variables string `json:"variables"`
+	Query         string `json:"query"`
+	Variables     string `json:"variables"`
+	OperationName string `json:"operationName,omitempty"`
 }
 
 type outOptions struct {
@@ -312,7 +313,7 @@ func writeRequest(r request.Request) *outRequest {
 			}
 		}
 	case "GraphQL":
-		out.Body = &outBody{Mode: "graphql", GraphQL: &outGraphQL{Query: r.GraphQL.Query, Variables: r.GraphQL.Variables}}
+		out.Body = &outBody{Mode: "graphql", GraphQL: &outGraphQL{Query: r.GraphQL.Query, Variables: r.GraphQL.Variables, OperationName: r.GraphQL.OperationName}}
 	case "Binary":
 		out.Body = &outBody{Mode: "file", File: &outFile{Src: r.BodyFile}}
 	case "URL encoded":

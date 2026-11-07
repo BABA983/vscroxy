@@ -139,11 +139,13 @@ func SetFormBody(r *request.Request, multipart bool, fields []request.Field) {
 	r.Form = fields
 }
 
-// SetGraphQLBody stores a GraphQL query and its variables as JSON text.
-func SetGraphQLBody(r *request.Request, query, variables string) {
+// SetGraphQLBody stores a GraphQL query, its variables as JSON text, and the
+// operation a document with several defines selects.
+func SetGraphQLBody(r *request.Request, query, variables, operationName string) {
 	r.BodyMode = "GraphQL"
 	r.GraphQL.Query = query
 	r.GraphQL.Variables = variables
+	r.GraphQL.OperationName = operationName
 }
 
 // credentialMap marks every name of a confidential values map.

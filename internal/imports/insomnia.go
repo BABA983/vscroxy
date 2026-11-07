@@ -484,8 +484,9 @@ func insomniaBodyRequest(out *request.Request, body *insomniaBody, skips *Tally)
 	case "application/graphql":
 		text := normalizeTags(body.Text)
 		var graphql struct {
-			Query     string `json:"query"`
-			Variables any    `json:"variables"`
+			Query         string `json:"query"`
+			Variables     any    `json:"variables"`
+			OperationName string `json:"operationName"`
 		}
 		if json.Unmarshal([]byte(text), &graphql) == nil && graphql.Query != "" {
 			variables := ""
@@ -494,7 +495,7 @@ func insomniaBodyRequest(out *request.Request, body *insomniaBody, skips *Tally)
 					variables = string(data)
 				}
 			}
-			SetGraphQLBody(out, graphql.Query, variables)
+			SetGraphQLBody(out, graphql.Query, variables, graphql.OperationName)
 		} else {
 			SetRawBody(out, body.MimeType, text)
 			skips.Add("with a GraphQL body that is not a query/variables object; imported as raw text")

@@ -526,3 +526,20 @@ func TestCurlTransferSettingsImportExport(t *testing.T) {
 		t.Fatalf("zero limits = %+v, want no redirects and an explicit unlimited timeout", r.Settings)
 	}
 }
+
+func TestCurlCommandKeepsGraphQLOperationName(t *testing.T) {
+	r := request.Request{Method: "POST", URL: "https://example.test/graphql", BodyMode: "GraphQL",
+		GraphQL: request.GraphQLBody{Query: "query Read { viewer { id } } mutation Write { save { id } }", OperationName: "Write"}}
+	prepared, err := r.Prepare(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := curlCommand(flow{method: "POST", url: r.URL,
+		reqHeader: http.Header{"Content-Type": {"application/json"}}, reqBody: prepared.Body})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(got, "operationName") || !strings.Contains(got, `Write`) {
+		t.Fatalf("cURL lost operationName: %s", got)
+	}
+}

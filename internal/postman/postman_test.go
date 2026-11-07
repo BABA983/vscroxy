@@ -892,6 +892,28 @@ func TestGraphQLBodyConversion(t *testing.T) {
 	}
 }
 
+func TestGraphQLOperationNameConversion(t *testing.T) {
+	input := `{"info":{"name":"GraphQL"},"item":[{"id":"gql","name":"Query","request":{"method":"POST","url":"{{base}}/graphql","body":{"mode":"graphql","graphql":{"query":"query Read { a } mutation Write { b }","variables":"{}","operationName":"Write"}}}}]}`
+	got, err := postman.ReadCollection([]byte(input))
+	if err != nil || len(got.Requests) != 1 {
+		t.Fatalf("import = %+v, %v", got, err)
+	}
+	if got.Requests[0].GraphQL.OperationName != "Write" {
+		t.Fatalf("imported operationName = %q", got.Requests[0].GraphQL.OperationName)
+	}
+	data, warnings, err := postman.WriteCollection(got.Name, got.Requests, nil)
+	if err != nil || len(warnings) != 0 {
+		t.Fatalf("export: %v, %q", err, warnings)
+	}
+	if !strings.Contains(string(data), `"operationName": "Write"`) {
+		t.Fatalf("export lost operationName:\n%s", data)
+	}
+	again, err := postman.ReadCollection(data)
+	if err != nil || len(again.Requests) != 1 || again.Requests[0].GraphQL.OperationName != "Write" {
+		t.Fatalf("round trip = %+v, %v", again, err)
+	}
+}
+
 func TestGraphQLBodyBlankAndInactive(t *testing.T) {
 	for _, tt := range []struct{ name, body, mode string }{
 		{"missing fields", `{"mode":"graphql","graphql":{}}`, "GraphQL"},

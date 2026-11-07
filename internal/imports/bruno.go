@@ -326,7 +326,7 @@ func brunoBody(out *request.Request, mode string, indexed bruBlocks, root string
 	case "sparql":
 		SetRawBody(out, "application/sparql-query", indexed.text("body:sparql"))
 	case "graphql":
-		SetGraphQLBody(out, indexed.text("body:graphql"), indexed.text("body:graphql:vars"))
+		SetGraphQLBody(out, indexed.text("body:graphql"), indexed.text("body:graphql:vars"), "")
 	case "formUrlEncoded":
 		SetFormBody(out, false, bruFields(indexed.pairs("body:form-urlencoded")))
 	case "multipartForm":

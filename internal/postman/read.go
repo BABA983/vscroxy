@@ -84,8 +84,9 @@ type pmBody struct {
 		Src jsontext.Value `json:"src"`
 	} `json:"file"`
 	GraphQL struct {
-		Query     string         `json:"query"`
-		Variables jsontext.Value `json:"variables"`
+		Query         string         `json:"query"`
+		Variables     jsontext.Value `json:"variables"`
+		OperationName string         `json:"operationName"`
 	} `json:"graphql"`
 	Options struct {
 		Raw struct {
@@ -771,6 +772,7 @@ func (r *reader) body(out *request.Request, body *pmBody) {
 	case "graphql":
 		out.BodyMode = "GraphQL"
 		out.GraphQL.Query = body.GraphQL.Query
+		out.GraphQL.OperationName = body.GraphQL.OperationName
 		switch v := body.GraphQL.Variables; v.Kind() {
 		case 0, 'n':
 		case '"':
