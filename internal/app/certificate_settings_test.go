@@ -10,6 +10,26 @@ import (
 	"github.com/baba983/vscroxy/internal/testcert"
 )
 
+func TestStartupReportsInvalidCertificateHost(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	path := filepath.Join(home, ".vscroxy", "settings.json")
+	if err := writeSettings(path, settings{Certificates: certs.Settings{Clients: []certs.Client{{
+		ID: "one", Host: "api.example.com/v1", Format: certs.FormatPEM, CertFile: "/tmp/cert.pem", KeyFile: "/tmp/key.pem",
+	}}}}); err != nil {
+		t.Fatal(err)
+	}
+	a := newApp()
+	defer a.views.stopSearch()
+	if a.srv != nil {
+		defer a.srv.Close()
+	}
+	if !strings.Contains(a.certProblem, "is not a host") {
+		t.Fatalf("startup certificate problem = %q", a.certProblem)
+	}
+}
+
 func TestImportedSettingsKeepTheSecretsLoadProblem(t *testing.T) {
 	a := libraryApp(t)
 	a.certProblem = "certificate passphrases are unreadable"

@@ -571,11 +571,18 @@ func newApp() *app {
 		}
 	}
 	if a.settingsPath != "" {
+		var problems []string
+		if err := a.certificates.Validate(); err != nil {
+			problems = append(problems, err.Error())
+		}
 		if secrets, err := certs.SecretStoreFor(a.settingsPath).Load(); err != nil {
-			a.certProblem = err.Error()
+			problems = append(problems, err.Error())
 			a.certificates.SecretsProblem = err.Error()
 		} else {
 			a.certificates.Secrets = secrets
+		}
+		if len(problems) > 0 {
+			a.certProblem = strings.Join(problems, "; ")
 		}
 	}
 	addr, err := a.saved.proxyAddr()
