@@ -321,7 +321,7 @@ func (a *app) graphqlSchemaRow(c *ui.Context, d *requestDocument) {
 					d.graphql.OperationName = choice
 				}
 			case len(ops) == 1 && d.graphql.OperationName != "" && !matchesSaved:
-				uikit.Meta(c, "Select operation").Tooltip("The saved operation no longer exists; Send will include it for the server to report")
+				uikit.Meta(c, "Select operation").Tooltip("The saved operation no longer exists; Send uses the document's only operation")
 			case len(ops) == 1 && ops[0].Name != "":
 				uikit.Meta(c, "Operation · "+ops[0].Name).Tooltip("The document's only operation; sent as operationName")
 			case len(ops) == 1:
@@ -329,7 +329,7 @@ func (a *app) graphqlSchemaRow(c *ui.Context, d *requestDocument) {
 			}
 		}
 		if d.graphqlTab == 1 {
-			validChoice := matchesSaved || (len(ops) == 1 && d.graphql.OperationName == "")
+			validChoice := len(ops) == 1 || matchesSaved
 			generate := uikit.SecondaryButton(c, "Generate variables").Disabled(
 				g.loading != nil || schema == nil || strings.TrimSpace(d.graphql.Variables) != "" || !validChoice)
 			generate.Tooltip("Fill an empty variables editor from the selected operation's variable definitions")

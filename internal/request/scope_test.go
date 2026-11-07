@@ -444,8 +444,16 @@ func TestGraphQLOperationNameSelection(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, operation := decode(t, prepared.Body); operation != "Stale" {
-		t.Fatalf("single operation lost the saved name: %q", operation)
+	if _, operation := decode(t, prepared.Body); operation != "Read" {
+		t.Fatalf("single operation used the stale name: %q", operation)
+	}
+	multi.GraphQL = GraphQLBody{Query: "mutation Save { save { id } }", OperationName: "Write"}
+	prepared, err = multi.Prepare(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, operation := decode(t, prepared.Body); operation != "Save" {
+		t.Fatalf("renamed single operation used the stale name: %q", operation)
 	}
 	multi.GraphQL = GraphQLBody{Query: "query Read { viewer { id } }"}
 	prepared, err = multi.Prepare(nil)
@@ -455,13 +463,21 @@ func TestGraphQLOperationNameSelection(t *testing.T) {
 	if _, operation := decode(t, prepared.Body); operation != "Read" {
 		t.Fatalf("single operation was not selected automatically: %q", operation)
 	}
-	multi.GraphQL = GraphQLBody{Query: "{ viewer { id } }"}
+	multi.GraphQL = GraphQLBody{Query: "{ viewer { id } }", OperationName: "Imported"}
 	prepared, err = multi.Prepare(nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if _, operation := decode(t, prepared.Body); operation != "" {
 		t.Fatalf("anonymous operation carried %q", operation)
+	}
+	multi.GraphQL = GraphQLBody{Query: "query A { a } query B { b }", OperationName: "not a name!"}
+	if _, err := multi.Prepare(nil); err == nil || !strings.Contains(err.Error(), "invalid operationName") {
+		t.Fatalf("invalid multi-operation name was sent: %v", err)
+	}
+	multi.GraphQL = GraphQLBody{Query: "{ user(id: 1) { name }", OperationName: "not a name!"}
+	if _, err := multi.Prepare(nil); err == nil || !strings.Contains(err.Error(), "invalid operationName") {
+		t.Fatalf("invalid malformed-document name was sent: %v", err)
 	}
 	// Malformed documents and missing variables are sent to the server so an
 	// API client can test its error handling. A saved name still goes along.
@@ -513,5 +529,15 @@ func TestGraphQLOperationNameReachesExports(t *testing.T) {
 	ops, err := graphql.RequestOperations("POST", "", "application/json", prepared.Body)
 	if err != nil || len(ops) != 1 || ops[0].Name != "Write" || ops[0].Type != "mutation" {
 		t.Fatalf("capture recognition = %+v, %v", ops, err)
+	}
+	single := Request{Method: "POST", URL: "https://example.test/graphql", BodyMode: "GraphQL",
+		GraphQL: GraphQLBody{Query: "mutation Save { save { id } }", OperationName: "Write"}}
+	prepared, err = single.Prepare(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ops, err = graphql.RequestOperations("POST", "", "application/json", prepared.Body)
+	if err != nil || len(ops) != 1 || ops[0].Name != "Save" || ops[0].Type != "mutation" {
+		t.Fatalf("single-operation capture recognition = %+v, %v", ops, err)
 	}
 }

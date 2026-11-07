@@ -239,28 +239,38 @@ func Operations(source string) ([]Operation, error) {
 
 // SelectOperation returns the operationName an HTTP envelope must carry.
 //
+// A parseable document with one operation always uses that operation's name,
+// even when a stale name is saved; an anonymous operation omits the field.
 // A malformed document is sent as authored, because API clients need to test
 // the server's own error handling; a saved name is still included so the
-// server can report that too. A parseable document with one operation selects
-// it when no name is saved. A parseable document with several operations
+// server can report that too. A parseable document with several operations
 // requires a choice before sending, as the GraphQL specification requires.
-// A saved name is sent even when it no longer matches an operation: the
-// server's error is more useful than silently replacing the user's choice.
-// A parseable document with no operations is also sent for the server to
-// explain; only several operations require a local choice.
+// With several operations a saved name is sent even when it no longer matches
+// an operation: the server's error is more useful than silently replacing the
+// user's choice. A parseable document with no operations is also sent for the
+// server to explain; only several operations require a local choice.
+//
+// A name that is actually sent must be a GraphQL name. A stale name for a
+// single operation is ignored, so it is not validated there.
 func SelectOperation(source, requested string) (string, error) {
 	// A send is bounded by the source size, not the editor's smaller token
 	// budget: a large valid document must still be sendable.
 	remaining := maxSource
 	doc, err := parse(source, &remaining)
 	if err != nil {
-		return requested, nil
-	}
-	if requested != "" {
+		if requested != "" && !validName(requested) {
+			return "", errors.New("graphql: invalid operationName")
+		}
 		return requested, nil
 	}
 	if len(doc.Operations) == 1 {
 		return doc.Operations[0].Name, nil
+	}
+	if requested != "" && !validName(requested) {
+		return "", errors.New("graphql: invalid operationName")
+	}
+	if requested != "" {
+		return requested, nil
 	}
 	if len(doc.Operations) > 1 {
 		return "", fmt.Errorf("graphql: the document defines %d operations; choose one", len(doc.Operations))

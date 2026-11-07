@@ -275,6 +275,18 @@ func FuzzRequestOperations(f *testing.F) {
 	})
 }
 
+func TestSelectOperationValidatesSentNames(t *testing.T) {
+	if _, err := graphql.SelectOperation("query A { a } query B { b }", "not a name!"); err == nil {
+		t.Fatal("an invalid multi-operation name was accepted")
+	}
+	if _, err := graphql.SelectOperation("{ user(id: 1) { name }", "not a name!"); err == nil {
+		t.Fatal("an invalid name for a malformed document was accepted")
+	}
+	if name, err := graphql.SelectOperation("query A { a }", "not a name!"); err != nil || name != "A" {
+		t.Fatalf("a single operation did not override its stale name: %q, %v", name, err)
+	}
+}
+
 func TestOperationsLargeDocument(t *testing.T) {
 	var b strings.Builder
 	for _, name := range []string{"A", "B"} {

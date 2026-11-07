@@ -361,6 +361,23 @@ func TestGraphQLSelectorShowsLargeDocument(t *testing.T) {
 	}
 }
 
+func TestGraphQLVariablesSkeletonUsesSingleOperation(t *testing.T) {
+	a, d := graphQLDraft(t)
+	d.graphql.Schema = appGraphQLSchema
+	d.graphql.Query = `query Only($q: String!) { viewer { id } }`
+	d.graphql.OperationName = "Stale"
+	d.graphqlTab = 1
+	tt := ui.NewTester(a.view, 1280, 800)
+	tt.Frame()
+	if err := tt.Click("Generate variables"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if !strings.Contains(d.graphql.Variables, `"q": ""`) {
+		t.Fatalf("variables skeleton = %s", d.graphql.Variables)
+	}
+}
+
 func TestGraphQLVariablesSkeletonKeepsAuthoredValues(t *testing.T) {
 	a, d := graphQLDraft(t)
 	d.graphql.Schema = appGraphQLSchema
@@ -428,5 +445,17 @@ func TestGraphQLOperationSelectionSurvivesEditing(t *testing.T) {
 	tt.Frame()
 	if d.graphql.OperationName != "Write" {
 		t.Fatalf("a malformed edit cleared the saved operation: %q", d.graphql.OperationName)
+	}
+	// Deleting the other operation and renaming the selected one leaves a
+	// stale saved name; Send must use the document's only operation.
+	d.graphql.Query = `mutation Save { saveItem(input: {name: "x"}) { id } }`
+	prepared, err = d.draft().Prepare(nil)
+	if err != nil || !strings.Contains(prepared.Body, `"operationName":"Save"`) || strings.Contains(prepared.Body, `"Write"`) {
+		t.Fatalf("single operation send body = %s, %v", prepared.Body, err)
+	}
+	d.graphql.Query, d.graphql.OperationName = `{ viewer { id } }`, "Imported"
+	prepared, err = d.draft().Prepare(nil)
+	if err != nil || strings.Contains(prepared.Body, "operationName") {
+		t.Fatalf("anonymous single operation body = %s, %v", prepared.Body, err)
 	}
 }

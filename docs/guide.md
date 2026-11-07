@@ -1904,13 +1904,16 @@ completing.
 
 A document with several operations shows an **Operation** selector in the
 Body tab. Sending includes the chosen `operationName`; a parseable document
-with one named operation and no saved choice selects it automatically, and an
-anonymous single operation omits the field. A parseable multi-operation
-document with no choice fails before sending rather than letting the server
-guess. A malformed document is sent as authored, with a saved name when there
-is one, so an API client can test the server's error handling. A saved name
-that no longer matches an operation is kept and sent, and the Operation row
-shows **Select operation** instead of silently replacing it. The choice is saved
+with one named operation always uses that operation, even when a saved choice
+is stale, and an anonymous single operation omits the field. A parseable
+multi-operation document with no choice fails before sending rather than
+letting the server guess. A malformed document is sent as authored, with a
+saved GraphQL name when there is one, so an API client can test the server's
+error handling. A saved name that no longer matches an operation is kept. With
+several operations it is sent for the server to report; with one operation
+Send uses that operation's name. The Operation row shows **Select operation**
+instead of silently replacing it. An invalid `operationName`, such as one from
+an imported collection, is rejected locally. The choice is saved
 with the request, round-trips through Postman's GraphQL body, and is used by
 cURL and code export because they share the same JSON envelope. Capture's
 GraphQL operation column, filters and rules therefore see the selected
