@@ -1881,14 +1881,15 @@ replaces GraphQL encoding, as it does forms.
 query as a POST to the same URL through the proxy. Variables, request and
 inherited auth, request settings, cookies and the proxy apply; scripts and
 checks do not run, so a schema read cannot change the body or a variable
-scope. **Load schema…** accepts an SDL document or a standard introspection
-JSON response (up to 4 MiB). Either way the schema is normalized to SDL and
-saved with the request, as a gRPC request keeps its descriptors, so it stays
-with the saved request and needs no network later. **Refresh schema** fetches
-it again; a failed refresh keeps the saved schema and shows the reason, such
-as the server disabling introspection. Fetching uses POST; an endpoint that
-only accepts GET needs a schema file instead. Postman collections have no
-per-request schema field, so exporting a request does not carry the schema.
+scope. **Load schema…** accepts an SDL document up to 4 MiB or a standard
+introspection JSON response up to 8 MiB. Either way the schema is normalized
+to SDL and saved with the request, as a gRPC request keeps its descriptors, so
+it stays with the saved request and needs no network later. **Refresh schema**
+fetches it again; a failed refresh keeps the saved schema and shows the
+reason, such as the server disabling introspection. Fetching uses POST; an
+endpoint that only accepts GET needs a schema file instead. Postman
+collections have no per-request schema field, so exporting a request does not
+carry the schema.
 
 With a schema loaded, the Query editor completes fields, arguments, types,
 enum values, inline-fragment `on` types and variable types, and adds
@@ -1902,17 +1903,26 @@ The schema's own types and descriptions are used; nothing is sent while
 completing.
 
 A document with several operations shows an **Operation** selector in the
-Body tab. Sending includes the chosen `operationName`; a document with one
-named operation selects it automatically, and an anonymous single operation
-omits the field. A multi-operation document with no choice fails before
-sending rather than letting the server guess. The choice is saved with the
-request, round-trips through Postman's GraphQL body, and is used by cURL and
-code export because they share the same JSON envelope. Capture's GraphQL
-operation column, filters and rules therefore see the selected operation.
+Body tab. Sending includes the chosen `operationName`; a parseable document
+with one named operation and no saved choice selects it automatically, and an
+anonymous single operation omits the field. A parseable multi-operation
+document with no choice fails before sending rather than letting the server
+guess. A malformed document is sent as authored, with a saved name when there
+is one, so an API client can test the server's error handling. A saved name
+that no longer matches an operation is kept and sent, and the Operation row
+shows **Select operation** instead of silently replacing it. The choice is saved
+with the request, round-trips through Postman's GraphQL body, and is used by
+cURL and code export because they share the same JSON envelope. Capture's
+GraphQL operation column, filters and rules therefore see the selected
+operation.
 **Generate variables** on the Variables tab fills an empty editor from the
 selected operation's variable definitions: enums use their first value, input
 objects include their fields (up to depth three and 20 fields), lists are
 empty, and custom scalars are `null`. It never overwrites authored variables.
+Schema diagnostics are skipped while the query contains `{{…}}` templates.
+The introspection query deliberately omits newer fields such as
+`isRepeatable` for June 2018 compatibility, so a repeatable custom directive
+used twice may be reported as an error; completion and hover still work.
 
 **Scripts** edits the pre-request and post-response scripts in the same reader as
 the body, with JavaScript highlighting, find and undo. **Send** runs through the
