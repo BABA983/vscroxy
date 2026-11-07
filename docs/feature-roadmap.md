@@ -172,7 +172,7 @@
 | Body：raw、urlencoded、multipart | 已有 | | |
 | Body：binary 文件 | 已有 | 只保存本地路径，每次发送原样读取，普通文件 ≤16 MiB；Send/Runner 共用，Postman 导入导出保留引用，cURL 与原生代码生成导出引用源文件 | M6 |
 | Body：GraphQL（query + variables） | 已有 | 独立编辑与保存，变量展开、Send/Runner、Postman 导入导出、代码导出 | M6 |
-| GraphQL schema 自省和补全 | 缺少 | 基础 Body 和 query 格式化已完成；operationName 编辑选择仍待做 | M6 |
+| GraphQL schema 自省和补全 | 已有 | 标准 introspection 走和 Send 相同的发送路径（变量展开、auth、请求设置、cookies、代理；不跑脚本和 checks），也可从 SDL 或 introspection JSON 文件加载；schema 以 SDL 随请求保存，可手动刷新；失败显示服务端原因，包括 introspection 被关闭。补全覆盖字段、参数、类型、枚举值、片段 on 类型和变量类型；悬停显示类型与描述；未知字段/参数用诊断下划线标出。多 operation 文档可在 Query 编辑器选择 operationName，单一 operation 自动使用，随请求保存；Postman 导入导出、cURL/代码导出和抓包里的 GraphQL operation 识别使用同一选择。变量可从 schema 生成骨架 | M6 |
 | Auth：Inherit、Bearer、Basic、API key、OAuth 2.0、OAuth 1.0、Digest、AWS、JWT、Hawk、Akamai EdgeGrid | 已有 | OAuth 1.0：HMAC-SHA1/SHA256、PLAINTEXT、RSA-SHA1/256/512，header／query／body 位置、body hash、Postman oauth1 导入导出；Hawk：SHA-256/SHA-1、payload hash、ext／app／delegation；EdgeGrid：Base URL、签名头列表、POST 正文 hash | |
 | Auth：NTLM | 缺少 | 需要同一连接完成 Type 1/2/3 质询；Send／Runner 每次发送新建连接（`capture.ReplayWithRedirects` 禁用 keep-alive，代理按下游连接固定上游），无法握手；Postman 导入警告并置为 None | M6 |
 | 环境、全局变量、集合/文件夹变量、Vault | 已有 | | |
@@ -308,7 +308,7 @@ Cookie 和其他 API key 保留为变量 header，避免把多个认证机制硬
 
 ### M6：Postman 兼容补齐
 
-- Body：binary、GraphQL 基础已完成；GraphQL schema 自省、补全和 operationName 选择待做。
+- Body：binary 和 GraphQL 基础已完成。GraphQL schema 自省、补全、悬停、诊断和 operationName 选择已完成：introspection 走 Send 的变量/auth/请求设置/代理路径但不跑脚本和 checks，也可加载 SDL／introspection JSON；schema 以 SDL 随请求保存并可刷新；失败明确说明服务端原因（含 introspection 被关闭）。补全覆盖字段、参数、类型、枚举、片段类型和变量类型，悬停显示类型/描述，未知字段和参数有诊断；多 operation 可选择 operationName，单一 operation 自动使用，Postman 导入导出、cURL/代码导出和抓包识别一致；变量可生成骨架。
 - 请求描述、集合文档视图和单个请求的设置已完成：Markdown 描述随请求、文件夹和集合落盘，集合菜单的 View documentation… 只读渲染并列出请求；超时、重定向（含最大次数）和证书校验在请求 Settings 页与文件夹/集合的 Request defaults 设置，Send 和 Runner 生效，Postman 的 `protocolProfileBehavior` 与 cURL 参数往返；关闭证书校验有明确警告。
 - 证书已完成：Settings → Certificates 一份配置同时服务请求侧和抓包侧。按 host（可带端口、`*.` 通配，IDN 转 punycode）出示 PEM cert+key 或 PKCS#12/PFX（可选口令，用 `internal/vault` 密封在本机，0600 key 文件，不进设置文件、配置导出或日志）；额外信任的 PEM 根证书与“同时信任系统根”开关用于 Send、Runner、CLI/MCP、WebSocket、SSE、gRPC、Socket.IO、MITM 上游校验和反向代理 https 远端。证书文件只存路径，每次发送/连接读取，读取或解析失败明确报错，绝不静默不带证书发送。重定向按每一跳的目标 host 重新选择证书和根，明文跳不读取证书文件；抓包侧 Map Remote 和 WSS 用 canonical host:port（默认 443/80）选证书。关闭请求的证书校验只影响该请求的服务器校验，不改变客户端证书出示，也不要求自定义 CA；未解密的盲隧道仍由客户端完成 TLS。
 - 变量：初始值/当前值已完成（环境、全局、集合/文件夹；脚本 set 写 Current，unset 清 Current 并回退 Initial；变量表可持久化/重置，凭据位和敏感名不持久化；Current 默认遮罩；Postman 导入导出用 Initial，第三方 current/secret 只进本机 Current）；`{{变量}}` 自动补全、悬停预览和未定义高亮已完成（单行输入整字段悬停，代码编辑器精确 token；动态变量 32 个，仍未覆盖完整 Faker）。

@@ -1850,9 +1850,9 @@ Saving a request or exporting it to Postman keeps only the file reference,
 not the file bytes; the receiving machine must have the file or select another.
 
 **GraphQL** provides separate **Query** and **Variables** editors under
-**Body → GraphQL**, with GraphQL/JSON highlighting, find and undo. Enter one
-query or mutation; multi-operation documents that need `operationName` still
-use a Raw JSON body. **Variables** is a JSON object, or blank to send `{}`;
+**Body → GraphQL**, with GraphQL/JSON highlighting, find and undo. Enter a
+query or mutation; a document with several operations uses the Operation
+selector described below. **Variables** is a JSON object, or blank to send `{}`;
 **Format** indents its JSON without expanding placeholders. On **Query**,
 **Format** uses the GraphQL parser/formatter, preserving parsed semantics
 and producing stable output. It never expands templates or edits Variables;
@@ -1864,16 +1864,55 @@ quoted strings; comment placement follows the upstream formatter. Both fields su
 `{{variables}}`, dynamic values, Vault references and pre-request script/Runner
 values. Expansion is textual, as with Raw JSON: escape JSON string values when
 needed. Sending validates the expanded variables as an object and encodes
-`{"query": "…", "variables": {…}}`, defaulting Content-Type to `application/json`
-unless you set it. An empty query or invalid variables fail before sending.
+`{"query": "…", "operationName": "…", "variables": {…}}`, omitting
+`operationName` only for a lone anonymous operation, and defaulting
+Content-Type to `application/json` unless you set it. An empty query, invalid
+variables or a multi-operation document without a choice fail before sending.
 The HTTP method stays the one selected; use POST for the JSON envelope.
-Saved requests, restored drafts and Postman collections keep query and variables
-separately, including unexpanded templates; switching body types keeps inactive
-edits but never sends them. Code/cURL export uses the same JSON encoding without
-expanding secrets (variables must already be valid JSON for code export).
+Saved requests, restored drafts and Postman collections keep query, variables
+and the selected operation separately, including unexpanded templates;
+switching body types keeps inactive edits but never sends them. Code/cURL
+export uses the same JSON encoding without expanding secrets (variables must
+already be valid JSON for code export).
 A script's explicit raw-body assignment or `pm.request.body.update(...)`
-replaces GraphQL encoding, as it does forms. Schema introspection, completions
-and an authored operationName selector are not included yet.
+replaces GraphQL encoding, as it does forms.
+
+**Schema and operations.** **Fetch schema** sends the standard introspection
+query as a POST to the same URL through the proxy. Variables, request and
+inherited auth, request settings, cookies and the proxy apply; scripts and
+checks do not run, so a schema read cannot change the body or a variable
+scope. **Load schema…** accepts an SDL document or a standard introspection
+JSON response (up to 4 MiB). Either way the schema is normalized to SDL and
+saved with the request, as a gRPC request keeps its descriptors, so it stays
+with the saved request and needs no network later. **Refresh schema** fetches
+it again; a failed refresh keeps the saved schema and shows the reason, such
+as the server disabling introspection. Fetching uses POST; an endpoint that
+only accepts GET needs a schema file instead. Postman collections have no
+per-request schema field, so exporting a request does not carry the schema.
+
+With a schema loaded, the Query editor completes fields, arguments, types,
+enum values, inline-fragment `on` types and variable types, and adds
+`__typename` on composite types. Arguments already present are omitted.
+Hovering a field, argument, type, enum value, directive or variable shows its
+type and description. Unknown fields and arguments, fragments on the wrong
+type and other executable-document errors are underlined with a diagnostic;
+a half-typed document is not diagnosed until it parses. `{{variables}}` still
+win while their completion is open, and their undefined-name diagnostics stay.
+The schema's own types and descriptions are used; nothing is sent while
+completing.
+
+A document with several operations shows an **Operation** selector in the
+Body tab. Sending includes the chosen `operationName`; a document with one
+named operation selects it automatically, and an anonymous single operation
+omits the field. A multi-operation document with no choice fails before
+sending rather than letting the server guess. The choice is saved with the
+request, round-trips through Postman's GraphQL body, and is used by cURL and
+code export because they share the same JSON envelope. Capture's GraphQL
+operation column, filters and rules therefore see the selected operation.
+**Generate variables** on the Variables tab fills an empty editor from the
+selected operation's variable definitions: enums use their first value, input
+objects include their fields (up to depth three and 20 fields), lists are
+empty, and custom scalars are `null`. It never overwrites authored variables.
 
 **Scripts** edits the pre-request and post-response scripts in the same reader as
 the body, with JavaScript highlighting, find and undo. **Send** runs through the
@@ -2096,16 +2135,19 @@ its requests, folders and settings move together, and open tabs follow.
 form and binary path) and Auth fields. Typing `{{` opens a list of variables
 from the active environment, the request's collection and folders, globals,
 the dynamic `$...` names, and Vault names when the Vault is unlocked; each row
-names its scope. Choosing one inserts `{{name}}`. In a single-line input the
-list is a popover below the field; in the raw body and GraphQL editors it
-appears below the caret after the first variable-name character or on
-Ctrl+Space (the editor does not open a list for the bare braces). Hovering a
-field shows every variable in it with the resolved value and source; hovering
-a token in a code editor shows that token. Vault values and credential-like
-names are masked. A name no scope defines is shown in the danger color in a
-single-line field and underlined with an "Undefined variable" diagnostic in a
-code editor; it stays literal when sent. Vault names are listed only once the
-Vault is unlocked, so unlocking is not a side effect of opening a completion.
+names its scope. In the GraphQL Query editor the same popover also carries
+schema fields, arguments, types and enum values; an open `{{` reference takes
+precedence over the schema list. Choosing one inserts `{{name}}`. In a
+single-line input the list is a popover below the field; in the raw body and
+GraphQL editors it appears below the caret after the first variable-name
+character or on Ctrl+Space (the editor does not open a list for the bare
+braces). Hovering a field shows every variable in it with the resolved value
+and source; hovering a token in a code editor shows that token. Vault values
+and credential-like names are masked. A name no scope defines is shown in the
+danger color in a single-line field and underlined with an "Undefined variable"
+diagnostic in a code editor; it stays literal when sent. Vault names are
+listed only once the Vault is unlocked, so unlocking is not a side effect of
+opening a completion.
 
 These use small built-in sample vocabularies, not the full Faker dataset or its
 locale coverage. Generated fields are independent: a full name is not tied to
