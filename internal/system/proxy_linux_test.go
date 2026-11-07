@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -17,15 +18,15 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	if len(os.Args) == 4 && os.Args[1] == "--proxy-guard" {
-		if err := GuardProxy(os.Args[2], os.Args[3], os.Stdin, os.Stdout); err != nil {
+	if len(os.Args) == 5 && os.Args[1] == "--proxy-guard" {
+		if err := GuardProxy(os.Args[2], os.Args[3], os.Args[4], os.Stdin, os.Stdout); err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			os.Exit(1)
 		}
 		os.Exit(0)
 	}
 	if len(os.Args) == 4 && os.Args[1] == "--proxy-owner" {
-		session, err := BeginProxy(os.Args[2], os.Args[3])
+		session, err := BeginProxy(os.Args[2], os.Args[3], nil, false)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			os.Exit(1)
@@ -192,7 +193,7 @@ func TestProxySessionRestoresPreviousSettingsAndKeepsReplacement(t *testing.T) {
 				before["gsettings get org.gnome.system.proxy mode"] = "'" + mode + "'"
 			}
 			path := filepath.Join(dir, "recovery.json")
-			session, err := BeginProxy(path, "127.0.0.1:7890")
+			session, err := BeginProxy(path, "127.0.0.1:7890", nil, false)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -203,7 +204,7 @@ func TestProxySessionRestoresPreviousSettingsAndKeepsReplacement(t *testing.T) {
 			if err := RecoverProxy(path); err == nil {
 				t.Fatal("startup recovery must not change an active session")
 			}
-			other, err := BeginProxy(path, "127.0.0.1:7891")
+			other, err := BeginProxy(path, "127.0.0.1:7891", nil, false)
 			if err == nil || other != nil {
 				t.Fatal("another app must not take ownership of an active journal")
 			}
@@ -213,7 +214,6 @@ func TestProxySessionRestoresPreviousSettingsAndKeepsReplacement(t *testing.T) {
 				}
 				before["gsettings get org.gnome.system.proxy.https host"] = "'127.0.0.1'"
 				before["gsettings get org.gnome.system.proxy.https port"] = "8081"
-				before["gsettings get org.gnome.system.proxy ignore-hosts"] = "['localhost', '127.0.0.1', '::1']"
 				if scenario == "replace HTTPS while off" {
 					before["gsettings get org.gnome.system.proxy mode"] = "'manual'"
 					before["gsettings get org.gnome.system.proxy.http host"] = "''"
@@ -230,10 +230,110 @@ func TestProxySessionRestoresPreviousSettingsAndKeepsReplacement(t *testing.T) {
 	}
 }
 
+func TestGVariantList(t *testing.T) {
+	for _, tc := range []struct {
+		list []string
+		want string
+	}{
+		{nil, "[]"},
+		{[]string{"localhost", "127.0.0.1", "::1"}, "['localhost', '127.0.0.1', '::1']"},
+		{[]string{"it's", `a\b`}, "['it\\'s', 'a\\\\b']"},
+	} {
+		if got := gvariantList(tc.list); got != tc.want {
+			t.Errorf("gvariantList(%q) = %q, want %q", tc.list, got, tc.want)
+		}
+	}
+}
+
+func TestProxySessionWritesAndRestoresConfiguredBypass(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		bypass []string
+		set    bool
+		want   string
+	}{
+		{"configured", []string{"localhost", "*.corp.example", "10.0.0.0/8"}, true, "['localhost', '*.corp.example', '10.0.0.0/8']"},
+		{"not configured", nil, false, "['localhost', '*.internal.example']"},
+		{"explicitly empty", nil, true, "[]"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			dir, before := fakeRecoveryDesktop(t)
+			path := filepath.Join(dir, "recovery.json")
+			session, err := BeginProxy(path, "127.0.0.1:7890", tc.bypass, tc.set)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { session.Restore() })
+			state, err := readProxySnapshot()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := state["ignore-hosts"]; got != tc.want {
+				t.Fatalf("ignore-hosts = %q, want %q", got, tc.want)
+			}
+			if err := session.Restore(); err != nil {
+				t.Fatal(err)
+			}
+			assertRecoverySettings(t, before)
+		})
+	}
+}
+
+func TestLinuxBypassRestoreWithRealGSettings(t *testing.T) {
+	if _, err := exec.LookPath("gsettings"); err != nil {
+		t.Skip("gsettings is not installed")
+	}
+	schemas, err := commandOutput("gsettings", "list-schemas")
+	if err != nil || !strings.Contains(string(schemas), "org.gnome.system.proxy") {
+		t.Skip("the GNOME proxy schema is not installed")
+	}
+	t.Setenv("GSETTINGS_BACKEND", "keyfile")
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	for _, args := range [][]string{
+		{"reset", proxySchema, "mode"},
+		{"reset", proxySchema, "ignore-hosts"},
+		{"reset", proxySchema + ".http", "host"},
+		{"reset", proxySchema + ".http", "port"},
+		{"reset", proxySchema + ".https", "host"},
+		{"reset", proxySchema + ".https", "port"},
+	} {
+		_ = run("gsettings", args...)
+	}
+	if err := run("gsettings", "set", proxySchema, "mode", "none"); err != nil {
+		t.Fatal(err)
+	}
+	if err := run("gsettings", "set", proxySchema, "ignore-hosts", "['corp.example', 'localhost']"); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(t.TempDir(), "recovery.json")
+	session, err := BeginProxy(path, "127.0.0.1:7890", nil, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { session.Restore() })
+	afterEnable, err := commandOutput("gsettings", "get", proxySchema, "ignore-hosts")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.TrimSpace(string(afterEnable)); got != "@as []" && got != "[]" {
+		t.Fatalf("enabled ignore-hosts = %q, want an empty list", got)
+	}
+	if err := session.Restore(); err != nil {
+		t.Fatal(err)
+	}
+	afterRestore, err := commandOutput("gsettings", "get", proxySchema, "ignore-hosts")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := string(afterRestore); !strings.Contains(got, "corp.example") || !strings.Contains(got, "localhost") {
+		t.Fatalf("restored ignore-hosts = %q, want the original list", got)
+	}
+}
+
 func TestProxySessionRetainsFailedRecoveryForRetry(t *testing.T) {
 	dir, before := fakeRecoveryDesktop(t)
 	path := filepath.Join(dir, "recovery.json")
-	session, err := BeginProxy(path, "127.0.0.1:7890")
+	session, err := BeginProxy(path, "127.0.0.1:7890", nil, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -335,4 +435,28 @@ func waitRecovery(t *testing.T, condition func() bool) {
 		time.Sleep(10 * time.Millisecond)
 	}
 	t.Fatal("timed out waiting for proxy recovery")
+}
+
+func TestParseGVariantList(t *testing.T) {
+	for _, tc := range []struct {
+		raw  string
+		want []string
+		ok   bool
+	}{
+		{"@as []", nil, true},
+		{"[]", nil, true},
+		{"['localhost', '*.corp.example']", []string{"localhost", "*.corp.example"}, true},
+		{`["it's", 'a\\b']`, []string{"it's", `a\b`}, true},
+		{"['10.0.0.0/8']", []string{"10.0.0.0/8"}, true},
+		{"not a list", nil, false},
+	} {
+		got, ok := parseGVariantList(tc.raw)
+		if ok != tc.ok {
+			t.Errorf("parseGVariantList(%q) ok = %v, want %v", tc.raw, ok, tc.ok)
+			continue
+		}
+		if ok && !slices.Equal(got, tc.want) {
+			t.Errorf("parseGVariantList(%q) = %q, want %q", tc.raw, got, tc.want)
+		}
+	}
 }

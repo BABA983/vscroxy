@@ -35,6 +35,7 @@ import (
 	"github.com/baba983/vscroxy/internal/request"
 	"github.com/baba983/vscroxy/internal/store"
 	"github.com/baba983/vscroxy/internal/system"
+	"github.com/baba983/vscroxy/internal/upstream"
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/editor"
@@ -273,13 +274,17 @@ type app struct {
 	scenarioUI   scenarioUI
 	throttle     capture.Throttle
 	network      networkWorkbench
-	upstream     string
-	errText      string
-	dropped      int64
-	scriptErrs   int64
-
-	upstreamOpen bool
-	upstreamAddr string
+	upstream     string // the active configuration's summary, for the chip
+	// upstreamCfg is the active configuration without passwords; the sealed
+	// passwords are in upstreamSecrets. upstreamUI is the Settings draft.
+	upstreamCfg     upstream.Settings
+	upstreamSecrets map[string]string
+	upstreamProblem string
+	upstreamPending chan error
+	upstreamUI      upstreamEditor
+	errText         string
+	dropped         int64
+	scriptErrs      int64
 
 	// ssl keeps the active domain/executable rules and an isolated editor
 	// draft. Cancelling the editor never changes active inspection.
@@ -312,6 +317,11 @@ type app struct {
 	proxyPort        int
 	proxyPortInput   string
 	proxyPortProblem string
+	// systemProxyBypass is written when the system proxy is enabled. Set is
+	// false when the OS list should be kept instead.
+	systemProxyBypass     []string
+	systemProxyBypassSet  bool
+	systemProxyBypassText string
 	// certificates are the client certificates and extra roots shared by
 	// sends and captured upstream TLS; certificateUI is the Settings draft.
 	certificates  certs.Settings
@@ -551,6 +561,11 @@ func newApp() *app {
 			a.saved, a.proxyPort, a.vault.scripts = saved, saved.ProxyPort, saved.VaultScripts
 			a.certificates = saved.Certificates.Normalize()
 			a.saved.Certificates = a.certificates
+			a.upstreamCfg = saved.Upstream.Normalize()
+			a.saved.Upstream = a.upstreamCfg
+			a.systemProxyBypass = slices.Clone(saved.SystemProxyBypass)
+			a.systemProxyBypassSet = saved.SystemProxyBypassSet
+			a.systemProxyBypassText = strings.Join(a.systemProxyBypass, "\n")
 			a.cookiePersistence = saved.CookiePersistence
 			a.launchPort, a.launchKeyLog = saved.ProxyPort, saved.KeyLogPath
 			a.socksOn, a.socksPort, a.socksAuth = saved.SOCKSOn, saved.SOCKSPort, saved.SOCKSAuth
@@ -584,6 +599,11 @@ func newApp() *app {
 		if len(problems) > 0 {
 			a.certProblem = strings.Join(problems, "; ")
 		}
+		if secrets, err := upstream.SecretStoreFor(a.settingsPath).Load(); err != nil {
+			a.upstreamProblem = err.Error()
+		} else {
+			a.upstreamSecrets = secrets
+		}
 	}
 	addr, err := a.saved.proxyAddr()
 	var srv *capture.Server
@@ -596,6 +616,21 @@ func newApp() *app {
 	} else {
 		a.srv = srv
 		srv.SetCertificates(a.certificates)
+		a.upstreamPending = make(chan error, 1)
+		if a.upstreamCfg.Enabled() {
+			// A PAC URL may be slow or unreachable. Requests fail closed while
+			// it loads, and the result reaches the UI through the next frame.
+			a.upstreamProblem = "Upstream configuration is loading"
+			srv.SetUpstreamUnavailable(a.upstreamCfg, errors.New("upstream configuration is loading"))
+			cfg, secrets := a.upstreamCfg.Clone(), maps.Clone(a.upstreamSecrets)
+			go func() {
+				a.upstreamPending <- srv.SetUpstreamConfigFailClosed(cfg, secrets)
+			}()
+		} else if err := srv.SetUpstreamConfig(a.upstreamCfg, a.upstreamSecrets); err != nil {
+			a.upstreamProblem = err.Error()
+		} else {
+			a.upstream = a.upstreamCfg.Summary()
+		}
 		if cfg, err := a.socksConfig(); err != nil {
 			a.socksProblem = err.Error()
 		} else if err := srv.SetSOCKS(cfg); err != nil {
@@ -1427,6 +1462,7 @@ func (a *app) view(c *ui.Context) {
 	c.SetTheme(uikit.Theme(a.dark))
 	c.SetMenuPresentation(ui.PopoverMenus)
 	a.drain()
+	a.drainUpstream()
 	a.drainGRPC()
 	a.drainGraphQL()
 	a.drainSocketIO()
@@ -1527,7 +1563,6 @@ func (a *app) view(c *ui.Context) {
 		})
 	})
 	a.settingsModal(c, t)
-	a.upstreamModal(c, t)
 	a.sslModal(c, t)
 	a.toolsModal(c, t)
 	a.configImportDialog(c, t)
@@ -1640,37 +1675,6 @@ func (a *app) mainColumn(c *ui.Context, t *ui.Theme) {
 	}
 	a.desktopContent(c.Key("workspace-content"))
 	a.footer(c.Key("workspace-footer"), t)
-}
-
-// upstreamModal edits the proxy every request goes through.
-func (a *app) upstreamModal(c *ui.Context, t *ui.Theme) {
-	if !a.upstreamOpen {
-		return
-	}
-	uikit.Modal(c, &a.upstreamOpen, func() {
-		uikit.DialogColumn(c, uikit.DialogSmall).Children(func() {
-			uikit.DialogTitle(c, "Upstream proxy")
-			ui.Scroll(c).MinHeight(0).Padding(0, t.Space(1)).Children(func() {
-				uikit.Input(c, &a.upstreamAddr).Placeholder("http://127.0.0.1:8080").Label("Address")
-			})
-			uikit.DialogFooter(c).Children(func() {
-				if uikit.SecondaryButton(c, "Cancel").Clicked() {
-					a.upstreamOpen = false
-				}
-				if uikit.PrimaryButton(c, "Save").Clicked() {
-					if a.srv != nil {
-						if err := a.srv.SetUpstream(strings.TrimSpace(a.upstreamAddr)); err != nil {
-							a.fail("Upstream", err)
-						} else {
-							a.upstream = a.srv.Upstream()
-							a.inform("Upstream: " + cmp.Or(a.upstream, "off"))
-						}
-					}
-					a.upstreamOpen = false
-				}
-			})
-		})
-	})
 }
 
 // breakpointModal edits the request the proxy paused, and lets it continue.

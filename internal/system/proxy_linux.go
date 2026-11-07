@@ -19,19 +19,24 @@ const (
 )
 
 // applyProxy points the GNOME desktop proxy settings at addr after journaling.
-func (proxySnapshot) applyProxy(addr string) error {
+// A configured bypass list replaces ignore-hosts; without one the desktop's
+// existing list is kept, matching the "Off keeps the OS list" setting.
+func (proxySnapshot) applyProxy(addr string, bypass []string, set bool) error {
 	host, port, ok := splitAddr(addr)
 	if !ok {
 		return fmt.Errorf("bad proxy address %q", addr)
 	}
-	for _, args := range [][]string{
+	args := [][]string{
 		{"set", proxySchema + ".http", "host", host},
 		{"set", proxySchema + ".http", "port", port},
 		{"set", proxySchema + ".https", "host", host},
 		{"set", proxySchema + ".https", "port", port},
-		{"set", proxySchema, "ignore-hosts", "['localhost', '127.0.0.1', '::1']"},
-		{"set", proxySchema, "mode", "manual"},
-	} {
+	}
+	if set {
+		args = append(args, []string{"set", proxySchema, "ignore-hosts", gvariantList(bypass)})
+	}
+	args = append(args, []string{"set", proxySchema, "mode", "manual"})
+	for _, args := range args {
 		if err := run("gsettings", args...); err != nil {
 			return err
 		}
@@ -97,6 +102,17 @@ func gvariant(raw string) string {
 	body := s[1 : len(s)-1]
 	body = strings.ReplaceAll(body, `\'`, `'`)
 	return strings.ReplaceAll(body, `\\`, `\`)
+}
+
+// gvariantList writes a GVariant string array as gsettings accepts it.
+func gvariantList(list []string) string {
+	parts := make([]string, len(list))
+	for i, value := range list {
+		value = strings.ReplaceAll(value, `\`, `\\`)
+		value = strings.ReplaceAll(value, `'`, `\'`)
+		parts[i] = "'" + value + "'"
+	}
+	return "[" + strings.Join(parts, ", ") + "]"
 }
 
 // InstallCA copies the CA into the system trust store and refreshes it.

@@ -27,6 +27,7 @@ import (
 	"github.com/baba983/vscroxy/internal/request"
 	"github.com/baba983/vscroxy/internal/store"
 	"github.com/baba983/vscroxy/internal/system"
+	"github.com/baba983/vscroxy/internal/upstream"
 	"github.com/egoist/mygo/ui"
 	"github.com/gorilla/websocket"
 )
@@ -249,7 +250,7 @@ func TestActiveToolChipsChangeConfigurationInBothWorkspaces(t *testing.T) {
 			a.srv.SetBreak(true)
 			a.srv.SetThrottle(a.throttle)
 			a.srv.SetNoCaching(true)
-			if err := a.srv.SetUpstream(a.upstream); err != nil {
+			if err := a.srv.SetUpstreamConfig(upstream.Settings{Default: a.upstream}, nil); err != nil {
 				t.Fatal(err)
 			}
 			a.rules = []capture.Rule{{Type: capture.RuleBlock, Match: "/test", Scenario: "Offline", ScenarioActive: true}}
@@ -285,7 +286,7 @@ func TestActiveToolChipsChangeConfigurationInBothWorkspaces(t *testing.T) {
 					t.Fatalf("disabled tool %q still appears active", label)
 				}
 			}
-			if a.breakOn || a.srv.Breaking() || a.throttle.Name != "Off" || a.srv.Throttle().Name != "Off" || a.srv.NoCaching() || a.upstream != "" || a.srv.Upstream() != "" {
+			if a.breakOn || a.srv.Breaking() || a.throttle.Name != "Off" || a.srv.Throttle().Name != "Off" || a.srv.NoCaching() || a.upstream != "" || a.srv.UpstreamConfig().Default != "" {
 				t.Fatal("chip close only hid the tool instead of disabling it")
 			}
 			// Disappearing and returning chips retain independent identities.
@@ -935,28 +936,39 @@ func TestSettingsOpensExistingEditors(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	tt.Scroll(480, 300, 0, 500)
-	// The upstream is edited in place and applies at once; clearing it
-	// connects directly again.
+	tt.Scroll(120, 300, 0, 500)
+	// The default upstream is edited in place and saved with the rest of the
+	// upstream settings; clearing it connects directly again.
+	scrollTo := func(label string) {
+		t.Helper()
+		r, ok := tt.Find(label)
+		if !ok {
+			t.Fatalf("no element shows %q", label)
+		}
+		tt.Scroll(850, 300, 0, r.Y-300)
+		tt.Frame()
+	}
 	upstream := func(value string) {
 		t.Helper()
-		if err := tt.Click("Upstream proxy address"); err != nil {
+		scrollTo("Default upstream")
+		if err := tt.Click("Default upstream"); err != nil {
 			t.Fatal(err)
 		}
 		tt.Key(ui.Cmd, ui.KeyA)
 		tt.Key(0, ui.KeyBackspace)
 		tt.Type(value)
-		if err := tt.Click("Apply"); err != nil {
+		scrollTo("Save upstream")
+		if err := tt.Click("Save upstream"); err != nil {
 			t.Fatal(err)
 		}
 		tt.Frame()
 	}
 	upstream("http://127.0.0.1:9")
-	if a.upstream != "http://127.0.0.1:9" || a.srv.Upstream() != a.upstream {
+	if a.upstream != "http://127.0.0.1:9" || a.srv.UpstreamConfig().Default != a.upstream {
 		t.Fatalf("upstream not applied: %q", a.upstream)
 	}
 	upstream("")
-	if a.upstream != "" || a.srv.Upstream() != "" {
+	if a.upstream != "" || a.srv.UpstreamConfig().Default != "" {
 		t.Fatalf("clearing kept the upstream: %q", a.upstream)
 	}
 	if err := tt.Click("Settings category: Proxy"); err != nil {

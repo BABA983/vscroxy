@@ -16,19 +16,23 @@ import (
 type proxySnapshot struct {
 	Flags  uint32
 	Server string
+	Bypass string
 }
 
 func readProxySnapshot() (proxySnapshot, error) {
-	options := []inetOption{{option: inetFlagsUI}, {option: inetServer}}
+	options := []inetOption{{option: inetFlagsUI}, {option: inetServer}, {option: inetBypass}}
 	if err := queryProxyOptions(options); err != nil {
 		return proxySnapshot{}, err
 	}
-	if options[1].value != 0 {
-		defer globalFree.Call(uintptr(options[1].value))
+	for _, option := range options[1:] {
+		if option.value != 0 {
+			defer globalFree.Call(uintptr(option.value))
+		}
 	}
 	return proxySnapshot{
 		Flags:  uint32(options[0].value),
 		Server: windows.UTF16PtrToString(*(**uint16)(unsafe.Pointer(&options[1].value))),
+		Bypass: windows.UTF16PtrToString(*(**uint16)(unsafe.Pointer(&options[2].value))),
 	}, nil
 }
 
@@ -44,13 +48,23 @@ func snapshotProxy(target string) (proxySnapshot, error) {
 	return state, nil
 }
 
-func restoreProxy(before proxySnapshot, target string) error {
+func restoreProxy(before proxySnapshot, target string, applied []string, set bool) error {
 	current, err := readProxySnapshot()
 	if err != nil {
 		return err
 	}
 	server, flags := restoredWindowsProxy(before, current, target)
-	if server == current.Server && flags == current.Flags {
+	bypass, restoreBypass := current.Bypass, set
+	if set {
+		appliedText := strings.Join(applied, ";")
+		switch current.Bypass {
+		case appliedText, before.Bypass:
+			bypass = before.Bypass
+		default:
+			restoreBypass = false // another program replaced the list
+		}
+	}
+	if server == current.Server && flags == current.Flags && (!restoreBypass || bypass == current.Bypass) {
 		return nil
 	}
 	text, err := windows.UTF16PtrFromString(server)
@@ -59,10 +73,20 @@ func restoreProxy(before proxySnapshot, target string) error {
 	}
 	options := []inetOption{{option: inetFlags, value: uint64(flags)}, {option: inetServer}}
 	*(**uint16)(unsafe.Pointer(&options[1].value)) = text
+	var bypassText *uint16
+	if restoreBypass {
+		bypassText, err = windows.UTF16PtrFromString(bypass)
+		if err != nil {
+			return err
+		}
+		options = append(options, inetOption{option: inetBypass})
+		*(**uint16)(unsafe.Pointer(&options[len(options)-1].value)) = bypassText
+	}
 	list := inetOptionList{count: uint32(len(options)), options: &options[0]}
 	list.size = uint32(unsafe.Sizeof(list))
 	ok, _, err := internetSetOption.Call(0, inetPerConnection, uintptr(unsafe.Pointer(&list)), uintptr(list.size))
 	runtime.KeepAlive(text)
+	runtime.KeepAlive(bypassText)
 	if ok == 0 {
 		return fmt.Errorf("restore WinINet proxy: %w", err)
 	}
@@ -75,7 +99,7 @@ func restoreProxy(before proxySnapshot, target string) error {
 	if err != nil {
 		return err
 	}
-	if actual.Server != server || actual.Flags != flags {
+	if actual.Server != server || actual.Flags != flags || restoreBypass && actual.Bypass != bypass {
 		return errors.New("proxy restoration was not accepted by Windows")
 	}
 	return nil

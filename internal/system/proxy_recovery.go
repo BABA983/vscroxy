@@ -31,6 +31,16 @@ type proxyJournal struct {
 	Version int
 	Target  string
 	Before  proxySnapshot
+	// Bypass is the list this session wrote, and BypassSet says whether it
+	// replaced the OS list at all.
+	Bypass    []string `json:",omitempty"`
+	BypassSet bool     `json:",omitempty"`
+}
+
+// proxyBypass is what the owner asks the guardian to write.
+type proxyBypass struct {
+	List []string `json:"list,omitempty"`
+	Set  bool     `json:"set,omitempty"`
 }
 
 type proxyReply struct {
@@ -43,7 +53,7 @@ type proxyReply struct {
 // guardian persists the previous configuration before changing any OS setting.
 // A non-nil session returned with an error still needs Restore: a helper may
 // have failed after writing only part of the configuration.
-func BeginProxy(path, target string) (*ProxySession, error) {
+func BeginProxy(path, target string, bypass []string, set bool) (*ProxySession, error) {
 	if path == "" {
 		return nil, errors.New("proxy recovery storage is unavailable")
 	}
@@ -54,7 +64,11 @@ func BeginProxy(path, target string) (*ProxySession, error) {
 	if err != nil {
 		return nil, err
 	}
-	cmd := exec.Command(executable, "--proxy-guard", path, target)
+	encoded, err := json.Marshal(proxyBypass{List: bypass, Set: set})
+	if err != nil {
+		return nil, err
+	}
+	cmd := exec.Command(executable, "--proxy-guard", path, target, string(encoded))
 	separateProxyGuard(cmd)
 	input, err := cmd.StdinPipe()
 	if err != nil {
@@ -126,8 +140,12 @@ func (s *ProxySession) Restore() error {
 // GuardProxy is the non-UI entry point. EOF on input means the owner exited,
 // including SIGKILL or a native crash; it does not depend on a GUI quit hook.
 // A file lock prevents a second instance or startup recovery from racing it.
-func GuardProxy(path, target string, input io.Reader, output io.Writer) error {
+func GuardProxy(path, target, bypassJSON string, input io.Reader, output io.Writer) error {
 	proxyGuardSignals()
+	var bypass proxyBypass
+	if err := json.Unmarshal([]byte(bypassJSON), &bypass); err != nil {
+		return fmt.Errorf("read proxy bypass: %w", err)
+	}
 	encoder := jsontext.NewEncoder(output)
 	owned := false
 	reply := func(err error) error {
@@ -157,7 +175,7 @@ func GuardProxy(path, target string, input io.Reader, output io.Writer) error {
 		reply(err)
 		return err
 	}
-	if err := saveProxyJournal(path, proxyJournal{Version: 1, Target: target, Before: before}); err != nil {
+	if err := saveProxyJournal(path, proxyJournal{Version: 2, Target: target, Before: before, Bypass: bypass.List, BypassSet: bypass.Set}); err != nil {
 		reply(err)
 		return err
 	}
@@ -176,7 +194,7 @@ func GuardProxy(path, target string, input io.Reader, output io.Writer) error {
 			}
 		}
 	}()
-	if err := reply(before.applyProxy(target)); err != nil {
+	if err := reply(before.applyProxy(target, bypass.List, bypass.Set)); err != nil {
 		return err
 	}
 	decoder := jsontext.NewDecoder(input)
@@ -237,10 +255,10 @@ func recoverProxy(path string) error {
 	if err := json.Unmarshal(data, &journal); err != nil {
 		return fmt.Errorf("read proxy recovery journal: %w", err)
 	}
-	if journal.Version != 1 || journal.Target == "" {
+	if journal.Version != 2 || journal.Target == "" {
 		return errors.New("unsupported proxy recovery journal; manual recovery required")
 	}
-	if err := restoreProxy(journal.Before, journal.Target); err != nil {
+	if err := restoreProxy(journal.Before, journal.Target, journal.Bypass, journal.BypassSet); err != nil {
 		return err
 	}
 	return os.Remove(path)

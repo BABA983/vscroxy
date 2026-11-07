@@ -28,6 +28,7 @@ import (
 	"github.com/baba983/vscroxy/internal/request"
 	"github.com/baba983/vscroxy/internal/rules"
 	"github.com/baba983/vscroxy/internal/system"
+	"github.com/baba983/vscroxy/internal/upstream"
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/editor"
 	"github.com/gorilla/websocket"
@@ -746,6 +747,33 @@ func TestUISnapshots(t *testing.T) {
 		{name: "secondary-api-notes", setup: func(a *app) { snapshotAPI(a); a.activeAPI().tab = 2 }, want: "Review before publishing"},
 		{name: "settings", setup: func(a *app) { a.settingsOpen = true }, want: "Settings"},
 		{name: "dialog-settings-proxy", setup: func(a *app) { snapshotSettings(a, 1) }, want: "Save for next launch", short: true},
+		{name: "dialog-settings-proxy-upstream", setup: func(a *app) {
+			snapshotSettings(a, 1)
+			a.upstreamCfg = upstream.Settings{
+				Default: "http://proxy.example:8080",
+				Rules: []upstream.Rule{
+					{Host: "*.internal.test", Proxy: "socks5://127.0.0.1:1080"},
+					{Host: "api.example.com:443", Proxy: "direct"},
+				},
+				Bypass:      []string{"localhost", "*.corp.example", "10.0.0.0/8"},
+				PAC:         "https://pac.example/proxy.pac",
+				Credentials: []upstream.Credential{{Proxy: "http://proxy.example:8080", Username: "alice"}},
+			}
+			a.upstreamSecrets = map[string]string{"http://proxy.example:8080": "fixture-password"}
+			a.upstreamUI.loaded = false
+		}, act: func(t *testing.T, tt *ui.Tester) {
+			tt.Scroll(850, 500, 0, 740)
+			tt.Advance(250 * time.Millisecond)
+		}, want: "Save upstream", short: true},
+		{name: "dialog-settings-proxy-bypass", setup: func(a *app) {
+			snapshotSettings(a, 1)
+			a.systemProxyBypassSet = true
+			a.systemProxyBypassText = "localhost\n*.internal.test\n10.0.0.0/8"
+			a.systemProxy.check = system.ProxyCheck{Target: a.systemProxyTarget(), Status: system.ProxyOff, Configs: []system.ProxyConfig{{Scope: "Wi-Fi"}}}
+		}, act: func(t *testing.T, tt *ui.Tester) {
+			tt.Scroll(850, 500, 0, 100)
+			tt.Advance(250 * time.Millisecond)
+		}, want: "Replace the system bypass list", short: true},
 		{name: "dialog-settings-certificates", setup: func(a *app) {
 			snapshotSettings(a, 6)
 			a.certificates = certs.Settings{
@@ -811,7 +839,6 @@ func TestUISnapshots(t *testing.T) {
 			a.allowOn, a.allowText = true, "api.example.com\n.internal.test"
 		}, want: "Only show allowed traffic"},
 		{name: "dialog-settings-devices", setup: func(a *app) { snapshotSettings(a, 5) }, want: "Settings"},
-		{name: "dialog-upstream", setup: func(a *app) { a.upstreamOpen, a.upstreamAddr = true, "http://proxy.example.com:8080" }, want: "Upstream proxy"},
 		{name: "dialog-ssl", setup: func(a *app) { a.sslOpen, a.sslHosts = true, "api.example.com\n*.example.org" }, want: "SSL proxying", short: true},
 		{name: "dialog-ignore-hosts", setup: func(a *app) { a.ignoreOpen, a.ignoreText = true, "telemetry.example.com\n*.analytics.example.org" }, want: "Ignored hosts"},
 		{name: "dialog-ignore-apps", setup: func(a *app) { a.ignoreAppsOpen, a.ignoreAppsText = true, "Updater\nBackground Sync" }, want: "Ignored apps"},
@@ -1607,7 +1634,9 @@ func snapshotActiveTools(a *app) {
 	a.srv.SetBreak(true)
 	a.srv.SetThrottle(a.throttle)
 	a.srv.SetNoCaching(true)
-	_ = a.srv.SetUpstream(a.upstream)
+	a.upstreamCfg = upstream.Settings{Default: a.upstream}
+	a.upstreamUI.loaded = false
+	_ = a.srv.SetUpstreamConfig(a.upstreamCfg, nil)
 	a.rules = []capture.Rule{{Type: capture.RuleBlock, Match: "/offline", Scenario: "Offline", ScenarioActive: true}}
 	_ = a.srv.SetRules(a.rules)
 }

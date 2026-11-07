@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"maps"
 	"net"
+	"slices"
 	"strings"
 )
 
@@ -54,7 +55,80 @@ func snapshotProxy(target string) (proxySnapshot, error) {
 	return state, nil
 }
 
-func restoreProxy(before proxySnapshot, target string) error {
+// parseGVariantList reads gsettings' string array output, including the
+// @as [] form of an empty list and double-quoted strings that contain an
+// apostrophe. It returns false for output it cannot parse.
+func parseGVariantList(raw string) ([]string, bool) {
+	s := strings.TrimSpace(raw)
+	if s == "@as []" || s == "[]" {
+		return nil, true
+	}
+	if len(s) < 2 || s[0] != '[' || s[len(s)-1] != ']' {
+		return nil, false
+	}
+	body := s[1 : len(s)-1]
+	var out []string
+	for i := 0; i < len(body); {
+		for i < len(body) && (body[i] == ' ' || body[i] == ',' || body[i] == '\t') {
+			i++
+		}
+		if i >= len(body) {
+			break
+		}
+		if quote := body[i]; quote == '\'' || quote == '"' {
+			i++
+			var value strings.Builder
+			closed := false
+			for i < len(body) {
+				switch body[i] {
+				case '\\':
+					if i+1 >= len(body) {
+						return nil, false
+					}
+					value.WriteByte(body[i+1])
+					i += 2
+				case quote:
+					i++
+					closed = true
+				default:
+					value.WriteByte(body[i])
+					i++
+				}
+				if closed {
+					break
+				}
+			}
+			if !closed {
+				return nil, false
+			}
+			out = append(out, value.String())
+			continue
+		}
+		start := i
+		for i < len(body) && body[i] != ',' {
+			i++
+		}
+		if value := strings.TrimSpace(body[start:i]); value != "" {
+			out = append(out, value)
+		}
+	}
+	return out, true
+}
+
+// sameBypassList compares host lists without depending on order or case.
+func sameBypassList(a, b []string) bool {
+	normalize := func(list []string) []string {
+		out := make([]string, len(list))
+		for i, value := range list {
+			out[i] = strings.ToLower(strings.TrimSpace(value))
+		}
+		slices.Sort(out)
+		return out
+	}
+	return slices.Equal(normalize(a), normalize(b))
+}
+
+func restoreProxy(before proxySnapshot, target string, applied []string, set bool) error {
 	host, port, err := net.SplitHostPort(target)
 	if err != nil {
 		return err
@@ -95,13 +169,17 @@ func restoreProxy(before proxySnapshot, target string) error {
 			}
 		}
 	}
-	if allOwned {
-		if current["ignore-hosts"] == "['localhost', '127.0.0.1', '::1']" && current["ignore-hosts"] != before["ignore-hosts"] {
+	if allOwned && set {
+		currentList, currentOK := parseGVariantList(current["ignore-hosts"])
+		_, beforeOK := parseGVariantList(before["ignore-hosts"])
+		if currentOK && beforeOK && sameBypassList(currentList, applied) {
+			expected["ignore-hosts"] = before["ignore-hosts"]
+		} else if current["ignore-hosts"] == gvariantList(applied) {
 			expected["ignore-hosts"] = before["ignore-hosts"]
 		}
-		if gvariant(current["mode"]) == "manual" && current["mode"] != before["mode"] {
-			expected["mode"] = before["mode"]
-		}
+	}
+	if allOwned && gvariant(current["mode"]) == "manual" && current["mode"] != before["mode"] {
+		expected["mode"] = before["mode"]
 	}
 	var failures []error
 	for _, key := range proxySnapshotKeys {
