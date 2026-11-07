@@ -49,6 +49,12 @@ func ActivityStrip(c *ui.Context, buckets []ActivityBucket, selected *ActivityRa
 			}()
 			switch ev.Kind {
 			case ui.InputPointerDown, ui.InputPointerMove, ui.InputPointerUp:
+				// A canceled release ends the press without committing it:
+				// put the range back where the press found it.
+				if ev.Kind == ui.InputPointerUp && ev.Canceled && state.held {
+					*selected, state.held = state.original, false
+					return true
+				}
 				if ev.Button != 0 || ev.Kind != ui.InputPointerDown && !state.held {
 					return false
 				}
@@ -56,6 +62,7 @@ func ActivityStrip(c *ui.Context, buckets []ActivityBucket, selected *ActivityRa
 				x := max(0, min(float64(n), float64(ev.X/max(r.W, 1))*float64(n)))
 				if ev.Kind == ui.InputPointerDown {
 					state.held, state.edge = true, 0
+					state.original = *selected
 					state.anchor = min(n-1, int(x))
 					if selected.To > selected.From {
 						lo, hi := float32(selected.From)*r.W/float32(n), float32(selected.To)*r.W/float32(n)
@@ -153,7 +160,8 @@ func ActivityStrip(c *ui.Context, buckets []ActivityBucket, selected *ActivityRa
 }
 
 type activityGesture struct {
-	held   bool
-	anchor int
-	edge   int
+	held     bool
+	anchor   int
+	edge     int
+	original ActivityRange
 }
