@@ -244,14 +244,15 @@ func (a *app) vaultModal(c *ui.Context, t *ui.Theme) {
 				where = "Encrypted with a key kept in " + v.keyPath + ": this system has no credential store, so anyone who can read that file can open the vault."
 			}
 			uikit.Meta(c, where)
-			ui.Row(c).Gap(t.Space(2)).Padding(0, t.Space(2), 0, 0).Children(func() {
+			// The rows' scroll leaves the same side room for input halos.
+			ui.Row(c).Gap(t.Space(2)).Padding(0, t.Space(2), 0, t.Space(1)).Children(func() {
 				for i, label := range []string{"NAME", "VALUE", "ALLOWED DOMAINS"} {
 					grow := float32(2)
 					if i == 0 {
 						grow = 1
 					}
 					ui.Box(c).Basis(0).Grow(grow).MinWidth(0).Children(func() {
-						uikit.Label(c, label)
+						uikit.Label(c, label).FillWidth().Padding(0, t.Space(2))
 					})
 				}
 				ui.Box(c).Width(76) // the two row buttons and the gap between them
@@ -261,12 +262,18 @@ func (a *app) vaultModal(c *ui.Context, t *ui.Theme) {
 				for i := range v.rows {
 					r := &v.rows[i]
 					ui.Row(c).Key(i).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-						uikit.Input(c, &r.name).Label(fmt.Sprintf("Secret name %d", i+1)).Placeholder("api_token").Basis(0).Grow(1).MinWidth(0)
-						value := uikit.Input(c, &r.value).Label(fmt.Sprintf("Secret value %d", i+1)).Placeholder("Value").Basis(0).Grow(2).MinWidth(0)
-						if !r.revealed {
-							value.Password()
-						}
-						uikit.Input(c, &r.domains).Label(fmt.Sprintf("Allowed domains %d", i+1)).Placeholder("Any host, or api.example.com, *.example.com").Basis(0).Grow(2).MinWidth(0)
+						ui.Box(c).Basis(0).Grow(1).MinWidth(0).Children(func() {
+							uikit.Input(c, &r.name).Label(fmt.Sprintf("Secret name %d", i+1)).Placeholder("api_token").FillWidth().MinWidth(0)
+						})
+						ui.Box(c).Basis(0).Grow(2).MinWidth(0).Children(func() {
+							value := uikit.Input(c, &r.value).Label(fmt.Sprintf("Secret value %d", i+1)).Placeholder("Value").FillWidth().MinWidth(0)
+							if !r.revealed {
+								value.Password()
+							}
+						})
+						ui.Box(c).Basis(0).Grow(2).MinWidth(0).Children(func() {
+							uikit.Input(c, &r.domains).Label(fmt.Sprintf("Allowed domains %d", i+1)).Placeholder("Any host, or api.example.com, *.example.com").FillWidth().MinWidth(0)
+						})
 						label := "Reveal"
 						if r.revealed {
 							label = "Hide"

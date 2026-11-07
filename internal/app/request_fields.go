@@ -78,8 +78,15 @@ func (a *app) requestFieldsEditor(c *ui.Context, rows *[]request.Field, opts fie
 		// reads as a column rather than its own form.
 		ui.Row(c).Height(uikit.HeightControl).AlignItems(ui.Center).BorderWidth(0, 0, 1, 0).BorderColor(t.Border).Children(func() {
 			ui.Box(c).Width(uikit.HeightLarge).FillHeight().BorderWidth(0, 1, 0, 0).BorderColor(t.Border)
-			uikit.Label(c, "Key").Basis(0).Grow(1).MinWidth(0).FillHeight().Padding(t.Space(1), t.Space(2)).BorderWidth(0, 1, 0, 0).BorderColor(t.Border)
-			uikit.Label(c, "Value").Basis(0).Grow(2).MinWidth(0).Padding(t.Space(1), t.Space(2))
+			// The cell's padding stays on the label inside it. On the flex
+			// item itself, padding joins its base size and would make the
+			// header columns wider than the rows' cells.
+			ui.Box(c).Basis(0).Grow(1).MinWidth(0).FillHeight().BorderWidth(0, 1, 0, 0).BorderColor(t.Border).Children(func() {
+				uikit.Label(c, "Key").FillWidth().Padding(t.Space(1), t.Space(2))
+			})
+			ui.Box(c).Basis(0).Grow(2).MinWidth(0).FillHeight().Children(func() {
+				uikit.Label(c, "Value").FillWidth().Padding(t.Space(1), t.Space(2))
+			})
 			if opts.secret {
 				ui.Box(c).Width(uikit.HeightControl)
 			}
@@ -170,7 +177,9 @@ func (a *app) requestFieldsEditor(c *ui.Context, rows *[]request.Field, opts fie
 			// The spacer carries the row to the full width, so the action stays
 			// at the table's left edge rather than in the middle.
 			ui.Row(c).MinHeight(uikit.HeightControl).Gap(t.Space(2)).Children(func() {
-				if uikit.ToolbarButton(c, "Add "+noun, "Add "+noun, false).Children(func() {
+				// The row sits on the scroll's bottom edge; keep the focus
+				// ring inside it instead of clipping it against the border.
+				if uikit.ToolbarButton(c, "Add "+noun, "Add "+noun, false).FocusRingOffset(-2).Children(func() {
 					ui.Icon(c, plusIcon).Size(uikit.IconInline, uikit.IconInline)
 					uikit.Body(c, "Add "+noun)
 				}).Clicked() {

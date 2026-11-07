@@ -2896,6 +2896,63 @@ func TestBodyTabFormatIndentsTheDraftBody(t *testing.T) {
 	}
 }
 
+func TestHeaderCellsLineUpWithRows(t *testing.T) {
+	a := workspaceApp()
+	tt := ui.NewTester(a.view, 1200, 1000)
+	click := func(label string) {
+		t.Helper()
+		if err := tt.Click(label); err != nil {
+			t.Fatal(err)
+		}
+	}
+	tt.Key(ui.Cmd, ui.Key2)
+	click("List projects")
+	click("Request editor: Headers")
+	header, ok := tt.Find("Key")
+	if !ok {
+		t.Fatal("the header table has no Key title")
+	}
+	cell, ok := tt.Find("header key 1")
+	if !ok {
+		t.Fatal("the header table has no first key cell")
+	}
+	// The title and the cell end at the same column line. A cell's border
+	// leaves it a pixel inside the title, which has no inner input border.
+	checkRight := func(title, cell string) {
+		t.Helper()
+		h, ok := tt.Find(title)
+		if !ok {
+			t.Fatalf("the table has no %q title", title)
+		}
+		c, ok := tt.Find(cell)
+		if !ok {
+			t.Fatalf("the table has no %q cell", cell)
+		}
+		if d := h.X + h.W - c.X - c.W; d < -1 || d > 1 {
+			t.Errorf("the %s title ends %vpx from its cell's right edge", title, d)
+		}
+	}
+	if d := header.X + header.W - cell.X - cell.W; d < -1 || d > 1 {
+		t.Fatalf("the Key title ends %vpx from the first cell's right edge", d)
+	}
+
+	a.envs = []environment{{Name: "Local", Vars: map[string]string{"baseUrl": "https://api.example.com"}}}
+	a.activeEnv = "Local"
+	a.openVars()
+	tt.Frame()
+	checkRight("Name", "Variable name 1")
+	checkRight("Initial", "Variable initial value 1")
+	checkRight("Current", "Variable current value 1")
+
+	a.varsOpen = false
+	a.vault.open, a.vault.loaded = true, true
+	a.vault.rows = []vaultRow{{name: "demo_token", value: "secret", domains: "api.example.com"}}
+	tt.Frame()
+	checkRight("NAME", "Secret name 1")
+	checkRight("VALUE", "Secret value 1")
+	checkRight("ALLOWED DOMAINS", "Allowed domains 1")
+}
+
 func TestHeaderTableKeepsOrderDuplicatesAndDisabledRows(t *testing.T) {
 	a := workspaceApp()
 	a.library.root = filepath.Join(t.TempDir(), "collections")

@@ -89,9 +89,17 @@ func (a *app) variableTable(c *ui.Context, rows *[]variableRow, opts variableTab
 			if opts.enable {
 				ui.Box(c).Width(uikit.HeightLarge).FillHeight().BorderWidth(0, 1, 0, 0).BorderColor(t.Border)
 			}
-			uikit.Label(c, "Name").Basis(0).Grow(1).MinWidth(0).FillHeight().Padding(t.Space(1), t.Space(2)).BorderWidth(0, 1, 0, 0).BorderColor(t.Border)
-			uikit.Label(c, "Initial").Basis(0).Grow(2).MinWidth(0).FillHeight().Padding(t.Space(1), t.Space(2)).BorderWidth(0, 1, 0, 0).BorderColor(t.Border)
-			uikit.Label(c, "Current").Basis(0).Grow(2).MinWidth(0).FillHeight().Padding(t.Space(1), t.Space(2)).BorderWidth(0, 1, 0, 0).BorderColor(t.Border)
+			// Keep the padding inside each column so the title's flex base
+			// matches the rows' cells.
+			ui.Box(c).Basis(0).Grow(1).MinWidth(0).FillHeight().BorderWidth(0, 1, 0, 0).BorderColor(t.Border).Children(func() {
+				uikit.Label(c, "Name").FillWidth().Padding(t.Space(1), t.Space(2))
+			})
+			ui.Box(c).Basis(0).Grow(2).MinWidth(0).FillHeight().BorderWidth(0, 1, 0, 0).BorderColor(t.Border).Children(func() {
+				uikit.Label(c, "Initial").FillWidth().Padding(t.Space(1), t.Space(2))
+			})
+			ui.Box(c).Basis(0).Grow(2).MinWidth(0).FillHeight().BorderWidth(0, 1, 0, 0).BorderColor(t.Border).Children(func() {
+				uikit.Label(c, "Current").FillWidth().Padding(t.Space(1), t.Space(2))
+			})
 			ui.Box(c).Width(uikit.HeightControl * 4)
 		})
 		ui.Scroll(c).Grow(1).MinHeight(0).Children(func() {
@@ -158,7 +166,10 @@ func (a *app) variableTable(c *ui.Context, rows *[]variableRow, opts variableTab
 								}
 							}
 						})
-						if uikit.IconButton(c, fmt.Sprintf("Remove variable %d", i+1), "Remove variable", closeIcon).Clicked() {
+						// The action column ends at the table's edge, so keep
+						// its focus ring inside the button instead of clipping
+						// it against the table border.
+						if uikit.IconButton(c, fmt.Sprintf("Remove variable %d", i+1), "Remove variable", closeIcon).FocusRingOffset(-2).Clicked() {
 							remove = i
 						}
 					})
@@ -169,7 +180,10 @@ func (a *app) variableTable(c *ui.Context, rows *[]variableRow, opts variableTab
 				changed = true
 			}
 			ui.Row(c).Disabled(a.envsProblem != "").Children(func() {
-				if uikit.ToolbarButton(c, "Add variable", "Add variable", false).Children(func() {
+				// The add row sits on the scroll's bottom edge; keep the
+				// focus ring inside it instead of clipping it against the
+				// table border.
+				if uikit.ToolbarButton(c, "Add variable", "Add variable", false).FocusRingOffset(-2).Children(func() {
 					ui.Icon(c, plusIcon).Size(uikit.IconInline, uikit.IconInline)
 					uikit.Body(c, "Add variable")
 				}).Clicked() {
