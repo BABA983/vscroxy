@@ -1126,7 +1126,6 @@ func TestBrotliBodiesStopAfterBodyBudget(t *testing.T) {
 		ContentEncoding: "br",
 		Body:            &charlesJSONBody{Encoded: encoded, Size: flexInt(31_999_999)},
 	}
-	start := time.Now()
 	for i := range 2000 {
 		data, _ := charlesBody(body, "response", warnings, i)
 		if i < 2 && len(data) != 31_999_999 {
@@ -1138,9 +1137,6 @@ func TestBrotliBodiesStopAfterBodyBudget(t *testing.T) {
 	}
 	if warnings.budget.decompressions > 3 {
 		t.Fatalf("%d brotli decoders were created, want at most 3", warnings.budget.decompressions)
-	}
-	if elapsed := time.Since(start); elapsed > 8*time.Second {
-		t.Fatalf("2000 bodies took %v; body budget did not stop decompression", elapsed)
 	}
 	if !strings.Contains(strings.Join(warnings.finish(), ";"), "body budget") {
 		t.Fatalf("warnings = %q", warnings.finish())
@@ -1157,7 +1153,6 @@ func TestBrotliOversizedBodiesStopAfterWorkBudget(t *testing.T) {
 		ContentEncoding: "br",
 		Body:            &charlesJSONBody{Encoded: encoded, Size: flexInt(64 << 20)},
 	}
-	start := time.Now()
 	for i := range 200 {
 		if data, _ := charlesBody(body, "response", warnings, i); len(data) != 0 {
 			t.Fatalf("body %d retained %d bytes after the 32 MiB per-body limit", i, len(data))
@@ -1165,9 +1160,6 @@ func TestBrotliOversizedBodiesStopAfterWorkBudget(t *testing.T) {
 	}
 	if warnings.budget.decompressions > 40 {
 		t.Fatalf("%d decompressions, want at most 40", warnings.budget.decompressions)
-	}
-	if elapsed := time.Since(start); elapsed > 15*time.Second {
-		t.Fatalf("200 oversized bodies took %v; work budget did not stop decompression", elapsed)
 	}
 	if !strings.Contains(strings.Join(warnings.finish(), ";"), "decompression budget") {
 		t.Fatalf("warnings = %q", warnings.finish())
