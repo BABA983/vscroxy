@@ -7,6 +7,7 @@ import (
 	"encoding/json/v2"
 	"errors"
 	"fmt"
+	"io"
 	"math"
 	"net/http"
 	"net/url"
@@ -82,7 +83,50 @@ func (v proxymanVersion) String() string {
 }
 
 type proxymanHeader struct {
-	Entries []proxymanHeaderEntry `json:"entries"`
+	Entries []proxymanHeaderEntry `json:"-"`
+	Omitted int                   `json:"-"`
+}
+
+// UnmarshalJSON caps a header list while decoding it. A malformed export can
+// name a million headers; the extras are skipped and counted for the report.
+func (h *proxymanHeader) UnmarshalJSON(data []byte) error {
+	var raw struct {
+		Entries jsontext.Value `json:"entries"`
+	}
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	trimmed := bytes.TrimSpace(raw.Entries)
+	if len(trimmed) == 0 || bytes.Equal(trimmed, []byte("null")) {
+		return nil
+	}
+	decoder := jsontext.NewDecoder(bytes.NewReader(trimmed))
+	token, err := decoder.ReadToken()
+	if err != nil {
+		return err
+	}
+	if token.Kind() != '[' {
+		return errors.New("header entries are not an array")
+	}
+	for decoder.PeekKind() != ']' {
+		if decoder.PeekKind() == 0 {
+			return io.ErrUnexpectedEOF
+		}
+		if len(h.Entries) >= maxCaptureHeaders {
+			if err := decoder.SkipValue(); err != nil {
+				return err
+			}
+			h.Omitted++
+			continue
+		}
+		var entry proxymanHeaderEntry
+		if err := json.UnmarshalDecode(decoder, &entry); err != nil {
+			return err
+		}
+		h.Entries = append(h.Entries, entry)
+	}
+	_, err = decoder.ReadToken()
+	return err
 }
 
 type proxymanHeaderEntry struct {
@@ -134,7 +178,50 @@ type proxymanClient struct {
 }
 
 type proxymanWS struct {
-	Messages []proxymanWSMessage `json:"messages"`
+	Messages []proxymanWSMessage `json:"-"`
+	Omitted  int                 `json:"-"`
+}
+
+// UnmarshalJSON caps the retained WebSocket message list. The app cannot show
+// a million frames, and materializing them first would defeat the entry limit.
+func (s *proxymanWS) UnmarshalJSON(data []byte) error {
+	var raw struct {
+		Messages jsontext.Value `json:"messages"`
+	}
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	trimmed := bytes.TrimSpace(raw.Messages)
+	if len(trimmed) == 0 || bytes.Equal(trimmed, []byte("null")) {
+		return nil
+	}
+	decoder := jsontext.NewDecoder(bytes.NewReader(trimmed))
+	token, err := decoder.ReadToken()
+	if err != nil {
+		return err
+	}
+	if token.Kind() != '[' {
+		return errors.New("WebSocket messages are not an array")
+	}
+	for decoder.PeekKind() != ']' {
+		if decoder.PeekKind() == 0 {
+			return io.ErrUnexpectedEOF
+		}
+		if len(s.Messages) >= maxCaptureMessages {
+			if err := decoder.SkipValue(); err != nil {
+				return err
+			}
+			s.Omitted++
+			continue
+		}
+		var message proxymanWSMessage
+		if err := json.UnmarshalDecode(decoder, &message); err != nil {
+			return err
+		}
+		s.Messages = append(s.Messages, message)
+	}
+	_, err = decoder.ReadToken()
+	return err
 }
 
 type proxymanWSMessage struct {
@@ -163,6 +250,7 @@ func readProxymanZip(data []byte, name string) (Capture, error) {
 	var warnings captureWarnings
 	var sources []proxymanSource
 	var total uint64
+	skipped := 0
 	for _, member := range reader.File {
 		index, ok := proxymanEntryIndex(member.Name)
 		if !ok {
@@ -183,6 +271,10 @@ func readProxymanZip(data []byte, name string) (Capture, error) {
 			return Capture{}, fmt.Errorf("%s: the archive expands beyond %d MiB", name, maxCaptureArchive>>20)
 		}
 		total += member.UncompressedSize64
+		if len(sources) >= maxCaptureEntries {
+			skipped++
+			continue
+		}
 		member := member
 		sources = append(sources, proxymanSource{
 			index: index, name: member.Name,
@@ -199,6 +291,9 @@ func readProxymanZip(data []byte, name string) (Capture, error) {
 	if len(sources) == 0 {
 		return Capture{}, fmt.Errorf("%s: no request_ entries; Proxyman session archives (.proxymansessionv2) are not supported", name)
 	}
+	if skipped > 0 {
+		warnings.add("%d entries beyond the first %d were not imported", skipped, maxCaptureEntries)
+	}
 	return readProxymanSources(sources, name, &warnings)
 }
 
@@ -207,6 +302,36 @@ func proxymanDirFiles(dir string) ([]proxymanSource, error) {
 	if err != nil {
 		return nil, err
 	}
+	sources, err := proxymanSourcesIn(dir, entries)
+	if err != nil {
+		return nil, err
+	}
+	if len(sources) > 0 {
+		return sources, nil
+	}
+	// Some v1 exports wrap the entries in one directory. Look exactly one
+	// level down, never following a symlink or searching deeper.
+	for _, entry := range entries {
+		if entry.Type()&os.ModeSymlink != 0 || !entry.IsDir() {
+			continue
+		}
+		nestedEntries, err := os.ReadDir(filepath.Join(dir, entry.Name()))
+		if err != nil {
+			return nil, err
+		}
+		nested, err := proxymanSourcesIn(filepath.Join(dir, entry.Name()), nestedEntries)
+		if err != nil {
+			return nil, err
+		}
+		if len(nested) > 0 {
+			return nested, nil
+		}
+	}
+	return nil, nil
+}
+
+// proxymanSourcesIn reads only the request_ files directly in dir.
+func proxymanSourcesIn(dir string, entries []os.DirEntry) ([]proxymanSource, error) {
 	var sources []proxymanSource
 	var total int64
 	for _, entry := range entries {
@@ -244,24 +369,7 @@ func proxymanDirFiles(dir string) ([]proxymanSource, error) {
 			},
 		})
 	}
-	if len(sources) > 0 {
-		return sources, nil
-	}
-	// Some v1 exports wrap the entries in one directory. Look one level down
-	// without following a symlink or searching deeper.
-	for _, entry := range entries {
-		if entry.Type()&os.ModeSymlink != 0 || !entry.IsDir() {
-			continue
-		}
-		nested, err := proxymanDirFiles(filepath.Join(dir, entry.Name()))
-		if err != nil {
-			return nil, err
-		}
-		if len(nested) > 0 {
-			return nested, nil
-		}
-	}
-	return nil, nil
+	return sources, nil
 }
 
 func readProxymanSources(sources []proxymanSource, name string, warnings *captureWarnings) (Capture, error) {
@@ -377,14 +485,21 @@ func (e proxymanEntry) toCapture(warnings *captureWarnings, index int) (CaptureF
 	if method == "" {
 		method = http.MethodGet
 	}
-	reqHeader := proxymanHeaders(request.Header)
-	resHeader := proxymanHeaders(proxymanHeader{})
+	reqHeader, reqOmitted := proxymanHeaders(request.Header)
+	resHeader := http.Header(nil)
+	resOmitted := 0
 	status := 0
 	if e.Response != nil {
-		resHeader = proxymanHeaders(e.Response.Header)
+		resHeader, resOmitted = proxymanHeaders(e.Response.Header)
 		if e.Response.Status != nil {
 			status = int(e.Response.Status.Code)
 		}
+	}
+	if reqOmitted > 0 {
+		warnings.add("entry %d: %d request headers beyond the first %d were not imported", index+1, reqOmitted, maxCaptureHeaders)
+	}
+	if resOmitted > 0 {
+		warnings.add("entry %d: %d response headers beyond the first %d were not imported", index+1, resOmitted, maxCaptureHeaders)
 	}
 	reqBody := proxymanBody(request.BodyData, "request", warnings, index)
 	resBody := []byte(nil)
@@ -436,7 +551,7 @@ func (e proxymanEntry) toCapture(warnings *captureWarnings, index int) (CaptureF
 		ReqBody: reqBody, ResBody: resBody, ReqSize: len(reqBody), ResSize: len(resBody),
 		Bytes:    len(reqBody) + len(resBody),
 		ReqProto: reqProto, ResProto: resProto,
-		Remote: strings.TrimSpace(e.Summary.ServerIPAddress), Client: strings.TrimSpace(e.Summary.ClientIPAddress),
+		Remote: remoteIP(e.Summary.ServerIPAddress), Client: remoteIP(e.Summary.ClientIPAddress),
 		Kind: kind, Error: failure,
 	}
 	if e.Style != nil {
@@ -464,6 +579,12 @@ func (e proxymanEntry) toCapture(warnings *captureWarnings, index int) (CaptureF
 	}
 	if kind == "ws" {
 		flow.Frames = proxymanFrames(e.WebSocketMessageStorage, start, warnings, index)
+		if e.WebSocketMessageStorage != nil && e.WebSocketMessageStorage.Omitted > 0 {
+			warnings.add("entry %d: %d WebSocket messages beyond the first %d were not imported", index+1, e.WebSocketMessageStorage.Omitted, maxCaptureMessages)
+		}
+		for _, frame := range flow.Frames {
+			flow.Bytes += len(frame.Data)
+		}
 		if len(flow.Frames) == 0 {
 			warnings.add("entry %d: WebSocket upgrade has no retained messages", index+1)
 		}
@@ -487,7 +608,7 @@ func parseProxymanURL(value string) (proxymanURL, bool) {
 	return proxymanURL{scheme: parsed.Scheme, host: parsed.Host, uri: uri}, true
 }
 
-func proxymanHeaders(header proxymanHeader) http.Header {
+func proxymanHeaders(header proxymanHeader) (http.Header, int) {
 	pairs := make([][2]string, 0, len(header.Entries))
 	for _, entry := range header.Entries {
 		if entry.Enabled != nil && !*entry.Enabled {
@@ -499,7 +620,7 @@ func proxymanHeaders(header proxymanHeader) http.Header {
 		}
 		pairs = append(pairs, [2]string{name, entry.Value})
 	}
-	return captureHeader(pairs)
+	return captureHeader(pairs), header.Omitted
 }
 
 func proxymanBody(value, side string, warnings *captureWarnings, index int) []byte {
@@ -550,6 +671,10 @@ func proxymanFrames(storage *proxymanWS, fallback time.Time, warnings *captureWa
 	}
 	frames := make([]CaptureFrame, 0, len(storage.Messages))
 	for number, message := range storage.Messages {
+		if number >= maxCaptureMessages {
+			warnings.add("entry %d: WebSocket messages beyond the first %d were not imported", index+1, maxCaptureMessages)
+			break
+		}
 		kind := strings.ToLower(strings.TrimSpace(message.Type))
 		if kind == "" {
 			kind = "text"

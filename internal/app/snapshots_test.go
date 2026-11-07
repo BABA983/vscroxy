@@ -197,6 +197,19 @@ func TestUISnapshots(t *testing.T) {
 			a.applyFilter()
 			openResponseBody(a)
 		}, want: "X-Trace"},
+		{name: "capture-imported-charles-websocket", setup: func(a *app) {
+			data, err := os.ReadFile(filepath.Join("..", "imports", "testdata", "charles-session.chlsj"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			a.importCaptureData(data, "charles-session.chlsj")
+			a.importReport.open = false
+			a.chosen.Clear()
+			a.views.init(a, "")
+			a.pickedID = 5
+			a.applyFilter()
+			a.inspect.pane = inspectorMessages
+		}, want: "hello"},
 		{name: "capture-imported-proxyman", setup: func(a *app) {
 			dir := t.TempDir()
 			for name, fixture := range map[string]string{
@@ -1081,12 +1094,9 @@ func TestUISnapshots(t *testing.T) {
 			}
 		}, want: "Import review", short: true},
 		{name: "dialog-import-capture-report", setup: func(a *app) {
-			data, err := os.ReadFile(filepath.Join("..", "imports", "testdata", "charles-session.chlsj"))
-			if err != nil {
-				t.Fatal(err)
-			}
-			a.importCaptureData(data, "charles-session.chlsj")
-		}, want: "Imported “charles-session.chlsj”", short: true},
+			data := []byte(`[{"status":"COMPLETE","method":"GET","scheme":"https","host":"api.example.com","path":"/","request":{"header":{"headers":[]}},"response":{"status":200,"header":{"headers":[]},"body":{"encoded":"not base64!","size":12}}}]`)
+			a.importCaptureData(data, "broken-body.chlsj")
+		}, want: "Imported “broken-body.chlsj”", short: true},
 		{name: "dialog-save-collection", setup: func(a *app) { a.openCollectionSave(a.flows) }, want: "Save 2 requests to collection"},
 		{name: "dialog-replay", setup: func(a *app) { a.openReplay(a.flows) }, want: "Replay 2 requests"},
 		{name: "dialog-replay-error", setup: func(a *app) { a.openReplay(a.flows); a.replayUI.timeout = "86401" }, want: "Enter 0–86400 seconds."},

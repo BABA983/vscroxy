@@ -3,11 +3,15 @@ package imports
 import (
 	"archive/zip"
 	"bytes"
+	"compress/gzip"
+	"encoding/base64"
 	"encoding/binary"
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -47,7 +51,7 @@ func TestReadCharlesJSONCapture(t *testing.T) {
 	if len(capture.Flows) != 4 {
 		t.Fatalf("%d flows: %+v", len(capture.Flows), capture.Flows)
 	}
-	if len(capture.Warnings) != 1 || !strings.Contains(capture.Warnings[0], "WebSocket message frames") {
+	if len(capture.Warnings) != 0 {
 		t.Fatalf("warnings = %q", capture.Warnings)
 	}
 	flow := capture.Flows[0]
@@ -91,10 +95,12 @@ func TestReadCharlesJSONCapture(t *testing.T) {
 		start time.Duration
 		dur   time.Duration
 	}{
-		{"Connection", 0, 5 * time.Millisecond},
-		{"Send", 5 * time.Millisecond, 5 * time.Millisecond},
-		{"Wait", 10 * time.Millisecond, 30 * time.Millisecond},
-		{"Receive", 40 * time.Millisecond, 5 * time.Millisecond},
+		{"DNS", 0, 1 * time.Millisecond},
+		{"Connect", 1 * time.Millisecond, 2 * time.Millisecond},
+		{"TLS", 3 * time.Millisecond, 1 * time.Millisecond},
+		{"Send", 4 * time.Millisecond, 5 * time.Millisecond},
+		{"Wait", 9 * time.Millisecond, 30 * time.Millisecond},
+		{"Receive", 39 * time.Millisecond, 5 * time.Millisecond},
 	} {
 		got := capturePhase(t, flow.Timing, want.name)
 		if got.Start != want.start || got.Duration != want.dur {
@@ -108,11 +114,14 @@ func TestReadCharlesJSONCapture(t *testing.T) {
 	}
 	websocket := capture.Flows[2]
 	if websocket.Kind != "ws" || websocket.Scheme != "wss" || websocket.URL != "wss://ws.example.com/socket" ||
-		websocket.Status != 101 || len(websocket.Frames) != 0 {
+		websocket.Status != 101 || len(websocket.Frames) != 3 || len(websocket.ResBody) != 0 {
 		t.Errorf("WebSocket = %+v", websocket)
 	}
+	if got := websocket.Frames[0]; got.Direction != "out" || got.Kind != "text" || string(got.Data) != "hello" {
+		t.Errorf("first frame = %+v", got)
+	}
 	failed := capture.Flows[3]
-	if failed.Status != 0 || !strings.Contains(failed.Error, "FAILED") {
+	if failed.Status != 0 || !strings.Contains(failed.Error, "SSLHandshakeException") {
 		t.Errorf("failure = %+v", failed)
 	}
 }
@@ -125,7 +134,7 @@ func TestReadCharlesXMLCapture(t *testing.T) {
 	if capture.Format != CaptureCharlesXML || len(capture.Flows) != 3 {
 		t.Fatalf("format %q, %d flows: %+v", capture.Format, len(capture.Flows), capture.Flows)
 	}
-	if len(capture.Warnings) != 1 || !strings.Contains(capture.Warnings[0], "WebSocket message frames") {
+	if len(capture.Warnings) != 0 {
 		t.Fatalf("warnings = %q", capture.Warnings)
 	}
 	flow := capture.Flows[0]
@@ -147,8 +156,8 @@ func TestReadCharlesXMLCapture(t *testing.T) {
 	if string(flow.ResBody) != `{"users":[]}` || flow.ResSize != 12 {
 		t.Errorf("response body = %q size %d", flow.ResBody, flow.ResSize)
 	}
-	if flow.TLS != "TLSv1.3" || flow.Cipher != "TLS_AES_128_GCM_SHA256" || flow.Remote != "203.0.113.8" {
-		t.Errorf("TLS/remote = %+v", flow)
+	if flow.TLS != "TLSv1.3" || flow.Cipher != "TLS_AES_128_GCM_SHA256" || flow.Remote != "203.0.113.8" || flow.Client != "198.51.100.6" {
+		t.Errorf("TLS/remote/client = %+v", flow)
 	}
 	if flow.Timing == nil || flow.Timing.Total != 45*time.Millisecond {
 		t.Fatalf("timing = %+v", flow.Timing)
@@ -158,7 +167,7 @@ func TestReadCharlesXMLCapture(t *testing.T) {
 		t.Errorf("upload = %+v body %x/%q", upload, upload.ReqBody, upload.ResBody)
 	}
 	websocket := capture.Flows[2]
-	if websocket.Kind != "ws" || websocket.Scheme != "wss" || websocket.URL != "wss://ws.example.com/socket" || websocket.Status != 101 {
+	if websocket.Kind != "ws" || websocket.Scheme != "wss" || websocket.URL != "wss://ws.example.com/socket" || websocket.Status != 101 || len(websocket.Frames) != 3 {
 		t.Errorf("WebSocket = %+v", websocket)
 	}
 }
@@ -307,10 +316,12 @@ func TestReadCaptureRejectsMalformedInput(t *testing.T) {
 	truncated := []byte(`[{"host":"api.example.com","method":"GET"`)
 	xmlBroken := []byte(`<charles-session><transaction status="COMPLETE">`)
 	for name, data := range map[string][]byte{
-		"empty":     nil,
-		"truncated": truncated,
-		"xml":       xmlBroken,
-		"random":    []byte("not a capture"),
+		"empty":         nil,
+		"truncated":     truncated,
+		"xml":           xmlBroken,
+		"trailing-json": []byte(`[{"status":"COMPLETE","method":"GET","scheme":"https","host":"example.com","path":"/","request":{"header":{"headers":[]}},"response":{"status":200,"header":{"headers":[]}}}] trailing`),
+		"trailing-xml":  []byte(`<charles-session><transaction status="COMPLETE" method="GET" protocol="https" host="example.com" path="/"><request headers="0" body="0"/><response status="200" headers="0" body="0"/></transaction></charles-session> trailing`),
+		"random":        []byte("not a capture"),
 	} {
 		t.Run(name, func(t *testing.T) {
 			if _, err := ReadCapture(data, name); err == nil {
@@ -474,5 +485,372 @@ func TestCaptureURLBracketsIPv6(t *testing.T) {
 	}
 	if got := captureURL("https", "2001:db8::1", 8443, "/x", ""); got != "https://[2001:db8::1]:8443/x" {
 		t.Errorf("non-default port = %q", got)
+	}
+}
+
+func captureAllocated(t *testing.T, run func()) uint64 {
+	t.Helper()
+	runtime.GC()
+	var before, after runtime.MemStats
+	runtime.ReadMemStats(&before)
+	run()
+	runtime.ReadMemStats(&after)
+	return after.TotalAlloc - before.TotalAlloc
+}
+
+func TestCharlesJSONStreamingBoundsAllocations(t *testing.T) {
+	var data strings.Builder
+	data.Grow(800 << 10)
+	data.WriteString("[")
+	for i := range 262_144 {
+		if i > 0 {
+			data.WriteString(",")
+		}
+		data.WriteString("{}")
+	}
+	data.WriteString("]")
+	input := []byte(data.String())
+	allocated := captureAllocated(t, func() {
+		if _, err := ReadCapture(input, "empty-objects.chlsj"); err != nil {
+			t.Fatalf("ReadCapture: %v", err)
+		}
+	})
+	if allocated > 128<<20 {
+		t.Fatalf("empty JSON transactions allocated %d MiB; want under 128 MiB", allocated>>20)
+	}
+}
+
+func TestCharlesXMLStreamingBoundsAllocations(t *testing.T) {
+	var data strings.Builder
+	data.WriteString("<charles-session>")
+	for range 131_072 {
+		data.WriteString("<transaction/>")
+	}
+	data.WriteString("</charles-session>")
+	input := []byte(data.String())
+	allocated := captureAllocated(t, func() {
+		if _, err := ReadCapture(input, "empty-transactions.chlsx"); err != nil {
+			t.Fatalf("ReadCapture: %v", err)
+		}
+	})
+	if allocated > 128<<20 {
+		t.Fatalf("empty XML transactions allocated %d MiB; want under 128 MiB", allocated>>20)
+	}
+}
+
+func TestCharlesJSONHeaderListIsBounded(t *testing.T) {
+	var headers strings.Builder
+	for i := range 1_000_000 {
+		if i > 0 {
+			headers.WriteString(",")
+		}
+		headers.WriteString("{}")
+	}
+	data := []byte(`[{"status":"COMPLETE","method":"GET","scheme":"https","host":"example.com","path":"/","request":{"header":{"headers":[` + headers.String() + `]}},"response":{"status":200,"header":{"headers":[]}}}]`)
+	allocated := captureAllocated(t, func() {
+		capture, err := ReadCapture(data, "headers.chlsj")
+		if err != nil {
+			t.Fatalf("ReadCapture: %v", err)
+		}
+		if len(capture.Flows) != 1 || len(capture.Flows[0].ReqHeader) != 0 {
+			t.Fatalf("flow = %+v", capture.Flows)
+		}
+		if len(capture.Warnings) == 0 || !strings.Contains(strings.Join(capture.Warnings, ";"), "headers beyond") {
+			t.Fatalf("warnings = %q", capture.Warnings)
+		}
+	})
+	if allocated > 128<<20 {
+		t.Fatalf("million headers allocated %d MiB; want under 128 MiB", allocated>>20)
+	}
+}
+
+func TestProxymanWebSocketMessagesAreBounded(t *testing.T) {
+	var messages strings.Builder
+	for i := range 1_000_000 {
+		if i > 0 {
+			messages.WriteString(",")
+		}
+		messages.WriteString("{}")
+	}
+	entry := []byte(`{"request":{"scheme":"https","host":"example.com","uri":"/ws","isWebSocketUpgrade":true,"method":{"name":"GET"}},"response":{"status":{"code":101}},"websocketMessageStorage":{"messages":[` + messages.String() + `]}}`)
+	archive := proxymanArchive(t, map[string][]byte{"request_0_1": entry})
+	allocated := captureAllocated(t, func() {
+		capture, err := ReadCapture(archive, "messages.proxymanlogv2")
+		if err != nil {
+			t.Fatalf("ReadCapture: %v", err)
+		}
+		if len(capture.Flows) != 1 || len(capture.Flows[0].Frames) != maxCaptureMessages {
+			t.Fatalf("frames = %d", len(capture.Flows[0].Frames))
+		}
+		if len(capture.Warnings) == 0 || !strings.Contains(strings.Join(capture.Warnings, ";"), "WebSocket messages beyond") {
+			t.Fatalf("warnings = %q", capture.Warnings)
+		}
+	})
+	if allocated > 128<<20 {
+		t.Fatalf("million messages allocated %d MiB; want under 128 MiB", allocated>>20)
+	}
+}
+
+func TestCharlesExceptionAndConnectTunnel(t *testing.T) {
+	data := []byte(`[
+{"status":"EXCEPTION","method":"CONNECT","protocolVersion":"HTTP/1.1","scheme":"https","host":"httpbin.org","actualPort":443,"path":null,"tunnel":false,"webSocket":false,"exception":"SSLHandshakeException: Remote host closed connection during handshake","request":{"header":{"headers":[]}},"response":{"header":{"headers":[]}}},
+{"status":"COMPLETE","method":"GET","protocolVersion":"HTTP/1.1","scheme":"https","host":"api.example.com","actualPort":443,"path":"/x","tunnel":false,"exception":"Client closed connection before receiving entire response","request":{"header":{"headers":[]}},"response":{"status":200,"header":{"headers":[]}}}
+]`)
+	capture, err := ReadCapture(data, "connect.chlsj")
+	if err != nil {
+		t.Fatal(err)
+	}
+	connect := capture.Flows[0]
+	if connect.Kind != "connect" || connect.Method != "CONNECT" || connect.URL != "https://httpbin.org:443" || connect.Path != "" {
+		t.Errorf("CONNECT = %+v", connect)
+	}
+	if !strings.Contains(connect.Error, "SSLHandshakeException") || strings.Contains(connect.Error, "Charles reported") {
+		t.Errorf("CONNECT error = %q", connect.Error)
+	}
+	if got := capture.Flows[1].Error; got != "Client closed connection before receiving entire response" {
+		t.Errorf("COMPLETE with exception error = %q", got)
+	}
+}
+
+func TestCharlesStatusFallsBackToPseudoHeaderAndFirstLine(t *testing.T) {
+	data := []byte(`[
+{"status":"COMPLETE","method":"GET","scheme":"https","host":"firstline.example","path":"/","request":{"header":{"headers":[]}},"response":{"header":{"firstLine":"HTTP/1.1 200 OK","headers":[]}}},
+{"status":"COMPLETE","method":"GET","scheme":"https","host":"pseudo.example","path":"/","request":{"header":{"headers":[]}},"response":{"header":{"headers":[{"name":":status","value":"204"}]}}}
+]`)
+	capture, err := ReadCapture(data, "status.chlsj")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if capture.Flows[0].Status != 200 || capture.Flows[1].Status != 204 {
+		t.Fatalf("statuses = %d, %d", capture.Flows[0].Status, capture.Flows[1].Status)
+	}
+}
+
+func TestCharlesTimingSkipsIdleGapAndUsesSetupDurations(t *testing.T) {
+	data := []byte(`[{"status":"COMPLETE","method":"GET","scheme":"https","host":"api.example.com","path":"/","times":{"start":"2026-10-01T10:00:00.000Z","requestBegin":"2026-10-01T10:00:00.908Z","requestComplete":"2026-10-01T10:00:00.908Z","responseBegin":"2026-10-01T10:00:00.945Z","end":"2026-10-01T10:00:00.947Z"},"durations":{"total":69,"dns":3,"connect":6,"ssl":21,"request":0,"latency":37,"response":2},"request":{"header":{"headers":[]}},"response":{"status":200,"header":{"headers":[]}}}]`)
+	capture, err := ReadCapture(data, "timing.chlsj")
+	if err != nil {
+		t.Fatal(err)
+	}
+	timing := capture.Flows[0].Timing
+	if timing == nil || timing.Total != 69*time.Millisecond {
+		t.Fatalf("timing = %+v", timing)
+	}
+	for _, want := range []struct {
+		name  string
+		start time.Duration
+		dur   time.Duration
+	}{
+		{"DNS", 0, 3 * time.Millisecond},
+		{"Connect", 3 * time.Millisecond, 6 * time.Millisecond},
+		{"TLS", 9 * time.Millisecond, 21 * time.Millisecond},
+		{"Send", 30 * time.Millisecond, 0},
+		{"Wait", 30 * time.Millisecond, 37 * time.Millisecond},
+		{"Receive", 67 * time.Millisecond, 2 * time.Millisecond},
+	} {
+		got := capturePhase(t, timing, want.name)
+		if got.Start != want.start || got.Duration != want.dur {
+			t.Errorf("%s = %v/%v, want %v/%v", want.name, got.Start, got.Duration, want.start, want.dur)
+		}
+	}
+	if _, ok := func() (CaptureTimingPhase, bool) {
+		for _, phase := range timing.Phases {
+			if phase.Name == "Connection" {
+				return phase, true
+			}
+		}
+		return CaptureTimingPhase{}, false
+	}(); ok {
+		t.Error("idle start-to-requestBegin gap was imported as a phase")
+	}
+}
+
+func TestCharlesCompressedEncodedBodyIsDecoded(t *testing.T) {
+	plain := []byte(`{"ok":true}`)
+	var compressed bytes.Buffer
+	writer := gzip.NewWriter(&compressed)
+	if _, err := writer.Write(plain); err != nil {
+		t.Fatal(err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	encoded := base64.StdEncoding.EncodeToString(compressed.Bytes())
+	data := []byte(`[{"status":"COMPLETE","method":"GET","scheme":"https","host":"api.example.com","path":"/","request":{"header":{"headers":[]}},"response":{"status":200,"contentEncoding":"gzip","header":{"headers":[]},"body":{"encoded":"` + encoded + `","size":` + strconv.Itoa(compressed.Len()) + `,"decoded":false}}}]`)
+	capture, err := ReadCapture(data, "gzip.chlsj")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(capture.Flows[0].ResBody, plain) {
+		t.Errorf("body = %x, want %s", capture.Flows[0].ResBody, plain)
+	}
+	if capture.Flows[0].ResHeader.Get("Content-Encoding") != "gzip" {
+		t.Errorf("header = %q", capture.Flows[0].ResHeader.Get("Content-Encoding"))
+	}
+
+	invalid := base64.StdEncoding.EncodeToString([]byte("not gzip"))
+	data = []byte(`[{"status":"COMPLETE","method":"GET","scheme":"https","host":"api.example.com","path":"/","request":{"header":{"headers":[]}},"response":{"status":200,"contentEncoding":"gzip","header":{"headers":[]},"body":{"encoded":"` + invalid + `","size":8}}}]`)
+	capture, err = ReadCapture(data, "bad-gzip.chlsj")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(capture.Flows[0].ResBody) != "not gzip" {
+		t.Errorf("bad gzip body = %q", capture.Flows[0].ResBody)
+	}
+	if len(capture.Warnings) == 0 || !strings.Contains(strings.Join(capture.Warnings, ";"), "could not be decompressed") {
+		t.Errorf("warnings = %q", capture.Warnings)
+	}
+}
+
+func TestCharlesXMLCompressedBodyAndStatusFallback(t *testing.T) {
+	plain := []byte("hello")
+	var compressed bytes.Buffer
+	writer := gzip.NewWriter(&compressed)
+	if _, err := writer.Write(plain); err != nil {
+		t.Fatal(err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	encoded := base64.StdEncoding.EncodeToString(compressed.Bytes())
+	data := []byte(`<charles-session><transaction status="COMPLETE" method="GET" protocol="https" host="api.example.com" actualPort="443" path="/" requestBeginTimeMillis="1000" responseTimeMillis="1001" endTimeMillis="1002"><request headers="0" body="0"><headers><first-line>GET / HTTP/1.1</first-line></headers></request><response headers="0" body="5" contentEncoding="gzip"><headers><first-line>HTTP/1.1 200 OK</first-line></headers><body encoding="base64">` + encoded + `</body></response></transaction></charles-session>`)
+	capture, err := ReadCapture(data, "gzip.chlsx")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if capture.Flows[0].Status != 200 || !bytes.Equal(capture.Flows[0].ResBody, plain) {
+		t.Fatalf("flow = %+v body %q", capture.Flows[0], capture.Flows[0].ResBody)
+	}
+}
+
+func TestReadProxymanDirDoesNotRecurseDeeperThanOneFolder(t *testing.T) {
+	root := t.TempDir()
+	deep := filepath.Join(root, "a", "b", "c", "d")
+	if err := os.MkdirAll(deep, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(deep, "request_0_1"), captureFixture(t, "proxyman-request_0_1001.json"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ReadProxymanDir(root); err == nil {
+		t.Fatal("a request more than one folder down was imported")
+	}
+}
+
+func TestWebSocketFramesReassembleFragmentsAndRejectTruncation(t *testing.T) {
+	frames, truncated := parseWebSocketFrames([]byte{0x01, 0x03, 'o', 'n', 'e', 0x80, 0x03, 't', 'w', 'o'}, "in")
+	if truncated || len(frames) != 1 || frames[0].Kind != "text" || string(frames[0].Data) != "onetwo" {
+		t.Fatalf("fragmented frames = %+v truncated %v", frames, truncated)
+	}
+	if _, truncated := parseWebSocketFrames([]byte{0x81, 0x05, 'a'}, "in"); !truncated {
+		t.Fatal("truncated frame was accepted")
+	}
+}
+
+func TestCaptureTimingTotalCoversOverlappingPhases(t *testing.T) {
+	start := time.Unix(1760000000, 0)
+	requestEnd := start.Add(100 * time.Millisecond)
+	responseStart := start.Add(60 * time.Millisecond)
+	end := start.Add(80 * time.Millisecond)
+	timing := proxymanTimingOf(start, requestEnd, responseStart, end, 60*time.Millisecond)
+	if timing == nil || timing.Total != 100*time.Millisecond {
+		t.Fatalf("timing = %+v", timing)
+	}
+	for _, phase := range timing.Phases {
+		if phase.Start+phase.Duration > timing.Total {
+			t.Fatalf("phase %s ends at %v beyond total %v", phase.Name, phase.Start+phase.Duration, timing.Total)
+		}
+	}
+}
+
+func TestCharlesXMLExceptionAndConnectTunnel(t *testing.T) {
+	data := []byte(`<charles-session><transaction status="EXCEPTION" exception="SSLHandshakeException: Remote host closed connection during handshake" method="CONNECT" protocol="" host="httpbin.org" actualPort="443" path=""><request headers="0" body="0"><headers><first-line>CONNECT httpbin.org:443 HTTP/1.1</first-line></headers></request><response headers="0" body="0"><headers/></response></transaction></charles-session>`)
+	capture, err := ReadCapture(data, "connect.chlsx")
+	if err != nil {
+		t.Fatal(err)
+	}
+	flow := capture.Flows[0]
+	if flow.Kind != "connect" || flow.Method != "CONNECT" || flow.URL != "https://httpbin.org:443" || flow.Path != "" {
+		t.Errorf("CONNECT = %+v", flow)
+	}
+	if !strings.Contains(flow.Error, "SSLHandshakeException") {
+		t.Errorf("error = %q", flow.Error)
+	}
+}
+
+func TestCharlesXMLHeaderListIsBounded(t *testing.T) {
+	var headers strings.Builder
+	for i := range 5000 {
+		headers.WriteString("<header><name>X-")
+		headers.WriteString(strconv.Itoa(i))
+		headers.WriteString("</name><value>v</value></header>")
+	}
+	data := []byte(`<charles-session><transaction status="COMPLETE" method="GET" protocol="https" host="example.com" path="/"><request headers="0" body="0"><headers>` + headers.String() + `</headers></request><response status="200" headers="0" body="0"><headers/></response></transaction></charles-session>`)
+	capture, err := ReadCapture(data, "headers.chlsx")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(capture.Flows[0].ReqHeader) != maxCaptureHeaders {
+		t.Fatalf("%d headers", len(capture.Flows[0].ReqHeader))
+	}
+	if len(capture.Warnings) == 0 || !strings.Contains(strings.Join(capture.Warnings, ";"), "headers beyond") {
+		t.Fatalf("warnings = %q", capture.Warnings)
+	}
+}
+
+func TestProxymanHeaderListIsBounded(t *testing.T) {
+	var headers strings.Builder
+	for i := range 5000 {
+		if i > 0 {
+			headers.WriteString(",")
+		}
+		headers.WriteString(`{"isEnabled":true,"key":{"name":"X-`)
+		headers.WriteString(strconv.Itoa(i))
+		headers.WriteString(`"},"value":"v"}`)
+	}
+	entry := []byte(`{"request":{"scheme":"https","host":"example.com","uri":"/","method":{"name":"GET"},"header":{"entries":[` + headers.String() + `]}},"response":{"status":{"code":200},"header":{"entries":[]}}}`)
+	archive := proxymanArchive(t, map[string][]byte{"request_0_1": entry})
+	capture, err := ReadCapture(archive, "headers.proxymanlogv2")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(capture.Flows[0].ReqHeader) != maxCaptureHeaders {
+		t.Fatalf("%d headers", len(capture.Flows[0].ReqHeader))
+	}
+	if len(capture.Warnings) == 0 || !strings.Contains(strings.Join(capture.Warnings, ";"), "headers beyond") {
+		t.Fatalf("warnings = %q", capture.Warnings)
+	}
+}
+
+func TestProxymanZipEntryListIsBounded(t *testing.T) {
+	files := make(map[string][]byte, maxCaptureEntries+5)
+	for i := range maxCaptureEntries + 5 {
+		files["request_"+strconv.Itoa(i)+"_1"] = []byte(`{"request":{"scheme":"https","host":"example.com","uri":"/","method":{"name":"GET"}},"response":{"status":{"code":200}}}`)
+	}
+	capture, err := ReadCapture(proxymanArchive(t, files), "many.proxymanlogv2")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(capture.Flows) != maxCaptureEntries {
+		t.Fatalf("%d flows", len(capture.Flows))
+	}
+	if len(capture.Warnings) == 0 || !strings.Contains(strings.Join(capture.Warnings, ";"), "5 entries beyond") {
+		t.Fatalf("warnings = %q", capture.Warnings)
+	}
+}
+
+func TestProxymanOutOfOrderTimingRaisesTotal(t *testing.T) {
+	start, requestEnd, responseStart, end := 1760000000.0, 1760000000.1, 1760000000.06, 1760000000.08
+	entry := proxymanEntry{
+		Request:  &proxymanRequest{Scheme: "https", Host: "api.example.com", URI: "/", Method: proxymanMethod{Name: "POST"}},
+		Response: &proxymanResponse{Status: &proxymanStatus{Code: 413}},
+		Timing:   proxymanTiming{RequestStartedAt: &start, RequestEndedAt: &requestEnd, ResponseStartedAt: &responseStart, ResponseEndedAt: &end},
+	}
+	flow, err := entry.toCapture(&captureWarnings{}, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if flow.Timing == nil || flow.Timing.Total != 100*time.Millisecond {
+		t.Fatalf("timing = %+v", flow.Timing)
 	}
 }

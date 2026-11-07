@@ -2,10 +2,12 @@ package imports
 
 import (
 	"bytes"
+	"encoding/json/jsontext"
 	"encoding/json/v2"
 	"encoding/xml"
 	"errors"
 	"fmt"
+	"io"
 	"math"
 	"net/http"
 	"strconv"
@@ -37,7 +39,7 @@ type charlesJSONTransaction struct {
 	TotalSize       flexInt           `json:"totalSize"`
 	SSL             *charlesJSONSSL   `json:"ssl"`
 	ALPN            *charlesJSONALPN  `json:"alpn"`
-	ErrorMessage    string            `json:"errorMessage"`
+	Exception       string            `json:"exception"`
 	Note            string            `json:"notes"`
 	Request         *charlesJSONEntry `json:"request"`
 	Response        *charlesJSONEntry `json:"response"`
@@ -86,8 +88,46 @@ type charlesJSONSizes struct {
 }
 
 type charlesJSONHeaders struct {
-	FirstLine string             `json:"firstLine"`
-	Headers   []charlesNameValue `json:"headers"`
+	FirstLine string               `json:"firstLine"`
+	Headers   charlesNameValueList `json:"headers"`
+}
+
+// charlesNameValueList caps the header array while it is decoded. A hostile
+// export can contain a million empty headers; the extras are skipped instead
+// of materialized, and the count reaches the import report.
+type charlesNameValueList struct {
+	Values  []charlesNameValue
+	Omitted int
+}
+
+func (l *charlesNameValueList) UnmarshalJSON(data []byte) error {
+	decoder := jsontext.NewDecoder(bytes.NewReader(data))
+	token, err := decoder.ReadToken()
+	if err != nil {
+		return err
+	}
+	if token.Kind() != '[' {
+		return errors.New("header list is not an array")
+	}
+	for decoder.PeekKind() != ']' {
+		if decoder.PeekKind() == 0 {
+			return io.ErrUnexpectedEOF
+		}
+		if len(l.Values) >= maxCaptureHeaders {
+			if err := decoder.SkipValue(); err != nil {
+				return err
+			}
+			l.Omitted++
+			continue
+		}
+		var header charlesNameValue
+		if err := json.UnmarshalDecode(decoder, &header); err != nil {
+			return err
+		}
+		l.Values = append(l.Values, header)
+	}
+	_, err = decoder.ReadToken()
+	return err
 }
 
 type charlesJSONBody struct {
@@ -152,31 +192,55 @@ func flexNumber(data []byte) (float64, error) {
 }
 
 func readCharlesJSON(data []byte, name string) (Capture, error) {
-	var transactions []charlesJSONTransaction
-	if err := json.Unmarshal(data, &transactions); err != nil {
+	decoder := jsontext.NewDecoder(bytes.NewReader(data))
+	token, err := decoder.ReadToken()
+	if err != nil {
 		return Capture{}, fmt.Errorf("%s: malformed Charles JSON session", name)
 	}
-	if len(transactions) == 0 {
-		return Capture{}, fmt.Errorf("%s: the session has no transactions", name)
+	if token.Kind() != '[' {
+		return Capture{}, fmt.Errorf("%s: not a Charles JSON session", name)
 	}
 	capture := Capture{Format: CaptureCharlesJSON}
 	var warnings captureWarnings
-	if len(transactions) > maxCaptureEntries {
-		warnings.add("%d transactions beyond the first %d were not imported", len(transactions)-maxCaptureEntries, maxCaptureEntries)
-		transactions = transactions[:maxCaptureEntries]
-	}
-	websocket := false
-	for i, transaction := range transactions {
-		flow, err := transaction.toCapture(&warnings, i)
-		if err != nil {
-			warnings.add("transaction %d skipped: %v", i+1, err)
+	read, skipped := 0, 0
+	for {
+		kind := decoder.PeekKind()
+		if kind == ']' {
+			if _, err := decoder.ReadToken(); err != nil {
+				return Capture{}, fmt.Errorf("%s: malformed Charles JSON session", name)
+			}
+			break
+		}
+		if kind == 0 {
+			return Capture{}, fmt.Errorf("%s: malformed Charles JSON session", name)
+		}
+		if read >= maxCaptureEntries {
+			if err := decoder.SkipValue(); err != nil {
+				return Capture{}, fmt.Errorf("%s: malformed Charles JSON session", name)
+			}
+			skipped++
 			continue
 		}
-		websocket = websocket || flow.Kind == "ws"
+		var transaction charlesJSONTransaction
+		if err := json.UnmarshalDecode(decoder, &transaction); err != nil {
+			return Capture{}, fmt.Errorf("%s: malformed Charles JSON session", name)
+		}
+		flow, err := transaction.toCapture(&warnings, read)
+		read++
+		if err != nil {
+			warnings.add("transaction %d skipped: %v", read, err)
+			continue
+		}
 		capture.Flows = append(capture.Flows, flow)
 	}
-	if websocket {
-		warnings.add("WebSocket message frames are not part of Charles JSON exports; only the upgrade exchange was imported")
+	if _, err := decoder.ReadToken(); err != io.EOF {
+		return Capture{}, fmt.Errorf("%s: malformed Charles JSON session", name)
+	}
+	if skipped > 0 {
+		warnings.add("%d transactions beyond the first %d were not imported", skipped, maxCaptureEntries)
+	}
+	if read == 0 {
+		return Capture{}, fmt.Errorf("%s: the session has no transactions", name)
 	}
 	capture.Warnings = warnings.finish()
 	if len(capture.Flows) == 0 && len(capture.Warnings) == 0 {
@@ -193,27 +257,33 @@ func (t charlesJSONTransaction) toCapture(warnings *captureWarnings, index int) 
 	scheme := strings.ToLower(strings.TrimSpace(t.Scheme))
 	if scheme == "" {
 		scheme = "http"
+		if method == http.MethodConnect || t.Tunnel {
+			scheme = "https"
+		}
 	}
 	host := strings.TrimSpace(t.Host)
 	if host == "" {
 		return CaptureFlow{}, errors.New("no host")
 	}
-	path := t.Path
-	if path == "" {
-		path = "/"
-	}
 	port := int(t.ActualPort)
 	if port <= 0 {
 		port = int(t.Port)
 	}
-	kind := ""
-	if t.Tunnel {
-		kind = "connect"
-		if method == "" || method == http.MethodGet {
-			method = http.MethodConnect
-		}
+	path := t.Path
+	if path == "" {
+		path = "/"
 	}
-	if t.WebSocket {
+	kind := ""
+	connect := method == http.MethodConnect || t.Tunnel
+	if connect {
+		// A failed CONNECT can have tunnel=false and no path; the method still
+		// names the tunnel. A tunnel URL is the authority only.
+		method = http.MethodConnect
+		kind = "connect"
+		if scheme != "http" && scheme != "https" {
+			scheme = "https"
+		}
+	} else if t.WebSocket {
 		kind = "ws"
 		if scheme == "https" {
 			scheme = "wss"
@@ -228,7 +298,9 @@ func (t charlesJSONTransaction) toCapture(warnings *captureWarnings, index int) 
 	responseBegin := parseCharlesTime(t.Times.ResponseBegin)
 	end := parseCharlesTime(t.Times.End)
 	total := captureDurationMs(float64(t.Durations.Total))
-	if total <= 0 && !start.IsZero() && !end.IsZero() && end.After(start) {
+	if total <= 0 && !requestBegin.IsZero() && !end.IsZero() && end.After(requestBegin) {
+		total = end.Sub(requestBegin)
+	} else if total <= 0 && !start.IsZero() && !end.IsZero() && end.After(start) {
 		total = end.Sub(start)
 	}
 	wait := captureDurationMs(float64(t.Durations.Latency))
@@ -240,21 +312,19 @@ func (t charlesJSONTransaction) toCapture(warnings *captureWarnings, index int) 
 		download = end.Sub(responseBegin)
 	}
 
-	reqHeader := charlesHeaders(t.Request)
-	resHeader := charlesHeaders(t.Response)
+	reqHeader, reqOmitted := charlesHeaders(t.Request)
+	resHeader, resOmitted := charlesHeaders(t.Response)
+	if reqOmitted > 0 {
+		warnings.add("transaction %d: %d request headers beyond the first %d were not imported", index+1, reqOmitted, maxCaptureHeaders)
+	}
+	if resOmitted > 0 {
+		warnings.add("transaction %d: %d response headers beyond the first %d were not imported", index+1, resOmitted, maxCaptureHeaders)
+	}
 	reqBody, reqSize := charlesBody(t.Request, "request", warnings, index)
 	resBody, resSize := charlesBody(t.Response, "response", warnings, index)
-	status := 0
-	if t.Response != nil {
-		status = int(t.Response.Status)
-	}
-	failure := ""
-	if status <= 0 && charlesFailedStatus(t.Status) {
-		failure = "Charles reported " + strings.TrimSpace(t.Status)
-	}
-	if failure == "" {
-		failure = strings.TrimSpace(t.ErrorMessage)
-	}
+	bodyBytes := len(reqBody) + len(resBody)
+	status := charlesJSONStatus(t.Response)
+	failure := charlesFailure(t.Status, t.Exception)
 	proto := strings.TrimSpace(t.ProtocolVersion)
 	if proto == "" && t.ALPN != nil {
 		switch strings.ToLower(strings.TrimSpace(t.ALPN.Protocol)) {
@@ -266,19 +336,28 @@ func (t charlesJSONTransaction) toCapture(warnings *captureWarnings, index int) 
 	}
 	totalBytes := int(t.TotalSize)
 	if totalBytes <= 0 {
-		totalBytes = len(reqBody) + len(resBody)
+		totalBytes = bodyBytes
+	}
+	url := captureURL(scheme, host, port, path, t.Query)
+	if connect {
+		url = captureConnectURL(scheme, host, port)
+		path = ""
+		reqBody, resBody, reqSize, resSize = nil, nil, 0, 0
 	}
 	flow := CaptureFlow{
-		Method: method, Scheme: scheme, Host: host, Path: path,
-		URL:    captureURL(scheme, host, port, path, t.Query),
+		Method: method, Scheme: scheme, Host: host, Path: path, URL: url,
 		Status: status,
 		At:     start, Millis: captureMillis(total), Wait: captureMillis(wait), Download: captureMillis(download),
-		Timing:    charlesJSONTiming(start, requestBegin, requestComplete, responseBegin, end, total),
+		Timing:    charlesJSONTiming(start, requestBegin, requestComplete, responseBegin, end, t.Durations, total),
 		ReqHeader: reqHeader, ResHeader: resHeader,
 		ReqBody: reqBody, ResBody: resBody, ReqSize: reqSize, ResSize: resSize, Bytes: totalBytes,
 		ReqProto: proto, ResProto: proto,
-		Remote: remoteIP(t.RemoteAddress), Client: strings.TrimPrefix(strings.TrimSpace(t.ClientAddress), "/"),
+		Remote: remoteIP(t.RemoteAddress), Client: remoteIP(t.ClientAddress),
 		Kind: kind, Error: failure, Note: strings.TrimSpace(t.Note),
+	}
+	if kind == "ws" {
+		flow.Frames, _ = charlesWebSocketFrames(reqBody, resBody, charlesJSONBodyEncoded(t.Request), charlesJSONBodyEncoded(t.Response), warnings, index)
+		flow.ReqBody, flow.ResBody, flow.ReqSize, flow.ResSize = nil, nil, 0, 0
 	}
 	if t.SSL != nil {
 		flow.TLS = strings.TrimSpace(t.SSL.Protocol)
@@ -287,12 +366,58 @@ func (t charlesJSONTransaction) toCapture(warnings *captureWarnings, index int) 
 	return flow, nil
 }
 
-func charlesHeaders(entry *charlesJSONEntry) http.Header {
-	if entry == nil {
-		return nil
+func charlesJSONStatus(response *charlesJSONEntry) int {
+	if response == nil {
+		return 0
 	}
-	pairs := make([][2]string, 0, len(entry.Header.Headers))
-	for _, header := range entry.Header.Headers {
+	if response.Status > 0 {
+		return int(response.Status)
+	}
+	for _, header := range response.Header.Headers.Values {
+		if strings.EqualFold(header.Name, ":status") {
+			if status := parseHTTPStatus(header.Value); status > 0 {
+				return status
+			}
+		}
+	}
+	return statusFromFirstLine(response.Header.FirstLine)
+}
+
+// charlesFailure prefers the exception Charles recorded. A COMPLETE status can
+// still carry one when the peer closed early.
+func charlesFailure(status, exception string) string {
+	if exception := strings.TrimSpace(exception); exception != "" {
+		return exception
+	}
+	if charlesFailedStatus(status) {
+		return "Charles reported " + strings.TrimSpace(status)
+	}
+	return ""
+}
+
+func parseHTTPStatus(value string) int {
+	status, err := strconv.Atoi(strings.TrimSpace(value))
+	if err != nil || status < 100 || status > 999 {
+		return 0
+	}
+	return status
+}
+
+func statusFromFirstLine(line string) int {
+	fields := strings.Fields(line)
+	if len(fields) < 2 || !strings.HasPrefix(strings.ToUpper(fields[0]), "HTTP/") {
+		return 0
+	}
+	return parseHTTPStatus(fields[1])
+}
+
+func charlesHeaders(entry *charlesJSONEntry) (http.Header, int) {
+	if entry == nil {
+		return nil, 0
+	}
+	headers := entry.Header.Headers.Values
+	pairs := make([][2]string, 0, len(headers))
+	for _, header := range headers {
 		pairs = append(pairs, [2]string{header.Name, header.Value})
 	}
 	h := captureHeader(pairs)
@@ -302,7 +427,7 @@ func charlesHeaders(entry *charlesJSONEntry) http.Header {
 	if mime := strings.TrimSpace(entry.MimeType); mime != "" && h.Get("Content-Type") == "" {
 		h.Set("Content-Type", mime)
 	}
-	return h
+	return h, entry.Header.Headers.Omitted
 }
 
 func charlesBody(entry *charlesJSONEntry, side string, warnings *captureWarnings, index int) ([]byte, int) {
@@ -326,6 +451,13 @@ func charlesBody(entry *charlesJSONEntry, side string, warnings *captureWarnings
 			warnings.add("transaction %d: %s body is larger than %d MiB and was not imported", index+1, side, maxCaptureBody>>20)
 			return nil, int(entry.Body.Size)
 		}
+		if !entry.Body.Decoded {
+			if decoded, err := decodeCaptureBody(data, charlesContentEncoding(entry)); err != nil {
+				warnings.add("transaction %d: %s body is marked %s but could not be decompressed; original bytes kept", index+1, side, charlesContentEncoding(entry))
+			} else {
+				data = decoded
+			}
+		}
 		return data, captureBodySize(int(entry.Body.Size), data)
 	}
 	if entry.Body.Text != "" {
@@ -339,17 +471,100 @@ func charlesBody(entry *charlesJSONEntry, side string, warnings *captureWarnings
 	return nil, int(entry.Body.Size)
 }
 
-func charlesJSONTiming(start, requestBegin, requestComplete, responseBegin, end time.Time, total time.Duration) *CaptureTiming {
-	if start.IsZero() {
+func charlesContentEncoding(entry *charlesJSONEntry) string {
+	if entry == nil {
+		return ""
+	}
+	if encoding := strings.TrimSpace(entry.ContentEncoding); encoding != "" {
+		return encoding
+	}
+	for _, header := range entry.Header.Headers.Values {
+		if strings.EqualFold(header.Name, "Content-Encoding") {
+			return strings.TrimSpace(header.Value)
+		}
+	}
+	return ""
+}
+
+func charlesJSONBodyEncoded(entry *charlesJSONEntry) bool {
+	return entry != nil && entry.Body != nil && strings.TrimSpace(entry.Body.Encoded) != ""
+}
+
+func charlesXMLBodyEncoded(entry *charlesXMLEntry) bool {
+	return entry != nil && entry.Body != nil && strings.EqualFold(strings.TrimSpace(entry.Body.Encoding), "base64")
+}
+
+// charlesWebSocketFrames reads the raw frame stream Charles stores in the
+// encoded request and response bodies of a webSocket transaction. The frame
+// bytes are not an HTTP body and must not be shown as one.
+func charlesWebSocketFrames(requestBody, responseBody []byte, requestEncoded, responseEncoded bool, warnings *captureWarnings, index int) ([]CaptureFrame, bool) {
+	var frames []CaptureFrame
+	truncated := false
+	for _, side := range []struct {
+		name      string
+		data      []byte
+		encoded   bool
+		direction string
+	}{
+		{name: "request", data: requestBody, encoded: requestEncoded, direction: "out"},
+		{name: "response", data: responseBody, encoded: responseEncoded, direction: "in"},
+	} {
+		if !side.encoded {
+			continue
+		}
+		parsed, cut := parseWebSocketFrames(side.data, side.direction)
+		for _, frame := range parsed {
+			if len(frames) >= maxCaptureMessages {
+				cut = true
+				break
+			}
+			frames = append(frames, frame)
+		}
+		truncated = truncated || cut
+	}
+	if len(frames) == 0 {
+		warnings.add("transaction %d: WebSocket upgrade has no retained frames", index+1)
+	}
+	if truncated {
+		warnings.add("transaction %d: WebSocket frames were truncated or malformed; the rest were not imported", index+1)
+	}
+	return frames, truncated
+}
+
+func charlesJSONTiming(start, requestBegin, requestComplete, responseBegin, end time.Time, durations charlesDurations, total time.Duration) *CaptureTiming {
+	origin := requestBegin
+	if origin.IsZero() {
+		origin = start
+	}
+	if origin.IsZero() {
 		return nil
 	}
-	marks := []captureMark{
-		{name: "Connection", from: start, to: requestBegin},
-		{name: "Send", from: requestBegin, to: requestComplete},
-		{name: "Wait", from: requestComplete, to: responseBegin},
-		{name: "Receive", from: responseBegin, to: end},
+	dns := captureDurationMs(float64(durations.DNS))
+	connect := captureDurationMs(float64(durations.Connect))
+	tls := captureDurationMs(float64(durations.SSL))
+	origin = origin.Add(-(dns + connect + tls))
+	marks := make([]captureMark, 0, 7)
+	if dns > 0 {
+		marks = append(marks, captureMark{name: "DNS", from: origin, to: origin.Add(dns)})
 	}
-	return captureTiming(start, marks, total)
+	if connect > 0 {
+		from := origin.Add(dns)
+		marks = append(marks, captureMark{name: "Connect", from: from, to: from.Add(connect)})
+	}
+	if tls > 0 {
+		from := origin.Add(dns + connect)
+		to := requestBegin
+		if to.IsZero() || to.Before(from) {
+			to = from.Add(tls)
+		}
+		marks = append(marks, captureMark{name: "TLS", from: from, to: to})
+	}
+	marks = append(marks,
+		captureMark{name: "Send", from: requestBegin, to: requestComplete},
+		captureMark{name: "Wait", from: requestComplete, to: responseBegin},
+		captureMark{name: "Receive", from: responseBegin, to: end},
+	)
+	return captureTiming(origin, marks, total)
 }
 
 func parseCharlesTime(value string) time.Time {
@@ -381,14 +596,9 @@ func charlesFailedStatus(status string) bool {
 		strings.Contains(status, "TIMEOUT")
 }
 
-// charlesXMLSession is the root of Charles' XML session export (.chlsx).
-type charlesXMLSession struct {
-	XMLName      xml.Name                `xml:"charles-session"`
-	Transactions []charlesXMLTransaction `xml:"transaction"`
-}
-
 type charlesXMLTransaction struct {
 	Status           string           `xml:"status,attr"`
+	Exception        string           `xml:"exception,attr"`
 	Method           string           `xml:"method,attr"`
 	ProtocolVersion  string           `xml:"protocolVersion,attr"`
 	Protocol         string           `xml:"protocol,attr"`
@@ -412,6 +622,9 @@ type charlesXMLTransaction struct {
 	EndTime          string           `xml:"endTime,attr"`
 	EndTimeMS        string           `xml:"endTimeMillis,attr"`
 	Duration         string           `xml:"duration,attr"`
+	DNSDuration      string           `xml:"dnsDuration,attr"`
+	ConnectDuration  string           `xml:"connectDuration,attr"`
+	SSLDuration      string           `xml:"sslDuration,attr"`
 	RequestDuration  string           `xml:"requestDuration,attr"`
 	ResponseDuration string           `xml:"responseDuration,attr"`
 	Latency          string           `xml:"latency,attr"`
@@ -443,8 +656,49 @@ type charlesXMLEntry struct {
 }
 
 type charlesXMLHeaders struct {
-	FirstLine string             `xml:"first-line"`
-	Headers   []charlesXMLHeader `xml:"header"`
+	FirstLine string
+	Headers   []charlesXMLHeader
+	Omitted   int
+}
+
+// UnmarshalXML caps the header list without materializing the whole element.
+func (h *charlesXMLHeaders) UnmarshalXML(decoder *xml.Decoder, start xml.StartElement) error {
+	for {
+		token, err := decoder.Token()
+		if err != nil {
+			return err
+		}
+		switch token := token.(type) {
+		case xml.StartElement:
+			switch token.Name.Local {
+			case "first-line":
+				if err := decoder.DecodeElement(&h.FirstLine, &token); err != nil {
+					return err
+				}
+			case "header":
+				if len(h.Headers) >= maxCaptureHeaders {
+					if err := decoder.Skip(); err != nil {
+						return err
+					}
+					h.Omitted++
+					continue
+				}
+				var header charlesXMLHeader
+				if err := decoder.DecodeElement(&header, &token); err != nil {
+					return err
+				}
+				h.Headers = append(h.Headers, header)
+			default:
+				if err := decoder.Skip(); err != nil {
+					return err
+				}
+			}
+		case xml.EndElement:
+			if token.Name == start.Name {
+				return nil
+			}
+		}
+	}
 }
 
 type charlesXMLHeader struct {
@@ -458,36 +712,97 @@ type charlesXMLBody struct {
 }
 
 func readCharlesXML(data []byte, name string) (Capture, error) {
-	var session charlesXMLSession
 	decoder := xml.NewDecoder(bytes.NewReader(data))
-	if err := decoder.Decode(&session); err != nil {
-		return Capture{}, fmt.Errorf("%s: malformed Charles XML session", name)
-	}
-	if session.XMLName.Local != "charles-session" {
-		return Capture{}, fmt.Errorf("%s: not a Charles XML session", name)
-	}
-	if len(session.Transactions) == 0 {
-		return Capture{}, fmt.Errorf("%s: the session has no transactions", name)
-	}
-	capture := Capture{Format: CaptureCharlesXML}
-	var warnings captureWarnings
-	transactions := session.Transactions
-	if len(transactions) > maxCaptureEntries {
-		warnings.add("%d transactions beyond the first %d were not imported", len(transactions)-maxCaptureEntries, maxCaptureEntries)
-		transactions = transactions[:maxCaptureEntries]
-	}
-	websocket := false
-	for i, transaction := range transactions {
-		flow, err := transaction.toCapture(&warnings, i)
+	found := false
+	for {
+		token, err := decoder.Token()
+		if err == io.EOF {
+			break
+		}
 		if err != nil {
-			warnings.add("transaction %d skipped: %v", i+1, err)
+			return Capture{}, fmt.Errorf("%s: malformed Charles XML session", name)
+		}
+		start, ok := token.(xml.StartElement)
+		if !ok {
 			continue
 		}
-		websocket = websocket || flow.Kind == "ws"
-		capture.Flows = append(capture.Flows, flow)
+		if start.Name.Local != "charles-session" {
+			return Capture{}, fmt.Errorf("%s: not a Charles XML session", name)
+		}
+		found = true
+		break
 	}
-	if websocket {
-		warnings.add("WebSocket message frames are not part of Charles XML exports; only the upgrade exchange was imported")
+	if !found {
+		return Capture{}, fmt.Errorf("%s: not a Charles XML session", name)
+	}
+
+	capture := Capture{Format: CaptureCharlesXML}
+	var warnings captureWarnings
+	read, skipped := 0, 0
+	for {
+		token, err := decoder.Token()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return Capture{}, fmt.Errorf("%s: malformed Charles XML session", name)
+		}
+		switch token := token.(type) {
+		case xml.StartElement:
+			if token.Name.Local != "transaction" {
+				if err := decoder.Skip(); err != nil {
+					return Capture{}, fmt.Errorf("%s: malformed Charles XML session", name)
+				}
+				continue
+			}
+			if read >= maxCaptureEntries {
+				if err := decoder.Skip(); err != nil {
+					return Capture{}, fmt.Errorf("%s: malformed Charles XML session", name)
+				}
+				skipped++
+				continue
+			}
+			var transaction charlesXMLTransaction
+			if err := decoder.DecodeElement(&transaction, &token); err != nil {
+				return Capture{}, fmt.Errorf("%s: malformed Charles XML session", name)
+			}
+			flow, err := transaction.toCapture(&warnings, read)
+			read++
+			if err != nil {
+				warnings.add("transaction %d skipped: %v", read, err)
+				continue
+			}
+			capture.Flows = append(capture.Flows, flow)
+		case xml.EndElement:
+			if token.Name.Local == "charles-session" {
+				goto done
+			}
+		}
+	}
+done:
+	for {
+		token, err := decoder.Token()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return Capture{}, fmt.Errorf("%s: malformed Charles XML session", name)
+		}
+		switch token := token.(type) {
+		case xml.CharData:
+			if strings.TrimSpace(string(token)) != "" {
+				return Capture{}, fmt.Errorf("%s: malformed Charles XML session", name)
+			}
+		case xml.Comment, xml.Directive, xml.ProcInst:
+		default:
+			return Capture{}, fmt.Errorf("%s: malformed Charles XML session", name)
+		}
+	}
+	if skipped > 0 {
+		warnings.add("%d transactions beyond the first %d were not imported", skipped, maxCaptureEntries)
+	}
+	if read == 0 {
+		return Capture{}, fmt.Errorf("%s: the session has no transactions", name)
 	}
 	capture.Warnings = warnings.finish()
 	if len(capture.Flows) == 0 && len(capture.Warnings) == 0 {
@@ -504,27 +819,31 @@ func (t charlesXMLTransaction) toCapture(warnings *captureWarnings, index int) (
 	scheme := strings.ToLower(strings.TrimSpace(t.Protocol))
 	if scheme == "" {
 		scheme = "http"
+		if method == http.MethodConnect || t.Tunnel {
+			scheme = "https"
+		}
 	}
 	host := strings.TrimSpace(t.Host)
 	if host == "" {
 		return CaptureFlow{}, errors.New("no host")
 	}
-	path := t.Path
-	if path == "" {
-		path = "/"
-	}
 	port := parseCaptureInt(t.ActualPort)
 	if port <= 0 {
 		port = parseCaptureInt(t.Port)
 	}
-	kind := ""
-	if t.Tunnel {
-		kind = "connect"
-		if method == http.MethodGet {
-			method = http.MethodConnect
-		}
+	path := t.Path
+	if path == "" {
+		path = "/"
 	}
-	if t.WebSocket {
+	kind := ""
+	connect := method == http.MethodConnect || t.Tunnel
+	if connect {
+		method = http.MethodConnect
+		kind = "connect"
+		if scheme != "http" && scheme != "https" {
+			scheme = "https"
+		}
+	} else if t.WebSocket {
 		kind = "ws"
 		if scheme == "https" {
 			scheme = "wss"
@@ -533,13 +852,15 @@ func (t charlesXMLTransaction) toCapture(warnings *captureWarnings, index int) (
 		}
 	}
 
-	start := charlesXMLTime(t.StartTime, t.StartTimeMillis)
+	start := firstTime(charlesXMLTime(t.StartTime, t.StartTimeMillis), charlesXMLTime(t.RequestBegin, t.RequestBeginMS))
 	requestBegin := charlesXMLTime(t.RequestBegin, t.RequestBeginMS)
 	requestComplete := charlesXMLTime(t.RequestTime, t.RequestTimeMS)
 	responseBegin := charlesXMLTime(t.ResponseTime, t.ResponseTimeMS)
 	end := charlesXMLTime(t.EndTime, t.EndTimeMS)
 	total := captureDurationMs(float64(parseCaptureInt(t.Duration)))
-	if total <= 0 && !start.IsZero() && !end.IsZero() && end.After(start) {
+	if total <= 0 && !requestBegin.IsZero() && !end.IsZero() && end.After(requestBegin) {
+		total = end.Sub(requestBegin)
+	} else if total <= 0 && !start.IsZero() && !end.IsZero() && end.After(start) {
 		total = end.Sub(start)
 	}
 	wait := captureDurationMs(float64(parseCaptureInt(t.Latency)))
@@ -551,25 +872,19 @@ func (t charlesXMLTransaction) toCapture(warnings *captureWarnings, index int) (
 		download = end.Sub(responseBegin)
 	}
 
-	reqHeader := charlesXMLHeadersOf(t.Request)
-	resHeader := charlesXMLHeadersOf(t.Response)
+	reqHeader, reqOmitted := charlesXMLHeadersOf(t.Request)
+	resHeader, resOmitted := charlesXMLHeadersOf(t.Response)
+	if reqOmitted > 0 {
+		warnings.add("transaction %d: %d request headers beyond the first %d were not imported", index+1, reqOmitted, maxCaptureHeaders)
+	}
+	if resOmitted > 0 {
+		warnings.add("transaction %d: %d response headers beyond the first %d were not imported", index+1, resOmitted, maxCaptureHeaders)
+	}
 	reqBody, reqSize := charlesXMLBodyOf(t.Request, "request", warnings, index)
 	resBody, resSize := charlesXMLBodyOf(t.Response, "response", warnings, index)
-	status := 0
-	if t.Response != nil {
-		status = parseCaptureInt(t.Response.Status)
-		if status == 0 && t.Response.Headers != nil {
-			for _, header := range t.Response.Headers.Headers {
-				if strings.EqualFold(header.Name, ":status") {
-					status = parseCaptureInt(header.Value)
-				}
-			}
-		}
-	}
-	failure := ""
-	if status <= 0 && charlesFailedStatus(t.Status) {
-		failure = "Charles reported " + strings.TrimSpace(t.Status)
-	}
+	bodyBytes := len(reqBody) + len(resBody)
+	status := charlesXMLStatus(t.Response)
+	failure := charlesFailure(t.Status, t.Exception)
 	proto := strings.TrimSpace(t.ProtocolVersion)
 	if proto == "" && t.ALPN != nil {
 		switch strings.ToLower(strings.TrimSpace(t.ALPN.Protocol)) {
@@ -581,19 +896,28 @@ func (t charlesXMLTransaction) toCapture(warnings *captureWarnings, index int) (
 	}
 	totalBytes := parseCaptureInt(t.TotalSize)
 	if totalBytes <= 0 {
-		totalBytes = len(reqBody) + len(resBody)
+		totalBytes = bodyBytes
+	}
+	url := captureURL(scheme, host, port, path, t.Query)
+	if connect {
+		url = captureConnectURL(scheme, host, port)
+		path = ""
+		reqBody, resBody, reqSize, resSize = nil, nil, 0, 0
 	}
 	flow := CaptureFlow{
-		Method: method, Scheme: scheme, Host: host, Path: path,
-		URL:    captureURL(scheme, host, port, path, t.Query),
+		Method: method, Scheme: scheme, Host: host, Path: path, URL: url,
 		Status: status,
 		At:     start, Millis: captureMillis(total), Wait: captureMillis(wait), Download: captureMillis(download),
-		Timing:    charlesXMLTiming(start, requestBegin, requestComplete, responseBegin, end, total),
+		Timing:    charlesXMLTiming(start, requestBegin, requestComplete, responseBegin, end, t, total),
 		ReqHeader: reqHeader, ResHeader: resHeader,
 		ReqBody: reqBody, ResBody: resBody, ReqSize: reqSize, ResSize: resSize, Bytes: totalBytes,
 		ReqProto: proto, ResProto: proto,
-		Remote: remoteIP(t.RemoteAddress), Client: strings.TrimPrefix(strings.TrimSpace(t.ClientAddress), "/"),
+		Remote: remoteIP(t.RemoteAddress), Client: remoteIP(t.ClientAddress),
 		Kind: kind, Error: failure,
+	}
+	if kind == "ws" {
+		flow.Frames, _ = charlesWebSocketFrames(reqBody, resBody, charlesXMLBodyEncoded(t.Request), charlesXMLBodyEncoded(t.Response), warnings, index)
+		flow.ReqBody, flow.ResBody, flow.ReqSize, flow.ResSize = nil, nil, 0, 0
 	}
 	if t.SSL != nil {
 		flow.TLS = strings.TrimSpace(t.SSL.Protocol)
@@ -602,16 +926,38 @@ func (t charlesXMLTransaction) toCapture(warnings *captureWarnings, index int) (
 	return flow, nil
 }
 
-func charlesXMLHeadersOf(entry *charlesXMLEntry) http.Header {
+func charlesXMLStatus(response *charlesXMLEntry) int {
+	if response == nil {
+		return 0
+	}
+	if status := parseCaptureInt(response.Status); status > 0 {
+		return status
+	}
+	if response.Headers != nil {
+		for _, header := range response.Headers.Headers {
+			if strings.EqualFold(header.Name, ":status") {
+				if status := parseHTTPStatus(header.Value); status > 0 {
+					return status
+				}
+			}
+		}
+		return statusFromFirstLine(response.Headers.FirstLine)
+	}
+	return 0
+}
+
+func charlesXMLHeadersOf(entry *charlesXMLEntry) (http.Header, int) {
 	if entry == nil {
-		return nil
+		return nil, 0
 	}
 	var pairs [][2]string
+	omitted := 0
 	if entry.Headers != nil {
 		pairs = make([][2]string, 0, len(entry.Headers.Headers))
 		for _, header := range entry.Headers.Headers {
 			pairs = append(pairs, [2]string{header.Name, header.Value})
 		}
+		omitted = entry.Headers.Omitted
 	}
 	h := captureHeader(pairs)
 	if encoding := strings.TrimSpace(entry.ContentEncoding); encoding != "" && h.Get("Content-Encoding") == "" {
@@ -620,7 +966,7 @@ func charlesXMLHeadersOf(entry *charlesXMLEntry) http.Header {
 	if mime := strings.TrimSpace(entry.MimeType); mime != "" && h.Get("Content-Type") == "" {
 		h.Set("Content-Type", mime)
 	}
-	return h
+	return h, omitted
 }
 
 func charlesXMLBodyOf(entry *charlesXMLEntry, side string, warnings *captureWarnings, index int) ([]byte, int) {
@@ -642,6 +988,13 @@ func charlesXMLBodyOf(entry *charlesXMLEntry, side string, warnings *captureWarn
 			return nil, parseCaptureInt(entry.BodySize)
 		}
 		data = decoded
+		if encoding := charlesXMLContentEncoding(entry); encoding != "" {
+			if decoded, err := decodeCaptureBody(data, encoding); err != nil {
+				warnings.add("transaction %d: %s body is marked %s but could not be decompressed; original bytes kept", index+1, side, encoding)
+			} else {
+				data = decoded
+			}
+		}
 	}
 	if len(data) > maxCaptureBody {
 		warnings.add("transaction %d: %s body is larger than %d MiB and was not imported", index+1, side, maxCaptureBody>>20)
@@ -650,17 +1003,57 @@ func charlesXMLBodyOf(entry *charlesXMLEntry, side string, warnings *captureWarn
 	return data, captureBodySize(parseCaptureInt(entry.BodySize), data)
 }
 
-func charlesXMLTiming(start, requestBegin, requestComplete, responseBegin, end time.Time, total time.Duration) *CaptureTiming {
-	if start.IsZero() {
+func charlesXMLContentEncoding(entry *charlesXMLEntry) string {
+	if entry == nil {
+		return ""
+	}
+	if encoding := strings.TrimSpace(entry.ContentEncoding); encoding != "" {
+		return encoding
+	}
+	if entry.Headers != nil {
+		for _, header := range entry.Headers.Headers {
+			if strings.EqualFold(header.Name, "Content-Encoding") {
+				return strings.TrimSpace(header.Value)
+			}
+		}
+	}
+	return ""
+}
+
+func charlesXMLTiming(start, requestBegin, requestComplete, responseBegin, end time.Time, transaction charlesXMLTransaction, total time.Duration) *CaptureTiming {
+	origin := requestBegin
+	if origin.IsZero() {
+		origin = start
+	}
+	if origin.IsZero() {
 		return nil
 	}
-	marks := []captureMark{
-		{name: "Connection", from: start, to: requestBegin},
-		{name: "Send", from: requestBegin, to: requestComplete},
-		{name: "Wait", from: requestComplete, to: responseBegin},
-		{name: "Receive", from: responseBegin, to: end},
+	dns := captureDurationMs(float64(parseCaptureInt(transaction.DNSDuration)))
+	connect := captureDurationMs(float64(parseCaptureInt(transaction.ConnectDuration)))
+	tls := captureDurationMs(float64(parseCaptureInt(transaction.SSLDuration)))
+	origin = origin.Add(-(dns + connect + tls))
+	marks := make([]captureMark, 0, 7)
+	if dns > 0 {
+		marks = append(marks, captureMark{name: "DNS", from: origin, to: origin.Add(dns)})
 	}
-	return captureTiming(start, marks, total)
+	if connect > 0 {
+		from := origin.Add(dns)
+		marks = append(marks, captureMark{name: "Connect", from: from, to: from.Add(connect)})
+	}
+	if tls > 0 {
+		from := origin.Add(dns + connect)
+		to := requestBegin
+		if to.IsZero() || to.Before(from) {
+			to = from.Add(tls)
+		}
+		marks = append(marks, captureMark{name: "TLS", from: from, to: to})
+	}
+	marks = append(marks,
+		captureMark{name: "Send", from: requestBegin, to: requestComplete},
+		captureMark{name: "Wait", from: requestComplete, to: responseBegin},
+		captureMark{name: "Receive", from: responseBegin, to: end},
+	)
+	return captureTiming(origin, marks, total)
 }
 
 func charlesXMLTime(value, millis string) time.Time {

@@ -45,7 +45,7 @@
   },
   "summary": {
     "serverIpAddress": "203.0.113.9",
-    "clientIpAddress": "198.51.100.6",
+    "clientIpAddress": "client.example/198.51.100.6",
     "serverPort": 443,
     "hostDNS": null
   },

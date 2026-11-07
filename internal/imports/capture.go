@@ -33,6 +33,12 @@ const (
 	// maxCaptureBody bounds one request or response body. A larger body is
 	// left out and reported; the headers and timing still import.
 	maxCaptureBody = 32 << 20
+	// maxCaptureHeaders bounds the header fields read from one message. A
+	// source with more is malformed or hostile; the extras are skipped and
+	// counted in the report.
+	maxCaptureHeaders = 1000
+	// maxCaptureMessages bounds the WebSocket messages read from one flow.
+	maxCaptureMessages = 100_000
 	// maxCaptureArchive bounds the uncompressed members of one zip archive,
 	// so a small file cannot expand without limit.
 	maxCaptureArchive = 256 << 20
@@ -288,6 +294,25 @@ func captureDurationMs(ms float64) time.Duration {
 	return time.Duration(ms * float64(time.Millisecond))
 }
 
+// captureConnectURL is the authority a CONNECT tunnel targets. A tunnel has no
+// path, and its port is part of the target even when it is the scheme default.
+func captureConnectURL(scheme, host string, port int) string {
+	if scheme != "http" && scheme != "https" {
+		scheme = "https"
+	}
+	bareHost := strings.Trim(host, "[]")
+	if h, _, err := net.SplitHostPort(host); err == nil {
+		bareHost = h
+	}
+	if port > 0 {
+		return scheme + "://" + net.JoinHostPort(bareHost, strconv.Itoa(port))
+	}
+	if ip := net.ParseIP(bareHost); ip != nil && strings.Contains(bareHost, ":") {
+		return scheme + "://[" + bareHost + "]"
+	}
+	return scheme + "://" + bareHost
+}
+
 // captureTiming builds a timeline only from timestamps that are present and
 // ordered; it never invents an offset for a phase the source did not record.
 func captureTiming(start time.Time, marks []captureMark, total time.Duration) *CaptureTiming {
@@ -308,9 +333,12 @@ func captureTiming(start time.Time, marks []captureMark, total time.Duration) *C
 	if len(phases) == 0 {
 		return nil
 	}
-	last := phases[len(phases)-1]
-	if end := last.Start + last.Duration; end > total {
-		total = end
+	// A server may answer before the upload finishes, and phases may overlap.
+	// Total must cover every phase, not only the last one.
+	for _, phase := range phases {
+		if end := phase.Start + phase.Duration; end > total {
+			total = end
+		}
 	}
 	if total <= 0 {
 		return nil
