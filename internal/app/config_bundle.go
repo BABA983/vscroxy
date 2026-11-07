@@ -22,6 +22,7 @@ import (
 	"github.com/baba983/vscroxy/internal/hosts"
 	"github.com/baba983/vscroxy/internal/store"
 	"github.com/baba983/vscroxy/internal/uikit"
+	"github.com/baba983/vscroxy/internal/upstream"
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 )
@@ -60,10 +61,11 @@ const (
 // configImport is a bundle read from a file, waiting for the user to choose
 // what it replaces.
 type configImport struct {
-	open   bool
-	path   string
-	bundle configBundle
-	parts  [3]bool
+	open      bool
+	importing bool
+	path      string
+	bundle    configBundle
+	parts     [3]bool
 }
 
 // currentSettings are the settings as they are now.
@@ -260,9 +262,68 @@ func (a *app) exportConfigTo(path string) {
 	a.done(text)
 }
 
-// importConfig replaces the chosen parts of the configuration with b's. It
-// writes the files, then reads them all again, as Reload configuration does.
+// importConfig replaces the chosen parts of the configuration with b's. The
+// upstream is loaded before any file is written; the window path does that off
+// the UI thread, while tests and headless callers use this synchronous form.
 func (a *app) importConfig(b configBundle, parts [3]bool) error {
+	prepared, _, err := a.prepareImportedUpstream(b, parts, a.upstreamSecrets)
+	if err != nil {
+		return err
+	}
+	return a.importConfigPrepared(b, parts, prepared)
+}
+
+// prepareImportedUpstream validates and loads the imported upstream without
+// touching the running server or this computer's files. A PAC URL fetch is the
+// slow part, so callers with a window run this in a goroutine.
+func (a *app) prepareImportedUpstream(b configBundle, parts [3]bool, secrets map[string]string) (*upstream.Config, upstream.Settings, error) {
+	if !parts[partSettings] || b.Settings == nil || a.srv == nil {
+		return nil, upstream.Settings{}, nil
+	}
+	imported := b.Settings.Upstream.Normalize()
+	cfg, err := upstream.New(imported, secrets)
+	if err != nil {
+		return nil, imported, fmt.Errorf("upstream: %w", err)
+	}
+	return cfg, imported, nil
+}
+
+// startConfigImport preflights the upstream in a goroutine, then applies every
+// chosen part on the UI thread. A rejected upstream changes neither the SSL
+// settings nor the lists.
+func (a *app) startConfigImport(b configBundle, parts [3]bool, label string) {
+	win := a.win
+	if win == nil {
+		a.configImport.open = false
+		if err := a.importConfig(b, parts); err != nil {
+			a.fail("Import configuration", err)
+		} else {
+			a.done("Imported " + label)
+		}
+		return
+	}
+	secrets := maps.Clone(a.upstreamSecrets)
+	go func() {
+		prepared, _, err := a.prepareImportedUpstream(b, parts, secrets)
+		win.Update(func() {
+			a.configImport.importing = false
+			a.configImport.open = false
+			if err != nil {
+				a.fail("Import configuration", err)
+				return
+			}
+			if err := a.importConfigPrepared(b, parts, prepared); err != nil {
+				a.fail("Import configuration", err)
+				return
+			}
+			a.done("Imported " + label)
+		})
+	}()
+}
+
+// importConfigPrepared writes the chosen parts after the upstream preflight
+// succeeded, then reloads everything from disk.
+func (a *app) importConfigPrepared(b configBundle, parts [3]bool, prepared *upstream.Config) error {
 	if parts[partRules] {
 		if a.rulesPath == "" {
 			return errors.New("rules storage is unavailable")
@@ -343,7 +404,7 @@ func (a *app) importConfig(b configBundle, parts [3]bool) error {
 			}
 		}
 		if b.Settings != nil {
-			if err := a.applySettings(*b.Settings); err != nil {
+			if err := a.applySettingsPrepared(*b.Settings, prepared); err != nil {
 				return err
 			}
 		}
@@ -352,15 +413,32 @@ func (a *app) importConfig(b configBundle, parts [3]bool) error {
 	return nil
 }
 
-// applySettings uses imported settings, keeping this computer's key log,
-// setup guide and cookie retention, and saves them. The upstream configuration
-// is applied before anything is committed: a PAC that cannot load leaves the
-// previous configuration and this computer's files untouched.
+// applySettings is the synchronous entry used outside the import dialog. It
+// loads the upstream first, then applies the settings.
 func (a *app) applySettings(s settings) error {
-	importedUpstream := s.Upstream.Normalize()
+	var prepared *upstream.Config
 	if a.srv != nil {
-		if err := a.srv.SetUpstreamConfig(importedUpstream, a.upstreamSecrets); err != nil {
+		imported := s.Upstream.Normalize()
+		cfg, err := upstream.New(imported, a.upstreamSecrets)
+		if err != nil {
 			return fmt.Errorf("upstream: %w", err)
+		}
+		prepared = cfg
+	}
+	return a.applySettingsPrepared(s, prepared)
+}
+
+// applySettingsPrepared uses imported settings, keeping this computer's key
+// log, setup guide and cookie retention, and saves them. prepared is the
+// already-loaded upstream for s.Upstream; nil means capture is unavailable.
+func (a *app) applySettingsPrepared(s settings, prepared *upstream.Config) error {
+	importedUpstream := s.Upstream.Normalize()
+	if a.srv != nil && prepared != nil {
+		epoch := a.upstreamEpoch.Add(1)
+		a.stopUpstreamRetry()
+		a.upstreamLoading = false
+		if !a.srv.SetUpstreamPreparedAt(epoch, importedUpstream, prepared) {
+			return errors.New("upstream changed while the import was loading")
 		}
 	}
 	a.appearance = s.Appearance
@@ -515,17 +593,25 @@ func (a *app) configImportDialog(c *ui.Context, t *ui.Theme) {
 				part(partSettings, b.Settings != nil, "Settings and lists", "Appearance, layout, proxy port, upstream proxy and system proxy bypass, HTTPS decryption, certificates, and the ignore and allow lists.")
 			})
 			uikit.DialogFooter(c).Children(func() {
-				if uikit.SecondaryButton(c, "Cancel").Clicked() {
+				if uikit.SecondaryButton(c, "Cancel").Disabled(in.importing).Clicked() {
 					in.open = false
 				}
-				ui.Row(c).Disabled(in.parts == [3]bool{}).Children(func() {
+				if in.importing {
+					ui.Spinner(c).Label("Importing configuration")
+				}
+				ui.Row(c).Disabled(in.parts == [3]bool{} || in.importing).Children(func() {
 					if uikit.PrimaryButton(c, "Replace").Clicked() {
-						if err := a.importConfig(b, in.parts); err != nil {
-							a.fail("Import configuration", err)
-						} else {
-							a.done("Imported " + filepath.Base(in.path))
+						if a.win == nil {
+							if err := a.importConfig(b, in.parts); err != nil {
+								a.fail("Import configuration", err)
+							} else {
+								a.done("Imported " + filepath.Base(in.path))
+							}
+							in.open = false
+							return
 						}
-						in.open = false
+						in.importing = true
+						a.startConfigImport(b, in.parts, filepath.Base(in.path))
 					}
 				})
 			})

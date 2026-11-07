@@ -864,6 +864,9 @@ type upstreamSnapshot struct {
 	settings upstream.Settings
 	cfg      *upstream.Config
 	err      error
+	// gen orders asynchronous loads. A result from an older generation is
+	// discarded instead of replacing a save or import that started later.
+	gen uint64
 }
 
 func (u *upstreamSnapshot) resolve(req *http.Request, address string) ([]proxy.UpstreamProxy, error) {
@@ -951,26 +954,79 @@ func (s *Server) SetUpstreamConfig(settings upstream.Settings, passwords map[str
 	return nil
 }
 
-// SetUpstreamConfigFailClosed is SetUpstreamConfig for startup, where no
-// previous configuration exists. A load failure is stored and returned for
-// every request, so an unreachable PAC URL or VPN does not silently send
-// traffic directly.
-func (s *Server) SetUpstreamConfigFailClosed(settings upstream.Settings, passwords map[string]string) error {
+// storeUpstream installs next unless a snapshot from a newer generation is
+// already active. It returns whether next was installed.
+func (s *Server) storeUpstream(gen uint64, next *upstreamSnapshot) bool {
+	for {
+		current, _ := s.upstream.Load().(*upstreamSnapshot)
+		if current != nil && current.gen > gen {
+			return false
+		}
+		if current == nil {
+			s.upstream.Store(next)
+			return true
+		}
+		if s.upstream.CompareAndSwap(current, next) {
+			return true
+		}
+	}
+}
+
+// SetUpstreamConfigAt is SetUpstreamConfig for an asynchronous load. A result
+// from an older generation is discarded instead of replacing a later save.
+func (s *Server) SetUpstreamConfigAt(gen uint64, settings upstream.Settings, passwords map[string]string) (bool, error) {
 	settings = settings.Normalize()
 	cfg, err := upstream.New(settings, passwords)
 	if err != nil {
-		s.upstream.Store(&upstreamSnapshot{settings: settings.Clone(), err: err})
-		return err
+		return false, err
 	}
-	s.upstream.Store(&upstreamSnapshot{settings: settings.Clone(), cfg: cfg})
-	return nil
+	return s.storeUpstream(gen, &upstreamSnapshot{settings: settings.Clone(), cfg: cfg, gen: gen}), nil
+}
+
+// SetUpstreamPreparedAt installs an already-loaded configuration for gen,
+// unless a newer generation is active.
+func (s *Server) SetUpstreamPreparedAt(gen uint64, settings upstream.Settings, cfg *upstream.Config) bool {
+	return s.storeUpstream(gen, &upstreamSnapshot{settings: settings.Normalize().Clone(), cfg: cfg, gen: gen})
+}
+
+// SetUpstreamConfigFailClosed is SetUpstreamConfig for startup, where no
+// previous configuration exists. A load failure is stored and returned for
+// every request, so an unreachable PAC URL or VPN does not silently send
+// traffic directly. When placeholder is not nil, the result is installed only
+// if that loading snapshot is still current; a user save or import that
+// replaced it wins, and applied is false.
+func (s *Server) SetUpstreamConfigFailClosed(placeholder *upstreamSnapshot, settings upstream.Settings, passwords map[string]string) (applied bool, err error) {
+	settings = settings.Normalize()
+	cfg, err := upstream.New(settings, passwords)
+	gen := uint64(0)
+	if placeholder != nil {
+		gen = placeholder.gen
+	}
+	next := &upstreamSnapshot{settings: settings.Clone(), cfg: cfg, err: err, gen: gen}
+	if placeholder != nil {
+		if !s.upstream.CompareAndSwap(placeholder, next) {
+			return false, nil
+		}
+		return true, err
+	}
+	s.upstream.Store(next)
+	return true, err
 }
 
 // SetUpstreamUnavailable installs a temporary error for requests while a
-// configuration is loading. It is replaced by SetUpstreamConfig or
-// SetUpstreamConfigFailClosed.
-func (s *Server) SetUpstreamUnavailable(settings upstream.Settings, err error) {
-	s.upstream.Store(&upstreamSnapshot{settings: settings.Clone(), err: err})
+// configuration is loading and returns the snapshot token that
+// SetUpstreamConfigFailClosed may replace. A later configuration store makes
+// the token stale.
+func (s *Server) SetUpstreamUnavailable(settings upstream.Settings, err error) *upstreamSnapshot {
+	snapshot := &upstreamSnapshot{settings: settings.Clone(), err: err}
+	s.upstream.Store(snapshot)
+	return snapshot
+}
+
+// SetUpstreamUnavailableAt installs a temporary error for gen, unless a newer
+// generation is active. It returns whether the snapshot was installed.
+func (s *Server) SetUpstreamUnavailableAt(gen uint64, settings upstream.Settings, err error) bool {
+	return s.storeUpstream(gen, &upstreamSnapshot{settings: settings.Clone(), err: err, gen: gen})
 }
 
 // UpstreamError is the error the active configuration failed with, or nil.

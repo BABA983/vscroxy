@@ -5,13 +5,15 @@ import (
 	"cmp"
 	"context"
 	"crypto/tls"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"net/http/httptrace"
+	"net/url"
 	"slices"
 	"strings"
-	"time"
+	"sync"
 
 	"github.com/lqqyt2423/go-mitmproxy/cert"
 	"github.com/lqqyt2423/go-mitmproxy/internal/helper"
@@ -254,23 +256,20 @@ func (a *attacker) upstreamClient(req *http.Request, address string, verify bool
 	if err != nil {
 		return nil, err
 	}
-	if req.URL != nil && req.URL.Scheme == "http" && len(candidates) > 0 && candidates[0].URL != nil &&
-		(candidates[0].URL.Scheme == "http" || candidates[0].URL.Scheme == "https") {
-		transport.Proxy = http.ProxyURL(candidates[0].URL)
-		if candidates[0].URL.Scheme == "https" {
-			proxyTLS, err := a.proxy.proxyTLSConfig()
-			if err != nil {
-				return nil, err
-			}
-			transport.TLSClientConfig = proxyTLS
+	if req.URL != nil && req.URL.Scheme == "http" {
+		if t, ok, err := a.httpUpstreamTransport(req, address, candidates); err != nil {
+			return nil, err
+		} else if ok {
+			return &http.Client{
+				Transport: t,
+				CheckRedirect: func(req *http.Request, via []*http.Request) error {
+					return http.ErrUseLastResponse
+				},
+			}, nil
 		}
-		transport.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
-			return (&net.Dialer{Timeout: 8 * time.Second}).DialContext(ctx, network, addr)
-		}
-	} else {
-		transport.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
-			return a.proxy.dialUpstream(ctx, req, addr)
-		}
+	}
+	transport.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
+		return a.proxy.dialUpstream(ctx, req, addr)
 	}
 	return &http.Client{
 		Transport: transport,
@@ -278,6 +277,104 @@ func (a *attacker) upstreamClient(req *http.Request, address string, verify bool
 			return http.ErrUseLastResponse
 		},
 	}, nil
+}
+
+// httpUpstreamTransport picks the first candidate that accepts a TCP
+// connection for a plain HTTP target. An HTTP(S) candidate is used with
+// net/http's absolute-URI forwarding and the connection already dialled; a
+// DIRECT candidate is used with the target connection already dialled. SOCKS5
+// candidates need the regular tunnel path, so they leave the choice to
+// dialUpstream. TCP failures before a request is written are safe to retry.
+func (a *attacker) httpUpstreamTransport(req *http.Request, address string, candidates []UpstreamProxy) (*http.Transport, bool, error) {
+	if len(candidates) == 0 {
+		return nil, false, nil
+	}
+	cc, _ := req.Context().Value(connContextKey).(*ConnContext)
+	for _, candidate := range candidates {
+		if cc != nil && candidate.Reason != "" {
+			cc.RecordEvent("Upstream", candidate.Reason, nil)
+		}
+		if candidate.URL == nil {
+			conn, err := (&net.Dialer{Timeout: upstreamDialTimeout}).DialContext(req.Context(), "tcp", address)
+			if err != nil {
+				if cc != nil {
+					cc.RecordEvent("TCP", "Could not connect to "+address, err)
+				}
+				continue
+			}
+			return httpTransportWithConn(nil, conn, address), true, nil
+		}
+		if candidate.URL.Scheme != "http" && candidate.URL.Scheme != "https" {
+			return nil, false, nil // SOCKS5: dialUpstream handles the whole list.
+		}
+		var proxyTLS *tls.Config
+		if candidate.URL.Scheme == "https" {
+			var err error
+			proxyTLS, err = a.proxy.proxyTLSConfig()
+			if err != nil {
+				return nil, false, err
+			}
+		}
+		ctx, cancel := context.WithTimeout(req.Context(), upstreamDialTimeout)
+		conn, err := (&net.Dialer{}).DialContext(ctx, "tcp", candidate.URL.Host)
+		cancel()
+		if err != nil {
+			if cc != nil {
+				cc.RecordEvent("TCP", "Could not connect to "+candidate.URL.Host, err)
+			}
+			continue
+		}
+		t := httpTransportWithConn(candidate.URL, conn, candidate.URL.Host)
+		if candidate.URL.Scheme == "https" {
+			t.TLSClientConfig = proxyTLS
+		}
+		return t, true, nil
+	}
+	return nil, false, nil
+}
+
+// httpTransportWithConn returns a one-request transport that uses conn for the
+// first dial. Subsequent dials, if the transport retries, are ordinary.
+func httpTransportWithConn(proxyURL *url.URL, conn net.Conn, address string) *http.Transport {
+	var once sync.Once
+	t := &http.Transport{
+		ForceAttemptHTTP2:     true,
+		DisableCompression:    true,
+		DisableKeepAlives:     true,
+		ResponseHeaderTimeout: upstreamDialTimeout,
+		Proxy:                 http.ProxyURL(proxyURL),
+	}
+	t.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
+		if addr != address {
+			return (&net.Dialer{Timeout: upstreamDialTimeout}).DialContext(ctx, network, addr)
+		}
+		var out net.Conn
+		once.Do(func() { out = conn })
+		if out != nil {
+			return out, nil
+		}
+		return (&net.Dialer{Timeout: upstreamDialTimeout}).DialContext(ctx, network, addr)
+	}
+	return t
+}
+
+// writeGatewayError answers a failed upstream exchange with the reason in the
+// body and records the same error on the connection, so Send, Runner and the
+// inspector do not show an empty 502.
+func writeGatewayError(res http.ResponseWriter, f *Flow, err error) {
+	writeGatewayStatus(res, f, http.StatusBadGateway, err)
+}
+
+func writeGatewayStatus(res http.ResponseWriter, f *Flow, status int, err error) {
+	if f != nil {
+		f.Error = err
+		if f.ConnContext != nil {
+			f.ConnContext.RecordEvent("HTTP", "Upstream request failed", err)
+		}
+	}
+	res.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	res.WriteHeader(status)
+	fmt.Fprintf(res, "vscroxy: %v\n", err)
 }
 
 // send clientHello to server, server handshake
@@ -776,7 +873,7 @@ func (a *attacker) attack(res http.ResponseWriter, req *http.Request) {
 			for _, addon := range proxy.Addons {
 				addon.RequestError(f, clientErr)
 			}
-			res.WriteHeader(502)
+			writeGatewayError(res, f, clientErr)
 			return
 		}
 		proxyRes, err = client.Do(proxyReq)
@@ -800,10 +897,11 @@ func (a *attacker) attack(res http.ResponseWriter, req *http.Request) {
 				}
 				// Check for authentication failure
 				if strings.Contains(err.Error(), "Proxy Authentication Required") {
-					httpError(res, "", http.StatusProxyAuthRequired)
+					res.Header().Set("Proxy-Authenticate", `Basic realm="proxy"`)
+					writeGatewayStatus(res, f, http.StatusProxyAuthRequired, err)
 					return
 				}
-				res.WriteHeader(502)
+				writeGatewayError(res, f, err)
 				return
 			}
 		}
@@ -814,7 +912,12 @@ func (a *attacker) attack(res http.ResponseWriter, req *http.Request) {
 		for _, addon := range proxy.Addons {
 			addon.RequestError(f, err)
 		}
-		res.WriteHeader(502)
+		if strings.Contains(err.Error(), "Proxy Authentication Required") {
+			res.Header().Set("Proxy-Authenticate", `Basic realm="proxy"`)
+			writeGatewayStatus(res, f, http.StatusProxyAuthRequired, err)
+			return
+		}
+		writeGatewayError(res, f, err)
 		return
 	}
 

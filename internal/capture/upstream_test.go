@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/binary"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -725,18 +726,24 @@ func TestUpstreamCandidateTimeoutFallsBack(t *testing.T) {
 	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { fmt.Fprint(w, "direct") }))
 	defer target.Close()
 	s, _ := startServer(t)
-	s.proxy.Opts.UpstreamDialTimeout = 300 * time.Millisecond
 	if err := s.SetUpstreamConfig(upstream.Settings{
 		PAC: writePACFile(t, fmt.Sprintf(`function FindProxyForURL() { return "PROXY %s; DIRECT"; }`, blackhole)),
 	}, nil); err != nil {
 		t.Fatal(err)
 	}
 	start := time.Now()
-	resp, body := getThrough(t, s, targetURL(t, target))
-	if resp.StatusCode != 200 || body != "direct" {
+	proxyURL, _ := url.Parse("http://" + s.Addr())
+	client := &http.Client{Transport: &http.Transport{Proxy: http.ProxyURL(proxyURL)}, Timeout: 15 * time.Second}
+	resp, err := client.Get(targetURL(t, target))
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	_ = resp.Body.Close()
+	if resp.StatusCode != 200 || string(body) != "direct" {
 		t.Fatalf("response = %d %q", resp.StatusCode, body)
 	}
-	if elapsed := time.Since(start); elapsed > 3*time.Second {
+	if elapsed := time.Since(start); elapsed > 12*time.Second {
 		t.Fatalf("a silent proxy blocked fallback for %s", elapsed)
 	}
 	flow := waitFlow(t, s)
@@ -804,6 +811,96 @@ func TestMapRemotePlainHTTPThroughHTTPProxy(t *testing.T) {
 	}
 }
 
+func TestMapRemotePlainHTTPFallsBackThroughCandidates(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		script   func(dead string, proxy *recordingHTTPProxy) string
+		wantBody string
+	}{
+		{
+			name: "next proxy",
+			script: func(dead string, proxy *recordingHTTPProxy) string {
+				return fmt.Sprintf(`function FindProxyForURL() { return "PROXY %s; PROXY %s"; }`, dead, proxy.addr)
+			},
+			wantBody: "mapped",
+		},
+		{
+			name: "direct",
+			script: func(dead string, _ *recordingHTTPProxy) string {
+				return fmt.Sprintf(`function FindProxyForURL() { return "PROXY %s; DIRECT"; }`, dead)
+			},
+			wantBody: "mapped",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { fmt.Fprint(w, "mapped") }))
+			defer target.Close()
+			proxy := startRecordingHTTPProxy(t, "")
+			proxy.connectOnly443 = true
+			dead := freeAddr(t)
+			s, _ := startServerWithRules(t, Rule{Type: RuleMapRemote, Match: "mapped.invalid", Target: target.URL})
+			if err := s.SetUpstreamConfig(upstream.Settings{PAC: writePACFile(t, tc.script(dead, proxy))}, nil); err != nil {
+				t.Fatal(err)
+			}
+			proxyURL, _ := url.Parse("http://" + s.Addr())
+			client := &http.Client{Transport: &http.Transport{Proxy: http.ProxyURL(proxyURL)}, Timeout: 10 * time.Second}
+			resp, err := client.Get("http://mapped.invalid/path")
+			if err != nil {
+				t.Fatal(err)
+			}
+			body, _ := io.ReadAll(resp.Body)
+			_ = resp.Body.Close()
+			if resp.StatusCode != 200 || string(body) != tc.wantBody {
+				t.Fatalf("response = %d %q, want 200 %q", resp.StatusCode, body, tc.wantBody)
+			}
+			flow := waitFlow(t, s)
+			if !strings.Contains(flow.Conn.Log, "Upstream") {
+				t.Fatalf("connection log has no upstream reason: %s", flow.Conn.Log)
+			}
+			if tc.name == "next proxy" {
+				proxy.mu.Lock()
+				requests := strings.Join(proxy.requests, " ")
+				proxy.mu.Unlock()
+				if !strings.Contains(requests, target.URL+"/path") {
+					t.Fatalf("the second proxy did not receive an absolute-URI request: %q", requests)
+				}
+			}
+		})
+	}
+}
+
+func TestMapRemotePlainHTTPProxyAuthIsFinal(t *testing.T) {
+	hits := atomic.Int64{}
+	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hits.Add(1)
+		fmt.Fprint(w, "leaked")
+	}))
+	defer target.Close()
+	proxy := startRecordingHTTPProxy(t, "alice:secret")
+	s, _ := startServerWithRules(t, Rule{Type: RuleMapRemote, Match: "mapped.invalid", Target: target.URL})
+	if err := s.SetUpstreamConfig(upstream.Settings{
+		PAC: writePACFile(t, fmt.Sprintf(`function FindProxyForURL() { return "PROXY %s; DIRECT"; }`, proxy.addr)),
+	}, nil); err != nil {
+		t.Fatal(err)
+	}
+	proxyURL, _ := url.Parse("http://" + s.Addr())
+	client := &http.Client{Transport: &http.Transport{Proxy: http.ProxyURL(proxyURL)}, Timeout: 5 * time.Second}
+	resp, err := client.Get("http://mapped.invalid/path")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusProxyAuthRequired {
+		t.Fatalf("response = %d, want 407", resp.StatusCode)
+	}
+	if hits.Load() != 0 {
+		t.Fatalf("a 407 fell back to DIRECT: target hits = %d", hits.Load())
+	}
+	if _, failures := proxy.counts(); failures != 1 {
+		t.Fatalf("proxy authentication failures = %d, want 1", failures)
+	}
+}
+
 func TestUpstreamConfigLoadFailureFailsClosed(t *testing.T) {
 	hits := atomic.Int64{}
 	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -813,18 +910,56 @@ func TestUpstreamConfigLoadFailureFailsClosed(t *testing.T) {
 	defer target.Close()
 	s, _ := startServer(t)
 	deadPAC := "http://" + freeAddr(t) + "/proxy.pac"
-	if err := s.SetUpstreamConfigFailClosed(upstream.Settings{PAC: deadPAC}, nil); err == nil {
+	if _, err := s.SetUpstreamConfigFailClosed(nil, upstream.Settings{PAC: deadPAC}, nil); err == nil {
 		t.Fatal("an unreachable PAC URL was accepted")
 	}
 	if s.UpstreamError() == nil {
 		t.Fatal("the load error was not stored")
 	}
-	resp, _ := getThrough(t, s, targetURL(t, target))
+	resp, body := getThrough(t, s, targetURL(t, target))
 	if resp.StatusCode != http.StatusBadGateway {
 		t.Fatalf("response = %d, want 502", resp.StatusCode)
 	}
+	if !strings.Contains(body, "vscroxy:") {
+		t.Fatalf("502 body = %q, want the upstream reason", body)
+	}
+	flow := waitFlow(t, s)
+	if flow.Conn.Error == "" {
+		t.Fatalf("connection error is empty for the failed upstream: %+v", flow.Conn)
+	}
 	if hits.Load() != 0 {
 		t.Fatalf("a failed upstream configuration fell back to DIRECT: target hits = %d", hits.Load())
+	}
+}
+
+func TestStartupLoadCannotReplaceANewerConfiguration(t *testing.T) {
+	s, _ := startServer(t)
+	placeholder := s.SetUpstreamUnavailable(upstream.Settings{PAC: "https://pac.example/proxy.pac"}, errors.New("loading"))
+	if err := s.SetUpstreamConfig(upstream.Settings{Default: "http://good.example:8080"}, nil); err != nil {
+		t.Fatal(err)
+	}
+	applied, err := s.SetUpstreamConfigFailClosed(placeholder, upstream.Settings{PAC: "http://" + freeAddr(t) + "/proxy.pac"}, nil)
+	if applied || err != nil {
+		t.Fatalf("stale startup load = applied %t, err %v", applied, err)
+	}
+	if got := s.UpstreamConfig().Default; got != "http://good.example:8080" {
+		t.Fatalf("startup load replaced the newer configuration with %q", got)
+	}
+	if s.UpstreamError() != nil {
+		t.Fatalf("newer configuration has a stale error: %v", s.UpstreamError())
+	}
+}
+
+func TestUpstreamConfigAtDropsAnOlderGeneration(t *testing.T) {
+	s, _ := startServer(t)
+	if applied, err := s.SetUpstreamConfigAt(2, upstream.Settings{Default: "http://new.example:8080"}, nil); err != nil || !applied {
+		t.Fatalf("new configuration = applied %t, err %v", applied, err)
+	}
+	if applied, err := s.SetUpstreamConfigAt(1, upstream.Settings{Default: "http://stale.example:8080"}, nil); err != nil || applied {
+		t.Fatalf("stale configuration = applied %t, err %v", applied, err)
+	}
+	if got := s.UpstreamConfig().Default; got != "http://new.example:8080" {
+		t.Fatalf("older generation replaced %q", got)
 	}
 }
 

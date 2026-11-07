@@ -183,7 +183,7 @@ func (a *app) networkTools() []action {
 		do("network.custom", "Custom presets…", a.openNetwork).in("throttle"),
 		do("network.rules", "Network rules…", a.openNetworkRules).in("throttle"),
 		do("network.upstream", "Upstream…", func() { a.openSettings(1) }).in("upstream"),
-		do("network.upstream-off", "Upstream off", a.clearUpstream).when(a.upstream != "", "No upstream proxy is set").in("upstream"),
+		do("network.upstream-off", "Upstream off", a.clearUpstream).when(a.upstream != "" || a.upstreamProblem != "" || a.upstreamCfg.Enabled(), "No upstream proxy is set").in("upstream"),
 	)
 }
 
@@ -195,7 +195,7 @@ func (a *app) activeTools(c *ui.Context, t *ui.Theme) {
 	networkRules := a.activeNetworkRules()
 	noCaching := a.srv != nil && a.srv.NoCaching()
 	hostsOn := len(a.profiles.set.On()) > 0
-	if !a.breakOn && !throttled && networkRules == 0 && !noCaching && !a.allowOn && scenario == "" && a.upstream == "" && !hostsOn && a.collectionRecording == nil {
+	if !a.breakOn && !throttled && networkRules == 0 && !noCaching && !a.allowOn && scenario == "" && a.upstream == "" && a.upstreamProblem == "" && !a.upstreamCfg.Enabled() && !hostsOn && a.collectionRecording == nil {
 		return
 	}
 	ui.ScrollHorizontal(c.Key("active-tools")).Height(uikit.HeightLarge).Background(uikit.Colors(t).Panel).Border(0, t.Border).BorderWidth(0, 0, 1, 0).Children(func() {
@@ -239,7 +239,15 @@ func (a *app) activeTools(c *ui.Context, t *ui.Theme) {
 				})
 			}
 			a.hostsChip(c)
-			if a.upstream != "" {
+			if a.upstreamProblem != "" {
+				label := "Upstream error"
+				if a.upstreamLoading {
+					label = "Upstream loading"
+				}
+				dangerToolChip(c, "upstream-error", label, a.upstreamProblem, upstreamIcon, func() {
+					a.openSettings(1)
+				}, a.clearUpstream)
+			} else if a.upstream != "" {
 				toolChip(c, "upstream", "Upstream", "Edit upstream proxy settings", upstreamIcon, func() {
 					a.openSettings(1)
 				}, a.clearUpstream)
@@ -249,17 +257,39 @@ func (a *app) activeTools(c *ui.Context, t *ui.Theme) {
 }
 
 func toolChip(c *ui.Context, id, label, tip string, icon *ui.SVG, open, off func()) ui.Element {
+	return toolChipState(c, id, label, tip, icon, open, off, false)
+}
+
+// dangerToolChip is the same chip in the theme's danger role, for a tool that
+// is configured but not working. Its open action goes to the editor that can
+// fix it, and its close action still turns the tool off.
+func dangerToolChip(c *ui.Context, id, label, tip string, icon *ui.SVG, open, off func()) ui.Element {
+	return toolChipState(c, id, label, tip, icon, open, off, true)
+}
+
+func toolChipState(c *ui.Context, id, label, tip string, icon *ui.SVG, open, off func(), danger bool) ui.Element {
 	t := c.Theme()
+	background, border := t.Background, t.Border
+	if danger {
+		background, border = t.Danger.Alpha(0.12), t.Danger
+	}
 	var body ui.Element
-	ui.Row(c.Key(id)).Height(uikit.HeightCompact).AlignItems(ui.Center).Background(t.Background).Border(1, t.Border).Radius(uikit.RadiusControl).Children(func() {
+	ui.Row(c.Key(id)).Height(uikit.HeightCompact).AlignItems(ui.Center).Background(background).Border(1, border).Radius(uikit.RadiusControl).Children(func() {
 		body = uikit.ToolbarButton(c, "Active tool: "+label, tip, false).Height(uikit.HeightCompact).Children(func() {
 			ui.Icon(c, icon).Size(uikit.IconInline, uikit.IconInline)
 			ui.Text(c, label).FontSize(uikit.TextMeta).MaxWidth(180).SingleLine()
 		})
+		if danger {
+			body.TextColor(t.Danger)
+		}
 		if open != nil {
 			body.OnClick(open)
 		}
-		uikit.IconButton(c, "Disable "+label, "Turn off "+label, closeIcon).OnClick(off)
+		closeButton := uikit.IconButton(c, "Disable "+label, "Turn off "+label, closeIcon)
+		if danger {
+			closeButton.TextColor(t.Danger)
+		}
+		closeButton.OnClick(off)
 	})
 	return body
 }

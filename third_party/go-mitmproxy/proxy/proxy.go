@@ -32,9 +32,6 @@ type Options struct {
 	// SOCKSSniffTimeout bounds the peek for a target that is not decrypted,
 	// to tell plaintext HTTP from TLS or another protocol. Zero uses 400 ms.
 	SOCKSSniffTimeout time.Duration
-	// UpstreamDialTimeout bounds one upstream candidate's dial, TLS
-	// handshake and CONNECT together. Zero uses 8 seconds.
-	UpstreamDialTimeout time.Duration
 	// ClientCertificate returns the client certificate to present to an
 	// upstream host:port, or nil when none is configured. An error aborts the
 	// handshake instead of continuing without the certificate.
@@ -231,6 +228,11 @@ var ErrUpstreamAuth = helper.ErrProxyAuth
 // a transport failure that another candidate may bypass.
 var ErrUpstreamResponse = helper.ErrProxyResponse
 
+// upstreamDialTimeout bounds one upstream candidate's dial, TLS handshake and
+// CONNECT together. A candidate that cannot connect within it yields to the
+// next one, including DIRECT.
+const upstreamDialTimeout = 8 * time.Second
+
 func (proxy *Proxy) getUpstreamConn(ctx context.Context, req *http.Request) (net.Conn, error) {
 	return proxy.dialUpstream(ctx, req, helper.CanonicalAddr(req.URL))
 }
@@ -268,10 +270,7 @@ func (proxy *Proxy) dialUpstream(ctx context.Context, req *http.Request, address
 	if len(candidates) == 0 {
 		candidates = []UpstreamProxy{{}}
 	}
-	timeout := proxy.Opts.UpstreamDialTimeout
-	if timeout <= 0 {
-		timeout = 8 * time.Second
-	}
+	timeout := upstreamDialTimeout
 	var failures []error
 	for _, candidate := range candidates {
 		target := address

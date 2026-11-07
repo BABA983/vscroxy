@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"net/url"
 	"strings"
 	"time"
 
@@ -16,6 +17,45 @@ import (
 	"github.com/baba983/vscroxy/internal/upstream"
 	"github.com/egoist/mygo/ui"
 )
+
+// upstreamLoadResult is the startup PAC load's outcome. applied is false when
+// a user save or import replaced the loading snapshot while it ran.
+type upstreamLoadResult struct {
+	epoch    uint64
+	applied  bool
+	err      error
+	settings upstream.Settings
+	secrets  map[string]string
+}
+
+// upstreamRetry holds the failed configuration and the next automatic retry.
+// Only URL PACs retry automatically; the Retry button uses the same settings
+// for a file PAC or a validation error.
+type upstreamRetry struct {
+	timer    *time.Timer
+	attempt  int
+	retrying bool
+	epoch    uint64
+	settings upstream.Settings
+	secrets  map[string]string
+}
+
+var upstreamRetryDelays = []time.Duration{5 * time.Second, 15 * time.Second, 60 * time.Second, 5 * time.Minute}
+
+func upstreamRetryDelay(attempt int) time.Duration {
+	if attempt < 0 {
+		attempt = 0
+	}
+	if attempt >= len(upstreamRetryDelays) {
+		return upstreamRetryDelays[len(upstreamRetryDelays)-1]
+	}
+	return upstreamRetryDelays[attempt]
+}
+
+func isPACURL(source string) bool {
+	u, err := url.Parse(strings.TrimSpace(source))
+	return err == nil && (u.Scheme == "http" || u.Scheme == "https")
+}
 
 // upstreamEditor is the Settings draft. It is read from the active
 // configuration on the first frame after opening, and kept while the user
@@ -183,24 +223,93 @@ func (a *app) saveUpstream() {
 	a.applyUpstreamSettings(settings, secrets, "Upstream settings saved")
 }
 
-// drainUpstream delivers the startup PAC load result on the UI thread.
+// drainUpstream delivers the startup PAC load result on the UI thread. A save
+// or import that started after the load replaced its epoch, so its stale
+// result is discarded even if the loading snapshot was already replaced.
 func (a *app) drainUpstream() {
 	if a.upstreamPending == nil {
 		return
 	}
 	select {
-	case err := <-a.upstreamPending:
+	case result := <-a.upstreamPending:
 		a.upstreamPending = nil
-		if err != nil {
-			a.upstreamProblem = err.Error()
+		if !result.applied || result.epoch != a.upstreamEpoch.Load() {
+			a.upstreamLoading = false
+			return
+		}
+		a.upstreamLoading = false
+		if result.err != nil {
+			a.upstreamProblem = result.err.Error()
 			a.upstream = ""
+			a.scheduleUpstreamRetry(result.settings, result.secrets, result.epoch)
 		} else {
 			a.upstreamProblem = ""
-			a.upstream = a.upstreamCfg.Summary()
+			a.upstream = result.settings.Summary()
 		}
 		a.invalidate()
 	default:
 	}
+}
+
+// scheduleUpstreamRetry remembers the failed configuration for the Retry
+// button and, for a URL PAC, schedules the next automatic attempt. A retry
+// keeps the backoff sequence; a new save starts it again.
+func (a *app) scheduleUpstreamRetry(settings upstream.Settings, secrets map[string]string, epoch uint64) {
+	if a.upstreamRetry.timer != nil {
+		a.upstreamRetry.timer.Stop()
+		a.upstreamRetry.timer = nil
+	}
+	attempt := 0
+	if a.upstreamRetry.retrying {
+		attempt = a.upstreamRetry.attempt
+	}
+	a.upstreamRetry.settings, a.upstreamRetry.secrets = settings.Clone(), maps.Clone(secrets)
+	a.upstreamRetry.epoch, a.upstreamRetry.retrying = epoch, false
+	if !isPACURL(settings.PAC) {
+		return
+	}
+	a.upstreamRetry.attempt = attempt + 1
+	win := a.win
+	if win == nil {
+		return // headless tests drive retryUpstream directly
+	}
+	a.upstreamRetry.timer = time.AfterFunc(upstreamRetryDelay(attempt), func() {
+		win.Update(func() { a.retryUpstream() })
+	})
+}
+
+func (a *app) stopUpstreamRetry() {
+	if a.upstreamRetry.timer != nil {
+		a.upstreamRetry.timer.Stop()
+	}
+	a.upstreamRetry = upstreamRetry{}
+}
+
+// retryUpstream runs the scheduled attempt. The epoch check drops a timer
+// whose configuration was replaced by a save, import or Upstream off.
+func (a *app) retryUpstream() {
+	r := a.upstreamRetry
+	if r.timer != nil {
+		r.timer.Stop()
+		a.upstreamRetry.timer = nil
+	}
+	if r.epoch != a.upstreamEpoch.Load() || !r.settings.Enabled() {
+		a.stopUpstreamRetry()
+		return
+	}
+	a.upstreamRetry.retrying = true
+	a.applyUpstreamSettings(r.settings.Clone(), maps.Clone(r.secrets), "Upstream settings saved")
+}
+
+// retryUpstreamNow is the Settings button: retry immediately and start the
+// backoff sequence over if it fails again.
+func (a *app) retryUpstreamNow() {
+	settings, secrets := a.upstreamCfg.Clone(), maps.Clone(a.upstreamSecrets)
+	if a.upstreamRetry.settings.Enabled() {
+		settings, secrets = a.upstreamRetry.settings.Clone(), maps.Clone(a.upstreamRetry.secrets)
+	}
+	a.stopUpstreamRetry()
+	a.applyUpstreamSettings(settings, secrets, "Upstream settings saved")
 }
 
 // applyUpstreamSettings installs the configuration and seals its passwords.
@@ -212,31 +321,63 @@ func (a *app) applyUpstreamSettings(settings upstream.Settings, secrets map[stri
 		u.problem = "Capture is not available"
 		return
 	}
+	retrying := a.upstreamRetry.retrying
+	if !retrying {
+		a.stopUpstreamRetry()
+	}
+	epoch := a.upstreamEpoch.Add(1)
+	a.upstreamLoading = false
+	a.upstreamProblem = ""
 	previousSettings, previousSecrets := a.upstreamCfg.Clone(), maps.Clone(a.upstreamSecrets)
-	work := func() (upstream.Settings, map[string]string, error) {
-		if err := a.srv.SetUpstreamConfig(settings, secrets); err != nil {
-			return upstream.Settings{}, nil, err
+	work := func() (upstream.Settings, map[string]string, bool, bool, error) {
+		appliedRuntime, err := a.srv.SetUpstreamConfigAt(epoch, settings, secrets)
+		if err != nil {
+			return upstream.Settings{}, nil, true, false, err
+		}
+		if !appliedRuntime || a.upstreamEpoch.Load() != epoch {
+			return upstream.Settings{}, nil, false, true, nil
 		}
 		if err := upstream.SecretStoreFor(a.settingsPath).Save(secrets); err != nil {
 			// The runtime configuration now uses passwords that could not be
 			// sealed; put the previous one back so a restart is not worse.
-			if revert := a.srv.SetUpstreamConfig(previousSettings, previousSecrets); revert != nil {
-				return upstream.Settings{}, nil, errors.Join(err, revert)
+			reverted, revertErr := a.srv.SetUpstreamConfigAt(epoch, previousSettings, previousSecrets)
+			if revertErr != nil {
+				return upstream.Settings{}, nil, true, false, errors.Join(err, revertErr)
 			}
-			return upstream.Settings{}, nil, err
+			if !reverted {
+				return upstream.Settings{}, nil, false, true, nil
+			}
+			return upstream.Settings{}, nil, false, false, err
 		}
-		return settings, secrets, nil
+		return settings, secrets, false, false, nil
 	}
-	finish := func(applied upstream.Settings, appliedSecrets map[string]string, err error) {
+	finish := func(applied upstream.Settings, appliedSecrets map[string]string, failClosed, stale bool, err error) {
+		if epoch != a.upstreamEpoch.Load() {
+			return // a newer save or import owns the state now
+		}
 		u.saving = false
+		if stale {
+			return
+		}
 		if err != nil {
 			u.problem = err.Error()
+			a.upstreamProblem = err.Error()
+			a.upstreamLoading = false
+			if failClosed {
+				if !a.srv.SetUpstreamUnavailableAt(epoch, settings, err) {
+					return
+				}
+				a.upstream = ""
+			}
+			a.scheduleUpstreamRetry(settings, secrets, epoch)
 			a.invalidate()
 			return
 		}
+		a.stopUpstreamRetry()
 		a.upstreamCfg, a.upstreamSecrets = applied.Clone(), maps.Clone(appliedSecrets)
 		a.upstream = applied.Summary()
 		a.upstreamProblem = ""
+		a.upstreamLoading = false
 		u.loaded, u.dirty, u.problem = false, false, ""
 		a.lastSave = time.Time{}
 		if err := a.persistSettings(); err != nil {
@@ -247,21 +388,22 @@ func (a *app) applyUpstreamSettings(settings upstream.Settings, secrets map[stri
 		a.invalidate()
 	}
 	if a.win == nil {
-		applied, appliedSecrets, err := work()
-		finish(applied, appliedSecrets, err)
+		applied, appliedSecrets, failClosed, stale, err := work()
+		finish(applied, appliedSecrets, failClosed, stale, err)
 		return
 	}
 	u.saving = true
 	a.invalidate()
 	go func() {
-		applied, appliedSecrets, err := work()
-		a.win.Update(func() { finish(applied, appliedSecrets, err) })
+		applied, appliedSecrets, failClosed, stale, err := work()
+		a.win.Update(func() { finish(applied, appliedSecrets, failClosed, stale, err) })
 	}()
 }
 
 // clearUpstream turns off the default, host rules and PAC, keeping the bypass
 // list and credentials for a later configuration.
 func (a *app) clearUpstream() {
+	a.stopUpstreamRetry()
 	cfg := a.upstreamCfg.Clone()
 	cfg.Default, cfg.Rules, cfg.PAC = "", nil, ""
 	a.upstreamUI.loaded = false
@@ -274,7 +416,12 @@ func (a *app) upstreamSettingsGroup(c *ui.Context, t *ui.Theme) {
 	u.load(a)
 	uikit.SettingsGroup(c, "Upstream", func() {
 		if a.upstreamProblem != "" {
-			ui.Text(c, a.upstreamProblem).FontSize(uikit.TextBody).TextColor(t.Danger).Selectable()
+			ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+				ui.Text(c, a.upstreamProblem).FontSize(uikit.TextBody).TextColor(t.Danger).Selectable().Grow(1)
+				if !a.upstreamLoading && uikit.SecondaryButton(c, "Retry").Clicked() {
+					a.retryUpstreamNow()
+				}
+			})
 		}
 		if u.problem != "" {
 			ui.Text(c, u.problem).FontSize(uikit.TextBody).TextColor(t.Danger).Selectable()
@@ -293,7 +440,7 @@ func (a *app) upstreamSettingsGroup(c *ui.Context, t *ui.Theme) {
 			if ui.TextArea(c, &u.bypass).Label("Bypass list").Placeholder("localhost\n*.internal.test\n10.0.0.0/8").Height(50).Font(uikit.FontMono).FontSize(uikit.TextBody).Radius(uikit.RadiusControl).Changed() {
 				u.dirty = true
 			}
-		}).Description("Hosts, *.example.com, CIDR, localhost or <local> (Windows only). Direct before rules and PAC.")
+		}).Description("Hosts, *.example.com, CIDR, localhost or <local>. Direct before rules and PAC.")
 		ui.Field(c, "PAC", func() {
 			if uikit.Input(c, &u.pac).Label("PAC file or URL").Placeholder("https://example.com/proxy.pac").Grow(1).MinWidth(200).Changed() {
 				u.dirty = true

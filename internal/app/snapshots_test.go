@@ -765,6 +765,27 @@ func TestUISnapshots(t *testing.T) {
 			tt.Scroll(850, 500, 0, 740)
 			tt.Advance(250 * time.Millisecond)
 		}, want: "Save upstream", short: true},
+		{name: "dialog-settings-proxy-upstream-error", setup: func(a *app) {
+			snapshotSettings(a, 1)
+			a.upstreamCfg = upstream.Settings{PAC: "https://pac.example/proxy.pac"}
+			a.upstream = ""
+			a.upstreamProblem = "PAC https://pac.example/proxy.pac: GET returned 503 Service Unavailable"
+			a.upstreamUI.loaded = false
+		}, act: func(t *testing.T, tt *ui.Tester) {
+			tt.Scroll(850, 500, 0, 520)
+			tt.Advance(250 * time.Millisecond)
+		}, want: "Retry"},
+		{name: "dialog-settings-proxy-upstream-loading", setup: func(a *app) {
+			snapshotSettings(a, 1)
+			a.upstreamCfg = upstream.Settings{PAC: "https://pac.example/proxy.pac"}
+			a.upstream = ""
+			a.upstreamProblem = "Upstream configuration is loading"
+			a.upstreamLoading = true
+			a.upstreamUI.loaded = false
+		}, act: func(t *testing.T, tt *ui.Tester) {
+			tt.Scroll(850, 500, 0, 520)
+			tt.Advance(250 * time.Millisecond)
+		}, want: "Upstream configuration is loading"},
 		{name: "dialog-settings-proxy-bypass", setup: func(a *app) {
 			snapshotSettings(a, 1)
 			a.systemProxyBypassSet = true
@@ -1340,6 +1361,16 @@ func TestUISnapshots(t *testing.T) {
 		{name: "commands", setup: func(a *app) { a.workbench.openPalette() }, want: "Find command"},
 		{name: "commands-unavailable", setup: func(a *app) { a.workbench.openPalette(); a.workbench.query = "Send request" }, want: "unavailable"},
 		{name: "active-tools", setup: snapshotActiveTools, want: "Disable Scenario: Offline"},
+		{name: "active-tools-upstream-error", setup: func(a *app) {
+			snapshotActiveTools(a)
+			a.upstream, a.upstreamProblem = "", "PAC https://pac.example/proxy.pac: GET returned 503 Service Unavailable"
+			a.upstreamLoading = false
+		}, want: "Disable Upstream error"},
+		{name: "active-tools-upstream-loading", setup: func(a *app) {
+			snapshotActiveTools(a)
+			a.upstream, a.upstreamProblem = "", "Upstream configuration is loading"
+			a.upstreamLoading = true
+		}, want: "Disable Upstream loading"},
 		{name: "requests-active-tools", setup: func(a *app) { snapshotActiveTools(a); draft(a) }, want: "Disable No Caching"},
 		{name: "shell-menu", act: click("More"), menu: "Network"},
 		{name: "tools-menu", setup: snapshotActiveTools, act: click("Tools"), menu: "No Caching"},
@@ -1470,7 +1501,7 @@ func TestUISnapshots(t *testing.T) {
 			if strings.HasPrefix(state.name, "capture-timing") || strings.HasPrefix(state.name, "capture-search") || state.name == "capture-form-xml" || state.name == "capture-multipart" || state.name == "capture-messagepack" || state.name == "capture-structured-error" {
 				widths = append(widths, 960)
 			}
-			if strings.HasPrefix(state.name, "tools-rules-network") || state.name == "capture-selected" || strings.HasPrefix(state.name, "capture-activity") || state.name == "capture-response-error" || state.name == "capture-no-response" || state.name == "capture-edited" || state.name == "capture-sent" || state.name == "capture-ws" || state.name == "capture-connect" || strings.HasPrefix(state.name, "requests-") || strings.HasPrefix(state.name, "secondary-") || strings.HasPrefix(state.name, "dialog-") || state.name == "active-tools" {
+			if strings.HasPrefix(state.name, "tools-rules-network") || state.name == "capture-selected" || strings.HasPrefix(state.name, "capture-activity") || state.name == "capture-response-error" || state.name == "capture-no-response" || state.name == "capture-edited" || state.name == "capture-sent" || state.name == "capture-ws" || state.name == "capture-connect" || strings.HasPrefix(state.name, "requests-") || strings.HasPrefix(state.name, "secondary-") || strings.HasPrefix(state.name, "dialog-") || strings.HasPrefix(state.name, "active-tools") {
 				widths = append(widths, 960)
 			}
 			// Live traffic reads in both layouts: the inspector beside the

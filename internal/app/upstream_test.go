@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/baba983/vscroxy/internal/capture"
 	"github.com/baba983/vscroxy/internal/system"
@@ -259,17 +260,31 @@ func TestUpstreamSettingsEditorAppliesRulesAndBypass(t *testing.T) {
 func TestDrainUpstreamReportsStartupResult(t *testing.T) {
 	a := workspaceApp()
 	a.upstreamCfg = upstream.Settings{Default: "http://proxy.example:8080"}
-	a.upstreamPending = make(chan error, 1)
-	a.upstreamPending <- errors.New("PAC https://pac.example/proxy.pac: dial tcp: connection refused")
+	a.upstreamPending = make(chan upstreamLoadResult, 1)
+	a.upstreamPending <- upstreamLoadResult{applied: true, err: errors.New("PAC https://pac.example/proxy.pac: dial tcp: connection refused"), settings: a.upstreamCfg}
 	a.drainUpstream()
 	if a.upstreamProblem == "" || a.upstream != "" {
 		t.Fatalf("failed startup = problem %q, summary %q", a.upstreamProblem, a.upstream)
 	}
-	a.upstreamPending = make(chan error, 1)
-	a.upstreamPending <- nil
+	a.upstreamPending = make(chan upstreamLoadResult, 1)
+	a.upstreamPending <- upstreamLoadResult{applied: true, settings: a.upstreamCfg}
 	a.drainUpstream()
 	if a.upstreamProblem != "" || a.upstream != "http://proxy.example:8080" {
 		t.Fatalf("successful startup = problem %q, summary %q", a.upstreamProblem, a.upstream)
+	}
+}
+
+func TestStaleStartupResultDoesNotReplaceASave(t *testing.T) {
+	a := workspaceApp()
+	a.upstreamCfg = upstream.Settings{Default: "http://good.example:8080"}
+	a.upstreamEpoch.Store(2)
+	a.upstreamProblem = ""
+	a.upstream = a.upstreamCfg.Summary()
+	a.upstreamPending = make(chan upstreamLoadResult, 1)
+	a.upstreamPending <- upstreamLoadResult{applied: true, epoch: 1, err: errors.New("stale PAC failure"), settings: upstream.Settings{PAC: "https://pac.example/proxy.pac"}}
+	a.drainUpstream()
+	if a.upstreamProblem != "" || a.upstream != "http://good.example:8080" {
+		t.Fatalf("stale startup result changed the save: problem %q, summary %q", a.upstreamProblem, a.upstream)
 	}
 }
 
@@ -299,18 +314,103 @@ func TestApplyUpstreamSettingsDoesNotCommitOnFailure(t *testing.T) {
 	}
 }
 
-func TestImportAppliesUpstreamBeforeCommittingSettings(t *testing.T) {
+func TestUpstreamErrorChipStaysActionable(t *testing.T) {
 	a := workspaceApp()
 	a.srv = &capture.Server{}
 	a.settingsPath = filepath.Join(t.TempDir(), "settings.json")
 	a.upstreamCfg = upstream.Settings{Default: "http://old.example:8080"}
+	a.upstream = ""
+	a.upstreamProblem = "PAC https://pac.example/proxy.pac: GET returned 503 Service Unavailable"
+	tt := ui.NewTester(a.view, 1280, 800)
+	if !tt.HasText("Upstream error") {
+		t.Fatal("a failed upstream has no danger chip")
+	}
+	if err := tt.Click("Disable Upstream error"); err != nil {
+		t.Fatal(err)
+	}
+	if a.upstreamProblem != "" || a.upstreamCfg.Enabled() || a.srv.UpstreamConfig().Enabled() {
+		t.Fatalf("Upstream off did not clear the failed configuration: problem %q, cfg %+v", a.upstreamProblem, a.upstreamCfg)
+	}
+}
+
+func TestUpstreamRetryBackoff(t *testing.T) {
+	for _, tc := range []struct {
+		attempt int
+		want    time.Duration
+	}{
+		{0, 5 * time.Second},
+		{1, 15 * time.Second},
+		{2, 60 * time.Second},
+		{3, 5 * time.Minute},
+		{99, 5 * time.Minute},
+	} {
+		if got := upstreamRetryDelay(tc.attempt); got != tc.want {
+			t.Errorf("retry delay %d = %s, want %s", tc.attempt, got, tc.want)
+		}
+	}
+}
+
+func TestUpstreamRetryAppliesTheFailedConfiguration(t *testing.T) {
+	a := workspaceApp()
+	a.srv = &capture.Server{}
+	a.settingsPath = filepath.Join(t.TempDir(), "settings.json")
+	a.upstreamCfg = upstream.Settings{Default: "http://old.example:8080"}
+	a.upstreamProblem = "PAC failed"
+	a.upstream = ""
+	a.upstreamRetry = upstreamRetry{
+		epoch:    a.upstreamEpoch.Load(),
+		settings: upstream.Settings{Default: "http://good.example:8080"},
+	}
+	a.retryUpstream()
+	if a.upstreamProblem != "" || a.upstream != "http://good.example:8080" || a.upstreamCfg.Default != "http://good.example:8080" {
+		t.Fatalf("retry did not install the configuration: problem %q, summary %q, config %+v", a.upstreamProblem, a.upstream, a.upstreamCfg)
+	}
+	if a.upstreamRetry.timer != nil {
+		t.Fatal("successful retry left a timer")
+	}
+}
+
+func TestUpstreamRetryIsDroppedAfterANewerSave(t *testing.T) {
+	a := workspaceApp()
+	a.srv = &capture.Server{}
+	a.settingsPath = filepath.Join(t.TempDir(), "settings.json")
+	a.upstreamCfg = upstream.Settings{Default: "http://new.example:8080"}
+	a.upstream = a.upstreamCfg.Summary()
+	a.upstreamEpoch.Store(3)
+	a.upstreamRetry = upstreamRetry{
+		epoch:    2,
+		settings: upstream.Settings{Default: "http://stale.example:8080"},
+	}
+	a.retryUpstream()
+	if a.upstreamCfg.Default != "http://new.example:8080" || a.upstream != "http://new.example:8080" {
+		t.Fatalf("stale retry changed the active configuration: %+v, %q", a.upstreamCfg, a.upstream)
+	}
+}
+
+func TestImportAppliesUpstreamBeforeCommittingSettings(t *testing.T) {
+	a := workspaceApp()
+	a.srv = &capture.Server{}
+	a.settingsPath = filepath.Join(t.TempDir(), "settings.json")
+	a.sslPath = filepath.Join(t.TempDir(), "ssl.json")
+	a.ignorePath = filepath.Join(t.TempDir(), "ignore.txt")
+	a.upstreamCfg = upstream.Settings{Default: "http://old.example:8080"}
 	deadPAC := "http://" + freeLoopbackAddr(t) + "/proxy.pac"
-	b := configBundle{Settings: &settings{Upstream: upstream.Settings{Default: "http://new.example:8080", PAC: deadPAC}}}
+	b := configBundle{
+		Settings: &settings{Upstream: upstream.Settings{Default: "http://new.example:8080", PAC: deadPAC}},
+		SSL:      &capture.SSLConfig{All: true},
+		Lists:    map[string][]string{filepath.Base(a.ignorePath): {"imported.example"}},
+	}
 	if err := a.importConfig(b, [3]bool{false, false, true}); err == nil {
 		t.Fatal("an import with an unreachable PAC was accepted")
 	}
 	if a.upstreamCfg.Default != "http://old.example:8080" {
 		t.Fatalf("a failed import committed the upstream: %+v", a.upstreamCfg)
+	}
+	if _, err := os.Stat(a.sslPath); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("SSL settings were written before the upstream check: %v", err)
+	}
+	if _, err := os.Stat(a.ignorePath); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("lists were written before the upstream check: %v", err)
 	}
 }
 

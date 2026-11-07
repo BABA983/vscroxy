@@ -331,7 +331,7 @@ func (e *entry) directTransfer(res http.ResponseWriter, req *http.Request, f *Fl
 		for _, addon := range proxy.Addons {
 			addon.HTTPConnectError(f, err)
 		}
-		res.WriteHeader(502)
+		writeGatewayError(res, f, err)
 		return
 	}
 	defer conn.Close()
@@ -367,7 +367,7 @@ func (e *entry) httpsDialFirstAttack(res http.ResponseWriter, req *http.Request,
 		for _, addon := range proxy.Addons {
 			addon.HTTPConnectError(f, err)
 		}
-		res.WriteHeader(502)
+		writeGatewayError(res, f, err)
 		return
 	}
 

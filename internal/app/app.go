@@ -280,7 +280,10 @@ type app struct {
 	upstreamCfg     upstream.Settings
 	upstreamSecrets map[string]string
 	upstreamProblem string
-	upstreamPending chan error
+	upstreamLoading bool
+	upstreamPending chan upstreamLoadResult
+	upstreamEpoch   atomic.Uint64
+	upstreamRetry   upstreamRetry
 	upstreamUI      upstreamEditor
 	errText         string
 	dropped         int64
@@ -616,15 +619,18 @@ func newApp() *app {
 	} else {
 		a.srv = srv
 		srv.SetCertificates(a.certificates)
-		a.upstreamPending = make(chan error, 1)
+		a.upstreamPending = make(chan upstreamLoadResult, 1)
 		if a.upstreamCfg.Enabled() {
 			// A PAC URL may be slow or unreachable. Requests fail closed while
 			// it loads, and the result reaches the UI through the next frame.
 			a.upstreamProblem = "Upstream configuration is loading"
-			srv.SetUpstreamUnavailable(a.upstreamCfg, errors.New("upstream configuration is loading"))
+			a.upstreamLoading = true
+			placeholder := srv.SetUpstreamUnavailable(a.upstreamCfg, errors.New("upstream configuration is loading"))
 			cfg, secrets := a.upstreamCfg.Clone(), maps.Clone(a.upstreamSecrets)
+			epoch := a.upstreamEpoch.Load()
 			go func() {
-				a.upstreamPending <- srv.SetUpstreamConfigFailClosed(cfg, secrets)
+				applied, err := srv.SetUpstreamConfigFailClosed(placeholder, cfg, secrets)
+				a.upstreamPending <- upstreamLoadResult{epoch: epoch, applied: applied, err: err, settings: cfg, secrets: secrets}
 			}()
 		} else if err := srv.SetUpstreamConfig(a.upstreamCfg, a.upstreamSecrets); err != nil {
 			a.upstreamProblem = err.Error()
