@@ -1467,7 +1467,7 @@ func (a *app) view(c *ui.Context) {
 			a.shell(c, t)
 		}
 		if a.sidebarShown() {
-			ui.Split(c, &a.sidebarWidth, func() { a.sidebar(c) }, main).Grow(1).FillWidth().MinHeight(0)
+			ui.Split(c, &a.sidebarWidth, func() { a.sidebar(c) }, main).SplitReset(220).Grow(1).FillWidth().MinHeight(0)
 		} else {
 			ui.Column(c).Grow(1).FillWidth().MinHeight(0).Children(main)
 		}

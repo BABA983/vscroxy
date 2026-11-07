@@ -228,10 +228,10 @@ func (a *app) splitInspector(c *ui.Context, f flow) {
 	request := func() { a.requestPane(c, f) }
 	response := func() { a.responsePane(c, f) }
 	if a.sidesStacked() {
-		ui.SplitVerticalPercent(c.Key("inspector-sides"), &a.inspect.percent, request, response).Grow(1)
+		ui.SplitVerticalPercent(c.Key("inspector-sides"), &a.inspect.percent, request, response).SplitReset(50).Grow(1)
 		return
 	}
-	ui.SplitPercent(c.Key("inspector-sides"), &a.inspect.percent, request, response).Grow(1)
+	ui.SplitPercent(c.Key("inspector-sides"), &a.inspect.percent, request, response).SplitReset(50).Grow(1)
 }
 
 func (a *app) requestPane(c *ui.Context, f flow) {

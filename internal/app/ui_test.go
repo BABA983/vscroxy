@@ -3964,6 +3964,67 @@ func TestDesktopLayoutDefaultsSideBySideAndSwitchesWithoutLosingCaptureContext(t
 	}
 }
 
+func TestSplitDoubleClickRestoresSidebarWidth(t *testing.T) {
+	a := workspaceApp()
+	tt := ui.NewTester(a.view, 1440, 860)
+	tt.Frame()
+	tt.Press(221, 400)
+	tt.Move(301, 400)
+	tt.Release(301, 400)
+	if a.sidebarWidth != 300 {
+		t.Fatalf("sidebar width after drag = %v, want 300", a.sidebarWidth)
+	}
+	tt.ClickAt(301, 400)
+	tt.ClickAt(301, 400)
+	if a.sidebarWidth != 220 {
+		t.Fatalf("sidebar width after double click = %v, want 220", a.sidebarWidth)
+	}
+}
+
+func TestSplitDoubleClickRestoresInspectorSplitters(t *testing.T) {
+	a := workspaceApp()
+	tt := ui.NewTester(a.view, 1440, 860)
+	click := func(label string) {
+		t.Helper()
+		if err := tt.Click(label); err != nil {
+			t.Fatal(err)
+		}
+	}
+	click("api.example.com/login")
+	click("Body")
+
+	// Side by side: the table takes 64% of the content beside the inspector.
+	table, _ := tt.Find("Captured requests")
+	x := table.X + table.W + 1
+	tt.Press(x, 400)
+	tt.Move(x+100, 400)
+	tt.Release(x+100, 400)
+	if a.workbench.sidePercent == 64 {
+		t.Fatal("drag did not move the side-by-side split")
+	}
+	tt.ClickAt(x+100, 400)
+	tt.ClickAt(x+100, 400)
+	if a.workbench.sidePercent != 64 {
+		t.Fatalf("side percent after double click = %v, want 64", a.workbench.sidePercent)
+	}
+
+	// Stacked: the fixture starts at 56%, while the app's default is 44%.
+	click("Stacked layout")
+	table, _ = tt.Find("Captured requests")
+	y := table.Y + table.H + 1
+	tt.Press(400, y)
+	tt.Move(400, y+100)
+	tt.Release(400, y+100)
+	if a.tablePercent == 44 {
+		t.Fatal("drag did not move the stacked split")
+	}
+	tt.ClickAt(400, y+100)
+	tt.ClickAt(400, y+100)
+	if a.tablePercent != 44 {
+		t.Fatalf("table percent after double click = %v, want 44", a.tablePercent)
+	}
+}
+
 func TestCaptureSelectionMarkerFollowsListAndWindowFocus(t *testing.T) {
 	// Expected colors are the design's Paper/Ink values, not read from
 	// uikit: accent tint fill and accent marker while the list has the

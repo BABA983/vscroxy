@@ -129,9 +129,9 @@ func (a *app) desktopContent(c *ui.Context) {
 				} else if w.sideBySide {
 					// The room under the toolbar, not the column's whole
 					// height (Fill), which ran past the footer.
-					ui.SplitPercent(c.Key("right-inspector"), &w.sidePercent, table, func() { a.detail(c) }).Grow(1).FillWidth().MinHeight(0)
+					ui.SplitPercent(c.Key("right-inspector"), &w.sidePercent, table, func() { a.detail(c) }).SplitReset(64).Grow(1).FillWidth().MinHeight(0)
 				} else {
-					ui.SplitVerticalPercent(c.Key("bottom-inspector"), &a.tablePercent, table, func() { a.detail(c) }).Grow(1).FillWidth().MinHeight(0)
+					ui.SplitVerticalPercent(c.Key("bottom-inspector"), &a.tablePercent, table, func() { a.detail(c) }).SplitReset(44).Grow(1).FillWidth().MinHeight(0)
 				}
 			})
 		}
