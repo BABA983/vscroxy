@@ -344,14 +344,15 @@ SAN is checked instead of failing with "either ServerName or
 InsecureSkipVerify must be specified".
 
 A Map Remote rule or script can rewrite an intercepted request to another host.
-That path has no pre-dialed socket, so `attacker.attack` uses
-`attacker.verifiedClient` when `VerifyUpstream` is set: a separate transport
-that verifies certificates and disables keep-alives, never the inspection
-client's insecure pool. A failed check reaches the client as a 502 and is
-recorded on the flow. If the configured upstream is itself an `https://` proxy,
-this path also verifies that proxy's own certificate, which is stricter than
-the inspection client's usual acceptance. `TestRequestCertificateVerificationAfterMapRemote`
-reproduces the rewritten-target check.
+That path has no pre-dialed socket, so `attacker.attack` builds a separate
+transport with `attacker.upstreamClient` for the rewritten host: it verifies
+certificates and disables keep-alives when `VerifyUpstream` is set, never the
+inspection client's insecure pool. A failed check reaches the client as a 502
+and is recorded on the flow. If the configured upstream is itself an `https://`
+proxy, this path also verifies that proxy's own certificate, which is stricter
+than the inspection client's usual acceptance.
+`TestRequestCertificateVerificationAfterMapRemote` reproduces the rewritten-
+target check.
 
 `internal/capture.ReplayWithPolicy` sends the header for an authored request
 whose TLS setting verifies the certificate, and sets `InsecureSkipVerify` on the
@@ -363,10 +364,35 @@ server with TLS tunneled and intercepted, verification on and off;
 `TestRequestCertificateVerificationUsesTheIPAddress` covers the IP-SAN success
 case.
 
-WebSocket upstream dials are not covered: `proxy/websocket.go` still builds its
-`tls.Client` from `Options.SslInsecure` and does not read `VerifyUpstream`, so a
-WS/WSS send accepts any upstream certificate regardless of the request's TLS
-setting.
+WebSocket upstream dials now use `Proxy.upstreamTLSConfig`, so a captured WSS
+handshake presents a configured client certificate and uses the configured
+roots when it verifies. `Options.SslInsecure` still decides whether a captured
+WSS handshake verifies its upstream; an authored HTTP CONNECT's verification
+header does not reach the separate WSS dial.
+
+## Upstream client certificates and roots
+
+`proxy.Options` has two hooks for intercepted upstream TLS:
+`ClientCertificate(address)` returns the certificate to present to a host:port
+(or nil), and `RootCAs()` returns the pool used when verification is on (nil
+keeps the system pool). `attacker.serverTlsHandshake` calls both for every
+decrypted upstream handshake. A configured certificate is presented even when
+`SslInsecure` skips verification; an error from either hook aborts the CONNECT
+instead of continuing without the certificate or roots. The connection log
+records `Upstream TLS configuration failed` with the hook's error.
+
+`attacker.upstreamClient` builds a per-target transport for a rewritten request
+(Map Remote) with the same hooks, and `webSocketHandler.handle`/`handleWSS` use
+`Proxy.upstreamTLSConfig` for WSS. `internal/capture` supplies the hooks from
+`Server.SetCertificates`; `Server.ReplayWithPolicy` also uses the same settings
+for the client leg, so a tunneled send and an intercepted send agree. Blind
+tunnels (`shouldIntercept` false) are unchanged: the client owns their TLS and
+the proxy cannot inject a certificate.
+
+Real-socket coverage lives in `internal/capture/certificates_test.go` (HTTP,
+custom roots, reverse proxy and WSS) and `internal/request/certificates_test.go`
+(tunneled and intercepted sends, PEM/PKCS#12, wrong passphrase, host mismatch,
+verification off).
 
 ## Maintaining this patch
 
