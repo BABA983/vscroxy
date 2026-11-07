@@ -74,7 +74,7 @@
 | SOCKS5 代理入口 | 已有 | RFC 1928 CONNECT，可选 RFC 1929 用户名／密码；域名、IPv4、IPv6；与 HTTP 代理同一条抓包流水线：解密名单内 MITM 并抓取明文 HTTP，名单外 400 ms 嗅探首字节，HTTP 请求行交给 HTTP 前端并抓取，TLS／其他字节原样透传，服务器先发协议窗口后透传；规则、Host 方案、网络条件、Allow／Block、录制生效；10 s peek 超时；嵌套 CONNECT 返回 400；Settings → Proxy 开关和固定端口（1024–65535，冲突不回退，空为自动）；设备接入的 IP 白名单经 LAN 网关同样生效 | M7 |
 | 反向代理（本地端口直接转发到远端） | 已有 | Settings → Proxy：多条本地端口 → http／https 远端 URL，增删改、启停，Host 头改写或保留；经同一规则和抓包，HTTPS 远端由 app 发起 TLS 并默认校验证书（可按条目允许自签名）；Remote host 时只接受回环 Host；端口冲突逐条提示 | M7 |
 | 设备接入访问控制（IP 白名单） | 已有 | | |
-| 自定义证书：上游客户端证书（mTLS）、导入自定义根证书 | 缺少 | | M6 |
+| 自定义证书：上游客户端证书（mTLS）、导入自定义根证书 | 已有 | Settings → Certificates 的同一份配置：按 host（可带端口、`*.` 通配）出示 PEM cert+key 或 PKCS#12/PFX，可选口令；上游校验和反向代理 https 远端额外信任导入的 PEM 根证书并保留系统根开关。证书文件每次连接读取，读取或解析失败明确报错；口令密封在本机，不进设置文件、配置导出或日志。盲隧道（未解密）仍由客户端自己完成 TLS | M6 |
 | TLS key 记录（SSLKEYLOGFILE） | 已有 | | |
 | 连接日志 | 已有 | | |
 | 来源 App 识别和图标 | 已有 | Windows 没有图标 | |
@@ -187,8 +187,8 @@
 | Checks（无代码断言） | 已有 | 导出 Postman 时转成 `pm.test`，结果与 Checks 一致；无效的 Checks 跳过并警告 | M1 |
 | 集合、文件夹、设置、落盘为目录 | 已有 | | |
 | 请求描述、集合文档视图 | 已有 | 请求、文件夹、集合的 Markdown 描述随资产落盘，在请求 Docs 页和层级设置里编辑；集合菜单的 View documentation… 只读渲染描述并列出请求的 method、URL 和描述；Postman 导入导出保留 | M6 |
-| 单个请求的设置：超时、跟随重定向、证书校验 | 已有 | 请求 Settings 页和文件夹/集合的 Request defaults；Send 和 Runner 生效；跟随与最大次数分别继承，`maxRedirects: 0` 视为不跟随；Postman `protocolProfileBehavior` 的 `followRedirects`、`maxRedirects`、`strictSSL` 往返，cURL（Bash/CMD/PowerShell）的 `-L`、`--max-redirs`、`-k`、`--max-time` 与 PowerShell 对应参数往返；Postman 没有请求超时字段；关闭校验有明确警告 | M6 |
-| 客户端证书（按域名）、自定义 CA | 缺少 | | M6 |
+| 单个请求的设置：超时、跟随重定向、证书校验 | 已有 | 请求 Settings 页和文件夹/集合的 Request defaults；Send 和 Runner 生效；跟随与最大次数分别继承，`maxRedirects: 0` 视为不跟随；Postman `protocolProfileBehavior` 的 `followRedirects`、`maxRedirects`、`strictSSL` 往返，cURL（Bash/CMD/PowerShell）的 `-L`、`--max-redirs`、`-k`、`--max-time` 与 PowerShell 对应参数往返；Postman 没有请求超时字段；关闭校验有明确警告，仍接受任意证书，自定义 CA 只在校验开启时作为额外信任，二者互不影响 | M6 |
+| 客户端证书（按域名）、自定义 CA | 已有 | Settings → Certificates 按 host（可带端口、`*.` 通配）配置客户端证书和额外根证书；Send、Runner、CLI/MCP 运行集合、WebSocket、SSE、gRPC、Socket.IO 生效；PEM cert+key 或 PKCS#12/PFX，口令密封保存，文件每次发送读取；关闭证书校验仍接受任意证书，与自定义 CA 互不影响 | M6 |
 | Examples | 已有 | | |
 | Examples 作为 Mock 响应（本地 mock） | 已有 | 见 6.3；Examples 标签里的 Mock，集合菜单的 Mock from examples | M4 |
 | 代码 Mock（脚本生成本地响应） | 首版已有 | Code Mock 规则运行 `onMock`，读取 `pm.request`、生成 `pm.response`；复用编辑器／Scenario／配置导出，失败返回本地错误而不穿透原站；不是 Postman Node.js／`pm.mock` 服务兼容层 | M9 |
@@ -310,7 +310,7 @@ Cookie 和其他 API key 保留为变量 header，避免把多个认证机制硬
 
 - Body：binary、GraphQL 基础已完成；GraphQL schema 自省、补全和 operationName 选择待做。
 - 请求描述、集合文档视图和单个请求的设置已完成：Markdown 描述随请求、文件夹和集合落盘，集合菜单的 View documentation… 只读渲染并列出请求；超时、重定向（含最大次数）和证书校验在请求 Settings 页与文件夹/集合的 Request defaults 设置，Send 和 Runner 生效，Postman 的 `protocolProfileBehavior` 与 cURL 参数往返；关闭证书校验有明确警告。
-- 证书：请求侧的客户端证书和自定义 CA；抓包侧的上游 mTLS 和自定义根证书。
+- 证书已完成：Settings → Certificates 一份配置同时服务请求侧和抓包侧。按 host（可带端口、`*.` 通配）出示 PEM cert+key 或 PKCS#12/PFX（可选口令，用 `internal/vault` 密封在本机，0600 key 文件，不进设置文件、配置导出或日志）；额外信任的 PEM 根证书与“同时信任系统根”开关用于 Send、Runner、CLI/MCP、WebSocket、SSE、gRPC、Socket.IO、MITM 上游校验和反向代理 https 远端。证书文件只存路径，每次发送/连接读取，读取或解析失败明确报错，绝不静默不带证书发送。关闭请求的证书校验只影响该请求的服务器校验，不改变客户端证书出示，也不要求自定义 CA；未解密的盲隧道仍由客户端完成 TLS。
 - 变量：初始值/当前值已完成（环境、全局、集合/文件夹；脚本 set 写 Current，unset 清 Current 并回退 Initial；变量表可持久化/重置，凭据位和敏感名不持久化；Current 默认遮罩；Postman 导入导出用 Initial，第三方 current/secret 只进本机 Current）；`{{变量}}` 自动补全、悬停预览和未定义高亮已完成（单行输入整字段悬停，代码编辑器精确 token；动态变量 32 个，仍未覆盖完整 Faker）。
 - 脚本：沙箱库；`have.jsonSchema` 已完成（Ajv 6.12.6，无 UI 改动）。
 - Postman Collection v3 导入导出。

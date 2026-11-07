@@ -1314,7 +1314,8 @@ Both plain WS and decrypted WSS retain the actual escaped path/query. A small
 documented local patch to go-mitmproxy fixes plain WS's discarded handshake
 headers and CONNECT-only capture metadata (see `third_party/go-mitmproxy/VSCROXY.md`).
 Composed WS requests use structured auth, custom headers and session cookies;
-WSS verifies the system/proxy CAs rather than disabling certificate checks.
+WSS verifies the system/custom roots and presents a matching client certificate
+from **Settings → Certificates** rather than disabling certificate checks.
 The one-shot sender waits up to two seconds for five replies, capped at 1 MiB
 each; cancellation closes the socket. Post-response scripts require HTTP.
 
@@ -1325,7 +1326,8 @@ client. An active HTTP draft pre-fills its prepared URL and headers (including
 auth and current variables), without sending its body or running its scripts.
 You can also enter an absolute HTTP(S) URL and headers directly. **Connect SSE**
 starts a fresh timeline through the running capture proxy, using the Requests
-cookie jar and verified system/proxy CAs. HTTPS decryption follows the proxy's
+cookie jar, the verified system/custom roots and a matching client certificate
+from **Settings → Certificates**. HTTPS decryption follows the proxy's
 host settings. It sends `Accept: text/event-stream` and `Cache-Control: no-cache`;
 redirects use Go's standard sensitive-header policy.
 
@@ -1597,12 +1599,15 @@ removed before calling: they are not silently skipped. Runner/CLI HTTP execution
 and HTTP code generation reject gRPC documents; Postman v2.1 export skips them
 with a warning. Calls/timelines are session-local, not HTTP History or Examples.
 
-TLS verifies certificates using system roots and the running proxy's CA.
+TLS verifies certificates using system roots, the configured custom roots and
+the running proxy's CA, and presents a matching client certificate from
+**Settings → Certificates**.
 HTTPS uses capture while the proxy is running; enable HTTPS inspection for the
 target host to inspect it. Without capture it connects directly with verified
 TLS. Plaintext h2c always connects directly and is explicitly marked **not
-captured**, because the capture engine does not support h2c. This client does not
-add custom CA/mTLS settings or gRPC-Web support.
+captured**, because the capture engine does not support h2c. This client uses
+the shared client certificate/custom root settings; it does not add gRPC-Web
+support.
 
 ## Replay
 
@@ -1759,6 +1764,50 @@ the panel warns, and the setting applies to Send and Runner. An explicit 0
 removes the editor's and Runner's per-request budget as well; **Stop** still
 cancels the send. Checks keep inspecting the original response, so a request
 with Checks stops at the first 3xx even when it would otherwise follow.
+Client certificates and extra roots are configured once in **Settings →
+Certificates**; a matching client certificate is still presented when
+verification is off, while custom roots are used only when it is on.
+
+### Client certificates and custom roots
+
+**Settings → Certificates** configures one client certificate per host and
+extra roots for both authored sends and captured upstream TLS. A host may
+include a port and may start with `*.`; without a port it applies to every
+port. The most specific match wins. A certificate is either a PEM certificate
+chain plus a PEM private key, or a PKCS#12/PFX file that contains both. An
+optional passphrase is sealed with `internal/vault` in a private local file
+(`certificates-secrets.json` plus a 0600 `certificates.key`); it never appears
+in `settings.json`, a configuration export, or a log.
+
+Certificate, key and CA files are referenced by local path and read on every
+send or connection. A missing, unreadable, malformed or wrongly decrypted file
+fails the send with the path and reason; vscroxy never continues without a
+configured certificate. PEM private keys may be unencrypted, legacy RFC 1423
+encrypted, or encrypted PKCS#8; PKCS#12 may use modern AES/PBES2 encryption.
+
+The same configuration applies to Send, the Collection Runner,
+`vscroxy-cli run`/`load`, desktop control (CLI/MCP) collection runs, WebSocket
+and WSS sends, SSE sessions, gRPC calls and Socket.IO sessions. A client
+certificate is presented even when the request turns certificate verification
+off: mTLS is independent of verifying the server. Captured traffic presents the
+certificate after HTTPS decryption, and reverse proxies to `https://` remotes
+use the same upstream certificate and roots. A redirect keeps the certificate
+chosen for the request's original host; a cross-host redirect that needs a
+different client certificate is not selected per hop.
+
+**Trust system roots** is on by default. Turning it off trusts only the listed
+PEM roots (plus the running proxy's own CA where a connection goes through
+capture). Custom roots are additional trust for verified connections; they do
+not disable verification and are not needed when a request turns verification
+off. The request Settings page's **Verify TLS certificate** switch is per
+request and wins over the roots: off accepts any certificate, including an
+impostor's, while the client certificate is still presented.
+
+A host that is not decrypted is a blind tunnel: vscroxy cannot add a client
+certificate or verify the upstream for it, so the client program must do that
+itself. Captured WebSocket upstream TLS keeps the inspection proxy's
+accept-any default unless verification is explicitly requested; the custom
+roots apply when it is.
 
 **OAuth 2.0** gets an access token with the authorization code grant with PKCE
 (the default), the authorization code grant, client credentials or the
