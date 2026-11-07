@@ -18,8 +18,39 @@ import (
 	"github.com/baba983/vscroxy/internal/capture"
 	"github.com/baba983/vscroxy/internal/request"
 	"github.com/egoist/mygo/ui"
+	"github.com/egoist/mygo/ui/editor"
 	"github.com/gorilla/websocket"
 )
+
+func TestScriptSnippetsParse(t *testing.T) {
+	for _, kind := range []string{"request", "rule", "addon"} {
+		for _, snippet := range scriptSnippets(kind) {
+			if _, err := editor.ParseSnippet(snippet[1]); err != nil {
+				t.Errorf("%s snippet %q: %v", kind, snippet[0], err)
+			}
+		}
+	}
+}
+
+func TestSnippetMenuInsertsPlaceholderDefaults(t *testing.T) {
+	st := &editor.State{Buffer: editor.NewBuffer("")}
+	tt := ui.NewTester(func(c *ui.Context) { snippetMenu(c, st, "rule") }, 400, 200)
+	if err := tt.Click("Insert snippet"); err != nil {
+		t.Fatal(err)
+	}
+	if err := chooseMenu(tt, "Add a request header"); err != nil {
+		t.Fatal(err)
+	}
+	if got, want := st.Buffer.String(), "pm.request.headers.upsert(\"X-Debug\", \"1\");\n"; got != want {
+		t.Fatalf("inserted %q, want %q", got, want)
+	}
+	if got := st.SelectedText(); got != "X-Debug" {
+		t.Fatalf("first tab stop selected %q, want X-Debug", got)
+	}
+	if !st.Run(editor.Tab) || st.SelectedText() != "1" {
+		t.Fatalf("Tab did not move to the second stop: %q", st.SelectedText())
+	}
+}
 
 // A script saved on the Scripts page runs on the traffic a Script rule
 // matches, through the real proxy, and what it prints reaches its Console.

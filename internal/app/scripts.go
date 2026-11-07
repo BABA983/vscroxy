@@ -515,33 +515,33 @@ func (a *app) openScript(name string) {
 // require, and rule scripts also get their hooks' snippets.
 func scriptSnippets(kind string) [][2]string {
 	shared := [][2]string{
-		{"Log a value", "console.log(pm.request.url.toString());\n"},
-		{"Read and set a global", "const count = Number(pm.globals.get(\"count\") || 0) + 1;\npm.globals.set(\"count\", count);\n"},
-		{"Send a request", "const res = await pm.sendRequest(\"https://example.com/token\");\nconsole.log(res.code, res.json());\n"},
+		{"Log a value", "console.log(pm.request.url.toString());\n$0"},
+		{"Read and set a global", "const count = Number(pm.globals.get(\"${1:count}\") || 0) + 1;\npm.globals.set(\"${1:count}\", count);\n$0"},
+		{"Send a request", "const res = await pm.sendRequest(\"${1:https://example.com/token}\");\nconsole.log(res.code, res.json());\n$0"},
 	}
 	if kind == "request" {
 		return append(shared,
-			[2]string{"Hash with crypto-js", "const CryptoJS = require(\"crypto-js\");\nconst signature = CryptoJS.HmacSHA256(pm.request.body.raw, \"secret\").toString(CryptoJS.enc.Hex);\n"},
-			[2]string{"Use lodash", "const _ = require(\"lodash\");\nconst ids = _.map(pm.response.json().items, \"id\");\n"})
+			[2]string{"Hash with crypto-js", "const CryptoJS = require(\"crypto-js\");\nconst signature = CryptoJS.HmacSHA256(pm.request.body.raw, \"${1:secret}\").toString(CryptoJS.enc.Hex);\n$0"},
+			[2]string{"Use lodash", "const _ = require(\"lodash\");\nconst ids = _.map(pm.response.json().items, \"${1:id}\");\n$0"})
 	}
 	// Rule scripts and addons are modules: they import at the top.
 	shared = append(shared,
-		[2]string{"Import crypto-js", "import CryptoJS from \"crypto-js\";\n"},
-		[2]string{"Import lodash", "import _ from \"lodash\";\n"},
-		[2]string{"Import an addon", "import { sign } from \"sign\";\n"})
+		[2]string{"Import crypto-js", "import CryptoJS from \"crypto-js\";\n$0"},
+		[2]string{"Import lodash", "import _ from \"lodash\";\n$0"},
+		[2]string{"Import an addon", "import { ${1:sign} } from \"${1:sign}\";\n$0"})
 	if kind == "addon" {
-		return append(shared, [2]string{"Export a function", "export function sign(text) {\n  return text;\n}\n"})
+		return append(shared, [2]string{"Export a function", "export function ${1:sign}(text) {\n  return text;\n}\n$0"})
 	}
 	return append([][2]string{
 		{"Generate a local mock response", newMockScriptText},
-		{"Add a request header", "pm.request.headers.upsert(\"X-Debug\", \"1\");\n"},
-		{"Rewrite the URL", "pm.request.url = pm.request.url.toString().replace(\"/v1/\", \"/v2/\");\n"},
-		{"Add a query parameter", "pm.request.url.query.upsert(\"debug\", \"1\");\n"},
-		{"Read a system environment variable", "const token = process.env.API_TOKEN;\nif (token) pm.request.headers.upsert(\"Authorization\", \"Bearer \" + token);\n"},
-		{"Change the status", "if (pm.response.code >= 500) pm.response.code = 200;\n"},
-		{"Edit a JSON response", "const body = pm.response.json();\nbody.debug = true;\npm.response.setBody(body);\n"},
-		{"Set a response header", "pm.response.headers.upsert(\"Access-Control-Allow-Origin\", \"*\");\n"},
-		{"Pass a value from request to response", "// In onRequest:\npm.variables.set(\"startedAt\", Date.now());\n// In onResponse:\nconsole.log(\"took\", Date.now() - Number(pm.variables.get(\"startedAt\")), \"ms\");\n"},
+		{"Add a request header", "pm.request.headers.upsert(\"${1:X-Debug}\", \"${2:1}\");\n$0"},
+		{"Rewrite the URL", "pm.request.url = pm.request.url.toString().replace(\"${1:/v1/}\", \"${2:/v2/}\");\n$0"},
+		{"Add a query parameter", "pm.request.url.query.upsert(\"${1:debug}\", \"${2:1}\");\n$0"},
+		{"Read a system environment variable", "const token = process.env.${1:API_TOKEN};\nif (token) pm.request.headers.upsert(\"Authorization\", \"Bearer \" + token);\n$0"},
+		{"Change the status", "if (pm.response.code >= ${1:500}) pm.response.code = ${2:200};\n$0"},
+		{"Edit a JSON response", "const body = pm.response.json();\nbody.${1:debug} = true;\npm.response.setBody(body);\n$0"},
+		{"Set a response header", "pm.response.headers.upsert(\"${1:Access-Control-Allow-Origin}\", \"${2:*}\");\n$0"},
+		{"Pass a value from request to response", "// In onRequest:\npm.variables.set(\"${1:startedAt}\", Date.now());\n// In onResponse:\nconsole.log(\"took\", Date.now() - Number(pm.variables.get(\"${1:startedAt}\")), \"ms\");\n$0"},
 	}, shared...)
 }
 
@@ -550,7 +550,11 @@ func snippetMenu(c *ui.Context, st *editor.State, kind string) {
 	uikit.MenuSelect(c, "Insert snippet", func(m *ui.Menu) {
 		for _, s := range scriptSnippets(kind) {
 			if m.Item(s[0]).Chosen() {
-				st.Insert(s[1])
+				// The templates are parsed once at the click: a bad one
+				// leaves the editor alone rather than inserting its syntax.
+				if snippet, err := editor.ParseSnippet(s[1]); err == nil {
+					st.InsertSnippet(snippet)
+				}
 			}
 		}
 	}).Label("Insert snippet")
