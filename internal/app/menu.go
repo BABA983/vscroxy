@@ -30,6 +30,8 @@ func (a *app) menu() *mygo.Menu {
 		command("request.new", "New request"),
 		command("request.import-curl", "Import cURL…"),
 		command("collection.import-folder", "Import Bruno collection…"),
+		command("capture.import-session", "Import capture session…"),
+		command("capture.import-proxyman-folder", "Import Proxyman log folder…"),
 		command("request.save", "Save request"),
 		command("request.close", "Close request"),
 		mygo.Separator(),

@@ -2625,6 +2625,7 @@ func Run() error {
 		// A window behind others shows its selections gray.
 		a.win.OnFocus(func() { a.win.Update(func() { a.windowBehind = false }) })
 		a.win.OnBlur(func() { a.win.Update(func() { a.windowBehind = true }) })
+		a.win.OnFileDrop(func(e *mygo.FileDropEvent) { a.importDropped(e.Paths) })
 		a.win.OnClose(func(e *mygo.CloseEvent) {
 			if !a.systemProxy.quitReady {
 				e.PreventDefault()

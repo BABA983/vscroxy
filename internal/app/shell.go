@@ -330,6 +330,8 @@ func (a *app) moreActions(c *ui.Context) []action {
 		do("session.save-as", "Save session…", a.saveSession).in("files"),
 		do("session.open", "Open session…", a.openSession).in("files"),
 		do("capture.import-har", "Import HAR…", a.importHAR).in("files"),
+		do("capture.import-session", "Import capture session…", a.importCaptureSession).in("import"),
+		do("capture.import-proxyman-folder", "Import Proxyman log folder…", a.importCaptureFolder).in("import"),
 		do("collection.import", "Import…", a.importRequests).in("import"),
 		do("collection.import-folder", "Import Bruno collection…", a.importCollectionFolder).in("import"),
 		do("request.import-curl", "Import cURL…", a.openCurlImport).in("import"),

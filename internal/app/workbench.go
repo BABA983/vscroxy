@@ -574,6 +574,8 @@ func (a *app) actions(c *ui.Context) []action {
 			a.loadRequestAssets()
 			a.done(fmt.Sprintf("Reloaded %d %s from %s", len(a.requests), plural(len(a.requests), "request", "requests"), a.library.root))
 		}),
+		do("capture.import-session", "Import capture session…", a.importCaptureSession),
+		do("capture.import-proxyman-folder", "Import Proxyman log folder…", a.importCaptureFolder),
 		do("collection.import", "Import…", a.importRequests),
 		do("collection.import-folder", "Import Bruno collection…", a.importCollectionFolder),
 		do("collection.export-postman", "Export collection as Postman…", func() { a.exportPostman(collectionRoot(d.composeCollection)) }).

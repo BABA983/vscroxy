@@ -1,6 +1,7 @@
 package app
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -463,5 +464,98 @@ func TestSaveChosenRowsToCollection(t *testing.T) {
 	if n := len(a.requests); n != 5 || a.requests[3].Collection != "Shop" || a.requests[3].Name != "GET api.example.com/projects" ||
 		a.requests[4].Name != "GET api.example.com/projects (2)" {
 		t.Errorf("appended %+v", importedRequests(t, a.requests[3:]))
+	}
+}
+
+func TestImportCharlesCaptureAppendsFlows(t *testing.T) {
+	a := workspaceApp()
+	data, err := os.ReadFile(filepath.Join("..", "imports", "testdata", "charles-session.chlsj"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	a.importCaptureData(data, "charles-session.chlsj")
+	if len(a.flows) != 6 {
+		t.Fatalf("%d flows: %+v", len(a.flows), a.flows)
+	}
+	imported := a.flows[2]
+	if imported.id != 3 || imported.url != "https://api.example.com/projects?page=1" || imported.status != 200 ||
+		imported.reqHeader.Get("X-Trace") == "" || imported.respHeader.Get("Content-Encoding") != "gzip" {
+		t.Errorf("imported flow = %+v", imported)
+	}
+	if got := imported.reqHeader.Values("X-Trace"); !reflect.DeepEqual(got, []string{"first", "second"}) {
+		t.Errorf("X-Trace = %q", got)
+	}
+	if string(imported.reqBody) != `{"name":"Ada"}` || string(imported.resBody) != `{"id":73}` {
+		t.Errorf("bodies = %q/%q", imported.reqBody, imported.resBody)
+	}
+	if imported.timing == nil || imported.timing.TotalNS != 45_000_000 {
+		t.Errorf("timing = %+v", imported.timing)
+	}
+	if a.pickedID != 3 {
+		t.Errorf("picked = %d, want the first imported exchange", a.pickedID)
+	}
+	if !a.importReport.open || !strings.Contains(a.importReport.title, "4 exchanges") {
+		t.Fatalf("report = %+v, message %q", a.importReport, a.message)
+	}
+	if len(a.importReport.lines) != 1 || !strings.Contains(a.importReport.lines[0], "WebSocket message frames") {
+		t.Errorf("warnings = %q", a.importReport.lines)
+	}
+}
+
+func TestImportProxymanCaptureAddsWebSocketFrames(t *testing.T) {
+	a := workspaceApp()
+	dir := t.TempDir()
+	for name, fixture := range map[string]string{
+		"request_0_1001": "proxyman-request_0_1001.json",
+		"request_1_1002": "proxyman-request_1_1002.json",
+		"request_2_1003": "proxyman-request_2_1003.json",
+		"request_3_1004": "proxyman-request_3_1004.json",
+	} {
+		data, err := os.ReadFile(filepath.Join("..", "imports", "testdata", fixture))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, name), data, 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	result, err := imports.ReadProxymanDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a.addCaptureImport(result, dir)
+	if len(a.flows) != 6 {
+		t.Fatalf("%d flows", len(a.flows))
+	}
+	websocket := a.flows[3]
+	if websocket.id != 4 || websocket.kind != "ws" || websocket.url != "wss://ws.example.com/socket" {
+		t.Fatalf("WebSocket = %+v", websocket)
+	}
+	frames := a.frames[websocket.id]
+	if len(frames) != 4 {
+		t.Fatalf("%d frames: %+v", len(frames), frames)
+	}
+	if frames[0].direction != "out" || frames[0].kind != "text" || frames[0].data != "hello" ||
+		frames[2].direction != "in" || frames[2].kind != "binary" || !bytes.Equal([]byte(frames[2].data), []byte{0x00, 0xff, 0xfe, 0x01}) {
+		t.Errorf("frames = %+v", frames)
+	}
+	if a.flows[4].conn.error != "Could not connect to the server" || a.flows[4].conn.errorStage != "HTTP" {
+		t.Errorf("failure = %+v", a.flows[4].conn)
+	}
+	if a.importReport.open || !strings.Contains(a.message, "4 exchanges") {
+		t.Errorf("report = %+v, message %q", a.importReport, a.message)
+	}
+}
+
+func TestImportNativeCharlesExplainsTheConversion(t *testing.T) {
+	a := workspaceApp()
+	a.importCaptureData([]byte{0xAC, 0xED, 0x00, 0x05, 0x00}, "native.chls")
+	if len(a.flows) != 2 {
+		t.Fatalf("native session changed the table: %+v", a.flows)
+	}
+	for _, want := range []string{"Java-serialized", ".chlsj", "HAR"} {
+		if !strings.Contains(a.message, want) {
+			t.Errorf("message %q does not mention %q", a.message, want)
+		}
 	}
 }

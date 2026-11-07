@@ -24,6 +24,7 @@ import (
 	"github.com/baba983/vscroxy/internal/certs"
 	"github.com/baba983/vscroxy/internal/clientsetup"
 	"github.com/baba983/vscroxy/internal/hosts"
+	"github.com/baba983/vscroxy/internal/imports"
 	"github.com/baba983/vscroxy/internal/request"
 	"github.com/baba983/vscroxy/internal/rules"
 	"github.com/baba983/vscroxy/internal/system"
@@ -183,6 +184,43 @@ func TestUISnapshots(t *testing.T) {
 		}, want: "Socket.IO namespace connection rejected (check namespace and auth)"},
 		{name: "capture-empty", setup: func(a *app) { a.flows = nil; a.recount(); a.applyFilter() }, want: "Capture is stopped"},
 		{name: "capture-selected", want: "Request inspector"},
+		{name: "capture-imported-charles", setup: func(a *app) {
+			data, err := os.ReadFile(filepath.Join("..", "imports", "testdata", "charles-session.chlsj"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			a.importCaptureData(data, "charles-session.chlsj")
+			a.importReport.open = false
+			a.chosen.Clear()
+			a.views.init(a, "")
+			a.pickedID = 3
+			a.applyFilter()
+			openResponseBody(a)
+		}, want: "X-Trace"},
+		{name: "capture-imported-proxyman", setup: func(a *app) {
+			dir := t.TempDir()
+			for name, fixture := range map[string]string{
+				"request_0_1001": "proxyman-request_0_1001.json",
+				"request_1_1002": "proxyman-request_1_1002.json",
+			} {
+				data, err := os.ReadFile(filepath.Join("..", "imports", "testdata", fixture))
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(filepath.Join(dir, name), data, 0644); err != nil {
+					t.Fatal(err)
+				}
+			}
+			result, err := imports.ReadProxymanDir(dir)
+			if err != nil {
+				t.Fatal(err)
+			}
+			a.addCaptureImport(result, "proxyman-log")
+			a.views.init(a, "")
+			a.pickedID = 4
+			a.applyFilter()
+			a.inspect.pane = inspectorMessages
+		}, want: "hello"},
 		{name: "capture-cookies", setup: func(a *app) {
 			a.flows[0].respHeader["Set-Cookie"] = []string{"session=fixture-value; Path=/; HttpOnly; Secure; SameSite=Lax", "theme=paper; Path=/account; Max-Age=3600"}
 			a.inspect.tab[1] = resTabCookies
@@ -1042,6 +1080,13 @@ func TestUISnapshots(t *testing.T) {
 				a.importReport.lines = append(a.importReport.lines, fmt.Sprintf("Request %d: unsupported collection option was not imported.", i+1))
 			}
 		}, want: "Import review", short: true},
+		{name: "dialog-import-capture-report", setup: func(a *app) {
+			data, err := os.ReadFile(filepath.Join("..", "imports", "testdata", "charles-session.chlsj"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			a.importCaptureData(data, "charles-session.chlsj")
+		}, want: "Imported “charles-session.chlsj”", short: true},
 		{name: "dialog-save-collection", setup: func(a *app) { a.openCollectionSave(a.flows) }, want: "Save 2 requests to collection"},
 		{name: "dialog-replay", setup: func(a *app) { a.openReplay(a.flows) }, want: "Replay 2 requests"},
 		{name: "dialog-replay-error", setup: func(a *app) { a.openReplay(a.flows); a.replayUI.timeout = "86401" }, want: "Enter 0–86400 seconds."},
