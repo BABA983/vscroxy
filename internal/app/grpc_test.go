@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/baba983/vscroxy/internal/certs"
 	"github.com/baba983/vscroxy/internal/request"
 	"github.com/baba983/vscroxy/internal/store"
 	"github.com/egoist/mygo/ui"
@@ -120,6 +121,37 @@ func waitGRPC(t *testing.T, tt *ui.Tester, condition func() bool) {
 		tt.Frame()
 	}
 	tt.Frame()
+}
+
+func TestGRPCReflectCertificateFailureClearsLoading(t *testing.T) {
+	a := libraryApp(t)
+	dir := t.TempDir()
+	a.certificates = certs.Settings{Clients: []certs.Client{{
+		ID: "one", Host: "api.example.com", Format: certs.FormatPEM,
+		CertFile: filepath.Join(dir, "missing.pem"), KeyFile: filepath.Join(dir, "missing.key"),
+	}}}
+	a.addDocument(savedRequest{Protocol: "gRPC", Name: "Broken certificate", URL: "https://api.example.com"}, "")
+	d := a.requestDocument
+	g := d.grpcState()
+	a.loadGRPCSchema(d, true, false)
+	if g.loading != nil {
+		t.Fatal("reflect failure left the schema loading state set")
+	}
+	if g.cancelImport != nil {
+		t.Fatal("reflect failure left a cancel function")
+	}
+	if g.problem == "" {
+		t.Fatal("reflect failure did not report the certificate problem")
+	}
+	for _, action := range a.grpcActions(d, true) {
+		if action.id == "request.grpc-reflect" {
+			if !action.enabled {
+				t.Fatalf("reflect is still disabled: %s", action.reason)
+			}
+			return
+		}
+	}
+	t.Fatal("reflect action missing")
 }
 
 func TestGRPCDocumentImportReflectionCallsAndPersistence(t *testing.T) {

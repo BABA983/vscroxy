@@ -10,6 +10,21 @@ import (
 	"github.com/baba983/vscroxy/internal/testcert"
 )
 
+func TestImportedSettingsKeepTheSecretsLoadProblem(t *testing.T) {
+	a := libraryApp(t)
+	a.certProblem = "certificate passphrases are unreadable"
+	a.certificates.Secrets = map[string]string{"keep": "passphrase"}
+	a.applySettings(settings{Certificates: certs.Settings{Clients: []certs.Client{{
+		ID: "one", Host: "api.example.com", Format: certs.FormatPEM, CertFile: "/tmp/cert.pem", KeyFile: "/tmp/key.pem",
+	}}}})
+	if a.certificates.SecretsProblem != a.certProblem {
+		t.Fatalf("secrets problem = %q, want %q", a.certificates.SecretsProblem, a.certProblem)
+	}
+	if a.certificates.Secrets["keep"] != "passphrase" {
+		t.Fatal("imported settings discarded this computer's sealed passphrases")
+	}
+}
+
 func TestSaveCertificatesSealsPassphrasesBesideSettings(t *testing.T) {
 	ca := testcert.NewCA(t)
 	dir := t.TempDir()

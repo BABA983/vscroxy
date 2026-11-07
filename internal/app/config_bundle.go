@@ -390,6 +390,9 @@ func (a *app) applySettings(s settings) {
 	secrets := a.certificates.Secrets
 	a.certificates = s.Certificates.Normalize()
 	a.certificates.Secrets = secrets
+	if a.certProblem != "" {
+		a.certificates.SecretsProblem = a.certProblem
+	}
 	a.certificateUI.loaded, a.certificateUI.dirty = false, false
 	if a.srv != nil {
 		a.srv.SetCertificates(a.certificates)

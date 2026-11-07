@@ -101,6 +101,16 @@ func (a *app) loadGRPCSchema(d *requestDocument, reflect, saved bool) {
 			return
 		}
 	}
+	var proxy string
+	var tlsConfig *tls.Config
+	if reflect {
+		var configErr error
+		proxy, tlsConfig, configErr = a.grpcTLSConfig(prepared.URL)
+		if configErr != nil {
+			g.problem = configErr.Error()
+			return
+		}
+	}
 	g.loaded, g.problem = true, ""
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	g.cancelImport = cancel
@@ -111,16 +121,6 @@ func (a *app) loadGRPCSchema(d *requestDocument, reflect, saved bool) {
 	for line := range strings.SplitSeq(g.roots, "\n") {
 		if root := strings.TrimSpace(line); root != "" {
 			roots = append(roots, root)
-		}
-	}
-	var proxy string
-	var tlsConfig *tls.Config
-	if reflect {
-		var configErr error
-		proxy, tlsConfig, configErr = a.grpcTLSConfig(prepared.URL)
-		if configErr != nil {
-			g.problem = configErr.Error()
-			return
 		}
 	}
 	go func() {

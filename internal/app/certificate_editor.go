@@ -44,14 +44,7 @@ func (e *certificateEditor) load(a *app) {
 		if id == "" {
 			id = uuid.NewString()
 		}
-		format := client.Format
-		if format == "" {
-			if client.KeyFile == "" {
-				format = certs.FormatPKCS12
-			} else {
-				format = certs.FormatPEM
-			}
-		}
+		format := certs.ResolveFormat(client.Format, client.KeyFile)
 		e.rows = append(e.rows, certificateRow{
 			ID: id, Host: client.Host, Format: format,
 			CertFile: client.CertFile, KeyFile: client.KeyFile,
@@ -71,18 +64,11 @@ func (e *certificateEditor) build(a *app) (certs.Settings, map[string]string, er
 	var settings certs.Settings
 	secrets := map[string]string{}
 	for i, row := range e.rows {
+		if err := certs.ValidateHost(row.Host); err != nil {
+			return settings, nil, fmt.Errorf("client certificate %d: %w", i+1, err)
+		}
 		host := certs.NormalizeHost(row.Host)
-		if host == "" {
-			return settings, nil, fmt.Errorf("client certificate %d: enter a host", i+1)
-		}
-		format := strings.ToLower(strings.TrimSpace(row.Format))
-		if format == "" {
-			if strings.TrimSpace(row.KeyFile) == "" {
-				format = certs.FormatPKCS12
-			} else {
-				format = certs.FormatPEM
-			}
-		}
+		format := certs.ResolveFormat(row.Format, row.KeyFile)
 		certFile := strings.TrimSpace(row.CertFile)
 		if certFile == "" {
 			return settings, nil, fmt.Errorf("client certificate for %s: choose a certificate file", host)

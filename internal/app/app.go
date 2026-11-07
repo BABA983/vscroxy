@@ -573,6 +573,7 @@ func newApp() *app {
 	if a.settingsPath != "" {
 		if secrets, err := certs.SecretStoreFor(a.settingsPath).Load(); err != nil {
 			a.certProblem = err.Error()
+			a.certificates.SecretsProblem = err.Error()
 		} else {
 			a.certificates.Secrets = secrets
 		}

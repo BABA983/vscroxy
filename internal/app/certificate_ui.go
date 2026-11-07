@@ -91,6 +91,11 @@ func (a *app) certificateSettings(c *ui.Context, t *ui.Theme) {
 						if uikit.Input(c, &row.Passphrase).Password().Label("Passphrase").Placeholder("Optional").Grow(1).Changed() {
 							row.Clear, e.dirty = false, true
 						}
+						if uikit.SecondaryButton(c, "Remove").Clicked() {
+							remove = i
+						}
+					})
+					ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 						switch {
 						case row.Clear:
 							uikit.Hint(c, "Saved passphrase will be removed")
@@ -104,9 +109,6 @@ func (a *app) certificateSettings(c *ui.Context, t *ui.Theme) {
 							}
 						default:
 							uikit.Hint(c, "Sealed locally; never exported")
-						}
-						if uikit.SecondaryButton(c, "Remove").Clicked() {
-							remove = i
 						}
 					})
 				})
