@@ -176,7 +176,7 @@ func TestProxySettingsExposeSOCKS5AndReverseProxies(t *testing.T) {
 		t.Fatal(err)
 	}
 	tt.Type("9005")
-	if err := tt.Click("Remote URL"); err != nil {
+	if err := clickLabel(tt, "Remote URL"); err != nil {
 		t.Fatal(err)
 	}
 	tt.Type("https://api.example.com")

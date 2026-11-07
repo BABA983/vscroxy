@@ -520,7 +520,7 @@ func TestVariableCompletionInHeaderAndAuthFields(t *testing.T) {
 
 	d.composeTab, d.auth.Type, d.auth.Token = composeTabAuth, "Bearer", ""
 	tt.Frame()
-	if err := tt.Click("Bearer token"); err != nil {
+	if err := clickLabel(tt, "Bearer token"); err != nil {
 		t.Fatal(err)
 	}
 	tt.Frame()
