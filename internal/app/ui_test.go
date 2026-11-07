@@ -1128,8 +1128,8 @@ func TestSettingsCategoriesKeepNativeNavigationAndEditorRoutes(t *testing.T) {
 	}
 	click("Settings category: Appearance")
 	tt.Key(0, ui.KeyEnd)
-	if !tt.HasText("Send traffic from other devices and programs through vscroxy.") {
-		t.Fatal("native End navigation did not select Devices")
+	if !tt.HasText("Client certificates and extra roots for requests and captured upstream TLS.") {
+		t.Fatal("native End navigation did not select Certificates")
 	}
 	click("Settings category: Capture")
 	tt.Scroll(600, 300, 0, 400) // the Ignored group is below the fold

@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/baba983/vscroxy/internal/capture"
+	"github.com/baba983/vscroxy/internal/certs"
 	"github.com/baba983/vscroxy/internal/clientsetup"
 	"github.com/baba983/vscroxy/internal/hosts"
 	"github.com/baba983/vscroxy/internal/request"
@@ -605,6 +606,30 @@ func TestUISnapshots(t *testing.T) {
 		{name: "secondary-api-notes", setup: func(a *app) { snapshotAPI(a); a.activeAPI().tab = 2 }, want: "Review before publishing"},
 		{name: "settings", setup: func(a *app) { a.settingsOpen = true }, want: "Settings"},
 		{name: "dialog-settings-proxy", setup: func(a *app) { snapshotSettings(a, 1) }, want: "Save for next launch", short: true},
+		{name: "dialog-settings-certificates", setup: func(a *app) {
+			snapshotSettings(a, 6)
+			a.certificates = certs.Settings{
+				Clients: []certs.Client{
+					{ID: "pem", Host: "api.example.com", Format: certs.FormatPEM, CertFile: "/Users/me/certs/api.crt", KeyFile: "/Users/me/certs/api.key"},
+					{ID: "mtls", Host: "*.internal.test:8443", Format: certs.FormatPKCS12, CertFile: "/Users/me/certs/internal.p12"},
+				},
+				RootCAs: []string{"/Users/me/certs/company-root.pem", "/Users/me/certs/lab-root.pem"},
+				Secrets: map[string]string{"mtls": "fixture-passphrase"},
+			}
+			a.certificateUI.loaded = false
+		}, want: "Client certificates", short: true},
+		{name: "dialog-settings-certificates-roots", setup: func(a *app) {
+			snapshotSettings(a, 6)
+			a.certificates = certs.Settings{
+				Clients: []certs.Client{
+					{ID: "pem", Host: "api.example.com", Format: certs.FormatPEM, CertFile: "/Users/me/certs/api.crt", KeyFile: "/Users/me/certs/api.key"},
+					{ID: "mtls", Host: "*.internal.test:8443", Format: certs.FormatPKCS12, CertFile: "/Users/me/certs/internal.p12"},
+				},
+				RootCAs: []string{"/Users/me/certs/company-root.pem", "/Users/me/certs/lab-root.pem"},
+				Secrets: map[string]string{"mtls": "fixture-passphrase"},
+			}
+			a.certificateUI.loaded = false
+		}, act: func(_ *testing.T, tt *ui.Tester) { tt.Scroll(600, 500, 0, 600) }, want: "Save certificates", short: true},
 		{name: "dialog-settings-socks", setup: func(a *app) {
 			snapshotSettings(a, 1)
 			a.socksOnDraft, a.socksPortInput = true, "7893"

@@ -538,6 +538,7 @@ func (a *app) actions(c *ui.Context) []action {
 			a.columns = ui.TableLayout{}
 		}),
 		do("settings.https", "HTTPS certificate & decryption setup…", func() { a.openSettings(2) }),
+		do("settings.certificates", "Client certificates & roots…", func() { a.openSettings(6) }),
 		do("network.diagnostics", "Connection diagnostics", func() { a.openDiagnostics(nil, diagnoseMac) }),
 		do("app.setup-guide", "Show setup guide", a.openGuide).when(!a.guide, ""),
 		do("history.open", "History…", func() {

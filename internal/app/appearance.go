@@ -185,6 +185,7 @@ func (a *app) settingsContent(c *ui.Context, t *ui.Theme, active bool) {
 				{"2", lockIcon, "HTTPS"},
 				{"4", captureIcon, "Capture"},
 				{"5", lucide.MonitorSmartphone(), "Devices"},
+				{"6", lucide.KeyRound(), "Certificates"},
 			} {
 				uikit.SidebarItem(c, item.id, item.icon, item.label, choice == item.id, active).Label("Settings category: " + item.label)
 			}
@@ -213,6 +214,8 @@ func (a *app) settingsContent(c *ui.Context, t *ui.Theme, active bool) {
 				a.captureSettings(c, t)
 			case 5:
 				a.deviceSettings(c, t)
+			case 6:
+				a.certificateSettings(c, t)
 			}
 		})
 	})
