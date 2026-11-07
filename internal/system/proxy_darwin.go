@@ -10,13 +10,15 @@ import (
 )
 
 // applyProxy changes only the services whose previous settings were saved.
-func (before proxySnapshot) applyProxy(addr string) error {
+// A configured bypass list replaces each service's list; without one the
+// service's existing list is kept.
+func (before proxySnapshot) applyProxy(addr string, bypass []string, set bool) error {
 	host, port, ok := splitAddr(addr)
 	if !ok {
 		return fmt.Errorf("bad proxy address %q", addr)
 	}
-	for _, cfg := range before {
-		svc := cfg.Scope
+	for _, entry := range before {
+		svc := entry.Config.Scope
 		for _, args := range [][]string{
 			{"-setwebproxy", svc, host, port},
 			{"-setsecurewebproxy", svc, host, port},
@@ -27,8 +29,44 @@ func (before proxySnapshot) applyProxy(addr string) error {
 				return err
 			}
 		}
+		if set {
+			if err := setServiceBypass(svc, bypass); err != nil {
+				return err
+			}
+		}
 	}
 	return nil
+}
+
+// setServiceBypass replaces one service's bypass domains. An empty list is
+// passed as one empty argument, which is how networksetup clears the list.
+func setServiceBypass(service string, bypass []string) error {
+	args := []string{"-setproxybypassdomains", service}
+	if len(bypass) == 0 {
+		args = append(args, "")
+	} else {
+		args = append(args, bypass...)
+	}
+	return run("networksetup", args...)
+}
+
+// readServiceBypass reads one service's bypass domains.
+func readServiceBypass(out outputFunc, service string) ([]string, error) {
+	raw, err := out("networksetup", "-getproxybypassdomains", service)
+	if err != nil {
+		return nil, err
+	}
+	text := strings.TrimSpace(string(raw))
+	if text == "" || strings.HasPrefix(text, "There aren't any bypass domains") {
+		return nil, nil
+	}
+	var list []string
+	for line := range strings.SplitSeq(text, "\n") {
+		if line = strings.TrimSpace(line); line != "" {
+			list = append(list, line)
+		}
+	}
+	return list, nil
 }
 
 // ClearProxy turns the proxy off on every enabled network service.

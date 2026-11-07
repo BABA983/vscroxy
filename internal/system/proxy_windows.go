@@ -27,6 +27,7 @@ const (
 	inetPerConnection = 75
 	inetFlags         = 1
 	inetServer        = 2
+	inetBypass        = 3
 	inetPAC           = 4
 	inetFlagsUI       = 10
 	proxyDirect       = 1
@@ -63,28 +64,29 @@ func queryProxyOptions(options []inetOption) error {
 }
 
 // applyProxy enables the per-user WinINet proxy after journaling.
-func (proxySnapshot) applyProxy(addr string) error {
+func (proxySnapshot) applyProxy(addr string, bypass []string, set bool) error {
 	if _, _, ok := splitAddr(addr); !ok {
 		return fmt.Errorf("bad proxy address %q", addr)
 	}
-	return writeProxy(addr)
+	return writeProxy(addr, bypass, set)
 }
 
-// ClearProxy disables the per-user WinINet proxy.
+// ClearProxy disables the per-user WinINet proxy, preserving its bypass list.
 func ClearProxy() error {
-	return writeProxy("")
+	return writeProxy("", nil, false)
 }
 
-// writeProxy preserves PAC/discovery and bypass settings, changes only the
-// fixed proxy, then notifies applications. Readback reports automatic conflicts.
-func writeProxy(addr string) error {
+// writeProxy preserves PAC/discovery, changes the fixed proxy and, when set,
+// replaces the bypass list, then notifies applications. Readback reports
+// automatic conflicts.
+func writeProxy(addr string, bypass []string, set bool) error {
 	options := []inetOption{{option: inetFlagsUI}}
 	if err := queryProxyOptions(options); err != nil {
 		return err
 	}
 	options[0].option = inetFlags
 	options[0].value = options[0].value&^proxyManual | proxyDirect
-	var server *uint16
+	var server, bypassText *uint16
 	if addr != "" {
 		var err error
 		server, err = windows.UTF16PtrFromString(addr)
@@ -93,12 +95,22 @@ func writeProxy(addr string) error {
 		}
 		options[0].value |= proxyManual
 		options = append(options, inetOption{option: inetServer})
-		*(**uint16)(unsafe.Pointer(&options[1].value)) = server
+		*(**uint16)(unsafe.Pointer(&options[len(options)-1].value)) = server
+	}
+	if set {
+		var err error
+		bypassText, err = windows.UTF16PtrFromString(strings.Join(bypass, ";"))
+		if err != nil {
+			return err
+		}
+		options = append(options, inetOption{option: inetBypass})
+		*(**uint16)(unsafe.Pointer(&options[len(options)-1].value)) = bypassText
 	}
 	list := inetOptionList{count: uint32(len(options)), options: &options[0]}
 	list.size = uint32(unsafe.Sizeof(list))
 	ok, _, err := internetSetOption.Call(0, inetPerConnection, uintptr(unsafe.Pointer(&list)), uintptr(list.size))
 	runtime.KeepAlive(server)
+	runtime.KeepAlive(bypassText)
 	if ok == 0 {
 		return fmt.Errorf("write WinINet proxy: %w", err)
 	}

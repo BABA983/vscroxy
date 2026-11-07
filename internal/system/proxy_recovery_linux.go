@@ -54,7 +54,7 @@ func snapshotProxy(target string) (proxySnapshot, error) {
 	return state, nil
 }
 
-func restoreProxy(before proxySnapshot, target string) error {
+func restoreProxy(before proxySnapshot, target string, applied []string, set bool) error {
 	host, port, err := net.SplitHostPort(target)
 	if err != nil {
 		return err
@@ -96,7 +96,11 @@ func restoreProxy(before proxySnapshot, target string) error {
 		}
 	}
 	if allOwned {
-		if current["ignore-hosts"] == "['localhost', '127.0.0.1', '::1']" && current["ignore-hosts"] != before["ignore-hosts"] {
+		ignore := defaultBypass
+		if set {
+			ignore = applied
+		}
+		if current["ignore-hosts"] == gvariantList(ignore) && current["ignore-hosts"] != before["ignore-hosts"] {
 			expected["ignore-hosts"] = before["ignore-hosts"]
 		}
 		if gvariant(current["mode"]) == "manual" && current["mode"] != before["mode"] {

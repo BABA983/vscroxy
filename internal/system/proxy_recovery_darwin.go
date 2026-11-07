@@ -6,16 +6,26 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"slices"
 	"strconv"
+	"strings"
 )
 
-type proxySnapshot []ProxyConfig
+// proxySnapshotEntry keeps a service's proxy configuration and its bypass
+// domains. They are separate because ProxyConfig stays comparable.
+type proxySnapshotEntry struct {
+	Config ProxyConfig
+	Bypass []string
+}
+
+type proxySnapshot []proxySnapshotEntry
 
 func snapshotProxy(target string) (proxySnapshot, error) {
 	configs, err := readProxy(commandOutput)
 	if err != nil {
 		return nil, err
 	}
+	snapshot := make(proxySnapshot, 0, len(configs))
 	for _, cfg := range configs {
 		if cfg.HTTP.sameAs(target) || cfg.HTTPS.sameAs(target) {
 			return nil, errors.New("system proxy already points at this address without a recovery record; disable the stale proxy first")
@@ -29,11 +39,16 @@ func snapshotProxy(target string) (proxySnapshot, error) {
 				return nil, fmt.Errorf("%s has an authenticated proxy; its credentials cannot be safely restored, so automatic takeover is disabled", cfg.Scope)
 			}
 		}
+		bypass, err := readServiceBypass(commandOutput, cfg.Scope)
+		if err != nil {
+			return nil, err
+		}
+		snapshot = append(snapshot, proxySnapshotEntry{Config: cfg, Bypass: bypass})
 	}
-	return configs, nil
+	return snapshot, nil
 }
 
-func restoreProxy(before proxySnapshot, target string) error {
+func restoreProxy(before proxySnapshot, target string, applied []string, set bool) error {
 	host, rawPort, err := net.SplitHostPort(target)
 	if err != nil {
 		return err
@@ -43,7 +58,8 @@ func restoreProxy(before proxySnapshot, target string) error {
 		return err
 	}
 	var failures []error
-	for _, cfg := range before {
+	for _, entry := range before {
+		cfg := entry.Config
 		for _, item := range []struct {
 			read, set, state string
 			before           ProxyEndpoint
@@ -86,6 +102,42 @@ func restoreProxy(before proxySnapshot, target string) error {
 				failures = append(failures, fmt.Errorf("%s proxy restoration was not accepted by macOS", cfg.Scope))
 			}
 		}
+		if !set {
+			continue
+		}
+		current, err := readServiceBypass(commandOutput, cfg.Scope)
+		if err != nil {
+			failures = append(failures, fmt.Errorf("%s bypass: %w", cfg.Scope, err))
+			continue
+		}
+		if !sameBypass(current, applied) && !sameBypass(current, entry.Bypass) {
+			continue // a replacement list is not ours to restore
+		}
+		if sameBypass(current, entry.Bypass) {
+			continue
+		}
+		if err := setServiceBypass(cfg.Scope, entry.Bypass); err != nil {
+			failures = append(failures, err)
+			continue
+		}
+		actual, err := readServiceBypass(commandOutput, cfg.Scope)
+		if err != nil {
+			failures = append(failures, err)
+		} else if !sameBypass(actual, entry.Bypass) {
+			failures = append(failures, fmt.Errorf("%s bypass restoration was not accepted by macOS", cfg.Scope))
+		}
 	}
 	return errors.Join(failures...)
+}
+
+func sameBypass(a, b []string) bool {
+	normalize := func(list []string) []string {
+		out := make([]string, len(list))
+		for i, value := range list {
+			out[i] = strings.ToLower(strings.TrimSpace(value))
+		}
+		slices.Sort(out)
+		return out
+	}
+	return slices.Equal(normalize(a), normalize(b))
 }

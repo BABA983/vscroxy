@@ -182,17 +182,8 @@ func (a *app) networkTools() []action {
 	return append(actions,
 		do("network.custom", "Custom presets…", a.openNetwork).in("throttle"),
 		do("network.rules", "Network rules…", a.openNetworkRules).in("throttle"),
-		do("network.upstream", "Upstream…", func() {
-			a.upstreamAddr = a.upstream
-			a.upstreamOpen = true
-		}).in("upstream"),
-		do("network.upstream-off", "Upstream off", func() {
-			if a.srv != nil {
-				_ = a.srv.SetUpstream("")
-			}
-			a.upstream = ""
-			a.inform("Upstream: off")
-		}).when(a.upstream != "", "No upstream proxy is set").in("upstream"),
+		do("network.upstream", "Upstream…", func() { a.openSettings(1) }).in("upstream"),
+		do("network.upstream-off", "Upstream off", a.clearUpstream).when(a.upstream != "", "No upstream proxy is set").in("upstream"),
 	)
 }
 
@@ -250,13 +241,8 @@ func (a *app) activeTools(c *ui.Context, t *ui.Theme) {
 			a.hostsChip(c)
 			if a.upstream != "" {
 				toolChip(c, "upstream", "Upstream", "Edit upstream proxy settings", upstreamIcon, func() {
-					a.upstreamAddr, a.upstreamOpen = a.upstream, true
-				}, func() {
-					if a.srv != nil {
-						_ = a.srv.SetUpstream("")
-					}
-					a.upstream = ""
-				})
+					a.openSettings(1)
+				}, a.clearUpstream)
 			}
 		})
 	})

@@ -14,6 +14,7 @@ import (
 
 	"github.com/baba983/vscroxy/internal/certs"
 	"github.com/baba983/vscroxy/internal/store"
+	"github.com/baba983/vscroxy/internal/upstream"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -57,6 +58,13 @@ type settings struct {
 	// captured upstream TLS. Passphrases are sealed separately and never
 	// appear here.
 	Certificates certs.Settings `json:"certificates,omitzero"`
+	// Upstream is the default upstream, host rules, bypass list, PAC source
+	// and credential usernames. Passwords are sealed separately.
+	Upstream upstream.Settings `json:"upstream,omitzero"`
+	// SystemProxyBypass is written when the system proxy is enabled, and
+	// SystemProxyBypassSet says whether it replaces the OS list at all.
+	SystemProxyBypass    []string `json:"systemProxyBypass,omitempty"`
+	SystemProxyBypassSet bool     `json:"systemProxyBypassSet,omitzero"`
 	// VaultScripts lets request scripts use pm.vault.
 	VaultScripts bool `json:"vaultScripts,omitzero"`
 	// CookiePersistence keeps persistent cookies across launches in the
@@ -188,6 +196,9 @@ func sameSettings(x, y settings) bool {
 		x.SOCKSPassword == y.SOCKSPassword &&
 		slices.Equal(x.ReverseProxies, y.ReverseProxies) &&
 		x.Certificates.Equal(y.Certificates) &&
+		sameUpstream(x.Upstream, y.Upstream) &&
+		slices.Equal(x.SystemProxyBypass, y.SystemProxyBypass) &&
+		x.SystemProxyBypassSet == y.SystemProxyBypassSet &&
 		x.VaultScripts == y.VaultScripts &&
 		x.CookiePersistence == y.CookiePersistence &&
 		x.Guide == y.Guide &&
@@ -195,6 +206,15 @@ func sameSettings(x, y settings) bool {
 		x.FlowLimit == y.FlowLimit && x.MemoryLimit == y.MemoryLimit && x.DiskLimit == y.DiskLimit &&
 		slices.Equal(x.Columns.Order, y.Columns.Order) &&
 		maps.Equal(x.Columns.Widths, y.Columns.Widths)
+}
+
+// sameUpstream reports whether two upstream configurations would write the
+// same settings. Passwords are not part of either.
+func sameUpstream(x, y upstream.Settings) bool {
+	return x.Default == y.Default && x.PAC == y.PAC &&
+		slices.Equal(x.Rules, y.Rules) &&
+		slices.Equal(x.Bypass, y.Bypass) &&
+		slices.Equal(x.Credentials, y.Credentials)
 }
 
 // inspectorLayout reads a saved layout: "bottom" is stacked, anything else

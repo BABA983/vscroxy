@@ -71,32 +71,35 @@ func (a *app) currentSettings() settings {
 	certificates := a.certificates.Clone()
 	certificates.Secrets, certificates.SecretsProblem = nil, ""
 	return settings{
-		Appearance:        a.appearance,
-		SidebarWidth:      a.sidebarWidth,
-		TablePercent:      a.tablePercent,
-		InspectorLayout:   a.workbench.layout,
-		SideTablePercent:  a.workbench.sidePercent,
-		DiffSplit:         a.diffSplit,
-		SidebarHidden:     a.workbench.sidebarHidden,
-		Columns:           savedLayout(a.columns),
-		CustomColumns:     a.customColumns,
-		HiddenColumns:     a.hiddenColumns,
-		KeyLogPath:        a.keyLogPath,
-		ProxyPort:         a.proxyPort,
-		SOCKSOn:           a.socksOn,
-		SOCKSPort:         a.socksPort,
-		SOCKSAuth:         a.socksAuth,
-		SOCKSUsername:     a.socksUsername,
-		SOCKSPassword:     a.socksPassword,
-		ReverseProxies:    slices.Clone(a.reverses),
-		Certificates:      certificates,
-		VaultScripts:      a.vault.scripts,
-		CookiePersistence: a.cookiePersistence,
-		Guide:             a.guide,
-		AllowList:         a.allowOn,
-		FlowLimit:         a.flowLimit,
-		MemoryLimit:       a.memoryLimit,
-		DiskLimit:         a.diskLimit,
+		Appearance:           a.appearance,
+		SidebarWidth:         a.sidebarWidth,
+		TablePercent:         a.tablePercent,
+		InspectorLayout:      a.workbench.layout,
+		SideTablePercent:     a.workbench.sidePercent,
+		DiffSplit:            a.diffSplit,
+		SidebarHidden:        a.workbench.sidebarHidden,
+		Columns:              savedLayout(a.columns),
+		CustomColumns:        a.customColumns,
+		HiddenColumns:        a.hiddenColumns,
+		KeyLogPath:           a.keyLogPath,
+		ProxyPort:            a.proxyPort,
+		SOCKSOn:              a.socksOn,
+		SOCKSPort:            a.socksPort,
+		SOCKSAuth:            a.socksAuth,
+		SOCKSUsername:        a.socksUsername,
+		SOCKSPassword:        a.socksPassword,
+		ReverseProxies:       slices.Clone(a.reverses),
+		Certificates:         certificates,
+		Upstream:             a.upstreamCfg.Clone(),
+		SystemProxyBypass:    slices.Clone(a.systemProxyBypass),
+		SystemProxyBypassSet: a.systemProxyBypassSet,
+		VaultScripts:         a.vault.scripts,
+		CookiePersistence:    a.cookiePersistence,
+		Guide:                a.guide,
+		AllowList:            a.allowOn,
+		FlowLimit:            a.flowLimit,
+		MemoryLimit:          a.memoryLimit,
+		DiskLimit:            a.diskLimit,
 	}
 }
 
@@ -394,8 +397,23 @@ func (a *app) applySettings(s settings) {
 		a.certificates.SecretsProblem = a.certProblem
 	}
 	a.certificateUI.loaded, a.certificateUI.dirty = false, false
+	// Imported upstream addresses, rules, bypass and PAC replace this
+	// computer's; sealed passwords stay by endpoint. A missing password is
+	// reported by the upstream settings page, not silently ignored.
+	a.upstreamCfg = s.Upstream.Normalize()
+	a.systemProxyBypass = slices.Clone(s.SystemProxyBypass)
+	a.systemProxyBypassSet = s.SystemProxyBypassSet
+	a.systemProxyBypassText = strings.Join(a.systemProxyBypass, "\n")
+	a.upstreamUI.loaded = false
 	if a.srv != nil {
 		a.srv.SetCertificates(a.certificates)
+		if err := a.srv.SetUpstreamConfig(a.upstreamCfg, a.upstreamSecrets); err != nil {
+			a.upstreamProblem = err.Error()
+			a.upstream = ""
+		} else {
+			a.upstreamProblem = ""
+			a.upstream = a.upstreamCfg.Summary()
+		}
 		if err := a.srv.SetReverseProxies(a.reverseConfigs()); err != nil {
 			a.reverseProblem = err.Error()
 		}
@@ -488,7 +506,7 @@ func (a *app) configImportDialog(c *ui.Context, t *ui.Theme) {
 					profiles = len(b.Hosts.Profiles)
 				}
 				part(partHosts, b.Hosts != nil, "Host profiles", fmt.Sprintf("%d %s, with their switches and order.", profiles, plural(profiles, "profile", "profiles")))
-				part(partSettings, b.Settings != nil, "Settings and lists", "Appearance, layout, proxy port, HTTPS decryption, certificates, and the ignore and allow lists.")
+				part(partSettings, b.Settings != nil, "Settings and lists", "Appearance, layout, proxy port, upstream proxy and system proxy bypass, HTTPS decryption, certificates, and the ignore and allow lists.")
 			})
 			uikit.DialogFooter(c).Children(func() {
 				if uikit.SecondaryButton(c, "Cancel").Clicked() {

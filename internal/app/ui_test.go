@@ -935,18 +935,29 @@ func TestSettingsOpensExistingEditors(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	tt.Scroll(480, 300, 0, 500)
-	// The upstream is edited in place and applies at once; clearing it
-	// connects directly again.
+	tt.Scroll(120, 300, 0, 500)
+	// The default upstream is edited in place and saved with the rest of the
+	// upstream settings; clearing it connects directly again.
+	scrollTo := func(label string) {
+		t.Helper()
+		r, ok := tt.Find(label)
+		if !ok {
+			t.Fatalf("no element shows %q", label)
+		}
+		tt.Scroll(850, 300, 0, r.Y-300)
+		tt.Frame()
+	}
 	upstream := func(value string) {
 		t.Helper()
-		if err := tt.Click("Upstream proxy address"); err != nil {
+		scrollTo("Default upstream")
+		if err := tt.Click("Default upstream"); err != nil {
 			t.Fatal(err)
 		}
 		tt.Key(ui.Cmd, ui.KeyA)
 		tt.Key(0, ui.KeyBackspace)
 		tt.Type(value)
-		if err := tt.Click("Apply"); err != nil {
+		scrollTo("Save upstream")
+		if err := tt.Click("Save upstream"); err != nil {
 			t.Fatal(err)
 		}
 		tt.Frame()

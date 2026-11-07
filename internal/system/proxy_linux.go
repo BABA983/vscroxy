@@ -18,18 +18,28 @@ const (
 	proxySchema = "org.gnome.system.proxy"
 )
 
+// defaultBypass is what this app writes when no list is configured. It is
+// also what restoreProxy recognizes as its own write.
+var defaultBypass = []string{"localhost", "127.0.0.1", "::1"}
+
 // applyProxy points the GNOME desktop proxy settings at addr after journaling.
-func (proxySnapshot) applyProxy(addr string) error {
+// An empty configured list clears the bypass list; without one, the loopback
+// default is written, as before.
+func (proxySnapshot) applyProxy(addr string, bypass []string, set bool) error {
 	host, port, ok := splitAddr(addr)
 	if !ok {
 		return fmt.Errorf("bad proxy address %q", addr)
+	}
+	ignore := defaultBypass
+	if set {
+		ignore = bypass
 	}
 	for _, args := range [][]string{
 		{"set", proxySchema + ".http", "host", host},
 		{"set", proxySchema + ".http", "port", port},
 		{"set", proxySchema + ".https", "host", host},
 		{"set", proxySchema + ".https", "port", port},
-		{"set", proxySchema, "ignore-hosts", "['localhost', '127.0.0.1', '::1']"},
+		{"set", proxySchema, "ignore-hosts", gvariantList(ignore)},
 		{"set", proxySchema, "mode", "manual"},
 	} {
 		if err := run("gsettings", args...); err != nil {
@@ -97,6 +107,17 @@ func gvariant(raw string) string {
 	body := s[1 : len(s)-1]
 	body = strings.ReplaceAll(body, `\'`, `'`)
 	return strings.ReplaceAll(body, `\\`, `\`)
+}
+
+// gvariantList writes a GVariant string array as gsettings accepts it.
+func gvariantList(list []string) string {
+	parts := make([]string, len(list))
+	for i, value := range list {
+		value = strings.ReplaceAll(value, `\`, `\\`)
+		value = strings.ReplaceAll(value, `'`, `\'`)
+		parts[i] = "'" + value + "'"
+	}
+	return "[" + strings.Join(parts, ", ") + "]"
 }
 
 // InstallCA copies the CA into the system trust store and refreshes it.

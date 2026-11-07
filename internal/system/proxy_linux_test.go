@@ -17,15 +17,15 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	if len(os.Args) == 4 && os.Args[1] == "--proxy-guard" {
-		if err := GuardProxy(os.Args[2], os.Args[3], os.Stdin, os.Stdout); err != nil {
+	if len(os.Args) == 5 && os.Args[1] == "--proxy-guard" {
+		if err := GuardProxy(os.Args[2], os.Args[3], os.Args[4], os.Stdin, os.Stdout); err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			os.Exit(1)
 		}
 		os.Exit(0)
 	}
 	if len(os.Args) == 4 && os.Args[1] == "--proxy-owner" {
-		session, err := BeginProxy(os.Args[2], os.Args[3])
+		session, err := BeginProxy(os.Args[2], os.Args[3], nil, false)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			os.Exit(1)
@@ -192,7 +192,7 @@ func TestProxySessionRestoresPreviousSettingsAndKeepsReplacement(t *testing.T) {
 				before["gsettings get org.gnome.system.proxy mode"] = "'" + mode + "'"
 			}
 			path := filepath.Join(dir, "recovery.json")
-			session, err := BeginProxy(path, "127.0.0.1:7890")
+			session, err := BeginProxy(path, "127.0.0.1:7890", nil, false)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -203,7 +203,7 @@ func TestProxySessionRestoresPreviousSettingsAndKeepsReplacement(t *testing.T) {
 			if err := RecoverProxy(path); err == nil {
 				t.Fatal("startup recovery must not change an active session")
 			}
-			other, err := BeginProxy(path, "127.0.0.1:7891")
+			other, err := BeginProxy(path, "127.0.0.1:7891", nil, false)
 			if err == nil || other != nil {
 				t.Fatal("another app must not take ownership of an active journal")
 			}
@@ -230,10 +230,59 @@ func TestProxySessionRestoresPreviousSettingsAndKeepsReplacement(t *testing.T) {
 	}
 }
 
+func TestGVariantList(t *testing.T) {
+	for _, tc := range []struct {
+		list []string
+		want string
+	}{
+		{nil, "[]"},
+		{[]string{"localhost", "127.0.0.1", "::1"}, "['localhost', '127.0.0.1', '::1']"},
+		{[]string{"it's", `a\b`}, "['it\\'s', 'a\\\\b']"},
+	} {
+		if got := gvariantList(tc.list); got != tc.want {
+			t.Errorf("gvariantList(%q) = %q, want %q", tc.list, got, tc.want)
+		}
+	}
+}
+
+func TestProxySessionWritesAndRestoresConfiguredBypass(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		bypass []string
+		set    bool
+		want   string
+	}{
+		{"configured", []string{"localhost", "*.corp.example", "10.0.0.0/8"}, true, "['localhost', '*.corp.example', '10.0.0.0/8']"},
+		{"default loopback", nil, false, "['localhost', '127.0.0.1', '::1']"},
+		{"explicitly empty", nil, true, "[]"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			dir, before := fakeRecoveryDesktop(t)
+			path := filepath.Join(dir, "recovery.json")
+			session, err := BeginProxy(path, "127.0.0.1:7890", tc.bypass, tc.set)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { session.Restore() })
+			state, err := readProxySnapshot()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := state["ignore-hosts"]; got != tc.want {
+				t.Fatalf("ignore-hosts = %q, want %q", got, tc.want)
+			}
+			if err := session.Restore(); err != nil {
+				t.Fatal(err)
+			}
+			assertRecoverySettings(t, before)
+		})
+	}
+}
+
 func TestProxySessionRetainsFailedRecoveryForRetry(t *testing.T) {
 	dir, before := fakeRecoveryDesktop(t)
 	path := filepath.Join(dir, "recovery.json")
-	session, err := BeginProxy(path, "127.0.0.1:7890")
+	session, err := BeginProxy(path, "127.0.0.1:7890", nil, false)
 	if err != nil {
 		t.Fatal(err)
 	}

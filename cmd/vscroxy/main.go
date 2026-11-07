@@ -9,8 +9,8 @@ import (
 )
 
 func main() {
-	if len(os.Args) == 4 && os.Args[1] == "--proxy-guard" {
-		if err := system.GuardProxy(os.Args[2], os.Args[3], os.Stdin, os.Stdout); err != nil {
+	if len(os.Args) == 5 && os.Args[1] == "--proxy-guard" {
+		if err := system.GuardProxy(os.Args[2], os.Args[3], os.Args[4], os.Stdin, os.Stdout); err != nil {
 			log.Fatal(err)
 		}
 		return

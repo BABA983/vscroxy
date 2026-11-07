@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
+	"time"
 
 	"github.com/baba983/vscroxy/internal/system"
 	"github.com/egoist/mygo"
@@ -46,6 +48,7 @@ type proxySetup struct {
 	mu          sync.Mutex
 	session     *system.ProxySession
 	ownedTarget string
+	ownedNow    atomic.Bool
 	closing     bool
 	quitting    bool // UI thread only
 	quitReady   bool // UI thread only
@@ -110,7 +113,7 @@ func (a *app) writeSystemProxy(on bool, addr string) error {
 			s.session = nil
 		}
 		var err error
-		s.session, err = system.BeginProxy(a.proxyRecoveryPath(), addr)
+		s.session, err = system.BeginProxy(a.proxyRecoveryPath(), addr, a.systemProxyBypass, a.systemProxyBypassSet)
 		return err
 	}
 	if s.session != nil {
@@ -127,6 +130,39 @@ func (a *app) writeSystemProxy(on bool, addr string) error {
 		return err
 	}
 	return system.ClearProxy()
+}
+
+// owned reports whether this session replaced the OS proxy, so a bypass edit
+// should reapply it.
+func (s *proxySetup) owned() bool {
+	return s.ownedNow.Load()
+}
+
+// saveSystemProxyBypass persists the list written on the next enable. When
+// this session owns the proxy, it is re-enabled so the OS gets the new list.
+func (a *app) saveSystemProxyBypass() {
+	a.systemProxyBypass = parseSystemProxyBypass(a.systemProxyBypassText)
+	a.lastSave = time.Time{}
+	if err := a.persistSettings(); err != nil {
+		a.fail("Save system proxy bypass", err)
+		return
+	}
+	if a.systemProxy.owned() {
+		a.setSystemProxy(true)
+	}
+	a.done("System proxy bypass saved")
+}
+
+func parseSystemProxyBypass(text string) []string {
+	var out []string
+	for _, line := range strings.Split(text, "\n") {
+		for _, part := range strings.FieldsFunc(line, func(r rune) bool { return r == ',' || r == ';' }) {
+			if part = strings.TrimSpace(part); part != "" && !strings.HasPrefix(part, "#") {
+				out = append(out, part)
+			}
+		}
+	}
+	return out
 }
 
 // setSystemProxy turns the machine's proxy on or off, then reads the OS back so
@@ -173,10 +209,12 @@ func (s *proxySetup) change(on bool, addr string, write func(bool, string) error
 	if on {
 		// A failed helper can still have changed one protocol or service.
 		s.ownedTarget = addr
+		s.ownedNow.Store(true)
 	}
 	err := write(on, addr)
 	if !on && err == nil {
 		s.ownedTarget = ""
+		s.ownedNow.Store(false)
 	}
 	return err
 }
@@ -202,6 +240,7 @@ func (s *proxySetup) close() error {
 	}
 	s.session = nil
 	s.ownedTarget = ""
+	s.ownedNow.Store(false)
 	return nil
 }
 
@@ -398,5 +437,17 @@ func (a *app) systemProxySettings(c *ui.Context, t *ui.Theme) {
 				}
 			})
 		}).Description("Read from this computer's OS settings. Apps with their own proxy settings, or that ignore the system proxy, still connect directly.")
+		ui.Field(c, "Bypass list", func() {
+			ui.Column(c).Gap(t.Space(2)).Children(func() {
+				ui.Checkbox(c, &a.systemProxyBypassSet, "Replace the system bypass list")
+				ui.TextArea(c, &a.systemProxyBypassText).Label("System proxy bypass list").Placeholder("localhost, *.internal.test, 10.0.0.0/8, <local>").Height(64).Font(uikit.FontMono).FontSize(uikit.TextBody).Radius(uikit.RadiusControl).Disabled(!a.systemProxyBypassSet)
+				ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+					if uikit.SecondaryButton(c, "Save bypass list").Clicked() {
+						a.saveSystemProxyBypass()
+					}
+					uikit.Hint(c, "Restored when the system proxy is disabled or recovered.")
+				})
+			})
+		}).Description("Off keeps the OS list. On writes these entries, one per line, when the system proxy is enabled.")
 	})
 }

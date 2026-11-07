@@ -12,7 +12,6 @@ import (
 	"fmt"
 	"slices"
 	"strconv"
-	"strings"
 
 	"github.com/baba983/vscroxy/internal/capture"
 	"github.com/baba983/vscroxy/internal/uikit"
@@ -105,34 +104,10 @@ func (a *app) proxySettings(c *ui.Context, t *ui.Theme) {
 			}).Description("Blank is automatic (prefers 7890). A fixed port (1024–65535) never falls back. Applies after a restart.").Error(a.proxyPortProblem)
 		})
 		a.systemProxySettings(c, t)
-		uikit.SettingsGroup(c, "Upstream", func() {
-			ui.Field(c, "Upstream proxy", func() {
-				ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-					in := uikit.Input(c, &a.upstreamAddr).Label("Upstream proxy address").Placeholder("Direct connection").Grow(1).MinWidth(160)
-					apply := uikit.SecondaryButton(c, "Apply").Disabled(a.srv == nil || strings.TrimSpace(a.upstreamAddr) == a.upstream)
-					if apply.Clicked() || in.Submitted() {
-						a.applyUpstream()
-					}
-				})
-			}).Description("Send requests on through another proxy, such as a company one. Empty connects directly.")
-		})
+		a.upstreamSettingsGroup(c, t)
 		a.socksSettings(c, t)
 		a.reverseProxySettings(c, t)
 	})
-}
-
-// applyUpstream points the proxy at the drafted upstream, or directly.
-func (a *app) applyUpstream() {
-	if a.srv == nil {
-		return
-	}
-	if err := a.srv.SetUpstream(strings.TrimSpace(a.upstreamAddr)); err != nil {
-		a.fail("Upstream", err)
-		return
-	}
-	a.upstream = a.srv.Upstream()
-	a.upstreamAddr = a.upstream
-	a.inform("Upstream: " + cmp.Or(a.upstream, "off"))
 }
 
 func (a *app) captureSettings(c *ui.Context, t *ui.Theme) {

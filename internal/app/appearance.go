@@ -100,7 +100,7 @@ func (a *app) openSettings(tab int) {
 		a.checkCertificate(false)
 	}
 	if !a.settingsOpen {
-		a.upstreamAddr = a.upstream // a fresh draft, not one left by the dialog
+		a.upstreamUI.loaded = false
 	}
 	a.settingsOpen = true
 	if a.win == nil {
