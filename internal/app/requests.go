@@ -1418,7 +1418,7 @@ func (a *app) responseCompare(c *ui.Context, t *ui.Theme, d *requestDocument) {
 		right.resError = "preview limited to 8 MiB"
 	}
 	uikit.Meta(c, "Last send: client request and final response. Capture has the wire exchange.").Padding(t.Space(1), t.Space(3))
-	d.comparison.compare(c, *d.source, right, [2]string{fmt.Sprintf("Source #%d", d.sourceFlow), "Last send"})
+	d.comparison.compare(c, *d.source, right, [2]string{fmt.Sprintf("Source #%d", d.sourceFlow), "Last send"}, &a.diffSplit)
 }
 
 // responseCookies lists what the response asked the client to store.

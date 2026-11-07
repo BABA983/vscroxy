@@ -399,7 +399,7 @@ func (a *app) experimentsView(c *ui.Context, t *ui.Theme, inline bool) {
 					return
 				}
 				if s.tab == 2 {
-					s.compareSource(c, *r)
+					s.compareSource(c, *r, &a.diffSplit)
 					return
 				}
 				if s.tab == 1 {
@@ -408,7 +408,7 @@ func (a *app) experimentsView(c *ui.Context, t *ui.Theme, inline bool) {
 					}
 					uikit.Meta(c, "Comparison only; original snapshots remain unchanged. Ignores top-level response JSON keys, not headers or nested fields.")
 					if left := s.record(cmp.Or(s.left, s.log.Baseline)); left != nil && left.ID != r.ID {
-						s.comparison.compare(c, left.compared(s.ignore), r.compared(s.ignore), [2]string{fmt.Sprintf("Run #%d", left.ID), fmt.Sprintf("Run #%d", r.ID)})
+						s.comparison.compare(c, left.compared(s.ignore), r.compared(s.ignore), [2]string{fmt.Sprintf("Run #%d", left.ID), fmt.Sprintf("Run #%d", r.ID)}, &a.diffSplit)
 					} else {
 						uikit.EmptyState(c, "Choose a baseline", "Choose another run as left, or set a baseline first.", nil)
 					}

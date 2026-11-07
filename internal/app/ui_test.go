@@ -1890,6 +1890,24 @@ func TestCaptureKeepsSelectionAcrossListChanges(t *testing.T) {
 	}
 }
 
+func TestDiffSplitRemembersWidth(t *testing.T) {
+	a := workspaceApp()
+	a.diffSplit = 61
+	a.detailFor = -1
+	a.syncDetail()
+	if a.diff == nil || a.diff.SplitPercent != 61 {
+		t.Fatalf("new diff split = %+v, want 61", a.diff)
+	}
+	a.diffBaseline = true
+	tt := ui.NewTester(func(c *ui.Context) { a.diffPane(c, flow{}) }, 900, 600)
+	tt.Frame()
+	a.diff.SplitPercent = 57
+	tt.Frame()
+	if a.diffSplit != 57 {
+		t.Fatalf("saved diff split = %v, want 57", a.diffSplit)
+	}
+}
+
 func TestCaptureDetailSurvivesUnrelatedTraffic(t *testing.T) {
 	a := workspaceApp()
 	var before, after strings.Builder

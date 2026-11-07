@@ -25,6 +25,7 @@ func TestSettingsRoundTrip(t *testing.T) {
 		TablePercent:     55,
 		InspectorLayout:  "right",
 		SideTablePercent: 61,
+		DiffSplit:        58,
 		SidebarHidden:    true,
 		Columns:          columnLayout{Order: []string{"status", "url"}, Widths: map[string]float32{"url": 320}},
 		CustomColumns:    []customColumn{{Source: sourceQuery, Name: "Page"}, {Source: sourceResponseJSON, Name: "/data/ID"}, {Source: sourceRequestJSON, Name: "/id"}, graphqlColumn},
@@ -243,6 +244,7 @@ func TestSameSettingsSeesColumnChanges(t *testing.T) {
 	for _, changed := range []settings{
 		{InspectorLayout: "bottom", Columns: base.Columns},
 		{SideTablePercent: 61, Columns: base.Columns},
+		{DiffSplit: 61, Columns: base.Columns},
 		{SidebarHidden: true, Columns: base.Columns},
 	} {
 		if sameSettings(base, changed) {

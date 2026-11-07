@@ -190,6 +190,7 @@ type app struct {
 	body               string
 	reqBody            string
 	diff               *editor.DiffState
+	diffSplit          float32
 	diffBaseline       bool
 	analysis           captureAnalysis
 	replayUI           replaySetup
@@ -596,6 +597,9 @@ func newApp() *app {
 		a.workbench.sidebarHidden = saved.SidebarHidden
 		if saved.SideTablePercent > 0 {
 			a.workbench.sidePercent = saved.SideTablePercent
+		}
+		if saved.DiffSplit > 0 {
+			a.diffSplit = saved.DiffSplit
 		}
 		a.columns = saved.Columns.layout()
 		a.customColumns, a.hiddenColumns = slices.Clone(saved.CustomColumns), saved.HiddenColumns
@@ -1384,9 +1388,10 @@ func (a *app) syncDetail() {
 	previous, baseline := a.previousResponse()
 	a.diffBaseline = baseline
 	a.diff = &editor.DiffState{
-		Old:    editor.NewBuffer(previous),
-		New:    editor.NewBuffer(a.body + a.bodyNotice[0]),
-		Layout: editor.DiffSplit,
+		Old:          editor.NewBuffer(previous),
+		New:          editor.NewBuffer(a.body + a.bodyNotice[0]),
+		Layout:       editor.DiffSplit,
+		SplitPercent: a.diffSplit,
 	}
 	a.diff.Old.SetLanguage(editor.LanguageFor("response.json"))
 	a.diff.New.SetLanguage(editor.LanguageFor("response.json"))

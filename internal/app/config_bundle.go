@@ -74,6 +74,7 @@ func (a *app) currentSettings() settings {
 		TablePercent:      a.tablePercent,
 		InspectorLayout:   a.workbench.layout,
 		SideTablePercent:  a.workbench.sidePercent,
+		DiffSplit:         a.diffSplit,
 		SidebarHidden:     a.workbench.sidebarHidden,
 		Columns:           savedLayout(a.columns),
 		CustomColumns:     a.customColumns,
@@ -357,6 +358,9 @@ func (a *app) applySettings(s settings) {
 	a.workbench.sidebarHidden = s.SidebarHidden
 	if s.SideTablePercent > 0 {
 		a.workbench.sidePercent = s.SideTablePercent
+	}
+	if s.DiffSplit > 0 {
+		a.diffSplit = s.DiffSplit
 	}
 	a.columns = s.Columns.layout()
 	a.customColumns, a.hiddenColumns = slices.Clone(s.CustomColumns), slices.Clone(s.HiddenColumns)

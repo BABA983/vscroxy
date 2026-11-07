@@ -28,7 +28,10 @@ type settings struct {
 	// (stacked); each keeps its own divider.
 	InspectorLayout  string  `json:"inspectorLayout,omitempty"`
 	SideTablePercent float32 `json:"sideTablePercent,omitzero"`
-	SidebarHidden    bool    `json:"sidebarHidden,omitzero"`
+	// DiffSplit is the share of a split response diff the old side takes;
+	// zero is half.
+	DiffSplit     float32 `json:"diffSplit,omitzero"`
+	SidebarHidden bool    `json:"sidebarHidden,omitzero"`
 	// CustomColumns are the table's added columns, HiddenColumns the IDs of
 	// the built-in ones taken out.
 	CustomColumns []customColumn `json:"customColumns,omitempty"`
@@ -169,6 +172,7 @@ func sameSettings(x, y settings) bool {
 		x.TablePercent == y.TablePercent &&
 		x.InspectorLayout == y.InspectorLayout &&
 		x.SideTablePercent == y.SideTablePercent &&
+		x.DiffSplit == y.DiffSplit &&
 		x.SidebarHidden == y.SidebarHidden &&
 		slices.Equal(x.CustomColumns, y.CustomColumns) &&
 		slices.Equal(x.HiddenColumns, y.HiddenColumns) &&

@@ -141,11 +141,11 @@ func (a *app) analysisDetail(c *ui.Context, selected []flow) {
 }
 
 func (a *app) compareCaptures(c *ui.Context, left, right flow) {
-	a.analysis.compare(c, left, right, [2]string{fmt.Sprintf("#%d", left.id), fmt.Sprintf("#%d", right.id)})
+	a.analysis.compare(c, left, right, [2]string{fmt.Sprintf("#%d", left.id), fmt.Sprintf("#%d", right.id)}, &a.diffSplit)
 }
 
 // Each reader owns its diff buffers and position, including request documents.
-func (s *captureAnalysis) compare(c *ui.Context, left, right flow, labels [2]string) {
+func (s *captureAnalysis) compare(c *ui.Context, left, right flow, labels [2]string, split *float32) {
 	t := c.Theme()
 	if s.swapped {
 		left, right = right, left
@@ -187,7 +187,7 @@ func (s *captureAnalysis) compare(c *ui.Context, left, right flow, labels [2]str
 		if s.diff != nil {
 			layout = s.diff.Layout
 		}
-		s.diff = &editor.DiffState{Old: editor.NewBuffer(text(left)), New: editor.NewBuffer(text(right)), Layout: layout}
+		s.diff = &editor.DiffState{Old: editor.NewBuffer(text(left)), New: editor.NewBuffer(text(right)), Layout: layout, SplitPercent: *split}
 		s.pair, s.diffPart = pair, s.part
 	}
 	ui.Row(c).Padding(t.Space(1), t.Space(3)).Gap(t.Space(3)).Children(func() {
@@ -204,4 +204,5 @@ func (s *captureAnalysis) compare(c *ui.Context, left, right flow, labels [2]str
 	s.diff.Font = ui.Font{Family: uikit.FontMono, Size: uikit.TextBody}
 	s.diff.Theme = uikit.EditorTheme(t)
 	editor.DiffView(c, s.diff).Grow(1).FillWidth()
+	*split = s.diff.SplitPercent
 }

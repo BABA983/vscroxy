@@ -168,14 +168,14 @@ func (a *app) debugWire(c *ui.Context, r experimentRecord) {
 	uikit.Meta(c, "Wire evidence, not current rules. Redirect hops stay separate; source comparison uses the client result.")
 }
 
-func (s *experimentWorkbench) compareSource(c *ui.Context, r experimentRecord) {
+func (s *experimentWorkbench) compareSource(c *ui.Context, r experimentRecord, split *float32) {
 	if r.Source == nil {
 		uikit.Body(c, "This run has no recorded capture source.")
 		return
 	}
 	left, right := r.Source.Exchange.flow(), r.compared("")
 	left.id, right.id = 1, 2
-	s.sourceComparison.compare(c, left, right, [2]string{fmt.Sprintf("Source #%d · snapshot", r.Source.Exchange.ID), fmt.Sprintf("Experiment #%d", r.ID)})
+	s.sourceComparison.compare(c, left, right, [2]string{fmt.Sprintf("Source #%d · snapshot", r.Source.Exchange.ID), fmt.Sprintf("Experiment #%d", r.ID)}, split)
 }
 
 func newDebugSource(f flow) *debugSource {

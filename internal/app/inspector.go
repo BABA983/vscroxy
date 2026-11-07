@@ -541,6 +541,7 @@ func (a *app) diffPane(c *ui.Context, f flow) {
 	})
 	if a.diff != nil {
 		editor.DiffView(c, a.diff).Grow(1).FillWidth()
+		a.diffSplit = a.diff.SplitPercent
 	}
 }
 
