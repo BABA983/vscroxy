@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/baba983/vscroxy/internal/capture"
@@ -214,5 +215,104 @@ func TestSSEClientCertificate(t *testing.T) {
 	err = ReceiveSSE(t.Context(), proxy.Addr(), &Prepared{Method: "GET", URL: server.URL}, proxy.CACertificate(), certs.Settings{RootCAs: []string{caPath}}, nil, false, func(SSEUpdate) {})
 	if err == nil {
 		t.Fatal("SSE connected without a client certificate")
+	}
+}
+
+func tlsServerWithClientAuth(t *testing.T, ca *testcert.CA, auth tls.ClientAuthType, handler http.Handler) *httptest.Server {
+	t.Helper()
+	_, _, server := ca.Issue(t, "localhost", []string{"localhost"}, []net.IP{net.ParseIP("127.0.0.1")}, false)
+	upstream := httptest.NewUnstartedServer(handler)
+	upstream.TLS = &tls.Config{
+		Certificates: []tls.Certificate{server},
+		ClientAuth:   auth,
+		ClientCAs:    ca.Pool(),
+	}
+	upstream.StartTLS()
+	t.Cleanup(upstream.Close)
+	return upstream
+}
+
+func sseHandler(data string) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		io.WriteString(w, "data: "+data+"\n\n")
+	})
+}
+
+func TestSSERedirectUsesEachHostsClientCertificate(t *testing.T) {
+	ca := testcert.NewCA(t)
+	dir := t.TempDir()
+	caPath := ca.WritePEM(t, dir)
+	clientPEM, clientKey, _ := ca.Issue(t, "sse-a-only", nil, nil, true)
+	certPath, keyPath := testcert.WritePair(t, dir, "sse-a-only", clientPEM, clientKey)
+
+	collect := func(t *testing.T, proxy *capture.Server, startURL string, settings certs.Settings) []SSEEvent {
+		t.Helper()
+		var events []SSEEvent
+		err := ReceiveSSE(t.Context(), proxy.Addr(), &Prepared{Method: "GET", URL: startURL}, proxy.CACertificate(), settings, nil, false, func(u SSEUpdate) {
+			if u.Event != nil {
+				events = append(events, *u.Event)
+			}
+		})
+		if err != nil {
+			t.Fatalf("SSE: %v", err)
+		}
+		return events
+	}
+
+	t.Run("A to B does not leak A's certificate", func(t *testing.T) {
+		var seen atomic.Bool
+		b := tlsServerWithClientAuth(t, ca, tls.RequestClientCert, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.TLS != nil && len(r.TLS.PeerCertificates) > 0 {
+				seen.Store(true)
+			}
+			sseHandler("B").ServeHTTP(w, r)
+		}))
+		bURL := strings.Replace(b.URL, "127.0.0.1", "localhost", 1)
+		a := tlsServerWithClientAuth(t, ca, tls.RequireAndVerifyClientCert, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			http.Redirect(w, r, bURL, http.StatusFound)
+		}))
+		events := collect(t, testProxy(t), a.URL, certs.Settings{
+			Clients: []certs.Client{{ID: "a", Host: "127.0.0.1", Format: certs.FormatPEM, CertFile: certPath, KeyFile: keyPath}},
+			RootCAs: []string{caPath},
+		})
+		if len(events) != 1 || events[0].Data != "B" {
+			t.Fatalf("events = %+v", events)
+		}
+		if seen.Load() {
+			t.Fatal("SSE sent A's client certificate to B")
+		}
+	})
+
+	t.Run("HTTP to a configured HTTPS host presents its certificate", func(t *testing.T) {
+		b := tlsServerWithClientAuth(t, ca, tls.RequireAndVerifyClientCert, sseHandler("B"))
+		bURL := strings.Replace(b.URL, "127.0.0.1", "localhost", 1)
+		a := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			http.Redirect(w, r, bURL, http.StatusFound)
+		}))
+		t.Cleanup(a.Close)
+		events := collect(t, testProxy(t), a.URL, certs.Settings{
+			Clients: []certs.Client{{ID: "b", Host: "localhost", Format: certs.FormatPEM, CertFile: certPath, KeyFile: keyPath}},
+			RootCAs: []string{caPath},
+		})
+		if len(events) != 1 || events[0].Data != "B" {
+			t.Fatalf("events = %+v", events)
+		}
+	})
+}
+
+func TestPlainHTTPSendIgnoresBrokenCertificateFiles(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, "plain")
+	}))
+	t.Cleanup(upstream.Close)
+	dir := t.TempDir()
+	settings := certs.Settings{
+		Clients: []certs.Client{{ID: "one", Host: "127.0.0.1", Format: certs.FormatPEM, CertFile: filepath.Join(dir, "missing.pem"), KeyFile: filepath.Join(dir, "missing.key")}},
+		RootCAs: []string{filepath.Join(dir, "missing-ca.pem")},
+	}
+	got := Request{Method: "GET", URL: upstream.URL}.Execute(t.Context(), testProxy(t), Context{Certificates: settings}, nil, nil)
+	if got.Err != nil || got.Response == nil || got.Response.Status != 200 || got.Response.ResponseBody != "plain" {
+		t.Fatalf("plain HTTP with broken certificate files: %+v", got)
 	}
 }

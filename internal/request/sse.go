@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"cmp"
 	"context"
-	"crypto/tls"
 	"errors"
 	"fmt"
 	"io"
@@ -50,19 +49,11 @@ func ReceiveSSE(ctx context.Context, proxy string, req *Prepared, ca []byte, cer
 	if err != nil || proxy == "" || proxyURL.Hostname() == "" {
 		return errors.New("SSE requires a running capture proxy")
 	}
-	var tlsConfig *tls.Config
-	if u.Scheme == "https" {
-		tlsConfig, err = certificates.TLSConfig(certs.Address(u), ca, false)
-		if err != nil {
-			return err
-		}
-	}
-	transport := http.DefaultTransport.(*http.Transport).Clone()
-	transport.Proxy = http.ProxyURL(proxyURL)
-	transport.TLSClientConfig = tlsConfig
-	transport.ResponseHeaderTimeout = 15 * time.Second
-	defer transport.CloseIdleConnections()
-	client := &http.Client{Transport: transport, Jar: jar}
+	base := http.DefaultTransport.(*http.Transport).Clone()
+	base.Proxy = http.ProxyURL(proxyURL)
+	base.DisableKeepAlives = true
+	base.ResponseHeaderTimeout = 15 * time.Second
+	client := &http.Client{Transport: certificates.Transport(base, ca, false), Jar: jar}
 	header := req.Header.Clone()
 	if header == nil {
 		header = http.Header{}

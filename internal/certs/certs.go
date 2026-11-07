@@ -10,6 +10,7 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -25,6 +26,20 @@ const (
 	FormatPEM    = "pem"
 	FormatPKCS12 = "pkcs12"
 )
+
+// ResolveFormat returns the configured format, or infers PEM when a key file
+// is present and PKCS#12 otherwise. Unknown explicit formats are returned
+// unchanged so validation can name them.
+func ResolveFormat(format, keyFile string) string {
+	format = strings.ToLower(strings.TrimSpace(format))
+	if format != "" {
+		return format
+	}
+	if strings.TrimSpace(keyFile) == "" {
+		return FormatPKCS12
+	}
+	return FormatPEM
+}
 
 // maxFileSize bounds a certificate, key, PFX or CA file read into memory.
 const maxFileSize = 8 << 20
@@ -110,17 +125,14 @@ func (s Settings) Normalize() Settings {
 	}
 	for i := range out.Clients {
 		c := &out.Clients[i]
-		c.Host = NormalizeHost(c.Host)
+		if host, err := normalizeHost(c.Host); err == nil {
+			c.Host = host
+		} else {
+			c.Host = strings.TrimSpace(strings.ToLower(c.Host))
+		}
 		c.CertFile = strings.TrimSpace(c.CertFile)
 		c.KeyFile = strings.TrimSpace(c.KeyFile)
-		c.Format = strings.ToLower(strings.TrimSpace(c.Format))
-		if c.Format == "" {
-			if c.KeyFile == "" {
-				c.Format = FormatPKCS12
-			} else {
-				c.Format = FormatPEM
-			}
-		}
+		c.Format = ResolveFormat(c.Format, c.KeyFile)
 		if c.ID == "" {
 			c.ID = uuid.NewString()
 		}
@@ -134,26 +146,15 @@ func (s Settings) Normalize() Settings {
 func (s Settings) Validate() error {
 	seen := make(map[string]bool, len(s.Clients))
 	for i, c := range s.Clients {
-		if strings.TrimSpace(c.Host) == "" {
-			return fmt.Errorf("client certificate %d: host is empty", i+1)
-		}
-		host, _ := splitHostPort(NormalizeHost(c.Host))
-		if host == "" {
-			return fmt.Errorf("client certificate %d: %q is not a host", i+1, c.Host)
+		if err := ValidateHost(c.Host); err != nil {
+			return fmt.Errorf("client certificate %d: %w", i+1, err)
 		}
 		key := NormalizeHost(c.Host)
 		if seen[key] {
 			return fmt.Errorf("client certificate %d: %s is configured twice", i+1, c.Host)
 		}
 		seen[key] = true
-		format := c.Format
-		if format == "" {
-			if c.KeyFile == "" {
-				format = FormatPKCS12
-			} else {
-				format = FormatPEM
-			}
-		}
+		format := ResolveFormat(c.Format, c.KeyFile)
 		switch format {
 		case FormatPEM:
 			if c.CertFile == "" || c.KeyFile == "" {
@@ -263,6 +264,37 @@ func (s Settings) TLSConfig(address string, proxyCA []byte, insecure bool) (*tls
 	return config, nil
 }
 
+// Transport returns an http.RoundTripper that builds a TLS configuration for
+// each request's own host. A redirect therefore presents the target host's
+// client certificate, never the first request's, and an HTTP request reads no
+// certificate or root files at all. base is cloned per request and must not
+// carry a TLSClientConfig of its own.
+func (s Settings) Transport(base *http.Transport, proxyCA []byte, insecure bool) http.RoundTripper {
+	return &settingsTransport{settings: s, base: base, proxyCA: proxyCA, insecure: insecure}
+}
+
+type settingsTransport struct {
+	settings Settings
+	base     *http.Transport
+	proxyCA  []byte
+	insecure bool
+}
+
+func (t *settingsTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	transport := t.base.Clone()
+	if req.URL != nil && strings.EqualFold(req.URL.Scheme, "https") {
+		config, err := t.settings.TLSConfig(Address(req.URL), t.proxyCA, t.insecure)
+		if err != nil {
+			return nil, err
+		}
+		transport.TLSClientConfig = config
+	} else {
+		transport.TLSClientConfig = nil
+	}
+	defer transport.CloseIdleConnections()
+	return transport.RoundTrip(req)
+}
+
 // ValidateURL loads what a send to rawURL would use, so a broken certificate
 // or root is reported before the request reaches the proxy.
 func (s Settings) ValidateURL(rawURL string, proxyCA []byte, insecure bool) error {
@@ -279,14 +311,7 @@ func (s Settings) ValidateURL(rawURL string, proxyCA []byte, insecure bool) erro
 
 // loadClient reads one client certificate now.
 func (s Settings) loadClient(c Client) (tls.Certificate, error) {
-	format := c.Format
-	if format == "" {
-		if c.KeyFile == "" {
-			format = FormatPKCS12
-		} else {
-			format = FormatPEM
-		}
-	}
+	format := ResolveFormat(c.Format, c.KeyFile)
 	passphrase := ""
 	if c.ID != "" {
 		passphrase = s.Secrets[c.ID]

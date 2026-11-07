@@ -67,6 +67,15 @@ func (s SecretStore) Save(secrets map[string]string) error {
 	if s.Path == "" {
 		return nil
 	}
+	// Never replace a sealed file this session cannot open: a load error must
+	// not become a silent reset, whether the new set is empty or not.
+	if _, err := os.Stat(s.Path); err == nil {
+		if _, loadErr := s.Load(); loadErr != nil {
+			return fmt.Errorf("refusing to replace certificate passphrases: %w", loadErr)
+		}
+	} else if !errors.Is(err, fs.ErrNotExist) {
+		return fmt.Errorf("check certificate passphrases %s: %w", filepath.Clean(s.Path), err)
+	}
 	if len(secrets) == 0 {
 		if err := os.Remove(s.Path); err != nil && !errors.Is(err, fs.ErrNotExist) {
 			return fmt.Errorf("remove certificate passphrases %s: %w", filepath.Clean(s.Path), err)

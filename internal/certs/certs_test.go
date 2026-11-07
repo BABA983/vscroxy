@@ -30,6 +30,7 @@ func TestMatch(t *testing.T) {
 		{"*.example.com", "example.com:443", false},
 		{"*.example.com:8443", "api.example.com:8443", true},
 		{"*.example.com:8443", "api.example.com:443", false},
+		{"*.", "api.example.com:443", false},
 		{"*", "anything.test:443", true},
 		{"[::1]:8443", "[::1]:8443", true},
 		{"::1", "[::1]:443", true},
@@ -55,6 +56,61 @@ func TestAddressFillsTheDefaultPort(t *testing.T) {
 		if got := Address(u); got != want {
 			t.Errorf("Address(%s) = %q, want %q", raw, got, want)
 		}
+	}
+}
+
+func TestValidateHost(t *testing.T) {
+	for _, host := range []string{
+		"api.example.com", "api.example.com:8443", "*.example.com", "*.example.com:8443",
+		"*", "[::1]:8443", "::1", "bücher.example", "api.example.com.",
+	} {
+		if err := ValidateHost(host); err != nil {
+			t.Errorf("ValidateHost(%q) = %v", host, err)
+		}
+	}
+	for _, host := range []string{
+		"", "*.", "*..example.com", "*.*.example.com", "api.example.com/v1",
+		"api example.com", "api.example.com:0", "api.example.com:65536",
+		"api.example.com:abc", ".example.com", "api..example.com",
+	} {
+		if err := ValidateHost(host); err == nil {
+			t.Errorf("ValidateHost(%q) accepted an invalid host", host)
+		}
+	}
+	if got := NormalizeHost("*.example.com."); got != "*.example.com" {
+		t.Fatalf("trailing dot wildcard = %q", got)
+	}
+	if got := NormalizeHost("*."); got != "" {
+		t.Fatalf("bare wildcard dot = %q, want empty", got)
+	}
+}
+
+func TestIDNAHosts(t *testing.T) {
+	if got := NormalizeHost("bücher.example"); got != "xn--bcher-kva.example" {
+		t.Fatalf("IDN normalization = %q", got)
+	}
+	if !Match("bücher.example", "xn--bcher-kva.example") {
+		t.Fatal("IDN pattern did not match its punycode address")
+	}
+	u, err := url.Parse("https://bücher.example/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := Address(u); got != "xn--bcher-kva.example:443" {
+		t.Fatalf("IDN address = %q", got)
+	}
+}
+
+func TestDefaultPortCertificateMatchesCanonicalAddress(t *testing.T) {
+	u, err := url.Parse("https://api.example.com")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !Match("api.example.com:443", Address(u)) {
+		t.Fatal("a :443 certificate did not match the canonical address")
+	}
+	if Match("api.example.com:443", u.Host) {
+		t.Fatal("a :443 certificate matched the raw URL host without its port")
 	}
 }
 
@@ -167,6 +223,37 @@ func TestSettingsJSONKeepsPassphrasesOut(t *testing.T) {
 	}
 	if back.Secrets != nil || !back.Equal(settings) {
 		t.Fatalf("round trip changed the non-secret settings: %+v", back)
+	}
+}
+
+func TestSecretStoreRefusesToReplaceUnreadableSecrets(t *testing.T) {
+	dir := t.TempDir()
+	store := SecretStoreFor(filepath.Join(dir, "settings.json"))
+	if err := store.Save(map[string]string{"one": "keep-me"}); err != nil {
+		t.Fatal(err)
+	}
+	key, err := os.ReadFile(store.KeyPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(store.KeyPath); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Save(map[string]string{}); err == nil {
+		t.Fatal("an unreadable sealed file was removed")
+	}
+	if _, err := os.Stat(store.Path); err != nil {
+		t.Fatalf("the sealed file disappeared: %v", err)
+	}
+	if err := store.Save(map[string]string{"one": "replacement"}); err == nil {
+		t.Fatal("an unreadable sealed file was replaced")
+	}
+	if err := os.WriteFile(store.KeyPath, key, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	got, err := store.Load()
+	if err != nil || got["one"] != "keep-me" {
+		t.Fatalf("sealed passphrases changed: %v %v", got, err)
 	}
 }
 

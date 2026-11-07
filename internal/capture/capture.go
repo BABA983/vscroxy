@@ -1263,31 +1263,6 @@ const (
 	TLSInsecure = "insecure"
 )
 
-// replayTLSConfig is the client side of a replay: it verifies the proxy's
-// interception certificate (or a tunneled server), and presents the client
-// certificate configured for the target. insecure skips verification but still
-// loads the client certificate.
-func (s *Server) replayTLSConfig(rawURL string, insecure bool) (*tls.Config, error) {
-	u, err := url.Parse(rawURL)
-	if err != nil {
-		return nil, err
-	}
-	if u.Scheme != "https" {
-		// A redirect may switch to HTTPS. Trust the system, custom roots and
-		// this proxy, but do not present a client certificate for an HTTP
-		// host: the redirect target is not known here.
-		if insecure {
-			return &tls.Config{InsecureSkipVerify: true}, nil
-		}
-		roots, err := s.certificates().RootPool(s.CACertificate())
-		if err != nil {
-			return nil, err
-		}
-		return &tls.Config{RootCAs: roots}, nil
-	}
-	return s.certificates().TLSConfig(certs.Address(u), s.CACertificate(), insecure)
-}
-
 // ReplayWithPolicy applies an authored transfer policy. cURL modes follow at
 // most 50 HTTP(S) hops unless Max says otherwise; -X keeps the method, not a
 // body dropped by 301/302/303. TLSVerify asks the proxy to verify an
@@ -1354,50 +1329,48 @@ func (s *Server) ReplayWithPolicy(ctx context.Context, f Flow, jar http.CookieJa
 		// Suppression must survive a canceled send until the proxy has read
 		// everything already sent on its socket. ClientDisconnected removes it.
 	}()
-	tlsConfig, err := s.replayTLSConfig(rawURL, policy.TLS == TLSInsecure)
-	if err != nil {
-		return Flow{}, err
+	base := &http.Transport{
+		// The proxy pins its upstream to each client connection. Redirects
+		// must not reuse that socket for a different HTTP origin.
+		DisableKeepAlives: true,
+		Proxy:             http.ProxyURL(proxyURL),
+		// An intercepted upstream is verified by the proxy, not by this
+		// client, which only sees the proxy's own certificate.
+		GetProxyConnectHeader: func(context.Context, *url.URL, string) (http.Header, error) {
+			if policy.TLS != TLSVerify {
+				return nil, nil
+			}
+			return http.Header{proxy.HeaderVerifyUpstream: {"1"}}, nil
+		},
+		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+			conn, err := (&net.Dialer{}).DialContext(ctx, network, addr)
+			if err == nil && (f.ID != 0 || f.DebugRun != "" || suppressed) {
+				// Register before the transport can send anything. Each send
+				// owns its transport, so concurrent identical URLs cannot mix.
+				s.mu.Lock()
+				select {
+				case <-s.closed:
+					finished = true
+				default:
+				}
+				if finished {
+					s.mu.Unlock()
+					_ = conn.Close()
+					return nil, net.ErrClosed
+				}
+				local := conn.LocalAddr().String()
+				s.replayClients[local] = replayOrigin{source: f.ID, run: f.DebugRun, withoutRecording: suppressed}
+				addresses = append(addresses, local)
+				s.mu.Unlock()
+			}
+			return conn, err
+		},
 	}
 	client := &http.Client{
 		Jar: jar,
-		Transport: &http.Transport{
-			// The proxy pins its upstream to each client connection. Redirects
-			// must not reuse that socket for a different HTTP origin.
-			DisableKeepAlives: true,
-			Proxy:             http.ProxyURL(proxyURL),
-			TLSClientConfig:   tlsConfig,
-			// An intercepted upstream is verified by the proxy, not by this
-			// client, which only sees the proxy's own certificate.
-			GetProxyConnectHeader: func(context.Context, *url.URL, string) (http.Header, error) {
-				if policy.TLS != TLSVerify {
-					return nil, nil
-				}
-				return http.Header{proxy.HeaderVerifyUpstream: {"1"}}, nil
-			},
-			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-				conn, err := (&net.Dialer{}).DialContext(ctx, network, addr)
-				if err == nil && (f.ID != 0 || f.DebugRun != "" || suppressed) {
-					// Register before the transport can send anything. Each send
-					// owns its transport, so concurrent identical URLs cannot mix.
-					s.mu.Lock()
-					select {
-					case <-s.closed:
-						finished = true
-					default:
-					}
-					if finished {
-						s.mu.Unlock()
-						_ = conn.Close()
-						return nil, net.ErrClosed
-					}
-					local := conn.LocalAddr().String()
-					s.replayClients[local] = replayOrigin{source: f.ID, run: f.DebugRun, withoutRecording: suppressed}
-					addresses = append(addresses, local)
-					s.mu.Unlock()
-				}
-				return conn, err
-			},
-		},
+		// The transport builds TLS per request, so a redirect to another host
+		// presents that host's certificate, never the first host's.
+		Transport: s.certificates().Transport(base, s.CACertificate(), policy.TLS == TLSInsecure),
 	}
 	if policy.Redirects.Mode == RedirectManual {
 		client.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }

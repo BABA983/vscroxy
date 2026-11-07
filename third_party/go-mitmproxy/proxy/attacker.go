@@ -356,7 +356,11 @@ func (a *attacker) httpsDial(ctx context.Context, req *http.Request) (net.Conn, 
 	}
 
 	serverConn := newServerConn()
-	serverConn.Address = req.Host
+	address := req.Host
+	if req.URL != nil && req.URL.Host != "" {
+		address = helper.CanonicalAddr(req.URL)
+	}
+	serverConn.Address = address
 	serverConn.Conn = &wrapServerConn{
 		Conn:    plainConn,
 		proxy:   proxy,
@@ -740,7 +744,8 @@ func (a *attacker) attack(res http.ResponseWriter, req *http.Request) {
 		f.UseSeparateClient = true
 		f.ConnContext.RecordEvent("HTTP", "Using a separate upstream transport for "+f.Request.URL.Host, nil)
 		proxyReq = proxyReq.WithContext(httptrace.WithClientTrace(proxyReq.Context(), f.ConnContext.trace()))
-		client, clientErr := a.upstreamClient(f.Request.URL.Host, f.ConnContext.VerifyUpstream)
+		verify := !a.proxy.Opts.SslInsecure || f.ConnContext.VerifyUpstream
+		client, clientErr := a.upstreamClient(helper.CanonicalAddr(f.Request.URL), verify)
 		if clientErr != nil {
 			for _, addon := range proxy.Addons {
 				addon.RequestError(f, clientErr)

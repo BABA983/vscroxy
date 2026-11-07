@@ -239,7 +239,10 @@ func (r Request) Execute(ctx context.Context, srv *capture.Server, in Context, v
 	settings := in.InheritSettings(r.Settings)
 	// Load the configured client certificate and roots before the request
 	// reaches the proxy, so a missing file or bad passphrase is reported here
-	// instead of as an opaque CONNECT failure.
+	// instead of as an opaque CONNECT failure. The HTTP send itself uses the
+	// capture server's snapshot, which the app and CLI set from this same
+	// configuration; direct clients (WebSocket/SSE/gRPC/Socket.IO) use
+	// in.Certificates themselves.
 	if in.Certificates.Configured() && srv != nil {
 		if err := in.Certificates.ValidateURL(req.URL, srv.CACertificate(), !settings.Verifies()); err != nil {
 			out.Stage, out.Err = "Request setup failed", err
