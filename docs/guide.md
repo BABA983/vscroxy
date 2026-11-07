@@ -2198,6 +2198,29 @@ uses `{{base_url}}`, and the collection gets an empty `base_url` variable to
 fill in. **Create collection** in the API editor does the same for an open,
 validated contract. A name already in use gets a number: “Pet Store 2”.
 
+**Session → Import capture session…**, the command palette, and a file dropped
+on the window read Charles' JSON Session File (`.chlsj`) and XML Session File
+(`.chlsx`), and Proxyman's `.proxymanlogv2` archive. **Session → Import
+Proxyman log folder…** reads the older `.proxymanlog` directory (a nested
+directory is found one level down). The exchanges join the live traffic table
+in capture order, not a saved session; **Save session…** keeps them. Both
+sides keep their headers, including repeated names, and their bodies as
+exported: binary and base64 bodies stay bytes, and a body the exporter marked
+with gzip/deflate/br is not decompressed again. Status, start time, duration,
+wait/download split, remote IP, TLS protocol, cipher suite and, for Proxyman,
+the peer certificate fields are mapped. Proxyman WebSocket messages fill the
+**Messages** tab with direction, text/binary/control type and payload; Charles'
+JSON and XML exports contain the WebSocket upgrade but not its frames, and the
+import report says so. Native `.chls` is a Java-serialized object stream, which
+this app does not deserialize; the import stops with a message to export
+`.chlsj` or HAR from Charles instead.
+
+Capture imports are bounded: at most 128 MiB per file or Proxyman entry, 2000
+exchanges, 32 MiB per body and 256 MiB of expanded archive. Symbolic links are
+not followed, zip members must be flat `request_<n>_<id>` entries, and a
+malformed or truncated file is reported as an error without changing the
+table. What was skipped, capped or unavailable is listed after the import.
+
 An **Insomnia** export becomes one collection per workspace (v4) or its
 top-level collection (v5). Request groups and `children` become folders;
 folder and collection variables, auth, descriptions and request bodies are
