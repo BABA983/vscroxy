@@ -386,6 +386,11 @@ decrypted upstream handshake. A configured certificate is presented even when
 instead of continuing without the certificate or roots. The connection log
 records `Upstream TLS configuration failed` with the hook's error.
 
+`attacker.httpsDial` also sets `ServerConn.Address` from
+`helper.CanonicalAddr(req.URL)` when the request names a host, so lazy
+interception and decrypted SOCKS connections select certificates and record
+the connection log with the same canonical host:port.
+
 `attacker.upstreamClient` builds a per-target transport for a rewritten request
 (Map Remote) with the same hooks and a canonical host:port, and
 `webSocketHandler.handle`/`handleWSS` use `Proxy.upstreamTLSConfig` for WSS.
