@@ -6,14 +6,16 @@ import (
 
 // parseWebSocketFrames reads the RFC 6455 frame stream some exporters keep for
 // a WebSocket transaction. It reassembles fragmented messages, exposes control
-// frames, and stops at the first malformed, oversized or permessage-deflate
-// frame. limit caps retained messages before the import budget is applied.
-// truncated reports unread input; compressed reports an RSV1 frame that was
-// not inflated.
+// frames, and stops at the first malformed or oversized frame. Compressed
+// (RSV1) messages are skipped, including their continuation frames, so later
+// frames still import. limit caps retained messages before the import budget
+// is applied. truncated reports unread or malformed input; compressed reports
+// an RSV1 message that was not inflated.
 func parseWebSocketFrames(data []byte, direction string, limit int) ([]CaptureFrame, bool, bool) {
 	var frames []CaptureFrame
 	var pending []byte
 	pendingKind := ""
+	skipUntilFin := false
 	truncated := false
 	compressed := false
 	if limit <= 0 {
@@ -28,12 +30,10 @@ func parseWebSocketFrames(data []byte, direction string, limit int) ([]CaptureFr
 		pos += 2
 		fin := first&0x80 != 0
 		opcode := first & 0x0f
-		if first&0x40 != 0 {
-			// permessage-deflate marks compressed data frames with RSV1.
-			// Showing the DEFLATE bytes as text/binary would be wrong, and
-			// context takeover makes partial inflation unsafe. RSV1 on a
+		rsv1 := first&0x40 != 0
+		if rsv1 && opcode >= 0x8 {
+			// permessage-deflate only applies to data frames; RSV1 on a
 			// control frame is malformed.
-			compressed = opcode < 0x8
 			truncated = true
 			break
 		}
@@ -113,6 +113,31 @@ func parseWebSocketFrames(data []byte, direction string, limit int) ([]CaptureFr
 			continue
 		}
 
+		if skipUntilFin {
+			if opcode == 0x0 {
+				if fin {
+					skipUntilFin = false
+				}
+				continue
+			}
+			if opcode == 0x1 || opcode == 0x2 {
+				// A new message arrived before the skipped compressed one
+				// ended. Keep the new one and report the incomplete skip.
+				truncated = true
+				skipUntilFin = false
+			}
+		}
+		if rsv1 {
+			// The DEFLATE payload is not shown as text/binary; context
+			// takeover also makes partial inflation unsafe. Consume this
+			// message and its continuation frames, then keep parsing.
+			compressed = true
+			if !fin {
+				skipUntilFin = true
+			}
+			continue
+		}
+
 		switch opcode {
 		case 0x0:
 			if pendingKind == "" {
@@ -158,7 +183,7 @@ func parseWebSocketFrames(data []byte, direction string, limit int) ([]CaptureFr
 		frames = append(frames, CaptureFrame{Direction: direction, Kind: pendingKind, Data: pending})
 		pending, pendingKind = nil, ""
 	}
-	if pendingKind != "" {
+	if pendingKind != "" || skipUntilFin {
 		truncated = true
 	}
 	return frames, truncated, compressed

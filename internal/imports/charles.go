@@ -356,6 +356,7 @@ func (t charlesJSONTransaction) toCapture(warnings *captureWarnings, index int) 
 		Kind: kind, Error: failure, Note: strings.TrimSpace(t.Note),
 	}
 	if kind == "ws" {
+		warnings.refundBody(len(reqBody) + len(resBody))
 		flow.Frames, _ = charlesWebSocketFrames(reqBody, resBody, charlesJSONBodyEncoded(t.Request), charlesJSONBodyEncoded(t.Response), warnings, index)
 		flow.ReqBody, flow.ResBody, flow.ReqSize, flow.ResSize = nil, nil, 0, 0
 	}
@@ -960,6 +961,7 @@ func (t charlesXMLTransaction) toCapture(warnings *captureWarnings, index int) (
 		Kind: kind, Error: failure,
 	}
 	if kind == "ws" {
+		warnings.refundBody(len(reqBody) + len(resBody))
 		flow.Frames, _ = charlesWebSocketFrames(reqBody, resBody, charlesXMLBodyEncoded(t.Request), charlesXMLBodyEncoded(t.Response), warnings, index)
 		flow.ReqBody, flow.ResBody, flow.ReqSize, flow.ResSize = nil, nil, 0, 0
 	}
@@ -1050,17 +1052,31 @@ func decodeImportedBody(data []byte, encoding string, alreadyDecoded bool, side 
 		return nil
 	}
 	if !alreadyDecoded && strings.TrimSpace(encoding) != "" {
-		limit := warnings.bodyLimit()
-		if limit <= 0 {
+		bodyLimit := warnings.bodyLimit()
+		if bodyLimit <= 0 {
 			warnings.budgetBodyExhausted()
 			return nil
 		}
+		workLeft := warnings.workRemaining()
+		if workLeft <= 0 {
+			warnings.budgetWorkExhausted()
+			return nil
+		}
+		limit := min(bodyLimit, workLeft)
 		decoded, err := decodeCaptureBody(data, encoding, limit)
 		if err != nil {
+			warnings.chargeDecompression(limit + 1)
+		} else {
+			warnings.chargeDecompression(int64(len(decoded)))
+		}
+		if err != nil {
 			if errors.Is(err, errCaptureBodyLimit) {
-				if limit < maxCaptureBody {
+				switch {
+				case limit < bodyLimit:
+					warnings.budgetWorkExhausted()
+				case limit < maxCaptureBody:
 					warnings.budgetBodyExhausted()
-				} else {
+				default:
 					warnings.add("transaction %d: %s body is larger than %d MiB and was not imported", index+1, side, maxCaptureBody>>20)
 				}
 				return nil

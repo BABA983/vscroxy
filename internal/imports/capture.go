@@ -48,6 +48,10 @@ const (
 	maxCaptureImportBytes = 512 << 20
 	// maxCaptureImportFrames bounds the WebSocket messages one import retains.
 	maxCaptureImportFrames = 200_000
+	// maxCaptureDecompressBytes bounds decompression work, not just retained
+	// output. Oversized or corrupt bodies still cost CPU, so every attempt is
+	// charged against this import-wide budget.
+	maxCaptureDecompressBytes = 1 << 30
 	// maxCaptureXMLDepth bounds element nesting before the real XML decoder
 	// builds its element stack.
 	maxCaptureXMLDepth = 64
@@ -213,12 +217,16 @@ type captureWarnings struct {
 }
 
 type captureBudget struct {
-	maxBodyBytes int64
-	maxFrames    int
-	bodyBytes    int64
-	frames       int
-	bodyWarned   bool
-	frameWarned  bool
+	maxBodyBytes   int64
+	maxFrames      int
+	maxWorkBytes   int64
+	bodyBytes      int64
+	frames         int
+	workBytes      int64
+	decompressions int
+	bodyWarned     bool
+	frameWarned    bool
+	workWarned     bool
 }
 
 func (w *captureWarnings) add(format string, args ...any) {
@@ -265,6 +273,9 @@ func (w *captureWarnings) frameBudget() int {
 // bodyLimit is the smaller of one body's cap and the import's remaining
 // budget. decodeCaptureBody uses it as its output limit.
 func (w *captureWarnings) bodyLimit() int64 {
+	if w.budget.bodyWarned {
+		return 0
+	}
 	remaining := w.bodyBudget() - w.budget.bodyBytes
 	if remaining <= 0 {
 		return 0
@@ -282,6 +293,53 @@ func (w *captureWarnings) takeBody(data []byte) bool {
 	}
 	w.budget.bodyBytes += int64(len(data))
 	return true
+}
+
+// refundBody releases a raw WebSocket body that was counted while it was
+// decoded but is not retained as an HTTP body. Its frame payloads are counted
+// separately by retainFrames.
+func (w *captureWarnings) refundBody(n int) {
+	if n <= 0 {
+		return
+	}
+	w.budget.bodyBytes -= int64(n)
+	if w.budget.bodyBytes < 0 {
+		w.budget.bodyBytes = 0
+	}
+}
+
+func (w *captureWarnings) workBudget() int64 {
+	if w.budget.maxWorkBytes > 0 {
+		return w.budget.maxWorkBytes
+	}
+	return maxCaptureDecompressBytes
+}
+
+func (w *captureWarnings) workRemaining() int64 {
+	remaining := w.workBudget() - w.budget.workBytes
+	if remaining < 0 {
+		return 0
+	}
+	return remaining
+}
+
+func (w *captureWarnings) chargeDecompression(n int64) {
+	if n <= 0 {
+		n = 1
+	}
+	w.budget.decompressions++
+	w.budget.workBytes += n
+	if w.budget.workBytes >= w.workBudget() {
+		w.budgetWorkExhausted()
+	}
+}
+
+func (w *captureWarnings) budgetWorkExhausted() {
+	if w.budget.workWarned {
+		return
+	}
+	w.budget.workWarned = true
+	w.prepend("import decompression budget of %d MiB reached; remaining compressed bodies were not decoded", w.workBudget()>>20)
 }
 
 func (w *captureWarnings) budgetBodyExhausted() {

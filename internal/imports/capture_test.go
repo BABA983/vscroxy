@@ -1118,3 +1118,116 @@ func TestProxymanFrameCountBudgetIsShared(t *testing.T) {
 		t.Fatalf("warnings = %q", warnings.finish())
 	}
 }
+
+func TestBrotliBodiesStopAfterBodyBudget(t *testing.T) {
+	encoded, _ := brotliZerosBase64(t, 31_999_999)
+	warnings := &captureWarnings{budget: captureBudget{maxBodyBytes: 64 << 20}}
+	body := &charlesJSONEntry{
+		ContentEncoding: "br",
+		Body:            &charlesJSONBody{Encoded: encoded, Size: flexInt(31_999_999)},
+	}
+	start := time.Now()
+	for i := range 2000 {
+		data, _ := charlesBody(body, "response", warnings, i)
+		if i < 2 && len(data) != 31_999_999 {
+			t.Fatalf("body %d = %d bytes, want 31,999,999", i, len(data))
+		}
+		if i >= 2 && len(data) != 0 {
+			t.Fatalf("body %d retained %d bytes after the body budget", i, len(data))
+		}
+	}
+	if warnings.budget.decompressions > 3 {
+		t.Fatalf("%d brotli decoders were created, want at most 3", warnings.budget.decompressions)
+	}
+	if elapsed := time.Since(start); elapsed > 8*time.Second {
+		t.Fatalf("2000 bodies took %v; body budget did not stop decompression", elapsed)
+	}
+	if !strings.Contains(strings.Join(warnings.finish(), ";"), "body budget") {
+		t.Fatalf("warnings = %q", warnings.finish())
+	}
+}
+
+func TestBrotliOversizedBodiesStopAfterWorkBudget(t *testing.T) {
+	if raceEnabled {
+		t.Skip("the decompression work budget test is too memory-heavy under -race")
+	}
+	encoded, _ := brotliZerosBase64(t, 64<<20)
+	warnings := &captureWarnings{}
+	body := &charlesJSONEntry{
+		ContentEncoding: "br",
+		Body:            &charlesJSONBody{Encoded: encoded, Size: flexInt(64 << 20)},
+	}
+	start := time.Now()
+	for i := range 200 {
+		if data, _ := charlesBody(body, "response", warnings, i); len(data) != 0 {
+			t.Fatalf("body %d retained %d bytes after the 32 MiB per-body limit", i, len(data))
+		}
+	}
+	if warnings.budget.decompressions > 40 {
+		t.Fatalf("%d decompressions, want at most 40", warnings.budget.decompressions)
+	}
+	if elapsed := time.Since(start); elapsed > 15*time.Second {
+		t.Fatalf("200 oversized bodies took %v; work budget did not stop decompression", elapsed)
+	}
+	if !strings.Contains(strings.Join(warnings.finish(), ";"), "decompression budget") {
+		t.Fatalf("warnings = %q", warnings.finish())
+	}
+}
+
+func TestWebSocketRSV1SkipsOnlyTheCompressedMessage(t *testing.T) {
+	data := []byte{
+		0x81, 0x01, 'a',
+		0xc1, 0x01, 'x',
+		0x81, 0x01, 'b',
+	}
+	frames, truncated, compressed := parseWebSocketFrames(data, "in", 100)
+	if truncated || !compressed || len(frames) != 2 || string(frames[0].Data) != "a" || string(frames[1].Data) != "b" {
+		t.Fatalf("frames = %+v truncated %v compressed %v", frames, truncated, compressed)
+	}
+
+	withPing := []byte{
+		0xc1, 0x01, 'x',
+		0x89, 0x00,
+		0x81, 0x01, 'b',
+	}
+	frames, truncated, compressed = parseWebSocketFrames(withPing, "in", 100)
+	if truncated || !compressed || len(frames) != 2 || frames[0].Kind != "ping" || string(frames[1].Data) != "b" {
+		t.Fatalf("frames with ping = %+v truncated %v compressed %v", frames, truncated, compressed)
+	}
+
+	fragmented := []byte{
+		0x41, 0x01, 'x',
+		0x80, 0x01, 'y',
+		0x81, 0x01, 'b',
+	}
+	frames, truncated, compressed = parseWebSocketFrames(fragmented, "in", 100)
+	if truncated || !compressed || len(frames) != 1 || string(frames[0].Data) != "b" {
+		t.Fatalf("fragmented frames = %+v truncated %v compressed %v", frames, truncated, compressed)
+	}
+}
+
+func TestCharlesWebSocketRawBodyIsNotDoubleCounted(t *testing.T) {
+	payload := bytes.Repeat([]byte{0x01}, 600_000)
+	frame := append([]byte{0x82, 0x7f, 0, 0, 0, 0, 0, 0x09, 0x27, 0xc0}, payload...)
+	encoded := base64.StdEncoding.EncodeToString(frame)
+	transaction := charlesJSONTransaction{
+		Status: "COMPLETE", Method: "GET", Scheme: "https", Host: "ws.example.com", Path: "/", WebSocket: true,
+		Request: &charlesJSONEntry{Header: charlesJSONHeaders{}},
+		Response: &charlesJSONEntry{
+			Status: 101,
+			Header: charlesJSONHeaders{},
+			Body:   &charlesJSONBody{Encoded: encoded, Size: flexInt(len(frame))},
+		},
+	}
+	warnings := &captureWarnings{budget: captureBudget{maxBodyBytes: 1 << 20}}
+	flow, err := transaction.toCapture(warnings, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(flow.Frames) != 1 || len(flow.Frames[0].Data) != len(payload) {
+		t.Fatalf("frames = %d, want one 600000-byte frame; warnings %q", len(flow.Frames), warnings.finish())
+	}
+	if strings.Contains(strings.Join(warnings.finish(), ";"), "body budget") {
+		t.Fatalf("raw WebSocket body was charged twice: %q", warnings.finish())
+	}
+}
