@@ -247,6 +247,8 @@ func TestSecretStoreRefusesToReplaceUnreadableSecrets(t *testing.T) {
 	}
 	if err := store.Save(map[string]string{"one": "replacement"}); err == nil {
 		t.Fatal("an unreadable sealed file was replaced")
+	} else if !strings.Contains(err.Error(), store.KeyPath) || !strings.Contains(err.Error(), "delete "+store.Path) {
+		t.Fatalf("the refusal does not explain how to recover: %v", err)
 	}
 	if err := os.WriteFile(store.KeyPath, key, 0o600); err != nil {
 		t.Fatal(err)

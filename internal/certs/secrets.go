@@ -71,7 +71,8 @@ func (s SecretStore) Save(secrets map[string]string) error {
 	// not become a silent reset, whether the new set is empty or not.
 	if _, err := os.Stat(s.Path); err == nil {
 		if _, loadErr := s.Load(); loadErr != nil {
-			return fmt.Errorf("refusing to replace certificate passphrases: %w", loadErr)
+			return fmt.Errorf("refusing to replace certificate passphrases: %w; restore the key file %s, or delete %s and enter the passphrases again",
+				loadErr, filepath.Clean(s.KeyPath), filepath.Clean(s.Path))
 		}
 	} else if !errors.Is(err, fs.ErrNotExist) {
 		return fmt.Errorf("check certificate passphrases %s: %w", filepath.Clean(s.Path), err)
