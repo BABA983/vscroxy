@@ -231,15 +231,19 @@ func (a *attacker) initHttpDialFn(req *http.Request) {
 }
 
 // upstreamClient dials a rewritten target itself, so its TLS configuration
-// can name that target and present its client certificate. It keeps no idle
+// can name that target and present its client certificate. Its dialer uses the
+// same ordered upstream candidates as the main path, so a rewritten request
+// gets the same host rules, PAC fallback and credentials. It keeps no idle
 // connections: it is built per request and must not leave sockets behind.
-func (a *attacker) upstreamClient(address string, verify bool) (*http.Client, error) {
+func (a *attacker) upstreamClient(req *http.Request, address string, verify bool) (*http.Client, error) {
 	tlsConfig, err := a.proxy.upstreamTLSConfig(address, verify)
 	if err != nil {
 		return nil, err
 	}
 	transport := &http.Transport{
-		Proxy:              a.proxy.realUpstreamProxy(),
+		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+			return a.proxy.dialUpstream(ctx, req, addr, !verify)
+		},
 		ForceAttemptHTTP2:  true,
 		DisableCompression: true,
 		DisableKeepAlives:  true,
@@ -704,8 +708,7 @@ func (a *attacker) attack(res http.ResponseWriter, req *http.Request) {
 		}
 	}
 
-	proxyReqCtx := context.WithValue(req.Context(), proxyReqCtxKey, req)
-	proxyReq, err := http.NewRequestWithContext(proxyReqCtx, f.Request.Method, f.Request.URL.String(), reqBody)
+	proxyReq, err := http.NewRequestWithContext(req.Context(), f.Request.Method, f.Request.URL.String(), reqBody)
 	if err != nil {
 		for _, addon := range proxy.Addons {
 			addon.RequestError(f, err)
@@ -745,7 +748,7 @@ func (a *attacker) attack(res http.ResponseWriter, req *http.Request) {
 		f.ConnContext.RecordEvent("HTTP", "Using a separate upstream transport for "+f.Request.URL.Host, nil)
 		proxyReq = proxyReq.WithContext(httptrace.WithClientTrace(proxyReq.Context(), f.ConnContext.trace()))
 		verify := !a.proxy.Opts.SslInsecure || f.ConnContext.VerifyUpstream
-		client, clientErr := a.upstreamClient(helper.CanonicalAddr(f.Request.URL), verify)
+		client, clientErr := a.upstreamClient(proxyReq, helper.CanonicalAddr(f.Request.URL), verify)
 		if clientErr != nil {
 			for _, addon := range proxy.Addons {
 				addon.RequestError(f, clientErr)

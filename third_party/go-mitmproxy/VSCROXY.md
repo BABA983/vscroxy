@@ -6,8 +6,8 @@ metadata. Upstream tests, examples, commands and unrelated addons are not copied
 This is the existing capture engine, not another proxy implementation.
 
 The source patches are in `proxy/websocket.go`, `proxy/addon.go`, `proxy/sse.go`, `proxy/flow.go`,
-`proxy/attacker.go`, `proxy/proxy.go`, `proxy/entry.go` and `proxy/connection.go`;
-`proxy/socks.go` is new. Everything else is upstream.
+`proxy/attacker.go`, `proxy/proxy.go`, `proxy/entry.go`, `proxy/connection.go` and
+`internal/helper/proxy.go`; `proxy/socks.go` is new. Everything else is upstream.
 
 ## Connection diagnostics
 
@@ -84,6 +84,29 @@ Intercepted CONNECT tunnels keep one target for the whole connection and are
 unchanged. `TestForwardProxyFollowsTargetOnOneConnection` in `internal/capture`
 covers a live switch, a switch back, an unreachable new target and the request
 after it, both directly and through an upstream proxy.
+
+## Upstream proxy candidates, fallback and authentication
+
+`SetUpstreamProxy` receives the proxy request and the canonical destination
+address and returns an ordered `[]UpstreamProxy`. A nil `URL` means DIRECT;
+`Reason` is recorded as an `Upstream` connection event. `dialUpstream` tries the
+candidates in order: a failed candidate records its `TCP` or `DNS` event and the
+next one is tried, so a PAC list such as `PROXY a; SOCKS5 b; DIRECT` really falls
+back. `helper.ErrProxyAuth` (re-exported as `proxy.ErrUpstreamAuth`) stops the
+list after a 407 or a SOCKS5 username/password rejection, so a bad credential
+cannot silently fall back to another proxy or DIRECT.
+
+`attacker.upstreamClient`, the separate transport for a rewritten target, now
+uses the same `dialUpstream` instead of net/http's `Proxy` function. Map Remote
+therefore gets the same host rules, PAC order and credentials as the main path.
+An `https://` upstream's own certificate is verified when the target is being
+verified (`ConnContext.VerifyUpstream` or a replay's verify policy); ordinary
+inspection keeps accepting any certificate, as it does for inspected servers.
+
+The connection log shows the selection reason before the dial. Credentials are
+never part of `Reason`, and the helper's errors do not include them.
+`internal/capture` supplies the hook from `internal/upstream`; PAC evaluation,
+host rules and the bypass list live there, not in this package.
 
 ## SSE completion
 

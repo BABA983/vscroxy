@@ -6,6 +6,7 @@ import (
 	"crypto/tls"
 	"encoding/base64"
 	"errors"
+	"fmt"
 	"net"
 	"net/http"
 	"net/url"
@@ -14,6 +15,10 @@ import (
 
 	"golang.org/x/net/proxy"
 )
+
+// ErrProxyAuth means the upstream proxy rejected the configured credentials.
+// Callers must not fall back to another proxy or DIRECT after it.
+var ErrProxyAuth = errors.New("upstream proxy authentication failed")
 
 // GetProxyConn connect proxy
 // ref: http/transport.go dialConn func
@@ -37,6 +42,9 @@ func GetProxyConn(ctx context.Context, proxyUrl *url.URL, address string, sslIns
 		})
 		conn, err = dc.DialContext(ctx, "tcp", address)
 		if err != nil {
+			if isSOCKSAuthError(err) {
+				return nil, fmt.Errorf("%w: %v", ErrProxyAuth, err)
+			}
 			return nil, err
 		}
 		return conn, err
@@ -104,8 +112,19 @@ func GetProxyConn(ctx context.Context, proxyUrl *url.URL, address string, sslIns
 			if !ok {
 				return nil, errors.New("unknown status code")
 			}
+			if resp.StatusCode == http.StatusProxyAuthRequired {
+				return nil, fmt.Errorf("%w: %s", ErrProxyAuth, text)
+			}
 			return nil, errors.New(text)
 		}
 		return conn, nil
 	}
+}
+
+// isSOCKSAuthError recognizes x/net/proxy's authentication failures without
+// exposing the username or password in the error.
+func isSOCKSAuthError(err error) bool {
+	text := strings.ToLower(err.Error())
+	return strings.Contains(text, "authentication") ||
+		strings.Contains(text, "no acceptable authentication")
 }

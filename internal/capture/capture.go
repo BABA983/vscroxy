@@ -40,6 +40,7 @@ import (
 	"github.com/baba983/vscroxy/internal/hosts"
 	"github.com/baba983/vscroxy/internal/procinfo"
 	"github.com/baba983/vscroxy/internal/rules"
+	"github.com/baba983/vscroxy/internal/upstream"
 )
 
 func init() {
@@ -408,7 +409,7 @@ type Server struct {
 	throttleMu sync.RWMutex
 	throttle   Throttle
 
-	upstream   atomic.Value // string
+	upstream   atomic.Value // *upstreamSnapshot
 	ssl        atomic.Value // SSLConfig
 	ignoreList atomic.Value // []string
 	ignoreApps atomic.Value // []string
@@ -523,12 +524,12 @@ func New(addr, caRootPath string) (*Server, error) {
 		defer s.rulesMu.RUnlock()
 		return mayMatchHost(s.rules, req.Host, RuleCodeMock)
 	})
-	p.SetUpstreamProxy(func(*http.Request) (*url.URL, error) {
-		raw, _ := s.upstream.Load().(string)
-		if raw == "" {
+	p.SetUpstreamProxy(func(req *http.Request, address string) ([]proxy.UpstreamProxy, error) {
+		snapshot, _ := s.upstream.Load().(*upstreamSnapshot)
+		if snapshot == nil {
 			return nil, nil
 		}
-		return url.Parse(raw)
+		return snapshot.resolve(req, address)
 	})
 	s.proxy = p
 	ca := p.GetCertificate()
@@ -857,29 +858,120 @@ func (s *Server) hit(r Rule) {
 	s.rulesMu.Unlock()
 }
 
-// SetUpstream sends every request through another proxy, as an empty string
-// turns that off. The address needs a scheme and a host, such as
-// http://127.0.0.1:8080.
-func (s *Server) SetUpstream(raw string) error {
-	if raw == "" {
-		s.upstream.Store("")
-		return nil
+// upstreamSnapshot is one immutable upstream configuration. Secrets are kept
+// here so a later SetUpstream that only changes the default address keeps the
+// configured passwords.
+type upstreamSnapshot struct {
+	settings upstream.Settings
+	secrets  map[string]string
+	cfg      *upstream.Config
+}
+
+func (u *upstreamSnapshot) resolve(req *http.Request, address string) ([]proxy.UpstreamProxy, error) {
+	host, port := splitHostPort(address)
+	decision, err := u.cfg.ResolveContext(req.Context(), upstreamURL(req, address), host, port)
+	if err != nil {
+		return nil, err
 	}
-	u, err := url.Parse(raw)
+	out := make([]proxy.UpstreamProxy, len(decision.Candidates))
+	for i, candidate := range decision.Candidates {
+		out[i].Reason = candidate.Reason
+		if candidate.Proxy != nil {
+			out[i].URL = candidate.Proxy.URL
+		}
+	}
+	return out, nil
+}
+
+func splitHostPort(address string) (string, int) {
+	host, rawPort, err := net.SplitHostPort(address)
+	if err != nil {
+		return strings.Trim(address, "[]"), 0
+	}
+	port, _ := strconv.Atoi(rawPort)
+	return host, port
+}
+
+// upstreamURL is what a PAC script sees. A request rewritten to another
+// address keeps no path from the original host.
+func upstreamURL(req *http.Request, address string) string {
+	scheme := "http"
+	if req.Method == http.MethodConnect {
+		scheme = "https"
+	}
+	if req.URL != nil {
+		if req.Method != http.MethodConnect {
+			switch req.URL.Scheme {
+			case "https", "wss":
+				scheme = "https"
+			case "http", "ws":
+				scheme = "http"
+			}
+		}
+		if req.URL.Host != "" {
+			if host, _, err := net.SplitHostPort(address); err == nil && strings.EqualFold(req.URL.Hostname(), host) {
+				u := *req.URL
+				switch {
+				case req.Method == http.MethodConnect:
+					u.Scheme = "https"
+				case u.Scheme == "ws":
+					u.Scheme = "http"
+				case u.Scheme == "wss":
+					u.Scheme = "https"
+				case u.Scheme == "":
+					u.Scheme = scheme
+				}
+				return u.String()
+			}
+		}
+	}
+	return scheme + "://" + address + "/"
+}
+
+// SetUpstreamConfig replaces the host rules, bypass list, PAC script and
+// default upstream. Passwords are supplied separately and are never part of
+// the settings. Invalid configuration leaves the running one unchanged.
+func (s *Server) SetUpstreamConfig(settings upstream.Settings, passwords map[string]string) error {
+	settings = settings.Normalize()
+	cfg, err := upstream.New(settings, passwords)
 	if err != nil {
 		return err
 	}
-	if u.Scheme == "" || u.Host == "" {
-		return fmt.Errorf("upstream %q needs a scheme and a host", raw)
-	}
-	s.upstream.Store(u.String())
+	s.upstream.Store(&upstreamSnapshot{settings: settings.Clone(), secrets: maps.Clone(passwords), cfg: cfg})
 	return nil
 }
 
-// Upstream is the proxy every request goes through, or empty.
+// SetUpstream sends every request through another proxy, as an empty string
+// turns rules and PAC off too. The address needs a scheme and a port, such as
+// http://127.0.0.1:8080.
+func (s *Server) SetUpstream(raw string) error {
+	snapshot, _ := s.upstream.Load().(*upstreamSnapshot)
+	settings := upstream.Settings{}
+	var secrets map[string]string
+	if snapshot != nil {
+		settings, secrets = snapshot.settings.Clone(), maps.Clone(snapshot.secrets)
+	}
+	settings.Default, settings.Rules, settings.PAC = strings.TrimSpace(raw), nil, ""
+	return s.SetUpstreamConfig(settings, secrets)
+}
+
+// Upstream is the default proxy, or empty.
 func (s *Server) Upstream() string {
-	raw, _ := s.upstream.Load().(string)
-	return raw
+	snapshot, _ := s.upstream.Load().(*upstreamSnapshot)
+	if snapshot == nil {
+		return ""
+	}
+	return snapshot.settings.Default
+}
+
+// UpstreamConfig returns the active host rules, bypass list, PAC source and
+// default upstream, without passwords.
+func (s *Server) UpstreamConfig() upstream.Settings {
+	snapshot, _ := s.upstream.Load().(*upstreamSnapshot)
+	if snapshot == nil {
+		return upstream.Settings{}
+	}
+	return snapshot.settings.Clone()
 }
 
 // ScriptErrors counts the hooks that failed or timed out.
