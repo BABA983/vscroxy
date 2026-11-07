@@ -92,16 +92,23 @@ address and returns an ordered `[]UpstreamProxy`. A nil `URL` means DIRECT;
 `Reason` is recorded as an `Upstream` connection event. `dialUpstream` tries the
 candidates in order: a failed candidate records its `TCP` or `DNS` event and the
 next one is tried, so a PAC list such as `PROXY a; SOCKS5 b; DIRECT` really falls
-back. `helper.ErrProxyAuth` (re-exported as `proxy.ErrUpstreamAuth`) stops the
-list after a 407 or a SOCKS5 username/password rejection, so a bad credential
-cannot silently fall back to another proxy or DIRECT.
+back. Each candidate has an 8-second total limit for dial, TLS and CONNECT.
+`helper.ErrProxyAuth` (re-exported as `proxy.ErrUpstreamAuth`) stops the list
+after a 407 or a SOCKS5 username/password rejection, and
+`helper.ErrProxyResponse` (re-exported as `proxy.ErrUpstreamResponse`) stops it
+after any other non-200 CONNECT response: a proxy's 403 or 502 is a policy
+decision, not a transport failure that another candidate may bypass.
 
-`attacker.upstreamClient`, the separate transport for a rewritten target, now
-uses the same `dialUpstream` instead of net/http's `Proxy` function. Map Remote
-therefore gets the same host rules, PAC order and credentials as the main path.
-An `https://` upstream's own certificate is verified when the target is being
-verified (`ConnContext.VerifyUpstream` or a replay's verify policy); ordinary
-inspection keeps accepting any certificate, as it does for inspected servers.
+`attacker.upstreamClient`, the separate transport for a rewritten target, uses
+the same host rules, PAC order and credentials as the main path. A plain HTTP
+target through an HTTP(S) upstream keeps net/http's absolute-URI forwarding, so
+Map Remote does not need the upstream to allow CONNECT to port 80; an HTTPS
+target or a SOCKS/DIRECT candidate uses `dialUpstream`. An `https://` upstream's
+own certificate is always verified with the system roots and the app's custom
+roots, independently of whether the target certificate is verified; Basic
+credentials are sent only after that handshake. `helper.GetProxyConn` builds
+Basic credentials from the raw username and password, not `url.User.String()`,
+which would percent-encode reserved password characters.
 
 The connection log shows the selection reason before the dial. Credentials are
 never part of `Reason`, and the helper's errors do not include them.
