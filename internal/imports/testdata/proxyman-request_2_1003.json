@@ -1,0 +1,37 @@
+{
+  "id": "1003",
+  "name": "1003",
+  "isSSL": true,
+  "request": {
+    "scheme": "https",
+    "port": 443,
+    "isSSL": true,
+    "version": {"major": 1, "minor": 1},
+    "fullPath": "https://api.example.com/fail",
+    "bodyData": "",
+    "uri": "/fail",
+    "header": {"entries": []},
+    "host": "api.example.com",
+    "isWebSocketUpgrade": false,
+    "method": {"name": "GET"}
+  },
+  "response": {
+    "status": null,
+    "bodyData": "",
+    "header": {"entries": []},
+    "createdAt": 1760000002.1,
+    "error": {"couldNotConnectToServer": {"message": "Could not connect to the server"}},
+    "version": {"major": 1, "minor": 1}
+  },
+  "timing": {
+    "requestStartedAt": 1760000002.0,
+    "requestEndedAt": 1760000002.01,
+    "responseEndedAt": 1760000002.1
+  },
+  "summary": {
+    "serverIpAddress": "203.0.113.12",
+    "clientIpAddress": "198.51.100.6",
+    "serverPort": 443,
+    "hostDNS": null
+  }
+}

@@ -1,0 +1,60 @@
+{
+  "id": "1002",
+  "name": "1002",
+  "isSSL": true,
+  "request": {
+    "scheme": "https",
+    "port": 443,
+    "isSSL": true,
+    "version": {"major": 1, "minor": 1},
+    "fullPath": "https://ws.example.com/socket",
+    "bodyData": "",
+    "uri": "/socket",
+    "header": {
+      "entries": [
+        {"isEnabled": true, "key": {"name": "Upgrade", "nameInLowercase": "upgrade"}, "value": "websocket"},
+        {"isEnabled": true, "key": {"name": "Connection", "nameInLowercase": "connection"}, "value": "Upgrade"}
+      ]
+    },
+    "host": "ws.example.com",
+    "isWebSocketUpgrade": true,
+    "method": {"name": "GET"}
+  },
+  "response": {
+    "status": {"code": 101, "phrase": "Switching Protocols", "strict": false},
+    "bodyData": "",
+    "header": {
+      "entries": [
+        {"isEnabled": true, "key": {"name": "Upgrade", "nameInLowercase": "upgrade"}, "value": "websocket"},
+        {"isEnabled": true, "key": {"name": "Connection", "nameInLowercase": "connection"}, "value": "Upgrade"}
+      ]
+    },
+    "createdAt": 1760000001.3,
+    "error": null,
+    "version": {"major": 1, "minor": 1}
+  },
+  "timing": {
+    "requestStartedAt": 1760000001.1,
+    "requestEndedAt": 1760000001.12,
+    "responseStartedAt": 1760000001.15,
+    "responseEndedAt": 1760000001.3
+  },
+  "summary": {
+    "serverIpAddress": "203.0.113.11",
+    "clientIpAddress": "198.51.100.6",
+    "serverPort": 443,
+    "hostDNS": null
+  },
+  "extraInfo": {
+    "tlsVersion": "TLSv1.3",
+    "negotiatedCipherSuite": "TLS_AES_128_GCM_SHA256"
+  },
+  "websocketMessageStorage": {
+    "messages": [
+      {"from": "client", "type": "text", "data": "hello", "rawData": "aGVsbG8=", "time": 1760000001.2},
+      {"from": "server", "type": "text", "data": "welcome", "rawData": "d2VsY29tZQ==", "time": 1760000001.21},
+      {"from": "server", "type": "binary", "data": "AP/+AQ==", "rawData": "AP/+AQ==", "time": 1760000001.22},
+      {"from": "client", "type": "ping", "data": "", "time": 1760000001.23}
+    ]
+  }
+}

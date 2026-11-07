@@ -1,0 +1,42 @@
+{
+  "id": "1004",
+  "name": "1004",
+  "isSSL": true,
+  "request": {
+    "scheme": "https",
+    "port": 443,
+    "isSSL": true,
+    "version": {"major": 2, "minor": 0},
+    "fullPath": "https://cdn.example.org/blob",
+    "bodyData": "",
+    "uri": "/blob",
+    "header": {"entries": []},
+    "host": "cdn.example.org",
+    "isWebSocketUpgrade": false,
+    "method": {"name": "GET"}
+  },
+  "response": {
+    "status": {"code": 200, "phrase": "OK", "strict": false},
+    "bodyData": "AP/+AQ==",
+    "header": {
+      "entries": [
+        {"isEnabled": true, "key": {"name": "Content-Type", "nameInLowercase": "content-type"}, "value": "application/octet-stream"}
+      ]
+    },
+    "createdAt": 1760000003.2,
+    "error": null,
+    "version": {"major": 2, "minor": 0}
+  },
+  "timing": {
+    "requestStartedAt": 1760000003.1,
+    "requestEndedAt": 1760000003.12,
+    "responseStartedAt": 1760000003.15,
+    "responseEndedAt": 1760000003.2
+  },
+  "summary": {
+    "serverIpAddress": "203.0.113.13",
+    "clientIpAddress": "198.51.100.6",
+    "serverPort": 443,
+    "hostDNS": null
+  }
+}

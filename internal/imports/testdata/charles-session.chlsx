@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE charles-session SYSTEM "https://www.charlesproxy.com/dtd/charles-session-1_0.dtd">
+<charles-session>
+<transaction status="COMPLETE" method="GET" protocolVersion="HTTP/2.0" protocol="https" host="api.example.com" port="443" actualPort="443" path="/users" query="page=2" tunnel="false" webSocket="false" remoteAddress="api.example.com/203.0.113.8" clientAddress="/198.51.100.6" startTime="2026-10-01T10:00:00.000+08:00" startTimeMillis="1790820000000" requestBeginTime="2026-10-01T10:00:00.005+08:00" requestBeginTimeMillis="1790820000005" requestTime="2026-10-01T10:00:00.010+08:00" requestTimeMillis="1790820000010" responseTime="2026-10-01T10:00:00.040+08:00" responseTimeMillis="1790820000040" endTime="2026-10-01T10:00:00.045+08:00" endTimeMillis="1790820000045" duration="45" requestDuration="5" responseDuration="5" latency="30" totalSize="42">
+<ssl protocol="TLSv1.3" cipherSuite="TLS_AES_128_GCM_SHA256" />
+<alpn protocol="h2" />
+<request headers="100" body="0">
+<headers>
+<first-line>GET /users?page=2 HTTP/2.0</first-line>
+<header>
+<name>Accept</name>
+<value>application/json</value></header>
+<header>
+<name>X-Trace</name>
+<value>first</value></header>
+<header>
+<name>X-Trace</name>
+<value>second</value></header>
+</headers>
+</request>
+<response status="200" headers="200" body="12" mime-type="application/json" charset="utf-8" contentEncoding="gzip">
+<headers>
+<first-line>HTTP/2.0 200 OK</first-line>
+<header>
+<name>Content-Type</name>
+<value>application/json</value></header>
+<header>
+<name>Set-Cookie</name>
+<value>session=one; Path=/</value></header>
+<header>
+<name>Set-Cookie</name>
+<value>theme=paper; Path=/account</value></header>
+</headers>
+<body encoding="plain">{"users":[]}</body>
+</response>
+</transaction>
+<transaction status="COMPLETE" method="POST" protocolVersion="HTTP/2.0" protocol="https" host="api.example.com" port="443" actualPort="443" path="/upload" query="" tunnel="false" webSocket="false" remoteAddress="api.example.com/203.0.113.8" clientAddress="/198.51.100.6" startTime="2026-10-01T10:00:01.000+08:00" startTimeMillis="1790820001000" requestBeginTime="2026-10-01T10:00:01.001+08:00" requestBeginTimeMillis="1790820001001" requestTime="2026-10-01T10:00:01.008+08:00" requestTimeMillis="1790820001008" responseTime="2026-10-01T10:00:01.018+08:00" responseTimeMillis="1790820001018" endTime="2026-10-01T10:00:01.020+08:00" endTimeMillis="1790820001020" duration="20" requestDuration="7" responseDuration="2" latency="10" totalSize="6">
+<ssl protocol="TLSv1.3" cipherSuite="TLS_AES_256_GCM_SHA384" />
+<request headers="80" body="4">
+<headers>
+<first-line>POST /upload HTTP/2.0</first-line>
+<header>
+<name>Content-Type</name>
+<value>application/octet-stream</value></header>
+</headers>
+<body encoding="base64">AP/+AQ==</body>
+</request>
+<response status="201" headers="50" body="2" mime-type="text/plain" charset="utf-8">
+<headers>
+<first-line>HTTP/2.0 201 Created</first-line>
+<header>
+<name>Content-Type</name>
+<value>text/plain; charset=utf-8</value></header>
+</headers>
+<body encoding="plain">ok</body>
+</response>
+</transaction>
+<transaction status="COMPLETE" method="GET" protocolVersion="HTTP/1.1" protocol="https" host="ws.example.com" port="443" actualPort="443" path="/socket" query="" tunnel="false" webSocket="true" remoteAddress="ws.example.com/203.0.113.11" clientAddress="/198.51.100.6" startTime="2026-10-01T10:00:02.000+08:00" startTimeMillis="1790820002000" requestBeginTime="2026-10-01T10:00:02.001+08:00" requestBeginTimeMillis="1790820002001" requestTime="2026-10-01T10:00:02.002+08:00" requestTimeMillis="1790820002002" responseTime="2026-10-01T10:00:02.012+08:00" responseTimeMillis="1790820002012" endTime="2026-10-01T10:00:02.013+08:00" endTimeMillis="1790820002013" duration="13" requestDuration="1" responseDuration="1" latency="10" totalSize="240">
+<ssl protocol="TLSv1.3" cipherSuite="TLS_AES_128_GCM_SHA256" />
+<request headers="120" body="0">
+<headers>
+<first-line>GET /socket HTTP/1.1</first-line>
+<header>
+<name>Upgrade</name>
+<value>websocket</value></header>
+<header>
+<name>Connection</name>
+<value>Upgrade</value></header>
+</headers>
+</request>
+<response status="101" headers="120" body="0">
+<headers>
+<first-line>HTTP/1.1 101 Switching Protocols</first-line>
+<header>
+<name>Upgrade</name>
+<value>websocket</value></header>
+<header>
+<name>Connection</name>
+<value>Upgrade</value></header>
+</headers>
+</response>
+</transaction>
+</charles-session>

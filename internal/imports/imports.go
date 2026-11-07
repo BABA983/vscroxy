@@ -1,6 +1,7 @@
 // Package imports converts third-party API client exports into the app's
-// requests, folders and environments. It knows nothing about the window or
-// MyGo, and it never sends a request or reads a referenced file.
+// requests, folders and environments, and reads other proxies' capture
+// sessions as captured exchanges. It knows nothing about the window or MyGo,
+// and it never sends a request or reads a referenced file.
 //
 // Every reader reports what it could not bring over in Warnings: an import
 // may lose a feature, but it must not lose it silently.

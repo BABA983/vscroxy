@@ -1,0 +1,225 @@
+[
+  {
+    "status": "COMPLETE",
+    "method": "POST",
+    "protocolVersion": "HTTP/2.0",
+    "scheme": "https",
+    "host": "api.example.com",
+    "port": 443,
+    "actualPort": 443,
+    "path": "/projects",
+    "query": "page=1",
+    "tunnel": false,
+    "keptAlive": true,
+    "webSocket": false,
+    "remoteAddress": "api.example.com/203.0.113.7",
+    "clientAddress": "/198.51.100.5",
+    "clientPort": 53018,
+    "times": {
+      "start": "2026-10-01T10:00:00.000+08:00",
+      "requestBegin": "2026-10-01T10:00:00.005+08:00",
+      "requestComplete": "2026-10-01T10:00:00.010+08:00",
+      "responseBegin": "2026-10-01T10:00:00.040+08:00",
+      "end": "2026-10-01T10:00:00.045+08:00"
+    },
+    "durations": {
+      "total": 45,
+      "dns": 1,
+      "connect": 2,
+      "ssl": 1,
+      "request": 5,
+      "response": 5,
+      "latency": 30
+    },
+    "totalSize": 123,
+    "ssl": {
+      "protocol": "TLSv1.3",
+      "cipherSuite": "TLS_AES_128_GCM_SHA256"
+    },
+    "alpn": {
+      "protocol": "h2"
+    },
+    "request": {
+      "sizes": {
+        "headers": 120,
+        "body": 14
+      },
+      "mimeType": "application/json",
+      "charset": "UTF-8",
+      "contentEncoding": null,
+      "header": {
+        "firstLine": "POST /projects?page=1 HTTP/2.0",
+        "headers": [
+          {"name": ":method", "value": "POST"},
+          {"name": ":path", "value": "/projects?page=1"},
+          {"name": "Content-Type", "value": "application/json"},
+          {"name": "X-Trace", "value": "first"},
+          {"name": "X-Trace", "value": "second"},
+          {"name": "Accept", "value": "application/json"}
+        ]
+      },
+      "body": {
+        "text": "{\"name\":\"Ada\"}",
+        "charset": "UTF-8",
+        "size": 14
+      }
+    },
+    "response": {
+      "status": 200,
+      "sizes": {
+        "headers": 210,
+        "body": 9
+      },
+      "mimeType": "application/json",
+      "charset": "UTF-8",
+      "contentEncoding": "gzip",
+      "header": {
+        "firstLine": "HTTP/2.0 200 OK",
+        "headers": [
+          {"name": ":status", "value": "200"},
+          {"name": "Content-Type", "value": "application/json"},
+          {"name": "Content-Encoding", "value": "gzip"},
+          {"name": "Set-Cookie", "value": "session=one; Path=/"},
+          {"name": "Set-Cookie", "value": "theme=paper; Path=/account"}
+        ]
+      },
+      "body": {
+        "text": "{\"id\":73}",
+        "charset": "UTF-8",
+        "size": 9,
+        "decoded": true
+      }
+    }
+  },
+  {
+    "status": "COMPLETE",
+    "method": "GET",
+    "protocolVersion": "HTTP/2.0",
+    "scheme": "https",
+    "host": "cdn.example.org",
+    "port": 443,
+    "actualPort": 443,
+    "path": "/blob",
+    "query": null,
+    "tunnel": false,
+    "webSocket": false,
+    "remoteAddress": "cdn.example.org/203.0.113.10",
+    "clientAddress": "/198.51.100.5",
+    "times": {
+      "start": "2026-10-01T10:00:01.000+08:00",
+      "requestBegin": "2026-10-01T10:00:01.001+08:00",
+      "requestComplete": "2026-10-01T10:00:01.002+08:00",
+      "responseBegin": "2026-10-01T10:00:01.006+08:00",
+      "end": "2026-10-01T10:00:01.008+08:00"
+    },
+    "durations": {
+      "total": 8,
+      "dns": 0,
+      "connect": 0,
+      "ssl": 0,
+      "request": 1,
+      "response": 2,
+      "latency": 4
+    },
+    "totalSize": 4,
+    "ssl": {
+      "protocol": "TLSv1.3",
+      "cipherSuite": "TLS_AES_256_GCM_SHA384"
+    },
+    "request": {
+      "sizes": {"headers": 80, "body": 0},
+      "header": {
+        "firstLine": "GET /blob HTTP/2.0",
+        "headers": [{"name": "Accept", "value": "*/*"}]
+      }
+    },
+    "response": {
+      "status": 200,
+      "sizes": {"headers": 60, "body": 4},
+      "mimeType": "application/octet-stream",
+      "contentEncoding": null,
+      "header": {
+        "firstLine": "HTTP/2.0 200 OK",
+        "headers": [{"name": "Content-Type", "value": "application/octet-stream"}]
+      },
+      "body": {
+        "encoded": "AP/+AQ==",
+        "size": 4
+      }
+    }
+  },
+  {
+    "status": "COMPLETE",
+    "method": "GET",
+    "protocolVersion": "HTTP/1.1",
+    "scheme": "https",
+    "host": "ws.example.com",
+    "port": 443,
+    "actualPort": 443,
+    "path": "/socket",
+    "query": "",
+    "tunnel": false,
+    "webSocket": true,
+    "remoteAddress": "ws.example.com/203.0.113.11",
+    "clientAddress": "/198.51.100.5",
+    "times": {
+      "start": "2026-10-01T10:00:02.000+08:00",
+      "requestBegin": "2026-10-01T10:00:02.001+08:00",
+      "requestComplete": "2026-10-01T10:00:02.002+08:00",
+      "responseBegin": "2026-10-01T10:00:02.012+08:00",
+      "end": "2026-10-01T10:00:02.013+08:00"
+    },
+    "durations": {"total": 13, "request": 1, "response": 1, "latency": 10},
+    "totalSize": 240,
+    "ssl": {"protocol": "TLSv1.3", "cipherSuite": "TLS_AES_128_GCM_SHA256"},
+    "request": {
+      "sizes": {"headers": 120, "body": 0},
+      "header": {
+        "firstLine": "GET /socket HTTP/1.1",
+        "headers": [
+          {"name": "Upgrade", "value": "websocket"},
+          {"name": "Connection", "value": "Upgrade"}
+        ]
+      }
+    },
+    "response": {
+      "status": 101,
+      "sizes": {"headers": 120, "body": 0},
+      "header": {
+        "firstLine": "HTTP/1.1 101 Switching Protocols",
+        "headers": [
+          {"name": "Upgrade", "value": "websocket"},
+          {"name": "Connection", "value": "Upgrade"}
+        ]
+      }
+    }
+  },
+  {
+    "status": "FAILED",
+    "method": "GET",
+    "protocolVersion": "HTTP/1.1",
+    "scheme": "https",
+    "host": "api.example.com",
+    "port": 443,
+    "actualPort": 443,
+    "path": "/fail",
+    "query": "",
+    "tunnel": false,
+    "webSocket": false,
+    "remoteAddress": "api.example.com/203.0.113.12",
+    "clientAddress": "/198.51.100.5",
+    "times": {
+      "start": "2026-10-01T10:00:03.000+08:00",
+      "end": "2026-10-01T10:00:03.003+08:00"
+    },
+    "durations": {"total": 3},
+    "totalSize": 0,
+    "request": {
+      "sizes": {"headers": 40, "body": 0},
+      "header": {
+        "firstLine": "GET /fail HTTP/1.1",
+        "headers": [{"name": "Accept", "value": "*/*"}]
+      }
+    }
+  }
+]

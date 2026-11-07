@@ -1,0 +1,64 @@
+{
+  "id": "1001",
+  "name": "1001",
+  "isSSL": true,
+  "request": {
+    "scheme": "https",
+    "port": 443,
+    "isSSL": true,
+    "version": {"major": 2, "minor": 0},
+    "fullPath": "https://api.example.com/projects?page=1",
+    "bodyData": "",
+    "uri": "/projects?page=1",
+    "header": {
+      "entries": [
+        {"isEnabled": true, "key": {"name": "Host", "nameInLowercase": "host"}, "value": "api.example.com"},
+        {"isEnabled": true, "key": {"name": "Accept", "nameInLowercase": "accept"}, "value": "application/json"},
+        {"isEnabled": true, "key": {"name": "X-Trace", "nameInLowercase": "x-trace"}, "value": "first"},
+        {"isEnabled": true, "key": {"name": "X-Trace", "nameInLowercase": "x-trace"}, "value": "second"},
+        {"isEnabled": false, "key": {"name": "X-Disabled", "nameInLowercase": "x-disabled"}, "value": "no"}
+      ]
+    },
+    "host": "api.example.com",
+    "isWebSocketUpgrade": false,
+    "method": {"name": "GET"}
+  },
+  "response": {
+    "status": {"code": 200, "phrase": "OK", "strict": false},
+    "bodyData": "eyJwcm9qZWN0cyI6W119",
+    "header": {
+      "entries": [
+        {"isEnabled": true, "key": {"name": "Content-Type", "nameInLowercase": "content-type"}, "value": "application/json"},
+        {"isEnabled": true, "key": {"name": "Set-Cookie", "nameInLowercase": "set-cookie"}, "value": "session=one; Path=/"},
+        {"isEnabled": true, "key": {"name": "Set-Cookie", "nameInLowercase": "set-cookie"}, "value": "theme=paper; Path=/account"}
+      ]
+    },
+    "createdAt": 1760000000.18,
+    "error": null,
+    "version": {"major": 2, "minor": 0}
+  },
+  "timing": {
+    "requestStartedAt": 1760000000.1,
+    "requestEndedAt": 1760000000.12,
+    "responseStartedAt": 1760000000.15,
+    "responseEndedAt": 1760000000.18
+  },
+  "summary": {
+    "serverIpAddress": "203.0.113.9",
+    "clientIpAddress": "198.51.100.6",
+    "serverPort": 443,
+    "hostDNS": null
+  },
+  "extraInfo": {
+    "tlsVersion": "TLSv1.3",
+    "cipherSuite": "TLS_AES_128_GCM_SHA256, TLS_AES_256_GCM_SHA384",
+    "negotiatedCipherSuite": "TLS_AES_128_GCM_SHA256",
+    "certificateData": {
+      "commonName": "api.example.com",
+      "notValidAfter": "Wednesday, 1 October 2026 00:00:00 +00:00",
+      "issueByPayload": {"commonName": "Example CA", "orgName": "Example CA"}
+    }
+  },
+  "style": {"comment": "imported fixture"},
+  "client": {"name": "Fixture Browser", "path": "/Applications/Fixture Browser.app"}
+}
