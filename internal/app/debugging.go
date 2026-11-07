@@ -295,6 +295,10 @@ drained:
 	settings, inputProblem := r.settings()
 	seconds, err := strconv.Atoi(strings.TrimSpace(r.timeout))
 	timeoutValid := err == nil && seconds >= 0 && seconds <= 86400
+	timeoutProblem := ""
+	if !timeoutValid {
+		timeoutProblem = "Enter 0–86400 seconds."
+	}
 	valid := timeoutValid && inputProblem == ""
 	total := len(r.flows) * settings.repeat
 	if r.total > 0 {
@@ -307,10 +311,7 @@ drained:
 				uikit.Hint(c, "Sends in capture order through the current rules. POST, PUT, PATCH and DELETE can change server data. WebSocket, SSE and tunnels are excluded.")
 				ui.Field(c, "Timeout per request (seconds; 0 = no timeout)", func() {
 					uikit.Input(c, &r.timeout).Label("Replay timeout").Disabled(r.updates != nil)
-				})
-				if !timeoutValid {
-					ui.Text(c, "Enter 0–86400 seconds.").FontSize(uikit.TextBody).TextColor(t.Danger)
-				}
+				}).Error(timeoutProblem)
 				ui.Field(c, "Repeat each request", func() {
 					uikit.Input(c, &r.repeat).Label("Replay repeats").Disabled(r.updates != nil)
 				}).Description(fmt.Sprintf("1–%d times. The whole selection is repeated in capture order.", replayMaxRepeat))
