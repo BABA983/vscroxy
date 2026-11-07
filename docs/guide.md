@@ -1791,9 +1791,10 @@ and WSS sends, SSE sessions, gRPC calls and Socket.IO sessions. A client
 certificate is presented even when the request turns certificate verification
 off: mTLS is independent of verifying the server. Captured traffic presents the
 certificate after HTTPS decryption, and reverse proxies to `https://` remotes
-use the same upstream certificate and roots. A redirect keeps the certificate
-chosen for the request's original host; a cross-host redirect that needs a
-different client certificate is not selected per hop.
+use the same upstream certificate and roots. Redirects are followed per hop:
+each `https://` request uses the certificate and roots for its own host, and a
+hop to plain `http://` reads no certificate files. A cross-host redirect
+therefore presents the destination's certificate, never the origin's.
 
 **Trust system roots** is on by default. Turning it off trusts only the listed
 PEM roots (plus the running proxy's own CA where a connection goes through

@@ -345,12 +345,14 @@ InsecureSkipVerify must be specified".
 
 A Map Remote rule or script can rewrite an intercepted request to another host.
 That path has no pre-dialed socket, so `attacker.attack` builds a separate
-transport with `attacker.upstreamClient` for the rewritten host: it verifies
-certificates and disables keep-alives when `VerifyUpstream` is set, never the
-inspection client's insecure pool. A failed check reaches the client as a 502
-and is recorded on the flow. If the configured upstream is itself an `https://`
-proxy, this path also verifies that proxy's own certificate, which is stricter
-than the inspection client's usual acceptance.
+transport with `attacker.upstreamClient` for the rewritten host. It always
+disables keep-alives because it is built per request, and it verifies when
+`!SslInsecure || VerifyUpstream`, never the inspection client's insecure pool.
+It passes `helper.CanonicalAddr` so a certificate or rule for
+`api.example.com:443` matches a URL whose host omits the port. A failed check
+reaches the client as a 502 and is recorded on the flow. If the configured
+upstream is itself an `https://` proxy, this path also verifies that proxy's own
+certificate, which is stricter than the inspection client's usual acceptance.
 `TestRequestCertificateVerificationAfterMapRemote` reproduces the rewritten-
 target check.
 
@@ -367,8 +369,11 @@ case.
 WebSocket upstream dials now use `Proxy.upstreamTLSConfig`, so a captured WSS
 handshake presents a configured client certificate and uses the configured
 roots when it verifies. `Options.SslInsecure` still decides whether a captured
-WSS handshake verifies its upstream; an authored HTTP CONNECT's verification
-header does not reach the separate WSS dial.
+WSS handshake verifies its upstream by default; `handleWSS` reads
+`ConnContext.VerifyUpstream`, so an authored HTTP CONNECT's verification header
+does reach the WSS upstream dial. WSS host matching uses
+`helper.CanonicalAddr`, so a `host:443` rule matches a URL without an explicit
+port.
 
 ## Upstream client certificates and roots
 
@@ -382,12 +387,15 @@ instead of continuing without the certificate or roots. The connection log
 records `Upstream TLS configuration failed` with the hook's error.
 
 `attacker.upstreamClient` builds a per-target transport for a rewritten request
-(Map Remote) with the same hooks, and `webSocketHandler.handle`/`handleWSS` use
-`Proxy.upstreamTLSConfig` for WSS. `internal/capture` supplies the hooks from
-`Server.SetCertificates`; `Server.ReplayWithPolicy` also uses the same settings
-for the client leg, so a tunneled send and an intercepted send agree. Blind
-tunnels (`shouldIntercept` false) are unchanged: the client owns their TLS and
-the proxy cannot inject a certificate.
+(Map Remote) with the same hooks and a canonical host:port, and
+`webSocketHandler.handle`/`handleWSS` use `Proxy.upstreamTLSConfig` for WSS.
+`internal/capture` supplies the hooks from `Server.SetCertificates`;
+`Server.ReplayWithPolicy` also uses the same settings for the client leg, so a
+tunneled send and an intercepted send agree. The replay client builds its TLS
+configuration per request, so a redirect presents the redirect target's
+certificate rather than the first host's. Blind tunnels (`shouldIntercept`
+false) are unchanged: the client owns their TLS and the proxy cannot inject a
+certificate.
 
 Real-socket coverage lives in `internal/capture/certificates_test.go` (HTTP,
 custom roots, reverse proxy and WSS) and `internal/request/certificates_test.go`
