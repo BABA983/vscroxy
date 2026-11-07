@@ -49,6 +49,9 @@ type experimentDraft struct {
 	Value    savedRequest
 	Baseline savedRequest
 	SavedKey string
+	// SchemaShared says Baseline.GraphQL.Schema was omitted because it is
+	// identical to Value's; loading restores it from Value.
+	SchemaShared bool `json:",omitempty"`
 }
 
 type experimentLog struct {
@@ -66,6 +69,9 @@ func snapshotExperiment(id int, draft savedRequest, environment string, got requ
 	draft.Form = slices.Clone(draft.Form)
 	draft.HeaderList = slices.Clone(draft.HeaderList)
 	draft.Examples = nil // kept with the request, not with every attempt
+	// The schema is part of the request, not of each attempt. Keeping it in
+	// every record made a 900 KiB schema exhaust the log after 36 sends.
+	draft.GraphQL.Schema, draft.GraphQL.SchemaSource = "", ""
 	r := experimentRecord{
 		ID: id, At: time.Now(), Draft: draft, Source: draft.Source, Environment: environment,
 		Summary: runSummary(got), Outcome: got.Outcome(), Tests: slices.Clone(got.Tests), Replies: slices.Clone(got.Replies),

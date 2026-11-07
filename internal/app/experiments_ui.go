@@ -51,6 +51,7 @@ func (a *app) loadExperiments(path string) {
 	}
 	s.log = log
 	for _, draft := range log.Drafts {
+		draft = restoreExperimentDraft(draft)
 		a.addDocument(draft.Value, draft.SavedKey)
 		a.baseline = draft.Baseline
 		if draft.Key != "" {
@@ -124,12 +125,7 @@ func (a *app) checkpointExperiments(c *ui.Context) {
 		}
 	default:
 	}
-	var drafts []experimentDraft
-	for _, d := range a.documents {
-		baseline := d.baseline
-		baseline.Form = slices.Clone(baseline.Form)
-		drafts = append(drafts, experimentDraft{Key: d.debugKey, Source: d.origin, Value: d.value(), Baseline: baseline, SavedKey: d.savedKey})
-	}
+	drafts := a.experimentDrafts()
 	active := max(0, slices.Index(a.documents, a.requestDocument))
 	if !reflect.DeepEqual(s.log.Drafts, drafts) || s.log.Active != active {
 		s.log.Drafts, s.log.Active = drafts, active
@@ -143,6 +139,34 @@ func (a *app) checkpointExperiments(c *ui.Context) {
 			c.After(500 * time.Millisecond)
 		}
 	}
+}
+
+// experimentDrafts snapshots the open documents for the log. A schema that
+// the draft and its baseline share is stored once, in Value; SchemaShared
+// tells loadExperiments to put it back into the baseline.
+func (a *app) experimentDrafts() []experimentDraft {
+	var drafts []experimentDraft
+	for _, d := range a.documents {
+		value := d.value()
+		baseline := d.baseline
+		baseline.Form = slices.Clone(baseline.Form)
+		shared := value.GraphQL.Schema != "" &&
+			baseline.GraphQL.Schema == value.GraphQL.Schema &&
+			baseline.GraphQL.SchemaSource == value.GraphQL.SchemaSource
+		if shared {
+			baseline.GraphQL.Schema, baseline.GraphQL.SchemaSource = "", ""
+		}
+		drafts = append(drafts, experimentDraft{Key: d.debugKey, Source: d.origin, Value: value, Baseline: baseline, SavedKey: d.savedKey, SchemaShared: shared})
+	}
+	return drafts
+}
+
+func restoreExperimentDraft(draft experimentDraft) experimentDraft {
+	if draft.SchemaShared {
+		draft.Baseline.GraphQL.Schema = draft.Value.GraphQL.Schema
+		draft.Baseline.GraphQL.SchemaSource = draft.Value.GraphQL.SchemaSource
+	}
+	return draft
 }
 
 func (s *experimentWorkbench) record(id int) *experimentRecord {

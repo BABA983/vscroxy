@@ -353,3 +353,37 @@ func TestSendBudgetHonorsExplicitUnlimited(t *testing.T) {
 		t.Fatalf("default budget = %s, want 30s", got)
 	}
 }
+
+func TestLibraryDoesNotRewriteUnchangedSchemaFiles(t *testing.T) {
+	a := libraryApp(t)
+	big := strings.Repeat("x", 1<<20)
+	requests := []savedRequest{
+		{Request: request.Request{ID: "gql", Name: "GraphQL", Method: "POST", URL: "https://api.example.com/graphql",
+			BodyMode: "GraphQL", GraphQL: request.GraphQLBody{Query: "{ viewer { id } }", Schema: big}}},
+		{Request: request.Request{ID: "other", Name: "Other", Method: "GET", URL: "https://api.example.com/other"}},
+	}
+	if err := a.persistRequests(requests); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(a.library.root, "GraphQL.request.json")
+	before, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	changed := slices.Clone(requests)
+	changed[1].URL = "https://api.example.com/changed"
+	if err := a.persistRequests(changed); err != nil {
+		t.Fatal(err)
+	}
+	after, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !os.SameFile(before, after) {
+		t.Fatal("saving another request rewrote the file holding a 1 MiB schema")
+	}
+	data, err := os.ReadFile(path)
+	if err != nil || !strings.Contains(string(data), big) {
+		t.Fatalf("schema was not saved once: %v", err)
+	}
+}
