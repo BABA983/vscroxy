@@ -70,7 +70,7 @@
 | **只抓指定 host / App（Allow list）** | 已有 | Settings → Capture，按 host 和 App；忽略名单优先 | M1 |
 | 长时间抓包的内存和磁盘上限、自动清理 | 已有 | Settings → Capture → Memory：条数、内存和磁盘上限，超出先删最旧的（Pin 的保留），连同落盘文件 | M1 |
 | Block list：通配符、正则、按 App、"隐藏"或"拦截"、断开连接 | 已有 | Block 规则的动作：拒绝（403）、断开连接、隐藏（照常代理但不进表格）；匹配用规则的通配符／正则／App／header | M4 |
-| 系统代理绕过名单（Bypass list） | 部分 | 保留系统原有的绕过设置，但不能在 app 里编辑 | M7 |
+| 系统代理绕过名单（Bypass list） | 已有 | Settings → Proxy → System proxy：开关「Replace the system bypass list」后写入 macOS `networksetup -setproxybypassdomains`、Windows WinINet 每连接 bypass、Linux GNOME `ignore-hosts`；关闭或崩溃恢复时还原原值，替换成别的程序的名单时不覆盖；不配置时 macOS／Windows 保留系统原值，Linux 仍写回环默认值 | M7 |
 | SOCKS5 代理入口 | 已有 | RFC 1928 CONNECT，可选 RFC 1929 用户名／密码；域名、IPv4、IPv6；与 HTTP 代理同一条抓包流水线：解密名单内 MITM 并抓取明文 HTTP，名单外 400 ms 嗅探首字节，HTTP 请求行交给 HTTP 前端并抓取，TLS／其他字节原样透传，服务器先发协议窗口后透传；规则、Host 方案、网络条件、Allow／Block、录制生效；10 s peek 超时；嵌套 CONNECT 返回 400；Settings → Proxy 开关和固定端口（1024–65535，冲突不回退，空为自动）；设备接入的 IP 白名单经 LAN 网关同样生效 | M7 |
 | 反向代理（本地端口直接转发到远端） | 已有 | Settings → Proxy：多条本地端口 → http／https 远端 URL，增删改、启停，Host 头改写或保留；经同一规则和抓包，HTTPS 远端由 app 发起 TLS 并默认校验证书（可按条目允许自签名）；Remote host 时只接受回环 Host；端口冲突逐条提示 | M7 |
 | 设备接入访问控制（IP 白名单） | 已有 | | |
@@ -129,8 +129,8 @@
 | 网络条件：自定义预设、请求断连、按 host/规则生效 | 已有 | 自定义预设与规则作用域；失败率是请求断连，不是 TCP/IP 丢包；见使用指南限制 | M5 |
 | No Caching | 已有 | | |
 | DNS 映射（可按 App） | 已有 | 已升级为 Host 方案 | M2 |
-| 上游代理：HTTP、SOCKS5 | 已有 | 只能全局一个 | |
-| 上游代理：PAC、绕过名单、按 host 选择、认证 | 缺少 | | M7 |
+| 上游代理：HTTP、SOCKS5 | 已有 | 默认一个；另可按 host 规则、PAC 和绕过名单选择多个，见下一行 | M7 |
+| 上游代理：PAC、绕过名单、按 host 选择、认证 | 已有 | Settings → Proxy → Upstream：默认上游；按顺序首个命中的 host 规则（`*.` 通配、可选端口、`direct`）；绕过名单（host、`*.`、前导点、CIDR、`localhost`、`<local>`、可选端口）；本地文件或 http(s) URL 的 PAC，在 goja 沙箱执行 `FindProxyForURL` 及标准辅助函数，`PROXY`／`HTTP`／`HTTPS`／`SOCKS`／`SOCKS5`／`DIRECT` 按序回退；2 s 超时、64 MiB 堆增长上限、按 host 缓存，PAC 失败明确报错；HTTP Basic 和 SOCKS5 用户名／密码，密码密封在本机；规则同时作用于抓包和 app 自身请求，连接日志记录选择原因 | M7 |
 | Repeat、Edit & repeat、批量重放 | 已有 | | |
 | 高级重放：重复 N 次、并发、间隔 | 已有 | 复用 Replay 发送路径；单批 500 次、并发 8、重复 100、间隔 60 s；进度、成功／失败／取消、状态码分布、耗时；重放不进集合录制 | M5 |
 | GraphQL：按 operation 名匹配规则、格式化 query | 已有 | 精确筛选／规则与预览共用解析；query 格式化保留语义，失败不改原文 | M5 |
@@ -326,7 +326,7 @@ Cookie 和其他 API key 保留为变量 header，避免把多个认证机制硬
   Chrome/Electron 在 Linux 走 NSS，不读取 app 的 CA 文件；Firefox 临时 profile 在 Linux/macOS 用 `certutil`，Windows 用 enterprise roots。
   临时 profile 不随 launcher 退出删除，崩溃遗留的在下次启动清理；不写 hosts，不修改用户全局配置。
 - SOCKS5 入口、反向代理已完成（见[使用指南](guide.md#socks5-and-reverse-proxies)）：SOCKS5 支持 CONNECT、可选 RFC 1929 认证、域名／IPv4／IPv6；解密名单内的 TLS 按既有规则 MITM 或抓取明文 HTTP；名单外先嗅探首字节，明文 HTTP 仍抓取，TLS／其他协议原样透传；反向代理把本地端口转发到 http／https 远端，Host 可改写或保留，规则和抓包同样生效，远端证书默认校验。限制：SOCKS5 只支持 CONNECT（BIND／UDP ASSOCIATE 拒绝），解密名单内的目标必须是 HTTP(S) 且 10 s 内开始发送；名单外服务器先发协议最多延迟一个嗅探窗口；反向代理本地侧只收明文 HTTP，Remote host 时只接受回环 Host，抓包中的客户端是本机 app。
-- 上游代理：PAC、绕过、按 host、认证；系统代理绕过名单。
+- 上游代理、PAC 和系统代理绕过名单已完成（见[使用指南](guide.md#upstream-proxies)）：默认上游加按 host 首个命中规则，绕过名单优先直连；PAC 从文件或 URL 加载，在 goja 沙箱运行标准 `FindProxyForURL` 辅助函数，按 `PROXY`／`HTTP`／`HTTPS`／`SOCKS`／`SOCKS5`／`DIRECT` 顺序回退，2 s 超时和 64 MiB 堆增长上限，按 host 缓存，失败关闭；HTTP Basic 与 SOCKS5 认证的密码密封在本机，不进 settings、配置导出或日志。规则作用于抓包流量、Send／Runner／CLI 和 WS／SSE／gRPC／Socket.IO 客户端；连接日志记录规则、绕过或 PAC 的选择。系统代理开启时可编辑写入的绕过名单，关闭、退出或崩溃恢复时还原原值。限制：PAC 结果按 host 缓存，按 URL 路径变化的脚本只按首个 URL 求值；明文 h2c gRPC 仍直连；HTTP(S) 上游走 CONNECT，普通 HTTP 目标要求上游允许 CONNECT 到 80。
 - 导入：Swagger 2、Insomnia、Bruno、Hoppscotch、PowerShell／CMD cURL 已完成（见[使用指南](guide.md#import-and-export)）；Charles `.chlsj`／`.chlsx`、Proxyman `.proxymanlogv2`／`.proxymanlog` 已完成。Insomnia v4/v5、Bruno 目录、Hoppscotch 集合与环境、Swagger 2 均转换为现有集合／请求／环境模型；脚本、测试和无法表达的请求设置会明确列入导入报告。抓包会话复用 HAR 导入的列表路径，并和抓包引擎共用 ID 计数器，先导入后抓包不会撞 ID。保留两侧 header（含重复）、二进制／base64 body、源标记为未解码的 gzip／deflate／br body 会解压、状态（含 `:status`／`firstLine` 回退）、起止时间与耗时、远端／客户端 IP、TLS 信息；Charles 的 WebSocket 帧从 encoded body 解析，Proxyman 的 `websocketMessageStorage` 映射到 Messages。导入有总预算：单 body 32 MiB、保留 body＋帧合计 512 MiB、帧数 20 万、解压工作量 1 GiB；XML 嵌套超过 64 层拒绝，Proxyman 归档先按序号排序再截取前 2000。原生 `.chls` 是 Java 序列化对象流，不执行反序列化，导入时提示从 Charles 导出 `.chlsj` 或 HAR；Charles 中无法识别或截断的 WebSocket 帧只保留可解析部分并写入报告；permessage-deflate 消息跳过并警告，后续帧继续解析。文件、条目、header、消息和正文大小有上限，解析流式限制条目和 header，不跟随符号链接，畸形输入返回错误。
 
 ### M8：协议扩展

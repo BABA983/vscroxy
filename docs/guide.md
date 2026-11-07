@@ -771,7 +771,9 @@ listener.
 
 Select **Connection** in a captured exchange's detail to inspect and copy its
 connection log: DNS lookup, TCP dial attempts, upstream/client TLS handshakes,
-connection reuse, ALPN and the upstream certificate's SANs and expiry. The log
+connection reuse, ALPN and the upstream certificate's SANs and expiry. An
+**Upstream** event records the host rule, bypass entry or PAC result, and every
+failed candidate before a fallback; proxy passwords are never logged. The log
 explicitly distinguishes verified certificates from verification skipped by the
 debugging proxy. It is a capture-time snapshot with at most 64 connection events,
 not a packet trace; a reused connection includes its setup history.
@@ -1122,11 +1124,74 @@ scenario. Its close action saves all network rules disabled, including inactive
 scenarios. **Off** does the same before clearing the global profile, and leaves
 both rule state and global conditions unchanged if the rules cannot be saved.
 
-**Network → Upstream…** sends every request through another proxy, such as
-`http://127.0.0.1:8080`; **Upstream off** clears it. **Settings → Proxy → Upstream** edits the same
-address in place; leave it empty and apply to connect directly. The engine tunnels to the
-upstream with CONNECT, so HTTPS targets chain through it; a plain HTTP target
-depends on the upstream accepting CONNECT to port 80.
+**Network → Upstream…** opens **Settings → Proxy → Upstream**; **Upstream off**
+clears the default, host rules and PAC while keeping the bypass list and
+credentials.
+
+### Upstream proxies
+
+The upstream decides where captured and authored traffic goes next. Selection
+is fixed: a bypass entry, then the first matching host rule, then PAC, then the
+default upstream. A rule or the default may say `direct`.
+
+- **Default** is one proxy address (`http://`, `https://` or `socks5://`) with a
+  port, or empty for a direct connection.
+- **Host rules** are one per line: a host pattern and an upstream.
+  `*.internal.test` matches subdomains but not `internal.test`; add `:port` to
+  limit a rule to one port; `*` matches every host; `direct` is a valid
+  upstream. The first matching line wins; later lines do not run.
+- **Bypass** entries are one per line, or separated by commas or semicolons: an
+  exact host, `*.example.com`, a leading `.example.com` (the domain and its
+  subdomains), a CIDR such as `10.0.0.0/8`, `localhost`, `<local>` (a host
+  without a dot), or `*`. An optional `:port` limits an entry. CIDR and IP
+  entries match IP literals; the app does not resolve a hostname to decide a
+  bypass. Bypass wins over rules, PAC and the default.
+- **Credentials** are a username and password per proxy endpoint. HTTP and HTTPS
+  upstreams receive Basic `Proxy-Authorization`; SOCKS5 uses RFC 1929
+  username/password. Passwords are sealed in
+  `~/.vscroxy/upstream-secrets.json` with `upstream.key` (0600); settings,
+  configuration export and logs contain only the endpoint and username. A wrong
+  password fails the request with 407 for HTTP or 502 for SOCKS5 and does not
+  fall back to another proxy or DIRECT.
+- The **connection log** shows an **Upstream** line for the rule, bypass entry
+  or PAC result, and each failed candidate before a fallback. Credentials are
+  never shown.
+
+The rules apply to captured traffic and to the app's own requests: Send, Runner,
+CLI, WebSocket, SSE, Socket.IO, gRPC over HTTPS and reverse proxies all reach
+the server through the capture proxy. Plaintext h2c gRPC is direct and cannot be
+captured or proxied. The engine opens a CONNECT tunnel to an HTTP or HTTPS
+upstream, so a plain HTTP target depends on that upstream accepting CONNECT to
+port 80. An `https://` upstream's own certificate is accepted while inspecting,
+like any inspected server's; a replay or reverse proxy that asks for
+verification verifies it too. HTTP/2 to the upstream is not used: the tunnel
+carries the target's protocol.
+
+### PAC scripts
+
+Set a local `.pac` file or an `http(s)://` URL as **PAC**. The script is read
+once when saved (at most 2 MiB, a URL fetch times out after 10 seconds) and
+`FindProxyForURL(url, host)` runs in an isolated goja runtime with the standard
+helpers: `isPlainHostName`, `dnsDomainIs`, `localHostOrDomainIs`,
+`isResolvable`, `isInNet`, `dnsResolve`, `convert_addr`, `myIpAddress`,
+`dnsDomainLevels`, `shExpMatch`, `weekdayRange`, `dateRange`, `timeRange` and a
+no-op `alert`. `shExpMatch` supports `*`, `?` and `[...]`; date, weekday and time
+ranges include both ends and reversed ranges wrap, as Firefox 49 and later do.
+`myIpAddress()` returns this computer's first non-loopback IPv4 address, or
+`127.0.0.1`.
+
+The result is a semicolon-separated list of `DIRECT`, `PROXY host:port`,
+`HTTP host:port`, `HTTPS host:port`, `SOCKS host:port` and `SOCKS5 host:port`.
+The app tries them left to right; a connection failure moves to the next entry,
+and `DIRECT` is a valid last entry. A proxy authentication failure stops the
+list instead of falling back.
+
+Each evaluation has a 2-second timeout and a 64 MiB heap-growth limit; an
+infinite loop, runaway allocation, syntax error or thrown exception fails the
+request with 502 and an explicit error, never a silent direct connection.
+Results are cached by host, so a script that varies by URL path is evaluated
+once per host. Changing the PAC file requires saving the setting again. `alert`
+messages are discarded, not logged, because they may contain request data.
 
 ## SSL proxying
 
@@ -2709,10 +2774,21 @@ menu bar.
   Linux writes the GNOME proxy settings with
   `gsettings`, macOS sets every enabled service with `networksetup`, Windows
   reads/writes the current user's default LAN settings through WinINet and
-  notifies applications of changes. macOS/Windows retain PAC/discovery and bypass
-  settings; automatic configuration is reported as a conflict. Linux temporarily
-  selects manual mode and loopback bypasses, then restores the previous mode and
-  bypass list. Windows services using WinHTTP need separate configuration.
+  notifies applications of changes. macOS/Windows retain PAC/discovery; automatic
+  configuration is reported as a conflict. Linux temporarily selects manual mode,
+  then restores the previous mode and bypass list. Windows services using WinHTTP
+  need separate configuration.
+- **Bypass list** under System proxy edits what **Enable system proxy** writes.
+  Leave **Replace the system bypass list** off to keep the OS list. Turn it on
+  and enter one entry per line (or separated by commas or semicolons). macOS
+  writes `networksetup -setproxybypassdomains`, Windows writes the WinINet
+  per-connection bypass list, and Linux writes GNOME `ignore-hosts`. Changing the
+  list while the system proxy is enabled reapplies it. **Disable system proxy**,
+  normal quit and crash recovery restore the list saved before enable; the
+  journal records the list this session wrote and leaves a replacement installed
+  by another app alone. Without a configured list, macOS and Windows keep their
+  existing bypass list; Linux writes the loopback defaults (`localhost`,
+  `127.0.0.1`, `::1`) as before.
 - Normal quit (including closing the window) waits for a pending proxy write,
   then restores the settings this instance replaced before closing capture.
   Each protocol is checked first: replacement proxies installed by another app
@@ -2825,10 +2901,11 @@ yet.
 ## Settings
 
 **Settings → General → Back up and share** exports one JSON file with the
-settings, ignore and allow lists, HTTPS decryption, rules with the response
-files they answer from (up to 8 MiB each; folders stay paths), rule scripts, addons,
-Host profiles and breakpoint templates. Secrets, variables and this computer's
-key log path are never included. **Import…** shows what a file holds and
+settings, ignore and allow lists, HTTPS decryption, upstream addresses, host
+rules, bypass lists and PAC source, rules with the response files they answer
+from (up to 8 MiB each; folders stay paths), rule scripts, addons, Host profiles
+and breakpoint templates. Secrets, variables and this computer's key log path are
+never included; upstream proxy passwords stay sealed on this computer. **Import…** shows what a file holds and
 replaces only the parts chosen; imported mock files go into
 `~/.vscroxy/mocks/`, scripts of the same name are replaced.
 

@@ -12,8 +12,10 @@ exports (Insomnia, Bruno, Hoppscotch, Swagger 2, and Chrome's CMD/PowerShell
 cURL) into that model; it also never imports MyGo. `internal/uikit/` is the design system: tokens, the Paper/Ink themes, bundled
 fonts and shared components; it depends only on MyGo, and screens use its roles
 and components instead of colors and sizes. `internal/vault/` seals secrets and
-decides which hosts may receive them. `internal/postman/` converts Postman
-collections and environments. Request scripts are Postman's `pm` API, built in
+decides which hosts may receive them. `internal/upstream/` chooses the default
+upstream, first-match host rules, bypass list and PAC result for a request, and
+seals upstream passwords; it never imports MyGo. `internal/postman/` converts
+Postman collections and environments. Request scripts are Postman's `pm` API, built in
 `internal/request/js/pm.js` on an embedded, unmodified Chai 4.5.0. Keep the other `internal/`
 packages' existing responsibility boundaries; `third_party/go-mitmproxy/` is a
 locally patched dependency with its own license and patch notes.
