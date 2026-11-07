@@ -556,6 +556,7 @@ func (a *app) requestBodyEditor(c *ui.Context, d *requestDocument, t *ui.Theme) 
 		ui.Row(c).Children(func() {
 			uikit.Segmented(c, &d.graphqlTab, "Query", "Variables")
 		})
+		a.graphqlSchemaRow(c, d)
 		if d.graphqlTab == 1 {
 			uikit.Hint(c, "JSON object · {{variables}} supported · blank sends {}")
 			authoredText(c.Key("graphql-variables"), &d.graphql.Variables, &d.varsEditor, &d.varsFor, "GraphQL variables", "json")
@@ -564,8 +565,8 @@ func (a *app) requestBodyEditor(c *ui.Context, d *requestDocument, t *ui.Theme) 
 		} else {
 			uikit.Hint(c, "Query or mutation · {{variables}} supported · sent as JSON")
 			authoredText(c.Key("graphql-query"), &d.graphql.Query, &d.queryEditor, &d.queryFor, "GraphQL query", "GraphQL")
-			a.wireVariableEditor(d.queryEditor, d.composeCollection)
-			a.setVariableDiagnostics(d.queryEditor, d.graphql.Query, d.composeCollection)
+			a.wireGraphQLQueryEditor(d)
+			a.setGraphQLDiagnostics(d)
 		}
 	} else if d.bodyMode == "Binary" {
 		uikit.Meta(c, "BINARY FILE · up to 16 MiB, sent unchanged")

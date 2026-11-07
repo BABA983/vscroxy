@@ -28,6 +28,7 @@ import (
 	"github.com/baba983/vscroxy/internal/rules"
 	"github.com/baba983/vscroxy/internal/system"
 	"github.com/egoist/mygo/ui"
+	"github.com/egoist/mygo/ui/editor"
 	"github.com/gorilla/websocket"
 	"google.golang.org/grpc/metadata"
 )
@@ -91,6 +92,21 @@ func TestUISnapshots(t *testing.T) {
 		openDraft(a, a.flows[0])
 		a.composeTab = composeTabHeaders
 	}
+	// graphqlSnapshotDraft is a saved GraphQL request with a loaded schema and
+	// two operations, so the selector and the schema toolbar both show.
+	graphqlDraft := func(a *app) *requestDocument {
+		draft(a)
+		a.composeURL = "https://api.example.com/graphql"
+		a.composeTab, a.requestDocument.bodyMode = composeTabBody, "GraphQL"
+		a.requestDocument.graphql = request.GraphQLBody{
+			Query:     "query Search($q: String!, $limit: Int) {\n  search(query: $q, limit: $limit) {\n    __typename\n    ... on User { id name role }\n    ... on Project { id title }\n  }\n}\n\nmutation Save {\n  saveItem(input: { name: \"Demo\", role: ADMIN }) {\n    id\n  }\n}",
+			Variables: "{\n  \"q\": \"{{search_term}}\",\n  \"limit\": 10\n}",
+			Schema:    appGraphQLSchema, SchemaSource: "https://api.example.com/graphql",
+			OperationName: "Search",
+		}
+		return a.requestDocument
+	}
+
 	sent := func(a *app) {
 		a.sent, a.sentSet, a.sentAt = a.draft(), true, snapshotTime
 		a.response = &capture.Flow{Status: 201, Millis: 47, Bytes: 43, ResponseHeader: http.Header{"Content-Type": {"application/json"}, "X-Tag": {"first", "second"}}, ResponseBody: `{"id":73,"name":"Demo project","active":true}`}
@@ -504,6 +520,54 @@ func TestUISnapshots(t *testing.T) {
 			a.composeTab, a.requestDocument.bodyMode, a.graphqlTab = composeTabBody, "GraphQL", 1
 			a.graphql = request.GraphQLBody{Query: "query Search($q: String!, $limit: Int) {\n  search(query: $q, limit: $limit) { id name }\n}", Variables: "{\n  \"q\": \"{{search_term}}\",\n  \"limit\": 10\n}"}
 		}, want: "GraphQL variables"},
+		{name: "requests-graphql-schema", setup: func(a *app) { graphqlDraft(a) }, want: "Schema · 9 types"},
+		{name: "requests-graphql-schema-error", setup: func(a *app) {
+			d := graphqlDraft(a)
+			d.graphql.Schema, d.graphql.SchemaSource = "", ""
+			d.graphqlState().problem = "introspection is disabled by the server: GraphQL introspection is not allowed"
+		}, want: "introspection is disabled"},
+		{name: "requests-graphql-completion", setup: func(a *app) {
+			d := graphqlDraft(a)
+			d.graphql.Query, d.graphql.OperationName = "", ""
+		}, act: func(t *testing.T, tt *ui.Tester) {
+			if err := tt.Click("GraphQL query"); err != nil {
+				t.Fatal(err)
+			}
+			tt.Frame()
+			tt.Type("query Q { viewer { na")
+		}, want: "name"},
+		{name: "requests-graphql-hover", setup: func(a *app) {
+			d := graphqlDraft(a)
+			d.graphql.Query = "query Q {\n  viewer {\n    name\n    role\n  }\n}"
+			graphqlHoverDoc = d
+		}, act: func(t *testing.T, tt *ui.Tester) {
+			tt.Frame()
+			graphqlHoverDoc.queryEditor.OnHover(editor.HoverRequest{Offset: strings.Index(graphqlHoverDoc.graphql.Query, "name") + 1})
+			tt.Frame()
+		}, want: "name: String!"},
+		{name: "requests-graphql-diagnostics", setup: func(a *app) {
+			d := graphqlDraft(a)
+			d.graphql.Query = "query Q {\n  viewer {\n    nope\n  }\n}"
+			graphqlHoverDoc = d
+		}, act: func(t *testing.T, tt *ui.Tester) {
+			tt.Frame()
+			start := strings.Index(graphqlHoverDoc.graphql.Query, "nope")
+			graphqlHoverDoc.queryEditor.ShowHover(start, start+len("nope"), "", nil)
+			tt.Frame()
+		}, want: "Cannot query field"},
+		{name: "requests-graphql-operation", setup: func(a *app) { graphqlDraft(a) }, act: click("GraphQL operation"), want: "Search"},
+		{name: "requests-graphql-operation-unselected", setup: func(a *app) {
+			graphqlDraft(a).graphql.OperationName = ""
+		}, want: "Select operation"},
+		{name: "requests-graphql-variables-skeleton", setup: func(a *app) {
+			d := graphqlDraft(a)
+			d.graphql.Variables, d.graphqlTab = "", 1
+		}, act: func(t *testing.T, tt *ui.Tester) {
+			tt.Frame()
+			if err := tt.Click("Generate variables"); err != nil {
+				t.Fatal(err)
+			}
+		}, want: "Generate variables"},
 		{name: "requests-scripts", setup: func(a *app) { draft(a); a.composeTab = composeTabScripts }, want: "Pre-request script"},
 		{name: "requests-checks", setup: func(a *app) {
 			draft(a)
@@ -1402,6 +1466,8 @@ func TestUISnapshots(t *testing.T) {
 	}
 	t.Logf("wrote %d artifacts to %s", len(manifest.Files), dir)
 }
+
+var graphqlHoverDoc *requestDocument
 
 var snapshotTime = time.Date(2026, 1, 15, 10, 30, 0, 0, time.UTC)
 

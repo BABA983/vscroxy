@@ -51,6 +51,7 @@ type requestDocument struct {
 	protocol          string
 	grpcConfig        request.GRPCConfig
 	grpcUI            *grpcDocument
+	graphqlUI         *graphqlDocument
 	socketIOConfig    request.SocketIOConfig
 	socketIOUI        *socketIODocument
 	composeHeaders    string
@@ -239,6 +240,8 @@ func (d *requestDocument) load(a *app, r savedRequest, key string) {
 		d.grpcUI.stop()
 		d.grpcUI = nil
 	}
+	d.stopGraphQL()
+	d.graphqlUI = nil
 	if d.socketIOUI != nil {
 		d.socketIOUI.stop()
 		d.socketIOUI = nil
@@ -304,6 +307,7 @@ func (a *app) closeDocument(d *requestDocument) {
 	if d.grpcUI != nil {
 		d.grpcUI.stop()
 	}
+	d.stopGraphQL()
 	if d.socketIOUI != nil {
 		d.socketIOUI.stop()
 	}

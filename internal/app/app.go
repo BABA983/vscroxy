@@ -1428,6 +1428,7 @@ func (a *app) view(c *ui.Context) {
 	c.SetMenuPresentation(ui.PopoverMenus)
 	a.drain()
 	a.drainGRPC()
+	a.drainGraphQL()
 	a.drainSocketIO()
 	a.scripts.setEnv(a.globals, a.activeVars(), a.addons.sources())
 	// The Settings window shows these checks too: it redraws when one
