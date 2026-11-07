@@ -15,6 +15,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/andybalholm/brotli"
 )
 
 func captureFixture(t *testing.T, name string) []byte {
@@ -528,13 +530,19 @@ func TestCharlesXMLStreamingBoundsAllocations(t *testing.T) {
 	}
 	data.WriteString("</charles-session>")
 	input := []byte(data.String())
+	var capture Capture
 	allocated := captureAllocated(t, func() {
-		if _, err := ReadCapture(input, "empty-transactions.chlsx"); err != nil {
+		var err error
+		capture, err = ReadCapture(input, "empty-transactions.chlsx")
+		if err != nil {
 			t.Fatalf("ReadCapture: %v", err)
 		}
 	})
 	if allocated > 128<<20 {
 		t.Fatalf("empty XML transactions allocated %d MiB; want under 128 MiB", allocated>>20)
+	}
+	if len(capture.Warnings) == 0 || !strings.Contains(capture.Warnings[0], "transactions beyond") {
+		t.Fatalf("warnings = %q", capture.Warnings)
 	}
 }
 
@@ -738,12 +746,15 @@ func TestReadProxymanDirDoesNotRecurseDeeperThanOneFolder(t *testing.T) {
 }
 
 func TestWebSocketFramesReassembleFragmentsAndRejectTruncation(t *testing.T) {
-	frames, truncated := parseWebSocketFrames([]byte{0x01, 0x03, 'o', 'n', 'e', 0x80, 0x03, 't', 'w', 'o'}, "in")
-	if truncated || len(frames) != 1 || frames[0].Kind != "text" || string(frames[0].Data) != "onetwo" {
-		t.Fatalf("fragmented frames = %+v truncated %v", frames, truncated)
+	frames, truncated, compressed := parseWebSocketFrames([]byte{0x01, 0x03, 'o', 'n', 'e', 0x80, 0x03, 't', 'w', 'o'}, "in", 100)
+	if truncated || compressed || len(frames) != 1 || frames[0].Kind != "text" || string(frames[0].Data) != "onetwo" {
+		t.Fatalf("fragmented frames = %+v truncated %v compressed %v", frames, truncated, compressed)
 	}
-	if _, truncated := parseWebSocketFrames([]byte{0x81, 0x05, 'a'}, "in"); !truncated {
+	if _, truncated, _ := parseWebSocketFrames([]byte{0x81, 0x05, 'a'}, "in", 100); !truncated {
 		t.Fatal("truncated frame was accepted")
+	}
+	if _, _, compressed := parseWebSocketFrames([]byte{0xc1, 0x00}, "in", 100); !compressed {
+		t.Fatal("permessage-deflate frame was not reported")
 	}
 }
 
@@ -825,7 +836,7 @@ func TestProxymanHeaderListIsBounded(t *testing.T) {
 func TestProxymanZipEntryListIsBounded(t *testing.T) {
 	files := make(map[string][]byte, maxCaptureEntries+5)
 	for i := range maxCaptureEntries + 5 {
-		files["request_"+strconv.Itoa(i)+"_1"] = []byte(`{"request":{"scheme":"https","host":"example.com","uri":"/","method":{"name":"GET"}},"response":{"status":{"code":200}}}`)
+		files["request_"+strconv.Itoa(i)+"_1"] = []byte(`{"request":{"scheme":"https","host":"example.com","uri":"/` + strconv.Itoa(i) + `","method":{"name":"GET"}},"response":{"status":{"code":200}}}`)
 	}
 	capture, err := ReadCapture(proxymanArchive(t, files), "many.proxymanlogv2")
 	if err != nil {
@@ -834,7 +845,10 @@ func TestProxymanZipEntryListIsBounded(t *testing.T) {
 	if len(capture.Flows) != maxCaptureEntries {
 		t.Fatalf("%d flows", len(capture.Flows))
 	}
-	if len(capture.Warnings) == 0 || !strings.Contains(strings.Join(capture.Warnings, ";"), "5 entries beyond") {
+	if capture.Flows[0].Path != "/0" || capture.Flows[len(capture.Flows)-1].Path != "/1999" {
+		t.Fatalf("first/last paths = %q/%q; archive member order was not sorted by index", capture.Flows[0].Path, capture.Flows[len(capture.Flows)-1].Path)
+	}
+	if len(capture.Warnings) == 0 || !strings.Contains(capture.Warnings[0], "5 entries beyond") {
 		t.Fatalf("warnings = %q", capture.Warnings)
 	}
 }
@@ -852,5 +866,255 @@ func TestProxymanOutOfOrderTimingRaisesTotal(t *testing.T) {
 	}
 	if flow.Timing == nil || flow.Timing.Total != 100*time.Millisecond {
 		t.Fatalf("timing = %+v", flow.Timing)
+	}
+}
+
+func brotliZerosBase64(t *testing.T, size int) (string, int) {
+	t.Helper()
+	var compressed bytes.Buffer
+	writer := brotli.NewWriter(&compressed)
+	if _, err := writer.Write(make([]byte, size)); err != nil {
+		t.Fatal(err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	return base64.StdEncoding.EncodeToString(compressed.Bytes()), compressed.Len()
+}
+
+func TestCaptureBodyBudgetIsShared(t *testing.T) {
+	warnings := &captureWarnings{budget: captureBudget{maxBodyBytes: 2 << 20}}
+	body := &charlesJSONEntry{
+		Body: &charlesJSONBody{Encoded: base64.StdEncoding.EncodeToString(make([]byte, 1<<20)), Size: flexInt(1 << 20)},
+	}
+	for i := range 3 {
+		data, _ := charlesBody(body, "response", warnings, i)
+		if i < 2 && len(data) != 1<<20 {
+			t.Fatalf("body %d = %d bytes, want 1 MiB", i, len(data))
+		}
+		if i == 2 && len(data) != 0 {
+			t.Fatalf("third body retained %d bytes after the 2 MiB budget", len(data))
+		}
+	}
+	if !strings.Contains(strings.Join(warnings.finish(), ";"), "body budget") {
+		t.Fatalf("warnings = %q", warnings.finish())
+	}
+}
+
+func TestWebSocketFrameBudgetIsShared(t *testing.T) {
+	warnings := &captureWarnings{budget: captureBudget{maxFrames: 10}}
+	frames, _ := charlesWebSocketFrames(bytes.Repeat([]byte{0x81, 0x00}, 20), nil, true, false, warnings, 0)
+	if len(frames) != 10 {
+		t.Fatalf("%d frames, want 10", len(frames))
+	}
+	if !strings.Contains(strings.Join(warnings.finish(), ";"), "WebSocket message budget") {
+		t.Fatalf("warnings = %q", warnings.finish())
+	}
+}
+
+func TestBrotliBodiesRespectImportBudget(t *testing.T) {
+	encoded, compressedSize := brotliZerosBase64(t, 31_999_999)
+	warnings := &captureWarnings{budget: captureBudget{maxBodyBytes: 64 << 20}}
+	body := &charlesJSONEntry{
+		ContentEncoding: "br",
+		Body:            &charlesJSONBody{Encoded: encoded, Size: flexInt(31_999_999)},
+	}
+	for i := range 3 {
+		data, _ := charlesBody(body, "response", warnings, i)
+		if i < 2 && len(data) != 31_999_999 {
+			t.Fatalf("body %d = %d bytes, want 31,999,999", i, len(data))
+		}
+		if i == 2 && len(data) != 0 {
+			t.Fatalf("third brotli body retained %d bytes after the 64 MiB budget", len(data))
+		}
+	}
+	if compressedSize >= 1<<20 {
+		t.Fatalf("brotli fixture is %d bytes, expected a small compression bomb", compressedSize)
+	}
+	if !strings.Contains(strings.Join(warnings.finish(), ";"), "body budget") {
+		t.Fatalf("warnings = %q", warnings.finish())
+	}
+}
+
+func TestCharlesXMLNestingIsRejectedBeforeDecoding(t *testing.T) {
+	deep := strings.Repeat("<a>", 2_000_000) + strings.Repeat("</a>", 2_000_000)
+	input := []byte("<charles-session>" + deep + `<transaction status="COMPLETE" method="GET" protocol="https" host="example.com" path="/"><request headers="0" body="0"/><response status="200" headers="0" body="0"/></transaction></charles-session>`)
+	allocated := captureAllocated(t, func() {
+		_, err := ReadCapture(input, "deep.chlsx")
+		if err == nil || !strings.Contains(err.Error(), "nesting") {
+			t.Fatalf("err = %v, want a nesting error", err)
+		}
+	})
+	if allocated > 64<<20 {
+		t.Fatalf("deep XML allocated %d MiB before rejection; want under 64 MiB", allocated>>20)
+	}
+}
+
+func TestCharlesTruncationWarningComesFirst(t *testing.T) {
+	var data strings.Builder
+	data.WriteString("[")
+	for i := range 260_000 {
+		if i > 0 {
+			data.WriteString(",")
+		}
+		data.WriteString("{}")
+	}
+	data.WriteString("]")
+	capture, err := ReadCapture([]byte(data.String()), "many.chlsj")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(capture.Warnings) == 0 || !strings.Contains(capture.Warnings[0], "transactions beyond") {
+		t.Fatalf("warnings = %q", capture.Warnings)
+	}
+}
+
+func TestCharlesMissingTotalIncludesSetup(t *testing.T) {
+	data := []byte(`[{"status":"COMPLETE","method":"GET","scheme":"https","host":"api.example.com","path":"/","times":{"start":"2026-10-01T10:00:00.000Z","requestBegin":"2026-10-01T10:00:00.100Z","requestComplete":"2026-10-01T10:00:00.100Z","responseBegin":"2026-10-01T10:00:00.150Z","end":"2026-10-01T10:00:00.172Z"},"durations":{"dns":10,"connect":20,"ssl":30,"latency":50,"response":22},"request":{"header":{"headers":[]}},"response":{"status":200,"header":{"headers":[]}}}]`)
+	capture, err := ReadCapture(data, "no-total.chlsj")
+	if err != nil {
+		t.Fatal(err)
+	}
+	flow := capture.Flows[0]
+	if flow.Millis != 132 || flow.Timing == nil || flow.Timing.Total != 132*time.Millisecond {
+		t.Fatalf("millis = %d timing = %+v, want 132 ms", flow.Millis, flow.Timing)
+	}
+}
+
+func TestCharlesXMLMissingTotalIncludesSetup(t *testing.T) {
+	data := []byte(`<charles-session><transaction status="COMPLETE" method="GET" protocol="https" host="api.example.com" actualPort="443" path="/" requestBeginTimeMillis="1000" requestTimeMillis="1000" responseTimeMillis="1050" endTimeMillis="1072" dnsDuration="10" connectDuration="20" sslDuration="30" latency="50" responseDuration="22"><request headers="0" body="0"><headers/></request><response status="200" headers="0" body="0"><headers/></response></transaction></charles-session>`)
+	capture, err := ReadCapture(data, "no-total.chlsx")
+	if err != nil {
+		t.Fatal(err)
+	}
+	flow := capture.Flows[0]
+	if flow.Millis != 132 || flow.Timing == nil || flow.Timing.Total != 132*time.Millisecond {
+		t.Fatalf("millis = %d timing = %+v, want 132 ms", flow.Millis, flow.Timing)
+	}
+}
+
+func TestCharlesWebSocketRSV1Warns(t *testing.T) {
+	encoded := base64.StdEncoding.EncodeToString([]byte{0xc1, 0x00})
+	data := []byte(`[{"status":"COMPLETE","method":"GET","scheme":"https","host":"ws.example.com","path":"/","webSocket":true,"request":{"header":{"headers":[]}},"response":{"status":101,"header":{"headers":[]},"body":{"encoded":"` + encoded + `","size":2}}}]`)
+	capture, err := ReadCapture(data, "deflate.chlsj")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(capture.Flows[0].Frames) != 0 {
+		t.Fatalf("compressed frame produced %d messages", len(capture.Flows[0].Frames))
+	}
+	if !strings.Contains(strings.Join(capture.Warnings, ";"), "permessage-deflate") {
+		t.Fatalf("warnings = %q", capture.Warnings)
+	}
+}
+
+func TestCharlesImportBoundsWebSocketFramesAcrossTransactions(t *testing.T) {
+	frameBytes := bytes.Repeat([]byte{0x81, 0x00}, 100_000)
+	encoded := base64.StdEncoding.EncodeToString(frameBytes)
+	var data strings.Builder
+	data.WriteString("[")
+	for i := range 20 {
+		if i > 0 {
+			data.WriteString(",")
+		}
+		data.WriteString(`{"status":"COMPLETE","method":"GET","scheme":"https","host":"ws.example.com","path":"/","webSocket":true,"request":{"header":{"headers":[]}},"response":{"status":101,"header":{"headers":[]},"body":{"encoded":"`)
+		data.WriteString(encoded)
+		data.WriteString(`","size":200000}}}`)
+	}
+	data.WriteString("]")
+	var capture Capture
+	allocated := captureAllocated(t, func() {
+		var err error
+		capture, err = ReadCapture([]byte(data.String()), "frames.chlsj")
+		if err != nil {
+			t.Fatal(err)
+		}
+	})
+	total := 0
+	for _, flow := range capture.Flows {
+		total += len(flow.Frames)
+	}
+	if total != maxCaptureImportFrames {
+		t.Fatalf("%d frames across 20 transactions, want %d", total, maxCaptureImportFrames)
+	}
+	if allocated > 256<<20 {
+		t.Fatalf("frame import allocated %d MiB; want under 256 MiB", allocated>>20)
+	}
+	if len(capture.Warnings) == 0 || !strings.Contains(capture.Warnings[0], "WebSocket message budget") {
+		t.Fatalf("warnings = %q", capture.Warnings)
+	}
+}
+
+func TestCharlesImportBoundsBrotliBodiesAcrossTransactions(t *testing.T) {
+	if raceEnabled {
+		t.Skip("the 512 MiB brotli budget test exceeds race-detector memory")
+	}
+	encoded, _ := brotliZerosBase64(t, 31_999_999)
+	var data strings.Builder
+	data.WriteString("[")
+	for i := range 17 {
+		if i > 0 {
+			data.WriteString(",")
+		}
+		data.WriteString(`{"status":"COMPLETE","method":"GET","scheme":"https","host":"api.example.com","path":"/","request":{"header":{"headers":[]}},"response":{"status":200,"contentEncoding":"br","header":{"headers":[]},"body":{"encoded":"`)
+		data.WriteString(encoded)
+		data.WriteString(`","size":31999999,"decoded":false}}}`)
+	}
+	data.WriteString("]")
+	var capture Capture
+	allocated := captureAllocated(t, func() {
+		var err error
+		capture, err = ReadCapture([]byte(data.String()), "brotli.chlsj")
+		if err != nil {
+			t.Fatal(err)
+		}
+	})
+	var retained int
+	for _, flow := range capture.Flows {
+		retained += len(flow.ResBody)
+	}
+	if retained > maxCaptureImportBytes {
+		t.Fatalf("retained %d MiB of bodies, budget is %d MiB", retained>>20, maxCaptureImportBytes>>20)
+	}
+	if retained == 0 {
+		t.Fatal("no brotli body was retained")
+	}
+	if allocated > 3_500<<20 {
+		t.Fatalf("brotli import allocated %d MiB; want under 3500 MiB", allocated>>20)
+	}
+	if len(capture.Warnings) == 0 || !strings.Contains(capture.Warnings[0], "body budget") {
+		t.Fatalf("warnings = %q", capture.Warnings)
+	}
+}
+
+func TestWebSocketFrameBytesShareBodyBudget(t *testing.T) {
+	warnings := &captureWarnings{budget: captureBudget{maxBodyBytes: 3}}
+	storage := &proxymanWS{Messages: []proxymanWSMessage{{Data: "ab"}, {Data: "cd"}}}
+	frames := proxymanFrames(storage, time.Time{}, warnings, 0)
+	if len(frames) != 1 || string(frames[0].Data) != "ab" {
+		t.Fatalf("frames = %+v, want only the first 2 bytes", frames)
+	}
+	if !strings.Contains(strings.Join(warnings.finish(), ";"), "body budget") {
+		t.Fatalf("warnings = %q", warnings.finish())
+	}
+}
+
+func TestCharlesXMLNestingInsideTransactionIsRejected(t *testing.T) {
+	nested := strings.Repeat("<a>", 100) + strings.Repeat("</a>", 100)
+	data := []byte(`<charles-session><transaction status="COMPLETE" method="GET" protocol="https" host="example.com" path="/"><request headers="0" body="0"><headers>` + nested + `</headers></request><response status="200" headers="0" body="0"><headers/></response></transaction></charles-session>`)
+	if _, err := ReadCapture(data, "deep.chlsx"); err == nil || !strings.Contains(err.Error(), "nesting") {
+		t.Fatalf("err = %v, want a nesting error", err)
+	}
+}
+
+func TestProxymanFrameCountBudgetIsShared(t *testing.T) {
+	warnings := &captureWarnings{budget: captureBudget{maxFrames: 1}}
+	storage := &proxymanWS{Messages: []proxymanWSMessage{{Data: "one"}, {Data: "two"}}}
+	frames := proxymanFrames(storage, time.Time{}, warnings, 0)
+	if len(frames) != 1 || string(frames[0].Data) != "one" {
+		t.Fatalf("frames = %+v", frames)
+	}
+	if !strings.Contains(strings.Join(warnings.finish(), ";"), "WebSocket message budget") {
+		t.Fatalf("warnings = %q", warnings.finish())
 	}
 }

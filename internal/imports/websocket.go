@@ -6,14 +6,19 @@ import (
 
 // parseWebSocketFrames reads the RFC 6455 frame stream some exporters keep for
 // a WebSocket transaction. It reassembles fragmented messages, exposes control
-// frames, and stops at the first malformed or oversized frame. The returned
-// bool reports that input remains unread, so the importer can warn instead of
-// silently dropping it.
-func parseWebSocketFrames(data []byte, direction string) ([]CaptureFrame, bool) {
+// frames, and stops at the first malformed, oversized or permessage-deflate
+// frame. limit caps retained messages before the import budget is applied.
+// truncated reports unread input; compressed reports an RSV1 frame that was
+// not inflated.
+func parseWebSocketFrames(data []byte, direction string, limit int) ([]CaptureFrame, bool, bool) {
 	var frames []CaptureFrame
 	var pending []byte
 	pendingKind := ""
 	truncated := false
+	compressed := false
+	if limit <= 0 {
+		return nil, true, false
+	}
 	for pos := 0; pos < len(data); {
 		if len(data)-pos < 2 {
 			truncated = true
@@ -23,6 +28,19 @@ func parseWebSocketFrames(data []byte, direction string) ([]CaptureFrame, bool) 
 		pos += 2
 		fin := first&0x80 != 0
 		opcode := first & 0x0f
+		if first&0x40 != 0 {
+			// permessage-deflate marks compressed data frames with RSV1.
+			// Showing the DEFLATE bytes as text/binary would be wrong, and
+			// context takeover makes partial inflation unsafe. RSV1 on a
+			// control frame is malformed.
+			compressed = opcode < 0x8
+			truncated = true
+			break
+		}
+		if first&0x30 != 0 {
+			truncated = true
+			break
+		}
 		masked := second&0x80 != 0
 		length := uint64(second & 0x7f)
 		switch length {
@@ -87,7 +105,7 @@ func parseWebSocketFrames(data []byte, direction string) ([]CaptureFrame, bool) 
 			if kind == "" {
 				break
 			}
-			if len(frames) >= maxCaptureMessages {
+			if len(frames) >= limit {
 				truncated = true
 				break
 			}
@@ -133,7 +151,7 @@ func parseWebSocketFrames(data []byte, direction string) ([]CaptureFrame, bool) 
 		if pendingKind == "" {
 			continue
 		}
-		if len(pending) > maxCaptureBody || len(frames) >= maxCaptureMessages {
+		if len(pending) > maxCaptureBody || len(frames) >= limit {
 			truncated = true
 			break
 		}
@@ -143,5 +161,5 @@ func parseWebSocketFrames(data []byte, direction string) ([]CaptureFrame, bool) 
 	if pendingKind != "" {
 		truncated = true
 	}
-	return frames, truncated
+	return frames, truncated, compressed
 }

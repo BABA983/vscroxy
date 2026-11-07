@@ -237,7 +237,7 @@ func readCharlesJSON(data []byte, name string) (Capture, error) {
 		return Capture{}, fmt.Errorf("%s: malformed Charles JSON session", name)
 	}
 	if skipped > 0 {
-		warnings.add("%d transactions beyond the first %d were not imported", skipped, maxCaptureEntries)
+		warnings.prepend("%d transactions beyond the first %d were not imported", skipped, maxCaptureEntries)
 	}
 	if read == 0 {
 		return Capture{}, fmt.Errorf("%s: the session has no transactions", name)
@@ -299,7 +299,7 @@ func (t charlesJSONTransaction) toCapture(warnings *captureWarnings, index int) 
 	end := parseCharlesTime(t.Times.End)
 	total := captureDurationMs(float64(t.Durations.Total))
 	if total <= 0 && !requestBegin.IsZero() && !end.IsZero() && end.After(requestBegin) {
-		total = end.Sub(requestBegin)
+		total = end.Sub(requestBegin) + charlesJSONSetup(t.Durations)
 	} else if total <= 0 && !start.IsZero() && !end.IsZero() && end.After(start) {
 		total = end.Sub(start)
 	}
@@ -447,23 +447,12 @@ func charlesBody(entry *charlesJSONEntry, side string, warnings *captureWarnings
 			warnings.add("transaction %d: %s body is not valid base64; body not imported", index+1, side)
 			return nil, int(entry.Body.Size)
 		}
-		if len(data) > maxCaptureBody {
-			warnings.add("transaction %d: %s body is larger than %d MiB and was not imported", index+1, side, maxCaptureBody>>20)
-			return nil, int(entry.Body.Size)
-		}
-		if !entry.Body.Decoded {
-			if decoded, err := decodeCaptureBody(data, charlesContentEncoding(entry)); err != nil {
-				warnings.add("transaction %d: %s body is marked %s but could not be decompressed; original bytes kept", index+1, side, charlesContentEncoding(entry))
-			} else {
-				data = decoded
-			}
-		}
+		data = decodeImportedBody(data, charlesContentEncoding(entry), entry.Body.Decoded, side, warnings, index)
 		return data, captureBodySize(int(entry.Body.Size), data)
 	}
 	if entry.Body.Text != "" {
 		data := []byte(entry.Body.Text)
-		if len(data) > maxCaptureBody {
-			warnings.add("transaction %d: %s body is larger than %d MiB and was not imported", index+1, side, maxCaptureBody>>20)
+		if !importBodyAllowed(data, side, warnings, index) {
 			return nil, int(entry.Body.Size)
 		}
 		return data, captureBodySize(int(entry.Body.Size), data)
@@ -500,6 +489,7 @@ func charlesXMLBodyEncoded(entry *charlesXMLEntry) bool {
 func charlesWebSocketFrames(requestBody, responseBody []byte, requestEncoded, responseEncoded bool, warnings *captureWarnings, index int) ([]CaptureFrame, bool) {
 	var frames []CaptureFrame
 	truncated := false
+	compressed := false
 	for _, side := range []struct {
 		name      string
 		data      []byte
@@ -512,23 +502,45 @@ func charlesWebSocketFrames(requestBody, responseBody []byte, requestEncoded, re
 		if !side.encoded {
 			continue
 		}
-		parsed, cut := parseWebSocketFrames(side.data, side.direction)
-		for _, frame := range parsed {
-			if len(frames) >= maxCaptureMessages {
-				cut = true
-				break
+		remaining := min(warnings.frameAllowance()-len(frames), maxCaptureMessages-len(frames))
+		if remaining <= 0 {
+			if warnings.frameAllowance() <= len(frames) {
+				warnings.budgetFramesExhausted()
 			}
-			frames = append(frames, frame)
+			truncated = true
+			break
 		}
+		parsed, cut, deflated := parseWebSocketFrames(side.data, side.direction, remaining)
+		frames = append(frames, parsed...)
 		truncated = truncated || cut
+		compressed = compressed || deflated
 	}
 	if len(frames) == 0 {
 		warnings.add("transaction %d: WebSocket upgrade has no retained frames", index+1)
 	}
+	if compressed {
+		warnings.add("transaction %d: permessage-deflate WebSocket frames are not decoded; compressed messages were skipped", index+1)
+	}
 	if truncated {
+		if len(frames) >= warnings.frameAllowance() {
+			warnings.budgetFramesExhausted()
+		}
 		warnings.add("transaction %d: WebSocket frames were truncated or malformed; the rest were not imported", index+1)
 	}
+	frames = warnings.retainFrames(frames)
 	return frames, truncated
+}
+
+func charlesJSONSetup(durations charlesDurations) time.Duration {
+	return captureDurationMs(float64(durations.DNS)) +
+		captureDurationMs(float64(durations.Connect)) +
+		captureDurationMs(float64(durations.SSL))
+}
+
+func charlesXMLSetup(transaction charlesXMLTransaction) time.Duration {
+	return captureDurationMs(float64(parseCaptureInt(transaction.DNSDuration))) +
+		captureDurationMs(float64(parseCaptureInt(transaction.ConnectDuration))) +
+		captureDurationMs(float64(parseCaptureInt(transaction.SSLDuration)))
 }
 
 func charlesJSONTiming(start, requestBegin, requestComplete, responseBegin, end time.Time, durations charlesDurations, total time.Duration) *CaptureTiming {
@@ -711,7 +723,39 @@ type charlesXMLBody struct {
 	Data     string `xml:",chardata"`
 }
 
+// checkCharlesXMLDepth scans raw tokens first. RawToken does not keep an
+// element stack, so a file with millions of nested unknown elements is
+// rejected before the real decoder can grow memory.
+func checkCharlesXMLDepth(data []byte) error {
+	decoder := xml.NewDecoder(bytes.NewReader(data))
+	depth := 0
+	for {
+		token, err := decoder.RawToken()
+		if err == io.EOF {
+			return nil
+		}
+		if err != nil {
+			return errors.New("malformed XML")
+		}
+		switch token.(type) {
+		case xml.StartElement:
+			depth++
+			if depth > maxCaptureXMLDepth {
+				return fmt.Errorf("XML nesting exceeds %d levels", maxCaptureXMLDepth)
+			}
+		case xml.EndElement:
+			depth--
+			if depth < 0 {
+				return errors.New("malformed XML")
+			}
+		}
+	}
+}
+
 func readCharlesXML(data []byte, name string) (Capture, error) {
+	if err := checkCharlesXMLDepth(data); err != nil {
+		return Capture{}, fmt.Errorf("%s: %w", name, err)
+	}
 	decoder := xml.NewDecoder(bytes.NewReader(data))
 	found := false
 	for {
@@ -799,7 +843,7 @@ done:
 		}
 	}
 	if skipped > 0 {
-		warnings.add("%d transactions beyond the first %d were not imported", skipped, maxCaptureEntries)
+		warnings.prepend("%d transactions beyond the first %d were not imported", skipped, maxCaptureEntries)
 	}
 	if read == 0 {
 		return Capture{}, fmt.Errorf("%s: the session has no transactions", name)
@@ -859,7 +903,7 @@ func (t charlesXMLTransaction) toCapture(warnings *captureWarnings, index int) (
 	end := charlesXMLTime(t.EndTime, t.EndTimeMS)
 	total := captureDurationMs(float64(parseCaptureInt(t.Duration)))
 	if total <= 0 && !requestBegin.IsZero() && !end.IsZero() && end.After(requestBegin) {
-		total = end.Sub(requestBegin)
+		total = end.Sub(requestBegin) + charlesXMLSetup(t)
 	} else if total <= 0 && !start.IsZero() && !end.IsZero() && end.After(start) {
 		total = end.Sub(start)
 	}
@@ -987,20 +1031,61 @@ func charlesXMLBodyOf(entry *charlesXMLEntry, side string, warnings *captureWarn
 			warnings.add("transaction %d: %s body is not valid base64; body not imported", index+1, side)
 			return nil, parseCaptureInt(entry.BodySize)
 		}
-		data = decoded
-		if encoding := charlesXMLContentEncoding(entry); encoding != "" {
-			if decoded, err := decodeCaptureBody(data, encoding); err != nil {
-				warnings.add("transaction %d: %s body is marked %s but could not be decompressed; original bytes kept", index+1, side, encoding)
-			} else {
-				data = decoded
+		data = decodeImportedBody(decoded, charlesXMLContentEncoding(entry), false, side, warnings, index)
+	} else if !importBodyAllowed(data, side, warnings, index) {
+		return nil, parseCaptureInt(entry.BodySize)
+	}
+	return data, captureBodySize(parseCaptureInt(entry.BodySize), data)
+}
+
+// decodeImportedBody applies the import-wide body budget after optional
+// decompression. A body that cannot be retained is dropped; the caller keeps
+// its declared size so the inspector can say what was not imported.
+func decodeImportedBody(data []byte, encoding string, alreadyDecoded bool, side string, warnings *captureWarnings, index int) []byte {
+	if len(data) == 0 {
+		return data
+	}
+	if len(data) > maxCaptureBody {
+		warnings.add("transaction %d: %s body is larger than %d MiB and was not imported", index+1, side, maxCaptureBody>>20)
+		return nil
+	}
+	if !alreadyDecoded && strings.TrimSpace(encoding) != "" {
+		limit := warnings.bodyLimit()
+		if limit <= 0 {
+			warnings.budgetBodyExhausted()
+			return nil
+		}
+		decoded, err := decodeCaptureBody(data, encoding, limit)
+		if err != nil {
+			if errors.Is(err, errCaptureBodyLimit) {
+				if limit < maxCaptureBody {
+					warnings.budgetBodyExhausted()
+				} else {
+					warnings.add("transaction %d: %s body is larger than %d MiB and was not imported", index+1, side, maxCaptureBody>>20)
+				}
+				return nil
 			}
+			warnings.add("transaction %d: %s body is marked %s but could not be decompressed; original bytes kept", index+1, side, encoding)
+		} else {
+			data = decoded
 		}
 	}
 	if len(data) > maxCaptureBody {
 		warnings.add("transaction %d: %s body is larger than %d MiB and was not imported", index+1, side, maxCaptureBody>>20)
-		return nil, parseCaptureInt(entry.BodySize)
+		return nil
 	}
-	return data, captureBodySize(parseCaptureInt(entry.BodySize), data)
+	if !warnings.takeBody(data) {
+		return nil
+	}
+	return data
+}
+
+func importBodyAllowed(data []byte, side string, warnings *captureWarnings, index int) bool {
+	if len(data) > maxCaptureBody {
+		warnings.add("transaction %d: %s body is larger than %d MiB and was not imported", index+1, side, maxCaptureBody>>20)
+		return false
+	}
+	return warnings.takeBody(data)
 }
 
 func charlesXMLContentEncoding(entry *charlesXMLEntry) string {

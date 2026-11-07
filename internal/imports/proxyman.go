@@ -248,9 +248,8 @@ func readProxymanZip(data []byte, name string) (Capture, error) {
 		return Capture{}, fmt.Errorf("%s: malformed Proxyman log archive", name)
 	}
 	var warnings captureWarnings
-	var sources []proxymanSource
+	var members []proxymanZipMember
 	var total uint64
-	skipped := 0
 	for _, member := range reader.File {
 		index, ok := proxymanEntryIndex(member.Name)
 		if !ok {
@@ -271,13 +270,23 @@ func readProxymanZip(data []byte, name string) (Capture, error) {
 			return Capture{}, fmt.Errorf("%s: the archive expands beyond %d MiB", name, maxCaptureArchive>>20)
 		}
 		total += member.UncompressedSize64
-		if len(sources) >= maxCaptureEntries {
-			skipped++
-			continue
-		}
-		member := member
+		members = append(members, proxymanZipMember{index: index, file: member})
+	}
+	if len(members) == 0 {
+		return Capture{}, fmt.Errorf("%s: no request_ entries; Proxyman session archives (.proxymansessionv2) are not supported", name)
+	}
+	// Archive members are not stored in request order. Sort the lightweight
+	// (index, member) pairs before building closures or truncating.
+	sort.SliceStable(members, func(i, j int) bool { return members[i].index < members[j].index })
+	if len(members) > maxCaptureEntries {
+		warnings.prepend("%d entries beyond the first %d were not imported", len(members)-maxCaptureEntries, maxCaptureEntries)
+		members = members[:maxCaptureEntries]
+	}
+	sources := make([]proxymanSource, 0, len(members))
+	for _, entry := range members {
+		member := entry.file
 		sources = append(sources, proxymanSource{
-			index: index, name: member.Name,
+			index: entry.index, name: member.Name,
 			read: func() ([]byte, error) {
 				file, err := member.Open()
 				if err != nil {
@@ -288,13 +297,12 @@ func readProxymanZip(data []byte, name string) (Capture, error) {
 			},
 		})
 	}
-	if len(sources) == 0 {
-		return Capture{}, fmt.Errorf("%s: no request_ entries; Proxyman session archives (.proxymansessionv2) are not supported", name)
-	}
-	if skipped > 0 {
-		warnings.add("%d entries beyond the first %d were not imported", skipped, maxCaptureEntries)
-	}
 	return readProxymanSources(sources, name, &warnings)
+}
+
+type proxymanZipMember struct {
+	index int
+	file  *zip.File
 }
 
 func proxymanDirFiles(dir string) ([]proxymanSource, error) {
@@ -375,7 +383,7 @@ func proxymanSourcesIn(dir string, entries []os.DirEntry) ([]proxymanSource, err
 func readProxymanSources(sources []proxymanSource, name string, warnings *captureWarnings) (Capture, error) {
 	sort.SliceStable(sources, func(i, j int) bool { return sources[i].index < sources[j].index })
 	if len(sources) > maxCaptureEntries {
-		warnings.add("%d entries beyond the first %d were not imported", len(sources)-maxCaptureEntries, maxCaptureEntries)
+		warnings.prepend("%d entries beyond the first %d were not imported", len(sources)-maxCaptureEntries, maxCaptureEntries)
 		sources = sources[:maxCaptureEntries]
 	}
 	capture := Capture{Format: CaptureProxymanLog}
@@ -641,6 +649,9 @@ func proxymanBody(value, side string, warnings *captureWarnings, index int) []by
 		warnings.add("entry %d: %s body is larger than %d MiB and was not imported", index+1, side, maxCaptureBody>>20)
 		return nil
 	}
+	if !warnings.takeBody(data) {
+		return nil
+	}
 	return data
 }
 
@@ -669,10 +680,15 @@ func proxymanFrames(storage *proxymanWS, fallback time.Time, warnings *captureWa
 	if storage == nil {
 		return nil
 	}
-	frames := make([]CaptureFrame, 0, len(storage.Messages))
+	capacity := min(len(storage.Messages), warnings.frameAllowance())
+	frames := make([]CaptureFrame, 0, capacity)
 	for number, message := range storage.Messages {
 		if number >= maxCaptureMessages {
 			warnings.add("entry %d: WebSocket messages beyond the first %d were not imported", index+1, maxCaptureMessages)
+			break
+		}
+		if len(frames) >= warnings.frameAllowance() {
+			warnings.budgetFramesExhausted()
 			break
 		}
 		kind := strings.ToLower(strings.TrimSpace(message.Type))
@@ -718,7 +734,7 @@ func proxymanFrames(storage *proxymanWS, fallback time.Time, warnings *captureWa
 		}
 		frames = append(frames, CaptureFrame{Direction: direction, Kind: kind, Data: data, At: at})
 	}
-	return frames
+	return warnings.retainFrames(frames)
 }
 
 func proxymanError(value jsontext.Value) string {

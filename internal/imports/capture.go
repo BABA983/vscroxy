@@ -42,6 +42,15 @@ const (
 	// maxCaptureArchive bounds the uncompressed members of one zip archive,
 	// so a small file cannot expand without limit.
 	maxCaptureArchive = 256 << 20
+	// maxCaptureImportBytes bounds everything one import retains: bodies plus
+	// WebSocket message bytes. A compressed file can expand far beyond its own
+	// size, so per-body limits alone are not enough.
+	maxCaptureImportBytes = 512 << 20
+	// maxCaptureImportFrames bounds the WebSocket messages one import retains.
+	maxCaptureImportFrames = 200_000
+	// maxCaptureXMLDepth bounds element nesting before the real XML decoder
+	// builds its element stack.
+	maxCaptureXMLDepth = 64
 	// maxCaptureWarnings bounds the import report. The rest are counted.
 	maxCaptureWarnings = 20
 )
@@ -195,10 +204,21 @@ func ReadProxymanDir(path string) (Capture, error) {
 }
 
 // captureWarnings collects what an import left out without letting a malformed
-// entry flood the report.
+// entry flood the report. It also carries the import-wide retention budget,
+// because every parser already threads the report through.
 type captureWarnings struct {
-	lines []string
-	extra int
+	lines  []string
+	extra  int
+	budget captureBudget
+}
+
+type captureBudget struct {
+	maxBodyBytes int64
+	maxFrames    int
+	bodyBytes    int64
+	frames       int
+	bodyWarned   bool
+	frameWarned  bool
 }
 
 func (w *captureWarnings) add(format string, args ...any) {
@@ -209,11 +229,122 @@ func (w *captureWarnings) add(format string, args ...any) {
 	w.lines = append(w.lines, fmt.Sprintf(format, args...))
 }
 
+// prepend keeps a cap warning visible even when every capped entry also
+// produced its own warning.
+func (w *captureWarnings) prepend(format string, args ...any) {
+	line := fmt.Sprintf(format, args...)
+	if len(w.lines) < maxCaptureWarnings {
+		w.lines = append([]string{line}, w.lines...)
+		return
+	}
+	w.lines = append([]string{line}, w.lines[:maxCaptureWarnings-1]...)
+	w.extra++
+}
+
 func (w *captureWarnings) finish() []string {
 	if w.extra == 0 {
 		return w.lines
 	}
 	return append(w.lines, fmt.Sprintf("%d more issues were not listed", w.extra))
+}
+
+func (w *captureWarnings) bodyBudget() int64 {
+	if w.budget.maxBodyBytes > 0 {
+		return w.budget.maxBodyBytes
+	}
+	return maxCaptureImportBytes
+}
+
+func (w *captureWarnings) frameBudget() int {
+	if w.budget.maxFrames > 0 {
+		return w.budget.maxFrames
+	}
+	return maxCaptureImportFrames
+}
+
+// bodyLimit is the smaller of one body's cap and the import's remaining
+// budget. decodeCaptureBody uses it as its output limit.
+func (w *captureWarnings) bodyLimit() int64 {
+	remaining := w.bodyBudget() - w.budget.bodyBytes
+	if remaining <= 0 {
+		return 0
+	}
+	return min(remaining, int64(maxCaptureBody))
+}
+
+func (w *captureWarnings) takeBody(data []byte) bool {
+	if len(data) == 0 {
+		return true
+	}
+	if w.budget.bodyBytes+int64(len(data)) > w.bodyBudget() {
+		w.budgetBodyExhausted()
+		return false
+	}
+	w.budget.bodyBytes += int64(len(data))
+	return true
+}
+
+func (w *captureWarnings) budgetBodyExhausted() {
+	if w.budget.bodyWarned {
+		return
+	}
+	w.budget.bodyWarned = true
+	w.prepend("import body budget of %d MiB reached; remaining bodies and messages were not retained", w.bodyBudget()>>20)
+}
+
+func (w *captureWarnings) frameAllowance() int {
+	remaining := w.frameBudget() - w.budget.frames
+	if remaining <= 0 {
+		return 0
+	}
+	return remaining
+}
+
+// retainFrames applies both frame-count and byte budgets. Frame payloads share
+// the body budget, so a stream of large messages cannot bypass it.
+func (w *captureWarnings) retainFrames(frames []CaptureFrame) []CaptureFrame {
+	if len(frames) == 0 {
+		return frames
+	}
+	countLeft := w.frameAllowance()
+	byteLeft := w.bodyBudget() - w.budget.bodyBytes
+	if countLeft <= 0 {
+		w.budgetFramesExhausted()
+		return nil
+	}
+	if byteLeft <= 0 {
+		w.budgetBodyExhausted()
+		return nil
+	}
+	kept, bytes := 0, int64(0)
+	for _, frame := range frames {
+		if kept >= countLeft || int64(len(frame.Data)) > byteLeft {
+			break
+		}
+		frames[kept] = frame
+		kept++
+		byteLeft -= int64(len(frame.Data))
+		bytes += int64(len(frame.Data))
+	}
+	if kept < len(frames) {
+		if kept >= countLeft {
+			w.budgetFramesExhausted()
+		}
+		if int64(len(frames[kept].Data)) > byteLeft {
+			w.budgetBodyExhausted()
+		}
+	}
+	w.budget.frames += kept
+	w.budget.bodyBytes += bytes
+	return frames[:kept]
+}
+
+func (w *captureWarnings) budgetFramesExhausted() {
+	if w.budget.frameWarned {
+		return
+	}
+	w.budget.frameWarned = true
+	w.prepend("import WebSocket message budget of %d reached; remaining messages were not imported", w.frameBudget())
 }
 
 // captureHeader keeps every enabled header and every repeat, dropping HTTP/2
@@ -369,6 +500,8 @@ func decodeCaptureBase64(value string) ([]byte, error) {
 	return nil, errors.New("not valid base64")
 }
 
+var errCaptureLimit = errors.New("capture data exceeds limit")
+
 // readAllLimited reads at most limit bytes and reports when the source was
 // longer, so a size declared by an untrusted file is never trusted blindly.
 func readAllLimited(r io.Reader, limit int64) ([]byte, error) {
@@ -377,7 +510,7 @@ func readAllLimited(r io.Reader, limit int64) ([]byte, error) {
 		return nil, err
 	}
 	if int64(len(data)) > limit {
-		return nil, fmt.Errorf("larger than %d MiB", limit>>20)
+		return nil, fmt.Errorf("%w: larger than %d MiB", errCaptureLimit, limit>>20)
 	}
 	return data, nil
 }

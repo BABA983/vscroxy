@@ -5,6 +5,7 @@ import (
 	"compress/flate"
 	"compress/gzip"
 	"compress/zlib"
+	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -12,14 +13,20 @@ import (
 	"github.com/andybalholm/brotli"
 )
 
+var errCaptureBodyLimit = errors.New("decoded body exceeds the import body limit")
+
 // decodeCaptureBody undoes the Content-Encoding a source recorded for a body
 // it kept compressed. Exports can write either the wire bytes or the decoded
 // bytes; when they say the body is still encoded, the app's body model wants
 // the decoded form while the header stays as it was on the wire. The output is
-// capped so a compression bomb cannot grow a capture without limit.
-func decodeCaptureBody(data []byte, encoding string) ([]byte, error) {
+// capped by the caller's remaining import budget so a compression bomb cannot
+// grow a capture without limit.
+func decodeCaptureBody(data []byte, encoding string, limit int64) ([]byte, error) {
 	if len(data) == 0 || strings.TrimSpace(encoding) == "" {
 		return data, nil
+	}
+	if limit <= 0 {
+		return nil, errCaptureBodyLimit
 	}
 	encodings := strings.Split(encoding, ",")
 	for i := len(encodings) - 1; i >= 0; i-- {
@@ -48,11 +55,14 @@ func decodeCaptureBody(data []byte, encoding string) ([]byte, error) {
 		default:
 			return nil, fmt.Errorf("unsupported Content-Encoding %q", encoding)
 		}
-		decoded, err := readAllLimited(reader, maxCaptureBody)
+		decoded, err := readAllLimited(reader, limit)
 		if closer != nil {
 			_ = closer.Close()
 		}
 		if err != nil {
+			if errors.Is(err, errCaptureLimit) {
+				return nil, fmt.Errorf("%w: %s", errCaptureBodyLimit, encoding)
+			}
 			return nil, fmt.Errorf("%s: %w", encoding, err)
 		}
 		data = decoded
