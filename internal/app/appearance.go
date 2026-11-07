@@ -150,6 +150,7 @@ func (a *app) leaveSettings() {
 func (a *app) settingsView(c *ui.Context) {
 	dark := a.appearance == "dark" || a.appearance == "" && c.Theme().Dark
 	c.SetTheme(uikit.Theme(dark))
+	c.SetMenuPresentation(ui.PopoverMenus)
 	t := c.Theme()
 	a.drainCertificate()
 	a.drainSystemProxy()

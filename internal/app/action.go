@@ -142,6 +142,7 @@ func (a *app) pickActions(c *ui.Context, ids ...string) []action {
 // actionMenu fills a menu with actions, a line between groups. Unavailable
 // actions stay, disabled, so a menu keeps its shape.
 func actionMenu(m *ui.Menu, actions []action) {
+	m.MaxWidth(420)
 	for i, x := range actions {
 		if x.label == "" {
 			continue
@@ -154,6 +155,12 @@ func actionMenu(m *ui.Menu, actions []action) {
 			continue
 		}
 		item := m.Item(x.label).Shortcut(x.shortcut.mods, x.shortcut.key).Disabled(!x.enabled)
+		if x.group == "danger" {
+			item.Danger()
+		}
+		if !x.enabled {
+			item.Tooltip(x.hint())
+		}
 		switch x.check {
 		case checkOff, checkOn:
 			item.Checked(x.check == checkOn)

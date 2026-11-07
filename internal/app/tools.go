@@ -73,6 +73,7 @@ func (a *app) invalidateTools() {
 func (a *app) toolsView(c *ui.Context) {
 	dark := a.appearance == "dark" || a.appearance == "" && c.Theme().Dark
 	c.SetTheme(uikit.Theme(dark))
+	c.SetMenuPresentation(ui.PopoverMenus)
 	t := c.Theme()
 	a.drainHosts()
 	if a.toolsMenuAction == "request.save" {

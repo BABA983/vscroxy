@@ -1401,6 +1401,7 @@ func (a *app) view(c *ui.Context) {
 	// The pass starts from MyGo's theme, which follows the system.
 	a.dark = a.appearance == "dark" || a.appearance == "" && c.Theme().Dark
 	c.SetTheme(uikit.Theme(a.dark))
+	c.SetMenuPresentation(ui.PopoverMenus)
 	a.drain()
 	a.drainGRPC()
 	a.drainSocketIO()
