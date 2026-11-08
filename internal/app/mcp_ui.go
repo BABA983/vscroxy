@@ -160,25 +160,25 @@ func (a *app) mcpActions(d *requestDocument, editing bool) []action {
 	connected := s.connected && !s.finished
 	idle := connected && !s.busy && !d.sendCancelling
 	return []action{
-		do("request.mcp-cancel", "Cancel MCP request", func() { u.session.cancelOp() }).when(connected && s.busy, "No MCP request is running"),
-		do("request.mcp-disconnect", "Disconnect MCP", func() { u.session.disconnect() }).when(connected, "Connect an MCP document first"),
-		do("request.mcp-refresh", "Refresh MCP catalog", func() { u.session.refreshCatalog() }).when(idle, "Connect an MCP document first"),
-		do("request.mcp-call", "Call MCP tool", func() {
+		do("request.mcp-cancel", locales.CancelMcpRequest(), func() { u.session.cancelOp() }).when(connected && s.busy, "No MCP request is running"),
+		do("request.mcp-disconnect", locales.DisconnectMcp(), func() { u.session.disconnect() }).when(connected, "Connect an MCP document first"),
+		do("request.mcp-refresh", locales.RefreshMcpCatalog(), func() { u.session.refreshCatalog() }).when(idle, "Connect an MCP document first"),
+		do("request.mcp-call", locales.CallMcpTool(), func() {
 			if _, err := u.session.callTool(d.mcpConfig); err != nil {
 				u.problem = err.Error()
 			}
 		}).when(idle && d.mcpConfig.Tool != "", "Choose a tool and connect first"),
-		do("request.mcp-read", "Read MCP resource", func() {
+		do("request.mcp-read", locales.ReadMcpResource(), func() {
 			if _, err := u.session.readResource(d.mcpConfig); err != nil {
 				u.problem = err.Error()
 			}
 		}).when(idle && d.mcpConfig.ResourceURI != "", "Enter a resource URI and connect first"),
-		do("request.mcp-prompt", "Get MCP prompt", func() {
+		do("request.mcp-prompt", locales.GetMcpPrompt(), func() {
 			if _, err := u.session.getPrompt(d.mcpConfig); err != nil {
 				u.problem = err.Error()
 			}
 		}).when(idle && d.mcpConfig.Prompt != "", "Choose a prompt and connect first"),
-		do("request.mcp-fill-args", "Fill MCP arguments from schema", func() { a.mcpFillArguments(d) }).when(d.mcpConfig.Tool != "", "Choose a tool first"),
+		do("request.mcp-fill-args", locales.FillMcpArgumentsFromSchema(), func() { a.mcpFillArguments(d) }).when(d.mcpConfig.Tool != "", "Choose a tool first"),
 	}
 }
 
@@ -249,7 +249,7 @@ func (a *app) mcpEditor(c *ui.Context, t *ui.Theme, d *requestDocument) {
 	s := u.session.snapshot()
 	ui.Column(c).Fill().Children(func() {
 		ui.Row(c).Height(uikit.HeightTabs).Padding(0, t.Space(3)).Children(func() {
-			uikit.Tabs(c, &u.tab, "MCP editor", "Connection", "Tools", "Resources", "Prompts", "Headers", "Auth").Grow(1)
+			uikit.Tabs(c, &u.tab, "MCP editor", locales.Connection(), locales.Tools(), locales.Resources(), locales.Prompts(), locales.Headers(), locales.Auth()).Grow(1)
 		})
 		if u.problem != "" {
 			ui.Text(c, u.problem).TextColor(t.Danger).FontSize(uikit.TextMeta).MaxHeight(55).Padding(0, t.Space(3))
@@ -272,13 +272,13 @@ func (a *app) mcpEditor(c *ui.Context, t *ui.Theme, d *requestDocument) {
 				a.mcpPromptsEditor(c, t, d, u, s)
 			case mcpTabHeaders:
 				if d.mcpConfig.Transport == request.MCPTransportStdio {
-					uikit.Hint(c, "stdio MCP servers receive credentials through environment variables, not HTTP headers.")
+					uikit.Hint(c, locales.StdioMcpServersReceiveCredentials())
 					return
 				}
 				ui.Column(c).Fill().Disabled(d.composeWaiting).Children(func() { a.headerEditor(c, d, t) })
 			case mcpTabAuth:
 				if d.mcpConfig.Transport == request.MCPTransportStdio {
-					uikit.Hint(c, "stdio MCP servers receive credentials through environment variables, not HTTP auth.")
+					uikit.Hint(c, locales.StdioMcpServersReceiveCredentials2())
 					return
 				}
 				ui.Column(c).Fill().Disabled(d.composeWaiting).Children(func() { a.authEditor(c, d, t) })
@@ -291,44 +291,44 @@ func (a *app) mcpConnectionEditor(c *ui.Context, t *ui.Theme, d *requestDocument
 	ui.Scroll(c).Grow(1).Gap(t.Space(2)).Padding(0, t.Space(1)).Disabled(d.composeWaiting).Children(func() {
 		ui.Row(c).Gap(t.Space(2)).Wrap().AlignItems(ui.Center).Children(func() {
 			uikit.Select(c, &d.mcpConfig.Transport, []string{request.MCPTransportStreamableHTTP, request.MCPTransportSSE, request.MCPTransportStdio}).
-				Label("MCP transport").Width(190)
+				Label(locales.McpTransport()).Width(190)
 			timeout := strconv.Itoa(a.mcpEffectiveTimeout(d))
-			uikit.Select(c, &timeout, []string{"10", "30", "60", "300", "3600"}).Label("MCP timeout seconds").Width(96).
-				Tooltip("Connect and each request use this timeout; cancelling never undoes server-side changes").OnChange(func() {
+			uikit.Select(c, &timeout, []string{"10", "30", "60", "300", "3600"}).Label(locales.McpTimeoutSeconds()).Width(96).
+				Tooltip(locales.ConnectAndEachRequestUse()).OnChange(func() {
 				d.mcpConfig.TimeoutSeconds, _ = strconv.Atoi(timeout)
 			})
 		})
 		version := cmp.Or(d.mcpConfig.ProtocolVersion, "auto")
-		uikit.Select(c, &version, []string{"auto", "2025-06-18", "2025-11-25", "2026-07-28"}).Label("MCP protocol version").Width(180).
-			Tooltip("auto negotiates the latest version; a fixed version fails if the server chooses another").OnChange(func() {
+		uikit.Select(c, &version, []string{"auto", "2025-06-18", "2025-11-25", "2026-07-28"}).Label(locales.McpProtocolVersion()).Width(180).
+			Tooltip(locales.AutoNegotiatesTheLatestVersion()).OnChange(func() {
 			d.mcpConfig.ProtocolVersion = version
 		})
 		if d.mcpConfig.Transport == request.MCPTransportStdio {
 			a.variableInput(c, "mcp-command", &d.mcpConfig.Command, "Command", d.composeCollection).
 				Placeholder("/path/to/mcp-server").Font(uikit.FontMono)
 			ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-				uikit.Meta(c, "Arguments · one per line · {{variables}} supported").Grow(1)
+				uikit.Meta(c, locales.ArgumentsOnePerLineVariables()).Grow(1)
 			})
 			a.variableTextArea(c, "mcp-args", &d.mcpConfig.Args, "Command arguments", d.composeCollection).Height(64).Font(uikit.FontMono)
 			a.variableInput(c, "mcp-dir", &d.mcpConfig.WorkingDir, "Working directory", d.composeCollection).
-				Placeholder("Optional · the app's directory by default").Font(uikit.FontMono)
-			uikit.Meta(c, "Environment · values may use {{variables}}; masked rows are not sent").Padding(0, t.Space(1))
+				Placeholder(locales.OptionalTheAppSDirectory()).Font(uikit.FontMono)
+			uikit.Meta(c, locales.EnvironmentValuesMayUseVariables()).Padding(0, t.Space(1))
 			a.requestFieldsEditor(c, &d.mcpConfig.Env, fieldsOptions{secret: true, collection: d.composeCollection}, locales.EnvironmentVariable())
-			uikit.Hint(c, "The command starts only when you press Connect, and stops on Disconnect, closing the document or quitting. Nothing is run at load time. Environment values are saved with the document and never logged.")
+			uikit.Hint(c, locales.TheCommandStartsOnlyWhen())
 		} else {
-			uikit.Hint(c, "The address bar is the MCP endpoint. Headers, HTTP auth, variables and the request's certificate settings apply. HTTPS is captured while the proxy runs; without it the connection is direct.")
+			uikit.Hint(c, locales.TheAddressBarIsThe())
 			ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 				verify := a.inheritance(d.composeCollection).InheritSettings(d.settings).Verifies()
-				if ui.Switch(c, &verify).Label("Verify TLS certificate").Changed() {
+				if ui.Switch(c, &verify).Label(locales.VerifyTlsCertificate()).Changed() {
 					d.setVerify(verify)
 				}
-				uikit.Meta(c, "System roots plus Settings → Certificates; a matching client certificate is presented").Grow(1).SingleLine()
+				uikit.Meta(c, locales.SystemRootsPlusSettingsCertificates()).Grow(1).SingleLine()
 			})
 			if !a.inheritance(d.composeCollection).InheritSettings(d.settings).Verifies() {
 				ui.Row(c).Padding(t.Space(1), t.Space(2)).Gap(t.Space(2)).Radius(uikit.RadiusControl).
 					Background(t.Warning.Alpha(0.12)).AlignItems(ui.Start).Children(func() {
 					ui.Icon(c, warningIcon).Size(uikit.IconInline, uikit.IconInline).TextColor(t.Warning)
-					ui.Text(c, "Certificate verification is off: this connection accepts any certificate, including an impostor's. Use it only for a server you control.").
+					ui.Text(c, locales.CertificateVerificationIsOffThis2()).
 						FontSize(uikit.TextMeta).TextColor(t.Warning).Grow(1)
 				})
 			}
@@ -336,7 +336,7 @@ func (a *app) mcpConnectionEditor(c *ui.Context, t *ui.Theme, d *requestDocument
 				uikit.Meta(c, "Connected to "+s.connection.Endpoint).Padding(0, t.Space(1)).SingleLine()
 			}
 		}
-		uikit.Hint(c, "MCP documents do not run HTTP scripts, Checks, token bindings, Runner, code generation or History. HTTP/SSE and stdio share the same timeline and catalog.")
+		uikit.Hint(c, locales.McpDocumentsDoNotRun())
 	})
 }
 
@@ -373,22 +373,22 @@ func mcpToolNames(tools []request.MCPTool) []string {
 func (a *app) mcpToolsEditor(c *ui.Context, t *ui.Theme, d *requestDocument, u *mcpDocument, s mcpSnapshot) {
 	tool := mcpToolByName(s.tools, d.mcpConfig.Tool)
 	ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-		field := ui.Combobox(c, &d.mcpConfig.Tool, mcpToolNames(s.tools)).Label("MCP tool").Placeholder("Choose a tool").
+		field := ui.Combobox(c, &d.mcpConfig.Tool, mcpToolNames(s.tools)).Label(locales.McpTool()).Placeholder(locales.ChooseATool()).
 			Grow(1).MinWidth(0).Height(uikit.HeightControl).FontSize(uikit.TextBody).Disabled(d.composeWaiting)
 		uikit.FieldFace(c, field, field.Focused())
 		a.actionButton(c, "request.mcp-call", "Call tool")
 	})
 	if tool == nil {
-		uikit.Hint(c, "Connect and refresh the catalog to choose a tool. The server's input schema can fill the arguments object.")
+		uikit.Hint(c, locales.ConnectAndRefreshTheCatalog())
 		return
 	}
 	description := cmp.Or(tool.Description, tool.Title, "No description")
 	uikit.Meta(c, description).MaxLines(2)
 	if tool.Annotations != "" && tool.Annotations != "null" {
-		uikit.Meta(c, tool.Annotations).SingleLine().Tooltip("Tool annotations")
+		uikit.Meta(c, tool.Annotations).SingleLine().Tooltip(locales.ToolAnnotations())
 	}
 	ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-		uikit.Segmented(c, &u.toolTab, "Arguments", "Input schema")
+		uikit.Segmented(c, &u.toolTab, locales.Arguments(), locales.InputSchema())
 		ui.Spacer(c)
 		if u.toolTab == 0 {
 			a.actionButton(c, "request.mcp-fill-args", "Fill from schema")
@@ -402,14 +402,14 @@ func (a *app) mcpToolsEditor(c *ui.Context, t *ui.Theme, d *requestDocument, u *
 			if text == "" {
 				text = "This tool has no input schema."
 			}
-			u.schemaReader = &editor.State{Buffer: editor.NewBuffer(text), ReadOnly: true, NoScrollPastEnd: true, SoftWrap: true, Label: "MCP tool input schema"}
+			u.schemaReader = &editor.State{Buffer: editor.NewBuffer(text), ReadOnly: true, NoScrollPastEnd: true, SoftWrap: true, Label: locales.McpToolInputSchema()}
 			u.schemaReader.Buffer.SetLanguage(editor.LanguageNamed("json"))
 		}
 		requestCodeEditor(c, u.schemaReader)
 		return
 	}
 	ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-		uikit.Meta(c, "Arguments JSON object · {{variables}} supported · blank sends {}").Grow(1).SingleLine()
+		uikit.Meta(c, locales.ArgumentsJsonObjectVariablesSupported()).Grow(1).SingleLine()
 	})
 	authoredText(c, &d.mcpConfig.ToolArgs, &u.argsEditor, &u.argsFor, "MCP tool arguments", "json")
 	a.wireVariableEditor(u.argsEditor, d.composeCollection)
@@ -447,7 +447,7 @@ func mcpTemplateByURI(templates []request.MCPResourceTemplate, uri string) *requ
 
 func (a *app) mcpResourcesEditor(c *ui.Context, t *ui.Theme, d *requestDocument, s mcpSnapshot) {
 	ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-		field := ui.Combobox(c, &d.mcpConfig.ResourceURI, mcpResourceOptions(s.resources, s.templates)).Label("MCP resource URI").
+		field := ui.Combobox(c, &d.mcpConfig.ResourceURI, mcpResourceOptions(s.resources, s.templates)).Label(locales.McpResourceUri()).
 			Placeholder("memo://welcome").Grow(1).MinWidth(0).Height(uikit.HeightControl).FontSize(uikit.TextBody).Font(uikit.FontMono).Disabled(d.composeWaiting)
 		uikit.FieldFace(c, field, field.Focused())
 		a.actionButton(c, "request.mcp-read", "Read resource")
@@ -463,9 +463,9 @@ func (a *app) mcpResourcesEditor(c *ui.Context, t *ui.Theme, d *requestDocument,
 			uikit.Meta(c, template.Description).MaxLines(2)
 		}
 	} else {
-		uikit.Hint(c, "Choose an advertised resource or template, or type any URI the server accepts. Templates keep their {placeholders}; edit them first.")
+		uikit.Hint(c, locales.ChooseAnAdvertisedResourceOr())
 	}
-	uikit.Hint(c, "resources/read returns text, blob, image or audio content in the Result tab. The URI is expanded with the connection's original variables.")
+	uikit.Hint(c, locales.ResourcesReadReturnsTextBlob())
 }
 
 func mcpPromptNames(prompts []request.MCPPrompt) []string {
@@ -488,13 +488,13 @@ func mcpPromptByName(prompts []request.MCPPrompt, name string) *request.MCPPromp
 func (a *app) mcpPromptsEditor(c *ui.Context, t *ui.Theme, d *requestDocument, u *mcpDocument, s mcpSnapshot) {
 	prompt := mcpPromptByName(s.prompts, d.mcpConfig.Prompt)
 	ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-		field := ui.Combobox(c, &d.mcpConfig.Prompt, mcpPromptNames(s.prompts)).Label("MCP prompt").Placeholder("Choose a prompt").
+		field := ui.Combobox(c, &d.mcpConfig.Prompt, mcpPromptNames(s.prompts)).Label(locales.McpPrompt()).Placeholder(locales.ChooseAPrompt()).
 			Grow(1).MinWidth(0).Height(uikit.HeightControl).FontSize(uikit.TextBody).Disabled(d.composeWaiting)
 		uikit.FieldFace(c, field, field.Focused())
 		a.actionButton(c, "request.mcp-prompt", "Get prompt")
 	})
 	if prompt == nil {
-		uikit.Hint(c, "Connect and refresh the catalog to choose a prompt.")
+		uikit.Hint(c, locales.ConnectAndRefreshTheCatalog2())
 		return
 	}
 	if prompt.Description != "" {
@@ -512,7 +512,7 @@ func (a *app) mcpPromptsEditor(c *ui.Context, t *ui.Theme, d *requestDocument, u
 		uikit.Meta(c, "Arguments: "+strings.Join(parts, ", ")).MaxLines(2)
 	}
 	ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-		uikit.Meta(c, "Arguments JSON object · string values · {{variables}} supported").Grow(1).SingleLine()
+		uikit.Meta(c, locales.ArgumentsJsonObjectStringValues()).Grow(1).SingleLine()
 	})
 	authoredText(c, &d.mcpConfig.PromptArgs, &u.argsEditor, &u.argsFor, "MCP prompt arguments", "json")
 	a.wireVariableEditor(u.argsEditor, d.composeCollection)
@@ -524,7 +524,7 @@ func (a *app) mcpResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 	s := u.session.snapshot()
 	ui.Column(c).Fill().Children(func() {
 		ui.Row(c).Height(uikit.HeightTabs).Padding(0, t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-			uikit.Tabs(c, &u.responseTab, "MCP response", "Timeline", "Result", "Catalog", "Session").Grow(1)
+			uikit.Tabs(c, &u.responseTab, "MCP response", locales.Timeline(), locales.Result(), locales.CatalogTab(), locales.Session()).Grow(1)
 			if s.busy {
 				a.actionButton(c, "request.mcp-cancel", "Cancel request")
 			}
@@ -538,7 +538,7 @@ func (a *app) mcpResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 			uikit.Meta(c, state).SingleLine()
 		})
 		if u.session == nil {
-			uikit.EmptyState(c, "No MCP session yet", "Choose a transport, then Connect. The session lists the server's tools, resources and prompts and keeps a bounded timeline of requests, responses, notifications and logs.", nil)
+			uikit.EmptyState(c, locales.NoMcpSessionYet(), locales.ChooseATransportThenConnect(), nil)
 			return
 		}
 		if u.problem != "" {
@@ -562,8 +562,8 @@ func (a *app) mcpResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 
 func (a *app) mcpTimeline(c *ui.Context, t *ui.Theme, u *mcpDocument, s mcpSnapshot) {
 	ui.Row(c).Padding(t.Space(1), t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-		uikit.Input(c, &u.query).Label("Search MCP timeline").Placeholder("Search kind, name or payload").Grow(1).MinWidth(0)
-		uikit.Meta(c, fmt.Sprintf("%d retained · %d evicted · 64 KiB preview", len(s.events), s.evicted)).SingleLine()
+		uikit.Input(c, &u.query).Label(locales.SearchMcpTimeline()).Placeholder(locales.SearchKindNameOrPayload()).Grow(1).MinWidth(0)
+		uikit.Meta(c, locales.RetainedPreview2(len(s.events), s.evicted)).SingleLine()
 	})
 	query := strings.ToLower(strings.TrimSpace(u.query))
 	var events []mcpEvent
@@ -573,7 +573,7 @@ func (a *app) mcpTimeline(c *ui.Context, t *ui.Theme, u *mcpDocument, s mcpSnaps
 		}
 	}
 	if len(events) == 0 {
-		uikit.EmptyState(c, "No matching MCP events", "Change the search or wait for the server.", nil)
+		uikit.EmptyState(c, locales.NoMatchingMcpEvents(), locales.ChangeTheSearchOrWait(), nil)
 		return
 	}
 	ui.Split(c, &u.split, func() {
@@ -591,7 +591,7 @@ func (a *app) mcpTimeline(c *ui.Context, t *ui.Theme, u *mcpDocument, s mcpSnaps
 			}
 			ui.Column(c).Padding(t.Space(1), t.Space(2)).Children(func() {
 				ui.Text(c, event.kind+" · "+event.name).FontSize(uikit.TextBody).SingleLine()
-				uikit.Meta(c, fmt.Sprintf("#%d · %s · %d B", event.seq, event.at.Format("15:04:05.000"), event.size)).SingleLine()
+				uikit.Meta(c, locales.EventLineSize(event.seq, event.at.Format("15:04:05.000"), event.size)).SingleLine()
 			})
 		}).Grow(1)
 		c.SetTheme(t)
@@ -601,12 +601,12 @@ func (a *app) mcpTimeline(c *ui.Context, t *ui.Theme, u *mcpDocument, s mcpSnaps
 		key := fmt.Sprint(event.seq)
 		if u.readerKey != key {
 			u.readerKey = key
-			u.reader = &editor.State{Buffer: editor.NewBuffer(event.text), ReadOnly: true, NoScrollPastEnd: true, SoftWrap: true, Label: "MCP event payload"}
+			u.reader = &editor.State{Buffer: editor.NewBuffer(event.text), ReadOnly: true, NoScrollPastEnd: true, SoftWrap: true, Label: locales.McpEventPayload()}
 		}
 		ui.Column(c).Fill().Children(func() {
 			ui.Row(c).Padding(t.Space(1), t.Space(2)).Gap(t.Space(2)).Children(func() {
-				uikit.Meta(c, fmt.Sprintf("#%d %s · %s · %s", event.seq, event.kind, event.name, event.at.Format("15:04:05.000"))).Grow(1).SingleLine()
-				uikit.SecondaryButton(c, "Copy shown event").OnClick(func() { c.Services().WriteClipboard(u.reader.Buffer.String()) })
+				uikit.Meta(c, locales.EventLineKind(event.seq, event.kind, event.name, event.at.Format("15:04:05.000"))).Grow(1).SingleLine()
+				uikit.SecondaryButton(c, locales.CopyShownEvent()).OnClick(func() { c.Services().WriteClipboard(u.reader.Buffer.String()) })
 			})
 			requestCodeEditor(c, u.reader)
 		})
@@ -615,7 +615,7 @@ func (a *app) mcpTimeline(c *ui.Context, t *ui.Theme, u *mcpDocument, s mcpSnaps
 
 func (a *app) mcpResult(c *ui.Context, t *ui.Theme, u *mcpDocument, s mcpSnapshot) {
 	if s.result == nil {
-		uikit.EmptyState(c, "No MCP result yet", "Call a tool, read a resource or get a prompt. The Result tab shows text, image and audio blocks, structured content and isError.", nil)
+		uikit.EmptyState(c, locales.NoMcpResultYet(), locales.CallAToolReadA(), nil)
 		return
 	}
 	result := s.result
@@ -629,15 +629,15 @@ func (a *app) mcpResult(c *ui.Context, t *ui.Theme, u *mcpDocument, s mcpSnapsho
 		if result.IsError {
 			ui.Text(c, "isError").FontSize(uikit.TextMeta).TextColor(t.Danger)
 		} else {
-			uikit.Meta(c, "OK").SingleLine()
+			uikit.Meta(c, locales.Ok()).SingleLine()
 		}
-		uikit.Meta(c, fmt.Sprintf("%d B · %d blocks", result.Bytes, len(result.Content))).SingleLine()
-		uikit.SecondaryButton(c, "Copy result").OnClick(func() { c.Services().WriteClipboard(result.Text) })
+		uikit.Meta(c, locales.ResultSize(int(result.Bytes), len(result.Content))).SingleLine()
+		uikit.SecondaryButton(c, locales.CopyResult()).OnClick(func() { c.Services().WriteClipboard(result.Text) })
 	})
 	ui.Scroll(c).Grow(1).Padding(0, t.Space(3)).Children(func() {
 		ui.Column(c).Selectable().Gap(t.Space(2)).Children(func() {
 			if result.Description != "" {
-				uikit.Meta(c, "Description").Padding(0, 0, t.Space(1), 0)
+				uikit.Meta(c, locales.Description()).Padding(0, 0, t.Space(1), 0)
 				ui.Text(c, request.MCPPreview(result.Description, 64<<10)).FontSize(uikit.TextBody)
 			}
 			for i, block := range result.Content {
@@ -668,7 +668,7 @@ func (a *app) mcpResult(c *ui.Context, t *ui.Theme, u *mcpDocument, s mcpSnapsho
 					} else if block.Kind == "image" && u.imageJob != nil {
 						uikit.Hint(c, "Decoding "+block.Kind+"…")
 					} else {
-						uikit.Hint(c, fmt.Sprintf("%s data · %d bytes (shown as base64)", block.Kind, len(block.Data)))
+						uikit.Hint(c, locales.BlockData(block.Kind, len(block.Data)))
 						ui.Text(c, base64Preview(block.Data)).Font(uikit.FontMono).FontSize(uikit.TextMeta)
 					}
 				case block.Kind == "resource_link":
@@ -689,7 +689,7 @@ func (a *app) mcpResult(c *ui.Context, t *ui.Theme, u *mcpDocument, s mcpSnapsho
 				ui.Text(c, request.MCPPreview(result.Structured, 64<<10)).Font(uikit.FontMono).FontSize(uikit.TextBody)
 			}
 			if result.Truncated {
-				uikit.Hint(c, fmt.Sprintf("Result truncated to fit %d MiB; %d bytes were returned in total.", request.MCPMaxResultBytes>>20, result.Bytes))
+				uikit.Hint(c, locales.ResultTruncated(request.MCPMaxResultBytes>>20, int(result.Bytes)))
 			}
 		})
 	})
@@ -762,19 +762,15 @@ func base64Preview(data []byte) string {
 
 func (a *app) mcpCatalog(c *ui.Context, t *ui.Theme, d *requestDocument, u *mcpDocument, s mcpSnapshot) {
 	ui.Row(c).Padding(t.Space(1), t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-		uikit.Segmented(c, &u.catalogTab, "Tools", "Resources", "Prompts")
+		uikit.Segmented(c, &u.catalogTab, locales.Tools(), locales.Resources(), locales.Prompts())
 		ui.Spacer(c)
-		uikit.Meta(c, fmt.Sprintf("%d %s · %d %s · %d %s · %d %s",
-			len(s.tools), plural(len(s.tools), "tool", "tools"),
-			len(s.resources), plural(len(s.resources), "resource", "resources"),
-			len(s.templates), plural(len(s.templates), "template", "templates"),
-			len(s.prompts), plural(len(s.prompts), "prompt", "prompts"))).SingleLine()
+		uikit.Meta(c, locales.CatalogSummary(len(s.tools), len(s.resources), len(s.templates), len(s.prompts))).SingleLine()
 		a.actionButton(c, "request.mcp-refresh", "Refresh")
 	})
 	switch u.catalogTab {
 	case 0:
 		if len(s.tools) == 0 {
-			uikit.EmptyState(c, "No tools listed", "The server did not advertise tools, or the catalog has not loaded yet.", nil)
+			uikit.EmptyState(c, locales.NoToolsListed(), locales.TheServerDidNotAdvertise(), nil)
 			return
 		}
 		ui.Scroll(c).Grow(1).Padding(0, t.Space(2)).Children(func() {
@@ -800,7 +796,7 @@ func (a *app) mcpCatalog(c *ui.Context, t *ui.Theme, d *requestDocument, u *mcpD
 		})
 	case 1:
 		if len(s.resources) == 0 && len(s.templates) == 0 {
-			uikit.EmptyState(c, "No resources listed", "The server did not advertise resources or templates.", nil)
+			uikit.EmptyState(c, locales.NoResourcesListed(), locales.TheServerDidNotAdvertise2(), nil)
 			return
 		}
 		ui.Scroll(c).Grow(1).Padding(0, t.Space(2)).Children(func() {
@@ -841,7 +837,7 @@ func (a *app) mcpCatalog(c *ui.Context, t *ui.Theme, d *requestDocument, u *mcpD
 		})
 	case 2:
 		if len(s.prompts) == 0 {
-			uikit.EmptyState(c, "No prompts listed", "The server did not advertise prompts.", nil)
+			uikit.EmptyState(c, locales.NoPromptsListed(), locales.TheServerDidNotAdvertise3(), nil)
 			return
 		}
 		ui.Scroll(c).Grow(1).Padding(0, t.Space(2)).Children(func() {
@@ -879,8 +875,7 @@ func (a *app) mcpSessionPane(c *ui.Context, t *ui.Theme, u *mcpDocument, s mcpSn
 				uikit.Meta(c, "Endpoint "+info.Endpoint).SingleLine()
 			}
 			if info.Command != "" {
-				uikit.Meta(c, fmt.Sprintf("Command %s · %d %s · %d environment %s", info.Command, info.ArgsCount,
-					plural(info.ArgsCount, "argument", "arguments"), info.EnvCount, plural(info.EnvCount, "variable", "variables"))).MaxLines(2)
+				uikit.Meta(c, locales.McpCommandSummary(info.Command, info.ArgsCount, info.EnvCount)).MaxLines(2)
 			}
 			var settings []string
 			settings = append(settings, "timeout "+cmp.Or(info.Timeout, "none"))
@@ -894,12 +889,12 @@ func (a *app) mcpSessionPane(c *ui.Context, t *ui.Theme, u *mcpDocument, s mcpSn
 			}
 			uikit.Meta(c, strings.Join(settings, " · ")).MaxLines(2)
 			ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-				uikit.Meta(c, "Capabilities").Grow(1)
-				uikit.SecondaryButton(c, "Copy capabilities").OnClick(func() { c.Services().WriteClipboard(s.server.Capabilities) })
+				uikit.Meta(c, locales.Capabilities()).Grow(1)
+				uikit.SecondaryButton(c, locales.CopyCapabilities()).OnClick(func() { c.Services().WriteClipboard(s.server.Capabilities) })
 			})
 			ui.Text(c, s.server.Capabilities).Font(uikit.FontMono).FontSize(uikit.TextBody)
 			if s.server.Instructions != "" {
-				uikit.Meta(c, "Server instructions").Padding(t.Space(2), 0, 0, 0)
+				uikit.Meta(c, locales.ServerInstructions()).Padding(t.Space(2), 0, 0, 0)
 				ui.Text(c, s.server.Instructions).FontSize(uikit.TextBody)
 			}
 		})

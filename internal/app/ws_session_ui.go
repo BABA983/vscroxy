@@ -10,6 +10,7 @@ import (
 
 	"github.com/baba983/vscroxy/internal/request"
 	"github.com/baba983/vscroxy/internal/uikit"
+	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/editor"
 	"github.com/gorilla/websocket"
@@ -67,10 +68,10 @@ func (a *app) socketModal(c *ui.Context, t *ui.Theme) {
 		uikit.DialogColumn(c, uikit.DialogLarge).Height(h - 100).Children(func() {
 			uikit.DialogTitle(c, "WebSocket session · "+state)
 			ui.Scroll(c).MaxHeight(260).MinHeight(0).Shrink(1).Gap(t.Space(2)).Padding(0, t.Space(1)).Children(func() {
-				uikit.Hint(c, "Connect starts a fresh timeline. No automatic reconnect or restore. Proxy message scripts and breakpoints apply; request-document scripts do not. Closing disconnects. Auth and cookies may contain secrets.")
+				uikit.Hint(c, locales.ConnectStartsAFreshTimeline())
 				ui.Row(c).Gap(t.Space(2)).Children(func() {
-					uikit.Input(c, &s.url).Label("WebSocket URL").Placeholder("ws://127.0.0.1:8080/socket").Grow(1).MinWidth(0).Font(uikit.FontMono).Disabled(active)
-					if uikit.SecondaryButton(c, "Connect").Disabled(active || a.srv == nil || !a.srv.Running() || !request.IsWebSocket(s.url)).Clicked() {
+					uikit.Input(c, &s.url).Label(locales.WebsocketUrl()).Placeholder("ws://127.0.0.1:8080/socket").Grow(1).MinWidth(0).Font(uikit.FontMono).Disabled(active)
+					if uikit.SecondaryButton(c, locales.Connect()).Disabled(active || a.srv == nil || !a.srv.Running() || !request.IsWebSocket(s.url)).Clicked() {
 						header := request.ParseHeaderBlock(s.headers)
 						if s.subprotocols != "" && header.Get("Sec-WebSocket-Protocol") != "" {
 							s.problem = "Enter subprotocols in the dedicated field or headers, not both"
@@ -84,12 +85,12 @@ func (a *app) socketModal(c *ui.Context, t *ui.Theme) {
 							s.reader = nil
 						}
 					}
-					if uikit.SecondaryButton(c, "Disconnect").Disabled(!active).Clicked() {
+					if uikit.SecondaryButton(c, locales.Disconnect()).Disabled(!active).Clicked() {
 						s.session.disconnect()
 					}
 				})
-				uikit.Input(c, &s.subprotocols).Label("WebSocket subprotocols").Placeholder("Subprotocols in preference order, e.g. chat.v2, chat.v1").Disabled(active)
-				ui.TextArea(c, &s.headers).Label("WebSocket handshake headers").Placeholder("Authorization: Bearer …").Height(54).Font(uikit.FontMono).FontSize(uikit.TextBody).Radius(uikit.RadiusControl).Disabled(active)
+				uikit.Input(c, &s.subprotocols).Label(locales.WebsocketSubprotocols()).Placeholder(locales.SubprotocolsInPreferenceOrderE()).Disabled(active)
+				ui.TextArea(c, &s.headers).Label(locales.WebsocketHandshakeHeaders()).Placeholder("Authorization: Bearer …").Height(54).Font(uikit.FontMono).FontSize(uikit.TextBody).Radius(uikit.RadiusControl).Disabled(active)
 				if s.problem != "" {
 					ui.Text(c, s.problem).FontSize(uikit.TextBody).TextColor(t.Danger)
 				}
@@ -97,8 +98,8 @@ func (a *app) socketModal(c *ui.Context, t *ui.Theme) {
 					if s.encoding == "" {
 						s.encoding = "Text"
 					}
-					uikit.Select(c, &s.encoding, []string{"Text", "Hex", "Base64"}).Label("WebSocket message encoding").Width(110)
-					uikit.Input(c, &s.message).Label("WebSocket message").Placeholder("Text, hex bytes or padded base64").Grow(1).MinWidth(0).Font(uikit.FontMono)
+					uikit.Select(c, &s.encoding, []string{"Text", "Hex", "Base64"}).Label(locales.WebsocketMessageEncoding()).Width(110)
+					uikit.Input(c, &s.message).Label(locales.WebsocketMessage()).Placeholder(locales.TextHexBytesOrPadded()).Grow(1).MinWidth(0).Font(uikit.FontMono)
 					label := "Send text"
 					if s.encoding != "Text" {
 						label = "Send binary"
@@ -125,13 +126,13 @@ func (a *app) socketModal(c *ui.Context, t *ui.Theme) {
 					}
 				})
 				ui.Row(c).Gap(t.Space(2)).Wrap().Children(func() {
-					uikit.Input(c, &s.query).Label("Search session messages").Placeholder("Search retained payloads and events").Grow(1).MinWidth(160)
+					uikit.Input(c, &s.query).Label(locales.SearchSessionMessages()).Placeholder(locales.SearchRetainedPayloadsAndEvents()).Grow(1).MinWidth(160)
 					if s.direction == "" {
 						s.direction = "All"
 					}
-					uikit.Select(c, &s.direction, []string{"All", "In", "Out", "Events"}).Width(100).Label("Session direction")
-					ui.Text(c, fmt.Sprintf("%d retained · %d evicted", len(events), evicted)).FontSize(uikit.TextMeta).FontFeatures("tnum")
-					if uikit.SecondaryButton(c, "Latest message").Clicked() {
+					uikit.Select(c, &s.direction, []string{"All", "In", "Out", "Events"}).Width(100).Label(locales.SessionDirection())
+					ui.Text(c, locales.RetainedEvicted(len(events), evicted)).FontSize(uikit.TextMeta).FontFeatures("tnum")
+					if uikit.SecondaryButton(c, locales.LatestMessage()).Clicked() {
 						s.scroll.Y = math.MaxFloat32
 					}
 				})
@@ -156,7 +157,7 @@ func (a *app) socketModal(c *ui.Context, t *ui.Theme) {
 						if e.Direction == "" {
 							label = fmt.Sprintf("#%d %s", e.Sequence, e.Detail)
 						}
-						b := uikit.SecondaryButton(c, label).Key(fmt.Sprint(e.Sequence)).Label(fmt.Sprintf("Session message %d", e.Sequence)).FillWidth().Tooltip(label)
+						b := uikit.SecondaryButton(c, label).Key(fmt.Sprint(e.Sequence)).Label(locales.SessionMessageLabel(e.Sequence)).FillWidth().Tooltip(label)
 						if e.Sequence == s.picked {
 							uikit.Selected(c, b, !a.windowBehind)
 						}
@@ -169,19 +170,19 @@ func (a *app) socketModal(c *ui.Context, t *ui.Theme) {
 							if !utf8.Valid(e.Data) {
 								s.viewMode = 1
 							}
-							s.reader = &editor.State{Buffer: editor.NewBuffer(e.Detail), ReadOnly: true, NoScrollPastEnd: true, Label: "Session payload"}
+							s.reader = &editor.State{Buffer: editor.NewBuffer(e.Detail), ReadOnly: true, NoScrollPastEnd: true, Label: locales.SessionPayload()}
 						}
 					}
 				})
 				ui.Column(c).Grow(1).MinWidth(0).MinHeight(0).Children(func() {
 					if s.reader == nil {
-						uikit.Hint(c, "Select a message or connection event. Binary payloads display as hex.")
+						uikit.Hint(c, locales.SelectAMessageOrConnection())
 					} else {
 						for _, e := range events {
 							if e.Sequence != s.picked || e.Direction == "" {
 								continue
 							}
-							uikit.Segmented(c, &s.viewMode, "Text", "Hex", "Protobuf").Label("Session payload format")
+							uikit.Segmented(c, &s.viewMode, locales.Text(), locales.Hex(), locales.Protobuf()).Label(locales.SessionPayloadFormat())
 							if s.viewMode == 2 {
 								s.protobuf.message(c, a, fmt.Sprintf("socket:%p:%d", s.session, e.Sequence), messageView{data: string(e.Data), size: e.Size})
 								return
@@ -202,12 +203,12 @@ func (a *app) socketModal(c *ui.Context, t *ui.Theme) {
 					}
 				})
 			})
-			uikit.Meta(c, "Latest 200 events · 64 KiB retained per message · 1 MiB receive/send limit. Close codes are shown only when a peer close frame was observed. Full proxy-captured traffic remains in Capture.")
+			uikit.Meta(c, locales.Latest200Events64Kib2())
 			uikit.DialogFooter(c).Children(func() {
-				if uikit.SecondaryButton(c, "Copy shown payload").Disabled(s.reader == nil || s.viewMode == 2).Tooltip("Copies displayed text/hex; use Copy decoded in Protobuf mode").Clicked() {
+				if uikit.SecondaryButton(c, locales.CopyShownPayload()).Disabled(s.reader == nil || s.viewMode == 2).Tooltip(locales.CopiesDisplayedTextHexUse()).Clicked() {
 					c.Services().WriteClipboard(s.reader.Buffer.String())
 				}
-				if uikit.SecondaryButton(c, "Disconnect & close").Clicked() {
+				if uikit.SecondaryButton(c, locales.DisconnectClose()).Clicked() {
 					s.session.disconnect()
 					s.open = false
 				}

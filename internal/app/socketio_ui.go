@@ -9,6 +9,7 @@ import (
 
 	"github.com/baba983/vscroxy/internal/request"
 	"github.com/baba983/vscroxy/internal/uikit"
+	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/editor"
 )
@@ -108,8 +109,8 @@ func (a *app) socketIOActions(d *requestDocument, editing bool) []action {
 		ack = ready && slices.Contains(s.owed, u.ackID)
 	}
 	return []action{
-		do("request.socketio-emit", "Emit Socket.IO event", func() { a.sendSocketIOMessage(d, false) }).when(ready, "Connect a Socket.IO document first"),
-		do("request.socketio-ack", "Reply Socket.IO ACK", func() { a.sendSocketIOMessage(d, true) }).when(ack, "Choose a pending server ACK request"),
+		do("request.socketio-emit", locales.EmitSocketIoEvent(), func() { a.sendSocketIOMessage(d, false) }).when(ready, "Connect a Socket.IO document first"),
+		do("request.socketio-ack", locales.ReplySocketIoAck(), func() { a.sendSocketIOMessage(d, true) }).when(ack, "Choose a pending server ACK request"),
 	}
 }
 
@@ -118,7 +119,7 @@ func (a *app) socketIOEditor(c *ui.Context, t *ui.Theme, d *requestDocument) {
 	s := u.session.snapshot()
 	ui.Column(c).Fill().Children(func() {
 		ui.Row(c).Height(uikit.HeightTabs).Padding(0, t.Space(3)).Children(func() {
-			uikit.Tabs(c, &u.tab, "Socket.IO editor", "Event", "Attachments", "Connection", "Headers", "HTTP auth").Grow(1)
+			uikit.Tabs(c, &u.tab, "Socket.IO editor", locales.Event(), locales.Attachments(), locales.Connection(), locales.Headers(), locales.HttpAuth()).Grow(1)
 		})
 		if u.problem != "" {
 			ui.Text(c, u.problem).TextColor(t.Danger).FontSize(uikit.TextMeta).MaxHeight(55).Padding(0, t.Space(3))
@@ -127,30 +128,30 @@ func (a *app) socketIOEditor(c *ui.Context, t *ui.Theme, d *requestDocument) {
 			switch u.tab {
 			case 0:
 				ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-					uikit.Input(c, &d.socketIOConfig.Event).Label("Socket.IO event name").Placeholder("Event name, e.g. echo").Grow(1).MinWidth(0)
+					uikit.Input(c, &d.socketIOConfig.Event).Label(locales.SocketIoEventName()).Placeholder(locales.EventNameEGEcho()).Grow(1).MinWidth(0)
 					ui.Checkbox(c, &d.socketIOConfig.WantACK, "Request ACK")
 					a.actionButton(c, "request.socketio-emit", "Emit event")
 				})
 				ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-					uikit.Meta(c, "JSON argument array · shared by Emit and Reply ACK").Grow(1).SingleLine()
+					uikit.Meta(c, locales.JsonArgumentArraySharedBy()).Grow(1).SingleLine()
 					if !slices.Contains(s.owed, u.ackID) {
 						u.ackID = ""
 						if len(s.owed) > 0 {
 							u.ackID = s.owed[0]
 						}
 					}
-					uikit.Select(c, &u.ackID, s.owed).Label("Socket.IO ACK request").Width(64).Disabled(!s.ready || s.busy || len(s.owed) == 0)
+					uikit.Select(c, &u.ackID, s.owed).Label(locales.SocketIoAckRequest()).Width(64).Disabled(!s.ready || s.busy || len(s.owed) == 0)
 					a.actionButton(c, "request.socketio-ack", "Reply ACK")
 				})
 				authoredText(c, &d.composeBody, &d.bodyEditor, &d.bodyFor, "Socket.IO arguments JSON", "json")
 			case 1:
-				uikit.Hint(c, `Binary attachments: JSON array of padded base64 strings, e.g. ["AP9J", ""]. In arguments use {"_placeholder":true,"num":0}; num is the zero-based attachment index. Empty string means empty binary.`)
+				uikit.Hint(c, locales.BinaryAttachmentsJsonArrayOf())
 				authoredText(c, &d.socketIOConfig.Attachments, &u.attachmentEditor, &u.attachmentsFor, "Socket.IO attachments JSON", "json")
 			case 2:
-				uikit.Hint(c, "Socket.IO v3/v4 · default parser · Engine.IO 4 · WebSocket only. URL path is the endpoint (default /socket.io/), not the namespace. No polling, reconnect, retries or offline queue. HTTP scripts and Runner are not supported.")
+				uikit.Hint(c, locales.SocketIoV3V4Default())
 				ui.Column(c).Grow(1).MinHeight(0).Gap(t.Space(2)).Disabled(d.composeWaiting).Children(func() {
-					uikit.Input(c, &d.socketIOConfig.Namespace).Label("Socket.IO namespace").Placeholder("/ (default)")
-					uikit.Meta(c, "Namespace auth JSON object · {{variables}} / {{vault:name}} supported; saved as authored")
+					uikit.Input(c, &d.socketIOConfig.Namespace).Label(locales.SocketIoNamespace()).Placeholder(locales.DefaultText())
+					uikit.Meta(c, locales.NamespaceAuthJsonObjectVariables())
 					authoredText(c, &d.socketIOConfig.Auth, &u.authEditor, &u.authFor, "Socket.IO namespace auth JSON", "json")
 				})
 			case 3:
@@ -167,19 +168,19 @@ func (a *app) socketIOResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 	s := u.session.snapshot()
 	ui.Column(c).Fill().Children(func() {
 		ui.Row(c).Height(uikit.HeightTabs).Padding(0, t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-			ui.Text(c, "Socket.IO messages").FontSize(uikit.TextBody).Grow(1)
+			ui.Text(c, locales.SocketIoMessages()).FontSize(uikit.TextBody).Grow(1)
 			uikit.Meta(c, s.state).SingleLine()
 		})
 		if u.session == nil {
-			uikit.EmptyState(c, "No Socket.IO connection yet", "Set the endpoint, namespace and auth, then Connect. Emit sends only on the live connection.", nil)
+			uikit.EmptyState(c, locales.NoSocketIoConnectionYet(), locales.SetTheEndpointNamespaceAnd(), nil)
 			return
 		}
 		if s.problem != "" {
 			ui.Text(c, s.problem).TextColor(t.Danger).FontSize(uikit.TextMeta).MaxHeight(55).Padding(0, t.Space(3))
 		}
 		ui.Row(c).Padding(t.Space(1), t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-			uikit.Input(c, &u.query).Label("Search Socket.IO messages").Placeholder("Search event or payload").Grow(1).MinWidth(0)
-			uikit.Meta(c, fmt.Sprintf("%d retained · %d evicted · 64 KiB preview", len(s.events), s.evicted)).SingleLine()
+			uikit.Input(c, &u.query).Label(locales.SearchSocketIoMessages()).Placeholder(locales.SearchEventOrPayload()).Grow(1).MinWidth(0)
+			uikit.Meta(c, locales.RetainedPreview2(len(s.events), s.evicted)).SingleLine()
 		})
 		query := strings.ToLower(strings.TrimSpace(u.query))
 		var events []socketIOEvent
@@ -189,7 +190,7 @@ func (a *app) socketIOResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 			}
 		}
 		if len(events) == 0 {
-			uikit.EmptyState(c, "No matching Socket.IO messages", "Change the search or wait for an event.", nil)
+			uikit.EmptyState(c, locales.NoMatchingSocketIoMessages(), locales.ChangeTheSearchOrWait3(), nil)
 			return
 		}
 		ui.Split(c, &u.split, func() {
@@ -205,7 +206,7 @@ func (a *app) socketIOResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 				}
 				ui.Column(c).Padding(t.Space(1), t.Space(2)).Children(func() {
 					ui.Text(c, e.direction+" · "+e.name).FontSize(uikit.TextBody).SingleLine()
-					uikit.Meta(c, fmt.Sprintf("#%d · %s · %d B", e.seq, e.at.Format("15:04:05.000"), e.size)).SingleLine()
+					uikit.Meta(c, locales.EventLineSize(e.seq, e.at.Format("15:04:05.000"), e.size)).SingleLine()
 				})
 			}).Grow(1)
 			c.SetTheme(t)
@@ -215,13 +216,13 @@ func (a *app) socketIOResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 			key := fmt.Sprint(e.seq)
 			if u.readerKey != key {
 				u.readerKey = key
-				u.reader = &editor.State{Buffer: editor.NewBuffer(e.text), ReadOnly: true, NoScrollPastEnd: true, SoftWrap: true, Label: "Socket.IO message payload"}
+				u.reader = &editor.State{Buffer: editor.NewBuffer(e.text), ReadOnly: true, NoScrollPastEnd: true, SoftWrap: true, Label: locales.SocketIoMessagePayload()}
 			}
 			ui.Column(c).Fill().Children(func() {
 				ui.Row(c).Padding(t.Space(1), t.Space(2)).Gap(t.Space(2)).Children(func() {
 					uikit.Meta(c, e.direction+" · "+e.name).Grow(1).SingleLine()
 					services, text := c.Services(), e.text
-					uikit.SecondaryButton(c, "Copy shown message").OnClick(func() { services.WriteClipboard(text) })
+					uikit.SecondaryButton(c, locales.CopyShownMessage()).OnClick(func() { services.WriteClipboard(text) })
 				})
 				requestCodeEditor(c, u.reader)
 			})

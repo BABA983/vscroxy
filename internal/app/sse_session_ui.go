@@ -8,6 +8,7 @@ import (
 
 	"github.com/baba983/vscroxy/internal/request"
 	"github.com/baba983/vscroxy/internal/uikit"
+	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/editor"
 )
@@ -49,10 +50,10 @@ func (a *app) sseModal(c *ui.Context, t *ui.Theme) {
 		uikit.DialogColumn(c, uikit.DialogLarge).Height(h - 100).Children(func() {
 			uikit.DialogTitle(c, "SSE session · "+state)
 			ui.Scroll(c).MaxHeight(240).MinHeight(0).Shrink(1).Gap(t.Space(2)).Padding(0, t.Space(1)).Children(func() {
-				uikit.Hint(c, "GET event streams through the capture proxy. No request-document scripts. Connect starts a fresh timeline; closing stops receiving and reconnecting. Headers and cookies may contain secrets.")
+				uikit.Hint(c, locales.GetEventStreamsThroughThe())
 				ui.Row(c).Gap(t.Space(2)).Children(func() {
-					uikit.Input(c, &s.url).Label("SSE URL").Placeholder("https://api.example.com/events").Grow(1).MinWidth(0).Font(uikit.FontMono).Disabled(!finished)
-					if uikit.PrimaryButton(c, "Connect SSE").Disabled(!finished || a.srv == nil || !a.srv.Running() || strings.TrimSpace(s.url) == "").Clicked() {
+					uikit.Input(c, &s.url).Label(locales.SseUrl()).Placeholder("https://api.example.com/events").Grow(1).MinWidth(0).Font(uikit.FontMono).Disabled(!finished)
+					if uikit.PrimaryButton(c, locales.ConnectSse()).Disabled(!finished || a.srv == nil || !a.srv.Running() || strings.TrimSpace(s.url) == "").Clicked() {
 						u, err := url.Parse(s.url)
 						if err != nil || u.Hostname() == "" || u.Scheme != "http" && u.Scheme != "https" || u.User != nil {
 							s.problem = "Enter an absolute HTTP(S) URL without embedded credentials"
@@ -62,19 +63,19 @@ func (a *app) sseModal(c *ui.Context, t *ui.Theme) {
 							s.scroll = ui.ScrollState{}
 						}
 					}
-					if uikit.SecondaryButton(c, "Stop SSE").Disabled(finished).Clicked() {
+					if uikit.SecondaryButton(c, locales.StopSse()).Disabled(finished).Clicked() {
 						s.session.stop()
 					}
 				})
-				ui.TextArea(c, &s.headers).Label("SSE request headers").Placeholder("Authorization: Bearer …\nLast-Event-ID: …").Height(54).Font(uikit.FontMono).FontSize(uikit.TextBody).Radius(uikit.RadiusControl).Disabled(!finished)
+				ui.TextArea(c, &s.headers).Label(locales.SseRequestHeaders()).Placeholder("Authorization: Bearer …\nLast-Event-ID: …").Height(54).Font(uikit.FontMono).FontSize(uikit.TextBody).Radius(uikit.RadiusControl).Disabled(!finished)
 				ui.Checkbox(c, &s.reconnect, "Reconnect on EOF / network failure").Disabled(!finished)
 				if s.problem != "" {
 					ui.Text(c, s.problem).FontSize(uikit.TextBody).TextColor(t.Danger)
 				}
 				ui.Row(c).Gap(t.Space(2)).Children(func() {
-					uikit.Input(c, &s.query).Label("Search SSE events").Placeholder("Search type, ID, payload and connection events").Grow(1).MinWidth(0)
-					ui.Text(c, fmt.Sprintf("%d retained · %d evicted", len(events), evicted)).FontSize(uikit.TextMeta).FontFeatures("tnum")
-					if uikit.SecondaryButton(c, "Latest event").Clicked() {
+					uikit.Input(c, &s.query).Label(locales.SearchSseEvents()).Placeholder(locales.SearchTypeIdPayloadAnd()).Grow(1).MinWidth(0)
+					ui.Text(c, locales.RetainedEvicted(len(events), evicted)).FontSize(uikit.TextMeta).FontFeatures("tnum")
+					if uikit.SecondaryButton(c, locales.LatestEvent()).Clicked() {
 						s.scroll.Y = math.MaxFloat32
 					}
 				})
@@ -95,7 +96,7 @@ func (a *app) sseModal(c *ui.Context, t *ui.Theme) {
 							first, _, _ := strings.Cut(e.detail, "\n")
 							label = fmt.Sprintf("#%d %s", e.seq, first)
 						}
-						b := uikit.SecondaryButton(c, label).Key(fmt.Sprint(e.seq)).Label(fmt.Sprintf("SSE event %d", e.seq)).FillWidth().Tooltip(label)
+						b := uikit.SecondaryButton(c, label).Key(fmt.Sprint(e.seq)).Label(locales.SseEventLabel(e.seq)).FillWidth().Tooltip(label)
 						if e.seq == s.picked {
 							uikit.Selected(c, b, !a.windowBehind)
 						}
@@ -105,7 +106,7 @@ func (a *app) sseModal(c *ui.Context, t *ui.Theme) {
 						}
 					}
 					if found == 0 {
-						uikit.Hint(c, "No matching events yet.")
+						uikit.Hint(c, locales.NoMatchingEventsYet())
 					}
 				})
 				ui.Column(c).Grow(1).MinWidth(0).MinHeight(0).Gap(t.Space(2)).Children(func() {
@@ -117,30 +118,30 @@ func (a *app) sseModal(c *ui.Context, t *ui.Theme) {
 						if e.detail == "" {
 							text = e.data
 							uikit.Meta(c, "Type: "+clamp(e.eventType, 80)+" · ID: "+clamp(e.id, 80))
-							if uikit.SecondaryButton(c, "Copy event ID").Clicked() {
+							if uikit.SecondaryButton(c, locales.CopyEventId()).Clicked() {
 								c.Services().WriteClipboard(e.id)
 							}
 						}
 						if s.reader == nil {
-							s.reader = &editor.State{Buffer: editor.NewBuffer(text), ReadOnly: true, SoftWrap: true, NoScrollPastEnd: true, Label: "SSE event payload"}
+							s.reader = &editor.State{Buffer: editor.NewBuffer(text), ReadOnly: true, SoftWrap: true, NoScrollPastEnd: true, Label: locales.SseEventPayload()}
 						}
 						requestCodeEditor(c, s.reader)
 						return
 					}
 					s.reader = nil
 					if s.picked != 0 {
-						uikit.Hint(c, "Selected event was evicted. Select a retained event.")
+						uikit.Hint(c, locales.SelectedEventWasEvictedSelect())
 					} else {
-						uikit.Hint(c, "Select an event to inspect its data, or a connection to inspect response headers.")
+						uikit.Hint(c, locales.SelectAnEventToInspect())
 					}
 				})
 			})
-			uikit.Meta(c, "Latest 200 events · 64 KiB preview per field · 1 MiB line/event limit. Reconnect: default 3s, server retry bounded to 100ms–5min. HTTP 204 stops.")
+			uikit.Meta(c, locales.Latest200Events64Kib())
 			uikit.DialogFooter(c).Children(func() {
-				if uikit.SecondaryButton(c, "Copy shown SSE data").Disabled(s.reader == nil).Clicked() {
+				if uikit.SecondaryButton(c, locales.CopyShownSseData()).Disabled(s.reader == nil).Clicked() {
 					c.Services().WriteClipboard(s.reader.Buffer.String())
 				}
-				if uikit.SecondaryButton(c, "Stop & close").Clicked() {
+				if uikit.SecondaryButton(c, locales.StopClose()).Clicked() {
 					s.session.stop()
 					s.open = false
 				}

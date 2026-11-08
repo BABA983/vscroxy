@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 )
@@ -107,7 +108,7 @@ func (p *protoInspector) view(c *ui.Context, a *app, f flow, side int) {
 
 func (p *protoInspector) message(c *ui.Context, a *app, key string, m messageView) {
 	p.schema = a.protobuf.schema
-	ui.Scroll(c).Label("Message Protobuf reader").Grow(1).MinHeight(0).FillWidth().Children(func() {
+	ui.Scroll(c).Label(locales.MessageProtobufReader()).Grow(1).MinHeight(0).FillWidth().Children(func() {
 		ui.Column(c).Fill().MinHeight(320).Children(func() {
 			p.controls(c, &a.protobuf)
 			schema, name := p.schema, p.name
@@ -132,16 +133,16 @@ func (p *protoInspector) controls(c *ui.Context, registry *protoInspector) {
 			if p.name == "" {
 				p.name = "Auto"
 			}
-			field := ui.Combobox(c, &p.name, options).Label("Protobuf message type").
-				Tooltip("Auto resolves HTTP gRPC methods; WebSocket messages remain schema-less until you choose a type").
+			field := ui.Combobox(c, &p.name, options).Label(locales.ProtobufMessageType()).
+				Tooltip(locales.AutoResolvesHttpGrpcMethods()).
 				Grow(1).MinWidth(0).Height(uikit.HeightControl).Padding(0, t.Space(2)).
 				FontSize(uikit.TextBody).Radius(uikit.RadiusControl).FocusRing(false)
 			uikit.FieldFace(c, field, field.Focused())
-			if uikit.SecondaryButton(c, "Schema…").Shrink(0).Clicked() {
+			if uikit.SecondaryButton(c, locales.Schema()).Shrink(0).Clicked() {
 				registry.open = true
 			}
 		})
-		search := ui.SearchField(c, &p.query).Label("Search protobuf messages").Placeholder("Search messages…").
+		search := ui.SearchField(c, &p.query).Label(locales.SearchProtobufMessages()).Placeholder(locales.SearchMessages2()).
 			Grow(1).Basis(180).MinWidth(0).Height(uikit.HeightControl).Padding(0, t.Space(2)).
 			FontSize(uikit.TextBody).Radius(uikit.RadiusControl).FocusRing(false)
 		uikit.FieldFace(c, search, search.Focused())
@@ -151,7 +152,7 @@ func (p *protoInspector) controls(c *ui.Context, registry *protoInspector) {
 func (p *protoInspector) resultView(c *ui.Context, a *app) {
 	t := c.Theme()
 	if p.answers != nil {
-		uikit.Hint(c, "Reading complete retained payload…").Padding(t.Space(3))
+		uikit.Hint(c, locales.ReadingCompleteRetainedPayload()).Padding(t.Space(3))
 		return
 	}
 	if p.result.problem != "" {
@@ -171,7 +172,7 @@ func (p *protoInspector) resultView(c *ui.Context, a *app) {
 			visible = append(visible, i)
 		}
 	}
-	uikit.Meta(c, fmt.Sprintf("%d of %d messages", len(visible), len(p.result.messages))).Padding(0, t.Space(3), t.Space(2), t.Space(3))
+	uikit.Meta(c, locales.ProtobufMessages(len(visible), len(p.result.messages))).Padding(0, t.Space(3), t.Space(2), t.Space(3))
 	if len(visible) == 0 {
 		note := "No message matches"
 		if len(p.result.messages) == 0 && p.result.problem == "" {
@@ -210,7 +211,7 @@ func (p *protoInspector) resultView(c *ui.Context, a *app) {
 			ui.Row(c).Padding(0, t.Space(3)).AlignItems(ui.Center).Children(func() {
 				detail := fmt.Sprintf("Message %d · %s decoded", visible[p.selected]+1, humanBytes(message.size))
 				uikit.Meta(c, detail).Grow(1).MinWidth(0).SingleLine().Tooltip(detail)
-				if uikit.SecondaryButton(c, "Copy decoded").Shrink(0).Clicked() {
+				if uikit.SecondaryButton(c, locales.CopyDecoded()).Shrink(0).Clicked() {
 					c.Services().WriteClipboard(message.text)
 					a.done("Copied decoded protobuf message")
 				}
@@ -287,34 +288,34 @@ func (p *protoInspector) modal(c *ui.Context, a *app) {
 	t := c.Theme()
 	uikit.Modal(c, &p.open, func() {
 		uikit.DialogColumn(c, uikit.DialogMedium).Children(func() {
-			uikit.DialogTitle(c, "Protobuf schema")
+			uikit.DialogTitle(c, locales.ProtobufSchema2())
 			ui.Scroll(c).MinHeight(0).Shrink(1).Gap(t.Space(4)).Padding(0, t.Space(1)).Children(func() {
-				uikit.Hint(c, "Import a .proto source or a binary FileDescriptorSet (.pb / .protoset). gRPC methods select input/output types automatically; raw protobuf needs a message type. A successful load replaces the current registry.")
+				uikit.Hint(c, locales.ImportAProtoSourceOr())
 				if p.schema != nil {
-					uikit.Meta(c, fmt.Sprintf("Loaded: %d message types", len(p.schema.names)))
+					uikit.Meta(c, locales.ProtobufLoaded(len(p.schema.names)))
 				}
 				ui.Row(c).Gap(t.Space(2)).Children(func() {
-					uikit.Input(c, &p.source).Label("Schema file").Placeholder("/path/to/service.proto or descriptors.pb").Grow(1).MinWidth(0)
-					if uikit.SecondaryButton(c, "Browse…").Disabled(p.loading).Clicked() && a.win != nil {
+					uikit.Input(c, &p.source).Label(locales.SchemaFile()).Placeholder("/path/to/service.proto or descriptors.pb").Grow(1).MinWidth(0)
+					if uikit.SecondaryButton(c, locales.Browse()).Disabled(p.loading).Clicked() && a.win != nil {
 						go func() {
-							paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Title: "Import protobuf schema", Filters: []mygo.FileFilter{{Name: "Protobuf", Extensions: []string{"proto", "pb", "protoset", "desc"}}}})
+							paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Title: locales.ImportProtobufSchema(), Filters: []mygo.FileFilter{{Name: "Protobuf", Extensions: []string{"proto", "pb", "protoset", "desc"}}}})
 							if err == nil && len(paths) > 0 {
 								a.win.Update(func() { p.source = paths[0] })
 							}
 						}()
 					}
 				})
-				uikit.Hint(c, "Include roots (optional, one per line). The source directory and standard Google imports are included automatically.")
-				ui.TextArea(c, &p.roots).Height(70).Font(uikit.FontMono).FontSize(uikit.TextBody).Radius(uikit.RadiusControl).Label("Protobuf include roots")
+				uikit.Hint(c, locales.IncludeRootsOptionalOnePer())
+				ui.TextArea(c, &p.roots).Height(70).Font(uikit.FontMono).FontSize(uikit.TextBody).Radius(uikit.RadiusControl).Label(locales.ProtobufIncludeRoots())
 				if p.problem != "" {
 					ui.Text(c, p.problem).FontSize(uikit.TextBody).TextColor(t.Danger)
 				}
 				if p.loading {
-					uikit.Meta(c, "Compiling and linking schema…")
+					uikit.Meta(c, locales.CompilingAndLinkingSchema())
 				}
 			})
 			uikit.DialogFooter(c).Children(func() {
-				if uikit.SecondaryButton(c, "Clear schema").Disabled(p.schema == nil || p.loading).Clicked() {
+				if uikit.SecondaryButton(c, locales.ClearSchema()).Disabled(p.schema == nil || p.loading).Clicked() {
 					err := error(nil)
 					if p.store != "" {
 						err = os.Remove(p.store)
@@ -326,10 +327,10 @@ func (p *protoInspector) modal(c *ui.Context, a *app) {
 						p.schema, p.name, p.problem = nil, "Auto", ""
 					}
 				}
-				if uikit.SecondaryButton(c, "Close").Clicked() {
+				if uikit.SecondaryButton(c, locales.Close()).Clicked() {
 					p.open = false
 				}
-				if uikit.PrimaryButton(c, "Load schema").Disabled(p.loading || strings.TrimSpace(p.source) == "").Clicked() {
+				if uikit.PrimaryButton(c, locales.LoadSchema2()).Disabled(p.loading || strings.TrimSpace(p.source) == "").Clicked() {
 					p.loadSchema(a)
 				}
 			})

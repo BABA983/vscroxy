@@ -19,6 +19,7 @@ import (
 	"github.com/baba983/vscroxy/internal/request"
 	"github.com/baba983/vscroxy/internal/store"
 	"github.com/baba983/vscroxy/internal/uikit"
+	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -305,27 +306,27 @@ func (a *app) mcpConsentModal(c *ui.Context, t *ui.Theme) {
 	plan := s.plan
 	uikit.Modal(c, &s.open, func() {
 		uikit.DialogColumn(c, uikit.DialogSmall).Children(func() {
-			uikit.DialogTitle(c, "Run local MCP server?")
-			uikit.Hint(c, "This starts a local command with your user account. Only continue for a server you trust.")
+			uikit.DialogTitle(c, locales.RunLocalMcpServer())
+			uikit.Hint(c, locales.ThisStartsALocalCommand())
 			if s.valuesChanged {
-				uikit.Hint(c, "environment values changed since you approved this command.")
+				uikit.Hint(c, locales.EnvironmentValuesChangedSinceYou())
 				if len(s.changed) > 0 {
 					uikit.Meta(c, "Changed values: "+strings.Join(s.changed, ", ")).SingleLine()
 				}
 			}
-			uikit.Meta(c, "Command").Padding(0, t.Space(1))
+			uikit.Meta(c, locales.Command()).Padding(0, t.Space(1))
 			ui.Text(c, plan.Command).Font(uikit.FontMono).FontSize(uikit.TextBody).Selectable()
 			if len(plan.Args) > 0 {
-				uikit.Meta(c, "Arguments").Padding(0, t.Space(1))
+				uikit.Meta(c, locales.Arguments()).Padding(0, t.Space(1))
 				ui.Text(c, strings.Join(plan.Args, "\n")).Font(uikit.FontMono).FontSize(uikit.TextBody).Selectable()
 			}
 			dir := plan.WorkingDir
 			if dir == "" {
 				dir = "(the app's working directory)"
 			}
-			uikit.Meta(c, "Working directory").Padding(0, t.Space(1))
+			uikit.Meta(c, locales.WorkingDirectory()).Padding(0, t.Space(1))
 			ui.Text(c, dir).Font(uikit.FontMono).FontSize(uikit.TextBody).Selectable()
-			uikit.Meta(c, "Environment variables · names only; values stay hidden").Padding(0, t.Space(1))
+			uikit.Meta(c, locales.EnvironmentVariablesNamesOnlyValues()).Padding(0, t.Space(1))
 			names := make([]string, 0, len(plan.Env))
 			for _, entry := range plan.Env {
 				name, _, _ := strings.Cut(entry, "=")
@@ -340,10 +341,10 @@ func (a *app) mcpConsentModal(c *ui.Context, t *ui.Theme) {
 			ui.Text(c, strings.Join(names, ", ")).Font(uikit.FontMono).FontSize(uikit.TextBody).Selectable()
 			ui.Spacer(c).Height(t.Space(2))
 			uikit.DialogFooter(c).Children(func() {
-				if uikit.SecondaryButton(c, "Cancel").Clicked() {
+				if uikit.SecondaryButton(c, locales.Cancel()).Clicked() {
 					s.open = false
 				}
-				if uikit.PrimaryButton(c, "Start server").Clicked() {
+				if uikit.PrimaryButton(c, locales.StartServer()).Clicked() {
 					a.approveMCPConsent()
 				}
 			})

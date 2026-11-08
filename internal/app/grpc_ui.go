@@ -17,6 +17,7 @@ import (
 	"github.com/baba983/vscroxy/internal/grpcclient"
 	"github.com/baba983/vscroxy/internal/request"
 	"github.com/baba983/vscroxy/internal/uikit"
+	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/editor"
 	"google.golang.org/grpc/metadata"
@@ -224,10 +225,10 @@ func (a *app) grpcActions(d *requestDocument, editing bool) []action {
 		canWrite = !s.finished && !s.sending && !s.halfClosed
 	}
 	return []action{
-		do("request.grpc-import", "Import gRPC schema", func() { a.loadGRPCSchema(d, false, false) }).when(idle && g.source != "", "Enter a schema file in the gRPC Schema tab"),
-		do("request.grpc-reflect", "Reflect gRPC services", func() { a.loadGRPCSchema(d, true, false) }).when(idle, "Open an idle gRPC document"),
-		do("request.grpc-cancel-discovery", "Cancel gRPC discovery", func() { g.cancelImport() }).when(ready && g.loading != nil, ""),
-		do("request.grpc-send-message", "Send gRPC message", func() {
+		do("request.grpc-import", locales.ImportGrpcSchema(), func() { a.loadGRPCSchema(d, false, false) }).when(idle && g.source != "", "Enter a schema file in the gRPC Schema tab"),
+		do("request.grpc-reflect", locales.ReflectGrpcServices(), func() { a.loadGRPCSchema(d, true, false) }).when(idle, "Open an idle gRPC document"),
+		do("request.grpc-cancel-discovery", locales.CancelGrpcDiscovery(), func() { g.cancelImport() }).when(ready && g.loading != nil, ""),
+		do("request.grpc-send-message", locales.SendGrpcMessage(), func() {
 			r := g.session.input
 			r.Body = d.composeBody
 			req, err := r.PrepareGRPC(g.session.scope, g.session.vars)
@@ -238,7 +239,7 @@ func (a *app) grpcActions(d *requestDocument, editing bool) []action {
 			g.problem = ""
 			g.session.write(req.Body, false)
 		}).when(canWrite, "Start a client or bidirectional stream first"),
-		do("request.grpc-finish", "Finish gRPC sending", func() { g.session.write("", true) }).when(canWrite, "Start a client or bidirectional stream first"),
+		do("request.grpc-finish", locales.FinishGrpcSending(), func() { g.session.write("", true) }).when(canWrite, "Start a client or bidirectional stream first"),
 	}
 }
 
@@ -252,19 +253,19 @@ func (a *app) grpcEditor(c *ui.Context, t *ui.Theme, d *requestDocument) {
 	}
 	ui.Column(c).Fill().Children(func() {
 		ui.Row(c).Height(uikit.HeightTabs).Padding(0, t.Space(3)).Gap(t.Space(2)).Children(func() {
-			uikit.Tabs(c, &g.tab, "gRPC editor", "Message", "Metadata", "Auth", "Schema").Grow(1)
+			uikit.Tabs(c, &g.tab, "gRPC editor", locales.Message(), locales.Metadata(), locales.Auth(), locales.Schema2()).Grow(1)
 		})
 		ui.Row(c).Padding(t.Space(2), t.Space(3)).Gap(t.Space(2)).Children(func() {
 			var methods []string
 			if g.schema != nil {
 				methods = g.schema.methods
 			}
-			field := ui.Combobox(c, &d.grpcConfig.Method, methods).Label("gRPC method").Placeholder("Select service / method").
+			field := ui.Combobox(c, &d.grpcConfig.Method, methods).Label(locales.GrpcMethod()).Placeholder(locales.SelectServiceMethod()).
 				Grow(1).MinWidth(0).Height(uikit.HeightControl).FontSize(uikit.TextBody).Disabled(d.composeWaiting || g.loading != nil)
 			uikit.FieldFace(c, field, field.Focused())
 			deadline := strconv.Itoa(cmp.Or(d.grpcConfig.TimeoutSeconds, 30))
-			uikit.Select(c, &deadline, []string{"10", "30", "60", "300", "3600"}).Label("gRPC deadline seconds").Width(88).
-				Tooltip("Call deadline in seconds; cancelling never undoes server changes").Disabled(d.composeWaiting).OnChange(func() {
+			uikit.Select(c, &deadline, []string{"10", "30", "60", "300", "3600"}).Label(locales.GrpcDeadlineSeconds()).Width(88).
+				Tooltip(locales.CallDeadlineInSecondsCancelling()).Disabled(d.composeWaiting).OnChange(func() {
 				d.grpcConfig.TimeoutSeconds, _ = strconv.Atoi(deadline)
 			})
 		})
@@ -278,7 +279,7 @@ func (a *app) grpcEditor(c *ui.Context, t *ui.Theme, d *requestDocument) {
 		}
 		if g.loading != nil {
 			ui.Row(c).Padding(0, t.Space(3)).Gap(t.Space(2)).Children(func() {
-				uikit.Meta(c, "Loading schema…").Grow(1)
+				uikit.Meta(c, locales.LoadingSchema()).Grow(1)
 				a.actionButton(c, "request.grpc-cancel-discovery", "Cancel discovery")
 			})
 		}
@@ -286,7 +287,7 @@ func (a *app) grpcEditor(c *ui.Context, t *ui.Theme, d *requestDocument) {
 			switch g.tab {
 			case 0:
 				ui.Row(c).Gap(t.Space(2)).Children(func() {
-					uikit.Meta(c, "Protobuf JSON · 1 MiB per message").Grow(1)
+					uikit.Meta(c, locales.ProtobufJson1MibPer()).Grow(1)
 					if d.composeWaiting {
 						a.actionButton(c, "request.grpc-send-message", "Send message")
 						a.actionButton(c, "request.grpc-finish", "Finish sending")
@@ -299,16 +300,16 @@ func (a *app) grpcEditor(c *ui.Context, t *ui.Theme, d *requestDocument) {
 				ui.Column(c).Fill().Disabled(d.composeWaiting).Children(func() { a.authEditor(c, d, t) })
 			case 3:
 				ui.Scroll(c).Grow(1).Gap(t.Space(2)).Disabled(d.composeWaiting).Padding(0, t.Space(1)).Children(func() {
-					uikit.Hint(c, "Import .proto / descriptor set, or discover services using server reflection.")
-					uikit.Input(c, &g.source).Label("gRPC schema file").Placeholder("/path/to/service.proto").Disabled(g.loading != nil)
-					ui.TextArea(c, &g.roots).Label("gRPC include roots").Placeholder("Include roots, one per line").Height(50).Disabled(g.loading != nil)
+					uikit.Hint(c, locales.ImportProtoDescriptorSetOr())
+					uikit.Input(c, &g.source).Label(locales.GrpcSchemaFile()).Placeholder("/path/to/service.proto").Disabled(g.loading != nil)
+					ui.TextArea(c, &g.roots).Label(locales.GrpcIncludeRoots()).Placeholder(locales.IncludeRootsOnePerLine()).Height(50).Disabled(g.loading != nil)
 					ui.Row(c).Gap(t.Space(2)).Children(func() {
 						a.actionButton(c, "request.grpc-import", "Import schema")
 						a.actionButton(c, "request.grpc-reflect", "Reflect services")
 					})
 					if g.schema != nil {
 						n := len(g.schema.methods)
-						uikit.Meta(c, fmt.Sprintf("%d %s · descriptors saved with this request", n, plural(n, "method", "methods")))
+						uikit.Meta(c, locales.GrpcMethods(n))
 					}
 				})
 			}
@@ -352,11 +353,11 @@ func (a *app) grpcResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 	s := g.session.snapshot()
 	ui.Column(c).Fill().Children(func() {
 		ui.Row(c).Height(uikit.HeightTabs).Padding(0, t.Space(3)).Gap(t.Space(2)).Children(func() {
-			uikit.Tabs(c, &g.responseTab, "gRPC response", "Messages", "Metadata", "Status").Grow(1)
+			uikit.Tabs(c, &g.responseTab, "gRPC response", locales.MessagesTab(), locales.Metadata(), locales.Status()).Grow(1)
 			uikit.Meta(c, s.state).SingleLine()
 		})
 		if g.session == nil {
-			uikit.EmptyState(c, "No gRPC call yet", "Load a schema, select a method and send a JSON message.", nil)
+			uikit.EmptyState(c, locales.NoGrpcCallYet(), locales.LoadASchemaSelectA(), nil)
 			return
 		}
 		if g.responseTab != 0 {
@@ -370,7 +371,7 @@ func (a *app) grpcResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 		if s.problem != "" {
 			ui.Text(c, s.problem).TextColor(t.Danger).FontSize(uikit.TextMeta).MaxHeight(55).Padding(t.Space(1), t.Space(3))
 		}
-		uikit.Meta(c, fmt.Sprintf("%d retained · %d evicted · 64 KiB preview per message", len(s.events), s.evicted)).Padding(t.Space(1), t.Space(3))
+		uikit.Meta(c, locales.RetainedPreviewMethods(len(s.events), s.evicted)).Padding(t.Space(1), t.Space(3))
 		ui.Split(c, &g.split, func() {
 			g.list.Selected = &g.selected
 			g.list.Key = func(i int) any { return s.events[i].seq }
@@ -382,13 +383,13 @@ func (a *app) grpcResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 				if i == g.selected {
 					uikit.RowMarker(c, focused)
 				}
-				ui.Text(c, fmt.Sprintf("#%d %s · %s · %d B", e.seq, e.at.Format("15:04:05.000"), e.direction, e.size)).
+				ui.Text(c, locales.GrpcEventLine(e.seq, e.at.Format("15:04:05.000"), e.direction, e.size)).
 					FontSize(uikit.TextMeta).TextColor(t.Text).Padding(t.Space(2)).SingleLine()
 			}).Grow(1)
 			c.SetTheme(t)
 		}, func() {
 			if len(s.events) == 0 {
-				uikit.Hint(c, "Waiting for messages…").Padding(t.Space(3))
+				uikit.Hint(c, locales.WaitingForMessages()).Padding(t.Space(3))
 				return
 			}
 			g.selected = max(0, min(g.selected, len(s.events)-1))
@@ -400,12 +401,12 @@ func (a *app) grpcResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 					text += fmt.Sprintf("\n\nRetained %d of %d bytes", len(text), e.size)
 				}
 				g.readerKey = key
-				g.reader = &editor.State{Buffer: editor.NewBuffer(text), ReadOnly: true, NoScrollPastEnd: true, SoftWrap: true, Label: "gRPC message payload"}
+				g.reader = &editor.State{Buffer: editor.NewBuffer(text), ReadOnly: true, NoScrollPastEnd: true, SoftWrap: true, Label: locales.GrpcMessagePayload()}
 			}
 			ui.Column(c).Fill().Children(func() {
 				ui.Row(c).Padding(t.Space(1), t.Space(2)).Children(func() {
 					uikit.Meta(c, e.direction+" · protobuf JSON").Grow(1)
-					uikit.SecondaryButton(c, "Copy shown message").OnClick(func() { c.Services().WriteClipboard(g.reader.Buffer.String()) })
+					uikit.SecondaryButton(c, locales.CopyShownMessage()).OnClick(func() { c.Services().WriteClipboard(g.reader.Buffer.String()) })
 				})
 				requestCodeEditor(c, g.reader)
 			})
