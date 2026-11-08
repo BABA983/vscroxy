@@ -11,6 +11,8 @@ require (
 	github.com/bufbuild/protocompile v0.14.1
 	github.com/dop251/goja v0.0.0-20261019185110-cf7b1419c9c0
 	github.com/ebitengine/purego v0.11.2
+	github.com/eclipse/paho.golang v0.23.0
+	github.com/eclipse/paho.mqtt.golang v1.5.1
 	github.com/egoist/mygo v0.8.1
 	github.com/evanw/esbuild v0.28.2
 	github.com/getkin/kin-openapi v0.151.0
@@ -20,6 +22,7 @@ require (
 	github.com/itchyny/gojq v0.12.20
 	github.com/klauspost/compress v1.18.6
 	github.com/lqqyt2423/go-mitmproxy v1.9.4
+	github.com/mochi-mqtt/server/v2 v2.7.9
 	github.com/modelcontextprotocol/go-sdk v1.8.0
 	github.com/oasdiff/yaml v0.1.1
 	github.com/oasdiff/yaml3 v0.0.14
@@ -49,6 +52,7 @@ require (
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/google/pprof v0.0.0-20230207041349-798e818bf904 // indirect
 	github.com/itchyny/timefmt-go v0.1.9 // indirect
+	github.com/rs/xid v1.4.0 // indirect
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.3 // indirect
 	github.com/segmentio/asm v1.1.3 // indirect
 	github.com/segmentio/encoding v0.5.4 // indirect
@@ -59,6 +63,7 @@ require (
 	golang.org/x/oauth2 v0.36.0 // indirect
 	golang.org/x/sync v0.24.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
+	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
 tool github.com/egoist/mygo/cmd/mygo

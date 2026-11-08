@@ -207,6 +207,9 @@ func (r Request) Variables() []string {
 	if r.Protocol == "Socket.IO" {
 		texts = append(texts, r.SocketIO.Namespace, r.SocketIO.Auth, r.SocketIO.Event, r.SocketIO.Attachments)
 	}
+	if r.Protocol == "MQTT" {
+		texts = append(texts, r.MQTT.mqttStrings()...)
+	}
 	if r.Protocol == "Socket.IO" || r.BodyMode == "" || r.BodyMode == "Raw" {
 		texts = append(texts, r.Body)
 	} else if r.BodyMode == "Binary" {
