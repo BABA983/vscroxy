@@ -11,7 +11,7 @@ import (
 	"strings"
 
 	"github.com/baba983/vscroxy/internal/request"
-	"github.com/oasdiff/yaml"
+	"github.com/baba983/vscroxy/internal/yamlguard"
 )
 
 // ReadInsomnia reads an Insomnia v4 JSON export or a v5 YAML/JSON export.
@@ -24,7 +24,7 @@ func ReadInsomnia(data []byte) (Result, error) {
 	jsonData := data
 	if !jsontext.Value(data).IsValid() {
 		var err error
-		jsonData, err = yaml.YAMLToJSON(data)
+		jsonData, err = yamlguard.ToJSON(data, yamlguard.Options{})
 		if err != nil {
 			return Result{}, fmt.Errorf("read Insomnia export: %w", err)
 		}

@@ -9,7 +9,8 @@ import (
 	"github.com/getkin/kin-openapi/openapi2"
 	"github.com/getkin/kin-openapi/openapi2conv"
 	"github.com/getkin/kin-openapi/openapi3"
-	"github.com/oasdiff/yaml"
+
+	"github.com/baba983/vscroxy/internal/yamlguard"
 )
 
 // ReadSwagger2 converts a Swagger 2.0 document to OpenAPI 3.0, the form the
@@ -20,7 +21,7 @@ func ReadSwagger2(data []byte) (*openapi3.T, []string, error) {
 	if len(data) > 16<<20 {
 		return nil, nil, errors.New("Swagger documents are limited to 16 MiB")
 	}
-	jsonData, err := yaml.YAMLToJSON(data)
+	jsonData, err := yamlguard.ToJSON(data, yamlguard.Options{})
 	if err != nil {
 		return nil, nil, fmt.Errorf("read Swagger document: %w", err)
 	}

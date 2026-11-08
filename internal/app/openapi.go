@@ -20,6 +20,7 @@ import (
 	"strings"
 
 	"github.com/baba983/vscroxy/internal/request"
+	"github.com/baba983/vscroxy/internal/yamlguard"
 	"github.com/getkin/kin-openapi/openapi3"
 )
 
@@ -76,9 +77,17 @@ func parseOpenAPI(source string) (*openapi3.T, error) {
 	if len(source) > 16<<20 {
 		return nil, errors.New("OpenAPI documents are limited to 16 MiB")
 	}
+	data := []byte(source)
+	if !jsontext.Value(data).IsValid() {
+		jsonData, err := yamlguard.ToJSON(data, yamlguard.Options{})
+		if err != nil {
+			return nil, err
+		}
+		data = jsonData
+	}
 	loader := openapi3.NewLoader()
 	loader.IsExternalRefsAllowed = false
-	doc, err := loader.LoadFromData([]byte(source))
+	doc, err := loader.LoadFromData(data)
 	if err != nil {
 		return nil, err
 	}
