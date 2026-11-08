@@ -10,13 +10,18 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
 	"math/big"
 	"net"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -134,12 +139,117 @@ func mqttContext(t *testing.T) context.Context {
 
 func dialTestMQTT(t *testing.T, ctx context.Context, rawURL string, cfg MQTTConfig, tlsConfig *tls.Config) *MQTTClient {
 	t.Helper()
-	client, err := DialMQTT(ctx, rawURL, cfg, tlsConfig)
+	return dialTestMQTTVia(t, ctx, rawURL, cfg, tlsConfig, "")
+}
+
+func dialTestMQTTVia(t *testing.T, ctx context.Context, rawURL string, cfg MQTTConfig, tlsConfig *tls.Config, proxy string) *MQTTClient {
+	t.Helper()
+	client, err := DialMQTT(ctx, rawURL, cfg, tlsConfig, proxy)
 	if err != nil {
 		t.Fatalf("dial %s: %v", rawURL, err)
 	}
 	t.Cleanup(client.Close)
 	return client
+}
+
+// readMQTTPacket reads one complete packet, including its fixed header and
+// variable-length remaining-length field.
+func readMQTTPacket(conn net.Conn) ([]byte, error) {
+	header := make([]byte, 1)
+	if _, err := io.ReadFull(conn, header); err != nil {
+		return nil, err
+	}
+	remaining, multiplier := 0, 1
+	var length []byte
+	for {
+		digit := make([]byte, 1)
+		if _, err := io.ReadFull(conn, digit); err != nil {
+			return nil, err
+		}
+		length = append(length, digit[0])
+		remaining += int(digit[0]&0x7f) * multiplier
+		if digit[0]&0x80 == 0 {
+			break
+		}
+		multiplier *= 128
+		if multiplier > 128*128*128 {
+			return nil, errors.New("malformed remaining length")
+		}
+	}
+	body := make([]byte, remaining)
+	if _, err := io.ReadFull(conn, body); err != nil {
+		return nil, err
+	}
+	return append(append(header, length...), body...), nil
+}
+
+// mqttPacketBody returns the variable header and payload without the fixed
+// header or remaining-length field.
+func mqttPacketBody(packet []byte) []byte {
+	i := 1
+	for i < len(packet) && packet[i]&0x80 != 0 {
+		i++
+	}
+	if i+1 > len(packet) {
+		return nil
+	}
+	return packet[i+1:]
+}
+
+func writeMQTTPacket(conn net.Conn, header byte, body []byte) error {
+	var out bytes.Buffer
+	out.WriteByte(header)
+	mqttVBI(&out, len(body))
+	out.Write(body)
+	_, err := conn.Write(out.Bytes())
+	return err
+}
+
+func writeMQTTConnack(conn net.Conn, version int, reason byte, properties []byte) error {
+	if version == MQTT5 {
+		body := append([]byte{0, reason, byte(len(properties))}, properties...)
+		return writeMQTTPacket(conn, 0x20, body)
+	}
+	return writeMQTTPacket(conn, 0x20, []byte{0, 0})
+}
+
+// startRawMQTTBroker accepts one connection, reads its CONNECT, and hands it
+// to handle. The handler error is returned on the channel.
+func startRawMQTTBroker(t *testing.T, handle func(net.Conn, []byte) error) (string, <-chan error) {
+	t.Helper()
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = listener.Close() })
+	errs := make(chan error, 1)
+	go func() {
+		conn, err := listener.Accept()
+		if err != nil {
+			errs <- err
+			return
+		}
+		defer conn.Close()
+		connect, err := readMQTTPacket(conn)
+		if err != nil {
+			errs <- err
+			return
+		}
+		errs <- handle(conn, connect)
+	}()
+	return listener.Addr().String(), errs
+}
+
+func brokerError(t *testing.T, errs <-chan error) {
+	t.Helper()
+	select {
+	case err := <-errs:
+		if err != nil && !errors.Is(err, net.ErrClosed) {
+			t.Fatal(err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("raw broker did not finish")
+	}
 }
 
 func receive(t *testing.T, client *MQTTClient, timeout time.Duration) MQTTIncoming {
@@ -300,6 +410,18 @@ func TestMQTTLastWill(t *testing.T) {
 					t.Fatalf("sent will properties = %+v", props)
 				}
 			}
+			// Stay connected long enough to subscribe and publish: the will
+			// properties must not corrupt the CONNECT and make the broker
+			// disconnect immediately.
+			if _, err := client.Subscribe(ctx, []MQTTSubscription{{Topic: "alive/#", QoS: 1}}); err != nil {
+				t.Fatalf("subscribe after the will CONNECT: %v", err)
+			}
+			if err := client.Publish(ctx, MQTTPublish{Topic: "alive/ping", Payload: []byte("pong"), QoS: 1}); err != nil {
+				t.Fatalf("publish after the will CONNECT: %v", err)
+			}
+			if msg := receive(t, client, 5*time.Second); msg.Topic != "alive/ping" || string(msg.Payload) != "pong" {
+				t.Fatalf("live message after the will CONNECT = %+v", msg)
+			}
 			// Kill the transport without DISCONNECT, which is what a crash or
 			// network loss looks like to the broker.
 			_ = client.conn.Close()
@@ -312,6 +434,42 @@ func TestMQTTLastWill(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestMQTT5WillConnectSendsOnePacket(t *testing.T) {
+	address, errs := startRawMQTTBroker(t, func(conn net.Conn, connect []byte) error {
+		if len(connect) == 0 || connect[0] != 0x10 {
+			return fmt.Errorf("first packet is % x, want CONNECT", connect)
+		}
+		// A will-properties CONNECT is substituted by the client. If the
+		// measured length is short, Paho's own CONNECT tail follows as a
+		// second packet; the password's last four bytes are the usual clue.
+		_ = conn.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
+		trailing := make([]byte, 8)
+		n, err := conn.Read(trailing)
+		if n > 0 {
+			return fmt.Errorf("trailing bytes after CONNECT: % x", trailing[:n])
+		}
+		var timeout net.Error
+		if err != nil && (!errors.As(err, &timeout) || !timeout.Timeout()) {
+			return err
+		}
+		_ = conn.SetReadDeadline(time.Time{})
+		if err := writeMQTTConnack(conn, MQTT5, 0, nil); err != nil {
+			return err
+		}
+		_, _ = io.Copy(io.Discard, conn)
+		return nil
+	})
+	cfg := MQTTConfig{Version: MQTT5, ClientID: "will-connect", Username: "user", Password: "secretpw",
+		Will: MQTTWill{Enabled: true, Topic: "will/topic", Payload: "bye", Type: "text",
+			Properties: MQTTWillProperties{ContentType: "text/plain"}}}
+	client, err := DialMQTT(mqttContext(t), "mqtt://"+address, cfg, nil, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	client.Close()
+	brokerError(t, errs)
 }
 
 type passwordHook struct {
@@ -342,11 +500,11 @@ func TestMQTTAuthenticationFailure(t *testing.T) {
 		t.Run(MQTTVersionLabel(version), func(t *testing.T) {
 			ctx := mqttContext(t)
 			cfg := MQTTConfig{Version: version, ClientID: "auth-" + MQTTVersionLabel(version), Username: "demo", Password: "wrong"}
-			if _, err := DialMQTT(ctx, "mqtt://"+tcp.Address(), cfg, nil); err == nil {
+			if _, err := DialMQTT(ctx, "mqtt://"+tcp.Address(), cfg, nil, ""); err == nil {
 				t.Fatal("wrong password connected")
 			}
 			cfg.Password = "secret"
-			client, err := DialMQTT(ctx, "mqtt://"+tcp.Address(), cfg, nil)
+			client, err := DialMQTT(ctx, "mqtt://"+tcp.Address(), cfg, nil, "")
 			if err != nil {
 				t.Fatalf("correct password: %v", err)
 			}
@@ -476,7 +634,7 @@ func TestMQTTTLSClientCertificate(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if _, err := DialMQTT(ctx, rawURL, MQTTConfig{Version: MQTT5, ClientID: "no-cert-" + scheme}, without); err == nil {
+			if _, err := DialMQTT(ctx, rawURL, MQTTConfig{Version: MQTT5, ClientID: "no-cert-" + scheme}, without, ""); err == nil {
 				t.Fatal("connected without the required client certificate")
 			}
 			// An empty root set does not trust the test CA.
@@ -484,7 +642,7 @@ func TestMQTTTLSClientCertificate(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if _, err := DialMQTT(ctx, rawURL, MQTTConfig{Version: MQTT5, ClientID: "bad-root-" + scheme}, wrongRoots); err == nil {
+			if _, err := DialMQTT(ctx, rawURL, MQTTConfig{Version: MQTT5, ClientID: "bad-root-" + scheme}, wrongRoots, ""); err == nil {
 				t.Fatal("connected with an untrusted server certificate")
 			}
 		})
@@ -507,6 +665,197 @@ func TestMQTTWebsocketTransport(t *testing.T) {
 	}
 }
 
+// startCONNECTProxy is a minimal HTTP CONNECT proxy; it records the target of
+// each tunnel so a test can prove the WebSocket dial went through it.
+func startCONNECTProxy(t *testing.T) (string, <-chan string) {
+	t.Helper()
+	targets := make(chan string, 8)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodConnect {
+			http.Error(w, "CONNECT only", http.StatusMethodNotAllowed)
+			return
+		}
+		targets <- r.Host
+		upstream, err := net.Dial("tcp", r.Host)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadGateway)
+			return
+		}
+		hijack, ok := w.(http.Hijacker)
+		if !ok {
+			_ = upstream.Close()
+			http.Error(w, "hijacking is unavailable", http.StatusInternalServerError)
+			return
+		}
+		client, _, err := hijack.Hijack()
+		if err != nil {
+			_ = upstream.Close()
+			return
+		}
+		defer client.Close()
+		defer upstream.Close()
+		_, _ = client.Write([]byte("HTTP/1.1 200 Connection Established\r\n\r\n"))
+		go func() { _, _ = io.Copy(upstream, client) }()
+		_, _ = io.Copy(client, upstream)
+	}))
+	t.Cleanup(server.Close)
+	return server.URL, targets
+}
+
+func TestMQTTWebsocketUsesProxy(t *testing.T) {
+	broker := startTestBroker(t, nil, true)
+	proxyURL, targets := startCONNECTProxy(t)
+	u, err := url.Parse(proxyURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := mqttContext(t)
+	sub := dialTestMQTTVia(t, ctx, "ws://"+broker.ws, MQTTConfig{Version: MQTT311, ClientID: "proxy-sub"}, nil, u.Host)
+	pub := dialTestMQTTVia(t, ctx, "ws://"+broker.ws, MQTTConfig{Version: MQTT5, ClientID: "proxy-pub"}, nil, u.Host)
+	if _, err := sub.Subscribe(ctx, []MQTTSubscription{{Topic: "proxy/topic", QoS: 1}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := pub.Publish(ctx, MQTTPublish{Topic: "proxy/topic", Payload: []byte("through proxy"), QoS: 1}); err != nil {
+		t.Fatal(err)
+	}
+	if msg := receive(t, sub, 5*time.Second); msg.Topic != "proxy/topic" || string(msg.Payload) != "through proxy" {
+		t.Fatalf("proxied WebSocket message = %+v", msg)
+	}
+	select {
+	case target := <-targets:
+		if target != broker.ws {
+			t.Fatalf("proxy target = %q, want %q", target, broker.ws)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("the WebSocket dial did not use the proxy")
+	}
+}
+
+func TestMQTT311DeliveryOrderAndOverlappingFilters(t *testing.T) {
+	broker := startTestBroker(t, nil, false)
+	ctx := mqttContext(t)
+	sub := dialTestMQTT(t, ctx, "mqtt://"+broker.tcp, MQTTConfig{Version: MQTT311, ClientID: "v3-delivery-sub"}, nil)
+	pub := dialTestMQTT(t, ctx, "mqtt://"+broker.tcp, MQTTConfig{Version: MQTT311, ClientID: "v3-delivery-pub"}, nil)
+	if _, err := sub.Subscribe(ctx, []MQTTSubscription{{Topic: "order/topic", QoS: 0}}); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 100; i++ {
+		payload := fmt.Sprintf("%03d", i)
+		if err := pub.Publish(ctx, MQTTPublish{Topic: "order/topic", Payload: []byte(payload), QoS: 0}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for i := 0; i < 100; i++ {
+		msg := receive(t, sub, 5*time.Second)
+		if want := fmt.Sprintf("%03d", i); string(msg.Payload) != want {
+			t.Fatalf("message %d = %q, want %q", i, msg.Payload, want)
+		}
+	}
+	// A message that matches two filters must be delivered once.
+	if _, err := sub.Subscribe(ctx, []MQTTSubscription{{Topic: "ov/#", QoS: 0}, {Topic: "ov/b", QoS: 0}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := pub.Publish(ctx, MQTTPublish{Topic: "ov/b", Payload: []byte("once"), QoS: 0}); err != nil {
+		t.Fatal(err)
+	}
+	if msg := receive(t, sub, 5*time.Second); msg.Topic != "ov/b" || string(msg.Payload) != "once" {
+		t.Fatalf("overlapping filter message = %+v", msg)
+	}
+	expectNoMessage(t, sub, 500*time.Millisecond)
+}
+
+// startTCPProxy forwards one address to another and can drop every live
+// connection, which looks like a network loss to both ends.
+func startTCPProxy(t *testing.T, target string) (string, func()) {
+	t.Helper()
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var mu sync.Mutex
+	var conns []net.Conn
+	go func() {
+		for {
+			client, err := listener.Accept()
+			if err != nil {
+				return
+			}
+			upstream, err := net.Dial("tcp", target)
+			if err != nil {
+				_ = client.Close()
+				continue
+			}
+			mu.Lock()
+			conns = append(conns, client, upstream)
+			mu.Unlock()
+			go func() {
+				_, _ = io.Copy(upstream, client)
+				_ = upstream.Close()
+				_ = client.Close()
+			}()
+			go func() {
+				_, _ = io.Copy(client, upstream)
+				_ = client.Close()
+				_ = upstream.Close()
+			}()
+		}
+	}()
+	drop := func() {
+		mu.Lock()
+		for _, conn := range conns {
+			_ = conn.Close()
+		}
+		conns = nil
+		mu.Unlock()
+	}
+	t.Cleanup(func() {
+		_ = listener.Close()
+		drop()
+	})
+	return listener.Addr().String(), drop
+}
+
+func TestMQTT311PersistentSessionQueuedMessages(t *testing.T) {
+	broker := startTestBroker(t, nil, false)
+	ctx := mqttContext(t)
+	clean := false
+	cfg := MQTTConfig{Version: MQTT311, ClientID: "v3-persistent", CleanStart: &clean}
+	proxy, drop := startTCPProxy(t, broker.tcp)
+	first := dialTestMQTT(t, ctx, "mqtt://"+proxy, cfg, nil)
+	if _, err := first.Subscribe(ctx, []MQTTSubscription{{Topic: "queue/topic", QoS: 1}}); err != nil {
+		t.Fatal(err)
+	}
+	// Drop the network path without DISCONNECT; the broker keeps the session.
+	drop()
+	select {
+	case <-first.Done():
+	case <-time.After(5 * time.Second):
+		t.Fatalf("first connection did not close; connected=%v err=%v", first.v3.IsConnected(), first.Err())
+	}
+	pub := dialTestMQTT(t, ctx, "mqtt://"+broker.tcp, MQTTConfig{Version: MQTT311, ClientID: "v3-persistent-pub"}, nil)
+	for i := 0; i < 3; i++ {
+		if err := pub.Publish(ctx, MQTTPublish{Topic: "queue/topic", Payload: []byte(fmt.Sprintf("queued-%d", i)), QoS: 1}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	second := dialTestMQTT(t, ctx, "mqtt://"+broker.tcp, cfg, nil)
+	if !second.SessionPresent() {
+		t.Fatal("broker did not report a resumed session")
+	}
+	// No Subscribe call: the broker's session delivers the queued messages,
+	// and the default handler must acknowledge them.
+	got := map[string]bool{}
+	for range 3 {
+		msg := receive(t, second, 5*time.Second)
+		got[string(msg.Payload)] = true
+	}
+	for i := 0; i < 3; i++ {
+		if !got[fmt.Sprintf("queued-%d", i)] {
+			t.Fatalf("queued messages = %v", got)
+		}
+	}
+}
+
 func TestMQTTReconnectState(t *testing.T) {
 	broker := startTestBroker(t, nil, false)
 	ctx := mqttContext(t)
@@ -521,6 +870,267 @@ func TestMQTTReconnectState(t *testing.T) {
 		t.Fatal("connection loss has no error")
 	}
 	client.Close() // idempotent
+}
+
+func TestMQTTIncomingPacketLimitBeforeAllocation(t *testing.T) {
+	for _, version := range []int{MQTT311, MQTT5} {
+		t.Run(MQTTVersionLabel(version), func(t *testing.T) {
+			address, errs := startRawMQTTBroker(t, func(conn net.Conn, connect []byte) error {
+				if err := writeMQTTConnack(conn, version, 0, nil); err != nil {
+					return err
+				}
+				// Declare the largest possible PUBLISH but send no body.
+				if _, err := conn.Write([]byte{0x30, 0xff, 0xff, 0xff, 0x7f}); err != nil {
+					return err
+				}
+				_, _ = io.Copy(io.Discard, conn)
+				return nil
+			})
+			var before, after runtime.MemStats
+			runtime.GC()
+			runtime.ReadMemStats(&before)
+			client, err := DialMQTT(mqttContext(t), "mqtt://"+address,
+				MQTTConfig{Version: version, ClientID: "limit-header-" + MQTTVersionLabel(version)}, nil, "")
+			if err != nil {
+				t.Fatal(err)
+			}
+			select {
+			case <-client.Done():
+			case <-time.After(2 * time.Second):
+				t.Fatal("oversized header did not fail before the body arrived")
+			}
+			if err := client.Err(); err == nil || !strings.Contains(err.Error(), "exceeds") {
+				t.Fatalf("packet limit error = %v", err)
+			}
+			runtime.GC()
+			runtime.ReadMemStats(&after)
+			if growth := after.TotalAlloc - before.TotalAlloc; growth > 64<<20 {
+				t.Fatalf("allocated %d bytes for a rejected packet header", growth)
+			}
+			client.Close()
+			brokerError(t, errs)
+		})
+	}
+}
+
+func TestMQTT5ConnectTimeoutIsNotCappedAtTenSeconds(t *testing.T) {
+	t.Parallel()
+	address, errs := startRawMQTTBroker(t, func(conn net.Conn, connect []byte) error {
+		time.Sleep(11 * time.Second)
+		return writeMQTTConnack(conn, MQTT5, 0, nil)
+	})
+	client, err := DialMQTT(mqttContext(t), "mqtt://"+address,
+		MQTTConfig{Version: MQTT5, ClientID: "slow-connack", ConnectTimeoutMs: 15000}, nil, "")
+	if err != nil {
+		t.Fatalf("a CONNACK inside the 15 s connect timeout failed: %v", err)
+	}
+	client.Close()
+	brokerError(t, errs)
+}
+
+func TestMQTT5ConnackReasonCode(t *testing.T) {
+	address, errs := startRawMQTTBroker(t, func(conn net.Conn, connect []byte) error {
+		return writeMQTTConnack(conn, MQTT5, 0x87, []byte{0x1f, 0x00, 0x06, 'd', 'e', 'n', 'i', 'e', 'd'})
+	})
+	_, err := DialMQTT(mqttContext(t), "mqtt://"+address,
+		MQTTConfig{Version: MQTT5, ClientID: "connack-reason"}, nil, "")
+	if err == nil || !strings.Contains(err.Error(), "not authorized (0x87)") || !strings.Contains(err.Error(), "denied") {
+		t.Fatalf("connect error = %v", err)
+	}
+	brokerError(t, errs)
+}
+
+func TestMQTT5SubackReasonCode(t *testing.T) {
+	address, errs := startRawMQTTBroker(t, func(conn net.Conn, connect []byte) error {
+		if err := writeMQTTConnack(conn, MQTT5, 0, nil); err != nil {
+			return err
+		}
+		packet, err := readMQTTPacket(conn)
+		if err != nil {
+			return err
+		}
+		if len(packet) == 0 || packet[0]>>4 != 8 {
+			return fmt.Errorf("expected SUBSCRIBE, got % x", packet)
+		}
+		body := mqttPacketBody(packet)
+		if len(body) < 2 {
+			return fmt.Errorf("short SUBSCRIBE: % x", packet)
+		}
+		if err := writeMQTTPacket(conn, 0x90, []byte{body[0], body[1], 0x00, 0x87}); err != nil {
+			return err
+		}
+		_, _ = io.Copy(io.Discard, conn)
+		return nil
+	})
+	client, err := DialMQTT(mqttContext(t), "mqtt://"+address,
+		MQTTConfig{Version: MQTT5, ClientID: "suback-reason"}, nil, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	grants, err := client.Subscribe(mqttContext(t), []MQTTSubscription{{Topic: "denied/topic", QoS: 1}})
+	if err == nil || !strings.Contains(err.Error(), "not authorized (0x87)") {
+		t.Fatalf("subscribe error = %v", err)
+	}
+	if len(grants) != 1 || grants[0] != 0x87 {
+		t.Fatalf("grants = %v", grants)
+	}
+	client.Close()
+	brokerError(t, errs)
+}
+
+func TestMQTT5ServerDisconnectReasonCode(t *testing.T) {
+	address, errs := startRawMQTTBroker(t, func(conn net.Conn, connect []byte) error {
+		if err := writeMQTTConnack(conn, MQTT5, 0, nil); err != nil {
+			return err
+		}
+		body := []byte{0x98, 0x09, 0x1f, 0x00, 0x06, 'k', 'i', 'c', 'k', 'e', 'd'}
+		if err := writeMQTTPacket(conn, 0xE0, body); err != nil {
+			return err
+		}
+		_, _ = io.Copy(io.Discard, conn)
+		return nil
+	})
+	client, err := DialMQTT(mqttContext(t), "mqtt://"+address,
+		MQTTConfig{Version: MQTT5, ClientID: "disconnect-reason"}, nil, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-client.Done():
+	case <-time.After(2 * time.Second):
+		t.Fatal("broker DISCONNECT did not close the client")
+	}
+	if err := client.Err(); !strings.Contains(err.Error(), "administrative action (0x98)") || !strings.Contains(err.Error(), "kicked") {
+		t.Fatalf("disconnect error = %v", err)
+	}
+	client.Close()
+	brokerError(t, errs)
+}
+
+func TestMQTT5TopicAliasRespectsBrokerMaximum(t *testing.T) {
+	published := make(chan []byte, 1)
+	address, errs := startRawMQTTBroker(t, func(conn net.Conn, connect []byte) error {
+		if err := writeMQTTConnack(conn, MQTT5, 0, []byte{0x22, 0x00, 0x05}); err != nil {
+			return err
+		}
+		packet, err := readMQTTPacket(conn)
+		if err != nil {
+			return err
+		}
+		published <- packet
+		_, _ = io.Copy(io.Discard, conn)
+		return nil
+	})
+	client, err := DialMQTT(mqttContext(t), "mqtt://"+address,
+		MQTTConfig{Version: MQTT5, ClientID: "topic-alias"}, nil, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := mqttContext(t)
+	err = client.Publish(ctx, MQTTPublish{Topic: "alias/topic", Payload: []byte("x"), QoS: 0,
+		Properties: MQTTMessageProperties{TopicAlias: 6}})
+	if err == nil || !strings.Contains(err.Error(), "exceeds") {
+		t.Fatalf("alias above the broker maximum = %v", err)
+	}
+	if err := client.Publish(ctx, MQTTPublish{Topic: "", Payload: []byte("alias only"), QoS: 0,
+		Properties: MQTTMessageProperties{TopicAlias: 5}}); err != nil {
+		t.Fatalf("alias-only publish: %v", err)
+	}
+	select {
+	case packet := <-published:
+		body := mqttPacketBody(packet)
+		if len(body) < 2 || body[0] != 0 || body[1] != 0 {
+			t.Fatalf("alias-only PUBLISH body = % x", body)
+		}
+		if !bytes.Contains(body, []byte{0x23, 0x00, 0x05}) {
+			t.Fatalf("PUBLISH does not carry topic alias 5: % x", body)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("alias-only publish did not reach the broker")
+	}
+	client.Close()
+	brokerError(t, errs)
+}
+
+func TestMQTT5TopicAliasUnsupportedByBroker(t *testing.T) {
+	address, errs := startRawMQTTBroker(t, func(conn net.Conn, connect []byte) error {
+		if err := writeMQTTConnack(conn, MQTT5, 0, nil); err != nil {
+			return err
+		}
+		_, _ = io.Copy(io.Discard, conn)
+		return nil
+	})
+	client, err := DialMQTT(mqttContext(t), "mqtt://"+address,
+		MQTTConfig{Version: MQTT5, ClientID: "no-topic-alias"}, nil, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = client.Publish(mqttContext(t), MQTTPublish{Topic: "alias/topic", Payload: []byte("x"), QoS: 0,
+		Properties: MQTTMessageProperties{TopicAlias: 1}})
+	if err == nil || !strings.Contains(err.Error(), "does not support") {
+		t.Fatalf("alias without broker support = %v", err)
+	}
+	client.Close()
+	brokerError(t, errs)
+}
+
+func TestMQTT5PublishAndCloseAreBoundedWhenBrokerStopsReading(t *testing.T) {
+	var releaseOnce sync.Once
+	release := make(chan struct{})
+	releaseBroker := func() { releaseOnce.Do(func() { close(release) }) }
+	defer releaseBroker()
+	address, errs := startRawMQTTBroker(t, func(conn net.Conn, connect []byte) error {
+		if tcp, ok := conn.(*net.TCPConn); ok {
+			_ = tcp.SetReadBuffer(1024)
+		}
+		if err := writeMQTTConnack(conn, MQTT5, 0, nil); err != nil {
+			return err
+		}
+		// Stop reading. The client's socket buffer fills and its write blocks.
+		<-release
+		return nil
+	})
+	client, err := DialMQTT(mqttContext(t), "mqtt://"+address,
+		MQTTConfig{Version: MQTT5, ClientID: "blocked-writer", KeepAlive: 0, ConnectTimeoutMs: 5000}, nil, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if limited, ok := client.conn.(*mqttLimitConn); ok {
+		if tcp, ok := limited.Conn.(*net.TCPConn); ok {
+			_ = tcp.SetWriteBuffer(4096)
+		}
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	done := make(chan error, 1)
+	go func() {
+		done <- client.Publish(ctx, MQTTPublish{Topic: "big/topic", Payload: bytes.Repeat([]byte("x"), 1<<20), QoS: 0})
+	}()
+	select {
+	case err := <-done:
+		if err == nil {
+			t.Fatal("publish to a broker that stopped reading succeeded")
+		}
+	case <-time.After(7 * time.Second):
+		t.Fatal("publish blocked past its write deadline")
+	}
+	closed := make(chan struct{})
+	go func() {
+		client.Close()
+		close(closed)
+	}()
+	select {
+	case <-closed:
+	case <-time.After(2 * time.Second):
+		t.Fatal("Close blocked behind a blocked publish")
+	}
+	select {
+	case <-client.Done():
+	case <-time.After(time.Second):
+		t.Fatal("Done did not close after Close")
+	}
+	releaseBroker()
+	brokerError(t, errs)
 }
 
 func TestMQTTIncomingPacketLimit(t *testing.T) {
@@ -547,6 +1157,33 @@ func TestMQTTIncomingPacketLimit(t *testing.T) {
 		}
 	case <-time.After(5 * time.Second):
 		t.Fatal("oversized broker packet was accepted")
+	}
+}
+
+func TestMQTTValidatePasswordWithoutUsername(t *testing.T) {
+	if err := (MQTTConfig{Version: MQTT5, ClientID: "password-only", Password: "secret"}).Validate(); err != nil {
+		t.Fatalf("MQTT 5 password without username: %v", err)
+	}
+	if err := (MQTTConfig{Version: MQTT311, ClientID: "password-only", Password: "secret"}).Validate(); err == nil {
+		t.Fatal("MQTT 3.1.1 accepted a password without a username")
+	}
+}
+
+func TestMQTTValidateAliasOnlyMessage(t *testing.T) {
+	cfg := MQTTConfig{Version: MQTT5, ClientID: "alias-only", Messages: []MQTTMessage{{
+		Topic: "", Payload: "x", Type: "text", Properties: MQTTMessageProperties{TopicAlias: 1},
+	}}}
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("MQTT 5 alias-only message: %v", err)
+	}
+	cfg.Version = MQTT311
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("MQTT 3.1.1 accepted an alias-only message")
+	}
+	cfg.Version = MQTT5
+	cfg.Messages[0].Properties.TopicAlias = 0
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("an empty topic without an alias was accepted")
 	}
 }
 

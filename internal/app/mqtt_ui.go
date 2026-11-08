@@ -41,6 +41,13 @@ type mqttDocument struct {
 	sessionExpiry, receiveMaximum, maximumPacketSize float64
 	willDelay, willExpiry                            float64
 	topicRows                                        []mqttTopicRow
+	// These mirror document values for the widgets. They are written back
+	// only when the user changes them, so merely opening a saved document
+	// does not dirty it.
+	cleanStart, autoReconnect bool
+	authType, willType        string
+	topicSubscribe            []bool
+	synced                    bool
 
 	publish           mqttPublishDraft
 	messagePick       string
@@ -68,42 +75,25 @@ func (d *requestDocument) mqttState() *mqttDocument {
 		d.mqttUI = &mqttDocument{split: 240, messagePick: "New message", messagePickFor: "New message", messageIndex: -1}
 	}
 	d.ensureMQTT()
+	if !d.mqttUI.synced {
+		d.mqttUI.authType = cmp.Or(d.auth.Type, "None")
+	}
 	d.mqttUI.sync(&d.mqttConfig)
 	return d.mqttUI
 }
 
-// ensureMQTT gives a new document usable defaults without overwriting a saved
-// choice such as keep-alive 0.
+// ensureMQTT gives a brand-new document usable defaults. A saved document is
+// left exactly as loaded: an empty MQTT 5 client ID is valid (the broker
+// assigns one), and MQTT 3.1.1 generates an ID at connect time instead of
+// rewriting the document.
 func (d *requestDocument) ensureMQTT() {
 	c := &d.mqttConfig
-	if c.Version == 0 {
-		clean, auto := true, true
-		*c = request.MQTTConfig{Version: request.MQTT5, ClientID: newMQTTClientID(), KeepAlive: 60,
-			ConnectTimeoutMs: 10000, CleanStart: &clean, AutoReconnect: &auto}
+	if c.Version != 0 || d.savedKey != "" || d.assetID != "" {
+		return
 	}
-	if c.ClientID == "" {
-		c.ClientID = newMQTTClientID()
-	}
-	if d.auth.Type == "" {
-		d.auth.Type = request.AuthInherit
-	}
-	if c.Will.Type == "" {
-		c.Will.Type = "text"
-	}
-	if c.CleanStart == nil {
-		value := true
-		c.CleanStart = &value
-	}
-	if c.AutoReconnect == nil {
-		value := true
-		c.AutoReconnect = &value
-	}
-	for i := range c.Topics {
-		if c.Topics[i].Subscribe == nil {
-			value := true
-			c.Topics[i].Subscribe = &value
-		}
-	}
+	clean, auto := true, true
+	*c = request.MQTTConfig{Version: request.MQTT5, KeepAlive: 60, ConnectTimeoutMs: 10000,
+		CleanStart: &clean, AutoReconnect: &auto}
 }
 
 func newMQTTClientID() string {
@@ -116,17 +106,32 @@ func (u *mqttDocument) stop() {
 	}
 }
 
+// stopAndWait is for app quit: give the session a moment to send DISCONNECT,
+// so a clean exit does not make the broker publish the will.
+func (u *mqttDocument) stopAndWait() {
+	if u.session != nil {
+		u.session.stopAndWait()
+	}
+}
+
 func (u *mqttDocument) sync(c *request.MQTTConfig) {
 	u.version = request.MQTTVersionLabel(c.Version)
 	u.keepAlive, u.connectTimeout = float64(c.KeepAlive), float64(c.ConnectTimeoutMs)
 	u.sessionExpiry, u.receiveMaximum = float64(c.Properties.SessionExpiry), float64(c.Properties.ReceiveMaximum)
 	u.maximumPacketSize = float64(c.Properties.MaximumPacketSize)
 	u.willDelay, u.willExpiry = float64(c.Will.Properties.WillDelay), float64(c.Will.Properties.MessageExpiry)
+	if !u.synced {
+		u.cleanStart, u.autoReconnect = c.CleanStartEnabled(), c.AutoReconnects()
+		u.willType = cmp.Or(c.Will.Type, "text")
+	}
 	if u.willQoS == "" {
 		u.willQoS = strconv.Itoa(int(c.Will.QoS))
 	}
 	if len(u.topicRows) != len(c.Topics) {
 		u.topicRows = make([]mqttTopicRow, len(c.Topics))
+	}
+	if len(u.topicSubscribe) != len(c.Topics) {
+		u.topicSubscribe = make([]bool, len(c.Topics))
 	}
 	for i := range c.Topics {
 		row := &u.topicRows[i]
@@ -137,7 +142,11 @@ func (u *mqttDocument) sync(c *request.MQTTConfig) {
 			row.retainHandling = strconv.Itoa(int(c.Topics[i].RetainHandling))
 		}
 		row.subscriptionID = float64(c.Topics[i].SubscriptionIdentifier)
+		if !u.synced {
+			u.topicSubscribe[i] = c.Topics[i].Subscribe == nil || *c.Topics[i].Subscribe
+		}
 	}
+	u.synced = true
 	if u.publish.qos == "" {
 		u.publish.qos = "0"
 	}
@@ -165,6 +174,7 @@ func (u *mqttDocument) appendTopic(c *request.MQTTConfig) {
 	subscribe := true
 	c.Topics = append(c.Topics, request.MQTTTopic{Name: "", Subscribe: &subscribe})
 	u.topicRows = append(u.topicRows, mqttTopicRow{qos: "0", retainHandling: "0"})
+	u.topicSubscribe = append(u.topicSubscribe, true)
 }
 
 // removeTopic drops one filter and its row state.
@@ -175,6 +185,9 @@ func (u *mqttDocument) removeTopic(c *request.MQTTConfig, i int) {
 	c.Topics = slices.Delete(c.Topics, i, i+1)
 	if i < len(u.topicRows) {
 		u.topicRows = slices.Delete(u.topicRows, i, i+1)
+	}
+	if i < len(u.topicSubscribe) {
+		u.topicSubscribe = slices.Delete(u.topicSubscribe, i, i+1)
 	}
 }
 
@@ -225,6 +238,8 @@ func (u *mqttDocument) deleteMessage(c *request.MQTTConfig) {
 	u.newMessage()
 }
 
+// mqttQoS maps one of the QoS select's fixed values. The select cannot
+// produce another value, so there is no out-of-range input to clamp here.
 func mqttQoS(value string) byte {
 	switch value {
 	case "1":
@@ -269,7 +284,7 @@ func (a *app) mqttEditor(c *ui.Context, t *ui.Theme, d *requestDocument) {
 func (a *app) mqttConnectionTab(c *ui.Context, t *ui.Theme, d *requestDocument, u *mqttDocument) {
 	c1 := &d.mqttConfig
 	ui.Scroll(c).Grow(1).Gap(t.Space(3)).Children(func() {
-		uikit.Hint(c, "MQTT 3.1.1 or 5.0 over TCP, TLS or WebSocket. The connection is direct, not through the capture proxy. TLS uses Settings → Certificates: matching client certificates, custom roots and the per-request verify choice.")
+		uikit.Hint(c, "MQTT 3.1.1 or 5.0 over TCP, TLS or WebSocket. mqtt:// and mqtts:// connect directly; ws:// and wss:// use the running capture proxy, so upstream rules, certificates and Capture apply. TLS uses Settings → Certificates: matching client certificates, custom roots and the per-request verify choice.")
 		ui.Form(c, func() {
 			ui.Field(c, "Protocol", func() {
 				ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
@@ -289,11 +304,13 @@ func (a *app) mqttConnectionTab(c *ui.Context, t *ui.Theme, d *requestDocument, 
 						c1.ClientID = newMQTTClientID()
 					}
 				})
-				uikit.Meta(c, "Sent to the broker; an empty ID is generated when the document opens.")
+				uikit.Meta(c, "MQTT 5.0 may leave this empty; the broker assigns one. 3.1.1 generates one when connecting.")
 			})
 			ui.Field(c, "Credentials", func() {
 				ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-					uikit.Select(c, &d.auth.Type, []string{"None", "Basic", "Inherit"}).Label("MQTT credentials").Width(110)
+					if uikit.Select(c, &u.authType, []string{"None", "Basic", "Inherit"}).Label("MQTT credentials").Width(110).Changed() {
+						d.auth.Type = u.authType
+					}
 					uikit.Meta(c, "Basic becomes the MQTT username and password; Inherit uses a Basic parent only.").Grow(1)
 				})
 				if d.auth.Type == "Basic" {
@@ -305,8 +322,14 @@ func (a *app) mqttConnectionTab(c *ui.Context, t *ui.Theme, d *requestDocument, 
 			})
 			ui.Field(c, "Session", func() {
 				ui.Row(c).Gap(t.Space(3)).AlignItems(ui.Center).Children(func() {
-					ui.Checkbox(c, c1.CleanStart, "Clean start / clean session")
-					ui.Checkbox(c, c1.AutoReconnect, "Reconnect after a drop")
+					if ui.Checkbox(c, &u.cleanStart, "Clean start / clean session").Changed() {
+						value := u.cleanStart
+						c1.CleanStart = &value
+					}
+					if ui.Checkbox(c, &u.autoReconnect, "Reconnect after a drop").Changed() {
+						value := u.autoReconnect
+						c1.AutoReconnect = &value
+					}
 				})
 				ui.Row(c).Gap(t.Space(3)).AlignItems(ui.Center).Children(func() {
 					if ui.NumberInput(c, &u.keepAlive, 0, 65535, 1).Label("Keep-alive in seconds").Changed() {
@@ -394,7 +417,12 @@ func (a *app) mqttSubscriptionsTab(c *ui.Context, t *ui.Theme, d *requestDocumen
 					if uikit.Select(c, &row.qos, []string{"0", "1", "2"}).Label("Topic QoS").Width(64).Changed() {
 						topic.QoS = mqttQoS(row.qos)
 					}
-					ui.Checkbox(c, topic.Subscribe, "On connect")
+					if i < len(u.topicSubscribe) {
+						if ui.Checkbox(c, &u.topicSubscribe[i], "On connect").Changed() {
+							value := u.topicSubscribe[i]
+							topic.Subscribe = &value
+						}
+					}
 					if uikit.IconButton(c, fmt.Sprintf("Remove topic %d", i+1), "Remove this topic filter", closeIcon).Clicked() {
 						removeTopic = i
 					}
@@ -406,7 +434,8 @@ func (a *app) mqttSubscriptionsTab(c *ui.Context, t *ui.Theme, d *requestDocumen
 						topic.RetainHandling = mqttQoS(row.retainHandling)
 					}
 					uikit.Meta(c, "retain handling · MQTT 5 only").Grow(1)
-					if ui.NumberInput(c, &row.subscriptionID, 0, 268435455, 1).Label("Subscription identifier").Changed() {
+					uikit.Meta(c, "Subscription ID")
+					if ui.NumberInput(c, &row.subscriptionID, 0, 268435455, 1).Label("Subscription identifier").Width(96).Changed() {
 						topic.SubscriptionIdentifier = int(row.subscriptionID)
 					}
 				})
@@ -525,7 +554,8 @@ func (a *app) mqttWillTab(c *ui.Context, t *ui.Theme, d *requestDocument, u *mqt
 				})
 				ui.Field(c, "Payload", func() {
 					ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-						if uikit.Select(c, &c1.Will.Type, []string{"text", "json", "hex", "base64"}).Label("Will payload encoding").Width(100).Changed() {
+						if uikit.Select(c, &u.willType, []string{"text", "json", "hex", "base64"}).Label("Will payload encoding").Width(100).Changed() {
+							c1.Will.Type = u.willType
 							u.willPayloadEditor, u.willPayloadType = nil, ""
 						}
 						if uikit.Select(c, &u.willQoS, []string{"0", "1", "2"}).Label("Will QoS").Width(64).Changed() {
@@ -767,6 +797,11 @@ func (a *app) connectMQTT(d *requestDocument) {
 	// Saved publish drafts are validated when they are sent, not when the
 	// broker connection opens.
 	r.MQTT.Messages = nil
+	// 3.1.1 needs a client ID, but the generated one belongs to this
+	// connection only; the saved document keeps its empty field.
+	if r.MQTT.Version == request.MQTT311 && r.MQTT.ClientID == "" {
+		r.MQTT.ClientID = newMQTTClientID()
+	}
 	in, vars := a.sendContext(r), a.activeVars()
 	prepared, cfg, err := r.PrepareMQTT(in, vars)
 	if err != nil {
@@ -778,15 +813,27 @@ func (a *app) connectMQTT(d *requestDocument) {
 		u.problem = err.Error()
 		return
 	}
-	tlsConfig := func() (*tls.Config, error) {
+	websocket := strings.HasPrefix(strings.ToLower(prepared.URL), "ws://") ||
+		strings.HasPrefix(strings.ToLower(prepared.URL), "wss://")
+	// A WebSocket upgrade is HTTP, so it follows the running capture proxy
+	// like gRPC; raw MQTT TCP connects directly. Evaluate both on every dial,
+	// so a reconnect follows the proxy's current state.
+	proxy := func() (string, []byte) {
+		if !websocket || a.srv == nil || !a.srv.Running() {
+			return "", nil
+		}
+		return a.srv.Addr(), a.srv.CACertificate()
+	}
+	tlsConfig := func(proxyCA []byte) (*tls.Config, error) {
 		if !secure {
 			return nil, nil
 		}
 		// Read the certificate files for every connect and reconnect, as the
-		// other protocol clients do.
-		return in.Certificates.TLSConfig(address, nil, !in.InheritSettings(r.Settings).Verifies())
+		// other protocol clients do. proxyCA trusts the capture proxy's
+		// interception certificate for wss.
+		return in.Certificates.TLSConfig(address, proxyCA, !in.InheritSettings(r.Settings).Verifies())
 	}
-	u.session = openMQTTSession(prepared.URL, r, in, vars, cfg, tlsConfig, a.invalidate)
+	u.session = openMQTTSession(prepared.URL, r, in, vars, cfg, proxy, tlsConfig, a.invalidate)
 	u.problem, u.query, u.readerKey, u.reader, u.selected = "", "", "", nil, 0
 	u.list = ui.ListState{}
 	d.composeWaiting, d.sendCancel, d.sendCancelling = true, u.session.cancel, false

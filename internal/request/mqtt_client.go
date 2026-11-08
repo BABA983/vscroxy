@@ -32,6 +32,16 @@ const mqttIncomingKeep = 64 << 10
 // drops the oldest waiting message rather than growing without limit.
 const mqttQueue = 128
 
+const (
+	// mqttWriteTimeout bounds a write to a broker that stopped reading. Paho's
+	// QoS 0 publish does not watch the context, so the socket deadline is the
+	// only way out.
+	mqttWriteTimeout = 5 * time.Second
+	// mqttDisconnectTimeout lets Close send DISCONNECT even while a publish
+	// holds Paho's write lock.
+	mqttDisconnectTimeout = time.Second
+)
+
 // MQTTClient is one live broker connection. It is the only protocol engine
 // that has two implementations: MQTT 3.1.1 uses Paho's v3 client and MQTT 5.0
 // uses Paho's v5 client, both over the same dialer and TLS settings.
@@ -49,15 +59,16 @@ type MQTTClient struct {
 	closed   atomic.Bool
 	dropped  atomic.Int64
 
-	clientID       string
-	sessionPresent bool
+	clientID          string
+	sessionPresent    bool
+	topicAliasMaximum uint16
 }
 
 // DialMQTT connects to rawURL and completes the MQTT handshake. tlsConfig is
 // used for mqtts:// and wss://; it carries the configured roots and client
-// certificate. The connection is direct: MQTT is not HTTP, so it is not
-// recorded by the capture proxy.
-func DialMQTT(ctx context.Context, rawURL string, cfg MQTTConfig, tlsConfig *tls.Config) (*MQTTClient, error) {
+// certificate. proxy is an HTTP proxy for the ws:// and wss:// upgrade (the
+// capture proxy); mqtt:// and mqtts:// are raw TCP and connect directly.
+func DialMQTT(ctx context.Context, rawURL string, cfg MQTTConfig, tlsConfig *tls.Config, proxy string) (*MQTTClient, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
@@ -68,7 +79,7 @@ func DialMQTT(ctx context.Context, rawURL string, cfg MQTTConfig, tlsConfig *tls
 	timeout := cfg.ConnectTimeout()
 	dialCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
-	conn, err := dialMQTTConn(dialCtx, u, tlsConfig, timeout)
+	conn, err := dialMQTTConn(dialCtx, u, tlsConfig, timeout, proxy)
 	if err != nil {
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
@@ -98,7 +109,8 @@ func (c *MQTTClient) connect3(ctx context.Context, rawURL string, cfg MQTTConfig
 		SetClientID(cfg.ClientID).SetCleanSession(cfg.CleanStartEnabled()).
 		SetKeepAlive(time.Duration(cfg.KeepAlive) * time.Second).
 		SetConnectTimeout(cfg.ConnectTimeout()).
-		SetAutoReconnect(false).SetConnectRetry(false).SetOrderMatters(false)
+		SetAutoReconnect(false).SetConnectRetry(false).SetOrderMatters(true)
+	opts.SetDefaultPublishHandler(c.onV3Message)
 	opts.SetUsername(cfg.Username)
 	opts.SetPassword(cfg.Password)
 	if cfg.Will.Enabled {
@@ -122,6 +134,9 @@ func (c *MQTTClient) connect3(ctx context.Context, rawURL string, cfg MQTTConfig
 	}
 	if err := token.Error(); err != nil {
 		return fmt.Errorf("MQTT connect: %w", err)
+	}
+	if connected, ok := token.(*mqtt.ConnectToken); ok {
+		c.sessionPresent = connected.SessionPresent()
 	}
 	c.v3, c.clientID = client, cfg.ClientID
 	return nil
@@ -171,35 +186,61 @@ func (c *MQTTClient) connect5(ctx context.Context, cfg MQTTConfig) error {
 	conn := c.conn
 	if cfg.Will.Enabled && cfg.Will.Properties.nonZero() {
 		// Paho v0.23 encodes will properties with the CONNECT property
-		// context, which drops every will-only field except user properties.
-		// Substitute the first packet (the CONNECT) with a correctly encoded
-		// one; the client's own read loop and later packets are untouched.
+		// context: content type, response topic, correlation data, payload
+		// format and message expiry are lost, while user properties and the
+		// will delay interval survive. Substitute the first packet (the
+		// CONNECT) with a correctly encoded one; the client's own read loop
+		// and later packets are untouched.
 		replacement := mqtt5ConnectBytes(connect)
+		// Paho's Client.Connect sets these on the packet it writes, after this
+		// point; the length measured here must include them.
+		packet := connect.Packet()
+		packet.ProtocolName, packet.ProtocolVersion = "MQTT", 5
 		var original bytes.Buffer
-		if _, err := connect.Packet().WriteTo(&original); err != nil {
+		if _, err := packet.WriteTo(&original); err != nil {
 			return err
 		}
 		conn = &replaceFirstWriteConn{Conn: c.conn, want: original.Len(), replacement: replacement}
 	}
 	client := paho.NewClient(paho.ClientConfig{
-		Conn: packets.NewThreadSafeConn(conn),
+		Conn:          packets.NewThreadSafeConn(conn),
+		PacketTimeout: cfg.ConnectTimeout(),
 		OnPublishReceived: []func(paho.PublishReceived) (bool, error){func(p paho.PublishReceived) (bool, error) {
 			c.push(incoming5(p.Packet))
 			return false, nil
 		}},
+		OnServerDisconnect: func(d *paho.Disconnect) {
+			reason := mqtt5Reason(d.ReasonCode)
+			if d.Properties != nil && d.Properties.ReasonString != "" {
+				reason += ": " + d.Properties.ReasonString
+			}
+			c.failServer(fmt.Errorf("broker disconnected: %s", reason))
+		},
 		OnClientError: func(err error) { c.fail(err) },
 	})
 	connack, err := client.Connect(ctx, connect)
+	// Paho returns the CONNACK together with the error when the broker
+	// refuses the connection; the reason code is the useful part.
+	if connack != nil && connack.ReasonCode >= 0x80 {
+		reason := mqtt5Reason(connack.ReasonCode)
+		if connack.Properties != nil && connack.Properties.ReasonString != "" {
+			reason += ": " + connack.Properties.ReasonString
+		}
+		return fmt.Errorf("MQTT connect refused: %s", reason)
+	}
 	if err != nil {
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
 		return fmt.Errorf("MQTT connect: %w", err)
 	}
-	if connack.ReasonCode >= 0x80 {
-		return fmt.Errorf("MQTT connect refused: %s", mqtt5Reason(connack.ReasonCode))
+	if connack == nil {
+		return errors.New("MQTT connect: the broker returned no CONNACK")
 	}
 	c.v5, c.clientID, c.sessionPresent = client, client.ClientID(), connack.SessionPresent
+	if connack.Properties != nil && connack.Properties.TopicAliasMaximum != nil {
+		c.topicAliasMaximum = *connack.Properties.TopicAliasMaximum
+	}
 	return nil
 }
 
@@ -346,14 +387,24 @@ type mqttLimitConn struct {
 }
 
 func (c *mqttLimitConn) Read(p []byte) (int, error) {
-	n, err := c.Conn.Read(p)
-	for i := 0; i < n && !c.over; i++ {
-		c.consume(p[i])
-	}
 	if c.over {
-		return n, fmt.Errorf("MQTT packet exceeds the %d-byte client limit", c.limit)
+		return 0, c.errLimit()
+	}
+	n, err := c.Conn.Read(p)
+	for i := 0; i < n; i++ {
+		c.consume(p[i])
+		if c.over {
+			// Stop before the byte that proved the packet is too large. Paho
+			// ignores a read error when it also gets bytes, then allocates the
+			// declared body; a short read with the error prevents that.
+			return i, c.errLimit()
+		}
 	}
 	return n, err
+}
+
+func (c *mqttLimitConn) errLimit() error {
+	return fmt.Errorf("MQTT packet exceeds the %d-byte client limit", c.limit)
 }
 
 func (c *mqttLimitConn) consume(b byte) {
@@ -506,6 +557,18 @@ func (c *MQTTClient) fail(err error) {
 	c.once.Do(func() { close(c.done) })
 }
 
+// failServer records a broker DISCONNECT reason even when the transport
+// teardown reported a generic error first.
+func (c *MQTTClient) failServer(err error) {
+	if c.closed.Load() {
+		return
+	}
+	c.errMu.Lock()
+	c.err = err
+	c.errMu.Unlock()
+	c.once.Do(func() { close(c.done) })
+}
+
 // Done closes when the broker connection ends, whether by a network error, a
 // broker disconnect or Close.
 func (c *MQTTClient) Done() <-chan struct{} { return c.done }
@@ -537,9 +600,15 @@ func (c *MQTTClient) Close() {
 	if c.closed.Swap(true) {
 		return
 	}
+	// Disconnect writes on the same connection as a publish. If the broker
+	// stopped reading, a publish may hold Paho's write lock; the deadline
+	// releases it and lets DISCONNECT try too.
+	_ = c.conn.SetWriteDeadline(time.Now().Add(mqttDisconnectTimeout))
 	switch {
 	case c.v3 != nil && c.v3.IsConnected():
-		c.v3.Disconnect(0)
+		// Quiesce 0 can return before Paho's outbound goroutine writes
+		// DISCONNECT; a short wait gives the packet a chance to leave.
+		c.v3.Disconnect(100)
 	case c.v5 != nil:
 		_ = c.v5.Disconnect(&paho.Disconnect{ReasonCode: 0})
 	}
@@ -571,7 +640,10 @@ func (c *MQTTClient) Subscribe(ctx context.Context, subs []MQTTSubscription) ([]
 	for _, sub := range subs {
 		filters[sub.Topic] = sub.QoS
 	}
-	token := c.v3.SubscribeMultiple(filters, c.onV3Message)
+	// The default handler receives one copy of a message even when several
+	// filters match it; a per-filter callback would receive one copy per
+	// matching filter.
+	token := c.v3.SubscribeMultiple(filters, nil)
 	if err := waitMQTTToken(ctx, token); err != nil {
 		return nil, err
 	}
@@ -600,19 +672,27 @@ func (c *MQTTClient) subscribe5(ctx context.Context, subs []MQTTSubscription) ([
 			packet.Properties = props
 		}
 		ack, err := c.v5.Subscribe(ctx, packet)
+		// Paho returns the SUBACK together with its error for a refused
+		// filter; keep the broker's reason instead of only Paho's text.
+		if ack != nil && len(ack.Reasons) == 1 {
+			reason := ack.Reasons[0]
+			grants = append(grants, reason)
+			if reason >= 0x80 {
+				errs = append(errs, fmt.Errorf("%s: %s", sub.Topic, mqtt5Reason(reason)))
+				continue
+			}
+			if err != nil {
+				errs = append(errs, fmt.Errorf("%s: %w", sub.Topic, err))
+			}
+			continue
+		}
+		grants = append(grants, 0x80)
 		if err != nil {
 			errs = append(errs, fmt.Errorf("%s: %w", sub.Topic, err))
-			grants = append(grants, 0x80)
-			continue
-		}
-		if len(ack.Reasons) != 1 {
+		} else if ack != nil {
 			errs = append(errs, fmt.Errorf("%s: broker returned %d subscription results", sub.Topic, len(ack.Reasons)))
-			grants = append(grants, 0x80)
-			continue
-		}
-		grants = append(grants, ack.Reasons[0])
-		if ack.Reasons[0] >= 0x80 {
-			errs = append(errs, fmt.Errorf("%s: %s", sub.Topic, mqtt5Reason(ack.Reasons[0])))
+		} else {
+			errs = append(errs, fmt.Errorf("%s: broker returned no subscription result", sub.Topic))
 		}
 	}
 	return grants, errors.Join(errs...)
@@ -655,8 +735,8 @@ func topicAt(topics []string, i int) string {
 }
 
 func (c *MQTTClient) Publish(ctx context.Context, msg MQTTPublish) error {
-	if err := ValidateMQTTTopicName(msg.Topic); err != nil {
-		return err
+	if c.closed.Load() {
+		return errors.New("MQTT connection is closed")
 	}
 	if msg.QoS > 2 {
 		return fmt.Errorf("MQTT publish QoS must be 0, 1 or 2")
@@ -664,11 +744,42 @@ func (c *MQTTClient) Publish(ctx context.Context, msg MQTTPublish) error {
 	if len(msg.Payload) > mqttMaxPayload {
 		return fmt.Errorf("MQTT payloads are limited to %d KiB", mqttMaxPayload>>10)
 	}
-	if c.v5 != nil {
-		return c.publish5(ctx, msg)
-	}
 	if c.version == MQTT311 && msg.Properties.nonZero() {
 		return errors.New("MQTT 5 publish properties require protocol version 5.0")
+	}
+	if msg.Topic == "" {
+		if msg.Properties.TopicAlias == 0 {
+			return errors.New("the MQTT topic is empty; set a topic alias to publish without one")
+		}
+	} else if err := ValidateMQTTTopicName(msg.Topic); err != nil {
+		return err
+	}
+	if msg.Properties.TopicAlias < 0 || msg.Properties.TopicAlias > 65535 {
+		return errors.New("the MQTT topic alias must be between 1 and 65535")
+	}
+	if msg.Properties.TopicAlias > 0 {
+		if c.topicAliasMaximum == 0 {
+			return errors.New("the broker does not support topic aliases")
+		}
+		if msg.Properties.TopicAlias > int(c.topicAliasMaximum) {
+			return fmt.Errorf("topic alias %d exceeds the broker's maximum %d", msg.Properties.TopicAlias, c.topicAliasMaximum)
+		}
+	}
+	// Paho's QoS 0 write ignores the context. A write deadline bounds a
+	// broker that has stopped reading; Close uses the same mechanism for
+	// DISCONNECT.
+	deadline := time.Now().Add(mqttWriteTimeout)
+	if d, ok := ctx.Deadline(); ok && d.Before(deadline) {
+		deadline = d
+	}
+	_ = c.conn.SetWriteDeadline(deadline)
+	defer func() {
+		if !c.closed.Load() {
+			_ = c.conn.SetWriteDeadline(time.Time{})
+		}
+	}()
+	if c.v5 != nil {
+		return c.publish5(ctx, msg)
 	}
 	return waitMQTTToken(ctx, c.v3.Publish(msg.Topic, msg.QoS, msg.Retain, msg.Payload))
 }
@@ -741,8 +852,9 @@ func mqtt5Reason(code byte) string {
 
 // dialMQTTConn opens TCP or WebSocket and completes TLS where the scheme asks
 // for it. TLS names the broker host and uses the configured roots and client
-// certificate, never an unverified fallback.
-func dialMQTTConn(ctx context.Context, u *url.URL, tlsConfig *tls.Config, timeout time.Duration) (net.Conn, error) {
+// certificate, never an unverified fallback. A WebSocket upgrade is HTTP, so
+// it can use the capture proxy; raw MQTT TCP cannot.
+func dialMQTTConn(ctx context.Context, u *url.URL, tlsConfig *tls.Config, timeout time.Duration, proxy string) (net.Conn, error) {
 	scheme := strings.ToLower(u.Scheme)
 	port := u.Port()
 	if port == "" {
@@ -784,6 +896,13 @@ func dialMQTTConn(ctx context.Context, u *url.URL, tlsConfig *tls.Config, timeou
 		return conn, nil
 	case "ws", "wss":
 		dialer := websocket.Dialer{HandshakeTimeout: timeout, Subprotocols: []string{"mqtt"}}
+		if proxy != "" {
+			proxyURL, err := url.Parse("http://" + proxy)
+			if err != nil || proxyURL.Host == "" {
+				return nil, fmt.Errorf("invalid WebSocket proxy %q", proxy)
+			}
+			dialer.Proxy = http.ProxyURL(proxyURL)
+		}
 		if scheme == "wss" {
 			if tlsConfig == nil {
 				return nil, errors.New("wss:// needs a TLS configuration")

@@ -326,8 +326,8 @@ func (c MQTTConfig) Validate() error {
 	if c.Version == MQTT311 && c.ClientID == "" && !c.CleanStartEnabled() {
 		return errors.New("an empty MQTT 3.1.1 client ID requires clean start")
 	}
-	if c.Password != "" && c.Username == "" {
-		return errors.New("MQTT requires a username when a password is set")
+	if c.Version == MQTT311 && c.Password != "" && c.Username == "" {
+		return errors.New("MQTT 3.1.1 requires a username when a password is set")
 	}
 	if len(c.Username) > 65535 || len(c.Password) > 65535 {
 		return errors.New("the MQTT username and password are limited to 65535 bytes")
@@ -415,7 +415,11 @@ func (c MQTTConfig) Validate() error {
 	}
 	for i := range c.Messages {
 		m := &c.Messages[i]
-		if err := ValidateMQTTTopicName(m.Topic); err != nil {
+		if m.Topic == "" {
+			if c.Version != MQTT5 || m.Properties.TopicAlias == 0 {
+				return fmt.Errorf("message %d: the MQTT topic is empty; set a topic alias to publish without one", i+1)
+			}
+		} else if err := ValidateMQTTTopicName(m.Topic); err != nil {
 			return fmt.Errorf("message %d: %w", i+1, err)
 		}
 		if m.QoS > 2 {

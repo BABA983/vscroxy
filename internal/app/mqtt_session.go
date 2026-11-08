@@ -61,6 +61,9 @@ type mqttSession struct {
 	seq      int
 	evicted  int
 	dropped  int
+	// connDropped is the current connection's counter; dropped accumulates
+	// across reconnects instead of resetting with each new client.
+	connDropped int64
 
 	// active subscriptions are re-applied after a reconnect. They include the
 	// document's topics and any the user added in this session.
@@ -93,9 +96,15 @@ func (s *mqttSession) snapshot() mqttSnapshot {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	dropped := s.dropped
+	if s.conn != nil {
+		if total := s.conn.Dropped(); total > s.connDropped {
+			dropped += int(total - s.connDropped)
+		}
+	}
 	return mqttSnapshot{state: s.state, problem: s.problem, finished: s.finished, busy: s.busy,
 		ready:  s.conn != nil && !s.finished && s.state == "Connected",
-		events: slices.Clone(s.events), evicted: s.evicted, dropped: s.dropped,
+		events: slices.Clone(s.events), evicted: s.evicted, dropped: dropped,
 		subscriptions: slices.Sorted(func(yield func(string) bool) {
 			for topic := range s.subscriptions {
 				if !yield(topic) {
@@ -116,6 +125,42 @@ func (s *mqttSession) stop() {
 		return
 	}
 	s.cancel()
+}
+
+// stopAndWait cancels the session and gives the connection loop a moment to
+// send DISCONNECT. Quitting uses it so the broker does not publish the will
+// for an app exit.
+func (s *mqttSession) stopAndWait() {
+	s.stop()
+	s.await(time.Second)
+}
+
+// await waits for the connection loop to send DISCONNECT and close.
+func (s *mqttSession) await(delay time.Duration) {
+	if s == nil || s.done == nil {
+		return
+	}
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+	select {
+	case <-s.done:
+	case <-timer.C:
+	}
+}
+
+// addDroppedLocked folds one connection's dropped count into the session
+// total. A reconnect starts a new client at zero, so only the delta counts.
+func (s *mqttSession) addDroppedLocked(total int64) {
+	if total > s.connDropped {
+		s.dropped += int(total - s.connDropped)
+	}
+	s.connDropped = total
+}
+
+func (s *mqttSession) accountDroppedLocked() {
+	if s.conn != nil {
+		s.addDroppedLocked(s.conn.Dropped())
+	}
 }
 
 func (s *mqttSession) recordLocked(e mqttEvent) {
@@ -156,6 +201,7 @@ func (s *mqttSession) finish(state, problem string) {
 		return
 	}
 	s.finished, s.busy, s.state, s.problem = true, false, state, problem
+	s.accountDroppedLocked()
 	s.conn = nil
 	s.systemLocked(state, problem)
 	s.mu.Unlock()
@@ -163,30 +209,37 @@ func (s *mqttSession) finish(state, problem string) {
 }
 
 // openMQTTSession starts the connection loop. The caller keeps the returned
-// session and cancels it to disconnect.
+// session and cancels it to disconnect. proxy and tlsConfig are evaluated for
+// every dial, so a reconnect follows the capture proxy's current state.
 func openMQTTSession(url string, input request.Request, scope request.Context, vars map[string]string,
-	cfg request.MQTTConfig, tlsConfig func() (*tls.Config, error), notify func()) *mqttSession {
+	cfg request.MQTTConfig, proxy func() (string, []byte), tlsConfig func([]byte) (*tls.Config, error), notify func()) *mqttSession {
 	ctx, cancel := context.WithCancel(context.Background())
 	s := &mqttSession{state: "Connecting", cancel: cancel, ctx: ctx, done: make(chan struct{}), notify: notify,
 		subscriptions: map[string]request.MQTTSubscription{}, input: input, scope: scope, vars: maps.Clone(vars), cfg: cfg}
-	go s.run(url, cfg, tlsConfig)
+	go s.run(url, cfg, proxy, tlsConfig)
 	return s
 }
 
-func (s *mqttSession) run(url string, cfg request.MQTTConfig, tlsConfig func() (*tls.Config, error)) {
+func (s *mqttSession) run(url string, cfg request.MQTTConfig, proxy func() (string, []byte), tlsConfig func([]byte) (*tls.Config, error)) {
 	defer close(s.done)
 	defer s.cancel()
 	s.system("Connecting", request.MQTTVersionLabel(cfg.Version)+" · "+mqttEndpointLabel(url))
 	reconnects, failures := 0, 0
+	firstConnect := true
 	for {
+		var proxyAddress string
+		var proxyCA []byte
+		if proxy != nil {
+			proxyAddress, proxyCA = proxy()
+		}
 		var config *tls.Config
 		var err error
 		if tlsConfig != nil {
-			config, err = tlsConfig()
+			config, err = tlsConfig(proxyCA)
 		}
 		var conn *request.MQTTClient
 		if err == nil {
-			conn, err = request.DialMQTT(s.ctx, url, cfg, config)
+			conn, err = request.DialMQTT(s.ctx, url, cfg, config, proxyAddress)
 		}
 		if err != nil {
 			if s.ctx.Err() != nil {
@@ -211,11 +264,13 @@ func (s *mqttSession) run(url string, cfg request.MQTTConfig, tlsConfig func() (
 		}
 		failures = 0
 		s.mu.Lock()
-		s.conn, s.clientID, s.sessionPresent, s.state, s.problem, s.busy = conn, conn.ClientID(), conn.SessionPresent(), "Connected", "", true
+		s.conn, s.connDropped = conn, 0
+		s.clientID, s.sessionPresent, s.state, s.problem, s.busy = conn.ClientID(), conn.SessionPresent(), "Connected", "", true
 		s.systemLocked("Connected", mqttConnectedNote(cfg, conn))
 		s.mu.Unlock()
 		s.changed()
-		s.applySubscriptions(conn, cfg)
+		s.applySubscriptions(conn, cfg, firstConnect)
+		firstConnect = false
 		incoming := conn.Incoming()
 	read:
 		for {
@@ -228,6 +283,7 @@ func (s *mqttSession) run(url string, cfg request.MQTTConfig, tlsConfig func() (
 				err := conn.Err()
 				conn.Close()
 				s.mu.Lock()
+				s.accountDroppedLocked()
 				s.conn = nil
 				s.mu.Unlock()
 				if s.ctx.Err() != nil {
@@ -261,9 +317,7 @@ func (s *mqttSession) run(url string, cfg request.MQTTConfig, tlsConfig func() (
 				}
 				s.mu.Lock()
 				s.recordIncomingLocked(msg)
-				if s.conn != nil {
-					s.dropped = int(s.conn.Dropped())
-				}
+				s.accountDroppedLocked()
 				s.mu.Unlock()
 				s.changed()
 			}
@@ -314,22 +368,43 @@ func (s *mqttSession) wait(delay time.Duration) bool {
 	}
 }
 
-// applySubscriptions re-subscribes the document's topics and the user's live
-// subscriptions. Retained messages may arrive again after a reconnect; the
-// timeline shows them as delivered.
-func (s *mqttSession) applySubscriptions(conn *request.MQTTClient, cfg request.MQTTConfig) {
+// subscriptionsFor selects what a connection subscribes to. The first
+// connection starts from the document's checked topics; a reconnect restores
+// only what is actually active, so a topic the user unsubscribed stays off.
+func (s *mqttSession) subscriptionsFor(cfg request.MQTTConfig, first bool) []request.MQTTSubscription {
 	s.mu.Lock()
+	defer s.mu.Unlock()
+	if !first {
+		subs := make([]request.MQTTSubscription, 0, len(s.subscriptions))
+		for _, sub := range s.subscriptions {
+			subs = append(subs, sub)
+		}
+		slices.SortFunc(subs, func(a, b request.MQTTSubscription) int {
+			return strings.Compare(a.Topic, b.Topic)
+		})
+		return subs
+	}
 	subs := make([]request.MQTTSubscription, 0, len(cfg.Topics)+len(s.subscriptions))
 	seen := map[string]bool{}
 	for _, sub := range cfg.TopicsToSubscribe() {
 		subs, seen[sub.Topic] = append(subs, sub), true
 	}
+	var extra []request.MQTTSubscription
 	for topic, sub := range s.subscriptions {
 		if !seen[topic] {
-			subs = append(subs, sub)
+			extra = append(extra, sub)
 		}
 	}
-	s.mu.Unlock()
+	slices.SortFunc(extra, func(a, b request.MQTTSubscription) int {
+		return strings.Compare(a.Topic, b.Topic)
+	})
+	return append(subs, extra...)
+}
+
+// applySubscriptions subscribes to the selected topics. Retained messages may
+// arrive again after a reconnect; the timeline shows them as delivered.
+func (s *mqttSession) applySubscriptions(conn *request.MQTTClient, cfg request.MQTTConfig, first bool) {
+	subs := s.subscriptionsFor(cfg, first)
 	if len(subs) == 0 {
 		s.mu.Lock()
 		s.busy = false

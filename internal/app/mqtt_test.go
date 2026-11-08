@@ -3,12 +3,14 @@ package app
 import (
 	"io"
 	"log/slog"
+	"net"
 	"reflect"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/baba983/vscroxy/internal/request"
+	"github.com/egoist/mygo/ui"
 	mqtt "github.com/mochi-mqtt/server/v2"
 	"github.com/mochi-mqtt/server/v2/hooks/auth"
 	"github.com/mochi-mqtt/server/v2/listeners"
@@ -55,7 +57,7 @@ func TestMQTTSessionConnectsPublishesAndSubscribes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	s := openMQTTSession(prepared.URL, input, scope, nil, cfg, nil, nil)
+	s := openMQTTSession(prepared.URL, input, scope, nil, cfg, nil, nil, nil)
 	t.Cleanup(s.stop)
 	waitMQTT(t, "connection", func() bool { return s.snapshot().ready })
 	waitMQTT(t, "subscription", func() bool { return len(s.snapshot().subscriptions) == 1 })
@@ -122,6 +124,173 @@ func TestMQTTTimelineBounds(t *testing.T) {
 	}
 	if s.events[0].seq != 51 || s.events[len(s.events)-1].seq != 250 {
 		t.Fatalf("event sequence = %d..%d", s.events[0].seq, s.events[len(s.events)-1].seq)
+	}
+}
+
+func TestMQTTSubscriptionsForReconnect(t *testing.T) {
+	s := &mqttSession{subscriptions: map[string]request.MQTTSubscription{
+		"live/#": {Topic: "live/#", QoS: 1},
+	}}
+	off := false
+	cfg := request.MQTTConfig{Topics: []request.MQTTTopic{
+		{Name: "doc/#"},
+		{Name: "off/#", Subscribe: &off},
+	}}
+	first := s.subscriptionsFor(cfg, true)
+	var firstNames []string
+	for _, sub := range first {
+		firstNames = append(firstNames, sub.Topic)
+	}
+	if !reflect.DeepEqual(firstNames, []string{"doc/#", "live/#"}) {
+		t.Fatalf("first subscriptions = %q", firstNames)
+	}
+	// The user unsubscribed doc/# in this session; a reconnect must not bring
+	// it back just because the document still lists it.
+	s.subscriptions = map[string]request.MQTTSubscription{
+		"live/#": {Topic: "live/#", QoS: 1},
+	}
+	reconnect := s.subscriptionsFor(cfg, false)
+	var reconnectNames []string
+	for _, sub := range reconnect {
+		reconnectNames = append(reconnectNames, sub.Topic)
+	}
+	if !reflect.DeepEqual(reconnectNames, []string{"live/#"}) {
+		t.Fatalf("reconnect subscriptions = %q", reconnectNames)
+	}
+}
+
+func TestMQTTDroppedAccumulatesAcrossReconnects(t *testing.T) {
+	s := &mqttSession{}
+	s.addDroppedLocked(2)
+	s.connDropped = 0 // a new connection starts its own counter at zero
+	s.addDroppedLocked(1)
+	if s.dropped != 3 {
+		t.Fatalf("dropped = %d, want 3", s.dropped)
+	}
+}
+
+func TestMQTTEmptyClientIDStaysClean(t *testing.T) {
+	for _, version := range []int{request.MQTT311, request.MQTT5} {
+		t.Run(request.MQTTVersionLabel(version), func(t *testing.T) {
+			a := libraryApp(t)
+			r := savedRequest{Request: request.Request{
+				ID: "mqtt-clean", Name: "Clean MQTT", Collection: "Shop", Protocol: "MQTT",
+				URL: "mqtt://broker.example.com", Method: "GET",
+				MQTT: request.MQTTConfig{Version: version, Topics: []request.MQTTTopic{{Name: "saved/#"}}},
+			}}
+			if err := a.writeLibrary([]savedRequest{r}, []request.Folder{{Path: "Shop"}}); err != nil {
+				t.Fatal(err)
+			}
+			loaded, _, _, err := loadLibrary(a.library.root)
+			if err != nil {
+				t.Fatal(err)
+			}
+			a.addDocument(loaded[0], loaded[0].key())
+			d := a.requestDocument
+			tt := ui.NewTester(a.view, 1280, 720)
+			tt.Frame()
+			d.mqttState()
+			if d.dirty() {
+				t.Fatal("opening a saved MQTT document marked it dirty")
+			}
+			if d.mqttConfig.ClientID != "" {
+				t.Fatalf("opening generated client ID %q", d.mqttConfig.ClientID)
+			}
+		})
+	}
+}
+
+func TestMQTT311ConnectGeneratesClientIDWithoutSavingIt(t *testing.T) {
+	address := startAppMQTTBroker(t)
+	a := libraryApp(t)
+	a.addDocument(savedRequest{Request: request.Request{
+		Protocol: "MQTT", Name: "Empty ID", URL: "mqtt://" + address,
+		MQTT: request.MQTTConfig{Version: request.MQTT311},
+	}}, "")
+	d := a.requestDocument
+	a.connectMQTT(d)
+	waitMQTT(t, "connection", func() bool {
+		return d.mqttUI != nil && d.mqttUI.session != nil && d.mqttUI.session.snapshot().ready
+	})
+	snapshot := d.mqttUI.session.snapshot()
+	if d.mqttConfig.ClientID != "" {
+		t.Fatalf("connect wrote generated client ID %q into the document", d.mqttConfig.ClientID)
+	}
+	if snapshot.clientID == "" {
+		t.Fatal("3.1.1 connection did not generate a client ID")
+	}
+	d.mqttUI.stopAndWait()
+}
+
+func readAppMQTTPacket(conn net.Conn) ([]byte, error) {
+	header := make([]byte, 1)
+	if _, err := io.ReadFull(conn, header); err != nil {
+		return nil, err
+	}
+	remaining, multiplier := 0, 1
+	var length []byte
+	for {
+		digit := make([]byte, 1)
+		if _, err := io.ReadFull(conn, digit); err != nil {
+			return nil, err
+		}
+		length = append(length, digit[0])
+		remaining += int(digit[0]&0x7f) * multiplier
+		if digit[0]&0x80 == 0 {
+			break
+		}
+		multiplier *= 128
+	}
+	body := make([]byte, remaining)
+	if _, err := io.ReadFull(conn, body); err != nil {
+		return nil, err
+	}
+	return append(append(header, length...), body...), nil
+}
+
+func TestMQTTQuitSendsDisconnect(t *testing.T) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = listener.Close() })
+	disconnected := make(chan struct{})
+	go func() {
+		conn, err := listener.Accept()
+		if err != nil {
+			return
+		}
+		defer conn.Close()
+		if _, err := readAppMQTTPacket(conn); err != nil {
+			return
+		}
+		_, _ = conn.Write([]byte{0x20, 0x02, 0, 0})
+		for {
+			packet, err := readAppMQTTPacket(conn)
+			if err != nil {
+				return
+			}
+			if packet[0]>>4 == 14 {
+				close(disconnected)
+				return
+			}
+		}
+	}()
+	input := request.Request{Protocol: "MQTT", URL: "mqtt://" + listener.Addr().String(),
+		MQTT: request.MQTTConfig{Version: request.MQTT311, ClientID: "quit-disconnect", KeepAlive: 0,
+			Will: request.MQTTWill{Enabled: true, Topic: "quit/will", Payload: "gone", Type: "text"}}}
+	scope := request.Context{}
+	prepared, cfg, err := input.PrepareMQTT(scope, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := openMQTTSession(prepared.URL, input, scope, nil, cfg, nil, nil, nil)
+	waitMQTT(t, "connection", func() bool { return s.snapshot().ready })
+	s.stopAndWait()
+	select {
+	case <-disconnected:
+	case <-time.After(2 * time.Second):
+		t.Fatal("quit did not send DISCONNECT before the session ended")
 	}
 }
 

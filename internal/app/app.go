@@ -2593,7 +2593,7 @@ func Run() error {
 				d.socketIOUI.stop()
 			}
 			if d.mqttUI != nil {
-				d.mqttUI.stop()
+				d.mqttUI.stopAndWait()
 			}
 		}
 	}
