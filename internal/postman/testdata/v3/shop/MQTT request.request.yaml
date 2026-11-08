@@ -17,6 +17,9 @@ topics:
     userProperties:
       - key: team
         value: telemetry
+      - key: skipped
+        value: disabled
+        disabled: true
   - name: commands/#
     qos: 2
     subscribe: false
@@ -36,6 +39,9 @@ lastWill:
     userProperties:
       - key: source
         value: vscroxy
+      - key: skipped
+        value: disabled
+        disabled: true
 properties:
   sessionExpiryInterval: 120
   receiveMaximum: 20
@@ -44,6 +50,9 @@ properties:
   userProperties:
     - key: app
       value: demo
+    - key: skipped
+      value: disabled
+      disabled: true
 auth:
   type: basic
   credentials:
@@ -51,6 +60,9 @@ auth:
       value: demo
     - key: password
       value: secret
+    - key: token
+      value: disabled
+      disabled: true
 settings:
   cleanSession: false
   keepAlive: 30
@@ -75,3 +87,6 @@ messages:
       userProperties:
         - key: unit
           value: c
+        - key: skipped
+          value: disabled
+          disabled: true

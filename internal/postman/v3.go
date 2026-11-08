@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"maps"
+	"math"
 	"os"
 	"path/filepath"
 	"slices"
@@ -752,7 +753,7 @@ func (r *v3reader) mqttConfig(req v3Request) *request.MQTTConfig {
 		}
 	}
 	for _, t := range req.Topics {
-		topic := request.MQTTTopic{Name: t.Name, QoS: mqttQoS(t.QoS), Description: t.Description, Subscribe: t.Subscribe,
+		topic := request.MQTTTopic{Name: t.Name, QoS: r.mqttQoS(t.QoS), Description: t.Description, Subscribe: t.Subscribe,
 			UserProperties: mqttProperties(t.UserProperties)}
 		if t.Settings.Kind() == '{' {
 			var settings v3MQTTSubscriptionSettings
@@ -768,7 +769,7 @@ func (r *v3reader) mqttConfig(req v3Request) *request.MQTTConfig {
 	}
 	if will := req.LastWill; will != nil {
 		cfg.Will = request.MQTTWill{Enabled: will.Topic != "" || will.Payload != "" || will.QoS != 0 || will.Retain || will.Properties != nil,
-			Topic: will.Topic, Payload: will.Payload, Type: cmp.Or(will.Type, "text"), QoS: mqttQoS(will.QoS), Retain: will.Retain}
+			Topic: will.Topic, Payload: will.Payload, Type: cmp.Or(will.Type, "text"), QoS: r.mqttQoS(will.QoS), Retain: will.Retain}
 		if p := will.Properties; p != nil {
 			cfg.Will.Properties = request.MQTTWillProperties{PayloadFormat: p.PayloadFormatIndicator,
 				MessageExpiry: p.MessageExpiryInterval, WillDelay: p.WillDelayInterval, ResponseTopic: p.ResponseTopic,
@@ -788,7 +789,7 @@ func (r *v3reader) mqttConfig(req v3Request) *request.MQTTConfig {
 		if json.Unmarshal(req.Messages, &messages) == nil {
 			for _, m := range messages {
 				message := request.MQTTMessage{ID: m.ID, Name: m.Name, Description: m.Description, Topic: m.Topic,
-					Payload: m.Content, Type: cmp.Or(m.ContentType, "text"), QoS: mqttQoS(m.QoS), Retain: m.Retain}
+					Payload: m.Content, Type: cmp.Or(m.ContentType, "text"), QoS: r.mqttQoS(m.QoS), Retain: m.Retain}
 				if p := m.Properties; p != nil {
 					message.Properties = request.MQTTMessageProperties{PayloadFormat: p.PayloadFormatIndicator,
 						MessageExpiry: p.MessageExpiryInterval, TopicAlias: p.TopicAlias, ResponseTopic: p.ResponseTopic,
@@ -813,6 +814,9 @@ func (r *v3reader) mqttConfig(req v3Request) *request.MQTTConfig {
 		var credentials []v3KV
 		if json.Unmarshal(auth.Credentials, &credentials) == nil {
 			for _, credential := range credentials {
+				if credential.Disabled {
+					continue
+				}
 				if credential.Key != "username" && credential.Key != "password" {
 					r.warn.add("mqtt credential", credential.Key, 1)
 				}
@@ -822,8 +826,9 @@ func (r *v3reader) mqttConfig(req v3Request) *request.MQTTConfig {
 	return cfg
 }
 
-func mqttQoS(value float64) byte {
-	if value < 0 || value > 2 {
+func (r *v3reader) mqttQoS(value float64) byte {
+	if value != math.Trunc(value) || value < 0 || value > 2 {
+		r.warn.add("mqtt qos", strconv.FormatFloat(value, 'g', -1, 64), 1)
 		return 0
 	}
 	return byte(value)
@@ -832,6 +837,9 @@ func mqttQoS(value float64) byte {
 func mqttProperties(list v3KVs) []request.MQTTProperty {
 	var out []request.MQTTProperty
 	for _, kv := range list {
+		if kv.Disabled {
+			continue
+		}
 		out = append(out, request.MQTTProperty{Key: kv.Key, Value: text(kv.Value)})
 	}
 	return out
@@ -1046,6 +1054,9 @@ func (r *v3reader) authValue(v jsontext.Value, scope string) jsontext.Value {
 		var list []v3KV
 		if json.Unmarshal(one.Credentials, &list) == nil {
 			for _, kv := range list {
+				if kv.Disabled {
+					continue
+				}
 				params = append(params, map[string]string{"key": kv.Key, "value": text(kv.Value)})
 			}
 		}

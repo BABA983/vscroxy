@@ -167,12 +167,11 @@ type v3Request struct {
 	Events   []v3Event      `json:"events"`
 
 	// mqtt-request
-	ClientID     string                      `json:"clientId"`
-	Version      float64                     `json:"version"`
-	Topics       []v3MQTTTopic               `json:"topics"`
-	LastWill     *v3MQTTLastWill             `json:"lastWill"`
-	Properties   *v3MQTTConnectionProperties `json:"properties"`
-	MQTTMessages []v3MQTTMessage             `json:"-"`
+	ClientID   string                      `json:"clientId"`
+	Version    float64                     `json:"version"`
+	Topics     []v3MQTTTopic               `json:"topics"`
+	LastWill   *v3MQTTLastWill             `json:"lastWill"`
+	Properties *v3MQTTConnectionProperties `json:"properties"`
 
 	// mcp-request selects its shape with transport; the app skips the kind.
 	Transport string `json:"transport"`

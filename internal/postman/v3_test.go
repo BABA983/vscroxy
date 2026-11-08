@@ -392,6 +392,43 @@ func TestReadCollectionDirV3Protocols(t *testing.T) {
 	}
 }
 
+func TestV3MQTTQoSOutOfRangeWarns(t *testing.T) {
+	dir := t.TempDir()
+	writeV3(t, dir, map[string]string{
+		".resources/definition.yaml": "$kind: collection\nname: QoS\n",
+		"Bad QoS.request.yaml": `$kind: mqtt-request
+name: Bad QoS
+url: mqtt://broker.example.com
+version: 5
+topics:
+  - name: bad/topic
+    qos: 7
+messages:
+  - $kind: mqtt-message
+    name: Bad publish
+    topic: bad/out
+    qos: 1.5
+`,
+	})
+	col := readV3(t, dir)
+	req := v3Request(t, col, "QoS", "Bad QoS")
+	if len(req.MQTT.Topics) != 1 || req.MQTT.Topics[0].QoS != 0 {
+		t.Fatalf("topics = %+v", req.MQTT.Topics)
+	}
+	if len(req.MQTT.Messages) != 1 || req.MQTT.Messages[0].QoS != 0 {
+		t.Fatalf("messages = %+v", req.MQTT.Messages)
+	}
+	var found bool
+	for _, warning := range col.Warnings {
+		if strings.Contains(warning, "QoS 7 as 0") {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("warnings = %q", col.Warnings)
+	}
+}
+
 func TestReadCollectionDirV3Warnings(t *testing.T) {
 	col := readV3(t, filepath.Join("testdata", "v3", "shop"))
 	want := []string{

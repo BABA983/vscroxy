@@ -283,6 +283,8 @@ func (k warning) text(n int) string {
 		return "Imported " + count(n, "Socket.IO binary argument", "Socket.IO binary arguments") + " as text"
 	case "graphql example events":
 		return "Kept the first event of " + count(n, "GraphQL subscription example", "GraphQL subscription examples")
+	case "mqtt qos":
+		return "Imported MQTT QoS " + k.detail + " as 0; only 0, 1 and 2 are valid"
 	}
 	return fmt.Sprintf("%s %s: %d", k.what, k.detail, n)
 }
