@@ -14,7 +14,10 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 	"unicode"
+
+	"github.com/baba983/vscroxy/locales"
 )
 
 func TestCatalogsMatch(t *testing.T) {
@@ -219,4 +222,148 @@ func hasLetter(s string) bool {
 		}
 	}
 	return false
+}
+
+// TestOptionLabels keeps every fixed option set translatable: a value either
+// has a message or is a protocol or format identifier that stays as it is.
+func TestOptionLabels(t *testing.T) {
+	zh := locales.In("zh-Hans")
+	for set, values := range optionSets {
+		for _, value := range values {
+			if optionLabelFor(zh, value) == value && !isOptionIdentifier(value) {
+				t.Errorf("%s: %q has no message and is not a known identifier", set, value)
+			}
+		}
+	}
+}
+
+// TestOptionsUseTheOptionCatalog walks Select and SelectLabels calls and
+// checks every option, including one named by a package-level slice, so a new
+// option cannot be added in English alone.
+func TestOptionsUseTheOptionCatalog(t *testing.T) {
+	files, err := filepath.Glob("*.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	lists := packageStringLists(t, files)
+	for _, path := range files {
+		if strings.HasSuffix(path, "_test.go") {
+			continue
+		}
+		fset := token.NewFileSet()
+		file, err := parser.ParseFile(fset, path, nil, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		ast.Inspect(file, func(n ast.Node) bool {
+			call, ok := n.(*ast.CallExpr)
+			if !ok {
+				return true
+			}
+			name := ""
+			switch fn := call.Fun.(type) {
+			case *ast.SelectorExpr:
+				name = fn.Sel.Name
+			case *ast.Ident:
+				name = fn.Name
+			}
+			if (name != "SelectLabels" && name != "Select") || len(call.Args) < 3 {
+				return true
+			}
+			zh := locales.In("zh-Hans")
+			for _, value := range stringListValues(call.Args[2], lists) {
+				if optionLabelFor(zh, value) == value && !isOptionIdentifier(value) {
+					t.Errorf("%s: %s option %q has no message and is not a known identifier", path, name, value)
+				}
+			}
+			return true
+		})
+	}
+}
+
+// packageStringLists maps each package-level []string variable to its
+// literal values, so a Select given one can be checked.
+// isOptionIdentifier reports an option that is not prose: a protocol or
+// format name, a number, or a date such as a protocol version.
+func isOptionIdentifier(value string) bool {
+	if optionIdentifiers[value] {
+		return true
+	}
+	if _, err := strconv.ParseFloat(value, 64); err == nil {
+		return true
+	}
+	_, err := time.Parse("2006-01-02", value)
+	return err == nil
+}
+
+func packageStringLists(t *testing.T, files []string) map[string][]string {
+	t.Helper()
+	lists := map[string][]string{}
+	for _, path := range files {
+		if strings.HasSuffix(path, "_test.go") {
+			continue
+		}
+		file, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, decl := range file.Decls {
+			gen, ok := decl.(*ast.GenDecl)
+			if !ok || gen.Tok != token.VAR {
+				continue
+			}
+			for _, spec := range gen.Specs {
+				value, ok := spec.(*ast.ValueSpec)
+				if !ok {
+					continue
+				}
+				for i, name := range value.Names {
+					if i >= len(value.Values) {
+						continue
+					}
+					if values := literalStrings(value.Values[i]); values != nil {
+						lists[name.Name] = values
+					}
+				}
+			}
+		}
+	}
+	return lists
+}
+
+// stringListValues reads a []string literal, a package-level variable, or an
+// append of the two, and returns the literal values it can see.
+func stringListValues(expr ast.Expr, lists map[string][]string) []string {
+	switch x := expr.(type) {
+	case *ast.CompositeLit:
+		return literalStrings(x)
+	case *ast.Ident:
+		return lists[x.Name]
+	case *ast.CallExpr:
+		if len(x.Args) > 0 {
+			if id, ok := x.Fun.(*ast.Ident); ok && id.Name == "append" {
+				return stringListValues(x.Args[0], lists)
+			}
+		}
+	}
+	return nil
+}
+
+func literalStrings(expr ast.Expr) []string {
+	lit, ok := expr.(*ast.CompositeLit)
+	if !ok {
+		return nil
+	}
+	var values []string
+	for _, elt := range lit.Elts {
+		basic, ok := elt.(*ast.BasicLit)
+		if !ok || basic.Kind != token.STRING {
+			continue
+		}
+		text, err := strconv.Unquote(basic.Value)
+		if err == nil {
+			values = append(values, text)
+		}
+	}
+	return values
 }
