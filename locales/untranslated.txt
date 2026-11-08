@@ -1,0 +1,69 @@
+# UI strings that stay as written in every language.
+#
+# These are data and identifiers, not prose: protocol names, HTTP methods and
+# header examples, URLs, file paths, JSON snippets and placeholder values.
+# internal/app/i18n_test.go fails when a string in a UI position is neither a
+# catalog message nor listed here, so add a line only for text that must not be
+# translated. A line may write \n for a newline in a multi-line string.
+vscroxy
+~/.vscroxy/keys.log
+GET, POST
+content-type: json
+"error":
+api.example.com
+api.example.com\nlocalhost:3000
+https://example.com/hosts
+CSV
+10.0.3.21  api.example.com auth.example.com
+application/json
+Authorization: Bearer …
+Authorization: Bearer …\nLast-Event-ID: …
+https://api.example.com/events
+isError
+key
+memo://welcome
+/path/to/mcp-server
+/path/to/service.proto
+/path/to/service.proto or descriptors.pb
+resource
+structuredContent
+template
+value
+ws://127.0.0.1:8080/socket
+/api
+api.example.com or *.example.com:8443
+/api/v1/
+/Applications/Slack.app or /usr/bin/app
+http://127.0.0.1:8080
+http://proxy.example:8080
+https://api.example.com/
+https://api.example.com
+https://example.com/proxy.pac
+localhost, *.internal.test, 10.0.0.0/8
+{"ok": true}
+{"query":"query Search { items { id } }"}
+/v1/
+e.g. Unreliable mobile
+Content-Type: application/json
+*.internal.test socks5://127.0.0.1:1080\napi.example.com:443 direct
+192.168.1.42\nOne IP or CIDR per line
+localhost\n*.internal.test\n10.0.0.0/8
+api_token
+-----BEGIN PRIVATE KEY----- … or {{vault:oauth1_key}}
+-----BEGIN PRIVATE KEY----- … or {{vault:jwt_key}}
+curl 'https://api.example.com/projects' \\\n  -H 'Accept: application/json'
+/data/id = 42\n/items/0/name = "example"\n/ok = true
+e.g. execute-api or s3
+http://127.0.0.1 on any free port
+https://login.example.com/authorize
+https://login.example.com/token
+{"sub": "{{user_id}}"}
+token
+undefined
+us-east-1
+{{vault:aws_secret}}
+{{vault:client_secret}}, empty for a public client
+{{vault:edgegrid_secret}}
+{{vault:hawk_key}}
+{{vault:jwt_secret}}
+{{vault:oauth1_secret}}
