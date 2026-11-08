@@ -2042,8 +2042,9 @@ the server closes the connection after its challenge, the send fails as
 follow the request's settings, while credentials stay on the original origin;
 a same-origin redirect answers the challenge again. **Username**,
 **Password**, **Domain** and **Workstation** take `{{variables}}` and
-`{{vault:name}}`; a username written `DOMAIN\user` or `user@domain` sets the
-domain and wins over **Domain**. **Disable
+`{{vault:name}}`; when **Domain** is empty, a username written `DOMAIN\user`
+or `user@domain` supplies the domain, and when **Domain** is filled the
+username is sent as written, as Postman does. **Disable
 retrying the request** sends once and returns the server's 401 without
 answering the challenge, as Postman does. Only NTLMv2 is supported: a
 challenge that negotiates NTLMv1's LM key fails with a clear message, LM
