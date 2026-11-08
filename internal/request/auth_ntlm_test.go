@@ -444,7 +444,7 @@ func TestNTLMType2CloseIsAnError(t *testing.T) {
 			auth, upstream := ntlmTestServer(t, false)
 			auth.CloseChallenge = mode
 			out := ntlmRequest(upstream.URL).Execute(t.Context(), testProxy(t), ntlmContext(t), map[string]string{"user": "ann"}, nil)
-			if !errors.Is(out.Err, errNTLM) || !strings.Contains(out.Err.Error(), "closed the connection") {
+			if !errors.Is(out.Err, ErrNTLM) || !strings.Contains(out.Err.Error(), "closed the connection") {
 				t.Fatalf("%s: %v, want a connection-loss error", out.Stage, out.Err)
 			}
 			if out.Response != nil {
@@ -460,6 +460,28 @@ func TestNTLMType2CloseIsAnError(t *testing.T) {
 				t.Errorf("requests = %+v, want no Type 3 after the server closed", auth.Requests())
 			}
 		})
+	}
+}
+
+func TestNTLMInitialCloseRetriesType1(t *testing.T) {
+	auth, upstream := ntlmTestServer(t, false)
+	auth.CloseInitial = true
+	out := ntlmRequest(upstream.URL).Execute(t.Context(), testProxy(t), ntlmContext(t), map[string]string{"user": "ann"}, nil)
+	if out.Err != nil || out.Response == nil || out.Response.Status != http.StatusOK || out.Response.ResponseBody != "authenticated" {
+		t.Fatalf("%s: %v; response %+v", out.Stage, out.Err, out.Response)
+	}
+	requests := auth.Requests()
+	if len(requests) != 3 || requests[0].Stage != "challenge" || requests[1].Stage != "type1" || requests[2].Stage != "authenticated" {
+		t.Fatalf("requests = %+v, want challenge, Type 1 and Type 3", requests)
+	}
+	if requests[1].Connection != requests[2].Connection {
+		t.Errorf("Type 1 and Type 3 ran on connections %d and %d", requests[1].Connection, requests[2].Connection)
+	}
+	if auth.Connections() < 2 {
+		t.Errorf("connections = %d, want a fresh one after the initial 401 closed", auth.Connections())
+	}
+	if problems := auth.Problems(); len(problems) != 0 {
+		t.Errorf("server problems: %q", problems)
 	}
 }
 
@@ -485,23 +507,65 @@ func TestNTLMKeepsAuthoredCookie(t *testing.T) {
 	}
 }
 
-func TestNTLMUsernameDomainWinsOverField(t *testing.T) {
-	auth := &ntlmtest.Server{Username: "ann", Password: ntlmPassword, Domain: "DOM", Workstation: "PC"}
-	upstream := httptest.NewUnstartedServer(auth)
-	upstream.Config.ConnContext = auth.ConnContext
-	upstream.Start()
-	defer upstream.Close()
-	r := ntlmRequest(upstream.URL)
-	r.Auth.NTLM.Username, r.Auth.NTLM.Domain = `DOM\ann`, "EXAMPLE"
-	out := r.Execute(t.Context(), testProxy(t), ntlmContext(t), nil, nil)
+func TestNTLMUsernameDomainOnlyWhenDomainIsEmpty(t *testing.T) {
+	for _, test := range []struct {
+		name          string
+		username      string
+		domain        string
+		account       string
+		accountDomain string
+	}{
+		// Postman parses the username only when Domain is empty.
+		{"empty domain", `DOM\ann`, "", "ann", "DOM"},
+		{"domain field", `DOM\ann`, "EXAMPLE", `DOM\ann`, "EXAMPLE"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			auth := &ntlmtest.Server{Username: test.account, Password: ntlmPassword, Domain: test.accountDomain, Workstation: "PC"}
+			upstream := httptest.NewUnstartedServer(auth)
+			upstream.Config.ConnContext = auth.ConnContext
+			upstream.Start()
+			defer upstream.Close()
+			r := ntlmRequest(upstream.URL)
+			r.Auth.NTLM.Username, r.Auth.NTLM.Domain = test.username, test.domain
+			out := r.Execute(t.Context(), testProxy(t), ntlmContext(t), nil, nil)
+			if out.Err != nil || out.Response == nil || out.Response.Status != http.StatusOK {
+				t.Fatalf("%s: %v; response %+v", out.Stage, out.Err, out.Response)
+			}
+			requests := auth.Requests()
+			if len(requests) != 3 || requests[2].User != test.account || requests[2].Domain != test.accountDomain {
+				t.Fatalf("requests = %+v, want %s\\%s", requests, test.accountDomain, test.account)
+			}
+			if problems := auth.Problems(); len(problems) != 0 {
+				t.Errorf("server problems: %q", problems)
+			}
+		})
+	}
+}
+
+func TestNTLMRefreshesJarCookie(t *testing.T) {
+	auth, upstream := ntlmUpstream(t, false, func(_ *ntlmtest.Server, w http.ResponseWriter, r *http.Request) bool {
+		if r.Header.Get("Authorization") == "" {
+			http.SetCookie(w, &http.Cookie{Name: "affinity", Value: "new", Path: "/"})
+		}
+		return false
+	})
+	jar, _ := cookiejar.New(nil)
+	u, _ := url.Parse(upstream.URL)
+	jar.SetCookies(u, []*http.Cookie{{Name: "affinity", Value: "old", Path: "/"}})
+	out := ntlmRequest(upstream.URL).Execute(t.Context(), testProxy(t), ntlmContext(t), map[string]string{"user": "ann"}, jar)
 	if out.Err != nil || out.Response == nil || out.Response.Status != http.StatusOK {
 		t.Fatalf("%s: %v; response %+v", out.Stage, out.Err, out.Response)
 	}
 	requests := auth.Requests()
-	if len(requests) != 3 || requests[2].User != "ann" || requests[2].Domain != "DOM" {
-		t.Fatalf("requests = %+v, want DOM\\ann despite Domain EXAMPLE", requests)
+	if len(requests) != 3 {
+		t.Fatalf("requests = %d", len(requests))
 	}
-	if problems := auth.Problems(); len(problems) != 0 {
-		t.Errorf("server problems: %q", problems)
+	if !strings.Contains(requests[0].Cookie, "affinity=old") {
+		t.Errorf("initial cookie = %q, want the jar's old value", requests[0].Cookie)
+	}
+	for i := 1; i < 3; i++ {
+		if !strings.Contains(requests[i].Cookie, "affinity=new") || strings.Contains(requests[i].Cookie, "affinity=old") {
+			t.Errorf("request %d cookie = %q, want the value the 401 set", i, requests[i].Cookie)
+		}
 	}
 }

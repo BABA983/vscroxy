@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/base64"
 	"errors"
-	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -29,8 +28,8 @@ const AuthNTLM = "NTLM"
 type NTLMAuth struct {
 	Username string `json:"username,omitempty"`
 	Password string `json:"password,omitempty"`
-	// Domain and Workstation are optional. A DOMAIN\user or user@domain
-	// username carries its own domain and wins over Domain.
+	// Domain and Workstation are optional. An empty domain comes from the
+	// username's DOMAIN\user or user@domain form.
 	Domain      string `json:"domain,omitempty"`
 	Workstation string `json:"workstation,omitempty"`
 	// DisableRetry sends once and returns the server's 401 without answering
@@ -50,9 +49,37 @@ func (n NTLMAuth) expand(vars map[string]string) NTLMAuth {
 	return n
 }
 
-// errNTLM marks an NTLM exchange the server or the configuration made
+// ErrNTLM marks an NTLM exchange the server or the configuration made
 // impossible, as opposed to a transport failure.
-var errNTLM = errors.New("NTLM authentication failed")
+var ErrNTLM = errors.New("NTLM authentication failed")
+
+// The reasons an NTLM exchange fails, stable for the interface's translation.
+const (
+	NTLMClosedConnection = "closed-connection"
+	NTLMNoChallenge      = "no-challenge"
+	NTLMUsernameRequired = "username-required"
+	NTLMUnsupported      = "unsupported"
+	NTLMProxyRequired    = "proxy-required"
+)
+
+// NTLMError is an NTLM exchange failure. Kind names the reason for the
+// interface; Detail is the English text for logs and headless runs.
+type NTLMError struct {
+	Kind   string
+	Detail string
+}
+
+func (e *NTLMError) Error() string {
+	if e.Detail == "" {
+		return ErrNTLM.Error()
+	}
+	return ErrNTLM.Error() + ": " + e.Detail
+}
+
+func (e *NTLMError) Unwrap() error { return ErrNTLM }
+
+// ntlmError builds an NTLM failure with a reason the interface translates.
+func ntlmError(kind, detail string) error { return &NTLMError{Kind: kind, Detail: detail} }
 
 // ntlmSend runs the NTLM exchange for req through srv. The request is sent
 // once without credentials; a 401 or 403 offering NTLM is answered with Type 1
@@ -60,7 +87,7 @@ var errNTLM = errors.New("NTLM authentication failed")
 // and credentials stay on the original origin.
 func ntlmSend(ctx context.Context, srv *capture.Server, flow capture.Flow, req *Prepared, auth NTLMAuth, jar http.CookieJar, policy capture.TransferPolicy) (capture.Flow, error) {
 	if srv == nil {
-		return capture.Flow{}, errors.New("start the local proxy first")
+		return capture.Flow{}, ntlmError(NTLMProxyRequired, "start the local proxy first")
 	}
 	req.Remove("Authorization")
 	first, _, err := capture.NewReplayRequest(ctx, flow)
@@ -72,7 +99,7 @@ func ntlmSend(ctx context.Context, srv *capture.Server, flow capture.Flow, req *
 		return capture.Flow{}, err
 	}
 	defer session.Close()
-	transport := &ntlmTransport{origin: first.URL, auth: auth, session: session, jar: jar}
+	transport := &ntlmTransport{origin: first.URL, auth: auth, session: session, jar: jar, userCookies: flow.RequestHeader.Values("Cookie")}
 	client := &http.Client{Transport: transport, Jar: jar, CheckRedirect: policy.Redirects.Checker(first)}
 	started := time.Now()
 	res, err := client.Do(first)
@@ -115,6 +142,10 @@ type ntlmTransport struct {
 	auth    NTLMAuth
 	session *capture.ReplaySession
 	jar     http.CookieJar
+	// userCookies are the request's own Cookie header values, before the
+	// caller's jar added any. Each leg rebuilds the header from them and the
+	// jar, so a value the server refreshed is not hidden by the client's copy.
+	userCookies []string
 	// lastAuth and lastRequest describe the last attempt, whose response is
 	// the exchange's result.
 	lastAuth    string
@@ -148,17 +179,20 @@ func (t *ntlmTransport) exchange(req *http.Request) (*http.Response, error) {
 		if authorization != "" {
 			attempt.Header.Set("Authorization", authorization)
 		}
-		// Keep the request's own Cookie header and add only the jar's cookies
-		// it does not name. Intermediate responses bypass the caller's client,
-		// so its jar is refreshed here.
-		if t.jar != nil {
-			names := make(map[string]bool)
-			for _, value := range attempt.Header.Values("Cookie") {
-				for part := range strings.SplitSeq(value, ";") {
-					name, _, _ := strings.Cut(strings.TrimSpace(part), "=")
-					names[name] = true
-				}
+		// Rebuild the Cookie header from the request's own values and the
+		// jar's cookies whose names they do not name. The caller's client
+		// already wrote the jar's values into req.Header, so copying that
+		// header would keep a stale value the server's 401 replaced.
+		attempt.Header.Del("Cookie")
+		names := make(map[string]bool)
+		for _, value := range t.userCookies {
+			attempt.Header.Add("Cookie", value)
+			for part := range strings.SplitSeq(value, ";") {
+				name, _, _ := strings.Cut(strings.TrimSpace(part), "=")
+				names[name] = true
 			}
+		}
+		if t.jar != nil {
 			for _, cookie := range t.jar.Cookies(req.URL) {
 				if !names[cookie.Name] {
 					attempt.AddCookie(cookie)
@@ -208,7 +242,7 @@ func (t *ntlmTransport) exchange(req *http.Request) (*http.Response, error) {
 			if res != nil {
 				_ = drainNTLM(res)
 			}
-			return nil, fmt.Errorf("%w: the server closed the connection after its NTLM challenge", errNTLM)
+			return nil, ntlmError(NTLMClosedConnection, "the server closed the connection after its NTLM challenge")
 		}
 		return res, err
 	}
@@ -229,45 +263,40 @@ func (t *ntlmTransport) exchange(req *http.Request) (*http.Response, error) {
 
 	user, domain := ntlmUserDomain(t.auth.Username, t.auth.Domain)
 	if user == "" {
-		return nil, fmt.Errorf("%w: enter a username", errNTLM)
+		return nil, ntlmError(NTLMUsernameRequired, "enter a username")
 	}
 	negotiate, err := ntlmssp.NewNegotiateMessage(domain, t.auth.Workstation)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %v", errNTLM, err)
+		return nil, ntlmError(NTLMUnsupported, err.Error())
 	}
 	// Type 1 runs without the body, and its connection is the one the answer
 	// must reuse: the proxy pins its upstream to that downstream connection.
-	conns := make(chan net.Conn, 1)
-	second, err := send("NTLM "+base64.StdEncoding.EncodeToString(negotiate), false, nil, func(conn net.Conn) {
-		select {
-		case conns <- conn:
-		default:
-		}
-	})
+	// If the connection the first 401 came on is gone, the challenge starts
+	// again on a fresh one.
+	var type1 connHolder
+	sendType1 := func() (*http.Response, error) {
+		return send("NTLM "+base64.StdEncoding.EncodeToString(negotiate), false, nil, type1.set)
+	}
+	second, err := sendType1()
+	if err != nil && req.Context().Err() == nil {
+		second, err = sendType1()
+	}
 	if err != nil {
 		return nil, err
 	}
-	var type1Conn net.Conn
-drain:
-	for {
-		select {
-		case type1Conn = <-conns:
-		default:
-			break drain
-		}
-	}
+	type1Conn := type1.get()
 	type2, offered := ntlmChallenge(second.Header.Values("WWW-Authenticate"))
 	if !offered || second.StatusCode != http.StatusUnauthorized && second.StatusCode != http.StatusForbidden {
 		return second, nil
 	}
 	if len(type2) == 0 {
 		_ = drainNTLM(second)
-		return nil, fmt.Errorf("%w: the server did not send an NTLM challenge", errNTLM)
+		return nil, ntlmError(NTLMNoChallenge, "the server did not send an NTLM challenge")
 	}
 	closed := second.Close
 	drainErr := drainNTLM(second)
 	if closed {
-		return nil, fmt.Errorf("%w: the server closed the connection after its NTLM challenge", errNTLM)
+		return nil, ntlmError(NTLMClosedConnection, "the server closed the connection after its NTLM challenge")
 	}
 	if drainErr != nil {
 		return nil, drainErr
@@ -280,9 +309,34 @@ drain:
 	authenticate, err := ntlmssp.NewAuthenticateMessage(type2, account, t.auth.Password,
 		&ntlmssp.AuthenticateMessageOptions{WorkstationName: t.auth.Workstation})
 	if err != nil {
-		return nil, fmt.Errorf("%w: %v", errNTLM, err)
+		return nil, ntlmError(NTLMUnsupported, err.Error())
 	}
-	return send("NTLM "+base64.StdEncoding.EncodeToString(authenticate), true, type1Conn, nil)
+	third, err := send("NTLM "+base64.StdEncoding.EncodeToString(authenticate), true, type1Conn, nil)
+	if err != nil {
+		if req.Context().Err() != nil {
+			return nil, err
+		}
+		return nil, ntlmError(NTLMClosedConnection, "the server closed the connection after its NTLM challenge")
+	}
+	return third, nil
+}
+
+// connHolder keeps the last connection a request's trace saw.
+type connHolder struct {
+	mu   sync.Mutex
+	conn net.Conn
+}
+
+func (h *connHolder) set(conn net.Conn) {
+	h.mu.Lock()
+	h.conn = conn
+	h.mu.Unlock()
+}
+
+func (h *connHolder) get() net.Conn {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return h.conn
 }
 
 // connCheck records whether an attempt reused the connection NTLM needs.
@@ -327,22 +381,24 @@ func drainNTLM(res *http.Response) error {
 	return errors.Join(err, res.Body.Close())
 }
 
-// ntlmUserDomain splits the username's own domain: DOMAIN\user or
-// user@domain wins over the Domain field, so DOM\ann with Domain EXAMPLE
-// authenticates as DOM\ann rather than EXAMPLE\DOM\ann.
+// ntlmUserDomain splits Postman's username forms: a non-empty Domain field
+// wins and the username is sent as written; otherwise DOMAIN\user or
+// user@domain supply the domain.
 func ntlmUserDomain(username, domain string) (user, userDomain string) {
 	username, domain = strings.TrimSpace(username), strings.TrimSpace(domain)
-	if !strings.Contains(username, "@") {
-		if before, after, ok := strings.Cut(username, `\`); ok && before != "" && after != "" && !strings.Contains(after, `\`) {
-			return after, before
-		}
+	if domain != "" {
+		return username, domain
 	}
-	if !strings.Contains(username, `\`) {
-		if before, after, ok := strings.Cut(username, "@"); ok && before != "" && after != "" && !strings.Contains(after, "@") {
-			return before, after
-		}
+	if strings.Contains(username, `\`) && strings.Contains(username, "@") {
+		return username, ""
 	}
-	return username, domain
+	if before, after, ok := strings.Cut(username, `\`); ok && before != "" && after != "" && !strings.Contains(after, `\`) {
+		return after, before
+	}
+	if before, after, ok := strings.Cut(username, "@"); ok && before != "" && after != "" && !strings.Contains(after, "@") {
+		return before, after
+	}
+	return username, ""
 }
 
 // ntlmChallenge reports whether WWW-Authenticate values offer NTLM and returns

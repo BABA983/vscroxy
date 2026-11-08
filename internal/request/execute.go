@@ -286,7 +286,7 @@ func (r Request) Execute(ctx context.Context, srv *capture.Server, in Context, v
 			if err != nil && timedOut {
 				err = fmt.Errorf("no response within %s: %w", settings.Timeout(), context.DeadlineExceeded)
 			}
-			if errors.Is(err, errNTLM) {
+			if errors.Is(err, ErrNTLM) {
 				out.Stage = "NTLM authentication failed"
 			}
 		} else {

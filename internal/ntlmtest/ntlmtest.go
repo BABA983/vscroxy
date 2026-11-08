@@ -53,6 +53,10 @@ type Server struct {
 	// CloseChallenge closes the connection after the Type 2 response:
 	// "header" sends Connection: close, "silent" closes without saying so.
 	CloseChallenge string
+	// CloseInitial silently closes the connection after the first
+	// unchallenged 401, so the client must restart the challenge on a new
+	// connection.
+	CloseInitial bool
 
 	mu          sync.Mutex
 	connections int
@@ -130,6 +134,25 @@ func (s *Server) record(r *http.Request, st *connState, stage string, t3 *type3)
 	s.mu.Unlock()
 }
 
+// closeSilently writes a raw response and closes the connection without
+// announcing the close, as a server that gives up does.
+func (s *Server) closeSilently(w http.ResponseWriter, response string) {
+	hijacker, ok := w.(http.Hijacker)
+	if !ok {
+		s.problem("response writer cannot be hijacked")
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	conn, buf, err := hijacker.Hijack()
+	if err != nil {
+		s.problem("hijack: %v", err)
+		return
+	}
+	_, _ = io.WriteString(buf, response)
+	_ = buf.Flush()
+	_ = conn.Close()
+}
+
 // ServeHTTP runs the challenge-response exchange.
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if s.Delay > 0 {
@@ -151,6 +174,10 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if auth == "" {
 		st.stage = "challenge"
 		s.record(r, st, "challenge", nil)
+		if s.CloseInitial {
+			s.closeSilently(w, "HTTP/1.1 401 Unauthorized\r\nContent-Length: 0\r\nWWW-Authenticate: NTLM\r\n\r\n")
+			return
+		}
 		w.Header().Set("WWW-Authenticate", "NTLM")
 		w.WriteHeader(http.StatusUnauthorized)
 		return
@@ -178,7 +205,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) type1(w http.ResponseWriter, r *http.Request, st *connState, message []byte) {
-	if st.stage != "challenge" {
+	if st.stage != "challenge" && !s.CloseInitial {
 		s.problem("type 1 without a preceding challenge on connection %d", st.id)
 	}
 	domain, workstation, err := parseType1(message)
@@ -203,20 +230,7 @@ func (s *Server) type1(w http.ResponseWriter, r *http.Request, st *connState, me
 	s.record(r, st, "type1", nil)
 	challenge := s.challengeMessage(st.challenge, st.targetInfo)
 	if s.CloseChallenge == "silent" {
-		hijacker, ok := w.(http.Hijacker)
-		if !ok {
-			s.problem("response writer cannot be hijacked")
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-		conn, buf, err := hijacker.Hijack()
-		if err != nil {
-			s.problem("hijack: %v", err)
-			return
-		}
-		fmt.Fprintf(buf, "HTTP/1.1 401 Unauthorized\r\nContent-Length: 0\r\nWWW-Authenticate: NTLM %s\r\n\r\n", base64.StdEncoding.EncodeToString(challenge))
-		_ = buf.Flush()
-		_ = conn.Close()
+		s.closeSilently(w, "HTTP/1.1 401 Unauthorized\r\nContent-Length: 0\r\nWWW-Authenticate: NTLM "+base64.StdEncoding.EncodeToString(challenge)+"\r\n\r\n")
 		return
 	}
 	if s.CloseChallenge == "header" {
