@@ -28,33 +28,41 @@ type mcpRoundTripFunc func(*http.Request) (*http.Response, error)
 func (f mcpRoundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) { return f(req) }
 
 func TestMCPHeadersOnlyReachTheDocumentOrigin(t *testing.T) {
-	origin, _ := url.Parse("https://mcp.example.com/rpc")
-	var seen http.Header
-	transport := &mcpHeaderTransport{
-		base: mcpRoundTripFunc(func(req *http.Request) (*http.Response, error) {
-			seen = req.Header.Clone()
-			return &http.Response{StatusCode: http.StatusOK, Header: http.Header{"Content-Type": {"application/json"}}, Body: io.NopCloser(strings.NewReader(`{}`))}, nil
-		}),
-		header: http.Header{"Authorization": {"Bearer secret"}, "X-Test": {"one"}},
-		origin: origin,
-	}
-	req := httptest.NewRequest(http.MethodPost, "https://other.example.net/rpc", nil)
-	resp, err := transport.RoundTrip(req)
-	if err != nil {
-		t.Fatal(err)
-	}
-	resp.Body.Close()
-	if got := seen.Get("Authorization"); got != "" {
-		t.Fatalf("cross-origin Authorization = %q", got)
-	}
-	req = httptest.NewRequest(http.MethodPost, "https://mcp.example.com/rpc", nil)
-	resp, err = transport.RoundTrip(req)
-	if err != nil {
-		t.Fatal(err)
-	}
-	resp.Body.Close()
-	if got := seen.Get("Authorization"); got != "Bearer secret" {
-		t.Fatalf("same-origin Authorization = %q", got)
+	for _, test := range []struct {
+		origin, target string
+		send           bool
+	}{
+		{"https://mcp.example.com/rpc", "https://other.example.net/rpc", false},
+		{"https://mcp.example.com/rpc", "https://mcp.example.com/rpc", true},
+		{"https://h:443/rpc", "https://h/rpc", true},
+		{"https://h./rpc", "https://h/rpc", true},
+		{"https://127.0.0.1/rpc", "https://localhost/rpc", false},
+	} {
+		origin, _ := url.Parse(test.origin)
+		var seen http.Header
+		var dropped atomic.Int32
+		transport := &mcpHeaderTransport{
+			base: mcpRoundTripFunc(func(req *http.Request) (*http.Response, error) {
+				seen = req.Header.Clone()
+				return &http.Response{StatusCode: http.StatusOK, Header: http.Header{"Content-Type": {"application/json"}}, Body: io.NopCloser(strings.NewReader(`{}`))}, nil
+			}),
+			header:       http.Header{"Authorization": {"Bearer secret"}, "X-Test": {"one"}},
+			origin:       origin,
+			onHeaderDrop: func(string) { dropped.Add(1) },
+		}
+		req := httptest.NewRequest(http.MethodPost, test.target, nil)
+		resp, err := transport.RoundTrip(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		got := seen.Get("Authorization")
+		if test.send && got != "Bearer secret" {
+			t.Errorf("%s -> %s Authorization = %q", test.origin, test.target, got)
+		}
+		if !test.send && (got != "" || dropped.Load() != 1) {
+			t.Errorf("%s -> %s withheld=%d Authorization=%q", test.origin, test.target, dropped.Load(), got)
+		}
 	}
 }
 
@@ -122,20 +130,21 @@ func TestMCPSSEEndpointOnAnotherOriginGetsNoAuth(t *testing.T) {
 }
 
 func TestMCPJSONResponseIsBounded(t *testing.T) {
-	body := bytes.Repeat([]byte("x"), MCPMaxFrame+1)
-	resp := &http.Response{StatusCode: http.StatusOK, Header: http.Header{"Content-Type": {"application/json"}},
-		Body: io.NopCloser(bytes.NewReader(body)), ContentLength: -1}
-	bounded, err := mcpBoundResponse(resp)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := io.ReadAll(bounded.Body); err == nil {
-		t.Fatal("oversized JSON response was read without an error")
-	}
-	resp = &http.Response{StatusCode: http.StatusOK, Header: http.Header{"Content-Type": {"application/json"}},
-		Body: io.NopCloser(strings.NewReader("{}")), ContentLength: MCPMaxFrame + 1}
-	if _, err := mcpBoundResponse(resp); err == nil {
-		t.Fatal("oversized Content-Length was accepted")
+	for _, contentLength := range []int64{-1, MCPMaxFrame + 1} {
+		body := bytes.Repeat([]byte("x"), MCPMaxFrame+1)
+		resp := &http.Response{StatusCode: http.StatusOK, Header: http.Header{"Content-Type": {"application/json"}},
+			Body: io.NopCloser(bytes.NewReader(body)), ContentLength: contentLength}
+		var limited atomic.Int32
+		bounded, err := mcpBoundResponse(resp, func(int64) { limited.Add(1) })
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := io.ReadAll(bounded.Body); err == nil {
+			t.Fatal("oversized JSON response was read without an error")
+		}
+		if limited.Load() != 1 {
+			t.Fatalf("ContentLength=%d limit callback = %d", contentLength, limited.Load())
+		}
 	}
 }
 
@@ -234,12 +243,6 @@ func TestMCPRecordsServerInitiatedRequests(t *testing.T) {
 		}
 		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: "roots"}}}, struct{}{}, nil
 	})
-	mcp.AddTool(server, &mcp.Tool{Name: "elicit"}, func(ctx context.Context, req *mcp.CallToolRequest, _ struct{}) (*mcp.CallToolResult, struct{}, error) {
-		if _, err := req.Session.Elicit(ctx, &mcp.ElicitParams{Message: "approve?"}); err != nil {
-			return nil, struct{}{}, err
-		}
-		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: "elicit"}}}, struct{}{}, nil
-	})
 	httpServer := mcpStreamableServer(t, server, nil)
 	defer httpServer.Close()
 	var mu sync.Mutex
@@ -259,14 +262,10 @@ func TestMCPRecordsServerInitiatedRequests(t *testing.T) {
 	if _, err := client.CallTool(ctx, "roots", jsontext.Value(`{}`)); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := client.CallTool(ctx, "elicit", jsontext.Value(`{}`)); err != nil {
-		t.Fatal(err)
-	}
 	mu.Lock()
 	got := append([]string(nil), rpc...)
 	mu.Unlock()
-	if !containsString(got, "In roots/list") || !containsString(got, "Out roots/list response") ||
-		!containsString(got, "In elicitation/create") || !containsString(got, "Out elicitation/create response") {
+	if !containsString(got, "In roots/list") || !containsString(got, "Out roots/list response") {
 		t.Fatalf("server-initiated request missing from RPC trace: %+v", got)
 	}
 }
@@ -278,6 +277,34 @@ func containsString(values []string, want string) bool {
 		}
 	}
 	return false
+}
+
+func TestMCPDoesNotAdvertiseOptionalCapabilities(t *testing.T) {
+	server := mcp.NewServer(&mcp.Implementation{Name: "caps", Version: "1"}, nil)
+	mcp.AddTool(server, &mcp.Tool{Name: "caps"}, func(_ context.Context, req *mcp.CallToolRequest, _ struct{}) (*mcp.CallToolResult, struct{}, error) {
+		caps := "none"
+		if init := req.Session.InitializeParams(); init != nil && init.Capabilities != nil {
+			caps = fmt.Sprintf("roots=%v sampling=%v elicitation=%v", init.Capabilities.RootsV2, init.Capabilities.Sampling, init.Capabilities.Elicitation)
+		}
+		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: caps}}}, struct{}{}, nil
+	})
+	httpServer := mcpStreamableServer(t, server, nil)
+	defer httpServer.Close()
+	plan := MCPPlan{Transport: MCPTransportStreamableHTTP, URL: httpServer.URL, ProtocolVersion: "2025-11-25", Timeout: 10 * time.Second}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	client, err := DialMCP(ctx, plan, MCPHandlers{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer client.Close()
+	result, err := client.CallTool(ctx, "caps", jsontext.Value(`{}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(result.Text, "roots=<nil>") || !strings.Contains(result.Text, "sampling=<nil>") || !strings.Contains(result.Text, "elicitation=<nil>") {
+		t.Fatalf("advertised optional capabilities: %s", result.Text)
+	}
 }
 
 func TestMCPFixedVersionDoesNotSilentlyFallBack(t *testing.T) {
@@ -300,22 +327,34 @@ func TestMCPFixedVersionDoesNotSilentlyFallBack(t *testing.T) {
 }
 
 func TestMCPOversizedJSONResponseFailsTheConnection(t *testing.T) {
-	httpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write(bytes.Repeat([]byte("x"), MCPMaxFrame+1024))
-	}))
-	defer httpServer.Close()
-	plan := MCPPlan{Transport: MCPTransportStreamableHTTP, URL: httpServer.URL, Timeout: 5 * time.Second}
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	client, err := DialMCP(ctx, plan, MCPHandlers{})
-	if err == nil {
-		client.Close()
-		t.Fatal("oversized JSON response was accepted")
-	}
-	if !strings.Contains(err.Error(), "exceeds") {
-		t.Fatalf("oversized response error = %v", err)
+	for _, declared := range []bool{false, true} {
+		t.Run(fmt.Sprintf("declared=%v", declared), func(t *testing.T) {
+			body := bytes.Repeat([]byte("x"), MCPMaxFrame+1024)
+			httpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				if declared {
+					w.Header().Set("Content-Length", strconv.Itoa(len(body)))
+				}
+				w.WriteHeader(http.StatusOK)
+				_, _ = w.Write(body)
+			}))
+			defer httpServer.Close()
+			plan := MCPPlan{Transport: MCPTransportStreamableHTTP, URL: httpServer.URL, Timeout: 5 * time.Second}
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			var limited atomic.Int32
+			client, err := DialMCP(ctx, plan, MCPHandlers{BodyLimit: func(int64) { limited.Add(1) }})
+			if err == nil {
+				client.Close()
+				t.Fatal("oversized JSON response was accepted")
+			}
+			if !strings.Contains(err.Error(), "exceeds") {
+				t.Fatalf("oversized response error = %v", err)
+			}
+			if limited.Load() != 1 {
+				t.Fatalf("limit callback = %d", limited.Load())
+			}
+		})
 	}
 }
 
@@ -546,8 +585,8 @@ func TestMCPStandaloneGETReconnectsWithoutReplayingPOST(t *testing.T) {
 	var gets atomic.Int32
 	handler := mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return server }, nil)
 	wrapped := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodGet && gets.Add(1) == 1 {
-			ctx, cancel := context.WithTimeout(r.Context(), 200*time.Millisecond)
+		if r.Method == http.MethodGet && gets.Add(1) <= 4 {
+			ctx, cancel := context.WithTimeout(r.Context(), 100*time.Millisecond)
 			defer cancel()
 			r = r.WithContext(ctx)
 		}
@@ -557,19 +596,19 @@ func TestMCPStandaloneGETReconnectsWithoutReplayingPOST(t *testing.T) {
 	defer httpServer.Close()
 	var reconnects atomic.Int32
 	plan := mcpTestPlan(t, MCPTransportStreamableHTTP, httpServer.URL, "2025-11-25")
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 40*time.Second)
 	defer cancel()
 	client, err := DialMCP(ctx, plan, MCPHandlers{Reconnect: func() { reconnects.Add(1) }})
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer client.Close()
-	deadline := time.Now().Add(5 * time.Second)
-	for time.Now().Before(deadline) && reconnects.Load() == 0 {
-		time.Sleep(20 * time.Millisecond)
+	deadline := time.Now().Add(30 * time.Second)
+	for time.Now().Before(deadline) && reconnects.Load() < 4 {
+		time.Sleep(50 * time.Millisecond)
 	}
-	if reconnects.Load() == 0 {
-		t.Fatalf("standalone GET did not reconnect (GETs=%d)", gets.Load())
+	if reconnects.Load() < 4 {
+		t.Fatalf("standalone GET stopped reconnecting: GETs=%d reconnects=%d", gets.Load(), reconnects.Load())
 	}
 	if _, err := client.CallTool(ctx, "echo", jsontext.Value(`{"text":"after"}`)); err != nil {
 		t.Fatalf("call after reconnect: %v", err)
@@ -582,7 +621,7 @@ func TestMCPStreamableJSONBodyLimitThroughSDK(t *testing.T) {
 	body := bytes.Repeat([]byte("x"), MCPMaxFrame+1)
 	resp := &http.Response{StatusCode: http.StatusOK, Header: http.Header{"Content-Type": {"application/json"}},
 		Body: io.NopCloser(bytes.NewReader(body)), ContentLength: -1}
-	bounded, err := mcpBoundResponse(resp)
+	bounded, err := mcpBoundResponse(resp, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

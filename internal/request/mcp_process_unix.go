@@ -3,9 +3,16 @@
 package request
 
 import (
+	"fmt"
+	"io"
 	"os/exec"
 	"syscall"
+	"time"
 )
+
+type mcpProcessTree struct {
+	pgid int
+}
 
 // mcpPrepareCommand starts the server in its own process group so a shell,
 // npx or uvx wrapper and the server's children can be terminated together.
@@ -16,28 +23,73 @@ func mcpPrepareCommand(cmd *exec.Cmd) {
 	cmd.SysProcAttr.Setpgid = true
 }
 
-// mcpProcessGroupID captures the group id after Start. It is kept because
-// Getpgid fails once the leader has been reaped, while its children may still
-// be alive in the group.
-func mcpProcessGroupID(cmd *exec.Cmd) int {
+func mcpAttachProcess(cmd *exec.Cmd) mcpProcessTree {
 	if cmd == nil || cmd.Process == nil {
-		return 0
+		return mcpProcessTree{}
 	}
 	if pgid, err := syscall.Getpgid(cmd.Process.Pid); err == nil {
-		return pgid
+		return mcpProcessTree{pgid: pgid}
 	}
-	return cmd.Process.Pid
+	return mcpProcessTree{pgid: cmd.Process.Pid}
 }
 
-// mcpKillProcessGroup signals the whole process group. A non-force signal
-// gives the server a chance to shut down; force uses SIGKILL.
-func mcpKillProcessGroup(pgid int, force bool) {
-	if pgid <= 0 {
+func mcpTerminateProcessTree(tree mcpProcessTree, force bool) {
+	if tree.pgid <= 0 {
 		return
 	}
 	signal := syscall.SIGTERM
 	if force {
 		signal = syscall.SIGKILL
 	}
-	_ = syscall.Kill(-pgid, signal)
+	_ = syscall.Kill(-tree.pgid, signal)
+}
+
+func mcpCloseProcessTree(mcpProcessTree) {}
+
+// mcpCloseProcess never signals the saved group after cmd.Wait: the leader
+// may have been reaped and its pid reused. The grace period deliberately does
+// not reap the leader, so the process group id stays reserved while SIGTERM
+// reaches children that outlived it.
+func mcpCloseProcess(cmd *exec.Cmd, tree mcpProcessTree, stdin io.Closer, stdout io.Closer, grace bool) error {
+	if stdin != nil {
+		_ = stdin.Close()
+	}
+	if grace {
+		// Let the server exit after stdin EOF without reaping it. A zombie
+		// leader keeps the process group id reserved for the signal below.
+		time.Sleep(2 * time.Second)
+	}
+	mcpTerminateProcessTree(tree, false)
+	if grace {
+		// Give the group time to handle SIGTERM. Do not call Wait yet: a
+		// child that ignores TERM must still receive KILL while the group id
+		// is known to belong to this tree.
+		time.Sleep(time.Second)
+	}
+	mcpTerminateProcessTree(tree, true)
+	wait := make(chan error, 1)
+	go func() { wait <- cmd.Wait() }()
+	select {
+	case err := <-wait:
+		if stdout != nil {
+			_ = stdout.Close()
+		}
+		return err
+	case <-time.After(2 * time.Second):
+		if cmd.Process != nil {
+			_ = cmd.Process.Kill()
+		}
+		select {
+		case err := <-wait:
+			if stdout != nil {
+				_ = stdout.Close()
+			}
+			return err
+		case <-time.After(time.Second):
+			if stdout != nil {
+				_ = stdout.Close()
+			}
+			return fmt.Errorf("unresponsive stdio subprocess")
+		}
+	}
 }

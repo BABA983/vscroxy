@@ -95,8 +95,9 @@ type MCPResult struct {
 	Truncated   bool
 }
 
-// MCPHandlers receive server-initiated activity off the UI thread. Text is
-// already bounded; implementations must not log it.
+// MCPHandlers receive server-initiated activity off the UI thread. RPC text
+// is a complete JSON-RPC value (up to MCPMaxFrame); the UI bounds its preview.
+// Implementations must not log request contents or results.
 type MCPHandlers struct {
 	Notification func(method, text string)
 	Log          func(level, logger, text string)
@@ -110,6 +111,12 @@ type MCPHandlers struct {
 	// already show: initialize, logging setup, subscriptions, pings, and
 	// server-initiated requests such as sampling, elicitation and roots.
 	RPC func(direction, method, text string)
+	// BodyLimit reports an oversized non-SSE response body. The SDK closes the
+	// session when the body cannot be read, so the UI explains why.
+	BodyLimit func(limit int64)
+	// HeadersDropped reports a request to another origin whose document
+	// headers were withheld. target is scheme://host without a path or query.
+	HeadersDropped func(target string)
 }
 
 // MCPClient owns one initialized MCP session.
@@ -146,24 +153,19 @@ func DialMCP(ctx context.Context, plan MCPPlan, handlers MCPHandlers) (*MCPClien
 	case MCPTransportSSE:
 		transport = &mcp.SSEClientTransport{Endpoint: plan.URL, HTTPClient: mcpHTTPClient(plan, handlers), MaxEventSize: MCPMaxFrame}
 	case MCPTransportStreamableHTTP:
-		// Retry the standalone GET stream, never a POST. The transport reports
-		// each reconnection through the HTTP wrapper's callback.
-		transport = &mcp.StreamableClientTransport{Endpoint: plan.URL, HTTPClient: mcpHTTPClient(plan, handlers), MaxRetries: 2, MaxEventSize: MCPMaxFrame}
+		// Retry the standalone GET stream, never a POST. A load balancer may
+		// close an idle stream for hours; the SDK's exponential backoff caps
+		// the delay at 30 seconds, so a large budget does not spin.
+		transport = &mcp.StreamableClientTransport{Endpoint: plan.URL, HTTPClient: mcpHTTPClient(plan, handlers), MaxRetries: 1_000_000, MaxEventSize: MCPMaxFrame}
 	default:
 		return nil, fmt.Errorf("unsupported MCP transport %q", plan.Transport)
 	}
 	client := mcp.NewClient(&mcp.Implementation{Name: "vscroxy", Version: "0.1.0"}, &mcp.ClientOptions{
 		Logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
-		// A debugger advertises the server-initiated methods so their traffic
-		// reaches the timeline. Sampling is declined: this app has no model to
-		// call, but the request and its error response remain visible.
-		Capabilities: &mcp.ClientCapabilities{RootsV2: &mcp.RootCapabilities{}},
-		CreateMessageHandler: func(context.Context, *mcp.CreateMessageRequest) (*mcp.CreateMessageResult, error) {
-			return nil, fmt.Errorf("vscroxy does not provide sampling")
-		},
-		ElicitationHandler: func(context.Context, *mcp.ElicitRequest) (*mcp.ElicitResult, error) {
-			return &mcp.ElicitResult{Action: "decline"}, nil
-		},
+		// Behave like an ordinary client: do not advertise roots, sampling or
+		// elicitation. A server that sends one anyway still reaches the
+		// receiving middleware and the timeline; its default handler declines.
+		Capabilities: &mcp.ClientCapabilities{},
 		ToolListChangedHandler: func(context.Context, *mcp.ToolListChangedRequest) {
 			mcpNotify(handlers, "notifications/tools/list_changed", "")
 		},
@@ -276,18 +278,21 @@ func mcpRPCFragment(handlers MCPHandlers, direction string) mcp.Middleware {
 	}
 }
 
+// mcpParamsText and mcpResultText keep the whole JSON value so the UI's
+// MCPPreview can report the real retained/total size. The SDK has already
+// bounded the frame to MCPMaxFrame.
 func mcpParamsText(params mcp.Params) string {
 	if params == nil {
 		return ""
 	}
-	return mcpTruncate(mcpJSONText(params), 64<<10)
+	return mcpJSONText(params)
 }
 
 func mcpResultText(result mcp.Result) string {
 	if result == nil {
 		return ""
 	}
-	return mcpTruncate(mcpJSONText(result), 64<<10)
+	return mcpJSONText(result)
 }
 
 func mcpAtLeast2026(version string) bool {
@@ -328,8 +333,9 @@ func mcpHTTPClient(plan MCPPlan, handlers MCPHandlers) *http.Client {
 	origin, _ := url.Parse(plan.URL)
 	transport := plan.Certificates.Transport(base, plan.ProxyCA, plan.Insecure)
 	client := &http.Client{
-		Transport: &mcpHeaderTransport{base: transport, header: plan.Header, origin: origin, onReconnect: handlers.Reconnect},
-		Jar:       plan.Jar,
+		Transport: &mcpHeaderTransport{base: transport, header: plan.Header, origin: origin, onReconnect: handlers.Reconnect,
+			onBodyLimit: handlers.BodyLimit, onHeaderDrop: handlers.HeadersDropped},
+		Jar: plan.Jar,
 	}
 	if origin != nil && origin.Host != "" {
 		client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
@@ -343,15 +349,24 @@ func mcpHTTPClient(plan MCPPlan, handlers MCPHandlers) *http.Client {
 }
 
 type mcpHeaderTransport struct {
-	base        http.RoundTripper
-	header      http.Header
-	origin      *url.URL
-	onReconnect func()
-	sseGets     atomic.Int32
+	base         http.RoundTripper
+	header       http.Header
+	origin       *url.URL
+	onReconnect  func()
+	onBodyLimit  func(int64)
+	onHeaderDrop func(string)
+	sseGets      atomic.Int32
+	dropped      sync.Map
 }
 
 func (t *mcpHeaderTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	sameOrigin := mcpSameOrigin(req.URL, t.origin)
+	if len(t.header) > 0 && !sameOrigin && t.onHeaderDrop != nil {
+		target := req.URL.Scheme + "://" + req.URL.Host
+		if _, loaded := t.dropped.LoadOrStore(target, true); !loaded {
+			t.onHeaderDrop(target)
+		}
+	}
 	if req.Method == http.MethodGet && sameOrigin && strings.Contains(req.Header.Get("Accept"), "text/event-stream") {
 		if t.sseGets.Add(1) > 1 && t.onReconnect != nil {
 			t.onReconnect()
@@ -377,13 +392,13 @@ func (t *mcpHeaderTransport) RoundTrip(req *http.Request) (*http.Response, error
 	if err != nil {
 		return nil, err
 	}
-	return mcpBoundResponse(resp)
+	return mcpBoundResponse(resp, t.onBodyLimit)
 }
 
 // mcpBoundResponse bounds a JSON (or error) body. SSE streams are bounded per
 // event by the transport; a plain JSON response is read whole by the SDK, so
 // it needs its own limit.
-func mcpBoundResponse(resp *http.Response) (*http.Response, error) {
+func mcpBoundResponse(resp *http.Response, onLimit func(int64)) (*http.Response, error) {
 	if resp == nil || resp.Body == nil {
 		return resp, nil
 	}
@@ -392,17 +407,34 @@ func mcpBoundResponse(resp *http.Response) (*http.Response, error) {
 		return resp, nil
 	}
 	if resp.ContentLength > MCPMaxFrame {
-		resp.Body.Close()
-		return nil, fmt.Errorf("MCP response body exceeds %d bytes", MCPMaxFrame)
+		// The SDK reads a JSON body whole and ends the session on a read
+		// error. Reject it the same way whether the length is declared or
+		// discovered while streaming.
+		if onLimit != nil {
+			onLimit(MCPMaxFrame)
+		}
+		resp.Body = &mcpRejectedBody{ReadCloser: resp.Body, limit: MCPMaxFrame}
+		return resp, nil
 	}
-	resp.Body = &mcpLimitedBody{ReadCloser: resp.Body, limit: MCPMaxFrame}
+	resp.Body = &mcpLimitedBody{ReadCloser: resp.Body, limit: MCPMaxFrame, onLimit: onLimit}
 	return resp, nil
+}
+
+type mcpRejectedBody struct {
+	io.ReadCloser
+	limit int64
+}
+
+func (b *mcpRejectedBody) Read([]byte) (int, error) {
+	return 0, fmt.Errorf("MCP response body exceeds %d bytes", b.limit)
 }
 
 type mcpLimitedBody struct {
 	io.ReadCloser
-	read  int64
-	limit int64
+	read    int64
+	limit   int64
+	onLimit func(int64)
+	once    sync.Once
 }
 
 func (b *mcpLimitedBody) Read(p []byte) (int, error) {
@@ -416,6 +448,11 @@ func (b *mcpLimitedBody) Read(p []byte) (int, error) {
 	n, err := b.ReadCloser.Read(p)
 	b.read += int64(n)
 	if b.read > b.limit {
+		b.once.Do(func() {
+			if b.onLimit != nil {
+				b.onLimit(b.limit)
+			}
+		})
 		return n, fmt.Errorf("MCP response body exceeds %d bytes", b.limit)
 	}
 	return n, err
@@ -425,10 +462,31 @@ func (b *mcpLimitedBody) Read(p []byte) (int, error) {
 // Document headers and auth are never sent to another origin, including the
 // endpoint of a legacy SSE stream.
 func mcpSameOrigin(u, origin *url.URL) bool {
-	if u == nil || origin == nil || origin.Host == "" {
-		return false
+	a, b := mcpOriginKey(u), mcpOriginKey(origin)
+	return a != "" && a == b
+}
+
+// mcpOriginKey normalizes the default port and a trailing root label, which
+// are the same origin to a browser. A literal IP and localhost stay distinct.
+func mcpOriginKey(u *url.URL) string {
+	if u == nil || u.Hostname() == "" {
+		return ""
 	}
-	return strings.EqualFold(u.Scheme, origin.Scheme) && strings.EqualFold(u.Host, origin.Host)
+	scheme := strings.ToLower(u.Scheme)
+	host := strings.ToLower(u.Hostname())
+	for strings.HasSuffix(host, ".") {
+		host = strings.TrimSuffix(host, ".")
+	}
+	port := u.Port()
+	if port == "" {
+		switch scheme {
+		case "https":
+			port = "443"
+		case "http":
+			port = "80"
+		}
+	}
+	return scheme + "://" + host + ":" + port
 }
 
 // mcpTransportHeader names the headers the MCP transport owns. A user's
