@@ -26,23 +26,26 @@ func TestMCPConsentKeysTrackShapeAndValues(t *testing.T) {
 	d := &requestDocument{debugKey: "doc-1"}
 	key := []byte("0123456789abcdef0123456789abcdef")
 	plan := request.MCPPlan{Command: "npx", Args: []string{"-y", "server"}, WorkingDir: "/tmp", Env: []string{"TOKEN=one", "DEBUG=1"}}
-	shape := mcpConsentKey(d, plan)
+	shape := mcpConsentKey(d, plan, key)
 	full := mcpConsentFullKey(shape, plan, key)
 	same := plan
 	same.Env = []string{"TOKEN=two", "DEBUG=2"}
-	if got := mcpConsentKey(d, same); got != shape {
+	if got := mcpConsentKey(d, same, key); got != shape {
 		t.Fatal("an environment value change changed the shape key")
+	}
+	if got := mcpConsentKey(d, plan, bytes.Repeat([]byte{0x42}, 32)); got == shape {
+		t.Fatal("the shape key does not depend on the HMAC key")
 	}
 	if got := mcpConsentFullKey(shape, same, key); got == full {
 		t.Fatal("an environment value change reused the full approval")
 	}
 	changed := plan
 	changed.Args = []string{"-y", "other-server"}
-	if got := mcpConsentKey(d, changed); got == shape {
+	if got := mcpConsentKey(d, changed, key); got == shape {
 		t.Fatal("an argument change reused the shape approval")
 	}
 	other := &requestDocument{debugKey: "doc-2"}
-	if got := mcpConsentKey(other, plan); got == shape {
+	if got := mcpConsentKey(other, plan, key); got == shape {
 		t.Fatal("another document reused the shape approval")
 	}
 }
@@ -152,7 +155,7 @@ func TestMCPConsentValueChangeAsksAgain(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	shape := mcpConsentKey(d, plan)
+	shape := mcpConsentKey(d, plan, a.mcpConsentsKey)
 	full := mcpConsentFullKey(shape, plan, a.mcpConsentsKey)
 	a.mcpConsents = map[string]mcpConsentApproval{
 		shape: {LastUsed: 1, Persist: true, Env: mcpConsentEnvHashes(plan, a.mcpConsentsKey)},
@@ -522,15 +525,57 @@ func TestMCPCatalogTruncationShowsNotice(t *testing.T) {
 	}
 }
 
-func TestMCPReconnectAppearsInTimeline(t *testing.T) {
+func TestMCPReconnectTimelineKeepsOneRow(t *testing.T) {
+	s := &mcpSession{state: "Connected", connected: true}
+	for attempt := 1; attempt <= 5; attempt++ {
+		s.reconnectUpdate(attempt, fmt.Errorf("dial attempt %d failed", attempt))
+	}
+	snapshot := s.snapshot()
+	if snapshot.state != "Reconnecting" {
+		t.Fatalf("state = %q, want Reconnecting", snapshot.state)
+	}
+	var rows []mcpEvent
+	for _, event := range snapshot.events {
+		if event.kind == "System" && event.name == "Stream" {
+			rows = append(rows, event)
+		}
+	}
+	if len(rows) != 1 {
+		t.Fatalf("reconnect rows = %d, want 1: %+v", len(rows), snapshot.events)
+	}
+	if !strings.Contains(rows[0].text, "attempt 5") || !strings.Contains(rows[0].text, "dial attempt 5 failed") {
+		t.Fatalf("reconnect row = %q", rows[0].text)
+	}
+	s.reconnected()
+	snapshot = s.snapshot()
+	if snapshot.state != "Connected" {
+		t.Fatalf("state after recovery = %q", snapshot.state)
+	}
+	if len(snapshot.events) != 1 || !strings.Contains(snapshot.events[0].text, "Reconnected") {
+		t.Fatalf("recovery row = %+v", snapshot.events)
+	}
+}
+
+func TestMCPReconnectRecoversAndKeepsOneRow(t *testing.T) {
 	server := appMCPFixture()
-	var gets atomic.Int32
 	handler := mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return server }, nil)
+	var gets atomic.Int32
 	httpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodGet && gets.Add(1) == 1 {
-			ctx, cancel := context.WithTimeout(r.Context(), 200*time.Millisecond)
-			defer cancel()
-			r = r.WithContext(ctx)
+		if r.Method == http.MethodGet {
+			switch gets.Add(1) {
+			case 1:
+				ctx, cancel := context.WithTimeout(r.Context(), 100*time.Millisecond)
+				defer cancel()
+				r = r.WithContext(ctx)
+			case 2:
+				if hijacker, ok := w.(http.Hijacker); ok {
+					conn, _, err := hijacker.Hijack()
+					if err == nil {
+						_ = conn.Close()
+						return
+					}
+				}
+			}
 		}
 		handler.ServeHTTP(w, r)
 	}))
@@ -538,16 +583,62 @@ func TestMCPReconnectAppearsInTimeline(t *testing.T) {
 	plan := request.MCPPlan{Transport: request.MCPTransportStreamableHTTP, URL: httpServer.URL, Timeout: 15 * time.Second}
 	s := openMCPSession(plan, request.Request{Protocol: "MCP"}, request.Context{}, nil, nil)
 	defer s.disconnect()
-	snapshot := waitMCPSession(t, s, func(snapshot mcpSnapshot) bool {
+	reconnecting := waitMCPSession(t, s, func(snapshot mcpSnapshot) bool {
+		return snapshot.state == "Reconnecting"
+	})
+	if !strings.Contains(fmt.Sprint(reconnecting.events), "attempt 1") {
+		t.Fatalf("reconnecting row = %+v", reconnecting.events)
+	}
+	waitMCPSession(t, s, func(snapshot mcpSnapshot) bool {
+		if snapshot.state != "Connected" {
+			return false
+		}
 		for _, event := range snapshot.events {
-			if event.kind == "System" && event.name == "Stream reconnect" {
+			if event.kind == "System" && event.name == "Stream" && strings.Contains(event.text, "Reconnected") {
 				return true
 			}
 		}
 		return false
 	})
-	if !snapshot.connected {
-		t.Fatalf("session ended after reconnect: %+v", snapshot)
+	snapshot := s.snapshot()
+	rows := 0
+	for _, event := range snapshot.events {
+		if event.kind == "System" && event.name == "Stream" {
+			rows++
+		}
+	}
+	if rows != 1 {
+		t.Fatalf("reconnect rows = %d, want 1: %+v", rows, snapshot.events)
+	}
+}
+
+func TestMCPCloseDocumentDoesNotBlockAndQuitWaits(t *testing.T) {
+	a := workspaceApp()
+	a.addDocument(savedRequest{Protocol: "MCP", Name: "Closing"}, "")
+	d := a.requestDocument
+	s := &mcpSession{done: make(chan struct{}), cancel: func() {}}
+	d.mcpUI = &mcpDocument{session: s}
+	start := time.Now()
+	a.closeDocument(d)
+	if elapsed := time.Since(start); elapsed > 250*time.Millisecond {
+		t.Fatalf("closeDocument blocked for %v", elapsed)
+	}
+	a.mcpClosingMu.Lock()
+	_, tracked := a.mcpClosing[s]
+	a.mcpClosingMu.Unlock()
+	if !tracked {
+		t.Fatal("closed tab's MCP session was not tracked for quit")
+	}
+	time.AfterFunc(50*time.Millisecond, func() { close(s.done) })
+	done := make(chan struct{})
+	go func() {
+		a.stopDocuments()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("quit did not wait for the closed tab's MCP session")
 	}
 }
 

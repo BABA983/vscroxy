@@ -44,17 +44,19 @@ type mcpConnectionInfo struct {
 // stay on the UI thread; a replaced session's late updates land on the old
 // object.
 type mcpSession struct {
-	mu       sync.Mutex
-	client   *request.MCPClient
-	plan     request.MCPPlan
-	input    request.Request
-	scope    request.Context
-	vars     map[string]string
-	ctx      context.Context
-	cancel   context.CancelFunc
-	opCancel context.CancelFunc
-	done     chan struct{}
-	notify   func()
+	mu              sync.Mutex
+	client          *request.MCPClient
+	plan            request.MCPPlan
+	input           request.Request
+	scope           request.Context
+	vars            map[string]string
+	ctx             context.Context
+	cancel          context.CancelFunc
+	opCancel        context.CancelFunc
+	done            chan struct{}
+	closeOnce       sync.Once
+	clientCloseOnce sync.Once
+	notify          func()
 
 	state, problem string
 	connected      bool
@@ -71,6 +73,7 @@ type mcpSession struct {
 	resultSeq      int
 	catalogNotice  string
 	progress       string
+	reconnectSeq   int
 	rpcSeq         int
 }
 
@@ -168,6 +171,48 @@ func (s *mcpSession) progressUpdate(token string, progress, total float64, messa
 	s.changed()
 }
 
+// reconnectUpdate keeps one live row for a failing standalone GET stream.
+// The SDK retries for hours after a server disappears; appending every attempt
+// would evict the rest of the timeline.
+func (s *mcpSession) reconnectUpdate(attempt int, err error) {
+	text := fmt.Sprintf("Reconnecting · attempt %d · last error %s", attempt, err)
+	s.mu.Lock()
+	if s.finished {
+		s.mu.Unlock()
+		return
+	}
+	s.state = "Reconnecting"
+	s.updateReconnectLocked(text)
+	s.mu.Unlock()
+	s.changed()
+}
+
+func (s *mcpSession) reconnected() {
+	s.mu.Lock()
+	if s.finished {
+		s.mu.Unlock()
+		return
+	}
+	s.state = "Connected"
+	s.updateReconnectLocked("Reconnected · transport recovered")
+	s.mu.Unlock()
+	s.changed()
+}
+
+func (s *mcpSession) updateReconnectLocked(text string) {
+	if s.reconnectSeq != 0 {
+		for i := range s.events {
+			if s.events[i].seq == s.reconnectSeq {
+				s.events[i].text = request.MCPPreview(text, mcpEventPreview)
+				s.events[i].size = len(text)
+				return
+			}
+		}
+	}
+	s.appendLocked("System", "Stream", text)
+	s.reconnectSeq = s.seq
+}
+
 func (s *mcpSession) rpcCount() int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -227,8 +272,11 @@ func openMCPSession(plan request.MCPPlan, input request.Request, scope request.C
 			HeadersDropped: func(target string) {
 				s.append("System", "Headers withheld", "Document headers were not sent to "+target+" because it is not the document's origin.")
 			},
-			Reconnect: func() {
-				s.append("System", "Stream reconnect", "The server closed the standalone GET stream; reconnecting without replaying a POST.")
+			Reconnect: func(attempt int, err error) {
+				s.reconnectUpdate(attempt, err)
+			},
+			Reconnected: func() {
+				s.reconnected()
 			},
 		}
 		client, err := request.DialMCP(ctx, plan, handlers)
@@ -255,7 +303,7 @@ func openMCPSession(plan request.MCPPlan, input request.Request, scope request.C
 		// The SDK transports own their connection contexts: closing the
 		// session context alone does not close them. Tie Close to cancellation
 		// so Disconnect, tab close and quit end Wait and the process/HTTP session.
-		context.AfterFunc(ctx, func() { _ = client.Close() })
+		context.AfterFunc(ctx, func() { s.closeClient(client) })
 		s.mu.Lock()
 		s.client, s.connected, s.state = client, true, "Connected"
 		s.server = client.Server()
@@ -555,30 +603,40 @@ func (s *mcpSession) cancelOp() {
 	}
 }
 
+// beginClose schedules the one close for this session. A tab close and a
+// later quit may both ask; only one goroutine may call client.Close.
+func (s *mcpSession) beginClose() {
+	s.closeOnce.Do(func() {
+		s.mu.Lock()
+		cancel, client := s.cancel, s.client
+		s.mu.Unlock()
+		if cancel != nil {
+			cancel()
+		}
+		if client != nil {
+			go s.closeClient(client)
+		}
+	})
+}
+
+func (s *mcpSession) closeClient(client *request.MCPClient) {
+	if client == nil {
+		return
+	}
+	s.clientCloseOnce.Do(func() { _ = client.Close() })
+}
+
 func (s *mcpSession) disconnect() {
-	s.mu.Lock()
-	cancel, client := s.cancel, s.client
-	s.mu.Unlock()
-	if cancel != nil {
-		cancel()
-	}
-	if client != nil {
-		go client.Close()
-	}
+	s.beginClose()
 }
 
 // closeNow closes the session and waits for its transport, including a stdio
 // process tree. Quit uses it so os.Exit cannot race the close goroutine.
 func (s *mcpSession) closeNow(timeout time.Duration) {
+	s.beginClose()
 	s.mu.Lock()
-	cancel, client, done := s.cancel, s.client, s.done
+	done := s.done
 	s.mu.Unlock()
-	if cancel != nil {
-		cancel()
-	}
-	if client != nil {
-		go func() { _ = client.Close() }()
-	}
 	if done == nil {
 		return
 	}

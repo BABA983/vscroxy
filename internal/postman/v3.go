@@ -761,6 +761,13 @@ func splitShellWords(line string) ([]string, error) {
 				quote, started = c, true
 				continue
 			case '\\':
+				// A UNC path starts with two backslashes; neither is an escape.
+				if !started && i+1 < len(line) && line[i+1] == '\\' {
+					word.WriteString(`\\`)
+					i++
+					started = true
+					continue
+				}
 				// A Windows path uses backslashes before ordinary characters.
 				// Only a backslash that escapes shell syntax changes the word.
 				if i+1 < len(line) && strings.ContainsRune(" \t\r\n'\"\\", rune(line[i+1])) {

@@ -322,12 +322,17 @@ type app struct {
 	mcpConsentsKey     []byte
 	mcpConsents        map[string]mcpConsentApproval
 	mcpConsent         mcpConsentState
-	saved              settings
-	lastSave           time.Time
-	columns            ui.TableLayout
-	proxyPort          int
-	proxyPortInput     string
-	proxyPortProblem   string
+	// mcpClosing holds sessions from closed tabs or replaced protocol
+	// documents until their bounded background close finishes. Quit waits for
+	// them as well as for the documents that are still open.
+	mcpClosingMu     sync.Mutex
+	mcpClosing       map[*mcpSession]struct{}
+	saved            settings
+	lastSave         time.Time
+	columns          ui.TableLayout
+	proxyPort        int
+	proxyPortInput   string
+	proxyPortProblem string
 	// systemProxyBypass is written when the system proxy is enabled. Set is
 	// false when the OS list should be kept instead.
 	systemProxyBypass     []string

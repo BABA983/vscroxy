@@ -40,16 +40,18 @@ func (t *mcpStdioTransport) Connect(ctx context.Context) (mcp.Connection, error)
 	t.tree = mcpAttachProcess(t.cmd)
 	// Keep stdout out of the connection's Close path: the server gets stdin
 	// EOF first, then the process tree is terminated, then stdout is closed.
-	base := &mcp.IOTransport{Reader: io.NopCloser(stdout), Writer: stdin, MaxLineLength: MCPMaxFrame}
+	exited := make(chan struct{})
+	reader := &mcpExitReader{ReadCloser: stdout, done: exited}
+	base := &mcp.IOTransport{Reader: reader, Writer: stdin, MaxLineLength: MCPMaxFrame}
 	conn, err := base.Connect(ctx)
 	if err != nil {
-		mcpCloseProcess(t.cmd, t.tree, stdin, stdout, false)
+		mcpCloseProcess(t.cmd, t.tree, stdin, stdout, nil, false)
 		t.mu.Lock()
 		t.closed = true
 		t.mu.Unlock()
 		return nil, err
 	}
-	c := &mcpStdioConn{Connection: conn, cmd: t.cmd, tree: t.tree, stdin: stdin, stdout: stdout}
+	c := &mcpStdioConn{Connection: conn, cmd: t.cmd, tree: t.tree, stdin: stdin, stdout: stdout, exited: exited}
 	t.mu.Lock()
 	t.conn = c
 	t.mu.Unlock()
@@ -71,9 +73,25 @@ func (t *mcpStdioTransport) Close() error {
 		return conn.Close()
 	}
 	if t.cmd.Process != nil {
-		mcpCloseProcess(t.cmd, t.tree, nil, nil, false)
+		mcpCloseProcess(t.cmd, t.tree, nil, nil, nil, false)
 	}
 	return nil
+}
+
+// mcpExitReader closes done when the server's stdout reaches EOF. Unix uses
+// it to skip the stdin-EOF grace period when the process already exited.
+type mcpExitReader struct {
+	io.ReadCloser
+	once sync.Once
+	done chan struct{}
+}
+
+func (r *mcpExitReader) Read(p []byte) (int, error) {
+	n, err := r.ReadCloser.Read(p)
+	if err != nil {
+		r.once.Do(func() { close(r.done) })
+	}
+	return n, err
 }
 
 type mcpStdioConn struct {
@@ -82,6 +100,7 @@ type mcpStdioConn struct {
 	tree   mcpProcessTree
 	stdin  io.WriteCloser
 	stdout io.ReadCloser
+	exited chan struct{}
 	once   sync.Once
 	err    error
 }
@@ -92,7 +111,7 @@ type mcpStdioConn struct {
 // cut off by a closed pipe.
 func (c *mcpStdioConn) Close() error {
 	c.once.Do(func() {
-		c.err = mcpCloseProcess(c.cmd, c.tree, c.stdin, c.stdout, true)
+		c.err = mcpCloseProcess(c.cmd, c.tree, c.stdin, c.stdout, c.exited, true)
 		if err := c.Connection.Close(); err != nil && !errors.Is(err, io.ErrClosedPipe) && !errors.Is(err, os.ErrClosed) && c.err == nil {
 			c.err = err
 		}

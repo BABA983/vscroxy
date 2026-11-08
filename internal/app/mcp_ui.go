@@ -77,18 +77,6 @@ func (d *requestDocument) mcpState() *mcpDocument {
 	return d.mcpUI
 }
 
-func (u *mcpDocument) stop() {
-	if u.session != nil {
-		u.session.disconnect()
-	}
-}
-
-func (u *mcpDocument) stopAndWait(timeout time.Duration) {
-	if u.session != nil {
-		u.session.closeNow(timeout)
-	}
-}
-
 func (a *app) drainMCP() {
 	for _, d := range a.documents {
 		u := d.mcpUI
@@ -127,7 +115,7 @@ func (a *app) connectMCP(d *requestDocument) {
 		plan.Proxy, plan.ProxyCA, plan.Jar = a.srv.Addr(), a.srv.CACertificate(), a.requestCookies()
 	}
 	if plan.Transport == request.MCPTransportStdio {
-		shape := mcpConsentKey(d, plan)
+		shape := mcpConsentKey(d, plan, a.mcpConsentsKey)
 		full := mcpConsentFullKey(shape, plan, a.mcpConsentsKey)
 		if a.mcpConsents == nil {
 			a.mcpConsents = map[string]mcpConsentApproval{}

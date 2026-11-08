@@ -5,7 +5,7 @@ import (
 	"context"
 	"encoding/json/jsontext"
 	"fmt"
-	"github.com/baba983/vscroxy/internal/uikit"
+	"maps"
 	"net/http"
 	"net/url"
 	"reflect"
@@ -19,6 +19,7 @@ import (
 	"github.com/baba983/vscroxy/internal/graphql"
 	"github.com/baba983/vscroxy/internal/inspect"
 	"github.com/baba983/vscroxy/internal/request"
+	"github.com/baba983/vscroxy/internal/uikit"
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/editor"
 )
@@ -256,7 +257,7 @@ func (d *requestDocument) load(a *app, r savedRequest, key string) {
 		d.mqttUI = nil
 	}
 	if d.mcpUI != nil {
-		d.mcpUI.stop()
+		a.stopMCPDocument(d.mcpUI)
 		d.mcpUI = nil
 	}
 	d.savedKey, d.assetID = key, r.ID
@@ -318,7 +319,14 @@ func composeTabFor(r savedRequest) int {
 // outlive the app.
 func (a *app) stopDocuments() {
 	var mqttSessions []*mqttSession
-	var closing sync.WaitGroup
+	var mcpSessions []*mcpSession
+	seen := map[*mcpSession]bool{}
+	addMCP := func(s *mcpSession) {
+		if s != nil && !seen[s] {
+			seen[s] = true
+			mcpSessions = append(mcpSessions, s)
+		}
+	}
 	for _, d := range a.documents {
 		d.cancelSend()
 		d.structured.stop()
@@ -329,10 +337,7 @@ func (a *app) stopDocuments() {
 			d.socketIOUI.stop()
 		}
 		if d.mcpUI != nil {
-			u := d.mcpUI
-			closing.Go(func() {
-				u.stopAndWait(mcpCloseTimeout)
-			})
+			addMCP(d.mcpUI.session)
 		}
 		if d.mqttUI != nil {
 			d.mqttUI.stop()
@@ -341,8 +346,44 @@ func (a *app) stopDocuments() {
 			}
 		}
 	}
+	for _, s := range a.closingMCPSessions() {
+		addMCP(s)
+	}
+	var closing sync.WaitGroup
+	for _, s := range mcpSessions {
+		closing.Go(func() {
+			s.closeNow(mcpCloseTimeout)
+		})
+	}
 	waitMQTTSessions(mqttSessions, time.Second)
 	closing.Wait()
+}
+
+// stopMCPDocument starts a detached document's close off the UI thread and
+// keeps the session visible to stopDocuments until it finishes.
+func (a *app) stopMCPDocument(u *mcpDocument) {
+	if u == nil || u.session == nil {
+		return
+	}
+	s := u.session
+	a.mcpClosingMu.Lock()
+	if a.mcpClosing == nil {
+		a.mcpClosing = map[*mcpSession]struct{}{}
+	}
+	a.mcpClosing[s] = struct{}{}
+	a.mcpClosingMu.Unlock()
+	go func() {
+		s.closeNow(mcpCloseTimeout)
+		a.mcpClosingMu.Lock()
+		delete(a.mcpClosing, s)
+		a.mcpClosingMu.Unlock()
+	}()
+}
+
+func (a *app) closingMCPSessions() []*mcpSession {
+	a.mcpClosingMu.Lock()
+	defer a.mcpClosingMu.Unlock()
+	return slices.Collect(maps.Keys(a.mcpClosing))
 }
 
 func (a *app) closeDocument(d *requestDocument) {
@@ -362,7 +403,7 @@ func (a *app) closeDocument(d *requestDocument) {
 		d.mqttUI.stop()
 	}
 	if d.mcpUI != nil {
-		d.mcpUI.stopAndWait(mcpCloseTimeout)
+		a.stopMCPDocument(d.mcpUI)
 	}
 	if a.mcpConsent.d == d {
 		a.mcpConsent = mcpConsentState{}
@@ -784,7 +825,7 @@ func (a *app) requestBar(c *ui.Context, t *ui.Theme, d *requestDocument, more fu
 						d.mqttUI = nil
 					}
 					if d.mcpUI != nil {
-						d.mcpUI.stop()
+						a.stopMCPDocument(d.mcpUI)
 						d.mcpUI = nil
 					}
 					d.protocol = protocol

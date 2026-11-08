@@ -27,6 +27,78 @@ type mcpRoundTripFunc func(*http.Request) (*http.Response, error)
 
 func (f mcpRoundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) { return f(req) }
 
+func TestMCPReconnectErrorHidesEndpointSecrets(t *testing.T) {
+	origin, _ := url.Parse("https://mcp.example.com/rpc?key=secret")
+	base := mcpRoundTripFunc(func(*http.Request) (*http.Response, error) {
+		return nil, &url.Error{Op: "Get", URL: origin.String(), Err: fmt.Errorf("connection refused")}
+	})
+	var got string
+	transport := &mcpHeaderTransport{base: base, origin: origin,
+		onReconnect: func(_ int, err error) { got = err.Error() }}
+	transport.sseGets.Store(1)
+	req, err := http.NewRequest(http.MethodGet, origin.String(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Accept", "text/event-stream")
+	if _, err := transport.RoundTrip(req); err == nil {
+		t.Fatal("transport error was swallowed")
+	}
+	if strings.Contains(got, "secret") || strings.Contains(got, "key=") {
+		t.Fatalf("reconnect error leaked endpoint query: %q", got)
+	}
+	if !strings.Contains(got, "https://mcp.example.com/rpc") {
+		t.Fatalf("reconnect error lost endpoint: %q", got)
+	}
+}
+
+func TestMCPReconnectCallbacksKeepAttemptAndError(t *testing.T) {
+	origin, _ := url.Parse("https://mcp.example.com/rpc")
+	calls := 0
+	base := mcpRoundTripFunc(func(*http.Request) (*http.Response, error) {
+		calls++
+		if calls <= 3 {
+			return nil, fmt.Errorf("dial attempt %d failed", calls)
+		}
+		return &http.Response{StatusCode: http.StatusOK,
+			Header: http.Header{"Content-Type": {"text/event-stream"}},
+			Body:   io.NopCloser(strings.NewReader(""))}, nil
+	})
+	var attempts []int
+	var lastErr string
+	reconnected := 0
+	transport := &mcpHeaderTransport{base: base, origin: origin,
+		onReconnect: func(attempt int, err error) {
+			attempts = append(attempts, attempt)
+			lastErr = err.Error()
+		},
+		onReconnected: func() { reconnected++ }}
+	transport.sseGets.Store(1) // the initial standalone GET already succeeded
+	req, err := http.NewRequest(http.MethodGet, origin.String(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Accept", "text/event-stream")
+	for i := 0; i < 4; i++ {
+		resp, err := transport.RoundTrip(req)
+		if resp != nil {
+			resp.Body.Close()
+		}
+		if i < 3 && err == nil {
+			t.Fatalf("attempt %d unexpectedly succeeded", i+1)
+		}
+	}
+	if len(attempts) != 3 || attempts[0] != 1 || attempts[1] != 2 || attempts[2] != 3 {
+		t.Fatalf("attempts = %v", attempts)
+	}
+	if lastErr != "dial attempt 3 failed" {
+		t.Fatalf("last error = %q", lastErr)
+	}
+	if reconnected != 1 {
+		t.Fatalf("reconnected callbacks = %d", reconnected)
+	}
+}
+
 func TestMCPHeadersOnlyReachTheDocumentOrigin(t *testing.T) {
 	for _, test := range []struct {
 		origin, target string
@@ -493,6 +565,29 @@ func TestMCPStdioProcessGroupIsTerminated(t *testing.T) {
 	waitProcessGone(t, pid)
 }
 
+func TestMCPStdioCloseReturnsWhenProcessExits(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	r := Request{Protocol: "MCP", MCP: MCPConfig{Transport: MCPTransportStdio, Command: os.Args[0],
+		Args: "-test.run=TestMCPStdioHelper\n-test.v=false",
+		Env:  []Field{{Name: "VSCROXY_MCP_STDIO_HELPER", Value: "1"}}}}
+	plan, err := r.PrepareMCP(Context{}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	client, err := DialMCP(ctx, plan, MCPHandlers{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	start := time.Now()
+	if err := client.Close(); err != nil {
+		t.Fatalf("close: %v", err)
+	}
+	if elapsed := time.Since(start); elapsed > 2*time.Second {
+		t.Fatalf("Close waited %v after the server exited", elapsed)
+	}
+}
+
 func TestMCPCancellingDuringStdioDialKillsProcess(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("process-group test uses a POSIX shell")
@@ -594,21 +689,20 @@ func TestMCPStandaloneGETReconnectsWithoutReplayingPOST(t *testing.T) {
 	})
 	httpServer := httptest.NewServer(wrapped)
 	defer httpServer.Close()
-	var reconnects atomic.Int32
 	plan := mcpTestPlan(t, MCPTransportStreamableHTTP, httpServer.URL, "2025-11-25")
 	ctx, cancel := context.WithTimeout(context.Background(), 40*time.Second)
 	defer cancel()
-	client, err := DialMCP(ctx, plan, MCPHandlers{Reconnect: func() { reconnects.Add(1) }})
+	client, err := DialMCP(ctx, plan, MCPHandlers{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer client.Close()
 	deadline := time.Now().Add(30 * time.Second)
-	for time.Now().Before(deadline) && reconnects.Load() < 4 {
+	for time.Now().Before(deadline) && gets.Load() < 4 {
 		time.Sleep(50 * time.Millisecond)
 	}
-	if reconnects.Load() < 4 {
-		t.Fatalf("standalone GET stopped reconnecting: GETs=%d reconnects=%d", gets.Load(), reconnects.Load())
+	if gets.Load() < 4 {
+		t.Fatalf("standalone GET stopped reconnecting: GETs=%d", gets.Load())
 	}
 	if _, err := client.CallTool(ctx, "echo", jsontext.Value(`{"text":"after"}`)); err != nil {
 		t.Fatalf("call after reconnect: %v", err)

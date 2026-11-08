@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json/jsontext"
 	"encoding/json/v2"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -102,9 +103,11 @@ type MCPHandlers struct {
 	Notification func(method, text string)
 	Log          func(level, logger, text string)
 	Stderr       func(line string)
-	// Reconnect reports a new standalone SSE GET after the first one. POSTs
-	// are never replayed by the transport.
-	Reconnect func()
+	// Reconnect reports a failed standalone SSE GET attempt and its error.
+	// POSTs are never replayed by the transport.
+	Reconnect func(attempt int, err error)
+	// Reconnected reports that a standalone SSE GET succeeded after failures.
+	Reconnected func()
 	// Progress receives notifications/progress for this client's requests.
 	Progress func(token string, progress, total float64, message string)
 	// RPC reports JSON-RPC traffic that the document's operation labels do not
@@ -333,7 +336,8 @@ func mcpHTTPClient(plan MCPPlan, handlers MCPHandlers) *http.Client {
 	origin, _ := url.Parse(plan.URL)
 	transport := plan.Certificates.Transport(base, plan.ProxyCA, plan.Insecure)
 	client := &http.Client{
-		Transport: &mcpHeaderTransport{base: transport, header: plan.Header, origin: origin, onReconnect: handlers.Reconnect,
+		Transport: &mcpHeaderTransport{base: transport, header: plan.Header, origin: origin,
+			onReconnect: handlers.Reconnect, onReconnected: handlers.Reconnected,
 			onBodyLimit: handlers.BodyLimit, onHeaderDrop: handlers.HeadersDropped},
 		Jar: plan.Jar,
 	}
@@ -349,14 +353,16 @@ func mcpHTTPClient(plan MCPPlan, handlers MCPHandlers) *http.Client {
 }
 
 type mcpHeaderTransport struct {
-	base         http.RoundTripper
-	header       http.Header
-	origin       *url.URL
-	onReconnect  func()
-	onBodyLimit  func(int64)
-	onHeaderDrop func(string)
-	sseGets      atomic.Int32
-	dropped      sync.Map
+	base          http.RoundTripper
+	header        http.Header
+	origin        *url.URL
+	onReconnect   func(attempt int, err error)
+	onReconnected func()
+	onBodyLimit   func(int64)
+	onHeaderDrop  func(string)
+	sseGets       atomic.Int32
+	sseFailures   atomic.Int32
+	dropped       sync.Map
 }
 
 func (t *mcpHeaderTransport) RoundTrip(req *http.Request) (*http.Response, error) {
@@ -367,10 +373,9 @@ func (t *mcpHeaderTransport) RoundTrip(req *http.Request) (*http.Response, error
 			t.onHeaderDrop(target)
 		}
 	}
-	if req.Method == http.MethodGet && sameOrigin && strings.Contains(req.Header.Get("Accept"), "text/event-stream") {
-		if t.sseGets.Add(1) > 1 && t.onReconnect != nil {
-			t.onReconnect()
-		}
+	isSSE := req.Method == http.MethodGet && sameOrigin && strings.Contains(req.Header.Get("Accept"), "text/event-stream")
+	if isSSE {
+		t.sseGets.Add(1)
 	}
 	var resp *http.Response
 	var err error
@@ -388,6 +393,20 @@ func (t *mcpHeaderTransport) RoundTrip(req *http.Request) (*http.Response, error
 			}
 		}
 		resp, err = t.base.RoundTrip(clone)
+	}
+	if isSSE {
+		if err != nil {
+			if t.sseGets.Load() > 1 {
+				attempt := int(t.sseFailures.Add(1))
+				if t.onReconnect != nil {
+					t.onReconnect(attempt, errors.New(mcpErrorText(err)))
+				}
+			}
+		} else if resp != nil && resp.StatusCode == http.StatusOK &&
+			strings.HasPrefix(strings.ToLower(resp.Header.Get("Content-Type")), "text/event-stream") &&
+			t.sseFailures.Swap(0) > 0 && t.onReconnected != nil {
+			t.onReconnected()
+		}
 	}
 	if err != nil {
 		return nil, err
@@ -464,6 +483,18 @@ func (b *mcpLimitedBody) Read(p []byte) (int, error) {
 func mcpSameOrigin(u, origin *url.URL) bool {
 	a, b := mcpOriginKey(u), mcpOriginKey(origin)
 	return a != "" && a == b
+}
+
+// mcpErrorText removes query keys and userinfo from a transport error shown
+// in the timeline.
+func mcpErrorText(err error) string {
+	var urlErr *url.Error
+	if errors.As(err, &urlErr) {
+		if u, parseErr := url.Parse(urlErr.URL); parseErr == nil && u.Host != "" {
+			return fmt.Sprintf("%s %s://%s%s: %v", urlErr.Op, u.Scheme, u.Host, u.EscapedPath(), urlErr.Err)
+		}
+	}
+	return err.Error()
 }
 
 // mcpOriginKey normalizes the default port and a trailing root label, which

@@ -132,9 +132,10 @@ func pruneMCPConsents(consents map[string]mcpConsentApproval) map[string]mcpCons
 }
 
 // mcpConsentKey binds a shape approval to the document and the exact expanded
-// command shape. Environment values are deliberately excluded; the full key
-// below includes them.
-func mcpConsentKey(d *requestDocument, plan request.MCPPlan) string {
+// command shape. It is an HMAC so the approval file cannot be used to test
+// guesses for low-entropy arguments such as "--token 1234". Environment values
+// are deliberately excluded; the full key below includes them.
+func mcpConsentKey(d *requestDocument, plan request.MCPPlan, key []byte) string {
 	var b strings.Builder
 	identity := "document"
 	if d != nil {
@@ -167,8 +168,9 @@ func mcpConsentKey(d *requestDocument, plan request.MCPPlan) string {
 		b.WriteString(name)
 		b.WriteByte(0)
 	}
-	sum := sha256.Sum256([]byte(b.String()))
-	return hex.EncodeToString(sum[:])
+	mac := hmac.New(sha256.New, key)
+	io.WriteString(mac, b.String())
+	return hex.EncodeToString(mac.Sum(nil))
 }
 
 // mcpConsentFullKey includes every expanded environment value. The HMAC key

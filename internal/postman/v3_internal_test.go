@@ -99,6 +99,7 @@ func TestSplitShellWords(t *testing.T) {
 		{`a "" b`, []string{"a", "", "b"}},
 		{"a\\ b c", []string{"a b", "c"}},
 		{`node C:\servers\mcp\index.js`, []string{"node", `C:\servers\mcp\index.js`}},
+		{`node \\fileserver\share\srv.js`, []string{"node", `\\fileserver\share\srv.js`}},
 		{`"C:\Program Files\nodejs\npx.cmd" -y server`, []string{`C:\Program Files\nodejs\npx.cmd`, "-y", "server"}},
 		{"", nil},
 	} {
