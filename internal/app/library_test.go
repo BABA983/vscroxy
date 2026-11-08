@@ -387,3 +387,22 @@ func TestLibraryDoesNotRewriteUnchangedSchemaFiles(t *testing.T) {
 		t.Fatalf("schema was not saved once: %v", err)
 	}
 }
+
+func TestLibraryRoundTripsMCPDocument(t *testing.T) {
+	want := savedRequest{Request: request.Request{
+		ID: "mcp", Name: "Debug server", Collection: "Workspace", Protocol: "MCP", Method: "POST",
+		URL: "https://mcp.example.com/mcp", Headers: "X-Trace: 1",
+		Auth: request.Auth{Type: "Bearer", Token: "{{token}}"},
+		MCP: request.MCPConfig{
+			Transport: request.MCPTransportStdio, Command: "/usr/local/bin/mcp-demo",
+			Args: "-y\nserver\n/tmp", WorkingDir: "/tmp",
+			Env:  []request.Field{{Name: "TOKEN", Value: "{{token}}"}, {Name: "OFF", Value: "1", Disabled: true}},
+			Tool: "echo", ToolArgs: `{"text":"hi"}`, ResourceURI: "memo://welcome",
+			Prompt: "greet", PromptArgs: `{"name":"Ada"}`, TimeoutSeconds: 45, ProtocolVersion: "legacy",
+		},
+	}}
+	got := libraryRoundTrip(t, []savedRequest{want})
+	if len(got) != 1 || !reflect.DeepEqual(got[0], want) {
+		t.Fatalf("MCP document changed: got %+v, want %+v", got, want)
+	}
+}

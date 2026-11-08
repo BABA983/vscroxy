@@ -187,6 +187,77 @@ func TestUISnapshots(t *testing.T) {
 		d.mqttUI.list.Selected = &d.mqttUI.selected
 		a.composeWaiting, a.sendCancel = true, func() {}
 	}
+	mcpPNG := func() []byte {
+		img := image.NewRGBA(image.Rect(0, 0, 48, 32))
+		for y := range 32 {
+			for x := range 48 {
+				img.Set(x, y, color.RGBA{R: uint8(40 + x*3), G: uint8(90 + y*2), B: 200, A: 255})
+			}
+		}
+		var b bytes.Buffer
+		if err := png.Encode(&b, img); err != nil {
+			panic(err)
+		}
+		return b.Bytes()
+	}
+	mcpDraft := func(a *app, cfg request.MCPConfig) *requestDocument {
+		a.addDocument(savedRequest{Protocol: "MCP", Name: "MCP server", URL: "https://mcp.example.com/mcp", MCP: cfg}, "")
+		return a.requestDocument
+	}
+	mcpConnected := func(a *app) *requestDocument {
+		d := mcpDraft(a, request.MCPConfig{Transport: request.MCPTransportStreamableHTTP, Tool: "echo",
+			ToolArgs: "{\n  \"text\": \"hello\"\n}", TimeoutSeconds: 30})
+		u := a.mcpState()
+		u.session = &mcpSession{
+			state: "Connected", connected: true,
+			server: request.MCPServerInfo{Name: "fixture", Title: "Fixture server", Version: "1.2.3", ProtocolVersion: "2025-11-25",
+				Instructions: "Use echo to repeat text.",
+				Capabilities: "{\n  \"tools\": {\n    \"listChanged\": true\n  },\n  \"resources\": {\n    \"listChanged\": true\n  },\n  \"prompts\": {\n    \"listChanged\": true\n  },\n  \"logging\": {}\n}",
+				Tools:        true, Resources: true, Prompts: true, Logging: true},
+			connection: mcpConnectionInfo{Transport: "Streamable HTTP", Endpoint: "https://mcp.example.com/mcp", Timeout: "30s", Proxied: true},
+			tools: []request.MCPTool{
+				{Name: "echo", Title: "Echo", Description: "Echo text back", InputSchema: "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"text\": {\n      \"type\": \"string\"\n    }\n  }\n}"},
+				{Name: "fail", Title: "Fail", Description: "Fail on purpose", InputSchema: "{\n  \"type\": \"object\"\n}"},
+				{Name: "image", Title: "Image", Description: "Return a small image", InputSchema: "{\n  \"type\": \"object\"\n}"},
+			},
+			resources: []request.MCPResource{{URI: "memo://welcome", Name: "welcome", Title: "Welcome", MIMEType: "text/plain", Description: "A short note"}},
+			templates: []request.MCPResourceTemplate{{URITemplate: "memo://{name}", Name: "memo", MIMEType: "text/plain", Description: "One memo by name"}},
+			prompts: []request.MCPPrompt{{Name: "greet", Title: "Greet", Description: "A greeting",
+				Arguments: []request.MCPPromptArgument{{Name: "name", Description: "Who to greet", Required: true}}}},
+			events: []mcpEvent{
+				{seq: 1, at: snapshotTime, kind: "System", name: "Connected", text: "Fixture server 1.2.3\nMCP 2025-11-25 · Streamable HTTP"},
+				{seq: 2, at: snapshotTime.Add(time.Second), kind: "Out", name: "catalog", text: "tools/list · resources/list · resources/templates/list · prompts/list"},
+				{seq: 3, at: snapshotTime.Add(2 * time.Second), kind: "In", name: "catalog", text: "3 tools · 1 resource · 1 template · 1 prompt"},
+				{seq: 4, at: snapshotTime.Add(3 * time.Second), kind: "Out", name: "tools/call echo", text: "echo\n{\n  \"text\": \"hello\"\n}"},
+				{seq: 5, at: snapshotTime.Add(4 * time.Second), kind: "In", name: "tools/call echo", text: "echo: hello\n\n[structuredContent]\n{\n  \"echo\": \"hello\",\n  \"count\": 1\n}"},
+			},
+			seq: 5,
+		}
+		for i := range u.session.events {
+			u.session.events[i].size = len(u.session.events[i].text)
+		}
+		u.tab, u.responseTab, u.catalogTab, u.selected = mcpTabTools, 2, 0, 4
+		a.composeWaiting, a.sendCancel = true, func() {}
+		return d
+	}
+	mcpResult := func(a *app) *requestDocument {
+		d := mcpConnected(a)
+		u := a.mcpState()
+		u.responseTab = 1
+		pngData := mcpPNG()
+		u.session.result = &request.MCPResult{
+			Kind: "Tool", Title: "echo",
+			Content: []request.MCPContent{
+				{Kind: "text", Text: "echo: hello", Size: 11},
+				{Kind: "image", MIMEType: "image/png", Data: pngData, Size: int64(len(pngData))},
+			},
+			Structured: "{\n  \"echo\": \"hello\",\n  \"count\": 1\n}",
+			Text:       "echo: hello\n\n[image image/png · 1118 B]\n(base64 omitted from text; 1118 B shown in Result)\n\n[structuredContent]\n{\n  \"echo\": \"hello\",\n  \"count\": 1\n}",
+			Bytes:      1118 + 11 + 38,
+		}
+		u.session.resultSeq = 1
+		return d
+	}
 	states := []snapshot{
 		{name: "requests-grpc-empty", setup: func(a *app) {
 			a.addDocument(savedRequest{Protocol: "gRPC", Name: "Untitled gRPC", URL: "https://api.example.com"}, "")
@@ -243,6 +314,26 @@ func TestUISnapshots(t *testing.T) {
 			a.mqttState().tab = 3
 		}, want: "MQTT 5.0 WILL PROPERTIES"},
 		{name: "requests-mqtt-stream", setup: mqttSnapshotStream, want: "In · sensors/kitchen/temperature"},
+		{name: "requests-mcp-empty", setup: func(a *app) {
+			mcpDraft(a, request.MCPConfig{Transport: request.MCPTransportStreamableHTTP})
+		}, want: "No MCP session yet"},
+		{name: "requests-mcp-connected", setup: func(a *app) { mcpConnected(a) }, want: "Echo"},
+		{name: "requests-mcp-result", setup: func(a *app) { mcpResult(a) }, want: "structuredContent"},
+		{name: "requests-mcp-timeline", setup: func(a *app) {
+			mcpConnected(a)
+			a.mcpState().responseTab = 0
+		}, want: "tools/call echo"},
+		{name: "requests-mcp-stdio", setup: func(a *app) {
+			d := mcpDraft(a, request.MCPConfig{Transport: request.MCPTransportStdio, Command: "/usr/local/bin/mcp-demo",
+				Args: "-y\n@modelcontextprotocol/server-filesystem\n/tmp", WorkingDir: "/tmp",
+				Env:             []request.Field{{Name: "TOKEN", Value: "{{token}}"}, {Name: "DEBUG", Value: "1", Disabled: true}},
+				ProtocolVersion: "legacy", TimeoutSeconds: 60})
+			d.mcpState().tab = mcpTabConnection
+		}, want: "Command"},
+		{name: "requests-mcp-error", setup: func(a *app) {
+			mcpDraft(a, request.MCPConfig{Transport: request.MCPTransportSSE})
+			a.mcpState().session = &mcpSession{state: "Failed", problem: "dial tcp 127.0.0.1:1: connect: connection refused", finished: true}
+		}, want: "connection refused"},
 		{name: "capture-empty", setup: func(a *app) { a.flows = nil; a.recount(); a.applyFilter() }, want: "Capture is stopped"},
 		{name: "capture-selected", want: "Request inspector"},
 		{name: "capture-imported-charles", setup: func(a *app) {

@@ -56,6 +56,8 @@ type requestDocument struct {
 	socketIOUI        *socketIODocument
 	mqttConfig        request.MQTTConfig
 	mqttUI            *mqttDocument
+	mcpConfig         request.MCPConfig
+	mcpUI             *mcpDocument
 	composeHeaders    string
 	composeBody       string
 	// headerRows is the header table. composeHeaders stays the Key: Value
@@ -173,7 +175,7 @@ func (d *requestDocument) value() savedRequest {
 		ID: d.assetID, Source: d.origin,
 		Name: d.composeName, Collection: d.composeCollection,
 		Method: d.composeMethod, URL: d.composeURL, Headers: d.composeHeaders,
-		Protocol: d.protocol, GRPC: d.grpcConfig, SocketIO: d.socketIOConfig, MQTT: d.mqttConfig,
+		Protocol: d.protocol, GRPC: d.grpcConfig, SocketIO: d.socketIOConfig, MQTT: d.mqttConfig, MCP: d.mcpConfig,
 		Body: d.composeBody, Pre: d.composePre, Post: d.composePost,
 		Auth: d.auth, BodyMode: d.bodyMode, BodyFile: d.bodyFile, Form: slices.Clone(d.formFields),
 		GraphQL: d.graphql,
@@ -252,12 +254,17 @@ func (d *requestDocument) load(a *app, r savedRequest, key string) {
 		d.mqttUI.stop()
 		d.mqttUI = nil
 	}
+	if d.mcpUI != nil {
+		d.mcpUI.stop()
+		d.mcpUI = nil
+	}
 	d.savedKey, d.assetID = key, r.ID
 	d.composeName, d.composeCollection = r.Name, r.Collection
 	d.composeMethod, d.composeURL = cmp.Or(r.Method, "GET"), r.URL
 	d.protocol, d.grpcConfig = r.Protocol, r.GRPC
 	d.socketIOConfig = r.SocketIO
 	d.mqttConfig = r.MQTT
+	d.mcpConfig = r.MCP
 	d.composeHeaders, d.composeBody = r.Headers, r.Body
 	d.headerRows, d.headerFor = slices.Clone(r.HeaderList), ""
 	d.composePre, d.composePost, d.checks = r.Pre, r.Post, r.Checks
@@ -643,21 +650,28 @@ func (a *app) requestVariablesPanel(c *ui.Context, t *ui.Theme, d *requestDocume
 		return
 	}
 	target := "unresolved (review variables)"
-	if u, err := url.Parse(request.ExpandVars(d.composeURL, in.Values(vars))); err == nil && u.Hostname() != "" {
+	if r.Protocol == "MCP" && r.MCP.Transport == request.MCPTransportStdio {
+		target = "stdio process"
+	} else if u, err := url.Parse(request.ExpandVars(d.composeURL, in.Values(vars))); err == nil && u.Hostname() != "" {
 		target = u.Scheme + "://" + u.Host // Do not reveal query tokens or userinfo.
+	}
+	targetLabel := "Target before scripts: "
+	contextLabel := "Draft context · pre-script may generate or replace values"
+	if r.Protocol != "" {
+		targetLabel, contextLabel = "Target: ", "Draft context · resolved from variables and Vault"
 	}
 	ui.Row(c).Height(uikit.HeightControl).Padding(0, t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 		if uikit.CompactButton(c, fmt.Sprintf("Variables · %d unresolved", missing)).Label("Request variables").Clicked() {
 			d.variablesOpen = !d.variablesOpen
 		}
-		uikit.Meta(c, "Target before scripts: "+target).SingleLine().Grow(1)
+		uikit.Meta(c, targetLabel+target).SingleLine().Grow(1)
 	})
 	if !d.variablesOpen {
 		return
 	}
 	ui.Column(c).Height(160).Padding(t.Space(2), t.Space(3)).Gap(t.Space(2)).Background(uikit.Colors(t).Panel).Children(func() {
 		ui.Row(c).Gap(t.Space(2)).Children(func() {
-			uikit.Meta(c, "Draft context · pre-script may generate or replace values").Grow(1)
+			uikit.Meta(c, contextLabel).Grow(1)
 			if uikit.CompactButton(c, "Edit environments").Clicked() {
 				a.openVars()
 			}
@@ -712,7 +726,7 @@ func (a *app) requestBar(c *ui.Context, t *ui.Theme, d *requestDocument, more fu
 		if !a.page.capture() {
 			uikit.SecondaryButton(c, cmp.Or(d.protocol, "HTTP")+" ▾").Label("Request protocol").Width(106).
 				Disabled(d.composeWaiting || d.grpcUI != nil && d.grpcUI.loading != nil).PopoverMenuButton(func(m *ui.Menu) {
-				for _, protocol := range []string{"HTTP", "gRPC", "Socket.IO", "MQTT"} {
+				for _, protocol := range []string{"HTTP", "gRPC", "Socket.IO", "MQTT", "MCP"} {
 					if !m.Item(protocol).Radio(cmp.Or(d.protocol, "HTTP") == protocol).Chosen() {
 						continue
 					}
@@ -730,6 +744,10 @@ func (a *app) requestBar(c *ui.Context, t *ui.Theme, d *requestDocument, more fu
 						d.mqttUI.stop()
 						d.mqttUI = nil
 					}
+					if d.mcpUI != nil {
+						d.mcpUI.stop()
+						d.mcpUI = nil
+					}
 					d.protocol = protocol
 					if protocol == "HTTP" {
 						d.protocol = ""
@@ -743,6 +761,12 @@ func (a *app) requestBar(c *ui.Context, t *ui.Theme, d *requestDocument, more fu
 		field := ui.Row(c).Grow(1).Height(uikit.HeightLarge).AlignItems(ui.Center)
 		field.Disabled(d.protocol != "" && d.composeWaiting)
 		uikit.FieldFace(c, field, field.FocusWithin()).Children(func() {
+			if d.protocol == "MCP" && d.mcpConfig.Transport == request.MCPTransportStdio {
+				ui.Row(c).Grow(1).Height(uikit.HeightControl).AlignItems(ui.Center).Padding(0, t.Space(2)).Children(func() {
+					uikit.Meta(c, "stdio · "+cmp.Or(d.mcpConfig.Command, "local command")).Font(uikit.FontMono).SingleLine()
+				})
+				return
+			}
 			// An editable dropdown: a click lists the common methods, and a method
 			// the list lacks is typed and kept as it is. The chevron and the hover
 			// background say it is a control, not a label.
@@ -821,7 +845,7 @@ func (a *app) requestBar(c *ui.Context, t *ui.Theme, d *requestDocument, more fu
 		if d.composeWaiting {
 			sendLabel = "Sending…"
 		}
-		if d.protocol == "Socket.IO" || d.protocol == "MQTT" {
+		if d.protocol == "Socket.IO" || d.protocol == "MQTT" || d.protocol == "MCP" {
 			sendLabel = "Connect"
 			if d.composeWaiting {
 				sendLabel = "Active"
@@ -840,7 +864,7 @@ func (a *app) requestBar(c *ui.Context, t *ui.Theme, d *requestDocument, more fu
 		}
 		if d.composeWaiting {
 			label := "Cancel"
-			if d.protocol == "Socket.IO" || d.protocol == "MQTT" {
+			if d.protocol == "Socket.IO" || d.protocol == "MQTT" || d.protocol == "MCP" {
 				label = "Disconnect"
 			}
 			if d.sendCancelling && !narrow {
@@ -896,6 +920,10 @@ func (a *app) requestEditor(c *ui.Context, t *ui.Theme, d *requestDocument, orig
 	}
 	if d.protocol == "gRPC" {
 		a.grpcEditor(c, t, d)
+		return
+	}
+	if d.protocol == "MCP" {
+		a.mcpEditor(c, t, d)
 		return
 	}
 	labels := []string{"Params", "Headers", "Auth", "Body", "Scripts", "Checks", "Examples", "Docs", "Settings"}
@@ -1072,6 +1100,10 @@ func (a *app) requestResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 	}
 	if d.protocol == "gRPC" {
 		a.grpcResponse(c, t, d)
+		return
+	}
+	if d.protocol == "MCP" {
+		a.mcpResponse(c, t, d)
 		return
 	}
 	outcome, detail := d.sendOutcome, d.composeResult

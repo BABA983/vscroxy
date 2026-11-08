@@ -1473,6 +1473,7 @@ func (a *app) view(c *ui.Context) {
 	a.drainGraphQL()
 	a.drainSocketIO()
 	a.drainMQTT()
+	a.drainMCP()
 	a.scripts.setEnv(a.globals, a.activeVars(), a.addons.sources())
 	// The Settings window shows these checks too: it redraws when one
 	// finishes, and shows the messages while it is in front.
@@ -3074,6 +3075,10 @@ func (a *app) sendComposed() {
 	}
 	if d.protocol == "gRPC" {
 		a.sendGRPC(d)
+		return
+	}
+	if d.protocol == "MCP" {
+		a.connectMCP(d)
 		return
 	}
 	if a.srv == nil || !a.srv.Running() {

@@ -476,7 +476,7 @@ func (a *app) actions(c *ui.Context) []action {
 			}
 		}).when(capturing && len(a.visible) > 0 || editing, "").keys(ui.Cmd, ui.KeyL),
 		do("request.send", "Send request", a.sendComposed).
-			when(editing && !d.composeWaiting && (d.protocol == "gRPC" || d.protocol == "MQTT" || a.srv != nil && a.srv.Running()), "Open a request draft; HTTP sends require capture running").keys(ui.Cmd, ui.KeyEnter),
+			when(editing && !d.composeWaiting && (d.protocol == "gRPC" || d.protocol == "MQTT" || d.protocol == "MCP" || a.srv != nil && a.srv.Running()), "Open a request draft; HTTP sends require capture running").keys(ui.Cmd, ui.KeyEnter),
 		do("request.cancel-send", "Cancel send", func() { d.cancelSend() }).
 			when(editing && d.composeWaiting && d.sendCancel != nil && !d.sendCancelling, ""),
 		do("request.save", "Save request", func() {
@@ -610,6 +610,7 @@ func (a *app) actions(c *ui.Context) []action {
 	actions = append(actions, a.grpcActions(d, editing)...)
 	actions = append(actions, a.socketIOActions(d, editing)...)
 	actions = append(actions, a.mqttActions(d, editing)...)
+	actions = append(actions, a.mcpActions(d, editing)...)
 	return actions
 }
 
