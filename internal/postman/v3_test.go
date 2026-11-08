@@ -457,6 +457,25 @@ func TestReadCollectionDirV3MalformedAndUnsafe(t *testing.T) {
 		}
 	})
 
+	t.Run("socketio binary argument", func(t *testing.T) {
+		dir := t.TempDir()
+		writeV3(t, dir, map[string]string{
+			".resources/definition.yaml": "$kind: collection\nname: Streams\n",
+			"One.request.yaml": "$kind: socket.io-request\nname: One\nurl: https://example.com/socket.io/\n" +
+				"messages: ./.resources/One.resources/messages\n",
+			".resources/One.resources/messages/blob.message.yaml": "$kind: socket.io-message\nname: blob\n" +
+				"eventName: bytes\nargs:\n  - content: AAEC\n    contentType: base64\n",
+		})
+		col := readV3(t, dir)
+		one := v3Request(t, col, "Streams", "One")
+		if one.SocketIO.Event != "bytes" || one.Body != `["AAEC"]` {
+			t.Errorf("Socket.IO message = %+v", one)
+		}
+		if !slices.Contains(col.Warnings, "Imported 1 Socket.IO binary argument as text") {
+			t.Errorf("warnings = %q", col.Warnings)
+		}
+	})
+
 	t.Run("secret value stays local", func(t *testing.T) {
 		dir := t.TempDir()
 		writeV3(t, dir, map[string]string{
@@ -547,7 +566,7 @@ func TestReadCollectionDirV3FileCountLimit(t *testing.T) {
 		}
 	}
 	col := readV3(t, dir)
-	if !slices.Contains(col.Warnings, "Stopped reading at the 10000-file limit") {
+	if !slices.Contains(col.Warnings, "Stopped reading at the 10000-entry limit") {
 		t.Errorf("warnings = %q", col.Warnings)
 	}
 }

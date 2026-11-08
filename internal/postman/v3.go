@@ -63,10 +63,7 @@ func LooksLikeCollectionDir(dir string) bool {
 	if hasV3Definition(dir) || hasV3RequestFiles(dir) {
 		return true
 	}
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		return false
-	}
+	entries := readDirBounded(dir, 1000)
 	for _, entry := range entries {
 		if !entry.IsDir() || strings.HasPrefix(entry.Name(), ".") {
 			continue
@@ -90,11 +87,7 @@ func hasV3Definition(dir string) bool {
 }
 
 func hasV3RequestFiles(dir string) bool {
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		return false
-	}
-	for _, entry := range entries {
+	for _, entry := range readDirBounded(dir, 1000) {
 		if entry.IsDir() || entry.Type()&os.ModeSymlink != 0 {
 			continue
 		}
@@ -103,6 +96,21 @@ func hasV3RequestFiles(dir string) bool {
 		}
 	}
 	return false
+}
+
+// readDirBounded lists at most limit entries, for cheap detection on a path
+// that may not be a collection at all.
+func readDirBounded(dir string, limit int) []os.DirEntry {
+	file, err := os.Open(dir)
+	if err != nil {
+		return nil
+	}
+	defer file.Close()
+	entries, err := file.ReadDir(limit)
+	if err != nil && !errors.Is(err, io.EOF) {
+		return nil
+	}
+	return entries
 }
 
 func isV3RequestFile(name string) bool {
@@ -210,6 +218,26 @@ func (r *v3reader) read(path string) ([]byte, error) {
 	return data, nil
 }
 
+// readDir lists a directory with the same file budget as read. A directory
+// with more entries than the budget is truncated and reported, so listing it
+// cannot allocate without bound.
+func (r *v3reader) readDir(dir string) ([]os.DirEntry, error) {
+	file, err := os.Open(dir)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+	entries, err := file.ReadDir(v3MaxFiles + 1)
+	if err != nil && !errors.Is(err, io.EOF) {
+		return nil, err
+	}
+	if len(entries) > v3MaxFiles {
+		r.warn.add("v3 limit", "files", 1)
+		entries = entries[:v3MaxFiles]
+	}
+	return entries, nil
+}
+
 // fileProblem counts why one file could not be read.
 func (r *v3reader) fileProblem(err error) {
 	switch {
@@ -262,7 +290,7 @@ func (r *v3reader) walk(dir, path string, depth int) error {
 		r.warn.add("v3 limit", "depth", 1)
 		return nil
 	}
-	entries, err := os.ReadDir(dir)
+	entries, err := r.readDir(dir)
 	if err != nil {
 		return fmt.Errorf("read %s: %w", dir, err)
 	}
@@ -497,6 +525,11 @@ func (r *v3reader) socketIOConfig(req v3Request, file string) *pmSocketIO {
 		cfg.Event = msg.EventName
 		cfg.Body = socketIOArgs(msg.Args)
 		cfg.WantACK = msg.Acknowledgement
+		for _, arg := range msg.Args {
+			if arg.ContentType == "hex" || arg.ContentType == "base64" {
+				r.warn.add("socketio args", arg.ContentType, 1)
+			}
+		}
 	}
 	return cfg
 }
@@ -1053,7 +1086,7 @@ func jsonString(s string) jsontext.Value {
 func (r *v3reader) exampleFiles(requestFile, ref, stem string) []v3Example {
 	var list []v3Example
 	for _, dir := range r.resourceDirs(requestFile, ref, stem, "examples") {
-		entries, err := os.ReadDir(dir)
+		entries, err := r.readDir(dir)
 		if err != nil {
 			r.warn.add("v3 path", "", 1)
 			continue
@@ -1130,7 +1163,7 @@ func (r *v3reader) firstMessage(req v3Request, requestFile string) (v3Message, b
 			ref = text(req.Messages)
 		}
 		for _, dir := range r.resourceDirs(requestFile, ref, requestStem(filepath.Base(requestFile)), "messages") {
-			entries, err := os.ReadDir(dir)
+			entries, err := r.readDir(dir)
 			if err != nil {
 				r.warn.add("v3 path", "", 1)
 				continue

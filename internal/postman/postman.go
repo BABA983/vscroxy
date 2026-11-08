@@ -193,7 +193,7 @@ func (k warning) text(n int) string {
 		case "file size":
 			return "Skipped files larger than 8 MiB"
 		case "files":
-			return "Stopped reading at the 10000-file limit"
+			return "Stopped reading at the 10000-entry limit"
 		case "depth":
 			return "Stopped reading folders nested more than 32 levels deep"
 		}
@@ -243,6 +243,8 @@ func (k warning) text(n int) string {
 		return "Dropped " + count(n, "Socket.IO subscription event", "Socket.IO subscription events") + "; vscroxy shows every event the server sends"
 	case "socketio settings":
 		return "Dropped Socket.IO " + k.detail + " setting"
+	case "socketio args":
+		return "Imported " + count(n, "Socket.IO binary argument", "Socket.IO binary arguments") + " as text"
 	case "graphql example events":
 		return "Kept the first event of " + count(n, "GraphQL subscription example", "GraphQL subscription examples")
 	}
