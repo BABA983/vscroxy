@@ -6,6 +6,7 @@ import (
 	"net"
 	"reflect"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -33,6 +34,57 @@ func startAppMQTTBroker(t *testing.T) string {
 	return tcp.Address()
 }
 
+// startAppTCPProxy forwards to target and can drop every live connection,
+// which looks like a network loss to both ends.
+func startAppTCPProxy(t *testing.T, target string) (string, func()) {
+	t.Helper()
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var mu sync.Mutex
+	var conns []net.Conn
+	go func() {
+		for {
+			client, err := listener.Accept()
+			if err != nil {
+				return
+			}
+			upstream, err := net.Dial("tcp", target)
+			if err != nil {
+				_ = client.Close()
+				continue
+			}
+			mu.Lock()
+			conns = append(conns, client, upstream)
+			mu.Unlock()
+			go func() {
+				_, _ = io.Copy(upstream, client)
+				_ = upstream.Close()
+				_ = client.Close()
+			}()
+			go func() {
+				_, _ = io.Copy(client, upstream)
+				_ = client.Close()
+				_ = upstream.Close()
+			}()
+		}
+	}()
+	drop := func() {
+		mu.Lock()
+		for _, conn := range conns {
+			_ = conn.Close()
+		}
+		conns = nil
+		mu.Unlock()
+	}
+	t.Cleanup(func() {
+		_ = listener.Close()
+		drop()
+	})
+	return listener.Addr().String(), drop
+}
+
 func waitMQTT(t *testing.T, what string, check func() bool) {
 	t.Helper()
 	deadline := time.Now().Add(10 * time.Second)
@@ -57,7 +109,7 @@ func TestMQTTSessionConnectsPublishesAndSubscribes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	s := openMQTTSession(prepared.URL, input, scope, nil, cfg, nil, nil, nil)
+	s := openMQTTSession(prepared.URL, input, scope, nil, cfg, nil, false, nil, nil)
 	t.Cleanup(s.stop)
 	waitMQTT(t, "connection", func() bool { return s.snapshot().ready })
 	waitMQTT(t, "subscription", func() bool { return len(s.snapshot().subscriptions) == 1 })
@@ -169,6 +221,24 @@ func TestMQTTDroppedAccumulatesAcrossReconnects(t *testing.T) {
 	}
 }
 
+func TestMQTTQuitWaitsOnceForAllSessions(t *testing.T) {
+	sessions := make([]*mqttSession, 3)
+	for i := range sessions {
+		sessions[i] = &mqttSession{done: make(chan struct{})}
+	}
+	for i, delay := range []time.Duration{100 * time.Millisecond, 600 * time.Millisecond, 600 * time.Millisecond} {
+		go func(i int, delay time.Duration) {
+			time.Sleep(delay)
+			close(sessions[i].done)
+		}(i, delay)
+	}
+	start := time.Now()
+	waitMQTTSessions(sessions, time.Second)
+	if elapsed := time.Since(start); elapsed > 1100*time.Millisecond {
+		t.Fatalf("waited %s for all sessions; the timeout was spent per session", elapsed)
+	}
+}
+
 func TestMQTTEmptyClientIDStaysClean(t *testing.T) {
 	for _, version := range []int{request.MQTT311, request.MQTT5} {
 		t.Run(request.MQTTVersionLabel(version), func(t *testing.T) {
@@ -220,6 +290,79 @@ func TestMQTT311ConnectGeneratesClientIDWithoutSavingIt(t *testing.T) {
 		t.Fatal("3.1.1 connection did not generate a client ID")
 	}
 	d.mqttUI.stopAndWait()
+}
+
+func TestMQTT5AssignedClientIDReusedOnReconnect(t *testing.T) {
+	address := startAppMQTTBroker(t)
+	proxy, drop := startAppTCPProxy(t, address)
+	clean := false
+	input := request.Request{Protocol: "MQTT", URL: "mqtt://" + proxy,
+		MQTT: request.MQTTConfig{Version: request.MQTT5, CleanStart: &clean,
+			Properties: request.MQTTConnectProperties{SessionExpiry: 300},
+			Topics:     []request.MQTTTopic{{Name: "assigned/topic", QoS: 1}}}}
+	scope := request.Context{}
+	prepared, cfg, err := input.PrepareMQTT(scope, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := openMQTTSession(prepared.URL, input, scope, nil, cfg, nil, false, nil, nil)
+	t.Cleanup(s.stop)
+	waitMQTT(t, "first connection", func() bool { return s.snapshot().ready })
+	firstID := s.snapshot().clientID
+	if firstID == "" {
+		t.Fatal("broker did not assign a client ID")
+	}
+	drop()
+	waitMQTT(t, "reconnecting state", func() bool { return s.snapshot().state == "Reconnecting" })
+
+	pubInput := request.Request{Protocol: "MQTT", URL: "mqtt://" + address,
+		MQTT: request.MQTTConfig{Version: request.MQTT5, ClientID: "assigned-pub"}}
+	pubPrepared, pubCfg, err := pubInput.PrepareMQTT(scope, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pub, err := request.DialMQTT(t.Context(), pubPrepared.URL, pubCfg, nil, "", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := pub.Publish(t.Context(), request.MQTTPublish{Topic: "assigned/topic", Payload: []byte("queued"), QoS: 1}); err != nil {
+		t.Fatal(err)
+	}
+	pub.Close()
+
+	waitMQTT(t, "resumed session", func() bool {
+		snapshot := s.snapshot()
+		return snapshot.ready && snapshot.sessionPresent
+	})
+	if got := s.snapshot().clientID; got != firstID {
+		t.Fatalf("reconnect client ID = %q, want %q", got, firstID)
+	}
+	waitMQTT(t, "queued message", func() bool {
+		for _, event := range s.snapshot().events {
+			if event.direction == "In" && event.name == "assigned/topic" && string(event.payload) == "queued" {
+				return true
+			}
+		}
+		return false
+	})
+}
+
+func TestMQTT311PersistentEmptyIDNeedsCleanStart(t *testing.T) {
+	a := libraryApp(t)
+	clean := false
+	a.addDocument(savedRequest{Request: request.Request{Protocol: "MQTT", URL: "mqtt://127.0.0.1:1",
+		MQTT: request.MQTTConfig{Version: request.MQTT311, CleanStart: &clean}}}, "")
+	d := a.requestDocument
+	a.connectMQTT(d)
+	if d.mqttUI == nil || d.mqttUI.session != nil {
+		t.Fatal("an empty persistent 3.1.1 client ID opened a session")
+	}
+	if d.mqttConfig.ClientID != "" {
+		t.Fatalf("connect wrote client ID %q into the document", d.mqttConfig.ClientID)
+	}
+	if d.mqttUI.problem == "" || !strings.Contains(d.mqttUI.problem, "requires clean start") {
+		t.Fatalf("problem = %q", d.mqttUI.problem)
+	}
 }
 
 func readAppMQTTPacket(conn net.Conn) ([]byte, error) {
@@ -284,7 +427,7 @@ func TestMQTTQuitSendsDisconnect(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	s := openMQTTSession(prepared.URL, input, scope, nil, cfg, nil, nil, nil)
+	s := openMQTTSession(prepared.URL, input, scope, nil, cfg, nil, false, nil, nil)
 	waitMQTT(t, "connection", func() bool { return s.snapshot().ready })
 	s.stopAndWait()
 	select {

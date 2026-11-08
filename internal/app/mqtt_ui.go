@@ -304,7 +304,7 @@ func (a *app) mqttConnectionTab(c *ui.Context, t *ui.Theme, d *requestDocument, 
 						c1.ClientID = newMQTTClientID()
 					}
 				})
-				uikit.Meta(c, "MQTT 5.0 may leave this empty; the broker assigns one. 3.1.1 generates one when connecting.")
+				uikit.Meta(c, "MQTT 5.0 may leave this empty; the broker assigns one. 3.1.1 generates one for a clean session; a persistent session needs an explicit ID.")
 			})
 			ui.Field(c, "Credentials", func() {
 				ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
@@ -798,8 +798,9 @@ func (a *app) connectMQTT(d *requestDocument) {
 	// broker connection opens.
 	r.MQTT.Messages = nil
 	// 3.1.1 needs a client ID, but the generated one belongs to this
-	// connection only; the saved document keeps its empty field.
-	if r.MQTT.Version == request.MQTT311 && r.MQTT.ClientID == "" {
+	// connection only; the saved document keeps its empty field. A persistent
+	// 3.1.1 session must use an explicit ID, so leave that to Validate.
+	if r.MQTT.Version == request.MQTT311 && r.MQTT.ClientID == "" && r.MQTT.CleanStartEnabled() {
 		r.MQTT.ClientID = newMQTTClientID()
 	}
 	in, vars := a.sendContext(r), a.activeVars()
@@ -824,6 +825,7 @@ func (a *app) connectMQTT(d *requestDocument) {
 		}
 		return a.srv.Addr(), a.srv.CACertificate()
 	}
+	verify := in.InheritSettings(r.Settings).Verifies()
 	tlsConfig := func(proxyCA []byte) (*tls.Config, error) {
 		if !secure {
 			return nil, nil
@@ -831,9 +833,9 @@ func (a *app) connectMQTT(d *requestDocument) {
 		// Read the certificate files for every connect and reconnect, as the
 		// other protocol clients do. proxyCA trusts the capture proxy's
 		// interception certificate for wss.
-		return in.Certificates.TLSConfig(address, proxyCA, !in.InheritSettings(r.Settings).Verifies())
+		return in.Certificates.TLSConfig(address, proxyCA, !verify)
 	}
-	u.session = openMQTTSession(prepared.URL, r, in, vars, cfg, proxy, tlsConfig, a.invalidate)
+	u.session = openMQTTSession(prepared.URL, r, in, vars, cfg, proxy, verify, tlsConfig, a.invalidate)
 	u.problem, u.query, u.readerKey, u.reader, u.selected = "", "", "", nil, 0
 	u.list = ui.ListState{}
 	d.composeWaiting, d.sendCancel, d.sendCancelling = true, u.session.cancel, false

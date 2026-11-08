@@ -135,6 +135,19 @@ func (s *mqttSession) stopAndWait() {
 	s.await(time.Second)
 }
 
+// waitMQTTSessions gives all canceled sessions one shared window to send
+// DISCONNECT, instead of spending the timeout once per document.
+func waitMQTTSessions(sessions []*mqttSession, timeout time.Duration) {
+	deadline := time.Now().Add(timeout)
+	for _, s := range sessions {
+		remaining := time.Until(deadline)
+		if remaining <= 0 {
+			return
+		}
+		s.await(remaining)
+	}
+}
+
 // await waits for the connection loop to send DISCONNECT and close.
 func (s *mqttSession) await(delay time.Duration) {
 	if s == nil || s.done == nil {
@@ -212,15 +225,15 @@ func (s *mqttSession) finish(state, problem string) {
 // session and cancels it to disconnect. proxy and tlsConfig are evaluated for
 // every dial, so a reconnect follows the capture proxy's current state.
 func openMQTTSession(url string, input request.Request, scope request.Context, vars map[string]string,
-	cfg request.MQTTConfig, proxy func() (string, []byte), tlsConfig func([]byte) (*tls.Config, error), notify func()) *mqttSession {
+	cfg request.MQTTConfig, proxy func() (string, []byte), verifyUpstream bool, tlsConfig func([]byte) (*tls.Config, error), notify func()) *mqttSession {
 	ctx, cancel := context.WithCancel(context.Background())
 	s := &mqttSession{state: "Connecting", cancel: cancel, ctx: ctx, done: make(chan struct{}), notify: notify,
 		subscriptions: map[string]request.MQTTSubscription{}, input: input, scope: scope, vars: maps.Clone(vars), cfg: cfg}
-	go s.run(url, cfg, proxy, tlsConfig)
+	go s.run(url, cfg, proxy, verifyUpstream, tlsConfig)
 	return s
 }
 
-func (s *mqttSession) run(url string, cfg request.MQTTConfig, proxy func() (string, []byte), tlsConfig func([]byte) (*tls.Config, error)) {
+func (s *mqttSession) run(url string, cfg request.MQTTConfig, proxy func() (string, []byte), verifyUpstream bool, tlsConfig func([]byte) (*tls.Config, error)) {
 	defer close(s.done)
 	defer s.cancel()
 	s.system("Connecting", request.MQTTVersionLabel(cfg.Version)+" · "+mqttEndpointLabel(url))
@@ -239,7 +252,7 @@ func (s *mqttSession) run(url string, cfg request.MQTTConfig, proxy func() (stri
 		}
 		var conn *request.MQTTClient
 		if err == nil {
-			conn, err = request.DialMQTT(s.ctx, url, cfg, config, proxyAddress)
+			conn, err = request.DialMQTT(s.ctx, url, cfg, config, proxyAddress, verifyUpstream)
 		}
 		if err != nil {
 			if s.ctx.Err() != nil {
@@ -263,6 +276,11 @@ func (s *mqttSession) run(url string, cfg request.MQTTConfig, proxy func() (stri
 			continue
 		}
 		failures = 0
+		// MQTT 5 may assign an ID to an empty client ID. Reuse it for a
+		// reconnect, or a clean-start-false session cannot be resumed.
+		if cfg.ClientID == "" {
+			cfg.ClientID = conn.ClientID()
+		}
 		s.mu.Lock()
 		s.conn, s.connDropped = conn, 0
 		s.clientID, s.sessionPresent, s.state, s.problem, s.busy = conn.ClientID(), conn.SessionPresent(), "Connected", "", true

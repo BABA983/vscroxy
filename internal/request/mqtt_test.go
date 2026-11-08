@@ -9,6 +9,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/binary"
 	"encoding/pem"
 	"errors"
 	"fmt"
@@ -139,12 +140,12 @@ func mqttContext(t *testing.T) context.Context {
 
 func dialTestMQTT(t *testing.T, ctx context.Context, rawURL string, cfg MQTTConfig, tlsConfig *tls.Config) *MQTTClient {
 	t.Helper()
-	return dialTestMQTTVia(t, ctx, rawURL, cfg, tlsConfig, "")
+	return dialTestMQTTVia(t, ctx, rawURL, cfg, tlsConfig, "", false)
 }
 
-func dialTestMQTTVia(t *testing.T, ctx context.Context, rawURL string, cfg MQTTConfig, tlsConfig *tls.Config, proxy string) *MQTTClient {
+func dialTestMQTTVia(t *testing.T, ctx context.Context, rawURL string, cfg MQTTConfig, tlsConfig *tls.Config, proxy string, verifyUpstream bool) *MQTTClient {
 	t.Helper()
-	client, err := DialMQTT(ctx, rawURL, cfg, tlsConfig, proxy)
+	client, err := DialMQTT(ctx, rawURL, cfg, tlsConfig, proxy, verifyUpstream)
 	if err != nil {
 		t.Fatalf("dial %s: %v", rawURL, err)
 	}
@@ -464,7 +465,7 @@ func TestMQTT5WillConnectSendsOnePacket(t *testing.T) {
 	cfg := MQTTConfig{Version: MQTT5, ClientID: "will-connect", Username: "user", Password: "secretpw",
 		Will: MQTTWill{Enabled: true, Topic: "will/topic", Payload: "bye", Type: "text",
 			Properties: MQTTWillProperties{ContentType: "text/plain"}}}
-	client, err := DialMQTT(mqttContext(t), "mqtt://"+address, cfg, nil, "")
+	client, err := DialMQTT(mqttContext(t), "mqtt://"+address, cfg, nil, "", false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -500,11 +501,11 @@ func TestMQTTAuthenticationFailure(t *testing.T) {
 		t.Run(MQTTVersionLabel(version), func(t *testing.T) {
 			ctx := mqttContext(t)
 			cfg := MQTTConfig{Version: version, ClientID: "auth-" + MQTTVersionLabel(version), Username: "demo", Password: "wrong"}
-			if _, err := DialMQTT(ctx, "mqtt://"+tcp.Address(), cfg, nil, ""); err == nil {
+			if _, err := DialMQTT(ctx, "mqtt://"+tcp.Address(), cfg, nil, "", false); err == nil {
 				t.Fatal("wrong password connected")
 			}
 			cfg.Password = "secret"
-			client, err := DialMQTT(ctx, "mqtt://"+tcp.Address(), cfg, nil, "")
+			client, err := DialMQTT(ctx, "mqtt://"+tcp.Address(), cfg, nil, "", false)
 			if err != nil {
 				t.Fatalf("correct password: %v", err)
 			}
@@ -634,7 +635,7 @@ func TestMQTTTLSClientCertificate(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if _, err := DialMQTT(ctx, rawURL, MQTTConfig{Version: MQTT5, ClientID: "no-cert-" + scheme}, without, ""); err == nil {
+			if _, err := DialMQTT(ctx, rawURL, MQTTConfig{Version: MQTT5, ClientID: "no-cert-" + scheme}, without, "", false); err == nil {
 				t.Fatal("connected without the required client certificate")
 			}
 			// An empty root set does not trust the test CA.
@@ -642,7 +643,7 @@ func TestMQTTTLSClientCertificate(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if _, err := DialMQTT(ctx, rawURL, MQTTConfig{Version: MQTT5, ClientID: "bad-root-" + scheme}, wrongRoots, ""); err == nil {
+			if _, err := DialMQTT(ctx, rawURL, MQTTConfig{Version: MQTT5, ClientID: "bad-root-" + scheme}, wrongRoots, "", false); err == nil {
 				t.Fatal("connected with an untrusted server certificate")
 			}
 		})
@@ -710,8 +711,8 @@ func TestMQTTWebsocketUsesProxy(t *testing.T) {
 		t.Fatal(err)
 	}
 	ctx := mqttContext(t)
-	sub := dialTestMQTTVia(t, ctx, "ws://"+broker.ws, MQTTConfig{Version: MQTT311, ClientID: "proxy-sub"}, nil, u.Host)
-	pub := dialTestMQTTVia(t, ctx, "ws://"+broker.ws, MQTTConfig{Version: MQTT5, ClientID: "proxy-pub"}, nil, u.Host)
+	sub := dialTestMQTTVia(t, ctx, "ws://"+broker.ws, MQTTConfig{Version: MQTT311, ClientID: "proxy-sub"}, nil, u.Host, false)
+	pub := dialTestMQTTVia(t, ctx, "ws://"+broker.ws, MQTTConfig{Version: MQTT5, ClientID: "proxy-pub"}, nil, u.Host, false)
 	if _, err := sub.Subscribe(ctx, []MQTTSubscription{{Topic: "proxy/topic", QoS: 1}}); err != nil {
 		t.Fatal(err)
 	}
@@ -728,6 +729,24 @@ func TestMQTTWebsocketUsesProxy(t *testing.T) {
 		}
 	case <-time.After(2 * time.Second):
 		t.Fatal("the WebSocket dial did not use the proxy")
+	}
+}
+
+func TestMQTTWebsocketLargePublish(t *testing.T) {
+	broker := startTestBroker(t, nil, true)
+	ctx := mqttContext(t)
+	sub := dialTestMQTT(t, ctx, "ws://"+broker.ws, MQTTConfig{Version: MQTT5, ClientID: "ws-large-sub"}, nil)
+	pub := dialTestMQTT(t, ctx, "ws://"+broker.ws, MQTTConfig{Version: MQTT5, ClientID: "ws-large-pub"}, nil)
+	if _, err := sub.Subscribe(ctx, []MQTTSubscription{{Topic: "ws/large", QoS: 2}}); err != nil {
+		t.Fatal(err)
+	}
+	payload := bytes.Repeat([]byte("x"), 700<<10)
+	if err := pub.Publish(ctx, MQTTPublish{Topic: "ws/large", Payload: payload, QoS: 2}); err != nil {
+		t.Fatalf("700 KiB WebSocket publish: %v", err)
+	}
+	msg := receive(t, sub, 10*time.Second)
+	if msg.Topic != "ws/large" || msg.Size != len(payload) || len(msg.Payload) != mqttIncomingKeep {
+		t.Fatalf("large WebSocket message = topic %q, size %d, kept %d", msg.Topic, msg.Size, len(msg.Payload))
 	}
 }
 
@@ -890,7 +909,7 @@ func TestMQTTIncomingPacketLimitBeforeAllocation(t *testing.T) {
 			runtime.GC()
 			runtime.ReadMemStats(&before)
 			client, err := DialMQTT(mqttContext(t), "mqtt://"+address,
-				MQTTConfig{Version: version, ClientID: "limit-header-" + MQTTVersionLabel(version)}, nil, "")
+				MQTTConfig{Version: version, ClientID: "limit-header-" + MQTTVersionLabel(version)}, nil, "", false)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -920,7 +939,7 @@ func TestMQTT5ConnectTimeoutIsNotCappedAtTenSeconds(t *testing.T) {
 		return writeMQTTConnack(conn, MQTT5, 0, nil)
 	})
 	client, err := DialMQTT(mqttContext(t), "mqtt://"+address,
-		MQTTConfig{Version: MQTT5, ClientID: "slow-connack", ConnectTimeoutMs: 15000}, nil, "")
+		MQTTConfig{Version: MQTT5, ClientID: "slow-connack", ConnectTimeoutMs: 15000}, nil, "", false)
 	if err != nil {
 		t.Fatalf("a CONNACK inside the 15 s connect timeout failed: %v", err)
 	}
@@ -933,7 +952,7 @@ func TestMQTT5ConnackReasonCode(t *testing.T) {
 		return writeMQTTConnack(conn, MQTT5, 0x87, []byte{0x1f, 0x00, 0x06, 'd', 'e', 'n', 'i', 'e', 'd'})
 	})
 	_, err := DialMQTT(mqttContext(t), "mqtt://"+address,
-		MQTTConfig{Version: MQTT5, ClientID: "connack-reason"}, nil, "")
+		MQTTConfig{Version: MQTT5, ClientID: "connack-reason"}, nil, "", false)
 	if err == nil || !strings.Contains(err.Error(), "not authorized (0x87)") || !strings.Contains(err.Error(), "denied") {
 		t.Fatalf("connect error = %v", err)
 	}
@@ -963,7 +982,7 @@ func TestMQTT5SubackReasonCode(t *testing.T) {
 		return nil
 	})
 	client, err := DialMQTT(mqttContext(t), "mqtt://"+address,
-		MQTTConfig{Version: MQTT5, ClientID: "suback-reason"}, nil, "")
+		MQTTConfig{Version: MQTT5, ClientID: "suback-reason"}, nil, "", false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -991,7 +1010,7 @@ func TestMQTT5ServerDisconnectReasonCode(t *testing.T) {
 		return nil
 	})
 	client, err := DialMQTT(mqttContext(t), "mqtt://"+address,
-		MQTTConfig{Version: MQTT5, ClientID: "disconnect-reason"}, nil, "")
+		MQTTConfig{Version: MQTT5, ClientID: "disconnect-reason"}, nil, "", false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1002,6 +1021,123 @@ func TestMQTT5ServerDisconnectReasonCode(t *testing.T) {
 	}
 	if err := client.Err(); !strings.Contains(err.Error(), "administrative action (0x98)") || !strings.Contains(err.Error(), "kicked") {
 		t.Fatalf("disconnect error = %v", err)
+	}
+	client.Close()
+	brokerError(t, errs)
+}
+
+func TestMQTT5SlowBrokerPublishKeepsConnection(t *testing.T) {
+	t.Parallel()
+	address, errs := startRawMQTTBroker(t, func(conn net.Conn, connect []byte) error {
+		if tcp, ok := conn.(*net.TCPConn); ok {
+			_ = tcp.SetReadBuffer(16 << 10)
+		}
+		if err := writeMQTTConnack(conn, MQTT5, 0, nil); err != nil {
+			return err
+		}
+		// Read about 100 KiB/s, slower than a 5 s whole-packet budget but
+		// faster than the per-chunk progress budget.
+		buf := make([]byte, 4<<10)
+		for {
+			if _, err := conn.Read(buf); err != nil {
+				return nil
+			}
+			time.Sleep(40 * time.Millisecond)
+		}
+	})
+	client, err := DialMQTT(mqttContext(t), "mqtt://"+address,
+		MQTTConfig{Version: MQTT5, ClientID: "slow-broker", KeepAlive: 0, ConnectTimeoutMs: 5000}, nil, "", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if writeConn, ok := client.conn.(*mqttWriteConn); ok {
+		if limited, ok := writeConn.Conn.(*mqttLimitConn); ok {
+			if tcp, ok := limited.Conn.(*net.TCPConn); ok {
+				_ = tcp.SetWriteBuffer(16 << 10)
+			}
+		}
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	if err := client.Publish(ctx, MQTTPublish{Topic: "slow/topic", Payload: bytes.Repeat([]byte("x"), 800<<10), QoS: 0}); err != nil {
+		t.Fatalf("800 KiB to a 100 KiB/s broker: %v", err)
+	}
+	select {
+	case <-client.Done():
+		t.Fatalf("connection closed after a slow publish: %v", client.Err())
+	default:
+	}
+	client.Close()
+	brokerError(t, errs)
+}
+
+func TestMQTT5DelayedPubackDoesNotExpireTheNextWrite(t *testing.T) {
+	t.Parallel()
+	downAck := make(chan []byte, 1)
+	address, errs := startRawMQTTBroker(t, func(conn net.Conn, connect []byte) error {
+		if err := writeMQTTConnack(conn, MQTT5, 0, nil); err != nil {
+			return err
+		}
+		packet, err := readMQTTPacket(conn)
+		if err != nil {
+			return err
+		}
+		if len(packet) == 0 || packet[0]>>4 != 3 {
+			return fmt.Errorf("expected PUBLISH, got % x", packet)
+		}
+		body := mqttPacketBody(packet)
+		if len(body) < 2 {
+			return fmt.Errorf("short PUBLISH: % x", packet)
+		}
+		topicLength := int(binary.BigEndian.Uint16(body[:2]))
+		idAt := 2 + topicLength
+		if len(body) < idAt+2 {
+			return fmt.Errorf("short PUBLISH: % x", packet)
+		}
+		id := body[idAt : idAt+2]
+		// A PUBACK after the old whole-publish 5 s deadline, followed by a
+		// broker PUBLISH that requires the client to write its own PUBACK.
+		time.Sleep(6 * time.Second)
+		if err := writeMQTTPacket(conn, 0x40, id); err != nil {
+			return err
+		}
+		var down bytes.Buffer
+		down.Write([]byte{0x00, 0x04})
+		down.WriteString("down")
+		down.Write([]byte{0x00, 0x07})
+		down.WriteByte(0)
+		down.WriteString("from-broker")
+		if err := writeMQTTPacket(conn, 0x32, down.Bytes()); err != nil {
+			return err
+		}
+		for {
+			packet, err := readMQTTPacket(conn)
+			if err != nil {
+				return nil
+			}
+			if packet[0]>>4 == 4 {
+				downAck <- mqttPacketBody(packet)
+				return nil
+			}
+		}
+	})
+	client, err := DialMQTT(mqttContext(t), "mqtt://"+address,
+		MQTTConfig{Version: MQTT5, ClientID: "delayed-puback", ConnectTimeoutMs: 10000}, nil, "", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	if err := client.Publish(ctx, MQTTPublish{Topic: "up/topic", Payload: []byte("up"), QoS: 1}); err != nil {
+		t.Fatalf("delayed PUBACK publish: %v", err)
+	}
+	select {
+	case ack := <-downAck:
+		if len(ack) < 2 || ack[0] != 0 || ack[1] != 7 {
+			t.Fatalf("down PUBACK = % x", ack)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("client did not acknowledge the broker PUBLISH after a delayed PUBACK")
 	}
 	client.Close()
 	brokerError(t, errs)
@@ -1022,7 +1158,7 @@ func TestMQTT5TopicAliasRespectsBrokerMaximum(t *testing.T) {
 		return nil
 	})
 	client, err := DialMQTT(mqttContext(t), "mqtt://"+address,
-		MQTTConfig{Version: MQTT5, ClientID: "topic-alias"}, nil, "")
+		MQTTConfig{Version: MQTT5, ClientID: "topic-alias"}, nil, "", false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1061,7 +1197,7 @@ func TestMQTT5TopicAliasUnsupportedByBroker(t *testing.T) {
 		return nil
 	})
 	client, err := DialMQTT(mqttContext(t), "mqtt://"+address,
-		MQTTConfig{Version: MQTT5, ClientID: "no-topic-alias"}, nil, "")
+		MQTTConfig{Version: MQTT5, ClientID: "no-topic-alias"}, nil, "", false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1081,7 +1217,7 @@ func TestMQTT5PublishAndCloseAreBoundedWhenBrokerStopsReading(t *testing.T) {
 	defer releaseBroker()
 	address, errs := startRawMQTTBroker(t, func(conn net.Conn, connect []byte) error {
 		if tcp, ok := conn.(*net.TCPConn); ok {
-			_ = tcp.SetReadBuffer(1024)
+			_ = tcp.SetReadBuffer(16 << 10)
 		}
 		if err := writeMQTTConnack(conn, MQTT5, 0, nil); err != nil {
 			return err
@@ -1091,13 +1227,15 @@ func TestMQTT5PublishAndCloseAreBoundedWhenBrokerStopsReading(t *testing.T) {
 		return nil
 	})
 	client, err := DialMQTT(mqttContext(t), "mqtt://"+address,
-		MQTTConfig{Version: MQTT5, ClientID: "blocked-writer", KeepAlive: 0, ConnectTimeoutMs: 5000}, nil, "")
+		MQTTConfig{Version: MQTT5, ClientID: "blocked-writer", KeepAlive: 0, ConnectTimeoutMs: 5000}, nil, "", false)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if limited, ok := client.conn.(*mqttLimitConn); ok {
-		if tcp, ok := limited.Conn.(*net.TCPConn); ok {
-			_ = tcp.SetWriteBuffer(4096)
+	if writeConn, ok := client.conn.(*mqttWriteConn); ok {
+		if limited, ok := writeConn.Conn.(*mqttLimitConn); ok {
+			if tcp, ok := limited.Conn.(*net.TCPConn); ok {
+				_ = tcp.SetWriteBuffer(16 << 10)
+			}
 		}
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)

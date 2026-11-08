@@ -1,6 +1,7 @@
 package request
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"crypto/tls"
@@ -33,13 +34,20 @@ const mqttIncomingKeep = 64 << 10
 const mqttQueue = 128
 
 const (
-	// mqttWriteTimeout bounds a write to a broker that stopped reading. Paho's
-	// QoS 0 publish does not watch the context, so the socket deadline is the
-	// only way out.
+	// mqttWriteChunk bounds one socket write. A slow broker can take longer
+	// than the timeout for a whole 1 MiB packet, but each chunk must make
+	// progress within the timeout.
+	mqttWriteChunk = 32 << 10
+	// mqttWriteTimeout is the progress timeout for one chunk, covering Paho's
+	// own writes as well as publishes. Paho's QoS 0 publish does not watch the
+	// context, so the socket deadline is the only way out.
 	mqttWriteTimeout = 5 * time.Second
 	// mqttDisconnectTimeout lets Close send DISCONNECT even while a publish
 	// holds Paho's write lock.
 	mqttDisconnectTimeout = time.Second
+	// mqttProxyVerifyHeader asks the capture proxy to verify the real broker
+	// certificate instead of accepting any upstream certificate.
+	mqttProxyVerifyHeader = "X-Vscroxy-Verify-TLS"
 )
 
 // MQTTClient is one live broker connection. It is the only protocol engine
@@ -68,7 +76,9 @@ type MQTTClient struct {
 // used for mqtts:// and wss://; it carries the configured roots and client
 // certificate. proxy is an HTTP proxy for the ws:// and wss:// upgrade (the
 // capture proxy); mqtt:// and mqtts:// are raw TCP and connect directly.
-func DialMQTT(ctx context.Context, rawURL string, cfg MQTTConfig, tlsConfig *tls.Config, proxy string) (*MQTTClient, error) {
+// verifyUpstream asks the capture proxy to verify the real broker certificate
+// instead of its default insecure inspection.
+func DialMQTT(ctx context.Context, rawURL string, cfg MQTTConfig, tlsConfig *tls.Config, proxy string, verifyUpstream bool) (*MQTTClient, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
@@ -79,7 +89,7 @@ func DialMQTT(ctx context.Context, rawURL string, cfg MQTTConfig, tlsConfig *tls
 	timeout := cfg.ConnectTimeout()
 	dialCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
-	conn, err := dialMQTTConn(dialCtx, u, tlsConfig, timeout, proxy)
+	conn, err := dialMQTTConn(dialCtx, u, tlsConfig, timeout, proxy, verifyUpstream)
 	if err != nil {
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
@@ -90,7 +100,7 @@ func DialMQTT(ctx context.Context, rawURL string, cfg MQTTConfig, tlsConfig *tls
 	if cfg.Version == MQTT5 && cfg.Properties.MaximumPacketSize > limit {
 		limit = cfg.Properties.MaximumPacketSize
 	}
-	conn = &mqttLimitConn{Conn: conn, limit: limit}
+	conn = &mqttWriteConn{Conn: &mqttLimitConn{Conn: conn, limit: limit}}
 	c := &MQTTClient{version: cfg.Version, conn: conn, incoming: make(chan MQTTIncoming, mqttQueue), done: make(chan struct{})}
 	if cfg.Version == MQTT5 {
 		err = c.connect5(dialCtx, cfg)
@@ -372,6 +382,47 @@ func mqttVBI(b *bytes.Buffer, value int) {
 	}
 }
 
+// mqttWriteConn applies a progress deadline to every write, including Paho's
+// own PINGREQ, PUBACK and DISCONNECT packets. Splitting a large packet keeps a
+// slow but healthy broker alive: only a chunk with no progress for the timeout
+// fails. Close switches to the shorter disconnect timeout.
+type mqttWriteConn struct {
+	net.Conn
+	closing atomic.Bool
+}
+
+func (c *mqttWriteConn) Write(p []byte) (int, error) {
+	total := 0
+	for len(p) > 0 {
+		chunk := min(len(p), mqttWriteChunk)
+		timeout := mqttWriteTimeout
+		if c.closing.Load() {
+			timeout = mqttDisconnectTimeout
+		}
+		if err := c.Conn.SetWriteDeadline(time.Now().Add(timeout)); err != nil {
+			return total, err
+		}
+		n, err := c.Conn.Write(p[:chunk])
+		total += n
+		if err != nil {
+			return total, err
+		}
+		if n == 0 {
+			return total, io.ErrShortWrite
+		}
+		p = p[n:]
+	}
+	_ = c.Conn.SetWriteDeadline(time.Time{})
+	return total, nil
+}
+
+// closeWrite switches subsequent writes to the disconnect budget and
+// interrupts a write already waiting on the longer publish budget.
+func (c *mqttWriteConn) closeWrite() {
+	c.closing.Store(true)
+	_ = c.Conn.SetWriteDeadline(time.Now().Add(mqttDisconnectTimeout))
+}
+
 // mqttLimitConn rejects a broker packet larger than limit before Paho
 // allocates its payload. MQTT 3.1.1 has no maximum-packet-size negotiation,
 // so this is the client-side bound; MQTT 5.0 also advertises the same limit.
@@ -601,9 +652,11 @@ func (c *MQTTClient) Close() {
 		return
 	}
 	// Disconnect writes on the same connection as a publish. If the broker
-	// stopped reading, a publish may hold Paho's write lock; the deadline
-	// releases it and lets DISCONNECT try too.
-	_ = c.conn.SetWriteDeadline(time.Now().Add(mqttDisconnectTimeout))
+	// stopped reading, a publish may hold Paho's write lock; the write wrapper
+	// interrupts it and gives DISCONNECT a shorter budget.
+	if writeConn, ok := c.conn.(*mqttWriteConn); ok {
+		writeConn.closeWrite()
+	}
 	switch {
 	case c.v3 != nil && c.v3.IsConnected():
 		// Quiesce 0 can return before Paho's outbound goroutine writes
@@ -765,19 +818,6 @@ func (c *MQTTClient) Publish(ctx context.Context, msg MQTTPublish) error {
 			return fmt.Errorf("topic alias %d exceeds the broker's maximum %d", msg.Properties.TopicAlias, c.topicAliasMaximum)
 		}
 	}
-	// Paho's QoS 0 write ignores the context. A write deadline bounds a
-	// broker that has stopped reading; Close uses the same mechanism for
-	// DISCONNECT.
-	deadline := time.Now().Add(mqttWriteTimeout)
-	if d, ok := ctx.Deadline(); ok && d.Before(deadline) {
-		deadline = d
-	}
-	_ = c.conn.SetWriteDeadline(deadline)
-	defer func() {
-		if !c.closed.Load() {
-			_ = c.conn.SetWriteDeadline(time.Time{})
-		}
-	}()
 	if c.v5 != nil {
 		return c.publish5(ctx, msg)
 	}
@@ -854,7 +894,7 @@ func mqtt5Reason(code byte) string {
 // for it. TLS names the broker host and uses the configured roots and client
 // certificate, never an unverified fallback. A WebSocket upgrade is HTTP, so
 // it can use the capture proxy; raw MQTT TCP cannot.
-func dialMQTTConn(ctx context.Context, u *url.URL, tlsConfig *tls.Config, timeout time.Duration, proxy string) (net.Conn, error) {
+func dialMQTTConn(ctx context.Context, u *url.URL, tlsConfig *tls.Config, timeout time.Duration, proxy string, verifyUpstream bool) (net.Conn, error) {
 	scheme := strings.ToLower(u.Scheme)
 	port := u.Port()
 	if port == "" {
@@ -897,11 +937,13 @@ func dialMQTTConn(ctx context.Context, u *url.URL, tlsConfig *tls.Config, timeou
 	case "ws", "wss":
 		dialer := websocket.Dialer{HandshakeTimeout: timeout, Subprotocols: []string{"mqtt"}}
 		if proxy != "" {
-			proxyURL, err := url.Parse("http://" + proxy)
-			if err != nil || proxyURL.Host == "" {
-				return nil, fmt.Errorf("invalid WebSocket proxy %q", proxy)
+			proxyAddress := proxy
+			// gorilla's built-in proxy dialer sends a CONNECT without the
+			// capture header, which makes the proxy inspect an upstream
+			// certificate it was asked to verify. Tunnel explicitly instead.
+			dialer.NetDialContext = func(ctx context.Context, network, target string) (net.Conn, error) {
+				return dialMQTTProxy(ctx, network, proxyAddress, target, timeout, verifyUpstream)
 			}
-			dialer.Proxy = http.ProxyURL(proxyURL)
 		}
 		if scheme == "wss" {
 			if tlsConfig == nil {
@@ -925,6 +967,53 @@ func dialMQTTConn(ctx context.Context, u *url.URL, tlsConfig *tls.Config, timeou
 	return nil, errors.New("unsupported MQTT transport")
 }
 
+// dialMQTTProxy opens a CONNECT tunnel through the capture proxy. The
+// explicit header is what makes the proxy verify the broker certificate when
+// the request asks for it; gorilla's proxy dialer cannot carry it.
+func dialMQTTProxy(ctx context.Context, network, proxyAddress, target string, timeout time.Duration, verify bool) (net.Conn, error) {
+	dialer := net.Dialer{Timeout: timeout}
+	conn, err := dialer.DialContext(ctx, network, proxyAddress)
+	if err != nil {
+		return nil, fmt.Errorf("proxy %s: %w", proxyAddress, err)
+	}
+	var request strings.Builder
+	fmt.Fprintf(&request, "CONNECT %s HTTP/1.1\r\nHost: %s\r\n", target, target)
+	if verify {
+		request.WriteString(mqttProxyVerifyHeader + ": 1\r\n")
+	}
+	request.WriteString("\r\n")
+	if _, err := io.WriteString(conn, request.String()); err != nil {
+		_ = conn.Close()
+		return nil, fmt.Errorf("proxy CONNECT %s: %w", target, err)
+	}
+	reader := bufio.NewReader(conn)
+	response, err := http.ReadResponse(reader, &http.Request{Method: http.MethodConnect})
+	if err != nil {
+		_ = conn.Close()
+		return nil, fmt.Errorf("proxy CONNECT %s: %w", target, err)
+	}
+	if response.StatusCode != http.StatusOK {
+		_ = response.Body.Close()
+		_ = conn.Close()
+		return nil, fmt.Errorf("proxy CONNECT %s: %s", target, response.Status)
+	}
+	// Do not close a 200 CONNECT response body: Go models the tunnel as an
+	// unbounded body, so closing it would close the connection we return.
+	if reader.Buffered() > 0 {
+		return &mqttProxyConn{Conn: conn, reader: reader}, nil
+	}
+	return conn, nil
+}
+
+// mqttProxyConn preserves bytes the CONNECT response reader buffered before
+// the WebSocket or TLS handshake starts.
+type mqttProxyConn struct {
+	net.Conn
+	reader *bufio.Reader
+}
+
+func (c *mqttProxyConn) Read(p []byte) (int, error) { return c.reader.Read(p) }
+
 // mqttWSConn is a stream over binary WebSocket messages. MQTT packets may be
 // written in more than one Write call; a broker treats the messages as one
 // byte stream, as Paho's own WebSocket connector does.
@@ -933,6 +1022,10 @@ type mqttWSConn struct {
 	readMu  sync.Mutex
 	writeMu sync.Mutex
 	reader  io.Reader
+	// writeDeadline is applied to gorilla under writeMu. Calling gorilla's
+	// SetWriteDeadline from another goroutine races with WriteMessage's frame
+	// flush; the underlying NetConn deadline is safe and interrupts a write.
+	writeDeadline atomic.Int64
 }
 
 func (c *mqttWSConn) Read(p []byte) (int, error) {
@@ -964,20 +1057,38 @@ func (c *mqttWSConn) Read(p []byte) (int, error) {
 func (c *mqttWSConn) Write(p []byte) (int, error) {
 	c.writeMu.Lock()
 	defer c.writeMu.Unlock()
+	var deadline time.Time
+	if ns := c.writeDeadline.Load(); ns != 0 {
+		deadline = time.Unix(0, ns)
+	}
+	if err := c.conn.SetWriteDeadline(deadline); err != nil {
+		return 0, err
+	}
 	if err := c.conn.WriteMessage(websocket.BinaryMessage, p); err != nil {
 		return 0, err
 	}
 	return len(p), nil
 }
 
-func (c *mqttWSConn) Close() error                       { return c.conn.Close() }
-func (c *mqttWSConn) LocalAddr() net.Addr                { return c.conn.LocalAddr() }
-func (c *mqttWSConn) RemoteAddr() net.Addr               { return c.conn.RemoteAddr() }
-func (c *mqttWSConn) SetReadDeadline(t time.Time) error  { return c.conn.SetReadDeadline(t) }
-func (c *mqttWSConn) SetWriteDeadline(t time.Time) error { return c.conn.SetWriteDeadline(t) }
+func (c *mqttWSConn) Close() error                      { return c.conn.Close() }
+func (c *mqttWSConn) LocalAddr() net.Addr               { return c.conn.LocalAddr() }
+func (c *mqttWSConn) RemoteAddr() net.Addr              { return c.conn.RemoteAddr() }
+func (c *mqttWSConn) SetReadDeadline(t time.Time) error { return c.conn.SetReadDeadline(t) }
+
+func (c *mqttWSConn) SetWriteDeadline(t time.Time) error {
+	if t.IsZero() {
+		c.writeDeadline.Store(0)
+	} else {
+		c.writeDeadline.Store(t.UnixNano())
+	}
+	// gorilla owns a writeDeadline field that WriteMessage reads; setting it
+	// here races with an in-flight flush. Set the socket deadline instead so a
+	// blocked write returns, and apply the value under writeMu in Write.
+	return c.conn.NetConn().SetWriteDeadline(t)
+}
 func (c *mqttWSConn) SetDeadline(t time.Time) error {
 	if err := c.conn.SetReadDeadline(t); err != nil {
 		return err
 	}
-	return c.conn.SetWriteDeadline(t)
+	return c.SetWriteDeadline(t)
 }
