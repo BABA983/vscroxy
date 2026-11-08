@@ -1386,6 +1386,51 @@ func (s *Server) ReplayWithCookies(ctx context.Context, f Flow, jar http.CookieJ
 	return s.ReplayWithPolicy(ctx, f, jar, policy)
 }
 
+// flowURL is the URL a replay of f requests.
+func flowURL(f Flow) string {
+	if f.URL != "" {
+		return f.URL
+	}
+	return f.Scheme + "://" + f.Host + f.Path
+}
+
+// NewReplayRequest builds the HTTP request a replay of f sends and returns its
+// body as sent. Hop-by-hop headers are removed, a captured Host moves to
+// Request.Host where Go's transport reads it, and the body comes from f's
+// string or spilled file.
+func NewReplayRequest(ctx context.Context, f Flow) (*http.Request, string, error) {
+	raw := f.RequestBody
+	if f.RequestBodyFile != "" {
+		if spilled, err := os.ReadFile(f.RequestBodyFile); err == nil {
+			raw = string(spilled)
+		}
+	}
+	var body io.Reader
+	if raw != "" {
+		body = strings.NewReader(raw)
+	}
+	req, err := http.NewRequestWithContext(ctx, f.Method, flowURL(f), body)
+	if err != nil {
+		return nil, "", err
+	}
+	for key, values := range f.RequestHeader {
+		for _, value := range values {
+			req.Header.Add(key, value)
+		}
+	}
+	for _, header := range hopHeaders {
+		req.Header.Del(header)
+	}
+	// A captured Host header is sent as the request's Host, which Go's
+	// transport takes from Request.Host rather than Header. Ordinary proxy
+	// captures have none: their URL names the host.
+	if host := req.Header.Get("Host"); host != "" {
+		req.Host = host
+		req.Header.Del("Host")
+	}
+	return req, raw, nil
+}
+
 // RedirectPolicy keeps imported cURL transfer behavior distinct from ordinary
 // workspace sends. The zero value follows Go's standard ten requests. Max is
 // the number of redirects to follow; zero keeps the mode's default: 10, or
@@ -1416,6 +1461,78 @@ func (p RedirectPolicy) Limit() int {
 	return 10
 }
 
+// Checker is the CheckRedirect a client sending first uses under p. Manual
+// stops at the first response; cURL keeps -X's method, drops a form
+// Content-Type with the body and never widens Authorization or Cookie;
+// otherwise Go's redirects apply up to Limit.
+func (p RedirectPolicy) Checker(first *http.Request) func(*http.Request, []*http.Request) error {
+	if p.Mode == RedirectManual {
+		return func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+	}
+	if p.Mode == RedirectCurl {
+		bodyDropped := false
+		return func(next *http.Request, via []*http.Request) error {
+			if limit := p.Limit(); len(via) > limit {
+				return fmt.Errorf("stopped after %d redirects", limit)
+			}
+			if next.URL.Scheme != "http" && next.URL.Scheme != "https" {
+				return errors.New("redirects require HTTP(S)")
+			}
+			if p.KeepMethod {
+				next.Method = first.Method
+			}
+			switch next.Response.StatusCode {
+			case 301, 302, 303:
+				bodyDropped = true
+			}
+			for _, name := range []string{"Content-Type", "Content-Encoding", "Content-Language", "Content-Location"} {
+				if values := first.Header.Values(name); len(values) > 0 {
+					next.Header[name] = slices.Clone(values)
+				}
+			}
+			if bodyDropped && p.DropContentType && first.Header.Get("Content-Type") == "application/x-www-form-urlencoded" {
+				next.Header.Del("Content-Type")
+			}
+			// curl does not enable automatic Referer generation without --auto-referer.
+			next.Header.Del("Referer")
+			if value := first.Header.Get("Referer"); value != "" {
+				next.Header.Set("Referer", value)
+			}
+			// Bound Authorization to the original origin; literal cookies to the
+			// original host (cookie domains do not include ports). Unlike Go's
+			// defaults, never widen either to subdomains or restore stripped values.
+			for _, previous := range via {
+				if originOf(previous.URL) != originOf(next.URL) {
+					next.Header.Del("Authorization")
+				}
+				if !strings.EqualFold(previous.URL.Hostname(), next.URL.Hostname()) {
+					next.Header.Del("Cookie")
+				}
+			}
+			return nil
+		}
+	}
+	limit := p.Limit()
+	return func(_ *http.Request, via []*http.Request) error {
+		if len(via) > limit {
+			return fmt.Errorf("stopped after %d redirects", limit)
+		}
+		return nil
+	}
+}
+
+// originOf names a URL's origin: its scheme, host and effective port.
+func originOf(u *url.URL) string {
+	port := u.Port()
+	if port == "" {
+		port = "80"
+		if u.Scheme == "https" {
+			port = "443"
+		}
+	}
+	return u.Scheme + "://" + net.JoinHostPort(strings.ToLower(u.Hostname()), port)
+}
+
 // TransferPolicy is what an authored send asks of its HTTP transfer beyond the
 // request itself: its redirects and how it treats the server certificate.
 // Capture replay keeps the zero value: the proxy accepts an intercepted
@@ -1433,55 +1550,35 @@ const (
 	TLSInsecure = "insecure"
 )
 
+// validate refuses a policy a send cannot apply.
+func (p TransferPolicy) validate() error {
+	switch p.Redirects.Mode {
+	case RedirectDefault, RedirectManual, RedirectCurl:
+	default:
+		return errors.New("unsupported request redirect policy")
+	}
+	switch p.TLS {
+	case TLSDefault, TLSVerify, TLSInsecure:
+	default:
+		return errors.New("unsupported request TLS policy")
+	}
+	return nil
+}
+
 // ReplayWithPolicy applies an authored transfer policy. cURL modes follow at
 // most 50 HTTP(S) hops unless Max says otherwise; -X keeps the method, not a
 // body dropped by 301/302/303. TLSVerify asks the proxy to verify an
 // intercepted upstream certificate and the client to verify a tunneled one;
 // TLSInsecure accepts any certificate on both legs.
 func (s *Server) ReplayWithPolicy(ctx context.Context, f Flow, jar http.CookieJar, policy TransferPolicy) (Flow, error) {
-	switch policy.Redirects.Mode {
-	case RedirectDefault, RedirectManual, RedirectCurl:
-	default:
-		return Flow{}, errors.New("unsupported request redirect policy")
+	if err := policy.validate(); err != nil {
+		return Flow{}, err
 	}
-	switch policy.TLS {
-	case TLSDefault, TLSVerify, TLSInsecure:
-	default:
-		return Flow{}, errors.New("unsupported request TLS policy")
-	}
-	rawURL := f.URL
-	if rawURL == "" {
-		rawURL = f.Scheme + "://" + f.Host + f.Path
-	}
-	var body io.Reader
-	raw := f.RequestBody
-	if f.RequestBodyFile != "" {
-		if spilled, err := os.ReadFile(f.RequestBodyFile); err == nil {
-			raw = string(spilled)
-		}
-	}
-	if raw != "" {
-		body = strings.NewReader(raw)
-	}
-	req, err := http.NewRequestWithContext(ctx, f.Method, rawURL, body)
+	req, raw, err := NewReplayRequest(ctx, f)
 	if err != nil {
 		return Flow{}, err
 	}
-	for key, values := range f.RequestHeader {
-		for _, value := range values {
-			req.Header.Add(key, value)
-		}
-	}
-	for _, header := range hopHeaders {
-		req.Header.Del(header)
-	}
-	// A captured Host header is sent as the request's Host, which Go's
-	// transport takes from Request.Host rather than Header. Ordinary proxy
-	// captures have none: their URL names the host.
-	if host := req.Header.Get("Host"); host != "" {
-		req.Host = host
-		req.Header.Del("Host")
-	}
+	rawURL := flowURL(f)
 
 	proxyURL := &url.URL{Scheme: "http", Host: s.Addr()}
 	suppressed, _ := ctx.Value(withoutRecordingKey{}).(bool)
@@ -1542,69 +1639,7 @@ func (s *Server) ReplayWithPolicy(ctx context.Context, f Flow, jar http.CookieJa
 		// presents that host's certificate, never the first host's.
 		Transport: s.certificates().Transport(base, s.CACertificate(), policy.TLS == TLSInsecure),
 	}
-	if policy.Redirects.Mode == RedirectManual {
-		client.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
-	} else if policy.Redirects.Mode == RedirectCurl {
-		bodyDropped := false
-		client.CheckRedirect = func(next *http.Request, via []*http.Request) error {
-			if limit := policy.Redirects.Limit(); len(via) > limit {
-				return fmt.Errorf("stopped after %d redirects", limit)
-			}
-			if next.URL.Scheme != "http" && next.URL.Scheme != "https" {
-				return errors.New("redirects require HTTP(S)")
-			}
-			if policy.Redirects.KeepMethod {
-				next.Method = req.Method
-			}
-			switch next.Response.StatusCode {
-			case 301, 302, 303:
-				bodyDropped = true
-			}
-			for _, name := range []string{"Content-Type", "Content-Encoding", "Content-Language", "Content-Location"} {
-				if values := req.Header.Values(name); len(values) > 0 {
-					next.Header[name] = slices.Clone(values)
-				}
-			}
-			if bodyDropped && policy.Redirects.DropContentType && req.Header.Get("Content-Type") == "application/x-www-form-urlencoded" {
-				next.Header.Del("Content-Type")
-			}
-			// curl does not enable automatic Referer generation without --auto-referer.
-			next.Header.Del("Referer")
-			if value := req.Header.Get("Referer"); value != "" {
-				next.Header.Set("Referer", value)
-			}
-			// Bound Authorization to the original origin; literal cookies to the
-			// original host (cookie domains do not include ports). Unlike Go's
-			// defaults, never widen either to subdomains or restore stripped values.
-			origin := func(u *url.URL) string {
-				port := u.Port()
-				if port == "" {
-					port = "80"
-					if u.Scheme == "https" {
-						port = "443"
-					}
-				}
-				return u.Scheme + "://" + net.JoinHostPort(strings.ToLower(u.Hostname()), port)
-			}
-			for _, previous := range via {
-				if origin(previous.URL) != origin(next.URL) {
-					next.Header.Del("Authorization")
-				}
-				if !strings.EqualFold(previous.URL.Hostname(), next.URL.Hostname()) {
-					next.Header.Del("Cookie")
-				}
-			}
-			return nil
-		}
-	} else {
-		limit := policy.Redirects.Limit()
-		client.CheckRedirect = func(_ *http.Request, via []*http.Request) error {
-			if len(via) > limit {
-				return fmt.Errorf("stopped after %d redirects", limit)
-			}
-			return nil
-		}
-	}
+	client.CheckRedirect = policy.Redirects.Checker(req)
 	defer client.CloseIdleConnections()
 	started := time.Now()
 	resp, err := client.Do(req)
