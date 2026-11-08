@@ -880,8 +880,9 @@ export async function onResponse() {
 - `pm.sendRequest` goes straight to the server, not through the proxy, so a
   script's own rule never matches it; it waits up to 30 seconds.
 - `import CryptoJS from "crypto-js"`, `import _ from "lodash"`,
-  `import moment from "moment"` and `import chai from "chai"` load the
-  built-in libraries; `require(...)` also works.
+  `import moment from "moment"`, `import cheerio from "cheerio"`,
+  `import xml2js from "xml2js"` and the other Postman sandbox modules load
+  the built-in libraries; `require(...)` also works.
 - Bodies that are binary, compressed on the request side, or larger than 1 MiB
   are not handed to the script and stay as they are. Streaming and SSE
   responses skip `onResponse`.
@@ -951,8 +952,8 @@ stay Postman's CommonJS, get with `require("name")` (a default export is at
 `.default`). An addon written as CommonJS, with `module.exports`, works too.
 An addon can import the built-in libraries and other addons; it runs once per
 script run, so state does not carry between exchanges. The list says how many
-scripts import or require each. Names cannot be `chai`, `lodash`,
-`crypto-js` or `moment`. Configuration export includes them.
+scripts import or require each. Names cannot be a built-in library name.
+Configuration export includes them.
 `vscroxy-cli run --addons DIR`
 loads them for headless runs.
 
@@ -2321,47 +2322,98 @@ negated check. Local `$ref` references work; other schemas can be supplied with
 Async schemas (`$async`) are not supported. Validation runs within the script's
 normal time budget; scripts that do not use schema assertions do not load Ajv.
 
-**Script libraries**: `require('chai')`, `require('lodash')`,
-`require('crypto-js')` and `require('moment')` are available (also through
-`pm.require`); rule scripts, addons and Code Mocks can `import` them instead.
-Lodash 4.18.1, CryptoJS 4.2.0 (random numbers from the system) and Moment
-2.31.0 are embedded in the app: no Node.js, npm installation or network
-download is needed. Use `const _ = require('lodash')` and
-`const moment = require('moment')`; there is no global `_`, no legacy Lodash 3
-alias and no global `moment`. Each library loads on first use and is cached
-within that script, but every pre-request, post-response, rule script and mock
-gets fresh exports, including on subsequent runs. Changing `moment.locale()`,
-`moment.updateLocale()` or `moment.defaultFormat` therefore affects only the
-script that changed it.
+**Script libraries**: request scripts can `require` the modules Postman's
+sandbox exposes (also through `pm.require`); rule scripts, addons and Code
+Mocks can `import` them. The supported names are:
+
+- `chai` 4.5.0, `lodash` 4.18.1, `crypto-js` 4.2.0 and `moment` 2.31.0, the
+  libraries already used by `pm.expect` and the script API.
+- `ajv` 6.12.6, `tv4` 1.3.0, `cheerio` 0.22.0, `xml2js` 0.6.2,
+  `csv-parse/lib/sync` 1.2.4, `uuid` 3.4.0, `postman-collection` 5.3.1,
+  `liquid-json` 0.3.1 (also `json`) and `backbone` 1.6.0.
+- The Node built-ins Postman's browser sandbox shims: `assert` 2.0.0,
+  `buffer` 6.0.3, `events` 2.1.0, `os` (os-browserify 0.3.0), `path`
+  (path-browserify 0.0.1), `process`/`_process` 0.11.10, `punycode` 2.3.1,
+  `querystring` (querystring-es3 0.2.1), `stream` (stream-browserify 2.0.2),
+  `string_decoder` 1.3.0, `url` 0.11.0, `util` 0.12.3, `fs` and `timers`.
+- `atob` and `btoa` are both globals and `require` names. Postman's docs mark
+  `atob`, `btoa`, `crypto-js` and `tv4` as deprecated but its sandbox still
+  exposes them, and vscroxy keeps them for imported collections.
+
+These are embedded or bundled into the app; no Node.js, npm installation or
+network download is needed. The Postman-sandbox versions are used except where
+noted: Chai is 4.5.0 (Postman 4.4.1), CryptoJS 4.2.0 (Postman 3.3.0), Ajv
+6.12.6 (Postman 6.12.5, the patched release) and Moment 2.31.0 (Postman
+2.30.1). `cheerio`, `xml2js`, `csv-parse`, `tv4`, `uuid` and
+`postman-collection` are the exact versions Postman's sandbox pins. Bundles and
+their inputs are recorded in `internal/request/js/sandbox/`.
+
+Each module loads on first use and is cached within that script, but every
+pre-request, post-response, rule script and mock gets fresh exports, including
+on subsequent runs. A script that never requires a module does not pay to load
+it. Changing `moment.locale()`, `moment.updateLocale()` or
+`moment.defaultFormat` affects only the script that changed it. Use
+`const _ = require('lodash')` and `const moment = require('moment')`.
+
+Postman's legacy globals are available too: `Buffer`, `xml2Json`, `_`,
+`CryptoJS`, `tv4`, `cheerio`, `Backbone`, `atob`, `btoa` and the timer
+functions. `xml2Json` is the same wrapper Postman uses: xml2js with
+`explicitArray: false`, `async: false`, `trim: true` and `mergeAttrs: false`.
+`Buffer` and the other globals load their library on first access.
+
+Timers are script-scoped and virtual. `setTimeout`, `setInterval`,
+`setImmediate`, `clearTimeout`, `clearInterval`, `clearImmediate` and
+`queueMicrotask` exist, and `await` works with them. Callbacks run after the
+script body in due order, before `pm.test` results are collected; the delay is
+ordering only and never sleeps, so a long delay does not stall the app. An
+interval keeps firing until it is cleared or the normal two-second script
+budget interrupts it. There is no Node event loop and no I/O timer: use
+`pm.sendRequest` for network work.
 
 Moment is the latest 2.x release (2.31.0) in the line Postman's sandbox loads
-(2.30.1), the same minified build without locale files, with only its
-built-in English locale: `moment.locale('zh-cn')` and `moment.locale('en-gb')`
-stay `en`, and locale data is not read from disk. Its local time is the Go
-process's local time zone, the same zone as `Date`; `moment.utc()` is
-unaffected. Parse, format, arithmetic, diff and boundaries match Node for valid
-wall-clock times, including both DST transitions and the repeated fall-back
-hour. A wall clock inside a spring-forward gap follows Go's normalization
-rather than V8's: 2024-03-10T02:30 in America/New_York is 01:30 -05:00 here and
-03:30 -04:00 in Node. goja has no `Intl`, so moment cannot auto-detect a system
-locale. Library execution uses the normal script time budget. Updating an
-embedded library requires an app update.
+(2.30.1), the same minified build without locale files, with only its built-in
+English locale: `moment.locale('zh-cn')` and `moment.locale('en-gb')` stay `en`,
+and locale data is not read from disk. Its local time is the Go process's local
+time zone, the same zone as `Date`; `moment.utc()` is unaffected. Parse,
+format, arithmetic, diff and boundaries match Node for valid wall-clock times,
+including both DST transitions and the repeated fall-back hour. A wall clock
+inside a spring-forward gap follows Go's normalization rather than V8's:
+2024-03-10T02:30 in America/New_York is 01:30 -05:00 here and 03:30 -04:00 in
+Node. goja has no `Intl`, so moment cannot auto-detect a system locale.
+
+The Node modules are browser shims, not Node itself. `fs` is an empty object
+(Postman's sandbox has no filesystem), `os.platform()` returns `browser`,
+`stream` has no sockets or files, and `process` is the small browser shim with
+`env`, `nextTick` and `browser: true`. There is no `net`, `http`, `https`,
+`zlib`, `child_process` or real `crypto` module; `crypto.getRandomValues` is
+provided for `uuid`, and `crypto-js` supplies hashes. `path-browserify` is the
+older POSIX-only build Postman uses, so `path.parse` is absent; querystring-es3
+does not have Node's `escape`/`unescape` helpers. Backbone models,
+collections and events work, but `Backbone.View` needs a DOM and jQuery, which
+the sandbox does not have. cheerio 0.22.0 and csv-parse 1.2.4 are old but are
+the versions Postman pins. sax does not expand DTD entities, so xml2js does not
+resolve external or recursive entities.
 
 ```javascript
-const _ = require('lodash');
-const moment = require('moment');
-pm.test('IDs are unique', () => {
-  const ids = _.map(pm.response.json().items, 'id');
-  pm.expect(_.uniq(ids)).to.have.lengthOf(ids.length);
-  pm.expect(moment(pm.response.json().createdAt).isValid()).to.be.true;
+const cheerio = require('cheerio');
+const xml2js = require('xml2js');
+const parse = require('csv-parse/lib/sync');
+const Ajv = require('ajv');
+const uuid = require('uuid');
+
+pm.test('parse the response', () => {
+  const $ = cheerio.load(pm.response.text());
+  pm.expect($('title').text()).to.equal('Orders');
+  pm.expect(parse(pm.response.text(), { columns: true })).to.have.lengthOf(3);
+  pm.expect(uuid.v4()).to.match(/^[0-9a-f-]{36}$/);
 });
 ```
 
-**Insert snippet** above the editor adds common code. Besides addons (see Scripts above), only these exact module names are supported, not npm packages, file paths,
-URLs or Lodash submodules such as `lodash/fp`. Other Postman sandbox libraries
-(cheerio, xml2js and so on), `pm.visualizer` and timers are not
-available. Lodash functions that need timers (`delay`, `defer`, `debounce`,
-`throttle`) are therefore not supported.
+**Insert snippet** above the editor adds common code, including cheerio,
+xml2js, csv-parse, Ajv, uuid and Buffer examples. Besides addons (see Scripts
+above), only these exact module names are supported, not npm packages, file
+paths, URLs or submodules such as `lodash/fp`. `pm.visualizer` and real
+filesystem or network I/O from a library are still not available.
 
 **Console** in the response area shows phase-tagged `console.log(...)` output,
 variable-write names (not their values), and setup/network/script errors,

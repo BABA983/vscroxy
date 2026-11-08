@@ -279,7 +279,7 @@ func (a *app) writeScript(s *scriptStore, name, text string) error {
 }
 
 const newScriptText = `// Runs on the exchanges the Script rules using it match, with the pm API.
-// import works for lodash, crypto-js, moment, chai and your addons.
+// import works for lodash, crypto-js, moment, chai, cheerio, xml2js, csv-parse, ajv, uuid and your addons.
 
 // Change pm.request before it goes upstream:
 export function onRequest() {
@@ -523,13 +523,22 @@ func scriptSnippets(kind string) [][2]string {
 		return append(shared,
 			[2]string{"Hash with crypto-js", "const CryptoJS = require(\"crypto-js\");\nconst signature = CryptoJS.HmacSHA256(pm.request.body.raw, \"${1:secret}\").toString(CryptoJS.enc.Hex);\n$0"},
 			[2]string{"Use lodash", "const _ = require(\"lodash\");\nconst ids = _.map(pm.response.json().items, \"${1:id}\");\n$0"},
-			[2]string{"Format a date with moment", "const moment = require(\"moment\");\nconst at = moment(\"${1:2024-01-31T23:30:45Z}\").format(\"${2:YYYY-MM-DD HH:mm:ss Z}\");\n$0"})
+			[2]string{"Format a date with moment", "const moment = require(\"moment\");\nconst at = moment(\"${1:2024-01-31T23:30:45Z}\").format(\"${2:YYYY-MM-DD HH:mm:ss Z}\");\n$0"},
+			[2]string{"Parse HTML with cheerio", "const cheerio = require(\"cheerio\");\nconst $ = cheerio.load(pm.response.text());\nconsole.log($(\"title\").text());\n$0"},
+			[2]string{"Parse XML with xml2js", "const xml2js = require(\"xml2js\");\nxml2js.parseString(pm.response.text(), { explicitArray: false }, (err, result) => {\n  if (err) throw err;\n  console.log(result);\n});\n$0"},
+			[2]string{"Parse CSV", "const parse = require(\"csv-parse/lib/sync\");\nconst rows = parse(pm.response.text(), { columns: true });\nconsole.log(rows);\n$0"},
+			[2]string{"Validate a schema with Ajv", "const Ajv = require(\"ajv\");\nconst valid = new Ajv().validate(${1:schema}, pm.response.json());\npm.test(\"schema\", () => pm.expect(valid).to.be.true);\n$0"},
+			[2]string{"Generate a UUID", "const uuid = require(\"uuid\");\npm.variables.set(\"${1:id}\", uuid.v4());\n$0"},
+			[2]string{"Decode Base64", "const { Buffer } = require(\"buffer\");\nconst text = Buffer.from(pm.response.text(), \"base64\").toString();\nconsole.log(text);\n$0"})
 	}
 	// Rule scripts and addons are modules: they import at the top.
 	shared = append(shared,
 		[2]string{"Import crypto-js", "import CryptoJS from \"crypto-js\";\n$0"},
 		[2]string{"Import lodash", "import _ from \"lodash\";\n$0"},
 		[2]string{"Import moment", "import moment from \"moment\";\n$0"},
+		[2]string{"Import cheerio", "import cheerio from \"cheerio\";\n$0"},
+		[2]string{"Import xml2js", "import xml2js from \"xml2js\";\n$0"},
+		[2]string{"Import uuid", "import { v4 as uuidv4 } from \"uuid\";\n$0"},
 		[2]string{"Import an addon", "import { ${1:sign} } from \"${1:sign}\";\n$0"})
 	if kind == "addon" {
 		return append(shared, [2]string{"Export a function", "export function ${1:sign}(text) {\n  return text;\n}\n$0"})
