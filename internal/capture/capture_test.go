@@ -480,6 +480,110 @@ func TestForwardProxyFollowsTargetOnOneConnection(t *testing.T) {
 	}
 }
 
+func TestForwardProxyAbortsWhenPinnedUpstreamDies(t *testing.T) {
+	// A plain HTTP upstream that answers once with a keep-alive 401, reads the
+	// next request, and only then hangs up without saying so. The client keeps
+	// its proxy connection, so that next request is pinned to the dying socket.
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ln.Close()
+	secondRequest := make(chan struct{})
+	release := make(chan struct{})
+	var accepted atomic.Int32
+	go func() {
+		conn, err := ln.Accept()
+		if err != nil {
+			return
+		}
+		accepted.Add(1)
+		defer conn.Close()
+		br := bufio.NewReader(conn)
+		readHeaders := func() error {
+			if _, err := br.ReadString('\n'); err != nil {
+				return err
+			}
+			for {
+				line, err := br.ReadString('\n')
+				if err != nil {
+					return err
+				}
+				if line == "\r\n" {
+					return nil
+				}
+			}
+		}
+		if err := readHeaders(); err != nil {
+			return
+		}
+		_, _ = io.WriteString(conn, "HTTP/1.1 401 Unauthorized\r\nContent-Length: 0\r\n\r\n")
+		if err := readHeaders(); err != nil {
+			return
+		}
+		close(secondRequest)
+		<-release
+	}()
+
+	s, _ := startServer(t)
+	u, err := url.Parse("http://" + s.Addr())
+	if err != nil {
+		t.Fatal(err)
+	}
+	transport := &http.Transport{Proxy: http.ProxyURL(u), MaxConnsPerHost: 1}
+	defer transport.CloseIdleConnections()
+	client := &http.Client{Transport: transport, Timeout: 5 * time.Second}
+	target := "http://" + ln.Addr().String() + "/auth"
+
+	// A body net/http cannot replay keeps it from retrying the POST on a new
+	// connection, so the dead pinned upstream must surface as an error.
+	post := func() (*http.Response, error) {
+		req, err := http.NewRequest(http.MethodPost, target, io.NopCloser(strings.NewReader("payload")))
+		if err != nil {
+			t.Fatal(err)
+		}
+		req.Header.Set("Content-Type", "text/plain")
+		return client.Do(req)
+	}
+	resp, err := post()
+	if err != nil {
+		t.Fatalf("first request through proxy: %v", err)
+	}
+	_, _ = io.Copy(io.Discard, resp.Body)
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("first request: status %d, want 401", resp.StatusCode)
+	}
+	waitFlow(t, s)
+
+	second := make(chan error, 1)
+	go func() {
+		resp, err := post()
+		if err == nil {
+			body, _ := io.ReadAll(resp.Body)
+			_ = resp.Body.Close()
+			err = fmt.Errorf("status %d %q", resp.StatusCode, body)
+		}
+		second <- err
+	}()
+	select {
+	case <-secondRequest:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the proxy did not send the second request on the pinned connection")
+	}
+	close(release)
+	if err := <-second; err == nil {
+		t.Fatalf("second request succeeded after %d upstream connections, want a transport error", accepted.Load())
+	}
+	f := waitFlow(t, s)
+	if f.Status != http.StatusBadGateway || f.Conn.Error == "" {
+		t.Fatalf("aborted exchange: status %d, connection error %q", f.Status, f.Conn.Error)
+	}
+	if got := accepted.Load(); got != 1 {
+		t.Fatalf("upstream accepted %d connections, want 1: the dead pinned socket was reused", got)
+	}
+}
+
 func TestConnectionLogDistinguishesTLSFailuresAndReuse(t *testing.T) {
 	upstream := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprint(w, "secure result")

@@ -85,6 +85,21 @@ unchanged. `TestForwardProxyFollowsTargetOnOneConnection` in `internal/capture`
 covers a live switch, a switch back, an unreachable new target and the request
 after it, both directly and through an upstream proxy.
 
+## A pinned upstream that dies (`attacker.go`, `entry.go`)
+
+A forward-proxy connection pins its upstream socket, so the next request on
+that client connection reuses it. If the upstream closed silently, the
+transport's `Do` fails and `attack` used to answer 502. That is indistinguishable
+from the origin's own answer, and a client such as the NTLM handshake then
+treats a connection loss as a password failure. When the pinned plain-HTTP
+upstream is already closed, before or after `Do`, `attack` now ends the client
+connection without a response (`abortClient`): the client sees a transport
+error and may retry on a new connection, which dials a new upstream. Intercepted
+TLS connections keep their existing close path, which already ends the client
+connection. `wrapServerConn.isClosed` reports the socket's state.
+`TestForwardProxyAbortsWhenPinnedUpstreamDies` in `internal/capture` covers a
+live client connection whose upstream reads one request and then hangs up.
+
 ## Upstream proxy candidates, fallback and authentication
 
 `SetUpstreamProxy` receives the proxy request and the canonical destination

@@ -5,6 +5,7 @@ import (
 	"cmp"
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -364,6 +365,34 @@ func httpTransportWithConn(proxyURL *url.URL, conn net.Conn, address string) *ht
 // inspector do not show an empty 502.
 func writeGatewayError(res http.ResponseWriter, f *Flow, err error) {
 	writeGatewayStatus(res, f, http.StatusBadGateway, err)
+}
+
+// errPinnedUpstreamClosed is the failure of a request whose target socket died
+// while the client kept its forward-proxy connection open.
+var errPinnedUpstreamClosed = errors.New("the pinned upstream connection closed")
+
+// isClosedUpstream reports whether conn is a pinned upstream socket that has
+// already been closed.
+func isClosedUpstream(conn net.Conn) bool {
+	if w, ok := conn.(*wrapServerConn); ok {
+		return w.isClosed()
+	}
+	return false
+}
+
+// abortClient ends the client's connection without a response. A pinned
+// upstream that died while the client connection stayed open must not answer
+// 502: that looks like the origin's answer. Closing the connection makes the
+// client see a transport error and retry on a new connection, which dials a
+// new upstream. net/http logs a handler panic as an abort, not a crash.
+func abortClient(res http.ResponseWriter) {
+	if hijacker, ok := res.(http.Hijacker); ok {
+		if conn, _, err := hijacker.Hijack(); err == nil {
+			_ = conn.Close()
+			return
+		}
+	}
+	panic(http.ErrAbortHandler)
 }
 
 func writeGatewayStatus(res http.ResponseWriter, f *Flow, status int, err error) {
@@ -906,6 +935,13 @@ func (a *attacker) attack(res http.ResponseWriter, req *http.Request) {
 				return
 			}
 		}
+		if sc := f.ConnContext.ServerConn; sc != nil && !f.ConnContext.ClientConn.Tls && isClosedUpstream(sc.Conn) {
+			for _, addon := range proxy.Addons {
+				addon.RequestError(f, errPinnedUpstreamClosed)
+			}
+			abortClient(res)
+			return
+		}
 		proxyRes, err = f.ConnContext.ServerConn.client.Do(proxyReq)
 	}
 	if err != nil {
@@ -916,6 +952,10 @@ func (a *attacker) attack(res http.ResponseWriter, req *http.Request) {
 		if strings.Contains(err.Error(), "Proxy Authentication Required") {
 			res.Header().Set("Proxy-Authenticate", `Basic realm="proxy"`)
 			writeGatewayStatus(res, f, http.StatusProxyAuthRequired, err)
+			return
+		}
+		if sc := f.ConnContext.ServerConn; sc != nil && !f.ConnContext.ClientConn.Tls && isClosedUpstream(sc.Conn) {
+			abortClient(res)
 			return
 		}
 		writeGatewayError(res, f, err)

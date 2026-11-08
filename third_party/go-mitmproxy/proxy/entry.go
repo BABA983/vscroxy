@@ -125,6 +125,15 @@ func (c *wrapServerConn) retire() error {
 	return c.Close()
 }
 
+// isClosed reports whether this upstream socket has been closed. A pinned
+// upstream can die while the client's forward-proxy connection stays open;
+// the next request on that client connection must not reuse it.
+func (c *wrapServerConn) isClosed() bool {
+	c.closeMu.Lock()
+	defer c.closeMu.Unlock()
+	return c.closed
+}
+
 func (c *wrapServerConn) Close() error {
 	c.closeMu.Lock()
 	if c.closed {

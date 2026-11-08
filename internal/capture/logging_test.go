@@ -44,12 +44,13 @@ func TestProxyErrorsStayInCaptureNotDiagnosticLogs(t *testing.T) {
 	dead := upstream.URL + "/private-path?token=private-query"
 	client := clientFor(t, s, nil)
 	defer client.CloseIdleConnections()
+	// A pinned upstream that dies ends the client connection without a
+	// response, so the client may see a transport error instead of a 502.
 	resp, err := client.Get(dead)
-	if err != nil {
-		t.Fatal(err)
+	if err == nil {
+		_, _ = io.Copy(io.Discard, resp.Body)
+		_ = resp.Body.Close()
 	}
-	_, _ = io.Copy(io.Discard, resp.Body)
-	_ = resp.Body.Close()
 	f := waitFlow(t, s)
 	if f.Status != 502 || f.URL != dead || f.Conn.Error == "" {
 		t.Fatalf("capture lost failed-request diagnostics: %+v", f)
