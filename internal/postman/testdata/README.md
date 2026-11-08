@@ -100,10 +100,12 @@ order: 1000
   `inherit` takes the nearest ancestor's auth. Types in the schema are
   `basic`, `bearer`, `apikey`, `digest`, `oauth1`, `oauth2`, `jwt`, `awsv4`,
   `hawk`, `ntlm`, `asap`, `edgegrid`, `azure`, `sasl` and `inherit`.
-- Request scripts use `beforeRequest` and `afterResponse`. Collection and
-  folder scripts use the protocol-prefixed names above. A script has `code`,
-  optional `language: text/javascript`, and optional `packages` and
-  `requests` references.
+- Request scripts use `beforeRequest` and `afterResponse`. A native GraphQL
+  request's scripts use `beforeQuery` and `afterResponse`; the reader also
+  accepts `beforeRequest` on a GraphQL request because the official migration
+  writes it. Collection and folder scripts use the protocol-prefixed names
+  above. A script has `code`, optional `language: text/javascript`, and
+  optional `packages` and `requests` references.
 - Examples are `*.example.yaml` files. An HTTP example has `$kind:
   http-example`, a `request` snapshot and a `response` with `statusCode`,
   `statusText`, `headers` and a required `body` (`text`, `json`, `xml`,
@@ -177,8 +179,9 @@ are used as a generator/reference and are not vendored here.
 - **HTTP**: method, URL, query and path parameters, headers, every body
   branch above, auth, scripts, settings, descriptions and examples.
 - **GraphQL**: native `graphql-request` becomes the app's HTTP GraphQL body,
-  including query, variables, operation name, headers, auth, request scripts,
-  HTTP/GraphQL examples and a local `schema: {source: file}` SDL file.
+  including query, variables, operation name, headers, auth, request scripts
+  (`beforeQuery`/`afterResponse`), HTTP/GraphQL examples and a local
+  `schema: {source: file}` SDL file.
 - **gRPC**: URL, `methodPath`, `message.content`, metadata/headers, auth and
   `strictSSL`. A schema file, method descriptor, gRPC scripts and gRPC
   examples have no equivalent and are reported.
@@ -214,10 +217,14 @@ the app.
 The directory reader treats the collection as untrusted input:
 
 - at most 10,000 files or directory entries per import;
-- at most 8 MiB per YAML file;
+- at most 8 MiB per example or message YAML file;
+- at most 1 MiB per collection, folder or request definition;
 - at most 1 MiB for an imported GraphQL SDL file;
+- at most 128 MiB of YAML read per import;
 - at most 32 folder levels;
-- symbolic links are never followed;
+- symbolic links are never followed, and `.resources` must be a real
+  directory;
+- YAML aliases are refused rather than expanded; Postman never writes anchors;
 - referenced examples/messages/SDL paths must resolve inside the collection
   root; absolute paths and `..` escapes are refused;
-- only regular files are read.
+- only regular files are read; FIFOs and devices are skipped with a warning.
