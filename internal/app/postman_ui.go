@@ -44,26 +44,41 @@ func (a *app) importRequests() {
 	}()
 }
 
-// importCollectionFolder reads a Bruno .bru collection directory. The native
-// dialog picks a directory because the collection is a tree of files, not one
-// export document.
+// importCollectionFolder reads a collection that is a directory: a Postman
+// Collection v3 tree or a Bruno .bru collection. The native dialog picks a
+// directory because the collection is a tree of files, not one document.
 func (a *app) importCollectionFolder() {
 	go func() {
 		paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{
-			Title:       "Import Bruno collection",
+			Title:       "Import collection folder",
 			ButtonLabel: "Import",
 			Directory:   true,
 		})
 		if err != nil || len(paths) == 0 {
 			return
 		}
-		result, err := imports.ReadBrunoDir(paths[0])
+		a.importCollectionDir(paths[0])
+	}()
+}
+
+// importCollectionDir reads a Postman v3 or Bruno collection directory off the
+// UI thread, then merges it on the UI thread.
+func (a *app) importCollectionDir(path string) {
+	if postman.LooksLikeCollectionDir(path) {
+		col, err := postman.ReadCollectionDir(path)
 		if err != nil {
-			a.fail("Import Bruno collection", err)
+			a.fail("Import Postman collection", err)
 			return
 		}
-		a.win.Update(func() { a.importThirdParty(result, "Import Bruno collection") })
-	}()
+		a.win.Update(func() { a.importPostmanCollection(col) })
+		return
+	}
+	result, err := imports.ReadBrunoDir(path)
+	if err != nil {
+		a.fail("Import collection folder", fmt.Errorf("not a Postman v3 collection or a Bruno collection: %w", err))
+		return
+	}
+	a.win.Update(func() { a.importThirdParty(result, "Import Bruno collection") })
 }
 
 // importData merges data into the library; the UI thread calls it.
@@ -75,32 +90,7 @@ func (a *app) importData(data []byte, path string) {
 			a.fail("Import Postman collection", err)
 			return
 		}
-		incoming := make([]savedRequest, len(col.Requests))
-		for i, r := range col.Requests {
-			incoming[i] = savedRequest{Request: r}
-		}
-		replaced := replacedFolderPaths(a.requests, a.folders, col.Folders, []imports.Collection{{Name: col.Name}})
-		merged := mergeRequests(a.requests, incoming)
-		if err := a.persistRequests(merged); err != nil {
-			a.fail("Import Postman collection", err)
-			return
-		}
-		a.requests = merged
-		settingsSaved := true
-		if len(col.Folders) > 0 {
-			folders := slices.DeleteFunc(slices.Clone(a.folders), func(f request.Folder) bool {
-				return slices.ContainsFunc(col.Folders, func(in request.Folder) bool { return in.Path == f.Path })
-			})
-			if err := a.writeFolders(append(folders, col.Folders...)); err != nil {
-				settingsSaved = false
-				col.Warnings = append(col.Warnings, "Collection and folder settings not saved: "+err.Error())
-			}
-		}
-		if settingsSaved {
-			a.applyImportedFolderCurrent(replaced, nil)
-		}
-		a.page = pageRequest
-		a.reportImport(fmt.Sprintf("Imported “%s” · %d %s", col.Name, len(col.Requests), plural(len(col.Requests), "request", "requests")), col.Warnings)
+		a.importPostmanCollection(col)
 	case postman.KindEnvironment, postman.KindGlobals:
 		env, err := postman.ReadEnvironment(data)
 		if err != nil {
@@ -196,8 +186,42 @@ func (a *app) importData(data []byte, path string) {
 			a.importOpenAPICollection(doc, strings.TrimSuffix(filepath.Base(path), filepath.Ext(path)), nil, "")
 			return
 		}
-		a.warn("Import: not a supported file (Postman, Insomnia, Hoppscotch, Swagger 2, HAR, OpenAPI 3.0/3.1); for Bruno choose Import Bruno collection…")
+		a.warn("Import: not a supported file (Postman, Insomnia, Hoppscotch, Swagger 2, HAR, OpenAPI 3.0/3.1); for a Postman v3 or Bruno collection choose Import collection folder…")
 	}
+}
+
+// importPostmanCollection merges a parsed Postman collection. The v2.1 file
+// reader and the v3 directory reader produce the same shape; the UI thread
+// calls it. Secret variables arrive as Current values and stay out of the
+// library write.
+func (a *app) importPostmanCollection(col postman.Collection) {
+	incoming := make([]savedRequest, len(col.Requests))
+	for i, r := range col.Requests {
+		incoming[i] = savedRequest{Request: r}
+	}
+	folders := libraryFolders(col.Folders)
+	replaced := replacedFolderPaths(a.requests, a.folders, folders, []imports.Collection{{Name: col.Name}})
+	merged := mergeRequests(a.requests, incoming)
+	if err := a.persistRequests(merged); err != nil {
+		a.fail("Import Postman collection", err)
+		return
+	}
+	a.requests = merged
+	settingsSaved := true
+	if len(folders) > 0 {
+		saved := slices.DeleteFunc(slices.Clone(a.folders), func(f request.Folder) bool {
+			return slices.ContainsFunc(folders, func(in request.Folder) bool { return in.Path == f.Path })
+		})
+		if err := a.writeFolders(append(saved, folders...)); err != nil {
+			settingsSaved = false
+			col.Warnings = append(col.Warnings, "Collection and folder settings not saved: "+err.Error())
+		}
+	}
+	if settingsSaved {
+		a.applyImportedFolderCurrent(replaced, importedFolderLocals(col.Folders))
+	}
+	a.page = pageRequest
+	a.reportImport(fmt.Sprintf("Imported “%s” · %d %s", col.Name, len(col.Requests), plural(len(col.Requests), "request", "requests")), col.Warnings)
 }
 
 // reportImport says what came in; when something was dropped it opens a

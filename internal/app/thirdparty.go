@@ -37,6 +37,27 @@ func libraryFolders(folders []request.Folder) []request.Folder {
 	return out
 }
 
+// importedFolderLocals collects the Current values an import must keep out of
+// the library and save locally instead.
+func importedFolderLocals(folders []request.Folder) []importedFolderLocal {
+	var out []importedFolderLocal
+	for _, folder := range folders {
+		local := importedFolderLocal{path: folder.Path, current: map[string]string{}, credentials: map[string]bool{}}
+		for _, v := range folder.Variables {
+			if v.Current != "" || v.Local {
+				local.current[v.Name] = v.Current
+				if v.Credential {
+					local.credentials[v.Name] = true
+				}
+			}
+		}
+		if len(local.current) > 0 {
+			out = append(out, local)
+		}
+	}
+	return out
+}
+
 // importThirdParty merges one third-party export into the library. The
 // reader has already converted it to requests, folders and environments;
 // this owns the app's single library write and its report.
@@ -50,20 +71,7 @@ func (a *app) importThirdParty(result imports.Result, what string) {
 		for _, r := range collection.Requests {
 			incoming = append(incoming, savedRequest{Request: r})
 		}
-		for _, folder := range collection.Folders {
-			local := importedFolderLocal{path: folder.Path, current: map[string]string{}, credentials: map[string]bool{}}
-			for _, v := range folder.Variables {
-				if v.Current != "" || v.Local {
-					local.current[v.Name] = v.Current
-					if v.Credential {
-						local.credentials[v.Name] = true
-					}
-				}
-			}
-			if len(local.current) > 0 {
-				incomingLocal = append(incomingLocal, local)
-			}
-		}
+		incomingLocal = append(incomingLocal, importedFolderLocals(collection.Folders)...)
 		incomingFolders = append(incomingFolders, libraryFolders(collection.Folders)...)
 		warnings = append(warnings, collection.Warnings...)
 	}

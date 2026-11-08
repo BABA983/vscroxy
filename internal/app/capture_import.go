@@ -9,6 +9,7 @@ import (
 
 	"github.com/baba983/vscroxy/internal/capture"
 	"github.com/baba983/vscroxy/internal/imports"
+	"github.com/baba983/vscroxy/internal/postman"
 	"github.com/baba983/vscroxy/internal/request"
 	"github.com/egoist/mygo"
 )
@@ -72,8 +73,10 @@ func (a *app) importDropped(paths []string) {
 			a.importCaptureFile(path)
 		case droppedCaptureDir:
 			a.importCaptureDir(path)
+		case droppedCollectionDir:
+			a.importCollectionDir(path)
 		default:
-			a.warn("Import: unsupported file type. Drop a HAR (.har), Charles (.chlsj, .chlsx), or Proxyman (.proxymanlogv2, .proxymanlog) file")
+			a.warn("Import: unsupported file type. Drop a HAR (.har), Charles (.chlsj, .chlsx), or Proxyman (.proxymanlogv2, .proxymanlog) file, or a Postman v3 or Bruno collection folder")
 		}
 	}()
 }
@@ -85,15 +88,21 @@ const (
 	droppedHAR
 	droppedCapture
 	droppedCaptureDir
+	droppedCollectionDir
 )
 
 // droppedImportKind decides which importer owns a dropped path. HAR files keep
 // using the HAR importer; only the formats the capture importer knows go
-// there, and a .proxymanlog folder is a capture folder.
+// there, and a .proxymanlog folder is a capture folder. A folder with a
+// Postman v3 definition or request file, or a bruno.json, is a collection
+// folder.
 func droppedImportKind(path string, isDir bool) droppedKind {
 	if isDir {
 		if strings.EqualFold(filepath.Ext(path), ".proxymanlog") {
 			return droppedCaptureDir
+		}
+		if postman.LooksLikeCollectionDir(path) || isBrunoCollectionDir(path) {
+			return droppedCollectionDir
 		}
 		return droppedUnknown
 	}
@@ -105,6 +114,12 @@ func droppedImportKind(path string, isDir bool) droppedKind {
 	default:
 		return droppedUnknown
 	}
+}
+
+// isBrunoCollectionDir reports whether dir holds a Bruno collection config.
+func isBrunoCollectionDir(dir string) bool {
+	info, err := os.Lstat(filepath.Join(dir, "bruno.json"))
+	return err == nil && info.Mode().IsRegular() && info.Mode()&os.ModeSymlink == 0
 }
 
 // importCaptureFile reads and parses one path off the UI thread, then appends

@@ -479,7 +479,7 @@ func TestUISnapshots(t *testing.T) {
 		{name: "requests-response-headers", setup: func(a *app) { response(a); a.responseTab = resViewHeaders }, want: "X-Tag"},
 		{name: "requests-variables", setup: func(a *app) { draft(a); a.openVars() }, want: "Variable name 1"},
 		{name: "requests-environment-menu", setup: draft, act: click("Active environment"), want: "Staging"},
-		{name: "requests-collection-menu", setup: draft, act: click("Collection options"), menu: "Import Bruno collection…"},
+		{name: "requests-collection-menu", setup: draft, act: click("Collection options"), menu: "Import collection folder…"},
 		{name: "requests-method-menu", setup: draft, act: click("Method list"), want: "PATCH"},
 		{name: "requests-url-variables", setup: func(a *app) {
 			draft(a)

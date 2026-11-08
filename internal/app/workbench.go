@@ -577,7 +577,7 @@ func (a *app) actions(c *ui.Context) []action {
 		do("capture.import-session", "Import capture session…", a.importCaptureSession),
 		do("capture.import-proxyman-folder", "Import Proxyman log folder…", a.importCaptureFolder),
 		do("collection.import", "Import…", a.importRequests),
-		do("collection.import-folder", "Import Bruno collection…", a.importCollectionFolder),
+		do("collection.import-folder", "Import collection folder…", a.importCollectionFolder),
 		do("collection.export-postman", "Export collection as Postman…", func() { a.exportPostman(collectionRoot(d.composeCollection)) }).
 			when(editing && d.composeCollection != "", ""),
 		do("app.settings", "Open settings…", func() { a.openSettings(-1) }).keys(ui.Cmd, ui.KeyComma),
