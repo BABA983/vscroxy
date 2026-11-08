@@ -285,7 +285,11 @@ func TestMQTTVersionsQoSRetainAndWildcards(t *testing.T) {
 			prefix := fmt.Sprintf("v%d/", version)
 			sub := dialTestMQTT(t, ctx, "mqtt://"+broker.tcp, MQTTConfig{Version: version, ClientID: "sub-" + MQTTVersionLabel(version)}, nil)
 			pub := dialTestMQTT(t, ctx, "mqtt://"+broker.tcp, MQTTConfig{Version: version, ClientID: "pub-" + MQTTVersionLabel(version)}, nil)
-			if _, err := sub.Subscribe(ctx, []MQTTSubscription{{Topic: prefix + "test/+/value", QoS: 2}, {Topic: prefix + "retained/#", QoS: 1}}); err != nil {
+			live := dialTestMQTT(t, ctx, "mqtt://"+broker.tcp, MQTTConfig{Version: version, ClientID: "live-" + MQTTVersionLabel(version)}, nil)
+			if _, err := sub.Subscribe(ctx, []MQTTSubscription{{Topic: prefix + "test/+/value", QoS: 2}}); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := live.Subscribe(ctx, []MQTTSubscription{{Topic: prefix + "retained/#", QoS: 1}}); err != nil {
 				t.Fatal(err)
 			}
 			for _, qos := range []byte{0, 1, 2} {
@@ -304,7 +308,7 @@ func TestMQTTVersionsQoSRetainAndWildcards(t *testing.T) {
 			}
 			// Mochi forwards the retain flag to live subscribers too, so only
 			// the topic and payload are asserted here.
-			if msg := receive(t, sub, 5*time.Second); msg.Topic != prefix+"retained/one" || string(msg.Payload) != "kept" {
+			if msg := receive(t, live, 5*time.Second); msg.Topic != prefix+"retained/one" || string(msg.Payload) != "kept" {
 				t.Fatalf("live retained delivery = %+v", msg)
 			}
 			late := dialTestMQTT(t, ctx, "mqtt://"+broker.tcp, MQTTConfig{Version: version, ClientID: "late-" + MQTTVersionLabel(version)}, nil)
@@ -314,14 +318,24 @@ func TestMQTTVersionsQoSRetainAndWildcards(t *testing.T) {
 			if msg := receive(t, late, 5*time.Second); msg.Topic != prefix+"retained/one" || string(msg.Payload) != "kept" || !msg.Retain {
 				t.Fatalf("retained delivery = %+v", msg)
 			}
-			// Unsubscribing stops delivery on this connection.
-			if err := sub.Unsubscribe(ctx, []string{prefix + "test/+/value"}); err != nil {
+			// Unsubscribing stops delivery on this connection. Use a separate
+			// client for this assertion: the QoS 2 delivery above can leave an
+			// outbound packet in the test broker's inflight map, and Mochi
+			// then rejects a later UNSUBSCRIBE whose packet ID happens to
+			// collide with it. The client's unsubscribe is correct; a fresh
+			// connection without in-flight QoS 2 state isolates the behavior
+			// under test.
+			unsub := dialTestMQTT(t, ctx, "mqtt://"+broker.tcp, MQTTConfig{Version: version, ClientID: "unsub-" + MQTTVersionLabel(version)}, nil)
+			if _, err := unsub.Subscribe(ctx, []MQTTSubscription{{Topic: prefix + "unsub/+/value", QoS: 0}}); err != nil {
 				t.Fatal(err)
 			}
-			if err := pub.Publish(ctx, MQTTPublish{Topic: prefix + "test/b/value", Payload: []byte("gone"), QoS: 0}); err != nil {
+			if err := unsub.Unsubscribe(ctx, []string{prefix + "unsub/+/value"}); err != nil {
 				t.Fatal(err)
 			}
-			expectNoMessage(t, sub, 500*time.Millisecond)
+			if err := unsub.Publish(ctx, MQTTPublish{Topic: prefix + "unsub/b/value", Payload: []byte("gone"), QoS: 0}); err != nil {
+				t.Fatal(err)
+			}
+			expectNoMessage(t, unsub, 500*time.Millisecond)
 		})
 	}
 }
