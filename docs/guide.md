@@ -1656,6 +1656,79 @@ inherited scripts) must be removed, not silently skipped. HTTP Runner, code
 generation, History and Examples are not this client's execution API; Postman
 export skips non-HTTP documents with a warning. See [interoperability checks](socketio.md).
 
+### Interactive MQTT requests
+
+Create a **New request** and choose **MQTT** in the protocol selector. The
+address bar is the broker URL: `mqtt://` (TCP), `mqtts://` (TLS), `ws://` or
+`wss://`; the port defaults to 1883, 8883, 80 or 443. MQTT 3.1.1 and 5.0 are
+supported. The client connects directly, not through the capture proxy, so
+MQTT traffic is not recorded by Capture. **Connect** opens a fresh session and
+**Disconnect** closes it.
+
+Under **Connection**, choose the protocol version, client ID (generated for a
+new document, and sent as authored), credentials, clean start/session,
+keep-alive, connect timeout and whether a dropped connection reconnects. Basic
+credentials become the MQTT username and password; **Inherit** uses a Basic
+parent only. `{{variables}}` and host-restricted `{{vault:name}}` references
+expand in the URL, client ID, credentials, topics, payloads and properties.
+The session snapshots its broker URL, credentials and variable scope: changing
+the environment cannot redirect it or change later message expansion.
+
+MQTT 5.0 adds CONNECT properties: session expiry, receive maximum, maximum
+packet size, request-response information and user properties. The client
+advertises 1 MiB as the maximum packet size when the field is 0, so a broker
+cannot send an unbounded packet. A **Last will** tab carries the will topic,
+payload, encoding, QoS, retain flag and, for 5.0, will delay, message expiry,
+content type, response topic, correlation data and user properties.
+
+**Subscriptions** lists topic filters with per-topic QoS. `+` matches one
+level and `#` the remaining levels. **On connect** subscribes a row when the
+session starts; **Subscribe listed** adds all enabled rows to the live
+connection and **Unsubscribe all** removes every active filter. MQTT 5.0
+adds no-local, retain-as-published, retain handling (0 sends retained
+messages, 1 only for a new subscription, 2 never) and a subscription
+identifier per row, plus user properties. Subscriptions are re-applied after a
+reconnect.
+
+**Publish** keeps named messages with the document. **New**, **Save** and
+**Delete** manage them; **Publish** sends the current topic, payload, QoS,
+retain flag and properties on the live connection. The payload encoding is
+text, JSON, hex or base64; text and JSON keep the text as written, hex ignores
+whitespace and base64 requires padding. Payloads are limited to 1 MiB. MQTT
+5.0 properties are payload format, content type, response topic, correlation
+data, message expiry, topic alias and user properties. MQTT 3.1.1 rejects
+these properties rather than silently dropping them.
+
+**MQTT messages** is a live timeline of connect, disconnect, reconnect,
+subscribe, unsubscribe, sent and received events. Select an event to read its
+topic, QoS, retain flag, size, properties and payload as Text, JSON or Hex;
+**Copy shown message** copies that view. The timeline keeps the latest 200
+events and at most 64 KiB of each payload, with evicted and client-queue
+dropped counts shown. The client queue holds 128 messages; a busy topic drops
+new messages instead of growing without bound. Incoming packets are capped at
+1 MiB (or a larger MQTT 5 maximum packet size set on the document); a broker
+packet over the cap closes the connection with an explicit error. Search
+matches topics, payloads and properties.
+
+TLS (`mqtts://` and `wss://`) verifies the system and configured roots and
+presents the matching client certificate from **Settings → Certificates**;
+the per-request TLS switch turns verification off for a broker you control.
+A reconnect uses exponential backoff (1, 2, 4, 8, 16, 30 seconds), re-applies
+subscriptions and stops after 20 reconnects or five failed dials. Retained
+messages may arrive again after a reconnect, and unacknowledged in-flight
+messages are not replayed by the client.
+
+Draft configuration is saved with the request; the live connection and
+timeline are not saved or restored. HTTP scripts, Checks, token bindings and
+inherited scripts must be removed, not silently skipped; HTTP Runner, code
+generation, History and Examples are not this client's execution API. MQTT
+3.1, local session persistence, polling transports and a capture-proxy path
+are not implemented. Postman Collection v3 `mqtt-request` documents import
+their connection settings, topics, last will, messages, MQTT 5 properties and
+Basic auth; a received-message subscription identifier has no outgoing
+equivalent and is reported. Postman v2.1 export skips protocol documents with
+a warning.
+
 ### Interactive gRPC requests
 
 Create a **New request** and change its protocol from **HTTP** to **gRPC**.
@@ -2428,12 +2501,14 @@ collection and each folder may have `.resources/definition.yaml`, requests are
 dropped on the window read it. Collection and folder auth, variables, scripts,
 descriptions and ordering; HTTP query/path parameters, headers, every body
 mode, request settings and saved examples; native GraphQL requests with a local
-SDL file; gRPC method, message, metadata and auth; and the first saved
+SDL file; gRPC method, message, metadata and auth; MQTT connection settings,
+topics, last will, saved messages and MQTT 5 properties; and the first saved
 WebSocket or Socket.IO message are imported. Multi-auth keeps the first set,
 literal secret variables become local Current values, and vault references are
 skipped. gRPC schemas, descriptors, scripts and examples, extra stream
-messages/examples, MQTT/Kafka/MCP/LLM/data requests, and parameter or variable
-descriptions that have no field here are listed after the import. The reader
+messages/examples, MQTT scripts/examples, Kafka/MCP/LLM/data requests, and
+parameter or variable descriptions that have no field here are listed after the
+import. The reader
 caps a collection at 10,000 files/directory entries, 8 MiB per example,
 message or request, 1 MiB per collection or folder definition, 1 MiB of SDL,
 64 MiB in total and 32 folder levels; it never follows symbolic links, refuses
