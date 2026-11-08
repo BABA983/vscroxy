@@ -21,11 +21,14 @@ import (
 // cookies and retries belong to the caller's http.Client.
 //
 // Each request is attributed to the flow's capture source like
-// ReplayWithPolicy's, and Close releases the connections and that link.
+// ReplayWithPolicy's, and Close releases the connections. A session created
+// under WithoutRecording leaves its socket links to ClientDisconnected, as
+// ReplayWithPolicy does, so a canceled load cannot leak traffic into Capture.
 type ReplaySession struct {
-	server *Server
-	flow   Flow
-	policy TransferPolicy
+	server     *Server
+	flow       Flow
+	policy     TransferPolicy
+	suppressed bool
 
 	mu         sync.Mutex
 	closed     bool
@@ -35,11 +38,12 @@ type ReplaySession struct {
 
 // ReplaySession starts a session that sends through this proxy. A policy that
 // names an unsupported redirect or TLS mode is refused here.
-func (s *Server) ReplaySession(f Flow, policy TransferPolicy) (*ReplaySession, error) {
+func (s *Server) ReplaySession(ctx context.Context, f Flow, policy TransferPolicy) (*ReplaySession, error) {
 	if err := policy.validate(); err != nil {
 		return nil, err
 	}
-	return &ReplaySession{server: s, flow: f, policy: policy, transports: make(map[string]*http.Transport)}, nil
+	suppressed, _ := ctx.Value(withoutRecordingKey{}).(bool)
+	return &ReplaySession{server: s, flow: f, policy: policy, suppressed: suppressed, transports: make(map[string]*http.Transport)}, nil
 }
 
 // RoundTrip sends req on the session's connection for its origin.
@@ -126,7 +130,7 @@ func (rs *ReplaySession) dial(ctx context.Context, network, addr string) (net.Co
 		return nil, err
 	}
 	f := rs.flow
-	suppressed, _ := ctx.Value(withoutRecordingKey{}).(bool)
+	suppressed := rs.suppressed
 	if f.ID == 0 && f.DebugRun == "" && !suppressed {
 		return conn, nil
 	}
@@ -154,8 +158,7 @@ func (rs *ReplaySession) dial(ctx context.Context, network, addr string) (net.Co
 	return conn, nil
 }
 
-// Close releases the session's connections and capture links. It is safe to
-// call more than once.
+// Close releases the session's connections. It is safe to call more than once.
 func (rs *ReplaySession) Close() {
 	rs.mu.Lock()
 	if rs.closed {
@@ -165,12 +168,16 @@ func (rs *ReplaySession) Close() {
 	rs.closed = true
 	transports, addresses := rs.transports, rs.addresses
 	rs.transports, rs.addresses = nil, nil
+	suppressed := rs.suppressed
 	rs.mu.Unlock()
 
 	for _, transport := range transports {
 		transport.CloseIdleConnections()
 	}
-	if len(addresses) == 0 {
+	// Suppression must survive a canceled send until the proxy has read
+	// everything already sent on its socket. ClientDisconnected removes it,
+	// exactly as it does for ReplayWithPolicy.
+	if suppressed || len(addresses) == 0 {
 		return
 	}
 	rs.server.mu.Lock()
