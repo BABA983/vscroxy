@@ -495,6 +495,27 @@ func TestUISnapshots(t *testing.T) {
 			tt.Frame()
 			tt.Type("{{ba")
 		}, want: "baseUrl"},
+		{name: "requests-url-dynamic-completion", setup: func(a *app) {
+			draft(a)
+			a.composeURL = ""
+		}, act: func(t *testing.T, tt *ui.Tester) {
+			if err := tt.Click("URL"); err != nil {
+				t.Fatal(err)
+			}
+			tt.Frame()
+			tt.Type("{{$rand")
+		}, want: "$randomAbbreviation"},
+		{name: "requests-url-dynamic-hover", setup: func(a *app) {
+			draft(a)
+			a.composeURL = "{{$randomBankAccountIban}}"
+		}, act: func(t *testing.T, tt *ui.Tester) {
+			rect, ok := tt.Find("URL")
+			if !ok {
+				t.Fatal("URL field missing")
+			}
+			tt.Move(rect.X+24, rect.Y+rect.H/2)
+			tt.Advance(700 * time.Millisecond)
+		}, want: "generated at send"},
 		{name: "requests-url-hover", setup: func(a *app) {
 			draft(a)
 			a.composeURL = "{{baseUrl}}/projects?q={{missing}}"

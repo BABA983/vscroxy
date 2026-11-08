@@ -400,12 +400,43 @@ func TestVariableHintsPreferCurrentAndMaskCredentials(t *testing.T) {
 	if h, ok := hints["$guid"]; !ok || !h.Dynamic || h.display() != "generated at send" {
 		t.Errorf("dynamic hint = %+v, %v", h, ok)
 	}
+	if h, ok := hints["$randomLoremParagraphs"]; !ok || !h.Dynamic || h.display() != "generated at send" {
+		t.Errorf("full-list dynamic hint = %+v, %v", h, ok)
+	}
 	marks := a.variableMarks("{{base}} {{missing}} {{token}} {{$guid}}", "Shop")
 	if len(marks) != 4 || !marks[0].Defined || marks[1].Defined || !marks[2].Defined || !marks[3].Defined {
 		t.Fatalf("marks = %+v", marks)
 	}
 	if marks[2].Hint.display() != "••••••" || marks[1].Hint.display() != "(empty)" {
 		t.Errorf("mark display = %q / %q", marks[2].Hint.display(), marks[1].Hint.display())
+	}
+}
+
+func TestVariableHintsAndCompletionCoverEveryDynamicName(t *testing.T) {
+	a := workspaceApp()
+	hints := map[string]variableHint{}
+	for _, h := range a.variableHints("Shop") {
+		hints[h.Name] = h
+	}
+	for _, name := range request.DynamicNames() {
+		h, ok := hints[name]
+		if !ok || !h.Dynamic || h.display() != "generated at send" {
+			t.Fatalf("%s = %+v, %v", name, h, ok)
+		}
+	}
+	seen := map[string]bool{}
+	for _, item := range a.variableCompletionItems("Shop", "$", "}}") {
+		if strings.HasPrefix(item.Label, "$") {
+			seen[item.Label] = true
+		}
+	}
+	if len(seen) != len(request.DynamicNames()) {
+		t.Fatalf("completion offered %d $ names, want %d", len(seen), len(request.DynamicNames()))
+	}
+	for _, name := range request.DynamicNames() {
+		if !seen[name] {
+			t.Errorf("completion is missing %s", name)
+		}
 	}
 }
 
