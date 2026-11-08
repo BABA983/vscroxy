@@ -1993,7 +1993,8 @@ the table. Disabled rows stay in the request file
 (`headerList`) but never in the block that is sent, copied or exported. Params
 edits the URL's query the same way, and only enabled rows reach it. Auth supports
 **Inherit**, Bearer, Basic, API keys in a header or query parameter, OAuth
-2.0, OAuth 1.0, Digest, AWS Signature, JWT Bearer, Hawk and Akamai EdgeGrid;
+2.0, OAuth 1.0, Digest, NTLM, AWS Signature, JWT Bearer, Hawk and Akamai
+EdgeGrid;
 explicit auth replaces that header unless the pre-script explicitly sets or
 removes it. **Digest** sends once, and
 when the answer is a 401 with a Digest challenge (MD5, SHA-256 or their -sess
@@ -2031,13 +2032,27 @@ list of header names; POST bodies are hashed automatically. Timestamp and
 nonce are generated per send when empty. Copied cURL and code carry the signed
 header, query or body as they carry AWS and JWT signatures, so an OAuth 1.0
 signature is only valid for the timestamp and nonce it was made with.
-**NTLM** is not offered: its Type 1/2/3 challenge needs the same connection
-for every step, while each send opens a new connection (the replay transport
-disables keep-alives and the proxy pins an upstream connection to its
-downstream one). Postman collections that use NTLM import as no auth with a
-warning naming this; Postman's `oauth1`, `hawk` and `edgegrid` auth objects
-round-trip, with an OAuth 1.0 header/body switch that imports as Automatic
-when Postman sets `addParamsToHeader` false. **Inherit** (the default for new
+**NTLM** sends once without credentials, then answers the server's Type 1/2/3
+challenge on one connection: through the capture proxy when it runs, so the
+exchange is captured and upstream rules still apply, and directly otherwise.
+HTTPS works the same way. Redirects follow the request's settings, while
+credentials stay on the original origin; a same-origin redirect answers the
+challenge again. **Username**, **Password**, **Domain** and **Workstation**
+take `{{variables}}` and `{{vault:name}}`; a username written `DOMAIN\user`
+or `user@domain` supplies the domain when **Domain** is empty. **Disable
+retrying the request** sends once and returns the server's 401 without
+answering the challenge, as Postman does. Only NTLMv2 is supported: a
+challenge that negotiates NTLMv1's LM key fails with a clear message, LM
+responses are never sent, and a server that accepts only NTLMv1 returns its
+401. Channel binding (EPA) and the MIC are not sent, and NTLM's session
+signing and sealing (used by SMB, not HTTP) are not implemented. A wrong
+password's 401 after the third message is the response, not a retry. Copied
+cURL and code carry no NTLM header, since the handshake needs the server's
+challenge. NTLM is not available for WebSocket requests. Postman's `ntlm`
+auth object, including `disableRetryRequest`, round-trips; Postman's
+`oauth1`, `hawk` and `edgegrid` auth objects do too, with an OAuth 1.0
+header/body switch that imports as Automatic when Postman sets
+`addParamsToHeader` false. **Inherit** (the default for new
 requests) uses the nearest folder or collection auth and says which one it is;
 see [Collections, variables and the vault](#collections-variables-and-the-vault).
 
@@ -2744,10 +2759,12 @@ independently, so a request that turns following on keeps a folder's hop limit;
 part of a collection, so it is neither imported nor exported; vscroxy keeps its
 own timeout in the request file and warns when exporting one. What has no
 equivalent is listed after the import: auth other than Bearer, Basic, API key,
-OAuth 2.0, Digest, AWS Signature and JWT Bearer (imported as no auth), disabled
-query parameters, and protocol profile keys the app does not send, such as body
-pruning. Digest keeps only the username and password: the rest
-comes from the server's challenge. AWS Signature always signs in headers, and
+OAuth 2.0, OAuth 1.0, Digest, NTLM, AWS Signature, JWT Bearer, Hawk and Akamai
+EdgeGrid (imported as no auth), disabled query parameters, and protocol
+profile keys the app does not send, such as body pruning. Digest keeps only
+the username and password: the rest comes from the server's challenge. NTLM
+keeps the username, password, domain, workstation and Postman's
+`disableRetryRequest`. AWS Signature always signs in headers, and
 a JWT algorithm vscroxy cannot sign with (such as EdDSA) becomes no auth. OAuth 2.0 keeps its grant, URLs, client, scope, client
 authentication and header prefix; the implicit grant becomes no auth, a
 callback that is not a loopback address (such as `oauth.pstmn.io`) is replaced
@@ -2990,7 +3007,10 @@ fetch and the seven native-language snippets; **Generate code…** also has
 axios, Python requests, Go and HTTPie. Captured requests use the original
 exchange; a captured request is already a request document, so selecting it
 makes the action available without saving or editing it first. Like cURL, it leaves `{{variables}}` as written and runs no script.
-Each language is written to send the same method, URL, headers and body bytes;
+NTLM auth is not emitted: every generator, cURL included, sends the request
+without an `Authorization` header, because the answer needs the server's
+challenge on one connection; the dialog says so. Each language is written to
+send the same method, URL, headers and body bytes;
 libraries still add their own defaults (`User-Agent`, `Accept`,
 `Accept-Encoding`), `fetch` and requests join repeated headers into one, while
 Ruby `Net::HTTP` and C# `HttpClient` join repeated values with `, `. What a
