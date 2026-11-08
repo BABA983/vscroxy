@@ -38,9 +38,24 @@ CommonJS module. The generated files go to `internal/request/js/vendor/`;
 `hashes.txt` records their SHA-256 and `sources.txt` records every resolved
 npm tarball and integrity hash. Nothing is downloaded or compiled at runtime.
 
-The Node shims are the same browserify packages Postman's browser bundle uses.
+The Node shims are committed files under `shims/`, one per builtin. They use
+relative `require("../node_modules/...")` paths; the build never creates a
+temporary directory, so esbuild records stable `shims/<name>.js` module keys
+and two checkouts at different absolute paths produce byte-identical bundles.
 `fs` is an empty module, as in Postman's browser sandbox, and `timers` is the
-script-scoped timer queue described below.
+script-scoped timer queue described below. The build also splits faker's
+sample `directoryPaths` literals (`/home/user`, `/home/user/dir`) into
+concatenated strings; the runtime values are unchanged, but the vendor tree
+contains no absolute-path-looking strings.
+
+To check reproducibility, run `build.sh` in two different absolute paths and
+compare `internal/request/js/vendor` and `hashes.txt`:
+
+```bash
+diff -r /path/a/internal/request/js/vendor /path/b/internal/request/js/vendor
+cmp /path/a/internal/request/js/sandbox/hashes.txt /path/b/internal/request/js/sandbox/hashes.txt
+rg 'vscroxy-sandbox-|/tmp/|/home/' internal/request/js/vendor  # no matches
+```
 
 ## Node tests
 
