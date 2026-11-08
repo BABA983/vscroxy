@@ -98,6 +98,8 @@ func TestSplitShellWords(t *testing.T) {
 		{`sh -c 'echo "a b"'`, []string{"sh", "-c", `echo "a b"`}},
 		{`a "" b`, []string{"a", "", "b"}},
 		{"a\\ b c", []string{"a b", "c"}},
+		{`node C:\servers\mcp\index.js`, []string{"node", `C:\servers\mcp\index.js`}},
+		{`"C:\Program Files\nodejs\npx.cmd" -y server`, []string{`C:\Program Files\nodejs\npx.cmd`, "-y", "server"}},
 		{"", nil},
 	} {
 		got, err := splitShellWords(test.line)
@@ -108,7 +110,7 @@ func TestSplitShellWords(t *testing.T) {
 	if _, err := splitShellWords(`sh 'unterminated`); err == nil {
 		t.Error("unterminated quote was accepted")
 	}
-	if _, err := splitShellWords(`sh trailing\`); err == nil {
-		t.Error("trailing backslash was accepted")
+	if got, err := splitShellWords(`sh trailing\`); err != nil || !slices.Equal(got, []string{"sh", `trailing\`}) {
+		t.Errorf("trailing backslash = %q, %v", got, err)
 	}
 }

@@ -215,8 +215,11 @@ are used as a generator/reference and are not vendored here.
     field is one string, e.g. `npx -y @modelcontextprotocol/server-filesystem
     /tmp`. The reader splits that line with shell-like quoting (single and
     double quotes, backslash escapes, no variable or command expansion) into
-    the app's `command` and one-argument-per-line `args`. If the line cannot
-    be split (an unterminated quote or trailing backslash), the whole string is
+    the app's `command` and one-argument-per-line `args`. A backslash outside
+    quotes only escapes whitespace, a quote or another backslash, so Windows
+    paths such as `C:\servers\mcp\index.js` survive. If the line cannot be
+    split (an unterminated quote, or an empty/newline argument that the
+    one-argument-per-line format cannot represent), the whole string is
     imported as the program and the import report says so.
 - **Kafka, LLM and data** requests are skipped with a warning; the app has no
   document for them.

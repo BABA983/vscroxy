@@ -761,11 +761,14 @@ func splitShellWords(line string) ([]string, error) {
 				quote, started = c, true
 				continue
 			case '\\':
-				if i+1 >= len(line) {
-					return nil, fmt.Errorf("trailing backslash")
+				// A Windows path uses backslashes before ordinary characters.
+				// Only a backslash that escapes shell syntax changes the word.
+				if i+1 < len(line) && strings.ContainsRune(" \t\r\n'\"\\", rune(line[i+1])) {
+					i++
+					word.WriteByte(line[i])
+				} else {
+					word.WriteByte(c)
 				}
-				i++
-				word.WriteByte(line[i])
 				started = true
 				continue
 			}
@@ -778,8 +781,15 @@ func splitShellWords(line string) ([]string, error) {
 			continue
 		}
 		if c == '\\' && quote == '"' && i+1 < len(line) {
-			i++
-			word.WriteByte(line[i])
+			// Inside double quotes only shell metacharacters are escaped;
+			// C:\Program Files\nodejs stays a Windows path.
+			next := line[i+1]
+			if next == '"' || next == '\\' || next == '$' || next == '`' {
+				i++
+				word.WriteByte(next)
+			} else {
+				word.WriteByte(c)
+			}
 			started = true
 			continue
 		}

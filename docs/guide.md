@@ -1795,19 +1795,23 @@ Create a **New request** and choose **MCP** in the protocol selector. This is a
 normal request document, not a separate dialog. The transport is **Streamable
 HTTP** (the current MCP HTTP transport), **SSE** (the legacy HTTP+SSE
 transport), or **stdio** (a local command). **Connect** initializes one session;
-**Disconnect** ends it. A dropped standalone Streamable HTTP GET stream is
-reconnected a few times without replaying a POST; a document operation is never
-retried automatically.
+**Disconnect** ends it. A dropped standalone Streamable HTTP GET stream
+reconnects with exponential backoff, effectively without a retry ceiling, and
+never replays a POST; a document operation is never retried automatically.
 
 For HTTP transports the address bar is the MCP endpoint. **Headers** and **HTTP
 auth** support None, Bearer, Basic and header/query API keys, and both use
 `{{variables}}`, host-restricted `{{vault:name}}` references and inherited
 collection auth. The transport owns `Accept`, `Content-Type`, `Content-Length`
-and `Mcp-*` headers; the document's other headers are sent on every request. **Settings → Certificates** and the request's certificate
+and `Mcp-*` headers; the document's other headers are sent only to the
+document's normalized origin (default ports and a trailing root label are
+equivalent). A request to another origin, including a cross-origin SSE
+endpoint, gets no document headers and the timeline says they were withheld. **Settings → Certificates** and the request's certificate
 verification setting apply on every hop; HTTPS goes through the running capture
 proxy (enable HTTPS inspection for the target to see it in Capture) and connects
 directly when the proxy is stopped. A POST is never replayed. A standalone GET
-stream may reconnect after the server closes it; the timeline records each
+stream reconnects after the server closes it with the SDK's exponential
+backoff, effectively without a retry ceiling; the timeline records each
 reconnect, and the POST that carried a call is still shown exactly once.
 
 For **stdio**, enter the command, one argument per line, an optional working
@@ -1815,12 +1819,19 @@ directory, and environment rows. Environment values may use variables; rows can
 be switched off. The process starts only when you press **Connect**, inherits
 the app's environment (so `PATH` still works), and is stopped with its process
 group on **Disconnect**, closing the document, or quitting. Before the first
-start, and again whenever the expanded command, arguments, working directory or
-environment variable names change, a confirmation shows those expanded values
-(environment values are hidden) and waits for **Start server**. The approval is
-stored locally in `~/.vscroxy/mcp-consents.json`, never in the collection.
-Environment values are saved with the document, masked by default, and never
-written to the app log.
+start, and again whenever the expanded command, arguments, working directory,
+environment variable names or environment values change, a confirmation shows
+the expanded command and names (values stay hidden) and waits for **Start
+server**. A shape hash and a full HMAC-SHA256 approval are stored locally in
+`~/.vscroxy/mcp-consents.json`; the HMAC key is a separate 0600
+`~/.vscroxy/mcp-consents.key`, so the file cannot be used to guess low-entropy
+Vault values. Drafts without a saved asset ID are not persisted; approvals are
+capped at 4096 and the least recently used are dropped. Environment
+values are saved with the document, masked by default, and never written to the
+app log. The server runs in its own process group: Ctrl-C in the
+terminal that launched vscroxy is not forwarded to it, and a server that opens
+`/dev/tty` can be stopped with SIGTTIN. Quitting closes each stdio session
+synchronously (bounded) so its children are terminated before the app exits.
 
 The **Session** tab shows the server's name, version, negotiated protocol,
 capabilities and instructions, plus the connection's transport, timeout and
@@ -1830,7 +1841,8 @@ advertises them; **Refresh** lists them again. Notifications such as
 `notifications/tools/list_changed`, progress, resource updates, server log
 messages and stdio stderr appear in the **Timeline**. Real JSON-RPC requests,
 responses and server-initiated requests such as `roots/list`, sampling and
-elicitation are recorded as **RPC** entries; a repeated list or resource read
+elicitation are recorded as **RPC** entries, with the real payload size even
+when the preview is cut; a repeated list or resource read
 that the SDK serves from its local TTL cache is marked **Cache** instead of
 pretending a request went out. The timeline shows one live progress row per
 token, and the latest progress also appears above the result.
@@ -1842,7 +1854,8 @@ enum values when present; **Input schema** shows the schema itself. Under
 placeholders first) or type any URI, then **Read resource**. Under **Prompts**,
 choose a prompt, enter its JSON string arguments, and **Get prompt**. The
 **Result** tab shows text, image, audio, embedded-resource and resource-link
-blocks, `structuredContent` and `isError`; images decode locally. **Cancel**
+blocks, `structuredContent` and `isError`; images are size-checked and decoded
+in the background. **Cancel**
 stops one running request; cancelling never undoes server-side work.
 
 The protocol version selector offers **auto** (negotiate the latest),
@@ -1850,9 +1863,13 @@ The protocol version selector offers **auto** (negotiate the latest),
 preference: if the server chooses another version, the connection fails instead
 of silently falling back. Under 2026-07-28 the client sends its desired log
 level in each request's `_meta` and sends progress tokens for calls, reads and
-prompts; legacy servers receive `logging/setLevel` instead. The session keeps
+prompts; legacy servers receive `logging/setLevel` instead. The client does not
+advertise roots, sampling or elicitation, so a server takes its normal fallback
+path; if it sends one anyway, the request still appears in the timeline. The
+session keeps
 at most 300 timeline entries with a 64 KiB UTF-8 preview each, an 8 MiB
-HTTP/SSE event and an 8 MiB stdio line cap, 1000 catalog entries with
+HTTP/SSE event and an 8 MiB stdio line cap; a JSON response over 8 MiB ends the
+session and is explained in the timeline, 1000 catalog entries with
 1 KiB string fields and a 4 MiB catalog budget, 100 result blocks, a 4 MiB
 result and 1 MiB per image or audio block. Images are checked with
 `image.DecodeConfig` and decoded off the UI thread; more than 16 megapixels per
@@ -2602,18 +2619,19 @@ environment rows, headers, auth and transport settings; a saved `tools/call`,
 `resources/read` or `prompts/get` JSON-RPC message becomes the matching tool,
 resource or prompt operation. The v3 MCP schema has no stdio arguments field,
 so the one `command` string is split with shell-like quoting into the program
-and arguments (no variable or command expansion); a line that cannot be split
-is imported as the program name and reported. Postman's UI calls its Streamable
-HTTP choice **HTTP**, but the v3 schema stores it as `transport: sse`; that
-value maps to Streamable HTTP, not the app's legacy HTTP+SSE transport. Other
-JSON-RPC methods, unknown transports and `sessionTimeout` are listed after the
-import rather than guessed; MCP OAuth 2.0 auth is imported but reported, because
-the client uses a Bearer token, Basic or API key. Multi-auth keeps the first
-set, literal secret variables become local Current values, and vault references
-are skipped. gRPC schemas, descriptors, scripts and examples, extra stream
-messages/examples, MQTT scripts/examples, Kafka/LLM/data requests, and parameter
-or variable descriptions that have no field here are listed after the import.
-The reader
+and arguments (no variable or command expansion); backslashes in Windows paths
+are preserved unless they escape a space, quote or another backslash, and a
+line that cannot be split is imported as the program name and reported.
+Postman's UI calls its Streamable HTTP choice **HTTP**, but the v3 schema stores
+it as `transport: sse`; that value maps to Streamable HTTP, not the app's legacy
+HTTP+SSE transport. Other JSON-RPC methods, unknown transports and
+`sessionTimeout` are listed after the import rather than guessed; MCP OAuth 2.0
+auth is imported but reported, because the client uses a Bearer token, Basic or
+API key. Multi-auth keeps the first set, literal secret variables become local
+Current values, and vault references are skipped. gRPC schemas, descriptors,
+scripts and examples, extra stream messages/examples, MQTT scripts/examples,
+Kafka/LLM/data requests, and parameter or variable descriptions that have no
+field here are listed after the import. The reader
 caps a collection at 10,000 files/directory entries, 8 MiB per example,
 message or request, 1 MiB per collection or folder definition, 1 MiB of SDL,
 64 MiB in total and 32 folder levels; it never follows symbolic links, refuses
