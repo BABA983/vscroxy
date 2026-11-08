@@ -136,19 +136,12 @@ func TestVariableRefsCarryByteOffsets(t *testing.T) {
 	}
 }
 
-func TestDynamicNamesAndSamples(t *testing.T) {
-	names := DynamicNames()
-	if len(names) != 32 {
-		t.Fatalf("DynamicNames has %d names, want 32: %v", len(names), names)
-	}
-	for _, name := range names {
-		value, ok := DynamicValue(name)
-		if !ok || value == "" {
-			t.Errorf("DynamicValue(%q) = %q, %v", name, value, ok)
-		}
-	}
+func TestDynamicValueRejectsUnknownName(t *testing.T) {
 	if _, ok := DynamicValue("$notImplemented"); ok {
 		t.Error("an unknown dynamic variable was accepted")
+	}
+	if _, ok := DynamicValue("$randomLoremParagraphs"); !ok {
+		t.Error("a documented dynamic variable was rejected")
 	}
 }
 

@@ -1,0 +1,156 @@
+# Postman dynamic variables, one name per line, grouped as on
+# https://learning.postman.com/docs/tests-and-scripts/write-scripts/variables-list/
+# Checked 2026-11-08. The format checks in dynamic_test.go are written from
+# the same page and from @faker-js/faker 5.5.3, the version Postman pins.
+
+# Common
+$guid
+$timestamp
+$isoTimestamp
+$randomUUID
+
+# Text, numbers, and colors
+$randomAlphaNumeric
+$randomBoolean
+$randomInt
+$randomColor
+$randomHexColor
+$randomAbbreviation
+
+# Internet and IP addresses
+$randomIP
+$randomIPV6
+$randomMACAddress
+$randomPassword
+$randomLocale
+$randomUserAgent
+$randomProtocol
+$randomSemver
+
+# Names
+$randomFirstName
+$randomLastName
+$randomFullName
+$randomNamePrefix
+$randomNameSuffix
+
+# Profession
+$randomJobArea
+$randomJobDescriptor
+$randomJobTitle
+$randomJobType
+
+# Phone, address, and location
+$randomPhoneNumber
+$randomPhoneNumberExt
+$randomCity
+$randomStreetName
+$randomStreetAddress
+$randomCountry
+$randomCountryCode
+$randomLatitude
+$randomLongitude
+
+# Images
+$randomAvatarImage
+$randomImageUrl
+$randomAbstractImage
+$randomAnimalsImage
+$randomBusinessImage
+$randomCatsImage
+$randomCityImage
+$randomFoodImage
+$randomNightlifeImage
+$randomFashionImage
+$randomPeopleImage
+$randomNatureImage
+$randomSportsImage
+$randomTransportImage
+$randomImageDataUri
+
+# Finance
+$randomBankAccount
+$randomBankAccountName
+$randomCreditCardMask
+$randomBankAccountBic
+$randomBankAccountIban
+$randomTransactionType
+$randomCurrencyCode
+$randomCurrencyName
+$randomCurrencySymbol
+$randomBitcoin
+
+# Business
+$randomCompanyName
+$randomCompanySuffix
+$randomBs
+$randomBsAdjective
+$randomBsBuzz
+$randomBsNoun
+
+# Catchphrases
+$randomCatchPhrase
+$randomCatchPhraseAdjective
+$randomCatchPhraseDescriptor
+$randomCatchPhraseNoun
+
+# Databases
+$randomDatabaseColumn
+$randomDatabaseType
+$randomDatabaseCollation
+$randomDatabaseEngine
+
+# Dates
+$randomDateFuture
+$randomDatePast
+$randomDateRecent
+$randomWeekday
+$randomMonth
+
+# Domains, emails, and usernames
+$randomDomainName
+$randomDomainSuffix
+$randomDomainWord
+$randomEmail
+$randomExampleEmail
+$randomUserName
+$randomUrl
+
+# Files and directories
+$randomFileName
+$randomFileType
+$randomFileExt
+$randomCommonFileName
+$randomCommonFileType
+$randomCommonFileExt
+$randomFilePath
+$randomDirectoryPath
+$randomMimeType
+
+# Stores
+$randomPrice
+$randomProduct
+$randomProductAdjective
+$randomProductMaterial
+$randomProductName
+$randomDepartment
+
+# Grammar
+$randomNoun
+$randomVerb
+$randomIngverb
+$randomAdjective
+$randomWord
+$randomWords
+$randomPhrase
+
+# Lorem ipsum
+$randomLoremWord
+$randomLoremWords
+$randomLoremSentence
+$randomLoremSentences
+$randomLoremParagraph
+$randomLoremParagraphs
+$randomLoremText
+$randomLoremSlug
+$randomLoremLines
