@@ -184,16 +184,44 @@ func (k warning) text(n int) string {
 		return count(n, "request timeout is", "request timeouts are") + " not part of Postman collections"
 	case "curl redirects":
 		return count(n, "cURL redirect rule is", "cURL redirect rules are") + " not part of Postman collections"
+	case "example metadata":
+		return "Dropped descriptions, auth or settings on " + count(n, "saved example", "saved examples")
+	case "auth description":
+		return "Dropped " + count(n, "auth description", "auth descriptions")
+	case "body metadata":
+		return "Dropped JSON Schema annotations on " + count(n, "body", "bodies")
+	case "stream message description":
+		return "Dropped " + count(n, "description on a saved stream message", "descriptions on saved stream messages")
+	case "collection uses":
+		return "Dropped " + count(n, "collection resource dependency", "collection resource dependencies")
 	case "v3 path":
 		return "Skipped " + count(n, "symbolic link, non-regular file or path outside the collection", "symbolic links, non-regular files or paths outside the collection")
 	case "v3 unreadable":
-		return "Skipped " + count(n, "unreadable or malformed file", "unreadable or malformed files")
+		text := "Skipped " + count(n, "unreadable or malformed file", "unreadable or malformed files")
+		if k.detail != "" {
+			text += " (first: " + k.detail + ")"
+		}
+		return text
+	case "v3 definition kind":
+		text := "Skipped " + count(n, "definition whose $kind is not collection", "definitions whose $kind is not collection")
+		if k.detail != "" {
+			text += " (first: " + k.detail + ")"
+		}
+		return text
+	case "v3 auth":
+		return "Skipped " + count(n, "malformed auth object", "malformed auth objects")
 	case "v3 limit":
 		switch k.detail {
 		case "file size":
 			return "Skipped files larger than 8 MiB"
+		case "document size":
+			return "Skipped request or definition files larger than 1 MiB"
+		case "GraphQL schema size":
+			return "Skipped GraphQL schema files larger than 1 MiB"
+		case "total size":
+			return fmt.Sprintf("Stopped reading at the %d MiB total-size limit", v3MaxBytes>>20)
 		case "files":
-			return "Stopped reading at the 10000-entry limit"
+			return fmt.Sprintf("Stopped reading at the %d-entry limit", v3MaxFiles)
 		case "depth":
 			return "Stopped reading folders nested more than 32 levels deep"
 		}
@@ -203,7 +231,9 @@ func (k warning) text(n int) string {
 	case "v3 protocol":
 		return "Skipped " + count(n, k.detail+" request", k.detail+" requests") + "; vscroxy does not support them"
 	case "v3 folder name":
-		return "Merged " + count(n, "folder whose display name collides with another", "folders whose display names collide")
+		return "Renamed " + count(n, "folder whose display name collides with another", "folders whose display names collide")
+	case "v3 duplicate id":
+		return "Duplicate request id " + k.detail + " was replaced with a derived id"
 	case "multi auth":
 		return "Imported the first auth set on " + count(n, k.detail+" item", k.detail+" items") + " where several are offered; vscroxy uses one"
 	case "secret variable":

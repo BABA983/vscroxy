@@ -93,15 +93,14 @@ const (
 
 // droppedImportKind decides which importer owns a dropped path. HAR files keep
 // using the HAR importer; only the formats the capture importer knows go
-// there, and a .proxymanlog folder is a capture folder. A folder with a
-// Postman v3 definition or request file, or a bruno.json, is a collection
-// folder.
+// there, and a .proxymanlog folder is a capture folder. A Bruno collection
+// wins over a v3 collection when both markers are present.
 func droppedImportKind(path string, isDir bool) droppedKind {
 	if isDir {
 		if strings.EqualFold(filepath.Ext(path), ".proxymanlog") {
 			return droppedCaptureDir
 		}
-		if postman.LooksLikeCollectionDir(path) || isBrunoCollectionDir(path) {
+		if collectionDirKindOf(path) != collectionDirUnknown {
 			return droppedCollectionDir
 		}
 		return droppedUnknown
@@ -114,6 +113,27 @@ func droppedImportKind(path string, isDir bool) droppedKind {
 	default:
 		return droppedUnknown
 	}
+}
+
+type collectionDirKind int
+
+const (
+	collectionDirUnknown collectionDirKind = iota
+	collectionDirBruno
+	collectionDirV3
+)
+
+// collectionDirKindOf names a collection directory. Bruno is checked first
+// because a Bruno folder can contain a .resources directory, which would
+// otherwise look like a Postman v3 collection.
+func collectionDirKindOf(path string) collectionDirKind {
+	if isBrunoCollectionDir(path) {
+		return collectionDirBruno
+	}
+	if postman.LooksLikeCollectionDir(path) {
+		return collectionDirV3
+	}
+	return collectionDirUnknown
 }
 
 // isBrunoCollectionDir reports whether dir holds a Bruno collection config.

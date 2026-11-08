@@ -93,6 +93,35 @@ func TestImportPostmanV3SecretVariableStaysLocal(t *testing.T) {
 	}
 }
 
+func TestCollectionDirKindBrunoWins(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "bruno.json"), []byte(`{"version":"1","name":"B","type":"collection"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(dir, "A", ".resources"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "A", ".resources", "definition.yaml"), []byte("$kind: collection\nname: A\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got := collectionDirKindOf(dir); got != collectionDirBruno {
+		t.Errorf("kind = %v, want Bruno", got)
+	}
+}
+
+func TestCollectionDirKindFindsDeepV3(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, "A", "B"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "A", "B", "One.request.yaml"), []byte("$kind: http-request\nname: One\nurl: https://example.com/one\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got := collectionDirKindOf(dir); got != collectionDirV3 {
+		t.Errorf("kind = %v, want V3", got)
+	}
+}
+
 func TestDroppedImportKindRoutesCollectionFolders(t *testing.T) {
 	v3 := t.TempDir()
 	if err := os.MkdirAll(filepath.Join(v3, ".resources"), 0o755); err != nil {

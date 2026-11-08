@@ -15,9 +15,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/oasdiff/yaml"
-
 	"github.com/baba983/vscroxy/internal/request"
+	"github.com/baba983/vscroxy/internal/yamlguard"
 )
 
 // Postman Collection v3 is a directory of YAML files rather than one JSON
@@ -33,11 +32,12 @@ import (
 // file-size limits.
 
 const (
-	// v3MaxFiles bounds how many files one import reads.
-	v3MaxFiles = 10_000
-	// v3MaxFile bounds one YAML file. Postman examples are capped at 5 MiB;
-	// a definition or request is far smaller, but imports stay generous.
+	// v3MaxFile bounds one example or message YAML file. Postman examples are
+	// capped at 5 MiB.
 	v3MaxFile = 8 << 20
+	// v3MaxDocument bounds one collection, folder or request definition. A
+	// request document is far smaller than its saved examples.
+	v3MaxDocument = 1 << 20
 	// v3MaxSchema bounds an imported GraphQL SDL file.
 	v3MaxSchema = 1 << 20
 	// v3MaxDepth bounds folder nesting.
@@ -45,31 +45,50 @@ const (
 )
 
 var (
+	// v3MaxFiles bounds how many files and directory entries one import reads.
+	v3MaxFiles = 10_000
+	// v3MaxBytes bounds the total YAML read by one import.
+	v3MaxBytes = 128 << 20
+
 	errV3NotRegular = errors.New("not a regular file")
 	errV3Symlink    = errors.New("symbolic link")
-	errV3TooLarge   = errors.New("file is larger than 8 MiB")
 	errV3TooMany    = errors.New("too many files")
 )
 
+// v3LimitError names the limit a file or the import hit.
+type v3LimitError struct{ detail string }
+
+func (e v3LimitError) Error() string { return "collection import limit: " + e.detail }
+
 // LooksLikeCollectionDir reports whether dir is the root of a Postman
-// Collection v3 directory. It checks the directory itself and its immediate
-// children, so a collection whose requests all live in folders is recognized
-// without walking an unrelated tree.
+// Collection v3 directory. It checks the directory, its immediate children and
+// a few more levels, because a definition is optional and requests may live
+// only in nested folders. Detection has its own small budget.
 func LooksLikeCollectionDir(dir string) bool {
 	info, err := os.Lstat(dir)
 	if err != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
 		return false
 	}
+	budget := 2000
+	return looksLikeCollectionDir(dir, 0, &budget)
+}
+
+func looksLikeCollectionDir(dir string, depth int, budget *int) bool {
+	if *budget <= 0 {
+		return false
+	}
+	*budget--
 	if hasV3Definition(dir) || hasV3RequestFiles(dir) {
 		return true
 	}
-	entries := readDirBounded(dir, 1000)
-	for _, entry := range entries {
+	if depth >= 3 {
+		return false
+	}
+	for _, entry := range readDirBounded(dir, 1000) {
 		if !entry.IsDir() || strings.HasPrefix(entry.Name(), ".") {
 			continue
 		}
-		child := filepath.Join(dir, entry.Name())
-		if hasV3Definition(child) || hasV3RequestFiles(child) {
+		if looksLikeCollectionDir(filepath.Join(dir, entry.Name()), depth+1, budget) {
 			return true
 		}
 	}
@@ -77,8 +96,13 @@ func LooksLikeCollectionDir(dir string) bool {
 }
 
 func hasV3Definition(dir string) bool {
+	resources := filepath.Join(dir, ".resources")
+	info, err := os.Lstat(resources)
+	if err != nil || info.Mode()&os.ModeSymlink != 0 || !info.IsDir() {
+		return false
+	}
 	for _, name := range []string{"definition.yaml", "definition.yml"} {
-		info, err := os.Lstat(filepath.Join(dir, ".resources", name))
+		info, err := os.Lstat(filepath.Join(resources, name))
 		if err == nil && info.Mode().IsRegular() && info.Mode()&os.ModeSymlink == 0 {
 			return true
 		}
@@ -140,8 +164,8 @@ func ReadCollectionDir(dir string) (Collection, error) {
 	if !info.IsDir() {
 		return Collection{}, fmt.Errorf("%s is not a folder", filepath.Base(root))
 	}
-	r := &v3reader{root: root, paths: map[string]bool{}, reader: reader{warn: tally{}}}
-	def, err := r.definition(root)
+	r := &v3reader{root: root, paths: map[string]bool{}, ids: map[string]bool{}, reader: reader{warn: tally{}}}
+	def, err := r.definition(root, true)
 	if err != nil {
 		return Collection{}, err
 	}
@@ -164,9 +188,13 @@ func ReadCollectionDir(dir string) (Collection, error) {
 // reader is the v2.1 conversion every request and folder goes through.
 type v3reader struct {
 	reader
-	root  string
-	files int
-	paths map[string]bool
+	root                string
+	files               int
+	bytes               int
+	paths               map[string]bool
+	ids                 map[string]bool
+	firstUnreadable     string
+	firstDefinitionKind string
 }
 
 // uniquePath keeps two folders with the same display name from becoming one
@@ -186,9 +214,16 @@ func (r *v3reader) uniquePath(path string) string {
 	}
 }
 
-// read reads one regular file, bounded. Missing files are reported as
-// os.ErrNotExist so a caller can treat a definition as optional.
+// read reads one regular file with the example/message limit.
 func (r *v3reader) read(path string) ([]byte, error) {
+	return r.readLimit(path, v3MaxFile, "file size")
+}
+
+// readLimit reads one regular file, bounded by its own limit and by the
+// import's total byte budget. Missing files are reported as os.ErrNotExist so
+// a caller can treat a definition as optional. detail names the limit in a
+// warning.
+func (r *v3reader) readLimit(path string, limit int, detail string) ([]byte, error) {
 	info, err := os.Lstat(path)
 	if err != nil {
 		return nil, err
@@ -202,26 +237,58 @@ func (r *v3reader) read(path string) ([]byte, error) {
 	if r.files >= v3MaxFiles {
 		return nil, errV3TooMany
 	}
+	if info.Size() > int64(limit) {
+		r.files++
+		return nil, v3LimitError{detail}
+	}
+	remaining := v3MaxBytes - r.bytes
+	if remaining <= 0 {
+		r.files++
+		return nil, v3LimitError{"total size"}
+	}
+	maxRead := min(limit, remaining)
+	if info.Size() > int64(maxRead) {
+		r.files++
+		return nil, v3LimitError{"total size"}
+	}
 	r.files++
 	file, err := os.Open(path)
 	if err != nil {
 		return nil, err
 	}
 	defer file.Close()
-	data, err := io.ReadAll(io.LimitReader(file, v3MaxFile+1))
+	data, err := io.ReadAll(io.LimitReader(file, int64(maxRead)+1))
+	r.bytes += len(data)
 	if err != nil {
 		return nil, err
 	}
-	if len(data) > v3MaxFile {
-		return nil, errV3TooLarge
+	if len(data) > maxRead {
+		if remaining <= limit {
+			return nil, v3LimitError{"total size"}
+		}
+		return nil, v3LimitError{detail}
 	}
 	return data, nil
 }
 
-// readDir lists a directory with the same file budget as read. A directory
-// with more entries than the budget is truncated and reported, so listing it
-// cannot allocate without bound.
+// readDir lists a directory in name order. Directories count toward the file
+// budget, and a directory with more entries than the budget is truncated and
+// reported, so listing it cannot allocate without bound.
 func (r *v3reader) readDir(dir string) ([]os.DirEntry, error) {
+	info, err := os.Lstat(dir)
+	if err != nil {
+		return nil, err
+	}
+	if info.Mode()&os.ModeSymlink != 0 {
+		return nil, errV3Symlink
+	}
+	if !info.IsDir() {
+		return nil, errV3NotRegular
+	}
+	if r.files >= v3MaxFiles {
+		return nil, errV3TooMany
+	}
+	r.files++
 	file, err := os.Open(dir)
 	if err != nil {
 		return nil, err
@@ -235,14 +302,16 @@ func (r *v3reader) readDir(dir string) ([]os.DirEntry, error) {
 		r.warn.add("v3 limit", "files", 1)
 		entries = entries[:v3MaxFiles]
 	}
+	slices.SortFunc(entries, func(a, b os.DirEntry) int { return strings.Compare(a.Name(), b.Name()) })
 	return entries, nil
 }
 
-// fileProblem counts why one file could not be read.
+// fileProblem counts why one file or directory could not be read.
 func (r *v3reader) fileProblem(err error) {
+	var limit v3LimitError
 	switch {
-	case errors.Is(err, errV3TooLarge):
-		r.warn.add("v3 limit", "file size", 1)
+	case errors.As(err, &limit):
+		r.warn.add("v3 limit", limit.detail, 1)
 	case errors.Is(err, errV3TooMany):
 		r.warn.add("v3 limit", "files", 1)
 	default:
@@ -250,13 +319,53 @@ func (r *v3reader) fileProblem(err error) {
 	}
 }
 
+// relative names a file from the collection root for a warning.
+func (r *v3reader) relative(path string) string {
+	rel, err := filepath.Rel(r.root, path)
+	if err != nil {
+		return filepath.ToSlash(filepath.Base(path))
+	}
+	return filepath.ToSlash(rel)
+}
+
+// unreadable counts a file that could not be decoded and remembers the first
+// one, so the report can name it.
+func (r *v3reader) unreadable(path string) {
+	if r.firstUnreadable == "" {
+		r.firstUnreadable = r.relative(path)
+	}
+	r.warn.add("v3 unreadable", r.firstUnreadable, 1)
+}
+
+// definitionKind counts a folder definition whose $kind is not collection.
+func (r *v3reader) definitionKind(path string) {
+	if r.firstDefinitionKind == "" {
+		r.firstDefinitionKind = r.relative(path)
+	}
+	r.warn.add("v3 definition kind", r.firstDefinitionKind, 1)
+}
+
 // definition reads a collection or folder definition. A malformed definition
-// is reported and skipped, so one bad metadata file does not lose requests;
-// a file that names another kind is a hard error.
-func (r *v3reader) definition(dir string) (v3Definition, error) {
+// or a folder-level $kind other than collection is reported and skipped, so
+// one bad metadata file does not lose requests. A root definition that names
+// another kind is still an error: the chosen folder is not a collection.
+func (r *v3reader) definition(dir string, root bool) (v3Definition, error) {
+	resources := filepath.Join(dir, ".resources")
+	info, err := os.Lstat(resources)
+	if errors.Is(err, os.ErrNotExist) {
+		return v3Definition{}, nil
+	}
+	if err != nil {
+		r.warn.add("v3 path", "", 1)
+		return v3Definition{}, nil
+	}
+	if info.Mode()&os.ModeSymlink != 0 || !info.IsDir() {
+		r.warn.add("v3 path", "", 1)
+		return v3Definition{}, nil
+	}
 	for _, name := range []string{"definition.yaml", "definition.yml"} {
-		path := filepath.Join(dir, ".resources", name)
-		data, err := r.read(path)
+		path := filepath.Join(resources, name)
+		data, err := r.readLimit(path, v3MaxDocument, "document size")
 		if errors.Is(err, os.ErrNotExist) {
 			continue
 		}
@@ -266,11 +375,15 @@ func (r *v3reader) definition(dir string) (v3Definition, error) {
 		}
 		var def v3Definition
 		if err := unmarshalV3(data, &def); err != nil {
-			r.warn.add("v3 unreadable", "", 1)
+			r.unreadable(path)
 			return v3Definition{}, nil
 		}
 		if def.Kind != "" && def.Kind != "collection" {
-			return v3Definition{}, fmt.Errorf("%s: $kind is %q, want collection", path, def.Kind)
+			if root {
+				return v3Definition{}, fmt.Errorf("%s: $kind is %q, want collection", path, def.Kind)
+			}
+			r.definitionKind(path)
+			return v3Definition{}, nil
 		}
 		return def, nil
 	}
@@ -280,6 +393,9 @@ func (r *v3reader) definition(dir string) (v3Definition, error) {
 // addFolder records a level's settings when it has any, through the v2.1
 // folder conversion.
 func (r *v3reader) addFolder(path string, def v3Definition, authWarning string) {
+	if def.Uses.Kind() != 0 && def.Uses.Kind() != 'n' {
+		r.warn.add("collection uses", "", 1)
+	}
 	r.folder(path, def.Description, r.authValue(def.Auth, strings.TrimSuffix(authWarning, " auth")),
 		r.events(def.Scripts, "collection"), r.variables(def.Variables), request.Settings{}, authWarning)
 }
@@ -292,6 +408,10 @@ func (r *v3reader) walk(dir, path string, depth int) error {
 	}
 	entries, err := r.readDir(dir)
 	if err != nil {
+		if errors.Is(err, errV3TooMany) {
+			r.fileProblem(err)
+			return nil
+		}
 		return fmt.Errorf("read %s: %w", dir, err)
 	}
 	type child struct {
@@ -323,7 +443,7 @@ func (r *v3reader) walk(dir, path string, depth int) error {
 		}
 		switch {
 		case info.IsDir():
-			def, err := r.definition(full)
+			def, err := r.definition(full, false)
 			if err != nil {
 				return err
 			}
@@ -333,20 +453,23 @@ func (r *v3reader) walk(dir, path string, depth int) error {
 				name: name, dir: full, display: display, def: def,
 			})
 		case info.Mode().IsRegular() && isV3RequestFile(name):
-			data, err := r.read(full)
+			data, err := r.readLimit(full, v3MaxDocument, "document size")
 			if err != nil {
 				r.fileProblem(err)
 				continue
 			}
 			var req v3Request
 			if err := unmarshalV3(data, &req); err != nil {
-				r.warn.add("v3 unreadable", "", 1)
+				r.unreadable(full)
 				continue
 			}
 			children = append(children, child{
 				order: orderOf(req.Order), hasOrder: req.Order != nil,
 				name: name, req: &req, file: full,
 			})
+		case isV3RequestFile(name):
+			// A FIFO or device named like a request must not be opened.
+			r.warn.add("v3 path", "", 1)
 		}
 	}
 	sort.SliceStable(children, func(i, j int) bool {
@@ -403,7 +526,7 @@ func (r *v3reader) requestFile(file, parent string, req v3Request, name string, 
 		it.ProtocolProfileBehavior = req.Settings
 	case "graphql-request":
 		it.Request = r.graphqlRequest(req)
-		it.Event = r.events(req.Scripts, "request")
+		it.Event = r.events(req.Scripts, "graphql-request")
 		it.Response = r.examples(req, file, requestStem(filepath.Base(file)))
 		it.Transport = &request.Settings{}
 		r.warnSettings(req.Settings, "graphql")
@@ -448,6 +571,17 @@ func (r *v3reader) requestFile(file, parent string, req v3Request, name string, 
 	default:
 		r.warn.add("v3 request kind", cmp.Or(req.Kind, "no $kind"), 1)
 		return nil
+	}
+	// Copying a request file keeps its id. The app merges by id, so a
+	// repeated id would silently replace the first request; derive a new id
+	// and report it instead.
+	if it.ID != "" {
+		if r.ids[it.ID] {
+			r.warn.add("v3 duplicate id", it.ID, 1)
+			it.ID = ""
+		} else {
+			r.ids[it.ID] = true
+		}
 	}
 	return r.request(it, parent, ordinal)
 }
@@ -556,11 +690,18 @@ func marshalPM(req pmRequest) jsontext.Value {
 func (r *v3reader) urlValue(req v3Request, raw string) jsontext.Value {
 	r.paramMetadata(req.QueryParams)
 	r.paramMetadata(req.PathVariables)
+	return marshalURL(raw, req.QueryParams, req.PathVariables)
+}
+
+// marshalURL carries a URL string plus its structured query and path
+// variables, so the v2.1 URL conversion fills path variables and counts
+// disabled query parameters.
+func marshalURL(raw string, query, path []v3KV) jsontext.Value {
 	u := pmURL{Raw: raw}
-	for _, q := range req.QueryParams {
+	for _, q := range query {
 		u.Query = append(u.Query, pmKeyValue{Key: q.Key, Value: q.Value, Disabled: q.Disabled})
 	}
-	for _, p := range req.PathVariables {
+	for _, p := range path {
 		u.Variable = append(u.Variable, pmKeyValue{Key: p.Key, Value: p.Value})
 	}
 	if u.Raw == "" && len(u.Query) == 0 && len(u.Variable) == 0 {
@@ -607,7 +748,13 @@ func (r *v3reader) paramMetadata(rows []v3KV) {
 }
 
 func (r *v3reader) paramMetadataBody(body *v3Body) {
-	if body == nil || body.Type != "formdata" {
+	if body == nil {
+		return
+	}
+	if strings.TrimSpace(body.SchemaType) != "" {
+		r.warn.add("body metadata", "", 1)
+	}
+	if body.Type != "formdata" && body.Type != "urlencoded" {
 		return
 	}
 	var rows []v3KV
@@ -693,7 +840,7 @@ func (r *v3reader) authValue(v jsontext.Value, scope string) jsontext.Value {
 	if v.Kind() == '[' {
 		var list []v3Auth
 		if json.Unmarshal(v, &list) != nil {
-			r.warn.add("v3 unreadable", "", 1)
+			r.warn.add("v3 auth", "", 1)
 			return nil
 		}
 		if len(list) == 0 {
@@ -704,8 +851,11 @@ func (r *v3reader) authValue(v jsontext.Value, scope string) jsontext.Value {
 		}
 		one = list[0]
 	} else if json.Unmarshal(v, &one) != nil {
-		r.warn.add("v3 unreadable", "", 1)
+		r.warn.add("v3 auth", "", 1)
 		return nil
+	}
+	if strings.TrimSpace(text(one.Description)) != "" {
+		r.warn.add("auth description", "", 1)
 	}
 	kind := strings.TrimSpace(one.Type)
 	if kind == "" || kind == "inherit" {
@@ -738,9 +888,11 @@ func (r *v3reader) authValue(v jsontext.Value, scope string) jsontext.Value {
 	return jsontext.Value(data)
 }
 
-// events maps v3 scripts to the v2.1 event shape. Request scripts use
-// beforeRequest/afterResponse; collection and folder scripts prefix the
-// protocol. Scripts for a protocol the app does not run are counted.
+// events maps v3 scripts to the v2.1 event shape. HTTP request scripts use
+// beforeRequest/afterResponse, GraphQL request scripts use
+// beforeQuery/afterResponse, and collection/folder scripts prefix the
+// protocol. A protocol-prefixed GraphQL script is not merged into the shared
+// HTTP scripts: that would run it before every HTTP request.
 func (r *v3reader) events(scripts []v3Script, scope string) []pmEvent {
 	var out []pmEvent
 	for _, script := range scripts {
@@ -760,13 +912,24 @@ func (r *v3reader) events(scripts []v3Script, scope string) []pmEvent {
 				r.warn.add("script event", script.Type, 1)
 				continue
 			}
+		case "graphql-request":
+			switch script.Type {
+			case "beforeQuery", "beforeRequest":
+				listen = "prerequest"
+			case "afterResponse":
+				listen = "test"
+			default:
+				r.warn.add("script event", script.Type, 1)
+				continue
+			}
 		case "collection", "folder":
 			switch script.Type {
-			case "http:beforeRequest", "graphql:beforeQuery":
+			case "http:beforeRequest":
 				listen = "prerequest"
-			case "http:afterResponse", "graphql:afterResponse":
+			case "http:afterResponse":
 				listen = "test"
-			case "grpc:beforeInvoke", "grpc:onIncomingMessage", "grpc:afterResponse",
+			case "graphql:beforeQuery", "graphql:afterResponse",
+				"grpc:beforeInvoke", "grpc:onIncomingMessage", "grpc:afterResponse",
 				"kafka:beforeConsume", "kafka:onIncomingMessage", "kafka:afterConsume",
 				"kafka:beforeProduce", "kafka:afterProduce":
 				r.warn.add("protocol script", script.Type, 1)
@@ -778,6 +941,7 @@ func (r *v3reader) events(scripts []v3Script, scope string) []pmEvent {
 		}
 		if script.Language != "" && script.Language != "text/javascript" {
 			r.warn.add("script language", script.Language, 1)
+			continue
 		}
 		if script.Packages.Kind() == '{' {
 			r.warn.add("script package", "", 1)
@@ -899,9 +1063,14 @@ func (r *v3reader) graphqlSchema(v jsontext.Value, requestFile string) (string, 
 			r.warn.add("graphql schema", "", 1)
 			return "", ""
 		}
-		data, err := r.read(path)
-		if err != nil || len(data) > v3MaxSchema {
-			r.warn.add("graphql schema", "", 1)
+		data, err := r.readLimit(path, v3MaxSchema, "GraphQL schema size")
+		if err != nil {
+			var limit v3LimitError
+			if errors.As(err, &limit) {
+				r.fileProblem(err)
+			} else {
+				r.warn.add("graphql schema", "", 1)
+			}
 			return "", ""
 		}
 		return string(data), schema.Location
@@ -951,6 +1120,7 @@ func (r *v3reader) examples(req v3Request, requestFile, stem string) []jsontext.
 }
 
 func (r *v3reader) pmExample(example v3Example) (pmResponse, bool) {
+	r.exampleMetadata(example)
 	switch example.Kind {
 	case "", "http-example":
 		return r.httpExample(example)
@@ -962,21 +1132,72 @@ func (r *v3reader) pmExample(example v3Example) (pmResponse, bool) {
 	}
 }
 
+// exampleMetadata counts fields a saved example has that the app's HTTP
+// example shape cannot hold.
+func (r *v3reader) exampleMetadata(example v3Example) {
+	n := 0
+	if strings.TrimSpace(text(example.Description)) != "" {
+		n++
+	}
+	if example.Auth.Kind() == '{' || example.Auth.Kind() == '[' {
+		n++
+	}
+	if example.Settings.Kind() == '{' {
+		n++
+	}
+	if example.Schema.Kind() == '{' {
+		n++
+	}
+	r.warn.add("example metadata", "", n)
+}
+
+// exampleRequestMetadata counts descriptions and types on a saved example's
+// request fields, and the GraphQL operation type the app does not store.
+func (r *v3reader) exampleRequestMetadata(req *v3ExampleRequest) {
+	if req == nil {
+		return
+	}
+	r.paramMetadata(req.QueryParams)
+	r.paramMetadata(req.PathVariables)
+	var rows []v3KV
+	if json.Unmarshal(req.Headers, &rows) == nil {
+		r.paramMetadata(rows)
+	}
+	if req.OperationType != "" {
+		r.warn.add("example metadata", "", 1)
+	}
+}
+
+// headerMetadata counts descriptions and types on a header array. Object-form
+// headers carry no metadata.
+func (r *v3reader) headerMetadata(v jsontext.Value) {
+	var rows []v3KV
+	if json.Unmarshal(v, &rows) == nil {
+		r.paramMetadata(rows)
+	}
+}
+
 func (r *v3reader) httpExample(example v3Example) (pmResponse, bool) {
 	if example.Response == nil {
 		r.warn.add("example", "", 1)
 		return pmResponse{}, false
 	}
-	body := text(example.Response.Body.Content)
+	body := ""
+	if example.Response.Body != nil {
+		body = text(example.Response.Body.Content)
+	}
+	r.paramMetadataBody(example.Response.Body)
+	r.headerMetadata(example.Response.Headers)
 	if len(body) > request.MaxExampleBody {
 		r.warn.add("example", "", 1)
 		return pmResponse{}, false
 	}
 	original := pmRequest{Method: "GET"}
 	if example.Request != nil {
+		r.exampleRequestMetadata(example.Request)
 		original.Method = example.Request.Method
 		original.Header = exampleHeaders(example.Request.Headers)
-		original.URL = r.exampleURL(example.Request)
+		original.URL = marshalURL(example.Request.URL, example.Request.QueryParams, example.Request.PathVariables)
 		original.Body, _ = v3BodyToPM(example.Request.Body)
 	}
 	data, err := json.Marshal(original)
@@ -1010,15 +1231,22 @@ func (r *v3reader) graphqlExample(example v3Example) (pmResponse, bool) {
 		if len(example.Response.Events) > 1 {
 			r.warn.add("graphql example events", "", 1)
 		}
+	} else if body != "" && len(example.Response.Events) > 0 {
+		r.warn.add("graphql example events", "", 1)
 	}
 	if len(body) > request.MaxExampleBody {
 		r.warn.add("example", "", 1)
 		return pmResponse{}, false
 	}
+	r.headerMetadata(example.Response.HTTP.Headers)
 	original := pmRequest{Method: "POST"}
 	if example.Request != nil {
-		original.URL = r.exampleURL(example.Request)
+		r.exampleRequestMetadata(example.Request)
+		original.URL = marshalURL(example.Request.URL, example.Request.QueryParams, example.Request.PathVariables)
 		original.Header = exampleHeaders(example.Request.Headers)
+		if body := graphqlExampleBody(example.Request); body != "" {
+			original.Body = &pmBody{Mode: "raw", Raw: body}
+		}
 	}
 	data, err := json.Marshal(original)
 	if err != nil {
@@ -1032,25 +1260,36 @@ func (r *v3reader) graphqlExample(example v3Example) (pmResponse, bool) {
 	}, true
 }
 
-func (r *v3reader) exampleURL(req *v3ExampleRequest) jsontext.Value {
-	if req == nil {
-		return nil
+// graphqlExampleBody keeps the example's original GraphQL request as the JSON
+// envelope an HTTP send would use. The app's example request has one body
+// field, so this is the only place the query and variables can survive.
+func graphqlExampleBody(req *v3ExampleRequest) string {
+	if req == nil || strings.TrimSpace(req.Query) == "" {
+		return ""
 	}
-	u := pmURL{Raw: req.URL}
-	for _, q := range req.QueryParams {
-		u.Query = append(u.Query, pmKeyValue{Key: q.Key, Value: q.Value, Disabled: q.Disabled})
+	envelope := map[string]any{"query": req.Query}
+	var variables any
+	switch req.Variables.Kind() {
+	case '"':
+		text := text(req.Variables)
+		if json.Unmarshal([]byte(text), &variables) != nil {
+			variables = text
+		}
+	case 0, 'n':
+	default:
+		_ = json.Unmarshal(req.Variables, &variables)
 	}
-	for _, p := range req.PathVariables {
-		u.Variable = append(u.Variable, pmKeyValue{Key: p.Key, Value: p.Value})
+	if variables != nil {
+		envelope["variables"] = variables
 	}
-	if u.Raw == "" && len(u.Query) == 0 && len(u.Variable) == 0 {
-		return nil
+	if req.OperationName != "" {
+		envelope["operationName"] = req.OperationName
 	}
-	data, err := json.Marshal(u)
+	data, err := json.Marshal(envelope)
 	if err != nil {
-		return nil
+		return ""
 	}
-	return jsontext.Value(data)
+	return string(data)
 }
 
 // exampleHeaders accepts the array the schema documents and the object the
@@ -1092,31 +1331,37 @@ func jsonString(s string) jsontext.Value {
 // exampleFiles reads the example directory a request points at, or the
 // conventional sibling directory when it has no examples field.
 func (r *v3reader) exampleFiles(requestFile, ref, stem string) []v3Example {
+	dir := r.resourceDir(requestFile, ref, stem, "examples")
+	if dir == "" {
+		return nil
+	}
 	var list []v3Example
-	for _, dir := range r.resourceDirs(requestFile, ref, stem, "examples") {
-		entries, err := r.readDir(dir)
-		if err != nil {
+	entries, err := r.readDir(dir)
+	if err != nil {
+		r.fileProblem(err)
+		return nil
+	}
+	for _, entry := range entries {
+		name := entry.Name()
+		if entry.Type()&os.ModeSymlink != 0 {
 			r.warn.add("v3 path", "", 1)
 			continue
 		}
-		for _, entry := range entries {
-			name := entry.Name()
-			if entry.IsDir() || entry.Type()&os.ModeSymlink != 0 || !isExampleFile(name) {
-				continue
-			}
-			path := filepath.Join(dir, name)
-			data, err := r.read(path)
-			if err != nil {
-				r.fileProblem(err)
-				continue
-			}
-			var example v3Example
-			if err := unmarshalV3(data, &example); err != nil {
-				r.warn.add("example", "", 1)
-				continue
-			}
-			list = append(list, example)
+		if entry.IsDir() || !isExampleFile(name) {
+			continue
 		}
+		path := filepath.Join(dir, name)
+		data, err := r.read(path)
+		if err != nil {
+			r.fileProblem(err)
+			continue
+		}
+		var example v3Example
+		if err := unmarshalV3(data, &example); err != nil {
+			r.warn.add("example", "", 1)
+			continue
+		}
+		list = append(list, example)
 	}
 	sort.SliceStable(list, func(i, j int) bool {
 		if (list[i].Order == nil) != (list[j].Order == nil) {
@@ -1134,22 +1379,32 @@ func isExampleFile(name string) bool {
 	return strings.HasSuffix(name, ".example.yaml") || strings.HasSuffix(name, ".example.yml")
 }
 
-// resourceDirs resolves the explicit resource path or the conventional
-// .resources/<request>.resources/<kind> sibling.
-func (r *v3reader) resourceDirs(requestFile, ref, stem, kind string) []string {
-	if ref != "" {
-		path, ok := r.resolve(requestFile, ref)
-		if !ok {
-			r.warn.add("v3 path", "", 1)
-			return nil
-		}
-		return []string{path}
+// resourceDir resolves the explicit resource path or the conventional
+// .resources/<request>.resources/<kind> sibling. It only returns a real
+// directory: a FIFO or a symlink must not be opened as a resource directory.
+func (r *v3reader) resourceDir(requestFile, ref, stem, kind string) string {
+	explicit := ref != ""
+	pathRef := ref
+	if !explicit {
+		pathRef = filepath.Join(".resources", stem+".resources", kind)
 	}
-	path, ok := r.resolve(requestFile, filepath.Join(".resources", stem+".resources", kind))
+	path, ok := r.resolve(requestFile, pathRef)
 	if !ok {
-		return nil
+		if explicit {
+			r.warn.add("v3 path", "", 1)
+		} else if _, err := os.Lstat(filepath.Clean(filepath.Join(filepath.Dir(requestFile), filepath.FromSlash(pathRef)))); err == nil {
+			// The conventional path is optional, but one that exists and is
+			// still unusable (a symlink, FIFO or escape) must not vanish.
+			r.warn.add("v3 path", "", 1)
+		}
+		return ""
 	}
-	return []string{path}
+	info, err := os.Lstat(path)
+	if err != nil || info.Mode()&os.ModeSymlink != 0 || !info.IsDir() {
+		r.warn.add("v3 path", "", 1)
+		return ""
+	}
+	return path
 }
 
 // firstMessage reads the first saved WebSocket or Socket.IO message.
@@ -1170,28 +1425,34 @@ func (r *v3reader) firstMessage(req v3Request, requestFile string) (v3Message, b
 		if req.Messages.Kind() == '"' {
 			ref = text(req.Messages)
 		}
-		for _, dir := range r.resourceDirs(requestFile, ref, requestStem(filepath.Base(requestFile)), "messages") {
+		dir := r.resourceDir(requestFile, ref, requestStem(filepath.Base(requestFile)), "messages")
+		if dir != "" {
 			entries, err := r.readDir(dir)
 			if err != nil {
-				r.warn.add("v3 path", "", 1)
-				continue
-			}
-			for _, entry := range entries {
-				name := entry.Name()
-				if entry.IsDir() || entry.Type()&os.ModeSymlink != 0 || !isMessageFile(name) {
-					continue
+				r.fileProblem(err)
+			} else {
+				for _, entry := range entries {
+					name := entry.Name()
+					if entry.Type()&os.ModeSymlink != 0 {
+						r.warn.add("v3 path", "", 1)
+						continue
+					}
+					if entry.IsDir() || !isMessageFile(name) {
+						continue
+					}
+					path := filepath.Join(dir, name)
+					data, err := r.read(path)
+					if err != nil {
+						r.fileProblem(err)
+						continue
+					}
+					var message v3Message
+					if err := unmarshalV3(data, &message); err != nil {
+						r.unreadable(path)
+						continue
+					}
+					list = append(list, message)
 				}
-				data, err := r.read(filepath.Join(dir, name))
-				if err != nil {
-					r.fileProblem(err)
-					continue
-				}
-				var message v3Message
-				if err := unmarshalV3(data, &message); err != nil {
-					r.warn.add("v3 unreadable", "", 1)
-					continue
-				}
-				list = append(list, message)
 			}
 		}
 	}
@@ -1200,6 +1461,9 @@ func (r *v3reader) firstMessage(req v3Request, requestFile string) (v3Message, b
 	}
 	if len(list) > 1 {
 		r.warn.add("stream messages", "", len(list)-1)
+	}
+	if strings.TrimSpace(list[0].Description) != "" {
+		r.warn.add("stream message description", "", 1)
 	}
 	return list[0], true
 }
@@ -1270,8 +1534,9 @@ func (r *v3reader) resolve(requestFile, ref string) (string, bool) {
 }
 
 // unmarshalV3 reads YAML with the JSON tags the rest of this package uses.
+// Postman never writes anchors, so an alias is refused rather than expanded.
 func unmarshalV3(data []byte, out any) error {
-	jsonData, err := yaml.YAMLToJSON(data)
+	jsonData, err := yamlguard.ToJSON(data, yamlguard.Options{RejectAliases: true, MaxNodes: 200_000, MaxBytes: v3MaxFile})
 	if err != nil {
 		return err
 	}

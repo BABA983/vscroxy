@@ -332,7 +332,7 @@ func (r *reader) request(it pmItem, parent string, ordinal int) error {
 		case "Socket.IO":
 			out.Method, out.BodyMode, out.SocketIO = "GET", "Raw", request.SocketIOConfig{}
 			if it.SocketIO != nil {
-				out.Body, out.SocketIO.Event, out.SocketIO.WantACK, out.SocketIO.Auth = it.SocketIO.Body, it.SocketIO.Event, it.SocketIO.WantACK, it.SocketIO.Auth
+				out.Body, out.SocketIO.Event, out.SocketIO.WantACK = it.SocketIO.Body, it.SocketIO.Event, it.SocketIO.WantACK
 			}
 		}
 	}

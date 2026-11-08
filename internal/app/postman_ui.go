@@ -62,23 +62,34 @@ func (a *app) importCollectionFolder() {
 }
 
 // importCollectionDir reads a Postman v3 or Bruno collection directory off the
-// UI thread, then merges it on the UI thread.
+// UI thread, then merges it on the UI thread. Bruno wins when both markers are
+// present: a Bruno folder can contain a .resources directory of its own.
 func (a *app) importCollectionDir(path string) {
-	if postman.LooksLikeCollectionDir(path) {
+	defer func() {
+		if r := recover(); r != nil {
+			// Do not put the panic value in the log: it is not request data we
+			// want to record, and the type is enough to identify the bug.
+			a.fail("Import collection folder", fmt.Errorf("import stopped unexpectedly (%T)", r))
+		}
+	}()
+	switch collectionDirKindOf(path) {
+	case collectionDirV3:
 		col, err := postman.ReadCollectionDir(path)
 		if err != nil {
 			a.fail("Import Postman collection", err)
 			return
 		}
 		a.win.Update(func() { a.importPostmanCollection(col) })
-		return
+	case collectionDirBruno:
+		result, err := imports.ReadBrunoDir(path)
+		if err != nil {
+			a.fail("Import Bruno collection", err)
+			return
+		}
+		a.win.Update(func() { a.importThirdParty(result, "Import Bruno collection") })
+	default:
+		a.fail("Import collection folder", fmt.Errorf("not a Postman v3 collection or a Bruno collection"))
 	}
-	result, err := imports.ReadBrunoDir(path)
-	if err != nil {
-		a.fail("Import collection folder", fmt.Errorf("not a Postman v3 collection or a Bruno collection: %w", err))
-		return
-	}
-	a.win.Update(func() { a.importThirdParty(result, "Import Bruno collection") })
 }
 
 // importData merges data into the library; the UI thread calls it.
@@ -137,7 +148,11 @@ func (a *app) importData(data []byte, path string) {
 		a.envs, a.globals = envs, globals
 		a.reportImport(title, env.Warnings)
 	default:
-		format := imports.Detect(data)
+		format, detectErr := imports.DetectWithError(data)
+		if detectErr != nil {
+			a.fail("Import", detectErr)
+			return
+		}
 		switch format {
 		case imports.InsomniaV4, imports.InsomniaV5:
 			result, err := imports.ReadInsomnia(data)

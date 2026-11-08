@@ -373,7 +373,7 @@ func TestReadCollectionDirV3MalformedAndUnsafe(t *testing.T) {
 		if len(col.Requests) != 1 || col.Requests[0].Name != "Good" {
 			t.Fatalf("requests = %+v", col.Requests)
 		}
-		if !slices.Contains(col.Warnings, "Skipped 1 unreadable or malformed file") {
+		if !slices.Contains(col.Warnings, "Skipped 1 unreadable or malformed file (first: Bad.request.yaml)") {
 			t.Errorf("warnings = %q", col.Warnings)
 		}
 	})
@@ -388,7 +388,7 @@ func TestReadCollectionDirV3MalformedAndUnsafe(t *testing.T) {
 		if col.Name != filepath.Base(dir) || len(col.Requests) != 1 {
 			t.Errorf("name = %q, requests = %+v", col.Name, col.Requests)
 		}
-		if !slices.Contains(col.Warnings, "Skipped 1 unreadable or malformed file") {
+		if !slices.Contains(col.Warnings, "Skipped 1 unreadable or malformed file (first: .resources/definition.yaml)") {
 			t.Errorf("warnings = %q", col.Warnings)
 		}
 	})
@@ -427,7 +427,7 @@ func TestReadCollectionDirV3MalformedAndUnsafe(t *testing.T) {
 			t.Fatal(err)
 		}
 		col := readV3(t, dir)
-		if !slices.Contains(col.Warnings, "Skipped files larger than 8 MiB") {
+		if !slices.Contains(col.Warnings, "Skipped request or definition files larger than 1 MiB") {
 			t.Errorf("warnings = %q", col.Warnings)
 		}
 	})
@@ -510,7 +510,7 @@ func TestReadCollectionDirV3MalformedAndUnsafe(t *testing.T) {
 		if len(col.Requests) != 2 || col.Requests[0].Collection != "Root/Same" || col.Requests[1].Collection != "Root/Same (2)" {
 			t.Errorf("requests = %+v", col.Requests)
 		}
-		if !slices.Contains(col.Warnings, "Merged 1 folder whose display name collides with another") {
+		if !slices.Contains(col.Warnings, "Renamed 1 folder whose display name collides with another") {
 			t.Errorf("warnings = %q", col.Warnings)
 		}
 	})
