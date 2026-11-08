@@ -398,7 +398,7 @@ func TestLibraryRoundTripsMCPDocument(t *testing.T) {
 			Args: "-y\nserver\n/tmp", WorkingDir: "/tmp",
 			Env:  []request.Field{{Name: "TOKEN", Value: "{{token}}"}, {Name: "OFF", Value: "1", Disabled: true}},
 			Tool: "echo", ToolArgs: `{"text":"hi"}`, ResourceURI: "memo://welcome",
-			Prompt: "greet", PromptArgs: `{"name":"Ada"}`, TimeoutSeconds: 45, ProtocolVersion: "legacy",
+			Prompt: "greet", PromptArgs: `{"name":"Ada"}`, TimeoutSeconds: 45, ProtocolVersion: "2025-11-25",
 		},
 	}}
 	got := libraryRoundTrip(t, []savedRequest{want})

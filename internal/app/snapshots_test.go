@@ -244,6 +244,7 @@ func TestUISnapshots(t *testing.T) {
 		d := mcpConnected(a)
 		u := a.mcpState()
 		u.responseTab = 1
+		d.requestPercent = 32
 		pngData := mcpPNG()
 		u.session.result = &request.MCPResult{
 			Kind: "Tool", Title: "echo",
@@ -256,6 +257,11 @@ func TestUISnapshots(t *testing.T) {
 			Bytes:      1118 + 11 + 38,
 		}
 		u.session.resultSeq = 1
+		u.resultFor = "1"
+		u.resultBmp = make([]*ui.Bitmap, len(u.session.result.Content))
+		if bmp, err := ui.DecodeBitmap(pngData); err == nil {
+			u.resultBmp[1] = bmp
+		}
 		return d
 	}
 	states := []snapshot{
@@ -327,7 +333,7 @@ func TestUISnapshots(t *testing.T) {
 			d := mcpDraft(a, request.MCPConfig{Transport: request.MCPTransportStdio, Command: "/usr/local/bin/mcp-demo",
 				Args: "-y\n@modelcontextprotocol/server-filesystem\n/tmp", WorkingDir: "/tmp",
 				Env:             []request.Field{{Name: "TOKEN", Value: "{{token}}"}, {Name: "DEBUG", Value: "1", Disabled: true}},
-				ProtocolVersion: "legacy", TimeoutSeconds: 60})
+				ProtocolVersion: "2025-11-25", TimeoutSeconds: 60})
 			d.mcpState().tab = mcpTabConnection
 		}, want: "Command"},
 		{name: "requests-mcp-error", setup: func(a *app) {
@@ -412,6 +418,14 @@ func TestUISnapshots(t *testing.T) {
 			a.flows[0].respHeader.Set("Content-Type", "application/xml")
 			a.flows[0].resBody = "<root><incomplete>"
 		}, want: "incomplete XML document"},
+		{name: "dialog-mcp-consent", setup: func(a *app) {
+			a.addDocument(savedRequest{Protocol: "MCP", Name: "Local MCP", MCP: request.MCPConfig{Transport: request.MCPTransportStdio}}, "")
+			d := a.requestDocument
+			a.mcpConsent = mcpConsentState{open: true, d: d, key: "fixture", plan: request.MCPPlan{
+				Transport: request.MCPTransportStdio, Command: "npx", Args: []string{"-y", "@modelcontextprotocol/server-filesystem", "/tmp"},
+				WorkingDir: "/home/user", Env: []string{"TOKEN=hidden", "DEBUG=1"},
+			}}
+		}, want: "Run local MCP server?", short: true},
 		{name: "dialog-decode", setup: func(a *app) {
 			a.openDecoder(nil, "5L2g5aW977yM")
 		}, act: click("Decode"), want: "Decoded result"},

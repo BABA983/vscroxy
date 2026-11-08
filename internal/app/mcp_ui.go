@@ -1,11 +1,13 @@
 package app
 
 import (
+	"bytes"
 	"cmp"
 	"encoding/base64"
 	"encoding/json/jsontext"
 	"encoding/json/v2"
 	"fmt"
+	"image"
 	"strconv"
 	"strings"
 	"time"
@@ -46,6 +48,23 @@ type mcpDocument struct {
 	resultFor    string
 	resultBmp    []*ui.Bitmap
 	resultErr    []string
+	imageJob     *mcpImageJob
+}
+
+const (
+	mcpMaxImagePixels  = 16 << 20
+	mcpMaxResultPixels = 32 << 20
+)
+
+type mcpImageResult struct {
+	key string
+	bmp []*ui.Bitmap
+	err []string
+}
+
+type mcpImageJob struct {
+	key     string
+	answers chan mcpImageResult
 }
 
 func (d *requestDocument) mcpState() *mcpDocument {
@@ -67,7 +86,20 @@ func (u *mcpDocument) stop() {
 func (a *app) drainMCP() {
 	for _, d := range a.documents {
 		u := d.mcpUI
-		if d.protocol != "MCP" || u == nil || u.session == nil {
+		if d.protocol != "MCP" || u == nil {
+			continue
+		}
+		if u.imageJob != nil {
+			select {
+			case result := <-u.imageJob.answers:
+				if u.resultFor == result.key {
+					u.resultBmp, u.resultErr = result.bmp, result.err
+				}
+				u.imageJob = nil
+			default:
+			}
+		}
+		if u.session == nil {
 			continue
 		}
 		if u.session.snapshot().finished {
@@ -88,12 +120,30 @@ func (a *app) connectMCP(d *requestDocument) {
 	if plan.Transport != request.MCPTransportStdio && a.srv != nil && a.srv.Running() {
 		plan.Proxy, plan.ProxyCA, plan.Jar = a.srv.Addr(), a.srv.CACertificate(), a.requestCookies()
 	}
+	if plan.Transport == request.MCPTransportStdio {
+		key := mcpConsentKey(d, plan)
+		if a.mcpConsents == nil {
+			a.mcpConsents = map[string]bool{}
+		}
+		if !a.mcpConsents[key] {
+			a.mcpConsent = mcpConsentState{open: true, d: d, plan: plan, key: key}
+			return
+		}
+	}
+	a.startMCP(d, plan)
+}
+
+// startMCP opens the session after any stdio confirmation has been granted.
+func (a *app) startMCP(d *requestDocument, plan request.MCPPlan) {
+	u := d.mcpState()
+	r := d.value().Request
+	in, vars := a.sendContext(r), a.activeVars()
 	u.session = openMCPSession(plan, r, in, vars, a.invalidate)
 	u.problem, u.query, u.readerKey, u.reader, u.selected = "", "", "", nil, 0
 	u.argsEditor, u.argsFor, u.schemaReader, u.schemaFor = nil, "", nil, ""
 	u.responseTab, u.catalogTab, u.toolTab = 0, 0, 0
 	u.resultFor, u.resultBmp, u.resultErr = "", nil, nil
-	d.composeWaiting, d.sendCancel, d.sendCancelling = true, u.session.cancel, false
+	d.composeWaiting, d.sendCancel, d.sendCancelling = true, u.session.disconnect, false
 	d.historyPick, d.comparing = 0, false
 }
 
@@ -245,8 +295,8 @@ func (a *app) mcpConnectionEditor(c *ui.Context, t *ui.Theme, d *requestDocument
 			})
 		})
 		version := cmp.Or(d.mcpConfig.ProtocolVersion, "auto")
-		uikit.Select(c, &version, []string{"auto", "legacy", "2025-11-25", "2026-07-28"}).Label("MCP protocol version").Width(180).
-			Tooltip("auto negotiates the latest version; legacy is 2025-11-25; 2026-07-28 is stateless").OnChange(func() {
+		uikit.Select(c, &version, []string{"auto", "2025-06-18", "2025-11-25", "2026-07-28"}).Label("MCP protocol version").Width(180).
+			Tooltip("auto negotiates the latest version; a fixed version fails if the server chooses another").OnChange(func() {
 			d.mcpConfig.ProtocolVersion = version
 		})
 		if d.mcpConfig.Transport == request.MCPTransportStdio {
@@ -478,6 +528,9 @@ func (a *app) mcpResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 			if s.connected && s.server.Name != "" {
 				state += " · " + cmp.Or(s.server.Title, s.server.Name)
 			}
+			if s.progress != "" {
+				state += " · " + s.progress
+			}
 			uikit.Meta(c, state).SingleLine()
 		})
 		if u.session == nil {
@@ -563,23 +616,9 @@ func (a *app) mcpResult(c *ui.Context, t *ui.Theme, u *mcpDocument, s mcpSnapsho
 	}
 	result := s.result
 	key := fmt.Sprint(s.resultSeq)
-	if u.resultFor != key {
-		u.resultFor = key
-		u.resultBmp = make([]*ui.Bitmap, len(result.Content))
-		u.resultErr = make([]string, len(result.Content))
-		decoded := 0
-		for i, block := range result.Content {
-			if decoded >= 8 || len(block.Data) == 0 || block.Kind != "image" && !(block.Kind == "resource" && strings.HasPrefix(block.MIMEType, "image/")) {
-				continue
-			}
-			bmp, err := ui.DecodeBitmap(block.Data)
-			if err != nil {
-				u.resultErr[i] = err.Error()
-			} else {
-				u.resultBmp[i] = bmp
-			}
-			decoded++
-		}
+	a.startMCPImageDecode(u, result, key)
+	if s.progress != "" {
+		uikit.Meta(c, "Progress · "+s.progress).Padding(0, t.Space(3)).SingleLine()
 	}
 	ui.Row(c).Padding(t.Space(1), t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 		ui.Text(c, result.Kind+" · "+cmp.Or(result.Title, "result")).FontSize(uikit.TextBody).Grow(1).SingleLine()
@@ -596,10 +635,6 @@ func (a *app) mcpResult(c *ui.Context, t *ui.Theme, u *mcpDocument, s mcpSnapsho
 			if result.Description != "" {
 				uikit.Meta(c, "Description").Padding(0, 0, t.Space(1), 0)
 				ui.Text(c, request.MCPPreview(result.Description, 64<<10)).FontSize(uikit.TextBody)
-			}
-			if result.Structured != "" {
-				uikit.Meta(c, "structuredContent").Padding(0, 0, t.Space(1), 0)
-				ui.Text(c, request.MCPPreview(result.Structured, 64<<10)).Font(uikit.FontMono).FontSize(uikit.TextBody)
 			}
 			for i, block := range result.Content {
 				ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
@@ -619,13 +654,15 @@ func (a *app) mcpResult(c *ui.Context, t *ui.Theme, u *mcpDocument, s mcpSnapsho
 					uikit.Meta(c, label).SingleLine()
 				})
 				switch {
-				case block.Kind == "image" && u.resultBmp[i] != nil:
-					ui.Image(c, u.resultBmp[i]).MaxWidth(240).MaxHeight(160)
+				case block.Kind == "image" && i < len(u.resultBmp) && u.resultBmp[i] != nil:
+					ui.Image(c, u.resultBmp[i]).MaxWidth(200).MaxHeight(120)
 				case block.Kind == "image" || block.Kind == "audio" || block.Kind == "blob":
-					if u.resultErr[i] != "" {
+					if i < len(u.resultErr) && u.resultErr[i] != "" {
 						uikit.Hint(c, "Cannot decode "+block.Kind+": "+u.resultErr[i])
 					} else if len(block.Data) == 0 {
 						uikit.Hint(c, "The server's "+block.Kind+" data was omitted because it exceeds the 1 MiB media limit.")
+					} else if block.Kind == "image" && u.imageJob != nil {
+						uikit.Hint(c, "Decoding "+block.Kind+"…")
 					} else {
 						uikit.Hint(c, fmt.Sprintf("%s data · %d bytes (shown as base64)", block.Kind, len(block.Data)))
 						ui.Text(c, base64Preview(block.Data)).Font(uikit.FontMono).FontSize(uikit.TextMeta)
@@ -643,11 +680,71 @@ func (a *app) mcpResult(c *ui.Context, t *ui.Theme, u *mcpDocument, s mcpSnapsho
 					ui.Text(c, text).Font(uikit.FontMono).FontSize(uikit.TextBody)
 				}
 			}
+			if result.Structured != "" {
+				uikit.Meta(c, "structuredContent").Padding(0, 0, t.Space(1), 0)
+				ui.Text(c, request.MCPPreview(result.Structured, 64<<10)).Font(uikit.FontMono).FontSize(uikit.TextBody)
+			}
 			if result.Truncated {
 				uikit.Hint(c, fmt.Sprintf("Result truncated to fit %d MiB; %d bytes were returned in total.", request.MCPMaxResultBytes>>20, result.Bytes))
 			}
 		})
 	})
+}
+
+// startMCPImageDecode checks dimensions and decodes media off the UI thread.
+// The result is cached by result sequence; a result that changes while a job
+// runs starts a new job and discards the old one.
+func (a *app) startMCPImageDecode(u *mcpDocument, result *request.MCPResult, key string) {
+	if u.resultFor == key {
+		return
+	}
+	u.resultFor, u.resultBmp, u.resultErr, u.imageJob = key, nil, nil, nil
+	var indexes []int
+	for i, block := range result.Content {
+		if len(block.Data) == 0 || block.Kind != "image" && !(block.Kind == "resource" && strings.HasPrefix(block.MIMEType, "image/")) {
+			continue
+		}
+		indexes = append(indexes, i)
+	}
+	if len(indexes) == 0 {
+		return
+	}
+	job := &mcpImageJob{key: key, answers: make(chan mcpImageResult, 1)}
+	u.imageJob = job
+	go func() {
+		decoded := mcpImageResult{key: key, bmp: make([]*ui.Bitmap, len(result.Content)), err: make([]string, len(result.Content))}
+		pixels := 0
+		for _, i := range indexes {
+			block := result.Content[i]
+			width, height, err := mcpImageDimensions(block.Data)
+			if err != nil {
+				decoded.err[i] = err.Error()
+				continue
+			}
+			if width <= 0 || height <= 0 || width > mcpMaxResultPixels/height ||
+				width*height > mcpMaxImagePixels || pixels+width*height > mcpMaxResultPixels {
+				decoded.err[i] = fmt.Sprintf("image is %d×%d; the limit is %d megapixels per image and %d total", width, height, mcpMaxImagePixels>>20, mcpMaxResultPixels>>20)
+				continue
+			}
+			pixels += width * height
+			bmp, err := ui.DecodeBitmap(block.Data)
+			if err != nil {
+				decoded.err[i] = err.Error()
+			} else {
+				decoded.bmp[i] = bmp
+			}
+		}
+		job.answers <- decoded
+		a.invalidate()
+	}()
+}
+
+func mcpImageDimensions(data []byte) (int, int, error) {
+	config, _, err := image.DecodeConfig(bytes.NewReader(data))
+	if err != nil {
+		return 0, 0, err
+	}
+	return config.Width, config.Height, nil
 }
 
 func base64Preview(data []byte) string {

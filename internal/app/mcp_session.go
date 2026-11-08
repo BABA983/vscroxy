@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"net/url"
 	"slices"
 	"strings"
 	"sync"
@@ -67,6 +68,8 @@ type mcpSession struct {
 	result         *request.MCPResult
 	resultSeq      int
 	catalogNotice  string
+	progress       string
+	rpcSeq         int
 }
 
 type mcpSnapshot struct {
@@ -82,6 +85,7 @@ type mcpSnapshot struct {
 	evicted                       int
 	result                        *request.MCPResult
 	resultSeq                     int
+	progress                      string
 }
 
 func (s *mcpSession) snapshot() mcpSnapshot {
@@ -96,6 +100,7 @@ func (s *mcpSession) snapshot() mcpSnapshot {
 		tools: slices.Clone(s.tools), resources: slices.Clone(s.resources),
 		templates: slices.Clone(s.templates), prompts: slices.Clone(s.prompts),
 		events: slices.Clone(s.events), evicted: s.evicted, resultSeq: s.resultSeq,
+		progress: s.progress,
 	}
 	if s.result != nil {
 		result := *s.result
@@ -128,6 +133,45 @@ func (s *mcpSession) appendLocked(kind, name, text string) {
 	s.events = append(s.events, mcpEvent{seq: s.seq, at: time.Now(), kind: kind, name: ssePreview(name), text: request.MCPPreview(text, mcpEventPreview), size: size})
 }
 
+// rpc records a real JSON-RPC request or response. A server-initiated
+// request is "In"; the client's response to it is "Out".
+func (s *mcpSession) rpc(direction, method, text string) {
+	s.mu.Lock()
+	s.rpcSeq++
+	s.appendLocked("RPC "+direction, method, text)
+	s.mu.Unlock()
+	s.changed()
+}
+
+// progressUpdate keeps one live row per progress token instead of letting a
+// chatty server evict the rest of the timeline.
+func (s *mcpSession) progressUpdate(token string, progress, total float64, message string) {
+	text := fmt.Sprintf("%g", progress)
+	if total > 0 {
+		text += fmt.Sprintf(" / %g (%.0f%%)", total, progress/total*100)
+	}
+	if message != "" {
+		text += " · " + message
+	}
+	s.mu.Lock()
+	s.progress = text
+	name := ssePreview(token)
+	if n := len(s.events); n > 0 && s.events[n-1].kind == "Progress" && s.events[n-1].name == name {
+		s.events[n-1].text = request.MCPPreview(text, mcpEventPreview)
+		s.events[n-1].size = len(text)
+	} else {
+		s.appendLocked("Progress", token, text)
+	}
+	s.mu.Unlock()
+	s.changed()
+}
+
+func (s *mcpSession) rpcCount() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.rpcSeq
+}
+
 // openMCPSession connects and initializes in the background, then loads the
 // advertised catalog and waits for the connection to end.
 func openMCPSession(plan request.MCPPlan, input request.Request, scope request.Context, vars map[string]string, notify func()) *mcpSession {
@@ -136,7 +180,7 @@ func openMCPSession(plan request.MCPPlan, input request.Request, scope request.C
 		plan: plan, input: input, scope: scope, vars: maps.Clone(vars),
 		ctx: ctx, cancel: cancel, notify: notify, state: "Connecting",
 		connection: mcpConnectionInfo{
-			Transport: plan.Transport, Endpoint: plan.URL, Command: plan.Command,
+			Transport: plan.Transport, Endpoint: mcpEndpointText(plan.URL), Command: plan.Command,
 			Timeout: mcpTimeoutText(plan.Timeout), Insecure: plan.Insecure, Proxied: plan.Proxy != "",
 			EnvCount: len(plan.Env), ArgsCount: len(plan.Args),
 		},
@@ -164,10 +208,21 @@ func openMCPSession(plan request.MCPPlan, input request.Request, scope request.C
 				s.append("Log", name, text)
 			},
 			Stderr: func(line string) { s.append("stderr", "stdio", line) },
+			Progress: func(token string, progress, total float64, message string) {
+				s.progressUpdate(token, progress, total, message)
+			},
+			RPC: func(direction, method, text string) { s.rpc(direction, method, text) },
+			Reconnect: func() {
+				s.append("System", "Stream reconnect", "The server closed the standalone GET stream; reconnecting without replaying a POST.")
+			},
 		}
 		client, err := request.DialMCP(ctx, plan, handlers)
 		if timer != nil {
 			timer.Stop()
+		}
+		if err == nil && ctx.Err() != nil {
+			_ = client.Close()
+			err = ctx.Err()
 		}
 		if err != nil {
 			s.mu.Lock()
@@ -182,6 +237,10 @@ func openMCPSession(plan request.MCPPlan, input request.Request, scope request.C
 			s.changed()
 			return
 		}
+		// The SDK transports own their connection contexts: closing the
+		// session context alone does not close them. Tie Close to cancellation
+		// so Disconnect, tab close and quit end Wait and the process/HTTP session.
+		context.AfterFunc(ctx, func() { _ = client.Close() })
 		s.mu.Lock()
 		s.client, s.connected, s.state = client, true, "Connected"
 		s.server = client.Server()
@@ -208,6 +267,16 @@ func openMCPSession(plan request.MCPPlan, input request.Request, scope request.C
 		s.changed()
 	}()
 	return s
+}
+
+// mcpEndpointText hides userinfo, query and fragment from a displayed
+// endpoint: API keys often travel in the query string.
+func mcpEndpointText(raw string) string {
+	u, err := url.Parse(raw)
+	if err != nil || u.Host == "" {
+		return ""
+	}
+	return u.Scheme + "://" + u.Host + u.EscapedPath()
 }
 
 func mcpTimeoutText(timeout time.Duration) string {
@@ -258,62 +327,95 @@ func (s *mcpSession) refreshCatalog() bool {
 	s.mu.Lock()
 	s.catalogNotice = ""
 	s.mu.Unlock()
-	return s.start("catalog", "tools/list · resources/list · resources/templates/list · prompts/list",
-		func(ctx context.Context, client *request.MCPClient) (string, *request.MCPResult, error) {
-			var parts, problems []string
-			if server.Tools {
-				tools, err := client.ListTools(ctx)
-				if err != nil {
-					problems = append(problems, "tools: "+err.Error())
-				} else {
-					s.setTools(tools)
-					parts = append(parts, fmt.Sprintf("%d %s", len(tools), plural(len(tools), "tool", "tools")))
-				}
+	return s.start("catalog", func(ctx context.Context, client *request.MCPClient) (string, *request.MCPResult, error) {
+		client.BeginCatalog()
+		var parts, problems []string
+		list := func(label string, op func() error) {
+			before := s.rpcCount()
+			err := op()
+			if err == nil && s.rpcCount() == before {
+				s.append("Cache", label, "Served from the client's TTL cache; no JSON-RPC request was sent.")
 			}
-			if server.Resources {
-				resources, err := client.ListResources(ctx)
-				templates, templateErr := client.ListResourceTemplates(ctx)
-				if err != nil {
-					problems = append(problems, "resources: "+err.Error())
-				}
-				if templateErr != nil {
-					problems = append(problems, "resource templates: "+templateErr.Error())
-				}
-				if err == nil {
-					s.setResources(resources, templates)
-					parts = append(parts, fmt.Sprintf("%d %s · %d %s", len(resources), plural(len(resources), "resource", "resources"),
-						len(templates), plural(len(templates), "template", "templates")))
-				}
+			if err != nil {
+				problems = append(problems, label+": "+err.Error())
 			}
-			if server.Prompts {
-				prompts, err := client.ListPrompts(ctx)
-				if err != nil {
-					problems = append(problems, "prompts: "+err.Error())
-				} else {
-					s.setPrompts(prompts)
-					parts = append(parts, fmt.Sprintf("%d %s", len(prompts), plural(len(prompts), "prompt", "prompts")))
-				}
+		}
+		if server.Tools {
+			var tools []request.MCPTool
+			ok := true
+			list("tools/list", func() error {
+				var err error
+				tools, err = client.ListTools(ctx)
+				ok = err == nil
+				return err
+			})
+			if ok {
+				s.setTools(tools)
+				parts = append(parts, fmt.Sprintf("%d %s", len(tools), plural(len(tools), "tool", "tools")))
 			}
-			if len(problems) > 0 {
-				return "", nil, errors.New(strings.Join(problems, "; "))
+		}
+		if server.Resources {
+			var resources []request.MCPResource
+			var templates []request.MCPResourceTemplate
+			resourcesOK, templatesOK := true, true
+			list("resources/list", func() error {
+				var err error
+				resources, err = client.ListResources(ctx)
+				resourcesOK = err == nil
+				return err
+			})
+			list("resources/templates/list", func() error {
+				var err error
+				templates, err = client.ListResourceTemplates(ctx)
+				templatesOK = err == nil
+				return err
+			})
+			if resourcesOK || templatesOK {
+				s.setResources(resources, templates)
+				parts = append(parts, fmt.Sprintf("%d %s · %d %s", len(resources), plural(len(resources), "resource", "resources"),
+					len(templates), plural(len(templates), "template", "templates")))
 			}
-			if len(parts) == 0 {
-				return "The server advertises no tools, resources or prompts.", nil, nil
+		}
+		if server.Prompts {
+			var prompts []request.MCPPrompt
+			ok := true
+			list("prompts/list", func() error {
+				var err error
+				prompts, err = client.ListPrompts(ctx)
+				ok = err == nil
+				return err
+			})
+			if ok {
+				s.setPrompts(prompts)
+				parts = append(parts, fmt.Sprintf("%d %s", len(prompts), plural(len(prompts), "prompt", "prompts")))
 			}
-			return strings.Join(parts, " · "), nil, nil
-		})
+		}
+		if client.CatalogTruncated() {
+			s.mu.Lock()
+			s.catalogNotice = fmt.Sprintf("Catalog truncated at %d entries or %d MiB; refresh after narrowing it on the server.",
+				request.MCPMaxCatalogItems, request.MCPMaxCatalogBytes>>20)
+			s.mu.Unlock()
+		}
+		if len(problems) > 0 {
+			return "", nil, errors.New(strings.Join(problems, "; "))
+		}
+		if len(parts) == 0 {
+			return "The server advertises no tools, resources or prompts.", nil, nil
+		}
+		return strings.Join(parts, " · "), nil, nil
+	})
 }
 
-// start runs one operation at a time off the UI thread. The timeline records
-// the request label and arguments and the bounded result, never a secret value
-// from the environment.
-func (s *mcpSession) start(label, text string, op func(context.Context, *request.MCPClient) (string, *request.MCPResult, error)) bool {
+// start runs one operation at a time off the UI thread. The RPC middleware
+// records the actual request and the timeline records this bounded summary;
+// environment values never enter either.
+func (s *mcpSession) start(label string, op func(context.Context, *request.MCPClient) (string, *request.MCPResult, error)) bool {
 	s.mu.Lock()
 	if s.finished || s.client == nil || s.busy {
 		s.mu.Unlock()
 		return false
 	}
-	s.busy, s.problem = true, ""
+	s.busy, s.problem, s.progress = true, "", ""
 	client := s.client
 	ctx := s.ctx
 	var cancel context.CancelFunc
@@ -324,8 +426,6 @@ func (s *mcpSession) start(label, text string, op func(context.Context, *request
 	}
 	s.opCancel = cancel
 	s.mu.Unlock()
-	s.append("Out", label, text)
-	s.changed()
 	go func() {
 		defer cancel()
 		summary, result, err := op(ctx, client)
@@ -365,8 +465,7 @@ func (s *mcpSession) callTool(cfg request.MCPConfig) (string, error) {
 		return "", fmt.Errorf("choose a tool first")
 	}
 	label := "tools/call " + plan.Tool
-	text := plan.Tool + "\n" + string(plan.ToolArgs)
-	if s.start(label, text, func(ctx context.Context, client *request.MCPClient) (string, *request.MCPResult, error) {
+	if s.start(label, func(ctx context.Context, client *request.MCPClient) (string, *request.MCPResult, error) {
 		result, err := client.CallTool(ctx, plan.Tool, plan.ToolArgs)
 		if err != nil {
 			return "", nil, err
@@ -387,10 +486,14 @@ func (s *mcpSession) readResource(cfg request.MCPConfig) (string, error) {
 		return "", fmt.Errorf("enter a resource URI first")
 	}
 	label := "resources/read " + plan.ResourceURI
-	if s.start(label, plan.ResourceURI, func(ctx context.Context, client *request.MCPClient) (string, *request.MCPResult, error) {
+	if s.start(label, func(ctx context.Context, client *request.MCPClient) (string, *request.MCPResult, error) {
+		before := s.rpcCount()
 		result, err := client.ReadResource(ctx, plan.ResourceURI)
 		if err != nil {
 			return "", nil, err
+		}
+		if s.rpcCount() == before {
+			s.append("Cache", label, "Served from the client's TTL cache; no JSON-RPC request was sent.")
 		}
 		return result.Text, &result, nil
 	}) {
@@ -408,8 +511,7 @@ func (s *mcpSession) getPrompt(cfg request.MCPConfig) (string, error) {
 		return "", fmt.Errorf("choose a prompt first")
 	}
 	label := "prompts/get " + plan.Prompt
-	text := plan.Prompt + "\n" + string(plan.PromptArgs)
-	if s.start(label, text, func(ctx context.Context, client *request.MCPClient) (string, *request.MCPResult, error) {
+	if s.start(label, func(ctx context.Context, client *request.MCPClient) (string, *request.MCPResult, error) {
 		result, err := client.GetPrompt(ctx, plan.Prompt, plan.PromptArgs)
 		if err != nil {
 			return "", nil, err

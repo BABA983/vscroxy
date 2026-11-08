@@ -312,6 +312,25 @@ func composeTabFor(r savedRequest) int {
 	return composeTabHeaders
 }
 
+// stopDocuments stops every protocol session a request tab owns. Quit calls
+// it before the window goes away, so a stdio server or HTTP stream does not
+// outlive the app.
+func (a *app) stopDocuments() {
+	for _, d := range a.documents {
+		d.cancelSend()
+		d.structured.stop()
+		if d.grpcUI != nil {
+			d.grpcUI.stop()
+		}
+		if d.socketIOUI != nil {
+			d.socketIOUI.stop()
+		}
+		if d.mcpUI != nil {
+			d.mcpUI.stop()
+		}
+	}
+}
+
 func (a *app) closeDocument(d *requestDocument) {
 	at := slices.Index(a.documents, d)
 	if at < 0 {
@@ -327,6 +346,12 @@ func (a *app) closeDocument(d *requestDocument) {
 	}
 	if d.mqttUI != nil {
 		d.mqttUI.stop()
+	}
+	if d.mcpUI != nil {
+		d.mcpUI.stop()
+	}
+	if a.mcpConsent.d == d {
+		a.mcpConsent = mcpConsentState{}
 	}
 	a.documents = slices.Delete(a.documents, at, at+1)
 	if a.requestDocument == d {

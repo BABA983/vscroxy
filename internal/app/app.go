@@ -314,6 +314,12 @@ type app struct {
 	// bounds, which MyGo saves with the window's StateKey.
 	settingsPath     string
 	androidProxyPath string
+	// mcpConsents are local approvals for stdio commands, keyed by a hash of
+	// the document and its expanded command shape. They never enter a
+	// collection file.
+	mcpConsentsPath  string
+	mcpConsents      map[string]bool
+	mcpConsent       mcpConsentState
 	saved            settings
 	lastSave         time.Time
 	columns          ui.TableLayout
@@ -556,6 +562,8 @@ func newApp() *app {
 		a.addons.dir, a.addons.addon = filepath.Join(home, ".vscroxy", "tools", "addons"), true
 		a.envsPath = filepath.Join(home, ".vscroxy", "env.json")
 		a.cookiesPath = filepath.Join(home, ".vscroxy", "cookies.json")
+		a.mcpConsentsPath = filepath.Join(home, ".vscroxy", "mcp-consents.json")
+		a.mcpConsents, _ = loadMCPConsents(a.mcpConsentsPath)
 		a.vault.path = filepath.Join(home, ".vscroxy", "vault.json")
 		a.vault.keyPath = filepath.Join(home, ".vscroxy", "vault.key")
 		if saved, err := loadSettings(a.settingsPath); err != nil {
@@ -1618,6 +1626,7 @@ func (a *app) view(c *ui.Context) {
 	a.sseModal(c, t)
 	a.requestRenameModal(c, t)
 	a.headerWarnModal(c, t)
+	a.mcpConsentModal(c, t)
 	a.runnerModal(c, t)
 	a.loadRunnerModal(c, t)
 	a.cookiesModal(c, t)
@@ -2593,6 +2602,9 @@ func Run() error {
 			}
 			if d.socketIOUI != nil {
 				d.socketIOUI.stop()
+			}
+			if d.mcpUI != nil {
+				d.mcpUI.stop()
 			}
 			if d.mqttUI != nil {
 				d.mqttUI.stop()
