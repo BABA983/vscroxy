@@ -9,3 +9,9 @@ auth:
       value: user
     - key: password
       value: pass
+    - key: domain
+      value: EXAMPLE
+    - key: workstation
+      value: PC
+    - key: disableRetryRequest
+      value: true

@@ -151,7 +151,7 @@ schema and the bundled `collection-schema-v3` skill:
   descriptions, scripts and ordering;
 - HTTP body branches (`text`, `xml`, `urlencoded`, `formdata`, `file`,
   `graphql`);
-- every auth type the app supports, plus NTLM as an unsupported case;
+- every auth type the app supports, NTLM included;
 - native `graphql-request`, `grpc-request`, `websocket-request`,
   `socket.io-request`, `mqtt-request`, and Streamable HTTP/stdio `mcp-request` files;
 - WebSocket and Socket.IO message files;

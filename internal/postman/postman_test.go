@@ -638,24 +638,46 @@ func TestOAuth1HawkEdgeGridRoundTrip(t *testing.T) {
 	}
 }
 
-func TestReadNTLMIsUnsupported(t *testing.T) {
+func TestNTLMReadAndWrite(t *testing.T) {
 	data := []byte(`{
   "info": {"name": "Windows", "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"},
   "item": [{"name": "NTLM", "request": {"url": "https://example.com/", "auth": {"type": "ntlm", "ntlm": [
-    {"key": "username", "value": "ann"}, {"key": "password", "value": "secret"},
-    {"key": "domain", "value": "EXAMPLE"}, {"key": "workstation", "value": "PC"}
+    {"key": "username", "value": "ann"}, {"key": "password", "value": "{{vault:pw}}"},
+    {"key": "domain", "value": "EXAMPLE"}, {"key": "workstation", "value": "PC"},
+    {"key": "disableRetryRequest", "value": true, "type": "boolean"}
   ]}}}]
 }`)
 	got, err := postman.ReadCollection(data)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(got.Requests) != 1 || got.Requests[0].Auth.Type != "" {
+	want := request.Auth{Type: request.AuthNTLM, NTLM: request.NTLMAuth{
+		Username: "ann", Password: "{{vault:pw}}", Domain: "EXAMPLE", Workstation: "PC", DisableRetry: true,
+	}}
+	if len(got.Requests) != 1 || !reflect.DeepEqual(got.Requests[0].Auth, want) {
 		t.Fatalf("NTLM request = %+v", got.Requests)
 	}
-	want := []string{"1 request uses NTLM auth, which needs one connection for its challenge; imported as no auth"}
-	if !slices.Equal(got.Warnings, want) {
-		t.Errorf("Warnings:\n got %q\nwant %q", got.Warnings, want)
+	if len(got.Warnings) != 0 {
+		t.Errorf("warnings = %q", got.Warnings)
+	}
+
+	requests := []request.Request{{ID: "ntlm", Name: "NTLM", Collection: "Windows", Method: "GET", URL: "https://example.com/", Auth: want}}
+	exported, warnings, err := postman.WriteCollection("Windows", requests, nil)
+	if err != nil || len(warnings) != 0 {
+		t.Fatalf("%v, warnings %q", err, warnings)
+	}
+	compact := strings.Join(strings.Fields(string(exported)), "")
+	for _, text := range []string{`"type":"ntlm"`, `"key":"disableRetryRequest","value":true,"type":"boolean"`, `"key":"domain","value":"EXAMPLE"`} {
+		if !strings.Contains(compact, text) {
+			t.Errorf("export lacks %q:\n%s", text, exported)
+		}
+	}
+	again, err := postman.ReadCollection(exported)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(again.Warnings) != 0 || !reflect.DeepEqual(again.Requests, requests) {
+		t.Errorf("re-import = %+v, warnings %q", again.Requests, again.Warnings)
 	}
 }
 

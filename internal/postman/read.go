@@ -587,10 +587,11 @@ func (r *reader) auth(v jsontext.Value, unsupported string) (auth request.Auth, 
 			BaseURL: params["baseURL"], Nonce: params["nonce"], Timestamp: params["timestamp"], HeadersToSign: params["headersToSign"],
 		}}, true
 	case "ntlm":
-		// NTLM needs its Type 1/2/3 handshake on one connection; every send
-		// opens a new one, so importing it as no auth is honest.
-		r.warn.add(unsupported, "NTLM auth, which needs one connection for its challenge", 1)
-		return request.Auth{Type: "None"}, true
+		return request.Auth{Type: request.AuthNTLM, NTLM: request.NTLMAuth{
+			Username: params["username"], Password: params["password"],
+			Domain: params["domain"], Workstation: params["workstation"],
+			DisableRetry: params["disableRetryRequest"] == "true",
+		}}, true
 	}
 	r.warn.add(unsupported, kind+" auth", 1)
 	return request.Auth{Type: "None"}, true

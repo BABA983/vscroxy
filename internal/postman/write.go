@@ -144,6 +144,7 @@ type outAuth struct {
 	OAuth1   []outKV `json:"oauth1,omitempty"`
 	Hawk     []outKV `json:"hawk,omitempty"`
 	EdgeGrid []outKV `json:"edgegrid,omitempty"`
+	NTLM     []outKV `json:"ntlm,omitempty"`
 }
 
 type outKV struct {
@@ -451,6 +452,12 @@ func writeAuth(a request.Auth) *outAuth {
 			{"clientSecret", a.EdgeGrid.ClientSecret, "string"}, {"baseURL", a.EdgeGrid.BaseURL, "string"},
 			{"nonce", a.EdgeGrid.Nonce, "string"}, {"timestamp", a.EdgeGrid.Timestamp, "string"},
 			{"headersToSign", a.EdgeGrid.HeadersToSign, "string"},
+		}}
+	case request.AuthNTLM:
+		return &outAuth{Type: "ntlm", NTLM: []outKV{
+			{"username", a.NTLM.Username, "string"}, {"password", a.NTLM.Password, "string"},
+			{"domain", a.NTLM.Domain, "string"}, {"workstation", a.NTLM.Workstation, "string"},
+			{"disableRetryRequest", a.NTLM.DisableRetry, "boolean"},
 		}}
 	}
 	return &outAuth{Type: "noauth"}

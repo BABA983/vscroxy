@@ -273,8 +273,9 @@ func TestReadCollectionDirV3Auth(t *testing.T) {
 			}
 		}},
 		{"NTLM", func(t *testing.T, a request.Auth) {
-			if a.Type != "" {
-				t.Errorf("NTLM should import as no auth, got %+v", a)
+			if a.Type != request.AuthNTLM || a.NTLM.Username != "user" || a.NTLM.Password != "pass" ||
+				a.NTLM.Domain != "EXAMPLE" || a.NTLM.Workstation != "PC" || !a.NTLM.DisableRetry {
+				t.Errorf("NTLM = %+v", a)
 			}
 		}},
 	} {
@@ -455,7 +456,6 @@ messages:
 func TestReadCollectionDirV3Warnings(t *testing.T) {
 	col := readV3(t, filepath.Join("testdata", "v3", "shop"))
 	want := []string{
-		"1 request uses NTLM auth, which needs one connection for its challenge; imported as no auth",
 		"Dropped 1 Socket.IO subscription event; vscroxy shows every event the server sends",
 		"Dropped 1 gRPC schema or method descriptor; load the proto in the gRPC editor",
 		"Dropped descriptions or types on 1 parameter",
