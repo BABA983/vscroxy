@@ -3473,6 +3473,22 @@ not link exchanges. **Export session…** uses the common redaction review above
 Local sessions remain private, unencrypted historical data, not verified current
 network or certificate state.
 
+## Language
+
+The interface is available in English and Simplified Chinese. English is the
+source language; user data, protocol identifiers (methods, header names, status
+text, JSON-RPC methods), file formats and the log in `~/.vscroxy/logs` stay as
+they are in either language.
+
+Choose the language in **Settings → General → Language**:
+
+- **System** (the default) follows the computer's preferred languages, and
+  shows English when none of them is Chinese.
+- **English** and **简体中文** choose a language whatever the system says.
+
+The change applies at once, without a restart, to the main window, Settings,
+Tools and the menu bar. The choice is kept for the next launch.
+
 ## Next
 
 - Structured query/auth/form-data editors, cookie management, collection folders

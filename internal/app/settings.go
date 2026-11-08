@@ -22,7 +22,9 @@ import (
 // bounds, which MyGo saves itself for a window with a StateKey.
 type settings struct {
 	// Appearance is "light" or "dark"; empty follows the system.
-	Appearance   string       `json:"appearance,omitempty"`
+	Appearance string `json:"appearance,omitempty"`
+	// Language is "en" or "zh-Hans"; empty follows the computer's languages.
+	Language     string       `json:"language,omitempty"`
 	SidebarWidth float32      `json:"sidebarWidth,omitempty"`
 	TablePercent float32      `json:"tablePercent,omitempty"`
 	Columns      columnLayout `json:"columns,omitempty"`
@@ -181,6 +183,7 @@ func savedLayout(l ui.TableLayout) columnLayout {
 // sameSettings reports whether two settings would write the same file.
 func sameSettings(x, y settings) bool {
 	return x.Appearance == y.Appearance &&
+		x.Language == y.Language &&
 		x.SidebarWidth == y.SidebarWidth &&
 		x.TablePercent == y.TablePercent &&
 		x.InspectorLayout == y.InspectorLayout &&

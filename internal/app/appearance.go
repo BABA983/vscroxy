@@ -2,6 +2,7 @@ package app
 
 import (
 	"github.com/baba983/vscroxy/internal/uikit"
+	"github.com/baba983/vscroxy/locales"
 	"strconv"
 
 	"github.com/egoist/mygo"
@@ -112,7 +113,7 @@ func (a *app) openSettings(tab int) {
 		return
 	}
 	w := mygo.NewWindow(mygo.WindowOptions{
-		Title:           "Settings",
+		Title:           locales.Settings(),
 		Width:           760,
 		Height:          560,
 		MinWidth:        600,

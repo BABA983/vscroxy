@@ -303,6 +303,9 @@ type app struct {
 	// what it resolved to for this frame.
 	appearance string
 	dark       bool
+	// language is "en" or "zh-Hans", or empty to follow the computer's
+	// languages (see language.go).
+	language string
 	// macChrome is macOS's window layout: the sidebar full height with
 	// the traffic lights at its top (see view).
 	macChrome bool
@@ -582,6 +585,7 @@ func newApp() *app {
 			a.errText = err.Error()
 		} else {
 			a.saved, a.proxyPort, a.vault.scripts = saved, saved.ProxyPort, saved.VaultScripts
+			a.language = saved.Language
 			a.certificates = saved.Certificates.Normalize()
 			a.saved.Certificates = a.certificates
 			a.upstreamCfg = saved.Upstream.Normalize()
@@ -2626,6 +2630,8 @@ func Run() error {
 			a.runner.cancel()
 		}
 	}()
+	mygo.App.SetLocale(a.language)
+	a.watchLocale()
 	mygo.App.WhenReady(func() {
 		a.win = mygo.NewWindow(mygo.WindowOptions{
 			Title:           "vscroxy",

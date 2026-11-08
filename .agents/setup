@@ -40,6 +40,15 @@ else
 	step "system libraries already installed"
 fi
 
+# The interface ships Chinese as well as English, so a Linux box needs a CJK
+# font for Pango to draw it. Noto Sans CJK SC is the last fallback in the
+# theme's font stack.
+if ! fc-list :lang=zh 2>/dev/null | grep -q .; then
+	step "installing fonts-noto-cjk"
+	sudo apt-get update -qq
+	sudo apt-get install -y -qq fonts-noto-cjk
+fi
+
 step "downloading Go modules"
 cd "$repo_root"
 go mod download

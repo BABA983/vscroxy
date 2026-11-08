@@ -27,6 +27,9 @@ func restartPending(c *ui.Context, pending bool) {
 
 func (a *app) generalSettings(c *ui.Context, t *ui.Theme) {
 	uikit.SettingsPage(c, "General", "Rules, configuration files and help.", func() {
+		uikit.SettingsGroup(c, "Language", func() {
+			a.languageSettings(c)
+		})
 		uikit.SettingsGroup(c, "Rules and configuration", func() {
 			ui.Field(c, "Debugging rules", func() {
 				ui.Row(c).Children(func() {

@@ -13,6 +13,7 @@ import (
 
 	"github.com/baba983/vscroxy/internal/hosts"
 	"github.com/baba983/vscroxy/internal/uikit"
+	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/editor"
@@ -34,7 +35,7 @@ func (a *app) openTools(page string) {
 		return
 	}
 	w := mygo.NewWindow(mygo.WindowOptions{
-		Title:           "Tools",
+		Title:           locales.Tools(),
 		Width:           1080,
 		Height:          680,
 		MinWidth:        760,

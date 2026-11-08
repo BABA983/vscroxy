@@ -1,0 +1,9 @@
+{
+  "@@locale": "zh-Hans",
+  "language": "语言",
+  "languageDescription": "应用菜单、标签和提示文字的语言。跟随系统时使用这台电脑的语言。",
+  "languageNotSaved": "语言设置未保存",
+  "settings": "设置",
+  "system": "跟随系统",
+  "tools": "工具"
+}

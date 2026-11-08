@@ -1,0 +1,9 @@
+{
+  "@@locale": "en",
+  "language": "Language",
+  "languageDescription": "The language of the app's menus, labels and messages. System follows this computer's language.",
+  "languageNotSaved": "Language not saved",
+  "settings": "Settings",
+  "system": "System",
+  "tools": "Tools"
+}

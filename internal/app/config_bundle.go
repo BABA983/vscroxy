@@ -74,6 +74,7 @@ func (a *app) currentSettings() settings {
 	certificates.Secrets, certificates.SecretsProblem = nil, ""
 	return settings{
 		Appearance:           a.appearance,
+		Language:             a.language,
 		SidebarWidth:         a.sidebarWidth,
 		TablePercent:         a.tablePercent,
 		InspectorLayout:      a.workbench.layout,
@@ -121,6 +122,7 @@ func (a *app) exportConfig() (b configBundle, notes []string) {
 	// The key log, setup guide and cookie retention are this computer's:
 	// a configuration file never turns cookie persistence on elsewhere.
 	s.KeyLogPath, s.Guide, s.CookiePersistence = "", false, false
+	s.Language = ""      // the reader's language, not the bundle's
 	s.SOCKSPassword = "" // a credential, never in a shared bundle
 	ssl := a.inspectionConfig()
 	b = configBundle{Format: configFormat, Version: 1, Exported: time.Now().UTC(), Settings: &s, SSL: &ssl,
