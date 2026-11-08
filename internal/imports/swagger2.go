@@ -2,6 +2,7 @@ package imports
 
 import (
 	"context"
+	"encoding/json/jsontext"
 	"encoding/json/v2"
 	"errors"
 	"fmt"
@@ -21,9 +22,13 @@ func ReadSwagger2(data []byte) (*openapi3.T, []string, error) {
 	if len(data) > 16<<20 {
 		return nil, nil, errors.New("Swagger documents are limited to 16 MiB")
 	}
-	jsonData, err := yamlguard.ToJSON(data, yamlguard.Options{})
-	if err != nil {
-		return nil, nil, fmt.Errorf("read Swagger document: %w", err)
+	jsonData := data
+	if !jsontext.Value(data).IsValid() {
+		var err error
+		jsonData, err = yamlguard.ToJSON(data, yamlguard.Options{})
+		if err != nil {
+			return nil, nil, fmt.Errorf("read Swagger document: %w", err)
+		}
 	}
 	// YAML turns an unquoted 2.0 into a number; the OpenAPI 2 decoder expects
 	// the specification's string version.

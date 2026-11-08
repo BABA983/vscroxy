@@ -1,6 +1,7 @@
 package imports
 
 import (
+	"encoding/json/v2"
 	"strings"
 	"testing"
 	"time"
@@ -73,6 +74,34 @@ func TestDetectRejectsAliasBomb(t *testing.T) {
 	}
 	if elapsed := time.Since(start); elapsed > 5*time.Second {
 		t.Fatalf("alias bomb took %s", elapsed)
+	}
+}
+
+func TestSwagger2JSONInput(t *testing.T) {
+	data, err := json.Marshal(map[string]any{
+		"swagger": "2.0",
+		"info": map[string]any{
+			"title":       "JSON Swagger",
+			"version":     "1",
+			"description": strings.Repeat("x", 2<<20),
+		},
+		"paths": map[string]any{
+			"/ping": map[string]any{
+				"get": map[string]any{
+					"responses": map[string]any{"200": map[string]any{"description": "ok"}},
+				},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	doc, _, err := ReadSwagger2(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if doc.Info == nil || doc.Info.Title != "JSON Swagger" || doc.Paths.Find("/ping") == nil {
+		t.Errorf("doc = %+v", doc)
 	}
 }
 
