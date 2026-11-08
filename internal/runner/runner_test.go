@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/baba983/vscroxy/internal/capture"
+	"github.com/baba983/vscroxy/internal/ntlmtest"
 	"github.com/baba983/vscroxy/internal/request"
 )
 
@@ -122,5 +123,33 @@ func TestCallerTimeoutCapsRequestTimeout(t *testing.T) {
 				t.Fatalf("stopped after %s, want about 1s, not the server's 4s", elapsed)
 			}
 		})
+	}
+}
+
+func TestNTLMRequestInRunner(t *testing.T) {
+	auth := &ntlmtest.Server{Username: "ann", Password: "s3" + "cret", Domain: "EXAMPLE"}
+	upstream := httptest.NewUnstartedServer(auth)
+	upstream.Config.ConnContext = auth.ConnContext
+	upstream.Start()
+	defer upstream.Close()
+	srv := runnerProxy(t)
+
+	var got request.Execution
+	summary, err := Run(t.Context(), srv, []Step{{
+		Request: request.Request{Method: "GET", URL: upstream.URL + "/orders", Auth: request.Auth{
+			Type: request.AuthNTLM, NTLM: request.NTLMAuth{Username: "ann", Password: "s3" + "cret", Domain: "EXAMPLE"},
+		}},
+	}}, Options{Iterations: 1}, func(result Result) error {
+		got = result.Execution
+		return nil
+	})
+	if err != nil || summary.Completed != 1 || summary.Failed != 0 {
+		t.Fatalf("run = %+v, %v", summary, err)
+	}
+	if got.Err != nil || got.Response == nil || got.Response.Status != http.StatusOK || got.Response.ResponseBody != "authenticated" {
+		t.Fatalf("runner step = %+v", got)
+	}
+	if auth.Connections() != 1 || len(auth.Requests()) != 3 {
+		t.Errorf("connections=%d requests=%+v, want one connection with three steps", auth.Connections(), auth.Requests())
 	}
 }
