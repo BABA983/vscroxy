@@ -240,6 +240,18 @@ func TestUISnapshots(t *testing.T) {
 		a.composeWaiting, a.sendCancel = true, func() {}
 		return d
 	}
+	mcpReconnecting := func(a *app) *requestDocument {
+		d := mcpConnected(a)
+		u := a.mcpState()
+		u.session.state = "Reconnecting"
+		u.session.events = u.session.events[:4]
+		u.session.events = append(u.session.events, mcpEvent{seq: 5, at: snapshotTime.Add(5 * time.Second),
+			kind: "System", name: "Stream", text: "Reconnecting · attempt 3 · last error dial tcp 127.0.0.1:7890: connect: connection refused"})
+		u.session.events[4].size = len(u.session.events[4].text)
+		u.session.seq, u.session.reconnectSeq = 5, 5
+		u.responseTab, u.selected = 0, 4
+		return d
+	}
 	mcpResult := func(a *app) *requestDocument {
 		d := mcpConnected(a)
 		u := a.mcpState()
@@ -324,6 +336,7 @@ func TestUISnapshots(t *testing.T) {
 			mcpDraft(a, request.MCPConfig{Transport: request.MCPTransportStreamableHTTP})
 		}, want: "No MCP session yet"},
 		{name: "requests-mcp-connected", setup: func(a *app) { mcpConnected(a) }, want: "Echo"},
+		{name: "requests-mcp-reconnecting", setup: func(a *app) { mcpReconnecting(a) }, want: "Reconnecting"},
 		{name: "requests-mcp-result", setup: func(a *app) { mcpResult(a) }, want: "structuredContent"},
 		{name: "requests-mcp-timeline", setup: func(a *app) {
 			mcpConnected(a)
