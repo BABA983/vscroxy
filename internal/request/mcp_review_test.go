@@ -17,7 +17,6 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
-	"syscall"
 	"testing"
 	"time"
 
@@ -534,7 +533,7 @@ func waitProcessGone(t *testing.T, pid int) {
 	t.Helper()
 	deadline := time.Now().Add(5 * time.Second)
 	for time.Now().Before(deadline) {
-		if err := syscall.Kill(pid, 0); err != nil {
+		if !mcpProcessAlive(pid) {
 			return
 		}
 		time.Sleep(20 * time.Millisecond)
