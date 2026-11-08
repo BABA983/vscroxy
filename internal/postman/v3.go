@@ -300,6 +300,7 @@ func (r *v3reader) walk(dir, path string, depth int) error {
 		name     string
 		dir      string
 		path     string
+		display  string
 		def      v3Definition
 		req      *v3Request
 		file     string
@@ -329,7 +330,7 @@ func (r *v3reader) walk(dir, path string, depth int) error {
 			display := cmp.Or(strings.TrimSpace(def.Name), name)
 			children = append(children, child{
 				order: orderOf(def.Order), hasOrder: def.Order != nil,
-				name: name, dir: full, path: r.uniquePath(path + "/" + segment(display)), def: def,
+				name: name, dir: full, display: display, def: def,
 			})
 		case info.Mode().IsRegular() && isV3RequestFile(name):
 			data, err := r.read(full)
@@ -357,6 +358,13 @@ func (r *v3reader) walk(dir, path string, depth int) error {
 		}
 		return children[i].name < children[j].name
 	})
+	// Reserve colliding display names in the sorted order, not in the
+	// filesystem's directory order.
+	for i := range children {
+		if children[i].req == nil {
+			children[i].path = r.uniquePath(path + "/" + segment(children[i].display))
+		}
+	}
 	seen := map[string]int{}
 	for _, c := range children {
 		if c.req != nil {
