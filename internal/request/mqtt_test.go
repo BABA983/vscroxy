@@ -732,6 +732,47 @@ func TestMQTTWebsocketUsesProxy(t *testing.T) {
 	}
 }
 
+// A proxy that accepts the connection but never answers CONNECT must not
+// hold the dial past cancellation or its timeout.
+func TestMQTTProxyCONNECTStallIsBounded(t *testing.T) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = listener.Close() })
+	go func() {
+		for {
+			conn, err := listener.Accept()
+			if err != nil {
+				return
+			}
+			t.Cleanup(func() { _ = conn.Close() })
+		}
+	}()
+	for _, tc := range []struct {
+		name    string
+		cancel  time.Duration
+		timeout time.Duration
+	}{
+		{"cancelled", 200 * time.Millisecond, time.Minute},
+		{"timeout", time.Minute, 300 * time.Millisecond},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(t.Context(), tc.cancel)
+			defer cancel()
+			start := time.Now()
+			conn, err := dialMQTTProxy(ctx, "tcp", listener.Addr().String(), "broker.test:443", tc.timeout, true)
+			if err == nil {
+				_ = conn.Close()
+				t.Fatal("dial through a silent proxy succeeded")
+			}
+			if elapsed := time.Since(start); elapsed > 5*time.Second {
+				t.Fatalf("dial returned after %v: %v", elapsed, err)
+			}
+		})
+	}
+}
+
 func TestMQTTWebsocketLargePublish(t *testing.T) {
 	broker := startTestBroker(t, nil, true)
 	ctx := mqttContext(t)

@@ -976,6 +976,11 @@ func dialMQTTProxy(ctx context.Context, network, proxyAddress, target string, ti
 	if err != nil {
 		return nil, fmt.Errorf("proxy %s: %w", proxyAddress, err)
 	}
+	// Bound the CONNECT exchange: a stalled proxy must not hold the dial
+	// past its timeout or a cancelled connect.
+	_ = conn.SetDeadline(time.Now().Add(timeout))
+	stop := context.AfterFunc(ctx, func() { _ = conn.SetDeadline(time.Unix(1, 0)) })
+	defer stop()
 	var request strings.Builder
 	fmt.Fprintf(&request, "CONNECT %s HTTP/1.1\r\nHost: %s\r\n", target, target)
 	if verify {
@@ -997,6 +1002,11 @@ func dialMQTTProxy(ctx context.Context, network, proxyAddress, target string, ti
 		_ = conn.Close()
 		return nil, fmt.Errorf("proxy CONNECT %s: %s", target, response.Status)
 	}
+	if !stop() {
+		_ = conn.Close()
+		return nil, fmt.Errorf("proxy CONNECT %s: %w", target, context.Cause(ctx))
+	}
+	_ = conn.SetDeadline(time.Time{})
 	// Do not close a 200 CONNECT response body: Go models the tunnel as an
 	// unbounded body, so closing it would close the connection we return.
 	if reader.Buffered() > 0 {
