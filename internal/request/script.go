@@ -68,11 +68,11 @@ var pmSource string
 // Libraries are the modules require loads built in; an addon cannot take
 // one of these names.
 var Libraries = []string{
-	"assert", "atob", "btoa", "buffer", "chai", "cheerio",
-	"crypto-js", "csv-parse/lib/sync", "events", "fs",
-	"lodash", "moment", "os", "path", "process",
+	"ajv", "assert", "atob", "backbone", "btoa", "buffer", "chai", "cheerio",
+	"crypto-js", "csv-parse/lib/sync", "events", "fs", "json", "liquid-json",
+	"lodash", "moment", "os", "path", "postman-collection", "process",
 	"_process", "punycode", "querystring", "stream", "string_decoder", "timers",
-	"url", "util", "xml2js",
+	"tv4", "url", "util", "uuid", "xml2js",
 }
 
 // The libraries compile once; every script still gets a fresh runtime.
@@ -100,17 +100,25 @@ var (
 // with their own host setup (chai, lodash, crypto-js and moment). Each bundle
 // is a CommonJS module; it is compiled once, on the first require, and every
 // script runtime still evaluates it separately.
-var processProgram = vendorProgram("node/process.js")
+var (
+	liquidJSONProgram = vendorProgram("liquid-json.js")
+	processProgram    = vendorProgram("node/process.js")
+)
 
 var sandboxPrograms = map[string]func() *goja.Program{
+	"ajv":                ajvProgram,
 	"assert":             vendorProgram("node/assert.js"),
+	"backbone":           vendorProgram("backbone.js"),
 	"buffer":             vendorProgram("node/buffer.js"),
 	"cheerio":            vendorProgram("cheerio.js"),
 	"csv-parse/lib/sync": vendorProgram("csv-parse-sync.js"),
 	"events":             vendorProgram("node/events.js"),
 	"fs":                 vendorProgram("node/fs.js"),
+	"json":               liquidJSONProgram,
+	"liquid-json":        liquidJSONProgram,
 	"os":                 vendorProgram("node/os.js"),
 	"path":               vendorProgram("node/path.js"),
+	"postman-collection": vendorProgram("postman-collection.js"),
 	"process":            processProgram,
 	"_process":           processProgram,
 	"punycode":           vendorProgram("node/punycode.js"),
@@ -118,8 +126,10 @@ var sandboxPrograms = map[string]func() *goja.Program{
 	"stream":             vendorProgram("node/stream.js"),
 	"string_decoder":     vendorProgram("node/string_decoder.js"),
 	"timers":             vendorProgram("node/timers.js"),
+	"tv4":                vendorProgram("tv4.js"),
 	"url":                vendorProgram("node/url.js"),
 	"util":               vendorProgram("node/util.js"),
+	"uuid":               vendorProgram("uuid.js"),
 	"xml2js":             vendorProgram("xml2js.js"),
 }
 

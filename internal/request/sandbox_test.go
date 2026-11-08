@@ -77,7 +77,7 @@ func TestSandboxLibrariesMatchNode(t *testing.T) {
 
 // TestSandboxGlobals covers the globals Postman's legacy sandbox adds on top
 // of require. The expected strings come from Node with lodash 4.18.1,
-// crypto-js 4.2.0 and cheerio 0.22.0.
+// crypto-js 4.2.0, tv4 1.3.0, cheerio 0.22.0 and backbone 1.6.0.
 func TestSandboxGlobals(t *testing.T) {
 	script := `
 const out = {};
@@ -89,7 +89,9 @@ out.btoaRequire = require("btoa")("hi");
 out.xml = xml2Json("<a><b>1</b></a>");
 out.lodash = _.kebabCase("Hello World");
 out.crypto = CryptoJS.SHA256("x").toString().slice(0, 8);
+out.tv4 = tv4.validate({ a: 1 }, { type: "object", required: ["a"] });
 out.cheerio = cheerio.load("<title>T</title>")("title").text();
+out.backbone = new (Backbone.Model.extend({ defaults: { x: 1 } }))().get("x");
 pm.environment.set("out", JSON.stringify(out));`
 	run := &scriptRun{vars: map[string]string{}}
 	if err := runScript(script, run, nil); err != nil {
@@ -102,7 +104,7 @@ pm.environment.set("out", JSON.stringify(out));`
 	want := map[string]any{
 		"buffer": "aGk=", "atob": "hi", "btoa": "aGk=", "atobRequire": "hi", "btoaRequire": "aGk=",
 		"xml":    map[string]any{"a": map[string]any{"b": "1"}},
-		"lodash": "hello-world", "crypto": "2d711642", "cheerio": "T",
+		"lodash": "hello-world", "crypto": "2d711642", "tv4": true, "cheerio": "T", "backbone": float64(1),
 	}
 	for key, value := range want {
 		if fmt.Sprint(got[key]) != fmt.Sprint(value) {

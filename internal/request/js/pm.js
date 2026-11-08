@@ -548,7 +548,9 @@
 	lazy("Buffer", function () { return host.library("buffer").Buffer; });
 	lazy("_", function () { return global.require("lodash"); });
 	lazy("CryptoJS", function () { return global.require("crypto-js"); });
+	lazy("tv4", function () { return global.require("tv4"); });
 	lazy("cheerio", function () { return global.require("cheerio"); });
+	lazy("Backbone", function () { return global.require("backbone"); });
 	global.xml2Json = function (value) {
 		var xml2js = global.require("xml2js"), result = {};
 		xml2js.parseString(value, { explicitArray: false, async: false, trim: true, mergeAttrs: false },
