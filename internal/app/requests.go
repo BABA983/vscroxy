@@ -317,6 +317,7 @@ func composeTabFor(r savedRequest) int {
 // it before the window goes away, so a stdio server or HTTP stream does not
 // outlive the app.
 func (a *app) stopDocuments() {
+	var mqttSessions []*mqttSession
 	var closing sync.WaitGroup
 	for _, d := range a.documents {
 		d.cancelSend()
@@ -329,13 +330,18 @@ func (a *app) stopDocuments() {
 		}
 		if d.mcpUI != nil {
 			u := d.mcpUI
-			closing.Add(1)
-			go func() {
-				defer closing.Done()
+			closing.Go(func() {
 				u.stopAndWait(mcpCloseTimeout)
-			}()
+			})
+		}
+		if d.mqttUI != nil {
+			d.mqttUI.stop()
+			if d.mqttUI.session != nil {
+				mqttSessions = append(mqttSessions, d.mqttUI.session)
+			}
 		}
 	}
+	waitMQTTSessions(mqttSessions, time.Second)
 	closing.Wait()
 }
 

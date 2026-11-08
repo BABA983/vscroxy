@@ -2600,27 +2600,7 @@ func Run() error {
 		a.columnRead.stop()
 		a.structured[0].stop()
 		a.structured[1].stop()
-		var mqttSessions []*mqttSession
-		for _, d := range a.documents {
-			d.cancelSend()
-			d.structured.stop()
-			if d.grpcUI != nil {
-				d.grpcUI.stop()
-			}
-			if d.socketIOUI != nil {
-				d.socketIOUI.stop()
-			}
-			if d.mcpUI != nil {
-				d.mcpUI.stop()
-			}
-			if d.mqttUI != nil {
-				d.mqttUI.stop()
-				if d.mqttUI.session != nil {
-					mqttSessions = append(mqttSessions, d.mqttUI.session)
-				}
-			}
-		}
-		waitMQTTSessions(mqttSessions, time.Second)
+		a.stopDocuments()
 	}
 	mygo.App.OnQuit(cancelRequests)
 	defer cancelRequests()
