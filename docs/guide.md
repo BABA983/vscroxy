@@ -2434,12 +2434,15 @@ literal secret variables become local Current values, and vault references are
 skipped. gRPC schemas, descriptors, scripts and examples, extra stream
 messages/examples, MQTT/Kafka/MCP/LLM/data requests, and parameter or variable
 descriptions that have no field here are listed after the import. The reader
-caps a collection at 10,000 files/directory entries, 8 MiB per example or
-message, 1 MiB per request or definition, 1 MiB of SDL, 128 MiB in total and
-32 folder levels; it never follows symbolic links, refuses YAML aliases (Postman
-never writes anchors), reads only regular files, and refuses paths outside the
-collection root. Postman's **Export collection** still writes v2.1 JSON, so
-this app exports v2.1; use `postman collection migrate` for a v3 copy.
+caps a collection at 10,000 files/directory entries, 8 MiB per example,
+message or request, 1 MiB per collection or folder definition, 1 MiB of SDL,
+64 MiB in total and 32 folder levels; it never follows symbolic links, refuses
+YAML aliases (Postman never writes anchors), reads only regular files, and
+refuses paths outside the collection root. For a Native Git repository, choose
+`postman/collections/<collection>` rather than the repository root; the root
+may contain `.git`, `node_modules` and other projects.
+Postman's **Export collection** still writes v2.1 JSON, so this app exports
+v2.1; use `postman collection migrate` for a v3 copy.
 
 The same **Import collection folder…** action reads a Bruno directory with
 `bruno.json`, `collection.bru`, `folder.bru` files and `environments/*.bru`.

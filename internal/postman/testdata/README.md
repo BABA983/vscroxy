@@ -217,10 +217,10 @@ the app.
 The directory reader treats the collection as untrusted input:
 
 - at most 10,000 files or directory entries per import;
-- at most 8 MiB per example or message YAML file;
-- at most 1 MiB per collection, folder or request definition;
+- at most 8 MiB per example, message or request YAML file;
+- at most 1 MiB per collection or folder definition;
 - at most 1 MiB for an imported GraphQL SDL file;
-- at most 128 MiB of YAML read per import;
+- at most 64 MiB of YAML read per import;
 - at most 32 folder levels;
 - symbolic links are never followed, and `.resources` must be a real
   directory;
