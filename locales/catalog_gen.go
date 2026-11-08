@@ -5728,6 +5728,16 @@ func (msgs Messages) DisableDeviceAccess() string {
 	return Catalog.Format(msgs.locale, "disableDeviceAccess", nil)
 }
 
+// DisableRetryingTheRequest says "Disable retrying the request"
+// in the language the app shows.
+func DisableRetryingTheRequest() string { return In(i18n.Locale()).DisableRetryingTheRequest() }
+
+// DisableRetryingTheRequest says "Disable retrying the request"
+// in the language of msgs.
+func (msgs Messages) DisableRetryingTheRequest() string {
+	return Catalog.Format(msgs.locale, "disableRetryingTheRequest", nil)
+}
+
 // DisableSystemProxy says "Disable system proxy"
 // in the language the app shows.
 func DisableSystemProxy() string { return In(i18n.Locale()).DisableSystemProxy() }
@@ -5878,6 +5888,16 @@ func DocumentationPath(path string) string { return In(i18n.Locale()).Documentat
 // in the language of msgs.
 func (msgs Messages) DocumentationPath(path string) string {
 	return Catalog.Format(msgs.locale, "documentationPath", map[string]any{"path": path})
+}
+
+// Domain says "Domain"
+// in the language the app shows.
+func Domain() string { return In(i18n.Locale()).Domain() }
+
+// Domain says "Domain"
+// in the language of msgs.
+func (msgs Messages) Domain() string {
+	return Catalog.Format(msgs.locale, "domain", nil)
 }
 
 // DomainDecryptionDisabled says "Domain decryption disabled"
@@ -12706,6 +12726,96 @@ func (msgs Messages) Now() string {
 	return Catalog.Format(msgs.locale, "now", nil)
 }
 
+// NtlmAuthenticationFailed says "NTLM authentication failed"
+// in the language the app shows.
+func NtlmAuthenticationFailed() string { return In(i18n.Locale()).NtlmAuthenticationFailed() }
+
+// NtlmAuthenticationFailed says "NTLM authentication failed"
+// in the language of msgs.
+func (msgs Messages) NtlmAuthenticationFailed() string {
+	return Catalog.Format(msgs.locale, "ntlmAuthenticationFailed", nil)
+}
+
+// NtlmClosedConnection says "NTLM authentication failed: the server closed the connection after its NTLM challenge."
+// in the language the app shows.
+func NtlmClosedConnection() string { return In(i18n.Locale()).NtlmClosedConnection() }
+
+// NtlmClosedConnection says "NTLM authentication failed: the server closed the connection after its NTLM challenge."
+// in the language of msgs.
+func (msgs Messages) NtlmClosedConnection() string {
+	return Catalog.Format(msgs.locale, "ntlmClosedConnection", nil)
+}
+
+// NtlmCodeHint says "NTLM needs the server’s challenge on one connection, so every snippet sends the request without an Authorization he…"
+// in the language the app shows.
+func NtlmCodeHint() string { return In(i18n.Locale()).NtlmCodeHint() }
+
+// NtlmCodeHint says "NTLM needs the server’s challenge on one connection, so every snippet sends the request without an Authorization he…"
+// in the language of msgs.
+func (msgs Messages) NtlmCodeHint() string {
+	return Catalog.Format(msgs.locale, "ntlmCodeHint", nil)
+}
+
+// NtlmDisableRetryHint says "Sends once and returns the server's 401 without answering the NTLM challenge."
+// in the language the app shows.
+func NtlmDisableRetryHint() string { return In(i18n.Locale()).NtlmDisableRetryHint() }
+
+// NtlmDisableRetryHint says "Sends once and returns the server's 401 without answering the NTLM challenge."
+// in the language of msgs.
+func (msgs Messages) NtlmDisableRetryHint() string {
+	return Catalog.Format(msgs.locale, "ntlmDisableRetryHint", nil)
+}
+
+// NtlmEnterUsername says "NTLM authentication failed: enter a username."
+// in the language the app shows.
+func NtlmEnterUsername() string { return In(i18n.Locale()).NtlmEnterUsername() }
+
+// NtlmEnterUsername says "NTLM authentication failed: enter a username."
+// in the language of msgs.
+func (msgs Messages) NtlmEnterUsername() string {
+	return Catalog.Format(msgs.locale, "ntlmEnterUsername", nil)
+}
+
+// NtlmFailureDetail says "NTLM authentication failed: {detail}"
+// in the language the app shows.
+func NtlmFailureDetail(detail string) string { return In(i18n.Locale()).NtlmFailureDetail(detail) }
+
+// NtlmFailureDetail says "NTLM authentication failed: {detail}"
+// in the language of msgs.
+func (msgs Messages) NtlmFailureDetail(detail string) string {
+	return Catalog.Format(msgs.locale, "ntlmFailureDetail", map[string]any{"detail": detail})
+}
+
+// NtlmNoChallenge says "NTLM authentication failed: the server did not send an NTLM challenge."
+// in the language the app shows.
+func NtlmNoChallenge() string { return In(i18n.Locale()).NtlmNoChallenge() }
+
+// NtlmNoChallenge says "NTLM authentication failed: the server did not send an NTLM challenge."
+// in the language of msgs.
+func (msgs Messages) NtlmNoChallenge() string {
+	return Catalog.Format(msgs.locale, "ntlmNoChallenge", nil)
+}
+
+// NtlmStartProxy says "NTLM authentication failed: start the local proxy first."
+// in the language the app shows.
+func NtlmStartProxy() string { return In(i18n.Locale()).NtlmStartProxy() }
+
+// NtlmStartProxy says "NTLM authentication failed: start the local proxy first."
+// in the language of msgs.
+func (msgs Messages) NtlmStartProxy() string {
+	return Catalog.Format(msgs.locale, "ntlmStartProxy", nil)
+}
+
+// NtlmUsernameHint says "DOMAIN\\user or user@domain supplies the domain when Domain is empty."
+// in the language the app shows.
+func NtlmUsernameHint() string { return In(i18n.Locale()).NtlmUsernameHint() }
+
+// NtlmUsernameHint says "DOMAIN\\user or user@domain supplies the domain when Domain is empty."
+// in the language of msgs.
+func (msgs Messages) NtlmUsernameHint() string {
+	return Catalog.Format(msgs.locale, "ntlmUsernameHint", nil)
+}
+
 // Off says "Off"
 // in the language the app shows.
 func Off() string { return In(i18n.Locale()).Off() }
@@ -13404,6 +13514,16 @@ func OptionalTheAppSDirectory() string { return In(i18n.Locale()).OptionalTheApp
 // in the language of msgs.
 func (msgs Messages) OptionalTheAppSDirectory() string {
 	return Catalog.Format(msgs.locale, "optionalTheAppSDirectory", nil)
+}
+
+// OptionalWorkstationExample says "Optional, e.g. PC-01"
+// in the language the app shows.
+func OptionalWorkstationExample() string { return In(i18n.Locale()).OptionalWorkstationExample() }
+
+// OptionalWorkstationExample says "Optional, e.g. PC-01"
+// in the language of msgs.
+func (msgs Messages) OptionalWorkstationExample() string {
+	return Catalog.Format(msgs.locale, "optionalWorkstationExample", nil)
 }
 
 // OrCreateOrImportA says "Or create or import a standalone OpenAPI 3.0 / 3.1 specification."
@@ -22774,6 +22894,16 @@ func WorkingDirectory() string { return In(i18n.Locale()).WorkingDirectory() }
 // in the language of msgs.
 func (msgs Messages) WorkingDirectory() string {
 	return Catalog.Format(msgs.locale, "workingDirectory", nil)
+}
+
+// Workstation says "Workstation"
+// in the language the app shows.
+func Workstation() string { return In(i18n.Locale()).Workstation() }
+
+// Workstation says "Workstation"
+// in the language of msgs.
+func (msgs Messages) Workstation() string {
+	return Catalog.Format(msgs.locale, "workstation", nil)
 }
 
 // WriteNonSensitiveCurrentValues says "Write non-sensitive Current values into Initial; credentials stay local"

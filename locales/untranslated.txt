@@ -66,4 +66,5 @@ us-east-1
 {{vault:edgegrid_secret}}
 {{vault:hawk_key}}
 {{vault:jwt_secret}}
+{{vault:ntlm_password}}
 {{vault:oauth1_secret}}

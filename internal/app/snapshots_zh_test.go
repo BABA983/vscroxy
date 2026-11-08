@@ -69,6 +69,14 @@ func TestUISnapshotsChinese(t *testing.T) {
 		}, want: "规则"},
 		{name: "settings-general", setup: func(a *app) { snapshotSettings(a, 0) }, want: "语言"},
 		{name: "requests-mqtt", setup: mqtt, want: "主题筛选器接受"},
+		{name: "requests-auth-ntlm", setup: func(a *app) {
+			openDraft(a, a.flows[0])
+			a.composeTab, a.auth.Type = composeTabAuth, request.AuthNTLM
+			a.auth.NTLM = request.NTLMAuth{
+				Username: "ann", Password: "{{vault:ntlm_password}}",
+				Domain: "EXAMPLE", Workstation: "PC-01", DisableRetry: true,
+			}
+		}, want: "禁用请求重试"},
 		{name: "capture-search-mode", act: func(t *testing.T, tt *ui.Tester) {
 			if err := tt.Click("抓包搜索模式"); err != nil {
 				t.Fatal(err)

@@ -587,6 +587,13 @@
       }
     }
   },
+  "@ntlmFailureDetail": {
+    "placeholders": {
+      "detail": {
+        "type": "String"
+      }
+    }
+  },
   "@openLinkedDraft": {
     "placeholders": {
       "number": {
@@ -1880,6 +1887,7 @@
   "direction": "Direction",
   "disableAccessBeforeChangingThe": "Disable access before changing the address or allowlist.",
   "disableDeviceAccess": "Disable device access",
+  "disableRetryingTheRequest": "Disable retrying the request",
   "disableSystemProxy": "Disable system proxy",
   "disableTool": "Disable {name}",
   "discard": "Discard",
@@ -1895,6 +1903,7 @@
   "dismissStatusSavedRequestsStay": "Dismiss status; saved requests stay",
   "docs": "Docs",
   "documentationPath": "Documentation · {path}",
+  "domain": "Domain",
   "domainDecryptionDisabled": "Domain decryption disabled",
   "domainOptional": "Domain (optional)",
   "domainRuleEnabledReconnectTo": "Domain rule enabled · reconnect to inspect new requests",
@@ -2566,6 +2575,15 @@
   "notesBaselineAndComparisonIn": "Notes, baseline and comparison in History",
   "nounHeader": "header",
   "now": "Now",
+  "ntlmAuthenticationFailed": "NTLM authentication failed",
+  "ntlmClosedConnection": "NTLM authentication failed: the server closed the connection after its NTLM challenge.",
+  "ntlmCodeHint": "NTLM needs the server’s challenge on one connection, so every snippet sends the request without an Authorization header.",
+  "ntlmDisableRetryHint": "Sends once and returns the server's 401 without answering the NTLM challenge.",
+  "ntlmEnterUsername": "NTLM authentication failed: enter a username.",
+  "ntlmFailureDetail": "NTLM authentication failed: {detail}",
+  "ntlmNoChallenge": "NTLM authentication failed: the server did not send an NTLM challenge.",
+  "ntlmStartProxy": "NTLM authentication failed: start the local proxy first.",
+  "ntlmUsernameHint": "DOMAIN\\user or user@domain supplies the domain when Domain is empty.",
   "off": "Off",
   "offByDefaultOnEvery": "Off by default on every launch.",
   "offByDefaultTheApp": "Off by default: the app verifies the remote certificate. Turn this on only for a development server whose certificate is not trusted.",
@@ -2635,6 +2653,7 @@
   "optionalOauthCallback": "Optional, oauth_callback",
   "optionalOauthVerifier": "Optional, oauth_verifier",
   "optionalTheAppSDirectory": "Optional · the app's directory by default",
+  "optionalWorkstationExample": "Optional, e.g. PC-01",
   "orCreateOrImportA": "Or create or import a standalone OpenAPI 3.0 / 3.1 specification.",
   "originCapturedRequests": "{origin} · {count} captured requests",
   "originDraft": "Origin draft",
@@ -3557,6 +3576,7 @@
   "wireEvidenceNotCurrentRules": "Wire evidence, not current rules. Redirect hops stay separate; source comparison uses the client result.",
   "wireshark": "Wireshark",
   "workingDirectory": "Working directory",
+  "workstation": "Workstation",
   "writeNonSensitiveCurrentValues": "Write non-sensitive Current values into Initial; credentials stay local",
   "writeTlsSecretsToA": "Write TLS secrets to a file Wireshark reads to decrypt this capture. Applies after a restart.",
   "writesTheInitialValuesShown": "Writes the Initial values shown here, saved or not, in Postman's environment format; Current values are excluded"

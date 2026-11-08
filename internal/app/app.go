@@ -3131,7 +3131,7 @@ func (a *app) sendComposed() {
 	go func() {
 		defer cancel()
 		got := r.Execute(ctx, srv, in, vars, jar)
-		result := requestResult{document: d, environment: env, summary: runSummary(got), outcome: got.Outcome(), response: got.Response, tests: got.Tests, replies: got.Replies, console: got.Console, varsBefore: vars, vars: got.Vars, writes: got.Writes}
+		result := requestResult{document: d, environment: env, summary: runSummary(got), outcome: executionOutcome(got), response: got.Response, tests: got.Tests, replies: got.Replies, console: got.Console, varsBefore: vars, vars: got.Vars, writes: got.Writes}
 		record := snapshotExperiment(0, r, env, got)
 		record.RunKey, record.DraftKey, record.Source = runKey, draftKey, origin
 		result.experiment = &record

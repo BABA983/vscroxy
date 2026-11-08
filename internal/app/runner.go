@@ -26,7 +26,7 @@ func runSummary(r request.Execution) string {
 		return "Skipped by its pre-request script"
 	}
 	if r.Err != nil {
-		return r.Err.Error()
+		return ntlmErrorText(r.Err)
 	}
 	if r.Response == nil {
 		return fmt.Sprintf("WebSocket: %d replies", len(r.Replies))

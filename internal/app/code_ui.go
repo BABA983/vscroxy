@@ -108,7 +108,7 @@ func (a *app) codeModal(c *ui.Context, t *ui.Theme) {
 					uikit.Hint(c, locales.NativeSnippetsLeaveRedirectTimeout())
 				}
 				if s.ntlm {
-					uikit.Hint(c, "NTLM needs the server’s challenge on one connection, so every snippet sends the request without an Authorization header.")
+					uikit.Hint(c, locales.NtlmCodeHint())
 				}
 				if hint := codeHints[s.language]; hint != "" {
 					uikit.Hint(c, hint)

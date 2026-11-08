@@ -74,7 +74,7 @@ func snapshotExperiment(id int, draft savedRequest, environment string, got requ
 	draft.GraphQL.Schema, draft.GraphQL.SchemaSource = "", ""
 	r := experimentRecord{
 		ID: id, At: time.Now(), Draft: draft, Source: draft.Source, Environment: environment,
-		Summary: runSummary(got), Outcome: got.Outcome(), Tests: slices.Clone(got.Tests), Replies: slices.Clone(got.Replies),
+		Summary: runSummary(got), Outcome: executionOutcome(got), Tests: slices.Clone(got.Tests), Replies: slices.Clone(got.Replies),
 		Console:   slices.Clone(got.Console),
 		Variables: slices.Clone(got.Variables),
 	}
