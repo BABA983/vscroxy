@@ -38,8 +38,8 @@ func historyFilters(c *ui.Context, status, source *string) {
 	if *source == "" {
 		*source = historySources[0]
 	}
-	uikit.Select(c, status, historyStatuses).Label(locales.HistoryStatus()).FillWidth().Shrink(1).MinWidth(0)
-	uikit.Select(c, source, historySources).Label(locales.HistorySource()).FillWidth().Shrink(1).MinWidth(0)
+	uikit.SelectLabels(c, status, historyStatuses, optionLabel).Label(locales.HistoryStatus()).FillWidth().Shrink(1).MinWidth(0)
+	uikit.SelectLabels(c, source, historySources, optionLabel).Label(locales.HistorySource()).FillWidth().Shrink(1).MinWidth(0)
 }
 
 // historyRecords are the retained runs of the request d edits, newest first:

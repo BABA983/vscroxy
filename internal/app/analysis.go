@@ -156,7 +156,7 @@ func (s *captureAnalysis) compare(c *ui.Context, left, right flow, labels [2]str
 		s.part = "Response body"
 	}
 	ui.Row(c).Padding(t.Space(1), t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Wrap().Children(func() {
-		uikit.Select(c, &s.part, []string{"Response body", "Response headers", "Request body", "Request headers"}).
+		uikit.SelectLabels(c, &s.part, []string{"Response body", "Response headers", "Request body", "Request headers"}, optionLabel).
 			Label(locales.CompareContent()).Width(165).Height(uikit.HeightControl).FontSize(uikit.TextBody).Radius(uikit.RadiusControl)
 		if uikit.SecondaryButton(c, locales.SwapSides()).Clicked() {
 			s.swapped = !s.swapped

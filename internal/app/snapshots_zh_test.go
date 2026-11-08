@@ -57,6 +57,7 @@ func TestUISnapshotsChinese(t *testing.T) {
 	states := []struct {
 		name  string
 		setup func(*app)
+		act   func(*testing.T, *ui.Tester)
 		want  string
 	}{
 		{name: "capture-selected", want: "请求检查器"},
@@ -68,7 +69,23 @@ func TestUISnapshotsChinese(t *testing.T) {
 		}, want: "规则"},
 		{name: "settings-general", setup: func(a *app) { snapshotSettings(a, 0) }, want: "语言"},
 		{name: "requests-mqtt", setup: mqtt, want: "主题筛选器接受"},
+		{name: "capture-search-mode", act: func(t *testing.T, tt *ui.Tester) {
+			if err := tt.Click("抓包搜索模式"); err != nil {
+				t.Fatal(err)
+			}
+			tt.Frame()
+		}, want: "通配符"},
+		{name: "requests-body-type", setup: func(a *app) { openDraft(a, a.flows[0]); a.composeTab = composeTabBody }, act: func(t *testing.T, tt *ui.Tester) {
+			if err := tt.Click("请求正文类型"); err != nil {
+				t.Fatal(err)
+			}
+			tt.Frame()
+		}, want: "多部分表单"},
 		{name: "dialog-delete", setup: func(a *app) { a.confirmDeleteFolder("Workspace") }, want: "此操作无法撤销"},
+		{name: "dialog-socket", setup: func(a *app) {
+			a.socket.open, a.socket.url = true, "wss://api.example.com/events"
+			a.socket.session = &wsSession{state: "Disconnected"}
+		}, want: "会话方向"},
 	}
 	type file struct {
 		Path string `json:"path"`
@@ -102,6 +119,9 @@ func TestUISnapshotsChinese(t *testing.T) {
 					tt := ui.NewTester(func(c *ui.Context) { a.view(c) }, width, 800)
 					tt.SetLocale("zh-Hans")
 					tt.Frame()
+					if state.act != nil {
+						state.act(t, tt)
+					}
 					if state.want != "" && !tt.HasText(state.want) {
 						t.Fatalf("missing %q: %v", state.want, tt.Texts())
 					}

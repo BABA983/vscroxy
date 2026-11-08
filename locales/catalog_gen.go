@@ -630,6 +630,16 @@ func (msgs Messages) All() string {
 	return Catalog.Format(msgs.locale, "all", nil)
 }
 
+// AllAnd says "All (AND)"
+// in the language the app shows.
+func AllAnd() string { return In(i18n.Locale()).AllAnd() }
+
+// AllAnd says "All (AND)"
+// in the language of msgs.
+func (msgs Messages) AllAnd() string {
+	return Catalog.Format(msgs.locale, "allAnd", nil)
+}
+
 // AllConditionsMustMatchRemove says "All conditions must match. Remove a condition above or edit the filters."
 // in the language the app shows.
 func AllConditionsMustMatchRemove() string { return In(i18n.Locale()).AllConditionsMustMatchRemove() }
@@ -648,6 +658,26 @@ func AllRequests() string { return In(i18n.Locale()).AllRequests() }
 // in the language of msgs.
 func (msgs Messages) AllRequests() string {
 	return Catalog.Format(msgs.locale, "allRequests", nil)
+}
+
+// AllSources says "All sources"
+// in the language the app shows.
+func AllSources() string { return In(i18n.Locale()).AllSources() }
+
+// AllSources says "All sources"
+// in the language of msgs.
+func (msgs Messages) AllSources() string {
+	return Catalog.Format(msgs.locale, "allSources", nil)
+}
+
+// AllStatuses says "All statuses"
+// in the language the app shows.
+func AllStatuses() string { return In(i18n.Locale()).AllStatuses() }
+
+// AllStatuses says "All statuses"
+// in the language of msgs.
+func (msgs Messages) AllStatuses() string {
+	return Catalog.Format(msgs.locale, "allStatuses", nil)
 }
 
 // AllowList says "Allow list"
@@ -814,6 +844,16 @@ func AnyHostOrApiExample() string { return In(i18n.Locale()).AnyHostOrApiExample
 // in the language of msgs.
 func (msgs Messages) AnyHostOrApiExample() string {
 	return Catalog.Format(msgs.locale, "anyHostOrApiExample", nil)
+}
+
+// AnyOr says "Any (OR)"
+// in the language the app shows.
+func AnyOr() string { return In(i18n.Locale()).AnyOr() }
+
+// AnyOr says "Any (OR)"
+// in the language of msgs.
+func (msgs Messages) AnyOr() string {
+	return Catalog.Format(msgs.locale, "anyOr", nil)
 }
 
 // ApiContracts says "API contracts"
@@ -1234,6 +1274,16 @@ func (msgs Messages) Authentication() string {
 	return Catalog.Format(msgs.locale, "authentication", nil)
 }
 
+// Authored says "Authored"
+// in the language the app shows.
+func Authored() string { return In(i18n.Locale()).Authored() }
+
+// Authored says "Authored"
+// in the language of msgs.
+func (msgs Messages) Authored() string {
+	return Catalog.Format(msgs.locale, "authored", nil)
+}
+
 // AuthorizationType says "Authorization type"
 // in the language the app shows.
 func AuthorizationType() string { return In(i18n.Locale()).AuthorizationType() }
@@ -1488,6 +1538,16 @@ func (msgs Messages) BasicBecomesTheMqttUsername() string {
 	return Catalog.Format(msgs.locale, "basicBecomesTheMqttUsername", nil)
 }
 
+// BasicHeader says "Basic header"
+// in the language the app shows.
+func BasicHeader() string { return In(i18n.Locale()).BasicHeader() }
+
+// BasicHeader says "Basic header"
+// in the language of msgs.
+func (msgs Messages) BasicHeader() string {
+	return Catalog.Format(msgs.locale, "basicHeader", nil)
+}
+
 // Bearer says "Bearer"
 // in the language the app shows.
 func Bearer() string { return In(i18n.Locale()).Bearer() }
@@ -1676,6 +1736,16 @@ func BodyIsNotJsonShowing() string { return In(i18n.Locale()).BodyIsNotJsonShowi
 // in the language of msgs.
 func (msgs Messages) BodyIsNotJsonShowing() string {
 	return Catalog.Format(msgs.locale, "bodyIsNotJsonShowing", nil)
+}
+
+// BodyLocation says "Body"
+// in the language the app shows.
+func BodyLocation() string { return In(i18n.Locale()).BodyLocation() }
+
+// BodyLocation says "Body"
+// in the language of msgs.
+func (msgs Messages) BodyLocation() string {
+	return Catalog.Format(msgs.locale, "bodyLocation", nil)
 }
 
 // BodyText says "Body text"
@@ -2102,6 +2172,16 @@ func CaptureIsStopped() string { return In(i18n.Locale()).CaptureIsStopped() }
 // in the language of msgs.
 func (msgs Messages) CaptureIsStopped() string {
 	return Catalog.Format(msgs.locale, "captureIsStopped", nil)
+}
+
+// CaptureLinked says "Capture-linked"
+// in the language the app shows.
+func CaptureLinked() string { return In(i18n.Locale()).CaptureLinked() }
+
+// CaptureLinked says "Capture-linked"
+// in the language of msgs.
+func (msgs Messages) CaptureLinked() string {
+	return Catalog.Format(msgs.locale, "captureLinked", nil)
 }
 
 // CaptureOneAppOnly says "Capture one app only…"
@@ -3358,6 +3438,66 @@ func Color() string { return In(i18n.Locale()).Color() }
 // in the language of msgs.
 func (msgs Messages) Color() string {
 	return Catalog.Format(msgs.locale, "color", nil)
+}
+
+// ColorBlue says "Blue"
+// in the language the app shows.
+func ColorBlue() string { return In(i18n.Locale()).ColorBlue() }
+
+// ColorBlue says "Blue"
+// in the language of msgs.
+func (msgs Messages) ColorBlue() string {
+	return Catalog.Format(msgs.locale, "colorBlue", nil)
+}
+
+// ColorGreen says "Green"
+// in the language the app shows.
+func ColorGreen() string { return In(i18n.Locale()).ColorGreen() }
+
+// ColorGreen says "Green"
+// in the language of msgs.
+func (msgs Messages) ColorGreen() string {
+	return Catalog.Format(msgs.locale, "colorGreen", nil)
+}
+
+// ColorOrange says "Orange"
+// in the language the app shows.
+func ColorOrange() string { return In(i18n.Locale()).ColorOrange() }
+
+// ColorOrange says "Orange"
+// in the language of msgs.
+func (msgs Messages) ColorOrange() string {
+	return Catalog.Format(msgs.locale, "colorOrange", nil)
+}
+
+// ColorPurple says "Purple"
+// in the language the app shows.
+func ColorPurple() string { return In(i18n.Locale()).ColorPurple() }
+
+// ColorPurple says "Purple"
+// in the language of msgs.
+func (msgs Messages) ColorPurple() string {
+	return Catalog.Format(msgs.locale, "colorPurple", nil)
+}
+
+// ColorRed says "Red"
+// in the language the app shows.
+func ColorRed() string { return In(i18n.Locale()).ColorRed() }
+
+// ColorRed says "Red"
+// in the language of msgs.
+func (msgs Messages) ColorRed() string {
+	return Catalog.Format(msgs.locale, "colorRed", nil)
+}
+
+// ColorYellow says "Yellow"
+// in the language the app shows.
+func ColorYellow() string { return In(i18n.Locale()).ColorYellow() }
+
+// ColorYellow says "Yellow"
+// in the language of msgs.
+func (msgs Messages) ColorYellow() string {
+	return Catalog.Format(msgs.locale, "colorYellow", nil)
 }
 
 // ColumnNameOrJsonPointer says "Column name or JSON pointer"
@@ -6368,6 +6508,16 @@ func (msgs Messages) Environment() string {
 	return Catalog.Format(msgs.locale, "environment", nil)
 }
 
+// EnvironmentCurrentValue says "Environment current value"
+// in the language the app shows.
+func EnvironmentCurrentValue() string { return In(i18n.Locale()).EnvironmentCurrentValue() }
+
+// EnvironmentCurrentValue says "Environment current value"
+// in the language of msgs.
+func (msgs Messages) EnvironmentCurrentValue() string {
+	return Catalog.Format(msgs.locale, "environmentCurrentValue", nil)
+}
+
 // EnvironmentLabel says "Environment: {name}"
 // in the language the app shows.
 func EnvironmentLabel(name string) string { return In(i18n.Locale()).EnvironmentLabel(name) }
@@ -6478,6 +6628,16 @@ func (msgs Messages) Environments2() string {
 	return Catalog.Format(msgs.locale, "environments2", nil)
 }
 
+// Equals says "Equals"
+// in the language the app shows.
+func Equals() string { return In(i18n.Locale()).Equals() }
+
+// Equals says "Equals"
+// in the language of msgs.
+func (msgs Messages) Equals() string {
+	return Catalog.Format(msgs.locale, "equals", nil)
+}
+
 // Errors says "Errors"
 // in the language the app shows.
 func Errors() string { return In(i18n.Locale()).Errors() }
@@ -6540,6 +6700,16 @@ func EventNameEGEcho() string { return In(i18n.Locale()).EventNameEGEcho() }
 // in the language of msgs.
 func (msgs Messages) EventNameEGEcho() string {
 	return Catalog.Format(msgs.locale, "eventNameEGEcho", nil)
+}
+
+// Events says "Events"
+// in the language the app shows.
+func Events() string { return In(i18n.Locale()).Events() }
+
+// Events says "Events"
+// in the language of msgs.
+func (msgs Messages) Events() string {
+	return Catalog.Format(msgs.locale, "events", nil)
 }
 
 // EveryDomain says "Every domain"
@@ -8024,6 +8194,16 @@ func (msgs Messages) HeaderComparison(index int) string {
 	return Catalog.Format(msgs.locale, "headerComparison", map[string]any{"index": index})
 }
 
+// HeaderLocation says "Header"
+// in the language the app shows.
+func HeaderLocation() string { return In(i18n.Locale()).HeaderLocation() }
+
+// HeaderLocation says "Header"
+// in the language of msgs.
+func (msgs Messages) HeaderLocation() string {
+	return Catalog.Format(msgs.locale, "headerLocation", nil)
+}
+
 // HeaderName says "Header {index} name"
 // in the language the app shows.
 func HeaderName(index int) string { return In(i18n.Locale()).HeaderName(index) }
@@ -8660,6 +8840,16 @@ func (msgs Messages) IgnoredHosts() string {
 	return Catalog.Format(msgs.locale, "ignoredHosts", nil)
 }
 
+// Images says "Images"
+// in the language the app shows.
+func Images() string { return In(i18n.Locale()).Images() }
+
+// Images says "Images"
+// in the language of msgs.
+func (msgs Messages) Images() string {
+	return Catalog.Format(msgs.locale, "images", nil)
+}
+
 // ImportAProtoSourceOr says "Import a .proto source or a binary FileDescriptorSet (.pb / .protoset). gRPC methods select input/output types automa…"
 // in the language the app shows.
 func ImportAProtoSourceOr() string { return In(i18n.Locale()).ImportAProtoSourceOr() }
@@ -9144,6 +9334,16 @@ func (msgs Messages) ImportingConfiguration() string {
 	return Catalog.Format(msgs.locale, "importingConfiguration", nil)
 }
 
+// InBody says "In body"
+// in the language the app shows.
+func InBody() string { return In(i18n.Locale()).InBody() }
+
+// InBody says "In body"
+// in the language of msgs.
+func (msgs Messages) InBody() string {
+	return Catalog.Format(msgs.locale, "inBody", nil)
+}
+
 // InText says "In"
 // in the language the app shows.
 func InText() string { return In(i18n.Locale()).InText() }
@@ -9226,6 +9426,16 @@ func IndependentFiltersSelectionAndScroll() string {
 // in the language of msgs.
 func (msgs Messages) IndependentFiltersSelectionAndScroll() string {
 	return Catalog.Format(msgs.locale, "independentFiltersSelectionAndScroll", nil)
+}
+
+// Inherit says "Inherit"
+// in the language the app shows.
+func Inherit() string { return In(i18n.Locale()).Inherit() }
+
+// Inherit says "Inherit"
+// in the language of msgs.
+func (msgs Messages) Inherit() string {
+	return Catalog.Format(msgs.locale, "inherit", nil)
 }
 
 // Initial says "Initial"
@@ -9952,6 +10162,16 @@ func (msgs Messages) LayoutStacked() string {
 	return Catalog.Format(msgs.locale, "layoutStacked", nil)
 }
 
+// LeaveInRequests says "Leave in requests"
+// in the language the app shows.
+func LeaveInRequests() string { return In(i18n.Locale()).LeaveInRequests() }
+
+// LeaveInRequests says "Leave in requests"
+// in the language of msgs.
+func (msgs Messages) LeaveInRequests() string {
+	return Catalog.Format(msgs.locale, "leaveInRequests", nil)
+}
+
 // Light says "Light"
 // in the language the app shows.
 func Light() string { return In(i18n.Locale()).Light() }
@@ -10576,6 +10796,16 @@ func MatchUrl() string { return In(i18n.Locale()).MatchUrl() }
 // in the language of msgs.
 func (msgs Messages) MatchUrl() string {
 	return Catalog.Format(msgs.locale, "matchUrl", nil)
+}
+
+// Matches says "Matches"
+// in the language the app shows.
+func Matches() string { return In(i18n.Locale()).Matches() }
+
+// Matches says "Matches"
+// in the language of msgs.
+func (msgs Messages) Matches() string {
+	return Catalog.Format(msgs.locale, "matches", nil)
 }
 
 // MatchesCount says "Matches: {count} requests"
@@ -12152,6 +12382,16 @@ func NoResourcesListed() string { return In(i18n.Locale()).NoResourcesListed() }
 // in the language of msgs.
 func (msgs Messages) NoResourcesListed() string {
 	return Catalog.Format(msgs.locale, "noResourcesListed", nil)
+}
+
+// NoResponse says "No response"
+// in the language the app shows.
+func NoResponse() string { return In(i18n.Locale()).NoResponse() }
+
+// NoResponse says "No response"
+// in the language of msgs.
+func (msgs Messages) NoResponse() string {
+	return Catalog.Format(msgs.locale, "noResponse", nil)
 }
 
 // NoResponseYet says "No response yet"
@@ -13782,6 +14022,16 @@ func (msgs Messages) PreferVariablesOrVaultName() string {
 	return Catalog.Format(msgs.locale, "preferVariablesOrVaultName", nil)
 }
 
+// Present says "Present"
+// in the language the app shows.
+func Present() string { return In(i18n.Locale()).Present() }
+
+// Present says "Present"
+// in the language of msgs.
+func (msgs Messages) Present() string {
+	return Catalog.Format(msgs.locale, "present", nil)
+}
+
 // PresentedToAMatchingHost says "Presented to a matching host. Use *.example.com for subdomains; add :port to limit the port. Files are read on every …"
 // in the language the app shows.
 func PresentedToAMatchingHost() string { return In(i18n.Locale()).PresentedToAMatchingHost() }
@@ -14300,6 +14550,16 @@ func QueryJson2() string { return In(i18n.Locale()).QueryJson2() }
 // in the language of msgs.
 func (msgs Messages) QueryJson2() string {
 	return Catalog.Format(msgs.locale, "queryJson2", nil)
+}
+
+// QueryLocation says "Query"
+// in the language the app shows.
+func QueryLocation() string { return In(i18n.Locale()).QueryLocation() }
+
+// QueryLocation says "Query"
+// in the language of msgs.
+func (msgs Messages) QueryLocation() string {
+	return Catalog.Format(msgs.locale, "queryLocation", nil)
 }
 
 // QueryOrMutationVariablesSupported says "Query or mutation · '{{variables}}' supported · sent as JSON"
@@ -15582,6 +15842,16 @@ func (msgs Messages) RequestFolder() string {
 	return Catalog.Format(msgs.locale, "requestFolder", nil)
 }
 
+// RequestHeader says "Request header"
+// in the language the app shows.
+func RequestHeader() string { return In(i18n.Locale()).RequestHeader() }
+
+// RequestHeader says "Request header"
+// in the language of msgs.
+func (msgs Messages) RequestHeader() string {
+	return Catalog.Format(msgs.locale, "requestHeader", nil)
+}
+
 // RequestHeaders says "Request headers"
 // in the language the app shows.
 func RequestHeaders() string { return In(i18n.Locale()).RequestHeaders() }
@@ -15632,6 +15902,16 @@ func RequestInspector() string { return In(i18n.Locale()).RequestInspector() }
 // in the language of msgs.
 func (msgs Messages) RequestInspector() string {
 	return Catalog.Format(msgs.locale, "requestInspector", nil)
+}
+
+// RequestJson says "Request JSON"
+// in the language the app shows.
+func RequestJson() string { return In(i18n.Locale()).RequestJson() }
+
+// RequestJson says "Request JSON"
+// in the language of msgs.
+func (msgs Messages) RequestJson() string {
+	return Catalog.Format(msgs.locale, "requestJson", nil)
 }
 
 // RequestName says "Request name"
@@ -16016,6 +16296,16 @@ func (msgs Messages) ResponseFrom() string {
 	return Catalog.Format(msgs.locale, "responseFrom", nil)
 }
 
+// ResponseHeader says "Response header"
+// in the language the app shows.
+func ResponseHeader() string { return In(i18n.Locale()).ResponseHeader() }
+
+// ResponseHeader says "Response header"
+// in the language of msgs.
+func (msgs Messages) ResponseHeader() string {
+	return Catalog.Format(msgs.locale, "responseHeader", nil)
+}
+
 // ResponseHeaders says "Response headers"
 // in the language the app shows.
 func ResponseHeaders() string { return In(i18n.Locale()).ResponseHeaders() }
@@ -16044,6 +16334,16 @@ func ResponseInformation() string { return In(i18n.Locale()).ResponseInformation
 // in the language of msgs.
 func (msgs Messages) ResponseInformation() string {
 	return Catalog.Format(msgs.locale, "responseInformation", nil)
+}
+
+// ResponseJson says "Response JSON"
+// in the language the app shows.
+func ResponseJson() string { return In(i18n.Locale()).ResponseJson() }
+
+// ResponseJson says "Response JSON"
+// in the language of msgs.
+func (msgs Messages) ResponseJson() string {
+	return Catalog.Format(msgs.locale, "responseJson", nil)
 }
 
 // ResponsePaneName says "Response pane"
@@ -18392,6 +18692,16 @@ func (msgs Messages) SendARequestToRecord() string {
 	return Catalog.Format(msgs.locale, "sendARequestToRecord", nil)
 }
 
+// SendBinary says "Send binary"
+// in the language the app shows.
+func SendBinary() string { return In(i18n.Locale()).SendBinary() }
+
+// SendBinary says "Send binary"
+// in the language of msgs.
+func (msgs Messages) SendBinary() string {
+	return Catalog.Format(msgs.locale, "sendBinary", nil)
+}
+
 // SendGrpcMessage says "Send gRPC message"
 // in the language the app shows.
 func SendGrpcMessage() string { return In(i18n.Locale()).SendGrpcMessage() }
@@ -18420,6 +18730,16 @@ func SendRequest() string { return In(i18n.Locale()).SendRequest() }
 // in the language of msgs.
 func (msgs Messages) SendRequest() string {
 	return Catalog.Format(msgs.locale, "sendRequest", nil)
+}
+
+// SendText says "Send text"
+// in the language the app shows.
+func SendText() string { return In(i18n.Locale()).SendText() }
+
+// SendText says "Send text"
+// in the language of msgs.
+func (msgs Messages) SendText() string {
+	return Catalog.Format(msgs.locale, "sendText", nil)
 }
 
 // SendTheRequestThenChoose says "Send the request, then choose Save as example beside the response."
@@ -21122,6 +21442,26 @@ func (msgs Messages) Unified() string {
 	return Catalog.Format(msgs.locale, "unified", nil)
 }
 
+// UnixMilliseconds says "Unix milliseconds"
+// in the language the app shows.
+func UnixMilliseconds() string { return In(i18n.Locale()).UnixMilliseconds() }
+
+// UnixMilliseconds says "Unix milliseconds"
+// in the language of msgs.
+func (msgs Messages) UnixMilliseconds() string {
+	return Catalog.Format(msgs.locale, "unixMilliseconds", nil)
+}
+
+// UnixSeconds says "Unix seconds"
+// in the language the app shows.
+func UnixSeconds() string { return In(i18n.Locale()).UnixSeconds() }
+
+// UnixSeconds says "Unix seconds"
+// in the language of msgs.
+func (msgs Messages) UnixSeconds() string {
+	return Catalog.Format(msgs.locale, "unixSeconds", nil)
+}
+
 // UnpinnedFlow says "Unpinned {method} {path}"
 // in the language the app shows.
 func UnpinnedFlow(method string, path string) string {
@@ -21286,6 +21626,16 @@ func (msgs Messages) Url() string {
 	return Catalog.Format(msgs.locale, "url", nil)
 }
 
+// UrlComponent says "URL component"
+// in the language the app shows.
+func UrlComponent() string { return In(i18n.Locale()).UrlComponent() }
+
+// UrlComponent says "URL component"
+// in the language of msgs.
+func (msgs Messages) UrlComponent() string {
+	return Catalog.Format(msgs.locale, "urlComponent", nil)
+}
+
 // UrlEncoded says "URL encoded"
 // in the language the app shows.
 func UrlEncoded() string { return In(i18n.Locale()).UrlEncoded() }
@@ -21314,6 +21664,16 @@ func UrlMatch() string { return In(i18n.Locale()).UrlMatch() }
 // in the language of msgs.
 func (msgs Messages) UrlMatch() string {
 	return Catalog.Format(msgs.locale, "urlMatch", nil)
+}
+
+// UrlQuery says "URL query"
+// in the language the app shows.
+func UrlQuery() string { return In(i18n.Locale()).UrlQuery() }
+
+// UrlQuery says "URL query"
+// in the language of msgs.
+func (msgs Messages) UrlQuery() string {
+	return Catalog.Format(msgs.locale, "urlQuery", nil)
 }
 
 // UrlRegexHelp says "A Go regular expression found anywhere in the full URL."

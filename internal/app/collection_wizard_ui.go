@@ -227,7 +227,7 @@ func (a *app) collectionEndpointsEditor(c *ui.Context, t *ui.Theme) {
 func (a *app) collectionVariablesEditor(c *ui.Context, t *ui.Theme) {
 	w := &a.collectionUI
 	uikit.DialogTitle(c, locales.HostsEnvironment())
-	uikit.Select(c, &w.environment, append([]string{"New environment"}, a.envNames()...)).Label(locales.TargetEnvironment())
+	uikit.SelectLabels(c, &w.environment, append([]string{"New environment"}, a.envNames()...), optionLabel).Label(locales.TargetEnvironment())
 	if w.environment == "New environment" {
 		uikit.Input(c, &w.environmentName).Label(locales.NewEnvironmentName())
 	}
@@ -246,7 +246,7 @@ func (a *app) collectionVariablesEditor(c *ui.Context, t *ui.Theme) {
 		ui.Column(c.Key(i)).Gap(t.Space(2)).Padding(0, 0, t.Space(2), 0).Children(func() {
 			uikit.Body(c, locales.CredentialSummary(credential.header, credential.count))
 			uikit.Input(c, &credential.variable).Label(locales.CredentialVariable(i + 1)).Font(uikit.FontMono)
-			uikit.Select(c, &credential.storage, []string{credentialCurrent, credentialVault, credentialKeep}).Label(locales.StoreCredential(i + 1))
+			uikit.SelectLabels(c, &credential.storage, []string{credentialCurrent, credentialVault, credentialKeep}, optionLabel).Label(locales.StoreCredential(i + 1))
 			if credential.storage == credentialKeep {
 				ui.Text(c, locales.OriginalCredentialWillBeWritten()).FontSize(uikit.TextMeta).TextColor(t.Warning)
 			}

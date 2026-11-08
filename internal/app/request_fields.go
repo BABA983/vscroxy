@@ -400,7 +400,7 @@ func (a *app) authFields(c *ui.Context, auth *request.Auth, types []string, coll
 			ui.Field(c, locales.ApiKeyName(), func() { input(&auth.Key, "API key name") })
 			ui.Field(c, locales.ApiKeyValue(), func() { password(&auth.Value, "API key value") })
 			ui.Field(c, locales.Location(), func() {
-				uikit.Select(c, &auth.Location, []string{"Header", "Query"}).Label(locales.ApiKeyLocation()).Width(160)
+				uikit.SelectLabels(c, &auth.Location, []string{"Header", "Query"}, optionLabel).Label(locales.ApiKeyLocation()).Width(160)
 			})
 		case request.AuthOAuth2:
 			a.oauthFields(c, auth, collection)
@@ -428,7 +428,7 @@ func (a *app) authFields(c *ui.Context, auth *request.Auth, types []string, coll
 				})
 			}
 			ui.Field(c, locales.AddAuthorizationTo(), func() {
-				if uikit.Select(c, &addTo, []string{"Header", "Query", "Body", "Automatic"}).Width(180).Changed() {
+				if uikit.SelectLabels(c, &addTo, []string{"Header", "Query", "Body", "Automatic"}, optionLabel).Width(180).Changed() {
 					o.AddTo = addTo
 					if addTo == "Header" {
 						o.AddTo = ""
@@ -493,7 +493,7 @@ func (a *app) authFields(c *ui.Context, auth *request.Auth, types []string, coll
 				input(&jwt.Header, "Extra header").Placeholder(locales.OptionalEGKidKey()).Font(uikit.FontMono)
 			})
 			ui.Field(c, locales.AddTokenTo(), func() {
-				if uikit.Select(c, &addTo, []string{"Header", "Query"}).Width(160).Changed() {
+				if uikit.SelectLabels(c, &addTo, []string{"Header", "Query"}, optionLabel).Width(160).Changed() {
 					jwt.AddTo = ""
 					if addTo == "Query" {
 						jwt.AddTo = "Query"

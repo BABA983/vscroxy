@@ -71,7 +71,7 @@ func (a *app) oauthFields(c *ui.Context, auth *request.Auth, collection string) 
 		}).Description(locales.RegisterItWithTheProvider())
 	}
 	ui.Field(c, locales.ClientAuthentication(), func() {
-		if uikit.Select(c, &clientAuth, []string{"Basic header", "In body"}).Width(160).Changed() {
+		if uikit.SelectLabels(c, &clientAuth, []string{"Basic header", "In body"}, optionLabel).Width(160).Changed() {
 			o.ClientAuth = ""
 			if clientAuth == "In body" {
 				o.ClientAuth = "Body"

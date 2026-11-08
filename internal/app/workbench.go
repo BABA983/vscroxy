@@ -156,7 +156,7 @@ func (a *app) captureToolbar(c *ui.Context, t *ui.Theme) {
 	}
 	ui.Row(c).Height(uikit.HeightBar).Padding(0, t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 		mode := cmp.Or(a.searchMode, "Text")
-		if uikit.Select(c.Key("capture-search-mode"), &mode, []string{"Text", "Wildcard", "Regex"}).Label(locales.CaptureSearchMode()).
+		if uikit.SelectLabels(c.Key("capture-search-mode"), &mode, searchModes, optionLabel).Label(locales.CaptureSearchMode()).
 			MinWidth(94).Width(94).Tooltip(locales.TextLiteralContainsAndKey()).Changed() {
 			a.searchMode = mode
 			if mode == "Text" {
@@ -268,7 +268,7 @@ func (a *app) captureToolbar(c *ui.Context, t *ui.Theme) {
 			segments := ui.SegmentedBase(c, &a.chip, len(captureKinds))
 			segments.Track.Label(locales.ProtocolAndContentTypeLabel()).Height(uikit.HeightControl).Gap(t.Space(0.5)).Children(func() {
 				for i, name := range captureProtocols {
-					label := name
+					label := optionLabel(name)
 					if name == "WebSocket" {
 						label = "WS"
 					}
@@ -376,7 +376,7 @@ func (a *app) captureActions() []action {
 		do("capture.saved-filters", locales.SaveFilter(), func() { a.views.openSaved(a) }),
 	}
 	for _, index := range []int{6, 7} {
-		actions = append(actions, do("capture.kind", captureKinds[index], func() {
+		actions = append(actions, do("capture.kind", optionLabel(captureKinds[index]), func() {
 			a.chip = index
 			a.applyFilter()
 		}).checked(checkbox(a.chip == index)).in("kinds"))

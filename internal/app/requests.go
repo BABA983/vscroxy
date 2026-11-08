@@ -1017,7 +1017,7 @@ func (a *app) requestEditor(c *ui.Context, t *ui.Theme, d *requestDocument, orig
 	// tools take their own row there.
 	wide := a.contentWidth(c) >= 900 && original == nil
 	bodyTools := func() {
-		uikit.Select(c, &d.bodyMode, []string{"Raw", "URL encoded", "Multipart", "Binary", "GraphQL"}).Label(locales.RequestBodyType()).Width(132).FontSize(uikit.TextMeta)
+		uikit.SelectLabels(c, &d.bodyMode, bodyTypes, optionLabel).Label(locales.RequestBodyType()).Width(132).FontSize(uikit.TextMeta)
 		text, seen := &d.composeBody, &d.bodyFor
 		formatLabel := locales.FormatBody()
 		formatHelp := locales.FormatBodyHelp()
@@ -1220,7 +1220,7 @@ func (a *app) requestResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 					uikit.CountedTabs(c, &d.responseTab, "Response tab", labels, counts)
 				}).Grow(1).FillHeight()
 				if d.responseTab == resViewBody && d.response != nil {
-					formats := []string{"Auto", "Raw", "Hex", "Pretty"}
+					formats := append([]string(nil), responseFormats...)
 					format := inspect.BodyFormat(d.response.ResponseHeader.Get("Content-Type"))
 					if format != "" {
 						formats = append(formats, format)

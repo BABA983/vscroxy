@@ -8,6 +8,7 @@ GraphQL, OpenAPI, Protobuf, JSON, HAR, cURL, App) keep their spelling.
 
 | English | 简体中文 | Notes |
 | --- | --- | --- |
+| App / Apps | 应用 | The sidebar section and an app's name in prose; the `@ App` rule syntax keeps `App` as a field name. |
 | Capture | 抓包 | The recording, not a single request. |
 | Live traffic | 实时流量 | |
 | Request | 请求 | |

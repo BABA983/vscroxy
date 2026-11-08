@@ -174,7 +174,7 @@ func (a *app) columnModal(c *ui.Context, t *ui.Theme) {
 			ui.Scroll(c).MinHeight(0).Gap(t.Space(3)).Padding(0, t.Space(1)).Children(func() {
 				ui.Form(c, func() {
 					ui.Field(c, locales.From(), func() {
-						uikit.Select(c, &draft.Source, columnSources).Label(locales.ColumnSource()).Width(200)
+						uikit.SelectLabels(c, &draft.Source, columnSources, optionLabel).Label(locales.ColumnSource()).Width(200)
 					}).
 						Description(map[string]string{
 							sourceHeader:         "The response's header, or the request's when the response has none.",

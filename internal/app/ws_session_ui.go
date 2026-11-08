@@ -98,11 +98,11 @@ func (a *app) socketModal(c *ui.Context, t *ui.Theme) {
 					if s.encoding == "" {
 						s.encoding = "Text"
 					}
-					uikit.Select(c, &s.encoding, []string{"Text", "Hex", "Base64"}).Label(locales.WebsocketMessageEncoding()).Width(110)
+					uikit.SelectLabels(c, &s.encoding, []string{"Text", "Hex", "Base64"}, optionLabel).Label(locales.WebsocketMessageEncoding()).Width(110)
 					uikit.Input(c, &s.message).Label(locales.WebsocketMessage()).Placeholder(locales.TextHexBytesOrPadded()).Grow(1).MinWidth(0).Font(uikit.FontMono)
-					label := "Send text"
+					label := locales.SendText()
 					if s.encoding != "Text" {
-						label = "Send binary"
+						label = locales.SendBinary()
 					}
 					if uikit.PrimaryButton(c, label).Disabled(state != "Connected" || s.sending).Clicked() {
 						kind, data, err := websocket.TextMessage, []byte(s.message), error(nil)
@@ -130,7 +130,7 @@ func (a *app) socketModal(c *ui.Context, t *ui.Theme) {
 					if s.direction == "" {
 						s.direction = "All"
 					}
-					uikit.Select(c, &s.direction, []string{"All", "In", "Out", "Events"}).Width(100).Label(locales.SessionDirection())
+					uikit.SelectLabels(c, &s.direction, directions, optionLabel).Width(100).Label(locales.SessionDirection())
 					ui.Text(c, locales.RetainedEvicted(len(events), evicted)).FontSize(uikit.TextMeta).FontFeatures("tnum")
 					if uikit.SecondaryButton(c, locales.LatestMessage()).Clicked() {
 						s.scroll.Y = math.MaxFloat32

@@ -309,7 +309,7 @@ func (a *app) mqttConnectionTab(c *ui.Context, t *ui.Theme, d *requestDocument, 
 			})
 			ui.Field(c, locales.Credentials(), func() {
 				ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-					if uikit.Select(c, &u.authType, []string{"None", "Basic", "Inherit"}).Label(locales.MqttCredentials()).Width(110).Changed() {
+					if uikit.SelectLabels(c, &u.authType, []string{"None", "Basic", "Inherit"}, optionLabel).Label(locales.MqttCredentials()).Width(110).Changed() {
 						d.auth.Type = u.authType
 					}
 					uikit.Meta(c, locales.BasicBecomesTheMqttUsername()).Grow(1)
@@ -490,7 +490,7 @@ func (a *app) mqttPublishTab(c *ui.Context, t *ui.Theme, d *requestDocument, u *
 			})
 			ui.Field(c, locales.Payload(), func() {
 				ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-					if uikit.Select(c, &u.publish.message.Type, []string{"text", "json", "hex", "base64"}).Label(locales.PayloadEncoding()).Width(100).Changed() {
+					if uikit.SelectLabels(c, &u.publish.message.Type, []string{"text", "json", "hex", "base64"}, optionLabel).Label(locales.PayloadEncoding()).Width(100).Changed() {
 						u.payloadEditor, u.payloadType = nil, ""
 					}
 					uikit.Select(c, &u.publish.qos, []string{"0", "1", "2"}).Label(locales.PublishQos()).Width(64)
@@ -555,7 +555,7 @@ func (a *app) mqttWillTab(c *ui.Context, t *ui.Theme, d *requestDocument, u *mqt
 				})
 				ui.Field(c, locales.Payload(), func() {
 					ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-						if uikit.Select(c, &u.willType, []string{"text", "json", "hex", "base64"}).Label(locales.WillPayloadEncoding()).Width(100).Changed() {
+						if uikit.SelectLabels(c, &u.willType, []string{"text", "json", "hex", "base64"}, optionLabel).Label(locales.WillPayloadEncoding()).Width(100).Changed() {
 							c1.Will.Type = u.willType
 							u.willPayloadEditor, u.willPayloadType = nil, ""
 						}

@@ -708,3 +708,41 @@ func SettingsGroup(c *ui.Context, legend string, fields func()) ui.Element {
 	return ui.Fieldset(c, legend, fields).Margin(0).Padding(t.Space(3), t.Space(4), t.Space(4), t.Space(4)).
 		Background(neutral(t, 0.4)).Border(1, t.Text.Alpha(0.08)).Radius(RadiusPanel)
 }
+
+// SelectLabels is Select for values a screen names in its own language: the
+// stored value stays option, while the trigger and the popup show label of
+// it. The app uses it where an option is an identifier it compares, such as
+// "Raw" or "In", and the screen says "原始" or "入".
+func SelectLabels(c *ui.Context, selected *string, options []string, label func(string) string) ui.Element {
+	t := c.Theme()
+	sel := ui.SelectBase(c, selected)
+	sel.Trigger.Justify(ui.SpaceBetween).MinWidth(t.Space(35)).Children(func() {
+		ui.Text(c, label(*selected)).SingleLine()
+		chevron(c)
+	})
+	sel.Popup(func(panel ui.Element) {
+		PopoverPanel(c, panel.Padding(t.Space(1)).Gap(t.Space(0.5)))
+		for _, option := range options {
+			item := sel.Item(option).Padding(t.Space(1.5), t.Space(2.5)).Radius(RadiusControl)
+			switch {
+			case item.Highlighted():
+				item.Background(t.Accent).TextColor(t.AccentText)
+			case option == *selected:
+				item.Background(t.Surface)
+			}
+			item.Children(func() { ui.Text(c, label(option)).FontSize(TextBody).SingleLine() })
+		}
+	})
+	return faced(c, func() ui.Element { return sel.Trigger }).
+		Height(HeightControl).Padding(0, t.Space(2)).FontSize(TextBody).Radius(RadiusControl)
+}
+
+// chevron draws the arrow of a control that opens something below it.
+func chevron(c *ui.Context) {
+	t := c.Theme()
+	ui.Box(c).Size(t.Space(2.5), t.Space(2.5)).Shrink(0).Draw(func(p *ui.Painter, r ui.Rect) {
+		var path ui.Path
+		path.MoveTo(r.X+r.W*0.1, r.Y+r.H*0.3).LineTo(r.X+r.W*0.5, r.Y+r.H*0.7).LineTo(r.X+r.W*0.9, r.Y+r.H*0.3)
+		p.StrokePath(&path, 1.5, t.TextMuted)
+	})
+}

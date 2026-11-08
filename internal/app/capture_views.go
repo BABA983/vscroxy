@@ -1058,7 +1058,7 @@ func (v *captureViews) filterModal(c *ui.Context, t *ui.Theme, a *app) {
 		ui.Column(c).Width(560).Gap(t.Space(2)).Children(func() {
 			uikit.DialogTitle(c, locales.FilterNamed(v.label(v.active)))
 			ui.Field(c, locales.MatchPopulatedFields(), func() {
-				uikit.Select(c, &v.editMatch, []string{"All (AND)", "Any (OR)"}).Label(locales.FilterCombination())
+				uikit.SelectLabels(c, &v.editMatch, []string{"All (AND)", "Any (OR)"}, optionLabel).Label(locales.FilterCombination())
 			}).Description(locales.SearchSidebarProtocolAndTime())
 			uikit.Meta(c, locales.HostAndAppMatchExactly())
 			problem := ""
@@ -1086,7 +1086,7 @@ func (v *captureViews) filterModal(c *ui.Context, t *ui.Theme, a *app) {
 						colors = append(colors, color.Name)
 					}
 					color := cmp.Or(v.editTriage.Color, "Any")
-					if uikit.Select(c, &color, colors).Label(locales.FilterColor()).Changed() {
+					if uikit.SelectLabels(c, &color, colors, optionLabel).Label(locales.FilterColor()).Changed() {
 						v.editTriage.Color = color
 						if color == "Any" {
 							v.editTriage.Color = ""

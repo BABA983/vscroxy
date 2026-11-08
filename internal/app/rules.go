@@ -915,7 +915,7 @@ func (a *app) ruleHeaderConditions(c *ui.Context, t *ui.Theme) {
 			ui.Row(c.Key(fmt.Sprint("when", i))).Gap(t.Space(2)).AlignItems(ui.Center).FillWidth().Children(func() {
 				uikit.Input(c, &h.Name).Label(locales.HeaderName(i + 1)).Placeholder(locales.Name()).Font(uikit.FontMono).Width(150)
 				op := cmp.Or(h.Op, rules.HeaderEquals)
-				uikit.Select(c, &op, rules.HeaderOps).Label(locales.HeaderComparison(i + 1)).Width(100)
+				uikit.SelectLabels(c, &op, rules.HeaderOps, optionLabel).Label(locales.HeaderComparison(i + 1)).Width(100)
 				h.Op = op
 				if op != rules.HeaderPresent {
 					uikit.Input(c, &h.Value).Label(locales.HeaderValue(i + 1)).Placeholder(locales.Value()).Font(uikit.FontMono).Grow(1)

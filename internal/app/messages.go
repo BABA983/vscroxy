@@ -334,7 +334,7 @@ func (m messageView) detail(c *ui.Context, a *app, f flow, p *messagePanel) {
 			}
 		})
 		ui.Row(c).Padding(0, t.Space(3), t.Space(2), t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-			modes := []string{"Text", "Hex"}
+			modes := []string{optionLabel("Text"), optionLabel("Hex")}
 			if kind := strings.TrimPrefix(m.kind, "dropped "); f.kind == "ws" && (kind == "text" || kind == "binary") {
 				modes = append(modes, "Protobuf")
 			}
