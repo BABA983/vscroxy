@@ -2033,20 +2033,27 @@ nonce are generated per send when empty. Copied cURL and code carry the signed
 header, query or body as they carry AWS and JWT signatures, so an OAuth 1.0
 signature is only valid for the timestamp and nonce it was made with.
 **NTLM** sends once without credentials, then answers the server's Type 1/2/3
-challenge on one connection: through the capture proxy when it runs, so the
-exchange is captured and upstream rules still apply, and directly otherwise.
-HTTPS works the same way. Redirects follow the request's settings, while
-credentials stay on the original origin; a same-origin redirect answers the
-challenge again. **Username**, **Password**, **Domain** and **Workstation**
-take `{{variables}}` and `{{vault:name}}`; a username written `DOMAIN\user`
-or `user@domain` supplies the domain when **Domain** is empty. **Disable
+challenge on one connection through the running capture proxy, so the
+exchange is captured and upstream rules still apply. HTTPS works the same
+way. The initial request and Type 3 carry the authored body; Type 1 sends
+none, so a large POST does not close the connection the challenge needs. If
+the server closes the connection after its challenge, the send fails as
+**NTLM authentication failed** instead of showing a misleading 401. Redirects
+follow the request's settings, while credentials stay on the original origin;
+a same-origin redirect answers the challenge again. **Username**,
+**Password**, **Domain** and **Workstation** take `{{variables}}` and
+`{{vault:name}}`; a username written `DOMAIN\user` or `user@domain` sets the
+domain and wins over **Domain**. **Disable
 retrying the request** sends once and returns the server's 401 without
 answering the challenge, as Postman does. Only NTLMv2 is supported: a
 challenge that negotiates NTLMv1's LM key fails with a clear message, LM
 responses are never sent, and a server that accepts only NTLMv1 returns its
 401. Channel binding (EPA) and the MIC are not sent, and NTLM's session
 signing and sealing (used by SMB, not HTTP) are not implemented. A wrong
-password's 401 after the third message is the response, not a retry. Copied
+password's 401 after the third message is the response, not a retry. A rule
+or script that rewrites the target (Map Remote) sends the request through a
+separate upstream transport that does not keep the connection, so NTLM
+cannot complete there. Copied
 cURL and code carry no NTLM header, since the handshake needs the server's
 challenge. NTLM is not available for WebSocket requests. Postman's `ntlm`
 auth object, including `disableRetryRequest`, round-trips; Postman's
