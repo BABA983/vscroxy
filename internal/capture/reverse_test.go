@@ -157,9 +157,11 @@ func TestReverseProxyPortConflictIsReportedAndOthersKeepRunning(t *testing.T) {
 	}
 	defer busy.Close()
 	busyPort := busy.Addr().(*net.TCPAddr).Port
+	// Start the proxy first: freePort releases its port, and the proxy's own
+	// OS-assigned port could otherwise land on it.
+	s, _ := startServer(t)
 	goodPort := freePort(t)
 
-	s, _ := startServer(t)
 	err = s.SetReverseProxies([]ReverseProxy{
 		{ID: "busy", Port: busyPort, Target: "http://example.test", Enabled: true},
 		{ID: "good", Port: goodPort, Target: "http://example.test", Enabled: true},

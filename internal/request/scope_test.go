@@ -155,7 +155,9 @@ func TestExecuteCommonDynamicVariables(t *testing.T) {
 					}
 					switch tc.name {
 					case "$randomIPV6", "$randomMACAddress", "$randomDomainWord", "$randomDomainName", "$randomUrl", "$randomExampleEmail":
-						if values[tc.name][0] == values[tc.name][1] {
+						// Small vocabularies repeat by chance, so only all 64
+						// samples being equal shows a reused value.
+						if len(slices.Compact(slices.Sorted(slices.Values(values[tc.name])))) == 1 {
 							t.Fatal("repeated occurrences reused the same random value")
 						}
 					}
