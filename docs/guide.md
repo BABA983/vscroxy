@@ -1811,8 +1811,10 @@ verification setting apply on every hop; HTTPS goes through the running capture
 proxy (enable HTTPS inspection for the target to see it in Capture) and connects
 directly when the proxy is stopped. A POST is never replayed. A standalone GET
 stream reconnects after the server closes it with the SDK's exponential
-backoff, effectively without a retry ceiling; the timeline records each
-reconnect, and the POST that carried a call is still shown exactly once.
+backoff, effectively without a retry ceiling; the timeline keeps one live
+**Reconnecting · attempt N · last error** row instead of one row per attempt,
+the session state shows **Reconnecting**, and a successful reconnect restores
+**Connected**. The POST that carried a call is still shown exactly once.
 
 For **stdio**, enter the command, one argument per line, an optional working
 directory, and environment rows. Environment values may use variables; rows can
@@ -1830,8 +1832,13 @@ capped at 4096 and the least recently used are dropped. Environment
 values are saved with the document, masked by default, and never written to the
 app log. The server runs in its own process group: Ctrl-C in the
 terminal that launched vscroxy is not forwarded to it, and a server that opens
-`/dev/tty` can be stopped with SIGTTIN. Quitting closes each stdio session
-synchronously (bounded) so its children are terminated before the app exits.
+`/dev/tty` can be stopped with SIGTTIN. Closing a tab starts the stdio close
+off the UI thread; quitting waits, with a bound, for open sessions and for
+sessions whose tabs were already closed, so their process trees are terminated
+before the app exits. On Windows the process is started suspended, assigned to
+a kill-on-close Job Object, and only then resumed, so it cannot create children
+outside the job during startup; if the job cannot be assigned, the transport
+falls back to `taskkill /T` before waiting.
 
 The **Session** tab shows the server's name, version, negotiated protocol,
 capabilities and instructions, plus the connection's transport, timeout and
@@ -1866,6 +1873,10 @@ level in each request's `_meta` and sends progress tokens for calls, reads and
 prompts; legacy servers receive `logging/setLevel` instead. The client does not
 advertise roots, sampling or elicitation, so a server takes its normal fallback
 path; if it sends one anyway, the request still appears in the timeline. The
+SDK still answers a server's `roots/list` request with an empty list even
+though the client did not advertise roots; changing that to a JSON-RPC
+method-not-found response is not exposed by the public SDK, so it remains a
+known limitation. The
 session keeps
 at most 300 timeline entries with a 64 KiB UTF-8 preview each, an 8 MiB
 HTTP/SSE event and an 8 MiB stdio line cap; a JSON response over 8 MiB ends the

@@ -217,7 +217,8 @@ are used as a generator/reference and are not vendored here.
     double quotes, backslash escapes, no variable or command expansion) into
     the app's `command` and one-argument-per-line `args`. A backslash outside
     quotes only escapes whitespace, a quote or another backslash, so Windows
-    paths such as `C:\servers\mcp\index.js` survive. If the line cannot be
+    paths such as `C:\servers\mcp\index.js` survive; a leading `\\` is kept
+    as a UNC path. If the line cannot be
     split (an unterminated quote, or an empty/newline argument that the
     one-argument-per-line format cannot represent), the whole string is
     imported as the program and the import report says so.
