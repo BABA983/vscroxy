@@ -2740,6 +2740,16 @@ func (msgs Messages) ChooseExamples() string {
 	return Catalog.Format(msgs.locale, "chooseExamples", nil)
 }
 
+// ChooseExisting says "Choose existing…"
+// in the language the app shows.
+func ChooseExisting() string { return In(i18n.Locale()).ChooseExisting() }
+
+// ChooseExisting says "Choose existing…"
+// in the language of msgs.
+func (msgs Messages) ChooseExisting() string {
+	return Catalog.Format(msgs.locale, "chooseExisting", nil)
+}
+
 // ChooseFile says "Choose file…"
 // in the language the app shows.
 func ChooseFile() string { return In(i18n.Locale()).ChooseFile() }
@@ -11032,6 +11042,16 @@ func MergeEndpoints() string { return In(i18n.Locale()).MergeEndpoints() }
 // in the language of msgs.
 func (msgs Messages) MergeEndpoints() string {
 	return Catalog.Format(msgs.locale, "mergeEndpoints", nil)
+}
+
+// MergeWith says "Merge with…"
+// in the language the app shows.
+func MergeWith() string { return In(i18n.Locale()).MergeWith() }
+
+// MergeWith says "Merge with…"
+// in the language of msgs.
+func (msgs Messages) MergeWith() string {
+	return Catalog.Format(msgs.locale, "mergeWith", nil)
 }
 
 // Message says "Message"
@@ -19394,6 +19414,296 @@ func SlowestRequests() string { return In(i18n.Locale()).SlowestRequests() }
 // in the language of msgs.
 func (msgs Messages) SlowestRequests() string {
 	return Catalog.Format(msgs.locale, "slowestRequests", nil)
+}
+
+// SnippetAddQueryParameter says "Add a query parameter"
+// in the language the app shows.
+func SnippetAddQueryParameter() string { return In(i18n.Locale()).SnippetAddQueryParameter() }
+
+// SnippetAddQueryParameter says "Add a query parameter"
+// in the language of msgs.
+func (msgs Messages) SnippetAddQueryParameter() string {
+	return Catalog.Format(msgs.locale, "snippetAddQueryParameter", nil)
+}
+
+// SnippetAddRequestHeader says "Add a request header"
+// in the language the app shows.
+func SnippetAddRequestHeader() string { return In(i18n.Locale()).SnippetAddRequestHeader() }
+
+// SnippetAddRequestHeader says "Add a request header"
+// in the language of msgs.
+func (msgs Messages) SnippetAddRequestHeader() string {
+	return Catalog.Format(msgs.locale, "snippetAddRequestHeader", nil)
+}
+
+// SnippetChangeStatus says "Change the status"
+// in the language the app shows.
+func SnippetChangeStatus() string { return In(i18n.Locale()).SnippetChangeStatus() }
+
+// SnippetChangeStatus says "Change the status"
+// in the language of msgs.
+func (msgs Messages) SnippetChangeStatus() string {
+	return Catalog.Format(msgs.locale, "snippetChangeStatus", nil)
+}
+
+// SnippetDecodeBase64 says "Decode Base64"
+// in the language the app shows.
+func SnippetDecodeBase64() string { return In(i18n.Locale()).SnippetDecodeBase64() }
+
+// SnippetDecodeBase64 says "Decode Base64"
+// in the language of msgs.
+func (msgs Messages) SnippetDecodeBase64() string {
+	return Catalog.Format(msgs.locale, "snippetDecodeBase64", nil)
+}
+
+// SnippetEditJson says "Edit a JSON response"
+// in the language the app shows.
+func SnippetEditJson() string { return In(i18n.Locale()).SnippetEditJson() }
+
+// SnippetEditJson says "Edit a JSON response"
+// in the language of msgs.
+func (msgs Messages) SnippetEditJson() string {
+	return Catalog.Format(msgs.locale, "snippetEditJson", nil)
+}
+
+// SnippetExportFunction says "Export a function"
+// in the language the app shows.
+func SnippetExportFunction() string { return In(i18n.Locale()).SnippetExportFunction() }
+
+// SnippetExportFunction says "Export a function"
+// in the language of msgs.
+func (msgs Messages) SnippetExportFunction() string {
+	return Catalog.Format(msgs.locale, "snippetExportFunction", nil)
+}
+
+// SnippetFormatDateMoment says "Format a date with moment"
+// in the language the app shows.
+func SnippetFormatDateMoment() string { return In(i18n.Locale()).SnippetFormatDateMoment() }
+
+// SnippetFormatDateMoment says "Format a date with moment"
+// in the language of msgs.
+func (msgs Messages) SnippetFormatDateMoment() string {
+	return Catalog.Format(msgs.locale, "snippetFormatDateMoment", nil)
+}
+
+// SnippetGenerateMock says "Generate a local mock response"
+// in the language the app shows.
+func SnippetGenerateMock() string { return In(i18n.Locale()).SnippetGenerateMock() }
+
+// SnippetGenerateMock says "Generate a local mock response"
+// in the language of msgs.
+func (msgs Messages) SnippetGenerateMock() string {
+	return Catalog.Format(msgs.locale, "snippetGenerateMock", nil)
+}
+
+// SnippetGenerateUuid says "Generate a UUID"
+// in the language the app shows.
+func SnippetGenerateUuid() string { return In(i18n.Locale()).SnippetGenerateUuid() }
+
+// SnippetGenerateUuid says "Generate a UUID"
+// in the language of msgs.
+func (msgs Messages) SnippetGenerateUuid() string {
+	return Catalog.Format(msgs.locale, "snippetGenerateUuid", nil)
+}
+
+// SnippetHashCryptoJS says "Hash with crypto-js"
+// in the language the app shows.
+func SnippetHashCryptoJS() string { return In(i18n.Locale()).SnippetHashCryptoJS() }
+
+// SnippetHashCryptoJS says "Hash with crypto-js"
+// in the language of msgs.
+func (msgs Messages) SnippetHashCryptoJS() string {
+	return Catalog.Format(msgs.locale, "snippetHashCryptoJS", nil)
+}
+
+// SnippetImportAddon says "Import an addon"
+// in the language the app shows.
+func SnippetImportAddon() string { return In(i18n.Locale()).SnippetImportAddon() }
+
+// SnippetImportAddon says "Import an addon"
+// in the language of msgs.
+func (msgs Messages) SnippetImportAddon() string {
+	return Catalog.Format(msgs.locale, "snippetImportAddon", nil)
+}
+
+// SnippetImportCheerio says "Import cheerio"
+// in the language the app shows.
+func SnippetImportCheerio() string { return In(i18n.Locale()).SnippetImportCheerio() }
+
+// SnippetImportCheerio says "Import cheerio"
+// in the language of msgs.
+func (msgs Messages) SnippetImportCheerio() string {
+	return Catalog.Format(msgs.locale, "snippetImportCheerio", nil)
+}
+
+// SnippetImportCryptoJS says "Import crypto-js"
+// in the language the app shows.
+func SnippetImportCryptoJS() string { return In(i18n.Locale()).SnippetImportCryptoJS() }
+
+// SnippetImportCryptoJS says "Import crypto-js"
+// in the language of msgs.
+func (msgs Messages) SnippetImportCryptoJS() string {
+	return Catalog.Format(msgs.locale, "snippetImportCryptoJS", nil)
+}
+
+// SnippetImportLodash says "Import lodash"
+// in the language the app shows.
+func SnippetImportLodash() string { return In(i18n.Locale()).SnippetImportLodash() }
+
+// SnippetImportLodash says "Import lodash"
+// in the language of msgs.
+func (msgs Messages) SnippetImportLodash() string {
+	return Catalog.Format(msgs.locale, "snippetImportLodash", nil)
+}
+
+// SnippetImportMoment says "Import moment"
+// in the language the app shows.
+func SnippetImportMoment() string { return In(i18n.Locale()).SnippetImportMoment() }
+
+// SnippetImportMoment says "Import moment"
+// in the language of msgs.
+func (msgs Messages) SnippetImportMoment() string {
+	return Catalog.Format(msgs.locale, "snippetImportMoment", nil)
+}
+
+// SnippetImportUuid says "Import uuid"
+// in the language the app shows.
+func SnippetImportUuid() string { return In(i18n.Locale()).SnippetImportUuid() }
+
+// SnippetImportUuid says "Import uuid"
+// in the language of msgs.
+func (msgs Messages) SnippetImportUuid() string {
+	return Catalog.Format(msgs.locale, "snippetImportUuid", nil)
+}
+
+// SnippetImportXml2js says "Import xml2js"
+// in the language the app shows.
+func SnippetImportXml2js() string { return In(i18n.Locale()).SnippetImportXml2js() }
+
+// SnippetImportXml2js says "Import xml2js"
+// in the language of msgs.
+func (msgs Messages) SnippetImportXml2js() string {
+	return Catalog.Format(msgs.locale, "snippetImportXml2js", nil)
+}
+
+// SnippetLogValue says "Log a value"
+// in the language the app shows.
+func SnippetLogValue() string { return In(i18n.Locale()).SnippetLogValue() }
+
+// SnippetLogValue says "Log a value"
+// in the language of msgs.
+func (msgs Messages) SnippetLogValue() string {
+	return Catalog.Format(msgs.locale, "snippetLogValue", nil)
+}
+
+// SnippetParseCsv says "Parse CSV"
+// in the language the app shows.
+func SnippetParseCsv() string { return In(i18n.Locale()).SnippetParseCsv() }
+
+// SnippetParseCsv says "Parse CSV"
+// in the language of msgs.
+func (msgs Messages) SnippetParseCsv() string {
+	return Catalog.Format(msgs.locale, "snippetParseCsv", nil)
+}
+
+// SnippetParseHtmlCheerio says "Parse HTML with cheerio"
+// in the language the app shows.
+func SnippetParseHtmlCheerio() string { return In(i18n.Locale()).SnippetParseHtmlCheerio() }
+
+// SnippetParseHtmlCheerio says "Parse HTML with cheerio"
+// in the language of msgs.
+func (msgs Messages) SnippetParseHtmlCheerio() string {
+	return Catalog.Format(msgs.locale, "snippetParseHtmlCheerio", nil)
+}
+
+// SnippetParseXmlXml2js says "Parse XML with xml2js"
+// in the language the app shows.
+func SnippetParseXmlXml2js() string { return In(i18n.Locale()).SnippetParseXmlXml2js() }
+
+// SnippetParseXmlXml2js says "Parse XML with xml2js"
+// in the language of msgs.
+func (msgs Messages) SnippetParseXmlXml2js() string {
+	return Catalog.Format(msgs.locale, "snippetParseXmlXml2js", nil)
+}
+
+// SnippetPassValue says "Pass a value from request to response"
+// in the language the app shows.
+func SnippetPassValue() string { return In(i18n.Locale()).SnippetPassValue() }
+
+// SnippetPassValue says "Pass a value from request to response"
+// in the language of msgs.
+func (msgs Messages) SnippetPassValue() string {
+	return Catalog.Format(msgs.locale, "snippetPassValue", nil)
+}
+
+// SnippetReadEnv says "Read a system environment variable"
+// in the language the app shows.
+func SnippetReadEnv() string { return In(i18n.Locale()).SnippetReadEnv() }
+
+// SnippetReadEnv says "Read a system environment variable"
+// in the language of msgs.
+func (msgs Messages) SnippetReadEnv() string {
+	return Catalog.Format(msgs.locale, "snippetReadEnv", nil)
+}
+
+// SnippetReadGlobal says "Read and set a global"
+// in the language the app shows.
+func SnippetReadGlobal() string { return In(i18n.Locale()).SnippetReadGlobal() }
+
+// SnippetReadGlobal says "Read and set a global"
+// in the language of msgs.
+func (msgs Messages) SnippetReadGlobal() string {
+	return Catalog.Format(msgs.locale, "snippetReadGlobal", nil)
+}
+
+// SnippetRewriteUrl says "Rewrite the URL"
+// in the language the app shows.
+func SnippetRewriteUrl() string { return In(i18n.Locale()).SnippetRewriteUrl() }
+
+// SnippetRewriteUrl says "Rewrite the URL"
+// in the language of msgs.
+func (msgs Messages) SnippetRewriteUrl() string {
+	return Catalog.Format(msgs.locale, "snippetRewriteUrl", nil)
+}
+
+// SnippetSendRequest says "Send a request"
+// in the language the app shows.
+func SnippetSendRequest() string { return In(i18n.Locale()).SnippetSendRequest() }
+
+// SnippetSendRequest says "Send a request"
+// in the language of msgs.
+func (msgs Messages) SnippetSendRequest() string {
+	return Catalog.Format(msgs.locale, "snippetSendRequest", nil)
+}
+
+// SnippetSetResponseHeader says "Set a response header"
+// in the language the app shows.
+func SnippetSetResponseHeader() string { return In(i18n.Locale()).SnippetSetResponseHeader() }
+
+// SnippetSetResponseHeader says "Set a response header"
+// in the language of msgs.
+func (msgs Messages) SnippetSetResponseHeader() string {
+	return Catalog.Format(msgs.locale, "snippetSetResponseHeader", nil)
+}
+
+// SnippetUseLodash says "Use lodash"
+// in the language the app shows.
+func SnippetUseLodash() string { return In(i18n.Locale()).SnippetUseLodash() }
+
+// SnippetUseLodash says "Use lodash"
+// in the language of msgs.
+func (msgs Messages) SnippetUseLodash() string {
+	return Catalog.Format(msgs.locale, "snippetUseLodash", nil)
+}
+
+// SnippetValidateAjv says "Validate a schema with Ajv"
+// in the language the app shows.
+func SnippetValidateAjv() string { return In(i18n.Locale()).SnippetValidateAjv() }
+
+// SnippetValidateAjv says "Validate a schema with Ajv"
+// in the language of msgs.
+func (msgs Messages) SnippetValidateAjv() string {
+	return Catalog.Format(msgs.locale, "snippetValidateAjv", nil)
 }
 
 // SocketIOEditorTabPrefix says "Socket.IO editor"

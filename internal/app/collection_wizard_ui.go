@@ -209,7 +209,7 @@ func (a *app) collectionEndpointsEditor(c *ui.Context, t *ui.Theme) {
 	uikit.Hint(c, locales.UseIdForAWhole())
 	ui.Row(c).Gap(t.Space(2)).Wrap().Children(func() {
 		uikit.SecondaryButton(c, locales.Split()).Disabled(len(g.flows) < 2).OnClick(func() { w.split(w.active) })
-		uikit.MenuSelect(c, "Merge with…", func(m *ui.Menu) {
+		uikit.MenuSelect(c, locales.MergeWith(), func(m *ui.Menu) {
 			for i, other := range w.groups {
 				if other != g && other.origin == g.origin && other.method == g.method {
 					if m.Item(other.template).Chosen() {

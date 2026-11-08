@@ -75,7 +75,7 @@ func (a *app) collectionRecordingModal(c *ui.Context, t *ui.Theme) {
 					ui.Field(c, locales.DestinationCollection(), func() {
 						ui.Row(c).Gap(t.Space(2)).Children(func() {
 							uikit.Input(c, &w.collection).Label(locales.RecordingCollection()).Grow(1).MinWidth(0)
-							uikit.MenuSelect(c, "Choose existing…", func(m *ui.Menu) {
+							uikit.MenuSelect(c, locales.ChooseExisting(), func(m *ui.Menu) {
 								for _, name := range a.collectionNames() {
 									if name != "" && m.Item(name).Chosen() {
 										w.collection = name

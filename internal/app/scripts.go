@@ -516,50 +516,50 @@ func (a *app) openScript(name string) {
 // require, and rule scripts also get their hooks' snippets.
 func scriptSnippets(kind string) [][2]string {
 	shared := [][2]string{
-		{"Log a value", "console.log(pm.request.url.toString());\n$0"},
-		{"Read and set a global", "const count = Number(pm.globals.get(\"${1:count}\") || 0) + 1;\npm.globals.set(\"${1:count}\", count);\n$0"},
-		{"Send a request", "const res = await pm.sendRequest(\"${1:https://example.com/token}\");\nconsole.log(res.code, res.json());\n$0"},
+		{locales.SnippetLogValue(), "console.log(pm.request.url.toString());\n$0"},
+		{locales.SnippetReadGlobal(), "const count = Number(pm.globals.get(\"${1:count}\") || 0) + 1;\npm.globals.set(\"${1:count}\", count);\n$0"},
+		{locales.SnippetSendRequest(), "const res = await pm.sendRequest(\"${1:https://example.com/token}\");\nconsole.log(res.code, res.json());\n$0"},
 	}
 	if kind == "request" {
 		return append(shared,
-			[2]string{"Hash with crypto-js", "const CryptoJS = require(\"crypto-js\");\nconst signature = CryptoJS.HmacSHA256(pm.request.body.raw, \"${1:secret}\").toString(CryptoJS.enc.Hex);\n$0"},
-			[2]string{"Use lodash", "const _ = require(\"lodash\");\nconst ids = _.map(pm.response.json().items, \"${1:id}\");\n$0"},
-			[2]string{"Format a date with moment", "const moment = require(\"moment\");\nconst at = moment(\"${1:2024-01-31T23:30:45Z}\").format(\"${2:YYYY-MM-DD HH:mm:ss Z}\");\n$0"},
-			[2]string{"Parse HTML with cheerio", "const cheerio = require(\"cheerio\");\nconst $ = cheerio.load(pm.response.text());\nconsole.log($(\"title\").text());\n$0"},
-			[2]string{"Parse XML with xml2js", "const xml2js = require(\"xml2js\");\nxml2js.parseString(pm.response.text(), { explicitArray: false }, (err, result) => {\n  if (err) throw err;\n  console.log(result);\n});\n$0"},
-			[2]string{"Parse CSV", "const parse = require(\"csv-parse/lib/sync\");\nconst rows = parse(pm.response.text(), { columns: true });\nconsole.log(rows);\n$0"},
-			[2]string{"Validate a schema with Ajv", "const Ajv = require(\"ajv\");\nconst valid = new Ajv().validate(${1:schema}, pm.response.json());\npm.test(\"schema\", () => pm.expect(valid).to.be.true);\n$0"},
-			[2]string{"Generate a UUID", "const uuid = require(\"uuid\");\npm.variables.set(\"${1:id}\", uuid.v4());\n$0"},
-			[2]string{"Decode Base64", "const { Buffer } = require(\"buffer\");\nconst text = Buffer.from(pm.response.text(), \"base64\").toString();\nconsole.log(text);\n$0"})
+			[2]string{locales.SnippetHashCryptoJS(), "const CryptoJS = require(\"crypto-js\");\nconst signature = CryptoJS.HmacSHA256(pm.request.body.raw, \"${1:secret}\").toString(CryptoJS.enc.Hex);\n$0"},
+			[2]string{locales.SnippetUseLodash(), "const _ = require(\"lodash\");\nconst ids = _.map(pm.response.json().items, \"${1:id}\");\n$0"},
+			[2]string{locales.SnippetFormatDateMoment(), "const moment = require(\"moment\");\nconst at = moment(\"${1:2024-01-31T23:30:45Z}\").format(\"${2:YYYY-MM-DD HH:mm:ss Z}\");\n$0"},
+			[2]string{locales.SnippetParseHtmlCheerio(), "const cheerio = require(\"cheerio\");\nconst $ = cheerio.load(pm.response.text());\nconsole.log($(\"title\").text());\n$0"},
+			[2]string{locales.SnippetParseXmlXml2js(), "const xml2js = require(\"xml2js\");\nxml2js.parseString(pm.response.text(), { explicitArray: false }, (err, result) => {\n  if (err) throw err;\n  console.log(result);\n});\n$0"},
+			[2]string{locales.SnippetParseCsv(), "const parse = require(\"csv-parse/lib/sync\");\nconst rows = parse(pm.response.text(), { columns: true });\nconsole.log(rows);\n$0"},
+			[2]string{locales.SnippetValidateAjv(), "const Ajv = require(\"ajv\");\nconst valid = new Ajv().validate(${1:schema}, pm.response.json());\npm.test(\"schema\", () => pm.expect(valid).to.be.true);\n$0"},
+			[2]string{locales.SnippetGenerateUuid(), "const uuid = require(\"uuid\");\npm.variables.set(\"${1:id}\", uuid.v4());\n$0"},
+			[2]string{locales.SnippetDecodeBase64(), "const { Buffer } = require(\"buffer\");\nconst text = Buffer.from(pm.response.text(), \"base64\").toString();\nconsole.log(text);\n$0"})
 	}
 	// Rule scripts and addons are modules: they import at the top.
 	shared = append(shared,
-		[2]string{"Import crypto-js", "import CryptoJS from \"crypto-js\";\n$0"},
-		[2]string{"Import lodash", "import _ from \"lodash\";\n$0"},
-		[2]string{"Import moment", "import moment from \"moment\";\n$0"},
-		[2]string{"Import cheerio", "import cheerio from \"cheerio\";\n$0"},
-		[2]string{"Import xml2js", "import xml2js from \"xml2js\";\n$0"},
-		[2]string{"Import uuid", "import { v4 as uuidv4 } from \"uuid\";\n$0"},
-		[2]string{"Import an addon", "import { ${1:sign} } from \"${1:sign}\";\n$0"})
+		[2]string{locales.SnippetImportCryptoJS(), "import CryptoJS from \"crypto-js\";\n$0"},
+		[2]string{locales.SnippetImportLodash(), "import _ from \"lodash\";\n$0"},
+		[2]string{locales.SnippetImportMoment(), "import moment from \"moment\";\n$0"},
+		[2]string{locales.SnippetImportCheerio(), "import cheerio from \"cheerio\";\n$0"},
+		[2]string{locales.SnippetImportXml2js(), "import xml2js from \"xml2js\";\n$0"},
+		[2]string{locales.SnippetImportUuid(), "import { v4 as uuidv4 } from \"uuid\";\n$0"},
+		[2]string{locales.SnippetImportAddon(), "import { ${1:sign} } from \"${1:sign}\";\n$0"})
 	if kind == "addon" {
-		return append(shared, [2]string{"Export a function", "export function ${1:sign}(text) {\n  return text;\n}\n$0"})
+		return append(shared, [2]string{locales.SnippetExportFunction(), "export function ${1:sign}(text) {\n  return text;\n}\n$0"})
 	}
 	return append([][2]string{
 		{"Generate a local mock response", newMockScriptText},
-		{"Add a request header", "pm.request.headers.upsert(\"${1:X-Debug}\", \"${2:1}\");\n$0"},
-		{"Rewrite the URL", "pm.request.url = pm.request.url.toString().replace(\"${1:/v1/}\", \"${2:/v2/}\");\n$0"},
-		{"Add a query parameter", "pm.request.url.query.upsert(\"${1:debug}\", \"${2:1}\");\n$0"},
-		{"Read a system environment variable", "const token = process.env.${1:API_TOKEN};\nif (token) pm.request.headers.upsert(\"Authorization\", \"Bearer \" + token);\n$0"},
-		{"Change the status", "if (pm.response.code >= ${1:500}) pm.response.code = ${2:200};\n$0"},
-		{"Edit a JSON response", "const body = pm.response.json();\nbody.${1:debug} = true;\npm.response.setBody(body);\n$0"},
-		{"Set a response header", "pm.response.headers.upsert(\"${1:Access-Control-Allow-Origin}\", \"${2:*}\");\n$0"},
-		{"Pass a value from request to response", "// In onRequest:\npm.variables.set(\"${1:startedAt}\", Date.now());\n// In onResponse:\nconsole.log(\"took\", Date.now() - Number(pm.variables.get(\"${1:startedAt}\")), \"ms\");\n$0"},
+		{locales.SnippetAddRequestHeader(), "pm.request.headers.upsert(\"${1:X-Debug}\", \"${2:1}\");\n$0"},
+		{locales.SnippetRewriteUrl(), "pm.request.url = pm.request.url.toString().replace(\"${1:/v1/}\", \"${2:/v2/}\");\n$0"},
+		{locales.SnippetAddQueryParameter(), "pm.request.url.query.upsert(\"${1:debug}\", \"${2:1}\");\n$0"},
+		{locales.SnippetReadEnv(), "const token = process.env.${1:API_TOKEN};\nif (token) pm.request.headers.upsert(\"Authorization\", \"Bearer \" + token);\n$0"},
+		{locales.SnippetChangeStatus(), "if (pm.response.code >= ${1:500}) pm.response.code = ${2:200};\n$0"},
+		{locales.SnippetEditJson(), "const body = pm.response.json();\nbody.${1:debug} = true;\npm.response.setBody(body);\n$0"},
+		{locales.SnippetSetResponseHeader(), "pm.response.headers.upsert(\"${1:Access-Control-Allow-Origin}\", \"${2:*}\");\n$0"},
+		{locales.SnippetPassValue(), "// In onRequest:\npm.variables.set(\"${1:startedAt}\", Date.now());\n// In onResponse:\nconsole.log(\"took\", Date.now() - Number(pm.variables.get(\"${1:startedAt}\")), \"ms\");\n$0"},
 	}, shared...)
 }
 
 // snippetMenu inserts a snippet at the caret of st.
 func snippetMenu(c *ui.Context, st *editor.State, kind string) {
-	uikit.MenuSelect(c, "Insert snippet", func(m *ui.Menu) {
+	uikit.MenuSelect(c, locales.InsertSnippet(), func(m *ui.Menu) {
 		for _, s := range scriptSnippets(kind) {
 			if m.Item(s[0]).Chosen() {
 				// The templates are parsed once at the click: a bad one

@@ -18,6 +18,9 @@ import (
 	"unicode"
 
 	"github.com/baba983/vscroxy/locales"
+	"github.com/egoist/mygo/i18n"
+	"github.com/egoist/mygo/ui"
+	"github.com/egoist/mygo/ui/editor"
 )
 
 func TestCatalogsMatch(t *testing.T) {
@@ -104,7 +107,7 @@ func screenStrings(t *testing.T, path string) []string {
 		"DialogTitle": 1, "SettingsPage": 1, "SettingsGroup": 1, "MoreMenu": 1,
 		"SidebarItem": 3, "SidebarSection": 1,
 		"Description": 0, "Error": 0, "Tooltip": 0, "Placeholder": 0,
-		"do": 1, "note": 0, "submenu": 0, "command": 1,
+		"do": 1, "note": 0, "submenu": 0, "command": 1, "MenuSelect": 1,
 		"inform": 0, "done": 0, "warn": 0, "fail": 0,
 	}
 	variadic := map[string]int{"Segmented": 2, "Tabs": 3, "SubTabs": 3}
@@ -366,4 +369,53 @@ func literalStrings(expr ast.Expr) []string {
 		}
 	}
 	return values
+}
+
+// TestScriptSnippetsUseTheCatalog keeps Insert snippet labels translatable:
+// a snippet is a pair of a label and its code, and the label must come from
+// the catalog, not a literal.
+func TestScriptSnippetsUseTheCatalog(t *testing.T) {
+	file, err := parser.ParseFile(token.NewFileSet(), "scripts.go", nil, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ast.Inspect(file, func(n ast.Node) bool {
+		lit, ok := n.(*ast.CompositeLit)
+		if !ok || len(lit.Elts) != 2 {
+			return true
+		}
+		arr, ok := lit.Type.(*ast.ArrayType)
+		if !ok {
+			return true
+		}
+		length, ok := arr.Len.(*ast.BasicLit)
+		element, ok := arr.Elt.(*ast.Ident)
+		if !ok || length.Value != "2" || element.Name != "string" {
+			return true
+		}
+		if label, ok := lit.Elts[0].(*ast.BasicLit); ok && label.Kind == token.STRING {
+			t.Errorf("snippet label %s is not a catalog message", label.Value)
+		}
+		return true
+	})
+}
+
+// TestSnippetMenuChinese checks the sandbox library snippets say their labels
+// in Chinese, including the ones added with the bundled libraries.
+func TestSnippetMenuChinese(t *testing.T) {
+	i18n.SetLocaleFunc(func() string { return "zh-Hans" })
+	t.Cleanup(func() { i18n.SetLocaleFunc(nil) })
+	st := &editor.State{Buffer: editor.NewBuffer("")}
+	tt := ui.NewTester(func(c *ui.Context) { snippetMenu(c, st, "request") }, 420, 700)
+	tt.SetLocale("zh-Hans")
+	tt.Frame()
+	if err := tt.Click("插入代码片段"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	for _, want := range []string{"用 cheerio 解析 HTML", "用 xml2js 解析 XML", "解析 CSV", "用 Ajv 验证架构", "生成 UUID", "解码 Base64"} {
+		if !tt.HasText(want) {
+			t.Fatalf("missing %q: %v", want, tt.Texts())
+		}
+	}
 }
