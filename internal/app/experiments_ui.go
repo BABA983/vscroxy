@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/baba983/vscroxy/internal/request"
+	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/editor"
 )
@@ -284,17 +285,17 @@ func (a *app) experimentsView(c *ui.Context, t *ui.Theme, inline bool) {
 				title += " · Draft"
 			}
 			uikit.DialogTitle(c, title).Grow(1)
-			if uikit.SecondaryButton(c, "Clear History…").Disabled(s.readOnly || len(s.log.Records) == 0).Clicked() {
+			if uikit.SecondaryButton(c, locales.ClearHistory()).Disabled(s.readOnly || len(s.log.Records) == 0).Clicked() {
 				s.clearing = true
 			}
-			if uikit.SecondaryButton(c, "Close").Clicked() {
+			if uikit.SecondaryButton(c, locales.Close()).Clicked() {
 				s.open = false
 				if inline {
 					a.page = pageRequest
 				}
 			}
 		})
-		uikit.Meta(c, "Private local snapshots may contain credentials. Up to 100 runs / 32 MiB; baseline retained. Payloads keep up to 256 KiB per side. Opening or comparing never sends.")
+		uikit.Meta(c, locales.PrivateLocalSnapshotsMayContain())
 		if s.problem != "" {
 			ui.Text(c, s.problem).FontSize(uikit.TextBody).TextColor(t.Danger)
 		}
@@ -305,7 +306,7 @@ func (a *app) experimentsView(c *ui.Context, t *ui.Theme, inline bool) {
 			ui.Scroll(c).Width(220).Padding(t.Space(1)).Children(func() {
 				a.debugDrafts(c)
 				if len(s.log.Records) == 0 {
-					uikit.Hint(c, "Send a request to record an experiment.").Padding(t.Space(2))
+					uikit.Hint(c, locales.SendARequestToRecord()).Padding(t.Space(2))
 				}
 				for _, r := range s.log.Records {
 					if !s.includes(r) {
@@ -315,7 +316,7 @@ func (a *app) experimentsView(c *ui.Context, t *ui.Theme, inline bool) {
 					if r.ID == s.log.Baseline {
 						label += " · Baseline"
 					}
-					button := uikit.ToolbarButton(c, fmt.Sprintf("Experiment #%d", r.ID), r.Draft.Method+" "+r.Draft.URL+"\n"+r.Summary, r.ID == s.picked).
+					button := uikit.ToolbarButton(c, locales.ExperimentNumber(r.ID), r.Draft.Method+" "+r.Draft.URL+"\n"+r.Summary, r.ID == s.picked).
 						FillWidth().FontFeatures("tnum").Children(func() {
 						ui.Text(c, label).FontSize(uikit.TextMeta).FontFeatures("tnum").SingleLine()
 					})
@@ -335,70 +336,70 @@ func (a *app) experimentsView(c *ui.Context, t *ui.Theme, inline bool) {
 						message = "No retained sends for this draft. Opening history never sends."
 					}
 					if s.scope == nil {
-						uikit.EmptyState(c, "No retained runs", message, nil)
+						uikit.EmptyState(c, locales.NoRetainedRuns(), message, nil)
 					} else {
 						uikit.Body(c, message)
 					}
 					if s.scope != nil {
 						f := s.scope.Exchange.flow()
-						uikit.Body(c, fmt.Sprintf("Source #%d · %s %s · %d", f.id, f.method, f.url, f.status)).FontFeatures("tnum").SingleLine().Tooltip(f.url)
+						uikit.Body(c, locales.SourceNumber(f.id, f.method, f.url, f.status)).FontFeatures("tnum").SingleLine().Tooltip(f.url)
 						if s.reader == nil {
-							s.reader = &editor.State{Buffer: editor.NewBuffer(f.body(true)), ReadOnly: true, Label: "Source snapshot", NoScrollPastEnd: true}
+							s.reader = &editor.State{Buffer: editor.NewBuffer(f.body(true)), ReadOnly: true, Label: locales.SourceSnapshotLabel(), NoScrollPastEnd: true}
 						}
 						requestCodeEditor(c, s.reader)
 					}
 					return
 				}
-				ui.Text(c, fmt.Sprintf("Run #%d · %s %s", r.ID, r.Draft.Method, r.Draft.URL)).FontSize(uikit.TextBody).FontFeatures("tnum").FontWeight(600).SingleLine().Tooltip(r.Draft.URL)
+				ui.Text(c, locales.RunDraft(r.ID, r.Draft.Method, r.Draft.URL)).FontSize(uikit.TextBody).FontFeatures("tnum").FontWeight(600).SingleLine().Tooltip(r.Draft.URL)
 				uikit.Meta(c, r.Summary+" · Environment: "+cmp.Or(r.Environment, "none")).FontFeatures("tnum")
 				if r.Outcome != "" {
 					uikit.Meta(c, r.Outcome)
 				}
 				ui.Row(c).Gap(t.Space(1)).Wrap().Children(func() {
-					if uikit.SecondaryButton(c, "Open as draft").Clicked() {
+					if uikit.SecondaryButton(c, locales.OpenAsDraft()).Clicked() {
 						a.openRecord(*r)
 						s.open = false
 					}
-					if uikit.SecondaryButton(c, "Trace source").Disabled(r.Source == nil).Clicked() {
+					if uikit.SecondaryButton(c, locales.TraceSource()).Disabled(r.Source == nil).Clicked() {
 						a.openDebugHistory(r.Source)
 					}
 					origin := slices.IndexFunc(a.documents, func(d *requestDocument) bool { return r.DraftKey != "" && d.debugKey == r.DraftKey })
-					if uikit.SecondaryButton(c, "Origin draft").Label("Open originating draft").Disabled(origin < 0).Tooltip("Return to the original editable tab without overwriting its current edits: " + r.Draft.Name).Clicked() {
+					if uikit.SecondaryButton(c, locales.OriginDraft()).Label(locales.OpenOriginatingDraft()).Disabled(origin < 0).Tooltip("Return to the original editable tab without overwriting its current edits: " + r.Draft.Name).Clicked() {
 						d := a.documents[origin]
 						a.requestDocument, a.requestChoice, a.page = d, d.savedKey, pageRequest
 						s.open = false
 						d.urlInput.Focus()
 					}
-					if uikit.SecondaryButton(c, "Set baseline").Clicked() {
+					if uikit.SecondaryButton(c, locales.SetBaseline()).Clicked() {
 						s.log.Baseline, s.left = r.ID, r.ID
 						s.persist()
 					}
-					if uikit.SecondaryButton(c, "Use as left").Clicked() {
+					if uikit.SecondaryButton(c, locales.UseAsLeft()).Clicked() {
 						s.left = r.ID
 						s.comparison.diff = nil
 					}
-					if uikit.SecondaryButton(c, "Compare with left").Disabled(s.record(cmp.Or(s.left, s.log.Baseline)) == nil || cmp.Or(s.left, s.log.Baseline) == r.ID).Clicked() {
+					if uikit.SecondaryButton(c, locales.CompareWithLeft()).Disabled(s.record(cmp.Or(s.left, s.log.Baseline)) == nil || cmp.Or(s.left, s.log.Baseline) == r.ID).Clicked() {
 						s.tab = 1
 						s.comparison.diff = nil
 					}
 				})
 				ui.Row(c).Gap(t.Space(2)).Children(func() {
-					uikit.Input(c, &s.note).Label("Experiment note").Placeholder("What did this attempt test?").Grow(1)
-					if uikit.SecondaryButton(c, "Save note").Clicked() {
+					uikit.Input(c, &s.note).Label(locales.ExperimentNote()).Placeholder(locales.WhatDidThisAttemptTest()).Grow(1)
+					if uikit.SecondaryButton(c, locales.SaveNote()).Clicked() {
 						r.Note = s.note
 						s.persist()
 					}
 				})
 				a.debugWire(c, *r)
 				uikit.TabStrip(c, func() {
-					if uikit.Tabs(c, &s.tab, "", "Recorded result", "Compare runs", "Compare source", "Sent request", "Console", "Variables").Gap(0).Changed() {
+					if uikit.Tabs(c, &s.tab, "", locales.RecordedResult(), locales.CompareRuns(), locales.CompareSource(), locales.SentRequest(), locales.Console(), locales.Variables()).Gap(0).Changed() {
 						s.reader = nil
 					}
 				}).Height(uikit.HeightTabs).FillWidth()
 				if s.tab == 5 {
-					uikit.Meta(c, "Referenced values after pre-script, before expansion · run input = environment snapshot or preceding Runner step · post-script changes do not rewrite this snapshot.")
+					uikit.Meta(c, locales.ReferencedValuesAfterPreScript())
 					if r.Variables == nil {
-						ui.Text(c, "No variable snapshot retained (older records may not include it).").FontSize(uikit.TextMeta)
+						ui.Text(c, locales.NoVariableSnapshotRetainedOlder()).FontSize(uikit.TextMeta)
 					}
 					variableRows(c, r.Variables, &s.revealVars)
 					return
@@ -408,7 +409,7 @@ func (a *app) experimentsView(c *ui.Context, t *ui.Theme, inline bool) {
 					return
 				}
 				if s.tab == 3 {
-					uikit.Meta(c, "Initial client request after variables and pre-request script; redirect hops and proxy interventions are separate wire exchanges.")
+					uikit.Meta(c, locales.InitialClientRequestAfterVariables())
 					if s.reader == nil {
 						text := "Request was not prepared. The editable draft snapshot is retained."
 						if f := r.Exchange; f != nil {
@@ -417,7 +418,7 @@ func (a *app) experimentsView(c *ui.Context, t *ui.Theme, inline bool) {
 								text += "\n\n" + f.RequestBodyError
 							}
 						}
-						s.reader = &editor.State{Buffer: editor.NewBuffer(text), ReadOnly: true, NoScrollPastEnd: true, SoftWrap: true, Label: "Sent request snapshot"}
+						s.reader = &editor.State{Buffer: editor.NewBuffer(text), ReadOnly: true, NoScrollPastEnd: true, SoftWrap: true, Label: locales.SentRequestSnapshot()}
 					}
 					requestCodeEditor(c, s.reader)
 					return
@@ -427,18 +428,18 @@ func (a *app) experimentsView(c *ui.Context, t *ui.Theme, inline bool) {
 					return
 				}
 				if s.tab == 1 {
-					if uikit.Input(c, &s.ignore).Label("Ignore JSON keys").Placeholder("Ignore top-level response JSON keys: timestamp, traceId").Changed() {
+					if uikit.Input(c, &s.ignore).Label(locales.IgnoreJsonKeys()).Placeholder(locales.IgnoreTopLevelResponseJson()).Changed() {
 						s.comparison.diffPart = ""
 					}
-					uikit.Meta(c, "Comparison only; original snapshots remain unchanged. Ignores top-level response JSON keys, not headers or nested fields.")
+					uikit.Meta(c, locales.ComparisonOnlyOriginalSnapshotsRemain())
 					if left := s.record(cmp.Or(s.left, s.log.Baseline)); left != nil && left.ID != r.ID {
 						s.comparison.compare(c, left.compared(s.ignore), r.compared(s.ignore), [2]string{fmt.Sprintf("Run #%d", left.ID), fmt.Sprintf("Run #%d", r.ID)}, &a.diffSplit)
 					} else {
-						uikit.EmptyState(c, "Choose a baseline", "Choose another run as left, or set a baseline first.", nil)
+						uikit.EmptyState(c, locales.ChooseABaseline(), locales.ChooseAnotherRunAsLeft(), nil)
 					}
 				} else {
 					if s.reader == nil {
-						s.reader = &editor.State{Buffer: editor.NewBuffer(r.resultText()), ReadOnly: true, NoScrollPastEnd: true, SoftWrap: true, Label: "Experiment result"}
+						s.reader = &editor.State{Buffer: editor.NewBuffer(r.resultText()), ReadOnly: true, NoScrollPastEnd: true, SoftWrap: true, Label: locales.ExperimentResult()}
 					}
 					requestCodeEditor(c, s.reader)
 				}
@@ -447,13 +448,13 @@ func (a *app) experimentsView(c *ui.Context, t *ui.Theme, inline bool) {
 	})
 	uikit.Modal(c, &s.clearing, func() {
 		uikit.DialogColumn(c, uikit.DialogSmall).Children(func() {
-			uikit.DialogTitle(c, "Clear History?")
-			uikit.Hint(c, "This removes the retained runs and baseline, not open drafts, captured traffic or saved requests.")
+			uikit.DialogTitle(c, locales.ClearHistory2())
+			uikit.Hint(c, locales.ThisRemovesTheRetainedRuns())
 			uikit.DialogFooter(c).Children(func() {
-				if uikit.SecondaryButton(c, "Cancel").Clicked() {
+				if uikit.SecondaryButton(c, locales.Cancel()).Clicked() {
 					s.clearing = false
 				}
-				if uikit.PrimaryButton(c, "Clear records").Clicked() {
+				if uikit.PrimaryButton(c, locales.ClearRecords()).Clicked() {
 					s.log.Records = nil
 					s.log.Baseline = 0
 					s.picked = 0

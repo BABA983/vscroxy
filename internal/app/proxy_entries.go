@@ -16,6 +16,7 @@ import (
 
 	"github.com/baba983/vscroxy/internal/capture"
 	"github.com/baba983/vscroxy/internal/uikit"
+	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo/ui"
 	"github.com/google/uuid"
 )
@@ -150,42 +151,42 @@ func (a *app) saveSOCKS() {
 }
 
 func (a *app) socksSettings(c *ui.Context, t *ui.Theme) {
-	uikit.SettingsGroup(c, "SOCKS5", func() {
-		ui.Field(c, "Enable", func() {
+	uikit.SettingsGroup(c, locales.Socks5(), func() {
+		ui.Field(c, locales.Enable(), func() {
 			ui.Row(c).Gap(t.Space(2)).Wrap().AlignItems(ui.Center).Children(func() {
-				ui.Switch(c, &a.socksOnDraft).Label("Enable SOCKS5 proxy")
+				ui.Switch(c, &a.socksOnDraft).Label(locales.EnableSocks5Proxy())
 				if a.srv != nil && a.srv.SOCKSAddr() != "" {
 					uikit.Mono(c, a.srv.SOCKSAddr()).Selectable().TextColor(t.TextMuted)
 				} else if err := a.srvError(); err != nil {
 					uikit.Hint(c, err.Error()).TextColor(t.Danger)
 				} else if a.socksDraft() != a.socksEntry() {
-					uikit.Hint(c, "Not saved")
+					uikit.Hint(c, locales.NotSaved())
 				} else if a.socksEntry() != a.launchSOCKS {
-					uikit.Hint(c, "Restart to apply")
+					uikit.Hint(c, locales.RestartToApply())
 				} else {
-					uikit.Hint(c, "Off")
+					uikit.Hint(c, locales.Off())
 				}
 			})
-		}).Description("A second entry for clients that cannot use an HTTP proxy. Plaintext HTTP and HTTPS with the same decryption rules. Applies after a restart.")
+		}).Description(locales.ASecondEntryForClients())
 		if a.socksOnDraft {
-			ui.Field(c, "Port", func() {
-				uikit.Input(c, &a.socksPortInput).Label("SOCKS5 port").Placeholder("Automatic").Width(100)
-			}).Description("Blank is automatic (an OS-assigned loopback port shown above). A fixed port (1024–65535) never falls back.").Error(a.socksProblem)
-			ui.Field(c, "Authentication", func() {
-				ui.Switch(c, &a.socksAuthDraft).Label("Require username and password")
-			}).Description("RFC 1929. Without it the entry accepts any local client that can reach the port.")
+			ui.Field(c, locales.Port(), func() {
+				uikit.Input(c, &a.socksPortInput).Label(locales.Socks5Port()).Placeholder(locales.Automatic()).Width(100)
+			}).Description(locales.BlankIsAutomaticAnOs()).Error(a.socksProblem)
+			ui.Field(c, locales.Authentication(), func() {
+				ui.Switch(c, &a.socksAuthDraft).Label(locales.RequireUsernameAndPassword())
+			}).Description(locales.Rfc1929WithoutItThe())
 			if a.socksAuthDraft {
-				ui.Field(c, "Username", func() {
-					uikit.Input(c, &a.socksUserDraft).Label("SOCKS5 username").Width(220)
+				ui.Field(c, locales.Username(), func() {
+					uikit.Input(c, &a.socksUserDraft).Label(locales.Socks5Username()).Width(220)
 				})
-				ui.Field(c, "Password", func() {
-					uikit.Input(c, &a.socksPassDraft).Label("SOCKS5 password").Password().Width(220)
+				ui.Field(c, locales.Password(), func() {
+					uikit.Input(c, &a.socksPassDraft).Label(locales.Socks5Password()).Password().Width(220)
 				})
 			}
 		}
 		ui.Field(c, "", func() {
 			ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-				if uikit.SecondaryButton(c, "Save SOCKS5 settings").Clicked() {
+				if uikit.SecondaryButton(c, locales.SaveSocks5Settings()).Clicked() {
 					a.saveSOCKS()
 				}
 				restartPending(c, a.socksEntry() != a.launchSOCKS)
@@ -334,13 +335,13 @@ func portOfAddr(addr string) string {
 }
 
 func (a *app) reverseProxySettings(c *ui.Context, t *ui.Theme) {
-	uikit.SettingsGroup(c, "Reverse proxies", func() {
+	uikit.SettingsGroup(c, locales.ReverseProxies(), func() {
 		status := map[string]capture.ReverseProxyStatus{}
 		if a.srv != nil {
 			status = a.srv.ReverseProxyStatus()
 		}
 		if len(a.reverses) == 0 {
-			uikit.Hint(c, "No reverse proxies. A local port forwards plaintext HTTP to a remote base URL and is captured like any other request.")
+			uikit.Hint(c, locales.NoReverseProxiesALocal())
 		}
 		for _, r := range slices.Clone(a.reverses) {
 			st := status[r.ID]
@@ -365,17 +366,17 @@ func (a *app) reverseProxySettings(c *ui.Context, t *ui.Theme) {
 					state = "Starting…"
 				}
 			}
-			field := ui.Field(c, fmt.Sprintf("Port %d", r.Port), func() {
+			field := ui.Field(c, locales.PortNumber(r.Port), func() {
 				ui.Row(c).Gap(t.Space(2)).Wrap().AlignItems(ui.Center).Children(func() {
 					enabled := r.Enabled
 					if ui.Switch(c, &enabled).Label("Reverse proxy on port " + strconv.Itoa(r.Port)).Changed() {
 						a.setReverseEnabled(r.ID, enabled)
 					}
 					uikit.Mono(c, r.Target).SingleLine().MaxWidth(280).TextColor(t.TextMuted).Tooltip(r.Target)
-					if uikit.SecondaryButton(c, "Edit…").Clicked() {
+					if uikit.SecondaryButton(c, locales.Edit()).Clicked() {
 						a.openReverseProxy(r.ID)
 					}
-					if uikit.SecondaryButton(c, "Remove").TextColor(t.Danger).Clicked() {
+					if uikit.SecondaryButton(c, locales.Remove()).TextColor(t.Danger).Clicked() {
 						a.removeReverseProxy(r.ID)
 					}
 				})
@@ -386,14 +387,14 @@ func (a *app) reverseProxySettings(c *ui.Context, t *ui.Theme) {
 		}
 		ui.Field(c, "", func() {
 			ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-				if uikit.SecondaryButton(c, "Add reverse proxy…").Clicked() {
+				if uikit.SecondaryButton(c, locales.AddReverseProxy()).Clicked() {
 					a.openReverseProxy("")
 				}
 				if a.reverseProblem != "" {
 					uikit.Hint(c, a.reverseProblem).TextColor(t.Danger)
 				}
 			})
-		}).Description("The local path is appended to the remote URL. Requests go through the same rules, scripts and capture; HTTPS remotes are reached with TLS by the app.")
+		}).Description(locales.TheLocalPathIsAppended())
 	})
 }
 
@@ -429,33 +430,33 @@ func (a *app) reverseProxyModal(c *ui.Context, t *ui.Theme) {
 		uikit.DialogColumn(c, uikit.DialogMedium).Children(func() {
 			uikit.DialogTitle(c, title)
 			ui.Scroll(c).MinHeight(0).Gap(t.Space(3)).Children(func() {
-				ui.Field(c, "Local port", func() {
-					uikit.Input(c, &d.port).Label("Local port").Placeholder("9000").Width(120)
-				}).Description("The loopback port clients connect to.")
-				ui.Field(c, "Remote URL", func() {
-					uikit.Input(c, &d.target).Label("Remote URL").Placeholder("https://api.example.com")
-				}).Description("The base URL requests are forwarded to. The local path is appended.")
-				ui.Field(c, "Host header", func() {
+				ui.Field(c, locales.LocalPort(), func() {
+					uikit.Input(c, &d.port).Label(locales.LocalPort()).Placeholder("9000").Width(120)
+				}).Description(locales.TheLoopbackPortClientsConnect())
+				ui.Field(c, locales.RemoteUrl(), func() {
+					uikit.Input(c, &d.target).Label(locales.RemoteUrl()).Placeholder("https://api.example.com")
+				}).Description(locales.TheBaseUrlRequestsAre())
+				ui.Field(c, locales.HostHeader(), func() {
 					choice := 0
 					if d.keepHost {
 						choice = 1
 					}
-					uikit.Segmented(c, &choice, "Remote host", "Keep original").Label("Host header")
+					uikit.Segmented(c, &choice, locales.RemoteHost(), locales.KeepOriginal()).Label(locales.HostHeader())
 					d.keepHost = choice == 1
 				})
-				uikit.Meta(c, "Remote host sends the target's authority. Keep original forwards the Host the local client sent.")
-				ui.Field(c, "Remote certificate", func() {
-					ui.Switch(c, &d.insecure).Label("Allow self-signed certificates")
-				}).Description("Off by default: the app verifies the remote certificate. Turn this on only for a development server whose certificate is not trusted.")
+				uikit.Meta(c, locales.RemoteHostSendsTheTarget())
+				ui.Field(c, locales.RemoteCertificate(), func() {
+					ui.Switch(c, &d.insecure).Label(locales.AllowSelfSignedCertificates())
+				}).Description(locales.OffByDefaultTheApp())
 				if d.problem != "" {
 					ui.Text(c, d.problem).FontSize(uikit.TextBody).TextColor(t.Danger)
 				}
 			})
 			uikit.DialogFooter(c).Children(func() {
-				if uikit.SecondaryButton(c, "Cancel").Clicked() {
+				if uikit.SecondaryButton(c, locales.Cancel()).Clicked() {
 					d.open = false
 				}
-				if uikit.PrimaryButton(c, "Save").Clicked() {
+				if uikit.PrimaryButton(c, locales.Save()).Clicked() {
 					a.saveReverseProxy()
 				}
 			})

@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/baba983/vscroxy/internal/uikit"
+	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo/ui"
 	"github.com/oneo-me/onevra/source/icons/lucide"
 )
@@ -268,22 +269,22 @@ func (a *app) trafficCheck(target *url.URL, https bool) diagnosticCheck {
 func (a *app) diagnosticsView(c *ui.Context, t *ui.Theme) {
 	d := &a.diagnostics
 	ui.Scroll(c).Fill().Padding(t.Space(5), t.Space(6)).Gap(t.Space(3)).Children(func() {
-		uikit.Heading(c, "Connection diagnostics")
-		uikit.Hint(c, "Checks what lies between a client and this app, in order. Nothing changes until you press a fix.")
+		uikit.Heading(c, locales.ConnectionDiagnostics())
+		uikit.Hint(c, locales.ChecksWhatLiesBetweenA())
 		ui.Row(c).Gap(t.Space(3)).AlignItems(ui.Center).Wrap().Children(func() {
-			if uikit.Segmented(c, &d.client, "This Mac", "Phone or tablet", "One process").Changed() {
+			if uikit.Segmented(c, &d.client, locales.ThisMac(), locales.PhoneOrTablet(), locales.OneProcess()).Changed() {
 				d.open = diagnoseAuto
 			}
-			if uikit.Input(c, &d.target).Label("Target URL").Placeholder("https://api.example.com/").Grow(1).MinWidth(240).Changed() {
+			if uikit.Input(c, &d.target).Label(locales.TargetUrl()).Placeholder("https://api.example.com/").Grow(1).MinWidth(240).Changed() {
 				d.flowID, d.open = 0, diagnoseAuto
 			}
-			if uikit.SecondaryButton(c, "Check again").Disabled(a.systemProxy.checking || a.systemProxy.applying || a.certificate.checking).Clicked() {
+			if uikit.SecondaryButton(c, locales.CheckAgain()).Disabled(a.systemProxy.checking || a.systemProxy.applying || a.certificate.checking).Clicked() {
 				a.refreshDiagnostics()
 			}
 		})
 		u, err := url.Parse(strings.TrimSpace(d.target))
 		if err != nil || u.Hostname() == "" || u.User != nil || (u.Scheme != "http" && u.Scheme != "https") {
-			ui.Text(c, "Enter an HTTP or HTTPS URL without embedded credentials.").FontSize(uikit.TextBody).TextColor(t.Warning)
+			ui.Text(c, locales.EnterAnHttpOrHttps()).FontSize(uikit.TextBody).TextColor(t.Warning)
 			return
 		}
 		ui.Divider(c)
@@ -302,7 +303,7 @@ func (a *app) diagnosticsView(c *ui.Context, t *ui.Theme) {
 		for i, check := range checks {
 			a.diagnosticRow(c, t, i, check, i == open, i == first)
 		}
-		uikit.Meta(c, "Read-only until you press a fix. Evidence comes from this live session; imported and cleared records do not count.")
+		uikit.Meta(c, locales.ReadOnlyUntilYouPress())
 	})
 }
 
@@ -318,7 +319,7 @@ func (a *app) diagnosticRow(c *ui.Context, t *ui.Theme, i int, check diagnosticC
 	ui.Column(c.Key(check.title)).Gap(t.Space(2)).Children(func() {
 		ui.Row(c).Gap(t.Space(3)).AlignItems(ui.Center).Children(func() {
 			ui.Icon(c, icon).Size(20, 20).TextColor(color)
-			row := uikit.RowButton(c, check.title).Grow(1).MinWidth(0).Tooltip("Show details")
+			row := uikit.RowButton(c, check.title).Grow(1).MinWidth(0).Tooltip(locales.ShowDetails())
 			row.Children(func() {
 				ui.Column(c).Grow(1).MinWidth(0).Gap(2).Children(func() {
 					ui.Text(c, strconv.Itoa(i+1)+".  "+check.title).FontSize(uikit.TextBody).FontWeight(600)
@@ -375,13 +376,13 @@ func (a *app) explainFailure(c *ui.Context, t *ui.Theme, f flow) {
 		ui.Text(c, e.title).FontSize(uikit.TextBody).FontWeight(600)
 		ui.Text(c, f.conn.error).Font(uikit.FontMono).FontSize(uikit.TextMeta).TextColor(t.Danger).Selectable()
 		uikit.Hint(c, e.summary)
-		ui.Text(c, "Possible causes · not confirmed").FontSize(uikit.TextBody).FontWeight(600)
+		ui.Text(c, locales.PossibleCausesNotConfirmed()).FontSize(uikit.TextBody).FontWeight(600)
 		uikit.Hint(c, e.causes)
-		ui.Text(c, "What to try").FontSize(uikit.TextBody).FontWeight(600)
+		ui.Text(c, locales.WhatToTry()).FontSize(uikit.TextBody).FontWeight(600)
 		uikit.Body(c, e.steps)
 		ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-			uikit.Meta(c, "Review URLs, addresses and raw errors before sharing.").Grow(1)
-			if uikit.SecondaryButton(c, "Copy diagnostics").Clicked() {
+			uikit.Meta(c, locales.ReviewUrlsAddressesAndRaw()).Grow(1)
+			if uikit.SecondaryButton(c, locales.CopyDiagnostics()).Clicked() {
 				c.Services().WriteClipboard(f.connectionDiagnostics())
 				a.done("Copied connection diagnostics")
 			}

@@ -23,6 +23,7 @@ import (
 	"github.com/baba983/vscroxy/internal/capture"
 	"github.com/baba983/vscroxy/internal/request"
 	"github.com/baba983/vscroxy/internal/uikit"
+	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/editor"
 	"github.com/oneo-me/onevra/source/icons/lucide"
@@ -568,11 +569,13 @@ func snippetMenu(c *ui.Context, st *editor.State, kind string) {
 				}
 			}
 		}
-	}).Label("Insert snippet")
+	}).Label(locales.InsertSnippet(
+
+	// scriptsPage is the rule scripts or the addons beside the chosen one's
+	// editor, and for a rule script its Console.
+	))
 }
 
-// scriptsPage is the rule scripts or the addons beside the chosen one's
-// editor, and for a rule script its Console.
 func (a *app) scriptsPage(c *ui.Context, t *ui.Theme, top float32, active bool) {
 	s := a.shownScripts()
 	if !slices.Contains(s.names, s.choice) {
@@ -587,7 +590,7 @@ func (a *app) scriptsPage(c *ui.Context, t *ui.Theme, top float32, active bool) 
 	}
 	ui.Column(c).Width(268).MinHeight(0).Padding(top, t.Space(3), t.Space(3), t.Space(3)).Gap(t.Space(2)).Children(func() {
 		ui.Row(c).Gap(t.Space(1)).AlignItems(ui.Center).Children(func() {
-			ui.Text(c, "Scripts").FontSize(uikit.TextTitle).FontWeight(600).TextColor(t.Text).Grow(1)
+			ui.Text(c, locales.Scripts()).FontSize(uikit.TextTitle).FontWeight(600).TextColor(t.Text).Grow(1)
 			if uikit.IconButton(c, "New "+what, "New "+what, plusIcon).Clicked() {
 				a.newScript(s, base, newScriptText)
 			}
@@ -597,7 +600,7 @@ func (a *app) scriptsPage(c *ui.Context, t *ui.Theme, top float32, active bool) 
 			if a.addonsShown {
 				shown = 1
 			}
-			uikit.Segmented(c, &shown, "Rule scripts", "Addons").Label("Show")
+			uikit.Segmented(c, &shown, locales.RuleScripts(), locales.Addons()).Label(locales.Show())
 			a.addonsShown = shown == 1
 		})
 		uikit.Meta(c, about)
@@ -719,18 +722,18 @@ func (a *app) scriptEditor(c *ui.Context, t *ui.Theme, s *scriptStore, name stri
 		ui.Spacer(c)
 		snippetMenu(c, st, map[bool]string{false: "rule", true: "addon"}[s.addon])
 		uikit.MoreMenu(c, what+" actions", func(m *ui.Menu) {
-			actions := []action{do("scripts.rename", "Rename", func() { a.renameScript(s, name, strings.TrimSpace(s.name)) }).
+			actions := []action{do("scripts.rename", locales.Rename(), func() { a.renameScript(s, name, strings.TrimSpace(s.name)) }).
 				when(strings.TrimSpace(s.name) != name, "Type the new name first").in("edit")}
 			if !s.addon {
-				actions = append(actions, do("scripts.rule", "New rule running it", func() {
+				actions = append(actions, do("scripts.rule", locales.NewRuleRunningIt(), func() {
 					a.editRule(-1, capture.Rule{Name: name, Type: capture.RuleScript, Target: scriptFile(name)})
 					a.openTools("rules")
-				}).in("edit"), do("scripts.mock-rule", "New Code Mock rule", func() {
+				}).in("edit"), do("scripts.mock-rule", locales.NewCodeMockRule(), func() {
 					a.editRule(-1, capture.Rule{Name: name, Type: capture.RuleCodeMock, Target: scriptFile(name)})
 					a.openTools("mocks")
 				}).in("edit"))
 			}
-			actionMenu(m, append(actions, do("scripts.delete", "Delete…", func() { s.deleting = true }).in("danger")))
+			actionMenu(m, append(actions, do("scripts.delete", locales.Delete2(), func() { s.deleting = true }).in("danger")))
 		})
 	})
 	// Where it does not parse.
@@ -763,7 +766,7 @@ func (a *app) scriptEditor(c *ui.Context, t *ui.Theme, s *scriptStore, name stri
 		}
 		uikit.Meta(c, note).Grow(1).SingleLine()
 		ui.Row(c).Disabled(!modified).Children(func() {
-			if uikit.PrimaryButton(c, "Save").Tooltip("Save · Ctrl/Cmd+S").Clicked() {
+			if uikit.PrimaryButton(c, locales.Save()).Tooltip(locales.SaveCtrlCmdS()).Clicked() {
 				a.saveScript(name)
 			}
 		})
@@ -786,8 +789,8 @@ func (a *app) scriptConsole(c *ui.Context, t *ui.Theme, name string) {
 	s.mu.RUnlock()
 	ui.Column(c).Height(150).FillWidth().Border(1, t.Border).Radius(uikit.RadiusControl).Children(func() {
 		ui.Row(c).Height(uikit.HeightCompact+4).Padding(0, t.Space(2)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-			uikit.Label(c, "Console").Grow(1)
-			if uikit.CompactButton(c, "Clear").Disabled(len(lines) == 0).Clicked() {
+			uikit.Label(c, locales.Console()).Grow(1)
+			if uikit.CompactButton(c, locales.Clear()).Disabled(len(lines) == 0).Clicked() {
 				s.mu.Lock()
 				s.console = slices.DeleteFunc(s.console, func(l scriptLog) bool { return l.script == name })
 				s.mu.Unlock()
@@ -796,7 +799,7 @@ func (a *app) scriptConsole(c *ui.Context, t *ui.Theme, name string) {
 		ui.Divider(c)
 		ui.Scroll(c.Key("script-console-"+name)).Grow(1).FillWidth().Padding(t.Space(1), t.Space(2)).Gap(t.Space(1)).Children(func() {
 			if len(lines) == 0 {
-				uikit.Hint(c, "console.log(...) and errors show here as its rules run.")
+				uikit.Hint(c, locales.ConsoleLogAndErrorsShow())
 			}
 			for _, l := range lines {
 				color := t.Text

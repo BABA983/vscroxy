@@ -15,6 +15,7 @@ import (
 
 	"github.com/baba983/vscroxy/internal/capture"
 	"github.com/baba983/vscroxy/internal/uikit"
+	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -377,39 +378,39 @@ func (a *app) networkModal(c *ui.Context, t *ui.Theme) {
 	}
 	uikit.Modal(c.Key("network-presets"), &n.open, func() {
 		ui.Column(c).Width(560).Gap(t.Space(2)).Children(func() {
-			uikit.DialogTitle(c, "Custom network presets")
-			uikit.Meta(c, "HTTP, inspected HTTPS and SSE only; not WebSocket or raw CONNECT. Conditions apply to new exchanges.")
-			uikit.Meta(c, "Rates limit each body by direction (0 = unlimited). Latency waits once before forwarding. Failure randomly disconnects requests, not TCP packets.")
+			uikit.DialogTitle(c, locales.CustomNetworkPresets())
+			uikit.Meta(c, locales.HttpInspectedHttpsAndSse())
+			uikit.Meta(c, locales.RatesLimitEachBodyBy())
 			ui.Row(c).Gap(t.Space(2)).Children(func() {
-				uikit.SecondaryButton(c, "New preset").OnClick(func() { n.selectPreset("") })
+				uikit.SecondaryButton(c, locales.NewPreset()).OnClick(func() { n.selectPreset("") })
 				names := make([]string, 0, len(n.presets))
 				for _, p := range n.presets {
 					names = append(names, p.Name)
 				}
-				uikit.Select(c, &n.selection, names).Label("Custom preset").Placeholder("Choose a custom preset").Grow(1).
+				uikit.Select(c, &n.selection, names).Label(locales.CustomPreset()).Placeholder(locales.ChooseACustomPreset()).Grow(1).
 					Disabled(len(names) == 0).OnChange(func() { n.selectPreset(n.selection) })
 			})
-			ui.Field(c, "Preset name", func() {
-				uikit.Input(c, &n.name).Label("Preset name").Placeholder("e.g. Unreliable mobile")
+			ui.Field(c, locales.PresetName(), func() {
+				uikit.Input(c, &n.name).Label(locales.PresetName()).Placeholder("e.g. Unreliable mobile")
 			})
 			n.draft.fields(c)
-			uikit.Meta(c, "Whole numbers: rates 0–1073741824 bytes/s, latency 0–60000 ms, failure 0–100%. Only custom presets are saved; active conditions restart Off.")
+			uikit.Meta(c, locales.WholeNumbersRates01073741824())
 			if n.problem != "" {
 				ui.Text(c, n.problem).FontSize(uikit.TextMeta).TextColor(t.Danger)
 			}
 			if n.deleting {
 				uikit.Meta(c, "Delete “"+n.editing+"”? This cannot be undone. If active, global conditions will turn Off.")
 				ui.Row(c).Gap(t.Space(2)).Justify(ui.End).Children(func() {
-					uikit.SecondaryButton(c, "Cancel delete").OnClick(func() { n.deleting = false })
-					uikit.SecondaryButton(c, "Confirm delete").OnClick(func() { a.deleteNetworkPreset(n.editing) })
+					uikit.SecondaryButton(c, locales.CancelDelete()).OnClick(func() { n.deleting = false })
+					uikit.SecondaryButton(c, locales.ConfirmDelete()).OnClick(func() { a.deleteNetworkPreset(n.editing) })
 				})
 			} else {
 				ui.Row(c).Gap(t.Space(2)).Children(func() {
-					uikit.SecondaryButton(c, "Copy active conditions").OnClick(func() { n.draft = newNetworkDraft(a.throttle) })
-					uikit.SecondaryButton(c, "Delete").Disabled(n.editing == "").OnClick(func() { n.deleting = true })
+					uikit.SecondaryButton(c, locales.CopyActiveConditions()).OnClick(func() { n.draft = newNetworkDraft(a.throttle) })
+					uikit.SecondaryButton(c, locales.Delete()).Disabled(n.editing == "").OnClick(func() { n.deleting = true })
 					ui.Spacer(c)
-					uikit.SecondaryButton(c, "Close").OnClick(func() { n.open = false })
-					uikit.PrimaryButton(c, "Save & apply").OnClick(func() {
+					uikit.SecondaryButton(c, locales.Close()).OnClick(func() { n.open = false })
+					uikit.PrimaryButton(c, locales.SaveApply()).OnClick(func() {
 						p, err := n.draft.value()
 						if err != nil {
 							a.networkProblem("Could not save network preset", err)

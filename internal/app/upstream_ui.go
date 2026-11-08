@@ -15,6 +15,7 @@ import (
 
 	"github.com/baba983/vscroxy/internal/uikit"
 	"github.com/baba983/vscroxy/internal/upstream"
+	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -418,11 +419,11 @@ func (a *app) clearUpstream() {
 func (a *app) upstreamSettingsGroup(c *ui.Context, t *ui.Theme) {
 	u := &a.upstreamUI
 	u.load(a)
-	uikit.SettingsGroup(c, "Upstream", func() {
+	uikit.SettingsGroup(c, locales.Upstream2(), func() {
 		if a.upstreamProblem != "" {
 			ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 				ui.Text(c, a.upstreamProblem).FontSize(uikit.TextBody).TextColor(t.Danger).Selectable().Grow(1)
-				if !a.upstreamLoading && uikit.SecondaryButton(c, "Retry").Clicked() {
+				if !a.upstreamLoading && uikit.SecondaryButton(c, locales.Retry()).Clicked() {
 					a.retryUpstreamNow()
 				}
 			})
@@ -430,42 +431,42 @@ func (a *app) upstreamSettingsGroup(c *ui.Context, t *ui.Theme) {
 		if u.problem != "" {
 			ui.Text(c, u.problem).FontSize(uikit.TextBody).TextColor(t.Danger).Selectable()
 		}
-		ui.Field(c, "Default", func() {
-			if uikit.Input(c, &u.defaultAddr).Label("Default upstream").Placeholder("Direct connection").Grow(1).MinWidth(160).Changed() {
+		ui.Field(c, locales.DefaultText2(), func() {
+			if uikit.Input(c, &u.defaultAddr).Label(locales.DefaultUpstream()).Placeholder(locales.DirectConnection()).Grow(1).MinWidth(160).Changed() {
 				u.dirty = true
 			}
-		}).Description("Empty connects directly. A host rule or PAC can override it.")
-		ui.Field(c, "Host rules", func() {
-			if ui.TextArea(c, &u.rules).Label("Host rules").Placeholder("*.internal.test socks5://127.0.0.1:1080\napi.example.com:443 direct").Height(60).Font(uikit.FontMono).FontSize(uikit.TextBody).Radius(uikit.RadiusControl).Changed() {
+		}).Description(locales.EmptyConnectsDirectlyAHost())
+		ui.Field(c, locales.HostRules(), func() {
+			if ui.TextArea(c, &u.rules).Label(locales.HostRules()).Placeholder("*.internal.test socks5://127.0.0.1:1080\napi.example.com:443 direct").Height(60).Font(uikit.FontMono).FontSize(uikit.TextBody).Radius(uikit.RadiusControl).Changed() {
 				u.dirty = true
 			}
-		}).Description("One per line: host pattern then upstream. *.example.com, :port and direct; first match wins.")
-		ui.Field(c, "Bypass", func() {
-			if ui.TextArea(c, &u.bypass).Label("Bypass list").Placeholder("localhost\n*.internal.test\n10.0.0.0/8").Height(50).Font(uikit.FontMono).FontSize(uikit.TextBody).Radius(uikit.RadiusControl).Changed() {
+		}).Description(locales.OnePerLineHostPattern())
+		ui.Field(c, locales.Bypass(), func() {
+			if ui.TextArea(c, &u.bypass).Label(locales.BypassList()).Placeholder("localhost\n*.internal.test\n10.0.0.0/8").Height(50).Font(uikit.FontMono).FontSize(uikit.TextBody).Radius(uikit.RadiusControl).Changed() {
 				u.dirty = true
 			}
-		}).Description("Hosts, *.example.com, CIDR, localhost or <local>. Direct before rules and PAC.")
-		ui.Field(c, "PAC", func() {
-			if uikit.Input(c, &u.pac).Label("PAC file or URL").Placeholder("https://example.com/proxy.pac").Grow(1).MinWidth(200).Changed() {
+		}).Description(locales.HostsExampleComCidrLocalhost())
+		ui.Field(c, locales.Pac(), func() {
+			if uikit.Input(c, &u.pac).Label(locales.PacFileOrUrl()).Placeholder("https://example.com/proxy.pac").Grow(1).MinWidth(200).Changed() {
 				u.dirty = true
 			}
-		}).Description("A local .pac file or http(s) URL. FindProxyForURL runs with a timeout; native allocation calls cannot be interrupted.")
-		ui.Field(c, "Credentials", func() {
+		}).Description(locales.ALocalPacFileOr())
+		ui.Field(c, locales.Credentials(), func() {
 			ui.Column(c).Gap(t.Space(1)).Children(func() {
 				remove := -1
 				for i := range u.credentials {
 					row := &u.credentials[i]
 					ui.Row(c).Gap(t.Space(2)).AlignItems(ui.End).Wrap().Children(func() {
-						if uikit.Input(c, &row.Proxy).Label("Proxy address").Placeholder("http://proxy.example:8080").Width(200).MinWidth(160).Changed() {
+						if uikit.Input(c, &row.Proxy).Label(locales.ProxyAddress()).Placeholder("http://proxy.example:8080").Width(200).MinWidth(160).Changed() {
 							u.dirty = true
 						}
-						if uikit.Input(c, &row.Username).Label("Username").Placeholder("Username").Width(110).Changed() {
+						if uikit.Input(c, &row.Username).Label(locales.Username()).Placeholder(locales.Username()).Width(110).Changed() {
 							u.dirty = true
 						}
-						if uikit.Input(c, &row.Password).Password().Label("Password").Placeholder("Password").Width(110).Changed() {
+						if uikit.Input(c, &row.Password).Password().Label(locales.Password()).Placeholder(locales.Password()).Width(110).Changed() {
 							row.Clear, u.dirty = false, true
 						}
-						if uikit.SecondaryButton(c, "Remove").Clicked() {
+						if uikit.SecondaryButton(c, locales.Remove()).Clicked() {
 							remove = i
 						}
 					})
@@ -473,13 +474,13 @@ func (a *app) upstreamSettingsGroup(c *ui.Context, t *ui.Theme) {
 						ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 							switch {
 							case row.Clear:
-								uikit.Hint(c, "Saved password will be removed")
-								if uikit.SecondaryButton(c, "Keep").Clicked() {
+								uikit.Hint(c, locales.SavedPasswordWillBeRemoved())
+								if uikit.SecondaryButton(c, locales.Keep()).Clicked() {
 									row.Clear, u.dirty = false, true
 								}
 							case row.Saved && row.Password == "":
-								uikit.Hint(c, "Saved password in use")
-								if uikit.SecondaryButton(c, "Clear").Clicked() {
+								uikit.Hint(c, locales.SavedPasswordInUse())
+								if uikit.SecondaryButton(c, locales.Clear()).Clicked() {
 									row.Clear, u.dirty = true, true
 								}
 							}
@@ -491,25 +492,25 @@ func (a *app) upstreamSettingsGroup(c *ui.Context, t *ui.Theme) {
 					u.credentials = append(u.credentials[:remove], u.credentials[remove+1:]...)
 					u.dirty = true
 				}
-				if uikit.SecondaryButton(c, "Add credentials").Clicked() {
+				if uikit.SecondaryButton(c, locales.AddCredentials()).Clicked() {
 					u.credentials = append(u.credentials, upstreamCredentialRow{})
 					u.dirty = true
 				}
 			})
-		}).Description("Username and password for one upstream address. Passwords are sealed locally and never exported.")
+		}).Description(locales.UsernameAndPasswordForOne())
 		ui.Field(c, "", func() {
 			ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-				save := uikit.PrimaryButton(c, "Save upstream").Disabled(u.saving)
+				save := uikit.PrimaryButton(c, locales.SaveUpstream()).Disabled(u.saving)
 				if save.Clicked() {
 					a.saveUpstream()
 				}
-				if u.dirty && uikit.SecondaryButton(c, "Discard changes").Disabled(u.saving).Clicked() {
+				if u.dirty && uikit.SecondaryButton(c, locales.DiscardChanges()).Disabled(u.saving).Clicked() {
 					u.loaded, u.dirty, u.problem = false, false, ""
 				}
 				if u.saving {
-					ui.Spinner(c).Label("Saving upstream")
+					ui.Spinner(c).Label(locales.SavingUpstream())
 				}
-				uikit.Meta(c, "A change applies to new connections; existing connections keep theirs.")
+				uikit.Meta(c, locales.AChangeAppliesToNew())
 			})
 		})
 	})

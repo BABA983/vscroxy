@@ -12,6 +12,7 @@ import (
 
 	"github.com/baba983/vscroxy/internal/runner"
 	"github.com/baba983/vscroxy/internal/uikit"
+	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -242,52 +243,52 @@ func (a *app) loadRunnerModal(c *ui.Context, t *ui.Theme) {
 	width, height := c.Size()
 	uikit.Modal(c, &r.open, func() {
 		ui.Column(c).Width(min(820, width-100)).Height(min(570, height-100)).Gap(t.Space(2)).Children(func() {
-			uikit.DialogTitle(c, "Collection load test")
-			uikit.Meta(c, "Fixed concurrent users · closed model · HTTP(S) only · no target RPS or ramping")
+			uikit.DialogTitle(c, locales.CollectionLoadTest())
+			uikit.Meta(c, locales.FixedConcurrentUsersClosedModel())
 			ui.Scroll(c).Grow(1).MinHeight(0).Gap(t.Space(3)).Padding(0, t.Space(1)).Children(func() {
 				ui.Row(c).Gap(t.Space(3)).Children(func() {
 					ui.Column(c).Grow(1).MinWidth(0).Gap(t.Space(1)).Children(func() {
-						uikit.Label(c, "Saved collection")
+						uikit.Label(c, locales.SavedCollection())
 						names := runnableCollections(a.requests)
 						if len(names) == 0 {
 							names = []string{""}
 						}
-						uikit.Select(c, &r.collection, names).Label("Load collection").FillWidth().Disabled(r.running)
+						uikit.Select(c, &r.collection, names).Label(locales.LoadCollection()).FillWidth().Disabled(r.running)
 					})
 					ui.Column(c).Width(220).Gap(t.Space(1)).Children(func() {
-						uikit.Label(c, "Environment")
+						uikit.Label(c, locales.Environment())
 						names := append([]string{""}, a.envNames()...)
-						uikit.Select(c, &r.environment, names).Label("Load environment").FillWidth().Disabled(r.running)
+						uikit.Select(c, &r.environment, names).Label(locales.LoadEnvironment()).FillWidth().Disabled(r.running)
 					})
 				})
 				ui.Row(c).Gap(t.Space(3)).AlignItems(ui.End).Children(func() {
 					ui.Column(c).Width(110).Gap(t.Space(1)).Children(func() {
-						uikit.Label(c, "Users · 1–64")
-						uikit.Input(c, &r.users).Label("Load users").FillWidth().Disabled(r.running)
+						uikit.Label(c, locales.Users164())
+						uikit.Input(c, &r.users).Label(locales.LoadUsers()).FillWidth().Disabled(r.running)
 					})
 					ui.Column(c).Width(160).Gap(t.Space(1)).Children(func() {
-						uikit.Label(c, "Duration · 1s–10m")
-						uikit.Input(c, &r.duration).Label("Load duration").FillWidth().Disabled(r.running)
+						uikit.Label(c, locales.Duration1s10m())
+						uikit.Input(c, &r.duration).Label(locales.LoadDuration()).FillWidth().Disabled(r.running)
 					})
 					ui.Checkbox(c, &r.stopOnFailure, "Stop on failure").FontSize(uikit.TextBody).Disabled(r.running)
 				})
-				uikit.Meta(c, "Budget: 30 s per execution · 100,000 attempts maximum · 1–200 saved requests")
+				uikit.Meta(c, locales.Budget30SPerExecution())
 				ui.Column(c).Padding(t.Space(3)).Gap(t.Space(2)).Border(1, t.Border).Radius(uikit.RadiusControl).Children(func() {
-					uikit.Label(c, "Volatile aggregates · execution time in milliseconds")
+					uikit.Label(c, locales.VolatileAggregatesExecutionTimeIn())
 					m := r.report.Total
 					loadMetricRow(c, t, [][2]string{{"Completed", fmt.Sprint(m.Completed)}, {"Failed", fmt.Sprint(m.Failed)}, {"Skipped", fmt.Sprint(m.Skipped)}, {"Interrupted", fmt.Sprint(m.Interrupted)}, {"Executions/s", fmt.Sprintf("%.1f", m.RequestsPerSec)}})
 					loadMetricRow(c, t, [][2]string{{"Mean ms", fmt.Sprintf("%.2f", m.MeanMillis)}, {"P50 ms", fmt.Sprintf("%.2f", m.P50Millis)}, {"P95 ms", fmt.Sprintf("%.2f", m.P95Millis)}, {"P99 ms", fmt.Sprintf("%.2f", m.P99Millis)}, {"Max ms", fmt.Sprintf("%.2f", m.MaxMillis)}})
 				})
-				uikit.Prose(c, "Real requests may have side effects. Saved scripts, auth and checks are included; metrics cover execution time and primary responses only, not extra script/auth traffic.")
-				uikit.Meta(c, "Each user has isolated variables, cookies and tokens. Uses a start-time snapshot and an already-unlocked Vault; script Vault is disabled. No environment/request writes, experiment logs or capture records. Results disappear on restart.")
+				uikit.Prose(c, locales.RealRequestsMayHaveSide())
+				uikit.Meta(c, locales.EachUserHasIsolatedVariables())
 			})
 			status := cmp.Or(r.status, "Ready · closing this panel keeps an active load running")
 			ui.Text(c, status).FontSize(uikit.TextBody).TextColor(t.Text).SingleLine().Tooltip(status)
 			ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-				uikit.Meta(c, "Close keeps running; Quit cancels and waits.").Grow(1)
-				uikit.SecondaryButton(c, "Close").OnClick(func() { r.open = false })
-				uikit.SecondaryButton(c, "Stop").Disabled(!r.running || r.stopping).OnClick(a.stopLoadRunner)
-				uikit.PrimaryButton(c, "Start load test").Disabled(r.running || a.runner.running || a.remoteRunActive() || len(a.requests) == 0).OnClick(a.startLoadRunner)
+				uikit.Meta(c, locales.CloseKeepsRunningQuitCancels()).Grow(1)
+				uikit.SecondaryButton(c, locales.Close()).OnClick(func() { r.open = false })
+				uikit.SecondaryButton(c, locales.Stop()).Disabled(!r.running || r.stopping).OnClick(a.stopLoadRunner)
+				uikit.PrimaryButton(c, locales.StartLoadTest()).Disabled(r.running || a.runner.running || a.remoteRunActive() || len(a.requests) == 0).OnClick(a.startLoadRunner)
 			})
 		})
 	})

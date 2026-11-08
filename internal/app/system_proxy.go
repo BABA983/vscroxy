@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/baba983/vscroxy/internal/system"
+	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 )
@@ -264,7 +265,7 @@ func (a *app) beforeProxyQuit(e *mygo.QuitEvent) {
 			if err != nil {
 				a.fail("Quit cancelled: system proxy cleanup failed", err)
 				a.invalidate()
-				go mygo.Dialog.Error("Could not release system proxy", "Capture is still running to keep your network working. Disable the system proxy in Settings and retry quitting.\n\n"+err.Error())
+				go mygo.Dialog.Error(locales.CouldNotReleaseSystemProxy(), "Capture is still running to keep your network working. Disable the system proxy in Settings and retry quitting.\n\n"+err.Error())
 				return
 			}
 			s.quitReady = true
@@ -406,13 +407,13 @@ func (a *app) systemProxySettings(c *ui.Context, t *ui.Theme) {
 	busy := s.checking || s.applying || s.quitting
 	status, color := a.systemProxyStatus(t)
 	detail, full := a.systemProxyDetail(target)
-	uikit.SettingsGroup(c, "System proxy", func() {
-		ui.Field(c, "Status", func() {
+	uikit.SettingsGroup(c, locales.SystemProxy(), func() {
+		ui.Field(c, locales.Status(), func() {
 			ui.Column(c).Gap(t.Space(1)).Children(func() {
 				ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 					ui.Text(c, status).FontSize(uikit.TextBody).FontWeight(600).TextColor(color)
 					if busy {
-						ui.Spinner(c).Label("System proxy")
+						ui.Spinner(c).Label(locales.SystemProxy())
 					}
 				})
 				uikit.Meta(c, detail).SingleLine().Tooltip(full)
@@ -422,32 +423,32 @@ func (a *app) systemProxySettings(c *ui.Context, t *ui.Theme) {
 		// the Status label.
 		ui.Field(c, "", func() {
 			ui.Row(c).Gap(t.Space(2)).Wrap().Children(func() {
-				enable := uikit.PrimaryButton(c, "Enable system proxy").Disabled(!running || busy)
+				enable := uikit.PrimaryButton(c, locales.EnableSystemProxy()).Disabled(!running || busy)
 				if !running {
-					enable.Tooltip("Start capture first")
+					enable.Tooltip(locales.StartCaptureFirst())
 				}
 				if enable.Clicked() {
 					a.setSystemProxy(true)
 				}
-				if uikit.SecondaryButton(c, "Disable system proxy").Disabled(busy).Clicked() {
+				if uikit.SecondaryButton(c, locales.DisableSystemProxy()).Disabled(busy).Clicked() {
 					a.setSystemProxy(false)
 				}
-				if uikit.SecondaryButton(c, "Check again").Disabled(busy).Clicked() {
+				if uikit.SecondaryButton(c, locales.CheckAgain()).Disabled(busy).Clicked() {
 					a.checkSystemProxy(true)
 				}
 			})
-		}).Description("Read from this computer's OS settings. Apps with their own proxy settings, or that ignore the system proxy, still connect directly.")
-		ui.Field(c, "Bypass list", func() {
+		}).Description(locales.ReadFromThisComputerS())
+		ui.Field(c, locales.BypassList(), func() {
 			ui.Column(c).Gap(t.Space(2)).Children(func() {
 				ui.Checkbox(c, &a.systemProxyBypassSet, "Replace the system bypass list")
-				ui.TextArea(c, &a.systemProxyBypassText).Label("System proxy bypass list").Placeholder("localhost, *.internal.test, 10.0.0.0/8").Height(64).Font(uikit.FontMono).FontSize(uikit.TextBody).Radius(uikit.RadiusControl).Disabled(!a.systemProxyBypassSet)
+				ui.TextArea(c, &a.systemProxyBypassText).Label(locales.SystemProxyBypassList()).Placeholder("localhost, *.internal.test, 10.0.0.0/8").Height(64).Font(uikit.FontMono).FontSize(uikit.TextBody).Radius(uikit.RadiusControl).Disabled(!a.systemProxyBypassSet)
 				ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-					if uikit.SecondaryButton(c, "Save bypass list").Clicked() {
+					if uikit.SecondaryButton(c, locales.SaveBypassList()).Clicked() {
 						a.saveSystemProxyBypass()
 					}
-					uikit.Hint(c, "Restored when the system proxy is disabled or recovered.")
+					uikit.Hint(c, locales.RestoredWhenTheSystemProxy())
 				})
 			})
-		}).Description("Off keeps the OS list. On writes these entries, one per line, when the system proxy is enabled. <local> is Windows-only.")
+		}).Description(locales.OffKeepsTheOsList())
 	})
 }

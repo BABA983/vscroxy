@@ -15,6 +15,7 @@ import (
 
 	"github.com/baba983/vscroxy/internal/capture"
 	"github.com/baba983/vscroxy/internal/system"
+	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -107,9 +108,9 @@ func (a *app) certificateStatus(t *ui.Theme) (string, ui.Color) {
 func (a *app) httpsSettings(c *ui.Context, t *ui.Theme) {
 	status, color := a.certificateStatus(t)
 	s := &a.certificate
-	uikit.SettingsPage(c, "HTTPS", "Trusting the CA makes decryption possible; decryption chooses which connections are read. Changes apply to new connections.", func() {
-		uikit.SettingsGroup(c, "Certificate", func() {
-			ui.Field(c, "Trust", func() {
+	uikit.SettingsPage(c, locales.Https(), locales.TrustingTheCaMakesDecryption(), func() {
+		uikit.SettingsGroup(c, locales.Certificate(), func() {
+			ui.Field(c, locales.Trust(), func() {
 				ui.Column(c).Gap(t.Space(1)).Children(func() {
 					ui.Text(c, status).FontSize(uikit.TextBody).FontWeight(600).TextColor(color)
 					if s.cert != nil {
@@ -119,7 +120,7 @@ func (a *app) httpsSettings(c *ui.Context, t *ui.Theme) {
 						uikit.Meta(c, "SHA-256: "+fingerprint).Font(uikit.FontMono).SingleLine().Tooltip(fingerprint).Selectable()
 					}
 					if s.installing {
-						uikit.Meta(c, "If the system asks for authorization, approve it to continue. Trust will be checked afterwards.")
+						uikit.Meta(c, locales.IfTheSystemAsksFor())
 					}
 					if s.checked && !s.checking && s.err != nil {
 						problem := s.err.Error()
@@ -130,16 +131,16 @@ func (a *app) httpsSettings(c *ui.Context, t *ui.Theme) {
 					}
 					if s.installErr != nil {
 						if errors.Is(s.installErr, system.ErrInstallCancelled) {
-							uikit.Meta(c, "Installation cancelled. You can try again when ready.")
+							uikit.Meta(c, locales.InstallationCancelledYouCanTry())
 						} else {
 							ui.Text(c, "Installation failed: "+s.installErr.Error()).FontSize(uikit.TextMeta).TextColor(t.Danger).MaxLines(2).Tooltip(s.installErr.Error())
 							switch runtime.GOOS {
 							case "darwin":
-								uikit.Meta(c, "Manual fallback: use Show certificate to locate the public CA, import it in Keychain Access, then set Trust → When using this certificate to Always Trust. Check again afterwards.")
+								uikit.Meta(c, locales.ManualFallbackUseShowCertificate())
 							case "windows":
-								uikit.Meta(c, "Manual fallback: use Show certificate and import the public CA into Trusted Root Certification Authorities for the current user. Check again afterwards.")
+								uikit.Meta(c, locales.ManualFallbackUseShowCertificate2())
 							default:
-								uikit.Meta(c, "Manual fallback: use Show certificate and import the public CA using your distribution's trust-store tools. Check again afterwards.")
+								uikit.Meta(c, locales.ManualFallbackUseShowCertificate3())
 							}
 						}
 					}
@@ -149,27 +150,27 @@ func (a *app) httpsSettings(c *ui.Context, t *ui.Theme) {
 			// gray the Trust label.
 			ui.Field(c, "", func() {
 				ui.Row(c).Gap(t.Space(2)).Wrap().Children(func() {
-					if uikit.PrimaryButton(c, "Install & Trust…").Tooltip("Trust the local CA on this computer; approve system authorization if requested").Disabled(s.checking || s.cert == nil || s.checked && s.err == nil).Clicked() {
+					if uikit.PrimaryButton(c, locales.InstallTrust()).Tooltip(locales.TrustTheLocalCaOn()).Disabled(s.checking || s.cert == nil || s.checked && s.err == nil).Clicked() {
 						a.checkCertificate(true)
 					}
-					if uikit.SecondaryButton(c, "Check again").Disabled(s.checking).Clicked() {
+					if uikit.SecondaryButton(c, locales.CheckAgain()).Disabled(s.checking).Clicked() {
 						a.checkCertificate(false)
 					}
-					if uikit.SecondaryButton(c, "Show certificate").Tooltip(a.caPath).Disabled(a.caPath == "").Clicked() {
+					if uikit.SecondaryButton(c, locales.ShowCertificate()).Tooltip(a.caPath).Disabled(a.caPath == "").Clicked() {
 						a.revealCA()
 					}
 				})
 			}).Description(certificateScope())
 		})
-		uikit.SettingsGroup(c, "Decryption", func() {
-			ui.Field(c, "Every domain", func() {
+		uikit.SettingsGroup(c, locales.Decryption(), func() {
+			ui.Field(c, locales.EveryDomain(), func() {
 				all := a.sslAll
-				if ui.Switch(c, &all).Label("Decrypt every domain").Changed() {
+				if ui.Switch(c, &all).Label(locales.DecryptEveryDomain()).Changed() {
 					cfg := a.inspectionConfig()
 					cfg.All = all
 					a.saveSSL(cfg)
 				}
-			}).Description("Decrypt every new HTTPS connection, not only the listed domains and apps.")
+			}).Description(locales.DecryptEveryNewHttpsConnection())
 			domains := splitHosts(a.sslHosts)
 			summary := "None"
 			hint := "Enable a domain or a local app to read its headers, cookies and bodies."
@@ -181,9 +182,9 @@ func (a *app) httpsSettings(c *ui.Context, t *ui.Theme) {
 				summary = strings.Join(domains, ", ")
 				hint = "These domains and their subdomains are decrypted. Every other host stays an encrypted tunnel."
 			}
-			ui.Field(c, "Domains and apps", func() {
+			ui.Field(c, locales.DomainsAndApps(), func() {
 				ui.Row(c).Gap(t.Space(3)).AlignItems(ui.Center).Children(func() {
-					if uikit.SecondaryButton(c, "Manage domains…").Clicked() {
+					if uikit.SecondaryButton(c, locales.ManageDomains()).Clicked() {
 						a.leaveSettings()
 						a.sslOpen = true
 					}
@@ -191,17 +192,17 @@ func (a *app) httpsSettings(c *ui.Context, t *ui.Theme) {
 				})
 			}).Description(hint)
 		})
-		uikit.SettingsGroup(c, "Wireshark", func() {
-			ui.Field(c, "TLS key log", func() {
+		uikit.SettingsGroup(c, locales.Wireshark(), func() {
+			ui.Field(c, locales.TlsKeyLog(), func() {
 				ui.Row(c).Gap(t.Space(2)).Wrap().AlignItems(ui.Center).Children(func() {
-					if uikit.SecondaryButton(c, "TLS key log…").Clicked() {
+					if uikit.SecondaryButton(c, locales.TlsKeyLog2()).Clicked() {
 						a.leaveSettings()
 						a.openKeyLog()
 					}
 					uikit.Mono(c, cmp.Or(a.keyLogPath, "Off")).TextColor(t.TextMuted).SingleLine().MaxWidth(260).Tooltip(a.keyLogPath)
 					restartPending(c, a.keyLogPath != a.launchKeyLog)
 				})
-			}).Description("Write TLS secrets to a file Wireshark reads to decrypt this capture. Applies after a restart.")
+			}).Description(locales.WriteTlsSecretsToA())
 		})
 	})
 }
@@ -301,9 +302,9 @@ func (a *app) connectPanel(c *ui.Context, f flow) {
 					ui.Column(c).FillWidth().Padding(t.Space(2), t.Space(2)).Gap(t.Space(1)).Radius(uikit.RadiusPanel).Background(t.Danger.Alpha(0.06)).Border(1, t.Danger.Alpha(0.2)).Children(func() {
 						ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 							uikit.Label(c, "Recorded failure · "+cmp.Or(f.conn.errorStage, "unknown stage")).Grow(1)
-							if uikit.ToolbarButton(c, "Copy error", "Copy the recorded error", false).Height(uikit.HeightCompact).Gap(t.Space(1)).Children(func() {
+							if uikit.ToolbarButton(c, locales.CopyError(), locales.CopyTheRecordedError(), false).Height(uikit.HeightCompact).Gap(t.Space(1)).Children(func() {
 								ui.Icon(c, copyIcon).Size(uikit.IconInline, uikit.IconInline)
-								ui.Text(c, "Copy").FontSize(uikit.TextMeta)
+								ui.Text(c, locales.Copy()).FontSize(uikit.TextMeta)
 							}).Clicked() {
 								c.Services().WriteClipboard(f.conn.error)
 								a.done("Copied the recorded error")
@@ -321,9 +322,9 @@ func (a *app) connectPanel(c *ui.Context, f flow) {
 						const tip = "Open this exchange's Connection tab: the recorded log and addresses"
 						var button ui.Element
 						if primary {
-							button = uikit.PrimaryButton(c, "View connection record").Tooltip(tip)
+							button = uikit.PrimaryButton(c, locales.ViewConnectionRecord()).Tooltip(tip)
 						} else {
-							button = uikit.SecondaryButton(c, "View connection record").Tooltip(tip)
+							button = uikit.SecondaryButton(c, locales.ViewConnectionRecord()).Tooltip(tip)
 						}
 						if button.Clicked() {
 							a.inspect.pane = inspectorConnection
@@ -333,13 +334,13 @@ func (a *app) connectPanel(c *ui.Context, f flow) {
 						var button ui.Element
 						if primary {
 							button = uikit.PrimaryButton(c, "Inspect "+hostOnly(f.host)).Label("Enable for " + f.host).
-								Tooltip("Enable this hostname and subdomains on new connections; client CA trust is still required")
+								Tooltip(locales.EnableThisHostnameAndSubdomains())
 							if !a.workbench.sideBySide {
 								button.MaxWidth(260)
 							}
 						} else {
 							button = uikit.SecondaryButton(c, "Inspect "+hostOnly(f.host)).Label("Enable for " + f.host).
-								Tooltip("Configuration for new connections; a recorded failure stays as it was")
+								Tooltip(locales.ConfigurationForNewConnectionsA())
 						}
 						if button.Clicked() {
 							a.decryptHost(f.host)
@@ -359,26 +360,26 @@ func (a *app) connectPanel(c *ui.Context, f flow) {
 						}
 						record(false)
 					}
-					if uikit.SecondaryButton(c, "Certificate setup…").Tooltip("Check or install the local CA; this client may still need its own trust or a debug build").Clicked() {
+					if uikit.SecondaryButton(c, locales.CertificateSetup()).Tooltip(locales.CheckOrInstallTheLocal()).Clicked() {
 						a.openSettings(2)
 						a.checkCertificate(false)
 					}
 				})
 				// Known configuration, secondary: today's rules never
 				// explain a tunnel that was recorded earlier.
-				uikit.Label(c, "Known configuration")
+				uikit.Label(c, locales.KnownConfiguration())
 				if domainEnabled {
-					ui.Text(c, "Domain rule enabled · reconnect to inspect new requests").FontSize(uikit.TextMeta).TextColor(t.Text)
+					ui.Text(c, locales.DomainRuleEnabledReconnectTo()).FontSize(uikit.TextMeta).TextColor(t.Text)
 				} else {
-					uikit.Meta(c, "Domain decryption disabled")
+					uikit.Meta(c, locales.DomainDecryptionDisabled())
 				}
 				if appEnabled {
-					ui.Text(c, "App rule enabled · reconnect to inspect new requests").FontSize(uikit.TextMeta).Tooltip(f.processPath)
+					ui.Text(c, locales.AppRuleEnabledReconnectTo()).FontSize(uikit.TextMeta).Tooltip(f.processPath)
 				} else if !filepath.IsAbs(f.processPath) {
-					uikit.Meta(c, "App rule unavailable · local executable identity not recorded")
+					uikit.Meta(c, locales.AppRuleUnavailableLocalExecutable())
 				}
 				ui.Text(c, trust).FontSize(uikit.TextMeta).TextColor(trustColor).
-					Tooltip("System trust is not proof that this client accepts the proxy's CA")
+					Tooltip(locales.SystemTrustIsNotProof())
 				if broadScope {
 					ui.Row(c).Children(func() {
 						if uikit.ToolbarButton(c, "Inspect all domains from "+f.process, "Wider scope for new connections from "+f.processPath+"; not a fix for this failure", false).

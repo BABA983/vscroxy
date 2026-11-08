@@ -8,6 +8,7 @@ import (
 
 	"github.com/baba983/vscroxy/internal/capture"
 	"github.com/baba983/vscroxy/internal/uikit"
+	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -132,13 +133,13 @@ func (a *app) breakTemplates(c *ui.Context, t *ui.Theme, valid bool) {
 	}
 	ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 		if a.bpSaving {
-			input := uikit.Input(c, &a.bpName).Width(200).Label("Template name").Placeholder("Template name")
+			input := uikit.Input(c, &a.bpName).Width(200).Label(locales.TemplateName()).Placeholder(locales.TemplateName())
 			name := strings.TrimSpace(a.bpName)
-			save := uikit.CompactButton(c, "Save").Disabled(name == "" || !valid)
+			save := uikit.CompactButton(c, locales.Save()).Disabled(name == "" || !valid)
 			if save.Clicked() || (input.Submitted() && name != "" && valid) {
 				a.saveBreakTemplate(name)
 			}
-			if uikit.CompactButton(c, "Cancel").Clicked() {
+			if uikit.CompactButton(c, locales.Cancel()).Clicked() {
 				a.bpSaving = false
 			}
 			return
@@ -162,9 +163,9 @@ func (a *app) breakTemplates(c *ui.Context, t *ui.Theme, valid bool) {
 						}
 					}
 				})
-			}).Height(uikit.HeightCompact).Label("Breakpoint template").Tooltip("Fill this " + phase + " with a saved one; the URL stays as paused")
+			}).Height(uikit.HeightCompact).Label(locales.BreakpointTemplate()).Tooltip("Fill this " + phase + " with a saved one; the URL stays as paused")
 		}
-		save := uikit.CompactButton(c, "Save as template…").Disabled(!valid).
+		save := uikit.CompactButton(c, locales.SaveAsTemplate()).Disabled(!valid).
 			Tooltip("Keep this " + phase + " as edited to apply at a later pause")
 		if save.Clicked() {
 			a.bpSaving, a.bpName = true, a.bpTemplate

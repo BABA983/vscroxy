@@ -317,14 +317,14 @@ drained:
 				}).Error(timeoutProblem)
 				ui.Field(c, locales.RepeatEachRequest(), func() {
 					uikit.Input(c, &r.repeat).Label(locales.ReplayRepeats()).Disabled(r.updates != nil)
-				}).Description(fmt.Sprintf("1–%d times. The whole selection is repeated in capture order.", replayMaxRepeat))
+				}).Description(locales.RepeatDescription(replayMaxRepeat))
 				ui.Row(c).Gap(t.Space(3)).Children(func() {
 					ui.Field(c, locales.Concurrency(), func() {
 						uikit.Input(c, &r.concurrency).Label(locales.ReplayConcurrency()).Disabled(r.updates != nil)
-					}).Description(fmt.Sprintf("1–%d requests in flight.", replayMaxConcurrency)).Grow(1)
+					}).Description(locales.ConcurrencyDescription(replayMaxConcurrency)).Grow(1)
 					ui.Field(c, locales.IntervalBetweenStartsMs(), func() {
 						uikit.Input(c, &r.interval).Label(locales.ReplayInterval()).Disabled(r.updates != nil)
-					}).Description(fmt.Sprintf("0–%d ms; 0 starts as a worker frees up.", replayMaxIntervalMS)).Grow(1)
+					}).Description(locales.IntervalDescription(replayMaxIntervalMS)).Grow(1)
 				})
 				if inputProblem != "" {
 					ui.Text(c, inputProblem).FontSize(uikit.TextBody).TextColor(t.Danger)

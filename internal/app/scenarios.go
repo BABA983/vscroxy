@@ -14,6 +14,7 @@ import (
 
 	"github.com/baba983/vscroxy/internal/capture"
 	"github.com/baba983/vscroxy/internal/uikit"
+	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -98,8 +99,8 @@ func (a *app) scenariosPage(c *ui.Context, t *ui.Theme, top float32, active bool
 	}
 	current := capture.ActiveScenario(a.rules)
 	ui.Column(c).Width(268).MinHeight(0).Padding(top, t.Space(3), t.Space(3), t.Space(3)).Gap(t.Space(2)).Children(func() {
-		ui.Text(c, "Scenarios").FontSize(uikit.TextTitle).FontWeight(600).TextColor(t.Text)
-		uikit.Meta(c, "One at a time: its rules apply, with the rules in none.")
+		ui.Text(c, locales.Scenarios()).FontSize(uikit.TextTitle).FontWeight(600).TextColor(t.Text)
+		uikit.Meta(c, locales.OneAtATimeIts())
 		choice := slices.Index(names, s.choice)
 		s.list.Selected = &choice
 		s.list.Key = func(i int) any { return names[i] }
@@ -107,7 +108,7 @@ func (a *app) scenariosPage(c *ui.Context, t *ui.Theme, top float32, active bool
 		pick := *t
 		pick.Accent, pick.AccentText = ui.Color{}, t.Text
 		c.SetTheme(&pick)
-		ui.List(c, &s.list, len(names)).Label("Scenarios").Grow(1).MinHeight(0).Gap(t.Space(0.5)).Rows(func(row ui.ListRow) {
+		ui.List(c, &s.list, len(names)).Label(locales.Scenarios()).Grow(1).MinHeight(0).Gap(t.Space(0.5)).Rows(func(row ui.ListRow) {
 			c := row.Context
 			c.SetTheme(t)
 			name := names[row.Index]
@@ -127,7 +128,7 @@ func (a *app) scenariosPage(c *ui.Context, t *ui.Theme, top float32, active bool
 						n++
 					}
 				}
-				uikit.Meta(c, fmt.Sprint(n)).Font(uikit.FontMono).FontFeatures("tnum").Tooltip(fmt.Sprintf("%d %s", n, plural(n, "rule", "rules")))
+				uikit.Meta(c, fmt.Sprint(n)).Font(uikit.FontMono).FontFeatures("tnum").Tooltip(locales.RulesCount(n))
 			})
 		})
 		c.SetTheme(t)
@@ -138,8 +139,8 @@ func (a *app) scenariosPage(c *ui.Context, t *ui.Theme, top float32, active bool
 	ui.Divider(c)
 	ui.Column(c).Grow(1).MinWidth(0).MinHeight(0).Padding(top, t.Space(4), t.Space(3), t.Space(4)).Gap(t.Space(3)).Children(func() {
 		if s.choice == "" {
-			uikit.EmptyState(c, "No scenarios", "A scenario is rules switched on and off together, such as an offline demo. Name one in a rule’s Scenario field, or make one from a collection’s examples with Mock from examples.", func() {
-				if uikit.PrimaryButton(c, "Open Rules").Clicked() {
+			uikit.EmptyState(c, locales.NoScenarios(), locales.AScenarioIsRulesSwitched(), func() {
+				if uikit.PrimaryButton(c, locales.OpenRules()).Clicked() {
 					a.openRules()
 				}
 			})
@@ -159,24 +160,24 @@ func (a *app) scenarioDetail(c *ui.Context, t *ui.Theme, name, current string) {
 		s.name, s.nameFor = name, name
 	}
 	ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-		if uikit.Input(c, &s.name).Label("Scenario name").Grow(1).MaxWidth(360).FontSize(uikit.TextTitle).Height(uikit.HeightLarge).Submitted() {
+		if uikit.Input(c, &s.name).Label(locales.ScenarioName()).Grow(1).MaxWidth(360).FontSize(uikit.TextTitle).Height(uikit.HeightLarge).Submitted() {
 			a.renameScenario(name, strings.TrimSpace(s.name))
 		}
 		on := name == current
-		if ui.Switch(c, &on).Label("Scenario active").Changed() {
+		if ui.Switch(c, &on).Label(locales.ScenarioActive()).Changed() {
 			a.selectRuleScenario(map[bool]string{true: name}[on])
 		}
 		ui.Spacer(c)
-		uikit.MoreMenu(c, "Scenario actions", func(m *ui.Menu) {
+		uikit.MoreMenu(c, locales.ScenarioActions(), func(m *ui.Menu) {
 			actionMenu(m, []action{
-				do("scenarios.rename", "Rename", func() { a.renameScenario(name, strings.TrimSpace(s.name)) }).
+				do("scenarios.rename", locales.Rename(), func() { a.renameScenario(name, strings.TrimSpace(s.name)) }).
 					when(strings.TrimSpace(s.name) != name, "Type the new name first").in("edit"),
-				do("scenarios.rebuild", "Rebuild from examples", func() { a.scenarioFromExamples(name) }).
+				do("scenarios.rebuild", locales.RebuildFromExamples(), func() { a.scenarioFromExamples(name) }).
 					when(a.examplesUnder(name), "Only a scenario named for a collection with examples").in("edit"),
-				do("scenarios.ungroup", "Ungroup rules", func() {
+				do("scenarios.ungroup", locales.UngroupRules(), func() {
 					a.changeScenario(name, func(r *capture.Rule) bool { r.Scenario, r.ScenarioActive = "", false; return true })
 				}).in("edit"),
-				do("scenarios.delete", "Delete with its rules…", func() { s.deleting = true }).in("danger"),
+				do("scenarios.delete", locales.DeleteWithItsRules(), func() { s.deleting = true }).in("danger"),
 			})
 		})
 	})
@@ -196,7 +197,7 @@ func (a *app) scenarioDetail(c *ui.Context, t *ui.Theme, name, current string) {
 			}
 			row.Children(func() {
 				on := !r.Disabled
-				if ui.Switch(c, &on).Label(fmt.Sprintf("Enable rule %d", i+1)).Changed() {
+				if ui.Switch(c, &on).Label(locales.EnableRule(i + 1)).Changed() {
 					a.switchRule(i, on)
 				}
 				uikit.Glyph(c, ruleIcons[max(slices.Index(ruleTypes, r.Type), 0)]).Tooltip(ruleLabel(r.Type))
@@ -204,12 +205,12 @@ func (a *app) scenarioDetail(c *ui.Context, t *ui.Theme, name, current string) {
 					ui.Text(c, cmp.Or(r.Name, r.Match)).FontSize(uikit.TextBody).TextColor(t.Text).SingleLine()
 					uikit.Meta(c, ruleSummary(r)).Font(uikit.FontMono).SingleLine()
 				})
-				if uikit.CompactButton(c, "Edit").Label(fmt.Sprintf("Edit rule %d", i+1)).Clicked() {
+				if uikit.CompactButton(c, locales.Edit2()).Label(locales.EditRule(i + 1)).Clicked() {
 					a.editRule(i, r)
 					a.openTools("rules")
 				}
 			})
 		}
 	})
-	uikit.Meta(c, "Rules keep their place in the Rules order; turn one off to leave it out of the scenario.")
+	uikit.Meta(c, locales.RulesKeepTheirPlaceIn())
 }

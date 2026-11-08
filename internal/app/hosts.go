@@ -19,6 +19,7 @@ import (
 
 	"github.com/baba983/vscroxy/internal/hosts"
 	"github.com/baba983/vscroxy/internal/uikit"
+	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/editor"
 	"github.com/oneo-me/onevra/source/icons/lucide"
@@ -227,7 +228,7 @@ func (a *app) hostsLabel() string {
 func (a *app) hostsSwitch(c *ui.Context, t *ui.Theme) {
 	h := &a.profiles
 	on := len(h.set.On()) > 0
-	b := uikit.ToolbarButton(c, "Host profiles", "Switch Host profiles · Hosts: "+a.hostsLabel(), on).Height(uikit.HeightControl).Shrink(1).
+	b := uikit.ToolbarButton(c, locales.HostProfiles(), "Switch Host profiles · Hosts: "+a.hostsLabel(), on).Height(uikit.HeightControl).Shrink(1).
 		Padding(0, t.Space(2)).Gap(t.Space(1.5)).FontSize(uikit.TextMeta).MinWidth(0).Border(1, t.Border)
 	b.Children(func() {
 		icon := ui.Icon(c, hostsIcon).Size(uikit.IconInline, uikit.IconInline)
@@ -252,11 +253,11 @@ func (a *app) hostsSwitch(c *ui.Context, t *ui.Theme) {
 func (a *app) hostsMenu(c *ui.Context, t *ui.Theme) {
 	h := &a.profiles
 	ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Padding(t.Space(1), t.Space(1), t.Space(1), t.Space(2)).Children(func() {
-		ui.Text(c, "Host profiles").FontSize(uikit.TextBody).FontWeight(600).TextColor(t.Text).Grow(1)
+		ui.Text(c, locales.HostProfiles()).FontSize(uikit.TextBody).FontWeight(600).TextColor(t.Text).Grow(1)
 		a.hostsMode(c)
 	})
 	if len(h.set.Profiles) == 0 {
-		uikit.Meta(c, "No profiles yet. Map hosts to other addresses without editing the system's hosts file.").Padding(t.Space(1), t.Space(2))
+		uikit.Meta(c, locales.NoProfilesYetMapHosts()).Padding(t.Space(1), t.Space(2))
 	}
 	conflicts := a.profileConflicts()
 	for i, p := range h.set.Profiles {
@@ -270,26 +271,26 @@ func (a *app) hostsMenu(c *ui.Context, t *ui.Theme) {
 				uikit.Glyph(c, subscribeIcon).Tooltip("Subscribed: " + p.URL)
 			}
 			if n := conflicts[p.Name]; n > 0 && p.On {
-				ui.Text(c, fmt.Sprintf("%d %s", n, plural(n, "conflict", "conflicts"))).FontSize(uikit.TextMeta).TextColor(t.Warning).SingleLine().
-					Tooltip("A higher profile maps the same host elsewhere")
+				ui.Text(c, locales.ConflictsCount(n)).FontSize(uikit.TextMeta).TextColor(t.Warning).SingleLine().
+					Tooltip(locales.AHigherProfileMapsThe())
 			}
 			ui.Spacer(c)
 			n := profileHosts(p)
-			uikit.Meta(c, fmt.Sprintf("%d %s", n, plural(n, "host", "hosts"))).Font(uikit.FontMono).FontFeatures("tnum").SingleLine()
+			uikit.Meta(c, locales.HostsCount(n)).Font(uikit.FontMono).FontFeatures("tnum").SingleLine()
 		})
 	}
 	ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Padding(t.Space(1), t.Space(2)).Children(func() {
-		uikit.Meta(c, "Applies to new connections.").Grow(1).SingleLine()
+		uikit.Meta(c, locales.AppliesToNewConnections()).Grow(1).SingleLine()
 		ui.Row(c).Disabled(a.srv == nil).Children(func() {
-			if uikit.CompactButton(c, "Drop open connections").Tooltip("Close the clients' open connections so they connect again").Clicked() {
+			if uikit.CompactButton(c, locales.DropOpenConnections()).Tooltip(locales.CloseTheClientsOpenConnections()).Clicked() {
 				a.dropConnections()
 			}
 		})
 	})
 	ui.Divider(c)
 	manage := pick(a.hostsActions(), "hosts.manage")
-	if uikit.RowButton(c, "Manage profiles…").Children(func() {
-		ui.Text(c, "Manage profiles…").Grow(1)
+	if uikit.RowButton(c, locales.ManageProfiles()).Children(func() {
+		ui.Text(c, locales.ManageProfiles()).Grow(1)
 		uikit.Meta(c, manage.shortcut.String())
 	}).Clicked() {
 		h.menuOpen = false
@@ -303,7 +304,7 @@ func (a *app) hostsMode(c *ui.Context) {
 	if a.profiles.set.Exclusive {
 		mode = 1
 	}
-	if uikit.Segmented(c, &mode, "Combine", "One at a time").Label("Host profile mode").Changed() {
+	if uikit.Segmented(c, &mode, locales.Combine(), locales.OneAtATime()).Label(locales.HostProfileMode()).Changed() {
 		a.setHostsExclusive(mode == 1)
 	}
 }
@@ -311,10 +312,10 @@ func (a *app) hostsMode(c *ui.Context) {
 // hostsActions are the profiles' commands for the palette, menus and keys.
 func (a *app) hostsActions() []action {
 	actions := []action{
-		do("hosts.manage", "Manage Host profiles…", func() { a.openTools("hosts") }).keys(ui.Cmd|ui.Shift, ui.KeyH).in("hosts"),
-		do("hosts.drop-connections", "Drop open connections", a.dropConnections).
+		do("hosts.manage", locales.ManageHostProfiles(), func() { a.openTools("hosts") }).keys(ui.Cmd|ui.Shift, ui.KeyH).in("hosts"),
+		do("hosts.drop-connections", locales.DropOpenConnections(), a.dropConnections).
 			when(a.srv != nil, "Start capture first").in("hosts"),
-		do("hosts.off", "Turn off Host profiles", a.hostsOff).
+		do("hosts.off", locales.TurnOffHostProfiles(), a.hostsOff).
 			when(len(a.profiles.set.On()) > 0, "No Host profile is on").in("hosts"),
 	}
 	for i, p := range a.profiles.set.Profiles {

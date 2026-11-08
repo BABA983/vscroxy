@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/baba983/vscroxy/internal/lan"
+	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -130,7 +131,7 @@ func (a *app) devicesModal(c *ui.Context, t *ui.Theme) {
 	uikit.Modal(c, &d.open, func() {
 		uikit.DialogColumn(c, uikit.DialogLarge).Height(min(510, height-80)).Children(func() {
 			ui.Row(c).AlignItems(ui.Center).Children(func() {
-				uikit.DialogTitle(c, "Connect a device")
+				uikit.DialogTitle(c, locales.ConnectADevice2())
 				ui.Spacer(c)
 				if d.gateway == nil {
 					ui.Badge(c, "LAN off")
@@ -138,74 +139,74 @@ func (a *app) devicesModal(c *ui.Context, t *ui.Theme) {
 					ui.Badge(c, "LAN enabled").Background(t.Accent.Alpha(0.12)).TextColor(t.Accent)
 				}
 			})
-			uikit.Hint(c, "Same Wi-Fi / LAN. Only listed source addresses can connect. Local capture stays on loopback.")
+			uikit.Hint(c, locales.SameWiFiLanOnly())
 			ui.Row(c).Grow(1).MinHeight(0).Gap(t.Space(6)).AlignItems(ui.Stretch).Children(func() {
 				ui.Scroll(c).BasisPercent(44).Grow(1).MinWidth(0).Gap(t.Space(3)).Padding(0, t.Space(2), 0, t.Space(1)).Children(func() {
 					if d.gateway == nil {
-						ui.Text(c, "1  Choose a network address").FontSize(uikit.TextBody).FontWeight(600)
+						ui.Text(c, locales.N1ChooseANetworkAddress()).FontSize(uikit.TextBody).FontWeight(600)
 						ui.Form(c, func() {
-							ui.Field(c, "Address", func() {
-								uikit.Select(c, &d.ip, d.ips).Label("Device-facing address")
+							ui.Field(c, locales.Address(), func() {
+								uikit.Select(c, &d.ip, d.ips).Label(locales.DeviceFacingAddress())
 							})
-							ui.Field(c, "Port", func() {
-								uikit.Input(c, &d.port).Width(82).Label("LAN proxy port").Placeholder("7891")
+							ui.Field(c, locales.Port(), func() {
+								uikit.Input(c, &d.port).Width(82).Label(locales.LanProxyPort()).Placeholder("7891")
 							})
 						})
 						if len(d.ips) == 0 {
-							ui.Text(c, "No active LAN address. Connect to a network, then reopen this dialog.").FontSize(uikit.TextBody).TextColor(t.Danger)
+							ui.Text(c, locales.NoActiveLanAddressConnect()).FontSize(uikit.TextBody).TextColor(t.Danger)
 						}
 						if ip, err := netip.ParseAddr(d.ip); err == nil && ip.IsLinkLocalUnicast() {
-							uikit.Meta(c, "Link-local address: the device needs a compatible address on the same network link.")
+							uikit.Meta(c, locales.LinkLocalAddressTheDevice())
 						}
-						uikit.Meta(c, "Proxy port above; the certificate service uses port + 1. Allow both in your firewall.")
-						ui.Text(c, "2  Allow your device's IP address").FontSize(uikit.TextBody).FontWeight(600)
-						ui.TextArea(c, &d.allowed).Height(74).Font(uikit.FontMono).FontSize(uikit.TextBody).Radius(uikit.RadiusControl).Label("Allowed device addresses").Placeholder("192.168.1.42\nOne IP or CIDR per line")
-						uikit.Meta(c, "Find it in the device’s Wi-Fi details. Prefer one IP; CIDRs allow every device in that range. Empty = deny all.")
+						uikit.Meta(c, locales.ProxyPortAboveTheCertificate())
+						ui.Text(c, locales.N2AllowYourDeviceS()).FontSize(uikit.TextBody).FontWeight(600)
+						ui.TextArea(c, &d.allowed).Height(74).Font(uikit.FontMono).FontSize(uikit.TextBody).Radius(uikit.RadiusControl).Label(locales.AllowedDeviceAddresses()).Placeholder("192.168.1.42\nOne IP or CIDR per line")
+						uikit.Meta(c, locales.FindItInTheDevice())
 						ui.Checkbox(c, &d.consent, "I trust this network and the allowed devices").FontSize(uikit.TextBody)
 					} else {
-						uikit.Hint(c, "Proxy address")
+						uikit.Hint(c, locales.ProxyAddress())
 						uikit.Heading(c, d.gateway.Addr()).Font(uikit.FontMono)
-						if uikit.SecondaryButton(c, "Copy proxy address").Clicked() {
+						if uikit.SecondaryButton(c, locales.CopyProxyAddress()).Clicked() {
 							c.Services().WriteClipboard(d.gateway.Addr())
 						}
 						if a.srv != nil && a.srv.SOCKSAddr() != "" {
-							uikit.Meta(c, "This address accepts HTTP and SOCKS5 proxies; both are limited to the allowed sources.")
+							uikit.Meta(c, locales.ThisAddressAcceptsHttpAnd())
 						} else {
-							uikit.Meta(c, "This address accepts an HTTP proxy. Turn on SOCKS5 in Settings → Proxy to accept SOCKS5 here too.")
+							uikit.Meta(c, locales.ThisAddressAcceptsAnHttp())
 						}
 						ui.Divider(c)
-						uikit.Hint(c, "Open on your device to download the CA")
+						uikit.Hint(c, locales.OpenOnYourDeviceTo())
 						certificateURL := "http://" + d.gateway.CertificateAddr() + "/vscroxy-ca.cer"
 						uikit.Mono(c, certificateURL)
-						if uikit.SecondaryButton(c, "Copy certificate URL").Clicked() {
+						if uikit.SecondaryButton(c, locales.CopyCertificateUrl()).Clicked() {
 							c.Services().WriteClipboard(certificateURL)
 						}
-						uikit.Meta(c, "Public certificate only — the signing key is never served. Compare the CA fingerprint in Diagnostics on a trusted network.")
+						uikit.Meta(c, locales.PublicCertificateOnlyTheSigning())
 						ui.Divider(c)
-						ui.Text(c, "Allowed sources").FontSize(uikit.TextBody).FontWeight(600)
+						ui.Text(c, locales.AllowedSources()).FontSize(uikit.TextBody).FontWeight(600)
 						uikit.Hint(c, d.allowed).Font(uikit.FontMono)
-						uikit.Meta(c, "Disable access before changing the address or allowlist.")
+						uikit.Meta(c, locales.DisableAccessBeforeChangingThe())
 					}
 				})
 				ui.Column(c).BasisPercent(56).Grow(1).MinWidth(0).Gap(t.Space(3)).Children(func() {
-					uikit.Tabs(c, &d.platform, "Device platform", "iOS", "Android")
+					uikit.Tabs(c, &d.platform, "Device platform", locales.Ios(), locales.Android())
 					ui.Scroll(c).Grow(1).MinHeight(0).Gap(t.Space(2)).Padding(0, t.Space(2), 0, 0).Children(func() {
 						switch d.platform {
 						case 0:
-							uikit.Heading(c, "Set up iPhone / iPad")
-							uikit.Prose(c, "1. Wi-Fi → your network → Configure Proxy → Manual. Enter the proxy IP and port shown here; authentication off.")
-							uikit.Prose(c, "2. Open the certificate URL in Safari. Allow the profile, then install it in Settings → General → VPN & Device Management (or Profile Downloaded).")
-							uikit.Prose(c, "3. General → About → Certificate Trust Settings → enable full trust for this CA.")
-							uikit.Prose(c, "4. Enable SSL proxying for the hosts you inspect, then open an HTTPS page and check Capture.")
+							uikit.Heading(c, locales.SetUpIphoneIpad())
+							uikit.Prose(c, locales.N1WiFiYourNetwork())
+							uikit.Prose(c, locales.N2OpenTheCertificateUrl())
+							uikit.Prose(c, locales.N3GeneralAboutCertificateTrust())
+							uikit.Prose(c, locales.N4EnableSslProxyingFor())
 						case 1:
-							uikit.Heading(c, "Set up Android")
-							uikit.Prose(c, "1. Edit your Wi-Fi network → Advanced → Proxy → Manual. Enter the proxy IP and port; save. Labels vary by vendor.")
-							uikit.Prose(c, "2. Download the certificate URL. In Security / Encryption & credentials, choose Install a certificate → CA certificate, then select vscroxy-ca.cer.")
-							uikit.Prose(c, "3. Enable SSL proxying for your hosts and open an HTTPS page. For your own debug app, opt in to user CAs with Network Security Configuration.")
-							uikit.Hint(c, "Many Android 7+ apps do not trust user-installed CAs. Certificate pinning and apps that ignore the system proxy need app-side changes; installing this CA does not bypass them.")
+							uikit.Heading(c, locales.SetUpAndroid())
+							uikit.Prose(c, locales.N1EditYourWiFi())
+							uikit.Prose(c, locales.N2DownloadTheCertificateUrl())
+							uikit.Prose(c, locales.N3EnableSslProxyingFor())
+							uikit.Hint(c, locales.ManyAndroid7AppsDo())
 						}
 					})
-					if uikit.SecondaryButton(c, "Configure HTTPS inspection…").Clicked() {
+					if uikit.SecondaryButton(c, locales.ConfigureHttpsInspection()).Clicked() {
 						d.open, a.sslOpen = false, true
 					}
 				})
@@ -215,27 +216,27 @@ func (a *app) devicesModal(c *ui.Context, t *ui.Theme) {
 			}
 			uikit.DialogFooter(c).Children(func() {
 				if d.gateway == nil {
-					uikit.Meta(c, "Off by default on every launch.")
+					uikit.Meta(c, locales.OffByDefaultOnEvery())
 				} else {
-					uikit.Meta(c, "Closing this dialog keeps access on. Disable when finished.")
+					uikit.Meta(c, locales.ClosingThisDialogKeepsAccess())
 				}
 				ui.Spacer(c)
-				if uikit.SecondaryButton(c, "Diagnose…").Clicked() {
+				if uikit.SecondaryButton(c, locales.Diagnose()).Clicked() {
 					d.open = false
 					a.openDiagnostics(nil, diagnoseDevice)
 				}
-				if uikit.SecondaryButton(c, "Local client setup…").Clicked() {
+				if uikit.SecondaryButton(c, locales.LocalClientSetup()).Clicked() {
 					d.open = false
 					a.openClientSetup()
 				}
-				if uikit.SecondaryButton(c, "Close").Clicked() {
+				if uikit.SecondaryButton(c, locales.Close()).Clicked() {
 					d.open = false
 				}
 				if d.gateway == nil {
-					if uikit.PrimaryButton(c, "Enable device access").Disabled(a.srv == nil || !d.consent || d.ip == "" || strings.TrimSpace(d.allowed) == "").Clicked() {
+					if uikit.PrimaryButton(c, locales.EnableDeviceAccess()).Disabled(a.srv == nil || !d.consent || d.ip == "" || strings.TrimSpace(d.allowed) == "").Clicked() {
 						a.enableDevices()
 					}
-				} else if uikit.SecondaryButton(c, "Disable device access").TextColor(t.Danger).Clicked() {
+				} else if uikit.SecondaryButton(c, locales.DisableDeviceAccess()).TextColor(t.Danger).Clicked() {
 					a.disableDevices()
 				}
 			})

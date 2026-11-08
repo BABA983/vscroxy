@@ -1,5 +1,12 @@
 {
   "@@locale": "en",
+  "@activeSubscriptions": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "@addNoun": {
     "placeholders": {
       "noun": {
@@ -37,9 +44,35 @@
       }
     }
   },
+  "@blockData": {
+    "placeholders": {
+      "kind": {
+        "type": "String"
+      },
+      "bytes": {
+        "type": "int"
+      }
+    }
+  },
   "@capturedRequestsCount": {
     "placeholders": {
       "count": {
+        "type": "int"
+      }
+    }
+  },
+  "@catalogSummary": {
+    "placeholders": {
+      "tools": {
+        "type": "int"
+      },
+      "resources": {
+        "type": "int"
+      },
+      "templates": {
+        "type": "int"
+      },
+      "prompts": {
         "type": "int"
       }
     }
@@ -102,6 +135,35 @@
       }
     }
   },
+  "@eventLineKind": {
+    "placeholders": {
+      "seq": {
+        "type": "int"
+      },
+      "kind": {
+        "type": "String"
+      },
+      "name": {
+        "type": "String"
+      },
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "@eventLineSize": {
+    "placeholders": {
+      "seq": {
+        "type": "int"
+      },
+      "time": {
+        "type": "String"
+      },
+      "size": {
+        "type": "int"
+      }
+    }
+  },
   "@examplesCount": {
     "placeholders": {
       "count": {
@@ -136,6 +198,29 @@
   "@filePartLabel": {
     "placeholders": {
       "index": {
+        "type": "int"
+      }
+    }
+  },
+  "@grpcEventLine": {
+    "placeholders": {
+      "seq": {
+        "type": "int"
+      },
+      "time": {
+        "type": "String"
+      },
+      "direction": {
+        "type": "String"
+      },
+      "size": {
+        "type": "int"
+      }
+    }
+  },
+  "@grpcMethods": {
+    "placeholders": {
+      "count": {
         "type": "int"
       }
     }
@@ -187,6 +272,19 @@
   "@lostAtEnd": {
     "placeholders": {
       "count": {
+        "type": "int"
+      }
+    }
+  },
+  "@mcpCommandSummary": {
+    "placeholders": {
+      "command": {
+        "type": "String"
+      },
+      "args": {
+        "type": "int"
+      },
+      "env": {
         "type": "int"
       }
     }
@@ -256,6 +354,23 @@
       }
     }
   },
+  "@protobufLoaded": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "@protobufMessages": {
+    "placeholders": {
+      "shown": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
   "@protocolAndContentType": {
     "placeholders": {
       "name": {
@@ -289,6 +404,13 @@
       }
     }
   },
+  "@removeProperty": {
+    "placeholders": {
+      "index": {
+        "type": "int"
+      }
+    }
+  },
   "@removeRow": {
     "placeholders": {
       "noun": {
@@ -300,6 +422,13 @@
     }
   },
   "@removeSecret": {
+    "placeholders": {
+      "index": {
+        "type": "int"
+      }
+    }
+  },
+  "@removeTopic": {
     "placeholders": {
       "index": {
         "type": "int"
@@ -361,6 +490,69 @@
   "@responseBytes": {
     "placeholders": {
       "bytes": {
+        "type": "int"
+      }
+    }
+  },
+  "@resultSize": {
+    "placeholders": {
+      "bytes": {
+        "type": "int"
+      },
+      "blocks": {
+        "type": "int"
+      }
+    }
+  },
+  "@resultTruncated": {
+    "placeholders": {
+      "mib": {
+        "type": "int"
+      },
+      "bytes": {
+        "type": "int"
+      }
+    }
+  },
+  "@retainedEvicted": {
+    "placeholders": {
+      "retained": {
+        "type": "int"
+      },
+      "evicted": {
+        "type": "int"
+      }
+    }
+  },
+  "@retainedPreview2": {
+    "placeholders": {
+      "retained": {
+        "type": "int"
+      },
+      "evicted": {
+        "type": "int"
+      }
+    }
+  },
+  "@retainedPreview3": {
+    "placeholders": {
+      "retained": {
+        "type": "int"
+      },
+      "evicted": {
+        "type": "int"
+      },
+      "dropped": {
+        "type": "int"
+      }
+    }
+  },
+  "@retainedPreviewMethods": {
+    "placeholders": {
+      "retained": {
+        "type": "int"
+      },
+      "evicted": {
         "type": "int"
       }
     }
@@ -481,6 +673,13 @@
       }
     }
   },
+  "@sessionMessageLabel": {
+    "placeholders": {
+      "seq": {
+        "type": "int"
+      }
+    }
+  },
   "@showingFirstOf": {
     "placeholders": {
       "shown": {
@@ -494,6 +693,13 @@
   "@sourceSnapshot": {
     "placeholders": {
       "id": {
+        "type": "int"
+      }
+    }
+  },
+  "@sseEventLabel": {
+    "placeholders": {
+      "seq": {
         "type": "int"
       }
     }
@@ -604,48 +810,71 @@
       }
     }
   },
+  "aChangeAppliesToNew": "A change applies to new connections; existing connections keep theirs.",
   "aColorShowsInThe": "A color shows in the table beside the method, and the note in the URL cell and the detail header.",
+  "aFileOrAFolder": "A file or a folder",
+  "aFileUpTo8": "A file up to 8 MiB, or a folder that answers with the file at the request’s path; a missing file is left to the server.",
   "aFilterKeepsThisView": "A filter keeps this view's URL, content and triage conditions. Applying one changes this view; the other views keep their own.",
   "aHigherProfileMapsThe": "A higher profile maps the same host elsewhere",
+  "aLocalPacFileOr": "A local .pac file or http(s) URL. FindProxyForURL runs with a timeout; native allocation calls cannot be interrupted.",
   "aNewViewWithIts": "A new view with its own filters, selection and scroll position",
+  "aPathStartingWithThe": "A path starting with the first part starts with the second instead.",
   "aProfileFetchedFromA": "A profile fetched from a URL, refreshed hourly",
   "aReconnectReAppliesThe": "A reconnect re-applies the active subscriptions; retained messages may arrive again.",
+  "aRuleInAScenario": "A rule in a scenario applies only while that scenario is active.",
+  "aScenarioIsRulesSwitched": "A scenario is rules switched on and off together, such as an offline demo. Name one in a rule’s Scenario field, or make one from a collection’s examples with Mock from examples.",
+  "aSecondEntryForClients": "A second entry for clients that cannot use an HTTP proxy. Plaintext HTTP and HTTPS with the same decryption rules. Applies after a restart.",
   "abortStatus": "Abort status",
   "access": "Access",
   "accessKey": "Access key",
   "accessToken": "Access token",
   "accessTokenUrl": "Access token URL",
+  "action": "Action",
   "activeEnvironment": "Active environment",
+  "activeScenario": "Active scenario",
   "activeSubscriptions": "{count} active",
   "activeTool": "Active tool: {name}",
   "addAFilePartOnly": "Add a file part; only the local path is stored",
   "addANote": "Add a note…",
   "addAnEnvironmentForRequest": "Add an environment for request variables",
   "addAuthorizationTo": "Add authorization to",
+  "addCaFile": "Add CA file",
+  "addClientCertificate": "Add client certificate",
   "addColumn": "Add column…",
   "addColumn2": "Add column",
   "addCookie": "Add cookie",
+  "addCredentials": "Add credentials",
+  "addHeaderCondition": "Add header condition",
   "addNoun": "Add {noun}",
   "addProperty": "Add property",
   "addReplacesTheSameDomain": "Add replaces the same domain / path / name. Leave Domain empty for a host-only cookie.",
+  "addReverseProxy": "Add reverse proxy…",
   "addSecret": "Add secret",
   "addTokenTo": "Add token to",
   "addTopic": "Add topic",
   "addVariable": "Add variable",
   "addedUpdated": "+{added} / ↻{updated}",
+  "addons": "Addons",
   "address": "Address",
   "addsOauthBodyHashForm": "Adds oauth_body_hash; form bodies are signed as parameters.",
+  "addsThePublicCaTo": "Adds the public CA to the booted simulator's root store. It does not configure a physical iPhone; enable trust in the simulator's Certificate Trust Settings if asked.",
   "aggregateTimingOnlyNoRequest": "Aggregate timing only · no request-local trace was recorded",
   "algorithm": "Algorithm",
   "all": "All",
   "allConditionsMustMatchRemove": "All conditions must match. Remove a condition above or edit the filters.",
   "allRequests": "All requests",
   "allowList": "Allow list",
+  "allowSelfSignedCertificates": "Allow self-signed certificates",
+  "allowedDeviceAddresses": "Allowed device addresses",
   "allowedDomains": "Allowed domains {index}",
+  "allowedSources": "Allowed sources",
   "anExactExecutableRuleIs": "An exact executable rule is enabled; client CA trust is still required",
   "analyzingCompleteJsonResponses": "Analyzing complete JSON responses…",
+  "android": "Android",
+  "androidDevice": "Android device",
   "anonymousOperation": "Anonymous operation",
   "answerMatchingRequestsWithThis": "Answer matching requests with this example: opens a Map Local rule in Tools",
+  "any": "Any",
   "anyContentFieldMayMatch": "Any content field may match; search and scope must still match. Edit the filters or broaden the scope.",
   "anyHostOrApiExample": "Any host, or api.example.com, *.example.com",
   "apiContracts": "API contracts",
@@ -653,13 +882,17 @@
   "apiKeyName": "API key name",
   "apiKeyValue": "API key value",
   "apiTitle": "API: {name}",
+  "apiUsers42JsonReads": "/api/users/42.json reads users/42.json in the folder; a path ending in / reads index.html.",
   "app": "App",
   "appExactName": "App (exact name)",
   "appFilterIsActiveRemove": "App filter is active; remove it in the condition bar",
+  "appRuleEnabledReconnectTo": "App rule enabled · reconnect to inspect new requests",
+  "appRuleUnavailableLocalExecutable": "App rule unavailable · local executable identity not recorded",
   "appearance": "Appearance",
   "applicationSpecificDataOptional": "Application-specific data, optional",
   "appliedActions": "Applied: {actions}",
   "appliesTo": "Applies to",
+  "appliesToNewConnections": "Applies to new connections.",
   "apply": "Apply",
   "applyContinue": "Apply & continue",
   "applyNamed": "Apply {name}",
@@ -681,6 +914,7 @@
   "authCookieApiKeyHeaders": "Auth/Cookie/API-key headers use local Current values (plaintext, not exported). Other headers, queries and bodies may contain secrets; review before sharing.",
   "authId": "Auth ID",
   "authKey": "Auth key",
+  "authentication": "Authentication",
   "authorizationType": "Authorization type",
   "authorizationUrl": "Authorization URL",
   "autoFollow": "Auto-follow",
@@ -706,7 +940,9 @@
   "binaryEncodedOrNonUtf": "Binary, encoded or non-UTF-8 field · payload not previewed",
   "binaryFileUpTo16": "BINARY FILE · up to 16 MiB, sent unchanged",
   "binaryUndecodableOrLargeBody": "Binary, undecodable or large body: preserved unchanged; headers can still be edited.",
+  "blankIsAutomaticAnOs": "Blank is automatic (an OS-assigned loopback port shown above). A fixed port (1024–65535) never falls back.",
   "blankIsAutomaticPrefers7890": "Blank is automatic (prefers 7890). A fixed port (1024–65535) never falls back. Applies after a restart.",
+  "blockAction": "Block action",
   "blockData": "{kind} data · {bytes} bytes (shown as base64)",
   "bodiesPast64KbAre": "Bodies past 64 KB are kept in temporary files. Past any limit the oldest requests go first, with their files; pinned ones stay.",
   "body": "Body",
@@ -716,12 +952,16 @@
   "bodyIsNotJsonShowing": "Body is not JSON; showing it as text",
   "bodyText": "Body text",
   "breakpointHeaders": "Breakpoint headers",
+  "breakpointTemplate": "Breakpoint template",
   "breakpoints": "Breakpoints",
   "browse": "Browse…",
   "browser": "Browser",
   "browserFetchFollowsBrowserCookie": "Browser fetch follows browser cookie, forbidden-header and CORS policies. Use Node.js or cURL outside the browser.",
+  "budget30SPerExecution": "Budget: 30 s per execution · 100,000 attempts maximum · 1–200 saved requests",
   "bulkEditReplacesTheTable": "Bulk edit replaces the table with one Key: Value per line; switched-off rows are kept",
   "bulkEditShowsCredentials": "Bulk edit shows credentials",
+  "bypass": "Bypass",
+  "bypassList": "Bypass list",
   "bytes0Advertises1Mib": "bytes · 0 advertises 1 MiB so one broker packet cannot grow without limit",
   "caching": "Caching",
   "callAToolReadA": "Call a tool, read a resource or get a prompt. The Result tab shows text, image and audio blocks, structured content and isError.",
@@ -729,6 +969,7 @@
   "callMcpTool": "Call MCP tool",
   "callbackUrl": "Callback URL",
   "cancel": "Cancel",
+  "cancelDelete": "Cancel delete",
   "cancelGrpcDiscovery": "Cancel gRPC discovery",
   "cancelMcpRequest": "Cancel MCP request",
   "cancelQuery": "Cancel query",
@@ -749,6 +990,11 @@
   "capturingTrustingTheCertificateAnd": "Capturing, trusting the certificate and choosing what to decrypt.",
   "caseInsensitiveText": "case-insensitive text",
   "catalogSummary": "{tools} tools · {resources} resources · {templates} templates · {prompts} prompts",
+  "catalogTab": "Catalog",
+  "certificate": "Certificate",
+  "certificateFile": "Certificate file",
+  "certificateFormat": "Certificate format",
+  "certificateSetup": "Certificate setup…",
   "certificateVerificationIsOffFor": "Certificate verification is off for requests under it: they accept any certificate, including an impostor’s. Use it only for a server you control.",
   "certificateVerificationIsOffThis": "Certificate verification is off: this request accepts any certificate, including an impostor’s. Use it only for a server you control.",
   "certificateVerificationIsOffThis2": "Certificate verification is off: this connection accepts any certificate, including an impostor's. Use it only for a server you control.",
@@ -757,15 +1003,26 @@
   "changeTheSearchOrWait": "Change the search or wait for the server.",
   "changeTheSearchOrWait2": "Change the search or wait for a message.",
   "changeTheSearchOrWait3": "Change the search or wait for an event.",
+  "changesApplyToNewRequests": "Changes apply to new requests.",
+  "checkAgain": "Check again",
+  "checkOrInstallTheLocal": "Check or install the local CA; this client may still need its own trust or a debug build",
+  "checksWhatLiesBetweenA": "Checks what lies between a client and this app, in order. Nothing changes until you press a fix.",
+  "choose": "Choose…",
+  "chooseABaseline": "Choose a baseline",
   "chooseACollectionWithSaved": "Choose a collection with saved requests to run.",
+  "chooseACustomPreset": "Choose a custom preset",
   "chooseAMessageToSee": "Choose a message to see it in full",
+  "chooseAPreset": "Choose a preset",
   "chooseAPrompt": "Choose a prompt",
   "chooseASavedCollectionUnsaved": "Choose a saved collection. Unsaved request tabs are not included.",
   "chooseATool": "Choose a tool",
   "chooseATransportThenConnect": "Choose a transport, then Connect. The session lists the server's tools, resources and prompts and keeps a bounded timeline of requests, responses, notifications and logs.",
   "chooseAllShown": "Choose all shown",
   "chooseAnAdvertisedResourceOr": "Choose an advertised resource or template, or type any URI the server accepts. Templates keep their '{placeholders}'; edit them first.",
+  "chooseAnElectronApp": "Choose an Electron app",
   "chooseAnEncodingAndDecode": "Choose an encoding and Decode. JWT signatures are not verified.",
+  "chooseAnotherRunAsLeft": "Choose another run as left, or set a baseline first.",
+  "chooseApp": "Choose app…",
   "chooseBinaryBodyFile": "Choose binary body file",
   "chooseEnterRunEscClose": "↑ ↓ Choose · Enter Run · Esc Close",
   "chooseExactlyTwoRowsWith": "Choose exactly two rows with Ctrl/Cmd-click",
@@ -773,11 +1030,16 @@
   "chooseFile": "Choose file…",
   "choosePrettyRawOrHex": "Choose Pretty/Raw or Hex to inspect original bytes.",
   "chooseScope": "Choose scope",
+  "chromeOnLinuxReadsNss": "Chrome on Linux reads NSS, not the CA file. Trust the CA system-wide in Settings → HTTPS, or add it with certutil; no TLS bypass is used.",
+  "chromeUsesThisSystemS": "Chrome uses this system's trust store. Trust the CA in Settings → HTTPS first; no TLS bypass is used.",
   "clear": "Clear",
   "clearAllCookies": "Clear all cookies",
   "clearCapturedRequests": "Clear captured requests?",
   "clearChoice": "Clear choice",
   "clearFilters": "Clear filters",
+  "clearHistory": "Clear History…",
+  "clearHistory2": "Clear History?",
+  "clearRecords": "Clear records",
   "clearRequestDefaults": "Clear request defaults",
   "clearSchema": "Clear schema",
   "clearSelection": "Clear selection",
@@ -786,13 +1048,17 @@
   "clearUnpinnedRequests2": "Clear unpinned requests…",
   "client": "Client",
   "clientAuthentication": "Client authentication",
+  "clientCertificates": "Client certificates",
+  "clientCertificatesAndExtraRoots": "Client certificates and extra roots for requests and captured upstream TLS.",
   "clientCertificatesRoots": "Client certificates & roots…",
   "clientId": "Client ID",
+  "clientRuntime": "Client runtime",
   "clientSecret": "Client secret",
   "clientSetup": "Client setup",
   "clientToken": "Client token",
   "close": "Close",
   "closeBodySearch": "Close body search",
+  "closeKeepsRunningQuitCancels": "Close keeps running; Quit cancels and waits.",
   "closeRequest": "Close request",
   "closeSearchEsc": "Close search · Esc",
   "closeTabKeepTheSaved": "Close tab; keep the saved session",
@@ -802,11 +1068,13 @@
   "closeTokenLinks": "Close token links",
   "closeViewNamed": "Close view: {name}",
   "closeWindow": "Close window",
+  "closingThisDialogKeepsAccess": "Closing this dialog keeps access on. Disable when finished.",
   "code": "Code",
   "codeLanguage": "Code language",
   "collection": "Collection",
   "collectionActions": "Collection actions",
   "collectionFolder": "Collection / folder",
+  "collectionLoadTest": "Collection load test",
   "collectionName": "Collection name",
   "collectionOptions": "Collection options",
   "collectionRecordingStatus": "Collection recording status",
@@ -818,23 +1086,35 @@
   "color": "Color",
   "columnNameOrJsonPointer": "Column name or JSON pointer",
   "columnSource": "Column source",
+  "combine": "Combine",
+  "commaSeparatedAppNamesMatches": "Comma-separated app names; * matches any text, as in Google Chrome*.",
   "commaSeparatedEGX": "Comma-separated, e.g. X-Test1,X-Test2",
   "command": "Command",
   "commands": "Commands…",
   "commands2": "Commands",
   "commonMethods": "Common methods",
   "compareContent": "Compare content",
+  "compareRuns": "Compare runs",
+  "compareSource": "Compare source",
   "compareThisResponseWithThe": "Compare this response with the capture it came from",
   "compareTwo": "Compare two",
   "compareWithLeft": "Compare with left",
   "compareWithSource": "Compare with source",
   "comparingWithTheSourceCapture": "Comparing with the source capture",
+  "comparisonOnlyOriginalSnapshotsRemain": "Comparison only; original snapshots remain unchanged. Ignores top-level response JSON keys, not headers or nested fields.",
   "compilingAndLinkingSchema": "Compiling and linking schema…",
   "completedRequestsWillAppearHere": "Completed requests will appear here.",
   "concurrency": "Concurrency",
+  "concurrencyDescription": "1–{max} requests in flight.",
+  "conditions": "Conditions",
   "configuration": "Configuration",
+  "configurationForNewConnectionsA": "Configuration for new connections; a recorded failure stays as it was",
+  "configureHttpsInspection": "Configure HTTPS inspection…",
+  "confirmDelete": "Confirm delete",
+  "conflictsCount": "{count, plural, one {# conflict} other {# conflicts}}",
   "connect": "Connect",
   "connectADevice": "Connect a device…",
+  "connectADevice2": "Connect a device",
   "connectAndEachRequestUse": "Connect and each request use this timeout; cancelling never undoes server-side changes",
   "connectAndRefreshTheCatalog": "Connect and refresh the catalog to choose a tool. The server's input schema can fill the arguments object.",
   "connectAndRefreshTheCatalog2": "Connect and refresh the catalog to choose a prompt.",
@@ -845,13 +1125,18 @@
   "connectionAddressesDnsAndTls": "Connection: addresses, DNS and TLS",
   "connectionDetails": "Connection details",
   "connectionDiagnostics": "Connection diagnostics",
+  "connectionHeadersAreRemovedThe": "Connection headers are removed; the length is recalculated.",
   "connectionLog": "Connection log",
   "connectionLogSnapshotAtCapture": "Connection log · snapshot at capture time",
+  "console": "Console",
+  "consoleLogAndErrorsShow": "console.log(...) and errors show here as its rules run.",
   "consumerKey": "Consumer key",
   "consumerSecret": "Consumer secret",
+  "contains": "Contains",
   "containsValue": "Contains value {index}: {value}",
   "contentType": "Content type",
   "contentTypeApplicationJson": "Content-Type: application/json",
+  "continueOrAbortInThe": "Continue or abort in the breakpoint dialog.",
   "continueOriginal": "Continue original",
   "cookieDomain": "Cookie domain",
   "cookieName": "Cookie name",
@@ -862,8 +1147,11 @@
   "cookies": "Cookies…",
   "cookies2": "Cookies",
   "copiesDisplayedTextHexUse": "Copies displayed text/hex; use Copy decoded in Protobuf mode",
+  "copiesTheJdkSCacerts": "Copies the JDK's cacerts into this app's own truststore, then adds the public CA. No JDK files change.",
+  "copiesValuesLaterPresetEdits": "Copies values. Later preset edits do not change this rule.",
   "copy": "Copy",
   "copyAProcessScopedProxy": "Copy a process-scoped proxy and CA example",
+  "copyActiveConditions": "Copy active conditions",
   "copyAs": "Copy as…",
   "copyAsCsv": "Copy as CSV",
   "copyAsCurl": "Copy as cURL",
@@ -871,10 +1159,18 @@
   "copyAsHarWithSensitive": "Copy as HAR (with sensitive data)",
   "copyAsMarkdownTable": "Copy as Markdown table",
   "copyAsRawHttp": "Copy as raw HTTP",
+  "copyCaToDevice": "Copy CA to device",
   "copyCapabilities": "Copy capabilities",
+  "copyCertificateUrl": "Copy certificate URL",
+  "copyClientExample": "Copy client example",
+  "copyCommands": "Copy commands",
   "copyConnectionLog": "Copy connection log",
   "copyDecoded": "Copy decoded",
+  "copyDiagnostics": "Copy diagnostics",
+  "copyError": "Copy error",
   "copyEventId": "Copy event ID",
+  "copyPreset": "Copy preset",
+  "copyProxyAddress": "Copy proxy address",
   "copyRaw": "Copy raw",
   "copyResult": "Copy result",
   "copyResults": "Copy results",
@@ -885,8 +1181,10 @@
   "copyShownSseData": "Copy shown SSE data",
   "copySystemHosts": "Copy {path} into a new profile",
   "copyTheOriginalCapturedRequest": "Copy the original captured request; may include credentials",
+  "copyTheRecordedError": "Copy the recorded error",
   "copyView": "Copy view",
   "correlationData": "Correlation data",
+  "couldNotReleaseSystemProxy": "Could not release system proxy",
   "coversContentTypeAndThe": "Covers Content-Type and the body in the MAC.",
   "create": "Create",
   "createAnEnvironmentBeforeStarting": "Create an environment before starting.",
@@ -908,6 +1206,9 @@
   "currentIsPlaintextLocalStorage": "Current is plaintext local storage, not Vault. The generated scripts are bound to this environment and require its Current slot. A failed multi-file save can keep the empty slot and partial files; reload before preparing again.",
   "currentResponseRight": "Current response (right)",
   "currentValuesStayLocalAnd": "Current values stay local and are excluded from environment exports. Vault values are encrypted and host-restricted.",
+  "customCaFile": "Custom CA file",
+  "customNetworkPresets": "Custom network presets",
+  "customPreset": "Custom preset",
   "customPresets": "Custom presets…",
   "dataFile": "Data file…",
   "debuggingRules": "Debugging rules",
@@ -920,9 +1221,13 @@
   "decodedResult": "Decoded result",
   "decoder": "Decoder",
   "decryptEveryDomain": "Decrypt every domain",
+  "decryptEveryNewHttpsConnection": "Decrypt every new HTTPS connection, not only the listed domains and apps.",
+  "decryption": "Decryption",
   "decryptionDomains": "Decryption domains",
   "defaultLatestSuccessfulResponseAnd": "Default: latest successful response and one response per error status. Deselect incomplete or binary responses.",
   "defaultText": "/ (default)",
+  "defaultText2": "Default",
+  "defaultUpstream": "Default upstream",
   "definePathsInOpenapiOr": "Define paths in OpenAPI, or generate a draft from saved requests.",
   "defineThePayloadSchemaRequest": "Define the payload schema; request values were intentionally omitted.",
   "delay": "Delay",
@@ -933,59 +1238,88 @@
   "deleteExample": "Delete example",
   "deleteNamed": "Delete {name}",
   "deleteRequest": "Delete request…",
+  "deleteRule": "Delete rule…",
   "deleteSession": "Delete session…",
+  "deleteWithItsRules": "Delete with its rules…",
   "description": "Description",
   "destinationCollection": "Destination collection",
+  "deviceFacingAddress": "Device-facing address",
   "devices": "Devices",
+  "diagnose": "Diagnose…",
   "diagnoseCapture": "Diagnose capture…",
   "diagnoseThisConnection": "Diagnose this connection",
   "diagnostics": "Diagnostics",
+  "directConnection": "Direct connection",
   "direction": "Direction",
+  "disableAccessBeforeChangingThe": "Disable access before changing the address or allowlist.",
+  "disableDeviceAccess": "Disable device access",
+  "disableSystemProxy": "Disable system proxy",
   "disableTool": "Disable {name}",
   "discard": "Discard",
+  "discardChanges": "Discard changes",
   "discardEdits": "Discard edits",
   "disconnect": "Disconnect",
   "disconnectClose": "Disconnect & close",
   "disconnectMcp": "Disconnect MCP",
   "dismissRecordingStatus": "Dismiss recording status",
   "dismissStatusSavedRequestsStay": "Dismiss status; saved requests stay",
+  "domainDecryptionDisabled": "Domain decryption disabled",
   "domainOptional": "Domain (optional)",
+  "domainRuleEnabledReconnectTo": "Domain rule enabled · reconnect to inspect new requests",
   "domains": "Domains",
+  "domainsAndApps": "Domains and apps",
   "domainsAndSubdomains": "Domains and subdomains",
   "done": "Done",
   "draftChangedNotSent": "Draft changed · not sent",
   "draftMatchesLastAttempt": "Draft matches last attempt",
   "draftSnapshotVariablesScriptsRedirects": "Draft snapshot · variables, scripts, redirects and proxy rules may change the wire request. Inspect History for retained wire evidence.",
   "dragOntoAFolderTo": "Drag onto a folder to move, or onto a request to reorder. Select a request to edit its name and folder.",
+  "dropConnection": "Drop connection",
   "dropEveryLocalOverrideAnd": "Drop every local override and use Initial values again",
   "dropOpenConnections": "Drop open connections",
   "droppedSuffix": " · {count} dropped",
   "duplicate": "Duplicate",
   "duplicateAsNewRequest": "Duplicate as new request",
   "duration": "Duration",
+  "duration1s10m": "Duration · 1s–10m",
+  "eachUserHasIsolatedVariables": "Each user has isolated variables, cookies and tokens. Uses a start-time snapshot and an already-unlocked Vault; script Vault is disabled. No environment/request writes, experiment logs or capture records. Results disappear on restart.",
+  "edit": "Edit…",
+  "edit2": "Edit",
   "editCaptureFilters": "Edit capture filters…",
   "editEnvironment": "Edit environment",
   "editEnvironments": "Edit environments",
   "editFilters": "Edit filters…",
   "editOpenapi": "Edit OpenAPI",
   "editRequest": "Edit request",
+  "editRule": "Edit rule {index}",
+  "editScript": "Edit script",
   "editTheDraftAndSend": "Edit the draft and send again. No automatic retry.",
   "edited": "Edited",
   "editedInTheInspectorThe": "Edited in the inspector · the capture itself is unchanged",
   "editedSinceLastSendNot": "Edited since last send · not yet sent",
   "editsUpdateTheUrlRepeated": "Edits update the URL; repeated keys are preserved.",
+  "electronApp": "Electron app",
   "emitSocketIoEvent": "Emit Socket.IO event",
   "emptyBody": "Empty body",
+  "emptyConnectsDirectlyAHost": "Empty connects directly. A host rule or PAC can override it.",
   "emptyMessage": "Empty message",
   "emptyNoStatusAssertion": "Empty = no status assertion",
   "emptyParameters": "Empty parameters",
   "emptySession": "Empty session",
+  "enable": "Enable",
   "enableADomainOrA": "Enable a domain or a local executable. New connections only; clients must trust the CA. Enabling a rule does not prove decryption succeeded.",
+  "enableDeviceAccess": "Enable device access",
   "enableRow": "Enable {noun} {index}",
+  "enableRule": "Enable rule {index}",
+  "enableSocks5Proxy": "Enable SOCKS5 proxy",
+  "enableSystemProxy": "Enable system proxy",
+  "enableThisHostnameAndSubdomains": "Enable this hostname and subdomains on new connections; client CA trust is still required",
   "enableVariable": "Enable variable {index}",
   "encryptedTunnelConnectSuccessIs": "Encrypted tunnel; CONNECT success is not a decrypted response",
   "endpoints": "Endpoints",
   "endpointsUnavailable": "Endpoints unavailable",
+  "enterAUrlThenApp": "Enter a URL, then @ App and ; Header: value if needed.",
+  "enterAnHttpOrHttps": "Enter an HTTP or HTTPS URL without embedded credentials.",
   "environment": "Environment",
   "environmentValuesChangedSinceYou": "environment values changed since you approved this command.",
   "environmentValuesMayUseVariables": "Environment · values may use '{{variables}}'; masked rows are not sent",
@@ -1000,14 +1334,17 @@
   "eventLineKind": "#{seq} {kind} · {name} · {time}",
   "eventLineSize": "#{seq} · {time} · {size} B",
   "eventNameEGEcho": "Event name, e.g. echo",
+  "everyDomain": "Every domain",
   "everyRequestReadsTheseWhatever": "Every request reads these, whatever the environment. Collection, folder and environment values override them.",
   "everyRequestSavedUnderIt": "Every request saved under it inherits these settings; a folder's settings override its collection's.",
   "evidenceNotProofOfAuthentication": "Evidence, not proof of authentication. Values are hidden. Changes require review and explicit Apply; no requests are sent.",
   "exactExecutablePathsNotApp": "Exact executable paths, not app names or parent/Helper groups. Add from a captured request or an App's context menu.",
   "exactHostnameAnyPortOr": "Exact hostname (any port) or host:port. Empty = all hosts; no wildcards.",
+  "exactSelectedOperationNameCase": "Exact selected operation name, case-sensitive. Unknown, ambiguous or unavailable queries do not match. All conditions combine with AND.",
   "exactSidebarAppLabelsEmpty": "Exact sidebar App labels. Empty = all apps. Host and App filters intersect.",
   "exactValueMatchTokenCapture": "Exact value match · token •••• · capture-time ordering",
   "exampleName": "Example name",
+  "examples": "Examples",
   "examplesCount": "{count} examples",
   "exchangesCount": "{count, plural, one {# exchange} other {# exchanges}}",
   "executionOrder": "Execution order",
@@ -1015,6 +1352,9 @@
   "existingScriptsAreKeptClear": "Existing scripts are kept. Clear-before-login is prepended; extraction and consumer guards are appended. Other Auth types, dirty drafts and stale proposals are refused. Review authored scripts for deliberate overrides.",
   "expectedResponseHeaders": "Expected response headers",
   "expectedStatus": "Expected status",
+  "experimentNote": "Experiment note",
+  "experimentNumber": "Experiment #{id}",
+  "experimentResult": "Experiment result",
   "expiry": "Expiry",
   "expiryAndAlias": "Expiry and alias",
   "explain": "Explain",
@@ -1033,10 +1373,12 @@
   "exportedMessages": "Exported {count} retained messages",
   "ext": "ext",
   "extraHeader": "Extra header",
+  "extraPemRootsAreAdded": "Extra PEM roots are added when a request verifies a server. Turning verification off still accepts any certificate, independent of these roots.",
   "failed": "Failed",
   "field": "field",
   "fieldBasedRedactionIsNot": "Field-based redaction is not secret detection. Review retained fields before sharing.",
   "file": "File",
+  "file2": "File…",
   "filePart": "File: {name} · payload not previewed",
   "filePartLabel": "File part {index}",
   "fillAnEmptyVariablesEditor": "Fill an empty variables editor from the selected operation's variable definitions",
@@ -1059,15 +1401,22 @@
   "findCommand": "Find command",
   "findInBody": "Find in body…",
   "findInText": "Find in text…",
+  "findItInTheDevice": "Find it in the device’s Wi-Fi details. Prefer one IP; CIDRs allow every device in that range. Empty = deny all.",
   "findSearchTraffic": "Find / Search traffic",
   "finishGrpcSending": "Finish gRPC sending",
+  "firefoxUsesTheWindowsRoot": "Firefox uses the Windows root store through enterprise roots. Trust the CA in Settings → HTTPS first; no TLS bypass is used.",
+  "firstMatchingNetworkRuleReplaces": "First matching network rule replaces global conditions before scripts and routing. All zero overrides to Off. Other Map/Block rules still act independently.",
+  "fixedConcurrentUsersClosedModel": "Fixed concurrent users · closed model · HTTP(S) only · no target RPS or ramping",
   "focusInspectorBackToList": "Focus inspector / Back to list",
   "focusRequestListUrl": "Focus request list / URL",
+  "folder": "Folder…",
   "folderMaximumRedirects": "Folder maximum redirects",
   "folderTimeoutInSeconds": "Folder timeout in seconds",
   "folders": "Folders",
   "followListEnd": "Follow list end",
   "followRedirects": "Follow redirects",
+  "forAServerThatServes": "For a server that serves several sites by name. Otherwise it gets the target’s host.",
+  "forgetSavedProxy": "Forget saved proxy",
   "formDataFileValuesAre": "FORM DATA · file values are local paths, 16 MiB in total",
   "formFields": "Form fields",
   "format": "Format",
@@ -1102,14 +1451,18 @@
   "harSanitized": "HAR (sanitized)",
   "harWithSensitiveData": "HAR (with sensitive data)",
   "header": "Header",
+  "headerComparison": "Header {index} comparison",
+  "headerName": "Header {index} name",
   "headerPrefix": "Header prefix",
   "headerQueryBodyValuesAnd": "Header/query/body values and scripts are omitted. Paths remain literal. Authentication, types and response schemas need review. This creates a new specification; existing ones are never overwritten.",
+  "headerValue": "Header {index} value",
   "headers": "Headers",
   "headersCookiesAndBodiesOf": "Headers, cookies and bodies of these become readable. More rules in HTTPS rules.",
   "headersOneNameValuePer": "Headers · one Name: Value per line; repeat a name for multiple values",
   "headersToSign": "Headers to sign",
   "help": "Help",
   "hex": "Hex",
+  "hide": "Hide",
   "hideRow": "Hide {noun} {index}",
   "historicalReadOnlyPayloads": "Historical · read-only payloads",
   "historicalSessionReadOnlyPayloads": "Historical session · read-only payloads",
@@ -1122,11 +1475,16 @@
   "hostAndAppMatchExactly": "Host and app match exactly. Status takes 404, 4xx, 200-299 or >=400; commas mean OR. Header values use case-insensitive contains on either side. Body searches both sides in full, including spilled files.",
   "hostExactIncludingPort": "Host (exact, including port)",
   "hostFilterIsActiveRemove": "Host filter is active; remove it in the condition bar",
+  "hostHeader": "Host header",
   "hostProfile": "Host profile",
+  "hostProfileMode": "Host profile mode",
   "hostProfileNamed": "Host profile: {name}",
   "hostProfiles": "Host profiles",
+  "hostRules": "Host rules",
   "hosts": "Hosts",
+  "hostsCount": "{count, plural, one {# host} other {# hosts}}",
   "hostsEnvironment": "Hosts → environment",
+  "hostsExampleComCidrLocalhost": "Hosts, *.example.com, CIDR, localhost or <local>. Direct before rules and PAC.",
   "hostsInScope": "Hosts in scope",
   "hostsMapped": "Hosts mapped",
   "hostsOf": "Hosts of {name}",
@@ -1134,6 +1492,8 @@
   "howVscroxyLooks": "How vscroxy looks.",
   "http4xxAnd5xxResponses": "HTTP 4xx and 5xx responses are kept for error examples. Streams and non-HTTP traffic cannot become requests.",
   "httpAuth": "HTTP auth",
+  "httpInspectedHttpsAndSse": "HTTP, inspected HTTPS and SSE only; not WebSocket or raw CONNECT. Conditions apply to new exchanges.",
+  "httpInspectedHttpsAndSse2": "HTTP, inspected HTTPS and SSE; not WebSocket or opaque CONNECT. Failure disconnects requests, not TCP packets. Streamed bodies cannot match a POST GraphQL operation.",
   "httpSHops": "HTTP(S) hops",
   "https": "HTTPS",
   "httpsCertificateDecryptionSetup": "HTTPS certificate & decryption setup…",
@@ -1142,10 +1502,14 @@
   "httpsInspectionRules": "HTTPS inspection rules",
   "httpsRules": "HTTPS rules",
   "httpsSetup": "HTTPS setup",
+  "ifTheSystemAsksFor": "If the system asks for authorization, approve it to continue. Trust will be checked afterwards.",
+  "ignoreJsonKeys": "Ignore JSON keys",
+  "ignoreTopLevelResponseJson": "Ignore top-level response JSON keys: timestamp, traceId",
   "ignored": "Ignored",
   "ignoredApps": "Ignored apps…",
   "ignoredHosts": "Ignored hosts…",
   "importAProtoSourceOr": "Import a .proto source or a binary FileDescriptorSet (.pb / .protoset). gRPC methods select input/output types automatically; raw protobuf needs a message type. A successful load replaces the current registry.",
+  "importCa": "Import CA",
   "importCaIntoJavaTruststore": "Import CA into Java truststore…",
   "importCaptureSession": "Import capture session…",
   "importCaptureSession2": "Import capture session",
@@ -1173,9 +1537,11 @@
   "incompleteBodies": "Incomplete bodies: {count}",
   "independentFiltersSelectionAndScroll": "Independent filters, selection and scroll position",
   "initial": "Initial",
+  "initialClientRequestAfterVariables": "Initial client request after variables and pre-request script; redirect hops and proxy interventions are separate wire exchanges.",
   "initialValuesAreSharedAnd": "Initial values are shared and exported; Current values stay on this machine, in plaintext. Use Vault for encryption.",
   "initialValuesAreSharedAnd2": "Initial values are shared and exported; Current values stay on this machine.",
   "inputSchema": "Input schema",
+  "insertSnippet": "Insert snippet",
   "inspectFocused": "Inspect focused",
   "inspectNumbered": "Inspect #{id}",
   "inspectRetainedRun": "Inspect retained run",
@@ -1187,9 +1553,15 @@
   "inspectorFocusCtrlCmdShift": "Inspector focus · Ctrl/Cmd+Shift+Enter",
   "inspectorOptions": "Inspector options",
   "installAndTrust": "Install and trust",
+  "installCaInBootedSimulator": "Install CA in booted simulator",
   "installCaInIosSimulator": "Install CA in iOS simulator…",
+  "installTrust": "Install & Trust…",
+  "installationCancelledYouCanTry": "Installation cancelled. You can try again when ready.",
   "intervalBetweenStartsMs": "Interval between starts (ms)",
+  "intervalDescription": "0–{max} ms; 0 starts as a worker frees up.",
   "invalidTimingDataRecordedOffsets": "Invalid timing data · recorded offsets are outside the timeline",
+  "ios": "iOS",
+  "iosSimulatorsRunOnlyOn": "iOS simulators run only on macOS. This build cannot install the CA.",
   "iterations": "Iterations",
   "json": "JSON",
   "jsonArgumentArraySharedBy": "JSON argument array · shared by Emit and Reply ACK",
@@ -1199,16 +1571,22 @@
   "jsonScalarFieldsRfc6901": "JSON scalar fields · RFC 6901 pointer = JSON value · one per line",
   "jsonTypesMatterMissingIs": "JSON types matter; missing is not null. Checks never run scripts. Rerunning sends real traffic and can change server data.",
   "jsonpathItemsPrice10Jq": "JSONPath: $.items[?(@.price > 10)]  ·  jq: .items[] | select(.price > 10)",
+  "keep": "Keep",
   "keepAliveInSeconds": "Keep-alive in seconds",
   "keepDraftsVariablesAndResponses": "Keep drafts, variables and responses together in one request tab.",
+  "keepOriginal": "Keep original",
   "keepThisResponseWithThe": "Keep this response with the request, as a Postman example",
   "keptForPostmanTheRequest": "Kept for Postman; the request MAC does not cover it.",
   "key": "Key",
+  "keyFile": "Key file",
   "keyOfRow": "{noun} key {index}",
+  "knownConfiguration": "Known configuration",
+  "lanProxyPort": "LAN proxy port",
   "language": "Language",
   "languageDescription": "The language of the app's menus, labels and messages. System follows this computer's language.",
   "languageNotSaved": "Language not saved",
   "largeRequestBodyKeptOn": "Large request body kept on disk",
+  "lastCommand": "Last command",
   "lastSendClientRequestAnd": "Last send: client request and final response. Capture has the wire exchange.",
   "lastSendDetails": "Last send details",
   "lastSentDraftUrl": "Last sent draft URL",
@@ -1219,33 +1597,50 @@
   "latestEvent": "Latest event",
   "latestMessage": "Latest message",
   "launchAnElectronApp": "Launch an Electron app…",
+  "launchWithProxy": "Launch with proxy",
   "layoutSideBySide": "Layout: Side by side",
   "layoutStacked": "Layout: Stacked",
+  "linkLocalAddressTheDevice": "Link-local address: the device needs a compatible address on the same network link.",
   "linksStayWithSavedSessions": "Links stay with saved sessions",
   "listener": "Listener",
   "listeningAt": "Listening at",
   "live": "Live",
   "liveTraffic": "Live traffic",
   "loadASchemaSelectA": "Load a schema, select a method and send a JSON message.",
+  "loadCollection": "Load collection",
+  "loadDuration": "Load duration",
+  "loadEnvironment": "Load environment",
   "loadGraphqlSchema": "Load GraphQL schema",
   "loadSchema": "Load schema…",
   "loadSchema2": "Load schema",
   "loadTest": "Load test…",
+  "loadUsers": "Load users",
   "loadingSchema": "Loading schema…",
   "localApps": "Local apps",
   "localAssetsProtectedSavingDisabled": "Local assets protected · saving disabled",
+  "localClientSetup": "Local client setup…",
   "localExecutableIdentityUnavailable": "Local executable identity unavailable",
+  "localFilesAndCodeMocks": "Local files and code mocks, tried from the top.",
   "localPathOrUploadPath": "Local path or '{{upload_path}}'",
+  "localPort": "Local port",
   "localPreviewDoesNotChange": "Local preview · does not change or send the request",
   "location": "Location",
+  "lookingForAdbDevices": "Looking for adb devices…",
   "lostAtEnd": " · {count} lost at end",
   "manageDebuggingRules": "Manage debugging rules…",
   "manageDebuggingRulesAndNetwork": "Manage debugging rules and network conditions",
+  "manageDomains": "Manage domains…",
   "manageEnvironments": "Manage environments…",
   "manageEnvironments2": "Manage environments",
+  "manageHostProfiles": "Manage Host profiles…",
   "manageHttpsRules": "Manage HTTPS rules",
+  "manageProfiles": "Manage profiles…",
   "manageRules": "Manage rules…",
   "manageSavedFilters": "Manage saved filters…",
+  "manualFallbackUseShowCertificate": "Manual fallback: use Show certificate to locate the public CA, import it in Keychain Access, then set Trust → When using this certificate to Always Trust. Check again afterwards.",
+  "manualFallbackUseShowCertificate2": "Manual fallback: use Show certificate and import the public CA into Trusted Root Certification Authorities for the current user. Check again afterwards.",
+  "manualFallbackUseShowCertificate3": "Manual fallback: use Show certificate and import the public CA using your distribution's trust-store tools. Check again afterwards.",
+  "manyAndroid7AppsDo": "Many Android 7+ apps do not trust user-installed CAs. Certificate pinning and apps that ignore the system proxy need app-side changes; installing this CA does not bypass them.",
   "mapAHost": "Map a host",
   "mapRewriteBlockOrDelay": "Map, rewrite, block or delay matching requests.",
   "mapThisHost": "Map this host…",
@@ -1255,7 +1650,11 @@
   "markTheRequest": "Mark the request",
   "markdownShownInTheCollection": "MARKDOWN · shown in the collection’s documentation view",
   "markdownTable": "Markdown table",
+  "matchApps": "Match apps",
+  "matchGraphqlOperation": "Match GraphQL operation",
+  "matchMethod": "Match method",
   "matchPopulatedFields": "Match populated fields",
+  "matchUrl": "Match URL",
   "matchesMethodFullPathSegments": "Matches method + full path segments on the current scheme and host. Query ignored; not a response comparison.",
   "matchesRequestOrResponseHeaders": "Matches request or response headers",
   "matchingAuthorizationIsInheritedFrom": "Matching Authorization is inherited from the collection. Cookie and API-key headers use private variable references.",
@@ -1284,6 +1683,7 @@
   "method": "Method",
   "methodCommaSeparated": "Method (comma-separated)",
   "methodList": "Method list",
+  "methodUrlAppHeaderValue": "[METHOD] URL [@ App]; Header: value; …",
   "millis": "{ms} ms",
   "mimeContentType": "MIME content type",
   "mock": "Mock",
@@ -1311,8 +1711,17 @@
   "msForTcpTlsWebsocket": "ms for TCP/TLS/WebSocket and CONNACK",
   "multipartParts": "Multipart parts",
   "n0LeavesTheBrokerS": "0 leaves the broker's default",
+  "n1ChooseANetworkAddress": "1  Choose a network address",
+  "n1EditYourWiFi": "1. Edit your Wi-Fi network → Advanced → Proxy → Manual. Enter the proxy IP and port; save. Labels vary by vendor.",
   "n1MibMaximum": "1 MiB maximum",
+  "n1WiFiYourNetwork": "1. Wi-Fi → your network → Configure Proxy → Manual. Enter the proxy IP and port shown here; authentication off.",
+  "n2AllowYourDeviceS": "2  Allow your device's IP address",
+  "n2DownloadTheCertificateUrl": "2. Download the certificate URL. In Security / Encryption & credentials, choose Install a certificate → CA certificate, then select vscroxy-ca.cer.",
+  "n2OpenTheCertificateUrl": "2. Open the certificate URL in Safari. Allow the profile, then install it in Settings → General → VPN & Device Management (or Profile Downloaded).",
+  "n3EnableSslProxyingFor": "3. Enable SSL proxying for your hosts and open an HTTPS page. For your own debug app, opt in to user CAs with Network Security Configuration.",
+  "n3GeneralAboutCertificateTrust": "3. General → About → Certificate Trust Settings → enable full trust for this CA.",
   "n3xxResponsesAreFollowedUnless": "3xx responses are followed unless Checks need the first one.",
+  "n4EnableSslProxyingFor": "4. Enable SSL proxying for the hosts you inspect, then open an HTTPS page and check Capture.",
   "n4xx5xx": "4xx, 5xx",
   "name": "Name",
   "nameThisViewSConditions": "Name this view's conditions",
@@ -1321,26 +1730,35 @@
   "nativeSnippetsLeaveRedirectTimeout": "Native snippets leave redirect, timeout and TLS behavior to the language’s client; Copy as cURL carries the request’s settings.",
   "nativeSourceBindingClearsThe": "Native source binding clears the token before checks and all inherited/authored setup, even on script compilation failure. Postman export keeps script fallback only and warns that this early-reset guarantee is not portable.",
   "network": "Network",
+  "networkRulePreset": "Network rule preset",
   "networkRules": "Network rules…",
+  "neverDisablesCertificateVerificationCertificate": "Never disables certificate verification. Certificate trust comes from the system store on macOS/Windows and NSS on Linux. Apps that set their own proxy or pin certificates can ignore the flag.",
   "new": "New",
   "newAmbientHttpTrafficOnly": "New ambient HTTP traffic only. Static resources, streams, network failures and app sends/replays are excluded. Repeated endpoints update Examples, never the authored request.",
   "newApiContract": "New API contract",
   "newCaptureView": "New capture view",
+  "newCodeMockRule": "New Code Mock rule",
   "newEnvironment": "New environment",
   "newEnvironmentName": "New environment name",
   "newLocalCurrentVariable": "New local Current variable",
   "newOrExistingCollectionFolder": "New or existing collection/folder. Created when the first request is saved.",
+  "newPreset": "New preset",
   "newProfile": "New profile",
   "newRequest": "New request",
+  "newRule": "New rule",
+  "newRuleRunningIt": "New rule running it",
   "newView": "New view",
   "nextBodyMatch": "Next body match",
   "nextMatchEnter": "Next match · Enter",
   "nextOpenRequest": "Next open request",
+  "noActiveLanAddressConnect": "No active LAN address. Connect to a network, then reopen this dialog.",
+  "noAndroidDeviceOrEmulator": "No Android device or emulator",
   "noAppRulesEnabled": "No app rules enabled",
   "noAssertionsAddResponseChecks": "No assertions. Add response Checks, or pm.test(name, fn) in a script.",
   "noAuthorizationCookieOrApi": "No Authorization, Cookie or API-key headers found.",
   "noCaching": "No Caching",
   "noCachingIsOnConditional": "No Caching is on: conditional cache headers will be removed.",
+  "noClientCertificates": "No client certificates",
   "noCookiesRecordedOnThis": "No cookies recorded on this side",
   "noCookiesYetSendA": "No cookies yet. Send a request or add one below.",
   "noEndpointsInThisScope": "No endpoints in this scope",
@@ -1365,6 +1783,7 @@
   "noOutputCallConsoleLog": "No output. Call console.log(...) in a script to print here.",
   "noPreviewFor": "No preview for {type}",
   "noPreviousResponseForThis": "No previous response for this method and URL. Replay the request to compare responses.",
+  "noProfilesYetMapHosts": "No profiles yet. Map hosts to other addresses without editing the system's hosts file.",
   "noPromptsListed": "No prompts listed",
   "noQueryParametersInThis": "No query parameters in this request",
   "noReferencedVariablesInThis": "No referenced variables in this snapshot",
@@ -1374,53 +1793,80 @@
   "noResponseYet": "No response yet",
   "noResultsEmptyJqStream": "No results (empty jq stream)",
   "noResultsYet": "No results yet",
+  "noRetainedRuns": "No retained runs",
+  "noReverseProxiesALocal": "No reverse proxies. A local port forwards plaintext HTTP to a remote base URL and is captured like any other request.",
   "noSavedFiltersYet": "No saved filters yet",
   "noSavedRequests": "No saved requests",
+  "noScenarios": "No scenarios",
   "noSocketIoConnectionYet": "No Socket.IO connection yet",
   "noTimingForThisFlow": "No timing for this flow",
   "noToolsListed": "No tools listed",
   "noTopicFiltersYet": "No topic filters yet",
   "noUnambiguousTokenLinksFound": "No unambiguous token links found",
+  "noVariableSnapshotRetainedOlder": "No variable snapshot retained (older records may not include it).",
   "noWireEvidenceRetainedYet": "No wire evidence retained yet; no rule outcome can be inferred.",
+  "nodeExtraCaCertsAdds": "NODE_EXTRA_CA_CERTS adds the vscroxy CA to Node's default roots.",
   "nonce": "Nonce",
   "none": "None",
   "notMappedResolvedAsUsual": "→ not mapped; resolved as usual",
+  "notSaved": "Not saved",
   "notSentYet": "Not sent yet",
   "note": "Note",
   "noteContains": "Note contains",
   "notesBaselineAndComparisonIn": "Notes, baseline and comparison in History",
   "nounHeader": "header",
   "now": "Now",
+  "off": "Off",
+  "offByDefaultOnEvery": "Off by default on every launch.",
+  "offByDefaultTheApp": "Off by default: the app verifies the remote certificate. Turn this on only for a development server whose certificate is not trusted.",
+  "offKeepsTheOsList": "Off keeps the OS list. On writes these entries, one per line, when the system proxy is enabled. <local> is Windows-only.",
   "ok": "OK",
+  "oneAtATime": "One at a time",
+  "oneAtATimeIts": "One at a time: its rules apply, with the rules in none.",
+  "oneClick": "One-click",
   "oneClickSetup": "One-click setup",
   "oneFileWithTheSettings": "One file with the settings, lists, rules and the files they answer from, rule scripts, Host profiles and breakpoint templates. Never secrets or variables.",
+  "onePerLineHostPattern": "One per line: host pattern then upstream. *.example.com, :port and direct; first match wins.",
+  "oneProcess": "One process",
   "onlyExplicitlyLinkedDraftsAnd": "Only explicitly linked drafts and retained runs; never matched by URL.",
   "onlyRunsLinkedToThis": "Only runs linked to this request; never matched by URL.",
   "onlyShowAllowedTraffic": "Only show allowed traffic",
   "onlyStandaloneJsonYamlIs": "Only standalone JSON/YAML is supported. Internal #/ references are resolved; external files and URLs are never fetched. Original source is preserved on save/export.",
+  "onlyTheActiveScenarioS": "Only the active scenario’s rules apply, with the rules in none",
   "onlyThePathIsSaved": "Only the path is saved. Content-Type defaults to application/octet-stream.",
   "onlyVerifiedSelectedOperationsMatch": "Only verified selected operations match; persisted-only queries and unavailable bodies do not.",
+  "onmockReadsPmRequestAnd": "onMock reads pm.request and builds pm.response locally. First matching response rule wins; errors return 502, never upstream. Text bodies up to 1 MiB; HTTPS requires inspection.",
+  "onrequestOnresponseEditHttpOnmessage": "onRequest / onResponse edit HTTP; onMessage(message) edits or drops WebSocket data messages. Matching hooks run in rule order before their breakpoints. WSS requires inspection.",
   "opaqueReplyCorrelationValue": "Opaque reply correlation value",
   "open": "Open",
   "openAProxiedTerminal": "Open a proxied terminal",
   "openASavedRequestOr": "Open a saved request or create a new one",
   "openASessionFileOr": "Open a session file or save evidence from live traffic.",
   "openAsDraft": "Open as draft",
+  "openChrome": "Open Chrome",
   "openDrafts": "Open drafts",
+  "openFirefox": "Open Firefox",
   "openHistoricalSessionFilesWithout": "Open historical session files without replacing live traffic",
   "openInBrowser": "Open in browser",
   "openInRequests": "Open in Requests",
+  "openOnYourDeviceTo": "Open on your device to download the CA",
+  "openOriginatingDraft": "Open originating draft",
   "openProxiedChrome": "Open proxied Chrome",
   "openProxiedFirefox": "Open proxied Firefox",
   "openRequest": "Open request",
   "openRequestHistory": "Open request History",
+  "openRules": "Open Rules",
   "openSession": "Open session…",
   "openSession2": "Open session",
   "openSettings": "Open settings…",
+  "openTerminal": "Open terminal",
   "openTheApiThisRequest": "Open the API this request came from",
   "openThisRunAsA": "Open this run as a new draft with its result; never sends",
   "openapiSource": "OpenAPI source",
   "openingSession": "Opening session…",
+  "opensANewTerminalWindow": "Opens a new terminal window with the proxy and CA environment. Only that window changes.",
+  "opensChromeWithATemporary": "Opens Chrome with a temporary profile and --proxy-server. Your main profile is untouched.",
+  "opensFirefoxWithATemporary": "Opens Firefox with a temporary profile whose user.js points at the proxy. Your main profile is untouched.",
   "operation": "Operation",
   "operationSchema": "Operation schema",
   "operationSchemasAndReferences": "OPERATION · schemas and references",
@@ -1432,14 +1878,19 @@
   "optionalTheAppSDirectory": "Optional · the app's directory by default",
   "orCreateOrImportA": "Or create or import a standalone OpenAPI 3.0 / 3.1 specification.",
   "originCapturedRequests": "{origin} · {count} captured requests",
+  "originDraft": "Origin draft",
   "originalCaptureUnavailableSnapshotRetained": "Original capture unavailable; snapshot retained.",
   "originalCredentialWillBeWritten": "Original credential will be written into request files.",
   "originalFilesLeftUntouchedRepair": "Original files left untouched. Repair or move the affected file aside, then reload. Other local assets remain usable.",
   "otherDevices": "Other devices",
   "ozApplicationIdOptional": "Oz application ID, optional",
   "ozDelegatedByIdOptional": "Oz delegated-by ID, optional",
+  "pac": "PAC",
+  "pacFileOrUrl": "PAC file or URL",
   "parameter": "parameter",
   "partInfo": "Part {index} · {name} · {bytes} bytes",
+  "passphrase": "Passphrase",
+  "passphrasesAreSealedInA": "Passphrases are sealed in a private local file, never in settings, exports or logs.",
   "password": "Password",
   "pasteIntoInteractiveWindowsCmd": "Paste into interactive Windows CMD, not PowerShell or a .bat file. ASCII only; use Bash or PowerShell for Unicode.",
   "pasteOneCurlCommandBash": "Paste one curl command (Bash, Windows CMD, or PowerShell). It opens an unsent request tab; nothing is executed.",
@@ -1449,28 +1900,42 @@
   "pathsHostsNamesParameterNames": "Paths, hosts, names, parameter names, Content-Type/Accept, assertion values and unselected fields may contain secrets. Removing scripts also removes Postman Checks.",
   "pauseEachMatchingRequestOr": "Pause each matching request or response before it continues",
   "pausedViewNote": "Paused view · {count} newer messages · capture continues; Resume shows the latest retained window",
+  "pauses": "Pauses",
   "payload": "Payload",
   "payloadEncoding": "Payload encoding",
   "payloadHash": "Payload hash",
   "payloadUnavailable": "Payload unavailable; showing inline preview: {error}",
   "payloadsAndUrlsCanContain": "Payloads and URLs can contain credentials or personal data. Review before sharing.",
   "payloadsUnreadable": " · {count} payloads unreadable",
+  "pem": "PEM",
+  "pemChainOrP12Pfx": "PEM chain or .p12/.pfx",
+  "pemPrivateKey": "PEM private key",
+  "pemRootCertificate": "PEM root certificate",
   "persistAllCurrent": "Persist all current",
   "persistCurrentValue": "Persist current value {index}",
   "phasesMayOverlapDoNot": "Phases may overlap; do not add their durations. Connection acquisition can include DNS/TCP/TLS. Unobserved phases are omitted, not zero.",
+  "phoneOrTablet": "Phone or tablet",
+  "phoneTabletSetup": "Phone / tablet setup…",
   "phonesAndComputersOnYour": "Phones and computers on your network. Needs your consent and an allowlist.",
   "pinned": "Pinned",
+  "pkcs12": "PKCS#12",
   "pointHostsAtOtherMachines": "Point hosts at other machines for every app using the proxy.",
   "pointOneProgramAtThe": "Point one program at the proxy, or open a terminal, browser, emulator or Java app already configured.",
   "port": "Port",
+  "portNumber": "Port {port}",
+  "possibleCausesNotConfirmed": "Possible causes · not confirmed",
+  "postUsesJsonByDefault": "POST uses JSON by default. For a raw query, add ; Content-Type: application/graphql to the test request. GET uses URL parameters only.",
   "preRequest": "Pre-request",
   "preferVariablesOrVaultName": "Prefer '{{variables}}' or '{{vault:name}}' for secrets; these fields are saved in plaintext.",
+  "presentedToAMatchingHost": "Presented to a matching host. Use *.example.com for subdomains; add :port to limit the port. Files are read on every send.",
+  "presetName": "Preset name",
   "previewLimitedTo8Mib": "Preview limited to 8 MiB; the complete body is in Capture.",
   "previousBodyMatch": "Previous body match",
   "previousMatchShiftEnter": "Previous match · Shift+Enter",
   "previousOpenRequest": "Previous open request",
   "previousResponseLeft": "Previous response (left)",
   "privateKey": "Private key",
+  "privateLocalSnapshotsMayContain": "Private local snapshots may contain credentials. Up to 100 runs / 32 MiB; baseline retained. Payloads keep up to 256 KiB per side. Opening or comparing never sends.",
   "profileActions": "Profile actions",
   "profileName": "Profile name",
   "profileOn": "Profile on",
@@ -1492,10 +1957,13 @@
   "protocolAndContentType": "Protocol and content type: {name}",
   "protocolAndContentTypeLabel": "Protocol and content type",
   "proxy": "Proxy",
+  "proxyAddress": "Proxy address",
   "proxyObservedOnlyPreRequest": "Proxy-observed only: pre-request MITM setup is in the connection log. Downstream delivery and estimated throttling are not measured here. Streaming timelines stop at this capture snapshot.",
   "proxyPort": "Proxy port",
+  "proxyPortAboveTheCertificate": "Proxy port above; the certificate service uses port + 1. Allow both in your firewall.",
   "proxyStatus": "Proxy status",
   "proxyUnavailable": "Proxy unavailable · {error} · Local requests remain available",
+  "publicCertificateOnlyTheSigning": "Public certificate only — the signing key is never served. Compare the CA fingerprint in Diagnostics on a trusted network.",
   "publish": "Publish",
   "publishMqttMessage": "Publish MQTT message",
   "publishQos": "Publish QoS",
@@ -1508,14 +1976,17 @@
   "quickFilterNamed": "Quick filter: {name}",
   "random": "Random",
   "randomUuid": "Random UUID",
+  "ratesLimitEachBodyBy": "Rates limit each body by direction (0 = unlimited). Latency waits once before forwarding. Failure randomly disconnects requests, not TCP packets.",
   "rawHttp": "Raw HTTP",
   "rawMessage": "Raw message",
+  "readFromThisComputerS": "Read from this computer's OS settings. Apps with their own proxy settings, or that ignore the system proxy, still connect directly.",
   "readMcpResource": "Read MCP resource",
   "readOnly": "Read-only",
   "readOnlyComparisonBodiesLimited": "Read-only comparison · bodies limited to 8 MiB; truncation/incomplete notices are included",
   "readOnlyMarkdownFromThe": "Read-only · Markdown from the collection, folder and request descriptions",
   "readOnlyReason": "Read-only: {reason}",
   "readOnlySnapshot1Mib": "Read-only snapshot · 1 MiB input · bounded local query",
+  "readOnlyUntilYouPress": "Read-only until you press a fix. Evidence comes from this live session; imported and cleared records do not count.",
   "readRulesScriptsHostProfiles": "Read rules, scripts, Host profiles and ignore lists from disk again.",
   "readTheBodyFromDisk": "Read the body from disk and edit this request",
   "readThisSideInShared": "Read this side in shared readers",
@@ -1523,13 +1994,16 @@
   "readingRetainedBody": "Reading retained body",
   "readsCompleteRetainedJsonOff": "Reads complete retained JSON off-thread, up to 1 MiB. Scalar cells up to 4 KiB; unavailable bodies show an explanation. Sorting is lexical.",
   "readyToCreate": "Ready to create",
+  "realRequestsMayHaveSide": "Real requests may have side effects. Saved scripts, auth and checks are included; metrics cover execution time and primary responses only, not extra script/auth traffic.",
   "realm": "Realm",
+  "rebuildFromExamples": "Rebuild from examples",
   "receiveMaximum": "Receive maximum",
   "recognizeTokenLinks": "Recognize token links…",
   "recordIntoCollection": "Record into collection…",
   "recordIntoCollection2": "Record into collection",
   "recordedInterventions": "Recorded interventions: {effects}",
   "recordedPerCaptureDurationsNot": "Recorded per-capture durations, not elapsed session time. P50 uses nearest rank. Errors include HTTP 4xx/5xx, connection failures and incomplete bodies.",
+  "recordedResult": "Recorded result",
   "recordedRun": "Recorded run #{id}",
   "recordedWireExchange": "Recorded wire exchange",
   "recordingApps": "Recording apps",
@@ -1541,19 +2015,28 @@
   "redactTheExportedCopyYour": "Redact the exported copy. Your saved originals stay unchanged.",
   "redirects": "Redirects",
   "redirectsCookiesAndProxyRules": "Redirects, cookies and proxy rules may change the on-wire exchange; Capture has the wire details",
+  "referencedValuesAfterPreScript": "Referenced values after pre-script, before expansion · run input = environment snapshot or preceding Runner step · post-script changes do not rewrite this snapshot.",
   "reflectGrpcServices": "Reflect gRPC services",
   "refresh": "Refresh",
   "refreshMcpCatalog": "Refresh MCP catalog",
   "refreshNow": "Refresh now",
+  "refuse": "Refuse",
+  "regex": "Regex",
   "region": "Region",
   "registerItWithTheProvider": "Register it with the provider; the sign-in opens in your browser and returns there.",
   "releaseSystemProxy": "release system proxy",
   "reloadCollectionsFromDisk": "Reload collections from disk",
   "reloadConfiguration": "Reload configuration",
   "reloadLocalAssets": "Reload local assets",
+  "remoteCertificate": "Remote certificate",
+  "remoteHost": "Remote host",
+  "remoteHostSendsTheTarget": "Remote host sends the target's authority. Keep original forwards the Host the local client sent.",
   "remoteIp": "Remote IP",
+  "remoteUrl": "Remote URL",
   "remove": "Remove",
+  "removeCondition": "Remove condition",
   "removeDataFile": "Remove data file",
+  "removeHeader": "Remove header {index}",
   "removeHttpsApp": "Remove HTTPS app: {path}",
   "removeProperty": "Remove property {index}",
   "removeRow": "Remove {noun} {index}",
@@ -1572,9 +2055,11 @@
   "renameRequest": "Rename request",
   "renamingFilter": "Renaming {name}. Type the new name, then Rename filter.",
   "renamingMovesItsRequestsFolders": "Renaming moves its requests, folders and settings together.",
+  "repeatDescription": "1–{max} times. The whole selection is repeated in capture order.",
   "repeatEachRequest": "Repeat each request",
   "replaceAllQueryValuesIncluding": "Replace all query values, including structured copies.",
   "replaceEveryVariableValueIncluding": "Replace every variable value, including disabled entries.",
+  "replaceOnlyThisAppS": "Replace only this app's truststore? The old file is kept if any keytool step fails. The displayed commands write a temporary file first.",
   "replayConcurrency": "Replay concurrency",
   "replayInterval": "Replay interval",
   "replayOf": "Replay of #{id}",
@@ -1609,6 +2094,7 @@
   "requestsSelected": "{count, plural, one {# request selected} other {# requests selected}}",
   "requestsUnderItInheritThese": "REQUESTS UNDER IT INHERIT THESE · unset values keep inheriting from above",
   "requestsWhoseAuthIsInherit": "Requests whose Auth is Inherit send this.",
+  "requireUsernameAndPassword": "Require username and password",
   "resetAll": "Reset all",
   "resetAllCaptureConditions": "Reset all capture conditions",
   "resetAllConditions": "Reset all conditions",
@@ -1624,13 +2110,17 @@
   "responseBodyFormat": "Response body format",
   "responseBytes": "Response bytes: {bytes} B",
   "responseChecksAllMustPass": "RESPONSE CHECKS · all must pass · used by Send and Collection Runner",
+  "responseFile": "Response file",
   "responseFormat": "Response format",
+  "responseFrom": "Response from",
   "responseHeaders": "Response headers",
   "responseHeadersExactValueAny": "Response headers · exact value, any repeated value may match",
   "responseInformation": "Response information",
+  "responseStatus": "Response status",
   "responseTopic": "Response topic",
   "responses": "Responses",
   "restartToApply": "Restart to apply",
+  "restoredWhenTheSystemProxy": "Restored when the system proxy is disabled or recovered.",
   "result": "Result",
   "resultSize": "{bytes} B · {blocks} blocks",
   "resultTruncated": "Result truncated to fit {mib} MiB; {bytes} bytes were returned in total.",
@@ -1641,22 +2131,41 @@
   "retainedPreview3": "{retained} retained · {evicted} evicted · {dropped} dropped · 64 KiB preview",
   "retainedPreviewMethods": "{retained} retained · {evicted} evicted · 64 KiB preview per message",
   "retainedResultFromThisExperiment": "Retained result from this experiment; opening it does not send the draft",
+  "retry": "Retry",
   "reusedConnection": "Reused connection: request {number} on it, so no connect or TLS in the wait.",
   "revealCredentials": "Reveal credentials",
   "revealOrHideBothValues": "Reveal or hide both values",
   "revealRow": "Reveal {noun} {index}",
   "revealVariable": "Reveal variable {index}",
+  "reverseProxies": "Reverse proxies",
   "reviewBeforePublishing": "Review before publishing",
   "reviewGeneratedChanges": "Review generated changes",
   "reviewRecordedTokenLinks": "Review recorded token links",
   "reviewTokenLinkChanges": "Review token link changes",
+  "reviewUrlsAddressesAndRaw": "Review URLs, addresses and raw errors before sharing.",
+  "rewritePath": "Rewrite path",
+  "rewritePathFrom": "Rewrite path from",
+  "rewritePathTo": "Rewrite path to",
+  "rfc1929WithoutItThe": "RFC 1929. Without it the entry accepts any local client that can reach the port.",
   "rightClickTheTableS": "Right-click the table's header to hide columns or remove this one.",
+  "ruleActions": "Rule actions",
+  "ruleEnabled": "Rule enabled",
+  "ruleName": "Rule name",
+  "ruleScenario": "Rule scenario",
+  "ruleScript": "Rule script",
+  "ruleScripts": "Rule scripts",
+  "ruleType": "Rule type",
   "rules": "Rules",
   "rulesAndConfiguration": "Rules and configuration",
   "rulesApplyToNewConnections": "Rules apply to new connections: reload the page or restart the app you are inspecting.",
+  "rulesAreTriedFromThe": "Rules are tried from the top.",
   "rulesConfigurationFilesAndHelp": "Rules, configuration files and help.",
+  "rulesCount": "{count, plural, one {# rule} other {# rules}}",
+  "rulesKeepTheirPlaceIn": "Rules keep their place in the Rules order; turn one off to leave it out of the scenario.",
   "runCollection": "Run collection",
   "runDetails": "Run details…",
+  "runDraft": "Run #{id} · {method} {url}",
+  "runItThenUseDiagnose": "Run it, then use Diagnose to see whether the request arrived and was decrypted.",
   "runLocalMcpServer": "Run local MCP server?",
   "runNumber": "Run #{id} · {time}",
   "runQuery": "Run query",
@@ -1672,16 +2181,21 @@
   "safeSubsetNoModulesExternal": "Safe subset: no modules, external input, updates or definitions. See the guide for dialect limits.",
   "sameMethodHostAndPath": "Same method, host and path template become one request.",
   "sameNamedParametersShareAn": "Same-named parameters share an initial value. Rename them in Endpoints to keep different IDs.",
+  "sameWiFiLanOnly": "Same Wi-Fi / LAN. Only listed source addresses can connect. Local capture stays on loopback.",
   "save": "Save",
   "saveARequestHereOr": "Save a request here, or edit a captured flow to start.",
   "saveApi": "Save API",
+  "saveApply": "Save & apply",
   "saveAsExample": "Save as example",
   "saveAsRegression": "Save as regression…",
   "saveAsRequest": "Save as request",
+  "saveAsTemplate": "Save as template…",
   "saveBody": "Save body…",
   "saveBodyCompleteDecodedBytes": "Save body… · complete decoded bytes, without formatting or redaction",
+  "saveBypassList": "Save bypass list",
   "saveCaptureToSessions": "Save capture to Sessions",
   "saveCapturedRequestsInA": "Save captured requests in a collection, then generate an OpenAPI draft.",
+  "saveCertificates": "Save certificates",
   "saveChanges": "Save changes?",
   "saveClose": "Save & close",
   "saveCtrlCmdS": "Save · Ctrl/Cmd+S",
@@ -1692,35 +2206,52 @@
   "saveFilter2": "Save filter",
   "saveForNextLaunch": "Save for next launch",
   "saveMessagesJson": "Save messages JSON…",
+  "saveNote": "Save note",
   "saveRequest": "Save request",
   "saveRequests": "Save requests",
   "saveRequestsToCollection": "Save {count} requests to collection",
   "saveResponseAsExample": "Save response as example",
   "saveResponseBody": "Save response body",
+  "saveRule": "Save rule",
   "saveSession": "Save session…",
   "saveSettings": "Save settings",
+  "saveSocks5Settings": "Save SOCKS5 settings",
   "saveTheSourceAndConsumers": "Save the source and consumers to a collection first. Each capture must match one saved request; no request is created automatically.",
   "saveThisRequestToA": "Save this request to a collection · Ctrl/Cmd+S",
   "saveTo": "Save to",
   "saveToCollection": "Save to collection",
+  "saveUpstream": "Save upstream",
   "saveVault": "Save vault",
   "savedCaptureFilters": "Saved capture filters",
+  "savedCollection": "Saved collection",
   "savedFilters": "Saved filters…",
   "savedFilters2": "Saved filters",
   "savedInCaptureOrderNot": "Saved in capture order, not sent. Tunnels, WebSocket connections and incomplete or non-UTF-8 bodies are skipped.",
   "savedMessageName": "Saved message name",
   "savedMqttMessage": "Saved MQTT message",
+  "savedPassphraseInUse": "Saved passphrase in use",
+  "savedPassphraseWillBeRemoved": "Saved passphrase will be removed",
+  "savedPasswordInUse": "Saved password in use",
+  "savedPasswordWillBeRemoved": "Saved password will be removed",
   "savedRequestsMatchingThisMethod": "Saved requests matching this method, origin and path",
   "savedTheAppUsesIt": "Saved; the app uses it after it restarts",
   "savedWithTheRequestAnd": "Saved with the request and round-tripped through Postman.",
+  "savingUpstream": "Saving upstream",
+  "scenario": "Scenario",
+  "scenarioActions": "Scenario actions",
+  "scenarioActive": "Scenario active",
+  "scenarioName": "Scenario name",
   "scenarios": "Scenarios",
   "schema": "Schema…",
   "schema2": "Schema",
   "schemaFile": "Schema file",
+  "schemeHostAndPortA": "Scheme, host and port. A path here goes before the request’s path; a query replaces its query. WebSockets follow, as ws or wss.",
   "scope": "Scope",
   "scopeSummary": "{included} included · {omitted} omitted · {endpoints} endpoints",
+  "script": "Script",
   "scripts": "Scripts",
   "scriptsCanThenReadAny": "Scripts can then read any secret allowed for their request's host, and add, change or remove secrets",
+  "sealedLocallyNeverExported": "Sealed locally; never exported",
   "search": "Search…",
   "search2": "Search",
   "searchBody": "Search body",
@@ -1766,15 +2297,19 @@
   "selectTokenLink": "Select token link {index}",
   "selectedEventWasEvictedSelect": "Selected event was evicted. Select a retained event.",
   "selectedRequest": "Selected request",
+  "sendARequestToRecord": "Send a request to record an experiment.",
   "sendGrpcMessage": "Send gRPC message",
   "sendReplays": "Send replays",
   "sendRequest": "Send request",
   "sendTheRequestThenChoose": "Send the request, then choose Save as example beside the response.",
   "sendTheRequestThenSave": "Send the request, then save a response as an example.",
   "sendThisRequestToKeep": "Send this request to keep its runs here. Opening one never sends.",
+  "sendTo": "Send to",
   "sendTrafficFromOtherDevices": "Send traffic from other devices and programs through vscroxy.",
   "sending": "Sending…",
   "sendsInCaptureOrderThrough": "Sends in capture order through the current rules. POST, PUT, PATCH and DELETE can change server data. WebSocket, SSE and tunnels are excluded.",
+  "sentRequest": "Sent request",
+  "sentRequestSnapshot": "Sent request snapshot",
   "serverInstructions": "Server instructions",
   "service": "Service",
   "session": "Session",
@@ -1790,21 +2325,30 @@
   "sessionTitle": "Session title",
   "sessionToken": "Session token",
   "sessions": "Sessions",
+  "setBaseline": "Set baseline",
+  "setProxy": "Set proxy",
   "setTheBrokerUrlAnd": "Set the broker URL and connection options, then Connect. Publish and subscriptions use only the live connection.",
   "setTheEndpointNamespaceAnd": "Set the endpoint, namespace and auth, then Connect. Emit sends only on the live connection.",
   "setUpALocalClient": "Set up a local client…",
+  "setUpALocalClient2": "Set up a local client",
   "setUpAnAndroidEmulator": "Set up an Android emulator…",
+  "setUpAndroid": "Set up Android",
+  "setUpIphoneIpad": "Set up iPhone / iPad",
   "settings": "Settings",
   "settings2": "Settings…",
   "settingsCategory": "Settings category: {name}",
   "settingsCtrlCmd": "Settings · Ctrl/Cmd+,",
   "setupGuide": "Setup guide",
+  "setupHttpsUrl": "Setup HTTPS URL",
   "sharedByRequestsRunnerScripts": "Shared by Requests, Runner, scripts and interactive clients.",
+  "show": "Show",
   "showAllHistory": "Show all History",
   "showAllRequests": "Show all requests",
   "showAs": "Show as",
   "showAsHex": "Show as hex",
   "showAsText": "Show as text",
+  "showCertificate": "Show certificate",
+  "showDetails": "Show details",
   "showHistory": "Show History",
   "showLatestResponse": "Show latest response",
   "showOnlyTheHostsAnd": "Show only the hosts and apps below. Everything else is still proxied, just not recorded.",
@@ -1825,11 +2369,17 @@
   "socketIoMessages": "Socket.IO messages",
   "socketIoNamespace": "Socket.IO namespace",
   "socketIoV3V4Default": "Socket.IO v3/v4 · default parser · Engine.IO 4 · WebSocket only. URL path is the endpoint (default /socket.io/), not the namespace. No polling, reconnect, retries or offline queue. HTTP scripts and Runner are not supported.",
+  "socks5": "SOCKS5",
+  "socks5Password": "SOCKS5 password",
+  "socks5Port": "SOCKS5 port",
+  "socks5Username": "SOCKS5 username",
   "someAppsKeepTheirOwn": "Some apps keep their own trust store, or pin certificates; they may need setting up themselves.",
   "someValuesOverrideTheCollection": "Some values override the collection and folder defaults.",
   "sourceApi": "Source API",
   "sourceCollection": "Source collection",
+  "sourceNumber": "Source #{id} · {method} {url} · {status}",
   "sourceSnapshot": "Source snapshot · Capture #{id}",
+  "sourceSnapshotLabel": "Source snapshot",
   "spaceSeparatedOptional": "Space-separated, optional",
   "split": "Split",
   "sseEventLabel": "SSE event {seq}",
@@ -1840,12 +2390,17 @@
   "sslProxying": "SSL proxying",
   "sslProxying2": "SSL proxying…",
   "stackedLayout": "Stacked layout",
+  "startAnEmulatorOrConnect": "Start an emulator or connect a device with USB debugging, then Refresh.",
+  "startCaptureFirst": "Start capture first",
+  "startCaptureFirstTheseActions": "Start capture first; these actions stay disabled until the proxy is listening.",
   "startCollectionRecording": "Start collection recording",
+  "startLoadTest": "Start load test",
   "startServer": "Start server",
   "status": "Status",
   "statusHeaderBodyMethodDuration": "Status, header, body, method, duration and notes",
   "stdioMcpServersReceiveCredentials": "stdio MCP servers receive credentials through environment variables, not HTTP headers.",
   "stdioMcpServersReceiveCredentials2": "stdio MCP servers receive credentials through environment variables, not HTTP auth.",
+  "stop": "Stop",
   "stopAndDiscardQueuedWork": "Stop and discard queued work; keep saved requests",
   "stopClose": "Stop & close",
   "stopCollectionRecorder": "Stop collection recorder",
@@ -1857,6 +2412,8 @@
   "stoppingNoNewSendsIn": "Stopping: no new sends; in-flight requests are canceled.",
   "storeCredential": "Store credential {index}",
   "stripCachingHeadersBothWays": "Strip caching headers both ways, so every response comes from the server.",
+  "stripPath": "Strip path",
+  "stripPathPrefix": "Strip path prefix",
   "subprotocolsInPreferenceOrderE": "Subprotocols in preference order, e.g. chat.v2, chat.v1",
   "subscribeMqttTopics": "Subscribe MQTT topics",
   "subscribeToUrl": "Subscribe to URL…",
@@ -1869,26 +2426,41 @@
   "swapSides": "Swap sides",
   "switchingModesDoesNotSend": "Switching modes does not send a request. All enabled header values will be visible; be careful when sharing your screen.",
   "system": "System",
+  "systemCaBundleUnavailableOnly": "System CA bundle unavailable: only NODE_EXTRA_CA_CERTS is set, so undecrypted hosts use their own default trust.",
   "systemFollowsThisComputerS": "System follows this computer's light or dark appearance.",
+  "systemProxy": "System proxy",
+  "systemProxyBypassList": "System proxy bypass list",
   "systemRootsPlusSettingsCertificates": "System roots plus Settings → Certificates; a matching client certificate is presented",
+  "systemTrustIsNotProof": "System trust is not proof that this client accepts the proxy's CA",
+  "targetBaseUrl": "Target base URL",
   "targetEnvironment": "Target environment",
+  "targetUrl": "Target URL",
+  "templateName": "Template name",
   "testAHost": "Test a host",
   "testAHostApiExample": "Test a host: api.example.com",
+  "testARequest": "Test a request",
+  "testGetHttpsApiExample": "Test: GET https://api.example.com @ App; Header: value",
+  "testGraphqlBody": "Test GraphQL body",
   "text": "Text",
   "textHexBytesOrPadded": "Text, hex bytes or padded base64",
   "textLiteralContainsAndKey": "Text: literal contains and key:value chips · Wildcard: * any text, ? one character, whole host/path · Regex: Go/RE2 · Patterns ignore case by default",
   "textPreviewLimitedTo4": "Text preview limited to 4 KiB",
   "theAddressBarIsThe": "The address bar is the MCP endpoint. Headers, HTTP auth, variables and the request's certificate settings apply. HTTPS is captured while the proxy runs; without it the connection is direct.",
   "theApiDraftOpensIn": "The API draft opens in APIs for review; it is not a verified contract.",
+  "theBaseUrlRequestsAre": "The base URL requests are forwarded to. The local path is appended.",
   "theBrokerPublishesThisMessage": "The broker publishes this message when the connection ends without a clean DISCONNECT. Will delay and the other will properties are MQTT 5.0 only.",
+  "theCaIsCopiedTo": "The CA is copied to Downloads only. Android 7+ apps do not trust user-installed CAs; installing it and enabling trust is a device-side step. System-store installation needs a rooted, writable-system emulator image and is not automated.",
   "theCollectionGroupsSavedRequests": "The collection groups saved requests in the library.",
   "theCommandStartsOnlyWhen": "The command starts only when you press Connect, and stops on Disconnect, closing the document or quitting. Nothing is run at load time. Environment values are saved with the document and never logged.",
   "theDocumentSOnlyOperation": "The document's only operation; sent as operationName",
   "theDraftSnapshotMatchesVariables": "The draft snapshot matches; variables, scripts, redirects and rules may change the wire request",
+  "theExampleTrustsOnlyThe": "The example trusts only the public CA file for this client. No system changes; no insecure TLS bypass. cURL commands use a POSIX shell.",
   "theExchangeWillAlsoAppear": "The exchange will also appear in Capture.",
   "theFirstSendGetsThe": "The first send gets the server's challenge; vscroxy answers it and sends again.",
   "theHostTheSignatureCovers": "The host the signature covers; a scheme and path are ignored.",
   "theKeyValueBlockWrites": "The Key: Value block writes every header value in plain text, including tokens, cookies and passwords. The table masks them one row at a time.",
+  "theLocalPathIsAppended": "The local path is appended to the remote URL. Requests go through the same rules, scripts and capture; HTTPS remotes are reached with TLS by the app.",
+  "theLoopbackPortClientsConnect": "The loopback port clients connect to.",
   "theRequestKeepsItsName": "The request keeps its name, URL, Host header and SNI; the proxy dials the address instead.",
   "theResponseBelowBelongsTo": "The response below belongs to the previous send, not to this draft",
   "theSavedOperationNoLonger": "The saved operation no longer exists; Send uses the document's only operation",
@@ -1896,9 +2468,16 @@
   "theServerDidNotAdvertise": "The server did not advertise tools, or the catalog has not loaded yet.",
   "theServerDidNotAdvertise2": "The server did not advertise resources or templates.",
   "theServerDidNotAdvertise3": "The server did not advertise prompts.",
+  "theSettingsDirectoryIsUnknown": "The settings directory is unknown, so no truststore path is available.",
   "theSourceCaptureIsNo": "The source capture is no longer in this session.",
+  "theTemporaryProfileTrustsThe": "The temporary profile trusts the CA through certutil when NSS tools are installed; otherwise Firefox may use this system's enterprise roots. No TLS bypass is used.",
+  "theTruststoreStartsAsA": "The truststore starts as a copy of the JDK's cacerts, so public TLS keeps working. The JVM options below also point the JVM at the proxy.",
   "theme": "Theme",
+  "thisAddressAcceptsAnHttp": "This address accepts an HTTP proxy. Turn on SOCKS5 in Settings → Proxy to accept SOCKS5 here too.",
+  "thisAddressAcceptsHttpAnd": "This address accepts HTTP and SOCKS5 proxies; both are limited to the allowed sources.",
   "thisComputer": "This computer",
+  "thisMac": "This Mac",
+  "thisRemovesTheRetainedRuns": "This removes the retained runs and baseline, not open drafts, captured traffic or saved requests.",
   "thisRunHasNoRecorded": "This run has no recorded capture source.",
   "thisSavedSessionContainsNo": "This saved session contains no exchanges",
   "thisSendSWireCapture": "This send's wire capture is not available in this session. History may retain its snapshot.",
@@ -1914,6 +2493,7 @@
   "timingWaterfall": "Timing waterfall",
   "tls": "TLS",
   "tlsKeyLog": "TLS key log",
+  "tlsKeyLog2": "TLS key log…",
   "toggleHeaderEditingMode": "Toggle header editing mode",
   "toggleSidebar": "Toggle sidebar",
   "token": "'{{token}}'",
@@ -1940,14 +2520,23 @@
   "totalMsBytes": "Total {ms} ms · {bytes}",
   "totalSends": "Total: {count, plural, one {# send} other {# sends}}.",
   "traceLimitReachedSomeObservations": "Trace limit reached · some observations were not retained",
+  "traceSource": "Trace source",
   "trailers": "Trailers",
   "transportAppliesToSendAnd": "TRANSPORT · applies to Send and the Collection Runner",
+  "trust": "Trust",
+  "trustSystemRoots": "Trust system roots",
+  "trustTheLocalCaOn": "Trust the local CA on this computer; approve system authorization if requested",
+  "trustedRoots": "Trusted roots",
+  "trustingTheCaMakesDecryption": "Trusting the CA makes decryption possible; decryption chooses which connections are read. Changes apply to new connections.",
   "turnOff": "Turn off",
+  "turnOffHostProfiles": "Turn off Host profiles",
   "turnOffTool": "Turn off {name}",
   "turnOnSystemProxy": "Turn on system proxy",
   "typeText": "Type",
   "uncheckedRowsStayHereAnd": "Unchecked rows stay here and are not sent",
+  "undoProxy": "Undo proxy",
   "unfinishedAtCapture": "Unfinished at capture",
+  "ungroupRules": "Ungroup rules",
   "unified": "Unified",
   "unpinnedRequestsWillBeRemoved": "Unpinned requests will be removed from this session. Export any traffic you want to keep first.",
   "unsaved": "Unsaved",
@@ -1957,9 +2546,11 @@
   "unsubscribeMqttTopics": "Unsubscribe MQTT topics",
   "untitledRequest": "Untitled request",
   "upstream": "Upstream…",
+  "upstream2": "Upstream",
   "upstreamConnectionReusedPreviousSetup": "Upstream connection reused · previous setup is not charged again",
   "upstreamOff": "Upstream off",
   "url": "URL",
+  "urlMatch": "URL match",
   "urlStatusOrNote": "URL, status or note…",
   "useAsLeft": "Use as left",
   "useCollectionDefaults": "Use collection defaults",
@@ -1969,6 +2560,9 @@
   "user": "User",
   "userProperties": "User properties",
   "username": "Username",
+  "usernameAndPasswordForOne": "Username and password for one upstream address. Passwords are sealed locally and never exported.",
+  "users164": "Users · 1–64",
+  "usesAdbReverseSo127": "Uses adb reverse, so 127.0.0.1 inside the device reaches this computer. Undo restores the proxy value that was set before vscroxy changed it, and removes the reverse listener it added. Forget saved proxy clears only the local undo record after an emulator restart or serial reuse. Apps that ignore the system proxy or pin certificates need app-side changes.",
   "usesTheFirstEffectiveServer": "Uses the first effective server and required parameters. Body examples are copied when provided; schemas are not turned into invented payloads.",
   "usesTheSystemRootsAnd": "Uses the system roots and this app’s CA.",
   "usingTheCollectionAndFolder": "Using the collection and folder defaults.",
@@ -1990,16 +2584,19 @@
   "verifyTlsCertificate": "Verify TLS certificate",
   "version": "Version",
   "view": "View",
+  "viewConnectionRecord": "View connection record",
   "viewDocumentation": "View documentation…",
   "viewHttpsRules": "View HTTPS rules…",
   "viewNumber": "View {number}",
   "viewRecordingScopeCountersAnd": "View recording scope, counters and errors",
   "views": "Views",
+  "volatileAggregatesExecutionTimeIn": "Volatile aggregates · execution time in milliseconds",
   "waitingCancelledTheServerMay": "Waiting cancelled. The server may still be processing; check whether sending again would repeat the operation.",
   "waitingForMessages": "Waiting for messages…",
   "waitingForRequestResult": "Waiting for request result",
   "waitingForResponseNoRequest": "Waiting for response… · no request timeout",
   "waitingResponseTimeout": "Waiting for response… · {seconds} s timeout",
+  "websocketBreakpointDirection": "WebSocket breakpoint direction",
   "websocketHandshakeHeaders": "WebSocket handshake headers",
   "websocketMessage": "WebSocket message",
   "websocketMessageEncoding": "WebSocket message encoding",
@@ -2008,9 +2605,15 @@
   "websocketSubprotocols": "WebSocket subprotocols",
   "websocketUrl": "WebSocket URL",
   "whatCaptureChangesOnThe": "What capture changes on the way, and what the table shows.",
+  "whatDidThisAttemptTest": "What did this attempt test?",
   "whatTheseRequestsAreFor": "What these requests are for",
   "whatThisRequestDoesIts": "What this request does, its parameters and responses",
+  "whatToTry": "What to try",
   "whereVscroxyListensAndWhere": "Where vscroxy listens, and where requests go next.",
+  "whileBreakpointsIsOn": "While Breakpoints is on",
+  "whileBreakpointsIsOnEdit": "While Breakpoints is on, edit text or binary base64, continue original, or drop only this message. WSS requires inspection; handshakes and control frames are not paused.",
+  "wholeNumbersRates01073741824": "Whole numbers: rates 0–1073741824 bytes/s, latency 0–60000 ms, failure 0–100%. Only custom presets are saved; active conditions restart Off.",
+  "wildcard": "Wildcard",
   "willCorrelationData": "Will correlation data",
   "willDelayInSeconds": "Will delay in seconds",
   "willMessageExpiryInSeconds": "Will message expiry in seconds",
@@ -2018,214 +2621,130 @@
   "willPayloadEncoding": "Will payload encoding",
   "willQos": "Will QoS",
   "wireEvidenceNotCurrentRules": "Wire evidence, not current rules. Redirect hops stay separate; source comparison uses the client result.",
+  "wireshark": "Wireshark",
   "workingDirectory": "Working directory",
   "writeNonSensitiveCurrentValues": "Write non-sensitive Current values into Initial; credentials stay local",
+  "writeTlsSecretsToA": "Write TLS secrets to a file Wireshark reads to decrypt this capture. Applies after a restart.",
   "writesTheInitialValuesShown": "Writes the Initial values shown here, saved or not, in Postman's environment format; Current values are excluded",
-  "@activeSubscriptions": {
-    "placeholders": {
-      "count": {
-        "type": "int"
-      }
-    }
-  },
-  "@removeTopic": {
+  "@enableRule": {
     "placeholders": {
       "index": {
         "type": "int"
       }
     }
   },
-  "@removeProperty": {
+  "@headerName": {
     "placeholders": {
       "index": {
         "type": "int"
       }
     }
   },
-  "@retainedPreview3": {
+  "@headerComparison": {
     "placeholders": {
-      "retained": {
-        "type": "int"
-      },
-      "evicted": {
-        "type": "int"
-      },
-      "dropped": {
+      "index": {
         "type": "int"
       }
     }
   },
-  "@retainedPreview2": {
+  "@headerValue": {
     "placeholders": {
-      "retained": {
-        "type": "int"
-      },
-      "evicted": {
+      "index": {
         "type": "int"
       }
     }
   },
-  "@retainedPreviewMethods": {
+  "@removeHeader": {
     "placeholders": {
-      "retained": {
-        "type": "int"
-      },
-      "evicted": {
+      "index": {
         "type": "int"
       }
     }
   },
-  "@retainedEvicted": {
-    "placeholders": {
-      "retained": {
-        "type": "int"
-      },
-      "evicted": {
-        "type": "int"
-      }
-    }
-  },
-  "@eventLineSize": {
-    "placeholders": {
-      "seq": {
-        "type": "int"
-      },
-      "time": {
-        "type": "String"
-      },
-      "size": {
-        "type": "int"
-      }
-    }
-  },
-  "@eventLineKind": {
-    "placeholders": {
-      "seq": {
-        "type": "int"
-      },
-      "kind": {
-        "type": "String"
-      },
-      "name": {
-        "type": "String"
-      },
-      "time": {
-        "type": "String"
-      }
-    }
-  },
-  "@resultSize": {
-    "placeholders": {
-      "bytes": {
-        "type": "int"
-      },
-      "blocks": {
-        "type": "int"
-      }
-    }
-  },
-  "@blockData": {
-    "placeholders": {
-      "kind": {
-        "type": "String"
-      },
-      "bytes": {
-        "type": "int"
-      }
-    }
-  },
-  "@resultTruncated": {
-    "placeholders": {
-      "mib": {
-        "type": "int"
-      },
-      "bytes": {
-        "type": "int"
-      }
-    }
-  },
-  "@catalogSummary": {
-    "placeholders": {
-      "tools": {
-        "type": "int"
-      },
-      "resources": {
-        "type": "int"
-      },
-      "templates": {
-        "type": "int"
-      },
-      "prompts": {
-        "type": "int"
-      }
-    }
-  },
-  "@mcpCommandSummary": {
-    "placeholders": {
-      "command": {
-        "type": "String"
-      },
-      "args": {
-        "type": "int"
-      },
-      "env": {
-        "type": "int"
-      }
-    }
-  },
-  "@grpcMethods": {
+  "@rulesCount": {
     "placeholders": {
       "count": {
         "type": "int"
       }
     }
   },
-  "@grpcEventLine": {
+  "@editRule": {
     "placeholders": {
-      "seq": {
-        "type": "int"
-      },
-      "time": {
-        "type": "String"
-      },
-      "direction": {
-        "type": "String"
-      },
-      "size": {
+      "index": {
         "type": "int"
       }
     }
   },
-  "@sseEventLabel": {
-    "placeholders": {
-      "seq": {
-        "type": "int"
-      }
-    }
-  },
-  "@sessionMessageLabel": {
-    "placeholders": {
-      "seq": {
-        "type": "int"
-      }
-    }
-  },
-  "@protobufMessages": {
-    "placeholders": {
-      "shown": {
-        "type": "int"
-      },
-      "total": {
-        "type": "int"
-      }
-    }
-  },
-  "@protobufLoaded": {
+  "@conflictsCount": {
     "placeholders": {
       "count": {
         "type": "int"
       }
     }
   },
-  "catalogTab": "Catalog"
+  "@hostsCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "@portNumber": {
+    "placeholders": {
+      "port": {
+        "type": "int"
+      }
+    }
+  },
+  "@experimentNumber": {
+    "placeholders": {
+      "id": {
+        "type": "int"
+      }
+    }
+  },
+  "@sourceNumber": {
+    "placeholders": {
+      "id": {
+        "type": "int"
+      },
+      "method": {
+        "type": "String"
+      },
+      "url": {
+        "type": "String"
+      },
+      "status": {
+        "type": "int"
+      }
+    }
+  },
+  "@runDraft": {
+    "placeholders": {
+      "id": {
+        "type": "int"
+      }
+    }
+  },
+  "@repeatDescription": {
+    "placeholders": {
+      "max": {
+        "type": "int"
+      }
+    }
+  },
+  "@concurrencyDescription": {
+    "placeholders": {
+      "max": {
+        "type": "int"
+      }
+    }
+  },
+  "@intervalDescription": {
+    "placeholders": {
+      "max": {
+        "type": "int"
+      }
+    }
+  }
 }
