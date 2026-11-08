@@ -1,0 +1,19 @@
+$kind: http-example
+id: ex-open
+name: Open orders
+request:
+  url: '{{baseUrl}}/orders?status=open'
+  method: GET
+  headers:
+    - key: Accept
+      value: application/json
+response:
+  statusCode: 200
+  statusText: OK
+  headers:
+    - key: Content-Type
+      value: application/json
+  body:
+    type: json
+    content: '[{"id":1}]'
+order: 1000

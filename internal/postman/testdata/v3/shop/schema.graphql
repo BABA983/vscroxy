@@ -1,0 +1,7 @@
+type Query {
+  order(id: ID!): Order
+}
+
+type Order {
+  id: ID!
+}

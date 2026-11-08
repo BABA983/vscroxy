@@ -1,0 +1,24 @@
+$kind: grpc-request
+id: req-grpc
+name: gRPC request
+url: 'https://grpc.example.com:443'
+methodPath: demo.Echo/Say
+message:
+  content: '{"name":"demo"}'
+metadata:
+  - key: x-tag
+    value: one
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{token}}'
+settings:
+  strictSSL: false
+  serverNameOverride: grpc.example.com
+methodDescriptor: 'CgRkZW1v'
+scripts:
+  - type: grpc:beforeInvoke
+    code: |
+      console.log('grpc');
+    language: text/javascript

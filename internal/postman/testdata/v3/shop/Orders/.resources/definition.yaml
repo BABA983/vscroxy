@@ -1,0 +1,14 @@
+$kind: collection
+name: Orders
+description: Order and return flows.
+variables:
+  - key: region
+    value: eu
+    secret: false
+auth:
+  type: noauth
+scripts:
+  - type: http:beforeRequest
+    code: |
+      console.log('orders');
+    language: text/javascript

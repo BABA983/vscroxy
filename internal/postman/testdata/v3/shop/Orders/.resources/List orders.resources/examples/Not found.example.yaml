@@ -1,0 +1,16 @@
+$kind: http-example
+id: ex-missing
+name: Not found
+request:
+  url: '{{baseUrl}}/orders?status=gone'
+  method: GET
+response:
+  statusCode: 404
+  statusText: Not Found
+  headers:
+    - key: Content-Type
+      value: application/json
+  body:
+    type: text
+    content: '{"error":"missing"}'
+order: 2000

@@ -1,0 +1,7 @@
+$kind: http-request
+name: XML body
+method: POST
+url: '{{baseUrl}}/xml'
+body:
+  type: xml
+  content: '<order id="1"/>'

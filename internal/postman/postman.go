@@ -184,6 +184,67 @@ func (k warning) text(n int) string {
 		return count(n, "request timeout is", "request timeouts are") + " not part of Postman collections"
 	case "curl redirects":
 		return count(n, "cURL redirect rule is", "cURL redirect rules are") + " not part of Postman collections"
+	case "v3 path":
+		return "Skipped " + count(n, "symbolic link, non-regular file or path outside the collection", "symbolic links, non-regular files or paths outside the collection")
+	case "v3 unreadable":
+		return "Skipped " + count(n, "unreadable or malformed file", "unreadable or malformed files")
+	case "v3 limit":
+		switch k.detail {
+		case "file size":
+			return "Skipped files larger than 8 MiB"
+		case "files":
+			return "Stopped reading at the 10000-file limit"
+		case "depth":
+			return "Stopped reading folders nested more than 32 levels deep"
+		}
+		return "Stopped reading the collection at its " + k.detail + " limit"
+	case "v3 request kind":
+		return "Skipped " + count(n, "request of an unknown kind", "requests of unknown kinds") + " (" + k.detail + ")"
+	case "v3 protocol":
+		return "Skipped " + count(n, k.detail+" request", k.detail+" requests") + "; vscroxy does not support them"
+	case "v3 folder name":
+		return "Merged " + count(n, "folder whose display name collides with another", "folders whose display names collide")
+	case "multi auth":
+		return "Imported the first auth set on " + count(n, k.detail+" item", k.detail+" items") + " where several are offered; vscroxy uses one"
+	case "secret variable":
+		if k.detail == "local" {
+			return "Kept " + count(n, "secret variable value", "secret variable values") + " in this computer's Current values"
+		}
+		return "Skipped " + count(n, "secret variable that references a vault", "secret variables that reference a vault")
+	case "variable description":
+		return "Dropped " + count(n, "variable description", "variable descriptions")
+	case "parameter metadata":
+		return "Dropped descriptions or types on " + count(n, "parameter", "parameters")
+	case "script event":
+		return "Skipped " + count(n, "script", "scripts") + " with an event vscroxy does not run (" + k.detail + ")"
+	case "script language":
+		return "Skipped " + count(n, "script", "scripts") + " written in " + k.detail
+	case "script package":
+		return "Skipped " + count(n, "script package or request reference", "script package or request references")
+	case "protocol script":
+		return "Skipped " + count(n, k.detail+" script", k.detail+" scripts") + "; vscroxy does not run them"
+	case "grpc schema":
+		return "Dropped " + count(n, "gRPC schema or method descriptor", "gRPC schemas or method descriptors") + "; load the proto in the gRPC editor"
+	case "graphql schema":
+		return "Dropped " + count(n, "GraphQL schema source that is not a local file", "GraphQL schema sources that are not local files")
+	case "graphql schema export":
+		if n == 1 {
+			return "Dropped 1 GraphQL schema; Postman collections cannot hold it"
+		}
+		return fmt.Sprintf("Dropped %d GraphQL schemas; Postman collections cannot hold them", n)
+	case "stream example":
+		return "Skipped " + count(n, k.detail+" example", k.detail+" examples") + "; vscroxy examples are HTTP responses"
+	case "stream messages":
+		if k.detail == "binary" {
+			return "Skipped " + count(n, "binary stream message", "binary stream messages") + "; vscroxy sends text"
+		}
+		return "Dropped " + count(n, "extra saved stream message", "extra saved stream messages") + "; vscroxy sends one at a time"
+	case "socketio events":
+		return "Dropped " + count(n, "Socket.IO subscription event", "Socket.IO subscription events") + "; vscroxy shows every event the server sends"
+	case "socketio settings":
+		return "Dropped Socket.IO " + k.detail + " setting"
+	case "graphql example events":
+		return "Kept the first event of " + count(n, "GraphQL subscription example", "GraphQL subscription examples")
 	}
 	return fmt.Sprintf("%s %s: %d", k.what, k.detail, n)
 }

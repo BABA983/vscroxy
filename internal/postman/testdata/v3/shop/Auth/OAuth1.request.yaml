@@ -1,0 +1,17 @@
+$kind: http-request
+name: OAuth 1.0
+method: GET
+url: '{{baseUrl}}/auth/oauth1'
+auth:
+  type: oauth1
+  credentials:
+    - key: consumerKey
+      value: consumer
+    - key: consumerSecret
+      value: '{{secret}}'
+    - key: token
+      value: token
+    - key: tokenSecret
+      value: '{{secret}}'
+    - key: signatureMethod
+      value: HMAC-SHA1

@@ -1,0 +1,10 @@
+$kind: http-request
+name: GraphQL body
+method: POST
+url: '{{baseUrl}}/graphql'
+body:
+  type: graphql
+  content:
+    query: 'query Q($id: ID!) { order(id: $id) { id } }'
+    variables: '{"id":"1"}'
+    operationName: Q

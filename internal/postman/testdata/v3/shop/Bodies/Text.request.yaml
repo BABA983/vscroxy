@@ -1,0 +1,7 @@
+$kind: http-request
+name: Text body
+method: POST
+url: '{{baseUrl}}/text'
+body:
+  type: text
+  content: hello

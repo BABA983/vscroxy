@@ -1,0 +1,8 @@
+$kind: mqtt-request
+name: MQTT request
+url: 'mqtts://broker.example.com:8883'
+version: 5
+topics:
+  - name: sensors/+/temp
+    qos: 1
+    subscribe: true

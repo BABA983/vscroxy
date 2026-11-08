@@ -1,0 +1,8 @@
+$kind: http-request
+name: Binary body
+method: POST
+url: '{{baseUrl}}/binary'
+body:
+  type: file
+  content:
+    src: ./payload.bin

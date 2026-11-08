@@ -1,0 +1,13 @@
+$kind: http-request
+name: Hawk
+method: GET
+url: '{{baseUrl}}/auth/hawk'
+auth:
+  type: hawk
+  credentials:
+    - key: authId
+      value: hawk-id
+    - key: authKey
+      value: '{{secret}}'
+    - key: algorithm
+      value: SHA256

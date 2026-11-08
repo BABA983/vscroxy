@@ -1,0 +1,16 @@
+$kind: socket.io-request
+id: req-socketio
+name: Socket.IO request
+url: 'https://api.example.com/socket.io/'
+headers:
+  - key: X-Trace
+    value: '1'
+events:
+  - name: chat
+    subscribeOnConnect: true
+    description: Incoming chat
+settings:
+  version: '4'
+  path: /socket.io/
+  strictSSL: false
+messages: ./.resources/Socket.IO request.resources/messages

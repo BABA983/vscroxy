@@ -1,0 +1,15 @@
+$kind: http-request
+name: EdgeGrid
+method: GET
+url: '{{baseUrl}}/auth/edgegrid'
+auth:
+  type: edgegrid
+  credentials:
+    - key: accessToken
+      value: access
+    - key: clientToken
+      value: client
+    - key: clientSecret
+      value: '{{secret}}'
+    - key: baseURL
+      value: 'https://akamai.example.com'

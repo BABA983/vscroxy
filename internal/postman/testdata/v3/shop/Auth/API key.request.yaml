@@ -1,0 +1,13 @@
+$kind: http-request
+name: API key
+method: GET
+url: '{{baseUrl}}/auth/key'
+auth:
+  type: apikey
+  credentials:
+    - key: key
+      value: api_key
+    - key: value
+      value: '{{key}}'
+    - key: in
+      value: query

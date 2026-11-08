@@ -1,0 +1,25 @@
+$kind: graphql-request
+id: req-graphql
+name: GraphQL request
+url: '{{baseUrl}}/graphql'
+query: 'query Q($id: ID!) { order(id: $id) { id } }'
+variables: '{"id":"1"}'
+operationName: Q
+headers:
+  - key: X-Trace
+    value: '1'
+auth:
+  type: basic
+  credentials:
+    - key: username
+      value: user
+    - key: password
+      value: pass
+scripts:
+  - type: beforeRequest
+    code: |
+      console.log('gql');
+    language: text/javascript
+schema:
+  source: file
+  location: ./schema.graphql

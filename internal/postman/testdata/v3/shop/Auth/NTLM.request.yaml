@@ -1,0 +1,11 @@
+$kind: http-request
+name: NTLM
+method: GET
+url: '{{baseUrl}}/auth/ntlm'
+auth:
+  type: ntlm
+  credentials:
+    - key: username
+      value: user
+    - key: password
+      value: pass

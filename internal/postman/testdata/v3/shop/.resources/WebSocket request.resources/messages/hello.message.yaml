@@ -1,0 +1,4 @@
+$kind: websocket-message
+name: hello
+content: '{"op":"subscribe"}'
+contentType: json

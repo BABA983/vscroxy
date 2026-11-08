@@ -1,0 +1,49 @@
+$kind: collection
+id: c0ffee00-0000-4000-8000-000000000001
+name: Shop API
+description: |
+  Storefront endpoints.
+
+  Imported from the Postman v3 directory format.
+variables:
+  - key: baseUrl
+    value: 'https://shop.example.com'
+    secret: false
+  - key: pageSize
+    value: '20'
+    secret: false
+  - key: legacy
+    value: v1
+    disabled: true
+    secret: false
+  - key: vaultToken
+    secret: true
+    source:
+      provider: postman
+      postman:
+        type: local
+        secretId: secret-73
+scripts:
+  - type: http:beforeRequest
+    code: |
+      pm.variables.set('ts', Date.now());
+    language: text/javascript
+  - type: http:afterResponse
+    code: |
+      pm.test('ok', () => pm.response.to.be.ok);
+    language: text/javascript
+auth:
+  - id: auth-bearer
+    name: Bearer token
+    type: bearer
+    credentials:
+      - key: token
+        value: '{{token}}'
+  - id: auth-basic
+    name: Basic fallback
+    type: basic
+    credentials:
+      - key: username
+        value: fallback
+      - key: password
+        value: fallback

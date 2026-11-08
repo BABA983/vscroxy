@@ -1,0 +1,16 @@
+$kind: websocket-request
+id: req-ws
+name: WebSocket request
+url: 'wss://ws.example.com/stream'
+headers:
+  - key: X-Trace
+    value: '1'
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{token}}'
+settings:
+  strictSSL: false
+  retryCount: 2
+messages: ./.resources/WebSocket request.resources/messages

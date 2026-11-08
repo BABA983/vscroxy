@@ -1,0 +1,14 @@
+$kind: http-request
+name: URL encoded body
+method: POST
+url: '{{baseUrl}}/form'
+body:
+  type: urlencoded
+  content:
+    - key: grant_type
+      value: client_credentials
+    - key: scope
+      value: orders
+    - key: off
+      value: '1'
+      disabled: true

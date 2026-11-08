@@ -1,0 +1,17 @@
+$kind: http-request
+name: OAuth 2.0
+method: GET
+url: '{{baseUrl}}/auth/oauth2'
+auth:
+  type: oauth2
+  credentials:
+    - key: grant_type
+      value: client_credentials
+    - key: accessTokenUrl
+      value: 'https://id.example.com/token'
+    - key: clientId
+      value: client
+    - key: clientSecret
+      value: '{{secret}}'
+    - key: scope
+      value: orders

@@ -1,0 +1,4 @@
+$kind: http-request
+name: Health/check
+method: GET
+url: '{{baseUrl}}/health'

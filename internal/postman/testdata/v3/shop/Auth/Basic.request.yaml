@@ -1,0 +1,11 @@
+$kind: http-request
+name: Basic
+method: GET
+url: '{{baseUrl}}/auth/basic'
+auth:
+  type: basic
+  credentials:
+    - key: username
+      value: user
+    - key: password
+      value: pass

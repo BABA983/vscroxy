@@ -206,6 +206,9 @@ func WriteCollection(name string, requests []request.Request, folders []request.
 			if len(r.TokenSources) > 0 {
 				warn.add("token source", "", 1)
 			}
+			if r.GraphQL.Schema != "" {
+				warn.add("graphql schema export", "", 1)
+			}
 			if r.Settings.TimeoutSeconds != nil {
 				warn.add("timeout", "", 1)
 			}
@@ -306,10 +309,15 @@ func writeRequest(r request.Request) *outRequest {
 	switch r.BodyMode {
 	case "", "Raw":
 		if r.Body != "" {
-			out.Body = &outBody{Mode: "raw", Raw: r.Body, Options: &outOptions{}}
-			out.Body.Options.Raw.Language = "text"
-			if jsontext.Value(r.Body).IsValid() {
-				out.Body.Options.Raw.Language = "json"
+			out.Body = &outBody{Mode: "raw", Raw: r.Body}
+			// A WebSocket message is not an HTTP body; raw options would make
+			// a re-import add a Content-Type header to the handshake.
+			if !request.IsWebSocket(r.URL) {
+				out.Body.Options = &outOptions{}
+				out.Body.Options.Raw.Language = "text"
+				if jsontext.Value(r.Body).IsValid() {
+					out.Body.Options.Raw.Language = "json"
+				}
 			}
 		}
 	case "GraphQL":

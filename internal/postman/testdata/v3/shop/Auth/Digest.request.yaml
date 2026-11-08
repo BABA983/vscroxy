@@ -1,0 +1,11 @@
+$kind: http-request
+name: Digest
+method: GET
+url: '{{baseUrl}}/auth/digest'
+auth:
+  type: digest
+  credentials:
+    - key: username
+      value: user
+    - key: password
+      value: pass

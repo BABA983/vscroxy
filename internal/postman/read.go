@@ -40,6 +40,14 @@ type pmItem struct {
 	Variable                []pmVariable     `json:"variable"`
 	Auth                    jsontext.Value   `json:"auth"`
 	ProtocolProfileBehavior jsontext.Value   `json:"protocolProfileBehavior"`
+
+	// The v3 directory reader sets these; v2.1 JSON never does.
+	Protocol            string            `json:"-"`
+	GRPC                *pmGRPC           `json:"-"`
+	SocketIO            *pmSocketIO       `json:"-"`
+	Transport           *request.Settings `json:"-"`
+	GraphQLSchema       string            `json:"-"`
+	GraphQLSchemaSource string            `json:"-"`
 }
 
 type pmEvent struct {
@@ -55,6 +63,8 @@ type pmVariable struct {
 	Key      string         `json:"key"`
 	Value    jsontext.Value `json:"value"`
 	Disabled bool           `json:"disabled"`
+	// Secret is a v3 variable whose value is local rather than shared.
+	Secret bool `json:"-"`
 }
 
 type pmRequest struct {
@@ -280,11 +290,11 @@ func (r *reader) request(it pmItem, parent string, ordinal int) error {
 	out.Examples = r.examples(it.Response, out.ID)
 	r.warn.add("request variable", "", len(it.Variable))
 	out.Description = describe(it.Description)
-	if it.Request.Kind() == '"' {
+	var req pmRequest
+	hasRequest := it.Request.Kind() != '"'
+	if !hasRequest {
 		out.URL = text(it.Request)
-		out.Settings = r.settings(it.ProtocolProfileBehavior)
 	} else {
-		var req pmRequest
 		if err := json.Unmarshal(it.Request, &req); err != nil {
 			return fmt.Errorf("read request %q in %s: %w", it.Name, parent, err)
 		}
@@ -300,7 +310,31 @@ func (r *reader) request(it pmItem, parent string, ordinal int) error {
 		if out.Description == "" {
 			out.Description = describe(req.Description)
 		}
+	}
+	if it.Transport != nil {
+		out.Settings = *it.Transport
+	} else if hasRequest {
 		out.Settings = r.settings(it.ProtocolProfileBehavior, req.Proxy, req.Certificate)
+	} else {
+		out.Settings = r.settings(it.ProtocolProfileBehavior)
+	}
+	if it.GraphQLSchema != "" {
+		out.GraphQL.Schema, out.GraphQL.SchemaSource = it.GraphQLSchema, it.GraphQLSchemaSource
+	}
+	if it.Protocol != "" {
+		out.Protocol = it.Protocol
+		switch it.Protocol {
+		case "gRPC":
+			out.Method, out.GRPC = "POST", request.GRPCConfig{}
+			if it.GRPC != nil {
+				out.GRPC.Method, out.Body, out.BodyMode = it.GRPC.Method, it.GRPC.Body, "Raw"
+			}
+		case "Socket.IO":
+			out.Method, out.BodyMode, out.SocketIO = "GET", "Raw", request.SocketIOConfig{}
+			if it.SocketIO != nil {
+				out.Body, out.SocketIO.Event, out.SocketIO.WantACK, out.SocketIO.Auth = it.SocketIO.Body, it.SocketIO.Event, it.SocketIO.WantACK, it.SocketIO.Auth
+			}
+		}
 	}
 	out.Headers = headerBlock(out.HeaderList)
 	r.out.Requests = append(r.out.Requests, out)
@@ -373,7 +407,14 @@ func describe(v jsontext.Value) string {
 func variables(vars []pmVariable) []request.Variable {
 	var out []request.Variable
 	for _, v := range vars {
-		out = append(out, request.Variable{Name: cmp.Or(v.Key, v.ID), Initial: text(v.Value), Disabled: v.Disabled})
+		row := request.Variable{Name: cmp.Or(v.Key, v.ID), Initial: text(v.Value), Disabled: v.Disabled}
+		if v.Secret {
+			// A v3 secret value has no shared equivalent. Keep it as a local
+			// Current value so it never reaches the library or an export.
+			row.Current, row.Initial = row.Initial, ""
+			row.Local, row.Credential = true, true
+		}
+		out = append(out, row)
 	}
 	return out
 }

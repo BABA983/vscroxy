@@ -1,0 +1,14 @@
+$kind: http-request
+name: Multipart body
+method: POST
+url: '{{baseUrl}}/upload'
+body:
+  type: formdata
+  content:
+    - type: text
+      key: note
+      value: hello
+      contentType: text/plain
+    - type: file
+      key: file
+      src: ./payload.bin

@@ -1,0 +1,14 @@
+$kind: http-request
+id: req-create-order
+name: Create order
+method: POST
+url: '{{baseUrl}}/orders'
+description: Creates an order.
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {"sku":"{{sku}}"}
+order: 1000

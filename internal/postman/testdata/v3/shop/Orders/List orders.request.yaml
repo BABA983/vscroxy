@@ -1,0 +1,36 @@
+$kind: http-request
+id: req-list-orders
+name: List orders
+method: GET
+url: '{{baseUrl}}/orders?status=open'
+queryParams:
+  - key: status
+    value: open
+description: Lists orders.
+headers:
+  - key: Accept
+    value: application/json
+  - key: X-Debug
+    value: '1'
+    disabled: true
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{token}}'
+scripts:
+  - type: beforeRequest
+    code: |
+      console.log('list');
+    language: text/javascript
+  - type: afterResponse
+    code: |
+      pm.test('ok', () => pm.response.to.be.ok);
+    language: text/javascript
+settings:
+  strictSSL: false
+  followRedirects: false
+  maxRedirects: 0
+  protocolVersion: http2
+examples: ./.resources/List orders.resources/examples
+order: 1000

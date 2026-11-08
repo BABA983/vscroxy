@@ -1,0 +1,15 @@
+$kind: http-request
+name: AWS Signature
+method: GET
+url: '{{baseUrl}}/auth/aws'
+auth:
+  type: awsv4
+  credentials:
+    - key: accessKey
+      value: AKIA
+    - key: secretKey
+      value: '{{secret}}'
+    - key: region
+      value: us-east-1
+    - key: service
+      value: execute-api

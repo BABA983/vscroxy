@@ -1,0 +1,7 @@
+$kind: socket.io-message
+name: chat
+eventName: chat
+acknowledgement: true
+args:
+  - content: '{"text":"hi"}'
+    contentType: json

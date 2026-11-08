@@ -1,0 +1,15 @@
+$kind: http-request
+name: JWT
+method: GET
+url: '{{baseUrl}}/auth/jwt'
+auth:
+  type: jwt
+  credentials:
+    - key: algorithm
+      value: HS256
+    - key: secret
+      value: '{{secret}}'
+    - key: payload
+      value: '{"sub":"1"}'
+    - key: addTokenTo
+      value: header
