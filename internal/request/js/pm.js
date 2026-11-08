@@ -5,6 +5,33 @@
 (function (global, host, chai) {
 	"use strict";
 
+	// The browser globals Postman's sandbox and its bundled libraries expect.
+	// They point back at the same goja global object.
+	if (!global.global) Object.defineProperty(global, "global", { value: global, writable: true, configurable: true });
+	if (!global.window) Object.defineProperty(global, "window", { value: global, writable: true, configurable: true });
+
+	// process is the small browser shim bundled libraries read; process.env
+	// stays the app's environment for rule scripts, empty otherwise.
+	var environment = host.env ? host.env : {};
+	global.process = {
+		env: Object.freeze(environment),
+		browser: true,
+		version: "",
+		versions: {},
+		platform: "browser",
+		argv: [],
+		pid: 0,
+		cwd: function () { return "/"; },
+		nextTick: function (fn) {
+			var args = Array.prototype.slice.call(arguments, 1);
+			Promise.resolve().then(function () { fn.apply(null, args); });
+		},
+	};
+	// uuid's browser build uses crypto.getRandomValues; Go fills it.
+	global.crypto = {
+		getRandomValues: function (array) { return host.random(array); },
+	};
+
 	function text(v) {
 		if (v === undefined || v === null) return "";
 		if (typeof v === "string") return v;
@@ -446,13 +473,29 @@
 		error: function () { host.log("error", format(arguments)); },
 		clear: function () {},
 	};
-	var lodash, cryptojs, moment, addons = {};
-	global.require = function (name) {
-		name = text(name);
+	var lodash, cryptojs, moment, addons = {}, modules = {};
+	// builtin resolves the Postman sandbox's built-in modules. The ones with
+	// host setup are special; the rest are compiled bundles loaded on first
+	// require and cached for this script only.
+	function builtin(name) {
 		if (name === "chai") return chai;
+		if (name === "atob") return global.atob;
+		if (name === "btoa") return global.btoa;
 		if (name === "lodash") return lodash || (lodash = host.lodash());
 		if (name === "crypto-js") return cryptojs || (cryptojs = host.cryptojs());
 		if (name === "moment") return moment || (moment = host.moment());
+		if (name === "xml2Json") return global.xml2Json;
+		if (Object.prototype.hasOwnProperty.call(modules, name)) return modules[name];
+		var loaded = host.library(name);
+		if (loaded !== undefined) {
+			modules[name] = loaded;
+			return loaded;
+		}
+	}
+	global.require = function (name) {
+		name = text(name);
+		var value = builtin(name);
+		if (value !== undefined) return value;
 		// An addon: the user's module, run once per script. One that requires
 		// itself while loading gets what it has exported so far, as in Node.
 		if (Object.prototype.hasOwnProperty.call(addons, name)) return addons[name].exports;
@@ -468,11 +511,50 @@
 			}
 			return module.exports;
 		}
-		throw new Error("require(\"" + name + "\") is not available: use chai, lodash, crypto-js, moment or an addon in Tools → Scripts → Addons");
+		throw new Error("require(\"" + name + "\") is not available: use a Postman sandbox library or an addon in Tools → Scripts → Addons");
 	};
-	if (host.env) global.process = { env: Object.freeze(host.env) };
 	global.atob = host.atob;
 	global.btoa = host.btoa;
+	global.setTimeout = host.setTimeout;
+	global.setInterval = host.setInterval;
+	global.setImmediate = host.setImmediate;
+	global.clearTimeout = host.clearTimeout;
+	global.clearInterval = host.clearInterval;
+	global.clearImmediate = host.clearImmediate;
+	global.queueMicrotask = function (fn) {
+		var args = Array.prototype.slice.call(arguments, 1);
+		Promise.resolve().then(function () { fn.apply(null, args); });
+	};
+
+	// Postman's legacy library globals. They load on first access, like the
+	// require names they mirror, and then become ordinary values.
+	function lazy(name, load) {
+		Object.defineProperty(global, name, {
+			configurable: true,
+			enumerable: false,
+			get: function () {
+				// Clear the getter before loading: a bundle that reads the
+				// global while it initializes must not re-enter it.
+				Object.defineProperty(global, name, { value: undefined, writable: true, configurable: true });
+				var value = load();
+				Object.defineProperty(global, name, { value: value, writable: true, configurable: true });
+				return value;
+			},
+			set: function (value) {
+				Object.defineProperty(global, name, { value: value, writable: true, configurable: true });
+			},
+		});
+	}
+	lazy("Buffer", function () { return host.library("buffer").Buffer; });
+	lazy("_", function () { return global.require("lodash"); });
+	lazy("CryptoJS", function () { return global.require("crypto-js"); });
+	lazy("cheerio", function () { return global.require("cheerio"); });
+	global.xml2Json = function (value) {
+		var xml2js = global.require("xml2js"), result = {};
+		xml2js.parseString(value, { explicitArray: false, async: false, trim: true, mergeAttrs: false },
+			function (_, parsed) { result = parsed; });
+		return result;
+	};
 
 	// Legacy Postman globals.
 	global.tests = {};

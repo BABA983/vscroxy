@@ -174,12 +174,15 @@ func TestLodashThroughTheProxy(t *testing.T) {
 		});
 		pm.test('existing require and allowlist', () => {
 			pm.expect(require('chai').expect).to.equal(pm.expect);
-			['fs', 'lodash/fp', 'https://example.com/lodash.js'].forEach(name => {
+			['lodash/fp', 'https://example.com/lodash.js', 'left-pad'].forEach(name => {
 				pm.expect(() => require(name)).to.throw();
 			});
-			pm.expect(typeof process).to.equal('undefined');
-			pm.expect(typeof setTimeout).to.equal('undefined');
-			pm.expect(() => _.delay(() => {}, 1)).to.throw();
+			// fs is Postman's empty browser shim; process and timers are the
+			// browser globals bundled libraries expect.
+			pm.expect(Object.keys(require('fs'))).to.deep.equal([]);
+			pm.expect(typeof process).to.equal('object');
+			pm.expect(process.browser).to.equal(true);
+			pm.expect(typeof setTimeout).to.equal('function');
 		});
 		_.scriptMarker = true;
 	`}

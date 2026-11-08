@@ -21,3 +21,6 @@
 # Amp orb artifacts and portals
 .amp/in/
 .amp/portals/
+
+# npm inputs for the Postman sandbox bundles (build.sh installs them)
+/internal/request/js/sandbox/node_modules/

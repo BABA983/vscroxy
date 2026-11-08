@@ -1,0 +1,1 @@
+var __getOwnPropNames=Object.getOwnPropertyNames;var __commonJS=(cb,mod)=>function(){try{return mod||(0,cb[__getOwnPropNames(cb)[0]])((mod={exports:{}}).exports,mod),mod.exports}catch(e){throw mod=0,e}};var require_shim_fs=__commonJS({"../../../../../../../../tmp/vscroxy-sandbox-580677448/shim-fs.js"(exports2,module2){module2.exports={}}});module.exports=require_shim_fs();

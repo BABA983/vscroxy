@@ -4,7 +4,7 @@ import (
 	"cmp"
 	"context"
 	"crypto/rand"
-	_ "embed"
+	"embed"
 	"encoding/base64"
 	"encoding/binary"
 	"errors"
@@ -54,12 +54,26 @@ var cryptoJSSource string
 //go:embed js/moment.min.js
 var momentSource string
 
+// vendorFS holds the Postman sandbox libraries that are bundled at
+// development time with esbuild, and the browserify Node builtins Postman's
+// sandbox exposes. js/sandbox/build.sh regenerates them from the pinned npm
+// inputs; nothing is downloaded or compiled at runtime.
+//
+//go:embed js/vendor
+var vendorFS embed.FS
+
 //go:embed js/pm.js
 var pmSource string
 
 // Libraries are the modules require loads built in; an addon cannot take
 // one of these names.
-var Libraries = []string{"chai", "lodash", "crypto-js", "moment"}
+var Libraries = []string{
+	"assert", "atob", "btoa", "buffer", "chai", "cheerio",
+	"crypto-js", "csv-parse/lib/sync", "events", "fs",
+	"lodash", "moment", "os", "path", "process",
+	"_process", "punycode", "querystring", "stream", "string_decoder", "timers",
+	"url", "util", "xml2js",
+}
 
 // The libraries compile once; every script still gets a fresh runtime.
 var (
@@ -81,6 +95,46 @@ var (
 	})
 	pmProgram = sync.OnceValue(func() *goja.Program { return goja.MustCompile("pm.js", pmSource, false) })
 )
+
+// sandboxPrograms are require's built-in modules other than the libraries
+// with their own host setup (chai, lodash, crypto-js and moment). Each bundle
+// is a CommonJS module; it is compiled once, on the first require, and every
+// script runtime still evaluates it separately.
+var processProgram = vendorProgram("node/process.js")
+
+var sandboxPrograms = map[string]func() *goja.Program{
+	"assert":             vendorProgram("node/assert.js"),
+	"buffer":             vendorProgram("node/buffer.js"),
+	"cheerio":            vendorProgram("cheerio.js"),
+	"csv-parse/lib/sync": vendorProgram("csv-parse-sync.js"),
+	"events":             vendorProgram("node/events.js"),
+	"fs":                 vendorProgram("node/fs.js"),
+	"os":                 vendorProgram("node/os.js"),
+	"path":               vendorProgram("node/path.js"),
+	"process":            processProgram,
+	"_process":           processProgram,
+	"punycode":           vendorProgram("node/punycode.js"),
+	"querystring":        vendorProgram("node/querystring.js"),
+	"stream":             vendorProgram("node/stream.js"),
+	"string_decoder":     vendorProgram("node/string_decoder.js"),
+	"timers":             vendorProgram("node/timers.js"),
+	"url":                vendorProgram("node/url.js"),
+	"util":               vendorProgram("node/util.js"),
+	"xml2js":             vendorProgram("xml2js.js"),
+}
+
+// vendorProgram compiles one embedded CommonJS bundle when it is first
+// required, wrapped so its module.exports is the value require returns.
+func vendorProgram(file string) func() *goja.Program {
+	return sync.OnceValue(func() *goja.Program {
+		src, err := vendorFS.ReadFile("js/vendor/" + file)
+		if err != nil {
+			panic(err)
+		}
+		return goja.MustCompile(file, "(function () { var module = {exports: {}}, exports = module.exports;\n"+
+			string(src)+"\nreturn module.exports; })()", false)
+	})
+}
 
 // TestResult is one assertion a request script or check made. Error says
 // why a failed one failed; a skipped test (pm.test.skip) passes.
@@ -426,6 +480,100 @@ func (b *budget) resume() {
 	b.started, b.timer = time.Now(), time.AfterFunc(max(b.remaining, 0), b.expire)
 }
 
+// scriptTimer is one pending setTimeout, setImmediate or setInterval. due and
+// interval are virtual milliseconds: the queue runs callbacks as soon as the
+// script body has finished, in due order, without sleeping. The script's
+// existing budget still bounds the total work.
+type scriptTimer struct {
+	id, due, interval, seq int64
+	fn                     goja.Callable
+	args                   []goja.Value
+}
+
+// scriptTimers is one script execution's timer queue. It is created per
+// runScriptContext, so timers never cross scripts or runs.
+type scriptTimers struct {
+	vm      *goja.Runtime
+	nextID  int64
+	nextSeq int64
+	now     int64
+	entries []*scriptTimer
+}
+
+func newScriptTimers(vm *goja.Runtime) *scriptTimers { return &scriptTimers{vm: vm} }
+
+func (t *scriptTimers) set(call goja.FunctionCall, interval bool) goja.Value {
+	fn, ok := goja.AssertFunction(call.Argument(0))
+	if !ok {
+		panic(t.vm.NewTypeError("callback is not a function"))
+	}
+	delay := int64(0)
+	if len(call.Arguments) > 1 {
+		delay = max(call.Argument(1).ToInteger(), 0)
+	}
+	t.nextID++
+	t.nextSeq++
+	timer := &scriptTimer{id: t.nextID, due: t.now + delay, seq: t.nextSeq, fn: fn,
+		args: slices.Clone(call.Arguments[2:])}
+	if interval {
+		timer.interval = max(delay, 1)
+	}
+	t.entries = append(t.entries, timer)
+	return t.vm.ToValue(timer.id)
+}
+
+func (t *scriptTimers) immediate(call goja.FunctionCall) goja.Value {
+	fn, ok := goja.AssertFunction(call.Argument(0))
+	if !ok {
+		panic(t.vm.NewTypeError("callback is not a function"))
+	}
+	t.nextID++
+	t.nextSeq++
+	t.entries = append(t.entries, &scriptTimer{id: t.nextID, due: t.now, seq: t.nextSeq, fn: fn,
+		args: slices.Clone(call.Arguments[1:])})
+	return t.vm.ToValue(t.nextID)
+}
+
+// clear removes a timeout, interval or immediate by the id its setter
+// returned. Like a browser, clearTimeout and clearInterval are aliases.
+func (t *scriptTimers) clear(id goja.Value) {
+	n := id.ToInteger()
+	t.entries = slices.DeleteFunc(t.entries, func(timer *scriptTimer) bool { return timer.id == n })
+}
+
+// drain runs queued timers until none are left, or until promise settles.
+// A callback can schedule more timers; the budget interrupts a loop that
+// never lets the script finish.
+func (t *scriptTimers) drain(promise *goja.Promise) error {
+	for {
+		// A rejected script stops; a fulfilled one still runs timers it
+		// scheduled, and a pending one may be settled by a timer.
+		if promise != nil && promise.State() == goja.PromiseStateRejected {
+			return nil
+		}
+		best := -1
+		for i, timer := range t.entries {
+			if best < 0 || timer.due < t.entries[best].due ||
+				(timer.due == t.entries[best].due && timer.seq < t.entries[best].seq) {
+				best = i
+			}
+		}
+		if best < 0 {
+			return nil
+		}
+		timer := t.entries[best]
+		t.now = max(t.now, timer.due)
+		if timer.interval > 0 {
+			timer.due = t.now + timer.interval
+		} else {
+			t.entries = slices.Delete(t.entries, best, best+1)
+		}
+		if _, err := timer.fn(goja.Undefined(), timer.args...); err != nil {
+			return err
+		}
+	}
+}
+
 // Bound user scripts as well as network I/O. Interrupt also lets Runner cancel
 // a script loop without leaving a goroutine (or the UI thread) stuck in Goja.
 func runScriptContext(ctx context.Context, src string, run *scriptRun, objects map[string]any) error {
@@ -442,7 +590,8 @@ func runScriptContext(ctx context.Context, src string, run *scriptRun, objects m
 	}
 	chai := vm.Get("chai")
 	vm.GlobalObject().Delete("chai")
-	host, err := run.host(ctx, vm, clock, objects)
+	timers := newScriptTimers(vm)
+	host, err := run.host(ctx, vm, clock, timers, objects)
 	if err != nil {
 		return err
 	}
@@ -472,23 +621,44 @@ func runScriptContext(ctx context.Context, src string, run *scriptRun, objects m
 	if err != nil {
 		return err
 	}
-	finish, _ := goja.AssertFunction(finishValue)
-	tests, err := finish(goja.Undefined())
-	if err != nil {
+	promise, _ := result.Export().(*goja.Promise)
+	// finish collects the tests the script made, including from timers, so
+	// tests before a later error are still reported.
+	finish := func() error {
+		fn, _ := goja.AssertFunction(finishValue)
+		tests, err := fn(goja.Undefined())
+		if err != nil {
+			return err
+		}
+		results := tests.ToObject(vm)
+		for i := range int(results.Get("length").ToInteger()) {
+			t := results.Get(strconv.Itoa(i)).ToObject(vm)
+			run.tests = append(run.tests, TestResult{Name: t.Get("name").String(), Pass: t.Get("pass").ToBoolean(),
+				Error: t.Get("error").String(), Skipped: t.Get("skipped").ToBoolean()})
+		}
+		return nil
+	}
+	if promise != nil && promise.State() == goja.PromiseStateRejected {
+		_ = finish()
+		return errors.New(scriptError(promise.Result(), file))
+	}
+	// Timers run after the script body, as Postman waits for its timer queue
+	// before finishing the execution and reporting tests. A pending promise
+	// can be resolved by a timer; one that never settles is an error below.
+	if err := timers.drain(promise); err != nil {
+		_ = finish()
 		return err
 	}
-	results := tests.ToObject(vm)
-	for i := range int(results.Get("length").ToInteger()) {
-		t := results.Get(strconv.Itoa(i)).ToObject(vm)
-		run.tests = append(run.tests, TestResult{Name: t.Get("name").String(), Pass: t.Get("pass").ToBoolean(),
-			Error: t.Get("error").String(), Skipped: t.Get("skipped").ToBoolean()})
+	if promise != nil && promise.State() == goja.PromiseStateRejected {
+		_ = finish()
+		return errors.New(scriptError(promise.Result(), file))
 	}
-	promise, _ := result.Export().(*goja.Promise)
+	if err := finish(); err != nil {
+		return err
+	}
 	switch {
 	case promise == nil:
 		return nil
-	case promise.State() == goja.PromiseStateRejected:
-		return errors.New(scriptError(promise.Result(), file))
 	case promise.State() == goja.PromiseStatePending:
 		return errors.New("the script awaited something that never finished")
 	}
@@ -517,7 +687,7 @@ func scriptError(reason goja.Value, file string) string {
 }
 
 // host is what pm.js builds pm.* from.
-func (run *scriptRun) host(ctx context.Context, vm *goja.Runtime, clock *budget, objects map[string]any) (*goja.Object, error) {
+func (run *scriptRun) host(ctx context.Context, vm *goja.Runtime, clock *budget, timers *scriptTimers, objects map[string]any) (*goja.Object, error) {
 	pairs := func(h http.Header) goja.Value {
 		var list []any
 		for _, key := range slices.Sorted(maps.Keys(h)) {
@@ -551,6 +721,38 @@ func (run *scriptRun) host(ctx context.Context, vm *goja.Runtime, clock *budget,
 	}
 	h := vm.NewObject()
 	set := func(name string, value any) { h.Set(name, value) }
+	// library loads one of the bundled Postman sandbox modules on first
+	// require; pm.js caches the exports for the rest of this script.
+	set("library", func(name string) (goja.Value, error) {
+		program, ok := sandboxPrograms[name]
+		if !ok {
+			return goja.Undefined(), nil
+		}
+		return vm.RunProgram(program())
+	})
+	// random fills a typed array for crypto.getRandomValues, which uuid uses.
+	set("random", func(array *goja.Object) *goja.Object {
+		length := int(array.Get("length").ToInteger())
+		for i := 0; i < length; i += 4 {
+			var bytes [4]byte
+			_, _ = rand.Read(bytes[:])
+			for j := range 4 {
+				if i+j >= length {
+					break
+				}
+				array.Set(strconv.Itoa(i+j), int64(bytes[j]))
+			}
+		}
+		return array
+	})
+	// Timers are script-scoped and virtual: callbacks run in due order after
+	// the body, without sleeping. The budget still bounds the work.
+	set("setTimeout", func(call goja.FunctionCall) goja.Value { return timers.set(call, false) })
+	set("setInterval", func(call goja.FunctionCall) goja.Value { return timers.set(call, true) })
+	set("setImmediate", func(call goja.FunctionCall) goja.Value { return timers.immediate(call) })
+	set("clearTimeout", func(id goja.Value) { timers.clear(id) })
+	set("clearInterval", func(id goja.Value) { timers.clear(id) })
+	set("clearImmediate", func(id goja.Value) { timers.clear(id) })
 	set("ajv", func() (goja.Value, error) { return vm.RunProgram(ajvProgram()) })
 	set("lodash", func() (goja.Value, error) { return vm.RunProgram(lodashProgram()) })
 	set("moment", func() (goja.Value, error) { return vm.RunProgram(momentProgram()) })
