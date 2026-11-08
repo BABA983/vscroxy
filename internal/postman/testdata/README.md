@@ -153,7 +153,7 @@ schema and the bundled `collection-schema-v3` skill:
   `graphql`);
 - every auth type the app supports, plus NTLM as an unsupported case;
 - native `graphql-request`, `grpc-request`, `websocket-request`,
-  `socket.io-request` and `mqtt-request` files;
+  `socket.io-request`, `mqtt-request`, and Streamable HTTP/stdio `mcp-request` files;
 - WebSocket and Socket.IO message files;
 - a local GraphQL SDL file and a native GraphQL example shape;
 - path variables, disabled headers, request settings and saved examples.
@@ -197,8 +197,29 @@ are used as a generator/reference and are not vendored here.
   MQTT 5 properties, connect properties, saved messages and Basic auth.
   MQTT scripts and examples are reported; a message
   `properties.subscriptionIdentifier` is received-only and reported.
-- **Kafka, MCP, LLM and data** requests are skipped with a warning; the app has
-  no document for them.
+- **MCP**: transport, URL or command, environment rows, headers, auth,
+  `strictSSL`, protocol version and request timeout, plus one
+  `tools/call`, `resources/read` or `prompts/get` JSON-RPC message. Other
+  methods, unknown transports, OAuth 2.0 auth and `sessionTimeout` are
+  reported. The two non-obvious mappings come from Postman's own format:
+  - The v3 schema's `v3-mcp-request` has `transport: "sse" | "stdio"`, and its
+    `sse` branch is titled "MCP request over SSE". But Postman's current MCP
+    request documentation
+    (https://learning.postman.com/docs/use/send-requests/protocols/mcp-requests/create)
+    says Postman supports **STDIO** and **streamable HTTP**, with the UI choice
+    named **HTTP**. Postman therefore stores its Streamable HTTP request under
+    the legacy `sse` enum value. The reader maps `sse` to Streamable HTTP, not
+    to the app's legacy HTTP+SSE transport; the schema has no way to express
+    legacy SSE separately.
+  - Postman's docs say to "enter the server's command" for STDIO, and the v3
+    field is one string, e.g. `npx -y @modelcontextprotocol/server-filesystem
+    /tmp`. The reader splits that line with shell-like quoting (single and
+    double quotes, backslash escapes, no variable or command expansion) into
+    the app's `command` and one-argument-per-line `args`. If the line cannot
+    be split (an unterminated quote or trailing backslash), the whole string is
+    imported as the program and the import report says so.
+- **Kafka, LLM and data** requests are skipped with a warning; the app has no
+  document for them.
 - v3 environment and globals YAML files are separate artifacts outside a
   collection directory (`postman/environments/*.environment.yaml`,
   `postman/globals/*.globals.yaml`), so this reader does not see them. The

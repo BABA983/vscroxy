@@ -86,3 +86,29 @@ func TestV3FolderEntriesCountTowardLimit(t *testing.T) {
 		t.Errorf("folders were not counted: requests = %+v", col.Requests)
 	}
 }
+
+func TestSplitShellWords(t *testing.T) {
+	for _, test := range []struct {
+		line string
+		want []string
+	}{
+		{`npx -y @modelcontextprotocol/server-filesystem /tmp`, []string{"npx", "-y", "@modelcontextprotocol/server-filesystem", "/tmp"}},
+		{`sh -c true`, []string{"sh", "-c", "true"}},
+		{`"/Applications/My Server" --flag "two words"`, []string{"/Applications/My Server", "--flag", "two words"}},
+		{`sh -c 'echo "a b"'`, []string{"sh", "-c", `echo "a b"`}},
+		{`a "" b`, []string{"a", "", "b"}},
+		{"a\\ b c", []string{"a b", "c"}},
+		{"", nil},
+	} {
+		got, err := splitShellWords(test.line)
+		if err != nil || !slices.Equal(got, test.want) {
+			t.Errorf("splitShellWords(%q) = %q, %v; want %q", test.line, got, err, test.want)
+		}
+	}
+	if _, err := splitShellWords(`sh 'unterminated`); err == nil {
+		t.Error("unterminated quote was accepted")
+	}
+	if _, err := splitShellWords(`sh trailing\`); err == nil {
+		t.Error("trailing backslash was accepted")
+	}
+}

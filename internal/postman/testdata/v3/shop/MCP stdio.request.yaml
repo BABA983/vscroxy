@@ -1,7 +1,7 @@
 $kind: mcp-request
 name: MCP stdio
 transport: stdio
-command: /usr/local/bin/mcp-demo
+command: npx -y @modelcontextprotocol/server-filesystem /tmp
 env:
   - key: TOKEN
     value: '{{token}}'

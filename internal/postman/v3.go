@@ -696,7 +696,9 @@ func (r *v3reader) mcpRequest(req v3Request) (*pmMCP, *request.Settings, bool) {
 	cfg := request.MCPConfig{}
 	switch strings.TrimSpace(req.Transport) {
 	case "sse":
-		cfg.Transport = request.MCPTransportSSE
+		// Postman's HTTP choice is Streamable HTTP; the v3 schema still names
+		// the field "sse" for compatibility with its first MCP draft.
+		cfg.Transport = request.MCPTransportStreamableHTTP
 	case "stdio":
 		cfg.Transport = request.MCPTransportStdio
 	default:
@@ -704,7 +706,26 @@ func (r *v3reader) mcpRequest(req v3Request) (*pmMCP, *request.Settings, bool) {
 		return nil, nil, false
 	}
 	settings, cfg := r.mcpSettings(req.Settings, cfg)
-	cfg.Command = req.Command
+	if cfg.Transport == request.MCPTransportStdio {
+		parts, err := splitShellWords(req.Command)
+		valid := err == nil && len(parts) > 0
+		if valid {
+			for _, arg := range parts[1:] {
+				// The document stores one argument per line, so an empty
+				// argument or one containing a newline cannot survive a
+				// round trip.
+				if arg == "" || strings.ContainsAny(arg, "\r\n") {
+					valid = false
+				}
+			}
+		}
+		if !valid {
+			r.warn.add("mcp command", cmp.Or(req.Command, "empty"), 1)
+			cfg.Command = strings.TrimSpace(req.Command)
+		} else {
+			cfg.Command, cfg.Args = parts[0], strings.Join(parts[1:], "\n")
+		}
+	}
 	for _, env := range req.Env {
 		name := strings.TrimSpace(env.Key)
 		if name == "" {
@@ -715,6 +736,63 @@ func (r *v3reader) mcpRequest(req v3Request) (*pmMCP, *request.Settings, bool) {
 	r.paramMetadata(req.Env)
 	r.mcpMessage(req.Message, &cfg)
 	return &pmMCP{Config: cfg}, settings, true
+}
+
+// splitShellWords splits a Postman stdio command line into the program and
+// its arguments. It supports whitespace, single and double quotes and
+// backslash escapes, but performs no variable or command expansion.
+func splitShellWords(line string) ([]string, error) {
+	var out []string
+	var word strings.Builder
+	started := false
+	quote := byte(0)
+	for i := 0; i < len(line); i++ {
+		c := line[i]
+		if quote == 0 {
+			switch c {
+			case ' ', '\t', '\r', '\n':
+				if started {
+					out = append(out, word.String())
+					word.Reset()
+					started = false
+				}
+				continue
+			case '\'', '"':
+				quote, started = c, true
+				continue
+			case '\\':
+				if i+1 >= len(line) {
+					return nil, fmt.Errorf("trailing backslash")
+				}
+				i++
+				word.WriteByte(line[i])
+				started = true
+				continue
+			}
+			word.WriteByte(c)
+			started = true
+			continue
+		}
+		if c == quote {
+			quote = 0
+			continue
+		}
+		if c == '\\' && quote == '"' && i+1 < len(line) {
+			i++
+			word.WriteByte(line[i])
+			started = true
+			continue
+		}
+		word.WriteByte(c)
+		started = true
+	}
+	if quote != 0 {
+		return nil, fmt.Errorf("unterminated quote")
+	}
+	if started {
+		out = append(out, word.String())
+	}
+	return out, nil
 }
 
 // mcpSettings maps strictSSL, version, requestTimeout and sessionTimeout. The
@@ -739,7 +817,9 @@ func (r *v3reader) mcpSettings(v jsontext.Value, cfg request.MCPConfig) (*reques
 	switch strings.TrimSpace(settings.Version) {
 	case "", "auto":
 	case "legacy":
-		cfg.ProtocolVersion = "legacy"
+		// The app now names the revision directly; Postman's "legacy" is the
+		// last protocol before the stateless 2026-07-28 revision.
+		cfg.ProtocolVersion = "2025-11-25"
 	case "2026-07-28":
 		cfg.ProtocolVersion = "2026-07-28"
 	default:

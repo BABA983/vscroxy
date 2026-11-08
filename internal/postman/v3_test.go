@@ -394,10 +394,10 @@ func TestReadCollectionDirV3Protocols(t *testing.T) {
 	if mcp.Protocol != "MCP" || mcp.Method != "POST" || mcp.URL != "{{baseUrl}}/mcp" || mcp.Headers != "X-Trace: 1" {
 		t.Errorf("MCP request = %+v", mcp)
 	}
-	if mcp.MCP.Transport != request.MCPTransportSSE || mcp.MCP.Tool != "echo" || mcp.MCP.ToolArgs != `{"text":"hello"}` {
+	if mcp.MCP.Transport != request.MCPTransportStreamableHTTP || mcp.MCP.Tool != "echo" || mcp.MCP.ToolArgs != `{"text":"hello"}` {
 		t.Errorf("MCP operation = %+v", mcp.MCP)
 	}
-	if mcp.MCP.ProtocolVersion != "legacy" || mcp.MCP.TimeoutSeconds != 45 || mcp.Settings.VerifyTLS == nil || *mcp.Settings.VerifyTLS {
+	if mcp.MCP.ProtocolVersion != "2025-11-25" || mcp.MCP.TimeoutSeconds != 45 || mcp.Settings.VerifyTLS == nil || *mcp.Settings.VerifyTLS {
 		t.Errorf("MCP settings = %+v / %+v", mcp.MCP, mcp.Settings)
 	}
 	if mcp.Auth.Type != "Bearer" || mcp.Auth.Token != "{{token}}" {
@@ -405,7 +405,8 @@ func TestReadCollectionDirV3Protocols(t *testing.T) {
 	}
 
 	stdio := v3Request(t, col, "Shop API", "MCP stdio")
-	if stdio.Protocol != "MCP" || stdio.MCP.Transport != request.MCPTransportStdio || stdio.MCP.Command != "/usr/local/bin/mcp-demo" {
+	if stdio.Protocol != "MCP" || stdio.MCP.Transport != request.MCPTransportStdio || stdio.MCP.Command != "npx" ||
+		stdio.MCP.Args != "-y\n@modelcontextprotocol/server-filesystem\n/tmp" {
 		t.Errorf("MCP stdio = %+v", stdio)
 	}
 	if stdio.MCP.ResourceURI != "memo://welcome" || len(stdio.MCP.Env) != 2 || stdio.MCP.Env[0].Name != "TOKEN" ||

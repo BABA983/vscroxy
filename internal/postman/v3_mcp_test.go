@@ -2,6 +2,7 @@ package postman_test
 
 import (
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/baba983/vscroxy/internal/request"
@@ -14,7 +15,7 @@ func TestReadCollectionDirV3MCPMessages(t *testing.T) {
 		"prompt.request.yaml": `$kind: mcp-request
 name: Prompt
 transport: stdio
-command: server
+command: sh -c true
 message: '{"jsonrpc":"2.0","id":1,"method":"prompts/get","params":{"name":"greet","arguments":{"name":"Ada"}}}'
 `,
 		"list.request.yaml": `$kind: mcp-request
@@ -37,19 +38,34 @@ auth:
 name: Unknown transport
 transport: websocket
 `,
+		"badcommand.request.yaml": `$kind: mcp-request
+name: Bad command
+transport: stdio
+command: 'npx "unterminated'
+`,
 	})
 	col := readV3(t, dir)
-	if len(col.Requests) != 3 {
-		t.Fatalf("requests = %+v, want the prompt, the list and the OAuth request", col.Requests)
+	if len(col.Requests) != 4 {
+		t.Fatalf("requests = %+v, want the prompt, the list, the OAuth and the bad-command request", col.Requests)
 	}
 	prompt := v3Request(t, col, "MCP", "Prompt")
 	if prompt.Protocol != "MCP" || prompt.MCP.Transport != request.MCPTransportStdio ||
-		prompt.MCP.Prompt != "greet" || prompt.MCP.PromptArgs != `{"name":"Ada"}` || prompt.MCP.Command != "server" {
+		prompt.MCP.Prompt != "greet" || prompt.MCP.PromptArgs != `{"name":"Ada"}` || prompt.MCP.Command != "sh" || prompt.MCP.Args != "-c\ntrue" {
 		t.Errorf("prompt = %+v", prompt)
 	}
 	list := v3Request(t, col, "MCP", "List")
+	if list.MCP.Transport != request.MCPTransportStreamableHTTP {
+		t.Errorf("v3 sse transport = %q, want Streamable HTTP", list.MCP.Transport)
+	}
 	if list.MCP.Tool != "" || list.MCP.ResourceURI != "" || list.MCP.Prompt != "" {
 		t.Errorf("unsupported method became an operation: %+v", list.MCP)
+	}
+	bad := v3Request(t, col, "MCP", "Bad command")
+	if bad.MCP.Command != `npx "unterminated` || bad.MCP.Args != "" {
+		t.Errorf("unsplittable command = %+v", bad.MCP)
+	}
+	if !slices.ContainsFunc(col.Warnings, func(w string) bool { return strings.Contains(w, "MCP command") }) {
+		t.Errorf("unsplittable command did not warn: %q", col.Warnings)
 	}
 	for _, want := range []string{
 		"Could not map 1 MCP JSON-RPC message (tools/list); choose the operation in the MCP editor",

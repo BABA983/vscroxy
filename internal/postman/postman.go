@@ -281,6 +281,8 @@ func (k warning) text(n int) string {
 		return "Dropped Socket.IO " + k.detail + " setting"
 	case "socketio args":
 		return "Imported " + count(n, "Socket.IO binary argument", "Socket.IO binary arguments") + " as text"
+	case "mcp command":
+		return "Could not split " + count(n, "MCP command line", "MCP command lines") + " (" + k.detail + "); imported it as the program name"
 	case "mcp transport":
 		return "Skipped " + count(n, "MCP request", "MCP requests") + " with transport " + k.detail + "; the schema supports sse and stdio"
 	case "mcp version":
