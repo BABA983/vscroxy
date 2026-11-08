@@ -8,6 +8,7 @@ import (
 
 	"github.com/baba983/vscroxy/internal/request"
 	"github.com/baba983/vscroxy/internal/uikit"
+	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -92,13 +93,13 @@ func (a *app) variableTable(c *ui.Context, rows *[]variableRow, opts variableTab
 			// Keep the padding inside each column so the title's flex base
 			// matches the rows' cells.
 			ui.Box(c).Basis(0).Grow(1).MinWidth(0).FillHeight().BorderWidth(0, 1, 0, 0).BorderColor(t.Border).Children(func() {
-				uikit.Label(c, "Name").FillWidth().Padding(t.Space(1), t.Space(2))
+				uikit.Label(c, locales.Name()).FillWidth().Padding(t.Space(1), t.Space(2))
 			})
 			ui.Box(c).Basis(0).Grow(2).MinWidth(0).FillHeight().BorderWidth(0, 1, 0, 0).BorderColor(t.Border).Children(func() {
-				uikit.Label(c, "Initial").FillWidth().Padding(t.Space(1), t.Space(2))
+				uikit.Label(c, locales.Initial()).FillWidth().Padding(t.Space(1), t.Space(2))
 			})
 			ui.Box(c).Basis(0).Grow(2).MinWidth(0).FillHeight().BorderWidth(0, 1, 0, 0).BorderColor(t.Border).Children(func() {
-				uikit.Label(c, "Current").FillWidth().Padding(t.Space(1), t.Space(2))
+				uikit.Label(c, locales.Current()).FillWidth().Padding(t.Space(1), t.Space(2))
 			})
 			ui.Box(c).Width(uikit.HeightControl * 4)
 		})
@@ -110,7 +111,7 @@ func (a *app) variableTable(c *ui.Context, rows *[]variableRow, opts variableTab
 					if opts.enable {
 						ui.Box(c).Width(uikit.HeightLarge).FillHeight().Center().BorderWidth(0, 1, 0, 0).BorderColor(t.Border).Children(func() {
 							enabled := !r.Disabled
-							if ui.Checkbox(c, &enabled, "").Label(fmt.Sprintf("Enable variable %d", i+1)).Tooltip("Unchecked rows stay here and are not sent").Changed() {
+							if ui.Checkbox(c, &enabled, "").Label(locales.EnableVariable(i + 1)).Tooltip(locales.UncheckedRowsStayHereAnd()).Changed() {
 								r.Disabled, changed = !enabled, true
 							}
 						})
@@ -144,7 +145,7 @@ func (a *app) variableTable(c *ui.Context, rows *[]variableRow, opts variableTab
 						}
 					})
 					ui.Row(c).Width(uikit.HeightControl * 4).Children(func() {
-						if uikit.IconButton(c, fmt.Sprintf("Reveal variable %d", i+1), "Reveal or hide both values", eyeIcon).Clicked() {
+						if uikit.IconButton(c, locales.RevealVariable(i+1), locales.RevealOrHideBothValues(), eyeIcon).Clicked() {
 							r.Revealed = !r.Revealed
 						}
 						blocked := r.Credential || sensitiveVariable(r.Name)
@@ -153,12 +154,12 @@ func (a *app) variableTable(c *ui.Context, rows *[]variableRow, opts variableTab
 							persistTooltip = "Sensitive values stay local; edit Initial explicitly if you need to export it"
 						}
 						ui.Row(c).Disabled(!r.HasCurrent || r.Current == "" || blocked).Children(func() {
-							if uikit.IconButton(c, fmt.Sprintf("Persist current value %d", i+1), persistTooltip, persistIcon).Clicked() {
+							if uikit.IconButton(c, locales.PersistCurrentValue(i+1), persistTooltip, persistIcon).Clicked() {
 								r.Initial, r.HasInitial, changed = r.Current, true, true
 							}
 						})
 						ui.Row(c).Disabled(!r.HasCurrent).Children(func() {
-							if uikit.IconButton(c, fmt.Sprintf("Reset current value %d", i+1), "Reset current: use the initial value again", resetIcon).Clicked() {
+							if uikit.IconButton(c, locales.ResetCurrentValue(i+1), locales.ResetCurrentUseTheInitial(), resetIcon).Clicked() {
 								if !r.HasInitial && r.Initial == "" {
 									remove = i // nothing shared remains, so the local-only row goes
 								} else {
@@ -169,7 +170,7 @@ func (a *app) variableTable(c *ui.Context, rows *[]variableRow, opts variableTab
 						// The action column ends at the table's edge, so keep
 						// its focus ring inside the button instead of clipping
 						// it against the table border.
-						if uikit.IconButton(c, fmt.Sprintf("Remove variable %d", i+1), "Remove variable", closeIcon).FocusRingOffset(-2).Clicked() {
+						if uikit.IconButton(c, locales.RemoveVariableIndex(i+1), locales.RemoveVariable(), closeIcon).FocusRingOffset(-2).Clicked() {
 							remove = i
 						}
 					})
@@ -183,9 +184,9 @@ func (a *app) variableTable(c *ui.Context, rows *[]variableRow, opts variableTab
 				// The add row sits on the scroll's bottom edge; keep the
 				// focus ring inside it instead of clipping it against the
 				// table border.
-				if uikit.ToolbarButton(c, "Add variable", "Add variable", false).FocusRingOffset(-2).Children(func() {
+				if uikit.ToolbarButton(c, locales.AddVariable(), locales.AddVariable(), false).FocusRingOffset(-2).Children(func() {
 					ui.Icon(c, plusIcon).Size(uikit.IconInline, uikit.IconInline)
-					uikit.Body(c, "Add variable")
+					uikit.Body(c, locales.AddVariable())
 				}).Clicked() {
 					*rows = append(*rows, variableRow{})
 					changed = true

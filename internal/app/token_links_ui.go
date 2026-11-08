@@ -3,7 +3,6 @@ package app
 import (
 	"context"
 	"encoding/json/v2"
-	"fmt"
 	"slices"
 	"strconv"
 	"strings"
@@ -11,6 +10,7 @@ import (
 	"uuid"
 
 	"github.com/baba983/vscroxy/internal/uikit"
+	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -111,13 +111,13 @@ func (a *app) tokenLinksModal(c *ui.Context, t *ui.Theme) {
 	_, height := c.Size()
 	uikit.Modal(c, &w.open, func() {
 		uikit.DialogColumn(c, 820).Height(min(560, height-80)).Children(func() {
-			uikit.DialogTitle(c, "Token links")
-			uikit.Hint(c, fmt.Sprintf("%d selected captures · JSON response → later Bearer Authorization · same origin only", len(w.flows)))
-			uikit.Hint(c, "Evidence, not proof of authentication. Values are hidden. Changes require review and explicit Apply; no requests are sent.")
+			uikit.DialogTitle(c, locales.TokenLinks())
+			uikit.Hint(c, locales.TokenLinksSelected(len(w.flows)))
+			uikit.Hint(c, locales.EvidenceNotProofOfAuthentication())
 			ui.Scroll(c).Grow(1).MinHeight(0).Gap(t.Space(3)).Padding(0, t.Space(1)).Children(func() {
 				if w.busy {
 					ui.Spinner(c).Size(20, 20)
-					uikit.Body(c, "Analyzing complete JSON responses…")
+					uikit.Body(c, locales.AnalyzingCompleteJsonResponses())
 					return
 				}
 				if w.problem != "" {
@@ -125,18 +125,18 @@ func (a *app) tokenLinksModal(c *ui.Context, t *ui.Theme) {
 					return
 				}
 				if w.applied {
-					uikit.Body(c, "Token link applied").FontWeight(600)
-					uikit.Hint(c, "Select the target environment, then run the source before its consumers. The new Current value starts empty; captured credentials were not copied. Existing scripts were retained.")
+					uikit.Body(c, locales.TokenLinkApplied()).FontWeight(600)
+					uikit.Hint(c, locales.SelectTheTargetEnvironmentThen())
 					return
 				}
 				if p := w.plan; p != nil {
-					uikit.Body(c, "Review generated changes").FontWeight(600)
+					uikit.Body(c, locales.ReviewGeneratedChanges()).FontWeight(600)
 					uikit.Body(c, "Source request: "+p.Source)
 					uikit.Body(c, "Consumer requests: "+strings.Join(p.Consumers, ", ")).Wrap()
 					uikit.Body(c, "Environment: "+p.Environment+" · new Current: "+p.Variable)
-					uikit.Hint(c, "Existing scripts are kept. Clear-before-login is prepended; extraction and consumer guards are appended. Other Auth types, dirty drafts and stale proposals are refused. Review authored scripts for deliberate overrides.")
-					uikit.Hint(c, "Native source binding clears the token before checks and all inherited/authored setup, even on script compilation failure. Postman export keeps script fallback only and warns that this early-reset guarantee is not portable.")
-					uikit.Hint(c, "Current is plaintext local storage, not Vault. The generated scripts are bound to this environment and require its Current slot. A failed multi-file save can keep the empty slot and partial files; reload before preparing again.")
+					uikit.Hint(c, locales.ExistingScriptsAreKeptClear())
+					uikit.Hint(c, locales.NativeSourceBindingClearsThe())
+					uikit.Hint(c, locales.CurrentIsPlaintextLocalStorage())
 					for _, script := range []struct{ label, text string }{{"Source · pre-request", p.SourcePre}, {"Source · post-response", p.SourcePost}, {"Consumers · pre-request", p.ConsumerPre}} {
 						uikit.Body(c, script.label).FontWeight(600)
 						uikit.Mono(c, script.text).Wrap()
@@ -145,12 +145,12 @@ func (a *app) tokenLinksModal(c *ui.Context, t *ui.Theme) {
 					return
 				}
 				if len(w.analysis.Links) == 0 {
-					uikit.Body(c, "No unambiguous token links found")
-					uikit.Hint(c, "Select a login response and its later authenticated requests. Only token/access_token/id_token string fields are considered; overlapping requests and ambiguous sources are excluded.")
+					uikit.Body(c, locales.NoUnambiguousTokenLinksFound())
+					uikit.Hint(c, locales.SelectALoginResponseAnd())
 				}
 				for i, link := range w.analysis.Links {
 					ui.Column(c.Key(i)).Padding(t.Space(3)).Gap(t.Space(2)).Border(1, t.Border).Radius(uikit.RadiusPanel).Children(func() {
-						uikit.Body(c, fmt.Sprintf("Response #%d → %d Bearer requests", link.Source, len(link.Consumers))).FontWeight(600)
+						uikit.Body(c, locales.TokenLinkRow(link.Source, len(link.Consumers))).FontWeight(600)
 						path, _ := json.Marshal(link.Path)
 						uikit.Mono(c, "JSON path segments: "+string(path)).Wrap()
 						ids := make([]string, len(link.Consumers))
@@ -158,21 +158,23 @@ func (a *app) tokenLinksModal(c *ui.Context, t *ui.Theme) {
 							ids[j] = "#" + strconv.Itoa(id)
 						}
 						uikit.Body(c, "Consumers: "+strings.Join(ids, ", ")).Wrap()
-						uikit.Meta(c, "Exact value match · token •••• · capture-time ordering")
+						uikit.Meta(c, locales.ExactValueMatchTokenCapture())
 						if len(w.analysis.Links) > 1 {
-							uikit.SecondaryButton(c, fmt.Sprintf("Select token link %d", i+1)).Disabled(w.active == i).OnClick(func() { w.active = i })
+							uikit.SecondaryButton(c, locales.SelectTokenLink(i+1)).Disabled(w.active == i).OnClick(func() { w.active = i })
 						}
 					})
 				}
 				if w.analysis.Skipped > 0 {
-					uikit.Hint(c, fmt.Sprintf("%d responses were not inspected (non-JSON, incomplete, unavailable or outside analysis limits).", w.analysis.Skipped))
+					uikit.Hint(c, locales.TokenLinksSkipped(w.analysis.Skipped))
 				}
 				if len(w.analysis.Links) > 0 {
-					uikit.Body(c, "Apply to saved requests").FontWeight(600)
-					uikit.Hint(c, "Save the source and consumers to a collection first. Each capture must match one saved request; no request is created automatically.")
-					ui.Field(c, "Collection / folder", func() { uikit.Select(c, &w.config.Collection, a.collectionNames()).Label("Token link collection") })
-					ui.Field(c, "Environment", func() { uikit.Select(c, &w.config.Environment, a.envNames()).Label("Token link environment") })
-					ui.Field(c, "New local Current variable", func() { uikit.Input(c, &w.config.Variable).Label("Token link variable") })
+					uikit.Body(c, locales.ApplyToSavedRequests()).FontWeight(600)
+					uikit.Hint(c, locales.SaveTheSourceAndConsumers())
+					ui.Field(c, locales.CollectionFolder(), func() {
+						uikit.Select(c, &w.config.Collection, a.collectionNames()).Label(locales.TokenLinkCollection())
+					})
+					ui.Field(c, locales.Environment(), func() { uikit.Select(c, &w.config.Environment, a.envNames()).Label(locales.TokenLinkEnvironment()) })
+					ui.Field(c, locales.NewLocalCurrentVariable(), func() { uikit.Input(c, &w.config.Variable).Label(locales.TokenLinkVariable()) })
 				}
 			})
 			if w.applyError != "" {
@@ -186,10 +188,10 @@ func (a *app) tokenLinksModal(c *ui.Context, t *ui.Theme) {
 					state = "Private slot saved · review save error"
 				}
 				uikit.Meta(c, state).Grow(1).MinWidth(0)
-				uikit.SecondaryButton(c, "Close token links").OnClick(w.close)
+				uikit.SecondaryButton(c, locales.CloseTokenLinks()).OnClick(w.close)
 				if !w.busy && w.problem == "" && !w.applied && len(w.analysis.Links) > 0 {
 					if w.plan == nil {
-						uikit.PrimaryButton(c, "Review token link changes").OnClick(func() {
+						uikit.PrimaryButton(c, locales.ReviewTokenLinkChanges()).OnClick(func() {
 							p, err := a.planTokenLink(w, w.active, w.config)
 							if err != nil {
 								w.applyError = err.Error()
@@ -198,8 +200,8 @@ func (a *app) tokenLinksModal(c *ui.Context, t *ui.Theme) {
 							}
 						})
 					} else {
-						uikit.SecondaryButton(c, "Back to token evidence").OnClick(func() { w.plan, w.applyError, w.reviewed = nil, "", false })
-						uikit.PrimaryButton(c, "Apply token link").Disabled(!w.reviewed).OnClick(func() {
+						uikit.SecondaryButton(c, locales.BackToTokenEvidence()).OnClick(func() { w.plan, w.applyError, w.reviewed = nil, "", false })
+						uikit.PrimaryButton(c, locales.ApplyTokenLink()).Disabled(!w.reviewed).OnClick(func() {
 							if err := a.applyTokenLink(w.plan); err != nil {
 								w.applyError = err.Error()
 								return

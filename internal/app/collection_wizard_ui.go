@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/baba983/vscroxy/internal/uikit"
+	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo/ui"
 	"github.com/oneo-me/onevra/source/icons/lucide"
 )
@@ -24,7 +25,7 @@ func (a *app) collectionWizardModal(c *ui.Context, t *ui.Theme) {
 	dialog := uikit.Modal(c, &w.open, func() {
 		c.OnShortcut(0, ui.KeyEscape, func() { w.open = false })
 		uikit.DialogColumn(c, 1080).Height(min(620, height-100)).Gap(t.Space(3)).Children(func() {
-			uikit.DialogTitle(c, "Create collection")
+			uikit.DialogTitle(c, locales.CreateCollection2())
 			ui.Row(c).Gap(t.Space(2)).FillWidth().Children(func() {
 				for i, label := range collectionSteps {
 					ui.Row(c.Key(label)).Grow(1).Gap(t.Space(2)).Height(36).AlignItems(ui.Center).BorderWidth(0, 0, 1, 0).BorderColor(t.Border).Children(func() {
@@ -63,7 +64,7 @@ func (a *app) collectionWizardModal(c *ui.Context, t *ui.Theme) {
 					case 4:
 						a.collectionExamplesEditor(c, t)
 					case 5:
-						uikit.DialogTitle(c, "Ready to create")
+						uikit.DialogTitle(c, locales.ReadyToCreate())
 						n, examples := 0, 0
 						for _, g := range w.groups {
 							if g.include {
@@ -75,12 +76,12 @@ func (a *app) collectionWizardModal(c *ui.Context, t *ui.Theme) {
 								}
 							}
 						}
-						uikit.Body(c, fmt.Sprintf("%d requests · %d examples", n, examples))
+						uikit.Body(c, locales.RequestsAndExamples(n, examples))
 						uikit.Body(c, "Collection: "+cmp.Or(w.destination, w.name))
 						uikit.Body(c, "Environment: "+w.environmentLabel())
 						ui.Checkbox(c, &w.generateAPI, "Also generate OpenAPI draft").FontSize(uikit.TextBody)
-						uikit.Hint(c, "The API draft opens in APIs for review; it is not a verified contract.")
-						uikit.Hint(c, "Requests and examples may contain sensitive query and body values. Review them before sharing.")
+						uikit.Hint(c, locales.TheApiDraftOpensIn())
+						uikit.Hint(c, locales.RequestsAndExamplesMayContain())
 					}
 				})
 				ui.Column(c.Key("preview-"+strconv.Itoa(w.step))).Basis(0).Grow(1.15).MinWidth(0).MinHeight(0).Padding(t.Space(3)).Gap(t.Space(3)).Background(uikit.Colors(t).Panel).Border(1, t.Border).Radius(uikit.RadiusPanel).Children(func() {
@@ -89,7 +90,7 @@ func (a *app) collectionWizardModal(c *ui.Context, t *ui.Theme) {
 						return
 					}
 					if w.step == 0 {
-						uikit.DialogTitle(c, "Hosts in scope")
+						uikit.DialogTitle(c, locales.HostsInScope())
 						ui.Scroll(c).Grow(1).MinHeight(0).Gap(t.Space(2)).Children(func() {
 							for _, h := range w.hosts {
 								uikit.Mono(c, h.origin).SingleLine()
@@ -98,13 +99,13 @@ func (a *app) collectionWizardModal(c *ui.Context, t *ui.Theme) {
 						return
 					}
 					if len(w.groups) == 0 {
-						uikit.Hint(c, "No endpoints in this scope")
+						uikit.Hint(c, locales.NoEndpointsInThisScope())
 						return
 					}
 					w.active = min(w.active, len(w.groups)-1)
 					g := w.groups[w.active]
 					uikit.DialogTitle(c, g.method+" "+g.template).Font(uikit.FontMono).SingleLine()
-					uikit.Meta(c, fmt.Sprintf("%s · %d captured requests", g.origin, len(g.flows))).SingleLine()
+					uikit.Meta(c, locales.OriginCapturedRequests(g.origin, len(g.flows))).SingleLine()
 					if w.step == 1 || w.step == 4 {
 						ui.Scroll(c).Grow(1).MinHeight(0).Gap(t.Space(2)).Children(func() {
 							for _, i := range g.flows {
@@ -121,7 +122,7 @@ func (a *app) collectionWizardModal(c *ui.Context, t *ui.Theme) {
 					// Never read a spilled request just to paint a preview.
 					f := w.latest(g)
 					if f.reqFile != "" {
-						uikit.Hint(c, "Request body is on disk; it will be read when you create the collection.")
+						uikit.Hint(c, locales.RequestBodyIsOnDisk())
 						return
 					}
 					r, err := w.requestFor(g)
@@ -147,14 +148,14 @@ func (a *app) collectionWizardModal(c *ui.Context, t *ui.Theme) {
 					message = "Preparing requests and examples…"
 				}
 				uikit.Meta(c, message).Grow(1)
-				uikit.SecondaryButton(c, "Cancel").OnClick(func() { w.open = false })
+				uikit.SecondaryButton(c, locales.Cancel()).OnClick(func() { w.open = false })
 				if w.step > 0 {
-					uikit.SecondaryButton(c, "Back").Disabled(w.building != nil).OnClick(func() { w.step--; w.problem = "" })
+					uikit.SecondaryButton(c, locales.Back()).Disabled(w.building != nil).OnClick(func() { w.step--; w.problem = "" })
 				}
 				if w.step < 5 {
 					uikit.PrimaryButton(c, "Next: "+collectionSteps[w.step+1]).Disabled(len(w.groups) == 0).OnClick(func() { w.step++; w.problem = "" })
 				} else {
-					uikit.PrimaryButton(c, "Create").Disabled(w.building != nil).OnClick(a.createCollection)
+					uikit.PrimaryButton(c, locales.Create()).Disabled(w.building != nil).OnClick(a.createCollection)
 				}
 			})
 		})
@@ -175,26 +176,26 @@ func (w *collectionWizard) environmentLabel() string {
 
 func (a *app) collectionScopeEditor(c *ui.Context, t *ui.Theme) {
 	w := &a.collectionUI
-	uikit.DialogTitle(c, "Choose scope")
-	uikit.Body(c, fmt.Sprintf("%d captured requests", len(w.flows)))
+	uikit.DialogTitle(c, locales.ChooseScope())
+	uikit.Body(c, locales.CapturedRequestsCount(len(w.flows)))
 	ui.Checkbox(c, &w.static, "Exclude static resources").FontSize(uikit.TextBody).OnChange(w.regroup)
 	ui.Checkbox(c, &w.tunnels, "Exclude CONNECT tunnels").FontSize(uikit.TextBody).OnChange(w.regroup)
 	ui.Checkbox(c, &w.failed, "Exclude network failures").FontSize(uikit.TextBody).OnChange(w.regroup)
-	uikit.Hint(c, "HTTP 4xx and 5xx responses are kept for error examples. Streams and non-HTTP traffic cannot become requests.")
-	uikit.Body(c, fmt.Sprintf("%d included · %d omitted · %d endpoints", len(w.scope()), len(w.flows)-len(w.scope()), len(w.groups)))
+	uikit.Hint(c, locales.Http4xxAnd5xxResponses())
+	uikit.Body(c, locales.ScopeSummary(len(w.scope()), len(w.flows)-len(w.scope()), len(w.groups)))
 }
 
 func (a *app) collectionEndpointsEditor(c *ui.Context, t *ui.Theme) {
 	w := &a.collectionUI
-	uikit.DialogTitle(c, "Merge endpoints")
-	uikit.Hint(c, "Same method, host and path template become one request.")
+	uikit.DialogTitle(c, locales.MergeEndpoints())
+	uikit.Hint(c, locales.SameMethodHostAndPath())
 	for i, g := range w.groups {
 		ui.Row(c.Key(g.id)).Gap(t.Space(2)).Height(uikit.HeightLarge).Children(func() {
 			ui.Checkbox(c, &g.include, "").Label("Include " + g.method + " " + g.template)
 			uikit.ToolbarButton(c, "Endpoint "+g.method+" "+g.template, g.origin, i == w.active).Grow(1).MinWidth(0).Children(func() {
 				ui.Text(c, g.method).Font(uikit.FontMono).FontSize(uikit.TextData).TextColor(uikit.MethodColor(g.method, t)).Width(46)
 				uikit.Mono(c, g.template).Grow(1).MinWidth(0).SingleLine()
-				uikit.Meta(c, fmt.Sprintf("×%d", len(g.flows)))
+				uikit.Meta(c, locales.TimesCount(len(g.flows)))
 			}).OnClick(func() { w.active = i })
 		})
 	}
@@ -203,11 +204,11 @@ func (a *app) collectionEndpointsEditor(c *ui.Context, t *ui.Theme) {
 	}
 	g := w.groups[min(w.active, len(w.groups)-1)]
 	ui.Divider(c)
-	uikit.Body(c, "Path template")
-	uikit.Input(c, &g.template).Label("Path template").Font(uikit.FontMono)
-	uikit.Hint(c, "Use :id for a whole path segment. Rename parameters here; literal segments are kept unchanged.")
+	uikit.Body(c, locales.PathTemplate())
+	uikit.Input(c, &g.template).Label(locales.PathTemplate()).Font(uikit.FontMono)
+	uikit.Hint(c, locales.UseIdForAWhole())
 	ui.Row(c).Gap(t.Space(2)).Wrap().Children(func() {
-		uikit.SecondaryButton(c, "Split").Disabled(len(g.flows) < 2).OnClick(func() { w.split(w.active) })
+		uikit.SecondaryButton(c, locales.Split()).Disabled(len(g.flows) < 2).OnClick(func() { w.split(w.active) })
 		uikit.MenuSelect(c, "Merge with…", func(m *ui.Menu) {
 			for i, other := range w.groups {
 				if other != g && other.origin == g.origin && other.method == g.method {
@@ -225,10 +226,10 @@ func (a *app) collectionEndpointsEditor(c *ui.Context, t *ui.Theme) {
 
 func (a *app) collectionVariablesEditor(c *ui.Context, t *ui.Theme) {
 	w := &a.collectionUI
-	uikit.DialogTitle(c, "Hosts → environment")
-	uikit.Select(c, &w.environment, append([]string{"New environment"}, a.envNames()...)).Label("Target environment")
+	uikit.DialogTitle(c, locales.HostsEnvironment())
+	uikit.Select(c, &w.environment, append([]string{"New environment"}, a.envNames()...)).Label(locales.TargetEnvironment())
 	if w.environment == "New environment" {
-		uikit.Input(c, &w.environmentName).Label("New environment name")
+		uikit.Input(c, &w.environmentName).Label(locales.NewEnvironmentName())
 	}
 	for i := range w.hosts {
 		h := &w.hosts[i]
@@ -238,25 +239,25 @@ func (a *app) collectionVariablesEditor(c *ui.Context, t *ui.Theme) {
 		})
 	}
 	ui.Divider(c)
-	uikit.DialogTitle(c, "Credentials")
-	uikit.Hint(c, "Matching Authorization is inherited from the collection. Cookie and API-key headers use private variable references.")
+	uikit.DialogTitle(c, locales.Credentials())
+	uikit.Hint(c, locales.MatchingAuthorizationIsInheritedFrom())
 	for i := range w.credentials {
 		credential := &w.credentials[i]
 		ui.Column(c.Key(i)).Gap(t.Space(2)).Padding(0, 0, t.Space(2), 0).Children(func() {
-			uikit.Body(c, fmt.Sprintf("%s · •••• · %d requests", credential.header, credential.count))
-			uikit.Input(c, &credential.variable).Label(fmt.Sprintf("Credential variable %d", i+1)).Font(uikit.FontMono)
-			uikit.Select(c, &credential.storage, []string{credentialCurrent, credentialVault, credentialKeep}).Label(fmt.Sprintf("Store credential %d", i+1))
+			uikit.Body(c, locales.CredentialSummary(credential.header, credential.count))
+			uikit.Input(c, &credential.variable).Label(locales.CredentialVariable(i + 1)).Font(uikit.FontMono)
+			uikit.Select(c, &credential.storage, []string{credentialCurrent, credentialVault, credentialKeep}).Label(locales.StoreCredential(i + 1))
 			if credential.storage == credentialKeep {
-				ui.Text(c, "Original credential will be written into request files.").FontSize(uikit.TextMeta).TextColor(t.Warning)
+				ui.Text(c, locales.OriginalCredentialWillBeWritten()).FontSize(uikit.TextMeta).TextColor(t.Warning)
 			}
 		})
 	}
 	if len(w.credentials) == 0 {
-		uikit.Meta(c, "No Authorization, Cookie or API-key headers found.")
+		uikit.Meta(c, locales.NoAuthorizationCookieOrApi())
 	}
-	uikit.Hint(c, "Current values stay local and are excluded from environment exports. Vault values are encrypted and host-restricted.")
+	uikit.Hint(c, locales.CurrentValuesStayLocalAnd())
 	ui.Divider(c)
-	uikit.DialogTitle(c, "Path parameters")
+	uikit.DialogTitle(c, locales.PathParameters())
 	seen := map[string]bool{}
 	for _, g := range w.groups {
 		if !g.include {
@@ -271,14 +272,14 @@ func (a *app) collectionVariablesEditor(c *ui.Context, t *ui.Theme) {
 			}
 		}
 	}
-	uikit.Hint(c, "Same-named parameters share an initial value. Rename them in Endpoints to keep different IDs.")
+	uikit.Hint(c, locales.SameNamedParametersShareAn())
 }
 
 func (a *app) collectionStructureEditor(c *ui.Context, t *ui.Theme) {
 	w := &a.collectionUI
-	uikit.Body(c, "Collection name")
-	uikit.Input(c, &w.name).Label("Collection name").Disabled(w.destination != "")
-	uikit.Body(c, "Save to")
+	uikit.Body(c, locales.CollectionName())
+	uikit.Input(c, &w.name).Label(locales.CollectionName()).Disabled(w.destination != "")
+	uikit.Body(c, locales.SaveTo())
 	uikit.MenuSelect(c, cmp.Or(w.destination, "New collection"), func(m *ui.Menu) {
 		if m.Item("New collection").Chosen() {
 			w.destination = ""
@@ -288,28 +289,28 @@ func (a *app) collectionStructureEditor(c *ui.Context, t *ui.Theme) {
 				w.destination = name
 			}
 		}
-	}).Label("Save to")
-	uikit.Body(c, "Group by")
-	uikit.Segmented(c, &w.grouping, "Host", "Path prefix", "Flat").OnChange(w.organize)
-	uikit.Hint(c, "Drag onto a folder to move, or onto a request to reorder. Select a request to edit its name and folder.")
+	}).Label(locales.SaveTo())
+	uikit.Body(c, locales.GroupBy())
+	uikit.Segmented(c, &w.grouping, locales.Host(), "Path prefix", "Flat").OnChange(w.organize)
+	uikit.Hint(c, locales.DragOntoAFolderTo())
 	if len(w.groups) == 0 {
 		return
 	}
 	g := w.groups[min(w.active, len(w.groups)-1)]
-	uikit.Body(c, "Selected request")
+	uikit.Body(c, locales.SelectedRequest())
 	uikit.Mono(c, g.method+" "+g.template).SingleLine()
-	uikit.Input(c, &g.name).Label("Request name")
-	uikit.Input(c, &g.folder).Label("Request folder").Placeholder("Collection root")
+	uikit.Input(c, &g.name).Label(locales.RequestName())
+	uikit.Input(c, &g.folder).Label(locales.RequestFolder()).Placeholder(locales.CollectionRoot())
 	ui.Row(c).Gap(t.Space(2)).Children(func() {
-		uikit.SecondaryButton(c, "Move up").Disabled(w.active == 0).OnClick(func() { i := w.active; w.groups[i-1], w.groups[i] = w.groups[i], w.groups[i-1]; w.active-- })
-		uikit.SecondaryButton(c, "Move down").Disabled(w.active == len(w.groups)-1).OnClick(func() { i := w.active; w.groups[i+1], w.groups[i] = w.groups[i], w.groups[i+1]; w.active++ })
+		uikit.SecondaryButton(c, locales.MoveUp()).Disabled(w.active == 0).OnClick(func() { i := w.active; w.groups[i-1], w.groups[i] = w.groups[i], w.groups[i-1]; w.active-- })
+		uikit.SecondaryButton(c, locales.MoveDown()).Disabled(w.active == len(w.groups)-1).OnClick(func() { i := w.active; w.groups[i+1], w.groups[i] = w.groups[i], w.groups[i+1]; w.active++ })
 	})
 }
 
 func (a *app) collectionExamplesEditor(c *ui.Context, t *ui.Theme) {
 	w := &a.collectionUI
-	uikit.DialogTitle(c, "Choose examples")
-	uikit.Hint(c, "Default: latest successful response and one response per error status. Deselect incomplete or binary responses.")
+	uikit.DialogTitle(c, locales.ChooseExamples())
+	uikit.Hint(c, locales.DefaultLatestSuccessfulResponseAnd())
 	for index, g := range w.groups {
 		if !g.include {
 			continue
@@ -370,7 +371,7 @@ func (a *app) collectionWizardTree(c *ui.Context, t *ui.Theme) {
 							n++
 						}
 					}
-					uikit.Meta(c, fmt.Sprintf("%d examples", n))
+					uikit.Meta(c, locales.ExamplesCount(n))
 				}).OnClick(func() { w.active = i })
 			}
 		}

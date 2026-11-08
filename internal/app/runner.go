@@ -15,6 +15,7 @@ import (
 
 	"github.com/baba983/vscroxy/internal/request"
 	"github.com/baba983/vscroxy/internal/runner"
+	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 )
@@ -175,7 +176,7 @@ func runnableCollections(requests []savedRequest) []string {
 // iteration count.
 func (a *app) chooseRunnerData() {
 	go func() {
-		paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Title: "Runner data file",
+		paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Title: locales.RunnerDataFile(),
 			Filters: []mygo.FileFilter{{Name: "CSV or JSON", Extensions: []string{"csv", "json"}}}})
 		if err != nil || len(paths) == 0 {
 			return
@@ -252,17 +253,17 @@ func (a *app) runnerModal(c *ui.Context, t *ui.Theme) {
 	width, height := c.Size()
 	uikit.Modal(c, &r.open, func() {
 		ui.Column(c).Width(min(840, width-80)).Height(min(560, height-100)).Gap(t.Space(2)).Children(func() {
-			uikit.DialogTitle(c, "Collection Runner")
-			uikit.Meta(c, "Runs saved requests in order, 30 s per request")
+			uikit.DialogTitle(c, locales.CollectionRunner())
+			uikit.Meta(c, locales.RunsSavedRequestsInOrder())
 			ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 				names := runnableCollections(a.requests)
 				if len(names) == 0 {
 					names = []string{""}
 				}
-				if uikit.Select(c, &r.collection, names).Label("Runner collection").Grow(1).Disabled(r.running).Changed() {
+				if uikit.Select(c, &r.collection, names).Label(locales.RunnerCollection()).Grow(1).Disabled(r.running).Changed() {
 					r.load(a.requests)
 				}
-				uikit.Input(c, &r.iterations).Width(86).Label("Iterations").Disabled(r.running)
+				uikit.Input(c, &r.iterations).Width(86).Label(locales.Iterations()).Disabled(r.running)
 				ui.Checkbox(c, &r.stopOnFailure, "Stop on failure").FontSize(uikit.TextBody).Disabled(r.running)
 			})
 			ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
@@ -274,31 +275,31 @@ func (a *app) runnerModal(c *ui.Context, t *ui.Theme) {
 					text, color = fmt.Sprintf("%s · %d %s · %s", r.dataName, len(r.data), plural(len(r.data), "row", "rows"), strings.Join(request.DataColumns(r.data), ", ")), t.Text
 				}
 				ui.Text(c, text).FontSize(uikit.TextMeta).TextColor(color).Grow(1).MinWidth(0).SingleLine().Tooltip(text)
-				if len(r.data) > 0 && uikit.SecondaryButton(c, "Remove").Label("Remove data file").Disabled(r.running).Clicked() {
+				if len(r.data) > 0 && uikit.SecondaryButton(c, locales.Remove()).Label(locales.RemoveDataFile()).Disabled(r.running).Clicked() {
 					r.data, r.dataName, r.iterations = nil, "", "1"
 				}
-				if uikit.SecondaryButton(c, "Data file…").Tooltip("CSV with a header row, or a JSON array of objects; each row is one iteration's pm.iterationData").Disabled(r.running).Clicked() {
+				if uikit.SecondaryButton(c, locales.DataFile()).Tooltip(locales.CsvWithAHeaderRow()).Disabled(r.running).Clicked() {
 					a.chooseRunnerData()
 				}
 			})
 			ui.Row(c).Grow(1).MinHeight(0).Border(1, t.Border).Radius(uikit.RadiusControl).AlignItems(ui.Stretch).Children(func() {
 				ui.Column(c).Width(300).Children(func() {
-					uikit.Label(c, "Execution order").Height(uikit.HeightTabs).Padding(t.Space(2)).
+					uikit.Label(c, locales.ExecutionOrder()).Height(uikit.HeightTabs).Padding(t.Space(2)).
 						Border(0, t.Border).BorderWidth(0, 0, 1, 0)
 					move, delta := -1, 0
 					ui.Scroll(c).Grow(1).Children(func() {
 						if len(r.steps) == 0 {
-							uikit.EmptyState(c, "No saved requests", "Choose a collection with saved requests to run.", nil)
+							uikit.EmptyState(c, locales.NoSavedRequests(), locales.ChooseACollectionWithSaved(), nil)
 						}
 						for i := range r.steps {
 							step := &r.steps[i]
 							ui.Row(c).Key(i).Height(uikit.HeightControl).Padding(0, t.Space(2)).Gap(t.Space(1)).AlignItems(ui.Center).
 								Border(0, t.Border).BorderWidth(0, 0, 1, 0).Children(func() {
-								ui.Checkbox(c, &step.enabled, step.request.Name).Label(fmt.Sprintf("Run request %d", i+1)).FontSize(uikit.TextBody).Grow(1).Disabled(r.running)
-								if uikit.SecondaryButton(c, "↑").Label(fmt.Sprintf("Move request %d up", i+1)).Tooltip(fmt.Sprintf("Move request %d up", i+1)).Width(uikit.HeightCompact).Padding(0).Disabled(r.running || i == 0).Clicked() {
+								ui.Checkbox(c, &step.enabled, step.request.Name).Label(locales.RunRequest(i + 1)).FontSize(uikit.TextBody).Grow(1).Disabled(r.running)
+								if uikit.SecondaryButton(c, "↑").Label(locales.MoveRequestUp(i + 1)).Tooltip(locales.MoveRequestUp(i + 1)).Width(uikit.HeightCompact).Padding(0).Disabled(r.running || i == 0).Clicked() {
 									move, delta = i, -1
 								}
-								if uikit.SecondaryButton(c, "↓").Label(fmt.Sprintf("Move request %d down", i+1)).Tooltip(fmt.Sprintf("Move request %d down", i+1)).Width(uikit.HeightCompact).Padding(0).Disabled(r.running || i == len(r.steps)-1).Clicked() {
+								if uikit.SecondaryButton(c, "↓").Label(locales.MoveRequestDown(i + 1)).Tooltip(locales.MoveRequestDown(i + 1)).Width(uikit.HeightCompact).Padding(0).Disabled(r.running || i == len(r.steps)-1).Clicked() {
 									move, delta = i, 1
 								}
 							})
@@ -310,7 +311,7 @@ func (a *app) runnerModal(c *ui.Context, t *ui.Theme) {
 				})
 				ui.Divider(c)
 				ui.Column(c).Grow(1).MinWidth(0).Children(func() {
-					uikit.Label(c, fmt.Sprintf("Results · %d completed · %d failed", r.completed, r.failures)).Height(uikit.HeightTabs).Padding(t.Space(2)).FontFeatures("tnum").Border(0, t.Border).BorderWidth(0, 0, 1, 0)
+					uikit.Label(c, locales.RunnerResults(r.completed, r.failures)).Height(uikit.HeightTabs).Padding(t.Space(2)).FontFeatures("tnum").Border(0, t.Border).BorderWidth(0, 0, 1, 0)
 					r.results.Selected = &r.picked
 					c.SetTheme(uikit.ListTheme(t, r.results.Handle.Focused(c)))
 					ui.List(c, &r.results, len(r.rows)).Grow(1).Rows(func(item ui.ListRow) {
@@ -332,9 +333,9 @@ func (a *app) runnerModal(c *ui.Context, t *ui.Theme) {
 					}).Children(func() {
 						if len(r.rows) == 0 {
 							if r.running {
-								uikit.EmptyState(c, "Running collection", "Completed requests will appear here.", nil)
+								uikit.EmptyState(c, locales.RunningCollection(), locales.CompletedRequestsWillAppearHere(), nil)
 							} else {
-								uikit.EmptyState(c, "No results yet", "Run the selected requests to inspect checks and output.", nil)
+								uikit.EmptyState(c, locales.NoResultsYet(), locales.RunTheSelectedRequestsTo(), nil)
 							}
 						}
 					})
@@ -343,7 +344,7 @@ func (a *app) runnerModal(c *ui.Context, t *ui.Theme) {
 					ui.Scroll(c).Height(125).Padding(t.Space(2)).Gap(t.Space(1)).Children(func() {
 						if r.picked >= 0 && r.picked < len(r.rows) {
 							row := r.rows[r.picked]
-							if uikit.SecondaryButton(c, "Inspect retained run").Disabled(row.recordID == 0).Clicked() {
+							if uikit.SecondaryButton(c, locales.InspectRetainedRun()).Disabled(row.recordID == 0).Clicked() {
 								a.experiments.scope, a.experiments.draftKey = nil, ""
 								a.experiments.pick(row.recordID)
 								a.experiments.open, r.open = true, false
@@ -364,16 +365,16 @@ func (a *app) runnerModal(c *ui.Context, t *ui.Theme) {
 			}
 			uikit.Meta(c, footer)
 			ui.Row(c).Gap(t.Space(2)).Justify(ui.End).Children(func() {
-				uikit.SecondaryButton(c, "Load test…").Disabled(r.running || a.remoteRunActive()).OnClick(a.openLoadRunner)
-				if uikit.SecondaryButton(c, "Close").Clicked() {
+				uikit.SecondaryButton(c, locales.LoadTest()).Disabled(r.running || a.remoteRunActive()).OnClick(a.openLoadRunner)
+				if uikit.SecondaryButton(c, locales.Close()).Clicked() {
 					r.open = false
 				}
-				if uikit.SecondaryButton(c, "Cancel run").Disabled(!r.running).Clicked() {
+				if uikit.SecondaryButton(c, locales.CancelRun()).Disabled(!r.running).Clicked() {
 					r.cancelled = true
 					r.cancel()
 					r.status = "Stopping…"
 				}
-				if uikit.PrimaryButton(c, "Run collection").Disabled(r.running || a.loadRunner.running || a.remoteRunActive() || len(r.steps) == 0).Clicked() {
+				if uikit.PrimaryButton(c, locales.RunCollection()).Disabled(r.running || a.loadRunner.running || a.remoteRunActive() || len(r.steps) == 0).Clicked() {
 					a.startRunner()
 				}
 			})

@@ -1056,27 +1056,27 @@ func (v *captureViews) filterModal(c *ui.Context, t *ui.Theme, a *app) {
 		ui.Column(c).Width(560).Gap(t.Space(2)).Children(func() {
 			uikit.DialogTitle(c, locales.FilterNamed(v.label(v.active)))
 			ui.Field(c, locales.MatchPopulatedFields(), func() {
-				uikit.Select(c, &v.editMatch, []string{"All (AND)", "Any (OR)"}).Label("Filter combination")
+				uikit.Select(c, &v.editMatch, []string{"All (AND)", "Any (OR)"}).Label(locales.FilterCombination())
 			}).Description(locales.SearchSidebarProtocolAndTime())
 			uikit.Meta(c, locales.HostAndAppMatchExactly())
 			problem := ""
 			ui.Row(c).Gap(t.Space(3)).Children(func() {
 				ui.Field(c, locales.HostExactIncludingPort(), func() {
-					uikit.Input(c, &v.editTriage.Host).Label("Filter host").Placeholder("api.example.com")
+					uikit.Input(c, &v.editTriage.Host).Label(locales.FilterHost()).Placeholder("api.example.com")
 				}).Grow(1)
 				ui.Field(c, locales.AppExactName(), func() {
-					uikit.Input(c, &v.editTriage.Client).Label("Filter app").Placeholder(locales.Browser())
+					uikit.Input(c, &v.editTriage.Client).Label(locales.FilterApp()).Placeholder(locales.Browser())
 				}).Grow(1)
 			})
 			ui.Field(c, locales.GraphqlOperationExactCaseSensitive(), func() {
-				uikit.Input(c, &v.editTriage.Operation).Label("Filter GraphQL operation").Placeholder(locales.Search2())
+				uikit.Input(c, &v.editTriage.Operation).Label(locales.FilterGraphqlOperation()).Placeholder(locales.Search2())
 			}).Description(locales.OnlyVerifiedSelectedOperationsMatch())
 			if operation := strings.TrimSpace(v.editTriage.Operation); operation != "" {
 				problem = checkOperation(operation)
 			}
 			ui.Row(c).Gap(t.Space(3)).Children(func() {
 				ui.Field(c, locales.MethodCommaSeparated(), func() {
-					uikit.Input(c, &v.editTriage.Method).Label("Filter method").Placeholder("GET, POST")
+					uikit.Input(c, &v.editTriage.Method).Label(locales.FilterMethod()).Placeholder("GET, POST")
 				}).Grow(1)
 				ui.Field(c, locales.Color(), func() {
 					colors := []string{"Any", "Marked"}
@@ -1084,7 +1084,7 @@ func (v *captureViews) filterModal(c *ui.Context, t *ui.Theme, a *app) {
 						colors = append(colors, color.Name)
 					}
 					color := cmp.Or(v.editTriage.Color, "Any")
-					if uikit.Select(c, &color, colors).Label("Filter color").Changed() {
+					if uikit.Select(c, &color, colors).Label(locales.FilterColor()).Changed() {
 						v.editTriage.Color = color
 						if color == "Any" {
 							v.editTriage.Color = ""
@@ -1117,7 +1117,7 @@ func (v *captureViews) filterModal(c *ui.Context, t *ui.Theme, a *app) {
 			}
 			ui.Row(c).Gap(t.Space(3)).Children(func() {
 				ui.Field(c, locales.Status(), func() {
-					uikit.Input(c, &v.editStatus).Label("Filter status").Placeholder(locales.N4xx5xx())
+					uikit.Input(c, &v.editStatus).Label(locales.FilterStatus()).Placeholder(locales.N4xx5xx())
 				}).Grow(1)
 				ui.Field(c, locales.Header(), func() {
 					uikit.Input(c, &v.editHeader).Placeholder("content-type: json")
@@ -1125,10 +1125,10 @@ func (v *captureViews) filterModal(c *ui.Context, t *ui.Theme, a *app) {
 			})
 			ui.Row(c).Gap(t.Space(3)).Children(func() {
 				ui.Field(c, locales.NoteContains(), func() {
-					uikit.Input(c, &v.editTriage.Note).Label("Filter note").Placeholder(locales.CaseInsensitiveText())
+					uikit.Input(c, &v.editTriage.Note).Label(locales.FilterNote()).Placeholder(locales.CaseInsensitiveText())
 				}).Grow(1)
 				ui.Field(c, locales.Body(), func() {
-					uikit.Input(c, &v.editBody).Label("Body contains").Placeholder("\"error\":")
+					uikit.Input(c, &v.editBody).Label(locales.BodyContains()).Placeholder("\"error\":")
 				}).Grow(1)
 			})
 			if problem != "" {

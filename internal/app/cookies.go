@@ -20,6 +20,7 @@ import (
 	"github.com/baba983/vscroxy/internal/request"
 	"github.com/baba983/vscroxy/internal/store"
 	"github.com/baba983/vscroxy/internal/uikit"
+	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo/ui"
 	"golang.org/x/net/idna"
 	"golang.org/x/net/publicsuffix"
@@ -618,8 +619,8 @@ func (a *app) cookiesModal(c *ui.Context, t *ui.Theme) {
 	_, height := c.Size()
 	uikit.Modal(c, &e.open, func() {
 		uikit.DialogColumn(c, uikit.DialogLarge).Height(min(640, height-80)).Children(func() {
-			uikit.DialogTitle(c, "Cookies")
-			uikit.Meta(c, "Shared by Requests, Runner, scripts and interactive clients.")
+			uikit.DialogTitle(c, locales.Cookies2())
+			uikit.Meta(c, locales.SharedByRequestsRunnerScripts())
 			keep := a.cookiePersistence
 			if ui.Checkbox(c, &keep, "Keep cookies after quitting").Changed() {
 				a.setCookiePersistence(keep)
@@ -635,7 +636,7 @@ func (a *app) cookiesModal(c *ui.Context, t *ui.Theme) {
 			ui.Scroll(c).Grow(1).MinHeight(0).Gap(t.Space(3)).Padding(0, t.Space(1)).Children(func() {
 				items := a.requestCookies().snapshot()
 				if len(items) == 0 {
-					uikit.Hint(c, "No cookies yet. Send a request or add one below.")
+					uikit.Hint(c, locales.NoCookiesYetSendA())
 				}
 				groups := map[string][]storedCookie{}
 				for _, item := range items {
@@ -645,7 +646,7 @@ func (a *app) cookiesModal(c *ui.Context, t *ui.Theme) {
 				for _, domain := range slices.Sorted(maps.Keys(groups)) {
 					ui.Row(c).Key("domain:" + domain).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 						uikit.Label(c, domain).SingleLine().Grow(1).Tooltip("Cookies for " + domain)
-						if uikit.CompactButton(c, "Clear").Label("Clear cookies for " + domain).Clicked() {
+						if uikit.CompactButton(c, locales.Clear()).Label("Clear cookies for " + domain).Clicked() {
 							a.requestCookies().clearDomain(domain)
 							clear(e.reveal)
 						}
@@ -675,33 +676,33 @@ func (a *app) cookiesModal(c *ui.Context, t *ui.Theme) {
 							if e.reveal[item.key] {
 								label = fmt.Sprintf("Hide cookie %s %s", item.cookie.Name, item.cookie.Path)
 							}
-							if uikit.IconButton(c, label, "Cookie values are masked by default; reveal this row to read it", eyeIcon).Clicked() {
+							if uikit.IconButton(c, label, locales.CookieValuesAreMaskedBy(), eyeIcon).Clicked() {
 								e.reveal[item.key] = !e.reveal[item.key]
 							}
-							if uikit.SecondaryButton(c, "Delete").Label("Delete cookie " + item.cookie.Name + " " + item.cookie.Path).Clicked() {
+							if uikit.SecondaryButton(c, locales.Delete()).Label("Delete cookie " + item.cookie.Name + " " + item.cookie.Path).Clicked() {
 								a.requestCookies().remove(item.key)
 							}
 						})
 					}
 				}
 				ui.Divider(c)
-				uikit.Meta(c, "Add replaces the same domain / path / name. Leave Domain empty for a host-only cookie.")
+				uikit.Meta(c, locales.AddReplacesTheSameDomain())
 				ui.Form(c, func() {
-					ui.Field(c, "Cookie URL", func() {
-						uikit.Input(c, &e.url).Label("Cookie URL").Placeholder("https://api.example.com/")
+					ui.Field(c, locales.CookieUrl(), func() {
+						uikit.Input(c, &e.url).Label(locales.CookieUrl()).Placeholder("https://api.example.com/")
 					})
-					ui.Field(c, "Cookie name", func() {
-						uikit.Input(c, &e.name).Label("Cookie name").Placeholder("Name")
+					ui.Field(c, locales.CookieName(), func() {
+						uikit.Input(c, &e.name).Label(locales.CookieName()).Placeholder(locales.Name())
 					})
-					ui.Field(c, "Cookie value", func() {
-						uikit.Input(c, &e.value).Label("Cookie value").Placeholder("Value").Password()
+					ui.Field(c, locales.CookieValue(), func() {
+						uikit.Input(c, &e.value).Label(locales.CookieValue()).Placeholder(locales.Value()).Password()
 					})
-					ui.Field(c, "Cookie domain", func() {
-						uikit.Input(c, &e.domain).Label("Cookie domain").Placeholder("Domain (optional)")
+					ui.Field(c, locales.CookieDomain(), func() {
+						uikit.Input(c, &e.domain).Label(locales.CookieDomain()).Placeholder(locales.DomainOptional())
 					})
-					ui.Field(c, "Cookie path", func() {
+					ui.Field(c, locales.CookiePath(), func() {
 						ui.Row(c).Gap(t.Space(3)).Children(func() {
-							uikit.Input(c, &e.path).Width(100).Label("Cookie path").Placeholder("/")
+							uikit.Input(c, &e.path).Width(100).Label(locales.CookiePath()).Placeholder("/")
 							ui.Checkbox(c, &e.secure, "Secure")
 							ui.Checkbox(c, &e.httpOnly, "HttpOnly")
 						})
@@ -712,15 +713,15 @@ func (a *app) cookiesModal(c *ui.Context, t *ui.Theme) {
 				ui.Text(c, e.problem).FontSize(uikit.TextMeta).TextColor(t.Danger)
 			}
 			uikit.DialogFooter(c).Children(func() {
-				if uikit.SecondaryButton(c, "Clear all cookies").Clicked() {
+				if uikit.SecondaryButton(c, locales.ClearAllCookies()).Clicked() {
 					a.requestCookies().clear()
 					clear(e.reveal)
 				}
 				ui.Spacer(c)
-				if uikit.SecondaryButton(c, "Close").Clicked() {
+				if uikit.SecondaryButton(c, locales.Close()).Clicked() {
 					e.open = false
 				}
-				if uikit.PrimaryButton(c, "Add cookie").Clicked() {
+				if uikit.PrimaryButton(c, locales.AddCookie()).Clicked() {
 					a.saveCookie()
 				}
 			})

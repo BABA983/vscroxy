@@ -313,17 +313,17 @@ drained:
 			ui.Scroll(c).MinHeight(0).Shrink(1).Gap(t.Space(4)).Padding(0, t.Space(1)).Children(func() {
 				uikit.Hint(c, locales.SendsInCaptureOrderThrough())
 				ui.Field(c, locales.TimeoutPerRequestSeconds0(), func() {
-					uikit.Input(c, &r.timeout).Label("Replay timeout").Disabled(r.updates != nil)
+					uikit.Input(c, &r.timeout).Label(locales.ReplayTimeout()).Disabled(r.updates != nil)
 				}).Error(timeoutProblem)
 				ui.Field(c, locales.RepeatEachRequest(), func() {
-					uikit.Input(c, &r.repeat).Label("Replay repeats").Disabled(r.updates != nil)
+					uikit.Input(c, &r.repeat).Label(locales.ReplayRepeats()).Disabled(r.updates != nil)
 				}).Description(fmt.Sprintf("1–%d times. The whole selection is repeated in capture order.", replayMaxRepeat))
 				ui.Row(c).Gap(t.Space(3)).Children(func() {
 					ui.Field(c, locales.Concurrency(), func() {
-						uikit.Input(c, &r.concurrency).Label("Replay concurrency").Disabled(r.updates != nil)
+						uikit.Input(c, &r.concurrency).Label(locales.ReplayConcurrency()).Disabled(r.updates != nil)
 					}).Description(fmt.Sprintf("1–%d requests in flight.", replayMaxConcurrency)).Grow(1)
 					ui.Field(c, locales.IntervalBetweenStartsMs(), func() {
-						uikit.Input(c, &r.interval).Label("Replay interval").Disabled(r.updates != nil)
+						uikit.Input(c, &r.interval).Label(locales.ReplayInterval()).Disabled(r.updates != nil)
 					}).Description(fmt.Sprintf("0–%d ms; 0 starts as a worker frees up.", replayMaxIntervalMS)).Grow(1)
 				})
 				if inputProblem != "" {
@@ -339,7 +339,7 @@ drained:
 					if r.total > 0 {
 						fraction = float64(r.done) / float64(r.total)
 					}
-					ui.Progress(c, fraction).Label("Replay progress")
+					ui.Progress(c, fraction).Label(locales.ReplayProgress())
 					if r.updates != nil {
 						line := fmt.Sprintf("%d/%d started · %d failed", r.done, r.total, r.failed)
 						if r.canceled > 0 {

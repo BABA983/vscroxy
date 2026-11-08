@@ -19,6 +19,7 @@ import (
 	"github.com/baba983/vscroxy/internal/capture"
 	"github.com/baba983/vscroxy/internal/request"
 	"github.com/baba983/vscroxy/internal/store"
+	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 )
@@ -587,7 +588,7 @@ func (a *app) reviewHAR(flows []flow, name string) {
 func (a *app) importHAR() {
 	go func() {
 		paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{
-			Title:   "Import HAR",
+			Title:   locales.ImportHar2(),
 			Filters: []mygo.FileFilter{{Name: "HAR", Extensions: []string{"har", "json"}}},
 		})
 		if err != nil || len(paths) == 0 {
@@ -634,7 +635,7 @@ func (a *app) saveSession() {
 func (a *app) openSession() {
 	go func() {
 		paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{
-			Title: "Open session", Multiple: true,
+			Title: locales.OpenSession2(), Multiple: true,
 			Filters: []mygo.FileFilter{{Name: "Session", Extensions: []string{"json"}}},
 		})
 		if err != nil || len(paths) == 0 {

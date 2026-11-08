@@ -11,6 +11,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/baba983/vscroxy/internal/uikit"
+	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/editor"
 )
@@ -26,13 +27,13 @@ func (a *app) sessionsView(c *ui.Context, t *ui.Theme) {
 						continue
 					}
 					ui.Row(c.Key(doc.key)).FillHeight().AlignItems(ui.Center).Children(func() {
-						if uikit.ToolbarButton(c, "Session: "+doc.data.Title, "Historical session · read-only payloads", doc == item).Children(func() {
+						if uikit.ToolbarButton(c, "Session: "+doc.data.Title, locales.HistoricalSessionReadOnlyPayloads(), doc == item).Children(func() {
 							uikit.Glyph(c, clockIcon)
 							uikit.Body(c, doc.data.Title).SingleLine().MaxWidth(220)
 						}).Clicked() {
 							a.selectSession(doc.key)
 						}
-						if uikit.IconButton(c, "Close session: "+doc.data.Title, "Close tab; keep the saved session", closeIcon).Clicked() {
+						if uikit.IconButton(c, "Close session: "+doc.data.Title, locales.CloseTabKeepTheSaved(), closeIcon).Clicked() {
 							doc.closeTab()
 							if doc == item {
 								s.active = ""
@@ -51,8 +52,8 @@ func (a *app) sessionsView(c *ui.Context, t *ui.Theme) {
 		ui.Divider(c)
 		if item == nil || !item.open {
 			ui.Column(c).Grow(1).Center().Children(func() {
-				uikit.EmptyState(c, "Sessions", "Open a session file or save evidence from live traffic.", func() {
-					if uikit.PrimaryButton(c, "Open session…").Clicked() {
+				uikit.EmptyState(c, locales.Sessions(), locales.OpenASessionFileOr(), func() {
+					if uikit.PrimaryButton(c, locales.OpenSession()).Clicked() {
 						a.openSession()
 					}
 				})
@@ -64,20 +65,20 @@ func (a *app) sessionsView(c *ui.Context, t *ui.Theme) {
 				if item.saveErr != "" {
 					ui.Text(c, item.saveErr).FontSize(uikit.TextMeta).TextColor(t.Danger)
 				} else {
-					uikit.Hint(c, "Opening session…")
+					uikit.Hint(c, locales.OpeningSession())
 				}
 			})
 			return
 		}
 		ui.Row(c).Height(uikit.HeightBar).Padding(0, t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-			if uikit.Input(c, &item.data.Title).Label("Session title").Grow(1).MinWidth(0).Changed() {
+			if uikit.Input(c, &item.data.Title).Label(locales.SessionTitle()).Grow(1).MinWidth(0).Changed() {
 				item.persist(a.invalidate)
 			}
-			uikit.Meta(c, "Historical · read-only payloads")
-			if uikit.CompactButton(c, "Delete…").Clicked() {
+			uikit.Meta(c, locales.HistoricalReadOnlyPayloads())
+			if uikit.CompactButton(c, locales.Delete2()).Clicked() {
 				a.confirmDeleteSession(item)
 			}
-			if uikit.CompactButton(c, "Export session…").Clicked() {
+			if uikit.CompactButton(c, locales.ExportSession()).Clicked() {
 				data, err := json.Marshal(item.data)
 				if err != nil {
 					s.problem = err.Error()
@@ -92,7 +93,7 @@ func (a *app) sessionsView(c *ui.Context, t *ui.Theme) {
 			}
 		}
 		if s.comparing && s.left != nil && len(item.data.Flows) > 0 {
-			if uikit.CompactButton(c, "Back to session").Clicked() {
+			if uikit.CompactButton(c, locales.BackToSession()).Clicked() {
 				s.comparing = false
 			}
 			left, right := *s.left, item.data.Flows[item.picked].flow()
@@ -102,8 +103,8 @@ func (a *app) sessionsView(c *ui.Context, t *ui.Theme) {
 		}
 		ui.Row(c).Grow(1).MinHeight(0).AlignItems(ui.Stretch).Children(func() {
 			ui.Column(c).Width(min(340, a.contentWidth(c)*0.36)).FillHeight().Padding(t.Space(2)).Gap(t.Space(1)).Children(func() {
-				uikit.Input(c, &item.query).Label("Search session").Placeholder("URL, status or note…").FillWidth()
-				uikit.Meta(c, fmt.Sprintf("%d %s", len(item.data.Flows), plural(len(item.data.Flows), "exchange", "exchanges")))
+				uikit.Input(c, &item.query).Label(locales.SearchSession()).Placeholder(locales.UrlStatusOrNote()).FillWidth()
+				uikit.Meta(c, locales.ExchangesCount(len(item.data.Flows)))
 				ui.Scroll(c).Grow(1).MinHeight(0).Children(func() {
 					rows := make([]int, len(item.data.Flows))
 					for i := range rows {
@@ -145,7 +146,7 @@ func (a *app) sessionsView(c *ui.Context, t *ui.Theme) {
 						}
 					}
 					if matched == 0 {
-						uikit.Hint(c, "No matching exchanges")
+						uikit.Hint(c, locales.NoMatchingExchanges())
 					}
 				})
 			})
@@ -157,10 +158,10 @@ func (a *app) sessionsView(c *ui.Context, t *ui.Theme) {
 
 func (a *app) sessionDetail(c *ui.Context, t *ui.Theme, item *savedSession) {
 	if len(item.data.Flows) == 0 {
-		if uikit.Input(c, &item.data.Notes).Label("Session notes").Placeholder("Session notes…").Changed() {
+		if uikit.Input(c, &item.data.Notes).Label(locales.SessionNotes2()).Placeholder(locales.SessionNotes()).Changed() {
 			item.persist(a.invalidate)
 		}
-		uikit.EmptyState(c, "Empty session", "This saved session contains no exchanges", nil)
+		uikit.EmptyState(c, locales.EmptySession(), locales.ThisSavedSessionContainsNo(), nil)
 		return
 	}
 	f := &item.data.Flows[item.picked]
@@ -174,12 +175,12 @@ func (a *app) sessionDetail(c *ui.Context, t *ui.Theme, item *savedSession) {
 			f.Pinned = !f.Pinned
 			item.persist(a.invalidate)
 		}
-		if uikit.CompactButton(c, "Use as left").Clicked() {
+		if uikit.CompactButton(c, locales.UseAsLeft()).Clicked() {
 			left := f.flow()
 			s.left, s.leftLabel = &left, item.data.Title
 			s.comparison = captureAnalysis{}
 		}
-		if uikit.CompactButton(c, "Compare with left").Disabled(s.left == nil).Clicked() {
+		if uikit.CompactButton(c, locales.CompareWithLeft()).Disabled(s.left == nil).Clicked() {
 			s.comparing, s.comparison = true, captureAnalysis{}
 		}
 		label = "Reveal credentials"
@@ -192,7 +193,7 @@ func (a *app) sessionDetail(c *ui.Context, t *ui.Theme, item *savedSession) {
 	})
 	uikit.Meta(c, f.URL).Padding(0, t.Space(2)).SingleLine().Tooltip(f.URL)
 	ui.Row(c).Padding(t.Space(2)).Gap(t.Space(2)).Children(func() {
-		if uikit.Input(c, &f.Note).Label("Session exchange note").Placeholder("Add a note…").Grow(1).Changed() {
+		if uikit.Input(c, &f.Note).Label(locales.SessionExchangeNote()).Placeholder(locales.AddANote()).Grow(1).Changed() {
 			item.persist(a.invalidate)
 		}
 		uikit.MenuSelect(c, cmp.Or(f.Color, "No color"), func(m *ui.Menu) {
@@ -205,16 +206,16 @@ func (a *app) sessionDetail(c *ui.Context, t *ui.Theme, item *savedSession) {
 					item.persist(a.invalidate)
 				}
 			}
-		}).Label("Session color").Width(90)
+		}).Label(locales.SessionColor()).Width(90)
 	})
-	if uikit.Input(c, &item.data.Notes).Label("Session notes").Placeholder("Session notes…").Margin(0, t.Space(2), t.Space(2)).Changed() {
+	if uikit.Input(c, &item.data.Notes).Label(locales.SessionNotes2()).Placeholder(locales.SessionNotes()).Margin(0, t.Space(2), t.Space(2)).Changed() {
 		item.persist(a.invalidate)
 	}
 	ui.Row(c).Padding(0, t.Space(2)).Gap(t.Space(2)).Children(func() {
-		if uikit.Segmented(c, &item.side, "Request", "Response").Changed() {
+		if uikit.Segmented(c, &item.side, locales.Request(), "Response").Changed() {
 			item.reader = nil
 		}
-		if uikit.Segmented(c, &item.tab, "Headers", "Body", "Messages", "Connection").Changed() {
+		if uikit.Segmented(c, &item.tab, locales.Headers(), "Body", "Messages", "Connection").Changed() {
 			item.reader = nil
 		}
 	})
@@ -258,7 +259,7 @@ func (a *app) sessionDetail(c *ui.Context, t *ui.Theme, item *savedSession) {
 		if !utf8.ValidString(text) {
 			text = hex.Dump([]byte(text))
 		}
-		item.reader = &editor.State{Buffer: editor.NewBuffer(text), ReadOnly: true, NoScrollPastEnd: true, SoftWrap: true, Label: "Session payload"}
+		item.reader = &editor.State{Buffer: editor.NewBuffer(text), ReadOnly: true, NoScrollPastEnd: true, SoftWrap: true, Label: locales.SessionPayload()}
 	}
 	requestCodeEditor(c, item.reader)
 }

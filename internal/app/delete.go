@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/baba983/vscroxy/internal/request"
+	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -101,7 +102,7 @@ func (a *app) deleteModal(c *ui.Context, t *ui.Theme) {
 			uikit.DialogTitle(c, "Delete "+del.name+"?")
 			uikit.Hint(c, del.detail+" This cannot be undone.")
 			uikit.DialogFooter(c).Children(func() {
-				if uikit.SecondaryButton(c, "Cancel").Clicked() {
+				if uikit.SecondaryButton(c, locales.Cancel()).Clicked() {
 					del.open = false
 				}
 				if uikit.PrimaryButton(c, "Delete "+strings.Fields(del.name)[0]).Clicked() {

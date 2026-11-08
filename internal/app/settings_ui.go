@@ -79,7 +79,7 @@ func (a *app) appearanceSettings(c *ui.Context, t *ui.Theme) {
 				ui.Row(c).Children(func() { // as wide as its segments
 					modes := []string{"", "light", "dark"}
 					choice := max(slices.Index(modes, a.appearance), 0)
-					uikit.Segmented(c, &choice, locales.System(), "Light", "Dark").Label("Appearance")
+					uikit.Segmented(c, &choice, locales.System(), "Light", "Dark").Label(locales.Appearance())
 					a.appearance = modes[choice]
 				})
 			}).Description(locales.SystemFollowsThisComputerS())
@@ -99,7 +99,7 @@ func (a *app) proxySettings(c *ui.Context, t *ui.Theme) {
 			})
 			ui.Field(c, locales.Port(), func() {
 				ui.Row(c).Gap(t.Space(2)).Wrap().AlignItems(ui.Center).Children(func() {
-					uikit.Input(c, &a.proxyPortInput).Label("Proxy port").Placeholder(locales.Automatic()).Width(100)
+					uikit.Input(c, &a.proxyPortInput).Label(locales.ProxyPort()).Placeholder(locales.Automatic()).Width(100)
 					if uikit.SecondaryButton(c, locales.SaveForNextLaunch()).Clicked() {
 						a.saveProxyPort()
 					}
@@ -136,7 +136,7 @@ func (a *app) captureSettings(c *ui.Context, t *ui.Theme) {
 		uikit.SettingsGroup(c, locales.Responses(), func() {
 			ui.Field(c, locales.Caching(), func() {
 				on := a.srv != nil && a.srv.NoCaching()
-				if ui.Switch(c, &on).Label("No Caching").Disabled(a.srv == nil).Changed() && a.srv != nil {
+				if ui.Switch(c, &on).Label(locales.NoCaching()).Disabled(a.srv == nil).Changed() && a.srv != nil {
 					a.srv.SetNoCaching(on)
 				}
 			}).Description(locales.StripCachingHeadersBothWays())
@@ -148,7 +148,7 @@ func (a *app) captureSettings(c *ui.Context, t *ui.Theme) {
 				problem = "Nothing is shown until you add a host or an app."
 			}
 			ui.Field(c, locales.AllowList(), func() {
-				if ui.Switch(c, &a.allowOn).Label("Only show allowed traffic").Changed() {
+				if ui.Switch(c, &a.allowOn).Label(locales.OnlyShowAllowedTraffic()).Changed() {
 					a.applyAllow()
 				}
 			}).Description(locales.ShowOnlyTheHostsAnd()).Error(problem)

@@ -20,6 +20,7 @@ import (
 	"github.com/baba983/vscroxy/internal/inspect"
 	"github.com/baba983/vscroxy/internal/request"
 	"github.com/baba983/vscroxy/internal/uikit"
+	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/editor"
 )
@@ -463,17 +464,17 @@ func (a *app) closeRequestModal(c *ui.Context, t *ui.Theme) {
 	open := true
 	uikit.Modal(c, &open, func() {
 		uikit.DialogColumn(c, uikit.DialogSmall).Children(func() {
-			uikit.DialogTitle(c, "Save changes?")
+			uikit.DialogTitle(c, locales.SaveChanges())
 			uikit.Hint(c, d.title()+" has unsaved changes. Closing it without saving will discard this draft.")
 			uikit.DialogFooter(c).Children(func() {
-				if uikit.SecondaryButton(c, "Cancel").Clicked() {
+				if uikit.SecondaryButton(c, locales.Cancel()).Clicked() {
 					a.closingDocument = nil
 				}
-				if uikit.SecondaryButton(c, "Discard").Clicked() {
+				if uikit.SecondaryButton(c, locales.Discard()).Clicked() {
 					a.closeDocument(d)
 					a.closingDocument = nil
 				}
-				if uikit.PrimaryButton(c, "Save & close").Clicked() {
+				if uikit.PrimaryButton(c, locales.SaveClose()).Clicked() {
 					a.requestDocument = d
 					if a.saveComposed() {
 						a.closeDocument(d)
@@ -496,7 +497,7 @@ func (a *app) documentHeader(c *ui.Context, t *ui.Theme) {
 	d := a.requestDocument
 	ui.Row(c).Height(uikit.HeightLarge).Padding(0, t.Space(2)).Gap(t.Space(1)).AlignItems(ui.Center).Background(uikit.Colors(t).Panel).Children(func() {
 		if d != nil {
-			crumb := uikit.ToolbarButton(c, "Rename request", "Rename or move to another collection", false).Height(uikit.HeightCompact).
+			crumb := uikit.ToolbarButton(c, locales.RenameRequest(), locales.RenameOrMoveToAnother(), false).Height(uikit.HeightCompact).
 				Padding(0, t.Space(1)).Gap(t.Space(1)).MinWidth(0)
 			crumb.Children(func() {
 				if d.composeCollection != "" {
@@ -514,7 +515,7 @@ func (a *app) documentHeader(c *ui.Context, t *ui.Theme) {
 		ui.Spacer(c)
 		if names := a.envNames(); len(names) > 0 {
 			env := ui.SelectBase(c.Key("active-environment"), &a.activeEnv)
-			env.Trigger.Label("Active environment").Tooltip("Active environment").Width(132).Height(uikit.HeightControl).
+			env.Trigger.Label(locales.ActiveEnvironment()).Tooltip(locales.ActiveEnvironment()).Width(132).Height(uikit.HeightControl).
 				Padding(0, t.Space(2)).Gap(t.Space(2)).Radius(uikit.RadiusControl).Border(1, t.Border).AlignItems(ui.Center).Children(func() {
 				ui.Box(c).Size(6, 6).Radius(uikit.RadiusControl).Background(t.Accent)
 				uikit.Body(c, cmp.Or(a.activeEnv, "No environment")).SingleLine().Grow(1)
@@ -538,14 +539,14 @@ func (a *app) documentHeader(c *ui.Context, t *ui.Theme) {
 				}
 			})
 		} else {
-			uikit.ToolbarButton(c, "Manage environments", "Add an environment for request variables", false).
-				Children(func() { ui.Text(c, "No environment") }).OnClick(a.openVars)
+			uikit.ToolbarButton(c, locales.ManageEnvironments2(), locales.AddAnEnvironmentForRequest(), false).
+				Children(func() { ui.Text(c, locales.NoEnvironment()) }).OnClick(a.openVars)
 		}
 		if d != nil {
 			a.requestDocumentActions(c, t, d)
 			// A send in flight finishes before its request closes.
 			ui.Row(c).Disabled(d.composeWaiting).Children(func() {
-				if uikit.IconButton(c, "Close request", "Close this request · Ctrl/Cmd+W", closeIcon).Clicked() {
+				if uikit.IconButton(c, locales.CloseRequest(), locales.CloseThisRequestCtrlCmd(), closeIcon).Clicked() {
 					a.requestClose(d)
 				}
 			})
@@ -570,8 +571,8 @@ const (
 func (a *app) composeView(c *ui.Context, t *ui.Theme) {
 	d := a.requestDocument
 	if d == nil {
-		uikit.EmptyState(c, "Open a saved request or create a new one", "Keep drafts, variables and responses together in one request tab.", func() {
-			if uikit.PrimaryButton(c, "Create request").Clicked() {
+		uikit.EmptyState(c, locales.OpenASavedRequestOr(), locales.KeepDraftsVariablesAndResponses(), func() {
+			if uikit.PrimaryButton(c, locales.CreateRequest()).Clicked() {
 				a.openCompose()
 			}
 		})
@@ -624,14 +625,14 @@ func (a *app) headerWarnModal(c *ui.Context, t *ui.Theme) {
 	}
 	uikit.Modal(c, &d.headerWarn, func() {
 		uikit.DialogColumn(c, uikit.DialogSmall).Children(func() {
-			uikit.DialogTitle(c, "Bulk edit shows credentials")
-			uikit.Hint(c, "The Key: Value block writes every header value in plain text, including tokens, cookies and passwords. The table masks them one row at a time.")
-			uikit.Hint(c, "Switching modes does not send a request. All enabled header values will be visible; be careful when sharing your screen.")
+			uikit.DialogTitle(c, locales.BulkEditShowsCredentials())
+			uikit.Hint(c, locales.TheKeyValueBlockWrites())
+			uikit.Hint(c, locales.SwitchingModesDoesNotSend())
 			uikit.DialogFooter(c).Children(func() {
-				if uikit.SecondaryButton(c, "Cancel").Clicked() {
+				if uikit.SecondaryButton(c, locales.Cancel()).Clicked() {
 					d.headerWarn = false
 				}
-				if uikit.PrimaryButton(c, "Show values").Clicked() {
+				if uikit.PrimaryButton(c, locales.ShowValues()).Clicked() {
 					d.headerWarn = false
 					toggleHeaderMode(d)
 				}
@@ -654,22 +655,22 @@ func (a *app) requestRenameModal(c *ui.Context, t *ui.Theme) {
 				title = "Save to collection"
 			}
 			uikit.DialogTitle(c, title)
-			uikit.Input(c, &d.composeName).Label("Name").Placeholder("Untitled request").FillWidth().
+			uikit.Input(c, &d.composeName).Label(locales.Name()).Placeholder(locales.UntitledRequest()).FillWidth().
 				Height(uikit.HeightControl).Padding(0, t.Space(2)).Radius(uikit.RadiusControl).FontSize(uikit.TextBody)
-			uikit.Input(c, &d.composeCollection).Label("Collection").Placeholder("Collection").FillWidth().
+			uikit.Input(c, &d.composeCollection).Label(locales.Collection()).Placeholder(locales.Collection()).FillWidth().
 				Height(uikit.HeightControl).Padding(0, t.Space(2)).Radius(uikit.RadiusControl).FontSize(uikit.TextBody)
-			uikit.Meta(c, "The collection groups saved requests in the library.")
+			uikit.Meta(c, locales.TheCollectionGroupsSavedRequests())
 			uikit.DialogFooter(c).Children(func() {
-				if uikit.SecondaryButton(c, "Cancel").Clicked() {
+				if uikit.SecondaryButton(c, locales.Cancel()).Clicked() {
 					a.renameOpen = false
 				}
 				if a.saveAfterRename {
-					if uikit.PrimaryButton(c, "Save").Clicked() && a.saveComposed() {
+					if uikit.PrimaryButton(c, locales.Save()).Clicked() && a.saveComposed() {
 						a.renameOpen = false
 					}
 					return
 				}
-				if uikit.PrimaryButton(c, "Done").Clicked() {
+				if uikit.PrimaryButton(c, locales.Done()).Clicked() {
 					a.renameOpen = false
 				}
 			})
@@ -681,34 +682,34 @@ func (a *app) requestRenameModal(c *ui.Context, t *ui.Theme) {
 func (a *app) requestDocumentActions(c *ui.Context, t *ui.Theme, d *requestDocument) {
 	ui.Row(c).Key(d.id).Gap(t.Space(1)).AlignItems(ui.Center).Children(func() {
 		if d.sourceAPI != "" {
-			if uikit.ToolbarButton(c, "Source API", "Open the API this request came from", false).Height(uikit.HeightCompact).Children(func() {
-				ui.Text(c, "Source API").TextColor(t.Accent)
+			if uikit.ToolbarButton(c, locales.SourceApi(), locales.OpenTheApiThisRequest(), false).Height(uikit.HeightCompact).Children(func() {
+				ui.Text(c, locales.SourceApi()).TextColor(t.Accent)
 			}).Clicked() {
 				a.apiChoice, a.page = d.sourceAPI, pageAPI
 			}
 		}
 		a.actionButton(c, "request.save", "Save")
-		uikit.MoreMenu(c, "Request options", func(m *ui.Menu) { actionMenu(m, a.documentActions(c, d)) }).Height(uikit.HeightControl).FontSize(uikit.TextTitle)
+		uikit.MoreMenu(c, locales.RequestOptions(), func(m *ui.Menu) { actionMenu(m, a.documentActions(c, d)) }).Height(uikit.HeightControl).FontSize(uikit.TextTitle)
 	})
 }
 
 // documentActions are an open request's, beside Save.
 func (a *app) documentActions(c *ui.Context, d *requestDocument) []action {
 	return []action{
-		do("request.duplicate", "Duplicate as new request", func() {
+		do("request.duplicate", locales.DuplicateAsNewRequest(), func() {
 			r := d.value()
 			r.ID, r.Name = "", uniqueRequestName(a.requests, r.Name+" copy")
 			a.addDocument(r, "")
 		}),
-		do("request.copy-curl", "Copy as cURL", func() { a.copyRequest(c, flow{}, d, "cURL") }),
+		do("request.copy-curl", locales.CopyAsCurl(), func() { a.copyRequest(c, flow{}, d, "cURL") }),
 		copyAsMenu(a.requestCopyActions(c, flow{}, d)),
-		do("request.code", "Generate code…", a.openCode),
-		do("request.history", "History", func() { a.openSendHistory(d) }),
+		do("request.code", locales.GenerateCode(), a.openCode),
+		do("request.history", locales.History(), func() { a.openSendHistory(d) }),
 		do("collection.settings", settingsLabel(d.composeCollection), func() { a.openFolder(d.composeCollection) }).
 			when(d.composeCollection != "", "Save the request to a collection first").in("context"),
-		do("environment.manage", "Manage environments…", a.openVars).in("context"),
-		do("request.variables", "Request variables", func() { d.variablesOpen = !d.variablesOpen }).in("context"),
-		do("vault.open", "Vault…", a.openVault).in("context"),
+		do("environment.manage", locales.ManageEnvironments(), a.openVars).in("context"),
+		do("request.variables", locales.RequestVariables(), func() { d.variablesOpen = !d.variablesOpen }).in("context"),
+		do("vault.open", locales.Vault(), a.openVault).in("context"),
 	}
 }
 
@@ -741,7 +742,7 @@ func (a *app) requestVariablesPanel(c *ui.Context, t *ui.Theme, d *requestDocume
 		targetLabel, contextLabel = "Target: ", "Draft context · resolved from variables and Vault"
 	}
 	ui.Row(c).Height(uikit.HeightControl).Padding(0, t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-		if uikit.CompactButton(c, fmt.Sprintf("Variables · %d unresolved", missing)).Label("Request variables").Clicked() {
+		if uikit.CompactButton(c, locales.VariablesUnresolved(missing)).Label(locales.RequestVariables()).Clicked() {
 			d.variablesOpen = !d.variablesOpen
 		}
 		uikit.Meta(c, targetLabel+target).SingleLine().Grow(1)
@@ -752,7 +753,7 @@ func (a *app) requestVariablesPanel(c *ui.Context, t *ui.Theme, d *requestDocume
 	ui.Column(c).Height(160).Padding(t.Space(2), t.Space(3)).Gap(t.Space(2)).Background(uikit.Colors(t).Panel).Children(func() {
 		ui.Row(c).Gap(t.Space(2)).Children(func() {
 			uikit.Meta(c, contextLabel).Grow(1)
-			if uikit.CompactButton(c, "Edit environments").Clicked() {
+			if uikit.CompactButton(c, locales.EditEnvironments()).Clicked() {
 				a.openVars()
 			}
 		})
@@ -766,7 +767,7 @@ func variableRows(c *ui.Context, rows []request.ResolvedVariable, reveal *bool) 
 	ui.Checkbox(c, reveal, "Reveal values (plaintext)").FontSize(uikit.TextMeta)
 	ui.Scroll(c).Grow(1).FillWidth().Gap(t.Space(2)).Children(func() {
 		if len(rows) == 0 {
-			uikit.Meta(c, "No referenced variables in this snapshot")
+			uikit.Meta(c, locales.NoReferencedVariablesInThis())
 		}
 		for _, row := range rows {
 			ui.Row(c).Gap(t.Space(2)).Children(func() {
@@ -804,7 +805,7 @@ var requestMethods = []string{"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "
 func (a *app) requestBar(c *ui.Context, t *ui.Theme, d *requestDocument, more func()) {
 	ui.Row(c).Height(48).Padding(t.Space(2), t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 		if !a.page.capture() {
-			uikit.SecondaryButton(c, cmp.Or(d.protocol, "HTTP")+" ▾").Label("Request protocol").Width(106).
+			uikit.SecondaryButton(c, cmp.Or(d.protocol, "HTTP")+" ▾").Label(locales.RequestProtocol()).Width(106).
 				Disabled(d.composeWaiting || d.grpcUI != nil && d.grpcUI.loading != nil).PopoverMenuButton(func(m *ui.Menu) {
 				for _, protocol := range []string{"HTTP", "gRPC", "Socket.IO", "MQTT", "MCP"} {
 					if !m.Item(protocol).Radio(cmp.Or(d.protocol, "HTTP") == protocol).Chosen() {
@@ -856,7 +857,7 @@ func (a *app) requestBar(c *ui.Context, t *ui.Theme, d *requestDocument, more fu
 			}
 			control.Children(func() {
 				method := ui.ComboboxBase(c, &d.composeMethod)
-				method.Input.Width(72).Height(uikit.HeightControl).Padding(0, t.Space(1)).Label("Method").FontSize(uikit.TextBody).FontWeight(600).
+				method.Input.Width(72).Height(uikit.HeightControl).Padding(0, t.Space(1)).Label(locales.Method()).FontSize(uikit.TextBody).FontWeight(600).
 					TextColor(uikit.MethodColor(d.composeMethod, t)).Border(0, t.Border)
 				if method.Input.Changed() {
 					d.composeMethod = strings.ToUpper(strings.TrimSpace(d.composeMethod))
@@ -878,7 +879,7 @@ func (a *app) requestBar(c *ui.Context, t *ui.Theme, d *requestDocument, more fu
 				if chosen, ok := method.Chosen(); ok {
 					d.composeMethod = chosen
 				}
-				if uikit.IconButton(c, "Method list", "Common methods", chevronIcon).Size(18, 18).Clicked() {
+				if uikit.IconButton(c, locales.MethodList(), locales.CommonMethods(), chevronIcon).Size(18, 18).Clicked() {
 					method.SetOpen(!method.Open())
 					method.Input.Focus()
 				}
@@ -888,7 +889,7 @@ func (a *app) requestBar(c *ui.Context, t *ui.Theme, d *requestDocument, more fu
 			if d.protocol == "MQTT" {
 				placeholder = "mqtts://broker.example.com:8883"
 			}
-			input := ui.TextInputBase(c, &d.composeURL).Bind(&d.urlInput).Grow(1).Height(uikit.HeightControl).Padding(0, t.Space(2)).Label("URL").
+			input := ui.TextInputBase(c, &d.composeURL).Bind(&d.urlInput).Grow(1).Height(uikit.HeightControl).Padding(0, t.Space(2)).Label(locales.Url()).
 				Placeholder(placeholder).Font(uikit.FontMono).FontSize(uikit.TextBody)
 			var set variableSet
 			var marks []variableMark
@@ -950,8 +951,8 @@ func (a *app) requestBar(c *ui.Context, t *ui.Theme, d *requestDocument, more fu
 			if d.sendCancelling && !narrow {
 				label = "Cancelling…"
 			}
-			a.actionButton(c, "request.cancel-send", label).Label("Cancel send").Width(cancelWidth).Height(uikit.HeightLarge).
-				Tooltip("Stop waiting; cancelling does not undo server-side changes")
+			a.actionButton(c, "request.cancel-send", label).Label(locales.CancelSend()).Width(cancelWidth).Height(uikit.HeightLarge).
+				Tooltip(locales.StopWaitingCancellingDoesNot())
 		}
 		if more != nil {
 			more()
@@ -1016,7 +1017,7 @@ func (a *app) requestEditor(c *ui.Context, t *ui.Theme, d *requestDocument, orig
 	// tools take their own row there.
 	wide := a.contentWidth(c) >= 900 && original == nil
 	bodyTools := func() {
-		uikit.Select(c, &d.bodyMode, []string{"Raw", "URL encoded", "Multipart", "Binary", "GraphQL"}).Label("Request body type").Width(132).FontSize(uikit.TextMeta)
+		uikit.Select(c, &d.bodyMode, []string{"Raw", "URL encoded", "Multipart", "Binary", "GraphQL"}).Label(locales.RequestBodyType()).Width(132).FontSize(uikit.TextMeta)
 		text, seen := &d.composeBody, &d.bodyFor
 		formatLabel := "Format body"
 		formatHelp := "Indent the JSON text without expanding variables"
@@ -1033,7 +1034,7 @@ func (a *app) requestEditor(c *ui.Context, t *ui.Theme, d *requestDocument, orig
 		ui.Row(c).Disabled(!query && (!isJSON || !canFormat)).Children(func() {
 			if uikit.ToolbarButton(c, formatLabel, formatHelp, false).Children(func() {
 				ui.Icon(c, formatIcon).Size(uikit.IconInline, uikit.IconInline)
-				ui.Text(c, "Format").FontSize(uikit.TextMeta)
+				ui.Text(c, locales.Format()).FontSize(uikit.TextMeta)
 			}).Clicked() {
 				if query {
 					value, err := graphql.Format(d.graphql.Query)
@@ -1121,7 +1122,7 @@ func (a *app) requestEditor(c *ui.Context, t *ui.Theme, d *requestDocument, orig
 				a.requestBodyEditor(c, d, t)
 			case composeTabScripts:
 				ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-					uikit.Segmented(c, &d.scriptTab, "Pre-request", "Post-response")
+					uikit.Segmented(c, &d.scriptTab, locales.PreRequest(), "Post-response")
 					ui.Spacer(c)
 					if st := map[bool]*editor.State{false: d.preEditor, true: d.postEditor}[d.scriptTab == 1]; st != nil {
 						snippetMenu(c, st, "request")
@@ -1154,15 +1155,15 @@ func (a *app) requestEditor(c *ui.Context, t *ui.Theme, d *requestDocument, orig
 func (a *app) requestSentState(c *ui.Context, t *ui.Theme, d *requestDocument) {
 	switch {
 	case d.composeWaiting:
-		uikit.Meta(c, "Sending…")
+		uikit.Meta(c, locales.Sending())
 	case !d.sentSet:
-		uikit.Meta(c, "Not sent yet")
+		uikit.Meta(c, locales.NotSentYet())
 	case reflect.DeepEqual(d.draft(), d.sent):
 		uikit.Meta(c, "Draft matches last attempt · "+d.sentAt.Local().Format("15:04:05")).
-			Tooltip("The draft snapshot matches; variables, scripts, redirects and rules may change the wire request")
+			Tooltip(locales.TheDraftSnapshotMatchesVariables())
 	default:
-		ui.Text(c, "Edited since last send · not yet sent").FontSize(uikit.TextMeta).TextColor(t.Warning).
-			Tooltip("The response below belongs to the previous send, not to this draft")
+		ui.Text(c, locales.EditedSinceLastSendNot()).FontSize(uikit.TextMeta).TextColor(t.Warning).
+			Tooltip(locales.TheResponseBelowBelongsTo())
 	}
 }
 
@@ -1242,31 +1243,31 @@ func (a *app) requestResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 							r := d.response
 							a.openJSONQuery(inspectionBody{r.ResponseBody, r.ResponseBodyFile, r.ResponseBodyError, r.ResponseBodySize})
 						}
-					}).Label("Response format").Tooltip("Response body format")
-					if uikit.SecondaryButton(c, "Decode…").Label("Decode response text").Clicked() {
+					}).Label(locales.ResponseFormat()).Tooltip(locales.ResponseBodyFormat())
+					if uikit.SecondaryButton(c, locales.DecodeDialog()).Label(locales.DecodeResponseText()).Clicked() {
 						a.openDecoder(d.responseEditor, d.response.ResponseBody)
 					}
 				}
 			} else {
-				ui.Text(c, "Response").FontSize(uikit.TextBody).FontWeight(600).Grow(1)
+				ui.Text(c, locales.Response()).FontSize(uikit.TextBody).FontWeight(600).Grow(1)
 			}
 			if d.composeWaiting {
-				uikit.Hint(c, "Sending…")
+				uikit.Hint(c, locales.Sending())
 			}
 			if d.source != nil && d.response != nil && !d.comparing {
-				if uikit.IconButton(c, "Compare with source", "Compare this response with the capture it came from", compareIcon).
+				if uikit.IconButton(c, locales.CompareWithSource(), locales.CompareThisResponseWithThe(), compareIcon).
 					Size(uikit.HeightControl, uikit.HeightControl).Clicked() {
 					d.comparing = true
 				}
 			}
 			if d.response != nil && d.response.Status != 0 && !d.composeWaiting {
-				if uikit.IconButton(c, "Save response body", "Save body… · complete decoded bytes, without formatting or redaction", saveIcon).
+				if uikit.IconButton(c, locales.SaveResponseBody(), locales.SaveBodyCompleteDecodedBytes(), saveIcon).
 					Size(uikit.HeightControl, uikit.HeightControl).Clicked() {
 					a.saveResponseBody(*d.response)
 				}
 			}
 			if d.response != nil && !d.composeWaiting && outcome != "Network error" && d.sentSet {
-				if uikit.IconButton(c, "Save as example", "Keep this response with the request, as a Postman example", exampleIcon).
+				if uikit.IconButton(c, locales.SaveAsExample(), locales.KeepThisResponseWithThe(), exampleIcon).
 					Size(uikit.HeightControl, uikit.HeightControl).Clicked() {
 					a.saveExample(d)
 				}
@@ -1274,7 +1275,7 @@ func (a *app) requestResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 			// Without a retained send there is nothing to read, so the entry
 			// waits rather than opening an empty list.
 			ui.Row(c).Disabled(d.origin == nil && d.experimentID == 0).Children(func() {
-				if uikit.IconButton(c, "Open request History", "History · inspect retained attempts; opening never sends", sendHistoryIcon).
+				if uikit.IconButton(c, locales.OpenRequestHistory(), locales.HistoryInspectRetainedAttemptsOpening(), sendHistoryIcon).
 					Size(uikit.HeightControl, uikit.HeightControl).Clicked() {
 					a.openSendHistory(d)
 				}
@@ -1298,8 +1299,8 @@ func (a *app) requestResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 			uikit.ResponseHeadline(c, status, uikit.StatusColor(r.Status, t), fmt.Sprintf("%d ms", r.Millis), detail, headlineTiming(t, sent))
 		}
 		if d.experimentID != 0 && !d.composeWaiting {
-			uikit.Meta(c, fmt.Sprintf("Recorded run #%d", d.experimentID)).Padding(t.Space(1), t.Space(3)).
-				Tooltip("Retained result from this experiment; opening it does not send the draft")
+			uikit.Meta(c, locales.RecordedRun(d.experimentID)).Padding(t.Space(1), t.Space(3)).
+				Tooltip(locales.RetainedResultFromThisExperiment())
 		}
 		if !d.composeWaiting && outcome != "" && outcome != "Response received" {
 			ui.Text(c, outcome).FontSize(uikit.TextMeta).TextColor(t.Warning).Padding(t.Space(1), t.Space(3))
@@ -1311,7 +1312,7 @@ func (a *app) requestResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 					path = cmp.Or(u.EscapedPath(), "/")
 				}
 				label := "Last attempt · " + d.sentAt.Local().Format("15:04:05") + " · " + d.sent.Method + " " + path
-				if uikit.ToolbarButton(c, "Last send details", "Show the full draft URL and response time", false).Grow(1).MinWidth(0).
+				if uikit.ToolbarButton(c, locales.LastSendDetails(), locales.ShowTheFullDraftUrl(), false).Grow(1).MinWidth(0).
 					Justify(ui.Start).Children(func() {
 					arrow := "›"
 					if d.lastAttemptOpen {
@@ -1323,16 +1324,16 @@ func (a *app) requestResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 					d.lastAttemptOpen = !d.lastAttemptOpen
 				}
 				if !reflect.DeepEqual(d.draft(), d.sent) {
-					ui.Text(c, "Draft changed · not sent").FontSize(uikit.TextMeta).TextColor(t.Warning)
+					ui.Text(c, locales.DraftChangedNotSent()).FontSize(uikit.TextMeta).TextColor(t.Warning)
 				} else if !d.composeWaiting {
-					uikit.Meta(c, "Draft matches last attempt").
-						Tooltip("The draft snapshot matches; variables, scripts, redirects and rules may change the wire request")
+					uikit.Meta(c, locales.DraftMatchesLastAttempt()).
+						Tooltip(locales.TheDraftSnapshotMatchesVariables())
 				}
 			})
 			if d.lastAttemptOpen {
 				ui.Column(c).Padding(t.Space(2), t.Space(3)).Gap(t.Space(2)).Background(uikit.Colors(t).Panel).Children(func() {
-					uikit.Body(c, d.sent.Method+" "+d.sent.URL).Label("Last sent draft URL").Selectable()
-					uikit.Meta(c, "Draft snapshot · variables, scripts, redirects and proxy rules may change the wire request. Inspect History for retained wire evidence.")
+					uikit.Body(c, d.sent.Method+" "+d.sent.URL).Label(locales.LastSentDraftUrl()).Selectable()
+					uikit.Meta(c, locales.DraftSnapshotVariablesScriptsRedirects())
 					if d.response != nil {
 						uikit.Meta(c, "Response from "+d.response.At.Local().Format("15:04:05"))
 					}
@@ -1361,7 +1362,7 @@ func (a *app) requestResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 }
 
 func (a *app) cancelledResult(c *ui.Context, t *ui.Theme, d *requestDocument) {
-	ui.Text(c, "Waiting cancelled. The server may still be processing; check whether sending again would repeat the operation.").FontSize(uikit.TextBody).TextColor(t.Text)
+	ui.Text(c, locales.WaitingCancelledTheServerMay()).FontSize(uikit.TextBody).TextColor(t.Text)
 	ui.Collapsible(c, "Technical details", &d.sendDetails, func() {
 		uikit.Meta(c, d.composeResult).Selectable().FillWidth()
 	}).FontSize(uikit.TextBody)
@@ -1375,7 +1376,7 @@ func (a *app) responseProvenance(c *ui.Context, t *ui.Theme, d *requestDocument)
 	}
 	provenance := "Response from " + d.response.At.Local().Format("15:04:05")
 	uikit.Meta(c, provenance).Padding(t.Space(2), t.Space(3)).
-		Tooltip("Redirects, cookies and proxy rules may change the on-wire exchange; Capture has the wire details")
+		Tooltip(locales.RedirectsCookiesAndProxyRules())
 }
 
 // responseBody shows the chosen view of the last response.
@@ -1388,24 +1389,24 @@ func (a *app) responseBody(c *ui.Context, t *ui.Theme, d *requestDocument) {
 		ui.Scroll(c).Grow(1).FillWidth().Padding(t.Space(4)).Children(func() {
 			ui.Column(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(2)).Children(func() {
 				if d.composeWaiting {
-					ui.Spinner(c).Label("Waiting for request result")
+					ui.Spinner(c).Label(locales.WaitingForRequestResult())
 					if budget := a.sendBudget(d.draft()); budget > 0 {
-						uikit.Hint(c, fmt.Sprintf("Waiting for response… · %d s timeout", int(budget.Seconds())))
+						uikit.Hint(c, locales.WaitingResponseTimeout(int(budget.Seconds())))
 					} else {
-						uikit.Hint(c, "Waiting for response… · no request timeout")
+						uikit.Hint(c, locales.WaitingForResponseNoRequest())
 					}
 				} else if d.sendOutcome == "Cancelled" {
 					a.cancelledResult(c, t, d)
 				} else if d.sendOutcome != "" {
 					ui.Text(c, d.sendOutcome).FontSize(uikit.TextBody).TextColor(t.Warning)
 					ui.Text(c, d.composeResult).FontSize(uikit.TextBody).TextColor(t.Text).Selectable().FillWidth()
-					uikit.Meta(c, "Edit the draft and send again. No automatic retry.")
+					uikit.Meta(c, locales.EditTheDraftAndSend())
 				} else {
 					uikit.Hint(c, cmp.Or(d.composeResult, "Send a request to see its response"))
-					uikit.Meta(c, "The exchange will also appear in Capture.")
+					uikit.Meta(c, locales.TheExchangeWillAlsoAppear())
 				}
 				if d.composeWaiting || d.sendOutcome == "Timed out" {
-					uikit.Meta(c, "Cancelling does not undo server-side changes.")
+					uikit.Meta(c, locales.CancellingDoesNotUndoServer())
 				}
 			})
 		})
@@ -1421,7 +1422,7 @@ func (a *app) responseBody(c *ui.Context, t *ui.Theme, d *requestDocument) {
 		if d.response != nil {
 			body = d.response.ResponseBody
 			if d.response.ResponseBodySize > len(d.response.ResponseBody) {
-				uikit.Meta(c, "Preview limited to 8 MiB; the complete body is in Capture.").Padding(t.Space(1), t.Space(3))
+				uikit.Meta(c, locales.PreviewLimitedTo8Mib()).Padding(t.Space(1), t.Space(3))
 			}
 		}
 		if r := d.response; r != nil && (d.responseView == 0 || d.responseView == 4) && inspect.BodyFormat(r.ResponseHeader.Get("Content-Type")) != "" {
@@ -1432,7 +1433,7 @@ func (a *app) responseBody(c *ui.Context, t *ui.Theme, d *requestDocument) {
 		case 1:
 			if d.responseEditor == nil {
 				buf := editor.NewBuffer(body)
-				d.responseEditor = &editor.State{Buffer: buf, ReadOnly: true, NoScrollPastEnd: true, SoftWrap: true, Label: "Response body"}
+				d.responseEditor = &editor.State{Buffer: buf, ReadOnly: true, NoScrollPastEnd: true, SoftWrap: true, Label: locales.ResponseBody()}
 			}
 			a.decoderMenu(d.responseEditor)
 			editor.View(c, d.responseEditor).Grow(1)
@@ -1449,7 +1450,7 @@ func (a *app) responseBody(c *ui.Context, t *ui.Theme, d *requestDocument) {
 				if isJSON {
 					buf.SetLanguage(editor.LanguageNamed("json"))
 				}
-				d.responseEditor = &editor.State{Buffer: buf, ReadOnly: true, NoScrollPastEnd: true, Label: "Response body"}
+				d.responseEditor = &editor.State{Buffer: buf, ReadOnly: true, NoScrollPastEnd: true, Label: locales.ResponseBody()}
 			}
 			a.decoderMenu(d.responseEditor)
 			d.responseEditor.Theme = uikit.EditorTheme(t)
@@ -1466,12 +1467,12 @@ func (a *app) responseBody(c *ui.Context, t *ui.Theme, d *requestDocument) {
 	case resViewTiming:
 		ui.Column(c).Grow(1).FillWidth().Padding(t.Space(2), t.Space(3)).Gap(t.Space(2)).Children(func() {
 			if d.response == nil {
-				uikit.Hint(c, "No response yet")
+				uikit.Hint(c, locales.NoResponseYet())
 				return
 			}
-			uikit.Body(c, fmt.Sprintf("Total %d ms · %s", d.response.Millis, humanBytes(d.response.Bytes)))
+			uikit.Body(c, locales.TotalMsBytes(d.response.Millis, humanBytes(d.response.Bytes)))
 			index := a.sentFlowIndex(d)
-			if uikit.CompactButton(c, "Inspect timing in Capture").Disabled(index < 0).Clicked() {
+			if uikit.CompactButton(c, locales.InspectTimingInCapture()).Disabled(index < 0).Clicked() {
 				if index >= 0 {
 					a.inspectCapture(a.flows[index].id)
 					a.syncDetail()
@@ -1480,7 +1481,7 @@ func (a *app) responseBody(c *ui.Context, t *ui.Theme, d *requestDocument) {
 				}
 			}
 			if index < 0 {
-				uikit.Meta(c, "This send's wire capture is not available in this session. History may retain its snapshot.")
+				uikit.Meta(c, locales.ThisSendSWireCapture())
 			} else {
 				a.timingView(c, a.flows[index])
 			}
@@ -1488,7 +1489,7 @@ func (a *app) responseBody(c *ui.Context, t *ui.Theme, d *requestDocument) {
 	case resViewTests:
 		ui.Scroll(c).Grow(1).Padding(t.Space(2), t.Space(3)).Gap(t.Space(2)).Children(func() {
 			if len(d.composeTests) == 0 {
-				uikit.Hint(c, "No assertions. Add response Checks, or pm.test(name, fn) in a script.")
+				uikit.Hint(c, locales.NoAssertionsAddResponseChecks())
 			}
 			for _, result := range d.composeTests {
 				testResultRow(c, result)
@@ -1524,7 +1525,7 @@ func runConsole(c *ui.Context, entries []request.ConsoleMessage) {
 	t := c.Theme()
 	ui.Scroll(c).Grow(1).FillWidth().Padding(t.Space(2), t.Space(3)).Gap(t.Space(2)).Children(func() {
 		if len(entries) == 0 {
-			uikit.Hint(c, "No output. Call console.log(...) in a script to print here.")
+			uikit.Hint(c, locales.NoOutputCallConsoleLog())
 		}
 		for _, entry := range entries {
 			color := t.Text
@@ -1540,16 +1541,16 @@ func runConsole(c *ui.Context, entries []request.ConsoleMessage) {
 // capture it came from, and puts the response tabs back when it closes.
 func (a *app) responseCompare(c *ui.Context, t *ui.Theme, d *requestDocument) {
 	ui.Row(c).Height(uikit.HeightControl).Padding(0, t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-		if uikit.ToolbarButton(c, "Back to response", "Back to the response", false).Height(uikit.HeightCompact).Gap(t.Space(1)).Children(func() {
+		if uikit.ToolbarButton(c, locales.BackToResponse(), locales.BackToTheResponse(), false).Height(uikit.HeightCompact).Gap(t.Space(1)).Children(func() {
 			ui.Icon(c, backIcon).Size(uikit.IconInline, uikit.IconInline)
-			ui.Text(c, "Back to response").FontSize(uikit.TextMeta)
+			ui.Text(c, locales.BackToResponse()).FontSize(uikit.TextMeta)
 		}).Clicked() {
 			d.comparing = false
 		}
-		uikit.Meta(c, "Comparing with the source capture")
+		uikit.Meta(c, locales.ComparingWithTheSourceCapture())
 	})
 	if d.source == nil || d.response == nil {
-		uikit.Hint(c, "The source capture is no longer in this session.").Padding(t.Space(3))
+		uikit.Hint(c, locales.TheSourceCaptureIsNo()).Padding(t.Space(3))
 		return
 	}
 	r := d.response
@@ -1562,14 +1563,14 @@ func (a *app) responseCompare(c *ui.Context, t *ui.Theme, d *requestDocument) {
 	if r.ResponseBodySize > len(r.ResponseBody) {
 		right.resError = "preview limited to 8 MiB"
 	}
-	uikit.Meta(c, "Last send: client request and final response. Capture has the wire exchange.").Padding(t.Space(1), t.Space(3))
+	uikit.Meta(c, locales.LastSendClientRequestAnd()).Padding(t.Space(1), t.Space(3))
 	d.comparison.compare(c, *d.source, right, [2]string{fmt.Sprintf("Source #%d", d.sourceFlow), "Last send"}, &a.diffSplit)
 }
 
 // responseCookies lists what the response asked the client to store.
 func (a *app) responseCookies(c *ui.Context, t *ui.Theme, d *requestDocument) {
 	if d.response == nil {
-		uikit.Hint(c, "No response yet").Padding(t.Space(3))
+		uikit.Hint(c, locales.NoResponseYet()).Padding(t.Space(3))
 		return
 	}
 	cookieView(c, d.response.ResponseHeader, true, &d.cookieReveal)
@@ -1579,7 +1580,7 @@ func (a *app) responseCookies(c *ui.Context, t *ui.Theme, d *requestDocument) {
 func (a *app) responseHex(c *ui.Context, d *requestDocument, body string) {
 	rows := hexRows(body, "")
 	if len(rows) == 0 {
-		uikit.Hint(c, "Empty body").Padding(c.Theme().Space(3))
+		uikit.Hint(c, locales.EmptyBody()).Padding(c.Theme().Space(3))
 		return
 	}
 	ui.List(c, &d.responseList, len(rows), func(i int) {

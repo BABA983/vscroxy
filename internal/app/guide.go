@@ -83,7 +83,7 @@ func (a *app) setupGuide(c *ui.Context) {
 		current++
 	}
 	ui.Scroll(c).Fill().Padding(t.Space(8), t.Space(4)).Children(func() {
-		ui.Column(c).Width(520).MaxWidth(520).AlignSelf(ui.Center).Gap(t.Space(3)).Label("Setup guide").Children(func() {
+		ui.Column(c).Width(520).MaxWidth(520).AlignSelf(ui.Center).Gap(t.Space(3)).Label(locales.SetupGuide()).Children(func() {
 			ui.Column(c).FillWidth().Border(1, t.Border).Radius(uikit.RadiusPanel).Background(t.Background).Children(func() {
 				steps := []struct{ title, summary string }{
 					{"Start capturing", "Point clients at this app's proxy."},
@@ -127,7 +127,7 @@ func (a *app) guideStep(c *ui.Context, t *ui.Theme, i int, title, summary string
 		mark := ui.Row(c).Size(20, 20).Shrink(0).Radius(10).Justify(ui.Center).AlignItems(ui.Center)
 		switch {
 		case done:
-			mark.Background(p.Accent).TextColor(p.AccentText).Label("Done").Children(func() {
+			mark.Background(p.Accent).TextColor(p.AccentText).Label(locales.Done()).Children(func() {
 				ui.Icon(c, checkIcon).Size(12, 12)
 			})
 		case current:

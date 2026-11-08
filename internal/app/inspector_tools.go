@@ -48,7 +48,7 @@ func (a *app) decoderModal(c *ui.Context) {
 		uikit.DialogColumn(c, uikit.DialogMedium).Height(min(530, height-70)).Children(func() {
 			uikit.DialogTitle(c, locales.DecodeText2())
 			ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-				uikit.Select(c, &u.kind, []string{"Base64", "JWT", "URL component", "URL query", "Unix seconds", "Unix milliseconds"}).Label("Decoder").Width(185)
+				uikit.Select(c, &u.kind, []string{"Base64", "JWT", "URL component", "URL query", "Unix seconds", "Unix milliseconds"}).Label(locales.Decoder()).Width(185)
 				uikit.Meta(c, locales.LocalPreviewDoesNotChange()).Grow(1)
 			})
 			ui.Column(c).Height(110).Children(func() {

@@ -1764,27 +1764,27 @@ func (a *app) breakpointModal(c *ui.Context, t *ui.Theme) {
 						uikit.Hint(c, locales.MessageExceedsTheEditorLimit())
 					} else {
 						uikit.Meta(c, locales.Utf8TextOrCanonical())
-						ui.TextArea(c, &a.bpBody).Height(240).Label("Message payload").Font(uikit.FontMono).FontSize(uikit.TextBody).Radius(uikit.RadiusControl)
+						ui.TextArea(c, &a.bpBody).Height(240).Label(locales.MessagePayload()).Font(uikit.FontMono).FontSize(uikit.TextBody).Radius(uikit.RadiusControl)
 					}
 					return
 				}
 				if a.bp.Phase == capture.PhaseResponse {
 					ui.Row(c).Gap(t.Space(2)).Children(func() {
-						uikit.Input(c, &a.bpStatus).Width(90).Label("Status")
+						uikit.Input(c, &a.bpStatus).Width(90).Label(locales.Status())
 						uikit.Hint(c, a.bp.URL).SingleLine().Grow(1).MinWidth(0)
 					})
 				} else {
 					ui.Row(c).Gap(t.Space(2)).Children(func() {
-						uikit.Input(c, &a.bpMethod).Width(90).Label("Method")
-						uikit.Input(c, &a.bpURL).Grow(1).MinWidth(0).Label("URL")
+						uikit.Input(c, &a.bpMethod).Width(90).Label(locales.Method())
+						uikit.Input(c, &a.bpURL).Grow(1).MinWidth(0).Label(locales.Url())
 					})
 				}
 				uikit.Meta(c, locales.HeadersOneNameValuePer())
-				ui.TextArea(c, &a.bpHeaders).Height(130).Label("Breakpoint headers").FontSize(uikit.TextBody).Radius(uikit.RadiusControl)
+				ui.TextArea(c, &a.bpHeaders).Height(130).Label(locales.BreakpointHeaders()).FontSize(uikit.TextBody).Radius(uikit.RadiusControl)
 				if a.bp.BodyReadOnly {
 					uikit.Hint(c, locales.BinaryUndecodableOrLargeBody())
 				} else {
-					ui.TextArea(c, &a.bpBody).Height(160).Label("Body").FontSize(uikit.TextBody).Radius(uikit.RadiusControl)
+					ui.TextArea(c, &a.bpBody).Height(160).Label(locales.Body()).FontSize(uikit.TextBody).Radius(uikit.RadiusControl)
 					uikit.Meta(c, locales.BodyEditsUseDecodedBytes())
 				}
 			})
@@ -1794,7 +1794,7 @@ func (a *app) breakpointModal(c *ui.Context, t *ui.Theme) {
 			uikit.DialogFooter(c).Children(func() {
 				abortLabel := "Drop message"
 				if !message {
-					uikit.Select(c, &a.bpAbort, []string{"502 Bad Gateway", "429 Too Many Requests", "503 Service Unavailable"}).Width(200).Label("Abort status")
+					uikit.Select(c, &a.bpAbort, []string{"502 Bad Gateway", "429 Too Many Requests", "503 Service Unavailable"}).Width(200).Label(locales.AbortStatus())
 					abortLabel = "Abort"
 				}
 				if uikit.SecondaryButton(c, abortLabel).Clicked() {
@@ -1981,7 +1981,7 @@ func (a *app) goTo(choice string) {
 // rest of the library open from its menu and the command palette.
 func (a *app) collectionsGroup(c *ui.Context, t *ui.Theme) {
 	ui.Row(c).Gap(t.Space(1)).AlignItems(ui.Center).Padding(0, 0, t.Space(1)).Children(func() {
-		uikit.Input(c, &a.requestQuery).Label("Search collections").Placeholder(locales.Search()).Grow(1).MinWidth(0)
+		uikit.Input(c, &a.requestQuery).Label(locales.SearchCollections()).Placeholder(locales.Search()).Grow(1).MinWidth(0)
 		if uikit.IconButton(c, locales.NewRequest(), locales.NewRequest(), plusIcon).Clicked() {
 			a.openCompose()
 		}
@@ -1995,7 +1995,7 @@ func (a *app) collectionsGroup(c *ui.Context, t *ui.Theme) {
 		}
 		uikit.SidebarItem(c, "contract:"+d.spec.ID, apiIcon, d.title(), a.sidebarChoice == "contract:"+d.spec.ID, !a.windowBehind).Label(locales.ApiTitle(d.title())).Children(func() {
 			if d.dirty() {
-				ui.Box(c).Size(5, 5).Radius(uikit.RadiusControl).Background(t.Accent).Label("Unsaved API")
+				ui.Box(c).Size(5, 5).Radius(uikit.RadiusControl).Background(t.Accent).Label(locales.UnsavedApi())
 			}
 		})
 	}
@@ -2205,7 +2205,7 @@ func (a *app) table(c *ui.Context) {
 		case "url":
 			if a.edited(f.id) {
 				ui.Box(c).Size(6, 6).Radius(3).Background(uikit.Colors(t).Accent).MarginEnd(t.Space(1.5)).
-					Label("Edited").Tooltip(locales.EditedInTheInspectorThe())
+					Label(locales.Edited()).Tooltip(locales.EditedInTheInspectorThe())
 			}
 			if f.pinned {
 				uikit.Glyph(c, pinIcon).MarginEnd(t.Space(1))
@@ -2287,7 +2287,7 @@ func (a *app) table(c *ui.Context) {
 				cell.PopoverMenu(a.headerFilterMenu(c, cc.Name, []string{value}))
 			}
 		}
-	}).Label("Captured requests").FontSize(uikit.TextData).Grow(1)
+	}).Label(locales.CapturedRequests()).FontSize(uikit.TextData).Grow(1)
 	c.SetTheme(t)
 	if table.Submitted() {
 		a.workbench.inspector.Focus(c)
@@ -2394,7 +2394,7 @@ func (a *app) markModal(c *ui.Context, t *ui.Theme) {
 						a.markColor = ""
 					}
 				})
-				ui.TextArea(c, &a.markNote).Height(90).Label("Note").FontSize(uikit.TextBody).Radius(uikit.RadiusControl)
+				ui.TextArea(c, &a.markNote).Height(90).Label(locales.Note()).FontSize(uikit.TextBody).Radius(uikit.RadiusControl)
 			})
 			uikit.DialogFooter(c).Children(func() {
 				if uikit.SecondaryButton(c, locales.Cancel()).Clicked() {
@@ -2448,7 +2448,7 @@ func (a *app) connectionView(c *ui.Context, f flow) {
 		ui.Text(c, f.conn.error).Selectable().MaxLines(3).Tooltip(f.conn.error).FontSize(uikit.TextBody).TextColor(t.Danger).Padding(0, t.Space(3), t.Space(2))
 	}
 	text := cmp.Or(f.conn.log, "No connection history was recorded for this exchange (for example, an older or imported session).")
-	ui.TextArea(c, &text).ReadOnly(true).Label("Connection log").Font(uikit.FontMono).FontSize(uikit.TextBody).Grow(1).FillWidth()
+	ui.TextArea(c, &text).ReadOnly(true).Label(locales.ConnectionLog()).Font(uikit.FontMono).FontSize(uikit.TextBody).Grow(1).FillWidth()
 }
 
 // connPanel is the connection behind a flow: who talked to the proxy, where it
@@ -2949,7 +2949,7 @@ func (a *app) varsModal(c *ui.Context, t *ui.Theme) {
 				uikit.Meta(c, locales.UseNameInRequestsEnvironment())
 				ui.Row(c).Gap(t.Space(2)).Children(func() {
 					if names := a.envNames(); len(names) > 0 {
-						if uikit.Select(c, &a.varsChoice, names).Label("Edit environment").Grow(1).MinWidth(0).Changed() {
+						if uikit.Select(c, &a.varsChoice, names).Label(locales.EditEnvironment()).Grow(1).MinWidth(0).Changed() {
 							a.editEnvironment(a.varsChoice)
 						}
 					}
@@ -2957,7 +2957,7 @@ func (a *app) varsModal(c *ui.Context, t *ui.Theme) {
 						a.editEnvironment("")
 					}
 				})
-				uikit.Input(c, &a.varsName).Label("Environment")
+				uikit.Input(c, &a.varsName).Label(locales.Environment())
 			}
 			uikit.Hint(c, locales.InitialValuesAreSharedAnd())
 			ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
@@ -3165,7 +3165,7 @@ func (a *app) keyLogModal(c *ui.Context, t *ui.Theme) {
 			uikit.DialogTitle(c, locales.TlsKeyLog())
 			ui.Scroll(c).MinHeight(0).Gap(t.Space(3)).Padding(0, t.Space(1)).Children(func() {
 				uikit.Meta(c, locales.TheSecretsGoToA())
-				uikit.Input(c, &a.keyLogInput).Placeholder("~/.vscroxy/keys.log").Label("File")
+				uikit.Input(c, &a.keyLogInput).Placeholder("~/.vscroxy/keys.log").Label(locales.File())
 			})
 			uikit.DialogFooter(c).Children(func() {
 				if a.keyLogPath != "" && uikit.SecondaryButton(c, locales.TurnOff()).Clicked() {
@@ -3585,11 +3585,11 @@ func (a *app) sslModal(c *ui.Context, t *ui.Theme) {
 			ui.Scroll(c).Grow(1).MinHeight(0).FillWidth().Gap(t.Space(3)).Padding(0, t.Space(1)).Children(func() {
 				uikit.Meta(c, locales.EnableADomainOrA())
 				ui.Row(c).Gap(t.Space(2)).MinHeight(uikit.HeightControl).AlignItems(ui.Center).Children(func() {
-					ui.Switch(c, &draft.All).Label("Decrypt every domain")
+					ui.Switch(c, &draft.All).Label(locales.DecryptEveryDomain())
 					ui.Text(c, locales.DecryptEveryDomain()).FontSize(uikit.TextBody).TextColor(t.Text)
 				})
 				ui.Text(c, locales.DomainsAndSubdomains()).FontSize(uikit.TextBody).FontWeight(600)
-				ui.TextArea(c, &a.sslDraftHosts).Height(100).Label("Decryption domains").FontSize(uikit.TextBody).Radius(uikit.RadiusControl)
+				ui.TextArea(c, &a.sslDraftHosts).Height(100).Label(locales.DecryptionDomains()).FontSize(uikit.TextBody).Radius(uikit.RadiusControl)
 				ui.Divider(c)
 				ui.Text(c, locales.LocalApps()).FontSize(uikit.TextBody).FontWeight(600)
 				uikit.Meta(c, locales.ExactExecutablePathsNotApp())
@@ -3768,8 +3768,8 @@ func (a *app) dnsRuleModal(c *ui.Context, t *ui.Theme) {
 			uikit.DialogTitle(c, locales.MapAHost())
 			ui.Scroll(c).MinHeight(0).Gap(t.Space(3)).Padding(0, t.Space(1)).Children(func() {
 				uikit.Meta(c, locales.TheRequestKeepsItsName())
-				uikit.Input(c, &a.dnsRuleHost).Label("Host")
-				uikit.Input(c, &a.dnsRuleAddr).Label("Address")
+				uikit.Input(c, &a.dnsRuleHost).Label(locales.Host())
+				uikit.Input(c, &a.dnsRuleAddr).Label(locales.Address())
 				uikit.Meta(c, locales.AppliesTo())
 				uikit.Select(c, &a.dnsRuleScope, a.dnsRuleApps)
 				uikit.Meta(c, locales.HostProfile())

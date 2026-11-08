@@ -84,7 +84,7 @@ func (a *app) detail(c *ui.Context) {
 		a.inspect.ready = true
 	}
 	t := c.Theme()
-	ui.Column(c).Bind(&a.workbench.inspector).Focusable().Label("Request inspector").
+	ui.Column(c).Bind(&a.workbench.inspector).Focusable().Label(locales.RequestInspector()).
 		OnShortcut(0, ui.KeyEscape, func() { a.focusTraffic(c) }).
 		Fill().Background(t.Background).Children(func() {
 		if selected := a.selectedFlows(); len(selected) > 1 {

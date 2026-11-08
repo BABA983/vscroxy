@@ -3,6 +3,7 @@ package app
 import (
 	"github.com/baba983/vscroxy/internal/request"
 	"github.com/baba983/vscroxy/internal/uikit"
+	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -21,12 +22,12 @@ func (a *app) transferSettings(d *requestDocument) request.Settings {
 // collection's documentation view renders.
 func (a *app) requestDocsEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
 	ui.Column(c).Grow(1).MinHeight(0).Gap(t.Space(2)).Children(func() {
-		uikit.Meta(c, "MARKDOWN · shown in the collection’s documentation view")
-		ui.TextArea(c, &d.description).Label("Request description").
-			Placeholder("What this request does, its parameters and responses").
+		uikit.Meta(c, locales.MarkdownShownInTheCollection())
+		ui.TextArea(c, &d.description).Label(locales.RequestDescription()).
+			Placeholder(locales.WhatThisRequestDoesIts()).
 			Font(uikit.FontMono).FontSize(uikit.TextBody).Radius(uikit.RadiusControl).
 			Grow(1).MinHeight(0)
-		uikit.Meta(c, "Saved with the request and round-tripped through Postman.")
+		uikit.Meta(c, locales.SavedWithTheRequestAnd())
 	})
 }
 
@@ -35,60 +36,60 @@ func (a *app) requestDocsEditor(c *ui.Context, d *requestDocument, t *ui.Theme) 
 func (a *app) requestSettingsEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
 	effective := a.inheritance(d.composeCollection).InheritSettings(d.settings)
 	ui.Scroll(c).Grow(1).Gap(t.Space(3)).Children(func() {
-		uikit.Meta(c, "TRANSPORT · applies to Send and the Collection Runner")
+		uikit.Meta(c, locales.TransportAppliesToSendAnd())
 		if request.IsWebSocket(d.composeURL) {
-			uikit.Meta(c, "WebSocket sends use their own TLS and timeout handling; these apply to HTTP(S) sends.")
+			uikit.Meta(c, locales.WebsocketSendsUseTheirOwn())
 		}
 		ui.Form(c, func() {
-			ui.Field(c, "Timeout", func() {
+			ui.Field(c, locales.Timeout(), func() {
 				ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-					if ui.NumberInput(c, &d.timeout, 0, 3600, 1).Label("Request timeout in seconds").Changed() {
+					if ui.NumberInput(c, &d.timeout, 0, 3600, 1).Label(locales.RequestTimeoutInSeconds()).Changed() {
 						seconds := int(d.timeout)
 						d.settings.TimeoutSeconds = &seconds
 					}
-					uikit.Meta(c, "seconds · 0 waits with no request limit")
+					uikit.Meta(c, locales.Seconds0WaitsWithNo())
 				})
 			})
-			ui.Field(c, "Redirects", func() {
+			ui.Field(c, locales.Redirects(), func() {
 				follow := effective.Follows()
-				if ui.Switch(c, &follow).Label("Follow redirects").Changed() {
+				if ui.Switch(c, &follow).Label(locales.FollowRedirects()).Changed() {
 					d.setFollow(follow)
 				}
-				uikit.Meta(c, "3xx responses are followed unless Checks need the first one.")
+				uikit.Meta(c, locales.N3xxResponsesAreFollowedUnless())
 			})
 			if effective.Follows() {
-				ui.Field(c, "Maximum redirects", func() {
+				ui.Field(c, locales.MaximumRedirects(), func() {
 					ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-						if ui.NumberInput(c, &d.maxRedirects, 1, 50, 1).Label("Maximum redirects").Changed() {
+						if ui.NumberInput(c, &d.maxRedirects, 1, 50, 1).Label(locales.MaximumRedirects()).Changed() {
 							value := int(d.maxRedirects)
 							d.settings.MaxRedirects = &value
 						}
-						uikit.Meta(c, "HTTP(S) hops")
+						uikit.Meta(c, locales.HttpSHops())
 					})
 				})
 			}
-			ui.Field(c, "TLS", func() {
+			ui.Field(c, locales.Tls(), func() {
 				verify := effective.Verifies()
-				if ui.Switch(c, &verify).Label("Verify TLS certificate").Changed() {
+				if ui.Switch(c, &verify).Label(locales.VerifyTlsCertificate()).Changed() {
 					d.setVerify(verify)
 				}
-				uikit.Meta(c, "Uses the system roots and this app’s CA.")
+				uikit.Meta(c, locales.UsesTheSystemRootsAnd())
 			})
 		})
 		if !effective.Verifies() {
 			ui.Row(c).Padding(t.Space(2), t.Space(3)).Gap(t.Space(2)).Radius(uikit.RadiusControl).
 				Background(t.Warning.Alpha(0.12)).AlignItems(ui.Start).Children(func() {
 				ui.Icon(c, warningIcon).Size(uikit.IconInline, uikit.IconInline).TextColor(t.Warning)
-				ui.Text(c, "Certificate verification is off: this request accepts any certificate, including an impostor’s. Use it only for a server you control.").
+				ui.Text(c, locales.CertificateVerificationIsOffThis()).
 					FontSize(uikit.TextMeta).TextColor(t.Warning).Grow(1)
 			})
 		}
 		ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 			if d.settings == (request.Settings{}) {
-				uikit.Meta(c, "Using the collection and folder defaults.")
+				uikit.Meta(c, locales.UsingTheCollectionAndFolder())
 			} else {
-				uikit.Meta(c, "Some values override the collection and folder defaults.")
-				if uikit.SecondaryButton(c, "Use collection defaults").Clicked() {
+				uikit.Meta(c, locales.SomeValuesOverrideTheCollection())
+				if uikit.SecondaryButton(c, locales.UseCollectionDefaults()).Clicked() {
 					d.resetSettings(a)
 				}
 			}
@@ -120,37 +121,37 @@ func (d *requestDocument) resetSettings(a *app) {
 func (a *app) folderSettingsEditor(c *ui.Context, f *folderEditor, t *ui.Theme) {
 	effective := a.ancestorInheritance(f.draft.Path).InheritSettings(f.settings)
 	ui.Scroll(c).Grow(1).MinHeight(0).Gap(t.Space(3)).Children(func() {
-		uikit.Meta(c, "REQUESTS UNDER IT INHERIT THESE · unset values keep inheriting from above")
+		uikit.Meta(c, locales.RequestsUnderItInheritThese())
 		ui.Form(c, func() {
-			ui.Field(c, "Timeout", func() {
+			ui.Field(c, locales.Timeout(), func() {
 				ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-					if ui.NumberInput(c, &f.timeout, 0, 3600, 1).Label("Folder timeout in seconds").Changed() {
+					if ui.NumberInput(c, &f.timeout, 0, 3600, 1).Label(locales.FolderTimeoutInSeconds()).Changed() {
 						seconds := int(f.timeout)
 						f.settings.TimeoutSeconds = &seconds
 					}
-					uikit.Meta(c, "seconds · 0 waits with no request limit")
+					uikit.Meta(c, locales.Seconds0WaitsWithNo())
 				})
 			})
-			ui.Field(c, "Redirects", func() {
+			ui.Field(c, locales.Redirects(), func() {
 				follow := effective.Follows()
-				if ui.Switch(c, &follow).Label("Follow redirects").Changed() {
+				if ui.Switch(c, &follow).Label(locales.FollowRedirects()).Changed() {
 					f.setFollow(follow)
 				}
 			})
 			if effective.Follows() {
-				ui.Field(c, "Maximum redirects", func() {
+				ui.Field(c, locales.MaximumRedirects(), func() {
 					ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-						if ui.NumberInput(c, &f.maxRedirects, 1, 50, 1).Label("Folder maximum redirects").Changed() {
+						if ui.NumberInput(c, &f.maxRedirects, 1, 50, 1).Label(locales.FolderMaximumRedirects()).Changed() {
 							value := int(f.maxRedirects)
 							f.settings.MaxRedirects = &value
 						}
-						uikit.Meta(c, "HTTP(S) hops")
+						uikit.Meta(c, locales.HttpSHops())
 					})
 				})
 			}
-			ui.Field(c, "TLS", func() {
+			ui.Field(c, locales.Tls(), func() {
 				verify := effective.Verifies()
-				if ui.Switch(c, &verify).Label("Verify TLS certificate").Changed() {
+				if ui.Switch(c, &verify).Label(locales.VerifyTlsCertificate()).Changed() {
 					value := verify
 					f.settings.VerifyTLS = &value
 				}
@@ -160,13 +161,13 @@ func (a *app) folderSettingsEditor(c *ui.Context, f *folderEditor, t *ui.Theme) 
 			ui.Row(c).Padding(t.Space(2), t.Space(3)).Gap(t.Space(2)).Radius(uikit.RadiusControl).
 				Background(t.Warning.Alpha(0.12)).AlignItems(ui.Start).Children(func() {
 				ui.Icon(c, warningIcon).Size(uikit.IconInline, uikit.IconInline).TextColor(t.Warning)
-				ui.Text(c, "Certificate verification is off for requests under it: they accept any certificate, including an impostor’s. Use it only for a server you control.").
+				ui.Text(c, locales.CertificateVerificationIsOffFor()).
 					FontSize(uikit.TextMeta).TextColor(t.Warning).Grow(1)
 			})
 		}
 		if f.settings != (request.Settings{}) {
 			ui.Row(c).Children(func() {
-				if uikit.SecondaryButton(c, "Clear request defaults").Clicked() {
+				if uikit.SecondaryButton(c, locales.ClearRequestDefaults()).Clicked() {
 					f.settings = request.Settings{}
 					effective := a.ancestorInheritance(f.draft.Path).InheritSettings(f.settings)
 					f.timeout, f.maxRedirects = effective.Timeout().Seconds(), float64(effective.RedirectLimit())

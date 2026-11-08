@@ -145,7 +145,7 @@ func (a *app) jsonQueryModal(c *ui.Context) {
 			uikit.DialogTitle(c, locales.QueryJson2())
 			ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 				before := u.dialect
-				uikit.Select(c, &u.dialect, []string{"JSONPath", "jq"}).Label("Query dialect").Width(140)
+				uikit.Select(c, &u.dialect, []string{"JSONPath", "jq"}).Label(locales.QueryDialect()).Width(140)
 				if before != u.dialect {
 					u.job.stop()
 					u.job.result, u.job.problem = nil, ""

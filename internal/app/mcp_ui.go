@@ -14,6 +14,7 @@ import (
 
 	"github.com/baba983/vscroxy/internal/request"
 	"github.com/baba983/vscroxy/internal/uikit"
+	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/editor"
 )
@@ -312,7 +313,7 @@ func (a *app) mcpConnectionEditor(c *ui.Context, t *ui.Theme, d *requestDocument
 			a.variableInput(c, "mcp-dir", &d.mcpConfig.WorkingDir, "Working directory", d.composeCollection).
 				Placeholder("Optional · the app's directory by default").Font(uikit.FontMono)
 			uikit.Meta(c, "Environment · values may use {{variables}}; masked rows are not sent").Padding(0, t.Space(1))
-			a.requestFieldsEditor(c, &d.mcpConfig.Env, fieldsOptions{secret: true, collection: d.composeCollection}, "environment variable")
+			a.requestFieldsEditor(c, &d.mcpConfig.Env, fieldsOptions{secret: true, collection: d.composeCollection}, locales.EnvironmentVariable())
 			uikit.Hint(c, "The command starts only when you press Connect, and stops on Disconnect, closing the document or quitting. Nothing is run at load time. Environment values are saved with the document and never logged.")
 		} else {
 			uikit.Hint(c, "The address bar is the MCP endpoint. Headers, HTTP auth, variables and the request's certificate settings apply. HTTPS is captured while the proxy runs; without it the connection is direct.")

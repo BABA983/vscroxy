@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/baba983/vscroxy/internal/uikit"
+	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/editor"
 )
@@ -37,8 +38,8 @@ func historyFilters(c *ui.Context, status, source *string) {
 	if *source == "" {
 		*source = historySources[0]
 	}
-	uikit.Select(c, status, historyStatuses).Label("History status").FillWidth().Shrink(1).MinWidth(0)
-	uikit.Select(c, source, historySources).Label("History source").FillWidth().Shrink(1).MinWidth(0)
+	uikit.Select(c, status, historyStatuses).Label(locales.HistoryStatus()).FillWidth().Shrink(1).MinWidth(0)
+	uikit.Select(c, source, historySources).Label(locales.HistorySource()).FillWidth().Shrink(1).MinWidth(0)
 }
 
 // historyRecords are the retained runs of the request d edits, newest first:
@@ -62,7 +63,7 @@ func (a *app) historyColumn(c *ui.Context, t *ui.Theme, d *requestDocument) {
 	ui.Column(c).Width(historyWidth).FillHeight().Background(uikit.Colors(t).Panel).
 		BorderWidth(0, 1, 0, 0).BorderColor(t.Border).Children(func() {
 		ui.Row(c).Height(uikit.HeightTabs+uikit.HeightCompact/2).Padding(0, t.Space(2)).AlignItems(ui.Center).Children(func() {
-			uikit.Segmented(c, &d.historyTab, "History", "Examples").Label("Request history").FillWidth()
+			uikit.Segmented(c, &d.historyTab, locales.History(), "Examples").Label(locales.RequestHistory()).FillWidth()
 		})
 		ui.Scroll(c).Grow(1).MinHeight(0).Padding(0, t.Space(2), t.Space(2)).Gap(t.Space(0.5)).Children(func() {
 			if d.historyTab == 1 {
@@ -72,7 +73,7 @@ func (a *app) historyColumn(c *ui.Context, t *ui.Theme, d *requestDocument) {
 			historyFilters(c, &d.historyStatus, &d.historySource)
 			records := a.historyRecords(d)
 			if len(records) == 0 {
-				uikit.Hint(c, "Send this request to keep its runs here. Opening one never sends.").Padding(t.Space(2))
+				uikit.Hint(c, locales.SendThisRequestToKeep()).Padding(t.Space(2))
 				return
 			}
 			for _, r := range records {
@@ -92,7 +93,7 @@ func (a *app) historyColumn(c *ui.Context, t *ui.Theme, d *requestDocument) {
 					ui.Text(c, shown).Font(uikit.FontMono).FontSize(uikit.TextMeta).TextColor(uikit.StatusColor(status, t)).Width(28)
 					uikit.Body(c, runTime(r.At)).FontFeatures("tnum").SingleLine().Grow(1).MinWidth(0)
 					if r.ID == a.experiments.log.Baseline {
-						uikit.Glyph(c, pinIcon).Tooltip("Baseline")
+						uikit.Glyph(c, pinIcon).Tooltip(locales.Baseline())
 					}
 					if status != 0 {
 						uikit.Meta(c, fmt.Sprintf("%d ms", millis)).FontFeatures("tnum")
@@ -108,7 +109,7 @@ func (a *app) historyColumn(c *ui.Context, t *ui.Theme, d *requestDocument) {
 
 func (a *app) historyExamples(c *ui.Context, t *ui.Theme, d *requestDocument) {
 	if len(d.examples) == 0 {
-		uikit.Hint(c, "Send the request, then save a response as an example.").Padding(t.Space(2))
+		uikit.Hint(c, locales.SendTheRequestThenSave()).Padding(t.Space(2))
 		return
 	}
 	for i, e := range d.examples {
@@ -132,23 +133,23 @@ func (a *app) historyResponse(c *ui.Context, t *ui.Theme, d *requestDocument, r 
 	ui.Column(c).Fill().Children(func() {
 		ui.Row(c).Height(uikit.HeightTabs).Padding(0, t.Space(2)).Gap(t.Space(2)).AlignItems(ui.Center).
 			Border(0, t.Border).BorderWidth(0, 0, 1, 0).Children(func() {
-			ui.Text(c, fmt.Sprintf("Run #%d · %s", r.ID, runTime(r.At))).FontSize(uikit.TextBody).FontWeight(600).FontFeatures("tnum").SingleLine()
-			uikit.Meta(c, "Read-only").Grow(1)
+			ui.Text(c, locales.RunNumber(r.ID, runTime(r.At))).FontSize(uikit.TextBody).FontWeight(600).FontFeatures("tnum").SingleLine()
+			uikit.Meta(c, locales.ReadOnly()).Grow(1)
 			if f := r.Exchange; f != nil && f.Status != 0 {
 				uikit.StatusPill(c, strconv.Itoa(f.Status), uikit.StatusColor(f.Status, t)).FontSize(uikit.TextMeta)
 				uikit.Meta(c, fmt.Sprintf("%d ms", f.Millis)).FontFeatures("tnum")
 				uikit.Meta(c, humanBytes(f.Bytes)).FontFeatures("tnum")
 			}
-			if uikit.CompactButton(c, "Open as draft").Tooltip("Open this run as a new draft with its result; never sends").Clicked() {
+			if uikit.CompactButton(c, locales.OpenAsDraft()).Tooltip(locales.OpenThisRunAsA()).Clicked() {
 				a.openRecord(*r)
 				return
 			}
-			if uikit.IconButton(c, "Show latest response", "Back to this request's latest response", closeIcon).Clicked() {
+			if uikit.IconButton(c, locales.ShowLatestResponse(), locales.BackToThisRequestS(), closeIcon).Clicked() {
 				d.historyPick, d.historyReader = 0, nil
 			}
 		})
 		ui.Row(c).Padding(t.Space(1), t.Space(3)).Children(func() {
-			if uikit.CompactButton(c, "Run details…").Tooltip("Notes, baseline and comparison in History").Clicked() {
+			if uikit.CompactButton(c, locales.RunDetails()).Tooltip(locales.NotesBaselineAndComparisonIn()).Clicked() {
 				a.openSendHistory(d)
 				a.experiments.pick(r.ID)
 			}

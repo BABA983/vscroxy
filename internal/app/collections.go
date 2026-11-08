@@ -10,6 +10,7 @@ import (
 
 	"github.com/baba983/vscroxy/internal/request"
 	"github.com/baba983/vscroxy/internal/vault"
+	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/editor"
 )
@@ -334,35 +335,35 @@ func (a *app) folderModal(c *ui.Context, t *ui.Theme) {
 	uikit.Modal(c, &f.open, func() {
 		uikit.DialogColumn(c, uikit.DialogLarge).Height(min(560, height-80)).Children(func() {
 			uikit.DialogTitle(c, kind+" · "+f.draft.Path)
-			uikit.Meta(c, "Every request saved under it inherits these settings; a folder's settings override its collection's.")
+			uikit.Meta(c, locales.EveryRequestSavedUnderIt())
 			ui.Form(c, func() {
-				ui.Field(c, "Name", func() {
+				ui.Field(c, locales.Name(), func() {
 					uikit.Input(c, &f.name).Label(kind + " name")
 				})
 			})
-			uikit.Meta(c, "Renaming moves its requests, folders and settings together.")
-			uikit.Tabs(c, &f.tab, "", "Auth", "Scripts", "Variables", "Description", "Request defaults")
+			uikit.Meta(c, locales.RenamingMovesItsRequestsFolders())
+			uikit.Tabs(c, &f.tab, "", locales.Auth(), "Scripts", "Variables", "Description", "Request defaults")
 			ui.Column(c).Grow(1).MinHeight(0).Gap(t.Space(2)).Children(func() {
 				switch f.tab {
 				case 0:
 					ui.Scroll(c).Grow(1).MinHeight(0).Gap(t.Space(2)).Padding(0, t.Space(1)).Children(func() {
 						a.authFields(c, &f.draft.Auth, a.folderAuthTypes(f.draft.Path), f.draft.Path)
 					})
-					uikit.Meta(c, "Requests whose Auth is Inherit send this.")
+					uikit.Meta(c, locales.RequestsWhoseAuthIsInherit())
 				case 1:
-					uikit.Segmented(c, &f.script, "Pre-request", "Post-response")
-					uikit.Meta(c, "Runs before the request's own script, after any parent collection's.")
+					uikit.Segmented(c, &f.script, locales.PreRequest(), "Post-response")
+					uikit.Meta(c, locales.RunsBeforeTheRequestS())
 					if f.script == 0 {
 						authoredText(c, &f.draft.Pre, &f.pre, &f.preFor, kind+" pre-request script", "JavaScript")
 					} else {
 						authoredText(c, &f.draft.Post, &f.post, &f.postFor, kind+" post-response script", "JavaScript")
 					}
 				case 2:
-					uikit.Meta(c, "Environment values override these; a folder's variables override its collection's.")
-					uikit.Hint(c, "Initial values are shared and exported; Current values stay on this machine.")
+					uikit.Meta(c, locales.EnvironmentValuesOverrideTheseA())
+					uikit.Hint(c, locales.InitialValuesAreSharedAnd2())
 					a.variableTable(c, &f.variables, variableTableOptions{enable: true})
 				case 3:
-					ui.TextArea(c, &f.draft.Description).Label("Description").Placeholder("What these requests are for").Font(uikit.FontMono).FontSize(uikit.TextBody).Radius(uikit.RadiusControl).Grow(1).MinHeight(0)
+					ui.TextArea(c, &f.draft.Description).Label(locales.Description()).Placeholder(locales.WhatTheseRequestsAreFor()).Font(uikit.FontMono).FontSize(uikit.TextBody).Radius(uikit.RadiusControl).Grow(1).MinHeight(0)
 				case 4:
 					a.folderSettingsEditor(c, f, t)
 				}
@@ -371,10 +372,10 @@ func (a *app) folderModal(c *ui.Context, t *ui.Theme) {
 				ui.Text(c, f.problem).FontSize(uikit.TextMeta).TextColor(t.Danger)
 			}
 			uikit.DialogFooter(c).Children(func() {
-				if uikit.SecondaryButton(c, "Cancel").Clicked() {
+				if uikit.SecondaryButton(c, locales.Cancel()).Clicked() {
 					f.open = false
 				}
-				if uikit.PrimaryButton(c, "Save").Label("Save settings").Clicked() {
+				if uikit.PrimaryButton(c, locales.Save()).Label(locales.SaveSettings()).Clicked() {
 					a.saveFolder()
 				}
 			})

@@ -296,7 +296,7 @@ func (a *app) bodySideView(c *ui.Context, f flow, side int) {
 		}
 		// Keep the message picker and copy action reachable even when the
 		// response headline leaves little height beneath the pane tabs.
-		ui.Scroll(c).Label("Protobuf reader").Grow(1).FillWidth().Children(func() {
+		ui.Scroll(c).Label(locales.ProtobufReader()).Grow(1).FillWidth().Children(func() {
 			ui.Column(c).Fill().MinHeight(320).Children(func() {
 				a.protobuf.view(c, a, f, side)
 			})
@@ -318,7 +318,7 @@ func (a *app) bodySideView(c *ui.Context, f flow, side int) {
 		if mode == 3 {
 			placeholder = "Filter hex rows (hex bytes or text)…"
 		}
-		uikit.Input(c, &a.bodyQuery[side]).Label("Search body").Placeholder(placeholder).Tooltip(placeholder).
+		uikit.Input(c, &a.bodyQuery[side]).Label(locales.SearchBody()).Placeholder(placeholder).Tooltip(placeholder).
 			FontSize(uikit.TextBody).Height(uikit.HeightControl).Radius(uikit.RadiusControl).Margin(0, t.Space(3), t.Space(2)).FillWidth()
 	}
 	switch mode {
@@ -435,15 +435,15 @@ func bodyFindBar(c *ui.Context, bar ui.Element, find *editor.FindBar) {
 	t := c.Theme()
 	bar.Row().Gap(t.Space(2)).Padding(t.Space(2)).AlignItems(ui.Center).Background(uikit.Colors(t).Panel).Border(1, t.Border).Radius(uikit.RadiusControl)
 	bar.Children(func() {
-		find.QueryInput(uikit.Input(c, find.Query()).Label("Search body").Placeholder(locales.FindInBody()).Width(140))
+		find.QueryInput(uikit.Input(c, find.Query()).Label(locales.SearchBody()).Placeholder(locales.FindInBody()).Width(140))
 		uikit.Meta(c, find.Status()).FontFeatures("tnum").MinWidth(40).Role(ui.RoleStatus)
-		if uikit.SecondaryButton(c, "↑").Label("Previous body match").Tooltip(locales.PreviousMatchShiftEnter()).KeepFocus().Clicked() {
+		if uikit.SecondaryButton(c, "↑").Label(locales.PreviousBodyMatch()).Tooltip(locales.PreviousMatchShiftEnter()).KeepFocus().Clicked() {
 			find.Previous()
 		}
-		if uikit.SecondaryButton(c, "↓").Label("Next body match").Tooltip(locales.NextMatchEnter()).KeepFocus().Clicked() {
+		if uikit.SecondaryButton(c, "↓").Label(locales.NextBodyMatch()).Tooltip(locales.NextMatchEnter()).KeepFocus().Clicked() {
 			find.Next()
 		}
-		if uikit.SecondaryButton(c, "×").Label("Close body search").Tooltip(locales.CloseSearchEsc()).KeepFocus().Clicked() {
+		if uikit.SecondaryButton(c, "×").Label(locales.CloseBodySearch()).Tooltip(locales.CloseSearchEsc()).KeepFocus().Clicked() {
 			find.Close()
 		}
 	})

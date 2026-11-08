@@ -14,6 +14,7 @@ import (
 
 	"github.com/baba983/vscroxy/internal/capture"
 	"github.com/baba983/vscroxy/internal/request"
+	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/editor"
 )
@@ -86,7 +87,7 @@ func (a *app) saveExample(d *requestDocument) {
 // examplesEditor lists the request's examples and shows the chosen one.
 func (a *app) examplesEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
 	if len(d.examples) == 0 {
-		uikit.EmptyState(c, "No examples yet", "Send the request, then choose Save as example beside the response.", nil)
+		uikit.EmptyState(c, locales.NoExamplesYet(), locales.SendTheRequestThenChoose(), nil)
 		return
 	}
 	d.example = min(max(d.example, 0), len(d.examples)-1)
@@ -108,19 +109,19 @@ func (a *app) examplesEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
 		e := &d.examples[d.example]
 		ui.Column(c).Grow(1).MinWidth(0).MinHeight(0).Gap(t.Space(2)).Children(func() {
 			ui.Form(c, func() {
-				ui.Field(c, "Example name", func() { uikit.Input(c, &e.Name).Label("Example name") })
+				ui.Field(c, locales.ExampleName(), func() { uikit.Input(c, &e.Name).Label(locales.ExampleName()) })
 			})
 			ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 				ui.Text(c, fmt.Sprintf("%d %s", e.Status, http.StatusText(e.Status))).FontSize(uikit.TextBody).FontWeight(600).TextColor(uikit.StatusColor(e.Status, t))
 				uikit.Meta(c, humanBytes(len(e.Body))).FontFeatures("tnum")
 				ui.Spacer(c)
-				if uikit.Segmented(c, &d.exampleView, "Body", "Headers", "Request").Changed() {
+				if uikit.Segmented(c, &d.exampleView, locales.Body(), "Headers", "Request").Changed() {
 					d.exampleEditor = nil
 				}
-				if uikit.SecondaryButton(c, "Mock").Label("Mock this example").Tooltip("Answer matching requests with this example: opens a Map Local rule in Tools").Clicked() {
+				if uikit.SecondaryButton(c, locales.Mock()).Label(locales.MockThisExample()).Tooltip(locales.AnswerMatchingRequestsWithThis()).Clicked() {
 					a.mockExample(d.value().Request, *e)
 				}
-				if uikit.SecondaryButton(c, "Delete").Label("Delete example").Clicked() {
+				if uikit.SecondaryButton(c, locales.Delete()).Label(locales.DeleteExample()).Clicked() {
 					d.examples = slices.Delete(d.examples, d.example, d.example+1)
 					d.exampleEditor = nil
 				}

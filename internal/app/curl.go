@@ -19,6 +19,7 @@ import (
 	"github.com/baba983/vscroxy/internal/imports"
 	"github.com/baba983/vscroxy/internal/request"
 	"github.com/baba983/vscroxy/internal/uikit"
+	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo/ui"
 	"golang.org/x/net/http/httpguts"
 )
@@ -287,10 +288,10 @@ func (a *app) curlImportModal(c *ui.Context, t *ui.Theme) {
 	}
 	uikit.Modal(c, &a.curlOpen, func() {
 		uikit.DialogColumn(c, uikit.DialogMedium).Children(func() {
-			uikit.DialogTitle(c, "Import cURL")
+			uikit.DialogTitle(c, locales.ImportCurl2())
 			ui.Scroll(c).MinHeight(0).Shrink(1).Gap(t.Space(4)).Padding(0, t.Space(1)).Children(func() {
-				uikit.Hint(c, "Paste one curl command (Bash, Windows CMD, or PowerShell). It opens an unsent request tab; nothing is executed.")
-				if ui.TextArea(c, &a.curlInput).Height(190).Font(uikit.FontMono).FontSize(uikit.TextBody).Radius(uikit.RadiusControl).Label("cURL command").Placeholder("curl 'https://api.example.com/projects' \\\n  -H 'Accept: application/json'").AutoFocus().Changed() {
+				uikit.Hint(c, locales.PasteOneCurlCommandBash())
+				if ui.TextArea(c, &a.curlInput).Height(190).Font(uikit.FontMono).FontSize(uikit.TextBody).Radius(uikit.RadiusControl).Label(locales.CurlCommand()).Placeholder("curl 'https://api.example.com/projects' \\\n  -H 'Accept: application/json'").AutoFocus().Changed() {
 					a.curlProblem = ""
 				}
 				if a.curlProblem != "" {
@@ -298,10 +299,10 @@ func (a *app) curlImportModal(c *ui.Context, t *ui.Theme) {
 				}
 			})
 			uikit.DialogFooter(c).Children(func() {
-				if uikit.SecondaryButton(c, "Cancel").Clicked() {
+				if uikit.SecondaryButton(c, locales.Cancel()).Clicked() {
 					a.curlOpen, a.curlInput = false, ""
 				}
-				if uikit.PrimaryButton(c, "Import request").Disabled(strings.TrimSpace(a.curlInput) == "").Clicked() {
+				if uikit.PrimaryButton(c, locales.ImportRequest()).Disabled(strings.TrimSpace(a.curlInput) == "").Clicked() {
 					r, warnings, err := parseCurlImport(a.curlInput)
 					if err != nil {
 						a.curlProblem = err.Error()

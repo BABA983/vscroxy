@@ -12,6 +12,7 @@ import (
 	"slices"
 
 	"github.com/baba983/vscroxy/internal/store"
+	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/editor"
@@ -74,7 +75,7 @@ func (a *app) addAPI(spec apiSpec, saved bool) {
 	if spec.ID == "" {
 		spec.ID = rand.Text()
 	}
-	d := &apiDocument{spec: spec, code: &editor.State{Buffer: editor.NewBuffer(spec.Source), Label: "OpenAPI source", NoScrollPastEnd: true}}
+	d := &apiDocument{spec: spec, code: &editor.State{Buffer: editor.NewBuffer(spec.Source), Label: locales.OpenapiSource(), NoScrollPastEnd: true}}
 	if saved {
 		d.saved = new(spec)
 		d.code.Buffer.MarkSaved()
@@ -123,9 +124,9 @@ func (a *app) saveAPI(d *apiDocument) {
 func (a *app) apiView(c *ui.Context, t *ui.Theme) {
 	d := a.activeAPI()
 	if d == nil {
-		uikit.EmptyState(c, "From traffic to an API contract", "Save captured requests in a collection, then generate an OpenAPI draft.", func() {
-			uikit.Hint(c, "Or create or import a standalone OpenAPI 3.0 / 3.1 specification.")
-			if uikit.SecondaryButton(c, "Create API").Clicked() {
+		uikit.EmptyState(c, locales.FromTrafficToAnApi(), locales.SaveCapturedRequestsInA(), func() {
+			uikit.Hint(c, locales.OrCreateOrImportA())
+			if uikit.SecondaryButton(c, locales.CreateApi()).Clicked() {
 				a.newAPI()
 			}
 		})
@@ -136,16 +137,16 @@ func (a *app) apiView(c *ui.Context, t *ui.Theme) {
 	ui.Column(c).Key(d.spec.ID).Fill().Children(func() {
 		ui.Row(c).Height(uikit.HeightTabs).Padding(0, t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 			ui.Text(c, d.title()).FontSize(uikit.TextBody).FontWeight(600).Grow(1).MinWidth(0).SingleLine()
-			if uikit.SecondaryButton(c, "Validate").Clicked() {
+			if uikit.SecondaryButton(c, locales.Validate()).Clicked() {
 				d.validate()
 			}
-			if uikit.SecondaryButton(c, "Export…").Label("Export OpenAPI").Disabled(!valid).Clicked() {
+			if uikit.SecondaryButton(c, locales.Export()).Label(locales.ExportOpenapi()).Disabled(!valid).Clicked() {
 				a.exportOpenAPI(d)
 			}
-			if uikit.SecondaryButton(c, "Create collection").Label("Create collection from OpenAPI").Disabled(!valid).Clicked() {
+			if uikit.SecondaryButton(c, locales.CreateCollection2()).Label(locales.CreateCollectionFromOpenapi()).Disabled(!valid).Clicked() {
 				a.importOpenAPICollection(d.parsed, d.title(), nil, "")
 			}
-			if uikit.PrimaryButton(c, "Save API").Clicked() {
+			if uikit.PrimaryButton(c, locales.SaveApi()).Clicked() {
 				a.saveAPI(d)
 			}
 		})
@@ -169,22 +170,22 @@ func (a *app) apiView(c *ui.Context, t *ui.Theme) {
 					message = "Source collection changed — review before updating this contract."
 				}
 				uikit.Meta(c, message).Grow(1)
-				if uikit.SecondaryButton(c, "Generate new draft").Clicked() {
+				if uikit.SecondaryButton(c, locales.GenerateNewDraft()).Clicked() {
 					a.generateAPI(d.spec.Collection)
 				}
 			})
 		}
 		ui.Row(c).Height(uikit.HeightTabs).Padding(0, t.Space(1)).AlignItems(ui.Center).
 			Border(0, t.Border).BorderWidth(0, 0, 1, 0).Children(func() {
-			uikit.Tabs(c, &d.tab, "API", "Endpoints", "OpenAPI", "Review notes")
+			uikit.Tabs(c, &d.tab, "API", locales.Endpoints(), "OpenAPI", "Review notes")
 		})
 		switch d.tab {
 		case 0:
 			if valid {
 				a.apiEndpoints(c, t, d)
 			} else {
-				uikit.EmptyState(c, "Endpoints unavailable", cmp.Or(d.problem, "Validate the edited source to refresh endpoints."), func() {
-					if uikit.SecondaryButton(c, "Edit OpenAPI").Clicked() {
+				uikit.EmptyState(c, locales.EndpointsUnavailable(), cmp.Or(d.problem, "Validate the edited source to refresh endpoints."), func() {
+					if uikit.SecondaryButton(c, locales.EditOpenapi()).Clicked() {
 						d.tab = 1
 					}
 				})
@@ -201,12 +202,12 @@ func (a *app) apiView(c *ui.Context, t *ui.Theme) {
 			})
 		case 2:
 			ui.Scroll(c).Grow(1).Padding(t.Space(4)).Gap(t.Space(4)).Children(func() {
-				uikit.Heading(c, "Review before publishing")
-				uikit.Hint(c, "Validation checks OpenAPI structure, not whether your service implements the contract. No automatic or bidirectional synchronization is performed.")
+				uikit.Heading(c, locales.ReviewBeforePublishing())
+				uikit.Hint(c, locales.ValidationChecksOpenapiStructureNot())
 				for _, note := range d.spec.Notes {
 					uikit.Body(c, "• "+note)
 				}
-				uikit.Hint(c, "Only standalone JSON/YAML is supported. Internal #/ references are resolved; external files and URLs are never fetched. Original source is preserved on save/export.")
+				uikit.Hint(c, locales.OnlyStandaloneJsonYamlIs())
 			})
 		}
 	})
@@ -215,7 +216,7 @@ func (a *app) apiView(c *ui.Context, t *ui.Theme) {
 func (a *app) apiEndpoints(c *ui.Context, t *ui.Theme, d *apiDocument) {
 	endpoints := apiOperations(d.parsed)
 	if len(endpoints) == 0 {
-		uikit.EmptyState(c, "No HTTP endpoints yet", "Define paths in OpenAPI, or generate a draft from saved requests.", nil)
+		uikit.EmptyState(c, locales.NoHttpEndpointsYet(), locales.DefinePathsInOpenapiOr(), nil)
 		return
 	}
 	if d.endpoint == "" {
@@ -250,21 +251,21 @@ func (a *app) apiEndpoints(c *ui.Context, t *ui.Theme, d *apiDocument) {
 			if summary := cmp.Or(endpoint.op.Summary, endpoint.op.OperationID); summary != "" && summary != endpoint.method+" "+endpoint.path {
 				uikit.Body(c, summary)
 			}
-			if uikit.SecondaryButton(c, "Open in Requests").Width(160).Clicked() {
+			if uikit.SecondaryButton(c, locales.OpenInRequests()).Width(160).Clicked() {
 				a.addDocument(requestFromOperation(d.parsed, endpoint), "")
 				a.sourceAPI = d.spec.ID
 				a.composeResult = "Draft from OpenAPI. Review server, variables, authentication and body before sending."
 			}
-			uikit.Meta(c, "Uses the first effective server and required parameters. Body examples are copied when provided; schemas are not turned into invented payloads.")
+			uikit.Meta(c, locales.UsesTheFirstEffectiveServer())
 			ui.Divider(c)
 			ui.Row(c).Height(uikit.HeightTabs).AlignItems(ui.Center).Children(func() {
-				uikit.Label(c, "OPERATION · schemas and references")
+				uikit.Label(c, locales.OperationSchemasAndReferences())
 			})
 			if d.details == nil || d.detailsFor != d.endpoint {
 				data, _ := json.Marshal(endpoint.op, jsontext.WithIndent("  "))
 				buf := editor.NewBuffer(string(data))
 				buf.SetLanguage(editor.LanguageNamed("json"))
-				d.details = &editor.State{Buffer: buf, ReadOnly: true, NoScrollPastEnd: true, Label: "Operation schema"}
+				d.details = &editor.State{Buffer: buf, ReadOnly: true, NoScrollPastEnd: true, Label: locales.OperationSchema()}
 				d.detailsFor = d.endpoint
 			}
 			requestCodeEditor(c, d.details)
@@ -286,9 +287,9 @@ func (a *app) apiGenerationModal(c *ui.Context, t *ui.Theme) {
 	}
 	uikit.Modal(c, &a.apiGenerateOpen, func() {
 		uikit.DialogColumn(c, uikit.DialogMedium).Children(func() {
-			uikit.DialogTitle(c, "Generate OpenAPI draft")
+			uikit.DialogTitle(c, locales.GenerateOpenapiDraft())
 			ui.Scroll(c).MinHeight(0).Shrink(1).Gap(t.Space(4)).Children(func() {
-				uikit.Hint(c, "Choose a saved collection. Unsaved request tabs are not included.")
+				uikit.Hint(c, locales.ChooseASavedCollectionUnsaved())
 				uikit.MenuSelect(c, cmp.Or(a.apiCollection, "Saved (ungrouped)"), func(m *ui.Menu) {
 					for _, name := range slices.Sorted(maps.Keys(groupRequests(a.requests))) {
 						if m.Item(cmp.Or(name, "Saved (ungrouped)")).Checked(name == a.apiCollection).Chosen() {
@@ -296,14 +297,14 @@ func (a *app) apiGenerationModal(c *ui.Context, t *ui.Theme) {
 						}
 					}
 				}).
-					Label("Source collection").FillWidth()
-				uikit.Hint(c, "Header/query/body values and scripts are omitted. Paths remain literal. Authentication, types and response schemas need review. This creates a new specification; existing ones are never overwritten.")
+					Label(locales.SourceCollection()).FillWidth()
+				uikit.Hint(c, locales.HeaderQueryBodyValuesAnd())
 			})
 			uikit.DialogFooter(c).Children(func() {
-				if uikit.SecondaryButton(c, "Cancel").Clicked() {
+				if uikit.SecondaryButton(c, locales.Cancel()).Clicked() {
 					a.apiGenerateOpen = false
 				}
-				if uikit.PrimaryButton(c, "Generate draft").Clicked() {
+				if uikit.PrimaryButton(c, locales.GenerateDraft()).Clicked() {
 					a.generateAPI(a.apiCollection)
 					a.apiGenerateOpen = false
 				}
@@ -325,7 +326,7 @@ func (a *app) generateAPI(collection string) {
 
 func (a *app) importOpenAPI() {
 	go func() {
-		paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Title: "Import OpenAPI", Filters: []mygo.FileFilter{{Name: "OpenAPI", Extensions: []string{"json", "yaml", "yml"}}}})
+		paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Title: locales.ImportOpenapi2(), Filters: []mygo.FileFilter{{Name: "OpenAPI", Extensions: []string{"json", "yaml", "yml"}}}})
 		if err != nil {
 			a.fail("Import OpenAPI", err)
 			return
@@ -359,7 +360,7 @@ func (a *app) exportOpenAPI(d *apiDocument) {
 		ext = "json"
 	}
 	go func() {
-		path, err := mygo.Dialog.Save(mygo.SaveDialogOptions{Title: "Export OpenAPI", DefaultPath: "openapi." + ext, Filters: []mygo.FileFilter{{Name: "OpenAPI", Extensions: []string{ext}}}})
+		path, err := mygo.Dialog.Save(mygo.SaveDialogOptions{Title: locales.ExportOpenapi(), DefaultPath: "openapi." + ext, Filters: []mygo.FileFilter{{Name: "OpenAPI", Extensions: []string{ext}}}})
 		if err != nil {
 			a.fail("Export OpenAPI", err)
 			return

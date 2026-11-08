@@ -234,7 +234,7 @@ func (a *app) profileList(c *ui.Context, t *ui.Theme) {
 	pick := *t
 	pick.Accent, pick.AccentText = ui.Color{}, t.Text
 	c.SetTheme(&pick)
-	list := ui.List(c, &h.list, len(h.set.Profiles)).Label("Host profiles").Grow(1).MinHeight(0).Gap(t.Space(0.5))
+	list := ui.List(c, &h.list, len(h.set.Profiles)).Label(locales.HostProfiles()).Grow(1).MinHeight(0).Gap(t.Space(0.5))
 	list.Rows(func(row ui.ListRow) {
 		c := row.Context
 		c.SetTheme(t)
@@ -314,12 +314,12 @@ func (a *app) profileEditor(c *ui.Context, t *ui.Theme, i int) {
 	}
 	st.ReadOnly = p.URL != ""
 	ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-		name := uikit.Input(c, &h.name).Label("Profile name").Grow(1).MaxWidth(320).FontSize(uikit.TextTitle).Height(uikit.HeightLarge)
+		name := uikit.Input(c, &h.name).Label(locales.ProfileName()).Grow(1).MaxWidth(320).FontSize(uikit.TextTitle).Height(uikit.HeightLarge)
 		if name.Submitted() {
 			a.renameProfile(i, strings.TrimSpace(h.name))
 		}
 		on := p.On
-		if ui.Switch(c, &on).Label("Profile on").Changed() {
+		if ui.Switch(c, &on).Label(locales.ProfileOn()).Changed() {
 			a.switchProfile(i, on)
 		}
 		ui.Spacer(c)
@@ -339,7 +339,7 @@ func (a *app) profileEditor(c *ui.Context, t *ui.Theme, i int) {
 	if p.URL != "" {
 		ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 			uikit.Glyph(c, subscribeIcon)
-			in := uikit.Input(c, &h.url).Label("Subscription URL").Placeholder("https://example.com/hosts").Font(uikit.FontMono).Grow(1)
+			in := uikit.Input(c, &h.url).Label(locales.SubscriptionUrl()).Placeholder("https://example.com/hosts").Font(uikit.FontMono).Grow(1)
 			refresh := uikit.SecondaryButton(c, locales.Refresh()).Disabled(h.fetching[p.Name])
 			if in.Submitted() || refresh.Clicked() {
 				url := strings.TrimSpace(h.url)
@@ -403,7 +403,7 @@ func (a *app) profileToSave() (int, bool) {
 func (a *app) hostTest(c *ui.Context, t *ui.Theme) {
 	h := &a.profiles
 	ui.Column(c).Width(240).Gap(t.Space(0.5)).Children(func() {
-		uikit.Input(c, &h.test).Label("Test a host").Placeholder(locales.TestAHostApiExample()).Font(uikit.FontMono).FillWidth()
+		uikit.Input(c, &h.test).Label(locales.TestAHost()).Placeholder(locales.TestAHostApiExample()).Font(uikit.FontMono).FillWidth()
 		host := strings.TrimSpace(h.test)
 		if host == "" {
 			return

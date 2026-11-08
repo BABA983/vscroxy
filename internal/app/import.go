@@ -16,6 +16,7 @@ import (
 
 	"github.com/baba983/vscroxy/internal/imports"
 	"github.com/baba983/vscroxy/internal/request"
+	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo/ui"
 	"github.com/getkin/kin-openapi/openapi3"
 )
@@ -311,7 +312,7 @@ func (a *app) collectionSaveModal(c *ui.Context, t *ui.Theme) {
 	}
 	uikit.Modal(c, &s.open, func() {
 		uikit.DialogColumn(c, uikit.DialogSmall).Children(func() {
-			uikit.DialogTitle(c, fmt.Sprintf("Save %d requests to collection", len(s.flows)))
+			uikit.DialogTitle(c, locales.SaveRequestsToCollection(len(s.flows)))
 			names := a.collectionNames()
 			name := collectionSegment(s.name)
 			hint := "Creates a new collection."
@@ -319,21 +320,21 @@ func (a *app) collectionSaveModal(c *ui.Context, t *ui.Theme) {
 				hint = "Adds to the end of this collection."
 			}
 			ui.Scroll(c).MinHeight(0).Shrink(1).Gap(t.Space(4)).Padding(0, t.Space(1)).Children(func() {
-				uikit.Hint(c, "Saved in capture order, not sent. Tunnels, WebSocket connections and incomplete or non-UTF-8 bodies are skipped.")
+				uikit.Hint(c, locales.SavedInCaptureOrderNot())
 				ui.Form(c, func() {
-					ui.Field(c, "Collection", func() {
-						ui.Autocomplete(c, &s.name, names).Label("Collection name").Height(uikit.HeightControl).FontSize(uikit.TextBody)
+					ui.Field(c, locales.Collection(), func() {
+						ui.Autocomplete(c, &s.name, names).Label(locales.CollectionName()).Height(uikit.HeightControl).FontSize(uikit.TextBody)
 					}).Description(hint)
-					ui.Field(c, "Folders", func() {
+					ui.Field(c, locales.Folders(), func() {
 						ui.Checkbox(c, &s.perHost, "One folder per host").FontSize(uikit.TextBody)
 					})
 				})
 			})
 			uikit.DialogFooter(c).Children(func() {
-				if uikit.SecondaryButton(c, "Cancel").Clicked() {
+				if uikit.SecondaryButton(c, locales.Cancel()).Clicked() {
 					s.open = false
 				}
-				if uikit.PrimaryButton(c, "Save requests").Disabled(name == "").Clicked() {
+				if uikit.PrimaryButton(c, locales.SaveRequests()).Disabled(name == "").Clicked() {
 					s.open = false
 					a.saveFlowsToCollection(s.flows, s.name, s.perHost)
 				}

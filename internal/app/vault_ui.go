@@ -14,6 +14,7 @@ import (
 	"github.com/baba983/vscroxy/internal/request"
 	"github.com/baba983/vscroxy/internal/store"
 	"github.com/baba983/vscroxy/internal/vault"
+	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 )
@@ -220,21 +221,21 @@ func (a *app) vaultModal(c *ui.Context, t *ui.Theme) {
 	_, height := c.Size()
 	uikit.Modal(c, &v.open, func() {
 		uikit.DialogColumn(c, uikit.DialogLarge).Height(min(520, height-80)).Children(func() {
-			uikit.DialogTitle(c, "Vault")
-			uikit.Meta(c, "Use {{vault:name}} in a URL, header, body or auth field. A secret with domains is sent only to those hosts.")
+			uikit.DialogTitle(c, locales.Vault2())
+			uikit.Meta(c, locales.UseVaultNameInA())
 			if v.problem != "" {
 				ui.Scroll(c).Grow(1).MinHeight(0).Children(func() {
 					ui.Text(c, v.problem).FontSize(uikit.TextBody).TextColor(t.Danger).Selectable()
 				})
 				uikit.DialogFooter(c).Children(func() {
-					if uikit.SecondaryButton(c, "Close").Clicked() {
+					if uikit.SecondaryButton(c, locales.Close()).Clicked() {
 						v.open = false
 					}
 					if !v.resetting {
-						if uikit.SecondaryButton(c, "Reset vault…").Clicked() {
+						if uikit.SecondaryButton(c, locales.ResetVault()).Clicked() {
 							v.resetting = true
 						}
-					} else if uikit.PrimaryButton(c, "Delete all secrets and start over").Clicked() {
+					} else if uikit.PrimaryButton(c, locales.DeleteAllSecretsAndStart()).Clicked() {
 						a.resetVault()
 					}
 				})
@@ -264,25 +265,25 @@ func (a *app) vaultModal(c *ui.Context, t *ui.Theme) {
 					r := &v.rows[i]
 					ui.Row(c).Key(i).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 						ui.Box(c).Basis(0).Grow(1).MinWidth(0).Children(func() {
-							uikit.Input(c, &r.name).Label(fmt.Sprintf("Secret name %d", i+1)).Placeholder("api_token").FillWidth().MinWidth(0)
+							uikit.Input(c, &r.name).Label(locales.SecretName(i + 1)).Placeholder("api_token").FillWidth().MinWidth(0)
 						})
 						ui.Box(c).Basis(0).Grow(2).MinWidth(0).Children(func() {
-							value := uikit.Input(c, &r.value).Label(fmt.Sprintf("Secret value %d", i+1)).Placeholder("Value").FillWidth().MinWidth(0)
+							value := uikit.Input(c, &r.value).Label(locales.SecretValue(i + 1)).Placeholder(locales.Value()).FillWidth().MinWidth(0)
 							if !r.revealed {
 								value.Password()
 							}
 						})
 						ui.Box(c).Basis(0).Grow(2).MinWidth(0).Children(func() {
-							uikit.Input(c, &r.domains).Label(fmt.Sprintf("Allowed domains %d", i+1)).Placeholder("Any host, or api.example.com, *.example.com").FillWidth().MinWidth(0)
+							uikit.Input(c, &r.domains).Label(locales.AllowedDomains(i + 1)).Placeholder(locales.AnyHostOrApiExample()).FillWidth().MinWidth(0)
 						})
 						label := "Reveal"
 						if r.revealed {
 							label = "Hide"
 						}
-						if uikit.SecondaryButton(c, "◉").Label(fmt.Sprintf("%s secret %d", label, i+1)).Tooltip(fmt.Sprintf("%s secret %d", label, i+1)).Width(34).Padding(0).Clicked() {
+						if uikit.SecondaryButton(c, "◉").Label(locales.SecretRow(label, i+1)).Tooltip(locales.SecretRow(label, i+1)).Width(34).Padding(0).Clicked() {
 							r.revealed = !r.revealed
 						}
-						if uikit.SecondaryButton(c, "×").Label(fmt.Sprintf("Remove secret %d", i+1)).Tooltip(fmt.Sprintf("Remove secret %d", i+1)).Width(34).Padding(0).Clicked() {
+						if uikit.SecondaryButton(c, "×").Label(locales.RemoveSecret(i + 1)).Tooltip(locales.RemoveSecret(i + 1)).Width(34).Padding(0).Clicked() {
 							remove = i
 						}
 					})
@@ -290,20 +291,20 @@ func (a *app) vaultModal(c *ui.Context, t *ui.Theme) {
 				if remove >= 0 {
 					v.rows = slices.Delete(v.rows, remove, remove+1)
 				}
-				if uikit.SecondaryButton(c, "Add secret").Clicked() {
+				if uikit.SecondaryButton(c, locales.AddSecret()).Clicked() {
 					v.rows = append(v.rows, vaultRow{})
 				}
 			})
 			ui.Checkbox(c, &v.scriptsDraft, "Let scripts use pm.vault").
-				Tooltip("Scripts can then read any secret allowed for their request's host, and add, change or remove secrets")
+				Tooltip(locales.ScriptsCanThenReadAny())
 			if v.editProblem != "" {
 				ui.Text(c, v.editProblem).FontSize(uikit.TextMeta).TextColor(t.Danger)
 			}
 			uikit.DialogFooter(c).Children(func() {
-				if uikit.SecondaryButton(c, "Cancel").Clicked() {
+				if uikit.SecondaryButton(c, locales.Cancel()).Clicked() {
 					v.open = false
 				}
-				if uikit.PrimaryButton(c, "Save").Label("Save vault").Clicked() {
+				if uikit.PrimaryButton(c, locales.Save()).Label(locales.SaveVault()).Clicked() {
 					a.saveVault()
 				}
 			})

@@ -90,7 +90,7 @@ func (s *structuredInspector) view(c *ui.Context, source inspectionBody, content
 				}
 			}
 			uikit.Mono(c, clamp(value, 256)).SingleLine().Tooltip(clamp(raw, 4096)).Selectable()
-		}).Label("Form fields").Grow(1).MinHeight(0)
+		}).Label(locales.FormFields()).Grow(1).MinHeight(0)
 		if len(body.Fields) == 0 {
 			uikit.Hint(c, locales.NoFormFields())
 		}
@@ -113,7 +113,7 @@ func (s *structuredInspector) view(c *ui.Context, source inspectionBody, content
 				}
 			})
 			ui.Divider(c)
-		}).Label("Multipart parts").Grow(1).MinHeight(0).FillWidth()
+		}).Label(locales.MultipartParts()).Grow(1).MinHeight(0).FillWidth()
 	default:
 		requestCodeEditor(c, s.job.result)
 	}

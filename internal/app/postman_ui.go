@@ -12,6 +12,7 @@ import (
 	"github.com/baba983/vscroxy/internal/imports"
 	"github.com/baba983/vscroxy/internal/postman"
 	"github.com/baba983/vscroxy/internal/request"
+	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 )
@@ -29,7 +30,7 @@ type importReport struct {
 func (a *app) importRequests() {
 	go func() {
 		paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{
-			Title:   "Import",
+			Title:   locales.ImportText2(),
 			Filters: []mygo.FileFilter{{Name: "Postman, HAR or OpenAPI", Extensions: []string{"json", "har", "yaml", "yml"}}},
 		})
 		if err != nil || len(paths) == 0 {
@@ -50,7 +51,7 @@ func (a *app) importRequests() {
 func (a *app) importCollectionFolder() {
 	go func() {
 		paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{
-			Title:       "Import collection folder",
+			Title:       locales.ImportCollectionFolder2(),
 			ButtonLabel: "Import",
 			Directory:   true,
 		})
@@ -265,7 +266,7 @@ func (a *app) importReportModal(c *ui.Context, t *ui.Theme) {
 				}
 			})
 			uikit.DialogFooter(c).Children(func() {
-				if uikit.PrimaryButton(c, "OK").Clicked() {
+				if uikit.PrimaryButton(c, locales.Ok()).Clicked() {
 					r.open = false
 				}
 			})

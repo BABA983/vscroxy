@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/baba983/vscroxy/internal/request"
+	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -48,7 +49,7 @@ func copyAsMenu(items []action) action {
 			items[i].label = "Raw HTTP"
 		}
 	}
-	return submenu("Copy as…", items...)
+	return submenu(locales.CopyAs(), items...)
 }
 
 func (a *app) copyRequest(c *ui.Context, f flow, d *requestDocument, format string) {

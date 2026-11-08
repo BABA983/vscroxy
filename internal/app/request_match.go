@@ -11,6 +11,7 @@ import (
 	"github.com/baba983/vscroxy/internal/capture"
 	"github.com/baba983/vscroxy/internal/request"
 	"github.com/baba983/vscroxy/internal/uikit"
+	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -152,7 +153,7 @@ func (a *app) capturedRequestMatch(c *ui.Context, t *ui.Theme, f flow) {
 		label = fmt.Sprintf("Matches: %d requests", len(matches))
 	}
 	anchor := ui.Link(c.Key("captured-request-match"), label, "").FontSize(uikit.TextMeta).
-		Bind(&a.matchUI.anchor).SingleLine().MinWidth(0).Tooltip("Saved requests matching this method, origin and path")
+		Bind(&a.matchUI.anchor).SingleLine().MinWidth(0).Tooltip(locales.SavedRequestsMatchingThisMethod())
 	anchor.OnClick(func() {
 		a.matchUI.open = !a.matchUI.open
 		a.matchUI.gap = t.Space(1)
@@ -173,7 +174,7 @@ func (a *app) capturedRequestMatch(c *ui.Context, t *ui.Theme, f flow) {
 		width, height := c.Size()
 		uikit.PopoverPanel(c, panel).AttachTo(anchor, ui.AnchorTopLeft, ui.AnchorBottomLeft).
 			Margin(0, 0, a.matchUI.gap, 0).Padding(t.Space(3)).Width(min(400, width-32)).MaxHeight(height - 32).Gap(t.Space(2))
-		uikit.Meta(c, "Matches method + full path segments on the current scheme and host. Query ignored; not a response comparison.")
+		uikit.Meta(c, locales.MatchesMethodFullPathSegments())
 		ui.Scroll(c).MaxHeight(min(280, height-120)).MinHeight(0).Children(func() {
 			ui.Column(c).Gap(t.Space(3)).Children(func() {
 				for _, r := range matches {
@@ -182,11 +183,11 @@ func (a *app) capturedRequestMatch(c *ui.Context, t *ui.Theme, f flow) {
 						uikit.Meta(c, "Collection: "+cmp.Or(r.Collection, "Unfiled")).SingleLine().Tooltip(r.Collection)
 						uikit.Mono(c, cmp.Or(r.Method, "GET")+" "+r.URL).SingleLine().Tooltip(r.URL)
 						ui.Row(c).Gap(t.Space(2)).Wrap().Children(func() {
-							uikit.SecondaryButton(c, "Open request").Label("Open request: " + r.Name).OnClick(func() {
+							uikit.SecondaryButton(c, locales.OpenRequest()).Label("Open request: " + r.Name).OnClick(func() {
 								a.matchUI.open = false
 								a.openSaved(r.key())
 							})
-							uikit.SecondaryButton(c, "Save response as example").Label("Save response as example: " + r.Name).
+							uikit.SecondaryButton(c, locales.SaveResponseAsExample()).Label("Save response as example: " + r.Name).
 								Disabled(f.status == 0 || f.resError != "").OnClick(func() {
 								if a.saveCapturedExample(f, r.key()) {
 									a.matchUI.open = false

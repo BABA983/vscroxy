@@ -338,7 +338,7 @@ func (m messageView) detail(c *ui.Context, a *app, f flow, p *messagePanel) {
 			if kind := strings.TrimPrefix(m.kind, "dropped "); f.kind == "ws" && (kind == "text" || kind == "binary") {
 				modes = append(modes, "Protobuf")
 			}
-			uikit.Segmented(c, &p.mode, modes...).Label("Show as")
+			uikit.Segmented(c, &p.mode, modes...).Label(locales.ShowAs())
 			uikit.Meta(c, m.meta()).SingleLine().Grow(1).Tooltip(m.meta())
 		})
 		ui.Divider(c)
@@ -519,13 +519,13 @@ func (p *messagePanel) view(c *ui.Context, a *app, f flow, list []messageView) {
 	// the list shows, and the line after them reads it.
 	var visible []messageView
 	ui.Row(c).Padding(t.Space(2), t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-		search := ui.SearchField(c, &p.query).Placeholder(locales.SearchMessages()).Label("Search messages").
+		search := ui.SearchField(c, &p.query).Placeholder(locales.SearchMessagesPlaceholder()).Label(locales.SearchMessages()).
 			Width(180).Height(uikit.HeightControl).FontSize(uikit.TextBody).Radius(uikit.RadiusControl)
 		search.Tooltip(locales.SearchesMetadataAndTheFull())
 		if search.Changed() {
 			p.follow = true
 		}
-		if uikit.Segmented(c, &p.direction, locales.All(), "In", "Out").Label("Direction").Changed() {
+		if uikit.Segmented(c, &p.direction, locales.All(), "In", "Out").Label(locales.Direction()).Changed() {
 			p.follow = true
 		}
 		p.searchMessages(a, list)

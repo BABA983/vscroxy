@@ -14,6 +14,7 @@ import (
 	"github.com/baba983/vscroxy/internal/graphql"
 	"github.com/baba983/vscroxy/internal/request"
 	"github.com/baba983/vscroxy/internal/uikit"
+	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/editor"
@@ -223,7 +224,7 @@ func (a *app) chooseGraphQLSchema(d *requestDocument) {
 	}
 	win := a.win
 	go func() {
-		paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Title: "Load GraphQL schema"})
+		paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Title: locales.LoadGraphqlSchema()})
 		if err != nil || len(paths) == 0 {
 			return
 		}
@@ -301,13 +302,13 @@ func (a *app) graphqlSchemaRow(c *ui.Context, d *requestDocument) {
 		if fetch.Clicked() {
 			a.fetchGraphQLSchema(d)
 		}
-		if uikit.SecondaryButton(c, "Load schema…").Disabled(g.loading != nil).Clicked() {
+		if uikit.SecondaryButton(c, locales.LoadSchema()).Disabled(g.loading != nil).Clicked() {
 			a.chooseGraphQLSchema(d)
 		}
 		if opsErr == nil {
 			switch {
 			case len(ops) > 1:
-				uikit.Meta(c, "Operation")
+				uikit.Meta(c, locales.Operation())
 				names := make([]string, len(ops))
 				for i, op := range ops {
 					names[i] = op.Name
@@ -316,23 +317,23 @@ func (a *app) graphqlSchemaRow(c *ui.Context, d *requestDocument) {
 				if choice == "" || !slices.Contains(names, choice) {
 					choice = "Select operation"
 				}
-				selectElement := uikit.Select(c, &choice, names).Label("GraphQL operation").Width(170).FontSize(uikit.TextMeta)
+				selectElement := uikit.Select(c, &choice, names).Label(locales.GraphqlOperation()).Width(170).FontSize(uikit.TextMeta)
 				if selectElement.Changed() && choice != "Select operation" {
 					d.graphql.OperationName = choice
 				}
 			case len(ops) == 1 && d.graphql.OperationName != "" && !matchesSaved:
-				uikit.Meta(c, "Select operation").Tooltip("The saved operation no longer exists; Send uses the document's only operation")
+				uikit.Meta(c, locales.SelectOperation()).Tooltip(locales.TheSavedOperationNoLonger())
 			case len(ops) == 1 && ops[0].Name != "":
-				uikit.Meta(c, "Operation · "+ops[0].Name).Tooltip("The document's only operation; sent as operationName")
+				uikit.Meta(c, "Operation · "+ops[0].Name).Tooltip(locales.TheDocumentSOnlyOperation())
 			case len(ops) == 1:
-				uikit.Meta(c, "Anonymous operation")
+				uikit.Meta(c, locales.AnonymousOperation())
 			}
 		}
 		if d.graphqlTab == 1 {
 			validChoice := len(ops) == 1 || matchesSaved
-			generate := uikit.SecondaryButton(c, "Generate variables").Disabled(
+			generate := uikit.SecondaryButton(c, locales.GenerateVariables()).Disabled(
 				g.loading != nil || schema == nil || strings.TrimSpace(d.graphql.Variables) != "" || !validChoice)
-			generate.Tooltip("Fill an empty variables editor from the selected operation's variable definitions")
+			generate.Tooltip(locales.FillAnEmptyVariablesEditor())
 			if generate.Clicked() {
 				a.generateGraphQLVariables(d, schema, ops)
 			}

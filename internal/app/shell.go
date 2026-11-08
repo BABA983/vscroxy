@@ -124,7 +124,7 @@ func (a *app) proxyIndicator(c *ui.Context, t *ui.Theme) {
 			a.rate.advance(time.Now().Unix())
 			if a.recordingPaused {
 				// Nothing ambient is kept, so there is no rate to show.
-				uikit.Sparkline(c, nil, pal.TextFaint).Label("Recording paused")
+				uikit.Sparkline(c, nil, pal.TextFaint).Label(locales.RecordingPaused())
 				return
 			}
 			// Two-second sums: 30 points over 48px draw a line, not a saw.
@@ -132,7 +132,7 @@ func (a *app) proxyIndicator(c *ui.Context, t *ui.Theme) {
 			for i, n := range a.rate.counts {
 				curve[i/2] += n
 			}
-			uikit.Sparkline(c, curve[:], t.TextMuted).Label("Requests per second, last minute")
+			uikit.Sparkline(c, curve[:], t.TextMuted).Label(locales.RequestsPerSecondLastMinute())
 			ui.Text(c, rateLabel(a.rate.perSecond())).Font(uikit.FontMono).FontFeatures("tnum").SingleLine()
 		})
 		if b.Clicked() {

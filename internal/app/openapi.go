@@ -21,6 +21,7 @@ import (
 
 	"github.com/baba983/vscroxy/internal/request"
 	"github.com/baba983/vscroxy/internal/yamlguard"
+	"github.com/baba983/vscroxy/locales"
 	"github.com/getkin/kin-openapi/openapi3"
 )
 
@@ -211,7 +212,7 @@ func generateOpenAPI(requests []savedRequest, collection string) (apiSpec, error
 				notes = append(notes, label+": missing or invalid Content-Type; body is documented as application/octet-stream.")
 			}
 			if op.RequestBody == nil {
-				op.RequestBody = &openapi3.RequestBodyRef{Value: &openapi3.RequestBody{Content: openapi3.Content{}, Description: "Define the payload schema; request values were intentionally omitted."}}
+				op.RequestBody = &openapi3.RequestBodyRef{Value: &openapi3.RequestBody{Content: openapi3.Content{}, Description: locales.DefineThePayloadSchemaRequest()}}
 			}
 			op.RequestBody.Value.Content[media] = &openapi3.MediaType{Schema: &openapi3.SchemaRef{Value: &openapi3.Schema{}}}
 		}

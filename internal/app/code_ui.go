@@ -5,6 +5,7 @@ import (
 	"slices"
 
 	"github.com/baba983/vscroxy/internal/request"
+	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/editor"
 )
@@ -86,21 +87,21 @@ func (a *app) codeModal(c *ui.Context, t *ui.Theme) {
 	uikit.Modal(c, &s.open, func() {
 		uikit.DialogColumn(c, uikit.DialogLarge).Height(min(520, h-80)).Children(func() {
 			ui.Row(c).Gap(t.Space(2)).Wrap().AlignItems(ui.Center).Children(func() {
-				uikit.DialogTitle(c, "Code").Grow(1)
-				if uikit.Select(c, &s.language, codeLanguages).Label("Code language").Width(200).Changed() {
+				uikit.DialogTitle(c, locales.Code()).Grow(1)
+				if uikit.Select(c, &s.language, codeLanguages).Label(locales.CodeLanguage()).Width(200).Changed() {
 					s.view = nil
 				}
 			})
 			ui.Scroll(c).MinHeight(0).Shrink(1).MaxHeight(100).Gap(t.Space(2)).Children(func() {
-				uikit.Hint(c, "{{variables}} stay as written and scripts do not run; replace them before running the code.")
+				uikit.Hint(c, locales.VariablesStayAsWrittenAnd())
 				if s.language == "JavaScript (fetch)" {
-					uikit.Hint(c, "Browser fetch follows browser cookie, forbidden-header and CORS policies. Use Node.js or cURL outside the browser.")
+					uikit.Hint(c, locales.BrowserFetchFollowsBrowserCookie())
 				}
 				if s.language == "cURL (CMD)" {
-					uikit.Hint(c, "Paste into interactive Windows CMD, not PowerShell or a .bat file. ASCII only; use Bash or PowerShell for Unicode.")
+					uikit.Hint(c, locales.PasteIntoInteractiveWindowsCmd())
 				}
 				if s.language != "cURL" && s.language != "cURL (CMD)" {
-					uikit.Hint(c, "Native snippets leave redirect, timeout and TLS behavior to the language’s client; Copy as cURL carries the request’s settings.")
+					uikit.Hint(c, locales.NativeSnippetsLeaveRedirectTimeout())
 				}
 				if hint := codeHints[s.language]; hint != "" {
 					uikit.Hint(c, hint)
@@ -113,10 +114,10 @@ func (a *app) codeModal(c *ui.Context, t *ui.Theme) {
 				requestCodeEditor(c, s.view)
 			}
 			uikit.DialogFooter(c).Children(func() {
-				if uikit.SecondaryButton(c, "Close").Clicked() {
+				if uikit.SecondaryButton(c, locales.Close()).Clicked() {
 					s.open = false
 				}
-				if uikit.PrimaryButton(c, "Copy").Disabled(s.problem != "").Clicked() {
+				if uikit.PrimaryButton(c, locales.Copy()).Disabled(s.problem != "").Clicked() {
 					c.Services().WriteClipboard(s.view.Buffer.String())
 					a.done("Copied " + s.language + " code; review credentials before sharing")
 				}

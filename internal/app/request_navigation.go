@@ -8,6 +8,7 @@ import (
 
 	"github.com/baba983/vscroxy/internal/capture"
 	"github.com/baba983/vscroxy/internal/uikit"
+	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo/ui"
 	"github.com/oneo-me/onevra/source/icons/lucide"
 )
@@ -64,7 +65,7 @@ func (a *app) collectionTree(c *ui.Context) {
 				if slices.ContainsFunc(a.rules, func(r capture.Rule) bool { return r.Scenario == path }) {
 					mock = "Rebuild scenario “" + path + "” from examples"
 				}
-				actions := append([]action{do("collection.docs", "View documentation…", func() { a.openDocs(path) }).in("context")}, a.folderSettingsActions(path)...)
+				actions := append([]action{do("collection.docs", locales.ViewDocumentation(), func() { a.openDocs(path) }).in("context")}, a.folderSettingsActions(path)...)
 				actionMenu(m, append(actions,
 					do("collection.mock", mock, func() { a.scenarioFromExamples(path) }).
 						when(a.examplesUnder(path), "Save a response as an example first").in("mock"),
@@ -75,7 +76,7 @@ func (a *app) collectionTree(c *ui.Context) {
 			item.Children(func() {
 				uikit.Glyph(c, lucide.Folder())
 				uikit.Body(c, name).SingleLine().Grow(1)
-				action := uikit.IconButton(c, "Collection actions: "+path, "Collection actions", moreIcon).PopoverMenuButton(menu).
+				action := uikit.IconButton(c, "Collection actions: "+path, locales.CollectionActions(), moreIcon).PopoverMenuButton(menu).
 					Absolute().Right(0).Top(2).Background(uikit.Colors(c.Theme()).Panel)
 				if !item.Hovered() && !item.FocusWithin() {
 					action.Opacity(0)
@@ -89,7 +90,7 @@ func (a *app) collectionTree(c *ui.Context) {
 			}
 			menu := func(m *ui.Menu) {
 				actionMenu(m, append([]action{
-					do("request.delete", "Delete request…", func() { a.confirmDeleteRequest(r.key(), r.Name) }).in("delete"),
+					do("request.delete", locales.DeleteRequest(), func() { a.confirmDeleteRequest(r.key(), r.Name) }).in("delete"),
 				}, a.folderSettingsActions(r.Collection)...))
 			}
 			// The sidebar has one choice: a request only while it is shown.
@@ -108,7 +109,7 @@ func (a *app) collectionTree(c *ui.Context) {
 					if edited {
 						unsavedDot(c)
 					}
-					action := uikit.IconButton(c, "Request actions: "+r.Name, "Request actions", moreIcon).PopoverMenuButton(menu).
+					action := uikit.IconButton(c, "Request actions: "+r.Name, locales.RequestActions(), moreIcon).PopoverMenuButton(menu).
 						Absolute().Right(0).Top(2).Background(uikit.Colors(c.Theme()).Panel)
 					if !item.Hovered() && !item.FocusWithin() {
 						action.Opacity(0)
@@ -122,7 +123,7 @@ func (a *app) collectionTree(c *ui.Context) {
 		branch("")
 	})
 	if len(a.requests) == 0 && len(paths) == 0 {
-		uikit.Hint(c, "Save a request here, or edit a captured flow to start.").Padding(c.Theme().Space(2))
+		uikit.Hint(c, locales.SaveARequestHereOr()).Padding(c.Theme().Space(2))
 	}
 }
 
@@ -160,15 +161,15 @@ func (a *app) unsavedRequests(c *ui.Context, query string) {
 				})
 			})
 		}
-	}).Height(uikit.HeightControl).Label("Unsaved requests")
+	}).Height(uikit.HeightControl).Label(locales.UnsavedRequests())
 	group.Children(func() {
 		uikit.Glyph(c, lucide.FilePen())
-		uikit.Body(c, "Unsaved").SingleLine().Grow(1)
+		uikit.Body(c, locales.Unsaved()).SingleLine().Grow(1)
 		uikit.Meta(c, fmt.Sprint(len(unsaved))).FontFeatures("tnum")
 	})
 }
 
 // unsavedDot marks a request whose open document has changes to save.
 func unsavedDot(c *ui.Context) {
-	ui.Box(c).Size(6, 6).Radius(uikit.RadiusControl).Background(c.Theme().Accent).Label("Unsaved changes")
+	ui.Box(c).Size(6, 6).Radius(uikit.RadiusControl).Background(c.Theme().Accent).Label(locales.UnsavedChanges())
 }

@@ -156,7 +156,7 @@ func (a *app) captureToolbar(c *ui.Context, t *ui.Theme) {
 	}
 	ui.Row(c).Height(uikit.HeightBar).Padding(0, t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 		mode := cmp.Or(a.searchMode, "Text")
-		if uikit.Select(c.Key("capture-search-mode"), &mode, []string{"Text", "Wildcard", "Regex"}).Label("Capture search mode").
+		if uikit.Select(c.Key("capture-search-mode"), &mode, []string{"Text", "Wildcard", "Regex"}).Label(locales.CaptureSearchMode()).
 			MinWidth(94).Width(94).Tooltip(locales.TextLiteralContainsAndKey()).Changed() {
 			a.searchMode = mode
 			if mode == "Text" {
@@ -185,7 +185,7 @@ func (a *app) captureToolbar(c *ui.Context, t *ui.Theme) {
 				placeholder = `/v[12]/(projects|users)\b`
 			}
 			cb := ui.ComboboxBase(c.Key("capture-search"), &a.query)
-			search := cb.Input.Bind(&a.search).Label("Search host or path").Placeholder(placeholder).
+			search := cb.Input.Bind(&a.search).Label(locales.SearchHostOrPath()).Placeholder(placeholder).
 				Tooltip(cmp.Or(a.queryProblem, a.searchProblem, "Search host and path (including query) · Text supports key:value chips · Pattern modes treat the entire field as one expression · Ctrl/Cmd+F")).
 				Height(uikit.HeightCompact).Padding(0, t.Space(1)).FontSize(uikit.TextBody).Grow(1).MinWidth(min(200, width/5)).FocusRing(false)
 			if a.queryProblem != "" || a.searchProblem != "" {
@@ -266,7 +266,7 @@ func (a *app) captureToolbar(c *ui.Context, t *ui.Theme) {
 			// tabs' tinted chip, with no track behind them.
 			p := uikit.Colors(t)
 			segments := ui.SegmentedBase(c, &a.chip, len(captureKinds))
-			segments.Track.Label("Protocol and content type").Height(uikit.HeightControl).Gap(t.Space(0.5)).Children(func() {
+			segments.Track.Label(locales.ProtocolAndContentTypeLabel()).Height(uikit.HeightControl).Gap(t.Space(0.5)).Children(func() {
 				for i, name := range captureProtocols {
 					label := name
 					if name == "WebSocket" {
@@ -636,7 +636,7 @@ func (a *app) commandPalette(c *ui.Context) {
 			// explicit AutoFocus here would replace that remembered focus.
 			))
 
-			input := uikit.Input(c, &w.query).Label("Find command").Placeholder(locales.SearchCommandsRequestsEnvironments()).
+			input := uikit.Input(c, &w.query).Label(locales.FindCommand()).Placeholder(locales.SearchCommandsRequestsEnvironments()).
 				Height(uikit.HeightLarge).FontSize(uikit.TextBody).FillWidth()
 			if input.Changed() {
 				w.command = 0

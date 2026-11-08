@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/baba983/vscroxy/internal/request"
+	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 )
@@ -46,30 +47,30 @@ func (a *app) oauthFields(c *ui.Context, auth *request.Auth, collection string) 
 	password := func(value *string, label string) ui.Element {
 		return a.variablePasswordInput(c, "oauth-"+label, value, label, collection)
 	}
-	ui.Field(c, "Grant type", func() { uikit.Select(c, &o.Grant, request.Grants).Width(240) })
+	ui.Field(c, locales.GrantType(), func() { uikit.Select(c, &o.Grant, request.Grants).Width(240) })
 	if interactive {
-		ui.Field(c, "Authorization URL", func() {
+		ui.Field(c, locales.AuthorizationUrl(), func() {
 			input(&o.AuthURL, "Authorization URL").Placeholder("https://login.example.com/authorize")
 		})
 	}
-	ui.Field(c, "Access token URL", func() {
+	ui.Field(c, locales.AccessTokenUrl(), func() {
 		input(&o.TokenURL, "Access token URL").Placeholder("https://login.example.com/token")
 	})
-	ui.Field(c, "Client ID", func() { input(&o.ClientID, "Client ID") })
-	ui.Field(c, "Client secret", func() {
+	ui.Field(c, locales.ClientId(), func() { input(&o.ClientID, "Client ID") })
+	ui.Field(c, locales.ClientSecret(), func() {
 		password(&o.ClientSecret, "Client secret").Placeholder("{{vault:client_secret}}, empty for a public client")
 	})
-	ui.Field(c, "Scope", func() { input(&o.Scope, "Scope").Placeholder("Space-separated, optional") })
+	ui.Field(c, locales.Scope(), func() { input(&o.Scope, "Scope").Placeholder(locales.SpaceSeparatedOptional()) })
 	if o.Grant == request.GrantPassword {
-		ui.Field(c, "Username", func() { input(&o.Username, "Username") })
-		ui.Field(c, "Password", func() { password(&o.Password, "Password") })
+		ui.Field(c, locales.Username(), func() { input(&o.Username, "Username") })
+		ui.Field(c, locales.Password(), func() { password(&o.Password, "Password") })
 	}
 	if interactive {
-		ui.Field(c, "Callback URL", func() {
+		ui.Field(c, locales.CallbackUrl(), func() {
 			input(&o.RedirectURL, "Callback URL").Placeholder("http://127.0.0.1 on any free port")
-		}).Description("Register it with the provider; the sign-in opens in your browser and returns there.")
+		}).Description(locales.RegisterItWithTheProvider())
 	}
-	ui.Field(c, "Client authentication", func() {
+	ui.Field(c, locales.ClientAuthentication(), func() {
 		if uikit.Select(c, &clientAuth, []string{"Basic header", "In body"}).Width(160).Changed() {
 			o.ClientAuth = ""
 			if clientAuth == "In body" {
@@ -77,7 +78,7 @@ func (a *app) oauthFields(c *ui.Context, auth *request.Auth, collection string) 
 			}
 		}
 	})
-	ui.Field(c, "Header prefix", func() { input(&o.HeaderPrefix, "Header prefix").Placeholder("Bearer").Width(150) })
+	ui.Field(c, locales.HeaderPrefix(), func() { input(&o.HeaderPrefix, "Header prefix").Placeholder(locales.Bearer()).Width(150) })
 
 	in, cfg, err := a.oauthConfig(*auth, collection)
 	s := &a.oauth
@@ -111,18 +112,18 @@ func (a *app) oauthFields(c *ui.Context, auth *request.Auth, collection string) 
 	} else if s.key == cfg.Key() && s.problem != "" {
 		status, color = s.problem, t.Danger
 	}
-	ui.Field(c, "Access token", func() {
+	ui.Field(c, locales.AccessToken(), func() {
 		ui.Text(c, status).FontSize(uikit.TextMeta).TextColor(color).Selectable()
 		ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 			busy := s.key == cfg.Key() && s.busy
-			if busy && uikit.SecondaryButton(c, "Cancel").Clicked() {
+			if busy && uikit.SecondaryButton(c, locales.Cancel()).Clicked() {
 				s.cancel()
 			}
-			if uikit.SecondaryButton(c, "Clear token").Disabled(err != nil || busy).Clicked() {
+			if uikit.SecondaryButton(c, locales.ClearToken()).Disabled(err != nil || busy).Clicked() {
 				in.Tokens.Clear(cfg)
 				s.problem = ""
 			}
-			if uikit.SecondaryButton(c, "Get new access token").Disabled(err != nil || busy).Clicked() {
+			if uikit.SecondaryButton(c, locales.GetNewAccessToken()).Disabled(err != nil || busy).Clicked() {
 				a.newAccessToken(in, cfg)
 			}
 		})

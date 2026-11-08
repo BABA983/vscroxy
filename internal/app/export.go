@@ -17,6 +17,7 @@ import (
 	"github.com/baba983/vscroxy/internal/postman"
 	"github.com/baba983/vscroxy/internal/store"
 	"github.com/baba983/vscroxy/internal/uikit"
+	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 )
@@ -65,7 +66,7 @@ func (a *app) exportModal(c *ui.Context, t *ui.Theme) {
 		uikit.DialogColumn(c, uikit.DialogMedium).Children(func() {
 			uikit.DialogTitle(c, s.title)
 			ui.Scroll(c).MinHeight(0).Shrink(1).Gap(t.Space(2)).Children(func() {
-				uikit.Hint(c, "Redact the exported copy. Your saved originals stay unchanged.")
+				uikit.Hint(c, locales.RedactTheExportedCopyYour())
 				before, raw := s.options, s.unredacted
 				ui.Checkbox(c.Key("export-unredacted"), &s.unredacted, "Export unredacted (include original values)")
 				if !s.unredacted {
@@ -76,10 +77,10 @@ func (a *app) exportModal(c *ui.Context, t *ui.Theme) {
 						headersTip = "Replace header-derived cells except Content-Type and Accept."
 					}
 					ui.Checkbox(c.Key("export-headers"), &s.options.Headers, headersLabel).Tooltip(headersTip)
-					ui.Checkbox(c.Key("export-query"), &s.options.Query, "URL query values").Tooltip("Replace all query values, including structured copies.")
-					ui.Checkbox(c.Key("export-auth"), &s.options.Auth, "Authorization and URL credentials").Tooltip("Remove structured auth, URL userinfo and fragments; header values are controlled separately.")
+					ui.Checkbox(c.Key("export-query"), &s.options.Query, "URL query values").Tooltip(locales.ReplaceAllQueryValuesIncluding())
+					ui.Checkbox(c.Key("export-auth"), &s.options.Auth, "Authorization and URL credentials").Tooltip(locales.RemoveStructuredAuthUrlUserinfo())
 					if s.csv == nil {
-						ui.Checkbox(c.Key("export-variables"), &s.options.Variables, "Collection, folder and environment variables").Tooltip("Replace every variable value, including disabled entries.")
+						ui.Checkbox(c.Key("export-variables"), &s.options.Variables, "Collection, folder and environment variables").Tooltip(locales.ReplaceEveryVariableValueIncluding())
 					}
 					bodyLabel, bodyTip := "Bodies and stream messages", "Remove request and response bodies, binary payloads and all stream messages."
 					if s.csv != nil {
@@ -87,27 +88,27 @@ func (a *app) exportModal(c *ui.Context, t *ui.Theme) {
 					}
 					ui.Checkbox(c.Key("export-bodies"), &s.options.Bodies, bodyLabel).Tooltip(bodyTip)
 					if s.csv == nil {
-						ui.Checkbox(c.Key("export-notes"), &s.options.ScriptsNotes, "Scripts, Checks and private notes").Tooltip("Remove scripts (including exported Checks), session titles, descriptions, notes and diagnostics.")
+						ui.Checkbox(c.Key("export-notes"), &s.options.ScriptsNotes, "Scripts, Checks and private notes").Tooltip(locales.RemoveScriptsIncludingExportedChecks())
 					}
 				}
 				if before != s.options || raw != s.unredacted {
 					s.reviewed = false
 				}
-				ui.Text(c, "Field-based redaction is not secret detection. Review retained fields before sharing.").FontSize(uikit.TextBody).TextColor(t.Warning).
-					Tooltip("Paths, hosts, names, parameter names, Content-Type/Accept, assertion values and unselected fields may contain secrets. Removing scripts also removes Postman Checks.")
+				ui.Text(c, locales.FieldBasedRedactionIsNot()).FontSize(uikit.TextBody).TextColor(t.Warning).
+					Tooltip(locales.PathsHostsNamesParameterNames())
 				for _, warning := range s.warnings {
 					uikit.Body(c, "• "+warning)
 				}
 				if s.csv != nil {
-					uikit.Meta(c, "CSV uses the table's visible columns. Cells that could be spreadsheet formulas are prefixed with an apostrophe.")
+					uikit.Meta(c, locales.CsvUsesTheTableS())
 				}
 			})
 			ui.Checkbox(c.Key("export-review"), &s.reviewed, "I understand the scope and will review the exported file before sharing")
 			uikit.DialogFooter(c).Children(func() {
-				if uikit.SecondaryButton(c, "Cancel").Clicked() {
+				if uikit.SecondaryButton(c, locales.Cancel()).Clicked() {
 					s.open = false
 				}
-				if uikit.PrimaryButton(c, "Save export…").Disabled(!s.reviewed).Clicked() {
+				if uikit.PrimaryButton(c, locales.SaveExport()).Disabled(!s.reviewed).Clicked() {
 					job := *s
 					s.open = false
 					go a.writeReviewedExport(job)
@@ -198,7 +199,7 @@ func (a *app) saveResponseBody(r capture.Flow) {
 	}
 	go func() {
 		path, err := mygo.Dialog.Save(mygo.SaveDialogOptions{
-			Parent: win, Title: "Save response body", DefaultPath: "response.bin",
+			Parent: win, Title: locales.SaveResponseBody(), DefaultPath: "response.bin",
 		})
 		if err == nil && path == "" {
 			return
