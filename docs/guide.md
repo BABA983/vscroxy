@@ -2237,24 +2237,76 @@ its requests, folders and settings move together, and open tabs follow.
   collection imports map Postman's `value` to Initial; Hoppscotch and Insomnia
   current or confidential values become local Current values. Exports write
   Initial and never Current.
-- **Dynamic variables** follow Postman's names and are generated for every
-  occurrence on every send, written as `{{$guid}}`. In scripts, use
-  `pm.variables.replaceIn('{{$randomFirstName}}')`. Names are case-sensitive;
-  a defined variable with the same name wins, even if its value is empty.
-  Unknown names stay unresolved. The 32 supported names are:
-  - **Common**: `$guid`, `$randomUUID`, `$timestamp`, `$isoTimestamp`,
-    `$randomInt` (0–1000), `$randomBoolean`, `$randomAlphaNumeric`,
-    `$randomColor`, `$randomHexColor`.
-  - **Network and accounts**: `$randomIP`, `$randomIPV6`, `$randomMACAddress`,
-    `$randomProtocol`, `$randomSemver`, `$randomUserName`, `$randomEmail`,
-    `$randomExampleEmail`, `$randomPassword`, `$randomDomainName`,
-    `$randomDomainSuffix`, `$randomDomainWord`, `$randomUrl`.
-  - **People and location**: `$randomFirstName`, `$randomLastName`,
-    `$randomFullName`, `$randomPhoneNumber` (ten digits, `###-###-####`),
-    `$randomCountryCode`, `$randomLatitude` (−90 to 90), `$randomLongitude`
-    (−180 to 180). Coordinates have four decimal places.
-  - **Other test data**: `$randomPrice` (0.00–1000.00, two decimal places),
-    `$randomWeekday`, `$randomMonth` (English names).
+- **Dynamic variables** follow Postman's complete list of 118 names (checked
+  2026-11-08 against
+  https://learning.postman.com/docs/tests-and-scripts/write-scripts/variables-list/).
+  Each occurrence is generated again on every send, written as `{{$guid}}`.
+  In scripts, use `pm.variables.replaceIn('{{$randomFirstName}}')`. Names are
+  case-sensitive; a defined variable with the same name wins, even if its value
+  is empty. Unknown names stay unresolved. The names are:
+  - **Common**: `$guid`, `$timestamp`, `$isoTimestamp`, `$randomUUID`.
+  - **Text, numbers, and colors**: `$randomAlphaNumeric`, `$randomBoolean`,
+    `$randomInt` (0–1000), `$randomColor`, `$randomHexColor`,
+    `$randomAbbreviation`.
+  - **Internet and IP addresses**: `$randomIP`, `$randomIPV6`,
+    `$randomMACAddress`, `$randomPassword`, `$randomLocale`, `$randomUserAgent`,
+    `$randomProtocol`, `$randomSemver`.
+  - **Names**: `$randomFirstName`, `$randomLastName`, `$randomFullName`,
+    `$randomNamePrefix`, `$randomNameSuffix`.
+  - **Profession**: `$randomJobArea`, `$randomJobDescriptor`,
+    `$randomJobTitle`, `$randomJobType`.
+  - **Phone, address, and location**: `$randomPhoneNumber`,
+    `$randomPhoneNumberExt`, `$randomCity`, `$randomStreetName`,
+    `$randomStreetAddress`, `$randomCountry`, `$randomCountryCode`,
+    `$randomLatitude`, `$randomLongitude`.
+  - **Images**: `$randomAvatarImage`, `$randomImageUrl`, `$randomAbstractImage`,
+    `$randomAnimalsImage`, `$randomBusinessImage`, `$randomCatsImage`,
+    `$randomCityImage`, `$randomFoodImage`, `$randomNightlifeImage`,
+    `$randomFashionImage`, `$randomPeopleImage`, `$randomNatureImage`,
+    `$randomSportsImage`, `$randomTransportImage`, `$randomImageDataUri`.
+  - **Finance**: `$randomBankAccount`, `$randomBankAccountName`,
+    `$randomCreditCardMask`, `$randomBankAccountBic`,
+    `$randomBankAccountIban`, `$randomTransactionType`, `$randomCurrencyCode`,
+    `$randomCurrencyName`, `$randomCurrencySymbol`, `$randomBitcoin`.
+  - **Business**: `$randomCompanyName`, `$randomCompanySuffix`, `$randomBs`,
+    `$randomBsAdjective`, `$randomBsBuzz`, `$randomBsNoun`.
+  - **Catchphrases**: `$randomCatchPhrase`, `$randomCatchPhraseAdjective`,
+    `$randomCatchPhraseDescriptor`, `$randomCatchPhraseNoun`.
+  - **Databases**: `$randomDatabaseColumn`, `$randomDatabaseType`,
+    `$randomDatabaseCollation`, `$randomDatabaseEngine`.
+  - **Dates**: `$randomDateFuture`, `$randomDatePast`, `$randomDateRecent`,
+    `$randomWeekday`, `$randomMonth`.
+  - **Domains, emails, and usernames**: `$randomDomainName`,
+    `$randomDomainSuffix`, `$randomDomainWord`, `$randomEmail`,
+    `$randomExampleEmail`, `$randomUserName`, `$randomUrl`.
+  - **Files and directories**: `$randomFileName`, `$randomFileType`,
+    `$randomFileExt`, `$randomCommonFileName`, `$randomCommonFileType`,
+    `$randomCommonFileExt`, `$randomFilePath`, `$randomDirectoryPath`,
+    `$randomMimeType`.
+  - **Stores**: `$randomPrice` (0.00–1000.00), `$randomProduct`,
+    `$randomProductAdjective`, `$randomProductMaterial`, `$randomProductName`,
+    `$randomDepartment`.
+  - **Grammar**: `$randomNoun`, `$randomVerb`, `$randomIngverb`,
+    `$randomAdjective`, `$randomWord`, `$randomWords`, `$randomPhrase`.
+  - **Lorem ipsum**: `$randomLoremWord`, `$randomLoremWords`,
+    `$randomLoremSentence`, `$randomLoremSentences`, `$randomLoremParagraph`,
+    `$randomLoremParagraphs`, `$randomLoremText`, `$randomLoremSlug`,
+    `$randomLoremLines`.
+
+  Output shapes follow Postman's `postman-collection` generators and the
+  `@faker-js/faker` 5.5.3 release it pins: dates are JavaScript
+  `Date.toString()` values (`Sat Mar 02 2019 09:09:26 GMT+0530 (...)`), IBANs
+  carry valid mod-97 check digits, BICs are 8 or 11 characters,
+  `$randomLoremParagraphs` separates three paragraphs with faker's newline,
+  space, carriage return (`"\n \r"`), and image URLs use the pinned faker
+  provider (`http://placeimg.com/640/480`; the docs page still shows the older
+  lorempixel examples). The words come from small built-in vocabularies, not
+  faker's full locale data. Generated fields are independent: a full name is
+  not tied to separate first/last-name variables. Generated domain names, URLs
+  and email addresses look real and may resolve; they are test data, not
+  reserved destinations. Generation does not access the network and does not
+  guarantee that phone numbers or IP addresses are reachable. Passwords and the
+  other random values are test data, not production credentials.
 
 **Variable hints** appear in the URL, Params, Headers, Body (raw, GraphQL,
 form and binary path) and Auth fields. Typing `{{` opens a list of variables
@@ -2273,15 +2325,6 @@ danger color in a single-line field and underlined with an "Undefined variable"
 diagnostic in a code editor; it stays literal when sent. Vault names are
 listed only once the Vault is unlocked, so unlocking is not a side effect of
 opening a completion.
-
-These use small built-in sample vocabularies, not the full Faker dataset or its
-locale coverage. Generated fields are independent: a full name is not tied to
-separate first/last-name variables. Generated domain names, URLs and email
-addresses use reserved `example.com`, `example.net` or `example.org` domains;
-`$randomDomainSuffix` chooses `com`, `net` or `org`. Generation does not access the
-network, and does not guarantee that phone numbers or IP addresses are reserved
-or reachable. Passwords and the other random values are test data, not production
-credentials.
 
 A level's **Description** is Markdown. The collection or folder menu's **View
 documentation…** shows it read-only, followed by every request under it with its
