@@ -1670,8 +1670,10 @@ opens a fresh session and **Disconnect** closes it.
 Under **Connection**, choose the protocol version, client ID, credentials,
 clean start/session, keep-alive, connect timeout and whether a dropped
 connection reconnects. An empty MQTT 5.0 client ID stays empty and the broker
-assigns one; MQTT 3.1.1 generates an ID for the connection without rewriting
-the saved document. **Generate** fills in an ID explicitly. Basic
+assigns one, reused on reconnect for a persistent session; MQTT 3.1.1 generates
+an ID for a clean session without rewriting
+the saved document, and a persistent session needs an explicit ID. **Generate**
+fills in an ID explicitly. Basic
 credentials become the MQTT username and password; **Inherit** uses a Basic
 parent only. `{{variables}}` and host-restricted `{{vault:name}}` references
 expand in the URL, client ID, credentials, topics, payloads and properties.
@@ -1721,7 +1723,8 @@ TLS (`mqtts://` and `wss://`) verifies the system and configured roots and
 presents the matching client certificate from **Settings → Certificates**;
 the per-request TLS switch turns verification off for a broker you control.
 A `wss://` connection through the capture proxy also trusts the proxy's
-interception certificate for that connection. A reconnect uses exponential
+interception certificate; when verification is on, its CONNECT asks the proxy
+to verify the real broker certificate too. A reconnect uses exponential
 backoff (1, 2, 4, 8, 16, 30 seconds), restores the active subscriptions and
 stops after 20 reconnects or five failed dials. Retained messages may arrive
 again after a reconnect, and unacknowledged in-flight messages are not
