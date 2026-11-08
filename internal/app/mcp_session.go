@@ -29,6 +29,7 @@ type mcpEvent struct {
 const (
 	mcpTimelineLimit = 300
 	mcpEventPreview  = 64 << 10
+	mcpCloseTimeout  = 7 * time.Second
 )
 
 // mcpConnectionInfo describes the live connection without any secret: no
@@ -52,6 +53,7 @@ type mcpSession struct {
 	ctx      context.Context
 	cancel   context.CancelFunc
 	opCancel context.CancelFunc
+	done     chan struct{}
 	notify   func()
 
 	state, problem string
@@ -178,7 +180,7 @@ func openMCPSession(plan request.MCPPlan, input request.Request, scope request.C
 	ctx, cancel := context.WithCancel(context.Background())
 	s := &mcpSession{
 		plan: plan, input: input, scope: scope, vars: maps.Clone(vars),
-		ctx: ctx, cancel: cancel, notify: notify, state: "Connecting",
+		ctx: ctx, cancel: cancel, done: make(chan struct{}), notify: notify, state: "Connecting",
 		connection: mcpConnectionInfo{
 			Transport: plan.Transport, Endpoint: mcpEndpointText(plan.URL), Command: plan.Command,
 			Timeout: mcpTimeoutText(plan.Timeout), Insecure: plan.Insecure, Proxied: plan.Proxy != "",
@@ -187,6 +189,7 @@ func openMCPSession(plan request.MCPPlan, input request.Request, scope request.C
 	}
 	go func() {
 		defer cancel()
+		defer close(s.done)
 		var timer *time.Timer
 		if plan.Timeout > 0 {
 			timer = time.AfterFunc(plan.Timeout, cancel)
@@ -212,6 +215,18 @@ func openMCPSession(plan request.MCPPlan, input request.Request, scope request.C
 				s.progressUpdate(token, progress, total, message)
 			},
 			RPC: func(direction, method, text string) { s.rpc(direction, method, text) },
+			BodyLimit: func(limit int64) {
+				s.append("System", "Response limit", fmt.Sprintf("The MCP response body exceeded %d bytes; the SDK closes this session. Reduce the response size or use a smaller request.", limit))
+				s.mu.Lock()
+				cancel := s.cancel
+				s.mu.Unlock()
+				if cancel != nil {
+					cancel()
+				}
+			},
+			HeadersDropped: func(target string) {
+				s.append("System", "Headers withheld", "Document headers were not sent to "+target+" because it is not the document's origin.")
+			},
 			Reconnect: func() {
 				s.append("System", "Stream reconnect", "The server closed the standalone GET stream; reconnecting without replaying a POST.")
 			},
@@ -549,5 +564,26 @@ func (s *mcpSession) disconnect() {
 	}
 	if client != nil {
 		go client.Close()
+	}
+}
+
+// closeNow closes the session and waits for its transport, including a stdio
+// process tree. Quit uses it so os.Exit cannot race the close goroutine.
+func (s *mcpSession) closeNow(timeout time.Duration) {
+	s.mu.Lock()
+	cancel, client, done := s.cancel, s.client, s.done
+	s.mu.Unlock()
+	if cancel != nil {
+		cancel()
+	}
+	if client != nil {
+		go func() { _ = client.Close() }()
+	}
+	if done == nil {
+		return
+	}
+	select {
+	case <-done:
+	case <-time.After(timeout):
 	}
 }

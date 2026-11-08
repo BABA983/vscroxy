@@ -11,38 +11,49 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/baba983/vscroxy/internal/request"
+	"github.com/egoist/mygo/ui"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-func TestMCPConsentKeyTracksCommandShapeNotValues(t *testing.T) {
+func TestMCPConsentKeysTrackShapeAndValues(t *testing.T) {
 	d := &requestDocument{debugKey: "doc-1"}
+	key := []byte("0123456789abcdef0123456789abcdef")
 	plan := request.MCPPlan{Command: "npx", Args: []string{"-y", "server"}, WorkingDir: "/tmp", Env: []string{"TOKEN=one", "DEBUG=1"}}
-	first := mcpConsentKey(d, plan)
+	shape := mcpConsentKey(d, plan)
+	full := mcpConsentFullKey(shape, plan, key)
 	same := plan
 	same.Env = []string{"TOKEN=two", "DEBUG=2"}
-	if got := mcpConsentKey(d, same); got != first {
-		t.Fatal("an environment value change asked for a new approval")
+	if got := mcpConsentKey(d, same); got != shape {
+		t.Fatal("an environment value change changed the shape key")
+	}
+	if got := mcpConsentFullKey(shape, same, key); got == full {
+		t.Fatal("an environment value change reused the full approval")
 	}
 	changed := plan
 	changed.Args = []string{"-y", "other-server"}
-	if got := mcpConsentKey(d, changed); got == first {
-		t.Fatal("an argument change reused the approval")
+	if got := mcpConsentKey(d, changed); got == shape {
+		t.Fatal("an argument change reused the shape approval")
 	}
 	other := &requestDocument{debugKey: "doc-2"}
-	if got := mcpConsentKey(other, plan); got == first {
-		t.Fatal("another document reused the approval")
+	if got := mcpConsentKey(other, plan); got == shape {
+		t.Fatal("another document reused the shape approval")
 	}
 }
 
 func TestMCPConsentFileRoundTrip(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "mcp-consents.json")
-	if err := saveMCPConsents(path, map[string]bool{"a": true, "b": false}); err != nil {
+	want := map[string]mcpConsentApproval{
+		"shape": {LastUsed: 10, Persist: true, Env: map[string]string{"TOKEN": "hash"}},
+		"full":  {LastUsed: 20, Persist: true},
+	}
+	if err := saveMCPConsents(path, want); err != nil {
 		t.Fatal(err)
 	}
 	info, err := os.Stat(path)
@@ -56,8 +67,108 @@ func TestMCPConsentFileRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !got["a"] || got["b"] || len(got) != 1 {
+	if len(got) != 2 || got["shape"].Env["TOKEN"] != "hash" || got["full"].LastUsed != 20 {
 		t.Fatalf("consents = %+v", got)
+	}
+}
+
+func TestMCPConsentKeyFileIsPrivateAndStable(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "mcp-consents.key")
+	first, err := loadOrCreateMCPConsentKey(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(first) != mcpConsentKeySize {
+		t.Fatalf("key length = %d", len(first))
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Mode().Perm() != 0o600 {
+		t.Fatalf("key file mode = %o", info.Mode().Perm())
+	}
+	second, err := loadOrCreateMCPConsentKey(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(first, second) {
+		t.Fatal("key changed between loads")
+	}
+}
+
+func TestMCPConsentDraftIsNotPersisted(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "mcp-consents.json")
+	if err := saveMCPConsents(path, map[string]mcpConsentApproval{
+		"draft": {LastUsed: 1, Persist: false},
+		"saved": {LastUsed: 2, Persist: true},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	got, err := loadMCPConsents(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || got["draft"].Persist || !got["saved"].Persist {
+		t.Fatalf("persisted consents = %+v", got)
+	}
+}
+
+func TestMCPConsentPrunesByLastUse(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "mcp-consents.json")
+	consents := make(map[string]mcpConsentApproval, mcpConsentLimit+1)
+	for i := 0; i <= mcpConsentLimit; i++ {
+		consents[fmt.Sprintf("k%04d", i)] = mcpConsentApproval{LastUsed: int64(i), Persist: true}
+	}
+	if err := saveMCPConsents(path, consents); err != nil {
+		t.Fatal(err)
+	}
+	got, err := loadMCPConsents(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != mcpConsentLimit {
+		t.Fatalf("kept %d approvals", len(got))
+	}
+	if _, ok := got["k0000"]; ok {
+		t.Fatal("oldest approval survived")
+	}
+	if _, ok := got[fmt.Sprintf("k%04d", mcpConsentLimit)]; !ok {
+		t.Fatal("newest approval was pruned")
+	}
+}
+
+func TestMCPConsentValueChangeAsksAgain(t *testing.T) {
+	a := workspaceApp()
+	a.mcpConsentsPath = filepath.Join(t.TempDir(), "mcp-consents.json")
+	a.mcpConsentsKey = []byte("0123456789abcdef0123456789abcdef")
+	a.addDocument(savedRequest{ID: "asset-1", Protocol: "MCP", Name: "Local server",
+		MCP: request.MCPConfig{Transport: request.MCPTransportStdio, Command: "/bin/sh", Args: "-c\nsleep 1",
+			Env: []request.Field{{Name: "NODE_OPTIONS", Value: "--max-old-space-size=512"}}}}, "")
+	d := a.requestDocument
+	r := d.value().Request
+	in, vars := a.sendContext(r), a.activeVars()
+	plan, err := r.PrepareMCP(in, vars)
+	if err != nil {
+		t.Fatal(err)
+	}
+	shape := mcpConsentKey(d, plan)
+	full := mcpConsentFullKey(shape, plan, a.mcpConsentsKey)
+	a.mcpConsents = map[string]mcpConsentApproval{
+		shape: {LastUsed: 1, Persist: true, Env: mcpConsentEnvHashes(plan, a.mcpConsentsKey)},
+		full:  {LastUsed: 1, Persist: true},
+	}
+	d.mcpConfig.Env[0].Value = "--require /tmp/evil.js"
+	a.connectMCP(d)
+	if !a.mcpConsent.open || !a.mcpConsent.valuesChanged || !slices.Contains(a.mcpConsent.changed, "NODE_OPTIONS") {
+		t.Fatalf("value change did not ask again: %+v", a.mcpConsent)
+	}
+	if d.mcpUI.session != nil {
+		t.Fatal("changed environment started a process")
+	}
+	tt := ui.NewTester(a.view, 960, 600)
+	if !tt.HasText("environment values changed since you approved this command.") || !tt.HasText("Changed values: NODE_OPTIONS") {
+		t.Fatalf("consent dialog did not explain the change: %v", tt.Texts())
 	}
 }
 
@@ -438,4 +549,76 @@ func TestMCPReconnectAppearsInTimeline(t *testing.T) {
 	if !snapshot.connected {
 		t.Fatalf("session ended after reconnect: %+v", snapshot)
 	}
+}
+
+func TestMCPRPCEventKeepsRealPayloadSize(t *testing.T) {
+	s := &mcpSession{}
+	payload := strings.Repeat("x", 2<<20)
+	s.rpc("In", "sampling/createMessage", payload)
+	snapshot := s.snapshot()
+	if len(snapshot.events) != 1 {
+		t.Fatalf("events = %d", len(snapshot.events))
+	}
+	event := snapshot.events[0]
+	if event.size != len(payload) {
+		t.Fatalf("event size = %d, want %d", event.size, len(payload))
+	}
+	if !strings.Contains(event.text, "Retained") || !strings.Contains(event.text, fmt.Sprint(len(payload))) {
+		t.Fatalf("preview did not report the retained size: %q", event.text[len(event.text)-120:])
+	}
+}
+
+func TestMCPBodyLimitExplainsSessionClose(t *testing.T) {
+	body := bytes.Repeat([]byte("x"), request.MCPMaxFrame+1024)
+	httpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(body)
+	}))
+	defer httpServer.Close()
+	plan := request.MCPPlan{Transport: request.MCPTransportStreamableHTTP, URL: httpServer.URL, Timeout: 5 * time.Second}
+	s := openMCPSession(plan, request.Request{Protocol: "MCP"}, request.Context{}, nil, nil)
+	defer s.disconnect()
+	snapshot := waitMCPSession(t, s, func(snapshot mcpSnapshot) bool { return snapshot.finished })
+	for _, event := range snapshot.events {
+		if event.kind == "System" && event.name == "Response limit" && strings.Contains(event.text, "exceeded") {
+			return
+		}
+	}
+	t.Fatalf("missing body-limit explanation: %+v", snapshot.events)
+}
+
+func TestMCPHeaderDropAppearsInTimeline(t *testing.T) {
+	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if got := r.Header.Get("Authorization"); got != "" {
+			t.Errorf("cross-origin SSE endpoint received Authorization %q", got)
+		}
+		http.Error(w, "not an MCP endpoint", http.StatusBadRequest)
+	}))
+	defer target.Close()
+	primary := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprintf(w, "event: endpoint\ndata: %s/message\n\n", target.URL)
+		if f, ok := w.(http.Flusher); ok {
+			f.Flush()
+		}
+		<-r.Context().Done()
+	}))
+	defer primary.Close()
+	plan := request.MCPPlan{Transport: request.MCPTransportSSE, URL: primary.URL,
+		Header: http.Header{"Authorization": {"Bearer secret"}}, Timeout: 3 * time.Second}
+	s := openMCPSession(plan, request.Request{Protocol: "MCP"}, request.Context{}, nil, nil)
+	defer s.disconnect()
+	snapshot := waitMCPSession(t, s, func(snapshot mcpSnapshot) bool { return snapshot.finished })
+	for _, event := range snapshot.events {
+		if event.kind == "System" && event.name == "Headers withheld" && strings.Contains(event.text, target.URL) {
+			return
+		}
+	}
+	t.Fatalf("header-drop explanation missing: %+v", snapshot.events)
 }

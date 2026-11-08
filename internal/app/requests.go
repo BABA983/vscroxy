@@ -11,6 +11,7 @@ import (
 	"reflect"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 	"uuid"
 
@@ -316,6 +317,7 @@ func composeTabFor(r savedRequest) int {
 // it before the window goes away, so a stdio server or HTTP stream does not
 // outlive the app.
 func (a *app) stopDocuments() {
+	var closing sync.WaitGroup
 	for _, d := range a.documents {
 		d.cancelSend()
 		d.structured.stop()
@@ -326,9 +328,15 @@ func (a *app) stopDocuments() {
 			d.socketIOUI.stop()
 		}
 		if d.mcpUI != nil {
-			d.mcpUI.stop()
+			u := d.mcpUI
+			closing.Add(1)
+			go func() {
+				defer closing.Done()
+				u.stopAndWait(mcpCloseTimeout)
+			}()
 		}
 	}
+	closing.Wait()
 }
 
 func (a *app) closeDocument(d *requestDocument) {
@@ -348,7 +356,7 @@ func (a *app) closeDocument(d *requestDocument) {
 		d.mqttUI.stop()
 	}
 	if d.mcpUI != nil {
-		d.mcpUI.stop()
+		d.mcpUI.stopAndWait(mcpCloseTimeout)
 	}
 	if a.mcpConsent.d == d {
 		a.mcpConsent = mcpConsentState{}

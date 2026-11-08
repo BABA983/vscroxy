@@ -317,15 +317,17 @@ type app struct {
 	// mcpConsents are local approvals for stdio commands, keyed by a hash of
 	// the document and its expanded command shape. They never enter a
 	// collection file.
-	mcpConsentsPath  string
-	mcpConsents      map[string]bool
-	mcpConsent       mcpConsentState
-	saved            settings
-	lastSave         time.Time
-	columns          ui.TableLayout
-	proxyPort        int
-	proxyPortInput   string
-	proxyPortProblem string
+	mcpConsentsPath    string
+	mcpConsentsKeyPath string
+	mcpConsentsKey     []byte
+	mcpConsents        map[string]mcpConsentApproval
+	mcpConsent         mcpConsentState
+	saved              settings
+	lastSave           time.Time
+	columns            ui.TableLayout
+	proxyPort          int
+	proxyPortInput     string
+	proxyPortProblem   string
 	// systemProxyBypass is written when the system proxy is enabled. Set is
 	// false when the OS list should be kept instead.
 	systemProxyBypass     []string
@@ -563,6 +565,11 @@ func newApp() *app {
 		a.envsPath = filepath.Join(home, ".vscroxy", "env.json")
 		a.cookiesPath = filepath.Join(home, ".vscroxy", "cookies.json")
 		a.mcpConsentsPath = filepath.Join(home, ".vscroxy", "mcp-consents.json")
+		a.mcpConsentsKeyPath = filepath.Join(home, ".vscroxy", "mcp-consents.key")
+		a.mcpConsentsKey, _ = loadOrCreateMCPConsentKey(a.mcpConsentsKeyPath)
+		if len(a.mcpConsentsKey) != mcpConsentKeySize {
+			a.mcpConsentsKey = newMCPConsentKey()
+		}
 		a.mcpConsents, _ = loadMCPConsents(a.mcpConsentsPath)
 		a.vault.path = filepath.Join(home, ".vscroxy", "vault.json")
 		a.vault.keyPath = filepath.Join(home, ".vscroxy", "vault.key")

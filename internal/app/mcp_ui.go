@@ -83,6 +83,12 @@ func (u *mcpDocument) stop() {
 	}
 }
 
+func (u *mcpDocument) stopAndWait(timeout time.Duration) {
+	if u.session != nil {
+		u.session.closeNow(timeout)
+	}
+}
+
 func (a *app) drainMCP() {
 	for _, d := range a.documents {
 		u := d.mcpUI
@@ -121,14 +127,23 @@ func (a *app) connectMCP(d *requestDocument) {
 		plan.Proxy, plan.ProxyCA, plan.Jar = a.srv.Addr(), a.srv.CACertificate(), a.requestCookies()
 	}
 	if plan.Transport == request.MCPTransportStdio {
-		key := mcpConsentKey(d, plan)
+		shape := mcpConsentKey(d, plan)
+		full := mcpConsentFullKey(shape, plan, a.mcpConsentsKey)
 		if a.mcpConsents == nil {
-			a.mcpConsents = map[string]bool{}
+			a.mcpConsents = map[string]mcpConsentApproval{}
 		}
-		if !a.mcpConsents[key] {
-			a.mcpConsent = mcpConsentState{open: true, d: d, plan: plan, key: key}
+		if _, ok := a.mcpConsents[full]; ok {
+			a.markMCPConsentUsed(shape, full)
+			a.startMCP(d, plan)
 			return
 		}
+		var changed []string
+		if approval, ok := a.mcpConsents[shape]; ok {
+			changed = mcpChangedEnvNames(approval.Env, plan, a.mcpConsentsKey)
+		}
+		a.mcpConsent = mcpConsentState{open: true, d: d, plan: plan, shape: shape, full: full,
+			valuesChanged: len(changed) > 0, changed: changed}
+		return
 	}
 	a.startMCP(d, plan)
 }

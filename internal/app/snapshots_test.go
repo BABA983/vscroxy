@@ -421,7 +421,7 @@ func TestUISnapshots(t *testing.T) {
 		{name: "dialog-mcp-consent", setup: func(a *app) {
 			a.addDocument(savedRequest{Protocol: "MCP", Name: "Local MCP", MCP: request.MCPConfig{Transport: request.MCPTransportStdio}}, "")
 			d := a.requestDocument
-			a.mcpConsent = mcpConsentState{open: true, d: d, key: "fixture", plan: request.MCPPlan{
+			a.mcpConsent = mcpConsentState{open: true, d: d, shape: "fixture-shape", full: "fixture-full", plan: request.MCPPlan{
 				Transport: request.MCPTransportStdio, Command: "npx", Args: []string{"-y", "@modelcontextprotocol/server-filesystem", "/tmp"},
 				WorkingDir: "/home/user", Env: []string{"TOKEN=hidden", "DEBUG=1"},
 			}}
