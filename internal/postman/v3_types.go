@@ -162,12 +162,96 @@ type v3Request struct {
 	} `json:"message"`
 	Metadata v3KVs `json:"metadata"`
 
-	// websocket-request and socket.io-request
+	// websocket-request, socket.io-request and mqtt-request
 	Messages jsontext.Value `json:"messages"`
 	Events   []v3Event      `json:"events"`
 
+	// mqtt-request
+	ClientID     string                      `json:"clientId"`
+	Version      float64                     `json:"version"`
+	Topics       []v3MQTTTopic               `json:"topics"`
+	LastWill     *v3MQTTLastWill             `json:"lastWill"`
+	Properties   *v3MQTTConnectionProperties `json:"properties"`
+	MQTTMessages []v3MQTTMessage             `json:"-"`
+
 	// mcp-request selects its shape with transport; the app skips the kind.
 	Transport string `json:"transport"`
+}
+
+// The v3 MQTT shapes follow the official 3.0.0 schema. The message array is
+// inline, so it is decoded separately from the stream messages path used by
+// WebSocket and Socket.IO requests.
+type v3MQTTTopic struct {
+	Name           string         `json:"name"`
+	QoS            float64        `json:"qos"`
+	Subscribe      *bool          `json:"subscribe"`
+	Description    string         `json:"description"`
+	Settings       jsontext.Value `json:"settings"`
+	UserProperties v3KVs          `json:"userProperties"`
+}
+
+type v3MQTTSubscriptionSettings struct {
+	NoLocal                bool    `json:"noLocal"`
+	RetainAsPublished      bool    `json:"retainAsPublished"`
+	RetainHandling         float64 `json:"retainHandling"`
+	SubscriptionIdentifier int     `json:"subscriptionIdentifier"`
+}
+
+type v3MQTTMessage struct {
+	ID          string                   `json:"id"`
+	Name        string                   `json:"name"`
+	Description string                   `json:"description"`
+	Content     string                   `json:"content"`
+	Topic       string                   `json:"topic"`
+	QoS         float64                  `json:"qos"`
+	Retain      bool                     `json:"retain"`
+	ContentType string                   `json:"contentType"`
+	Properties  *v3MQTTMessageProperties `json:"properties"`
+}
+
+type v3MQTTMessageProperties struct {
+	PayloadFormatIndicator bool   `json:"payloadFormatIndicator"`
+	MessageExpiryInterval  int    `json:"messageExpiryInterval"`
+	TopicAlias             int    `json:"topicAlias"`
+	ResponseTopic          string `json:"responseTopic"`
+	CorrelationData        string `json:"correlationData"`
+	SubscriptionIdentifier int    `json:"subscriptionIdentifier"`
+	ContentType            string `json:"contentType"`
+	UserProperties         v3KVs  `json:"userProperties"`
+}
+
+type v3MQTTLastWill struct {
+	Payload    string                `json:"payload"`
+	Topic      string                `json:"topic"`
+	QoS        float64               `json:"qos"`
+	Retain     bool                  `json:"retain"`
+	Type       string                `json:"type"`
+	Properties *v3MQTTWillProperties `json:"properties"`
+}
+
+type v3MQTTWillProperties struct {
+	PayloadFormatIndicator bool   `json:"payloadFormatIndicator"`
+	MessageExpiryInterval  int    `json:"messageExpiryInterval"`
+	WillDelayInterval      int    `json:"willDelayInterval"`
+	ResponseTopic          string `json:"responseTopic"`
+	CorrelationData        string `json:"correlationData"`
+	ContentType            string `json:"contentType"`
+	UserProperties         v3KVs  `json:"userProperties"`
+}
+
+type v3MQTTConnectionProperties struct {
+	SessionExpiryInterval      int   `json:"sessionExpiryInterval"`
+	ReceiveMaximum             int   `json:"receiveMaximum"`
+	MaximumPacketSize          int   `json:"maximumPacketSize"`
+	RequestResponseInformation bool  `json:"requestResponseInformation"`
+	UserProperties             v3KVs `json:"userProperties"`
+}
+
+type v3MQTTSettings struct {
+	CleanSession      *bool `json:"cleanSession"`
+	KeepAlive         int   `json:"keepAlive"`
+	AutoReconnect     *bool `json:"autoReconnect"`
+	ConnectionTimeout int   `json:"connectionTimeout"`
 }
 
 type v3Event struct {

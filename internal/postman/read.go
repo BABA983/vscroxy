@@ -42,12 +42,13 @@ type pmItem struct {
 	ProtocolProfileBehavior jsontext.Value   `json:"protocolProfileBehavior"`
 
 	// The v3 directory reader sets these; v2.1 JSON never does.
-	Protocol            string            `json:"-"`
-	GRPC                *pmGRPC           `json:"-"`
-	SocketIO            *pmSocketIO       `json:"-"`
-	Transport           *request.Settings `json:"-"`
-	GraphQLSchema       string            `json:"-"`
-	GraphQLSchemaSource string            `json:"-"`
+	Protocol            string              `json:"-"`
+	GRPC                *pmGRPC             `json:"-"`
+	SocketIO            *pmSocketIO         `json:"-"`
+	MQTT                *request.MQTTConfig `json:"-"`
+	Transport           *request.Settings   `json:"-"`
+	GraphQLSchema       string              `json:"-"`
+	GraphQLSchemaSource string              `json:"-"`
 }
 
 type pmEvent struct {
@@ -333,6 +334,11 @@ func (r *reader) request(it pmItem, parent string, ordinal int) error {
 			out.Method, out.BodyMode, out.SocketIO = "GET", "Raw", request.SocketIOConfig{}
 			if it.SocketIO != nil {
 				out.Body, out.SocketIO.Event, out.SocketIO.WantACK = it.SocketIO.Body, it.SocketIO.Event, it.SocketIO.WantACK
+			}
+		case "MQTT":
+			out.Method, out.BodyMode, out.MQTT = "GET", "Raw", request.MQTTConfig{}
+			if it.MQTT != nil {
+				out.MQTT = *it.MQTT
 			}
 		}
 	}

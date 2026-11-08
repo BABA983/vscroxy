@@ -611,7 +611,18 @@ func (r *v3reader) requestFile(file, parent string, req v3Request, name string, 
 		if len(req.Events) > 0 {
 			r.warn.add("socketio events", "", len(req.Events))
 		}
-	case "mqtt-request", "kafka-request", "mcp-request", "llm-request", "data-request":
+	case "mqtt-request":
+		it.Protocol = "MQTT"
+		it.Request = r.protocolRequest(req, "GET", nil, nil)
+		it.MQTT = r.mqttConfig(req)
+		it.Transport = r.protocolSettings(req.Settings, "mqtt")
+		if len(req.Scripts) > 0 {
+			r.warn.add("protocol script", "MQTT", len(req.Scripts))
+		}
+		if hasExamples(req.Examples) {
+			r.warn.add("stream example", "MQTT", 1)
+		}
+	case "kafka-request", "mcp-request", "llm-request", "data-request":
 		r.warn.add("v3 protocol", protocolName(req.Kind), 1)
 		return nil
 	default:
@@ -663,8 +674,6 @@ func hasExamples(v jsontext.Value) bool {
 
 func protocolName(kind string) string {
 	switch kind {
-	case "mqtt-request":
-		return "MQTT"
 	case "kafka-request":
 		return "Kafka"
 	case "mcp-request":
@@ -723,6 +732,109 @@ func (r *v3reader) websocketRequest(req v3Request, file string) jsontext.Value {
 		body = &pmBody{Mode: "raw", Raw: content}
 	}
 	return r.protocolRequest(req, "GET", req.Headers, body)
+}
+
+// mqttConfig maps the v3 MQTT request to the app's document. Fields the
+// schema has but the app does not send (a received-message subscription
+// identifier) are counted rather than invented.
+func (r *v3reader) mqttConfig(req v3Request) *request.MQTTConfig {
+	cfg := &request.MQTTConfig{Version: request.MQTT5, ClientID: req.ClientID}
+	if req.Version == request.MQTT311 || req.Version == request.MQTT5 {
+		cfg.Version = int(req.Version)
+	} else if req.Version != 0 {
+		r.warn.add("mqtt version", "", 1)
+	}
+	if req.Settings.Kind() == '{' {
+		var settings v3MQTTSettings
+		if json.Unmarshal(req.Settings, &settings) == nil {
+			cfg.CleanStart, cfg.KeepAlive = settings.CleanSession, settings.KeepAlive
+			cfg.AutoReconnect, cfg.ConnectTimeoutMs = settings.AutoReconnect, settings.ConnectionTimeout
+		}
+	}
+	for _, t := range req.Topics {
+		topic := request.MQTTTopic{Name: t.Name, QoS: mqttQoS(t.QoS), Description: t.Description, Subscribe: t.Subscribe,
+			UserProperties: mqttProperties(t.UserProperties)}
+		if t.Settings.Kind() == '{' {
+			var settings v3MQTTSubscriptionSettings
+			if json.Unmarshal(t.Settings, &settings) == nil {
+				topic.NoLocal, topic.RetainAsPublished = settings.NoLocal, settings.RetainAsPublished
+				topic.RetainHandling = byte(settings.RetainHandling)
+				topic.SubscriptionIdentifier = settings.SubscriptionIdentifier
+			}
+		} else if t.Settings.Kind() != 0 && t.Settings.Kind() != 'n' && text(t.Settings) != "0" {
+			r.warn.add("mqtt topic settings", "", 1)
+		}
+		cfg.Topics = append(cfg.Topics, topic)
+	}
+	if will := req.LastWill; will != nil {
+		cfg.Will = request.MQTTWill{Enabled: will.Topic != "" || will.Payload != "" || will.QoS != 0 || will.Retain || will.Properties != nil,
+			Topic: will.Topic, Payload: will.Payload, Type: cmp.Or(will.Type, "text"), QoS: mqttQoS(will.QoS), Retain: will.Retain}
+		if p := will.Properties; p != nil {
+			cfg.Will.Properties = request.MQTTWillProperties{PayloadFormat: p.PayloadFormatIndicator,
+				MessageExpiry: p.MessageExpiryInterval, WillDelay: p.WillDelayInterval, ResponseTopic: p.ResponseTopic,
+				CorrelationData: p.CorrelationData, ContentType: p.ContentType, UserProperties: mqttProperties(p.UserProperties)}
+		}
+	}
+	if p := req.Properties; p != nil {
+		cfg.Properties = request.MQTTConnectProperties{SessionExpiry: p.SessionExpiryInterval, ReceiveMaximum: p.ReceiveMaximum,
+			MaximumPacketSize: p.MaximumPacketSize, RequestResponseInformation: p.RequestResponseInformation,
+			UserProperties: mqttProperties(p.UserProperties)}
+	}
+	if req.Messages.Kind() == '"' {
+		r.warn.add("mqtt messages", "path", 1)
+	}
+	if req.Messages.Kind() == '[' {
+		var messages []v3MQTTMessage
+		if json.Unmarshal(req.Messages, &messages) == nil {
+			for _, m := range messages {
+				message := request.MQTTMessage{ID: m.ID, Name: m.Name, Description: m.Description, Topic: m.Topic,
+					Payload: m.Content, Type: cmp.Or(m.ContentType, "text"), QoS: mqttQoS(m.QoS), Retain: m.Retain}
+				if p := m.Properties; p != nil {
+					message.Properties = request.MQTTMessageProperties{PayloadFormat: p.PayloadFormatIndicator,
+						MessageExpiry: p.MessageExpiryInterval, TopicAlias: p.TopicAlias, ResponseTopic: p.ResponseTopic,
+						CorrelationData: p.CorrelationData, ContentType: p.ContentType, UserProperties: mqttProperties(p.UserProperties)}
+					if p.SubscriptionIdentifier != 0 {
+						r.warn.add("mqtt message property", "subscriptionIdentifier", 1)
+					}
+				}
+				cfg.Messages = append(cfg.Messages, message)
+			}
+		} else {
+			r.warn.add("mqtt messages", "", 1)
+		}
+	}
+	if cfg.Version == request.MQTT311 && cfg.HasV5Properties() {
+		r.warn.add("mqtt 5 properties", "3.1.1", 1)
+	}
+	// Basic auth is the only MQTT credential shape the app has; other
+	// credential keys have no destination.
+	var auth v3Auth
+	if req.Auth.Kind() == '{' && json.Unmarshal(req.Auth, &auth) == nil && auth.Type == "basic" {
+		var credentials []v3KV
+		if json.Unmarshal(auth.Credentials, &credentials) == nil {
+			for _, credential := range credentials {
+				if credential.Key != "username" && credential.Key != "password" {
+					r.warn.add("mqtt credential", credential.Key, 1)
+				}
+			}
+		}
+	}
+	return cfg
+}
+
+func mqttQoS(value float64) byte {
+	if value < 0 || value > 2 {
+		return 0
+	}
+	return byte(value)
+}
+
+func mqttProperties(list v3KVs) []request.MQTTProperty {
+	var out []request.MQTTProperty
+	for _, kv := range list {
+		out = append(out, request.MQTTProperty{Key: kv.Key, Value: text(kv.Value)})
+	}
+	return out
 }
 
 func (r *v3reader) socketIOConfig(req v3Request, file string) *pmSocketIO {
@@ -1067,8 +1179,11 @@ func (r *v3reader) warnSettings(v jsontext.Value, protocol string) {
 		return
 	}
 	for key := range values {
-		allowed := key == "strictSSL" && (protocol == "grpc" || protocol == "websocket" || protocol == "socketio")
+		allowed := key == "strictSSL" && (protocol == "grpc" || protocol == "websocket" || protocol == "socketio" || protocol == "mqtt")
 		if protocol == "socketio" && (key == "version" || key == "path") {
+			allowed = true
+		}
+		if protocol == "mqtt" && (key == "cleanSession" || key == "keepAlive" || key == "autoReconnect" || key == "connectionTimeout") {
 			allowed = true
 		}
 		if !allowed {

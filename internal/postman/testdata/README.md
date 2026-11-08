@@ -191,8 +191,14 @@ are used as a generator/reference and are not vendored here.
 - **Socket.IO**: URL, headers, auth, `strictSSL`, the first saved message's
   event, arguments and ACK flag. Subscription events, extra messages and
   examples are reported.
-- **MQTT, Kafka, MCP, LLM and data** requests are skipped with a warning; the
-  app has no document for them.
+- **MQTT**: URL, `clientId`, `version`, `settings` (clean session, keep-alive,
+  auto reconnect, connection timeout, `strictSSL`), topics with per-topic QoS,
+  subscribe flag, subscription options and user properties, last will and its
+  MQTT 5 properties, connect properties, saved messages and Basic auth.
+  MQTT scripts and examples are reported; a message
+  `properties.subscriptionIdentifier` is received-only and reported.
+- **Kafka, MCP, LLM and data** requests are skipped with a warning; the app has
+  no document for them.
 - v3 environment and globals YAML files are separate artifacts outside a
   collection directory (`postman/environments/*.environment.yaml`,
   `postman/globals/*.globals.yaml`), so this reader does not see them. The

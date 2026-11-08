@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 	"testing"
 
@@ -19,14 +18,17 @@ func TestImportPostmanV3Directory(t *testing.T) {
 		t.Fatal(err)
 	}
 	a.importPostmanCollection(col)
-	if len(a.requests) != 24 {
-		t.Fatalf("requests = %d, want 24", len(a.requests))
+	if len(a.requests) != 25 {
+		t.Fatalf("requests = %d, want 25", len(a.requests))
 	}
 	if len(a.folders) != 2 {
 		t.Fatalf("folders = %+v, want the collection and Orders", a.folders)
 	}
-	var found bool
+	var found, mqtt bool
 	for _, r := range a.requests {
+		if r.Name == "MQTT request" && r.Protocol == "MQTT" && len(r.MQTT.Topics) == 2 {
+			mqtt = true
+		}
 		if r.Collection == "Shop API/Orders" && r.Name == "List orders" {
 			found = true
 			if r.URL != "{{baseUrl}}/orders?status=open" || r.Auth.Type != "Bearer" {
@@ -40,12 +42,20 @@ func TestImportPostmanV3Directory(t *testing.T) {
 	if !found {
 		t.Fatal("List orders was not imported")
 	}
-	if !a.importReport.open || !slices.Contains(a.importReport.lines, "Skipped 1 MQTT request; vscroxy does not support them") {
-		t.Errorf("import report = %+v", a.importReport)
+	if !mqtt {
+		t.Fatal("MQTT request was not imported")
+	}
+	if !a.importReport.open {
+		t.Errorf("import report did not open: %+v", a.importReport)
+	}
+	for _, line := range a.importReport.lines {
+		if strings.Contains(line, "MQTT") && strings.Contains(line, "Skipped") {
+			t.Errorf("MQTT still reported as skipped: %q", line)
+		}
 	}
 	// Importing the same directory again updates the same requests.
 	a.importPostmanCollection(col)
-	if len(a.requests) != 24 {
+	if len(a.requests) != 25 {
 		t.Errorf("re-import made %d requests", len(a.requests))
 	}
 }

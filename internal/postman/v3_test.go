@@ -66,8 +66,8 @@ func TestReadCollectionDirV3(t *testing.T) {
 	if col.Name != "Shop API" {
 		t.Fatalf("name = %q, want Shop API", col.Name)
 	}
-	if len(col.Requests) != 24 {
-		t.Fatalf("requests = %d, want 24", len(col.Requests))
+	if len(col.Requests) != 25 {
+		t.Fatalf("requests = %d, want 25", len(col.Requests))
 	}
 	if len(col.Folders) != 2 {
 		t.Fatalf("folders = %+v, want the collection and Orders", col.Folders)
@@ -333,10 +333,62 @@ func TestReadCollectionDirV3Protocols(t *testing.T) {
 		t.Errorf("Socket.IO strictSSL = %v", sio.Settings.VerifyTLS)
 	}
 
-	for _, r := range col.Requests {
-		if r.Name == "MQTT request" {
-			t.Fatalf("MQTT request should have been skipped: %+v", r)
-		}
+	mqtt := v3Request(t, col, "Shop API", "MQTT request")
+	if mqtt.Protocol != "MQTT" || mqtt.Method != "GET" || mqtt.URL != "mqtts://broker.example.com:8883" {
+		t.Errorf("MQTT request = %+v", mqtt)
+	}
+	if mqtt.MQTT.Version != request.MQTT5 || mqtt.MQTT.ClientID != "vscroxy-import" {
+		t.Errorf("MQTT connection = %+v", mqtt.MQTT)
+	}
+	if mqtt.Auth.Type != "Basic" || mqtt.Auth.Username != "demo" || mqtt.Auth.Password != "secret" {
+		t.Errorf("MQTT credentials = %+v", mqtt.Auth)
+	}
+	if mqtt.Settings.VerifyTLS == nil || *mqtt.Settings.VerifyTLS {
+		t.Errorf("MQTT strictSSL = %v", mqtt.Settings.VerifyTLS)
+	}
+	if mqtt.MQTT.CleanStart == nil || *mqtt.MQTT.CleanStart || mqtt.MQTT.KeepAlive != 30 ||
+		mqtt.MQTT.AutoReconnect == nil || *mqtt.MQTT.AutoReconnect || mqtt.MQTT.ConnectTimeoutMs != 5000 {
+		t.Errorf("MQTT settings = %+v", mqtt.MQTT)
+	}
+	if len(mqtt.MQTT.Topics) != 2 {
+		t.Fatalf("MQTT topics = %+v", mqtt.MQTT.Topics)
+	}
+	topic := mqtt.MQTT.Topics[0]
+	if topic.Name != "sensors/+/temp" || topic.QoS != 1 || topic.Subscribe == nil || !*topic.Subscribe ||
+		topic.Description != "Kitchen sensors" || !topic.NoLocal || !topic.RetainAsPublished ||
+		topic.RetainHandling != 1 || topic.SubscriptionIdentifier != 7 ||
+		len(topic.UserProperties) != 1 || topic.UserProperties[0].Key != "team" || topic.UserProperties[0].Value != "telemetry" {
+		t.Errorf("MQTT topic = %+v", topic)
+	}
+	if second := mqtt.MQTT.Topics[1]; second.Name != "commands/#" || second.QoS != 2 || second.Subscribe == nil || *second.Subscribe {
+		t.Errorf("MQTT second topic = %+v", second)
+	}
+	will := mqtt.MQTT.Will
+	if !will.Enabled || will.Topic != "clients/gone" || will.Payload != `{"state":"offline"}` || will.Type != "json" ||
+		will.QoS != 1 || !will.Retain || !will.Properties.PayloadFormat || will.Properties.MessageExpiry != 60 ||
+		will.Properties.WillDelay != 30 || will.Properties.ResponseTopic != "replies/gone" ||
+		will.Properties.CorrelationData != "corr-1" || will.Properties.ContentType != "application/json" ||
+		len(will.Properties.UserProperties) != 1 || will.Properties.UserProperties[0].Value != "vscroxy" {
+		t.Errorf("MQTT will = %+v", will)
+	}
+	props := mqtt.MQTT.Properties
+	if props.SessionExpiry != 120 || props.ReceiveMaximum != 20 || props.MaximumPacketSize != 65536 ||
+		!props.RequestResponseInformation || len(props.UserProperties) != 1 || props.UserProperties[0].Value != "demo" {
+		t.Errorf("MQTT connect properties = %+v", props)
+	}
+	if len(mqtt.MQTT.Messages) != 1 {
+		t.Fatalf("MQTT messages = %+v", mqtt.MQTT.Messages)
+	}
+	message := mqtt.MQTT.Messages[0]
+	if message.Name != "Publish temperature" || message.Topic != "sensors/kitchen/temp" || message.Payload != `{"celsius":21.4}` ||
+		message.Type != "json" || message.QoS != 1 || !message.Retain {
+		t.Errorf("MQTT message = %+v", message)
+	}
+	if !message.Properties.PayloadFormat || message.Properties.MessageExpiry != 15 || message.Properties.TopicAlias != 3 ||
+		message.Properties.ResponseTopic != "replies/temp" || message.Properties.CorrelationData != "abc" ||
+		message.Properties.ContentType != "application/json" || len(message.Properties.UserProperties) != 1 ||
+		message.Properties.UserProperties[0].Value != "c" {
+		t.Errorf("MQTT message properties = %+v", message.Properties)
 	}
 }
 
@@ -349,7 +401,6 @@ func TestReadCollectionDirV3Warnings(t *testing.T) {
 		"Dropped descriptions or types on 1 parameter",
 		"Dropped protocol profile, certificate or proxy settings on 3 items",
 		"Imported the first auth set on 1 collection item where several are offered; vscroxy uses one",
-		"Skipped 1 MQTT request; vscroxy does not support them",
 		"Skipped 1 gRPC script; vscroxy does not run them",
 		"Skipped 1 secret variable that references a vault",
 	}

@@ -1,8 +1,77 @@
 $kind: mqtt-request
 name: MQTT request
+description: Telemetry broker.
 url: 'mqtts://broker.example.com:8883'
+clientId: vscroxy-import
 version: 5
 topics:
   - name: sensors/+/temp
     qos: 1
     subscribe: true
+    description: Kitchen sensors
+    settings:
+      noLocal: true
+      retainAsPublished: true
+      retainHandling: 1
+      subscriptionIdentifier: 7
+    userProperties:
+      - key: team
+        value: telemetry
+  - name: commands/#
+    qos: 2
+    subscribe: false
+lastWill:
+  topic: clients/gone
+  payload: '{"state":"offline"}'
+  qos: 1
+  retain: true
+  type: json
+  properties:
+    payloadFormatIndicator: true
+    messageExpiryInterval: 60
+    willDelayInterval: 30
+    responseTopic: replies/gone
+    correlationData: corr-1
+    contentType: application/json
+    userProperties:
+      - key: source
+        value: vscroxy
+properties:
+  sessionExpiryInterval: 120
+  receiveMaximum: 20
+  maximumPacketSize: 65536
+  requestResponseInformation: true
+  userProperties:
+    - key: app
+      value: demo
+auth:
+  type: basic
+  credentials:
+    - key: username
+      value: demo
+    - key: password
+      value: secret
+settings:
+  cleanSession: false
+  keepAlive: 30
+  autoReconnect: false
+  connectionTimeout: 5000
+  strictSSL: false
+messages:
+  - $kind: mqtt-message
+    name: Publish temperature
+    content: '{"celsius":21.4}'
+    topic: sensors/kitchen/temp
+    qos: 1
+    retain: true
+    contentType: json
+    properties:
+      payloadFormatIndicator: true
+      messageExpiryInterval: 15
+      topicAlias: 3
+      responseTopic: replies/temp
+      correlationData: abc
+      contentType: application/json
+      userProperties:
+        - key: unit
+          value: c
