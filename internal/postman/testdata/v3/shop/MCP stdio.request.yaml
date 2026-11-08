@@ -1,0 +1,11 @@
+$kind: mcp-request
+name: MCP stdio
+transport: stdio
+command: /usr/local/bin/mcp-demo
+env:
+  - key: TOKEN
+    value: '{{token}}'
+  - key: DEBUG
+    value: '1'
+    disabled: true
+message: '{"jsonrpc":"2.0","id":1,"method":"resources/read","params":{"uri":"memo://welcome"}}'

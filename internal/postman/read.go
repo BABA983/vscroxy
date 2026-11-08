@@ -46,6 +46,7 @@ type pmItem struct {
 	GRPC                *pmGRPC             `json:"-"`
 	SocketIO            *pmSocketIO         `json:"-"`
 	MQTT                *request.MQTTConfig `json:"-"`
+	MCP                 *pmMCP              `json:"-"`
 	Transport           *request.Settings   `json:"-"`
 	GraphQLSchema       string              `json:"-"`
 	GraphQLSchemaSource string              `json:"-"`
@@ -339,6 +340,14 @@ func (r *reader) request(it pmItem, parent string, ordinal int) error {
 			out.Method, out.BodyMode, out.MQTT = "GET", "Raw", request.MQTTConfig{}
 			if it.MQTT != nil {
 				out.MQTT = *it.MQTT
+			}
+		case "MCP":
+			out.Method, out.BodyMode = "POST", "Raw"
+			if it.MCP != nil {
+				out.MCP = it.MCP.Config
+			}
+			if out.Auth.Type == request.AuthOAuth2 {
+				r.warn.add("mcp auth", "OAuth 2.0", 1)
 			}
 		}
 	}

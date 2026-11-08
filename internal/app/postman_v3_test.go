@@ -18,8 +18,8 @@ func TestImportPostmanV3Directory(t *testing.T) {
 		t.Fatal(err)
 	}
 	a.importPostmanCollection(col)
-	if len(a.requests) != 25 {
-		t.Fatalf("requests = %d, want 25", len(a.requests))
+	if len(a.requests) != 27 {
+		t.Fatalf("requests = %d, want 27", len(a.requests))
 	}
 	if len(a.folders) != 2 {
 		t.Fatalf("folders = %+v, want the collection and Orders", a.folders)
@@ -55,7 +55,7 @@ func TestImportPostmanV3Directory(t *testing.T) {
 	}
 	// Importing the same directory again updates the same requests.
 	a.importPostmanCollection(col)
-	if len(a.requests) != 25 {
+	if len(a.requests) != 27 {
 		t.Errorf("re-import made %d requests", len(a.requests))
 	}
 }

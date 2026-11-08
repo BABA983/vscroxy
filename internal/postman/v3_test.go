@@ -66,8 +66,8 @@ func TestReadCollectionDirV3(t *testing.T) {
 	if col.Name != "Shop API" {
 		t.Fatalf("name = %q, want Shop API", col.Name)
 	}
-	if len(col.Requests) != 25 {
-		t.Fatalf("requests = %d, want 25", len(col.Requests))
+	if len(col.Requests) != 27 {
+		t.Fatalf("requests = %d, want 27", len(col.Requests))
 	}
 	if len(col.Folders) != 2 {
 		t.Fatalf("folders = %+v, want the collection and Orders", col.Folders)
@@ -390,6 +390,28 @@ func TestReadCollectionDirV3Protocols(t *testing.T) {
 		message.Properties.UserProperties[0].Value != "c" {
 		t.Errorf("MQTT message properties = %+v", message.Properties)
 	}
+	mcp := v3Request(t, col, "Shop API", "MCP request")
+	if mcp.Protocol != "MCP" || mcp.Method != "POST" || mcp.URL != "{{baseUrl}}/mcp" || mcp.Headers != "X-Trace: 1" {
+		t.Errorf("MCP request = %+v", mcp)
+	}
+	if mcp.MCP.Transport != request.MCPTransportSSE || mcp.MCP.Tool != "echo" || mcp.MCP.ToolArgs != `{"text":"hello"}` {
+		t.Errorf("MCP operation = %+v", mcp.MCP)
+	}
+	if mcp.MCP.ProtocolVersion != "legacy" || mcp.MCP.TimeoutSeconds != 45 || mcp.Settings.VerifyTLS == nil || *mcp.Settings.VerifyTLS {
+		t.Errorf("MCP settings = %+v / %+v", mcp.MCP, mcp.Settings)
+	}
+	if mcp.Auth.Type != "Bearer" || mcp.Auth.Token != "{{token}}" {
+		t.Errorf("MCP auth = %+v", mcp.Auth)
+	}
+
+	stdio := v3Request(t, col, "Shop API", "MCP stdio")
+	if stdio.Protocol != "MCP" || stdio.MCP.Transport != request.MCPTransportStdio || stdio.MCP.Command != "/usr/local/bin/mcp-demo" {
+		t.Errorf("MCP stdio = %+v", stdio)
+	}
+	if stdio.MCP.ResourceURI != "memo://welcome" || len(stdio.MCP.Env) != 2 || stdio.MCP.Env[0].Name != "TOKEN" ||
+		stdio.MCP.Env[0].Value != "{{token}}" || !stdio.MCP.Env[1].Disabled {
+		t.Errorf("MCP stdio operation/env = %+v", stdio.MCP)
+	}
 }
 
 func TestV3MQTTQoSOutOfRangeWarns(t *testing.T) {
@@ -438,6 +460,7 @@ func TestReadCollectionDirV3Warnings(t *testing.T) {
 		"Dropped descriptions or types on 1 parameter",
 		"Dropped protocol profile, certificate or proxy settings on 3 items",
 		"Imported the first auth set on 1 collection item where several are offered; vscroxy uses one",
+		"Dropped 1 MCP session timeout; a session stays open until you disconnect",
 		"Skipped 1 gRPC script; vscroxy does not run them",
 		"Skipped 1 secret variable that references a vault",
 	}
@@ -683,6 +706,7 @@ func TestCollectionV3RoundTrip(t *testing.T) {
 	for _, want := range []string{
 		"Skipped 1 gRPC request; Postman Collection v2.1 only supports HTTP requests",
 		"Skipped 1 Socket.IO request; Postman Collection v2.1 only supports HTTP requests",
+		"Skipped 2 MCP requests; Postman Collection v2.1 only supports HTTP requests",
 		"Dropped 1 GraphQL schema; Postman collections cannot hold it",
 	} {
 		if !slices.Contains(warnings, want) {
@@ -694,7 +718,7 @@ func TestCollectionV3RoundTrip(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(again.Requests) != 22 {
-		t.Fatalf("round-tripped requests = %d, want 22 (gRPC and Socket.IO are v2.1 losses)", len(again.Requests))
+		t.Fatalf("round-tripped requests = %d, want 22 (gRPC, Socket.IO and MCP are v2.1 losses)", len(again.Requests))
 	}
 	byKey := map[string]request.Request{}
 	for _, r := range again.Requests {

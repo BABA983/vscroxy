@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+
+	"github.com/baba983/vscroxy/internal/request"
 )
 
 // The types below are the subset of the Postman Collection v3 schema this
@@ -155,12 +157,10 @@ type v3Request struct {
 	Schema        jsontext.Value `json:"schema"`
 
 	// grpc-request
-	MethodPath       string `json:"methodPath"`
-	MethodDescriptor string `json:"methodDescriptor"`
-	Message          struct {
-		Content jsontext.Value `json:"content"`
-	} `json:"message"`
-	Metadata v3KVs `json:"metadata"`
+	MethodPath       string         `json:"methodPath"`
+	MethodDescriptor string         `json:"methodDescriptor"`
+	Message          jsontext.Value `json:"message"` // an object for gRPC, a JSON-RPC string for MCP
+	Metadata         v3KVs          `json:"metadata"`
 
 	// websocket-request, socket.io-request and mqtt-request
 	Messages jsontext.Value `json:"messages"`
@@ -173,8 +173,10 @@ type v3Request struct {
 	LastWill   *v3MQTTLastWill             `json:"lastWill"`
 	Properties *v3MQTTConnectionProperties `json:"properties"`
 
-	// mcp-request selects its shape with transport; the app skips the kind.
+	// mcp-request selects its shape with transport.
 	Transport string `json:"transport"`
+	Command   string `json:"command"`
+	Env       v3KVs  `json:"env"`
 }
 
 // The v3 MQTT shapes follow the official 3.0.0 schema. The message array is
@@ -339,4 +341,10 @@ type pmSocketIO struct {
 	Event   string
 	Body    string
 	WantACK bool
+}
+
+// pmMCP is set by the v3 reader only. Its config goes through the shared
+// request conversion, so auth, headers and settings have one implementation.
+type pmMCP struct {
+	Config request.MCPConfig
 }

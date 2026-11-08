@@ -281,6 +281,18 @@ func (k warning) text(n int) string {
 		return "Dropped Socket.IO " + k.detail + " setting"
 	case "socketio args":
 		return "Imported " + count(n, "Socket.IO binary argument", "Socket.IO binary arguments") + " as text"
+	case "mcp transport":
+		return "Skipped " + count(n, "MCP request", "MCP requests") + " with transport " + k.detail + "; the schema supports sse and stdio"
+	case "mcp version":
+		return "Dropped MCP protocol version " + k.detail + "; use Auto, Legacy or 2026-07-28"
+	case "mcp timeout":
+		return "Clamped " + count(n, "MCP request timeout", "MCP request timeouts") + " to 1–3600 seconds"
+	case "mcp session timeout":
+		return "Dropped " + count(n, "MCP session timeout", "MCP session timeouts") + "; a session stays open until you disconnect"
+	case "mcp message":
+		return "Could not map " + count(n, "MCP JSON-RPC message", "MCP JSON-RPC messages") + " (" + k.detail + "); choose the operation in the MCP editor"
+	case "mcp auth":
+		return "Imported " + count(n, "MCP OAuth 2.0 auth set", "MCP OAuth 2.0 auth sets") + "; the MCP client uses a Bearer token, Basic or API key, so sign in and use a Bearer token"
 	case "graphql example events":
 		return "Kept the first event of " + count(n, "GraphQL subscription example", "GraphQL subscription examples")
 	case "mqtt qos":

@@ -1,0 +1,21 @@
+$kind: mcp-request
+id: req-mcp
+name: MCP request
+description: Debug the catalog server.
+transport: sse
+url: '{{baseUrl}}/mcp'
+headers:
+  - key: X-Trace
+    value: '1'
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{token}}'
+message: |
+  {"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"echo","arguments":{"text":"hello"}}}
+settings:
+  version: legacy
+  strictSSL: false
+  requestTimeout: 45000
+  sessionTimeout: 600000

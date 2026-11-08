@@ -580,7 +580,7 @@ func (r *v3reader) requestFile(file, parent string, req v3Request, name string, 
 		it.GraphQLSchema, it.GraphQLSchemaSource = r.graphqlSchema(req.Schema, file)
 	case "grpc-request":
 		it.Protocol = "gRPC"
-		it.GRPC = &pmGRPC{Method: req.MethodPath, Body: text(req.Message.Content)}
+		it.GRPC = &pmGRPC{Method: req.MethodPath, Body: grpcMessage(req.Message)}
 		it.Request = r.protocolRequest(req, "POST", grpcHeaders(req), nil)
 		it.Transport = r.protocolSettings(req.Settings, "grpc")
 		if len(req.Scripts) > 0 {
@@ -623,7 +623,16 @@ func (r *v3reader) requestFile(file, parent string, req v3Request, name string, 
 		if hasExamples(req.Examples) {
 			r.warn.add("stream example", "MQTT", 1)
 		}
-	case "kafka-request", "mcp-request", "llm-request", "data-request":
+	case "mcp-request":
+		mcp, settings, ok := r.mcpRequest(req)
+		if !ok {
+			return nil
+		}
+		it.Protocol = "MCP"
+		it.MCP = mcp
+		it.Request = r.protocolRequest(req, "POST", req.Headers, nil)
+		it.Transport = settings
+	case "kafka-request", "llm-request", "data-request":
 		r.warn.add("v3 protocol", protocolName(req.Kind), 1)
 		return nil
 	default:
@@ -667,6 +676,143 @@ func grpcHeaders(req v3Request) []v3KV {
 		return req.Metadata
 	}
 	return req.Headers
+}
+
+// grpcMessage reads the message object of a v3 gRPC request.
+func grpcMessage(v jsontext.Value) string {
+	var message struct {
+		Content jsontext.Value `json:"content"`
+	}
+	if v.Kind() != '{' || json.Unmarshal(v, &message) != nil {
+		return ""
+	}
+	return text(message.Content)
+}
+
+// mcpRequest maps the fields of a v3 MCP request. The schema has no args
+// field for stdio, and message is one JSON-RPC request, so only methods the
+// document can replay become tool, resource or prompt fields.
+func (r *v3reader) mcpRequest(req v3Request) (*pmMCP, *request.Settings, bool) {
+	cfg := request.MCPConfig{}
+	switch strings.TrimSpace(req.Transport) {
+	case "sse":
+		cfg.Transport = request.MCPTransportSSE
+	case "stdio":
+		cfg.Transport = request.MCPTransportStdio
+	default:
+		r.warn.add("mcp transport", cmp.Or(strings.TrimSpace(req.Transport), "missing"), 1)
+		return nil, nil, false
+	}
+	settings, cfg := r.mcpSettings(req.Settings, cfg)
+	cfg.Command = req.Command
+	for _, env := range req.Env {
+		name := strings.TrimSpace(env.Key)
+		if name == "" {
+			continue
+		}
+		cfg.Env = append(cfg.Env, request.Field{Name: name, Value: text(env.Value), Disabled: env.Disabled})
+	}
+	r.paramMetadata(req.Env)
+	r.mcpMessage(req.Message, &cfg)
+	return &pmMCP{Config: cfg}, settings, true
+}
+
+// mcpSettings maps strictSSL, version, requestTimeout and sessionTimeout. The
+// app keeps a session until disconnect, so an idle session timeout is dropped
+// and counted.
+func (r *v3reader) mcpSettings(v jsontext.Value, cfg request.MCPConfig) (*request.Settings, request.MCPConfig) {
+	out := &request.Settings{}
+	r.warnSettings(v, "mcp")
+	if v.Kind() != '{' {
+		return out, cfg
+	}
+	var settings struct {
+		Version        string  `json:"version"`
+		StrictSSL      *bool   `json:"strictSSL"`
+		RequestTimeout float64 `json:"requestTimeout"`
+		SessionTimeout float64 `json:"sessionTimeout"`
+	}
+	if json.Unmarshal(v, &settings) != nil {
+		return out, cfg
+	}
+	out.VerifyTLS = settings.StrictSSL
+	switch strings.TrimSpace(settings.Version) {
+	case "", "auto":
+	case "legacy":
+		cfg.ProtocolVersion = "legacy"
+	case "2026-07-28":
+		cfg.ProtocolVersion = "2026-07-28"
+	default:
+		r.warn.add("mcp version", settings.Version, 1)
+	}
+	if settings.RequestTimeout > 0 {
+		seconds := int(math.Ceil(settings.RequestTimeout / 1000))
+		if seconds < 1 {
+			seconds = 1
+		}
+		if seconds > 3600 {
+			seconds = 3600
+			r.warn.add("mcp timeout", "", 1)
+		}
+		cfg.TimeoutSeconds = seconds
+	}
+	if settings.SessionTimeout > 0 {
+		r.warn.add("mcp session timeout", "", 1)
+	}
+	return out, cfg
+}
+
+// mcpMessage maps the one saved JSON-RPC message to the document operation it
+// can replay. initialize, tools/list and other session methods are counted.
+func (r *v3reader) mcpMessage(v jsontext.Value, cfg *request.MCPConfig) {
+	if v.Kind() == 0 || v.Kind() == 'n' {
+		return
+	}
+	if v.Kind() != '"' {
+		r.warn.add("mcp message", "not a JSON string", 1)
+		return
+	}
+	raw := text(v)
+	var message struct {
+		Method string `json:"method"`
+		Params struct {
+			Name      string         `json:"name"`
+			URI       string         `json:"uri"`
+			Arguments jsontext.Value `json:"arguments"`
+		} `json:"params"`
+	}
+	if json.Unmarshal([]byte(raw), &message) != nil {
+		r.warn.add("mcp message", "invalid JSON", 1)
+		return
+	}
+	arguments := func() string {
+		if message.Params.Arguments.Kind() != '{' {
+			return "{}"
+		}
+		return string(message.Params.Arguments)
+	}
+	switch message.Method {
+	case "tools/call":
+		if message.Params.Name == "" {
+			r.warn.add("mcp message", message.Method, 1)
+			return
+		}
+		cfg.Tool, cfg.ToolArgs = message.Params.Name, arguments()
+	case "resources/read":
+		if message.Params.URI == "" {
+			r.warn.add("mcp message", message.Method, 1)
+			return
+		}
+		cfg.ResourceURI = message.Params.URI
+	case "prompts/get":
+		if message.Params.Name == "" {
+			r.warn.add("mcp message", message.Method, 1)
+			return
+		}
+		cfg.Prompt, cfg.PromptArgs = message.Params.Name, arguments()
+	default:
+		r.warn.add("mcp message", cmp.Or(message.Method, "no method"), 1)
+	}
 }
 
 func hasExamples(v jsontext.Value) bool {
@@ -1184,11 +1330,14 @@ func (r *v3reader) warnSettings(v jsontext.Value, protocol string) {
 		return
 	}
 	for key := range values {
-		allowed := key == "strictSSL" && (protocol == "grpc" || protocol == "websocket" || protocol == "socketio" || protocol == "mqtt")
+		allowed := key == "strictSSL" && (protocol == "grpc" || protocol == "websocket" || protocol == "socketio" || protocol == "mqtt" || protocol == "mcp")
 		if protocol == "socketio" && (key == "version" || key == "path") {
 			allowed = true
 		}
 		if protocol == "mqtt" && (key == "cleanSession" || key == "keepAlive" || key == "autoReconnect" || key == "connectionTimeout") {
+			allowed = true
+		}
+		if protocol == "mcp" && (key == "version" || key == "requestTimeout" || key == "sessionTimeout") {
 			allowed = true
 		}
 		if !allowed {
