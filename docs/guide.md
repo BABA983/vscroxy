@@ -1661,13 +1661,17 @@ export skips non-HTTP documents with a warning. See [interoperability checks](so
 Create a **New request** and choose **MQTT** in the protocol selector. The
 address bar is the broker URL: `mqtt://` (TCP), `mqtts://` (TLS), `ws://` or
 `wss://`; the port defaults to 1883, 8883, 80 or 443. MQTT 3.1.1 and 5.0 are
-supported. The client connects directly, not through the capture proxy, so
-MQTT traffic is not recorded by Capture. **Connect** opens a fresh session and
-**Disconnect** closes it.
+supported. `mqtt://` and `mqtts://` are raw TCP and connect directly.
+`ws://` and `wss://` are HTTP upgrades: while Capture is running they use the
+capture proxy, so upstream proxy rules and certificate settings apply and the
+traffic appears in Capture; without Capture they connect directly. **Connect**
+opens a fresh session and **Disconnect** closes it.
 
-Under **Connection**, choose the protocol version, client ID (generated for a
-new document, and sent as authored), credentials, clean start/session,
-keep-alive, connect timeout and whether a dropped connection reconnects. Basic
+Under **Connection**, choose the protocol version, client ID, credentials,
+clean start/session, keep-alive, connect timeout and whether a dropped
+connection reconnects. An empty MQTT 5.0 client ID stays empty and the broker
+assigns one; MQTT 3.1.1 generates an ID for the connection without rewriting
+the saved document. **Generate** fills in an ID explicitly. Basic
 credentials become the MQTT username and password; **Inherit** uses a Basic
 parent only. `{{variables}}` and host-restricted `{{vault:name}}` references
 expand in the URL, client ID, credentials, topics, payloads and properties.
@@ -1687,8 +1691,9 @@ session starts; **Subscribe listed** adds all enabled rows to the live
 connection and **Unsubscribe all** removes every active filter. MQTT 5.0
 adds no-local, retain-as-published, retain handling (0 sends retained
 messages, 1 only for a new subscription, 2 never) and a subscription
-identifier per row, plus user properties. Subscriptions are re-applied after a
-reconnect.
+identifier per row, plus user properties. A reconnect restores only the topics
+that are actually active, so a topic you unsubscribed stays off even if the
+document still lists it.
 
 **Publish** keeps named messages with the document. **New**, **Save** and
 **Delete** manage them; **Publish** sends the current topic, payload, QoS,
@@ -1704,26 +1709,32 @@ subscribe, unsubscribe, sent and received events. Select an event to read its
 topic, QoS, retain flag, size, properties and payload as Text, JSON or Hex;
 **Copy shown message** copies that view. The timeline keeps the latest 200
 events and at most 64 KiB of each payload, with evicted and client-queue
-dropped counts shown. The client queue holds 128 messages; a busy topic drops
-new messages instead of growing without bound. Incoming packets are capped at
-1 MiB (or a larger MQTT 5 maximum packet size set on the document); a broker
-packet over the cap closes the connection with an explicit error. Search
-matches topics, payloads and properties.
+dropped counts shown; dropped messages accumulate across reconnects. The
+client queue holds 128 messages; a busy topic drops new messages instead of
+growing without bound. Incoming packets are capped at 1 MiB (or a larger MQTT
+5 maximum packet size set on the document); the cap is enforced from the
+declared length, before the body is allocated, and a broker packet over it
+closes the connection with an explicit error. Search matches topics, payloads
+and properties.
 
 TLS (`mqtts://` and `wss://`) verifies the system and configured roots and
 presents the matching client certificate from **Settings → Certificates**;
 the per-request TLS switch turns verification off for a broker you control.
-A reconnect uses exponential backoff (1, 2, 4, 8, 16, 30 seconds), re-applies
-subscriptions and stops after 20 reconnects or five failed dials. Retained
-messages may arrive again after a reconnect, and unacknowledged in-flight
-messages are not replayed by the client.
+A `wss://` connection through the capture proxy also trusts the proxy's
+interception certificate for that connection. A reconnect uses exponential
+backoff (1, 2, 4, 8, 16, 30 seconds), restores the active subscriptions and
+stops after 20 reconnects or five failed dials. Retained messages may arrive
+again after a reconnect, and unacknowledged in-flight messages are not
+replayed by the client. A topic alias is sent only when the broker's CONNACK
+advertises a maximum that covers it; an alias-only publish may leave the topic
+empty.
 
 Draft configuration is saved with the request; the live connection and
 timeline are not saved or restored. HTTP scripts, Checks, token bindings and
 inherited scripts must be removed, not silently skipped; HTTP Runner, code
 generation, History and Examples are not this client's execution API. MQTT
-3.1, local session persistence, polling transports and a capture-proxy path
-are not implemented. Postman Collection v3 `mqtt-request` documents import
+3.1, local session persistence and polling transports are not implemented.
+Postman Collection v3 `mqtt-request` documents import
 their connection settings, topics, last will, messages, MQTT 5 properties and
 Basic auth; a received-message subscription identifier has no outgoing
 equivalent and is reported. Postman v2.1 export skips protocol documents with

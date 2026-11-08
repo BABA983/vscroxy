@@ -212,7 +212,7 @@
 | gRPC 客户端（导入 proto 或服务端反射） | 首版已有 | 请求文档、proto／descriptor set、v1／v1alpha 反射、四种调用、metadata／trailers／最终状态、取消和 deadline；HTTP Runner／脚本暂不支持 | M8 |
 | Socket.IO 客户端 | 首版已有 | 请求文档、EIO4／WebSocket、namespace／auth、JSON／二进制附件、双向 ACK、有界实时消息、取消；无轮询／重连／重发 | M8 |
 | MCP 客户端（调试 MCP server） | 缺少 | | M8 |
-| MQTT 客户端 | 首版已有 | 请求文档与独立会话；MQTT 3.1.1／5.0 over TCP／TLS／WebSocket、QoS 0／1／2、retain、通配符订阅、last will、MQTT 5 属性、有界时间线；无抓包代理、脚本／Runner／History | M8 |
+| MQTT 客户端 | 首版已有 | 请求文档与独立会话；MQTT 3.1.1／5.0 over TCP／TLS／WebSocket、QoS 0／1／2、retain、通配符订阅、last will、MQTT 5 属性、有界时间线；mqtt／mqtts 直连，ws／wss 经抓包代理；无脚本／Runner／History | M8 |
 
 ### 4.7 一体化（vscroxy 独有）
 
@@ -336,7 +336,7 @@ Cookie 和其他 API key 保留为变量 header，避免把多个认证机制硬
 - WebSocket 三阶段已完成：① 二进制与子协议（Hex／Base64 发送、WS／WSS 双侧协商）；② 实时会话与抓包消息的显式 Protobuf 解码（复用 schema，拒绝截断消息）；③ 双向消息断点（文本／Base64 编辑、原样放行、单条丢弃）与 `onMessage(message)` 脚本钩子。WS／解密 WSS，脚本先于消息断点；不拦截握手和控制帧。脚本／编辑上限 1 MiB；断开、代理关闭、断点关闭或超时释放暂停，详见[使用指南](guide.md#websocket-message-interception)。
 - SSE 客户端首版已完成（[使用指南](guide.md#interactive-sse-sessions)）：独立接收引擎与原生会话面板两个提交阶段；HTTP(S) 经运行中的抓包代理、TLS 校验、UTF-8／多行／空事件／ID 重置、响应头与事件搜索复制、有界时间线。自动重连默认关闭；显式启用后支持 Last-Event-ID／retry，HTTP 204 停止；停止／关闭取消连接及重连等待。GET-only，暂不接请求脚本／Checks／Runner／History，不保存或恢复会话。
 - Socket.IO 客户端首版已完成（[使用指南](guide.md#interactive-socketio-requests)）：协议引擎与请求文档两个提交阶段；EIO4／Socket.IO protocol 5、WebSocket-only、namespace／auth、JSON 与二进制附件、双向 ACK、搜索复制、有界时间线和取消。WS／解密 WSS 经抓包代理、TLS 校验、原作用域变量／Vault；官方 Socket.IO 4.8.4 服务端互通。无 polling／自动重连／重试／离线重放，不接 HTTP 脚本／Checks／Runner／History；配置保存，会话不恢复。
-- MQTT 客户端首版已完成（[使用指南](guide.md#interactive-mqtt-requests)）：请求文档与独立会话两个提交阶段；MQTT 3.1.1／5.0 over mqtt://、mqtts://、ws://、wss://，client ID／用户名口令／clean start／keep-alive／session expiry／connect timeout／last will／MQTT 5 连接与 will 属性；通配符订阅、逐 topic QoS、no-local／retain-as-published／retain handling／subscription identifier、退订、QoS 0／1／2 发布、retain、MQTT 5 发布属性（content type／response topic／correlation data／message expiry／topic alias／user properties）；有界时间线（200 条、64 KiB 预览、128 条客户端队列）与重连。TLS 复用 Settings → Certificates 的客户端证书和自定义根；直连，不经抓包代理，不接 HTTP 脚本／Checks／Runner／History，不持久化会话和未确认消息。Postman v3 `mqtt-request` 已导入；收到的消息 subscription identifier 无出站对应，报告不伪造。
+- MQTT 客户端首版已完成（[使用指南](guide.md#interactive-mqtt-requests)）：请求文档与独立会话两个提交阶段；MQTT 3.1.1／5.0 over mqtt://、mqtts://、ws://、wss://，client ID／用户名口令／clean start／keep-alive／session expiry／connect timeout／last will／MQTT 5 连接与 will 属性；通配符订阅、逐 topic QoS、no-local／retain-as-published／retain handling／subscription identifier、退订、QoS 0／1／2 发布、retain、MQTT 5 发布属性（content type／response topic／correlation data／message expiry／topic alias／user properties）；有界时间线（200 条、64 KiB 预览、128 条客户端队列）与重连。TLS 复用 Settings → Certificates 的客户端证书和自定义根；mqtt／mqtts 直连，ws／wss 在抓包运行时经抓包代理（上游规则、证书和 Capture 生效），否则直连；不接 HTTP 脚本／Checks／Runner／History，不持久化会话和未确认消息。Postman v3 `mqtt-request` 已导入（disabled 的 user property 跳过，越界 QoS 报告）；收到的消息 subscription identifier 无出站对应，报告不伪造。
 
 ### M9：自动化和生态
 
