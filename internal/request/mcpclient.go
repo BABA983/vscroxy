@@ -1,6 +1,7 @@
 package request
 
 import (
+	"cmp"
 	"context"
 	"encoding/base64"
 	"encoding/json/jsontext"
@@ -9,6 +10,7 @@ import (
 	"io"
 	"log/slog"
 	"maps"
+	"mime"
 	"net/http"
 	"net/url"
 	"os"
@@ -16,7 +18,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
-	"time"
+	"sync/atomic"
 	"unicode/utf8"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -25,14 +27,16 @@ import (
 // Bounds on untrusted server output. The transport limits one frame; the
 // catalog, a result and the UI timeline are bounded separately.
 const (
-	MCPMaxFrame        = 8 << 20
-	MCPMaxCatalogItems = 1000
-	MCPMaxSchema       = 16 << 10
-	MCPMaxContentItems = 100
-	MCPMaxMediaBytes   = 1 << 20
-	MCPMaxResultBytes  = 4 << 20
-	MCPMaxResultText   = 1 << 20
-	MCPMaxInstructions = 64 << 10
+	MCPMaxFrame         = 8 << 20
+	MCPMaxCatalogItems  = 1000
+	MCPMaxCatalogBytes  = 4 << 20
+	MCPMaxCatalogString = 1 << 10
+	MCPMaxSchema        = 16 << 10
+	MCPMaxContentItems  = 100
+	MCPMaxMediaBytes    = 1 << 20
+	MCPMaxResultBytes   = 4 << 20
+	MCPMaxResultText    = 1 << 20
+	MCPMaxInstructions  = 64 << 10
 )
 
 // MCPServerInfo is the initialize result the session shows.
@@ -97,12 +101,25 @@ type MCPHandlers struct {
 	Notification func(method, text string)
 	Log          func(level, logger, text string)
 	Stderr       func(line string)
+	// Reconnect reports a new standalone SSE GET after the first one. POSTs
+	// are never replayed by the transport.
+	Reconnect func()
+	// Progress receives notifications/progress for this client's requests.
+	Progress func(token string, progress, total float64, message string)
+	// RPC reports JSON-RPC traffic that the document's operation labels do not
+	// already show: initialize, logging setup, subscriptions, pings, and
+	// server-initiated requests such as sampling, elicitation and roots.
+	RPC func(direction, method, text string)
 }
 
 // MCPClient owns one initialized MCP session.
 type MCPClient struct {
-	session *mcp.ClientSession
-	info    MCPServerInfo
+	session         *mcp.ClientSession
+	info            MCPServerInfo
+	protocolVersion string
+	nextProgress    atomic.Uint64
+	catalogBudget   atomic.Int64
+	catalogCut      atomic.Bool
 }
 
 func (c *MCPClient) Server() MCPServerInfo { return c.info }
@@ -115,6 +132,7 @@ func (c *MCPClient) Wait() error { return c.session.Wait() }
 // Close the client when done.
 func DialMCP(ctx context.Context, plan MCPPlan, handlers MCPHandlers) (*MCPClient, error) {
 	var transport mcp.Transport
+	var stdio *mcpStdioTransport
 	switch plan.Transport {
 	case MCPTransportStdio:
 		cmd := exec.Command(plan.Command, plan.Args...)
@@ -123,18 +141,29 @@ func DialMCP(ctx context.Context, plan MCPPlan, handlers MCPHandlers) (*MCPClien
 		if handlers.Stderr != nil {
 			cmd.Stderr = &mcpLineWriter{fn: handlers.Stderr}
 		}
-		transport = &mcp.CommandTransport{Command: cmd, TerminateDuration: 3 * time.Second}
+		stdio = &mcpStdioTransport{cmd: cmd}
+		transport = stdio
 	case MCPTransportSSE:
-		transport = &mcp.SSEClientTransport{Endpoint: plan.URL, HTTPClient: mcpHTTPClient(plan), MaxEventSize: MCPMaxFrame}
+		transport = &mcp.SSEClientTransport{Endpoint: plan.URL, HTTPClient: mcpHTTPClient(plan, handlers), MaxEventSize: MCPMaxFrame}
 	case MCPTransportStreamableHTTP:
-		// No hidden retries: a debugger shows exactly the requests it made.
-		transport = &mcp.StreamableClientTransport{Endpoint: plan.URL, HTTPClient: mcpHTTPClient(plan), MaxRetries: -1, MaxEventSize: MCPMaxFrame}
+		// Retry the standalone GET stream, never a POST. The transport reports
+		// each reconnection through the HTTP wrapper's callback.
+		transport = &mcp.StreamableClientTransport{Endpoint: plan.URL, HTTPClient: mcpHTTPClient(plan, handlers), MaxRetries: 2, MaxEventSize: MCPMaxFrame}
 	default:
 		return nil, fmt.Errorf("unsupported MCP transport %q", plan.Transport)
 	}
 	client := mcp.NewClient(&mcp.Implementation{Name: "vscroxy", Version: "0.1.0"}, &mcp.ClientOptions{
-		Logger:       slog.New(slog.NewTextHandler(io.Discard, nil)),
-		Capabilities: &mcp.ClientCapabilities{},
+		Logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
+		// A debugger advertises the server-initiated methods so their traffic
+		// reaches the timeline. Sampling is declined: this app has no model to
+		// call, but the request and its error response remain visible.
+		Capabilities: &mcp.ClientCapabilities{RootsV2: &mcp.RootCapabilities{}},
+		CreateMessageHandler: func(context.Context, *mcp.CreateMessageRequest) (*mcp.CreateMessageResult, error) {
+			return nil, fmt.Errorf("vscroxy does not provide sampling")
+		},
+		ElicitationHandler: func(context.Context, *mcp.ElicitRequest) (*mcp.ElicitResult, error) {
+			return &mcp.ElicitResult{Action: "decline"}, nil
+		},
 		ToolListChangedHandler: func(context.Context, *mcp.ToolListChangedRequest) {
 			mcpNotify(handlers, "notifications/tools/list_changed", "")
 		},
@@ -156,6 +185,10 @@ func DialMCP(ctx context.Context, plan MCPPlan, handlers MCPHandlers) (*MCPClien
 				return
 			}
 			p := req.Params
+			if handlers.Progress != nil {
+				handlers.Progress(fmt.Sprint(p.ProgressToken), p.Progress, p.Total, p.Message)
+				return
+			}
 			text := fmt.Sprintf("%g", p.Progress)
 			if p.Total > 0 {
 				text += fmt.Sprintf(" / %g", p.Total)
@@ -172,14 +205,30 @@ func DialMCP(ctx context.Context, plan MCPPlan, handlers MCPHandlers) (*MCPClien
 			handlers.Log(string(req.Params.Level), req.Params.Logger, mcpValueText(req.Params.Data))
 		},
 	})
+	client.AddSendingMiddleware(mcpRPCFragment(handlers, "Out"))
+	client.AddReceivingMiddleware(mcpRPCFragment(handlers, "In"))
 	session, err := client.Connect(ctx, transport, &mcp.ClientSessionOptions{ProtocolVersion: plan.ProtocolVersion})
 	if err != nil {
+		if stdio != nil {
+			_ = stdio.Close()
+		}
 		return nil, err
 	}
-	if result := session.InitializeResult(); result != nil && result.Capabilities != nil && result.Capabilities.Logging != nil {
-		// A server sends notifications/message only after the client chooses a
-		// level; a debugger wants all of them. Failure is not fatal.
-		_ = session.SetLoggingLevel(ctx, &mcp.SetLoggingLevelParams{Level: mcp.LoggingLevel("debug")})
+	negotiated := ""
+	if result := session.InitializeResult(); result != nil {
+		negotiated = result.ProtocolVersion
+	}
+	if plan.ProtocolVersion != "" && negotiated != plan.ProtocolVersion {
+		_ = session.Close()
+		return nil, fmt.Errorf("server negotiated MCP %s, but the document requires %s", cmp.Or(negotiated, "an unknown version"), plan.ProtocolVersion)
+	}
+	if result := session.InitializeResult(); result != nil {
+		if result.Capabilities != nil && result.Capabilities.Logging != nil && !mcpAtLeast2026(negotiated) {
+			// A legacy server sends notifications/message only after the client
+			// chooses a level; a debugger wants all of them. 2026-07-28 carries
+			// the level in each request's _meta instead.
+			_ = session.SetLoggingLevel(ctx, &mcp.SetLoggingLevelParams{Level: mcp.LoggingLevel("debug")})
+		}
 	}
 	info := MCPServerInfo{}
 	if result := session.InitializeResult(); result != nil {
@@ -199,7 +248,63 @@ func DialMCP(ctx context.Context, plan MCPPlan, handlers MCPHandlers) (*MCPClien
 	if info.Capabilities == "" {
 		info.Capabilities = "{}"
 	}
-	return &MCPClient{session: session, info: info}, nil
+	c := &MCPClient{session: session, info: info, protocolVersion: negotiated}
+	c.catalogBudget.Store(MCPMaxCatalogBytes)
+	return c, nil
+}
+
+// mcpRPCFragment records JSON-RPC requests and server-initiated requests.
+// Notifications keep their typed handlers, and responses to the document's
+// own operations are shown by the session's result entries.
+func mcpRPCFragment(handlers MCPHandlers, direction string) mcp.Middleware {
+	return func(next mcp.MethodHandler) mcp.MethodHandler {
+		return func(ctx context.Context, method string, req mcp.Request) (mcp.Result, error) {
+			record := handlers.RPC != nil && !strings.HasPrefix(method, "notifications/")
+			if record {
+				handlers.RPC(direction, method, mcpParamsText(req.GetParams()))
+			}
+			result, err := next(ctx, method, req)
+			if record && direction == "In" {
+				if err != nil {
+					handlers.RPC("Out", method+" error", err.Error())
+				} else {
+					handlers.RPC("Out", method+" response", mcpResultText(result))
+				}
+			}
+			return result, err
+		}
+	}
+}
+
+func mcpParamsText(params mcp.Params) string {
+	if params == nil {
+		return ""
+	}
+	return mcpTruncate(mcpJSONText(params), 64<<10)
+}
+
+func mcpResultText(result mcp.Result) string {
+	if result == nil {
+		return ""
+	}
+	return mcpTruncate(mcpJSONText(result), 64<<10)
+}
+
+func mcpAtLeast2026(version string) bool {
+	return version >= "2026-07-28"
+}
+
+// paramsMeta is the per-request metadata a 2026 server needs for logging and
+// a progress stream.
+func (c *MCPClient) paramsMeta(progress bool) mcp.Meta {
+	meta := mcp.Meta{}
+	if mcpAtLeast2026(c.protocolVersion) {
+		meta[mcp.MetaKeyLogLevel] = "debug"
+	}
+	if progress {
+		meta["progressToken"] = fmt.Sprintf("vscroxy-%d", c.nextProgress.Add(1))
+	}
+	return meta
 }
 
 func mcpNotify(handlers MCPHandlers, method, text string) {
@@ -210,7 +315,7 @@ func mcpNotify(handlers MCPHandlers, method, text string) {
 
 // mcpHTTPClient applies the document's headers and TLS policy to every HTTP
 // request of the transport. The capture proxy is used when it is running.
-func mcpHTTPClient(plan MCPPlan) *http.Client {
+func mcpHTTPClient(plan MCPPlan, handlers MCPHandlers) *http.Client {
 	base := http.DefaultTransport.(*http.Transport).Clone()
 	base.Proxy = nil
 	base.TLSClientConfig = nil
@@ -220,30 +325,110 @@ func mcpHTTPClient(plan MCPPlan) *http.Client {
 			base.Proxy = http.ProxyURL(u)
 		}
 	}
+	origin, _ := url.Parse(plan.URL)
 	transport := plan.Certificates.Transport(base, plan.ProxyCA, plan.Insecure)
-	return &http.Client{Transport: &mcpHeaderTransport{base: transport, header: plan.Header}, Jar: plan.Jar}
+	client := &http.Client{
+		Transport: &mcpHeaderTransport{base: transport, header: plan.Header, origin: origin, onReconnect: handlers.Reconnect},
+		Jar:       plan.Jar,
+	}
+	if origin != nil && origin.Host != "" {
+		client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+			if !mcpSameOrigin(req.URL, origin) {
+				return fmt.Errorf("MCP does not follow cross-origin redirects")
+			}
+			return nil
+		}
+	}
+	return client
 }
 
 type mcpHeaderTransport struct {
-	base   http.RoundTripper
-	header http.Header
+	base        http.RoundTripper
+	header      http.Header
+	origin      *url.URL
+	onReconnect func()
+	sseGets     atomic.Int32
 }
 
 func (t *mcpHeaderTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	if len(t.header) == 0 {
-		return t.base.RoundTrip(req)
-	}
-	clone := req.Clone(req.Context())
-	for name, values := range t.header {
-		if mcpTransportHeader(name) {
-			continue
-		}
-		clone.Header.Del(name)
-		for _, value := range values {
-			clone.Header.Add(name, value)
+	sameOrigin := mcpSameOrigin(req.URL, t.origin)
+	if req.Method == http.MethodGet && sameOrigin && strings.Contains(req.Header.Get("Accept"), "text/event-stream") {
+		if t.sseGets.Add(1) > 1 && t.onReconnect != nil {
+			t.onReconnect()
 		}
 	}
-	return t.base.RoundTrip(clone)
+	var resp *http.Response
+	var err error
+	if len(t.header) == 0 || !sameOrigin {
+		resp, err = t.base.RoundTrip(req)
+	} else {
+		clone := req.Clone(req.Context())
+		for name, values := range t.header {
+			if mcpTransportHeader(name) {
+				continue
+			}
+			clone.Header.Del(name)
+			for _, value := range values {
+				clone.Header.Add(name, value)
+			}
+		}
+		resp, err = t.base.RoundTrip(clone)
+	}
+	if err != nil {
+		return nil, err
+	}
+	return mcpBoundResponse(resp)
+}
+
+// mcpBoundResponse bounds a JSON (or error) body. SSE streams are bounded per
+// event by the transport; a plain JSON response is read whole by the SDK, so
+// it needs its own limit.
+func mcpBoundResponse(resp *http.Response) (*http.Response, error) {
+	if resp == nil || resp.Body == nil {
+		return resp, nil
+	}
+	mediaType, _, _ := mime.ParseMediaType(resp.Header.Get("Content-Type"))
+	if mediaType == "text/event-stream" {
+		return resp, nil
+	}
+	if resp.ContentLength > MCPMaxFrame {
+		resp.Body.Close()
+		return nil, fmt.Errorf("MCP response body exceeds %d bytes", MCPMaxFrame)
+	}
+	resp.Body = &mcpLimitedBody{ReadCloser: resp.Body, limit: MCPMaxFrame}
+	return resp, nil
+}
+
+type mcpLimitedBody struct {
+	io.ReadCloser
+	read  int64
+	limit int64
+}
+
+func (b *mcpLimitedBody) Read(p []byte) (int, error) {
+	remaining := b.limit - b.read
+	if remaining < 0 {
+		return 0, fmt.Errorf("MCP response body exceeds %d bytes", b.limit)
+	}
+	if int64(len(p)) > remaining+1 {
+		p = p[:remaining+1]
+	}
+	n, err := b.ReadCloser.Read(p)
+	b.read += int64(n)
+	if b.read > b.limit {
+		return n, fmt.Errorf("MCP response body exceeds %d bytes", b.limit)
+	}
+	return n, err
+}
+
+// mcpSameOrigin reports whether u has the same scheme and host as origin.
+// Document headers and auth are never sent to another origin, including the
+// endpoint of a legacy SSE stream.
+func mcpSameOrigin(u, origin *url.URL) bool {
+	if u == nil || origin == nil || origin.Host == "" {
+		return false
+	}
+	return strings.EqualFold(u.Scheme, origin.Scheme) && strings.EqualFold(u.Host, origin.Host)
 }
 
 // mcpTransportHeader names the headers the MCP transport owns. A user's
@@ -317,8 +502,8 @@ func (w *mcpLineWriter) Write(p []byte) (int, error) {
 func (c *MCPClient) ListTools(ctx context.Context) ([]MCPTool, error) {
 	var out []MCPTool
 	cursor := ""
-	for page := 0; page < 100 && len(out) < MCPMaxCatalogItems; page++ {
-		result, err := c.session.ListTools(ctx, &mcp.ListToolsParams{Cursor: cursor})
+	for page := 0; page < 100; page++ {
+		result, err := c.session.ListTools(ctx, &mcp.ListToolsParams{Meta: c.paramsMeta(false), Cursor: cursor})
 		if err != nil {
 			return nil, err
 		}
@@ -326,19 +511,36 @@ func (c *MCPClient) ListTools(ctx context.Context) ([]MCPTool, error) {
 			if tool == nil {
 				continue
 			}
-			out = append(out, MCPTool{
-				Name: tool.Name, Title: tool.Title, Description: mcpTruncate(tool.Description, MCPMaxSchema),
-				InputSchema: mcpSchemaText(tool.InputSchema), OutputSchema: mcpSchemaText(tool.OutputSchema),
-				Annotations: mcpSchemaText(tool.Annotations),
-			})
-			if len(out) == MCPMaxCatalogItems {
-				break
+			if len(out) >= MCPMaxCatalogItems {
+				c.catalogCut.Store(true)
+				return out, nil
 			}
+			item := MCPTool{
+				Name: c.catalogString(tool.Name), Title: c.catalogString(tool.Title),
+				Description:  c.catalogString(tool.Description),
+				InputSchema:  c.catalogSchema(tool.InputSchema, MCPMaxSchema),
+				OutputSchema: c.catalogSchema(tool.OutputSchema, MCPMaxSchema),
+				Annotations:  c.catalogSchema(tool.Annotations, MCPMaxCatalogString),
+			}
+			if !c.catalogConsume(len(item.Name) + len(item.Title) + len(item.Description) + len(item.InputSchema) + len(item.OutputSchema) + len(item.Annotations)) {
+				c.catalogCut.Store(true)
+				return out, nil
+			}
+			out = append(out, item)
 		}
-		if result.NextCursor == "" || result.NextCursor == cursor {
+		if result.NextCursor == "" {
+			cursor = ""
+			break
+		}
+		if result.NextCursor == cursor {
+			c.catalogCut.Store(true)
+			cursor = ""
 			break
 		}
 		cursor = result.NextCursor
+	}
+	if cursor != "" {
+		c.catalogCut.Store(true)
 	}
 	return out, nil
 }
@@ -347,8 +549,8 @@ func (c *MCPClient) ListTools(ctx context.Context) ([]MCPTool, error) {
 func (c *MCPClient) ListResources(ctx context.Context) ([]MCPResource, error) {
 	var out []MCPResource
 	cursor := ""
-	for page := 0; page < 100 && len(out) < MCPMaxCatalogItems; page++ {
-		result, err := c.session.ListResources(ctx, &mcp.ListResourcesParams{Cursor: cursor})
+	for page := 0; page < 100; page++ {
+		result, err := c.session.ListResources(ctx, &mcp.ListResourcesParams{Meta: c.paramsMeta(false), Cursor: cursor})
 		if err != nil {
 			return nil, err
 		}
@@ -356,18 +558,34 @@ func (c *MCPClient) ListResources(ctx context.Context) ([]MCPResource, error) {
 			if resource == nil {
 				continue
 			}
-			out = append(out, MCPResource{
-				URI: resource.URI, Name: resource.Name, Title: resource.Title,
-				Description: mcpTruncate(resource.Description, MCPMaxSchema), MIMEType: resource.MIMEType, Size: resource.Size,
-			})
-			if len(out) == MCPMaxCatalogItems {
-				break
+			if len(out) >= MCPMaxCatalogItems {
+				c.catalogCut.Store(true)
+				return out, nil
 			}
+			item := MCPResource{
+				URI: c.catalogString(resource.URI), Name: c.catalogString(resource.Name),
+				Title: c.catalogString(resource.Title), Description: c.catalogString(resource.Description),
+				MIMEType: c.catalogString(resource.MIMEType), Size: resource.Size,
+			}
+			if !c.catalogConsume(len(item.URI) + len(item.Name) + len(item.Title) + len(item.Description) + len(item.MIMEType)) {
+				c.catalogCut.Store(true)
+				return out, nil
+			}
+			out = append(out, item)
 		}
-		if result.NextCursor == "" || result.NextCursor == cursor {
+		if result.NextCursor == "" {
+			cursor = ""
+			break
+		}
+		if result.NextCursor == cursor {
+			c.catalogCut.Store(true)
+			cursor = ""
 			break
 		}
 		cursor = result.NextCursor
+	}
+	if cursor != "" {
+		c.catalogCut.Store(true)
 	}
 	return out, nil
 }
@@ -376,8 +594,8 @@ func (c *MCPClient) ListResources(ctx context.Context) ([]MCPResource, error) {
 func (c *MCPClient) ListResourceTemplates(ctx context.Context) ([]MCPResourceTemplate, error) {
 	var out []MCPResourceTemplate
 	cursor := ""
-	for page := 0; page < 100 && len(out) < MCPMaxCatalogItems; page++ {
-		result, err := c.session.ListResourceTemplates(ctx, &mcp.ListResourceTemplatesParams{Cursor: cursor})
+	for page := 0; page < 100; page++ {
+		result, err := c.session.ListResourceTemplates(ctx, &mcp.ListResourceTemplatesParams{Meta: c.paramsMeta(false), Cursor: cursor})
 		if err != nil {
 			return nil, err
 		}
@@ -385,18 +603,34 @@ func (c *MCPClient) ListResourceTemplates(ctx context.Context) ([]MCPResourceTem
 			if template == nil {
 				continue
 			}
-			out = append(out, MCPResourceTemplate{
-				URITemplate: template.URITemplate, Name: template.Name, Title: template.Title,
-				Description: mcpTruncate(template.Description, MCPMaxSchema), MIMEType: template.MIMEType,
-			})
-			if len(out) == MCPMaxCatalogItems {
-				break
+			if len(out) >= MCPMaxCatalogItems {
+				c.catalogCut.Store(true)
+				return out, nil
 			}
+			item := MCPResourceTemplate{
+				URITemplate: c.catalogString(template.URITemplate), Name: c.catalogString(template.Name),
+				Title: c.catalogString(template.Title), Description: c.catalogString(template.Description),
+				MIMEType: c.catalogString(template.MIMEType),
+			}
+			if !c.catalogConsume(len(item.URITemplate) + len(item.Name) + len(item.Title) + len(item.Description) + len(item.MIMEType)) {
+				c.catalogCut.Store(true)
+				return out, nil
+			}
+			out = append(out, item)
 		}
-		if result.NextCursor == "" || result.NextCursor == cursor {
+		if result.NextCursor == "" {
+			cursor = ""
+			break
+		}
+		if result.NextCursor == cursor {
+			c.catalogCut.Store(true)
+			cursor = ""
 			break
 		}
 		cursor = result.NextCursor
+	}
+	if cursor != "" {
+		c.catalogCut.Store(true)
 	}
 	return out, nil
 }
@@ -405,8 +639,8 @@ func (c *MCPClient) ListResourceTemplates(ctx context.Context) ([]MCPResourceTem
 func (c *MCPClient) ListPrompts(ctx context.Context) ([]MCPPrompt, error) {
 	var out []MCPPrompt
 	cursor := ""
-	for page := 0; page < 100 && len(out) < MCPMaxCatalogItems; page++ {
-		result, err := c.session.ListPrompts(ctx, &mcp.ListPromptsParams{Cursor: cursor})
+	for page := 0; page < 100; page++ {
+		result, err := c.session.ListPrompts(ctx, &mcp.ListPromptsParams{Meta: c.paramsMeta(false), Cursor: cursor})
 		if err != nil {
 			return nil, err
 		}
@@ -414,24 +648,45 @@ func (c *MCPClient) ListPrompts(ctx context.Context) ([]MCPPrompt, error) {
 			if prompt == nil {
 				continue
 			}
-			item := MCPPrompt{Name: prompt.Name, Title: prompt.Title, Description: mcpTruncate(prompt.Description, MCPMaxSchema)}
+			if len(out) >= MCPMaxCatalogItems {
+				c.catalogCut.Store(true)
+				return out, nil
+			}
+			item := MCPPrompt{Name: c.catalogString(prompt.Name), Title: c.catalogString(prompt.Title),
+				Description: c.catalogString(prompt.Description)}
+			size := len(item.Name) + len(item.Title) + len(item.Description)
 			for _, argument := range prompt.Arguments {
 				if argument == nil {
 					continue
 				}
-				item.Arguments = append(item.Arguments, MCPPromptArgument{
-					Name: argument.Name, Title: argument.Title, Description: mcpTruncate(argument.Description, MCPMaxSchema), Required: argument.Required,
-				})
+				if len(item.Arguments) >= MCPMaxCatalogItems {
+					c.catalogCut.Store(true)
+					break
+				}
+				a := MCPPromptArgument{Name: c.catalogString(argument.Name), Title: c.catalogString(argument.Title),
+					Description: c.catalogString(argument.Description), Required: argument.Required}
+				size += len(a.Name) + len(a.Title) + len(a.Description)
+				item.Arguments = append(item.Arguments, a)
+			}
+			if !c.catalogConsume(size) {
+				c.catalogCut.Store(true)
+				return out, nil
 			}
 			out = append(out, item)
-			if len(out) == MCPMaxCatalogItems {
-				break
-			}
 		}
-		if result.NextCursor == "" || result.NextCursor == cursor {
+		if result.NextCursor == "" {
+			cursor = ""
+			break
+		}
+		if result.NextCursor == cursor {
+			c.catalogCut.Store(true)
+			cursor = ""
 			break
 		}
 		cursor = result.NextCursor
+	}
+	if cursor != "" {
+		c.catalogCut.Store(true)
 	}
 	return out, nil
 }
@@ -444,7 +699,7 @@ func (c *MCPClient) CallTool(ctx context.Context, name string, arguments jsontex
 			return MCPResult{}, fmt.Errorf("tool arguments: %w", err)
 		}
 	}
-	result, err := c.session.CallTool(ctx, &mcp.CallToolParams{Name: name, Arguments: args})
+	result, err := c.session.CallTool(ctx, &mcp.CallToolParams{Meta: c.paramsMeta(true), Name: name, Arguments: args})
 	if err != nil {
 		return MCPResult{}, err
 	}
@@ -454,7 +709,7 @@ func (c *MCPClient) CallTool(ctx context.Context, name string, arguments jsontex
 // ReadResource reads one resource and converts its contents into a bounded
 // result.
 func (c *MCPClient) ReadResource(ctx context.Context, uri string) (MCPResult, error) {
-	result, err := c.session.ReadResource(ctx, &mcp.ReadResourceParams{URI: uri})
+	result, err := c.session.ReadResource(ctx, &mcp.ReadResourceParams{Meta: c.paramsMeta(true), URI: uri})
 	if err != nil {
 		return MCPResult{}, err
 	}
@@ -491,7 +746,7 @@ func (c *MCPClient) GetPrompt(ctx context.Context, name string, arguments jsonte
 			return MCPResult{}, fmt.Errorf("prompt arguments: %w", err)
 		}
 	}
-	result, err := c.session.GetPrompt(ctx, &mcp.GetPromptParams{Name: name, Arguments: args})
+	result, err := c.session.GetPrompt(ctx, &mcp.GetPromptParams{Meta: c.paramsMeta(true), Name: name, Arguments: args})
 	if err != nil {
 		return MCPResult{}, err
 	}
@@ -701,9 +956,40 @@ func mcpAssemble(result *MCPResult) {
 	result.Text = text
 }
 
-// mcpSchemaText is pretty JSON for a schema or annotation value, bounded to
-// one tool's share of the catalog.
-func mcpSchemaText(v any) string {
+// BeginCatalog resets the per-refresh catalog budget. The app calls it before
+// listing so several categories share one bound.
+func (c *MCPClient) BeginCatalog() {
+	c.catalogBudget.Store(MCPMaxCatalogBytes)
+	c.catalogCut.Store(false)
+}
+
+// CatalogTruncated reports whether the last catalog read hit the item or byte
+// limit.
+func (c *MCPClient) CatalogTruncated() bool { return c.catalogCut.Load() }
+
+func (c *MCPClient) catalogConsume(n int) bool {
+	for {
+		left := c.catalogBudget.Load()
+		if left < int64(n) {
+			c.catalogBudget.Store(0)
+			return false
+		}
+		if c.catalogBudget.CompareAndSwap(left, left-int64(n)) {
+			return true
+		}
+	}
+}
+
+func (c *MCPClient) catalogString(s string) string {
+	if len(s) > MCPMaxCatalogString {
+		c.catalogCut.Store(true)
+	}
+	return mcpTruncate(s, MCPMaxCatalogString)
+}
+
+// catalogSchema pretty-prints a schema or annotation value and marks the
+// catalog cut when its JSON is longer than the display limit.
+func (c *MCPClient) catalogSchema(v any, limit int) string {
 	if v == nil {
 		return ""
 	}
@@ -711,7 +997,23 @@ func mcpSchemaText(v any) string {
 	if err != nil {
 		return ""
 	}
-	return mcpTruncate(string(data), MCPMaxSchema)
+	if len(data) > limit {
+		c.catalogCut.Store(true)
+	}
+	return mcpTruncate(string(data), limit)
+}
+
+// mcpSchemaText is pretty JSON for a schema or annotation value, bounded to
+// the requested share of the catalog.
+func mcpSchemaText(v any, limit int) string {
+	if v == nil {
+		return ""
+	}
+	data, err := json.Marshal(v, jsontext.WithIndent("  "))
+	if err != nil {
+		return ""
+	}
+	return mcpTruncate(string(data), limit)
 }
 
 // mcpValueText keeps a string log value readable and renders other values as

@@ -98,13 +98,12 @@ func (r Request) PrepareMCP(in Context, vars map[string]string) (MCPPlan, error)
 	if err != nil {
 		return MCPPlan{}, err
 	}
-	r.Auth, _ = in.InheritAuth(r.Auth)
-	switch transport {
-	case MCPTransportStdio:
-		if r.Auth.Type != "" && r.Auth.Type != "None" {
-			return MCPPlan{}, fmt.Errorf("stdio MCP servers receive credentials through environment variables, not HTTP auth")
-		}
-	default:
+	if transport == MCPTransportStdio {
+		// stdio has no HTTP endpoint: hidden URL, headers and auth must not
+		// bind Vault reads, reject inherited auth, or contribute variables.
+		r.URL, r.Headers, r.HeaderList, r.Auth = "", "", nil, Auth{}
+	} else {
+		r.Auth, _ = in.InheritAuth(r.Auth)
 		switch r.Auth.Type {
 		case "", "None", "Bearer", "Basic", "API key":
 		default:
@@ -248,15 +247,13 @@ func mcpArguments(text string) (jsontext.Value, error) {
 }
 
 // mcpProtocolVersion maps the saved setting to the version sent in initialize.
-// "legacy" is the last protocol before the stateless 2026-07-28 revision.
+// An empty value negotiates; a fixed version must be the one the server picks.
 func mcpProtocolVersion(saved string) (string, error) {
 	switch strings.TrimSpace(saved) {
 	case "", "auto":
 		return "", nil
-	case "legacy", "2025-11-25":
-		return "2025-11-25", nil
-	case "2026-07-28":
-		return "2026-07-28", nil
+	case "2025-06-18", "2025-11-25", "2026-07-28":
+		return strings.TrimSpace(saved), nil
 	}
 	return "", fmt.Errorf("unsupported MCP protocol version %q", saved)
 }

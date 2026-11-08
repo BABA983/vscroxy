@@ -487,7 +487,7 @@ func TestPrepareMCP(t *testing.T) {
 	t.Run("HTTP auth, query key and headers", func(t *testing.T) {
 		r := Request{Protocol: "MCP", URL: "https://mcp.example.com/rpc?x=1", Headers: "X-Test: {{tag}}",
 			Auth: Auth{Type: "API key", Key: "key", Value: "{{secret}}", Location: "Query"},
-			MCP:  MCPConfig{Transport: MCPTransportSSE, ProtocolVersion: "legacy", TimeoutSeconds: 45}}
+			MCP:  MCPConfig{Transport: MCPTransportSSE, ProtocolVersion: "2025-11-25", TimeoutSeconds: 45}}
 		plan, err := r.PrepareMCP(Context{}, map[string]string{"tag": "one", "secret": "s3"})
 		if err != nil {
 			t.Fatal(err)
@@ -528,10 +528,26 @@ func TestPrepareMCP(t *testing.T) {
 			t.Errorf("variable error = %v", err)
 		}
 	})
-	t.Run("stdio rejects HTTP auth", func(t *testing.T) {
-		r := Request{Protocol: "MCP", Auth: Auth{Type: "Bearer", Token: "x"}, MCP: MCPConfig{Transport: MCPTransportStdio, Command: "server"}}
-		if _, err := r.PrepareMCP(Context{}, nil); err == nil || !strings.Contains(err.Error(), "environment") {
-			t.Errorf("stdio auth error = %v", err)
+	t.Run("stdio ignores hidden HTTP fields and inherited auth", func(t *testing.T) {
+		r := Request{Protocol: "MCP", URL: "https://api.github.com", Headers: "Authorization: Bearer {{missing}}",
+			Auth: Auth{Type: "Bearer", Token: "{{missing}}"},
+			MCP:  MCPConfig{Transport: MCPTransportStdio, Command: "server", Env: []Field{{Name: "TOKEN", Value: "{{vault:gh}}"}}}}
+		var vaultHost string
+		plan, err := r.PrepareMCP(Context{
+			Folders: []Folder{{Path: "Shop", Auth: Auth{Type: "Bearer", Token: "collection-token"}}},
+			Vault: func(name, host string) (string, error) {
+				vaultHost = host
+				return "secret", nil
+			},
+		}, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if plan.URL != "" || len(plan.Header) != 0 || plan.Command != "server" {
+			t.Errorf("stdio plan = %+v", plan)
+		}
+		if vaultHost != "" || len(plan.Env) != 1 || plan.Env[0] != "TOKEN=secret" {
+			t.Errorf("stdio vault host=%q env=%+v", vaultHost, plan.Env)
 		}
 	})
 }
