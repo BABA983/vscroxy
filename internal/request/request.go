@@ -126,13 +126,14 @@ type Auth struct {
 	Value    string `json:"value,omitempty"`
 	Location string `json:"location,omitempty"`
 	OAuth2   OAuth2 `json:"oauth2,omitzero"`
-	// AWS, JWT, OAuth 1.0, Hawk and EdgeGrid configure the auth types of
-	// those names; Digest uses Username and Password.
+	// AWS, JWT, OAuth 1.0, Hawk, EdgeGrid and NTLM configure the auth types
+	// of those names; Digest uses Username and Password.
 	AWS      AWSAuth      `json:"aws,omitzero"`
 	JWT      JWTAuth      `json:"jwt,omitzero"`
 	OAuth1   OAuth1Auth   `json:"oauth1,omitzero"`
 	Hawk     HawkAuth     `json:"hawk,omitzero"`
 	EdgeGrid EdgeGridAuth `json:"edgegrid,omitzero"`
+	NTLM     NTLMAuth     `json:"ntlm,omitzero"`
 }
 
 type Field struct {
@@ -192,7 +193,7 @@ func (r Request) Prepare(vars map[string]string) (*Prepared, error) {
 		} else {
 			req.Set(key, value)
 		}
-	case AuthDigest: // Execute answers the server's challenge; there is none yet.
+	case AuthDigest, AuthNTLM: // Execute answers the server's challenge; there is none yet.
 	case AuthAWS, AuthOAuth1, AuthHawk, AuthEdgeGrid: // Signed below, after the body.
 	case AuthJWT:
 		if err := r.Auth.JWT.expand(vars).apply(req); err != nil {

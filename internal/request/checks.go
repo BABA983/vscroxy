@@ -257,6 +257,10 @@ func (r Request) Variables() []string {
 		for _, f := range r.Auth.EdgeGrid.fields() {
 			texts = append(texts, *f)
 		}
+	case AuthNTLM:
+		for _, f := range r.Auth.NTLM.fields() {
+			texts = append(texts, *f)
+		}
 	case "API key":
 		texts = append(texts, r.Auth.Key, r.Auth.Value)
 	}

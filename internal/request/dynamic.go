@@ -231,6 +231,7 @@ func (r Request) withDynamic(defined map[string]string) Request {
 	fields = append(fields, r.Auth.OAuth1.fields()...)
 	fields = append(fields, r.Auth.Hawk.fields()...)
 	fields = append(fields, r.Auth.EdgeGrid.fields()...)
+	fields = append(fields, r.Auth.NTLM.fields()...)
 	for _, s := range fields {
 		expand(s)
 	}

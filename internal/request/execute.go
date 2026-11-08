@@ -235,6 +235,10 @@ func (r Request) Execute(ctx context.Context, srv *capture.Server, in Context, v
 		out.Stage, out.Err = "Request setup failed", errors.New("load runs support HTTP(S) requests only")
 		return out
 	}
+	if IsWebSocket(req.URL) && r.Auth.Type == AuthNTLM {
+		out.Stage, out.Err = "Request setup failed", errors.New("NTLM auth needs an HTTP(S) request, not a WebSocket exchange")
+		return out
+	}
 	out.Stage, run.phase = "Network error", "network"
 	settings := in.InheritSettings(r.Settings)
 	// Load the configured client certificate and roots before the request
@@ -269,18 +273,36 @@ func (r Request) Execute(ctx context.Context, srv *capture.Server, in Context, v
 			}
 			return got, err
 		}
-		got, err := send()
-		if err == nil && r.Auth.Type == AuthDigest {
-			// The challenge is answered once; the answer's response is the result.
-			answer, failed := digestAnswer(got, req, ExpandVars(r.Auth.Username, effective), ExpandVars(r.Auth.Password, effective))
-			if failed != nil {
-				out.Response, out.Stage, out.Err = &got, "Digest authentication failed", failed
-				out.Tests, out.Vars = run.tests, run.vars
-				return out
+		var got capture.Flow
+		if r.Auth.Type == AuthNTLM {
+			// The challenge and its answer must share one connection, which
+			// the ordinary replay transport does not keep; the whole exchange
+			// gets the request's timeout.
+			authCtx, cancel := sendContext(ctx, settings.Timeout())
+			flow := capture.Flow{DebugRun: runKey, Method: req.Method, URL: req.URL, RequestHeader: req.Header, RequestBody: req.Body}
+			got, err = ntlmSend(authCtx, srv, flow, req, r.Auth.NTLM.expand(effective), jar, policy, in)
+			timedOut := errors.Is(context.Cause(authCtx), errRequestTimeout)
+			cancel()
+			if err != nil && timedOut {
+				err = fmt.Errorf("no response within %s: %w", settings.Timeout(), context.DeadlineExceeded)
 			}
-			if answer != "" {
-				req.Header.Set("Authorization", answer)
-				got, err = send()
+			if errors.Is(err, errNTLM) {
+				out.Stage = "NTLM authentication failed"
+			}
+		} else {
+			got, err = send()
+			if err == nil && r.Auth.Type == AuthDigest {
+				// The challenge is answered once; the answer's response is the result.
+				answer, failed := digestAnswer(got, req, ExpandVars(r.Auth.Username, effective), ExpandVars(r.Auth.Password, effective))
+				if failed != nil {
+					out.Response, out.Stage, out.Err = &got, "Digest authentication failed", failed
+					out.Tests, out.Vars = run.tests, run.vars
+					return out
+				}
+				if answer != "" {
+					req.Header.Set("Authorization", answer)
+					got, err = send()
+				}
 			}
 		}
 		out.Err = err

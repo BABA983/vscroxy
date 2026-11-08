@@ -6,6 +6,7 @@ go 1.27.3
 replace github.com/lqqyt2423/go-mitmproxy => ./third_party/go-mitmproxy
 
 require (
+	github.com/Azure/go-ntlmssp v0.1.1
 	github.com/HdrHistogram/hdrhistogram-go v1.4.0
 	github.com/andybalholm/brotli v1.2.1
 	github.com/bufbuild/protocompile v0.14.1
@@ -32,6 +33,7 @@ require (
 	github.com/vektah/gqlparser/v2 v2.5.64
 	github.com/vmihailenco/msgpack/v5 v5.4.1
 	github.com/youmark/pkcs8 v0.0.0-20240726163527-a2c0da244d78
+	golang.org/x/crypto v0.58.0
 	golang.org/x/net v0.61.0
 	golang.org/x/sys v0.49.0
 	golang.org/x/text v0.43.0
@@ -58,7 +60,6 @@ require (
 	github.com/segmentio/encoding v0.5.4 // indirect
 	github.com/vmihailenco/tagparser/v2 v2.0.0 // indirect
 	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
-	golang.org/x/crypto v0.58.0 // indirect
 	golang.org/x/image v0.47.0 // indirect
 	golang.org/x/oauth2 v0.36.0 // indirect
 	golang.org/x/sync v0.24.0 // indirect
