@@ -1472,6 +1472,7 @@ func (a *app) view(c *ui.Context) {
 	a.drainGRPC()
 	a.drainGraphQL()
 	a.drainSocketIO()
+	a.drainMQTT()
 	a.scripts.setEnv(a.globals, a.activeVars(), a.addons.sources())
 	// The Settings window shows these checks too: it redraws when one
 	// finishes, and shows the messages while it is in front.
@@ -2591,6 +2592,9 @@ func Run() error {
 			if d.socketIOUI != nil {
 				d.socketIOUI.stop()
 			}
+			if d.mqttUI != nil {
+				d.mqttUI.stop()
+			}
 		}
 	}
 	mygo.App.OnQuit(cancelRequests)
@@ -3057,6 +3061,10 @@ func (a *app) sendComposed() {
 	}
 	if d.protocol == "Socket.IO" {
 		a.connectSocketIO(d)
+		return
+	}
+	if d.protocol == "MQTT" {
+		a.connectMQTT(d)
 		return
 	}
 	if d.protocol == "gRPC" {

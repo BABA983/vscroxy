@@ -54,6 +54,8 @@ type requestDocument struct {
 	graphqlUI         *graphqlDocument
 	socketIOConfig    request.SocketIOConfig
 	socketIOUI        *socketIODocument
+	mqttConfig        request.MQTTConfig
+	mqttUI            *mqttDocument
 	composeHeaders    string
 	composeBody       string
 	// headerRows is the header table. composeHeaders stays the Key: Value
@@ -171,7 +173,7 @@ func (d *requestDocument) value() savedRequest {
 		ID: d.assetID, Source: d.origin,
 		Name: d.composeName, Collection: d.composeCollection,
 		Method: d.composeMethod, URL: d.composeURL, Headers: d.composeHeaders,
-		Protocol: d.protocol, GRPC: d.grpcConfig, SocketIO: d.socketIOConfig,
+		Protocol: d.protocol, GRPC: d.grpcConfig, SocketIO: d.socketIOConfig, MQTT: d.mqttConfig,
 		Body: d.composeBody, Pre: d.composePre, Post: d.composePost,
 		Auth: d.auth, BodyMode: d.bodyMode, BodyFile: d.bodyFile, Form: slices.Clone(d.formFields),
 		GraphQL: d.graphql,
@@ -246,11 +248,16 @@ func (d *requestDocument) load(a *app, r savedRequest, key string) {
 		d.socketIOUI.stop()
 		d.socketIOUI = nil
 	}
+	if d.mqttUI != nil {
+		d.mqttUI.stop()
+		d.mqttUI = nil
+	}
 	d.savedKey, d.assetID = key, r.ID
 	d.composeName, d.composeCollection = r.Name, r.Collection
 	d.composeMethod, d.composeURL = cmp.Or(r.Method, "GET"), r.URL
 	d.protocol, d.grpcConfig = r.Protocol, r.GRPC
 	d.socketIOConfig = r.SocketIO
+	d.mqttConfig = r.MQTT
 	d.composeHeaders, d.composeBody = r.Headers, r.Body
 	d.headerRows, d.headerFor = slices.Clone(r.HeaderList), ""
 	d.composePre, d.composePost, d.checks = r.Pre, r.Post, r.Checks
@@ -310,6 +317,9 @@ func (a *app) closeDocument(d *requestDocument) {
 	d.stopGraphQL()
 	if d.socketIOUI != nil {
 		d.socketIOUI.stop()
+	}
+	if d.mqttUI != nil {
+		d.mqttUI.stop()
 	}
 	a.documents = slices.Delete(a.documents, at, at+1)
 	if a.requestDocument == d {
@@ -702,7 +712,7 @@ func (a *app) requestBar(c *ui.Context, t *ui.Theme, d *requestDocument, more fu
 		if !a.page.capture() {
 			uikit.SecondaryButton(c, cmp.Or(d.protocol, "HTTP")+" ▾").Label("Request protocol").Width(106).
 				Disabled(d.composeWaiting || d.grpcUI != nil && d.grpcUI.loading != nil).PopoverMenuButton(func(m *ui.Menu) {
-				for _, protocol := range []string{"HTTP", "gRPC", "Socket.IO"} {
+				for _, protocol := range []string{"HTTP", "gRPC", "Socket.IO", "MQTT"} {
 					if !m.Item(protocol).Radio(cmp.Or(d.protocol, "HTTP") == protocol).Chosen() {
 						continue
 					}
@@ -716,9 +726,16 @@ func (a *app) requestBar(c *ui.Context, t *ui.Theme, d *requestDocument, more fu
 						d.socketIOUI.stop()
 						d.socketIOUI = nil
 					}
+					if d.mqttUI != nil {
+						d.mqttUI.stop()
+						d.mqttUI = nil
+					}
 					d.protocol = protocol
 					if protocol == "HTTP" {
 						d.protocol = ""
+					}
+					if protocol == "MQTT" {
+						d.ensureMQTT()
 					}
 				}
 			})
@@ -763,8 +780,12 @@ func (a *app) requestBar(c *ui.Context, t *ui.Theme, d *requestDocument, more fu
 				}
 			})
 			ui.Box(c).Width(1).Height(18).Background(t.Border)
+			placeholder := "https://api.example.com/v1/resource"
+			if d.protocol == "MQTT" {
+				placeholder = "mqtts://broker.example.com:8883"
+			}
 			input := ui.TextInputBase(c, &d.composeURL).Bind(&d.urlInput).Grow(1).Height(uikit.HeightControl).Padding(0, t.Space(2)).Label("URL").
-				Placeholder("https://api.example.com/v1/resource").Font(uikit.FontMono).FontSize(uikit.TextBody)
+				Placeholder(placeholder).Font(uikit.FontMono).FontSize(uikit.TextBody)
 			var set variableSet
 			var marks []variableMark
 			if strings.Contains(d.composeURL, "{{") {
@@ -800,7 +821,7 @@ func (a *app) requestBar(c *ui.Context, t *ui.Theme, d *requestDocument, more fu
 		if d.composeWaiting {
 			sendLabel = "Sending…"
 		}
-		if d.protocol == "Socket.IO" {
+		if d.protocol == "Socket.IO" || d.protocol == "MQTT" {
 			sendLabel = "Connect"
 			if d.composeWaiting {
 				sendLabel = "Active"
@@ -819,7 +840,7 @@ func (a *app) requestBar(c *ui.Context, t *ui.Theme, d *requestDocument, more fu
 		}
 		if d.composeWaiting {
 			label := "Cancel"
-			if d.protocol == "Socket.IO" {
+			if d.protocol == "Socket.IO" || d.protocol == "MQTT" {
 				label = "Disconnect"
 			}
 			if d.sendCancelling && !narrow {
@@ -867,6 +888,10 @@ func urlSpans(raw string, t *ui.Theme, marks []variableMark) []ui.Span {
 func (a *app) requestEditor(c *ui.Context, t *ui.Theme, d *requestDocument, original func()) {
 	if d.protocol == "Socket.IO" {
 		a.socketIOEditor(c, t, d)
+		return
+	}
+	if d.protocol == "MQTT" {
+		a.mqttEditor(c, t, d)
 		return
 	}
 	if d.protocol == "gRPC" {
@@ -1039,6 +1064,10 @@ func (a *app) requestSentState(c *ui.Context, t *ui.Theme, d *requestDocument) {
 func (a *app) requestResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 	if d.protocol == "Socket.IO" {
 		a.socketIOResponse(c, t, d)
+		return
+	}
+	if d.protocol == "MQTT" {
+		a.mqttResponse(c, t, d)
 		return
 	}
 	if d.protocol == "gRPC" {

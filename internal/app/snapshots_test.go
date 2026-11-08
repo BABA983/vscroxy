@@ -147,6 +147,46 @@ func TestUISnapshots(t *testing.T) {
 		}
 		a.grpcState().selected = 1
 	}
+	mqttSnapshotDraft := func(a *app) *requestDocument {
+		a.addDocument(savedRequest{Protocol: "MQTT", Name: "Telemetry", URL: "mqtts://broker.example.com:8883", MQTT: request.MQTTConfig{
+			Version: 5, ClientID: "vscroxy-demo", KeepAlive: 30, ConnectTimeoutMs: 8000,
+			Properties: request.MQTTConnectProperties{SessionExpiry: 120, ReceiveMaximum: 20, MaximumPacketSize: 1 << 20,
+				UserProperties: []request.MQTTProperty{{Key: "app", Value: "vscroxy"}}},
+			Topics: []request.MQTTTopic{
+				{Name: "sensors/+/temperature", QoS: 1, NoLocal: true, SubscriptionIdentifier: 7, UserProperties: []request.MQTTProperty{{Key: "team", Value: "telemetry"}}},
+				{Name: "commands/#", QoS: 0},
+			},
+			Messages: []request.MQTTMessage{{Name: "Calibrate", Topic: "commands/device-7", Payload: `{"action":"calibrate"}`, Type: "json", QoS: 1,
+				Properties: request.MQTTMessageProperties{ContentType: "application/json", ResponseTopic: "commands/device-7/reply", MessageExpiry: 30}}},
+		}}, "")
+		return a.requestDocument
+	}
+	mqttSnapshotStream := func(a *app) {
+		d := mqttSnapshotDraft(a)
+		d.mqttState().session = &mqttSession{
+			state: "Connected", conn: new(request.MQTTClient), clientID: "vscroxy-demo", seq: 5,
+			subscriptions: map[string]request.MQTTSubscription{
+				"sensors/+/temperature": {Topic: "sensors/+/temperature", QoS: 1},
+				"commands/#":            {Topic: "commands/#", QoS: 0},
+			},
+			events: []mqttEvent{
+				{seq: 1, at: snapshotTime, direction: "System", name: "Connected", note: "MQTT 5.0 · client vscroxy-demo · clean start"},
+				{seq: 2, at: snapshotTime.Add(time.Second), direction: "System", name: "Subscribed", note: "sensors/+/temperature · QoS 1\ncommands/# · QoS 0"},
+				{seq: 3, at: snapshotTime.Add(2 * time.Second), direction: "In", name: "sensors/kitchen/temperature", qos: 1,
+					properties: "Content type: application/json\nUser property: site = kitchen",
+					payload:    []byte(`{"celsius":21.4,"at":"2026-11-08T09:15:00Z"}`), size: 39},
+				{seq: 4, at: snapshotTime.Add(3 * time.Second), direction: "In", name: "sensors/hall/temperature", qos: 1, retain: true,
+					properties: "Content type: application/json", payload: []byte(`{"celsius":19.1}`), size: 16},
+				{seq: 5, at: snapshotTime.Add(4 * time.Second), direction: "Out", name: "commands/device-7", note: "Calibrate", qos: 1,
+					properties: "Content type: application/json\nResponse topic: commands/device-7/reply",
+					payload:    []byte(`{"action":"calibrate"}`), size: 21},
+			},
+		}
+		d.mqttUI.tab = 1
+		d.mqttUI.selected = 2
+		d.mqttUI.list.Selected = &d.mqttUI.selected
+		a.composeWaiting, a.sendCancel = true, func() {}
+	}
 	states := []snapshot{
 		{name: "requests-grpc-empty", setup: func(a *app) {
 			a.addDocument(savedRequest{Protocol: "gRPC", Name: "Untitled gRPC", URL: "https://api.example.com"}, "")
@@ -183,6 +223,26 @@ func TestUISnapshots(t *testing.T) {
 			a.addDocument(savedRequest{Protocol: "Socket.IO", Name: "Denied namespace", URL: "https://api.example.com/socket.io/", SocketIO: request.SocketIOConfig{Namespace: "/admin"}}, "")
 			a.socketIOState().session = &socketIOSession{state: "Failed", problem: "Socket.IO namespace connection rejected (check namespace and auth)", finished: true}
 		}, want: "Socket.IO namespace connection rejected (check namespace and auth)"},
+		{name: "requests-mqtt-connection", setup: func(a *app) {
+			mqttSnapshotDraft(a)
+			a.requestDocument.requestPercent = 72
+		}, want: "MQTT 5.0 CONNECT PROPERTIES"},
+		{name: "requests-mqtt-subscriptions", setup: func(a *app) {
+			mqttSnapshotDraft(a)
+			a.mqttState().tab = 1
+		}, want: "Topic filters accept + for one level"},
+		{name: "requests-mqtt-publish", setup: func(a *app) {
+			mqttSnapshotDraft(a)
+			a.mqttState().tab = 2
+		}, want: "MQTT 5.0 PUBLISH PROPERTIES"},
+		{name: "requests-mqtt-will", setup: func(a *app) {
+			mqttSnapshotDraft(a)
+			a.requestDocument.mqttConfig.Will = request.MQTTWill{Enabled: true, Topic: "clients/gone", Payload: `{"state":"offline"}`, Type: "json", QoS: 1, Retain: true,
+				Properties: request.MQTTWillProperties{WillDelay: 30, MessageExpiry: 60, ContentType: "application/json", ResponseTopic: "replies/gone",
+					UserProperties: []request.MQTTProperty{{Key: "source", Value: "vscroxy"}}}}
+			a.mqttState().tab = 3
+		}, want: "MQTT 5.0 WILL PROPERTIES"},
+		{name: "requests-mqtt-stream", setup: mqttSnapshotStream, want: "In · sensors/kitchen/temperature"},
 		{name: "capture-empty", setup: func(a *app) { a.flows = nil; a.recount(); a.applyFilter() }, want: "Capture is stopped"},
 		{name: "capture-selected", want: "Request inspector"},
 		{name: "capture-imported-charles", setup: func(a *app) {

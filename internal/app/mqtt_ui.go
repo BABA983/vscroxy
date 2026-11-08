@@ -1,0 +1,866 @@
+package app
+
+import (
+	"cmp"
+	"crypto/tls"
+	"encoding/hex"
+	"fmt"
+	"slices"
+	"strconv"
+	"strings"
+	"unicode/utf8"
+
+	"github.com/baba983/vscroxy/internal/request"
+	"github.com/baba983/vscroxy/internal/uikit"
+	"github.com/egoist/mygo/ui"
+	"github.com/egoist/mygo/ui/editor"
+	"github.com/google/uuid"
+)
+
+type mqttTopicRow struct {
+	qos            string
+	retainHandling string
+	subscriptionID float64
+}
+
+type mqttPublishDraft struct {
+	message       request.MQTTMessage
+	qos           string
+	expiry, alias float64
+}
+
+type mqttDocument struct {
+	session *mqttSession
+	tab     int
+	// selected indexes the filtered timeline.
+	selected int
+	problem  string
+
+	version, willQoS                                 string
+	keepAlive, connectTimeout                        float64
+	sessionExpiry, receiveMaximum, maximumPacketSize float64
+	willDelay, willExpiry                            float64
+	topicRows                                        []mqttTopicRow
+
+	publish           mqttPublishDraft
+	messagePick       string
+	messagePickFor    string
+	messageIndex      int
+	payloadEditor     *editor.State
+	payloadFor        string
+	payloadType       string
+	willPayloadEditor *editor.State
+	willPayloadFor    string
+	willPayloadType   string
+
+	query       string
+	payloadView int
+	reader      *editor.State
+	readerKey   string
+	readerText  string
+	split       float32
+	list        ui.ListState
+	initialized bool
+}
+
+func (d *requestDocument) mqttState() *mqttDocument {
+	if d.mqttUI == nil {
+		d.mqttUI = &mqttDocument{split: 240, messagePick: "New message", messagePickFor: "New message", messageIndex: -1}
+	}
+	d.ensureMQTT()
+	d.mqttUI.sync(&d.mqttConfig)
+	return d.mqttUI
+}
+
+// ensureMQTT gives a new document usable defaults without overwriting a saved
+// choice such as keep-alive 0.
+func (d *requestDocument) ensureMQTT() {
+	c := &d.mqttConfig
+	if c.Version == 0 {
+		clean, auto := true, true
+		*c = request.MQTTConfig{Version: request.MQTT5, ClientID: newMQTTClientID(), KeepAlive: 60,
+			ConnectTimeoutMs: 10000, CleanStart: &clean, AutoReconnect: &auto}
+	}
+	if c.ClientID == "" {
+		c.ClientID = newMQTTClientID()
+	}
+	if d.auth.Type == "" {
+		d.auth.Type = request.AuthInherit
+	}
+	if c.Will.Type == "" {
+		c.Will.Type = "text"
+	}
+	if c.CleanStart == nil {
+		value := true
+		c.CleanStart = &value
+	}
+	if c.AutoReconnect == nil {
+		value := true
+		c.AutoReconnect = &value
+	}
+	for i := range c.Topics {
+		if c.Topics[i].Subscribe == nil {
+			value := true
+			c.Topics[i].Subscribe = &value
+		}
+	}
+}
+
+func newMQTTClientID() string {
+	return "vscroxy-" + strings.ReplaceAll(uuid.NewString(), "-", "")[:8]
+}
+
+func (u *mqttDocument) stop() {
+	if u.session != nil {
+		u.session.stop()
+	}
+}
+
+func (u *mqttDocument) sync(c *request.MQTTConfig) {
+	u.version = request.MQTTVersionLabel(c.Version)
+	u.keepAlive, u.connectTimeout = float64(c.KeepAlive), float64(c.ConnectTimeoutMs)
+	u.sessionExpiry, u.receiveMaximum = float64(c.Properties.SessionExpiry), float64(c.Properties.ReceiveMaximum)
+	u.maximumPacketSize = float64(c.Properties.MaximumPacketSize)
+	u.willDelay, u.willExpiry = float64(c.Will.Properties.WillDelay), float64(c.Will.Properties.MessageExpiry)
+	if u.willQoS == "" {
+		u.willQoS = strconv.Itoa(int(c.Will.QoS))
+	}
+	if len(u.topicRows) != len(c.Topics) {
+		u.topicRows = make([]mqttTopicRow, len(c.Topics))
+	}
+	for i := range c.Topics {
+		row := &u.topicRows[i]
+		if row.qos == "" {
+			row.qos = strconv.Itoa(int(c.Topics[i].QoS))
+		}
+		if row.retainHandling == "" {
+			row.retainHandling = strconv.Itoa(int(c.Topics[i].RetainHandling))
+		}
+		row.subscriptionID = float64(c.Topics[i].SubscriptionIdentifier)
+	}
+	if u.publish.qos == "" {
+		u.publish.qos = "0"
+	}
+	if u.publish.message.Type == "" {
+		u.publish.message.Type = "text"
+	}
+	if u.messageIndex >= len(c.Messages) {
+		u.messageIndex = -1
+	}
+	if !u.initialized {
+		u.initialized = true
+		if len(c.Messages) > 0 {
+			u.loadMessage(c.Messages[0], 0)
+			u.messagePick = mqttMessageLabel(c.Messages, 0)
+			u.messagePickFor = u.messagePick
+		}
+	}
+}
+
+// addTopic appends a filter and its row state.
+func (u *mqttDocument) appendTopic(c *request.MQTTConfig) {
+	if len(c.Topics) >= 128 {
+		return
+	}
+	subscribe := true
+	c.Topics = append(c.Topics, request.MQTTTopic{Name: "", Subscribe: &subscribe})
+	u.topicRows = append(u.topicRows, mqttTopicRow{qos: "0", retainHandling: "0"})
+}
+
+// removeTopic drops one filter and its row state.
+func (u *mqttDocument) removeTopic(c *request.MQTTConfig, i int) {
+	if i < 0 || i >= len(c.Topics) {
+		return
+	}
+	c.Topics = slices.Delete(c.Topics, i, i+1)
+	if i < len(u.topicRows) {
+		u.topicRows = slices.Delete(u.topicRows, i, i+1)
+	}
+}
+
+func (u *mqttDocument) newMessage() {
+	u.publish = mqttPublishDraft{qos: "0", message: request.MQTTMessage{Type: "text"}}
+	u.messageIndex = -1
+	u.messagePick, u.messagePickFor = "New message", "New message"
+	u.payloadEditor, u.payloadFor = nil, ""
+}
+
+func (u *mqttDocument) loadMessage(m request.MQTTMessage, index int) {
+	m.Properties.UserProperties = slices.Clone(m.Properties.UserProperties)
+	u.publish = mqttPublishDraft{message: m, qos: strconv.Itoa(int(m.QoS)),
+		expiry: float64(m.Properties.MessageExpiry), alias: float64(m.Properties.TopicAlias)}
+	u.messageIndex = index
+	u.payloadEditor, u.payloadFor = nil, ""
+}
+
+func (u *mqttDocument) draftMessage() request.MQTTMessage {
+	m := u.publish.message
+	m.QoS = mqttQoS(u.publish.qos)
+	m.Properties.MessageExpiry = int(u.publish.expiry)
+	m.Properties.TopicAlias = int(u.publish.alias)
+	return m
+}
+
+func (u *mqttDocument) saveMessage(c *request.MQTTConfig) {
+	m := u.draftMessage()
+	m.Properties.UserProperties = slices.Clone(m.Properties.UserProperties)
+	if u.messageIndex >= 0 && u.messageIndex < len(c.Messages) {
+		c.Messages[u.messageIndex] = m
+	} else {
+		if len(c.Messages) >= 128 {
+			return
+		}
+		c.Messages = append(c.Messages, m)
+		u.messageIndex = len(c.Messages) - 1
+	}
+	u.messagePick = mqttMessageLabel(c.Messages, u.messageIndex)
+	u.messagePickFor = u.messagePick
+}
+
+func (u *mqttDocument) deleteMessage(c *request.MQTTConfig) {
+	if u.messageIndex < 0 || u.messageIndex >= len(c.Messages) {
+		return
+	}
+	c.Messages = slices.Delete(c.Messages, u.messageIndex, u.messageIndex+1)
+	u.newMessage()
+}
+
+func mqttQoS(value string) byte {
+	switch value {
+	case "1":
+		return 1
+	case "2":
+		return 2
+	default:
+		return 0
+	}
+}
+
+func mqttMessageLabel(messages []request.MQTTMessage, i int) string {
+	return fmt.Sprintf("%d · %s", i+1, cmp.Or(messages[i].Name, messages[i].Topic, "Untitled message"))
+}
+
+// mqttEditor is the document's own tabs: connection, subscriptions, publish
+// drafts and the last will.
+func (a *app) mqttEditor(c *ui.Context, t *ui.Theme, d *requestDocument) {
+	u := d.mqttState()
+	ui.Column(c).Fill().Children(func() {
+		ui.Row(c).Height(uikit.HeightTabs).Padding(0, t.Space(3)).Children(func() {
+			uikit.Tabs(c, &u.tab, "MQTT editor", "Connection", "Subscriptions", "Publish", "Last will").Grow(1)
+		})
+		if u.problem != "" {
+			ui.Text(c, u.problem).TextColor(t.Danger).FontSize(uikit.TextMeta).MaxHeight(55).Padding(0, t.Space(3))
+		}
+		ui.Column(c).Grow(1).MinHeight(0).Padding(t.Space(2), t.Space(3)).Gap(t.Space(2)).Children(func() {
+			switch u.tab {
+			case 0:
+				a.mqttConnectionTab(c, t, d, u)
+			case 1:
+				a.mqttSubscriptionsTab(c, t, d, u)
+			case 2:
+				a.mqttPublishTab(c, t, d, u)
+			case 3:
+				a.mqttWillTab(c, t, d, u)
+			}
+		})
+	})
+}
+
+func (a *app) mqttConnectionTab(c *ui.Context, t *ui.Theme, d *requestDocument, u *mqttDocument) {
+	c1 := &d.mqttConfig
+	ui.Scroll(c).Grow(1).Gap(t.Space(3)).Children(func() {
+		uikit.Hint(c, "MQTT 3.1.1 or 5.0 over TCP, TLS or WebSocket. The connection is direct, not through the capture proxy. TLS uses Settings → Certificates: matching client certificates, custom roots and the per-request verify choice.")
+		ui.Form(c, func() {
+			ui.Field(c, "Protocol", func() {
+				ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+					if uikit.Select(c, &u.version, []string{"MQTT 3.1.1", "MQTT 5.0"}).Changed() {
+						c1.Version = request.MQTT5
+						if u.version == "MQTT 3.1.1" {
+							c1.Version = request.MQTT311
+						}
+					}
+					uikit.Meta(c, "Properties and subscription options need 5.0").Grow(1)
+				})
+			})
+			ui.Field(c, "Client ID", func() {
+				ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+					a.variableInput(c, "mqtt-client-id", &c1.ClientID, "MQTT client ID", d.composeCollection).Grow(1).MinWidth(0)
+					if uikit.SecondaryButton(c, "Generate").Clicked() {
+						c1.ClientID = newMQTTClientID()
+					}
+				})
+				uikit.Meta(c, "Sent to the broker; an empty ID is generated when the document opens.")
+			})
+			ui.Field(c, "Credentials", func() {
+				ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+					uikit.Select(c, &d.auth.Type, []string{"None", "Basic", "Inherit"}).Label("MQTT credentials").Width(110)
+					uikit.Meta(c, "Basic becomes the MQTT username and password; Inherit uses a Basic parent only.").Grow(1)
+				})
+				if d.auth.Type == "Basic" {
+					ui.Row(c).Gap(t.Space(2)).Children(func() {
+						a.variableInput(c, "mqtt-username", &d.auth.Username, "MQTT username", d.composeCollection).Grow(1).MinWidth(0)
+						a.variablePasswordInput(c, "mqtt-password", &d.auth.Password, "MQTT password", d.composeCollection).Grow(1).MinWidth(0)
+					})
+				}
+			})
+			ui.Field(c, "Session", func() {
+				ui.Row(c).Gap(t.Space(3)).AlignItems(ui.Center).Children(func() {
+					ui.Checkbox(c, c1.CleanStart, "Clean start / clean session")
+					ui.Checkbox(c, c1.AutoReconnect, "Reconnect after a drop")
+				})
+				ui.Row(c).Gap(t.Space(3)).AlignItems(ui.Center).Children(func() {
+					if ui.NumberInput(c, &u.keepAlive, 0, 65535, 1).Label("Keep-alive in seconds").Changed() {
+						c1.KeepAlive = int(u.keepAlive)
+					}
+					uikit.Meta(c, "seconds · 0 disables keep-alive").Grow(1)
+					if ui.NumberInput(c, &u.connectTimeout, 0, 600000, 1000).Label("Connect timeout in milliseconds").Changed() {
+						c1.ConnectTimeoutMs = int(u.connectTimeout)
+					}
+					uikit.Meta(c, "ms for TCP/TLS/WebSocket and CONNACK")
+				})
+				uikit.Meta(c, "A reconnect re-applies the active subscriptions; retained messages may arrive again.")
+			})
+			ui.Field(c, "TLS", func() {
+				verify := a.inheritance(d.composeCollection).InheritSettings(d.settings).Verifies()
+				if ui.Switch(c, &verify).Label("Verify broker certificate").Changed() {
+					d.setVerify(verify)
+				}
+				uikit.Meta(c, "mqtts:// and wss:// verify the system and custom roots. Client certificates are chosen by host in Settings → Certificates.")
+				if !verify {
+					ui.Text(c, "Certificate verification is off: this connection accepts any broker certificate, including an impostor's. Use it only for a broker you control.").
+						FontSize(uikit.TextMeta).TextColor(t.Danger)
+				}
+			})
+		})
+		mqttConnectPropertiesEditor(c, t, u, c1)
+	})
+}
+
+func mqttConnectPropertiesEditor(c *ui.Context, t *ui.Theme, u *mqttDocument, c1 *request.MQTTConfig) {
+	ui.Column(c).Gap(t.Space(2)).Children(func() {
+		uikit.Meta(c, "MQTT 5.0 CONNECT PROPERTIES · not sent on 3.1.1; clear them before connecting with 3.1.1")
+		ui.Form(c, func() {
+			ui.Field(c, "Session expiry", func() {
+				if ui.NumberInput(c, &u.sessionExpiry, 0, 4294967295, 1).Label("MQTT session expiry in seconds").Changed() {
+					c1.Properties.SessionExpiry = int(u.sessionExpiry)
+				}
+				uikit.Meta(c, "seconds · 0 ends the session when the connection closes")
+			})
+			ui.Field(c, "Receive maximum", func() {
+				if ui.NumberInput(c, &u.receiveMaximum, 0, 65535, 1).Label("MQTT receive maximum").Changed() {
+					c1.Properties.ReceiveMaximum = int(u.receiveMaximum)
+				}
+				uikit.Meta(c, "0 leaves the broker's default")
+			})
+			ui.Field(c, "Maximum packet", func() {
+				if ui.NumberInput(c, &u.maximumPacketSize, 0, 268435455, 1024).Label("MQTT maximum packet size in bytes").Changed() {
+					c1.Properties.MaximumPacketSize = int(u.maximumPacketSize)
+				}
+				uikit.Meta(c, "bytes · 0 advertises 1 MiB so one broker packet cannot grow without limit")
+			})
+			ui.Field(c, "Response information", func() {
+				ui.Checkbox(c, &c1.Properties.RequestResponseInformation, "Request response information")
+			})
+			ui.Field(c, "User properties", func() {
+				mqttPropertyEditor(c, t, &c1.Properties.UserProperties)
+			})
+		})
+	})
+}
+
+func (a *app) mqttSubscriptionsTab(c *ui.Context, t *ui.Theme, d *requestDocument, u *mqttDocument) {
+	c1 := &d.mqttConfig
+	s := u.session.snapshot()
+	ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+		if uikit.SecondaryButton(c, "Add topic").Clicked() {
+			u.appendTopic(c1)
+		}
+		a.actionButton(c, "request.mqtt-subscribe", "Subscribe listed")
+		a.actionButton(c, "request.mqtt-unsubscribe", "Unsubscribe all")
+		uikit.Meta(c, fmt.Sprintf("%d active", len(s.subscriptions))).Grow(1)
+	})
+	uikit.Hint(c, "Topic filters accept + for one level and # for the remaining levels. Each row has its own QoS; MQTT 5 adds no-local, retain-as-published, retain handling (0 sends retained messages, 1 only for a new subscription, 2 never) and a subscription identifier.")
+	ui.Scroll(c).Grow(1).Gap(t.Space(2)).Children(func() {
+		if len(c1.Topics) == 0 {
+			uikit.Meta(c, "No topic filters yet")
+		}
+		removeTopic := -1
+		for i := range c1.Topics {
+			topic := &c1.Topics[i]
+			row := &u.topicRows[i]
+			ui.Column(c).Gap(t.Space(1)).Padding(t.Space(1), t.Space(2)).Radius(uikit.RadiusControl).Background(t.Surface).Children(func() {
+				ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+					a.variableInput(c, fmt.Sprintf("mqtt-topic-%d", i), &topic.Name, "Topic filter", d.composeCollection).Grow(1).MinWidth(0)
+					if uikit.Select(c, &row.qos, []string{"0", "1", "2"}).Label("Topic QoS").Width(64).Changed() {
+						topic.QoS = mqttQoS(row.qos)
+					}
+					ui.Checkbox(c, topic.Subscribe, "On connect")
+					if uikit.IconButton(c, fmt.Sprintf("Remove topic %d", i+1), "Remove this topic filter", closeIcon).Clicked() {
+						removeTopic = i
+					}
+				})
+				ui.Row(c).Gap(t.Space(3)).AlignItems(ui.Center).Children(func() {
+					ui.Checkbox(c, &topic.NoLocal, "No local")
+					ui.Checkbox(c, &topic.RetainAsPublished, "Retain as published")
+					if uikit.Select(c, &row.retainHandling, []string{"0", "1", "2"}).Label("Retain handling").Width(64).Changed() {
+						topic.RetainHandling = mqttQoS(row.retainHandling)
+					}
+					uikit.Meta(c, "retain handling · MQTT 5 only").Grow(1)
+					if ui.NumberInput(c, &row.subscriptionID, 0, 268435455, 1).Label("Subscription identifier").Changed() {
+						topic.SubscriptionIdentifier = int(row.subscriptionID)
+					}
+				})
+				if c1.Version == request.MQTT5 {
+					mqttPropertyEditor(c, t, &topic.UserProperties)
+				}
+			})
+		}
+		if removeTopic >= 0 {
+			u.removeTopic(c1, removeTopic)
+		}
+	})
+}
+
+func (a *app) mqttPublishTab(c *ui.Context, t *ui.Theme, d *requestDocument, u *mqttDocument) {
+	c1 := &d.mqttConfig
+	labels := []string{"New message"}
+	for i := range c1.Messages {
+		labels = append(labels, mqttMessageLabel(c1.Messages, i))
+	}
+	if u.messagePick != u.messagePickFor {
+		u.messagePickFor = u.messagePick
+		index := slices.Index(labels, u.messagePick)
+		if index <= 0 {
+			u.newMessage()
+		} else {
+			u.loadMessage(c1.Messages[index-1], index-1)
+		}
+	}
+	ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+		uikit.Select(c, &u.messagePick, labels).Label("Saved MQTT message").Width(260)
+		if uikit.SecondaryButton(c, "New").Clicked() {
+			u.newMessage()
+		}
+		if uikit.SecondaryButton(c, "Save").Clicked() {
+			u.saveMessage(c1)
+		}
+		if uikit.SecondaryButton(c, "Delete").Clicked() {
+			u.deleteMessage(c1)
+		}
+		uikit.Meta(c, "").Grow(1)
+		a.actionButton(c, "request.mqtt-publish", "Publish")
+	})
+	ui.Scroll(c).Grow(1).Gap(t.Space(2)).Children(func() {
+		ui.Form(c, func() {
+			ui.Field(c, "Name", func() {
+				uikit.Input(c, &u.publish.message.Name).Placeholder("Saved message name").Label("Message name")
+			})
+			ui.Field(c, "Topic", func() {
+				a.variableInput(c, "mqtt-publish-topic", &u.publish.message.Topic, "Publish topic", d.composeCollection)
+			})
+			ui.Field(c, "Payload", func() {
+				ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+					if uikit.Select(c, &u.publish.message.Type, []string{"text", "json", "hex", "base64"}).Label("Payload encoding").Width(100).Changed() {
+						u.payloadEditor, u.payloadType = nil, ""
+					}
+					uikit.Select(c, &u.publish.qos, []string{"0", "1", "2"}).Label("Publish QoS").Width(64)
+					ui.Checkbox(c, &u.publish.message.Retain, "Retain")
+					uikit.Meta(c, "1 MiB maximum").Grow(1)
+				})
+				language := "text"
+				if u.publish.message.Type == "json" {
+					language = "json"
+				}
+				if u.payloadType != language {
+					u.payloadType, u.payloadEditor = language, nil
+				}
+				mqttPayloadEditor(c, &u.publish.message.Payload, &u.payloadEditor, &u.payloadFor, "MQTT publish payload", language, 160)
+				uikit.Meta(c, "{{variables}} and {{vault:name}} expand on publish; text and json keep the text, hex ignores whitespace, base64 needs padding.")
+			})
+		})
+		ui.Column(c).Gap(t.Space(2)).Children(func() {
+			uikit.Meta(c, "MQTT 5.0 PUBLISH PROPERTIES · not sent on 3.1.1")
+			ui.Form(c, func() {
+				ui.Field(c, "Format", func() {
+					ui.Checkbox(c, &u.publish.message.Properties.PayloadFormat, "Payload is UTF-8")
+				})
+				ui.Field(c, "Content type", func() {
+					uikit.Input(c, &u.publish.message.Properties.ContentType).Placeholder("application/json").Label("MIME content type")
+				})
+				ui.Field(c, "Response topic", func() {
+					a.variableInput(c, "mqtt-response-topic", &u.publish.message.Properties.ResponseTopic, "MQTT response topic", d.composeCollection)
+				})
+				ui.Field(c, "Correlation data", func() {
+					uikit.Input(c, &u.publish.message.Properties.CorrelationData).Placeholder("Opaque reply correlation value").Label("Correlation data")
+				})
+				ui.Field(c, "Expiry and alias", func() {
+					ui.Row(c).Gap(t.Space(3)).AlignItems(ui.Center).Children(func() {
+						if ui.NumberInput(c, &u.publish.expiry, 0, 4294967295, 1).Label("Message expiry in seconds").Changed() {
+							u.publish.message.Properties.MessageExpiry = int(u.publish.expiry)
+						}
+						uikit.Meta(c, "seconds").Grow(1)
+						if ui.NumberInput(c, &u.publish.alias, 0, 65535, 1).Label("Topic alias").Changed() {
+							u.publish.message.Properties.TopicAlias = int(u.publish.alias)
+						}
+						uikit.Meta(c, "topic alias")
+					})
+				})
+				ui.Field(c, "User properties", func() {
+					mqttPropertyEditor(c, t, &u.publish.message.Properties.UserProperties)
+				})
+			})
+		})
+	})
+}
+
+func (a *app) mqttWillTab(c *ui.Context, t *ui.Theme, d *requestDocument, u *mqttDocument) {
+	c1 := &d.mqttConfig
+	ui.Scroll(c).Grow(1).Gap(t.Space(2)).Children(func() {
+		uikit.Hint(c, "The broker publishes this message when the connection ends without a clean DISCONNECT. Will delay and the other will properties are MQTT 5.0 only.")
+		ui.Checkbox(c, &c1.Will.Enabled, "Publish a last will")
+		ui.Column(c).Disabled(!c1.Will.Enabled).Gap(t.Space(2)).Children(func() {
+			ui.Form(c, func() {
+				ui.Field(c, "Topic", func() {
+					a.variableInput(c, "mqtt-will-topic", &c1.Will.Topic, "Last will topic", d.composeCollection)
+				})
+				ui.Field(c, "Payload", func() {
+					ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+						if uikit.Select(c, &c1.Will.Type, []string{"text", "json", "hex", "base64"}).Label("Will payload encoding").Width(100).Changed() {
+							u.willPayloadEditor, u.willPayloadType = nil, ""
+						}
+						if uikit.Select(c, &u.willQoS, []string{"0", "1", "2"}).Label("Will QoS").Width(64).Changed() {
+							c1.Will.QoS = mqttQoS(u.willQoS)
+						}
+						ui.Checkbox(c, &c1.Will.Retain, "Retain")
+					})
+					language := "text"
+					if c1.Will.Type == "json" {
+						language = "json"
+					}
+					if u.willPayloadType != language {
+						u.willPayloadType, u.willPayloadEditor = language, nil
+					}
+					mqttPayloadEditor(c, &c1.Will.Payload, &u.willPayloadEditor, &u.willPayloadFor, "MQTT last will payload", language, 140)
+				})
+			})
+			ui.Column(c).Gap(t.Space(2)).Children(func() {
+				uikit.Meta(c, "MQTT 5.0 WILL PROPERTIES · not sent on 3.1.1")
+				ui.Form(c, func() {
+					ui.Field(c, "Delay", func() {
+						if ui.NumberInput(c, &u.willDelay, 0, 4294967295, 1).Label("Will delay in seconds").Changed() {
+							c1.Will.Properties.WillDelay = int(u.willDelay)
+						}
+						uikit.Meta(c, "seconds after the connection ends")
+					})
+					ui.Field(c, "Expiry", func() {
+						if ui.NumberInput(c, &u.willExpiry, 0, 4294967295, 1).Label("Will message expiry in seconds").Changed() {
+							c1.Will.Properties.MessageExpiry = int(u.willExpiry)
+						}
+						uikit.Meta(c, "seconds")
+					})
+					ui.Field(c, "Format", func() {
+						ui.Checkbox(c, &c1.Will.Properties.PayloadFormat, "Payload is UTF-8")
+					})
+					ui.Field(c, "Content type", func() {
+						uikit.Input(c, &c1.Will.Properties.ContentType).Placeholder("application/json").Label("Will MIME content type")
+					})
+					ui.Field(c, "Response topic", func() {
+						a.variableInput(c, "mqtt-will-response", &c1.Will.Properties.ResponseTopic, "Will response topic", d.composeCollection)
+					})
+					ui.Field(c, "Correlation data", func() {
+						uikit.Input(c, &c1.Will.Properties.CorrelationData).Placeholder("Opaque reply correlation value").Label("Will correlation data")
+					})
+					ui.Field(c, "User properties", func() {
+						mqttPropertyEditor(c, t, &c1.Will.Properties.UserProperties)
+					})
+				})
+			})
+		})
+	})
+}
+
+// mqttPropertyEditor edits ordered key/value user properties.
+func mqttPropertyEditor(c *ui.Context, t *ui.Theme, props *[]request.MQTTProperty) {
+	for i := 0; i < len(*props); i++ {
+		property := &(*props)[i]
+		removed := false
+		ui.Row(c).Gap(t.Space(1)).AlignItems(ui.Center).Children(func() {
+			uikit.Input(c, &property.Key).Placeholder("key").Label("Property key").Grow(1).MinWidth(0)
+			uikit.Input(c, &property.Value).Placeholder("value").Label("Property value").Grow(1).MinWidth(0)
+			if uikit.IconButton(c, fmt.Sprintf("Remove property %d", i+1), "Remove this user property", closeIcon).Clicked() {
+				*props = slices.Delete(*props, i, i+1)
+				removed = true
+			}
+		})
+		if removed {
+			break
+		}
+	}
+	if len(*props) < 64 && uikit.CompactButton(c, "Add property").Clicked() {
+		*props = append(*props, request.MQTTProperty{})
+	}
+}
+
+// mqttResponse is the live timeline: connection events, sent and received
+// messages, their properties and a bounded payload view.
+func (a *app) mqttResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
+	u := d.mqttState()
+	s := u.session.snapshot()
+	ui.Column(c).Fill().Children(func() {
+		ui.Row(c).Height(uikit.HeightTabs).Padding(0, t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+			ui.Text(c, "MQTT messages").FontSize(uikit.TextBody).Grow(1)
+			uikit.Meta(c, s.state).SingleLine()
+		})
+		if u.session == nil {
+			uikit.EmptyState(c, "No MQTT connection yet", "Set the broker URL and connection options, then Connect. Publish and subscriptions use only the live connection.", nil)
+			return
+		}
+		if s.problem != "" {
+			ui.Text(c, s.problem).TextColor(t.Danger).FontSize(uikit.TextMeta).MaxHeight(55).Padding(0, t.Space(3))
+		}
+		ui.Row(c).Padding(t.Space(1), t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+			uikit.Input(c, &u.query).Label("Search MQTT messages").Placeholder("Search topic, payload or properties").Grow(1).MinWidth(0)
+			uikit.Meta(c, fmt.Sprintf("%d retained · %d evicted · %d dropped · 64 KiB preview", len(s.events), s.evicted, s.dropped)).SingleLine()
+		})
+		query := strings.ToLower(strings.TrimSpace(u.query))
+		var events []mqttEvent
+		for _, e := range s.events {
+			if query == "" {
+				events = append(events, e)
+				continue
+			}
+			haystack := e.direction + " " + e.name + " " + e.note + " " + e.properties
+			if e.direction != "System" {
+				haystack += " " + string(e.payload)
+			}
+			if strings.Contains(strings.ToLower(haystack), query) {
+				events = append(events, e)
+			}
+		}
+		if len(events) == 0 {
+			uikit.EmptyState(c, "No matching MQTT messages", "Change the search or wait for a message.", nil)
+			return
+		}
+		ui.Split(c, &u.split, func() {
+			u.list.Selected = &u.selected
+			u.list.Key = func(i int) any { return events[i].seq }
+			u.list.Label = func(i int) string { return fmt.Sprintf("MQTT event %d %s", events[i].seq, events[i].name) }
+			focused := u.list.Handle.Focused(c)
+			c.SetTheme(uikit.ListTheme(t, focused))
+			ui.List(c, &u.list, len(events), func(i int) {
+				e := events[i]
+				if i == u.selected {
+					uikit.RowMarker(c, focused)
+				}
+				ui.Column(c).Padding(t.Space(1), t.Space(2)).Children(func() {
+					ui.Text(c, e.direction+" · "+e.name).FontSize(uikit.TextBody).SingleLine()
+					uikit.Meta(c, mqttEventMeta(e)).SingleLine()
+				})
+			}).Grow(1)
+			c.SetTheme(t)
+		}, func() {
+			u.selected = max(0, min(u.selected, len(events)-1))
+			e := events[u.selected]
+			key := fmt.Sprintf("%d/%d", e.seq, u.payloadView)
+			if u.readerKey != key {
+				u.readerKey = key
+				u.readerText = mqttEventText(e, u.payloadView)
+				u.reader = &editor.State{Buffer: editor.NewBuffer(u.readerText), ReadOnly: true, NoScrollPastEnd: true, SoftWrap: true, Label: "MQTT message"}
+			}
+			ui.Column(c).Fill().Children(func() {
+				ui.Row(c).Padding(t.Space(1), t.Space(2)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+					uikit.Meta(c, e.direction+" · "+e.name).Grow(1).SingleLine()
+					if e.direction != "System" {
+						uikit.Tabs(c, &u.payloadView, "MQTT payload view", "Text", "JSON", "Hex").Width(170)
+					}
+					services, text := c.Services(), u.readerText
+					uikit.SecondaryButton(c, "Copy shown message").OnClick(func() { services.WriteClipboard(text) })
+				})
+				if e.properties != "" {
+					ui.Text(c, e.properties).Font(uikit.FontMono).FontSize(uikit.TextMeta).TextColor(t.TextMuted).MaxHeight(90).Padding(0, t.Space(2))
+				}
+				requestCodeEditor(c, u.reader)
+			})
+		}).Grow(1)
+	})
+}
+
+// mqttPayloadEditor is the authored payload editor with a fixed height, for a
+// form that scrolls instead of giving its children the remaining height.
+func mqttPayloadEditor(c *ui.Context, text *string, state **editor.State, seen *string, label, language string, height float32) {
+	if *state == nil || *seen != *text {
+		buf := editor.NewBuffer(*text)
+		if language == "json" {
+			buf.SetLanguage(editor.LanguageNamed("json"))
+		}
+		*state = &editor.State{Buffer: buf, NoScrollPastEnd: true, SoftWrap: true, Label: label}
+		*seen = *text
+	}
+	ui.Box(c).Height(height).FillWidth().Children(func() { requestCodeEditor(c, *state) })
+	if current := (*state).Buffer.String(); current != *text {
+		*text, *seen = current, current
+		c.Invalidate()
+	}
+}
+
+func mqttEventMeta(e mqttEvent) string {
+	if e.direction == "System" {
+		return fmt.Sprintf("#%d · %s", e.seq, e.at.Format("15:04:05.000"))
+	}
+	flags := []string{fmt.Sprintf("QoS %d", e.qos)}
+	if e.retain {
+		flags = append(flags, "retain")
+	}
+	if e.note != "" {
+		flags = append(flags, e.note)
+	}
+	return fmt.Sprintf("#%d · %s · %s · %d B", e.seq, e.at.Format("15:04:05.000"), strings.Join(flags, " · "), e.size)
+}
+
+func mqttEventText(e mqttEvent, view int) string {
+	if e.direction == "System" {
+		return e.note
+	}
+	payload := e.payload
+	text := string(payload)
+	valid := utf8.Valid(payload)
+	switch view {
+	case 1:
+		if formatted, ok := indentJSON(text); ok {
+			if len(payload) < e.size {
+				formatted += fmt.Sprintf("\nRetained %d of %d bytes", len(payload), e.size)
+			}
+			return formatted
+		}
+		return text
+	case 2:
+		if len(payload) < e.size {
+			return hex.Dump(payload) + fmt.Sprintf("\nRetained %d of %d bytes", len(payload), e.size)
+		}
+		return hex.Dump(payload)
+	default:
+		if !valid {
+			return "Not UTF-8; shown as hex\n" + hex.Dump(payload)
+		}
+		if len(payload) < e.size {
+			text += fmt.Sprintf("\nRetained %d of %d bytes", len(payload), e.size)
+		}
+		return text
+	}
+}
+
+func (a *app) drainMQTT() {
+	for _, d := range a.documents {
+		u := d.mqttUI
+		if d.protocol == "MQTT" && u != nil && u.session != nil && u.session.snapshot().finished {
+			d.composeWaiting, d.sendCancel, d.sendCancelling = false, nil, false
+		}
+	}
+}
+
+func (a *app) connectMQTT(d *requestDocument) {
+	u := d.mqttState()
+	if u.session != nil && !u.session.snapshot().finished {
+		return
+	}
+	r := d.value().Request
+	// Saved publish drafts are validated when they are sent, not when the
+	// broker connection opens.
+	r.MQTT.Messages = nil
+	in, vars := a.sendContext(r), a.activeVars()
+	prepared, cfg, err := r.PrepareMQTT(in, vars)
+	if err != nil {
+		u.problem = err.Error()
+		return
+	}
+	address, secure, err := request.MQTTEndpoint(prepared.URL)
+	if err != nil {
+		u.problem = err.Error()
+		return
+	}
+	tlsConfig := func() (*tls.Config, error) {
+		if !secure {
+			return nil, nil
+		}
+		// Read the certificate files for every connect and reconnect, as the
+		// other protocol clients do.
+		return in.Certificates.TLSConfig(address, nil, !in.InheritSettings(r.Settings).Verifies())
+	}
+	u.session = openMQTTSession(prepared.URL, r, in, vars, cfg, tlsConfig, a.invalidate)
+	u.problem, u.query, u.readerKey, u.reader, u.selected = "", "", "", nil, 0
+	u.list = ui.ListState{}
+	d.composeWaiting, d.sendCancel, d.sendCancelling = true, u.session.cancel, false
+	d.historyPick, d.comparing = 0, false
+}
+
+func (a *app) publishMQTT(d *requestDocument) {
+	u := d.mqttState()
+	s := u.session
+	if s == nil {
+		return
+	}
+	r := s.input
+	r.MQTT.Messages = []request.MQTTMessage{u.draftMessage()}
+	r.MQTT.Topics = nil
+	_, cfg, err := r.PrepareMQTT(s.scope, s.vars)
+	if err != nil {
+		u.problem = err.Error()
+		return
+	}
+	if len(cfg.Messages) != 1 {
+		return
+	}
+	m := cfg.Messages[0]
+	payload, err := request.MQTTPayload(m.Payload, m.Type)
+	if err != nil {
+		u.problem = err.Error()
+		return
+	}
+	u.problem = ""
+	s.publish(request.MQTTPublish{Topic: m.Topic, Payload: payload, QoS: m.QoS, Retain: m.Retain, Properties: m.Properties},
+		cmp.Or(m.Name, m.Topic))
+}
+
+func (a *app) subscribeMQTT(d *requestDocument) {
+	u := d.mqttState()
+	s := u.session
+	if s == nil {
+		return
+	}
+	r := s.input
+	r.MQTT.Topics = d.mqttConfig.Topics
+	_, cfg, err := r.PrepareMQTT(s.scope, s.vars)
+	if err != nil {
+		u.problem = err.Error()
+		return
+	}
+	subs := cfg.TopicsToSubscribe()
+	if len(subs) == 0 {
+		u.problem = "Add at least one topic filter, or turn on at least one topic's On connect"
+		return
+	}
+	u.problem = ""
+	s.subscribe(subs)
+}
+
+func (a *app) unsubscribeMQTT(d *requestDocument) {
+	if u := d.mqttUI; u != nil && u.session != nil {
+		u.session.unsubscribeAll()
+	}
+}
+
+func (a *app) mqttActions(d *requestDocument, editing bool) []action {
+	ready := editing && d.protocol == "MQTT"
+	var u *mqttDocument
+	var s mqttSnapshot
+	if ready {
+		u = d.mqttState()
+		s = u.session.snapshot()
+	}
+	live := ready && s.ready && !s.busy && !d.sendCancelling
+	return []action{
+		do("request.mqtt-publish", "Publish MQTT message", func() { a.publishMQTT(d) }).when(live, "Connect MQTT first"),
+		do("request.mqtt-subscribe", "Subscribe MQTT topics", func() { a.subscribeMQTT(d) }).when(live, "Connect MQTT first"),
+		do("request.mqtt-unsubscribe", "Unsubscribe MQTT topics", func() { a.unsubscribeMQTT(d) }).when(live && len(s.subscriptions) > 0, "No active MQTT subscriptions"),
+	}
+}
