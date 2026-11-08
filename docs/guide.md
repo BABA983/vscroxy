@@ -1162,7 +1162,9 @@ default upstream. A rule or the default may say `direct`.
   Settings offers **Retry**; **Upstream off** remains available in both states.
   A URL PAC retries after 5 seconds, then 15 seconds, 60 seconds, and every
   5 minutes. A successful save or import replaces the failed snapshot; an
-  older load result never overwrites it.
+  older load result never overwrites it. A save that fails while a working
+  configuration is running leaves that configuration running: the form shows
+  the error, with no fail-closed state and no retry.
 - `Map Remote` to a plain HTTP target through an HTTP(S) upstream uses
   absolute-URI forwarding. It tries the PAC candidates in order, using the
   first proxy that accepts a TCP connection, and falls back to a DIRECT
@@ -1194,6 +1196,9 @@ no-op `alert`. `shExpMatch` supports `*`, `?` and `[...]`; date, weekday and tim
 ranges include both ends and reversed ranges wrap, as Firefox 49 and later do.
 `myIpAddress()` returns this computer's first non-loopback IPv4 address, or
 `127.0.0.1`.
+
+PAC errors and the connection log show a PAC URL as `scheme://host/path` only;
+userinfo, query and fragment never appear in errors, Settings or logs.
 
 The result is a semicolon-separated list of `DIRECT`, `PROXY host:port`,
 `HTTP host:port`, `HTTPS host:port`, `SOCKS host:port` and `SOCKS5 host:port`.

@@ -105,14 +105,15 @@ target through an HTTP(S) upstream keeps net/http's absolute-URI forwarding:
 candidates are tried in order, each proxy gets an 8-second TCP dial, and a
 DIRECT candidate dials the target directly. The first candidate whose TCP
 connection succeeds carries the request; a 407 or other HTTP response from it
-is final. Map Remote therefore does not need the upstream to allow CONNECT to
-port 80; an HTTPS target or a SOCKS candidate uses `dialUpstream`. An
-`https://` upstream's own certificate is always verified with the system roots
-and the app's custom roots, independently of whether the target certificate is
-verified; Basic credentials are sent only after that handshake.
-`helper.GetProxyConn` builds Basic credentials from the raw username and
-password, not `url.User.String()`, which would percent-encode reserved password
-characters.
+is final. There is no response-header deadline on this path, so a slow long
+poll is not cut at the dial timeout. Map Remote therefore does not need the
+upstream to allow CONNECT to port 80; an HTTPS target or a SOCKS candidate uses
+`dialUpstream`. An `https://` upstream's own certificate is always verified
+with the system roots and the app's custom roots, independently of whether the
+target certificate is verified; Basic credentials are sent only after that
+handshake. `helper.GetProxyConn` builds Basic credentials from the raw username
+and password, not `url.User.String()`, which would percent-encode reserved
+password characters.
 
 The connection log shows the selection reason before the dial. Credentials are
 never part of `Reason`, and the helper's errors do not include them.
