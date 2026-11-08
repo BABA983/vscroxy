@@ -4,12 +4,14 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/baba983/vscroxy/internal/postman"
+	"github.com/baba983/vscroxy/internal/request"
 )
 
 func TestV3ExampleWithoutResponseBody(t *testing.T) {
@@ -44,8 +46,14 @@ func TestV3RejectsYAMLAliases(t *testing.T) {
 	if len(col.Requests) != 0 {
 		t.Fatalf("alias request was imported: %+v", col.Requests)
 	}
-	if !slices.Contains(col.Warnings, "Skipped 1 unreadable or malformed file (first: A.request.yaml)") {
+	if !slices.Contains(col.Warnings, "Skipped files that use YAML aliases") {
 		t.Errorf("warnings = %q", col.Warnings)
+	}
+	if !slices.Contains(col.Warnings, "First skipped file: A.request.yaml") {
+		t.Errorf("warnings = %q", col.Warnings)
+	}
+	if slices.Contains(col.Warnings, "Skipped 1 unreadable or malformed file (first: A.request.yaml)") {
+		t.Errorf("alias was reported as unreadable: %q", col.Warnings)
 	}
 }
 
@@ -246,5 +254,120 @@ func TestV3DeepDetectionWithoutDefinition(t *testing.T) {
 	})
 	if !postman.LooksLikeCollectionDir(dir) {
 		t.Error("a collection with requests two levels down was not recognized")
+	}
+}
+
+func TestV3RequestOverOneMiBImports(t *testing.T) {
+	dir := t.TempDir()
+	body := strings.Repeat("x", 1<<20+100)
+	writeV3(t, dir, map[string]string{
+		".resources/definition.yaml": "$kind: collection\nname: Large\n",
+		"Big.request.yaml": "$kind: http-request\nname: Big\nmethod: POST\nurl: https://example.com/big\n" +
+			"body:\n  type: json\n  content: \"" + body + "\"\n",
+	})
+	col := readV3(t, dir)
+	big := v3Request(t, col, "Large", "Big")
+	if big.Method != "POST" || big.BodyMode != "Raw" || len(big.Body) != len(body) {
+		t.Errorf("big request = method %s mode %s body %d bytes, want POST/Raw/%d", big.Method, big.BodyMode, len(big.Body), len(body))
+	}
+}
+
+func TestV3ObjectVariablesAndScripts(t *testing.T) {
+	dir := t.TempDir()
+	writeV3(t, dir, map[string]string{
+		".resources/definition.yaml": "$kind: collection\nname: Native\n" +
+			"variables:\n  accessToken: ''\n  region: eu\n" +
+			"scripts:\n  - type: http:beforeRequest\n    code: console.log('root');\n",
+		"One.request.yaml": "$kind: http-request\nname: One\nurl: https://example.com/one\n",
+	})
+	col := readV3(t, dir)
+	root := v3Folder(t, col, "Native")
+	want := []request.Variable{{Name: "accessToken", Initial: ""}, {Name: "region", Initial: "eu"}}
+	if !reflect.DeepEqual(root.Variables, want) {
+		t.Errorf("variables = %+v, want %+v", root.Variables, want)
+	}
+	if !strings.Contains(root.Pre, "console.log('root')") {
+		t.Errorf("collection script = %q", root.Pre)
+	}
+}
+
+func TestV3DuplicateIDOwnerIsPathStable(t *testing.T) {
+	dir := t.TempDir()
+	files := func(orderA, orderB string) map[string]string {
+		return map[string]string{
+			".resources/definition.yaml": "$kind: collection\nname: Stable\n",
+			"A.request.yaml":             fmt.Sprintf("$kind: http-request\nid: 5d1c\nname: Get user\nurl: https://example.com/a\norder: %s\n", orderA),
+			"B.request.yaml":             fmt.Sprintf("$kind: http-request\nid: 5d1c\nname: Get user\nurl: https://example.com/b\norder: %s\n", orderB),
+		}
+	}
+	ids := func(col postman.Collection) map[string]string {
+		out := map[string]string{}
+		for _, r := range col.Requests {
+			out[r.URL] = r.ID
+		}
+		return out
+	}
+	writeV3(t, dir, files("2000", "1000"))
+	first := ids(readV3(t, dir))
+	writeV3(t, dir, files("1000", "2000"))
+	second := ids(readV3(t, dir))
+	if first["https://example.com/a"] != "5d1c" {
+		t.Errorf("path-first request id = %q, want 5d1c", first["https://example.com/a"])
+	}
+	if first["https://example.com/b"] == "5d1c" {
+		t.Errorf("duplicate kept the shared id: %+v", first)
+	}
+	if !reflect.DeepEqual(first, second) {
+		t.Errorf("ids changed with order:\nfirst  %+v\nsecond %+v", first, second)
+	}
+}
+
+func TestV3FoldedScriptPreserved(t *testing.T) {
+	dir := t.TempDir()
+	writeV3(t, dir, map[string]string{
+		".resources/definition.yaml": "$kind: collection\nname: Scripts\n",
+		"One.request.yaml": "$kind: http-request\nname: One\nurl: https://example.com/one\n" +
+			"scripts:\n  - type: beforeRequest\n    code: >\n      a\n        b\n      c",
+	})
+	col := readV3(t, dir)
+	one := v3Request(t, col, "Scripts", "One")
+	if one.Pre != "a\n  b\nc" {
+		t.Errorf("folded script = %q, want %q", one.Pre, "a\n  b\nc")
+	}
+}
+
+func TestLooksLikeCollectionDirSkipsNativeGitNoise(t *testing.T) {
+	root := t.TempDir()
+	writeV3(t, root, map[string]string{
+		"node_modules/fake/.resources/definition.yaml": "$kind: collection\nname: Fake\n",
+		".git/fake/.resources/definition.yaml":         "$kind: collection\nname: Git\n",
+	})
+	if postman.LooksLikeCollectionDir(root) {
+		t.Error("node_modules or .git was followed during detection")
+	}
+	for i := range 1500 {
+		if err := os.MkdirAll(filepath.Join(root, fmt.Sprintf("a%04d", i)), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	writeV3(t, root, map[string]string{
+		"postman/collections/Shop/.resources/definition.yaml": "$kind: collection\nname: Shop\n",
+	})
+	if !postman.LooksLikeCollectionDir(root) {
+		t.Error("postman collection was not found after the empty folders")
+	}
+}
+
+func TestV3DefinitionOverOneMiBIsSkipped(t *testing.T) {
+	dir := t.TempDir()
+	writeV3(t, dir, map[string]string{
+		".resources/definition.yaml": "$kind: collection\nname: Big\n#" + strings.Repeat("x", 1<<20),
+	})
+	col := readV3(t, dir)
+	if !slices.Contains(col.Warnings, "Skipped collection or folder definitions larger than 1 MiB") {
+		t.Errorf("warnings = %q", col.Warnings)
+	}
+	if !slices.Contains(col.Warnings, "First skipped file: .resources/definition.yaml") {
+		t.Errorf("warnings = %q", col.Warnings)
 	}
 }

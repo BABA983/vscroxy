@@ -427,7 +427,10 @@ func TestReadCollectionDirV3MalformedAndUnsafe(t *testing.T) {
 			t.Fatal(err)
 		}
 		col := readV3(t, dir)
-		if !slices.Contains(col.Warnings, "Skipped request or definition files larger than 1 MiB") {
+		if !slices.Contains(col.Warnings, "Skipped example, message or request files larger than 8 MiB") {
+			t.Errorf("warnings = %q", col.Warnings)
+		}
+		if !slices.Contains(col.Warnings, "First skipped file: Big.request.yaml") {
 			t.Errorf("warnings = %q", col.Warnings)
 		}
 	})

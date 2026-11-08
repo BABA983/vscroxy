@@ -17,7 +17,7 @@ type v3Definition struct {
 	ID          string         `json:"id"`
 	Name        string         `json:"name"`
 	Description jsontext.Value `json:"description"`
-	Variables   []v3Variable   `json:"variables"`
+	Variables   v3Variables    `json:"variables"`
 	Scripts     []v3Script     `json:"scripts"`
 	Auth        jsontext.Value `json:"auth"`
 	Uses        jsontext.Value `json:"uses"`
@@ -31,6 +31,37 @@ type v3Variable struct {
 	Disabled    bool           `json:"disabled"`
 	Secret      bool           `json:"secret"`
 	Source      jsontext.Value `json:"source"`
+}
+
+// v3Variables accepts the array the schema documents and the object shape
+// some Native Git repositories use: {accessToken: "", region: eu}.
+type v3Variables []v3Variable
+
+func (v *v3Variables) UnmarshalJSON(data []byte) error {
+	value := jsontext.Value(data)
+	switch value.Kind() {
+	case 0, 'n':
+		*v = nil
+	case '[':
+		var list []v3Variable
+		if err := json.Unmarshal(data, &list); err != nil {
+			return err
+		}
+		*v = list
+	case '{':
+		var values map[string]jsontext.Value
+		if err := json.Unmarshal(data, &values); err != nil {
+			return err
+		}
+		list := make([]v3Variable, 0, len(values))
+		for _, key := range slices.Sorted(maps.Keys(values)) {
+			list = append(list, v3Variable{Key: key, Value: values[key]})
+		}
+		*v = list
+	default:
+		return fmt.Errorf("want an array or object of variables")
+	}
+	return nil
 }
 
 type v3Script struct {

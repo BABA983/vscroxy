@@ -1,6 +1,7 @@
 package app
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -142,5 +143,55 @@ func TestDroppedImportKindRoutesCollectionFolders(t *testing.T) {
 	}
 	if got := droppedImportKind(t.TempDir(), true); got != droppedUnknown {
 		t.Errorf("empty folder = %v, want droppedUnknown", got)
+	}
+}
+
+func writeV3Dir(t *testing.T, dir string, files map[string]string) {
+	t.Helper()
+	for name, content := range files {
+		path := filepath.Join(dir, filepath.FromSlash(name))
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func TestImportV3DuplicateIDStableAcrossOrder(t *testing.T) {
+	dir := t.TempDir()
+	files := func(orderA, orderB string) map[string]string {
+		return map[string]string{
+			".resources/definition.yaml": "$kind: collection\nname: Stable\n",
+			"A.request.yaml":             fmt.Sprintf("$kind: http-request\nid: 5d1c\nname: Get user\nurl: https://example.com/a\norder: %s\n", orderA),
+			"B.request.yaml":             fmt.Sprintf("$kind: http-request\nid: 5d1c\nname: Get user\nurl: https://example.com/b\norder: %s\n", orderB),
+		}
+	}
+	writeV3Dir(t, dir, files("2000", "1000"))
+	col, err := postman.ReadCollectionDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a := libraryApp(t)
+	a.envsPath = filepath.Join(t.TempDir(), "environments.json")
+	a.importPostmanCollection(col)
+	if len(a.requests) != 2 {
+		t.Fatalf("first import made %d requests: %+v", len(a.requests), a.requests)
+	}
+
+	writeV3Dir(t, dir, files("1000", "2000"))
+	col, err = postman.ReadCollectionDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a.importPostmanCollection(col)
+	if len(a.requests) != 2 {
+		t.Fatalf("order change left %d requests: %+v", len(a.requests), a.requests)
+	}
+	for _, r := range a.requests {
+		if r.URL == "https://example.com/a" && r.ID != "5d1c" {
+			t.Errorf("path-first request id = %q, want 5d1c", r.ID)
+		}
 	}
 }

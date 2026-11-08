@@ -2,6 +2,8 @@ package postman
 
 import (
 	"cmp"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json/jsontext"
 	"encoding/json/v2"
 	"errors"
@@ -32,11 +34,11 @@ import (
 // file-size limits.
 
 const (
-	// v3MaxFile bounds one example or message YAML file. Postman examples are
-	// capped at 5 MiB.
+	// v3MaxFile bounds one example, message or request YAML file. Postman
+	// examples are capped at 5 MiB; a request body can be larger than its
+	// definition.
 	v3MaxFile = 8 << 20
-	// v3MaxDocument bounds one collection, folder or request definition. A
-	// request document is far smaller than its saved examples.
+	// v3MaxDocument bounds one collection or folder definition.
 	v3MaxDocument = 1 << 20
 	// v3MaxSchema bounds an imported GraphQL SDL file.
 	v3MaxSchema = 1 << 20
@@ -48,7 +50,7 @@ var (
 	// v3MaxFiles bounds how many files and directory entries one import reads.
 	v3MaxFiles = 10_000
 	// v3MaxBytes bounds the total YAML read by one import.
-	v3MaxBytes = 128 << 20
+	v3MaxBytes = 64 << 20
 
 	errV3NotRegular = errors.New("not a regular file")
 	errV3Symlink    = errors.New("symbolic link")
@@ -59,6 +61,14 @@ var (
 type v3LimitError struct{ detail string }
 
 func (e v3LimitError) Error() string { return "collection import limit: " + e.detail }
+
+// v3IDOwner is the request that currently owns an explicit v3 id. Requests are
+// visited in display order, so a later request with a smaller path may take
+// the id over; the previous owner then gets a path-derived id.
+type v3IDOwner struct {
+	index int
+	file  string
+}
 
 // LooksLikeCollectionDir reports whether dir is the root of a Postman
 // Collection v3 directory. It checks the directory, its immediate children and
@@ -84,11 +94,17 @@ func looksLikeCollectionDir(dir string, depth int, budget *int) bool {
 	if depth >= 3 {
 		return false
 	}
-	for _, entry := range readDirBounded(dir, 1000) {
-		if !entry.IsDir() || strings.HasPrefix(entry.Name(), ".") {
+	entries := readDirBounded(dir, 10_000)
+	slices.SortFunc(entries, func(a, b os.DirEntry) int { return strings.Compare(a.Name(), b.Name()) })
+	for _, entry := range entries {
+		name := entry.Name()
+		if !entry.IsDir() || name == "node_modules" {
 			continue
 		}
-		if looksLikeCollectionDir(filepath.Join(dir, entry.Name()), depth+1, budget) {
+		if strings.HasPrefix(name, ".") && name != ".resources" {
+			continue
+		}
+		if looksLikeCollectionDir(filepath.Join(dir, name), depth+1, budget) {
 			return true
 		}
 	}
@@ -111,7 +127,7 @@ func hasV3Definition(dir string) bool {
 }
 
 func hasV3RequestFiles(dir string) bool {
-	for _, entry := range readDirBounded(dir, 1000) {
+	for _, entry := range readDirBounded(dir, 10_000) {
 		if entry.IsDir() || entry.Type()&os.ModeSymlink != 0 {
 			continue
 		}
@@ -164,7 +180,7 @@ func ReadCollectionDir(dir string) (Collection, error) {
 	if !info.IsDir() {
 		return Collection{}, fmt.Errorf("%s is not a folder", filepath.Base(root))
 	}
-	r := &v3reader{root: root, paths: map[string]bool{}, ids: map[string]bool{}, reader: reader{warn: tally{}}}
+	r := &v3reader{root: root, paths: map[string]bool{}, idOwner: map[string]v3IDOwner{}, reader: reader{warn: tally{}}}
 	def, err := r.definition(root, true)
 	if err != nil {
 		return Collection{}, err
@@ -180,6 +196,9 @@ func ReadCollectionDir(dir string) (Collection, error) {
 	if err := r.walk(root, name, 0); err != nil {
 		return Collection{}, err
 	}
+	if r.firstLimit != "" {
+		r.warn.add("v3 limit first", r.firstLimit, 1)
+	}
 	r.out.Warnings = r.warn.list()
 	return r.out, nil
 }
@@ -192,7 +211,8 @@ type v3reader struct {
 	files               int
 	bytes               int
 	paths               map[string]bool
-	ids                 map[string]bool
+	idOwner             map[string]v3IDOwner
+	firstLimit          string
 	firstUnreadable     string
 	firstDefinitionKind string
 }
@@ -299,21 +319,30 @@ func (r *v3reader) readDir(dir string) ([]os.DirEntry, error) {
 		return nil, err
 	}
 	if len(entries) > v3MaxFiles {
-		r.warn.add("v3 limit", "files", 1)
+		r.limitProblem(dir, "files")
 		entries = entries[:v3MaxFiles]
 	}
 	slices.SortFunc(entries, func(a, b os.DirEntry) int { return strings.Compare(a.Name(), b.Name()) })
 	return entries, nil
 }
 
+// limitProblem counts a limit and remembers the first path that hit one, so
+// the report can name it.
+func (r *v3reader) limitProblem(path, detail string) {
+	if r.firstLimit == "" {
+		r.firstLimit = r.relative(path)
+	}
+	r.warn.add("v3 limit", detail, 1)
+}
+
 // fileProblem counts why one file or directory could not be read.
-func (r *v3reader) fileProblem(err error) {
+func (r *v3reader) fileProblem(err error, path string) {
 	var limit v3LimitError
 	switch {
 	case errors.As(err, &limit):
-		r.warn.add("v3 limit", limit.detail, 1)
+		r.limitProblem(path, limit.detail)
 	case errors.Is(err, errV3TooMany):
-		r.warn.add("v3 limit", "files", 1)
+		r.limitProblem(path, "files")
 	default:
 		r.warn.add("v3 path", "", 1)
 	}
@@ -328,9 +357,26 @@ func (r *v3reader) relative(path string) string {
 	return filepath.ToSlash(rel)
 }
 
+// yamlLimit reports whether err is a YAML alias or expansion limit. Those are
+// input limits, not malformed files, and are counted as v3 limits.
+func (r *v3reader) yamlLimit(path string, err error) bool {
+	switch {
+	case errors.Is(err, yamlguard.ErrAlias):
+		r.limitProblem(path, "YAML aliases")
+		return true
+	case errors.Is(err, yamlguard.ErrExpansion):
+		r.limitProblem(path, "YAML expansion")
+		return true
+	}
+	return false
+}
+
 // unreadable counts a file that could not be decoded and remembers the first
-// one, so the report can name it.
-func (r *v3reader) unreadable(path string) {
+// one, so the report can name it. YAML limit errors are counted separately.
+func (r *v3reader) unreadable(path string, err error) {
+	if r.yamlLimit(path, err) {
+		return
+	}
 	if r.firstUnreadable == "" {
 		r.firstUnreadable = r.relative(path)
 	}
@@ -370,12 +416,12 @@ func (r *v3reader) definition(dir string, root bool) (v3Definition, error) {
 			continue
 		}
 		if err != nil {
-			r.fileProblem(err)
+			r.fileProblem(err, path)
 			return v3Definition{}, nil
 		}
 		var def v3Definition
 		if err := unmarshalV3(data, &def); err != nil {
-			r.unreadable(path)
+			r.unreadable(path, err)
 			return v3Definition{}, nil
 		}
 		if def.Kind != "" && def.Kind != "collection" {
@@ -403,13 +449,13 @@ func (r *v3reader) addFolder(path string, def v3Definition, authWarning string) 
 // walk reads one directory's folders and request files in Postman's order.
 func (r *v3reader) walk(dir, path string, depth int) error {
 	if depth > v3MaxDepth {
-		r.warn.add("v3 limit", "depth", 1)
+		r.limitProblem(dir, "depth")
 		return nil
 	}
 	entries, err := r.readDir(dir)
 	if err != nil {
 		if errors.Is(err, errV3TooMany) {
-			r.fileProblem(err)
+			r.fileProblem(err, dir)
 			return nil
 		}
 		return fmt.Errorf("read %s: %w", dir, err)
@@ -453,14 +499,14 @@ func (r *v3reader) walk(dir, path string, depth int) error {
 				name: name, dir: full, display: display, def: def,
 			})
 		case info.Mode().IsRegular() && isV3RequestFile(name):
-			data, err := r.readLimit(full, v3MaxDocument, "document size")
+			data, err := r.readLimit(full, v3MaxFile, "file size")
 			if err != nil {
-				r.fileProblem(err)
+				r.fileProblem(err, full)
 				continue
 			}
 			var req v3Request
 			if err := unmarshalV3(data, &req); err != nil {
-				r.unreadable(full)
+				r.unreadable(full, err)
 				continue
 			}
 			children = append(children, child{
@@ -572,18 +618,36 @@ func (r *v3reader) requestFile(file, parent string, req v3Request, name string, 
 		r.warn.add("v3 request kind", cmp.Or(req.Kind, "no $kind"), 1)
 		return nil
 	}
-	// Copying a request file keeps its id. The app merges by id, so a
-	// repeated id would silently replace the first request; derive a new id
-	// and report it instead.
-	if it.ID != "" {
-		if r.ids[it.ID] {
-			r.warn.add("v3 duplicate id", it.ID, 1)
-			it.ID = ""
-		} else {
-			r.ids[it.ID] = true
+	// The path-first request keeps an explicit id. Requests are visited in
+	// display order, so a later file with a smaller path can take the id over;
+	// the previous owner gets a path-derived id instead. Deriving from the path
+	// keeps the result stable when order changes.
+	rel := r.relative(file)
+	originalID := it.ID
+	if originalID != "" {
+		if owner, ok := r.idOwner[originalID]; ok {
+			r.warn.add("v3 duplicate id", originalID, 1)
+			if strings.Compare(rel, owner.file) < 0 {
+				r.out.Requests[owner.index].ID = r.derivedID(owner.file)
+			} else {
+				it.ID = r.derivedID(rel)
+			}
 		}
 	}
-	return r.request(it, parent, ordinal)
+	if err := r.request(it, parent, ordinal); err != nil {
+		return err
+	}
+	if originalID != "" && it.ID == originalID {
+		r.idOwner[originalID] = v3IDOwner{index: len(r.out.Requests) - 1, file: rel}
+	}
+	return nil
+}
+
+// derivedID is stable for one request file, so re-importing a tree does not
+// leave a request behind when display order changes.
+func (r *v3reader) derivedID(rel string) string {
+	sum := sha256.Sum256([]byte(r.base + "\x00" + rel))
+	return "postman-" + hex.EncodeToString(sum[:])
 }
 
 func grpcHeaders(req v3Request) []v3KV {
@@ -1067,7 +1131,7 @@ func (r *v3reader) graphqlSchema(v jsontext.Value, requestFile string) (string, 
 		if err != nil {
 			var limit v3LimitError
 			if errors.As(err, &limit) {
-				r.fileProblem(err)
+				r.fileProblem(err, path)
 			} else {
 				r.warn.add("graphql schema", "", 1)
 			}
@@ -1338,7 +1402,7 @@ func (r *v3reader) exampleFiles(requestFile, ref, stem string) []v3Example {
 	var list []v3Example
 	entries, err := r.readDir(dir)
 	if err != nil {
-		r.fileProblem(err)
+		r.fileProblem(err, dir)
 		return nil
 	}
 	for _, entry := range entries {
@@ -1353,12 +1417,14 @@ func (r *v3reader) exampleFiles(requestFile, ref, stem string) []v3Example {
 		path := filepath.Join(dir, name)
 		data, err := r.read(path)
 		if err != nil {
-			r.fileProblem(err)
+			r.fileProblem(err, path)
 			continue
 		}
 		var example v3Example
 		if err := unmarshalV3(data, &example); err != nil {
-			r.warn.add("example", "", 1)
+			if !r.yamlLimit(path, err) {
+				r.warn.add("example", "", 1)
+			}
 			continue
 		}
 		list = append(list, example)
@@ -1429,7 +1495,7 @@ func (r *v3reader) firstMessage(req v3Request, requestFile string) (v3Message, b
 		if dir != "" {
 			entries, err := r.readDir(dir)
 			if err != nil {
-				r.fileProblem(err)
+				r.fileProblem(err, dir)
 			} else {
 				for _, entry := range entries {
 					name := entry.Name()
@@ -1443,12 +1509,12 @@ func (r *v3reader) firstMessage(req v3Request, requestFile string) (v3Message, b
 					path := filepath.Join(dir, name)
 					data, err := r.read(path)
 					if err != nil {
-						r.fileProblem(err)
+						r.fileProblem(err, path)
 						continue
 					}
 					var message v3Message
 					if err := unmarshalV3(data, &message); err != nil {
-						r.unreadable(path)
+						r.unreadable(path, err)
 						continue
 					}
 					list = append(list, message)
@@ -1536,7 +1602,7 @@ func (r *v3reader) resolve(requestFile, ref string) (string, bool) {
 // unmarshalV3 reads YAML with the JSON tags the rest of this package uses.
 // Postman never writes anchors, so an alias is refused rather than expanded.
 func unmarshalV3(data []byte, out any) error {
-	jsonData, err := yamlguard.ToJSON(data, yamlguard.Options{RejectAliases: true, MaxNodes: 200_000, MaxBytes: v3MaxFile})
+	jsonData, err := yamlguard.ToJSON(data, yamlguard.Options{RejectAliases: true})
 	if err != nil {
 		return err
 	}

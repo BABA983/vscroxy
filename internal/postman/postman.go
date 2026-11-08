@@ -213,11 +213,15 @@ func (k warning) text(n int) string {
 	case "v3 limit":
 		switch k.detail {
 		case "file size":
-			return "Skipped files larger than 8 MiB"
+			return "Skipped example, message or request files larger than 8 MiB"
 		case "document size":
-			return "Skipped request or definition files larger than 1 MiB"
+			return "Skipped collection or folder definitions larger than 1 MiB"
 		case "GraphQL schema size":
 			return "Skipped GraphQL schema files larger than 1 MiB"
+		case "YAML aliases":
+			return "Skipped files that use YAML aliases"
+		case "YAML expansion":
+			return "Skipped files whose YAML expands beyond the limit"
 		case "total size":
 			return fmt.Sprintf("Stopped reading at the %d MiB total-size limit", v3MaxBytes>>20)
 		case "files":
@@ -226,6 +230,8 @@ func (k warning) text(n int) string {
 			return "Stopped reading folders nested more than 32 levels deep"
 		}
 		return "Stopped reading the collection at its " + k.detail + " limit"
+	case "v3 limit first":
+		return "First skipped file: " + k.detail
 	case "v3 request kind":
 		return "Skipped " + count(n, "request of an unknown kind", "requests of unknown kinds") + " (" + k.detail + ")"
 	case "v3 protocol":
