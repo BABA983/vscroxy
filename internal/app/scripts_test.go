@@ -429,8 +429,10 @@ func TestAddonsLoadInRuleAndRequestScripts(t *testing.T) {
 		t.Errorf("addon users = %d, want the one rule script", n)
 	}
 	// A name require already loads is not an addon's.
-	if _, ok := a.newScript(&a.addons, "lodash", ""); ok {
-		t.Error("an addon named lodash was saved")
+	for _, name := range []string{"lodash", "moment"} {
+		if _, ok := a.newScript(&a.addons, name, ""); ok {
+			t.Errorf("an addon named %s was saved", name)
+		}
 	}
 }
 

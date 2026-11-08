@@ -279,7 +279,7 @@ func (a *app) writeScript(s *scriptStore, name, text string) error {
 }
 
 const newScriptText = `// Runs on the exchanges the Script rules using it match, with the pm API.
-// import works for lodash, crypto-js, chai and your addons.
+// import works for lodash, crypto-js, moment, chai and your addons.
 
 // Change pm.request before it goes upstream:
 export function onRequest() {
@@ -522,12 +522,14 @@ func scriptSnippets(kind string) [][2]string {
 	if kind == "request" {
 		return append(shared,
 			[2]string{"Hash with crypto-js", "const CryptoJS = require(\"crypto-js\");\nconst signature = CryptoJS.HmacSHA256(pm.request.body.raw, \"${1:secret}\").toString(CryptoJS.enc.Hex);\n$0"},
-			[2]string{"Use lodash", "const _ = require(\"lodash\");\nconst ids = _.map(pm.response.json().items, \"${1:id}\");\n$0"})
+			[2]string{"Use lodash", "const _ = require(\"lodash\");\nconst ids = _.map(pm.response.json().items, \"${1:id}\");\n$0"},
+			[2]string{"Format a date with moment", "const moment = require(\"moment\");\nconst at = moment(\"${1:2024-01-31T23:30:45Z}\").format(\"${2:YYYY-MM-DD HH:mm:ss Z}\");\n$0"})
 	}
 	// Rule scripts and addons are modules: they import at the top.
 	shared = append(shared,
 		[2]string{"Import crypto-js", "import CryptoJS from \"crypto-js\";\n$0"},
 		[2]string{"Import lodash", "import _ from \"lodash\";\n$0"},
+		[2]string{"Import moment", "import moment from \"moment\";\n$0"},
 		[2]string{"Import an addon", "import { ${1:sign} } from \"${1:sign}\";\n$0"})
 	if kind == "addon" {
 		return append(shared, [2]string{"Export a function", "export function ${1:sign}(text) {\n  return text;\n}\n$0"})

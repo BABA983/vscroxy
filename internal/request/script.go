@@ -46,12 +46,20 @@ var lodashSource string
 //go:embed js/crypto-js.js
 var cryptoJSSource string
 
+// Moment 2.31.0 is the latest 2.x release in the line Postman's sandbox pins
+// (2.30.1), its unmodified minified browser build without locales (MIT, see
+// THIRD_PARTY_NOTICES.md). It reads the Go process's local time zone through
+// Date, and loads on first require.
+//
+//go:embed js/moment.min.js
+var momentSource string
+
 //go:embed js/pm.js
 var pmSource string
 
 // Libraries are the modules require loads built in; an addon cannot take
 // one of these names.
-var Libraries = []string{"chai", "lodash", "crypto-js"}
+var Libraries = []string{"chai", "lodash", "crypto-js", "moment"}
 
 // The libraries compile once; every script still gets a fresh runtime.
 var (
@@ -66,6 +74,10 @@ var (
 		return goja.MustCompile("crypto-js.js", "(function (crypto) { var module = {exports: {}}, exports = module.exports;\n"+
 			"var require = function (name) { if (name === \"crypto\") return crypto; throw new Error(\"Cannot find module \" + name); };\n"+
 			cryptoJSSource+"\nreturn module.exports; })", false)
+	})
+	momentProgram = sync.OnceValue(func() *goja.Program {
+		return goja.MustCompile("moment.min.js", "(function () { var module = {exports: {}}, exports = module.exports;\n"+
+			momentSource+"\nreturn module.exports; })()", false)
 	})
 	pmProgram = sync.OnceValue(func() *goja.Program { return goja.MustCompile("pm.js", pmSource, false) })
 )
@@ -541,6 +553,7 @@ func (run *scriptRun) host(ctx context.Context, vm *goja.Runtime, clock *budget,
 	set := func(name string, value any) { h.Set(name, value) }
 	set("ajv", func() (goja.Value, error) { return vm.RunProgram(ajvProgram()) })
 	set("lodash", func() (goja.Value, error) { return vm.RunProgram(lodashProgram()) })
+	set("moment", func() (goja.Value, error) { return vm.RunProgram(momentProgram()) })
 	set("cryptojs", func() (goja.Value, error) {
 		load, err := vm.RunProgram(cryptoJSProgram())
 		if err != nil {

@@ -446,12 +446,13 @@
 		error: function () { host.log("error", format(arguments)); },
 		clear: function () {},
 	};
-	var lodash, cryptojs, addons = {};
+	var lodash, cryptojs, moment, addons = {};
 	global.require = function (name) {
 		name = text(name);
 		if (name === "chai") return chai;
 		if (name === "lodash") return lodash || (lodash = host.lodash());
 		if (name === "crypto-js") return cryptojs || (cryptojs = host.cryptojs());
+		if (name === "moment") return moment || (moment = host.moment());
 		// An addon: the user's module, run once per script. One that requires
 		// itself while loading gets what it has exported so far, as in Node.
 		if (Object.prototype.hasOwnProperty.call(addons, name)) return addons[name].exports;
@@ -467,7 +468,7 @@
 			}
 			return module.exports;
 		}
-		throw new Error("require(\"" + name + "\") is not available: use chai, lodash, crypto-js or an addon in Tools → Scripts → Addons");
+		throw new Error("require(\"" + name + "\") is not available: use chai, lodash, crypto-js, moment or an addon in Tools → Scripts → Addons");
 	};
 	if (host.env) global.process = { env: Object.freeze(host.env) };
 	global.atob = host.atob;
