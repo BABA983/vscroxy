@@ -3,6 +3,7 @@ package uikit
 import (
 	"math"
 
+	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -20,18 +21,18 @@ type ActivityRange struct{ From, To int }
 // pointer, keyboard and Clear edits, without retaining build-scoped elements.
 func ActivityStrip(c *ui.Context, buckets []ActivityBucket, selected *ActivityRange, summary string, ticks [3]string, changed func()) ui.Element {
 	t, palette := c.Theme(), Colors(c.Theme())
-	strip := ui.Column(c).Height(52).Shrink(0).FillWidth().PaddingX(12).Label("Activity strip")
+	strip := ui.Column(c).Height(52).Shrink(0).FillWidth().PaddingX(12).Label(locales.ActivityStrip())
 	strip.Border(0, t.Border).BorderWidth(0, 0, 1, 0)
 	strip.Children(func() {
 		ui.Row(c).Height(18).Shrink(0).AlignItems(ui.Center).Children(func() {
 			ui.Text(c, summary).FontSize(TextMeta).TextColor(t.TextMuted).NoWrap().Ellipsis("…").Grow(1).MinWidth(0).Tooltip(summary)
 			if selected.To > selected.From {
-				SecondaryButton(c.Key("clear"), "Clear ×").Label("Clear activity range").Height(18).PaddingX(4).FontSize(TextMeta).
+				SecondaryButton(c.Key("clear"), locales.ClearX()).Label(locales.ClearActivityRange()).Height(18).PaddingX(4).FontSize(TextMeta).
 					OnClick(func() { *selected = ActivityRange{}; changed() })
 			}
 		})
-		plot := ui.Box(c.Key("plot")).Height(20).Shrink(0).FillWidth().Focusable().Role(ui.RoleGroup).Label("Activity time range").
-			Description("Drag to select time. Drag handles to resize. Arrows move the range; Shift+arrows resize; Escape clears.")
+		plot := ui.Box(c.Key("plot")).Height(20).Shrink(0).FillWidth().Focusable().Role(ui.RoleGroup).Label(locales.ActivityTimeRange()).
+			Description(locales.ActivityDragHelp())
 		state := ui.Local(plot, "brush", func() activityGesture { return activityGesture{} })
 		// The handle itself must survive a build, just as the gesture does.
 		bound := ui.Local(plot, "handle", func() ui.Handle { return ui.Handle{} })

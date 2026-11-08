@@ -178,7 +178,7 @@ func (a *app) captureToolbar(c *ui.Context, t *ui.Theme) {
 					a.captureConditions(c)
 				})
 			}
-			placeholder := "Search host or path, or status:>=400…"
+			placeholder := locales.SearchPlaceholder()
 			if a.searchMode == "Wildcard" {
 				placeholder = "*.example.com/v1/*"
 			} else if a.searchMode == "Regex" {
@@ -456,7 +456,7 @@ func (a *app) actions(c *ui.Context) []action {
 	if tab {
 		primary = "Focus request URL"
 	}
-	search := "Search host or path"
+	search := locales.SearchHostOrPath()
 	find := func() { a.search.Focus(c) }
 	for side := range 2 {
 		if c != nil && capturing && a.bodyText[side] != nil && a.bodyReader[side].FocusWithin(c) {

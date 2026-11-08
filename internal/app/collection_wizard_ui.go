@@ -77,8 +77,8 @@ func (a *app) collectionWizardModal(c *ui.Context, t *ui.Theme) {
 							}
 						}
 						uikit.Body(c, locales.RequestsAndExamples(n, examples))
-						uikit.Body(c, "Collection: "+cmp.Or(w.destination, w.name))
-						uikit.Body(c, "Environment: "+w.environmentLabel())
+						uikit.Body(c, locales.CollectionLabel(cmp.Or(w.destination, w.name)))
+						uikit.Body(c, locales.EnvironmentLabel(w.environmentLabel()))
 						ui.Checkbox(c, &w.generateAPI, "Also generate OpenAPI draft").FontSize(uikit.TextBody)
 						uikit.Hint(c, locales.TheApiDraftOpensIn())
 						uikit.Hint(c, locales.RequestsAndExamplesMayContain())

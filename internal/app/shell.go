@@ -77,7 +77,7 @@ func (a *app) layoutToggle(c *ui.Context) {
 	for _, l := range []struct {
 		id, label string
 		icon      *ui.SVG
-	}{{"right", "Side by side layout", sideLayoutIcon}, {"bottom", "Stacked layout", stackedLayoutIcon}} {
+	}{{"right", locales.SideBySideLayout(), sideLayoutIcon}, {"bottom", locales.StackedLayout(), stackedLayoutIcon}} {
 		b := uikit.ToolbarButton(c, l.label, l.label, w.layout == l.id).Checked(w.layout == l.id).
 			Size(uikit.HeightControl, uikit.HeightControl).Padding(0).Justify(ui.Center).
 			Children(func() { ui.Icon(c, l.icon).Size(uikit.IconInline, uikit.IconInline) })
@@ -93,16 +93,16 @@ func (a *app) layoutToggle(c *ui.Context) {
 func (a *app) proxyIndicator(c *ui.Context, t *ui.Theme) {
 	pal := uikit.Colors(t)
 	running := a.srv != nil && a.srv.Running()
-	state, dot := "Proxy stopped", t.Danger
+	state, dot := locales.ProxyStopped(), t.Danger
 	switch {
 	case running && a.recordingPaused:
-		state, dot = "Paused", pal.TextFaint
+		state, dot = locales.PausedState(), pal.TextFaint
 	case running:
-		state, dot = "Recording", t.Success
+		state, dot = locales.RecordingState(), t.Success
 	}
-	tip := "Proxy settings · the listener failed or is off"
+	tip := locales.ProxyTipOff()
 	if running {
-		tip = "Listening address · proxy settings; listening is not proof of HTTPS inspection"
+		tip = locales.ProxyTipOn()
 	}
 	ui.Row(c).Height(uikit.HeightControl).MinWidth(0).AlignItems(ui.Center).Gap(0).Padding(0, 1).
 		Radius(uikit.RadiusControl).Border(1, t.Border).Background(t.Background).Children(func() {
@@ -232,7 +232,7 @@ func (a *app) activeTools(c *ui.Context, t *ui.Theme) {
 				})
 			}
 			if scenario != "" {
-				toolChip(c, "scenario", "Scenario: "+scenario, "Manage scenario: "+scenario, layersIcon, a.openRules, func() {
+				toolChip(c, "scenario", locales.ScenarioLabel(scenario), "Manage scenario: "+scenario, layersIcon, a.openRules, func() {
 					a.selectRuleScenario("")
 					if a.ruleUI.problem != "" {
 						a.warn(locales.CouldNotDisableScenario(a.ruleUI.problem))
@@ -438,25 +438,22 @@ func (a *app) footer(c *ui.Context, t *ui.Theme) {
 			}
 			return
 		case !a.page.capture():
-			env := "No environment"
+			env := locales.NoEnvironment()
 			if a.activeEnv != "" {
-				env = a.activeEnv + " environment"
+				env = locales.EnvironmentNamed(a.activeEnv)
 			}
-			counts := fmt.Sprintf("%d requests", len(a.requests))
-			if len(a.requests) == 1 {
-				counts = "1 request"
-			}
+			counts := locales.RequestSummary(len(a.requests))
 			text(counts)
 			ui.Spacer(c)
 			text(env)
 			if key := sendShortcut(); key != "" {
-				text(key + "  Send")
+				text(key + "  " + locales.Send())
 			}
 			return
 		}
-		counts := fmt.Sprintf("%d captured · %d shown", len(a.flows), len(a.visible))
+		counts := locales.CaptureCounts(len(a.flows), len(a.visible))
 		if n := a.chosen.Len(); n > 0 {
-			counts += fmt.Sprintf(" · %d selected", n)
+			counts += locales.SelectedSuffix(n)
 		}
 		text(counts)
 		if a.filtersActive() {
@@ -477,13 +474,13 @@ func (a *app) footer(c *ui.Context, t *ui.Theme) {
 			return
 		}
 		newRows := a.newRows
-		label, tip := "Auto-follow on · latest ↓", "The list follows new traffic. Click to jump to the newest request."
+		label, tip := locales.AutoFollowOn(), locales.AutoFollowOnTip()
 		if !view.list.AtEnd() {
-			label = "Auto-follow off · latest ↓"
-			tip = "The list stays where you are reading. Click to jump to the newest request and follow again."
+			label = locales.AutoFollowOff()
+			tip = locales.AutoFollowOffTip()
 		}
 		if newRows > 0 {
-			label = fmt.Sprintf("Auto-follow off · %d new ↓", newRows)
+			label = locales.AutoFollowNew(newRows)
 		}
 		if uikit.ToolbarButton(c, locales.AutoFollow(), tip, false).Height(uikit.HeightCompact).Padding(0, t.Space(1)).TextColor(t.Text).Children(func() {
 			if newRows > 0 {

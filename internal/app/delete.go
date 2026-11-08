@@ -1,7 +1,6 @@
 package app
 
 import (
-	"fmt"
 	"github.com/baba983/vscroxy/internal/uikit"
 	"slices"
 	"strings"
@@ -18,6 +17,7 @@ type deletion struct {
 	key, path string
 	session   string // a saved session's key
 	name      string
+	kind      string
 	detail    string
 }
 
@@ -28,7 +28,7 @@ func within(collection, path string) bool {
 
 // confirmDeleteRequest asks before deleting the saved request with key.
 func (a *app) confirmDeleteRequest(key, name string) {
-	a.deleting = deletion{open: true, key: key, name: "request “" + name + "”",
+	a.deleting = deletion{open: true, key: key, name: locales.RequestQuoted(name), kind: locales.RequestNoun(),
 		detail: "Its file and examples are removed from the library."}
 }
 
@@ -41,12 +41,11 @@ func (a *app) confirmDeleteFolder(path string) {
 			n++
 		}
 	}
-	kind := "collection"
+	name, kind := locales.CollectionQuoted(path), locales.CollectionNoun()
 	if strings.Contains(path, "/") {
-		kind = "folder"
+		name, kind = locales.FolderQuoted(path), locales.FolderNoun()
 	}
-	a.deleting = deletion{open: true, path: path, name: kind + " “" + path + "”",
-		detail: fmt.Sprintf("Its %d %s, folders and settings are removed from the library.", n, plural(n, "request", "requests"))}
+	a.deleting = deletion{open: true, path: path, name: name, kind: kind, detail: locales.DeleteDetail(n)}
 }
 
 // deleteAssets removes what the confirmation names. Open tabs of deleted
@@ -99,13 +98,13 @@ func (a *app) deleteModal(c *ui.Context, t *ui.Theme) {
 	}
 	uikit.Modal(c, &del.open, func() {
 		uikit.DialogColumn(c, uikit.DialogSmall).Children(func() {
-			uikit.DialogTitle(c, "Delete "+del.name+"?")
-			uikit.Hint(c, del.detail+" This cannot be undone.")
+			uikit.DialogTitle(c, locales.DeleteConfirm(del.name))
+			uikit.Hint(c, locales.DeleteCannotBeUndone(del.detail))
 			uikit.DialogFooter(c).Children(func() {
 				if uikit.SecondaryButton(c, locales.Cancel()).Clicked() {
 					del.open = false
 				}
-				if uikit.PrimaryButton(c, "Delete "+strings.Fields(del.name)[0]).Clicked() {
+				if uikit.PrimaryButton(c, locales.DeleteKind(del.kind)).Clicked() {
 					deleteAll := a.deleteAssets
 					if del.session != "" {
 						deleteAll = func(del deletion) error { return a.sessions.remove(del.session) }
@@ -113,7 +112,7 @@ func (a *app) deleteModal(c *ui.Context, t *ui.Theme) {
 					if err := deleteAll(*del); err != nil {
 						a.fail(locales.Delete(), err)
 					} else {
-						a.done(locales.DeletedName(del.name))
+						a.done(locales.DeletedQuoted(del.name))
 					}
 					del.open = false
 				}

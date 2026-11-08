@@ -59,12 +59,43 @@ func (a *app) languageSettings(c *ui.Context) {
 // setLanguage shows tag at once and keeps it for the next launches.
 func (a *app) setLanguage(tag string) {
 	a.language = tag
-	a.saved.Language = tag
 	a.lastSave = time.Time{} // an explicit choice is not debounced
 	if err := a.persistSettings(); err != nil {
 		a.fail(locales.LanguageNotSaved(), err)
 	}
 	mygo.App.SetLocale(tag)
+}
+
+// stateLabel names a protocol session's state in the app's language. The
+// state itself stays as the session records it, so comparisons keep working.
+func stateLabel(state string) string {
+	switch state {
+	case "Not connected":
+		return locales.NotConnected()
+	case "Connected":
+		return locales.Connected()
+	case "Connecting":
+		return locales.Connecting()
+	case "Disconnecting":
+		return locales.Disconnecting()
+	case "Disconnected":
+		return locales.Disconnected()
+	case "Reconnecting":
+		return locales.Reconnecting()
+	case "Failed":
+		return locales.Failed()
+	case "Closed":
+		return locales.Closed()
+	case "Stopped":
+		return locales.Stopped()
+	case "Starting":
+		return locales.Starting()
+	case "Paused":
+		return locales.PausedState()
+	case "Active":
+		return locales.Active()
+	}
+	return state
 }
 
 // watchLocale redraws what a language change does not redraw by itself: the

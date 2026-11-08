@@ -216,7 +216,7 @@ func (a *app) hostsLabel() string {
 	on := a.profiles.set.On()
 	switch len(on) {
 	case 0:
-		return "Off"
+		return locales.HostsOff()
 	case 1:
 		return on[0]
 	}

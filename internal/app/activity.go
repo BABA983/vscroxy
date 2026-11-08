@@ -1,7 +1,7 @@
 package app
 
 import (
-	"fmt"
+	"github.com/baba983/vscroxy/locales"
 	"time"
 
 	"github.com/baba983/vscroxy/internal/uikit"
@@ -93,9 +93,9 @@ func (a *app) countActivity(start, end time.Time) (buckets [activityBuckets]uiki
 }
 
 func (a *app) drawActivity(c *ui.Context, end, start time.Time, buckets [activityBuckets]uikit.ActivityBucket, total, selected int) {
-	summary := fmt.Sprintf("Last 5 min · %d %s", total, plural(total, "request", "requests"))
+	summary := locales.ActivitySummary(5, total)
 	if a.activity.active() {
-		summary = fmt.Sprintf("%s · %d %s", a.activity.label(), selected, plural(selected, "request", "requests"))
+		summary = locales.ActivitySelected(a.activity.label(), selected)
 	}
 	ticks := [3]string{start.Format("15:04:05"), start.Add(activitySpan / 2).Format("15:04:05"), end.Format("15:04:05")}
 	key := 0

@@ -2,7 +2,6 @@ package app
 
 import (
 	"cmp"
-	"fmt"
 	"net/url"
 	"slices"
 	"strings"
@@ -148,9 +147,9 @@ func (a *app) capturedRequestMatch(c *ui.Context, t *ui.Theme, f flow) {
 		a.matchUI.open = false
 		return
 	}
-	label := "Matches: " + matches[0].Name
+	label := locales.MatchesPrefix(matches[0].Name)
 	if len(matches) > 1 {
-		label = fmt.Sprintf("Matches: %d requests", len(matches))
+		label = locales.MatchesCount(len(matches))
 	}
 	anchor := ui.Link(c.Key("captured-request-match"), label, "").FontSize(uikit.TextMeta).
 		Bind(&a.matchUI.anchor).SingleLine().MinWidth(0).Tooltip(locales.SavedRequestsMatchingThisMethod())
@@ -180,7 +179,7 @@ func (a *app) capturedRequestMatch(c *ui.Context, t *ui.Theme, f flow) {
 				for _, r := range matches {
 					ui.Column(c.Key(r.key())).Gap(t.Space(1)).Children(func() {
 						uikit.Body(c, r.Name)
-						uikit.Meta(c, "Collection: "+cmp.Or(r.Collection, "Unfiled")).SingleLine().Tooltip(r.Collection)
+						uikit.Meta(c, locales.CollectionPath(cmp.Or(r.Collection, locales.Unfiled()))).SingleLine().Tooltip(r.Collection)
 						uikit.Mono(c, cmp.Or(r.Method, "GET")+" "+r.URL).SingleLine().Tooltip(r.URL)
 						ui.Row(c).Gap(t.Space(2)).Wrap().Children(func() {
 							uikit.SecondaryButton(c, locales.OpenRequest()).Label("Open request: " + r.Name).OnClick(func() {

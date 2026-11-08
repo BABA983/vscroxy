@@ -3,6 +3,7 @@ package uikit
 import (
 	"fmt"
 
+	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo/ui"
 	"github.com/oneo-me/onevra/source/icons/lucide"
 )
@@ -189,14 +190,14 @@ type Timing struct {
 func ResponseHeadline(c *ui.Context, status string, ink ui.Color, duration, detail string, timing Timing) ui.Element {
 	t := c.Theme()
 	return ui.Column(c).Height(48).Shrink(0).Padding(t.Space(1.5), t.Space(3)).
-		Justify(ui.Center).Label("Response result").
+		Justify(ui.Center).Label(locales.ResponseResult()).
 		Border(0, t.Border).BorderWidth(0, 0, 1, 0).Children(func() {
 		ui.Text(c, status).Font(FontMono).FontSize(TextHeadline).FixedLineHeight(22).
 			TextColor(ink).SingleLine().Tooltip(status)
 		ui.Row(c).MinWidth(0).Children(func() {
 			d := Meta(c, duration).Font(FontMono).FontFeatures("tnum").FixedLineHeight(14).Shrink(0)
 			if len(timing.Phases) > 0 {
-				d.Description("Hover for the time of each phase")
+				d.Description(locales.TimingHoverHelp())
 				ui.TooltipBase(c, d, func(tip ui.Element) {
 					tip.AttachTo(d, ui.AnchorBottomStart, ui.AnchorTopStart).Margin(t.Space(1.5), 0, 0, 0)
 					timingCard(c, tip, duration, timing)
@@ -472,7 +473,7 @@ func Toasts(c *ui.Context) {
 							b.Children(func() { ui.Text(c, toast.Action).FontSize(TextBody) })
 						}
 					})
-					close := parts.CloseButton().Label("Dismiss notification").Tooltip("Dismiss notification").
+					close := parts.CloseButton().Label(locales.DismissNotification()).Tooltip(locales.DismissNotification()).
 						Size(HeightCompact, HeightCompact).Radius(RadiusControl).Center().TextColor(t.TextMuted)
 					if close.Pressed() {
 						close.Background(t.SurfacePressed)

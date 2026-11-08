@@ -119,7 +119,7 @@ func (a *app) socketIOEditor(c *ui.Context, t *ui.Theme, d *requestDocument) {
 	s := u.session.snapshot()
 	ui.Column(c).Fill().Children(func() {
 		ui.Row(c).Height(uikit.HeightTabs).Padding(0, t.Space(3)).Children(func() {
-			uikit.Tabs(c, &u.tab, "Socket.IO editor", locales.Event(), locales.Attachments(), locales.Connection(), locales.Headers(), locales.HttpAuth()).Grow(1)
+			uikit.Tabs(c, &u.tab, locales.SocketIOEditorTabPrefix(), locales.Event(), locales.Attachments(), locales.Connection(), locales.Headers(), locales.HttpAuth()).Grow(1)
 		})
 		if u.problem != "" {
 			ui.Text(c, u.problem).TextColor(t.Danger).FontSize(uikit.TextMeta).MaxHeight(55).Padding(0, t.Space(3))
@@ -169,7 +169,7 @@ func (a *app) socketIOResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 	ui.Column(c).Fill().Children(func() {
 		ui.Row(c).Height(uikit.HeightTabs).Padding(0, t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 			ui.Text(c, locales.SocketIoMessages()).FontSize(uikit.TextBody).Grow(1)
-			uikit.Meta(c, s.state).SingleLine()
+			uikit.Meta(c, stateLabel(s.state)).SingleLine()
 		})
 		if u.session == nil {
 			uikit.EmptyState(c, locales.NoSocketIoConnectionYet(), locales.SetTheEndpointNamespaceAnd(), nil)

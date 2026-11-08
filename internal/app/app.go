@@ -2063,9 +2063,9 @@ func (a *app) table(c *ui.Context) {
 		if len(a.flows) > 0 || a.searchProblem != "" {
 			note, failure := a.views.status()
 			title := "No matching requests"
-			hint := fmt.Sprintf("%d captured requests are hidden by this view's search or filters.", len(a.flows))
+			hint := locales.HiddenByFilters(len(a.flows))
 			if note != "" {
-				title, hint = "Searching captured bodies…", "Results are not final until the body search finishes."
+				title, hint = locales.SearchingBodiesTitle(), locales.ResultsNotFinal()
 				if failure {
 					title, hint = "No matches in searchable traffic", "Some bodies could not be searched in full; matches may be missing."
 				}

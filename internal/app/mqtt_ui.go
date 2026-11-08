@@ -262,7 +262,7 @@ func (a *app) mqttEditor(c *ui.Context, t *ui.Theme, d *requestDocument) {
 	u := d.mqttState()
 	ui.Column(c).Fill().Children(func() {
 		ui.Row(c).Height(uikit.HeightTabs).Padding(0, t.Space(3)).Children(func() {
-			uikit.Tabs(c, &u.tab, "MQTT editor", locales.Connection(), locales.Subscriptions(), locales.Publish(), locales.LastWill()).Grow(1)
+			uikit.Tabs(c, &u.tab, locales.MqttEditorTabPrefix(), locales.Connection(), locales.Subscriptions(), locales.Publish(), locales.LastWill()).Grow(1)
 		})
 		if u.problem != "" {
 			ui.Text(c, u.problem).TextColor(t.Danger).FontSize(uikit.TextMeta).MaxHeight(55).Padding(0, t.Space(3))
@@ -399,8 +399,8 @@ func (a *app) mqttSubscriptionsTab(c *ui.Context, t *ui.Theme, d *requestDocumen
 		if uikit.SecondaryButton(c, locales.AddTopic()).Clicked() {
 			u.appendTopic(c1)
 		}
-		a.actionButton(c, "request.mqtt-subscribe", "Subscribe listed")
-		a.actionButton(c, "request.mqtt-unsubscribe", "Unsubscribe all")
+		a.actionButton(c, "request.mqtt-subscribe", locales.SubscribeListed())
+		a.actionButton(c, "request.mqtt-unsubscribe", locales.UnsubscribeAll())
 		uikit.Meta(c, locales.ActiveSubscriptions(len(s.subscriptions))).Grow(1)
 	})
 	uikit.Hint(c, locales.TopicFiltersAcceptForOne())
@@ -414,12 +414,12 @@ func (a *app) mqttSubscriptionsTab(c *ui.Context, t *ui.Theme, d *requestDocumen
 			row := &u.topicRows[i]
 			ui.Column(c).Gap(t.Space(1)).Padding(t.Space(1), t.Space(2)).Radius(uikit.RadiusControl).Background(t.Surface).Children(func() {
 				ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-					a.variableInput(c, fmt.Sprintf("mqtt-topic-%d", i), &topic.Name, "Topic filter", d.composeCollection).Grow(1).MinWidth(0)
+					a.variableInput(c, fmt.Sprintf("mqtt-topic-%d", i), &topic.Name, locales.TopicFilter(), d.composeCollection).Grow(1).MinWidth(0)
 					if uikit.Select(c, &row.qos, []string{"0", "1", "2"}).Label(locales.TopicQos()).Width(64).Changed() {
 						topic.QoS = mqttQoS(row.qos)
 					}
 					if i < len(u.topicSubscribe) {
-						if ui.Checkbox(c, &u.topicSubscribe[i], "On connect").Changed() {
+						if ui.Checkbox(c, &u.topicSubscribe[i], locales.OnConnect()).Changed() {
 							value := u.topicSubscribe[i]
 							topic.Subscribe = &value
 						}
@@ -429,8 +429,8 @@ func (a *app) mqttSubscriptionsTab(c *ui.Context, t *ui.Theme, d *requestDocumen
 					}
 				})
 				ui.Row(c).Gap(t.Space(3)).AlignItems(ui.Center).Children(func() {
-					ui.Checkbox(c, &topic.NoLocal, "No local")
-					ui.Checkbox(c, &topic.RetainAsPublished, "Retain as published")
+					ui.Checkbox(c, &topic.NoLocal, locales.NoLocal())
+					ui.Checkbox(c, &topic.RetainAsPublished, locales.RetainAsPublished())
 					if uikit.Select(c, &row.retainHandling, []string{"0", "1", "2"}).Label(locales.RetainHandling()).Width(64).Changed() {
 						topic.RetainHandling = mqttQoS(row.retainHandling)
 					}
@@ -640,7 +640,7 @@ func (a *app) mqttResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 	ui.Column(c).Fill().Children(func() {
 		ui.Row(c).Height(uikit.HeightTabs).Padding(0, t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 			ui.Text(c, locales.MqttMessages()).FontSize(uikit.TextBody).Grow(1)
-			uikit.Meta(c, s.state).SingleLine()
+			uikit.Meta(c, stateLabel(s.state)).SingleLine()
 		})
 		if u.session == nil {
 			uikit.EmptyState(c, locales.NoMqttConnectionYet(), locales.SetTheBrokerUrlAnd(), nil)

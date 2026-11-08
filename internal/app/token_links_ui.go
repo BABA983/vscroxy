@@ -131,9 +131,9 @@ func (a *app) tokenLinksModal(c *ui.Context, t *ui.Theme) {
 				}
 				if p := w.plan; p != nil {
 					uikit.Body(c, locales.ReviewGeneratedChanges()).FontWeight(600)
-					uikit.Body(c, "Source request: "+p.Source)
-					uikit.Body(c, "Consumer requests: "+strings.Join(p.Consumers, ", ")).Wrap()
-					uikit.Body(c, "Environment: "+p.Environment+" · new Current: "+p.Variable)
+					uikit.Body(c, locales.SourceRequestLabel(p.Source))
+					uikit.Body(c, locales.ConsumerRequestsLabel(strings.Join(p.Consumers, ", "))).Wrap()
+					uikit.Body(c, locales.EnvironmentNewCurrent(p.Environment, p.Variable))
 					uikit.Hint(c, locales.ExistingScriptsAreKeptClear())
 					uikit.Hint(c, locales.NativeSourceBindingClearsThe())
 					uikit.Hint(c, locales.CurrentIsPlaintextLocalStorage())
@@ -157,7 +157,7 @@ func (a *app) tokenLinksModal(c *ui.Context, t *ui.Theme) {
 						for j, id := range link.Consumers {
 							ids[j] = "#" + strconv.Itoa(id)
 						}
-						uikit.Body(c, "Consumers: "+strings.Join(ids, ", ")).Wrap()
+						uikit.Body(c, locales.ConsumersLabel(strings.Join(ids, ", "))).Wrap()
 						uikit.Meta(c, locales.ExactValueMatchTokenCapture())
 						if len(w.analysis.Links) > 1 {
 							uikit.SecondaryButton(c, locales.SelectTokenLink(i+1)).Disabled(w.active == i).OnClick(func() { w.active = i })

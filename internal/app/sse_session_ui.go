@@ -48,7 +48,7 @@ func (a *app) sseModal(c *ui.Context, t *ui.Theme) {
 	_, h := c.Size()
 	if uikit.Modal(c, &s.open, func() {
 		uikit.DialogColumn(c, uikit.DialogLarge).Height(h - 100).Children(func() {
-			uikit.DialogTitle(c, "SSE session · "+state)
+			uikit.DialogTitle(c, locales.SseSessionState(stateLabel(state)))
 			ui.Scroll(c).MaxHeight(240).MinHeight(0).Shrink(1).Gap(t.Space(2)).Padding(0, t.Space(1)).Children(func() {
 				uikit.Hint(c, locales.GetEventStreamsThroughThe())
 				ui.Row(c).Gap(t.Space(2)).Children(func() {

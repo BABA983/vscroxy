@@ -109,21 +109,21 @@ func (a *app) loadRuleBody() {
 	var data []byte
 	if target == "" {
 		e.bodyFresh = true
-		e.bodyNote = "Saving creates a response file in vscroxy’s mocks folder."
+		e.bodyNote = locales.SavingCreatesMock()
 	} else if info, err := os.Stat(target); err == nil && info.IsDir() {
 		e.bodyDir = true
 		return
 	} else if errors.Is(err, os.ErrNotExist) {
 		e.bodyFresh = true
-		e.bodyNote = "Saving creates this file."
+		e.bodyNote = locales.SavingCreatesFile()
 	} else if err != nil {
-		e.bodyNote = "Cannot read the file: " + err.Error()
+		e.bodyNote = locales.CannotReadFile(err.Error())
 		return
 	} else if info.Size() > 8<<20 {
-		e.bodyNote = "Larger than 8 MiB; edit it outside vscroxy."
+		e.bodyNote = locales.LargerThan8Mib()
 		return
 	} else if data, err = os.ReadFile(target); err != nil {
-		e.bodyNote = "Cannot read the file: " + err.Error()
+		e.bodyNote = locales.CannotReadFile(err.Error())
 		return
 	} else if !utf8.Valid(data) {
 		e.bodyNote = "Binary content; edit it outside vscroxy."
@@ -448,7 +448,7 @@ func (a *app) rulesPage(c *ui.Context, t *ui.Theme, top float32, active bool) {
 	if !e.open && len(rows) > 0 {
 		a.editRule(rows[0], a.rules[rows[0]])
 	}
-	title, kind := "Rules", capture.RuleMapRemote
+	title, kind := locales.Rules(), capture.RuleMapRemote
 	if mocks {
 		title, kind = "Mocks", capture.RuleMapLocal
 	}
@@ -486,7 +486,7 @@ func (a *app) rulesPage(c *ui.Context, t *ui.Theme, top float32, active bool) {
 			ui.TextArea(c, &e.testBody).Label(locales.TestGraphqlBody()).Placeholder(`{"query":"query Search { items { id } }"}`).Height(80).FillWidth().Font(uikit.FontMono).FontSize(uikit.TextMeta).
 				Tooltip(locales.PostUsesJsonByDefault())
 			if testing && e.testProblem != "" {
-				uikit.Hint(c, "GraphQL not verified: "+e.testProblem)
+				uikit.Hint(c, locales.GraphqlNotVerified(e.testProblem))
 			}
 		}
 		switch {
@@ -558,7 +558,7 @@ func (a *app) ruleScenario(c *ui.Context) {
 	active := capture.ActiveScenario(a.rules)
 	current := "No scenario"
 	if active != "" {
-		current = "Scenario: " + active
+		current = locales.ScenarioLabel(active)
 	}
 	uikit.MenuSelect(c, current, func(m *ui.Menu) {
 		if m.Item("No scenario").Radio(active == "").Chosen() {
@@ -713,9 +713,9 @@ func (a *app) ruleDetail(c *ui.Context, t *ui.Theme) {
 					mode := max(slices.Index(modes, e.draft.MatchMode), 0)
 					uikit.Segmented(c, &mode, locales.Contains(), locales.Wildcard(), locales.Regex()).Label(locales.UrlMatch())
 					e.draft.MatchMode = modes[mode]
-					uikit.Input(c, &e.draft.Match).Label(locales.MatchUrl()).Placeholder(urlPlaceholders[mode]).Font(uikit.FontMono).Grow(1)
+					uikit.Input(c, &e.draft.Match).Label(locales.MatchUrl()).Placeholder(urlPlaceholders[mode]).Font(uikit.FontMono).Grow(1).MinWidth(0)
 				})
-			}).Description(urlHelp[max(slices.Index([]string{rules.URLContains, rules.URLWildcard, rules.URLRegex}, e.draft.MatchMode), 0)])
+			}).Description(urlHelp()[max(slices.Index([]string{rules.URLContains, rules.URLWildcard, rules.URLRegex}, e.draft.MatchMode), 0)])
 			ui.Field(c, locales.Apps(), func() {
 				uikit.Input(c, &e.apps).Label(locales.MatchApps()).Placeholder(locales.Any()).FillWidth()
 			}).Description(locales.CommaSeparatedAppNamesMatches())
@@ -845,10 +845,9 @@ func (a *app) ruleDetail(c *ui.Context, t *ui.Theme) {
 }
 
 var urlPlaceholders = []string{"api.example.com/v1/", "*.example.com/v1/users/*", `^https://api\.example\.com/v1/users/\d+$`}
-var urlHelp = []string{
-	"A literal part of the full URL.",
-	"The whole URL: * is any text, ? one character; the scheme may be left out.",
-	"A Go regular expression found anywhere in the full URL.",
+
+func urlHelp() []string {
+	return []string{locales.UrlLiteralHelp(), locales.UrlWildcardHelp(), locales.UrlRegexHelp()}
 }
 
 // ruleSummary is what a rule matches, in one line.

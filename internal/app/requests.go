@@ -688,7 +688,7 @@ func (a *app) requestDocumentActions(c *ui.Context, t *ui.Theme, d *requestDocum
 				a.apiChoice, a.page = d.sourceAPI, pageAPI
 			}
 		}
-		a.actionButton(c, "request.save", "Save")
+		a.actionButton(c, "request.save", locales.Save())
 		uikit.MoreMenu(c, locales.RequestOptions(), func(m *ui.Menu) { actionMenu(m, a.documentActions(c, d)) }).Height(uikit.HeightControl).FontSize(uikit.TextTitle)
 	})
 }
@@ -922,14 +922,14 @@ func (a *app) requestBar(c *ui.Context, t *ui.Theme, d *requestDocument, more fu
 				})
 			}
 		})
-		sendLabel := "Send"
+		sendLabel := locales.Send()
 		if d.composeWaiting {
-			sendLabel = "Sending…"
+			sendLabel = locales.Sending()
 		}
 		if d.protocol == "Socket.IO" || d.protocol == "MQTT" || d.protocol == "MCP" {
-			sendLabel = "Connect"
+			sendLabel = locales.Connect()
 			if d.composeWaiting {
-				sendLabel = "Active"
+				sendLabel = locales.Active()
 			}
 		}
 		// A capture's inspector beside the list keeps its width for the URL:
@@ -1007,9 +1007,9 @@ func (a *app) requestEditor(c *ui.Context, t *ui.Theme, d *requestDocument, orig
 		a.mcpEditor(c, t, d)
 		return
 	}
-	labels := []string{"Params", "Headers", "Auth", "Body", "Scripts", "Checks", "Examples", "Docs", "Settings"}
+	labels := []string{locales.Params(), locales.Headers(), locales.Auth(), locales.Body(), locales.Scripts(), locales.Checks(), locales.Examples(), locales.Docs(), locales.Settings()}
 	if original != nil {
-		labels = append(labels, "Original")
+		labels = append(labels, locales.OriginalTab())
 	} else if d.composeTab == composeTabOriginal {
 		d.composeTab = composeTabParams
 	}
@@ -1019,12 +1019,12 @@ func (a *app) requestEditor(c *ui.Context, t *ui.Theme, d *requestDocument, orig
 	bodyTools := func() {
 		uikit.Select(c, &d.bodyMode, []string{"Raw", "URL encoded", "Multipart", "Binary", "GraphQL"}).Label(locales.RequestBodyType()).Width(132).FontSize(uikit.TextMeta)
 		text, seen := &d.composeBody, &d.bodyFor
-		formatLabel := "Format body"
-		formatHelp := "Indent the JSON text without expanding variables"
+		formatLabel := locales.FormatBody()
+		formatHelp := locales.FormatBodyHelp()
 		canFormat := d.bodyMode == "Raw"
 		if d.bodyMode == "GraphQL" && d.graphqlTab == 1 {
 			text, seen = &d.graphql.Variables, &d.varsFor
-			formatLabel, canFormat = "Format GraphQL variables", true
+			formatLabel, canFormat = locales.FormatGraphqlVariables(), true
 		}
 		formatted, isJSON := indentJSON(*text)
 		query := d.bodyMode == "GraphQL" && d.graphqlTab == 0
@@ -1086,7 +1086,7 @@ func (a *app) requestEditor(c *ui.Context, t *ui.Theme, d *requestDocument, orig
 			counts[composeTabChecks], counts[composeTabExamples] = fmt.Sprint(n), fmt.Sprint(len(d.examples))
 			uikit.TabStrip(c, func() {
 				if original == nil {
-					uikit.CountedTabs(c, &d.composeTab, "Request editor", labels, counts)
+					uikit.CountedTabs(c, &d.composeTab, locales.RequestEditorTabPrefix(), labels, counts)
 					return
 				}
 				// A capture reads first: Original leads its tabs, so the tab
@@ -1094,7 +1094,7 @@ func (a *app) requestEditor(c *ui.Context, t *ui.Theme, d *requestDocument, orig
 				// order shown.
 				n := len(labels)
 				shown := (d.composeTab + 1) % n
-				uikit.CountedTabs(c, &shown, "Request editor", slices.Concat(labels[n-1:], labels[:n-1]), slices.Concat(counts[n-1:], counts[:n-1]))
+				uikit.CountedTabs(c, &shown, locales.RequestEditorTabPrefix(), slices.Concat(labels[n-1:], labels[:n-1]), slices.Concat(counts[n-1:], counts[:n-1]))
 				d.composeTab = (shown + n - 1) % n
 			}).Grow(1).FillHeight()
 			if wide && d.composeTab == composeTabBody {
@@ -1195,7 +1195,7 @@ func (a *app) requestResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 		ui.Row(c).Height(uikit.HeightTabs).Padding(0, t.Space(2)).Gap(t.Space(2)).AlignItems(ui.Center).
 			Border(0, t.Border).BorderWidth(0, 0, 1, 0).Children(func() {
 			if !d.comparing && (d.response != nil || len(d.composeReplies) > 0 || len(d.console) > 0) {
-				labels := []string{"Body", "Headers", "Cookies", "Timing", "Checks", "Console"}
+				labels := []string{locales.Body(), locales.Headers(), locales.Cookies2(), locales.TimingTab(), locales.Checks(), locales.Console()}
 				counts := make([]string, len(labels))
 				if r := d.response; r != nil {
 					n := 0
@@ -1402,7 +1402,7 @@ func (a *app) responseBody(c *ui.Context, t *ui.Theme, d *requestDocument) {
 					ui.Text(c, d.composeResult).FontSize(uikit.TextBody).TextColor(t.Text).Selectable().FillWidth()
 					uikit.Meta(c, locales.EditTheDraftAndSend())
 				} else {
-					uikit.Hint(c, cmp.Or(d.composeResult, "Send a request to see its response"))
+					uikit.Hint(c, cmp.Or(d.composeResult, locales.SendToSeeResponse()))
 					uikit.Meta(c, locales.TheExchangeWillAlsoAppear())
 				}
 				if d.composeWaiting || d.sendOutcome == "Timed out" {

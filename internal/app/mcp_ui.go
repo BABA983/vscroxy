@@ -249,7 +249,7 @@ func (a *app) mcpEditor(c *ui.Context, t *ui.Theme, d *requestDocument) {
 	s := u.session.snapshot()
 	ui.Column(c).Fill().Children(func() {
 		ui.Row(c).Height(uikit.HeightTabs).Padding(0, t.Space(3)).Children(func() {
-			uikit.Tabs(c, &u.tab, "MCP editor", locales.Connection(), locales.Tools(), locales.Resources(), locales.Prompts(), locales.Headers(), locales.Auth()).Grow(1)
+			uikit.Tabs(c, &u.tab, locales.McpEditorTabPrefix(), locales.Connection(), locales.Tools(), locales.Resources(), locales.Prompts(), locales.Headers(), locales.Auth()).Grow(1)
 		})
 		if u.problem != "" {
 			ui.Text(c, u.problem).TextColor(t.Danger).FontSize(uikit.TextMeta).MaxHeight(55).Padding(0, t.Space(3))
@@ -528,7 +528,7 @@ func (a *app) mcpResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 			if s.busy {
 				a.actionButton(c, "request.mcp-cancel", "Cancel request")
 			}
-			state := s.state
+			state := stateLabel(s.state)
 			if s.connected && s.server.Name != "" {
 				state += " · " + cmp.Or(s.server.Title, s.server.Name)
 			}
@@ -662,11 +662,11 @@ func (a *app) mcpResult(c *ui.Context, t *ui.Theme, u *mcpDocument, s mcpSnapsho
 					ui.Image(c, u.resultBmp[i]).MaxWidth(200).MaxHeight(120)
 				case block.Kind == "image" || block.Kind == "audio" || block.Kind == "blob":
 					if i < len(u.resultErr) && u.resultErr[i] != "" {
-						uikit.Hint(c, "Cannot decode "+block.Kind+": "+u.resultErr[i])
+						uikit.Hint(c, locales.CannotDecodeKind(block.Kind, u.resultErr[i]))
 					} else if len(block.Data) == 0 {
-						uikit.Hint(c, "The server's "+block.Kind+" data was omitted because it exceeds the 1 MiB media limit.")
+						uikit.Hint(c, locales.MediaLimitOmitted(block.Kind))
 					} else if block.Kind == "image" && u.imageJob != nil {
-						uikit.Hint(c, "Decoding "+block.Kind+"…")
+						uikit.Hint(c, locales.DecodingKind(block.Kind))
 					} else {
 						uikit.Hint(c, locales.BlockData(block.Kind, len(block.Data)))
 						ui.Text(c, base64Preview(block.Data)).Font(uikit.FontMono).FontSize(uikit.TextMeta)

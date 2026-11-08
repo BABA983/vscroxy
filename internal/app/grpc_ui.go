@@ -253,7 +253,7 @@ func (a *app) grpcEditor(c *ui.Context, t *ui.Theme, d *requestDocument) {
 	}
 	ui.Column(c).Fill().Children(func() {
 		ui.Row(c).Height(uikit.HeightTabs).Padding(0, t.Space(3)).Gap(t.Space(2)).Children(func() {
-			uikit.Tabs(c, &g.tab, "gRPC editor", locales.Message(), locales.Metadata(), locales.Auth(), locales.Schema2()).Grow(1)
+			uikit.Tabs(c, &g.tab, locales.GrpcEditorTabPrefix(), locales.Message(), locales.Metadata(), locales.Auth(), locales.Schema2()).Grow(1)
 		})
 		ui.Row(c).Padding(t.Space(2), t.Space(3)).Gap(t.Space(2)).Children(func() {
 			var methods []string
@@ -354,14 +354,14 @@ func (a *app) grpcResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 	ui.Column(c).Fill().Children(func() {
 		ui.Row(c).Height(uikit.HeightTabs).Padding(0, t.Space(3)).Gap(t.Space(2)).Children(func() {
 			uikit.Tabs(c, &g.responseTab, "gRPC response", locales.MessagesTab(), locales.Metadata(), locales.Status()).Grow(1)
-			uikit.Meta(c, s.state).SingleLine()
+			uikit.Meta(c, stateLabel(s.state)).SingleLine()
 		})
 		if g.session == nil {
 			uikit.EmptyState(c, locales.NoGrpcCallYet(), locales.LoadASchemaSelectA(), nil)
 			return
 		}
 		if g.responseTab != 0 {
-			text := s.state + "\n" + s.problem + "\n\n" + s.details
+			text := stateLabel(s.state) + "\n" + s.problem + "\n\n" + s.details
 			if g.responseTab == 1 {
 				text = "Initial metadata\n" + grpcMetadataText(s.header) + "\nFinal trailers\n" + grpcMetadataText(s.trailer)
 			}

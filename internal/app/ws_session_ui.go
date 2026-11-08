@@ -66,7 +66,7 @@ func (a *app) socketModal(c *ui.Context, t *ui.Theme) {
 	_, h := c.Size()
 	if uikit.Modal(c, &s.open, func() {
 		uikit.DialogColumn(c, uikit.DialogLarge).Height(h - 100).Children(func() {
-			uikit.DialogTitle(c, "WebSocket session · "+state)
+			uikit.DialogTitle(c, locales.WebsocketSessionState(stateLabel(state)))
 			ui.Scroll(c).MaxHeight(260).MinHeight(0).Shrink(1).Gap(t.Space(2)).Padding(0, t.Space(1)).Children(func() {
 				uikit.Hint(c, locales.ConnectStartsAFreshTimeline())
 				ui.Row(c).Gap(t.Space(2)).Children(func() {

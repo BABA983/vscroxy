@@ -320,7 +320,7 @@ func (a *app) clientSetupExamples(c *ui.Context, t *ui.Theme) {
 	})
 	ui.Scroll(c).MaxHeight(scrollHeight).MinHeight(0).Gap(t.Space(3)).Padding(0, t.Space(2), 0, 0).Children(func() {
 		addr := p.Addr
-		uikit.Body(c, "Proxy listener: "+cmp.Or(addr, "not running"))
+		uikit.Body(c, locales.ProxyListener(cmp.Or(addr, locales.NotRunning())))
 		uikit.Meta(c, locales.TheExampleTrustsOnlyThe())
 		example := clientExample(s.runtime, addr, p.CAPath, s.url)
 		if uikit.SecondaryButton(c, locales.CopyClientExample()).Disabled(addr == "" || p.CAPath == "").Clicked() {

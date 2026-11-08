@@ -72,11 +72,11 @@ func (a *app) collectionTree(c *ui.Context) {
 					do("collection.delete", "Delete “"+path+"”…", func() { a.confirmDeleteFolder(path) }).in("export")))
 			}
 			item := ui.TreeItem(c.Key("folder:"+path), "", open, func() { branch(path) }).Height(uikit.HeightControl).
-				Label("Collection: " + path).PopoverMenu(menu)
+				Label(locales.CollectionPath(path)).PopoverMenu(menu)
 			item.Children(func() {
 				uikit.Glyph(c, lucide.Folder())
 				uikit.Body(c, name).SingleLine().Grow(1)
-				action := uikit.IconButton(c, "Collection actions: "+path, locales.CollectionActions(), moreIcon).PopoverMenuButton(menu).
+				action := uikit.IconButton(c, locales.CollectionActionsPrefix(path), locales.CollectionActions(), moreIcon).PopoverMenuButton(menu).
 					Absolute().Right(0).Top(2).Background(uikit.Colors(c.Theme()).Panel)
 				if !item.Hovered() && !item.FocusWithin() {
 					action.Opacity(0)
@@ -109,7 +109,7 @@ func (a *app) collectionTree(c *ui.Context) {
 					if edited {
 						unsavedDot(c)
 					}
-					action := uikit.IconButton(c, "Request actions: "+r.Name, locales.RequestActions(), moreIcon).PopoverMenuButton(menu).
+					action := uikit.IconButton(c, locales.RequestActionsPrefix(r.Name), locales.RequestActions(), moreIcon).PopoverMenuButton(menu).
 						Absolute().Right(0).Top(2).Background(uikit.Colors(c.Theme()).Panel)
 					if !item.Hovered() && !item.FocusWithin() {
 						action.Opacity(0)
@@ -148,7 +148,7 @@ func (a *app) unsavedRequests(c *ui.Context, query string) {
 		for _, d := range unsaved {
 			method := cmp.Or(d.protocol, d.composeMethod)
 			chosen := a.page == pageRequest && a.requestDocument == d
-			item := ui.TreeItem(c.Key(fmt.Sprint("unsaved:", d.id)), "", nil, nil).Label("Unsaved: " + d.title()).Height(uikit.HeightControl).
+			item := ui.TreeItem(c.Key(fmt.Sprint("unsaved:", d.id)), "", nil, nil).Label(locales.UnsavedPrefix(d.title())).Height(uikit.HeightControl).
 				Selected(chosen).Tooltip(method + " " + d.composeURL).
 				OnClick(func() { a.requestDocument, a.requestChoice, a.page = d, "", pageRequest })
 			if chosen {

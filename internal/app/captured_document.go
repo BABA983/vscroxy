@@ -139,7 +139,7 @@ func (a *app) editCapture(f flow) *requestDocument {
 func (a *app) capturedHeader(c *ui.Context, t *ui.Theme, f flow, d *requestDocument) {
 	compact := a.inspectorWidth(c) < 600
 	ui.Row(c).Height(uikit.HeightLarge).Padding(0, t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-		source := "Captured · " + f.at.Local().Format("15:04:05")
+		source := locales.CapturedAt(f.at.Local().Format("15:04:05"))
 		if f.at.IsZero() {
 			source = fmt.Sprintf("Captured #%d", f.id)
 		}

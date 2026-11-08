@@ -45,11 +45,11 @@ func (a *app) docsModal(c *ui.Context, t *ui.Theme) {
 	_, height := c.Size()
 	uikit.Modal(c, &a.docsOpen, func() {
 		uikit.DialogColumn(c, uikit.DialogLarge).Height(min(680, height-80)).Children(func() {
-			uikit.DialogTitle(c, "Documentation · "+path)
+			uikit.DialogTitle(c, locales.DocumentationPath(path))
 			uikit.Meta(c, locales.ReadOnlyMarkdownFromThe())
 			ui.Scroll(c).Grow(1).MinHeight(0).Gap(t.Space(3)).Children(func() {
 				if strings.TrimSpace(description) == "" {
-					uikit.Hint(c, "This "+docsLevel(path)+" has no description yet. Add one in its settings, on the Description tab.")
+					uikit.Hint(c, locales.NoDescriptionYet(docsLevel(path)))
 				} else {
 					markdown.View(c, description, &a.docsMarkdown)
 				}

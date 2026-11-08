@@ -193,7 +193,7 @@ func (a *app) bodyModes(f flow, side int) []string {
 			a.protoOK[side] = err == nil
 		}
 	}
-	modes := []string{"Auto", "Pretty", "JSON", "Hex", "Preview"}
+	modes := []string{locales.Auto(), locales.Pretty(), "JSON", locales.Hex(), locales.Preview()}
 	if a.protoOK[side] {
 		modes = append(modes, "Protobuf")
 	}

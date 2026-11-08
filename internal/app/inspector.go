@@ -57,11 +57,11 @@ const (
 )
 
 func requestTabLabels() []string {
-	return []string{"Headers", "Params", "Body", "Raw", "Cookies"}
+	return []string{locales.Headers(), locales.Params(), locales.Body(), locales.Raw(), locales.Cookies2()}
 }
 
 func responseTabLabels(f flow) []string {
-	labels := []string{"Headers", "Body", "Raw", "Timing", "Cookies"}
+	labels := []string{locales.Headers(), locales.Body(), locales.Raw(), locales.TimingTab(), locales.Cookies2()}
 	if f.kind == "ws" || f.kind == "sse" {
 		labels = append(labels, "Messages")
 	}
@@ -238,7 +238,7 @@ func (a *app) splitInspector(c *ui.Context, f flow) {
 func (a *app) requestPane(c *ui.Context, f flow) {
 	t := c.Theme()
 	ui.Column(c).Fill().Background(t.Background).Children(func() {
-		a.paneTabs(c, t, "Request", &a.inspect.tab[0], requestTabLabels(), 1)
+		a.paneTabs(c, t, locales.Request(), locales.RequestPaneName(), &a.inspect.tab[0], requestTabLabels(), 1)
 		switch a.inspect.tab[0] {
 		case reqTabHeaders:
 			a.headersSide(c, f, 1)
@@ -261,7 +261,7 @@ func (a *app) responsePane(c *ui.Context, f flow) {
 		a.inspect.tab[1] = resTabHeaders
 	}
 	ui.Column(c).Fill().Background(t.Background).Children(func() {
-		a.paneTabs(c, t, "Response", &a.inspect.tab[1], labels, 0)
+		a.paneTabs(c, t, locales.Response(), locales.ResponsePaneName(), &a.inspect.tab[1], labels, 0)
 		status := "No response"
 		if f.status != 0 {
 			status = strings.TrimSpace(fmt.Sprintf("%d %s", f.status, http.StatusText(f.status)))
@@ -294,13 +294,13 @@ func (a *app) responsePane(c *ui.Context, f flow) {
 // paneTabs names the side, its tabs and — while Body is chosen — the format
 // the body is read in. The format is a menu rather than a row of segments so
 // two visible panes never show the same control twice.
-func (a *app) paneTabs(c *ui.Context, t *ui.Theme, side string, selected *int, labels []string, bodySide int) {
+func (a *app) paneTabs(c *ui.Context, t *ui.Theme, side, pane string, selected *int, labels []string, bodySide int) {
 	bodyTab := reqTabBody
 	if bodySide == 0 {
 		bodyTab = resTabBody
 	}
 	ui.Row(c).Height(uikit.HeightLarge).Padding(0, t.Space(2)).Gap(t.Space(1)).AlignItems(ui.Center).Children(func() {
-		title := uikit.ToolbarButton(c, side+" pane", locales.ReadThisSideInShared(), false).Height(uikit.HeightCompact).Padding(0, t.Space(1))
+		title := uikit.ToolbarButton(c, pane, locales.ReadThisSideInShared(), false).Height(uikit.HeightCompact).Padding(0, t.Space(1))
 		if a.inspect.focus == bodySide {
 			title.TextColor(t.Text)
 		}
@@ -309,11 +309,15 @@ func (a *app) paneTabs(c *ui.Context, t *ui.Theme, side string, selected *int, l
 		}
 		title.Children(func() { ui.Text(c, side).FontSize(uikit.TextBody).FontWeight(600) })
 		uikit.TabStrip(c, func() {
-			uikit.SubTabs(c, selected, side+" pane", labels...)
+			uikit.SubTabs(c, selected, pane, labels...)
 		}).Grow(1).FillHeight()
 		if *selected == bodyTab {
 			a.bodyFormatMenu(c, t, bodySide)
-			uikit.MoreMenu(c, side+" pane options", func(m *ui.Menu) {
+			paneOptions := locales.ResponsePaneOptions()
+			if bodySide == 1 {
+				paneOptions = locales.RequestPaneOptions()
+			}
+			uikit.MoreMenu(c, paneOptions, func(m *ui.Menu) {
 				actionMenu(m, []action{
 					do("body.find", locales.FindInText(), func() {
 						if reader := a.bodyText[bodySide]; reader != nil {
@@ -397,9 +401,9 @@ func (a *app) copyPaneBody(c *ui.Context, side int) {
 
 func bodyFormatLabel(side int) string {
 	if side == 1 {
-		return "Request body format"
+		return locales.RequestBodyFormatLabel()
 	}
-	return "Response body format"
+	return locales.ResponseBodyFormatLabel()
 }
 
 // inspectorPaneBar names an exchange-wide view and gives the way back.
