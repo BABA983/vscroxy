@@ -75,10 +75,10 @@ func (a *app) settingsModal(c *ui.Context, t *ui.Theme) {
 	_, height := c.Size()
 	uikit.Modal(c, &a.settingsOpen, func() {
 		uikit.DialogColumn(c, uikit.DialogLarge).Height(min(640, height-80)).Children(func() {
-			uikit.DialogTitle(c, "Settings")
+			uikit.DialogTitle(c, locales.Settings())
 			a.settingsContent(c, t, !a.windowBehind)
 			uikit.DialogFooter(c).Children(func() {
-				if uikit.SecondaryButton(c, "Done").Clicked() {
+				if uikit.SecondaryButton(c, locales.Done()).Clicked() {
 					a.settingsOpen = false
 				}
 			})
@@ -181,15 +181,15 @@ func (a *app) settingsContent(c *ui.Context, t *ui.Theme, active bool) {
 				icon  *ui.SVG
 				label string
 			}{
-				{"0", lucide.SlidersHorizontal(), "General"},
-				{"3", lucide.SunMoon(), "Appearance"},
-				{"1", upstreamIcon, "Proxy"},
-				{"2", lockIcon, "HTTPS"},
-				{"4", captureIcon, "Capture"},
-				{"5", lucide.MonitorSmartphone(), "Devices"},
-				{"6", lucide.KeyRound(), "Certificates"},
+				{"0", lucide.SlidersHorizontal(), locales.General()},
+				{"3", lucide.SunMoon(), locales.Appearance()},
+				{"1", upstreamIcon, locales.Proxy()},
+				{"2", lockIcon, locales.Https()},
+				{"4", captureIcon, locales.Capture()},
+				{"5", lucide.MonitorSmartphone(), locales.Devices()},
+				{"6", lucide.KeyRound(), locales.Certificates()},
 			} {
-				uikit.SidebarItem(c, item.id, item.icon, item.label, choice == item.id, active).Label("Settings category: " + item.label)
+				uikit.SidebarItem(c, item.id, item.icon, item.label, choice == item.id, active).Label(locales.SettingsCategory(item.label))
 			}
 		}).Width(176).Padding(t.Space(2)).Gap(t.Space(0.5)).Background(uikit.Colors(t).Panel).OnChange(func() {
 			a.settingsTab, _ = strconv.Atoi(choice)

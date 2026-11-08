@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/baba983/vscroxy/internal/uikit"
+	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/markdown"
 )
@@ -46,7 +47,7 @@ func (a *app) docsModal(c *ui.Context, t *ui.Theme) {
 	uikit.Modal(c, &a.docsOpen, func() {
 		uikit.DialogColumn(c, uikit.DialogLarge).Height(min(680, height-80)).Children(func() {
 			uikit.DialogTitle(c, "Documentation · "+path)
-			uikit.Meta(c, "Read-only · Markdown from the collection, folder and request descriptions")
+			uikit.Meta(c, locales.ReadOnlyMarkdownFromThe())
 			ui.Scroll(c).Grow(1).MinHeight(0).Gap(t.Space(3)).Children(func() {
 				if strings.TrimSpace(description) == "" {
 					uikit.Hint(c, "This "+docsLevel(path)+" has no description yet. Add one in its settings, on the Description tab.")
@@ -56,14 +57,14 @@ func (a *app) docsModal(c *ui.Context, t *ui.Theme) {
 				ui.Divider(c)
 				uikit.Label(c, fmt.Sprintf("Requests · %d", len(requests)))
 				if len(requests) == 0 {
-					uikit.Hint(c, "No requests are saved under it yet.")
+					uikit.Hint(c, locales.NoRequestsAreSavedUnder())
 				}
 				for _, r := range requests {
 					a.docsRequest(c, t, r, path)
 				}
 			})
 			uikit.DialogFooter(c).Children(func() {
-				if uikit.SecondaryButton(c, "Close").Clicked() {
+				if uikit.SecondaryButton(c, locales.Close()).Clicked() {
 					a.docsOpen = false
 				}
 			})

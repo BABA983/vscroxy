@@ -36,6 +36,7 @@ import (
 	"github.com/baba983/vscroxy/internal/store"
 	"github.com/baba983/vscroxy/internal/system"
 	"github.com/baba983/vscroxy/internal/upstream"
+	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/editor"
@@ -1579,15 +1580,15 @@ func (a *app) view(c *ui.Context) {
 	a.commandPalette(c)
 	uikit.Modal(c, &a.clearOpen, func() {
 		uikit.DialogColumn(c, uikit.DialogSmall).Children(func() {
-			uikit.DialogTitle(c, "Clear captured requests?")
+			uikit.DialogTitle(c, locales.ClearCapturedRequests())
 			ui.Scroll(c).MinHeight(0).Children(func() {
-				uikit.Prose(c, "Unpinned requests will be removed from this session. Export any traffic you want to keep first.")
+				uikit.Prose(c, locales.UnpinnedRequestsWillBeRemoved())
 			})
 			uikit.DialogFooter(c).Children(func() {
-				if uikit.SecondaryButton(c, "Cancel").Clicked() {
+				if uikit.SecondaryButton(c, locales.Cancel()).Clicked() {
 					a.clearOpen = false
 				}
-				if uikit.PrimaryButton(c, "Clear unpinned requests").Background(t.Danger).Clicked() {
+				if uikit.PrimaryButton(c, locales.ClearUnpinnedRequests()).Background(t.Danger).Clicked() {
 					a.clearCaptured()
 					a.clearOpen = false
 				}
@@ -1688,13 +1689,13 @@ func (a *app) mainColumn(c *ui.Context, t *ui.Theme) {
 	}
 	a.activeTools(c, t)
 	if a.srv == nil && a.errText != "" {
-		ui.Text(c, "Proxy unavailable · "+a.errText+" · Local requests remain available").Padding(t.Space(2), t.Space(3)).FontSize(uikit.TextBody).TextColor(t.Danger)
+		ui.Text(c, locales.ProxyUnavailable(a.errText)).Padding(t.Space(2), t.Space(3)).FontSize(uikit.TextBody).TextColor(t.Danger)
 	}
 	if a.requestsProblem != "" || a.envsProblem != "" {
 		ui.Column(c).Padding(t.Space(2), t.Space(3)).Gap(t.Space(1)).Children(func() {
 			ui.Row(c).Gap(t.Space(3)).AlignItems(ui.Center).Children(func() {
-				ui.Text(c, "Local assets protected · saving disabled").FontSize(uikit.TextBody).FontWeight(600).TextColor(t.Danger).Grow(1)
-				if uikit.SecondaryButton(c, "Reload local assets").Clicked() {
+				ui.Text(c, locales.LocalAssetsProtectedSavingDisabled()).FontSize(uikit.TextBody).FontWeight(600).TextColor(t.Danger).Grow(1)
+				if uikit.SecondaryButton(c, locales.ReloadLocalAssets()).Clicked() {
 					a.loadRequestAssets()
 				}
 			})
@@ -1703,7 +1704,7 @@ func (a *app) mainColumn(c *ui.Context, t *ui.Theme) {
 					ui.Text(c, problem).FontSize(uikit.TextMeta).TextColor(t.Danger)
 				}
 			}
-			uikit.Meta(c, "Original files left untouched. Repair or move the affected file aside, then reload. Other local assets remain usable.")
+			uikit.Meta(c, locales.OriginalFilesLeftUntouchedRepair())
 		})
 	}
 	a.desktopContent(c.Key("workspace-content"))
@@ -1760,9 +1761,9 @@ func (a *app) breakpointModal(c *ui.Context, t *ui.Theme) {
 					uikit.Body(c, direction+" · "+a.bp.MessageType)
 					uikit.Hint(c, a.bp.URL).SingleLine().Tooltip(a.bp.URL)
 					if a.bp.BodyReadOnly {
-						uikit.Hint(c, "Message exceeds the editor limit or is invalid UTF-8. Continue unchanged or drop it.")
+						uikit.Hint(c, locales.MessageExceedsTheEditorLimit())
 					} else {
-						uikit.Meta(c, "UTF-8 text, or canonical padded base64 for binary · 1 MiB limit · opcode preserved")
+						uikit.Meta(c, locales.Utf8TextOrCanonical())
 						ui.TextArea(c, &a.bpBody).Height(240).Label("Message payload").Font(uikit.FontMono).FontSize(uikit.TextBody).Radius(uikit.RadiusControl)
 					}
 					return
@@ -1778,13 +1779,13 @@ func (a *app) breakpointModal(c *ui.Context, t *ui.Theme) {
 						uikit.Input(c, &a.bpURL).Grow(1).MinWidth(0).Label("URL")
 					})
 				}
-				uikit.Meta(c, "Headers · one Name: Value per line; repeat a name for multiple values")
+				uikit.Meta(c, locales.HeadersOneNameValuePer())
 				ui.TextArea(c, &a.bpHeaders).Height(130).Label("Breakpoint headers").FontSize(uikit.TextBody).Radius(uikit.RadiusControl)
 				if a.bp.BodyReadOnly {
-					uikit.Hint(c, "Binary, undecodable or large body: preserved unchanged; headers can still be edited.")
+					uikit.Hint(c, locales.BinaryUndecodableOrLargeBody())
 				} else {
 					ui.TextArea(c, &a.bpBody).Height(160).Label("Body").FontSize(uikit.TextBody).Radius(uikit.RadiusControl)
-					uikit.Meta(c, "Body edits use decoded bytes; encoding, digest and length headers are recalculated or removed.")
+					uikit.Meta(c, locales.BodyEditsUseDecodedBytes())
 				}
 			})
 			if validation != "" {
@@ -1799,10 +1800,10 @@ func (a *app) breakpointModal(c *ui.Context, t *ui.Theme) {
 				if uikit.SecondaryButton(c, abortLabel).Clicked() {
 					a.resolveBreak(true, false)
 				}
-				if uikit.SecondaryButton(c, "Continue original").Clicked() {
+				if uikit.SecondaryButton(c, locales.ContinueOriginal()).Clicked() {
 					a.resolveBreak(false, true)
 				}
-				if uikit.PrimaryButton(c, "Apply & continue").Disabled(validation != "").Clicked() {
+				if uikit.PrimaryButton(c, locales.ApplyContinue()).Disabled(validation != "").Clicked() {
 					a.resolveBreak(false, false)
 				}
 			})
@@ -1853,72 +1854,72 @@ func (a *app) sidebar(c *ui.Context) {
 					section.ScrollIntoView()
 				}
 			}
-			reveal("live", uikit.SidebarSection(c, "Live", &a.trafficOpen, func() {
-				uikit.SidebarItem(c, "all", trafficIcon, "All requests", a.sidebarChoice == "all", !a.windowBehind).Children(func() {
+			reveal("live", uikit.SidebarSection(c, locales.Live(), &a.trafficOpen, func() {
+				uikit.SidebarItem(c, "all", trafficIcon, locales.AllRequests(), a.sidebarChoice == "all", !a.windowBehind).Children(func() {
 					uikit.Meta(c, fmt.Sprint(len(a.flows))).FontFeatures("tnum")
 				})
-				uikit.SidebarItem(c, "errors", errorIcon, "Errors", a.sidebarChoice == "errors", !a.windowBehind).Children(func() {
+				uikit.SidebarItem(c, "errors", errorIcon, locales.Errors(), a.sidebarChoice == "errors", !a.windowBehind).Children(func() {
 					uikit.Meta(c, fmt.Sprint(a.tally.errors)).FontFeatures("tnum")
 				})
-				uikit.SidebarItem(c, "slow", captureIcon, "Slow", a.sidebarChoice == "slow", !a.windowBehind).Children(func() {
+				uikit.SidebarItem(c, "slow", captureIcon, locales.Slow(), a.sidebarChoice == "slow", !a.windowBehind).Children(func() {
 					uikit.Meta(c, fmt.Sprint(a.tally.slow)).FontFeatures("tnum")
 				})
-				uikit.SidebarItem(c, "pinned", pinIcon, "Pinned", a.sidebarChoice == "pinned", !a.windowBehind).Children(func() {
+				uikit.SidebarItem(c, "pinned", pinIcon, locales.Pinned(), a.sidebarChoice == "pinned", !a.windowBehind).Children(func() {
 					uikit.Meta(c, fmt.Sprint(a.tally.pinned)).FontFeatures("tnum")
 				})
-				uikit.SidebarItem(c, "diagnostics", diagnosticsIcon, "Diagnostics", a.sidebarChoice == "diagnostics", !a.windowBehind)
+				uikit.SidebarItem(c, "diagnostics", diagnosticsIcon, locales.Diagnostics(), a.sidebarChoice == "diagnostics", !a.windowBehind)
 			}))
 			if len(a.clients) > 0 {
-				uikit.SidebarSection(c, "Apps", &a.clientsOpen, func() {
+				uikit.SidebarSection(c, locales.Apps(), &a.clientsOpen, func() {
 					for _, d := range a.clients {
 						apps := a.capturedApps(d.name)
 						uikit.SidebarItem(c, "client:"+d.name, appIcon, d.name, a.sidebarChoice == "client:"+d.name, !a.windowBehind).PopoverMenu(
 							func(m *ui.Menu) { actionMenu(m, a.clientActions(d.name, apps)) }).
 							Children(func() {
 								if a.filterTriage.Client == d.name {
-									ui.Text(c, "✓").FontSize(uikit.TextMeta).TextColor(t.Accent).Tooltip("App filter is active; remove it in the condition bar")
+									ui.Text(c, "✓").FontSize(uikit.TextMeta).TextColor(t.Accent).Tooltip(locales.AppFilterIsActiveRemove())
 								}
 								if slices.ContainsFunc(apps, func(app capture.SSLApp) bool { return a.appInspectionEnabled(app.Path) }) {
-									ui.Icon(c, lockIcon).Size(uikit.IconInline, uikit.IconInline).Tooltip("An exact executable rule is enabled; client CA trust is still required")
+									ui.Icon(c, lockIcon).Size(uikit.IconInline, uikit.IconInline).Tooltip(locales.AnExactExecutableRuleIs())
 								}
 								uikit.Meta(c, fmt.Sprint(d.n)).FontFeatures("tnum")
 							})
 					}
 				})
 			}
-			uikit.SidebarSection(c, "Domains", &a.domainsOpen, func() {
+			uikit.SidebarSection(c, locales.Domains(), &a.domainsOpen, func() {
 				for _, d := range a.domains {
 					uikit.SidebarItem(c, "host:"+d.name, domainIcon, d.name, a.sidebarChoice == "host:"+d.name, !a.windowBehind).PopoverMenu(func(m *ui.Menu) {
 						actionMenu(m, []action{
-							do("collection.from-host", "Create collection…", func() { a.openCollectionWizard(a.collectionScope(d.name, "")) }),
-							do("collection.record-host", "Record into collection…", func() { a.openCollectionRecording("", d.name, "") }),
-							do("dns.map-host", "Map this host…", func() { a.openDNSRule(hostOnly(d.name), "") }),
+							do("collection.from-host", locales.CreateCollection(), func() { a.openCollectionWizard(a.collectionScope(d.name, "")) }),
+							do("collection.record-host", locales.RecordIntoCollection(), func() { a.openCollectionRecording("", d.name, "") }),
+							do("dns.map-host", locales.MapThisHost(), func() { a.openDNSRule(hostOnly(d.name), "") }),
 						})
 					}).Children(func() {
 						if a.filterTriage.Host == d.name {
-							ui.Text(c, "✓").FontSize(uikit.TextMeta).TextColor(t.Accent).Tooltip("Host filter is active; remove it in the condition bar")
+							ui.Text(c, "✓").FontSize(uikit.TextMeta).TextColor(t.Accent).Tooltip(locales.HostFilterIsActiveRemove())
 						}
 						uikit.Meta(c, fmt.Sprint(d.n)).FontFeatures("tnum")
 					})
 				}
 			})
-			uikit.SidebarSection(c, "Views", nil, func() {
+			uikit.SidebarSection(c, locales.Views(), nil, func() {
 				a.views.sidebar(c, t, a)
 			})
-			reveal("collections", uikit.SidebarSection(c, "Collections", &a.collectionsOpen, func() {
+			reveal("collections", uikit.SidebarSection(c, locales.Collections(), &a.collectionsOpen, func() {
 				a.collectionsGroup(c, t)
 			}))
-			reveal("sessions", uikit.SidebarSection(c, "Sessions", nil, func() {
+			reveal("sessions", uikit.SidebarSection(c, locales.Sessions(), nil, func() {
 				for _, item := range a.sessions.items {
 					uikit.SidebarItem(c, "session:"+item.key, clockIcon, item.data.Title, a.sidebarChoice == "session:"+item.key, !a.windowBehind).Children(func() {
 						uikit.Meta(c, fmt.Sprint(item.count)).FontFeatures("tnum")
 					}).PopoverMenu(func(m *ui.Menu) {
-						actionMenu(m, []action{do("session.delete", "Delete session…", func() { a.confirmDeleteSession(item) })})
+						actionMenu(m, []action{do("session.delete", locales.DeleteSession(), func() { a.confirmDeleteSession(item) })})
 					})
 				}
-				if uikit.ToolbarButton(c, "Open session…", "Open historical session files without replacing live traffic", false).FillWidth().Justify(ui.Start).Children(func() {
+				if uikit.ToolbarButton(c, locales.OpenSession(), locales.OpenHistoricalSessionFilesWithout(), false).FillWidth().Justify(ui.Start).Children(func() {
 					ui.Icon(c, clockIcon).Size(uikit.IconInline, uikit.IconInline)
-					uikit.Body(c, "Open session…")
+					uikit.Body(c, locales.OpenSession())
 				}).Clicked() {
 					a.openSession()
 				}
@@ -1930,16 +1931,16 @@ func (a *app) sidebar(c *ui.Context) {
 		}
 		ui.Divider(c)
 		ui.Column(c).Padding(t.Space(2)).Gap(t.Space(0.5)).Children(func() {
-			if uikit.ToolbarButton(c, "Client setup", "Copy a process-scoped proxy and CA example", false).FillWidth().Children(func() {
+			if uikit.ToolbarButton(c, locales.ClientSetup(), locales.CopyAProcessScopedProxy(), false).FillWidth().Children(func() {
 				ui.Icon(c, monitorIcon).Size(uikit.IconInline, uikit.IconInline)
-				uikit.Body(c, "Client setup").Grow(1)
+				uikit.Body(c, locales.ClientSetup()).Grow(1)
 				uikit.Body(c, "›")
 			}).Clicked() {
 				a.openClientSetup()
 			}
-			if uikit.ToolbarButton(c, "Manage HTTPS rules", "HTTPS inspection rules", false).FillWidth().Children(func() {
+			if uikit.ToolbarButton(c, locales.ManageHttpsRules(), locales.HttpsInspectionRules(), false).FillWidth().Children(func() {
 				ui.Icon(c, lockIcon).Size(uikit.IconInline, uikit.IconInline)
-				uikit.Body(c, "HTTPS rules").Grow(1)
+				uikit.Body(c, locales.HttpsRules()).Grow(1)
 				uikit.Body(c, "›")
 			}).Clicked() {
 				a.sslOpen = true
@@ -1980,11 +1981,11 @@ func (a *app) goTo(choice string) {
 // rest of the library open from its menu and the command palette.
 func (a *app) collectionsGroup(c *ui.Context, t *ui.Theme) {
 	ui.Row(c).Gap(t.Space(1)).AlignItems(ui.Center).Padding(0, 0, t.Space(1)).Children(func() {
-		uikit.Input(c, &a.requestQuery).Label("Search collections").Placeholder("Search…").Grow(1).MinWidth(0)
-		if uikit.IconButton(c, "New request", "New request", plusIcon).Clicked() {
+		uikit.Input(c, &a.requestQuery).Label("Search collections").Placeholder(locales.Search()).Grow(1).MinWidth(0)
+		if uikit.IconButton(c, locales.NewRequest(), locales.NewRequest(), plusIcon).Clicked() {
 			a.openCompose()
 		}
-		uikit.IconButton(c, "Collection options", "Collections, APIs, environments and runs", moreIcon).PopoverMenuButton(a.collectionsMenu)
+		uikit.IconButton(c, locales.CollectionOptions(), locales.CollectionsApisEnvironmentsAndRuns(), moreIcon).PopoverMenuButton(a.collectionsMenu)
 	})
 	a.collectionTree(c)
 	query := strings.ToLower(strings.TrimSpace(a.requestQuery))
@@ -1992,7 +1993,7 @@ func (a *app) collectionsGroup(c *ui.Context, t *ui.Theme) {
 		if query != "" && !strings.Contains(strings.ToLower(d.title()), query) {
 			continue
 		}
-		uikit.SidebarItem(c, "contract:"+d.spec.ID, apiIcon, d.title(), a.sidebarChoice == "contract:"+d.spec.ID, !a.windowBehind).Label("API: " + d.title()).Children(func() {
+		uikit.SidebarItem(c, "contract:"+d.spec.ID, apiIcon, d.title(), a.sidebarChoice == "contract:"+d.spec.ID, !a.windowBehind).Label(locales.ApiTitle(d.title())).Children(func() {
 			if d.dirty() {
 				ui.Box(c).Size(5, 5).Radius(uikit.RadiusControl).Background(t.Accent).Label("Unsaved API")
 			}
@@ -2009,17 +2010,17 @@ func (a *app) clientActions(name string, apps []capture.SSLApp) []action {
 	} else {
 		var executables []action
 		if len(apps) == 0 {
-			executables = append(executables, note("Local executable identity unavailable"))
+			executables = append(executables, note(locales.LocalExecutableIdentityUnavailable()))
 		}
 		for _, app := range apps {
 			executables = append(executables, submenu(app.Path, a.appInspectionActions(app)...))
 		}
-		actions = append(actions, submenu("HTTPS inspection by executable", executables...))
+		actions = append(actions, submenu(locales.HttpsInspectionByExecutable(), executables...))
 	}
 	return append(actions,
-		do("collection.from-app", "Create collection…", func() { a.openCollectionWizard(a.collectionScope("", name)) }).in("collection"),
-		do("collection.record-app", "Record into collection…", func() { a.openCollectionRecording("", "", name) }).in("collection"),
-		do("https.rules", "View HTTPS rules…", func() { a.sslOpen = true }),
+		do("collection.from-app", locales.CreateCollection(), func() { a.openCollectionWizard(a.collectionScope("", name)) }).in("collection"),
+		do("collection.record-app", locales.RecordIntoCollection(), func() { a.openCollectionRecording("", "", name) }).in("collection"),
+		do("https.rules", locales.ViewHttpsRules(), func() { a.sslOpen = true }),
 		do("dns.map-client", "Map a host for "+name+"…", func() { a.openDNSRule("", name) }).in("map"),
 	)
 }
@@ -2030,22 +2031,22 @@ func (a *app) collectionsMenu(m *ui.Menu) { actionMenu(m, a.collectionsActions()
 // run requests, API contracts, and the stores requests draw on.
 func (a *app) collectionsActions() []action {
 	return []action{
-		do("collection.import", "Import…", a.importRequests),
-		do("collection.import-folder", "Import collection folder…", a.importCollectionFolder),
-		do("request.import-curl", "Import cURL…", a.openCurlImport),
-		do("collection.record", "Record into collection…", func() { a.openCollectionRecording("", "", "") }).in("run"),
-		do("environment.manage", "Environments…", a.openVars).in("run"),
-		do("history.show", "History", a.showRunRecords).in("run"),
-		do("runner.open", "Runner…", a.openRunner).in("run"),
-		do("api.new", "New API contract", func() {
+		do("collection.import", locales.ImportText(), a.importRequests),
+		do("collection.import-folder", locales.ImportCollectionFolder(), a.importCollectionFolder),
+		do("request.import-curl", locales.ImportCurl(), a.openCurlImport),
+		do("collection.record", locales.RecordIntoCollection(), func() { a.openCollectionRecording("", "", "") }).in("run"),
+		do("environment.manage", locales.Environments(), a.openVars).in("run"),
+		do("history.show", locales.History(), a.showRunRecords).in("run"),
+		do("runner.open", locales.Runner(), a.openRunner).in("run"),
+		do("api.new", locales.NewApiContract(), func() {
 			a.newAPI()
 			a.page = pageAPI
 		}).in("api"),
-		do("api.import-openapi", "Import OpenAPI…", a.importOpenAPI).in("api"),
-		do("api.generate", "Generate API from collection…", a.openAPIGeneration).
+		do("api.import-openapi", locales.ImportOpenapi(), a.importOpenAPI).in("api"),
+		do("api.generate", locales.GenerateApiFromCollection(), a.openAPIGeneration).
 			when(len(a.requests) > 0, "Save a request to a collection first").in("api"),
-		do("vault.open", "Vault…", a.openVault).in("stores"),
-		do("cookies.open", "Cookies…", a.openCookies).in("stores"),
+		do("vault.open", locales.Vault(), a.openVault).in("stores"),
+		do("cookies.open", locales.Cookies(), a.openCookies).in("stores"),
 	}
 }
 
@@ -2074,9 +2075,9 @@ func (a *app) table(c *ui.Context) {
 			}
 			uikit.EmptyState(c, title, hint, func() {
 				if a.filterAny {
-					uikit.Hint(c, "Any content field may match; search and scope must still match. Edit the filters or broaden the scope.")
+					uikit.Hint(c, locales.AnyContentFieldMayMatch())
 				} else {
-					uikit.Hint(c, "All conditions must match. Remove a condition above or edit the filters.")
+					uikit.Hint(c, locales.AllConditionsMustMatchRemove())
 				}
 				if note != "" {
 					color := t.TextMuted
@@ -2085,10 +2086,10 @@ func (a *app) table(c *ui.Context) {
 					}
 					ui.Text(c, note).FontSize(uikit.TextBody).TextColor(color).Tooltip(a.views.statusDetail())
 				}
-				if uikit.SecondaryButton(c, "Edit filters…").Clicked() {
+				if uikit.SecondaryButton(c, locales.EditFilters()).Clicked() {
 					a.openFilter()
 				}
-				if uikit.SecondaryButton(c, "Show all requests").Clicked() {
+				if uikit.SecondaryButton(c, locales.ShowAllRequests()).Clicked() {
 					a.views.resetFilters(a)
 				}
 			})
@@ -2103,10 +2104,10 @@ func (a *app) table(c *ui.Context) {
 		// HTTPS live in the sidebar, the full walk-through in the guide.
 		uikit.EmptyState(c, title, hint, func() {
 			ui.Row(c).Gap(t.Space(2)).Wrap().Justify(ui.Center).Children(func() {
-				if running && uikit.SecondaryButton(c, "Turn on system proxy").Disabled(a.systemProxy.applying).Clicked() {
+				if running && uikit.SecondaryButton(c, locales.TurnOnSystemProxy()).Disabled(a.systemProxy.applying).Clicked() {
 					a.setSystemProxy(true)
 				}
-				if uikit.SecondaryButton(c, "Diagnose capture…").Clicked() {
+				if uikit.SecondaryButton(c, locales.DiagnoseCapture()).Clicked() {
 					a.openDiagnostics(nil, diagnoseMac)
 				}
 			})
@@ -2115,16 +2116,16 @@ func (a *app) table(c *ui.Context) {
 	}
 	cols := []ui.TableColumn{
 		{ID: "id", Title: "#", Width: 48, Sortable: true},
-		{ID: "status", Title: "Status", Width: 78, Sortable: true},
-		{ID: "method", Title: "Method", Width: 76, Sortable: true},
-		{ID: "host", Title: "Host", Width: 160, Sortable: true},
-		{ID: "remote", Title: "Remote IP", Width: 124, Sortable: true},
+		{ID: "status", Title: locales.Status(), Width: 78, Sortable: true},
+		{ID: "method", Title: locales.Method(), Width: 76, Sortable: true},
+		{ID: "host", Title: locales.Host(), Width: 160, Sortable: true},
+		{ID: "remote", Title: locales.RemoteIp(), Width: 124, Sortable: true},
 		// Keep the URL identity and sorting so saved column layouts survive.
-		{ID: "url", Title: "Path", MinWidth: 160, Sortable: true},
-		{ID: "client", Title: "Client", Width: 132, Sortable: true},
-		{ID: "duration", Title: "Duration", Width: 112, Align: ui.End, Sortable: true},
-		{ID: "size", Title: "Size", Width: 78, Align: ui.End, Sortable: true},
-		{ID: "captured", Title: "Time", Width: 84, Sortable: true},
+		{ID: "url", Title: locales.Path(), MinWidth: 160, Sortable: true},
+		{ID: "client", Title: locales.Client(), Width: 132, Sortable: true},
+		{ID: "duration", Title: locales.Duration(), Width: 112, Align: ui.End, Sortable: true},
+		{ID: "size", Title: locales.Size(), Width: 78, Align: ui.End, Sortable: true},
+		{ID: "captured", Title: locales.Time(), Width: 84, Sortable: true},
 	}
 	width, _ := c.Size()
 	available := width
@@ -2204,7 +2205,7 @@ func (a *app) table(c *ui.Context) {
 		case "url":
 			if a.edited(f.id) {
 				ui.Box(c).Size(6, 6).Radius(3).Background(uikit.Colors(t).Accent).MarginEnd(t.Space(1.5)).
-					Label("Edited").Tooltip("Edited in the inspector · the capture itself is unchanged")
+					Label("Edited").Tooltip(locales.EditedInTheInspectorThe())
 			}
 			if f.pinned {
 				uikit.Glyph(c, pinIcon).MarginEnd(t.Space(1))
@@ -2217,7 +2218,7 @@ func (a *app) table(c *ui.Context) {
 			rest := t.Text
 			ui.Row(c).Gap(t.Space(0.5)).Children(func() {
 				if f.kind == "connect" {
-					ui.Icon(c, lockIcon).Size(uikit.IconInline, uikit.IconInline).TextColor(rest).MarginEnd(t.Space(1)).Tooltip("Encrypted tunnel; CONNECT success is not a decrypted response")
+					ui.Icon(c, lockIcon).Size(uikit.IconInline, uikit.IconInline).TextColor(rest).MarginEnd(t.Space(1)).Tooltip(locales.EncryptedTunnelConnectSuccessIs())
 				}
 				if f.note != "" {
 					uikit.Glyph(c, noteIcon).MarginEnd(t.Space(1)).Tooltip(f.note)
@@ -2228,7 +2229,7 @@ func (a *app) table(c *ui.Context) {
 					accent := uikit.Colors(t).Accent
 					ui.Box(c).Height(15).Padding(0, t.Space(1)).Radius(uikit.RadiusControl).Background(accent.Alpha(0.12)).Center().MarginEnd(t.Space(1)).
 						Label("Mapped by " + hostProfileLabel(f.hostProfile)).Tooltip(mappedBy(f)).Children(func() {
-						ui.Text(c, "Hosts").FontSize(uikit.TextMeta).FontWeight(600).TextColor(accent)
+						ui.Text(c, locales.Hosts()).FontSize(uikit.TextMeta).FontWeight(600).TextColor(accent)
 					})
 				}
 				text(cmp.Or(f.path, "/")).Label(f.host + f.path).TextColor(rest).Tooltip(f.url).PopoverMenu(a.rowMenu(c, f))
@@ -2267,7 +2268,7 @@ func (a *app) table(c *ui.Context) {
 			if cc.derived() {
 				if cell := f.columnData[cc.id()]; cell != nil {
 					if cell.pending {
-						quiet("…").Tooltip("Reading retained body")
+						quiet("…").Tooltip(locales.ReadingRetainedBody())
 						return
 					}
 					if cell.problem != "" {
@@ -2308,7 +2309,7 @@ func (a *app) remoteCell(c *ui.Context, t *ui.Theme, f flow, quiet func(string) 
 	if _, mapped, ok := strings.Cut(f.dns, " → "); ok && ip == "" {
 		ip = mapped
 	}
-	ui.Row(c).Gap(t.Space(1)).AlignItems(ui.Center).Tooltip(mappedBy(f)).Label("Mapped by " + hostProfileLabel(f.hostProfile)).Children(func() {
+	ui.Row(c).Gap(t.Space(1)).AlignItems(ui.Center).Tooltip(mappedBy(f)).Label(locales.MappedBy(hostProfileLabel(f.hostProfile))).Children(func() {
 		quiet(ip).TextColor(accent).PopoverMenu(a.rowMenu(c, f))
 		ui.Box(c).Size(5, 5).Radius(uikit.RadiusControl).Background(accent)
 	})
@@ -2380,26 +2381,26 @@ func (a *app) markModal(c *ui.Context, t *ui.Theme) {
 	}
 	uikit.Modal(c, &a.markOpen, func() {
 		uikit.DialogColumn(c, uikit.DialogSmall).Children(func() {
-			uikit.DialogTitle(c, "Mark the request")
+			uikit.DialogTitle(c, locales.MarkTheRequest())
 			ui.Scroll(c).MinHeight(0).Gap(t.Space(3)).Padding(0, t.Space(1)).Children(func() {
-				uikit.Meta(c, "A color shows in the table beside the method, and the note in the URL cell and the detail header.")
+				uikit.Meta(c, locales.AColorShowsInThe())
 				ui.Row(c).Gap(t.Space(2)).Wrap().AlignItems(ui.Center).Children(func() {
 					for _, color := range uikit.MarkColors {
 						selected := a.markColor == color.Name
 						uikit.SwatchButton(c, "Mark "+color.Name, color.Color, selected).Tooltip(color.Name).
 							OnClick(func() { a.markColor = color.Name })
 					}
-					if uikit.SecondaryButton(c, "None").Clicked() {
+					if uikit.SecondaryButton(c, locales.None()).Clicked() {
 						a.markColor = ""
 					}
 				})
 				ui.TextArea(c, &a.markNote).Height(90).Label("Note").FontSize(uikit.TextBody).Radius(uikit.RadiusControl)
 			})
 			uikit.DialogFooter(c).Children(func() {
-				if uikit.SecondaryButton(c, "Cancel").Clicked() {
+				if uikit.SecondaryButton(c, locales.Cancel()).Clicked() {
 					a.markOpen = false
 				}
-				if uikit.PrimaryButton(c, "Save").Clicked() {
+				if uikit.PrimaryButton(c, locales.Save()).Clicked() {
 					a.saveMark()
 				}
 			})
@@ -2436,9 +2437,9 @@ func (a *app) connectionView(c *ui.Context, f flow) {
 		if f.conn.error != "" {
 			ui.Text(c, cmp.Or(f.conn.errorStage, "Connection")+" failed").FontSize(uikit.TextBody).TextColor(t.Danger).Grow(1)
 		} else {
-			uikit.Hint(c, "Connection log · snapshot at capture time").Grow(1)
+			uikit.Hint(c, locales.ConnectionLogSnapshotAtCapture()).Grow(1)
 		}
-		if uikit.SecondaryButton(c, "Copy connection log").Height(uikit.HeightCompact).Disabled(f.conn.log == "").Clicked() {
+		if uikit.SecondaryButton(c, locales.CopyConnectionLog()).Height(uikit.HeightCompact).Disabled(f.conn.log == "").Clicked() {
 			c.Services().WriteClipboard(f.conn.log)
 			a.done("Copied connection log")
 		}
@@ -2455,7 +2456,7 @@ func (a *app) connectionView(c *ui.Context, f flow) {
 func (a *app) connPanel(c *ui.Context, t *ui.Theme, f flow) {
 	cn := f.conn
 	ui.Column(c).Width(440).Gap(t.Space(0.5)).Padding(t.Space(1)).Children(func() {
-		ui.Text(c, "Connection").FontSize(uikit.TextBody).FontWeight(600).TextColor(t.Text).Padding(0, 0, t.Space(2), 0)
+		ui.Text(c, locales.Connection()).FontSize(uikit.TextBody).FontWeight(600).TextColor(t.Text).Padding(0, 0, t.Space(2), 0)
 		field(c, t, "HTTP version", cn.proto)
 		field(c, t, "Client", cn.client)
 		field(c, t, "Proxy", cn.proxy)
@@ -2530,11 +2531,11 @@ func (a *app) headerBlock(c *ui.Context, t *ui.Theme, title, line, note string, 
 	ui.Scroll(c).TrackScroll(&a.headerScroll[side]).Grow(1).FillWidth().Children(func() {
 		for i, block := range []http.Header{headers, trailers} {
 			if i == 1 && len(block) > 0 {
-				uikit.Label(c, "Trailers").Padding(t.Space(2), t.Space(3), t.Space(2)).FillWidth().Background(uikit.Colors(t).Panel)
+				uikit.Label(c, locales.Trailers()).Padding(t.Space(2), t.Space(3), t.Space(2)).FillWidth().Background(uikit.Colors(t).Panel)
 			}
 			if i == 0 && len(block) == 0 {
 				if raw == "" {
-					uikit.Hint(c, "No headers recorded").Padding(t.Space(3))
+					uikit.Hint(c, locales.NoHeadersRecorded()).Padding(t.Space(3))
 				} else {
 					ui.Text(c, raw).FontSize(uikit.TextBody).Font(uikit.FontMono).TextColor(t.Text).Selectable().Padding(t.Space(3))
 				}
@@ -2595,7 +2596,7 @@ func Run() error {
 	mygo.App.OnQuit(func() { a.stopCollectionRecording("") })
 	cleanupProxy := func() {
 		if err := a.systemProxy.close(); err != nil {
-			slog.Error("release system proxy", "err", err)
+			slog.Error(locales.ReleaseSystemProxy(), "err", err)
 		}
 	}
 	defer cleanupProxy() // before the listener closes, even if Run returns an error
@@ -2744,7 +2745,7 @@ func (a *app) flowActions(c *ui.Context, f flow) []action {
 		pick(requests, "flow.replay").as("Replay"),
 		pick(requests, "flow.edit"),
 		pick(requests, "collection.from-capture"),
-		do("flow.save-request", "Save as request", func() { a.saveCapture(f) }).
+		do("flow.save-request", locales.SaveAsRequest(), func() { a.saveCapture(f) }).
 			when(f.kind != "connect" && f.method != "CONNECT", "Tunnels cannot be saved as requests"),
 	}
 	if chosen := a.selectedFlows(); len(chosen) > 1 {
@@ -2756,18 +2757,18 @@ func (a *app) flowActions(c *ui.Context, f flow) []action {
 	}
 	formats = append(formats, pick(requests, "flow.copy-markdown"), pick(requests, "flow.copy-csv"),
 		pick(requests, "flow.copy-raw"), pick(requests, "flow.copy-har"), pick(requests, "flow.copy-har-raw"))
-	copyItems := []action{do("flow.copy-url", "URL", func() {
+	copyItems := []action{do("flow.copy-url", locales.Url(), func() {
 		services.WriteClipboard(f.url)
 		a.done("Copied URL")
 	})}
 	copyItems = append(copyItems, copyAsMenu(formats).items...)
-	copyItems = append(copyItems, do("flow.copy-response", "Response body", func() {
+	copyItems = append(copyItems, do("flow.copy-response", locales.ResponseBody(), func() {
 		services.WriteClipboard(f.body(true))
 		a.done("Copied response body")
 	}).when(f.resBody != "", "The response has no body"))
-	actions = append(actions, submenu("Copy", copyItems...).in("copy"))
+	actions = append(actions, submenu(locales.Copy(), copyItems...).in("copy"))
 	if f.kind == "" && f.url != "" {
-		actions = append(actions, do("flow.open-browser", "Open in browser", func() { services.OpenURL(f.url) }).in("copy"))
+		actions = append(actions, do("flow.open-browser", locales.OpenInBrowser(), func() { services.OpenURL(f.url) }).in("copy"))
 	}
 	// Sync the conditions on the next frame; changing visible rows while the
 	// table is building would invalidate its row indices.
@@ -2797,17 +2798,17 @@ func (a *app) flowActions(c *ui.Context, f flow) []action {
 			when(f.url != "" && f.method != "CONNECT", "Tunnels have no request to match"))
 	}
 	tools = append(tools,
-		do("flow.map-host", "Map this host…", func() { a.openDNSRule(hostOnly(f.host), f.process) }).in("host"),
-		submenu("HTTPS inspection", append(a.appInspectionActions(capture.SSLApp{Name: f.process, Path: f.processPath}),
-			do("https.rules", "View HTTPS rules…", func() { a.sslOpen = true }))...).in("host"),
+		do("flow.map-host", locales.MapThisHost(), func() { a.openDNSRule(hostOnly(f.host), f.process) }).in("host"),
+		submenu(locales.HttpsInspection(), append(a.appInspectionActions(capture.SSLApp{Name: f.process, Path: f.processPath}),
+			do("https.rules", locales.ViewHttpsRules(), func() { a.sslOpen = true }))...).in("host"),
 	)
 	return append(actions,
-		submenu("Filter captures", filters...).in("copy"),
+		submenu(locales.FilterCaptures(), filters...).in("copy"),
 		do("flow.pin", cmp.Or(pinLabel(f), "Pin"), func() { a.togglePin(f) }).in("keep"),
-		do("flow.mark", "Mark…", func() { a.openMark(f) }).in("keep"),
-		submenu("Tools", tools...).in("keep"),
-		do("flow.save-evidence", "Save evidence to Sessions", func() { a.saveEvidence(f) }).in("save"),
-		do("flow.regression", "Save as regression…", func() { a.regressionFrom(f) }).
+		do("flow.mark", locales.Mark(), func() { a.openMark(f) }).in("keep"),
+		submenu(locales.Tools(), tools...).in("keep"),
+		do("flow.save-evidence", locales.SaveEvidenceToSessions(), func() { a.saveEvidence(f) }).in("save"),
+		do("flow.regression", locales.SaveAsRegression(), func() { a.regressionFrom(f) }).
 			when(f.status != 0 && f.method != "CONNECT" && f.kind != "ws", "Needs a finished HTTP exchange").in("save"),
 	)
 }
@@ -2927,15 +2928,15 @@ func (a *app) varsModal(c *ui.Context, t *ui.Theme) {
 	_, height := c.Size()
 	uikit.Modal(c, &a.varsOpen, func() {
 		uikit.DialogColumn(c, uikit.DialogLarge).Height(min(600, height-80)).Children(func() {
-			uikit.DialogTitle(c, "Variables")
+			uikit.DialogTitle(c, locales.Variables())
 			if a.envsProblem != "" {
-				ui.Text(c, "Variables are read-only. Close this dialog, repair or move env.json aside, then reload local assets.").FontSize(uikit.TextMeta).TextColor(t.Danger)
+				ui.Text(c, locales.VariablesAreReadOnlyClose()).FontSize(uikit.TextMeta).TextColor(t.Danger)
 			}
 			scope := 0
 			if a.varsGlobals {
 				scope = 1
 			}
-			if uikit.Segmented(c, &scope, "Environments", "Globals").Changed() {
+			if uikit.Segmented(c, &scope, locales.Environments2(), "Globals").Changed() {
 				if scope == 1 {
 					a.editGlobals()
 				} else {
@@ -2943,32 +2944,32 @@ func (a *app) varsModal(c *ui.Context, t *ui.Theme) {
 				}
 			}
 			if a.varsGlobals {
-				uikit.Meta(c, "Every request reads these, whatever the environment. Collection, folder and environment values override them.")
+				uikit.Meta(c, locales.EveryRequestReadsTheseWhatever())
 			} else {
-				uikit.Meta(c, "Use {{name}} in requests. Environment values override collection values and globals.")
+				uikit.Meta(c, locales.UseNameInRequestsEnvironment())
 				ui.Row(c).Gap(t.Space(2)).Children(func() {
 					if names := a.envNames(); len(names) > 0 {
 						if uikit.Select(c, &a.varsChoice, names).Label("Edit environment").Grow(1).MinWidth(0).Changed() {
 							a.editEnvironment(a.varsChoice)
 						}
 					}
-					if uikit.SecondaryButton(c, "New environment").Clicked() {
+					if uikit.SecondaryButton(c, locales.NewEnvironment()).Clicked() {
 						a.editEnvironment("")
 					}
 				})
 				uikit.Input(c, &a.varsName).Label("Environment")
 			}
-			uikit.Hint(c, "Initial values are shared and exported; Current values stay on this machine, in plaintext. Use Vault for encryption.")
+			uikit.Hint(c, locales.InitialValuesAreSharedAnd())
 			ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 				ui.Spacer(c)
 				if anyCurrent(a.varsRows) {
-					if uikit.SecondaryButton(c, "Persist all current").Tooltip("Write non-sensitive Current values into Initial; credentials stay local").Clicked() {
+					if uikit.SecondaryButton(c, locales.PersistAllCurrent()).Tooltip(locales.WriteNonSensitiveCurrentValues()).Clicked() {
 						persisted, skipped := persistAllCurrent(a.varsRows)
 						if skipped > 0 {
 							a.inform(fmt.Sprintf("Persisted %d values; %d sensitive values stayed local", persisted, skipped))
 						}
 					}
-					if uikit.SecondaryButton(c, "Reset all current").Tooltip("Drop every local override and use Initial values again").Clicked() {
+					if uikit.SecondaryButton(c, locales.ResetAllCurrent()).Tooltip(locales.DropEveryLocalOverrideAnd()).Clicked() {
 						resetAllCurrent(a.varsRows)
 					}
 				}
@@ -2981,14 +2982,14 @@ func (a *app) varsModal(c *ui.Context, t *ui.Theme) {
 				ui.Text(c, a.varsProblem).FontSize(uikit.TextMeta).TextColor(t.Danger)
 			}
 			uikit.DialogFooter(c).Children(func() {
-				if uikit.SecondaryButton(c, "Export as Postman…").Tooltip("Writes the Initial values shown here, saved or not, in Postman's environment format; Current values are excluded").Clicked() {
+				if uikit.SecondaryButton(c, locales.ExportAsPostman()).Tooltip(locales.WritesTheInitialValuesShown()).Clicked() {
 					a.exportPostmanVariables()
 				}
 				ui.Spacer(c)
-				if uikit.SecondaryButton(c, "Cancel").Clicked() {
+				if uikit.SecondaryButton(c, locales.Cancel()).Clicked() {
 					a.varsOpen = false
 				}
-				if uikit.PrimaryButton(c, "Save").Disabled(a.envsProblem != "").Clicked() {
+				if uikit.PrimaryButton(c, locales.Save()).Disabled(a.envsProblem != "").Clicked() {
 					a.saveVars()
 				}
 			})
@@ -3161,20 +3162,20 @@ func (a *app) keyLogModal(c *ui.Context, t *ui.Theme) {
 	}
 	uikit.Modal(c, &a.keyLogOpen, func() {
 		uikit.DialogColumn(c, uikit.DialogMedium).Children(func() {
-			uikit.DialogTitle(c, "TLS key log")
+			uikit.DialogTitle(c, locales.TlsKeyLog())
 			ui.Scroll(c).MinHeight(0).Gap(t.Space(3)).Padding(0, t.Space(1)).Children(func() {
-				uikit.Meta(c, "The secrets go to a file Wireshark reads (SSLKEYLOGFILE), so it can decrypt this capture. The engine reads the variable once, when it first handshakes, so a change here takes effect from the next launch.")
+				uikit.Meta(c, locales.TheSecretsGoToA())
 				uikit.Input(c, &a.keyLogInput).Placeholder("~/.vscroxy/keys.log").Label("File")
 			})
 			uikit.DialogFooter(c).Children(func() {
-				if a.keyLogPath != "" && uikit.SecondaryButton(c, "Turn off").Clicked() {
+				if a.keyLogPath != "" && uikit.SecondaryButton(c, locales.TurnOff()).Clicked() {
 					a.setKeyLog("")
 					a.keyLogOpen = false
 				}
-				if uikit.SecondaryButton(c, "Cancel").Clicked() {
+				if uikit.SecondaryButton(c, locales.Cancel()).Clicked() {
 					a.keyLogOpen = false
 				}
-				if uikit.PrimaryButton(c, "Save").Clicked() {
+				if uikit.PrimaryButton(c, locales.Save()).Clicked() {
 					a.setKeyLog(strings.TrimSpace(a.keyLogInput))
 					a.keyLogOpen = false
 				}
@@ -3418,10 +3419,10 @@ func (a *app) hostListModal(c *ui.Context, t *ui.Theme, open *bool, title, hint,
 				ui.TextArea(c, text).Height(140).Label(title).FontSize(uikit.TextBody).Radius(uikit.RadiusControl)
 			})
 			uikit.DialogFooter(c).Children(func() {
-				if uikit.SecondaryButton(c, "Cancel").Clicked() {
+				if uikit.SecondaryButton(c, locales.Cancel()).Clicked() {
 					*open = false
 				}
-				if uikit.PrimaryButton(c, "Save").Clicked() {
+				if uikit.PrimaryButton(c, locales.Save()).Clicked() {
 					patterns := splitHosts(*text)
 					if path != "" {
 						if err := a.writeList(path, patterns); err != nil {
@@ -3580,20 +3581,20 @@ func (a *app) sslModal(c *ui.Context, t *ui.Theme) {
 	_, height := c.Size()
 	uikit.Modal(c, &a.sslOpen, func() {
 		uikit.DialogColumn(c, uikit.DialogMedium).Height(min(510, height-80)).Children(func() {
-			uikit.DialogTitle(c, "SSL proxying")
+			uikit.DialogTitle(c, locales.SslProxying())
 			ui.Scroll(c).Grow(1).MinHeight(0).FillWidth().Gap(t.Space(3)).Padding(0, t.Space(1)).Children(func() {
-				uikit.Meta(c, "Enable a domain or a local executable. New connections only; clients must trust the CA. Enabling a rule does not prove decryption succeeded.")
+				uikit.Meta(c, locales.EnableADomainOrA())
 				ui.Row(c).Gap(t.Space(2)).MinHeight(uikit.HeightControl).AlignItems(ui.Center).Children(func() {
 					ui.Switch(c, &draft.All).Label("Decrypt every domain")
-					ui.Text(c, "Decrypt every domain").FontSize(uikit.TextBody).TextColor(t.Text)
+					ui.Text(c, locales.DecryptEveryDomain()).FontSize(uikit.TextBody).TextColor(t.Text)
 				})
-				ui.Text(c, "Domains and subdomains").FontSize(uikit.TextBody).FontWeight(600)
+				ui.Text(c, locales.DomainsAndSubdomains()).FontSize(uikit.TextBody).FontWeight(600)
 				ui.TextArea(c, &a.sslDraftHosts).Height(100).Label("Decryption domains").FontSize(uikit.TextBody).Radius(uikit.RadiusControl)
 				ui.Divider(c)
-				ui.Text(c, "Local apps").FontSize(uikit.TextBody).FontWeight(600)
-				uikit.Meta(c, "Exact executable paths, not app names or parent/Helper groups. Add from a captured request or an App's context menu.")
+				ui.Text(c, locales.LocalApps()).FontSize(uikit.TextBody).FontWeight(600)
+				uikit.Meta(c, locales.ExactExecutablePathsNotApp())
 				if len(draft.Apps) == 0 {
-					uikit.Hint(c, "No app rules enabled")
+					uikit.Hint(c, locales.NoAppRulesEnabled())
 				}
 				remove := -1
 				for i, app := range draft.Apps {
@@ -3602,7 +3603,7 @@ func (a *app) sslModal(c *ui.Context, t *ui.Theme) {
 							uikit.Body(c, app.Name)
 							uikit.Meta(c, app.Path).SingleLine().Tooltip(app.Path)
 						})
-						if uikit.SecondaryButton(c, "Remove").Label("Remove HTTPS app: " + app.Path).Clicked() {
+						if uikit.SecondaryButton(c, locales.Remove()).Label(locales.RemoveHttpsApp(app.Path)).Clicked() {
 							remove = i
 						}
 					})
@@ -3612,10 +3613,10 @@ func (a *app) sslModal(c *ui.Context, t *ui.Theme) {
 				}
 			})
 			uikit.DialogFooter(c).Children(func() {
-				if uikit.SecondaryButton(c, "Cancel").Clicked() {
+				if uikit.SecondaryButton(c, locales.Cancel()).Clicked() {
 					a.sslOpen = false
 				}
-				if uikit.PrimaryButton(c, "Save").Clicked() {
+				if uikit.PrimaryButton(c, locales.Save()).Clicked() {
 					draft.Hosts = splitHosts(a.sslDraftHosts)
 					if a.saveSSL(*draft) {
 						a.sslOpen = false
@@ -3764,21 +3765,21 @@ func (a *app) dnsRuleModal(c *ui.Context, t *ui.Theme) {
 	}
 	uikit.Modal(c, &a.dnsRuleOpen, func() {
 		uikit.DialogColumn(c, uikit.DialogSmall).Children(func() {
-			uikit.DialogTitle(c, "Map a host")
+			uikit.DialogTitle(c, locales.MapAHost())
 			ui.Scroll(c).MinHeight(0).Gap(t.Space(3)).Padding(0, t.Space(1)).Children(func() {
-				uikit.Meta(c, "The request keeps its name, URL, Host header and SNI; the proxy dials the address instead.")
+				uikit.Meta(c, locales.TheRequestKeepsItsName())
 				uikit.Input(c, &a.dnsRuleHost).Label("Host")
 				uikit.Input(c, &a.dnsRuleAddr).Label("Address")
-				uikit.Meta(c, "Applies to")
+				uikit.Meta(c, locales.AppliesTo())
 				uikit.Select(c, &a.dnsRuleScope, a.dnsRuleApps)
-				uikit.Meta(c, "Host profile")
+				uikit.Meta(c, locales.HostProfile())
 				uikit.Select(c, &a.dnsRuleProfile, a.mappableProfiles())
 			})
 			uikit.DialogFooter(c).Children(func() {
-				if uikit.SecondaryButton(c, "Cancel").Clicked() {
+				if uikit.SecondaryButton(c, locales.Cancel()).Clicked() {
 					a.dnsRuleOpen = false
 				}
-				if uikit.PrimaryButton(c, "Save").Clicked() {
+				if uikit.PrimaryButton(c, locales.Save()).Clicked() {
 					a.saveDNSRule()
 				}
 			})

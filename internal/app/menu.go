@@ -3,6 +3,7 @@ package app
 import (
 	"runtime"
 
+	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo"
 )
 
@@ -25,17 +26,17 @@ func (a *app) menu() *mygo.Menu {
 		a.workbench.menuItems[id] = item
 		return item
 	}
-	preferences := command("app.settings", "Settings…")
-	file := &mygo.MenuItem{Label: "File", Submenu: []*mygo.MenuItem{
-		command("request.new", "New request"),
-		command("request.import-curl", "Import cURL…"),
-		command("collection.import-folder", "Import collection folder…"),
-		command("capture.import-session", "Import capture session…"),
-		command("capture.import-proxyman-folder", "Import Proxyman log folder…"),
-		command("request.save", "Save request"),
-		command("request.close", "Close request"),
+	preferences := command("app.settings", locales.Settings2())
+	file := &mygo.MenuItem{Label: locales.File(), Submenu: []*mygo.MenuItem{
+		command("request.new", locales.NewRequest()),
+		command("request.import-curl", locales.ImportCurl()),
+		command("collection.import-folder", locales.ImportCollectionFolder()),
+		command("capture.import-session", locales.ImportCaptureSession()),
+		command("capture.import-proxyman-folder", locales.ImportProxymanLogFolder()),
+		command("request.save", locales.SaveRequest()),
+		command("request.close", locales.CloseRequest()),
 		mygo.Separator(),
-		{Role: mygo.RoleClose, Label: "Close window", Accelerator: "CmdOrCtrl+Shift+W"},
+		{Role: mygo.RoleClose, Label: locales.CloseWindow(), Accelerator: "CmdOrCtrl+Shift+W"},
 	}}
 	var items []*mygo.MenuItem
 	if runtime.GOOS == "darwin" {
@@ -52,31 +53,31 @@ func (a *app) menu() *mygo.Menu {
 	for _, format := range requestCopyFormats[1:] {
 		copyFormats = append(copyFormats, command(format.id, format.label))
 	}
-	copyFormats = append(copyFormats, command("flow.copy-markdown", "Markdown table"), command("flow.copy-csv", "CSV"),
-		command("flow.copy-raw", "Raw HTTP"), command("flow.copy-har", "HAR (sanitized)"), command("flow.copy-har-raw", "HAR (with sensitive data)"))
-	items = append(items, file, &mygo.MenuItem{Role: mygo.RoleEditMenu}, &mygo.MenuItem{Label: "Request", Submenu: []*mygo.MenuItem{
-		command("flow.edit", "Edit request"),
-		command("flow.replay", "Replay selected…"),
-		command("flow.copy-curl", "Copy as cURL"),
-		{Label: "Copy as…", Submenu: copyFormats},
+	copyFormats = append(copyFormats, command("flow.copy-markdown", locales.MarkdownTable()), command("flow.copy-csv", "CSV"),
+		command("flow.copy-raw", locales.RawHttp()), command("flow.copy-har", locales.HarSanitized()), command("flow.copy-har-raw", locales.HarWithSensitiveData()))
+	items = append(items, file, &mygo.MenuItem{Role: mygo.RoleEditMenu}, &mygo.MenuItem{Label: locales.Request(), Submenu: []*mygo.MenuItem{
+		command("flow.edit", locales.EditRequest()),
+		command("flow.replay", locales.ReplaySelected()),
+		command("flow.copy-curl", locales.CopyAsCurl()),
+		{Label: locales.CopyAs(), Submenu: copyFormats},
 		mygo.Separator(),
-		command("request.send", "Send request"),
-		command("request.compare-source", "Compare with source"),
-	}}, &mygo.MenuItem{Label: "View", Submenu: []*mygo.MenuItem{
-		command("go.live", "Live traffic"),
-		command("go.collections", "Collections"),
-		command("go.sessions", "Sessions"),
+		command("request.send", locales.SendRequest()),
+		command("request.compare-source", locales.CompareWithSource()),
+	}}, &mygo.MenuItem{Label: locales.View(), Submenu: []*mygo.MenuItem{
+		command("go.live", locales.LiveTraffic()),
+		command("go.collections", locales.Collections()),
+		command("go.sessions", locales.Sessions()),
 		mygo.Separator(),
-		command("view.layout-right", "Side by side layout"),
-		command("view.layout-bottom", "Stacked layout"),
-		command("view.sidebar", "Toggle sidebar"),
+		command("view.layout-right", locales.SideBySideLayout()),
+		command("view.layout-bottom", locales.StackedLayout()),
+		command("view.sidebar", locales.ToggleSidebar()),
 		mygo.Separator(),
-		command("app.palette", "Commands…"),
-		command("view.search", "Find / Search traffic"),
-		command("view.primary", "Focus request list / URL"),
-		command("view.focus-inspector", "Focus inspector / Back to list"),
-		command("request.next-tab", "Next open request"),
-		command("request.previous-tab", "Previous open request"),
+		command("app.palette", locales.Commands()),
+		command("view.search", locales.FindSearchTraffic()),
+		command("view.primary", locales.FocusRequestListUrl()),
+		command("view.focus-inspector", locales.FocusInspectorBackToList()),
+		command("request.next-tab", locales.NextOpenRequest()),
+		command("request.previous-tab", locales.PreviousOpenRequest()),
 		mygo.Separator(), {Role: mygo.RoleToggleFullScreen},
 	}}, &mygo.MenuItem{Role: mygo.RoleWindowMenu})
 	return mygo.NewMenu(items)

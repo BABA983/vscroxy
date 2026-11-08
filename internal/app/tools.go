@@ -115,10 +115,10 @@ func (a *app) toolsModal(c *ui.Context, t *ui.Theme) {
 	width, height := c.Size()
 	if uikit.Modal(c, &a.toolsOpen, func() {
 		ui.Column(c).Width(min(1040, width-80)).Height(min(640, height-80)).Gap(t.Space(3)).Children(func() {
-			uikit.DialogTitle(c, "Tools")
+			uikit.DialogTitle(c, locales.Tools())
 			a.toolsContent(c, t, true, false)
 			uikit.DialogFooter(c).Children(func() {
-				if uikit.SecondaryButton(c, "Done").Clicked() {
+				if uikit.SecondaryButton(c, locales.Done()).Clicked() {
 					a.closeTools()
 				}
 			})
@@ -142,9 +142,9 @@ func (a *app) toolsContent(c *ui.Context, t *ui.Theme, active, window bool) {
 				id    string
 				icon  *ui.SVG
 				label string
-			}{{"rules", rulesIcon, "Rules"}, {"scenarios", layersIcon, "Scenarios"}, {"scripts", scriptsIcon, "Scripts"},
-				{"hosts", hostsIcon, "Host profiles"}, {"mocks", mocksIcon, "Mocks"}} {
-				uikit.SidebarItem(c, page.id, page.icon, page.label, a.toolsPage == page.id, active).Label("Tools category: " + page.label)
+			}{{"rules", rulesIcon, locales.Rules()}, {"scenarios", layersIcon, locales.Scenarios()}, {"scripts", scriptsIcon, locales.Scripts()},
+				{"hosts", hostsIcon, locales.HostProfiles()}, {"mocks", mocksIcon, locales.Mocks()}} {
+				uikit.SidebarItem(c, page.id, page.icon, page.label, a.toolsPage == page.id, active).Label(locales.ToolsCategory(page.label))
 			}
 		}).Width(180).Padding(top, t.Space(2), t.Space(2), t.Space(2)).Gap(t.Space(0.5)).Background(pal.Panel)
 		ui.Divider(c)
@@ -173,8 +173,8 @@ func (a *app) hostProfilesPage(c *ui.Context, t *ui.Theme, window bool) {
 	}
 	ui.Column(c).Width(268).MinHeight(0).Padding(top, t.Space(3), t.Space(3), t.Space(3)).Gap(t.Space(2)).Children(func() {
 		ui.Row(c).Gap(t.Space(1)).AlignItems(ui.Center).Children(func() {
-			ui.Text(c, "Host profiles").FontSize(uikit.TextTitle).FontWeight(600).TextColor(t.Text).Grow(1)
-			if uikit.IconButton(c, "New profile", "New profile", plusIcon).Clicked() {
+			ui.Text(c, locales.HostProfiles()).FontSize(uikit.TextTitle).FontWeight(600).TextColor(t.Text).Grow(1)
+			if uikit.IconButton(c, locales.NewProfile(), locales.NewProfile(), plusIcon).Clicked() {
 				if a.newProfile("Untitled", "", "") {
 					h.nameFor = "" // the name field takes the new one
 				}
@@ -187,14 +187,14 @@ func (a *app) hostProfilesPage(c *ui.Context, t *ui.Theme, window bool) {
 		}
 		uikit.Meta(c, caption)
 		if h.problem != nil {
-			ui.Text(c, "Read-only: "+h.problem.Error()).FontSize(uikit.TextMeta).TextColor(t.Danger).MaxLines(3)
+			ui.Text(c, locales.ReadOnlyReason(h.problem.Error())).FontSize(uikit.TextMeta).TextColor(t.Danger).MaxLines(3)
 		}
 		a.profileList(c, t)
 		ui.Row(c).Gap(t.Space(1)).Wrap().Children(func() {
-			if uikit.CompactButton(c, "Import system hosts…").Tooltip("Copy " + hosts.SystemFile() + " into a new profile").Clicked() {
+			if uikit.CompactButton(c, locales.ImportSystemHosts()).Tooltip(locales.CopySystemHosts(hosts.SystemFile())).Clicked() {
 				a.importSystemHosts()
 			}
-			if uikit.CompactButton(c, "Subscribe to URL…").Tooltip("A profile fetched from a URL, refreshed hourly").Clicked() {
+			if uikit.CompactButton(c, locales.SubscribeToUrl()).Tooltip(locales.AProfileFetchedFromA()).Clicked() {
 				a.newProfile("Subscription", "", "https://")
 				h.nameFor, h.urlFor = "", ""
 			}
@@ -204,12 +204,12 @@ func (a *app) hostProfilesPage(c *ui.Context, t *ui.Theme, window bool) {
 	ui.Column(c).Grow(1).MinWidth(0).MinHeight(0).Padding(top, t.Space(4), t.Space(3), t.Space(4)).Gap(t.Space(3)).Children(func() {
 		i, ok := h.chosen()
 		if !ok {
-			uikit.EmptyState(c, "No Host profiles", "Point hosts at other machines for every app using the proxy.", func() {
+			uikit.EmptyState(c, locales.NoHostProfiles(), locales.PointHostsAtOtherMachines(), func() {
 				ui.Row(c).Gap(t.Space(2)).Children(func() {
-					if uikit.PrimaryButton(c, "New profile").Clicked() {
+					if uikit.PrimaryButton(c, locales.NewProfile()).Clicked() {
 						a.newProfile("Default", "# address host…, or host = address; add @ App to limit a line to an app\n", "")
 					}
-					if uikit.SecondaryButton(c, "Import system hosts…").Clicked() {
+					if uikit.SecondaryButton(c, locales.ImportSystemHosts()).Clicked() {
 						a.importSystemHosts()
 					}
 				})
@@ -245,11 +245,11 @@ func (a *app) profileList(c *ui.Context, t *ui.Theme) {
 		}
 		r.Children(func() {
 			on := p.On
-			if ui.Switch(c, &on).Label("Host profile: " + p.Name).Changed() {
+			if ui.Switch(c, &on).Label(locales.HostProfileNamed(p.Name)).Changed() {
 				a.switchProfile(row.Index, on)
 			}
 			if p.URL != "" {
-				uikit.Glyph(c, subscribeIcon).Tooltip("Subscribed: " + p.URL)
+				uikit.Glyph(c, subscribeIcon).Tooltip(locales.SubscribedUrl(p.URL))
 			}
 			ui.Column(c).Grow(1).MinWidth(0).Children(func() {
 				ui.Text(c, p.Name).FontSize(uikit.TextBody).TextColor(t.Text).SingleLine()
@@ -259,9 +259,9 @@ func (a *app) profileList(c *ui.Context, t *ui.Theme) {
 			})
 			if n := conflicts[p.Name]; n > 0 && p.On {
 				ui.Box(c).Size(7, 7).Radius(uikit.RadiusControl).Background(t.Warning).
-					Label(fmt.Sprintf("%d %s", n, plural(n, "conflict", "conflicts"))).Tooltip("A higher profile maps the same host elsewhere")
+					Label(fmt.Sprintf("%d %s", n, plural(n, "conflict", "conflicts"))).Tooltip(locales.AHigherProfileMapsThe())
 			}
-			uikit.Meta(c, fmt.Sprint(profileHosts(p))).Font(uikit.FontMono).FontFeatures("tnum").Tooltip("Hosts mapped")
+			uikit.Meta(c, fmt.Sprint(profileHosts(p))).Font(uikit.FontMono).FontFeatures("tnum").Tooltip(locales.HostsMapped())
 		})
 	})
 	c.SetTheme(t)
@@ -305,7 +305,7 @@ func (a *app) profileEditor(c *ui.Context, t *ui.Theme, i int) {
 	if st == nil {
 		buf := editor.NewBuffer(p.Text)
 		buf.SetLanguage(hostsLanguage)
-		st = &editor.State{Buffer: buf, NoScrollPastEnd: true, Label: "Hosts of " + p.Name,
+		st = &editor.State{Buffer: buf, NoScrollPastEnd: true, Label: locales.HostsOf(p.Name),
 			Placeholder: "10.0.3.21  api.example.com auth.example.com"}
 		if h.editors == nil {
 			h.editors = map[string]*editor.State{}
@@ -324,14 +324,14 @@ func (a *app) profileEditor(c *ui.Context, t *ui.Theme, i int) {
 		}
 		ui.Spacer(c)
 		a.hostTest(c, t)
-		uikit.MoreMenu(c, "Profile actions", func(m *ui.Menu) {
+		uikit.MoreMenu(c, locales.ProfileActions(), func(m *ui.Menu) {
 			actions := []action{
-				do("hosts.rename", "Rename", func() { a.renameProfile(i, strings.TrimSpace(h.name)) }).
+				do("hosts.rename", locales.Rename(), func() { a.renameProfile(i, strings.TrimSpace(h.name)) }).
 					when(strings.TrimSpace(h.name) != p.Name, "Type the new name first").in("edit"),
-				do("hosts.duplicate", "Duplicate", func() { a.duplicateProfile(i) }).in("edit"),
-				do("hosts.refresh", "Refresh now", func() { a.refreshProfile(i) }).
+				do("hosts.duplicate", locales.Duplicate(), func() { a.duplicateProfile(i) }).in("edit"),
+				do("hosts.refresh", locales.RefreshNow(), func() { a.refreshProfile(i) }).
 					when(p.URL != "" && !h.fetching[p.Name], "Only subscribed profiles refresh").in("edit"),
-				do("hosts.delete", "Delete", func() { a.deleteProfile(i) }).in("danger"),
+				do("hosts.delete", locales.Delete(), func() { a.deleteProfile(i) }).in("danger"),
 			}
 			actionMenu(m, actions)
 		})
@@ -340,7 +340,7 @@ func (a *app) profileEditor(c *ui.Context, t *ui.Theme, i int) {
 		ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 			uikit.Glyph(c, subscribeIcon)
 			in := uikit.Input(c, &h.url).Label("Subscription URL").Placeholder("https://example.com/hosts").Font(uikit.FontMono).Grow(1)
-			refresh := uikit.SecondaryButton(c, "Refresh").Disabled(h.fetching[p.Name])
+			refresh := uikit.SecondaryButton(c, locales.Refresh()).Disabled(h.fetching[p.Name])
 			if in.Submitted() || refresh.Clicked() {
 				url := strings.TrimSpace(h.url)
 				if url != p.URL && a.changeHosts(func(s *hosts.Set) { s.Profiles[i].URL, s.Profiles[i].Updated = url, time.Time{} }) {
@@ -369,13 +369,13 @@ func (a *app) profileEditor(c *ui.Context, t *ui.Theme, i int) {
 		}
 		uikit.Meta(c, note).Grow(1).SingleLine()
 		ui.Row(c).Disabled(a.srv == nil).Children(func() {
-			if uikit.SecondaryButton(c, "Drop open connections").Tooltip("Close the clients' open connections so they connect again").Clicked() {
+			if uikit.SecondaryButton(c, locales.DropOpenConnections()).Tooltip(locales.CloseTheClientsOpenConnections()).Clicked() {
 				a.dropConnections()
 			}
 		})
 		if p.URL == "" {
 			ui.Row(c).Disabled(!modified).Children(func() {
-				save := uikit.PrimaryButton(c, "Save").Tooltip("Save · Ctrl/Cmd+S")
+				save := uikit.PrimaryButton(c, locales.Save()).Tooltip(locales.SaveCtrlCmdS())
 				save.OnClick(func() { a.saveProfile(i) })
 			})
 		}
@@ -403,7 +403,7 @@ func (a *app) profileToSave() (int, bool) {
 func (a *app) hostTest(c *ui.Context, t *ui.Theme) {
 	h := &a.profiles
 	ui.Column(c).Width(240).Gap(t.Space(0.5)).Children(func() {
-		uikit.Input(c, &h.test).Label("Test a host").Placeholder("Test a host: api.example.com").Font(uikit.FontMono).FillWidth()
+		uikit.Input(c, &h.test).Label("Test a host").Placeholder(locales.TestAHostApiExample()).Font(uikit.FontMono).FillWidth()
 		host := strings.TrimSpace(h.test)
 		if host == "" {
 			return
@@ -412,7 +412,7 @@ func (a *app) hostTest(c *ui.Context, t *ui.Theme) {
 			uikit.Meta(c, fmt.Sprintf("→ %s · %s line %d", r.IP, r.Profile, r.Line)).Font(uikit.FontMono).SingleLine()
 			return
 		}
-		uikit.Meta(c, "→ not mapped; resolved as usual").SingleLine()
+		uikit.Meta(c, locales.NotMappedResolvedAsUsual()).SingleLine()
 	})
 }
 

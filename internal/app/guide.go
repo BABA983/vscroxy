@@ -15,6 +15,7 @@ import (
 	"github.com/baba983/vscroxy/internal/capture"
 	"github.com/baba983/vscroxy/internal/system"
 	"github.com/baba983/vscroxy/internal/uikit"
+	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -105,8 +106,8 @@ func (a *app) setupGuide(c *ui.Context) {
 					uikit.Meta(c, fmt.Sprintf("%d %s captured so far", n, plural(n, "request", "requests")))
 				}
 				ui.Spacer(c)
-				if uikit.ToolbarButton(c, "Skip guide", "Show the traffic list; reopen the guide from the command palette", false).
-					Children(func() { ui.Text(c, "Skip guide") }).Clicked() {
+				if uikit.ToolbarButton(c, locales.SkipGuide(), locales.ShowTheTrafficListReopen(), false).
+					Children(func() { ui.Text(c, locales.SkipGuide()) }).Clicked() {
 					a.closeGuide()
 				}
 			})
@@ -154,7 +155,7 @@ func (a *app) guideStep(c *ui.Context, t *ui.Theme, i int, title, summary string
 					case 2:
 						a.guideDecrypt(c, t)
 					case 3:
-						uikit.Meta(c, "Rules apply to new connections: reload the page or restart the app you are inspecting.")
+						uikit.Meta(c, locales.RulesApplyToNewConnections())
 					}
 				})
 			}
@@ -164,24 +165,24 @@ func (a *app) guideStep(c *ui.Context, t *ui.Theme, i int, title, summary string
 
 func (a *app) guideCapture(c *ui.Context, t *ui.Theme) {
 	if a.srv == nil || !a.srv.Running() {
-		ui.Text(c, "Capture is stopped").FontSize(uikit.TextBody).TextColor(t.Warning)
+		ui.Text(c, locales.CaptureIsStopped()).FontSize(uikit.TextBody).TextColor(t.Warning)
 		ui.Row(c).Children(func() {
-			if uikit.SecondaryButton(c, "Diagnose capture…").Clicked() {
+			if uikit.SecondaryButton(c, locales.DiagnoseCapture()).Clicked() {
 				a.openDiagnostics(nil, diagnoseMac)
 			}
 		})
 		return
 	}
 	ui.Row(c).Gap(t.Space(1)).Children(func() {
-		uikit.Meta(c, "Listening at")
+		uikit.Meta(c, locales.ListeningAt())
 		uikit.Meta(c, a.srv.Addr()).Font(uikit.FontMono).Selectable()
 	})
 	s := &a.systemProxy
 	ui.Row(c).Gap(t.Space(2)).Wrap().AlignItems(ui.Center).Children(func() {
-		if uikit.PrimaryButton(c, "Turn on system proxy").Disabled(s.applying || s.checking).Clicked() {
+		if uikit.PrimaryButton(c, locales.TurnOnSystemProxy()).Disabled(s.applying || s.checking).Clicked() {
 			a.setSystemProxy(true)
 		}
-		if uikit.SecondaryButton(c, "Capture one app only…").Clicked() {
+		if uikit.SecondaryButton(c, locales.CaptureOneAppOnly()).Clicked() {
 			a.openClientSetup()
 		}
 	})
@@ -195,12 +196,12 @@ func (a *app) guideCertificate(c *ui.Context, t *ui.Theme) {
 	s := &a.certificate
 	status, color := a.certificateStatus(t)
 	ui.Row(c).Children(func() {
-		if uikit.PrimaryButton(c, "Install and trust").Disabled(s.checking).Clicked() {
+		if uikit.PrimaryButton(c, locales.InstallAndTrust()).Disabled(s.checking).Clicked() {
 			a.checkCertificate(true)
 		}
 	})
 	ui.Text(c, status).FontSize(uikit.TextMeta).TextColor(color)
-	uikit.Meta(c, "Some apps keep their own trust store, or pin certificates; they may need setting up themselves.")
+	uikit.Meta(c, locales.SomeAppsKeepTheirOwn())
 }
 
 // guideDecrypt lists the apps and domains seen so far, each a check box
@@ -217,7 +218,7 @@ func (a *app) guideDecrypt(c *ui.Context, t *ui.Theme) {
 	apps = apps[:min(len(apps), guideChoices)]
 	domains := a.domains[:min(len(a.domains), guideChoices)]
 	if len(apps) == 0 && len(domains) == 0 {
-		uikit.Meta(c, "Apps and domains show here as their traffic arrives.")
+		uikit.Meta(c, locales.AppsAndDomainsShowHere())
 		return
 	}
 	box := func(key, label string, on bool, set func(bool)) {
@@ -238,5 +239,5 @@ func (a *app) guideDecrypt(c *ui.Context, t *ui.Theme) {
 			a.saveSSL(next)
 		})
 	}
-	uikit.Meta(c, "Headers, cookies and bodies of these become readable. More rules in HTTPS rules.")
+	uikit.Meta(c, locales.HeadersCookiesAndBodiesOf())
 }

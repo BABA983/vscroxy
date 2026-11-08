@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/baba983/vscroxy/internal/capture"
+	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -37,16 +38,16 @@ func (a *app) shell(c *ui.Context, t *ui.Theme) {
 			ui.Spacer(c)
 			ui.Row(c).Shrink(0).PaddingEnd(max(bar.Right, t.Space(3))).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 				ui.Row(c).Gap(t.Space(0.5)).AlignItems(ui.Center).Children(func() { a.layoutToggle(c) })
-				if uikit.IconButton(c, "Commands", "Search every action · Ctrl/Cmd+K", commandIcon).Clicked() {
+				if uikit.IconButton(c, locales.Commands2(), locales.SearchEveryActionCtrlCmd(), commandIcon).Clicked() {
 					a.workbench.openPalette()
 				}
-				uikit.IconButton(c, "Tools", "Manage debugging rules and network conditions", toolsIcon).PopoverMenuButton(func(m *ui.Menu) {
-					actionMenu(m, append([]action{do("tools.rules", "Debugging rules…", a.openRules).in("rules")}, a.networkTools()...))
+				uikit.IconButton(c, locales.Tools(), locales.ManageDebuggingRulesAndNetwork(), toolsIcon).PopoverMenuButton(func(m *ui.Menu) {
+					actionMenu(m, append([]action{do("tools.rules", locales.DebuggingRules2(), a.openRules).in("rules")}, a.networkTools()...))
 				})
-				if uikit.IconButton(c, "Settings", "Settings · Ctrl/Cmd+,", settingsIcon).Clicked() {
+				if uikit.IconButton(c, locales.Settings(), locales.SettingsCtrlCmd(), settingsIcon).Clicked() {
 					a.openSettings(-1)
 				}
-				uikit.IconButton(c, "More", "More commands", moreIcon).PopoverMenuButton(func(m *ui.Menu) { a.moreMenu(c, m) })
+				uikit.IconButton(c, locales.More(), locales.MoreCommands(), moreIcon).PopoverMenuButton(func(m *ui.Menu) { a.moreMenu(c, m) })
 			})
 		})
 	})
@@ -106,7 +107,7 @@ func (a *app) proxyIndicator(c *ui.Context, t *ui.Theme) {
 	ui.Row(c).Height(uikit.HeightControl).MinWidth(0).AlignItems(ui.Center).Gap(0).Padding(0, 1).
 		Radius(uikit.RadiusControl).Border(1, t.Border).Background(t.Background).Children(func() {
 		// Inset by the border, so the faces stay concentric with the pill.
-		b := uikit.ToolbarButton(c, "Proxy status", tip, false).Height(uikit.HeightControl-4).
+		b := uikit.ToolbarButton(c, locales.ProxyStatus(), tip, false).Height(uikit.HeightControl-4).
 			Radius(uikit.RadiusControl-2).MinWidth(0).Padding(0, t.Space(2)).FontSize(uikit.TextMeta)
 		b.Children(func() {
 			ui.Box(c).Size(7, 7).Radius(uikit.RadiusControl).Background(dot)
@@ -163,7 +164,7 @@ func rateLabel(perSecond float64) string {
 // networkTools is shared by Tools, the enabled chips and More → Network.
 func (a *app) networkTools() []action {
 	actions := []action{
-		do("network.no-caching", "No Caching", func() { a.srv.SetNoCaching(!a.srv.NoCaching()) }).
+		do("network.no-caching", locales.NoCaching(), func() { a.srv.SetNoCaching(!a.srv.NoCaching()) }).
 			when(a.srv != nil, "Start capture first").checked(checkbox(a.srv != nil && a.srv.NoCaching())).in("caching"),
 	}
 	for _, preset := range a.networkPresets() {
@@ -180,10 +181,10 @@ func (a *app) networkTools() []action {
 		}).checked(radio(selected)).in("throttle"))
 	}
 	return append(actions,
-		do("network.custom", "Custom presets…", a.openNetwork).in("throttle"),
-		do("network.rules", "Network rules…", a.openNetworkRules).in("throttle"),
-		do("network.upstream", "Upstream…", func() { a.openSettings(1) }).in("upstream"),
-		do("network.upstream-off", "Upstream off", a.clearUpstream).when(a.upstream != "" || a.upstreamProblem != "" || a.upstreamCfg.Enabled(), "No upstream proxy is set").in("upstream"),
+		do("network.custom", locales.CustomPresets(), a.openNetwork).in("throttle"),
+		do("network.rules", locales.NetworkRules(), a.openNetworkRules).in("throttle"),
+		do("network.upstream", locales.Upstream(), func() { a.openSettings(1) }).in("upstream"),
+		do("network.upstream-off", locales.UpstreamOff(), a.clearUpstream).when(a.upstream != "" || a.upstreamProblem != "" || a.upstreamCfg.Enabled(), "No upstream proxy is set").in("upstream"),
 	)
 }
 
@@ -275,7 +276,7 @@ func toolChipState(c *ui.Context, id, label, tip string, icon *ui.SVG, open, off
 	}
 	var body ui.Element
 	ui.Row(c.Key(id)).Height(uikit.HeightCompact).AlignItems(ui.Center).Background(background).Border(1, border).Radius(uikit.RadiusControl).Children(func() {
-		body = uikit.ToolbarButton(c, "Active tool: "+label, tip, false).Height(uikit.HeightCompact).Children(func() {
+		body = uikit.ToolbarButton(c, locales.ActiveTool(label), tip, false).Height(uikit.HeightCompact).Children(func() {
 			ui.Icon(c, icon).Size(uikit.IconInline, uikit.IconInline)
 			ui.Text(c, label).FontSize(uikit.TextMeta).MaxWidth(180).SingleLine()
 		})
@@ -285,7 +286,7 @@ func toolChipState(c *ui.Context, id, label, tip string, icon *ui.SVG, open, off
 		if open != nil {
 			body.OnClick(open)
 		}
-		closeButton := uikit.IconButton(c, "Disable "+label, "Turn off "+label, closeIcon)
+		closeButton := uikit.IconButton(c, locales.DisableTool(label), locales.TurnOffTool(label), closeIcon)
 		if danger {
 			closeButton.TextColor(t.Danger)
 		}
@@ -310,9 +311,9 @@ func (a *app) moreActions(c *ui.Context) []action {
 		pick(global, "network.electron"),
 	}
 	network := []action{
-		do("network.diagnostics", "Connection diagnostics", func() { a.openDiagnostics(nil, diagnoseMac) }).in("tools"),
-		do("network.client", "Set up a local client…", a.openClientSetup).in("tools"),
-		submenu("One-click setup", oneClick...).in("tools"),
+		do("network.diagnostics", locales.ConnectionDiagnostics(), func() { a.openDiagnostics(nil, diagnoseMac) }).in("tools"),
+		do("network.client", locales.SetUpALocalClient(), a.openClientSetup).in("tools"),
+		submenu(locales.OneClickSetup(), oneClick...).in("tools"),
 		pick(global, "network.websocket").in("tools"),
 		pick(global, "network.sse").in("tools"),
 	}
@@ -323,51 +324,51 @@ func (a *app) moreActions(c *ui.Context) []action {
 		network = append(network, x)
 	}
 	network = append(network,
-		do("network.devices", "Connect a device…", a.openDevices).checked(checkbox(a.deviceUI.gateway != nil)).in("devices"),
-		do("https.rules", "SSL proxying…", func() { a.sslOpen = true }).in("lists"),
-		do("capture.ignored-hosts", "Ignored hosts…", func() { a.ignoreOpen = true }).in("lists"),
-		do("capture.ignored-apps", "Ignored apps…", func() { a.ignoreAppsOpen = true }).in("lists"),
+		do("network.devices", locales.ConnectADevice(), a.openDevices).checked(checkbox(a.deviceUI.gateway != nil)).in("devices"),
+		do("https.rules", locales.SslProxying2(), func() { a.sslOpen = true }).in("lists"),
+		do("capture.ignored-hosts", locales.IgnoredHosts(), func() { a.ignoreOpen = true }).in("lists"),
+		do("capture.ignored-apps", locales.IgnoredApps(), func() { a.ignoreAppsOpen = true }).in("lists"),
 		pick(a.hostsActions(), "hosts.manage").as("Host profiles…").in("lists"),
 	)
 	session := []action{
 		pick(global, "collection.record"),
 		pick(global, "flow.replay").as("Replay chosen…"),
-		do("capture.export-har", "Export HAR…", a.exportHAR).in("files"),
+		do("capture.export-har", locales.ExportHar(), a.exportHAR).in("files"),
 		pick(global, "capture.export-chosen").as("Export chosen HAR…").in("files"),
-		do("capture.export-csv", "Export CSV…", a.exportCSV).in("files"),
+		do("capture.export-csv", locales.ExportCsv(), a.exportCSV).in("files"),
 		pick(global, "capture.export-chosen-csv").as("Export chosen CSV…").in("files"),
-		do("capture.choose-shown", "Choose all shown", func() {
+		do("capture.choose-shown", locales.ChooseAllShown(), func() {
 			for _, at := range a.visible {
 				a.chosen.Add(a.flows[at].id)
 			}
 			a.inform(fmt.Sprintf("%d chosen", a.chosen.Len()))
 		}).in("files"),
-		do("capture.clear-choice", "Clear choice", a.chosen.Clear).in("files"),
-		do("session.save-as", "Save session…", a.saveSession).in("files"),
-		do("session.open", "Open session…", a.openSession).in("files"),
-		do("capture.import-har", "Import HAR…", a.importHAR).in("files"),
-		do("capture.import-session", "Import capture session…", a.importCaptureSession).in("import"),
-		do("capture.import-proxyman-folder", "Import Proxyman log folder…", a.importCaptureFolder).in("import"),
-		do("collection.import", "Import…", a.importRequests).in("import"),
-		do("collection.import-folder", "Import collection folder…", a.importCollectionFolder).in("import"),
-		do("request.import-curl", "Import cURL…", a.openCurlImport).in("import"),
-		do("api.generate", "Generate OpenAPI…", a.openAPIGeneration).
+		do("capture.clear-choice", locales.ClearChoice(), a.chosen.Clear).in("files"),
+		do("session.save-as", locales.SaveSession(), a.saveSession).in("files"),
+		do("session.open", locales.OpenSession(), a.openSession).in("files"),
+		do("capture.import-har", locales.ImportHar(), a.importHAR).in("files"),
+		do("capture.import-session", locales.ImportCaptureSession(), a.importCaptureSession).in("import"),
+		do("capture.import-proxyman-folder", locales.ImportProxymanLogFolder(), a.importCaptureFolder).in("import"),
+		do("collection.import", locales.ImportText(), a.importRequests).in("import"),
+		do("collection.import-folder", locales.ImportCollectionFolder(), a.importCollectionFolder).in("import"),
+		do("request.import-curl", locales.ImportCurl(), a.openCurlImport).in("import"),
+		do("api.generate", locales.GenerateOpenapi(), a.openAPIGeneration).
 			when(len(a.requests) > 0, "Save a request to a collection first").in("api"),
 	}
 	view := a.pickActions(c, "view.focus-inspector", "view.layout-right", "view.layout-bottom", "view.sidebar")
-	view = append(view, do("capture.filter", "Filter…", a.openFilter).in("filter"))
+	view = append(view, do("capture.filter", locales.Filter(), a.openFilter).in("filter"))
 	if a.filtersActive() {
-		view = append(view, do("capture.clear-filters", "Clear filters", a.clearFilters).in("filter"))
+		view = append(view, do("capture.clear-filters", locales.ClearFilters(), a.clearFilters).in("filter"))
 	}
 	view = append(view,
-		do("capture.add-column", "Add column…", a.openColumn).in("columns"),
-		do("protobuf.schema", "Protobuf schema…", func() { a.protobuf.open = true }).in("protobuf"),
+		do("capture.add-column", locales.AddColumn(), a.openColumn).in("columns"),
+		do("protobuf.schema", locales.ProtobufSchema(), func() { a.protobuf.open = true }).in("protobuf"),
 	)
 	return []action{
-		do("tools.rules", "Debugging rules…", a.openRules),
-		submenu("Network", network...),
-		submenu("Session", session...),
-		submenu("View", view...),
+		do("tools.rules", locales.DebuggingRules2(), a.openRules),
+		submenu(locales.Network(), network...),
+		submenu(locales.Session(), session...),
+		submenu(locales.View(), view...),
 	}
 }
 
@@ -459,7 +460,7 @@ func (a *app) footer(c *ui.Context, t *ui.Theme) {
 		}
 		text(counts)
 		if a.filtersActive() {
-			ui.Text(c, "Filtered").FontSize(uikit.TextMeta).TextColor(t.Text).SingleLine().Tooltip("filtered: " + a.filterSummary())
+			ui.Text(c, locales.Filtered()).FontSize(uikit.TextMeta).TextColor(t.Text).SingleLine().Tooltip(locales.FilteredTooltip(a.filterSummary()))
 		}
 		if a.dropped > 0 {
 			ui.Text(c, fmt.Sprintf("%d dropped", a.dropped)).FontSize(uikit.TextMeta).FontFeatures("tnum").TextColor(t.Warning).SingleLine()
@@ -484,7 +485,7 @@ func (a *app) footer(c *ui.Context, t *ui.Theme) {
 		if newRows > 0 {
 			label = fmt.Sprintf("Auto-follow off · %d new ↓", newRows)
 		}
-		if uikit.ToolbarButton(c, "Auto-follow", tip, false).Height(uikit.HeightCompact).Padding(0, t.Space(1)).TextColor(t.Text).Children(func() {
+		if uikit.ToolbarButton(c, locales.AutoFollow(), tip, false).Height(uikit.HeightCompact).Padding(0, t.Space(1)).TextColor(t.Text).Children(func() {
 			if newRows > 0 {
 				uikit.Glyph(c, breakIcon)
 			}

@@ -8,6 +8,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/baba983/vscroxy/internal/uikit"
+	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/editor"
@@ -94,7 +95,7 @@ func (a *app) desktopContent(c *ui.Context) {
 				if w.focused {
 					ui.Row(c).Height(uikit.HeightLarge).Padding(0, c.Theme().Space(3)).AlignItems(ui.Center).Children(func() {
 						a.actionButton(c, "view.focus-inspector", "Back to list")
-						uikit.Meta(c, "Inspector focus · Ctrl/Cmd+Shift+Enter")
+						uikit.Meta(c, locales.InspectorFocusCtrlCmdShift())
 					})
 					a.detail(c)
 					return
@@ -109,7 +110,7 @@ func (a *app) desktopContent(c *ui.Context) {
 								a.actionButton(c, "flow.replay", "Replay…")
 								a.actionButton(c, "capture.export-chosen", "Export HAR…")
 								a.actionButton(c, "capture.export-chosen-csv", "Export CSV…")
-								if uikit.CompactButton(c, "Clear selection").Clicked() {
+								if uikit.CompactButton(c, locales.ClearSelection()).Clicked() {
 									a.chosen.Clear()
 								}
 							})
@@ -156,7 +157,7 @@ func (a *app) captureToolbar(c *ui.Context, t *ui.Theme) {
 	ui.Row(c).Height(uikit.HeightBar).Padding(0, t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 		mode := cmp.Or(a.searchMode, "Text")
 		if uikit.Select(c.Key("capture-search-mode"), &mode, []string{"Text", "Wildcard", "Regex"}).Label("Capture search mode").
-			MinWidth(94).Width(94).Tooltip("Text: literal contains and key:value chips · Wildcard: * any text, ? one character, whole host/path · Regex: Go/RE2 · Patterns ignore case by default").Changed() {
+			MinWidth(94).Width(94).Tooltip(locales.TextLiteralContainsAndKey()).Changed() {
 			a.searchMode = mode
 			if mode == "Text" {
 				a.searchMode = ""
@@ -254,7 +255,7 @@ func (a *app) captureToolbar(c *ui.Context, t *ui.Theme) {
 				}
 			}
 			if a.filtersActive() {
-				if uikit.IconButton(c, "Reset all", "Reset all conditions", closeIcon).Clicked() {
+				if uikit.IconButton(c, locales.ResetAll(), locales.ResetAllConditions(), closeIcon).Clicked() {
 					a.views.resetFilters(a)
 				}
 			}
@@ -271,7 +272,7 @@ func (a *app) captureToolbar(c *ui.Context, t *ui.Theme) {
 					if name == "WebSocket" {
 						label = "WS"
 					}
-					segment := segments.Segment(i).Label("Protocol and content type: "+name).Height(uikit.HeightControl).
+					segment := segments.Segment(i).Label(locales.ProtocolAndContentType(name)).Height(uikit.HeightControl).
 						Padding(0, t.Space(1.5)).Radius(uikit.RadiusControl).AlignItems(ui.Center).TextColor(t.TextMuted)
 					switch {
 					case a.chip == i:
@@ -290,19 +291,19 @@ func (a *app) captureToolbar(c *ui.Context, t *ui.Theme) {
 				a.applyFilter()
 			}
 		})
-		if uikit.ToolbarButton(c, "Filters…", "Status, header, body, method, duration and notes", a.filtersActive()).Width(uikit.HeightControl).Padding(0).Justify(ui.Center).Children(func() {
+		if uikit.ToolbarButton(c, locales.Filters(), locales.StatusHeaderBodyMethodDuration(), a.filtersActive()).Width(uikit.HeightControl).Padding(0).Justify(ui.Center).Children(func() {
 			ui.Icon(c, filterIcon).Size(uikit.IconInline, uikit.IconInline)
 		}).Clicked() {
 			a.openFilter()
 		}
-		breakButton := uikit.ToolbarButton(c, "Breakpoints", "Pause each matching request or response before it continues", a.breakOn).
+		breakButton := uikit.ToolbarButton(c, locales.Breakpoints(), locales.PauseEachMatchingRequestOr(), a.breakOn).
 			Width(uikit.HeightControl).Padding(0).Justify(ui.Center)
 		if breakButton.Clicked() && a.srv != nil {
 			a.breakOn = !a.breakOn
 			a.srv.SetBreak(a.breakOn)
 		}
 		breakButton.Children(func() { ui.Icon(c, breakIcon).Size(uikit.IconInline, uikit.IconInline) })
-		uikit.MoreMenu(c, "More capture options", func(m *ui.Menu) { actionMenu(m, a.captureActions()) })
+		uikit.MoreMenu(c, locales.MoreCaptureOptions(), func(m *ui.Menu) { actionMenu(m, a.captureActions()) })
 	})
 	ui.Divider(c)
 }
@@ -369,10 +370,10 @@ func (a *app) captureConditions(c *ui.Context) {
 // captureActions are the capture toolbar's ⋯ menu.
 func (a *app) captureActions() []action {
 	actions := []action{
-		do("tools.rules", "Debugging rules…", a.openRules),
-		do("collection.record", "Record into collection…", func() { a.openCollectionRecording("", "", "") }),
-		do("tokens.analyze", "Recognize token links…", func() { a.openTokenLinks(a.tokenLinkScope()) }),
-		do("capture.saved-filters", "Save filter…", func() { a.views.openSaved(a) }),
+		do("tools.rules", locales.DebuggingRules2(), a.openRules),
+		do("collection.record", locales.RecordIntoCollection(), func() { a.openCollectionRecording("", "", "") }),
+		do("tokens.analyze", locales.RecognizeTokenLinks(), func() { a.openTokenLinks(a.tokenLinkScope()) }),
+		do("capture.saved-filters", locales.SaveFilter(), func() { a.views.openSaved(a) }),
 	}
 	for _, index := range []int{6, 7} {
 		actions = append(actions, do("capture.kind", captureKinds[index], func() {
@@ -380,13 +381,13 @@ func (a *app) captureActions() []action {
 			a.applyFilter()
 		}).checked(checkbox(a.chip == index)).in("kinds"))
 	}
-	actions = append(actions, do("capture.filter", "Filter…", a.openFilter).in("filter"))
+	actions = append(actions, do("capture.filter", locales.Filter(), a.openFilter).in("filter"))
 	if a.filtersActive() {
-		actions = append(actions, do("capture.reset-filters", "Reset all conditions", func() { a.views.resetFilters(a) }).in("filter"))
+		actions = append(actions, do("capture.reset-filters", locales.ResetAllConditions(), func() { a.views.resetFilters(a) }).in("filter"))
 	}
 	return append(actions,
-		do("capture.add-column", "Add column…", a.openColumn).in("columns"),
-		do("capture.clear", "Clear unpinned requests…", func() { a.clearOpen = true }).in("clear"),
+		do("capture.add-column", locales.AddColumn(), a.openColumn).in("columns"),
+		do("capture.clear", locales.ClearUnpinnedRequests2(), func() { a.clearOpen = true }).in("clear"),
 	)
 }
 
@@ -411,13 +412,13 @@ func (a *app) requestActions(c *ui.Context, f flow, current bool) []action {
 		draft = d
 	}
 	actions := []action{
-		do("collection.from-capture", "Create collection…", func() { a.openCollectionWizard(selected) }).
+		do("collection.from-capture", locales.CreateCollection(), func() { a.openCollectionWizard(selected) }).
 			when(current && len(selected) > 0, "Select captured requests first"),
-		do("tokens.from-capture", "Recognize token links…", func() { a.openTokenLinks(selected) }).
+		do("tokens.from-capture", locales.RecognizeTokenLinks(), func() { a.openTokenLinks(selected) }).
 			when(current && len(selected) > 1, "Select a source response and subsequent Bearer requests"),
-		do("flow.edit", "Edit request", func() { a.editCapture(f) }).
+		do("flow.edit", locales.EditRequest(), func() { a.editCapture(f) }).
 			when(current && !bulk && f.kind == "", inspectOne).keys(ui.Cmd|ui.Alt, ui.KeyEnter),
-		do("flow.replay", "Replay selected…", func() { a.openReplay(selected) }).
+		do("flow.replay", locales.ReplaySelected(), func() { a.openReplay(selected) }).
 			when(replayable, "Choose HTTP requests only; tunnels and streams cannot be replayed").keys(ui.Cmd, ui.KeyR),
 	}
 	for _, item := range a.requestCopyActions(c, f, draft) {
@@ -466,7 +467,7 @@ func (a *app) actions(c *ui.Context) []action {
 	draft := "Open a request draft first"
 	actions := a.requestActions(c, f, capturing && current)
 	actions = append(actions, []action{
-		do("app.palette", "Commands…", w.openPalette).keys(ui.Cmd, ui.KeyK),
+		do("app.palette", locales.Commands(), w.openPalette).keys(ui.Cmd, ui.KeyK),
 		do("view.search", search, find).when(capturing, "").keys(ui.Cmd, ui.KeyF),
 		do("view.primary", primary, func() {
 			if tab {
@@ -475,11 +476,11 @@ func (a *app) actions(c *ui.Context) []action {
 				a.focusTraffic(c)
 			}
 		}).when(capturing && len(a.visible) > 0 || editing, "").keys(ui.Cmd, ui.KeyL),
-		do("request.send", "Send request", a.sendComposed).
+		do("request.send", locales.SendRequest(), a.sendComposed).
 			when(editing && !d.composeWaiting && (d.protocol == "gRPC" || d.protocol == "MQTT" || d.protocol == "MCP" || a.srv != nil && a.srv.Running()), "Open a request draft; HTTP sends require capture running").keys(ui.Cmd, ui.KeyEnter),
-		do("request.cancel-send", "Cancel send", func() { d.cancelSend() }).
+		do("request.cancel-send", locales.CancelSend(), func() { d.cancelSend() }).
 			when(editing && d.composeWaiting && d.sendCancel != nil && !d.sendCancelling, ""),
-		do("request.save", "Save request", func() {
+		do("request.save", locales.SaveRequest(), func() {
 			if a.page.capture() && d.savedKey == "" {
 				// A capture has no name or collection yet: ask for both.
 				a.renameOpen, a.saveAfterRename = true, true
@@ -487,7 +488,7 @@ func (a *app) actions(c *ui.Context) []action {
 			}
 			a.saveComposed()
 		}).when(editing, draft).keys(ui.Cmd, ui.KeyS),
-		do("request.compare-source", "Compare with source", func() {
+		do("request.compare-source", locales.CompareWithSource(), func() {
 			d.comparing = true
 			if !tab {
 				// The comparison replaces the editor that had the focus; keep
@@ -495,15 +496,15 @@ func (a *app) actions(c *ui.Context) []action {
 				a.workbench.inspector.Focus(c)
 			}
 		}).when(editing && d.source != nil && d.response != nil && !d.composeWaiting, "Send a draft opened from Capture before comparing it with its source").keys(ui.Cmd|ui.Shift, ui.KeyD),
-		do("request.close", "Close request", func() { a.requestClose(d) }).
+		do("request.close", locales.CloseRequest(), func() { a.requestClose(d) }).
 			when(tab && !d.composeWaiting, "Open a request draft; wait for its send to finish before closing").keys(ui.Cmd, ui.KeyW),
-		do("request.next-tab", "Next open request", func() { a.cycleDocument(1) }).
+		do("request.next-tab", locales.NextOpenRequest(), func() { a.cycleDocument(1) }).
 			when(len(a.documents) > 0, "Open a request first").keys(ui.Ctrl, ui.KeyTab),
-		do("request.previous-tab", "Previous open request", func() { a.cycleDocument(-1) }).
+		do("request.previous-tab", locales.PreviousOpenRequest(), func() { a.cycleDocument(-1) }).
 			when(len(a.documents) > 0, "Open a request first").keys(ui.Ctrl|ui.Shift, ui.KeyTab),
-		do("capture.export-chosen", "Export selected HAR…", a.exportChosen).when(capturing && a.chosen.Len() > 0, ""),
-		do("capture.export-csv", "Export CSV…", a.exportCSV).when(capturing && len(a.visible) > 0, "No visible requests to export"),
-		do("capture.export-chosen-csv", "Export chosen CSV…", a.exportChosenCSV).when(capturing && a.chosen.Len() > 0, "Choose requests first"),
+		do("capture.export-chosen", locales.ExportSelectedHar(), a.exportChosen).when(capturing && a.chosen.Len() > 0, ""),
+		do("capture.export-csv", locales.ExportCsv(), a.exportCSV).when(capturing && len(a.visible) > 0, "No visible requests to export"),
+		do("capture.export-chosen-csv", locales.ExportChosenCsv(), a.exportChosenCSV).when(capturing && a.chosen.Len() > 0, "Choose requests first"),
 		do("view.focus-inspector", focus, func() {
 			w.focused = !w.focused
 			if w.focused {
@@ -512,100 +513,100 @@ func (a *app) actions(c *ui.Context) []action {
 				a.focusTraffic(c)
 			}
 		}).when(capturing && current, "").keys(ui.Cmd|ui.Shift, ui.KeyEnter),
-		do("view.follow-end", "Follow list end", func() {
+		do("view.follow-end", locales.FollowListEnd(), func() {
 			w.focused = false
 			a.views.activeView().list.ScrollToEnd()
 		}).when(capturing && len(a.visible) > 0, ""),
-		do("capture.filter", "Edit capture filters…", a.openFilter).when(capturing, ""),
-		do("capture.saved-filters", "Manage saved filters…", func() { a.views.openSaved(a) }).when(capturing, ""),
-		do("capture.new-view", "New capture view", func() { a.views.capture(a); a.views.newView(a) }).when(capturing, ""),
-		do("capture.reset-filters", "Reset all capture conditions", func() { a.views.resetFilters(a) }).when(capturing, ""),
+		do("capture.filter", locales.EditCaptureFilters(), a.openFilter).when(capturing, ""),
+		do("capture.saved-filters", locales.ManageSavedFilters(), func() { a.views.openSaved(a) }).when(capturing, ""),
+		do("capture.new-view", locales.NewCaptureView(), func() { a.views.capture(a); a.views.newView(a) }).when(capturing, ""),
+		do("capture.reset-filters", locales.ResetAllCaptureConditions(), func() { a.views.resetFilters(a) }).when(capturing, ""),
 		do("capture.break", fmt.Sprintf("Break requests · %t", a.breakOn), func() {
 			a.breakOn = !a.breakOn
 			a.srv.SetBreak(a.breakOn)
 		}).when(a.srv != nil, ""),
 		do("capture.recording", recording, func() { a.recordingPaused = !a.recordingPaused }).
 			when(a.srv != nil && a.srv.Running(), ""),
-		do("collection.record", "Record into collection…", func() { a.openCollectionRecording("", "", "") }),
-		do("view.layout-right", "Layout: Side by side", func() { w.layout, w.focused = "right", false }).
+		do("collection.record", locales.RecordIntoCollection(), func() { a.openCollectionRecording("", "", "") }),
+		do("view.layout-right", locales.LayoutSideBySide(), func() { w.layout, w.focused = "right", false }).
 			checked(checkbox(w.layout == "right")),
-		do("view.layout-bottom", "Layout: Stacked", func() { w.layout, w.focused = "bottom", false }).
+		do("view.layout-bottom", locales.LayoutStacked(), func() { w.layout, w.focused = "bottom", false }).
 			checked(checkbox(w.layout == "bottom")),
-		do("view.sidebar", "Toggle sidebar", func() { w.sidebarHidden = !w.sidebarHidden }).keys(ui.Cmd, ui.KeyB),
-		do("view.layout-reset", "Reset desktop layout", func() {
+		do("view.sidebar", locales.ToggleSidebar(), func() { w.sidebarHidden = !w.sidebarHidden }).keys(ui.Cmd, ui.KeyB),
+		do("view.layout-reset", locales.ResetDesktopLayout(), func() {
 			w.layout, w.sidebarHidden, w.focused, w.sidePercent = "right", false, false, 64
 			a.sidebarWidth, a.tablePercent = 220, 44
 			a.columns = ui.TableLayout{}
 		}),
-		do("settings.https", "HTTPS certificate & decryption setup…", func() { a.openSettings(2) }),
-		do("settings.certificates", "Client certificates & roots…", func() { a.openSettings(6) }),
-		do("network.diagnostics", "Connection diagnostics", func() { a.openDiagnostics(nil, diagnoseMac) }),
-		do("app.setup-guide", "Show setup guide", a.openGuide).when(!a.guide, ""),
-		do("history.open", "History…", func() {
+		do("settings.https", locales.HttpsCertificateDecryptionSetup(), func() { a.openSettings(2) }),
+		do("settings.certificates", locales.ClientCertificatesRoots(), func() { a.openSettings(6) }),
+		do("network.diagnostics", locales.ConnectionDiagnostics(), func() { a.openDiagnostics(nil, diagnoseMac) }),
+		do("app.setup-guide", locales.ShowSetupGuide(), a.openGuide).when(!a.guide, ""),
+		do("history.open", locales.History2(), func() {
 			a.experiments.scope, a.experiments.draftKey, a.experiments.open = nil, "", true
 			a.experiments.assetID, a.experiments.status, a.experiments.sourceFilter = "", "", ""
 		}),
-		do("network.websocket", "WebSocket session…", a.openSocket),
-		do("network.sse", "SSE session…", a.openSSE),
-		do("session.open", "Open session…", a.openSession),
-		do("session.save", "Save capture to Sessions", a.saveSession).when(capturing, ""),
-		do("network.client", "Set up a local client…", a.openClientSetup).when(a.srv != nil, ""),
-		do("network.terminal", "Open a proxied terminal", a.openProxiedTerminal).when(proxyReady, "Start capture first"),
-		do("network.chrome", "Open proxied Chrome", a.openProxiedChrome).when(proxyReady, "Start capture first"),
-		do("network.firefox", "Open proxied Firefox", a.openProxiedFirefox).when(proxyReady, "Start capture first"),
-		do("network.android", "Set up an Android emulator…", func() { a.openClientSetupTarget(clientTargetAndroid) }),
-		do("network.ios", "Install CA in iOS simulator…", func() { a.openClientSetupTarget(clientTargetIOS) }).
+		do("network.websocket", locales.WebsocketSession(), a.openSocket),
+		do("network.sse", locales.SseSession(), a.openSSE),
+		do("session.open", locales.OpenSession(), a.openSession),
+		do("session.save", locales.SaveCaptureToSessions(), a.saveSession).when(capturing, ""),
+		do("network.client", locales.SetUpALocalClient(), a.openClientSetup).when(a.srv != nil, ""),
+		do("network.terminal", locales.OpenAProxiedTerminal(), a.openProxiedTerminal).when(proxyReady, "Start capture first"),
+		do("network.chrome", locales.OpenProxiedChrome(), a.openProxiedChrome).when(proxyReady, "Start capture first"),
+		do("network.firefox", locales.OpenProxiedFirefox(), a.openProxiedFirefox).when(proxyReady, "Start capture first"),
+		do("network.android", locales.SetUpAnAndroidEmulator(), func() { a.openClientSetupTarget(clientTargetAndroid) }),
+		do("network.ios", locales.InstallCaInIosSimulator(), func() { a.openClientSetupTarget(clientTargetIOS) }).
 			when(runtime.GOOS == "darwin", "iOS simulators are available only on macOS"),
-		do("network.java", "Import CA into Java truststore…", func() { a.openClientSetupTarget(clientTargetJava) }),
-		do("network.electron", "Launch an Electron app…", func() { a.openClientSetupTarget(clientTargetElectron) }),
-		do("network.devices", "Connect a device…", a.openDevices).when(a.srv != nil, ""),
-		do("tools.rules", "Manage debugging rules…", a.openRules),
+		do("network.java", locales.ImportCaIntoJavaTruststore(), func() { a.openClientSetupTarget(clientTargetJava) }),
+		do("network.electron", locales.LaunchAnElectronApp(), func() { a.openClientSetupTarget(clientTargetElectron) }),
+		do("network.devices", locales.ConnectADevice(), a.openDevices).when(a.srv != nil, ""),
+		do("tools.rules", locales.ManageDebuggingRules(), a.openRules),
 	}...)
 	actions = append(actions, a.hostsActions()...)
 	actions = append(actions, []action{
-		do("vault.open", "Vault…", a.openVault),
-		do("environment.manage", "Manage environments…", a.openVars),
-		do("request.code", "Generate code…", a.openCode).when(editing, draft),
-		do("collection.settings", "Collection settings…", func() { a.openFolder(d.composeCollection) }).
+		do("vault.open", locales.Vault(), a.openVault),
+		do("environment.manage", locales.ManageEnvironments(), a.openVars),
+		do("request.code", locales.GenerateCode(), a.openCode).when(editing, draft),
+		do("collection.settings", locales.CollectionSettings(), func() { a.openFolder(d.composeCollection) }).
 			when(editing && d.composeCollection != "", ""),
-		do("request.new", "New request", a.openCompose).keys(ui.Cmd, ui.KeyN),
-		do("request.import-curl", "Import cURL…", a.openCurlImport),
-		do("collection.reload", "Reload collections from disk", func() {
+		do("request.new", locales.NewRequest(), a.openCompose).keys(ui.Cmd, ui.KeyN),
+		do("request.import-curl", locales.ImportCurl(), a.openCurlImport),
+		do("collection.reload", locales.ReloadCollectionsFromDisk(), func() {
 			a.loadRequestAssets()
 			a.done(fmt.Sprintf("Reloaded %d %s from %s", len(a.requests), plural(len(a.requests), "request", "requests"), a.library.root))
 		}),
-		do("capture.import-session", "Import capture session…", a.importCaptureSession),
-		do("capture.import-proxyman-folder", "Import Proxyman log folder…", a.importCaptureFolder),
-		do("collection.import", "Import…", a.importRequests),
-		do("collection.import-folder", "Import collection folder…", a.importCollectionFolder),
-		do("collection.export-postman", "Export collection as Postman…", func() { a.exportPostman(collectionRoot(d.composeCollection)) }).
+		do("capture.import-session", locales.ImportCaptureSession(), a.importCaptureSession),
+		do("capture.import-proxyman-folder", locales.ImportProxymanLogFolder(), a.importCaptureFolder),
+		do("collection.import", locales.ImportText(), a.importRequests),
+		do("collection.import-folder", locales.ImportCollectionFolder(), a.importCollectionFolder),
+		do("collection.export-postman", locales.ExportCollectionAsPostman(), func() { a.exportPostman(collectionRoot(d.composeCollection)) }).
 			when(editing && d.composeCollection != "", ""),
-		do("app.settings", "Open settings…", func() { a.openSettings(-1) }).keys(ui.Cmd, ui.KeyComma),
-		do("go.live", "Go to Live traffic", func() {
+		do("app.settings", locales.OpenSettings(), func() { a.openSettings(-1) }).keys(ui.Cmd, ui.KeyComma),
+		do("go.live", locales.GoToLiveTraffic(), func() {
 			a.page = pageLive
 			a.trafficOpen, a.revealGroup = true, "live"
 			a.focusTraffic(c)
 		}).keys(ui.Cmd, ui.Key1),
-		do("go.collections", "Go to Collections", func() {
+		do("go.collections", locales.GoToCollections(), func() {
 			a.page = pageRequest
 			a.collectionsOpen, a.revealGroup = true, "collections"
 			if a.requestDocument != nil {
 				a.urlInput.Focus(c)
 			}
 		}).keys(ui.Cmd, ui.Key2),
-		do("go.sessions", "Go to Sessions", func() {
+		do("go.sessions", locales.GoToSessions(), func() {
 			a.page = pageSession
 			a.revealGroup = "sessions"
 		}).keys(ui.Cmd, ui.Key3),
-		do("go.apis", "API contracts", func() { a.page = pageAPI }).
+		do("go.apis", locales.ApiContracts(), func() { a.page = pageAPI }).
 			when(len(a.apis) > 0, "Create or import an API contract first"),
-		do("api.new", "New API contract", func() {
+		do("api.new", locales.NewApiContract(), func() {
 			a.newAPI()
 			a.page = pageAPI
 		}),
-		do("api.import-openapi", "Import OpenAPI…", a.importOpenAPI),
-		do("history.show", "Show History", a.showRunRecords),
-		do("flow.save-evidence", "Save evidence to Sessions", func() { a.saveEvidence(f) }).when(capturing && current, ""),
+		do("api.import-openapi", locales.ImportOpenapi(), a.importOpenAPI),
+		do("history.show", locales.ShowHistory(), a.showRunRecords),
+		do("flow.save-evidence", locales.SaveEvidenceToSessions(), func() { a.saveEvidence(f) }).when(capturing && current, ""),
 	}...)
 	actions = append(actions, a.grpcActions(d, editing)...)
 	actions = append(actions, a.socketIOActions(d, editing)...)
@@ -630,10 +631,12 @@ func (a *app) commandPalette(c *ui.Context) {
 		width, _ := c.Size()
 		t := c.Theme()
 		ui.Column(c).Width(min(560, width-48)).Gap(t.Space(3)).Children(func() {
-			uikit.DialogTitle(c, "Commands")
+			uikit.DialogTitle(c, locales.Commands2(
 			// Modal focuses its first input after remembering the opener. An
 			// explicit AutoFocus here would replace that remembered focus.
-			input := uikit.Input(c, &w.query).Label("Find command").Placeholder("Search commands, requests, environments…").
+			))
+
+			input := uikit.Input(c, &w.query).Label("Find command").Placeholder(locales.SearchCommandsRequestsEnvironments()).
 				Height(uikit.HeightLarge).FontSize(uikit.TextBody).FillWidth()
 			if input.Changed() {
 				w.command = 0
@@ -719,7 +722,7 @@ func (a *app) commandPalette(c *ui.Context) {
 				run()
 			}
 			if len(matches) == 0 {
-				uikit.Hint(c, "No matching commands, requests or environments")
+				uikit.Hint(c, locales.NoMatchingCommandsRequestsOr())
 			} else if w.command >= 0 && w.command < len(matches) {
 				item := matches[w.command]
 				message := ""
@@ -742,7 +745,7 @@ func (a *app) commandPalette(c *ui.Context) {
 			if assets.more > 0 {
 				uikit.Meta(c, fmt.Sprintf("%d more results · narrow the search", assets.more)).SingleLine()
 			}
-			uikit.Meta(c, "↑ ↓ Choose · Enter Run · Esc Close")
+			uikit.Meta(c, locales.ChooseEnterRunEscClose())
 		})
 	})
 }
