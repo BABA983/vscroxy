@@ -73,6 +73,27 @@ func TestBlockScalarsMatchYAMLToJSON(t *testing.T) {
 	}
 }
 
+func TestAliasDoesNotChargeOriginalDocument(t *testing.T) {
+	var document strings.Builder
+	document.WriteString("base: &b {x: 1}\nuse: *b\nitems:\n")
+	line := "  - " + strings.Repeat("a", 200) + "\n"
+	for document.Len() < 4<<20 {
+		document.WriteString(line)
+	}
+	data := []byte(document.String())
+	got, err := yamlguard.ToJSON(data, yamlguard.Options{})
+	if err != nil {
+		t.Fatalf("a small alias rejected the original document: %v", err)
+	}
+	want, err := yaml.YAMLToJSON(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(got, want) {
+		t.Errorf("ToJSON output differs from YAMLToJSON for a 4 MiB document with one alias")
+	}
+}
+
 func TestNoAliasLargeListParses(t *testing.T) {
 	// 1.3 million items is both a >1M-node document and a >16 MiB input.
 	document := strings.Repeat("- 1234567890\n", 1_300_000)

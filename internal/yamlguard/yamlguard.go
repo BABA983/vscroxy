@@ -23,16 +23,16 @@ var ErrAlias = errors.New("YAML aliases are not supported")
 // instead of treating the document as an unknown file.
 var ErrExpansion = errors.New("YAML expands beyond")
 
-// Options bounds one document. Limits apply only when the document contains
-// an alias; a plain document is parsed by the original YAML-to-JSON path.
+// Options bounds one document. Limits apply to content reached through an
+// alias; the original document is bounded by its input size.
 type Options struct {
 	// RejectAliases refuses any AliasNode before expanding it.
 	RejectAliases bool
-	// MaxNodes bounds the expanded node count when aliases are present.
+	// MaxNodes bounds the alias-expanded node count.
 	MaxNodes int
-	// MaxBytes bounds the JSON-escaped size of expanded scalars when aliases
-	// are present. The count is conservative: every scalar byte is charged as
-	// six JSON bytes, the worst case for characters such as '<'.
+	// MaxBytes bounds the JSON-escaped size of alias-expanded scalars. The
+	// count is conservative: every scalar byte is charged as six JSON bytes,
+	// the worst case for characters such as '<'.
 	MaxBytes int
 }
 
@@ -46,9 +46,10 @@ const (
 )
 
 // ToJSON decodes YAML and returns its JSON form. It rejects aliases when
-// asked. When aliases are present it stops as soon as the expanded document
-// exceeds the node, byte or depth budget; a document without aliases skips
-// those checks because there is nothing to expand.
+// asked. When aliases are present, content reached through each alias counts
+// toward the node, byte and depth budgets; the original document does not.
+// A document without aliases skips those checks because there is nothing to
+// expand.
 //
 // The original bytes are converted, never a re-marshalled node: marshalling a
 // yaml.Node and converting that loses block-scalar details such as a leading
@@ -73,7 +74,7 @@ func ToJSON(data []byte, opts Options) ([]byte, error) {
 			return nil, err
 		}
 		counter := &expansion{maxNodes: opts.MaxNodes, maxBytes: opts.MaxBytes, nodes: opts.MaxNodes, bytes: opts.MaxBytes, visiting: map[*yaml3.Node]bool{}}
-		if err := counter.walk(&node, 0); err != nil {
+		if err := counter.walk(&node, 0, false); err != nil {
 			return nil, err
 		}
 	}
@@ -106,20 +107,18 @@ func hasAlias(node *yaml3.Node) bool {
 	return false
 }
 
-// expansion counts the document as it would be after every alias is replaced
-// by its target. It stops at the first limit and detects recursive aliases.
+// expansion counts only the content an alias expands to. The original
+// document is already bounded by its input size, so its nodes and scalars are
+// free; each alias target and its descendants consume the budget.
 type expansion struct {
 	maxNodes, maxBytes int
 	nodes, bytes       int
 	visiting           map[*yaml3.Node]bool
 }
 
-func (e *expansion) walk(node *yaml3.Node, depth int) error {
+func (e *expansion) walk(node *yaml3.Node, aliasDepth int, expanded bool) error {
 	if node == nil {
 		return nil
-	}
-	if depth > maxDepth {
-		return fmt.Errorf("%w %d levels", ErrExpansion, maxDepth)
 	}
 	if e.visiting[node] {
 		return fmt.Errorf("%w: recursive alias", ErrExpansion)
@@ -127,18 +126,27 @@ func (e *expansion) walk(node *yaml3.Node, depth int) error {
 	e.visiting[node] = true
 	defer delete(e.visiting, node)
 	if node.Kind == yaml3.AliasNode {
-		return e.walk(node.Alias, depth+1)
+		return e.walk(node.Alias, aliasDepth+1, true)
 	}
-	e.nodes--
-	if e.nodes < 0 {
-		return fmt.Errorf("%w %d nodes", ErrExpansion, e.maxNodes)
-	}
-	e.bytes -= jsonEscapeFactor * len(node.Value)
-	if e.bytes < 0 {
-		return fmt.Errorf("%w %d bytes", ErrExpansion, e.maxBytes)
+	if expanded {
+		if aliasDepth > maxDepth {
+			return fmt.Errorf("%w %d levels", ErrExpansion, maxDepth)
+		}
+		e.nodes--
+		if e.nodes < 0 {
+			return fmt.Errorf("%w %d nodes", ErrExpansion, e.maxNodes)
+		}
+		e.bytes -= jsonEscapeFactor * len(node.Value)
+		if e.bytes < 0 {
+			return fmt.Errorf("%w %d bytes", ErrExpansion, e.maxBytes)
+		}
 	}
 	for _, child := range node.Content {
-		if err := e.walk(child, depth+1); err != nil {
+		childDepth := 0
+		if expanded {
+			childDepth = aliasDepth + 1
+		}
+		if err := e.walk(child, childDepth, expanded); err != nil {
 			return err
 		}
 	}
