@@ -869,6 +869,45 @@ func TestMapRemotePlainHTTPFallsBackThroughCandidates(t *testing.T) {
 	}
 }
 
+func TestMapRemoteSlowResponseHeaderIsNotCutAtTheDialTimeout(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		rules []upstream.Rule
+	}{
+		{name: "HTTP upstream"},
+		{name: "direct rule", rules: []upstream.Rule{{Host: "*", Proxy: "direct"}}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				time.Sleep(10 * time.Second)
+				fmt.Fprint(w, "slow")
+			}))
+			defer target.Close()
+			proxy := startRecordingHTTPProxy(t, "")
+			s, _ := startServerWithRules(t, Rule{Type: RuleMapRemote, Match: "mapped.invalid", Target: target.URL})
+			settings := upstream.Settings{Default: proxyAddress(proxy), Rules: tc.rules}
+			if err := s.SetUpstreamConfig(settings, nil); err != nil {
+				t.Fatal(err)
+			}
+			proxyURL, _ := url.Parse("http://" + s.Addr())
+			client := &http.Client{Transport: &http.Transport{Proxy: http.ProxyURL(proxyURL)}, Timeout: 15 * time.Second}
+			start := time.Now()
+			resp, err := client.Get("http://mapped.invalid/slow")
+			if err != nil {
+				t.Fatalf("a slow response header was cut: %v", err)
+			}
+			body, _ := io.ReadAll(resp.Body)
+			_ = resp.Body.Close()
+			if resp.StatusCode != 200 || string(body) != "slow" {
+				t.Fatalf("response = %d %q, want 200 slow", resp.StatusCode, body)
+			}
+			if elapsed := time.Since(start); elapsed < 9*time.Second {
+				t.Fatalf("response returned in %s; the test did not exercise a slow header", elapsed)
+			}
+		})
+	}
+}
+
 func TestMapRemotePlainHTTPProxyAuthIsFinal(t *testing.T) {
 	hits := atomic.Int64{}
 	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -910,8 +949,11 @@ func TestUpstreamConfigLoadFailureFailsClosed(t *testing.T) {
 	defer target.Close()
 	s, _ := startServer(t)
 	deadPAC := "http://" + freeAddr(t) + "/proxy.pac"
-	if _, err := s.SetUpstreamConfigFailClosed(nil, upstream.Settings{PAC: deadPAC}, nil); err == nil {
-		t.Fatal("an unreachable PAC URL was accepted")
+	settings := upstream.Settings{PAC: deadPAC}
+	placeholder := s.SetUpstreamUnavailable(settings, errors.New("loading"))
+	applied, err := s.SetUpstreamConfigFailClosed(placeholder, settings, nil)
+	if !applied || err == nil {
+		t.Fatalf("unreachable PAC = applied %t, err %v", applied, err)
 	}
 	if s.UpstreamError() == nil {
 		t.Fatal("the load error was not stored")
@@ -960,6 +1002,42 @@ func TestUpstreamConfigAtDropsAnOlderGeneration(t *testing.T) {
 	}
 	if got := s.UpstreamConfig().Default; got != "http://new.example:8080" {
 		t.Fatalf("older generation replaced %q", got)
+	}
+}
+
+func TestUpstreamErrorsRedactPACSecrets(t *testing.T) {
+	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { fmt.Fprint(w, "leaked") }))
+	defer target.Close()
+	s, _ := startServer(t)
+	source := "http://alice:s3cret@" + freeAddr(t) + "/proxy.pac?token=TOKEN123"
+	settings := upstream.Settings{PAC: source}
+	placeholder := s.SetUpstreamUnavailable(settings, errors.New("loading"))
+	applied, err := s.SetUpstreamConfigFailClosed(placeholder, settings, nil)
+	if !applied || err == nil {
+		t.Fatalf("unreachable PAC = applied %t, err %v", applied, err)
+	}
+	if strings.Contains(err.Error(), "s3cret") || strings.Contains(err.Error(), "TOKEN123") {
+		t.Fatalf("configuration error leaked the PAC URL: %v", err)
+	}
+	resp, body := getThrough(t, s, targetURL(t, target))
+	if resp.StatusCode != http.StatusBadGateway {
+		t.Fatalf("response = %d, want 502", resp.StatusCode)
+	}
+	flow := waitFlow(t, s)
+	if s.UpstreamError() == nil {
+		t.Fatal("upstream error was not stored")
+	}
+	for name, text := range map[string]string{
+		"body":           body,
+		"connection":     flow.Conn.Error,
+		"upstream":       s.UpstreamError().Error(),
+		"connection log": flow.Conn.Log,
+	} {
+		for _, secret := range []string{"s3cret", "TOKEN123"} {
+			if strings.Contains(text, secret) {
+				t.Fatalf("%s leaked %q: %s", name, secret, text)
+			}
+		}
 	}
 }
 

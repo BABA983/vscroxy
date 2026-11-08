@@ -3,7 +3,11 @@ package app
 import (
 	"encoding/json/v2"
 	"errors"
+	"io"
 	"net"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -330,6 +334,95 @@ func TestUpstreamErrorChipStaysActionable(t *testing.T) {
 	}
 	if a.upstreamProblem != "" || a.upstreamCfg.Enabled() || a.srv.UpstreamConfig().Enabled() {
 		t.Fatalf("Upstream off did not clear the failed configuration: problem %q, cfg %+v", a.upstreamProblem, a.upstreamCfg)
+	}
+}
+
+func TestSettingsUpstreamErrorRedactsPACSecrets(t *testing.T) {
+	a := workspaceApp()
+	a.srv = &capture.Server{}
+	a.settingsPath = filepath.Join(t.TempDir(), "settings.json")
+	source := "http://alice:s3cret@" + freeLoopbackAddr(t) + "/proxy.pac?token=TOKEN123"
+	a.applyUpstreamSettings(upstream.Settings{PAC: source}, nil, "saved")
+	if a.upstreamUI.problem == "" {
+		t.Fatal("the PAC error is not shown in Settings")
+	}
+	for _, secret := range []string{"s3cret", "TOKEN123"} {
+		if strings.Contains(a.upstreamUI.problem, secret) {
+			t.Fatalf("Settings leaked %q: %s", secret, a.upstreamUI.problem)
+		}
+	}
+}
+
+func TestCloseControlStopsUpstreamRetry(t *testing.T) {
+	a := workspaceApp()
+	a.upstreamRetry.timer = time.AfterFunc(time.Hour, func() {})
+	a.closeControl()
+	if a.upstreamRetry.timer != nil {
+		t.Fatal("closing the app left the upstream retry timer running")
+	}
+}
+
+func TestSaveResetsRetryState(t *testing.T) {
+	a := workspaceApp()
+	a.srv = &capture.Server{}
+	a.settingsPath = filepath.Join(t.TempDir(), "settings.json")
+	a.upstreamUI = upstreamEditor{loaded: true, defaultAddr: "http://good.example:8080"}
+	a.upstreamRetry = upstreamRetry{
+		attempt:  3,
+		retrying: true,
+		settings: upstream.Settings{PAC: "https://pac.example/proxy.pac"},
+	}
+	a.saveUpstream()
+	if a.upstreamRetry.attempt != 0 || a.upstreamRetry.retrying || a.upstreamRetry.timer != nil || a.upstreamRetry.settings.Enabled() {
+		t.Fatalf("save inherited retry state: %+v", a.upstreamRetry)
+	}
+}
+
+func TestSaveFailureKeepsTheRunningConfiguration(t *testing.T) {
+	a := workspaceApp()
+	a.srv = requestProxy(t)
+	a.settingsPath = filepath.Join(t.TempDir(), "settings.json")
+	dir := t.TempDir()
+	good := filepath.Join(dir, "good.pac")
+	if err := os.WriteFile(good, []byte(`function FindProxyForURL() { return "DIRECT"; }`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	bad := filepath.Join(dir, "bad.pac")
+	if err := os.WriteFile(bad, []byte(`function FindProxyForURL( {`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte("still working")) }))
+	defer target.Close()
+	a.applyUpstreamSettings(upstream.Settings{PAC: good}, nil, "good")
+	if a.srv.UpstreamError() != nil || a.upstreamCfg.PAC != good {
+		t.Fatalf("good PAC did not install: %v, %+v", a.srv.UpstreamError(), a.upstreamCfg)
+	}
+	a.applyUpstreamSettings(upstream.Settings{PAC: bad}, nil, "bad")
+	if a.srv.UpstreamError() != nil {
+		t.Fatalf("a failed save changed the running configuration: %v", a.srv.UpstreamError())
+	}
+	if got := a.srv.UpstreamConfig().PAC; got != good {
+		t.Fatalf("running PAC = %q, want %q", got, good)
+	}
+	if a.upstreamCfg.PAC != good || a.upstreamProblem != "" {
+		t.Fatalf("failed save committed state: config %+v, problem %q", a.upstreamCfg, a.upstreamProblem)
+	}
+	if a.upstreamUI.problem == "" {
+		t.Fatal("the bad PAC error is not shown in the form")
+	}
+	if a.upstreamRetry.timer != nil || a.upstreamRetry.settings.Enabled() {
+		t.Fatalf("a normal save failure entered retry: %+v", a.upstreamRetry)
+	}
+	proxyURL, _ := url.Parse("http://" + a.srv.Addr())
+	client := &http.Client{Transport: &http.Transport{Proxy: http.ProxyURL(proxyURL)}, Timeout: 5 * time.Second}
+	resp, err := client.Get(target.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	_ = resp.Body.Close()
+	if resp.StatusCode != 200 || string(body) != "still working" {
+		t.Fatalf("traffic after the failed save = %d %q", resp.StatusCode, body)
 	}
 }
 

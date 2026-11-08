@@ -214,6 +214,7 @@ func parseUpstreamBypass(text string) ([]string, error) {
 
 func (a *app) saveUpstream() {
 	u := &a.upstreamUI
+	a.stopUpstreamRetry()
 	u.problem = ""
 	settings, secrets, err := u.settings(a)
 	if err != nil {
@@ -325,6 +326,7 @@ func (a *app) applyUpstreamSettings(settings upstream.Settings, secrets map[stri
 	if !retrying {
 		a.stopUpstreamRetry()
 	}
+	wasUnavailable := a.upstreamLoading || a.srv.UpstreamError() != nil
 	epoch := a.upstreamEpoch.Add(1)
 	a.upstreamLoading = false
 	a.upstreamProblem = ""
@@ -361,15 +363,17 @@ func (a *app) applyUpstreamSettings(settings upstream.Settings, secrets map[stri
 		}
 		if err != nil {
 			u.problem = err.Error()
-			a.upstreamProblem = err.Error()
 			a.upstreamLoading = false
-			if failClosed {
-				if !a.srv.SetUpstreamUnavailableAt(epoch, settings, err) {
-					return
+			if wasUnavailable {
+				a.upstreamProblem = err.Error()
+				if failClosed {
+					if !a.srv.SetUpstreamUnavailableAt(epoch, settings, err) {
+						return
+					}
+					a.upstream = ""
 				}
-				a.upstream = ""
+				a.scheduleUpstreamRetry(settings, secrets, epoch)
 			}
-			a.scheduleUpstreamRetry(settings, secrets, epoch)
 			a.invalidate()
 			return
 		}

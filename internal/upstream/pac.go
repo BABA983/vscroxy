@@ -119,11 +119,11 @@ func loadPACSource(source string) (string, error) {
 			}
 			req, err := http.NewRequest(http.MethodGet, source, nil)
 			if err != nil {
-				return "", err
+				return "", pacFetchError(source, err)
 			}
 			resp, err := client.Do(req)
 			if err != nil {
-				return "", err
+				return "", pacFetchError(source, err)
 			}
 			defer resp.Body.Close()
 			if resp.StatusCode != http.StatusOK {
@@ -265,6 +265,37 @@ func (p *PAC) evalError(err error, interrupted bool) error {
 		return fmt.Errorf("FindProxyForURL was interrupted: %w", err)
 	}
 	return fmt.Errorf("FindProxyForURL: %w", err)
+}
+
+// PACDisplay is a PAC source safe for an error, Settings or the connection
+// log: an http(s) or file URL keeps only scheme, host and path. Userinfo,
+// query and fragment may contain credentials or tokens and are dropped. A
+// local path is returned unchanged.
+func PACDisplay(source string) string {
+	source = strings.TrimSpace(source)
+	u, err := url.Parse(source)
+	if err != nil || u.Scheme == "" {
+		return source
+	}
+	switch strings.ToLower(u.Scheme) {
+	case "http", "https", "file":
+		return u.Scheme + "://" + u.Host + u.Path
+	default:
+		return source
+	}
+}
+
+// pacFetchError strips net/http's url.Error wrapper, whose Error includes the
+// full request URL, and names only the sanitized PAC source.
+func pacFetchError(source string, err error) error {
+	for {
+		var urlErr *url.Error
+		if !errors.As(err, &urlErr) {
+			break
+		}
+		err = urlErr.Err
+	}
+	return fmt.Errorf("GET %s: %w", PACDisplay(source), err)
 }
 
 func (p *PAC) install(vm *goja.Runtime, ctx context.Context, state *pacEvalState) {

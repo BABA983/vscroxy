@@ -236,13 +236,14 @@ func compile(settings Settings, passwords map[string]string, loadPAC bool) (*Con
 		cfg.bypass = append(cfg.bypass, rule)
 	}
 	if settings.PAC != "" && loadPAC {
+		display := PACDisplay(settings.PAC)
 		source, err := loadPACSource(settings.PAC)
 		if err != nil {
-			return nil, fmt.Errorf("PAC %s: %w", settings.PAC, err)
+			return nil, fmt.Errorf("PAC %s: %w", display, err)
 		}
-		pac, err := newPAC(source, settings.PAC, PACOptions{})
+		pac, err := newPAC(source, display, PACOptions{})
 		if err != nil {
-			return nil, fmt.Errorf("PAC %s: %w", settings.PAC, err)
+			return nil, fmt.Errorf("PAC %s: %w", display, err)
 		}
 		cfg.pac = pac
 	}

@@ -311,6 +311,31 @@ func TestPACHelpers(t *testing.T) {
 	}
 }
 
+func TestPACSourceIsRedactedInErrors(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	addr := strings.TrimPrefix(server.URL, "http://")
+	server.Close()
+	source := "http://alice:s3cret@" + addr + "/proxy.pac?token=TOKEN123"
+	_, err := New(Settings{PAC: source}, nil)
+	if err == nil {
+		t.Fatal("an unreachable PAC URL was accepted")
+	}
+	for _, secret := range []string{"s3cret", "TOKEN123"} {
+		if strings.Contains(err.Error(), secret) {
+			t.Fatalf("PAC error leaked %q: %v", secret, err)
+		}
+	}
+	if !strings.Contains(err.Error(), "http://"+addr+"/proxy.pac") {
+		t.Fatalf("PAC error does not name the sanitized source: %v", err)
+	}
+	if got := PACDisplay("https://user:pass@example.com/a.pac?q=secret#frag"); got != "https://example.com/a.pac" {
+		t.Fatalf("PACDisplay = %q", got)
+	}
+	if got := PACDisplay("/tmp/local.pac"); got != "/tmp/local.pac" {
+		t.Fatalf("PACDisplay local path = %q", got)
+	}
+}
+
 func TestPACNetworkHelpers(t *testing.T) {
 	p, err := newPAC(`function FindProxyForURL(url, host) {
 		if (isPlainHostName(host) !== (host.indexOf(".") < 0)) return "PROXY bad:1";

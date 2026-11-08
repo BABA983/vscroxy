@@ -97,6 +97,7 @@ func (a *app) dispatchControl(ctx context.Context, command control.Command, upda
 }
 
 func (a *app) closeControl() {
+	a.stopUpstreamRetry()
 	if a.tokenLinks != nil {
 		a.tokenLinks.close()
 	}

@@ -334,15 +334,16 @@ func (a *attacker) httpUpstreamTransport(req *http.Request, address string, cand
 }
 
 // httpTransportWithConn returns a one-request transport that uses conn for the
-// first dial. Subsequent dials, if the transport retries, are ordinary.
+// first dial. Subsequent dials, if the transport retries, are ordinary. The
+// dial timeout is enough here: a slow response header is valid for long polls
+// and slow APIs, so no response-header deadline is imposed.
 func httpTransportWithConn(proxyURL *url.URL, conn net.Conn, address string) *http.Transport {
 	var once sync.Once
 	t := &http.Transport{
-		ForceAttemptHTTP2:     true,
-		DisableCompression:    true,
-		DisableKeepAlives:     true,
-		ResponseHeaderTimeout: upstreamDialTimeout,
-		Proxy:                 http.ProxyURL(proxyURL),
+		ForceAttemptHTTP2:  true,
+		DisableCompression: true,
+		DisableKeepAlives:  true,
+		Proxy:              http.ProxyURL(proxyURL),
 	}
 	t.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
 		if addr != address {

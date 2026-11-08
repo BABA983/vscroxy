@@ -409,7 +409,7 @@ type Server struct {
 	throttleMu sync.RWMutex
 	throttle   Throttle
 
-	upstream   atomic.Value // *upstreamSnapshot
+	upstream   atomic.Value // *UpstreamSnapshot
 	ssl        atomic.Value // SSLConfig
 	ignoreList atomic.Value // []string
 	ignoreApps atomic.Value // []string
@@ -525,7 +525,7 @@ func New(addr, caRootPath string) (*Server, error) {
 		return mayMatchHost(s.rules, req.Host, RuleCodeMock)
 	})
 	p.SetUpstreamProxy(func(req *http.Request, address string) ([]proxy.UpstreamProxy, error) {
-		snapshot, _ := s.upstream.Load().(*upstreamSnapshot)
+		snapshot, _ := s.upstream.Load().(*UpstreamSnapshot)
 		if snapshot == nil {
 			return nil, nil
 		}
@@ -858,9 +858,9 @@ func (s *Server) hit(r Rule) {
 	s.rulesMu.Unlock()
 }
 
-// upstreamSnapshot is one immutable upstream configuration. Passwords live in
+// UpstreamSnapshot is one immutable upstream configuration. Passwords live in
 // the upstream.Config's credential URLs and are never part of settings.
-type upstreamSnapshot struct {
+type UpstreamSnapshot struct {
 	settings upstream.Settings
 	cfg      *upstream.Config
 	err      error
@@ -869,7 +869,7 @@ type upstreamSnapshot struct {
 	gen uint64
 }
 
-func (u *upstreamSnapshot) resolve(req *http.Request, address string) ([]proxy.UpstreamProxy, error) {
+func (u *UpstreamSnapshot) resolve(req *http.Request, address string) ([]proxy.UpstreamProxy, error) {
 	if u.err != nil {
 		return nil, u.err
 	}
@@ -950,15 +950,15 @@ func (s *Server) SetUpstreamConfig(settings upstream.Settings, passwords map[str
 	if err != nil {
 		return err
 	}
-	s.upstream.Store(&upstreamSnapshot{settings: settings.Clone(), cfg: cfg})
+	s.upstream.Store(&UpstreamSnapshot{settings: settings.Clone(), cfg: cfg})
 	return nil
 }
 
 // storeUpstream installs next unless a snapshot from a newer generation is
 // already active. It returns whether next was installed.
-func (s *Server) storeUpstream(gen uint64, next *upstreamSnapshot) bool {
+func (s *Server) storeUpstream(gen uint64, next *UpstreamSnapshot) bool {
 	for {
-		current, _ := s.upstream.Load().(*upstreamSnapshot)
+		current, _ := s.upstream.Load().(*UpstreamSnapshot)
 		if current != nil && current.gen > gen {
 			return false
 		}
@@ -980,36 +980,28 @@ func (s *Server) SetUpstreamConfigAt(gen uint64, settings upstream.Settings, pas
 	if err != nil {
 		return false, err
 	}
-	return s.storeUpstream(gen, &upstreamSnapshot{settings: settings.Clone(), cfg: cfg, gen: gen}), nil
+	return s.storeUpstream(gen, &UpstreamSnapshot{settings: settings.Clone(), cfg: cfg, gen: gen}), nil
 }
 
 // SetUpstreamPreparedAt installs an already-loaded configuration for gen,
 // unless a newer generation is active.
 func (s *Server) SetUpstreamPreparedAt(gen uint64, settings upstream.Settings, cfg *upstream.Config) bool {
-	return s.storeUpstream(gen, &upstreamSnapshot{settings: settings.Normalize().Clone(), cfg: cfg, gen: gen})
+	return s.storeUpstream(gen, &UpstreamSnapshot{settings: settings.Normalize().Clone(), cfg: cfg, gen: gen})
 }
 
 // SetUpstreamConfigFailClosed is SetUpstreamConfig for startup, where no
 // previous configuration exists. A load failure is stored and returned for
 // every request, so an unreachable PAC URL or VPN does not silently send
-// traffic directly. When placeholder is not nil, the result is installed only
-// if that loading snapshot is still current; a user save or import that
-// replaced it wins, and applied is false.
-func (s *Server) SetUpstreamConfigFailClosed(placeholder *upstreamSnapshot, settings upstream.Settings, passwords map[string]string) (applied bool, err error) {
+// traffic directly. placeholder must be the snapshot returned by
+// SetUpstreamUnavailable; the result is installed only if it is still current,
+// so a user save or import that replaced it wins.
+func (s *Server) SetUpstreamConfigFailClosed(placeholder *UpstreamSnapshot, settings upstream.Settings, passwords map[string]string) (applied bool, err error) {
 	settings = settings.Normalize()
 	cfg, err := upstream.New(settings, passwords)
-	gen := uint64(0)
-	if placeholder != nil {
-		gen = placeholder.gen
+	next := &UpstreamSnapshot{settings: settings.Clone(), cfg: cfg, err: err, gen: placeholder.gen}
+	if !s.upstream.CompareAndSwap(placeholder, next) {
+		return false, nil
 	}
-	next := &upstreamSnapshot{settings: settings.Clone(), cfg: cfg, err: err, gen: gen}
-	if placeholder != nil {
-		if !s.upstream.CompareAndSwap(placeholder, next) {
-			return false, nil
-		}
-		return true, err
-	}
-	s.upstream.Store(next)
 	return true, err
 }
 
@@ -1017,8 +1009,8 @@ func (s *Server) SetUpstreamConfigFailClosed(placeholder *upstreamSnapshot, sett
 // configuration is loading and returns the snapshot token that
 // SetUpstreamConfigFailClosed may replace. A later configuration store makes
 // the token stale.
-func (s *Server) SetUpstreamUnavailable(settings upstream.Settings, err error) *upstreamSnapshot {
-	snapshot := &upstreamSnapshot{settings: settings.Clone(), err: err}
+func (s *Server) SetUpstreamUnavailable(settings upstream.Settings, err error) *UpstreamSnapshot {
+	snapshot := &UpstreamSnapshot{settings: settings.Clone(), err: err}
 	s.upstream.Store(snapshot)
 	return snapshot
 }
@@ -1026,12 +1018,12 @@ func (s *Server) SetUpstreamUnavailable(settings upstream.Settings, err error) *
 // SetUpstreamUnavailableAt installs a temporary error for gen, unless a newer
 // generation is active. It returns whether the snapshot was installed.
 func (s *Server) SetUpstreamUnavailableAt(gen uint64, settings upstream.Settings, err error) bool {
-	return s.storeUpstream(gen, &upstreamSnapshot{settings: settings.Clone(), err: err, gen: gen})
+	return s.storeUpstream(gen, &UpstreamSnapshot{settings: settings.Clone(), err: err, gen: gen})
 }
 
 // UpstreamError is the error the active configuration failed with, or nil.
 func (s *Server) UpstreamError() error {
-	snapshot, _ := s.upstream.Load().(*upstreamSnapshot)
+	snapshot, _ := s.upstream.Load().(*UpstreamSnapshot)
 	if snapshot == nil {
 		return nil
 	}
@@ -1041,7 +1033,7 @@ func (s *Server) UpstreamError() error {
 // UpstreamConfig returns the active host rules, bypass list, PAC source and
 // default upstream, without passwords.
 func (s *Server) UpstreamConfig() upstream.Settings {
-	snapshot, _ := s.upstream.Load().(*upstreamSnapshot)
+	snapshot, _ := s.upstream.Load().(*UpstreamSnapshot)
 	if snapshot == nil {
 		return upstream.Settings{}
 	}
