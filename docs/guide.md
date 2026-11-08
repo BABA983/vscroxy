@@ -1172,7 +1172,7 @@ default upstream. A rule or the default may say `direct`.
   candidate. A proxy's 407 or other HTTP response is final.
 
 The rules apply to captured traffic and to the app's own requests: Send, Runner,
-CLI, WebSocket, SSE, Socket.IO, gRPC over HTTPS and reverse proxies all reach
+CLI, WebSocket, SSE, Socket.IO, MCP over HTTP, gRPC over HTTPS and reverse proxies all reach
 the server through the capture proxy. One exception: `pm.sendRequest` inside a
 capture rule script is a direct request and does not use these upstream rules.
 Plaintext h2c gRPC is direct and cannot be captured or proxied. For ordinary
@@ -1789,6 +1789,67 @@ captured**, because the capture engine does not support h2c. This client uses
 the shared client certificate/custom root settings; it does not add gRPC-Web
 support.
 
+### Interactive MCP requests
+
+Create a **New request** and choose **MCP** in the protocol selector. This is a
+normal request document, not a separate dialog. The transport is **Streamable
+HTTP** (the current MCP HTTP transport), **SSE** (the legacy HTTP+SSE
+transport), or **stdio** (a local command). **Connect** initializes one session;
+**Disconnect** ends it. There is no automatic reconnect or replay.
+
+For HTTP transports the address bar is the MCP endpoint. **Headers** and **HTTP
+auth** support None, Bearer, Basic and header/query API keys, and both use
+`{{variables}}`, host-restricted `{{vault:name}}` references and inherited
+collection auth. The transport owns `Accept`, `Content-Type`, `Content-Length`
+and `Mcp-*` headers; the document's other headers are sent on every request. **Settings → Certificates** and the request's certificate
+verification setting apply on every hop; HTTPS goes through the running capture
+proxy (enable HTTPS inspection for the target to see it in Capture) and connects
+directly when the proxy is stopped. The client makes no hidden retries, so a
+failed request is exactly the request the timeline shows.
+
+For **stdio**, enter the command, one argument per line, an optional working
+directory, and environment rows. Environment values may use variables; rows can
+be switched off. The process starts only when you press **Connect**, inherits
+the app's environment (so `PATH` still works), and is stopped on **Disconnect**,
+closing the document, or quitting. Environment values are saved with the
+document, masked by default, and never written to the app log. The v3 Postman
+schema has no stdio argument field; imported commands keep their text and start
+with no arguments.
+
+The **Session** tab shows the server's name, version, negotiated protocol,
+capabilities and instructions, plus the connection's transport, timeout and
+whether certificates are verified. After initialize the client lists the
+server's tools, resources, resource templates and prompts when the server
+advertises them; **Refresh** lists them again. Notifications such as
+`notifications/tools/list_changed`, progress, resource updates, server log
+messages and stdio stderr appear in the **Timeline**.
+
+Under **Tools**, choose a tool and enter a JSON **arguments object**. **Fill
+from schema** builds a skeleton from the tool's input schema, using defaults and
+enum values when present; **Input schema** shows the schema itself. Under
+**Resources**, choose an advertised resource or template (edit template
+placeholders first) or type any URI, then **Read resource**. Under **Prompts**,
+choose a prompt, enter its JSON string arguments, and **Get prompt**. The
+**Result** tab shows text, image, audio, embedded-resource and resource-link
+blocks, `structuredContent` and `isError`; images decode locally. **Cancel**
+stops one running request; cancelling never undoes server-side work.
+
+The protocol version selector offers **auto** (negotiate the latest), **legacy**
+(2025-11-25) and **2026-07-28**. Server logging notifications are deprecated in
+2026-07-28 and some servers send none there; choose legacy to debug them. The
+session keeps at most 300 timeline entries with a 64 KiB UTF-8 preview each, an
+8 MiB HTTP/SSE event and the SDK's 16 MiB stdio line cap, 1000 catalog entries,
+100 result blocks, a 4 MiB result and 1 MiB per image or audio block. HTTP and stdio share the same catalog,
+timeline and result surface.
+
+MCP documents do not run HTTP scripts, Checks, token bindings, Runner, code
+generation or History; inherited HTTP scripts must be removed, not silently
+skipped. Postman v2.1 export skips MCP documents with a warning. The v3
+directory import maps transport, URL or command, environment, headers, auth,
+settings and one `tools/call`, `resources/read` or `prompts/get` message; other
+JSON-RPC methods, unknown transports and the idle session timeout are reported
+after the import. The live session and timeline are not saved or restored.
+
 ## Replay
 
 Select a flow and press **Replay**: the request goes out again through the
@@ -1967,7 +2028,7 @@ encrypted, or encrypted PKCS#8; PKCS#12 may use modern AES/PBES2 encryption.
 
 The same configuration applies to Send, the Collection Runner,
 `vscroxy-cli run`/`load`, desktop control (CLI/MCP) collection runs, WebSocket
-and WSS sends, SSE sessions, gRPC calls and Socket.IO sessions. A client
+and WSS sends, SSE sessions, gRPC calls, Socket.IO sessions and MCP HTTP sessions. A client
 certificate is presented even when the request turns certificate verification
 off: mTLS is independent of verifying the server. Captured traffic presents the
 certificate after HTTPS decryption, and reverse proxies to `https://` remotes
@@ -2135,7 +2196,7 @@ response is fixed when saving starts, even if another request is sent meanwhile.
 Saved bodies may contain credentials; review them before sharing.
 
 **Cookies…** manages the cookie jar shared by Requests, Runner, request scripts
-and the interactive SSE, WebSocket and Socket.IO clients. Set-Cookie, redirects,
+and the interactive SSE, WebSocket, Socket.IO and MCP HTTP clients. Set-Cookie, redirects,
 domain/path restrictions, expiry, Secure and HttpOnly are respected. Values are
 masked by default; reveal one row to read it. Cookies can be added, deleted,
 cleared by domain or cleared all. **Keep cookies after quitting** is off by
@@ -2516,13 +2577,16 @@ dropped on the window read it. Collection and folder auth, variables, scripts,
 descriptions and ordering; HTTP query/path parameters, headers, every body
 mode, request settings and saved examples; native GraphQL requests with a local
 SDL file; gRPC method, message, metadata and auth; MQTT connection settings,
-topics, last will, saved messages and MQTT 5 properties; and the first saved
-WebSocket or Socket.IO message are imported. Multi-auth keeps the first set,
-literal secret variables become local Current values, and vault references are
-skipped. gRPC schemas, descriptors, scripts and examples, extra stream
-messages/examples, MQTT scripts/examples, Kafka/MCP/LLM/data requests, and
-parameter or variable descriptions that have no field here are listed after the
-import. The reader
+topics, last will, saved messages and MQTT 5 properties; MCP transport, URL or
+command, environment rows, headers, auth and transport settings; and the first
+saved WebSocket or Socket.IO message are imported. A saved `tools/call`,
+`resources/read` or `prompts/get` JSON-RPC message becomes the matching MCP
+tool, resource or prompt operation. Multi-auth keeps the first set, literal
+secret variables become local Current values, and vault references are skipped.
+gRPC schemas, descriptors, scripts and examples, extra stream messages/examples,
+MQTT scripts/examples, other MCP JSON-RPC methods/unknown transports/OAuth 2.0
+auth/sessionTimeout, and parameter or variable descriptions that have no field
+here are listed after the import. The reader
 caps a collection at 10,000 files/directory entries, 8 MiB per example,
 message or request, 1 MiB per collection or folder definition, 1 MiB of SDL,
 64 MiB in total and 32 folder levels; it never follows symbolic links, refuses
