@@ -1611,7 +1611,7 @@ func TestUISnapshots(t *testing.T) {
 		}, menu: "Edit request"},
 	}
 	for _, auth := range []string{"Bearer", "Basic", "API key", request.AuthOAuth2, request.AuthOAuth1,
-		request.AuthDigest, request.AuthAWS, request.AuthJWT, request.AuthHawk, request.AuthEdgeGrid} {
+		request.AuthDigest, request.AuthNTLM, request.AuthAWS, request.AuthJWT, request.AuthHawk, request.AuthEdgeGrid} {
 		states = append(states, snapshot{name: "requests-auth-" + auth, setup: func(a *app) {
 			draft(a)
 			a.composeTab, a.auth.Type = composeTabAuth, auth
@@ -1622,6 +1622,14 @@ func TestUISnapshots(t *testing.T) {
 		a.composeTab, a.auth.Type = composeTabAuth, request.AuthOAuth1
 		a.auth.OAuth1.SignatureMethod, a.auth.OAuth1.PrivateKey = "RSA-SHA256", "-----BEGIN PRIVATE KEY-----"
 	}, want: "Authorization type"})
+	states = append(states, snapshot{name: "requests-auth-ntlm-filled", setup: func(a *app) {
+		draft(a)
+		a.composeTab, a.auth.Type = composeTabAuth, request.AuthNTLM
+		a.auth.NTLM = request.NTLMAuth{
+			Username: "{{ntlm_user}}", Password: "{{vault:ntlm_password}}",
+			Domain: "EXAMPLE", Workstation: "PC-01", DisableRetry: true,
+		}
+	}, want: "Disable retrying the request"})
 	for _, mode := range []string{"Auto", "Pretty", "JSON", "Hex", "Preview", "Protobuf"} {
 		want := map[string]string{"Auto": "Body text", "Pretty": "Body text", "JSON": "projects", "Hex": "00000000", "Preview": "Rich text", "Protobuf": "1 of 1 messages"}[mode]
 		states = append(states, snapshot{name: "body-" + mode, setup: func(a *app) {

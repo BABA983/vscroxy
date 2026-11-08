@@ -879,3 +879,31 @@ func TestCollectionRunnerIteratesOverDataRows(t *testing.T) {
 		t.Errorf("a bad file must keep the loaded one and say why: %+v", a.runner.dataProblem)
 	}
 }
+
+func TestNTLMAuthEditor(t *testing.T) {
+	a := workspaceApp()
+	openDraft(a, a.flows[0])
+	d := a.requestDocument
+	d.composeTab, d.auth.Type = composeTabAuth, request.AuthNTLM
+	tt := ui.NewTester(a.view, 1280, 800)
+	tt.Frame()
+	for _, label := range []string{"Username", "Password", "Domain", "Workstation", "Disable retrying the request"} {
+		if !tt.HasText(label) {
+			t.Fatalf("missing %q: %v", label, tt.Texts())
+		}
+	}
+	if err := clickLabel(tt, "Username"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Type(`DOMAIN\ann`)
+	if got := d.auth.NTLM.Username; got != `DOMAIN\ann` {
+		t.Fatalf("username = %q", got)
+	}
+	if err := tt.Click("Disable retrying the request"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if !d.auth.NTLM.DisableRetry {
+		t.Fatal("the disable-retry checkbox did not update the auth")
+	}
+}

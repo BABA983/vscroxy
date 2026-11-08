@@ -15,6 +15,7 @@ type codeDialog struct {
 	open     bool
 	language string
 	problem  string
+	ntlm     bool
 	view     *editor.State
 }
 
@@ -72,6 +73,9 @@ func (a *app) codeModal(c *ui.Context, t *ui.Theme) {
 		return
 	}
 	if s.view == nil {
+		r := d.draft()
+		r.Auth, _ = a.inheritance(r.Collection).InheritAuth(r.Auth)
+		s.ntlm = r.Auth.Type == request.AuthNTLM
 		text, err := a.codeText(d)
 		s.problem = ""
 		if err != nil {
@@ -102,6 +106,9 @@ func (a *app) codeModal(c *ui.Context, t *ui.Theme) {
 				}
 				if s.language != "cURL" && s.language != "cURL (CMD)" {
 					uikit.Hint(c, locales.NativeSnippetsLeaveRedirectTimeout())
+				}
+				if s.ntlm {
+					uikit.Hint(c, "NTLM needs the server’s challenge on one connection, so every snippet sends the request without an Authorization header.")
 				}
 				if hint := codeHints[s.language]; hint != "" {
 					uikit.Hint(c, hint)

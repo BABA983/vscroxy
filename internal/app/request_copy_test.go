@@ -235,3 +235,28 @@ func TestCaptureCanGenerateCodeWithoutOpeningADraft(t *testing.T) {
 		t.Fatalf("Generate code is unavailable for a capture: %s", x.why())
 	}
 }
+
+func TestGeneratedCodeOmitsNTLMAuth(t *testing.T) {
+	a := workspaceApp()
+	openDraft(a, a.flows[0])
+	d := a.requestDocument
+	d.auth = request.Auth{Type: request.AuthNTLM, NTLM: request.NTLMAuth{
+		Username: "ann", Password: "{{vault:pw}}", Domain: "EXAMPLE", Workstation: "PC",
+	}}
+	for _, language := range codeLanguages {
+		a.code.language = language
+		code, err := a.codeText(d)
+		if err != nil {
+			t.Fatalf("%s: %v", language, err)
+		}
+		if strings.Contains(code, "Authorization") || strings.Contains(code, "NTLM") {
+			t.Errorf("%s carries NTLM material:\n%s", language, code)
+		}
+	}
+	a.openCode()
+	tt := ui.NewTester(a.view, 1280, 800)
+	tt.Frame()
+	if !tt.HasText("NTLM needs the server’s challenge on one connection") {
+		t.Fatalf("the code dialog does not explain the missing auth: %v", tt.Texts())
+	}
+}

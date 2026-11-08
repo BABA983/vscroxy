@@ -363,7 +363,7 @@ func (a *app) authEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
 
 // authTypes are the auth a request or folder sets itself.
 var authTypes = []string{"None", "Bearer", "Basic", "API key", request.AuthOAuth2, request.AuthOAuth1,
-	request.AuthDigest, request.AuthAWS, request.AuthJWT, request.AuthHawk, request.AuthEdgeGrid}
+	request.AuthDigest, request.AuthNTLM, request.AuthAWS, request.AuthJWT, request.AuthHawk, request.AuthEdgeGrid}
 
 // authFields edits one Auth, a request's or a folder's; collection is where
 // it is used, for the variables an OAuth 2.0 token request expands.
@@ -453,6 +453,18 @@ func (a *app) authFields(c *ui.Context, auth *request.Auth, types []string, coll
 			ui.Field(c, locales.Username(), func() { input(&auth.Username, "Username") })
 			ui.Field(c, locales.Password(), func() { password(&auth.Password, "Password") }).
 				Description(locales.TheFirstSendGetsThe())
+		case request.AuthNTLM:
+			n := &auth.NTLM
+			ui.Field(c, locales.Username(), func() { input(&n.Username, "Username") }).
+				Description(locales.NtlmUsernameHint())
+			ui.Field(c, locales.Password(), func() {
+				password(&n.Password, "Password").Placeholder("{{vault:ntlm_password}}")
+			})
+			ui.Field(c, locales.Domain(), func() { input(&n.Domain, "Domain").Placeholder(locales.Optional()) })
+			ui.Field(c, locales.Workstation(), func() { input(&n.Workstation, "Workstation").Placeholder(locales.OptionalWorkstationExample()) })
+			ui.Field(c, locales.Retry(), func() {
+				ui.Checkbox(c, &n.DisableRetry, locales.DisableRetryingTheRequest())
+			}).Description(locales.NtlmDisableRetryHint())
 		case request.AuthAWS:
 			aws := &auth.AWS
 			ui.Field(c, locales.AccessKey(), func() { input(&aws.AccessKey, "Access key") })
