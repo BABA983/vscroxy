@@ -218,6 +218,14 @@ func (r Request) withDynamic(defined map[string]string) Request {
 	if r.Protocol == "Socket.IO" {
 		fields = append(fields, &r.SocketIO.Namespace, &r.SocketIO.Auth, &r.SocketIO.Event, &r.SocketIO.Attachments)
 	}
+	if r.Protocol == "MCP" {
+		fields = append(fields, &r.MCP.Command, &r.MCP.Args, &r.MCP.WorkingDir, &r.MCP.Tool, &r.MCP.ToolArgs,
+			&r.MCP.ResourceURI, &r.MCP.Prompt, &r.MCP.PromptArgs)
+		r.MCP.Env = append([]Field(nil), r.MCP.Env...)
+		for i := range r.MCP.Env {
+			fields = append(fields, &r.MCP.Env[i].Name, &r.MCP.Env[i].Value)
+		}
+	}
 	fields = append(fields, r.Auth.AWS.fields()...)
 	fields = append(fields, r.Auth.JWT.fields()...)
 	fields = append(fields, r.Auth.OAuth1.fields()...)

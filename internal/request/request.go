@@ -37,6 +37,7 @@ type Request struct {
 	GRPC     GRPCConfig     `json:"grpc,omitzero"`
 	SocketIO SocketIOConfig `json:"socketio,omitzero"`
 	MQTT     MQTTConfig     `json:"mqtt,omitzero"`
+	MCP      MCPConfig      `json:"mcp,omitzero"`
 	Method   string         `json:"method"`
 	URL      string         `json:"url"`
 	Headers  string         `json:"headers,omitempty"`

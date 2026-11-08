@@ -210,6 +210,15 @@ func (r Request) Variables() []string {
 	if r.Protocol == "MQTT" {
 		texts = append(texts, r.MQTT.mqttStrings()...)
 	}
+	if r.Protocol == "MCP" {
+		texts = append(texts, r.MCP.Command, r.MCP.Args, r.MCP.WorkingDir, r.MCP.Tool, r.MCP.ToolArgs,
+			r.MCP.ResourceURI, r.MCP.Prompt, r.MCP.PromptArgs)
+		for _, field := range r.MCP.Env {
+			if !field.Disabled {
+				texts = append(texts, field.Name, field.Value)
+			}
+		}
+	}
 	if r.Protocol == "Socket.IO" || r.BodyMode == "" || r.BodyMode == "Raw" {
 		texts = append(texts, r.Body)
 	} else if r.BodyMode == "Binary" {
