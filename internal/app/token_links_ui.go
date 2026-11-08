@@ -207,7 +207,7 @@ func (a *app) tokenLinksModal(c *ui.Context, t *ui.Theme) {
 								return
 							}
 							w.applied, w.plan, w.applyError = true, nil, ""
-							a.done("Token link saved; run the source before its consumers")
+							a.done(locales.TokenLinkSavedRunThe())
 						})
 					}
 				}

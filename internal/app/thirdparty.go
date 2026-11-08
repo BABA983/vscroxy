@@ -8,6 +8,7 @@ import (
 
 	"github.com/baba983/vscroxy/internal/imports"
 	"github.com/baba983/vscroxy/internal/request"
+	"github.com/baba983/vscroxy/locales"
 )
 
 // importedFolderLocal is a folder's local Current values and credential
@@ -208,7 +209,7 @@ func (a *app) applyImportedFolderCurrent(replaced []string, incoming []importedF
 		}
 	}
 	if err := a.saveFolderCurrent(next, credentials); err != nil {
-		a.warn("Imported collection saved, but local Current values were not updated: " + err.Error())
+		a.warn(locales.ImportedCollectionCurrentNotUpdated(err.Error()))
 	}
 }
 

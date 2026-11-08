@@ -235,7 +235,7 @@ func (a *app) activeTools(c *ui.Context, t *ui.Theme) {
 				toolChip(c, "scenario", "Scenario: "+scenario, "Manage scenario: "+scenario, layersIcon, a.openRules, func() {
 					a.selectRuleScenario("")
 					if a.ruleUI.problem != "" {
-						a.warn("Could not disable scenario: " + a.ruleUI.problem)
+						a.warn(locales.CouldNotDisableScenario(a.ruleUI.problem))
 					}
 				})
 			}
@@ -341,7 +341,7 @@ func (a *app) moreActions(c *ui.Context) []action {
 			for _, at := range a.visible {
 				a.chosen.Add(a.flows[at].id)
 			}
-			a.inform(fmt.Sprintf("%d chosen", a.chosen.Len()))
+			a.inform(locales.ChosenCount(a.chosen.Len()))
 		}).in("files"),
 		do("capture.clear-choice", locales.ClearChoice(), a.chosen.Clear).in("files"),
 		do("session.save-as", locales.SaveSession(), a.saveSession).in("files"),
@@ -463,10 +463,10 @@ func (a *app) footer(c *ui.Context, t *ui.Theme) {
 			ui.Text(c, locales.Filtered()).FontSize(uikit.TextMeta).TextColor(t.Text).SingleLine().Tooltip(locales.FilteredTooltip(a.filterSummary()))
 		}
 		if a.dropped > 0 {
-			ui.Text(c, fmt.Sprintf("%d dropped", a.dropped)).FontSize(uikit.TextMeta).FontFeatures("tnum").TextColor(t.Warning).SingleLine()
+			ui.Text(c, locales.DroppedCount(int(a.dropped))).FontSize(uikit.TextMeta).FontFeatures("tnum").TextColor(t.Warning).SingleLine()
 		}
 		if a.scriptErrs > 0 {
-			ui.Text(c, fmt.Sprintf("%d script errors", a.scriptErrs)).FontSize(uikit.TextMeta).FontFeatures("tnum").TextColor(t.Warning).SingleLine()
+			ui.Text(c, locales.ScriptErrors(int(a.scriptErrs))).FontSize(uikit.TextMeta).FontFeatures("tnum").TextColor(t.Warning).SingleLine()
 		}
 		ui.Spacer(c)
 		if !a.page.capture() {

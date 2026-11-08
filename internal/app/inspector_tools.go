@@ -113,7 +113,7 @@ func cookieView(c *ui.Context, headers http.Header, response bool, reveal *bool)
 	}
 	ui.Column(c).Fill().Children(func() {
 		ui.Row(c).Padding(t.Space(2), t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-			uikit.Meta(c, fmt.Sprintf("%d cookies · captured headers", len(cookies))).Grow(1)
+			uikit.Meta(c, locales.CookiesCaptured(len(cookies))).Grow(1)
 			label := "Reveal cookie values"
 			if *reveal {
 				label = "Hide cookie values"
@@ -125,7 +125,7 @@ func cookieView(c *ui.Context, headers http.Header, response bool, reveal *bool)
 			})
 		})
 		if invalid > 0 {
-			ui.Text(c, fmt.Sprintf("%d invalid cookie headers; inspect Raw for original bytes", invalid)).FontSize(uikit.TextMeta).TextColor(t.Warning).Padding(0, t.Space(3))
+			ui.Text(c, locales.InvalidCookies(invalid)).FontSize(uikit.TextMeta).TextColor(t.Warning).Padding(0, t.Space(3))
 		}
 		ui.Scroll(c).Grow(1).FillWidth().Children(func() {
 			if len(cookies) == 0 {

@@ -15,6 +15,7 @@ import (
 	"github.com/baba983/vscroxy/internal/certs"
 	"github.com/baba983/vscroxy/internal/store"
 	"github.com/baba983/vscroxy/internal/upstream"
+	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -132,7 +133,7 @@ func (a *app) saveProxyPort() {
 		a.proxyPortProblem = "Port was not saved: " + err.Error()
 		return
 	}
-	a.done("Proxy port saved · restart the app to apply")
+	a.done(locales.ProxyPortSavedRestartThe())
 }
 
 // columnLayout is a table's columns as the user arranged them, saved with

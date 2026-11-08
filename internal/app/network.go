@@ -257,7 +257,7 @@ func (a *app) setThrottle(t capture.Throttle) bool {
 	}
 	a.throttle = t
 	a.network.problem = ""
-	a.inform("Network conditions: " + t.Name)
+	a.inform(locales.NetworkConditions(t.Name))
 	return true
 }
 
@@ -348,7 +348,7 @@ func (a *app) deleteNetworkPreset(name string) bool {
 	if a.throttle.Name == name {
 		return a.setThrottle(capture.Presets[0])
 	}
-	a.done("Deleted network preset " + name)
+	a.done(locales.DeletedNetworkPreset(name))
 	return true
 }
 

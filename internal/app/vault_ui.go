@@ -185,7 +185,7 @@ func (a *app) saveVault() {
 	}
 	v.open, v.scripts = false, v.scriptsDraft
 	a.persistSettings()
-	a.done(fmt.Sprintf("Vault saved · %d %s", len(secrets), plural(len(secrets), "secret", "secrets")))
+	a.done(locales.VaultSaved(len(secrets)))
 }
 
 // writeVault seals and saves the secrets and makes them the ones in use.

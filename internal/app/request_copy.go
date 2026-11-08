@@ -56,7 +56,7 @@ func (a *app) copyRequest(c *ui.Context, f flow, d *requestDocument, format stri
 	if d != nil {
 		req, err := a.draftPrepared(d)
 		if err != nil {
-			a.fail("Copy request", err)
+			a.fail(locales.CopyRequest(), err)
 			return
 		}
 		effective := a.transferSettings(d)
@@ -122,7 +122,7 @@ func requestSnippetText(method, rawURL, body, bodyFile string, source http.Heade
 func (a *app) copyHAR(c *ui.Context, flows []flow, details bool) {
 	work, err := harExportWork(flows, details)
 	if err != nil {
-		a.fail("Copy HAR", err)
+		a.fail(locales.CopyHar(), err)
 		return
 	}
 	label := "sanitized HAR"
@@ -148,11 +148,11 @@ func (a *app) copyText(c *ui.Context, label string, generate func() (string, err
 		text, err := generate()
 		finish := func() {
 			if err != nil {
-				a.fail("Copy "+label, err)
+				a.fail(locales.CopyFormat(label), err)
 				return
 			}
 			services.WriteClipboard(text)
-			a.done("Copied " + label + "; review credentials before sharing")
+			a.done(locales.CopiedFormat(label))
 		}
 		if win == nil {
 			finish()

@@ -119,7 +119,7 @@ func (a *app) codeModal(c *ui.Context, t *ui.Theme) {
 				}
 				if uikit.PrimaryButton(c, locales.Copy()).Disabled(s.problem != "").Clicked() {
 					c.Services().WriteClipboard(s.view.Buffer.String())
-					a.done("Copied " + s.language + " code; review credentials before sharing")
+					a.done(locales.CopiedCode(s.language))
 				}
 			})
 		})

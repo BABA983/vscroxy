@@ -147,7 +147,7 @@ func (a *app) saveSOCKS() {
 		return
 	}
 	a.resetSOCKSDrafts()
-	a.done("SOCKS5 settings saved · restart the app to apply")
+	a.done(locales.Socks5SettingsSavedRestartThe())
 }
 
 func (a *app) socksSettings(c *ui.Context, t *ui.Theme) {
@@ -230,7 +230,7 @@ func (a *app) applyReverseProxies() {
 	if a.srv != nil {
 		if err := a.srv.SetReverseProxies(a.reverseConfigs()); err != nil {
 			a.reverseProblem = err.Error()
-			a.fail("Reverse proxy", err)
+			a.fail(locales.ReverseProxy(), err)
 		}
 	}
 	a.lastSave = time.Time{}
@@ -413,7 +413,7 @@ func (a *app) removeReverseProxy(id string) {
 	a.reverses = slices.DeleteFunc(a.reverses, func(r reverseProxySetting) bool { return r.ID == id })
 	if len(a.reverses) != before {
 		a.applyReverseProxies()
-		a.inform("Reverse proxy removed")
+		a.inform(locales.ReverseProxyRemoved())
 	}
 }
 

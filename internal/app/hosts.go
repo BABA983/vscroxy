@@ -97,7 +97,7 @@ func (a *app) loadHosts() {
 	for i := range set.Profiles {
 		text, err := a.file(h.path(set.Profiles[i].Name)).Read()
 		if err != nil {
-			a.fail("Host profile "+set.Profiles[i].Name+" could not be read", err)
+			a.fail(locales.HostProfileUnreadable(set.Profiles[i].Name), err)
 		}
 		set.Profiles[i].Text = string(text)
 	}
@@ -142,7 +142,7 @@ func (a *app) applyHosts() {
 		return
 	}
 	if err := a.srv.SetHosts(a.profiles.set.Rules()); err != nil {
-		a.fail("Host profiles", err)
+		a.fail(locales.HostProfiles(), err)
 	}
 }
 
@@ -151,7 +151,7 @@ func (a *app) applyHosts() {
 func (a *app) saveHostsIndex() bool {
 	h := &a.profiles
 	if h.problem != nil {
-		a.fail("Host profiles are read-only until they read cleanly", h.problem)
+		a.fail(locales.HostProfilesAreReadOnly(), h.problem)
 		return false
 	}
 	data, err := h.set.MarshalIndex()
@@ -159,7 +159,7 @@ func (a *app) saveHostsIndex() bool {
 		err = a.file(filepath.Join(h.dir, hosts.IndexFile)).Write(data)
 	}
 	if err != nil {
-		a.fail("Could not save Host profiles", err)
+		a.fail(locales.CouldNotSaveHostProfiles(), err)
 		return false
 	}
 	return true
@@ -207,7 +207,7 @@ func (a *app) dropConnections() {
 		return
 	}
 	n := a.srv.DropConnections()
-	a.inform(fmt.Sprintf("Dropped %d open %s; clients connect again", n, plural(n, "connection", "connections")))
+	a.inform(locales.DroppedConnections(n))
 }
 
 // hostsLabel is what the title bar says the profiles map: "Off", one
@@ -359,7 +359,7 @@ func (a *app) newProfile(name, text, url string) bool {
 		name = fmt.Sprintf("%s %d", base, n)
 	}
 	if err := a.file(h.path(name)).Write([]byte(text)); err != nil {
-		a.fail("Could not create Host profile "+name, err)
+		a.fail(locales.CouldNotCreateHostProfile(name), err)
 		return false
 	}
 	if !a.changeHosts(func(s *hosts.Set) {
@@ -376,12 +376,12 @@ func (a *app) importSystemHosts() {
 	path := hosts.SystemFile()
 	data, err := os.ReadFile(path)
 	if err != nil {
-		a.fail("Could not read "+path, err)
+		a.fail(locales.CouldNotRead(path), err)
 		return
 	}
 	text := "# Imported from " + path + " on " + time.Now().Format("2006-01-02") + "\n" + string(data)
 	if a.newProfile("System hosts", text, "") {
-		a.done("Imported " + path + " as a profile; turn it on to use it")
+		a.done(locales.ImportedProfile(path))
 	}
 }
 
@@ -454,11 +454,11 @@ func (a *app) drainHosts() {
 				continue
 			}
 			if r.err != nil {
-				a.fail("Could not refresh Host profile "+r.name, r.err)
+				a.fail(locales.CouldNotRefreshHostProfile(r.name), r.err)
 				continue
 			}
 			if err := a.file(h.path(r.name)).Write([]byte(r.text)); err != nil {
-				a.fail("Could not save Host profile "+r.name, err)
+				a.fail(locales.CouldNotSaveHostProfile(r.name), err)
 				continue
 			}
 			a.changeHosts(func(s *hosts.Set) {
@@ -484,17 +484,17 @@ func (a *app) saveProfile(i int) {
 	}
 	text := st.Buffer.String()
 	if err := a.file(h.path(p.Name)).Write([]byte(text)); err != nil {
-		a.fail("Could not save Host profile "+p.Name, err)
+		a.fail(locales.CouldNotSaveHostProfile(p.Name), err)
 		return
 	}
 	h.set.Profiles[i].Text = text
 	h.rev++
 	a.applyHosts()
 	if _, problems := hosts.Parse(text); len(problems) > 0 {
-		a.warn(fmt.Sprintf("Saved %s; %d %s map nothing until fixed", p.Name, len(problems), plural(len(problems), "line", "lines")))
+		a.warn(locales.SavedProfileWarning(p.Name, len(problems)))
 		return
 	}
-	a.done("Saved " + p.Name)
+	a.done(locales.SavedName(p.Name))
 }
 
 // renameProfile renames a profile and its file.
@@ -505,20 +505,20 @@ func (a *app) renameProfile(i int, name string) {
 		return
 	}
 	if err := h.set.CheckName(name, i); err != nil {
-		a.warn("Rename: " + err.Error())
+		a.warn(locales.RenameError(err.Error()))
 		h.name = old.Name
 		return
 	}
 	from, to := h.path(old.Name), h.path(name)
 	if !strings.EqualFold(old.Name, name) {
 		if _, err := os.Stat(to); err == nil {
-			a.warn("Rename: " + to + " exists")
+			a.warn(locales.RenameExists(to))
 			h.name = old.Name
 			return
 		}
 	}
 	if err := os.Rename(from, to); err != nil && !os.IsNotExist(err) {
-		a.fail("Could not rename Host profile "+old.Name, err)
+		a.fail(locales.CouldNotRenameHostProfile(old.Name), err)
 		h.name = old.Name
 		return
 	}
@@ -546,17 +546,17 @@ func (a *app) deleteProfile(i int) {
 		return
 	}
 	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
-		a.fail("Could not delete "+path, err)
+		a.fail(locales.CouldNotDelete(path), err)
 	}
 	delete(a.files, path)
 	delete(h.editors, p.Name)
 	h.choice = min(h.choice, max(len(h.set.Profiles)-1, 0))
-	a.notify(notice{level: noticeSuccess, text: "Deleted Host profile " + p.Name, action: "Undo", run: func() {
+	a.notify(notice{level: noticeSuccess, text: "Deleted Host profile " + p.Name, action: locales.Undo(), run: func() {
 		if h.set.Index(p.Name) >= 0 {
 			return
 		}
 		if err := a.file(path).Write([]byte(p.Text)); err != nil {
-			a.fail("Could not restore Host profile "+p.Name, err)
+			a.fail(locales.CouldNotRestoreHostProfile(p.Name), err)
 			return
 		}
 		a.changeHosts(func(s *hosts.Set) {
@@ -629,7 +629,7 @@ func (a *app) mapHostLine(profile, line string) bool {
 	}
 	text += line + "\n"
 	if err := a.file(h.path(p.Name)).Write([]byte(text)); err != nil {
-		a.fail("Could not save Host profile "+p.Name, err)
+		a.fail(locales.CouldNotSaveHostProfile(p.Name), err)
 		return false
 	}
 	if st := h.editors[p.Name]; st != nil && st.Buffer.String() == p.Text {

@@ -16,6 +16,7 @@ import (
 	"github.com/baba983/vscroxy/internal/capture"
 	"github.com/baba983/vscroxy/internal/request"
 	"github.com/baba983/vscroxy/internal/vault"
+	"github.com/baba983/vscroxy/locales"
 )
 
 // collectionWizard owns a draft, never live library assets. Back and Cancel
@@ -681,7 +682,7 @@ func (a *app) saveCollection(list []savedRequest, folders []request.Folder, vars
 		a.addAPI(spec, false)
 	}
 	w.open = false
-	a.done(fmt.Sprintf("Created %s · %d requests; not sent", root, len(list)))
+	a.done(locales.CollectionCreated(root, len(list)))
 }
 
 // collectionScope selects by the sidebar object's actual identity, not by

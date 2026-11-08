@@ -46,7 +46,7 @@ func (a *app) changeScenario(name string, change func(r *capture.Rule) bool) boo
 		}
 	}
 	if !a.applyRuleChanges(next) {
-		a.fail("Scenario", errors.New(a.ruleUI.problem))
+		a.fail(locales.Scenario(), errors.New(a.ruleUI.problem))
 		return false
 	}
 	// The rule being edited may have moved or gone; show it again from disk.
@@ -59,11 +59,11 @@ func (a *app) renameScenario(old, name string) {
 		return
 	}
 	if name == "" || strings.ContainsFunc(name, unicode.IsControl) {
-		a.warn("Enter a scenario name without control characters")
+		a.warn(locales.EnterAScenarioNameWithout())
 		return
 	}
 	if slices.Contains(a.scenarioNames(), name) {
-		a.warn(fmt.Sprintf("A scenario named “%s” exists", name))
+		a.warn(locales.ScenarioExists(name))
 		return
 	}
 	if a.changeScenario(old, func(r *capture.Rule) bool { r.Scenario = name; return true }) {
@@ -85,7 +85,7 @@ func (a *app) deleteScenario(name string) {
 		}
 	}
 	removeMocks(stale)
-	a.done(fmt.Sprintf("Deleted scenario “%s” and its %d %s", name, len(gone), plural(len(gone), "rule", "rules")))
+	a.done(locales.ScenarioDeleted(name, len(gone)))
 }
 
 func (a *app) scenariosPage(c *ui.Context, t *ui.Theme, top float32, active bool) {

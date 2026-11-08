@@ -577,7 +577,7 @@ func (a *app) exportHAR() {
 func (a *app) reviewHAR(flows []flow, name string) {
 	data, err := json.Marshal(harFromFlows(flows))
 	if err != nil {
-		a.fail("HAR", err)
+		a.fail(locales.Har(), err)
 		return
 	}
 	a.reviewExport("Export HAR", name, data, nil)
@@ -603,11 +603,11 @@ func (a *app) importHAR() {
 func (a *app) importHARPath(path string) {
 	flows, err := readHAR(path)
 	if err != nil {
-		a.fail("HAR", err)
+		a.fail(locales.Har(), err)
 		return
 	}
 	a.win.Update(func() { a.addHARFlows(flows) })
-	a.done(fmt.Sprintf("Imported %d flows from %s", len(flows), path))
+	a.done(locales.ImportedFlows(len(flows), path))
 }
 
 // addHARFlows appends HAR rows, reserving their IDs from the live capture
@@ -645,7 +645,7 @@ func (a *app) openSession() {
 		for _, path := range paths {
 			file, err := readSessionFile(path)
 			if err != nil {
-				a.fail("Session", err)
+				a.fail(locales.Session(), err)
 				return
 			}
 			if file.Title == "" {

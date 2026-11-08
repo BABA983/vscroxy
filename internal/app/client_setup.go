@@ -14,6 +14,7 @@ import (
 
 	"github.com/baba983/vscroxy/internal/clientsetup"
 	"github.com/baba983/vscroxy/internal/store"
+	"github.com/baba983/vscroxy/locales"
 )
 
 // One-click targets. The labels are the picker's values, so a target can be
@@ -210,7 +211,7 @@ func (a *app) drainClientSetup() {
 				s.androidLoading, s.androidLoaded = false, true
 				if r.err != nil {
 					s.android, s.androidProblem, s.androidSerial = nil, r.err.Error(), ""
-					a.fail("Find Android devices", r.err)
+					a.fail(locales.FindAndroidDevices(), r.err)
 					continue
 				}
 				s.android, s.androidProblem = r.devices, ""
@@ -361,7 +362,7 @@ func (a *app) openProxiedFirefox() {
 func (a *app) launchElectronApp() {
 	path := strings.TrimSpace(a.clientUI.electronPath)
 	if path == "" {
-		a.warn("Choose an Electron app first")
+		a.warn(locales.ChooseAnElectronAppFirst())
 		return
 	}
 	a.launchClient("Launch Electron app", "Launched Electron app", false, func(p clientsetup.Proxy) (clientLaunch, error) {
@@ -414,20 +415,20 @@ func (a *app) applyAndroidProxy() {
 	s := &a.clientUI
 	p, err := a.clientProxyReady()
 	if err != nil {
-		a.fail("Set Android proxy", err)
+		a.fail(locales.SetAndroidProxy(), err)
 		return
 	}
 	_, port, err := p.HostPort()
 	if err != nil {
-		a.fail("Set Android proxy", err)
+		a.fail(locales.SetAndroidProxy(), err)
 		return
 	}
 	if s.androidSerial == "" {
-		a.warn("Choose a connected Android device or emulator")
+		a.warn(locales.ChooseAConnectedAndroidDevice())
 		return
 	}
 	if _, exists := s.androidApplied[s.androidSerial]; exists {
-		a.warn("Undo the existing Android proxy before setting it again")
+		a.warn(locales.UndoTheExistingAndroidProxy())
 		return
 	}
 	if s.androidPending {
@@ -435,7 +436,7 @@ func (a *app) applyAndroidProxy() {
 	}
 	for _, device := range s.android {
 		if device.Serial == s.androidSerial && device.State != "device" {
-			a.warn("Android device " + device.Serial + " is " + device.State + "; authorize or reconnect it first")
+			a.warn(locales.AndroidDeviceState(device.Serial, device.State))
 			return
 		}
 	}
@@ -462,7 +463,7 @@ func (a *app) applyAndroidProxy() {
 func (a *app) clearAndroidProxy() {
 	s := &a.clientUI
 	if s.androidSerial == "" {
-		a.warn("Choose a connected Android device or emulator")
+		a.warn(locales.ChooseAConnectedAndroidDevice())
 		return
 	}
 	serial := s.androidSerial
@@ -476,7 +477,7 @@ func (a *app) clearAndroidProxy() {
 		port, previous = applied.Port, applied.Previous
 	}
 	if port == 0 {
-		a.fail("Undo Android proxy", errors.New("the proxy port is not available"))
+		a.fail(locales.UndoAndroidProxy(), errors.New("the proxy port is not available"))
 		return
 	}
 	results := a.clientSetupResults()
@@ -503,33 +504,33 @@ func (a *app) forgetAndroidProxy() {
 	s := &a.clientUI
 	serial := s.androidSerial
 	if serial == "" {
-		a.warn("Choose a connected Android device or emulator")
+		a.warn(locales.ChooseAConnectedAndroidDevice())
 		return
 	}
 	if _, ok := s.androidApplied[serial]; !ok {
-		a.warn("No saved Android proxy for " + serial)
+		a.warn(locales.NoSavedAndroidProxy(serial))
 		return
 	}
 	delete(s.androidApplied, serial)
 	a.saveAndroidProxyRecords()
-	a.done("Forgot saved Android proxy for " + serial)
+	a.done(locales.ForgotAndroidProxy(serial))
 }
 
 func (a *app) pushAndroidCA() {
 	s := &a.clientUI
 	p, err := a.clientProxyReady()
 	if err != nil {
-		a.fail("Copy CA to Android device", err)
+		a.fail(locales.CopyCaToAndroidDevice(), err)
 		return
 	}
 	if s.androidSerial == "" {
-		a.warn("Choose a connected Android device or emulator")
+		a.warn(locales.ChooseAConnectedAndroidDevice())
 		return
 	}
 	serial := s.androidSerial
 	command, err := clientsetup.AndroidCACopyCommand(serial, p.CAPath)
 	if err != nil {
-		a.fail("Copy CA to Android device", err)
+		a.fail(locales.CopyCaToAndroidDevice(), err)
 		return
 	}
 	results := a.clientSetupResults()
@@ -549,7 +550,7 @@ func (a *app) pushAndroidCA() {
 func (a *app) installSimulatorCA() {
 	p, err := a.clientProxyReady()
 	if err != nil {
-		a.fail("Install CA in iOS simulator", err)
+		a.fail(locales.InstallCaInIosSimulator2(), err)
 		return
 	}
 	results := a.clientSetupResults()
@@ -579,12 +580,12 @@ func (a *app) javaTruststorePath() string {
 func (a *app) importJavaCA() {
 	p, err := a.clientProxyReady()
 	if err != nil {
-		a.fail("Import CA into Java truststore", err)
+		a.fail(locales.ImportCaIntoJavaTruststore2(), err)
 		return
 	}
 	keystore := a.javaTruststorePath()
 	if keystore == "" {
-		a.fail("Import CA into Java truststore", errors.New("the settings directory is unknown"))
+		a.fail(locales.ImportCaIntoJavaTruststore2(), errors.New("the settings directory is unknown"))
 		return
 	}
 	results := a.clientSetupResults()
@@ -612,7 +613,7 @@ func (a *app) loadAndroidProxyRecords() {
 		return
 	}
 	if err != nil {
-		a.fail("Android proxy records", err)
+		a.fail(locales.AndroidProxyRecords(), err)
 		return
 	}
 	var records map[string]androidProxyState
@@ -620,10 +621,10 @@ func (a *app) loadAndroidProxyRecords() {
 		backup := fmt.Sprintf("%s.corrupt-%d", a.androidProxyPath, time.Now().UnixNano())
 		if renameErr := os.Rename(a.androidProxyPath, backup); renameErr != nil {
 			a.androidProxyPath = "" // never overwrite a damaged file behind the user's back
-			a.fail("Android proxy records", fmt.Errorf("%w; could not move damaged file: %v", err, renameErr))
+			a.fail(locales.AndroidProxyRecords(), fmt.Errorf("%w; could not move damaged file: %v", err, renameErr))
 			return
 		}
-		a.fail("Android proxy records", fmt.Errorf("%w; moved damaged file to %s", err, backup))
+		a.fail(locales.AndroidProxyRecords(), fmt.Errorf("%w; moved damaged file to %s", err, backup))
 		return
 	}
 	a.clientUI.androidApplied = records
@@ -644,7 +645,7 @@ func (a *app) saveAndroidProxyRecords() {
 		err = store.WriteFile(a.androidProxyPath, append(data, '\n'))
 	}
 	if err != nil {
-		a.fail("Save Android proxy records", err)
+		a.fail(locales.SaveAndroidProxyRecords(), err)
 	}
 }
 

@@ -79,7 +79,7 @@ func (a *app) appearanceSettings(c *ui.Context, t *ui.Theme) {
 				ui.Row(c).Children(func() { // as wide as its segments
 					modes := []string{"", "light", "dark"}
 					choice := max(slices.Index(modes, a.appearance), 0)
-					uikit.Segmented(c, &choice, locales.System(), "Light", "Dark").Label(locales.Appearance())
+					uikit.Segmented(c, &choice, locales.System(), locales.Light(), locales.Dark()).Label(locales.Appearance())
 					a.appearance = modes[choice]
 				})
 			}).Description(locales.SystemFollowsThisComputerS())
@@ -191,7 +191,7 @@ func (a *app) captureSettings(c *ui.Context, t *ui.Theme) {
 			}).Description(locales.BodiesPast64KbAre())
 			ui.Field(c, locales.InUse(), func() {
 				memory, disk := a.retainedTotal()
-				uikit.Body(c, fmt.Sprintf("%s in memory · %s on disk · %s %s", humanBytes(int(memory)), humanBytes(int(disk)), groupThousands(len(a.flows)), plural(len(a.flows), "request", "requests"))).FontFeatures("tnum")
+				uikit.Body(c, locales.InUseSummary(humanBytes(int(memory)), humanBytes(int(disk)), len(a.flows))).FontFeatures("tnum")
 			})
 		})
 	})

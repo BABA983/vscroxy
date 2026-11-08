@@ -1039,7 +1039,7 @@ func (a *app) requestEditor(c *ui.Context, t *ui.Theme, d *requestDocument, orig
 				if query {
 					value, err := graphql.Format(d.graphql.Query)
 					if err != nil {
-						a.fail("Format GraphQL query", err)
+						a.fail(locales.FormatGraphqlQuery(), err)
 						return
 					}
 					d.graphql.Query, d.queryFor = value, ""
@@ -1122,7 +1122,7 @@ func (a *app) requestEditor(c *ui.Context, t *ui.Theme, d *requestDocument, orig
 				a.requestBodyEditor(c, d, t)
 			case composeTabScripts:
 				ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-					uikit.Segmented(c, &d.scriptTab, locales.PreRequest(), "Post-response")
+					uikit.Segmented(c, &d.scriptTab, locales.PreRequest(), locales.PostResponse())
 					ui.Spacer(c)
 					if st := map[bool]*editor.State{false: d.preEditor, true: d.postEditor}[d.scriptTab == 1]; st != nil {
 						snippetMenu(c, st, "request")

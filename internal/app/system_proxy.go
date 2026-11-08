@@ -145,13 +145,13 @@ func (a *app) saveSystemProxyBypass() {
 	a.systemProxyBypass = parseSystemProxyBypass(a.systemProxyBypassText)
 	a.lastSave = time.Time{}
 	if err := a.persistSettings(); err != nil {
-		a.fail("Save system proxy bypass", err)
+		a.fail(locales.SaveSystemProxyBypass(), err)
 		return
 	}
 	if a.systemProxy.owned() {
 		a.setSystemProxy(true)
 	}
-	a.done("System proxy bypass saved")
+	a.done(locales.SystemProxyBypassSaved())
 }
 
 func parseSystemProxyBypass(text string) []string {
@@ -177,7 +177,7 @@ func (a *app) setSystemProxy(on bool) {
 	var addr string
 	if on {
 		if a.srv == nil || !a.srv.Running() {
-			a.warn("System proxy: start capture successfully first")
+			a.warn(locales.SystemProxyStartCaptureSuccessfully())
 			return
 		}
 		addr = a.srv.Addr()
@@ -263,7 +263,7 @@ func (a *app) beforeProxyQuit(e *mygo.QuitEvent) {
 		mygo.RunOnMain(func() {
 			s.quitting = false
 			if err != nil {
-				a.fail("Quit cancelled: system proxy cleanup failed", err)
+				a.fail(locales.QuitCancelledSystemProxyCleanup(), err)
 				a.invalidate()
 				go mygo.Dialog.Error(locales.CouldNotReleaseSystemProxy(), "Capture is still running to keep your network working. Disable the system proxy in Settings and retry quitting.\n\n"+err.Error())
 				return
@@ -284,7 +284,7 @@ func (a *app) drainSystemProxy() {
 		if result.wrote {
 			a.inform(proxyOutcome(result))
 		} else if result.applied != nil {
-			a.fail("System proxy recovery", result.applied)
+			a.fail(locales.SystemProxyRecovery(), result.applied)
 		}
 	default:
 	}

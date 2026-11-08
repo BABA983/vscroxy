@@ -115,7 +115,7 @@ func (a *app) syncDocument() {
 // editCapture shows the capture f in LIVE as its draft, ready to change.
 func (a *app) editCapture(f flow) *requestDocument {
 	if !slices.ContainsFunc(a.flows, func(g flow) bool { return g.id == f.id }) {
-		a.warn("Capture is no longer in this session")
+		a.warn(locales.CaptureIsNoLongerIn())
 		return nil
 	}
 	a.inspectCapture(f.id)

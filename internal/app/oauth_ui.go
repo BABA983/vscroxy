@@ -153,7 +153,7 @@ func (a *app) newAccessToken(in request.Context, cfg request.OAuth2) {
 				s.problem = "No access token: " + err.Error()
 				return
 			}
-			a.done("Got a new access token from " + cfg.TokenURL)
+			a.done(locales.NewAccessToken(cfg.TokenURL))
 		})
 	}()
 }

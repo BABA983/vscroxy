@@ -487,7 +487,7 @@ func (a *app) authFields(c *ui.Context, auth *request.Auth, types []string, coll
 				})
 			}
 			ui.Field(c, locales.Payload(), func() {
-				area(&jwt.Payload, "Payload").Height(72).Font(uikit.FontMono).FontSize(uikit.TextBody).Radius(uikit.RadiusControl).Placeholder(`{"sub": "{{user_id}}"}`)
+				area(&jwt.Payload, "Payload").Height(72).Font(uikit.FontMono).FontSize(uikit.TextBody).Radius(uikit.RadiusControl).Placeholder("{\"sub\": \"{{user_id}}\"}")
 			})
 			ui.Field(c, locales.ExtraHeader(), func() {
 				input(&jwt.Header, "Extra header").Placeholder(locales.OptionalEGKidKey()).Font(uikit.FontMono)
@@ -555,7 +555,7 @@ func (a *app) requestBodyEditor(c *ui.Context, d *requestDocument, t *ui.Theme) 
 		a.requestBodyText(c, d)
 	} else if d.bodyMode == "GraphQL" {
 		ui.Row(c).Children(func() {
-			uikit.Segmented(c, &d.graphqlTab, locales.Query(), "Variables")
+			uikit.Segmented(c, &d.graphqlTab, locales.Query(), locales.Variables())
 		})
 		a.graphqlSchemaRow(c, d)
 		if d.graphqlTab == 1 {
@@ -579,7 +579,7 @@ func (a *app) requestBodyEditor(c *ui.Context, d *requestDocument, t *ui.Theme) 
 					paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Title: locales.ChooseBinaryBodyFile()})
 					win.Update(func() {
 						if err != nil {
-							a.fail("Choose binary body file", err)
+							a.fail(locales.ChooseBinaryBodyFile(), err)
 						} else if len(paths) > 0 && slices.Contains(a.documents, d) && d.bodyMode == "Binary" && d.bodyFile == before {
 							d.bodyFile = paths[0]
 						}

@@ -206,12 +206,12 @@ func (a *app) capturedRequestMatch(c *ui.Context, t *ui.Theme, f flow) {
 // of Example.Request, and uses the same body rules and guarded write as Save.
 func (a *app) saveCapturedExample(f flow, key string) bool {
 	if f.status == 0 {
-		a.warn("No captured response to save")
+		a.warn(locales.NoCapturedResponseToSave())
 		return false
 	}
 	// Recheck against the current environment and library at action time.
 	if !slices.ContainsFunc(a.matchingRequests(f), func(r savedRequest) bool { return r.key() == key }) {
-		a.warn("This request no longer matches the capture")
+		a.warn(locales.ThisRequestNoLongerMatches())
 		return false
 	}
 	i := slices.IndexFunc(a.requests, func(r savedRequest) bool { return r.key() == key })
@@ -225,14 +225,14 @@ func (a *app) saveCapturedExample(f flow, key string) bool {
 		ResponseBodySize: f.resSize, ResponseBodyFile: f.resFile, ResponseBodyError: f.resError,
 	}, r.Examples)
 	if err != nil {
-		a.fail("Save response as example", err)
+		a.fail(locales.SaveResponseAsExample(), err)
 		return false
 	}
 	r.Examples = append(slices.Clone(r.Examples), example)
 	list := slices.Clone(a.requests)
 	list[i] = r
 	if err := a.persistRequests(list); err != nil {
-		a.fail("Save response as example", err)
+		a.fail(locales.SaveResponseAsExample(), err)
 		return false
 	}
 	// Keep open editors in step without saving or overwriting unrelated edits.
@@ -243,6 +243,6 @@ func (a *app) saveCapturedExample(f flow, key string) bool {
 			d.exampleEditor = nil
 		}
 	}
-	a.done("Saved example “" + example.Name + "”")
+	a.done(locales.SavedExample(example.Name))
 	return true
 }

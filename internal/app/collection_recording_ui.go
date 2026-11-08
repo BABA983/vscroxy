@@ -120,7 +120,7 @@ func (a *app) collectionRecordingModal(c *ui.Context, t *ui.Theme) {
 							return
 						}
 						w.problem, w.open = "", false
-						a.done("Recording new traffic into " + w.collection)
+						a.done(locales.RecordingInto(w.collection))
 					})
 				}
 			})

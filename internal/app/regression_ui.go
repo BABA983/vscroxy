@@ -20,7 +20,7 @@ func (a *app) checksEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
 			})
 			ui.Field(c, locales.ResponseHeaders(), func() {
 				ui.TextArea(c.Key("check-headers"), &d.checks.Headers).Height(72).Font(uikit.FontMono).FontSize(uikit.TextBody).
-					Radius(uikit.RadiusControl).Label(locales.ExpectedResponseHeaders()).Placeholder(locales.ContentTypeApplicationJson())
+					Radius(uikit.RadiusControl).Label(locales.ExpectedResponseHeaders()).Placeholder("Content-Type: application/json")
 				uikit.Meta(c, locales.ResponseHeadersExactValueAny())
 			})
 			ui.Field(c, locales.JsonScalarFields(), func() {

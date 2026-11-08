@@ -157,7 +157,7 @@ func (a *app) fetchGraphQLSchema(d *requestDocument) {
 		return
 	}
 	if a.srv == nil || !a.srv.Running() {
-		a.warn("No proxy running. Start capture before fetching a schema; the saved schema is kept.")
+		a.warn(locales.NoProxyRunningStartCapture2())
 		return
 	}
 	if strings.TrimSpace(d.composeURL) == "" {

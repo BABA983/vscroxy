@@ -258,7 +258,7 @@ func (a *app) replayModal(c *ui.Context, t *ui.Theme) {
 				if r.stopped {
 					state = "stopped"
 				}
-				a.inform("Replay " + state + " · " + r.summary())
+				a.inform(locales.ReplayState(state, r.summary()))
 				break
 			}
 			if outcome.final {

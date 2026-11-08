@@ -38,7 +38,7 @@ func (a *app) importRequests() {
 		}
 		data, err := os.ReadFile(paths[0])
 		if err != nil {
-			a.fail("Import", err)
+			a.fail(locales.ImportText2(), err)
 			return
 		}
 		a.win.Update(func() { a.importData(data, paths[0]) })
@@ -70,26 +70,26 @@ func (a *app) importCollectionDir(path string) {
 		if r := recover(); r != nil {
 			// Do not put the panic value in the log: it is not request data we
 			// want to record, and the type is enough to identify the bug.
-			a.fail("Import collection folder", fmt.Errorf("import stopped unexpectedly (%T)", r))
+			a.fail(locales.ImportCollectionFolder2(), fmt.Errorf("import stopped unexpectedly (%T)", r))
 		}
 	}()
 	switch collectionDirKindOf(path) {
 	case collectionDirV3:
 		col, err := postman.ReadCollectionDir(path)
 		if err != nil {
-			a.fail("Import Postman collection", err)
+			a.fail(locales.ImportPostmanCollection(), err)
 			return
 		}
 		a.win.Update(func() { a.importPostmanCollection(col) })
 	case collectionDirBruno:
 		result, err := imports.ReadBrunoDir(path)
 		if err != nil {
-			a.fail("Import Bruno collection", err)
+			a.fail(locales.ImportBrunoCollection(), err)
 			return
 		}
 		a.win.Update(func() { a.importThirdParty(result, "Import Bruno collection") })
 	default:
-		a.fail("Import collection folder", fmt.Errorf("not a Postman v3 collection or a Bruno collection"))
+		a.fail(locales.ImportCollectionFolder2(), fmt.Errorf("not a Postman v3 collection or a Bruno collection"))
 	}
 }
 
@@ -99,18 +99,18 @@ func (a *app) importData(data []byte, path string) {
 	case postman.KindCollection:
 		col, err := postman.ReadCollection(data)
 		if err != nil {
-			a.fail("Import Postman collection", err)
+			a.fail(locales.ImportPostmanCollection(), err)
 			return
 		}
 		a.importPostmanCollection(col)
 	case postman.KindEnvironment, postman.KindGlobals:
 		env, err := postman.ReadEnvironment(data)
 		if err != nil {
-			a.fail("Import Postman environment", err)
+			a.fail(locales.ImportPostmanEnvironment(), err)
 			return
 		}
 		if a.envsProblem != "" {
-			a.warn("Import Postman environment: " + a.envsProblem)
+			a.warn(locales.ImportPostmanEnvironmentError(a.envsProblem))
 			return
 		}
 		envs, globals := slices.Clone(a.envs), maps.Clone(a.globals)
@@ -143,7 +143,7 @@ func (a *app) importData(data []byte, path string) {
 			f.Globals = globals
 			return saveEnvs(a.file(a.envsPath), f)
 		}(); err != nil {
-			a.fail("Import Postman environment", err)
+			a.fail(locales.ImportPostmanEnvironment(), err)
 			return
 		}
 		a.envs, a.globals = envs, globals
@@ -151,14 +151,14 @@ func (a *app) importData(data []byte, path string) {
 	default:
 		format, detectErr := imports.DetectWithError(data)
 		if detectErr != nil {
-			a.fail("Import", detectErr)
+			a.fail(locales.ImportText2(), detectErr)
 			return
 		}
 		switch format {
 		case imports.InsomniaV4, imports.InsomniaV5:
 			result, err := imports.ReadInsomnia(data)
 			if err != nil {
-				a.fail("Import Insomnia", err)
+				a.fail(locales.ImportInsomnia(), err)
 				return
 			}
 			a.importThirdParty(result, "Import Insomnia")
@@ -166,7 +166,7 @@ func (a *app) importData(data []byte, path string) {
 		case imports.HoppscotchCollection:
 			result, err := imports.ReadHoppscotch(data)
 			if err != nil {
-				a.fail("Import Hoppscotch collection", err)
+				a.fail(locales.ImportHoppscotchCollection(), err)
 				return
 			}
 			a.importThirdParty(result, "Import Hoppscotch collection")
@@ -174,7 +174,7 @@ func (a *app) importData(data []byte, path string) {
 		case imports.HoppscotchEnvironment:
 			envs, err := imports.ReadHoppscotchEnvironment(data)
 			if err != nil {
-				a.fail("Import Hoppscotch environment", err)
+				a.fail(locales.ImportHoppscotchEnvironment(), err)
 				return
 			}
 			a.importThirdParty(imports.Result{Environments: envs}, "Import Hoppscotch environment")
@@ -183,7 +183,7 @@ func (a *app) importData(data []byte, path string) {
 		if format == imports.Swagger2 {
 			doc, warnings, err := imports.ReadSwagger2(data)
 			if err != nil {
-				a.fail("Import Swagger 2", err)
+				a.fail(locales.ImportSwagger2(), err)
 				return
 			}
 			a.importOpenAPICollection(doc, strings.TrimSuffix(filepath.Base(path), filepath.Ext(path)), warnings, "swagger2")
@@ -196,13 +196,13 @@ func (a *app) importData(data []byte, path string) {
 		if isOpenAPI(data) {
 			doc, err := parseOpenAPI(string(data))
 			if err != nil {
-				a.fail("Import OpenAPI", err)
+				a.fail(locales.ImportOpenapi2(), err)
 				return
 			}
 			a.importOpenAPICollection(doc, strings.TrimSuffix(filepath.Base(path), filepath.Ext(path)), nil, "")
 			return
 		}
-		a.warn("Import: not a supported file (Postman, Insomnia, Hoppscotch, Swagger 2, HAR, OpenAPI 3.0/3.1); for a Postman v3 or Bruno collection choose Import collection folder…")
+		a.warn(locales.ImportNotASupportedFile())
 	}
 }
 
@@ -219,7 +219,7 @@ func (a *app) importPostmanCollection(col postman.Collection) {
 	replaced := replacedFolderPaths(a.requests, a.folders, folders, []imports.Collection{{Name: col.Name}})
 	merged := mergeRequests(a.requests, incoming)
 	if err := a.persistRequests(merged); err != nil {
-		a.fail("Import Postman collection", err)
+		a.fail(locales.ImportPostmanCollection(), err)
 		return
 	}
 	a.requests = merged
@@ -283,7 +283,7 @@ func (a *app) exportPostman(name string) {
 	}
 	data, warnings, err := postman.WriteCollection(name, list, slices.Clone(a.folders))
 	if err != nil {
-		a.fail("Export Postman collection", err)
+		a.fail(locales.ExportPostmanCollection(), err)
 		return
 	}
 	a.saveExport("Export Postman collection", strings.ReplaceAll(name, "∕", "-")+".postman_collection.json", data, warnings)
@@ -305,7 +305,7 @@ func (a *app) exportPostmanVariables() {
 	}
 	data, err := postman.WriteEnvironment(name, values, a.varsGlobals)
 	if err != nil {
-		a.fail("Export Postman environment", err)
+		a.fail(locales.ExportPostmanEnvironment(), err)
 		return
 	}
 	file := name + ".postman_environment.json"

@@ -23,6 +23,7 @@ import (
 	"github.com/baba983/vscroxy/internal/store"
 	"github.com/baba983/vscroxy/internal/uikit"
 	"github.com/baba983/vscroxy/internal/upstream"
+	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 )
@@ -252,7 +253,7 @@ func (a *app) exportConfigTo(path string) {
 		err = store.WriteFile(path, append(data, '\n'))
 	}
 	if err != nil {
-		a.fail("Export configuration", err)
+		a.fail(locales.ExportConfiguration(), err)
 		return
 	}
 	text := fmt.Sprintf("Exported %d %s, %d %s and %d Host %s to %s", len(b.Rules), plural(len(b.Rules), "rule", "rules"),
@@ -298,9 +299,9 @@ func (a *app) startConfigImport(b configBundle, parts [3]bool, label string) {
 	if win == nil {
 		a.configImport.open = false
 		if err := a.importConfig(b, parts); err != nil {
-			a.fail("Import configuration", err)
+			a.fail(locales.ImportConfiguration(), err)
 		} else {
-			a.done("Imported " + label)
+			a.done(locales.ImportedLabel(label))
 		}
 		return
 	}
@@ -311,14 +312,14 @@ func (a *app) startConfigImport(b configBundle, parts [3]bool, label string) {
 			a.configImport.importing = false
 			a.configImport.open = false
 			if err != nil {
-				a.fail("Import configuration", err)
+				a.fail(locales.ImportConfiguration(), err)
 				return
 			}
 			if err := a.importConfigPrepared(b, parts, prepared); err != nil {
-				a.fail("Import configuration", err)
+				a.fail(locales.ImportConfiguration(), err)
 				return
 			}
-			a.done("Imported " + label)
+			a.done(locales.ImportedLabel(label))
 		})
 	}()
 }
@@ -470,7 +471,7 @@ func (a *app) applySettingsPrepared(s settings, prepared *upstream.Config) error
 		socksPassword = a.socksPassword
 		if socksPassword == "" {
 			socksAuth = false
-			a.warn("Imported SOCKS5 authentication is off: the configuration has no password. Set one to turn it on.")
+			a.warn(locales.ImportedSocks5AuthenticationIsOff())
 		}
 	}
 	a.socksOn, a.socksPort, a.socksAuth = s.SOCKSOn, s.SOCKSPort, socksAuth
@@ -517,11 +518,11 @@ func (a *app) applySettingsPrepared(s settings, prepared *upstream.Config) error
 func (a *app) chooseConfigExport() {
 	win := a.win
 	go func() {
-		path, err := mygo.Dialog.Save(mygo.SaveDialogOptions{Title: "Export configuration", DefaultPath: "vscroxy-config.json",
+		path, err := mygo.Dialog.Save(mygo.SaveDialogOptions{Title: locales.ExportConfiguration(), DefaultPath: "vscroxy-config.json",
 			Filters: []mygo.FileFilter{{Name: "vscroxy configuration", Extensions: []string{"json"}}}})
 		win.Update(func() {
 			if err != nil {
-				a.fail("Export configuration", err)
+				a.fail(locales.ExportConfiguration(), err)
 			} else if path != "" {
 				a.exportConfigTo(path)
 			}
@@ -533,7 +534,7 @@ func (a *app) chooseConfigExport() {
 func (a *app) chooseConfigImport() {
 	win := a.win
 	go func() {
-		paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Title: "Import configuration",
+		paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Title: locales.ImportConfiguration(),
 			Filters: []mygo.FileFilter{{Name: "vscroxy configuration", Extensions: []string{"json"}}}})
 		var data []byte
 		if err == nil && len(paths) > 0 {
@@ -541,7 +542,7 @@ func (a *app) chooseConfigImport() {
 		}
 		win.Update(func() {
 			if err != nil {
-				a.fail("Import configuration", err)
+				a.fail(locales.ImportConfiguration(), err)
 			} else if len(paths) > 0 {
 				a.readConfigImport(paths[0], data)
 			}
@@ -553,7 +554,7 @@ func (a *app) chooseConfigImport() {
 func (a *app) readConfigImport(path string, data []byte) {
 	b, err := parseConfig(data)
 	if err != nil {
-		a.fail("Import configuration", err)
+		a.fail(locales.ImportConfiguration(), err)
 		return
 	}
 	a.configImport = configImport{open: true, path: path, bundle: b}
@@ -570,9 +571,9 @@ func (a *app) configImportDialog(c *ui.Context, t *ui.Theme) {
 	b := in.bundle
 	uikit.Modal(c, &in.open, func() {
 		uikit.DialogColumn(c, 520).Children(func() {
-			uikit.DialogTitle(c, "Import configuration")
-			uikit.Meta(c, fmt.Sprintf("%s · exported %s", filepath.Base(in.path), b.Exported.Local().Format("2006-01-02 15:04")))
-			uikit.Prose(c, "The parts you choose replace what vscroxy has now. Secrets and variables are never part of a configuration file. Certificate paths are kept, but their files and passphrases are not included.")
+			uikit.DialogTitle(c, locales.ImportConfiguration())
+			uikit.Meta(c, locales.ExportedFile(filepath.Base(in.path), b.Exported.Local().Format("2006-01-02 15:04")))
+			uikit.Prose(c, locales.ThePartsYouChooseReplace())
 			ui.Column(c).Gap(t.Space(2)).Children(func() {
 				part := func(i int, available bool, label, detail string) {
 					ui.Column(c).Gap(t.Space(0.5)).Disabled(!available).Children(func() {
@@ -595,19 +596,19 @@ func (a *app) configImportDialog(c *ui.Context, t *ui.Theme) {
 				part(partSettings, b.Settings != nil, "Settings and lists", "Appearance, layout, proxy port, upstream proxy and system proxy bypass, HTTPS decryption, certificates, and the ignore and allow lists.")
 			})
 			uikit.DialogFooter(c).Children(func() {
-				if uikit.SecondaryButton(c, "Cancel").Disabled(in.importing).Clicked() {
+				if uikit.SecondaryButton(c, locales.Cancel()).Disabled(in.importing).Clicked() {
 					in.open = false
 				}
 				if in.importing {
-					ui.Spinner(c).Label("Importing configuration")
+					ui.Spinner(c).Label(locales.ImportingConfiguration())
 				}
 				ui.Row(c).Disabled(in.parts == [3]bool{} || in.importing).Children(func() {
-					if uikit.PrimaryButton(c, "Replace").Clicked() {
+					if uikit.PrimaryButton(c, locales.Replace()).Clicked() {
 						if a.win == nil {
 							if err := a.importConfig(b, in.parts); err != nil {
-								a.fail("Import configuration", err)
+								a.fail(locales.ImportConfiguration(), err)
 							} else {
-								a.done("Imported " + filepath.Base(in.path))
+								a.done(locales.ImportedLabel(filepath.Base(in.path)))
 							}
 							in.open = false
 							return

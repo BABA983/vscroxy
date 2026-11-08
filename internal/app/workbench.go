@@ -106,7 +106,7 @@ func (a *app) desktopContent(c *ui.Context) {
 						a.activityStrip(c)
 						if a.chosen.Len() > 1 {
 							ui.Row(c).Height(uikit.HeightLarge).Padding(0, c.Theme().Space(2)).Gap(c.Theme().Space(2)).AlignItems(ui.Center).Children(func() {
-								ui.Text(c, fmt.Sprintf("%d selected", a.chosen.Len())).FontSize(uikit.TextMeta).FontWeight(600).Grow(1)
+								ui.Text(c, locales.SelectedCount(a.chosen.Len())).FontSize(uikit.TextMeta).FontWeight(600).Grow(1)
 								a.actionButton(c, "flow.replay", "Replay…")
 								a.actionButton(c, "capture.export-chosen", "Export HAR…")
 								a.actionButton(c, "capture.export-chosen-csv", "Export CSV…")
@@ -573,7 +573,7 @@ func (a *app) actions(c *ui.Context) []action {
 		do("request.import-curl", locales.ImportCurl(), a.openCurlImport),
 		do("collection.reload", locales.ReloadCollectionsFromDisk(), func() {
 			a.loadRequestAssets()
-			a.done(fmt.Sprintf("Reloaded %d %s from %s", len(a.requests), plural(len(a.requests), "request", "requests"), a.library.root))
+			a.done(locales.ReloadedRequests(len(a.requests), a.library.root))
 		}),
 		do("capture.import-session", locales.ImportCaptureSession(), a.importCaptureSession),
 		do("capture.import-proxyman-folder", locales.ImportProxymanLogFolder(), a.importCaptureFolder),
@@ -743,7 +743,7 @@ func (a *app) commandPalette(c *ui.Context) {
 				uikit.Meta(c, message).SingleLine().Tooltip(message)
 			}
 			if assets.more > 0 {
-				uikit.Meta(c, fmt.Sprintf("%d more results · narrow the search", assets.more)).SingleLine()
+				uikit.Meta(c, locales.MoreResults(assets.more)).SingleLine()
 			}
 			uikit.Meta(c, locales.ChooseEnterRunEscClose())
 		})

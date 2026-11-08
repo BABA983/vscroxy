@@ -61,6 +61,13 @@
       }
     }
   },
+  "@capturedSoFar": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "@catalogSummary": {
     "placeholders": {
       "tools": {
@@ -77,6 +84,47 @@
       }
     }
   },
+  "@certificatesSaved": {
+    "placeholders": {
+      "clients": {
+        "type": "int"
+      },
+      "roots": {
+        "type": "int"
+      }
+    }
+  },
+  "@chosenCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "@collectionCreated": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "@concurrencyDescription": {
+    "placeholders": {
+      "max": {
+        "type": "int"
+      }
+    }
+  },
+  "@conflictsCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "@containsValue": {
     "placeholders": {
       "index": {
@@ -84,6 +132,13 @@
       },
       "value": {
         "type": "String"
+      }
+    }
+  },
+  "@cookiesCaptured": {
+    "placeholders": {
+      "count": {
+        "type": "int"
       }
     }
   },
@@ -104,9 +159,30 @@
       }
     }
   },
+  "@droppedConnections": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "@droppedCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "@droppedSuffix": {
     "placeholders": {
       "count": {
+        "type": "int"
+      }
+    }
+  },
+  "@editRule": {
+    "placeholders": {
+      "index": {
         "type": "int"
       }
     }
@@ -116,6 +192,13 @@
       "noun": {
         "type": "String"
       },
+      "index": {
+        "type": "int"
+      }
+    }
+  },
+  "@enableRule": {
+    "placeholders": {
       "index": {
         "type": "int"
       }
@@ -178,6 +261,13 @@
       }
     }
   },
+  "@experimentNumber": {
+    "placeholders": {
+      "id": {
+        "type": "int"
+      }
+    }
+  },
   "@exportMessagesNote": {
     "placeholders": {
       "count": {
@@ -185,6 +275,16 @@
       },
       "window": {
         "type": "int"
+      }
+    }
+  },
+  "@exportedFile": {
+    "placeholders": {
+      "file": {
+        "type": "String"
+      },
+      "time": {
+        "type": "String"
       }
     }
   },
@@ -198,6 +298,13 @@
   "@filePartLabel": {
     "placeholders": {
       "index": {
+        "type": "int"
+      }
+    }
+  },
+  "@globalsCount": {
+    "placeholders": {
+      "count": {
         "type": "int"
       }
     }
@@ -225,6 +332,34 @@
       }
     }
   },
+  "@headerComparison": {
+    "placeholders": {
+      "index": {
+        "type": "int"
+      }
+    }
+  },
+  "@headerName": {
+    "placeholders": {
+      "index": {
+        "type": "int"
+      }
+    }
+  },
+  "@headerValue": {
+    "placeholders": {
+      "index": {
+        "type": "int"
+      }
+    }
+  },
+  "@headersCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "@hideRow": {
     "placeholders": {
       "noun": {
@@ -235,9 +370,39 @@
       }
     }
   },
+  "@hostsCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "@importedExchanges": {
     "placeholders": {
       "file": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "@importedFlows": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "file": {
+        "type": "String"
+      }
+    }
+  },
+  "@inUseSummary": {
+    "placeholders": {
+      "memory": {
+        "type": "String"
+      },
+      "disk": {
         "type": "String"
       },
       "count": {
@@ -259,6 +424,20 @@
       }
     }
   },
+  "@intervalDescription": {
+    "placeholders": {
+      "max": {
+        "type": "int"
+      }
+    }
+  },
+  "@invalidCookies": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "@keyOfRow": {
     "placeholders": {
       "noun": {
@@ -272,6 +451,32 @@
   "@lostAtEnd": {
     "placeholders": {
       "count": {
+        "type": "int"
+      }
+    }
+  },
+  "@mappedHost": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      },
+      "address": {
+        "type": "String"
+      },
+      "profile": {
+        "type": "String"
+      }
+    }
+  },
+  "@mappedRule": {
+    "placeholders": {
+      "ip": {
+        "type": "String"
+      },
+      "profile": {
+        "type": "String"
+      },
+      "line": {
         "type": "int"
       }
     }
@@ -296,6 +501,13 @@
       }
     }
   },
+  "@moreResults": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "@moveRequestDown": {
     "placeholders": {
       "index": {
@@ -306,6 +518,20 @@
   "@moveRequestUp": {
     "placeholders": {
       "index": {
+        "type": "int"
+      }
+    }
+  },
+  "@openLinkedDraft": {
+    "placeholders": {
+      "number": {
+        "type": "int"
+      }
+    }
+  },
+  "@openTabsWarning": {
+    "placeholders": {
+      "count": {
         "type": "int"
       }
     }
@@ -333,6 +559,30 @@
       }
     }
   },
+  "@patternsCount": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "@pausedExchanges": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "@pausedMessages": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "@pausedViewNote": {
     "placeholders": {
       "count": {
@@ -350,6 +600,23 @@
   "@persistCurrentValue": {
     "placeholders": {
       "index": {
+        "type": "int"
+      }
+    }
+  },
+  "@persistedValues": {
+    "placeholders": {
+      "persisted": {
+        "type": "int"
+      },
+      "skipped": {
+        "type": "int"
+      }
+    }
+  },
+  "@portNumber": {
+    "placeholders": {
+      "port": {
         "type": "int"
       }
     }
@@ -404,6 +671,23 @@
       }
     }
   },
+  "@reloadedRequests": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "path": {
+        "type": "String"
+      }
+    }
+  },
+  "@removeHeader": {
+    "placeholders": {
+      "index": {
+        "type": "int"
+      }
+    }
+  },
   "@removeProperty": {
     "placeholders": {
       "index": {
@@ -442,6 +726,13 @@
       }
     }
   },
+  "@repeatDescription": {
+    "placeholders": {
+      "max": {
+        "type": "int"
+      }
+    }
+  },
   "@replayOf": {
     "placeholders": {
       "id": {
@@ -469,6 +760,13 @@
         "type": "int"
       },
       "examples": {
+        "type": "int"
+      }
+    }
+  },
+  "@requestsCount": {
+    "placeholders": {
+      "count": {
         "type": "int"
       }
     }
@@ -581,6 +879,20 @@
       }
     }
   },
+  "@rulesCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "@runDraft": {
+    "placeholders": {
+      "id": {
+        "type": "int"
+      }
+    }
+  },
   "@runNumber": {
     "placeholders": {
       "id": {
@@ -612,6 +924,53 @@
       }
     }
   },
+  "@savedProfileWarning": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "@scenarioAnswers": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "@scenarioDeleted": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "@scenarioExists": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "@scenarioMocks": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "@scopeSummary": {
     "placeholders": {
       "included": {
@@ -621,6 +980,13 @@
         "type": "int"
       },
       "endpoints": {
+        "type": "int"
+      }
+    }
+  },
+  "@scriptErrors": {
+    "placeholders": {
+      "count": {
         "type": "int"
       }
     }
@@ -673,6 +1039,13 @@
       }
     }
   },
+  "@selectedCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "@sessionMessageLabel": {
     "placeholders": {
       "seq": {
@@ -690,6 +1063,22 @@
       }
     }
   },
+  "@sourceNumber": {
+    "placeholders": {
+      "id": {
+        "type": "int"
+      },
+      "method": {
+        "type": "String"
+      },
+      "url": {
+        "type": "String"
+      },
+      "status": {
+        "type": "int"
+      }
+    }
+  },
   "@sourceSnapshot": {
     "placeholders": {
       "id": {
@@ -701,6 +1090,26 @@
     "placeholders": {
       "seq": {
         "type": "int"
+      }
+    }
+  },
+  "@sslSummary": {
+    "placeholders": {
+      "domains": {
+        "type": "int"
+      },
+      "apps": {
+        "type": "int"
+      }
+    }
+  },
+  "@stepTitle": {
+    "placeholders": {
+      "number": {
+        "type": "int"
+      },
+      "title": {
+        "type": "String"
       }
     }
   },
@@ -779,6 +1188,13 @@
       }
     }
   },
+  "@tunnelTooltip": {
+    "placeholders": {
+      "status": {
+        "type": "int"
+      }
+    }
+  },
   "@valueOfRow": {
     "placeholders": {
       "noun": {
@@ -789,7 +1205,24 @@
       }
     }
   },
+  "@variablesCount": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "@variablesUnresolved": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "@vaultSaved": {
     "placeholders": {
       "count": {
         "type": "int"
@@ -853,7 +1286,9 @@
   "addTokenTo": "Add token to",
   "addTopic": "Add topic",
   "addVariable": "Add variable",
+  "addedExample": "Added example “{name}”; save the request to keep it",
   "addedUpdated": "+{added} / ↻{updated}",
+  "addonSavedScriptsLoadIt": "Addon saved · scripts load it from their next run",
   "addons": "Addons",
   "address": "Address",
   "addsOauthBodyHashForm": "Adds oauth_body_hash; form bodies are signed as parameters.",
@@ -872,6 +1307,8 @@
   "analyzingCompleteJsonResponses": "Analyzing complete JSON responses…",
   "android": "Android",
   "androidDevice": "Android device",
+  "androidDeviceState": "Android device {serial} is {state}; authorize or reconnect it first",
+  "androidProxyRecords": "Android proxy records",
   "anonymousOperation": "Anonymous operation",
   "answerMatchingRequestsWithThis": "Answer matching requests with this example: opens a Map Local rule in Tools",
   "any": "Any",
@@ -881,8 +1318,11 @@
   "apiKeyLocation": "API key location",
   "apiKeyName": "API key name",
   "apiKeyValue": "API key value",
+  "apiSaved": "Saved API {name}",
   "apiTitle": "API: {name}",
   "apiUsers42JsonReads": "/api/users/42.json reads users/42.json in the folder; a path ending in / reads index.html.",
+  "apis": "APIs",
+  "apisNoLocalStoragePath": "APIs: no local storage path available",
   "app": "App",
   "appExactName": "App (exact name)",
   "appFilterIsActiveRemove": "App filter is active; remove it in the condition bar",
@@ -937,6 +1377,7 @@
   "bearer": "Bearer",
   "bearerToken": "Bearer token",
   "binaryAttachmentsJsonArrayOf": "Binary attachments: JSON array of padded base64 strings, e.g. [\"AP9J\", \"\"]. In arguments use '{'\"_placeholder\":true,\"num\":0'}'; num is the zero-based attachment index. Empty string means empty binary.",
+  "binaryBytesCannotBeCopied": "Binary bytes cannot be copied to a text clipboard; use HAR or session export",
   "binaryEncodedOrNonUtf": "Binary, encoded or non-UTF-8 field · payload not previewed",
   "binaryFileUpTo16": "BINARY FILE · up to 16 MiB, sent unchanged",
   "binaryUndecodableOrLargeBody": "Binary, undecodable or large body: preserved unchanged; headers can still be edited.",
@@ -948,9 +1389,14 @@
   "body": "Body",
   "bodyContains": "Body contains",
   "bodyEditsUseDecodedBytes": "Body edits use decoded bytes; encoding, digest and length headers are recalculated or removed.",
+  "bodyFilter": "Body filter: {value}",
   "bodyHash": "Body hash",
   "bodyIsNotJsonShowing": "Body is not JSON; showing it as text",
   "bodyText": "Body text",
+  "breakpointAborted": "Aborted {method} {url}",
+  "breakpointContinued": "Continued {method} {url}",
+  "breakpointContinuedOriginal": "Continued original {method} {url}",
+  "breakpointExpiredTheExchangeIs": "Breakpoint expired; the exchange is no longer paused",
   "breakpointHeaders": "Breakpoint headers",
   "breakpointTemplate": "Breakpoint template",
   "breakpoints": "Breakpoints",
@@ -963,6 +1409,7 @@
   "bypass": "Bypass",
   "bypassList": "Bypass list",
   "bytes0Advertises1Mib": "bytes · 0 advertises 1 MiB so one broker packet cannot grow without limit",
+  "caTrustedByThisSystem": "CA trusted by this system; client trust may differ",
   "caching": "Caching",
   "callAToolReadA": "Call a tool, read a resource or get a prompt. The Result tab shows text, image and audio blocks, structured content and isError.",
   "callDeadlineInSecondsCancelling": "Call deadline in seconds; cancelling never undoes server changes",
@@ -980,6 +1427,7 @@
   "capabilities": "Capabilities",
   "capture": "Capture",
   "captureARequestToInspect": "Capture a request to inspect it.",
+  "captureIsNoLongerIn": "Capture is no longer in this session",
   "captureIsNotRunning": "Capture is not running",
   "captureIsStopped": "Capture is stopped",
   "captureOneAppOnly": "Capture one app only…",
@@ -987,6 +1435,7 @@
   "captureViewNamed": "Capture view: {name}",
   "capturedRequests": "Captured requests",
   "capturedRequestsCount": "{count} captured requests",
+  "capturedSoFar": "{count, plural, one {# request} other {# requests}} captured so far",
   "capturingTrustingTheCertificateAnd": "Capturing, trusting the certificate and choosing what to decrypt.",
   "caseInsensitiveText": "case-insensitive text",
   "catalogSummary": "{tools} tools · {resources} resources · {templates} templates · {prompts} prompts",
@@ -994,12 +1443,15 @@
   "certificate": "Certificate",
   "certificateFile": "Certificate file",
   "certificateFormat": "Certificate format",
+  "certificateInstallationCancelledSystemTrust": "Certificate installation cancelled; system trust not verified",
+  "certificateNoPathKnown": "Certificate: no path known",
   "certificateSetup": "Certificate setup…",
   "certificateVerificationIsOffFor": "Certificate verification is off for requests under it: they accept any certificate, including an impostor’s. Use it only for a server you control.",
   "certificateVerificationIsOffThis": "Certificate verification is off: this request accepts any certificate, including an impostor’s. Use it only for a server you control.",
   "certificateVerificationIsOffThis2": "Certificate verification is off: this connection accepts any certificate, including an impostor's. Use it only for a server you control.",
   "certificateVerificationIsOffThis3": "Certificate verification is off: this connection accepts any broker certificate, including an impostor's. Use it only for a broker you control.",
   "certificates": "Certificates",
+  "certificatesSaved": "Certificates saved · {clients, plural, one {# client certificate} other {# client certificates}}, {roots, plural, one {# root} other {# roots}}",
   "changeTheSearchOrWait": "Change the search or wait for the server.",
   "changeTheSearchOrWait2": "Change the search or wait for a message.",
   "changeTheSearchOrWait3": "Change the search or wait for an event.",
@@ -1010,6 +1462,7 @@
   "choose": "Choose…",
   "chooseABaseline": "Choose a baseline",
   "chooseACollectionWithSaved": "Choose a collection with saved requests to run.",
+  "chooseAConnectedAndroidDevice": "Choose a connected Android device or emulator",
   "chooseACustomPreset": "Choose a custom preset",
   "chooseAMessageToSee": "Choose a message to see it in full",
   "chooseAPreset": "Choose a preset",
@@ -1020,16 +1473,20 @@
   "chooseAllShown": "Choose all shown",
   "chooseAnAdvertisedResourceOr": "Choose an advertised resource or template, or type any URI the server accepts. Templates keep their '{placeholders}'; edit them first.",
   "chooseAnElectronApp": "Choose an Electron app",
+  "chooseAnElectronAppFirst": "Choose an Electron app first",
   "chooseAnEncodingAndDecode": "Choose an encoding and Decode. JWT signatures are not verified.",
   "chooseAnotherRunAsLeft": "Choose another run as left, or set a baseline first.",
   "chooseApp": "Choose app…",
   "chooseBinaryBodyFile": "Choose binary body file",
+  "chooseElectronApp": "Choose Electron app",
   "chooseEnterRunEscClose": "↑ ↓ Choose · Enter Run · Esc Close",
   "chooseExactlyTwoRowsWith": "Choose exactly two rows with Ctrl/Cmd-click",
   "chooseExamples": "Choose examples",
   "chooseFile": "Choose file…",
   "choosePrettyRawOrHex": "Choose Pretty/Raw or Hex to inspect original bytes.",
+  "chooseResponse": "Choose response",
   "chooseScope": "Choose scope",
+  "chosenCount": "{count} chosen",
   "chromeOnLinuxReadsNss": "Chrome on Linux reads NSS, not the CA file. Trust the CA system-wide in Settings → HTTPS, or add it with certutil; no TLS bypass is used.",
   "chromeUsesThisSystemS": "Chrome uses this system's trust store. Trust the CA in Settings → HTTPS first; no TLS bypass is used.",
   "clear": "Clear",
@@ -1073,11 +1530,13 @@
   "codeLanguage": "Code language",
   "collection": "Collection",
   "collectionActions": "Collection actions",
+  "collectionCreated": "Created {name} · {count} requests; not sent",
   "collectionFolder": "Collection / folder",
   "collectionLoadTest": "Collection load test",
   "collectionName": "Collection name",
   "collectionOptions": "Collection options",
   "collectionRecordingStatus": "Collection recording status",
+  "collectionRecordingStopped": "Collection recording stopped",
   "collectionRoot": "Collection root",
   "collectionRunner": "Collection Runner",
   "collectionSettings": "Collection settings…",
@@ -1146,6 +1605,23 @@
   "cookieValuesAreMaskedBy": "Cookie values are masked by default; reveal this row to read it",
   "cookies": "Cookies…",
   "cookies2": "Cookies",
+  "cookiesCaptured": "{count} cookies · captured headers",
+  "cookiesKeptIn": "Cookies will be kept after quitting in {path}",
+  "cookiesWillBeForgottenWhen": "Cookies will be forgotten when the app quits",
+  "copiedCaFingerprint": "Copied CA fingerprint",
+  "copiedClientSetup": "Copied {runtime} setup; review URL and CA path before running",
+  "copiedCode": "Copied {language} code; review credentials before sharing",
+  "copiedConnectionDiagnostics": "Copied connection diagnostics",
+  "copiedConnectionLog": "Copied connection log",
+  "copiedDecodedProtobufMessage": "Copied decoded protobuf message",
+  "copiedFormat": "Copied {format}; review credentials before sharing",
+  "copiedKeytoolCommands": "Copied keytool commands",
+  "copiedMessage": "Copied {label} message · {size}",
+  "copiedRawMessageReviewCredentials": "Copied raw message; review credentials before sharing",
+  "copiedResponseBody": "Copied response body",
+  "copiedShownBodyReviewCredentials": "Copied shown body; review credentials before sharing",
+  "copiedTheRecordedError": "Copied the recorded error",
+  "copiedUrl": "Copied URL",
   "copiesDisplayedTextHexUse": "Copies displayed text/hex; use Copy decoded in Protobuf mode",
   "copiesTheJdkSCacerts": "Copies the JDK's cacerts into this app's own truststore, then adds the public CA. No JDK files change.",
   "copiesValuesLaterPresetEdits": "Copies values. Later preset edits do not change this rule.",
@@ -1159,6 +1635,7 @@
   "copyAsHarWithSensitive": "Copy as HAR (with sensitive data)",
   "copyAsMarkdownTable": "Copy as Markdown table",
   "copyAsRawHttp": "Copy as raw HTTP",
+  "copyCaToAndroidDevice": "Copy CA to Android device",
   "copyCaToDevice": "Copy CA to device",
   "copyCapabilities": "Copy capabilities",
   "copyCertificateUrl": "Copy certificate URL",
@@ -1169,9 +1646,12 @@
   "copyDiagnostics": "Copy diagnostics",
   "copyError": "Copy error",
   "copyEventId": "Copy event ID",
+  "copyFormat": "Copy {format}",
+  "copyHar": "Copy HAR",
   "copyPreset": "Copy preset",
   "copyProxyAddress": "Copy proxy address",
   "copyRaw": "Copy raw",
+  "copyRequest": "Copy request",
   "copyResult": "Copy result",
   "copyResults": "Copy results",
   "copyShownBody": "Copy shown body",
@@ -1184,7 +1664,16 @@
   "copyTheRecordedError": "Copy the recorded error",
   "copyView": "Copy view",
   "correlationData": "Correlation data",
+  "couldNotCreateHostProfile": "Could not create Host profile {name}",
+  "couldNotDelete": "Could not delete {path}",
+  "couldNotDisableScenario": "Could not disable scenario: {error}",
+  "couldNotRead": "Could not read {path}",
+  "couldNotRefreshHostProfile": "Could not refresh Host profile {name}",
   "couldNotReleaseSystemProxy": "Could not release system proxy",
+  "couldNotRenameHostProfile": "Could not rename Host profile {name}",
+  "couldNotRestoreHostProfile": "Could not restore Host profile {name}",
+  "couldNotSaveHostProfile": "Could not save Host profile {name}",
+  "couldNotSaveHostProfiles": "Could not save Host profiles",
   "coversContentTypeAndThe": "Covers Content-Type and the body in the MAC.",
   "create": "Create",
   "createAnEnvironmentBeforeStarting": "Create an environment before starting.",
@@ -1192,6 +1681,7 @@
   "createCollection": "Create collection…",
   "createCollection2": "Create collection",
   "createCollectionFromOpenapi": "Create collection from OpenAPI",
+  "createMock": "Create mock",
   "createRequest": "Create request",
   "credentialSummary": "{header} · •••• · {count} requests",
   "credentialValuesAreNotAdded": "Credential values are not added to filters",
@@ -1210,6 +1700,7 @@
   "customNetworkPresets": "Custom network presets",
   "customPreset": "Custom preset",
   "customPresets": "Custom presets…",
+  "dark": "Dark",
   "dataFile": "Data file…",
   "debuggingRules": "Debugging rules",
   "debuggingRules2": "Debugging rules…",
@@ -1241,8 +1732,13 @@
   "deleteRule": "Delete rule…",
   "deleteSession": "Delete session…",
   "deleteWithItsRules": "Delete with its rules…",
+  "deletedCaptureFilter": "Deleted capture filter {name}",
+  "deletedName": "Deleted {name}",
+  "deletedNetworkPreset": "Deleted network preset {name}",
   "description": "Description",
   "destinationCollection": "Destination collection",
+  "deviceAccessEnabled": "Device access enabled · {address}",
+  "deviceAccessOffLocalCapture": "Device access off · local capture is unchanged",
   "deviceFacingAddress": "Device-facing address",
   "devices": "Devices",
   "diagnose": "Diagnose…",
@@ -1277,7 +1773,10 @@
   "dropConnection": "Drop connection",
   "dropEveryLocalOverrideAnd": "Drop every local override and use Initial values again",
   "dropOpenConnections": "Drop open connections",
+  "droppedConnections": "Dropped {count, plural, one {# open connection} other {# open connections}}; clients connect again",
+  "droppedCount": "{count} dropped",
   "droppedSuffix": " · {count} dropped",
+  "droppedWebsocketMessageConnectionRemains": "Dropped WebSocket message · connection remains open",
   "duplicate": "Duplicate",
   "duplicateAsNewRequest": "Duplicate as new request",
   "duration": "Duration",
@@ -1309,6 +1808,7 @@
   "enable": "Enable",
   "enableADomainOrA": "Enable a domain or a local executable. New connections only; clients must trust the CA. Enabling a rule does not prove decryption succeeded.",
   "enableDeviceAccess": "Enable device access",
+  "enableLocalAutomation": "Enable local automation",
   "enableRow": "Enable {noun} {index}",
   "enableRule": "Enable rule {index}",
   "enableSocks5Proxy": "Enable SOCKS5 proxy",
@@ -1318,6 +1818,7 @@
   "encryptedTunnelConnectSuccessIs": "Encrypted tunnel; CONNECT success is not a decrypted response",
   "endpoints": "Endpoints",
   "endpointsUnavailable": "Endpoints unavailable",
+  "enterAScenarioNameWithout": "Enter a scenario name without control characters",
   "enterAUrlThenApp": "Enter a URL, then @ App and ; Header: value if needed.",
   "enterAnHttpOrHttps": "Enter an HTTP or HTTPS URL without embedded credentials.",
   "environment": "Environment",
@@ -1361,16 +1862,26 @@
   "export": "Export…",
   "exportAsPostman": "Export as Postman…",
   "exportChosenCsv": "Export chosen CSV…",
+  "exportChosenNoFlowChosen": "Export chosen: no flow chosen",
   "exportCollectionAsPostman": "Export collection as Postman…",
+  "exportConfiguration": "Export configuration",
   "exportCsv": "Export CSV…",
+  "exportCsv2": "Export CSV",
+  "exportCsvNoRequestChosen": "Export CSV: no request chosen",
+  "exportCsvNoRequestsTo": "Export CSV: no requests to export",
   "exportHar": "Export HAR…",
   "exportMessages": "Export messages…",
   "exportMessagesNote": "Exports {count} matching messages from this {window}-message window, not the complete conversation. Pause freezes the view, not capture. Saving is available once the payload search finishes.",
   "exportOpenapi": "Export OpenAPI",
+  "exportPostmanCollection": "Export Postman collection",
+  "exportPostmanEnvironment": "Export Postman environment",
   "exportRetainedMessages": "Export retained messages",
   "exportSelectedHar": "Export selected HAR…",
   "exportSession": "Export session…",
+  "exportedFile": "{file} · exported {time}",
   "exportedMessages": "Exported {count} retained messages",
+  "exportedOpenapiTo": "Exported OpenAPI to {path}",
+  "exportedTo": "Exported to {path}",
   "ext": "ext",
   "extraHeader": "Extra header",
   "extraPemRootsAreAdded": "Extra PEM roots are added when a request verifies a server. Turning verification off still accepts any certificate, independent of these roots.",
@@ -1385,6 +1896,7 @@
   "fillMcpArgumentsFromSchema": "Fill MCP arguments from schema",
   "filter": "Filter…",
   "filterApp": "Filter app",
+  "filterApplied": "Filter applied: {name}",
   "filterCaptures": "Filter captures",
   "filterColor": "Filter color",
   "filterCombination": "Filter combination",
@@ -1398,6 +1910,8 @@
   "filtered": "Filtered",
   "filteredTooltip": "filtered: {summary}",
   "filters": "Filters…",
+  "filtersCleared": "Filters cleared",
+  "findAndroidDevices": "Find Android devices",
   "findCommand": "Find command",
   "findInBody": "Find in body…",
   "findInText": "Find in text…",
@@ -1407,6 +1921,7 @@
   "firefoxUsesTheWindowsRoot": "Firefox uses the Windows root store through enterprise roots. Trust the CA in Settings → HTTPS first; no TLS bypass is used.",
   "firstMatchingNetworkRuleReplaces": "First matching network rule replaces global conditions before scripts and routing. All zero overrides to Off. Other Map/Block rules still act independently.",
   "fixedConcurrentUsersClosedModel": "Fixed concurrent users · closed model · HTTP(S) only · no target RPS or ramping",
+  "flat": "Flat",
   "focusInspectorBackToList": "Focus inspector / Back to list",
   "focusRequestListUrl": "Focus request list / URL",
   "folder": "Folder…",
@@ -1417,13 +1932,16 @@
   "followRedirects": "Follow redirects",
   "forAServerThatServes": "For a server that serves several sites by name. Otherwise it gets the target’s host.",
   "forgetSavedProxy": "Forget saved proxy",
+  "forgotAndroidProxy": "Forgot saved Android proxy for {serial}",
   "formDataFileValuesAre": "FORM DATA · file values are local paths, 16 MiB in total",
   "formFields": "Form fields",
   "format": "Format",
+  "formatGraphqlQuery": "Format GraphQL query",
   "from": "From",
   "fromTrafficToAnApi": "From traffic to an API contract",
   "general": "General",
   "generate": "Generate",
+  "generateApi": "Generate API",
   "generateApiFromCollection": "Generate API from collection…",
   "generateCode": "Generate code…",
   "generateDraft": "Generate draft",
@@ -1431,9 +1949,12 @@
   "generateOpenapi": "Generate OpenAPI…",
   "generateOpenapiDraft": "Generate OpenAPI draft",
   "generateVariables": "Generate variables",
+  "generatedIndependentOpenapiDraftReview": "Generated independent OpenAPI draft; review notes before publishing",
   "getEventStreamsThroughThe": "GET event streams through the capture proxy. No request-document scripts. Connect starts a fresh timeline; closing stops receiving and reconnecting. Headers and cookies may contain secrets.",
   "getMcpPrompt": "Get MCP prompt",
   "getNewAccessToken": "Get new access token",
+  "globals": "Globals",
+  "globalsCount": "Globals: {count}",
   "goToCollections": "Go to Collections",
   "goToLiveTraffic": "Go to Live traffic",
   "goToSessions": "Go to Sessions",
@@ -1448,6 +1969,7 @@
   "grpcMethod": "gRPC method",
   "grpcMethods": "{count, plural, one {# method} other {# methods}} · descriptors saved with this request",
   "grpcSchemaFile": "gRPC schema file",
+  "har": "HAR",
   "harSanitized": "HAR (sanitized)",
   "harWithSensitiveData": "HAR (with sensitive data)",
   "header": "Header",
@@ -1458,6 +1980,7 @@
   "headerValue": "Header {index} value",
   "headers": "Headers",
   "headersCookiesAndBodiesOf": "Headers, cookies and bodies of these become readable. More rules in HTTPS rules.",
+  "headersCount": "{count, plural, one {# header} other {# headers}}",
   "headersOneNameValuePer": "Headers · one Name: Value per line; repeat a name for multiple values",
   "headersToSign": "Headers to sign",
   "help": "Help",
@@ -1479,7 +2002,9 @@
   "hostProfile": "Host profile",
   "hostProfileMode": "Host profile mode",
   "hostProfileNamed": "Host profile: {name}",
+  "hostProfileUnreadable": "Host profile {name} could not be read",
   "hostProfiles": "Host profiles",
+  "hostProfilesAreReadOnly": "Host profiles are read-only until they read cleanly",
   "hostRules": "Host rules",
   "hosts": "Hosts",
   "hostsCount": "{count, plural, one {# host} other {# hosts}}",
@@ -1496,6 +2021,7 @@
   "httpInspectedHttpsAndSse2": "HTTP, inspected HTTPS and SSE; not WebSocket or opaque CONNECT. Failure disconnects requests, not TCP packets. Streamed bodies cannot match a POST GraphQL operation.",
   "httpSHops": "HTTP(S) hops",
   "https": "HTTPS",
+  "httpsAppRuleUnavailableA": "HTTPS app rule unavailable: a local executable path is required",
   "httpsCertificateDecryptionSetup": "HTTPS certificate & decryption setup…",
   "httpsInspection": "HTTPS inspection",
   "httpsInspectionByExecutable": "HTTPS inspection by executable",
@@ -1509,29 +2035,55 @@
   "ignoredApps": "Ignored apps…",
   "ignoredHosts": "Ignored hosts…",
   "importAProtoSourceOr": "Import a .proto source or a binary FileDescriptorSet (.pb / .protoset). gRPC methods select input/output types automatically; raw protobuf needs a message type. A successful load replaces the current registry.",
+  "importBrunoCollection": "Import Bruno collection",
   "importCa": "Import CA",
   "importCaIntoJavaTruststore": "Import CA into Java truststore…",
+  "importCaIntoJavaTruststore2": "Import CA into Java truststore",
+  "importCapture": "Import capture",
+  "importCaptureNothing": "Import capture: nothing to import from {file}; {warnings}",
   "importCaptureSession": "Import capture session…",
   "importCaptureSession2": "Import capture session",
+  "importChooseARealFile": "Import: choose a real file or folder, not a symbolic link",
   "importCollectionFolder": "Import collection folder…",
   "importCollectionFolder2": "Import collection folder",
+  "importConfiguration": "Import configuration",
   "importCurl": "Import cURL…",
   "importCurl2": "Import cURL",
   "importGrpcSchema": "Import gRPC schema",
   "importHar": "Import HAR…",
   "importHar2": "Import HAR",
+  "importHarNothing": "Import HAR: no HTTP(S) request to import; {warnings}",
+  "importHoppscotchCollection": "Import Hoppscotch collection",
+  "importHoppscotchEnvironment": "Import Hoppscotch environment",
+  "importInsomnia": "Import Insomnia",
+  "importNotASupportedFile": "Import: not a supported file (Postman, Insomnia, Hoppscotch, Swagger 2, HAR, OpenAPI 3.0/3.1); for a Postman v3 or Bruno collection choose Import collection folder…",
   "importOpenapi": "Import OpenAPI…",
   "importOpenapi2": "Import OpenAPI",
+  "importPostmanCollection": "Import Postman collection",
+  "importPostmanEnvironment": "Import Postman environment",
+  "importPostmanEnvironmentError": "Import Postman environment: {error}",
   "importProtoDescriptorSetOr": "Import .proto / descriptor set, or discover services using server reflection.",
   "importProtobufSchema": "Import protobuf schema",
   "importProxymanLogFolder": "Import Proxyman log folder…",
   "importProxymanLogFolder2": "Import Proxyman log folder",
   "importRequest": "Import request",
+  "importSwagger2": "Import Swagger 2",
   "importSystemHosts": "Import system hosts…",
   "importText": "Import…",
   "importText2": "Import",
+  "importUnsupportedFileTypeDrop": "Import: unsupported file type. Drop a HAR (.har), Charles (.chlsj, .chlsx), or Proxyman (.proxymanlogv2, .proxymanlog) file, or a Postman v3 or Bruno collection folder",
+  "importedCollectionCurrentNotUpdated": "Imported collection saved, but local Current values were not updated: {error}",
+  "importedCurlAsAnUnsent": "Imported cURL as an unsent request; review headers and body before sending",
+  "importedCurlWarnings": "Imported cURL; {warnings}",
   "importedExchanges": "Imported “{file}” · {count, plural, one {# exchange} other {# exchanges}}",
+  "importedFlows": "Imported {count} flows from {file}",
+  "importedLabel": "Imported {name}",
+  "importedProfile": "Imported {path} as a profile; turn it on to use it",
+  "importedSocks5AuthenticationIsOff": "Imported SOCKS5 authentication is off: the configuration has no password. Set one to turn it on.",
+  "importingConfiguration": "Importing configuration",
+  "inText": "In",
   "inUse": "In use",
+  "inUseSummary": "{memory} in memory · {disk} on disk · {count, plural, one {# request} other {# requests}}",
   "includeRootsOnePerLine": "Include roots, one per line",
   "includeRootsOptionalOnePer": "Include roots (optional, one per line). The source directory and standard Google imports are included automatically.",
   "incompleteBodies": "Incomplete bodies: {count}",
@@ -1544,21 +2096,27 @@
   "insertSnippet": "Insert snippet",
   "inspectFocused": "Inspect focused",
   "inspectNumbered": "Inspect #{id}",
+  "inspectReplay": "Inspect replay",
   "inspectRetainedRun": "Inspect retained run",
   "inspectSourceCapture": "Inspect source capture",
   "inspectSourceCaptureUnavailableIf": "Inspect source capture; unavailable if it was removed from this session",
   "inspectTimingInCapture": "Inspect timing in Capture",
   "inspectingRetainedBody": "Inspecting retained body…",
+  "inspectionEnabledFor": "Inspection enabled for {host} on all ports; reconnect the client and retry",
   "inspectionResult": "Inspection result",
   "inspectorFocusCtrlCmdShift": "Inspector focus · Ctrl/Cmd+Shift+Enter",
   "inspectorOptions": "Inspector options",
   "installAndTrust": "Install and trust",
   "installCaInBootedSimulator": "Install CA in booted simulator",
   "installCaInIosSimulator": "Install CA in iOS simulator…",
+  "installCaInIosSimulator2": "Install CA in iOS simulator",
+  "installCertificate": "Install certificate",
   "installTrust": "Install & Trust…",
   "installationCancelledYouCanTry": "Installation cancelled. You can try again when ready.",
+  "installationFinishedSystemTrustNot": "Installation finished; system trust not verified",
   "intervalBetweenStartsMs": "Interval between starts (ms)",
   "intervalDescription": "0–{max} ms; 0 starts as a worker frees up.",
+  "invalidCookies": "{count} invalid cookie headers; inspect Raw for original bytes",
   "invalidTimingDataRecordedOffsets": "Invalid timing data · recorded offsets are outside the timeline",
   "ios": "iOS",
   "iosSimulatorsRunOnlyOn": "iOS simulators run only on macOS. This build cannot install the CA.",
@@ -1600,6 +2158,7 @@
   "launchWithProxy": "Launch with proxy",
   "layoutSideBySide": "Layout: Side by side",
   "layoutStacked": "Layout: Stacked",
+  "light": "Light",
   "linkLocalAddressTheDevice": "Link-local address: the device needs a compatible address on the same network link.",
   "linksStayWithSavedSessions": "Links stay with saved sessions",
   "listener": "Listener",
@@ -1615,6 +2174,7 @@
   "loadSchema2": "Load schema",
   "loadTest": "Load test…",
   "loadUsers": "Load users",
+  "loadedProtobufSchema": "Loaded protobuf schema",
   "loadingSchema": "Loading schema…",
   "localApps": "Local apps",
   "localAssetsProtectedSavingDisabled": "Local assets protected · saving disabled",
@@ -1642,14 +2202,18 @@
   "manualFallbackUseShowCertificate3": "Manual fallback: use Show certificate and import the public CA using your distribution's trust-store tools. Check again afterwards.",
   "manyAndroid7AppsDo": "Many Android 7+ apps do not trust user-installed CAs. Certificate pinning and apps that ignore the system proxy need app-side changes; installing this CA does not bypass them.",
   "mapAHost": "Map a host",
+  "mapAHostEnterA": "Map a host: enter a host and an IP address",
   "mapRewriteBlockOrDelay": "Map, rewrite, block or delay matching requests.",
   "mapThisHost": "Map this host…",
   "mappedBy": "Mapped by {profile}",
+  "mappedHost": "Mapped {host} to {address} in {profile}; applies to new connections",
+  "mappedRule": "→ {ip} · {profile} line {line}",
   "mappedTo": "Mapped by {profile} → {ip}",
   "mark": "Mark…",
   "markTheRequest": "Mark the request",
   "markdownShownInTheCollection": "MARKDOWN · shown in the collection’s documentation view",
   "markdownTable": "Markdown table",
+  "marked": "Marked",
   "matchApps": "Match apps",
   "matchGraphqlOperation": "Match GraphQL operation",
   "matchMethod": "Match method",
@@ -1660,6 +2224,7 @@
   "matchingAuthorizationIsInheritedFrom": "Matching Authorization is inherited from the collection. Cookie and API-key headers use private variable references.",
   "maximumPacket": "Maximum packet",
   "maximumRedirects": "Maximum redirects",
+  "mcpApprovalCouldNotBe": "MCP approval could not be saved; it will ask again next time.",
   "mcpCommandSummary": "Command {command} · {args, plural, one {# argument} other {# arguments}} · {env, plural, one {# environment variable} other {# environment variables}}",
   "mcpDocumentsDoNotRun": "MCP documents do not run HTTP scripts, Checks, token bindings, Runner, code generation or History. HTTP/SSE and stdio share the same timeline and catalog.",
   "mcpEventPayload": "MCP event payload",
@@ -1675,6 +2240,7 @@
   "message": "Message",
   "messageExceedsTheEditorLimit": "Message exceeds the editor limit or is invalid UTF-8. Continue unchanged or drop it.",
   "messageExpiryInSeconds": "Message expiry in seconds",
+  "messageExport": "Message export",
   "messageName": "Message name",
   "messagePayload": "Message payload",
   "messageProtobufReader": "Message Protobuf reader",
@@ -1687,11 +2253,14 @@
   "millis": "{ms} ms",
   "mimeContentType": "MIME content type",
   "mock": "Mock",
+  "mockExample": "Mock example",
+  "mockNamed": "Mock “{name}”",
   "mockThisExample": "Mock this example",
   "mocks": "Mocks",
   "more": "More",
   "moreCaptureOptions": "More capture options",
   "moreCommands": "More commands",
+  "moreResults": "{count} more results · narrow the search",
   "moveDown": "Move down",
   "moveRequestDown": "Move request {index} down",
   "moveRequestUp": "Move request {index} up",
@@ -1730,10 +2299,12 @@
   "nativeSnippetsLeaveRedirectTimeout": "Native snippets leave redirect, timeout and TLS behavior to the language’s client; Copy as cURL carries the request’s settings.",
   "nativeSourceBindingClearsThe": "Native source binding clears the token before checks and all inherited/authored setup, even on script compilation failure. Postman export keeps script fallback only and warns that this early-reset guarantee is not portable.",
   "network": "Network",
+  "networkConditions": "Network conditions: {name}",
   "networkRulePreset": "Network rule preset",
   "networkRules": "Network rules…",
   "neverDisablesCertificateVerificationCertificate": "Never disables certificate verification. Certificate trust comes from the system store on macOS/Windows and NSS on Linux. Apps that set their own proxy or pin certificates can ignore the flag.",
   "new": "New",
+  "newAccessToken": "Got a new access token from {url}",
   "newAmbientHttpTrafficOnly": "New ambient HTTP traffic only. Static resources, streams, network failures and app sends/replays are excluded. Repeated endpoints update Examples, never the authored request.",
   "newApiContract": "New API contract",
   "newCaptureView": "New capture view",
@@ -1747,6 +2318,7 @@
   "newRequest": "New request",
   "newRule": "New rule",
   "newRuleRunningIt": "New rule running it",
+  "newScript": "New script",
   "newView": "New view",
   "nextBodyMatch": "Next body match",
   "nextMatchEnter": "Next match · Enter",
@@ -1758,11 +2330,13 @@
   "noAuthorizationCookieOrApi": "No Authorization, Cookie or API-key headers found.",
   "noCaching": "No Caching",
   "noCachingIsOnConditional": "No Caching is on: conditional cache headers will be removed.",
+  "noCapturedResponseToSave": "No captured response to save",
   "noClientCertificates": "No client certificates",
   "noCookiesRecordedOnThis": "No cookies recorded on this side",
   "noCookiesYetSendA": "No cookies yet. Send a request or add one below.",
   "noEndpointsInThisScope": "No endpoints in this scope",
   "noEnvironment": "No environment",
+  "noExamplesUnder": "No examples under “{path}”; save a response as an example first",
   "noExamplesYet": "No examples yet",
   "noFormFields": "No form fields",
   "noGrpcCallYet": "No gRPC call yet",
@@ -1785,6 +2359,8 @@
   "noPreviousResponseForThis": "No previous response for this method and URL. Replay the request to compare responses.",
   "noProfilesYetMapHosts": "No profiles yet. Map hosts to other addresses without editing the system's hosts file.",
   "noPromptsListed": "No prompts listed",
+  "noProxyRunningStartCapture": "No proxy running. Start capture before sending; previous result kept.",
+  "noProxyRunningStartCapture2": "No proxy running. Start capture before fetching a schema; the saved schema is kept.",
   "noQueryParametersInThis": "No query parameters in this request",
   "noReferencedVariablesInThis": "No referenced variables in this snapshot",
   "noRequestChosen": "No request chosen",
@@ -1795,6 +2371,7 @@
   "noResultsYet": "No results yet",
   "noRetainedRuns": "No retained runs",
   "noReverseProxiesALocal": "No reverse proxies. A local port forwards plaintext HTTP to a remote base URL and is captured like any other request.",
+  "noSavedAndroidProxy": "No saved Android proxy for {serial}",
   "noSavedFiltersYet": "No saved filters yet",
   "noSavedRequests": "No saved requests",
   "noScenarios": "No scenarios",
@@ -1849,6 +2426,7 @@
   "openHistoricalSessionFilesWithout": "Open historical session files without replacing live traffic",
   "openInBrowser": "Open in browser",
   "openInRequests": "Open in Requests",
+  "openLinkedDraft": "Open linked draft {number}",
   "openOnYourDeviceTo": "Open on your device to download the CA",
   "openOriginatingDraft": "Open originating draft",
   "openProxiedChrome": "Open proxied Chrome",
@@ -1859,10 +2437,17 @@
   "openSession": "Open session…",
   "openSession2": "Open session",
   "openSettings": "Open settings…",
+  "openTabsWarning": "{count, plural, one {# open tab has} other {# open tabs have}} unsaved changes to requests that changed on disk; saving replaces those changes",
   "openTerminal": "Open terminal",
   "openTheApiThisRequest": "Open the API this request came from",
   "openThisRunAsA": "Open this run as a new draft with its result; never sends",
+  "openapi": "OpenAPI",
+  "openapiCollection": "OpenAPI collection",
+  "openapiCollectionTheDocumentHas": "OpenAPI collection: the document has no operations",
+  "openapiDocumentsAreLimitedTo": "OpenAPI documents are limited to 16 MiB",
   "openapiSource": "OpenAPI source",
+  "openapiValidationFailedNothingWas": "OpenAPI validation failed; nothing was saved",
+  "openedLinkedCaptureInA": "Opened linked capture in a new view; previous filters preserved",
   "openingSession": "Opening session…",
   "opensANewTerminalWindow": "Opens a new terminal window with the proxy and CA environment. Only that window changes.",
   "opensChromeWithATemporary": "Opens Chrome with a temporary profile and --proxy-server. Your main profile is untouched.",
@@ -1883,6 +2468,7 @@
   "originalCredentialWillBeWritten": "Original credential will be written into request files.",
   "originalFilesLeftUntouchedRepair": "Original files left untouched. Repair or move the affected file aside, then reload. Other local assets remain usable.",
   "otherDevices": "Other devices",
+  "out": "Out",
   "ozApplicationIdOptional": "Oz application ID, optional",
   "ozDelegatedByIdOptional": "Oz delegated-by ID, optional",
   "pac": "PAC",
@@ -1896,9 +2482,13 @@
   "pasteOneCurlCommandBash": "Paste one curl command (Bash, Windows CMD, or PowerShell). It opens an unsent request tab; nothing is executed.",
   "path": "Path",
   "pathParameters": "Path parameters",
+  "pathPrefix": "Path prefix",
   "pathTemplate": "Path template",
   "pathsHostsNamesParameterNames": "Paths, hosts, names, parameter names, Content-Type/Accept, assertion values and unselected fields may contain secrets. Removing scripts also removes Postman Checks.",
+  "patternsCount": "{title}: {count}",
   "pauseEachMatchingRequestOr": "Pause each matching request or response before it continues",
+  "pausedExchanges": "{count} paused · changes apply only to this exchange",
+  "pausedMessages": "{count} paused · edits or drop affect only this message",
   "pausedViewNote": "Paused view · {count} newer messages · capture continues; Resume shows the latest retained window",
   "pauses": "Pauses",
   "payload": "Payload",
@@ -1913,17 +2503,20 @@
   "pemRootCertificate": "PEM root certificate",
   "persistAllCurrent": "Persist all current",
   "persistCurrentValue": "Persist current value {index}",
+  "persistedValues": "Persisted {persisted} values; {skipped} sensitive values stayed local",
   "phasesMayOverlapDoNot": "Phases may overlap; do not add their durations. Connection acquisition can include DNS/TCP/TLS. Unobserved phases are omitted, not zero.",
   "phoneOrTablet": "Phone or tablet",
   "phoneTabletSetup": "Phone / tablet setup…",
   "phonesAndComputersOnYour": "Phones and computers on your network. Needs your consent and an allowlist.",
   "pinned": "Pinned",
+  "pinnedFlow": "Pinned {method} {path}",
   "pkcs12": "PKCS#12",
   "pointHostsAtOtherMachines": "Point hosts at other machines for every app using the proxy.",
   "pointOneProgramAtThe": "Point one program at the proxy, or open a terminal, browser, emulator or Java app already configured.",
   "port": "Port",
   "portNumber": "Port {port}",
   "possibleCausesNotConfirmed": "Possible causes · not confirmed",
+  "postResponse": "Post-response",
   "postUsesJsonByDefault": "POST uses JSON by default. For a raw query, add ; Content-Type: application/graphql to the test request. GET uses URL parameters only.",
   "preRequest": "Pre-request",
   "preferVariablesOrVaultName": "Prefer '{{variables}}' or '{{vault:name}}' for secrets; these fields are saved in plaintext.",
@@ -1961,6 +2554,7 @@
   "proxyObservedOnlyPreRequest": "Proxy-observed only: pre-request MITM setup is in the connection log. Downstream delivery and estimated throttling are not measured here. Streaming timelines stop at this capture snapshot.",
   "proxyPort": "Proxy port",
   "proxyPortAboveTheCertificate": "Proxy port above; the certificate service uses port + 1. Allow both in your firewall.",
+  "proxyPortSavedRestartThe": "Proxy port saved · restart the app to apply",
   "proxyStatus": "Proxy status",
   "proxyUnavailable": "Proxy unavailable · {error} · Local requests remain available",
   "publicCertificateOnlyTheSigning": "Public certificate only — the signing key is never served. Compare the CA fingerprint in Diagnostics on a trusted network.",
@@ -1974,6 +2568,7 @@
   "queryOrMutationVariablesSupported": "Query or mutation · '{{variables}}' supported · sent as JSON",
   "queryParameter": "Query parameter",
   "quickFilterNamed": "Quick filter: {name}",
+  "quitCancelledSystemProxyCleanup": "Quit cancelled: system proxy cleanup failed",
   "random": "Random",
   "randomUuid": "Random UUID",
   "ratesLimitEachBodyBy": "Rates limit each body by direction (0 = unlimited). Latency waits once before forwarding. Failure randomly disconnects requests, not TCP packets.",
@@ -2010,6 +2605,7 @@
   "recordingCollection": "Recording collection",
   "recordingEnvironment": "Recording environment",
   "recordingHosts": "Recording hosts",
+  "recordingInto": "Recording new traffic into {collection}",
   "recordingPaused": "Recording paused",
   "recordingSummary": "{added} added · {updated} updated · {skipped} skipped · {discarded} discarded · {queued} queued",
   "redactTheExportedCopyYour": "Redact the exported copy. Your saved originals stay unchanged.",
@@ -2028,6 +2624,7 @@
   "reloadCollectionsFromDisk": "Reload collections from disk",
   "reloadConfiguration": "Reload configuration",
   "reloadLocalAssets": "Reload local assets",
+  "reloadedRequests": "Reloaded {count, plural, one {# request} other {# requests}} from {path}",
   "remoteCertificate": "Remote certificate",
   "remoteHost": "Remote host",
   "remoteHostSendsTheTarget": "Remote host sends the target's authority. Keep original forwards the Host the local client sent.",
@@ -2049,14 +2646,20 @@
   "removeVariable": "Remove variable",
   "removeVariableIndex": "Remove variable {index}",
   "rename": "Rename",
+  "renameError": "Rename: {error}",
+  "renameExists": "Rename: {name} exists",
   "renameFilter": "Rename filter",
   "renameNamed": "Rename {name}",
   "renameOrMoveToAnother": "Rename or move to another collection",
   "renameRequest": "Rename request",
+  "renameScript": "Rename script",
+  "renameThing": "Rename {what}",
+  "renamedCaptureFilter": "Renamed capture filter to {name}",
   "renamingFilter": "Renaming {name}. Type the new name, then Rename filter.",
   "renamingMovesItsRequestsFolders": "Renaming moves its requests, folders and settings together.",
   "repeatDescription": "1–{max} times. The whole selection is repeated in capture order.",
   "repeatEachRequest": "Repeat each request",
+  "replace": "Replace",
   "replaceAllQueryValuesIncluding": "Replace all query values, including structured copies.",
   "replaceEveryVariableValueIncluding": "Replace every variable value, including disabled entries.",
   "replaceOnlyThisAppS": "Replace only this app's truststore? The old file is kept if any keytool step fails. The displayed commands write a temporary file first.",
@@ -2067,6 +2670,7 @@
   "replayRepeats": "Replay repeats",
   "replayRequests": "Replay {count, plural, one {# request} other {# requests}}",
   "replaySelected": "Replay selected…",
+  "replayState": "Replay {state} · {summary}",
   "replayTimeout": "Replay timeout",
   "replaysCount": "Replays ({count})",
   "replySocketIoAck": "Reply Socket.IO ACK",
@@ -2076,6 +2680,7 @@
   "requestBody": "Request body",
   "requestBodyIsOnDisk": "Request body is on disk; it will be read when you create the collection.",
   "requestBodyType": "Request body type",
+  "requestDefaults": "Request defaults",
   "requestDescription": "Request description",
   "requestFolder": "Request folder",
   "requestHeaders": "Request headers",
@@ -2090,6 +2695,7 @@
   "requestVariables": "Request variables",
   "requestsAndExamples": "{requests} requests · {examples} examples",
   "requestsAndExamplesMayContain": "Requests and examples may contain sensitive query and body values. Review them before sharing.",
+  "requestsCount": "Requests · {count}",
   "requestsPerSecondLastMinute": "Requests per second, last minute",
   "requestsSelected": "{count, plural, one {# request selected} other {# requests selected}}",
   "requestsUnderItInheritThese": "REQUESTS UNDER IT INHERIT THESE · unset values keep inheriting from above",
@@ -2133,13 +2739,19 @@
   "retainedResultFromThisExperiment": "Retained result from this experiment; opening it does not send the draft",
   "retry": "Retry",
   "reusedConnection": "Reused connection: request {number} on it, so no connect or TLS in the wait.",
+  "revealCertificate": "Reveal certificate",
   "revealCredentials": "Reveal credentials",
   "revealOrHideBothValues": "Reveal or hide both values",
   "revealRow": "Reveal {noun} {index}",
   "revealVariable": "Reveal variable {index}",
   "reverseProxies": "Reverse proxies",
+  "reverseProxy": "Reverse proxy",
+  "reverseProxyError": "Reverse proxy: {error}",
+  "reverseProxyRemoved": "Reverse proxy removed",
   "reviewBeforePublishing": "Review before publishing",
+  "reviewChecksAndVariablesThen": "Review checks and variables, then Save request; nothing has been sent",
   "reviewGeneratedChanges": "Review generated changes",
+  "reviewNotes": "Review notes",
   "reviewRecordedTokenLinks": "Review recorded token links",
   "reviewTokenLinkChanges": "Review token link changes",
   "reviewUrlsAddressesAndRaw": "Review URLs, addresses and raw errors before sharing.",
@@ -2162,6 +2774,8 @@
   "rulesConfigurationFilesAndHelp": "Rules, configuration files and help.",
   "rulesCount": "{count, plural, one {# rule} other {# rules}}",
   "rulesKeepTheirPlaceIn": "Rules keep their place in the Rules order; turn one off to leave it out of the scenario.",
+  "rulesSavedApplyToNew": "Rules saved · apply to new requests",
+  "rulesStorageIsUnavailable": "Rules storage is unavailable",
   "runCollection": "Run collection",
   "runDetails": "Run details…",
   "runDraft": "Run #{id} · {method} {url}",
@@ -2184,6 +2798,8 @@
   "sameWiFiLanOnly": "Same Wi-Fi / LAN. Only listed source addresses can connect. Local capture stays on loopback.",
   "save": "Save",
   "saveARequestHereOr": "Save a request here, or edit a captured flow to start.",
+  "saveAndroidProxyRecords": "Save Android proxy records",
+  "saveAnotherRequestHasThis": "Save: another request has this name in this collection; rename it first. No asset replaced.",
   "saveApi": "Save API",
   "saveApply": "Save & apply",
   "saveAsExample": "Save as example",
@@ -2207,6 +2823,7 @@
   "saveForNextLaunch": "Save for next launch",
   "saveMessagesJson": "Save messages JSON…",
   "saveNote": "Save note",
+  "saveRegression": "Save regression",
   "saveRequest": "Save request",
   "saveRequests": "Save requests",
   "saveRequestsToCollection": "Save {count} requests to collection",
@@ -2214,32 +2831,48 @@
   "saveResponseBody": "Save response body",
   "saveRule": "Save rule",
   "saveSession": "Save session…",
+  "saveSession2": "Save session",
   "saveSettings": "Save settings",
   "saveSocks5Settings": "Save SOCKS5 settings",
+  "saveSystemProxyBypass": "Save system proxy bypass",
+  "saveTheRequestHasNo": "Save: the request has no name",
   "saveTheSourceAndConsumers": "Save the source and consumers to a collection first. Each capture must match one saved request; no request is created automatically.",
   "saveThisRequestToA": "Save this request to a collection · Ctrl/Cmd+S",
   "saveTo": "Save to",
   "saveToCollection": "Save to collection",
+  "saveToCollectionNameThe": "Save to collection: name the collection",
+  "saveToCollectionNothing": "Save to collection: nothing saved; {warnings}",
   "saveUpstream": "Save upstream",
   "saveVault": "Save vault",
+  "savedCaptureFilter": "Saved capture filter {name}",
   "savedCaptureFilters": "Saved capture filters",
   "savedCollection": "Saved collection",
+  "savedExample": "Saved example “{name}”",
   "savedFilters": "Saved filters…",
   "savedFilters2": "Saved filters",
   "savedInCaptureOrderNot": "Saved in capture order, not sent. Tunnels, WebSocket connections and incomplete or non-UTF-8 bodies are skipped.",
   "savedMessageName": "Saved message name",
   "savedMqttMessage": "Saved MQTT message",
+  "savedName": "Saved {name}",
   "savedPassphraseInUse": "Saved passphrase in use",
   "savedPassphraseWillBeRemoved": "Saved passphrase will be removed",
   "savedPasswordInUse": "Saved password in use",
   "savedPasswordWillBeRemoved": "Saved password will be removed",
+  "savedProfileWarning": "Saved {name}; {count, plural, one {# line maps} other {# lines map}} nothing until fixed",
   "savedRequestsMatchingThisMethod": "Saved requests matching this method, origin and path",
+  "savedResponseBodyTo": "Saved response body to {path} · review before sharing",
+  "savedSettingsFor": "Saved {name} settings",
   "savedTheAppUsesIt": "Saved; the app uses it after it restarts",
+  "savedToRequests": "Saved {name} to Requests; not sent",
   "savedWithTheRequestAnd": "Saved with the request and round-tripped through Postman.",
   "savingUpstream": "Saving upstream",
   "scenario": "Scenario",
   "scenarioActions": "Scenario actions",
   "scenarioActive": "Scenario active",
+  "scenarioAnswers": "Scenario “{name}” answers from {count} examples",
+  "scenarioDeleted": "Deleted scenario “{name}” and its {count, plural, one {# rule} other {# rules}}",
+  "scenarioExists": "A scenario named “{name}” exists",
+  "scenarioMocks": "Scenario “{name}” has {count} mocks; choose it in the scenario menu to answer from them",
   "scenarioName": "Scenario name",
   "scenarios": "Scenarios",
   "schema": "Schema…",
@@ -2249,6 +2882,11 @@
   "scope": "Scope",
   "scopeSummary": "{included} included · {omitted} omitted · {endpoints} endpoints",
   "script": "Script",
+  "scriptChangesNotSaved": "Script changes not saved: {problems}",
+  "scriptErrors": "{count} script errors",
+  "scriptSavedAppliesToNew": "Script saved · applies to new requests",
+  "scriptSavedNotParse": "Script saved · it does not parse; Script rules skip it, Code Mocks return 502: {error}",
+  "scriptUnreadable": "Script {name} could not be read",
   "scripts": "Scripts",
   "scriptsCanThenReadAny": "Scripts can then read any secret allowed for their request's host, and add, change or remove secrets",
   "sealedLocallyNeverExported": "Sealed locally; never exported",
@@ -2295,6 +2933,7 @@
   "selectServiceMethod": "Select service / method",
   "selectTheTargetEnvironmentThen": "Select the target environment, then run the source before its consumers. The new Current value starts empty; captured credentials were not copied. Existing scripts were retained.",
   "selectTokenLink": "Select token link {index}",
+  "selectedCount": "{count} selected",
   "selectedEventWasEvictedSelect": "Selected event was evicted. Select a retained event.",
   "selectedRequest": "Selected request",
   "sendARequestToRecord": "Send a request to record an experiment.",
@@ -2325,6 +2964,7 @@
   "sessionTitle": "Session title",
   "sessionToken": "Session token",
   "sessions": "Sessions",
+  "setAndroidProxy": "Set Android proxy",
   "setBaseline": "Set baseline",
   "setProxy": "Set proxy",
   "setTheBrokerUrlAnd": "Set the broker URL and connection options, then Connect. Publish and subscriptions use only the live connection.",
@@ -2338,6 +2978,7 @@
   "settings2": "Settings…",
   "settingsCategory": "Settings category: {name}",
   "settingsCtrlCmd": "Settings · Ctrl/Cmd+,",
+  "setupCompleteTheFirstDecrypted": "Setup complete · the first decrypted request is selected",
   "setupGuide": "Setup guide",
   "setupHttpsUrl": "Setup HTTPS URL",
   "sharedByRequestsRunnerScripts": "Shared by Requests, Runner, scripts and interactive clients.",
@@ -2372,7 +3013,9 @@
   "socks5": "SOCKS5",
   "socks5Password": "SOCKS5 password",
   "socks5Port": "SOCKS5 port",
+  "socks5SettingsSavedRestartThe": "SOCKS5 settings saved · restart the app to apply",
   "socks5Username": "SOCKS5 username",
+  "socksNotListening": "SOCKS5 is not listening: {error}",
   "someAppsKeepTheirOwn": "Some apps keep their own trust store, or pin certificates; they may need setting up themselves.",
   "someValuesOverrideTheCollection": "Some values override the collection and folder defaults.",
   "sourceApi": "Source API",
@@ -2389,6 +3032,8 @@
   "sseUrl": "SSE URL",
   "sslProxying": "SSL proxying",
   "sslProxying2": "SSL proxying…",
+  "sslProxyingEveryDomain": "SSL proxying: every domain",
+  "sslSummary": "SSL proxying: {domains} domains, {apps} local apps · new connections only",
   "stackedLayout": "Stacked layout",
   "startAnEmulatorOrConnect": "Start an emulator or connect a device with USB debugging, then Refresh.",
   "startCaptureFirst": "Start capture first",
@@ -2400,6 +3045,7 @@
   "statusHeaderBodyMethodDuration": "Status, header, body, method, duration and notes",
   "stdioMcpServersReceiveCredentials": "stdio MCP servers receive credentials through environment variables, not HTTP headers.",
   "stdioMcpServersReceiveCredentials2": "stdio MCP servers receive credentials through environment variables, not HTTP auth.",
+  "stepTitle": "Step {number}: {title}",
   "stop": "Stop",
   "stopAndDiscardQueuedWork": "Stop and discard queued work; keep saved requests",
   "stopClose": "Stop & close",
@@ -2430,6 +3076,9 @@
   "systemFollowsThisComputerS": "System follows this computer's light or dark appearance.",
   "systemProxy": "System proxy",
   "systemProxyBypassList": "System proxy bypass list",
+  "systemProxyBypassSaved": "System proxy bypass saved",
+  "systemProxyRecovery": "System proxy recovery",
+  "systemProxyStartCaptureSuccessfully": "System proxy: start capture successfully first",
   "systemRootsPlusSettingsCertificates": "System roots plus Settings → Certificates; a matching client certificate is presented",
   "systemTrustIsNotProof": "System trust is not proof that this client accepts the proxy's CA",
   "targetBaseUrl": "Target base URL",
@@ -2461,6 +3110,7 @@
   "theKeyValueBlockWrites": "The Key: Value block writes every header value in plain text, including tokens, cookies and passwords. The table masks them one row at a time.",
   "theLocalPathIsAppended": "The local path is appended to the remote URL. Requests go through the same rules, scripts and capture; HTTPS remotes are reached with TLS by the app.",
   "theLoopbackPortClientsConnect": "The loopback port clients connect to.",
+  "thePartsYouChooseReplace": "The parts you choose replace what vscroxy has now. Secrets and variables are never part of a configuration file. Certificate paths are kept, but their files and passphrases are not included.",
   "theRequestKeepsItsName": "The request keeps its name, URL, Host header and SNI; the proxy dials the address instead.",
   "theResponseBelowBelongsTo": "The response below belongs to the previous send, not to this draft",
   "theSavedOperationNoLonger": "The saved operation no longer exists; Send uses the document's only operation",
@@ -2478,6 +3128,7 @@
   "thisComputer": "This computer",
   "thisMac": "This Mac",
   "thisRemovesTheRetainedRuns": "This removes the retained runs and baseline, not open drafts, captured traffic or saved requests.",
+  "thisRequestNoLongerMatches": "This request no longer matches the capture",
   "thisRunHasNoRecorded": "This run has no recorded capture source.",
   "thisSavedSessionContainsNo": "This saved session contains no exchanges",
   "thisSendSWireCapture": "This send's wire capture is not available in this session. History may retain its snapshot.",
@@ -2494,6 +3145,8 @@
   "tls": "TLS",
   "tlsKeyLog": "TLS key log",
   "tlsKeyLog2": "TLS key log…",
+  "tlsKeyLogOff": "TLS key log off",
+  "tlsKeysGoTo": "TLS keys go to {path} from the next launch",
   "toggleHeaderEditingMode": "Toggle header editing mode",
   "toggleSidebar": "Toggle sidebar",
   "token": "'{{token}}'",
@@ -2503,6 +3156,7 @@
   "tokenLinkEnvironment": "Token link environment",
   "tokenLinkEvidenceIsBounded": "Token-link evidence is bounded in memory (200 flows, 4 MiB); older or oversized captures are omitted. It is lost on restart, a new recording, or dismissing this status. Review never applies changes automatically.",
   "tokenLinkRow": "Response #{source} → {count} Bearer requests",
+  "tokenLinkSavedRunThe": "Token link saved; run the source before its consumers",
   "tokenLinkVariable": "Token link variable",
   "tokenLinks": "Token links",
   "tokenLinksSelected": "{count} selected captures · JSON response → later Bearer Authorization · same origin only",
@@ -2528,16 +3182,22 @@
   "trustTheLocalCaOn": "Trust the local CA on this computer; approve system authorization if requested",
   "trustedRoots": "Trusted roots",
   "trustingTheCaMakesDecryption": "Trusting the CA makes decryption possible; decryption chooses which connections are read. Changes apply to new connections.",
+  "tunnelTooltip": "CONNECT {status} · encrypted tunnel, not an HTTP response",
   "turnOff": "Turn off",
   "turnOffHostProfiles": "Turn off Host profiles",
   "turnOffTool": "Turn off {name}",
   "turnOnSystemProxy": "Turn on system proxy",
   "typeText": "Type",
   "uncheckedRowsStayHereAnd": "Unchecked rows stay here and are not sent",
+  "undo": "Undo",
+  "undoAndroidProxy": "Undo Android proxy",
   "undoProxy": "Undo proxy",
+  "undoTheExistingAndroidProxy": "Undo the existing Android proxy before setting it again",
   "unfinishedAtCapture": "Unfinished at capture",
   "ungroupRules": "Ungroup rules",
   "unified": "Unified",
+  "unpinnedFlow": "Unpinned {method} {path}",
+  "unpinnedRequestsCleared": "Unpinned requests cleared",
   "unpinnedRequestsWillBeRemoved": "Unpinned requests will be removed from this session. Export any traffic you want to keep first.",
   "unsaved": "Unsaved",
   "unsavedApi": "Unsaved API",
@@ -2575,10 +3235,13 @@
   "variables": "Variables",
   "variablesAndVaultNameExpand": "'{{variables}}' and '{{vault:name}}' expand on publish; text and json keep the text, hex ignores whitespace, base64 needs padding.",
   "variablesAreReadOnlyClose": "Variables are read-only. Close this dialog, repair or move env.json aside, then reload local assets.",
+  "variablesCount": "Variables: {name}, {count}",
+  "variablesNotSaved": "Variables not saved: {error}",
   "variablesStayAsWrittenAnd": "'{{variables}}' stay as written and scripts do not run; replace them before running the code.",
   "variablesUnresolved": "Variables · {count} unresolved",
   "vault": "Vault…",
   "vault2": "Vault",
+  "vaultSaved": "Vault saved · {count, plural, one {# secret} other {# secrets}}",
   "verifier": "Verifier",
   "verifyBrokerCertificate": "Verify broker certificate",
   "verifyTlsCertificate": "Verify TLS certificate",
@@ -2625,126 +3288,5 @@
   "workingDirectory": "Working directory",
   "writeNonSensitiveCurrentValues": "Write non-sensitive Current values into Initial; credentials stay local",
   "writeTlsSecretsToA": "Write TLS secrets to a file Wireshark reads to decrypt this capture. Applies after a restart.",
-  "writesTheInitialValuesShown": "Writes the Initial values shown here, saved or not, in Postman's environment format; Current values are excluded",
-  "@enableRule": {
-    "placeholders": {
-      "index": {
-        "type": "int"
-      }
-    }
-  },
-  "@headerName": {
-    "placeholders": {
-      "index": {
-        "type": "int"
-      }
-    }
-  },
-  "@headerComparison": {
-    "placeholders": {
-      "index": {
-        "type": "int"
-      }
-    }
-  },
-  "@headerValue": {
-    "placeholders": {
-      "index": {
-        "type": "int"
-      }
-    }
-  },
-  "@removeHeader": {
-    "placeholders": {
-      "index": {
-        "type": "int"
-      }
-    }
-  },
-  "@rulesCount": {
-    "placeholders": {
-      "count": {
-        "type": "int"
-      }
-    }
-  },
-  "@editRule": {
-    "placeholders": {
-      "index": {
-        "type": "int"
-      }
-    }
-  },
-  "@conflictsCount": {
-    "placeholders": {
-      "count": {
-        "type": "int"
-      }
-    }
-  },
-  "@hostsCount": {
-    "placeholders": {
-      "count": {
-        "type": "int"
-      }
-    }
-  },
-  "@portNumber": {
-    "placeholders": {
-      "port": {
-        "type": "int"
-      }
-    }
-  },
-  "@experimentNumber": {
-    "placeholders": {
-      "id": {
-        "type": "int"
-      }
-    }
-  },
-  "@sourceNumber": {
-    "placeholders": {
-      "id": {
-        "type": "int"
-      },
-      "method": {
-        "type": "String"
-      },
-      "url": {
-        "type": "String"
-      },
-      "status": {
-        "type": "int"
-      }
-    }
-  },
-  "@runDraft": {
-    "placeholders": {
-      "id": {
-        "type": "int"
-      }
-    }
-  },
-  "@repeatDescription": {
-    "placeholders": {
-      "max": {
-        "type": "int"
-      }
-    }
-  },
-  "@concurrencyDescription": {
-    "placeholders": {
-      "max": {
-        "type": "int"
-      }
-    }
-  },
-  "@intervalDescription": {
-    "placeholders": {
-      "max": {
-        "type": "int"
-      }
-    }
-  }
+  "writesTheInitialValuesShown": "Writes the Initial values shown here, saved or not, in Postman's environment format; Current values are excluded"
 }

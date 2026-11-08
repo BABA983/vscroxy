@@ -1,6 +1,7 @@
 package app
 
 import (
+	"github.com/baba983/vscroxy/locales"
 	"slices"
 	"strings"
 	"uuid"
@@ -12,7 +13,7 @@ import (
 func (a *app) saveCapture(f flow) {
 	r, err := f.requestDraft()
 	if err != nil {
-		a.fail("Save as request", err)
+		a.fail(locales.SaveAsRequest(), err)
 		return
 	}
 	r.ID = uuid.New().String()
@@ -20,9 +21,9 @@ func (a *app) saveCapture(f flow) {
 	r.Name = uniqueRequestName(a.requests, strings.TrimSpace(f.method+" "+f.host+f.path))
 	list := upsertRequest(slices.Clone(a.requests), r)
 	if err := a.persistRequests(list); err != nil {
-		a.fail("Save as request", err)
+		a.fail(locales.SaveAsRequest(), err)
 		return
 	}
 	a.requests = list
-	a.done("Saved " + r.Name + " to Requests; not sent")
+	a.done(locales.SavedToRequests(r.Name))
 }

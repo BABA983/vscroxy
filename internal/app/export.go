@@ -138,7 +138,7 @@ func (a *app) exportCSV() {
 func (a *app) exportChosenCSV() {
 	flows := a.selectedFlows()
 	if len(flows) == 0 {
-		a.warn("Export CSV: no request chosen")
+		a.warn(locales.ExportCsvNoRequestChosen())
 		return
 	}
 	a.exportCSVFlows(flows, "vscroxy-chosen.csv")
@@ -146,11 +146,11 @@ func (a *app) exportChosenCSV() {
 
 func (a *app) exportCSVFlows(flows []flow, file string) {
 	if len(flows) == 0 {
-		a.warn("Export CSV: no requests to export")
+		a.warn(locales.ExportCsvNoRequestsTo())
 		return
 	}
 	if len(flows) > csvExportRowLimit {
-		a.fail("Export CSV", fmt.Errorf("CSV export is limited to %d requests; narrow the view or choose fewer", csvExportRowLimit))
+		a.fail(locales.ExportCsv2(), fmt.Errorf("CSV export is limited to %d requests; narrow the view or choose fewer", csvExportRowLimit))
 		return
 	}
 	table, warnings := a.snapshotCaptureTable(flows)
@@ -187,7 +187,7 @@ func (a *app) writeReviewedExport(job exportReview) {
 		a.fail(job.title, err)
 		return
 	}
-	a.done("Exported to " + path)
+	a.done(locales.ExportedTo(path))
 }
 
 // saveResponseBody takes a snapshot before opening the dialog: another send
@@ -208,10 +208,10 @@ func (a *app) saveResponseBody(r capture.Flow) {
 			err = writeResponseBody(path, r)
 		}
 		if err != nil {
-			a.fail("Save response body", err)
+			a.fail(locales.SaveResponseBody(), err)
 			return
 		}
-		a.done("Saved response body to " + path + " · review before sharing")
+		a.done(locales.SavedResponseBodyTo(path))
 	}()
 }
 

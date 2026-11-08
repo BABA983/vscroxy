@@ -697,7 +697,7 @@ func newApp() *app {
 	if home, err := os.UserHomeDir(); err == nil {
 		a.apisPath = filepath.Join(home, ".vscroxy", "apis.json")
 		if specs, err := loadAPIs(a.apisPath); err != nil {
-			a.fail("APIs", err)
+			a.fail(locales.Apis(), err)
 		} else {
 			for _, spec := range specs {
 				a.addAPI(spec, true)
@@ -712,7 +712,7 @@ func newApp() *app {
 		a.loadExperiments(filepath.Join(home, ".vscroxy", "experiments.json"))
 		if err := a.sessions.load(filepath.Join(home, ".vscroxy", "sessions")); err != nil {
 			a.sessions.problem = err.Error()
-			a.fail("Sessions", err)
+			a.fail(locales.Sessions(), err)
 		}
 	}
 	a.loadAndroidProxyRecords()
@@ -832,13 +832,13 @@ func clamp(msg string, max int) string {
 
 func (a *app) revealCA() {
 	if a.caPath == "" {
-		a.warn("Certificate: no path known")
+		a.warn(locales.CertificateNoPathKnown())
 		return
 	}
 	path := a.caPath
 	go func() {
 		if err := system.RevealCA(path); err != nil {
-			a.fail("Reveal certificate", err)
+			a.fail(locales.RevealCertificate(), err)
 		}
 	}()
 }
@@ -886,11 +886,11 @@ func (a *app) startCapture() {
 		return
 	}
 	if err := a.srv.SOCKSError(); err != nil {
-		a.warn("SOCKS5 is not listening: " + err.Error())
+		a.warn(locales.SocksNotListening(err.Error()))
 	}
 	for _, st := range a.srv.ReverseProxyStatus() {
 		if st.Error != "" {
-			a.warn("Reverse proxy: " + st.Error)
+			a.warn(locales.ReverseProxyError(st.Error))
 		}
 	}
 	a.invalidate()
@@ -961,7 +961,7 @@ func (a *app) resolveBreak(abort, original bool) {
 		})
 		if !resumed {
 			a.bp, a.bpOpen = nil, false
-			a.inform("Breakpoint expired; the exchange is no longer paused")
+			a.inform(locales.BreakpointExpiredTheExchangeIs())
 			return
 		}
 	}
@@ -969,17 +969,17 @@ func (a *app) resolveBreak(abort, original bool) {
 	a.bpOpen = false
 	if abort {
 		if bp.Phase == capture.PhaseMessage {
-			a.inform("Dropped WebSocket message · connection remains open")
+			a.inform(locales.DroppedWebsocketMessageConnectionRemains())
 			return
 		}
-		a.inform("Aborted " + bp.Method + " " + bp.URL)
+		a.inform(locales.BreakpointAborted(bp.Method, bp.URL))
 		return
 	}
 	if original {
-		a.done("Continued original " + bp.Method + " " + bp.URL)
+		a.done(locales.BreakpointContinuedOriginal(bp.Method, bp.URL))
 		return
 	}
-	a.done("Continued " + bp.Method + " " + bp.URL)
+	a.done(locales.BreakpointContinued(bp.Method, bp.URL))
 }
 
 // Validate before parsing so a malformed line cannot silently delete a header.
@@ -1521,7 +1521,7 @@ func (a *app) view(c *ui.Context) {
 	a.replayResults = nil
 	a.mu.Unlock()
 	for _, result := range replays {
-		a.notify(notice{text: fmt.Sprintf("Replayed Capture #%d · %s %s → %d", result.source.id, result.source.method, result.source.path, result.reply.Status), action: "Inspect replay", run: func() {
+		a.notify(notice{text: fmt.Sprintf("Replayed Capture #%d · %s %s → %d", result.source.id, result.source.method, result.source.path, result.reply.Status), action: locales.InspectReplay(), run: func() {
 			// The response belongs to this exact send, not the next capture of
 			// the same URL. Never move the reader until they ask to inspect it.
 			if d := a.editCapture(result.source); d != nil {
@@ -1743,9 +1743,9 @@ func (a *app) breakpointModal(c *ui.Context, t *ui.Theme) {
 			validation := a.breakpointError()
 			ui.Row(c).FillWidth().Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 				if message {
-					uikit.Meta(c, fmt.Sprintf("%d paused · edits or drop affect only this message", waiting))
+					uikit.Meta(c, locales.PausedMessages(waiting))
 				} else {
-					uikit.Meta(c, fmt.Sprintf("%d paused · changes apply only to this exchange", waiting)).Grow(1).MinWidth(0)
+					uikit.Meta(c, locales.PausedExchanges(waiting)).Grow(1).MinWidth(0)
 					a.breakTemplates(c, t, validation == "")
 				}
 			})
@@ -1829,7 +1829,7 @@ func (a *app) clearCaptured() {
 	}
 	a.recount()
 	a.applyFilter()
-	a.done("Unpinned requests cleared")
+	a.done(locales.UnpinnedRequestsCleared())
 }
 
 // sidebar is the window's one source list, in three groups: LIVE is the
@@ -2238,7 +2238,7 @@ func (a *app) table(c *ui.Context) {
 			if f.conn.error != "" {
 				text("Failed").TextColor(t.Danger).Tooltip(f.conn.errorStage + ": " + f.conn.error).PopoverMenu(a.rowMenu(c, f))
 			} else if f.kind == "connect" {
-				quiet("Tunnel").Tooltip(fmt.Sprintf("CONNECT %d · encrypted tunnel, not an HTTP response", f.status)).PopoverMenu(a.rowMenu(c, f))
+				quiet("Tunnel").Tooltip(locales.TunnelTooltip(f.status)).PopoverMenu(a.rowMenu(c, f))
 			} else {
 				ui.Box(c).Size(5, 5).Radius(uikit.RadiusControl).Background(f.statusColor(t)).MarginEnd(t.Space(2))
 				text(fmt.Sprint(f.status)).TextColor(f.statusColor(t)).PopoverMenu(a.rowMenu(c, f))
@@ -2422,11 +2422,13 @@ func (a *app) saveMark() {
 	a.markOpen = false
 	a.applyFilter()
 	a.invalidate()
-	a.done("Marked")
+	a.done(locales.Marked(
+
+	// infoIcon marks a header the Headers tab can explain, or a connection detail
+	// worth opening.
+	))
 }
 
-// infoIcon marks a header the Headers tab can explain, or a connection detail
-// worth opening.
 var infoIcon = lucide.Info()
 
 // connectionView makes transport failures inspectable and copyable, including
@@ -2441,7 +2443,7 @@ func (a *app) connectionView(c *ui.Context, f flow) {
 		}
 		if uikit.SecondaryButton(c, locales.CopyConnectionLog()).Height(uikit.HeightCompact).Disabled(f.conn.log == "").Clicked() {
 			c.Services().WriteClipboard(f.conn.log)
-			a.done("Copied connection log")
+			a.done(locales.CopiedConnectionLog())
 		}
 	})
 	if f.conn.error != "" {
@@ -2518,7 +2520,7 @@ func (a *app) headerBlock(c *ui.Context, t *ui.Theme, title, line, note string, 
 			ui.Text(c, title).FontSize(uikit.TextBody).FontWeight(600)
 			ui.Spacer(c)
 			if len(headers) > 0 {
-				uikit.Meta(c, fmt.Sprintf("%d headers", len(headers)))
+				uikit.Meta(c, locales.HeadersCount(len(headers)))
 			}
 		})
 		uikit.Meta(c, line).Font(uikit.FontMono).SingleLine().Selectable().Tooltip(strings.TrimSpace(line + "\n" + note))
@@ -2667,7 +2669,7 @@ func Run() error {
 		a.checkSystemProxy(true) // retry only a recorded, interrupted proxy session
 		if path := os.Getenv("VSCROXY_CONTROL_FILE"); path != "" {
 			if err := a.startControl(path); err != nil {
-				a.fail("Enable local automation", err)
+				a.fail(locales.EnableLocalAutomation(), err)
 			}
 		}
 		go a.startCapture()
@@ -2759,12 +2761,12 @@ func (a *app) flowActions(c *ui.Context, f flow) []action {
 		pick(requests, "flow.copy-raw"), pick(requests, "flow.copy-har"), pick(requests, "flow.copy-har-raw"))
 	copyItems := []action{do("flow.copy-url", locales.Url(), func() {
 		services.WriteClipboard(f.url)
-		a.done("Copied URL")
+		a.done(locales.CopiedUrl())
 	})}
 	copyItems = append(copyItems, copyAsMenu(formats).items...)
 	copyItems = append(copyItems, do("flow.copy-response", locales.ResponseBody(), func() {
 		services.WriteClipboard(f.body(true))
-		a.done("Copied response body")
+		a.done(locales.CopiedResponseBody())
 	}).when(f.resBody != "", "The response has no body"))
 	actions = append(actions, submenu(locales.Copy(), copyItems...).in("copy"))
 	if f.kind == "" && f.url != "" {
@@ -2849,7 +2851,7 @@ func (a *app) activeVars() map[string]string {
 // exports carry, stay as they were.
 func (a *app) applyVars(name string, before, vars map[string]string, writes ...request.Write) {
 	if a.envsProblem != "" {
-		a.warn("Variables not saved: " + a.envsProblem)
+		a.warn(locales.VariablesNotSaved(a.envsProblem))
 		return
 	}
 	name = cmp.Or(name, "default")
@@ -2889,7 +2891,7 @@ func (a *app) applyVars(name string, before, vars map[string]string, writes ...r
 		a.activeEnv = name
 	}
 	if err := a.saveLocalEnvs(); err != nil {
-		a.fail("Variables", err)
+		a.fail(locales.Variables(), err)
 	}
 }
 
@@ -2936,7 +2938,7 @@ func (a *app) varsModal(c *ui.Context, t *ui.Theme) {
 			if a.varsGlobals {
 				scope = 1
 			}
-			if uikit.Segmented(c, &scope, locales.Environments2(), "Globals").Changed() {
+			if uikit.Segmented(c, &scope, locales.Environments2(), locales.Globals()).Changed() {
 				if scope == 1 {
 					a.editGlobals()
 				} else {
@@ -2966,7 +2968,7 @@ func (a *app) varsModal(c *ui.Context, t *ui.Theme) {
 					if uikit.SecondaryButton(c, locales.PersistAllCurrent()).Tooltip(locales.WriteNonSensitiveCurrentValues()).Clicked() {
 						persisted, skipped := persistAllCurrent(a.varsRows)
 						if skipped > 0 {
-							a.inform(fmt.Sprintf("Persisted %d values; %d sensitive values stayed local", persisted, skipped))
+							a.inform(locales.PersistedValues(persisted, skipped))
 						}
 					}
 					if uikit.SecondaryButton(c, locales.ResetAllCurrent()).Tooltip(locales.DropEveryLocalOverrideAnd()).Clicked() {
@@ -3002,7 +3004,7 @@ func (a *app) varsModal(c *ui.Context, t *ui.Theme) {
 // stay in the local file.
 func (a *app) saveVars() {
 	if a.envsProblem != "" {
-		a.warn("Variables not saved: " + a.envsProblem)
+		a.warn(locales.VariablesNotSaved(a.envsProblem))
 		return
 	}
 	name := strings.TrimSpace(a.varsName)
@@ -3027,7 +3029,7 @@ func (a *app) saveVars() {
 			return
 		}
 		a.globals, a.globalsCurrent, a.varsOpen = initial, current, false
-		a.inform(fmt.Sprintf("Globals: %d of them", len(initial)))
+		a.inform(locales.GlobalsCount(len(initial)))
 		return
 	}
 	envs := slices.Clone(a.envs)
@@ -3050,7 +3052,7 @@ func (a *app) saveVars() {
 	}
 	a.envs, a.activeEnv = envs, name
 	a.varsOpen = false
-	a.inform(fmt.Sprintf("Variables: %s, %d of them", name, len(initial)))
+	a.inform(locales.VariablesCount(name, len(initial)))
 }
 
 // sendBudget is how long a send may take before the editor cancels it: the
@@ -3093,7 +3095,7 @@ func (a *app) sendComposed() {
 		return
 	}
 	if a.srv == nil || !a.srv.Running() {
-		a.warn("No proxy running. Start capture before sending; previous result kept.")
+		a.warn(locales.NoProxyRunningStartCapture())
 		return
 	}
 	d.composeTests = nil
@@ -3197,10 +3199,10 @@ func (a *app) setKeyLog(path string) {
 	a.keyLogPath = path
 	if path == "" {
 		_ = os.Unsetenv("SSLKEYLOGFILE")
-		a.inform("TLS key log off")
+		a.inform(locales.TlsKeyLogOff())
 	} else {
 		_ = os.Setenv("SSLKEYLOGFILE", path)
-		a.inform("TLS keys go to " + path + " from the next launch")
+		a.inform(locales.TlsKeysGoTo(path))
 	}
 	a.persistSettings()
 	a.invalidate()
@@ -3432,7 +3434,7 @@ func (a *app) hostListModal(c *ui.Context, t *ui.Theme, open *bool, title, hint,
 					}
 					apply(patterns)
 					*open = false
-					a.inform(fmt.Sprintf("%s: %d", title, len(patterns)))
+					a.inform(locales.PatternsCount(title, len(patterns)))
 				}
 			})
 		})
@@ -3461,19 +3463,19 @@ func (a *app) saveComposed() bool {
 		name = strings.TrimSpace(a.composeMethod + " " + a.composeURL)
 	}
 	if name == "" {
-		a.warn("Save: the request has no name")
+		a.warn(locales.SaveTheRequestHasNo())
 		return false
 	}
 	r := a.requestDocument.value()
 	if _, _, _, err := r.Checks.Parse(); err != nil {
-		a.fail("Save", err)
+		a.fail(locales.Save(), err)
 		return false
 	}
 	r.Name, r.Collection = name, cleanPath(r.Collection)
 	r.Method, r.URL = strings.ToUpper(strings.TrimSpace(cmp.Or(r.Method, "GET"))), strings.TrimSpace(r.URL)
 	for _, existing := range a.requests {
 		if existing.Name == r.Name && existing.Collection == r.Collection && !(r.ID != "" && existing.ID == r.ID) && existing.key() != a.savedKey {
-			a.warn("Save: another request has this name in this collection; rename it first. No asset replaced.")
+			a.warn(locales.SaveAnotherRequestHasThis())
 			return false
 		}
 	}
@@ -3502,7 +3504,7 @@ func (a *app) saveComposed() bool {
 		}
 	}
 	if err := a.persistRequests(list); err != nil {
-		a.fail("Save", err)
+		a.fail(locales.Save(), err)
 		return false
 	}
 	a.requests = list
@@ -3513,7 +3515,7 @@ func (a *app) saveComposed() bool {
 	a.savedKey = r.key()
 	a.requestChoice = a.savedKey
 	*a.collectionShown(r.Collection) = true
-	a.done("Saved " + name)
+	a.done(locales.SavedName(name))
 	return true
 }
 
@@ -3633,11 +3635,11 @@ func (a *app) saveSSL(cfg capture.SSLConfig) bool {
 	if a.sslPath != "" {
 		data, err := json.Marshal(cfg)
 		if err != nil {
-			a.fail("SSL proxying", err)
+			a.fail(locales.SslProxying(), err)
 			return false
 		}
 		if err := a.file(a.sslPath).Write(append(data, '\n')); err != nil {
-			a.fail("SSL proxying", err)
+			a.fail(locales.SslProxying(), err)
 			return false
 		}
 	}
@@ -3647,9 +3649,9 @@ func (a *app) saveSSL(cfg capture.SSLConfig) bool {
 	a.sslAll, a.sslHosts = cfg.All, strings.Join(cfg.Hosts, "\n")
 	a.sslApps = slices.Clone(cfg.Apps)
 	if cfg.All {
-		a.inform("SSL proxying: every domain")
+		a.inform(locales.SslProxyingEveryDomain())
 	} else {
-		a.inform(fmt.Sprintf("SSL proxying: %d domains, %d local apps · new connections only", len(cfg.Hosts), len(cfg.Apps)))
+		a.inform(locales.SslSummary(len(cfg.Hosts), len(cfg.Apps)))
 	}
 	return true
 }
@@ -3663,7 +3665,7 @@ func (a *app) decryptHost(host string) {
 		cfg.Hosts = append(cfg.Hosts, host)
 	}
 	if a.saveSSL(cfg) {
-		a.done("Inspection enabled for " + host + " on all ports; reconnect the client and retry")
+		a.done(locales.InspectionEnabledFor(host))
 	}
 }
 
@@ -3686,7 +3688,7 @@ func (a *app) persistSettings() error {
 		err = writeSettings(a.settingsPath, now)
 	}
 	if err != nil {
-		a.fail("Settings", err)
+		a.fail(locales.Settings(), err)
 		return err
 	}
 	a.saved = now
@@ -3712,9 +3714,9 @@ func (a *app) togglePin(f flow) {
 		a.flows[i].pinned = !a.flows[i].pinned
 		a.count(&a.flows[i], 1)
 		if a.flows[i].pinned {
-			a.done("Pinned " + f.method + " " + f.path)
+			a.done(locales.PinnedFlow(f.method, f.path))
 		} else {
-			a.done("Unpinned " + f.method + " " + f.path)
+			a.done(locales.UnpinnedFlow(f.method, f.path))
 		}
 		a.applyFilter()
 		return
@@ -3750,7 +3752,7 @@ func (a *app) selectedFlows() []flow {
 func (a *app) exportChosen() {
 	flows := a.selectedFlows()
 	if len(flows) == 0 {
-		a.warn("Export chosen: no flow chosen")
+		a.warn(locales.ExportChosenNoFlowChosen())
 		return
 	}
 	a.reviewHAR(flows, "vscroxy-chosen.har")
@@ -3835,7 +3837,7 @@ func (a *app) saveDNSRule() {
 	host := strings.TrimSpace(a.dnsRuleHost)
 	addr := strings.TrimSpace(a.dnsRuleAddr)
 	if host == "" || net.ParseIP(addr) == nil {
-		a.warn("Map a host: enter a host and an IP address")
+		a.warn(locales.MapAHostEnterA())
 		return
 	}
 	line := addr + " " + host
@@ -3846,7 +3848,7 @@ func (a *app) saveDNSRule() {
 		return
 	}
 	a.dnsRuleOpen = false
-	a.inform(fmt.Sprintf("Mapped %s to %s in %s; applies to new connections", host, addr, a.dnsRuleProfile))
+	a.inform(locales.MappedHost(host, addr, a.dnsRuleProfile))
 }
 
 // hostOnly drops the port from a host the table shows, for a rule's name.

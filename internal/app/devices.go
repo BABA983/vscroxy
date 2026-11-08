@@ -103,7 +103,7 @@ func (a *app) enableDevices() {
 		return
 	}
 	d.gateway, d.problem = gateway, ""
-	a.done("Device access enabled · " + gateway.Addr())
+	a.done(locales.DeviceAccessEnabled(gateway.Addr()))
 }
 
 func (a *app) disableDevices() {
@@ -116,7 +116,7 @@ func (a *app) disableDevices() {
 		}
 	}
 	d.consent = false
-	a.inform("Device access off · local capture is unchanged")
+	a.inform(locales.DeviceAccessOffLocalCapture())
 }
 
 func (a *app) devicesModal(c *ui.Context, t *ui.Theme) {

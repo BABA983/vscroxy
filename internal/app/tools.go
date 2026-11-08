@@ -409,7 +409,7 @@ func (a *app) hostTest(c *ui.Context, t *ui.Theme) {
 			return
 		}
 		if r, ok := hosts.Lookup(h.set.Rules(), host, ""); ok {
-			uikit.Meta(c, fmt.Sprintf("→ %s · %s line %d", r.IP, r.Profile, r.Line)).Font(uikit.FontMono).SingleLine()
+			uikit.Meta(c, locales.MappedRule(r.IP.String(), r.Profile, r.Line)).Font(uikit.FontMono).SingleLine()
 			return
 		}
 		uikit.Meta(c, locales.NotMappedResolvedAsUsual()).SingleLine()

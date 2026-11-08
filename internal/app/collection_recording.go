@@ -15,6 +15,7 @@ import (
 	"github.com/baba983/vscroxy/internal/capture"
 	"github.com/baba983/vscroxy/internal/control"
 	"github.com/baba983/vscroxy/internal/request"
+	"github.com/baba983/vscroxy/locales"
 )
 
 const collectionRecordingQueue = 32
@@ -149,7 +150,7 @@ func (a *app) stopCollectionRecording(problem string) {
 		s.Discarded++
 	}
 	if problem != "" {
-		a.fail("Collection recording stopped", errors.New(problem))
+		a.fail(locales.CollectionRecordingStopped(), errors.New(problem))
 	}
 }
 

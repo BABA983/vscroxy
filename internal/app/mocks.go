@@ -3,7 +3,6 @@ package app
 import (
 	"cmp"
 	"errors"
-	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -12,6 +11,7 @@ import (
 	"github.com/baba983/vscroxy/internal/capture"
 	"github.com/baba983/vscroxy/internal/request"
 	"github.com/baba983/vscroxy/internal/rules"
+	"github.com/baba983/vscroxy/locales"
 )
 
 // mockResponseName is the header that picks an example other than a
@@ -37,12 +37,12 @@ func (a *app) exampleMock(r request.Request, e request.Example) (capture.Rule, e
 // it applies once saved there.
 func (a *app) mockExample(r request.Request, e request.Example) {
 	if a.rulesPath == "" {
-		a.warn("Rules storage is unavailable")
+		a.warn(locales.RulesStorageIsUnavailable())
 		return
 	}
 	rule, err := a.exampleMock(r, e)
 	if err != nil {
-		a.fail("Mock example", err)
+		a.fail(locales.MockExample(), err)
 		return
 	}
 	a.editRule(-1, rule)
@@ -56,7 +56,7 @@ func (a *app) mockExample(r request.Request, e request.Example) {
 // others answer to X-Mock-Response-Name. The scenario keeps its on or off.
 func (a *app) scenarioFromExamples(path string) {
 	if a.rulesPath == "" {
-		a.warn("Rules storage is unavailable")
+		a.warn(locales.RulesStorageIsUnavailable())
 		return
 	}
 	var picked, defaults []capture.Rule
@@ -70,7 +70,7 @@ func (a *app) scenarioFromExamples(path string) {
 			rule, err := a.exampleMock(r.Request, e)
 			if err != nil {
 				removeMocks(created())
-				a.fail("Mock “"+r.Name+" · "+e.Name+"”", err)
+				a.fail(locales.MockNamed(r.Name+" · "+e.Name), err)
 				return
 			}
 			rule.Scenario = path
@@ -85,7 +85,7 @@ func (a *app) scenarioFromExamples(path string) {
 	}
 	made := created()
 	if len(made) == 0 {
-		a.inform("No examples under “" + path + "”; save a response as an example first")
+		a.inform(locales.NoExamplesUnder(path))
 		return
 	}
 	// Named examples come first: the default would answer them otherwise.
@@ -105,7 +105,7 @@ func (a *app) scenarioFromExamples(path string) {
 	}
 	if !a.applyRuleChanges(slices.Insert(kept, at, made...)) {
 		removeMocks(made)
-		a.fail("Mock “"+path+"”", errors.New(a.ruleUI.problem))
+		a.fail(locales.MockNamed(path), errors.New(a.ruleUI.problem))
 		return
 	}
 	// The files the replaced rules answered from are the app's, unless a
@@ -121,9 +121,9 @@ func (a *app) scenarioFromExamples(path string) {
 	a.openTools("rules")
 	switch {
 	case active:
-		a.done(fmt.Sprintf("Scenario “%s” answers from %d examples", path, len(made)))
+		a.done(locales.ScenarioAnswers(path, len(made)))
 	default:
-		a.done(fmt.Sprintf("Scenario “%s” has %d mocks; choose it in the scenario menu to answer from them", path, len(made)))
+		a.done(locales.ScenarioMocks(path, len(made)))
 	}
 }
 

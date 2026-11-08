@@ -145,7 +145,7 @@ func (a *app) connectDetail(c *ui.Context, t *ui.Theme, f flow) {
 			ui.Text(c, cmp.Or(f.conn.errorStage, "Connection")+" failed").FontSize(uikit.TextBody).TextColor(t.Danger)
 		}
 		ui.ScrollHorizontal(c).Grow(1).FillHeight().Children(func() {
-			uikit.Tabs(c, &a.tab, "", locales.HttpsSetup(), "Connection")
+			uikit.Tabs(c, &a.tab, "", locales.HttpsSetup(), locales.Connection())
 		})
 		if uikit.SecondaryButton(c, locales.Explain()).Tooltip(locales.DiagnoseThisConnection()).Clicked() {
 			a.openDiagnostics(&f, diagnoseMac)
@@ -388,11 +388,11 @@ func (a *app) copyPaneBody(c *ui.Context, side int) {
 		body = a.reqBody
 	}
 	if !utf8.ValidString(body) || strings.ContainsRune(body, 0) {
-		a.warn("Binary bytes cannot be copied to a text clipboard; use HAR or session export")
+		a.warn(locales.BinaryBytesCannotBeCopied())
 		return
 	}
 	c.Services().WriteClipboard(body)
-	a.done("Copied shown body; review credentials before sharing")
+	a.done(locales.CopiedShownBodyReviewCredentials())
 }
 
 func bodyFormatLabel(side int) string {
@@ -437,7 +437,7 @@ func (a *app) headersSide(c *ui.Context, f flow, side int) {
 			uikit.Meta(c, line).Font(uikit.FontMono).SingleLine().Selectable().Grow(1).
 				Tooltip(strings.TrimSpace(line + "\n" + note))
 			if len(headers) > 0 {
-				uikit.Meta(c, fmt.Sprintf("%d headers", len(headers))).FontFeatures("tnum")
+				uikit.Meta(c, locales.HeadersCount(len(headers))).FontFeatures("tnum")
 			}
 			if hasSensitiveHeader(headers) {
 				label := "Reveal"
@@ -520,7 +520,7 @@ func (a *app) rawSide(c *ui.Context, f flow, side int) {
 		uikit.Meta(c, locales.AsSentAndReceivedCapture()).Grow(1)
 		if uikit.SecondaryButton(c, locales.CopyRaw()).Height(uikit.HeightCompact).Disabled(a.rawText[side] == "").Clicked() {
 			c.Services().WriteClipboard(a.rawText[side])
-			a.done("Copied raw message; review credentials before sharing")
+			a.done(locales.CopiedRawMessageReviewCredentials())
 		}
 	})
 	a.rawEditor[side].Font = ui.Font{Family: uikit.FontMono, Size: uikit.TextBody}

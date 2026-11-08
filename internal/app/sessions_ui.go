@@ -212,10 +212,10 @@ func (a *app) sessionDetail(c *ui.Context, t *ui.Theme, item *savedSession) {
 		item.persist(a.invalidate)
 	}
 	ui.Row(c).Padding(0, t.Space(2)).Gap(t.Space(2)).Children(func() {
-		if uikit.Segmented(c, &item.side, locales.Request(), "Response").Changed() {
+		if uikit.Segmented(c, &item.side, locales.Request(), locales.Response()).Changed() {
 			item.reader = nil
 		}
-		if uikit.Segmented(c, &item.tab, locales.Headers(), "Body", "Messages", "Connection").Changed() {
+		if uikit.Segmented(c, &item.tab, locales.Headers(), locales.Body(), locales.MessagesTab(), locales.Connection()).Changed() {
 			item.reader = nil
 		}
 	})

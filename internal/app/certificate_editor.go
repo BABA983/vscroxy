@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/baba983/vscroxy/internal/certs"
+	"github.com/baba983/vscroxy/locales"
 	"github.com/google/uuid"
 )
 
@@ -129,7 +130,7 @@ func (a *app) saveCertificates() {
 	if a.settingsPath != "" {
 		if err := certs.SecretStoreFor(a.settingsPath).Save(secrets); err != nil {
 			e.problem = err.Error()
-			a.fail("Certificates", err)
+			a.fail(locales.Certificates(), err)
 			return
 		}
 		a.certificates = settings
@@ -147,7 +148,5 @@ func (a *app) saveCertificates() {
 	if a.srv != nil {
 		a.srv.SetCertificates(a.certificates)
 	}
-	a.done(fmt.Sprintf("Certificates saved · %d client %s, %d root %s",
-		len(settings.Clients), plural(len(settings.Clients), "certificate", "certificates"),
-		len(settings.RootCAs), plural(len(settings.RootCAs), "CA", "CAs")))
+	a.done(locales.CertificatesSaved(len(settings.Clients), len(settings.RootCAs)))
 }

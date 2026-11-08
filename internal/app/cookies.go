@@ -494,7 +494,7 @@ func readCookieFile(path string) ([]cookieRecord, error) {
 func (a *app) requestCookies() *cookieStore {
 	if a.cookies == nil {
 		a.cookies = &cookieStore{path: a.cookiesPath, persist: a.cookiePersistence}
-		a.cookies.onProblem = func(err error) { a.fail("Cookies", err) }
+		a.cookies.onProblem = func(err error) { a.fail(locales.Cookies2(), err) }
 	}
 	return a.cookies
 }
@@ -535,7 +535,7 @@ func (a *app) flushCookies() {
 		return
 	}
 	if err := a.cookies.flushNow(); err != nil {
-		a.fail("Cookies", err)
+		a.fail(locales.Cookies2(), err)
 	}
 }
 
@@ -547,16 +547,16 @@ func (a *app) setCookiePersistence(on bool) {
 	}
 	a.cookiePersistence = on
 	if err := a.requestCookies().setPersist(on); err != nil {
-		a.fail("Cookies", err)
+		a.fail(locales.Cookies2(), err)
 	}
 	a.lastSave = time.Time{}
 	if err := a.persistSettings(); err != nil {
 		return
 	}
 	if on {
-		a.done("Cookies will be kept after quitting in " + a.cookiesPath)
+		a.done(locales.CookiesKeptIn(a.cookiesPath))
 	} else {
-		a.done("Cookies will be forgotten when the app quits")
+		a.done(locales.CookiesWillBeForgottenWhen())
 	}
 }
 

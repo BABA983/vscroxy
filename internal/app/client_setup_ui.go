@@ -244,7 +244,7 @@ func (a *app) clientJavaPanel(c *ui.Context, t *ui.Theme, p clientsetup.Proxy, r
 	ui.Row(c).Gap(t.Space(2)).Wrap().Children(func() {
 		if uikit.SecondaryButton(c, locales.CopyCommands()).Clicked() {
 			c.Services().WriteClipboard(command)
-			a.done("Copied keytool commands")
+			a.done(locales.CopiedKeytoolCommands())
 		}
 		if uikit.PrimaryButton(c, locales.ImportText()).Disabled(!running).Clicked() {
 			s.javaConfirm = true
@@ -288,7 +288,7 @@ func (a *app) clientElectronPanel(c *ui.Context, t *ui.Theme, p clientsetup.Prox
 					})
 					win.Update(func() {
 						if err != nil {
-							a.fail("Choose Electron app", err)
+							a.fail(locales.ChooseElectronApp(), err)
 						} else if len(paths) > 0 {
 							s.electronPath = paths[0]
 						}
@@ -325,7 +325,7 @@ func (a *app) clientSetupExamples(c *ui.Context, t *ui.Theme) {
 		example := clientExample(s.runtime, addr, p.CAPath, s.url)
 		if uikit.SecondaryButton(c, locales.CopyClientExample()).Disabled(addr == "" || p.CAPath == "").Clicked() {
 			c.Services().WriteClipboard(example)
-			a.done("Copied " + s.runtime + " setup; review URL and CA path before running")
+			a.done(locales.CopiedClientSetup(s.runtime))
 		}
 		ui.Text(c, example).Font(uikit.FontMono).FontSize(uikit.TextMeta).Selectable()
 		uikit.Meta(c, locales.RunItThenUseDiagnose())

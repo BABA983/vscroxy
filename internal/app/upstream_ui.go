@@ -386,7 +386,7 @@ func (a *app) applyUpstreamSettings(settings upstream.Settings, secrets map[stri
 		u.loaded, u.dirty, u.problem = false, false, ""
 		a.lastSave = time.Time{}
 		if err := a.persistSettings(); err != nil {
-			a.fail("Save settings", err)
+			a.fail(locales.SaveSettings(), err)
 		} else {
 			a.done(message)
 		}

@@ -24,7 +24,7 @@ type captureAnalysis struct {
 
 func (a *app) inspectCapture(id int) {
 	if !slices.ContainsFunc(a.flows, func(f flow) bool { return f.id == id }) {
-		a.warn("Capture is no longer in this session")
+		a.warn(locales.CaptureIsNoLongerIn())
 		return
 	}
 	// Reveal a hidden relationship in a separate view, never by erasing the
@@ -33,7 +33,7 @@ func (a *app) inspectCapture(id int) {
 		a.views.capture(a)
 		a.views.newView(a)
 		a.views.activeView().preset = fmt.Sprintf("Capture #%d", id)
-		a.inform("Opened linked capture in a new view; previous filters preserved")
+		a.inform(locales.OpenedLinkedCaptureInA())
 	}
 	a.chosen.Clear()
 	a.chosen.Add(id)

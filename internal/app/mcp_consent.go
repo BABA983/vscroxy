@@ -290,7 +290,7 @@ func (a *app) approveMCPConsent() {
 	a.mcpConsents[s.full] = mcpConsentApproval{LastUsed: now, Persist: persist}
 	a.mcpConsents = pruneMCPConsents(a.mcpConsents)
 	if err := saveMCPConsents(a.mcpConsentsPath, a.mcpConsents); err != nil {
-		a.warn("MCP approval could not be saved; it will ask again next time.")
+		a.warn(locales.McpApprovalCouldNotBe())
 	}
 	s.open = false
 	d, plan := s.d, s.plan

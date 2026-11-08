@@ -60,11 +60,11 @@ func (a *app) importDropped(paths []string) {
 		path := paths[0]
 		info, err := os.Lstat(path)
 		if err != nil {
-			a.fail("Import", err)
+			a.fail(locales.ImportText2(), err)
 			return
 		}
 		if info.Mode()&os.ModeSymlink != 0 {
-			a.warn("Import: choose a real file or folder, not a symbolic link")
+			a.warn(locales.ImportChooseARealFile())
 			return
 		}
 		switch droppedImportKind(path, info.IsDir()) {
@@ -77,7 +77,7 @@ func (a *app) importDropped(paths []string) {
 		case droppedCollectionDir:
 			a.importCollectionDir(path)
 		default:
-			a.warn("Import: unsupported file type. Drop a HAR (.har), Charles (.chlsj, .chlsx), or Proxyman (.proxymanlogv2, .proxymanlog) file, or a Postman v3 or Bruno collection folder")
+			a.warn(locales.ImportUnsupportedFileTypeDrop())
 		}
 	}()
 }
@@ -148,7 +148,7 @@ func isBrunoCollectionDir(dir string) bool {
 func (a *app) importCaptureFile(path string) {
 	result, err := readCapturePath(path)
 	if err != nil {
-		a.fail("Import capture", err)
+		a.fail(locales.ImportCapture(), err)
 		return
 	}
 	a.win.Update(func() { a.addCaptureImport(result, path) })
@@ -175,7 +175,7 @@ func (a *app) reserveFlowIDs(n int) int {
 func (a *app) importCaptureDir(path string) {
 	result, err := imports.ReadProxymanDir(path)
 	if err != nil {
-		a.fail("Import capture", err)
+		a.fail(locales.ImportCapture(), err)
 		return
 	}
 	a.win.Update(func() { a.addCaptureImport(result, path) })
@@ -186,7 +186,7 @@ func (a *app) importCaptureDir(path string) {
 func (a *app) importCaptureData(data []byte, name string) {
 	result, err := imports.ReadCapture(data, name)
 	if err != nil {
-		a.fail("Import capture", err)
+		a.fail(locales.ImportCapture(), err)
 		return
 	}
 	a.addCaptureImport(result, name)
@@ -223,7 +223,7 @@ func readCapturePath(path string) (imports.Capture, error) {
 // the table. It is a UI-thread action, like importHAR.
 func (a *app) addCaptureImport(result imports.Capture, source string) {
 	if len(result.Flows) == 0 {
-		a.warn("Import capture: nothing to import from " + filepath.Base(source) + "; " + strings.Join(result.Warnings, "; "))
+		a.warn(locales.ImportCaptureNothing(filepath.Base(source), strings.Join(result.Warnings, "; ")))
 		return
 	}
 	start := len(a.flows)

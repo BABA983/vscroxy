@@ -94,7 +94,7 @@ func (a *app) newAPI() {
 
 func (a *app) saveAPI(d *apiDocument) {
 	if !d.validate() {
-		a.warn("OpenAPI validation failed; nothing was saved")
+		a.warn(locales.OpenapiValidationFailedNothingWas())
 		return
 	}
 	next := d.spec
@@ -108,17 +108,17 @@ func (a *app) saveAPI(d *apiDocument) {
 		}
 	}
 	if a.apisPath == "" {
-		a.warn("APIs: no local storage path available")
+		a.warn(locales.ApisNoLocalStoragePath())
 		return
 	}
 	if err := saveAPIs(a.apisPath, list); err != nil {
-		a.fail("Save API", err)
+		a.fail(locales.SaveApi(), err)
 		return
 	}
 	d.spec = next
 	d.saved = new(next)
 	d.code.Buffer.MarkSaved()
-	a.done("Saved API " + d.title())
+	a.done(locales.ApiSaved(d.title()))
 }
 
 func (a *app) apiView(c *ui.Context, t *ui.Theme) {
@@ -177,7 +177,7 @@ func (a *app) apiView(c *ui.Context, t *ui.Theme) {
 		}
 		ui.Row(c).Height(uikit.HeightTabs).Padding(0, t.Space(1)).AlignItems(ui.Center).
 			Border(0, t.Border).BorderWidth(0, 0, 1, 0).Children(func() {
-			uikit.Tabs(c, &d.tab, "API", locales.Endpoints(), "OpenAPI", "Review notes")
+			uikit.Tabs(c, &d.tab, "API", locales.Endpoints(), locales.Openapi(), locales.ReviewNotes())
 		})
 		switch d.tab {
 		case 0:
@@ -316,19 +316,19 @@ func (a *app) apiGenerationModal(c *ui.Context, t *ui.Theme) {
 func (a *app) generateAPI(collection string) {
 	spec, err := generateOpenAPI(a.requests, collection)
 	if err != nil {
-		a.fail("Generate API", err)
+		a.fail(locales.GenerateApi(), err)
 		return
 	}
 	a.addAPI(spec, false)
 	a.page = pageAPI
-	a.done("Generated independent OpenAPI draft; review notes before publishing")
+	a.done(locales.GeneratedIndependentOpenapiDraftReview())
 }
 
 func (a *app) importOpenAPI() {
 	go func() {
 		paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Title: locales.ImportOpenapi2(), Filters: []mygo.FileFilter{{Name: "OpenAPI", Extensions: []string{"json", "yaml", "yml"}}}})
 		if err != nil {
-			a.fail("Import OpenAPI", err)
+			a.fail(locales.ImportOpenapi2(), err)
 			return
 		}
 		if len(paths) == 0 {
@@ -336,11 +336,11 @@ func (a *app) importOpenAPI() {
 		}
 		data, err := os.ReadFile(paths[0])
 		if err != nil {
-			a.fail("Import OpenAPI", err)
+			a.fail(locales.ImportOpenapi2(), err)
 			return
 		}
 		if len(data) > 16<<20 {
-			a.warn("OpenAPI documents are limited to 16 MiB")
+			a.warn(locales.OpenapiDocumentsAreLimitedTo())
 			return
 		}
 		a.win.Update(func() {
@@ -362,16 +362,16 @@ func (a *app) exportOpenAPI(d *apiDocument) {
 	go func() {
 		path, err := mygo.Dialog.Save(mygo.SaveDialogOptions{Title: locales.ExportOpenapi(), DefaultPath: "openapi." + ext, Filters: []mygo.FileFilter{{Name: "OpenAPI", Extensions: []string{ext}}}})
 		if err != nil {
-			a.fail("Export OpenAPI", err)
+			a.fail(locales.ExportOpenapi(), err)
 			return
 		}
 		if path == "" {
 			return
 		}
 		if err := store.WriteFile(path, []byte(source)); err != nil {
-			a.fail("Export OpenAPI", err)
+			a.fail(locales.ExportOpenapi(), err)
 			return
 		}
-		a.done("Exported OpenAPI to " + path)
+		a.done(locales.ExportedOpenapiTo(path))
 	}()
 }

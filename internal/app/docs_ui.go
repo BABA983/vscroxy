@@ -2,7 +2,6 @@ package app
 
 import (
 	"cmp"
-	"fmt"
 	"slices"
 	"strings"
 
@@ -55,7 +54,7 @@ func (a *app) docsModal(c *ui.Context, t *ui.Theme) {
 					markdown.View(c, description, &a.docsMarkdown)
 				}
 				ui.Divider(c)
-				uikit.Label(c, fmt.Sprintf("Requests · %d", len(requests)))
+				uikit.Label(c, locales.RequestsCount(len(requests)))
 				if len(requests) == 0 {
 					uikit.Hint(c, locales.NoRequestsAreSavedUnder())
 				}

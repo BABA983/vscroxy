@@ -63,7 +63,7 @@ func (a *app) historyColumn(c *ui.Context, t *ui.Theme, d *requestDocument) {
 	ui.Column(c).Width(historyWidth).FillHeight().Background(uikit.Colors(t).Panel).
 		BorderWidth(0, 1, 0, 0).BorderColor(t.Border).Children(func() {
 		ui.Row(c).Height(uikit.HeightTabs+uikit.HeightCompact/2).Padding(0, t.Space(2)).AlignItems(ui.Center).Children(func() {
-			uikit.Segmented(c, &d.historyTab, locales.History(), "Examples").Label(locales.RequestHistory()).FillWidth()
+			uikit.Segmented(c, &d.historyTab, locales.History(), locales.Examples()).Label(locales.RequestHistory()).FillWidth()
 		})
 		ui.Scroll(c).Grow(1).MinHeight(0).Padding(0, t.Space(2), t.Space(2)).Gap(t.Space(0.5)).Children(func() {
 			if d.historyTab == 1 {

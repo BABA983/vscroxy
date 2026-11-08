@@ -75,7 +75,7 @@ func (a *app) setupGuide(c *ui.Context) {
 		if view := a.views.activeView(); view != nil {
 			view.list.ScrollIntoView(a.picked)
 		}
-		a.done("Setup complete · the first decrypted request is selected")
+		a.done(locales.SetupCompleteTheFirstDecrypted())
 		return
 	}
 	current := 0
@@ -103,7 +103,7 @@ func (a *app) setupGuide(c *ui.Context) {
 			})
 			ui.Row(c).FillWidth().AlignItems(ui.Center).Children(func() {
 				if n := len(a.flows); n > 0 {
-					uikit.Meta(c, fmt.Sprintf("%d %s captured so far", n, plural(n, "request", "requests")))
+					uikit.Meta(c, locales.CapturedSoFar(n))
 				}
 				ui.Spacer(c)
 				if uikit.ToolbarButton(c, locales.SkipGuide(), locales.ShowTheTrafficListReopen(), false).
@@ -123,7 +123,7 @@ func (a *app) guideStep(c *ui.Context, t *ui.Theme, i int, title, summary string
 	if current {
 		row.Background(p.AccentTint.Alpha(0.5))
 	}
-	row.Label(fmt.Sprintf("Step %d: %s", i+1, title)).Children(func() {
+	row.Label(locales.StepTitle(i+1, title)).Children(func() {
 		mark := ui.Row(c).Size(20, 20).Shrink(0).Radius(10).Justify(ui.Center).AlignItems(ui.Center)
 		switch {
 		case done:

@@ -19,6 +19,7 @@ import (
 	"github.com/baba983/vscroxy/internal/library"
 	"github.com/baba983/vscroxy/internal/request"
 	"github.com/baba983/vscroxy/internal/store"
+	"github.com/baba983/vscroxy/locales"
 )
 
 // The request library is a directory tree, one directory per collection
@@ -332,7 +333,7 @@ func (a *app) refreshDocuments() {
 		d.load(a, a.requests[at], a.requests[at].key())
 	}
 	if kept > 0 {
-		a.warn(fmt.Sprintf("%d open %s unsaved changes to requests that changed on disk; saving replaces those changes", kept, plural(kept, "tab has", "tabs have")))
+		a.warn(locales.OpenTabsWarning(kept))
 	}
 }
 
@@ -427,7 +428,7 @@ func (a *app) moveFolderCurrent(from, to string) {
 		}
 	}
 	if err := a.saveFolderCurrent(next, credentials); err != nil {
-		a.fail("Variables", err)
+		a.fail(locales.Variables(), err)
 	}
 }
 
@@ -456,7 +457,7 @@ func (a *app) dropFolderCurrent(path string) {
 		}
 	}
 	if err := a.saveFolderCurrent(next, credentials); err != nil {
-		a.fail("Variables", err)
+		a.fail(locales.Variables(), err)
 	}
 }
 

@@ -291,7 +291,7 @@ func (a *app) collectionStructureEditor(c *ui.Context, t *ui.Theme) {
 		}
 	}).Label(locales.SaveTo())
 	uikit.Body(c, locales.GroupBy())
-	uikit.Segmented(c, &w.grouping, locales.Host(), "Path prefix", "Flat").OnChange(w.organize)
+	uikit.Segmented(c, &w.grouping, locales.Host(), locales.PathPrefix(), locales.Flat()).OnChange(w.organize)
 	uikit.Hint(c, locales.DragOntoAFolderTo())
 	if len(w.groups) == 0 {
 		return

@@ -330,7 +330,7 @@ func (m messageView) detail(c *ui.Context, a *app, f flow, p *messagePanel) {
 				SingleLine().Grow(1).Tooltip(m.headline())
 			if uikit.SecondaryButton(c, locales.Copy()).Clicked() {
 				c.Services().WriteClipboard(payload)
-				a.done("Copied " + m.label() + " message · " + humanBytes(len(payload)))
+				a.done(locales.CopiedMessage(m.label(), humanBytes(len(payload))))
 			}
 		})
 		ui.Row(c).Padding(0, t.Space(3), t.Space(2), t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
@@ -525,7 +525,7 @@ func (p *messagePanel) view(c *ui.Context, a *app, f flow, list []messageView) {
 		if search.Changed() {
 			p.follow = true
 		}
-		if uikit.Segmented(c, &p.direction, locales.All(), "In", "Out").Label(locales.Direction()).Changed() {
+		if uikit.Segmented(c, &p.direction, locales.All(), locales.InText(), locales.Out()).Label(locales.Direction()).Changed() {
 			p.follow = true
 		}
 		p.searchMessages(a, list)
@@ -709,7 +709,7 @@ func (p *messagePanel) exportModal(c *ui.Context, a *app, f flow, list, visible 
 							return
 						}
 						if err := archive.write(path, chosen); err != nil {
-							a.fail("Message export", err)
+							a.fail(locales.MessageExport(), err)
 							return
 						}
 						a.done(locales.ExportedMessages(len(chosen)))

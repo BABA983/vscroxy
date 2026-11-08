@@ -14,6 +14,7 @@ import (
 	"uuid"
 
 	"github.com/baba983/vscroxy/internal/store"
+	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo/ui/editor"
 )
 
@@ -238,7 +239,7 @@ func (a *app) checkpointSessions() {
 		case err := <-item.results:
 			if err != nil {
 				item.saveErr = "Save session: " + err.Error()
-				a.fail("Save session", err)
+				a.fail(locales.SaveSession2(), err)
 			} else {
 				item.saveErr = ""
 			}

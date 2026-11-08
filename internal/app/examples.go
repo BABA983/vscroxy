@@ -72,16 +72,16 @@ func (a *app) saveExample(d *requestDocument) {
 	clean := d.savedKey != "" && !d.dirty()
 	example, err := newExample(d.sent, d.response, d.examples)
 	if err != nil {
-		a.fail("Save as example", err)
+		a.fail(locales.SaveAsExample(), err)
 		return
 	}
 	d.examples = append(d.examples, example)
 	d.example, d.exampleEditor = len(d.examples)-1, nil
 	if clean && d == a.requestDocument && a.saveComposed() {
-		a.done("Saved example “" + example.Name + "”")
+		a.done(locales.SavedExample(example.Name))
 		return
 	}
-	a.done("Added example “" + example.Name + "”; save the request to keep it")
+	a.done(locales.AddedExample(example.Name))
 }
 
 // examplesEditor lists the request's examples and shows the chosen one.
@@ -115,7 +115,7 @@ func (a *app) examplesEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
 				ui.Text(c, fmt.Sprintf("%d %s", e.Status, http.StatusText(e.Status))).FontSize(uikit.TextBody).FontWeight(600).TextColor(uikit.StatusColor(e.Status, t))
 				uikit.Meta(c, humanBytes(len(e.Body))).FontFeatures("tnum")
 				ui.Spacer(c)
-				if uikit.Segmented(c, &d.exampleView, locales.Body(), "Headers", "Request").Changed() {
+				if uikit.Segmented(c, &d.exampleView, locales.Body(), locales.Headers(), locales.Request()).Changed() {
 					d.exampleEditor = nil
 				}
 				if uikit.SecondaryButton(c, locales.Mock()).Label(locales.MockThisExample()).Tooltip(locales.AnswerMatchingRequestsWithThis()).Clicked() {

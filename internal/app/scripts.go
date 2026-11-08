@@ -209,7 +209,7 @@ func (a *app) loadScriptDir(s *scriptStore) {
 		}
 		data, err := a.file(filepath.Join(s.dir, f.Name())).Read()
 		if err != nil {
-			a.fail("Script "+name+" could not be read", err)
+			a.fail(locales.ScriptUnreadable(name), err)
 			continue
 		}
 		s.names = append(s.names, name)
@@ -348,7 +348,7 @@ func (a *app) newScript(s *scriptStore, base, text string) (string, bool) {
 		text = newAddonText(name)
 	}
 	if err := a.writeScript(s, name, text); err != nil {
-		a.fail("New script", err)
+		a.fail(locales.NewScript(), err)
 		return "", false
 	}
 	s.choice, s.nameFor = name, ""
@@ -408,7 +408,7 @@ func (a *app) renameScript(s *scriptStore, old, name string) {
 		err = fmt.Errorf("a %s named %q exists", what, name)
 	}
 	if err != nil {
-		a.fail("Rename "+what, err)
+		a.fail(locales.RenameThing(what), err)
 		return
 	}
 	text, st := s.texts[old], s.editors[old]
@@ -419,13 +419,13 @@ func (a *app) renameScript(s *scriptStore, old, name string) {
 	// file is the new one, so it must not be removed after the write.
 	if strings.EqualFold(old, name) {
 		if err := os.Rename(filepath.Join(s.dir, scriptFile(old)), filepath.Join(s.dir, scriptFile(name))); err != nil {
-			a.fail("Rename "+what, err)
+			a.fail(locales.RenameThing(what), err)
 			return
 		}
 		a.forgetScript(s, old)
 	}
 	if err := a.writeScript(s, name, text); err != nil {
-		a.fail("Rename "+what, err)
+		a.fail(locales.RenameThing(what), err)
 		return
 	}
 	if !s.addon {
@@ -436,7 +436,7 @@ func (a *app) renameScript(s *scriptStore, old, name string) {
 			}
 		}
 		if renamed && !a.applyRuleChanges(next) {
-			a.fail("Rename script", errors.New(a.ruleUI.problem))
+			a.fail(locales.RenameScript(), errors.New(a.ruleUI.problem))
 		}
 		if d := &a.ruleUI.draft; (d.Type == capture.RuleScript || d.Type == capture.RuleCodeMock) && d.Target == scriptFile(old) {
 			d.Target = scriptFile(name)
@@ -457,7 +457,7 @@ func (a *app) renameScript(s *scriptStore, old, name string) {
 func (a *app) dropScript(s *scriptStore, name string) {
 	path := filepath.Join(s.dir, scriptFile(name))
 	if err := os.Remove(path); err != nil && !errors.Is(err, fs.ErrNotExist) {
-		a.fail("Delete", err)
+		a.fail(locales.Delete(), err)
 		return
 	}
 	a.forgetScript(s, name)
@@ -489,18 +489,18 @@ func (a *app) saveScript(name string) {
 		return
 	}
 	if err := a.writeScript(s, name, st.Buffer.String()); err != nil {
-		a.fail("Save", err)
+		a.fail(locales.Save(), err)
 		return
 	}
 	switch err := s.problems[name]; {
 	case err != nil && s.addon:
 		a.warn("Addon saved · it does not parse, so require(\"" + name + "\") fails: " + err.Error())
 	case err != nil:
-		a.warn("Script saved · it does not parse; Script rules skip it, Code Mocks return 502: " + err.Error())
+		a.warn(locales.ScriptSavedNotParse(err.Error()))
 	case s.addon:
-		a.done("Addon saved · scripts load it from their next run")
+		a.done(locales.AddonSavedScriptsLoadIt())
 	default:
-		a.done("Script saved · applies to new requests")
+		a.done(locales.ScriptSavedAppliesToNew())
 	}
 }
 
