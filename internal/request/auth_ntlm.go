@@ -8,6 +8,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/http/httptrace"
 	"net/url"
 	"strings"
 	"sync"
@@ -28,8 +29,8 @@ const AuthNTLM = "NTLM"
 type NTLMAuth struct {
 	Username string `json:"username,omitempty"`
 	Password string `json:"password,omitempty"`
-	// Domain and Workstation are optional. An empty domain comes from the
-	// username's DOMAIN\user or user@domain form.
+	// Domain and Workstation are optional. A DOMAIN\user or user@domain
+	// username carries its own domain and wins over Domain.
 	Domain      string `json:"domain,omitempty"`
 	Workstation string `json:"workstation,omitempty"`
 	// DisableRetry sends once and returns the server's 401 without answering
@@ -53,17 +54,20 @@ func (n NTLMAuth) expand(vars map[string]string) NTLMAuth {
 // impossible, as opposed to a transport failure.
 var errNTLM = errors.New("NTLM authentication failed")
 
-// ntlmSend runs the NTLM exchange for req through srv, or directly when srv is
-// nil. The request is sent once without credentials; a 401 or 403 offering
-// NTLM is answered with Type 1 and then Type 3 on one connection. Redirects
-// follow the request's policy, and credentials stay on the original origin.
-func ntlmSend(ctx context.Context, srv *capture.Server, flow capture.Flow, req *Prepared, auth NTLMAuth, jar http.CookieJar, policy capture.TransferPolicy, in Context) (capture.Flow, error) {
+// ntlmSend runs the NTLM exchange for req through srv. The request is sent
+// once without credentials; a 401 or 403 offering NTLM is answered with Type 1
+// and then Type 3 on one connection. Redirects follow the request's policy,
+// and credentials stay on the original origin.
+func ntlmSend(ctx context.Context, srv *capture.Server, flow capture.Flow, req *Prepared, auth NTLMAuth, jar http.CookieJar, policy capture.TransferPolicy) (capture.Flow, error) {
+	if srv == nil {
+		return capture.Flow{}, errors.New("start the local proxy first")
+	}
 	req.Remove("Authorization")
 	first, _, err := capture.NewReplayRequest(ctx, flow)
 	if err != nil {
 		return capture.Flow{}, err
 	}
-	session, err := newExchangeSession(srv, flow, policy, in.Certificates)
+	session, err := srv.ReplaySession(ctx, flow, policy)
 	if err != nil {
 		return capture.Flow{}, err
 	}
@@ -109,7 +113,7 @@ func ntlmSend(ctx context.Context, srv *capture.Server, flow capture.Flow, req *
 type ntlmTransport struct {
 	origin  *url.URL
 	auth    NTLMAuth
-	session exchangeSession
+	session *capture.ReplaySession
 	jar     http.CookieJar
 	// lastAuth and lastRequest describe the last attempt, whose response is
 	// the exchange's result.
@@ -134,41 +138,82 @@ func (t *ntlmTransport) exchange(req *http.Request) (*http.Response, error) {
 	if req.Body != nil {
 		defer req.Body.Close()
 	}
-	send := func(authorization string, freshCookies bool) (*http.Response, error) {
+	// send makes one attempt. body says whether it carries the authored body;
+	// mustReuse, when set, is the connection an earlier step used and the
+	// attempt must share it. gotConn receives the connection the attempt got.
+	send := func(authorization string, body bool, mustReuse net.Conn, gotConn func(net.Conn)) (*http.Response, error) {
 		attempt := req.Clone(req.Context())
 		attempt.Header = req.Header.Clone()
 		attempt.Header.Del("Authorization")
 		if authorization != "" {
 			attempt.Header.Set("Authorization", authorization)
 		}
-		if freshCookies {
-			// Intermediate responses bypass the caller's client, so its cookie
-			// jar is refreshed here.
-			attempt.Header.Del("Cookie")
-			if t.jar != nil {
-				for _, cookie := range t.jar.Cookies(req.URL) {
+		// Keep the request's own Cookie header and add only the jar's cookies
+		// it does not name. Intermediate responses bypass the caller's client,
+		// so its jar is refreshed here.
+		if t.jar != nil {
+			names := make(map[string]bool)
+			for _, value := range attempt.Header.Values("Cookie") {
+				for part := range strings.SplitSeq(value, ";") {
+					name, _, _ := strings.Cut(strings.TrimSpace(part), "=")
+					names[name] = true
+				}
+			}
+			for _, cookie := range t.jar.Cookies(req.URL) {
+				if !names[cookie.Name] {
 					attempt.AddCookie(cookie)
 				}
 			}
 		}
-		if req.GetBody != nil {
-			body, err := req.GetBody()
-			if err != nil {
-				return nil, err
+		if body {
+			if req.GetBody != nil {
+				fresh, err := req.GetBody()
+				if err != nil {
+					return nil, err
+				}
+				attempt.Body = fresh
 			}
-			attempt.Body = body
+		} else {
+			// Type 1 carries no body. A server may answer the challenge before
+			// reading a large POST, and resending that body would close the
+			// connection the answer needs.
+			attempt.Body = http.NoBody
+			attempt.GetBody = nil
+			attempt.ContentLength = 0
+			attempt.Header.Del("Content-Length")
 		}
-		res, err := t.session.RoundTrip(attempt)
-		if err == nil {
-			t.lastAuth, t.lastRequest = authorization, attempt
-			if t.jar != nil {
-				t.jar.SetCookies(req.URL, res.Cookies())
+		roundTrip := func() (*http.Response, error) {
+			res, err := t.session.RoundTrip(attempt)
+			if err == nil {
+				t.lastAuth, t.lastRequest = authorization, attempt
+				if t.jar != nil {
+					t.jar.SetCookies(req.URL, res.Cookies())
+				}
 			}
+			return res, err
+		}
+		if mustReuse == nil && gotConn == nil {
+			return roundTrip()
+		}
+		check := &connCheck{want: mustReuse}
+		trace := &httptrace.ClientTrace{GotConn: func(info httptrace.GotConnInfo) {
+			if gotConn != nil {
+				gotConn(info.Conn)
+			}
+			check.record(info)
+		}}
+		attempt = attempt.WithContext(httptrace.WithClientTrace(attempt.Context(), trace))
+		res, err := roundTrip()
+		if mustReuse != nil && !check.reused() {
+			if res != nil {
+				_ = drainNTLM(res)
+			}
+			return nil, fmt.Errorf("%w: the server closed the connection after its NTLM challenge", errNTLM)
 		}
 		return res, err
 	}
 
-	first, err := send("", false)
+	first, err := send("", true, nil, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -190,9 +235,26 @@ func (t *ntlmTransport) exchange(req *http.Request) (*http.Response, error) {
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", errNTLM, err)
 	}
-	second, err := send("NTLM "+base64.StdEncoding.EncodeToString(negotiate), true)
+	// Type 1 runs without the body, and its connection is the one the answer
+	// must reuse: the proxy pins its upstream to that downstream connection.
+	conns := make(chan net.Conn, 1)
+	second, err := send("NTLM "+base64.StdEncoding.EncodeToString(negotiate), false, nil, func(conn net.Conn) {
+		select {
+		case conns <- conn:
+		default:
+		}
+	})
 	if err != nil {
 		return nil, err
+	}
+	var type1Conn net.Conn
+drain:
+	for {
+		select {
+		case type1Conn = <-conns:
+		default:
+			break drain
+		}
 	}
 	type2, offered := ntlmChallenge(second.Header.Values("WWW-Authenticate"))
 	if !offered || second.StatusCode != http.StatusUnauthorized && second.StatusCode != http.StatusForbidden {
@@ -202,8 +264,13 @@ func (t *ntlmTransport) exchange(req *http.Request) (*http.Response, error) {
 		_ = drainNTLM(second)
 		return nil, fmt.Errorf("%w: the server did not send an NTLM challenge", errNTLM)
 	}
-	if err := drainNTLM(second); err != nil {
-		return nil, err
+	closed := second.Close
+	drainErr := drainNTLM(second)
+	if closed {
+		return nil, fmt.Errorf("%w: the server closed the connection after its NTLM challenge", errNTLM)
+	}
+	if drainErr != nil {
+		return nil, drainErr
 	}
 
 	account := user
@@ -215,7 +282,30 @@ func (t *ntlmTransport) exchange(req *http.Request) (*http.Response, error) {
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", errNTLM, err)
 	}
-	return send("NTLM "+base64.StdEncoding.EncodeToString(authenticate), true)
+	return send("NTLM "+base64.StdEncoding.EncodeToString(authenticate), true, type1Conn, nil)
+}
+
+// connCheck records whether an attempt reused the connection NTLM needs.
+type connCheck struct {
+	mu   sync.Mutex
+	want net.Conn
+	seen bool
+	ok   bool
+}
+
+func (c *connCheck) record(info httptrace.GotConnInfo) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.seen = true
+	c.ok = info.Reused && info.Conn == c.want
+}
+
+// reused reports whether the attempt got the wanted connection. An attempt
+// whose trace never fired cannot be checked and is not refused.
+func (c *connCheck) reused() bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return !c.seen || c.ok
 }
 
 // ntlmChallengeOffered reports whether a response is an NTLM challenge.
@@ -237,23 +327,22 @@ func drainNTLM(res *http.Response) error {
 	return errors.Join(err, res.Body.Close())
 }
 
-// ntlmUserDomain splits Postman's username forms: a non-empty Domain field
-// wins; otherwise DOMAIN\user or user@domain supply the domain.
+// ntlmUserDomain splits the username's own domain: DOMAIN\user or
+// user@domain wins over the Domain field, so DOM\ann with Domain EXAMPLE
+// authenticates as DOM\ann rather than EXAMPLE\DOM\ann.
 func ntlmUserDomain(username, domain string) (user, userDomain string) {
 	username, domain = strings.TrimSpace(username), strings.TrimSpace(domain)
-	if domain != "" {
-		return username, domain
+	if !strings.Contains(username, "@") {
+		if before, after, ok := strings.Cut(username, `\`); ok && before != "" && after != "" && !strings.Contains(after, `\`) {
+			return after, before
+		}
 	}
-	if strings.Contains(username, `\`) && strings.Contains(username, "@") {
-		return username, ""
+	if !strings.Contains(username, `\`) {
+		if before, after, ok := strings.Cut(username, "@"); ok && before != "" && after != "" && !strings.Contains(after, "@") {
+			return before, after
+		}
 	}
-	if before, after, ok := strings.Cut(username, `\`); ok && before != "" && after != "" && !strings.Contains(after, `\`) {
-		return after, before
-	}
-	if before, after, ok := strings.Cut(username, "@"); ok && before != "" && after != "" && !strings.Contains(after, "@") {
-		return before, after
-	}
-	return username, ""
+	return username, domain
 }
 
 // ntlmChallenge reports whether WWW-Authenticate values offer NTLM and returns
@@ -329,95 +418,6 @@ func ntlmChallenge(values []string) (type2 []byte, offered bool) {
 		}
 	}
 	return nil, offered
-}
-
-// exchangeSession is the set of connections one send reuses across an auth
-// handshake: the capture proxy's replay session, or direct connections when no
-// proxy is running.
-type exchangeSession interface {
-	http.RoundTripper
-	Close()
-}
-
-// newExchangeSession sends through srv when it runs, and directly otherwise.
-func newExchangeSession(srv *capture.Server, flow capture.Flow, policy capture.TransferPolicy, certificates certs.Settings) (exchangeSession, error) {
-	if srv != nil {
-		session, err := srv.ReplaySession(flow, policy)
-		if err != nil {
-			return nil, err
-		}
-		return session, nil
-	}
-	return &directSession{certificates: certificates, insecure: policy.TLS == capture.TLSInsecure, transports: make(map[string]*http.Transport)}, nil
-}
-
-// directSession keeps one connection per origin for a send that runs without
-// the capture proxy.
-type directSession struct {
-	certificates certs.Settings
-	insecure     bool
-
-	mu         sync.Mutex
-	closed     bool
-	transports map[string]*http.Transport
-}
-
-func (d *directSession) RoundTrip(req *http.Request) (*http.Response, error) {
-	if req.URL == nil || req.URL.Host == "" {
-		return nil, errors.New("a direct send needs an absolute HTTP(S) URL")
-	}
-	scheme := strings.ToLower(req.URL.Scheme)
-	if scheme != "http" && scheme != "https" {
-		return nil, errors.New("a direct send supports HTTP(S) only")
-	}
-	address := certs.Address(req.URL)
-	key := scheme + "://" + address
-	d.mu.Lock()
-	transport, closed := d.transports[key], d.closed
-	d.mu.Unlock()
-	if closed {
-		return nil, net.ErrClosed
-	}
-	if transport == nil {
-		transport = &http.Transport{MaxConnsPerHost: 1, ForceAttemptHTTP2: false}
-		if scheme == "https" {
-			config, err := d.certificates.TLSConfig(address, nil, d.insecure)
-			if err != nil {
-				return nil, err
-			}
-			transport.TLSClientConfig = config
-		}
-		d.mu.Lock()
-		if d.closed {
-			d.mu.Unlock()
-			transport.CloseIdleConnections()
-			return nil, net.ErrClosed
-		}
-		if existing := d.transports[key]; existing != nil {
-			d.mu.Unlock()
-			transport.CloseIdleConnections()
-			transport = existing
-		} else {
-			d.transports[key] = transport
-			d.mu.Unlock()
-		}
-	}
-	return transport.RoundTrip(req)
-}
-
-func (d *directSession) Close() {
-	d.mu.Lock()
-	if d.closed {
-		d.mu.Unlock()
-		return
-	}
-	d.closed = true
-	transports := d.transports
-	d.transports = nil
-	d.mu.Unlock()
-	for _, transport := range transports {
-		transport.CloseIdleConnections()
-	}
 }
 
 // sameOrigin reports whether two URLs name the same scheme, host and port.

@@ -280,7 +280,7 @@ func (r Request) Execute(ctx context.Context, srv *capture.Server, in Context, v
 			// gets the request's timeout.
 			authCtx, cancel := sendContext(ctx, settings.Timeout())
 			flow := capture.Flow{DebugRun: runKey, Method: req.Method, URL: req.URL, RequestHeader: req.Header, RequestBody: req.Body}
-			got, err = ntlmSend(authCtx, srv, flow, req, r.Auth.NTLM.expand(effective), jar, policy, in)
+			got, err = ntlmSend(authCtx, srv, flow, req, r.Auth.NTLM.expand(effective), jar, policy)
 			timedOut := errors.Is(context.Cause(authCtx), errRequestTimeout)
 			cancel()
 			if err != nil && timedOut {

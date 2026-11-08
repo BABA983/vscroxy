@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/http/cookiejar"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -160,8 +161,11 @@ func TestNTLMThroughProxy(t *testing.T) {
 		if requests[i].Stage != want || requests[i].Connection != requests[0].Connection {
 			t.Errorf("request %d = %+v, want %s on connection %d", i, requests[i], want, requests[0].Connection)
 		}
-		if requests[i].Body != `{"q":"shoes"}` {
-			t.Errorf("request %d body = %q, want the authored body", i, requests[i].Body)
+	}
+	// Type 1 carries no body; the initial request and the answer do.
+	for i, want := range []string{`{"q":"shoes"}`, "", `{"q":"shoes"}`} {
+		if requests[i].Body != want {
+			t.Errorf("request %d body = %q, want %q", i, requests[i].Body, want)
 		}
 	}
 	if problems := auth.Problems(); len(problems) != 0 {
@@ -190,7 +194,7 @@ func TestNTLMWrongPasswordStopsAfterType3(t *testing.T) {
 	auth, upstream := ntlmTestServer(t, false)
 	r := ntlmRequest(upstream.URL)
 	r.Auth.NTLM.Password = "wrong"
-	out := r.Execute(t.Context(), testProxy(t), Context{}, nil, nil)
+	out := r.Execute(t.Context(), testProxy(t), ntlmContext(t), map[string]string{"user": "ann"}, nil)
 	if out.Err != nil || out.Response == nil || out.Response.Status != http.StatusUnauthorized {
 		t.Fatalf("%s: %v; response %+v", out.Stage, out.Err, out.Response)
 	}
@@ -198,8 +202,8 @@ func TestNTLMWrongPasswordStopsAfterType3(t *testing.T) {
 		t.Errorf("outcome = %q, failed=%t; want the server's 401", out.Outcome(), out.Failed())
 	}
 	requests := auth.Requests()
-	if len(requests) != 3 || requests[2].Stage != "denied" {
-		t.Fatalf("requests = %+v, want one denied answer after Type 3", requests)
+	if len(requests) != 3 || requests[2].Stage != "denied" || requests[2].User != "ann" {
+		t.Fatalf("requests = %+v, want ann denied after Type 3", requests)
 	}
 	if auth.Connections() != 1 {
 		t.Errorf("upstream connections = %d, want one", auth.Connections())
@@ -313,14 +317,14 @@ func TestNTLMSameOriginRedirectAnswersAgain(t *testing.T) {
 	}
 }
 
-func TestNTLMDirectWithoutProxy(t *testing.T) {
+func TestNTLMVerificationOffThroughProxy(t *testing.T) {
 	for _, secure := range []bool{false, true} {
 		t.Run(map[bool]string{false: "http", true: "https"}[secure], func(t *testing.T) {
 			auth, upstream := ntlmTestServer(t, secure)
 			off := false
 			r := ntlmRequest(upstream.URL)
 			r.Settings.VerifyTLS = &off
-			out := r.Execute(t.Context(), nil, ntlmContext(t), map[string]string{"user": "ann"}, nil)
+			out := r.Execute(t.Context(), testProxy(t), ntlmContext(t), map[string]string{"user": "ann"}, nil)
 			if out.Err != nil || out.Response == nil || out.Response.Status != http.StatusOK || out.Response.ResponseBody != "authenticated" {
 				t.Fatalf("%s: %v; response %+v", out.Stage, out.Err, out.Response)
 			}
@@ -332,15 +336,14 @@ func TestNTLMDirectWithoutProxy(t *testing.T) {
 }
 
 func TestNTLMTimeoutAppliesToTheExchange(t *testing.T) {
+	srv := testProxy(t)
 	auth, upstream := ntlmTestServer(t, false)
 	auth.Delay = 2 * time.Second
 	one := 1
 	r := ntlmRequest(upstream.URL)
 	r.Settings.TimeoutSeconds = &one
 	started := time.Now()
-	// The direct path avoids closing the proxy while its handler is still
-	// processing the canceled request.
-	out := r.Execute(t.Context(), nil, ntlmContext(t), nil, nil)
+	out := r.Execute(t.Context(), srv, ntlmContext(t), map[string]string{"user": "ann"}, nil)
 	if !errors.Is(out.Err, context.DeadlineExceeded) || out.Stage != "Network error" {
 		t.Fatalf("%s: %v, want the request timeout", out.Stage, out.Err)
 	}
@@ -406,5 +409,99 @@ func TestNTLMExpandsDomainAndWorkstation(t *testing.T) {
 	}
 	if requests := auth.Requests(); len(requests) != 3 || requests[1].Stage != "type1" {
 		t.Errorf("requests = %+v", requests)
+	}
+}
+
+func TestNTLMLargeBodyThroughProxy(t *testing.T) {
+	auth, upstream := ntlmTestServer(t, false)
+	body := strings.Repeat("x", 2<<20)
+	r := ntlmRequest(upstream.URL)
+	r.Body = body
+	out := r.Execute(t.Context(), testProxy(t), ntlmContext(t), map[string]string{"user": "ann"}, nil)
+	if out.Err != nil || out.Response == nil || out.Response.Status != http.StatusOK || out.Response.ResponseBody != "authenticated" {
+		t.Fatalf("%s: %v; response %+v", out.Stage, out.Err, out.Response)
+	}
+	requests := auth.Requests()
+	if len(requests) != 3 {
+		t.Fatalf("requests = %d, want three steps", len(requests))
+	}
+	// The challenge and its answer share one connection even when the large
+	// initial body made the server close the first one.
+	if requests[1].Connection != requests[2].Connection {
+		t.Errorf("Type 1 and Type 3 ran on connections %d and %d", requests[1].Connection, requests[2].Connection)
+	}
+	// The test server records at most 1 MiB of each body.
+	recorded := body[:1<<20]
+	if requests[0].Body != recorded || requests[1].Body != "" || requests[2].Body != recorded {
+		t.Errorf("bodies = %d/%d/%d bytes, want %d, none, %d",
+			len(requests[0].Body), len(requests[1].Body), len(requests[2].Body), len(recorded), len(recorded))
+	}
+}
+
+func TestNTLMType2CloseIsAnError(t *testing.T) {
+	for _, mode := range []string{"header", "silent"} {
+		t.Run(mode, func(t *testing.T) {
+			auth, upstream := ntlmTestServer(t, false)
+			auth.CloseChallenge = mode
+			out := ntlmRequest(upstream.URL).Execute(t.Context(), testProxy(t), ntlmContext(t), map[string]string{"user": "ann"}, nil)
+			if !errors.Is(out.Err, errNTLM) || !strings.Contains(out.Err.Error(), "closed the connection") {
+				t.Fatalf("%s: %v, want a connection-loss error", out.Stage, out.Err)
+			}
+			if out.Response != nil {
+				t.Errorf("response = %+v, want none", out.Response)
+			}
+			if out.Stage != "NTLM authentication failed" {
+				t.Errorf("stage = %q", out.Stage)
+			}
+			if got := len(auth.Requests()); got > 3 {
+				t.Errorf("requests = %d, want no retry loop", got)
+			}
+			if mode == "header" && len(auth.Requests()) != 2 {
+				t.Errorf("requests = %+v, want no Type 3 after the server closed", auth.Requests())
+			}
+		})
+	}
+}
+
+func TestNTLMKeepsAuthoredCookie(t *testing.T) {
+	auth, upstream := ntlmTestServer(t, false)
+	jar, _ := cookiejar.New(nil)
+	u, _ := url.Parse(upstream.URL)
+	jar.SetCookies(u, []*http.Cookie{{Name: "extra", Value: "1", Path: "/"}})
+	r := ntlmRequest(upstream.URL)
+	r.Headers = "Cookie: session=abc"
+	out := r.Execute(t.Context(), testProxy(t), ntlmContext(t), map[string]string{"user": "ann"}, jar)
+	if out.Err != nil || out.Response == nil || out.Response.Status != http.StatusOK {
+		t.Fatalf("%s: %v; response %+v", out.Stage, out.Err, out.Response)
+	}
+	requests := auth.Requests()
+	if len(requests) != 3 {
+		t.Fatalf("requests = %d", len(requests))
+	}
+	for i, request := range requests {
+		if !strings.Contains(request.Cookie, "session=abc") || !strings.Contains(request.Cookie, "extra=1") {
+			t.Errorf("request %d cookie = %q, want the authored session and the jar's extra", i, request.Cookie)
+		}
+	}
+}
+
+func TestNTLMUsernameDomainWinsOverField(t *testing.T) {
+	auth := &ntlmtest.Server{Username: "ann", Password: ntlmPassword, Domain: "DOM", Workstation: "PC"}
+	upstream := httptest.NewUnstartedServer(auth)
+	upstream.Config.ConnContext = auth.ConnContext
+	upstream.Start()
+	defer upstream.Close()
+	r := ntlmRequest(upstream.URL)
+	r.Auth.NTLM.Username, r.Auth.NTLM.Domain = `DOM\ann`, "EXAMPLE"
+	out := r.Execute(t.Context(), testProxy(t), ntlmContext(t), nil, nil)
+	if out.Err != nil || out.Response == nil || out.Response.Status != http.StatusOK {
+		t.Fatalf("%s: %v; response %+v", out.Stage, out.Err, out.Response)
+	}
+	requests := auth.Requests()
+	if len(requests) != 3 || requests[2].User != "ann" || requests[2].Domain != "DOM" {
+		t.Fatalf("requests = %+v, want DOM\\ann despite Domain EXAMPLE", requests)
+	}
+	if problems := auth.Problems(); len(problems) != 0 {
+		t.Errorf("server problems: %q", problems)
 	}
 }

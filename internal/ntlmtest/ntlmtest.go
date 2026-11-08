@@ -50,6 +50,9 @@ type Server struct {
 	Workstation string
 	// Delay waits before answering, for timeout tests.
 	Delay time.Duration
+	// CloseChallenge closes the connection after the Type 2 response:
+	// "header" sends Connection: close, "silent" closes without saying so.
+	CloseChallenge string
 
 	mu          sync.Mutex
 	connections int
@@ -65,6 +68,7 @@ type Request struct {
 	User        string
 	Domain      string
 	Workstation string
+	Cookie      string
 	Body        string
 }
 
@@ -117,7 +121,7 @@ func (s *Server) problem(format string, args ...any) {
 
 func (s *Server) record(r *http.Request, st *connState, stage string, t3 *type3) {
 	body, _ := io.ReadAll(io.LimitReader(r.Body, 1<<20))
-	entry := Request{Connection: st.id, Path: r.URL.Path, Stage: stage, Body: string(body)}
+	entry := Request{Connection: st.id, Path: r.URL.Path, Stage: stage, Cookie: r.Header.Get("Cookie"), Body: string(body)}
 	if t3 != nil {
 		entry.User, entry.Domain, entry.Workstation = t3.User, t3.Domain, t3.Workstation
 	}
@@ -197,7 +201,28 @@ func (s *Server) type1(w http.ResponseWriter, r *http.Request, st *connState, me
 	st.targetInfo = s.targetInfo()
 	st.stage = "type2"
 	s.record(r, st, "type1", nil)
-	w.Header().Set("WWW-Authenticate", "NTLM "+base64.StdEncoding.EncodeToString(s.challengeMessage(st.challenge, st.targetInfo)))
+	challenge := s.challengeMessage(st.challenge, st.targetInfo)
+	if s.CloseChallenge == "silent" {
+		hijacker, ok := w.(http.Hijacker)
+		if !ok {
+			s.problem("response writer cannot be hijacked")
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		conn, buf, err := hijacker.Hijack()
+		if err != nil {
+			s.problem("hijack: %v", err)
+			return
+		}
+		fmt.Fprintf(buf, "HTTP/1.1 401 Unauthorized\r\nContent-Length: 0\r\nWWW-Authenticate: NTLM %s\r\n\r\n", base64.StdEncoding.EncodeToString(challenge))
+		_ = buf.Flush()
+		_ = conn.Close()
+		return
+	}
+	if s.CloseChallenge == "header" {
+		w.Header().Set("Connection", "close")
+	}
+	w.Header().Set("WWW-Authenticate", "NTLM "+base64.StdEncoding.EncodeToString(challenge))
 	w.WriteHeader(http.StatusUnauthorized)
 }
 
