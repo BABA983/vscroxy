@@ -14,6 +14,7 @@ import (
 
 	"github.com/baba983/vscroxy/internal/capture"
 	"github.com/baba983/vscroxy/internal/request"
+	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/editor"
 )
@@ -97,17 +98,17 @@ func (a *app) detail(c *ui.Context) {
 		}
 		if !ok {
 			ui.Row(c).Height(uikit.HeightLarge).Padding(0, t.Space(3)).AlignItems(ui.Center).Children(func() {
-				uikit.Hint(c, "No request chosen")
+				uikit.Hint(c, locales.NoRequestChosen())
 			})
 			ui.Divider(c)
-			uikit.Hint(c, "Capture a request to inspect it.").Padding(t.Space(4))
+			uikit.Hint(c, locales.CaptureARequestToInspect()).Padding(t.Space(4))
 			return
 		}
 		d, problem := a.liveDocument(f)
 		a.capturedHeader(c, t, f, d)
 		a.replayLinks(c, f)
 		if len(f.actions) > 0 {
-			ui.Text(c, "Applied: "+strings.Join(f.actions, " · ")).FontSize(uikit.TextMeta).TextColor(t.Accent).
+			ui.Text(c, locales.AppliedActions(strings.Join(f.actions, " · "))).FontSize(uikit.TextMeta).TextColor(t.Accent).
 				Padding(4, 14).SingleLine().Tooltip(strings.Join(f.actions, "\n"))
 		}
 		switch a.inspect.pane {
@@ -144,9 +145,9 @@ func (a *app) connectDetail(c *ui.Context, t *ui.Theme, f flow) {
 			ui.Text(c, cmp.Or(f.conn.errorStage, "Connection")+" failed").FontSize(uikit.TextBody).TextColor(t.Danger)
 		}
 		ui.ScrollHorizontal(c).Grow(1).FillHeight().Children(func() {
-			uikit.Tabs(c, &a.tab, "", "HTTPS setup", "Connection")
+			uikit.Tabs(c, &a.tab, "", locales.HttpsSetup(), "Connection")
 		})
-		if uikit.SecondaryButton(c, "Explain").Tooltip("Diagnose this connection").Clicked() {
+		if uikit.SecondaryButton(c, locales.Explain()).Tooltip(locales.DiagnoseThisConnection()).Clicked() {
 			a.openDiagnostics(&f, diagnoseMac)
 		}
 		a.actionButton(c, "view.focus-inspector", "Focus")
@@ -193,7 +194,7 @@ func (a *app) exchangeResult(c *ui.Context, t *ui.Theme, f flow, compact bool) {
 // inspectorMenu holds the exchange-wide views and the layout choices, so the
 // default screen stays request beside response.
 func (a *app) inspectorMenu(c *ui.Context, t *ui.Theme, f flow) {
-	uikit.MoreMenu(c, "Inspector options", func(m *ui.Menu) { actionMenu(m, a.inspectorActions(c, f)) })
+	uikit.MoreMenu(c, locales.InspectorOptions(), func(m *ui.Menu) { actionMenu(m, a.inspectorActions(c, f)) })
 }
 
 // inspectorWidth is the main pane's width beneath the list, its share beside
@@ -299,7 +300,7 @@ func (a *app) paneTabs(c *ui.Context, t *ui.Theme, side string, selected *int, l
 		bodyTab = resTabBody
 	}
 	ui.Row(c).Height(uikit.HeightLarge).Padding(0, t.Space(2)).Gap(t.Space(1)).AlignItems(ui.Center).Children(func() {
-		title := uikit.ToolbarButton(c, side+" pane", "Read this side in shared readers", false).Height(uikit.HeightCompact).Padding(0, t.Space(1))
+		title := uikit.ToolbarButton(c, side+" pane", locales.ReadThisSideInShared(), false).Height(uikit.HeightCompact).Padding(0, t.Space(1))
 		if a.inspect.focus == bodySide {
 			title.TextColor(t.Text)
 		}
@@ -314,28 +315,28 @@ func (a *app) paneTabs(c *ui.Context, t *ui.Theme, side string, selected *int, l
 			a.bodyFormatMenu(c, t, bodySide)
 			uikit.MoreMenu(c, side+" pane options", func(m *ui.Menu) {
 				actionMenu(m, []action{
-					do("body.find", "Find in text…", func() {
+					do("body.find", locales.FindInText(), func() {
 						if reader := a.bodyText[bodySide]; reader != nil {
 							reader.Run(editor.Find)
 						}
 					}),
-					do("body.decode", "Decode text…", func() {
+					do("body.decode", locales.DecodeText(), func() {
 						body := a.body
 						if bodySide == 1 {
 							body = a.reqBody
 						}
 						a.openDecoder(a.bodyText[bodySide], body)
 					}),
-					do("body.query", "Query JSON…", func() {
+					do("body.query", locales.QueryJson(), func() {
 						if f, ok := a.current(); ok {
 							a.openJSONQuery(capturedInspectionBody(f, bodySide))
 						}
 					}),
-					do("body.copy", "Copy shown body", func() { a.copyPaneBody(c, bodySide) }),
+					do("body.copy", locales.CopyShownBody(), func() { a.copyPaneBody(c, bodySide) }),
 				})
 				if bodySide == 0 {
 					f, ok := a.current()
-					actionMenu(m, []action{do("body.save", "Save body…", func() {
+					actionMenu(m, []action{do("body.save", locales.SaveBody(), func() {
 						a.saveResponseBody(capture.Flow{Status: f.status, ResponseBody: f.resBody,
 							ResponseBodyFile: f.resFile, ResponseBodySize: f.resSize, ResponseBodyError: f.resError})
 					}).when(ok && f.status != 0, "No response was received")})
@@ -404,7 +405,7 @@ func bodyFormatLabel(side int) string {
 // inspectorPaneBar names an exchange-wide view and gives the way back.
 func (a *app) inspectorPaneBar(c *ui.Context, t *ui.Theme, title, note string) {
 	ui.Row(c).Height(uikit.HeightLarge).Padding(0, t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-		if uikit.IconButton(c, "Back to request and response", "Request and response", backIcon).Clicked() {
+		if uikit.IconButton(c, locales.BackToRequestAndResponse(), locales.RequestAndResponse(), backIcon).Clicked() {
 			a.inspect.pane = inspectorSplit
 		}
 		ui.Text(c, title).FontSize(uikit.TextBody).FontWeight(600).TextColor(t.Text)
@@ -443,7 +444,7 @@ func (a *app) headersSide(c *ui.Context, f flow, side int) {
 				if a.inspect.reveal[side] {
 					label = "Hide"
 				}
-				if uikit.ToolbarButton(c, "Reveal credentials", "Credentials are masked so a shared screen or recording does not leak them", false).Height(uikit.HeightCompact).
+				if uikit.ToolbarButton(c, locales.RevealCredentials(), locales.CredentialsAreMaskedSoA(), false).Height(uikit.HeightCompact).
 					Children(func() { ui.Text(c, label).FontSize(uikit.TextMeta) }).Clicked() {
 					a.inspect.reveal[side] = !a.inspect.reveal[side]
 				}
@@ -452,7 +453,7 @@ func (a *app) headersSide(c *ui.Context, f flow, side int) {
 		ui.Scroll(c).TrackScroll(&a.headerScroll[side]).Grow(1).FillWidth().Children(func() {
 			if len(headers) == 0 {
 				if raw == "" {
-					uikit.Hint(c, "No headers recorded").Padding(t.Space(3))
+					uikit.Hint(c, locales.NoHeadersRecorded()).Padding(t.Space(3))
 				} else {
 					ui.Text(c, raw).FontSize(uikit.TextBody).Font(uikit.FontMono).TextColor(t.Text).Selectable().Padding(t.Space(3))
 				}
@@ -472,7 +473,7 @@ func (a *app) headersSide(c *ui.Context, f flow, side int) {
 				ui.Divider(c).Background(t.Border.Alpha(0.45))
 			}
 			if len(trailers) > 0 {
-				uikit.Label(c, "Trailers").Padding(t.Space(2), t.Space(3), t.Space(1)).FillWidth()
+				uikit.Label(c, locales.Trailers()).Padding(t.Space(2), t.Space(3), t.Space(1)).FillWidth()
 				for _, key := range slices.Sorted(maps.Keys(trailers)) {
 					uikit.KVRow(c, func() {
 						uikit.Hint(c, key).Font(uikit.FontMono).Width(124).SingleLine()
@@ -490,7 +491,7 @@ func (a *app) paramsSide(c *ui.Context, f flow) {
 	t := c.Theme()
 	parsed, err := url.Parse(cmp.Or(f.url, f.scheme+"://"+f.host+f.path))
 	if err != nil || len(parsed.Query()) == 0 {
-		uikit.Hint(c, "No query parameters in this request").Padding(t.Space(4))
+		uikit.Hint(c, locales.NoQueryParametersInThis()).Padding(t.Space(4))
 		return
 	}
 	ui.Scroll(c).Grow(1).FillWidth().Children(func() {
@@ -513,11 +514,11 @@ func (a *app) rawSide(c *ui.Context, f flow, side int) {
 	if a.rawEditor[side] == nil {
 		buf := editor.NewBuffer(a.rawText[side])
 		buf.SetLanguage(editor.LanguageNamed("http"))
-		a.rawEditor[side] = &editor.State{Buffer: buf, ReadOnly: true, NoScrollPastEnd: true, SoftWrap: true, Label: "Raw message"}
+		a.rawEditor[side] = &editor.State{Buffer: buf, ReadOnly: true, NoScrollPastEnd: true, SoftWrap: true, Label: locales.RawMessage()}
 	}
 	ui.Row(c).Padding(t.Space(2), t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-		uikit.Meta(c, "As sent and received · capture bytes").Grow(1)
-		if uikit.SecondaryButton(c, "Copy raw").Height(uikit.HeightCompact).Disabled(a.rawText[side] == "").Clicked() {
+		uikit.Meta(c, locales.AsSentAndReceivedCapture()).Grow(1)
+		if uikit.SecondaryButton(c, locales.CopyRaw()).Height(uikit.HeightCompact).Disabled(a.rawText[side] == "").Clicked() {
 			c.Services().WriteClipboard(a.rawText[side])
 			a.done("Copied raw message; review credentials before sharing")
 		}
@@ -532,12 +533,12 @@ func (a *app) rawSide(c *ui.Context, f flow, side int) {
 func (a *app) diffPane(c *ui.Context, f flow) {
 	t := c.Theme()
 	if !a.diffBaseline {
-		uikit.Hint(c, "No previous response for this method and URL. Replay the request to compare responses.").Padding(t.Space(4))
+		uikit.Hint(c, locales.NoPreviousResponseForThis()).Padding(t.Space(4))
 		return
 	}
 	ui.Row(c).Padding(t.Space(2), t.Space(3)).Children(func() {
-		uikit.Meta(c, "Previous response (left)").Grow(1)
-		uikit.Meta(c, "Current response (right)").Grow(1)
+		uikit.Meta(c, locales.PreviousResponseLeft()).Grow(1)
+		uikit.Meta(c, locales.CurrentResponseRight()).Grow(1)
 	})
 	if a.diff != nil {
 		editor.DiffView(c, a.diff).Grow(1).FillWidth()
@@ -602,14 +603,14 @@ func (a *app) inspectorActions(c *ui.Context, f flow) []action {
 		actions = append(actions, pane("inspector.messages", "Messages", inspectorMessages))
 	}
 	actions = append(actions,
-		do("flow.discard-edits", "Discard edits", func() {
+		do("flow.discard-edits", locales.DiscardEdits(), func() {
 			delete(a.flowDrafts, f.id)
 			a.liveFor = 0 // The capture opens unchanged again.
 		}).when(a.flowDrafts[f.id] != nil, "This request has no edits").in("flow"),
 		pick(a.actions(c), "flow.replay").as("Replay…").in("flow"),
-		do("flow.save-evidence", "Save evidence to Sessions", func() { a.saveEvidence(f) }).in("flow"),
-		do("flow.connection-details", "Connection details", func() { a.connOpen = !a.connOpen }).in("flow"),
-		do("flow.history", "History", func() { a.openDebugHistory(newDebugSource(f)) }).in("flow"),
+		do("flow.save-evidence", locales.SaveEvidenceToSessions(), func() { a.saveEvidence(f) }).in("flow"),
+		do("flow.connection-details", locales.ConnectionDetails(), func() { a.connOpen = !a.connOpen }).in("flow"),
+		do("flow.history", locales.History(), func() { a.openDebugHistory(newDebugSource(f)) }).in("flow"),
 		copyAsMenu(append(a.requestCopyActions(c, f, nil), a.captureCopyActions(c, []flow{f})...)).in("flow"),
 	)
 	for _, x := range a.pickActions(c, "view.focus-inspector", "view.layout-right", "view.layout-bottom") {

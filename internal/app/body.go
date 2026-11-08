@@ -13,6 +13,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/baba983/vscroxy/internal/inspect"
+	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/editor"
 	"github.com/egoist/mygo/ui/richtext"
@@ -290,7 +291,7 @@ func (a *app) bodySideView(c *ui.Context, f flow, side int) {
 			if owner == 1 {
 				name = "request"
 			}
-			uikit.Hint(c, "Protobuf is read in the "+name+" pane.").Padding(t.Space(4))
+			uikit.Hint(c, locales.ProtobufReadInPane(name)).Padding(t.Space(4))
 			return
 		}
 		// Keep the message picker and copy action reachable even when the
@@ -334,7 +335,7 @@ func (a *app) bodySideView(c *ui.Context, f flow, side int) {
 			}
 		}
 		if !a.jsonOK[side] {
-			uikit.Meta(c, "Body is not JSON; showing it as text").Padding(t.Space(3))
+			uikit.Meta(c, locales.BodyIsNotJsonShowing()).Padding(t.Space(3))
 			a.prettyBody(c, body, side)
 			return
 		}
@@ -360,11 +361,11 @@ func (a *app) previewBody(c *ui.Context, f flow, body string, side int) {
 	case ct == "text/html" || ct == "application/xhtml+xml":
 		a.htmlPreview(c, key, body, side)
 	default:
-		uikit.Hint(c, "No preview for "+cmp.Or(ct, "this body")).Padding(t.Space(4))
-		if uikit.SecondaryButton(c, "Show as text").Margin(0, t.Space(3)).Clicked() {
+		uikit.Hint(c, locales.NoPreviewFor(cmp.Or(ct, "this body"))).Padding(t.Space(4))
+		if uikit.SecondaryButton(c, locales.ShowAsText()).Margin(0, t.Space(3)).Clicked() {
 			a.bodyMode[side] = 1
 		}
-		if uikit.SecondaryButton(c, "Show as hex").Margin(0, t.Space(3)).Clicked() {
+		if uikit.SecondaryButton(c, locales.ShowAsHex()).Margin(0, t.Space(3)).Clicked() {
 			a.bodyMode[side] = 3
 		}
 	}
@@ -383,7 +384,7 @@ func (a *app) imagePreview(c *ui.Context, key, body string, side int) {
 		}
 	}
 	if a.imageErr[side] != "" {
-		uikit.Hint(c, "Cannot decode image: "+a.imageErr[side]).Padding(t.Space(4))
+		uikit.Hint(c, locales.CannotDecodeImage(a.imageErr[side])).Padding(t.Space(4))
 		return
 	}
 	if a.imageBmp[side] == nil {
@@ -420,7 +421,7 @@ func (a *app) prettyBody(c *ui.Context, body string, side int) {
 		if isJSON {
 			buf.SetLanguage(editor.LanguageNamed("json"))
 		}
-		reader = &editor.State{Buffer: buf, ReadOnly: true, NoScrollPastEnd: true, SoftWrap: true, Label: "Body text", RenderFindBar: bodyFindBar}
+		reader = &editor.State{Buffer: buf, ReadOnly: true, NoScrollPastEnd: true, SoftWrap: true, Label: locales.BodyText(), RenderFindBar: bodyFindBar}
 		a.bodyText[side] = reader
 	}
 	a.decoderMenu(reader)
@@ -434,15 +435,15 @@ func bodyFindBar(c *ui.Context, bar ui.Element, find *editor.FindBar) {
 	t := c.Theme()
 	bar.Row().Gap(t.Space(2)).Padding(t.Space(2)).AlignItems(ui.Center).Background(uikit.Colors(t).Panel).Border(1, t.Border).Radius(uikit.RadiusControl)
 	bar.Children(func() {
-		find.QueryInput(uikit.Input(c, find.Query()).Label("Search body").Placeholder("Find in body…").Width(140))
+		find.QueryInput(uikit.Input(c, find.Query()).Label("Search body").Placeholder(locales.FindInBody()).Width(140))
 		uikit.Meta(c, find.Status()).FontFeatures("tnum").MinWidth(40).Role(ui.RoleStatus)
-		if uikit.SecondaryButton(c, "↑").Label("Previous body match").Tooltip("Previous match · Shift+Enter").KeepFocus().Clicked() {
+		if uikit.SecondaryButton(c, "↑").Label("Previous body match").Tooltip(locales.PreviousMatchShiftEnter()).KeepFocus().Clicked() {
 			find.Previous()
 		}
-		if uikit.SecondaryButton(c, "↓").Label("Next body match").Tooltip("Next match · Enter").KeepFocus().Clicked() {
+		if uikit.SecondaryButton(c, "↓").Label("Next body match").Tooltip(locales.NextMatchEnter()).KeepFocus().Clicked() {
 			find.Next()
 		}
-		if uikit.SecondaryButton(c, "×").Label("Close body search").Tooltip("Close search · Esc").KeepFocus().Clicked() {
+		if uikit.SecondaryButton(c, "×").Label("Close body search").Tooltip(locales.CloseSearchEsc()).KeepFocus().Clicked() {
 			find.Close()
 		}
 	})
@@ -458,7 +459,7 @@ func (a *app) jsonBody(c *ui.Context, side int) {
 		rows = a.visibleJSON(side)
 	}
 	if len(rows) == 0 {
-		uikit.Hint(c, "No matches").Padding(t.Space(4))
+		uikit.Hint(c, locales.NoMatches()).Padding(t.Space(4))
 		return
 	}
 	ui.List(c, &a.jsonScroll[side], len(rows), func(i int) {
@@ -498,7 +499,7 @@ func (a *app) hexBody(c *ui.Context, body string, side int) {
 	t := c.Theme()
 	rows := hexRows(body, a.bodyQuery[side])
 	if len(rows) == 0 {
-		uikit.Hint(c, "No matches").Padding(t.Space(4))
+		uikit.Hint(c, locales.NoMatches()).Padding(t.Space(4))
 		return
 	}
 	ui.List(c, &a.hexScroll[side], len(rows), func(i int) {

@@ -8,6 +8,7 @@ import (
 
 	"github.com/baba983/vscroxy/internal/inspect"
 	"github.com/baba983/vscroxy/internal/uikit"
+	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/editor"
 )
@@ -45,10 +46,10 @@ func (a *app) decoderModal(c *ui.Context) {
 	_, height := c.Size()
 	uikit.Modal(c, &u.open, func() {
 		uikit.DialogColumn(c, uikit.DialogMedium).Height(min(530, height-70)).Children(func() {
-			uikit.DialogTitle(c, "Decode text")
+			uikit.DialogTitle(c, locales.DecodeText2())
 			ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 				uikit.Select(c, &u.kind, []string{"Base64", "JWT", "URL component", "URL query", "Unix seconds", "Unix milliseconds"}).Label("Decoder").Width(185)
-				uikit.Meta(c, "Local preview · does not change or send the request").Grow(1)
+				uikit.Meta(c, locales.LocalPreviewDoesNotChange()).Grow(1)
 			})
 			ui.Column(c).Height(110).Children(func() {
 				authoredText(c, &u.input, &u.inputEditor, &u.inputFor, "Decode input", "")
@@ -59,25 +60,25 @@ func (a *app) decoderModal(c *ui.Context) {
 			if u.result != nil {
 				requestCodeEditor(c, u.result)
 			} else {
-				uikit.Hint(c, "Choose an encoding and Decode. JWT signatures are not verified.").Grow(1)
+				uikit.Hint(c, locales.ChooseAnEncodingAndDecode()).Grow(1)
 			}
 			uikit.DialogFooter(c).Children(func() {
 				ui.Row(c).Disabled(u.result == nil).Children(func() {
-					if uikit.SecondaryButton(c, "Copy result").Clicked() {
+					if uikit.SecondaryButton(c, locales.CopyResult()).Clicked() {
 						c.Services().WriteClipboard(u.result.Buffer.String())
 					}
 				})
 				ui.Spacer(c)
-				if uikit.SecondaryButton(c, "Close").Clicked() {
+				if uikit.SecondaryButton(c, locales.Close()).Clicked() {
 					u.open = false
 				}
-				if uikit.PrimaryButton(c, "Decode").Clicked() {
+				if uikit.PrimaryButton(c, locales.Decode()).Clicked() {
 					text, err := inspect.Decode(u.kind, u.input)
 					u.error, u.result = "", nil
 					if err != nil {
 						u.error = err.Error()
 					} else {
-						u.result = &editor.State{Buffer: editor.NewBuffer(text), ReadOnly: true, SoftWrap: true, Label: "Decoded result"}
+						u.result = &editor.State{Buffer: editor.NewBuffer(text), ReadOnly: true, SoftWrap: true, Label: locales.DecodedResult()}
 					}
 				}
 			})
@@ -128,7 +129,7 @@ func cookieView(c *ui.Context, headers http.Header, response bool, reveal *bool)
 		}
 		ui.Scroll(c).Grow(1).FillWidth().Children(func() {
 			if len(cookies) == 0 {
-				uikit.Hint(c, "No cookies recorded on this side").Padding(t.Space(3))
+				uikit.Hint(c, locales.NoCookiesRecordedOnThis()).Padding(t.Space(3))
 			}
 			for i, cookie := range cookies {
 				ui.Column(c).Key(i).Padding(t.Space(2), t.Space(3)).Gap(t.Space(1)).Children(func() {

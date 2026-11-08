@@ -8,6 +8,7 @@ import (
 	"github.com/baba983/vscroxy/internal/inspect"
 	"github.com/baba983/vscroxy/internal/request"
 	"github.com/baba983/vscroxy/internal/uikit"
+	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -55,24 +56,24 @@ func (s *structuredInspector) view(c *ui.Context, source inspectionBody, content
 		}
 		uikit.Meta(c, label).Grow(1).SingleLine().Tooltip(label)
 		ui.Row(c).Disabled(s.job.result == nil).Children(func() {
-			if uikit.SecondaryButton(c, "Copy view").Clicked() {
+			if uikit.SecondaryButton(c, locales.CopyView()).Clicked() {
 				c.Services().WriteClipboard(s.job.result.Buffer.String())
 			}
 		})
 	})
 	if s.job.problem != "" {
 		ui.Text(c, s.job.problem).FontSize(uikit.TextBody).TextColor(t.Warning).Padding(t.Space(3)).FillWidth()
-		uikit.Hint(c, "Choose Pretty/Raw or Hex to inspect original bytes.").Padding(t.Space(3))
+		uikit.Hint(c, locales.ChoosePrettyRawOrHex()).Padding(t.Space(3))
 		return
 	}
 	if s.job.body == nil {
-		uikit.Hint(c, "Inspecting retained body…").Padding(t.Space(3))
+		uikit.Hint(c, locales.InspectingRetainedBody()).Padding(t.Space(3))
 		return
 	}
 	body := s.job.body
 	switch body.Format {
 	case "Form":
-		cols := []ui.TableColumn{{Title: "#", Width: 36, Fixed: true}, {Title: "Name"}, {Title: "Value"}}
+		cols := []ui.TableColumn{{Title: "#", Width: 36, Fixed: true}, {Title: locales.Name()}, {Title: locales.Value()}}
 		ui.Table(c, &s.list, cols, len(body.Fields), func(row, col int) {
 			field := body.Fields[row]
 			value := fmt.Sprint(row + 1)
@@ -91,24 +92,24 @@ func (s *structuredInspector) view(c *ui.Context, source inspectionBody, content
 			uikit.Mono(c, clamp(value, 256)).SingleLine().Tooltip(clamp(raw, 4096)).Selectable()
 		}).Label("Form fields").Grow(1).MinHeight(0)
 		if len(body.Fields) == 0 {
-			uikit.Hint(c, "No form fields")
+			uikit.Hint(c, locales.NoFormFields())
 		}
 	case "Multipart":
 		ui.List(c, &s.list, len(body.Parts), func(i int) {
 			part := body.Parts[i]
 			ui.Column(c).Padding(t.Space(2), t.Space(3)).Gap(t.Space(1)).FillWidth().Children(func() {
-				uikit.Body(c, fmt.Sprintf("Part %d · %q · %d bytes", i+1, part.Name, part.Size)).FillWidth()
+				uikit.Body(c, locales.PartInfo(i+1, fmt.Sprintf("%q", part.Name), part.Size)).FillWidth()
 				if part.File {
-					uikit.Meta(c, "File: "+fmt.Sprintf("%q", part.Filename)+" · payload not previewed").FillWidth()
+					uikit.Meta(c, locales.FilePart(fmt.Sprintf("%q", part.Filename))).FillWidth()
 				}
 				uikit.Meta(c, clamp(request.HeaderBlock(http.Header(part.Headers)), 4096)).Selectable().FillWidth()
 				if part.Preview != nil {
 					uikit.Mono(c, *part.Preview).Selectable().FillWidth()
 					if part.PreviewTruncated {
-						uikit.Meta(c, "Text preview limited to 4 KiB")
+						uikit.Meta(c, locales.TextPreviewLimitedTo4())
 					}
 				} else if !part.File {
-					uikit.Hint(c, "Binary, encoded or non-UTF-8 field · payload not previewed").FillWidth()
+					uikit.Hint(c, locales.BinaryEncodedOrNonUtf()).FillWidth()
 				}
 			})
 			ui.Divider(c)

@@ -1,12 +1,86 @@
 {
   "@@locale": "en",
+  "@averageTiming": {
+    "placeholders": {
+      "average": {
+        "type": "String"
+      },
+      "p50": {
+        "type": "int"
+      },
+      "max": {
+        "type": "int"
+      }
+    }
+  },
+  "@errorsCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "@incompleteBodies": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "@inspectNumbered": {
+    "placeholders": {
+      "id": {
+        "type": "int"
+      }
+    }
+  },
+  "@millis": {
+    "placeholders": {
+      "ms": {
+        "type": "int"
+      }
+    }
+  },
+  "@replayOf": {
+    "placeholders": {
+      "id": {
+        "type": "int"
+      }
+    }
+  },
+  "@replaysCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "@requestsSelected": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "@responseBytes": {
+    "placeholders": {
+      "bytes": {
+        "type": "int"
+      }
+    }
+  },
   "aColorShowsInThe": "A color shows in the table beside the method, and the note in the URL cell and the detail header.",
+  "aFilterKeepsThisView": "A filter keeps this view's URL, content and triage conditions. Applying one changes this view; the other views keep their own.",
   "aHigherProfileMapsThe": "A higher profile maps the same host elsewhere",
+  "aNewViewWithIts": "A new view with its own filters, selection and scroll position",
   "aProfileFetchedFromA": "A profile fetched from a URL, refreshed hourly",
   "access": "Access",
   "activeTool": "Active tool: {name}",
   "addColumn": "Add column…",
+  "addColumn2": "Add column",
   "address": "Address",
+  "aggregateTimingOnlyNoRequest": "Aggregate timing only · no request-local trace was recorded",
+  "all": "All",
   "allConditionsMustMatchRemove": "All conditions must match. Remove a condition above or edit the filters.",
   "allRequests": "All requests",
   "allowList": "Allow list",
@@ -14,31 +88,54 @@
   "anyContentFieldMayMatch": "Any content field may match; search and scope must still match. Edit the filters or broaden the scope.",
   "apiContracts": "API contracts",
   "apiTitle": "API: {name}",
+  "appExactName": "App (exact name)",
   "appFilterIsActiveRemove": "App filter is active; remove it in the condition bar",
   "appearance": "Appearance",
+  "appliedActions": "Applied: {actions}",
   "appliesTo": "Applies to",
+  "apply": "Apply",
   "applyContinue": "Apply & continue",
+  "applyNamed": "Apply {name}",
+  "applySavedConditions": "Apply saved conditions",
   "apps": "Apps",
   "appsAndDomainsShowHere": "Apps and domains show here as their traffic arrives.",
+  "asSentAndReceivedCapture": "As sent and received · capture bytes",
   "autoFollow": "Auto-follow",
   "automatic": "Automatic",
+  "averageTiming": "Average: {average} ms · P50: {p50} ms · Max: {max} ms",
+  "backToRequestAndResponse": "Back to request and response",
   "backUpAndShare": "Back up and share",
+  "binaryEncodedOrNonUtf": "Binary, encoded or non-UTF-8 field · payload not previewed",
   "binaryUndecodableOrLargeBody": "Binary, undecodable or large body: preserved unchanged; headers can still be edited.",
   "blankIsAutomaticPrefers7890": "Blank is automatic (prefers 7890). A fixed port (1024–65535) never falls back. Applies after a restart.",
   "bodiesPast64KbAre": "Bodies past 64 KB are kept in temporary files. Past any limit the oldest requests go first, with their files; pinned ones stay.",
+  "body": "Body",
   "bodyEditsUseDecodedBytes": "Body edits use decoded bytes; encoding, digest and length headers are recalculated or removed.",
+  "bodyIsNotJsonShowing": "Body is not JSON; showing it as text",
+  "bodyText": "Body text",
   "breakpoints": "Breakpoints",
+  "browser": "Browser",
   "caching": "Caching",
   "cancel": "Cancel",
+  "cancelQuery": "Cancel query",
   "cancelSend": "Cancel send",
+  "cannotDecodeImage": "Cannot decode image: {error}",
   "capture": "Capture",
+  "captureARequestToInspect": "Capture a request to inspect it.",
   "captureIsNotRunning": "Capture is not running",
   "captureIsStopped": "Capture is stopped",
   "captureOneAppOnly": "Capture one app only…",
+  "captureViewNamed": "Capture view: {name}",
   "capturingTrustingTheCertificateAnd": "Capturing, trusting the certificate and choosing what to decrypt.",
+  "caseInsensitiveText": "case-insensitive text",
   "certificates": "Certificates",
+  "chooseAMessageToSee": "Choose a message to see it in full",
   "chooseAllShown": "Choose all shown",
+  "chooseAnEncodingAndDecode": "Choose an encoding and Decode. JWT signatures are not verified.",
   "chooseEnterRunEscClose": "↑ ↓ Choose · Enter Run · Esc Close",
+  "chooseExactlyTwoRowsWith": "Choose exactly two rows with Ctrl/Cmd-click",
+  "choosePrettyRawOrHex": "Choose Pretty/Raw or Hex to inspect original bytes.",
+  "clear": "Clear",
   "clearCapturedRequests": "Clear captured requests?",
   "clearChoice": "Clear choice",
   "clearFilters": "Clear filters",
@@ -50,74 +147,120 @@
   "clientSetup": "Client setup",
   "close": "Close",
   "closeRequest": "Close request",
+  "closeSearchEsc": "Close search · Esc",
   "closeTheClientsOpenConnections": "Close the clients' open connections so they connect again",
+  "closeThisView": "Close this view",
+  "closeViewNamed": "Close view: {name}",
   "closeWindow": "Close window",
   "collectionOptions": "Collection options",
   "collectionSettings": "Collection settings…",
   "collections": "Collections",
   "collectionsApisEnvironmentsAndRuns": "Collections, APIs, environments and runs",
+  "color": "Color",
   "commands": "Commands…",
   "commands2": "Commands",
+  "compareTwo": "Compare two",
   "compareWithSource": "Compare with source",
+  "concurrency": "Concurrency",
   "configuration": "Configuration",
   "connectADevice": "Connect a device…",
   "connection": "Connection",
+  "connectionAddressesDnsAndTls": "Connection: addresses, DNS and TLS",
+  "connectionDetails": "Connection details",
   "connectionDiagnostics": "Connection diagnostics",
   "connectionLogSnapshotAtCapture": "Connection log · snapshot at capture time",
+  "containsValue": "Contains value {index}: {value}",
   "continueOriginal": "Continue original",
   "cookies": "Cookies…",
   "copy": "Copy",
   "copyAProcessScopedProxy": "Copy a process-scoped proxy and CA example",
   "copyAs": "Copy as…",
+  "copyAsCsv": "Copy as CSV",
   "copyAsCurl": "Copy as cURL",
+  "copyAsHarSanitized": "Copy as HAR (sanitized)",
+  "copyAsHarWithSensitive": "Copy as HAR (with sensitive data)",
+  "copyAsMarkdownTable": "Copy as Markdown table",
+  "copyAsRawHttp": "Copy as raw HTTP",
   "copyConnectionLog": "Copy connection log",
+  "copyRaw": "Copy raw",
+  "copyResult": "Copy result",
+  "copyResults": "Copy results",
+  "copyShownBody": "Copy shown body",
   "copySystemHosts": "Copy {path} into a new profile",
+  "copyTheOriginalCapturedRequest": "Copy the original captured request; may include credentials",
+  "copyView": "Copy view",
   "createCollection": "Create collection…",
+  "credentialValuesAreNotAdded": "Credential values are not added to filters",
+  "credentialsAreMaskedSoA": "Credentials are masked so a shared screen or recording does not leak them",
+  "currentResponseRight": "Current response (right)",
   "customPresets": "Custom presets…",
   "debuggingRules": "Debugging rules",
   "debuggingRules2": "Debugging rules…",
+  "decode": "Decode",
+  "decodeText": "Decode text…",
+  "decodeText2": "Decode text",
+  "decodedResult": "Decoded result",
   "decryptEveryDomain": "Decrypt every domain",
   "delete": "Delete",
+  "deleteNamed": "Delete {name}",
   "deleteSession": "Delete session…",
   "devices": "Devices",
   "diagnoseCapture": "Diagnose capture…",
+  "diagnoseThisConnection": "Diagnose this connection",
   "diagnostics": "Diagnostics",
   "disableTool": "Disable {name}",
+  "discardEdits": "Discard edits",
   "domains": "Domains",
   "domainsAndSubdomains": "Domains and subdomains",
   "done": "Done",
   "dropEveryLocalOverrideAnd": "Drop every local override and use Initial values again",
   "dropOpenConnections": "Drop open connections",
+  "droppedSuffix": " · {count} dropped",
   "duplicate": "Duplicate",
   "duration": "Duration",
   "editCaptureFilters": "Edit capture filters…",
   "editFilters": "Edit filters…",
   "editRequest": "Edit request",
+  "edited": "Edited",
   "editedInTheInspectorThe": "Edited in the inspector · the capture itself is unchanged",
+  "emptyMessage": "Empty message",
   "enableADomainOrA": "Enable a domain or a local executable. New connections only; clients must trust the CA. Enabling a rule does not prove decryption succeeded.",
   "encryptedTunnelConnectSuccessIs": "Encrypted tunnel; CONNECT success is not a decrypted response",
   "environments": "Environments…",
   "environments2": "Environments",
   "errors": "Errors",
+  "errorsCount": "Errors: {count}",
   "everyRequestReadsTheseWhatever": "Every request reads these, whatever the environment. Collection, folder and environment values override them.",
   "exactExecutablePathsNotApp": "Exact executable paths, not app names or parent/Helper groups. Add from a captured request or an App's context menu.",
+  "explain": "Explain",
   "export": "Export…",
   "exportAsPostman": "Export as Postman…",
   "exportChosenCsv": "Export chosen CSV…",
   "exportCollectionAsPostman": "Export collection as Postman…",
   "exportCsv": "Export CSV…",
   "exportHar": "Export HAR…",
+  "exportMessages": "Export messages…",
+  "exportMessagesNote": "Exports {count} matching messages from this {window}-message window, not the complete conversation. Pause freezes the view, not capture. Saving is available once the payload search finishes.",
+  "exportRetainedMessages": "Export retained messages",
   "exportSelectedHar": "Export selected HAR…",
+  "exportedMessages": "Exported {count} retained messages",
+  "failed": "Failed",
   "file": "File",
+  "filePart": "File: {name} · payload not previewed",
   "filter": "Filter…",
   "filterCaptures": "Filter captures",
+  "filterName": "Filter name",
+  "filterNamed": "Filter {name}",
   "filtered": "Filtered",
   "filteredTooltip": "filtered: {summary}",
   "filters": "Filters…",
+  "findInBody": "Find in body…",
+  "findInText": "Find in text…",
   "findSearchTraffic": "Find / Search traffic",
   "focusInspectorBackToList": "Focus inspector / Back to list",
   "focusRequestListUrl": "Focus request list / URL",
   "followListEnd": "Follow list end",
+  "from": "From",
   "general": "General",
   "generateApiFromCollection": "Generate API from collection…",
   "generateCode": "Generate code…",
@@ -125,14 +268,18 @@
   "goToCollections": "Go to Collections",
   "goToLiveTraffic": "Go to Live traffic",
   "goToSessions": "Go to Sessions",
+  "graphqlOperationExactCaseSensitive": "GraphQL operation (exact, case-sensitive)",
   "harSanitized": "HAR (sanitized)",
   "harWithSensitiveData": "HAR (with sensitive data)",
+  "header": "Header",
   "headersCookiesAndBodiesOf": "Headers, cookies and bodies of these become readable. More rules in HTTPS rules.",
   "headersOneNameValuePer": "Headers · one Name: Value per line; repeat a name for multiple values",
   "help": "Help",
   "history": "History",
   "history2": "History…",
   "host": "Host",
+  "hostAndAppMatchExactly": "Host and app match exactly. Status takes 404, 4xx, 200-299 or >=400; commas mean OR. Header values use case-insensitive contains on either side. Body searches both sides in full, including spilled files.",
+  "hostExactIncludingPort": "Host (exact, including port)",
   "hostFilterIsActiveRemove": "Host filter is active; remove it in the condition bar",
   "hostProfile": "Host profile",
   "hostProfileNamed": "Host profile: {name}",
@@ -147,29 +294,48 @@
   "httpsInspectionByExecutable": "HTTPS inspection by executable",
   "httpsInspectionRules": "HTTPS inspection rules",
   "httpsRules": "HTTPS rules",
+  "httpsSetup": "HTTPS setup",
   "ignored": "Ignored",
   "ignoredApps": "Ignored apps…",
   "ignoredHosts": "Ignored hosts…",
   "importCaIntoJavaTruststore": "Import CA into Java truststore…",
   "importCaptureSession": "Import capture session…",
+  "importCaptureSession2": "Import capture session",
   "importCollectionFolder": "Import collection folder…",
   "importCurl": "Import cURL…",
   "importHar": "Import HAR…",
   "importOpenapi": "Import OpenAPI…",
   "importProxymanLogFolder": "Import Proxyman log folder…",
+  "importProxymanLogFolder2": "Import Proxyman log folder",
   "importSystemHosts": "Import system hosts…",
   "importText": "Import…",
+  "importedExchanges": "Imported “{file}” · {count, plural, one {# exchange} other {# exchanges}}",
   "inUse": "In use",
+  "incompleteBodies": "Incomplete bodies: {count}",
+  "independentFiltersSelectionAndScroll": "Independent filters, selection and scroll position",
   "initialValuesAreSharedAnd": "Initial values are shared and exported; Current values stay on this machine, in plaintext. Use Vault for encryption.",
+  "inspectFocused": "Inspect focused",
+  "inspectNumbered": "Inspect #{id}",
+  "inspectSourceCapture": "Inspect source capture",
+  "inspectSourceCaptureUnavailableIf": "Inspect source capture; unavailable if it was removed from this session",
+  "inspectingRetainedBody": "Inspecting retained body…",
+  "inspectionResult": "Inspection result",
   "inspectorFocusCtrlCmdShift": "Inspector focus · Ctrl/Cmd+Shift+Enter",
+  "inspectorOptions": "Inspector options",
   "installAndTrust": "Install and trust",
   "installCaInIosSimulator": "Install CA in iOS simulator…",
+  "intervalBetweenStartsMs": "Interval between starts (ms)",
+  "invalidTimingDataRecordedOffsets": "Invalid timing data · recorded offsets are outside the timeline",
+  "jsonpathItemsPrice10Jq": "JSONPath: $.items[?(@.price > 10)]  ·  jq: .items[] | select(.price > 10)",
   "language": "Language",
   "languageDescription": "The language of the app's menus, labels and messages. System follows this computer's language.",
   "languageNotSaved": "Language not saved",
+  "largeRequestBodyKeptOn": "Large request body kept on disk",
+  "latest": "Latest",
   "launchAnElectronApp": "Launch an Electron app…",
   "layoutSideBySide": "Layout: Side by side",
   "layoutStacked": "Layout: Stacked",
+  "linksStayWithSavedSessions": "Links stay with saved sessions",
   "listener": "Listener",
   "listeningAt": "Listening at",
   "live": "Live",
@@ -177,6 +343,8 @@
   "localApps": "Local apps",
   "localAssetsProtectedSavingDisabled": "Local assets protected · saving disabled",
   "localExecutableIdentityUnavailable": "Local executable identity unavailable",
+  "localPreviewDoesNotChange": "Local preview · does not change or send the request",
+  "lostAtEnd": " · {count} lost at end",
   "manageDebuggingRules": "Manage debugging rules…",
   "manageDebuggingRulesAndNetwork": "Manage debugging rules and network conditions",
   "manageEnvironments": "Manage environments…",
@@ -187,16 +355,24 @@
   "mapRewriteBlockOrDelay": "Map, rewrite, block or delay matching requests.",
   "mapThisHost": "Map this host…",
   "mappedBy": "Mapped by {profile}",
+  "mappedTo": "Mapped by {profile} → {ip}",
   "mark": "Mark…",
   "markTheRequest": "Mark the request",
   "markdownTable": "Markdown table",
+  "matchPopulatedFields": "Match populated fields",
+  "matchesRequestOrResponseHeaders": "Matches request or response headers",
   "memory": "Memory",
   "messageExceedsTheEditorLimit": "Message exceeds the editor limit or is invalid UTF-8. Continue unchanged or drop it.",
   "method": "Method",
+  "methodCommaSeparated": "Method (comma-separated)",
+  "millis": "{ms} ms",
   "mocks": "Mocks",
   "more": "More",
   "moreCaptureOptions": "More capture options",
   "moreCommands": "More commands",
+  "n4xx5xx": "4xx, 5xx",
+  "name": "Name",
+  "nameThisViewSConditions": "Name this view's conditions",
   "network": "Network",
   "networkRules": "Network rules…",
   "newApiContract": "New API contract",
@@ -204,48 +380,91 @@
   "newEnvironment": "New environment",
   "newProfile": "New profile",
   "newRequest": "New request",
+  "newView": "New view",
+  "nextMatchEnter": "Next match · Enter",
   "nextOpenRequest": "Next open request",
   "noAppRulesEnabled": "No app rules enabled",
   "noCaching": "No Caching",
+  "noCachingIsOnConditional": "No Caching is on: conditional cache headers will be removed.",
+  "noCookiesRecordedOnThis": "No cookies recorded on this side",
+  "noFormFields": "No form fields",
   "noHeadersRecorded": "No headers recorded",
   "noHostProfiles": "No Host profiles",
+  "noMatches": "No matches",
   "noMatchingCommandsRequestsOr": "No matching commands, requests or environments",
+  "noOpenDraftsForThis": "No open drafts for this source",
+  "noPreviewFor": "No preview for {type}",
+  "noPreviousResponseForThis": "No previous response for this method and URL. Replay the request to compare responses.",
+  "noQueryParametersInThis": "No query parameters in this request",
+  "noRequestChosen": "No request chosen",
   "noRequestsAreSavedUnder": "No requests are saved under it yet.",
+  "noResultsEmptyJqStream": "No results (empty jq stream)",
+  "noSavedFiltersYet": "No saved filters yet",
+  "noTimingForThisFlow": "No timing for this flow",
+  "noWireEvidenceRetainedYet": "No wire evidence retained yet; no rule outcome can be inferred.",
   "none": "None",
   "notMappedResolvedAsUsual": "→ not mapped; resolved as usual",
+  "noteContains": "Note contains",
   "oneClickSetup": "One-click setup",
   "oneFileWithTheSettings": "One file with the settings, lists, rules and the files they answer from, rule scripts, Host profiles and breakpoint templates. Never secrets or variables.",
+  "onlyExplicitlyLinkedDraftsAnd": "Only explicitly linked drafts and retained runs; never matched by URL.",
+  "onlyRunsLinkedToThis": "Only runs linked to this request; never matched by URL.",
+  "onlyVerifiedSelectedOperationsMatch": "Only verified selected operations match; persisted-only queries and unavailable bodies do not.",
+  "open": "Open",
   "openAProxiedTerminal": "Open a proxied terminal",
+  "openDrafts": "Open drafts",
   "openHistoricalSessionFilesWithout": "Open historical session files without replacing live traffic",
   "openInBrowser": "Open in browser",
   "openProxiedChrome": "Open proxied Chrome",
   "openProxiedFirefox": "Open proxied Firefox",
   "openSession": "Open session…",
   "openSettings": "Open settings…",
+  "originalCaptureUnavailableSnapshotRetained": "Original capture unavailable; snapshot retained.",
   "originalFilesLeftUntouchedRepair": "Original files left untouched. Repair or move the affected file aside, then reload. Other local assets remain usable.",
   "otherDevices": "Other devices",
+  "partInfo": "Part {index} · {name} · {bytes} bytes",
   "path": "Path",
   "pauseEachMatchingRequestOr": "Pause each matching request or response before it continues",
+  "pausedViewNote": "Paused view · {count} newer messages · capture continues; Resume shows the latest retained window",
+  "payloadUnavailable": "Payload unavailable; showing inline preview: {error}",
+  "payloadsAndUrlsCanContain": "Payloads and URLs can contain credentials or personal data. Review before sharing.",
+  "payloadsUnreadable": " · {count} payloads unreadable",
   "persistAllCurrent": "Persist all current",
+  "phasesMayOverlapDoNot": "Phases may overlap; do not add their durations. Connection acquisition can include DNS/TCP/TLS. Unobserved phases are omitted, not zero.",
   "phonesAndComputersOnYour": "Phones and computers on your network. Needs your consent and an allowlist.",
   "pinned": "Pinned",
   "pointHostsAtOtherMachines": "Point hosts at other machines for every app using the proxy.",
   "pointOneProgramAtThe": "Point one program at the proxy, or open a terminal, browser, emulator or Java app already configured.",
   "port": "Port",
+  "previousMatchShiftEnter": "Previous match · Shift+Enter",
   "previousOpenRequest": "Previous open request",
+  "previousResponseLeft": "Previous response (left)",
   "profileActions": "Profile actions",
+  "protobufReadInPane": "Protobuf is read in the {pane} pane.",
   "protobufSchema": "Protobuf schema…",
   "protocolAndContentType": "Protocol and content type: {name}",
   "proxy": "Proxy",
+  "proxyObservedOnlyPreRequest": "Proxy-observed only: pre-request MITM setup is in the connection log. Downstream delivery and estimated throttling are not measured here. Streaming timelines stop at this capture snapshot.",
   "proxyStatus": "Proxy status",
   "proxyUnavailable": "Proxy unavailable · {error} · Local requests remain available",
+  "queryJson": "Query JSON…",
+  "queryJson2": "Query JSON",
+  "quickFilterNamed": "Quick filter: {name}",
   "rawHttp": "Raw HTTP",
+  "rawMessage": "Raw message",
+  "readOnlyComparisonBodiesLimited": "Read-only comparison · bodies limited to 8 MiB; truncation/incomplete notices are included",
   "readOnlyMarkdownFromThe": "Read-only · Markdown from the collection, folder and request descriptions",
   "readOnlyReason": "Read-only: {reason}",
+  "readOnlySnapshot1Mib": "Read-only snapshot · 1 MiB input · bounded local query",
   "readRulesScriptsHostProfiles": "Read rules, scripts, Host profiles and ignore lists from disk again.",
+  "readTheBodyFromDisk": "Read the body from disk and edit this request",
+  "readThisSideInShared": "Read this side in shared readers",
   "readingRetainedBody": "Reading retained body",
+  "readsCompleteRetainedJsonOff": "Reads complete retained JSON off-thread, up to 1 MiB. Scalar cells up to 4 KiB; unavailable bodies show an explanation. Sorting is lexical.",
   "recognizeTokenLinks": "Recognize token links…",
   "recordIntoCollection": "Record into collection…",
+  "recordedInterventions": "Recorded interventions: {effects}",
+  "recordedPerCaptureDurationsNot": "Recorded per-capture durations, not elapsed session time. P50 uses nearest rank. Errors include HTTP 4xx/5xx, connection failures and incomplete bodies.",
   "refresh": "Refresh",
   "refreshNow": "Refresh now",
   "releaseSystemProxy": "release system proxy",
@@ -256,39 +475,72 @@
   "remove": "Remove",
   "removeHttpsApp": "Remove HTTPS app: {path}",
   "rename": "Rename",
+  "renameFilter": "Rename filter",
+  "renameNamed": "Rename {name}",
+  "renamingFilter": "Renaming {name}. Type the new name, then Rename filter.",
+  "repeatEachRequest": "Repeat each request",
+  "replayOf": "Replay of #{id}",
+  "replayRequests": "Replay {count, plural, one {# request} other {# requests}}",
   "replaySelected": "Replay selected…",
+  "replaysCount": "Replays ({count})",
   "request": "Request",
+  "requestAndResponse": "Request and response",
+  "requestHeadersCapturePublicationOffsets": "Request headers → capture publication · offsets from 0",
+  "requestsSelected": "{count, plural, one {# request selected} other {# requests selected}}",
   "resetAll": "Reset all",
   "resetAllCaptureConditions": "Reset all capture conditions",
   "resetAllConditions": "Reset all conditions",
   "resetAllCurrent": "Reset all current",
   "resetDesktopLayout": "Reset desktop layout",
   "responseBody": "Response body",
+  "responseBytes": "Response bytes: {bytes} B",
   "responses": "Responses",
   "restartToApply": "Restart to apply",
+  "reusedConnection": "Reused connection: request {number} on it, so no connect or TLS in the wait.",
+  "revealCredentials": "Reveal credentials",
+  "rightClickTheTableS": "Right-click the table's header to hide columns or remove this one.",
   "rules": "Rules",
   "rulesAndConfiguration": "Rules and configuration",
   "rulesApplyToNewConnections": "Rules apply to new connections: reload the page or restart the app you are inspecting.",
   "rulesConfigurationFilesAndHelp": "Rules, configuration files and help.",
+  "runQuery": "Run query",
   "runner": "Runner…",
+  "safeSubsetNoModulesExternal": "Safe subset: no modules, external input, updates or definitions. See the guide for dialect limits.",
   "save": "Save",
   "saveAsRegression": "Save as regression…",
   "saveAsRequest": "Save as request",
+  "saveBody": "Save body…",
   "saveCaptureToSessions": "Save capture to Sessions",
   "saveCtrlCmdS": "Save · Ctrl/Cmd+S",
+  "saveCurrentConditionsApplyRename": "Save current conditions, apply, rename or delete a saved filter",
   "saveEvidenceToSessions": "Save evidence to Sessions",
   "saveFilter": "Save filter…",
+  "saveFilter2": "Save filter",
   "saveForNextLaunch": "Save for next launch",
+  "saveMessagesJson": "Save messages JSON…",
   "saveRequest": "Save request",
   "saveSession": "Save session…",
+  "saveThisRequestToA": "Save this request to a collection · Ctrl/Cmd+S",
+  "saveToCollection": "Save to collection",
+  "savedCaptureFilters": "Saved capture filters",
+  "savedFilters": "Saved filters…",
+  "savedFilters2": "Saved filters",
   "savedTheAppUsesIt": "Saved; the app uses it after it restarts",
   "scenarios": "Scenarios",
   "scripts": "Scripts",
   "search": "Search…",
+  "search2": "Search",
   "searchCommandsRequestsEnvironments": "Search commands, requests, environments…",
   "searchEveryActionCtrlCmd": "Search every action · Ctrl/Cmd+K",
+  "searchMessages": "Search messages…",
+  "searchSidebarProtocolAndTime": "Search, sidebar, protocol and time range always narrow these results.",
+  "searchesMetadataAndTheFull": "Searches metadata and the full retained payload; spill files are read off the UI thread",
+  "searchingBodies": "Searching bodies… {done} of {total}",
+  "selectHttpRequests": "Select 1–{max} HTTP requests",
+  "sendReplays": "Send replays",
   "sendRequest": "Send request",
   "sendTrafficFromOtherDevices": "Send traffic from other devices and programs through vscroxy.",
+  "sendsInCaptureOrderThrough": "Sends in capture order through the current rules. POST, PUT, PATCH and DELETE can change server data. WebSocket, SSE and tunnels are excluded.",
   "session": "Session",
   "sessions": "Sessions",
   "setUpALocalClient": "Set up a local client…",
@@ -298,57 +550,246 @@
   "settingsCategory": "Settings category: {name}",
   "settingsCtrlCmd": "Settings · Ctrl/Cmd+,",
   "setupGuide": "Setup guide",
+  "showAllHistory": "Show all History",
   "showAllRequests": "Show all requests",
+  "showAsHex": "Show as hex",
+  "showAsText": "Show as text",
   "showHistory": "Show History",
   "showOnlyTheHostsAnd": "Show only the hosts and apps below. Everything else is still proxied, just not recorded.",
   "showSetupGuide": "Show setup guide",
   "showTheTrafficListReopen": "Show the traffic list; reopen the guide from the command palette",
+  "showingFirstOf": "… showing the first {shown} of {total}",
   "sideBySideLayout": "Side by side layout",
   "size": "Size",
   "skipGuide": "Skip guide",
   "slow": "Slow",
+  "slowestRequests": "Slowest requests",
   "someAppsKeepTheirOwn": "Some apps keep their own trust store, or pin certificates; they may need setting up themselves.",
+  "sourceSnapshot": "Source snapshot · Capture #{id}",
+  "split": "Split",
   "sseSession": "SSE session…",
   "sslProxying": "SSL proxying",
   "sslProxying2": "SSL proxying…",
   "stackedLayout": "Stacked layout",
   "status": "Status",
   "statusHeaderBodyMethodDuration": "Status, header, body, method, duration and notes",
+  "stopReplay": "Stop replay",
+  "stoppingNoNewSendsIn": "Stopping: no new sends; in-flight requests are canceled.",
   "stripCachingHeadersBothWays": "Strip caching headers both ways, so every response comes from the server.",
   "subscribeToUrl": "Subscribe to URL…",
   "subscribedUrl": "Subscribed: {url}",
+  "summary": "Summary",
+  "swapSides": "Swap sides",
   "system": "System",
   "systemFollowsThisComputerS": "System follows this computer's light or dark appearance.",
   "testAHostApiExample": "Test a host: api.example.com",
   "textLiteralContainsAndKey": "Text: literal contains and key:value chips · Wildcard: * any text, ? one character, whole host/path · Regex: Go/RE2 · Patterns ignore case by default",
+  "textPreviewLimitedTo4": "Text preview limited to 4 KiB",
   "theRequestKeepsItsName": "The request keeps its name, URL, Host header and SNI; the proxy dials the address instead.",
   "theSecretsGoToA": "The secrets go to a file Wireshark reads (SSLKEYLOGFILE), so it can decrypt this capture. The engine reads the variable once, when it first handshakes, so a change here takes effect from the next launch.",
   "theme": "Theme",
   "thisComputer": "This computer",
+  "thisRunHasNoRecorded": "This run has no recorded capture source.",
   "time": "Time",
+  "timeoutPerRequestSeconds0": "Timeout per request (seconds; 0 = no timeout)",
+  "timingPhaseLabel": "Timing phase {index}: {name}",
+  "timingSpan": "Start {start} · End {end}{status}",
+  "timingWaterfall": "Timing waterfall",
   "tlsKeyLog": "TLS key log",
   "toggleSidebar": "Toggle sidebar",
   "tools": "Tools",
   "toolsCategory": "Tools category: {name}",
+  "total": "Total",
+  "totalSends": "Total: {count, plural, one {# send} other {# sends}}.",
+  "traceLimitReachedSomeObservations": "Trace limit reached · some observations were not retained",
   "trailers": "Trailers",
   "turnOff": "Turn off",
   "turnOffTool": "Turn off {name}",
   "turnOnSystemProxy": "Turn on system proxy",
+  "unfinishedAtCapture": "Unfinished at capture",
+  "unified": "Unified",
   "unpinnedRequestsWillBeRemoved": "Unpinned requests will be removed from this session. Export any traffic you want to keep first.",
   "upstream": "Upstream…",
+  "upstreamConnectionReusedPreviousSetup": "Upstream connection reused · previous setup is not charged again",
   "upstreamOff": "Upstream off",
   "url": "URL",
   "useNameInRequestsEnvironment": "Use '{{name}}' in requests. Environment values override collection values and globals.",
   "utf8TextOrCanonical": "UTF-8 text, or canonical padded base64 for binary · 1 MiB limit · opcode preserved",
+  "value": "Value",
   "variables": "Variables",
   "variablesAreReadOnlyClose": "Variables are read-only. Close this dialog, repair or move env.json aside, then reload local assets.",
   "vault": "Vault…",
   "view": "View",
   "viewHttpsRules": "View HTTPS rules…",
+  "viewNumber": "View {number}",
   "views": "Views",
   "websocketSession": "WebSocket session…",
   "whatCaptureChangesOnThe": "What capture changes on the way, and what the table shows.",
   "whereVscroxyListensAndWhere": "Where vscroxy listens, and where requests go next.",
+  "wireEvidenceNotCurrentRules": "Wire evidence, not current rules. Redirect hops stay separate; source comparison uses the client result.",
   "writeNonSensitiveCurrentValues": "Write non-sensitive Current values into Initial; credentials stay local",
-  "writesTheInitialValuesShown": "Writes the Initial values shown here, saved or not, in Postman's environment format; Current values are excluded"
+  "writesTheInitialValuesShown": "Writes the Initial values shown here, saved or not, in Postman's environment format; Current values are excluded",
+  "@viewNumber": {
+    "placeholders": {
+      "number": {
+        "type": "int"
+      }
+    }
+  },
+  "@searchingBodies": {
+    "placeholders": {
+      "done": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "@containsValue": {
+    "placeholders": {
+      "index": {
+        "type": "int"
+      },
+      "value": {
+        "type": "String"
+      }
+    }
+  },
+  "@partInfo": {
+    "placeholders": {
+      "index": {
+        "type": "int"
+      },
+      "name": {
+        "type": "String"
+      },
+      "bytes": {
+        "type": "int"
+      }
+    }
+  },
+  "@droppedSuffix": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "@showingFirstOf": {
+    "placeholders": {
+      "shown": {
+        "type": "String"
+      },
+      "total": {
+        "type": "String"
+      }
+    }
+  },
+  "@pausedViewNote": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "@lostAtEnd": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "@payloadsUnreadable": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "@exportMessagesNote": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "window": {
+        "type": "int"
+      }
+    }
+  },
+  "@exportedMessages": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "@timingSpan": {
+    "placeholders": {
+      "start": {
+        "type": "String"
+      },
+      "end": {
+        "type": "String"
+      },
+      "status": {
+        "type": "String"
+      }
+    }
+  },
+  "@timingPhaseLabel": {
+    "placeholders": {
+      "index": {
+        "type": "int"
+      },
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "@reusedConnection": {
+    "placeholders": {
+      "number": {
+        "type": "int"
+      }
+    }
+  },
+  "@selectHttpRequests": {
+    "placeholders": {
+      "max": {
+        "type": "int"
+      }
+    }
+  },
+  "@importedExchanges": {
+    "placeholders": {
+      "file": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "@sourceSnapshot": {
+    "placeholders": {
+      "id": {
+        "type": "int"
+      }
+    }
+  },
+  "@replayRequests": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "@totalSends": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  }
 }

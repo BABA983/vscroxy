@@ -30,6 +30,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/baba983/vscroxy/internal/store"
+	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -414,7 +415,7 @@ func (v *captureViews) label(i int) string {
 	if name := v.views[i].preset; name != "" {
 		return name
 	}
-	return fmt.Sprintf("View %d", i+1)
+	return locales.ViewNumber(i + 1)
 }
 
 // conditionsOf is what the app's fields say now.
@@ -840,7 +841,7 @@ func wholeRunes(b []byte) int {
 func (v *captureViews) status() (text string, failure bool) {
 	if s := v.run; s != nil {
 		if done, total := s.progress(); done < total {
-			return fmt.Sprintf("Searching bodies… %d of %d", done, total), false
+			return locales.SearchingBodies(done, total), false
 		}
 	}
 	if n := len(v.cache.errs); n > 0 {
@@ -889,17 +890,17 @@ func (a *app) headerFilterMenu(c *ui.Context, name string, values []string) func
 	return func(m *ui.Menu) {
 		m.EditItems()
 		actions := []action{
-			note("Matches request or response headers"),
+			note(locales.MatchesRequestOrResponseHeaders()),
 			do("capture.filter-header", "Header exists: "+name, func() {
 				a.filterHeader = name
 				c.AnimationFrame()
 			}),
 		}
 		if sensitiveHeader(name) {
-			actions = append(actions, note("Credential values are not added to filters"))
+			actions = append(actions, note(locales.CredentialValuesAreNotAdded()))
 		} else {
 			for i, value := range values {
-				actions = append(actions, do("capture.filter-header", fmt.Sprintf("Contains value %d: %s", i+1, clamp(value, 50)), func() {
+				actions = append(actions, do("capture.filter-header", locales.ContainsValue(i+1, clamp(value, 50)), func() {
 					a.filterHeader = name + ": " + value
 					c.AnimationFrame()
 				}))
@@ -967,7 +968,7 @@ func (v *captureViews) sidebar(c *ui.Context, t *ui.Theme, a *app) {
 				// second selection: an accent icon and full-strength text
 				// mark it, and only the scope above has the selection look.
 				active := i == v.active
-				b := uikit.ToolbarButton(c, "Capture view: "+name, "Independent filters, selection and scroll position", false).FillWidth().Checked(active)
+				b := uikit.ToolbarButton(c, locales.CaptureViewNamed(name), locales.IndependentFiltersSelectionAndScroll(), false).FillWidth().Checked(active)
 				if active {
 					b.TextColor(t.Text)
 				}
@@ -983,7 +984,7 @@ func (v *captureViews) sidebar(c *ui.Context, t *ui.Theme, a *app) {
 					onIcon(c, t, layersIcon, active)
 					uikit.Body(c, name).SingleLine().Grow(1)
 					if len(v.views) > 1 {
-						if uikit.IconButton(c, "Close view: "+name, "Close this view", closeIcon).Clicked() {
+						if uikit.IconButton(c, locales.CloseViewNamed(name), locales.CloseThisView(), closeIcon).Clicked() {
 							closing = i
 						}
 					}
@@ -991,23 +992,23 @@ func (v *captureViews) sidebar(c *ui.Context, t *ui.Theme, a *app) {
 			})
 		}
 		ui.Row(c).FillWidth().AlignItems(ui.Center).Children(func() {
-			if uikit.ToolbarButton(c, "New view", "A new view with its own filters, selection and scroll position", false).Grow(1).Justify(ui.Start).Children(func() {
+			if uikit.ToolbarButton(c, locales.NewView(), locales.ANewViewWithIts(), false).Grow(1).Justify(ui.Start).Children(func() {
 				ui.Icon(c, plusIcon).Size(uikit.IconInline, uikit.IconInline)
-				uikit.Body(c, "New view")
+				uikit.Body(c, locales.NewView())
 			}).Clicked() {
 				v.capture(a)
 				v.newView(a)
 			}
-			if uikit.IconButton(c, "Saved filters…", "Save current conditions, apply, rename or delete a saved filter", filterIcon).Margin(0, t.Space(2), 0, 0).Clicked() {
+			if uikit.IconButton(c, locales.SavedFilters(), locales.SaveCurrentConditionsApplyRename(), filterIcon).Margin(0, t.Space(2), 0, 0).Clicked() {
 				v.openSaved(a)
 			}
 		})
 		if len(v.filters) > 0 {
-			uikit.Label(c, "Saved filters").Padding(t.Space(3), t.Space(2), t.Space(1), t.Space(2))
+			uikit.Label(c, locales.SavedFilters2()).Padding(t.Space(3), t.Space(2), t.Space(1), t.Space(2))
 		}
 		for _, f := range v.filters {
 			active := v.activeView().saved(f.Name) == f
-			b := uikit.ToolbarButton(c, "Quick filter: "+f.Name, "Apply saved conditions", false).FillWidth().Checked(active)
+			b := uikit.ToolbarButton(c, locales.QuickFilterNamed(f.Name), locales.ApplySavedConditions(), false).FillWidth().Checked(active)
 			if active {
 				b.TextColor(t.Text)
 			}
@@ -1053,31 +1054,31 @@ func (v *captureViews) filterModal(c *ui.Context, t *ui.Theme, a *app) {
 	}
 	uikit.Modal(c, &v.filterOpen, func() {
 		ui.Column(c).Width(560).Gap(t.Space(2)).Children(func() {
-			uikit.DialogTitle(c, "Filter "+v.label(v.active))
-			ui.Field(c, "Match populated fields", func() {
+			uikit.DialogTitle(c, locales.FilterNamed(v.label(v.active)))
+			ui.Field(c, locales.MatchPopulatedFields(), func() {
 				uikit.Select(c, &v.editMatch, []string{"All (AND)", "Any (OR)"}).Label("Filter combination")
-			}).Description("Search, sidebar, protocol and time range always narrow these results.")
-			uikit.Meta(c, "Host and app match exactly. Status takes 404, 4xx, 200-299 or >=400; commas mean OR. Header values use case-insensitive contains on either side. Body searches both sides in full, including spilled files.")
+			}).Description(locales.SearchSidebarProtocolAndTime())
+			uikit.Meta(c, locales.HostAndAppMatchExactly())
 			problem := ""
 			ui.Row(c).Gap(t.Space(3)).Children(func() {
-				ui.Field(c, "Host (exact, including port)", func() {
+				ui.Field(c, locales.HostExactIncludingPort(), func() {
 					uikit.Input(c, &v.editTriage.Host).Label("Filter host").Placeholder("api.example.com")
 				}).Grow(1)
-				ui.Field(c, "App (exact name)", func() {
-					uikit.Input(c, &v.editTriage.Client).Label("Filter app").Placeholder("Browser")
+				ui.Field(c, locales.AppExactName(), func() {
+					uikit.Input(c, &v.editTriage.Client).Label("Filter app").Placeholder(locales.Browser())
 				}).Grow(1)
 			})
-			ui.Field(c, "GraphQL operation (exact, case-sensitive)", func() {
-				uikit.Input(c, &v.editTriage.Operation).Label("Filter GraphQL operation").Placeholder("Search")
-			}).Description("Only verified selected operations match; persisted-only queries and unavailable bodies do not.")
+			ui.Field(c, locales.GraphqlOperationExactCaseSensitive(), func() {
+				uikit.Input(c, &v.editTriage.Operation).Label("Filter GraphQL operation").Placeholder(locales.Search2())
+			}).Description(locales.OnlyVerifiedSelectedOperationsMatch())
 			if operation := strings.TrimSpace(v.editTriage.Operation); operation != "" {
 				problem = checkOperation(operation)
 			}
 			ui.Row(c).Gap(t.Space(3)).Children(func() {
-				ui.Field(c, "Method (comma-separated)", func() {
+				ui.Field(c, locales.MethodCommaSeparated(), func() {
 					uikit.Input(c, &v.editTriage.Method).Label("Filter method").Placeholder("GET, POST")
 				}).Grow(1)
-				ui.Field(c, "Color", func() {
+				ui.Field(c, locales.Color(), func() {
 					colors := []string{"Any", "Marked"}
 					for _, color := range uikit.MarkColors {
 						colors = append(colors, color.Name)
@@ -1115,18 +1116,18 @@ func (v *captureViews) filterModal(c *ui.Context, t *ui.Theme, a *app) {
 				}
 			}
 			ui.Row(c).Gap(t.Space(3)).Children(func() {
-				ui.Field(c, "Status", func() {
-					uikit.Input(c, &v.editStatus).Label("Filter status").Placeholder("4xx, 5xx")
+				ui.Field(c, locales.Status(), func() {
+					uikit.Input(c, &v.editStatus).Label("Filter status").Placeholder(locales.N4xx5xx())
 				}).Grow(1)
-				ui.Field(c, "Header", func() {
+				ui.Field(c, locales.Header(), func() {
 					uikit.Input(c, &v.editHeader).Placeholder("content-type: json")
 				}).Grow(1)
 			})
 			ui.Row(c).Gap(t.Space(3)).Children(func() {
-				ui.Field(c, "Note contains", func() {
-					uikit.Input(c, &v.editTriage.Note).Label("Filter note").Placeholder("case-insensitive text")
+				ui.Field(c, locales.NoteContains(), func() {
+					uikit.Input(c, &v.editTriage.Note).Label("Filter note").Placeholder(locales.CaseInsensitiveText())
 				}).Grow(1)
-				ui.Field(c, "Body", func() {
+				ui.Field(c, locales.Body(), func() {
 					uikit.Input(c, &v.editBody).Label("Body contains").Placeholder("\"error\":")
 				}).Grow(1)
 			})
@@ -1141,17 +1142,17 @@ func (v *captureViews) filterModal(c *ui.Context, t *ui.Theme, a *app) {
 				ui.Text(c, note).FontSize(uikit.TextMeta).TextColor(color).Tooltip(v.statusDetail())
 			}
 			ui.Row(c).Gap(t.Space(2)).Justify(ui.End).Children(func() {
-				if uikit.SecondaryButton(c, "Clear").Clicked() {
+				if uikit.SecondaryButton(c, locales.Clear()).Clicked() {
 					v.editStatus, v.editHeader, v.editBody = "", "", ""
 					v.editTriage = captureTriage{}
 					v.editMatch = "All (AND)"
 					v.commitFilter(a)
 					v.filterOpen = false
 				}
-				if uikit.SecondaryButton(c, "Cancel").Clicked() {
+				if uikit.SecondaryButton(c, locales.Cancel()).Clicked() {
 					v.filterOpen = false
 				}
-				if uikit.PrimaryButton(c, "Apply").Disabled(problem != "").Clicked() {
+				if uikit.PrimaryButton(c, locales.Apply()).Disabled(problem != "").Clicked() {
 					v.commitFilter(a)
 					v.filterOpen = false
 				}
@@ -1191,32 +1192,32 @@ func (v *captureViews) savedModal(c *ui.Context, t *ui.Theme, a *app) {
 	}
 	uikit.Modal(c, &v.savedOpen, func() {
 		ui.Column(c).Width(560).Gap(t.Space(2)).Children(func() {
-			uikit.DialogTitle(c, "Saved capture filters")
-			uikit.Meta(c, "A filter keeps this view's URL, content and triage conditions. Applying one changes this view; the other views keep their own.")
+			uikit.DialogTitle(c, locales.SavedCaptureFilters())
+			uikit.Meta(c, locales.AFilterKeepsThisView())
 			if len(v.filters) == 0 {
-				uikit.Meta(c, "No saved filters yet")
+				uikit.Meta(c, locales.NoSavedFiltersYet())
 			}
 			for _, f := range v.filters {
 				name := f.Name
 				ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 					uikit.Body(c, name).Grow(1).SingleLine().Tooltip(name)
-					if uikit.CompactButton(c, "Apply").Label("Apply " + strconv.Quote(name)).Clicked() {
+					if uikit.CompactButton(c, locales.Apply()).Label(locales.ApplyNamed(strconv.Quote(name))).Clicked() {
 						v.applySaved(a, name)
 					}
-					if uikit.CompactButton(c, "Rename").Label("Rename " + strconv.Quote(name)).Clicked() {
+					if uikit.CompactButton(c, locales.Rename()).Label(locales.RenameNamed(strconv.Quote(name))).Clicked() {
 						v.renaming = name
 						v.savedName = name
 					}
-					if uikit.CompactButton(c, "Delete").Label("Delete " + strconv.Quote(name)).Clicked() {
+					if uikit.CompactButton(c, locales.Delete()).Label(locales.DeleteNamed(strconv.Quote(name))).Clicked() {
 						v.deleteSaved(a, name)
 					}
 				})
 			}
-			ui.Field(c, "Filter name", func() {
-				uikit.Input(c, &v.savedName).Placeholder("Name this view's conditions")
+			ui.Field(c, locales.FilterName(), func() {
+				uikit.Input(c, &v.savedName).Placeholder(locales.NameThisViewSConditions())
 			})
 			if v.renaming != "" {
-				uikit.Meta(c, "Renaming "+strconv.Quote(v.renaming)+". Type the new name, then Rename filter.")
+				uikit.Meta(c, locales.RenamingFilter(strconv.Quote(v.renaming)))
 			}
 			if v.problem != "" {
 				ui.Text(c, v.problem).FontSize(uikit.TextMeta).TextColor(t.Danger)
@@ -1225,16 +1226,16 @@ func (v *captureViews) savedModal(c *ui.Context, t *ui.Theme, a *app) {
 				uikit.Meta(c, v.note)
 			}
 			ui.Row(c).Gap(t.Space(2)).Justify(ui.End).Children(func() {
-				if uikit.SecondaryButton(c, "Close").Clicked() {
+				if uikit.SecondaryButton(c, locales.Close()).Clicked() {
 					v.savedOpen = false
 					v.renaming = ""
 				}
 				if v.renaming != "" {
-					if uikit.SecondaryButton(c, "Rename filter").Clicked() {
+					if uikit.SecondaryButton(c, locales.RenameFilter()).Clicked() {
 						v.renameSaved(a)
 					}
 				}
-				if uikit.PrimaryButton(c, "Save filter").Clicked() {
+				if uikit.PrimaryButton(c, locales.SaveFilter2()).Clicked() {
 					v.saveCurrent(a)
 				}
 			})

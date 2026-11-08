@@ -17,6 +17,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -293,14 +294,14 @@ func (a *app) captureCopyActions(c *ui.Context, flows []flow) []action {
 		ok = ok && f.kind == ""
 	}
 	rawOK := ok && len(flows) <= rawCopyFlowLimit
-	reason := fmt.Sprintf("Select 1–%d HTTP requests", captureTableFlowLimit)
-	rawReason := fmt.Sprintf("Select 1–%d HTTP requests", rawCopyFlowLimit)
+	reason := locales.SelectHttpRequests(captureTableFlowLimit)
+	rawReason := locales.SelectHttpRequests(rawCopyFlowLimit)
 	return []action{
-		do("flow.copy-markdown", "Copy as Markdown table", func() { a.copyMarkdown(c, flows) }).when(ok, reason),
-		do("flow.copy-csv", "Copy as CSV", func() { a.copyCSV(c, flows) }).when(ok, reason),
-		do("flow.copy-raw", "Copy as raw HTTP", func() { a.copyRaw(c, flows) }).when(rawOK, rawReason),
-		do("flow.copy-har", "Copy as HAR (sanitized)", func() { a.copyHAR(c, flows, false) }).when(ok, reason),
-		do("flow.copy-har-raw", "Copy as HAR (with sensitive data)", func() { a.copyHAR(c, flows, true) }).when(ok, reason),
+		do("flow.copy-markdown", locales.CopyAsMarkdownTable(), func() { a.copyMarkdown(c, flows) }).when(ok, reason),
+		do("flow.copy-csv", locales.CopyAsCsv(), func() { a.copyCSV(c, flows) }).when(ok, reason),
+		do("flow.copy-raw", locales.CopyAsRawHttp(), func() { a.copyRaw(c, flows) }).when(rawOK, rawReason),
+		do("flow.copy-har", locales.CopyAsHarSanitized(), func() { a.copyHAR(c, flows, false) }).when(ok, reason),
+		do("flow.copy-har-raw", locales.CopyAsHarWithSensitive(), func() { a.copyHAR(c, flows, true) }).when(ok, reason),
 	}
 }
 

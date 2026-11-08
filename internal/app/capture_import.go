@@ -11,6 +11,7 @@ import (
 	"github.com/baba983/vscroxy/internal/imports"
 	"github.com/baba983/vscroxy/internal/postman"
 	"github.com/baba983/vscroxy/internal/request"
+	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo"
 )
 
@@ -20,7 +21,7 @@ import (
 func (a *app) importCaptureSession() {
 	go func() {
 		paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{
-			Title: "Import capture session",
+			Title: locales.ImportCaptureSession2(),
 			Filters: []mygo.FileFilter{{
 				Name:       "Charles or Proxyman capture",
 				Extensions: []string{"chlsj", "chlsx", "chls", "proxymanlogv2", "proxymanlog"},
@@ -38,7 +39,7 @@ func (a *app) importCaptureSession() {
 func (a *app) importCaptureFolder() {
 	go func() {
 		paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{
-			Title:       "Import Proxyman log folder",
+			Title:       locales.ImportProxymanLogFolder2(),
 			ButtonLabel: "Import",
 			Directory:   true,
 		})
@@ -241,7 +242,7 @@ func (a *app) addCaptureImport(result imports.Capture, source string) {
 	a.pickedID = a.flows[start].id
 	a.recount()
 	a.applyFilter()
-	a.reportImport(fmt.Sprintf("Imported “%s” · %d %s", filepath.Base(source), len(result.Flows), plural(len(result.Flows), "exchange", "exchanges")), result.Warnings)
+	a.reportImport(locales.ImportedExchanges(filepath.Base(source), len(result.Flows)), result.Warnings)
 }
 
 // captureFlow turns a parsed exchange into the table's row. Bodies stay byte

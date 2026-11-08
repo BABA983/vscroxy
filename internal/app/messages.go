@@ -25,6 +25,7 @@ import (
 
 	"github.com/baba983/vscroxy/internal/capture"
 	"github.com/baba983/vscroxy/internal/store"
+	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 )
@@ -137,7 +138,7 @@ func messagesNote(list []messageView) string {
 		note = "1 message"
 	}
 	if dropped := messagesDropped(list); dropped > 0 {
-		note += fmt.Sprintf(" · %d dropped", dropped)
+		note += locales.DroppedSuffix(dropped)
 	}
 	return note
 }
@@ -327,7 +328,7 @@ func (m messageView) detail(c *ui.Context, a *app, f flow, p *messagePanel) {
 		ui.Row(c).Padding(t.Space(1), t.Space(3)).Gap(t.Space(2)).MinHeight(uikit.HeightLarge).AlignItems(ui.Center).Children(func() {
 			ui.Text(c, m.headline()).FontSize(uikit.TextBody).Font(uikit.FontMono).FontFeatures("tnum").TextColor(t.Text).
 				SingleLine().Grow(1).Tooltip(m.headline())
-			if uikit.SecondaryButton(c, "Copy").Clicked() {
+			if uikit.SecondaryButton(c, locales.Copy()).Clicked() {
 				c.Services().WriteClipboard(payload)
 				a.done("Copied " + m.label() + " message · " + humanBytes(len(payload)))
 			}
@@ -342,7 +343,7 @@ func (m messageView) detail(c *ui.Context, a *app, f flow, p *messagePanel) {
 		})
 		ui.Divider(c)
 		if p.loadedError != "" {
-			ui.Text(c, "Payload unavailable; showing inline preview: "+p.loadedError).FontSize(uikit.TextMeta).
+			ui.Text(c, locales.PayloadUnavailable(p.loadedError)).FontSize(uikit.TextMeta).
 				TextColor(t.Danger).Background(t.Danger.Alpha(0.12)).Padding(t.Space(1), t.Space(3)).FillWidth()
 		}
 		if p.mode == 2 {
@@ -350,7 +351,7 @@ func (m messageView) detail(c *ui.Context, a *app, f flow, p *messagePanel) {
 			return
 		}
 		if len(payload) == 0 {
-			uikit.Hint(c, "Empty message").Padding(t.Space(3))
+			uikit.Hint(c, locales.EmptyMessage()).Padding(t.Space(3))
 			return
 		}
 		if p.mode == 1 {
@@ -375,7 +376,7 @@ func (m messageView) textView(c *ui.Context, payload string) {
 		if i := strings.LastIndexByte(cut, '\n'); i > 0 {
 			cut = cut[:i]
 		}
-		text = cut + fmt.Sprintf("\n\n… showing the first %s of %s", humanBytes(maxMessageText), humanBytes(len(text)))
+		text = cut + "\n\n" + locales.ShowingFirstOf(humanBytes(maxMessageText), humanBytes(len(text)))
 	}
 	ui.Scroll(c).Grow(1).Padding(t.Space(3)).Children(func() {
 		ui.Text(c, text).FontSize(uikit.TextBody).Font(uikit.FontMono).TextColor(t.Text)
@@ -497,7 +498,7 @@ func (p *messagePanel) view(c *ui.Context, a *app, f flow, list []messageView) {
 				p.follow = true
 			}
 		}
-		if uikit.SecondaryButton(c, "Export messages…").Clicked() {
+		if uikit.SecondaryButton(c, locales.ExportMessages()).Clicked() {
 			p.exportOpen = true
 		}
 	})
@@ -509,7 +510,7 @@ func (p *messagePanel) view(c *ui.Context, a *app, f flow, list []messageView) {
 		if len(p.frozen) > 0 {
 			newer -= p.frozen[len(p.frozen)-1].seq
 		}
-		note := fmt.Sprintf("Paused view · %d newer messages · capture continues; Resume shows the latest retained window", max(newer, 0))
+		note := locales.PausedViewNote(max(newer, 0))
 		uikit.Meta(c, note).FontFeatures("tnum").
 			Background(uikit.Colors(t).Panel).Padding(t.Space(1), t.Space(3)).SingleLine().Tooltip(note)
 		list = p.frozen
@@ -518,13 +519,13 @@ func (p *messagePanel) view(c *ui.Context, a *app, f flow, list []messageView) {
 	// the list shows, and the line after them reads it.
 	var visible []messageView
 	ui.Row(c).Padding(t.Space(2), t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-		search := ui.SearchField(c, &p.query).Placeholder("Search messages…").Label("Search messages").
+		search := ui.SearchField(c, &p.query).Placeholder(locales.SearchMessages()).Label("Search messages").
 			Width(180).Height(uikit.HeightControl).FontSize(uikit.TextBody).Radius(uikit.RadiusControl)
-		search.Tooltip("Searches metadata and the full retained payload; spill files are read off the UI thread")
+		search.Tooltip(locales.SearchesMetadataAndTheFull())
 		if search.Changed() {
 			p.follow = true
 		}
-		if uikit.Segmented(c, &p.direction, "All", "In", "Out").Label("Direction").Changed() {
+		if uikit.Segmented(c, &p.direction, locales.All(), "In", "Out").Label("Direction").Changed() {
 			p.follow = true
 		}
 		p.searchMessages(a, list)
@@ -536,7 +537,7 @@ func (p *messagePanel) view(c *ui.Context, a *app, f flow, list []messageView) {
 				last = list[len(list)-1].seq
 			}
 			if lost := f.streamEnd.Messages - last; lost > 0 {
-				note += fmt.Sprintf(" · %d lost at end", lost)
+				note += locales.LostAtEnd(lost)
 			}
 		}
 		if len(p.searchPending) > 0 {
@@ -544,11 +545,11 @@ func (p *messagePanel) view(c *ui.Context, a *app, f flow, list []messageView) {
 			c.After(100 * time.Millisecond)
 		}
 		if n := len(p.searchCache.errs); n > 0 {
-			note += fmt.Sprintf(" · %d payloads unreadable", n)
+			note += locales.PayloadsUnreadable(n)
 		}
 		uikit.Meta(c, note).FontFeatures("tnum").SingleLine().Tooltip(note)
 		ui.Spacer(c)
-		if !p.follow && uikit.SecondaryButton(c, "Latest").Clicked() {
+		if !p.follow && uikit.SecondaryButton(c, locales.Latest()).Clicked() {
 			p.follow = true
 		}
 	})
@@ -598,7 +599,7 @@ func (p *messagePanel) view(c *ui.Context, a *app, f flow, list []messageView) {
 		})
 	}, func() {
 		if len(visible) == 0 {
-			uikit.Hint(c, "Choose a message to see it in full").Padding(t.Space(4))
+			uikit.Hint(c, locales.ChooseAMessageToSee()).Padding(t.Space(4))
 			return
 		}
 		// List remaps a disappeared selected key to -1 during filtering.
@@ -677,14 +678,14 @@ func (e messageExport) write(path string, list []messageView) error {
 func (p *messagePanel) exportModal(c *ui.Context, a *app, f flow, list, visible []messageView) {
 	uikit.Modal(c, &p.exportOpen, func() {
 		ui.Column(c).Width(470).Gap(c.Theme().Space(3)).Children(func() {
-			uikit.DialogTitle(c, "Export retained messages")
-			uikit.Body(c, fmt.Sprintf("Exports %d matching messages from this %d-message window, not the complete conversation. Pause freezes the view, not capture. Saving is available once the payload search finishes.", len(visible), len(list)))
-			ui.Text(c, "Payloads and URLs can contain credentials or personal data. Review before sharing.").FontSize(uikit.TextBody).TextColor(c.Theme().Danger)
+			uikit.DialogTitle(c, locales.ExportRetainedMessages())
+			uikit.Body(c, locales.ExportMessagesNote(len(visible), len(list)))
+			ui.Text(c, locales.PayloadsAndUrlsCanContain()).FontSize(uikit.TextBody).TextColor(c.Theme().Danger)
 			ui.Row(c).Gap(c.Theme().Space(2)).Justify(ui.End).Children(func() {
-				if uikit.SecondaryButton(c, "Cancel").Clicked() {
+				if uikit.SecondaryButton(c, locales.Cancel()).Clicked() {
 					p.exportOpen = false
 				}
-				if uikit.PrimaryButton(c, "Save messages JSON…").Disabled(len(p.searchPending) > 0).Clicked() {
+				if uikit.PrimaryButton(c, locales.SaveMessagesJson()).Disabled(len(p.searchPending) > 0).Clicked() {
 					archive := messageExport{
 						URL: f.url, Protocol: f.kind, StartedAt: f.at, End: f.streamEnd,
 						Paused: p.paused, Query: p.query, Direction: []string{"all", "in", "out"}[p.direction],
@@ -701,7 +702,7 @@ func (p *messagePanel) exportModal(c *ui.Context, a *app, f flow, list, visible 
 					p.exportOpen = false
 					go func() {
 						path, err := mygo.Dialog.Save(mygo.SaveDialogOptions{
-							Title: "Export retained messages", DefaultPath: "vscroxy-messages.json",
+							Title: locales.ExportRetainedMessages(), DefaultPath: "vscroxy-messages.json",
 							Filters: []mygo.FileFilter{{Name: "JSON", Extensions: []string{"json"}}},
 						})
 						if err != nil || path == "" {
@@ -711,7 +712,7 @@ func (p *messagePanel) exportModal(c *ui.Context, a *app, f flow, list, visible 
 							a.fail("Message export", err)
 							return
 						}
-						a.done(fmt.Sprintf("Exported %d retained messages", len(chosen)))
+						a.done(locales.ExportedMessages(len(chosen)))
 					}()
 				}
 			})

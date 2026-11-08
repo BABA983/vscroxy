@@ -7,6 +7,7 @@ import (
 
 	"github.com/baba983/vscroxy/internal/capture"
 	"github.com/baba983/vscroxy/internal/uikit"
+	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -19,7 +20,7 @@ func (a *app) timingView(c *ui.Context, f flow) {
 	}
 	t := c.Theme()
 	if f.wait == 0 && f.download == 0 {
-		uikit.Hint(c, "No timing for this flow").Padding(t.Space(4))
+		uikit.Hint(c, locales.NoTimingForThisFlow()).Padding(t.Space(4))
 		return
 	}
 	total := max(f.millis, 1)
@@ -27,7 +28,7 @@ func (a *app) timingView(c *ui.Context, f flow) {
 	wait := uikit.Colors(t).Info
 	download := t.Success
 	ui.Scroll(c).Grow(1).FillWidth().Gap(t.Space(2)).Padding(t.Space(4)).Children(func() {
-		uikit.Hint(c, "Aggregate timing only · no request-local trace was recorded")
+		uikit.Hint(c, locales.AggregateTimingOnlyNoRequest())
 		if f.conn.dnsFresh && f.conn.resolved != "" {
 			waterfallRow(c, t, "DNS lookup", fmt.Sprintf("%s → %s", hostOnly(f.host), f.conn.resolved),
 				f.conn.lookupMs, 0, total, dns)
@@ -38,7 +39,7 @@ func (a *app) timingView(c *ui.Context, f flow) {
 		waterfallRow(c, t, "Download", "rest of the response body", f.download, f.wait, total, download)
 		ui.Divider(c)
 		ui.Row(c).FillWidth().Gap(t.Space(2)).AlignItems(ui.Center).Padding(t.Space(1), 0).Children(func() {
-			ui.Text(c, "Total").FontSize(uikit.TextBody).FontWeight(600).TextColor(t.Text).Shrink(0)
+			ui.Text(c, locales.Total()).FontSize(uikit.TextBody).FontWeight(600).TextColor(t.Text).Shrink(0)
 			target := f.method + " " + f.host + f.path
 			uikit.Meta(c, target).Grow(1).Shrink(1).MinWidth(0).SingleLine().Tooltip(target)
 			ui.Text(c, fmt.Sprintf("%d ms", f.millis)).Font(uikit.FontMono).FontSize(uikit.TextMeta).FontFeatures("tnum").FontWeight(600).TextColor(t.Text).Shrink(0)
@@ -85,15 +86,15 @@ func timingWaterfall(c *ui.Context, timing *capture.Timing) {
 		valid = valid && p.StartNS >= 0 && p.StartNS <= timing.TotalNS && p.DurationNS >= 0 && p.DurationNS <= timing.TotalNS-p.StartNS && len(p.Name) <= 64 && len(p.Detail) <= 1024
 	}
 	if !valid {
-		uikit.Hint(c, "Invalid timing data · recorded offsets are outside the timeline").Padding(t.Space(4))
+		uikit.Hint(c, locales.InvalidTimingDataRecordedOffsets()).Padding(t.Space(4))
 		return
 	}
 	ui.Scroll(c).Grow(1).FillWidth().Padding(t.Space(3)).Gap(t.Space(1)).Children(func() {
 		ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(2)).Children(func() {
-			uikit.Body(c, "Timing waterfall").Grow(1)
+			uikit.Body(c, locales.TimingWaterfall()).Grow(1)
 			uikit.Meta(c, timingDuration(timing.TotalNS)).Font(uikit.FontMono).FontFeatures("tnum")
 		})
-		uikit.Meta(c, "Request headers → capture publication · offsets from 0")
+		uikit.Meta(c, locales.RequestHeadersCapturePublicationOffsets())
 		ui.Row(c).FillWidth().Justify(ui.SpaceBetween).Children(func() {
 			for i := range 5 {
 				offset := timing.TotalNS/4*int64(i) + timing.TotalNS%4*int64(i)/4
@@ -120,21 +121,21 @@ func timingWaterfall(c *ui.Context, timing *capture.Timing) {
 			if p.Failed {
 				color, status = t.Danger, status+" · failed"
 			}
-			interval := fmt.Sprintf("Start %s · End %s%s", timingDuration(p.StartNS), timingDuration(p.StartNS+p.DurationNS), status)
+			interval := locales.TimingSpan(timingDuration(p.StartNS), timingDuration(p.StartNS+p.DurationNS), status)
 			description := fmt.Sprintf("%s · %s · %s; exact offset %s, duration %s", p.Name, p.Detail, interval, time.Duration(p.StartNS), time.Duration(p.DurationNS))
 			ui.Column(c).FillWidth().Gap(t.Space(1)).Padding(t.Space(1), 0).Children(func() {
 				ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(2)).Children(func() {
 					uikit.Body(c, p.Name).Grow(1).MinWidth(0).Shrink(1).SingleLine()
 					if p.Failed {
-						uikit.Meta(c, "Failed").TextColor(t.Danger)
+						uikit.Meta(c, locales.Failed()).TextColor(t.Danger)
 					}
 					if p.Incomplete {
-						uikit.Meta(c, "Open").Tooltip("Unfinished at capture")
+						uikit.Meta(c, locales.Open()).Tooltip(locales.UnfinishedAtCapture())
 					}
 					uikit.Meta(c, timingDuration(p.DurationNS)).Font(uikit.FontMono).FontFeatures("tnum")
 				})
 				ui.Box(c).FillWidth().Height(8).Radius(4).Background(t.Border.Alpha(0.3)).
-					Label(fmt.Sprintf("Timing phase %d: %s", i+1, p.Name)).Description(description).Tooltip(description).
+					Label(locales.TimingPhaseLabel(i+1, p.Name)).Description(description).Tooltip(description).
 					Draw(func(painter *ui.Painter, r ui.Rect) {
 						total := float64(max(timing.TotalNS, 1))
 						for tick := 1; tick < 4; tick++ {
@@ -158,13 +159,13 @@ func timingWaterfall(c *ui.Context, timing *capture.Timing) {
 		}
 		ui.Divider(c)
 		if timing.Reused {
-			uikit.Meta(c, "Upstream connection reused · previous setup is not charged again")
+			uikit.Meta(c, locales.UpstreamConnectionReusedPreviousSetup())
 		}
 		if timing.Truncated {
-			uikit.Hint(c, "Trace limit reached · some observations were not retained")
+			uikit.Hint(c, locales.TraceLimitReachedSomeObservations())
 		}
-		uikit.Meta(c, "Phases may overlap; do not add their durations. Connection acquisition can include DNS/TCP/TLS. Unobserved phases are omitted, not zero.")
-		uikit.Meta(c, "Proxy-observed only: pre-request MITM setup is in the connection log. Downstream delivery and estimated throttling are not measured here. Streaming timelines stop at this capture snapshot.")
+		uikit.Meta(c, locales.PhasesMayOverlapDoNot())
+		uikit.Meta(c, locales.ProxyObservedOnlyPreRequest())
 	})
 }
 
@@ -207,7 +208,7 @@ func connectionNote(f flow) string {
 	}
 	switch {
 	case f.conn.flows > 1:
-		parts = append(parts, fmt.Sprintf("Reused connection: request %d on it, so no connect or TLS in the wait.", f.conn.flows))
+		parts = append(parts, locales.ReusedConnection(f.conn.flows))
 	case f.conn.flows == 1 && f.conn.tls != "":
 		parts = append(parts, "New connection: connect and TLS are inside the wait.")
 	case f.conn.flows == 1:

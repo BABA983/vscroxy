@@ -9,6 +9,7 @@ import (
 
 	"github.com/baba983/vscroxy/internal/inspect"
 	"github.com/baba983/vscroxy/internal/uikit"
+	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/editor"
 )
@@ -110,7 +111,7 @@ func (j *bodyInspection) poll(c *ui.Context) {
 			j.problem = result.err.Error()
 		} else {
 			j.body = result.body
-			j.result = &editor.State{Buffer: editor.NewBuffer(result.text), ReadOnly: true, SoftWrap: true, NoScrollPastEnd: true, Label: "Inspection result"}
+			j.result = &editor.State{Buffer: editor.NewBuffer(result.text), ReadOnly: true, SoftWrap: true, NoScrollPastEnd: true, Label: locales.InspectionResult()}
 		}
 	default:
 		c.After(50 * time.Millisecond)
@@ -141,7 +142,7 @@ func (a *app) jsonQueryModal(c *ui.Context) {
 	_, height := c.Size()
 	uikit.Modal(c, &u.open, func() {
 		uikit.DialogColumn(c, uikit.DialogLarge).Height(min(570, height-70)).Children(func() {
-			uikit.DialogTitle(c, "Query JSON")
+			uikit.DialogTitle(c, locales.QueryJson2())
 			ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 				before := u.dialect
 				uikit.Select(c, &u.dialect, []string{"JSONPath", "jq"}).Label("Query dialect").Width(140)
@@ -149,9 +150,9 @@ func (a *app) jsonQueryModal(c *ui.Context) {
 					u.job.stop()
 					u.job.result, u.job.problem = nil, ""
 				}
-				uikit.Meta(c, "Read-only snapshot · 1 MiB input · bounded local query").Grow(1)
+				uikit.Meta(c, locales.ReadOnlySnapshot1Mib()).Grow(1)
 			})
-			uikit.Meta(c, "JSONPath: $.items[?(@.price > 10)]  ·  jq: .items[] | select(.price > 10)").FillWidth()
+			uikit.Meta(c, locales.JsonpathItemsPrice10Jq()).FillWidth()
 			ui.Column(c).Height(76).Children(func() {
 				before := u.expression
 				authoredText(c, &u.expression, &u.expressionEditor, &u.seen, "JSON query expression", "")
@@ -165,7 +166,7 @@ func (a *app) jsonQueryModal(c *ui.Context) {
 			}
 			if u.job.result != nil {
 				if u.job.result.Buffer.Len() == 0 {
-					uikit.Hint(c, "No results (empty jq stream)")
+					uikit.Hint(c, locales.NoResultsEmptyJqStream())
 				}
 				requestCodeEditor(c, u.job.result)
 			} else {
@@ -175,22 +176,22 @@ func (a *app) jsonQueryModal(c *ui.Context) {
 				}
 				uikit.Hint(c, hint).Grow(1).FillWidth()
 			}
-			uikit.Meta(c, "Safe subset: no modules, external input, updates or definitions. See the guide for dialect limits.").FillWidth()
+			uikit.Meta(c, locales.SafeSubsetNoModulesExternal()).FillWidth()
 			uikit.DialogFooter(c).Children(func() {
 				ui.Row(c).Disabled(u.job.result == nil).Children(func() {
-					if uikit.SecondaryButton(c, "Copy results").Clicked() {
+					if uikit.SecondaryButton(c, locales.CopyResults()).Clicked() {
 						c.Services().WriteClipboard(u.job.result.Buffer.String())
 					}
 				})
 				ui.Spacer(c)
-				if u.job.answers != nil && uikit.SecondaryButton(c, "Cancel query").Clicked() {
+				if u.job.answers != nil && uikit.SecondaryButton(c, locales.CancelQuery()).Clicked() {
 					u.job.stop()
 					u.job.problem = "Query cancelled"
 				}
-				if uikit.SecondaryButton(c, "Close").Clicked() {
+				if uikit.SecondaryButton(c, locales.Close()).Clicked() {
 					u.open = false
 				}
-				if uikit.PrimaryButton(c, "Run query").Clicked() {
+				if uikit.PrimaryButton(c, locales.RunQuery()).Clicked() {
 					source, dialect, expression := u.source, u.dialect, u.expression
 					u.job.start(c.Services(), func(ctx context.Context) inspectionResult {
 						input, err := source.read(ctx)

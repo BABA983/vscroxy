@@ -6,6 +6,7 @@ import (
 	"github.com/baba983/vscroxy/internal/uikit"
 	"slices"
 
+	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/editor"
 )
@@ -54,18 +55,18 @@ func (a *app) replayLinks(c *ui.Context, f flow) {
 	ui.Row(c).Padding(t.Space(1), t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Wrap().Children(func() {
 		if f.replayOf != 0 {
 			_, present := a.tally.known[f.replayOf]
-			if uikit.SecondaryButton(c, fmt.Sprintf("Replay of #%d", f.replayOf)).Disabled(!present).
-				Tooltip("Inspect source capture; unavailable if it was removed from this session").Clicked() {
+			if uikit.SecondaryButton(c, locales.ReplayOf(f.replayOf)).Disabled(!present).
+				Tooltip(locales.InspectSourceCaptureUnavailableIf()).Clicked() {
 				a.inspectCapture(f.replayOf)
 			}
-			if uikit.SecondaryButton(c, "Compare with source").Disabled(!present).Clicked() {
+			if uikit.SecondaryButton(c, locales.CompareWithSource()).Disabled(!present).Clicked() {
 				a.inspectCapture(f.replayOf)
 				a.chosen.Add(f.id)
 				a.analysis = captureAnalysis{tab: 1}
 			}
 		}
 		if len(replays) > 0 {
-			uikit.MenuSelect(c, fmt.Sprintf("Replays (%d)", len(replays)), func(m *ui.Menu) {
+			uikit.MenuSelect(c, locales.ReplaysCount(len(replays)), func(m *ui.Menu) {
 				for _, replay := range replays {
 					if m.Item(fmt.Sprintf("#%d · %s · %d · %d ms", replay.id, replay.path, replay.status, replay.millis)).Chosen() {
 						a.inspectCapture(replay.id)
@@ -73,7 +74,7 @@ func (a *app) replayLinks(c *ui.Context, f flow) {
 				}
 			})
 		}
-		uikit.Meta(c, "Links stay with saved sessions")
+		uikit.Meta(c, locales.LinksStayWithSavedSessions())
 	})
 }
 
@@ -82,14 +83,14 @@ func (a *app) analysisDetail(c *ui.Context, selected []flow) {
 	s := &a.analysis
 	ui.Column(c).Fill().Background(t.Background).Children(func() {
 		ui.Row(c).Padding(t.Space(1), t.Space(3)).Gap(t.Space(2)).MinHeight(uikit.HeightLarge).AlignItems(ui.Center).Wrap().Children(func() {
-			ui.Text(c, fmt.Sprintf("%d requests selected", len(selected))).FontSize(uikit.TextBody).FontFeatures("tnum").FontWeight(600).Grow(1)
-			if uikit.SecondaryButton(c, "Summary").Clicked() {
+			ui.Text(c, locales.RequestsSelected(len(selected))).FontSize(uikit.TextBody).FontFeatures("tnum").FontWeight(600).Grow(1)
+			if uikit.SecondaryButton(c, locales.Summary()).Clicked() {
 				s.tab = 0
 			}
-			if uikit.SecondaryButton(c, "Compare two").Disabled(len(selected) != 2).Tooltip("Choose exactly two rows with Ctrl/Cmd-click").Clicked() {
+			if uikit.SecondaryButton(c, locales.CompareTwo()).Disabled(len(selected) != 2).Tooltip(locales.ChooseExactlyTwoRowsWith()).Clicked() {
 				s.tab = 1
 			}
-			if uikit.SecondaryButton(c, "Inspect focused").Clicked() {
+			if uikit.SecondaryButton(c, locales.InspectFocused()).Clicked() {
 				if f, ok := a.current(); ok {
 					a.inspectCapture(f.id)
 				}
@@ -117,23 +118,23 @@ func (a *app) analysisDetail(c *ui.Context, selected []flow) {
 			}
 			slices.Sort(times)
 			ui.Row(c).Gap(t.Space(4)).Wrap().Children(func() {
-				ui.Text(c, fmt.Sprintf("Response bytes: %d B", bytes)).FontSize(uikit.TextBody).FontFeatures("tnum").FontWeight(600)
-				ui.Text(c, fmt.Sprintf("Errors: %d", errors)).FontSize(uikit.TextBody).FontFeatures("tnum").TextColor(t.Danger)
-				uikit.Hint(c, fmt.Sprintf("Incomplete bodies: %d", incomplete)).FontFeatures("tnum")
+				ui.Text(c, locales.ResponseBytes(int(bytes))).FontSize(uikit.TextBody).FontFeatures("tnum").FontWeight(600)
+				ui.Text(c, locales.ErrorsCount(errors)).FontSize(uikit.TextBody).FontFeatures("tnum").TextColor(t.Danger)
+				uikit.Hint(c, locales.IncompleteBodies(incomplete)).FontFeatures("tnum")
 			})
-			uikit.Body(c, fmt.Sprintf("Average: %.1f ms · P50: %d ms · Max: %d ms", float64(duration)/float64(len(selected)), times[(len(times)-1)/2], times[len(times)-1])).FontFeatures("tnum")
-			uikit.Meta(c, "Recorded per-capture durations, not elapsed session time. P50 uses nearest rank. Errors include HTTP 4xx/5xx, connection failures and incomplete bodies.")
+			uikit.Body(c, locales.AverageTiming(fmt.Sprintf("%.1f", float64(duration)/float64(len(selected))), times[(len(times)-1)/2], times[len(times)-1])).FontFeatures("tnum")
+			uikit.Meta(c, locales.RecordedPerCaptureDurationsNot())
 			ui.Divider(c)
-			ui.Text(c, "Slowest requests").FontSize(uikit.TextBody).FontWeight(600)
+			ui.Text(c, locales.SlowestRequests()).FontSize(uikit.TextBody).FontWeight(600)
 			slowest := slices.Clone(selected)
 			slices.SortStableFunc(slowest, func(a, b flow) int { return cmp.Compare(b.millis, a.millis) })
 			for _, f := range slowest[:min(5, len(slowest))] {
 				ui.Row(c).Gap(t.Space(2)).MinHeight(uikit.HeightControl).AlignItems(ui.Center).Children(func() {
-					if uikit.SecondaryButton(c, fmt.Sprintf("Inspect #%d", f.id)).Clicked() {
+					if uikit.SecondaryButton(c, locales.InspectNumbered(f.id)).Clicked() {
 						a.inspectCapture(f.id)
 					}
 					uikit.Body(c, f.method+" "+f.host+f.path).SingleLine().Grow(1).Tooltip(f.url)
-					ui.Text(c, fmt.Sprintf("%d ms", f.millis)).FontSize(uikit.TextMeta).FontFeatures("tnum").FontWeight(600).Width(65)
+					ui.Text(c, locales.Millis(f.millis)).FontSize(uikit.TextMeta).FontFeatures("tnum").FontWeight(600).Width(65)
 				})
 			}
 		})
@@ -157,15 +158,15 @@ func (s *captureAnalysis) compare(c *ui.Context, left, right flow, labels [2]str
 	ui.Row(c).Padding(t.Space(1), t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Wrap().Children(func() {
 		uikit.Select(c, &s.part, []string{"Response body", "Response headers", "Request body", "Request headers"}).
 			Label("Compare content").Width(165).Height(uikit.HeightControl).FontSize(uikit.TextBody).Radius(uikit.RadiusControl)
-		if uikit.SecondaryButton(c, "Swap sides").Clicked() {
+		if uikit.SecondaryButton(c, locales.SwapSides()).Clicked() {
 			s.swapped = !s.swapped
 			left, right = right, left
 			labels[0], labels[1] = labels[1], labels[0]
 		}
-		if uikit.SecondaryButton(c, "Split").Clicked() && s.diff != nil {
+		if uikit.SecondaryButton(c, locales.Split()).Clicked() && s.diff != nil {
 			s.diff.Layout = editor.DiffSplit
 		}
-		if uikit.SecondaryButton(c, "Unified").Clicked() && s.diff != nil {
+		if uikit.SecondaryButton(c, locales.Unified()).Clicked() && s.diff != nil {
 			s.diff.Layout = editor.DiffUnified
 		}
 	})
@@ -200,7 +201,7 @@ func (s *captureAnalysis) compare(c *ui.Context, left, right flow, labels [2]str
 				FontSize(uikit.TextMeta).FontFeatures("tnum").SingleLine().Grow(1).Tooltip(f.url)
 		}
 	})
-	uikit.Meta(c, "Read-only comparison · bodies limited to 8 MiB; truncation/incomplete notices are included").Padding(t.Space(1), t.Space(3))
+	uikit.Meta(c, locales.ReadOnlyComparisonBodiesLimited()).Padding(t.Space(1), t.Space(3))
 	s.diff.Font = ui.Font{Family: uikit.FontMono, Size: uikit.TextBody}
 	s.diff.Theme = uikit.EditorTheme(t)
 	editor.DiffView(c, s.diff).Grow(1).FillWidth()

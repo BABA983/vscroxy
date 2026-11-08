@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -118,7 +119,7 @@ func (a *app) columnActions(id string) []action {
 	if cc, ok := a.customColumnAt(id); ok {
 		actions = append(actions, do("column.remove", "Remove “"+cc.title()+"” column", removeCustom(id)))
 	}
-	actions = append(actions, do("capture.add-column", "Add column…", a.openColumn))
+	actions = append(actions, do("capture.add-column", locales.AddColumn(), a.openColumn))
 	for _, col := range hideableColumns {
 		shown := !slices.Contains(a.hiddenColumns, col.id)
 		actions = append(actions, do("column.toggle", col.title, func() {
@@ -169,10 +170,10 @@ func (a *app) columnModal(c *ui.Context, t *ui.Theme) {
 	}
 	uikit.Modal(c, &a.columnOpen, func() {
 		uikit.DialogColumn(c, uikit.DialogSmall).Children(func() {
-			uikit.DialogTitle(c, "Add column")
+			uikit.DialogTitle(c, locales.AddColumn2())
 			ui.Scroll(c).MinHeight(0).Gap(t.Space(3)).Padding(0, t.Space(1)).Children(func() {
 				ui.Form(c, func() {
-					ui.Field(c, "From", func() {
+					ui.Field(c, locales.From(), func() {
 						uikit.Select(c, &draft.Source, columnSources).Label("Column source").Width(200)
 					}).
 						Description(map[string]string{
@@ -192,7 +193,7 @@ func (a *app) columnModal(c *ui.Context, t *ui.Theme) {
 						placeholder = "/data/user/id"
 					}
 					if draft.Source != sourceGraphQL {
-						ui.Field(c, "Name", func() {
+						ui.Field(c, locales.Name(), func() {
 							uikit.Input(c, &draft.Name).Label("Column name or JSON pointer").Placeholder(placeholder).AutoFocus()
 						}).Error(problem)
 					} else if problem != "" {
@@ -200,15 +201,15 @@ func (a *app) columnModal(c *ui.Context, t *ui.Theme) {
 					}
 				})
 				if draft.body() {
-					uikit.Hint(c, "Reads complete retained JSON off-thread, up to 1 MiB. Scalar cells up to 4 KiB; unavailable bodies show an explanation. Sorting is lexical.").FillWidth()
+					uikit.Hint(c, locales.ReadsCompleteRetainedJsonOff()).FillWidth()
 				}
-				uikit.Meta(c, "Right-click the table's header to hide columns or remove this one.")
+				uikit.Meta(c, locales.RightClickTheTableS())
 			})
 			uikit.DialogFooter(c).Children(func() {
-				if uikit.SecondaryButton(c, "Cancel").Clicked() {
+				if uikit.SecondaryButton(c, locales.Cancel()).Clicked() {
 					a.columnOpen = false
 				}
-				if uikit.PrimaryButton(c, "Add column").Disabled(name == "" || problem != "").Clicked() {
+				if uikit.PrimaryButton(c, locales.AddColumn2()).Disabled(name == "" || problem != "").Clicked() {
 					a.setCustomColumns(append(slices.Clone(a.customColumns), customColumn{Source: draft.Source, Name: name}))
 					a.columnOpen = false
 				}

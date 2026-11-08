@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/baba983/vscroxy/internal/uikit"
+	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -156,13 +157,13 @@ func (a *app) capturedHeader(c *ui.Context, t *ui.Theme, f flow, d *requestDocum
 		}
 		if a.edited(f.id) {
 			// The source names give way first; the mark and the status stay.
-			ui.Text(c, "Edited").FontSize(uikit.TextMeta).TextColor(t.Accent).SingleLine().Shrink(0)
+			ui.Text(c, locales.Edited()).FontSize(uikit.TextMeta).TextColor(t.Accent).SingleLine().Shrink(0)
 		}
 		if f.dns != "" {
 			// Which Host profile sent it elsewhere, as the Remote IP says.
 			profile, _, _ := strings.CutLast(f.hostProfile, ":")
 			_, ip, _ := strings.Cut(f.dns, " → ")
-			ui.Text(c, "Mapped by "+profile+" → "+ip).FontSize(uikit.TextMeta).TextColor(uikit.Colors(t).Accent).
+			ui.Text(c, locales.MappedTo(profile, ip)).FontSize(uikit.TextMeta).TextColor(uikit.Colors(t).Accent).
 				SingleLine().MinWidth(0).Tooltip(mappedBy(f))
 		}
 		ui.Spacer(c)
@@ -172,20 +173,20 @@ func (a *app) capturedHeader(c *ui.Context, t *ui.Theme, f flow, d *requestDocum
 			a.exchangeResult(c, t, f, compact)
 		}
 		if f.conn.error != "" {
-			if uikit.SecondaryButton(c, "Explain").Tooltip("Diagnose this connection").Clicked() {
+			if uikit.SecondaryButton(c, locales.Explain()).Tooltip(locales.DiagnoseThisConnection()).Clicked() {
 				a.openDiagnostics(&f, diagnoseMac)
 			}
 		}
-		copy := uikit.ToolbarButton(c, "Copy as…", "Copy the original captured request; may include credentials", false).Padding(0, t.Space(1)).PopoverMenuButton(func(m *ui.Menu) {
+		copy := uikit.ToolbarButton(c, locales.CopyAs(), locales.CopyTheOriginalCapturedRequest(), false).Padding(0, t.Space(1)).PopoverMenuButton(func(m *ui.Menu) {
 			actionMenu(m, copyAsMenu(append(a.requestCopyActions(c, f, nil), a.captureCopyActions(c, []flow{f})...)).items)
 		})
 		copy.Children(func() {
 			ui.Icon(c, copyIcon).Size(uikit.IconInline, uikit.IconInline)
 			if !compact {
-				uikit.Body(c, "Copy as…")
+				uikit.Body(c, locales.CopyAs())
 			}
 		})
-		info := uikit.IconButton(c, "Connection details", "Connection: addresses, DNS and TLS", infoIcon)
+		info := uikit.IconButton(c, locales.ConnectionDetails(), locales.ConnectionAddressesDnsAndTls(), infoIcon)
 		info.OnClick(func() { a.connOpen = !a.connOpen })
 		ui.Popover(c, info, &a.connOpen, func() { a.connPanel(c, t, f) })
 		a.inspectorMenu(c, t, f)
@@ -201,10 +202,10 @@ func (a *app) capturedDocument(c *ui.Context, t *ui.Theme, f flow, d *requestDoc
 		// A narrow inspector keeps its width for the URL.
 		var save ui.Element
 		if a.inspectorWidth(c) < 600 {
-			save = uikit.IconButton(c, "Save to collection", "Save this request to a collection · Ctrl/Cmd+S", saveIcon)
+			save = uikit.IconButton(c, locales.SaveToCollection(), locales.SaveThisRequestToA(), saveIcon)
 		} else {
-			save = uikit.SecondaryButton(c, "Save to collection").Height(uikit.HeightLarge).
-				Tooltip("Save this request to a collection · Ctrl/Cmd+S")
+			save = uikit.SecondaryButton(c, locales.SaveToCollection()).Height(uikit.HeightLarge).
+				Tooltip(locales.SaveThisRequestToA())
 		}
 		if save.Clicked() {
 			// A capture has no name or collection yet: ask for both.
@@ -247,8 +248,8 @@ func (a *app) capturedReadOnly(c *ui.Context, t *ui.Theme, f flow, problem strin
 	}
 	ui.Row(c).Height(uikit.HeightLarge).Padding(0, t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 		if problem == "spilled" {
-			uikit.Hint(c, "Large request body kept on disk").Grow(1)
-			if uikit.SecondaryButton(c, "Edit request").Tooltip("Read the body from disk and edit this request").Clicked() {
+			uikit.Hint(c, locales.LargeRequestBodyKeptOn()).Grow(1)
+			if uikit.SecondaryButton(c, locales.EditRequest()).Tooltip(locales.ReadTheBodyFromDisk()).Clicked() {
 				a.editCapture(f)
 			}
 			return

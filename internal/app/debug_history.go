@@ -7,6 +7,7 @@ import (
 	"strings"
 	"uuid"
 
+	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -101,29 +102,29 @@ func (a *app) debugDrafts(c *ui.Context) {
 	s := &a.experiments
 	if s.scope == nil {
 		if s.draftKey != "" || s.assetID != "" {
-			uikit.Meta(c, "Only runs linked to this request; never matched by URL.")
-			if uikit.SecondaryButton(c, "Show all History").FillWidth().Clicked() {
+			uikit.Meta(c, locales.OnlyRunsLinkedToThis())
+			if uikit.SecondaryButton(c, locales.ShowAllHistory()).FillWidth().Clicked() {
 				s.draftKey, s.assetID = "", ""
 			}
 			ui.Divider(c)
 		}
 		return
 	}
-	ui.Text(c, fmt.Sprintf("Source snapshot · Capture #%d", s.scope.Exchange.ID)).FontSize(uikit.TextBody).FontFeatures("tnum").FontWeight(600)
-	uikit.Meta(c, "Only explicitly linked drafts and retained runs; never matched by URL.")
+	ui.Text(c, locales.SourceSnapshot(s.scope.Exchange.ID)).FontSize(uikit.TextBody).FontFeatures("tnum").FontWeight(600)
+	uikit.Meta(c, locales.OnlyExplicitlyLinkedDraftsAnd())
 	index := slices.IndexFunc(a.flows, func(f flow) bool { return f.debugKey == s.scope.Key })
-	if uikit.SecondaryButton(c, "Inspect source capture").FillWidth().Disabled(index < 0).Clicked() {
+	if uikit.SecondaryButton(c, locales.InspectSourceCapture()).FillWidth().Disabled(index < 0).Clicked() {
 		s.open = false
 		a.inspectCapture(a.flows[index].id)
 	}
 	if index < 0 {
-		uikit.Meta(c, "Original capture unavailable; snapshot retained.")
+		uikit.Meta(c, locales.OriginalCaptureUnavailableSnapshotRetained())
 	}
-	if uikit.SecondaryButton(c, "Show all History").FillWidth().Clicked() {
+	if uikit.SecondaryButton(c, locales.ShowAllHistory()).FillWidth().Clicked() {
 		s.scope, s.draftKey = nil, ""
 	}
 	ui.Divider(c)
-	ui.Text(c, "Open drafts").FontSize(uikit.TextBody).FontWeight(600)
+	ui.Text(c, locales.OpenDrafts()).FontSize(uikit.TextBody).FontWeight(600)
 	n := 0
 	for _, d := range a.documents {
 		if d.origin == nil || s.scope == nil || d.origin.Key != s.scope.Key {
@@ -137,16 +138,16 @@ func (a *app) debugDrafts(c *ui.Context) {
 		}
 	}
 	if n == 0 {
-		ui.Text(c, "No open drafts for this source").FontSize(uikit.TextMeta)
+		ui.Text(c, locales.NoOpenDraftsForThis()).FontSize(uikit.TextMeta)
 	}
 	ui.Divider(c)
-	ui.Text(c, "History").FontSize(uikit.TextBody).FontWeight(600)
+	ui.Text(c, locales.History()).FontSize(uikit.TextBody).FontWeight(600)
 }
 
 func (a *app) debugWire(c *ui.Context, r experimentRecord) {
 	s := &a.experiments
 	if len(r.Wire) == 0 {
-		uikit.Meta(c, "No wire evidence retained yet; no rule outcome can be inferred.")
+		uikit.Meta(c, locales.NoWireEvidenceRetainedYet())
 		return
 	}
 	options := make([]string, len(r.Wire))
@@ -164,13 +165,13 @@ func (a *app) debugWire(c *ui.Context, r experimentRecord) {
 	if len(wire.Actions) > 0 {
 		effects = strings.Join(wire.Actions, " · ")
 	}
-	uikit.Body(c, "Recorded interventions: "+effects).SingleLine().Tooltip(effects)
-	uikit.Meta(c, "Wire evidence, not current rules. Redirect hops stay separate; source comparison uses the client result.")
+	uikit.Body(c, locales.RecordedInterventions(effects)).SingleLine().Tooltip(effects)
+	uikit.Meta(c, locales.WireEvidenceNotCurrentRules())
 }
 
 func (s *experimentWorkbench) compareSource(c *ui.Context, r experimentRecord, split *float32) {
 	if r.Source == nil {
-		uikit.Body(c, "This run has no recorded capture source.")
+		uikit.Body(c, locales.ThisRunHasNoRecorded())
 		return
 	}
 	left, right := r.Source.Exchange.flow(), r.compared("")

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/baba983/vscroxy/internal/uikit"
+	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -306,32 +307,32 @@ drained:
 	}
 	uikit.Modal(c, &r.open, func() {
 		uikit.DialogColumn(c, uikit.DialogMedium).Children(func() {
-			uikit.DialogTitle(c, fmt.Sprintf("Replay %d requests", len(r.flows)))
+			uikit.DialogTitle(c, locales.ReplayRequests(len(r.flows)))
 			// Leave room for the input's focus halo: a scroll clips what
 			// reaches past its content edge.
 			ui.Scroll(c).MinHeight(0).Shrink(1).Gap(t.Space(4)).Padding(0, t.Space(1)).Children(func() {
-				uikit.Hint(c, "Sends in capture order through the current rules. POST, PUT, PATCH and DELETE can change server data. WebSocket, SSE and tunnels are excluded.")
-				ui.Field(c, "Timeout per request (seconds; 0 = no timeout)", func() {
+				uikit.Hint(c, locales.SendsInCaptureOrderThrough())
+				ui.Field(c, locales.TimeoutPerRequestSeconds0(), func() {
 					uikit.Input(c, &r.timeout).Label("Replay timeout").Disabled(r.updates != nil)
 				}).Error(timeoutProblem)
-				ui.Field(c, "Repeat each request", func() {
+				ui.Field(c, locales.RepeatEachRequest(), func() {
 					uikit.Input(c, &r.repeat).Label("Replay repeats").Disabled(r.updates != nil)
 				}).Description(fmt.Sprintf("1–%d times. The whole selection is repeated in capture order.", replayMaxRepeat))
 				ui.Row(c).Gap(t.Space(3)).Children(func() {
-					ui.Field(c, "Concurrency", func() {
+					ui.Field(c, locales.Concurrency(), func() {
 						uikit.Input(c, &r.concurrency).Label("Replay concurrency").Disabled(r.updates != nil)
 					}).Description(fmt.Sprintf("1–%d requests in flight.", replayMaxConcurrency)).Grow(1)
-					ui.Field(c, "Interval between starts (ms)", func() {
+					ui.Field(c, locales.IntervalBetweenStartsMs(), func() {
 						uikit.Input(c, &r.interval).Label("Replay interval").Disabled(r.updates != nil)
 					}).Description(fmt.Sprintf("0–%d ms; 0 starts as a worker frees up.", replayMaxIntervalMS)).Grow(1)
 				})
 				if inputProblem != "" {
 					ui.Text(c, inputProblem).FontSize(uikit.TextBody).TextColor(t.Danger)
 				} else {
-					uikit.Meta(c, fmt.Sprintf("Total: %d %s.", total, plural(total, "send", "sends")))
+					uikit.Meta(c, locales.TotalSends(total))
 				}
 				if a.srv != nil && a.srv.NoCaching() {
-					ui.Text(c, "No Caching is on: conditional cache headers will be removed.").FontSize(uikit.TextBody).TextColor(t.Accent)
+					ui.Text(c, locales.NoCachingIsOnConditional()).FontSize(uikit.TextBody).TextColor(t.Accent)
 				}
 				if r.updates != nil || r.finished {
 					fraction := 0.0
@@ -346,7 +347,7 @@ drained:
 						}
 						uikit.Body(c, line)
 						if r.stopped {
-							uikit.Hint(c, "Stopping: no new sends; in-flight requests are canceled.")
+							uikit.Hint(c, locales.StoppingNoNewSendsIn())
 						}
 					}
 				}
@@ -358,14 +359,14 @@ drained:
 				}
 			})
 			uikit.DialogFooter(c).Children(func() {
-				if r.cancel != nil && uikit.SecondaryButton(c, "Stop replay").Clicked() {
+				if r.cancel != nil && uikit.SecondaryButton(c, locales.StopReplay()).Clicked() {
 					r.stopped = true
 					r.cancel()
 				}
-				if uikit.SecondaryButton(c, "Close").Clicked() {
+				if uikit.SecondaryButton(c, locales.Close()).Clicked() {
 					r.open = false
 				}
-				if uikit.PrimaryButton(c, "Send replays").Disabled(!valid || len(r.flows) == 0 || r.updates != nil || r.finished || r.done > 0 || a.srv == nil).Clicked() {
+				if uikit.PrimaryButton(c, locales.SendReplays()).Disabled(!valid || len(r.flows) == 0 || r.updates != nil || r.finished || r.done > 0 || a.srv == nil).Clicked() {
 					a.startReplay(seconds)
 				}
 			})
