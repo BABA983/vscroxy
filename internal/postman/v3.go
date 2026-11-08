@@ -814,9 +814,6 @@ func (r *v3reader) mqttConfig(req v3Request) *request.MQTTConfig {
 		var credentials []v3KV
 		if json.Unmarshal(auth.Credentials, &credentials) == nil {
 			for _, credential := range credentials {
-				if credential.Disabled {
-					continue
-				}
 				if credential.Key != "username" && credential.Key != "password" {
 					r.warn.add("mqtt credential", credential.Key, 1)
 				}
@@ -1054,9 +1051,6 @@ func (r *v3reader) authValue(v jsontext.Value, scope string) jsontext.Value {
 		var list []v3KV
 		if json.Unmarshal(one.Credentials, &list) == nil {
 			for _, kv := range list {
-				if kv.Disabled {
-					continue
-				}
 				params = append(params, map[string]string{"key": kv.Key, "value": text(kv.Value)})
 			}
 		}
