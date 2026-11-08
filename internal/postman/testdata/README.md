@@ -190,6 +190,11 @@ are used as a generator/reference and are not vendored here.
   examples are reported.
 - **MQTT, Kafka, MCP, LLM and data** requests are skipped with a warning; the
   app has no document for them.
+- v3 environment and globals YAML files are separate artifacts outside a
+  collection directory (`postman/environments/*.environment.yaml`,
+  `postman/globals/*.globals.yaml`), so this reader does not see them. The
+  existing Postman environment import still reads the JSON environment/globals
+  export; v3 environment YAML is a separate item.
 - MultiAuth imports the first auth set and reports the rest. A secret variable
   with a literal value becomes a local Current value (never written to the
   library); a vault reference is skipped and reported. Parameter/variable
@@ -208,7 +213,7 @@ the app.
 
 The directory reader treats the collection as untrusted input:
 
-- at most 10,000 files per import;
+- at most 10,000 files or directory entries per import;
 - at most 8 MiB per YAML file;
 - at most 1 MiB for an imported GraphQL SDL file;
 - at most 32 folder levels;

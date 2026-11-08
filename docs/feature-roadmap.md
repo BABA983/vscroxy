@@ -203,7 +203,7 @@
 | 代码生成：cURL、fetch、axios、Python、Go、HTTPie | 已有 | 补齐 Bash／CMD cURL、PowerShell 7+、浏览器／Node fetch；抓包／草稿共用复制入口，另有脱敏／原样 HAR 复制 | M9 |
 | 代码生成：Swift、Kotlin、Java、C#、PHP、Ruby、Rust | 已有 | Swift URLSession、Kotlin OkHttp、Java 11+ java.net.http、C# HttpClient、PHP cURL、Ruby Net::HTTP、Rust reqwest；抓包／草稿共用 Generate code… 与 Copy as… 入口；Binary body 引用源文件，其他文本 body 内联；非 UTF-8 抓包 body 仍用 cURL | M9 |
 | 导入：Postman v2.0/2.1、环境、OpenAPI 3.x、cURL、HAR | 已有 | | |
-| 导入：Postman Collection v3 | 缺少 | Postman v12 的新格式 | M6 |
+| 导入：Postman Collection v3 | 已有 | Postman v12 的本地／Native Git 格式：多文件 YAML 目录（`.resources/definition.yaml`、`*.request.yaml`、examples/messages）；复用 v2.1 的 auth、body、脚本、变量、设置和 examples 转换，无法表达的部分进导入报告。Postman 的 Export collection 仍写 v2.1 JSON，所以导出继续 v2.1 | M6 |
 | 导入：Swagger 2、Insomnia、Bruno、Hoppscotch | 已有 | Swagger 2 转 OpenAPI 3 后复用集合导入；Insomnia v4 JSON／v5 YAML（集合与环境）；Bruno `.bru` 目录；Hoppscotch 集合／环境 JSON。文件夹、变量、auth、body 类型和描述尽量保留，无法表达的部分在导入报告中列出 | M7 |
 | 导入：PowerShell / CMD 风格的 cURL | 已有 | Chrome Copy as cURL (cmd) 与 Copy as PowerShell (Invoke-WebRequest)；复用 cURL 导入入口和请求模型，未支持的参数明确报错 | M7 |
 | WebSocket 客户端（文本） | 已有 | | |
@@ -314,7 +314,7 @@ Cookie 和其他 API key 保留为变量 header，避免把多个认证机制硬
 - 变量：初始值/当前值已完成（环境、全局、集合/文件夹；脚本 set 写 Current，unset 清 Current 并回退 Initial；变量表可持久化/重置，凭据位和敏感名不持久化；Current 默认遮罩；Postman 导入导出用 Initial，第三方 current/secret 只进本机 Current）；`{{变量}}` 自动补全、悬停预览和未定义高亮已完成（单行输入整字段悬停，代码编辑器精确 token）。
 - 动态变量已完成：覆盖 Postman 官方文档的 118 个名称（2026-11-08 查阅 https://learning.postman.com/docs/tests-and-scripts/write-scripts/variables-list/），同一请求里的每次出现都重新生成；输出形状按 Postman 的 `postman-collection` 和 `@faker-js/faker` 5.5.3 实现（JavaScript `Date.toString()`、IBAN mod-97、BIC 8/11 位、`$randomLoremParagraphs` 的 `"\n \r"` 分隔等）。`request.dynamic` 是唯一名称表，发送、补全、悬停和 `pm.variables.replaceIn` 共用；测试用 testdata 的 118 个名单逐项校验格式并断言没有额外名称。已知差异：`$randomImageUrl` 和分类图片使用 faker 5.5.3 的 `http://placeimg.com/640/480`（Postman 文档示例仍为 lorempixel）；日期的时区标签用 Go 的缩写而非系统长名称；`$randomImageDataUri` 使用 640×480 而非 faker 5.5.3 的 undefined 尺寸；词库为内置小词库，不复制 faker 全量 locale 数据。
 - 脚本：沙箱库的 Lodash 4.18.1、CryptoJS 4.2.0、Moment 2.31.0 已完成（Postman sandbox 所用的 2.x 线最新版，相同的 min 构建、无 locale 文件，仅 en locale），请求脚本 `require`，规则脚本、addon 和 Code Mock `import`，首次使用才加载，按脚本隔离；`have.jsonSchema` 已完成（Ajv 6.12.6）。无 UI 快照改动；cheerio、xml2js 等其他 Postman 沙箱库未实现。
-- Postman Collection v3 导入导出。
+- Postman Collection v3 导入已完成：v3 是 Postman v12 的本地／Native Git 目录格式（schema 3.0.0），不是单文件导出；`Import collection folder…` 和拖放识别 `.resources/definition.yaml`／`*.request.yaml` 目录，按 v2.1 的同一套转换导入集合/文件夹定义、嵌套文件夹、HTTP 各种 body、auth、脚本、变量 Initial/Current、`settings` 和 examples；原生 GraphQL、gRPC、WebSocket、Socket.IO 文档按 app 的对应模型导入（gRPC 的 schema/脚本/examples、WebSocket/Socket.IO 的额外消息和 examples 会进报告），MQTT/Kafka/MCP/LLM/data 请求跳过并报告。目录按不可信输入处理：最多 10000 个文件／目录项、单文件 8 MiB、SDL 1 MiB、32 层，不跟随符号链接，引用路径不得越出集合根。导出继续 v2.1：Postman 的 Export collection 仍写 v2.1 JSON，v3 只是本地项目格式，需要 v3 时用 `postman collection migrate`。
 - OAuth 1.0、Hawk、Akamai EdgeGrid 已完成，含变量展开、Vault、Send／Runner、Postman 导入导出和代码导出；NTLM 因需要同一连接完成质询握手，当前发送路径每次新建连接，未实现。
 - Cookies 可选持久化、全局搜索已完成：Cookie 默认仅在内存（可选保留，0600 本地文件，约 500 ms 防抖写入并退出时 flush，Session Cookie 不落盘，按域名／全部清除，值默认遮罩）；命令面板可搜索集合、文件夹、请求、环境和变量名，不搜索变量值，请求索引随集合更新，宽泛查询最多 50 条并提示剩余数量。响应保存到文件已完成（含二进制和完整落盘正文）。
 - UI 改版第 6 步（VS Code 主题）在 M3 到 M6 期间穿插完成。

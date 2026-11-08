@@ -2340,8 +2340,8 @@ palette read a Postman Collection v2.0 or v2.1 file, an environment or a
 globals export, an Insomnia v4 JSON or v5 YAML export, a Hoppscotch
 collection or environment JSON export, a Swagger 2.0 document, a HAR file or
 an OpenAPI 3.0 or 3.1 document (JSON or YAML), telling them apart by their
-contents. **Import Bruno collection…** in the same menus reads a `.bru`
-collection directory.
+contents. **Import collection folder…** in the same menus reads a directory: a
+Postman Collection v3 tree or a Bruno `.bru` collection.
 
 A **HAR** file becomes a collection named after the file: every HTTP(S) entry,
 in order, converted as **Save as request** converts a captured row, up to 1000
@@ -2421,16 +2421,34 @@ descriptions have no field, and saved examples are not imported; each is listed
 after the import. Environment exports (one object or an array) merge into
 environments of the same name.
 
-**Import Bruno collection…** picks a directory with `bruno.json`,
-`collection.bru`, `folder.bru` files and `environments/*.bru`. Nested folders,
-collection/folder/request variables, auth, docs and the JSON, text, XML, SPARQL,
-GraphQL, urlencoded, multipart and file bodies are kept. Collection and folder
-headers are copied into each request beneath them and listed, because folder
-settings have no header table here. Bruno `script:*`, `tests` and most `assert`
-entries use Bruno's API and are listed as not imported; simple `res.status` and
-`res.headers.*` assertions become response Checks. Environment `vars` are
-imported; `vars:secret` holds only names, so those values stay outside the
-collection and are listed.
+A **Postman Collection v3** is a directory, not one JSON export: the
+collection and each folder may have `.resources/definition.yaml`, requests are
+`*.request.yaml`, and examples and saved messages live under
+`.resources/<request>.resources/`. **Import collection folder…** and a folder
+dropped on the window read it. Collection and folder auth, variables, scripts,
+descriptions and ordering; HTTP query/path parameters, headers, every body
+mode, request settings and saved examples; native GraphQL requests with a local
+SDL file; gRPC method, message, metadata and auth; and the first saved
+WebSocket or Socket.IO message are imported. Multi-auth keeps the first set,
+literal secret variables become local Current values, and vault references are
+skipped. gRPC schemas, descriptors, scripts and examples, extra stream
+messages/examples, MQTT/Kafka/MCP/LLM/data requests, and parameter or variable
+descriptions that have no field here are listed after the import. The reader
+caps a collection at 10,000 files, 8 MiB per YAML file, 1 MiB of SDL and 32
+folder levels; it never follows symbolic links and refuses paths outside the
+collection root. Postman's **Export collection** still writes v2.1 JSON, so
+this app exports v2.1; use `postman collection migrate` for a v3 copy.
+
+The same **Import collection folder…** action reads a Bruno directory with
+`bruno.json`, `collection.bru`, `folder.bru` files and `environments/*.bru`.
+Nested folders, collection/folder/request variables, auth, docs and the JSON,
+text, XML, SPARQL, GraphQL, urlencoded, multipart and file bodies are kept.
+Collection and folder headers are copied into each request beneath them and
+listed, because folder settings have no header table here. Bruno `script:*`,
+`tests` and most `assert` entries use Bruno's API and are listed as not
+imported; simple `res.status` and `res.headers.*` assertions become response
+Checks. Environment `vars` are imported; `vars:secret` holds only names, so
+those values stay outside the collection and are listed.
 
 A **Swagger 2.0** document is converted to OpenAPI 3.0 and then imported like
 an OpenAPI document: one collection named after `info.title`, a folder per
