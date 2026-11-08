@@ -123,7 +123,7 @@
 | Scenario（规则分组切换） | 已有 | | |
 | 脚本：挂在规则上、app 内编辑、`pm` 风格 API | 已有 | Script 规则运行 `tools/scripts/*.js` 的 onRequest／onResponse；Tools → Scripts 编辑，带 Console；全局 `script.js` 已删除 | M4 |
 | 脚本：异步发请求、规则间共享状态、读系统环境变量 | 已有 | `pm.sendRequest` 直连服务器；`pm.variables` 跨同一请求的脚本，`pm.globals` 跨规则并保存；`process.env` | M4 |
-| 脚本：内置库（lodash、crypto-js 等）、代码片段库、自定义 addon | 已有 | lodash、crypto-js 4.2.0、chai 和 Insert snippet 与请求脚本共用；规则脚本和 addon 是 ES 模块（esbuild 转成 CommonJS 后由 goja 运行，source map 指回原行号，不支持顶层 await），addon 在 `tools/addons/*.js`，规则脚本 `import`、请求脚本 `require` 加载，Tools → Scripts → Addons 编辑，CLI 用 `--addons` | M4 |
+| 脚本：内置库（lodash、crypto-js、moment 等）、代码片段库、自定义 addon | 已有 | lodash 4.18.1、crypto-js 4.2.0、moment 2.31.0、chai 和 Insert snippet 与请求脚本共用；规则脚本和 addon 是 ES 模块（esbuild 转成 CommonJS 后由 goja 运行，source map 指回原行号，不支持顶层 await），addon 在 `tools/addons/*.js`，规则脚本 `import`、请求脚本 `require` 加载，Tools → Scripts → Addons 编辑，CLI 用 `--addons` | M4 |
 | 脚本：WebSocket 消息钩子 | 已有 | `onMessage(message)` 双向文本／二进制编辑、单条 drop；连接级 locals 串行执行；WS／解密 WSS | M8 |
 | 网络条件：全局预设 | 已有 | 3G / 4G / DSL | |
 | 网络条件：自定义预设、请求断连、按 host/规则生效 | 已有 | 自定义预设与规则作用域；失败率是请求断连，不是 TCP/IP 丢包；见使用指南限制 | M5 |
@@ -180,7 +180,7 @@
 | `{{变量}}` 自动补全、悬停预览、未定义高亮 | 已有 | URL、Params、Headers、Body（raw/GraphQL/form/binary 路径）和 Auth；补全列出环境/集合/文件夹/全局/动态/Vault（Vault 解锁时），悬停显示值与来源并遮罩敏感值，未定义用危险色或诊断下划线。单行输入是整字段悬停，代码编辑器是精确 token；编辑器补全在变量名首字符或 Ctrl+Space 后出现 | M6 |
 | 动态变量 | 部分 | 已有 32 个：补齐常用姓名、电话、国家代码、经纬度、IPv6/MAC、域名/URL、示例邮箱、版本、价格、颜色和星期/月；内置小型词库，尚非完整 Faker | M6 |
 | `pm` 脚本 API、Console、测试 | 已有 | | |
-| 脚本沙箱库（lodash、crypto-js、moment 等） | 部分 | 已内嵌 Lodash 4.18.1，支持 `require('lodash')`，按脚本隔离；无定时器，暂不支持 delay/debounce 等；crypto-js、moment 等仍缺少 | M6 |
+| 脚本沙箱库（lodash、crypto-js、moment 等） | 部分 | 已内嵌 Lodash 4.18.1、CryptoJS 4.2.0 和 Moment 2.31.0（Postman sandbox 所用的 2.x 线最新版，相同的 min 构建、无 locale 文件，仅内置 en locale）；请求脚本 `require`，规则脚本、addon 和 Code Mock `import`，首次使用才加载，按脚本隔离（locale、updateLocale、defaultFormat 不跨脚本）；本地时区跟随 Go 进程，DST 正常，春季跳变缺口按 Go 归一化；无定时器，Lodash delay/debounce 等不可用；cheerio、xml2js 等其他 Postman 沙箱库仍未内置 | M6 |
 | `have.jsonSchema` | 已有 | 响应和 `pm.expect(data)` 共用 Ajv 6.12.6，默认 Draft-07，支持选项和取反；不下载外部引用，不支持异步 schema | M6 |
 | `pm.visualizer`（响应可视化） | 缺少 | | M9 |
 | 可复用脚本库（Postman Packages） | 缺少 | | M9 |
@@ -312,7 +312,7 @@ Cookie 和其他 API key 保留为变量 header，避免把多个认证机制硬
 - 请求描述、集合文档视图和单个请求的设置已完成：Markdown 描述随请求、文件夹和集合落盘，集合菜单的 View documentation… 只读渲染并列出请求；超时、重定向（含最大次数）和证书校验在请求 Settings 页与文件夹/集合的 Request defaults 设置，Send 和 Runner 生效，Postman 的 `protocolProfileBehavior` 与 cURL 参数往返；关闭证书校验有明确警告。
 - 证书已完成：Settings → Certificates 一份配置同时服务请求侧和抓包侧。按 host（可带端口、`*.` 通配，IDN 转 punycode）出示 PEM cert+key 或 PKCS#12/PFX（可选口令，用 `internal/vault` 密封在本机，0600 key 文件，不进设置文件、配置导出或日志）；额外信任的 PEM 根证书与“同时信任系统根”开关用于 Send、Runner、CLI/MCP、WebSocket、SSE、gRPC、Socket.IO、MITM 上游校验和反向代理 https 远端。证书文件只存路径，每次发送/连接读取，读取或解析失败明确报错，绝不静默不带证书发送。重定向按每一跳的目标 host 重新选择证书和根，明文跳不读取证书文件；抓包侧 Map Remote 和 WSS 用 canonical host:port（默认 443/80）选证书。关闭请求的证书校验只影响该请求的服务器校验，不改变客户端证书出示，也不要求自定义 CA；未解密的盲隧道仍由客户端完成 TLS。
 - 变量：初始值/当前值已完成（环境、全局、集合/文件夹；脚本 set 写 Current，unset 清 Current 并回退 Initial；变量表可持久化/重置，凭据位和敏感名不持久化；Current 默认遮罩；Postman 导入导出用 Initial，第三方 current/secret 只进本机 Current）；`{{变量}}` 自动补全、悬停预览和未定义高亮已完成（单行输入整字段悬停，代码编辑器精确 token；动态变量 32 个，仍未覆盖完整 Faker）。
-- 脚本：沙箱库；`have.jsonSchema` 已完成（Ajv 6.12.6，无 UI 改动）。
+- 脚本：沙箱库的 Lodash 4.18.1、CryptoJS 4.2.0、Moment 2.31.0 已完成（Postman sandbox 所用的 2.x 线最新版，相同的 min 构建、无 locale 文件，仅 en locale），请求脚本 `require`，规则脚本、addon 和 Code Mock `import`，首次使用才加载，按脚本隔离；`have.jsonSchema` 已完成（Ajv 6.12.6）。无 UI 快照改动；cheerio、xml2js 等其他 Postman 沙箱库未实现。
 - Postman Collection v3 导入导出。
 - OAuth 1.0、Hawk、Akamai EdgeGrid 已完成，含变量展开、Vault、Send／Runner、Postman 导入导出和代码导出；NTLM 因需要同一连接完成质询握手，当前发送路径每次新建连接，未实现。
 - Cookies 可选持久化、全局搜索已完成：Cookie 默认仅在内存（可选保留，0600 本地文件，约 500 ms 防抖写入并退出时 flush，Session Cookie 不落盘，按域名／全部清除，值默认遮罩）；命令面板可搜索集合、文件夹、请求、环境和变量名，不搜索变量值，请求索引随集合更新，宽泛查询最多 50 条并提示剩余数量。响应保存到文件已完成（含二进制和完整落盘正文）。

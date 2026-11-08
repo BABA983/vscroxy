@@ -1,7 +1,8 @@
 # Third-party notices
 
-vscroxy's desktop app links the icon package below and embeds Chai, Ajv, Lodash
-and the Geist and Geist Mono fonts. These notices cover them.
+vscroxy's desktop app links the icon package below and embeds Chai, Ajv,
+Lodash, CryptoJS, Moment and the Geist and Geist Mono fonts. These notices
+cover them.
 
 ## GraphQL inspector
 
@@ -340,6 +341,43 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
+```
+
+## Moment 2.31.0 (`internal/request/js/moment.min.js`)
+
+The unmodified `min/moment.min.js` browser build from the
+[`moment@2.31.0` npm archive](https://registry.npmjs.org/moment/-/moment-2.31.0.tgz)
+is embedded for `require('moment')` in request scripts and `import moment from
+"moment"` in rule scripts, addons and Code Mocks. Postman's sandbox pins the
+2.x line (2.30.1) and loads `moment/min/moment.min` without locale files; this
+is the latest 2.x release. Its SHA-256 is
+`c111ad2e4447c253765e679bb4a40ba91a3e23d80b4b69d603a0fd25164cb9de`.
+
+The upstream license follows:
+
+```
+Copyright (c) OpenJS Foundation and other contributors
+
+Permission is hereby granted, free of charge, to any person
+obtaining a copy of this software and associated documentation
+files (the "Software"), to deal in the Software without
+restriction, including without limitation the rights to use,
+copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the
+Software is furnished to do so, subject to the following
+conditions:
+
+The above copyright notice and this permission notice shall be
+included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+OTHER DEALINGS IN THE SOFTWARE.
 ```
 
 ## Chai 4.5.0 (`internal/request/js/chai.js`)
