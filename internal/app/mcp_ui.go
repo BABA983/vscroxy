@@ -249,7 +249,7 @@ func (a *app) mcpEditor(c *ui.Context, t *ui.Theme, d *requestDocument) {
 	s := u.session.snapshot()
 	ui.Column(c).Fill().Children(func() {
 		ui.Row(c).Height(uikit.HeightTabs).Padding(0, t.Space(3)).Children(func() {
-			uikit.Tabs(c, &u.tab, locales.McpEditorTabPrefix(), locales.Connection(), locales.Tools(), locales.Resources(), locales.Prompts(), locales.Headers(), locales.Auth()).Grow(1)
+			uikit.Tabs(c, &u.tab, locales.McpEditorTabPrefix(), locales.Connection(), locales.Tools(), locales.Resources(), locales.Prompts(), locales.RequestHeadersLabel(), locales.Auth()).Grow(1)
 		})
 		if u.problem != "" {
 			ui.Text(c, u.problem).TextColor(t.Danger).FontSize(uikit.TextMeta).MaxHeight(55).Padding(0, t.Space(3))

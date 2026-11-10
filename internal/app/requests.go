@@ -1007,7 +1007,7 @@ func (a *app) requestEditor(c *ui.Context, t *ui.Theme, d *requestDocument, orig
 		a.mcpEditor(c, t, d)
 		return
 	}
-	labels := []string{locales.Params(), locales.Headers(), locales.Auth(), locales.Body(), locales.Scripts(), locales.Checks(), locales.Examples(), locales.Docs(), locales.Settings()}
+	labels := []string{locales.Params(), locales.RequestHeadersLabel(), locales.Auth(), locales.Body(), locales.Scripts(), locales.Checks(), locales.Examples(), locales.Docs(), locales.Settings()}
 	if original != nil {
 		labels = append(labels, locales.OriginalTab())
 	} else if d.composeTab == composeTabOriginal {
@@ -1195,7 +1195,7 @@ func (a *app) requestResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 		ui.Row(c).Height(uikit.HeightTabs).Padding(0, t.Space(2)).Gap(t.Space(2)).AlignItems(ui.Center).
 			Border(0, t.Border).BorderWidth(0, 0, 1, 0).Children(func() {
 			if !d.comparing && (d.response != nil || len(d.composeReplies) > 0 || len(d.console) > 0) {
-				labels := []string{locales.Body(), locales.Headers(), locales.Cookies2(), locales.TimingTab(), locales.Checks(), locales.Console()}
+				labels := []string{locales.Body(), locales.ResponseHeadersLabel(), locales.Cookies2(), locales.TimingTab(), locales.Checks(), locales.Console()}
 				counts := make([]string, len(labels))
 				if r := d.response; r != nil {
 					n := 0

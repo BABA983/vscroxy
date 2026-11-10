@@ -215,7 +215,11 @@ func (a *app) sessionDetail(c *ui.Context, t *ui.Theme, item *savedSession) {
 		if uikit.Segmented(c, &item.side, locales.Request(), locales.Response()).Changed() {
 			item.reader = nil
 		}
-		if uikit.Segmented(c, &item.tab, locales.Headers(), locales.Body(), locales.MessagesTab(), locales.Connection()).Changed() {
+		headers := locales.RequestHeadersLabel()
+		if item.side == 1 {
+			headers = locales.ResponseHeadersLabel()
+		}
+		if uikit.Segmented(c, &item.tab, headers, locales.Body(), locales.MessagesTab(), locales.Connection()).Changed() {
 			item.reader = nil
 		}
 	})

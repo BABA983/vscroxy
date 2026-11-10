@@ -719,7 +719,7 @@ func (a *app) ruleDetail(c *ui.Context, t *ui.Theme) {
 			ui.Field(c, locales.Apps(), func() {
 				uikit.Input(c, &e.apps).Label(locales.MatchApps()).Placeholder(locales.Any()).FillWidth()
 			}).Description(locales.CommaSeparatedAppNamesMatches())
-			ui.Field(c, locales.Headers(), func() { a.ruleHeaderConditions(c, t) })
+			ui.Field(c, locales.RequestHeadersLabel(), func() { a.ruleHeaderConditions(c, t) })
 			switch e.kind {
 			case "Network conditions":
 				ui.Field(c, locales.CopyPreset(), func() {
@@ -778,7 +778,7 @@ func (a *app) ruleDetail(c *ui.Context, t *ui.Theme) {
 				ui.Field(c, locales.Status(), func() {
 					uikit.Input(c, &e.status).Label(locales.ResponseStatus()).Width(95).Font(uikit.FontMono)
 				})
-				ui.Field(c, locales.Headers(), func() {
+				ui.Field(c, locales.RequestHeadersLabel(), func() {
 					ui.TextArea(c, &e.headers).Height(76).FillWidth().Font(uikit.FontMono).FontSize(uikit.TextBody).Radius(uikit.RadiusControl).Label(locales.ResponseHeaders()).Placeholder("Content-Type: application/json")
 				}).Description(locales.ConnectionHeadersAreRemovedThe())
 			case "Map Remote":

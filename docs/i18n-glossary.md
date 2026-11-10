@@ -96,7 +96,7 @@ GraphQL, OpenAPI, Protobuf, JSON, HAR, cURL, App) keep their spelling.
 | Replay | 重放 | |
 | Status | 状态 | |
 | Method | 方法 | |
-| Header | 标头 | |
+| Header | 头部 | A request's or a response's; say 请求头 / 响应头 when the side is known. |
 | Body | 正文 | |
 | Query parameter | 查询参数 | |
 | Path | 路径 | |

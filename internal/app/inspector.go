@@ -57,11 +57,11 @@ const (
 )
 
 func requestTabLabels() []string {
-	return []string{locales.Headers(), locales.Params(), locales.Body(), locales.Raw(), locales.Cookies2()}
+	return []string{locales.RequestHeadersLabel(), locales.Params(), locales.Body(), locales.Raw(), locales.Cookies2()}
 }
 
 func responseTabLabels(f flow) []string {
-	labels := []string{locales.Headers(), locales.Body(), locales.Raw(), locales.TimingTab(), locales.Cookies2()}
+	labels := []string{locales.ResponseHeadersLabel(), locales.Body(), locales.Raw(), locales.TimingTab(), locales.Cookies2()}
 	if f.kind == "ws" || f.kind == "sse" {
 		labels = append(labels, "Messages")
 	}

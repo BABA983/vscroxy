@@ -8326,16 +8326,6 @@ func (msgs Messages) HeaderValue(index int) string {
 	return Catalog.Format(msgs.locale, "headerValue", map[string]any{"index": index})
 }
 
-// Headers says "Headers"
-// in the language the app shows.
-func Headers() string { return In(i18n.Locale()).Headers() }
-
-// Headers says "Headers"
-// in the language of msgs.
-func (msgs Messages) Headers() string {
-	return Catalog.Format(msgs.locale, "headers", nil)
-}
-
 // HeadersCookiesAndBodiesOf says "Headers, cookies and bodies of these become readable. More rules in HTTPS rules."
 // in the language the app shows.
 func HeadersCookiesAndBodiesOf() string { return In(i18n.Locale()).HeadersCookiesAndBodiesOf() }
@@ -16106,6 +16096,16 @@ func (msgs Messages) RequestHeadersCapturePublicationOffsets() string {
 	return Catalog.Format(msgs.locale, "requestHeadersCapturePublicationOffsets", nil)
 }
 
+// RequestHeadersLabel says "Headers"
+// in the language the app shows.
+func RequestHeadersLabel() string { return In(i18n.Locale()).RequestHeadersLabel() }
+
+// RequestHeadersLabel says "Headers"
+// in the language of msgs.
+func (msgs Messages) RequestHeadersLabel() string {
+	return Catalog.Format(msgs.locale, "requestHeadersLabel", nil)
+}
+
 // RequestHistory says "Request history"
 // in the language the app shows.
 func RequestHistory() string { return In(i18n.Locale()).RequestHistory() }
@@ -16596,6 +16596,16 @@ func ResponseHeadersExactValueAny() string { return In(i18n.Locale()).ResponseHe
 // in the language of msgs.
 func (msgs Messages) ResponseHeadersExactValueAny() string {
 	return Catalog.Format(msgs.locale, "responseHeadersExactValueAny", nil)
+}
+
+// ResponseHeadersLabel says "Headers"
+// in the language the app shows.
+func ResponseHeadersLabel() string { return In(i18n.Locale()).ResponseHeadersLabel() }
+
+// ResponseHeadersLabel says "Headers"
+// in the language of msgs.
+func (msgs Messages) ResponseHeadersLabel() string {
+	return Catalog.Format(msgs.locale, "responseHeadersLabel", nil)
 }
 
 // ResponseInformation says "Response information"

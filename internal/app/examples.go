@@ -115,7 +115,7 @@ func (a *app) examplesEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
 				ui.Text(c, fmt.Sprintf("%d %s", e.Status, http.StatusText(e.Status))).FontSize(uikit.TextBody).FontWeight(600).TextColor(uikit.StatusColor(e.Status, t))
 				uikit.Meta(c, humanBytes(len(e.Body))).FontFeatures("tnum")
 				ui.Spacer(c)
-				if uikit.Segmented(c, &d.exampleView, locales.Body(), locales.Headers(), locales.Request()).Changed() {
+				if uikit.Segmented(c, &d.exampleView, locales.Body(), locales.RequestHeadersLabel(), locales.Request()).Changed() {
 					d.exampleEditor = nil
 				}
 				if uikit.SecondaryButton(c, locales.Mock()).Label(locales.MockThisExample()).Tooltip(locales.AnswerMatchingRequestsWithThis()).Clicked() {
