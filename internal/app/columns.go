@@ -100,14 +100,28 @@ func (a *app) customColumnAt(id string) (customColumn, bool) {
 	return a.customColumns[i], true
 }
 
-// hideableColumns are the built-in columns the table can do without, in the
-// table's order and under the headings it shows; the URL always stays.
-func hideableColumns() []struct{ id, title string } {
-	return []struct{ id, title string }{
-		{"id", "#"}, {"status", locales.Status()}, {"method", locales.Method()}, {"host", locales.Host()},
-		{"remote", locales.RemoteIp()}, {"client", locales.Client()}, {"duration", locales.Duration()},
-		{"size", locales.Size()}, {"captured", locales.Time()},
+// optionalColumns are the built-in columns the table starts without: each
+// costs room beside the traffic, so the header menu puts them in and
+// ShownColumns remembers the ones the user chose.
+var optionalColumns = []string{
+	"ssl", "statusIcon", "comment", "tools",
+	"latency", "reqtime", "restime",
+	"reqwire", "reqsize", "ressize",
+}
+
+// columnShown says the table shows the built-in column id: a default column
+// unless the user took it out, and an optional one once they put it in.
+func (a *app) columnShown(id string) bool {
+	if slices.Contains(a.hiddenColumns, id) {
+		return false
 	}
+	return !slices.Contains(optionalColumns, id) || slices.Contains(a.shownColumns, id)
+}
+
+// narrowColumns are the columns a narrow list does without: the inspector
+// repeats their numbers.
+var narrowColumns = []string{
+	"size", "captured", "latency", "reqtime", "restime", "ressize", "reqwire", "reqsize", "comment",
 }
 
 // maxCustomColumns is how many the table holds; the menu and the dialog say so.
@@ -137,11 +151,34 @@ func (a *app) columnActions(id string) []action {
 			a.setCustomColumns(slices.DeleteFunc(slices.Clone(a.customColumns), func(x customColumn) bool { return x.id() == id }))
 		}))
 	}
-	for _, col := range hideableColumns() {
-		actions = append(actions, a.columnToggle(col.id, col.title).in("columns"))
-	}
+	// The built-in columns the table can do without, in the table's order and
+	// under the headings it shows; the URL always stays. The detail columns
+	// sit in the submenus that name what they measure.
+	actions = append(actions,
+		a.columnToggle("id", "#"),
+		a.columnToggle("ssl", locales.Ssl()),
+		a.columnToggle("statusIcon", locales.StatusIcon()),
+		a.columnToggle("status", locales.Status()),
+		a.columnToggle("method", locales.Method()),
+		a.columnToggle("host", locales.Host()),
+		a.columnToggle("remote", locales.RemoteIp()),
+		a.columnToggle("client", locales.Client()),
+		a.columnToggle("duration", locales.Duration()),
+		submenu(locales.Timing(),
+			a.columnToggle("latency", locales.Latency()),
+			a.columnToggle("reqtime", locales.RequestTime()),
+			a.columnToggle("restime", locales.ResponseTime())).in("columns"),
+		submenu(locales.BodySizes(),
+			a.columnToggle("size", locales.Size()),
+			a.columnToggle("ressize", locales.SizeDecoded()),
+			a.columnToggle("reqwire", locales.RequestSize()),
+			a.columnToggle("reqsize", locales.RequestSizeDecoded())).in("columns"),
+		a.columnToggle("comment", locales.Comment()),
+		a.columnToggle("tools", locales.DebuggingTools()),
+		a.columnToggle("captured", locales.Time()),
+	)
 	for _, cc := range a.customColumns {
-		actions = append(actions, a.columnToggle(cc.id(), cc.title()).in("columns"))
+		actions = append(actions, a.columnToggle(cc.id(), cc.title()))
 	}
 	actions = append(actions,
 		do("capture.add-column", locales.AddColumn(), a.openColumn).in("add"),
@@ -154,17 +191,24 @@ func (a *app) columnActions(id string) []action {
 
 // columnToggle shows or hides one column, checked while the table shows it.
 func (a *app) columnToggle(id, label string) action {
-	shown := !slices.Contains(a.hiddenColumns, id)
-	return do("column.toggle", label, func() { a.setColumnHidden(id, shown) }).checked(checkbox(shown))
+	shown := a.columnShown(id)
+	return do("column.toggle", label, func() { a.setColumnShown(id, !shown) }).checked(checkbox(shown)).in("columns")
 }
 
-// setColumnHidden takes a column out of the table or puts it back. A custom
-// column stays defined either way, so its place and width survive.
-func (a *app) setColumnHidden(id string, hidden bool) {
-	if hidden {
-		a.hiddenColumns = append(slices.Clone(a.hiddenColumns), id)
-	} else {
+// setColumnShown puts a column in the table or takes it out. A custom column
+// stays defined either way, so its place and width survive.
+func (a *app) setColumnShown(id string, show bool) {
+	optional := slices.Contains(optionalColumns, id)
+	if show {
 		a.hiddenColumns = slices.DeleteFunc(slices.Clone(a.hiddenColumns), func(h string) bool { return h == id })
+		if optional && !slices.Contains(a.shownColumns, id) {
+			a.shownColumns = append(slices.Clone(a.shownColumns), id)
+		}
+	} else {
+		a.shownColumns = slices.DeleteFunc(slices.Clone(a.shownColumns), func(h string) bool { return h == id })
+		if !optional && !slices.Contains(a.hiddenColumns, id) {
+			a.hiddenColumns = append(slices.Clone(a.hiddenColumns), id)
+		}
 	}
 	// A body column shown again reads the cells it never had while hidden.
 	a.columnRead.dirty = true
@@ -203,13 +247,13 @@ func (a *app) headerColumnActions(source string) []action {
 	for _, name := range names[:min(len(names), headerColumnLimit)] {
 		cc := customColumn{Source: source, Name: name}
 		exists := slices.ContainsFunc(a.customColumns, func(x customColumn) bool { return x.id() == cc.id() })
-		shown := exists && !slices.Contains(a.hiddenColumns, cc.id())
+		shown := exists && a.columnShown(cc.id())
 		actions = append(actions, do("column.header", name, func() {
 			if !exists {
 				a.setCustomColumns(append(slices.Clone(a.customColumns), cc))
 				return
 			}
-			a.setColumnHidden(cc.id(), shown)
+			a.setColumnShown(cc.id(), !shown)
 		}).checked(checkbox(shown)).when(exists || len(a.customColumns) < maxCustomColumns, tooManyColumns))
 	}
 	if len(actions) == 0 {
@@ -228,6 +272,7 @@ func (a *app) headerColumnActions(source string) []action {
 // resetColumns returns the table to its default columns and layout.
 func (a *app) resetColumns() {
 	a.hiddenColumns = nil
+	a.shownColumns = nil
 	a.columns = ui.TableLayout{}
 	// The table copies the layout back when its frame ends, and this menu is
 	// drawn inside that frame, so the live copy goes too.

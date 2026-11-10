@@ -85,6 +85,7 @@ func (a *app) currentSettings() settings {
 		Columns:              savedLayout(a.columns),
 		CustomColumns:        a.customColumns,
 		HiddenColumns:        a.hiddenColumns,
+		ShownColumns:         a.shownColumns,
 		KeyLogPath:           a.keyLogPath,
 		ProxyPort:            a.proxyPort,
 		SOCKSOn:              a.socksOn,
@@ -461,6 +462,7 @@ func (a *app) applySettingsPrepared(s settings, prepared *upstream.Config) error
 	}
 	a.columns = s.Columns.layout()
 	a.customColumns, a.hiddenColumns = slices.Clone(s.CustomColumns), slices.Clone(s.HiddenColumns)
+	a.shownColumns = slices.Clone(s.ShownColumns)
 	a.proxyPort, a.vault.scripts, a.allowOn = s.ProxyPort, s.VaultScripts, s.AllowList
 	// A shared bundle never carries the SOCKS5 password. Keep this
 	// computer's password when the imported entry asks for authentication;

@@ -111,12 +111,15 @@ type Flow struct {
 
 	// RequestBody and ResponseBody are the whole body, or its head when the
 	// body was spilled: then the file holds all of it and Size its length.
-	RequestBody      string
-	RequestBodyFile  string
-	RequestBodySize  int
-	ResponseBody     string
-	ResponseBodyFile string
-	ResponseBodySize int
+	// RequestBodyWireSize is the request body as it went over the wire, before
+	// its encoding was undone, and Bytes the response body the same way.
+	RequestBody         string
+	RequestBodyFile     string
+	RequestBodySize     int
+	RequestBodyWireSize int
+	ResponseBody        string
+	ResponseBodyFile    string
+	ResponseBodySize    int
 
 	// RequestBodyError and ResponseBodyError say why a body is not the whole
 	// one the exchange carried: the transfer stopped before its end, the body
@@ -1658,8 +1661,8 @@ func (s *Server) ReplayWithPolicy(ctx context.Context, f Flow, jar http.CookieJa
 	return Flow{
 		Method: req.Method, URL: rawURL, Status: resp.StatusCode,
 		RequestHeader: req.Header.Clone(), RequestBody: strings.Clone(raw[:min(len(raw), 8<<20)]),
-		RequestBodySize: len(raw),
-		ResponseHeader:  resp.Header.Clone(), ResponseBody: string(preview),
+		RequestBodySize: len(raw), RequestBodyWireSize: len(raw),
+		ResponseHeader: resp.Header.Clone(), ResponseBody: string(preview),
 		ResponseBodySize: len(preview) + int(rest), Bytes: len(preview) + int(rest),
 		ResponseTrailer: resp.Trailer.Clone(), ResponseProto: resp.Proto,
 		Millis: int(time.Since(started).Milliseconds()), At: time.Now(),
@@ -2439,10 +2442,14 @@ func (s *Server) publishFlow(f *proxy.Flow, kind string, frames []Frame, status 
 	if err != nil {
 		reqErr = "request body could not be decoded: " + err.Error()
 	}
+	reqWire := len(f.Request.Body)
 	streamReq, streamRes := streamed.sides()
 	if streamReq != nil {
 		r := streamReq.finish()
 		reqBody, reqFile, reqSize, reqErr = r.Head, r.File, r.Size, r.Err
+		if r.Wire > 0 {
+			reqWire = r.Wire
+		}
 	}
 	size, respHeaders, respProto := 0, "", ""
 	respBody, respFile, respSize := "", "", 0
@@ -2499,40 +2506,41 @@ func (s *Server) publishFlow(f *proxy.Flow, kind string, frames []Frame, status 
 		download = millis - wait
 	}
 	flow := Flow{
-		ID:                int(s.nextID.Add(1)),
-		Actions:           debugActions(f),
-		Method:            method,
-		Scheme:            shown.Scheme,
-		Host:              shown.Host,
-		Path:              shownPath,
-		URL:               shown.String(),
-		Status:            status,
-		Bytes:             size,
-		Millis:            millis,
-		Wait:              wait,
-		Download:          download,
-		Timing:            snapshotTiming(f, now, kind == "http" && f.Error == nil),
-		RequestHeaders:    formatRequest(f.Request, display),
-		ResponseHeaders:   respHeaders,
-		RequestBody:       reqBody,
-		RequestBodyFile:   reqFile,
-		RequestBodySize:   reqSize,
-		ResponseBody:      respBody,
-		ResponseBodyFile:  respFile,
-		ResponseBodySize:  respSize,
-		RequestBodyError:  reqErr,
-		ResponseBodyError: respErr,
-		RequestHeader:     f.Request.Header.Clone(),
-		ResponseHeader:    responseHeader(f.Response),
-		RequestTrailer:    reqTrailer,
-		ResponseTrailer:   resTrailer,
-		ResponseProto:     respProto,
-		At:                now,
-		Kind:              kind,
-		Frames:            clipFrames(frames),
-		Process:           client.Name,
-		ProcessPath:       client.Path,
-		Conn:              s.connInfo(f, start),
+		ID:                  int(s.nextID.Add(1)),
+		Actions:             debugActions(f),
+		Method:              method,
+		Scheme:              shown.Scheme,
+		Host:                shown.Host,
+		Path:                shownPath,
+		URL:                 shown.String(),
+		Status:              status,
+		Bytes:               size,
+		Millis:              millis,
+		Wait:                wait,
+		Download:            download,
+		Timing:              snapshotTiming(f, now, kind == "http" && f.Error == nil),
+		RequestHeaders:      formatRequest(f.Request, display),
+		ResponseHeaders:     respHeaders,
+		RequestBody:         reqBody,
+		RequestBodyFile:     reqFile,
+		RequestBodySize:     reqSize,
+		RequestBodyWireSize: reqWire,
+		ResponseBody:        respBody,
+		ResponseBodyFile:    respFile,
+		ResponseBodySize:    respSize,
+		RequestBodyError:    reqErr,
+		ResponseBodyError:   respErr,
+		RequestHeader:       f.Request.Header.Clone(),
+		ResponseHeader:      responseHeader(f.Response),
+		RequestTrailer:      reqTrailer,
+		ResponseTrailer:     resTrailer,
+		ResponseProto:       respProto,
+		At:                  now,
+		Kind:                kind,
+		Frames:              clipFrames(frames),
+		Process:             client.Name,
+		ProcessPath:         client.Path,
+		Conn:                s.connInfo(f, start),
 	}
 	flow.DNSMapped, flow.HostProfile = s.dnsMapped(f)
 	if raw := f.Request.Raw(); raw != nil {

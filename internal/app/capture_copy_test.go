@@ -187,7 +187,8 @@ func TestCaptureColumnsFollowVisibleOrderAndCustomColumns(t *testing.T) {
 	for _, col := range a.captureColumns() {
 		ids = append(ids, col.id)
 	}
-	want := []string{"method", "id", "url", "status", "client", "duration", "size", "captured", "custom:Header:x-trace"}
+	// # keeps the left edge however the rest is arranged.
+	want := []string{"id", "method", "url", "status", "client", "duration", "size", "captured", "custom:Header:x-trace"}
 	if strings.Join(ids, ",") != strings.Join(want, ",") {
 		t.Fatalf("columns = %v, want %v", ids, want)
 	}

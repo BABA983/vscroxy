@@ -37,6 +37,7 @@ type flow struct {
 	reqBody     string
 	reqFile     string
 	reqSize     int
+	reqWire     int // the request body as it went over the wire
 	reqError    string
 	resBody     string
 	resFile     string
@@ -62,6 +63,20 @@ type flow struct {
 	wait        int
 	download    int
 	timing      *capture.Timing // immutable proxy-observed trace snapshot
+}
+
+// secure reports the exchange ran over TLS.
+func (f flow) secure() bool {
+	return f.scheme == "https" || f.scheme == "wss" || f.conn.tls != ""
+}
+
+// wireSize is the request body as it went over the wire; a capture that did
+// not record it sent the body it shows.
+func (f flow) wireSize() int {
+	if f.reqWire > 0 {
+		return f.reqWire
+	}
+	return f.reqSize
 }
 
 // conn is what an exchange ran over, as the connection panel shows it.

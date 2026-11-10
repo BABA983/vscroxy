@@ -32,6 +32,7 @@ func TestSettingsRoundTrip(t *testing.T) {
 		Columns:          columnLayout{Order: []string{"status", "url"}, Widths: map[string]float32{"url": 320}},
 		CustomColumns:    []customColumn{{Source: sourceQuery, Name: "Page"}, {Source: sourceResponseJSON, Name: "/data/ID"}, {Source: sourceRequestJSON, Name: "/id"}, graphqlColumn},
 		HiddenColumns:    []string{"client"},
+		ShownColumns:     []string{"latency", "comment"},
 		KeyLogPath:       "/tmp/keys.log",
 		ProxyPort:        9091,
 		Certificates: certs.Settings{
@@ -285,6 +286,10 @@ func TestSameSettingsSeesColumnChanges(t *testing.T) {
 		{SideTablePercent: 61, Columns: base.Columns},
 		{DiffSplit: 61, Columns: base.Columns},
 		{SidebarHidden: true, Columns: base.Columns},
+		// A column taken out, put in, or added stays a change to save.
+		{HiddenColumns: []string{"host"}, Columns: base.Columns},
+		{ShownColumns: []string{"latency"}, Columns: base.Columns},
+		{CustomColumns: []customColumn{{Source: sourceQuery, Name: "page"}}, Columns: base.Columns},
 	} {
 		if sameSettings(base, changed) {
 			t.Error("a desktop layout change compared equal")

@@ -389,6 +389,19 @@ such as `/data/user/id` or `/items/0/name`; `~1` escapes `/` and `~0` escapes
 `~`. Query parameter names are also case-sensitive; only header names ignore
 case. **Reset all columns** puts the default columns, order and widths back.
 
+The detail columns start out of the table, because each costs room beside the
+traffic; the menu puts them in and keeps the choice. **Timing ▸** has
+**Latency** (the request written to the first response byte), **Request time**
+(writing it upstream) and **Response time** (first byte to capture), and
+**Body sizes ▸** has **Size** (the response body as received), **Size
+(decoded)**, **Request size** (the request body as sent) and **Request size
+(decoded)**. **SSL** shows a lock for an encrypted exchange, with its TLS
+version, cipher and certificate on hover; **Status icon** is the status color
+on its own; **Comment** is the note from **Mark…**; **Debugging tools** shows a
+wrench when a rule, breakpoint, scenario or script acted, and what it did on
+hover. A phase the capture did not measure shows `—`: imported captures keep
+whatever their file carried.
+
 Added columns sort lexically like the others, and a header cell's menu filters
 by its value. A column's own header removes it for good, and the menu's
 choices, ordering and widths stay in `settings.json`.

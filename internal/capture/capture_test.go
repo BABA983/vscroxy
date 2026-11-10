@@ -1235,6 +1235,50 @@ func TestCapturesHTTP(t *testing.T) {
 	}
 }
 
+// A compressed request body keeps both sizes: what went over the wire and the
+// body it decodes to, which is what the inspector shows.
+func TestCapturesCompressedRequestSizes(t *testing.T) {
+	var got []byte
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		got, _ = io.ReadAll(r.Body)
+		fmt.Fprint(w, "ok")
+	}))
+	defer upstream.Close()
+
+	text := strings.Repeat("compress me, ", 200)
+	var wire bytes.Buffer
+	zw := gzip.NewWriter(&wire)
+	if _, err := zw.Write([]byte(text)); err != nil {
+		t.Fatal(err)
+	}
+	if err := zw.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	s, _ := startServer(t)
+	req, err := http.NewRequest("POST", upstream.URL+"/up", bytes.NewReader(wire.Bytes()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Content-Encoding", "gzip")
+	resp, err := clientFor(t, s, nil).Do(req)
+	if err != nil {
+		t.Fatalf("request through proxy: %v", err)
+	}
+	_ = resp.Body.Close()
+
+	f := waitFlow(t, s)
+	if string(got) != wire.String() {
+		t.Fatalf("the upstream received %d bytes, want the %d compressed ones", len(got), wire.Len())
+	}
+	if f.RequestBodyWireSize != wire.Len() {
+		t.Errorf("wire size = %d, want %d", f.RequestBodyWireSize, wire.Len())
+	}
+	if f.RequestBodySize != len(text) {
+		t.Errorf("decoded size = %d, want %d", f.RequestBodySize, len(text))
+	}
+}
+
 func TestCapturesHTTPS(t *testing.T) {
 	upstream := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprint(w, `{"secure":true}`)

@@ -38,9 +38,10 @@ type settings struct {
 	DiffSplit     float32 `json:"diffSplit,omitzero"`
 	SidebarHidden bool    `json:"sidebarHidden,omitzero"`
 	// CustomColumns are the table's added columns, HiddenColumns the IDs of
-	// the built-in ones taken out.
+	// the built-in ones taken out, and ShownColumns the optional ones put in.
 	CustomColumns []customColumn `json:"customColumns,omitempty"`
 	HiddenColumns []string       `json:"hiddenColumns,omitempty"`
+	ShownColumns  []string       `json:"shownColumns,omitempty"`
 	// KeyLogPath is where the TLS secrets go for Wireshark, empty when the
 	// key log is off.
 	KeyLogPath string `json:"keyLogPath,omitempty"`
@@ -209,7 +210,10 @@ func sameSettings(x, y settings) bool {
 		x.AllowList == y.AllowList &&
 		x.FlowLimit == y.FlowLimit && x.MemoryLimit == y.MemoryLimit && x.DiskLimit == y.DiskLimit &&
 		slices.Equal(x.Columns.Order, y.Columns.Order) &&
-		maps.Equal(x.Columns.Widths, y.Columns.Widths)
+		maps.Equal(x.Columns.Widths, y.Columns.Widths) &&
+		slices.Equal(x.CustomColumns, y.CustomColumns) &&
+		slices.Equal(x.HiddenColumns, y.HiddenColumns) &&
+		slices.Equal(x.ShownColumns, y.ShownColumns)
 }
 
 // sameUpstream reports whether two upstream configurations would write the

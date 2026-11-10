@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/baba983/vscroxy/internal/capture"
 	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo/ui"
 )
@@ -120,6 +121,101 @@ func TestHeaderMenuReadsABodyColumnShownAgain(t *testing.T) {
 	tt.Frame()
 	if !tt.HasText("u-1") {
 		t.Fatalf("the column shown again has no value: %v", tt.Texts())
+	}
+}
+
+// The columns Proxyman has and this table did not are optional: they cost
+// room, so the header menu puts them in and remembers the choice.
+func TestHeaderMenuAddsOptionalColumns(t *testing.T) {
+	a := workspaceApp()
+	a.flows[0].timing = &capture.Timing{TotalNS: 60_000_000, Phases: []capture.TimingPhase{
+		{Name: "Send", DurationNS: 2_000_000},
+		{Name: "Wait", DurationNS: 30_000_000},
+		{Name: "Receive", DurationNS: 28_000_000},
+	}}
+	tt := ui.NewTester(a.view, 1920, 900)
+	tt.Frame()
+	if tt.HasText("Latency") || tt.HasText("SSL") {
+		t.Fatalf("an optional column is in the table before it is chosen: %v", tt.Texts())
+	}
+	if err := tt.RightClick("Host"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.ChooseMenuItem("Timing", "Latency"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if !slices.Contains(a.shownColumns, "latency") {
+		t.Fatalf("shown columns = %v", a.shownColumns)
+	}
+	if !tt.HasText("Latency") || !tt.HasText("30 ms") {
+		t.Fatalf("the latency column is not in the table: %v", tt.Texts())
+	}
+	// Reset puts the default table back, optional columns included.
+	if err := tt.RightClick("Host"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.Click("Reset all columns"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if len(a.shownColumns) != 0 || tt.HasText("Latency") {
+		t.Fatalf("after the reset: shown %v, texts %v", a.shownColumns, tt.Texts())
+	}
+}
+
+// Each optional column shows what it measures, from the trace when there is
+// one and from the aggregate when there is not.
+func TestOptionalColumnsShowMeasuredValues(t *testing.T) {
+	a := workspaceApp()
+	a.shownColumns = append([]string(nil), optionalColumns...)
+	f := &a.flows[0]
+	f.note = "checkout regression"
+	f.actions = []string{"No Caching", "Map Remote · /api → https://staging.test/api"}
+	f.conn.tls, f.conn.cipher = "TLS 1.3", "TLS_AES_128_GCM_SHA256"
+	f.reqWire, f.reqSize, f.resSize = 1200, 2400, 9000
+	f.timing = &capture.Timing{TotalNS: 60_000_000, Phases: []capture.TimingPhase{
+		{Name: "Send", DurationNS: 2_000_000},
+		{Name: "Wait", DurationNS: 30_000_000},
+		{Name: "Receive", DurationNS: 28_000_000},
+	}}
+	// A capture without a trace falls back to the aggregate wait and download.
+	a.flows[1].wait, a.flows[1].download = 40, 60
+	tt := ui.NewTester(a.view, 2400, 900)
+	tt.Frame()
+	for _, want := range []string{"30 ms", "2 ms", "28 ms", "40 ms", "60 ms", "8.8 KB", "1.2 KB", "2.3 KB", "checkout regression"} {
+		if !tt.HasText(want) {
+			t.Fatalf("missing %q in the optional columns: %v", want, tt.Texts())
+		}
+	}
+}
+
+// The CSV export mirrors the table's optional columns, with numbers as
+// numbers and a measured phase left empty when the capture has none.
+func TestOptionalColumnsReachTheCsvExport(t *testing.T) {
+	a := workspaceApp()
+	a.shownColumns = []string{"latency", "comment", "tools", "ssl"}
+	f := &a.flows[0]
+	f.note, f.actions = "checkout regression", []string{"No Caching"}
+	f.timing = &capture.Timing{TotalNS: 60_000_000, Phases: []capture.TimingPhase{{Name: "Wait", DurationNS: 30_000_000}}}
+	want := map[string]string{
+		"ssl": "TLS", "latency": "30", "comment": "checkout regression", "tools": "No Caching",
+	}
+	for _, col := range a.captureColumns() {
+		if value, ok := want[col.id]; ok {
+			if got := a.captureCellValue(*f, col).value; got != value {
+				t.Errorf("%s = %q, want %q", col.id, got, value)
+			}
+			delete(want, col.id)
+		}
+	}
+	if len(want) != 0 {
+		t.Fatalf("the export is missing %v", want)
+	}
+	// The second capture has no trace, so its latency is the aggregate and an
+	// empty phase stays empty.
+	if got := a.captureCellValue(a.flows[1], captureColumn{id: "latency"}).value; got != "" {
+		t.Errorf("latency without a trace = %q", got)
 	}
 }
 

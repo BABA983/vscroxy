@@ -394,12 +394,14 @@ type app struct {
 	// Connection overlays belong to the inspected request, not the list.
 	connOpen bool
 
-	// customColumns are the columns the user added to the table and
-	// hiddenColumns the built-in ones they took out; the filter fields narrow
-	// what it shows beyond the search box.
+	// customColumns are the columns the user added to the table,
+	// hiddenColumns the default ones they took out and shownColumns the
+	// optional ones they put in; the filter fields narrow what it shows
+	// beyond the search box.
 	customColumns []customColumn
 	columnRead    columnReader
 	hiddenColumns []string
+	shownColumns  []string
 	filterStatus  string
 	filterHeader  string
 	filterBody    string
@@ -693,6 +695,7 @@ func newApp() *app {
 		}
 		a.columns = saved.Columns.layout()
 		a.customColumns, a.hiddenColumns = slices.Clone(saved.CustomColumns), saved.HiddenColumns
+		a.shownColumns = slices.Clone(saved.ShownColumns)
 	}
 	if home, err := os.UserHomeDir(); err == nil {
 		a.apisPath = filepath.Join(home, ".vscroxy", "apis.json")
@@ -1180,6 +1183,7 @@ func (a *app) drain() {
 			reqBody:     f.RequestBody,
 			reqFile:     f.RequestBodyFile,
 			reqSize:     f.RequestBodySize,
+			reqWire:     f.RequestBodyWireSize,
 			reqError:    f.RequestBodyError,
 			resBody:     f.ResponseBody,
 			resFile:     f.ResponseBodyFile,
@@ -2115,7 +2119,11 @@ func (a *app) table(c *ui.Context) {
 		return
 	}
 	cols := []ui.TableColumn{
-		{ID: "id", Title: "#", Width: 48, Sortable: true},
+		// The number names the row, so it keeps the left edge: the marker
+		// for a chosen row sits on it and no column can take its place.
+		{ID: "id", Title: "#", Width: 48, Fixed: true, Sortable: true},
+		{ID: "ssl", Title: locales.Ssl(), Width: 40},
+		{ID: "statusIcon", Title: "", Width: 28},
 		{ID: "status", Title: locales.Status(), Width: 78, Sortable: true},
 		{ID: "method", Title: locales.Method(), Width: 76, Sortable: true},
 		{ID: "host", Title: locales.Host(), Width: 160, Sortable: true},
@@ -2124,7 +2132,15 @@ func (a *app) table(c *ui.Context) {
 		{ID: "url", Title: locales.Path(), MinWidth: 160, Sortable: true},
 		{ID: "client", Title: locales.Client(), Width: 132, Sortable: true},
 		{ID: "duration", Title: locales.Duration(), Width: 112, Align: ui.End, Sortable: true},
+		{ID: "latency", Title: locales.Latency(), Width: 84, Align: ui.End, Sortable: true},
+		{ID: "reqtime", Title: locales.RequestTime(), Width: 100, Align: ui.End, Sortable: true},
+		{ID: "restime", Title: locales.ResponseTime(), Width: 112, Align: ui.End, Sortable: true},
 		{ID: "size", Title: locales.Size(), Width: 78, Align: ui.End, Sortable: true},
+		{ID: "ressize", Title: locales.SizeDecoded(), Width: 130, Align: ui.End, Sortable: true},
+		{ID: "reqwire", Title: locales.RequestSize(), Width: 110, Align: ui.End, Sortable: true},
+		{ID: "reqsize", Title: locales.RequestSizeDecoded(), Width: 170, Align: ui.End, Sortable: true},
+		{ID: "comment", Title: locales.Comment(), Width: 160, Sortable: true},
+		{ID: "tools", Title: "", Width: 30},
 		{ID: "captured", Title: locales.Time(), Width: 84, Sortable: true},
 	}
 	width, _ := c.Size()
@@ -2138,9 +2154,18 @@ func (a *app) table(c *ui.Context) {
 	// A narrow list keeps what identifies a request and what it returned;
 	// the columns that only repeat the inspector's numbers give way.
 	if available < 900 {
-		cols[3].Width = 132
-		cols[6].Width = 100
-		cols = slices.DeleteFunc(cols, func(col ui.TableColumn) bool { return col.ID == "size" || col.ID == "captured" })
+		for i := range cols {
+			switch cols[i].ID {
+			case "host":
+				cols[i].Width = 132
+			case "client":
+				cols[i].Width = 100
+			}
+		}
+		// A column the user put in stays, whatever the width.
+		cols = slices.DeleteFunc(cols, func(col ui.TableColumn) bool {
+			return slices.Contains(narrowColumns, col.ID) && !slices.Contains(a.shownColumns, col.ID)
+		})
 	}
 	if available < 700 {
 		cols = slices.DeleteFunc(cols, func(col ui.TableColumn) bool { return col.ID == "client" || col.ID == "remote" })
@@ -2152,8 +2177,9 @@ func (a *app) table(c *ui.Context) {
 		}
 		cols = append(cols, ui.TableColumn{ID: cc.id(), Title: cc.title(), Width: width, Sortable: true})
 	}
-	cols = slices.DeleteFunc(cols, func(col ui.TableColumn) bool { return slices.Contains(a.hiddenColumns, col.ID) })
+	cols = slices.DeleteFunc(cols, func(col ui.TableColumn) bool { return !a.columnShown(col.ID) })
 	remoteShown := slices.ContainsFunc(cols, func(col ui.TableColumn) bool { return col.ID == "remote" })
+	statusIconShown := slices.ContainsFunc(cols, func(col ui.TableColumn) bool { return col.ID == "statusIcon" })
 	cols = append(cols, ui.TableColumn{Title: "", ID: "filler", Width: 14, Fixed: true})
 	state := &a.views.activeView().list
 	state.FollowEnd = true
@@ -2196,6 +2222,18 @@ func (a *app) table(c *ui.Context) {
 		switch cols[col].ID {
 		case "id":
 			quiet(fmt.Sprint(f.id))
+		case "ssl":
+			if !f.secure() {
+				quiet("—")
+				return
+			}
+			ui.Row(c).Grow(1).Justify(ui.Center).AlignItems(ui.Center).Tooltip(securityNote(f)).Children(func() {
+				ui.Icon(c, lockIcon).Size(uikit.IconInline, uikit.IconInline).TextColor(t.Text)
+			})
+		case "statusIcon":
+			ui.Row(c).Grow(1).Justify(ui.Center).AlignItems(ui.Center).Tooltip(statusNote(f)).Children(func() {
+				ui.Box(c).Size(6, 6).Radius(uikit.RadiusControl).Background(f.statusColor(t))
+			})
 		case "method":
 			uikit.MethodLabel(c, f.method).FontSize(uikit.TextData).Height(15).FixedLineHeight(15).TextColor(uikit.MethodColor(f.method, t)).Tooltip(f.method).PopoverMenu(a.rowMenu(c, f))
 		case "host":
@@ -2240,7 +2278,11 @@ func (a *app) table(c *ui.Context) {
 			} else if f.kind == "connect" {
 				quiet("Tunnel").Tooltip(locales.TunnelTooltip(f.status)).PopoverMenu(a.rowMenu(c, f))
 			} else {
-				ui.Box(c).Size(5, 5).Radius(uikit.RadiusControl).Background(f.statusColor(t)).MarginEnd(t.Space(2))
+				// The Status icon column carries the color; the code keeps its
+				// own when that column is not in the table.
+				if !statusIconShown {
+					ui.Box(c).Size(5, 5).Radius(uikit.RadiusControl).Background(f.statusColor(t)).MarginEnd(t.Space(2))
+				}
 				text(fmt.Sprint(f.status)).TextColor(f.statusColor(t)).PopoverMenu(a.rowMenu(c, f))
 			}
 		case "client":
@@ -2252,8 +2294,34 @@ func (a *app) table(c *ui.Context) {
 			quiet(f.process).Padding(0, 0, 0, t.Space(2)).PopoverMenu(a.rowMenu(c, f))
 		case "duration":
 			durationCell(c, t, f.millis, quiet)
+		case "latency":
+			timeCell(quiet, f.latencyMillis)
+		case "reqtime":
+			timeCell(quiet, f.requestMillis)
+		case "restime":
+			timeCell(quiet, f.responseMillis)
 		case "size":
 			quiet(humanBytes(f.bytes))
+		case "ressize":
+			quiet(humanBytes(f.resSize))
+		case "reqwire":
+			quiet(humanBytes(f.wireSize()))
+		case "reqsize":
+			quiet(humanBytes(f.reqSize))
+		case "comment":
+			if f.note == "" {
+				quiet("—")
+				return
+			}
+			quiet(f.note).TextColor(t.Text).Tooltip(f.note)
+		case "tools":
+			if len(f.actions) == 0 {
+				quiet("—")
+				return
+			}
+			ui.Row(c).Grow(1).Justify(ui.Center).AlignItems(ui.Center).Tooltip(strings.Join(f.actions, "\n")).Children(func() {
+				uikit.Glyph(c, toolsIcon)
+			})
 		case "captured":
 			at := "—"
 			if !f.at.IsZero() {
@@ -2296,6 +2364,55 @@ func (a *app) table(c *ui.Context) {
 }
 
 var noteIcon = lucide.MessageSquare()
+
+// timeCell shows a measured phase, or a dash when the capture has none.
+func timeCell(number func(string) ui.Element, phase func() (int, bool)) {
+	millis, ok := phase()
+	if !ok {
+		number("—")
+		return
+	}
+	number(fmt.Sprintf("%d ms", millis))
+}
+
+// millisOrZero is a phase's duration for sorting, zero when it has none.
+func millisOrZero(phase func() (int, bool)) int {
+	millis, _ := phase()
+	return millis
+}
+
+// statusNote is what a row's status says: its code, or why it has none.
+func statusNote(f flow) string {
+	switch {
+	case f.conn.error != "":
+		return f.conn.errorStage + ": " + f.conn.error
+	case f.kind == "connect":
+		return locales.TunnelTooltip(f.status)
+	}
+	return fmt.Sprint(f.status)
+}
+
+// secureRank sorts the SSL column: plaintext first, then TLS.
+func secureRank(f flow) int {
+	if f.secure() {
+		return 1
+	}
+	return 0
+}
+
+// securityNote says how a row was encrypted, for the SSL column's tooltip.
+func securityNote(f flow) string {
+	if !f.secure() {
+		return locales.NotEncrypted()
+	}
+	parts := []string{locales.Encrypted()}
+	for _, detail := range []string{f.conn.tls, f.conn.cipher, f.conn.certCN} {
+		if detail != "" {
+			parts = append(parts, detail)
+		}
+	}
+	return strings.Join(parts, " · ")
+}
 
 // remoteCell is the address a request reached; one a Host profile mapped
 // is in the accent color, and says which profile and line did it.
@@ -3393,6 +3510,26 @@ func (a *app) sortOrder() func(x, y int) int {
 			c = cmp.Compare(fx.path, fy.path)
 		case "size":
 			c = cmp.Compare(fx.bytes, fy.bytes)
+		case "ressize":
+			c = cmp.Compare(fx.resSize, fy.resSize)
+		case "reqwire":
+			c = cmp.Compare(fx.wireSize(), fy.wireSize())
+		case "reqsize":
+			c = cmp.Compare(fx.reqSize, fy.reqSize)
+		case "latency":
+			c = cmp.Compare(millisOrZero(fx.latencyMillis), millisOrZero(fy.latencyMillis))
+		case "reqtime":
+			c = cmp.Compare(millisOrZero(fx.requestMillis), millisOrZero(fy.requestMillis))
+		case "restime":
+			c = cmp.Compare(millisOrZero(fx.responseMillis), millisOrZero(fy.responseMillis))
+		case "ssl":
+			c = cmp.Compare(secureRank(fx), secureRank(fy))
+		case "statusIcon":
+			c = cmp.Compare(fx.status, fy.status)
+		case "comment":
+			c = cmp.Compare(fx.note, fy.note)
+		case "tools":
+			c = cmp.Compare(len(fx.actions), len(fy.actions))
 		case "time", "duration":
 			c = cmp.Compare(fx.millis, fy.millis)
 		default:
@@ -3501,6 +3638,7 @@ func (a *app) saveComposed() bool {
 			}
 			a.columns = saved.Columns.layout()
 			a.customColumns, a.hiddenColumns = slices.Clone(saved.CustomColumns), saved.HiddenColumns
+			a.shownColumns = slices.Clone(saved.ShownColumns)
 		}
 	}
 	if err := a.persistRequests(list); err != nil {

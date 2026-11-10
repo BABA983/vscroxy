@@ -40,6 +40,8 @@ type captureColumn struct {
 func (a *app) captureColumns() []captureColumn {
 	columns := []captureColumn{
 		{id: "id", title: "#"},
+		{id: "ssl", title: "SSL"},
+		{id: "statusIcon", title: "Status icon"},
 		{id: "status", title: "Status"},
 		{id: "method", title: "Method"},
 		{id: "host", title: "Host"},
@@ -47,14 +49,22 @@ func (a *app) captureColumns() []captureColumn {
 		{id: "url", title: "Path"},
 		{id: "client", title: "Client"},
 		{id: "duration", title: "Duration"},
+		{id: "latency", title: "Latency"},
+		{id: "reqtime", title: "Request time"},
+		{id: "restime", title: "Response time"},
 		{id: "size", title: "Size"},
+		{id: "ressize", title: "Size (decoded)"},
+		{id: "reqwire", title: "Request size"},
+		{id: "reqsize", title: "Request size (decoded)"},
+		{id: "comment", title: "Comment"},
+		{id: "tools", title: "Debugging tools"},
 		{id: "captured", title: "Time"},
 	}
 	for i := range a.customColumns {
 		cc := a.customColumns[i]
 		columns = append(columns, captureColumn{id: cc.id(), title: cc.title(), custom: &cc})
 	}
-	columns = slices.DeleteFunc(columns, func(col captureColumn) bool { return slices.Contains(a.hiddenColumns, col.id) })
+	columns = slices.DeleteFunc(columns, func(col captureColumn) bool { return !a.columnShown(col.id) })
 	ordered := make([]captureColumn, 0, len(columns))
 	used := make(map[string]bool, len(columns))
 	for _, id := range a.columns.Order {
@@ -68,6 +78,11 @@ func (a *app) captureColumns() []captureColumn {
 		if !used[col.id] {
 			ordered = append(ordered, col)
 		}
+	}
+	// The table's # column keeps the left edge, whatever the order says.
+	if i := slices.IndexFunc(ordered, func(col captureColumn) bool { return col.id == "id" }); i > 0 {
+		id := ordered[i]
+		ordered = slices.Insert(slices.Delete(ordered, i, i+1), 0, id)
 	}
 	return ordered
 }
@@ -90,12 +105,29 @@ type captureCell struct {
 
 func plainCell(value string) captureCell { return captureCell{value: value} }
 
+// millisCell is a measured phase in milliseconds, empty when the capture has
+// none, so a spreadsheet reads it as a number.
+func millisCell(phase func() (int, bool)) captureCell {
+	millis, ok := phase()
+	if !ok {
+		return captureCell{}
+	}
+	return plainCell(strconv.Itoa(millis))
+}
+
 // captureCellValue is the underlying value the table shows, not its color or
 // bar. Numeric fields stay numeric for CSV consumers; empty values stay empty.
 func (a *app) captureCellValue(f flow, col captureColumn) captureCell {
 	switch col.id {
 	case "id":
 		return plainCell(strconv.Itoa(f.id))
+	case "ssl":
+		if f.secure() {
+			return plainCell("TLS")
+		}
+		return captureCell{}
+	case "statusIcon":
+		return plainCell(statusNote(f))
 	case "status":
 		switch {
 		case f.conn.error != "":
@@ -118,8 +150,24 @@ func (a *app) captureCellValue(f flow, col captureColumn) captureCell {
 		return plainCell(f.process)
 	case "duration":
 		return plainCell(strconv.Itoa(f.millis))
+	case "latency":
+		return millisCell(f.latencyMillis)
+	case "reqtime":
+		return millisCell(f.requestMillis)
+	case "restime":
+		return millisCell(f.responseMillis)
 	case "size":
 		return plainCell(strconv.Itoa(f.bytes))
+	case "ressize":
+		return plainCell(strconv.Itoa(f.resSize))
+	case "reqwire":
+		return plainCell(strconv.Itoa(f.wireSize()))
+	case "reqsize":
+		return plainCell(strconv.Itoa(f.reqSize))
+	case "comment":
+		return plainCell(f.note)
+	case "tools":
+		return plainCell(strings.Join(f.actions, "; "))
 	case "captured":
 		if f.at.IsZero() {
 			return captureCell{}

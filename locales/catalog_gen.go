@@ -1748,6 +1748,16 @@ func (msgs Messages) BodyLocation() string {
 	return Catalog.Format(msgs.locale, "bodyLocation", nil)
 }
 
+// BodySizes says "Body sizes"
+// in the language the app shows.
+func BodySizes() string { return In(i18n.Locale()).BodySizes() }
+
+// BodySizes says "Body sizes"
+// in the language of msgs.
+func (msgs Messages) BodySizes() string {
+	return Catalog.Format(msgs.locale, "bodySizes", nil)
+}
+
 // BodyText says "Body text"
 // in the language the app shows.
 func BodyText() string { return In(i18n.Locale()).BodyText() }
@@ -3590,6 +3600,16 @@ func (msgs Messages) Commands2() string {
 	return Catalog.Format(msgs.locale, "commands2", nil)
 }
 
+// Comment says "Comment"
+// in the language the app shows.
+func Comment() string { return In(i18n.Locale()).Comment() }
+
+// Comment says "Comment"
+// in the language of msgs.
+func (msgs Messages) Comment() string {
+	return Catalog.Format(msgs.locale, "comment", nil)
+}
+
 // CommonMethods says "Common methods"
 // in the language the app shows.
 func CommonMethods() string { return In(i18n.Locale()).CommonMethods() }
@@ -5210,6 +5230,16 @@ func (msgs Messages) DebuggingRules2() string {
 	return Catalog.Format(msgs.locale, "debuggingRules2", nil)
 }
 
+// DebuggingTools says "Debugging tools"
+// in the language the app shows.
+func DebuggingTools() string { return In(i18n.Locale()).DebuggingTools() }
+
+// DebuggingTools says "Debugging tools"
+// in the language of msgs.
+func (msgs Messages) DebuggingTools() string {
+	return Catalog.Format(msgs.locale, "debuggingTools", nil)
+}
+
 // Decode says "Decode"
 // in the language the app shows.
 func Decode() string { return In(i18n.Locale()).Decode() }
@@ -6476,6 +6506,16 @@ func EnableVariable(index int) string { return In(i18n.Locale()).EnableVariable(
 // in the language of msgs.
 func (msgs Messages) EnableVariable(index int) string {
 	return Catalog.Format(msgs.locale, "enableVariable", map[string]any{"index": index})
+}
+
+// Encrypted says "Encrypted"
+// in the language the app shows.
+func Encrypted() string { return In(i18n.Locale()).Encrypted() }
+
+// Encrypted says "Encrypted"
+// in the language of msgs.
+func (msgs Messages) Encrypted() string {
+	return Catalog.Format(msgs.locale, "encrypted", nil)
 }
 
 // EncryptedTunnelConnectSuccessIs says "Encrypted tunnel; CONNECT success is not a decrypted response"
@@ -10114,6 +10154,16 @@ func (msgs Messages) LastWill() string {
 	return Catalog.Format(msgs.locale, "lastWill", nil)
 }
 
+// Latency says "Latency"
+// in the language the app shows.
+func Latency() string { return In(i18n.Locale()).Latency() }
+
+// Latency says "Latency"
+// in the language of msgs.
+func (msgs Messages) Latency() string {
+	return Catalog.Format(msgs.locale, "latency", nil)
+}
+
 // Latest says "Latest"
 // in the language the app shows.
 func Latest() string { return In(i18n.Locale()).Latest() }
@@ -12666,6 +12716,16 @@ func NotConnected() string { return In(i18n.Locale()).NotConnected() }
 // in the language of msgs.
 func (msgs Messages) NotConnected() string {
 	return Catalog.Format(msgs.locale, "notConnected", nil)
+}
+
+// NotEncrypted says "Not encrypted"
+// in the language the app shows.
+func NotEncrypted() string { return In(i18n.Locale()).NotEncrypted() }
+
+// NotEncrypted says "Not encrypted"
+// in the language of msgs.
+func (msgs Messages) NotEncrypted() string {
+	return Catalog.Format(msgs.locale, "notEncrypted", nil)
 }
 
 // NotMappedResolvedAsUsual says "→ not mapped; resolved as usual"
@@ -16166,6 +16226,26 @@ func (msgs Messages) RequestQuoted(name string) string {
 	return Catalog.Format(msgs.locale, "requestQuoted", map[string]any{"name": name})
 }
 
+// RequestSize says "Request size"
+// in the language the app shows.
+func RequestSize() string { return In(i18n.Locale()).RequestSize() }
+
+// RequestSize says "Request size"
+// in the language of msgs.
+func (msgs Messages) RequestSize() string {
+	return Catalog.Format(msgs.locale, "requestSize", nil)
+}
+
+// RequestSizeDecoded says "Request size (decoded)"
+// in the language the app shows.
+func RequestSizeDecoded() string { return In(i18n.Locale()).RequestSizeDecoded() }
+
+// RequestSizeDecoded says "Request size (decoded)"
+// in the language of msgs.
+func (msgs Messages) RequestSizeDecoded() string {
+	return Catalog.Format(msgs.locale, "requestSizeDecoded", nil)
+}
+
 // RequestSummary says "{count, plural, one {# request} other {# requests}}"
 // in the language the app shows.
 func RequestSummary(count int) string { return In(i18n.Locale()).RequestSummary(count) }
@@ -16174,6 +16254,16 @@ func RequestSummary(count int) string { return In(i18n.Locale()).RequestSummary(
 // in the language of msgs.
 func (msgs Messages) RequestSummary(count int) string {
 	return Catalog.Format(msgs.locale, "requestSummary", map[string]any{"count": count})
+}
+
+// RequestTime says "Request time"
+// in the language the app shows.
+func RequestTime() string { return In(i18n.Locale()).RequestTime() }
+
+// RequestTime says "Request time"
+// in the language of msgs.
+func (msgs Messages) RequestTime() string {
+	return Catalog.Format(msgs.locale, "requestTime", nil)
 }
 
 // RequestTimeoutInSeconds says "Request timeout in seconds"
@@ -16576,6 +16666,16 @@ func ResponseStatus() string { return In(i18n.Locale()).ResponseStatus() }
 // in the language of msgs.
 func (msgs Messages) ResponseStatus() string {
 	return Catalog.Format(msgs.locale, "responseStatus", nil)
+}
+
+// ResponseTime says "Response time"
+// in the language the app shows.
+func ResponseTime() string { return In(i18n.Locale()).ResponseTime() }
+
+// ResponseTime says "Response time"
+// in the language of msgs.
+func (msgs Messages) ResponseTime() string {
+	return Catalog.Format(msgs.locale, "responseTime", nil)
 }
 
 // ResponseTopic says "Response topic"
@@ -19548,6 +19648,16 @@ func (msgs Messages) Size() string {
 	return Catalog.Format(msgs.locale, "size", nil)
 }
 
+// SizeDecoded says "Size (decoded)"
+// in the language the app shows.
+func SizeDecoded() string { return In(i18n.Locale()).SizeDecoded() }
+
+// SizeDecoded says "Size (decoded)"
+// in the language of msgs.
+func (msgs Messages) SizeDecoded() string {
+	return Catalog.Format(msgs.locale, "sizeDecoded", nil)
+}
+
 // SkipGuide says "Skip guide"
 // in the language the app shows.
 func SkipGuide() string { return In(i18n.Locale()).SkipGuide() }
@@ -20162,6 +20272,16 @@ func (msgs Messages) SseUrl() string {
 	return Catalog.Format(msgs.locale, "sseUrl", nil)
 }
 
+// Ssl says "SSL"
+// in the language the app shows.
+func Ssl() string { return In(i18n.Locale()).Ssl() }
+
+// Ssl says "SSL"
+// in the language of msgs.
+func (msgs Messages) Ssl() string {
+	return Catalog.Format(msgs.locale, "ssl", nil)
+}
+
 // SslProxying says "SSL proxying"
 // in the language the app shows.
 func SslProxying() string { return In(i18n.Locale()).SslProxying() }
@@ -20302,6 +20422,16 @@ func StatusHeaderBodyMethodDuration() string {
 // in the language of msgs.
 func (msgs Messages) StatusHeaderBodyMethodDuration() string {
 	return Catalog.Format(msgs.locale, "statusHeaderBodyMethodDuration", nil)
+}
+
+// StatusIcon says "Status icon"
+// in the language the app shows.
+func StatusIcon() string { return In(i18n.Locale()).StatusIcon() }
+
+// StatusIcon says "Status icon"
+// in the language of msgs.
+func (msgs Messages) StatusIcon() string {
+	return Catalog.Format(msgs.locale, "statusIcon", nil)
 }
 
 // StdioMcpServersReceiveCredentials says "stdio MCP servers receive credentials through environment variables, not HTTP headers."
@@ -21296,6 +21426,16 @@ func Timestamp() string { return In(i18n.Locale()).Timestamp() }
 // in the language of msgs.
 func (msgs Messages) Timestamp() string {
 	return Catalog.Format(msgs.locale, "timestamp", nil)
+}
+
+// Timing says "Timing"
+// in the language the app shows.
+func Timing() string { return In(i18n.Locale()).Timing() }
+
+// Timing says "Timing"
+// in the language of msgs.
+func (msgs Messages) Timing() string {
+	return Catalog.Format(msgs.locale, "timing", nil)
 }
 
 // TimingHoverHelp says "Hover for the time of each phase"

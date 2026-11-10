@@ -48,6 +48,39 @@ func (a *app) timingView(c *ui.Context, f flow) {
 	})
 }
 
+// phaseMillis is how long the proxy-observed trace spent in the named phase.
+func (f flow) phaseMillis(name string) (int, bool) {
+	if f.timing == nil {
+		return 0, false
+	}
+	for _, p := range f.timing.Phases {
+		if p.Name == name && !p.Incomplete {
+			return int(p.DurationNS / int64(time.Millisecond)), true
+		}
+	}
+	return 0, false
+}
+
+// latencyMillis is the wait from the request being written to the first
+// response byte, or the aggregate for a capture without a trace.
+func (f flow) latencyMillis() (int, bool) {
+	if millis, ok := f.phaseMillis("Wait"); ok {
+		return millis, true
+	}
+	return f.wait, f.wait > 0 || f.download > 0
+}
+
+// requestMillis is the time spent writing the request upstream.
+func (f flow) requestMillis() (int, bool) { return f.phaseMillis("Send") }
+
+// responseMillis is the time from the first response byte to the capture.
+func (f flow) responseMillis() (int, bool) {
+	if millis, ok := f.phaseMillis("Receive"); ok {
+		return millis, true
+	}
+	return f.download, f.wait > 0 || f.download > 0
+}
+
 // headlineTiming summarizes the duration without adding overlapping phases.
 // Captures without a trace retain their aggregate wait/download breakdown.
 func headlineTiming(t *ui.Theme, f flow) uikit.Timing {
