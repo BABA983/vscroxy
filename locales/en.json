@@ -397,13 +397,6 @@
       }
     }
   },
-  "@headersCount": {
-    "placeholders": {
-      "count": {
-        "type": "int"
-      }
-    }
-  },
   "@headersMore": {
     "placeholders": {
       "count": {
@@ -826,6 +819,13 @@
       }
     }
   },
+  "@requestHeadersCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "@requestsAndExamples": {
     "placeholders": {
       "requests": {
@@ -860,6 +860,13 @@
   "@responseBytes": {
     "placeholders": {
       "bytes": {
+        "type": "int"
+      }
+    }
+  },
+  "@responseHeadersCount": {
+    "placeholders": {
+      "count": {
         "type": "int"
       }
     }
@@ -2143,7 +2150,6 @@
   "headerQueryBodyValuesAnd": "Header/query/body values and scripts are omitted. Paths remain literal. Authentication, types and response schemas need review. This creates a new specification; existing ones are never overwritten.",
   "headerValue": "Header {index} value",
   "headersCookiesAndBodiesOf": "Headers, cookies and bodies of these become readable. More rules in HTTPS rules.",
-  "headersCount": "{count, plural, one {# header} other {# headers}}",
   "headersMore": "+{count} headers",
   "headersOneNameValuePer": "Headers · one Name: Value per line; repeat a name for multiple values",
   "headersToSign": "Headers to sign",
@@ -2905,6 +2911,7 @@
   "requestHeader": "Request header",
   "requestHeaders": "Request headers",
   "requestHeadersCapturePublicationOffsets": "Request headers → capture publication · offsets from 0",
+  "requestHeadersCount": "{count, plural, one {# header} other {# headers}}",
   "requestHeadersLabel": "Headers",
   "requestHistory": "Request history",
   "requestHostByDefault": "Request host by default",
@@ -2954,6 +2961,7 @@
   "responseFrom": "Response from",
   "responseHeader": "Response header",
   "responseHeaders": "Response headers",
+  "responseHeadersCount": "{count, plural, one {# header} other {# headers}}",
   "responseHeadersExactValueAny": "Response headers · exact value, any repeated value may match",
   "responseHeadersLabel": "Headers",
   "responseInformation": "Response information",

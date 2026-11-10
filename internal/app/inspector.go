@@ -441,7 +441,11 @@ func (a *app) headersSide(c *ui.Context, f flow, side int) {
 			uikit.Meta(c, line).Font(uikit.FontMono).SingleLine().Selectable().Grow(1).
 				Tooltip(strings.TrimSpace(line + "\n" + note))
 			if len(headers) > 0 {
-				uikit.Meta(c, locales.HeadersCount(len(headers))).FontFeatures("tnum")
+				count := locales.RequestHeadersCount(len(headers))
+				if side == 0 {
+					count = locales.ResponseHeadersCount(len(headers))
+				}
+				uikit.Meta(c, count).FontFeatures("tnum")
 			}
 			if hasSensitiveHeader(headers) {
 				label := "Reveal"

@@ -2637,7 +2637,11 @@ func (a *app) headerBlock(c *ui.Context, t *ui.Theme, title, line, note string, 
 			ui.Text(c, title).FontSize(uikit.TextBody).FontWeight(600)
 			ui.Spacer(c)
 			if len(headers) > 0 {
-				uikit.Meta(c, locales.HeadersCount(len(headers)))
+				count := locales.RequestHeadersCount(len(headers))
+				if title == "Response" {
+					count = locales.ResponseHeadersCount(len(headers))
+				}
+				uikit.Meta(c, count)
 			}
 		})
 		uikit.Meta(c, line).Font(uikit.FontMono).SingleLine().Selectable().Tooltip(strings.TrimSpace(line + "\n" + note))

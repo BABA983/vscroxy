@@ -8336,16 +8336,6 @@ func (msgs Messages) HeadersCookiesAndBodiesOf() string {
 	return Catalog.Format(msgs.locale, "headersCookiesAndBodiesOf", nil)
 }
 
-// HeadersCount says "{count, plural, one {# header} other {# headers}}"
-// in the language the app shows.
-func HeadersCount(count int) string { return In(i18n.Locale()).HeadersCount(count) }
-
-// HeadersCount says "{count, plural, one {# header} other {# headers}}"
-// in the language of msgs.
-func (msgs Messages) HeadersCount(count int) string {
-	return Catalog.Format(msgs.locale, "headersCount", map[string]any{"count": count})
-}
-
 // HeadersMore says "+{count} headers"
 // in the language the app shows.
 func HeadersMore(count int) string { return In(i18n.Locale()).HeadersMore(count) }
@@ -16096,6 +16086,16 @@ func (msgs Messages) RequestHeadersCapturePublicationOffsets() string {
 	return Catalog.Format(msgs.locale, "requestHeadersCapturePublicationOffsets", nil)
 }
 
+// RequestHeadersCount says "{count, plural, one {# header} other {# headers}}"
+// in the language the app shows.
+func RequestHeadersCount(count int) string { return In(i18n.Locale()).RequestHeadersCount(count) }
+
+// RequestHeadersCount says "{count, plural, one {# header} other {# headers}}"
+// in the language of msgs.
+func (msgs Messages) RequestHeadersCount(count int) string {
+	return Catalog.Format(msgs.locale, "requestHeadersCount", map[string]any{"count": count})
+}
+
 // RequestHeadersLabel says "Headers"
 // in the language the app shows.
 func RequestHeadersLabel() string { return In(i18n.Locale()).RequestHeadersLabel() }
@@ -16586,6 +16586,16 @@ func ResponseHeaders() string { return In(i18n.Locale()).ResponseHeaders() }
 // in the language of msgs.
 func (msgs Messages) ResponseHeaders() string {
 	return Catalog.Format(msgs.locale, "responseHeaders", nil)
+}
+
+// ResponseHeadersCount says "{count, plural, one {# header} other {# headers}}"
+// in the language the app shows.
+func ResponseHeadersCount(count int) string { return In(i18n.Locale()).ResponseHeadersCount(count) }
+
+// ResponseHeadersCount says "{count, plural, one {# header} other {# headers}}"
+// in the language of msgs.
+func (msgs Messages) ResponseHeadersCount(count int) string {
+	return Catalog.Format(msgs.locale, "responseHeadersCount", map[string]any{"count": count})
 }
 
 // ResponseHeadersExactValueAny says "Response headers · exact value, any repeated value may match"
