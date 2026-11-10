@@ -413,7 +413,7 @@ func TestSnippetMenuChinese(t *testing.T) {
 		t.Fatal(err)
 	}
 	tt.Frame()
-	for _, want := range []string{"用 cheerio 解析 HTML", "用 xml2js 解析 XML", "解析 CSV", "用 Ajv 验证架构", "生成 UUID", "解码 Base64"} {
+	for _, want := range []string{"用 cheerio 解析 HTML", "用 xml2js 解析 XML", "解析 CSV", "用 Ajv 验证 schema", "生成 UUID", "解码 Base64"} {
 		if !tt.HasText(want) {
 			t.Fatalf("missing %q: %v", want, tt.Texts())
 		}

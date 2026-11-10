@@ -106,9 +106,10 @@ GraphQL, OpenAPI, Protobuf, JSON, HAR, cURL, App) keep their spelling.
 | Size | 大小 | |
 | Time | 时间 | |
 | Connection | 连接 | |
-| Trailers | 尾部 | |
+| Trailers | Trailer | HTTP trailers keep their name. |
 | Payload | 载荷 | |
-| Schema | 架构 | A Protobuf or OpenAPI schema. |
+| Schema | schema | A Protobuf, GraphQL or OpenAPI schema; the term stays as written, never 架构. |
+| Multipart | Multipart | A MIME body type, not necessarily a form. |
 | Endpoint | 端点 | |
 | Operation | 操作 | A GraphQL operation. |
 | Subscription | 订阅 | |

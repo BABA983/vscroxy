@@ -177,7 +177,7 @@ func optionLabelFor(msgs locales.Messages, value string) string {
 var optionIdentifiers = map[string]bool{
 	"2xx": true, "3xx": true, "4xx": true, "5xx": true,
 	"HTTP": true, "HTTPS": true, "WebSocket": true, "WS": true, "SSE": true,
-	"JSON": true, "GraphQL": true, "Hex": true, "Base64": true, "HTML": true,
+	"JSON": true, "GraphQL": true, "Hex": true, "Base64": true, "HTML": true, "Multipart": true,
 	"Protobuf": true, "JWT": true, "JSONPath": true, "jq": true,
 	"MQTT 3.1.1": true, "MQTT 5.0": true, "auto": true,
 	"cURL": true, "Node.js": true, "Python": true, "Go": true,

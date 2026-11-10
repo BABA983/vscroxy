@@ -88,7 +88,7 @@ func TestUISnapshotsChinese(t *testing.T) {
 				t.Fatal(err)
 			}
 			tt.Frame()
-		}, want: "多部分表单"},
+		}, want: "Multipart"},
 		{name: "dialog-delete", setup: func(a *app) { a.confirmDeleteFolder("Workspace") }, want: "此操作无法撤销"},
 		{name: "dialog-socket", setup: func(a *app) {
 			a.socket.open, a.socket.url = true, "wss://api.example.com/events"
