@@ -50,11 +50,11 @@ func (a *app) captureColumns() []captureColumn {
 		{id: "size", title: "Size"},
 		{id: "captured", title: "Time"},
 	}
-	columns = slices.DeleteFunc(columns, func(col captureColumn) bool { return slices.Contains(a.hiddenColumns, col.id) })
 	for i := range a.customColumns {
 		cc := a.customColumns[i]
 		columns = append(columns, captureColumn{id: cc.id(), title: cc.title(), custom: &cc})
 	}
+	columns = slices.DeleteFunc(columns, func(col captureColumn) bool { return slices.Contains(a.hiddenColumns, col.id) })
 	ordered := make([]captureColumn, 0, len(columns))
 	used := make(map[string]bool, len(columns))
 	for _, id := range a.columns.Order {

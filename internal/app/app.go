@@ -2145,8 +2145,6 @@ func (a *app) table(c *ui.Context) {
 	if available < 700 {
 		cols = slices.DeleteFunc(cols, func(col ui.TableColumn) bool { return col.ID == "client" || col.ID == "remote" })
 	}
-	cols = slices.DeleteFunc(cols, func(col ui.TableColumn) bool { return slices.Contains(a.hiddenColumns, col.ID) })
-	remoteShown := slices.ContainsFunc(cols, func(col ui.TableColumn) bool { return col.ID == "remote" })
 	for _, cc := range a.customColumns {
 		width := float32(150)
 		if cc.derived() {
@@ -2154,6 +2152,8 @@ func (a *app) table(c *ui.Context) {
 		}
 		cols = append(cols, ui.TableColumn{ID: cc.id(), Title: cc.title(), Width: width, Sortable: true})
 	}
+	cols = slices.DeleteFunc(cols, func(col ui.TableColumn) bool { return slices.Contains(a.hiddenColumns, col.ID) })
+	remoteShown := slices.ContainsFunc(cols, func(col ui.TableColumn) bool { return col.ID == "remote" })
 	cols = append(cols, ui.TableColumn{Title: "", ID: "filler", Width: 14, Fixed: true})
 	state := &a.views.activeView().list
 	state.FollowEnd = true

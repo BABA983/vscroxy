@@ -179,9 +179,10 @@ func TestCaptureMarkdownEscapesTableSyntax(t *testing.T) {
 
 func TestCaptureColumnsFollowVisibleOrderAndCustomColumns(t *testing.T) {
 	a := workspaceApp()
-	a.hiddenColumns = []string{"host", "remote"}
+	hidden := customColumn{Source: sourceRequestHeader, Name: "X-Trace"}
+	a.hiddenColumns = []string{"host", "remote", hidden.id()}
 	a.columns.Order = []string{"method", "id", "url"}
-	a.customColumns = []customColumn{{Source: sourceHeader, Name: "X-Trace"}}
+	a.customColumns = []customColumn{{Source: sourceHeader, Name: "X-Trace"}, hidden}
 	var ids []string
 	for _, col := range a.captureColumns() {
 		ids = append(ids, col.id)

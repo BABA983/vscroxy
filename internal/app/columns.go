@@ -1,12 +1,14 @@
 package app
 
 import (
-	"github.com/baba983/vscroxy/internal/inspect"
-	"github.com/baba983/vscroxy/internal/uikit"
+	"cmp"
+	"maps"
 	"net/url"
 	"slices"
 	"strings"
 
+	"github.com/baba983/vscroxy/internal/inspect"
+	"github.com/baba983/vscroxy/internal/uikit"
 	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo/ui"
 )
@@ -98,44 +100,141 @@ func (a *app) customColumnAt(id string) (customColumn, bool) {
 	return a.customColumns[i], true
 }
 
-// hideableColumns are the built-in columns the table can do without; the URL
-// always stays.
-var hideableColumns = []struct{ id, title string }{
-	{"id", "#"}, {"method", "Method"}, {"host", "Host"}, {"client", "Client"}, {"status", "Status"},
-	{"remote", "Remote IP"}, {"duration", "Duration"}, {"size", "Size"}, {"captured", "Time"},
+// hideableColumns are the built-in columns the table can do without, in the
+// table's order and under the headings it shows; the URL always stays.
+func hideableColumns() []struct{ id, title string } {
+	return []struct{ id, title string }{
+		{"id", "#"}, {"status", locales.Status()}, {"method", locales.Method()}, {"host", locales.Host()},
+		{"remote", locales.RemoteIp()}, {"client", locales.Client()}, {"duration", locales.Duration()},
+		{"size", locales.Size()}, {"captured", locales.Time()},
+	}
 }
 
-// columnsMenu is the table header's menu: the built-in columns to show or
-// hide, the custom ones to remove, and adding one.
+// maxCustomColumns is how many the table holds; the menu and the dialog say so.
+const maxCustomColumns = 16
+
+// tooManyColumns is why a column cannot be added.
+const tooManyColumns = "At most 16 custom columns; remove one before adding another."
+
+// headerColumnLimit is how many of the traffic's headers the menu offers at
+// once, the most common first.
+const headerColumnLimit = 30
+
+// headerScanLimit is how many of the latest captures the menu reads its
+// headers from: a menu is built every frame, and a long session must not make
+// that expensive.
+const headerScanLimit = 500
+
+// columnsMenu is the table header's menu, shaped like Proxyman's: a check for
+// every column the table can show, the traffic's headers a click away, and a
+// reset back to the default table.
 func (a *app) columnsMenu(m *ui.Menu, id string) { actionMenu(m, a.columnActions(id)) }
 
 func (a *app) columnActions(id string) []action {
 	var actions []action
-	removeCustom := func(id string) func() {
-		return func() {
-			a.setCustomColumns(slices.DeleteFunc(slices.Clone(a.customColumns), func(x customColumn) bool { return x.id() == id }))
-		}
-	}
 	if cc, ok := a.customColumnAt(id); ok {
-		actions = append(actions, do("column.remove", "Remove “"+cc.title()+"” column", removeCustom(id)))
+		actions = append(actions, do("column.remove", "Remove “"+cc.title()+"” column", func() {
+			a.setCustomColumns(slices.DeleteFunc(slices.Clone(a.customColumns), func(x customColumn) bool { return x.id() == id }))
+		}))
 	}
-	actions = append(actions, do("capture.add-column", locales.AddColumn(), a.openColumn))
-	for _, col := range hideableColumns {
-		shown := !slices.Contains(a.hiddenColumns, col.id)
-		actions = append(actions, do("column.toggle", col.title, func() {
-			if shown {
-				a.hiddenColumns = append(slices.Clone(a.hiddenColumns), col.id)
-			} else {
-				a.hiddenColumns = slices.DeleteFunc(slices.Clone(a.hiddenColumns), func(h string) bool { return h == col.id })
-			}
-			a.persistSettings()
-			a.invalidate()
-		}).checked(checkbox(shown)).in("columns"))
+	for _, col := range hideableColumns() {
+		actions = append(actions, a.columnToggle(col.id, col.title).in("columns"))
 	}
 	for _, cc := range a.customColumns {
-		actions = append(actions, do("column.remove", cc.title(), removeCustom(cc.id())).checked(checkOn).in("columns"))
+		actions = append(actions, a.columnToggle(cc.id(), cc.title()).in("columns"))
+	}
+	actions = append(actions,
+		do("capture.add-column", locales.AddColumn(), a.openColumn).in("add"),
+		submenu(locales.RequestHeaders(), a.headerColumnActions(sourceRequestHeader)...).in("add"),
+		submenu(locales.ResponseHeaders(), a.headerColumnActions(sourceResponseHeader)...).in("add"),
+		do("column.reset", locales.ResetAllColumns(), a.resetColumns).in("reset"),
+	)
+	return actions
+}
+
+// columnToggle shows or hides one column, checked while the table shows it.
+func (a *app) columnToggle(id, label string) action {
+	shown := !slices.Contains(a.hiddenColumns, id)
+	return do("column.toggle", label, func() { a.setColumnHidden(id, shown) }).checked(checkbox(shown))
+}
+
+// setColumnHidden takes a column out of the table or puts it back. A custom
+// column stays defined either way, so its place and width survive.
+func (a *app) setColumnHidden(id string, hidden bool) {
+	if hidden {
+		a.hiddenColumns = append(slices.Clone(a.hiddenColumns), id)
+	} else {
+		a.hiddenColumns = slices.DeleteFunc(slices.Clone(a.hiddenColumns), func(h string) bool { return h == id })
+	}
+	// A body column shown again reads the cells it never had while hidden.
+	a.columnRead.dirty = true
+	a.persistSettings()
+	a.invalidate()
+}
+
+// headerColumnActions offers the headers the traffic carries as columns, the
+// ones it carries most first. Choosing one adds the column, or shows or hides
+// the one it already has. Credential values stay out of the table as they do
+// in the inspector, so those headers are only added by name.
+func (a *app) headerColumnActions(source string) []action {
+	response := source == sourceResponseHeader
+	counts := make(map[string]int)
+	credentials := false
+	for _, f := range a.flows[max(0, len(a.flows)-headerScanLimit):] {
+		headers := f.reqHeader
+		if response {
+			headers = f.respHeader
+		}
+		for name := range headers {
+			if sensitiveHeader(name) {
+				credentials = true
+				continue
+			}
+			counts[name]++
+		}
+	}
+	names := slices.SortedFunc(maps.Keys(counts), func(x, y string) int {
+		if byCount := cmp.Compare(counts[y], counts[x]); byCount != 0 {
+			return byCount
+		}
+		return cmp.Compare(x, y)
+	})
+	var actions []action
+	for _, name := range names[:min(len(names), headerColumnLimit)] {
+		cc := customColumn{Source: source, Name: name}
+		exists := slices.ContainsFunc(a.customColumns, func(x customColumn) bool { return x.id() == cc.id() })
+		shown := exists && !slices.Contains(a.hiddenColumns, cc.id())
+		actions = append(actions, do("column.header", name, func() {
+			if !exists {
+				a.setCustomColumns(append(slices.Clone(a.customColumns), cc))
+				return
+			}
+			a.setColumnHidden(cc.id(), shown)
+		}).checked(checkbox(shown)).when(exists || len(a.customColumns) < maxCustomColumns, tooManyColumns))
+	}
+	if len(actions) == 0 {
+		label := locales.NoRequestHeaders()
+		if response {
+			label = locales.NoResponseHeaders()
+		}
+		actions = append(actions, note(label))
+	}
+	if credentials {
+		actions = append(actions, note(locales.CredentialHeadersAreAddedByName()))
 	}
 	return actions
+}
+
+// resetColumns returns the table to its default columns and layout.
+func (a *app) resetColumns() {
+	a.hiddenColumns = nil
+	a.columns = ui.TableLayout{}
+	// The table copies the layout back when its frame ends, and this menu is
+	// drawn inside that frame, so the live copy goes too.
+	if view := a.views.activeView(); view != nil {
+		view.list.Columns = ui.TableLayout{}
+	}
+	a.setCustomColumns(nil)
 }
 
 // openColumn asks for a column to add.
@@ -160,8 +259,8 @@ func (a *app) columnModal(c *ui.Context, t *ui.Theme) {
 			problem = err.Error()
 		}
 	}
-	if len(a.customColumns) >= 16 {
-		problem = "At most 16 custom columns; remove one before adding another."
+	if len(a.customColumns) >= maxCustomColumns {
+		problem = tooManyColumns
 	}
 	if name != "" && slices.ContainsFunc(a.customColumns, func(cc customColumn) bool {
 		return cc.id() == (customColumn{Source: draft.Source, Name: name}).id()

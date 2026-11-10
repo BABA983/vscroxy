@@ -69,7 +69,9 @@ func (a *app) syncColumnValues(c *ui.Context) {
 	}
 	if r.dirty {
 		r.dirty = false
-		columns := a.customColumns
+		columns := slices.DeleteFunc(slices.Clone(a.customColumns), func(cc customColumn) bool {
+			return slices.Contains(a.hiddenColumns, cc.id())
+		})
 		if a.filterTriage.Operation != "" && !slices.ContainsFunc(columns, func(cc customColumn) bool { return cc.Source == sourceGraphQL }) {
 			columns = append(slices.Clone(columns), graphqlColumn)
 		}

@@ -374,17 +374,24 @@ Shift-click chooses a range, which **Session → Choose all shown** and
 chosen, and **Export chosen HAR…** writes just those. **Export CSV…** writes the
 visible rows, and **Export chosen CSV…** writes the chosen ones.
 
-Right-click the table's header to hide or show the built-in columns (the URL
-always stays) or to **Add column…** from a header (the response's, or the
-request's when the response has none), a request or response header only,
-a URL query parameter, or a **Request JSON / Response JSON** scalar field.
-JSON fields use case-sensitive RFC 6901 pointers such as `/data/user/id` or
-`/items/0/name`; `~1` escapes `/` and `~0` escapes `~`. Query parameter names
-are also case-sensitive; only header names ignore case.
+Right-click the table's header for the column menu: every built-in column the
+table can hide, and every added one, with a check while the table shows it.
+Unchecking a column takes it out of the table and keeps its definition, so
+checking it again puts it back; the URL always stays. **Request headers ▸** and
+**Response headers ▸** list the headers this traffic carries, the ones it
+carries most first, and choosing one adds it as a column, or shows or hides
+the column it already has. Credential headers stay out of the table as they do
+in the inspector, and are added by name instead. **Add column…** adds a column
+from a header (the response's, or the request's when the response has none), a
+request or response header only, a URL query parameter, or a **Request JSON /
+Response JSON** scalar field. JSON fields use case-sensitive RFC 6901 pointers
+such as `/data/user/id` or `/items/0/name`; `~1` escapes `/` and `~0` escapes
+`~`. Query parameter names are also case-sensitive; only header names ignore
+case. **Reset all columns** puts the default columns, order and widths back.
 
-Added columns sort lexically like the others, a header cell's menu filters
-by its value, and the header menu removes columns or toggles built-ins,
-including **Remote IP**. Choices, ordering and widths stay in `settings.json`.
+Added columns sort lexically like the others, and a header cell's menu filters
+by its value. A column's own header removes it for good, and the menu's
+choices, ordering and widths stay in `settings.json`.
 At most 16 custom columns can be added. JSON columns read complete retained
 bodies off-thread (including spill files), never a partial preview. Limits:
 1 MiB input, depth 64, 16384 nodes and 4 KiB scalar cells. Missing fields show

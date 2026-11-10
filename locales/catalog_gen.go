@@ -4984,6 +4984,18 @@ func (msgs Messages) CreateRequest() string {
 	return Catalog.Format(msgs.locale, "createRequest", nil)
 }
 
+// CredentialHeadersAreAddedByName says "Credential headers are added by name from Add column…"
+// in the language the app shows.
+func CredentialHeadersAreAddedByName() string {
+	return In(i18n.Locale()).CredentialHeadersAreAddedByName()
+}
+
+// CredentialHeadersAreAddedByName says "Credential headers are added by name from Add column…"
+// in the language of msgs.
+func (msgs Messages) CredentialHeadersAreAddedByName() string {
+	return Catalog.Format(msgs.locale, "credentialHeadersAreAddedByName", nil)
+}
+
 // CredentialSummary says "{header} · •••• · {count} requests"
 // in the language the app shows.
 func CredentialSummary(header string, count int) string {
@@ -12404,6 +12416,16 @@ func (msgs Messages) NoRequestChosen() string {
 	return Catalog.Format(msgs.locale, "noRequestChosen", nil)
 }
 
+// NoRequestHeaders says "No request headers in the captured traffic"
+// in the language the app shows.
+func NoRequestHeaders() string { return In(i18n.Locale()).NoRequestHeaders() }
+
+// NoRequestHeaders says "No request headers in the captured traffic"
+// in the language of msgs.
+func (msgs Messages) NoRequestHeaders() string {
+	return Catalog.Format(msgs.locale, "noRequestHeaders", nil)
+}
+
 // NoRequestsAreSavedUnder says "No requests are saved under it yet."
 // in the language the app shows.
 func NoRequestsAreSavedUnder() string { return In(i18n.Locale()).NoRequestsAreSavedUnder() }
@@ -12432,6 +12454,16 @@ func NoResponse() string { return In(i18n.Locale()).NoResponse() }
 // in the language of msgs.
 func (msgs Messages) NoResponse() string {
 	return Catalog.Format(msgs.locale, "noResponse", nil)
+}
+
+// NoResponseHeaders says "No response headers in the captured traffic"
+// in the language the app shows.
+func NoResponseHeaders() string { return In(i18n.Locale()).NoResponseHeaders() }
+
+// NoResponseHeaders says "No response headers in the captured traffic"
+// in the language of msgs.
+func (msgs Messages) NoResponseHeaders() string {
+	return Catalog.Format(msgs.locale, "noResponseHeaders", nil)
 }
 
 // NoResponseYet says "No response yet"
@@ -16264,6 +16296,16 @@ func ResetAllCaptureConditions() string { return In(i18n.Locale()).ResetAllCaptu
 // in the language of msgs.
 func (msgs Messages) ResetAllCaptureConditions() string {
 	return Catalog.Format(msgs.locale, "resetAllCaptureConditions", nil)
+}
+
+// ResetAllColumns says "Reset all columns"
+// in the language the app shows.
+func ResetAllColumns() string { return In(i18n.Locale()).ResetAllColumns() }
+
+// ResetAllColumns says "Reset all columns"
+// in the language of msgs.
+func (msgs Messages) ResetAllColumns() string {
+	return Catalog.Format(msgs.locale, "resetAllColumns", nil)
 }
 
 // ResetAllConditions says "Reset all conditions"
