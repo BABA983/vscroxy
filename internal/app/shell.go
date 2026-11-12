@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/baba983/vscroxy/internal/uikit"
 	"runtime"
+	"strings"
 	"time"
 
 	"github.com/baba983/vscroxy/internal/capture"
@@ -11,50 +12,92 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// shell draws the window's own title bar and the footer of the workspace
-// below it. The bar carries only what is true everywhere — where capture is
-// listening, the layout, and the rare commands — so the screen under it
-// belongs to traffic or to a request.
+// shell draws the window's own title bar: the switch that starts or pauses
+// capture, the brand, where the proxy is listening, and the window's own
+// controls. The tools that are on and the Host profiles live in the footer
+// with the counts, so the bar itself stays quiet.
 func (a *app) shell(c *ui.Context, t *ui.Theme) {
 	bar := c.TitleBar()
-	// Without a band or a rule of its own, the title bar is the top of the
-	// column it heads; on macOS, beside the sidebar, the brand and the
-	// window controls are at the sidebar's top. The sides share what the centered
-	// status leaves; when the commands need more than half of it, the
-	// status moves aside rather than under them.
 	ui.Row(c).Height(max(bar.Height, uikit.HeightBar)).AlignItems(ui.Center).DragWindow().Children(func() {
-		ui.Row(c).Grow(1).Basis(0).MinWidth(0).Children(func() {
-			if !a.macChrome || !a.sidebarShown() {
-				a.brandBar(c, t)
-			}
-		})
-		ui.Row(c).Justify(ui.Center).MinWidth(0).Children(func() { a.proxyIndicator(c, t) })
-		// Flex counts padding outside a zero basis: keep it inside, so the
-		// two sides split the room evenly. Host profiles sit right beside
-		// the pill, which stays centered.
-		ui.Row(c).Grow(1).Basis(0).AlignItems(ui.Center).Children(func() {
-			// It gives way first: its label shortens before the pill moves.
-			ui.Row(c).PaddingStart(t.Space(2)).MinWidth(0).Shrink(1).Children(func() { a.hostsSwitch(c, t) })
-			ui.Spacer(c)
-			ui.Row(c).Shrink(0).PaddingEnd(max(bar.Right, t.Space(3))).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-				ui.Row(c).Gap(t.Space(0.5)).AlignItems(ui.Center).Children(func() { a.layoutToggle(c) })
-				if uikit.IconButton(c, locales.Commands2(), locales.SearchEveryActionCtrlCmd(), commandIcon).Clicked() {
-					a.workbench.openPalette()
-				}
-				uikit.IconButton(c, locales.Tools(), locales.ManageDebuggingRulesAndNetwork(), toolsIcon).PopoverMenuButton(func(m *ui.Menu) {
-					actionMenu(m, append([]action{do("tools.rules", locales.DebuggingRules2(), a.openRules).in("rules")}, a.networkTools()...))
-				})
-				if uikit.IconButton(c, locales.Settings(), locales.SettingsCtrlCmd(), settingsIcon).Clicked() {
-					a.openSettings(-1)
-				}
-				uikit.IconButton(c, locales.More(), locales.MoreCommands(), moreIcon).PopoverMenuButton(func(m *ui.Menu) { a.moreMenu(c, m) })
+		if !a.macChrome || !a.sidebarShown() {
+			a.barLeading(c, t)
+		} else {
+			a.recordButton(c, t)
+		}
+		ui.Spacer(c)
+		a.proxyIndicator(c, t)
+		ui.Spacer(c)
+		ui.Row(c).Shrink(0).Gap(t.Space(0.5)).AlignItems(ui.Center).PaddingEnd(max(bar.Right, t.Space(3))).Children(func() {
+			a.commandButton(c, t)
+			a.sidebarToggle(c)
+			a.layoutToggle(c)
+			uikit.IconButton(c, locales.Tools(), locales.ManageDebuggingRulesAndNetwork(), toolsIcon).PopoverMenuButton(func(m *ui.Menu) {
+				actionMenu(m, append([]action{do("tools.rules", locales.DebuggingRules2(), a.openRules).in("rules")}, a.networkTools()...))
 			})
+			if uikit.IconButton(c, locales.Settings(), locales.SettingsCtrlCmd(), settingsIcon).Clicked() {
+				a.openSettings(-1)
+			}
+			uikit.IconButton(c, locales.More(), locales.MoreCommands(), moreIcon).PopoverMenuButton(func(m *ui.Menu) { a.moreMenu(c, m) })
 		})
 	})
 }
 
+// barLeading is the title bar's start: the record switch and the brand, past
+// any window controls on the left.
+func (a *app) barLeading(c *ui.Context, t *ui.Theme) {
+	bar := c.TitleBar()
+	start := t.Space(2)
+	if bar.Left > 0 {
+		start += bar.Left
+	}
+	ui.Row(c).Height(max(bar.Height, uikit.HeightBar)).PaddingStart(start).Gap(t.Space(1)).AlignItems(ui.Center).
+		DragWindow().Children(func() {
+		a.recordButton(c, t)
+		a.brand(c, t)
+	})
+}
+
+// recordButton starts capture, or pauses what it keeps: the one switch the
+// title bar always carries.
+func (a *app) recordButton(c *ui.Context, t *ui.Theme) {
+	running := a.srv != nil && a.srv.Running()
+	label, icon := locales.StartCapture(), recordIcon
+	switch {
+	case running && a.recordingPaused:
+		label, icon = locales.ResumeRecording(), resumeIcon
+	case running:
+		label, icon = locales.PauseRecording(), pauseIcon
+	}
+	if uikit.IconButton(c, label, label, icon).Clicked() {
+		switch {
+		case !running:
+			// The listener runs until it is closed, as it does from the
+			// launch: never on the thread that draws.
+			go a.startCapture()
+		case a.recordingPaused:
+			a.recordingPaused = false
+		default:
+			a.recordingPaused = true
+		}
+	}
+}
+
+// commandButton is the title bar's way to every command: the magnifier and
+// the shortcut that opens the palette, small enough to leave the bar's room to
+// the tools that are on.
+func (a *app) commandButton(c *ui.Context, t *ui.Theme) {
+	b := uikit.ChipButton(c, locales.Commands2(), locales.SearchEveryActionCtrlCmd()).Shrink(0)
+	b.Children(func() {
+		ui.Icon(c, searchIcon).Size(uikit.IconInline, uikit.IconInline).TextColor(t.TextMuted)
+		ui.Text(c, commandShortcut()).FontSize(uikit.TextMeta).TextColor(t.TextMuted).NoWrap()
+	})
+	if b.Clicked() {
+		a.workbench.openPalette()
+	}
+}
+
 // brandBar is the window's name past any window controls on the left: at
-// the top of the sidebar on macOS, or at the title bar's start.
+// the top of the sidebar on macOS.
 func (a *app) brandBar(c *ui.Context, t *ui.Theme) {
 	bar := c.TitleBar()
 	// bar.Left ends at the last window control's edge; the brand keeps a
@@ -64,10 +107,33 @@ func (a *app) brandBar(c *ui.Context, t *ui.Theme) {
 		start += bar.Left
 	}
 	ui.Row(c).Height(max(bar.Height, uikit.HeightBar)).PaddingStart(start).Gap(t.Space(2)).AlignItems(ui.Center).
-		DragWindow().Children(func() {
-		ui.Icon(c, brandIcon).Size(uikit.IconLarge, uikit.IconLarge).TextColor(t.Text)
-		ui.Text(c, "vscroxy").FontSize(uikit.TextBody).FontWeight(600).TextColor(t.Text).SingleLine()
-	})
+		DragWindow().Children(func() { a.brand(c, t) })
+}
+
+// brand is the app's icon and name.
+func (a *app) brand(c *ui.Context, t *ui.Theme) {
+	ui.Icon(c, brandIcon).Size(uikit.IconLarge, uikit.IconLarge).TextColor(t.Text)
+	ui.Text(c, "vscroxy").FontSize(uikit.TextBody).FontWeight(500).TextColor(t.Text).SingleLine()
+}
+
+// sidebarToggle hides the sidebar or brings it back: the same choice Cmd+B
+// makes and the command palette offers, with its own room in the bar. It names
+// the choice, not what the window has room for: a window too narrow for the
+// sidebar puts it aside by itself, and says so.
+func (a *app) sidebarToggle(c *ui.Context) {
+	label, icon := locales.HideSidebar(), sidebarCloseIcon
+	if a.workbench.sidebarHidden {
+		label, icon = locales.ShowSidebar(), sidebarOpenIcon
+	}
+	tip := label + " · " + sidebarShortcut()
+	b := uikit.IconButton(c, label, tip, icon)
+	if a.windowWidth < sidebarMinWidth {
+		b.Disabled(true).Tooltip(locales.WindowTooNarrowForTheSidebar(int(sidebarMinWidth)))
+		return
+	}
+	if b.Clicked() {
+		a.workbench.sidebarHidden = !a.workbench.sidebarHidden
+	}
 }
 
 // layoutToggle chooses where the inspector sits: beside the traffic list or
@@ -87,9 +153,10 @@ func (a *app) layoutToggle(c *ui.Context) {
 	}
 }
 
-// proxyIndicator is the recording pill: whether traffic is being kept,
-// where the proxy listens, and how much is arriving, with pause beside it.
-// Listening is never presented as proof of HTTPS inspection.
+// proxyIndicator is the listening pill: whether traffic is being kept and
+// where the proxy listens, centred in the title bar. Listening is never
+// presented as proof of HTTPS inspection, and a stopped proxy has no green
+// dot to mistake for one.
 func (a *app) proxyIndicator(c *ui.Context, t *ui.Theme) {
 	pal := uikit.Colors(t)
 	running := a.srv != nil && a.srv.Running()
@@ -98,67 +165,59 @@ func (a *app) proxyIndicator(c *ui.Context, t *ui.Theme) {
 	case running && a.recordingPaused:
 		state, dot = locales.PausedState(), pal.TextFaint
 	case running:
-		state, dot = locales.RecordingState(), t.Success
+		state, dot = locales.ListeningOn(), t.Success
 	}
 	tip := locales.ProxyTipOff()
 	if running {
 		tip = locales.ProxyTipOn()
 	}
-	ui.Row(c).Height(uikit.HeightControl).MinWidth(0).AlignItems(ui.Center).Gap(0).Padding(0, 1).
-		Radius(uikit.RadiusControl).Border(1, t.Border).Background(t.Background).Children(func() {
-		// Inset by the border, so the faces stay concentric with the pill.
-		b := uikit.ToolbarButton(c, locales.ProxyStatus(), tip, false).Height(uikit.HeightControl-4).
-			Radius(uikit.RadiusControl-2).MinWidth(0).Padding(0, t.Space(2)).FontSize(uikit.TextMeta)
-		b.Children(func() {
-			ui.Box(c).Size(7, 7).Radius(uikit.RadiusControl).Background(dot)
-			ui.Text(c, state).TextColor(t.Text).SingleLine()
-			if !running {
-				ui.Icon(c, statusMoreIcon).Size(uikit.IconInline-2, uikit.IconInline-2)
-				return
-			}
-			addr := a.srv.Addr()
-			if a.deviceUI.gateway != nil {
-				addr += " · LAN"
-			}
-			ui.Text(c, addr).Font(uikit.FontMono).FontFeatures("tnum").SingleLine().MinWidth(0)
-			a.rate.advance(time.Now().Unix())
-			if a.recordingPaused {
-				// Nothing ambient is kept, so there is no rate to show.
-				uikit.Sparkline(c, nil, pal.TextFaint).Label(locales.RecordingPaused())
-				return
-			}
-			// Two-second sums: 30 points over 48px draw a line, not a saw.
-			var curve [30]int
-			for i, n := range a.rate.counts {
-				curve[i/2] += n
-			}
-			uikit.Sparkline(c, curve[:], t.TextMuted).Label(locales.RequestsPerSecondLastMinute())
-			ui.Text(c, rateLabel(a.rate.perSecond())).Font(uikit.FontMono).FontFeatures("tnum").SingleLine()
-		})
-		if b.Clicked() {
-			a.openSettings(1)
+	b := uikit.ToolbarButton(c, locales.ProxyStatus(), tip, false).Height(uikit.HeightControl).
+		Padding(0, t.Space(2)).Gap(t.Space(1.5)).Radius(uikit.RadiusControl).Background(pal.Fill)
+	b.Children(func() {
+		mark := ui.Box(c).Size(7, 7).Radius(uikit.RadiusControl).Background(dot).Shrink(0)
+		// Recording with traffic arriving: the dot breathes. Nothing
+		// arriving, or paused: it rests, so the pill does not twitch all day.
+		if running && !a.recordingPaused && a.rate.perSecond() > 0 {
+			mark.Opacity(0.55 + 0.45*mark.Loop("recording-pulse", 1200*time.Millisecond, ui.EaseInOut))
 		}
+		ui.Text(c, state).FontSize(uikit.TextMeta).TextColor(t.Text).SingleLine()
 		if !running {
 			return
 		}
-		ui.Box(c).Size(1, uikit.IconInline).Background(t.Border)
-		label, tip, icon := "Pause recording", "Pause recording · the proxy keeps forwarding without keeping traffic", pauseIcon
-		if a.recordingPaused {
-			label, tip, icon = "Resume recording", "Resume recording", resumeIcon
+		addr := a.srv.Addr()
+		if a.deviceUI.gateway != nil {
+			addr += " · LAN"
 		}
-		if uikit.IconButton(c, label, tip, icon).Size(uikit.HeightCompact, uikit.HeightCompact).Radius(uikit.RadiusControl - 2).MarginStart(1).Clicked() {
-			a.recordingPaused = !a.recordingPaused
-		}
+		ui.Text(c, addr).Font(uikit.FontMono).FontSize(uikit.TextMeta).FontFeatures("tnum").SingleLine()
 	})
+	if b.Clicked() {
+		a.openSettings(1)
+	}
 }
 
-// rateLabel is a request rate as the pill prints it: tenths while it is
-// low enough for them to matter.
-func rateLabel(perSecond float64) string {
-	if perSecond == 0 || perSecond >= 10 {
-		return fmt.Sprintf("%.0f/s", perSecond)
+// hostsShortcut spells the Host profiles shortcut for its tooltip.
+func hostsShortcut() string {
+	if runtime.GOOS == "darwin" {
+		return "⌘⇧H"
 	}
-	return fmt.Sprintf("%.1f/s", perSecond)
+	return "Ctrl Shift H"
+}
+
+// sidebarShortcut spells the sidebar toggle's shortcut for its tooltip.
+func sidebarShortcut() string {
+	if runtime.GOOS == "darwin" {
+		return "⌘B"
+	}
+	return "Ctrl B"
+}
+
+// commandShortcut spells the palette's shortcut as the title bar's field
+// shows it.
+func commandShortcut() string {
+	if runtime.GOOS == "darwin" {
+		return "⌘K"
+	}
+	return "Ctrl K"
 }
 
 // networkTools is shared by Tools, the enabled chips and More → Network.
@@ -188,111 +247,338 @@ func (a *app) networkTools() []action {
 	)
 }
 
-// activeTools remains visible in both workspaces. Each close button changes
-// the same setting as its existing menu/editor, never just hides the chip.
-func (a *app) activeTools(c *ui.Context, t *ui.Theme) {
+// footer is the bar under everything: what can be done to the list, what is
+// chosen, and the tools that are on. It is the same chrome as the title bar
+// and the sidebar, so the window reads as one frame around the panel.
+func (a *app) footer(c *ui.Context, t *ui.Theme) {
+	p := uikit.Colors(t)
+	ui.Row(c).Height(uikit.HeightFooter).Padding(0, t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).
+		Background(p.Chrome).Children(func() {
+		if a.page.capture() {
+			ui.Row(c).Shrink(0).Gap(t.Space(1)).AlignItems(ui.Center).Children(func() {
+				if uikit.FooterButton(c, locales.Clear(), locales.ClearRecords(), false).Disabled(len(a.flows) == 0).Clicked() {
+					a.clearOpen = true
+				}
+				if uikit.FooterButton(c, locales.Filter2(), locales.EditFilters(), a.filtersActive()).Clicked() {
+					a.openFilter()
+				}
+				on := a.following()
+				tip := locales.AutoFollowOnTip()
+				if !on {
+					tip = locales.AutoFollowOffTip()
+				}
+				follow := uikit.FooterButton(c, locales.AutoFollow(), tip, on)
+				// New traffic that is not being followed says so on the
+				// button, so the count is not hidden behind a tint.
+				if n := a.newRows; n > 0 {
+					follow.Children(func() {
+						ui.Text(c, fmt.Sprintf("%d new", n)).FontSize(uikit.TextMeta).TextColor(t.Text)
+					})
+				}
+				if follow.Clicked() {
+					a.follow()
+				}
+			})
+		}
+		ui.Spacer(c)
+		ui.Row(c).Shrink(1).MinWidth(0).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+			uikit.Meta(c, a.footerCountsText()).FontFeatures("tnum").SingleLine().
+				ContentTransition(ui.ContentTransition{Numeric: true})
+			if a.dropped > 0 {
+				ui.Text(c, locales.DroppedCount(int(a.dropped))).FontSize(uikit.TextMeta).FontFeatures("tnum").TextColor(t.Warning).SingleLine()
+			}
+			if a.scriptErrs > 0 {
+				ui.Text(c, locales.ScriptErrors(int(a.scriptErrs))).FontSize(uikit.TextMeta).FontFeatures("tnum").TextColor(t.Warning).SingleLine()
+			}
+		})
+		ui.Spacer(c)
+		// The tools that are on follow the window, not one screen: a
+		// breakpoint or a throttle is on everywhere.
+		a.footerTools(c, t)
+	})
+}
+
+// footerCountsText is what the footer says about the screen it is under.
+func (a *app) footerCountsText() string {
+	switch a.page {
+	case pageDiagnostics:
+		return "Connection diagnostics · read-only until you press a fix"
+	case pageSession:
+		return fmt.Sprintf("%d saved sessions · read-only evidence", len(a.sessions.items))
+	case pageAPI:
+		if len(a.apis) == 1 {
+			return "1 contract"
+		}
+		return fmt.Sprintf("%d contracts", len(a.apis))
+	}
+	if !a.page.capture() {
+		env := locales.NoEnvironment()
+		if a.activeEnv != "" {
+			env = locales.EnvironmentNamed(a.activeEnv)
+		}
+		counts := locales.RequestSummary(len(a.requests)) + " · " + env
+		if key := sendShortcut(); key != "" {
+			counts += " · " + key + "  " + locales.Send()
+		}
+		return counts
+	}
+	if n := a.chosen.Len(); n > 0 {
+		return locales.SelectedOfTotal(n, len(a.visible))
+	}
+	return locales.CaptureCounts(len(a.flows), len(a.visible))
+}
+
+// following is whether the list is following new traffic.
+func (a *app) following() bool {
+	view := a.views.activeView()
+	return view != nil && view.list.AtEnd()
+}
+
+// follow puts the list back on the newest request and follows again.
+func (a *app) follow() {
+	a.workbench.focused = false
+	a.newRows = 0
+	if view := a.views.activeView(); view != nil {
+		view.list.ScrollToEnd()
+	}
+}
+
+// footerChip is one tool that is on, as the footer shows it: what it says,
+// what it opens, and how it turns off.
+type footerChip struct {
+	id, label, tip string
+	icon           *ui.SVG
+	open, off      func()
+	// openLabel names the button that opens the chip, when the chip's own
+	// words are a status rather than a tool; offLabel and offTip name the
+	// button that turns it off, when "disable" is not what it does. A menu
+	// opens under the label instead of an editor, as a switch does.
+	openLabel, offLabel, offTip string
+	// panel opens a popover under the label instead of an editor or a menu,
+	// as the Host switch's list of profiles does.
+	panel  func(anchor ui.Element)
+	danger bool
+}
+
+// footerChips are the tools that are on and the Host profiles, in the order
+// the footer shows them. A tool is in this list exactly when it is doing
+// something, so the bar says what is on rather than what exists.
+func (a *app) footerChips(c *ui.Context) []footerChip {
+	var chips []footerChip
 	scenario := capture.ActiveScenario(a.rules)
 	throttled := a.throttle.Name != "" && a.throttle.Name != "Off"
 	networkRules := a.activeNetworkRules()
 	noCaching := a.srv != nil && a.srv.NoCaching()
-	hostsOn := len(a.profiles.set.On()) > 0
-	if !a.breakOn && !throttled && networkRules == 0 && !noCaching && !a.allowOn && scenario == "" && a.upstream == "" && a.upstreamProblem == "" && !a.upstreamCfg.Enabled() && !hostsOn && a.collectionRecording == nil {
+	if s := a.collectionRecording; s != nil {
+		state := "Stopped"
+		if s.Active {
+			state = "Recording"
+		} else if s.Busy {
+			state = "Stopping"
+		}
+		chip := footerChip{id: "collection-recording", label: state + " → " + s.Collection,
+			openLabel: locales.CollectionRecordingStatus(),
+			tip:       locales.ViewRecordingScopeCountersAnd(), icon: captureIcon,
+			open: func() { a.openCollectionRecording("", "", "") }}
+		if s.Active {
+			chip.off = func() { a.stopCollectionRecording("") }
+			chip.offLabel, chip.offTip = locales.StopCollectionRecorder(), locales.StopAndDiscardQueuedWork()
+		} else {
+			chip.off = func() { a.collectionRecording = nil }
+			chip.offLabel, chip.offTip = locales.DismissRecordingStatus(), locales.DismissStatusSavedRequestsStay()
+		}
+		chips = append(chips, chip)
+	}
+	if a.breakOn {
+		chips = append(chips, footerChip{id: "breakpoints", label: "Breakpoints", tip: "Edit breakpoint rules", icon: breakIcon,
+			open: a.openRules, off: func() {
+				a.breakOn = false
+				if a.srv != nil {
+					a.srv.SetBreak(false)
+				}
+			}})
+	}
+	if throttled {
+		chips = append(chips, footerChip{id: "throttle", label: a.throttle.Name, tip: "Change network conditions", icon: networkIcon,
+			open: func() { a.openNetwork() }, off: func() { a.setThrottle(capture.Presets[0]) }})
+	}
+	if networkRules > 0 {
+		chips = append(chips, footerChip{id: "network-rules", label: fmt.Sprintf("Network rules: %d", networkRules),
+			tip: "Edit scoped network conditions", icon: networkIcon, open: a.openNetworkRules, off: func() { a.disableNetworkRules() }})
+	}
+	if noCaching {
+		chips = append(chips, footerChip{id: "no-caching", label: "No Caching", tip: "Change caching and network conditions", icon: cacheIcon,
+			open: func() { a.openNetwork() }, off: func() { a.srv.SetNoCaching(false) }})
+	}
+	if a.allowOn {
+		chips = append(chips, footerChip{id: "allow-list", label: "Allow list", tip: "Edit the allow list", icon: filterIcon,
+			open: func() { a.openSettings(4) }, off: func() {
+				a.allowOn = false
+				a.applyAllow()
+			}})
+	}
+	if scenario != "" {
+		chips = append(chips, footerChip{id: "scenario", label: locales.ScenarioLabel(scenario), tip: "Manage scenario: " + scenario, icon: layersIcon,
+			open: a.openRules, off: func() {
+				a.selectRuleScenario("")
+				if a.ruleUI.problem != "" {
+					a.warn(locales.CouldNotDisableScenario(a.ruleUI.problem))
+				}
+			}})
+	}
+	// The Host switch is always here: it is how a profile is turned on in
+	// the first place, and its label says which are.
+	hostsLabel := a.hostsLabel()
+	if on := a.profiles.set.On(); len(on) > 0 {
+		hostsLabel = "Hosts: " + strings.Join(on, " + ")
+	}
+	hosts := footerChip{id: "hosts", label: hostsLabel, openLabel: locales.HostProfiles(),
+		tip: "Switch Host profiles · " + hostsShortcut(), icon: hostsIcon}
+	hosts.open = func() { a.profiles.menuOpen = !a.profiles.menuOpen }
+	hosts.panel = func(anchor ui.Element) {
+		ui.PopoverBase(c, anchor, &a.profiles.menuOpen, func(panel ui.Element) {
+			uikit.PopoverPanel(c, panel).Width(320).Padding(c.Theme().Space(2)).Gap(c.Theme().Space(1)).
+				Margin(c.Theme().Space(1.5), 0, 0, 0)
+			a.hostsMenu(c, c.Theme())
+		})
+	}
+	if len(a.profiles.set.On()) > 0 {
+		hosts.off = a.hostsOff
+	}
+	chips = append(chips, hosts)
+	if a.upstreamProblem != "" {
+		label := "Upstream error"
+		if a.upstreamLoading {
+			label = "Upstream loading"
+		}
+		chips = append(chips, footerChip{id: "upstream-error", label: label, tip: a.upstreamProblem, icon: upstreamIcon, danger: true,
+			open: func() { a.openSettings(1) }, off: a.clearUpstream})
+	} else if a.upstream != "" {
+		chips = append(chips, footerChip{id: "upstream", label: "Upstream", tip: "Edit upstream proxy settings", icon: upstreamIcon,
+			open: func() { a.openSettings(1) }, off: a.clearUpstream})
+	}
+	return chips
+}
+
+// footerTools draws the tools that are on at the footer's end. A chip that
+// does not fit folds into a count, which opens the same chips as a menu: the
+// bar never scrolls sideways or hides what is on behind a fade.
+func (a *app) footerTools(c *ui.Context, t *ui.Theme) {
+	chips := a.footerChips(c)
+	if len(chips) == 0 {
 		return
 	}
-	ui.ScrollHorizontal(c.Key("active-tools")).Height(uikit.HeightLarge).Background(uikit.Colors(t).Panel).Border(0, t.Border).BorderWidth(0, 0, 1, 0).Children(func() {
-		ui.Row(c).Padding(0, t.Space(3)).Gap(t.Space(2)).Height(uikit.HeightLarge).AlignItems(ui.Center).Children(func() {
-			a.collectionRecordingChip(c, t)
-			if a.breakOn {
-				toolChip(c, "breakpoints", "Breakpoints", "Edit breakpoint rules", breakIcon, a.openRules, func() {
-					a.breakOn = false
-					if a.srv != nil {
-						a.srv.SetBreak(false)
-					}
-				})
-			}
-			if throttled {
-				toolChip(c, "throttle", a.throttle.Name, "Change network conditions", networkIcon, nil, func() {
-					a.setThrottle(capture.Presets[0])
-				}).PopoverMenuButton(func(m *ui.Menu) { actionMenu(m, a.networkTools()) })
-			}
-			if networkRules > 0 {
-				toolChip(c, "network-rules", fmt.Sprintf("Network rules: %d", networkRules), "Edit scoped network conditions", networkIcon, a.openNetworkRules, func() {
-					a.disableNetworkRules()
-				})
-			}
-			if noCaching {
-				toolChip(c, "no-caching", "No Caching", "Change caching and network conditions", cacheIcon, nil, func() {
-					a.srv.SetNoCaching(false)
-				}).PopoverMenuButton(func(m *ui.Menu) { actionMenu(m, a.networkTools()) })
-			}
-			if a.allowOn {
-				toolChip(c, "allow-list", "Allow list", "Edit the allow list", filterIcon, func() { a.openSettings(4) }, func() {
-					a.allowOn = false
-					a.applyAllow()
-				})
-			}
-			if scenario != "" {
-				toolChip(c, "scenario", locales.ScenarioLabel(scenario), "Manage scenario: "+scenario, layersIcon, a.openRules, func() {
-					a.selectRuleScenario("")
-					if a.ruleUI.problem != "" {
-						a.warn(locales.CouldNotDisableScenario(a.ruleUI.problem))
-					}
-				})
-			}
-			a.hostsChip(c)
-			if a.upstreamProblem != "" {
-				label := "Upstream error"
-				if a.upstreamLoading {
-					label = "Upstream loading"
-				}
-				dangerToolChip(c, "upstream-error", label, a.upstreamProblem, upstreamIcon, func() {
-					a.openSettings(1)
-				}, a.clearUpstream)
-			} else if a.upstream != "" {
-				toolChip(c, "upstream", "Upstream", "Edit upstream proxy settings", upstreamIcon, func() {
-					a.openSettings(1)
-				}, a.clearUpstream)
-			}
-		})
-	})
-}
-
-func toolChip(c *ui.Context, id, label, tip string, icon *ui.SVG, open, off func()) ui.Element {
-	return toolChipState(c, id, label, tip, icon, open, off, false)
-}
-
-// dangerToolChip is the same chip in the theme's danger role, for a tool that
-// is configured but not working. Its open action goes to the editor that can
-// fix it, and its close action still turns the tool off.
-func dangerToolChip(c *ui.Context, id, label, tip string, icon *ui.SVG, open, off func()) ui.Element {
-	return toolChipState(c, id, label, tip, icon, open, off, true)
-}
-
-func toolChipState(c *ui.Context, id, label, tip string, icon *ui.SVG, open, off func(), danger bool) ui.Element {
-	t := c.Theme()
-	background, border := t.Background, t.Border
-	if danger {
-		background, border = t.Danger.Alpha(0.12), t.Danger
+	gap := t.Space(1)
+	room := a.footerRoom(c, t)
+	used, show := float32(0), len(chips)
+	for i, chip := range chips {
+		used += footerChipWidth(c, chip)
+		if i > 0 {
+			used += gap
+		}
+		// A chip that fits only by pushing the count of the rest past the
+		// room folds too, so the bar never runs under the window's edge.
+		rest := len(chips) - i - 1
+		extra := float32(0)
+		if rest > 0 {
+			extra = gap + footerMoreWidth(c, rest)
+		}
+		if used+extra > room {
+			show = i
+			break
+		}
 	}
-	var body ui.Element
-	ui.Row(c.Key(id)).Height(uikit.HeightCompact).AlignItems(ui.Center).Background(background).Border(1, border).Radius(uikit.RadiusControl).Children(func() {
-		body = uikit.ToolbarButton(c, locales.ActiveTool(label), tip, false).Height(uikit.HeightCompact).Children(func() {
-			ui.Icon(c, icon).Size(uikit.IconInline, uikit.IconInline)
-			ui.Text(c, label).FontSize(uikit.TextMeta).MaxWidth(180).SingleLine()
-		})
-		if danger {
-			body.TextColor(t.Danger)
+	ui.Row(c).Shrink(0).Gap(gap).AlignItems(ui.Center).Children(func() {
+		for _, chip := range chips[:show] {
+			footerChipRow(c, t, chip)
 		}
-		if open != nil {
-			body.OnClick(open)
+		if rest := chips[show:]; len(rest) > 0 {
+			b := uikit.FooterButton(c, footerMoreLabel(len(rest)), locales.HiddenTools(), false)
+			b.PopoverMenuButton(func(m *ui.Menu) {
+				var items []action
+				for _, chip := range rest {
+					if chip.open != nil {
+						items = append(items, do("footer.tool."+chip.id, chip.label, chip.open))
+					}
+				}
+				actionMenu(m, items)
+			})
 		}
-		closeButton := uikit.IconButton(c, locales.DisableTool(label), locales.TurnOffTool(label), closeIcon)
-		if danger {
-			closeButton.TextColor(t.Danger)
-		}
-		closeButton.OnClick(off)
 	})
-	return body
+}
+
+// footerRoom is how much of the footer's end the tools may take: the window
+// less its padding, the actions at the start and the counts in the middle.
+func (a *app) footerRoom(c *ui.Context, t *ui.Theme) float32 {
+	padding, gap := 2*t.Space(3), t.Space(2)
+	room := a.windowWidth - padding - 4*gap
+	if a.page.capture() {
+		for _, label := range []string{locales.Clear(), locales.Filter(), locales.AutoFollow()} {
+			room -= paneTextWidth(c, label, uikit.TextMeta, 400) + 2*t.Space(2) + gap
+		}
+	}
+	room -= paneTextWidth(c, a.footerCountsText(), uikit.TextMeta, 400)
+	return max(room, 0)
+}
+
+// footerChipWidth is how wide one tool chip is: its icon, its label, the
+// button that turns it off and the chip's own padding.
+func footerChipWidth(c *ui.Context, chip footerChip) float32 {
+	return 2*c.Theme().Space(1.5) + uikit.IconInline + c.Theme().Space(1) + paneTextWidth(c, chip.label, uikit.TextMeta, 400) + 20
+}
+
+// footerMoreWidth is how wide the count of folded tools is.
+func footerMoreWidth(c *ui.Context, n int) float32 {
+	return paneTextWidth(c, footerMoreLabel(n), uikit.TextMeta, 400) + 2*c.Theme().Space(2)
+}
+
+func footerMoreLabel(n int) string { return fmt.Sprintf("+%d", n) }
+
+// footerChipRow draws one tool that is on: its label opens the editor that
+// changes it, and the close button turns it off.
+func footerChipRow(c *ui.Context, t *ui.Theme, chip footerChip) {
+	p := uikit.Colors(t)
+	background, ink := p.Fill, t.Text
+	if chip.danger {
+		background, ink = t.Danger.Alpha(0.12), t.Danger
+	}
+	ui.Row(c).Key(chip.id).Height(uikit.HeightFooterControl).AlignItems(ui.Center).Background(background).
+		Radius(uikit.RadiusInner).Children(func() {
+		open := chip.openLabel
+		if open == "" {
+			open = locales.ActiveTool(chip.label)
+		}
+		label := uikit.ToolbarButton(c, open, chip.tip, false).Height(uikit.HeightFooterControl).
+			PaddingStart(t.Space(1.5)).PaddingEnd(t.Space(0.5)).Children(func() {
+			ui.Icon(c, chip.icon).Size(uikit.IconInline, uikit.IconInline)
+			ui.Text(c, chip.label).FontSize(uikit.TextMeta).MaxWidth(180).SingleLine()
+			if chip.panel != nil {
+				ui.Icon(c, chevronIcon).Size(uikit.IconInline-4, uikit.IconInline-4)
+			}
+		})
+		label.TextColor(ink)
+		if chip.panel != nil {
+			if chip.open != nil {
+				label.OnClick(chip.open)
+			}
+			chip.panel(label)
+		} else if chip.open != nil {
+			label.OnClick(chip.open)
+		}
+		if chip.off == nil {
+			return
+		}
+		offLabel, offTip := chip.offLabel, chip.offTip
+		if offLabel == "" {
+			offLabel, offTip = locales.DisableTool(chip.label), locales.TurnOffTool(chip.label)
+		}
+		close := uikit.IconButton(c, offLabel, offTip, closeIcon).
+			Size(uikit.HeightFooterControl-4, uikit.HeightFooterControl-4).Radius(uikit.RadiusInner)
+		if chip.danger {
+			close.TextColor(ink)
+		}
+		close.OnClick(chip.off)
+	})
 }
 
 // moreMenu keeps the less frequent menus one step away without hiding them:
@@ -403,96 +689,6 @@ func (a *app) syncSections() {
 	if a.sidebarChoice != cmpOr(a.filter, "all") {
 		a.sidebarChoice = cmpOr(a.filter, "all")
 	}
-}
-
-// footer is the one line under every workspace: what this screen counts on
-// the left, and the workspace's own quiet state on the right.
-func (a *app) footer(c *ui.Context, t *ui.Theme) {
-	ui.Row(c).Height(27).Padding(0, t.Space(3)).Gap(t.Space(3)).AlignItems(ui.Center).
-		Background(uikit.Colors(t).Panel).Border(0, t.Border).BorderWidth(1, 0, 0, 0).Children(func() {
-		text := func(s string) ui.Element {
-			return uikit.Meta(c, s).FontFeatures("tnum").SingleLine()
-		}
-		switch {
-		case a.page == pageDiagnostics:
-			text("Connection diagnostics")
-			ui.Spacer(c)
-			text("Read-only until you press a fix")
-			return
-		case a.page == pageSession:
-			text(fmt.Sprintf("%d saved sessions", len(a.sessions.items)))
-			ui.Spacer(c)
-			text("Read-only evidence · live traffic unchanged")
-			return
-		case a.page == pageAPI:
-			counts := fmt.Sprintf("%d contracts", len(a.apis))
-			if len(a.apis) == 1 {
-				counts = "1 contract"
-			}
-			text(counts)
-			ui.Spacer(c)
-			for _, doc := range a.apis {
-				if doc.spec.ID == a.apiChoice {
-					text(doc.title())
-				}
-			}
-			return
-		case !a.page.capture():
-			env := locales.NoEnvironment()
-			if a.activeEnv != "" {
-				env = locales.EnvironmentNamed(a.activeEnv)
-			}
-			counts := locales.RequestSummary(len(a.requests))
-			text(counts)
-			ui.Spacer(c)
-			text(env)
-			if key := sendShortcut(); key != "" {
-				text(key + "  " + locales.Send())
-			}
-			return
-		}
-		counts := locales.CaptureCounts(len(a.flows), len(a.visible))
-		if n := a.chosen.Len(); n > 0 {
-			counts += locales.SelectedSuffix(n)
-		}
-		text(counts)
-		if a.filtersActive() {
-			ui.Text(c, locales.Filtered()).FontSize(uikit.TextMeta).TextColor(t.Text).SingleLine().Tooltip(locales.FilteredTooltip(a.filterSummary()))
-		}
-		if a.dropped > 0 {
-			ui.Text(c, locales.DroppedCount(int(a.dropped))).FontSize(uikit.TextMeta).FontFeatures("tnum").TextColor(t.Warning).SingleLine()
-		}
-		if a.scriptErrs > 0 {
-			ui.Text(c, locales.ScriptErrors(int(a.scriptErrs))).FontSize(uikit.TextMeta).FontFeatures("tnum").TextColor(t.Warning).SingleLine()
-		}
-		ui.Spacer(c)
-		if !a.page.capture() {
-			return
-		}
-		view := a.views.activeView()
-		if view == nil || len(a.visible) == 0 {
-			return
-		}
-		newRows := a.newRows
-		label, tip := locales.AutoFollowOn(), locales.AutoFollowOnTip()
-		if !view.list.AtEnd() {
-			label = locales.AutoFollowOff()
-			tip = locales.AutoFollowOffTip()
-		}
-		if newRows > 0 {
-			label = locales.AutoFollowNew(newRows)
-		}
-		if uikit.ToolbarButton(c, locales.AutoFollow(), tip, false).Height(uikit.HeightCompact).Padding(0, t.Space(1)).TextColor(t.Text).Children(func() {
-			if newRows > 0 {
-				uikit.Glyph(c, breakIcon)
-			}
-			ui.Text(c, label).FontSize(uikit.TextMeta).FontFeatures("tnum").SingleLine()
-		}).Clicked() {
-			a.workbench.focused = false
-			a.newRows = 0
-			view.list.ScrollToEnd()
-		}
-	})
 }
 
 // sendShortcut spells the Send shortcut for the footer.

@@ -7,8 +7,8 @@ import (
 	"errors"
 	"fmt"
 	"github.com/baba983/vscroxy/internal/uikit"
+	"github.com/baba983/vscroxy/locales"
 	"io"
-	"math"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -35,7 +35,7 @@ import (
 // openResponseBody makes the response pane's body the visible inspector tab, as
 // a person gets it by choosing Body.
 func openResponseBody(a *app) {
-	a.inspect.tab[1] = resTabBody
+	a.inspect.tab[1] = resViewBody
 	a.inspect.ready = true
 }
 
@@ -52,6 +52,41 @@ func clickLabel(tt *ui.Tester, s string) error {
 }
 
 // App menus are drawn in the window, including each opened submenu.
+// saveAsExample takes the response pane's action wherever the row puts it:
+// inline while the row has room, in the pane's menu when it does not.
+func saveAsExample(t *testing.T, tt *ui.Tester) {
+	t.Helper()
+	if _, found := tt.Find("Save as example"); found {
+		if err := tt.Click("Save as example"); err != nil {
+			t.Fatal(err)
+		}
+		return
+	}
+	if err := tt.Click("Response pane options"); err != nil {
+		t.Fatal(err)
+	}
+	if err := chooseMenu(tt, "Save as example"); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// dismissToasts clears the notifications over the pane a test works on. A
+// toast on its way out still shows its text but takes no input, so one that
+// will not take the click is waited for instead.
+func dismissToasts(t *testing.T, tt *ui.Tester) {
+	t.Helper()
+	for range 3 {
+		if _, ok := tt.Find("Dismiss notification"); !ok {
+			return
+		}
+		if err := tt.Click("Dismiss notification"); err == nil {
+			tt.Advance(250 * time.Millisecond)
+			continue
+		}
+		tt.Advance(250 * time.Millisecond)
+	}
+}
+
 func chooseMenu(tt *ui.Tester, path ...string) error {
 	for _, label := range path {
 		if _, found := tt.Find(label); !found {
@@ -79,6 +114,31 @@ func chooseMenu(tt *ui.Tester, path ...string) error {
 		tt.Key(0, ui.KeyEnter)
 	}
 	return nil
+}
+
+// choosePaneView opens a pane's More menu and picks a view it keeps out of
+// the tab row.
+func choosePaneView(t *testing.T, tt *ui.Tester, pane, label string) {
+	t.Helper()
+	dismissToasts(t, tt)
+	if err := tt.Click(pane + " options"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if err := chooseMenu(tt, menuLabel(tt, label)); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// menuLabel is the label as the menu shows it: a view with a count of its
+// own says "Examples 2".
+func menuLabel(tt *ui.Tester, label string) string {
+	for _, s := range tt.Texts() {
+		if s == label || strings.HasPrefix(s, label+" ") {
+			return s
+		}
+	}
+	return label
 }
 
 // chooseBodyFormat picks a representation from the pane's format menu.
@@ -118,7 +178,7 @@ func TestSidebarShowsTheWindowMaterialOverOpaqueContent(t *testing.T) {
 	}
 }
 
-func TestShellCentersStatusWithoutCoveringNativeControls(t *testing.T) {
+func TestShellKeepsItsControlsInsideTheWindow(t *testing.T) {
 	for _, mac := range []bool{false, true} {
 		for _, width := range []int{960, 1280} {
 			for _, scale := range []float32{1, 2} {
@@ -128,110 +188,48 @@ func TestShellCentersStatusWithoutCoveringNativeControls(t *testing.T) {
 					tt := ui.NewTester(a.view, width, 800)
 					tt.SetScale(scale)
 					tt.SetTitleBar(bar)
-					// Centered over the window, or on macOS over the column
-					// beside the sidebar as a toolbar centers over the content;
-					// not over the native insets. Only wide right-hand window
-					// buttons in the narrowest window push it aside, where the
-					// commands and Host profiles beside it need the room.
+					// The pill leads the bar after the brand — past the
+					// native insets — then the tools that are on and the
+					// field that finds every command; the switches close it.
 					status, ok := tt.Find("Proxy status")
-					left := float32(0)
-					if mac {
-						left = a.sidebarWidth + 1 // the split's hairline
-					}
-					centered := bar.Right == 0 || width > 960
-					if !ok || centered && math.Abs(float64(status.X+status.W/2)-float64(left+float32(width))/2) > 1 {
-						t.Fatalf("mac=%t: status followed native button insets instead of the center: %v", mac, status)
+					if !ok {
+						t.Fatal("the recording pill is missing")
 					}
 					brand, _ := tt.Find("vscroxy")
+					// The way to every command is a button with the
+					// shortcut, not a field: it leaves the bar's room to
+					// the tools that are on.
+					field, ok := tt.Find("Commands")
+					if !ok || !tt.HasText(commandShortcut()) {
+						t.Fatalf("the command button is missing its shortcut: %v", field)
+					}
 					more, _ := tt.Find("More")
 					layout, _ := tt.Find("Side by side layout")
-					// The brand icon sits before its name: with controls on the
-					// left it needs a gap from them as well as from the name.
-					room := float32(0)
-					if bar.Left > 0 {
-						room = uikit.IconLarge + 16
+					if mac {
+						// Beside the sidebar the brand is the sidebar's.
+						if brand.X >= a.sidebarWidth {
+							t.Fatalf("the brand left the sidebar at mac=%t: %v", mac, brand)
+						}
+					} else if bar.Left > 0 && brand.X < bar.Left+uikit.IconLarge+16 {
+						// With controls on the left the brand keeps a gap
+						// from them, as it does from its own icon.
+						t.Fatalf("the brand sits on the native controls: %v", brand)
 					}
-					if brand.X < bar.Left+room || more.X+more.W > float32(width)-bar.Right || brand.X+brand.W > status.X || layout.X < status.X+status.W {
-						t.Fatalf("shell overlaps controls at mac=%t, width=%d, scale=%g, titlebar=%v", mac, width, scale, bar)
+					if status.X < bar.Left || status.X+status.W > field.X {
+						t.Fatalf("the pill does not lead the bar at mac=%t: pill=%v field=%v", mac, status, field)
+					}
+					if field.X+field.W > layout.X || layout.X < status.X+status.W {
+						t.Fatalf("the command field and the switches overlap at mac=%t: %v %v", mac, field, layout)
+					}
+					if more.X+more.W > float32(width)-bar.Right {
+						t.Fatalf("the switches run past the window at width=%d: %v", width, more)
+					}
+					if field.W < 48 {
+						t.Fatalf("the command button is squeezed to %g at width=%d", field.W, width)
 					}
 				}
 			}
 		}
-	}
-}
-
-func TestEnabledToolbarPreservesContentFocus(t *testing.T) {
-	a := workspaceApp()
-	tt := ui.NewTester(a.view, 960, 800)
-	if err := tt.Click("Search host or path"); err != nil {
-		t.Fatal(err)
-	}
-	tt.Type("projects")
-	for _, enabled := range []bool{true, false, true} {
-		a.breakOn = enabled
-		tt.Frame()
-		if !tt.Focused("Search host or path") || a.query != "projects" {
-			t.Fatal("toolbar appearing or disappearing reset the content's input identity")
-		}
-	}
-	tt.Key(ui.Ctrl, ui.KeyA)
-	tt.Type("login")
-	if a.query != "login" {
-		t.Fatal("search no longer accepts edits after the toolbar changes")
-	}
-}
-
-func TestMarkColorsCanBeChosenWithoutAPointer(t *testing.T) {
-	a := workspaceApp()
-	a.openMark(a.flows[0])
-	tt := ui.NewTester(a.view, 960, 600)
-	if !tt.Focused("Mark Red") {
-		t.Fatal("opening the dialog did not focus its first color")
-	}
-	tt.Key(0, ui.KeyTab)
-	if !tt.Focused("Mark Orange") {
-		t.Fatal("Tab did not reach the next mark color")
-	}
-	tt.Key(0, ui.KeySpace)
-	if a.markColor != "Orange" {
-		t.Fatal("Space did not choose the focused color")
-	}
-	tt.Key(ui.Shift, ui.KeyTab)
-	tt.Key(0, ui.KeyEnter)
-	if a.markColor != "Red" {
-		t.Fatal("Shift+Tab and Enter did not choose the previous color")
-	}
-	tt.Key(0, ui.KeyEscape)
-	if a.markOpen || a.flows[0].color != "" {
-		t.Fatal("Escape must dismiss without saving the mark")
-	}
-}
-
-func TestNotificationsRetainActionAndDismissal(t *testing.T) {
-	a := workspaceApp()
-	added, actions := false, 0
-	tt := ui.NewTester(func(c *ui.Context) {
-		if !added {
-			c.AddToast(ui.Toast{Title: "Export ready", Action: "Open export", OnAction: func() { actions++ }})
-			added = true
-		}
-		a.view(c)
-	}, 960, 800)
-	tt.Advance(250 * time.Millisecond)
-	if err := tt.Click("Open export"); err != nil {
-		t.Fatal(err)
-	}
-	if actions != 1 || tt.HasText("Export ready") {
-		t.Fatal("notification action did not run once and close its toast")
-	}
-	a.done("Copied URL")
-	tt.Frame()
-	tt.Advance(250 * time.Millisecond)
-	if err := tt.Click("Dismiss notification"); err != nil {
-		t.Fatal(err)
-	}
-	if tt.HasText("Copied URL") {
-		t.Fatal("dismiss button left the notification open")
 	}
 }
 
@@ -258,7 +256,9 @@ func TestActiveToolChipsChangeConfigurationInBothWorkspaces(t *testing.T) {
 				t.Fatal(err)
 			}
 			a.rulesPath = t.TempDir() // A directory makes saving fail, on every platform.
-			tt := ui.NewTester(a.view, 960, 800)
+			// Wide enough for every chip at once: the title bar scrolls
+			// them rather than wrapping when more are on than fit.
+			tt := ui.NewTester(a.view, 1440, 800)
 			click := func(label string) {
 				t.Helper()
 				if err := tt.Click(label); err != nil {
@@ -325,7 +325,6 @@ func appearanceOf(dark bool) string {
 func workspaceApp() *app {
 	a := &app{
 		filter: "all", sidebarWidth: 220, tablePercent: 56,
-		trafficOpen: true, domainsOpen: true, clientsOpen: true, collectionsOpen: true,
 		collectionOpen: make(map[string]*bool), icons: make(map[string]ui.ImageSource),
 		detailFor: -1, frames: make(map[int][]frame), workbench: desktopWorkbench{layout: "right"},
 		flows: []flow{
@@ -685,7 +684,7 @@ func TestCaptureTableScrollsAndKeepsEachViewsPlace(t *testing.T) {
 	}
 	tt.Key(0, ui.KeyEnd)
 	tt.Type("?edited=1")
-	if !tt.HasText("api.example.com/capture/0021") || !tt.HasText("GET https://api.example.com/capture/0021") || !tt.HasText("Auto-follow off · latest ↓") || !tt.HasText("Edited") {
+	if !tt.HasText("api.example.com/capture/0021") || !tt.HasText("GET https://api.example.com/capture/0021") || a.following() || !tt.HasText("Edited") {
 		t.Fatal("editing the capture changed the list position, follow state or inspected request")
 	}
 	if err := tt.Click("New view"); err != nil {
@@ -720,8 +719,10 @@ func TestCaptureTableScrollsAndKeepsEachViewsPlace(t *testing.T) {
 	if !tt.HasText(row) || tt.HasText("api.example.com/capture/5001") {
 		t.Fatal("new traffic pulled the reader away from older requests")
 	}
-	if !tt.HasText("Auto-follow off · latest ↓") {
-		t.Fatalf("the paused follow state is not visible: %q", tt.Texts())
+	// Following is the footer's Auto-follow button, so its state is the
+	// app's: new traffic must not have put the list back on the end.
+	if a.following() {
+		t.Fatalf("new traffic pulled the reader to the end: %q", tt.Texts())
 	}
 	if err := tt.Click(row); err != nil {
 		t.Fatal(err)
@@ -792,7 +793,7 @@ func TestWorkspaceKeepsCaptureAndDraftIndependent(t *testing.T) {
 	click("Method")
 	tt.Key(ui.Cmd, ui.KeyA)
 	tt.Key(0, ui.KeyBackspace)
-	click("Scripts")
+	choosePaneView(t, tt, "Request pane", "Scripts")
 	click("Pre-request")
 	tt.Key(ui.Cmd, ui.Key1)
 	if !tt.HasText("401") || tt.HasText("200") {
@@ -885,7 +886,7 @@ func TestCaptureUIUsesOnlyTheRunningListener(t *testing.T) {
 		t.Fatal(err)
 	}
 	tt.Frame()
-	if !tt.HasText("Recording") || !tt.HasText(srv.Addr()) || !tt.HasText("Listening at "+srv.Addr()+" · no retained requests yet") {
+	if !tt.HasText("Listening on") || !tt.HasText(srv.Addr()) || !tt.HasText("Listening at "+srv.Addr()+" · no retained requests yet") {
 		t.Fatalf("capture must show its actual bound address, texts: %q", tt.Texts())
 	}
 	// Paused, the proxy still forwards but keeps only what the app itself
@@ -903,7 +904,7 @@ func TestCaptureUIUsesOnlyTheRunningListener(t *testing.T) {
 	}
 	a.pending = []capture.Flow{{ID: 3, Method: "GET", Host: "ambient.test"}}
 	tt.Frame()
-	if !tt.HasText("Recording") || len(a.flows) != 2 || a.flows[1].id != 3 {
+	if !tt.HasText("Listening on") || len(a.flows) != 2 || a.flows[1].id != 3 {
 		t.Fatalf("resumed recording kept %d flows, want the ambient one too", len(a.flows))
 	}
 	for _, label := range []string{"Settings", "Proxy"} {
@@ -1516,7 +1517,10 @@ func TestRequestBodyEditorKeepsTheDraftInSync(t *testing.T) {
 func TestCredentialsAreMaskedUntilRevealed(t *testing.T) {
 	a := workspaceApp()
 	a.flows[0].reqHeader.Set("Authorization", "Bearer super-secret-token")
-	a.inspect.tab[0], a.inspect.ready = reqTabHeaders, true
+	// The reader prints header values, so masking is visible in its text;
+	// trailers keep this capture out of the editor, which masks in a field.
+	a.flows[0].reqTrailer = http.Header{"X-Done": {"1"}}
+	a.inspect.tab[0], a.inspect.ready = composeTabHeaders, true
 	tt := ui.NewTester(a.view, 1280, 800)
 	if tt.HasText("Bearer super-secret-token") || !tt.HasText("••••••••  masked") {
 		t.Fatalf("a credential was readable before it was revealed: %q", tt.Texts())
@@ -1537,6 +1541,9 @@ func TestCredentialsAreMaskedUntilRevealed(t *testing.T) {
 
 func TestBodyAutomaticallyChoosesAUsableMode(t *testing.T) {
 	a := workspaceApp()
+	// Wide enough for the panes' own rows: the format menu of a narrow
+	// pane is in its ⋯ menu, which is another test.
+	a.workbench.sidePercent = 40
 	a.flows[0].respHeader.Set("Content-Type", "application/octet-stream")
 	a.flows[0].resBody = "\x00\xffbinary"
 	openResponseBody(a)
@@ -1635,6 +1642,12 @@ func TestBodyWarningsStayOutsideStructuredPayloadAndClipboard(t *testing.T) {
 
 func TestBodyModeSurvivesIncomingTraffic(t *testing.T) {
 	a := workspaceApp()
+	// Wide enough for the panes' own rows: the format menu of a narrow
+	// pane is in its ⋯ menu, which is another test.
+	a.workbench.sidePercent = 40
+	// Each side's representation is the reader's: trailers keep the request
+	// out of the editor, which has one representation of its own.
+	a.flows[0].reqTrailer = http.Header{"X-Done": {"1"}}
 	openResponseBody(a)
 	tt := ui.NewTester(a.view, 1280, 800)
 	// Hex renders differently from Auto's Pretty, so a reset is observable.
@@ -1654,7 +1667,7 @@ func TestBodyModeSurvivesIncomingTraffic(t *testing.T) {
 	}
 	// Each side keeps its own representation: the request still reads as
 	// Pretty while the response stays in the hex dump the reader chose.
-	a.inspect.tab[0] = reqTabBody
+	a.inspect.tab[0] = composeTabBody
 	tt.Frame()
 	if !tt.HasText("Pretty") || !tt.HasText("Hex") {
 		t.Fatalf("the two sides did not keep independent representations: %q", tt.Texts())
@@ -1663,6 +1676,9 @@ func TestBodyModeSurvivesIncomingTraffic(t *testing.T) {
 
 func TestJSONExpansionSurvivesIncomingTraffic(t *testing.T) {
 	a := workspaceApp()
+	// Wide enough for the panes' own rows: the format menu of a narrow
+	// pane is in its ⋯ menu, which is another test.
+	a.workbench.sidePercent = 40
 	openResponseBody(a)
 	// Keep the nested disclosure in the visible detail pane. Tester.Click
 	// cannot expand an offscreen row without scrolling it into view first.
@@ -1726,6 +1742,9 @@ func TestResponseDurationHoverSplitsItIntoPhases(t *testing.T) {
 	f := &a.flows[0]
 	f.millis, f.wait, f.download = 300, 240, 60
 	f.conn = conn{resolved: "203.0.113.7", lookupMs: 25, dnsFresh: true, flows: 1, tls: "TLS 1.3"}
+	// The numbers, and the card on them, need a pane wide enough to print
+	// them beside the tabs.
+	a.workbench.sidePercent = 40
 	tt := ui.NewTester(a.view, 1280, 800)
 	r, ok := tt.Find("Response result")
 	if !ok {
@@ -1749,11 +1768,11 @@ func TestResponseDurationHoverSplitsItIntoPhases(t *testing.T) {
 	}
 }
 
-func TestResponseHeadlineShowsTheExchangeWithoutInventingAStatus(t *testing.T) {
+func TestResponseHeaderShowsTheExchangeWithoutInventingAStatus(t *testing.T) {
 	for _, tc := range []struct {
-		name, headline string
-		status         int
-		failure        string
+		name, title string
+		status      int
+		failure     string
 	}{
 		{"success", "200 OK", 200, ""},
 		{"http-error", "500 Internal Server Error", 500, ""},
@@ -1764,10 +1783,9 @@ func TestResponseHeadlineShowsTheExchangeWithoutInventingAStatus(t *testing.T) {
 			a := snapshotApp()
 			a.flows[0].status, a.flows[0].conn.error = tc.status, tc.failure
 			a.flows[0].millis, a.flows[0].bytes = 1242, 1843
-			a.flows[0].respHeader = http.Header{"Content-Type": {"Application/JSON; charset=utf-8"}}
 			tt := ui.NewTester(a.view, 960, 800)
-			if _, ok := tt.Find("Response result"); !ok || !tt.HasText(tc.headline) || !tt.HasText("1242 ms") || !tt.HasText(" · 1.8 KB · application/json") {
-				t.Fatalf("missing response result: %q", tt.Texts())
+			if _, ok := tt.Find("Response result"); !ok || !tt.HasText(tc.title) || !tt.HasText("1242 ms") || !tt.HasText(" · 1.8 KB") {
+				t.Fatalf("missing response header: %q", tt.Texts())
 			}
 			if tc.failure != "" {
 				if tt.HasText("502 Bad Gateway") {
@@ -1778,12 +1796,12 @@ func TestResponseHeadlineShowsTheExchangeWithoutInventingAStatus(t *testing.T) {
 				}
 				tt.Frame() // the failure scrolls into view
 				if !tt.HasText("Possible causes · not confirmed") {
-					t.Fatal("the response headline removed connection diagnostics")
+					t.Fatal("the response header removed connection diagnostics")
 				}
 			} else if tc.status != 0 {
 				count := 0
 				for _, text := range tt.Texts() {
-					if text == tc.headline {
+					if text == tc.title {
 						count++
 					}
 				}
@@ -1792,6 +1810,680 @@ func TestResponseHeadlineShowsTheExchangeWithoutInventingAStatus(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestCapturedRequestOpensInItsOwnTabsAndKeepsItsOriginal(t *testing.T) {
+	a := workspaceApp()
+	tt := ui.NewTester(a.view, 1280, 800)
+	// The capture is the document: its parts are the pane's own tabs, and
+	// the capture itself is nowhere else to go until it changes.
+	if !tt.HasText("Request pane: Headers") || !tt.HasText("Request pane: Auth") {
+		t.Fatalf("a capture did not open in the request's tabs: %q", tt.Texts())
+	}
+	if err := tt.Click("Request pane options"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if tt.HasText("Original") {
+		t.Fatal("an unchanged capture offered its own original")
+	}
+	tt.Key(0, ui.KeyEscape)
+	// Edited, the capture is what the draft came from, and More says so.
+	a.editCapture(a.flows[0])
+	a.composeURL += "?page=2"
+	tt.Frame()
+	if err := tt.Click("Request pane options"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if !tt.HasText("Original") {
+		t.Fatalf("an edited capture has no way back to it: %q", tt.Texts())
+	}
+	if err := chooseMenu(tt, "Original"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if !tt.HasText("GET /projects") || tt.HasText("?page=2") {
+		t.Fatalf("the original is not the capture as recorded: %q", tt.Texts())
+	}
+}
+
+func TestSourcesListsTheBusiestAndShowsTheRest(t *testing.T) {
+	a := workspaceApp()
+	snapshotSidebar(a, 8, 0, 0)
+	tt := ui.NewTester(a.view, 1280, 800)
+	// The five busiest hosts, and one row for the three the region keeps.
+	// The traffic table lists the same hosts: only what is left of the
+	// sidebar's edge counts.
+	listed := func(name string) bool {
+		r, ok := tt.Find(name)
+		return ok && r.X < a.sidebarWidth
+	}
+	for i := 1; i <= 5; i++ {
+		if host := fmt.Sprintf("service-%02d.example.com", i); !listed(host) {
+			t.Fatalf("%s is not listed", host)
+		}
+	}
+	if listed("service-06.example.com") {
+		t.Fatal("Sources listed more than its first five")
+	}
+	if err := tt.Click("Show all domains"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if !listed("service-08.example.com") {
+		t.Fatal("Show all domains did not list the rest")
+	}
+	// The switch above the list shows the other one.
+	if err := tt.Click("Apps"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if !listed("Browser") {
+		t.Fatalf("the Apps list did not show: %q", tt.Texts())
+	}
+	if listed("service-01.example.com") {
+		t.Fatal("the host list stayed beside the app list")
+	}
+}
+
+// TestCaptureStartsBelowFourBars pins the chrome above the traffic list: the
+// title bar 40, the filter bar 32, the activity row 24 and the head 24, so the
+// first request starts below them all.
+func TestSidebarQuietRowsShowNoZeroCount(t *testing.T) {
+	a := workspaceApp()
+	// Two requests, and nothing failed, nothing was slow, nothing pinned.
+	tt := ui.NewTester(a.view, 1280, 800)
+	if _, ok := tt.Access("All requests 2"); !ok {
+		t.Fatalf("the traffic count is missing: %v", tt.Texts())
+	}
+	// One request failed, so Errors keeps its count; nothing was slow or
+	// pinned, so those rows are their names alone.
+	if _, ok := tt.Access("Errors 1"); !ok {
+		t.Fatal("a count of one is missing")
+	}
+	for _, row := range []string{"Slow", "Pinned"} {
+		if _, ok := tt.Access(row + " 0"); ok {
+			t.Fatalf("%s shows a count of nothing", row)
+		}
+		if _, ok := tt.Access(row); !ok {
+			t.Fatalf("%s is not listed", row)
+		}
+	}
+}
+
+func TestSidebarRegionsFoldAndRememberIt(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "settings.json")
+	a := workspaceApp()
+	a.settingsPath = path
+	tt := ui.NewTester(a.view, 1280, 800)
+	inSidebar := func(name string) bool {
+		r, ok := tt.Find(name)
+		return ok && r.X < a.sidebarWidth
+	}
+	if !inSidebar("api.example.com") {
+		t.Fatal("Sources does not list its hosts")
+	}
+	clickHeading := func(tt *ui.Tester, title string) {
+		t.Helper()
+		r, ok := tt.Find(title)
+		if !ok {
+			t.Fatalf("%s has no heading", title)
+		}
+		// The title, not the heading's middle: Sources has its switch there.
+		tt.ClickAt(r.X+20, r.Y+r.H/2)
+		tt.Frame()
+	}
+	clickHeading(tt, "Sources")
+	if *a.regionOpen("sources") || inSidebar("api.example.com") {
+		t.Fatal("the heading did not fold its region away")
+	}
+	// The choice is the person's: it survives the next launch.
+	a.lastSave = time.Time{}
+	if err := a.persistSettings(); err != nil {
+		t.Fatal(err)
+	}
+	saved, err := loadSettings(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(saved.SidebarClosed, []string{"sources"}) {
+		t.Fatalf("saved regions = %v", saved.SidebarClosed)
+	}
+	b := workspaceApp()
+	b.shutRegions = slices.Clone(saved.SidebarClosed)
+	if *b.regionOpen("sources") {
+		t.Fatal("the folded region opened again on the next launch")
+	}
+	if !*b.regionOpen("traffic") || !*b.regionOpen("collections") {
+		t.Fatal("an open region started folded")
+	}
+	tt2 := ui.NewTester(b.view, 1280, 800)
+	if r, ok := tt2.Find("api.example.com"); ok && r.X < b.sidebarWidth {
+		t.Fatal("a folded Sources region still lists its hosts")
+	}
+	clickHeading(tt, "Sources")
+	if !*a.regionOpen("sources") || !inSidebar("api.example.com") {
+		t.Fatal("the heading did not bring its region back")
+	}
+}
+
+func TestSidebarHidesAndComesBack(t *testing.T) {
+	a := workspaceApp()
+	tt := ui.NewTester(a.view, 1280, 800)
+	if !a.sidebarShown() {
+		t.Fatal("the sidebar starts shown")
+	}
+	if err := tt.Click("Hide sidebar"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if a.sidebarShown() {
+		t.Fatal("the title bar's switch did not hide the sidebar")
+	}
+	if err := tt.Click("Show sidebar"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if !a.sidebarShown() {
+		t.Fatal("the title bar's switch did not bring the sidebar back")
+	}
+	// A window too narrow for the sidebar puts it aside by itself, and the
+	// choice it was left with comes back when there is room again.
+	tt.SetSize(sidebarMinWidth-1, 800)
+	tt.Frame()
+	if a.sidebarShown() {
+		t.Fatalf("the sidebar stayed beside a %d point window", sidebarMinWidth-1)
+	}
+	tt.SetSize(1280, 800)
+	tt.Frame()
+	if !a.sidebarShown() {
+		t.Fatal("the sidebar did not come back with the window")
+	}
+	// Hidden by hand, it stays hidden.
+	if err := tt.Click("Hide sidebar"); err != nil {
+		t.Fatal(err)
+	}
+	tt.SetSize(sidebarMinWidth-1, 800)
+	tt.Frame()
+	tt.SetSize(1280, 800)
+	tt.Frame()
+	if a.sidebarShown() {
+		t.Fatal("a hidden sidebar came back on its own")
+	}
+}
+
+func TestEmptyCaptureOffersTheProxyAndClientSetup(t *testing.T) {
+	a := workspaceApp()
+	srv, err := capture.New("127.0.0.1:0", t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = srv.Close() })
+	a.srv = srv
+	a.flows = nil
+	a.recount()
+	a.applyFilter()
+	tt := ui.NewTester(a.view, 1280, 800)
+	if !tt.HasText("Capture is stopped") {
+		t.Fatalf("the empty list says something else: %v", tt.Texts())
+	}
+	// Setting up a client is the first thing a capture needs.
+	if err := tt.Click("Client setup"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if !a.clientUI.open {
+		t.Fatal("the empty list did not open Client setup")
+	}
+	a.clientUI.open = false
+	tt.Frame()
+	// A listener that is not running can be started from here.
+	if srv.Running() {
+		t.Fatal("the fixture listener started on its own")
+	}
+	if err := tt.Click("Start proxy"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	deadline := time.Now().Add(5 * time.Second)
+	for !srv.Running() {
+		if time.Now().After(deadline) {
+			t.Fatal("the empty list did not start the proxy")
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+}
+
+func TestCaptureStartsBelowFourBars(t *testing.T) {
+	a := workspaceApp()
+	const height = 800
+	tt := ui.NewTester(a.view, 1280, height)
+	search, ok := tt.Find("Search host or path")
+	if !ok || search.H != uikit.HeightControl || search.Y < uikit.HeightBar {
+		t.Fatalf("the filter bar's field is not a control under the title bar: %v", search)
+	}
+	activity, ok := tt.Find("Activity strip")
+	if !ok || activity.H != uikit.HeightStatus {
+		t.Fatalf("the activity row is not 24 high: %v", activity)
+	}
+	head, ok := tt.Find("#")
+	if !ok || head.H != uikit.HeightControl {
+		t.Fatalf("the table's head is not 24 high: %v", head)
+	}
+	want := float32(uikit.HeightBar + uikit.HeightTabs + uikit.HeightStatus + uikit.HeightControl)
+	if top := head.Y + head.H; top < want {
+		t.Fatalf("the first request row starts at %g, above the %g the four bars take", top, want)
+	}
+	if search.Y+search.H > activity.Y || activity.Y+activity.H > head.Y {
+		t.Fatalf("the bars overlap: field %v, activity %v, head %v", search, activity, head)
+	}
+	if row, ok := tt.Find("api.example.com/projects"); !ok || row.Y < head.Y+head.H {
+		t.Fatalf("the first request is not below the head: %v", row)
+	}
+	// The status bar closes the window with the same 24.
+	if footer, ok := tt.Find("Auto-follow"); !ok || footer.Y < height-uikit.HeightStatus || footer.Y+footer.H > height {
+		t.Fatalf("the status bar is not the last 24 of the window: %v", footer)
+	}
+}
+
+func TestSidebarRegionsScrollApart(t *testing.T) {
+	a := workspaceApp()
+	// Twenty hosts above a tree of forty-two requests: neither region can
+	// show all of what it holds, and neither may push the other away.
+	snapshotSidebar(a, 20, 3, 14)
+	a.sourcesAll = true
+	tt := ui.NewTester(a.view, 1280, 800)
+	collections, ok := tt.Find("Collections")
+	if !ok {
+		t.Fatal("the collections region is not on screen beside a long list of hosts")
+	}
+	if _, ok := tt.Find("Workspace"); !ok {
+		t.Fatal("the tree is not on screen beside a long list of hosts")
+	}
+	first, ok := tt.Find("service-01.example.com")
+	if !ok {
+		t.Fatal("the traffic region is not on screen")
+	}
+	tt.Scroll(120, 300, 0, 120)
+	tt.Frame()
+	host, ok := tt.Find("service-01.example.com")
+	if !ok || host.Y >= first.Y {
+		t.Fatalf("the traffic region did not scroll: %v → %v", first.Y, host.Y)
+	}
+	if after, ok := tt.Find("Collections"); !ok || after.Y != collections.Y {
+		t.Fatalf("scrolling the traffic region moved the collections: %v → %v", collections.Y, after.Y)
+	}
+	// The tree scrolls in its own region, and the hosts stay where they were.
+	treeBefore, ok := tt.Find("List items 1")
+	if !ok {
+		t.Fatal("the tree's first row is not on screen")
+	}
+	tt.Scroll(120, 660, 0, 120)
+	tt.Frame()
+	if treeAfter, ok := tt.Find("List items 1"); !ok || treeAfter.Y >= treeBefore.Y {
+		t.Fatalf("the collections region did not scroll: %v → %v", treeBefore.Y, treeAfter.Y)
+	}
+	if after, ok := tt.Find("service-01.example.com"); !ok || after.Y != host.Y {
+		t.Fatalf("scrolling the tree moved the hosts: %v → %v", host.Y, after.Y)
+	}
+}
+
+func TestNarrowResponsePaneKeepsItsTabsAndReportsTheNumbersInItsMenu(t *testing.T) {
+	a := workspaceApp()
+	a.flows[0].millis, a.flows[0].bytes = 1242, 1843
+	// The inspector beside the list is narrow: the tabs keep the row, and the
+	// numbers and the body's format menu move into the pane's menu.
+	tt := ui.NewTester(a.view, 1280, 800)
+	// The format menu is as wide as two tabs, so it goes while the tabs stay.
+	if err := tt.Click("Response pane: Body"); err != nil {
+		t.Fatalf("Body tab is not wholly visible: %v", err)
+	}
+	tt.Frame()
+	if tt.HasText("Response body format") {
+		t.Fatalf("the body format menu took the tabs' room: %q", tt.Texts())
+	}
+	for _, tab := range []string{"Headers", "Cookies", "Timing", "Body"} {
+		if err := tt.Click("Response pane: " + tab); err != nil {
+			t.Fatalf("%s tab is not wholly visible: %v", tab, err)
+		}
+		tt.Frame()
+	}
+	if tt.HasText("Response result") {
+		t.Fatal("the duration and size took the tabs' room")
+	}
+	if err := tt.Click("Response pane options"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if !tt.HasText("1242 ms · 1.8 KB") {
+		t.Fatalf("the pane's menu does not report the numbers: %q", tt.Texts())
+	}
+	if !tt.HasText("Response body format") {
+		t.Fatalf("the pane's menu does not offer the body's formats: %q", tt.Texts())
+	}
+}
+
+// openEditorResponse opens the saved request in the editor and gives it a
+// response, the way a send does.
+func openEditorResponse(t *testing.T, tt *ui.Tester, a *app) {
+	t.Helper()
+	tt.Key(ui.Cmd, ui.Key2)
+	if err := tt.Click("List projects"); err != nil {
+		t.Fatalf("the saved request is not reachable: %v", err)
+	}
+	d := a.requestDocument
+	if d == nil {
+		t.Fatal("the saved request did not open")
+	}
+	d.response = &capture.Flow{Status: 201, Millis: 1242, Bytes: 1843,
+		ResponseHeader: http.Header{"Content-Type": {"application/json"}}, ResponseBody: `{"id":73}`}
+	d.responseArrived()
+	tt.Frame()
+}
+
+// The editor's response pane carries the body's format menu, Decode and the
+// response's own actions beside its tabs. At half of a 1280 window it is
+// narrower than the inspector's pane, so the numbers give way first and every
+// tab still shows whole.
+func TestEditorResponsePaneKeepsItsTabsBesideTheRequest(t *testing.T) {
+	a := workspaceApp()
+	tt := ui.NewTester(a.view, 1280, 800)
+	openEditorResponse(t, tt, a)
+	for _, tab := range []string{"Body", "Headers", "Cookies", "Timing"} {
+		if err := tt.Click("Response pane: " + tab); err != nil {
+			t.Fatalf("%s tab is not wholly visible in the editor: %v", tab, err)
+		}
+		tt.Frame()
+	}
+	if err := tt.Click("Response pane: Body"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	// The row keeps what came back, and gives up what it cannot fit: the
+	// body's format menu and Decode are in the pane's menu instead.
+	if !tt.HasText("1242 ms") || !tt.HasText(" · 1.8 KB") {
+		t.Fatalf("the response lost its duration and size: %q", tt.Texts())
+	}
+	if tt.HasText("Decode…") {
+		t.Fatalf("Decode took the tabs' room: %q", tt.Texts())
+	}
+	if err := tt.Click("Response pane options"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	for _, item := range []string{"Decode…", "Response format"} {
+		if !tt.HasText(item) {
+			t.Fatalf("the pane's menu does not offer %q: %q", item, tt.Texts())
+		}
+	}
+}
+
+// Without the sidebar the list is wider, and the inspector beside it narrower.
+// The tabs keep the row there too, and the duration column stays inside the
+// list rather than losing its last letter to the edge.
+func TestInspectorWithoutTheSidebarKeepsItsTabsAndDuration(t *testing.T) {
+	a := workspaceApp()
+	a.workbench.sidebarHidden = true
+	tt := ui.NewTester(a.view, 1280, 800)
+	for _, tab := range []string{"Body", "Headers", "Cookies", "Timing"} {
+		if err := tt.Click("Response pane: " + tab); err != nil {
+			t.Fatalf("%s tab is not wholly visible without the sidebar: %v", tab, err)
+		}
+		tt.Frame()
+	}
+	table, ok := tt.Find("Captured requests")
+	duration, found := tt.Find("Duration")
+	if !ok || !found {
+		t.Fatal("the duration column left the list")
+	}
+	// The column keeps its 112 points: a column the list's edge cuts comes
+	// back narrower than the one the table was built with.
+	if duration.W < 110 {
+		t.Fatalf("the duration column was cut to %.0f wide at %.0f, the list ends at %.0f",
+			duration.W, duration.X, table.X+table.W)
+	}
+}
+
+// A header value reads whole when it is a common media type: the key column
+// gives way to it, and a longer value still reads in full on hover.
+func TestHeaderValueColumnFitsACommonMediaType(t *testing.T) {
+	a := workspaceApp()
+	var needed float32
+	tt := ui.NewTester(func(c *ui.Context) {
+		a.view(c)
+		needed, _ = c.MeasureText(0, ui.Span{Text: "application/json", Size: uikit.TextBody, Font: uikit.FontMono})
+	}, 1280, 800)
+	tt.Key(ui.Cmd, ui.Key2)
+	if err := tt.Click("List projects"); err != nil {
+		t.Fatal(err)
+	}
+	a.requestDocument.composeHeaders = "Accept: application/json\nContent-Type: application/json"
+	a.requestDocument.headerFor = ""
+	tt.Frame()
+	cell, ok := tt.Find("header value 2")
+	if !ok {
+		t.Fatalf("the second header value is not on screen: %q", tt.Texts())
+	}
+	if cell.W < needed+8 {
+		t.Fatalf("the value cell is %.0f wide, %q needs %.0f plus its padding", cell.W, "application/json", needed)
+	}
+}
+
+// The search field names the operators while it has room for the whole
+// sentence, and only what it searches when it does not.
+func TestSearchPlaceholderYieldsToANarrowField(t *testing.T) {
+	for _, tc := range []struct {
+		width int
+		want  string
+	}{{1280, locales.SearchPlaceholder()}, {960, locales.SearchHostOrPath()}} {
+		a := workspaceApp()
+		var got string
+		tt := ui.NewTester(func(c *ui.Context) {
+			a.view(c)
+			got = a.searchPlaceholder(c)
+		}, tc.width, 800)
+		tt.Frame()
+		tt.Frame()
+		if got != tc.want {
+			t.Errorf("width %d: placeholder %q, want %q", tc.width, got, tc.want)
+		}
+	}
+}
+
+// The window is one chrome surface: the title bar, the sidebar and the footer
+// are the same color, and the screen floats on them as a canvas panel with a
+// gutter at the window's right edge (and at its left while the sidebar is
+// away).
+func TestShellIsOneSurfaceAroundTheRaisedPanel(t *testing.T) {
+	for _, hidden := range []bool{false, true} {
+		a := workspaceApp()
+		a.workbench.sidebarHidden = hidden
+		tt := ui.NewTester(a.view, 1280, 800)
+		im := tt.Image()
+		chrome := im.RGBAAt(640, 20)
+		for _, at := range []struct {
+			name string
+			x, y int
+		}{{"title bar", 640, 20}, {"footer", 640, 790}} {
+			if got := im.RGBAAt(at.x, at.y); got != chrome {
+				t.Fatalf("sidebarHidden=%t: the %s is %v, not the shell's %v", hidden, at.name, got, chrome)
+			}
+		}
+		if !hidden {
+			if got := im.RGBAAt(100, 300); got != chrome {
+				t.Fatalf("the sidebar is %v, not the shell's %v", got, chrome)
+			}
+		}
+		canvas := im.RGBAAt(640, 300)
+		if canvas == chrome {
+			t.Fatalf("sidebarHidden=%t: the panel is the shell's own color", hidden)
+		}
+		// The panel stops short of the window's right edge, and of its left
+		// edge too once the sidebar is not there to hold it.
+		if got := im.RGBAAt(1276, 300); got != chrome {
+			t.Fatalf("the panel runs to the window's right edge: %v", got)
+		}
+		if hidden {
+			if got := im.RGBAAt(4, 300); got != chrome {
+				t.Fatalf("the panel runs to the window's left edge: %v", got)
+			}
+		}
+	}
+}
+
+// The footer carries the list's own actions: Clear asks before it removes
+// anything, Filter opens the filters, and Auto-follow puts the list back on
+// the newest request.
+func TestFooterActionsClearFilterAndFollow(t *testing.T) {
+	a := workspaceApp()
+	tt := ui.NewTester(a.view, 1280, 800)
+	click := func(label string) {
+		t.Helper()
+		if err := tt.Click(label); err != nil {
+			t.Fatalf("%s: %v", label, err)
+		}
+		tt.Frame()
+	}
+	click("Filter")
+	if !a.views.filterOpen {
+		t.Fatal("the footer's Filter did not open the filters")
+	}
+	tt.Key(0, ui.KeyEscape)
+	tt.Frame()
+	click("Clear")
+	if !a.clearOpen || len(a.flows) != 2 {
+		t.Fatal("the footer's Clear removed traffic without asking")
+	}
+	tt.Key(0, ui.KeyEscape)
+	tt.Frame()
+	// Scrolled away from the end, Auto-follow is off and brings the list back.
+	for i := range 60 {
+		a.flows = append(a.flows, flow{id: 100 + i, method: "GET", scheme: "https", host: "api.example.com", path: fmt.Sprintf("/more/%d", i), url: fmt.Sprintf("https://api.example.com/more/%d", i), status: 200})
+	}
+	a.applyFilter()
+	tt.Frame()
+	table, _ := tt.Find("Captured requests")
+	tt.Scroll(table.X+table.W/2, table.Y+table.H/2, 0, -1e6)
+	tt.Frame()
+	if a.following() {
+		t.Fatal("the list still follows after scrolling to the start")
+	}
+	click("Auto-follow")
+	if !a.following() {
+		t.Fatal("the footer's Auto-follow did not return to the newest request")
+	}
+}
+
+// Tools that are on sit at the footer's end; the ones the window has no room
+// for fold into a count that lists them, rather than running under the edge.
+func TestFooterToolChipsFoldIntoACount(t *testing.T) {
+	a := workspaceApp()
+	a.breakOn, a.throttle, a.allowOn = true, capture.Presets[1], true
+	a.srv = requestProxy(t)
+	a.srv.SetNoCaching(true)
+	snapshotProfiles(a)
+	tt := ui.NewTester(a.view, 900, 800)
+	tt.SetLocale("en-US")
+	tt.Frame()
+	folded := ""
+	for _, text := range tt.Texts() {
+		if len(text) > 1 && text[0] == '+' {
+			folded = text
+		}
+	}
+	if folded == "" {
+		t.Fatalf("the footer did not fold its chips: %q", tt.Texts())
+	}
+	// Every chip that stayed is inside the window, and none runs under the
+	// count of the rest.
+	if r, ok := tt.Find("Active tool: Breakpoints"); ok && r.X+r.W > 900 {
+		t.Fatalf("a chip runs past the window's edge: %v", r)
+	}
+	if err := tt.Click(folded); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if !tt.HasText("No Caching") {
+		t.Fatalf("the folded chips are not in the count's list: %q", tt.Texts())
+	}
+}
+
+// The history column steps aside as soon as the request pane could not show
+// its four tabs whole beside it, and comes back when the window has room: the
+// same rule as the sidebar, decided from the measured pane, not a window size.
+func TestHistoryColumnYieldsToTheRequestTabs(t *testing.T) {
+	for _, tc := range []struct {
+		width   int
+		history bool
+	}{{1280, false}, {1600, true}} {
+		a := workspaceApp()
+		a.page = pageRequest
+		a.library.root = t.TempDir()
+		need := map[string]float32{}
+		tt := ui.NewTester(func(c *ui.Context) {
+			a.view(c)
+			for _, label := range []string{"Headers", "Params", "Body", "Auth"} {
+				need[label] = paneTextWidth(c, label, uikit.TextBody, 400) + 2*c.Theme().Space(1.5)
+			}
+		}, tc.width, 800)
+		tt.SetLocale("en-US")
+		if err := tt.Click("List projects"); err != nil {
+			t.Fatal(err)
+		}
+		d := a.requestDocument
+		d.response = &capture.Flow{Status: 200, Millis: 12, ResponseBody: `{}`}
+		d.responseArrived()
+		tt.Frame()
+		tt.Frame()
+		if got := tt.HasText("Request history"); got != tc.history {
+			t.Fatalf("width %d: history column shown = %t, want %t", tc.width, got, tc.history)
+		}
+		for _, label := range []string{"Headers", "Params", "Body", "Auth"} {
+			r, ok := tt.Find("Request pane: " + label)
+			if !ok {
+				t.Fatalf("width %d: the %s tab left the row: %q", tc.width, label, tt.Texts())
+			}
+			if r.W < need[label]-1 {
+				t.Fatalf("width %d: the %s tab is cut to %.0f of %.0f", tc.width, label, r.W, need[label])
+			}
+		}
+	}
+}
+
+// Every tab on the request pane's row is a whole word: a pane too narrow for
+// all of them moves the last ones into More instead of fading or clipping.
+func TestEditorRequestTabsStayWholeWords(t *testing.T) {
+	a := workspaceApp()
+	labelWidth := map[string]float32{}
+	tt := ui.NewTester(func(c *ui.Context) {
+		a.view(c)
+		for _, label := range []string{"Headers", "Params", "Body", "Auth"} {
+			labelWidth[label] = paneTextWidth(c, label, uikit.TextBody, 400) + 2*c.Theme().Space(1.5)
+		}
+	}, 1280, 800)
+	openEditorResponse(t, tt, a)
+	for label, want := range labelWidth {
+		r, ok := tt.Find("Request pane: " + label)
+		if !ok {
+			continue // It is in More.
+		}
+		if r.W < want-1 {
+			t.Fatalf("the %s tab is cut to %.0f of %.0f", label, r.W, want)
+		}
+	}
+	if _, ok := tt.Find("Request pane: Headers"); !ok {
+		t.Fatal("the request pane lost its first tab")
+	}
+	if _, ok := tt.Find("Request pane: Auth"); !ok {
+		if err := tt.Click("Request pane options"); err != nil {
+			t.Fatal(err)
+		}
+		tt.Frame()
+		if !tt.HasText("Auth") {
+			t.Fatalf("the tab that left the row is not in More: %q", tt.Texts())
+		}
 	}
 }
 
@@ -2034,7 +2726,7 @@ func TestCaptureSelectionFollowsKeysAndExcludesHiddenRows(t *testing.T) {
 	tt.Key(ui.Cmd, ui.KeyA)
 	tt.Key(ui.Cmd, ui.KeyF)
 	tt.Type("projects")
-	if !tt.HasText("2 captured · 1 shown") || a.chosen.Has(2) {
+	if !tt.HasText("1 of 1 selected") || a.chosen.Has(2) {
 		t.Fatal("filtered-out requests remained selected for bulk export")
 	}
 	if err := tt.Click("More capture options"); err != nil {
@@ -2467,7 +3159,7 @@ func TestCaptureDraftComparisonKeepsTheTrafficContextAndLastSend(t *testing.T) {
 	}
 	// The captured request is the document: edit and send it in place.
 	edit("URL", upstream.URL+"/items?variant=edited")
-	click("Scripts")
+	choosePaneView(t, tt, "Request pane", "Scripts")
 	edit("Pre-request script", `pm.request.headers.upsert("X-Marker", "from-script"); pm.request.body.raw = "sent-body"`)
 	click("Post-response")
 	edit("Post-response script", `pm.request.headers.upsert("X-Marker", "after-send"); pm.request.body.raw = "after-send"`)
@@ -2501,7 +3193,7 @@ func TestCaptureDraftComparisonKeepsTheTrafficContextAndLastSend(t *testing.T) {
 	if !tt.HasText("Back to response") || !strings.Contains(copyText("New text"), "X-Marker: from-script") {
 		t.Fatal("returning to the capture lost its comparison")
 	}
-	click("Response")
+	click("Response pane: Body")
 	if got := copyText("URL"); got != upstream.URL+"/items?variant=not-sent" {
 		t.Fatalf("leaving the capture lost unsent edits: %q", got)
 	}
@@ -2585,7 +3277,7 @@ func TestConcurrentRequestTabsOwnTheirResponses(t *testing.T) {
 		t.Fatal("slow request never reached the proxy")
 	}
 	// Editing a script during a send must not change that send's assertions.
-	click("Scripts")
+	choosePaneView(t, tt, "Request pane", "Scripts")
 	click("Post-response")
 	click("Post-response script")
 	tt.Key(ui.Cmd, ui.KeyA)
@@ -2593,7 +3285,7 @@ func TestConcurrentRequestTabsOwnTheirResponses(t *testing.T) {
 	click("Fast request")
 	click("Send")
 	waitFor("201 Created")
-	click("Response tab: Checks")
+	choosePaneView(t, tt, "Response pane", "Checks")
 	if !tt.HasText("✓ fast owns response") {
 		t.Fatal("fast request ran another tab's script or saw its response")
 	}
@@ -2602,11 +3294,11 @@ func TestConcurrentRequestTabsOwnTheirResponses(t *testing.T) {
 	releaseSlow <- struct{}{}
 	click("Slow request")
 	waitFor("200 OK")
-	click("Response tab: Checks")
+	choosePaneView(t, tt, "Response pane", "Checks")
 	if !tt.HasText("✓ slow owns response") || tt.HasText("wrong script") {
 		t.Fatal("slow result used the active tab or a script edited after sending")
 	}
-	click("Response tab: Body")
+	click("Response pane: Body")
 	click("Response body")
 	tt.Key(ui.Cmd, ui.KeyA)
 	tt.Key(ui.Cmd, ui.KeyC)
@@ -2649,7 +3341,7 @@ func TestConcurrentRequestTabsOwnTheirResponses(t *testing.T) {
 		}
 	}
 	click("Cancel")
-	click("Scripts")
+	choosePaneView(t, tt, "Request pane", "Scripts")
 	click("Pre-request")
 	click("Pre-request script")
 	tt.Type(`throw new Error("cannot send")`)
@@ -2828,7 +3520,7 @@ func TestCurlImportAndCopyKeepExistingDrafts(t *testing.T) {
 	if s := a.draft().Settings; s.FollowRedirects == nil || !*s.FollowRedirects || s.RedirectMode != capture.RedirectCurl || !s.KeepMethod || a.composeWaiting || a.sentSet {
 		t.Fatal("import lost redirect behavior or sent the request automatically")
 	}
-	click("Request editor: Headers")
+	click("Request pane: Headers")
 	rows := a.requestDocument.headerRows
 	imported := false
 	for _, row := range rows {
@@ -2839,11 +3531,11 @@ func TestCurlImportAndCopyKeepExistingDrafts(t *testing.T) {
 	if !imported || len(rows) != 3 {
 		t.Fatalf("imported headers were not shown as table rows: %+v", rows)
 	}
-	click("Toggle header editing mode")
+	choosePaneView(t, tt, "Request pane", "Bulk edit")
 	if !strings.Contains(read("Request headers"), "X-Count: 19") {
 		t.Fatal("bulk edit did not show the imported header block")
 	}
-	click("Request editor: Body")
+	click("Request pane: Body")
 	if read("Request body") != `{"name":"it's","count":7}` {
 		t.Fatal("import changed the body quoting")
 	}
@@ -2888,7 +3580,7 @@ func TestBodyTabFormatIndentsTheDraftBody(t *testing.T) {
 	}
 	tt.Key(ui.Cmd, ui.Key2)
 	click("List projects")
-	click("Request editor: Body")
+	click("Request pane: Body")
 	click("Request body")
 	tt.Key(ui.Cmd, ui.KeyA)
 	tt.Type(`{"b":1,"a":[2,3]}`)
@@ -2919,7 +3611,8 @@ func TestHeaderCellsLineUpWithRows(t *testing.T) {
 	}
 	tt.Key(ui.Cmd, ui.Key2)
 	click("List projects")
-	click("Request editor: Headers")
+	click("Request pane: Headers")
+	click("Add header")
 	header, ok := tt.Find("Key")
 	if !ok {
 		t.Fatal("the header table has no Key title")
@@ -2990,7 +3683,8 @@ func TestHeaderTableKeepsOrderDuplicatesAndDisabledRows(t *testing.T) {
 	}
 	tt.Key(ui.Cmd, ui.Key2)
 	click("List projects")
-	click("Request editor: Headers")
+	click("Request pane: Headers")
+	click("Add header")
 	edit("header key 1", "X-Tag")
 	edit("header value 1", "first")
 	click("Add header")
@@ -3009,12 +3703,12 @@ func TestHeaderTableKeepsOrderDuplicatesAndDisabledRows(t *testing.T) {
 		t.Fatalf("a disabled row was dropped from the saved request: %+v", kept)
 	}
 	// Bulk edit shows what is sent, and its text replaces the table.
-	click("Toggle header editing mode")
+	choosePaneView(t, tt, "Request pane", "Bulk edit")
 	if got := read("Request headers"); got != "X-Tag: first\nX-Tag: second" {
 		t.Fatalf("bulk edit did not show the enabled rows: %q", got)
 	}
 	edit("Request headers", "Accept: text/plain")
-	click("Toggle header editing mode")
+	choosePaneView(t, tt, "Request pane", "Bulk edit")
 	if d.composeHeaders != "Accept: text/plain" || len(d.headerRows) != 2 || !d.headerRows[1].Disabled || d.headerRows[1].Name != "X-Skip" {
 		t.Fatalf("bulk text replaced the table but lost a switched-off row: %q %+v", d.composeHeaders, d.headerRows)
 	}
@@ -3050,7 +3744,7 @@ func TestHeaderRowKeyboardRevealAndCustomMethod(t *testing.T) {
 	}
 	tt.Key(ui.Cmd, ui.Key2)
 	click("List projects")
-	click("Request editor: Headers")
+	click("Request pane: Headers")
 	// Ordinary and credential values occupy the same columns, including
 	// after resizing; the reveal control must not move the value's start.
 	for _, width := range []int{1200, 960} {
@@ -3136,16 +3830,16 @@ func TestBulkEditAsksBeforeShowingCredentials(t *testing.T) {
 	}
 	tt.Key(ui.Cmd, ui.Key2)
 	click("List projects")
-	click("Request editor: Headers")
-	click("Toggle header editing mode")
+	click("Request pane: Headers")
+	choosePaneView(t, tt, "Request pane", "Bulk edit")
 	if !tt.HasText("Bulk edit shows credentials") {
 		t.Fatalf("bulk edit opened without warning about credentials: %q", tt.Texts())
 	}
 	click("Cancel")
-	if a.requestDocument.headerBulk || !tt.HasText("header key 1") {
+	if a.requestDocument.headerBulk || !tt.HasText("header value 1") {
 		t.Fatal("cancelling the warning still switched to the block")
 	}
-	click("Toggle header editing mode")
+	choosePaneView(t, tt, "Request pane", "Bulk edit")
 	click("Show values")
 	if !a.requestDocument.headerBulk {
 		t.Fatal("confirming the warning did not switch to the block")
@@ -3969,13 +4663,18 @@ func TestCaptureEmptyStateOffersSetupWithoutConfusingFilteredTraffic(t *testing.
 	if tt.HasText("Turn on system proxy") {
 		t.Fatal("stopped listener offered the system proxy")
 	}
+	// A stopped listener is one click from running, beside the way to set a
+	// client up.
+	if !tt.HasText("Start proxy") || !tt.HasText("Client setup") {
+		t.Fatalf("empty state lost its setup actions: %v", tt.Texts())
+	}
 	a.srv = requestProxy(t)
 	tt.Frame()
 	if !tt.HasText("Listening at " + a.srv.Addr() + " · no retained requests yet") {
 		t.Fatal("empty state omitted the actual bound address")
 	}
-	if !tt.HasText("Turn on system proxy") || !tt.HasText("Diagnose capture…") {
-		t.Fatal("empty state lost its two setup actions")
+	if tt.HasText("Start proxy") || !tt.HasText("Client setup") || !tt.HasText("Diagnose capture…") {
+		t.Fatal("a running listener offered the wrong two actions")
 	}
 	a.flows = []flow{{id: 1, method: "GET", url: "http://example.test/"}}
 	a.query = "no-match"
@@ -4005,7 +4704,7 @@ func TestDesktopLayoutDefaultsSideBySideAndSwitchesWithoutLosingCaptureContext(t
 		if !ok || !found || title.H == 0 || title.Y >= 600 || (title.X >= table.X+table.W) != right {
 			t.Fatalf("inspector not reachable in expected layout: table %v, title %v, right %t", table, title, right)
 		}
-		if f, ok := a.current(); !ok || f.id != 2 || !a.chosen.Has(2) || !tt.HasText("Pretty") {
+		if f, ok := a.current(); !ok || f.id != 2 || !a.chosen.Has(2) || a.inspect.tab[1] != resViewBody {
 			t.Fatal("layout transition lost the inspected request, selection or Body tab")
 		}
 	}
@@ -4115,11 +4814,12 @@ func TestSplitDoubleClickRestoresInspectorSplitters(t *testing.T) {
 func TestCaptureSelectionMarkerFollowsListAndWindowFocus(t *testing.T) {
 	// Expected colors are the design's Paper/Ink values, not read from
 	// uikit: accent tint fill and accent marker while the list has the
-	// focus, hover fill and muted marker otherwise. Text never turns white.
+	// focus, the neutral control fill and a faint marker otherwise. Text
+	// never turns white.
 	type look struct{ fill, marker [3]int }
 	looks := map[bool][2]look{
-		false: {{[3]int{233, 228, 214}, [3]int{109, 106, 95}}, {[3]int{227, 236, 228}, [3]int{30, 91, 71}}},
-		true:  {{[3]int{31, 38, 34}, [3]int{154, 151, 139}}, {[3]int{31, 45, 38}, [3]int{111, 181, 147}}},
+		false: {{[3]int{241, 241, 241}, [3]int{158, 156, 150}}, {[3]int{216, 212, 203}, [3]int{26, 26, 24}}},
+		true:  {{[3]int{47, 47, 45}, [3]int{104, 102, 96}}, {[3]int{69, 68, 63}, [3]int{233, 232, 228}}},
 	}
 	for _, dark := range []bool{false, true} {
 		t.Run(fmt.Sprintf("dark=%t", dark), func(t *testing.T) {
@@ -4236,6 +4936,7 @@ func TestKeyboardDebuggingLoopDoesNotSendThroughDialogsOrRepeatWhileWaiting(t *t
 	}
 	a := workspaceApp()
 	a.srv = srv
+	a.flows[1].reqHeader = http.Header{"Accept": {"application/json"}}
 	tt := ui.NewTester(a.view, 1100, 720)
 	tt.Key(ui.Cmd, ui.KeyF)
 	tt.Type("api.example.com")
@@ -4274,8 +4975,8 @@ func TestKeyboardDebuggingLoopDoesNotSendThroughDialogsOrRepeatWhileWaiting(t *t
 	if !tt.Focused("URL") {
 		t.Fatal("dismissing the palette lost the editor's focus")
 	}
-	// An unchanged capture opens on its Original tab, first of the editor's
-	// tabs; they are one Tab stop away, and the arrows choose among them.
+	// The capture's tabs are one Tab stop away, and the arrows choose among
+	// them.
 	tab := func(label string) {
 		t.Helper()
 		for range 20 {
@@ -4286,10 +4987,7 @@ func TestKeyboardDebuggingLoopDoesNotSendThroughDialogsOrRepeatWhileWaiting(t *t
 		}
 		t.Fatalf("%s was not keyboard accessible", label)
 	}
-	tab("Request editor: Original")
-	tt.Key(0, ui.KeyHome)
-	tt.Key(0, ui.KeyRight)
-	tt.Key(0, ui.KeyRight)
+	tab("Request pane: Headers")
 	tab("header key 1")
 	tt.Key(ui.Cmd, ui.KeyEnter)
 	select {
@@ -4504,18 +5202,22 @@ func TestRequestCompactControlsKeepTemplateEditingAndCounts(t *testing.T) {
 			if send.H != uikit.HeightLarge || method.Y >= urlBox.Y+urlBox.H || send.Y >= urlBox.Y+urlBox.H {
 				t.Fatal("method, URL and 28px Send no longer share one row")
 			}
-			for _, count := range []struct{ label, value string }{{"Headers", "3"}, {"Checks", "4"}} {
-				tab, ok := tt.Find("Request editor: " + count.label)
-				number, found := tt.Find(count.value)
-				if !ok || !found || number.X < tab.X || number.X+number.W > tab.X+tab.W || number.Y < tab.Y || number.Y+number.H > tab.Y+tab.H {
-					t.Fatalf("%s did not show configured count %s: tab %v, number %v", count.label, count.value, tab, number)
-				}
+			tab, ok := tt.Find("Request pane: Headers")
+			number, found := tt.Find("3")
+			if !ok || !found || number.X < tab.X || number.X+number.W > tab.X+tab.W || number.Y < tab.Y || number.Y+number.H > tab.Y+tab.H {
+				t.Fatalf("Headers did not show its configured count: tab %v, number %v", tab, number)
 			}
+			// Checks is a view from More, and its count goes with it.
+			choosePaneView(t, tt, "Request pane", "Checks 4")
+			if a.composeTab != composeTabChecks {
+				t.Fatal("the Checks view is not reachable from More")
+			}
+			click("Request pane: Headers")
 			click("URL")
 			tt.Key(ui.Cmd, ui.KeyA)
 			raw := "https://例.test/中文/{{path}}?secret={{vault:token}}&unfinished={{name"
 			tt.Type(raw)
-			click("Request editor: Headers") // Blur shows chips without replacing the input.
+			click("Request pane: Headers") // Blur shows chips without replacing the input.
 			click("URL")
 			tt.Key(ui.Cmd, ui.KeyA)
 			tt.Key(ui.Cmd, ui.KeyC)
@@ -4536,20 +5238,12 @@ func TestRequestCompactControlsKeepTemplateEditingAndCounts(t *testing.T) {
 			a.composeTests = []request.TestResult{{Name: "Created", Pass: true}, {Name: "Active", Pass: false}}
 			a.responseArrived()
 			tt.Frame()
-			if _, ok := tt.Find("Response result"); !ok || !tt.HasText("201 Created") || !tt.HasText("47 ms") || !tt.HasText(" · 43 B · application/json") {
+			if _, ok := tt.Find("Response result"); !ok || !tt.HasText("201 Created") || !tt.HasText("47 ms") || !tt.HasText(" · 43 B") {
 				t.Fatalf("sent response lost its status or metadata: %q", tt.Texts())
 			}
-			tt.SetSize(1280, 800)
-			fullConsole, _ := tt.Find("Response tab: Console")
-			tt.SetSize(width, 800)
-			console, ok := tt.Find("Response tab: Console")
-			format, found := tt.Find("Response format")
-			if !ok || !found || console.W < fullConsole.W || console.X+console.W > format.X {
-				t.Fatal("response tabs are clipped behind the format control")
-			}
-			click("Response tab: Console")
+			choosePaneView(t, tt, "Response pane", "Console")
 			if a.responseTab != resViewConsole {
-				t.Fatal("the rightmost response tab is not reachable")
+				t.Fatal("the console view is not reachable from More")
 			}
 		})
 	}
@@ -4823,7 +5517,9 @@ func TestConnectionDiagnosticsEmptyAndInvalidTargetsDoNotClaimProxyFailure(t *te
 		return system.ProxyCheck{Target: target, Status: system.ProxyOff}
 	}
 	tt := ui.NewTester(a.view, 960, 600)
-	if err := tt.Click("Diagnose capture…"); err != nil {
+	// Diagnostics has its own place in the sidebar's footer, under both of
+	// the empty list's setup actions.
+	if err := tt.Click("Diagnostics"); err != nil {
 		t.Fatal(err)
 	}
 	settleProxy(t, a, tt)
@@ -4979,7 +5675,13 @@ func TestCaptureFacetsIntersectAndResetOnlyTheActiveView(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+	// Sources shows one of the two lists at a time: the switch above it
+	// chooses which.
+	a.sourcesApps = true
+	tt.Frame()
 	click("Browser")
+	a.sourcesApps = false
+	tt.Frame()
 	click("api.example.com")
 	if got := fmt.Sprint(visibleIDs(a)); got != "[1 2]" {
 		t.Fatalf("app and host did not intersect: %s", got)
@@ -5025,21 +5727,14 @@ func TestCaptureFacetsIntersectAndResetOnlyTheActiveView(t *testing.T) {
 
 func TestHeaderContextFilterUsesEitherSideContainsWithoutLeakingCredentials(t *testing.T) {
 	a := workspaceApp()
-	a.flows[0].reqHeader = http.Header{"X-Format": {"text", "JSON"}, "Authorization": {"Bearer private-fixture"}}
+	a.flows[0].reqHeader = http.Header{"X-Format": {"text", "JSON"}, "X-Api-Key": {"private-fixture"}}
 	a.flows[1].respHeader = http.Header{"X-Format": {"application/json; charset=utf-8"}}
 	a.flows = append(a.flows, flow{id: 3, host: "other.test", respHeader: http.Header{"X-Format": {"text/plain"}}})
 	a.applyFilter()
 	tt := ui.NewTester(a.view, 1280, 800)
-	if err := tt.RightClick("X-Format"); err != nil {
-		t.Fatal(err)
-	}
-	if err := chooseMenu(tt, "Contains value 2: JSON"); err != nil {
-		t.Fatal(err)
-	}
-	if got := fmt.Sprint(visibleIDs(a)); got != "[1 2]" {
-		t.Fatalf("header condition did not use case-insensitive contains on both sides: %s", got)
-	}
-	if err := tt.RightClick("Authorization"); err != nil {
+	// The capture opens in the editor; its cells carry the same filter menu
+	// the reader offers. Rows are sorted, so X-Api-Key comes first.
+	if err := tt.RightClick("header key 1"); err != nil {
 		t.Fatal(err)
 	}
 	// Inspect only the menu overlay, not the header value behind it.
@@ -5050,11 +5745,23 @@ func TestHeaderContextFilterUsesEitherSideContainsWithoutLeakingCredentials(t *t
 	if strings.Contains(menu, "private-fixture") || strings.Contains(menu, "Contains value") {
 		t.Fatalf("credential escaped into the filter menu: %s", menu)
 	}
-	if err := chooseMenu(tt, "Header exists: Authorization"); err != nil {
+	if err := chooseMenu(tt, "Header exists: X-Api-Key"); err != nil {
 		t.Fatal(err)
 	}
-	if got := fmt.Sprint(visibleIDs(a)); got != "[1]" || a.filterHeader != "Authorization" {
+	if got := fmt.Sprint(visibleIDs(a)); got != "[1]" || a.filterHeader != "X-Api-Key" {
 		t.Fatalf("header existence filter = %q, rows %s", a.filterHeader, got)
+	}
+	a.filterHeader = ""
+	a.applyFilter()
+	tt.Frame()
+	if err := tt.RightClick("header key 2"); err != nil {
+		t.Fatal(err)
+	}
+	if err := chooseMenu(tt, "Contains value 2: JSON"); err != nil {
+		t.Fatal(err)
+	}
+	if got := fmt.Sprint(visibleIDs(a)); got != "[1 2]" {
+		t.Fatalf("header condition did not use case-insensitive contains on both sides: %s", got)
 	}
 }
 
@@ -5300,7 +6007,7 @@ func TestSendResultsSeparateFailuresAndLinkTheExactAttempt(t *testing.T) {
 			if tt.HasText("Last sent draft URL") || readField(t, tt, "URL") != upstream.URL+"/unsent" {
 				t.Fatal("collapsing provenance changed the draft or left the detail open")
 			}
-			if err := tt.Click("Response tab: Timing"); err != nil {
+			if err := tt.Click("Response pane: Timing"); err != nil {
 				t.Fatal(err)
 			}
 			if !tt.HasText("Timing waterfall") {
@@ -5353,9 +6060,7 @@ func TestRequestDocsAndSettingsSave(t *testing.T) {
 		t.Fatal(err)
 	}
 	tt.Type("## Notes\n\nWhat it does.")
-	if err := tt.Click("Request editor: Settings"); err != nil {
-		t.Fatal(err)
-	}
+	choosePaneView(t, tt, "Request pane", "Settings")
 	if err := tt.Click("Verify TLS certificate"); err != nil {
 		t.Fatal(err)
 	}

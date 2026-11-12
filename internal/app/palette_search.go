@@ -201,7 +201,8 @@ func (a *app) paletteSearch(query string) paletteSearch {
 // that would hide it is cleared.
 func (a *app) revealCollection(path string) {
 	a.page = pageRequest
-	a.collectionsOpen, a.revealGroup = true, "collections"
+	a.revealGroup = "collections"
+	*a.regionOpen("collections") = true
 	a.workbench.sidebarHidden = false
 	a.requestQuery = ""
 	for _, prefix := range pathPrefixes(path) {

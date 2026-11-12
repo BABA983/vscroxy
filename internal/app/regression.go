@@ -17,6 +17,6 @@ func (a *app) regressionFrom(f flow) {
 	r.Name = uniqueRequestName(a.requests, f.method+" "+hostOnly(f.host)+" regression")
 	r.Collection, r.Checks.Status = "Regressions", strconv.Itoa(f.status)
 	a.addDocument(r, "")
-	a.sourceFlow, a.composeTab = f.id, 5
+	a.sourceFlow, a.composeTab = f.id, composeTabChecks
 	a.inform(locales.ReviewChecksAndVariablesThen())
 }

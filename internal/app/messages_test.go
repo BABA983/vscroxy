@@ -159,7 +159,6 @@ func TestMessageSearchAndDirection(t *testing.T) {
 func messagesApp(frames map[int][]frame) *app {
 	a := &app{
 		filter: "all", sidebarWidth: 220, tablePercent: 56,
-		trafficOpen: true, domainsOpen: true, clientsOpen: true,
 		collectionOpen: make(map[string]*bool), icons: make(map[string]ui.ImageSource),
 		detailFor: -1, frames: frames,
 		flows: []flow{{

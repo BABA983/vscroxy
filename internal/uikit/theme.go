@@ -9,67 +9,98 @@ import (
 // so a palette can be swapped (Paper, Ink, later imported themes) without
 // touching them. Sizes, density and shapes are not part of a palette.
 type Palette struct {
-	Background, Panel, Hover, Pressed, Border  ui.Color
-	Text, TextMuted, TextFaint                 ui.Color
-	Accent, AccentHover, AccentPressed         ui.Color
-	AccentText, AccentTint                     ui.Color
+	// Surfaces carry structure. Chrome frames the window: sidebars, bars and
+	// table heads. Canvas holds data. Well is a field set into the canvas; a
+	// field on chrome is Canvas with a hairline instead. Hairline separates
+	// two regions of the same surface, never two surfaces.
+	Chrome, Canvas, Well, Hairline ui.Color
+	// Fill, FillHover and FillPressed are the text color laid thinly over
+	// whatever is beneath: the face of a control at rest, hovered and
+	// pressed, so one button reads the same on every surface.
+	Fill, FillHover, FillPressed                               ui.Color
+	Text, TextMuted, TextFaint                                 ui.Color
+	Accent, AccentHover, AccentPressed, AccentText, AccentTint ui.Color
+	// Success is green and nothing else is: a check that passed, a capture
+	// that is recording. The accent is ink, so "selected", "primary" and
+	// "on" are drawn in the text color and green never has to mean two
+	// things at once.
+	Success                                    ui.Color
 	Info, Warning, Danger                      ui.Color
 	MethodGet, MethodPost, MethodPatch, Socket ui.Color
 	// Inverse fills tooltips, so they stand out from what they cover.
 	Inverse, InverseText ui.Color
-	// Bar measures a normal quantity behind its number, as a request's
-	// duration in the traffic table; a slow one is Danger at a tint.
-	Bar ui.Color
+	// Shadow is the soft lift under a popover or a dialog; the hairline
+	// draws its edge.
+	Shadow ui.Color
 }
 
-// Paper is the light theme: ink on warm paper. TextFaint is only for
-// disabled controls and placeholders; it carries no information.
-var Paper = Palette{
-	Background: ui.Hex("#f7f4ec"), Panel: ui.Hex("#efebe0"),
-	Hover: ui.Hex("#e9e4d6"), Pressed: ui.Hex("#e0dacb"), Border: ui.Hex("#d3ccba"),
-	Text: ui.Hex("#1f2a24"), TextMuted: ui.Hex("#6d6a5f"), TextFaint: ui.Hex("#a29d8f"),
-	Accent: ui.Hex("#1e5b47"), AccentHover: ui.Hex("#174a3a"), AccentPressed: ui.Hex("#123d30"),
-	AccentText: ui.Hex("#f7f4ec"), AccentTint: ui.Hex("#e3ece4"),
-	Info: ui.Hex("#396482"), Warning: ui.Hex("#8d520e"), Danger: ui.Hex("#ab382c"),
-	MethodGet: ui.Hex("#2f5d8a"), MethodPost: ui.Hex("#58661e"), MethodPatch: ui.Hex("#7a3e6d"),
+// fills derives the three control faces from the palette's text color.
+func fills(p Palette, rest, hover, pressed float32) Palette {
+	p.Fill, p.FillHover, p.FillPressed = p.Text.Alpha(rest), p.Text.Alpha(hover), p.Text.Alpha(pressed)
+	return p
+}
+
+// Paper is the light theme: warm neutral gray-white, with ink for anything
+// selected, primary or on, and green only for what passed or is recording.
+// TextFaint is only for icons and placeholders; it carries no information.
+var Paper = fills(Palette{
+	Chrome: ui.Hex("#f4f3f0"), Canvas: ui.Hex("#ffffff"), Well: ui.Hex("#ecebe7"),
+	Hairline: ui.Hex("#e3e1dc"),
+	Text:     ui.Hex("#1a1a18"), TextMuted: ui.Hex("#5f5d58"), TextFaint: ui.Hex("#9e9c96"),
+	Accent: ui.Hex("#1a1a18"), AccentHover: ui.Hex("#33332f"), AccentPressed: ui.Hex("#474743"),
+	AccentText: ui.Hex("#ffffff"), AccentTint: ui.Hex("#d8d4cb"),
+	Success: ui.Hex("#26734a"),
+	Info:    ui.Hex("#2f6ea5"), Warning: ui.Hex("#9c5906"), Danger: ui.Hex("#c0392b"),
+	MethodGet: ui.Hex("#2f6ea5"), MethodPost: ui.Hex("#5b6b1c"), MethodPatch: ui.Hex("#7a3e6d"),
 	Socket:  ui.Hex("#2b6868"),
-	Inverse: ui.Hex("#1f2a24"), InverseText: ui.Hex("#f7f4ec"),
-	Bar: ui.Hex("#e3ddcf"),
-}
+	Inverse: ui.Hex("#1a1a18"), InverseText: ui.Hex("#ffffff"),
+	Shadow: ui.RGBA(26, 26, 24, 0.16),
+}, 0.06, 0.10, 0.14)
 
-// Ink is the dark theme: warm paper-colored ink on a green-black board.
-var Ink = Palette{
-	Background: ui.Hex("#121614"), Panel: ui.Hex("#181d1a"),
-	Hover: ui.Hex("#1f2622"), Pressed: ui.Hex("#26302a"), Border: ui.Hex("#343c37"),
-	Text: ui.Hex("#e6e1d3"), TextMuted: ui.Hex("#9a978b"), TextFaint: ui.Hex("#66665e"),
-	Accent: ui.Hex("#6fb593"), AccentHover: ui.Hex("#82c4a4"), AccentPressed: ui.Hex("#5ea482"),
-	AccentText: ui.Hex("#121614"), AccentTint: ui.Hex("#1f2d26"),
-	Info: ui.Hex("#8fb3d1"), Warning: ui.Hex("#e0a458"), Danger: ui.Hex("#e8806f"),
+// Ink is the dark theme: the same warm neutral structure on a black board,
+// with the accent lightened to carry on it and green kept for pass and
+// recording only. Chrome is the window behind the panel and Canvas the panel
+// itself, so the content sits a step above the shell as it does in Paper.
+var Ink = fills(Palette{
+	// The shell is the darker of the two in Ink: the content panel is
+	// raised, so it is the lighter surface, as it is in Paper.
+	Chrome: ui.Hex("#171716"), Canvas: ui.Hex("#1f1f1d"), Well: ui.Hex("#101010"),
+	Hairline: ui.Hex("#2e2e2b"),
+	Text:     ui.Hex("#e9e8e4"), TextMuted: ui.Hex("#a09e98"), TextFaint: ui.Hex("#686660"),
+	Accent: ui.Hex("#e9e8e4"), AccentHover: ui.Hex("#ffffff"), AccentPressed: ui.Hex("#cfcdc8"),
+	AccentText: ui.Hex("#101010"), AccentTint: ui.Hex("#45443f"),
+	Success: ui.Hex("#7cc492"),
+	Info:    ui.Hex("#8fb3d1"), Warning: ui.Hex("#e0a458"), Danger: ui.Hex("#e8806f"),
 	MethodGet: ui.Hex("#8fb3d1"), MethodPost: ui.Hex("#b5c27a"), MethodPatch: ui.Hex("#c99abd"),
-	Socket:  ui.Hex("#7cc4c0"),
-	Inverse: ui.Hex("#e6e1d3"), InverseText: ui.Hex("#121614"),
-	Bar: ui.Hex("#2a312c"),
-}
+	Socket:  ui.Hex("#6fc3d6"),
+	Inverse: ui.Hex("#e9e8e4"), InverseText: ui.Hex("#101010"),
+	Shadow: ui.RGBA(0, 0, 0, 0.5),
+}, 0.08, 0.12, 0.17)
 
-// Theme is MyGo's theme for a palette. Surface is the face of MyGo's own
-// controls (inputs, buttons, table headers), which sit on the background
-// with a border; Panel is for the app's sidebars and bars.
+// Theme is MyGo's theme for a palette. Background is the canvas and Surface
+// is chrome: MyGo's own table heads, toolbars and panels frame the window,
+// while every field draws its own face (well on the canvas, canvas with a
+// hairline on chrome) instead of sharing the window's color.
 func Theme(dark bool) *ui.Theme {
 	registerFonts()
 	p, t := Paper, ui.LightTheme()
 	if dark {
 		p, t = Ink, ui.DarkTheme()
 	}
-	t.Background, t.Surface = p.Background, p.Background
-	t.SurfaceHover, t.SurfacePressed, t.Border = p.Hover, p.Pressed, p.Border
+	// MyGo has one Surface: it paints the table heads, drag previews and
+	// panels it draws itself. The content panel is Canvas, so Surface is
+	// Canvas too; the shell's chrome is painted by the app, which knows
+	// which parts of the window are the frame.
+	t.Background, t.Surface = p.Canvas, p.Canvas
+	t.SurfaceHover, t.SurfacePressed, t.Border = p.FillHover, p.FillPressed, p.Hairline
 	t.Text, t.TextMuted = p.Text, p.TextMuted
 	t.Accent, t.AccentHover, t.AccentPressed, t.AccentText = p.Accent, p.AccentHover, p.AccentPressed, p.AccentText
-	// Success shares the accent: 2xx is quiet, so green only ever means
-	// "this check passed" or "this is on", never a normal response.
-	t.Danger, t.Warning, t.Success = p.Danger, p.Warning, p.Accent
+	// Green is the success signal alone: 2xx stays quiet, and a pass or a
+	// recording is the only thing that is ever green.
+	t.Danger, t.Warning, t.Success = p.Danger, p.Warning, p.Success
 	t.Inverse, t.InverseText = p.Inverse, p.InverseText
 	t.Font, t.FontSize, t.Radius, t.Spacing = FontUI, TextBody, RadiusControl, 4
-	t.Selection, t.Focus = p.Accent.Alpha(0.3), p.Accent
+	t.Selection, t.Focus = p.Accent.Alpha(0.24), p.Accent
 	return t
 }
 
@@ -120,12 +151,22 @@ func StatusColor(status int, t *ui.Theme) ui.Color {
 }
 
 // EditorTheme colors bodies and authored code in the palette's inks rather
-// than error colors.
+// than error colors: a key in the text color, a string in the method patch's
+// plum, a number or a boolean in the info blue. Green is the success signal
+// alone, so the token kinds the library paints green (regular expressions,
+// tags, inserted text) take one of those three instead.
 func EditorTheme(t *ui.Theme) *editor.Theme {
 	p := Colors(t)
 	theme := editor.DefaultTheme(t)
-	theme.Tokens[editor.TokenProperty].Color = p.Socket
-	theme.Tokens[editor.TokenString].Color = p.MethodPost
+	theme.Tokens[editor.TokenProperty].Color = p.Text
+	theme.Tokens[editor.TokenString].Color = p.MethodPatch
+	theme.Tokens[editor.TokenNumber].Color = p.Info
+	// Punctuation is not a fault: red belongs to errors alone.
+	theme.Tokens[editor.TokenOperator].Color = p.TextMuted
+	theme.Tokens[editor.TokenConstant].Color = p.Info
+	theme.Tokens[editor.TokenRegexp].Color = p.MethodPatch
+	theme.Tokens[editor.TokenTag].Color = p.Info
+	theme.Tokens[editor.TokenInserted].Color = p.Info
 	return theme
 }
 

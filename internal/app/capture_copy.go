@@ -41,7 +41,6 @@ func (a *app) captureColumns() []captureColumn {
 	columns := []captureColumn{
 		{id: "id", title: "#"},
 		{id: "ssl", title: "SSL"},
-		{id: "statusIcon", title: "Status icon"},
 		{id: "status", title: "Status"},
 		{id: "method", title: "Method"},
 		{id: "host", title: "Host"},
@@ -126,8 +125,6 @@ func (a *app) captureCellValue(f flow, col captureColumn) captureCell {
 			return plainCell("TLS")
 		}
 		return captureCell{}
-	case "statusIcon":
-		return plainCell(statusNote(f))
 	case "status":
 		switch {
 		case f.conn.error != "":

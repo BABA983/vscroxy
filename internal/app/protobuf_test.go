@@ -279,7 +279,7 @@ func TestCaptureErrorsIncludeGRPCFailures(t *testing.T) {
 func TestProtobufInspectorLoadsSchemaAndSelectsMessages(t *testing.T) {
 	path, _, _ := protoFixture(t)
 	a := workspaceApp()
-	f := flow{id: 4, method: "POST", scheme: "https", host: "api.example.com", path: "/api.Catalog/Fetch", status: 200, reqBody: string(pbMessage(pbBytes(1, []byte("find")))), resBody: string(append(pbMessage(pbBytes(1, []byte("alpha"))), pbMessage(pbBytes(1, []byte("beta")))...)), reqHeader: http.Header{"Content-Type": {"application/grpc"}}, respHeader: http.Header{"Content-Type": {"application/grpc"}}, resTrailer: http.Header{"Grpc-Status": {"0"}}}
+	f := flow{id: 4, method: "POST", scheme: "https", host: "api.example.com", path: "/api.Catalog/Fetch", url: "https://api.example.com/api.Catalog/Fetch", status: 200, reqBody: string(pbMessage(pbBytes(1, []byte("find")))), resBody: string(append(pbMessage(pbBytes(1, []byte("alpha"))), pbMessage(pbBytes(1, []byte("beta")))...)), reqHeader: http.Header{"Content-Type": {"application/grpc"}}, respHeader: http.Header{"Content-Type": {"application/grpc"}}, resTrailer: http.Header{"Grpc-Status": {"0"}}}
 	a.flows = []flow{f}
 	a.applyFilter()
 	t.Cleanup(a.protobuf.stop)
@@ -290,19 +290,13 @@ func TestProtobufInspectorLoadsSchemaAndSelectsMessages(t *testing.T) {
 		t.Helper()
 		// Clear prior confirmations before operating the short pane beneath
 		// them, just as the notification's close action allows in the app.
-		if _, ok := tt.Find("Dismiss notification"); ok {
-			if err := tt.Click("Dismiss notification"); err != nil {
-				t.Fatal(err)
-			}
-			tt.Advance(250 * time.Millisecond)
-		}
+		dismissToasts(t, tt)
 		// A short pane scrolls between the schema/search controls and the
 		// decoded messages, instead of clipping the latter under the footer.
-		if label == "Message 2" || label == "Copy decoded" || label == "Search protobuf messages" || label == "Protobuf message type" || label == "Schema…" {
-			r, ok := tt.Find("Protobuf reader")
-			if !ok {
-				t.Fatal("missing scrollable protobuf reader")
-			}
+		// The captured request's reader scrolls between its controls and the
+		// decoded messages; the editor's Body view is a plain column.
+		if r, ok := tt.Find("Protobuf reader"); ok &&
+			(label == "Message 2" || label == "Copy decoded" || label == "Search protobuf messages" || label == "Protobuf message type" || label == "Schema…") {
 			tt.Scroll(r.X+4, r.Y+r.H/2, 0, -320)
 			if label == "Message 2" || label == "Copy decoded" {
 				// Stop when the action is wholly inside the reader: scrolling
@@ -377,10 +371,13 @@ func TestProtobufInspectorLoadsSchemaAndSelectsMessages(t *testing.T) {
 	if !tt.HasText("1 of 2 messages") || !tt.HasText("alpha") {
 		t.Fatal("incoming traffic reset protobuf search")
 	}
-	// The captured request reads in the document's Original tab; the
-	// protobuf reader follows the pane in focus.
-	click("Original")
+	// The captured request reads in the document's Body view, read as
+	// protobuf; the reader follows the pane in focus.
 	click("Request pane: Body")
+	click("Read as")
+	if err := chooseMenu(tt, "Protobuf"); err != nil {
+		t.Fatal(err)
+	}
 	click("Request pane")
 	wait("Message type: api.Input")
 	click("Copy decoded")

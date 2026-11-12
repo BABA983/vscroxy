@@ -247,6 +247,15 @@ func (a *app) autoBodyMode(f flow, side int, body string) int {
 
 // bodySideView shows one side's body: its own representation, its own
 // warnings, and the bytes exactly as captured.
+// protobufReader scrolls one side's reader: the message picker and the copy
+// action stay reachable even when the pane leaves little height beneath the
+// pane tabs, and a long body scrolls instead of clipping its messages.
+func (a *app) protobufReader(c *ui.Context, f flow, side int) {
+	ui.Scroll(c).Label(locales.ProtobufReader()).Grow(1).FillWidth().Children(func() {
+		ui.Column(c).Fill().MinHeight(320).Children(func() { a.protobuf.view(c, a, f, side) })
+	})
+}
+
 func (a *app) bodySideView(c *ui.Context, f flow, side int) {
 	t := c.Theme()
 	if a.detailFor != f.id {
@@ -294,13 +303,7 @@ func (a *app) bodySideView(c *ui.Context, f flow, side int) {
 			uikit.Hint(c, locales.ProtobufReadInPane(name)).Padding(t.Space(4))
 			return
 		}
-		// Keep the message picker and copy action reachable even when the
-		// response headline leaves little height beneath the pane tabs.
-		ui.Scroll(c).Label(locales.ProtobufReader()).Grow(1).FillWidth().Children(func() {
-			ui.Column(c).Fill().MinHeight(320).Children(func() {
-				a.protobuf.view(c, a, f, side)
-			})
-		})
+		a.protobufReader(c, f, side)
 		return
 	}
 	if body == "" {
@@ -433,7 +436,7 @@ func (a *app) prettyBody(c *ui.Context, body string, side int) {
 // Keep the library's search semantics, with controls that fit a side inspector.
 func bodyFindBar(c *ui.Context, bar ui.Element, find *editor.FindBar) {
 	t := c.Theme()
-	bar.Row().Gap(t.Space(2)).Padding(t.Space(2)).AlignItems(ui.Center).Background(uikit.Colors(t).Panel).Border(1, t.Border).Radius(uikit.RadiusControl)
+	bar.Row().Gap(t.Space(2)).Padding(t.Space(2)).AlignItems(ui.Center).Background(uikit.Colors(t).Chrome).Border(1, t.Border).Radius(uikit.RadiusControl)
 	bar.Children(func() {
 		find.QueryInput(uikit.Input(c, find.Query()).Label(locales.SearchBody()).Placeholder(locales.FindInBody()).Width(140))
 		uikit.Meta(c, find.Status()).FontFeatures("tnum").MinWidth(40).Role(ui.RoleStatus)
@@ -473,11 +476,11 @@ func (a *app) jsonBody(c *ui.Context, side int) {
 					arrow, action = "▾", "Collapse"
 				}
 				label := action + " " + []string{"response", "request"}[side] + " JSON " + row.node.path
-				if uikit.SecondaryButton(c, arrow).Label(label).Tooltip(label).Expanded(expanded).Size(uikit.HeightCompact, uikit.HeightCompact).Padding(0).Clicked() {
+				if uikit.SecondaryButton(c, arrow).Label(label).Tooltip(label).Expanded(expanded).Size(uikit.HeightControl, uikit.HeightControl).Padding(0).Clicked() {
 					a.jsonExpanded[side][row.node.path] = !expanded
 				}
 			} else {
-				ui.Box(c).Width(uikit.HeightCompact)
+				ui.Box(c).Width(uikit.HeightControl)
 			}
 			if row.node.key != "" {
 				ui.Text(c, row.node.key).FontSize(uikit.TextBody).Font(uikit.FontMono).TextColor(keyColor).SingleLine().Tooltip(row.node.path)

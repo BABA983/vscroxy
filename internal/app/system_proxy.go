@@ -411,7 +411,7 @@ func (a *app) systemProxySettings(c *ui.Context, t *ui.Theme) {
 		ui.Field(c, locales.Status(), func() {
 			ui.Column(c).Gap(t.Space(1)).Children(func() {
 				ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-					ui.Text(c, status).FontSize(uikit.TextBody).FontWeight(600).TextColor(color)
+					ui.Text(c, status).FontSize(uikit.TextBody).FontWeight(500).TextColor(color)
 					if busy {
 						ui.Spinner(c).Label(locales.SystemProxy())
 					}

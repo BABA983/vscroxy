@@ -99,7 +99,7 @@ func (a *app) scenariosPage(c *ui.Context, t *ui.Theme, top float32, active bool
 	}
 	current := capture.ActiveScenario(a.rules)
 	ui.Column(c).Width(268).MinHeight(0).Padding(top, t.Space(3), t.Space(3), t.Space(3)).Gap(t.Space(2)).Children(func() {
-		ui.Text(c, locales.Scenarios()).FontSize(uikit.TextTitle).FontWeight(600).TextColor(t.Text)
+		ui.Text(c, locales.Scenarios()).FontSize(uikit.TextTitle).FontWeight(500).TextColor(t.Text)
 		uikit.Meta(c, locales.OneAtATimeIts())
 		choice := slices.Index(names, s.choice)
 		s.list.Selected = &choice

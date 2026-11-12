@@ -8,7 +8,7 @@ import "github.com/egoist/mygo/ui"
 
 // Heading titles a dialog, a pane or the request an inspector shows.
 func Heading(c *ui.Context, s string) ui.Element {
-	return ui.Text(c, s).FontSize(TextTitle).FontWeight(600).LineHeight(LineTitle)
+	return ui.Text(c, s).FontSize(TextTitle).FontWeight(500).LineHeight(LineTitle)
 }
 
 // Body is ordinary reading text. It keeps the color around it, so it reads
@@ -24,9 +24,10 @@ func Prose(c *ui.Context, s string) ui.Element {
 	return Body(c, s).LineHeight(LineProse)
 }
 
-// Mono is data at body size: a URL, a header, a path.
+// Mono is wire data: a URL, a header value, a path, a number. Monospace is
+// never used for a label a person reads as interface.
 func Mono(c *ui.Context, s string) ui.Element {
-	return Body(c, s).Font(FontMono)
+	return ui.Text(c, s).Font(FontMono).FontSize(TextData)
 }
 
 // Hint explains: a sentence under a control or in an empty pane. It is the
@@ -44,5 +45,5 @@ func Meta(c *ui.Context, s string) ui.Element {
 
 // Label names a field or a group of them.
 func Label(c *ui.Context, s string) ui.Element {
-	return Meta(c, s).FontWeight(600)
+	return Meta(c, s).FontWeight(500)
 }

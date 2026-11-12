@@ -223,37 +223,12 @@ func (a *app) hostsLabel() string {
 	return fmt.Sprintf("%s +%d", on[0], len(on)-1)
 }
 
-// hostsSwitch is the title bar's switch beside the recording pill: the
-// profiles that are on, and a menu to turn them on and off.
-func (a *app) hostsSwitch(c *ui.Context, t *ui.Theme) {
-	h := &a.profiles
-	on := len(h.set.On()) > 0
-	b := uikit.ToolbarButton(c, locales.HostProfiles(), "Switch Host profiles · Hosts: "+a.hostsLabel(), on).Height(uikit.HeightControl).Shrink(1).
-		Padding(0, t.Space(2)).Gap(t.Space(1.5)).FontSize(uikit.TextMeta).MinWidth(0).Border(1, t.Border)
-	b.Children(func() {
-		icon := ui.Icon(c, hostsIcon).Size(uikit.IconInline, uikit.IconInline)
-		if on {
-			icon.TextColor(uikit.Colors(t).Accent)
-		}
-		// The globe says what it is; the room goes to the profile's name.
-		ui.Text(c, a.hostsLabel()).TextColor(t.Text).SingleLine().MinWidth(0).Shrink(1).MaxWidth(160)
-		ui.Icon(c, chevronIcon).Size(uikit.IconInline-2, uikit.IconInline-2)
-	})
-	if b.Clicked() {
-		h.menuOpen = !h.menuOpen
-	}
-	ui.PopoverBase(c, b, &h.menuOpen, func(panel ui.Element) {
-		uikit.PopoverPanel(c, panel).Width(320).Padding(t.Space(2)).Gap(t.Space(1)).Margin(t.Space(1.5), 0, 0, 0)
-		a.hostsMenu(c, t)
-	})
-}
-
 // hostsMenu lists the profiles with their switches, the mode, and the way to
 // Tools.
 func (a *app) hostsMenu(c *ui.Context, t *ui.Theme) {
 	h := &a.profiles
 	ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Padding(t.Space(1), t.Space(1), t.Space(1), t.Space(2)).Children(func() {
-		ui.Text(c, locales.HostProfiles()).FontSize(uikit.TextBody).FontWeight(600).TextColor(t.Text).Grow(1)
+		ui.Text(c, locales.HostProfiles()).FontSize(uikit.TextBody).FontWeight(500).TextColor(t.Text).Grow(1)
 		a.hostsMode(c)
 	})
 	if len(h.set.Profiles) == 0 {
@@ -639,16 +614,6 @@ func (a *app) mapHostLine(profile, line string) bool {
 		s.Profiles[i].Text = text
 		s.Switch(i, true)
 	})
-}
-
-// hostsChip is the enabled tools strip's chip while a profile is on.
-func (a *app) hostsChip(c *ui.Context) {
-	on := a.profiles.set.On()
-	if len(on) == 0 {
-		return
-	}
-	label := "Hosts: " + strings.Join(on, " + ")
-	toolChip(c, "hosts", label, "Manage Host profiles", hostsIcon, func() { a.openTools("hosts") }, a.hostsOff)
 }
 
 // chosen is the profile Tools shows, kept in range; false without any.

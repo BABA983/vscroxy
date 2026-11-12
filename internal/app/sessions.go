@@ -208,6 +208,8 @@ func (a *app) selectSession(key string) {
 	}
 	item.open = true
 	a.page, a.revealGroup = pageSession, "sessions"
+	a.sessionsClosed = false
+	*a.regionOpen("collections") = true
 	if item.loaded || item.loading {
 		return
 	}

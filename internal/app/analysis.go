@@ -83,7 +83,7 @@ func (a *app) analysisDetail(c *ui.Context, selected []flow) {
 	s := &a.analysis
 	ui.Column(c).Fill().Background(t.Background).Children(func() {
 		ui.Row(c).Padding(t.Space(1), t.Space(3)).Gap(t.Space(2)).MinHeight(uikit.HeightLarge).AlignItems(ui.Center).Wrap().Children(func() {
-			ui.Text(c, locales.RequestsSelected(len(selected))).FontSize(uikit.TextBody).FontFeatures("tnum").FontWeight(600).Grow(1)
+			ui.Text(c, locales.RequestsSelected(len(selected))).FontSize(uikit.TextBody).FontFeatures("tnum").FontWeight(500).NoWrap().Grow(1)
 			if uikit.SecondaryButton(c, locales.Summary()).Clicked() {
 				s.tab = 0
 			}
@@ -118,14 +118,14 @@ func (a *app) analysisDetail(c *ui.Context, selected []flow) {
 			}
 			slices.Sort(times)
 			ui.Row(c).Gap(t.Space(4)).Wrap().Children(func() {
-				ui.Text(c, locales.ResponseBytes(int(bytes))).FontSize(uikit.TextBody).FontFeatures("tnum").FontWeight(600)
+				ui.Text(c, locales.ResponseBytes(int(bytes))).FontSize(uikit.TextBody).FontFeatures("tnum").FontWeight(500)
 				ui.Text(c, locales.ErrorsCount(errors)).FontSize(uikit.TextBody).FontFeatures("tnum").TextColor(t.Danger)
 				uikit.Hint(c, locales.IncompleteBodies(incomplete)).FontFeatures("tnum")
 			})
 			uikit.Body(c, locales.AverageTiming(fmt.Sprintf("%.1f", float64(duration)/float64(len(selected))), times[(len(times)-1)/2], times[len(times)-1])).FontFeatures("tnum")
 			uikit.Meta(c, locales.RecordedPerCaptureDurationsNot())
 			ui.Divider(c)
-			ui.Text(c, locales.SlowestRequests()).FontSize(uikit.TextBody).FontWeight(600)
+			ui.Text(c, locales.SlowestRequests()).FontSize(uikit.TextBody).FontWeight(500)
 			slowest := slices.Clone(selected)
 			slices.SortStableFunc(slowest, func(a, b flow) int { return cmp.Compare(b.millis, a.millis) })
 			for _, f := range slowest[:min(5, len(slowest))] {
@@ -134,7 +134,7 @@ func (a *app) analysisDetail(c *ui.Context, selected []flow) {
 						a.inspectCapture(f.id)
 					}
 					uikit.Body(c, f.method+" "+f.host+f.path).SingleLine().Grow(1).Tooltip(f.url)
-					ui.Text(c, locales.Millis(f.millis)).FontSize(uikit.TextMeta).FontFeatures("tnum").FontWeight(600).Width(65)
+					ui.Text(c, locales.Millis(f.millis)).FontSize(uikit.TextMeta).FontFeatures("tnum").FontWeight(500).Width(65)
 				})
 			}
 		})

@@ -1132,6 +1132,16 @@
       }
     }
   },
+  "@selectedOfTotal": {
+    "placeholders": {
+      "selected": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
   "@selectedSuffix": {
     "placeholders": {
       "count": {
@@ -1336,6 +1346,13 @@
       }
     }
   },
+  "@windowTooNarrowForTheSidebar": {
+    "placeholders": {
+      "width": {
+        "type": "int"
+      }
+    }
+  },
   "aChangeAppliesToNew": "A change applies to new connections; existing connections keep theirs.",
   "aColorShowsInThe": "A color shows in the table beside the method, and the note in the URL cell and the detail header.",
   "aFileOrAFolder": "A file or a folder",
@@ -1518,6 +1535,7 @@
   "browser": "Browser",
   "browserFetchFollowsBrowserCookie": "Browser fetch follows browser cookie, forbidden-header and CORS policies. Use Node.js or cURL outside the browser.",
   "budget30SPerExecution": "Budget: 30 s per execution · 100,000 attempts maximum · 1–200 saved requests",
+  "bulkEdit": "Bulk edit",
   "bulkEditReplacesTheTable": "Bulk edit replaces the table with one Key: Value per line; switched-off rows are kept",
   "bulkEditShowsCredentials": "Bulk edit shows credentials",
   "bypass": "Bypass",
@@ -1940,6 +1958,7 @@
   "eachUserHasIsolatedVariables": "Each user has isolated variables, cookies and tokens. Uses a start-time snapshot and an already-unlocked Vault; script Vault is disabled. No environment/request writes, experiment logs or capture records. Results disappear on restart.",
   "edit": "Edit…",
   "edit2": "Edit",
+  "editBody": "Edit",
   "editCaptureFilters": "Edit capture filters…",
   "editEnvironment": "Edit environment",
   "editEnvironments": "Edit environments",
@@ -2058,6 +2077,7 @@
   "fillAnEmptyVariablesEditor": "Fill an empty variables editor from the selected operation's variable definitions",
   "fillMcpArgumentsFromSchema": "Fill MCP arguments from schema",
   "filter": "Filter…",
+  "filter2": "Filter",
   "filterApp": "Filter app",
   "filterApplied": "Filter applied: {name}",
   "filterCaptures": "Filter captures",
@@ -2156,8 +2176,10 @@
   "help": "Help",
   "hex": "Hex",
   "hiddenByFilters": "{count} captured requests are hidden by this view's search or filters.",
+  "hiddenTools": "More tools",
   "hide": "Hide",
   "hideRow": "Hide {noun} {index}",
+  "hideSidebar": "Hide sidebar",
   "historicalReadOnlyPayloads": "Historical · read-only payloads",
   "historicalSessionReadOnlyPayloads": "Historical session · read-only payloads",
   "history": "History",
@@ -2342,7 +2364,7 @@
   "linksStayWithSavedSessions": "Links stay with saved sessions",
   "listener": "Listener",
   "listeningAt": "Listening at",
-  "live": "Live",
+  "listeningOn": "Listening on",
   "liveTraffic": "Live traffic",
   "loadASchemaSelectA": "Load a schema, select a method and send a JSON message.",
   "loadCollection": "Load collection",
@@ -2696,6 +2718,7 @@
   "pathsHostsNamesParameterNames": "Paths, hosts, names, parameter names, Content-Type/Accept, assertion values and unselected fields may contain secrets. Removing scripts also removes Postman Checks.",
   "patternsCount": "{title}: {count}",
   "pauseEachMatchingRequestOr": "Pause each matching request or response before it continues",
+  "pauseRecording": "Pause recording",
   "pausedExchanges": "{count} paused · changes apply only to this exchange",
   "pausedMessages": "{count} paused · edits or drop affect only this message",
   "pausedState": "Paused",
@@ -2793,6 +2816,8 @@
   "raw": "Raw",
   "rawHttp": "Raw HTTP",
   "rawMessage": "Raw message",
+  "readBodyAs": "Read as",
+  "readBodyAsHelp": "Read the body in another form without changing what will be sent",
   "readFromThisComputerS": "Read from this computer's OS settings. Apps with their own proxy settings, or that ignore the system proxy, still connect directly.",
   "readMcpResource": "Read MCP resource",
   "readOnly": "Read-only",
@@ -2980,6 +3005,7 @@
   "resultSize": "{bytes} B · {blocks} blocks",
   "resultTruncated": "Result truncated to fit {mib} MiB; {bytes} bytes were returned in total.",
   "resultsNotFinal": "Results are not final until the body search finishes.",
+  "resumeRecording": "Resume recording",
   "retainAsPublished": "Retain as published",
   "retainHandling": "Retain handling",
   "retainHandlingMqtt5Only": "retain handling · MQTT 5 only",
@@ -3159,6 +3185,7 @@
   "searchMessages2": "Search messages…",
   "searchMessagesPlaceholder": "Search messages…",
   "searchMqttMessages": "Search MQTT messages",
+  "searchOrRunACommand": "Search or run a command",
   "searchPlaceholder": "Search host or path, or status:>=400…",
   "searchProtobufMessages": "Search protobuf messages",
   "searchRetainedPayloadsAndEvents": "Search retained payloads and events",
@@ -3193,6 +3220,7 @@
   "selectTokenLink": "Select token link {index}",
   "selectedCount": "{count} selected",
   "selectedEventWasEvictedSelect": "Selected event was evicted. Select a retained event.",
+  "selectedOfTotal": "{selected} of {total} selected",
   "selectedRequest": "Selected request",
   "selectedSuffix": " · {count} selected",
   "send": "Send",
@@ -3246,6 +3274,8 @@
   "setupHttpsUrl": "Setup HTTPS URL",
   "sharedByRequestsRunnerScripts": "Shared by Requests, Runner, scripts and interactive clients.",
   "show": "Show",
+  "showAllApps": "Show all apps",
+  "showAllDomains": "Show all domains",
   "showAllHistory": "Show all History",
   "showAllRequests": "Show all requests",
   "showAs": "Show as",
@@ -3253,10 +3283,12 @@
   "showAsText": "Show as text",
   "showCertificate": "Show certificate",
   "showDetails": "Show details",
+  "showFewer": "Show fewer",
   "showHistory": "Show History",
   "showLatestResponse": "Show latest response",
   "showOnlyTheHostsAnd": "Show only the hosts and apps below. Everything else is still proxied, just not recorded.",
   "showSetupGuide": "Show setup guide",
+  "showSidebar": "Show sidebar",
   "showTheFullDraftUrl": "Show the full draft URL and response time",
   "showTheTrafficListReopen": "Show the traffic list; reopen the guide from the command palette",
   "showValues": "Show values",
@@ -3318,6 +3350,7 @@
   "sourceRequestLabel": "Source request: {source}",
   "sourceSnapshot": "Source snapshot · Capture #{id}",
   "sourceSnapshotLabel": "Source snapshot",
+  "sources": "Sources",
   "spaceSeparatedOptional": "Space-separated, optional",
   "split": "Split",
   "sseEventLabel": "SSE event {seq}",
@@ -3333,10 +3366,12 @@
   "sslSummary": "SSL proxying: {domains} domains, {apps} local apps · new connections only",
   "stackedLayout": "Stacked layout",
   "startAnEmulatorOrConnect": "Start an emulator or connect a device with USB debugging, then Refresh.",
+  "startCapture": "Start capture",
   "startCaptureFirst": "Start capture first",
   "startCaptureFirstTheseActions": "Start capture first; these actions stay disabled until the proxy is listening.",
   "startCollectionRecording": "Start collection recording",
   "startLoadTest": "Start load test",
+  "startProxy": "Start proxy",
   "startServer": "Start server",
   "starting": "Starting",
   "status": "Status",
@@ -3480,6 +3515,7 @@
   "totalSends": "Total: {count, plural, one {# send} other {# sends}}.",
   "traceLimitReachedSomeObservations": "Trace limit reached · some observations were not retained",
   "traceSource": "Trace source",
+  "traffic": "Traffic",
   "trailers": "Trailers",
   "transportAppliesToSendAnd": "TRANSPORT · applies to Send and the Collection Runner",
   "trust": "Trust",
@@ -3600,6 +3636,7 @@
   "willMimeContentType": "Will MIME content type",
   "willPayloadEncoding": "Will payload encoding",
   "willQos": "Will QoS",
+  "windowTooNarrowForTheSidebar": "The window is too narrow for the sidebar (under {width} points)",
   "wireEvidenceNotCurrentRules": "Wire evidence, not current rules. Redirect hops stay separate; source comparison uses the client result.",
   "wireshark": "Wireshark",
   "workingDirectory": "Working directory",

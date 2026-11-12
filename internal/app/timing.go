@@ -24,9 +24,11 @@ func (a *app) timingView(c *ui.Context, f flow) {
 		return
 	}
 	total := max(f.millis, 1)
+	// The phases are hues, not verdicts: green is reserved for a pass or a
+	// recording, so what arrives takes the socket's teal.
 	dns := uikit.Colors(t).MethodPatch
 	wait := uikit.Colors(t).Info
-	download := t.Success
+	download := uikit.Colors(t).Socket
 	ui.Scroll(c).Grow(1).FillWidth().Gap(t.Space(2)).Padding(t.Space(4)).Children(func() {
 		uikit.Hint(c, locales.AggregateTimingOnlyNoRequest())
 		if f.conn.dnsFresh && f.conn.resolved != "" {
@@ -39,10 +41,10 @@ func (a *app) timingView(c *ui.Context, f flow) {
 		waterfallRow(c, t, "Download", "rest of the response body", f.download, f.wait, total, download)
 		ui.Divider(c)
 		ui.Row(c).FillWidth().Gap(t.Space(2)).AlignItems(ui.Center).Padding(t.Space(1), 0).Children(func() {
-			ui.Text(c, locales.Total()).FontSize(uikit.TextBody).FontWeight(600).TextColor(t.Text).Shrink(0)
+			ui.Text(c, locales.Total()).FontSize(uikit.TextBody).FontWeight(500).TextColor(t.Text).Shrink(0)
 			target := f.method + " " + f.host + f.path
 			uikit.Meta(c, target).Grow(1).Shrink(1).MinWidth(0).SingleLine().Tooltip(target)
-			ui.Text(c, fmt.Sprintf("%d ms", f.millis)).Font(uikit.FontMono).FontSize(uikit.TextMeta).FontFeatures("tnum").FontWeight(600).TextColor(t.Text).Shrink(0)
+			ui.Text(c, fmt.Sprintf("%d ms", f.millis)).Font(uikit.FontMono).FontSize(uikit.TextMeta).FontFeatures("tnum").FontWeight(500).TextColor(t.Text).Shrink(0)
 		})
 		uikit.Meta(c, connectionNote(f)).Padding(t.Space(1), 0, 0, 0)
 	})
@@ -100,7 +102,7 @@ func headlineTiming(t *ui.Theme, f flow) uikit.Timing {
 	}
 	phases = append(phases,
 		uikit.TimingPhase{Name: "Waiting", Millis: wait, Color: uikit.Colors(t).Info},
-		uikit.TimingPhase{Name: "Download", Millis: f.download, Color: t.Success})
+		uikit.TimingPhase{Name: "Download", Millis: f.download, Color: uikit.Colors(t).Socket})
 	note := connectionNote(f)
 	if f.conn.dnsFresh && f.conn.resolved != "" {
 		// The card lists the lookup on its own row.
@@ -145,7 +147,7 @@ func timingWaterfall(c *ui.Context, timing *capture.Timing) {
 			case "TCP", "Send":
 				color = uikit.Colors(t).Warning
 			case "Receive":
-				color = t.Success
+				color = uikit.Colors(t).Socket
 			}
 			status := ""
 			if p.Incomplete {

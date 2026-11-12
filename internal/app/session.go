@@ -681,6 +681,17 @@ func (a *app) replaceSession(flows []flow, frames map[int][]frame) {
 	a.messageUI.stopSearch()
 	a.messageUI = messagePanel{}
 	a.protobuf.stop()
+	// An unchanged draft is its capture: read the replaced session's flow
+	// into it in place, so what the reader was showing stays chosen.
+	if d := a.live; d != nil && !d.dirty() && !d.sentSet && !d.composeWaiting {
+		if i := slices.IndexFunc(a.flows, func(g flow) bool { return g.id == a.liveFor }); i >= 0 {
+			if r, err := a.flows[i].requestDraft(); err == nil {
+				d.load(a, r, "")
+				d.setDebugSource(newDebugSource(a.flows[i]))
+				d.baseline = d.value()
+			}
+		}
+	}
 	a.query, a.filter = "", "all"
 	a.activity = activityRange{}
 	a.recount()

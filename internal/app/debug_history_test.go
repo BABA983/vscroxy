@@ -103,7 +103,7 @@ func TestDebugHistoryLinksExactSendsAndSurvivesRestartAndReusedIDs(t *testing.T)
 		t.Fatal("source comparison did not use the original capture and exact send")
 	}
 	click("Open linked draft 1")
-	click("Scripts")
+	choosePaneView(t, tt, "Request pane", "Scripts")
 	click("Pre-request script")
 	tt.Type(`throw new Error("intentional preflight failure")`)
 	click("Send")

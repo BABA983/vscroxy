@@ -568,14 +568,18 @@ func TestCollectionWizardCredentialStorageChoices(t *testing.T) {
 }
 
 func TestCollectionWizardSidebarScopeIgnoresTableFilters(t *testing.T) {
+	// Sources lists hosts or apps behind one switch, so each scope is shown
+	// in the list it belongs to.
 	for _, entry := range []struct {
 		label string
 		count int
-	}{{"api.example.com", 9}, {"Browser", 10}} {
+		apps  bool
+	}{{"api.example.com", 9, false}, {"Browser", 10, true}} {
 		t.Run(entry.label, func(t *testing.T) {
 			a := libraryApp(t)
 			a.flows = collectionWizardFlows()
 			a.recount()
+			a.sourcesApps = entry.apps
 			a.query = "/not-in-capture"
 			a.applyFilter()
 			tt := ui.NewTester(a.view, 1280, 800)

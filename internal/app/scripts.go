@@ -590,7 +590,7 @@ func (a *app) scriptsPage(c *ui.Context, t *ui.Theme, top float32, active bool) 
 	}
 	ui.Column(c).Width(268).MinHeight(0).Padding(top, t.Space(3), t.Space(3), t.Space(3)).Gap(t.Space(2)).Children(func() {
 		ui.Row(c).Gap(t.Space(1)).AlignItems(ui.Center).Children(func() {
-			ui.Text(c, locales.Scripts()).FontSize(uikit.TextTitle).FontWeight(600).TextColor(t.Text).Grow(1)
+			ui.Text(c, locales.Scripts()).FontSize(uikit.TextTitle).FontWeight(500).TextColor(t.Text).Grow(1)
 			if uikit.IconButton(c, "New "+what, "New "+what, plusIcon).Clicked() {
 				a.newScript(s, base, newScriptText)
 			}
@@ -788,7 +788,7 @@ func (a *app) scriptConsole(c *ui.Context, t *ui.Theme, name string) {
 	}
 	s.mu.RUnlock()
 	ui.Column(c).Height(150).FillWidth().Border(1, t.Border).Radius(uikit.RadiusControl).Children(func() {
-		ui.Row(c).Height(uikit.HeightCompact+4).Padding(0, t.Space(2)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+		ui.Row(c).Height(uikit.HeightControl+4).Padding(0, t.Space(2)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 			uikit.Label(c, locales.Console()).Grow(1)
 			if uikit.CompactButton(c, locales.Clear()).Disabled(len(lines) == 0).Clicked() {
 				s.mu.Lock()

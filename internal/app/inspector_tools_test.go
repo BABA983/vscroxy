@@ -71,7 +71,7 @@ func TestInspectorCookiesPreserveScopeAndMaskValues(t *testing.T) {
 	a := workspaceApp()
 	a.flows[0].respHeader["Set-Cookie"] = []string{"sid=top-secret; Path=/; Secure; HttpOnly; SameSite=None; Partitioned; Expires=Wed, 21 Oct 2037 07:28:00 GMT", "sid=other-secret; Path=/admin; Max-Age=0", "invalid"}
 	a.flows[0].reqHeader["Cookie"] = []string{"sid=request-one; sid=request-two"}
-	a.inspect.ready, a.inspect.tab[1] = true, resTabCookies
+	a.inspect.ready, a.inspect.tab[1] = true, resViewCookies
 	tt := ui.NewTester(a.view, 1280, 800)
 	if tt.HasText("top-secret") || !tt.HasText("2 cookies · captured headers") || !tt.HasText("1 invalid cookie headers; inspect Raw for original bytes") {
 		t.Fatal(tt.Texts())
@@ -85,7 +85,7 @@ func TestInspectorCookiesPreserveScopeAndMaskValues(t *testing.T) {
 	if err := tt.Click("Hide cookie values"); err != nil {
 		t.Fatal(err)
 	}
-	a.inspect.tab[0], a.inspect.tab[1] = reqTabCookies, resTabBody
+	a.inspect.tab[0], a.inspect.tab[1] = composeTabCookies, resViewBody
 	tt.Frame()
 	if err := tt.Click("Reveal cookie values"); err != nil {
 		t.Fatal(err)
@@ -281,6 +281,53 @@ func TestInspectorJSONQueryErrorsCancellationAndNewSource(t *testing.T) {
 	}
 }
 
+func TestBodyViewReadsTheDraftAsAFormOrProtobuf(t *testing.T) {
+	for _, tc := range []struct{ name, contentType, body, format, want string }{
+		{"form", "application/x-www-form-urlencoded", "tag=first&tag=a+b&plus=%2B&flag", "Form", "4 form fields · original order"},
+		{"protobuf", "application/grpc", string(pbMessage(pbBytes(1, []byte("find")))), "Protobuf", "Schema…"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			a := workspaceApp()
+			a.flows[0].reqHeader.Set("Content-Type", tc.contentType)
+			a.flows[0].reqBody = tc.body
+			a.inspect.tab[0], a.inspect.ready = composeTabBody, true
+			t.Cleanup(func() {
+				a.structured[0].stop()
+				a.structured[1].stop()
+				a.protobuf.stop()
+			})
+			tt := ui.NewTester(a.view, 1280, 800)
+			waitInspection(t, tt, func() bool { return a.structured[1].job.answers == nil })
+			// The editor is the Body view until a format is chosen; the choice
+			// reads the draft's own bytes without changing them.
+			if !tt.HasText("Request body") {
+				t.Fatalf("the body did not open in the editor: %q", tt.Texts())
+			}
+			if err := tt.Click("Read as"); err != nil {
+				t.Fatal(err)
+			}
+			if err := chooseMenu(tt, tc.format); err != nil {
+				t.Fatal(err)
+			}
+			waitInspection(t, tt, func() bool { return a.structured[1].job.answers == nil })
+			if !tt.HasText(tc.want) || a.composeBody != tc.body {
+				t.Fatalf("reading the draft as %s changed it or showed nothing: %q", tc.format, tt.Texts())
+			}
+			// Back to the editor: the bytes stay editable.
+			if err := tt.Click("Read as"); err != nil {
+				t.Fatal(err)
+			}
+			if err := chooseMenu(tt, "Edit"); err != nil {
+				t.Fatal(err)
+			}
+			tt.Frame()
+			if !tt.HasText("Request body") || a.composeBody != tc.body {
+				t.Fatalf("Edit did not return the editor: %q", tt.Texts())
+			}
+		})
+	}
+}
+
 func TestInspectorStructuredBodiesAutoCopyAndOriginal(t *testing.T) {
 	for _, tc := range []struct{ name, contentType, body, want string }{
 		{"request form", "application/x-www-form-urlencoded", "tag=one&tag=a+b&plus=%2B&flag", "4 form fields · original order"},
@@ -295,6 +342,10 @@ func TestInspectorStructuredBodiesAutoCopyAndOriginal(t *testing.T) {
 			if strings.HasPrefix(tc.name, "request") {
 				side = 1
 				a.flows[0].reqBody, a.flows[0].reqHeader = tc.body, http.Header{"Content-Type": {tc.contentType}}
+				// The structured reader of a request is a reader: trailers
+				// keep this capture out of the editor, which edits the bytes
+				// as they are.
+				a.flows[0].reqTrailer = http.Header{"X-Done": {"1"}}
 			} else {
 				a.flows[0].resBody, a.flows[0].respHeader = tc.body, http.Header{"Content-Type": {tc.contentType}}
 			}

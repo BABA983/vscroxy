@@ -110,7 +110,7 @@ func (a *app) debugDrafts(c *ui.Context) {
 		}
 		return
 	}
-	ui.Text(c, locales.SourceSnapshot(s.scope.Exchange.ID)).FontSize(uikit.TextBody).FontFeatures("tnum").FontWeight(600)
+	ui.Text(c, locales.SourceSnapshot(s.scope.Exchange.ID)).FontSize(uikit.TextBody).FontFeatures("tnum").FontWeight(500)
 	uikit.Meta(c, locales.OnlyExplicitlyLinkedDraftsAnd())
 	index := slices.IndexFunc(a.flows, func(f flow) bool { return f.debugKey == s.scope.Key })
 	if uikit.SecondaryButton(c, locales.InspectSourceCapture()).FillWidth().Disabled(index < 0).Clicked() {
@@ -124,7 +124,7 @@ func (a *app) debugDrafts(c *ui.Context) {
 		s.scope, s.draftKey = nil, ""
 	}
 	ui.Divider(c)
-	ui.Text(c, locales.OpenDrafts()).FontSize(uikit.TextBody).FontWeight(600)
+	ui.Text(c, locales.OpenDrafts()).FontSize(uikit.TextBody).FontWeight(500)
 	n := 0
 	for _, d := range a.documents {
 		if d.origin == nil || s.scope == nil || d.origin.Key != s.scope.Key {
@@ -141,7 +141,7 @@ func (a *app) debugDrafts(c *ui.Context) {
 		ui.Text(c, locales.NoOpenDraftsForThis()).FontSize(uikit.TextMeta)
 	}
 	ui.Divider(c)
-	ui.Text(c, locales.History()).FontSize(uikit.TextBody).FontWeight(600)
+	ui.Text(c, locales.History()).FontSize(uikit.TextBody).FontWeight(500)
 }
 
 func (a *app) debugWire(c *ui.Context, r experimentRecord) {

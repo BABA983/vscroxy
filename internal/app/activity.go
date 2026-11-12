@@ -64,7 +64,7 @@ func (a *app) activityStrip(c *ui.Context) {
 		cache.buckets, cache.total, cache.selected = a.countActivity(start, end)
 	}
 	buckets, total, selected := cache.buckets, cache.total, cache.selected
-	a.drawActivity(c, end, start, buckets, total, selected)
+	a.drawActivity(c, end, buckets, total, selected)
 }
 
 func (a *app) countActivity(start, end time.Time) (buckets [activityBuckets]uikit.ActivityBucket, total, selected int) {
@@ -82,6 +82,10 @@ func (a *app) countActivity(start, end time.Time) (buckets [activityBuckets]uiki
 			status = 2
 		case f.status >= 300 && f.status != 304:
 			status = 1
+		case f.millis >= slowMillis:
+			// A slow exchange is a signal color of its own, above the
+			// neutral part it counts in.
+			status = 4
 		}
 		buckets[i][status]++
 		total++
@@ -92,17 +96,16 @@ func (a *app) countActivity(start, end time.Time) (buckets [activityBuckets]uiki
 	return buckets, total, selected
 }
 
-func (a *app) drawActivity(c *ui.Context, end, start time.Time, buckets [activityBuckets]uikit.ActivityBucket, total, selected int) {
+func (a *app) drawActivity(c *ui.Context, end time.Time, buckets [activityBuckets]uikit.ActivityBucket, total, selected int) {
 	summary := locales.ActivitySummary(5, total)
 	if a.activity.active() {
 		summary = locales.ActivitySelected(a.activity.label(), selected)
 	}
-	ticks := [3]string{start.Format("15:04:05"), start.Add(activitySpan / 2).Format("15:04:05"), end.Format("15:04:05")}
 	key := 0
 	if view := a.views.activeView(); view != nil {
 		key = view.id
 	}
-	uikit.ActivityStrip(c.Key(key), buckets[:], &a.activity.selection, summary, ticks, func() {
+	uikit.ActivityStrip(c.Key(key), buckets[:], &a.activity.selection, summary, end.Format("15:04:05"), func() {
 		if a.activity.active() {
 			a.activity.end = end
 		} else {

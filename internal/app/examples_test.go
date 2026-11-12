@@ -48,9 +48,7 @@ func TestSaveAsExampleKeepsTheResponseWithTheAuthoredRequest(t *testing.T) {
 	}
 
 	respond()
-	if err := tt.Click("Save as example"); err != nil {
-		t.Fatal(err)
-	}
+	saveAsExample(t, tt)
 	if got := saved(); !slices.Equal(got, []string{"201 Created"}) {
 		t.Fatalf("saved examples = %q", got)
 	}
@@ -68,9 +66,7 @@ func TestSaveAsExampleKeepsTheResponseWithTheAuthoredRequest(t *testing.T) {
 	// A draft with other edits keeps the example until the request is saved.
 	d.composeName = "List all projects"
 	respond()
-	if err := tt.Click("Save as example"); err != nil {
-		t.Fatal(err)
-	}
+	saveAsExample(t, tt)
 	if got := saved(); !slices.Equal(got, []string{"201 Created"}) {
 		t.Fatalf("an edited draft was saved with its example: %q", got)
 	}
@@ -78,9 +74,7 @@ func TestSaveAsExampleKeepsTheResponseWithTheAuthoredRequest(t *testing.T) {
 		t.Fatalf("draft examples = %+v, dirty = %v", d.examples, d.dirty())
 	}
 
-	if err := tt.Click("Request editor: Examples"); err != nil {
-		t.Fatal(err)
-	}
+	choosePaneView(t, tt, "Request pane", "Examples")
 	if !tt.HasText("GET {{base}}/projects") {
 		t.Fatalf("the Examples tab does not show the example's request: %q", tt.Texts())
 	}

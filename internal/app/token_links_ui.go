@@ -125,12 +125,12 @@ func (a *app) tokenLinksModal(c *ui.Context, t *ui.Theme) {
 					return
 				}
 				if w.applied {
-					uikit.Body(c, locales.TokenLinkApplied()).FontWeight(600)
+					uikit.Body(c, locales.TokenLinkApplied()).FontWeight(500)
 					uikit.Hint(c, locales.SelectTheTargetEnvironmentThen())
 					return
 				}
 				if p := w.plan; p != nil {
-					uikit.Body(c, locales.ReviewGeneratedChanges()).FontWeight(600)
+					uikit.Body(c, locales.ReviewGeneratedChanges()).FontWeight(500)
 					uikit.Body(c, locales.SourceRequestLabel(p.Source))
 					uikit.Body(c, locales.ConsumerRequestsLabel(strings.Join(p.Consumers, ", "))).Wrap()
 					uikit.Body(c, locales.EnvironmentNewCurrent(p.Environment, p.Variable))
@@ -138,7 +138,7 @@ func (a *app) tokenLinksModal(c *ui.Context, t *ui.Theme) {
 					uikit.Hint(c, locales.NativeSourceBindingClearsThe())
 					uikit.Hint(c, locales.CurrentIsPlaintextLocalStorage())
 					for _, script := range []struct{ label, text string }{{"Source · pre-request", p.SourcePre}, {"Source · post-response", p.SourcePost}, {"Consumers · pre-request", p.ConsumerPre}} {
-						uikit.Body(c, script.label).FontWeight(600)
+						uikit.Body(c, script.label).FontWeight(500)
 						uikit.Mono(c, script.text).Wrap()
 					}
 					ui.Checkbox(c, &w.reviewed, "I reviewed these script and credential changes").FontSize(uikit.TextBody)
@@ -150,7 +150,7 @@ func (a *app) tokenLinksModal(c *ui.Context, t *ui.Theme) {
 				}
 				for i, link := range w.analysis.Links {
 					ui.Column(c.Key(i)).Padding(t.Space(3)).Gap(t.Space(2)).Border(1, t.Border).Radius(uikit.RadiusPanel).Children(func() {
-						uikit.Body(c, locales.TokenLinkRow(link.Source, len(link.Consumers))).FontWeight(600)
+						uikit.Body(c, locales.TokenLinkRow(link.Source, len(link.Consumers))).FontWeight(500)
 						path, _ := json.Marshal(link.Path)
 						uikit.Mono(c, "JSON path segments: "+string(path)).Wrap()
 						ids := make([]string, len(link.Consumers))
@@ -168,7 +168,7 @@ func (a *app) tokenLinksModal(c *ui.Context, t *ui.Theme) {
 					uikit.Hint(c, locales.TokenLinksSkipped(w.analysis.Skipped))
 				}
 				if len(w.analysis.Links) > 0 {
-					uikit.Body(c, locales.ApplyToSavedRequests()).FontWeight(600)
+					uikit.Body(c, locales.ApplyToSavedRequests()).FontWeight(500)
 					uikit.Hint(c, locales.SaveTheSourceAndConsumers())
 					ui.Field(c, locales.CollectionFolder(), func() {
 						uikit.Select(c, &w.config.Collection, a.collectionNames()).Label(locales.TokenLinkCollection())

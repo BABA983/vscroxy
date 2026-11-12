@@ -104,7 +104,7 @@ func (a *app) customColumnAt(id string) (customColumn, bool) {
 // costs room beside the traffic, so the header menu puts them in and
 // ShownColumns remembers the ones the user chose.
 var optionalColumns = []string{
-	"ssl", "statusIcon", "comment", "tools",
+	"ssl", "comment", "tools",
 	"latency", "reqtime", "restime",
 	"reqwire", "reqsize", "ressize",
 }
@@ -157,7 +157,6 @@ func (a *app) columnActions(id string) []action {
 	actions = append(actions,
 		a.columnToggle("id", "#"),
 		a.columnToggle("ssl", locales.Ssl()),
-		a.columnToggle("statusIcon", locales.StatusIcon()),
 		a.columnToggle("status", locales.Status()),
 		a.columnToggle("method", locales.Method()),
 		a.columnToggle("host", locales.Host()),

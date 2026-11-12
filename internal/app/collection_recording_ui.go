@@ -58,7 +58,7 @@ func (a *app) collectionRecordingModal(c *ui.Context, t *ui.Theme) {
 					} else if s.Busy {
 						state = "Stopping · waiting for body read"
 					}
-					uikit.Body(c, state+" · "+s.Collection).FontWeight(600)
+					uikit.Body(c, state+" · "+s.Collection).FontWeight(500)
 					uikit.Meta(c, locales.RecordingSummary(s.Added, s.Updated, s.Skipped, s.Discarded, len(s.queue)))
 					if s.Problem != "" {
 						ui.Text(c, s.Problem).FontSize(uikit.TextBody).TextColor(t.Danger)
@@ -130,31 +130,6 @@ func (a *app) collectionRecordingModal(c *ui.Context, t *ui.Theme) {
 
 // The always-visible tools strip also shows remote-started sessions. Closing a
 // chip stops recording; dismissing an already stopped result never deletes data.
-func (a *app) collectionRecordingChip(c *ui.Context, t *ui.Theme) {
-	s := a.collectionRecording
-	if s == nil {
-		return
-	}
-	state := "Stopped"
-	if s.Active {
-		state = "Recording"
-	} else if s.Busy {
-		state = "Stopping"
-	}
-	ui.Row(c.Key("collection-recording-chip")).Height(uikit.HeightCompact).AlignItems(ui.Center).Background(t.Background).Border(1, t.Border).Radius(uikit.RadiusControl).Children(func() {
-		uikit.ToolbarButton(c, locales.CollectionRecordingStatus(), locales.ViewRecordingScopeCountersAnd(), false).Height(uikit.HeightCompact).Children(func() {
-			ui.Icon(c, captureIcon).Size(uikit.IconInline, uikit.IconInline)
-			uikit.Meta(c, state+" → "+s.Collection).MaxWidth(180).SingleLine()
-			uikit.Meta(c, locales.AddedUpdated(s.Added, s.Updated)).FontFeatures("tnum")
-		}).OnClick(func() { a.openCollectionRecording("", "", "") })
-		if s.Active {
-			uikit.IconButton(c, locales.StopCollectionRecorder(), locales.StopAndDiscardQueuedWork(), closeIcon).OnClick(func() { a.stopCollectionRecording("") })
-		} else {
-			uikit.IconButton(c, locales.DismissRecordingStatus(), locales.DismissStatusSavedRequestsStay(), closeIcon).Disabled(s.Busy).OnClick(func() { a.collectionRecording = nil })
-		}
-	})
-}
-
 func captureLines(text string) []string {
 	var values []string
 	for line := range strings.SplitSeq(text, "\n") {

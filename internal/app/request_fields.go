@@ -4,10 +4,12 @@ import (
 	"cmp"
 	"fmt"
 	"github.com/baba983/vscroxy/internal/uikit"
+	"net/http"
 	"net/url"
 	"slices"
 	"strings"
 
+	"github.com/baba983/vscroxy/internal/inspect"
 	"github.com/baba983/vscroxy/internal/request"
 	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo"
@@ -67,6 +69,8 @@ type fieldsOptions struct {
 	file       bool
 	secret     bool
 	collection string
+	// filters are the captured values a row's context menu offers, by name.
+	filters map[string][]string
 }
 
 // Fields are rows rather than a map: duplicate names, disabled entries and file
@@ -74,18 +78,21 @@ type fieldsOptions struct {
 func (a *app) requestFieldsEditor(c *ui.Context, rows *[]request.Field, opts fieldsOptions, noun string, actions ...func()) bool {
 	t := c.Theme()
 	changed, remove := false, -1
-	ui.Column(c).Grow(1).MinHeight(0).Border(1, t.Border).Radius(uikit.RadiusControl).Children(func() {
+	ui.Column(c).Grow(1).MinHeight(0).Children(func() {
 		// Column titles stay above the rows as they scroll, so every cell
 		// reads as a column rather than its own form.
-		ui.Row(c).Height(uikit.HeightControl).AlignItems(ui.Center).BorderWidth(0, 0, 1, 0).BorderColor(t.Border).Children(func() {
-			ui.Box(c).Width(uikit.HeightLarge).FillHeight().BorderWidth(0, 1, 0, 0).BorderColor(t.Border)
+		ui.Row(c).Height(uikit.HeightControl).AlignItems(ui.Center).Children(func() {
+			ui.Box(c).Width(uikit.HeightLarge).FillHeight()
 			// The cell's padding stays on the label inside it. On the flex
 			// item itself, padding joins its base size and would make the
 			// header columns wider than the rows' cells.
-			ui.Box(c).Basis(0).Grow(1).MinWidth(0).FillHeight().BorderWidth(0, 1, 0, 0).BorderColor(t.Border).Children(func() {
+			// The key column keeps room for a common header name and the
+			// value column for a common media type: neither is squeezed to a
+			// cut-off word, and a longer value reads in full on hover.
+			ui.Box(c).Basis(0).Grow(1).MinWidth(t.Space(27)).FillHeight().Children(func() {
 				uikit.Label(c, locales.Key()).FillWidth().Padding(t.Space(1), t.Space(2))
 			})
-			ui.Box(c).Basis(0).Grow(2).MinWidth(0).FillHeight().Children(func() {
+			ui.Box(c).Basis(0).Grow(2).MinWidth(t.Space(30)).FillHeight().Children(func() {
 				uikit.Label(c, locales.Value()).FillWidth().Padding(t.Space(1), t.Space(2))
 			})
 			if opts.secret {
@@ -99,17 +106,22 @@ func (a *app) requestFieldsEditor(c *ui.Context, rows *[]request.Field, opts fie
 		ui.Scroll(c).Grow(1).MinHeight(0).Children(func() {
 			for i := range *rows {
 				r := &(*rows)[i]
-				row := ui.Row(c).Key(i).Height(uikit.HeightControl).AlignItems(ui.Center).BorderWidth(0, 0, 1, 0).BorderColor(t.Border)
+				row := ui.Row(c).Key(i).Height(uikit.HeightControl).AlignItems(ui.Center)
 				row.Children(func() {
-					ui.Box(c).Width(uikit.HeightLarge).FillHeight().Center().BorderWidth(0, 1, 0, 0).BorderColor(t.Border).Children(func() {
+					ui.Box(c).Width(uikit.HeightLarge).FillHeight().Center().Children(func() {
 						enabled := !r.Disabled
 						if ui.Checkbox(c, &enabled, "").Label(locales.EnableRow(noun, i+1)).Tooltip(locales.UncheckedRowsStayHereAnd()).Changed() {
 							r.Disabled, changed = !enabled, true
 						}
 					})
-					ui.Box(c).Basis(0).Grow(1).MinWidth(0).FillHeight().BorderWidth(0, 1, 0, 0).BorderColor(t.Border).Children(func() {
+					ui.Box(c).Basis(0).Grow(1).MinWidth(t.Space(27)).FillHeight().Children(func() {
 						field := a.variableGridInput(c, fmt.Sprintf("%s-key-%d", noun, i+1), &r.Name, locales.Key(), locales.KeyOfRow(noun, i+1), opts.collection, false)
 						cellBorder(t, field, false, false)
+						if values, ok := opts.filters[r.Name]; ok {
+							// The capture's own values are what a filter can
+							// search for, as the reader offers them.
+							field.PopoverMenu(a.headerFilterMenu(c, r.Name, values))
+						}
 						if field.Changed() {
 							changed = true
 						}
@@ -119,13 +131,13 @@ func (a *app) requestFieldsEditor(c *ui.Context, rows *[]request.Field, opts fie
 					// through a table cannot put one on a shared screen.
 					secret := opts.secret && sensitiveHeader(r.Name)
 					masked := secret && !r.Revealed
-					ui.Box(c).Basis(0).Grow(2).MinWidth(0).FillHeight().Children(func() {
+					ui.Box(c).Basis(0).Grow(2).MinWidth(t.Space(30)).FillHeight().Children(func() {
 						value := a.variableGridInput(c, fmt.Sprintf("%s-value-%d", noun, i+1), &r.Value, locales.Value(), locales.ValueOfRow(noun, i+1), opts.collection, masked)
 						if masked {
 							value.Password()
 						}
 						cellBorder(t, value, masked, secret && r.Revealed)
-						if !masked && len(r.Value) > 40 {
+						if !masked && len(r.Value) > 20 {
 							// A long value reads in full on hover, without the click
 							// that would move the keyboard into it.
 							value.Tooltip(r.Value)
@@ -294,25 +306,6 @@ func parseHeaderRows(text string) []request.Field {
 	return rows
 }
 
-func (a *app) headerModeButton(c *ui.Context, d *requestDocument, t *ui.Theme) {
-	label := "Bulk edit"
-	if d.headerBulk {
-		label = "Table"
-	}
-	uikit.ToolbarButton(c, locales.ToggleHeaderEditingMode(), locales.BulkEditReplacesTheTable(), d.headerBulk).Children(func() {
-		ui.Icon(c, formatIcon).Size(uikit.IconInline, uikit.IconInline)
-		uikit.Body(c, label)
-	}).OnClick(func() {
-		if d.headerBulk || !hasSecretHeader(d.headerRows) {
-			toggleHeaderMode(d)
-		} else {
-			// The block shows every value: ask before putting credentials
-			// on the screen in plain text.
-			d.headerWarn = true
-		}
-	})
-}
-
 // headerEditor edits headers as rows, so order, duplicates, empty values and
 // disabled rows all survive. Bulk edit shows the Key: Value block for pasting.
 func (a *app) headerEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
@@ -333,10 +326,7 @@ func (a *app) headerEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
 		}
 		return
 	}
-	if len(d.headerRows) == 0 {
-		d.headerRows = []request.Field{{}}
-	}
-	if a.requestFieldsEditor(c, &d.headerRows, fieldsOptions{secret: true, collection: d.composeCollection}, locales.NounHeader()) {
+	if a.requestFieldsEditor(c, &d.headerRows, fieldsOptions{secret: true, collection: d.composeCollection, filters: a.capturedHeaders()}, locales.NounHeader()) {
 		d.composeHeaders = headerRowsText(d.headerRows)
 		d.headerFor = d.composeHeaders
 	}
@@ -564,6 +554,12 @@ func (a *app) requestBodyEditor(c *ui.Context, d *requestDocument, t *ui.Theme) 
 	// The body type and JSON formatting sit on the editor's tab row, which
 	// already names the Body tab they belong to.
 	if d.bodyMode == "Raw" {
+		// Reading is a view of the same bytes: the editor is the default,
+		// and the rest are what the capture's readers used to show.
+		if d.bodyRead > 0 {
+			a.draftBodyView(c, d)
+			return
+		}
 		a.requestBodyText(c, d)
 	} else if d.bodyMode == "GraphQL" {
 		ui.Row(c).Children(func() {
@@ -615,6 +611,93 @@ func (a *app) requestBodyEditor(c *ui.Context, d *requestDocument, t *ui.Theme) 
 				}()
 			}
 		})
+	}
+}
+
+// draftBodyFormats are the ways the Body view can show the draft's bytes: the
+// editor first, then the read-only representations its content type and bytes
+// offer. The list is stable while the body is, so the menu keeps its choice.
+func (a *app) draftBodyFormats(d *requestDocument) []string {
+	formats := []string{locales.EditBody(), locales.Pretty(), locales.Hex()}
+	ct := draftContentType(d)
+	switch {
+	case strings.HasPrefix(ct, "image/"), strings.Contains(ct, "html"):
+		formats = append(formats, locales.Preview())
+	}
+	if looksProto(d.composeBody, ct) {
+		formats = append(formats, "Protobuf")
+	}
+	if format := inspect.BodyFormat(ct); format != "" {
+		formats = append(formats, format)
+	}
+	return formats
+}
+
+// draftContentType is the Content-Type the draft would send.
+func draftContentType(d *requestDocument) string {
+	for _, row := range parseHeaderRows(d.composeHeaders) {
+		if !row.Disabled && strings.EqualFold(row.Name, "Content-Type") {
+			return strings.ToLower(strings.TrimSpace(row.Value))
+		}
+	}
+	return ""
+}
+
+// looksProto reports whether a body is protobuf: its content type says so, or
+// its bytes decode as one.
+func looksProto(body, contentType string) bool {
+	if grpcContentType(contentType) || strings.Contains(contentType, "protobuf") {
+		return true
+	}
+	if body == "" || len(body) > 512<<10 {
+		return false
+	}
+	_, err := decodeProto([]byte(body))
+	return err == nil
+}
+
+// draftFlow is the draft as the readers take it: its bytes and headers, so a
+// structured or protobuf view reads what Send would send.
+func draftFlow(d *requestDocument) flow {
+	h := make(http.Header)
+	for _, row := range parseHeaderRows(d.composeHeaders) {
+		if !row.Disabled && row.Name != "" {
+			h.Add(row.Name, row.Value)
+		}
+	}
+	f := flow{id: d.id, method: d.composeMethod, url: d.composeURL, kind: "http",
+		reqBody: d.composeBody, reqHeader: h, reqSize: len(d.composeBody)}
+	// A reader that infers from the target reads the draft's own address, as
+	// a captured flow carries it: the gRPC method in the path names the
+	// message type a protobuf body decodes as.
+	if u, err := url.Parse(d.composeURL); err == nil && u.Host != "" {
+		f.scheme, f.host, f.path = u.Scheme, u.Host, cmp.Or(u.Path, "/")
+	}
+	return f
+}
+
+// draftBodyView shows the draft's body in the chosen read-only form. Nothing
+// here writes to the draft: the bytes stay the editor's.
+func (a *app) draftBodyView(c *ui.Context, d *requestDocument) {
+	formats := a.draftBodyFormats(d)
+	view := min(max(d.bodyRead, 0), len(formats)-1)
+	body, ct := d.composeBody, draftContentType(d)
+	switch {
+	case view <= 0:
+		a.requestBodyText(c, d)
+	case formats[view] == "Protobuf":
+		a.protobufReader(c, draftFlow(d), 1)
+	case formats[view] == inspect.BodyFormat(ct):
+		a.structured[1].view(c, inspectionBody{text: body}, ct)
+	case formats[view] == locales.Preview():
+		a.previewBody(c, draftFlow(d), body, 1)
+	case formats[view] == locales.Hex():
+		a.hexBody(c, body, 1)
+	default:
+		if a.bodyPrettyFor[1] != body {
+			a.bodyPrettyFor[1], a.bodyText[1] = body, nil
+		}
+		a.prettyBody(c, body, 1)
 	}
 }
 

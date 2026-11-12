@@ -291,9 +291,11 @@ func (m messageView) searchText() string {
 // row draws one message in the list.
 func (m messageView) row(c *ui.Context) {
 	t := c.Theme()
+	// Direction is a hue, not a verdict: what went out is blue, what came
+	// back is the socket's teal. Green stays for a pass or a recording.
 	color := uikit.Colors(t).Info
 	if m.direction == "in" {
-		color = t.Success
+		color = uikit.Colors(t).Socket
 	}
 	ui.Row(c).Gap(t.Space(2)).Padding(t.Space(1), t.Space(2)).MinHeight(uikit.HeightControl).AlignItems(ui.Center).Children(func() {
 		ui.Text(c, m.arrow()).FontSize(uikit.TextBody).TextColor(color).Width(uikit.IconInline)
@@ -512,7 +514,7 @@ func (p *messagePanel) view(c *ui.Context, a *app, f flow, list []messageView) {
 		}
 		note := locales.PausedViewNote(max(newer, 0))
 		uikit.Meta(c, note).FontFeatures("tnum").
-			Background(uikit.Colors(t).Panel).Padding(t.Space(1), t.Space(3)).SingleLine().Tooltip(note)
+			Background(uikit.Colors(t).Chrome).Padding(t.Space(1), t.Space(3)).SingleLine().Tooltip(note)
 		list = p.frozen
 	}
 	// The search and the direction filter are built first: they change what

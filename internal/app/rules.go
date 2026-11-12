@@ -476,7 +476,7 @@ func (a *app) rulesPage(c *ui.Context, t *ui.Theme, top float32, active bool) {
 	}
 	ui.Column(c).Width(300).MinHeight(0).Padding(top, t.Space(3), t.Space(3), t.Space(3)).Gap(t.Space(2)).Children(func() {
 		ui.Row(c).Gap(t.Space(1)).AlignItems(ui.Center).Children(func() {
-			ui.Text(c, title).FontSize(uikit.TextTitle).FontWeight(600).TextColor(t.Text).Grow(1)
+			ui.Text(c, title).FontSize(uikit.TextTitle).FontWeight(500).TextColor(t.Text).Grow(1)
 			if uikit.IconButton(c, locales.NewRule(), locales.NewRule(), plusIcon).Clicked() {
 				a.editRule(-1, capture.Rule{Type: kind})
 			}
@@ -638,7 +638,7 @@ func (a *app) ruleList(c *ui.Context, t *ui.Theme, rows []int, preview []capture
 						pal := uikit.Colors(t)
 						ui.Box(c).Size(16, 16).Radius(8).Background(pal.Accent).AlignItems(ui.Center).Justify(ui.Center).
 							Label(fmt.Sprintf("Acts %s", ordinal(p.Step))).Children(func() {
-							ui.Text(c, strconv.Itoa(p.Step)).FontSize(uikit.TextMeta).FontWeight(600).TextColor(pal.AccentText).FontFeatures("tnum")
+							ui.Text(c, strconv.Itoa(p.Step)).FontSize(uikit.TextMeta).FontWeight(500).TextColor(pal.AccentText).FontFeatures("tnum")
 						})
 					case preview == nil && a.srv != nil:
 						if n := a.srv.RuleHits(r); n > 0 {

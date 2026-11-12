@@ -60,9 +60,9 @@ func (a *app) historyRecords(d *requestDocument) []experimentRecord {
 // read-only in place of the response; choosing an example opens it in the
 // Examples tab.
 func (a *app) historyColumn(c *ui.Context, t *ui.Theme, d *requestDocument) {
-	ui.Column(c).Width(historyWidth).FillHeight().Background(uikit.Colors(t).Panel).
+	ui.Column(c).Width(historyWidth).FillHeight().Background(uikit.Colors(t).Chrome).
 		BorderWidth(0, 1, 0, 0).BorderColor(t.Border).Children(func() {
-		ui.Row(c).Height(uikit.HeightTabs+uikit.HeightCompact/2).Padding(0, t.Space(2)).AlignItems(ui.Center).Children(func() {
+		ui.Row(c).Height(uikit.HeightBar).Padding(0, t.Space(2)).AlignItems(ui.Center).Children(func() {
 			uikit.Segmented(c, &d.historyTab, locales.History(), locales.Examples()).Label(locales.RequestHistory()).FillWidth()
 		})
 		ui.Scroll(c).Grow(1).MinHeight(0).Padding(0, t.Space(2), t.Space(2)).Gap(t.Space(0.5)).Children(func() {
@@ -133,7 +133,7 @@ func (a *app) historyResponse(c *ui.Context, t *ui.Theme, d *requestDocument, r 
 	ui.Column(c).Fill().Children(func() {
 		ui.Row(c).Height(uikit.HeightTabs).Padding(0, t.Space(2)).Gap(t.Space(2)).AlignItems(ui.Center).
 			Border(0, t.Border).BorderWidth(0, 0, 1, 0).Children(func() {
-			ui.Text(c, locales.RunNumber(r.ID, runTime(r.At))).FontSize(uikit.TextBody).FontWeight(600).FontFeatures("tnum").SingleLine()
+			ui.Text(c, locales.RunNumber(r.ID, runTime(r.At))).FontSize(uikit.TextBody).FontWeight(500).FontFeatures("tnum").SingleLine()
 			uikit.Meta(c, locales.ReadOnly()).Grow(1)
 			if f := r.Exchange; f != nil && f.Status != 0 {
 				uikit.StatusPill(c, strconv.Itoa(f.Status), uikit.StatusColor(f.Status, t)).FontSize(uikit.TextMeta)

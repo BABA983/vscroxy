@@ -127,12 +127,14 @@ func (a *app) guideStep(c *ui.Context, t *ui.Theme, i int, title, summary string
 		mark := ui.Row(c).Size(20, 20).Shrink(0).Radius(10).Justify(ui.Center).AlignItems(ui.Center)
 		switch {
 		case done:
-			mark.Background(p.Accent).TextColor(p.AccentText).Label(locales.Done()).Children(func() {
+			// A step that is behind you passed: green is that, and nothing
+			// else in the checklist is.
+			mark.Background(p.Success).TextColor(p.AccentText).Label(locales.Done()).Children(func() {
 				ui.Icon(c, checkIcon).Size(12, 12)
 			})
 		case current:
 			mark.Background(p.Accent).TextColor(p.AccentText).Children(func() {
-				ui.Text(c, fmt.Sprint(i+1)).FontSize(uikit.TextMeta).FontWeight(600)
+				ui.Text(c, fmt.Sprint(i+1)).FontSize(uikit.TextMeta).FontWeight(500)
 			})
 		default:
 			mark.Background(t.Text.Alpha(0.08)).TextColor(t.TextMuted).Children(func() {
@@ -142,7 +144,7 @@ func (a *app) guideStep(c *ui.Context, t *ui.Theme, i int, title, summary string
 		ui.Column(c).Grow(1).MinWidth(0).Gap(t.Space(1)).Children(func() {
 			heading := ui.Text(c, title).FontSize(uikit.TextBody).TextColor(t.Text)
 			if current {
-				heading.FontWeight(600)
+				heading.FontWeight(500)
 			}
 			uikit.Meta(c, summary)
 			if open {

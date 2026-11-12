@@ -47,9 +47,10 @@ func (a *app) liveDocument(f flow) (*requestDocument, string) {
 	d := a.newDocument(r, "")
 	d.setDebugSource(newDebugSource(f))
 	d.baseline = d.value()
-	// Read first: an unchanged capture opens in its own readers, with the
-	// editor's tabs beside them.
-	d.composeTab = composeTabOriginal
+	// An unchanged capture is the document: its tabs open on the part a
+	// request of this shape is usually edited in, and the capture itself is
+	// only somewhere else to look once the draft differs from it.
+	d.composeTab = composeTabFor(r)
 	a.live = d
 	return d, ""
 }
@@ -191,7 +192,6 @@ func (a *app) capturedHeader(c *ui.Context, t *ui.Theme, f flow, d *requestDocum
 		ui.Popover(c, info, &a.connOpen, func() { a.connPanel(c, t, f) })
 		a.inspectorMenu(c, t, f)
 	})
-	ui.Divider(c)
 }
 
 // capturedDocument is a captured HTTP request as an editable document: the
@@ -219,11 +219,11 @@ func (a *app) capturedDocument(c *ui.Context, t *ui.Theme, f flow, d *requestDoc
 		return
 	}
 	if a.inspect.percent == 0 {
-		a.inspect.percent = 50
+		a.inspect.percent = splitShare
 	}
-	request := func() {
-		a.requestEditor(c, t, d, func() { a.requestPane(c, f) })
-	}
+	// The capture's panes keep their own tab: moving to another request and
+	// back should land where the reader was.
+	request := func() { a.requestEditor(c, t, d, f, &a.inspect.tab[0]) }
 	response := func() {
 		// Sent, the document's response is what it got back; until then it
 		// is what the capture got.
@@ -233,11 +233,11 @@ func (a *app) capturedDocument(c *ui.Context, t *ui.Theme, f flow, d *requestDoc
 		}
 		a.responsePane(c, f)
 	}
-	if a.sidesStacked() {
-		ui.SplitVerticalPercent(c.Key("inspector-sides"), &a.inspect.percent, request, response).SplitReset(50).Grow(1)
+	if a.sidesStacked(c) {
+		ui.SplitVerticalPercent(c.Key("inspector-sides"), &a.inspect.percent, request, response).SplitReset(splitShare).Grow(1)
 		return
 	}
-	ui.SplitPercent(c.Key("inspector-sides"), &a.inspect.percent, request, response).SplitReset(50).Grow(1)
+	ui.SplitPercent(c.Key("inspector-sides"), &a.inspect.percent, request, response).SplitReset(splitShare).Grow(1)
 }
 
 // capturedReadOnly says why a captured HTTP request shows only its readers,
@@ -256,5 +256,4 @@ func (a *app) capturedReadOnly(c *ui.Context, t *ui.Theme, f flow, problem strin
 		}
 		uikit.Hint(c, problem).SingleLine().Grow(1).Tooltip(problem)
 	})
-	ui.Divider(c)
 }

@@ -153,7 +153,7 @@ func TestRequestConsoleAndRunsAreVisibleWithoutReexecution(t *testing.T) {
 		tt.Frame()
 		runtime.Gosched()
 	}
-	click("Response tab: Console")
+	choosePaneView(t, tt, "Response pane", "Console")
 	if !tt.HasText("pre-request · log · pre-output") || !tt.HasText("post-response · log · post-output") || !tt.HasText("post-response.js:1:") {
 		t.Fatal("visible console lost logs or error location")
 	}

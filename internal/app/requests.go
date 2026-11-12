@@ -6,7 +6,6 @@ import (
 	"encoding/json/jsontext"
 	"fmt"
 	"maps"
-	"net/http"
 	"net/url"
 	"reflect"
 	"slices"
@@ -121,8 +120,11 @@ type requestDocument struct {
 	// bodyEditor is the raw request body's editor. bodyFor is the text it
 	// last held, so an import or a restored draft resets it while typing
 	// never does. The scripts use the same reader, each with its own state.
-	bodyEditor     *editor.State
-	bodyFor        string
+	bodyEditor *editor.State
+	bodyFor    string
+	// bodyRead is how the Body view reads the draft's bytes: 0 edits them,
+	// the rest are the read-only representations draftBodyFormats lists.
+	bodyRead       int
 	preEditor      *editor.State
 	preFor         string
 	postEditor     *editor.State
@@ -232,7 +234,7 @@ func (a *app) addDocument(r savedRequest, key string) {
 func (a *app) newDocument(r savedRequest, key string) *requestDocument {
 	a.nextDocument++
 	d := &requestDocument{
-		id: a.nextDocument, debugKey: uuid.New().String(), requestPercent: draftPercent,
+		id: a.nextDocument, debugKey: uuid.New().String(),
 		composeTab: composeTabFor(r), baseline: savedRequest{Method: "GET", URL: "https://"},
 	}
 	d.load(a, r, key)
@@ -290,20 +292,23 @@ func (d *requestDocument) load(a *app, r savedRequest, key string) {
 	}
 }
 
-// The request editor's tabs, in the order they show.
+// A request pane's views, in the order its row shows them. The first four are
+// tabs; the rest open from More, so a pane keeps one row of them.
 const (
-	composeTabParams = iota
-	composeTabHeaders
-	composeTabAuth
+	composeTabHeaders = iota
+	composeTabParams
 	composeTabBody
+	composeTabAuth
+	composeTabRaw
 	composeTabScripts
 	composeTabChecks
 	composeTabExamples
 	composeTabDocs
 	composeTabSettings
 	// composeTabOriginal reads the captured request a draft came from, in
-	// the capture's readers. Only a captured request has it.
+	// the capture's readers. Only a capture that was edited has it.
 	composeTabOriginal
+	composeTabCookies
 )
 
 // composeTabFor opens the tab a request is usually edited in: its body when
@@ -495,15 +500,15 @@ func (a *app) closeRequestModal(c *ui.Context, t *ui.Theme) {
 // sidebar: saved ones in their collection, new ones under Unsaved.
 func (a *app) documentHeader(c *ui.Context, t *ui.Theme) {
 	d := a.requestDocument
-	ui.Row(c).Height(uikit.HeightLarge).Padding(0, t.Space(2)).Gap(t.Space(1)).AlignItems(ui.Center).Background(uikit.Colors(t).Panel).Children(func() {
+	ui.Row(c).Height(uikit.HeightLarge).Padding(0, t.Space(2)).Gap(t.Space(1)).AlignItems(ui.Center).Background(uikit.Colors(t).Chrome).Children(func() {
 		if d != nil {
-			crumb := uikit.ToolbarButton(c, locales.RenameRequest(), locales.RenameOrMoveToAnother(), false).Height(uikit.HeightCompact).
+			crumb := uikit.ToolbarButton(c, locales.RenameRequest(), locales.RenameOrMoveToAnother(), false).Height(uikit.HeightControl).
 				Padding(0, t.Space(1)).Gap(t.Space(1)).MinWidth(0)
 			crumb.Children(func() {
 				if d.composeCollection != "" {
 					uikit.Meta(c, strings.ReplaceAll(d.composeCollection, "/", " / ")+" /").SingleLine().MinWidth(0)
 				}
-				uikit.Body(c, d.title()).FontWeight(600).SingleLine().MinWidth(0)
+				uikit.Body(c, d.title()).FontWeight(500).SingleLine().MinWidth(0)
 				if d.dirty() {
 					unsavedDot(c)
 				}
@@ -552,19 +557,7 @@ func (a *app) documentHeader(c *ui.Context, t *ui.Theme) {
 			})
 		}
 	})
-	ui.Divider(c)
 }
-
-// Response views are separate from the request editor's tabs: reading what
-// came back never moves the draft.
-const (
-	resViewBody = iota
-	resViewHeaders
-	resViewCookies
-	resViewTiming
-	resViewTests
-	resViewConsole
-)
 
 // composeView is the debugging screen: the request as it will be sent on top,
 // what came back below, and the provenance of both always visible.
@@ -586,7 +579,7 @@ func (a *app) composeView(c *ui.Context, t *ui.Theme) {
 			return
 		}
 		if d.requestPercent == 0 {
-			d.requestPercent = draftPercent
+			d.requestPercent = a.draftShare(c)
 		}
 		// A share the reader set is theirs; the app only moves the divider it
 		// still owns.
@@ -594,16 +587,52 @@ func (a *app) composeView(c *ui.Context, t *ui.Theme) {
 			d.splitTouched = true
 		}
 		d.splitSeen = d.requestPercent
-		ui.SplitVerticalPercent(c.Key("request-editor"), &d.requestPercent, func() {
-			a.requestEditor(c, t, d, nil)
-		}, func() {
+		request := func() { a.requestEditor(c, t, d, flow{}, &d.composeTab) }
+		response := func() {
 			if r := a.experiments.record(d.historyPick); r != nil {
 				a.historyResponse(c, t, d, r)
 				return
 			}
 			a.requestResponse(c, t, d)
-		}).Grow(1)
+		}
+		// The same rule as the inspector's panes: side by side while there is
+		// room for both, stacked in a narrow column.
+		if a.sidesStacked(c) {
+			ui.SplitVerticalPercent(c.Key("request-editor"), &d.requestPercent, request, response).SplitReset(a.draftShare(c)).Grow(1)
+			return
+		}
+		ui.SplitPercent(c.Key("request-editor"), &d.requestPercent, request, response).SplitReset(a.draftShare(c)).Grow(1)
 	})
+}
+
+// responseFormatsOf is what the response body can be read as, and the format
+// its Content-Type names, which the first entry resolves to.
+func responseFormatsOf(d *requestDocument) ([]string, string) {
+	formats := append([]string(nil), responseFormats...)
+	detected := inspect.BodyFormat(d.response.ResponseHeader.Get("Content-Type"))
+	if detected != "" {
+		formats = append(formats, detected)
+	}
+	if d.responseView >= len(formats) {
+		d.responseView, d.responseEditor = 0, nil
+	}
+	return formats, detected
+}
+
+// responseFormatActions are the response body's representations and the query,
+// for a menu the pane's row already has.
+func (a *app) responseFormatActions(d *requestDocument) []action {
+	formats, _ := responseFormatsOf(d)
+	items := make([]action, 0, len(formats)+1)
+	for i, name := range formats {
+		items = append(items, do("response.format", name, func() {
+			d.responseView, d.responseEditor, d.responseList = i, nil, ui.ListState{}
+		}).checked(checkbox(i == d.responseView)))
+	}
+	return append(items, do("response.query", locales.QueryJson(), func() {
+		r := d.response
+		a.openJSONQuery(inspectionBody{r.ResponseBody, r.ResponseBodyFile, r.ResponseBodyError, r.ResponseBodySize})
+	}))
 }
 
 // responseArrived gives the first response the room it needs, unless the reader
@@ -682,7 +711,7 @@ func (a *app) requestRenameModal(c *ui.Context, t *ui.Theme) {
 func (a *app) requestDocumentActions(c *ui.Context, t *ui.Theme, d *requestDocument) {
 	ui.Row(c).Key(d.id).Gap(t.Space(1)).AlignItems(ui.Center).Children(func() {
 		if d.sourceAPI != "" {
-			if uikit.ToolbarButton(c, locales.SourceApi(), locales.OpenTheApiThisRequest(), false).Height(uikit.HeightCompact).Children(func() {
+			if uikit.ToolbarButton(c, locales.SourceApi(), locales.OpenTheApiThisRequest(), false).Height(uikit.HeightControl).Children(func() {
 				ui.Text(c, locales.SourceApi()).TextColor(t.Accent)
 			}).Clicked() {
 				a.apiChoice, a.page = d.sourceAPI, pageAPI
@@ -750,7 +779,7 @@ func (a *app) requestVariablesPanel(c *ui.Context, t *ui.Theme, d *requestDocume
 	if !d.variablesOpen {
 		return
 	}
-	ui.Column(c).Height(160).Padding(t.Space(2), t.Space(3)).Gap(t.Space(2)).Background(uikit.Colors(t).Panel).Children(func() {
+	ui.Column(c).Height(160).Padding(t.Space(2), t.Space(3)).Gap(t.Space(2)).Background(uikit.Colors(t).Chrome).Children(func() {
 		ui.Row(c).Gap(t.Space(2)).Children(func() {
 			uikit.Meta(c, contextLabel).Grow(1)
 			if uikit.CompactButton(c, locales.EditEnvironments()).Clicked() {
@@ -789,12 +818,45 @@ func variableRows(c *ui.Context, rows []request.ResolvedVariable, reveal *bool) 
 }
 
 // draftPercent is the share of the debugging screen the request editor gets
-// while nothing has come back: enough for several header rows and the row
-// action, without shrinking the type. A response pulls it to responsePercent.
+// while nothing has come back: the design's 5:6. A column split needs more of
+// the height for the editor than a row split needs of the width, so stacked
+// panes start at draftStackedPercent. A response pulls either to
+// responsePercent, which leaves the reader the wider half.
 const (
-	draftPercent    = 55
-	responsePercent = 35
+	draftPercent        = splitShare
+	draftStackedPercent = 55
+	responsePercent     = 35
 )
+
+// editorWidth is the room the editor has: the content less the history
+// column a saved request shows beside it.
+func (a *app) editorWidth(c *ui.Context) float32 {
+	width := a.contentWidth(c)
+	if d := a.requestDocument; d != nil && d.assetID != "" && width >= 900 {
+		width -= historyWidth
+	}
+	return width
+}
+
+// editorPaneWidthAt is how wide one pane of the editor was laid out, from the
+// frame before, or the share it expects before the first layout.
+func (a *app) editorPaneWidthAt(c *ui.Context, h *ui.Handle, share float32) float32 {
+	if r := h.Bounds(c); r.W > 0 {
+		return r.W
+	}
+	if a.sidesStacked(c) {
+		return a.editorWidth(c)
+	}
+	return a.editorWidth(c) * share / 100
+}
+
+// draftShare is where the editor's divider starts in this layout.
+func (a *app) draftShare(c *ui.Context) float32 {
+	if a.sidesStacked(c) {
+		return draftStackedPercent
+	}
+	return draftPercent
+}
 
 // requestMethods are the methods the editor offers; any other is typed.
 var requestMethods = []string{"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"}
@@ -857,7 +919,7 @@ func (a *app) requestBar(c *ui.Context, t *ui.Theme, d *requestDocument, more fu
 			}
 			control.Children(func() {
 				method := ui.ComboboxBase(c, &d.composeMethod)
-				method.Input.Width(72).Height(uikit.HeightControl).Padding(0, t.Space(1)).Label(locales.Method()).FontSize(uikit.TextBody).FontWeight(600).
+				method.Input.Width(72).Height(uikit.HeightControl).Padding(0, t.Space(1)).Label(locales.Method()).FontSize(uikit.TextBody).FontWeight(500).
 					TextColor(uikit.MethodColor(d.composeMethod, t)).Border(0, t.Border)
 				if method.Input.Changed() {
 					d.composeMethod = strings.ToUpper(strings.TrimSpace(d.composeMethod))
@@ -902,7 +964,7 @@ func (a *app) requestBar(c *ui.Context, t *ui.Theme, d *requestDocument, more fu
 				if !mark.Defined {
 					color = t.Danger
 				}
-				input.TextRanges(ui.TextRange{Start: mark.Start, End: mark.End, Color: color, Weight: 600})
+				input.TextRanges(ui.TextRange{Start: mark.Start, End: mark.End, Color: color, Weight: 500})
 			}
 			a.variableTooltip(c, input, marks, false)
 			a.syncVariableCompletion(input, "URL", &d.composeURL)
@@ -958,7 +1020,6 @@ func (a *app) requestBar(c *ui.Context, t *ui.Theme, d *requestDocument, more fu
 			more()
 		}
 	})
-	ui.Divider(c)
 }
 
 // urlSpans styles references, never expands them or reads their secret values.
@@ -977,7 +1038,7 @@ func urlSpans(raw string, t *ui.Theme, marks []variableMark) []ui.Span {
 			color = t.Danger
 		}
 		spans = append(spans, ui.Span{Text: raw[mark.Ref.Start:mark.Ref.End], Font: uikit.FontMono, Size: uikit.TextBody,
-			Color: color, Weight: 600, Background: color.Alpha(0.12), Radius: uikit.RadiusControl})
+			Color: color, Weight: 500, Background: color.Alpha(0.12), Radius: uikit.RadiusControl})
 		at = mark.Ref.End
 	}
 	if at < len(raw) {
@@ -990,7 +1051,7 @@ func urlSpans(raw string, t *ui.Theme, marks []variableMark) []ui.Span {
 // scripts, each a tab of the same document.
 // requestEditor edits the request's parts; original, when set, reads the
 // captured request it came from in its own tab.
-func (a *app) requestEditor(c *ui.Context, t *ui.Theme, d *requestDocument, original func()) {
+func (a *app) requestEditor(c *ui.Context, t *ui.Theme, d *requestDocument, f flow, selected *int) {
 	if d.protocol == "Socket.IO" {
 		a.socketIOEditor(c, t, d)
 		return
@@ -1007,17 +1068,28 @@ func (a *app) requestEditor(c *ui.Context, t *ui.Theme, d *requestDocument, orig
 		a.mcpEditor(c, t, d)
 		return
 	}
-	labels := []string{locales.Params(), locales.RequestHeadersLabel(), locales.Auth(), locales.Body(), locales.Scripts(), locales.Checks(), locales.Examples(), locales.Docs(), locales.Settings()}
-	if original != nil {
-		labels = append(labels, locales.OriginalTab())
-	} else if d.composeTab == composeTabOriginal {
-		d.composeTab = composeTabParams
+	if *selected == composeTabOriginal && !a.edited(f.id) {
+		*selected = composeTabHeaders
 	}
-	// Beside a capture's response the editor has half the width: its body
-	// tools take their own row there.
-	wide := a.contentWidth(c) >= 900 && original == nil
+	// The body tools share the header only when the pane has room for them;
+	// side by side with the response it takes its own row.
+	width := a.editorPaneWidthAt(c, &a.editorReqPane, draftPercent)
+	wide := width >= 720
 	bodyTools := func() {
 		uikit.SelectLabels(c, &d.bodyMode, bodyTypes, optionLabel).Label(locales.RequestBodyType()).Width(132).FontSize(uikit.TextMeta)
+		// Reading the bytes is a view of the same draft: the formats a
+		// capture's readers used to offer, without leaving the Body tab.
+		formats := a.draftBodyFormats(d)
+		shown := formats[min(max(d.bodyRead, 0), len(formats)-1)]
+		ui.Row(c).Disabled(d.bodyMode != "Raw").Children(func() {
+			uikit.MenuSelect(c, shown, func(m *ui.Menu) {
+				for i, name := range formats {
+					if m.Item(name).Checked(i == d.bodyRead).Chosen() {
+						d.bodyRead = i
+					}
+				}
+			}).Label(locales.ReadBodyAs()).Tooltip(locales.ReadBodyAsHelp()).FontSize(uikit.TextMeta)
+		})
 		text, seen := &d.composeBody, &d.bodyFor
 		formatLabel := locales.FormatBody()
 		formatHelp := locales.FormatBodyHelp()
@@ -1050,68 +1122,22 @@ func (a *app) requestEditor(c *ui.Context, t *ui.Theme, d *requestDocument, orig
 			}
 		})
 	}
-	ui.Column(c).Fill().Children(func() {
-		ui.Row(c).Height(uikit.HeightTabs).Padding(0, t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).
-			Border(0, t.Border).BorderWidth(0, 0, 1, 0).Children(func() {
-			counts := make([]string, len(labels))
-			if u, err := url.Parse(d.composeURL); err == nil {
-				n := 0
-				for _, values := range u.Query() {
-					n += len(values)
-				}
-				counts[composeTabParams] = fmt.Sprint(n)
-			}
-			headers := d.headerRows
-			if d.headerBulk || headers == nil {
-				headers = parseHeaderRows(d.composeHeaders)
-			}
-			n := 0
-			for _, row := range headers {
-				if !row.Disabled && row.Name != "" {
-					n++
-				}
-			}
-			counts[composeTabHeaders] = fmt.Sprint(n)
-			n = 0
-			if strings.TrimSpace(d.checks.Status) != "" {
-				n++
-			}
-			for _, block := range []string{d.checks.Headers, d.checks.JSON} {
-				for line := range strings.SplitSeq(block, "\n") {
-					if strings.TrimSpace(line) != "" {
-						n++
-					}
-				}
-			}
-			counts[composeTabChecks], counts[composeTabExamples] = fmt.Sprint(n), fmt.Sprint(len(d.examples))
-			uikit.TabStrip(c, func() {
-				if original == nil {
-					uikit.CountedTabs(c, &d.composeTab, locales.RequestEditorTabPrefix(), labels, counts)
-					return
-				}
-				// A capture reads first: Original leads its tabs, so the tab
-				// it opens on is the one in view, and the arrows follow the
-				// order shown.
-				n := len(labels)
-				shown := (d.composeTab + 1) % n
-				uikit.CountedTabs(c, &shown, locales.RequestEditorTabPrefix(), slices.Concat(labels[n-1:], labels[:n-1]), slices.Concat(counts[n-1:], counts[:n-1]))
-				d.composeTab = (shown + n - 1) % n
-			}).Grow(1).FillHeight()
-			if wide && d.composeTab == composeTabBody {
+	ui.Column(c).Fill().Bind(&a.editorReqPane).Children(func() {
+		a.requestPaneHeader(c, t, selected, d, f, paneTools{format: -1, width: width, draw: func(*paneRoom) {
+			// Beside a capture's response the editor has half the width: its
+			// body tools take their own row there.
+			if wide && *selected == composeTabBody {
 				bodyTools()
 			}
-			if d.composeTab == composeTabHeaders {
-				a.headerModeButton(c, d, t)
-			}
-		})
-		if !wide && d.composeTab == composeTabBody {
+		}})
+		if !wide && *selected == composeTabBody {
 			ui.Row(c).Height(uikit.HeightLarge).Padding(0, t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 				ui.Spacer(c)
 				bodyTools()
 			})
 		}
 		ui.Column(c).Grow(1).Padding(t.Space(2), t.Space(3)).Gap(t.Space(2)).Children(func() {
-			switch d.composeTab {
+			switch *selected {
 			case composeTabParams:
 				a.paramsEditor(c, d, t)
 			case composeTabHeaders:
@@ -1138,12 +1164,14 @@ func (a *app) requestEditor(c *ui.Context, t *ui.Theme, d *requestDocument, orig
 			case composeTabSettings:
 				a.requestSettingsEditor(c, d, t)
 			case composeTabOriginal:
-				original()
+				a.headersSide(c, f, 1)
+			case composeTabCookies:
+				cookieView(c, f.reqHeader, false, &a.inspect.reveal[1])
 			}
 		})
 		// A visible response already names the last attempt and draft changes.
 		if d.composeWaiting || d.sentSet && d.response == nil {
-			ui.Row(c).Height(uikit.HeightCompact).Padding(0, t.Space(3)).AlignItems(ui.Center).Children(func() {
+			ui.Row(c).Height(uikit.HeightControl).Padding(0, t.Space(3)).AlignItems(ui.Center).Children(func() {
 				a.requestSentState(c, t, d)
 			})
 		}
@@ -1191,112 +1219,105 @@ func (a *app) requestResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 	if r := a.experiments.record(d.experimentID); r != nil && r.RunKey == d.sentRun && r.Outcome == "Network error" {
 		outcome, detail = r.Outcome, r.Summary
 	}
-	ui.Column(c).Fill().Children(func() {
-		ui.Row(c).Height(uikit.HeightTabs).Padding(0, t.Space(2)).Gap(t.Space(2)).AlignItems(ui.Center).
-			Border(0, t.Border).BorderWidth(0, 0, 1, 0).Children(func() {
-			if !d.comparing && (d.response != nil || len(d.composeReplies) > 0 || len(d.console) > 0) {
-				labels := []string{locales.Body(), locales.ResponseHeadersLabel(), locales.Cookies2(), locales.TimingTab(), locales.Checks(), locales.Console()}
-				counts := make([]string, len(labels))
-				if r := d.response; r != nil {
-					n := 0
-					for _, values := range r.ResponseHeader {
-						n += len(values)
-					}
-					counts[resViewHeaders] = fmt.Sprint(n)
+	width := a.editorPaneWidthAt(c, &a.editorRespPane, 100-draftPercent)
+	ui.Column(c).Fill().Bind(&a.editorRespPane).Children(func() {
+		sum := responseSummary{title: locales.Response(), dot: uikit.Colors(t).TextMuted}
+		if r := d.response; r != nil {
+			sum = sentSummaryOf(t, r, outcome)
+		}
+		if d.composeWaiting {
+			sum.title = locales.Sending()
+		}
+		// The pane's own controls take their room in the order the row gives
+		// it up: the actions first, then the format menu, and Decode last.
+		// What does not fit is in the pane's menu instead, so a tab is never
+		// cut.
+		var leftOut []action
+		tools := func(room *paneRoom) {
+			type control struct {
+				label, tip string
+				icon       *ui.SVG
+				disabled   bool
+				run        func()
+			}
+			var actions []control
+			if d.source != nil && d.response != nil && !d.comparing {
+				actions = append(actions, control{locales.CompareWithSource(), locales.CompareThisResponseWithThe(), compareIcon, false, func() { d.comparing = true }})
+			}
+			if d.response != nil && d.response.Status != 0 && !d.composeWaiting {
+				actions = append(actions, control{locales.SaveResponseBody(), locales.SaveBodyCompleteDecodedBytes(), saveIcon, false, func() { a.saveResponseBody(*d.response) }})
+			}
+			if d.response != nil && !d.composeWaiting && outcome != "Network error" && d.sentSet {
+				actions = append(actions, control{locales.SaveAsExample(), locales.KeepThisResponseWithThe(), exampleIcon, false, func() { a.saveExample(d) }})
+			}
+			// Without a retained send there is nothing to read, so the entry
+			// waits rather than opening an empty list.
+			actions = append(actions, control{locales.OpenRequestHistory(), locales.HistoryInspectRetainedAttemptsOpening(), sendHistoryIcon, d.origin == nil && d.experimentID == 0, func() { a.openSendHistory(d) }})
+			// The body's format menu says how the tab you are reading is
+			// read, so it comes before the pane's actions; the actions are
+			// one group, two points apart, so a row of them costs what it
+			// looks like; Decode is the one-off tool and yields first.
+			var shown string
+			showFormat := false
+			if d.responseTab == resViewBody && d.response != nil {
+				formats, detected := responseFormatsOf(d)
+				shown = formats[d.responseView]
+				if d.responseView == 0 {
+					shown = cmp.Or(detected, "Pretty")
 				}
-				if len(d.composeTests) > 0 {
-					passed := 0
-					for _, check := range d.composeTests {
-						if check.Pass {
-							passed++
-						}
-					}
-					counts[resViewTests] = fmt.Sprintf("%d/%d", passed, len(d.composeTests))
+				showFormat = room.fits(paneTextWidth(c, shown, uikit.TextBody, 400) + 2*t.Space(2) + 14)
+			}
+			actionsWidth := float32(len(actions))*uikit.HeightControl + float32(max(len(actions)-1, 0))*2
+			showActions := room.fits(actionsWidth)
+			showDecode := d.responseTab == resViewBody && d.response != nil &&
+				room.fits(paneTextWidth(c, locales.DecodeResponseText(), uikit.TextBody, 400)+20)
+			if d.responseTab == resViewBody && d.response != nil {
+				if showFormat {
+					uikit.MenuSelect(c, shown, func(m *ui.Menu) { actionMenu(m, a.responseFormatActions(d)) }).
+						Label(locales.ResponseFormat()).Tooltip(locales.ResponseBodyFormat())
+				} else {
+					leftOut = append(leftOut, submenu(locales.ResponseFormat(), a.responseFormatActions(d)...))
 				}
-				if d.responseTab >= len(labels) {
-					d.responseTab = resViewBody
-				}
-				uikit.TabStrip(c, func() {
-					uikit.CountedTabs(c, &d.responseTab, "Response tab", labels, counts)
-				}).Grow(1).FillHeight()
-				if d.responseTab == resViewBody && d.response != nil {
-					formats := append([]string(nil), responseFormats...)
-					format := inspect.BodyFormat(d.response.ResponseHeader.Get("Content-Type"))
-					if format != "" {
-						formats = append(formats, format)
-					}
-					if d.responseView >= len(formats) {
-						d.responseView, d.responseEditor = 0, nil
-					}
-					shown := formats[d.responseView]
-					if d.responseView == 0 {
-						shown = cmp.Or(format, "Pretty")
-					}
-					uikit.MenuSelect(c, shown, func(m *ui.Menu) {
-						for i, name := range formats {
-							if m.Item(name).Checked(i == d.responseView).Chosen() {
-								d.responseView, d.responseEditor, d.responseList = i, nil, ui.ListState{}
-							}
-						}
-						m.Separator()
-						if m.Item("Query JSON…").Chosen() {
-							r := d.response
-							a.openJSONQuery(inspectionBody{r.ResponseBody, r.ResponseBodyFile, r.ResponseBodyError, r.ResponseBodySize})
-						}
-					}).Label(locales.ResponseFormat()).Tooltip(locales.ResponseBodyFormat())
+				if showDecode {
 					if uikit.SecondaryButton(c, locales.DecodeDialog()).Label(locales.DecodeResponseText()).Clicked() {
 						a.openDecoder(d.responseEditor, d.response.ResponseBody)
 					}
+				} else {
+					leftOut = append(leftOut, do("response.decode", locales.DecodeDialog(), func() {
+						a.openDecoder(d.responseEditor, d.response.ResponseBody)
+					}))
 				}
-			} else {
-				ui.Text(c, locales.Response()).FontSize(uikit.TextBody).FontWeight(600).Grow(1)
 			}
 			if d.composeWaiting {
 				uikit.Hint(c, locales.Sending())
 			}
-			if d.source != nil && d.response != nil && !d.comparing {
-				if uikit.IconButton(c, locales.CompareWithSource(), locales.CompareThisResponseWithThe(), compareIcon).
-					Size(uikit.HeightControl, uikit.HeightControl).Clicked() {
-					d.comparing = true
+			if !showActions {
+				for _, action := range actions {
+					leftOut = append(leftOut, do("response."+action.label, action.label, action.run).when(!action.disabled, locales.NotSentYet()))
 				}
+				return
 			}
-			if d.response != nil && d.response.Status != 0 && !d.composeWaiting {
-				if uikit.IconButton(c, locales.SaveResponseBody(), locales.SaveBodyCompleteDecodedBytes(), saveIcon).
-					Size(uikit.HeightControl, uikit.HeightControl).Clicked() {
-					a.saveResponseBody(*d.response)
-				}
-			}
-			if d.response != nil && !d.composeWaiting && outcome != "Network error" && d.sentSet {
-				if uikit.IconButton(c, locales.SaveAsExample(), locales.KeepThisResponseWithThe(), exampleIcon).
-					Size(uikit.HeightControl, uikit.HeightControl).Clicked() {
-					a.saveExample(d)
-				}
-			}
-			// Without a retained send there is nothing to read, so the entry
-			// waits rather than opening an empty list.
-			ui.Row(c).Disabled(d.origin == nil && d.experimentID == 0).Children(func() {
-				if uikit.IconButton(c, locales.OpenRequestHistory(), locales.HistoryInspectRetainedAttemptsOpening(), sendHistoryIcon).
-					Size(uikit.HeightControl, uikit.HeightControl).Clicked() {
-					a.openSendHistory(d)
+			ui.Row(c).Gap(2).AlignItems(ui.Center).Children(func() {
+				for _, action := range actions {
+					ui.Row(c).Disabled(action.disabled).Children(func() {
+						if uikit.IconButton(c, action.label, action.tip, action.icon).Size(uikit.HeightControl, uikit.HeightControl).Clicked() {
+							action.run()
+						}
+					})
 				}
 			})
-		})
-		if r := d.response; r != nil {
-			status := "No response"
-			if r.Status != 0 {
-				status = strings.TrimSpace(fmt.Sprintf("%d %s", r.Status, http.StatusText(r.Status)))
-			}
-			if outcome == "Network error" {
-				status = fmt.Sprintf("%d · proxy response", r.Status)
-			}
-			detail := humanBytes(r.Bytes)
-			if ct := (flow{respHeader: r.ResponseHeader}).contentType(true); ct != "" {
-				detail += " · " + ct
-			}
-			sent := flow{wait: r.Wait, download: r.Download, conn: conn{
-				resolved: r.Conn.Resolved, lookupMs: r.Conn.LookupMs, dnsFresh: r.Conn.DNSFresh, flows: r.Conn.Flows, tls: r.Conn.TLS,
-			}}
-			uikit.ResponseHeadline(c, status, uikit.StatusColor(r.Status, t), fmt.Sprintf("%d ms", r.Millis), detail, headlineTiming(t, sent))
+		}
+		tab := d.responseTab
+		a.responsePaneHeader(c, t, &d.responseTab, sum,
+			a.responseViews(&d.responseTab, d.response != nil, checksLabel(d),
+				d.response != nil || len(d.composeReplies) > 0 || len(d.console) > 0),
+			paneTools{format: -1, width: width, draw: tools, overflow: func(items []action) []action {
+				return append(leftOut, items...)
+			}})
+		// Choosing a view leaves the comparison: it belongs to the response,
+		// not to a tab.
+		if d.comparing && d.responseTab != tab {
+			d.comparing = false
 		}
 		if d.experimentID != 0 && !d.composeWaiting {
 			uikit.Meta(c, locales.RecordedRun(d.experimentID)).Padding(t.Space(1), t.Space(3)).
@@ -1331,7 +1352,7 @@ func (a *app) requestResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 				}
 			})
 			if d.lastAttemptOpen {
-				ui.Column(c).Padding(t.Space(2), t.Space(3)).Gap(t.Space(2)).Background(uikit.Colors(t).Panel).Children(func() {
+				ui.Column(c).Padding(t.Space(2), t.Space(3)).Gap(t.Space(2)).Background(uikit.Colors(t).Chrome).Children(func() {
 					uikit.Body(c, d.sent.Method+" "+d.sent.URL).Label(locales.LastSentDraftUrl()).Selectable()
 					uikit.Meta(c, locales.DraftSnapshotVariablesScriptsRedirects())
 					if d.response != nil {
@@ -1386,8 +1407,8 @@ func (a *app) responseBody(c *ui.Context, t *ui.Theme, d *requestDocument) {
 		return
 	}
 	if d.response == nil && len(d.composeReplies) == 0 {
-		ui.Scroll(c).Grow(1).FillWidth().Padding(t.Space(4)).Children(func() {
-			ui.Column(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(2)).Children(func() {
+		ui.Scroll(c).Grow(1).FillWidth().Children(func() {
+			ui.Column(c).Fill().Center().Padding(t.Space(4)).Gap(t.Space(1)).Children(func() {
 				if d.composeWaiting {
 					ui.Spinner(c).Label(locales.WaitingForRequestResult())
 					if budget := a.sendBudget(d.draft()); budget > 0 {
@@ -1402,7 +1423,7 @@ func (a *app) responseBody(c *ui.Context, t *ui.Theme, d *requestDocument) {
 					ui.Text(c, d.composeResult).FontSize(uikit.TextBody).TextColor(t.Text).Selectable().FillWidth()
 					uikit.Meta(c, locales.EditTheDraftAndSend())
 				} else {
-					uikit.Hint(c, cmp.Or(d.composeResult, locales.SendToSeeResponse()))
+					uikit.Body(c, cmp.Or(d.composeResult, locales.SendToSeeResponse())).TextColor(t.Text)
 					uikit.Meta(c, locales.TheExchangeWillAlsoAppear())
 				}
 				if d.composeWaiting || d.sendOutcome == "Timed out" {
@@ -1477,7 +1498,7 @@ func (a *app) responseBody(c *ui.Context, t *ui.Theme, d *requestDocument) {
 					a.inspectCapture(a.flows[index].id)
 					a.syncDetail()
 					a.inspect.pane, a.inspect.ready = inspectorSplit, true
-					a.inspect.tab[1] = resTabTiming
+					a.inspect.tab[1] = resViewTiming
 				}
 			}
 			if index < 0 {
@@ -1541,7 +1562,7 @@ func runConsole(c *ui.Context, entries []request.ConsoleMessage) {
 // capture it came from, and puts the response tabs back when it closes.
 func (a *app) responseCompare(c *ui.Context, t *ui.Theme, d *requestDocument) {
 	ui.Row(c).Height(uikit.HeightControl).Padding(0, t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-		if uikit.ToolbarButton(c, locales.BackToResponse(), locales.BackToTheResponse(), false).Height(uikit.HeightCompact).Gap(t.Space(1)).Children(func() {
+		if uikit.ToolbarButton(c, locales.BackToResponse(), locales.BackToTheResponse(), false).Height(uikit.HeightControl).Gap(t.Space(1)).Children(func() {
 			ui.Icon(c, backIcon).Size(uikit.IconInline, uikit.IconInline)
 			ui.Text(c, locales.BackToResponse()).FontSize(uikit.TextMeta)
 		}).Clicked() {

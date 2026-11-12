@@ -46,12 +46,18 @@ func (a *app) contentWidth(c *ui.Context) float32 {
 	return width
 }
 
+// sidebarMinWidth is the narrowest window that keeps the sidebar beside the
+// content: under it the sidebar steps aside on its own, and comes back with
+// the choice it was left with when the window widens again.
+const sidebarMinWidth = 860
+
 // sidebarShown: the sidebar stays beside every screen, except while it is
-// hidden, the inspector has the window, or the run records (three columns
-// of their own, closed with their Close button) need it.
+// hidden, the inspector has the window, the run records (three columns of
+// their own, closed with their Close button) need it, or the window is too
+// narrow to hold it beside what it frames.
 func (a *app) sidebarShown() bool {
 	return !a.workbench.sidebarHidden && !(a.workbench.focused && a.page.capture()) &&
-		!(a.page == pageRuns)
+		a.windowWidth >= sidebarMinWidth && !(a.page == pageRuns)
 }
 
 func (a *app) desktopContent(c *ui.Context) {
@@ -76,8 +82,12 @@ func (a *app) desktopContent(c *ui.Context) {
 				a.documentHeader(c, c.Theme())
 				d := a.requestDocument
 				// A saved request has a history; the column leaves the editor
-				// its room in a narrow window, where Send history still opens it.
-				if d == nil || d.assetID == "" || available < 900 {
+				// its room in a narrow window, where Send history still opens
+				// it. It steps aside as soon as the request pane could not
+				// show its four tabs whole beside it, and comes back when the
+				// window has room again, as the sidebar does.
+				if d == nil || d.assetID == "" || available < 900 ||
+					!a.requestTabsFit(c, d, available-historyWidth) {
 					a.composeView(c, c.Theme())
 					return
 				}
@@ -106,7 +116,7 @@ func (a *app) desktopContent(c *ui.Context) {
 						a.activityStrip(c)
 						if a.chosen.Len() > 1 {
 							ui.Row(c).Height(uikit.HeightLarge).Padding(0, c.Theme().Space(2)).Gap(c.Theme().Space(2)).AlignItems(ui.Center).Children(func() {
-								ui.Text(c, locales.SelectedCount(a.chosen.Len())).FontSize(uikit.TextMeta).FontWeight(600).Grow(1)
+								ui.Text(c, locales.SelectedCount(a.chosen.Len())).FontSize(uikit.TextMeta).FontWeight(500).Grow(1)
 								a.actionButton(c, "flow.replay", "Replay…")
 								a.actionButton(c, "capture.export-chosen", "Export HAR…")
 								a.actionButton(c, "capture.export-chosen-csv", "Export CSV…")
@@ -146,15 +156,36 @@ var captureKinds = []string{"All", "HTTP", "HTTPS", "WebSocket", "SSE", "JSON", 
 // overflow menu.
 var captureProtocols = captureKinds[:6]
 
+// searchPlaceholder is what the search field says it searches. The whole
+// sentence names the operators the field takes; a field too narrow for it says
+// only what it searches, because a cut-off word reads as a broken field.
+func (a *app) searchPlaceholder(c *ui.Context) string {
+	switch a.searchMode {
+	case "Wildcard":
+		return "*.example.com/v1/*"
+	case "Regex":
+		return `/v[12]/(projects|users)\b`
+	}
+	placeholder := locales.SearchPlaceholder()
+	if w := a.search.Bounds(c).W; w > 0 && paneTextWidth(c, placeholder, uikit.TextBody, 400) > w-12 {
+		placeholder = locales.SearchHostOrPath()
+	}
+	return placeholder
+}
+
 func (a *app) captureToolbar(c *ui.Context, t *ui.Theme) {
 	width := a.contentWidth(c)
-	protocolWidth := min(302, width*0.36)
-	if width < 900 {
-		// Let the already-scrollable protocol tabs give up the mode
-		// selector's room, not the search input or its clickable chips.
+	// The protocol tabs are six short labels: they keep enough room to show
+	// them all down to a narrow window, and the search field keeps the rest.
+	// Conditions live inside the field, so while any are set they take that
+	// room first and the tabs give way.
+	protocolWidth := min(302, max(240, width*0.36))
+	if width < 900 && a.conditionsActive() {
 		protocolWidth = 128
 	}
-	ui.Row(c).Height(uikit.HeightBar).Padding(0, t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+	// A filter bar is the pane header's height: 32, with the controls at 24.
+	ui.Row(c).Height(uikit.HeightTabs).Padding(0, t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).
+		Border(0, t.Border).BorderWidth(0, 0, 1, 0).Children(func() {
 		mode := cmp.Or(a.searchMode, "Text")
 		if uikit.SelectLabels(c.Key("capture-search-mode"), &mode, searchModes, optionLabel).Label(locales.CaptureSearchMode()).
 			MinWidth(94).Width(94).Tooltip(locales.TextLiteralContainsAndKey()).Changed() {
@@ -178,16 +209,11 @@ func (a *app) captureToolbar(c *ui.Context, t *ui.Theme) {
 					a.captureConditions(c)
 				})
 			}
-			placeholder := locales.SearchPlaceholder()
-			if a.searchMode == "Wildcard" {
-				placeholder = "*.example.com/v1/*"
-			} else if a.searchMode == "Regex" {
-				placeholder = `/v[12]/(projects|users)\b`
-			}
+			placeholder := a.searchPlaceholder(c)
 			cb := ui.ComboboxBase(c.Key("capture-search"), &a.query)
 			search := cb.Input.Bind(&a.search).Label(locales.SearchHostOrPath()).Placeholder(placeholder).
 				Tooltip(cmp.Or(a.queryProblem, a.searchProblem, "Search host and path (including query) · Text supports key:value chips · Pattern modes treat the entire field as one expression · Ctrl/Cmd+F")).
-				Height(uikit.HeightCompact).Padding(0, t.Space(1)).FontSize(uikit.TextBody).Grow(1).MinWidth(min(200, width/5)).FocusRing(false)
+				Height(uikit.HeightControl).Padding(0, t.Space(1)).FontSize(uikit.TextBody).Grow(1).MinWidth(min(200, width/5)).FocusRing(false)
 			if a.queryProblem != "" || a.searchProblem != "" {
 				search.TextColor(t.Danger)
 			}
@@ -276,7 +302,9 @@ func (a *app) captureToolbar(c *ui.Context, t *ui.Theme) {
 						Padding(0, t.Space(1.5)).Radius(uikit.RadiusControl).AlignItems(ui.Center).TextColor(t.TextMuted)
 					switch {
 					case a.chip == i:
-						segment.Background(p.AccentTint).TextColor(t.Text)
+						// A filter's chosen tab is a neutral face: green is
+						// only for what is selected as data, primary or on.
+						segment.Background(p.Fill).TextColor(t.Text)
 					case segment.Pressed():
 						segment.Background(t.SurfacePressed)
 					case segment.Hovered():
@@ -584,12 +612,14 @@ func (a *app) actions(c *ui.Context) []action {
 		do("app.settings", locales.OpenSettings(), func() { a.openSettings(-1) }).keys(ui.Cmd, ui.KeyComma),
 		do("go.live", locales.GoToLiveTraffic(), func() {
 			a.page = pageLive
-			a.trafficOpen, a.revealGroup = true, "live"
+			a.revealGroup = "live"
+			*a.regionOpen("traffic") = true
 			a.focusTraffic(c)
 		}).keys(ui.Cmd, ui.Key1),
 		do("go.collections", locales.GoToCollections(), func() {
 			a.page = pageRequest
-			a.collectionsOpen, a.revealGroup = true, "collections"
+			a.revealGroup = "collections"
+			*a.regionOpen("collections") = true
 			if a.requestDocument != nil {
 				a.urlInput.Focus(c)
 			}

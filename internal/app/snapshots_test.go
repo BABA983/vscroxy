@@ -355,6 +355,24 @@ func TestUISnapshots(t *testing.T) {
 		}, want: "connection refused"},
 		{name: "capture-empty", setup: func(a *app) { a.flows = nil; a.recount(); a.applyFilter() }, want: "Capture is stopped"},
 		{name: "capture-selected", want: "Request inspector"},
+		// The row is chosen and the table holds the keyboard: the selection
+		// is the tint with the accent marker, not the neutral fill.
+		{name: "capture-selected-focused", act: func(t *testing.T, tt *ui.Tester) {
+			tt.SetFocused(true)
+			if err := tt.Click("api.example.com/projects"); err != nil {
+				t.Fatal(err)
+			}
+		}, want: "Request inspector"},
+		{name: "capture-sidebar-sources", setup: func(a *app) { snapshotSidebar(a, 20, 0, 0) },
+			act: click("Show all domains"), want: "Show fewer"},
+		{name: "capture-sidebar-unfocused", setup: func(a *app) { a.windowBehind = true }, want: "All requests"},
+		{name: "capture-sidebar-folded", setup: func(a *app) {
+			// Two regions folded away, as the headings remember them.
+			*a.regionOpen("sources") = false
+			*a.regionOpen("collections") = false
+		}, want: "Traffic"},
+		{name: "capture-sidebar-hidden", setup: func(a *app) { a.workbench.sidebarHidden = true }, want: "Captured requests"},
+		{name: "capture-sidebar-long", setup: func(a *app) { snapshotSidebar(a, 20, 3, 14) }, want: "Show all domains"},
 		{name: "capture-imported-charles", setup: func(a *app) {
 			data, err := os.ReadFile(filepath.Join("..", "imports", "testdata", "charles-session.chlsj"))
 			if err != nil {
@@ -367,7 +385,9 @@ func TestUISnapshots(t *testing.T) {
 			a.pickedID = 3
 			a.applyFilter()
 			openResponseBody(a)
-		}, want: "X-Trace"},
+			// The request opens in the editor, whose cells are fields: the
+			// captured request line names the flow on screen.
+		}, want: "POST https://api.example.com/projects?page=1"},
 		{name: "capture-imported-charles-websocket", setup: func(a *app) {
 			data, err := os.ReadFile(filepath.Join("..", "imports", "testdata", "charles-session.chlsj"))
 			if err != nil {
@@ -407,7 +427,7 @@ func TestUISnapshots(t *testing.T) {
 		}, want: "hello"},
 		{name: "capture-cookies", setup: func(a *app) {
 			a.flows[0].respHeader["Set-Cookie"] = []string{"session=fixture-value; Path=/; HttpOnly; Secure; SameSite=Lax", "theme=paper; Path=/account; Max-Age=3600"}
-			a.inspect.tab[1] = resTabCookies
+			a.inspect.tab[1] = resViewCookies
 		}, want: "2 cookies · captured headers"},
 		{name: "capture-form-xml", setup: func(a *app) {
 			snapshotStructured(a)
@@ -525,7 +545,7 @@ func TestUISnapshots(t *testing.T) {
 			click("Filter status")(t, tt)
 			tt.Type("200")
 			click("Apply")(t, tt)
-		}, want: "2 captured · 1 shown"},
+		}, want: "1 of 1 selected"},
 		{name: "capture-query", act: func(t *testing.T, tt *ui.Tester) {
 			click("Search host or path")(t, tt)
 			tt.Type("status:2xx app:Browser projects method:")
@@ -548,6 +568,9 @@ func TestUISnapshots(t *testing.T) {
 			f := &a.flows[0]
 			f.millis, f.wait, f.download = 300, 240, 60
 			f.conn = conn{resolved: "203.0.113.7", lookupMs: 25, dnsFresh: true, flows: 1, tls: "TLS 1.3"}
+			// The duration's card hangs off the numbers beside the tabs,
+			// which a pane too narrow for them moves into its menu.
+			a.workbench.sidePercent = 40
 		}, act: func(t *testing.T, tt *ui.Tester) {
 			r, ok := tt.Find("Response result")
 			if !ok {
@@ -556,6 +579,20 @@ func TestUISnapshots(t *testing.T) {
 			tt.Move(r.X+20, r.Y+r.H-14)
 			tt.Advance(time.Second)
 		}, want: "DNS lookup"},
+		{name: "capture-body-read", setup: func(a *app) {
+			// A capture the editor can take: the Body view reads the draft's
+			// own bytes as the format its content type names.
+			a.flows[0].reqHeader.Set("Content-Type", "application/x-www-form-urlencoded")
+			a.flows[0].reqBody = "tag=first&tag=a+b&plus=%2B&flag"
+			a.inspect.tab[0] = composeTabBody
+		}, act: func(t *testing.T, tt *ui.Tester) {
+			if err := tt.Click("Read as"); err != nil {
+				t.Fatal(err)
+			}
+			if err := chooseMenu(tt, "Form"); err != nil {
+				t.Fatal(err)
+			}
+		}, want: "4 form fields · original order"},
 		{name: "capture-guide", setup: func(a *app) {
 			a.flows, a.guide, a.certificate.checked = nil, true, true
 			a.systemProxy.read = func(string) system.ProxyCheck { return system.ProxyCheck{Status: system.ProxyOff} }
@@ -572,14 +609,14 @@ func TestUISnapshots(t *testing.T) {
 			a.recount()
 			a.applyFilter()
 		}, want: "Choose what to decrypt"},
-		{name: "capture-headers", setup: func(a *app) { a.inspect.tab[1] = resTabHeaders }, want: "Content-Type"},
-		{name: "capture-raw", setup: func(a *app) { a.inspect.tab[1] = resTabRaw }, want: "Raw message"},
+		{name: "capture-headers", setup: func(a *app) { a.inspect.tab[1] = resViewHeaders }, want: "Content-Type"},
+		{name: "capture-raw", setup: func(a *app) { a.inspect.tab[1] = resViewRaw }, want: "Raw message"},
 		{name: "capture-timing", setup: snapshotTiming, want: "Timing waterfall"},
 		{name: "capture-timing-panel", setup: func(a *app) {
 			snapshotTiming(a)
 			a.workbench.focused = false
 		}, want: "Timing waterfall"},
-		{name: "capture-timing-aggregate", setup: func(a *app) { a.inspect.tab[1] = resTabTiming }, want: "Aggregate timing only"},
+		{name: "capture-timing-aggregate", setup: func(a *app) { a.inspect.tab[1] = resViewTiming }, want: "Aggregate timing only"},
 		{name: "capture-timing-reused", setup: func(a *app) {
 			snapshotTiming(a)
 			a.flows[0].timing = &capture.Timing{TotalNS: 60_000_000, Reused: true, Phases: []capture.TimingPhase{
@@ -611,7 +648,7 @@ func TestUISnapshots(t *testing.T) {
 			a.flows[0].timing = &capture.Timing{TotalNS: 450_000, Phases: []capture.TimingPhase{{Name: "Proxy", DurationNS: 450_000}}}
 		}, want: "0.45 ms"},
 		{name: "capture-timing-empty", setup: func(a *app) {
-			a.inspect.tab[1] = resTabTiming
+			a.inspect.tab[1] = resViewTiming
 			a.flows[0].wait, a.flows[0].download = 0, 0
 		}, want: "No timing for this flow"},
 		{name: "requests-empty", setup: func(a *app) { a.page = pageRequest }, want: "Open a saved request or create a new one"},
@@ -662,7 +699,7 @@ func TestUISnapshots(t *testing.T) {
 		{name: "requests-url-variables", setup: func(a *app) {
 			draft(a)
 			a.composeURL = "{{baseUrl}}/projects?q={{query}}&page=1"
-		}, act: click("Request editor: Headers"), want: "Request variables"},
+		}, act: click("Request pane: Headers"), want: "Request variables"},
 		{name: "requests-url-completion", setup: func(a *app) {
 			draft(a)
 			a.composeURL = ""
@@ -1591,7 +1628,8 @@ func TestUISnapshots(t *testing.T) {
 		{name: "notification-warning", toasts: []ui.Toast{{Title: "Response body incomplete", Description: "The captured bytes are still available.", Type: "warning"}}, want: "Response body incomplete"},
 		{name: "capture-menu", act: click("More capture options"), menu: "Clear unpinned requests…"},
 		{name: "collections-menu", act: click("Collection options"), menu: "Generate API from collection…"},
-		{name: "body-menu", act: click("Response body format"), menu: "Pretty"},
+		{name: "body-menu", setup: func(a *app) { a.workbench.sidePercent = 40 },
+			act: click("Response body format"), menu: "Pretty"},
 		{name: "inspector-menu", act: click("Inspector options"), menu: "Replay…"},
 		{name: "request-menu", setup: draft, act: click("Request options"), menu: "Copy as cURL"},
 		{name: "capture-copy-menu", act: click("Copy as…"), menu: "Markdown table"},
@@ -1633,6 +1671,9 @@ func TestUISnapshots(t *testing.T) {
 	for _, mode := range []string{"Auto", "Pretty", "JSON", "Hex", "Preview", "Protobuf"} {
 		want := map[string]string{"Auto": "Body text", "Pretty": "Body text", "JSON": "projects", "Hex": "00000000", "Preview": "Rich text", "Protobuf": "1 of 1 messages"}[mode]
 		states = append(states, snapshot{name: "body-" + mode, setup: func(a *app) {
+			// Wide enough for the pane's own row: a narrow pane keeps its
+			// tabs and moves the format menu into its ⋯ menu.
+			a.workbench.sidePercent = 40
 			if mode == "Preview" {
 				a.flows[0].respHeader.Set("Content-Type", "text/html")
 				a.flows[0].resBody = "<h1>Snapshot preview</h1><p>Rendered locally, without a web view.</p>"
@@ -1880,7 +1921,7 @@ func snapshotActiveTools(a *app) {
 }
 
 func snapshotTiming(a *app) {
-	a.inspect.tab[1] = resTabTiming
+	a.inspect.tab[1] = resViewTiming
 	a.workbench.focused = true
 	a.flows[0].millis, a.flows[0].wait, a.flows[0].download = 300, 250, 50
 	a.flows[0].timing = &capture.Timing{TotalNS: 300_000_000, Phases: []capture.TimingPhase{
@@ -1920,7 +1961,10 @@ func snapshotJSONColumns(a *app) {
 }
 
 func snapshotStructured(a *app) {
-	a.inspect.tab = [2]int{reqTabBody, resTabBody}
+	// The structured readers belong to the read-only readers: a capture the
+	// editor can take shows its bytes in the editor instead.
+	a.flows[0].reqTrailer = http.Header{"X-Done": {"1"}}
+	a.inspect.tab = [2]int{composeTabBody, resViewBody}
 	a.flows[0].reqHeader.Set("Content-Type", "application/x-www-form-urlencoded")
 	a.flows[0].reqBody = "tag=first&tag=a+b&plus=%2B&flag"
 	a.flows[0].respHeader.Set("Content-Type", "multipart/form-data; boundary=fixture")
@@ -1949,6 +1993,36 @@ func snapshotApp() *app {
 	a.recount() // the flows changed in place
 	openResponseBody(a)
 	return a
+}
+
+// snapshotSidebar fills the sidebar's two regions: hosts above, more than the
+// Sources list shows at once, and a tree of saved requests below that is
+// longer than its region.
+func snapshotSidebar(a *app, hosts, collections, each int) {
+	base := a.flows[0]
+	a.flows = nil
+	for i := range hosts {
+		f := base
+		f.id, f.host = i+1, fmt.Sprintf("service-%02d.example.com", i+1)
+		f.path, f.url = "/v1/items", "https://"+f.host+"/v1/items"
+		f.at = snapshotTime.Add(time.Duration(i) * time.Second)
+		a.flows = append(a.flows, f)
+	}
+	a.chosen.Clear()
+	a.picked, a.pickedID = 0, 1
+	a.recount()
+	a.applyFilter()
+	a.requests = nil
+	for c := range collections {
+		for r := range each {
+			a.requests = append(a.requests, savedRequest{
+				Name:       fmt.Sprintf("List items %d", r+1),
+				Collection: fmt.Sprintf("Workspace/Service %d", c+1),
+				Method:     "GET",
+				URL:        fmt.Sprintf("https://service-%02d.example.com/v1/items?page=%d", c*each+r+1, r+1),
+			})
+		}
+	}
 }
 
 func snapshotActivity(a *app) {

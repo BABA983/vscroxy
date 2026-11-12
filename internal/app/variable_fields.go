@@ -78,7 +78,7 @@ func (a *app) attachVariables(c *ui.Context, in ui.Element, key string, value *s
 			if !mark.Defined {
 				color = t.Danger
 			}
-			in.TextRanges(ui.TextRange{Start: mark.Start, End: mark.End, Color: color, Weight: 600})
+			in.TextRanges(ui.TextRange{Start: mark.Start, End: mark.End, Color: color, Weight: 500})
 		}
 		a.variableTooltip(c, in, marks, mask)
 	}

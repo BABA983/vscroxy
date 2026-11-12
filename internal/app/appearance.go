@@ -30,7 +30,9 @@ var (
 	breakIcon         = lucide.CirclePause()
 	clockIcon         = lucide.Clock()
 	backIcon          = lucide.ArrowLeft()
-	commandIcon       = lucide.Command()
+	searchIcon        = lucide.Search()
+	sidebarOpenIcon   = lucide.PanelLeftOpen()
+	sidebarCloseIcon  = lucide.PanelLeftClose()
 	monitorIcon       = lucide.Monitor()
 	layersIcon        = lucide.Layers()
 	closeIcon         = lucide.X()
@@ -46,6 +48,7 @@ var (
 	chevronIcon       = lucide.ChevronDown()
 	statusMoreIcon    = lucide.ChevronRight()
 	pauseIcon         = lucide.Pause()
+	recordIcon        = lucide.CirclePlay()
 	resumeIcon        = lucide.Play()
 	exampleIcon       = lucide.BookmarkPlus()
 	toolsIcon         = lucide.Wrench()
@@ -191,7 +194,7 @@ func (a *app) settingsContent(c *ui.Context, t *ui.Theme, active bool) {
 			} {
 				uikit.SidebarItem(c, item.id, item.icon, item.label, choice == item.id, active).Label(locales.SettingsCategory(item.label))
 			}
-		}).Width(176).Padding(t.Space(2)).Gap(t.Space(0.5)).Background(uikit.Colors(t).Panel).OnChange(func() {
+		}).Width(176).Padding(t.Space(2)).Gap(t.Space(0.5)).Background(uikit.Colors(t).Chrome).OnChange(func() {
 			a.settingsTab, _ = strconv.Atoi(choice)
 			if a.settingsTab == 2 {
 				a.checkCertificate(false)

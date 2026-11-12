@@ -869,7 +869,7 @@ func (a *app) mcpSessionPane(c *ui.Context, t *ui.Theme, u *mcpDocument, s mcpSn
 	ui.Scroll(c).Grow(1).Padding(0, t.Space(3)).Children(func() {
 		ui.Column(c).Selectable().Gap(t.Space(2)).Children(func() {
 			server := cmp.Or(s.server.Title, s.server.Name, "MCP server")
-			ui.Text(c, server+" "+s.server.Version).FontSize(uikit.TextBody).Bold()
+			ui.Text(c, server+" "+s.server.Version).FontSize(uikit.TextBody).FontWeight(500)
 			uikit.Meta(c, "MCP "+cmp.Or(s.server.ProtocolVersion, "unknown")+" · "+info.Transport).SingleLine()
 			if info.Endpoint != "" {
 				uikit.Meta(c, "Endpoint "+info.Endpoint).SingleLine()

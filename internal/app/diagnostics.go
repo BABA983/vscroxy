@@ -322,7 +322,7 @@ func (a *app) diagnosticRow(c *ui.Context, t *ui.Theme, i int, check diagnosticC
 			row := uikit.RowButton(c, check.title).Grow(1).MinWidth(0).Tooltip(locales.ShowDetails())
 			row.Children(func() {
 				ui.Column(c).Grow(1).MinWidth(0).Gap(2).Children(func() {
-					ui.Text(c, strconv.Itoa(i+1)+".  "+check.title).FontSize(uikit.TextBody).FontWeight(600)
+					ui.Text(c, strconv.Itoa(i+1)+".  "+check.title).FontSize(uikit.TextBody).FontWeight(500)
 					resultColor := t.TextMuted
 					if check.state == checkFail {
 						resultColor = t.Danger
@@ -373,12 +373,12 @@ func (a *app) explainFailure(c *ui.Context, t *ui.Theme, f flow) {
 	e := f.conn.explanation()
 	ui.Column(c).Padding(t.Space(3)).Gap(t.Space(2)).Radius(uikit.RadiusPanel).Background(t.Danger.Alpha(0.06)).Border(1, t.Danger.Alpha(0.2)).Children(func() {
 		uikit.Label(c, "Observed failure · "+cmp.Or(f.conn.errorStage, "unknown stage"))
-		ui.Text(c, e.title).FontSize(uikit.TextBody).FontWeight(600)
+		ui.Text(c, e.title).FontSize(uikit.TextBody).FontWeight(500)
 		ui.Text(c, f.conn.error).Font(uikit.FontMono).FontSize(uikit.TextMeta).TextColor(t.Danger).Selectable()
 		uikit.Hint(c, e.summary)
-		ui.Text(c, locales.PossibleCausesNotConfirmed()).FontSize(uikit.TextBody).FontWeight(600)
+		ui.Text(c, locales.PossibleCausesNotConfirmed()).FontSize(uikit.TextBody).FontWeight(500)
 		uikit.Hint(c, e.causes)
-		ui.Text(c, locales.WhatToTry()).FontSize(uikit.TextBody).FontWeight(600)
+		ui.Text(c, locales.WhatToTry()).FontSize(uikit.TextBody).FontWeight(500)
 		uikit.Body(c, e.steps)
 		ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 			uikit.Meta(c, locales.ReviewUrlsAddressesAndRaw()).Grow(1)

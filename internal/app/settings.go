@@ -37,6 +37,9 @@ type settings struct {
 	// zero is half.
 	DiffSplit     float32 `json:"diffSplit,omitzero"`
 	SidebarHidden bool    `json:"sidebarHidden,omitzero"`
+	// SidebarClosed names the sidebar's regions folded away, by the id its
+	// heading toggles.
+	SidebarClosed []string `json:"sidebarClosed,omitempty"`
 	// CustomColumns are the table's added columns, HiddenColumns the IDs of
 	// the built-in ones taken out, and ShownColumns the optional ones put in.
 	CustomColumns []customColumn `json:"customColumns,omitempty"`
@@ -192,6 +195,7 @@ func sameSettings(x, y settings) bool {
 		x.SideTablePercent == y.SideTablePercent &&
 		x.DiffSplit == y.DiffSplit &&
 		x.SidebarHidden == y.SidebarHidden &&
+		slices.Equal(x.SidebarClosed, y.SidebarClosed) &&
 		slices.Equal(x.CustomColumns, y.CustomColumns) &&
 		slices.Equal(x.HiddenColumns, y.HiddenColumns) &&
 		x.KeyLogPath == y.KeyLogPath &&

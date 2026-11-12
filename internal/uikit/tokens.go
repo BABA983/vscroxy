@@ -3,14 +3,21 @@
 // name roles and variants here instead of colors and sizes.
 package uikit
 
+import (
+	"time"
+
+	"github.com/egoist/mygo/ui"
+)
+
 // Shared metrics. Container geometry stays with each screen; these describe
 // controls, not a new layout for the shell or inspector.
 const (
-	TextMeta     = 11
-	TextBody     = 13
-	TextTitle    = 15
-	TextData     = 12 // monospace data in tables, as dense as their 24px rows
-	TextHeadline = 18 // full response status, above its compact metadata
+	// Four sizes, two weights (400 and 500). Monospace is only for wire
+	// data: paths, header values, numbers and bodies.
+	TextMeta  = 11 // counts, timestamps and sizes
+	TextData  = 12 // monospace data in rows and fields
+	TextBody  = 13 // prose, labels and controls
+	TextTitle = 15 // a dialog, a pane or the request an inspector shows
 	// Line heights are multiples of the font size. Meta stays compact so a
 	// table or bar keeps its rhythm; prose gets more air, which also keeps
 	// CJK paragraphs from feeling cramped. Body itself keeps the font's
@@ -18,18 +25,26 @@ const (
 	LineMeta  = 1.45
 	LineProse = 1.5
 	LineTitle = 1.3
-	// Desktop density, as in Proxyman and Xcode: controls and rows are 24,
-	// the URL bar and Send 28.
-	HeightCompact = 20
+	// Three bar heights, as in Proxyman and Xcode: the title bar, a pane
+	// header or filter bar, and the status bar under everything.
+	HeightBar    = 40
+	HeightTabs   = 32
+	HeightStatus = 24 // the activity strip's one row
+	// HeightFooter is the bar under everything: the window's own actions,
+	// its counts and the tools that are on.
+	HeightFooter = 28
+	// Two control heights: everything is 24, the URL bar and Send 28. Rows
+	// are 24, the control height.
 	HeightControl = 24
 	HeightLarge   = 28
-	HeightTabs    = 28 // a row of tabs or a pane header
-	HeightBar     = 44 // title bar and the Capture toolbar
-	// macOS-sized corners. Something nested in a padded container takes the
-	// container's radius less the padding, so the corners stay concentric.
+	// HeightFooterControl is a button inside the 28-point footer, where a
+	// control keeps a few points of air above and below it.
+	HeightFooterControl = 20
+	// Corners stay concentric: something nested in a padded container takes
+	// the container's radius less the padding, which is RadiusInner.
+	RadiusInner   = 4
 	RadiusControl = 6
 	RadiusPanel   = 10
-	RadiusDialog  = 14
 	IconInline    = 14
 	IconLarge     = 16
 	DialogSmall   = 480
@@ -37,3 +52,52 @@ const (
 	DialogLarge   = 840
 	// FontUI and FontMono are per platform: font_darwin.go, font_other.go.
 )
+
+// The kit's durations. Screens name these, never milliseconds: something
+// leaving is quick, a face under the pointer takes the hover duration, a
+// chosen face or a number changing takes the standard one, and a panel
+// opening or closing takes the slow one.
+const (
+	DurationFast     = 80 * time.Millisecond
+	DurationHover    = 120 * time.Millisecond
+	DurationStandard = 160 * time.Millisecond
+	DurationSlow     = 200 * time.Millisecond
+)
+
+// MotionSpring is the kit's one spring: no bounce, arriving in about
+// DurationSlow. A panel opening or a pane moving uses it, so a size change
+// settles instead of stopping dead.
+var MotionSpring = ui.Animation{Spring: ui.SpringOptions{Duration: DurationSlow, Bounce: 0}}
+
+// RegionMotion collapses a section away and springs it back, as a sidebar's
+// regions do when their heading is clicked.
+var RegionMotion = ui.ElementTransition{
+	Animation: &MotionSpring,
+	Enter:     &ui.Motion{Collapse: true},
+	Exit:      &ui.Motion{Collapse: true},
+}
+
+// PaneMotion moves a pane to its new size with the same spring, so a pane
+// that gains or loses room settles rather than jumping.
+var PaneMotion = ui.ElementTransition{Size: true, Animation: &MotionSpring}
+
+// hoverMotion fades a control's face back to rest over DurationHover. The
+// face arrives with the pointer at once; only the way back is a fade, so a
+// pointer crossing a row of buttons does not lag behind it.
+func hoverMotion(b ui.Element, lit bool) ui.Element {
+	if lit {
+		return b
+	}
+	return b.Transition(ui.ElementTransition{Colors: true, Duration: DurationHover})
+}
+
+// popoverMotion is how a menu, a popover or a panel arrives and leaves: it
+// fades in rising 4 points, and leaves the same way a little quicker.
+func popoverMotion() ui.ElementTransition {
+	return ui.ElementTransition{
+		Duration:     DurationHover,
+		ExitDuration: DurationFast,
+		Enter:        &ui.Motion{Y: 4},
+		Exit:         &ui.Motion{Y: 4},
+	}
+}

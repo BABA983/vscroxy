@@ -34,33 +34,83 @@ func TestThemesKeepTextReadable(t *testing.T) {
 					t.Errorf("%s: contrast %.2f:1, want at least %.1f:1", name, ratio, minimum)
 				}
 			}
-			for _, fill := range []ui.Color{theme.Background, p.Panel, theme.SurfaceHover, theme.SurfacePressed, p.AccentTint} {
-				check("body", theme.Text, fill, 4.5)
-				check("secondary", theme.TextMuted, fill, 3)
-				check("keyboard focus", theme.Focus, fill, 3)
-				for _, signal := range []ui.Color{p.Info, p.Warning, p.Danger, p.Accent} {
-					check(fmt.Sprintf("signal %v", signal), signal, fill, 4.5)
+			// One control works on every surface, so every ink must read on
+			// all three of them. The faces laid over a surface are transient
+			// (hover, pressed) or a tint behind a selected row; the design
+			// pins the signal inks, which fall to 3.6:1 on a pressed face in
+			// Ink, so they are held to the non-text 3:1 there.
+			type swatch struct {
+				name string
+				fill ui.Color
+			}
+			surfaces := []swatch{{"canvas", p.Canvas}, {"chrome", p.Chrome}, {"well", p.Well}}
+			var faces []swatch
+			for _, s := range surfaces {
+				faces = append(faces,
+					swatch{"hover on " + s.name, p.FillHover.Over(s.fill)},
+					swatch{"pressed on " + s.name, p.FillPressed.Over(s.fill)},
+					swatch{"selection on " + s.name, p.AccentTint})
+			}
+			for _, f := range append(surfaces, faces...) {
+				check("body on "+f.name, theme.Text, f.fill, 4.5)
+				check("secondary on "+f.name, theme.TextMuted, f.fill, 3)
+				check("keyboard focus on "+f.name, theme.Focus, f.fill, 3)
+			}
+			for _, f := range surfaces {
+				for _, signal := range []ui.Color{p.Info, p.Warning, p.Danger, p.Accent, p.Success} {
+					check(fmt.Sprintf("signal %v on %s", signal, f.name), signal, f.fill, 4.5)
 				}
 				for _, method := range []string{"GET", "POST", "PUT", "DELETE", "PATCH", "WS"} {
-					check(method, MethodColor(method, theme), fill, 4.5)
+					check(method+" on "+f.name, MethodColor(method, theme), f.fill, 4.5)
+				}
+			}
+			for _, f := range faces {
+				for _, signal := range []ui.Color{p.Info, p.Warning, p.Danger, p.Accent, p.Success} {
+					check(fmt.Sprintf("signal %v on %s", signal, f.name), signal, f.fill, 3)
+				}
+				for _, method := range []string{"GET", "POST", "PUT", "DELETE", "PATCH", "WS"} {
+					check(method+" on "+f.name, MethodColor(method, theme), f.fill, 3)
 				}
 			}
 			for _, fill := range []ui.Color{theme.Accent, theme.AccentHover, theme.AccentPressed} {
 				check("primary action", theme.AccentText, fill, 4.5)
 			}
+			// A passed step fills its mark with Success and prints in
+			// AccentText, as the guide and the collection wizard do.
+			check("success mark", theme.AccentText, p.Success, 4.5)
+			// A focused field draws a neutral edge inside its own face; it
+			// must read against that face and against the surface around
+			// it, without being the ink accent a primary action is.
+			check("field focus edge on its well", p.TextMuted, p.Well, 3)
+			check("field focus edge on a chrome field", p.TextMuted, p.Canvas, 3)
+			check("field focus edge beside the canvas", p.TextMuted, p.Canvas, 3)
+			check("field focus edge beside chrome", p.TextMuted, p.Chrome, 3)
 			check("tooltip", theme.InverseText, theme.Inverse, 4.5)
-			// A duration sits on its bar: muted on a normal one, body text on a slow one.
-			check("duration on bar", theme.TextMuted, p.Bar.Over(theme.SurfacePressed), 3)
-			check("slow duration", theme.Text, theme.Danger.Alpha(0.16).Over(theme.SurfacePressed), 4.5)
-			// Status pills: quiet statuses are untinted, the rest sit on a 12% tint.
+			// The duration bar is a normal quantity behind its number; a slow
+			// one is the danger tint. Both carry body text.
+			check("duration on bar", theme.Text, p.Fill.Over(p.Canvas), 4.5)
+			check("slow duration", theme.Text, p.Danger.Alpha(0.16).Over(p.Canvas), 4.5)
+			// Status and method colors never fill a background, so they are
+			// read against the surface under them.
 			for _, status := range []int{200, 304, 302, 404, 503} {
-				ink, fill := StatusColor(status, theme), theme.Background
-				if ink != theme.TextMuted {
-					fill = ink.Alpha(0.12).Over(theme.Background)
+				ink := StatusColor(status, theme)
+				for _, s := range surfaces {
+					check(fmt.Sprintf("status %d on %s", status, s.name), ink, s.fill, 4.5)
 				}
-				check(fmt.Sprintf("status %d", status), ink, fill, 4.5)
 			}
 		})
+	}
+}
+
+// Green is the success signal alone; the accent is ink, so nothing that is
+// merely selected, primary or on is ever green.
+func TestSuccessIsNotTheAccent(t *testing.T) {
+	for _, dark := range []bool{false, true} {
+		theme := Theme(dark)
+		p := Colors(theme)
+		if p.Success == p.Accent || theme.Success != p.Success {
+			t.Fatalf("dark=%t: Success must be its own green, not the accent", dark)
+		}
 	}
 }
 
@@ -84,9 +134,9 @@ func TestActivityStacksMeasureTotalWithoutRecoloringNormalTraffic(t *testing.T) 
 		tt := ui.NewTester(func(c *ui.Context) {
 			c.SetTheme(theme)
 			ui.Column(c).Fill().Background(theme.Background).Children(func() {
-				ActivityStrip(c, []ActivityBucket{{6, 0, 0, 4}, {0, 0, 0, 5}}, &selected, "15 requests", [3]string{}, func() {})
+				ActivityStrip(c, []ActivityBucket{{6, 0, 0, 4, 0}, {0, 0, 0, 5, 0}}, &selected, "15 requests", "10:30:05", func() {})
 			})
-		}, 224, 100)
+		}, 400, 100)
 		plot, _ := tt.Find("Activity time range")
 		image := tt.Image()
 		for _, sample := range []struct {
@@ -95,10 +145,10 @@ func TestActivityStacksMeasureTotalWithoutRecoloringNormalTraffic(t *testing.T) 
 		}{
 			// The ten-request mixed stack is taller than five errors. Only
 			// its upper four tenths are red; normal requests stay neutral.
-			{plot.X + plot.W/4, plot.Y + 5, palette.Danger},
-			{plot.X + plot.W/4, plot.Y + 15, palette.TextMuted.Alpha(0.6).Over(theme.Background)},
-			{plot.X + plot.W*3/4, plot.Y + 5, theme.Background},
-			{plot.X + plot.W*3/4, plot.Y + 15, palette.Danger},
+			{plot.X + plot.W/4, plot.Y + 3, palette.Danger},
+			{plot.X + plot.W/4, plot.Y + 11, palette.FillHover.Over(theme.Background)},
+			{plot.X + plot.W*3/4, plot.Y + 3, theme.Background},
+			{plot.X + plot.W*3/4, plot.Y + 11, palette.Danger},
 		} {
 			got := image.RGBAAt(int(sample.x), int(sample.y))
 			// The raster compositor may round translucent channels one unit

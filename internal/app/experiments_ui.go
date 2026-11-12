@@ -350,7 +350,7 @@ func (a *app) experimentsView(c *ui.Context, t *ui.Theme, inline bool) {
 					}
 					return
 				}
-				ui.Text(c, locales.RunDraft(r.ID, r.Draft.Method, r.Draft.URL)).FontSize(uikit.TextBody).FontFeatures("tnum").FontWeight(600).SingleLine().Tooltip(r.Draft.URL)
+				ui.Text(c, locales.RunDraft(r.ID, r.Draft.Method, r.Draft.URL)).FontSize(uikit.TextBody).FontFeatures("tnum").FontWeight(500).SingleLine().Tooltip(r.Draft.URL)
 				uikit.Meta(c, r.Summary+" · Environment: "+cmp.Or(r.Environment, "none")).FontFeatures("tnum")
 				if r.Outcome != "" {
 					uikit.Meta(c, r.Outcome)

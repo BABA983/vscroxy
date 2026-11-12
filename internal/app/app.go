@@ -12,7 +12,6 @@ import (
 	"io/fs"
 	"log/slog"
 	"maps"
-	"math"
 	"net"
 	"net/http"
 	"net/url"
@@ -161,12 +160,26 @@ type app struct {
 
 	totalBytes int64
 
-	trafficOpen bool
-	domainsOpen bool
-	clientsOpen bool
-	// collectionsOpen keeps the sidebar's COLLECTIONS group open or shut.
-	collectionsOpen bool
-	// revealGroup scrolls the sidebar to a group in the next build: "live",
+	// sourcesApps lists the capture's apps in the sidebar's Sources rather
+	// than its hosts, which a fresh app lists first; sourcesAll shows the
+	// list whole rather than its five busiest.
+	sourcesApps bool
+	sourcesAll  bool
+	// regions are the sidebar's foldable regions and whether each is open,
+	// built on first use from shutRegions, which settings carries.
+	regions     map[string]*bool
+	shutRegions []string
+	// windowWidth is the window's width in the last frame: the sidebar gives
+	// way when there is no room beside it.
+	windowWidth float32
+	// The four panes remember the width they were laid out at, so a pane's
+	// row can decide what fits instead of guessing a share of the window.
+	inspectorReqPane, inspectorRespPane ui.Handle
+	editorReqPane, editorRespPane       ui.Handle
+	// sessionsClosed keeps the sidebar's sessions shut; they are open until
+	// a click closes them.
+	sessionsClosed bool
+	// revealGroup scrolls the sidebar to a region in the next build: "live",
 	// "collections" or "sessions".
 	revealGroup string
 	// Captured requests as documents (captured_document.go): the drafts of
@@ -220,10 +233,13 @@ type app struct {
 	bodyQuery    [2]string
 	headerScroll [2]ui.ScrollState
 	bodyText     [2]*editor.State
-	bodyReader   [2]ui.Handle
-	bodyNotice   [2]string
-	jsonScroll   [2]ui.ListState
-	hexScroll    [2]ui.ListState
+	// bodyPrettyFor is the body the pretty reader holds, so a draft's changed
+	// bytes never show in an older reader.
+	bodyPrettyFor [2]string
+	bodyReader    [2]ui.Handle
+	bodyNotice    [2]string
+	jsonScroll    [2]ui.ListState
+	hexScroll     [2]ui.ListState
 	// The wire text and its reader are built once per exchange, not per frame.
 	rawText   [2]string
 	rawEditor [2]*editor.State
@@ -535,21 +551,17 @@ type domain struct {
 
 func newApp() *app {
 	a := &app{
-		macChrome:       runtime.GOOS == "darwin",
-		filter:          "all",
-		sidebarChoice:   "all",
-		icons:           make(map[string]ui.ImageSource),
-		sidebarWidth:    220,
-		tablePercent:    44,
-		trafficOpen:     true,
-		domainsOpen:     true,
-		clientsOpen:     true,
-		collectionsOpen: true,
-		collectionOpen:  make(map[string]*bool),
-		detailFor:       -1,
-		frames:          make(map[int][]frame),
-		throttle:        capture.Presets[0],
-		workbench:       desktopWorkbench{layout: "right"},
+		macChrome:      runtime.GOOS == "darwin",
+		filter:         "all",
+		sidebarChoice:  "all",
+		icons:          make(map[string]ui.ImageSource),
+		sidebarWidth:   220,
+		tablePercent:   44,
+		collectionOpen: make(map[string]*bool),
+		detailFor:      -1,
+		frames:         make(map[int][]frame),
+		throttle:       capture.Presets[0],
+		workbench:      desktopWorkbench{layout: "right"},
 	}
 	// The engine reads SSLKEYLOGFILE on its first handshake, so a key log the
 	// settings ask for has to be in the environment before it starts.
@@ -687,6 +699,7 @@ func newApp() *app {
 		}
 		a.workbench.layout = inspectorLayout(saved.InspectorLayout)
 		a.workbench.sidebarHidden = saved.SidebarHidden
+		a.regions, a.shutRegions = nil, slices.Clone(saved.SidebarClosed)
 		if saved.SideTablePercent > 0 {
 			a.workbench.sidePercent = saved.SideTablePercent
 		}
@@ -1494,6 +1507,7 @@ func (a *app) syncDetail() {
 func (a *app) view(c *ui.Context) {
 	// The pass starts from MyGo's theme, which follows the system.
 	a.dark = a.appearance == "dark" || a.appearance == "" && c.Theme().Dark
+	a.windowWidth, _ = c.Size()
 	c.SetTheme(uikit.Theme(a.dark))
 	c.SetMenuPresentation(ui.PopoverMenus)
 	a.drain()
@@ -1564,9 +1578,19 @@ func (a *app) view(c *ui.Context) {
 	// controls are on the right: the title bar spans the window, the
 	// brand at its start.
 	main := func() {
-		ui.Column(c).Fill().Background(t.Background).Children(func() { a.mainColumn(c, t) })
+		ui.Column(c).Fill().Children(func() { a.mainColumn(c, t) })
 	}
-	ui.Column(c).Bind(&a.workbench.content).Focusable().AutoFocus().Fill().Children(func() {
+	// The window is one chrome surface: the title bar, the sidebar and the
+	// footer are the same color, and the screen floats on top of them as a
+	// raised canvas panel.
+	// The window is one chrome surface, except on macOS, where the sidebar's
+	// material shows the desktop through it: there the root stays clear and
+	// each part of the frame paints its own share of chrome.
+	frame := uikit.Colors(t).Chrome
+	if c.Vibrancy() {
+		frame = ui.Color{}
+	}
+	ui.Column(c).Bind(&a.workbench.content).Focusable().AutoFocus().Fill().Background(frame).Children(func() {
 		if !a.macChrome {
 			a.shell(c, t)
 		}
@@ -1575,6 +1599,7 @@ func (a *app) view(c *ui.Context) {
 		} else {
 			ui.Column(c).Grow(1).FillWidth().MinHeight(0).Children(main)
 		}
+		a.footer(c.Key("workspace-footer"), t)
 	})
 	a.persistSettings()
 	a.checkpointExperiments(c)
@@ -1666,7 +1691,7 @@ func (a *app) view(c *ui.Context) {
 		a.messageUI.stopSearch()
 	}
 	f, ok := a.current()
-	bodyShowing := a.page.capture() && ok && (a.inspect.tab[0] == reqTabBody || a.inspect.tab[1] == resTabBody)
+	bodyShowing := a.page.capture() && ok && (a.inspect.tab[0] == composeTabBody || a.inspect.tab[1] == resViewBody)
 	protobufShowing := false
 	for side := range 2 {
 		ct := f.contentType(side == 0)
@@ -1685,34 +1710,57 @@ func (a *app) view(c *ui.Context) {
 	}
 }
 
-// mainColumn is everything beside the sidebar: on macOS the title bar,
-// then active tools, problems, the content and the footer.
+// mainColumn is everything beside the sidebar: on macOS the title bar (which
+// carries the tools that are on), then problems, the content and the footer.
 func (a *app) mainColumn(c *ui.Context, t *ui.Theme) {
 	if a.macChrome {
 		a.shell(c, t)
 	}
-	a.activeTools(c, t)
-	if a.srv == nil && a.errText != "" {
-		ui.Text(c, locales.ProxyUnavailable(a.errText)).Padding(t.Space(2), t.Space(3)).FontSize(uikit.TextBody).TextColor(t.Danger)
+	a.panel(c.Key("workspace-content"), t)
+}
+
+// panel is the raised content surface: every screen floats on it as one
+// canvas panel, rounded and edged, inset from the window's chrome on the
+// right, and on the left too while the sidebar is away. It runs flush under
+// the title bar and above the footer, so the shell reads as one frame.
+func (a *app) panel(c *ui.Context, t *ui.Theme) {
+	p := uikit.Colors(t)
+	left := float32(0)
+	if !a.sidebarShown() {
+		left = t.Space(2)
 	}
-	if a.requestsProblem != "" || a.envsProblem != "" {
-		ui.Column(c).Padding(t.Space(2), t.Space(3)).Gap(t.Space(1)).Children(func() {
-			ui.Row(c).Gap(t.Space(3)).AlignItems(ui.Center).Children(func() {
-				ui.Text(c, locales.LocalAssetsProtectedSavingDisabled()).FontSize(uikit.TextBody).FontWeight(600).TextColor(t.Danger).Grow(1)
-				if uikit.SecondaryButton(c, locales.ReloadLocalAssets()).Clicked() {
-					a.loadRequestAssets()
-				}
-			})
-			for _, problem := range []string{a.requestsProblem, a.envsProblem} {
-				if problem != "" {
-					ui.Text(c, problem).FontSize(uikit.TextMeta).TextColor(t.Danger)
-				}
+	// A row of three: the gutter, the panel, and the gutter at the window's
+	// right edge. Padding on the panel itself would join its own size and
+	// push it past the edge.
+	ui.Row(c).Grow(1).FillWidth().MinHeight(0).Transition(uikit.PaneMotion).Children(func() {
+		if left > 0 {
+			ui.Box(c).Width(left).Shrink(0).FillHeight()
+		}
+		ui.Column(c).Grow(1).MinWidth(0).FillHeight().Background(p.Canvas).Radius(uikit.RadiusPanel).
+			Shadow(0, 0, 0, 1, p.Hairline).Shadow(0, 1, 3, 0, p.Shadow).Clip().Children(func() {
+			if a.srv == nil && a.errText != "" {
+				ui.Text(c, locales.ProxyUnavailable(a.errText)).Padding(t.Space(2), t.Space(3)).FontSize(uikit.TextBody).TextColor(t.Danger)
 			}
-			uikit.Meta(c, locales.OriginalFilesLeftUntouchedRepair())
+			if a.requestsProblem != "" || a.envsProblem != "" {
+				ui.Column(c).Padding(t.Space(2), t.Space(3)).Gap(t.Space(1)).Children(func() {
+					ui.Row(c).Gap(t.Space(3)).AlignItems(ui.Center).Children(func() {
+						ui.Text(c, locales.LocalAssetsProtectedSavingDisabled()).FontSize(uikit.TextBody).FontWeight(500).TextColor(t.Danger).Grow(1)
+						if uikit.SecondaryButton(c, locales.ReloadLocalAssets()).Clicked() {
+							a.loadRequestAssets()
+						}
+					})
+					for _, problem := range []string{a.requestsProblem, a.envsProblem} {
+						if problem != "" {
+							ui.Text(c, problem).FontSize(uikit.TextMeta).TextColor(t.Danger)
+						}
+					}
+					uikit.Meta(c, locales.OriginalFilesLeftUntouchedRepair())
+				})
+			}
+			a.desktopContent(c.Key("workspace-content"))
 		})
-	}
-	a.desktopContent(c.Key("workspace-content"))
-	a.footer(c.Key("workspace-footer"), t)
+		ui.Box(c).Width(t.Space(2)).Shrink(0).FillHeight()
+	})
 }
 
 // breakpointModal edits the request the proxy paused, and lets it continue.
@@ -1836,123 +1884,6 @@ func (a *app) clearCaptured() {
 	a.done(locales.UnpinnedRequestsCleared())
 }
 
-// sidebar is the window's one source list, in three groups: LIVE is the
-// traffic and what narrows it, COLLECTIONS the saved requests and API
-// contracts, SESSIONS the evidence kept beyond live traffic. Its one choice
-// is what the content area shows; syncSections keeps it in step.
-func (a *app) sidebar(c *ui.Context) {
-	t := c.Theme()
-	// Over macOS's material the panel stays nine parts opaque: the desktop
-	// shows only as a faint shift in its tone.
-	panel := uikit.Colors(t).Panel
-	if c.Vibrancy() {
-		panel = panel.Alpha(0.9)
-	}
-	ui.Column(c).Fill().Background(panel).Children(func() {
-		if a.macChrome {
-			a.brandBar(c, t)
-		}
-		chosen := ui.Sidebar(c, &a.sidebarChoice, func() {
-			reveal := func(group string, section ui.Element) {
-				if a.revealGroup == group {
-					section.ScrollIntoView()
-				}
-			}
-			reveal("live", uikit.SidebarSection(c, locales.Live(), &a.trafficOpen, func() {
-				uikit.SidebarItem(c, "all", trafficIcon, locales.AllRequests(), a.sidebarChoice == "all", !a.windowBehind).Children(func() {
-					uikit.Meta(c, fmt.Sprint(len(a.flows))).FontFeatures("tnum")
-				})
-				uikit.SidebarItem(c, "errors", errorIcon, locales.Errors(), a.sidebarChoice == "errors", !a.windowBehind).Children(func() {
-					uikit.Meta(c, fmt.Sprint(a.tally.errors)).FontFeatures("tnum")
-				})
-				uikit.SidebarItem(c, "slow", captureIcon, locales.Slow(), a.sidebarChoice == "slow", !a.windowBehind).Children(func() {
-					uikit.Meta(c, fmt.Sprint(a.tally.slow)).FontFeatures("tnum")
-				})
-				uikit.SidebarItem(c, "pinned", pinIcon, locales.Pinned(), a.sidebarChoice == "pinned", !a.windowBehind).Children(func() {
-					uikit.Meta(c, fmt.Sprint(a.tally.pinned)).FontFeatures("tnum")
-				})
-				uikit.SidebarItem(c, "diagnostics", diagnosticsIcon, locales.Diagnostics(), a.sidebarChoice == "diagnostics", !a.windowBehind)
-			}))
-			if len(a.clients) > 0 {
-				uikit.SidebarSection(c, locales.Apps(), &a.clientsOpen, func() {
-					for _, d := range a.clients {
-						apps := a.capturedApps(d.name)
-						uikit.SidebarItem(c, "client:"+d.name, appIcon, d.name, a.sidebarChoice == "client:"+d.name, !a.windowBehind).PopoverMenu(
-							func(m *ui.Menu) { actionMenu(m, a.clientActions(d.name, apps)) }).
-							Children(func() {
-								if a.filterTriage.Client == d.name {
-									ui.Text(c, "✓").FontSize(uikit.TextMeta).TextColor(t.Accent).Tooltip(locales.AppFilterIsActiveRemove())
-								}
-								if slices.ContainsFunc(apps, func(app capture.SSLApp) bool { return a.appInspectionEnabled(app.Path) }) {
-									ui.Icon(c, lockIcon).Size(uikit.IconInline, uikit.IconInline).Tooltip(locales.AnExactExecutableRuleIs())
-								}
-								uikit.Meta(c, fmt.Sprint(d.n)).FontFeatures("tnum")
-							})
-					}
-				})
-			}
-			uikit.SidebarSection(c, locales.Domains(), &a.domainsOpen, func() {
-				for _, d := range a.domains {
-					uikit.SidebarItem(c, "host:"+d.name, domainIcon, d.name, a.sidebarChoice == "host:"+d.name, !a.windowBehind).PopoverMenu(func(m *ui.Menu) {
-						actionMenu(m, []action{
-							do("collection.from-host", locales.CreateCollection(), func() { a.openCollectionWizard(a.collectionScope(d.name, "")) }),
-							do("collection.record-host", locales.RecordIntoCollection(), func() { a.openCollectionRecording("", d.name, "") }),
-							do("dns.map-host", locales.MapThisHost(), func() { a.openDNSRule(hostOnly(d.name), "") }),
-						})
-					}).Children(func() {
-						if a.filterTriage.Host == d.name {
-							ui.Text(c, "✓").FontSize(uikit.TextMeta).TextColor(t.Accent).Tooltip(locales.HostFilterIsActiveRemove())
-						}
-						uikit.Meta(c, fmt.Sprint(d.n)).FontFeatures("tnum")
-					})
-				}
-			})
-			uikit.SidebarSection(c, locales.Views(), nil, func() {
-				a.views.sidebar(c, t, a)
-			})
-			reveal("collections", uikit.SidebarSection(c, locales.Collections(), &a.collectionsOpen, func() {
-				a.collectionsGroup(c, t)
-			}))
-			reveal("sessions", uikit.SidebarSection(c, locales.Sessions(), nil, func() {
-				for _, item := range a.sessions.items {
-					uikit.SidebarItem(c, "session:"+item.key, clockIcon, item.data.Title, a.sidebarChoice == "session:"+item.key, !a.windowBehind).Children(func() {
-						uikit.Meta(c, fmt.Sprint(item.count)).FontFeatures("tnum")
-					}).PopoverMenu(func(m *ui.Menu) {
-						actionMenu(m, []action{do("session.delete", locales.DeleteSession(), func() { a.confirmDeleteSession(item) })})
-					})
-				}
-				if uikit.ToolbarButton(c, locales.OpenSession(), locales.OpenHistoricalSessionFilesWithout(), false).FillWidth().Justify(ui.Start).Children(func() {
-					ui.Icon(c, clockIcon).Size(uikit.IconInline, uikit.IconInline)
-					uikit.Body(c, locales.OpenSession())
-				}).Clicked() {
-					a.openSession()
-				}
-			}))
-		}).Grow(1).Background(uikit.Colors(t).Panel)
-		a.revealGroup = ""
-		if chosen.Changed() {
-			a.goTo(a.sidebarChoice)
-		}
-		ui.Divider(c)
-		ui.Column(c).Padding(t.Space(2)).Gap(t.Space(0.5)).Children(func() {
-			if uikit.ToolbarButton(c, locales.ClientSetup(), locales.CopyAProcessScopedProxy(), false).FillWidth().Children(func() {
-				ui.Icon(c, monitorIcon).Size(uikit.IconInline, uikit.IconInline)
-				uikit.Body(c, locales.ClientSetup()).Grow(1)
-				uikit.Body(c, "›")
-			}).Clicked() {
-				a.openClientSetup()
-			}
-			if uikit.ToolbarButton(c, locales.ManageHttpsRules(), locales.HttpsInspectionRules(), false).FillWidth().Children(func() {
-				ui.Icon(c, lockIcon).Size(uikit.IconInline, uikit.IconInline)
-				uikit.Body(c, locales.HttpsRules()).Grow(1)
-				uikit.Body(c, "›")
-			}).Clicked() {
-				a.sslOpen = true
-			}
-		})
-	})
-}
-
 // goTo shows what a sidebar choice names: an investigation, an API
 // contract, or a LIVE scope of the traffic. Saved requests are tree items
 // that open themselves.
@@ -1980,29 +1911,288 @@ func (a *app) goTo(choice string) {
 	a.applyFilter()
 }
 
-// collectionsGroup is the COLLECTIONS group: its search and tools, the
-// collection tree, and the API contracts. Environments, run records and the
-// rest of the library open from its menu and the command palette.
-func (a *app) collectionsGroup(c *ui.Context, t *ui.Theme) {
-	ui.Row(c).Gap(t.Space(1)).AlignItems(ui.Center).Padding(0, 0, t.Space(1)).Children(func() {
-		uikit.Input(c, &a.requestQuery).Label(locales.SearchCollections()).Placeholder(locales.Search()).Grow(1).MinWidth(0)
-		if uikit.IconButton(c, locales.NewRequest(), locales.NewRequest(), plusIcon).Clicked() {
-			a.openCompose()
+// sidebarRegions are the sidebar's foldable regions, in the order they appear.
+var sidebarRegions = []string{"traffic", "sources", "collections"}
+
+// regionOpen is the state one region of the sidebar folds by, created on first
+// use from what settings remembered: every region starts open.
+func (a *app) regionOpen(id string) *bool {
+	if a.regions == nil {
+		a.regions = make(map[string]*bool, len(sidebarRegions))
+		for _, shut := range a.shutRegions {
+			open := false
+			a.regions[shut] = &open
 		}
-		uikit.IconButton(c, locales.CollectionOptions(), locales.CollectionsApisEnvironmentsAndRuns(), moreIcon).PopoverMenuButton(a.collectionsMenu)
+	}
+	if open, ok := a.regions[id]; ok {
+		return open
+	}
+	open := new(bool)
+	*open = true
+	a.regions[id] = open
+	return open
+}
+
+// closedRegions lists the regions folded away, in the order they appear, for
+// settings to remember.
+func (a *app) closedRegions() []string {
+	var closed []string
+	for _, id := range sidebarRegions {
+		if open, ok := a.regions[id]; ok && !*open {
+			closed = append(closed, id)
+		}
+	}
+	return closed
+}
+
+// sourcesShown is how many hosts or apps the sidebar's Sources lists before
+// its last row offers the rest.
+const sourcesShown = 5
+
+// The sidebar's Sources switch, in the order it reads: the apps, then the
+// hosts. A fresh app lists the hosts, as the design does.
+const (
+	sourcesApp = iota
+	sourcesHost
+)
+
+// sidebar is the window's one source list, in two regions that scroll apart:
+// TRAFFIC above, the traffic and what narrows it; COLLECTIONS below, the saved
+// requests, the API contracts and the sessions. Its one choice is what the
+// content area shows; syncSections keeps it in step. The regions are fixed, so
+// a long list of hosts never pushes the collections off the window.
+func (a *app) sidebar(c *ui.Context) {
+	t := c.Theme()
+	// Over macOS's material the panel stays nine parts opaque: the desktop
+	// shows only as a faint shift in its tone.
+	panel := uikit.Colors(t).Chrome
+	if c.Vibrancy() {
+		panel = panel.Alpha(0.9)
+	}
+	// MyGo draws a source list on its Surface, and the window has one
+	// Surface for the panel too: here the sidebar's own surface is chrome,
+	// so the list does not cut a canvas hole in the frame.
+	local := *t
+	local.Surface = panel
+	c.SetTheme(&local)
+	ui.Column(c).Fill().Background(panel).Children(func() {
+		if a.macChrome {
+			a.brandBar(c, t)
+		}
+		a.trafficRegion(c, t)
+		ui.Divider(c)
+		a.collectionsRegion(c, t)
+		// No rule above the sidebar's footer: the shell is one surface from
+		// the title bar to the window's bottom edge.
+		a.sidebarFooter(c, t)
 	})
-	a.collectionTree(c)
-	query := strings.ToLower(strings.TrimSpace(a.requestQuery))
-	for _, d := range a.apis {
-		if query != "" && !strings.Contains(strings.ToLower(d.title()), query) {
-			continue
+	c.SetTheme(t)
+	a.revealGroup = ""
+}
+
+// trafficRegion is the sidebar's upper region: the scopes the traffic list
+// narrows to, the views saved over them, and the apps or hosts in the capture.
+// It scrolls on its own, so its lists stay inside it however long they grow.
+func (a *app) trafficRegion(c *ui.Context, t *ui.Theme) {
+	traffic, sources := a.regionOpen("traffic"), a.regionOpen("sources")
+	region := ui.Sidebar(c, &a.sidebarChoice, func() {
+		head := uikit.SidebarHeading(c, locales.Traffic(), traffic, nil)
+		if a.revealGroup == "live" {
+			head.ScrollIntoView()
 		}
-		uikit.SidebarItem(c, "contract:"+d.spec.ID, apiIcon, d.title(), a.sidebarChoice == "contract:"+d.spec.ID, !a.windowBehind).Label(locales.ApiTitle(d.title())).Children(func() {
-			if d.dirty() {
-				ui.Box(c).Size(5, 5).Radius(uikit.RadiusControl).Background(t.Accent).Label(locales.UnsavedApi())
+		if *traffic {
+			ui.Column(c).Key("traffic-region").Gap(0).Transition(uikit.RegionMotion).Children(func() {
+				a.trafficRows(c)
+				a.views.sidebar(c, t, a)
+			})
+		}
+		uikit.SidebarHeading(c, locales.Sources(), sources, func() { a.sourcesSwitch(c, t) })
+		if *sources {
+			ui.Column(c).Key("sources-region").Gap(0).Transition(uikit.RegionMotion).Children(func() {
+				a.sourcesRows(c, t)
+			})
+		}
+	}).Padding(t.Space(1), 0).Gap(0).MaxHeightPercent(55)
+	if region.Changed() {
+		a.goTo(a.sidebarChoice)
+	}
+}
+
+// trafficRows are the scopes the traffic list narrows to, each with what it
+// counts.
+func (a *app) trafficRows(c *ui.Context) {
+	rows := []struct {
+		id    string
+		icon  *ui.SVG
+		label string
+		count int
+	}{
+		{"all", trafficIcon, locales.AllRequests(), len(a.flows)},
+		{"errors", errorIcon, locales.Errors(), a.tally.errors},
+		{"slow", captureIcon, locales.Slow(), a.tally.slow},
+		{"pinned", pinIcon, locales.Pinned(), a.tally.pinned},
+	}
+	for _, row := range rows {
+		uikit.SidebarItem(c, row.id, row.icon, row.label, a.sidebarChoice == row.id, !a.windowBehind).Children(func() {
+			// A count of nothing says nothing: the row is its name.
+			if row.count > 0 {
+				uikit.Meta(c, fmt.Sprint(row.count)).FontFeatures("tnum")
 			}
 		})
 	}
+}
+
+// sourcesSwitch picks which of the capture's two lists Sources shows.
+func (a *app) sourcesSwitch(c *ui.Context, t *ui.Theme) {
+	mode := sourcesApp
+	if !a.sourcesApps {
+		mode = sourcesHost
+	}
+	uikit.Segmented(c, &mode, locales.Apps(), locales.Domains()).Height(t.Space(5))
+	a.sourcesApps = mode == sourcesApp
+}
+
+// sources lists the apps or the hosts of the capture, the busiest first, with
+// one row to show the rest: the switch in the heading chooses which list.
+func (a *app) sourcesRows(c *ui.Context, t *ui.Theme) {
+	apps := a.sourcesApps
+	rows := a.domains
+	if apps {
+		rows = a.clients
+	}
+	if len(rows) == 0 {
+		uikit.Hint(c, locales.AppsAndDomainsShowHere()).FontSize(uikit.TextMeta).LineHeight(uikit.LineMeta).
+			Padding(t.Space(1), t.Space(3))
+		return
+	}
+	shown := rows
+	if !a.sourcesAll {
+		shown = shown[:min(len(shown), sourcesShown)]
+	}
+	for _, d := range shown {
+		if apps {
+			a.clientRow(c, d)
+		} else {
+			a.hostRow(c, d)
+		}
+	}
+	if len(rows) > sourcesShown {
+		a.sourcesAllRow(c, t, apps)
+	}
+}
+
+// hostRow is one host of the capture: a click narrows the traffic to it, and
+// its menu makes a collection, a recording or a DNS mapping from it.
+func (a *app) hostRow(c *ui.Context, d domain) {
+	uikit.SidebarItem(c, "host:"+d.name, nil, d.name, a.sidebarChoice == "host:"+d.name, !a.windowBehind).PopoverMenu(func(m *ui.Menu) {
+		actionMenu(m, []action{
+			do("collection.from-host", locales.CreateCollection(), func() { a.openCollectionWizard(a.collectionScope(d.name, "")) }),
+			do("collection.record-host", locales.RecordIntoCollection(), func() { a.openCollectionRecording("", d.name, "") }),
+			do("dns.map-host", locales.MapThisHost(), func() { a.openDNSRule(hostOnly(d.name), "") }),
+		})
+	}).Children(func() {
+		if a.filterTriage.Host == d.name {
+			ui.Text(c, "✓").FontSize(uikit.TextMeta).TextColor(c.Theme().Accent).Tooltip(locales.HostFilterIsActiveRemove())
+		}
+		uikit.Meta(c, fmt.Sprint(d.n)).FontFeatures("tnum")
+	})
+}
+
+// clientRow is one app of the capture, with the marks that say whether the
+// traffic is narrowed to it and whether its executables are inspected.
+func (a *app) clientRow(c *ui.Context, d domain) {
+	t := c.Theme()
+	apps := a.capturedApps(d.name)
+	uikit.SidebarItem(c, "client:"+d.name, nil, d.name, a.sidebarChoice == "client:"+d.name, !a.windowBehind).PopoverMenu(
+		func(m *ui.Menu) { actionMenu(m, a.clientActions(d.name, apps)) }).
+		Children(func() {
+			if a.filterTriage.Client == d.name {
+				ui.Text(c, "✓").FontSize(uikit.TextMeta).TextColor(t.Accent).Tooltip(locales.AppFilterIsActiveRemove())
+			}
+			if slices.ContainsFunc(apps, func(app capture.SSLApp) bool { return a.appInspectionEnabled(app.Path) }) {
+				ui.Icon(c, lockIcon).Size(uikit.IconInline, uikit.IconInline).Tooltip(locales.AnExactExecutableRuleIs())
+			}
+			uikit.Meta(c, fmt.Sprint(d.n)).FontFeatures("tnum")
+		})
+}
+
+// sourcesAllRow opens the rest of the Sources list, or puts it away again.
+func (a *app) sourcesAllRow(c *ui.Context, t *ui.Theme, apps bool) {
+	label, icon := locales.ShowAllDomains(), statusMoreIcon
+	if apps {
+		label = locales.ShowAllApps()
+	}
+	if a.sourcesAll {
+		label, icon = locales.ShowFewer(), chevronIcon
+	}
+	row := uikit.SidebarButton(c, label, label, icon, false).TextColor(t.TextMuted)
+	if row.Clicked() {
+		a.sourcesAll = !a.sourcesAll
+	}
+}
+
+// collectionsRegion is the sidebar's lower region: the collections' search and
+// tools, the tree of saved requests and API contracts, and the sessions at the
+// tree's end. It scrolls on its own and takes what the traffic above it leaves.
+// Environments, run records and the rest of the library open from its menu and
+// the command palette.
+func (a *app) collectionsRegion(c *ui.Context, t *ui.Theme) {
+	collections := a.regionOpen("collections")
+	region := ui.Sidebar(c, &a.sidebarChoice, func() {
+		head := uikit.SidebarHeading(c, locales.Collections(), collections, func() {
+			uikit.IconButton(c, locales.CollectionOptions(), locales.CollectionsApisEnvironmentsAndRuns(), moreIcon).PopoverMenuButton(a.collectionsMenu)
+			if uikit.IconButton(c, locales.NewRequest(), locales.NewRequest(), plusIcon).Clicked() {
+				a.openCompose()
+			}
+		})
+		if a.revealGroup == "collections" {
+			head.ScrollIntoView()
+		}
+		if !*collections {
+			return
+		}
+		ui.Column(c).Key("collections-region").Gap(0).Transition(uikit.RegionMotion).Children(func() {
+			uikit.SearchField(c, &a.requestQuery, locales.SearchCollections(), locales.Search(), true).
+				Margin(t.Space(1), t.Space(3), t.Space(2), t.Space(3))
+			a.collectionTree(c)
+			query := strings.ToLower(strings.TrimSpace(a.requestQuery))
+			for _, d := range a.apis {
+				if query != "" && !strings.Contains(strings.ToLower(d.title()), query) {
+					continue
+				}
+				uikit.SidebarItem(c, "contract:"+d.spec.ID, apiIcon, d.title(), a.sidebarChoice == "contract:"+d.spec.ID, !a.windowBehind).Label(locales.ApiTitle(d.title())).Children(func() {
+					if d.dirty() {
+						ui.Box(c).Size(5, 5).Radius(uikit.RadiusControl).Background(t.Accent).Label(locales.UnsavedApi())
+					}
+				})
+			}
+		})
+	}).Padding(t.Space(1), 0).Gap(0).Grow(1)
+	if region.Changed() {
+		a.goTo(a.sidebarChoice)
+	}
+}
+
+// sidebarFooter is under both regions: the setup of a client, the HTTPS rules
+// and the connection's diagnostics. They open a window or a page rather than
+// choose a place in the list above, so they carry no selection.
+func (a *app) sidebarFooter(c *ui.Context, t *ui.Theme) {
+	ui.Column(c).Padding(t.Space(1), 0).Gap(0).Children(func() {
+		if uikit.SidebarButton(c, locales.ClientSetup(), locales.CopyAProcessScopedProxy(), monitorIcon, false).Children(func() {
+			uikit.Body(c, "›")
+		}).Clicked() {
+			a.openClientSetup()
+		}
+		if uikit.SidebarButton(c, locales.HttpsRules(), locales.HttpsInspectionRules(), lockIcon, false).
+			Label(locales.ManageHttpsRules()).Children(func() {
+			uikit.Body(c, "›")
+		}).Clicked() {
+			a.sslOpen = true
+		}
+		if uikit.SidebarButton(c, locales.Diagnostics(), locales.ConnectionDiagnostics(), diagnosticsIcon, a.page == pageDiagnostics).Clicked() {
+			a.goTo("diagnostics")
+		}
+	})
 }
 
 // clientActions are a sidebar app's: HTTPS inspection of its executables
@@ -2104,14 +2294,20 @@ func (a *app) table(c *ui.Context) {
 		if running {
 			title, hint = "Connect a client to start capturing", "Listening at "+a.srv.Addr()+" · no retained requests yet"
 		}
-		// One sentence and at most two buttons; clients, devices and
-		// HTTPS live in the sidebar, the full walk-through in the guide.
+		// One sentence and at most two buttons. Setting up a client is the
+		// first thing a capture needs, so it is here as well as in the
+		// sidebar's footer; a stopped listener is the other way forward.
 		uikit.EmptyState(c, title, hint, func() {
 			ui.Row(c).Gap(t.Space(2)).Wrap().Justify(ui.Center).Children(func() {
-				if running && uikit.SecondaryButton(c, locales.TurnOnSystemProxy()).Disabled(a.systemProxy.applying).Clicked() {
-					a.setSystemProxy(true)
+				if !running && uikit.PrimaryButton(c, locales.StartProxy()).Disabled(a.srv == nil).Clicked() {
+					// The listener runs until it is closed, as it does from
+					// the launch: never on the thread that draws.
+					go a.startCapture()
 				}
-				if uikit.SecondaryButton(c, locales.DiagnoseCapture()).Clicked() {
+				if uikit.SecondaryButton(c, locales.ClientSetup()).Tooltip(locales.CopyAProcessScopedProxy()).Clicked() {
+					a.openClientSetup()
+				}
+				if running && uikit.SecondaryButton(c, locales.DiagnoseCapture()).Clicked() {
 					a.openDiagnostics(nil, diagnoseMac)
 				}
 			})
@@ -2123,7 +2319,6 @@ func (a *app) table(c *ui.Context) {
 		// for a chosen row sits on it and no column can take its place.
 		{ID: "id", Title: "#", Width: 48, Fixed: true, Sortable: true},
 		{ID: "ssl", Title: locales.Ssl(), Width: 40},
-		{ID: "statusIcon", Title: "", Width: 28},
 		{ID: "status", Title: locales.Status(), Width: 78, Sortable: true},
 		{ID: "method", Title: locales.Method(), Width: 76, Sortable: true},
 		{ID: "host", Title: locales.Host(), Width: 160, Sortable: true},
@@ -2167,8 +2362,14 @@ func (a *app) table(c *ui.Context) {
 			return slices.Contains(narrowColumns, col.ID) && !slices.Contains(a.shownColumns, col.ID)
 		})
 	}
-	if available < 700 {
-		cols = slices.DeleteFunc(cols, func(col ui.TableColumn) bool { return col.ID == "client" || col.ID == "remote" })
+	// The address a request reached is the inspector's to report as well, so
+	// it gives way before the duration is cut off at the list's edge; the
+	// client follows it when even that does not fit.
+	if available < 860 {
+		cols = slices.DeleteFunc(cols, func(col ui.TableColumn) bool { return col.ID == "remote" })
+	}
+	if available < 740 {
+		cols = slices.DeleteFunc(cols, func(col ui.TableColumn) bool { return col.ID == "client" })
 	}
 	for _, cc := range a.customColumns {
 		width := float32(150)
@@ -2179,7 +2380,6 @@ func (a *app) table(c *ui.Context) {
 	}
 	cols = slices.DeleteFunc(cols, func(col ui.TableColumn) bool { return !a.columnShown(col.ID) })
 	remoteShown := slices.ContainsFunc(cols, func(col ui.TableColumn) bool { return col.ID == "remote" })
-	statusIconShown := slices.ContainsFunc(cols, func(col ui.TableColumn) bool { return col.ID == "statusIcon" })
 	cols = append(cols, ui.TableColumn{Title: "", ID: "filler", Width: 14, Fixed: true})
 	state := &a.views.activeView().list
 	state.FollowEnd = true
@@ -2195,6 +2395,11 @@ func (a *app) table(c *ui.Context) {
 		}
 		a.columnsMenu(m, id)
 	}
+	state.HeaderCell = func(cell ui.Element, col int) {
+		cell.DrawOver(func(p *ui.Painter, r ui.Rect) {
+			p.Fill(ui.Rect{X: r.X, Y: r.Y + r.H - 1, W: r.W, H: 1}, t.Border, 0)
+		})
+	}
 	focused := state.Handle.Focused(c)
 	selectionTheme := uikit.ListTheme(t, focused)
 	// Table's built-in row minimum is eight spacing units and its cells pad
@@ -2204,6 +2409,10 @@ func (a *app) table(c *ui.Context) {
 	// semibold labels stay quieter than the rows they name.
 	selectionTheme.Spacing = 3
 	selectionTheme.SurfaceHover = ui.Color{}
+	// No rules inside the list: the header's columns are told apart by the
+	// grip under the pointer, not by a line at rest. The header keeps its
+	// own edge below it, drawn per cell.
+	selectionTheme.Border = ui.Color{}
 	c.SetTheme(selectionTheme)
 	table := ui.Table(c, state, cols, len(a.visible), func(row, col int) {
 		f := a.flows[a.visible[row]]
@@ -2219,6 +2428,11 @@ func (a *app) table(c *ui.Context) {
 		quiet := func(s string) ui.Element {
 			return uikit.Hint(c, s).Font(uikit.FontMono).FontSize(uikit.TextData).Height(15).FixedLineHeight(15).FontFeatures("tnum").SingleLine()
 		}
+		// What a person reads as a name rather than as wire data: the host,
+		// the client and a note keep the interface font, as the sidebar does.
+		plain := func(s string) ui.Element {
+			return uikit.Hint(c, s).FontSize(uikit.TextData).Height(15).FixedLineHeight(15).SingleLine()
+		}
 		switch cols[col].ID {
 		case "id":
 			quiet(fmt.Sprint(f.id))
@@ -2230,14 +2444,13 @@ func (a *app) table(c *ui.Context) {
 			ui.Row(c).Grow(1).Justify(ui.Center).AlignItems(ui.Center).Tooltip(securityNote(f)).Children(func() {
 				ui.Icon(c, lockIcon).Size(uikit.IconInline, uikit.IconInline).TextColor(t.Text)
 			})
-		case "statusIcon":
-			ui.Row(c).Grow(1).Justify(ui.Center).AlignItems(ui.Center).Tooltip(statusNote(f)).Children(func() {
-				ui.Box(c).Size(6, 6).Radius(uikit.RadiusControl).Background(f.statusColor(t))
-			})
 		case "method":
-			uikit.MethodLabel(c, f.method).FontSize(uikit.TextData).Height(15).FixedLineHeight(15).TextColor(uikit.MethodColor(f.method, t)).Tooltip(f.method).PopoverMenu(a.rowMenu(c, f))
+			// The verb is a name here, not a value: the interface font, in
+			// the method's own ink.
+			uikit.Body(c, f.method).FontSize(uikit.TextData).FontWeight(500).Height(15).FixedLineHeight(15).
+				TextColor(uikit.MethodColor(f.method, t)).SingleLine().Tooltip(f.method).PopoverMenu(a.rowMenu(c, f))
 		case "host":
-			quiet(f.host).Tooltip(f.url).PopoverMenu(a.rowMenu(c, f))
+			plain(f.host).Tooltip(f.url).PopoverMenu(a.rowMenu(c, f))
 		case "remote":
 			a.remoteCell(c, t, f, quiet)
 		case "url":
@@ -2267,7 +2480,7 @@ func (a *app) table(c *ui.Context) {
 					accent := uikit.Colors(t).Accent
 					ui.Box(c).Height(15).Padding(0, t.Space(1)).Radius(uikit.RadiusControl).Background(accent.Alpha(0.12)).Center().MarginEnd(t.Space(1)).
 						Label("Mapped by " + hostProfileLabel(f.hostProfile)).Tooltip(mappedBy(f)).Children(func() {
-						ui.Text(c, locales.Hosts()).FontSize(uikit.TextMeta).FontWeight(600).TextColor(accent)
+						ui.Text(c, locales.Hosts()).FontSize(uikit.TextMeta).FontWeight(500).TextColor(accent)
 					})
 				}
 				text(cmp.Or(f.path, "/")).Label(f.host + f.path).TextColor(rest).Tooltip(f.url).PopoverMenu(a.rowMenu(c, f))
@@ -2278,12 +2491,13 @@ func (a *app) table(c *ui.Context) {
 			} else if f.kind == "connect" {
 				quiet("Tunnel").Tooltip(locales.TunnelTooltip(f.status)).PopoverMenu(a.rowMenu(c, f))
 			} else {
-				// The Status icon column carries the color; the code keeps its
-				// own when that column is not in the table.
-				if !statusIconShown {
-					ui.Box(c).Size(5, 5).Radius(uikit.RadiusControl).Background(f.statusColor(t)).MarginEnd(t.Space(2))
+				// Only a client or server error is colored: a normal answer is
+				// its number in the secondary ink, with nothing beside it.
+				ink := t.TextMuted
+				if f.status >= 400 {
+					ink = uikit.StatusColor(f.status, t)
 				}
-				text(fmt.Sprint(f.status)).TextColor(f.statusColor(t)).PopoverMenu(a.rowMenu(c, f))
+				text(fmt.Sprint(f.status)).TextColor(ink).PopoverMenu(a.rowMenu(c, f))
 			}
 		case "client":
 			if src, ok := a.clientIcon(f.process, f.processPath); ok {
@@ -2291,7 +2505,7 @@ func (a *app) table(c *ui.Context) {
 			} else {
 				clientBadge(c, f.process)
 			}
-			quiet(f.process).Padding(0, 0, 0, t.Space(2)).PopoverMenu(a.rowMenu(c, f))
+			plain(f.process).Padding(0, 0, 0, t.Space(2)).PopoverMenu(a.rowMenu(c, f))
 		case "duration":
 			durationCell(c, t, f.millis, quiet)
 		case "latency":
@@ -2313,7 +2527,7 @@ func (a *app) table(c *ui.Context) {
 				quiet("—")
 				return
 			}
-			quiet(f.note).TextColor(t.Text).Tooltip(f.note)
+			plain(f.note).TextColor(t.Text).Tooltip(f.note)
 		case "tools":
 			if len(f.actions) == 0 {
 				quiet("—")
@@ -2449,27 +2663,12 @@ const slowMillis = 1000
 // column of lengths without a column of its own, and no edge cuts through
 // a digit. Slow requests fill in vermilion.
 func durationCell(c *ui.Context, t *ui.Theme, millis int, number func(string) ui.Element) {
-	fill := uikit.Colors(t).Bar
+	// A normal row is its numbers and nothing else; only a slow exchange
+	// carries the signal color.
+	cell := number(fmt.Sprintf("%d ms", millis))
 	if millis >= slowMillis {
-		fill = t.Danger.Alpha(0.16)
+		cell.TextColor(t.Danger)
 	}
-	label := fmt.Sprintf("%d ms", millis)
-	share := float32(min(math.Log1p(float64(max(millis, 0)))/math.Log1p(60_000), 1))
-	pad := t.Space(1.5)
-	ui.Row(c).Grow(1).Height(15).MinWidth(0).Justify(ui.End).AlignItems(ui.Center).Padding(0, pad).
-		Draw(func(p *ui.Painter, r ui.Rect) {
-			text, _ := p.MeasureText(0, ui.Span{Text: label, Font: uikit.FontMono, Size: uikit.TextData, Features: "tnum"})
-			least := min(text+2*pad, r.W)
-			w := least + (r.W-least)*share
-			// Past the 15px line, into the cell's padding: most of the 24px row.
-			p.Fill(ui.Rect{X: r.X + r.W - w, Y: r.Y - 2, W: w, H: r.H + 4}, fill, uikit.RadiusControl-2)
-		}).
-		Children(func() {
-			cell := number(label)
-			if millis >= slowMillis {
-				cell.TextColor(t.Text)
-			}
-		})
 }
 
 // highlightColor is the color a flow is marked with.
@@ -2558,7 +2757,7 @@ func (a *app) connectionView(c *ui.Context, f flow) {
 		} else {
 			uikit.Hint(c, locales.ConnectionLogSnapshotAtCapture()).Grow(1)
 		}
-		if uikit.SecondaryButton(c, locales.CopyConnectionLog()).Height(uikit.HeightCompact).Disabled(f.conn.log == "").Clicked() {
+		if uikit.SecondaryButton(c, locales.CopyConnectionLog()).Height(uikit.HeightControl).Disabled(f.conn.log == "").Clicked() {
 			c.Services().WriteClipboard(f.conn.log)
 			a.done(locales.CopiedConnectionLog())
 		}
@@ -2575,7 +2774,7 @@ func (a *app) connectionView(c *ui.Context, f flow) {
 func (a *app) connPanel(c *ui.Context, t *ui.Theme, f flow) {
 	cn := f.conn
 	ui.Column(c).Width(440).Gap(t.Space(0.5)).Padding(t.Space(1)).Children(func() {
-		ui.Text(c, locales.Connection()).FontSize(uikit.TextBody).FontWeight(600).TextColor(t.Text).Padding(0, 0, t.Space(2), 0)
+		ui.Text(c, locales.Connection()).FontSize(uikit.TextBody).FontWeight(500).TextColor(t.Text).Padding(0, 0, t.Space(2), 0)
 		field(c, t, "HTTP version", cn.proto)
 		field(c, t, "Client", cn.client)
 		field(c, t, "Proxy", cn.proxy)
@@ -2632,9 +2831,9 @@ func field(c *ui.Context, t *ui.Theme, label, value string) {
 // headerBlock is one side of the Headers tab: the line that starts the message
 // and then its headers, sorted by name.
 func (a *app) headerBlock(c *ui.Context, t *ui.Theme, title, line, note string, headers http.Header, raw string, trailers http.Header) {
-	ui.Column(c).FillWidth().Padding(t.Space(2), t.Space(3)).Gap(t.Space(2)).Background(uikit.Colors(t).Panel).Children(func() {
+	ui.Column(c).FillWidth().Padding(t.Space(2), t.Space(3)).Gap(t.Space(2)).Background(uikit.Colors(t).Chrome).Children(func() {
 		ui.Row(c).AlignItems(ui.Center).Children(func() {
-			ui.Text(c, title).FontSize(uikit.TextBody).FontWeight(600)
+			ui.Text(c, title).FontSize(uikit.TextBody).FontWeight(500)
 			ui.Spacer(c)
 			if len(headers) > 0 {
 				count := locales.RequestHeadersCount(len(headers))
@@ -2654,7 +2853,7 @@ func (a *app) headerBlock(c *ui.Context, t *ui.Theme, title, line, note string, 
 	ui.Scroll(c).TrackScroll(&a.headerScroll[side]).Grow(1).FillWidth().Children(func() {
 		for i, block := range []http.Header{headers, trailers} {
 			if i == 1 && len(block) > 0 {
-				uikit.Label(c, locales.Trailers()).Padding(t.Space(2), t.Space(3), t.Space(2)).FillWidth().Background(uikit.Colors(t).Panel)
+				uikit.Label(c, locales.Trailers()).Padding(t.Space(2), t.Space(3), t.Space(2)).FillWidth().Background(uikit.Colors(t).Chrome)
 			}
 			if i == 0 && len(block) == 0 {
 				if raw == "" {
@@ -2768,7 +2967,7 @@ func Run() error {
 			// toolbar and the traffic share one continuous surface.
 			TitleBarStyle: mygo.TitleBarHidden,
 			// The lights (14 tall) sit on the 44px title bar's middle line.
-			TrafficLightPosition: &mygo.Point{X: 16, Y: 15},
+			TrafficLightPosition: &mygo.Point{X: 16, Y: 13},
 			// The sidebar shows the window's material on macOS only; the
 			// view keeps it mostly opaque and draws it flat elsewhere.
 			Vibrancy: sidebarVibrancy(),
@@ -2842,7 +3041,7 @@ func clientBadge(c *ui.Context, name string) {
 		letter = strings.ToUpper(string(runes[0]))
 	}
 	ui.Box(c).Size(uikit.IconInline, uikit.IconInline).Radius(uikit.RadiusControl).Background(badgeColor(name)).Center().Children(func() {
-		ui.Text(c, letter).FontSize(uikit.TextMeta).FontWeight(600).TextColor(uikit.SwatchText)
+		ui.Text(c, letter).FontSize(uikit.TextMeta).FontWeight(500).TextColor(uikit.SwatchText)
 	})
 }
 
@@ -3528,8 +3727,6 @@ func (a *app) sortOrder() func(x, y int) int {
 			c = cmp.Compare(millisOrZero(fx.responseMillis), millisOrZero(fy.responseMillis))
 		case "ssl":
 			c = cmp.Compare(secureRank(fx), secureRank(fy))
-		case "statusIcon":
-			c = cmp.Compare(fx.status, fy.status)
 		case "comment":
 			c = cmp.Compare(fx.note, fy.note)
 		case "tools":
@@ -3732,10 +3929,10 @@ func (a *app) sslModal(c *ui.Context, t *ui.Theme) {
 					ui.Switch(c, &draft.All).Label(locales.DecryptEveryDomain())
 					ui.Text(c, locales.DecryptEveryDomain()).FontSize(uikit.TextBody).TextColor(t.Text)
 				})
-				ui.Text(c, locales.DomainsAndSubdomains()).FontSize(uikit.TextBody).FontWeight(600)
+				ui.Text(c, locales.DomainsAndSubdomains()).FontSize(uikit.TextBody).FontWeight(500)
 				ui.TextArea(c, &a.sslDraftHosts).Height(100).Label(locales.DecryptionDomains()).FontSize(uikit.TextBody).Radius(uikit.RadiusControl)
 				ui.Divider(c)
-				ui.Text(c, locales.LocalApps()).FontSize(uikit.TextBody).FontWeight(600)
+				ui.Text(c, locales.LocalApps()).FontSize(uikit.TextBody).FontWeight(500)
 				uikit.Meta(c, locales.ExactExecutablePathsNotApp())
 				if len(draft.Apps) == 0 {
 					uikit.Hint(c, locales.NoAppRulesEnabled())

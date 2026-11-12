@@ -124,8 +124,8 @@ func TestPaletteSearchEntriesOpenTheirTarget(t *testing.T) {
 
 	a.requestQuery, a.workbench.sidebarHidden = "hides everything", true
 	entry("storefront", "Shop").run()
-	if a.page != pageRequest || !a.collectionsOpen || a.requestQuery != "" || a.workbench.sidebarHidden || !*a.collectionShown("Shop") {
-		t.Fatalf("collection result did not reveal its path: page=%v open=%t query=%q hidden=%t", a.page, a.collectionsOpen, a.requestQuery, a.workbench.sidebarHidden)
+	if a.page != pageRequest || a.requestQuery != "" || a.workbench.sidebarHidden || !*a.collectionShown("Shop") || a.revealGroup != "collections" {
+		t.Fatalf("collection result did not reveal its path: page=%v query=%q hidden=%t revealed=%q", a.page, a.requestQuery, a.workbench.sidebarHidden, a.revealGroup)
 	}
 }
 

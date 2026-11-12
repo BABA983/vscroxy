@@ -146,7 +146,7 @@ func (a *app) toolsContent(c *ui.Context, t *ui.Theme, active, window bool) {
 				{"hosts", hostsIcon, locales.HostProfiles()}, {"mocks", mocksIcon, locales.Mocks()}} {
 				uikit.SidebarItem(c, page.id, page.icon, page.label, a.toolsPage == page.id, active).Label(locales.ToolsCategory(page.label))
 			}
-		}).Width(180).Padding(top, t.Space(2), t.Space(2), t.Space(2)).Gap(t.Space(0.5)).Background(pal.Panel)
+		}).Width(180).Padding(top, t.Space(2), t.Space(2), t.Space(2)).Gap(t.Space(0.5)).Background(pal.Chrome)
 		ui.Divider(c)
 		switch a.toolsPage {
 		case "rules", "mocks":
@@ -173,7 +173,7 @@ func (a *app) hostProfilesPage(c *ui.Context, t *ui.Theme, window bool) {
 	}
 	ui.Column(c).Width(268).MinHeight(0).Padding(top, t.Space(3), t.Space(3), t.Space(3)).Gap(t.Space(2)).Children(func() {
 		ui.Row(c).Gap(t.Space(1)).AlignItems(ui.Center).Children(func() {
-			ui.Text(c, locales.HostProfiles()).FontSize(uikit.TextTitle).FontWeight(600).TextColor(t.Text).Grow(1)
+			ui.Text(c, locales.HostProfiles()).FontSize(uikit.TextTitle).FontWeight(500).TextColor(t.Text).Grow(1)
 			if uikit.IconButton(c, locales.NewProfile(), locales.NewProfile(), plusIcon).Clicked() {
 				if a.newProfile("Untitled", "", "") {
 					h.nameFor = "" // the name field takes the new one

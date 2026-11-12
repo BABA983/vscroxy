@@ -30,6 +30,10 @@ type inspectorState struct {
 	reveal  [2]bool // credentials are masked until the reader asks
 }
 
+// splitShare is where the request side ends when the two panes sit side by
+// side: the design's 5:6, so the response gets the wider half.
+const splitShare = 45
+
 const (
 	inspectorSplit = iota
 	inspectorDiff
@@ -37,36 +41,18 @@ const (
 	inspectorMessages
 )
 
-// Request and response tabs are separate lists; the constants keep each
-// side's index named where it is used.
+// A pane shows one view at a time. A request's views live with its document
+// (composeTab*); a response's are here.
 const (
-	reqTabHeaders = iota
-	reqTabParams
-	reqTabBody
-	reqTabRaw
-	reqTabCookies
+	resViewBody = iota
+	resViewHeaders
+	resViewCookies
+	resViewTiming
+	resViewRaw
+	resViewTests
+	resViewConsole
+	resViewMessages
 )
-
-const (
-	resTabHeaders = iota
-	resTabBody
-	resTabRaw
-	resTabTiming
-	resTabCookies
-	resTabMessages
-)
-
-func requestTabLabels() []string {
-	return []string{locales.RequestHeadersLabel(), locales.Params(), locales.Body(), locales.Raw(), locales.Cookies2()}
-}
-
-func responseTabLabels(f flow) []string {
-	labels := []string{locales.ResponseHeadersLabel(), locales.Body(), locales.Raw(), locales.TimingTab(), locales.Cookies2()}
-	if f.kind == "ws" || f.kind == "sse" {
-		labels = append(labels, "Messages")
-	}
-	return labels
-}
 
 // detail is the inspector under the traffic list: one compact summary, then
 // the request and the response beside each other, each with its own tabs.
@@ -77,9 +63,9 @@ func (a *app) detail(c *ui.Context) {
 	if !a.inspect.ready {
 		// A captured exchange is read by its response body first; the request
 		// side opens its body when it has one, its headers otherwise.
-		a.inspect.tab[1] = resTabBody
+		a.inspect.tab[1] = resViewBody
 		if f, ok := a.current(); ok && (f.reqBody != "" || f.reqFile != "" || f.reqSize > 0) {
-			a.inspect.tab[0] = reqTabBody
+			a.inspect.tab[0] = composeTabBody
 		}
 		a.inspect.ready = true
 	}
@@ -108,7 +94,9 @@ func (a *app) detail(c *ui.Context) {
 		a.capturedHeader(c, t, f, d)
 		a.replayLinks(c, f)
 		if len(f.actions) > 0 {
-			ui.Text(c, locales.AppliedActions(strings.Join(f.actions, " · "))).FontSize(uikit.TextMeta).TextColor(t.Accent).
+			// A note about what rules did, not a state: the accent is ink
+			// now, so it would read as ordinary body text.
+			ui.Text(c, locales.AppliedActions(strings.Join(f.actions, " · "))).FontSize(uikit.TextMeta).TextColor(t.TextMuted).
 				Padding(4, 14).SingleLine().Tooltip(strings.Join(f.actions, "\n"))
 		}
 		switch a.inspect.pane {
@@ -139,7 +127,7 @@ func (a *app) connectDetail(c *ui.Context, t *ui.Theme, f flow) {
 		a.tab = 0
 	}
 	ui.Row(c).Height(uikit.HeightLarge).Padding(0, t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-		ui.Text(c, cmp.Or(f.process, "Unidentified client")).FontSize(uikit.TextBody).FontWeight(600).SingleLine().Tooltip(f.processPath)
+		ui.Text(c, cmp.Or(f.process, "Unidentified client")).FontSize(uikit.TextBody).FontWeight(500).SingleLine().Tooltip(f.processPath)
 		uikit.Hint(c, f.host).Font(uikit.FontMono).SingleLine().Tooltip(f.url)
 		if f.conn.error != "" {
 			ui.Text(c, cmp.Or(f.conn.errorStage, "Connection")+" failed").FontSize(uikit.TextBody).TextColor(t.Danger)
@@ -152,7 +140,6 @@ func (a *app) connectDetail(c *ui.Context, t *ui.Theme, f flow) {
 		}
 		a.actionButton(c, "view.focus-inspector", "Focus")
 	})
-	ui.Divider(c)
 	if a.tab == 1 {
 		a.connectionView(c, f)
 		return
@@ -197,13 +184,35 @@ func (a *app) inspectorMenu(c *ui.Context, t *ui.Theme, f flow) {
 	uikit.MoreMenu(c, locales.InspectorOptions(), func(m *ui.Menu) { actionMenu(m, a.inspectorActions(c, f)) })
 }
 
+// paneWidth is how wide one pane of the inspector is: the whole inspector
+// while the two sides stack, its request share beside the response.
+func (a *app) paneWidth(c *ui.Context) float32 {
+	width := a.inspectorWidth(c)
+	if a.sidesStacked(c) {
+		return width
+	}
+	return width * splitShare / 100
+}
+
+// paneWidthAt is how wide a pane was laid out, from the frame before, or the
+// share it expects before the first layout.
+func (a *app) paneWidthAt(c *ui.Context, h *ui.Handle) float32 {
+	if r := h.Bounds(c); r.W > 0 {
+		return r.W
+	}
+	return a.paneWidth(c)
+}
+
 // inspectorWidth is the main pane's width beneath the list, its share beside
 // the list, or the full window while the inspector is focused.
 func (a *app) inspectorWidth(c *ui.Context) float32 {
 	width := a.contentWidth(c)
-	if a.workbench.focused {
+	switch {
+	case a.workbench.focused:
 		width, _ = c.Size()
-	} else if a.workbench.sideBySide {
+	case a.page.capture() && a.workbench.sideBySide:
+		// The share belongs to the traffic list, which only Capture shows
+		// beside the inspector.
 		share := a.workbench.sidePercent
 		if share == 0 {
 			share = 64
@@ -213,157 +222,638 @@ func (a *app) inspectorWidth(c *ui.Context) float32 {
 	return width
 }
 
-// sidesStacked reports whether the request goes above the response: when the
-// inspector is a column beside the list. Below the list, or filling the
-// window, it is wide and short, so the two sides sit next to each other.
-func (a *app) sidesStacked() bool {
-	return a.workbench.sideBySide && !a.workbench.focused
+// sidesStacked reports whether the request goes above the response. Beside
+// the list the inspector is a narrow column, and two panes side by side would
+// be too narrow to read a URL in, so they stack; below the list or filling
+// the window it is wide enough for the design's 5:6 split.
+func (a *app) sidesStacked(c *ui.Context) bool {
+	return a.inspectorWidth(c) < 760
 }
 
 // splitInspector puts the request beside the response, or above it in a
 // column beside the list.
 func (a *app) splitInspector(c *ui.Context, f flow) {
 	if a.inspect.percent == 0 {
-		a.inspect.percent = 50
+		a.inspect.percent = splitShare
 	}
 	request := func() { a.requestPane(c, f) }
 	response := func() { a.responsePane(c, f) }
-	if a.sidesStacked() {
-		ui.SplitVerticalPercent(c.Key("inspector-sides"), &a.inspect.percent, request, response).SplitReset(50).Grow(1)
+	if a.sidesStacked(c) {
+		ui.SplitVerticalPercent(c.Key("inspector-sides"), &a.inspect.percent, request, response).SplitReset(splitShare).Grow(1)
 		return
 	}
-	ui.SplitPercent(c.Key("inspector-sides"), &a.inspect.percent, request, response).SplitReset(50).Grow(1)
+	ui.SplitPercent(c.Key("inspector-sides"), &a.inspect.percent, request, response).SplitReset(splitShare).Grow(1)
 }
 
+// requestPane is the request of a capture the editor cannot take: its parts
+// as they were recorded, in the same row the editor uses.
 func (a *app) requestPane(c *ui.Context, f flow) {
 	t := c.Theme()
-	ui.Column(c).Fill().Background(t.Background).Children(func() {
-		a.paneTabs(c, t, locales.Request(), locales.RequestPaneName(), &a.inspect.tab[0], requestTabLabels(), 1)
+	width := a.paneWidthAt(c, &a.inspectorReqPane)
+	ui.Column(c).Fill().Background(t.Background).Bind(&a.inspectorReqPane).Children(func() {
+		tools := paneTools{format: -1, width: width}
+		if a.inspect.tab[0] == composeTabBody {
+			tools.format = 1
+		}
+		a.requestPaneHeader(c, t, &a.inspect.tab[0], nil, f, tools)
 		switch a.inspect.tab[0] {
-		case reqTabHeaders:
-			a.headersSide(c, f, 1)
-		case reqTabParams:
+		case composeTabParams:
 			a.paramsSide(c, f)
-		case reqTabBody:
+		case composeTabBody:
 			a.bodySideView(c, f, 1)
-		case reqTabRaw:
+		case composeTabRaw:
 			a.rawSide(c, f, 1)
-		case reqTabCookies:
+		case composeTabCookies:
 			cookieView(c, f.reqHeader, false, &a.inspect.reveal[1])
+		default:
+			a.headersSide(c, f, 1)
 		}
 	})
 }
 
 func (a *app) responsePane(c *ui.Context, f flow) {
 	t := c.Theme()
-	labels := responseTabLabels(f)
-	if a.inspect.tab[1] >= len(labels) {
-		a.inspect.tab[1] = resTabHeaders
-	}
-	ui.Column(c).Fill().Background(t.Background).Children(func() {
-		a.paneTabs(c, t, locales.Response(), locales.ResponsePaneName(), &a.inspect.tab[1], labels, 0)
-		status := "No response"
-		if f.status != 0 {
-			status = strings.TrimSpace(fmt.Sprintf("%d %s", f.status, http.StatusText(f.status)))
+	width := a.paneWidthAt(c, &a.inspectorRespPane)
+	ui.Column(c).Fill().Background(t.Background).Bind(&a.inspectorRespPane).Children(func() {
+		more := a.responseViews(&a.inspect.tab[1], true, "", false)
+		tools := paneTools{format: -1, width: width}
+		if a.inspect.tab[1] == resViewBody {
+			more = append(more, a.bodyPaneActions(c, 0)...)
+			tools.format = 0
 		}
-		if f.conn.error != "" {
-			status = "Failed"
-		}
-		detail := humanBytes(f.bytes)
-		if ct := f.contentType(true); ct != "" {
-			detail += " · " + ct
-		}
-		uikit.ResponseHeadline(c, status, f.statusColor(t), fmt.Sprintf("%d ms", f.millis), detail, headlineTiming(t, f))
+		a.responsePaneHeader(c, t, &a.inspect.tab[1], responseSummaryOf(t, f), more, tools)
 		switch a.inspect.tab[1] {
-		case resTabHeaders:
-			a.headersSide(c, f, 0)
-		case resTabBody:
+		case resViewBody:
 			a.bodySideView(c, f, 0)
-		case resTabRaw:
+		case resViewRaw:
 			a.rawSide(c, f, 0)
-		case resTabTiming:
+		case resViewTiming:
 			a.timingView(c, f)
-		case resTabCookies:
+		case resViewCookies:
 			cookieView(c, f.respHeader, true, &a.inspect.reveal[0])
-		case resTabMessages:
+		case resViewMessages:
 			a.messages(c, f)
+		default:
+			a.headersSide(c, f, 0)
 		}
 	})
 }
 
-// paneTabs names the side, its tabs and — while Body is chosen — the format
-// the body is read in. The format is a menu rather than a row of segments so
-// two visible panes never show the same control twice.
-func (a *app) paneTabs(c *ui.Context, t *ui.Theme, side, pane string, selected *int, labels []string, bodySide int) {
-	bodyTab := reqTabBody
-	if bodySide == 0 {
-		bodyTab = resTabBody
+// paneView is one view a pane can show: its constant, the label the row or
+// the More menu prints, and a quiet count after it.
+type paneView struct {
+	view  int
+	label string
+	count string
+}
+
+// paneTools are what a pane's row offers past its tabs: the controls the
+// caller draws at the row's end, the body side whose format menu the row
+// holds, and what the row leaves out when it runs out of room. The tabs and
+// the status always keep their room; everything else yields, numbers first.
+type paneTools struct {
+	// width is how wide the pane was laid out, from the last frame. Zero
+	// falls back to the pane's share of the window.
+	width float32
+	// draw paints the caller's own controls in the room the row has left
+	// for them. What it does not draw it adds through overflow.
+	draw func(room *paneRoom)
+	// format is the body side whose format menu the row holds.
+	format int
+	// overflow adds to the pane's menu what the row left out.
+	overflow func([]action) []action
+}
+
+// paneRoom is the width a row has left for what it reports past its tabs.
+// Pieces take it in the order of the row, and one that does not fit goes to
+// the pane's menu instead of pushing a tab off the row.
+type paneRoom struct{ left float32 }
+
+// fits takes width, and the gap after it, when the room has them.
+func (r *paneRoom) fits(width float32) bool {
+	if r.left < width {
+		return false
 	}
-	ui.Row(c).Height(uikit.HeightLarge).Padding(0, t.Space(2)).Gap(t.Space(1)).AlignItems(ui.Center).Children(func() {
-		title := uikit.ToolbarButton(c, pane, locales.ReadThisSideInShared(), false).Height(uikit.HeightCompact).Padding(0, t.Space(1))
-		if a.inspect.focus == bodySide {
-			title.TextColor(t.Text)
-		}
-		if title.Clicked() {
-			a.inspect.focus = bodySide
-		}
-		title.Children(func() { ui.Text(c, side).FontSize(uikit.TextBody).FontWeight(600) })
-		uikit.TabStrip(c, func() {
-			uikit.SubTabs(c, selected, pane, labels...)
-		}).Grow(1).FillHeight()
-		if *selected == bodyTab {
-			a.bodyFormatMenu(c, t, bodySide)
-			paneOptions := locales.ResponsePaneOptions()
-			if bodySide == 1 {
-				paneOptions = locales.RequestPaneOptions()
-			}
-			uikit.MoreMenu(c, paneOptions, func(m *ui.Menu) {
-				actionMenu(m, []action{
-					do("body.find", locales.FindInText(), func() {
-						if reader := a.bodyText[bodySide]; reader != nil {
-							reader.Run(editor.Find)
-						}
-					}),
-					do("body.decode", locales.DecodeText(), func() {
-						body := a.body
-						if bodySide == 1 {
-							body = a.reqBody
-						}
-						a.openDecoder(a.bodyText[bodySide], body)
-					}),
-					do("body.query", locales.QueryJson(), func() {
-						if f, ok := a.current(); ok {
-							a.openJSONQuery(capturedInspectionBody(f, bodySide))
-						}
-					}),
-					do("body.copy", locales.CopyShownBody(), func() { a.copyPaneBody(c, bodySide) }),
-				})
-				if bodySide == 0 {
-					f, ok := a.current()
-					actionMenu(m, []action{do("body.save", locales.SaveBody(), func() {
-						a.saveResponseBody(capture.Flow{Status: f.status, ResponseBody: f.resBody,
-							ResponseBodyFile: f.resFile, ResponseBodySize: f.resSize, ResponseBodyError: f.resError})
-					}).when(ok && f.status != 0, "No response was received")})
-				}
-			}).Padding(0, t.Space(1))
-		}
-	})
-	ui.Divider(c)
+	r.left -= width + 8
+	return true
 }
 
-// bodyFormatMenu shows and chooses the representation of one side's body.
-func (a *app) bodyFormatMenu(c *ui.Context, t *ui.Theme, side int) {
+// paneTextWidth measures text as a pane's row prints it.
+func paneTextWidth(c *ui.Context, text string, size float32, weight int) float32 {
+	w, _ := c.MeasureText(0, ui.Span{Text: text, Size: size, Weight: weight})
+	return w
+}
+
+// paneTitleWidth is the room a pane's title takes: its status dot when it has
+// one, the gap after it and the name.
+func paneTitleWidth(c *ui.Context, title string, dot bool) float32 {
+	if !dot {
+		return paneTextWidth(c, title, uikit.TextBody, 500)
+	}
+	return 6 + c.Theme().Space(1.5) + paneTextWidth(c, title, uikit.TextBody, 500)
+}
+
+// paneTabsWidth is the room the tabs take, as uikit lays them out: each chip's
+// padding, its label, its count and the gaps between them.
+func paneTabsWidth(c *ui.Context, labels, counts []string) float32 {
+	t := c.Theme()
+	var w float32
+	for i, label := range labels {
+		if i > 0 {
+			w += t.Space(0.5)
+		}
+		w += 2*t.Space(1.5) + paneTextWidth(c, label, uikit.TextBody, 400)
+		if i < len(counts) && counts[i] != "" && counts[i] != "0" {
+			w += t.Space(1) + paneTextWidth(c, counts[i], uikit.TextMeta, 400)
+		}
+	}
+	return w
+}
+
+// paneRoomFor is what a row has left once its title, its tabs and its menu
+// have theirs.
+func paneRoomFor(c *ui.Context, width float32, title string, dot bool, labels, counts []string, menu float32) paneRoom {
+	t := c.Theme()
+	return paneRoom{left: width - 2*t.Space(3) - paneTitleWidth(c, title, dot) - paneTabsWidth(c, labels, counts) - 2*t.Space(2) - menu}
+}
+
+// paneMoreWidth is the room the request pane's More tab takes: it is a word
+// with a chevron, where the response pane's menu is a single glyph.
+func paneMoreWidth(c *ui.Context) float32 {
+	t := c.Theme()
+	return paneTextWidth(c, locales.More(), uikit.TextBody, 400) + 2*t.Space(1.5) + t.Space(1) + 10
+}
+
+// paneMenuWidth is the room the pane's own ⋯ takes at the row's end.
+const paneMenuWidth = 45
+
+// paneMonoWidth measures the numbers a row prints in the data font.
+func paneMonoWidth(c *ui.Context, text string) float32 {
+	w, _ := c.MeasureText(0, ui.Span{Text: text, Size: uikit.TextMeta, Font: uikit.FontMono})
+	return w
+}
+
+// paneMetaWidth is the room a response's duration and size take.
+func paneMetaWidth(c *ui.Context, sum responseSummary) float32 {
+	w := paneMonoWidth(c, sum.duration)
+	if sum.detail != "" {
+		w += paneMonoWidth(c, " · "+sum.detail)
+	}
+	return w
+}
+
+// paneFormatWidth is the room a body's format menu takes: its label, the
+// control's padding and its chevron.
+func (a *app) paneFormatWidth(c *ui.Context, side int) float32 {
+	label, ok := a.bodyFormatShown(side)
+	if !ok {
+		return 0
+	}
+	return paneTextWidth(c, label, uikit.TextBody, 400) + 2*c.Theme().Space(2) + 14
+}
+
+// requestPaneTabs are the views the request pane's row starts with.
+func requestPaneTabs(d *requestDocument, f flow) []paneView {
+	views := []paneView{
+		{composeTabHeaders, locales.RequestHeadersLabel(), requestHeaderCount(d, f)},
+		{composeTabParams, locales.Params(), requestParamCount(d, f)},
+		{composeTabBody, locales.Body(), ""},
+	}
+	if d != nil {
+		views = append(views, paneView{composeTabAuth, locales.Auth(), ""})
+	}
+	return views
+}
+
+// requestTabsFit reports whether a request pane of this width shows every tab
+// as a whole word, with no room saved for the history column beside it. The
+// width is measured, not taken from a window size: a pane that fits at 1200
+// with a short header count and not at 1300 with a long one is decided the
+// same way.
+func (a *app) requestTabsFit(c *ui.Context, d *requestDocument, width float32) bool {
+	t := c.Theme()
+	if !a.sidesStacked(c) {
+		// The share the divider is at now: a response pulls it to the
+		// response's favour, and the tabs have to fit where it leaves them.
+		share := float32(draftPercent)
+		if d != nil && d.requestPercent > 0 {
+			share = d.requestPercent
+		}
+		width = width * share / 100
+	}
+	views := requestPaneTabs(d, flow{})
+	labels, counts := make([]string, len(views)), make([]string, len(views))
+	for i, v := range views {
+		labels[i], counts[i] = v.label, v.count
+	}
+	need := 2*t.Space(3) + paneTitleWidth(c, locales.Request(), false) + paneTabsWidth(c, labels, counts) +
+		2*t.Space(2) + paneMoreWidth(c)
+	return width >= need
+}
+
+// requestPaneHeader draws the request pane's one row and settles the view it
+// shows. The first tabs are always in the row; the rest open from More, and
+// the one chosen there takes the last place in the row so the pane says what
+// it is showing without a second row.
+func (a *app) requestPaneHeader(c *ui.Context, t *ui.Theme, selected *int, d *requestDocument, f flow, tools paneTools) {
+	views := []paneView{
+		{composeTabHeaders, locales.RequestHeadersLabel(), requestHeaderCount(d, f)},
+		{composeTabParams, locales.Params(), requestParamCount(d, f)},
+		{composeTabBody, locales.Body(), ""},
+	}
+	if d != nil {
+		views = append(views, paneView{composeTabAuth, locales.Auth(), ""})
+	}
+	more := a.requestMoreViews(d, f)
+	if i := slices.IndexFunc(more, func(v paneView) bool { return v.view == *selected }); i >= 0 {
+		views = append(views, more[i])
+	}
+	before := *selected
+	labels, counts := make([]string, len(views)), make([]string, len(views))
+	for i, v := range views {
+		labels[i], counts[i] = v.label, v.count
+	}
+	var extra []action
+	if before == composeTabBody {
+		extra = a.bodyPaneActions(c, 1)
+	}
+	width := tools.width
+	if width <= 0 {
+		width = a.paneWidth(c)
+	}
+	// A tab is always a whole word: a pane too narrow for all of them moves
+	// the last ones into More, from the right, and never scrolls or fades
+	// the row. The view on screen stays where the reader put it.
+	menu := paneMoreWidth(c)
+	room := paneRoomFor(c, width, locales.Request(), false, labels, counts, menu)
+	for len(views) > 1 && room.left < 0 {
+		at := -1
+		for i := len(views) - 1; i >= 0; i-- {
+			if views[i].view != before {
+				at = i
+				break
+			}
+		}
+		if at < 0 {
+			break
+		}
+		dropped := views[at]
+		views = slices.Delete(views, at, at+1)
+		labels = slices.Delete(labels, at, at+1)
+		counts = slices.Delete(counts, at, at+1)
+		more = append([]paneView{dropped}, more...)
+		room = paneRoomFor(c, width, locales.Request(), false, labels, counts, menu)
+	}
+	shown := max(0, slices.IndexFunc(views, func(v paneView) bool { return v.view == before }))
+	showFormat := tools.format >= 0 && room.fits(a.paneFormatWidth(c, tools.format))
+	if !showFormat && tools.format >= 0 {
+		extra = append([]action{submenu(bodyFormatLabel(tools.format), a.bodyFormatActions(tools.format)...)}, extra...)
+	}
+	uikit.PaneHeader(c, func() {
+		uikit.PaneTitle(c, locales.Request(), locales.RequestPaneName(), ui.Color{}, t.Text, func() { a.inspect.focus = 1 })
+		uikit.TabStrip(c, func() {
+			uikit.CountedTabs(c, &shown, locales.RequestPaneName(), labels, counts)
+		}).Grow(1).FillHeight()
+	}, func() {
+		a.requestMoreMenu(c, selected, more, d, extra)
+		if tools.draw != nil {
+			tools.draw(&room)
+		}
+		if showFormat {
+			a.bodyFormatMenu(c, t, tools.format)
+		}
+	})
+	settleView(selected, views, shown, before)
+}
+
+// settleView maps the tab strip's index back to a view. A view chosen from
+// More during the same build wins: the menu moved the selection, so the row's
+// old index says nothing about it.
+func settleView(selected *int, views []paneView, shown, before int) {
+	switch {
+	case *selected != before:
+	case shown >= 0 && shown < len(views):
+		*selected = views[shown].view
+	}
+}
+
+// requestMoreViews are the request views the row keeps out: the parts of a
+// document read or edited one at a time, and the capture a draft came from.
+func (a *app) requestMoreViews(d *requestDocument, f flow) []paneView {
+	if d == nil {
+		return []paneView{{composeTabRaw, locales.Raw(), ""}, {composeTabCookies, locales.Cookies2(), ""}}
+	}
+	examples := ""
+	if n := len(d.examples); n > 0 {
+		examples = strconv.Itoa(n)
+	}
+	more := []paneView{
+		{composeTabScripts, locales.Scripts(), ""},
+		{composeTabChecks, locales.Checks(), checkCount(d)},
+		{composeTabExamples, locales.Examples(), examples},
+		{composeTabDocs, locales.Docs(), ""},
+		{composeTabSettings, locales.Settings(), ""},
+	}
+	// The capture is only somewhere else to go once the draft differs from
+	// it: until then the tabs are the capture.
+	more = append(more, paneView{composeTabCookies, locales.Cookies2(), ""})
+	if a.edited(f.id) {
+		more = append(more, paneView{composeTabOriginal, locales.OriginalTab(), ""})
+	}
+	return more
+}
+
+// requestHeaderCount is how many headers the request sends, as its tab says.
+func requestHeaderCount(d *requestDocument, f flow) string {
+	if d == nil {
+		if len(f.reqHeader) == 0 {
+			return ""
+		}
+		return fmt.Sprint(len(f.reqHeader))
+	}
+	headers := d.headerRows
+	if d.headerBulk || headers == nil {
+		headers = parseHeaderRows(d.composeHeaders)
+	}
+	n := 0
+	for _, row := range headers {
+		if !row.Disabled && row.Name != "" {
+			n++
+		}
+	}
+	if n == 0 {
+		return ""
+	}
+	return fmt.Sprint(n)
+}
+
+// requestParamCount is how many query values the URL carries.
+func requestParamCount(d *requestDocument, f flow) string {
+	raw := f.url
+	if d != nil {
+		raw = d.composeURL
+	}
+	u, err := url.Parse(raw)
+	if err != nil {
+		return ""
+	}
+	n := 0
+	for _, values := range u.Query() {
+		n += len(values)
+	}
+	if n == 0 {
+		return ""
+	}
+	return fmt.Sprint(n)
+}
+
+// checkCount is how many checks the request's scripts assert.
+func checkCount(d *requestDocument) string {
+	n := 0
+	if strings.TrimSpace(d.checks.Status) != "" {
+		n++
+	}
+	for _, block := range []string{d.checks.Headers, d.checks.JSON} {
+		for line := range strings.SplitSeq(block, "\n") {
+			if strings.TrimSpace(line) != "" {
+				n++
+			}
+		}
+	}
+	if n == 0 {
+		return ""
+	}
+	return fmt.Sprint(n)
+}
+
+func (a *app) requestMoreMenu(c *ui.Context, selected *int, more []paneView, d *requestDocument, extra []action) {
+	uikit.TabMenu(c, locales.More(), locales.RequestPaneOptions(), func(m *ui.Menu) {
+		var items []action
+		for _, v := range more {
+			label := v.label
+			if v.count != "" {
+				label += " " + v.count
+			}
+			items = append(items, do("request.view", label, func() { *selected = v.view }).
+				checked(checkbox(*selected == v.view)).in("views"))
+		}
+		if d != nil {
+			items = append(items, do("request.bulk-edit", locales.BulkEdit(), func() {
+				if d.headerBulk || !hasSecretHeader(d.headerRows) {
+					toggleHeaderMode(d)
+					return
+				}
+				d.headerWarn = true
+			}).checked(checkbox(d.headerBulk)).in("edit"))
+		}
+		actionMenu(m, append(items, extra...))
+	})
+}
+
+// responseSummary is what a response pane's header says about what it shows.
+type responseSummary struct {
+	title, duration, detail string
+	dot, ink                ui.Color // the status light, and the title's ink when it carries a signal
+	timing                  uikit.Timing
+	stream                  bool // the messages are a view of their own
+}
+
+// responseSummaryOf reads a capture's result. A normal response is quiet: its
+// title stays in the body color and only the light carries the status.
+func responseSummaryOf(t *ui.Theme, f flow) responseSummary {
+	p := uikit.Colors(t)
+	title := "No response"
+	if f.status != 0 {
+		title = strings.TrimSpace(fmt.Sprintf("%d %s", f.status, http.StatusText(f.status)))
+	}
+	if f.conn.error != "" {
+		title = "Failed"
+	}
+	sum := responseSummary{title: title, dot: p.TextMuted, duration: fmt.Sprintf("%d ms", f.millis), detail: humanBytes(f.bytes),
+		timing: headlineTiming(t, f), stream: f.kind == "ws" || f.kind == "sse"}
+	if f.conn.error != "" || f.status >= 300 {
+		sum.dot, sum.ink = f.statusColor(t), f.statusColor(t)
+	}
+	return sum
+}
+
+// sentSummaryOf reads what the last send got back.
+func sentSummaryOf(t *ui.Theme, r *capture.Flow, outcome string) responseSummary {
+	p := uikit.Colors(t)
+	sum := responseSummary{title: "No response", dot: p.TextMuted, duration: fmt.Sprintf("%d ms", r.Millis), detail: humanBytes(r.Bytes)}
+	if r.Status != 0 {
+		sum.title = strings.TrimSpace(fmt.Sprintf("%d %s", r.Status, http.StatusText(r.Status)))
+	}
+	switch {
+	case outcome == "Network error":
+		sum.title = fmt.Sprintf("%d · proxy response", r.Status)
+		sum.dot, sum.ink = t.Danger, t.Danger
+	case r.Status >= 300:
+		sum.dot, sum.ink = uikit.StatusColor(r.Status, t), uikit.StatusColor(r.Status, t)
+	}
+	sum.timing = headlineTiming(t, flow{wait: r.Wait, download: r.Download, conn: conn{
+		resolved: r.Conn.Resolved, lookupMs: r.Conn.LookupMs, dnsFresh: r.Conn.DNSFresh, flows: r.Conn.Flows, tls: r.Conn.TLS,
+	}})
+	return sum
+}
+
+// responsePaneHeader draws the response pane's one row: what came back, the
+// views of it, and how long it took and how much it carried.
+func (a *app) responsePaneHeader(c *ui.Context, t *ui.Theme, selected *int, sum responseSummary, more []action, tools paneTools) {
+	views := []paneView{
+		{resViewBody, locales.Body(), ""},
+		{resViewHeaders, locales.ResponseHeadersLabel(), ""},
+		{resViewCookies, locales.Cookies2(), ""},
+		{resViewTiming, locales.TimingTab(), ""},
+	}
+	if sum.stream {
+		views = append(views, paneView{resViewMessages, locales.MessagesTab(), ""})
+	}
+	extras := []paneView{
+		{resViewRaw, locales.Raw(), ""},
+		{resViewTests, locales.Checks(), ""},
+		{resViewConsole, locales.Console(), ""},
+	}
+	if i := slices.IndexFunc(extras, func(v paneView) bool { return v.view == *selected }); i >= 0 {
+		views = append(views, extras[i])
+	}
+	before := *selected
+	shown := max(0, slices.IndexFunc(views, func(v paneView) bool { return v.view == before }))
+	labels := make([]string, len(views))
+	for i, v := range views {
+		labels[i] = v.label
+	}
+	// The tabs and the status keep the row; what else it reports is measured
+	// against the room that is left, in the order the row gives it up: the
+	// numbers first, then the caller's own controls (which give up Decode
+	// before the format menu and the actions), then the body's format menu.
+	// Whatever does not fit goes to the pane's menu.
+	width := tools.width
+	if width <= 0 {
+		width = a.paneWidth(c)
+	}
+	room := paneRoomFor(c, width, sum.title, true, labels, nil, paneMenuWidth)
+	showNumbers := sum.duration != "" && room.fits(paneMetaWidth(c, sum))
+	// The caller's controls take their room as the row builds them; the
+	// format menu is the inspector's own, and the editor never has both.
+	afterNumbers := room
+	showFormat := tools.format >= 0 && afterNumbers.fits(a.paneFormatWidth(c, tools.format))
+	uikit.PaneHeader(c, func() {
+		title := uikit.PaneTitle(c, sum.title, locales.ResponsePaneName(), sum.dot, sum.ink, func() { a.inspect.focus = 0 })
+		if !showNumbers && sum.duration != "" {
+			// What the row has no room for, the status says on hover.
+			title.Tooltip(sum.title + " · " + strings.TrimSpace(sum.duration+" · "+sum.detail))
+		}
+		uikit.TabStrip(c, func() {
+			uikit.CountedTabs(c, &shown, locales.ResponsePaneName(), labels, nil)
+		}).Grow(1).FillHeight()
+	}, func() {
+		if showNumbers {
+			uikit.ResponseMeta(c, sum.duration, sum.detail, sum.timing)
+		}
+		if tools.draw != nil {
+			tools.draw(&room)
+		}
+		if showFormat {
+			a.bodyFormatMenu(c, t, tools.format)
+		}
+		items := more
+		var head []action
+		if !showNumbers && sum.duration != "" {
+			head = append(head, note(strings.TrimSpace(sum.duration+" · "+sum.detail)))
+		}
+		if tools.format >= 0 && !showFormat {
+			head = append(head, submenu(bodyFormatLabel(tools.format), a.bodyFormatActions(tools.format)...))
+		}
+		if tools.overflow != nil {
+			head = tools.overflow(head)
+		}
+		items = append(head, items...)
+		if len(items) > 0 {
+			uikit.MoreMenu(c, locales.ResponsePaneOptions(), func(m *ui.Menu) { actionMenu(m, items) })
+		}
+	})
+	settleView(selected, views, shown, before)
+}
+
+// checksLabel is how many of a send's checks passed, as the More menu says it.
+func checksLabel(d *requestDocument) string {
+	if len(d.composeTests) == 0 {
+		return ""
+	}
+	passed := 0
+	for _, check := range d.composeTests {
+		if check.Pass {
+			passed++
+		}
+	}
+	return fmt.Sprintf("%d/%d", passed, len(d.composeTests))
+}
+
+// responseViews are the response views the row keeps out, as menu actions.
+func (a *app) responseViews(selected *int, raw bool, checks string, console bool) []action {
+	var items []action
+	if raw {
+		items = append(items, do("response.view", locales.Raw(), func() { *selected = resViewRaw }).
+			checked(checkbox(*selected == resViewRaw)).in("views"))
+	}
+	if checks != "" {
+		items = append(items, do("response.view", locales.Checks(), func() { *selected = resViewTests }).
+			checked(checkbox(*selected == resViewTests)).in("views"))
+	}
+	if console {
+		items = append(items, do("response.view", locales.Console(), func() { *selected = resViewConsole }).
+			checked(checkbox(*selected == resViewConsole)).in("views"))
+	}
+	return items
+}
+
+// bodyPaneActions are what a pane offers about the body it is showing: find,
+// decode, query, copy, and — for a response — save. They read the bytes the
+// pane shows, so they live in its header.
+func (a *app) bodyPaneActions(c *ui.Context, side int) []action {
+	items := []action{
+		do("body.find", locales.FindInText(), func() {
+			if reader := a.bodyText[side]; reader != nil {
+				reader.Run(editor.Find)
+			}
+		}),
+		do("body.decode", locales.DecodeText(), func() {
+			body := a.body
+			if side == 1 {
+				body = a.reqBody
+			}
+			a.openDecoder(a.bodyText[side], body)
+		}),
+		do("body.query", locales.QueryJson(), func() {
+			if f, ok := a.current(); ok {
+				a.openJSONQuery(capturedInspectionBody(f, side))
+			}
+		}),
+		do("body.copy", locales.CopyShownBody(), func() { a.copyPaneBody(c, side) }),
+	}
+	if side == 0 {
+		f, ok := a.current()
+		items = append(items, do("body.save", locales.SaveBody(), func() {
+			a.saveResponseBody(capture.Flow{Status: f.status, ResponseBody: f.resBody,
+				ResponseBodyFile: f.resFile, ResponseBodySize: f.resSize, ResponseBodyError: f.resError})
+		}).when(ok && f.status != 0, "No response was received"))
+	}
+	return items
+}
+
+// bodyFormatShown is what the format menu names for one side's body: the
+// resolved mode while the choice is Auto.
+func (a *app) bodyFormatShown(side int) (string, bool) {
 	f, ok := a.current()
 	if !ok {
-		return
+		return "", false
 	}
 	modes := a.bodyModes(f, side)
 	mode := a.bodyMode[side]
 	if mode >= len(modes) {
 		mode = 0
 	}
-	// The menu names what the pane shows, which is the resolved mode while
-	// the choice is Auto.
 	shown := modes[mode]
 	if mode == 0 {
 		body := a.body
@@ -374,14 +864,40 @@ func (a *app) bodyFormatMenu(c *ui.Context, t *ui.Theme, side int) {
 			shown = modes[resolved]
 		}
 	}
-	uikit.MenuSelect(c, shown, func(m *ui.Menu) {
-		for i, name := range modes {
-			if m.Item(name).Checked(i == mode).Chosen() {
-				a.bodyMode[side] = i
-				a.bodyQuery[side] = ""
-			}
-		}
-	}).Label(bodyFormatLabel(side))
+	return shown, true
+}
+
+// bodyFormatMenu shows and chooses the representation of one side's body.
+func (a *app) bodyFormatMenu(c *ui.Context, t *ui.Theme, side int) {
+	shown, ok := a.bodyFormatShown(side)
+	if !ok {
+		return
+	}
+	uikit.MenuSelect(c, shown, func(m *ui.Menu) { actionMenu(m, a.bodyFormatActions(side)) }).
+		Label(bodyFormatLabel(side))
+}
+
+// bodyFormatActions are the representations one side's body can take, with the
+// chosen one checked, for a menu the pane's row already has: a narrow pane
+// moves the format menu there rather than lose a tab to it.
+func (a *app) bodyFormatActions(side int) []action {
+	f, ok := a.current()
+	if !ok {
+		return nil
+	}
+	modes := a.bodyModes(f, side)
+	mode := a.bodyMode[side]
+	if mode >= len(modes) {
+		mode = 0
+	}
+	items := make([]action, 0, len(modes))
+	for i, name := range modes {
+		items = append(items, do("body.format", name, func() {
+			a.bodyMode[side] = i
+			a.bodyQuery[side] = ""
+		}).checked(checkbox(i == mode)))
+	}
+	return items
 }
 
 // copyPaneBody copies exactly the bytes the pane shows, without formatting
@@ -412,11 +928,19 @@ func (a *app) inspectorPaneBar(c *ui.Context, t *ui.Theme, title, note string) {
 		if uikit.IconButton(c, locales.BackToRequestAndResponse(), locales.RequestAndResponse(), backIcon).Clicked() {
 			a.inspect.pane = inspectorSplit
 		}
-		ui.Text(c, title).FontSize(uikit.TextBody).FontWeight(600).TextColor(t.Text)
+		ui.Text(c, title).FontSize(uikit.TextBody).FontWeight(500).TextColor(t.Text)
 		uikit.Meta(c, note).SingleLine().Tooltip(note)
 		ui.Spacer(c)
 	})
-	ui.Divider(c)
+}
+
+// capturedHeaders are the headers the inspected capture arrived with: what a
+// header row's context menu can filter the traffic by.
+func (a *app) capturedHeaders() map[string][]string {
+	if f, ok := a.current(); ok {
+		return f.reqHeader
+	}
+	return nil
 }
 
 // headersSide lists one side's start line and headers.
@@ -438,8 +962,12 @@ func (a *app) headersSide(c *ui.Context, f flow, side int) {
 	}
 	ui.Column(c).Fill().Children(func() {
 		ui.Row(c).Padding(t.Space(2), t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-			uikit.Meta(c, line).Font(uikit.FontMono).SingleLine().Selectable().Grow(1).
-				Tooltip(strings.TrimSpace(line + "\n" + note))
+			// The response pane names its status already; the request's start
+			// line is the one thing the row adds.
+			if side == 1 {
+				uikit.Mono(c, line).TextColor(t.TextMuted).SingleLine().Selectable().Grow(1).
+					Tooltip(strings.TrimSpace(line + "\n" + note))
+			}
 			if len(headers) > 0 {
 				count := locales.RequestHeadersCount(len(headers))
 				if side == 0 {
@@ -452,7 +980,7 @@ func (a *app) headersSide(c *ui.Context, f flow, side int) {
 				if a.inspect.reveal[side] {
 					label = "Hide"
 				}
-				if uikit.ToolbarButton(c, locales.RevealCredentials(), locales.CredentialsAreMaskedSoA(), false).Height(uikit.HeightCompact).
+				if uikit.ToolbarButton(c, locales.RevealCredentials(), locales.CredentialsAreMaskedSoA(), false).Height(uikit.HeightControl).
 					Children(func() { ui.Text(c, label).FontSize(uikit.TextMeta) }).Clicked() {
 					a.inspect.reveal[side] = !a.inspect.reveal[side]
 				}
@@ -526,7 +1054,7 @@ func (a *app) rawSide(c *ui.Context, f flow, side int) {
 	}
 	ui.Row(c).Padding(t.Space(2), t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 		uikit.Meta(c, locales.AsSentAndReceivedCapture()).Grow(1)
-		if uikit.SecondaryButton(c, locales.CopyRaw()).Height(uikit.HeightCompact).Disabled(a.rawText[side] == "").Clicked() {
+		if uikit.SecondaryButton(c, locales.CopyRaw()).Height(uikit.HeightControl).Disabled(a.rawText[side] == "").Clicked() {
 			c.Services().WriteClipboard(a.rawText[side])
 			a.done(locales.CopiedRawMessageReviewCredentials())
 		}

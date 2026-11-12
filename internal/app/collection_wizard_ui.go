@@ -34,13 +34,17 @@ func (a *app) collectionWizardModal(c *ui.Context, t *ui.Theme) {
 							mark = "✓"
 						}
 						color, background := t.TextMuted, t.Surface
-						if i <= w.step {
+						if i < w.step {
+							// Passed steps are the only green in the wizard;
+							// the step you are on is ink, like the accent.
+							color, background = t.AccentText, uikit.Colors(t).Success
+						} else if i == w.step {
 							color, background = t.AccentText, t.Accent
 						}
 						ui.Box(c).Size(22, 22).Radius(11).Background(background).Border(1, t.Border).Center().Children(func() { ui.Text(c, mark).FontSize(uikit.TextMeta).TextColor(color) })
 						text := uikit.Body(c, label).SingleLine()
 						if i == w.step {
-							text.TextColor(t.Accent).FontWeight(600)
+							text.TextColor(t.Accent).FontWeight(500)
 						}
 					}).BorderColor(func() ui.Color {
 						if i == w.step {
@@ -84,7 +88,7 @@ func (a *app) collectionWizardModal(c *ui.Context, t *ui.Theme) {
 						uikit.Hint(c, locales.RequestsAndExamplesMayContain())
 					}
 				})
-				ui.Column(c.Key("preview-"+strconv.Itoa(w.step))).Basis(0).Grow(1.15).MinWidth(0).MinHeight(0).Padding(t.Space(3)).Gap(t.Space(3)).Background(uikit.Colors(t).Panel).Border(1, t.Border).Radius(uikit.RadiusPanel).Children(func() {
+				ui.Column(c.Key("preview-"+strconv.Itoa(w.step))).Basis(0).Grow(1.15).MinWidth(0).MinHeight(0).Padding(t.Space(3)).Gap(t.Space(3)).Background(uikit.Colors(t).Chrome).Border(1, t.Border).Radius(uikit.RadiusPanel).Children(func() {
 					if w.step == 3 || w.step == 5 {
 						a.collectionWizardTree(c, t)
 						return

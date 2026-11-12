@@ -296,10 +296,10 @@ func (a *app) runnerModal(c *ui.Context, t *ui.Theme) {
 							ui.Row(c).Key(i).Height(uikit.HeightControl).Padding(0, t.Space(2)).Gap(t.Space(1)).AlignItems(ui.Center).
 								Border(0, t.Border).BorderWidth(0, 0, 1, 0).Children(func() {
 								ui.Checkbox(c, &step.enabled, step.request.Name).Label(locales.RunRequest(i + 1)).FontSize(uikit.TextBody).Grow(1).Disabled(r.running)
-								if uikit.SecondaryButton(c, "↑").Label(locales.MoveRequestUp(i + 1)).Tooltip(locales.MoveRequestUp(i + 1)).Width(uikit.HeightCompact).Padding(0).Disabled(r.running || i == 0).Clicked() {
+								if uikit.SecondaryButton(c, "↑").Label(locales.MoveRequestUp(i + 1)).Tooltip(locales.MoveRequestUp(i + 1)).Width(uikit.HeightControl).Padding(0).Disabled(r.running || i == 0).Clicked() {
 									move, delta = i, -1
 								}
-								if uikit.SecondaryButton(c, "↓").Label(locales.MoveRequestDown(i + 1)).Tooltip(locales.MoveRequestDown(i + 1)).Width(uikit.HeightCompact).Padding(0).Disabled(r.running || i == len(r.steps)-1).Clicked() {
+								if uikit.SecondaryButton(c, "↓").Label(locales.MoveRequestDown(i + 1)).Tooltip(locales.MoveRequestDown(i + 1)).Width(uikit.HeightControl).Padding(0).Disabled(r.running || i == len(r.steps)-1).Clicked() {
 									move, delta = i, 1
 								}
 							})

@@ -796,8 +796,8 @@ func TestOpeningARequestWithoutHeadersLeavesItUnchanged(t *testing.T) {
 	d := a.requestDocument
 	d.composeTab = composeTabHeaders
 	ui.NewTester(a.view, 1100, 700).Frame()
-	if len(d.headerRows) != 1 || d.dirty() {
-		t.Fatalf("header rows %+v, dirty %v: the table's blank row must not count as an edit", d.headerRows, d.dirty())
+	if len(d.headerRows) != 0 || d.dirty() {
+		t.Fatalf("header rows %+v, dirty %v: opening a request must not add a header or count as an edit", d.headerRows, d.dirty())
 	}
 }
 
@@ -892,8 +892,12 @@ func TestNTLMAuthEditor(t *testing.T) {
 			t.Fatalf("missing %q: %v", label, tt.Texts())
 		}
 	}
-	if err := clickLabel(tt, "Username"); err != nil {
-		t.Fatal(err)
+	// The field's row carries its description, which wraps in a narrow pane:
+	// click the field itself rather than the row's center.
+	if field, ok := tt.Find("Username"); ok {
+		tt.ClickAt(field.X+field.W-30, field.Y+12)
+	} else {
+		t.Fatal("missing Username field")
 	}
 	tt.Type(`DOMAIN\ann`)
 	if got := d.auth.NTLM.Username; got != `DOMAIN\ann` {

@@ -952,88 +952,74 @@ func (v *captureViews) openSaved(a *app) {
 	}
 }
 
-// controls lives in the sidebar: views and saved conditions never take
-// vertical space away from the request table and inspector.
-// rows is the saved-views part of the sidebar: the views of this session,
-// the filters saved by name, and the two actions that manage them. It sits
-// inside a SidebarSection, so the section's title opens and closes it.
+// rows is the saved-views part of the sidebar, in the traffic region: the
+// views of this session, the filters saved by name, and the two actions that
+// manage them. They narrow the list above rather than choose a place in the
+// window, so the view that is on carries an accent mark and no selection.
 func (v *captureViews) sidebar(c *ui.Context, t *ui.Theme, a *app) {
 	if v.activeView() == nil {
 		v.init(a, v.path)
 	}
 	closing := -1
-	ui.Column(c).Gap(t.Space(0.5)).FillWidth().Children(func() {
-		for i, view := range v.views {
-			name := v.label(i)
-			ui.Row(c.Key(view.id)).AlignItems(ui.Center).Children(func() {
-				// The active view is where the sidebar's scope applies, not a
-				// second selection: an accent icon and full-strength text
-				// mark it, and only the scope above has the selection look.
-				active := i == v.active
-				b := uikit.ToolbarButton(c, locales.CaptureViewNamed(name), locales.IndependentFiltersSelectionAndScroll(), false).FillWidth().Checked(active)
-				if active {
-					b.TextColor(t.Text)
-				}
-				if b.Clicked() {
-					v.capture(a)
-					v.activate(a, i)
-				}
-				if view.reveal {
-					b.ScrollIntoView()
-					view.reveal = false
-				}
-				b.Children(func() {
-					onIcon(c, t, layersIcon, active)
-					uikit.Body(c, name).SingleLine().Grow(1)
-					if len(v.views) > 1 {
-						if uikit.IconButton(c, locales.CloseViewNamed(name), locales.CloseThisView(), closeIcon).Clicked() {
-							closing = i
-						}
-					}
-				})
-			})
+	for i, view := range v.views {
+		name := v.label(i)
+		active := i == v.active
+		b := uikit.SidebarButton(c, name, locales.IndependentFiltersSelectionAndScroll(), layersIcon, active).
+			Label(locales.CaptureViewNamed(name))
+		if b.Clicked() {
+			v.capture(a)
+			v.activate(a, i)
 		}
-		ui.Row(c).FillWidth().AlignItems(ui.Center).Children(func() {
-			if uikit.ToolbarButton(c, locales.NewView(), locales.ANewViewWithIts(), false).Grow(1).Justify(ui.Start).Children(func() {
-				ui.Icon(c, plusIcon).Size(uikit.IconInline, uikit.IconInline)
-				uikit.Body(c, locales.NewView())
-			}).Clicked() {
-				v.capture(a)
-				v.newView(a)
-			}
-			if uikit.IconButton(c, locales.SavedFilters(), locales.SaveCurrentConditionsApplyRename(), filterIcon).Margin(0, t.Space(2), 0, 0).Clicked() {
-				v.openSaved(a)
-			}
-		})
-		if len(v.filters) > 0 {
-			uikit.Label(c, locales.SavedFilters2()).Padding(t.Space(3), t.Space(2), t.Space(1), t.Space(2))
+		if view.reveal {
+			b.ScrollIntoView()
+			view.reveal = false
 		}
-		for _, f := range v.filters {
-			active := v.activeView().saved(f.Name) == f
-			b := uikit.ToolbarButton(c, locales.QuickFilterNamed(f.Name), locales.ApplySavedConditions(), false).FillWidth().Checked(active)
-			if active {
-				b.TextColor(t.Text)
+		if len(v.views) > 1 {
+			// The way out of a view is the row's own: it shows under the
+			// pointer or the keyboard's focus, and keeps its room so the
+			// name never moves when it comes and goes.
+			close := uikit.IconButton(c, locales.CloseViewNamed(name), locales.CloseThisView(), closeIcon)
+			if !b.Hovered() && !b.FocusWithin() {
+				close.Opacity(0)
 			}
-			if b.Clicked() {
-				if active {
-					v.resetFilters(a)
-				} else {
-					v.applySaved(a, f.Name)
-				}
+			if close.Clicked() {
+				closing = i
 			}
-			b.Children(func() {
-				onIcon(c, t, filterIcon, active)
-				uikit.Body(c, f.Name).SingleLine()
-			})
 		}
-		if note, failure := v.status(); note != "" {
-			color := t.TextMuted
-			if failure {
-				color = t.Danger
-			}
-			ui.Text(c, note).FontSize(uikit.TextMeta).TextColor(color).Tooltip(v.statusDetail())
+	}
+	// Views and saved conditions live in the sidebar: they never take
+	// vertical space away from the request table and inspector.
+	ui.Row(c).FillWidth().Children(func() {
+		if uikit.SidebarButton(c, locales.NewView(), locales.ANewViewWithIts(), plusIcon, false).Grow(1).Clicked() {
+			v.capture(a)
+			v.newView(a)
+		}
+		if uikit.IconButton(c, locales.SavedFilters(), locales.SaveCurrentConditionsApplyRename(), filterIcon).Margin(0, t.Space(1.5), 0, 0).Clicked() {
+			v.openSaved(a)
 		}
 	})
+	if len(v.filters) > 0 {
+		uikit.Label(c, locales.SavedFilters2()).Padding(t.Space(3), t.Space(2), t.Space(1), t.Space(2))
+	}
+	for _, f := range v.filters {
+		active := v.activeView().saved(f.Name) == f
+		b := uikit.SidebarButton(c, f.Name, locales.ApplySavedConditions(), filterIcon, active).
+			Label(locales.QuickFilterNamed(f.Name))
+		if b.Clicked() {
+			if active {
+				v.resetFilters(a)
+			} else {
+				v.applySaved(a, f.Name)
+			}
+		}
+	}
+	if note, failure := v.status(); note != "" {
+		color := t.TextMuted
+		if failure {
+			color = t.Danger
+		}
+		ui.Text(c, note).FontSize(uikit.TextMeta).TextColor(color).Tooltip(v.statusDetail()).Padding(t.Space(1), t.Space(3))
+	}
 	if closing >= 0 {
 		v.closeView(a, closing)
 	}
@@ -1364,12 +1350,4 @@ func (v *captureViews) deleteSaved(a *app, name string) {
 	v.problem = ""
 	v.note = "Deleted " + strconv.Quote(name) + "."
 	a.done(locales.DeletedCaptureFilter(name))
-}
-
-// onIcon is a sidebar toggle's icon, in the accent color while it is on.
-func onIcon(c *ui.Context, t *ui.Theme, icon *ui.SVG, on bool) {
-	i := ui.Icon(c, icon).Size(uikit.IconInline, uikit.IconInline)
-	if on {
-		i.TextColor(t.Accent)
-	}
 }

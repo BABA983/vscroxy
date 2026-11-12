@@ -28,7 +28,7 @@ func TestOverviewSnapshots(t *testing.T) {
 		dark bool
 	}{{"paper", false}, {"ink", true}} {
 		var o overview
-		tt := ui.NewTester(func(c *ui.Context) { o.view(c, theme.dark) }, 1280, 860)
+		tt := ui.NewTester(func(c *ui.Context) { o.view(c, theme.dark) }, 1280, 1400)
 		tt.Frame()
 		save := func(name string) {
 			t.Helper()
@@ -65,7 +65,9 @@ type overview struct {
 	format, side         string
 	on, off, check       bool
 	segment, tab, subtab int
-	open                 bool
+	reqTab, resTab       int
+	sources              int
+	open, sections       bool
 }
 
 func (o *overview) view(c *ui.Context, dark bool) {
@@ -73,6 +75,7 @@ func (o *overview) view(c *ui.Context, dark bool) {
 	t := c.Theme()
 	if o.format == "" {
 		o.format, o.side, o.text, o.invalid, o.on, o.check = "Pretty", "all", "api.example.com", "70000", true, true
+		o.open, o.sections = true, true
 	}
 	section := func(title string, content func()) {
 		ui.Column(c).Gap(t.Space(2)).Children(func() {
@@ -83,22 +86,60 @@ func (o *overview) view(c *ui.Context, dark bool) {
 	row := func(content func()) { ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Wrap().Children(content) }
 	ui.Row(c).Fill().Background(t.Background).Children(func() {
 		ui.Sidebar(c, &o.side, func() {
-			SidebarSection(c, "Live", &o.open, func() {})
-			SidebarItem(c, "all", lucide.LayoutList(), "All traffic", o.side == "all", true)
-			SidebarItem(c, "errors", lucide.CircleAlert(), "Errors", o.side == "errors", true)
-			SidebarItem(c, "slow", lucide.Clock(), "Slow", o.side == "slow", true)
+			SidebarHeading(c, "Traffic", &o.open, nil)
+			SidebarItem(c, "all", lucide.LayoutList(), "All requests", o.side == "all", true).Children(func() { Meta(c, "1,159") })
+			SidebarItem(c, "errors", lucide.CircleAlert(), "Errors", o.side == "errors", true).Children(func() { Meta(c, "73") })
+			SidebarItem(c, "slow", lucide.Clock(), "Slow", o.side == "slow", true).Children(func() { Meta(c, "1,035") })
 			// The same selection in a window behind others.
 			SidebarItem(c, "behind", lucide.Clock(), "Chosen, window behind", true, false)
-		}).Width(200).FillHeight().Background(Colors(t).Panel)
+			// A row without an icon keeps the slot, so its label lines up.
+			SidebarItem(c, "host", nil, "api.example.com", false, true).Children(func() { Meta(c, "12") })
+			SidebarHeading(c, "Sources", &o.sections, func() { Segmented(c, &o.sources, "Apps", "Domains").Height(t.Space(5)) })
+			SidebarButton(c, "Show all domains", "", lucide.ChevronRight(), false).TextColor(t.TextMuted)
+		}).Padding(t.Space(1), 0).Gap(0).Width(200).FillHeight().Background(Colors(t).Chrome)
 		ui.Divider(c)
 		ui.Scroll(c).Grow(1).Padding(t.Space(6)).Gap(t.Space(6)).Children(func() {
-			ui.Text(c, "vscroxy uikit").FontSize(TextTitle).Bold()
+			ui.Text(c, "vscroxy uikit").FontSize(TextTitle).FontWeight(500)
+			section("Surfaces", func() {
+				// One control reads the same on chrome, canvas and well; a
+				// field is a well on the canvas and the canvas with a
+				// hairline on chrome.
+				row(func() {
+					for _, s := range []struct {
+						name   string
+						fill   ui.Color
+						chrome bool
+					}{{"Chrome", Colors(t).Chrome, true}, {"Canvas", Colors(t).Canvas, false}, {"Well", Colors(t).Well, false}} {
+						ui.Column(c).Width(230).Padding(t.Space(3)).Gap(t.Space(2)).Radius(RadiusPanel).
+							Background(s.fill).Children(func() {
+							Label(c, s.name)
+							Body(c, "Body · the draft was replayed")
+							Meta(c, "Meta · 12 ms · 4.2 KB")
+							row(func() {
+								SecondaryButton(c, "Save")
+								PrimaryButton(c, "Send")
+							})
+							field := ui.Row(c).Height(HeightControl).AlignItems(ui.Center).Padding(0, t.Space(2))
+							if s.chrome {
+								ChromeFieldFace(c, field, false)
+							} else {
+								FieldFace(c, field, false)
+							}
+							field.Children(func() { Meta(c, "Search") })
+						})
+					}
+				})
+			})
 			section("Buttons", func() {
 				row(func() {
 					PrimaryButton(c, "Send")
 					SecondaryButton(c, "Copy as cURL")
 					DangerButton(c, "Delete")
 					CompactButton(c, "Copy")
+					ChipButton(c, "Commands", "Search every action · Ctrl/Cmd+K").Children(func() {
+						ui.Icon(c, lucide.Search()).Size(IconInline, IconInline).TextColor(t.TextMuted)
+						Meta(c, "⌘K")
+					})
 					ToolbarButton(c, "Breakpoints", "Pause matching requests", false).Children(func() { ui.Text(c, "Breakpoints") })
 					ToolbarButton(c, "Breakpoints on", "Pause matching requests", true).Children(func() { ui.Text(c, "Breakpoints on") })
 					IconButton(c, "Settings", "Settings", lucide.Settings())
@@ -136,6 +177,16 @@ func (o *overview) view(c *ui.Context, dark bool) {
 				Meta(c, "Meta · 12 毫秒 · 4.2 KB · 15:04:05")
 			})
 			section("Inputs and toggles", func() {
+				// The two kinds of field there are: a field on chrome is the
+				// canvas with a hairline, a field on the canvas is a well.
+				row(func() {
+					ui.Field(c, "On chrome", func() {
+						SearchField(c, &o.empty, "Search collections", "Search…", true)
+					}).Width(240)
+					ui.Field(c, "On the canvas", func() {
+						SearchField(c, &o.empty, "Search host or path", "Search…", false)
+					}).Width(240)
+				})
 				row(func() {
 					Input(c, &o.text).Label("Host").Width(220)
 					Input(c, &o.empty).Label("Empty").Placeholder("Search host or path").Width(220)
@@ -173,7 +224,43 @@ func (o *overview) view(c *ui.Context, dark bool) {
 						MethodLabel(c, m)
 					}
 				})
-				ResponseHeadline(c, "500 Internal Server Error", t.Danger, "1242 ms", "1.8 KB · application/json", Timing{})
+			})
+			section("Activity", func() {
+				// One row: its summary, the stacked bars and the latest time.
+				var range_ ActivityRange
+				buckets := make([]ActivityBucket, 60)
+				for i := range buckets {
+					switch {
+					case i%17 == 3:
+						buckets[i] = ActivityBucket{2, 0, 1, 1, 0}
+					case i%9 == 0:
+						buckets[i] = ActivityBucket{0, 1, 0, 0, 0}
+					case i%5 == 0:
+						buckets[i] = ActivityBucket{3, 0, 0, 0, 1}
+					case i%3 == 0:
+						buckets[i] = ActivityBucket{5, 0, 0, 0, 0}
+					}
+				}
+				ui.Column(c).Width(620).Children(func() {
+					ActivityStrip(c, buckets, &range_, "Last 5 min · 138 requests", "20:09:30", func() {})
+				})
+			})
+			section("Pane headers", func() {
+				// One row per pane: a title, its tabs, and what it reports.
+				ui.Column(c).Width(620).Border(1, t.Border).Radius(RadiusPanel).Children(func() {
+					PaneHeader(c, func() {
+						PaneTitle(c, "Request", "Request pane", ui.Color{}, t.Text, nil)
+						CountedTabs(c, &o.reqTab, "Request pane", []string{"Headers", "Params", "Body", "Auth"}, []string{"5"})
+					}, func() {
+						TabMenu(c, "More", "Request pane options", func(*ui.Menu) {})
+					})
+					PaneHeader(c, func() {
+						PaneTitle(c, "500 Internal Server Error", "Response pane", StatusColor(500, t), t.Danger, nil)
+						CountedTabs(c, &o.resTab, "Response pane", []string{"Body", "Headers", "Cookies", "Timing"}, nil)
+					}, func() {
+						ResponseMeta(c, "1242 ms", "1.8 KB", Timing{})
+					})
+				})
 			})
 			section("Key / value", func() {
 				ui.Column(c).Width(520).Border(1, t.Border).Radius(RadiusControl).Children(func() {

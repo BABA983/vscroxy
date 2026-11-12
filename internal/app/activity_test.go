@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/baba983/vscroxy/internal/capture"
+	"github.com/baba983/vscroxy/internal/uikit"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -31,8 +32,8 @@ func TestActivityBrushFiltersWithoutLosingContext(t *testing.T) {
 	}
 	plot, ok := tt.Find("Activity time range")
 	strip, _ := tt.Find("Activity strip")
-	if !ok || strip.H != 52 || !tt.HasText("Last 5 min · 5 requests") {
-		t.Fatalf("missing 52px five-minute overview: %v, %v", strip, tt.Texts())
+	if !ok || strip.H != uikit.HeightStatus || !tt.HasText("Last 5 min · 5 requests") {
+		t.Fatalf("missing the 24px five-minute overview: %v, %v", strip, tt.Texts())
 	}
 	x := func(bucket float32) float32 { return plot.X + plot.W*bucket/60 }
 	y := plot.Y + plot.H/2
@@ -91,7 +92,7 @@ func TestActivityBrushFiltersWithoutLosingContext(t *testing.T) {
 		t.Fatal("new traffic moved the selected timeline")
 	}
 	tt.SetSize(960, 600)
-	if strip, _ := tt.Find("Activity strip"); strip.H != 52 {
+	if strip, _ := tt.Find("Activity strip"); strip.H != uikit.HeightStatus {
 		t.Fatalf("narrow activity strip grew: %v", strip)
 	}
 	tt.Click("Activity time range")

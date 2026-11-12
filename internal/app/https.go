@@ -112,7 +112,7 @@ func (a *app) httpsSettings(c *ui.Context, t *ui.Theme) {
 		uikit.SettingsGroup(c, locales.Certificate(), func() {
 			ui.Field(c, locales.Trust(), func() {
 				ui.Column(c).Gap(t.Space(1)).Children(func() {
-					ui.Text(c, status).FontSize(uikit.TextBody).FontWeight(600).TextColor(color)
+					ui.Text(c, status).FontSize(uikit.TextBody).FontWeight(500).TextColor(color)
 					if s.cert != nil {
 						uikit.Body(c, cmp.Or(s.cert.Subject.CommonName, s.cert.Subject.String()))
 						uikit.Meta(c, "Valid: "+s.cert.NotBefore.Local().Format("2006-01-02")+" → "+s.cert.NotAfter.Local().Format("2006-01-02"))
@@ -302,7 +302,7 @@ func (a *app) connectPanel(c *ui.Context, f flow) {
 					ui.Column(c).FillWidth().Padding(t.Space(2), t.Space(2)).Gap(t.Space(1)).Radius(uikit.RadiusPanel).Background(t.Danger.Alpha(0.06)).Border(1, t.Danger.Alpha(0.2)).Children(func() {
 						ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 							uikit.Label(c, "Recorded failure · "+cmp.Or(f.conn.errorStage, "unknown stage")).Grow(1)
-							if uikit.ToolbarButton(c, locales.CopyError(), locales.CopyTheRecordedError(), false).Height(uikit.HeightCompact).Gap(t.Space(1)).Children(func() {
+							if uikit.ToolbarButton(c, locales.CopyError(), locales.CopyTheRecordedError(), false).Height(uikit.HeightControl).Gap(t.Space(1)).Children(func() {
 								ui.Icon(c, copyIcon).Size(uikit.IconInline, uikit.IconInline)
 								ui.Text(c, locales.Copy()).FontSize(uikit.TextMeta)
 							}).Clicked() {
@@ -383,7 +383,7 @@ func (a *app) connectPanel(c *ui.Context, f flow) {
 				if broadScope {
 					ui.Row(c).Children(func() {
 						if uikit.ToolbarButton(c, "Inspect all domains from "+f.process, "Wider scope for new connections from "+f.processPath+"; not a fix for this failure", false).
-							Height(uikit.HeightCompact).Padding(0, t.Space(1)).Children(func() {
+							Height(uikit.HeightControl).Padding(0, t.Space(1)).Children(func() {
 							ui.Text(c, "Inspect all domains from \""+f.process+"\"…").FontSize(uikit.TextMeta)
 						}).Clicked() {
 							a.setAppInspection(capture.SSLApp{Name: f.process, Path: f.processPath}, true)
