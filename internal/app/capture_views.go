@@ -1040,7 +1040,10 @@ func (v *captureViews) sidebar(c *ui.Context, t *ui.Theme, a *app) {
 			// pointer or the keyboard's focus, and keeps its room so the
 			// name never moves when it comes and goes.
 			close := uikit.IconButton(c, locales.CloseViewNamed(name), locales.CloseThisView(), closeIcon)
-			if !b.Hovered() && !b.FocusWithin() {
+			// The chosen view keeps its close action in sight: the row is the
+			// one being worked in, and a control that waits for the pointer
+			// would hide from the keyboard until the button itself was found.
+			if !active && !b.Hovered() && !b.FocusWithin() {
 				close.Opacity(0)
 			}
 			if close.Clicked() {

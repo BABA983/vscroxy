@@ -155,8 +155,8 @@ func (a *app) collectionTree(c *ui.Context) {
 			// The sidebar has one choice: a request only while it is shown.
 			chosen := a.page == pageRequest && a.requestChoice == r.key()
 			edited := slices.ContainsFunc(a.documents, func(d *requestDocument) bool { return d.savedKey == r.key() && d.dirty() })
-			row := uikit.Tip(c, treeRow(c, tree.Item(nil), depth).Label(r.Name).
-				Selected(chosen), method+" "+r.URL).
+			base := treeRow(c, tree.Item(nil), depth).Label(r.Name).Selected(chosen)
+			row := uikit.Tip(c, base, method+" "+r.URL).
 				OnClick(func() { a.openSaved(r.key()) }).PopoverMenu(menu)
 			if chosen {
 				uikit.Selected(c, row, !a.windowBehind)
@@ -173,7 +173,9 @@ func (a *app) collectionTree(c *ui.Context) {
 					}
 					action := uikit.MoreButton(c, locales.RequestActionsPrefix(r.Name), locales.RequestActions(), menu).
 						Absolute().Right(0).Top(2).Background(uikit.Colors(c.Theme()).Chrome)
-					if !row.Hovered() && !row.FocusWithin() {
+					// The request being edited keeps its actions in sight; the others
+					// wait for the pointer or for focus to enter the row.
+					if !chosen && !base.Hovered() && !row.FocusWithin() {
 						action.Opacity(0)
 					}
 				})
