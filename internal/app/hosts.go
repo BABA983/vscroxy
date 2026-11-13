@@ -342,7 +342,7 @@ func (a *app) newProfile(name, text, url string) bool {
 	}) {
 		return false
 	}
-	h.choice = len(h.set.Profiles) - 1
+	h.choose(len(h.set.Profiles) - 1)
 	return true
 }
 
@@ -543,7 +543,7 @@ func (a *app) deleteProfile(i int) {
 		if draft != nil {
 			h.editors[p.Name] = draft
 		}
-		h.choice = h.set.Index(p.Name)
+		h.choose(h.set.Index(p.Name))
 	}})
 }
 
@@ -555,6 +555,14 @@ func (a *app) duplicateProfile(i int) {
 		text = st.Buffer.String()
 	}
 	a.newProfile(p.Name+" copy", text, "")
+}
+
+// choose points the list at a profile. A keyed list puts the selection back on
+// the row whose key it remembers, so setting the index alone would hand the
+// selection to the profile that was chosen before this one.
+func (h *hostsState) choose(i int) {
+	h.choice = i
+	h.list.Choose(i)
 }
 
 // moveProfiles reorders the profiles, which changes which wins.
@@ -579,7 +587,7 @@ func (a *app) moveProfiles(rows []int, to int) {
 		}
 		s.Profiles = slices.Insert(rest, at, moved...)
 	})
-	h.choice = max(h.set.Index(chosen), 0)
+	h.choose(max(h.set.Index(chosen), 0))
 }
 
 // mapHostLine adds one mapping, as the flow's "Map this host…" makes it, at

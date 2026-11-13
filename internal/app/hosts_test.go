@@ -163,3 +163,37 @@ func TestMapThisHostAddsToAProfileAndDeleteCanBeUndone(t *testing.T) {
 		t.Fatalf("undo restored %q", data)
 	}
 }
+
+// A new profile takes the selection. A keyed list puts the selection back on
+// the row whose key it remembers, so pointing at the new profile alone handed
+// the selection to the one chosen before it.
+func TestNewHostProfileTakesTheSelection(t *testing.T) {
+	a := workspaceApp()
+	a.profiles.dir = t.TempDir()
+	tt := ui.NewTester(a.view, 1280, 800)
+	if err := tt.Click("Host profiles"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.Click("Manage profiles…"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if err := tt.Click("New profile"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if err := tt.Click("New profile"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	h := &a.profiles
+	if len(h.set.Profiles) != 2 {
+		t.Fatalf("profiles = %d, want 2", len(h.set.Profiles))
+	}
+	if got := h.set.Profiles[h.choice].Name; got == h.set.Profiles[0].Name {
+		t.Fatalf("the selection stayed on %q after a second profile", got)
+	}
+	if *h.list.Selected != h.choice {
+		t.Fatalf("the list shows row %d, the app chose %d", *h.list.Selected, h.choice)
+	}
+}
