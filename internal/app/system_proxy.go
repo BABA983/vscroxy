@@ -422,7 +422,7 @@ func (a *app) systemProxySettings(c *ui.Context, t *ui.Theme) {
 		// One switch, not a pair of buttons that has to be read to tell
 		// which way is left: the switch shows what the OS holds, and turning
 		// it over is the change.
-		ui.Field(c, "", func() {
+		ui.Field(c, locales.SystemProxy(), func() {
 			ui.Row(c).Gap(t.Space(2)).Wrap().AlignItems(ui.Center).Children(func() {
 				on := s.check.Status == system.ProxyMatches
 				toggle := ui.Switch(c, &on).Label(locales.UseThisAppsProxy()).Disabled(!running || busy)
