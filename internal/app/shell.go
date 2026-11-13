@@ -342,7 +342,7 @@ func (a *app) footerCountsText() string {
 		}
 		return counts
 	}
-	if n := a.chosen.Len(); n > 0 {
+	if n := a.chosen.Len(); n > 1 {
 		return locales.SelectedOfTotal(n, len(a.visible))
 	}
 	return locales.CaptureCounts(len(a.flows), len(a.visible))

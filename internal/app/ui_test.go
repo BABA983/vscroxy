@@ -2732,8 +2732,9 @@ func TestCaptureSelectionFollowsKeysAndExcludesHiddenRows(t *testing.T) {
 	tt.Key(ui.Cmd, ui.KeyA)
 	tt.Key(ui.Cmd, ui.KeyF)
 	tt.Type("projects")
-	if !tt.HasText("1 of 1 selected") || a.chosen.Has(2) {
-		t.Fatal("filtered-out requests remained selected for bulk export")
+	if a.chosen.Len() != 1 || !a.chosen.Has(1) || a.chosen.Has(2) {
+		t.Fatalf("filtered-out requests remained chosen for bulk export: %d chosen, holds 1: %v, holds 2: %v",
+			a.chosen.Len(), a.chosen.Has(1), a.chosen.Has(2))
 	}
 	if err := tt.Click("More capture options"); err != nil {
 		t.Fatal(err)
@@ -6305,5 +6306,79 @@ func TestAppIconsAreLookedUpOncePerPath(t *testing.T) {
 	a.clientIcon("curl", "/usr/bin/curl")
 	if lookups != 1 {
 		t.Fatalf("the icon was looked up %d times for one path, want once", lookups)
+	}
+}
+
+// rowCenter is where a table row is drawn: the header sits above the rows, and
+// every row is one line high.
+func rowCenter(table ui.Rect, row int) (float32, float32) {
+	return table.X + 300, table.Y + 32 + float32(row)*24
+}
+
+// The row the inspector shows is the row a person is reading, so the table
+// draws it as chosen. MyGo paints a table's chosen rows from the selection set
+// it is given, not from the row the keys move from, and the app picks the first
+// arrival itself: without the two in step, the inspected row looked like every
+// other one.
+func TestTheInspectedRowIsTheChosenRow(t *testing.T) {
+	a := workspaceApp()
+	tt := ui.NewTester(a.view, 1280, 800)
+	tt.Frame()
+	table, ok := tt.Find("Captured requests")
+	if !ok {
+		t.Fatal("no table")
+	}
+	if !a.chosen.Has(a.pickedID) {
+		t.Fatalf("the inspected row %d is not chosen: %d chosen", a.pickedID, a.chosen.Len())
+	}
+	im := tt.Image()
+	x, picked := rowCenter(table, 0)
+	_, other := rowCenter(table, 1)
+	if im.RGBAAt(int(x), int(picked)) == im.RGBAAt(int(x), int(other)) {
+		t.Fatal("the inspected row is drawn like the one below it")
+	}
+}
+
+// A filter that hides the chosen row leaves the inspector on a neighbour, and
+// the table marks that neighbour: the choice follows the row.
+func TestAFilterMovesTheChoiceToTheRowLeft(t *testing.T) {
+	a := workspaceApp()
+	tt := ui.NewTester(a.view, 1280, 800)
+	tt.Frame()
+	tt.Key(ui.Cmd, ui.KeyF)
+	tt.Type("login")
+	tt.Key(0, ui.KeyEnter)
+	if a.pickedID != 2 {
+		t.Fatalf("the filter left the inspector on %d, want the surviving request", a.pickedID)
+	}
+	if !a.chosen.Has(2) || a.chosen.Len() != 1 {
+		t.Fatalf("the choice did not follow the row: %d chosen, holds 2: %v", a.chosen.Len(), a.chosen.Has(2))
+	}
+}
+
+// A choice the user widened is what bulk actions see, and the footer says so
+// only then: one chosen row is the row being read, not a bulk choice.
+func TestAWidenedChoiceStaysChosen(t *testing.T) {
+	a := workspaceApp()
+	tt := ui.NewTester(a.view, 1280, 800)
+	tt.Frame()
+	table, ok := tt.Find("Captured requests")
+	if !ok {
+		t.Fatal("no table")
+	}
+	x, first := rowCenter(table, 0)
+	_, second := rowCenter(table, 1)
+	tt.ClickAtWith(0, x, first)
+	tt.Frame()
+	if !tt.HasText("2 captured · 2 shown") {
+		t.Fatalf("one chosen row reads as a bulk choice: %q", tt.Texts())
+	}
+	tt.ClickAtWith(ui.Shift, x, second)
+	tt.Frame()
+	if a.chosen.Len() != 2 || !a.chosen.Has(1) || !a.chosen.Has(2) {
+		t.Fatalf("Shift-click chose %d rows, holds 1 and 2: %v %v", a.chosen.Len(), a.chosen.Has(1), a.chosen.Has(2))
+	}
+	if !tt.HasText("2 of 2 selected") {
+		t.Fatalf("the footer does not count a bulk choice: %q", tt.Texts())
 	}
 }

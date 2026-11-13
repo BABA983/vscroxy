@@ -1435,6 +1435,24 @@ func (a *app) current() (flow, bool) {
 	return a.flows[a.visible[a.picked]], true
 }
 
+// choosePicked puts the row the inspector shows in the table's choice. MyGo
+// paints a table's chosen rows from the selection set it is given, not from
+// the row the keys move from, so a picked row outside that set was drawn like
+// every other one. The app moves the row itself when the first request
+// arrives, an import or a link lands on one, or a filter leaves a neighbour
+// in its place; choosing it is what a click on it does, so the row a person
+// is reading is the row they see marked. A choice the user widened stays as
+// it is: only a row missing from it is added back, replacing the others, as a
+// click on that row would.
+func (a *app) choosePicked() {
+	f, ok := a.current()
+	if !ok || a.chosen.Has(f.id) {
+		return
+	}
+	a.chosen.Clear()
+	a.chosen.Add(f.id)
+}
+
 // previousResponse is the last response for the same method and URL, the
 // other side of the diff. An empty response is still a valid baseline.
 func (a *app) previousResponse() (string, bool) {
@@ -1581,6 +1599,7 @@ func (a *app) view(c *ui.Context) {
 			}
 		}
 	}
+	a.choosePicked()
 	a.nativeMenuActions(c)
 	t := c.Theme()
 	a.syncSections()
