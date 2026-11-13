@@ -7066,3 +7066,61 @@ func TestHostRowsShowTheirFirstLetter(t *testing.T) {
 		t.Fatal("the host lost its name")
 	}
 }
+
+// A process inside an app shows that app's icon: the outermost .app, so a
+// helper or an XPC service nested in it does not fall back to a generic tile.
+// A daemon outside every bundle gets none, rather than the desktop's black
+// "exec" square.
+func TestClientIconTargetsTheOutermostApp(t *testing.T) {
+	for _, tc := range []struct {
+		path, want string
+		ok         bool
+	}{
+		{"/Applications/Safari.app/Contents/MacOS/Safari", "/Applications/Safari.app", true},
+		{"/Applications/Safari.app/Contents/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking", "/Applications/Safari.app", true},
+		{"/Applications/Foo.app/Contents/Helpers/Bar.app/Contents/MacOS/bar", "/Applications/Foo.app", true},
+		{"/Applications/Safari.app", "/Applications/Safari.app", true},
+		{"/usr/libexec/nsurlsessiond", "", false},
+		{"/System/Library/PrivateFrameworks/CloudKitDaemon.framework/Support/cloudd", "", false},
+		{"", "", false},
+	} {
+		got, ok := iconTarget(tc.path)
+		if runtime.GOOS != "darwin" {
+			// Elsewhere the executable itself is the icon's subject.
+			want := tc.path
+			if tc.path == "" {
+				want = ""
+			}
+			if ok != (want != "") || got != want {
+				t.Fatalf("%q: iconTarget = %q, %t; want %q", tc.path, got, ok, want)
+			}
+			continue
+		}
+		if got != tc.want || ok != tc.ok {
+			t.Fatalf("%q: iconTarget = %q, %t; want %q, %t", tc.path, got, ok, tc.want, tc.ok)
+		}
+	}
+}
+
+// A tunnel that opened shows the lock; one the proxy refused keeps its 502,
+// so a failed tunnel never reads as a working one.
+func TestTunnelStatusSeparatesOpenedFromRefused(t *testing.T) {
+	a := workspaceApp()
+	a.flows = []flow{
+		{id: 1, method: "CONNECT", host: "gateway.icloud.com.cn", kind: "connect", status: 0, process: "cloudd"},
+		{id: 2, method: "CONNECT", host: "refused.test", kind: "connect", status: 502, process: "cloudd"},
+	}
+	a.recount()
+	a.applyFilter()
+	tt := ui.NewTester(a.view, 1280, 800)
+	tt.Frame()
+	if !tt.HasText(locales.TunnelTooltip(0)) {
+		t.Fatalf("an opened tunnel has no lock: %q", tt.Texts())
+	}
+	if !tt.HasText("502") {
+		t.Fatalf("a refused tunnel lost its status: %q", tt.Texts())
+	}
+	if tt.HasText(locales.TunnelTooltip(502)) {
+		t.Fatal("a refused tunnel reads as an opened one")
+	}
+}

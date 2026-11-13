@@ -2684,9 +2684,11 @@ func (a *app) table(c *ui.Context) {
 		case "status":
 			if f.conn.error != "" {
 				uikit.Tip(c, text("Failed").TextColor(t.Danger), f.conn.errorStage+": "+f.conn.error).PopoverMenu(a.rowMenu(c, f))
-			} else if f.kind == "connect" {
-				// A tunnel has no status of its own: the lock says what the
-				// row is, and the tooltip says how the setup went.
+			} else if f.kind == "connect" && f.status < 400 {
+				// A tunnel that opened has no status of its own: the lock
+				// says what the row is, and the tooltip says how the setup
+				// went. One that never opened keeps its number, so a refused
+				// tunnel does not read as a working one.
 				uikit.Tip(c, ui.Row(c).Grow(1).AlignItems(ui.Center).Children(func() {
 					uikit.Glyph(c, lockIcon)
 				}), locales.TunnelTooltip(f.status)).Label(locales.TunnelTooltip(f.status)).PopoverMenu(a.rowMenu(c, f))
@@ -3289,14 +3291,9 @@ func loadIconWith(lookup func(string) ([]byte, bool), process, path string) ui.I
 // systemIcon asks the desktop for the icon of the app an executable belongs to:
 // its .app bundle on macOS, the executable itself elsewhere.
 func systemIcon(path string) ([]byte, bool) {
-	if path == "" {
+	target, ok := iconTarget(path)
+	if !ok {
 		return nil, false
-	}
-	target := path
-	if runtime.GOOS == "darwin" {
-		if bundle, ok := appBundle(path); ok {
-			target = bundle
-		}
 	}
 	data, err := mygo.Shell.FileIcon(target, 32)
 	if err != nil || len(data) == 0 {
@@ -3305,14 +3302,31 @@ func systemIcon(path string) ([]byte, bool) {
 	return data, true
 }
 
-// appBundle is the .app folder an executable sits in, if it sits in one.
+// iconTarget is what the desktop is asked to draw: the app a process belongs
+// to on macOS, the executable itself elsewhere. A daemon outside every bundle
+// has no icon of its own — the desktop answers with the generic black "exec"
+// tile, which reads as a black square in the table — so it is asked for
+// nothing and the row falls back to the app's initial.
+func iconTarget(path string) (string, bool) {
+	if path == "" {
+		return "", false
+	}
+	if runtime.GOOS != "darwin" {
+		return path, true
+	}
+	return appBundle(path)
+}
+
+// appBundle is the outermost .app folder a path sits in, if any: a helper
+// inside an app shows the app's own icon, not a generic helper tile.
 func appBundle(path string) (string, bool) {
-	for dir := filepath.Dir(path); len(dir) > 1; dir = filepath.Dir(dir) {
-		if strings.HasSuffix(dir, ".app") {
-			return dir, true
+	var found string
+	for p := filepath.Clean(path); len(p) > 1; p = filepath.Dir(p) {
+		if strings.HasSuffix(p, ".app") {
+			found = p
 		}
 	}
-	return "", false
+	return found, found != ""
 }
 
 // clientBadge draws the app's initial in its color, for an app whose icon the
