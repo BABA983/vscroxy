@@ -1600,6 +1600,23 @@ func (a *app) view(c *ui.Context) {
 		}
 	}
 	a.choosePicked()
+	// The keys belong to the traffic list when LIVE opens: the window's own
+	// column takes the focus first, so the arrows, Home, End and Enter did
+	// nothing until the list was clicked. It is asked once per visit, not
+	// every frame, so that Tab can leave the list for the sidebar and the
+	// title bar.
+	if a.page == pageLive {
+		if view := a.views.activeView(); view != nil && len(a.visible) > 0 {
+			switch {
+			case view.list.Handle.Focused(c) || view.list.Handle.FocusWithin(c):
+				a.workbench.listFocusAsked = true
+			case !a.workbench.listFocusAsked && a.workbench.content.Focused(c):
+				view.list.Handle.Focus(c)
+			}
+		}
+	} else {
+		a.workbench.listFocusAsked = false
+	}
 	a.nativeMenuActions(c)
 	t := c.Theme()
 	a.syncSections()

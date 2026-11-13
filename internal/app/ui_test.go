@@ -6382,3 +6382,73 @@ func TestAWidenedChoiceStaysChosen(t *testing.T) {
 		t.Fatalf("the footer does not count a bulk choice: %q", tt.Texts())
 	}
 }
+
+// The traffic list is where the keys go in LIVE: the window's own column takes
+// the focus on launch, and the arrows did nothing until the list was clicked.
+func TestTheTrafficListTakesTheKeysOnLaunch(t *testing.T) {
+	a := workspaceApp()
+	tt := ui.NewTester(a.view, 1280, 800)
+	tt.Frame()
+	if !tt.Focused("Captured requests") {
+		t.Fatal("the traffic list does not have the keys on launch")
+	}
+	tt.Key(0, ui.KeyDown)
+	tt.Frame()
+	if f, ok := a.current(); !ok || f.id != 2 {
+		t.Fatalf("the arrow key did not move the inspector: %+v", f)
+	}
+	if !a.chosen.Has(2) || a.chosen.Len() != 1 {
+		t.Fatalf("the moved row is not the choice: %d chosen", a.chosen.Len())
+	}
+	tt.Key(0, ui.KeyUp)
+	tt.Frame()
+	if f, ok := a.current(); !ok || f.id != 1 {
+		t.Fatalf("the arrow key did not move back: %+v", f)
+	}
+}
+
+// Escape in the search field takes back what was typed, as in a filter field
+// elsewhere: the chips, the view and the focus stay.
+func TestEscapeClearsTheSearchText(t *testing.T) {
+	a := workspaceApp()
+	tt := ui.NewTester(a.view, 1280, 800)
+	tt.Frame()
+	tt.Key(ui.Cmd, ui.KeyF)
+	tt.Type("login")
+	tt.Frame()
+	if a.query != "login" || !tt.HasText("2 captured · 1 shown") {
+		t.Fatalf("the search did not narrow the list: %q", a.query)
+	}
+	tt.Key(0, ui.KeyEscape)
+	tt.Frame()
+	if a.query != "" || !tt.HasText("2 captured · 2 shown") {
+		t.Fatalf("Escape left the search in place: %q", a.query)
+	}
+	if !tt.Focused("Search host or path") {
+		t.Fatal("Escape moved the keys out of the search field")
+	}
+}
+
+// ⌘D opens a copy of the request being edited, as the ⋯ menu's Duplicate does.
+func TestDuplicateOpensACopyOfTheRequest(t *testing.T) {
+	a := workspaceApp()
+	tt := ui.NewTester(a.view, 1280, 800)
+	tt.Frame()
+	if err := tt.Click("List projects"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	opened := a.requestDocument
+	tt.Key(ui.Cmd, ui.KeyD)
+	tt.Frame()
+	d := a.requestDocument
+	if d == nil || d == opened || a.page != pageRequest {
+		t.Fatal("⌘D did not open a copy of the request")
+	}
+	if d.savedKey != "" || !strings.HasSuffix(d.value().Name, " copy") {
+		t.Fatalf("the copy is not a new unsaved request: %q %q", d.savedKey, d.value().Name)
+	}
+	if d.value().URL != "https://api.example.com/projects" {
+		t.Fatalf("the copy has another URL: %q", d.value().URL)
+	}
+}

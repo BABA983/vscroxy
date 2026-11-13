@@ -30,6 +30,9 @@ type desktopWorkbench struct {
 	content       ui.Handle
 	menuAction    string
 	menuItems     map[string]*mygo.MenuItem
+	// listFocusAsked is set once the traffic list took the keys for this
+	// visit to LIVE, so Tab can leave it again.
+	listFocusAsked bool
 }
 
 func (w *desktopWorkbench) openPalette() {
@@ -213,7 +216,8 @@ func (a *app) captureToolbar(c *ui.Context, t *ui.Theme) {
 			cb := ui.ComboboxBase(c.Key("capture-search"), &a.query)
 			search := cb.Input.Bind(&a.search).Label(locales.SearchHostOrPath()).Placeholder(placeholder).
 				Tooltip(cmp.Or(a.queryProblem, a.searchProblem, "Search host and path (including query) · Text supports key:value chips · Pattern modes treat the entire field as one expression · Ctrl/Cmd+F")).
-				Height(uikit.HeightControl).Padding(0, t.Space(1)).FontSize(uikit.Scaled(uikit.TextBody)).Grow(1).MinWidth(min(200, width/5)).FocusRing(false)
+				Height(uikit.HeightControl).Padding(0, t.Space(1)).FontSize(uikit.Scaled(uikit.TextBody)).Grow(1).MinWidth(min(200, width/5)).FocusRing(false).
+				OnShortcut(0, ui.KeyEscape, func() { a.clearQuery(c) })
 			if a.queryProblem != "" || a.searchProblem != "" {
 				search.TextColor(t.Danger)
 			}
@@ -508,6 +512,8 @@ func (a *app) actions(c *ui.Context) []action {
 			when(editing && !d.composeWaiting && (d.protocol == "gRPC" || d.protocol == "MQTT" || d.protocol == "MCP" || a.srv != nil && a.srv.Running()), "Open a request draft; HTTP sends require capture running").keys(ui.Cmd, ui.KeyEnter),
 		do("request.cancel-send", locales.CancelSend(), func() { d.cancelSend() }).
 			when(editing && d.composeWaiting && d.sendCancel != nil && !d.sendCancelling, ""),
+		do("request.duplicate", locales.DuplicateAsNewRequest(), func() { a.duplicateDocument(d) }).
+			when(editing && !d.composeWaiting, draft).keys(ui.Cmd, ui.KeyD),
 		do("request.save", locales.SaveRequest(), func() {
 			if a.page.capture() && d.savedKey == "" {
 				// A capture has no name or collection yet: ask for both.
@@ -650,6 +656,18 @@ func (a *app) focusTraffic(c *ui.Context) {
 	if view := a.views.activeView(); view != nil && len(a.visible) > 0 {
 		view.list.Handle.Focus(c)
 	}
+}
+
+// clearQuery takes back what was typed in the search field, leaving its chips,
+// the view and the focus where they are: Escape in the field clears the search.
+func (a *app) clearQuery(c *ui.Context) {
+	if a.query == "" && a.queryProblem == "" {
+		return
+	}
+	a.query, a.queryProblem = "", ""
+	a.views.capture(a)
+	a.applyFilter()
+	c.Invalidate()
 }
 
 func (a *app) commandPalette(c *ui.Context) {

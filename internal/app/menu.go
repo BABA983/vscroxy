@@ -57,6 +57,7 @@ func (a *app) menu() *mygo.Menu {
 		command("flow.copy-raw", locales.RawHttp()), command("flow.copy-har", locales.HarSanitized()), command("flow.copy-har-raw", locales.HarWithSensitiveData()))
 	items = append(items, file, &mygo.MenuItem{Role: mygo.RoleEditMenu}, &mygo.MenuItem{Label: locales.Request(), Submenu: []*mygo.MenuItem{
 		command("flow.edit", locales.EditRequest()),
+		command("request.duplicate", locales.DuplicateAsNewRequest()),
 		command("flow.replay", locales.ReplaySelected()),
 		command("flow.copy-curl", locales.CopyAsCurl()),
 		{Label: locales.CopyAs(), Submenu: copyFormats},

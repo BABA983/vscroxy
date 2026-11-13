@@ -724,14 +724,20 @@ func (a *app) requestDocumentActions(c *ui.Context, t *ui.Theme, d *requestDocum
 	})
 }
 
+// duplicateDocument opens a copy of a request as a new unsaved one.
+func (a *app) duplicateDocument(d *requestDocument) {
+	if d == nil {
+		return
+	}
+	r := d.value()
+	r.ID, r.Name = "", uniqueRequestName(a.requests, r.Name+" copy")
+	a.addDocument(r, "")
+}
+
 // documentActions are an open request's, beside Save.
 func (a *app) documentActions(c *ui.Context, d *requestDocument) []action {
 	return []action{
-		do("request.duplicate", locales.DuplicateAsNewRequest(), func() {
-			r := d.value()
-			r.ID, r.Name = "", uniqueRequestName(a.requests, r.Name+" copy")
-			a.addDocument(r, "")
-		}),
+		do("request.duplicate", locales.DuplicateAsNewRequest(), func() { a.duplicateDocument(d) }).keys(ui.Cmd, ui.KeyD),
 		do("request.copy-curl", locales.CopyAsCurl(), func() { a.copyRequest(c, flow{}, d, "cURL") }),
 		copyAsMenu(a.requestCopyActions(c, flow{}, d)),
 		do("request.code", locales.GenerateCode(), a.openCode),
