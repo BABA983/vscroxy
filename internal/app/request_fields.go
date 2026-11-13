@@ -759,7 +759,9 @@ func requestCodeEditor(c *ui.Context, state *editor.State) ui.Element {
 	t := c.Theme()
 	state.Font = ui.Font{Family: uikit.FontMono, Size: uikit.TextBody}
 	state.Theme = uikit.EditorTheme(t)
-	return ui.Box(c).Grow(1).MinHeight(0).FillWidth().Border(1, t.Border).Radius(uikit.RadiusControl).Children(func() {
+	// The editor sits on the panel itself: an input is a well or a field on
+	// chrome, and this is neither, so it draws no box of its own.
+	return ui.Box(c).Grow(1).MinHeight(0).FillWidth().Children(func() {
 		editor.View(c, state).Grow(1).FillWidth().FocusRing(true)
 	})
 }

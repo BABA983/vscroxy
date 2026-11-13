@@ -60,7 +60,9 @@ func (a *app) historyRecords(d *requestDocument) []experimentRecord {
 // read-only in place of the response; choosing an example opens it in the
 // Examples tab.
 func (a *app) historyColumn(c *ui.Context, t *ui.Theme, d *requestDocument) {
-	ui.Column(c).Width(historyWidth).FillHeight().Background(uikit.Colors(t).Chrome).
+	// The column is part of the panel, not a panel of its own: canvas, told
+	// apart from the editor by one rule.
+	ui.Column(c).Width(historyWidth).FillHeight().
 		BorderWidth(0, 1, 0, 0).BorderColor(t.Border).Children(func() {
 		ui.Row(c).Height(uikit.HeightBar).Padding(0, t.Space(2)).AlignItems(ui.Center).Children(func() {
 			uikit.Segmented(c, &d.historyTab, locales.History(), locales.Examples()).Label(locales.RequestHistory()).FillWidth()
