@@ -6852,3 +6852,32 @@ func TestAppsRowsShowTheAppIcon(t *testing.T) {
 		t.Fatalf("the app icon is not drawn in the row: %v at %v", pixel, row)
 	}
 }
+
+// Sessions are the capture's history, not a collection: they are rows of the
+// traffic region, above the collections, and one click opens the session.
+func TestSessionsLiveWithTheTraffic(t *testing.T) {
+	a := workspaceApp()
+	a.sessions.items = []*savedSession{{key: "k1", data: sessionFile{Title: "Morning evidence"}, count: 3, loaded: true}}
+	tt := ui.NewTester(a.view, 1280, 800)
+	tt.Frame()
+	row, ok := tt.Find("Morning evidence")
+	if !ok {
+		t.Fatalf("the session is not in the sidebar: %q", tt.Texts())
+	}
+	collections, ok := tt.Find("Collections")
+	if !ok || row.Y > collections.Y {
+		t.Fatalf("the session sits at %v, not above the collections at %v", row.Y, collections.Y)
+	}
+	if err := tt.Click("Morning evidence"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if a.page != pageSession || a.sessions.active != "k1" {
+		t.Fatalf("the session row opened page %v, active %q", a.page, a.sessions.active)
+	}
+	// The footer's rows open windows and pages, not sections: no disclosure
+	// arrows, unlike the rows above them.
+	if _, ok := tt.Find("›"); ok {
+		t.Fatal("the sidebar's footer still carries disclosure arrows")
+	}
+}

@@ -70,51 +70,6 @@ func branchArrow(c *ui.Context, open *bool) {
 	})
 }
 
-// sessionsTree is the last row of the collections tree: the sessions kept
-// beyond live traffic, each opening the requests it holds. It folds away like
-// any other branch, so the tree stays one list rather than gaining a section.
-func (a *app) sessionsTree(c *ui.Context, tree ui.TreeParts) {
-	open := !a.sessionsClosed
-	item := tree.Item(&open)
-	row := treeRow(c, item, 0).Label(locales.Sessions())
-	if a.revealGroup == "sessions" {
-		row.ScrollIntoView()
-	}
-	row.Children(func() {
-		branchArrow(c, &open)
-		uikit.Body(c, locales.Sessions()).SingleLine().Grow(1)
-		if n := len(a.sessions.items); n > 0 {
-			uikit.Meta(c, fmt.Sprint(n)).FontFeatures("tnum")
-		}
-	})
-	item.Group(func() {
-		for _, s := range a.sessions.items {
-			leaf := tree.Item(nil)
-			session := uikit.Tip(c, treeRow(c, leaf, 1).Label(s.data.Title), s.data.Title).
-				OnClick(func() { a.goTo("session:" + s.key) }).
-				PopoverMenu(func(m *ui.Menu) {
-					actionMenu(m, []action{do("session.delete", locales.DeleteSession(), func() { a.confirmDeleteSession(s) })})
-				})
-			if a.sidebarChoice == "session:"+s.key {
-				uikit.Selected(c, session, !a.windowBehind)
-			}
-			session.Children(func() {
-				uikit.Glyph(c, clockIcon)
-				uikit.Body(c, s.data.Title).SingleLine().Grow(1)
-				uikit.Meta(c, fmt.Sprint(s.count)).FontFeatures("tnum")
-			})
-		}
-		opening := tree.Item(nil)
-		openSession := treeRow(c, opening, 1).Label(locales.OpenSession()).
-			Tooltip(locales.OpenHistoricalSessionFilesWithout()).OnClick(a.openSession)
-		openSession.Children(func() {
-			uikit.Glyph(c, clockIcon)
-			uikit.Body(c, locales.OpenSession()).SingleLine().Grow(1)
-		})
-	})
-	a.sessionsClosed = !open
-}
-
 // collectionTree uses full paths for identity and short names for presentation.
 // Search opens matching ancestors without rewriting the user's collapsed state.
 func (a *app) collectionTree(c *ui.Context) {
@@ -228,14 +183,6 @@ func (a *app) collectionTree(c *ui.Context) {
 	tree.Root.Gap(0).Children(func() {
 		a.unsavedRequests(c, tree, query)
 		branch("", 0)
-		// An empty tree says where a request would go, in the tree's own
-		// inset, before the sessions that are not a collection.
-		if len(a.requests) == 0 && len(paths) == 0 {
-			ui.Row(c).Padding(c.Theme().Space(1.5), c.Theme().Space(1.5)).PaddingStart(c.Theme().Space(3.5)).Children(func() {
-				uikit.Hint(c, locales.SaveARequestHereOr())
-			})
-		}
-		a.sessionsTree(c, tree)
 	})
 }
 

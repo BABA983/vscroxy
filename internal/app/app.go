@@ -178,9 +178,6 @@ type app struct {
 	// row can decide what fits instead of guessing a share of the window.
 	inspectorReqPane, inspectorRespPane ui.Handle
 	editorReqPane, editorRespPane       ui.Handle
-	// sessionsClosed keeps the sidebar's sessions shut; they are open until
-	// a click closes them.
-	sessionsClosed bool
 	// revealGroup scrolls the sidebar to a region in the next build: "live",
 	// "collections" or "sessions".
 	revealGroup string
@@ -2023,7 +2020,7 @@ func (a *app) goTo(choice string) {
 }
 
 // sidebarRegions are the sidebar's foldable regions, in the order they appear.
-var sidebarRegions = []string{"traffic", "sources", "collections"}
+var sidebarRegions = []string{"traffic", "sources", "sessions", "collections"}
 
 // regionOpen is the state one region of the sidebar folds by, created on first
 // use from what settings remembered: every region starts open.
@@ -2124,8 +2121,38 @@ func (a *app) trafficRegion(c *ui.Context, t *ui.Theme) {
 					a.sourcesRows(c, t)
 				})
 			}
+			// Sessions are the capture's history, not a collection: they sit
+			// with the traffic they came from.
+			sessions := a.regionOpen("sessions")
+			sessionHead := uikit.SidebarHeading(c, locales.Sessions(), sessions, nil)
+			if a.revealGroup == "sessions" {
+				sessionHead.ScrollIntoView()
+			}
+			if *sessions {
+				ui.Column(c.Key("sessions-region")).Gap(0).Transition(uikit.RegionMotion).Children(func() {
+					a.sessionsRows(c, t)
+				})
+			}
 		})
 	})
+}
+
+// sessionsRows are the sessions kept beyond live traffic, each opening the
+// requests it holds, and the way to open a session file. They are rows of the
+// traffic region's list, so the keys move through them with the rest.
+func (a *app) sessionsRows(c *ui.Context, t *ui.Theme) {
+	for _, s := range a.sessions.items {
+		id := "session:" + s.key
+		uikit.SidebarItem(c, id, clockIcon, s.data.Title, a.sidebarChoice == id, !a.windowBehind).
+			PopoverMenu(func(m *ui.Menu) {
+				actionMenu(m, []action{do("session.delete", locales.DeleteSession(), func() { a.confirmDeleteSession(s) })})
+			}).Children(func() {
+			uikit.Meta(c, fmt.Sprint(s.count)).FontFeatures("tnum")
+		})
+	}
+	if row := uikit.SidebarButton(c, locales.OpenSession(), locales.OpenHistoricalSessionFilesWithout(), clockIcon, false).TextColor(t.TextMuted); row.Clicked() {
+		a.openSession()
+	}
 }
 
 // trafficRows are the scopes the traffic list narrows to, each with what it
@@ -2301,15 +2328,11 @@ func (a *app) collectionsRegion(c *ui.Context, t *ui.Theme) {
 // choose a place in the list above, so they carry no selection.
 func (a *app) sidebarFooter(c *ui.Context, t *ui.Theme) {
 	ui.Column(c).Padding(t.Space(1), 0).Gap(0).Children(func() {
-		if uikit.SidebarButton(c, locales.ClientSetup(), locales.CopyAProcessScopedProxy(), monitorIcon, false).Children(func() {
-			uikit.Body(c, "›")
-		}).Clicked() {
+		if uikit.SidebarButton(c, locales.ClientSetup(), locales.CopyAProcessScopedProxy(), monitorIcon, false).Clicked() {
 			a.openClientSetup()
 		}
 		if uikit.SidebarButton(c, locales.HttpsRules(), locales.HttpsInspectionRules(), lockIcon, false).
-			Label(locales.ManageHttpsRules()).Children(func() {
-			uikit.Body(c, "›")
-		}).Clicked() {
+			Label(locales.ManageHttpsRules()).Clicked() {
 			a.sslOpen = true
 		}
 		if uikit.SidebarButton(c, locales.Diagnostics(), locales.ConnectionDiagnostics(), diagnosticsIcon, a.page == pageDiagnostics).Clicked() {
