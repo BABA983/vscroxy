@@ -409,10 +409,14 @@ func (a *app) htmlPreview(c *ui.Context, key, body string, side int) {
 		a.htmlFor[side] = key
 		a.htmlDoc[side] = richtext.NewDocument(richtext.ParseHTML(body))
 	}
-	// The preview keeps the page's own type, but not its edges: it sits in
-	// the panel with the padding every other view has.
+	// The preview keeps the page's own type, but not its edges: it sits in the
+	// panel with the padding every other view has. EditorBase draws its text at
+	// its own origin and ignores the element's padding, so the room comes from
+	// the box around it.
 	t := c.Theme()
-	richtext.EditorBase(c, a.htmlDoc[side], richtext.EditorOptions{ReadOnly: true}).Grow(1).Padding(t.Space(2), t.Space(3))
+	ui.Column(c).Grow(1).MinHeight(0).Padding(t.Space(2), t.Space(3)).Children(func() {
+		richtext.EditorBase(c, a.htmlDoc[side], richtext.EditorOptions{ReadOnly: true}).Grow(1)
+	})
 }
 
 func (a *app) prettyBody(c *ui.Context, body string, side int) {
