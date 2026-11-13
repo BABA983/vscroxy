@@ -409,7 +409,10 @@ func (a *app) htmlPreview(c *ui.Context, key, body string, side int) {
 		a.htmlFor[side] = key
 		a.htmlDoc[side] = richtext.NewDocument(richtext.ParseHTML(body))
 	}
-	richtext.EditorBase(c, a.htmlDoc[side], richtext.EditorOptions{ReadOnly: true}).Grow(1)
+	// The preview keeps the page's own type, but not its edges: it sits in
+	// the panel with the padding every other view has.
+	t := c.Theme()
+	richtext.EditorBase(c, a.htmlDoc[side], richtext.EditorOptions{ReadOnly: true}).Grow(1).Padding(t.Space(2), t.Space(3))
 }
 
 func (a *app) prettyBody(c *ui.Context, body string, side int) {
