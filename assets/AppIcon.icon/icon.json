@@ -1,0 +1,28 @@
+{
+  "fill": {
+    "solid": "srgb:0.957,0.949,0.925,1"
+  },
+  "groups": [
+    {
+      "layers": [
+        {
+          "image-name": "Eyes.svg",
+          "name": "Eyes"
+        },
+        {
+          "image-name": "Cat.svg",
+          "name": "Cat"
+        }
+      ],
+      "lighting": "combined",
+      "specular": false,
+      "shadow": {
+        "kind": "none",
+        "opacity": 0
+      }
+    }
+  ],
+  "supported-platforms": {
+    "squares": "shared"
+  }
+}

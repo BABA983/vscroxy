@@ -6,5 +6,8 @@
   "i18n": {
     "dir": "locales",
     "source": "en"
+  },
+  "macos": {
+    "icon": "assets/AppIcon.icon"
   }
 }

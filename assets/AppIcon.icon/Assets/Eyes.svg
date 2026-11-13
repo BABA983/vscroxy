@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <clipPath id="eye-left"><ellipse cx="322" cy="842" rx="160" ry="122" transform="rotate(-15 322 842)"/></clipPath>
+    <clipPath id="eye-right"><ellipse cx="706" cy="798" rx="144" ry="128" transform="rotate(-18 706 798)"/></clipPath>
+  </defs>
+  <ellipse cx="322" cy="842" rx="160" ry="122" transform="rotate(-15 322 842)" fill="#FFFFFF"/>
+  <ellipse cx="706" cy="798" rx="144" ry="128" transform="rotate(-18 706 798)" fill="#FFFFFF"/>
+  <g clip-path="url(#eye-left)">
+    <ellipse cx="414" cy="800" rx="31" ry="84" transform="rotate(8 414 800)" fill="#111110"/>
+    <ellipse cx="405" cy="762" rx="9" ry="14" transform="rotate(8 405 762)" fill="#FFFFFF"/>
+  </g>
+  <g clip-path="url(#eye-right)">
+    <ellipse cx="778" cy="744" rx="31" ry="82" transform="rotate(8 778 744)" fill="#111110"/>
+    <ellipse cx="769" cy="706" rx="9" ry="14" transform="rotate(8 769 706)" fill="#FFFFFF"/>
+  </g>
+</svg>
