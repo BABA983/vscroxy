@@ -49,11 +49,11 @@ func fills(p Palette, rest, hover, pressed float32) Palette {
 var Paper = fills(Palette{
 	Chrome: ui.Hex("#edf3ea"), Canvas: ui.Hex("#f9fdf6"), Well: ui.Hex("#ebebeb"),
 	Hairline: ui.Hex("#ebefe8"), Sidebar: ui.Hex("#f3f8f0"),
-	Text:     ui.Hex("#0b0d0b"), TextMuted: ui.Hex("#595959"), TextFaint: ui.Hex("#8a8f88"),
+	Text: ui.Hex("#0b0d0b"), TextMuted: ui.Hex("#595959"), TextFaint: ui.Hex("#8a8f88"),
 	Accent: ui.Hex("#141614"), AccentHover: ui.Hex("#2a2d2a"), AccentPressed: ui.Hex("#3d413d"),
 	AccentText: ui.Hex("#f9fdf6"), AccentTint: ui.Hex("#d6dcd6"),
-	Success: ui.Hex("#2f8052"),
-	Info:    ui.Hex("#2f6ea5"), Warning: ui.Hex("#86600f"), Danger: ui.Hex("#c44f4a"),
+	Success: ui.Hex("#2c784d"),
+	Info:    ui.Hex("#2f6ea5"), Warning: ui.Hex("#86600f"), Danger: ui.Hex("#b9423c"),
 	MethodGet: ui.Hex("#2f6ea5"), MethodPost: ui.Hex("#5b6b1c"), MethodPatch: ui.Hex("#7a3e6d"),
 	Socket:  ui.Hex("#2b6868"),
 	Inverse: ui.Hex("#0b0d0b"), InverseText: ui.Hex("#f9fdf6"),
@@ -69,7 +69,7 @@ var Ink = fills(Palette{
 	// they are the lighter surfaces, as they are in Paper.
 	Chrome: ui.Hex("#070807"), Canvas: ui.Hex("#0c1516"), Well: ui.Hex("#192121"),
 	Hairline: ui.Hex("#1b2324"), Sidebar: ui.Hex("#0c1313"),
-	Text:     ui.Hex("#f6fff5"), TextMuted: ui.Hex("#9ca49c"), TextFaint: ui.Hex("#6d766e"),
+	Text: ui.Hex("#f6fff5"), TextMuted: ui.Hex("#9ca49c"), TextFaint: ui.Hex("#6d766e"),
 	Accent: ui.Hex("#eaf3e9"), AccentHover: ui.Hex("#ffffff"), AccentPressed: ui.Hex("#cfd8ce"),
 	AccentText: ui.Hex("#0c1516"), AccentTint: ui.Hex("#2f372f"),
 	Success: ui.Hex("#54b879"),

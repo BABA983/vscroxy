@@ -100,7 +100,7 @@ v3 把界面收成三种表面和一套控件规则（设计稿见第 2 节）�
   - 菜单和命令面板的高亮只有浅底。
 - **形状靠近 macOS：** 圆角 4／6／10（第 6.3 节），嵌套的圆角同心（内层 = 外层 − 内边距），浮层是细边框加柔和的大阴影。不做胶囊按钮：控件高 24 时胶囊显得像玩具。
 - **macOS 上的原生感（3.5，保留）：** 参考了 onegit／onevra、kero、mygo-cloudmusic 三个 MyGo 应用、Telegram 和 Apple HIG，共同点是窗口外壳原生、控件用中性色叠加、少画线。
-  - 只在 macOS 上：界面字体用系统字体（SF Pro），侧栏用 `VibrancySidebar` 材质，但上面盖约 90% 不透明的 chrome 色，桌面只隐约透出一点色调；内容区始终不透明。Windows、Linux 用内嵌的 Geist 和平涂。
+  - 只在 macOS 上：界面字体用系统字体（SF Pro）。侧栏仍挂着 `VibrancySidebar`，但外壳的每一块（标题栏、底栏、侧栏、内容）都画自己的实色，桌面不透出来：标题栏曾经因为没有自己的底色而让壁纸透上来，标题栏和其余外壳不是一个色（2026-11-13 修）。Windows、Linux 用内嵌的 Geist 和平涂。
   - 标题栏不画色带和底边框，红绿灯对齐标题栏中线（40 高，Y 13）。
   - 强调色不跟随系统，是墨黑（Ink 下是白）。
 - **每个面板只有一排标签页：** 面板头 32 高，标题在左、标签页紧跟、元信息在右。请求面板是 Headers／Params／Body／Auth，响应面板是 Body／Headers／Cookies／Timing；Scripts、Checks、Examples、Docs、Settings、Raw、Original、Bulk edit 收进请求面板的 More，响应的 Raw／Checks／Console 收进它右侧的 `⋯`。选中的 tab 是中性面，不再有强调色文字。
@@ -116,20 +116,23 @@ v3 把界面收成三种表面和一套控件规则（设计稿见第 2 节）�
 
 | Token | Paper | Ink | 说明 |
 | --- | --- | --- | --- |
-| `Chrome` | `#f4f3f0` | `#171716` | 外壳：标题栏、侧栏、底栏，以及窗口右侧（侧栏收起时还有左侧）的 8px 边 |
-| `Canvas` | `#ffffff` | `#1f1f1d` | 抬起的内容面板，也是 MyGo 的 Background 和 Surface |
-| `Well` | `#ecebe7` | `#101010` | canvas 上的输入框 |
-| `Hairline` | `#e3e1dc` | `#2e2e2b` | 面板的 1px 边、同一表面的分隔线、表头边框、对话框边缘 |
-| `Fill`／`FillHover`／`FillPressed` | 文字色 6%／10%／14% | 文字色 8%／12%／17% | 控件、tab、chip 的面；失焦选中底用 `Fill` |
-| `Text` | `#1a1a18` | `#e9e8e4` | 正文 |
-| `TextMuted` | `#5f5d58` | `#a09e98` | 次要文字、2xx 的颜色，也是输入框聚焦时那 1px 边和编辑器里的标点 |
-| `TextFaint` | `#9e9c96` | `#686660` | 只用于图标、禁用、占位和失焦标记线，不承载信息 |
-| `Accent` | `#1a1a18` | `#e9e8e4` | 主按钮、焦点、选中标记、开关、复选框的开启态、活动行把手、表头拖动线 |
-| `AccentHover`／`AccentPressed` | `#33332f`／`#474743` | `#ffffff`／`#cfcdc8` | |
-| `AccentText` | `#ffffff` | `#101010` | 主按钮文字，也是 Success 面（向导的完成标记）上的文字 |
-| `AccentTint` | `#d8d4cb` | `#45443f` | 聚焦时的选中浅底、输入框的焦点晕圈、活动行选区 |
-| `Success` | `#26734a` | `#7cc492` | 检查通过、录制点、信任状态、向导里已完成的步骤 |
+| `Chrome` | `#edf3ea` | `#070807` | 外壳：标题栏、底栏，以及卡片之间 2px 的缝；标题栏自己画这个色（窗口根节点在 macOS 上是透明的） |
+| `Sidebar` | `#f3f8f0` | `#0c1313` | 侧栏卡片，比外壳亮一档，和内容卡片只靠底色区分 |
+| `Canvas` | `#f9fdf6` | `#0c1516` | 内容卡片，也是 MyGo 的 Background 和 Surface |
+| `Well` | `#ebebeb` | `#192121` | canvas 上的输入框 |
+| `Hairline` | `#ebefe8` | `#1b2324` | 面板的 1px 边、同一表面的分隔线、表头边框、对话框边缘 |
+| `Fill`／`FillHover`／`FillPressed` | 文字色 7%／11%／15% | 文字色 7%／11%／15% | 控件、tab、chip 的面；失焦选中底用 `Fill` |
+| `Text` | `#0b0d0b` | `#f6fff5` | 正文 |
+| `TextMuted` | `#595959` | `#9ca49c` | 次要文字、2xx 的颜色，也是输入框聚焦时那 1px 边和编辑器里的标点 |
+| `TextFaint` | `#8a8f88` | `#6d766e` | 只用于图标、禁用、占位和失焦标记线，不承载信息 |
+| `Accent` | `#141614` | `#eaf3e9` | 主按钮、焦点、选中标记、开关、复选框的开启态、活动行把手、表头拖动线 |
+| `AccentHover`／`AccentPressed` | `#2a2d2a`／`#3d413d` | `#ffffff`／`#cfd8ce` | |
+| `AccentText` | `#f9fdf6` | `#0c1516` | 主按钮文字，也是 Success 面（向导的完成标记）上的文字 |
+| `AccentTint` | `#d6dcd6` | `#2f372f` | 聚焦时的选中浅底、输入框的焦点晕圈、活动行选区 |
+| `Success` | `#2c784d` | `#54b879` | 检查通过、录制点、信任状态、向导里已完成的步骤 |
 | `Info`／3xx／GET | `#2f6ea5` | `#8fb3d1` | |
+| `Warning` | `#86600f` | `#d6a038` | |
+| `Danger` | `#b9423c` | `#d67670` | |
 | `Warning`／4xx／PUT | `#9c5906` | `#e0a458` | 设计稿是 `#a15c07`，见下面的对比度说明 |
 | `Danger`／5xx／DELETE／慢请求 | `#c0392b` | `#e8806f` | |
 | `MethodPost`／`MethodPatch`／`Socket` | `#5b6b1c`／`#7a3e6d`／`#2b6868` | `#b5c27a`／`#c99abd`／`#6fc3d6` | Ink 的 `Socket` 往蓝青挪，和 `Success` 的绿分开（决策 56） |
@@ -484,6 +487,7 @@ VSCROXY_SNAPSHOTS="$PWD/.amp/in/artifacts/ui" \
 56. 编辑器里的语法着色不再用绿色或青色：键名用 `Text`，字符串用 `MethodPatch` 的梅紫，数字和布尔值用 `Info` 蓝；库默认主题画成绿色的正则、标签、插入文本也换成这三种（正则随字符串、标签和插入文本用 `Info`）。Ink 的 `Socket` 从 `#7cc4c0` 挪到 `#6fc3d6`，12 号字下和 `Success` 的绿分得开（第七阶段，2026-11-12）。
 57. 请求头的 Key／Value 两列都给最小宽度（108／120）：常见 header 名和 `application/json` 这样的值读得完整，超过 20 个字符的值在悬停时给全文。列表在窄于 860 时先去掉 Remote IP 列、窄于 740 时再去掉 Client 列，耗时列不再被列表的边切掉（第七阶段，2026-11-12）。
 58. 过滤栏的搜索框放不下整句占位文字时只显示「Search host or path」，不再截半句（第七阶段，2026-11-12）。
+61. 试验：卡片外壳 + Amp 原色（2026-11-13）。外壳一种底色，侧栏和内容各是一张卡片，卡片之间和四周只隔 2px；卡片不描边、不加阴影，圆角 8，只圆朝外的角。配色取 Amp 默认主题（Daydream）的变量，半透明色按叠在卡片上的效果换成实色：外壳 `#edf3ea`／`#070807`、侧栏卡片 `#f3f8f0`／`#0c1313`、内容卡片 `#f9fdf6`／`#0c1516`、`Well` `#ebebeb`／`#192121`、`Hairline` `#ebefe8`／`#1b2324`、`Text` `#0b0d0b`／`#f6fff5`、`TextMuted` `#595959`／`#9ca49c`、`Accent` `#141614`／`#eaf3e9`、`AccentTint` `#d6dcd6`／`#2f372f`、`Success` `#2c784d`／`#54b879`、`Warning` `#86600f`／`#d6a038`、`Danger` `#b9423c`／`#d67670`。对比度契约不变；Amp 的 Paper Danger `#c44f4a` 和 Success `#2f8052` 在 canvas、外壳和 well 上都不到 4.5，按原色相和饱和度压明度到刚好过线（`#b9423c`、`#2c784d`），Ink 保持原值。`TextFaint`、`AccentHover`／`AccentPressed`、`AccentText`、`Fill` 的百分比按同一套明度关系推出来。
 59. 外壳只有一块底色：标题栏、侧栏、底栏都是 `Chrome`，之间不画线；内容是一张抬起的 `Canvas` 面板（`RadiusPanel`、1px `Hairline`、`Shadow(0,1,3)`），右边 8，侧栏收起时左边也 8（第八阶段，2026-11-12）。
 60. Ink 的 `Chrome` 和 `Canvas` 对调：外壳 `#171716`、面板 `#1f1f1d`，`Well` 仍是 `#101010`。对调前面板比外壳暗，看起来是凹下去的；Paper 不动。对调后对比度断言全过，最低仍是 Paper 的 Info 在 well 上 4.52:1（第八阶段，2026-11-12）。
 61. 标题栏：左边是开始／暂停录制的按钮和品牌，中间是监听 pill（`Success` 圆点 + `Listening on` + 等宽的地址，未运行时是停止状态、没有绿点），右边是 `⌘K`、侧栏开关、布局切换、Tools、Settings、`⋯`。Host 方案和已启用的工具 chip 从标题栏移到底栏；pill 不再画请求速率曲线（第八阶段，2026-11-12）。
