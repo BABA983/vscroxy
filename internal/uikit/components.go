@@ -737,8 +737,14 @@ func MoreMenu(c *ui.Context, label string, menu func(*ui.Menu)) ui.Element {
 	// that one draws a chevron after its label, and a ⋯ already says a menu
 	// opens. The menu itself is the library's, panel and motion included.
 	b := ui.ButtonBase(c).Label("⋯").PopoverMenuButton(menu, ui.PopoverMenuButtonOptions{Panel: func(panel ui.Element) { PopoverPanel(c, panel) }})
+	// ButtonBase is a row with no look: the glyph has to be a child, or the
+	// pane's menu is an empty strip with nothing to click.
+	b.Children(func() { ui.Text(c, "⋯").FontSize(Scaled(TextBody)).SingleLine() })
 	c.SetTheme(t)
-	return Tip(c, b.Label(label), label).Height(HeightControl).
+	// A pane header's row is already full of names and tabs: the menu must
+	// keep its width and let them shrink, or it is laid out at nothing and
+	// the pane has no way into its own commands.
+	return Tip(c, b.Label(label), label).Height(HeightControl).Shrink(0).
 		Padding(0, t.Space(2)).FontSize(Scaled(TextBody)).TextColor(t.TextMuted)
 }
 
@@ -752,6 +758,8 @@ func TabMenu(c *ui.Context, label, name string, menu func(*ui.Menu)) ui.Element 
 	ghost.Border = ui.Color{}
 	c.SetTheme(&ghost)
 	b := ui.ButtonBase(c).Label(label).PopoverMenuButton(menu, ui.PopoverMenuButtonOptions{Panel: func(panel ui.Element) { PopoverPanel(c, panel) }})
+	// ButtonBase paints nothing of its own: the tab's words are its child.
+	b.Children(func() { ui.Text(c, label).FontSize(Scaled(TextBody)).SingleLine() })
 	c.SetTheme(t)
 	return Tip(c, b.Label(name), name).Height(HeightControl).Padding(0, t.Space(1.5)).
 		Radius(RadiusControl).AlignItems(ui.Center).Gap(t.Space(1)).FontSize(Scaled(TextBody)).TextColor(t.TextMuted)

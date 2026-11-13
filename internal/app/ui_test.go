@@ -6807,6 +6807,9 @@ func TestTunnelDetailSaysOneThingAndOffersDecrypting(t *testing.T) {
 	if !tt.HasText("Decrypt api.github.com") {
 		t.Fatalf("the tunnel offers no way to decrypt it: %q", tt.Texts())
 	}
+	if more, ok := tt.Find("⋯"); !ok || more.W == 0 {
+		t.Fatalf("the tunnel's pane header has no menu to click: %+v", more)
+	}
 	if err := tt.Click("Connection"); err != nil {
 		t.Fatal(err)
 	}

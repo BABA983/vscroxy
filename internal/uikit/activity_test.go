@@ -86,3 +86,21 @@ func TestActivityStripDrawsReadableBarsAndABand(t *testing.T) {
 		t.Fatalf("the chosen window's face is %v on a canvas of %v, too close to see", band, canvas)
 	}
 }
+
+// The pane's menu and its extra tab are words, not empty strips: ButtonBase
+// has no look of its own, so both have to draw their label.
+func TestPaneMenusDrawTheirWords(t *testing.T) {
+	tt := ui.NewTester(func(c *ui.Context) {
+		ui.Row(c).Gap(8).Children(func() {
+			MoreMenu(c, "Inspector options", func(*ui.Menu) {})
+			TabMenu(c, "More", "Pane options", func(*ui.Menu) {})
+		})
+	}, 300, 60)
+	tt.Frame()
+	if _, ok := tt.Find("⋯"); !ok {
+		t.Fatalf("the menu has no glyph: %q", tt.Texts())
+	}
+	if _, ok := tt.Find("More"); !ok {
+		t.Fatalf("the tab has no label: %q", tt.Texts())
+	}
+}
