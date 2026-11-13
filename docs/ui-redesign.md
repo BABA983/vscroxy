@@ -517,6 +517,9 @@ VSCROXY_SNAPSHOTS="$PWD/.amp/in/artifacts/ui" \
 
 v3 六个阶段落地后，和设计稿仍有这些差别，都是有意保留的：
 
+- **悬停只重绘，做不到（2026-11-13）。** 悬停底色要在 `Draw` 里读指针才能只重绘；但 `p.AnimationFrame()` 请求的是只重绘不重建的帧，这种帧里 `Element.Hovered()` 用的还是上一轮构建的元素，MyGo 判它过期并 panic：`ui: element from pass 143 used in pass 146; keep a ui.Handle instead`。`ui.Handle` 只有 `Focused`／`Bounds`，没有 `Hovered`，所以换 handle 也读不到。23 处悬停仍在构建期读，用 `hoverMotion` 保留 120 ms 淡出；等 MyGo 给 painter 级的指针信息或可在重绘帧读的 hover 才能改。
+- **侧栏 Apps 的行只能画字形图标，画不了应用自己的图标（2026-11-13）。** `ui.SidebarItem` 的图标槽收 `*ui.SVG`，而我们自己 `.Children(...)` 加的内容会排在文字之后；`mygo.Shell.FileIcon` 能取到 `.app`／exe 的位图，但没有地方把它放进行首。流量表的 Client 列不受影响（那里是我们自己排的行）。
+
 1. **侧栏的图标槽是 16 而不是 14。** MyGo 的 source list 条目按字号（16）画图标，槽跟着宽 2px；行文字仍在同一条线上。
 2. **侧栏分区标题有 8px 上边距**（第一个也有），所以侧栏顶部留白 12；设计稿第一个标题没有上边距。
 3. **Collections 标题行多了 `⋯`**（设计稿只有加号）：导入、环境、历史、Runner、APIs、Vault、Cookies 都在里面。
