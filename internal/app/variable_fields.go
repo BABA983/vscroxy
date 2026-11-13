@@ -14,13 +14,12 @@ import (
 // variableCompletion is the one {{ completion open in the window. Only the
 // focused field can own it, so one state serves every input.
 type variableCompletion struct {
-	field      string
-	open       bool
-	selected   int
-	start      int // byte offset of "{{"
-	caret      int // byte offset after the typed prefix
-	caretAfter int // rune offset to restore after an insertion, or -1
-	dismissed  string
+	field     string
+	open      bool
+	selected  int
+	start     int // byte offset of "{{"
+	caret     int // byte offset after the typed prefix
+	dismissed string
 }
 
 // variableInput is uikit.Input with {{}} highlighting, a hover preview and
@@ -127,10 +126,6 @@ func (a *app) variableTooltip(c *ui.Context, anchor ui.Element, marks []variable
 // syncVariableCompletion reads the caret and opens or closes the completion
 // for this field. It also restores the caret after a completion inserted.
 func (a *app) syncVariableCompletion(in ui.Element, key string, value *string) {
-	if a.varsComplete.field == key && a.varsComplete.caretAfter >= 0 {
-		in.SetTextSelection(a.varsComplete.caretAfter, a.varsComplete.caretAfter)
-		a.varsComplete.caretAfter = -1
-	}
 	if !in.Focused() {
 		// Views build more than once per frame; a pass without the focus must
 		// not close a completion the focused pass opened.
@@ -203,7 +198,7 @@ func (a *app) variablePopover(c *ui.Context, anchor ui.Element, key string, valu
 			a.varsComplete.selected = (a.varsComplete.selected + 1) % len(items)
 			return true
 		case ui.KeyEnter, ui.KeyTab:
-			if a.acceptVariableKey(k, items[a.varsComplete.selected].Name) {
+			if a.acceptVariableKey(anchor, k.Text(), items[a.varsComplete.selected].Name) {
 				return true
 			}
 		case ui.KeyEscape:
@@ -227,7 +222,7 @@ func (a *app) variablePopover(c *ui.Context, anchor ui.Element, key string, valu
 					ui.Text(c, hint.source()).FontSize(uikit.TextMeta).TextColor(t.TextMuted).Grow(1).MinWidth(0).SingleLine().Ellipsis("…")
 				})
 				if item.Clicked() {
-					a.acceptVariableCompletion(value, hint.Name)
+					a.acceptVariableCompletion(anchor, value, hint.Name)
 				}
 			}
 		})
@@ -237,29 +232,51 @@ func (a *app) variablePopover(c *ui.Context, anchor ui.Element, key string, valu
 	}
 }
 
-// acceptVariableCompletion replaces the open {{prefix with {{name}}.
-func (a *app) acceptVariableCompletion(value *string, name string) {
-	text, after, ok := replaceVariableToken(*value, name, a.varsComplete.caret)
-	if !ok {
+// acceptVariableCompletion replaces the open {{prefix with {{name}}, as an
+// edit of its own: Undo brings back what the user typed before it, and the caret
+// lands after the reference without a frame putting it there.
+func (a *app) acceptVariableCompletion(field ui.Element, value *string, name string) {
+	if !a.replaceVariableToken(field, *value, name) {
 		return
 	}
-	*value = text
-	a.varsComplete.caretAfter, a.varsComplete.open, a.varsComplete.dismissed = after, false, ""
+	a.varsComplete.open, a.varsComplete.dismissed = false, ""
 }
 
 // acceptVariableKey does the same for a key, whose text is ahead of the bound
 // value; the caret is the last one the field reported.
-func (a *app) acceptVariableKey(k ui.TextKey, name string) bool {
-	text, after, ok := replaceVariableToken(k.Text(), name, a.varsComplete.caret)
-	if !ok {
-		text, after, ok = replaceVariableToken(k.Text(), name, len(k.Text()))
+func (a *app) acceptVariableKey(field ui.Element, text, name string) bool {
+	if !a.replaceVariableToken(field, text, name) {
+		return false
 	}
+	a.varsComplete.open, a.varsComplete.dismissed = false, ""
+	return true
+}
+
+// replaceVariableToken replaces the unterminated {{prefix ending at the caret
+// with {{name}}, keeping a closing brace pair the text already has.
+func (a *app) replaceVariableToken(field ui.Element, text, name string) bool {
+	caret, _ := field.TextSelection()
+	start, end, ok := variableTokenRunes(text, caret)
 	if !ok {
 		return false
 	}
-	k.SetText(text)
-	a.varsComplete.caretAfter, a.varsComplete.open, a.varsComplete.dismissed = after, false, ""
+	field.ReplaceText(start, end, "{{"+name+"}}")
 	return true
+}
+
+// variableTokenRunes is the rune range of the {{prefix ending at caret, which
+// reaches past the caret when the text closes the reference already.
+func variableTokenRunes(text string, caret int) (start, end int, ok bool) {
+	startByte, _, ok := openVariableToken(text, runeToByte(text, caret))
+	if !ok {
+		return 0, 0, false
+	}
+	start = utf8.RuneCountInString(text[:startByte])
+	end = caret
+	if strings.HasPrefix(text[runeToByte(text, caret):], "}}") {
+		end += 2
+	}
+	return start, end, true
 }
 
 // replaceVariableToken replaces the unterminated {{prefix ending at caret with
