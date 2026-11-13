@@ -242,7 +242,7 @@ func (o *overview) view(c *ui.Context, dark bool) {
 					}
 				}
 				ui.Column(c).Width(620).Children(func() {
-					ActivityStrip(c, buckets, &range_, "Last 5 min · 138 requests", "20:09:30", func() {})
+					ActivityStrip(c, buckets, &range_, "20:09:30", func() {})
 				})
 			})
 			section("Pane headers", func() {

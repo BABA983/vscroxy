@@ -294,18 +294,6 @@ func (msgs Messages) ActivityDragHelp() string {
 	return Catalog.Format(msgs.locale, "activityDragHelp", nil)
 }
 
-// ActivitySelected says "{label} · {count, plural, one {# request} other {# requests}}"
-// in the language the app shows.
-func ActivitySelected(label string, count int) string {
-	return In(i18n.Locale()).ActivitySelected(label, count)
-}
-
-// ActivitySelected says "{label} · {count, plural, one {# request} other {# requests}}"
-// in the language of msgs.
-func (msgs Messages) ActivitySelected(label string, count int) string {
-	return Catalog.Format(msgs.locale, "activitySelected", map[string]any{"label": label, "count": count})
-}
-
 // ActivityStrip says "Activity strip"
 // in the language the app shows.
 func ActivityStrip() string { return In(i18n.Locale()).ActivityStrip() }
@@ -314,18 +302,6 @@ func ActivityStrip() string { return In(i18n.Locale()).ActivityStrip() }
 // in the language of msgs.
 func (msgs Messages) ActivityStrip() string {
 	return Catalog.Format(msgs.locale, "activityStrip", nil)
-}
-
-// ActivitySummary says "Last {minutes} min · {count, plural, one {# request} other {# requests}}"
-// in the language the app shows.
-func ActivitySummary(minutes int, count int) string {
-	return In(i18n.Locale()).ActivitySummary(minutes, count)
-}
-
-// ActivitySummary says "Last {minutes} min · {count, plural, one {# request} other {# requests}}"
-// in the language of msgs.
-func (msgs Messages) ActivitySummary(minutes int, count int) string {
-	return Catalog.Format(msgs.locale, "activitySummary", map[string]any{"minutes": minutes, "count": count})
 }
 
 // ActivityTimeRange says "Activity time range"
@@ -2150,18 +2126,6 @@ func CaptureARequestToInspect() string { return In(i18n.Locale()).CaptureAReques
 // in the language of msgs.
 func (msgs Messages) CaptureARequestToInspect() string {
 	return Catalog.Format(msgs.locale, "captureARequestToInspect", nil)
-}
-
-// CaptureCounts says "{captured} captured · {shown} shown"
-// in the language the app shows.
-func CaptureCounts(captured int, shown int) string {
-	return In(i18n.Locale()).CaptureCounts(captured, shown)
-}
-
-// CaptureCounts says "{captured} captured · {shown} shown"
-// in the language of msgs.
-func (msgs Messages) CaptureCounts(captured int, shown int) string {
-	return Catalog.Format(msgs.locale, "captureCounts", map[string]any{"captured": captured, "shown": shown})
 }
 
 // CaptureIsNoLongerIn says "Capture is no longer in this session"
@@ -23312,4 +23276,16 @@ func WritesTheInitialValuesShown() string { return In(i18n.Locale()).WritesTheIn
 // in the language of msgs.
 func (msgs Messages) WritesTheInitialValuesShown() string {
 	return Catalog.Format(msgs.locale, "writesTheInitialValuesShown", nil)
+}
+
+// ShownOfCaptured says "{shown} of {captured}"
+// in the language the app shows.
+func ShownOfCaptured(shown int, captured int) string {
+	return In(i18n.Locale()).ShownOfCaptured(shown, captured)
+}
+
+// ShownOfCaptured says "{shown} of {captured}"
+// in the language of msgs.
+func (msgs Messages) ShownOfCaptured(shown int, captured int) string {
+	return Catalog.Format(msgs.locale, "shownOfCaptured", map[string]any{"shown": shown, "captured": captured})
 }

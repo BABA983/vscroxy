@@ -271,7 +271,7 @@ func TestCaptureErrorsIncludeGRPCFailures(t *testing.T) {
 			t.Errorf("Errors omitted %s", path)
 		}
 	}
-	if tt.HasText("api.test/successful") || tt.HasText("api.test/not-grpc") || !tt.HasText("3 shown") {
+	if tt.HasText("api.test/successful") || tt.HasText("api.test/not-grpc") || !tt.HasText("3 of 5") {
 		t.Fatal("Errors must retain only actual HTTP/gRPC failures")
 	}
 }

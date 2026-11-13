@@ -134,7 +134,7 @@ func TestActivityStacksMeasureTotalWithoutRecoloringNormalTraffic(t *testing.T) 
 		tt := ui.NewTester(func(c *ui.Context) {
 			c.SetTheme(theme)
 			ui.Column(c).Fill().Background(theme.Background).Children(func() {
-				ActivityStrip(c, []ActivityBucket{{6, 0, 0, 4, 0}, {0, 0, 0, 5, 0}}, &selected, "15 requests", "10:30:05", func() {})
+				ActivityStrip(c, []ActivityBucket{{6, 0, 0, 4, 0}, {0, 0, 0, 5, 0}}, &selected, "10:30:05", func() {})
 			})
 		}, 400, 100)
 		plot, _ := tt.Find("Activity time range")

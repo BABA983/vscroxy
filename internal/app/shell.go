@@ -342,7 +342,12 @@ func (a *app) footerCountsText() string {
 	if n := a.chosen.Len(); n > 1 {
 		return locales.SelectedOfTotal(n, len(a.visible))
 	}
-	return locales.CaptureCounts(len(a.flows), len(a.visible))
+	// The sidebar already counts the capture: the footer says how much of it
+	// the view hides, and nothing while it hides nothing.
+	if shown, captured := len(a.visible), len(a.flows); shown != captured {
+		return locales.ShownOfCaptured(shown, captured)
+	}
+	return ""
 }
 
 // following is whether the list is following new traffic.

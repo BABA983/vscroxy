@@ -32,7 +32,7 @@ func TestActivityBrushFiltersWithoutLosingContext(t *testing.T) {
 	}
 	plot, ok := tt.Find("Activity time range")
 	strip, _ := tt.Find("Activity strip")
-	if !ok || strip.H != uikit.HeightStatus || !tt.HasText("· 5 requests") {
+	if !ok || strip.H != uikit.HeightStatus {
 		t.Fatalf("missing the 24px overview: %v, %v", strip, tt.Texts())
 	}
 	x := func(bucket float32) float32 { return plot.X + plot.W*bucket/60 }
@@ -56,7 +56,7 @@ func TestActivityBrushFiltersWithoutLosingContext(t *testing.T) {
 	tt.Move(x(10.2), y)
 	tt.Release(x(10.2), y)
 	check(3, 4)
-	if !tt.HasText("10:30:50–10:32:30 · 2 requests") || !a.filtersActive() {
+	if !tt.HasText("Time: 10:30:50–10:32:30") || !a.filtersActive() {
 		t.Fatal("range summary or active filter was lost")
 	}
 	// Both handles resize rather than starting a new selection.
@@ -76,7 +76,7 @@ func TestActivityBrushFiltersWithoutLosingContext(t *testing.T) {
 	settle(t, a, &a.views)
 	tt.Frame()
 	check(5)
-	if !tt.HasText("10:31:40–10:33:20 · 1 request") {
+	if !tt.HasText("Time: 10:31:40–10:33:20") {
 		t.Fatal("body results did not narrow the selected interval")
 	}
 	if err := tt.Click("Remove condition: body:needle"); err != nil {
@@ -88,7 +88,7 @@ func TestActivityBrushFiltersWithoutLosingContext(t *testing.T) {
 	a.applyFilter()
 	tt.Frame()
 	check(4, 5)
-	if !tt.HasText("10:31:40–10:33:20 · 2 requests") || !tt.HasText("10:35:00") {
+	if !tt.HasText("Time: 10:31:40–10:33:20") || !tt.HasText("10:35:00") {
 		t.Fatal("new traffic moved the selected timeline")
 	}
 	tt.SetSize(960, 600)
@@ -98,7 +98,7 @@ func TestActivityBrushFiltersWithoutLosingContext(t *testing.T) {
 	tt.Click("Activity time range")
 	tt.Key(0, ui.KeyEscape)
 	check(1, 2, 3, 4, 5, 6, 8)
-	if a.query != "example" || !tt.HasText("Last 5 min · 1 request") {
+	if a.query != "example" || a.activity.active() {
 		t.Fatal("clearing time removed another filter or failed to resume the window")
 	}
 }
@@ -195,7 +195,8 @@ func TestActivityPausedCaptureShowsOnlyRecentTraffic(t *testing.T) {
 	a.flows[1].at, a.flows[1].live = now.Add(-time.Second), true
 	a.applyFilter()
 	tt := ui.NewTester(a.view, 1280, 800)
-	if !tt.HasText("· 1 request") {
-		t.Fatal("paused capture showed old traffic as current activity")
+	tt.Frame()
+	if a.activityCounts.total != 1 {
+		t.Fatalf("paused capture counted %d requests in the window, want only the recent one", a.activityCounts.total)
 	}
 }

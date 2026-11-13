@@ -7,26 +7,6 @@
       }
     }
   },
-  "@activitySelected": {
-    "placeholders": {
-      "label": {
-        "type": "String"
-      },
-      "count": {
-        "type": "int"
-      }
-    }
-  },
-  "@activitySummary": {
-    "placeholders": {
-      "minutes": {
-        "type": "int"
-      },
-      "count": {
-        "type": "int"
-      }
-    }
-  },
   "@addNoun": {
     "placeholders": {
       "noun": {
@@ -77,16 +57,6 @@
         "type": "String"
       },
       "bytes": {
-        "type": "int"
-      }
-    }
-  },
-  "@captureCounts": {
-    "placeholders": {
-      "captured": {
-        "type": "int"
-      },
-      "shown": {
         "type": "int"
       }
     }
@@ -1379,9 +1349,7 @@
   "activeSubscriptions": "{count} active",
   "activeTool": "Active tool: {name}",
   "activityDragHelp": "Drag to select time. Drag handles to resize. Arrows move the range; Shift+arrows resize; Escape clears.",
-  "activitySelected": "{label} · {count, plural, one {# request} other {# requests}}",
   "activityStrip": "Activity strip",
-  "activitySummary": "Last {minutes} min · {count, plural, one {# request} other {# requests}}",
   "activityTimeRange": "Activity time range",
   "addAFilePartOnly": "Add a file part; only the local path is stored",
   "addANote": "Add a note…",
@@ -1561,7 +1529,6 @@
   "capabilities": "Capabilities",
   "capture": "Capture",
   "captureARequestToInspect": "Capture a request to inspect it.",
-  "captureCounts": "{captured} captured · {shown} shown",
   "captureIsNoLongerIn": "Capture is no longer in this session",
   "captureIsNotRunning": "Capture is not running",
   "captureIsStopped": "Capture is stopped",
@@ -3640,5 +3607,16 @@
   "workstation": "Workstation",
   "writeNonSensitiveCurrentValues": "Write non-sensitive Current values into Initial; credentials stay local",
   "writeTlsSecretsToA": "Write TLS secrets to a file Wireshark reads to decrypt this capture. Applies after a restart.",
-  "writesTheInitialValuesShown": "Writes the Initial values shown here, saved or not, in Postman's environment format; Current values are excluded"
+  "writesTheInitialValuesShown": "Writes the Initial values shown here, saved or not, in Postman's environment format; Current values are excluded",
+  "shownOfCaptured": "{shown} of {captured}",
+  "@shownOfCaptured": {
+    "placeholders": {
+      "shown": {
+        "type": "int"
+      },
+      "captured": {
+        "type": "int"
+      }
+    }
+  }
 }

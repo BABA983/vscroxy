@@ -15,7 +15,7 @@ func TestActivityCanceledPressKeepsSelection(t *testing.T) {
 		buckets[i][0] = 1
 	}
 	tt := ui.NewTester(func(c *ui.Context) {
-		ActivityStrip(c, buckets, &selected, "10 requests", "10:30:05", func() {})
+		ActivityStrip(c, buckets, &selected, "10:30:05", func() {})
 	}, 600, 120)
 	plot, ok := tt.Find("Activity time range")
 	if !ok {

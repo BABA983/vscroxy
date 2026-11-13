@@ -1,7 +1,6 @@
 package app
 
 import (
-	"github.com/baba983/vscroxy/locales"
 	"math"
 	"time"
 
@@ -135,16 +134,13 @@ func (a *app) countActivity(start, end time.Time) (buckets [activityBuckets]uiki
 }
 
 func (a *app) drawActivity(c *ui.Context, end, start time.Time, used int, buckets [activityBuckets]uikit.ActivityBucket, total, selected int) {
-	minutes := max(1, int(end.Sub(start).Round(time.Minute)/time.Minute))
-	summary := locales.ActivitySummary(minutes, total)
-	if a.activity.active() {
-		summary = locales.ActivitySelected(a.activity.label(), selected)
-	}
 	key := 0
 	if view := a.views.activeView(); view != nil {
 		key = view.id
 	}
-	uikit.ActivityStrip(c.Key(key), buckets[:used], &a.activity.selection, summary, end.Format("15:04:05"), func() {
+	// The strip is the plot and the time it ends at: the count is the
+	// sidebar's, and a chosen range is a chip in the search field.
+	uikit.ActivityStrip(c.Key(key), buckets[:used], &a.activity.selection, end.Format("15:04:05"), func() {
 		if a.activity.active() {
 			if a.activity.start.IsZero() {
 				a.activity.start = start

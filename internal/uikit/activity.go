@@ -21,18 +21,22 @@ type ActivityRange struct{ From, To int }
 // resize it. Arrows move a range, Shift+arrows extend it, and Escape clears it.
 // changed runs after pointer, keyboard and Clear edits, without retaining
 // build-scoped elements.
-func ActivityStrip(c *ui.Context, buckets []ActivityBucket, selected *ActivityRange, summary, last string, changed func()) ui.Element {
+func ActivityStrip(c *ui.Context, buckets []ActivityBucket, selected *ActivityRange, last string, changed func()) ui.Element {
 	t, palette := c.Theme(), Colors(c.Theme())
 	strip := ui.Row(c).Height(HeightStatus).Shrink(0).FillWidth().Padding(0, 12).Gap(8).AlignItems(ui.Center).
 		Label(locales.ActivityStrip())
 	strip.Border(0, t.Border).BorderWidth(0, 0, 1, 0)
 	strip.Children(func() {
-		// What the strip says keeps its room whether or not a range is
+		plot := ui.Box(c.Key("plot")).Height(14).Grow(1).MinWidth(40).Focusable().Role(ui.RoleGroup).Label(locales.ActivityTimeRange()).
+			Description(locales.ActivityDragHelp())
+		state := ui.Local(plot, "brush", func() activityGesture { return activityGesture{} })
+		// The handle itself must survive a build, just as the gesture does.
+		bound := ui.Local(plot, "handle", func() ui.Handle { return ui.Handle{} })
+		plot.Bind(bound)
+		// The way out of a range keeps its room whether or not one is
 		// chosen: a brush must never move the bars under the pointer that
 		// started it.
-		ui.Row(c).Width(240).Shrink(1).MinWidth(0).Gap(8).AlignItems(ui.Center).Children(func() {
-			Tip(c, ui.Text(c, summary).FontSize(Scaled(TextMeta)).TextColor(t.TextMuted).NoWrap().Ellipsis("…").Grow(1).MinWidth(0), summary).
-				ContentTransition(ui.ContentTransition{Numeric: true})
+		ui.Row(c).Width(48).Shrink(0).AlignItems(ui.Center).Children(func() {
 			clear := SecondaryButton(c.Key("clear"), locales.ClearX()).Label(locales.ClearActivityRange()).
 				Height(18).PaddingX(4).FontSize(Scaled(TextMeta)).Shrink(0)
 			if selected.To > selected.From {
@@ -41,12 +45,6 @@ func ActivityStrip(c *ui.Context, buckets []ActivityBucket, selected *ActivityRa
 				clear.Disabled(true).Opacity(0)
 			}
 		})
-		plot := ui.Box(c.Key("plot")).Height(14).Grow(1).MinWidth(40).Focusable().Role(ui.RoleGroup).Label(locales.ActivityTimeRange()).
-			Description(locales.ActivityDragHelp())
-		state := ui.Local(plot, "brush", func() activityGesture { return activityGesture{} })
-		// The handle itself must survive a build, just as the gesture does.
-		bound := ui.Local(plot, "handle", func() ui.Handle { return ui.Handle{} })
-		plot.Bind(bound)
 		n := len(buckets)
 		plot.HandleInput(func(ev ui.InputEvent) bool {
 			if n == 0 {

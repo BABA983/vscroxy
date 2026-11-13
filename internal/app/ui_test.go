@@ -1390,8 +1390,8 @@ func TestCaptureSearchAndFilterFailuresAreRecoverable(t *testing.T) {
 	if err := tt.Click("Show all requests"); err != nil {
 		t.Fatal(err)
 	}
-	if !tt.HasText("2 captured · 2 shown") {
-		t.Fatal("reset did not restore the captured requests")
+	if a.footerCountsText() != "" || len(a.visible) != 2 {
+		t.Fatalf("reset did not restore the captured requests: %q", a.footerCountsText())
 	}
 	a.openFilter()
 	tt.Frame()
@@ -1411,7 +1411,7 @@ func TestCaptureSearchAndFilterFailuresAreRecoverable(t *testing.T) {
 	if err := tt.Click("Apply"); err != nil {
 		t.Fatal(err)
 	}
-	if !tt.HasText("2 captured · 1 shown") {
+	if !tt.HasText("1 of 2") {
 		t.Fatalf("comma-separated alternatives did not match the 401 response: %q", tt.Texts())
 	}
 }
@@ -2387,11 +2387,16 @@ func TestFooterActionsClearFilterAndFollow(t *testing.T) {
 // for fold into a count that lists them, rather than running under the edge.
 func TestFooterToolChipsFoldIntoACount(t *testing.T) {
 	a := workspaceApp()
-	a.breakOn, a.throttle, a.allowOn = true, capture.Presets[1], true
+	// Every tool that can be on, so the bar has to fold at the window's
+	// narrowest: the footer's own Filter and counts no longer take room.
+	a.breakOn, a.throttle, a.allowOn, a.upstream = true, capture.Presets[1], true, "http://127.0.0.1:9"
 	a.srv = requestProxy(t)
 	a.srv.SetNoCaching(true)
 	snapshotProfiles(a)
-	tt := ui.NewTester(a.view, 860, 800)
+	// A long profile name is what makes a bar of tools run out of room at
+	// the window's narrowest.
+	a.profiles.set.Profiles[0].Name = "Staging and the pre-release cluster"
+	tt := ui.NewTester(a.view, 960, 800)
 	tt.SetLocale("en-US")
 	tt.Frame()
 	folded := ""
@@ -6374,8 +6379,8 @@ func TestAWidenedChoiceStaysChosen(t *testing.T) {
 	_, second := rowCenter(table, 1)
 	tt.ClickAtWith(0, x, first)
 	tt.Frame()
-	if !tt.HasText("2 captured · 2 shown") {
-		t.Fatalf("one chosen row reads as a bulk choice: %q", tt.Texts())
+	if got := a.footerCountsText(); got != "" {
+		t.Fatalf("one chosen row reads as a bulk choice: %q", got)
 	}
 	tt.ClickAtWith(ui.Shift, x, second)
 	tt.Frame()
@@ -6420,12 +6425,12 @@ func TestEscapeClearsTheSearchText(t *testing.T) {
 	tt.Key(ui.Cmd, ui.KeyF)
 	tt.Type("login")
 	tt.Frame()
-	if a.query != "login" || !tt.HasText("2 captured · 1 shown") {
+	if a.query != "login" || !tt.HasText("1 of 2") {
 		t.Fatalf("the search did not narrow the list: %q", a.query)
 	}
 	tt.Key(0, ui.KeyEscape)
 	tt.Frame()
-	if a.query != "" || !tt.HasText("2 captured · 2 shown") {
+	if a.query != "" || a.footerCountsText() != "" {
 		t.Fatalf("Escape left the search in place: %q", a.query)
 	}
 	if !tt.Focused("Search host or path") {
@@ -6488,5 +6493,31 @@ func TestFilteringHasOneEntry(t *testing.T) {
 	}
 	if !a.views.filterOpen {
 		t.Fatal("the field's funnel did not open the filters")
+	}
+}
+
+// A count is said once: the sidebar counts the capture, so the footer only
+// says how much of it the view hides, and the activity strip is the plot and
+// the time it ends at.
+func TestCountsAreSaidOnce(t *testing.T) {
+	a := workspaceApp()
+	tt := ui.NewTester(a.view, 1280, 800)
+	tt.Frame()
+	if got := a.footerCountsText(); got != "" {
+		t.Fatalf("the footer counts what the sidebar already does: %q", got)
+	}
+	for _, text := range tt.Texts() {
+		if strings.Contains(text, "requests") && strings.Contains(text, "min") {
+			t.Fatalf("the activity strip still counts: %q", text)
+		}
+	}
+	tt.Key(ui.Cmd, ui.KeyF)
+	tt.Type("login")
+	tt.Frame()
+	if !tt.HasText("1 of 2") {
+		t.Fatalf("the footer does not say how much the view hides: %q", tt.Texts())
+	}
+	if a.footerCountsText() != "1 of 2" {
+		t.Fatalf("footer counts %q", a.footerCountsText())
 	}
 }

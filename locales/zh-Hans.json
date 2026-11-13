@@ -36,9 +36,7 @@
   "activeSubscriptions": "{count} 个活动订阅",
   "activeTool": "当前工具：{name}",
   "activityDragHelp": "拖动以选择时间。拖动控制柄调整范围。方向键移动范围；Shift+方向键调整大小；Escape 清除。",
-  "activitySelected": "{label} · {count} 个请求",
   "activityStrip": "活动条",
-  "activitySummary": "最近 {minutes} 分钟 · {count} 个请求",
   "activityTimeRange": "活动时间范围",
   "addAFilePartOnly": "添加文件部分；仅保存本地路径",
   "addANote": "添加备注…",
@@ -218,7 +216,6 @@
   "capabilities": "能力",
   "capture": "抓包",
   "captureARequestToInspect": "抓取一个请求以进行检查。",
-  "captureCounts": "已抓取 {captured} · 显示 {shown}",
   "captureIsNoLongerIn": "抓包已不在此会话中",
   "captureIsNotRunning": "抓包未运行",
   "captureIsStopped": "抓包已停止",
@@ -2297,5 +2294,16 @@
   "workstation": "工作站",
   "writeNonSensitiveCurrentValues": "将非敏感的当前值写入初始值；凭据保留在本地",
   "writeTlsSecretsToA": "将 TLS 密钥写入 Wireshark 可读取的文件以解密此抓包。重启后生效。",
-  "writesTheInitialValuesShown": "按 Postman 的环境格式写入此处显示的初始值（无论是否已保存）；不包含当前值。"
+  "writesTheInitialValuesShown": "按 Postman 的环境格式写入此处显示的初始值（无论是否已保存）；不包含当前值。",
+  "shownOfCaptured": "{captured} 条中 {shown} 条",
+  "@shownOfCaptured": {
+    "placeholders": {
+      "shown": {
+        "type": "int"
+      },
+      "captured": {
+        "type": "int"
+      }
+    }
+  }
 }
