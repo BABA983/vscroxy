@@ -9,6 +9,7 @@ import (
 
 	"github.com/baba983/vscroxy/internal/capture"
 	"github.com/baba983/vscroxy/internal/system"
+	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -106,6 +107,28 @@ func manualProxy(t *testing.T, scope, addr string) system.ProxyConfig {
 	}
 	ep := system.ProxyEndpoint{Enabled: true, Host: host, Port: n}
 	return system.ProxyConfig{Scope: scope, Mode: system.ProxyModeManual, HTTP: ep, HTTPS: ep}
+}
+
+// The system proxy is one row: the name, the switch that changes the OS,
+// what the OS says, and the check. A separate Status row above it only
+// repeated the label.
+func TestProxySettingsReadAsOneRow(t *testing.T) {
+	fake := &fakeSystemProxy{check: system.ProxyCheck{Status: system.ProxyOff}}
+	a := proxyTestApp(t, fake)
+	tt := ui.NewTester(a.view, 1280, 800)
+	openProxySettings(t, tt)
+	settleProxy(t, a, tt)
+	toggle, ok := tt.Find(locales.UseThisAppsProxy())
+	if !ok {
+		t.Fatalf("no system proxy switch: %q", tt.Texts())
+	}
+	status, ok := tt.Find("No system proxy is set")
+	if !ok {
+		t.Fatalf("no status beside the switch: %q", tt.Texts())
+	}
+	if status.Y >= toggle.Y+toggle.H || toggle.Y >= status.Y+status.H {
+		t.Fatalf("the status sits on its own row: switch %+v, status %+v", toggle, status)
+	}
 }
 
 func TestProxySettingsCheckTheOSOnEntry(t *testing.T) {

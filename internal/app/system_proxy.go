@@ -405,36 +405,35 @@ func (a *app) systemProxySettings(c *ui.Context, t *ui.Theme) {
 	}
 	running := a.srv != nil && a.srv.Running()
 	busy := s.checking || s.applying || s.quitting
-	status, color := a.systemProxyStatus(t)
+	status, _ := a.systemProxyStatus(t)
 	detail, full := a.systemProxyDetail(target)
 	uikit.SettingsGroup(c, locales.SystemProxy(), func() {
-		ui.Field(c, locales.Status(), func() {
+		// One row: the name, the switch that changes the OS, what the OS
+		// says, and the check. The scope and the sentence read beneath it,
+		// so the panel does not stack two labels on top of each other.
+		ui.Field(c, locales.SystemProxy(), func() {
 			ui.Column(c).Gap(t.Space(1)).Children(func() {
-				ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-					ui.Text(c, status).FontSize(uikit.Scaled(uikit.TextBody)).FontWeight(500).TextColor(color)
+				ui.Row(c).Gap(t.Space(2)).Wrap().AlignItems(ui.Center).Children(func() {
+					// One switch, not a pair of buttons that has to be read
+					// to tell which way is left: the switch shows what the OS
+					// holds, and turning it over is the change.
+					on := s.check.Status == system.ProxyMatches
+					toggle := ui.Switch(c, &on).Label(locales.UseThisAppsProxy()).Disabled(!running || busy)
+					if !running {
+						uikit.Tip(c, toggle, locales.StartCaptureFirst())
+					}
+					if toggle.Changed() {
+						a.setSystemProxy(on)
+					}
+					ui.Text(c, status).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.TextMuted)
 					if busy {
 						ui.Spinner(c).Label(locales.SystemProxy())
 					}
+					if uikit.SecondaryButton(c, locales.CheckAgain()).Disabled(busy).Clicked() {
+						a.checkSystemProxy(true)
+					}
 				})
 				uikit.Tip(c, uikit.Meta(c, detail).SingleLine(), full)
-			})
-		})
-		// One switch, not a pair of buttons that has to be read to tell
-		// which way is left: the switch shows what the OS holds, and turning
-		// it over is the change.
-		ui.Field(c, locales.SystemProxy(), func() {
-			ui.Row(c).Gap(t.Space(2)).Wrap().AlignItems(ui.Center).Children(func() {
-				on := s.check.Status == system.ProxyMatches
-				toggle := ui.Switch(c, &on).Label(locales.UseThisAppsProxy()).Disabled(!running || busy)
-				if !running {
-					uikit.Tip(c, toggle, locales.StartCaptureFirst())
-				}
-				if toggle.Changed() {
-					a.setSystemProxy(on)
-				}
-				if uikit.SecondaryButton(c, locales.CheckAgain()).Disabled(busy).Clicked() {
-					a.checkSystemProxy(true)
-				}
 			})
 		}).Description(locales.ReadFromThisComputerS())
 		ui.Field(c, locales.BypassList(), func() {
