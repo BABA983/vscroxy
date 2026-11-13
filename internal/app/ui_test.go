@@ -1346,8 +1346,13 @@ func TestHTTPSSetupExplainsTunnelsAndEnablesOnlyTheSelectedDomain(t *testing.T) 
 		}
 	}
 	// Wait for the real, read-only system check, not for an arbitrary delay.
+	// The window starts the check at launch; an app built by a test starts it
+	// here, so the assertions never read a check still in flight.
 	waitCertificate := func() {
 		t.Helper()
+		if !a.certificate.checked {
+			a.checkCertificate(false)
+		}
 		if a.certificate.checking {
 			select {
 			case result := <-a.certificate.pending:
