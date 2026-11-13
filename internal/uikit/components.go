@@ -928,11 +928,13 @@ func SettingsPage(c *ui.Context, title, about string, groups func()) ui.Element 
 	})
 }
 
-// SettingsGroup is a card of related fields under its legend.
+// SettingsGroup is a group of related fields under its legend: a heading and
+// a rule, not a card, so the page reads as one canvas rather than a stack of
+// boxes.
 func SettingsGroup(c *ui.Context, legend string, fields func()) ui.Element {
-	t, p := c.Theme(), Colors(c.Theme())
-	return ui.Fieldset(c, legend, fields).Margin(0).Padding(t.Space(3), t.Space(4), t.Space(4), t.Space(4)).
-		Background(p.Fill).Radius(RadiusPanel)
+	t := c.Theme()
+	return ui.Fieldset(c, legend, fields).Margin(0).Padding(0, 0, t.Space(4), 0).
+		BorderWidth(0, 0, 1, 0).BorderColor(t.Border)
 }
 
 // SelectLabels is Select for values a screen names in its own language: the

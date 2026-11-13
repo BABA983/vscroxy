@@ -423,14 +423,28 @@ func (a *app) systemProxySettings(c *ui.Context, t *ui.Theme) {
 		// the Status label.
 		ui.Field(c, "", func() {
 			ui.Row(c).Gap(t.Space(2)).Wrap().Children(func() {
-				enable := uikit.PrimaryButton(c, locales.EnableSystemProxy()).Disabled(!running || busy)
+				// The step that is left is the primary one: with the proxy
+				// already on, enabling it is not what to do next.
+				on := s.check.Status == system.ProxyMatches
+				var enable ui.Element
+				if on {
+					enable = uikit.SecondaryButton(c, locales.EnableSystemProxy()).Disabled(!running || busy)
+				} else {
+					enable = uikit.PrimaryButton(c, locales.EnableSystemProxy()).Disabled(!running || busy)
+				}
 				if !running {
 					uikit.Tip(c, enable, locales.StartCaptureFirst())
 				}
 				if enable.Clicked() {
 					a.setSystemProxy(true)
 				}
-				if uikit.SecondaryButton(c, locales.DisableSystemProxy()).Disabled(busy).Clicked() {
+				var disable ui.Element
+				if on {
+					disable = uikit.PrimaryButton(c, locales.DisableSystemProxy()).Disabled(busy)
+				} else {
+					disable = uikit.SecondaryButton(c, locales.DisableSystemProxy()).Disabled(busy)
+				}
+				if disable.Clicked() {
 					a.setSystemProxy(false)
 				}
 				if uikit.SecondaryButton(c, locales.CheckAgain()).Disabled(busy).Clicked() {
