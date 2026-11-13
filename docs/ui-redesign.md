@@ -19,6 +19,14 @@ v1 统一了结构和 token，但界面仍然是一张普通表格加一堆表�
 
 ## 2. 设计稿
 
+设计系统的图版在 `docs/design/`：`paper-overview.png`／`ink-overview.png` 是 uikit 组件总览，`paper-capture.png`／`ink-capture.png`、`paper-editor.png`／`ink-editor.png`、`paper-settings.png`／`ink-settings.png` 是真实窗口。总览图从代码重新生成：
+
+```bash
+VSCROXY_UIKIT_SNAPSHOTS="$PWD/docs/design" go test ./internal/uikit -run '^TestOverviewSnapshots$' -count=1
+```
+
+真实窗口的截图在 macos-27 上跑 `go run ./cmd/vscroxy`、用 `curl -x` 打真实流量后 `screencapture -x` 拍，`paper-*`／`ink-*` 分别是浅色和深色外观。
+
 v3 的设计稿是一份可切换的 artifact，含 Capture／Request editor／System 三屏和 Light／Dark 两套：<https://ampcode.com/artifacts/visuals/vscroxy-design-system-v3-302b0099-8f58-4b2f-abe7-53ca7710b330>。**颜色、表面、尺寸和组件以它为准**，本文第 5、6 节是它的落地记录；屏幕的布局和结构仍按第 3 节。
 
 下面 v2 时代的 Painter 概念图只保留来定方向和布局，数据和个别细节是生成的，和本文冲突时以本文为准。
@@ -82,7 +90,7 @@ uikit 组件总览设计稿（实现后以第 11 节的总览截图为准）：
 v3 把界面收成三种表面和一套控件规则（设计稿见第 2 节）。表面负责结构；强调色是墨（Ink 下是白），负责"选中、主操作、已开启"；绿色只表示"通过"和"正在录制"。
 
 - **三种表面：** **chrome** 框住窗口（侧栏、各种栏、表头），**canvas** 放数据（表格、编辑器、面板），**well** 是 canvas 上的输入框（比 canvas 深一档）。chrome 上的输入框反过来，是 canvas 底加 1px 细线。Hairline 只分隔同一表面的两个区域，不靠色块分区。
-- **外壳一整块，内容抬起来（第八阶段）：** 标题栏、侧栏、底栏是同一块 chrome，三者之间不画线。流量列表、过滤栏、活动行、检查器（以及请求编辑器页的全部内容）合成一张 canvas 面板：圆角 `RadiusPanel`、1px hairline 加一层很浅的阴影，右边留 8 的 chrome，上下紧贴标题栏和底栏；侧栏收起时左边也留 8。面板内部的区域线（列表｜检查器、请求｜响应）保留，过滤栏在面板里、下沿一条 hairline。
+- **外壳一整块，内容抬起来（第八阶段）：** 标题栏、侧栏、底栏是同一块 chrome，三者之间不画线。流量列表、过滤栏、活动行、检查器（以及请求编辑器页的全部内容）合成一张 canvas 面板：圆角 `RadiusPanel`（8）、1px hairline 加一层很浅的阴影，右边留 8 的 chrome，上下紧贴标题栏和底栏；侧栏收起时左边也留 8。面板内部的区域线（列表｜检查器、请求｜响应）保留，过滤栏在面板里、下沿一条 hairline。
 - **强调色是墨，绿色只表示通过和录制。** 主按钮、焦点、选中标记、开关和复选框的开启态、活动行选区的把手、表头拖动线用 `Accent`（Paper `#1a1a18`，Ink `#e9e8e4`）；检查通过、录制点、信任状态、向导里已完成的步骤用 `Success`（Paper `#26734a`，Ink `#7cc492`）。标签页、过滤器和命令面板的高亮一律中性底，一屏不再有好几块彩色。
 - **控件不描边。** 按钮、tab、chip 的面是文字色的 6%（静止）／10%（悬停）／14%（按下），叠在什么表面上都对，所以同一个按钮放在窗口、chrome 或选中行里都一样。只有输入框在 chrome 上有 1px 细线，浮层和对话框有细线边框加阴影。
 - **状态色和方法色不填充背景。** 2xx 和 304 是普通的次要文字，前面没有圆点；4xx（赭黄）和 5xx（朱红）只染状态文字本身，3xx 也按次要文字读。慢请求（≥ 1 秒）的耗时用朱红文字，没有底色块。method 是纯色文字，不做 chip（表格里是界面字体，侧栏和树里是等宽）。
@@ -110,7 +118,7 @@ v3 把界面收成三种表面和一套控件规则（设计稿见第 2 节）�
 
 ## 5. 主题：Paper／Ink
 
-默认主题是一套暖调中性灰白：浅色 **Paper**（白底、暖灰 chrome），深色 **Ink**（暖黑底）。色相里没有绿，只有一点暖；强调色是墨，绿色只留给 Success。只用平涂色，不做渐变、纹理和做旧。外观跟随系统，也可以手动选浅色或深色。主题名保留 Paper／Ink。
+两套主题取 Amp 默认主题（Daydream）的原色：浅色 **Paper**（近白的绿调灰），深色 **Ink**（近黑）。强调色是墨，绿色只留给 Success。只用平涂色，不做渐变、纹理和做旧。外观跟随系统，也可以手动选浅色或深色。主题名保留 Paper／Ink。
 
 下表是 `internal/uikit/theme.go` 里的实际值：
 
@@ -130,14 +138,13 @@ v3 把界面收成三种表面和一套控件规则（设计稿见第 2 节）�
 | `AccentTint` | `#d6dcd6` | `#2f372f` | 聚焦时的选中浅底、输入框的焦点晕圈、活动行选区 |
 | `Success` | `#2c784d` | `#54b879` | 检查通过、录制点、信任状态、向导里已完成的步骤 |
 | `Info`／3xx／GET | `#2f6ea5` | `#8fb3d1` | |
-| `Warning` | `#86600f` | `#d6a038` | |
-| `Danger` | `#b9423c` | `#d67670` | |
-| `Warning`／4xx／PUT | `#9c5906` | `#e0a458` | 设计稿是 `#a15c07`，见下面的对比度说明 |
-| `Danger`／5xx／DELETE／慢请求 | `#c0392b` | `#e8806f` | |
-| `MethodPost`／`MethodPatch`／`Socket` | `#5b6b1c`／`#7a3e6d`／`#2b6868` | `#b5c27a`／`#c99abd`／`#6fc3d6` | Ink 的 `Socket` 往蓝青挪，和 `Success` 的绿分开（决策 56） |
-| `Inverse`／`InverseText` | `#1a1a18`／`#ffffff` | `#e9e8e4`／`#101010` | tooltip |
-| `Shadow` | `rgba(26,26,24,.16)` | `rgba(0,0,0,.5)` | 浮层和对话框的柔和阴影 |
-| 耗时分段 DNS／Wait／Download | PATCH／Info／Socket | 同左 | 三段相加是服务器用时（4.6） |
+| `Warning` | `#86600f` | `#d6a038` | 慢请求、4xx 的提示色 |
+| `Danger` | `#b9423c` | `#d67670` | 5xx、连接失败、错误 |
+| `MethodPost` | `#5b6b1c` | `#b5c27a` | POST 的方法色（橄榄绿） |
+| `MethodPatch` | `#7a3e6d` | `#c99abd` | PATCH 的方法色（梅紫），编辑器里的字符串也用它 |
+| `Socket` | `#2b6868` | `#6fc3d6` | WebSocket 的协议色 |
+| `Inverse`／`InverseText` | `#0b0d0b`／`#f9fdf6` | `#f6fff5`／`#0c1516` | 提示条和 toast 的反色面 |
+| `Shadow` | 墨 16% | 黑 50% | 弹层、对话框 |
 
 `Bar` 这个 token 已删掉：耗时条的底就是 `Fill`，和设计稿的 `.dur` 一样。
 
@@ -175,7 +182,7 @@ v3 把界面收成三种表面和一套控件规则（设计稿见第 2 节）�
 | `LineMeta`／`LineProse`／`LineTitle` | 1.45／1.5／1.3 | 次要信息／说明文字／标题的行高倍数；`Body` 和 `Mono` 保持字体自带的行高，避免撑高控件和表格行 |
 | `HeightBar`／`HeightTabs`／`HeightStatus` | 40／32／24 | 标题栏／面板头和过滤栏／状态栏。只有这三档栏高 |
 | `HeightControl`／`HeightLarge` | 24／28 | 按钮、输入框、tab、侧栏条目、表格行／URL 栏和 Send。`HeightCompact`（20）已删掉：设计稿没有第四档 |
-| `RadiusInner`／`RadiusControl`／`RadiusPanel` | 4／6／10 | 嵌在控件里的面（分段控件的滑块、chip 里的按钮）／控件和 tab／弹层、卡片、对话框。`RadiusDialog`（14）已删掉 |
+| `RadiusInner`／`RadiusControl`／`RadiusPanel` | 4／6／8 | 嵌在控件里的面（分段控件的滑块、chip 里的按钮）／控件和 tab／弹层、卡片、对话框。`RadiusDialog`（14）已删掉 |
 | `IconInline`／`IconLarge` | 14／16 | 行内和按钮／rail 和空状态 |
 | `DurationFast`／`DurationHover`／`DurationStandard`／`DurationSlow` | 80／120／160／200ms | 离开和收起／悬停面和弹层进出／选中面和数字变化／面板和区域的开合。界面只写 token，不写毫秒 |
 | `MotionSpring` | 200ms，无回弹 | 侧栏区域收起展开、面板和分栏改变尺寸时用的唯一弹簧；`RegionMotion` 和 `PaneMotion` 由它组成 |
@@ -336,7 +343,7 @@ uikit 已按"主题 = 语义 token 表"实现，导入第三方主题不用返�
 6. **第三方主题：** 第 8 节的映射、内置主题和导入。
 7. **设计系统 v3（进行中）：** 设计稿见第 2 节。屏幕的布局和信息架构不变，只换表面、颜色、尺寸和组件。
    - 7.1 基础层（完成，2026-11-11）：
-     - `Palette` 换成 v3 的角色：`Chrome`／`Canvas`／`Well`／`Hairline` 三种表面加细线，`Fill`／`FillHover`／`FillPressed`（文字色的 6%／10%／14%，Ink 是 8%／12%／17%），`Shadow`；`Background`／`Panel`／`Hover`／`Pressed`／`Border`／`Bar` 删掉，屏幕改用新名字。
+     - `Palette` 换成 v3 的角色：`Chrome`／`Canvas`／`Well`／`Hairline` 三种表面加细线，`Fill`／`FillHover`／`FillPressed`（文字色的 7%／11%／15%，两个主题一样），`Shadow`；`Background`／`Panel`／`Hover`／`Pressed`／`Border`／`Bar` 删掉，屏幕改用新名字。
      - `Theme()` 不再把 MyGo 的 Surface 设成 Background：Background 是 canvas，Surface 是 chrome，所以表头和 MyGo 自己的栏是 chrome，输入框由 uikit 自己画（canvas 上是 well，chrome 上是 canvas 加细线）。
      - token：`TextHeadline`（18）删掉，`Mono` 改成 12；`HeightCompact`（20）和 `RadiusDialog`（14）删掉，新增 `HeightStatus`（24）和 `RadiusInner`（4）；`HeightBar` 44 → 40，`HeightTabs` 28 → 32。
      - 字重只有 400 和 500：uikit 的 `Heading`、`Label`、`DialogTitle`、`SettingsPage` 和屏幕里的 600 全部改成 500。
@@ -454,7 +461,7 @@ VSCROXY_SNAPSHOTS="$PWD/.amp/in/artifacts/ui" \
 24. 不引入 Geist Serif；排版优化集中在行高和层级：`Prose`／`Hint` 用 1.5 的行高承载长句和中文，`Meta` 用 1.45 并默认 `tnum`，标题用 1.3；`Body` 和 `Mono` 保持字体自带行高，避免撑高控件和 24 高的表格行。残留的全大写分组标签改成句首大写（2026-11-04）。
 25. v3 用三种表面：chrome（侧栏、栏、表头）、canvas（数据）、well（canvas 上的输入框）；chrome 上的输入框是 canvas 加 1px 细线。MyGo 的 Background 是 canvas、Surface 是 chrome，输入框的面由 uikit 自己画，不再和窗口同色（2026-11-11）。
 26. 选中、主操作和已开启用强调色：标签页、过滤器、命令面板的选中是中性面；`StatusPill` 不填底，状态色和方法色只染文字，例外是慢请求的耗时标签（2026-11-11；"绿色"的角色在第六阶段由墨色接管）。
-27. 控件不描边，面是文字色的 6%／10%／14%（Ink 8%／12%／17%）；选中失焦时保留形状、换成中性面（2026-11-11）。
+27. 控件不描边，面是文字色的 7%／11%／15%（两个主题一样，Amp 配色时定下）；选中失焦时保留形状、换成中性面（2026-11-11）。
 28. 尺寸只有三档栏高（40／32／24）、两档控件（24，URL 和 Send 28）、四档字号（15／13／12 等宽／11）、两个字重（400／500）、三档圆角（4／6／10）。`HeightCompact`、`RadiusDialog`、`TextHeadline` 删掉（2026-11-11）。
 29. 等宽只用于线上数据：路径、header 值、URL、数字、body；host、client 和标签用界面字体（2026-11-11）。
 30. Paper 的 warning 从设计稿的 `#a15c07` 深到 `#9c5906`：前者在 well 上只有 4.44:1，其余信号色和设计稿一致；设计稿的信号色在按下态是 3.6–4.5:1，测试对叠在表面上的面按 UI 组件的 3:1 计（2026-11-11）。
