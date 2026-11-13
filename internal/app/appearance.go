@@ -95,6 +95,7 @@ func (a *app) openSettings(tab int) {
 	if tab >= 0 {
 		a.settingsTab = tab
 	}
+	a.settingsChoice = strconv.Itoa(a.settingsTab)
 	switch a.settingsTab {
 	case 1:
 		// Let the panel start the entry check, even when focusing an already
@@ -177,8 +178,12 @@ func (a *app) settingsView(c *ui.Context) {
 // front. The editors it opens own their values and persistence.
 func (a *app) settingsContent(c *ui.Context, t *ui.Theme, active bool) {
 	ui.Row(c).Grow(1).FillWidth().MinHeight(0).AlignItems(ui.Stretch).Children(func() {
-		choice := strconv.Itoa(a.settingsTab)
-		ui.Sidebar(c, &choice, func() {
+		uikit.SidebarList(c, "settings-categories", &a.settingsChoice, func(id string) {
+			a.settingsTab, _ = strconv.Atoi(id)
+			if a.settingsTab == 2 {
+				a.checkCertificate(false)
+			}
+		}, func() {
 			for _, item := range []struct {
 				id    string
 				icon  *ui.SVG
@@ -192,14 +197,9 @@ func (a *app) settingsContent(c *ui.Context, t *ui.Theme, active bool) {
 				{"5", lucide.MonitorSmartphone(), locales.Devices()},
 				{"6", lucide.KeyRound(), locales.Certificates()},
 			} {
-				uikit.SidebarItem(c, item.id, item.icon, item.label, choice == item.id, active).Label(locales.SettingsCategory(item.label))
+				uikit.SidebarItem(c, item.id, item.icon, item.label, a.settingsChoice == item.id, active).Label(locales.SettingsCategory(item.label))
 			}
-		}).Width(176).Padding(t.Space(2)).Gap(t.Space(0.5)).Background(uikit.Colors(t).Chrome).OnChange(func() {
-			a.settingsTab, _ = strconv.Atoi(choice)
-			if a.settingsTab == 2 {
-				a.checkCertificate(false)
-			}
-		})
+		}).Width(176).Padding(t.Space(2)).Gap(t.Space(0.5)).Background(uikit.Colors(t).Chrome)
 		ui.Divider(c)
 		top := t.Space(2)
 		if a.settingsWin != nil {

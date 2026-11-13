@@ -106,6 +106,9 @@ type app struct {
 	saveAfterRename bool
 	settingsOpen    bool
 	settingsTab     int
+	// settingsChoice is the category list's id for settingsTab, which the list
+	// chooses by.
+	settingsChoice string
 	// settingsWin is the Settings window while it is open, and
 	// settingsFocused whether it is in front; both only on the main thread.
 	settingsWin     *mygo.Window
@@ -2090,29 +2093,28 @@ func (a *app) sidebar(c *ui.Context) {
 // It scrolls on its own, so its lists stay inside it however long they grow.
 func (a *app) trafficRegion(c *ui.Context, t *ui.Theme) {
 	traffic, sources := a.regionOpen("traffic"), a.regionOpen("sources")
-	region := ui.Sidebar(c, &a.sidebarChoice, func() {
-		head := uikit.SidebarHeading(c, locales.Traffic(), traffic, nil)
-		if a.revealGroup == "live" {
-			head.ScrollIntoView()
-		}
-		if *traffic {
-			ui.Column(c.Key("traffic-region")).Gap(0).Transition(uikit.RegionMotion).Children(func() {
-				a.trafficRows(c)
-				a.views.sidebar(c, t, a)
-			})
-		}
-		uikit.SidebarHeading(c, locales.Sources(), sources, func() { a.sourcesSwitch(c, t) })
-		if *sources {
-			// The Sources list scrolls in its own region: the scopes above it
-			// stay where they are, however many hosts or apps arrive.
-			ui.Scroll(c.Key("sources-region")).Grow(1).MinHeight(0).Transition(uikit.RegionMotion).Children(func() {
-				a.sourcesRows(c, t)
-			})
-		}
-	}).Padding(t.Space(1), 0).Gap(0).MaxHeightPercent(55)
-	if region.Changed() {
-		a.goTo(a.sidebarChoice)
-	}
+	// The region holds the scopes and the Sources list, and scrolls as one:
+	// the collection tree below it scrolls on its own.
+	ui.Scroll(c).MinHeight(0).MaxHeightPercent(70).Padding(t.Space(1), 0).Children(func() {
+		uikit.SidebarList(c, "traffic-region", &a.sidebarChoice, func(id string) { a.goTo(id) }, func() {
+			head := uikit.SidebarHeading(c, locales.Traffic(), traffic, nil)
+			if a.revealGroup == "live" {
+				head.ScrollIntoView()
+			}
+			if *traffic {
+				ui.Column(c.Key("traffic-region")).Gap(0).Transition(uikit.RegionMotion).Children(func() {
+					a.trafficRows(c)
+					a.views.sidebar(c, t, a)
+				})
+			}
+			uikit.SidebarHeading(c, locales.Sources(), sources, func() { a.sourcesSwitch(c, t) })
+			if *sources {
+				ui.Column(c.Key("sources-region")).Gap(0).Transition(uikit.RegionMotion).Children(func() {
+					a.sourcesRows(c, t)
+				})
+			}
+		})
+	})
 }
 
 // trafficRows are the scopes the traffic list narrows to, each with what it
@@ -2200,8 +2202,18 @@ func (a *app) hostRow(c *ui.Context, d domain) {
 func (a *app) clientRow(c *ui.Context, d domain) {
 	t := c.Theme()
 	apps := a.capturedApps(d.name)
-	uikit.SidebarItem(c, "client:"+d.name, nil, d.name, a.sidebarChoice == "client:"+d.name, !a.windowBehind).PopoverMenu(
-		func(m *ui.Menu) { actionMenu(m, a.clientActions(d.name, apps)) }).
+	id, active := "client:"+d.name, a.sidebarChoice == "client:"+d.name
+	// An app has its own icon: the row shows it where a host has its dot.
+	row := ui.Element{}
+	if len(apps) > 0 {
+		if src, ok := a.clientIcon(d.name, apps[0].Path); ok {
+			row = uikit.SidebarItemImage(c, id, src, d.name, active, !a.windowBehind)
+		}
+	}
+	if !row.Valid() {
+		row = uikit.SidebarItem(c, id, nil, d.name, active, !a.windowBehind)
+	}
+	row.PopoverMenu(func(m *ui.Menu) { actionMenu(m, a.clientActions(d.name, apps)) }).
 		Children(func() {
 			if a.filterTriage.Client == d.name {
 				uikit.Tip(c, ui.Text(c, "✓").FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Accent), locales.AppFilterIsActiveRemove())
@@ -2235,7 +2247,9 @@ func (a *app) sourcesAllRow(c *ui.Context, t *ui.Theme, apps bool) {
 // the command palette.
 func (a *app) collectionsRegion(c *ui.Context, t *ui.Theme) {
 	collections := a.regionOpen("collections")
-	region := ui.Sidebar(c, &a.sidebarChoice, func() {
+	// The list is not a scroll: the tree inside it scrolls on its own, so a
+	// long collection never pushes the rows above it out of the sidebar.
+	uikit.SidebarList(c, "collections-region", &a.sidebarChoice, func(id string) { a.goTo(id) }, func() {
 		head := uikit.SidebarHeading(c, locales.Collections(), collections, func() {
 			uikit.MoreButton(c, locales.CollectionOptions(), locales.CollectionsApisEnvironmentsAndRuns(), a.collectionsMenu)
 			if uikit.IconButton(c, locales.NewRequest(), locales.NewRequest(), plusIcon).Clicked() {
@@ -2248,12 +2262,12 @@ func (a *app) collectionsRegion(c *ui.Context, t *ui.Theme) {
 		if !*collections {
 			return
 		}
-		ui.Column(c.Key("collections-region")).Gap(0).Transition(uikit.RegionMotion).Children(func() {
+		ui.Column(c.Key("collections-region")).Grow(1).MinHeight(0).Gap(0).Transition(uikit.RegionMotion).Children(func() {
 			// The search stays above the tree: what is typed is not scrolled
 			// away with the rows it narrows.
 			uikit.SearchField(c, &a.requestQuery, locales.SearchCollections(), locales.Search(), true).
 				Margin(t.Space(1), t.Space(3), t.Space(2), t.Space(3))
-			ui.Column(c).Children(func() {
+			ui.Scroll(c).Grow(1).MinHeight(0).Children(func() {
 				a.collectionTree(c)
 				query := strings.ToLower(strings.TrimSpace(a.requestQuery))
 				for _, d := range a.apis {
@@ -2268,10 +2282,7 @@ func (a *app) collectionsRegion(c *ui.Context, t *ui.Theme) {
 				}
 			})
 		})
-	}).Padding(t.Space(1), 0).Gap(0).Grow(1)
-	if region.Changed() {
-		a.goTo(a.sidebarChoice)
-	}
+	}).Grow(1).MinHeight(0).Padding(t.Space(1), 0)
 }
 
 // sidebarFooter is under both regions: the setup of a client, the HTTPS rules

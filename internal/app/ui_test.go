@@ -1,11 +1,15 @@
 package app
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
 	"fmt"
+	"image"
+	"image/png"
+
 	"github.com/baba983/vscroxy/internal/uikit"
 	"github.com/baba983/vscroxy/locales"
 	"io"
@@ -6685,5 +6689,85 @@ func TestCaptureScreenKeepsExplanationsOut(t *testing.T) {
 	tt.Frame()
 	if !tt.HasText("Capture is stopped") || !tt.HasText("Start proxy") || !tt.HasText("Set up a client…") {
 		t.Fatalf("the empty capture does not offer what it can do: %q", tt.Texts())
+	}
+}
+
+// The sidebar's own list is a source list: one row chosen, the keys moving the
+// choice, the rows read as a tree, and the region around it scrolling on its
+// own rather than the list.
+func TestSidebarListChoosesWithTheKeysAndReadsAsATree(t *testing.T) {
+	a := workspaceApp()
+	a.iconLookup = func(string) ([]byte, bool) { return nil, false }
+	tt := ui.NewTester(a.view, 1280, 800)
+	tt.Frame()
+	if err := tt.Click("Errors"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if a.sidebarChoice != "errors" {
+		t.Fatalf("a click chose %q", a.sidebarChoice)
+	}
+	// The rows are one list: the arrows move from the chosen one, whatever
+	// section it is in.
+	tt.Key(0, ui.KeyDown)
+	tt.Frame()
+	if a.sidebarChoice != "slow" {
+		t.Fatalf("Down chose %q, want the row after Errors", a.sidebarChoice)
+	}
+	tt.Key(0, ui.KeyHome)
+	tt.Frame()
+	if a.sidebarChoice != "all" {
+		t.Fatalf("Home chose %q", a.sidebarChoice)
+	}
+	// Assistive technology reads the rows as items of a tree.
+	if _, ok := tt.AccessByRole(ui.RoleTreeItem, "All requests 2"); !ok {
+		t.Fatalf("the rows are not tree items: %v", tt.Texts())
+	}
+	// A row's label brightens under the pointer without moving.
+	label, ok := tt.Find("Pinned")
+	if !ok {
+		t.Fatal("no Pinned row")
+	}
+	before := tt.Image().RGBAAt(int(label.X+2), int(label.Y+label.H/2))
+	tt.Move(label.X+label.W/2, label.Y+label.H/2)
+	tt.Frame()
+	after := tt.Image().RGBAAt(int(label.X+2), int(label.Y+label.H/2))
+	if before == after {
+		t.Fatalf("the row did not brighten under the pointer: %v", before)
+	}
+	if moved, ok := tt.Find("Pinned"); !ok || moved != label {
+		t.Fatalf("the hover moved the row: %v → %v", label, moved)
+	}
+}
+
+// An app's row shows the app's own icon, where a host has its dot.
+func TestAppsRowsShowTheAppIcon(t *testing.T) {
+	a := workspaceApp()
+	a.sourcesApps = true
+	a.clients = []domain{{name: "Safari", n: 3}}
+	a.clientApps["Safari"] = []capture.SSLApp{{Name: "Safari", Path: "/Applications/Safari.app/Contents/MacOS/Safari"}}
+	a.iconLookup = func(path string) ([]byte, bool) {
+		if !strings.Contains(path, "Safari.app") {
+			return nil, false
+		}
+		img := image.NewRGBA(image.Rect(0, 0, 16, 16))
+		for i := range img.Pix {
+			img.Pix[i] = 0xff
+		}
+		var buf bytes.Buffer
+		png.Encode(&buf, img)
+		return buf.Bytes(), true
+	}
+	tt := ui.NewTester(a.view, 1280, 800)
+	tt.Frame()
+	row, ok := tt.Find("Safari")
+	if !ok {
+		t.Fatalf("no Safari row: %q", tt.Texts())
+	}
+	// The icon sits in the row's slot, left of the name.
+	im := tt.Image()
+	pixel := im.RGBAAt(int(row.X-16), int(row.Y+row.H/2))
+	if pixel.R < 0xf0 || pixel.G < 0xf0 || pixel.B < 0xf0 {
+		t.Fatalf("the app icon is not drawn in the row: %v at %v", pixel, row)
 	}
 }

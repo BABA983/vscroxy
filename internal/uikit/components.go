@@ -468,50 +468,6 @@ func MethodLabel(c *ui.Context, method string) ui.Element {
 // row's label starts on the line the rows with icons do.
 var SidebarDot = ui.MustParseSVG([]byte(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 14 14" width="14" height="14"><circle cx="7" cy="7" r="2.5"/></svg>`))
 
-// Keep Sidebar's native source-list navigation and item identities, with
-// the selection look. A sidebar's selection is where the window is, not a
-// keyboard cursor, so its marker keeps the accent while focus is elsewhere.
-//
-// active is whether the window is the one in front: in a window behind
-// others the chosen item trades the accent tint for the neutral fill, as in
-// a macOS source list. A nil icon shows the slot's dot.
-//
-// A row at rest is quiet: its label in the secondary ink and its icon a step
-// below that, both returning to the text color under the pointer or chosen,
-// so the list steps back from the traffic beside it.
-func SidebarItem(c *ui.Context, id string, icon *ui.SVG, label string, chosen, active bool) ui.Element {
-	t, p := c.Theme(), Colors(c.Theme())
-	if icon == nil {
-		icon = SidebarDot
-	}
-	// The icon's ink is taken as the row is built, so the row keeps the
-	// pointer it had the frame before and asks for one more frame to catch
-	// up: a hover is a color change, not a layout change.
-	hovered := ui.Local(c.Root(), "sidebar-hover:"+id, func() bool { return false })
-	ink, iconInk := t.TextMuted, p.TextFaint
-	if chosen || *hovered {
-		ink, iconInk = t.Text, t.TextMuted
-	}
-	neutral := *t
-	// Sidebar draws icons in Accent and the selection in Accent/AccentText,
-	// or SurfacePressed without the focus.
-	// Sidebar also takes a chosen item's icon from Accent while it lacks the
-	// focus, so the fill is set after construction rather than through Accent.
-	neutral.Accent, neutral.AccentText = iconInk, ink
-	c.SetTheme(&neutral)
-	item := ui.SidebarItem(c, id, icon, label).Height(HeightControl).
-		FontSize(Scaled(TextBody)).Padding(0, t.Space(1.5)).Margin(0, t.Space(1.5)).Radius(RadiusControl).TextColor(ink)
-	c.SetTheme(t)
-	if chosen {
-		Selected(c, item, active)
-	}
-	if item.Hovered() != *hovered {
-		*hovered = item.Hovered()
-		c.Invalidate()
-	}
-	return item
-}
-
 // SidebarHeading names a region of a sidebar's list: small, quiet and set off
 // from the rows above it. With open the heading folds the rows under it away,
 // as a source list's section does: a click on it toggles them, and the arrow

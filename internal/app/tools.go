@@ -137,7 +137,7 @@ func (a *app) toolsContent(c *ui.Context, t *ui.Theme, active, window bool) {
 		if window {
 			top = max(c.TitleBar().Height+t.Space(1), t.Space(4))
 		}
-		ui.Sidebar(c, &a.toolsPage, func() {
+		uikit.SidebarList(c, "tools-categories", &a.toolsPage, func(id string) { a.toolsPage = id }, func() {
 			for _, page := range []struct {
 				id    string
 				icon  *ui.SVG

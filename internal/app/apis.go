@@ -223,17 +223,19 @@ func (a *app) apiEndpoints(c *ui.Context, t *ui.Theme, d *apiDocument) {
 		d.endpoint = endpoints[0].method + " " + endpoints[0].path
 	}
 	ui.Row(c).Grow(1).AlignItems(ui.Stretch).Children(func() {
-		ui.Sidebar(c, &d.endpoint, func() {
-			for _, endpoint := range endpoints {
-				label := endpoint.method + " " + endpoint.path
-				uikit.SidebarItem(c, label, nil, endpoint.path, d.endpoint == label, !a.windowBehind).Label("Endpoint: " + label).Children(func() {
-					method := ui.Text(c, endpoint.method).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextMeta)).SingleLine().Width(48)
-					if d.endpoint != label {
-						method.TextColor(uikit.MethodColor(endpoint.method, t))
-					}
-				})
-			}
-		}).Width(210).FillHeight().Padding(t.Space(2)).Gap(0).Background(uikit.Colors(t).Chrome)
+		ui.Scroll(c).Width(210).FillHeight().Padding(t.Space(2)).Background(uikit.Colors(t).Chrome).Children(func() {
+			uikit.SidebarList(c, "api-endpoints", &d.endpoint, func(id string) { d.endpoint = id }, func() {
+				for _, endpoint := range endpoints {
+					label := endpoint.method + " " + endpoint.path
+					uikit.SidebarItem(c, label, nil, endpoint.path, d.endpoint == label, !a.windowBehind).Label("Endpoint: " + label).Children(func() {
+						method := ui.Text(c, endpoint.method).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextMeta)).SingleLine().Width(48)
+						if d.endpoint != label {
+							method.TextColor(uikit.MethodColor(endpoint.method, t))
+						}
+					})
+				}
+			})
+		})
 		ui.Divider(c)
 		selected := 0
 		for i, endpoint := range endpoints {
