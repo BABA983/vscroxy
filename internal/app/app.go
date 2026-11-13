@@ -199,6 +199,8 @@ type app struct {
 	// icons caches the app icon per process name; a nil entry means the
 	// process has none.
 	icons map[string]ui.ImageSource
+	// iconLookup asks the desktop for an app's icon; nil is the desktop's own.
+	iconLookup func(string) ([]byte, bool)
 
 	// detailFor is the flow the detail panes were built from, so the text and
 	// the diff buffers are rebuilt only when the choice changes.
@@ -2216,7 +2218,7 @@ func (a *app) collectionsRegion(c *ui.Context, t *ui.Theme) {
 			// away with the rows it narrows.
 			uikit.SearchField(c, &a.requestQuery, locales.SearchCollections(), locales.Search(), true).
 				Margin(t.Space(1), t.Space(3), t.Space(2), t.Space(3))
-			ui.Scroll(c).Grow(1).MinHeight(0).Children(func() {
+			ui.Column(c).Children(func() {
 				a.collectionTree(c)
 				query := strings.ToLower(strings.TrimSpace(a.requestQuery))
 				for _, d := range a.apis {
@@ -3109,7 +3111,11 @@ func (a *app) clientIcon(process, path string) (ui.ImageSource, bool) {
 	if src, ok := a.icons[key]; ok {
 		return src, src != nil
 	}
-	src := loadIcon(process, path)
+	lookup := a.iconLookup
+	if lookup == nil {
+		lookup = systemIcon
+	}
+	src := loadIconWith(lookup, process, path)
 	a.icons[key] = src
 	return src, src != nil
 }
@@ -3117,6 +3123,19 @@ func (a *app) clientIcon(process, path string) (ui.ImageSource, bool) {
 // loadIcon decodes an app's icon: an SVG as an SVG, anything else as a
 // bitmap.
 func loadIcon(process, path string) ui.ImageSource {
+	return loadIconWith(systemIcon, process, path)
+}
+
+// loadIconWith is loadIcon with where the desktop's icon comes from, which a
+// test stands in for.
+func loadIconWith(lookup func(string) ([]byte, bool), process, path string) ui.ImageSource {
+	// The desktop's own icon first: the app a process belongs to, or the
+	// executable itself. It is read once per path and kept, never per frame.
+	if data, ok := lookup(path); ok {
+		if bmp, err := ui.DecodeBitmap(data); err == nil {
+			return bmp
+		}
+	}
 	icon, ok := appicon.Lookup(process, path)
 	if !ok {
 		return nil
@@ -3133,6 +3152,35 @@ func loadIcon(process, path string) ui.ImageSource {
 		return nil
 	}
 	return bmp
+}
+
+// systemIcon asks the desktop for the icon of the app an executable belongs to:
+// its .app bundle on macOS, the executable itself elsewhere.
+func systemIcon(path string) ([]byte, bool) {
+	if path == "" {
+		return nil, false
+	}
+	target := path
+	if runtime.GOOS == "darwin" {
+		if bundle, ok := appBundle(path); ok {
+			target = bundle
+		}
+	}
+	data, err := mygo.Shell.FileIcon(target, 32)
+	if err != nil || len(data) == 0 {
+		return nil, false
+	}
+	return data, true
+}
+
+// appBundle is the .app folder an executable sits in, if it sits in one.
+func appBundle(path string) (string, bool) {
+	for dir := filepath.Dir(path); len(dir) > 1; dir = filepath.Dir(dir) {
+		if strings.HasSuffix(dir, ".app") {
+			return dir, true
+		}
+	}
+	return "", false
 }
 
 // clientBadge draws the app's initial in its color, for an app whose icon the

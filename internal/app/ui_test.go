@@ -6293,3 +6293,17 @@ func TestAPointerMoveCostsOneFrame(t *testing.T) {
 		t.Fatalf("%d hovers ran %d view passes, more than the %d a frame costs", moved, got, perFrame*moved)
 	}
 }
+
+// The icon cache asks the desktop once per path: a table of a thousand rows
+// from one app must not read the file icon a thousand times.
+func TestAppIconsAreLookedUpOncePerPath(t *testing.T) {
+	a := workspaceApp()
+	lookups := 0
+	a.iconLookup = func(string) ([]byte, bool) { lookups++; return nil, false }
+	a.clientIcon("curl", "/usr/bin/curl")
+	a.clientIcon("curl", "/usr/bin/curl")
+	a.clientIcon("curl", "/usr/bin/curl")
+	if lookups != 1 {
+		t.Fatalf("the icon was looked up %d times for one path, want once", lookups)
+	}
+}
