@@ -1586,10 +1586,9 @@ func (a *app) view(c *ui.Context) {
 	// The window is one chrome surface, except on macOS, where the sidebar's
 	// material shows the desktop through it: there the root stays clear and
 	// each part of the frame paints its own share of chrome.
+	// The root paints chrome itself: a clear root let the desktop's wallpaper
+	// through the title bar and the gutters between the cards.
 	frame := uikit.Colors(t).Chrome
-	if c.Vibrancy() {
-		frame = ui.Color{}
-	}
 	ui.Column(c).Bind(&a.workbench.content).Focusable().AutoFocus().Fill().Background(frame).Children(func() {
 		if !a.macChrome {
 			a.shell(c, t)
@@ -1708,11 +1707,9 @@ func (a *app) view(c *ui.Context) {
 	if !messageProtoShowing && (!bodyShowing || !protobufShowing) {
 		a.protobuf.stop()
 	}
-	// Last, since every SetTheme above paints the root again: the sidebar's
-	// material shows through where nothing opaque is drawn.
-	if c.Vibrancy() {
-		c.Root().Background(ui.Transparent)
-	}
+	// Last, since every SetTheme above paints the root again: the shell paints
+	// its own surface, so nothing of the desktop shows through it.
+	c.Root().Background(uikit.Colors(c.Theme()).Chrome)
 }
 
 // mainColumn is everything beside the sidebar: on macOS the title bar (which
@@ -1739,7 +1736,9 @@ const (
 // sidebarGutter is the space between the sidebar card and the content card:
 // the shell shows through it.
 func (a *app) sidebarGutter(c *ui.Context) {
-	ui.Box(c).Width(sidebarGutter).Shrink(0).FillHeight()
+	// The gutter is the shell's own surface: on macOS the window's root is
+	// clear, so a gap that paints nothing shows the desktop instead.
+	ui.Box(c).Width(sidebarGutter).Shrink(0).FillHeight().Background(uikit.Colors(c.Theme()).Chrome)
 }
 
 // sidebarGrip is the handle that resizes the sidebar, and the line that shows
@@ -2020,13 +2019,8 @@ const (
 // a long list of hosts never pushes the collections off the window.
 func (a *app) sidebar(c *ui.Context) {
 	t := c.Theme()
-	// Over macOS's material the panel stays nine parts opaque: the desktop
-	// shows only as a faint shift in its tone.
 	// The sidebar is its own card on the shell, a step off the content's.
 	panel := uikit.Colors(t).Sidebar
-	if c.Vibrancy() {
-		panel = panel.Alpha(0.9)
-	}
 	// MyGo draws a source list on its Surface, and the window has one
 	// Surface for the panel too: here the sidebar's own surface is chrome,
 	// so the list does not cut a canvas hole in the frame.

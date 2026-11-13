@@ -156,23 +156,22 @@ func chooseBodyFormat(t *testing.T, tt *ui.Tester, side, mode string) {
 	}
 }
 
-func TestSidebarShowsTheWindowMaterialOverOpaqueContent(t *testing.T) {
+// The shell paints every part of the window, title bar and the gutters between
+// the cards included: a clear root let the desktop's wallpaper through them,
+// which read as a different color on the top of the window.
+func TestShellPaintsItsOwnSurfaceOverTheWindowMaterial(t *testing.T) {
 	for _, material := range []bool{false, true} {
 		a := workspaceApp()
 		a.macChrome = true
 		tt := ui.NewTester(a.view, 1280, 800)
 		tt.SetVibrancy(material)
-		// Empty places: the sidebar's bottom edge, beside the brand at its
-		// top, and the content's empty traffic list.
 		im := tt.Image()
 		for _, at := range []struct {
-			name        string
-			x, y        int
-			translucent bool
-		}{{"sidebar", 200, 30, material}, {"content", 900, 700, false}} {
-			alpha := im.RGBAAt(at.x, at.y).A
-			if at.translucent != (alpha < 255) {
-				t.Fatalf("material=%t: %s alpha %d", material, at.name, alpha)
+			name string
+			x, y int
+		}{{"title bar", 640, 10}, {"sidebar", 200, 30}, {"gutter", 221, 400}, {"content", 900, 700}} {
+			if alpha := im.RGBAAt(at.x, at.y).A; alpha != 255 {
+				t.Fatalf("material=%t: %s alpha %d, want an opaque surface", material, at.name, alpha)
 			}
 		}
 	}
