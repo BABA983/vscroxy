@@ -2379,6 +2379,17 @@ func (a *app) table(c *ui.Context) {
 		cols = append(cols, ui.TableColumn{ID: cc.id(), Title: cc.title(), Width: width, Sortable: true})
 	}
 	cols = slices.DeleteFunc(cols, func(col ui.TableColumn) bool { return !a.columnShown(col.ID) })
+	// One column takes the room the others leave, so the rows end at the
+	// list's edge whatever is shown: the address does, and when it is hidden
+	// the last column that can give does.
+	if !slices.ContainsFunc(cols, func(col ui.TableColumn) bool { return col.Width == 0 && !col.Fixed }) {
+		for i := len(cols) - 1; i >= 0; i-- {
+			if !cols[i].Fixed {
+				cols[i].Width = 0
+				break
+			}
+		}
+	}
 	remoteShown := slices.ContainsFunc(cols, func(col ui.TableColumn) bool { return col.ID == "remote" })
 	cols = append(cols, ui.TableColumn{Title: "", ID: "filler", Width: 14, Fixed: true})
 	state := &a.views.activeView().list
