@@ -411,7 +411,7 @@ func (a *app) systemProxySettings(c *ui.Context, t *ui.Theme) {
 		// One row: the name, the switch that changes the OS, what the OS
 		// says, and the check. The scope and the sentence read beneath it,
 		// so the panel does not stack two labels on top of each other.
-		uikit.SettingsRow(c, locales.SystemProxy(), func() ui.Element {
+		uikit.SettingsRow(c, locales.UseSystemProxy(), func() ui.Element {
 			return ui.Row(c).Gap(t.Space(2)).Wrap().AlignItems(ui.Center).Children(func() {
 				// One switch, not a pair of buttons that has to be read
 				// to tell which way is left: the switch shows what the OS

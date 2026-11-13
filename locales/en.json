@@ -3378,6 +3378,7 @@
   "systemCaBundleUnavailableOnly": "System CA bundle unavailable: only NODE_EXTRA_CA_CERTS is set, so undecrypted hosts use their own default trust.",
   "systemFollowsThisComputerS": "System follows this computer's light or dark appearance.",
   "systemProxy": "System proxy",
+  "useSystemProxy": "Use system proxy",
   "systemProxyBypassList": "System proxy bypass list",
   "systemProxyBypassSaved": "System proxy bypass saved",
   "systemProxyRecovery": "System proxy recovery",

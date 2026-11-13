@@ -2058,6 +2058,7 @@
   "systemCaBundleUnavailableOnly": "系统 CA 包不可用：仅设置了 NODE_EXTRA_CA_CERTS，因此未解密的主机使用其自身的默认信任。",
   "systemFollowsThisComputerS": "跟随系统会使用这台电脑的浅色或深色外观。",
   "systemProxy": "系统代理",
+  "useSystemProxy": "使用系统代理",
   "systemProxyBypassList": "系统代理绕过列表",
   "systemProxyBypassSaved": "系统代理绕过已保存",
   "systemProxyRecovery": "系统代理恢复",

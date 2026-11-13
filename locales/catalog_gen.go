@@ -20876,6 +20876,16 @@ func (msgs Messages) SystemProxy() string {
 	return Catalog.Format(msgs.locale, "systemProxy", nil)
 }
 
+// UseSystemProxy says "Use system proxy"
+// in the language the app shows.
+func UseSystemProxy() string { return In(i18n.Locale()).UseSystemProxy() }
+
+// UseSystemProxy says "Use system proxy"
+// in the language of msgs.
+func (msgs Messages) UseSystemProxy() string {
+	return Catalog.Format(msgs.locale, "useSystemProxy", nil)
+}
+
 // SystemProxyBypassList says "System proxy bypass list"
 // in the language the app shows.
 func SystemProxyBypassList() string { return In(i18n.Locale()).SystemProxyBypassList() }
