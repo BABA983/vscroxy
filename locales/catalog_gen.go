@@ -5814,6 +5814,16 @@ func (msgs Messages) Disconnecting() string {
 	return Catalog.Format(msgs.locale, "disconnecting", nil)
 }
 
+// DismissCertificateBanner says "Dismiss the certificate banner"
+// in the language the app shows.
+func DismissCertificateBanner() string { return In(i18n.Locale()).DismissCertificateBanner() }
+
+// DismissCertificateBanner says "Dismiss the certificate banner"
+// in the language of msgs.
+func (msgs Messages) DismissCertificateBanner() string {
+	return Catalog.Format(msgs.locale, "dismissCertificateBanner", nil)
+}
+
 // DismissNotification says "Dismiss notification"
 // in the language the app shows.
 func DismissNotification() string { return In(i18n.Locale()).DismissNotification() }
@@ -8754,6 +8764,16 @@ func HttpsCertificateDecryptionSetup() string {
 // in the language of msgs.
 func (msgs Messages) HttpsCertificateDecryptionSetup() string {
 	return Catalog.Format(msgs.locale, "httpsCertificateDecryptionSetup", nil)
+}
+
+// HttpsContentIsNotDecrypted says "HTTPS content is not decrypted"
+// in the language the app shows.
+func HttpsContentIsNotDecrypted() string { return In(i18n.Locale()).HttpsContentIsNotDecrypted() }
+
+// HttpsContentIsNotDecrypted says "HTTPS content is not decrypted"
+// in the language of msgs.
+func (msgs Messages) HttpsContentIsNotDecrypted() string {
+	return Catalog.Format(msgs.locale, "httpsContentIsNotDecrypted", nil)
 }
 
 // HttpsInspection says "HTTPS inspection"

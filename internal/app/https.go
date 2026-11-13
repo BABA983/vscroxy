@@ -105,6 +105,35 @@ func (a *app) certificateStatus(t *ui.Theme) (string, ui.Color) {
 	}
 }
 
+// certificateBanner says, under the filter bar, why HTTPS traffic still reads
+// as encrypted tunnels: this system does not trust the CA the app decrypts
+// with. It is the one place on the capture screen that says so, and it can be
+// put away; the connection's own pane keeps its facts, not this app's.
+func (a *app) certificateBanner(c *ui.Context, t *ui.Theme) {
+	s := &a.certificate
+	if a.certBannerOff || a.guide {
+		return
+	}
+	// Nothing to say until the launch's trust check has answered, and
+	// nothing to say while it trusts the CA.
+	if !s.checked || s.cert != nil && s.err == nil {
+		return
+	}
+	ui.Row(c).Height(uikit.HeightLarge).Padding(0, t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).
+		Background(t.Warning.Alpha(0.12)).Children(func() {
+		ui.Icon(c, warningIcon).Size(uikit.IconInline, uikit.IconInline).TextColor(t.Warning)
+		ui.Text(c, locales.HttpsContentIsNotDecrypted()).FontSize(uikit.Scaled(uikit.TextMeta)).
+			TextColor(t.Warning).Grow(1).SingleLine()
+		if uikit.CompactButton(c, locales.InstallCertificate()).Clicked() {
+			a.openSettings(2)
+			a.checkCertificate(false)
+		}
+		if uikit.IconButton(c, locales.DismissCertificateBanner(), locales.DismissCertificateBanner(), closeIcon).Clicked() {
+			a.certBannerOff = true
+		}
+	})
+}
+
 func (a *app) httpsSettings(c *ui.Context, t *ui.Theme) {
 	status, color := a.certificateStatus(t)
 	s := &a.certificate
@@ -265,7 +294,6 @@ func (a *app) appInspectionActions(app capture.SSLApp) []action {
 func (a *app) connectPanel(c *ui.Context, f flow) {
 	t := c.Theme()
 	width, height := c.Size()
-	_, trustColor := a.certificateStatus(t)
 	domainEnabled := a.inspectionConfig().Decrypts(f.host)
 	e := f.conn.explanation()
 	failed := f.conn.error != ""
@@ -336,14 +364,9 @@ func (a *app) connectPanel(c *ui.Context, f flow) {
 						}
 						record()
 					}
-					// Decrypting needs the CA trusted on the client: offer the
-					// certificate only while that is what is missing.
-					if trustColor != t.Success {
-						if uikit.Tip(c, uikit.SecondaryButton(c, locales.InstallCertificate()), locales.CheckOrInstallTheLocal()).Clicked() {
-							a.openSettings(2)
-							a.checkCertificate(false)
-						}
-					}
+					// The certificate is the capture screen's banner to
+					// offer: a tunnel pane that offered it too would say
+					// the same thing in a second place.
 				})
 			})
 		})

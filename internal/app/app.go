@@ -278,24 +278,27 @@ type app struct {
 	lastFlow            atomic.Int64
 	collectionRecording *collectionRecording
 
-	srv          *capture.Server
-	win          *mygo.Window
-	control      *desktopControl
-	caPath       string
-	certificate  certificateSetup
-	systemProxy  proxySetup
-	rulesPath    string
-	files        map[string]*store.File // see file
-	scripts      scriptStore
-	addons       scriptStore
-	addonsShown  bool // the Scripts page shows the addons
-	rules        []capture.Rule
-	ruleUI       ruleEditor
-	configImport configImport
-	scenarioUI   scenarioUI
-	throttle     capture.Throttle
-	network      networkWorkbench
-	upstream     string // the active configuration's summary, for the chip
+	srv         *capture.Server
+	win         *mygo.Window
+	control     *desktopControl
+	caPath      string
+	certificate certificateSetup
+	// certBannerOff puts away the capture screen's certificate banner for
+	// this run: it is a statement of the state, not a dialog to answer.
+	certBannerOff bool
+	systemProxy   proxySetup
+	rulesPath     string
+	files         map[string]*store.File // see file
+	scripts       scriptStore
+	addons        scriptStore
+	addonsShown   bool // the Scripts page shows the addons
+	rules         []capture.Rule
+	ruleUI        ruleEditor
+	configImport  configImport
+	scenarioUI    scenarioUI
+	throttle      capture.Throttle
+	network       networkWorkbench
+	upstream      string // the active configuration's summary, for the chip
 	// upstreamCfg is the active configuration without passwords; the sealed
 	// passwords are in upstreamSecrets. upstreamUI is the Settings draft.
 	upstreamCfg     upstream.Settings
@@ -744,6 +747,10 @@ func newApp() *app {
 		}
 	}
 	a.loadAndroidProxyRecords()
+	// Whether this system trusts the CA decides whether HTTPS reads as
+	// traffic or as tunnels: the capture screen's banner says so, so the
+	// check starts with the app rather than with the first tunnel clicked.
+	a.checkCertificate(false)
 	go cleanupClientDirs()
 	return a
 }

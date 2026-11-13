@@ -114,6 +114,7 @@ func (a *app) desktopContent(c *ui.Context) {
 					return
 				}
 				a.captureToolbar(c, c.Theme())
+				a.certificateBanner(c, c.Theme())
 				table := func() {
 					ui.Column(c).Fill().Children(func() {
 						a.activityStrip(c)

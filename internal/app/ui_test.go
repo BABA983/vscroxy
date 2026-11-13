@@ -377,6 +377,41 @@ func TestTitleBarKeepsItsControlsToFourAndSettingsInMore(t *testing.T) {
 	}
 }
 
+// HTTPS reads as encrypted tunnels until this system trusts the CA, and the
+// capture screen says so once, under the filter bar, with the certificate to
+// install. Putting it away keeps it away.
+func TestCaptureSaysHttpsStaysEncryptedUntilTheCertificateIsTrusted(t *testing.T) {
+	a := workspaceApp()
+	a.certificate.checked, a.certificate.cert, a.certificate.err = true, nil, errors.New("not trusted")
+	tt := ui.NewTester(a.view, 1280, 800)
+	tt.Frame()
+	if !tt.HasText("HTTPS content is not decrypted") {
+		t.Fatalf("no banner: %q", tt.Texts())
+	}
+	if err := tt.Click("Install certificate"); err != nil {
+		t.Fatal(err)
+	}
+	if !a.settingsOpen || a.settingsTab != 2 {
+		t.Fatalf("Install certificate opened settings page %d, want the HTTPS page", a.settingsTab)
+	}
+	a.settingsOpen = false
+	tt.Frame()
+	if err := tt.Click("Dismiss the certificate banner"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if tt.HasText("HTTPS content is not decrypted") || !a.certBannerOff {
+		t.Fatal("the banner came back after it was put away")
+	}
+	// A system that trusts the CA has nothing to say.
+	trusted := workspaceApp()
+	tt = ui.NewTester(trusted.view, 1280, 800)
+	tt.Frame()
+	if tt.HasText("HTTPS content is not decrypted") {
+		t.Fatal("a trusted certificate still shows the banner")
+	}
+}
+
 func workspaceApp() *app {
 	a := &app{
 		filter: "all", sidebarWidth: 220, tablePercent: 56,
