@@ -47,3 +47,28 @@ func TestSettingsRowKeepsTheLabelColumnAndWrapsTheHint(t *testing.T) {
 		t.Fatalf("hint width = %.0f, want at most %.0f", text.W, Scaled(400))
 	}
 }
+
+// A single-line control's label sits on the control's line, not above it.
+func TestSettingsRowCentersTheLabelOnASingleLineControl(t *testing.T) {
+	var value string
+	tt := ui.NewTester(func(c *ui.Context) {
+		SettingsRow(c, "Port", func() ui.Element {
+			return Input(c, &value).Label("Proxy port").Width(100)
+		}, "")
+	}, 640, 120)
+	label, ok := tt.Find("Port")
+	if !ok {
+		t.Fatal("the row's label is missing")
+	}
+	control, ok := tt.Find("Proxy port")
+	if !ok {
+		t.Fatal("the row's control is missing")
+	}
+	dy := (label.Y + label.H/2) - (control.Y + control.H/2)
+	if dy < 0 {
+		dy = -dy
+	}
+	if dy > 1 {
+		t.Fatalf("label center %.1f, control center %.1f: they differ by %.1f", label.Y+label.H/2, control.Y+control.H/2, dy)
+	}
+}

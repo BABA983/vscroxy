@@ -438,14 +438,14 @@ func (a *app) upstreamSettingsGroup(c *ui.Context, t *ui.Theme) {
 			}
 			return in
 		}, locales.EmptyConnectsDirectlyAHost())
-		uikit.SettingsRow(c, locales.HostRules(), func() ui.Element {
+		uikit.SettingsRowMultiline(c, locales.HostRules(), func() ui.Element {
 			area := ui.TextArea(c, &u.rules).Label(locales.HostRules()).Placeholder("*.internal.test socks5://127.0.0.1:1080\napi.example.com:443 direct").Height(60).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextBody)).Radius(uikit.RadiusControl)
 			if area.Changed() {
 				u.dirty = true
 			}
 			return area
 		}, locales.OnePerLineHostPattern())
-		uikit.SettingsRow(c, locales.Bypass(), func() ui.Element {
+		uikit.SettingsRowMultiline(c, locales.Bypass(), func() ui.Element {
 			area := ui.TextArea(c, &u.bypass).Label(locales.BypassList()).Placeholder("localhost\n*.internal.test\n10.0.0.0/8").Height(50).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextBody)).Radius(uikit.RadiusControl)
 			if area.Changed() {
 				u.dirty = true
@@ -459,7 +459,7 @@ func (a *app) upstreamSettingsGroup(c *ui.Context, t *ui.Theme) {
 			}
 			return in
 		}, locales.ALocalPacFileOr())
-		uikit.SettingsRow(c, locales.Credentials(), func() ui.Element {
+		uikit.SettingsRowMultiline(c, locales.Credentials(), func() ui.Element {
 			return ui.Column(c).Gap(t.Space(1)).Children(func() {
 				remove := -1
 				for i := range u.credentials {

@@ -139,7 +139,7 @@ func (a *app) httpsSettings(c *ui.Context, t *ui.Theme) {
 	s := &a.certificate
 	uikit.SettingsPage(c, locales.Https(), locales.TrustingTheCaMakesDecryption(), func() {
 		uikit.SettingsGroup(c, locales.Certificate(), func() {
-			uikit.SettingsRow(c, locales.Trust(), func() ui.Element {
+			uikit.SettingsRowMultiline(c, locales.Trust(), func() ui.Element {
 				return ui.Column(c).Gap(t.Space(1)).Children(func() {
 					ui.Text(c, status).FontSize(uikit.Scaled(uikit.TextBody)).FontWeight(500).TextColor(color)
 					if s.cert != nil {

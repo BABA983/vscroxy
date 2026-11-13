@@ -916,25 +916,49 @@ func SettingsGroup(c *ui.Context, legend string, fields func()) ui.Element {
 
 // SettingsRow is one setting as a row: its label in a fixed left column, its
 // control beside it, and a hint under the control when it needs one. The
-// label column is Scaled so it follows the text size, and the hint stays a
-// meta line within the control's width instead of running across the page.
+// label column is Scaled so it follows the text size, the label is centered
+// on a single-line control, and the hint stays a meta line within the
+// control's width instead of running across the page.
 func SettingsRow(c *ui.Context, label string, control func() ui.Element, hint string) ui.Element {
+	return settingsRow(c, label, control, hint, false)
+}
+
+// SettingsRowMultiline is SettingsRow for a control taller than one line,
+// such as a text area: the label lines up with the control's first line.
+func SettingsRowMultiline(c *ui.Context, label string, control func() ui.Element, hint string) ui.Element {
+	return settingsRow(c, label, control, hint, true)
+}
+
+func settingsRow(c *ui.Context, label string, control func() ui.Element, hint string, multiline bool) ui.Element {
+	t := c.Theme()
+	align := ui.Center
+	if multiline {
+		align = ui.Start
+	}
+	if hint == "" {
+		return settingsRowBody(c, label, control, align)
+	}
+	return ui.Column(c).FillWidth().Gap(t.Space(1)).Children(func() {
+		settingsRowBody(c, label, control, align)
+		ui.Row(c).Children(func() {
+			ui.Box(c).Width(Scaled(112) + t.Space(4)).Shrink(0)
+			ui.Text(c, hint).FontSize(Scaled(TextMeta)).TextColor(t.TextMuted).
+				MaxWidth(Scaled(400)).LineHeight(LineProse)
+		})
+	})
+}
+
+func settingsRowBody(c *ui.Context, label string, control func() ui.Element, align ui.Align) ui.Element {
 	t := c.Theme()
 	labelWidth := Scaled(112)
-	row := ui.Row(c).FillWidth().Gap(t.Space(4)).AlignItems(ui.Start)
+	row := ui.Row(c).FillWidth().Gap(t.Space(4)).AlignItems(align)
 	row.Children(func() {
 		if label == "" {
 			ui.Box(c).Width(labelWidth).Shrink(0)
 		} else {
 			ui.Text(c, label).FontSize(Scaled(TextBody)).TextColor(t.Text).Width(labelWidth).Shrink(0).SingleLine()
 		}
-		ui.Column(c).Grow(1).MinWidth(0).Gap(t.Space(1)).Children(func() {
-			control()
-			if hint != "" {
-				ui.Text(c, hint).FontSize(Scaled(TextMeta)).TextColor(t.TextMuted).
-					MaxWidth(Scaled(400)).LineHeight(LineProse)
-			}
-		})
+		ui.Column(c).Grow(1).MinWidth(0).Children(func() { control() })
 	})
 	return row
 }
