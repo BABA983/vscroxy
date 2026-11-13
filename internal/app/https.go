@@ -339,7 +339,7 @@ func (a *app) connectPanel(c *ui.Context, f flow) {
 					// Decrypting needs the CA trusted on the client: offer the
 					// certificate only while that is what is missing.
 					if trustColor != t.Success {
-						if uikit.Tip(c, uikit.SecondaryButton(c, locales.CertificateSetup()), locales.CheckOrInstallTheLocal()).Clicked() {
+						if uikit.Tip(c, uikit.SecondaryButton(c, locales.InstallCertificate()), locales.CheckOrInstallTheLocal()).Clicked() {
 							a.openSettings(2)
 							a.checkCertificate(false)
 						}

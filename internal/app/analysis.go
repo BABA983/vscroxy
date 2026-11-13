@@ -74,7 +74,6 @@ func (a *app) replayLinks(c *ui.Context, f flow) {
 				}
 			})
 		}
-		uikit.Meta(c, locales.LinksStayWithSavedSessions())
 	})
 }
 

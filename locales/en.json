@@ -1381,7 +1381,6 @@
   "algorithm": "Algorithm",
   "all": "All",
   "allAnd": "All (AND)",
-  "allConditionsMustMatchRemove": "All conditions must match. Remove a condition above or edit the filters.",
   "allRequests": "All requests",
   "allSources": "All sources",
   "allStatuses": "All statuses",
@@ -1399,7 +1398,6 @@
   "anonymousOperation": "Anonymous operation",
   "answerMatchingRequestsWithThis": "Answer matching requests with this example: opens a Map Local rule in Tools",
   "any": "Any",
-  "anyContentFieldMayMatch": "Any content field may match; search and scope must still match. Edit the filters or broaden the scope.",
   "anyHostOrApiExample": "Any host, or api.example.com, *.example.com",
   "anyOr": "Any (OR)",
   "apiContracts": "API contracts",
@@ -1548,7 +1546,6 @@
   "certificateFormat": "Certificate format",
   "certificateInstallationCancelledSystemTrust": "Certificate installation cancelled; system trust not verified",
   "certificateNoPathKnown": "Certificate: no path known",
-  "certificateSetup": "Certificate setup…",
   "certificateVerificationIsOffFor": "Certificate verification is off for requests under it: they accept any certificate, including an impostor’s. Use it only for a server you control.",
   "certificateVerificationIsOffThis": "Certificate verification is off: this request accepts any certificate, including an impostor’s. Use it only for a server you control.",
   "certificateVerificationIsOffThis2": "Certificate verification is off: this connection accepts any certificate, including an impostor's. Use it only for a server you control.",
@@ -2326,7 +2323,6 @@
   "leaveInRequests": "Leave in requests",
   "light": "Light",
   "linkLocalAddressTheDevice": "Link-local address: the device needs a compatible address on the same network link.",
-  "linksStayWithSavedSessions": "Links stay with saved sessions",
   "listener": "Listener",
   "listeningAt": "Listening at",
   "listeningOn": "Listening on",
@@ -3618,5 +3614,6 @@
         "type": "int"
       }
     }
-  }
+  },
+  "setUpAClient": "Set up a client…"
 }

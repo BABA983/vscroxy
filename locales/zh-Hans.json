@@ -68,7 +68,6 @@
   "algorithm": "算法",
   "all": "全部",
   "allAnd": "全部（且）",
-  "allConditionsMustMatchRemove": "所有条件都必须匹配。请移除上方的条件或编辑筛选条件。",
   "allRequests": "所有请求",
   "allSources": "所有来源",
   "allStatuses": "所有状态",
@@ -86,7 +85,6 @@
   "anonymousOperation": "匿名操作",
   "answerMatchingRequestsWithThis": "用此示例应答匹配的请求：在工具中打开本地映射规则",
   "any": "任意",
-  "anyContentFieldMayMatch": "任意内容字段都可能匹配；搜索和范围仍须匹配。请编辑筛选条件或扩大范围。",
   "anyHostOrApiExample": "任意主机，或 api.example.com、*.example.com",
   "anyOr": "任意（或）",
   "apiContracts": "API 契约",
@@ -235,7 +233,6 @@
   "certificateFormat": "证书格式",
   "certificateInstallationCancelledSystemTrust": "证书安装已取消；系统信任未验证",
   "certificateNoPathKnown": "证书：未知路径",
-  "certificateSetup": "证书设置…",
   "certificateVerificationIsOffFor": "证书验证已关闭：其下的请求接受任何证书，包括冒充者的证书。仅对你控制的服务器使用。",
   "certificateVerificationIsOffThis": "证书验证已关闭：此请求接受任何证书，包括冒充者的证书。仅对你控制的服务器使用。",
   "certificateVerificationIsOffThis2": "证书验证已关闭：此连接接受任何证书，包括冒充者的证书。仅对你控制的服务器使用。",
@@ -1013,7 +1010,6 @@
   "leaveInRequests": "保留在请求中",
   "light": "浅色",
   "linkLocalAddressTheDevice": "链路本地地址：设备需要在同一网络链路上有兼容地址。",
-  "linksStayWithSavedSessions": "链接随保存的会话保留",
   "listener": "监听",
   "listeningAt": "监听于",
   "listeningOn": "正在监听",
@@ -2305,5 +2301,6 @@
         "type": "int"
       }
     }
-  }
+  },
+  "setUpAClient": "设置客户端…"
 }

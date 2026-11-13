@@ -616,16 +616,6 @@ func (msgs Messages) AllAnd() string {
 	return Catalog.Format(msgs.locale, "allAnd", nil)
 }
 
-// AllConditionsMustMatchRemove says "All conditions must match. Remove a condition above or edit the filters."
-// in the language the app shows.
-func AllConditionsMustMatchRemove() string { return In(i18n.Locale()).AllConditionsMustMatchRemove() }
-
-// AllConditionsMustMatchRemove says "All conditions must match. Remove a condition above or edit the filters."
-// in the language of msgs.
-func (msgs Messages) AllConditionsMustMatchRemove() string {
-	return Catalog.Format(msgs.locale, "allConditionsMustMatchRemove", nil)
-}
-
 // AllRequests says "All requests"
 // in the language the app shows.
 func AllRequests() string { return In(i18n.Locale()).AllRequests() }
@@ -800,16 +790,6 @@ func Any() string { return In(i18n.Locale()).Any() }
 // in the language of msgs.
 func (msgs Messages) Any() string {
 	return Catalog.Format(msgs.locale, "any", nil)
-}
-
-// AnyContentFieldMayMatch says "Any content field may match; search and scope must still match. Edit the filters or broaden the scope."
-// in the language the app shows.
-func AnyContentFieldMayMatch() string { return In(i18n.Locale()).AnyContentFieldMayMatch() }
-
-// AnyContentFieldMayMatch says "Any content field may match; search and scope must still match. Edit the filters or broaden the scope."
-// in the language of msgs.
-func (msgs Messages) AnyContentFieldMayMatch() string {
-	return Catalog.Format(msgs.locale, "anyContentFieldMayMatch", nil)
 }
 
 // AnyHostOrApiExample says "Any host, or api.example.com, *.example.com"
@@ -2322,16 +2302,6 @@ func CertificateNoPathKnown() string { return In(i18n.Locale()).CertificateNoPat
 // in the language of msgs.
 func (msgs Messages) CertificateNoPathKnown() string {
 	return Catalog.Format(msgs.locale, "certificateNoPathKnown", nil)
-}
-
-// CertificateSetup says "Certificate setup…"
-// in the language the app shows.
-func CertificateSetup() string { return In(i18n.Locale()).CertificateSetup() }
-
-// CertificateSetup says "Certificate setup…"
-// in the language of msgs.
-func (msgs Messages) CertificateSetup() string {
-	return Catalog.Format(msgs.locale, "certificateSetup", nil)
 }
 
 // CertificateVerificationIsOffFor says "Certificate verification is off for requests under it: they accept any certificate, including an impostor’s. Use it…"
@@ -10256,16 +10226,6 @@ func LinkLocalAddressTheDevice() string { return In(i18n.Locale()).LinkLocalAddr
 // in the language of msgs.
 func (msgs Messages) LinkLocalAddressTheDevice() string {
 	return Catalog.Format(msgs.locale, "linkLocalAddressTheDevice", nil)
-}
-
-// LinksStayWithSavedSessions says "Links stay with saved sessions"
-// in the language the app shows.
-func LinksStayWithSavedSessions() string { return In(i18n.Locale()).LinksStayWithSavedSessions() }
-
-// LinksStayWithSavedSessions says "Links stay with saved sessions"
-// in the language of msgs.
-func (msgs Messages) LinksStayWithSavedSessions() string {
-	return Catalog.Format(msgs.locale, "linksStayWithSavedSessions", nil)
 }
 
 // Listener says "Listener"
@@ -23288,4 +23248,14 @@ func ShownOfCaptured(shown int, captured int) string {
 // in the language of msgs.
 func (msgs Messages) ShownOfCaptured(shown int, captured int) string {
 	return Catalog.Format(msgs.locale, "shownOfCaptured", map[string]any{"shown": shown, "captured": captured})
+}
+
+// SetUpAClient says "Set up a client…"
+// in the language the app shows.
+func SetUpAClient() string { return In(i18n.Locale()).SetUpAClient() }
+
+// SetUpAClient says "Set up a client…"
+// in the language of msgs.
+func (msgs Messages) SetUpAClient() string {
+	return Catalog.Format(msgs.locale, "setUpAClient", nil)
 }

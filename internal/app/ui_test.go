@@ -1296,7 +1296,7 @@ func TestHTTPSSetupExplainsTunnelsAndEnablesOnlyTheSelectedDomain(t *testing.T) 
 	if err != nil || !cfg.Decrypts("api.dc.dlife.cn") || cfg.Decrypts("other.dlife.cn") || cfg.All || !srv.SSL().Decrypts("dc.dlife.cn") || srv.SSL().All {
 		t.Fatalf("domain selection was not saved with the correct scope: %+v, %v", cfg, err)
 	}
-	click("Certificate setup…")
+	click("Install certificate")
 	waitCertificate()
 	if !tt.HasText("Trust not verified on this system") || !tt.HasText("dc.dlife.cn") {
 		t.Fatalf("settings did not show scoped trust and domain state: %q", tt.Texts())
@@ -6649,5 +6649,41 @@ func TestFooterActionsReadAsActions(t *testing.T) {
 	tt.Frame()
 	if at() == chrome {
 		t.Fatal("Clear shows no face under the pointer")
+	}
+}
+
+// The capture screen says what it is, not how it works: no sentence explains
+// how conditions combine or where a link is kept, and the buttons are verbs.
+func TestCaptureScreenKeepsExplanationsOut(t *testing.T) {
+	a := workspaceApp()
+	tt := ui.NewTester(a.view, 1280, 800)
+	tt.Frame()
+	tt.Key(ui.Cmd, ui.KeyF)
+	tt.Type("no-such-host")
+	tt.Frame()
+	if !tt.HasText("No matching requests") || !tt.HasText("Show all requests") || !tt.HasText("Edit filters…") {
+		t.Fatalf("the empty list lost its title or its actions: %q", tt.Texts())
+	}
+	if tt.HasText("All conditions must match") {
+		t.Fatalf("the empty list explains how conditions combine: %q", tt.Texts())
+	}
+	a.views.resetFilters(a)
+	// A replay names its source; the row does not also explain that links
+	// stay with saved sessions.
+	a.flows[0].replayOf = 2
+	a.tally.known[2] = struct{}{}
+	a.applyFilter()
+	tt.Frame()
+	if !tt.HasText("Replay of #2") {
+		t.Fatalf("the replay row lost its source: %q", tt.Texts())
+	}
+	if tt.HasText("Links stay with saved sessions") {
+		t.Fatal("the replay row still explains itself")
+	}
+	a.flows = nil
+	a.applyFilter()
+	tt.Frame()
+	if !tt.HasText("Capture is stopped") || !tt.HasText("Start proxy") || !tt.HasText("Set up a client…") {
+		t.Fatalf("the empty capture does not offer what it can do: %q", tt.Texts())
 	}
 }

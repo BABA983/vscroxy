@@ -2368,12 +2368,10 @@ func (a *app) table(c *ui.Context) {
 			if a.searchProblem != "" {
 				title, hint = "Invalid search pattern", a.searchProblem
 			}
+			// The conditions are chips in the field above; the empty state
+			// says how many rows they hide and offers the two ways out, and
+			// nothing about how conditions combine.
 			uikit.EmptyState(c, title, hint, func() {
-				if a.filterAny {
-					uikit.Hint(c, locales.AnyContentFieldMayMatch())
-				} else {
-					uikit.Hint(c, locales.AllConditionsMustMatchRemove())
-				}
 				if note != "" {
 					color := t.TextMuted
 					if failure {
@@ -2391,7 +2389,7 @@ func (a *app) table(c *ui.Context) {
 			return
 		}
 		running := a.srv != nil && a.srv.Running()
-		title, hint := "Capture is stopped", "Check the listener before configuring a client."
+		title, hint := "Capture is stopped", ""
 		if running {
 			title, hint = "Connect a client to start capturing", "Listening at "+a.srv.Addr()+" · no retained requests yet"
 		}
@@ -2405,7 +2403,7 @@ func (a *app) table(c *ui.Context) {
 					// the launch: never on the thread that draws.
 					go a.startCapture()
 				}
-				if uikit.Tip(c, uikit.SecondaryButton(c, locales.ClientSetup()), locales.CopyAProcessScopedProxy()).Clicked() {
+				if uikit.Tip(c, uikit.SecondaryButton(c, locales.SetUpAClient()), locales.CopyAProcessScopedProxy()).Clicked() {
 					a.openClientSetup()
 				}
 				if running && uikit.SecondaryButton(c, locales.DiagnoseCapture()).Clicked() {
