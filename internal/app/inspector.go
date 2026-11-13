@@ -126,15 +126,17 @@ func (a *app) connectDetail(c *ui.Context, t *ui.Theme, f flow) {
 	if a.tab > 1 {
 		a.tab = 0
 	}
-	ui.Row(c).Height(uikit.HeightLarge).Padding(0, t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-		uikit.Tip(c, ui.Text(c, cmp.Or(f.process, "Unidentified client")).FontSize(uikit.TextBody).FontWeight(500).SingleLine(), f.processPath)
-		uikit.Tip(c, uikit.Hint(c, f.host).Font(uikit.FontMono).SingleLine(), f.url)
+	// One row, as every other pane header: the tunnel's name, its views, and
+	// what the exchange says on the right. Nothing here is the page's main
+	// action, so nothing wears the primary button.
+	ui.Row(c).Height(uikit.HeightTabs).Padding(0, t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+		uikit.Tip(c, ui.Text(c, cmp.Or(f.process, "Unidentified client")).FontSize(uikit.TextBody).FontWeight(500).SingleLine().Shrink(0), f.processPath)
+		uikit.Tabs(c, &a.tab, "", locales.HttpsSetup(), locales.Connection())
+		ui.Spacer(c)
 		if f.conn.error != "" {
-			ui.Text(c, cmp.Or(f.conn.errorStage, "Connection")+" failed").FontSize(uikit.TextBody).TextColor(t.Danger)
+			uikit.Tip(c, ui.Text(c, cmp.Or(f.conn.errorStage, "Connection")+" failed").FontSize(uikit.TextMeta).TextColor(t.Danger).SingleLine().Shrink(0), f.conn.error)
 		}
-		ui.ScrollHorizontal(c).Grow(1).FillHeight().Children(func() {
-			uikit.Tabs(c, &a.tab, "", locales.HttpsSetup(), locales.Connection())
-		})
+		uikit.Tip(c, uikit.Meta(c, f.host).Font(uikit.FontMono).SingleLine().MinWidth(0).Shrink(1), f.url)
 		if uikit.Tip(c, uikit.SecondaryButton(c, locales.Explain()), locales.DiagnoseThisConnection()).Clicked() {
 			a.openDiagnostics(&f, diagnoseMac)
 		}

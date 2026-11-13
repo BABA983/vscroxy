@@ -299,7 +299,7 @@ func (a *app) connectPanel(c *ui.Context, f flow) {
 				uikit.Hint(c, summary)
 				if failed {
 					// What happened: the stage and the raw error, copyable.
-					ui.Column(c).FillWidth().Padding(t.Space(2), t.Space(2)).Gap(t.Space(1)).Radius(uikit.RadiusPanel).Background(t.Danger.Alpha(0.06)).Border(1, t.Danger.Alpha(0.2)).Children(func() {
+					ui.Column(c).FillWidth().Padding(0, t.Space(3)).Gap(t.Space(1)).BorderWidth(0, 0, 0, 2).BorderColor(t.Danger).Children(func() {
 						ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 							uikit.Label(c, "Recorded failure · "+cmp.Or(f.conn.errorStage, "unknown stage")).Grow(1)
 							if uikit.ToolbarButton(c, locales.CopyError(), locales.CopyTheRecordedError(), false).Height(uikit.HeightControl).Gap(t.Space(1)).Children(func() {
@@ -318,30 +318,16 @@ func (a *app) connectPanel(c *ui.Context, f flow) {
 				// is an independent configuration step; a healthy tunnel
 				// still leads with the rule that would decrypt it.
 				ui.Row(c).Gap(t.Space(2)).Wrap().AlignItems(ui.Center).Children(func() {
-					record := func(primary bool) {
+					record := func() {
 						const tip = "Open this exchange's Connection tab: the recorded log and addresses"
-						var button ui.Element
-						if primary {
-							button = uikit.Tip(c, uikit.PrimaryButton(c, locales.ViewConnectionRecord()), tip)
-						} else {
-							button = uikit.Tip(c, uikit.SecondaryButton(c, locales.ViewConnectionRecord()), tip)
-						}
+						button := uikit.Tip(c, uikit.SecondaryButton(c, locales.ViewConnectionRecord()), tip)
 						if button.Clicked() {
 							a.inspect.pane = inspectorConnection
 						}
 					}
-					enable := func(primary bool) {
-						var button ui.Element
-						if primary {
-							button = uikit.PrimaryButton(c, "Inspect "+hostOnly(f.host)).Label("Enable for " + f.host).
-								Tooltip(locales.EnableThisHostnameAndSubdomains())
-							if !a.workbench.sideBySide {
-								button.MaxWidth(260)
-							}
-						} else {
-							button = uikit.SecondaryButton(c, "Inspect "+hostOnly(f.host)).Label("Enable for " + f.host).
-								Tooltip(locales.ConfigurationForNewConnectionsA())
-						}
+					enable := func() {
+						button := uikit.SecondaryButton(c, "Inspect "+hostOnly(f.host)).Label("Enable for " + f.host).
+							Tooltip(locales.ConfigurationForNewConnectionsA())
 						if button.Clicked() {
 							a.decryptHost(f.host)
 						}
@@ -350,15 +336,15 @@ func (a *app) connectPanel(c *ui.Context, f flow) {
 					case failed:
 						// Read the evidence first; enabling inspection is a
 						// configuration step, not the fix for this failure.
-						record(true)
+						record()
 						if !domainEnabled {
-							enable(false)
+							enable()
 						}
 					default:
 						if !domainEnabled {
-							enable(true)
+							enable()
 						}
-						record(false)
+						record()
 					}
 					if uikit.Tip(c, uikit.SecondaryButton(c, locales.CertificateSetup()), locales.CheckOrInstallTheLocal()).Clicked() {
 						a.openSettings(2)
