@@ -52,6 +52,24 @@ func TestTableRowMenuIsInTheInspectorMenu(t *testing.T) {
 	if len(row) == 0 {
 		t.Fatal("the row's menu is empty")
 	}
+	items := slices.DeleteFunc(slices.Clone(row), func(label string) bool { return label == "-" })
+	index := func(label string) int { return slices.Index(items, label) }
+	if len(items) == 0 || items[0] != "Replay" {
+		t.Fatalf("the row's menu starts with %q, want Replay", items)
+	}
+	for _, pair := range [][2]string{
+		{"Pin to the top", "Mark…"},
+		{"Mark…", "Filter captures"},
+		{"Save as request", "Save as regression…"},
+		{"Save as regression…", "Save evidence to Sessions"},
+		{"Save evidence to Sessions", "Create collection…"},
+		{"Create collection…", "Copy"},
+		{"Copy", "Tools"},
+	} {
+		if index(pair[0]) < 0 || index(pair[1]) < 0 || index(pair[0]) >= index(pair[1]) {
+			t.Fatalf("%q does not come before %q: %q", pair[0], pair[1], items)
+		}
+	}
 	tt.Key(0, ui.KeyEscape)
 	tt.Frame()
 	if err := tt.Click(locales.InspectorOptions()); err != nil {

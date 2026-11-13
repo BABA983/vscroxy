@@ -3375,14 +3375,6 @@ func (a *app) flowActions(c *ui.Context, f flow) []action {
 	if f.kind == "" && f.url != "" {
 		actions = append(actions, do("flow.open-browser", locales.OpenInBrowser(), func() { services.OpenURL(f.url) }).in("open"))
 	}
-	actions = append(actions,
-		pick(requests, "collection.from-capture").in("edit"),
-		do("flow.save-request", locales.SaveAsRequest(), func() { a.saveCapture(f) }).
-			when(f.kind != "connect" && f.method != "CONNECT", "Tunnels cannot be saved as requests").in("edit"),
-	)
-	if chosen := a.selectedFlows(); len(chosen) > 1 {
-		actions = append(actions, do("flow.save-chosen", fmt.Sprintf("Save %d requests to collection…", len(chosen)), func() { a.openCollectionSave(chosen) }).in("edit"))
-	}
 	var formats []action
 	for _, format := range requestCopyFormats {
 		formats = append(formats, pick(requests, format.id))
@@ -3430,15 +3422,23 @@ func (a *app) flowActions(c *ui.Context, f flow) []action {
 		submenu(locales.HttpsInspection(), append(a.appInspectionActions(capture.SSLApp{Name: f.process, Path: f.processPath}),
 			do("https.rules", locales.ViewHttpsRules(), func() { a.sslOpen = true }))...).in("host"),
 	)
+	var saveChosen action
+	if chosen := a.selectedFlows(); len(chosen) > 1 {
+		saveChosen = do("flow.save-chosen", fmt.Sprintf("Save %d requests to collection…", len(chosen)), func() { a.openCollectionSave(chosen) }).in("save")
+	}
 	return append(actions,
-		submenu(locales.FilterCaptures(), filters...).in("edit"),
-		do("flow.pin", cmp.Or(pinLabel(f), "Pin"), func() { a.togglePin(f) }).in("edit"),
-		do("flow.mark", locales.Mark(), func() { a.openMark(f) }).in("edit"),
-		submenu(locales.Tools(), tools...).in("edit"),
+		do("flow.pin", cmp.Or(pinLabel(f), "Pin"), func() { a.togglePin(f) }).in("keep"),
+		do("flow.mark", locales.Mark(), func() { a.openMark(f) }).in("keep"),
+		submenu(locales.FilterCaptures(), filters...).in("keep"),
+		do("flow.save-request", locales.SaveAsRequest(), func() { a.saveCapture(f) }).
+			when(f.kind != "connect" && f.method != "CONNECT", "Tunnels cannot be saved as requests").in("save"),
+		saveChosen,
 		do("flow.regression", locales.SaveAsRegression(), func() { a.regressionFrom(f) }).
-			when(f.status != 0 && f.method != "CONNECT" && f.kind != "ws", "Needs a finished HTTP exchange").in("edit"),
+			when(f.status != 0 && f.method != "CONNECT" && f.kind != "ws", "Needs a finished HTTP exchange").in("save"),
+		do("flow.save-evidence", locales.SaveEvidenceToSessions(), func() { a.saveEvidence(f) }).in("save"),
+		pick(requests, "collection.from-capture").in("save"),
 		submenu(locales.Copy(), copyItems...).in("copy"),
-		do("flow.save-evidence", locales.SaveEvidenceToSessions(), func() { a.saveEvidence(f) }).in("copy"),
+		submenu(locales.Tools(), tools...).in("copy"),
 	)
 }
 
