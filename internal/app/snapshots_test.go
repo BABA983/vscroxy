@@ -1333,22 +1333,27 @@ func TestUISnapshots(t *testing.T) {
 			a.views.capture(a)
 			a.applyFilter()
 		}, want: "Any content field may match"},
-		{name: "capture-search-text", want: "Capture search mode"},
+		{name: "capture-search-text", setup: func(a *app) {
+			a.views.init(a, "")
+			a.query = "projects"
+			a.views.capture(a)
+			a.applyFilter()
+		}, want: "Search host or path"},
 		{name: "capture-search-wildcard", setup: func(a *app) {
 			a.views.init(a, "")
-			a.searchMode, a.query = "Wildcard", "*.example.com/projects*"
+			a.query = "*.example.com/projects*"
 			a.views.capture(a)
 			a.applyFilter()
-		}, want: "Wildcard"},
+		}, want: "*.example.com/projects*"},
 		{name: "capture-search-regex", setup: func(a *app) {
 			a.views.init(a, "")
-			a.searchMode, a.query = "Regex", `/(projects|LOGIN)$`
+			a.query = `/(projects|LOGIN)$/`
 			a.views.capture(a)
 			a.applyFilter()
-		}, want: "Regex"},
+		}, want: `/(projects|LOGIN)$/`},
 		{name: "capture-search-error", setup: func(a *app) {
 			a.views.init(a, "")
-			a.searchMode, a.query = "Regex", "["
+			a.query = "/[/"
 			a.views.capture(a)
 			a.applyFilter()
 		}, want: "Invalid search pattern"},

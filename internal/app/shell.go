@@ -279,9 +279,6 @@ func (a *app) footer(c *ui.Context, t *ui.Theme) {
 				if uikit.FooterButton(c, locales.Clear(), locales.ClearRecords(), false).Disabled(len(a.flows) == 0).Clicked() {
 					a.clearOpen = true
 				}
-				if uikit.FooterButton(c, locales.Filter2(), locales.EditFilters(), a.filtersActive()).Clicked() {
-					a.openFilter()
-				}
 				on := a.following()
 				tip := locales.AutoFollowOnTip()
 				if !on {
@@ -533,7 +530,7 @@ func (a *app) footerRoom(c *ui.Context, t *ui.Theme) float32 {
 	padding, gap := 2*t.Space(3), t.Space(2)
 	room := a.windowWidth - padding - 4*gap
 	if a.page.capture() {
-		for _, label := range []string{locales.Clear(), locales.Filter(), locales.AutoFollow()} {
+		for _, label := range []string{locales.Clear(), locales.AutoFollow()} {
 			room -= paneTextWidth(c, label, uikit.TextMeta, 400) + 2*t.Space(2) + gap
 		}
 	}

@@ -14,7 +14,6 @@ import (
 // The fixed option sets the screens show. Keeping them here lets the tests
 // walk every value: each must have a message or be a known identifier.
 var (
-	searchModes     = []string{"Text", "Wildcard", "Regex"}
 	bodyTypes       = []string{"Raw", "URL encoded", "Multipart", "Binary", "GraphQL"}
 	responseFormats = []string{"Auto", "Raw", "Hex", "Pretty"}
 	directions      = []string{"All", "In", "Out", "Events"}
@@ -25,7 +24,6 @@ var (
 var optionSets = map[string][]string{
 	"capture kinds":     captureKinds,
 	"capture protocols": captureProtocols,
-	"search modes":      searchModes,
 	"body types":        bodyTypes,
 	"response formats":  responseFormats,
 	"directions":        directions,

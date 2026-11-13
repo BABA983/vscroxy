@@ -45,16 +45,15 @@ const (
 // savedCaptureFilter is a named capture filter kept in views.json: the
 // conditions of a view, without the row it had chosen.
 type savedCaptureFilter struct {
-	Name       string        `json:"name"`
-	Query      string        `json:"query,omitempty"`
-	SearchMode string        `json:"searchMode,omitempty"`
-	Filter     string        `json:"filter,omitempty"`
-	Chip       int           `json:"chip,omitzero"`
-	Status     string        `json:"status,omitempty"`
-	Header     string        `json:"header,omitempty"`
-	Body       string        `json:"body,omitempty"`
-	Triage     captureTriage `json:"triage,omitzero"`
-	Any        bool          `json:"any,omitzero"`
+	Name   string        `json:"name"`
+	Query  string        `json:"query,omitempty"`
+	Filter string        `json:"filter,omitempty"`
+	Chip   int           `json:"chip,omitzero"`
+	Status string        `json:"status,omitempty"`
+	Header string        `json:"header,omitempty"`
+	Body   string        `json:"body,omitempty"`
+	Triage captureTriage `json:"triage,omitzero"`
+	Any    bool          `json:"any,omitzero"`
 }
 
 // captureTriage is shared by live views and portable saved filters. Numeric
@@ -192,16 +191,15 @@ func writeCaptureFilters(file *store.File, list []savedCaptureFilter) error {
 // captureConditions is what narrows the table and how it is ordered, as one
 // view holds it. The app's own filter fields mirror the active view.
 type captureConditions struct {
-	query      string
-	searchMode string
-	filter     string
-	chip       int
-	status     string
-	header     string
-	triage     captureTriage
-	any        bool
-	activity   activityRange
-	sort       ui.SortOrder
+	query    string
+	filter   string
+	chip     int
+	status   string
+	header   string
+	triage   captureTriage
+	any      bool
+	activity activityRange
+	sort     ui.SortOrder
 }
 
 // captureView is one tab over the capture list: the same traffic, its own
@@ -421,7 +419,7 @@ func (v *captureViews) label(i int) string {
 // conditionsOf is what the app's fields say now.
 func conditionsOf(a *app) captureConditions {
 	return captureConditions{
-		query: a.query, searchMode: a.searchMode, filter: a.filter, chip: a.chip,
+		query: a.query, filter: a.filter, chip: a.chip,
 		status: a.filterStatus, header: a.filterHeader, sort: a.sort,
 		triage: a.filterTriage, any: a.filterAny, activity: a.activity,
 	}
@@ -435,7 +433,6 @@ func (v *captureViews) bind(a *app) {
 		return
 	}
 	a.query, a.filter, a.chip = view.query, view.filter, view.chip
-	a.searchMode = view.searchMode
 	a.queryProblem = ""
 	a.filterStatus, a.filterHeader = view.status, view.header
 	a.filterTriage = view.triage
@@ -523,7 +520,9 @@ func (v *captureViews) newView(a *app) {
 	view := &captureView{
 		id:     v.nextID,
 		reveal: true,
-		// A new view starts on everything, ordered as the table was.
+		// A new view starts on everything, ordered as the table was: it is
+		// how a capture a filter hides is shown, so it never carries the
+		// conditions that hid it.
 		captureConditions: captureConditions{filter: "all", sort: a.sort},
 	}
 	v.views = append(v.views, view)
@@ -880,7 +879,7 @@ func (v *captureViews) clearFilters(a *app) {
 
 func (v *captureViews) resetFilters(a *app) {
 	a.query, a.filter, a.chip = "", "all", 0
-	a.searchMode, a.queryProblem = "", ""
+	a.queryProblem = ""
 	a.activity = activityRange{}
 	v.capture(a)
 	v.clearFilters(a)
@@ -993,9 +992,6 @@ func (v *captureViews) sidebar(c *ui.Context, t *ui.Theme, a *app) {
 		if uikit.SidebarButton(c, locales.NewView(), locales.ANewViewWithIts(), plusIcon, false).Grow(1).Clicked() {
 			v.capture(a)
 			v.newView(a)
-		}
-		if uikit.IconButton(c, locales.SavedFilters(), locales.SaveCurrentConditionsApplyRename(), filterIcon).Margin(0, t.Space(1.5), 0, 0).Clicked() {
-			v.openSaved(a)
 		}
 	})
 	if len(v.filters) > 0 {
@@ -1245,7 +1241,6 @@ func (v *captureViews) applySaved(a *app, name string) {
 	f := v.filters[at]
 	v.capture(a)
 	view.query, view.filter, view.chip = f.Query, f.Filter, f.Chip
-	view.searchMode = f.SearchMode
 	view.status, view.header, view.body = f.Status, f.Header, f.Body
 	view.triage = f.Triage
 	view.any = f.Any
@@ -1294,7 +1289,7 @@ func (v *captureViews) saveCurrent(a *app) {
 
 func (v *captureView) saved(name string) savedCaptureFilter {
 	return savedCaptureFilter{Name: name, Query: v.query, Filter: v.filter, Chip: v.chip,
-		SearchMode: v.searchMode, Status: v.status, Header: v.header, Body: v.body, Triage: v.triage, Any: v.any}
+		Status: v.status, Header: v.header, Body: v.body, Triage: v.triage, Any: v.any}
 }
 
 // renameSaved renames the filter the dialog is renaming to the name typed.

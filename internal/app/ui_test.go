@@ -2276,12 +2276,13 @@ func TestHeaderValueColumnFitsACommonMediaType(t *testing.T) {
 }
 
 // The search field names the operators while it has room for the whole
-// sentence, and only what it searches when it does not.
+// sentence, and only what it searches when it does not. Without the mode
+// dropdown the field has 94 points more to spend, so it yields later.
 func TestSearchPlaceholderYieldsToANarrowField(t *testing.T) {
 	for _, tc := range []struct {
 		width int
 		want  string
-	}{{1280, locales.SearchPlaceholder()}, {960, locales.SearchHostOrPath()}} {
+	}{{1280, locales.SearchPlaceholder()}, {600, locales.SearchHostOrPath()}} {
 		a := workspaceApp()
 		var got string
 		tt := ui.NewTester(func(c *ui.Context) {
@@ -2352,9 +2353,9 @@ func TestFooterActionsClearFilterAndFollow(t *testing.T) {
 		}
 		tt.Frame()
 	}
-	click("Filter")
+	click("Filters…")
 	if !a.views.filterOpen {
-		t.Fatal("the footer's Filter did not open the filters")
+		t.Fatal("the search field's funnel did not open the filters")
 	}
 	tt.Key(0, ui.KeyEscape)
 	tt.Frame()
@@ -2390,7 +2391,7 @@ func TestFooterToolChipsFoldIntoACount(t *testing.T) {
 	a.srv = requestProxy(t)
 	a.srv.SetNoCaching(true)
 	snapshotProfiles(a)
-	tt := ui.NewTester(a.view, 900, 800)
+	tt := ui.NewTester(a.view, 860, 800)
 	tt.SetLocale("en-US")
 	tt.Frame()
 	folded := ""
@@ -4507,7 +4508,8 @@ func TestTriageFiltersAndQuickPresetsStayWithTheirView(t *testing.T) {
 	if len(a.visible) != 1 || a.flows[a.visible[0]].id != 1 {
 		t.Fatalf("AND conditions or strict boundaries are wrong: %v", visibleIDs(a))
 	}
-	tt.Click("Saved filters…")
+	a.views.openSaved(a)
+	tt.Frame()
 	tt.Click("Filter name")
 	tt.Key(ui.Cmd, ui.KeyA)
 	tt.Type("Checkout failures")
@@ -4518,22 +4520,25 @@ func TestTriageFiltersAndQuickPresetsStayWithTheirView(t *testing.T) {
 		t.Fatalf("triage conditions not saved: %+v %v", filters, err)
 	}
 	tt.Click("New view")
+	tt.Frame()
 	if len(a.visible) != 6 {
 		t.Fatal("new view inherited triage")
 	}
 	if err := tt.Click("Quick filter: Checkout failures"); err != nil {
 		t.Fatalf("%v; texts %q; filters %+v", err, tt.Texts(), a.views.filters)
 	}
+	tt.Frame()
 	if len(a.visible) != 1 {
 		t.Fatal("one-click filter not applied")
 	}
 	tt.Click("Quick filter: Checkout failures")
+	tt.Frame()
 	if len(a.visible) != 6 {
 		t.Fatal("one-click filter could not be toggled off")
 	}
 	a.views.activate(a, 0)
-	if len(a.visible) != 1 {
-		t.Fatal("quick filter altered the other view")
+	if len(a.visible) != 1 || a.filterTriage.Color != "Red" {
+		t.Fatalf("the quick filter altered the other view: %v, %+v", visibleIDs(a), a.filterTriage)
 	}
 }
 
@@ -5318,7 +5323,9 @@ func TestFilterTokensRemoveOnlyTheirOwnCondition(t *testing.T) {
 	}
 }
 
-func TestCapturePatternSearchControls(t *testing.T) {
+// A pattern is written where the text is: slashes make a regular expression
+// and * or ? a wildcard, so the field needs no mode to say which it is.
+func TestCapturePatternSearchSyntax(t *testing.T) {
 	for _, width := range []int{960, 1280} {
 		t.Run(fmt.Sprint(width), func(t *testing.T) {
 			a := workspaceApp()
@@ -5334,49 +5341,46 @@ func TestCapturePatternSearchControls(t *testing.T) {
 				click("Search host or path")
 				tt.Key(ui.Cmd, ui.KeyA)
 				tt.Type(text)
+				tt.Frame()
 			}
-			click("Capture search mode")
-			tt.Key(0, ui.KeyEnd)
+			edit(`/(projects|LOGIN)$/`)
+			if len(a.visible) != 2 {
+				t.Fatal("a case-insensitive regular expression did not apply")
+			}
+			edit(`/projects/ status:4xx`)
 			tt.Key(0, ui.KeyEnter)
-			edit(`/(projects|LOGIN)$`)
-			if a.searchMode != "Regex" || len(a.visible) != 2 {
-				t.Fatal("mode selection or case-insensitive regexp did not apply")
+			tt.Frame()
+			if a.query != "/projects/" || a.filterStatus != "4xx" || len(a.visible) != 0 {
+				t.Fatalf("a pattern beside a chip: query %q, status %q", a.query, a.filterStatus)
 			}
-			edit(`status:4xx `)
-			tt.Key(0, ui.KeyEnter)
-			if a.query != "status:4xx " || a.filterStatus != "" || len(a.visible) != 0 {
-				t.Fatal("pattern text was consumed as filter tokens")
-			}
-			edit("[")
+			click("Reset all")
+			edit("/[/")
 			tt.Key(0, ui.KeyEnter)
 			if !tt.HasText("Invalid search pattern") || len(a.visible) != 0 || !tt.Focused("Search host or path") {
-				t.Fatal("invalid regexp was not explained or stole editing focus")
+				t.Fatal("an invalid regular expression was not explained or stole editing focus")
 			}
-			edit(`LOGIN$`)
+			edit("/LOGIN$/")
 			if a.searchProblem != "" || len(a.visible) != 1 {
-				t.Fatal("correcting the regexp left a stale error or matcher")
+				t.Fatal("correcting the regular expression left a stale error or matcher")
 			}
-			click("Capture search mode")
-			tt.Key(0, ui.KeyHome)
-			tt.Key(0, ui.KeyDown)
-			tt.Key(0, ui.KeyEnter)
 			edit("*/login")
-			if a.searchMode != "Wildcard" || len(a.visible) != 1 {
-				t.Fatal("wildcard mode did not match the whole host/path")
+			if len(a.visible) != 1 {
+				t.Fatal("a wildcard did not match the whole host and path")
 			}
 			a.filterStatus = "4xx"
 			tt.Frame()
+			// A chip turns back into text at the end of the field, where a
+			// pattern cannot swallow it.
 			click("Edit condition: status:4xx")
-			if !a.views.filterOpen || a.filterStatus != "4xx" || a.query != "*/login" {
-				t.Fatalf("editing condition: dialog %t, status %q, query %q", a.views.filterOpen, a.filterStatus, a.query)
+			if a.views.filterOpen || a.filterStatus != "" || a.query != "*/login status:4xx" {
+				t.Fatalf("editing a condition: dialog %t, status %q, query %q", a.views.filterOpen, a.filterStatus, a.query)
 			}
-			click("Cancel")
 			click("Reset all")
-			if a.searchMode != "" || a.filtersActive() || len(a.visible) != 2 || !tt.HasText("Text") {
-				t.Fatal("reset did not restore ordinary Text search")
+			if a.query != "" || a.filtersActive() || len(a.visible) != 2 {
+				t.Fatal("reset did not clear the field")
 			}
 			a.flows = nil
-			a.searchMode, a.query = "Regex", "["
+			a.query = "/[/"
 			a.applyFilter()
 			tt.Frame()
 			if !tt.HasText("Invalid search pattern") {
@@ -6450,5 +6454,39 @@ func TestDuplicateOpensACopyOfTheRequest(t *testing.T) {
 	}
 	if d.value().URL != "https://api.example.com/projects" {
 		t.Fatalf("the copy has another URL: %q", d.value().URL)
+	}
+}
+
+// Narrowing has one entry: the search field, with the dialog's own fields at
+// its end. The footer and the sidebar keep no filter of their own, and the
+// field has no mode to pick: /regex/ and * wildcards are written in it.
+func TestFilteringHasOneEntry(t *testing.T) {
+	a := workspaceApp()
+	tt := ui.NewTester(a.view, 1280, 800)
+	tt.Frame()
+	if tt.HasText("Capture search mode") {
+		t.Fatal("the search field still offers a mode")
+	}
+	for _, text := range tt.Texts() {
+		if text == "Filter" {
+			t.Fatal("the footer still offers a Filter of its own")
+		}
+	}
+	field, ok := tt.Find("Search host or path")
+	funnel, found := tt.Find("Filters…")
+	tabs, tabsFound := tt.Find("Protocol and content type")
+	if !ok || !found || !tabsFound {
+		t.Fatalf("the field, its funnel or the protocol tabs is missing: %v %v %v", ok, found, tabsFound)
+	}
+	// The funnel sits past the input's text and before the protocol tabs:
+	// inside the field, not in a row of its own.
+	if funnel.X < field.X || funnel.X+funnel.W > tabs.X {
+		t.Fatalf("the funnel is not at the field's end: funnel %v, field %v, tabs %v", funnel, field, tabs)
+	}
+	if err := tt.Click("Filters…"); err != nil {
+		t.Fatal(err)
+	}
+	if !a.views.filterOpen {
+		t.Fatal("the field's funnel did not open the filters")
 	}
 }

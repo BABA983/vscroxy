@@ -83,40 +83,45 @@ func visibleIDs(a *app) []int {
 	return ids
 }
 
-func TestCaptureSearchModes(t *testing.T) {
+// The search field's syntax carries the three ways it used to match: plain
+// words are a substring, a word in slashes is a regular expression, and one
+// with * or ? is a wildcard over the whole host and path.
+func TestCaptureSearchSyntax(t *testing.T) {
 	for _, tc := range []struct {
-		name, mode, query, want string
-		problem                 bool
+		name, query, want string
+		problem           bool
 	}{
-		{"literal case insensitive", "", "LOGIN", "[2 3]", false},
-		{"literal star stays literal", "", "*", "[5]", false},
-		{"wildcard whole host path", "Wildcard", "*.EXAMPLE.com/v1/*", "[1 4]", false},
-		{"wildcard is anchored", "Wildcard", "login", "[]", false},
-		{"wildcard one Unicode character", "Wildcard", "*.example.com/v1/?", "[4]", false},
-		{"wildcard quotes regex syntax", "Wildcard", "*/a.b", "[5]", false},
-		{"regex alternation and escapes", "Regex", `/v[12]/(projects|users)\?`, "[1]", false},
-		{"regex preserves case override", "Regex", `(?-i)/LOGIN$`, "[2]", false},
-		{"regex uppercase escape", "Regex", `\D+$`, "[2 3 4 5 6]", false},
-		{"regex defaults to ignore case", "Regex", `/LOGIN$`, "[2 3]", false},
-		{"wildcard empty", "Wildcard", "", "[1 2 3 4 5 6]", false},
-		{"regex empty", "Regex", "", "[1 2 3 4 5 6]", false},
-		{"regex invalid", "Regex", "[", "[]", true},
-		{"regex does not support backreferences", "Regex", `(a)\1`, "[]", true},
-		{"pattern byte boundary", "Regex", strings.Repeat("a", 4096), "[]", false},
-		{"oversize regex", "Regex", strings.Repeat("a", 4097), "[]", true},
-		{"oversize wildcard", "Wildcard", strings.Repeat("*", 4097), "[]", true},
+		{"literal case insensitive", "LOGIN", "[2 3]", false},
+		{"a lone question mark is a one-character wildcard", "?", "[]", false},
+		{"wildcard whole host path", "*.EXAMPLE.com/v1/*", "[1 4]", false},
+		{"wildcard is anchored", "login*", "[]", false},
+		{"wildcard one Unicode character", "*.example.com/v1/?", "[4]", false},
+		{"wildcard quotes regex syntax", "*/a.b", "[5]", false},
+		{"regex alternation and escapes", `/v[12]/(projects|users)\?/`, "[1]", false},
+		{"regex preserves case override", `/(?-i)LOGIN$/`, "[2]", false},
+		{"regex uppercase escape", `/\D+$/`, "[2 3 4 5 6]", false},
+		{"regex defaults to ignore case", `/LOGIN$/`, "[2 3]", false},
+		{"regex beside a chip", `/LOGIN$/ status:401`, "[2]", false},
+		{"a slash inside a word stays text", "v1/", "[1 4]", false},
+		{"regex empty", "//", "[1 2 3 4 5 6]", false},
+		{"regex invalid", "/[/", "[]", true},
+		{"regex does not support backreferences", `/(a)\1/`, "[]", true},
+		{"pattern byte boundary", "/" + strings.Repeat("a", 4096) + "/", "[]", false},
+		{"oversize regex", "/" + strings.Repeat("a", 4097) + "/", "[]", true},
+		{"oversize wildcard", strings.Repeat("*", 4097), "[]", true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			a := workspaceApp()
 			a.flows = []flow{
 				{id: 1, host: "api.example.com", path: "/v1/projects?expand=1"},
-				{id: 2, host: "api.example.com", path: "/LOGIN"},
+				{id: 2, host: "api.example.com", path: "/LOGIN", status: 401},
 				{id: 3, host: "other.test", path: "/login"},
 				{id: 4, host: "api.example.com", path: "/v1/雪"},
 				{id: 5, host: "other.test", path: "/literal*/a.b"},
 				{id: 6, host: "other.test", path: "/aXb"},
 			}
-			a.searchMode, a.query = tc.mode, tc.query
+			a.query = tc.query
+			a.commitQuery(true)
 			a.applyFilter()
 			if got := fmt.Sprint(visibleIDs(a)); got != tc.want || (a.searchProblem != "") != tc.problem {
 				t.Fatalf("shown %s (want %s), problem %q", got, tc.want, a.searchProblem)
@@ -132,11 +137,13 @@ func TestCaptureSearchModes(t *testing.T) {
 	}
 }
 
-func TestCaptureSearchModeViewsAndSavedFilters(t *testing.T) {
+// A pattern is the field's text, so views and saved filters carry it as the
+// query it was typed as, and a view switch never turns it into words.
+func TestCapturePatternSurvivesViewsAndSavedFilters(t *testing.T) {
 	a := workspaceApp()
 	v := &a.views
 	v.init(a, filepath.Join(t.TempDir(), "views.json"))
-	a.searchMode, a.query, a.filterAny, a.filterStatus = "Regex", `/(projects|login)$`, true, "4xx"
+	a.query, a.filterAny, a.filterStatus = `/(projects|login)$/`, true, "4xx"
 	v.capture(a)
 	v.savedName = "Pattern"
 	v.saveCurrent(a)
@@ -144,29 +151,29 @@ func TestCaptureSearchModeViewsAndSavedFilters(t *testing.T) {
 		t.Fatal(v.problem)
 	}
 	v.newView(a)
-	if a.searchMode != "" || a.query != "" {
-		t.Fatal("new view inherited pattern mode")
+	if a.query != "" {
+		t.Fatal("a new view inherited the pattern")
 	}
 	v.active = 0
 	v.bind(a)
 	v.applyFilter(a)
-	if a.searchMode != "Regex" || a.query != `/(projects|login)$` || len(a.visible) != 1 {
-		t.Fatal("switching views lost the mode or outer search scope")
+	if a.query != `/(projects|login)$/` || len(a.visible) != 1 {
+		t.Fatalf("switching views lost the pattern: %q", a.query)
 	}
 	b := workspaceApp()
 	b.views.init(b, v.path)
 	b.views.applySaved(b, "Pattern")
-	if b.searchMode != "Regex" || b.query != a.query || !b.filterAny || len(b.visible) != 1 {
-		t.Fatal("saved pattern mode did not survive restart")
+	if b.query != a.query || !b.filterAny || len(b.visible) != 1 {
+		t.Fatalf("a saved pattern did not survive a restart: %q", b.query)
 	}
-	b.searchMode, b.query = "Regex", "["
+	b.query = "/[/"
 	b.applyFilter()
 	if b.searchProblem == "" || len(b.visible) != 0 {
-		t.Fatal("invalid pattern did not fail closed")
+		t.Fatal("an invalid pattern did not fail closed")
 	}
 	b.views.resetFilters(b)
-	if b.searchMode != "" || b.searchProblem != "" || b.filtersActive() || len(b.visible) != 2 {
-		t.Fatal("reset did not restore Text and clear validation")
+	if b.query != "" || b.searchProblem != "" || b.filtersActive() || len(b.visible) != 2 {
+		t.Fatal("reset did not clear the pattern and its validation")
 	}
 }
 
@@ -369,7 +376,8 @@ func TestSavedCaptureFiltersSurviveRestart(t *testing.T) {
 	a.filterStatus = "4xx"
 	a.filterTriage = captureTriage{Host: "api.example.com", Client: "Browser"}
 	tt.Frame()
-	click("Saved filters…")
+	v.openSaved(a)
+	tt.Frame()
 	click("Filter name")
 	tt.Key(ui.Cmd, ui.KeyA)
 	tt.Type("Failing calls")
@@ -404,7 +412,8 @@ func TestSavedCaptureFiltersSurviveRestart(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	click2("Saved filters…")
+	v2.openSaved(a2)
+	tt2.Frame()
 	click2(`Apply "Failing calls"`)
 	if a2.filter != "errors" || a2.filterStatus != "4xx" || a2.filterTriage != a.filterTriage {
 		t.Fatalf("applying gave %q, %q and %+v", a2.filter, a2.filterStatus, a2.filterTriage)
@@ -454,7 +463,8 @@ func TestSavedCaptureFilterWriteFailureIsVisible(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	click("Saved filters…")
+	v.openSaved(a)
+	tt.Frame()
 	click("Filter name")
 	tt.Key(ui.Cmd, ui.KeyA)
 	tt.Type("Lost")
@@ -598,7 +608,7 @@ func TestCaptureViewControlsAreWiredIntoTheWorkspace(t *testing.T) {
 	click("Capture view: View 1")
 	settle(t, a, &a.views)
 	tt.Frame()
-	if len(a.visible) != 1 || !strings.Contains(a.filterSummary(), "body projects") {
+	if len(a.visible) != 1 || !strings.Contains(a.views.bodyFilter(), "projects") {
 		t.Fatal("returning to a view lost its body condition")
 	}
 	a.applyFilter()

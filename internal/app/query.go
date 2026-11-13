@@ -54,30 +54,33 @@ var queryKeys = []queryKey{
 var slowQuery = fmt.Sprintf(">=%d", slowMillis)
 
 // captureSearch compiles once per filter pass, never per row or into the
-// rules' process-wide regexp cache. Pattern modes use the whole field, so
-// colons, quotes and whitespace in a pattern are not query-chip syntax.
+// rules' process-wide regexp cache. The field's free text is a substring
+// match, unless it is written as a pattern: a text wrapped in slashes is a
+// regular expression and one with * or ? is a wildcard, both over the whole
+// host and path (including query) as the field's old pattern modes were.
+// Chips are conditions, so they never end up in the pattern.
 func (a *app) captureSearch() func(string) bool {
 	a.searchProblem = ""
-	pattern := a.query
-	if a.searchMode == "" {
-		needle := strings.ToLower(queryText(pattern))
+	text := strings.TrimSpace(queryText(a.query))
+	regex, wildcard := false, strings.ContainsAny(text, "*?")
+	if len(text) > 1 && strings.HasPrefix(text, "/") && strings.HasSuffix(text, "/") {
+		regex, wildcard, text = true, false, text[1:len(text)-1]
+	}
+	if !regex && !wildcard {
+		needle := strings.ToLower(text)
 		return func(target string) bool { return strings.Contains(strings.ToLower(target), needle) }
 	}
 	var expr string
 	switch {
-	case len(pattern) > 4096:
+	case len(text) > 4096:
 		a.searchProblem = "Search patterns are limited to 4096 bytes"
-	case a.searchMode == "Wildcard":
-		// Unlike rule URL patterns, capture search has no scheme: it
-		// matches host + path (including query), exactly as Text does.
-		expr = "(?is)^" + strings.NewReplacer(`\*`, ".*", `\?`, ".").Replace(regexp.QuoteMeta(pattern)) + "$"
-	case a.searchMode == "Regex":
-		expr = "(?i)" + pattern
+	case wildcard:
+		expr = "(?is)^" + strings.NewReplacer(`\*`, ".*", `\?`, ".").Replace(regexp.QuoteMeta(text)) + "$"
 	default:
-		a.searchProblem = "Unknown capture search mode"
+		expr = "(?i)" + text
 	}
 	if a.searchProblem == "" {
-		if pattern == "" {
+		if text == "" {
 			return func(string) bool { return true }
 		}
 		re, err := regexp.Compile(expr)
@@ -153,6 +156,9 @@ func tokenizeQuery(q string) []queryToken {
 
 func parseQueryToken(raw string, done bool) queryToken {
 	t := queryToken{raw: raw, done: done}
+	if len(raw) > 1 && strings.HasPrefix(raw, "/") && strings.HasSuffix(raw, "/") {
+		return t // a regular expression, whatever it holds
+	}
 	if strings.EqualFold(raw, "slow") {
 		t.key, t.value = "slow", slowQuery
 		return t
@@ -199,9 +205,6 @@ func queryText(q string) string {
 // and content fields use the Filters dialog's AND/OR combination.
 func (a *app) commitQuery(all bool) bool {
 	a.queryProblem = ""
-	if a.searchMode != "" {
-		return false
-	}
 	tokens := tokenizeQuery(a.query)
 	var kept []string
 	committed := false
@@ -285,9 +288,6 @@ func queryTokenAt(q string, caret int) (start, end int, prefix string) {
 // the keys only when the user asked for the list, by a click or Down
 // (asked), not after each space typed.
 func (a *app) querySuggestions(prefix string, asked bool) []querySuggestion {
-	if a.searchMode != "" {
-		return nil
-	}
 	var out []querySuggestion
 	key, typed, hasValue := strings.Cut(prefix, ":")
 	if !hasValue {

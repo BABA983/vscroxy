@@ -163,12 +163,6 @@ var captureProtocols = captureKinds[:6]
 // sentence names the operators the field takes; a field too narrow for it says
 // only what it searches, because a cut-off word reads as a broken field.
 func (a *app) searchPlaceholder(c *ui.Context) string {
-	switch a.searchMode {
-	case "Wildcard":
-		return "*.example.com/v1/*"
-	case "Regex":
-		return `/v[12]/(projects|users)\b`
-	}
 	placeholder := locales.SearchPlaceholder()
 	if w := a.search.Bounds(c).W; w > 0 && paneTextWidth(c, placeholder, uikit.TextBody, 400) > w-12 {
 		placeholder = locales.SearchHostOrPath()
@@ -189,17 +183,6 @@ func (a *app) captureToolbar(c *ui.Context, t *ui.Theme) {
 	// A filter bar is the pane header's height: 32, with the controls at 24.
 	ui.Row(c).Height(uikit.HeightTabs).Padding(0, t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).
 		Border(0, t.Border).BorderWidth(0, 0, 1, 0).Children(func() {
-		mode := cmp.Or(a.searchMode, "Text")
-		if uikit.Tip(c, uikit.SelectLabels(c.Key("capture-search-mode"), &mode, searchModes, optionLabel).Label(locales.CaptureSearchMode()).
-			MinWidth(94).Width(94), locales.TextLiteralContainsAndKey()).Changed() {
-			a.searchMode = mode
-			if mode == "Text" {
-				a.searchMode = ""
-			}
-			a.queryProblem = ""
-			a.views.capture(a)
-			a.applyFilter()
-		}
 		box := ui.Row(c).Grow(1).MinWidth(160).Height(uikit.HeightControl).Gap(t.Space(1)).Padding(0, t.Space(1)).AlignItems(ui.Center)
 		uikit.FieldFace(c, box, a.search.Focused(c)).Children(func() {
 			// Chips first, then the input: a condition is narrowed one
@@ -215,7 +198,7 @@ func (a *app) captureToolbar(c *ui.Context, t *ui.Theme) {
 			placeholder := a.searchPlaceholder(c)
 			cb := ui.ComboboxBase(c.Key("capture-search"), &a.query)
 			search := cb.Input.Bind(&a.search).Label(locales.SearchHostOrPath()).Placeholder(placeholder).
-				Tooltip(cmp.Or(a.queryProblem, a.searchProblem, "Search host and path (including query) · Text supports key:value chips · Pattern modes treat the entire field as one expression · Ctrl/Cmd+F")).
+				Tooltip(cmp.Or(a.queryProblem, a.searchProblem, "Search host and path (including query) · key:value chips narrow it · /regex/ and * wildcards match the whole field · Ctrl/Cmd+F")).
 				Height(uikit.HeightControl).Padding(0, t.Space(1)).FontSize(uikit.Scaled(uikit.TextBody)).Grow(1).MinWidth(min(200, width/5)).FocusRing(false).
 				OnShortcut(0, ui.KeyEscape, func() { a.clearQuery(c) })
 			if a.queryProblem != "" || a.searchProblem != "" {
@@ -270,7 +253,7 @@ func (a *app) captureToolbar(c *ui.Context, t *ui.Theme) {
 			// Typing highlights the first option for Enter to take. A key
 			// is only highlighted once asked for (Down): Enter after free
 			// text such as "st" searches it, not status:.
-			case a.searchMode == "" && !value && cb.Filtering():
+			case !value && cb.Filtering():
 				cb.SetOpen(false)
 				cb.SetOpen(true)
 			}
@@ -288,6 +271,12 @@ func (a *app) captureToolbar(c *ui.Context, t *ui.Theme) {
 				if uikit.IconButton(c, locales.ResetAll(), locales.ResetAllConditions(), closeIcon).Clicked() {
 					a.views.resetFilters(a)
 				}
+			}
+			// The conditions the field cannot spell -- the dialog's own
+			// fields, the time range -- open from the field's end, so the
+			// search is the one way to narrow the list.
+			if uikit.IconButton(c, locales.Filters(), locales.StatusHeaderBodyMethodDuration(), filterIcon).Clicked() {
+				a.openFilter()
 			}
 		})
 		ui.ScrollHorizontal(c).Width(protocolWidth).Height(uikit.HeightControl).Children(func() {
@@ -323,11 +312,6 @@ func (a *app) captureToolbar(c *ui.Context, t *ui.Theme) {
 				a.applyFilter()
 			}
 		})
-		if uikit.ToolbarButton(c, locales.Filters(), locales.StatusHeaderBodyMethodDuration(), a.filtersActive()).Width(uikit.HeightControl).Padding(0).Justify(ui.Center).Children(func() {
-			ui.Icon(c, filterIcon).Size(uikit.IconInline, uikit.IconInline)
-		}).Clicked() {
-			a.openFilter()
-		}
 		breakButton := uikit.ToolbarButton(c, locales.Breakpoints(), locales.PauseEachMatchingRequestOr(), a.breakOn).
 			Width(uikit.HeightControl).Padding(0).Justify(ui.Center)
 		if breakButton.Clicked() && a.srv != nil {
@@ -383,12 +367,6 @@ func (a *app) captureConditions(c *ui.Context) {
 			}
 			text := queryChip(key.name, *field)
 			uikit.QueryChip(c, text, func() {
-				if a.searchMode != "" {
-					// A pattern is not a container for key:value syntax.
-					// Edit the condition without overwriting that pattern.
-					a.openFilter()
-					return
-				}
 				*field = ""
 				a.query = strings.TrimSpace(strings.TrimSpace(a.query) + " " + text)
 				a.queryCaret = new(utf8.RuneCountInString(a.query))

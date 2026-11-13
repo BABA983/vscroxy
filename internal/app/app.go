@@ -76,7 +76,6 @@ type app struct {
 	// not taken.
 	query         string
 	queryProblem  string
-	searchMode    string // empty is Text; otherwise Wildcard or Regex
 	searchProblem string
 	// queryCaret is where the caret goes in the field once it shows a
 	// text set from elsewhere: a completion or a chip turned back into text.
@@ -3716,7 +3715,7 @@ func (a *app) setKeyLog(path string) {
 
 // filtersActive includes every condition that can hide captured requests.
 func (a *app) filtersActive() bool {
-	return a.query != "" || a.searchMode != "" || a.conditionsActive()
+	return a.query != "" || a.conditionsActive()
 }
 
 // conditionsActive is filtersActive without the search field's own text:
@@ -3724,41 +3723,6 @@ func (a *app) filtersActive() bool {
 func (a *app) conditionsActive() bool {
 	return a.filter != "" && a.filter != "all" || a.chip != 0 ||
 		a.filterStatus != "" || a.filterHeader != "" || a.views.bodyFilter() != "" || a.filterTriage != (captureTriage{}) || a.filterAny || a.activity.active()
-}
-
-// filterSummary is what the status bar says about the filters in use.
-func (a *app) filterSummary() string {
-	var parts []string
-	if a.filterAny {
-		parts = append(parts, "content: any (OR)")
-	}
-	text := a.query
-	if a.searchMode == "" {
-		text = queryText(text)
-	}
-	if text != "" {
-		parts = append(parts, strings.TrimSpace("URL "+a.searchMode)+" "+text)
-	}
-	if a.filter != "" && a.filter != "all" {
-		parts = append(parts, a.filter)
-	}
-	if a.chip != 0 {
-		parts = append(parts, captureKinds[a.chip])
-	}
-	if a.filterStatus != "" {
-		parts = append(parts, "status "+a.filterStatus)
-	}
-	if a.filterHeader != "" {
-		parts = append(parts, "header "+a.filterHeader)
-	}
-	if body := a.views.bodyFilter(); body != "" {
-		parts = append(parts, "body "+body)
-	}
-	if a.activity.active() {
-		parts = append(parts, "time "+a.activity.label())
-	}
-	parts = append(parts, a.filterTriage.summary()...)
-	return strings.Join(parts, " · ")
 }
 
 // openFilter shows the content filter with what it already holds.

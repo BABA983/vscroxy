@@ -2214,16 +2214,6 @@ func (msgs Messages) CaptureOneAppOnly() string {
 	return Catalog.Format(msgs.locale, "captureOneAppOnly", nil)
 }
 
-// CaptureSearchMode says "Capture search mode"
-// in the language the app shows.
-func CaptureSearchMode() string { return In(i18n.Locale()).CaptureSearchMode() }
-
-// CaptureSearchMode says "Capture search mode"
-// in the language of msgs.
-func (msgs Messages) CaptureSearchMode() string {
-	return Catalog.Format(msgs.locale, "captureSearchMode", nil)
-}
-
 // CaptureViewNamed says "Capture view: {name}"
 // in the language the app shows.
 func CaptureViewNamed(name string) string { return In(i18n.Locale()).CaptureViewNamed(name) }
@@ -7424,16 +7414,6 @@ func Filter() string { return In(i18n.Locale()).Filter() }
 // in the language of msgs.
 func (msgs Messages) Filter() string {
 	return Catalog.Format(msgs.locale, "filter", nil)
-}
-
-// Filter2 says "Filter"
-// in the language the app shows.
-func Filter2() string { return In(i18n.Locale()).Filter2() }
-
-// Filter2 says "Filter"
-// in the language of msgs.
-func (msgs Messages) Filter2() string {
-	return Catalog.Format(msgs.locale, "filter2", nil)
 }
 
 // FilterApp says "Filter app"
@@ -21154,16 +21134,6 @@ func TextHexBytesOrPadded() string { return In(i18n.Locale()).TextHexBytesOrPadd
 // in the language of msgs.
 func (msgs Messages) TextHexBytesOrPadded() string {
 	return Catalog.Format(msgs.locale, "textHexBytesOrPadded", nil)
-}
-
-// TextLiteralContainsAndKey says "Text: literal contains and key:value chips · Wildcard: * any text, ? one character, whole host/path · Regex: Go/RE2…"
-// in the language the app shows.
-func TextLiteralContainsAndKey() string { return In(i18n.Locale()).TextLiteralContainsAndKey() }
-
-// TextLiteralContainsAndKey says "Text: literal contains and key:value chips · Wildcard: * any text, ? one character, whole host/path · Regex: Go/RE2…"
-// in the language of msgs.
-func (msgs Messages) TextLiteralContainsAndKey() string {
-	return Catalog.Format(msgs.locale, "textLiteralContainsAndKey", nil)
 }
 
 // TextPreviewLimitedTo4 says "Text preview limited to 4 KiB"
