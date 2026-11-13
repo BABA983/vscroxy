@@ -6257,3 +6257,37 @@ func TestColumnDragIsSavedWithoutAnotherEvent(t *testing.T) {
 		t.Fatalf("the dragged width never reached the file: %s", data)
 	}
 }
+
+// How much a hover costs, measured: with a thousand rows, moving the pointer
+// over four sidebar rows runs about twenty view passes per row, because the
+// components still read Hovered() as they build. The bound here is a baseline,
+// not a goal: it fails if a change makes hovers more expensive than this.
+func TestHoveringTheSidebarDoesNotRebuildTheWindow(t *testing.T) {
+	a := workspaceApp()
+	for i := range 1000 {
+		a.flows = append(a.flows, flow{id: 100 + i, at: time.Now().Add(time.Duration(i) * time.Millisecond), host: "example.test", method: "GET", status: 200, path: "/x"})
+	}
+	a.recount()
+	tt := ui.NewTester(a.view, 1440, 860)
+	tt.Frame()
+	before := a.builds
+	// Sweep the pointer down the sidebar, over the rows that light up.
+	rows := []string{"All requests", "Errors", "Slow", "Pinned"}
+	moved := 0
+	for _, label := range rows {
+		r, ok := tt.Find(label)
+		if !ok {
+			continue
+		}
+		tt.Move(r.X+10, r.Y+r.H/2)
+		moved++
+	}
+	if moved == 0 {
+		t.Fatal(tt.Texts())
+	}
+	after := a.builds
+	t.Logf("hover over %d sidebar rows: %d view passes", moved, after-before)
+	if after-before > 25*moved {
+		t.Fatalf("hovering %d rows ran %d view passes, more than the %d this cost when it was measured", moved, after-before, 25*moved)
+	}
+}

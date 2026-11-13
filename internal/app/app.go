@@ -349,6 +349,7 @@ type app struct {
 	mcpClosing       map[*mcpSession]struct{}
 	saved            settings
 	columnsDirty     bool // the app changed the table's layout itself
+	builds           int  // view passes, which tests count to see a hover
 	lastSave         time.Time
 	savePending      bool // a change landed inside the write gap
 	saveQueued       bool // a frame is already asked for when the gap passes
@@ -1508,6 +1509,7 @@ func (a *app) syncDetail() {
 }
 
 func (a *app) view(c *ui.Context) {
+	a.builds++
 	// The pass starts from MyGo's theme, which follows the system.
 	a.dark = a.appearance == "dark" || a.appearance == "" && c.Theme().Dark
 	a.windowWidth, _ = c.Size()
