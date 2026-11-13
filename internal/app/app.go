@@ -1595,7 +1595,12 @@ func (a *app) view(c *ui.Context) {
 			a.shell(c, t)
 		}
 		if a.sidebarShown() {
-			ui.Split(c, &a.sidebarWidth, func() { a.sidebar(c) }, main).SplitReset(220).Grow(1).FillWidth().MinHeight(0)
+			ui.Row(c).Grow(1).FillWidth().MinHeight(0).Children(func() {
+				ui.Column(c).Width(a.sidebarWidth).Shrink(0).FillHeight().Children(func() { a.sidebar(c) })
+				a.sidebarGutter(c)
+				ui.Column(c).Grow(1).MinWidth(0).FillHeight().Children(main)
+				a.sidebarGrip(c, t)
+			})
 		} else {
 			ui.Column(c).Grow(1).FillWidth().MinHeight(0).Children(main)
 		}
@@ -1723,6 +1728,57 @@ func (a *app) mainColumn(c *ui.Context, t *ui.Theme) {
 // canvas panel, rounded and edged, inset from the window's chrome on the
 // right, and on the left too while the sidebar is away. It runs flush under
 // the title bar and above the footer, so the shell reads as one frame.
+// sidebarGutter is the space between the sidebar card and the content card:
+// the shell shows through it, and the pointer drags its divider to resize the
+// sidebar.
+const (
+	sidebarGutter float32 = 2
+	sidebarGrip   float32 = 8
+)
+
+// sidebarGutter is the space between the sidebar card and the content card:
+// the shell shows through it.
+func (a *app) sidebarGutter(c *ui.Context) {
+	ui.Box(c).Width(sidebarGutter).Shrink(0).FillHeight()
+}
+
+// sidebarGrip is the handle that resizes the sidebar, and the line that shows
+// where the gutter is. The handle spans 8 DIPs over both cards, so the pointer
+// finds it without aiming at the 2 DIPs of gutter; the line is invisible at
+// rest and the text color at 28% while the pointer is over the handle or drags
+// it. It comes after the content in the row so it takes the pointer over it.
+func (a *app) sidebarGrip(c *ui.Context, t *ui.Theme) {
+	p := uikit.Colors(t)
+	handle := ui.Box(c).Absolute().Left(a.sidebarWidth - sidebarGrip/2).Width(sidebarGrip).Top(0).Bottom(0).
+		Cursor(ui.CursorResizeEW)
+	var line ui.Element
+	handle.Children(func() {
+		line = ui.Box(c).Absolute().Left((sidebarGrip - sidebarGutter) / 2).Width(sidebarGutter).Top(0).Bottom(0)
+	})
+	dx, _, held := handle.Dragged()
+	switch {
+	case held && handle.DoubleClicked():
+		a.sidebarWidth = 220
+	case held && dx != 0:
+		a.sidebarWidth = clampSidebar(a.sidebarWidth + dx)
+	}
+	// The color goes in with its own transition every frame: MyGo animates a
+	// property only while the element carried it in the frame before, so the
+	// frame the pointer leaves keeps the hover color and fades from it.
+	lit := held || handle.Hovered()
+	face, d := ui.Color{}, uikit.DurationHover
+	if lit {
+		face, d = p.Text.Alpha(0.28), -1
+	}
+	line.Background(face).Transition(ui.ElementTransition{Colors: true, Duration: d})
+}
+
+// clampSidebar keeps the sidebar between a size it can be read at and one that
+// leaves the content most of the window.
+func clampSidebar(w float32) float32 {
+	return min(max(w, 180), 520)
+}
+
 func (a *app) panel(c *ui.Context, t *ui.Theme) {
 	p := uikit.Colors(t)
 	left := float32(0)

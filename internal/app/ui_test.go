@@ -4769,6 +4769,32 @@ func TestSplitDoubleClickRestoresSidebarWidth(t *testing.T) {
 	}
 }
 
+// The gutter between the sidebar card and the content card is 2 DIPs, and the
+// pointer finds its handle without aiming at it: a press a few DIPs into the
+// content resizes the sidebar, where a divider one DIP thick would miss.
+func TestSidebarDividerIsAGutterWithAWideHandle(t *testing.T) {
+	if sidebarGutter != 2 {
+		t.Fatalf("sidebar gutter = %v, want 2", sidebarGutter)
+	}
+	a := workspaceApp()
+	tt := ui.NewTester(a.view, 1440, 860)
+	tt.Frame()
+	edge := a.sidebarWidth
+	tt.Press(edge+3, 400)
+	tt.Move(edge+43, 400)
+	tt.Release(edge+43, 400)
+	if a.sidebarWidth != edge+40 {
+		t.Fatalf("sidebar width after a drag from inside the handle = %v, want %v", a.sidebarWidth, edge+40)
+	}
+	// The handle reaches the other side of the gutter too, and a double click
+	// there puts the sidebar back.
+	tt.ClickAt(a.sidebarWidth-2, 400)
+	tt.ClickAt(a.sidebarWidth-2, 400)
+	if a.sidebarWidth != 220 {
+		t.Fatalf("sidebar width after double click = %v, want 220", a.sidebarWidth)
+	}
+}
+
 func TestSplitDoubleClickRestoresInspectorSplitters(t *testing.T) {
 	a := workspaceApp()
 	tt := ui.NewTester(a.view, 1440, 860)
