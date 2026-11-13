@@ -2564,6 +2564,20 @@ func (a *app) table(c *ui.Context) {
 	state.Selected = &a.picked
 	state.Selection = &a.chosen
 	state.Key = func(row int) any { return a.flows[a.visible[row]].id }
+	// A row dragged out of the table carries the exchanges it stands for;
+	// the collection tree takes them as a drop and saves them there.
+	state.DragRows = func(rows []int) any {
+		flows := make([]flow, 0, len(rows))
+		for _, row := range rows {
+			if row >= 0 && row < len(a.visible) {
+				flows = append(flows, a.flows[a.visible[row]])
+			}
+		}
+		if len(flows) == 0 {
+			return nil
+		}
+		return capturedDrag{flows: flows}
+	}
 	state.Sort = &a.sort
 	// The table owns the live layout while it is on screen: the app's copy is
 	// only what it was given, or what it changed from its own menus.
@@ -3338,6 +3352,10 @@ func clientBadge(c *ui.Context, name string) {
 	}
 	uikit.LetterSquare(c, name, uikit.IconInline, uikit.Colors(c.Theme()).TextMuted).Label(label)
 }
+
+// capturedDrag is what a table row drags into a collection: the exchanges
+// chosen when the gesture started.
+type capturedDrag struct{ flows []flow }
 
 func (a *app) rowMenu(c *ui.Context, f flow) func(*ui.Menu) {
 	return func(m *ui.Menu) { actionMenu(m, a.flowActions(c, f)) }

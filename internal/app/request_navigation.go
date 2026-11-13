@@ -140,6 +140,12 @@ func (a *app) collectionTree(c *ui.Context) {
 					action.Opacity(0)
 				}
 			})
+			if drag, over := ui.DragOver[capturedDrag](row); over && len(drag.flows) > 0 {
+				row.Background(uikit.Colors(c.Theme()).AccentTint)
+			}
+			if drag, ok := ui.Drop[capturedDrag](row); ok && len(drag.flows) > 0 {
+				a.saveFlowsToFolder(drag.flows, path)
+			}
 			parts.Group(func() { branch(path, depth+1) })
 		}
 		for _, r := range a.requests {
