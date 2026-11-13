@@ -490,13 +490,13 @@ func TestWebSocketBreakpointOverSessionAndPayloadValidation(t *testing.T) {
 			if err := tt.Click("Message payload"); err != nil {
 				t.Fatal(err)
 			}
-			tt.Key(ui.Ctrl, ui.KeyA)
+			tt.Key(ui.Cmd, ui.KeyA)
 			tt.Type("AP6AAQ==")
 			if a.bpBody != "AP6AAQ==" || a.breakpointError() != "" {
 				t.Fatal("valid edit not accepted over session panel")
 			}
 			if kind == "binary" {
-				tt.Key(ui.Ctrl, ui.KeyA)
+				tt.Key(ui.Cmd, ui.KeyA)
 				tt.Type("AA\n==")
 				if !tt.HasText("Enter canonical padded base64 for the binary message.") {
 					t.Fatalf("invalid base64 not explained: %v", tt.Texts())

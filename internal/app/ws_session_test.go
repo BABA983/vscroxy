@@ -69,7 +69,7 @@ func TestWebSocketMessageProtobufViews(t *testing.T) {
 				}
 				click("Protobuf")
 				click("Protobuf message type")
-				tt.Key(ui.Ctrl, ui.KeyA)
+				tt.Key(ui.Cmd, ui.KeyA)
 				tt.Type("api.Output")
 				tt.Key(0, ui.KeyEnter)
 				deadline := time.Now().Add(10 * time.Second)
@@ -163,7 +163,7 @@ func TestWebSocketSessionUIBinaryEncodingsAndSubprotocol(t *testing.T) {
 		}
 		tt.Key(0, ui.KeyEnter)
 		click("WebSocket message")
-		tt.Key(ui.Ctrl, ui.KeyA)
+		tt.Key(ui.Cmd, ui.KeyA)
 		tt.Type(tc.text)
 		label := "Send binary"
 		if tc.kind == websocket.TextMessage {
@@ -185,7 +185,7 @@ func TestWebSocketSessionUIBinaryEncodingsAndSubprotocol(t *testing.T) {
 	click("WebSocket message encoding")
 	click("Hex")
 	click("WebSocket message")
-	tt.Key(ui.Ctrl, ui.KeyA)
+	tt.Key(ui.Cmd, ui.KeyA)
 	tt.Type("0xz")
 	click("Send binary")
 	_, events, _ = a.socket.session.snapshot()

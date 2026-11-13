@@ -130,20 +130,7 @@ func TestSSLAppDecryptsMultipleHostsAndPorts(t *testing.T) {
 }
 
 func TestSSLAppDoesNotAttributeNonLoopbackClient(t *testing.T) {
-	addresses, err := net.InterfaceAddrs()
-	if err != nil {
-		t.Fatal(err)
-	}
-	var host string
-	for _, address := range addresses {
-		if ip, ok := address.(*net.IPNet); ok && ip.IP.To4() != nil && !ip.IP.IsLoopback() {
-			host = ip.IP.String()
-			break
-		}
-	}
-	if host == "" {
-		t.Skip("no non-loopback IPv4 interface")
-	}
+	host := reachableAddress(t)
 	exe, err := os.Executable()
 	if err != nil {
 		t.Fatal(err)
@@ -358,4 +345,43 @@ func TestSSLConfigSwitchPreservesConnectionDecision(t *testing.T) {
 			}
 		})
 	}
+}
+
+// reachableAddress is a LAN IPv4 address this machine can reach itself on.
+// A VPN's point-to-point address is not one: a proxy bound to it accepts the
+// connection and then sends it into the tunnel, where it times out.
+func reachableAddress(t *testing.T) string {
+	t.Helper()
+	interfaces, err := net.Interfaces()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, iface := range interfaces {
+		if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagLoopback != 0 || iface.Flags&net.FlagPointToPoint != 0 {
+			continue
+		}
+		addresses, err := iface.Addrs()
+		if err != nil {
+			continue
+		}
+		for _, address := range addresses {
+			ip, ok := address.(*net.IPNet)
+			if !ok || ip.IP.To4() == nil || ip.IP.IsLoopback() {
+				continue
+			}
+			ln, err := net.Listen("tcp", net.JoinHostPort(ip.IP.String(), "0"))
+			if err != nil {
+				continue
+			}
+			conn, err := net.DialTimeout("tcp", ln.Addr().String(), 300*time.Millisecond)
+			ln.Close()
+			if err != nil {
+				continue
+			}
+			conn.Close()
+			return ip.IP.String()
+		}
+	}
+	t.Skip("no non-loopback IPv4 address this machine can reach itself on")
+	return ""
 }

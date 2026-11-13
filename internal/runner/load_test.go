@@ -193,8 +193,12 @@ func TestLoadTimeoutAndDynamicWebSocketRefusal(t *testing.T) {
 	if err != nil || report.Reason != "failure" || report.Total.Errors != 1 || report.Total.Interrupted != 0 {
 		t.Fatalf("request timeout must be failure, not load interruption: %+v %v", report, err)
 	}
+	// Whether the timed-out request reached the host before its budget ran
+	// out is a race with the proxy's start; what matters is that the
+	// WebSocket the script switched to never does.
+	reached := sends.Load()
 	report, err = runner.RunLoad(t.Context(), srv, []runner.Step{{Request: request.Request{URL: host.URL, Pre: `pm.request.url = "ws://127.0.0.1:1/";`}}}, runner.LoadOptions{Users: 1, Duration: time.Second, StopOnFailure: true}, nil)
-	if err != nil || report.Total.Failed != 1 || report.Total.HTTPResponses != 0 || sends.Load() != 1 {
+	if err != nil || report.Total.Failed != 1 || report.Total.HTTPResponses != 0 || sends.Load() != reached {
 		t.Fatalf("script changed workload to WebSocket: %+v %v", report, err)
 	}
 }

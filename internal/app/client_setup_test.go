@@ -165,6 +165,12 @@ func TestOneClickTerminalLaunchesTheGeneratedScript(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("fake terminal is a shell script")
 	}
+	if runtime.GOOS == "darwin" {
+		// macOS opens Terminal.app with /usr/bin/open on a .command script.
+		// Clicking here would open a real window on the machine running the
+		// tests; the command it builds is checked in clientsetup instead.
+		t.Skip("launching would open Terminal.app; see clientsetup's darwin launch test")
+	}
 	a := oneClickApp(t)
 	binDir := t.TempDir()
 	out := filepath.Join(t.TempDir(), "terminal args")
@@ -200,6 +206,9 @@ func TestOneClickTerminalLaunchesTheGeneratedScript(t *testing.T) {
 }
 
 func TestOneClickTerminalMissingHelperIsReported(t *testing.T) {
+	if runtime.GOOS == "darwin" {
+		t.Skip("macOS opens Terminal.app with /usr/bin/open, which is always present")
+	}
 	a := oneClickApp(t)
 	t.Setenv("PATH", "")
 	t.Setenv("TERMINAL", "")

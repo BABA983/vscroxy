@@ -265,12 +265,23 @@ func TestJavaCACertsPathFindsTheJDKStore(t *testing.T) {
 	if err := os.WriteFile(keytool, nil, 0o700); err != nil {
 		t.Fatal(err)
 	}
+	// One lookup reads the path through its links and the other does not:
+	// on macOS /var is a link into /private/var, so both forms name the
+	// same file and the test compares the files.
+	same := func(a, b string) bool {
+		if a == b {
+			return true
+		}
+		ra, err := filepath.EvalSymlinks(a)
+		rb, err2 := filepath.EvalSymlinks(b)
+		return err == nil && err2 == nil && ra == rb
+	}
 	got, err := JavaCACertsPath(keytool, "")
-	if err != nil || got != cacerts {
+	if err != nil || !same(got, cacerts) {
 		t.Fatalf("from keytool: got %q %v, want %q", got, err, cacerts)
 	}
 	got, err = JavaCACertsPath("/not/a/jdk/bin/keytool", jdk)
-	if err != nil || got != cacerts {
+	if err != nil || !same(got, cacerts) {
 		t.Fatalf("from JAVA_HOME: got %q %v, want %q", got, err, cacerts)
 	}
 	if _, err := JavaCACertsPath("/not/a/jdk/bin/keytool", ""); err == nil || !strings.Contains(err.Error(), "JDK cacerts not found") {
