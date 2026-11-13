@@ -249,7 +249,7 @@ func TestEnableSystemProxyWritesThenVerifies(t *testing.T) {
 	openProxySettings(t, tt)
 	settleProxy(t, a, tt)
 
-	if err := tt.Click("Enable system proxy"); err != nil {
+	if err := tt.Click("Use this app’s proxy"); err != nil {
 		t.Fatal(err)
 	}
 	if !a.systemProxy.applying || !tt.HasText("Applying to the OS…") {
@@ -257,7 +257,7 @@ func TestEnableSystemProxyWritesThenVerifies(t *testing.T) {
 	}
 	// A second click, from the button or from elsewhere, must not write again
 	// while the first write is in flight.
-	if err := tt.Click("Enable system proxy"); err != nil {
+	if err := tt.Click("Use this app’s proxy"); err != nil {
 		t.Fatal(err)
 	}
 	a.setSystemProxy(true)
@@ -320,7 +320,7 @@ func TestEnableSystemProxyReportsWhatTheOSStillHolds(t *testing.T) {
 			openProxySettings(t, tt)
 			settleProxy(t, a, tt)
 			fake.check = tc.check
-			if err := tt.Click("Enable system proxy"); err != nil {
+			if err := tt.Click("Use this app’s proxy"); err != nil {
 				t.Fatal(err)
 			}
 			settleProxy(t, a, tt)
@@ -343,7 +343,7 @@ func TestSystemProxyWriteFailureStaysVisible(t *testing.T) {
 	tt := ui.NewTester(a.view, 1280, 800)
 	openProxySettings(t, tt)
 	settleProxy(t, a, tt)
-	if err := tt.Click("Enable system proxy"); err != nil {
+	if err := tt.Click("Use this app’s proxy"); err != nil {
 		t.Fatal(err)
 	}
 	settleProxy(t, a, tt)
@@ -362,7 +362,7 @@ func TestDisableSystemProxyVerifiesThatItIsOff(t *testing.T) {
 	openProxySettings(t, tt)
 	settleProxy(t, a, tt)
 	fake.check = system.ProxyCheck{Status: system.ProxyOff, Configs: []system.ProxyConfig{{Scope: "Wi-Fi"}}}
-	if err := tt.Click("Disable system proxy"); err != nil {
+	if err := tt.Click("Use this app’s proxy"); err != nil {
 		t.Fatal(err)
 	}
 	settleProxy(t, a, tt)
@@ -384,7 +384,7 @@ func TestDisableSystemProxyReportsAnotherProxy(t *testing.T) {
 	openProxySettings(t, tt)
 	settleProxy(t, a, tt)
 	fake.check = system.ProxyCheck{Status: system.ProxyMismatch, Configs: []system.ProxyConfig{manualProxy(t, "Wi-Fi", "10.0.0.2:8080")}}
-	if err := tt.Click("Disable system proxy"); err != nil {
+	if err := tt.Click("Use this app’s proxy"); err != nil {
 		t.Fatal(err)
 	}
 	settleProxy(t, a, tt)

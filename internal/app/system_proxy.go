@@ -419,33 +419,18 @@ func (a *app) systemProxySettings(c *ui.Context, t *ui.Theme) {
 				uikit.Tip(c, uikit.Meta(c, detail).SingleLine(), full)
 			})
 		})
-		// The buttons are their own field, so a disabled one does not gray
-		// the Status label.
+		// One switch, not a pair of buttons that has to be read to tell
+		// which way is left: the switch shows what the OS holds, and turning
+		// it over is the change.
 		ui.Field(c, "", func() {
-			ui.Row(c).Gap(t.Space(2)).Wrap().Children(func() {
-				// The step that is left is the primary one: with the proxy
-				// already on, enabling it is not what to do next.
+			ui.Row(c).Gap(t.Space(2)).Wrap().AlignItems(ui.Center).Children(func() {
 				on := s.check.Status == system.ProxyMatches
-				var enable ui.Element
-				if on {
-					enable = uikit.SecondaryButton(c, locales.EnableSystemProxy()).Disabled(!running || busy)
-				} else {
-					enable = uikit.PrimaryButton(c, locales.EnableSystemProxy()).Disabled(!running || busy)
-				}
+				toggle := ui.Switch(c, &on).Label(locales.UseThisAppsProxy()).Disabled(!running || busy)
 				if !running {
-					uikit.Tip(c, enable, locales.StartCaptureFirst())
+					uikit.Tip(c, toggle, locales.StartCaptureFirst())
 				}
-				if enable.Clicked() {
-					a.setSystemProxy(true)
-				}
-				var disable ui.Element
-				if on {
-					disable = uikit.PrimaryButton(c, locales.DisableSystemProxy()).Disabled(busy)
-				} else {
-					disable = uikit.SecondaryButton(c, locales.DisableSystemProxy()).Disabled(busy)
-				}
-				if disable.Clicked() {
-					a.setSystemProxy(false)
+				if toggle.Changed() {
+					a.setSystemProxy(on)
 				}
 				if uikit.SecondaryButton(c, locales.CheckAgain()).Disabled(busy).Clicked() {
 					a.checkSystemProxy(true)

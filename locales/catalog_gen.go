@@ -5714,16 +5714,6 @@ func (msgs Messages) DisableRetryingTheRequest() string {
 	return Catalog.Format(msgs.locale, "disableRetryingTheRequest", nil)
 }
 
-// DisableSystemProxy says "Disable system proxy"
-// in the language the app shows.
-func DisableSystemProxy() string { return In(i18n.Locale()).DisableSystemProxy() }
-
-// DisableSystemProxy says "Disable system proxy"
-// in the language of msgs.
-func (msgs Messages) DisableSystemProxy() string {
-	return Catalog.Format(msgs.locale, "disableSystemProxy", nil)
-}
-
 // DisableTool says "Disable {name}"
 // in the language the app shows.
 func DisableTool(name string) string { return In(i18n.Locale()).DisableTool(name) }
@@ -6428,16 +6418,6 @@ func EnableSocks5Proxy() string { return In(i18n.Locale()).EnableSocks5Proxy() }
 // in the language of msgs.
 func (msgs Messages) EnableSocks5Proxy() string {
 	return Catalog.Format(msgs.locale, "enableSocks5Proxy", nil)
-}
-
-// EnableSystemProxy says "Enable system proxy"
-// in the language the app shows.
-func EnableSystemProxy() string { return In(i18n.Locale()).EnableSystemProxy() }
-
-// EnableSystemProxy says "Enable system proxy"
-// in the language of msgs.
-func (msgs Messages) EnableSystemProxy() string {
-	return Catalog.Format(msgs.locale, "enableSystemProxy", nil)
 }
 
 // EnableThisHostnameAndSubdomains says "Enable this hostname and subdomains on new connections; client CA trust is still required"
@@ -22452,6 +22432,16 @@ func UseNameInRequestsEnvironment() string { return In(i18n.Locale()).UseNameInR
 // in the language of msgs.
 func (msgs Messages) UseNameInRequestsEnvironment() string {
 	return Catalog.Format(msgs.locale, "useNameInRequestsEnvironment", nil)
+}
+
+// UseThisAppsProxy says "Use this app’s proxy"
+// in the language the app shows.
+func UseThisAppsProxy() string { return In(i18n.Locale()).UseThisAppsProxy() }
+
+// UseThisAppsProxy says "Use this app’s proxy"
+// in the language of msgs.
+func (msgs Messages) UseThisAppsProxy() string {
+	return Catalog.Format(msgs.locale, "useThisAppsProxy", nil)
 }
 
 // UseVaultNameInA says "Use '{{vault:name}}' in a URL, header, body or auth field. A secret with domains is sent only to those hosts."
