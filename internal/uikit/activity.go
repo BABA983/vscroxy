@@ -140,13 +140,19 @@ func ActivityStrip(c *ui.Context, buckets []ActivityBucket, selected *ActivityRa
 			if active {
 				p.Fill(ui.Rect{X: r.X + width*float32(rangeNow.From), Y: r.Y, W: width * float32(rangeNow.To-rangeNow.From), H: r.H}, palette.AccentTint, 0)
 			}
-			// Normal traffic is a neutral face; redirects, client and server
-			// errors and slow requests carry their signal color.
-			inks := [5]ui.Color{palette.FillHover, palette.Info, palette.Warning, palette.Danger, palette.Danger}
+			// Normal traffic is a neutral face, dark enough to read on the
+			// canvas at a glance; redirects, client and server errors and
+			// slow requests carry their signal color.
+			inks := [5]ui.Color{palette.TextMuted.Alpha(0.55), palette.Info, palette.Warning, palette.Danger, palette.Danger}
 			for i, bucket := range buckets {
 				bottom := r.Y + r.H
 				for status, count := range bucket {
-					height := (r.H - 2) * float32(count) / float32(peak)
+					if count == 0 {
+						continue
+					}
+					// A single request still shows as a bar: the plot reads
+					// "traffic arrived" before it reads how much.
+					height := max(2, (r.H-2)*float32(count)/float32(peak))
 					ink := inks[status]
 					if active && (i < rangeNow.From || i >= rangeNow.To) {
 						ink = ink.Alpha(float32(ink.A) / 255 * 0.3)
