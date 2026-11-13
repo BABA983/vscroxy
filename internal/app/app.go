@@ -348,6 +348,7 @@ type app struct {
 	mcpClosingMu     sync.Mutex
 	mcpClosing       map[*mcpSession]struct{}
 	saved            settings
+	columnsDirty     bool // the app changed the table's layout itself
 	lastSave         time.Time
 	savePending      bool // a change landed inside the write gap
 	saveQueued       bool // a frame is already asked for when the gap passes
@@ -708,7 +709,7 @@ func newApp() *app {
 		if saved.DiffSplit > 0 {
 			a.diffSplit = saved.DiffSplit
 		}
-		a.columns = saved.Columns.layout()
+		a.setColumns(saved.Columns.layout())
 		a.customColumns, a.hiddenColumns = slices.Clone(saved.CustomColumns), saved.HiddenColumns
 		a.shownColumns = slices.Clone(saved.ShownColumns)
 	}
@@ -2463,7 +2464,12 @@ func (a *app) table(c *ui.Context) {
 	state.Selection = &a.chosen
 	state.Key = func(row int) any { return a.flows[a.visible[row]].id }
 	state.Sort = &a.sort
-	state.Columns = a.columns
+	// The table owns the live layout while it is on screen: the app's copy is
+	// only what it was given, or what it changed from its own menus.
+	if a.columnsDirty || len(state.Columns.Order) == 0 && len(state.Columns.Widths) == 0 {
+		state.Columns = a.columns
+		a.columnsDirty = false
+	}
 	state.HeaderMenu = func(m *ui.Menu, col int) {
 		id := ""
 		if col >= 0 {
@@ -2650,7 +2656,11 @@ func (a *app) table(c *ui.Context) {
 	if table.Submitted() {
 		a.workbench.inspector.Focus(c)
 	}
-	a.columns = state.Columns
+	// Dragging a column, reordering one or sorting the table is the table's
+	// change, not the app's: it is copied back then, not every frame.
+	if table.Changed() {
+		a.columns = state.Columns
+	}
 }
 
 var noteIcon = lucide.MessageSquare()
@@ -3919,7 +3929,7 @@ func (a *app) saveComposed() bool {
 			if saved.TablePercent > 0 {
 				a.tablePercent = saved.TablePercent
 			}
-			a.columns = saved.Columns.layout()
+			a.setColumns(saved.Columns.layout())
 			a.customColumns, a.hiddenColumns = slices.Clone(saved.CustomColumns), saved.HiddenColumns
 			a.shownColumns = slices.Clone(saved.ShownColumns)
 		}

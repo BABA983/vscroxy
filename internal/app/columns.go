@@ -272,7 +272,7 @@ func (a *app) headerColumnActions(source string) []action {
 func (a *app) resetColumns() {
 	a.hiddenColumns = nil
 	a.shownColumns = nil
-	a.columns = ui.TableLayout{}
+	a.setColumns(ui.TableLayout{})
 	// The table copies the layout back when its frame ends, and this menu is
 	// drawn inside that frame, so the live copy goes too.
 	if view := a.views.activeView(); view != nil {
@@ -371,4 +371,11 @@ func (a *app) setCustomColumns(columns []customColumn) {
 	a.applyFilter()
 	a.persistSettings()
 	a.invalidate()
+}
+
+// setColumns gives the table a layout the app chose: a reset, a saved layout
+// read back, or a column added from the menu. The table keeps the live layout
+// itself, so it is told to take this one.
+func (a *app) setColumns(l ui.TableLayout) {
+	a.columns, a.columnsDirty = l, true
 }

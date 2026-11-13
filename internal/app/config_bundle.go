@@ -462,7 +462,7 @@ func (a *app) applySettingsPrepared(s settings, prepared *upstream.Config) error
 	if s.DiffSplit > 0 {
 		a.diffSplit = s.DiffSplit
 	}
-	a.columns = s.Columns.layout()
+	a.setColumns(s.Columns.layout())
 	a.customColumns, a.hiddenColumns = slices.Clone(s.CustomColumns), slices.Clone(s.HiddenColumns)
 	a.shownColumns = slices.Clone(s.ShownColumns)
 	a.proxyPort, a.vault.scripts, a.allowOn = s.ProxyPort, s.VaultScripts, s.AllowList

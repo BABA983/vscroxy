@@ -6219,3 +6219,41 @@ func TestAnEvictedEventSelectsTheNewestOneLeft(t *testing.T) {
 		}
 	}
 }
+
+// Dragging a column and letting go writes the layout without anything else
+// happening: the table reports the change, the app copies it back then, and the
+// settings are written even though no other frame follows.
+func TestColumnDragIsSavedWithoutAnotherEvent(t *testing.T) {
+	a := workspaceApp()
+	dir := t.TempDir()
+	a.settingsPath = filepath.Join(dir, "settings.json")
+	a.saved = a.currentSettings()
+	tt := ui.NewTester(a.view, 1440, 860)
+	tt.Frame()
+	if len(a.columns.Widths) != 0 {
+		t.Fatalf("layout before the drag = %+v", a.columns)
+	}
+	// Drag the Status column's right edge, as the pointer does.
+	header, ok := tt.Find("Status")
+	if !ok {
+		t.Fatal(tt.Texts())
+	}
+	x, y := header.X+header.W-1, header.Y+header.H/2
+	tt.Press(x, y)
+	tt.Move(x+30, y)
+	tt.Release(x+30, y)
+	tt.Frame()
+	if got := a.columns.Widths["status"]; got <= header.W {
+		t.Fatalf("the dragged width was not copied back: %v (was %v)", a.columns.Widths, header.W)
+	}
+	// The frame the app asked for once the write gap passed.
+	a.lastSave = time.Now().Add(-time.Second)
+	tt.Frame()
+	data, err := os.ReadFile(a.settingsPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(data), `"status":`) {
+		t.Fatalf("the dragged width never reached the file: %s", data)
+	}
+}

@@ -564,7 +564,7 @@ func (a *app) actions(c *ui.Context) []action {
 		do("view.layout-reset", locales.ResetDesktopLayout(), func() {
 			w.layout, w.sidebarHidden, w.focused, w.sidePercent = "right", false, false, 64
 			a.sidebarWidth, a.tablePercent = 220, 44
-			a.columns = ui.TableLayout{}
+			a.setColumns(ui.TableLayout{})
 		}),
 		do("settings.https", locales.HttpsCertificateDecryptionSetup(), func() { a.openSettings(2) }),
 		do("settings.certificates", locales.ClientCertificatesRoots(), func() { a.openSettings(6) }),
