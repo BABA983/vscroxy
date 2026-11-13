@@ -849,6 +849,9 @@ func Segmented(c *ui.Context, selected *int, labels ...string) ui.Element {
 			case s.Pressed() || s.Hovered():
 				s.TextColor(t.Text)
 			}
+			// The segment under the pointer takes its face at once; the one
+			// it leaves fades, as a tab does.
+			hoverMotion(s, s.Hovered() || s.Pressed())
 			s.Children(func() { ui.Text(c, label).SingleLine() })
 		}
 	})
