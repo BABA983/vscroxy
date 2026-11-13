@@ -340,11 +340,9 @@ func (a *app) footerCountsText() string {
 		if a.activeEnv != "" {
 			env = locales.EnvironmentNamed(a.activeEnv)
 		}
-		counts := locales.RequestSummary(len(a.requests)) + " · " + env
-		if key := sendShortcut(); key != "" {
-			counts += " · " + key + "  " + locales.Send()
-		}
-		return counts
+		// The response's own empty state names the Send key; the footer
+		// states what is being edited, once.
+		return locales.RequestSummary(len(a.requests)) + " · " + env
 	}
 	if n := a.chosen.Len(); n > 1 {
 		return locales.SelectedOfTotal(n, len(a.visible))
@@ -718,7 +716,7 @@ func (a *app) syncSections() {
 	}
 }
 
-// sendShortcut spells the Send shortcut for the footer.
+// sendShortcut spells the Send shortcut for the response's empty state.
 func sendShortcut() string {
 	if runtime.GOOS == "darwin" {
 		return "⌘ Enter"

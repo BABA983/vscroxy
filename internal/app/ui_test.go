@@ -2504,6 +2504,17 @@ func TestFooterActionsClearFilterAndFollow(t *testing.T) {
 	}
 }
 
+// The Send shortcut is named once, in the response's empty state; the footer
+// states what is being edited instead of repeating it.
+func TestFooterDoesNotRepeatTheSendShortcut(t *testing.T) {
+	a := workspaceApp()
+	a.page = pageRequest
+	want := locales.RequestSummary(len(a.requests)) + " · " + locales.NoEnvironment()
+	if got := a.footerCountsText(); got != want {
+		t.Fatalf("footer says %q, want %q", got, want)
+	}
+}
+
 // The activity strip is this session's timeline: it is not drawn before the
 // first request, and Clear does not take it away, so the table does not jump.
 func TestActivityStripWaitsForTheFirstRequest(t *testing.T) {
