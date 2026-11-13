@@ -33,6 +33,8 @@ type mcpDocument struct {
 	tab          int
 	responseTab  int
 	catalogTab   int
+	catalog      ui.ListState // the catalog's rows, built as they come into view
+	catalogRow   int          // the row the pointer picked
 	toolTab      int
 	selected     int
 	problem      string
@@ -776,94 +778,100 @@ func (a *app) mcpCatalog(c *ui.Context, t *ui.Theme, d *requestDocument, u *mcpD
 			uikit.EmptyState(c, locales.NoToolsListed(), locales.TheServerDidNotAdvertise(), nil)
 			return
 		}
-		ui.Scroll(c).Grow(1).Padding(0, t.Space(2)).Children(func() {
-			for _, tool := range s.tools {
-				tool := tool
-				row := ui.Row(c).Padding(t.Space(2), t.Space(2)).Gap(t.Space(2)).AlignItems(ui.Center).OnClick(func() {
-					d.mcpConfig.Tool = tool.Name
-					u.tab, u.toolTab, u.problem = mcpTabTools, 0, ""
-				})
-				if row.Hovered() {
-					row.Background(t.SurfaceHover)
-				}
-				row.Children(func() {
-					ui.Column(c).Grow(1).MinWidth(0).Children(func() {
-						ui.Text(c, cmp.Or(tool.Title, tool.Name)).FontSize(uikit.TextBody)
-						if tool.Description != "" {
-							uikit.Meta(c, tool.Description).MaxLines(2)
-						}
-					})
-					uikit.Meta(c, tool.Name).SingleLine()
-				})
+		// A list, not a column of rows: it builds the rows on screen, and the
+		// pointer, the keyboard and a screen reader all reach them.
+		u.catalog.Selected = &u.catalogRow
+		catalog := ui.List(c, &u.catalog, len(s.tools)).Label(locales.Tools()).Grow(1).MinHeight(0).Padding(0, t.Space(2))
+		catalog.Rows(func(row ui.ListRow) {
+			c := row.Context
+			c.SetTheme(t)
+			tool := s.tools[row.Index]
+			r := ui.Row(c).Padding(t.Space(2), t.Space(2)).Gap(t.Space(2)).AlignItems(ui.Center).Radius(uikit.RadiusControl)
+			if row.Hovered() {
+				r.Background(t.SurfaceHover)
 			}
+			r.Children(func() {
+				ui.Column(c).Grow(1).MinWidth(0).Children(func() {
+					ui.Text(c, cmp.Or(tool.Title, tool.Name)).FontSize(uikit.TextBody)
+					if tool.Description != "" {
+						uikit.Meta(c, tool.Description).MaxLines(2)
+					}
+				})
+				uikit.Meta(c, tool.Name).SingleLine()
+			})
 		})
+		if catalog.RowClicked() {
+			tool := s.tools[max(0, min(u.catalogRow, len(s.tools)-1))]
+			d.mcpConfig.Tool = tool.Name
+			u.tab, u.toolTab, u.problem = mcpTabTools, 0, ""
+		}
 	case 1:
 		if len(s.resources) == 0 && len(s.templates) == 0 {
 			uikit.EmptyState(c, locales.NoResourcesListed(), locales.TheServerDidNotAdvertise2(), nil)
 			return
 		}
-		ui.Scroll(c).Grow(1).Padding(0, t.Space(2)).Children(func() {
-			for _, resource := range s.resources {
-				resource := resource
-				row := ui.Row(c).Padding(t.Space(2), t.Space(2)).Gap(t.Space(2)).AlignItems(ui.Center).OnClick(func() {
-					d.mcpConfig.ResourceURI = resource.URI
-					u.tab, u.problem = mcpTabResources, ""
-				})
-				if row.Hovered() {
-					row.Background(t.SurfaceHover)
-				}
-				row.Children(func() {
-					ui.Column(c).Grow(1).MinWidth(0).Children(func() {
-						ui.Text(c, cmp.Or(resource.Title, resource.Name, resource.URI)).FontSize(uikit.TextBody)
-						uikit.Meta(c, resource.URI+" · "+cmp.Or(resource.MIMEType, "unknown type")).SingleLine()
-					})
-					uikit.Meta(c, "resource").SingleLine()
-				})
+		u.catalog.Selected = &u.catalogRow
+		catalog := ui.List(c, &u.catalog, len(s.resources)+len(s.templates)).Label(locales.Resources()).Grow(1).MinHeight(0).Padding(0, t.Space(2))
+		catalog.Rows(func(row ui.ListRow) {
+			c := row.Context
+			c.SetTheme(t)
+			title, note, kind := "", "", ""
+			if row.Index < len(s.resources) {
+				resource := s.resources[row.Index]
+				title, note, kind = cmp.Or(resource.Title, resource.Name, resource.URI), resource.URI+" · "+cmp.Or(resource.MIMEType, "unknown type"), "resource"
+			} else {
+				template := s.templates[row.Index-len(s.resources)]
+				title, note, kind = cmp.Or(template.Title, template.Name, template.URITemplate), template.URITemplate+" · "+cmp.Or(template.MIMEType, "unknown type"), "template"
 			}
-			for _, template := range s.templates {
-				template := template
-				row := ui.Row(c).Padding(t.Space(2), t.Space(2)).Gap(t.Space(2)).AlignItems(ui.Center).OnClick(func() {
-					d.mcpConfig.ResourceURI = template.URITemplate
-					u.tab, u.problem = mcpTabResources, ""
-				})
-				if row.Hovered() {
-					row.Background(t.SurfaceHover)
-				}
-				row.Children(func() {
-					ui.Column(c).Grow(1).MinWidth(0).Children(func() {
-						ui.Text(c, cmp.Or(template.Title, template.Name, template.URITemplate)).FontSize(uikit.TextBody)
-						uikit.Meta(c, template.URITemplate+" · "+cmp.Or(template.MIMEType, "unknown type")).SingleLine()
-					})
-					uikit.Meta(c, "template").SingleLine()
-				})
+			r := ui.Row(c).Padding(t.Space(2), t.Space(2)).Gap(t.Space(2)).AlignItems(ui.Center).Radius(uikit.RadiusControl)
+			if row.Hovered() {
+				r.Background(t.SurfaceHover)
 			}
+			r.Children(func() {
+				ui.Column(c).Grow(1).MinWidth(0).Children(func() {
+					ui.Text(c, title).FontSize(uikit.TextBody)
+					uikit.Meta(c, note).SingleLine()
+				})
+				uikit.Meta(c, kind).SingleLine()
+			})
 		})
+		if catalog.RowClicked() {
+			if u.catalogRow < len(s.resources) {
+				d.mcpConfig.ResourceURI = s.resources[u.catalogRow].URI
+			} else {
+				d.mcpConfig.ResourceURI = s.templates[max(0, u.catalogRow-len(s.resources))].URITemplate
+			}
+			u.tab, u.problem = mcpTabResources, ""
+		}
 	case 2:
 		if len(s.prompts) == 0 {
 			uikit.EmptyState(c, locales.NoPromptsListed(), locales.TheServerDidNotAdvertise3(), nil)
 			return
 		}
-		ui.Scroll(c).Grow(1).Padding(0, t.Space(2)).Children(func() {
-			for _, prompt := range s.prompts {
-				prompt := prompt
-				row := ui.Row(c).Padding(t.Space(2), t.Space(2)).Gap(t.Space(2)).AlignItems(ui.Center).OnClick(func() {
-					d.mcpConfig.Prompt = prompt.Name
-					u.tab, u.problem = mcpTabPrompts, ""
-				})
-				if row.Hovered() {
-					row.Background(t.SurfaceHover)
-				}
-				row.Children(func() {
-					ui.Column(c).Grow(1).MinWidth(0).Children(func() {
-						ui.Text(c, cmp.Or(prompt.Title, prompt.Name)).FontSize(uikit.TextBody)
-						if prompt.Description != "" {
-							uikit.Meta(c, prompt.Description).MaxLines(2)
-						}
-					})
-					uikit.Meta(c, prompt.Name).SingleLine()
-				})
+		u.catalog.Selected = &u.catalogRow
+		catalog := ui.List(c, &u.catalog, len(s.prompts)).Label(locales.Prompts()).Grow(1).MinHeight(0).Padding(0, t.Space(2))
+		catalog.Rows(func(row ui.ListRow) {
+			c := row.Context
+			c.SetTheme(t)
+			prompt := s.prompts[row.Index]
+			r := ui.Row(c).Padding(t.Space(2), t.Space(2)).Gap(t.Space(2)).AlignItems(ui.Center).Radius(uikit.RadiusControl)
+			if row.Hovered() {
+				r.Background(t.SurfaceHover)
 			}
+			r.Children(func() {
+				ui.Column(c).Grow(1).MinWidth(0).Children(func() {
+					ui.Text(c, cmp.Or(prompt.Title, prompt.Name)).FontSize(uikit.TextBody)
+					if prompt.Description != "" {
+						uikit.Meta(c, prompt.Description).MaxLines(2)
+					}
+				})
+				uikit.Meta(c, prompt.Name).SingleLine()
+			})
 		})
+		if catalog.RowClicked() {
+			d.mcpConfig.Prompt = s.prompts[max(0, min(u.catalogRow, len(s.prompts)-1))].Name
+			u.tab, u.problem = mcpTabPrompts, ""
+		}
 	}
 }
 
