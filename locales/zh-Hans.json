@@ -1545,6 +1545,7 @@
   "renameError": "重命名：{error}",
   "renameExists": "重命名：{name} 已存在",
   "renameFilter": "重命名筛选",
+  "renameView": "重命名视图",
   "renameNamed": "重命名 {name}",
   "renameOrMoveToAnother": "重命名或移动到其他集合",
   "renameRequest": "重命名请求",

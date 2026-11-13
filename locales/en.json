@@ -2858,6 +2858,7 @@
   "renameError": "Rename: {error}",
   "renameExists": "Rename: {name} exists",
   "renameFilter": "Rename filter",
+  "renameView": "Rename view",
   "renameNamed": "Rename {name}",
   "renameOrMoveToAnother": "Rename or move to another collection",
   "renameRequest": "Rename request",

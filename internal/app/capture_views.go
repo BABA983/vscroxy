@@ -206,6 +206,9 @@ type captureConditions struct {
 // conditions.
 type captureView struct {
 	id int
+	// name is what the user called the view, and outranks every name the
+	// view can give itself.
+	name string
 	// preset names the saved filter the conditions came from, if any.
 	preset string
 	captureConditions
@@ -360,6 +363,10 @@ type captureViews struct {
 	savedOpen bool
 	savedName string
 	renaming  string
+	// renamingView is the view whose row was double-clicked, and viewName
+	// what the dialog holds meanwhile.
+	renamingView int
+	viewName     string
 
 	cache bodyCache
 	run   *bodySearch
@@ -378,6 +385,8 @@ func (v *captureViews) init(a *app, path string) {
 	if len(v.views) > 0 {
 		return
 	}
+	// No view's row has been double-clicked yet: 0 is a row.
+	v.renamingView = -1
 	v.path = path
 	v.load(a)
 	v.newView(a)
@@ -405,15 +414,63 @@ func (v *captureViews) activeView() *captureView {
 	return v.views[v.active]
 }
 
-// label names a view's tab: the filter it came from, or its place.
+// label names a view: the name the user gave it, the filter it came from, or
+// what it narrows to. A view that narrows to nothing is its place, since every
+// other name would be the same on every empty view.
 func (v *captureViews) label(i int) string {
 	if i < 0 || i >= len(v.views) {
 		return ""
 	}
-	if name := v.views[i].preset; name != "" {
+	view := v.views[i]
+	if view.name != "" {
+		return view.name
+	}
+	if view.preset != "" {
+		return view.preset
+	}
+	if name := view.summary(); name != "" {
 		return name
 	}
 	return locales.ViewNumber(i + 1)
+}
+
+// summary names a view by what it shows, in the order the field above the table
+// reads it, as "api.example.com · 4xx". It is what a view is called until the
+// user names it.
+func (v *captureView) summary() string {
+	c := v.captureConditions
+	var parts []string
+	if query := strings.TrimSpace(c.query); query != "" {
+		parts = append(parts, query)
+	}
+	switch {
+	case c.filter == "errors", c.filter == "slow", c.filter == "pinned":
+		parts = append(parts, c.filter)
+	default:
+		if host, ok := strings.CutPrefix(c.filter, "host:"); ok {
+			parts = append(parts, host)
+		} else if client, ok := strings.CutPrefix(c.filter, "client:"); ok {
+			parts = append(parts, client)
+		}
+	}
+	for _, part := range []string{c.status, c.header, c.triage.Host, c.triage.Client, v.body} {
+		if part = strings.TrimSpace(part); part != "" {
+			parts = append(parts, part)
+		}
+	}
+	if c.chip != 0 && c.chip < len(captureKinds) {
+		parts = append(parts, captureKinds[c.chip])
+	}
+	if c.activity.active() {
+		parts = append(parts, c.activity.label())
+	}
+	name := strings.Join(parts, " · ")
+	// A row is one line: a long search is shortened here, and the whole of
+	// it stays in the view's own tooltip.
+	if r := []rune(name); len(r) > 40 {
+		name = string(r[:39]) + "…"
+	}
+	return name
 }
 
 // conditionsOf is what the app's fields say now.
@@ -969,6 +1026,11 @@ func (v *captureViews) sidebar(c *ui.Context, t *ui.Theme, a *app) {
 			v.capture(a)
 			v.activate(a, i)
 		}
+		// A double click names the view: the row already says what it
+		// narrows to, so the name is only needed when the user has one.
+		if b.DoubleClicked() {
+			v.renamingView, v.viewName = i, view.name
+		}
 		if view.reveal {
 			b.ScrollIntoView()
 			view.reveal = false
@@ -1027,6 +1089,7 @@ func (v *captureViews) sidebar(c *ui.Context, t *ui.Theme, a *app) {
 func (v *captureViews) modals(c *ui.Context, t *ui.Theme, a *app) {
 	v.filterModal(c, t, a)
 	v.savedModal(c, t, a)
+	v.renameViewModal(c, t)
 }
 
 // filterModal narrows the active view by status, header and body, beside the
@@ -1228,6 +1291,45 @@ func (v *captureViews) savedModal(c *ui.Context, t *ui.Theme, a *app) {
 	if !v.savedOpen {
 		v.renaming = ""
 	}
+}
+
+// renameViewModal names the view whose row was double-clicked. An empty name
+// takes the user's name away, and the row says what the view narrows to again.
+func (v *captureViews) renameViewModal(c *ui.Context, t *ui.Theme) {
+	if v.renamingView < 0 {
+		return
+	}
+	open := true
+	uikit.Modal(c, &open, func() {
+		ui.Column(c).Width(420).Gap(t.Space(2)).Children(func() {
+			uikit.DialogTitle(c, locales.RenameView())
+			ui.Field(c, locales.FilterName(), func() {
+				input := uikit.Input(c, &v.viewName).Label(locales.FilterName()).Placeholder(locales.NameThisViewSConditions())
+				if input.Submitted() {
+					v.nameView("")
+				}
+			})
+			ui.Row(c).Gap(t.Space(2)).Justify(ui.End).Children(func() {
+				if uikit.SecondaryButton(c, locales.Cancel()).Clicked() {
+					v.renamingView = -1
+				}
+				if uikit.PrimaryButton(c, locales.Rename()).Clicked() {
+					v.nameView("")
+				}
+			})
+		})
+	})
+	if !open {
+		v.renamingView = -1
+	}
+}
+
+// nameView gives the view being renamed the name in the dialog.
+func (v *captureViews) nameView(_ string) {
+	if v.renamingView >= 0 && v.renamingView < len(v.views) {
+		v.views[v.renamingView].name = strings.TrimSpace(v.viewName)
+	}
+	v.renamingView = -1
 }
 
 // applySaved puts a saved filter's conditions in the active view, which keeps

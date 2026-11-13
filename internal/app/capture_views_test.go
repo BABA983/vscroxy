@@ -340,19 +340,20 @@ func TestCaptureViewsKeepTheirOwnConditions(t *testing.T) {
 	if got := visibleIDs(a); len(got) != 1 || got[0] != 2 {
 		t.Fatalf("the search showed %v", got)
 	}
-	click("Capture view: View 1")
+	// The narrowed view is named by what it shows, not by its place.
+	click("Capture view: errors")
 	if a.filter != "errors" || a.query != "" {
 		t.Fatalf("switching back gave the first view %q and %q", a.filter, a.query)
 	}
 	if got := visibleIDs(a); len(got) != 1 || got[0] != 2 {
 		t.Fatalf("the first view showed %v after switching back", got)
 	}
-	click("Capture view: View 2")
+	click("Capture view: login")
 	if a.query != "login" || a.filter != "all" {
 		t.Fatalf("the second view came back with %q and %q", a.query, a.filter)
 	}
 	// Closing the second view leaves the first one's conditions in place.
-	click("Close view: View 2")
+	click("Close view: login")
 	if len(v.views) != 1 || a.filter != "errors" {
 		t.Fatalf("closing a view left %d views and %q", len(v.views), a.filter)
 	}
@@ -605,7 +606,7 @@ func TestCaptureViewControlsAreWiredIntoTheWorkspace(t *testing.T) {
 	if len(a.visible) != 2 || a.filtersActive() {
 		t.Fatal("new workspace view inherited another view's body filter")
 	}
-	click("Capture view: View 1")
+	click("Capture view: projects")
 	settle(t, a, &a.views)
 	tt.Frame()
 	if len(a.visible) != 1 || !strings.Contains(a.views.bodyFilter(), "projects") {
@@ -714,5 +715,61 @@ func TestSearchBodyDoesNotJoinSides(t *testing.T) {
 	}
 	if ok, err := searchBody(t.Context(), job, "response"); err != nil || !ok {
 		t.Fatalf("a side was not searched: %t (%v)", ok, err)
+	}
+}
+
+// A view says what it shows rather than where it sits in the list: the row is
+// named by the conditions it narrows to, and a double click gives it the user's
+// own name, which outranks them until it is cleared.
+func TestViewsAreNamedByWhatTheyShowAndCanBeRenamed(t *testing.T) {
+	a, v := captureViewsApp(t)
+	tt := ui.NewTester(captureViewsFrame(a, v), 1100, 620)
+	tt.Frame()
+	if !tt.HasText("Capture view: View 1") {
+		t.Fatalf("a view that narrows to nothing is not its place: %q", tt.Texts())
+	}
+	a.filter = "host:api.example.com"
+	a.filterStatus = "4xx"
+	tt.Frame()
+	if !tt.HasText("Capture view: api.example.com · 4xx") {
+		t.Fatalf("the narrowed view is not named by its conditions: %q", tt.Texts())
+	}
+	// A double click opens the name dialog; the name given wins over the
+	// conditions, and an empty one hands the row back to them.
+	// Two clicks in a row are a double click, which names the view.
+	for range 2 {
+		if err := tt.Click("Capture view: api.example.com · 4xx"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	tt.Frame()
+	if err := tt.Click("Filter name"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Type("Failing API calls")
+	if err := tt.Click("Rename"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if v.label(0) != "Failing API calls" || !tt.HasText("Capture view: Failing API calls") {
+		t.Fatalf("the view is called %q", v.label(0))
+	}
+	for range 2 {
+		if err := tt.Click("Capture view: Failing API calls"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	tt.Frame()
+	if err := tt.Click("Filter name"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Key(ui.Cmd, ui.KeyA)
+	tt.Key(0, ui.KeyBackspace)
+	if err := tt.Click("Rename"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if v.label(0) != "api.example.com · 4xx" {
+		t.Fatalf("clearing the name left the view called %q", v.label(0))
 	}
 }

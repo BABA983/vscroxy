@@ -789,7 +789,7 @@ func TestCaptureTableScrollsAndKeepsEachViewsPlace(t *testing.T) {
 	if !tt.HasText("api.example.com/capture/5000") || tt.HasText("api.example.com/capture/0021") {
 		t.Fatal("a new capture view must follow latest without inheriting another view's position")
 	}
-	if err := tt.Click("Capture view: View 1"); err != nil {
+	if err := tt.Click("Capture view: " + a.views.label(0)); err != nil {
 		t.Fatal(err)
 	}
 	if !tt.HasText("api.example.com/capture/0021") {
@@ -2690,7 +2690,7 @@ func TestCaptureKeepsSelectionAcrossListChanges(t *testing.T) {
 	if err := tt.Click("New view"); err != nil {
 		t.Fatal(err)
 	}
-	if err := tt.Click("Capture view: View 1"); err != nil {
+	if err := tt.Click("Capture view: " + a.views.label(0)); err != nil {
 		t.Fatal(err)
 	}
 	if !tt.HasText(selected) {
@@ -2714,7 +2714,7 @@ func TestCaptureKeepsSelectionAcrossListChanges(t *testing.T) {
 		{id: 5001, method: "GET", scheme: "https", host: "api.example.com", path: "/replacement", status: 200},
 	}, nil)
 	tt.Frame()
-	if err := tt.Click("Capture view: View 2"); err != nil {
+	if err := tt.Click("Capture view: " + a.views.label(1)); err != nil {
 		t.Fatal(err)
 	}
 	if !tt.HasText("POST https://api.example.com/replacement") {
@@ -4520,7 +4520,7 @@ func TestReplayLinksRevealFilteredSourceAndCompareWithoutGuessingURL(t *testing.
 	if !tt.HasText("Replay of #1") {
 		t.Fatal("could not navigate back to replay")
 	}
-	if err := tt.Click("Capture view: View 1"); err != nil {
+	if err := tt.Click("Capture view: " + a.views.label(0)); err != nil {
 		t.Fatal(err)
 	}
 	if a.query != "redirected" || !tt.HasText("Replay of #1") {
@@ -5868,7 +5868,7 @@ func TestCaptureFacetsIntersectAndResetOnlyTheActiveView(t *testing.T) {
 	if len(a.visible) != 4 || a.filtersActive() {
 		t.Fatal("overflow reset did not clear the URL-only condition")
 	}
-	click("Capture view: View 1")
+	click("Capture view: " + a.views.label(0))
 	if got := fmt.Sprint(visibleIDs(a)); got != "[2 4]" {
 		t.Fatalf("reset modified the other view: %s", got)
 	}

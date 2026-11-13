@@ -15670,6 +15670,16 @@ func (msgs Messages) RenameFilter() string {
 	return Catalog.Format(msgs.locale, "renameFilter", nil)
 }
 
+// RenameView says "Rename view"
+// in the language the app shows.
+func RenameView() string { return In(i18n.Locale()).RenameView() }
+
+// RenameView says "Rename view"
+// in the language of msgs.
+func (msgs Messages) RenameView() string {
+	return Catalog.Format(msgs.locale, "renameView", nil)
+}
+
 // RenameNamed says "Rename {name}"
 // in the language the app shows.
 func RenameNamed(name string) string { return In(i18n.Locale()).RenameNamed(name) }
