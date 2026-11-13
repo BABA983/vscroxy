@@ -54,13 +54,15 @@ func TestHostProfilesEditedInToolsAndSwitchedFromTheTitleBar(t *testing.T) {
 		t.Fatalf("before any profile, status = %d, want 502", got)
 	}
 
-	click("Host profiles")
-	if !tt.HasText("Off") || !tt.HasText("Manage profiles…") {
-		t.Fatal("the title bar menu does not show the profiles are off")
+	// No profile is on, so the footer says nothing about Hosts: the chip is
+	// for the profiles in use, and Tools is where they are turned on.
+	if tt.HasText("Host profiles") {
+		t.Fatal("the footer offers Hosts while none is on")
 	}
-	click("Manage profiles…")
+	tt.Key(ui.Cmd|ui.Shift, ui.KeyH)
+	tt.Frame()
 	if !a.toolsOpen || !tt.HasText("No Host profiles") {
-		t.Fatal("Manage profiles… did not open Tools on Host profiles")
+		t.Fatal("the Host profiles shortcut did not open Tools on Host profiles")
 	}
 	click("New profile")
 	st := a.profiles.editors["Untitled"]
@@ -95,7 +97,8 @@ func TestHostProfilesEditedInToolsAndSwitchedFromTheTitleBar(t *testing.T) {
 	}
 	click("Done")
 
-	click("Host profiles")
+	tt.Key(ui.Cmd|ui.Shift, ui.KeyH)
+	tt.Frame()
 	click("Host profile: Staging")
 	if got := getThrough(t, a, target); got != http.StatusOK {
 		t.Fatalf("with Staging on, status = %d, want the upstream's 200", got)
@@ -106,10 +109,10 @@ func TestHostProfilesEditedInToolsAndSwitchedFromTheTitleBar(t *testing.T) {
 	}
 	tt.Key(0, ui.KeyEscape)
 	tt.Frame()
-	if !tt.HasText("Hosts: Staging") {
-		t.Fatal("no Hosts chip while a profile is on")
+	if _, ok := tt.Find("Host profiles"); !ok || !tt.HasText("Staging") {
+		t.Fatalf("no Hosts chip while a profile is on: %q", tt.Texts())
 	}
-	click("Disable Hosts: Staging")
+	click("Disable Staging")
 	if len(a.profiles.set.On()) != 0 {
 		t.Fatal("the chip's × left a profile on")
 	}
@@ -171,12 +174,7 @@ func TestNewHostProfileTakesTheSelection(t *testing.T) {
 	a := workspaceApp()
 	a.profiles.dir = t.TempDir()
 	tt := ui.NewTester(a.view, 1280, 800)
-	if err := tt.Click("Host profiles"); err != nil {
-		t.Fatal(err)
-	}
-	if err := tt.Click("Manage profiles…"); err != nil {
-		t.Fatal(err)
-	}
+	tt.Key(ui.Cmd|ui.Shift, ui.KeyH)
 	tt.Frame()
 	if err := tt.Click("New profile"); err != nil {
 		t.Fatal(err)

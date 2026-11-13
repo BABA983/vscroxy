@@ -54,17 +54,20 @@ func ToolbarButton(c *ui.Context, label, tip string, active bool) ui.Element {
 // quiet face, and the selection tint while what it switches is on.
 func FooterButton(c *ui.Context, label, tip string, on bool) ui.Element {
 	t, p := c.Theme(), Colors(c.Theme())
+	// The footer's actions are actions: at rest they are text with no face of
+	// their own, so a bar of them does not read as a row of disabled buttons.
+	// The pointer brings a face, and being on brings the selection tint.
 	b := Tip(c, ui.ButtonBase(c).Label(label), tip).Height(HeightFooterControl).
 		Padding(0, t.Space(2)).Radius(RadiusInner).AlignItems(ui.Center).FontSize(Scaled(TextMeta)).
-		Background(p.Fill).TextColor(t.TextMuted)
+		TextColor(t.Text)
 	b.Children(func() { ui.Text(c, label).FontSize(Scaled(TextMeta)) })
 	switch {
 	case b.Pressed():
-		b.Background(p.FillPressed).TextColor(t.Text)
+		b.Background(p.FillPressed)
 	case b.Hovered():
-		b.Background(p.FillHover).TextColor(t.Text)
+		b.Background(p.FillHover)
 	case on:
-		b.Background(p.AccentTint).TextColor(t.Text)
+		b.Background(p.AccentTint)
 	}
 	return hoverMotion(b, b.Hovered() || b.Pressed())
 }

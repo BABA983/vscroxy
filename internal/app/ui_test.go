@@ -2425,7 +2425,7 @@ func TestFooterToolChipsFoldIntoACount(t *testing.T) {
 	snapshotProfiles(a)
 	// A long profile name is what makes a bar of tools run out of room at
 	// the window's narrowest.
-	a.profiles.set.Profiles[0].Name = "Staging and the pre-release cluster"
+	a.profiles.set.Profiles[0].Name = "Staging and the pre-release cluster of the platform team"
 	tt := ui.NewTester(a.view, 960, 800)
 	tt.SetLocale("en-US")
 	tt.Frame()
@@ -6620,5 +6620,34 @@ func TestTunnelRowsReadAsTunnels(t *testing.T) {
 	table, _ := tt.Find("Captured requests")
 	if status.Y < table.Y || status.Y > table.Y+80 {
 		t.Fatalf("the lock is not in the row: %v in %v", status, table)
+	}
+}
+
+// The footer's actions are actions: at rest they are text on the bar's own
+// surface, the pointer gives them a face, and a Host profile that is off is
+// not a chip at all.
+func TestFooterActionsReadAsActions(t *testing.T) {
+	a := workspaceApp()
+	tt := ui.NewTester(a.view, 1280, 800)
+	tt.Frame()
+	if tt.HasText("Off") {
+		t.Fatalf("the footer offers a Hosts switch that is off: %q", tt.Texts())
+	}
+	clear, ok := tt.Find("Clear")
+	if !ok {
+		t.Fatal("the footer has no Clear")
+	}
+	chrome := uikit.Colors(uikit.Theme(false)).Chrome
+	at := func() ui.Color {
+		p := tt.Image().RGBAAt(int(clear.X+3), int(clear.Y+clear.H/2))
+		return ui.RGB(p.R, p.G, p.B)
+	}
+	if at() != chrome {
+		t.Fatalf("Clear wears a face at rest: %v, want the bar's %v", at(), chrome)
+	}
+	tt.Move(clear.X+clear.W/2, clear.Y+clear.H/2)
+	tt.Frame()
+	if at() == chrome {
+		t.Fatal("Clear shows no face under the pointer")
 	}
 }

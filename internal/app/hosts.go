@@ -212,11 +212,12 @@ func (a *app) dropConnections() {
 
 // hostsLabel is what the title bar says the profiles map: "Off", one
 // profile's name, or the highest one's and how many more.
+// hostsLabel names the profiles that are on, or "" when none is.
 func (a *app) hostsLabel() string {
 	on := a.profiles.set.On()
 	switch len(on) {
 	case 0:
-		return locales.HostsOff()
+		return ""
 	case 1:
 		return on[0]
 	}
