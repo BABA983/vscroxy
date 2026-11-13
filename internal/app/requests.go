@@ -1236,7 +1236,9 @@ func (a *app) requestResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 	}
 	width := a.editorPaneWidthAt(c, &a.editorRespPane, 100-draftPercent)
 	ui.Column(c).Fill().Bind(&a.editorRespPane).Children(func() {
-		sum := responseSummary{title: locales.Response(), dot: uikit.Colors(t).TextMuted}
+		// Nothing came back yet, so the row says nothing about a response:
+		// the pane's tabs already name what it would show.
+		sum := responseSummary{dot: uikit.Colors(t).TextMuted}
 		if r := d.response; r != nil {
 			sum = sentSummaryOf(t, r, outcome)
 		}
@@ -1438,8 +1440,10 @@ func (a *app) responseBody(c *ui.Context, t *ui.Theme, d *requestDocument) {
 					ui.Text(c, d.composeResult).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Text).Selectable().FillWidth()
 					uikit.Meta(c, locales.EditTheDraftAndSend())
 				} else {
-					uikit.Body(c, cmp.Or(d.composeResult, locales.SendToSeeResponse())).TextColor(t.Text)
-					uikit.Meta(c, locales.TheExchangeWillAlsoAppear())
+					// What a response needs is the key that sends for it,
+					// not a sentence about what a send would do.
+					ui.Icon(c, sendIcon).Size(uikit.IconLarge, uikit.IconLarge).TextColor(uikit.Colors(t).TextFaint)
+					uikit.Hint(c, sendShortcut()+"  "+locales.Send())
 				}
 				if d.composeWaiting || d.sendOutcome == "Timed out" {
 					uikit.Meta(c, locales.CancellingDoesNotUndoServer())

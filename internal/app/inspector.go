@@ -467,8 +467,7 @@ func (a *app) requestTabsFit(c *ui.Context, d *requestDocument, width float32) b
 	for i, v := range views {
 		labels[i], counts[i] = v.label, v.count
 	}
-	need := 2*t.Space(3) + paneTitleWidth(c, locales.Request(), false) + paneTabsWidth(c, labels, counts) +
-		2*t.Space(2) + paneMoreWidth(c)
+	need := 2*t.Space(3) + paneTabsWidth(c, labels, counts) + 2*t.Space(2) + paneMoreWidth(c)
 	return width >= need
 }
 
@@ -506,7 +505,7 @@ func (a *app) requestPaneHeader(c *ui.Context, t *ui.Theme, selected *int, d *re
 	// the last ones into More, from the right, and never scrolls or fades
 	// the row. The view on screen stays where the reader put it.
 	menu := paneMoreWidth(c)
-	room := paneRoomFor(c, width, locales.Request(), false, labels, counts, menu)
+	room := paneRoomFor(c, width, "", false, labels, counts, menu)
 	for len(views) > 1 && room.left < 0 {
 		at := -1
 		for i := len(views) - 1; i >= 0; i-- {
@@ -523,7 +522,7 @@ func (a *app) requestPaneHeader(c *ui.Context, t *ui.Theme, selected *int, d *re
 		labels = slices.Delete(labels, at, at+1)
 		counts = slices.Delete(counts, at, at+1)
 		more = append([]paneView{dropped}, more...)
-		room = paneRoomFor(c, width, locales.Request(), false, labels, counts, menu)
+		room = paneRoomFor(c, width, "", false, labels, counts, menu)
 	}
 	shown := max(0, slices.IndexFunc(views, func(v paneView) bool { return v.view == before }))
 	showFormat := tools.format >= 0 && room.fits(a.paneFormatWidth(c, tools.format))
@@ -531,10 +530,11 @@ func (a *app) requestPaneHeader(c *ui.Context, t *ui.Theme, selected *int, d *re
 		extra = append([]action{submenu(bodyFormatLabel(tools.format), a.bodyFormatActions(tools.format)...)}, extra...)
 	}
 	uikit.PaneHeader(c, func() {
-		uikit.PaneTitle(c, locales.Request(), locales.RequestPaneName(), ui.Color{}, t.Text, func() { a.inspect.focus = 1 })
+		// The tabs are the pane's name: a "Request" before them repeated
+		// what they say and took the room they need.
 		uikit.TabStrip(c, func() {
 			uikit.CountedTabs(c, &shown, locales.RequestPaneName(), labels, counts)
-		}).Grow(1).FillHeight()
+		}).Grow(1).FillHeight().Label(locales.RequestPaneName()).OnClick(func() { a.inspect.focus = 1 })
 	}, func() {
 		a.requestMoreMenu(c, selected, more, d, extra)
 		if tools.draw != nil {
@@ -545,6 +545,9 @@ func (a *app) requestPaneHeader(c *ui.Context, t *ui.Theme, selected *int, d *re
 		}
 	})
 	settleView(selected, views, shown, before)
+	if *selected != before {
+		a.inspect.focus = 1
+	}
 }
 
 // settleView maps the tab strip's index back to a view. A view chosen from
@@ -760,15 +763,27 @@ func (a *app) responsePaneHeader(c *ui.Context, t *ui.Theme, selected *int, sum 
 	afterNumbers := room
 	showFormat := tools.format >= 0 && afterNumbers.fits(a.paneFormatWidth(c, tools.format))
 	uikit.PaneHeader(c, func() {
-		title := uikit.PaneTitle(c, sum.title, locales.ResponsePaneName(), sum.dot, sum.ink, func() { a.inspect.focus = 0 })
-		if !showNumbers && sum.duration != "" {
-			// What the row has no room for, the status says on hover.
-			uikit.Tip(c, title, sum.title+" · "+strings.TrimSpace(sum.duration+" · "+sum.detail))
-		}
 		uikit.TabStrip(c, func() {
 			uikit.CountedTabs(c, &shown, locales.ResponsePaneName(), labels, nil)
-		}).Grow(1).FillHeight()
+		}).Grow(1).FillHeight().Label(locales.ResponsePaneName()).OnClick(func() { a.inspect.focus = 0 })
 	}, func() {
+		// What came back is a fact about the row, not a title before it: the
+		// status sits at the row's end, beside the numbers it belongs with.
+		if sum.title != "" {
+			status := ui.Row(c).Gap(t.Space(1.5)).Shrink(0).AlignItems(ui.Center).Label(locales.ResponsePaneName())
+			if !showNumbers && sum.duration != "" {
+				// What the row has no room for, the status says on hover.
+				uikit.Tip(c, status, sum.title+" · "+strings.TrimSpace(sum.duration+" · "+sum.detail))
+			}
+			status.Children(func() {
+				ui.Box(c).Size(7, 7).Shrink(0).Radius(uikit.RadiusControl).Background(sum.dot)
+				ink := t.Text
+				if sum.ink != (ui.Color{}) {
+					ink = sum.ink
+				}
+				ui.Text(c, sum.title).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(ink).SingleLine()
+			})
+		}
 		if showNumbers {
 			uikit.ResponseMeta(c, sum.duration, sum.detail, sum.timing)
 		}
@@ -795,6 +810,11 @@ func (a *app) responsePaneHeader(c *ui.Context, t *ui.Theme, selected *int, sum 
 		}
 	})
 	settleView(selected, views, shown, before)
+	// Choosing a tab in a pane makes it the side the readers that only one
+	// pane owns at a time act on.
+	if *selected != before {
+		a.inspect.focus = 0
+	}
 }
 
 // checksLabel is how many of a send's checks passed, as the More menu says it.

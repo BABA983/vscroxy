@@ -19110,16 +19110,6 @@ func (msgs Messages) SendTheRequestThenSave() string {
 	return Catalog.Format(msgs.locale, "sendTheRequestThenSave", nil)
 }
 
-// SendThisRequestToKeep says "Send this request to keep its runs here. Opening one never sends."
-// in the language the app shows.
-func SendThisRequestToKeep() string { return In(i18n.Locale()).SendThisRequestToKeep() }
-
-// SendThisRequestToKeep says "Send this request to keep its runs here. Opening one never sends."
-// in the language of msgs.
-func (msgs Messages) SendThisRequestToKeep() string {
-	return Catalog.Format(msgs.locale, "sendThisRequestToKeep", nil)
-}
-
 // SendTo says "Send to"
 // in the language the app shows.
 func SendTo() string { return In(i18n.Locale()).SendTo() }
@@ -19128,16 +19118,6 @@ func SendTo() string { return In(i18n.Locale()).SendTo() }
 // in the language of msgs.
 func (msgs Messages) SendTo() string {
 	return Catalog.Format(msgs.locale, "sendTo", nil)
-}
-
-// SendToSeeResponse says "Send a request to see its response"
-// in the language the app shows.
-func SendToSeeResponse() string { return In(i18n.Locale()).SendToSeeResponse() }
-
-// SendToSeeResponse says "Send a request to see its response"
-// in the language of msgs.
-func (msgs Messages) SendToSeeResponse() string {
-	return Catalog.Format(msgs.locale, "sendToSeeResponse", nil)
 }
 
 // SendTrafficFromOtherDevices says "Send traffic from other devices and programs through vscroxy."
@@ -21192,16 +21172,6 @@ func TheExampleTrustsOnlyThe() string { return In(i18n.Locale()).TheExampleTrust
 // in the language of msgs.
 func (msgs Messages) TheExampleTrustsOnlyThe() string {
 	return Catalog.Format(msgs.locale, "theExampleTrustsOnlyThe", nil)
-}
-
-// TheExchangeWillAlsoAppear says "The exchange will also appear in Capture."
-// in the language the app shows.
-func TheExchangeWillAlsoAppear() string { return In(i18n.Locale()).TheExchangeWillAlsoAppear() }
-
-// TheExchangeWillAlsoAppear says "The exchange will also appear in Capture."
-// in the language of msgs.
-func (msgs Messages) TheExchangeWillAlsoAppear() string {
-	return Catalog.Format(msgs.locale, "theExchangeWillAlsoAppear", nil)
 }
 
 // TheFirstSendGetsThe says "The first send gets the server's challenge; vscroxy answers it and sends again."

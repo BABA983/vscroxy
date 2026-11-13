@@ -72,10 +72,20 @@ func (a *app) historyColumn(c *ui.Context, t *ui.Theme, d *requestDocument) {
 				a.historyExamples(c, t, d)
 				return
 			}
-			historyFilters(c, &d.historyStatus, &d.historySource)
 			records := a.historyRecords(d)
+			// The filters are only worth their room once there are runs to
+			// narrow, and they stay while a filter is set: a filter that
+			// hides everything must stay in reach to be undone.
+			if len(records) > 0 || d.historyStatus != "" || d.historySource != "" {
+				historyFilters(c, &d.historyStatus, &d.historySource)
+			}
 			if len(records) == 0 {
-				uikit.Hint(c, locales.SendThisRequestToKeep()).Padding(t.Space(2))
+				// Nothing to narrow yet: the column says how a run gets
+				// here, and nothing else.
+				ui.Column(c).Fill().Center().Gap(t.Space(2)).Children(func() {
+					ui.Icon(c, sendHistoryIcon).Size(uikit.IconLarge, uikit.IconLarge).TextColor(uikit.Colors(t).TextFaint)
+					uikit.Hint(c, sendShortcut()+"  "+locales.Send())
+				})
 				return
 			}
 			for _, r := range records {

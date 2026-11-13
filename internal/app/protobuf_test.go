@@ -378,7 +378,10 @@ func TestProtobufInspectorLoadsSchemaAndSelectsMessages(t *testing.T) {
 	if err := chooseMenu(tt, "Protobuf"); err != nil {
 		t.Fatal(err)
 	}
-	click("Request pane")
+	// Choosing a tab in the request pane gives it the readers: the pane's
+	// title no longer names it.
+	click("Request pane: Headers")
+	click("Request pane: Body")
 	wait("Message type: api.Input")
 	click("Copy decoded")
 	if !strings.Contains(tt.Clipboard(), "query:") || !strings.Contains(tt.Clipboard(), "find") {

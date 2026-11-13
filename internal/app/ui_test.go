@@ -3114,8 +3114,9 @@ func TestSavedRequestHistoryShowsLinkedRunsReadOnly(t *testing.T) {
 		t.Fatal("reading a run changed the draft or its response")
 	}
 	click("Show latest response")
-	if !tt.HasText("Send a request to see its response") {
-		t.Fatal("the request's own response did not come back")
+	// The empty response says the one thing it can do: send.
+	if !tt.HasText(sendShortcut() + "  " + locales.Send()) {
+		t.Fatalf("the request's own response did not come back: %q", tt.Texts())
 	}
 	click("Run #3")
 	click("Open as draft")

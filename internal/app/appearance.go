@@ -37,6 +37,7 @@ var (
 	closeIcon         = lucide.X()
 	brandIcon         = lucide.Route()
 	sendHistoryIcon   = lucide.RotateCcwClock()
+	sendIcon          = lucide.Send()
 	compareIcon       = lucide.Columns2()
 	errorIcon         = lucide.CircleAlert()
 	fileInputIcon     = lucide.FileInput()
