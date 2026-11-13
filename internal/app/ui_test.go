@@ -6915,3 +6915,21 @@ func TestEmptyCollectionsOfferARequestRow(t *testing.T) {
 		t.Fatalf("with a collection saved, New request is at %v, not in the header above %v", row.Y, search.Y)
 	}
 }
+
+// A host has no icon of its own, so its row shows the host's first letter in a
+// block where an app shows its icon: a column of identical dots said nothing.
+func TestHostRowsShowTheirFirstLetter(t *testing.T) {
+	a := workspaceApp()
+	a.domains = []domain{{name: "api.example.com", n: 2}, {name: "uploads.example.com", n: 1}}
+	a.sourcesApps = false
+	tt := ui.NewTester(a.view, 1280, 800)
+	tt.Frame()
+	for _, letter := range []string{"A", "U"} {
+		if _, ok := tt.Find(letter); !ok {
+			t.Fatalf("no %q block beside the host: %q", letter, tt.Texts())
+		}
+	}
+	if _, ok := tt.Find("api.example.com"); !ok {
+		t.Fatal("the host lost its name")
+	}
+}

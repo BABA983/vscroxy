@@ -2221,7 +2221,7 @@ func (a *app) sourcesRows(c *ui.Context, t *ui.Theme) {
 // hostRow is one host of the capture: a click narrows the traffic to it, and
 // its menu makes a collection, a recording or a DNS mapping from it.
 func (a *app) hostRow(c *ui.Context, d domain) {
-	uikit.SidebarItem(c, "host:"+d.name, nil, d.name, a.sidebarChoice == "host:"+d.name, !a.windowBehind).PopoverMenu(func(m *ui.Menu) {
+	uikit.SidebarItemLetter(c, "host:"+d.name, d.name, a.sidebarChoice == "host:"+d.name, !a.windowBehind).PopoverMenu(func(m *ui.Menu) {
 		actionMenu(m, []action{
 			do("collection.from-host", locales.CreateCollection(), func() { a.openCollectionWizard(a.collectionScope(d.name, "")) }),
 			do("collection.record-host", locales.RecordIntoCollection(), func() { a.openCollectionRecording("", d.name, "") }),
