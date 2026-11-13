@@ -16,6 +16,11 @@ type ActivityBucket [5]int
 // Its zero value leaves the table unfiltered.
 type ActivityRange struct{ From, To int }
 
+// The shortest and narrowest a bar is drawn: a bucket with one request must
+// still read as a bar, not a dot, next to a busy one.
+const activityMinBar = 5
+const activityMinBarWidth = 6
+
 // ActivityStrip is a 24-DIP row: its summary, the stacked bars and the latest
 // time at the end. Drag a new range anywhere except the two handles, which
 // resize it. Arrows move a range, Shift+arrows extend it, and Escape clears it.
@@ -136,6 +141,8 @@ func ActivityStrip(c *ui.Context, buckets []ActivityBucket, selected *ActivityRa
 			width := r.W / float32(n)
 			active := rangeNow.To > rangeNow.From
 			if active {
+				// The chosen window is a face of its own under the bars, so a
+				// range with little traffic in it still reads as chosen.
 				p.Fill(ui.Rect{X: r.X + width*float32(rangeNow.From), Y: r.Y, W: width * float32(rangeNow.To-rangeNow.From), H: r.H}, palette.AccentTint, 0)
 			}
 			// Normal traffic is a neutral face, dark enough to read on the
@@ -143,14 +150,25 @@ func ActivityStrip(c *ui.Context, buckets []ActivityBucket, selected *ActivityRa
 			// slow requests carry their signal color.
 			inks := [5]ui.Color{palette.TextMuted, palette.Info, palette.Warning, palette.Danger, palette.Danger}
 			for i, bucket := range buckets {
+				total := 0
+				for _, count := range bucket {
+					total += count
+				}
+				if total == 0 {
+					continue
+				}
+				// A single request still shows as a bar: the plot reads
+				// "traffic arrived" before it reads how much. The shortest
+				// mark is a readable bar, not a dot, and the bucket's height
+				// is shared out by status so a mixed bucket keeps both inks.
+				height := max(activityMinBar, (r.H-2)*float32(total)/float32(peak))
+				height = min(height, r.H)
 				bottom := r.Y + r.H
 				for status, count := range bucket {
 					if count == 0 {
 						continue
 					}
-					// A single request still shows as a bar: the plot reads
-					// "traffic arrived" before it reads how much.
-					height := max(2, (r.H-2)*float32(count)/float32(peak))
+					part := max(1, height*float32(count)/float32(total))
 					ink := inks[status]
 					if active && (i < rangeNow.From || i >= rangeNow.To) {
 						ink = ink.Alpha(float32(ink.A) / 255 * 0.3)
@@ -159,9 +177,9 @@ func ActivityStrip(c *ui.Context, buckets []ActivityBucket, selected *ActivityRa
 					// plot, and a handful of requests can land in one of
 					// them: keep the mark wide enough to read on its own,
 					// centered in its bucket.
-					w := max(6, width-2)
-					p.Fill(ui.Rect{X: r.X + float32(i)*width + (width-w)/2, Y: bottom - height, W: w, H: height}, ink, 0)
-					bottom -= height
+					w := max(activityMinBarWidth, width-2)
+					p.Fill(ui.Rect{X: r.X + float32(i)*width + (width-w)/2, Y: bottom - part, W: w, H: part}, ink, 0)
+					bottom -= part
 				}
 			}
 			p.Line(r.X, r.Y+r.H, r.X+r.W, r.Y+r.H, 1, t.Border)
