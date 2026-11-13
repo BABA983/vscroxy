@@ -146,7 +146,7 @@ func TestActivityStacksMeasureTotalWithoutRecoloringNormalTraffic(t *testing.T) 
 			// The ten-request mixed stack is taller than five errors. Only
 			// its upper four tenths are red; normal requests stay neutral.
 			{plot.X + plot.W/4, plot.Y + 3, palette.Danger},
-			{plot.X + plot.W/4, plot.Y + 11, palette.TextMuted.Alpha(0.55).Over(theme.Background)},
+			{plot.X + plot.W/4, plot.Y + 11, palette.TextMuted},
 			{plot.X + plot.W*3/4, plot.Y + 3, theme.Background},
 			{plot.X + plot.W*3/4, plot.Y + 11, palette.Danger},
 		} {

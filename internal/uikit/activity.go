@@ -143,7 +143,7 @@ func ActivityStrip(c *ui.Context, buckets []ActivityBucket, selected *ActivityRa
 			// Normal traffic is a neutral face, dark enough to read on the
 			// canvas at a glance; redirects, client and server errors and
 			// slow requests carry their signal color.
-			inks := [5]ui.Color{palette.TextMuted.Alpha(0.55), palette.Info, palette.Warning, palette.Danger, palette.Danger}
+			inks := [5]ui.Color{palette.TextMuted, palette.Info, palette.Warning, palette.Danger, palette.Danger}
 			for i, bucket := range buckets {
 				bottom := r.Y + r.H
 				for status, count := range bucket {
@@ -158,8 +158,11 @@ func ActivityStrip(c *ui.Context, buckets []ActivityBucket, selected *ActivityRa
 						ink = ink.Alpha(float32(ink.A) / 255 * 0.3)
 					}
 					// A bucket is narrower than a point at five minutes a
-					// plot: keep the mark wide enough to see, even alone.
-					p.Fill(ui.Rect{X: r.X + float32(i)*width + 1, Y: bottom - height, W: max(3, width-2), H: height}, ink, 0)
+					// plot, and a handful of requests can land in one of
+					// them: keep the mark wide enough to read on its own,
+					// centered in its bucket.
+					w := max(6, width-2)
+					p.Fill(ui.Rect{X: r.X + float32(i)*width + (width-w)/2, Y: bottom - height, W: w, H: height}, ink, 0)
 					bottom -= height
 				}
 			}
