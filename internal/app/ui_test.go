@@ -6133,3 +6133,53 @@ func TestFolderRequestDefaultsSave(t *testing.T) {
 		t.Fatalf("folders = %+v, want TLS verification off", a.folders)
 	}
 }
+
+// A change made inside the write gap is not dropped: the app asks for a frame
+// once the gap passes, and writes it then. Before, the change waited for
+// something else to move the window and was lost when nothing did.
+func TestSettingsChangeInsideTheWriteGapIsWrittenLater(t *testing.T) {
+	a := workspaceApp()
+	dir := t.TempDir()
+	a.settingsPath = filepath.Join(dir, "settings.json")
+	a.saved = a.currentSettings()
+	// A write just went out.
+	a.lastSave = time.Now()
+	a.sidebarWidth = 300
+	tt := ui.NewTester(a.view, 1280, 800)
+	tt.Frame()
+	data, err := os.ReadFile(a.settingsPath)
+	if err == nil && strings.Contains(string(data), "\"sidebarWidth\":300") {
+		t.Fatal("the change was written inside the gap")
+	}
+	// The gap passes, and the frame the app asked for arrives.
+	a.lastSave = time.Now().Add(-time.Second)
+	tt.Frame()
+	data, err = os.ReadFile(a.settingsPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(data), "\"sidebarWidth\":300") {
+		t.Fatalf("the change inside the gap never reached the file: %s", data)
+	}
+}
+
+func TestFlushSettingsWritesWhatTheGapHeldBack(t *testing.T) {
+	a := workspaceApp()
+	dir := t.TempDir()
+	a.settingsPath = filepath.Join(dir, "settings.json")
+	a.saved = a.currentSettings()
+	a.lastSave = time.Now()
+	a.sidebarWidth = 310
+	a.persistSettings()
+	if _, err := os.Stat(a.settingsPath); !errors.Is(err, os.ErrNotExist) {
+		t.Fatal("the change was written inside the gap")
+	}
+	a.flushSettings()
+	data, err := os.ReadFile(a.settingsPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(data), "\"sidebarWidth\":310") {
+		t.Fatalf("quitting lost the change the gap held back: %s", data)
+	}
+}

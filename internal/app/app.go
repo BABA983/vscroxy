@@ -349,6 +349,8 @@ type app struct {
 	mcpClosing       map[*mcpSession]struct{}
 	saved            settings
 	lastSave         time.Time
+	savePending      bool // a change landed inside the write gap
+	saveQueued       bool // a frame is already asked for when the gap passes
 	columns          ui.TableLayout
 	proxyPort        int
 	proxyPortInput   string
@@ -1606,6 +1608,7 @@ func (a *app) view(c *ui.Context) {
 		a.footer(c.Key("workspace-footer"), t)
 	})
 	a.persistSettings()
+	a.pumpSettingsSave(c)
 	a.checkpointExperiments(c)
 	a.checkpointSessions()
 	// Dialogs keep their input and actions above background notifications.
@@ -2995,6 +2998,7 @@ func Run() error {
 		}
 	}
 	defer cleanupProxy() // before the listener closes, even if Run returns an error
+	mygo.App.OnBeforeQuit(func(*mygo.QuitEvent) { a.flushSettings() })
 	mygo.App.OnBeforeQuit(a.beforeProxyQuit)
 	mygo.App.OnQuit(cleanupProxy) // native termination may not return from Run
 	mygo.App.OnQuit(a.experiments.close)
@@ -4090,9 +4094,18 @@ func (a *app) decryptHost(host string) {
 // 400ms, so dragging a divider does not write a file a frame.
 func (a *app) persistSettings() error {
 	now := a.currentSettings()
-	if sameSettings(now, a.saved) || time.Since(a.lastSave) < 400*time.Millisecond {
+	if sameSettings(now, a.saved) {
+		a.savePending = false
 		return nil
 	}
+	if time.Since(a.lastSave) < settingsWriteGap {
+		// A write just went out. The layout changed again inside the gap, so
+		// the change waits for a frame once the gap passes instead of being
+		// dropped: MyGo builds only when something asks it to.
+		a.savePending = true
+		return nil
+	}
+	a.savePending, a.saveQueued = false, false
 	a.lastSave = time.Now()
 	if a.settingsPath == "" {
 		a.saved = now
@@ -4110,6 +4123,28 @@ func (a *app) persistSettings() error {
 	}
 	a.saved = now
 	return nil
+}
+
+// settingsWriteGap keeps a drag of a split from writing settings on every
+// frame; the change it holds back is written once the gap passes.
+const settingsWriteGap = 400 * time.Millisecond
+
+// pumpSettingsSave asks for a frame once the write gap passes, so a change made
+// inside it is written even when nothing else moves afterwards.
+func (a *app) pumpSettingsSave(c *ui.Context) {
+	if !a.savePending || a.saveQueued {
+		return
+	}
+	a.saveQueued = true
+	c.After(settingsWriteGap - time.Since(a.lastSave))
+}
+
+// flushSettings writes the settings now, whatever the gap: the app does it as
+// it quits, so a change made in the last moment is not lost.
+func (a *app) flushSettings() {
+	a.savePending, a.saveQueued = false, false
+	a.lastSave = time.Time{}
+	_ = a.persistSettings()
 }
 
 // pinLabel is what the row menu says about pinning a flow.
