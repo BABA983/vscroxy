@@ -203,7 +203,12 @@ func TestShellKeepsItsControlsInsideTheWindow(t *testing.T) {
 						t.Fatalf("the command button is missing its shortcut: %v", field)
 					}
 					more, _ := tt.Find("More")
-					layout, _ := tt.Find("Side by side layout")
+					// One button switches the layout; its label names the
+					// layout a click goes to.
+					layout, ok := tt.Find("Stacked layout")
+					if !ok {
+						layout, _ = tt.Find("Side by side layout")
+					}
 					if mac {
 						// Beside the sidebar the brand is the sidebar's.
 						if brand.X >= a.sidebarWidth {
