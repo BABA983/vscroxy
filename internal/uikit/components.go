@@ -348,10 +348,25 @@ func Sparkline(c *ui.Context, counts []int, ink ui.Color) ui.Element {
 }
 
 // MenuSelect is Select for choices built as a menu: a button naming the
-// current one, with the same face, that opens the menu.
+// current one, with the same face, that opens the menu. The menu wears the
+// kit's floating panel, as every popover does, and arrives the same way.
 func MenuSelect(c *ui.Context, current string, menu func(*ui.Menu)) ui.Element {
-	return faced(c, func() ui.Element { return ui.PopoverMenuButton(c, current, menu) }).
-		Height(HeightControl).Padding(0, c.Theme().Space(2)).FontSize(TextBody).Radius(RadiusControl)
+	panel := func(panel ui.Element) {
+		popoverFace(c, panel)
+		panel.Transition(popoverMotion())
+	}
+	return faced(c, func() ui.Element {
+		return ui.PopoverMenuButton(c, current, menu, ui.PopoverMenuButtonOptions{Panel: panel})
+	}).Height(HeightControl).Padding(0, c.Theme().Space(2)).FontSize(TextBody).Radius(RadiusControl)
+}
+
+// popoverFace gives a floating panel the kit's chrome: the canvas on the
+// shadow, edged by a hairline. PopoverPanel builds it for the panels the app
+// draws; a menu's panel comes from MyGo and takes the same face here.
+func popoverFace(c *ui.Context, panel ui.Element) {
+	p := Colors(c.Theme())
+	panel.Background(p.Canvas).Border(1, p.Hairline).Radius(RadiusPanel).
+		NoShadow().Shadow(0, 8, 28, 0, p.Shadow)
 }
 
 // Dialog content uses three width tiers inside Modal's shared padding.
