@@ -32,8 +32,8 @@ func TestActivityBrushFiltersWithoutLosingContext(t *testing.T) {
 	}
 	plot, ok := tt.Find("Activity time range")
 	strip, _ := tt.Find("Activity strip")
-	if !ok || strip.H != uikit.HeightStatus || !tt.HasText("Last 5 min · 5 requests") {
-		t.Fatalf("missing the 24px five-minute overview: %v, %v", strip, tt.Texts())
+	if !ok || strip.H != uikit.HeightStatus || !tt.HasText("· 5 requests") {
+		t.Fatalf("missing the 24px overview: %v, %v", strip, tt.Texts())
 	}
 	x := func(bucket float32) float32 { return plot.X + plot.W*bucket/60 }
 	y := plot.Y + plot.H/2
@@ -141,6 +141,43 @@ func TestActivityRangeIsViewLocalAndTransient(t *testing.T) {
 	}
 }
 
+// Six requests a few seconds apart spread across the plot: the axis starts just
+// before the first of them instead of holding the whole five minutes, which left
+// them in one bucket at its right edge.
+func TestActivityAxisFollowsSparseTraffic(t *testing.T) {
+	a := workspaceApp()
+	now := time.Now().Truncate(time.Second)
+	a.flows = nil
+	for i := range 6 {
+		a.flows = append(a.flows, flow{id: i + 1, at: now.Add(time.Duration(i) * time.Second), host: "example.test", method: "GET", status: 200, live: true})
+	}
+	a.tally = tally{}
+	a.applyFilter()
+	end := a.activityEnd(now.Add(10 * time.Second))
+	start, used := a.activityAxis(end)
+	if span := end.Sub(start); span > time.Minute || used > activityBuckets {
+		t.Fatalf("axis spans %v in %d buckets, want a short one for six requests a few seconds apart", span, used)
+	}
+	first := int(a.flows[0].at.Sub(start) / activityStep)
+	last := int(a.flows[5].at.Sub(start) / activityStep)
+	if last >= used {
+		t.Fatalf("the newest request is in bucket %d of %d, outside the axis", last, used)
+	}
+	if first >= used-1 {
+		t.Fatalf("the first request is in bucket %d of %d, want the axis to start before it", first, used)
+	}
+	// The plot draws the axis it used across its whole width, so six requests
+	// a second apart fill a third of it rather than one sixtieth.
+	if spread := last - first + 1; spread < 2 {
+		t.Fatalf("six requests fall in %d bucket(s), want them spread across the plot", spread)
+	}
+	// A brush keeps the axis it was drawn on: the selected times come from it.
+	brush := activityRange{end: end, start: start, selection: uikit.ActivityRange{From: first, To: last + 1}}
+	if from, _ := brush.bounds(); !from.Equal(start.Add(time.Duration(first) * activityStep)) {
+		t.Fatalf("brush starts at %v, want the bucket it was drawn on", from)
+	}
+}
+
 func TestActivityPausedCaptureShowsOnlyRecentTraffic(t *testing.T) {
 	a := workspaceApp()
 	var err error
@@ -158,7 +195,7 @@ func TestActivityPausedCaptureShowsOnlyRecentTraffic(t *testing.T) {
 	a.flows[1].at, a.flows[1].live = now.Add(-time.Second), true
 	a.applyFilter()
 	tt := ui.NewTester(a.view, 1280, 800)
-	if !tt.HasText("Last 5 min · 1 request") {
+	if !tt.HasText("· 1 request") {
 		t.Fatal("paused capture showed old traffic as current activity")
 	}
 }

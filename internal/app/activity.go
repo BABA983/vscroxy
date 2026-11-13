@@ -2,6 +2,7 @@ package app
 
 import (
 	"github.com/baba983/vscroxy/locales"
+	"math"
 	"time"
 
 	"github.com/baba983/vscroxy/internal/uikit"
@@ -12,17 +13,26 @@ const activitySpan = 5 * time.Minute
 const activityStep = 5 * time.Second
 const activityBuckets = int(activitySpan / activityStep)
 
+// activityMinBuckets is the shortest axis the strip draws, in buckets: with
+// traffic spread over a few seconds, a shorter one would put a handful of
+// requests in a single bucket at the axis' edge.
+const activityMinBuckets = 6
+
 // activityRange belongs to a capture view, not a saved filter. The overview's
 // end is frozen while brushing; new traffic cannot move the selected times.
 type activityRange struct {
 	end       time.Time
+	start     time.Time
 	selection uikit.ActivityRange
 }
 
 func (r activityRange) active() bool { return r.selection.To > r.selection.From }
 
 func (r activityRange) bounds() (time.Time, time.Time) {
-	start := r.end.Add(-activitySpan)
+	start := r.start
+	if start.IsZero() {
+		start = r.end.Add(-activitySpan)
+	}
 	return start.Add(time.Duration(r.selection.From) * activityStep), start.Add(time.Duration(r.selection.To) * activityStep)
 }
 
@@ -45,11 +55,39 @@ func (a *app) activityEnd(now time.Time) time.Time {
 	return latest.Truncate(activityStep).Add(activityStep)
 }
 
+// activityAxis is the span the strip draws, and how many of its buckets that
+// takes. It is the last five minutes, unless the traffic in them is shorter than
+// that: then the axis starts a little before the first request, so a handful of
+// requests spreads across the plot instead of gathering in its last corner.
+func (a *app) activityAxis(end time.Time) (time.Time, int) {
+	start := end.Add(-activitySpan)
+	earliest := time.Time{}
+	for _, at := range a.activityRows {
+		t := a.flows[at].at
+		if !t.Before(end) {
+			continue
+		}
+		if earliest.IsZero() || t.Before(earliest) {
+			earliest = t
+		}
+	}
+	if earliest.IsZero() {
+		return start, activityBuckets
+	}
+	// A bucket of air before the first request, and never less than the
+	// shortest axis.
+	used := int(math.Ceil(float64(end.Sub(earliest))/float64(activityStep))) + 1
+	used = min(activityBuckets, max(activityMinBuckets, used))
+	return end.Add(-time.Duration(used) * activityStep), used
+}
+
 // activityCache is the strip's counts for the rows, end and brush it was
 // counted for.
 type activityCache struct {
 	valid           bool
 	end             time.Time
+	start           time.Time
+	used            int
 	selection       uikit.ActivityRange
 	buckets         [activityBuckets]uikit.ActivityBucket
 	total, selected int
@@ -57,14 +95,14 @@ type activityCache struct {
 
 func (a *app) activityStrip(c *ui.Context) {
 	end := a.activityEnd(time.Now())
-	start := end.Add(-activitySpan)
+	start, used := a.activityAxis(end)
 	cache := &a.activityCounts
 	if !cache.valid || !cache.end.Equal(end) || cache.selection != a.activity.selection {
-		*cache = activityCache{valid: true, end: end, selection: a.activity.selection}
+		*cache = activityCache{valid: true, end: end, start: start, used: used, selection: a.activity.selection}
 		cache.buckets, cache.total, cache.selected = a.countActivity(start, end)
 	}
 	buckets, total, selected := cache.buckets, cache.total, cache.selected
-	a.drawActivity(c, end, buckets, total, selected)
+	a.drawActivity(c, end, start, used, buckets, total, selected)
 }
 
 func (a *app) countActivity(start, end time.Time) (buckets [activityBuckets]uikit.ActivityBucket, total, selected int) {
@@ -96,8 +134,9 @@ func (a *app) countActivity(start, end time.Time) (buckets [activityBuckets]uiki
 	return buckets, total, selected
 }
 
-func (a *app) drawActivity(c *ui.Context, end time.Time, buckets [activityBuckets]uikit.ActivityBucket, total, selected int) {
-	summary := locales.ActivitySummary(5, total)
+func (a *app) drawActivity(c *ui.Context, end, start time.Time, used int, buckets [activityBuckets]uikit.ActivityBucket, total, selected int) {
+	minutes := max(1, int(end.Sub(start).Round(time.Minute)/time.Minute))
+	summary := locales.ActivitySummary(minutes, total)
 	if a.activity.active() {
 		summary = locales.ActivitySelected(a.activity.label(), selected)
 	}
@@ -105,8 +144,11 @@ func (a *app) drawActivity(c *ui.Context, end time.Time, buckets [activityBucket
 	if view := a.views.activeView(); view != nil {
 		key = view.id
 	}
-	uikit.ActivityStrip(c.Key(key), buckets[:], &a.activity.selection, summary, end.Format("15:04:05"), func() {
+	uikit.ActivityStrip(c.Key(key), buckets[:used], &a.activity.selection, summary, end.Format("15:04:05"), func() {
 		if a.activity.active() {
+			if a.activity.start.IsZero() {
+				a.activity.start = start
+			}
 			a.activity.end = end
 		} else {
 			a.activity = activityRange{}
