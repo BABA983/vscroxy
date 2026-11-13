@@ -6307,3 +6307,28 @@ func TestAppIconsAreLookedUpOncePerPath(t *testing.T) {
 		t.Fatalf("the icon was looked up %d times for one path, want once", lookups)
 	}
 }
+
+// The row the keys point at is the row the inspector shows, and it is drawn as
+// chosen: the table paints a row from the selection set, so a picked row that
+// was not in it looked like every other one.
+func TestThePickedRowIsDrawnAsChosen(t *testing.T) {
+	a := workspaceApp()
+	a.flows = collectionWizardFlows()
+	a.recount()
+	a.applyFilter()
+	tt := ui.NewTester(a.view, 1280, 800)
+	tt.Frame()
+	table, ok := tt.Find("Captured requests")
+	if !ok {
+		t.Fatal("no table")
+	}
+	im := tt.Image()
+	picked := im.RGBAAt(int(table.X)+300, int(table.Y)+40)
+	other := im.RGBAAt(int(table.X)+300, int(table.Y)+64)
+	if picked == other {
+		t.Fatalf("the picked row is drawn like the next one: %v", picked)
+	}
+	if !a.chosen.Has(a.flows[a.visible[a.picked]].id) {
+		t.Fatal("the picked row is not in the selection")
+	}
+}

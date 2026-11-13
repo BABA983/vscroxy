@@ -2495,6 +2495,15 @@ func (a *app) table(c *ui.Context) {
 		})
 	}
 	focused := state.Handle.Focused(c)
+	// The table paints a chosen row from the selection set, not from the row
+	// the keys move from: with nothing chosen, the row the inspector shows was
+	// drawn like every other one. The row the keys point at is always chosen.
+	if a.picked >= 0 && a.picked < len(a.visible) {
+		if id := a.flows[a.visible[a.picked]].id; !a.chosen.Has(id) {
+			a.chosen = ui.Selection[int]{}
+			a.chosen.Add(id)
+		}
+	}
 	selectionTheme := uikit.ListTheme(t, focused)
 	// Table's built-in row minimum is eight spacing units and its cells pad
 	// 1.5 units around 15px lines. Scope the 3px unit here only: 24px rows
