@@ -341,6 +341,7 @@ type Server struct {
 	running  atomic.Bool
 
 	mu            sync.Mutex
+	ids           map[uuid.UUID]int // request start order, claimed in Requestheaders
 	started       map[uuid.UUID]time.Time
 	firstByte     map[uuid.UUID]time.Time
 	original      map[uuid.UUID]url.URL
@@ -460,6 +461,7 @@ func New(addr, caRootPath string) (*Server, error) {
 		addr:          addr,
 		autoPort:      autoPort,
 		out:           make(chan Flow, queue),
+		ids:           make(map[uuid.UUID]int),
 		started:       make(map[uuid.UUID]time.Time),
 		firstByte:     make(map[uuid.UUID]time.Time),
 		original:      make(map[uuid.UUID]url.URL),
@@ -1720,11 +1722,17 @@ func (a *addon) Requestheaders(f *proxy.Flow) {
 	}
 	if f.Request.Method == "CONNECT" {
 		// A CONNECT the proxy does not decrypt ends here: show the tunnel so
-		// the table says what went through it.
+		// the table says what went through it. A decrypted tunnel publishes
+		// no row of its own, so it takes no number either: numbering it
+		// would leave a gap in the table for every HTTPS request.
 		a.server.noteDNS(f)
 		a.server.publishConnect(f)
 		return
 	}
+	// Number the exchange when its request starts, not when its response
+	// completes: the table's # is the order requests began, so a slow one
+	// does not sort behind the fast one that overtook it.
+	a.server.reserveID(f)
 	a.server.noteDNS(f)
 	start := time.Now()
 	a.server.mu.Lock()
@@ -2376,6 +2384,28 @@ func (s *Server) publishError(f *proxy.Flow, err error) {
 	s.publishFlow(f, kind, nil, 0)
 }
 
+// reserveID claims a flow's place in the capture sequence when its request
+// starts. The ID stays on the flow until it is published; a flow that never
+// reaches Requestheaders claims one when it publishes instead.
+func (s *Server) reserveID(f *proxy.Flow) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.ids[f.Id]; ok {
+		return
+	}
+	s.ids[f.Id] = int(s.nextID.Add(1))
+}
+
+// takeID is the reserved ID for a flow, or a fresh one for an exchange that
+// never passed the request hook. It is called with s.mu held.
+func (s *Server) takeID(f *proxy.Flow) int {
+	if id, ok := s.ids[f.Id]; ok {
+		delete(s.ids, f.Id)
+		return id
+	}
+	return int(s.nextID.Add(1))
+}
+
 // publishFlow turns one exchange into the boundary Flow the UI shows. kind is
 // "http", "ws" or "sse"; status overrides the response's when non-zero. A
 // streamed exchange passes its kept bodies in, since they never reached the
@@ -2398,6 +2428,7 @@ func (s *Server) publishFlow(f *proxy.Flow, kind string, frames []Frame, status 
 	var reqTrailer, resTrailer http.Header
 	now := time.Now()
 	s.mu.Lock()
+	id := s.takeID(f)
 	start, ok := s.started[f.Id]
 	delete(s.started, f.Id)
 	if trailers := s.trailers[f.Id]; trailers != nil {
@@ -2506,7 +2537,7 @@ func (s *Server) publishFlow(f *proxy.Flow, kind string, frames []Frame, status 
 		download = millis - wait
 	}
 	flow := Flow{
-		ID:                  int(s.nextID.Add(1)),
+		ID:                  id,
 		Actions:             debugActions(f),
 		Method:              method,
 		Scheme:              shown.Scheme,
@@ -2792,9 +2823,11 @@ func (s *Server) endFrames(f *proxy.Flow) {
 	s.mu.Lock()
 	if id, ok := s.flowIDs[f.Id]; ok {
 		slot := &s.streamEnds[id%len(s.streamEnds)]
-		if slot.id <= id {
-			slot.id = id
-			slot.end = StreamEnd{At: time.Now(), Messages: s.frameSeq[f.Id]}
+		end := StreamEnd{At: time.Now(), Messages: s.frameSeq[f.Id]}
+		// IDs follow the order requests began, so the newest completion is
+		// the later time, not the larger number.
+		if slot.id == id || !slot.end.At.After(end.At) {
+			slot.id, slot.end = id, end
 		}
 	}
 	delete(s.frameSeq, f.Id)

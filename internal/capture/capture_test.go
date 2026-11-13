@@ -3114,6 +3114,74 @@ func TestMockOfAnExampleAnswersForAnUnresolvableHTTPSHost(t *testing.T) {
 	}
 }
 
+// A decrypted tunnel publishes no row of its own, so it takes no number: the
+// first request the table shows is #1, not #2.
+func TestDecryptedTunnelTakesNoID(t *testing.T) {
+	upstream := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { fmt.Fprint(w, "ok") }))
+	defer upstream.Close()
+	s, caPath := startServerWithRules(t)
+	s.SetSSL(SSLConfig{All: true})
+	client := clientFor(t, s, sslTestRoots(t, caPath))
+	resp, err := client.Get(upstream.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, _ = io.Copy(io.Discard, resp.Body)
+	resp.Body.Close()
+	if f := waitFlow(t, s); f.Kind != "http" || f.ID != 1 {
+		t.Fatalf("first row is #%d (%s), want #1: the decrypted tunnel took a number", f.ID, f.Kind)
+	}
+}
+
+// A flow is numbered when its request starts, not when its response ends: a
+// slow exchange must not sort behind the fast one that overtook it.
+func TestFlowIDsFollowRequestStartOrder(t *testing.T) {
+	started := make(chan struct{})
+	release := make(chan struct{})
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/slow" {
+			close(started)
+			<-release
+		}
+		fmt.Fprint(w, "ok")
+	}))
+	defer upstream.Close()
+
+	s, _ := startServer(t)
+	client := clientFor(t, s, nil)
+	slowDone := make(chan error, 1)
+	go func() {
+		resp, err := client.Get(upstream.URL + "/slow")
+		if err == nil {
+			_, err = io.Copy(io.Discard, resp.Body)
+			resp.Body.Close()
+		}
+		slowDone <- err
+	}()
+	<-started // the slow request is past its request hook and waiting upstream
+	resp, err := client.Get(upstream.URL + "/fast")
+	if err != nil {
+		t.Fatalf("fast request: %v", err)
+	}
+	_, _ = io.Copy(io.Discard, resp.Body)
+	resp.Body.Close()
+	fast := waitFlow(t, s)
+	close(release)
+	slow := waitFlow(t, s)
+	if err := <-slowDone; err != nil {
+		t.Fatalf("slow request: %v", err)
+	}
+	if !strings.HasSuffix(slow.URL, "/slow") || !strings.HasSuffix(fast.URL, "/fast") {
+		t.Fatalf("published %q then %q, want the slow request first", slow.URL, fast.URL)
+	}
+	if slow.ID >= fast.ID {
+		t.Fatalf("slow request #%d finished after fast #%d but was numbered later", slow.ID, fast.ID)
+	}
+	if fast.ID != slow.ID+1 {
+		t.Fatalf("IDs %d and %d, want two consecutive numbers", slow.ID, fast.ID)
+	}
+}
+
 func TestReserveIDsSharesTheLiveCounter(t *testing.T) {
 	var server Server
 	if first := server.ReserveIDs(3); first != 1 {
