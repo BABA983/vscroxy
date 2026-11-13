@@ -5,7 +5,6 @@ import (
 	"github.com/baba983/vscroxy/internal/uikit"
 	"runtime"
 	"strings"
-	"time"
 
 	"github.com/baba983/vscroxy/internal/capture"
 	"github.com/baba983/vscroxy/locales"
@@ -174,11 +173,23 @@ func (a *app) proxyIndicator(c *ui.Context, t *ui.Theme) {
 	b := uikit.ToolbarButton(c, locales.ProxyStatus(), tip, false).Height(uikit.HeightControl).
 		Padding(0, t.Space(2)).Gap(t.Space(1.5)).Radius(uikit.RadiusControl).Background(pal.Fill)
 	b.Children(func() {
-		mark := ui.Box(c).Size(7, 7).Radius(uikit.RadiusControl).Background(dot).Shrink(0)
+		mark := ui.Box(c).Size(7, 7).Shrink(0)
 		// Recording with traffic arriving: the dot breathes. Nothing
 		// arriving, or paused: it rests, so the pill does not twitch all day.
+		// The pulse is painted rather than built: its frames repeat the last
+		// layout, so the table under the pill is not run again at 30 a second
+		// while capture is on.
 		if running && !a.recordingPaused && a.rate.perSecond() > 0 {
-			mark.Opacity(0.55 + 0.45*mark.Loop("recording-pulse", 1200*time.Millisecond, ui.EaseInOut))
+			mark.Draw(func(p *ui.Painter, r ui.Rect) {
+				p.AnimationFrameRate(30)
+				phase := float32(p.Now().UnixMilli()%1200) / 1200
+				if phase > 0.5 {
+					phase = 1 - phase
+				}
+				p.Fill(r, dot.Alpha(0.55+0.45*ui.EaseInOut(phase*2)), r.W/2)
+			})
+		} else {
+			mark.Radius(uikit.RadiusControl).Background(dot)
 		}
 		ui.Text(c, state).FontSize(uikit.TextMeta).TextColor(t.Text).SingleLine()
 		if !running {

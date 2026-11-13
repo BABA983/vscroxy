@@ -83,12 +83,16 @@ var PaneMotion = ui.ElementTransition{Size: true, Animation: &MotionSpring}
 
 // hoverMotion fades a control's face back to rest over DurationHover. The
 // face arrives with the pointer at once; only the way back is a fade, so a
-// pointer crossing a row of buttons does not lag behind it.
+// pointer crossing a row of buttons does not lag behind it. The transition
+// stays on the element every frame: MyGo mixes colors only where the frame
+// before had a transition too, so a face that dropped it would jump back to
+// rest in the frame the pointer left.
 func hoverMotion(b ui.Element, lit bool) ui.Element {
+	d := DurationHover
 	if lit {
-		return b
+		d = -1 // No time at all: the face under the pointer is its own.
 	}
-	return b.Transition(ui.ElementTransition{Colors: true, Duration: DurationHover})
+	return b.Transition(ui.ElementTransition{Colors: true, Duration: d})
 }
 
 // popoverMotion is how a menu, a popover or a panel arrives and leaves: it

@@ -620,7 +620,7 @@ func Modal(c *ui.Context, open *bool, content func()) ui.Element {
 		// Only the fade: a scale moves the panel's painted pixels away from
 		// where the layout puts its controls, and a press in the first
 		// frames would land beside them.
-		panel.Opacity(panel.AnimateTo("dialog-in", 1, ui.Animation{Duration: DurationStandard, Ease: ui.EaseOut}))
+		panel.Opacity(panel.AnimateTo("dialog-in", 1, ui.Animation{Duration: DurationStandard, Ease: ui.EaseOut, NonMotion: true}))
 		content()
 	})
 	if dialog.Dismissed() {
