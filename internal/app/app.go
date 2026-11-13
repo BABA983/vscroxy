@@ -2396,8 +2396,20 @@ func (a *app) table(c *ui.Context) {
 		{ID: "tools", Title: "", Width: 30},
 		{ID: "captured", Title: locales.Time(), Width: 84, Sortable: true},
 	}
+	// A wider text needs wider columns: the widths above are the ones the
+	// usual size needs, and everything that fits or does not fit is measured in
+	// the same units as the text.
+	for i := range cols {
+		if cols[i].Width > 0 {
+			cols[i].Width = uikit.Scaled(cols[i].Width)
+		}
+		if cols[i].MinWidth > 0 {
+			cols[i].MinWidth = uikit.Scaled(cols[i].MinWidth)
+		}
+	}
 	width, _ := c.Size()
 	available := width
+	fitAt := func(dips float32) bool { return available >= uikit.Scaled(dips) }
 	if !a.workbench.sidebarHidden {
 		available -= a.sidebarWidth + 6
 	}
@@ -2406,13 +2418,13 @@ func (a *app) table(c *ui.Context) {
 	}
 	// A narrow list keeps what identifies a request and what it returned;
 	// the columns that only repeat the inspector's numbers give way.
-	if available < 900 {
+	if !fitAt(900) {
 		for i := range cols {
 			switch cols[i].ID {
 			case "host":
-				cols[i].Width = 132
+				cols[i].Width = uikit.Scaled(132)
 			case "client":
-				cols[i].Width = 100
+				cols[i].Width = uikit.Scaled(100)
 			}
 		}
 		// A column the user put in stays, whatever the width.
@@ -2423,10 +2435,10 @@ func (a *app) table(c *ui.Context) {
 	// The address a request reached is the inspector's to report as well, so
 	// it gives way before the duration is cut off at the list's edge; the
 	// client follows it when even that does not fit.
-	if available < 860 {
+	if !fitAt(860) {
 		cols = slices.DeleteFunc(cols, func(col ui.TableColumn) bool { return col.ID == "remote" })
 	}
-	if available < 740 {
+	if !fitAt(740) {
 		cols = slices.DeleteFunc(cols, func(col ui.TableColumn) bool { return col.ID == "client" })
 	}
 	for _, cc := range a.customColumns {

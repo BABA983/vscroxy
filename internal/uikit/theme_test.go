@@ -180,3 +180,22 @@ func TestTextSizesFollowTheDesktopsTextSize(t *testing.T) {
 		t.Fatalf("a scale of 0 = %v, want the usual 13", got)
 	}
 }
+
+// A column's width is a size like any other: at a larger text size the table's
+// fixed columns grow with the text, so a long method is not cut short.
+func TestScaledGrowsTheTablesFixedWidths(t *testing.T) {
+	t.Cleanup(func() { SetTextScale(1) })
+	SetTextScale(1)
+	usual := Scaled(76) // the method column
+	SetTextScale(1.35)
+	wide := Scaled(76)
+	if wide <= usual {
+		t.Fatalf("the method column stays at %v when the text grows", wide)
+	}
+	if wide != 103 {
+		t.Fatalf("method column at 1.35 = %v, want 103", wide)
+	}
+	if got := TextScale(); got != 1.35 {
+		t.Fatalf("TextScale = %v, want 1.35", got)
+	}
+}

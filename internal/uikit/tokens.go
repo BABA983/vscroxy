@@ -113,13 +113,19 @@ func popoverMotion() ui.ElementTransition {
 var textScale float32 = 1
 
 // SetTextScale makes the sizes follow the desktop's text size: 1 is usual, 1.5
-// half again as large.
+// half again as large. It is one value for the process, which is what a desktop
+// has: every window of the app follows the same setting, and a theme cannot
+// carry its own scale because a size is asked for where a control is built,
+// without the theme at hand.
 func SetTextScale(scale float32) {
 	if scale <= 0 {
 		scale = 1
 	}
 	textScale = scale
 }
+
+// TextScale is the scale the desktop asks for, 1 at the usual size.
+func TextScale() float32 { return textScale }
 
 // Scaled is a size from the scale the desktop asks for.
 func Scaled(size float32) float32 {
