@@ -2956,6 +2956,11 @@ func Run() error {
 	mygo.App.SetLocale(a.language)
 	a.watchLocale()
 	mygo.App.WhenReady(func() {
+		// A run that is not a bundle has no icon of its own: the Dock (and
+		// the taskbar) read it from the binary instead.
+		if err := mygo.App.Dock.SetIcon(iconPNG); err != nil && runtime.GOOS == "darwin" {
+			slog.Warn("dock icon", "err", err)
+		}
 		a.win = mygo.NewWindow(mygo.WindowOptions{
 			Title:           "vscroxy",
 			Width:           1280,
