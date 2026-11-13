@@ -553,7 +553,7 @@ func footerChipRow(c *ui.Context, t *ui.Theme, chip footerChip) {
 	if chip.danger {
 		background, ink = t.Danger.Alpha(0.12), t.Danger
 	}
-	ui.Row(c).Key(chip.id).Height(uikit.HeightFooterControl).AlignItems(ui.Center).Background(background).
+	ui.Row(c.Key(chip.id)).Height(uikit.HeightFooterControl).AlignItems(ui.Center).Background(background).
 		Radius(uikit.RadiusInner).Children(func() {
 		open := chip.openLabel
 		if open == "" {

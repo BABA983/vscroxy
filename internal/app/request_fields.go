@@ -106,7 +106,7 @@ func (a *app) requestFieldsEditor(c *ui.Context, rows *[]request.Field, opts fie
 		ui.Scroll(c).Grow(1).MinHeight(0).Children(func() {
 			for i := range *rows {
 				r := &(*rows)[i]
-				row := ui.Row(c).Key(i).Height(uikit.HeightControl).AlignItems(ui.Center)
+				row := ui.Row(c.Key(i)).Height(uikit.HeightControl).AlignItems(ui.Center)
 				row.Children(func() {
 					ui.Box(c).Width(uikit.HeightLarge).FillHeight().Center().Children(func() {
 						enabled := !r.Disabled

@@ -644,7 +644,7 @@ func (a *app) cookiesModal(c *ui.Context, t *ui.Theme) {
 					groups[domain] = append(groups[domain], item)
 				}
 				for _, domain := range slices.Sorted(maps.Keys(groups)) {
-					ui.Row(c).Key("domain:" + domain).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+					ui.Row(c.Key("domain:" + domain)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 						uikit.Label(c, domain).SingleLine().Grow(1).Tooltip("Cookies for " + domain)
 						if uikit.CompactButton(c, locales.Clear()).Label("Clear cookies for " + domain).Clicked() {
 							a.requestCookies().clearDomain(domain)
@@ -652,7 +652,7 @@ func (a *app) cookiesModal(c *ui.Context, t *ui.Theme) {
 						}
 					})
 					for _, item := range groups[domain] {
-						ui.Row(c).Key(item.key).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+						ui.Row(c.Key(item.key)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 							ui.Column(c).Grow(1).Gap(t.Space(1)).Children(func() {
 								value := "••••••••"
 								if e.reveal[item.key] {

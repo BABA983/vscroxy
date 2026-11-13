@@ -571,7 +571,7 @@ func (a *app) composeView(c *ui.Context, t *ui.Theme) {
 		})
 		return
 	}
-	ui.Column(c).Key(d.id).Fill().Children(func() {
+	ui.Column(c.Key(d.id)).Fill().Children(func() {
 		a.requestBar(c, t, d, nil)
 		a.requestVariablesPanel(c, t, d)
 		if d.comparing {
@@ -709,7 +709,7 @@ func (a *app) requestRenameModal(c *ui.Context, t *ui.Theme) {
 
 // requestDocumentActions never scrolls away with a long document tab strip.
 func (a *app) requestDocumentActions(c *ui.Context, t *ui.Theme, d *requestDocument) {
-	ui.Row(c).Key(d.id).Gap(t.Space(1)).AlignItems(ui.Center).Children(func() {
+	ui.Row(c.Key(d.id)).Gap(t.Space(1)).AlignItems(ui.Center).Children(func() {
 		if d.sourceAPI != "" {
 			if uikit.ToolbarButton(c, locales.SourceApi(), locales.OpenTheApiThisRequest(), false).Height(uikit.HeightControl).Children(func() {
 				ui.Text(c, locales.SourceApi()).TextColor(t.Accent)

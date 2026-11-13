@@ -132,7 +132,7 @@ func cookieView(c *ui.Context, headers http.Header, response bool, reveal *bool)
 				uikit.Hint(c, locales.NoCookiesRecordedOnThis()).Padding(t.Space(3))
 			}
 			for i, cookie := range cookies {
-				ui.Column(c).Key(i).Padding(t.Space(2), t.Space(3)).Gap(t.Space(1)).Children(func() {
+				ui.Column(c.Key(i)).Padding(t.Space(2), t.Space(3)).Gap(t.Space(1)).Children(func() {
 					value := "••••••••  masked"
 					if *reveal {
 						value = cookie.Value

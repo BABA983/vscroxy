@@ -263,7 +263,7 @@ func (a *app) vaultModal(c *ui.Context, t *ui.Theme) {
 				remove := -1
 				for i := range v.rows {
 					r := &v.rows[i]
-					ui.Row(c).Key(i).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+					ui.Row(c.Key(i)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 						ui.Box(c).Basis(0).Grow(1).MinWidth(0).Children(func() {
 							uikit.Input(c, &r.name).Label(locales.SecretName(i + 1)).Placeholder("api_token").FillWidth().MinWidth(0)
 						})

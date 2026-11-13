@@ -293,7 +293,7 @@ func (a *app) runnerModal(c *ui.Context, t *ui.Theme) {
 						}
 						for i := range r.steps {
 							step := &r.steps[i]
-							ui.Row(c).Key(i).Height(uikit.HeightControl).Padding(0, t.Space(2)).Gap(t.Space(1)).AlignItems(ui.Center).
+							ui.Row(c.Key(i)).Height(uikit.HeightControl).Padding(0, t.Space(2)).Gap(t.Space(1)).AlignItems(ui.Center).
 								Border(0, t.Border).BorderWidth(0, 0, 1, 0).Children(func() {
 								ui.Checkbox(c, &step.enabled, step.request.Name).Label(locales.RunRequest(i + 1)).FontSize(uikit.TextBody).Grow(1).Disabled(r.running)
 								if uikit.SecondaryButton(c, "↑").Label(locales.MoveRequestUp(i + 1)).Tooltip(locales.MoveRequestUp(i + 1)).Width(uikit.HeightControl).Padding(0).Disabled(r.running || i == 0).Clicked() {

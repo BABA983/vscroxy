@@ -2001,14 +2001,14 @@ func (a *app) trafficRegion(c *ui.Context, t *ui.Theme) {
 			head.ScrollIntoView()
 		}
 		if *traffic {
-			ui.Column(c).Key("traffic-region").Gap(0).Transition(uikit.RegionMotion).Children(func() {
+			ui.Column(c.Key("traffic-region")).Gap(0).Transition(uikit.RegionMotion).Children(func() {
 				a.trafficRows(c)
 				a.views.sidebar(c, t, a)
 			})
 		}
 		uikit.SidebarHeading(c, locales.Sources(), sources, func() { a.sourcesSwitch(c, t) })
 		if *sources {
-			ui.Column(c).Key("sources-region").Gap(0).Transition(uikit.RegionMotion).Children(func() {
+			ui.Column(c.Key("sources-region")).Gap(0).Transition(uikit.RegionMotion).Children(func() {
 				a.sourcesRows(c, t)
 			})
 		}
@@ -2151,7 +2151,7 @@ func (a *app) collectionsRegion(c *ui.Context, t *ui.Theme) {
 		if !*collections {
 			return
 		}
-		ui.Column(c).Key("collections-region").Gap(0).Transition(uikit.RegionMotion).Children(func() {
+		ui.Column(c.Key("collections-region")).Gap(0).Transition(uikit.RegionMotion).Children(func() {
 			uikit.SearchField(c, &a.requestQuery, locales.SearchCollections(), locales.Search(), true).
 				Margin(t.Space(1), t.Space(3), t.Space(2), t.Space(3))
 			a.collectionTree(c)

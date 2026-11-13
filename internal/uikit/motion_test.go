@@ -18,7 +18,7 @@ func TestReduceMotionEndsTransitionsAtOnce(t *testing.T) {
 				width = 300
 			}
 			ui.Row(c).Fill().Children(func() {
-				ui.Column(c).Key("pane").Width(width).ClipX().Transition(PaneMotion).Children(func() {
+				ui.Column(c.Key("pane")).Width(width).ClipX().Transition(PaneMotion).Children(func() {
 					ui.Text(c, "Pane body").FillWidth()
 				})
 			})
