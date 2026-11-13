@@ -4720,6 +4720,7 @@ func TestDesktopLayoutDefaultsSideBySideAndSwitchesWithoutLosingCaptureContext(t
 	check(false)
 	tt.SetSize(1440, 860)
 	check(true)
+	// One button, labelled with the layout it switches to.
 	click("Stacked layout")
 	check(false)
 	click("Side by side layout")

@@ -144,20 +144,20 @@ func (a *app) sidebarToggle(c *ui.Context) {
 	}
 }
 
-// layoutToggle chooses where the inspector sits: beside the traffic list or
-// under it. A window too narrow for side by side stacks them anyway.
+// layoutToggle switches where the inspector sits: beside the traffic list or
+// under it. One button shows the layout it switches to, so the title bar carries
+// one control rather than a pair that has to be read to tell which is on.
 func (a *app) layoutToggle(c *ui.Context) {
 	w := &a.workbench
-	for _, l := range []struct {
-		id, label string
-		icon      *ui.SVG
-	}{{"right", locales.SideBySideLayout(), sideLayoutIcon}, {"bottom", locales.StackedLayout(), stackedLayoutIcon}} {
-		b := uikit.ToolbarButton(c, l.label, l.label, w.layout == l.id).Checked(w.layout == l.id).
-			Size(uikit.HeightControl, uikit.HeightControl).Padding(0).Justify(ui.Center).
-			Children(func() { ui.Icon(c, l.icon).Size(uikit.IconInline, uikit.IconInline) })
-		if b.Clicked() {
-			w.layout, w.focused = l.id, false
-		}
+	next, label, icon := "bottom", locales.StackedLayout(), stackedLayoutIcon
+	if w.layout != "right" {
+		next, label, icon = "right", locales.SideBySideLayout(), sideLayoutIcon
+	}
+	b := uikit.ToolbarButton(c, label, label, false).
+		Size(uikit.HeightControl, uikit.HeightControl).Padding(0).Justify(ui.Center).
+		Children(func() { ui.Icon(c, icon).Size(uikit.IconInline, uikit.IconInline) })
+	if b.Clicked() {
+		w.layout, w.focused = next, false
 	}
 }
 
