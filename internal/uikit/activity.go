@@ -157,7 +157,9 @@ func ActivityStrip(c *ui.Context, buckets []ActivityBucket, selected *ActivityRa
 					if active && (i < rangeNow.From || i >= rangeNow.To) {
 						ink = ink.Alpha(float32(ink.A) / 255 * 0.3)
 					}
-					p.Fill(ui.Rect{X: r.X + float32(i)*width + 1, Y: bottom - height, W: max(1, width-2), H: height}, ink, 0)
+					// A bucket is narrower than a point at five minutes a
+					// plot: keep the mark wide enough to see, even alone.
+					p.Fill(ui.Rect{X: r.X + float32(i)*width + 1, Y: bottom - height, W: max(3, width-2), H: height}, ink, 0)
 					bottom -= height
 				}
 			}
