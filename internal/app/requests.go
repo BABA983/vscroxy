@@ -868,44 +868,51 @@ var requestMethods = []string{"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "
 // requestBar is the method, URL and Send; more adds what follows Send.
 func (a *app) requestBar(c *ui.Context, t *ui.Theme, d *requestDocument, more func()) {
 	ui.Row(c).Height(48).Padding(t.Space(2), t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-		if !a.page.capture() {
-			uikit.SecondaryButton(c, cmp.Or(d.protocol, "HTTP")+" ▾").Label(locales.RequestProtocol()).Width(106).
-				Disabled(d.composeWaiting || d.grpcUI != nil && d.grpcUI.loading != nil).PopoverMenuButton(func(m *ui.Menu) {
-				for _, protocol := range []string{"HTTP", "gRPC", "Socket.IO", "MQTT", "MCP"} {
-					if !m.Item(protocol).Radio(cmp.Or(d.protocol, "HTTP") == protocol).Chosen() {
-						continue
-					}
-					// A completed protocol session must not drain into the next
-					// protocol's job. Config stays saved, runtime state does not.
-					if d.grpcUI != nil {
-						d.grpcUI.stop()
-						d.grpcUI = nil
-					}
-					if d.socketIOUI != nil {
-						d.socketIOUI.stop()
-						d.socketIOUI = nil
-					}
-					if d.mqttUI != nil {
-						d.mqttUI.stop()
-						d.mqttUI = nil
-					}
-					if d.mcpUI != nil {
-						a.stopMCPDocument(d.mcpUI)
-						d.mcpUI = nil
-					}
-					d.protocol = protocol
-					if protocol == "HTTP" {
-						d.protocol = ""
-					}
-					if protocol == "MQTT" {
-						d.ensureMQTT()
-					}
-				}
-			})
-		}
 		field := ui.Row(c).Grow(1).Height(uikit.HeightLarge).AlignItems(ui.Center)
 		field.Disabled(d.protocol != "" && d.composeWaiting)
 		uikit.FieldFace(c, field, field.FocusWithin()).Children(func() {
+			if !a.page.capture() {
+				proto := uikit.ToolbarButton(c, locales.RequestProtocol(), locales.RequestProtocol(), false).
+					Height(uikit.HeightControl).Padding(0, t.Space(1)).Gap(t.Space(0.5)).Shrink(0).
+					Disabled(d.composeWaiting || d.grpcUI != nil && d.grpcUI.loading != nil)
+				proto.Children(func() {
+					ui.Text(c, cmp.Or(d.protocol, "HTTP")).FontSize(uikit.TextBody).TextColor(t.TextMuted).SingleLine()
+					ui.Icon(c, chevronIcon).Size(10, 10).TextColor(t.TextMuted)
+				})
+				proto.PopoverMenuButton(func(m *ui.Menu) {
+					for _, protocol := range []string{"HTTP", "gRPC", "Socket.IO", "MQTT", "MCP"} {
+						if !m.Item(protocol).Radio(cmp.Or(d.protocol, "HTTP") == protocol).Chosen() {
+							continue
+						}
+						// A completed protocol session must not drain into the next
+						// protocol's job. Config stays saved, runtime state does not.
+						if d.grpcUI != nil {
+							d.grpcUI.stop()
+							d.grpcUI = nil
+						}
+						if d.socketIOUI != nil {
+							d.socketIOUI.stop()
+							d.socketIOUI = nil
+						}
+						if d.mqttUI != nil {
+							d.mqttUI.stop()
+							d.mqttUI = nil
+						}
+						if d.mcpUI != nil {
+							a.stopMCPDocument(d.mcpUI)
+							d.mcpUI = nil
+						}
+						d.protocol = protocol
+						if protocol == "HTTP" {
+							d.protocol = ""
+						}
+						if protocol == "MQTT" {
+							d.ensureMQTT()
+						}
+					}
+				})
+				ui.Box(c).Width(1).Height(18).Background(t.Border)
+			}
 			if d.protocol == "MCP" && d.mcpConfig.Transport == request.MCPTransportStdio {
 				ui.Row(c).Grow(1).Height(uikit.HeightControl).AlignItems(ui.Center).Padding(0, t.Space(2)).Children(func() {
 					uikit.Meta(c, "stdio · "+cmp.Or(d.mcpConfig.Command, "local command")).Font(uikit.FontMono).SingleLine()
