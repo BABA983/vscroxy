@@ -2600,14 +2600,20 @@ func (a *app) table(c *ui.Context) {
 		text := func(s string) ui.Element {
 			return uikit.Body(c, s).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextData)).Height(15).FixedLineHeight(15).FontFeatures("tnum").SingleLine()
 		}
+
 		// Facts beside the request: its number, host, client, timing and size.
 		quiet := func(s string) ui.Element {
 			return uikit.Hint(c, s).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextData)).Height(15).FixedLineHeight(15).FontFeatures("tnum").SingleLine()
 		}
 		// What a person reads as a name rather than as wire data: the host,
-		// the client and a note keep the interface font, as the sidebar does.
+		// the client, the path and a note keep the interface font, as the
+		// sidebar does. Mono is for the numbers a reader compares down a
+		// column, and for code.
 		plain := func(s string) ui.Element {
 			return uikit.Hint(c, s).FontSize(uikit.Scaled(uikit.TextData)).Height(15).FixedLineHeight(15).SingleLine()
+		}
+		named := func(s string) ui.Element {
+			return uikit.Body(c, s).FontSize(uikit.Scaled(uikit.TextData)).Height(15).FixedLineHeight(15).SingleLine()
 		}
 		switch cols[col].ID {
 		case "id":
@@ -2666,7 +2672,7 @@ func (a *app) table(c *ui.Context) {
 						ui.Text(c, locales.Hosts()).FontSize(uikit.Scaled(uikit.TextMeta)).FontWeight(500).TextColor(accent)
 					})
 				}
-				uikit.Tip(c, text(cmp.Or(f.path, "/")).Label(f.host+f.path).TextColor(rest), f.url).PopoverMenu(a.rowMenu(c, f))
+				uikit.Tip(c, named(cmp.Or(f.path, "/")).Label(f.host+f.path).TextColor(rest), f.url).PopoverMenu(a.rowMenu(c, f))
 			})
 		case "status":
 			if f.conn.error != "" {
