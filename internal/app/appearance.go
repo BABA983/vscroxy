@@ -17,7 +17,6 @@ var (
 	// one stroke family instead of hand-traced paths.
 	captureIcon       = lucide.Activity()
 	requestIcon       = lucide.SquarePen()
-	settingsIcon      = lucide.Settings()
 	plusIcon          = lucide.Plus()
 	sideLayoutIcon    = lucide.Columns2()
 	stackedLayoutIcon = lucide.Rows2()

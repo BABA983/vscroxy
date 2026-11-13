@@ -19440,16 +19440,6 @@ func (msgs Messages) SettingsCategory(name string) string {
 	return Catalog.Format(msgs.locale, "settingsCategory", map[string]any{"name": name})
 }
 
-// SettingsCtrlCmd says "Settings · Ctrl/Cmd+,"
-// in the language the app shows.
-func SettingsCtrlCmd() string { return In(i18n.Locale()).SettingsCtrlCmd() }
-
-// SettingsCtrlCmd says "Settings · Ctrl/Cmd+,"
-// in the language of msgs.
-func (msgs Messages) SettingsCtrlCmd() string {
-	return Catalog.Format(msgs.locale, "settingsCtrlCmd", nil)
-}
-
 // SetupCompleteTheFirstDecrypted says "Setup complete · the first decrypted request is selected"
 // in the language the app shows.
 func SetupCompleteTheFirstDecrypted() string {

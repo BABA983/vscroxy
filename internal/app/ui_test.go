@@ -330,6 +330,53 @@ func appearanceOf(dark bool) string {
 	return "light"
 }
 
+// openSettingsFromBar opens Settings the way the window offers it: the ⋯ menu
+// at the title bar's end, which carries it beside the app menu's ⌘, rather
+// than a button of its own.
+func openSettingsFromBar(t *testing.T, tt *ui.Tester) {
+	t.Helper()
+	if err := tt.Click("More"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.ChooseMenuItem("Open settings…"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+}
+
+// The title bar's end carries the palette, the layout, the tools and ⋯, and
+// nothing else: the sidebar's switch sits at the bar's start, beside the
+// window's controls, and Settings is in ⋯ and the app menu rather than a
+// button of its own.
+func TestTitleBarKeepsItsControlsToFourAndSettingsInMore(t *testing.T) {
+	a := workspaceApp()
+	tt := ui.NewTester(a.view, 1280, 800)
+	tt.Frame()
+	if _, ok := tt.Find("Settings"); ok {
+		t.Fatal("the title bar still carries a settings button")
+	}
+	toggle, ok := tt.Find("Hide sidebar")
+	if !ok {
+		t.Fatal("the title bar has no sidebar switch")
+	}
+	brand, ok := tt.Find("vscroxy")
+	if !ok {
+		t.Fatal("the title bar has no brand")
+	}
+	if toggle.X > brand.X {
+		t.Fatalf("the sidebar switch sits at %v, right of the brand at %v: want it at the bar's start", toggle.X, brand.X)
+	}
+	if err := tt.Click("More"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.ChooseMenuItem("Open settings…"); err != nil {
+		t.Fatal(err)
+	}
+	if !a.settingsOpen {
+		t.Fatal("⋯ does not open Settings")
+	}
+}
+
 func workspaceApp() *app {
 	a := &app{
 		filter: "all", sidebarWidth: 220, tablePercent: 56,
@@ -921,10 +968,9 @@ func TestCaptureUIUsesOnlyTheRunningListener(t *testing.T) {
 	if !tt.HasText("Listening on") || len(a.flows) != 2 || a.flows[1].id != 3 {
 		t.Fatalf("resumed recording kept %d flows, want the ambient one too", len(a.flows))
 	}
-	for _, label := range []string{"Settings", "Proxy"} {
-		if err := tt.Click(label); err != nil {
-			t.Fatal(err)
-		}
+	openSettingsFromBar(t, tt)
+	if err := tt.Click("Proxy"); err != nil {
+		t.Fatal(err)
 	}
 	settleProxy(t, a, tt)
 	if _, found := tt.Find(srv.Addr()); !found {
@@ -946,10 +992,9 @@ func TestSettingsOpensExistingEditors(t *testing.T) {
 	a := workspaceApp()
 	a.srv = requestProxy(t)
 	tt := ui.NewTester(a.view, 960, 600)
-	for _, label := range []string{"Settings", "Proxy"} {
-		if err := tt.Click(label); err != nil {
-			t.Fatal(err)
-		}
+	openSettingsFromBar(t, tt)
+	if err := tt.Click("Proxy"); err != nil {
+		t.Fatal(err)
 	}
 	tt.Scroll(120, 300, 0, 500)
 	// The default upstream is edited in place and saved with the rest of the
@@ -1166,7 +1211,7 @@ func TestSettingsCategoriesKeepNativeNavigationAndEditorRoutes(t *testing.T) {
 		t.Fatal("Capture did not hand off to the existing ignored-host editor")
 	}
 	click("Cancel")
-	click("Settings")
+	openSettingsFromBar(t, tt)
 	click("Done")
 	if a.settingsOpen {
 		t.Fatal("the fixed Done footer was not reachable")
@@ -1183,12 +1228,12 @@ func TestSettingsEscapeRestoresVisibleKeyboardFocus(t *testing.T) {
 			// focused, so exclude it by checking a neighboring control.
 			for range 100 {
 				tt.Key(0, ui.KeyTab)
-				if tt.Focused("Settings") && !tt.Focused("Tools") {
+				if tt.Focused("Proxy status") && !tt.Focused("Tools") {
 					break
 				}
 			}
 			hasRing := func() bool {
-				bounds, ok := tt.Find("Settings")
+				bounds, ok := tt.Find("Proxy status")
 				if !ok {
 					return false
 				}
@@ -1203,7 +1248,7 @@ func TestSettingsEscapeRestoresVisibleKeyboardFocus(t *testing.T) {
 				}
 				return false
 			}
-			if !tt.Focused("Settings") || tt.Focused("Tools") || !hasRing() {
+			if !tt.Focused("Proxy status") || tt.Focused("Tools") || !hasRing() {
 				t.Fatal("Tab did not visibly focus the Settings opener")
 			}
 			tt.Key(0, ui.KeyEnter)
@@ -1214,7 +1259,7 @@ func TestSettingsEscapeRestoresVisibleKeyboardFocus(t *testing.T) {
 			// Inspect before key release or another input can request an
 			// unrelated frame and hide a missing dismissal repaint.
 			tt.KeyDown(ui.KeyEscape)
-			if a.settingsOpen || !tt.Focused("Settings") || tt.Focused("Tools") || !hasRing() {
+			if a.settingsOpen || !tt.Focused("Proxy status") || tt.Focused("Tools") || !hasRing() {
 				t.Fatal("Escape did not restore a visible focus ring to Settings")
 			}
 			tt.KeyUp(ui.KeyEscape)
@@ -2341,11 +2386,13 @@ func TestShellIsOneSurfaceAroundTheRaisedPanel(t *testing.T) {
 		a.workbench.sidebarHidden = hidden
 		tt := ui.NewTester(a.view, 1280, 800)
 		im := tt.Image()
-		chrome := im.RGBAAt(640, 20)
+		// The bar's own surface, clear of the listening pill at its middle
+		// and of the controls at either end.
+		chrome := im.RGBAAt(800, 20)
 		for _, at := range []struct {
 			name string
 			x, y int
-		}{{"title bar", 640, 20}, {"footer", 640, 790}} {
+		}{{"title bar", 800, 20}, {"footer", 640, 790}} {
 			if got := im.RGBAAt(at.x, at.y); got != chrome {
 				t.Fatalf("sidebarHidden=%t: the %s is %v, not the shell's %v", hidden, at.name, got, chrome)
 			}
@@ -2902,10 +2949,9 @@ func TestProxyPortEditorSavesWithoutInterruptingCapture(t *testing.T) {
 	a := workspaceApp()
 	a.srv, a.settingsPath = srv, filepath.Join(t.TempDir(), "settings.json")
 	tt := ui.NewTester(a.view, 960, 600)
-	for _, label := range []string{"Settings", "Proxy"} {
-		if err := tt.Click(label); err != nil {
-			t.Fatal(err)
-		}
+	openSettingsFromBar(t, tt)
+	if err := tt.Click("Proxy"); err != nil {
+		t.Fatal(err)
 	}
 	edit := func(value string) {
 		t.Helper()
@@ -4170,7 +4216,7 @@ func TestDeviceOnboardingCertificateHTTPSAndLiveTunnelRevocation(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	click("Settings")
+	openSettingsFromBar(t, tt)
 	click("Settings category: Devices")
 	click("Connect a device…")
 	if !tt.HasText("LAN off") {

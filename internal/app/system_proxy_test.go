@@ -88,10 +88,9 @@ func settleProxy(t *testing.T, a *app, tt *ui.Tester) {
 // does, so the check that entering the tab starts is part of the test.
 func openProxySettings(t *testing.T, tt *ui.Tester) {
 	t.Helper()
-	for _, label := range []string{"Settings", "Proxy"} {
-		if err := tt.Click(label); err != nil {
-			t.Fatal(err)
-		}
+	openSettingsFromBar(t, tt)
+	if err := tt.Click("Proxy"); err != nil {
+		t.Fatal(err)
 	}
 }
 
@@ -158,6 +157,12 @@ func TestProxySettingsFastChecksReadOncePerVisit(t *testing.T) {
 			}, 1280, 800)
 			for visit, labels := range visits {
 				for _, label := range labels {
+					// The bar carries no settings button: opening Settings
+					// starts at the ⋯ menu, where the window offers it.
+					if label == "Settings" {
+						openSettingsFromBar(t, tt)
+						continue
+					}
 					if err := tt.Click(label); err != nil {
 						t.Fatal(err)
 					}
@@ -430,9 +435,7 @@ func TestProxySettingsReadTheOSOnEveryVisit(t *testing.T) {
 	}
 	// The machine may have changed while Settings was closed.
 	fake.check = system.ProxyCheck{Status: system.ProxyMatches, Configs: []system.ProxyConfig{manualProxy(t, "Wi-Fi", a.srv.Addr())}}
-	if err := tt.Click("Settings"); err != nil {
-		t.Fatal(err)
-	}
+	openSettingsFromBar(t, tt)
 	settleProxy(t, a, tt)
 	if fake.reads != 2 {
 		t.Fatalf("read the OS %d times, want a check on each visit", fake.reads)

@@ -34,23 +34,24 @@ func (a *app) shell(c *ui.Context, t *ui.Theme) {
 			a.proxyIndicator(c, t)
 		})
 		ui.Spacer(c)
+		// Four at most: the palette, the layout, the tools and everything
+		// else. Settings is in the app menu and in ⋯, so the bar does not
+		// carry a third way to it.
 		ui.Row(c).Shrink(0).Gap(t.Space(0.5)).AlignItems(ui.Center).PaddingEnd(max(bar.Right, t.Space(3))).Children(func() {
 			a.commandButton(c, t)
-			a.sidebarToggle(c)
 			a.layoutToggle(c)
 			uikit.IconButton(c, locales.Tools(), locales.ManageDebuggingRulesAndNetwork(), toolsIcon).PopoverMenuButton(func(m *ui.Menu) {
 				actionMenu(m, append([]action{do("tools.rules", locales.DebuggingRules2(), a.openRules).in("rules")}, a.networkTools()...))
 			})
-			if uikit.IconButton(c, locales.Settings(), locales.SettingsCtrlCmd(), settingsIcon).Clicked() {
-				a.openSettings(-1)
-			}
 			uikit.MoreButton(c, locales.More(), locales.MoreCommands(), func(m *ui.Menu) { a.moreMenu(c, m) })
 		})
 	})
 }
 
-// barLeading is the title bar's start: the record switch and the brand, past
-// any window controls on the left.
+// barLeading is the title bar's start: the sidebar switch, the record switch
+// and the brand, past any window controls on the left. The sidebar switch sits
+// beside the window's controls, where macOS apps keep it, rather than at the
+// far end of the bar with the tools.
 func (a *app) barLeading(c *ui.Context, t *ui.Theme) {
 	bar := c.TitleBar()
 	start := t.Space(2)
@@ -59,6 +60,7 @@ func (a *app) barLeading(c *ui.Context, t *ui.Theme) {
 	}
 	ui.Row(c).Height(max(bar.Height, uikit.HeightBar)).PaddingStart(start).Gap(t.Space(1)).AlignItems(ui.Center).
 		DragWindow().Children(func() {
+		a.sidebarToggle(c)
 		a.recordButton(c, t)
 		a.brand(c, t)
 	})
@@ -103,18 +105,22 @@ func (a *app) commandButton(c *ui.Context, t *ui.Theme) {
 	}
 }
 
-// brandBar is the window's name past any window controls on the left: at
-// the top of the sidebar on macOS.
+// brandBar is the window's name past any window controls on the left, with the
+// sidebar's switch beside them: at the top of the sidebar on macOS, where the
+// bar's own start is.
 func (a *app) brandBar(c *ui.Context, t *ui.Theme) {
 	bar := c.TitleBar()
-	// bar.Left ends at the last window control's edge; the brand keeps a
-	// gap from it rather than touching the zoom button.
+	// bar.Left ends at the last window control's edge; the switch and the
+	// brand keep a gap from it rather than touching the zoom button.
 	start := t.Space(3)
 	if bar.Left > 0 {
 		start += bar.Left
 	}
 	ui.Row(c).Height(max(bar.Height, uikit.HeightBar)).PaddingStart(start).Gap(t.Space(2)).AlignItems(ui.Center).
-		DragWindow().Children(func() { a.brand(c, t) })
+		DragWindow().Children(func() {
+		a.sidebarToggle(c)
+		a.brand(c, t)
+	})
 }
 
 // brand is the app's icon and name.
@@ -671,6 +677,9 @@ func (a *app) moreActions(c *ui.Context) []action {
 		submenu(locales.Network(), network...),
 		submenu(locales.Session(), session...),
 		submenu(locales.View(), view...),
+		// The window's settings, beside the app menu's ⌘, and the palette's:
+		// one place in the window rather than a button of its own.
+		do("app.settings", locales.OpenSettings(), func() { a.openSettings(-1) }).keys(ui.Cmd, ui.KeyComma).in("settings"),
 	}
 }
 

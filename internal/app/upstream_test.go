@@ -221,10 +221,9 @@ func TestUpstreamSettingsEditorAppliesRulesAndBypass(t *testing.T) {
 	a.srv = &capture.Server{}
 	a.settingsPath = filepath.Join(t.TempDir(), "settings.json")
 	tt := ui.NewTester(a.view, 1280, 900)
-	for _, label := range []string{"Settings", "Proxy"} {
-		if err := tt.Click(label); err != nil {
-			t.Fatal(err)
-		}
+	openSettingsFromBar(t, tt)
+	if err := tt.Click("Proxy"); err != nil {
+		t.Fatal(err)
 	}
 	scrollTo := func(label string) {
 		t.Helper()

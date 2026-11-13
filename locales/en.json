@@ -3229,7 +3229,6 @@
   "settings": "Settings",
   "settings2": "Settings…",
   "settingsCategory": "Settings category: {name}",
-  "settingsCtrlCmd": "Settings · Ctrl/Cmd+,",
   "setupCompleteTheFirstDecrypted": "Setup complete · the first decrypted request is selected",
   "setupGuide": "Setup guide",
   "setupHttpsUrl": "Setup HTTPS URL",
