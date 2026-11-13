@@ -20,11 +20,16 @@ func (a *app) shell(c *ui.Context, t *ui.Theme) {
 	ui.Row(c).Height(max(bar.Height, uikit.HeightBar)).AlignItems(ui.Center).DragWindow().Children(func() {
 		if !a.macChrome || !a.sidebarShown() {
 			a.barLeading(c, t)
-		} else {
-			a.recordButton(c, t)
 		}
 		ui.Spacer(c)
-		a.proxyIndicator(c, t)
+		// The switch sits with the state it reports: on macOS the brand is in
+		// the sidebar, so the bar would otherwise start with a lone button.
+		ui.Row(c).Shrink(0).Gap(t.Space(1.5)).AlignItems(ui.Center).Children(func() {
+			if a.macChrome && a.sidebarShown() {
+				a.recordButton(c, t)
+			}
+			a.proxyIndicator(c, t)
+		})
 		ui.Spacer(c)
 		ui.Row(c).Shrink(0).Gap(t.Space(0.5)).AlignItems(ui.Center).PaddingEnd(max(bar.Right, t.Space(3))).Children(func() {
 			a.commandButton(c, t)
