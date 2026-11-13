@@ -169,9 +169,66 @@ func TestActivityAxisKeepsItsBucketsInPlace(t *testing.T) {
 		t.Fatalf("the request moved from bucket %d to %d", first, got)
 	}
 	// A brush keeps the axis it was drawn on: the selected times come from it.
-	brush := activityRange{end: end, start: start, selection: uikit.ActivityRange{From: first, To: first + 1}}
+	brush := activityRange{end: end, from: start.Add(time.Duration(first) * activityStep), to: start.Add(time.Duration(first+1) * activityStep), frozen: true}
 	if from, _ := brush.bounds(); !from.Equal(start.Add(time.Duration(first) * activityStep)) {
 		t.Fatalf("brush starts at %v, want the bucket it was drawn on", from)
+	}
+	if band := brush.band(start); band != (uikit.ActivityRange{From: first, To: first + 1}) {
+		t.Fatalf("the brush draws as %+v, want its own bucket", band)
+	}
+}
+
+// A brush is one window: the chip, the rows it keeps and the band the strip
+// draws all name the same traffic. When the strip's clock moves on, the band
+// goes with the bars instead of sliding off them.
+func TestActivityBrushKeepsItsWindowWhenTheAxisMoves(t *testing.T) {
+	a := workspaceApp()
+	now := time.Now().Truncate(activityStep)
+	a.flows = nil
+	for i := range 6 {
+		at := now.Add(-time.Duration(6-i) * activityStep)
+		a.flows = append(a.flows, flow{id: i + 1, at: at, host: "example.test", method: "GET", status: 200, live: true})
+	}
+	a.applyFilter()
+	tt := ui.NewTester(a.view, 1280, 800)
+	tt.Frame()
+	plot, ok := tt.Find("Activity time range")
+	if !ok {
+		t.Fatal("no activity strip")
+	}
+	// Brush the buckets the six requests sit in: the right sixth of the axis.
+	tt.Press(plot.X+plot.W*0.9, plot.Y+plot.H/2)
+	tt.Move(plot.X+plot.W, plot.Y+plot.H/2)
+	tt.Release(plot.X+plot.W, plot.Y+plot.H/2)
+	tt.Frame()
+	if len(a.visible) != 6 {
+		t.Fatalf("%d rows in the brushed window, want all 6", len(a.visible))
+	}
+	from, to := a.activity.bounds()
+	// The strip's clock moves on, as a live capture's does.
+	a.activity.end = a.activity.end.Add(40 * time.Second)
+	tt.Frame()
+	if got, _ := a.activity.bounds(); !got.Equal(from) {
+		t.Fatalf("the window moved from %v to %v", from, got)
+	}
+	if _, got := a.activity.bounds(); !got.Equal(to) {
+		t.Fatalf("the window ends at %v, want %v", got, to)
+	}
+	if len(a.visible) != 6 {
+		t.Fatalf("%d rows after the axis moved, want the same 6", len(a.visible))
+	}
+	if !tt.HasText("Time: " + a.activity.label()) {
+		t.Fatalf("the chip no longer names the window: %q", tt.Texts())
+	}
+	// The band is drawn from the window on the axis the bars are drawn on,
+	// so every row the chip keeps sits inside it.
+	start, _ := a.activityAxis(a.activity.end)
+	band := a.activity.band(start)
+	for _, at := range a.visible {
+		bucket := int(a.flows[at].at.Sub(start) / activityStep)
+		if bucket < band.From || bucket >= band.To {
+			t.Fatalf("the row at %v sits in bucket %d, outside the band %+v", a.flows[at].at.Format("15:04:05"), bucket, band)
+		}
 	}
 }
 
