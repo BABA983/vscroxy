@@ -6881,3 +6881,37 @@ func TestSessionsLiveWithTheTraffic(t *testing.T) {
 		t.Fatal("the sidebar's footer still carries disclosure arrows")
 	}
 }
+
+// An empty Collections tree offers a request rather than a sentence about
+// where one would go, and the header does not offer the same thing twice: with
+// nothing saved the row in the tree is the way in, and a saved request puts the
+// header's button back.
+func TestEmptyCollectionsOfferARequestRow(t *testing.T) {
+	a := workspaceApp()
+	a.requests, a.folders, a.documents = nil, nil, nil
+	tt := ui.NewTester(a.view, 1280, 800)
+	tt.Frame()
+	row, ok := tt.Find("New request")
+	search, okSearch := tt.Find("Search collections")
+	if !ok || !okSearch {
+		t.Fatalf("no New request row: %q", tt.Texts())
+	}
+	if row.Y <= search.Y {
+		t.Fatalf("New request is at %v, not in the tree below the search field at %v", row.Y, search.Y)
+	}
+	if err := tt.Click("New request"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if a.page != pageRequest || a.requestDocument == nil {
+		t.Fatalf("the row opened page %v with document %v", a.page, a.requestDocument != nil)
+	}
+	a.requests = []savedRequest{{Name: "One", Collection: "Workspace", Method: "GET", URL: "https://example.test"}}
+	a.page = pageLive
+	tt.Frame()
+	row, ok = tt.Find("New request")
+	search, _ = tt.Find("Search collections")
+	if !ok || row.Y >= search.Y {
+		t.Fatalf("with a collection saved, New request is at %v, not in the header above %v", row.Y, search.Y)
+	}
+}

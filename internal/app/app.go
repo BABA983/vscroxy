@@ -2290,8 +2290,12 @@ func (a *app) collectionsRegion(c *ui.Context, t *ui.Theme) {
 	uikit.SidebarList(c, "collections-region", &a.sidebarChoice, func(id string) { a.goTo(id) }, func() {
 		head := uikit.SidebarHeading(c, locales.Collections(), collections, func() {
 			uikit.MoreButton(c, locales.CollectionOptions(), locales.CollectionsApisEnvironmentsAndRuns(), a.collectionsMenu)
-			if uikit.IconButton(c, locales.NewRequest(), locales.NewRequest(), plusIcon).Clicked() {
-				a.openCompose()
+			// With nothing saved yet the tree's own row is the way to a
+			// request: one entry rather than two.
+			if len(a.requests) > 0 || len(a.folders) > 0 {
+				if uikit.IconButton(c, locales.NewRequest(), locales.NewRequest(), plusIcon).Clicked() {
+					a.openCompose()
+				}
 			}
 		})
 		if a.revealGroup == "collections" {

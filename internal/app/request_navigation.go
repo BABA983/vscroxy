@@ -183,6 +183,18 @@ func (a *app) collectionTree(c *ui.Context) {
 	tree.Root.Gap(0).Children(func() {
 		a.unsavedRequests(c, tree, query)
 		branch("", 0)
+		// Nothing saved yet: the tree offers the one thing a collection
+		// needs, a request, instead of a sentence about where one would go.
+		if len(a.requests) == 0 && len(paths) == 0 {
+			item := tree.Item(nil)
+			row := treeRow(c, item, 0).Label(locales.NewRequest()).OnClick(a.openCompose)
+			row.Children(func() {
+				ui.Row(c).Width(uikit.IconLarge).Shrink(0).Justify(ui.Center).Children(func() {
+					ui.Icon(c, plusIcon).Size(uikit.IconInline, uikit.IconInline).TextColor(c.Theme().TextMuted)
+				})
+				uikit.Body(c, locales.NewRequest()).SingleLine().Grow(1)
+			})
+		}
 	})
 }
 
