@@ -44,7 +44,7 @@ const (
 	// the container's radius less the padding, which is RadiusInner.
 	RadiusInner   = 4
 	RadiusControl = 6
-	RadiusPanel   = 10
+	RadiusPanel   = 8
 	IconInline    = 14
 	IconLarge     = 16
 	DialogSmall   = 480

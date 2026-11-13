@@ -2312,8 +2312,10 @@ func TestShellIsOneSurfaceAroundTheRaisedPanel(t *testing.T) {
 			}
 		}
 		if !hidden {
-			if got := im.RGBAAt(100, 300); got != chrome {
-				t.Fatalf("the sidebar is %v, not the shell's %v", got, chrome)
+			// The sidebar is its own card, a step off the shell rather than
+			// the shell itself.
+			if got := im.RGBAAt(100, 300); got == chrome {
+				t.Fatalf("the sidebar is the shell's own color, not a card on it")
 			}
 		}
 		canvas := im.RGBAAt(640, 300)
@@ -4818,8 +4820,8 @@ func TestCaptureSelectionMarkerFollowsListAndWindowFocus(t *testing.T) {
 	// never turns white.
 	type look struct{ fill, marker [3]int }
 	looks := map[bool][2]look{
-		false: {{[3]int{241, 241, 241}, [3]int{158, 156, 150}}, {[3]int{216, 212, 203}, [3]int{26, 26, 24}}},
-		true:  {{[3]int{47, 47, 45}, [3]int{104, 102, 96}}, {[3]int{69, 68, 63}, [3]int{233, 232, 228}}},
+		false: {{[3]int{232, 236, 230}, [3]int{138, 143, 136}}, {[3]int{214, 220, 214}, [3]int{20, 22, 20}}},
+		true:  {{[3]int{28, 37, 38}, [3]int{109, 118, 110}}, {[3]int{47, 55, 47}, [3]int{234, 243, 233}}},
 	}
 	for _, dark := range []bool{false, true} {
 		t.Run(fmt.Sprintf("dark=%t", dark), func(t *testing.T) {

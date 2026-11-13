@@ -1732,12 +1732,13 @@ func (a *app) panel(c *ui.Context, t *ui.Theme) {
 	// A row of three: the gutter, the panel, and the gutter at the window's
 	// right edge. Padding on the panel itself would join its own size and
 	// push it past the edge.
+	// The content is a card on the shell: no edge and no shadow, told apart
+	// by its surface alone, as the sidebar beside it is.
 	ui.Row(c).Grow(1).FillWidth().MinHeight(0).Transition(uikit.PaneMotion).Children(func() {
 		if left > 0 {
 			ui.Box(c).Width(left).Shrink(0).FillHeight()
 		}
-		ui.Column(c).Grow(1).MinWidth(0).FillHeight().Background(p.Canvas).Radius(uikit.RadiusPanel).
-			Shadow(0, 0, 0, 1, p.Hairline).Shadow(0, 1, 3, 0, p.Shadow).Clip().Children(func() {
+		ui.Column(c).Grow(1).MinWidth(0).FillHeight().Background(p.Canvas).Radius(uikit.RadiusPanel).Clip().Children(func() {
 			if a.srv == nil && a.errText != "" {
 				ui.Text(c, locales.ProxyUnavailable(a.errText)).Padding(t.Space(2), t.Space(3)).FontSize(uikit.TextBody).TextColor(t.Danger)
 			}
@@ -1965,7 +1966,8 @@ func (a *app) sidebar(c *ui.Context) {
 	t := c.Theme()
 	// Over macOS's material the panel stays nine parts opaque: the desktop
 	// shows only as a faint shift in its tone.
-	panel := uikit.Colors(t).Chrome
+	// The sidebar is its own card on the shell, a step off the content's.
+	panel := uikit.Colors(t).Sidebar
 	if c.Vibrancy() {
 		panel = panel.Alpha(0.9)
 	}
