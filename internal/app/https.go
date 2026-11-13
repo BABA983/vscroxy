@@ -139,8 +139,8 @@ func (a *app) httpsSettings(c *ui.Context, t *ui.Theme) {
 	s := &a.certificate
 	uikit.SettingsPage(c, locales.Https(), locales.TrustingTheCaMakesDecryption(), func() {
 		uikit.SettingsGroup(c, locales.Certificate(), func() {
-			ui.Field(c, locales.Trust(), func() {
-				ui.Column(c).Gap(t.Space(1)).Children(func() {
+			uikit.SettingsRow(c, locales.Trust(), func() ui.Element {
+				return ui.Column(c).Gap(t.Space(1)).Children(func() {
 					ui.Text(c, status).FontSize(uikit.Scaled(uikit.TextBody)).FontWeight(500).TextColor(color)
 					if s.cert != nil {
 						uikit.Body(c, cmp.Or(s.cert.Subject.CommonName, s.cert.Subject.String()))
@@ -174,11 +174,11 @@ func (a *app) httpsSettings(c *ui.Context, t *ui.Theme) {
 						}
 					}
 				})
-			})
-			// The buttons are their own field, so a disabled one does not
+			}, "")
+			// The buttons are their own row, so a disabled one does not
 			// gray the Trust label.
-			ui.Field(c, "", func() {
-				ui.Row(c).Gap(t.Space(2)).Wrap().Children(func() {
+			uikit.SettingsRow(c, "", func() ui.Element {
+				return ui.Row(c).Gap(t.Space(2)).Wrap().Children(func() {
 					if uikit.Tip(c, uikit.PrimaryButton(c, locales.InstallTrust()), locales.TrustTheLocalCaOn()).Disabled(s.checking || s.cert == nil || s.checked && s.err == nil).Clicked() {
 						a.checkCertificate(true)
 					}
@@ -189,17 +189,19 @@ func (a *app) httpsSettings(c *ui.Context, t *ui.Theme) {
 						a.revealCA()
 					}
 				})
-			}).Description(certificateScope())
+			}, certificateScope())
 		})
 		uikit.SettingsGroup(c, locales.Decryption(), func() {
-			ui.Field(c, locales.EveryDomain(), func() {
+			uikit.SettingsRow(c, locales.EveryDomain(), func() ui.Element {
 				all := a.sslAll
-				if ui.Switch(c, &all).Label(locales.DecryptEveryDomain()).Changed() {
+				toggle := ui.Switch(c, &all).Label(locales.DecryptEveryDomain())
+				if toggle.Changed() {
 					cfg := a.inspectionConfig()
 					cfg.All = all
 					a.saveSSL(cfg)
 				}
-			}).Description(locales.DecryptEveryNewHttpsConnection())
+				return toggle
+			}, locales.DecryptEveryNewHttpsConnection())
 			domains := splitHosts(a.sslHosts)
 			summary := "None"
 			hint := "Enable a domain or a local app to read its headers, cookies and bodies."
@@ -211,19 +213,19 @@ func (a *app) httpsSettings(c *ui.Context, t *ui.Theme) {
 				summary = strings.Join(domains, ", ")
 				hint = "These domains and their subdomains are decrypted. Every other host stays an encrypted tunnel."
 			}
-			ui.Field(c, locales.DomainsAndApps(), func() {
-				ui.Row(c).Gap(t.Space(3)).AlignItems(ui.Center).Children(func() {
+			uikit.SettingsRow(c, locales.DomainsAndApps(), func() ui.Element {
+				return ui.Row(c).Gap(t.Space(3)).AlignItems(ui.Center).Children(func() {
 					if uikit.SecondaryButton(c, locales.ManageDomains()).Clicked() {
 						a.leaveSettings()
 						a.sslOpen = true
 					}
 					uikit.Tip(c, uikit.Hint(c, summary).SingleLine().Shrink(1).MinWidth(0), summary)
 				})
-			}).Description(hint)
+			}, hint)
 		})
 		uikit.SettingsGroup(c, locales.Wireshark(), func() {
-			ui.Field(c, locales.TlsKeyLog(), func() {
-				ui.Row(c).Gap(t.Space(2)).Wrap().AlignItems(ui.Center).Children(func() {
+			uikit.SettingsRow(c, locales.TlsKeyLog(), func() ui.Element {
+				return ui.Row(c).Gap(t.Space(2)).Wrap().AlignItems(ui.Center).Children(func() {
 					if uikit.SecondaryButton(c, locales.TlsKeyLog2()).Clicked() {
 						a.leaveSettings()
 						a.openKeyLog()
@@ -231,7 +233,7 @@ func (a *app) httpsSettings(c *ui.Context, t *ui.Theme) {
 					uikit.Tip(c, uikit.Mono(c, cmp.Or(a.keyLogPath, "Off")).TextColor(t.TextMuted).SingleLine().MaxWidth(260), a.keyLogPath)
 					restartPending(c, a.keyLogPath != a.launchKeyLog)
 				})
-			}).Description(locales.WriteTlsSecretsToA())
+			}, locales.WriteTlsSecretsToA())
 		})
 	})
 }

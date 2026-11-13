@@ -125,13 +125,13 @@ func (a *app) certificateSettings(c *ui.Context, t *ui.Theme) {
 			}
 		})
 		uikit.SettingsGroup(c, locales.TrustedRoots(), func() {
-			ui.Row(c).Gap(t.Space(2)).MinHeight(uikit.HeightControl).AlignItems(ui.Center).Children(func() {
-				if ui.Switch(c, &e.trustSystem).Label(locales.TrustSystemRoots()).Changed() {
+			uikit.SettingsRow(c, locales.TrustSystemRoots(), func() ui.Element {
+				toggle := ui.Switch(c, &e.trustSystem).Label(locales.TrustSystemRoots())
+				if toggle.Changed() {
 					e.dirty = true
 				}
-				ui.Text(c, locales.TrustSystemRoots()).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Text)
-			})
-			uikit.Meta(c, locales.ExtraPemRootsAreAdded())
+				return toggle
+			}, locales.ExtraPemRootsAreAdded())
 			remove := -1
 			for i := range e.roots {
 				root := &e.roots[i]

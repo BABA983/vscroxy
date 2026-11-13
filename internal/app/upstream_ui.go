@@ -431,28 +431,36 @@ func (a *app) upstreamSettingsGroup(c *ui.Context, t *ui.Theme) {
 		if u.problem != "" {
 			ui.Text(c, u.problem).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Danger).Selectable()
 		}
-		ui.Field(c, locales.DefaultText2(), func() {
-			if uikit.Input(c, &u.defaultAddr).Label(locales.DefaultUpstream()).Placeholder(locales.DirectConnection()).Grow(1).MinWidth(160).Changed() {
+		uikit.SettingsRow(c, locales.DefaultText2(), func() ui.Element {
+			in := uikit.Input(c, &u.defaultAddr).Label(locales.DefaultUpstream()).Placeholder(locales.DirectConnection()).Grow(1).MinWidth(160)
+			if in.Changed() {
 				u.dirty = true
 			}
-		}).Description(locales.EmptyConnectsDirectlyAHost())
-		ui.Field(c, locales.HostRules(), func() {
-			if ui.TextArea(c, &u.rules).Label(locales.HostRules()).Placeholder("*.internal.test socks5://127.0.0.1:1080\napi.example.com:443 direct").Height(60).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextBody)).Radius(uikit.RadiusControl).Changed() {
+			return in
+		}, locales.EmptyConnectsDirectlyAHost())
+		uikit.SettingsRow(c, locales.HostRules(), func() ui.Element {
+			area := ui.TextArea(c, &u.rules).Label(locales.HostRules()).Placeholder("*.internal.test socks5://127.0.0.1:1080\napi.example.com:443 direct").Height(60).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextBody)).Radius(uikit.RadiusControl)
+			if area.Changed() {
 				u.dirty = true
 			}
-		}).Description(locales.OnePerLineHostPattern())
-		ui.Field(c, locales.Bypass(), func() {
-			if ui.TextArea(c, &u.bypass).Label(locales.BypassList()).Placeholder("localhost\n*.internal.test\n10.0.0.0/8").Height(50).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextBody)).Radius(uikit.RadiusControl).Changed() {
+			return area
+		}, locales.OnePerLineHostPattern())
+		uikit.SettingsRow(c, locales.Bypass(), func() ui.Element {
+			area := ui.TextArea(c, &u.bypass).Label(locales.BypassList()).Placeholder("localhost\n*.internal.test\n10.0.0.0/8").Height(50).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextBody)).Radius(uikit.RadiusControl)
+			if area.Changed() {
 				u.dirty = true
 			}
-		}).Description(locales.HostsExampleComCidrLocalhost())
-		ui.Field(c, locales.Pac(), func() {
-			if uikit.Input(c, &u.pac).Label(locales.PacFileOrUrl()).Placeholder("https://example.com/proxy.pac").Grow(1).MinWidth(200).Changed() {
+			return area
+		}, locales.HostsExampleComCidrLocalhost())
+		uikit.SettingsRow(c, locales.Pac(), func() ui.Element {
+			in := uikit.Input(c, &u.pac).Label(locales.PacFileOrUrl()).Placeholder("https://example.com/proxy.pac").Grow(1).MinWidth(200)
+			if in.Changed() {
 				u.dirty = true
 			}
-		}).Description(locales.ALocalPacFileOr())
-		ui.Field(c, locales.Credentials(), func() {
-			ui.Column(c).Gap(t.Space(1)).Children(func() {
+			return in
+		}, locales.ALocalPacFileOr())
+		uikit.SettingsRow(c, locales.Credentials(), func() ui.Element {
+			return ui.Column(c).Gap(t.Space(1)).Children(func() {
 				remove := -1
 				for i := range u.credentials {
 					row := &u.credentials[i]
@@ -497,9 +505,9 @@ func (a *app) upstreamSettingsGroup(c *ui.Context, t *ui.Theme) {
 					u.dirty = true
 				}
 			})
-		}).Description(locales.UsernameAndPasswordForOne())
-		ui.Field(c, "", func() {
-			ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+		}, locales.UsernameAndPasswordForOne())
+		uikit.SettingsRow(c, "", func() ui.Element {
+			return ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 				save := uikit.PrimaryButton(c, locales.SaveUpstream()).Disabled(u.saving)
 				if save.Clicked() {
 					a.saveUpstream()
@@ -512,6 +520,6 @@ func (a *app) upstreamSettingsGroup(c *ui.Context, t *ui.Theme) {
 				}
 				uikit.Meta(c, locales.AChangeAppliesToNew())
 			})
-		})
+		}, "")
 	})
 }

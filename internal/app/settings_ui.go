@@ -32,23 +32,23 @@ func (a *app) generalSettings(c *ui.Context, t *ui.Theme) {
 			a.languageSettings(c)
 		})
 		uikit.SettingsGroup(c, locales.RulesAndConfiguration(), func() {
-			ui.Field(c, locales.DebuggingRules(), func() {
-				ui.Row(c).Children(func() {
+			uikit.SettingsRow(c, locales.DebuggingRules(), func() ui.Element {
+				return ui.Row(c).Children(func() {
 					if uikit.SecondaryButton(c, locales.ManageRules()).Clicked() {
 						a.leaveSettings()
 						a.openRules()
 					}
 				})
-			}).Description(locales.MapRewriteBlockOrDelay())
-			ui.Field(c, locales.Configuration(), func() {
-				ui.Row(c).Children(func() {
+			}, locales.MapRewriteBlockOrDelay())
+			uikit.SettingsRow(c, locales.Configuration(), func() ui.Element {
+				return ui.Row(c).Children(func() {
 					if uikit.SecondaryButton(c, locales.ReloadConfiguration()).Clicked() {
 						a.reloadConfig()
 					}
 				})
-			}).Description(locales.ReadRulesScriptsHostProfiles())
-			ui.Field(c, locales.BackUpAndShare(), func() {
-				ui.Row(c).Gap(t.Space(2)).Children(func() {
+			}, locales.ReadRulesScriptsHostProfiles())
+			uikit.SettingsRow(c, locales.BackUpAndShare(), func() ui.Element {
+				return ui.Row(c).Gap(t.Space(2)).Children(func() {
 					if uikit.SecondaryButton(c, locales.Export()).Clicked() {
 						a.chooseConfigExport()
 					}
@@ -57,17 +57,17 @@ func (a *app) generalSettings(c *ui.Context, t *ui.Theme) {
 						a.chooseConfigImport()
 					}
 				})
-			}).Description(locales.OneFileWithTheSettings())
+			}, locales.OneFileWithTheSettings())
 		})
 		uikit.SettingsGroup(c, locales.Help(), func() {
-			ui.Field(c, locales.SetupGuide(), func() {
-				ui.Row(c).Children(func() {
+			uikit.SettingsRow(c, locales.SetupGuide(), func() ui.Element {
+				return ui.Row(c).Children(func() {
 					if uikit.SecondaryButton(c, locales.ShowSetupGuide()).Disabled(a.guide).Clicked() {
 						a.leaveSettings()
 						a.openGuide()
 					}
 				})
-			}).Description(locales.CapturingTrustingTheCertificateAnd())
+			}, locales.CapturingTrustingTheCertificateAnd())
 		})
 	})
 }
@@ -75,14 +75,14 @@ func (a *app) generalSettings(c *ui.Context, t *ui.Theme) {
 func (a *app) appearanceSettings(c *ui.Context, t *ui.Theme) {
 	uikit.SettingsPage(c, locales.Appearance(), locales.HowVscroxyLooks(), func() {
 		uikit.SettingsGroup(c, locales.Theme(), func() {
-			ui.Field(c, locales.Appearance(), func() {
-				ui.Row(c).Children(func() { // as wide as its segments
+			uikit.SettingsRow(c, locales.Appearance(), func() ui.Element {
+				return ui.Row(c).Children(func() { // as wide as its segments
 					modes := []string{"", "light", "dark"}
 					choice := max(slices.Index(modes, a.appearance), 0)
 					uikit.Segmented(c, &choice, locales.System(), locales.Light(), locales.Dark()).Label(locales.Appearance())
 					a.appearance = modes[choice]
 				})
-			}).Description(locales.SystemFollowsThisComputerS())
+			}, locales.SystemFollowsThisComputerS())
 		})
 	})
 }
@@ -90,22 +90,27 @@ func (a *app) appearanceSettings(c *ui.Context, t *ui.Theme) {
 func (a *app) proxySettings(c *ui.Context, t *ui.Theme) {
 	uikit.SettingsPage(c, locales.Proxy(), locales.WhereVscroxyListensAndWhere(), func() {
 		uikit.SettingsGroup(c, locales.Listener(), func() {
-			ui.Field(c, locales.Address(), func() {
+			uikit.SettingsRow(c, locales.Address(), func() ui.Element {
 				if a.srv != nil && a.srv.Running() {
-					uikit.Mono(c, a.srv.Addr()).Selectable()
-				} else {
-					ui.Text(c, locales.CaptureIsNotRunning()).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Warning)
+					return uikit.Mono(c, a.srv.Addr()).Selectable()
 				}
-			})
-			ui.Field(c, locales.Port(), func() {
-				ui.Row(c).Gap(t.Space(2)).Wrap().AlignItems(ui.Center).Children(func() {
-					uikit.Input(c, &a.proxyPortInput).Label(locales.ProxyPort()).Placeholder(locales.Automatic()).Width(100)
-					if uikit.SecondaryButton(c, locales.SaveForNextLaunch()).Clicked() {
-						a.saveProxyPort()
+				return ui.Text(c, locales.CaptureIsNotRunning()).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Warning)
+			}, "")
+			uikit.SettingsRow(c, locales.Port(), func() ui.Element {
+				return ui.Column(c).Gap(t.Space(1)).Children(func() {
+					ui.Row(c).Gap(t.Space(2)).Wrap().AlignItems(ui.Center).Children(func() {
+						uikit.Input(c, &a.proxyPortInput).Label(locales.ProxyPort()).Placeholder(locales.Automatic()).Width(100).
+							Invalid(a.proxyPortProblem != "")
+						if uikit.SecondaryButton(c, locales.SaveForNextLaunch()).Clicked() {
+							a.saveProxyPort()
+						}
+						restartPending(c, a.proxyPort != a.launchPort)
+					})
+					if a.proxyPortProblem != "" {
+						ui.Text(c, a.proxyPortProblem).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Danger)
 					}
-					restartPending(c, a.proxyPort != a.launchPort)
 				})
-			}).Description(locales.BlankIsAutomaticPrefers7890()).Error(a.proxyPortProblem)
+			}, locales.BlankIsAutomaticPrefers7890())
 		})
 		a.systemProxySettings(c, t)
 		a.upstreamSettingsGroup(c, t)
@@ -117,8 +122,8 @@ func (a *app) proxySettings(c *ui.Context, t *ui.Theme) {
 func (a *app) captureSettings(c *ui.Context, t *ui.Theme) {
 	// list is a field of a host or app list: its editor and how many it has.
 	list := func(label, text, unit, about string, open *bool) ui.Element {
-		return ui.Field(c, label, func() {
-			ui.Row(c).Gap(t.Space(3)).AlignItems(ui.Center).Children(func() {
+		return uikit.SettingsRow(c, label, func() ui.Element {
+			return ui.Row(c).Gap(t.Space(3)).AlignItems(ui.Center).Children(func() {
 				if uikit.SecondaryButton(c, label+"…").Clicked() {
 					a.leaveSettings()
 					*open = true
@@ -130,16 +135,18 @@ func (a *app) captureSettings(c *ui.Context, t *ui.Theme) {
 				}
 				uikit.Hint(c, summary)
 			})
-		}).Description(about)
+		}, about)
 	}
 	uikit.SettingsPage(c, locales.Capture(), locales.WhatCaptureChangesOnThe(), func() {
 		uikit.SettingsGroup(c, locales.Responses(), func() {
-			ui.Field(c, locales.Caching(), func() {
+			uikit.SettingsRow(c, locales.Caching(), func() ui.Element {
 				on := a.srv != nil && a.srv.NoCaching()
-				if ui.Switch(c, &on).Label(locales.NoCaching()).Disabled(a.srv == nil).Changed() && a.srv != nil {
+				toggle := ui.Switch(c, &on).Label(locales.NoCaching()).Disabled(a.srv == nil)
+				if toggle.Changed() && a.srv != nil {
 					a.srv.SetNoCaching(on)
 				}
-			}).Description(locales.StripCachingHeadersBothWays())
+				return toggle
+			}, locales.StripCachingHeadersBothWays())
 		})
 		uikit.SettingsGroup(c, locales.AllowList(), func() {
 			empty := len(splitHosts(a.allowText))+len(splitHosts(a.allowAppsText)) == 0
@@ -147,11 +154,16 @@ func (a *app) captureSettings(c *ui.Context, t *ui.Theme) {
 			if a.allowOn && empty {
 				problem = "Nothing is shown until you add a host or an app."
 			}
-			ui.Field(c, locales.AllowList(), func() {
-				if ui.Switch(c, &a.allowOn).Label(locales.OnlyShowAllowedTraffic()).Changed() {
-					a.applyAllow()
-				}
-			}).Description(locales.ShowOnlyTheHostsAnd()).Error(problem)
+			uikit.SettingsRow(c, locales.AllowList(), func() ui.Element {
+				return ui.Column(c).Gap(t.Space(1)).Children(func() {
+					if ui.Switch(c, &a.allowOn).Label(locales.OnlyShowAllowedTraffic()).Changed() {
+						a.applyAllow()
+					}
+					if problem != "" {
+						ui.Text(c, problem).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Danger)
+					}
+				})
+			}, locales.ShowOnlyTheHostsAnd())
 			list("Allowed hosts", a.allowText, "host", "Each host with its subdomains.", &a.allowOpen)
 			list("Allowed apps", a.allowAppsText, "app", "As the sidebar's Apps names them.", &a.allowAppsOpen)
 		})
@@ -161,38 +173,39 @@ func (a *app) captureSettings(c *ui.Context, t *ui.Theme) {
 		})
 		uikit.SettingsGroup(c, locales.Memory(), func() {
 			// limit is a field choosing one of options, labelled by label.
-			limit := func(name string, value *int, fallback int, options []int, label func(int) string) ui.Element {
-				return ui.Field(c, name, func() {
+			limit := func(name string, value *int, fallback int, options []int, label func(int) string, hint string) ui.Element {
+				return uikit.SettingsRow(c, name, func() ui.Element {
 					labels := make([]string, len(options))
 					for i, n := range options {
 						labels[i] = label(n)
 					}
 					choice := label(cmp.Or(*value, fallback))
-					uikit.Select(c, &choice, labels).Label(name).Width(160)
+					sel := uikit.Select(c, &choice, labels).Label(name).Width(160)
 					if i := slices.Index(labels, choice); i >= 0 && options[i] != cmp.Or(*value, fallback) {
 						*value = options[i]
 						a.trimFlows()
 						a.recount()
 						a.applyFilter()
 					}
-				})
+					return sel
+				}, hint)
 			}
 			limit("Keep up to", &a.flowLimit, defaultFlowLimit, flowLimits, func(n int) string {
 				return groupThousands(n) + " requests"
-			})
+			}, "")
 			limit("Memory limit", &a.memoryLimit, defaultMemoryLimit, memoryLimits, func(mb int) string {
 				if mb >= 1024 {
 					return fmt.Sprintf("%d GB", mb/1024)
 				}
 				return fmt.Sprintf("%d MB", mb)
-			})
+			}, "")
 			limit("Disk limit", &a.diskLimit, defaultDiskLimit, diskLimits, func(gb int) string {
 				return fmt.Sprintf("%d GB", gb)
-			}).Description(locales.BodiesPast64KbAre())
-			ui.Field(c, locales.InUse(), func() {
+			}, locales.BodiesPast64KbAre())
+			uikit.SettingsRow(c, locales.InUse(), func() ui.Element {
 				memory, disk := a.retainedTotal()
-				uikit.Body(c, locales.InUseSummary(humanBytes(int(memory)), humanBytes(int(disk)), len(a.flows))).FontFeatures("tnum")
-			})
+				return uikit.Body(c, locales.InUseSummary(humanBytes(int(memory)), humanBytes(int(disk)), len(a.flows))).FontFeatures("tnum")
+			}, "")
 		})
 	})
 }
@@ -216,22 +229,22 @@ func (a *app) applyAllow() {
 func (a *app) deviceSettings(c *ui.Context, t *ui.Theme) {
 	uikit.SettingsPage(c, locales.Devices(), locales.SendTrafficFromOtherDevices(), func() {
 		uikit.SettingsGroup(c, locales.Access(), func() {
-			ui.Field(c, locales.OtherDevices(), func() {
-				ui.Row(c).Children(func() {
+			uikit.SettingsRow(c, locales.OtherDevices(), func() ui.Element {
+				return ui.Row(c).Children(func() {
 					if uikit.SecondaryButton(c, locales.ConnectADevice()).Clicked() {
 						a.leaveSettings()
 						a.openDevices()
 					}
 				})
-			}).Description(locales.PhonesAndComputersOnYour())
-			ui.Field(c, locales.ThisComputer(), func() {
-				ui.Row(c).Children(func() {
+			}, locales.PhonesAndComputersOnYour())
+			uikit.SettingsRow(c, locales.ThisComputer(), func() ui.Element {
+				return ui.Row(c).Children(func() {
 					if uikit.SecondaryButton(c, locales.SetUpALocalClient()).Clicked() {
 						a.leaveSettings()
 						a.openClientSetup()
 					}
 				})
-			}).Description(locales.PointOneProgramAtThe())
+			}, locales.PointOneProgramAtThe())
 		})
 	})
 }

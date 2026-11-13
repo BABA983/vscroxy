@@ -914,6 +914,31 @@ func SettingsGroup(c *ui.Context, legend string, fields func()) ui.Element {
 		BorderWidth(0, 0, 1, 0).BorderColor(t.Border)
 }
 
+// SettingsRow is one setting as a row: its label in a fixed left column, its
+// control beside it, and a hint under the control when it needs one. The
+// label column is Scaled so it follows the text size, and the hint stays a
+// meta line within the control's width instead of running across the page.
+func SettingsRow(c *ui.Context, label string, control func() ui.Element, hint string) ui.Element {
+	t := c.Theme()
+	labelWidth := Scaled(112)
+	row := ui.Row(c).FillWidth().Gap(t.Space(4)).AlignItems(ui.Start)
+	row.Children(func() {
+		if label == "" {
+			ui.Box(c).Width(labelWidth).Shrink(0)
+		} else {
+			ui.Text(c, label).FontSize(Scaled(TextBody)).TextColor(t.Text).Width(labelWidth).Shrink(0).SingleLine()
+		}
+		ui.Column(c).Grow(1).MinWidth(0).Gap(t.Space(1)).Children(func() {
+			control()
+			if hint != "" {
+				ui.Text(c, hint).FontSize(Scaled(TextMeta)).TextColor(t.TextMuted).
+					MaxWidth(Scaled(400)).LineHeight(LineProse)
+			}
+		})
+	})
+	return row
+}
+
 // SelectLabels is Select for values a screen names in its own language: the
 // stored value stays option, while the trigger and the popup show label of
 // it. The app uses it where an option is an identifier it compares, such as

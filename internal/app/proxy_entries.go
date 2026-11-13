@@ -152,8 +152,8 @@ func (a *app) saveSOCKS() {
 
 func (a *app) socksSettings(c *ui.Context, t *ui.Theme) {
 	uikit.SettingsGroup(c, locales.Socks5(), func() {
-		ui.Field(c, locales.Enable(), func() {
-			ui.Row(c).Gap(t.Space(2)).Wrap().AlignItems(ui.Center).Children(func() {
+		uikit.SettingsRow(c, locales.Enable(), func() ui.Element {
+			return ui.Row(c).Gap(t.Space(2)).Wrap().AlignItems(ui.Center).Children(func() {
 				ui.Switch(c, &a.socksOnDraft).Label(locales.EnableSocks5Proxy())
 				if a.srv != nil && a.srv.SOCKSAddr() != "" {
 					uikit.Mono(c, a.srv.SOCKSAddr()).Selectable().TextColor(t.TextMuted)
@@ -167,31 +167,37 @@ func (a *app) socksSettings(c *ui.Context, t *ui.Theme) {
 					uikit.Hint(c, locales.Off())
 				}
 			})
-		}).Description(locales.ASecondEntryForClients())
+		}, locales.ASecondEntryForClients())
 		if a.socksOnDraft {
-			ui.Field(c, locales.Port(), func() {
-				uikit.Input(c, &a.socksPortInput).Label(locales.Socks5Port()).Placeholder(locales.Automatic()).Width(100)
-			}).Description(locales.BlankIsAutomaticAnOs()).Error(a.socksProblem)
-			ui.Field(c, locales.Authentication(), func() {
-				ui.Switch(c, &a.socksAuthDraft).Label(locales.RequireUsernameAndPassword())
-			}).Description(locales.Rfc1929WithoutItThe())
+			uikit.SettingsRow(c, locales.Port(), func() ui.Element {
+				return ui.Column(c).Gap(t.Space(1)).Children(func() {
+					uikit.Input(c, &a.socksPortInput).Label(locales.Socks5Port()).Placeholder(locales.Automatic()).Width(100).
+						Invalid(a.socksProblem != "")
+					if a.socksProblem != "" {
+						ui.Text(c, a.socksProblem).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Danger)
+					}
+				})
+			}, locales.BlankIsAutomaticAnOs())
+			uikit.SettingsRow(c, locales.Authentication(), func() ui.Element {
+				return ui.Switch(c, &a.socksAuthDraft).Label(locales.RequireUsernameAndPassword())
+			}, locales.Rfc1929WithoutItThe())
 			if a.socksAuthDraft {
-				ui.Field(c, locales.Username(), func() {
-					uikit.Input(c, &a.socksUserDraft).Label(locales.Socks5Username()).Width(220)
-				})
-				ui.Field(c, locales.Password(), func() {
-					uikit.Input(c, &a.socksPassDraft).Label(locales.Socks5Password()).Password().Width(220)
-				})
+				uikit.SettingsRow(c, locales.Username(), func() ui.Element {
+					return uikit.Input(c, &a.socksUserDraft).Label(locales.Socks5Username()).Width(220)
+				}, "")
+				uikit.SettingsRow(c, locales.Password(), func() ui.Element {
+					return uikit.Input(c, &a.socksPassDraft).Label(locales.Socks5Password()).Password().Width(220)
+				}, "")
 			}
 		}
-		ui.Field(c, "", func() {
-			ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+		uikit.SettingsRow(c, "", func() ui.Element {
+			return ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 				if uikit.SecondaryButton(c, locales.SaveSocks5Settings()).Clicked() {
 					a.saveSOCKS()
 				}
 				restartPending(c, a.socksEntry() != a.launchSOCKS)
 			})
-		})
+		}, "")
 	})
 }
 
@@ -366,27 +372,29 @@ func (a *app) reverseProxySettings(c *ui.Context, t *ui.Theme) {
 					state = "Starting…"
 				}
 			}
-			field := ui.Field(c, locales.PortNumber(r.Port), func() {
-				ui.Row(c).Gap(t.Space(2)).Wrap().AlignItems(ui.Center).Children(func() {
-					enabled := r.Enabled
-					if ui.Switch(c, &enabled).Label("Reverse proxy on port " + strconv.Itoa(r.Port)).Changed() {
-						a.setReverseEnabled(r.ID, enabled)
-					}
-					uikit.Tip(c, uikit.Mono(c, r.Target).SingleLine().MaxWidth(280).TextColor(t.TextMuted), r.Target)
-					if uikit.SecondaryButton(c, locales.Edit()).Clicked() {
-						a.openReverseProxy(r.ID)
-					}
-					if uikit.SecondaryButton(c, locales.Remove()).TextColor(t.Danger).Clicked() {
-						a.removeReverseProxy(r.ID)
+			uikit.SettingsRow(c, locales.PortNumber(r.Port), func() ui.Element {
+				return ui.Column(c).Gap(t.Space(1)).Children(func() {
+					ui.Row(c).Gap(t.Space(2)).Wrap().AlignItems(ui.Center).Children(func() {
+						enabled := r.Enabled
+						if ui.Switch(c, &enabled).Label("Reverse proxy on port " + strconv.Itoa(r.Port)).Changed() {
+							a.setReverseEnabled(r.ID, enabled)
+						}
+						uikit.Tip(c, uikit.Mono(c, r.Target).SingleLine().MaxWidth(280).TextColor(t.TextMuted), r.Target)
+						if uikit.SecondaryButton(c, locales.Edit()).Clicked() {
+							a.openReverseProxy(r.ID)
+						}
+						if uikit.SecondaryButton(c, locales.Remove()).TextColor(t.Danger).Clicked() {
+							a.removeReverseProxy(r.ID)
+						}
+					})
+					if st.Error != "" && r.Enabled {
+						ui.Text(c, st.Error).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Danger)
 					}
 				})
-			}).Description(mode + " · " + tlsMode + " · " + state)
-			if st.Error != "" && r.Enabled {
-				field = field.Error(st.Error)
-			}
+			}, mode+" · "+tlsMode+" · "+state)
 		}
-		ui.Field(c, "", func() {
-			ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+		uikit.SettingsRow(c, "", func() ui.Element {
+			return ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 				if uikit.SecondaryButton(c, locales.AddReverseProxy()).Clicked() {
 					a.openReverseProxy("")
 				}
@@ -394,7 +402,7 @@ func (a *app) reverseProxySettings(c *ui.Context, t *ui.Theme) {
 					uikit.Hint(c, a.reverseProblem).TextColor(t.Danger)
 				}
 			})
-		}).Description(locales.TheLocalPathIsAppended())
+		}, locales.TheLocalPathIsAppended())
 	})
 }
 

@@ -45,15 +45,17 @@ func languageNames() []string {
 
 // languageSettings is Settings → General → Language.
 func (a *app) languageSettings(c *ui.Context) {
-	ui.Field(c, locales.Language(), func() {
+	uikit.SettingsRow(c, locales.Language(), func() ui.Element {
 		names := languageNames()
 		choice := max(slices.Index(languages, a.language), 0)
-		if uikit.Select(c, &names[choice], names).Label(locales.Language()).Width(160).Changed() {
+		sel := uikit.Select(c, &names[choice], names).Label(locales.Language()).Width(160)
+		if sel.Changed() {
 			if i := slices.Index(names, names[choice]); i >= 0 && languages[i] != a.language {
 				a.setLanguage(languages[i])
 			}
 		}
-	}).Description(locales.LanguageDescription())
+		return sel
+	}, locales.LanguageDescription())
 }
 
 // setLanguage shows tag at once and keeps it for the next launches.
