@@ -92,7 +92,7 @@ func (a *app) historyColumn(c *ui.Context, t *ui.Theme, d *requestDocument) {
 					if status != 0 {
 						shown = strconv.Itoa(status)
 					}
-					ui.Text(c, shown).Font(uikit.FontMono).FontSize(uikit.TextMeta).TextColor(uikit.StatusColor(status, t)).Width(28)
+					ui.Text(c, shown).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(uikit.StatusColor(status, t)).Width(28)
 					uikit.Body(c, runTime(r.At)).FontFeatures("tnum").SingleLine().Grow(1).MinWidth(0)
 					if r.ID == a.experiments.log.Baseline {
 						uikit.Tip(c, uikit.Glyph(c, pinIcon), locales.Baseline())
@@ -120,7 +120,7 @@ func (a *app) historyExamples(c *ui.Context, t *ui.Theme, d *requestDocument) {
 			uikit.Selected(c, row, !a.windowBehind)
 		}
 		row.Children(func() {
-			ui.Text(c, strconv.Itoa(e.Status)).Font(uikit.FontMono).FontSize(uikit.TextMeta).TextColor(uikit.StatusColor(e.Status, t)).Width(28)
+			ui.Text(c, strconv.Itoa(e.Status)).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(uikit.StatusColor(e.Status, t)).Width(28)
 			uikit.Body(c, e.Name).SingleLine().Grow(1).MinWidth(0)
 		})
 		if row.Clicked() {
@@ -135,10 +135,10 @@ func (a *app) historyResponse(c *ui.Context, t *ui.Theme, d *requestDocument, r 
 	ui.Column(c).Fill().Children(func() {
 		ui.Row(c).Height(uikit.HeightTabs).Padding(0, t.Space(2)).Gap(t.Space(2)).AlignItems(ui.Center).
 			Border(0, t.Border).BorderWidth(0, 0, 1, 0).Children(func() {
-			ui.Text(c, locales.RunNumber(r.ID, runTime(r.At))).FontSize(uikit.TextBody).FontWeight(500).FontFeatures("tnum").SingleLine()
+			ui.Text(c, locales.RunNumber(r.ID, runTime(r.At))).FontSize(uikit.Scaled(uikit.TextBody)).FontWeight(500).FontFeatures("tnum").SingleLine()
 			uikit.Meta(c, locales.ReadOnly()).Grow(1)
 			if f := r.Exchange; f != nil && f.Status != 0 {
-				uikit.StatusPill(c, strconv.Itoa(f.Status), uikit.StatusColor(f.Status, t)).FontSize(uikit.TextMeta)
+				uikit.StatusPill(c, strconv.Itoa(f.Status), uikit.StatusColor(f.Status, t)).FontSize(uikit.Scaled(uikit.TextMeta))
 				uikit.Meta(c, fmt.Sprintf("%d ms", f.Millis)).FontFeatures("tnum")
 				uikit.Meta(c, humanBytes(f.Bytes)).FontFeatures("tnum")
 			}

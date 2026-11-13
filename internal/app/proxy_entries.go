@@ -449,7 +449,7 @@ func (a *app) reverseProxyModal(c *ui.Context, t *ui.Theme) {
 					ui.Switch(c, &d.insecure).Label(locales.AllowSelfSignedCertificates())
 				}).Description(locales.OffByDefaultTheApp())
 				if d.problem != "" {
-					ui.Text(c, d.problem).FontSize(uikit.TextBody).TextColor(t.Danger)
+					ui.Text(c, d.problem).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Danger)
 				}
 			})
 			uikit.DialogFooter(c).Children(func() {

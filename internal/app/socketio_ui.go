@@ -122,7 +122,7 @@ func (a *app) socketIOEditor(c *ui.Context, t *ui.Theme, d *requestDocument) {
 			uikit.Tabs(c, &u.tab, locales.SocketIOEditorTabPrefix(), locales.Event(), locales.Attachments(), locales.Connection(), locales.RequestHeadersLabel(), locales.HttpAuth()).Grow(1)
 		})
 		if u.problem != "" {
-			ui.Text(c, u.problem).TextColor(t.Danger).FontSize(uikit.TextMeta).MaxHeight(55).Padding(0, t.Space(3))
+			ui.Text(c, u.problem).TextColor(t.Danger).FontSize(uikit.Scaled(uikit.TextMeta)).MaxHeight(55).Padding(0, t.Space(3))
 		}
 		ui.Column(c).Grow(1).MinHeight(0).Padding(t.Space(2), t.Space(3)).Gap(t.Space(2)).Children(func() {
 			switch u.tab {
@@ -168,7 +168,7 @@ func (a *app) socketIOResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 	s := u.session.snapshot()
 	ui.Column(c).Fill().Children(func() {
 		ui.Row(c).Height(uikit.HeightTabs).Padding(0, t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-			ui.Text(c, locales.SocketIoMessages()).FontSize(uikit.TextBody).Grow(1)
+			ui.Text(c, locales.SocketIoMessages()).FontSize(uikit.Scaled(uikit.TextBody)).Grow(1)
 			uikit.Meta(c, stateLabel(s.state)).SingleLine()
 		})
 		if u.session == nil {
@@ -176,7 +176,7 @@ func (a *app) socketIOResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 			return
 		}
 		if s.problem != "" {
-			ui.Text(c, s.problem).TextColor(t.Danger).FontSize(uikit.TextMeta).MaxHeight(55).Padding(0, t.Space(3))
+			ui.Text(c, s.problem).TextColor(t.Danger).FontSize(uikit.Scaled(uikit.TextMeta)).MaxHeight(55).Padding(0, t.Space(3))
 		}
 		ui.Row(c).Padding(t.Space(1), t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 			uikit.Input(c, &u.query).Label(locales.SearchSocketIoMessages()).Placeholder(locales.SearchEventOrPayload()).Grow(1).MinWidth(0)
@@ -205,7 +205,7 @@ func (a *app) socketIOResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 					uikit.RowMarker(c, focused)
 				}
 				ui.Column(c).Padding(t.Space(1), t.Space(2)).Children(func() {
-					ui.Text(c, e.direction+" · "+e.name).FontSize(uikit.TextBody).SingleLine()
+					ui.Text(c, e.direction+" · "+e.name).FontSize(uikit.Scaled(uikit.TextBody)).SingleLine()
 					uikit.Meta(c, locales.EventLineSize(e.seq, e.at.Format("15:04:05.000"), e.size)).SingleLine()
 				})
 			}).Grow(1)

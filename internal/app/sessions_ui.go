@@ -63,7 +63,7 @@ func (a *app) sessionsView(c *ui.Context, t *ui.Theme) {
 		if !item.loaded {
 			ui.Column(c).Grow(1).Center().Children(func() {
 				if item.saveErr != "" {
-					ui.Text(c, item.saveErr).FontSize(uikit.TextMeta).TextColor(t.Danger)
+					ui.Text(c, item.saveErr).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Danger)
 				} else {
 					uikit.Hint(c, locales.OpeningSession())
 				}
@@ -89,7 +89,7 @@ func (a *app) sessionsView(c *ui.Context, t *ui.Theme) {
 		})
 		for _, problem := range []string{s.problem, item.saveErr} {
 			if problem != "" {
-				ui.Text(c, problem).FontSize(uikit.TextMeta).TextColor(t.Danger).Padding(t.Space(2))
+				ui.Text(c, problem).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Danger).Padding(t.Space(2))
 			}
 		}
 		if s.comparing && s.left != nil && len(item.data.Flows) > 0 {
@@ -134,8 +134,8 @@ func (a *app) sessionsView(c *ui.Context, t *ui.Theme) {
 							if f.Pinned {
 								uikit.Glyph(c, pinIcon)
 							}
-							ui.Text(c, cmp.Or(f.Method, "—")).Font(uikit.FontMono).FontSize(uikit.TextMeta).Width(46).TextColor(uikit.MethodColor(f.Method, t))
-							ui.Text(c, strconv.Itoa(f.Status)).FontSize(uikit.TextMeta).Width(30).TextColor(uikit.StatusColor(f.Status, t))
+							ui.Text(c, cmp.Or(f.Method, "—")).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextMeta)).Width(46).TextColor(uikit.MethodColor(f.Method, t))
+							ui.Text(c, strconv.Itoa(f.Status)).FontSize(uikit.Scaled(uikit.TextMeta)).Width(30).TextColor(uikit.StatusColor(f.Status, t))
 							uikit.Meta(c, cmp.Or(f.URL, f.Path)).SingleLine().Grow(1).MinWidth(0)
 							if dot, ok := highlightColor(f.Color); ok {
 								uikit.Tip(c, ui.Box(c).Size(8, 8).Radius(uikit.RadiusControl).Background(dot), f.Color)

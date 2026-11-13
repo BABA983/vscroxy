@@ -75,7 +75,7 @@ func (a *app) docsModal(c *ui.Context, t *ui.Theme) {
 func (a *app) docsRequest(c *ui.Context, t *ui.Theme, r savedRequest, root string) {
 	ui.Column(c).Padding(t.Space(2), 0).Gap(t.Space(1)).Children(func() {
 		ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-			uikit.MethodLabel(c, cmp.Or(r.Protocol, r.Method, "HTTP")).FontSize(uikit.TextMeta).MinWidth(38).Shrink(0).Height(16)
+			uikit.MethodLabel(c, cmp.Or(r.Protocol, r.Method, "HTTP")).FontSize(uikit.Scaled(uikit.TextMeta)).MinWidth(38).Shrink(0).Height(16)
 			uikit.Body(c, r.Name).FontWeight(500).Grow(1)
 			if sub := strings.TrimPrefix(r.Collection, root); sub != "" {
 				uikit.Meta(c, strings.TrimPrefix(sub, "/"))

@@ -225,7 +225,7 @@ func (a *app) vaultModal(c *ui.Context, t *ui.Theme) {
 			uikit.Meta(c, locales.UseVaultNameInA())
 			if v.problem != "" {
 				ui.Scroll(c).Grow(1).MinHeight(0).Children(func() {
-					ui.Text(c, v.problem).FontSize(uikit.TextBody).TextColor(t.Danger).Selectable()
+					ui.Text(c, v.problem).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Danger).Selectable()
 				})
 				uikit.DialogFooter(c).Children(func() {
 					if uikit.SecondaryButton(c, locales.Close()).Clicked() {
@@ -298,7 +298,7 @@ func (a *app) vaultModal(c *ui.Context, t *ui.Theme) {
 			ui.Checkbox(c, &v.scriptsDraft, "Let scripts use pm.vault").
 				Tooltip(locales.ScriptsCanThenReadAny())
 			if v.editProblem != "" {
-				ui.Text(c, v.editProblem).FontSize(uikit.TextMeta).TextColor(t.Danger)
+				ui.Text(c, v.editProblem).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Danger)
 			}
 			uikit.DialogFooter(c).Children(func() {
 				if uikit.SecondaryButton(c, locales.Cancel()).Clicked() {

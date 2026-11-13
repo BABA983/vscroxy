@@ -317,7 +317,7 @@ func (a *app) graphqlSchemaRow(c *ui.Context, d *requestDocument) {
 				if choice == "" || !slices.Contains(names, choice) {
 					choice = "Select operation"
 				}
-				selectElement := uikit.Select(c, &choice, names).Label(locales.GraphqlOperation()).Width(170).FontSize(uikit.TextMeta)
+				selectElement := uikit.Select(c, &choice, names).Label(locales.GraphqlOperation()).Width(170).FontSize(uikit.Scaled(uikit.TextMeta))
 				if selectElement.Changed() && choice != "Select operation" {
 					d.graphql.OperationName = choice
 				}
@@ -341,7 +341,7 @@ func (a *app) graphqlSchemaRow(c *ui.Context, d *requestDocument) {
 	})
 	if g.problem != "" {
 		ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-			uikit.Tip(c, ui.Text(c, "Schema: "+oneLine(g.problem)).FontSize(uikit.TextMeta).TextColor(t.Danger).SingleLine().MinWidth(0).Ellipsis("…"), g.problem)
+			uikit.Tip(c, ui.Text(c, "Schema: "+oneLine(g.problem)).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Danger).SingleLine().MinWidth(0).Ellipsis("…"), g.problem)
 		})
 	}
 }

@@ -114,7 +114,7 @@ func (a *app) codeModal(c *ui.Context, t *ui.Theme) {
 					uikit.Hint(c, hint)
 				}
 				if s.problem != "" {
-					ui.Text(c, s.problem).FontSize(uikit.TextBody).TextColor(t.Danger)
+					ui.Text(c, s.problem).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Danger)
 				}
 			})
 			if s.view != nil {

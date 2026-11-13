@@ -44,7 +44,7 @@ func (a *app) paramsEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
 	}
 	uikit.Meta(c, locales.EditsUpdateTheUrlRepeated())
 	if d.queryError != "" {
-		ui.Text(c, d.queryError).FontSize(uikit.TextMeta).TextColor(t.Danger)
+		ui.Text(c, d.queryError).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Danger)
 	}
 	if a.requestFieldsEditor(c, &d.queryRows, fieldsOptions{collection: d.composeCollection}, locales.Parameter()) {
 		u, err := url.Parse(d.composeURL)
@@ -217,7 +217,7 @@ func (a *app) requestFieldsEditor(c *ui.Context, rows *[]request.Field, opts fie
 // text editing, password handling, accessibility or keyboard focus rings.
 func requestGridInput(c *ui.Context, value *string, placeholder, label string) ui.Element {
 	return ui.TextInputBase(c, value).Label(label).Placeholder(placeholder).FillWidth().MinWidth(0).
-		FillHeight().Padding(0, c.Theme().Space(2)).Font(uikit.FontMono).FontSize(uikit.TextBody).
+		FillHeight().Padding(0, c.Theme().Space(2)).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextBody)).
 		Border(1, ui.Color{})
 }
 
@@ -414,7 +414,7 @@ func (a *app) authFields(c *ui.Context, auth *request.Auth, types []string, coll
 			})
 			if strings.HasPrefix(o.SignatureMethod, "RSA-") {
 				ui.Field(c, locales.PrivateKey(), func() {
-					sensitiveArea(&o.PrivateKey, "Private key").Height(72).Font(uikit.FontMono).FontSize(uikit.TextBody).Radius(uikit.RadiusControl).Placeholder("-----BEGIN PRIVATE KEY----- … or {{vault:oauth1_key}}")
+					sensitiveArea(&o.PrivateKey, "Private key").Height(72).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextBody)).Radius(uikit.RadiusControl).Placeholder("-----BEGIN PRIVATE KEY----- … or {{vault:oauth1_key}}")
 				})
 			}
 			ui.Field(c, locales.AddAuthorizationTo(), func() {
@@ -485,11 +485,11 @@ func (a *app) authFields(c *ui.Context, auth *request.Auth, types []string, coll
 				ui.Field(c, "", func() { ui.Checkbox(c, &jwt.SecretBase64, "Secret is base64-encoded") })
 			} else {
 				ui.Field(c, locales.PrivateKey(), func() {
-					sensitiveArea(&jwt.PrivateKey, "Private key").Height(72).Font(uikit.FontMono).FontSize(uikit.TextBody).Radius(uikit.RadiusControl).Placeholder("-----BEGIN PRIVATE KEY----- … or {{vault:jwt_key}}")
+					sensitiveArea(&jwt.PrivateKey, "Private key").Height(72).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextBody)).Radius(uikit.RadiusControl).Placeholder("-----BEGIN PRIVATE KEY----- … or {{vault:jwt_key}}")
 				})
 			}
 			ui.Field(c, locales.Payload(), func() {
-				area(&jwt.Payload, "Payload").Height(72).Font(uikit.FontMono).FontSize(uikit.TextBody).Radius(uikit.RadiusControl).Placeholder("{\"sub\": \"{{user_id}}\"}")
+				area(&jwt.Payload, "Payload").Height(72).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextBody)).Radius(uikit.RadiusControl).Placeholder("{\"sub\": \"{{user_id}}\"}")
 			})
 			ui.Field(c, locales.ExtraHeader(), func() {
 				input(&jwt.Header, "Extra header").Placeholder(locales.OptionalEGKidKey()).Font(uikit.FontMono)

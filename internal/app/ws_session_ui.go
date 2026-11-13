@@ -90,9 +90,9 @@ func (a *app) socketModal(c *ui.Context, t *ui.Theme) {
 					}
 				})
 				uikit.Input(c, &s.subprotocols).Label(locales.WebsocketSubprotocols()).Placeholder(locales.SubprotocolsInPreferenceOrderE()).Disabled(active)
-				ui.TextArea(c, &s.headers).Label(locales.WebsocketHandshakeHeaders()).Placeholder("Authorization: Bearer …").Height(54).Font(uikit.FontMono).FontSize(uikit.TextBody).Radius(uikit.RadiusControl).Disabled(active)
+				ui.TextArea(c, &s.headers).Label(locales.WebsocketHandshakeHeaders()).Placeholder("Authorization: Bearer …").Height(54).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextBody)).Radius(uikit.RadiusControl).Disabled(active)
 				if s.problem != "" {
-					ui.Text(c, s.problem).FontSize(uikit.TextBody).TextColor(t.Danger)
+					ui.Text(c, s.problem).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Danger)
 				}
 				ui.Row(c).Gap(t.Space(2)).Children(func() {
 					if s.encoding == "" {
@@ -131,7 +131,7 @@ func (a *app) socketModal(c *ui.Context, t *ui.Theme) {
 						s.direction = "All"
 					}
 					uikit.SelectLabels(c, &s.direction, directions, optionLabel).Width(100).Label(locales.SessionDirection())
-					ui.Text(c, locales.RetainedEvicted(len(events), evicted)).FontSize(uikit.TextMeta).FontFeatures("tnum")
+					ui.Text(c, locales.RetainedEvicted(len(events), evicted)).FontSize(uikit.Scaled(uikit.TextMeta)).FontFeatures("tnum")
 					if uikit.SecondaryButton(c, locales.LatestMessage()).Clicked() {
 						s.scroll.Y = math.MaxFloat32
 					}

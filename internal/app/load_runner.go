@@ -270,7 +270,7 @@ func (a *app) loadRunnerModal(c *ui.Context, t *ui.Theme) {
 						uikit.Label(c, locales.Duration1s10m())
 						uikit.Input(c, &r.duration).Label(locales.LoadDuration()).FillWidth().Disabled(r.running)
 					})
-					ui.Checkbox(c, &r.stopOnFailure, "Stop on failure").FontSize(uikit.TextBody).Disabled(r.running)
+					ui.Checkbox(c, &r.stopOnFailure, "Stop on failure").FontSize(uikit.Scaled(uikit.TextBody)).Disabled(r.running)
 				})
 				uikit.Meta(c, locales.Budget30SPerExecution())
 				ui.Column(c).Padding(t.Space(3)).Gap(t.Space(2)).Border(1, t.Border).Radius(uikit.RadiusControl).Children(func() {
@@ -283,7 +283,7 @@ func (a *app) loadRunnerModal(c *ui.Context, t *ui.Theme) {
 				uikit.Meta(c, locales.EachUserHasIsolatedVariables())
 			})
 			status := cmp.Or(r.status, "Ready · closing this panel keeps an active load running")
-			uikit.Tip(c, ui.Text(c, status).FontSize(uikit.TextBody).TextColor(t.Text).SingleLine(), status)
+			uikit.Tip(c, ui.Text(c, status).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Text).SingleLine(), status)
 			ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 				uikit.Meta(c, locales.CloseKeepsRunningQuitCancels()).Grow(1)
 				uikit.SecondaryButton(c, locales.Close()).OnClick(func() { r.open = false })
@@ -299,7 +299,7 @@ func loadMetricRow(c *ui.Context, t *ui.Theme, metrics [][2]string) {
 		for _, metric := range metrics {
 			ui.Column(c).Grow(1).Basis(0).MinWidth(0).Gap(t.Space(1)).Children(func() {
 				uikit.Meta(c, metric[0])
-				ui.Text(c, metric[1]).FontSize(uikit.TextTitle).FontFeatures("tnum").SingleLine()
+				ui.Text(c, metric[1]).FontSize(uikit.Scaled(uikit.TextTitle)).FontFeatures("tnum").SingleLine()
 			})
 		}
 	})

@@ -40,10 +40,10 @@ func (a *app) certificateSettings(c *ui.Context, t *ui.Theme) {
 	e.load(a)
 	uikit.SettingsPage(c, locales.Certificates(), locales.ClientCertificatesAndExtraRoots(), func() {
 		if a.certProblem != "" {
-			ui.Text(c, a.certProblem).FontSize(uikit.TextBody).TextColor(t.Danger).Selectable()
+			ui.Text(c, a.certProblem).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Danger).Selectable()
 		}
 		if e.problem != "" {
-			ui.Text(c, e.problem).FontSize(uikit.TextBody).TextColor(t.Danger).Selectable()
+			ui.Text(c, e.problem).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Danger).Selectable()
 		}
 		uikit.SettingsGroup(c, locales.ClientCertificates(), func() {
 			uikit.Meta(c, locales.PresentedToAMatchingHost())
@@ -129,7 +129,7 @@ func (a *app) certificateSettings(c *ui.Context, t *ui.Theme) {
 				if ui.Switch(c, &e.trustSystem).Label(locales.TrustSystemRoots()).Changed() {
 					e.dirty = true
 				}
-				ui.Text(c, locales.TrustSystemRoots()).FontSize(uikit.TextBody).TextColor(t.Text)
+				ui.Text(c, locales.TrustSystemRoots()).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Text)
 			})
 			uikit.Meta(c, locales.ExtraPemRootsAreAdded())
 			remove := -1

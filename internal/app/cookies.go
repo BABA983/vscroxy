@@ -631,7 +631,7 @@ func (a *app) cookiesModal(c *ui.Context, t *ui.Theme) {
 			}
 			uikit.Hint(c, hint)
 			if problem := a.requestCookies().problemText(); problem != "" {
-				ui.Text(c, "The local cookie file was not read or written: "+problem).FontSize(uikit.TextMeta).TextColor(t.Danger)
+				ui.Text(c, "The local cookie file was not read or written: "+problem).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Danger)
 			}
 			ui.Scroll(c).Grow(1).MinHeight(0).Gap(t.Space(3)).Padding(0, t.Space(1)).Children(func() {
 				items := a.requestCookies().snapshot()
@@ -710,7 +710,7 @@ func (a *app) cookiesModal(c *ui.Context, t *ui.Theme) {
 				})
 			})
 			if e.problem != "" {
-				ui.Text(c, e.problem).FontSize(uikit.TextMeta).TextColor(t.Danger)
+				ui.Text(c, e.problem).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Danger)
 			}
 			uikit.DialogFooter(c).Children(func() {
 				if uikit.SecondaryButton(c, locales.ClearAllCookies()).Clicked() {

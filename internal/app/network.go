@@ -396,7 +396,7 @@ func (a *app) networkModal(c *ui.Context, t *ui.Theme) {
 			n.draft.fields(c)
 			uikit.Meta(c, locales.WholeNumbersRates01073741824())
 			if n.problem != "" {
-				ui.Text(c, n.problem).FontSize(uikit.TextMeta).TextColor(t.Danger)
+				ui.Text(c, n.problem).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Danger)
 			}
 			if n.deleting {
 				uikit.Meta(c, "Delete “"+n.editing+"”? This cannot be undone. If active, global conditions will turn Off.")

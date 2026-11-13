@@ -327,12 +327,12 @@ drained:
 					}).Description(locales.IntervalDescription(replayMaxIntervalMS)).Grow(1)
 				})
 				if inputProblem != "" {
-					ui.Text(c, inputProblem).FontSize(uikit.TextBody).TextColor(t.Danger)
+					ui.Text(c, inputProblem).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Danger)
 				} else {
 					uikit.Meta(c, locales.TotalSends(total))
 				}
 				if a.srv != nil && a.srv.NoCaching() {
-					ui.Text(c, locales.NoCachingIsOnConditional()).FontSize(uikit.TextBody).TextColor(t.Accent)
+					ui.Text(c, locales.NoCachingIsOnConditional()).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Accent)
 				}
 				if r.updates != nil || r.finished {
 					fraction := 0.0
@@ -355,7 +355,7 @@ drained:
 					uikit.Body(c, r.summary())
 				}
 				if r.problem != "" {
-					uikit.Tip(c, ui.Text(c, r.problem).FontSize(uikit.TextBody).TextColor(t.Danger).MaxLines(3), r.problem)
+					uikit.Tip(c, ui.Text(c, r.problem).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Danger).MaxLines(3), r.problem)
 				}
 			})
 			uikit.DialogFooter(c).Children(func() {

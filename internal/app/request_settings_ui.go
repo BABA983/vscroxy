@@ -25,7 +25,7 @@ func (a *app) requestDocsEditor(c *ui.Context, d *requestDocument, t *ui.Theme) 
 		uikit.Meta(c, locales.MarkdownShownInTheCollection())
 		ui.TextArea(c, &d.description).Label(locales.RequestDescription()).
 			Placeholder(locales.WhatThisRequestDoesIts()).
-			Font(uikit.FontMono).FontSize(uikit.TextBody).Radius(uikit.RadiusControl).
+			Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextBody)).Radius(uikit.RadiusControl).
 			Grow(1).MinHeight(0)
 		uikit.Meta(c, locales.SavedWithTheRequestAnd())
 	})
@@ -81,7 +81,7 @@ func (a *app) requestSettingsEditor(c *ui.Context, d *requestDocument, t *ui.The
 				Background(t.Warning.Alpha(0.12)).AlignItems(ui.Start).Children(func() {
 				ui.Icon(c, warningIcon).Size(uikit.IconInline, uikit.IconInline).TextColor(t.Warning)
 				ui.Text(c, locales.CertificateVerificationIsOffThis()).
-					FontSize(uikit.TextMeta).TextColor(t.Warning).Grow(1)
+					FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Warning).Grow(1)
 			})
 		}
 		ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
@@ -162,7 +162,7 @@ func (a *app) folderSettingsEditor(c *ui.Context, f *folderEditor, t *ui.Theme) 
 				Background(t.Warning.Alpha(0.12)).AlignItems(ui.Start).Children(func() {
 				ui.Icon(c, warningIcon).Size(uikit.IconInline, uikit.IconInline).TextColor(t.Warning)
 				ui.Text(c, locales.CertificateVerificationIsOffFor()).
-					FontSize(uikit.TextMeta).TextColor(t.Warning).Grow(1)
+					FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Warning).Grow(1)
 			})
 		}
 		if f.settings != (request.Settings{}) {

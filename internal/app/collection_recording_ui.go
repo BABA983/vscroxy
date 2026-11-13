@@ -61,7 +61,7 @@ func (a *app) collectionRecordingModal(c *ui.Context, t *ui.Theme) {
 					uikit.Body(c, state+" · "+s.Collection).FontWeight(500)
 					uikit.Meta(c, locales.RecordingSummary(s.Added, s.Updated, s.Skipped, s.Discarded, len(s.queue)))
 					if s.Problem != "" {
-						ui.Text(c, s.Problem).FontSize(uikit.TextBody).TextColor(t.Danger)
+						ui.Text(c, s.Problem).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Danger)
 					}
 					if !running {
 						uikit.SecondaryButton(c, locales.ReviewRecordedTokenLinks()).Disabled(len(s.evidence) == 0).OnClick(func() {
@@ -92,19 +92,19 @@ func (a *app) collectionRecordingModal(c *ui.Context, t *ui.Theme) {
 					}
 					uikit.SecondaryButton(c, locales.ManageEnvironments()).OnClick(func() { w.open = false; a.openVars() })
 					ui.Field(c, locales.HostsOnePerLine(), func() {
-						ui.TextArea(c, &w.hosts).Label(locales.RecordingHosts()).Height(60).FontSize(uikit.TextBody).Placeholder("api.example.com\nlocalhost:3000")
+						ui.TextArea(c, &w.hosts).Label(locales.RecordingHosts()).Height(60).FontSize(uikit.Scaled(uikit.TextBody)).Placeholder("api.example.com\nlocalhost:3000")
 					}).Description(locales.ExactHostnameAnyPortOr())
 					ui.Field(c, locales.AppsOnePerLine(), func() {
-						ui.TextArea(c, &w.apps).Label(locales.RecordingApps()).Height(60).FontSize(uikit.TextBody).Placeholder(locales.Browser())
+						ui.TextArea(c, &w.apps).Label(locales.RecordingApps()).Height(60).FontSize(uikit.Scaled(uikit.TextBody)).Placeholder(locales.Browser())
 					}).Description(locales.ExactSidebarAppLabelsEmpty())
 				})
 				uikit.Hint(c, locales.NewAmbientHttpTrafficOnly())
 				uikit.Hint(c, locales.AuthCookieApiKeyHeaders())
 				if !running {
-					ui.Checkbox(c, &w.reviewed, "I understand captured content will be saved locally").FontSize(uikit.TextBody)
+					ui.Checkbox(c, &w.reviewed, "I understand captured content will be saved locally").FontSize(uikit.Scaled(uikit.TextBody))
 				}
 				if w.problem != "" {
-					ui.Text(c, w.problem).FontSize(uikit.TextBody).TextColor(t.Danger)
+					ui.Text(c, w.problem).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Danger)
 				}
 			})
 			uikit.DialogFooter(c).Children(func() {

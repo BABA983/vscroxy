@@ -99,7 +99,7 @@ func (o *overview) view(c *ui.Context, dark bool) {
 		}).Padding(t.Space(1), 0).Gap(0).Width(200).FillHeight().Background(Colors(t).Chrome)
 		ui.Divider(c)
 		ui.Scroll(c).Grow(1).Padding(t.Space(6)).Gap(t.Space(6)).Children(func() {
-			ui.Text(c, "vscroxy uikit").FontSize(TextTitle).FontWeight(500)
+			ui.Text(c, "vscroxy uikit").FontSize(Scaled(TextTitle)).FontWeight(500)
 			section("Surfaces", func() {
 				// One control reads the same on chrome, canvas and well; a
 				// field is a well on the canvas and the canvas with a
@@ -276,7 +276,7 @@ func (o *overview) view(c *ui.Context, dark bool) {
 				row(func() {
 					PopoverPanel(c, ui.Column(c)).Padding(t.Space(3)).Width(240).Children(func() {
 						ui.Text(c, "Popover panel")
-						ui.Text(c, "Menus, popovers and toasts").FontSize(TextMeta).TextColor(t.TextMuted)
+						ui.Text(c, "Menus, popovers and toasts").FontSize(Scaled(TextMeta)).TextColor(t.TextMuted)
 					})
 					ui.Column(c).Width(400).Height(160).Border(1, t.Border).Radius(RadiusPanel).Children(func() {
 						EmptyState(c, "No requests yet", "Enable the system proxy to start capturing.", func() {

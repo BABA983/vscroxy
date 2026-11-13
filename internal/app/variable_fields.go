@@ -57,7 +57,7 @@ func (a *app) variableSensitiveTextArea(c *ui.Context, key string, value *string
 // Params, Headers and form tables. mask hides every hover value.
 func (a *app) variableGridInput(c *ui.Context, key string, value *string, placeholder, label, collection string, mask bool) ui.Element {
 	in := ui.TextInputBase(c, value).Label(label).Placeholder(placeholder).FillWidth().MinWidth(0).
-		FillHeight().Padding(0, c.Theme().Space(2)).Font(uikit.FontMono).FontSize(uikit.TextBody).
+		FillHeight().Padding(0, c.Theme().Space(2)).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextBody)).
 		Border(1, ui.Color{})
 	a.attachVariables(c, in, key, value, label, collection, mask)
 	return in
@@ -102,11 +102,11 @@ func (a *app) variableTooltip(c *ui.Context, anchor ui.Element, marks []variable
 					ui.Box(c).Height(1).FillWidth().Background(t.InverseText.Alpha(0.16))
 				}
 				ui.Row(c).Gap(t.Space(1)).AlignItems(ui.Center).Children(func() {
-					ui.Text(c, "{{"+mark.Ref.Name+"}}").Font(uikit.FontMono).FontSize(uikit.TextMeta).TextColor(t.InverseText)
+					ui.Text(c, "{{"+mark.Ref.Name+"}}").Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.InverseText)
 					if mark.Defined {
-						ui.Text(c, mark.Hint.source()).FontSize(uikit.TextMeta).TextColor(t.InverseText.Alpha(0.72)).Grow(1).MinWidth(0).SingleLine().Ellipsis("…")
+						ui.Text(c, mark.Hint.source()).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.InverseText.Alpha(0.72)).Grow(1).MinWidth(0).SingleLine().Ellipsis("…")
 					} else {
-						ui.Text(c, "undefined").FontSize(uikit.TextMeta).TextColor(t.Danger).Grow(1)
+						ui.Text(c, "undefined").FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Danger).Grow(1)
 					}
 				})
 				value := "stays literal when sent"
@@ -117,7 +117,7 @@ func (a *app) variableTooltip(c *ui.Context, anchor ui.Element, marks []variable
 						value = mark.Hint.display()
 					}
 				}
-				ui.Text(c, value).Font(uikit.FontMono).FontSize(uikit.TextMeta).TextColor(t.InverseText.Alpha(0.86)).SingleLine().Ellipsis("…")
+				ui.Text(c, value).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.InverseText.Alpha(0.86)).SingleLine().Ellipsis("…")
 			}
 		})
 	})
@@ -218,8 +218,8 @@ func (a *app) variablePopover(c *ui.Context, anchor ui.Element, key string, valu
 					item.Background(t.SurfaceHover)
 				}
 				item.Children(func() {
-					ui.Text(c, hint.Name).Font(uikit.FontMono).FontSize(uikit.TextBody).TextColor(t.Text)
-					ui.Text(c, hint.source()).FontSize(uikit.TextMeta).TextColor(t.TextMuted).Grow(1).MinWidth(0).SingleLine().Ellipsis("…")
+					ui.Text(c, hint.Name).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Text)
+					ui.Text(c, hint.source()).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.TextMuted).Grow(1).MinWidth(0).SingleLine().Ellipsis("…")
 				})
 				if item.Clicked() {
 					a.acceptVariableCompletion(anchor, value, hint.Name)

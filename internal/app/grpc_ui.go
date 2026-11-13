@@ -261,7 +261,7 @@ func (a *app) grpcEditor(c *ui.Context, t *ui.Theme, d *requestDocument) {
 				methods = g.schema.methods
 			}
 			field := ui.Combobox(c, &d.grpcConfig.Method, methods).Label(locales.GrpcMethod()).Placeholder(locales.SelectServiceMethod()).
-				Grow(1).MinWidth(0).Height(uikit.HeightControl).FontSize(uikit.TextBody).Disabled(d.composeWaiting || g.loading != nil)
+				Grow(1).MinWidth(0).Height(uikit.HeightControl).FontSize(uikit.Scaled(uikit.TextBody)).Disabled(d.composeWaiting || g.loading != nil)
 			uikit.FieldFace(c, field, field.Focused())
 			deadline := strconv.Itoa(cmp.Or(d.grpcConfig.TimeoutSeconds, 30))
 			uikit.Select(c, &deadline, []string{"10", "30", "60", "300", "3600"}).Label(locales.GrpcDeadlineSeconds()).Width(88).
@@ -275,7 +275,7 @@ func (a *app) grpcEditor(c *ui.Context, t *ui.Theme, d *requestDocument) {
 				Padding(0, t.Space(3)).SingleLine()
 		}
 		if g.problem != "" {
-			ui.Text(c, g.problem).TextColor(t.Danger).FontSize(uikit.TextMeta).Padding(0, t.Space(3)).MaxHeight(55)
+			ui.Text(c, g.problem).TextColor(t.Danger).FontSize(uikit.Scaled(uikit.TextMeta)).Padding(0, t.Space(3)).MaxHeight(55)
 		}
 		if g.loading != nil {
 			ui.Row(c).Padding(0, t.Space(3)).Gap(t.Space(2)).Children(func() {
@@ -365,11 +365,11 @@ func (a *app) grpcResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 			if g.responseTab == 1 {
 				text = "Initial metadata\n" + grpcMetadataText(s.header) + "\nFinal trailers\n" + grpcMetadataText(s.trailer)
 			}
-			ui.Scroll(c).Grow(1).Padding(t.Space(3)).Children(func() { ui.Text(c, text).Font(uikit.FontMono).FontSize(uikit.TextBody) })
+			ui.Scroll(c).Grow(1).Padding(t.Space(3)).Children(func() { ui.Text(c, text).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextBody)) })
 			return
 		}
 		if s.problem != "" {
-			ui.Text(c, s.problem).TextColor(t.Danger).FontSize(uikit.TextMeta).MaxHeight(55).Padding(t.Space(1), t.Space(3))
+			ui.Text(c, s.problem).TextColor(t.Danger).FontSize(uikit.Scaled(uikit.TextMeta)).MaxHeight(55).Padding(t.Space(1), t.Space(3))
 		}
 		uikit.Meta(c, locales.RetainedPreviewMethods(len(s.events), s.evicted)).Padding(t.Space(1), t.Space(3))
 		ui.Split(c, &g.split, func() {
@@ -384,7 +384,7 @@ func (a *app) grpcResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 					uikit.RowMarker(c, focused)
 				}
 				ui.Text(c, locales.GrpcEventLine(e.seq, e.at.Format("15:04:05.000"), e.direction, e.size)).
-					FontSize(uikit.TextMeta).TextColor(t.Text).Padding(t.Space(2)).SingleLine()
+					FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Text).Padding(t.Space(2)).SingleLine()
 			}).Grow(1)
 			c.SetTheme(t)
 		}, func() {

@@ -1018,7 +1018,7 @@ func (v *captureViews) sidebar(c *ui.Context, t *ui.Theme, a *app) {
 		if failure {
 			color = t.Danger
 		}
-		uikit.Tip(c, ui.Text(c, note).FontSize(uikit.TextMeta).TextColor(color), v.statusDetail()).Padding(t.Space(1), t.Space(3))
+		uikit.Tip(c, ui.Text(c, note).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(color), v.statusDetail()).Padding(t.Space(1), t.Space(3))
 	}
 	if closing >= 0 {
 		v.closeView(a, closing)
@@ -1120,14 +1120,14 @@ func (v *captureViews) filterModal(c *ui.Context, t *ui.Theme, a *app) {
 				}).Grow(1)
 			})
 			if problem != "" {
-				ui.Text(c, problem).FontSize(uikit.TextMeta).TextColor(t.Danger)
+				ui.Text(c, problem).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Danger)
 			}
 			if note, failure := v.status(); note != "" {
 				color := t.TextMuted
 				if failure {
 					color = t.Danger
 				}
-				uikit.Tip(c, ui.Text(c, note).FontSize(uikit.TextMeta).TextColor(color), v.statusDetail())
+				uikit.Tip(c, ui.Text(c, note).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(color), v.statusDetail())
 			}
 			ui.Row(c).Gap(t.Space(2)).Justify(ui.End).Children(func() {
 				if uikit.SecondaryButton(c, locales.Clear()).Clicked() {
@@ -1208,7 +1208,7 @@ func (v *captureViews) savedModal(c *ui.Context, t *ui.Theme, a *app) {
 				uikit.Meta(c, locales.RenamingFilter(strconv.Quote(v.renaming)))
 			}
 			if v.problem != "" {
-				ui.Text(c, v.problem).FontSize(uikit.TextMeta).TextColor(t.Danger)
+				ui.Text(c, v.problem).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Danger)
 			}
 			if v.note != "" {
 				uikit.Meta(c, v.note)

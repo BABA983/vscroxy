@@ -411,7 +411,7 @@ func (a *app) systemProxySettings(c *ui.Context, t *ui.Theme) {
 		ui.Field(c, locales.Status(), func() {
 			ui.Column(c).Gap(t.Space(1)).Children(func() {
 				ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-					ui.Text(c, status).FontSize(uikit.TextBody).FontWeight(500).TextColor(color)
+					ui.Text(c, status).FontSize(uikit.Scaled(uikit.TextBody)).FontWeight(500).TextColor(color)
 					if busy {
 						ui.Spinner(c).Label(locales.SystemProxy())
 					}
@@ -455,7 +455,7 @@ func (a *app) systemProxySettings(c *ui.Context, t *ui.Theme) {
 		ui.Field(c, locales.BypassList(), func() {
 			ui.Column(c).Gap(t.Space(2)).Children(func() {
 				ui.Checkbox(c, &a.systemProxyBypassSet, "Replace the system bypass list")
-				ui.TextArea(c, &a.systemProxyBypassText).Label(locales.SystemProxyBypassList()).Placeholder("localhost, *.internal.test, 10.0.0.0/8").Height(64).Font(uikit.FontMono).FontSize(uikit.TextBody).Radius(uikit.RadiusControl).Disabled(!a.systemProxyBypassSet)
+				ui.TextArea(c, &a.systemProxyBypassText).Label(locales.SystemProxyBypassList()).Placeholder("localhost, *.internal.test, 10.0.0.0/8").Height(64).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextBody)).Radius(uikit.RadiusControl).Disabled(!a.systemProxyBypassSet)
 				ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 					if uikit.SecondaryButton(c, locales.SaveBypassList()).Clicked() {
 						a.saveSystemProxyBypass()

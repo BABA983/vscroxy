@@ -159,3 +159,24 @@ func TestActivityStacksMeasureTotalWithoutRecoloringNormalTraffic(t *testing.T) 
 		}
 	}
 }
+
+// The four sizes keep their proportions at whatever text size the desktop asks
+// for, and go back to the usual ones after.
+func TestTextSizesFollowTheDesktopsTextSize(t *testing.T) {
+	t.Cleanup(func() { SetTextScale(1) })
+	SetTextScale(1)
+	if got := Scaled(TextBody); got != 13 {
+		t.Fatalf("usual body size = %v, want 13", got)
+	}
+	SetTextScale(1.5)
+	if got := Scaled(TextBody); got != 20 {
+		t.Fatalf("body size at 1.5 = %v, want 20", got)
+	}
+	if got := Scaled(TextMeta); got != 17 {
+		t.Fatalf("meta size at 1.5 = %v, want 17", got)
+	}
+	SetTextScale(0)
+	if got := Scaled(TextBody); got != 13 {
+		t.Fatalf("a scale of 0 = %v, want the usual 13", got)
+	}
+}

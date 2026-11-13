@@ -162,7 +162,7 @@ func (a *app) jsonQueryModal(c *ui.Context) {
 				}
 			})
 			if u.job.problem != "" {
-				ui.Text(c, u.job.problem).FontSize(uikit.TextMeta).TextColor(t.Danger).FillWidth()
+				ui.Text(c, u.job.problem).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Danger).FillWidth()
 			}
 			if u.job.result != nil {
 				if u.job.result.Buffer.Len() == 0 {

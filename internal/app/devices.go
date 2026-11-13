@@ -143,7 +143,7 @@ func (a *app) devicesModal(c *ui.Context, t *ui.Theme) {
 			ui.Row(c).Grow(1).MinHeight(0).Gap(t.Space(6)).AlignItems(ui.Stretch).Children(func() {
 				ui.Scroll(c).BasisPercent(44).Grow(1).MinWidth(0).Gap(t.Space(3)).Padding(0, t.Space(2), 0, t.Space(1)).Children(func() {
 					if d.gateway == nil {
-						ui.Text(c, locales.N1ChooseANetworkAddress()).FontSize(uikit.TextBody).FontWeight(500)
+						ui.Text(c, locales.N1ChooseANetworkAddress()).FontSize(uikit.Scaled(uikit.TextBody)).FontWeight(500)
 						ui.Form(c, func() {
 							ui.Field(c, locales.Address(), func() {
 								uikit.Select(c, &d.ip, d.ips).Label(locales.DeviceFacingAddress())
@@ -153,16 +153,16 @@ func (a *app) devicesModal(c *ui.Context, t *ui.Theme) {
 							})
 						})
 						if len(d.ips) == 0 {
-							ui.Text(c, locales.NoActiveLanAddressConnect()).FontSize(uikit.TextBody).TextColor(t.Danger)
+							ui.Text(c, locales.NoActiveLanAddressConnect()).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Danger)
 						}
 						if ip, err := netip.ParseAddr(d.ip); err == nil && ip.IsLinkLocalUnicast() {
 							uikit.Meta(c, locales.LinkLocalAddressTheDevice())
 						}
 						uikit.Meta(c, locales.ProxyPortAboveTheCertificate())
-						ui.Text(c, locales.N2AllowYourDeviceS()).FontSize(uikit.TextBody).FontWeight(500)
-						ui.TextArea(c, &d.allowed).Height(74).Font(uikit.FontMono).FontSize(uikit.TextBody).Radius(uikit.RadiusControl).Label(locales.AllowedDeviceAddresses()).Placeholder("192.168.1.42\nOne IP or CIDR per line")
+						ui.Text(c, locales.N2AllowYourDeviceS()).FontSize(uikit.Scaled(uikit.TextBody)).FontWeight(500)
+						ui.TextArea(c, &d.allowed).Height(74).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextBody)).Radius(uikit.RadiusControl).Label(locales.AllowedDeviceAddresses()).Placeholder("192.168.1.42\nOne IP or CIDR per line")
 						uikit.Meta(c, locales.FindItInTheDevice())
-						ui.Checkbox(c, &d.consent, "I trust this network and the allowed devices").FontSize(uikit.TextBody)
+						ui.Checkbox(c, &d.consent, "I trust this network and the allowed devices").FontSize(uikit.Scaled(uikit.TextBody))
 					} else {
 						uikit.Hint(c, locales.ProxyAddress())
 						uikit.Heading(c, d.gateway.Addr()).Font(uikit.FontMono)
@@ -183,7 +183,7 @@ func (a *app) devicesModal(c *ui.Context, t *ui.Theme) {
 						}
 						uikit.Meta(c, locales.PublicCertificateOnlyTheSigning())
 						ui.Divider(c)
-						ui.Text(c, locales.AllowedSources()).FontSize(uikit.TextBody).FontWeight(500)
+						ui.Text(c, locales.AllowedSources()).FontSize(uikit.Scaled(uikit.TextBody)).FontWeight(500)
 						uikit.Hint(c, d.allowed).Font(uikit.FontMono)
 						uikit.Meta(c, locales.DisableAccessBeforeChangingThe())
 					}
@@ -212,7 +212,7 @@ func (a *app) devicesModal(c *ui.Context, t *ui.Theme) {
 				})
 			})
 			if d.problem != "" {
-				ui.Text(c, d.problem).FontSize(uikit.TextBody).TextColor(t.Danger)
+				ui.Text(c, d.problem).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Danger)
 			}
 			uikit.DialogFooter(c).Children(func() {
 				if d.gateway == nil {

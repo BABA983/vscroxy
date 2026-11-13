@@ -284,7 +284,7 @@ func (a *app) diagnosticsView(c *ui.Context, t *ui.Theme) {
 		})
 		u, err := url.Parse(strings.TrimSpace(d.target))
 		if err != nil || u.Hostname() == "" || u.User != nil || (u.Scheme != "http" && u.Scheme != "https") {
-			ui.Text(c, locales.EnterAnHttpOrHttps()).FontSize(uikit.TextBody).TextColor(t.Warning)
+			ui.Text(c, locales.EnterAnHttpOrHttps()).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Warning)
 			return
 		}
 		ui.Divider(c)
@@ -322,12 +322,12 @@ func (a *app) diagnosticRow(c *ui.Context, t *ui.Theme, i int, check diagnosticC
 			row := uikit.Tip(c, uikit.RowButton(c, check.title).Grow(1).MinWidth(0), locales.ShowDetails())
 			row.Children(func() {
 				ui.Column(c).Grow(1).MinWidth(0).Gap(2).Children(func() {
-					ui.Text(c, strconv.Itoa(i+1)+".  "+check.title).FontSize(uikit.TextBody).FontWeight(500)
+					ui.Text(c, strconv.Itoa(i+1)+".  "+check.title).FontSize(uikit.Scaled(uikit.TextBody)).FontWeight(500)
 					resultColor := t.TextMuted
 					if check.state == checkFail {
 						resultColor = t.Danger
 					}
-					uikit.Tip(c, ui.Text(c, check.result).FontSize(uikit.TextBody).TextColor(resultColor).SingleLine(), check.result)
+					uikit.Tip(c, ui.Text(c, check.result).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(resultColor).SingleLine(), check.result)
 				})
 			})
 			if row.Clicked() {
@@ -373,12 +373,12 @@ func (a *app) explainFailure(c *ui.Context, t *ui.Theme, f flow) {
 	e := f.conn.explanation()
 	ui.Column(c).Padding(t.Space(3)).Gap(t.Space(2)).Radius(uikit.RadiusPanel).Background(t.Danger.Alpha(0.06)).Border(1, t.Danger.Alpha(0.2)).Children(func() {
 		uikit.Label(c, "Observed failure · "+cmp.Or(f.conn.errorStage, "unknown stage"))
-		ui.Text(c, e.title).FontSize(uikit.TextBody).FontWeight(500)
-		ui.Text(c, f.conn.error).Font(uikit.FontMono).FontSize(uikit.TextMeta).TextColor(t.Danger).Selectable()
+		ui.Text(c, e.title).FontSize(uikit.Scaled(uikit.TextBody)).FontWeight(500)
+		ui.Text(c, f.conn.error).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Danger).Selectable()
 		uikit.Hint(c, e.summary)
-		ui.Text(c, locales.PossibleCausesNotConfirmed()).FontSize(uikit.TextBody).FontWeight(500)
+		ui.Text(c, locales.PossibleCausesNotConfirmed()).FontSize(uikit.Scaled(uikit.TextBody)).FontWeight(500)
 		uikit.Hint(c, e.causes)
-		ui.Text(c, locales.WhatToTry()).FontSize(uikit.TextBody).FontWeight(500)
+		ui.Text(c, locales.WhatToTry()).FontSize(uikit.Scaled(uikit.TextBody)).FontWeight(500)
 		uikit.Body(c, e.steps)
 		ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 			uikit.Meta(c, locales.ReviewUrlsAddressesAndRaw()).Grow(1)

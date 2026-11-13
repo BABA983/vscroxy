@@ -136,7 +136,7 @@ func (a *app) apiView(c *ui.Context, t *ui.Theme) {
 	valid := current && d.parsed != nil
 	ui.Column(c.Key(d.spec.ID)).Fill().Children(func() {
 		ui.Row(c).Height(uikit.HeightTabs).Padding(0, t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-			ui.Text(c, d.title()).FontSize(uikit.TextBody).FontWeight(500).Grow(1).MinWidth(0).SingleLine()
+			ui.Text(c, d.title()).FontSize(uikit.Scaled(uikit.TextBody)).FontWeight(500).Grow(1).MinWidth(0).SingleLine()
 			if uikit.SecondaryButton(c, locales.Validate()).Clicked() {
 				d.validate()
 			}
@@ -160,7 +160,7 @@ func (a *app) apiView(c *ui.Context, t *ui.Theme) {
 			}
 			status = fmt.Sprintf("%s  ·  OpenAPI %s  ·  Endpoints: %d", state, d.parsed.OpenAPI, len(apiOperations(d.parsed)))
 		}
-		ui.Text(c, status).FontSize(uikit.TextMeta).FontFeatures("tnum").TextColor(color).Padding(0, t.Space(3), t.Space(2), t.Space(3))
+		ui.Text(c, status).FontSize(uikit.Scaled(uikit.TextMeta)).FontFeatures("tnum").TextColor(color).Padding(0, t.Space(3), t.Space(2), t.Space(3))
 		if d.spec.Fingerprint != "" {
 			changed := d.spec.Fingerprint != collectionFingerprint(collectionRequests(a.requests, d.spec.Collection))
 			ui.Row(c).Padding(t.Space(2), t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).
@@ -193,7 +193,7 @@ func (a *app) apiView(c *ui.Context, t *ui.Theme) {
 		case 1:
 			if current && d.problem != "" {
 				ui.Scroll(c).Height(90).Padding(t.Space(2), t.Space(3)).Children(func() {
-					ui.Text(c, d.problem).FontSize(uikit.TextMeta).TextColor(t.Danger)
+					ui.Text(c, d.problem).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Danger)
 				})
 				ui.Divider(c)
 			}
@@ -227,7 +227,7 @@ func (a *app) apiEndpoints(c *ui.Context, t *ui.Theme, d *apiDocument) {
 			for _, endpoint := range endpoints {
 				label := endpoint.method + " " + endpoint.path
 				uikit.SidebarItem(c, label, nil, endpoint.path, d.endpoint == label, !a.windowBehind).Label("Endpoint: " + label).Children(func() {
-					method := ui.Text(c, endpoint.method).Font(uikit.FontMono).FontSize(uikit.TextMeta).SingleLine().Width(48)
+					method := ui.Text(c, endpoint.method).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextMeta)).SingleLine().Width(48)
 					if d.endpoint != label {
 						method.TextColor(uikit.MethodColor(endpoint.method, t))
 					}

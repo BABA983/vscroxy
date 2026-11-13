@@ -173,7 +173,7 @@ func (a *app) hostProfilesPage(c *ui.Context, t *ui.Theme, window bool) {
 	}
 	ui.Column(c).Width(268).MinHeight(0).Padding(top, t.Space(3), t.Space(3), t.Space(3)).Gap(t.Space(2)).Children(func() {
 		ui.Row(c).Gap(t.Space(1)).AlignItems(ui.Center).Children(func() {
-			ui.Text(c, locales.HostProfiles()).FontSize(uikit.TextTitle).FontWeight(500).TextColor(t.Text).Grow(1)
+			ui.Text(c, locales.HostProfiles()).FontSize(uikit.Scaled(uikit.TextTitle)).FontWeight(500).TextColor(t.Text).Grow(1)
 			if uikit.IconButton(c, locales.NewProfile(), locales.NewProfile(), plusIcon).Clicked() {
 				if a.newProfile("Untitled", "", "") {
 					h.nameFor = "" // the name field takes the new one
@@ -187,7 +187,7 @@ func (a *app) hostProfilesPage(c *ui.Context, t *ui.Theme, window bool) {
 		}
 		uikit.Meta(c, caption)
 		if h.problem != nil {
-			ui.Text(c, locales.ReadOnlyReason(h.problem.Error())).FontSize(uikit.TextMeta).TextColor(t.Danger).MaxLines(3)
+			ui.Text(c, locales.ReadOnlyReason(h.problem.Error())).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Danger).MaxLines(3)
 		}
 		a.profileList(c, t)
 		ui.Row(c).Gap(t.Space(1)).Wrap().Children(func() {
@@ -252,7 +252,7 @@ func (a *app) profileList(c *ui.Context, t *ui.Theme) {
 				uikit.Tip(c, uikit.Glyph(c, subscribeIcon), locales.SubscribedUrl(p.URL))
 			}
 			ui.Column(c).Grow(1).MinWidth(0).Children(func() {
-				ui.Text(c, p.Name).FontSize(uikit.TextBody).TextColor(t.Text).SingleLine()
+				ui.Text(c, p.Name).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Text).SingleLine()
 				if p.URL != "" {
 					uikit.Meta(c, profileFreshness(p, h.fetching[p.Name])).SingleLine()
 				}
@@ -314,7 +314,7 @@ func (a *app) profileEditor(c *ui.Context, t *ui.Theme, i int) {
 	}
 	st.ReadOnly = p.URL != ""
 	ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-		name := uikit.Input(c, &h.name).Label(locales.ProfileName()).Grow(1).MaxWidth(320).FontSize(uikit.TextTitle).Height(uikit.HeightLarge)
+		name := uikit.Input(c, &h.name).Label(locales.ProfileName()).Grow(1).MaxWidth(320).FontSize(uikit.Scaled(uikit.TextTitle)).Height(uikit.HeightLarge)
 		if name.Submitted() {
 			a.renameProfile(i, strings.TrimSpace(h.name))
 		}

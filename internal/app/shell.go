@@ -97,7 +97,7 @@ func (a *app) commandButton(c *ui.Context, t *ui.Theme) {
 	b := uikit.ChipButton(c, locales.Commands2(), locales.SearchEveryActionCtrlCmd()).Shrink(0)
 	b.Children(func() {
 		ui.Icon(c, searchIcon).Size(uikit.IconInline, uikit.IconInline).TextColor(t.TextMuted)
-		ui.Text(c, commandShortcut()).FontSize(uikit.TextMeta).TextColor(t.TextMuted).NoWrap()
+		ui.Text(c, commandShortcut()).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.TextMuted).NoWrap()
 	})
 	if b.Clicked() {
 		a.workbench.openPalette()
@@ -121,7 +121,7 @@ func (a *app) brandBar(c *ui.Context, t *ui.Theme) {
 // brand is the app's icon and name.
 func (a *app) brand(c *ui.Context, t *ui.Theme) {
 	ui.Icon(c, brandIcon).Size(uikit.IconLarge, uikit.IconLarge).TextColor(t.Text)
-	ui.Text(c, "vscroxy").FontSize(uikit.TextBody).FontWeight(500).TextColor(t.Text).SingleLine()
+	ui.Text(c, "vscroxy").FontSize(uikit.Scaled(uikit.TextBody)).FontWeight(500).TextColor(t.Text).SingleLine()
 }
 
 // sidebarToggle hides the sidebar or brings it back: the same choice Cmd+B
@@ -200,7 +200,7 @@ func (a *app) proxyIndicator(c *ui.Context, t *ui.Theme) {
 		} else {
 			mark.Radius(uikit.RadiusControl).Background(dot)
 		}
-		ui.Text(c, state).FontSize(uikit.TextMeta).TextColor(t.Text).SingleLine()
+		ui.Text(c, state).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Text).SingleLine()
 		if !running {
 			return
 		}
@@ -208,7 +208,7 @@ func (a *app) proxyIndicator(c *ui.Context, t *ui.Theme) {
 		if a.deviceUI.gateway != nil {
 			addr += " · LAN"
 		}
-		ui.Text(c, addr).Font(uikit.FontMono).FontSize(uikit.TextMeta).FontFeatures("tnum").SingleLine()
+		ui.Text(c, addr).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextMeta)).FontFeatures("tnum").SingleLine()
 	})
 	if b.Clicked() {
 		a.openSettings(1)
@@ -292,7 +292,7 @@ func (a *app) footer(c *ui.Context, t *ui.Theme) {
 				// button, so the count is not hidden behind a tint.
 				if n := a.newRows; n > 0 {
 					follow.Children(func() {
-						ui.Text(c, fmt.Sprintf("%d new", n)).FontSize(uikit.TextMeta).TextColor(t.Text)
+						ui.Text(c, fmt.Sprintf("%d new", n)).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Text)
 					})
 				}
 				if follow.Clicked() {
@@ -305,10 +305,10 @@ func (a *app) footer(c *ui.Context, t *ui.Theme) {
 			uikit.Meta(c, a.footerCountsText()).FontFeatures("tnum").SingleLine().
 				ContentTransition(ui.ContentTransition{Numeric: true})
 			if a.dropped > 0 {
-				ui.Text(c, locales.DroppedCount(int(a.dropped))).FontSize(uikit.TextMeta).FontFeatures("tnum").TextColor(t.Warning).SingleLine()
+				ui.Text(c, locales.DroppedCount(int(a.dropped))).FontSize(uikit.Scaled(uikit.TextMeta)).FontFeatures("tnum").TextColor(t.Warning).SingleLine()
 			}
 			if a.scriptErrs > 0 {
-				ui.Text(c, locales.ScriptErrors(int(a.scriptErrs))).FontSize(uikit.TextMeta).FontFeatures("tnum").TextColor(t.Warning).SingleLine()
+				ui.Text(c, locales.ScriptErrors(int(a.scriptErrs))).FontSize(uikit.Scaled(uikit.TextMeta)).FontFeatures("tnum").TextColor(t.Warning).SingleLine()
 			}
 		})
 		ui.Spacer(c)
@@ -571,7 +571,7 @@ func footerChipRow(c *ui.Context, t *ui.Theme, chip footerChip) {
 		label := uikit.ToolbarButton(c, open, chip.tip, false).Height(uikit.HeightFooterControl).
 			PaddingStart(t.Space(1.5)).PaddingEnd(t.Space(0.5)).Children(func() {
 			ui.Icon(c, chip.icon).Size(uikit.IconInline, uikit.IconInline)
-			ui.Text(c, chip.label).FontSize(uikit.TextMeta).MaxWidth(180).SingleLine()
+			ui.Text(c, chip.label).FontSize(uikit.Scaled(uikit.TextMeta)).MaxWidth(180).SingleLine()
 			if chip.panel != nil {
 				ui.Icon(c, chevronIcon).Size(uikit.IconInline-4, uikit.IconInline-4)
 			}

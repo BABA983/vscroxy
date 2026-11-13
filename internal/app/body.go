@@ -285,7 +285,7 @@ func (a *app) bodySideView(c *ui.Context, f flow, side int) {
 		return // rebuild the chosen side before parsing or copying its bytes
 	}
 	if notice := strings.TrimSpace(a.bodyNotice[side]); notice != "" {
-		uikit.Tip(c, ui.Text(c, notice).FontSize(uikit.TextMeta).TextColor(t.Warning).Background(t.Warning.Alpha(0.12)).
+		uikit.Tip(c, ui.Text(c, notice).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Warning).Background(t.Warning.Alpha(0.12)).
 			Padding(t.Space(1), t.Space(3)).FillWidth(), notice)
 	}
 	if modes[mode] == inspect.BodyFormat(f.bodyContentType(side == 0)) {
@@ -322,7 +322,7 @@ func (a *app) bodySideView(c *ui.Context, f flow, side int) {
 			placeholder = "Filter hex rows (hex bytes or text)…"
 		}
 		uikit.Tip(c, uikit.Input(c, &a.bodyQuery[side]).Label(locales.SearchBody()).Placeholder(placeholder), placeholder).
-			FontSize(uikit.TextBody).Height(uikit.HeightControl).Radius(uikit.RadiusControl).Margin(0, t.Space(3), t.Space(2)).FillWidth()
+			FontSize(uikit.Scaled(uikit.TextBody)).Height(uikit.HeightControl).Radius(uikit.RadiusControl).Margin(0, t.Space(3), t.Space(2)).FillWidth()
 	}
 	switch mode {
 	case 2:
@@ -490,7 +490,7 @@ func (a *app) jsonBody(c *ui.Context, side int) {
 				ui.Box(c).Width(uikit.HeightControl)
 			}
 			if row.node.key != "" {
-				uikit.Tip(c, ui.Text(c, row.node.key).FontSize(uikit.TextBody).Font(uikit.FontMono).TextColor(keyColor).SingleLine(), row.node.path)
+				uikit.Tip(c, ui.Text(c, row.node.key).FontSize(uikit.Scaled(uikit.TextBody)).Font(uikit.FontMono).TextColor(keyColor).SingleLine(), row.node.path)
 				uikit.Hint(c, ":")
 			}
 			switch row.node.kind {
@@ -499,7 +499,7 @@ func (a *app) jsonBody(c *ui.Context, side int) {
 			case "array":
 				uikit.Hint(c, fmt.Sprintf("[%d]", len(row.node.children))).FontFeatures("tnum")
 			default:
-				ui.Text(c, row.node.value).FontSize(uikit.TextBody).Font(uikit.FontMono).TextColor(t.Text).SingleLine()
+				ui.Text(c, row.node.value).FontSize(uikit.Scaled(uikit.TextBody)).Font(uikit.FontMono).TextColor(t.Text).SingleLine()
 			}
 		})
 	}).Grow(1)
@@ -513,7 +513,7 @@ func (a *app) hexBody(c *ui.Context, body string, side int) {
 		return
 	}
 	ui.List(c, &a.hexScroll[side], len(rows), func(i int) {
-		ui.Text(c, hexLine(body, rows[i])).FontSize(uikit.TextMeta).Font(uikit.FontMono).TextColor(t.Text).
+		ui.Text(c, hexLine(body, rows[i])).FontSize(uikit.Scaled(uikit.TextMeta)).Font(uikit.FontMono).TextColor(t.Text).
 			Padding(t.Space(1), t.Space(3)).SingleLine()
 	}).Grow(1)
 }

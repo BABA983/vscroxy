@@ -1513,7 +1513,13 @@ func (a *app) view(c *ui.Context) {
 	// The pass starts from MyGo's theme, which follows the system.
 	a.dark = a.appearance == "dark" || a.appearance == "" && c.Theme().Dark
 	a.windowWidth, _ = c.Size()
-	c.SetTheme(uikit.Theme(a.dark))
+	// The desktop's text size reaches the four sizes the screens use, and its
+	// contrast the theme; the accent stays ours.
+	prefs := c.Preferences()
+	uikit.SetTextScale(prefs.TextScale)
+	theme := uikit.Theme(a.dark).WithPreferences(prefs)
+	theme.Accent, theme.AccentHover, theme.AccentPressed, theme.AccentText = uikit.Theme(a.dark).Accent, uikit.Theme(a.dark).AccentHover, uikit.Theme(a.dark).AccentPressed, uikit.Theme(a.dark).AccentText
+	c.SetTheme(theme)
 	c.SetMenuPresentation(ui.PopoverMenus)
 	a.drain()
 	a.drainUpstream()
@@ -1793,19 +1799,19 @@ func (a *app) panel(c *ui.Context, t *ui.Theme) {
 		ui.Column(c).Grow(1).MinWidth(0).FillHeight().Background(p.Canvas).
 			Radius(radii[0], radii[1], radii[2], radii[3]).Clip().Children(func() {
 			if a.srv == nil && a.errText != "" {
-				ui.Text(c, locales.ProxyUnavailable(a.errText)).Padding(t.Space(2), t.Space(3)).FontSize(uikit.TextBody).TextColor(t.Danger)
+				ui.Text(c, locales.ProxyUnavailable(a.errText)).Padding(t.Space(2), t.Space(3)).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Danger)
 			}
 			if a.requestsProblem != "" || a.envsProblem != "" {
 				ui.Column(c).Padding(t.Space(2), t.Space(3)).Gap(t.Space(1)).Children(func() {
 					ui.Row(c).Gap(t.Space(3)).AlignItems(ui.Center).Children(func() {
-						ui.Text(c, locales.LocalAssetsProtectedSavingDisabled()).FontSize(uikit.TextBody).FontWeight(500).TextColor(t.Danger).Grow(1)
+						ui.Text(c, locales.LocalAssetsProtectedSavingDisabled()).FontSize(uikit.Scaled(uikit.TextBody)).FontWeight(500).TextColor(t.Danger).Grow(1)
 						if uikit.SecondaryButton(c, locales.ReloadLocalAssets()).Clicked() {
 							a.loadRequestAssets()
 						}
 					})
 					for _, problem := range []string{a.requestsProblem, a.envsProblem} {
 						if problem != "" {
-							ui.Text(c, problem).FontSize(uikit.TextMeta).TextColor(t.Danger)
+							ui.Text(c, problem).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Danger)
 						}
 					}
 					uikit.Meta(c, locales.OriginalFilesLeftUntouchedRepair())
@@ -1870,7 +1876,7 @@ func (a *app) breakpointModal(c *ui.Context, t *ui.Theme) {
 						uikit.Hint(c, locales.MessageExceedsTheEditorLimit())
 					} else {
 						uikit.Meta(c, locales.Utf8TextOrCanonical())
-						ui.TextArea(c, &a.bpBody).Height(240).Label(locales.MessagePayload()).Font(uikit.FontMono).FontSize(uikit.TextBody).Radius(uikit.RadiusControl)
+						ui.TextArea(c, &a.bpBody).Height(240).Label(locales.MessagePayload()).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextBody)).Radius(uikit.RadiusControl)
 					}
 					return
 				}
@@ -1886,16 +1892,16 @@ func (a *app) breakpointModal(c *ui.Context, t *ui.Theme) {
 					})
 				}
 				uikit.Meta(c, locales.HeadersOneNameValuePer())
-				ui.TextArea(c, &a.bpHeaders).Height(130).Label(locales.BreakpointHeaders()).FontSize(uikit.TextBody).Radius(uikit.RadiusControl)
+				ui.TextArea(c, &a.bpHeaders).Height(130).Label(locales.BreakpointHeaders()).FontSize(uikit.Scaled(uikit.TextBody)).Radius(uikit.RadiusControl)
 				if a.bp.BodyReadOnly {
 					uikit.Hint(c, locales.BinaryUndecodableOrLargeBody())
 				} else {
-					ui.TextArea(c, &a.bpBody).Height(160).Label(locales.Body()).FontSize(uikit.TextBody).Radius(uikit.RadiusControl)
+					ui.TextArea(c, &a.bpBody).Height(160).Label(locales.Body()).FontSize(uikit.Scaled(uikit.TextBody)).Radius(uikit.RadiusControl)
 					uikit.Meta(c, locales.BodyEditsUseDecodedBytes())
 				}
 			})
 			if validation != "" {
-				ui.Text(c, validation).FontSize(uikit.TextBody).TextColor(t.Danger)
+				ui.Text(c, validation).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Danger)
 			}
 			uikit.DialogFooter(c).Children(func() {
 				abortLabel := "Drop message"
@@ -2113,7 +2119,7 @@ func (a *app) sourcesRows(c *ui.Context, t *ui.Theme) {
 		rows = a.clients
 	}
 	if len(rows) == 0 {
-		uikit.Hint(c, locales.AppsAndDomainsShowHere()).FontSize(uikit.TextMeta).LineHeight(uikit.LineMeta).
+		uikit.Hint(c, locales.AppsAndDomainsShowHere()).FontSize(uikit.Scaled(uikit.TextMeta)).LineHeight(uikit.LineMeta).
 			Padding(t.Space(1), t.Space(3))
 		return
 	}
@@ -2144,7 +2150,7 @@ func (a *app) hostRow(c *ui.Context, d domain) {
 		})
 	}).Children(func() {
 		if a.filterTriage.Host == d.name {
-			uikit.Tip(c, ui.Text(c, "✓").FontSize(uikit.TextMeta).TextColor(c.Theme().Accent), locales.HostFilterIsActiveRemove())
+			uikit.Tip(c, ui.Text(c, "✓").FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(c.Theme().Accent), locales.HostFilterIsActiveRemove())
 		}
 		uikit.Meta(c, fmt.Sprint(d.n)).FontFeatures("tnum")
 	})
@@ -2159,7 +2165,7 @@ func (a *app) clientRow(c *ui.Context, d domain) {
 		func(m *ui.Menu) { actionMenu(m, a.clientActions(d.name, apps)) }).
 		Children(func() {
 			if a.filterTriage.Client == d.name {
-				uikit.Tip(c, ui.Text(c, "✓").FontSize(uikit.TextMeta).TextColor(t.Accent), locales.AppFilterIsActiveRemove())
+				uikit.Tip(c, ui.Text(c, "✓").FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Accent), locales.AppFilterIsActiveRemove())
 			}
 			if slices.ContainsFunc(apps, func(app capture.SSLApp) bool { return a.appInspectionEnabled(app.Path) }) {
 				uikit.Tip(c, ui.Icon(c, lockIcon).Size(uikit.IconInline, uikit.IconInline), locales.AnExactExecutableRuleIs())
@@ -2330,7 +2336,7 @@ func (a *app) table(c *ui.Context) {
 					if failure {
 						color = t.Warning
 					}
-					uikit.Tip(c, ui.Text(c, note).FontSize(uikit.TextBody).TextColor(color), a.views.statusDetail())
+					uikit.Tip(c, ui.Text(c, note).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(color), a.views.statusDetail())
 				}
 				if uikit.SecondaryButton(c, locales.EditFilters()).Clicked() {
 					a.openFilter()
@@ -2490,16 +2496,16 @@ func (a *app) table(c *ui.Context) {
 			uikit.RowMarker(c, focused)
 		}
 		text := func(s string) ui.Element {
-			return uikit.Body(c, s).Font(uikit.FontMono).FontSize(uikit.TextData).Height(15).FixedLineHeight(15).FontFeatures("tnum").SingleLine()
+			return uikit.Body(c, s).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextData)).Height(15).FixedLineHeight(15).FontFeatures("tnum").SingleLine()
 		}
 		// Facts beside the request: its number, host, client, timing and size.
 		quiet := func(s string) ui.Element {
-			return uikit.Hint(c, s).Font(uikit.FontMono).FontSize(uikit.TextData).Height(15).FixedLineHeight(15).FontFeatures("tnum").SingleLine()
+			return uikit.Hint(c, s).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextData)).Height(15).FixedLineHeight(15).FontFeatures("tnum").SingleLine()
 		}
 		// What a person reads as a name rather than as wire data: the host,
 		// the client and a note keep the interface font, as the sidebar does.
 		plain := func(s string) ui.Element {
-			return uikit.Hint(c, s).FontSize(uikit.TextData).Height(15).FixedLineHeight(15).SingleLine()
+			return uikit.Hint(c, s).FontSize(uikit.Scaled(uikit.TextData)).Height(15).FixedLineHeight(15).SingleLine()
 		}
 		switch cols[col].ID {
 		case "id":
@@ -2515,7 +2521,7 @@ func (a *app) table(c *ui.Context) {
 		case "method":
 			// The verb is a name here, not a value: the interface font, in
 			// the method's own ink.
-			uikit.Tip(c, uikit.Body(c, f.method).FontSize(uikit.TextData).FontWeight(500).Height(15).FixedLineHeight(15).
+			uikit.Tip(c, uikit.Body(c, f.method).FontSize(uikit.Scaled(uikit.TextData)).FontWeight(500).Height(15).FixedLineHeight(15).
 				TextColor(uikit.MethodColor(f.method, t)).SingleLine(), f.method).PopoverMenu(a.rowMenu(c, f))
 		case "host":
 			uikit.Tip(c, plain(f.host), f.url).PopoverMenu(a.rowMenu(c, f))
@@ -2548,7 +2554,7 @@ func (a *app) table(c *ui.Context) {
 					accent := uikit.Colors(t).Accent
 					uikit.Tip(c, ui.Box(c).Height(15).Padding(0, t.Space(1)).Radius(uikit.RadiusControl).Background(accent.Alpha(0.12)).Center().MarginEnd(t.Space(1)).
 						Label("Mapped by "+hostProfileLabel(f.hostProfile)), mappedBy(f)).Children(func() {
-						ui.Text(c, locales.Hosts()).FontSize(uikit.TextMeta).FontWeight(500).TextColor(accent)
+						ui.Text(c, locales.Hosts()).FontSize(uikit.Scaled(uikit.TextMeta)).FontWeight(500).TextColor(accent)
 					})
 				}
 				uikit.Tip(c, text(cmp.Or(f.path, "/")).Label(f.host+f.path).TextColor(rest), f.url).PopoverMenu(a.rowMenu(c, f))
@@ -2637,7 +2643,7 @@ func (a *app) table(c *ui.Context) {
 				cell.PopoverMenu(a.headerFilterMenu(c, cc.Name, []string{value}))
 			}
 		}
-	}).Label(locales.CapturedRequests()).FontSize(uikit.TextData).Grow(1)
+	}).Label(locales.CapturedRequests()).FontSize(uikit.Scaled(uikit.TextData)).Grow(1)
 	c.SetTheme(t)
 	if table.Submitted() {
 		a.workbench.inspector.Focus(c)
@@ -2782,7 +2788,7 @@ func (a *app) markModal(c *ui.Context, t *ui.Theme) {
 						a.markColor = ""
 					}
 				})
-				ui.TextArea(c, &a.markNote).Height(90).Label(locales.Note()).FontSize(uikit.TextBody).Radius(uikit.RadiusControl)
+				ui.TextArea(c, &a.markNote).Height(90).Label(locales.Note()).FontSize(uikit.Scaled(uikit.TextBody)).Radius(uikit.RadiusControl)
 			})
 			uikit.DialogFooter(c).Children(func() {
 				if uikit.SecondaryButton(c, locales.Cancel()).Clicked() {
@@ -2825,7 +2831,7 @@ func (a *app) connectionView(c *ui.Context, f flow) {
 	t := c.Theme()
 	ui.Row(c).Padding(t.Space(2), t.Space(3)).Gap(t.Space(2)).Children(func() {
 		if f.conn.error != "" {
-			ui.Text(c, cmp.Or(f.conn.errorStage, "Connection")+" failed").FontSize(uikit.TextBody).TextColor(t.Danger).Grow(1)
+			ui.Text(c, cmp.Or(f.conn.errorStage, "Connection")+" failed").FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Danger).Grow(1)
 		} else {
 			uikit.Hint(c, locales.ConnectionLogSnapshotAtCapture()).Grow(1)
 		}
@@ -2835,10 +2841,10 @@ func (a *app) connectionView(c *ui.Context, f flow) {
 		}
 	})
 	if f.conn.error != "" {
-		uikit.Tip(c, ui.Text(c, f.conn.error).Selectable().MaxLines(3), f.conn.error).FontSize(uikit.TextBody).TextColor(t.Danger).Padding(0, t.Space(3), t.Space(2))
+		uikit.Tip(c, ui.Text(c, f.conn.error).Selectable().MaxLines(3), f.conn.error).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Danger).Padding(0, t.Space(3), t.Space(2))
 	}
 	text := cmp.Or(f.conn.log, "No connection history was recorded for this exchange (for example, an older or imported session).")
-	ui.TextArea(c, &text).ReadOnly(true).Label(locales.ConnectionLog()).Font(uikit.FontMono).FontSize(uikit.TextBody).Grow(1).FillWidth()
+	ui.TextArea(c, &text).ReadOnly(true).Label(locales.ConnectionLog()).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextBody)).Grow(1).FillWidth()
 }
 
 // connPanel is the connection behind a flow: who talked to the proxy, where it
@@ -2846,7 +2852,7 @@ func (a *app) connectionView(c *ui.Context, f flow) {
 func (a *app) connPanel(c *ui.Context, t *ui.Theme, f flow) {
 	cn := f.conn
 	ui.Column(c).Width(440).Gap(t.Space(0.5)).Padding(t.Space(1)).Children(func() {
-		ui.Text(c, locales.Connection()).FontSize(uikit.TextBody).FontWeight(500).TextColor(t.Text).Padding(0, 0, t.Space(2), 0)
+		ui.Text(c, locales.Connection()).FontSize(uikit.Scaled(uikit.TextBody)).FontWeight(500).TextColor(t.Text).Padding(0, 0, t.Space(2), 0)
 		field(c, t, "HTTP version", cn.proto)
 		field(c, t, "Client", cn.client)
 		field(c, t, "Proxy", cn.proxy)
@@ -2893,7 +2899,7 @@ func field(c *ui.Context, t *ui.Theme, label, value string) {
 	}
 	ui.Row(c).Gap(t.Space(2)).Padding(t.Space(0.5), 0).Children(func() {
 		uikit.Meta(c, label).Width(96)
-		ui.Text(c, value).FontSize(uikit.TextBody).Font(uikit.FontMono).TextColor(t.Text).Grow(1)
+		ui.Text(c, value).FontSize(uikit.Scaled(uikit.TextBody)).Font(uikit.FontMono).TextColor(t.Text).Grow(1)
 	})
 }
 
@@ -2905,7 +2911,7 @@ func field(c *ui.Context, t *ui.Theme, label, value string) {
 func (a *app) headerBlock(c *ui.Context, t *ui.Theme, title, line, note string, headers http.Header, raw string, trailers http.Header) {
 	ui.Column(c).FillWidth().Padding(t.Space(2), t.Space(3)).Gap(t.Space(2)).Background(uikit.Colors(t).Chrome).Children(func() {
 		ui.Row(c).AlignItems(ui.Center).Children(func() {
-			ui.Text(c, title).FontSize(uikit.TextBody).FontWeight(500)
+			ui.Text(c, title).FontSize(uikit.Scaled(uikit.TextBody)).FontWeight(500)
 			ui.Spacer(c)
 			if len(headers) > 0 {
 				count := locales.RequestHeadersCount(len(headers))
@@ -2931,14 +2937,14 @@ func (a *app) headerBlock(c *ui.Context, t *ui.Theme, title, line, note string, 
 				if raw == "" {
 					uikit.Hint(c, locales.NoHeadersRecorded()).Padding(t.Space(3))
 				} else {
-					ui.Text(c, raw).FontSize(uikit.TextBody).Font(uikit.FontMono).TextColor(t.Text).Selectable().Padding(t.Space(3))
+					ui.Text(c, raw).FontSize(uikit.Scaled(uikit.TextBody)).Font(uikit.FontMono).TextColor(t.Text).Selectable().Padding(t.Space(3))
 				}
 			}
 			for _, key := range slices.Sorted(maps.Keys(block)) {
 				value := strings.Join(block[key], "\n")
 				ui.Row(c).Gap(t.Space(3)).Padding(t.Space(2), t.Space(3)).AlignItems(ui.Start).FillWidth().Children(func() {
 					uikit.Tip(c, uikit.Meta(c, key).Font(uikit.FontMono).Width(124).SingleLine(), strings.TrimSpace(key+"\n"+headerDoc(key)))
-					ui.Text(c, value).FontSize(uikit.TextBody).Font(uikit.FontMono).TextColor(t.Text).Grow(1).Selectable()
+					ui.Text(c, value).FontSize(uikit.Scaled(uikit.TextBody)).Font(uikit.FontMono).TextColor(t.Text).Grow(1).Selectable()
 				})
 				ui.Divider(c).Background(t.Border.Alpha(0.45))
 			}
@@ -3119,7 +3125,7 @@ func clientBadge(c *ui.Context, name string) {
 		letter = strings.ToUpper(string(runes[0]))
 	}
 	ui.Box(c).Size(uikit.IconInline, uikit.IconInline).Radius(uikit.RadiusControl).Background(badgeColor(name)).Center().Children(func() {
-		ui.Text(c, letter).FontSize(uikit.TextMeta).FontWeight(500).TextColor(uikit.SwatchText)
+		ui.Text(c, letter).FontSize(uikit.Scaled(uikit.TextMeta)).FontWeight(500).TextColor(uikit.SwatchText)
 	})
 }
 
@@ -3330,7 +3336,7 @@ func (a *app) varsModal(c *ui.Context, t *ui.Theme) {
 		uikit.DialogColumn(c, uikit.DialogLarge).Height(min(600, height-80)).Children(func() {
 			uikit.DialogTitle(c, locales.Variables())
 			if a.envsProblem != "" {
-				ui.Text(c, locales.VariablesAreReadOnlyClose()).FontSize(uikit.TextMeta).TextColor(t.Danger)
+				ui.Text(c, locales.VariablesAreReadOnlyClose()).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Danger)
 			}
 			scope := 0
 			if a.varsGlobals {
@@ -3379,7 +3385,7 @@ func (a *app) varsModal(c *ui.Context, t *ui.Theme) {
 				a.variableTable(c, &a.varsRows, variableTableOptions{})
 			})
 			if a.varsProblem != "" {
-				ui.Text(c, a.varsProblem).FontSize(uikit.TextMeta).TextColor(t.Danger)
+				ui.Text(c, a.varsProblem).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Danger)
 			}
 			uikit.DialogFooter(c).Children(func() {
 				if uikit.Tip(c, uikit.SecondaryButton(c, locales.ExportAsPostman()), locales.WritesTheInitialValuesShown()).Clicked() {
@@ -3834,7 +3840,7 @@ func (a *app) hostListModal(c *ui.Context, t *ui.Theme, open *bool, title, hint,
 			uikit.DialogTitle(c, title)
 			ui.Scroll(c).MinHeight(0).Gap(t.Space(3)).Padding(0, t.Space(1)).Children(func() {
 				uikit.Meta(c, hint)
-				ui.TextArea(c, text).Height(140).Label(title).FontSize(uikit.TextBody).Radius(uikit.RadiusControl)
+				ui.TextArea(c, text).Height(140).Label(title).FontSize(uikit.Scaled(uikit.TextBody)).Radius(uikit.RadiusControl)
 			})
 			uikit.DialogFooter(c).Children(func() {
 				if uikit.SecondaryButton(c, locales.Cancel()).Clicked() {
@@ -4005,12 +4011,12 @@ func (a *app) sslModal(c *ui.Context, t *ui.Theme) {
 				uikit.Meta(c, locales.EnableADomainOrA())
 				ui.Row(c).Gap(t.Space(2)).MinHeight(uikit.HeightControl).AlignItems(ui.Center).Children(func() {
 					ui.Switch(c, &draft.All).Label(locales.DecryptEveryDomain())
-					ui.Text(c, locales.DecryptEveryDomain()).FontSize(uikit.TextBody).TextColor(t.Text)
+					ui.Text(c, locales.DecryptEveryDomain()).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Text)
 				})
-				ui.Text(c, locales.DomainsAndSubdomains()).FontSize(uikit.TextBody).FontWeight(500)
-				ui.TextArea(c, &a.sslDraftHosts).Height(100).Label(locales.DecryptionDomains()).FontSize(uikit.TextBody).Radius(uikit.RadiusControl)
+				ui.Text(c, locales.DomainsAndSubdomains()).FontSize(uikit.Scaled(uikit.TextBody)).FontWeight(500)
+				ui.TextArea(c, &a.sslDraftHosts).Height(100).Label(locales.DecryptionDomains()).FontSize(uikit.Scaled(uikit.TextBody)).Radius(uikit.RadiusControl)
 				ui.Divider(c)
-				ui.Text(c, locales.LocalApps()).FontSize(uikit.TextBody).FontWeight(500)
+				ui.Text(c, locales.LocalApps()).FontSize(uikit.Scaled(uikit.TextBody)).FontWeight(500)
 				uikit.Meta(c, locales.ExactExecutablePathsNotApp())
 				if len(draft.Apps) == 0 {
 					uikit.Hint(c, locales.NoAppRulesEnabled())

@@ -99,7 +99,7 @@ func (a *app) scenariosPage(c *ui.Context, t *ui.Theme, top float32, active bool
 	}
 	current := capture.ActiveScenario(a.rules)
 	ui.Column(c).Width(268).MinHeight(0).Padding(top, t.Space(3), t.Space(3), t.Space(3)).Gap(t.Space(2)).Children(func() {
-		ui.Text(c, locales.Scenarios()).FontSize(uikit.TextTitle).FontWeight(500).TextColor(t.Text)
+		ui.Text(c, locales.Scenarios()).FontSize(uikit.Scaled(uikit.TextTitle)).FontWeight(500).TextColor(t.Text)
 		uikit.Meta(c, locales.OneAtATimeIts())
 		choice := slices.Index(names, s.choice)
 		s.list.Selected = &choice
@@ -121,7 +121,7 @@ func (a *app) scenariosPage(c *ui.Context, t *ui.Theme, top float32, active bool
 				if ui.Switch(c, &on).Label("Scenario active: " + name).Changed() {
 					a.selectRuleScenario(map[bool]string{true: name}[on])
 				}
-				ui.Text(c, name).FontSize(uikit.TextBody).TextColor(t.Text).Grow(1).SingleLine()
+				ui.Text(c, name).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Text).Grow(1).SingleLine()
 				n := 0
 				for _, rule := range a.rules {
 					if rule.Scenario == name {
@@ -160,7 +160,7 @@ func (a *app) scenarioDetail(c *ui.Context, t *ui.Theme, name, current string) {
 		s.name, s.nameFor = name, name
 	}
 	ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-		if uikit.Input(c, &s.name).Label(locales.ScenarioName()).Grow(1).MaxWidth(360).FontSize(uikit.TextTitle).Height(uikit.HeightLarge).Submitted() {
+		if uikit.Input(c, &s.name).Label(locales.ScenarioName()).Grow(1).MaxWidth(360).FontSize(uikit.Scaled(uikit.TextTitle)).Height(uikit.HeightLarge).Submitted() {
 			a.renameScenario(name, strings.TrimSpace(s.name))
 		}
 		on := name == current
@@ -202,7 +202,7 @@ func (a *app) scenarioDetail(c *ui.Context, t *ui.Theme, name, current string) {
 				}
 				uikit.Tip(c, uikit.Glyph(c, ruleIcons[max(slices.Index(ruleTypes, r.Type), 0)]), ruleLabel(r.Type))
 				ui.Column(c).Grow(1).MinWidth(0).Children(func() {
-					ui.Text(c, cmp.Or(r.Name, r.Match)).FontSize(uikit.TextBody).TextColor(t.Text).SingleLine()
+					ui.Text(c, cmp.Or(r.Name, r.Match)).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Text).SingleLine()
 					uikit.Meta(c, ruleSummary(r)).Font(uikit.FontMono).SingleLine()
 				})
 				if uikit.CompactButton(c, locales.Edit2()).Label(locales.EditRule(i + 1)).Clicked() {

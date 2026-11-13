@@ -265,7 +265,7 @@ func (a *app) mqttEditor(c *ui.Context, t *ui.Theme, d *requestDocument) {
 			uikit.Tabs(c, &u.tab, locales.MqttEditorTabPrefix(), locales.Connection(), locales.Subscriptions(), locales.Publish(), locales.LastWill()).Grow(1)
 		})
 		if u.problem != "" {
-			ui.Text(c, u.problem).TextColor(t.Danger).FontSize(uikit.TextMeta).MaxHeight(55).Padding(0, t.Space(3))
+			ui.Text(c, u.problem).TextColor(t.Danger).FontSize(uikit.Scaled(uikit.TextMeta)).MaxHeight(55).Padding(0, t.Space(3))
 		}
 		ui.Column(c).Grow(1).MinHeight(0).Padding(t.Space(2), t.Space(3)).Gap(t.Space(2)).Children(func() {
 			switch u.tab {
@@ -352,7 +352,7 @@ func (a *app) mqttConnectionTab(c *ui.Context, t *ui.Theme, d *requestDocument, 
 				uikit.Meta(c, locales.MqttsAndWssVerifyThe())
 				if !verify {
 					ui.Text(c, locales.CertificateVerificationIsOffThis3()).
-						FontSize(uikit.TextMeta).TextColor(t.Danger)
+						FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Danger)
 				}
 			})
 		})
@@ -639,7 +639,7 @@ func (a *app) mqttResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 	s := u.session.snapshot()
 	ui.Column(c).Fill().Children(func() {
 		ui.Row(c).Height(uikit.HeightTabs).Padding(0, t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-			ui.Text(c, locales.MqttMessages()).FontSize(uikit.TextBody).Grow(1)
+			ui.Text(c, locales.MqttMessages()).FontSize(uikit.Scaled(uikit.TextBody)).Grow(1)
 			uikit.Meta(c, stateLabel(s.state)).SingleLine()
 		})
 		if u.session == nil {
@@ -647,7 +647,7 @@ func (a *app) mqttResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 			return
 		}
 		if s.problem != "" {
-			ui.Text(c, s.problem).TextColor(t.Danger).FontSize(uikit.TextMeta).MaxHeight(55).Padding(0, t.Space(3))
+			ui.Text(c, s.problem).TextColor(t.Danger).FontSize(uikit.Scaled(uikit.TextMeta)).MaxHeight(55).Padding(0, t.Space(3))
 		}
 		ui.Row(c).Padding(t.Space(1), t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 			uikit.Input(c, &u.query).Label(locales.SearchMqttMessages()).Placeholder(locales.SearchTopicPayloadOrProperties()).Grow(1).MinWidth(0)
@@ -684,7 +684,7 @@ func (a *app) mqttResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 					uikit.RowMarker(c, focused)
 				}
 				ui.Column(c).Padding(t.Space(1), t.Space(2)).Children(func() {
-					ui.Text(c, e.direction+" · "+e.name).FontSize(uikit.TextBody).SingleLine()
+					ui.Text(c, e.direction+" · "+e.name).FontSize(uikit.Scaled(uikit.TextBody)).SingleLine()
 					uikit.Meta(c, mqttEventMeta(e)).SingleLine()
 				})
 			}).Grow(1)
@@ -711,7 +711,7 @@ func (a *app) mqttResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 					uikit.SecondaryButton(c, locales.CopyShownMessage()).OnClick(func() { services.WriteClipboard(text) })
 				})
 				if e.properties != "" {
-					ui.Text(c, e.properties).Font(uikit.FontMono).FontSize(uikit.TextMeta).TextColor(t.TextMuted).MaxHeight(90).Padding(0, t.Space(2))
+					ui.Text(c, e.properties).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.TextMuted).MaxHeight(90).Padding(0, t.Space(2))
 				}
 				requestCodeEditor(c, u.reader)
 			})

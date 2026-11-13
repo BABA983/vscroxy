@@ -96,7 +96,7 @@ func (a *app) detail(c *ui.Context) {
 		if len(f.actions) > 0 {
 			// A note about what rules did, not a state: the accent is ink
 			// now, so it would read as ordinary body text.
-			uikit.Tip(c, ui.Text(c, locales.AppliedActions(strings.Join(f.actions, " · "))).FontSize(uikit.TextMeta).TextColor(t.TextMuted).
+			uikit.Tip(c, ui.Text(c, locales.AppliedActions(strings.Join(f.actions, " · "))).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.TextMuted).
 				Padding(4, 14).SingleLine(), strings.Join(f.actions, "\n"))
 		}
 		switch a.inspect.pane {
@@ -130,11 +130,11 @@ func (a *app) connectDetail(c *ui.Context, t *ui.Theme, f flow) {
 	// what the exchange says on the right. Nothing here is the page's main
 	// action, so nothing wears the primary button.
 	ui.Row(c).Height(uikit.HeightTabs).Padding(0, t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-		uikit.Tip(c, ui.Text(c, cmp.Or(f.process, "Unidentified client")).FontSize(uikit.TextBody).FontWeight(500).SingleLine().Shrink(0), f.processPath)
+		uikit.Tip(c, ui.Text(c, cmp.Or(f.process, "Unidentified client")).FontSize(uikit.Scaled(uikit.TextBody)).FontWeight(500).SingleLine().Shrink(0), f.processPath)
 		uikit.Tabs(c, &a.tab, "", locales.HttpsSetup(), locales.Connection())
 		ui.Spacer(c)
 		if f.conn.error != "" {
-			uikit.Tip(c, ui.Text(c, cmp.Or(f.conn.errorStage, "Connection")+" failed").FontSize(uikit.TextMeta).TextColor(t.Danger).SingleLine().Shrink(0), f.conn.error)
+			uikit.Tip(c, ui.Text(c, cmp.Or(f.conn.errorStage, "Connection")+" failed").FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Danger).SingleLine().Shrink(0), f.conn.error)
 		}
 		uikit.Tip(c, uikit.Meta(c, f.host).Font(uikit.FontMono).SingleLine().MinWidth(0).Shrink(1), f.url)
 		if uikit.Tip(c, uikit.SecondaryButton(c, locales.Explain()), locales.DiagnoseThisConnection()).Clicked() {
@@ -173,9 +173,9 @@ func (a *app) exchangeResult(c *ui.Context, t *ui.Theme, f flow, compact bool) {
 		chip = uikit.Tip(c, chip, doc)
 	}
 	if !compact {
-		ui.Text(c, "·").FontSize(uikit.TextBody).TextColor(t.Border)
+		ui.Text(c, "·").FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Border)
 		uikit.Hint(c, fmt.Sprintf("%d ms", f.millis)).FontFeatures("tnum").SingleLine()
-		ui.Text(c, "·").FontSize(uikit.TextBody).TextColor(t.Border)
+		ui.Text(c, "·").FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Border)
 		uikit.Hint(c, humanBytes(f.bytes)).FontFeatures("tnum").SingleLine()
 	}
 }
@@ -930,7 +930,7 @@ func (a *app) inspectorPaneBar(c *ui.Context, t *ui.Theme, title, note string) {
 		if uikit.IconButton(c, locales.BackToRequestAndResponse(), locales.RequestAndResponse(), backIcon).Clicked() {
 			a.inspect.pane = inspectorSplit
 		}
-		ui.Text(c, title).FontSize(uikit.TextBody).FontWeight(500).TextColor(t.Text)
+		ui.Text(c, title).FontSize(uikit.Scaled(uikit.TextBody)).FontWeight(500).TextColor(t.Text)
 		uikit.Tip(c, uikit.Meta(c, note).SingleLine(), note)
 		ui.Spacer(c)
 	})
@@ -983,7 +983,7 @@ func (a *app) headersSide(c *ui.Context, f flow, side int) {
 					label = "Hide"
 				}
 				if uikit.ToolbarButton(c, locales.RevealCredentials(), locales.CredentialsAreMaskedSoA(), false).Height(uikit.HeightControl).
-					Children(func() { ui.Text(c, label).FontSize(uikit.TextMeta) }).Clicked() {
+					Children(func() { ui.Text(c, label).FontSize(uikit.Scaled(uikit.TextMeta)) }).Clicked() {
 					a.inspect.reveal[side] = !a.inspect.reveal[side]
 				}
 			}
@@ -993,7 +993,7 @@ func (a *app) headersSide(c *ui.Context, f flow, side int) {
 				if raw == "" {
 					uikit.Hint(c, locales.NoHeadersRecorded()).Padding(t.Space(3))
 				} else {
-					ui.Text(c, raw).FontSize(uikit.TextBody).Font(uikit.FontMono).TextColor(t.Text).Selectable().Padding(t.Space(3))
+					ui.Text(c, raw).FontSize(uikit.Scaled(uikit.TextBody)).Font(uikit.FontMono).TextColor(t.Text).Selectable().Padding(t.Space(3))
 				}
 			}
 			for _, key := range slices.Sorted(maps.Keys(headers)) {
@@ -1006,7 +1006,7 @@ func (a *app) headersSide(c *ui.Context, f flow, side int) {
 						Tooltip(strings.TrimSpace(key + "\n" + headerDoc(key))).PopoverMenu(
 						a.headerFilterMenu(c, key, headers[key]))
 
-					ui.Text(c, value).FontSize(uikit.TextBody).Font(uikit.FontMono).TextColor(t.Text).Grow(1).Selectable().PopoverMenu(a.headerFilterMenu(c, key, headers[key]))
+					ui.Text(c, value).FontSize(uikit.Scaled(uikit.TextBody)).Font(uikit.FontMono).TextColor(t.Text).Grow(1).Selectable().PopoverMenu(a.headerFilterMenu(c, key, headers[key]))
 				})
 				ui.Divider(c).Background(t.Border.Alpha(0.45))
 			}
@@ -1015,7 +1015,7 @@ func (a *app) headersSide(c *ui.Context, f flow, side int) {
 				for _, key := range slices.Sorted(maps.Keys(trailers)) {
 					uikit.KVRow(c, func() {
 						uikit.Hint(c, key).Font(uikit.FontMono).Width(124).SingleLine()
-						ui.Text(c, strings.Join(trailers[key], "\n")).FontSize(uikit.TextBody).Font(uikit.FontMono).TextColor(t.Text).Grow(1).Selectable()
+						ui.Text(c, strings.Join(trailers[key], "\n")).FontSize(uikit.Scaled(uikit.TextBody)).Font(uikit.FontMono).TextColor(t.Text).Grow(1).Selectable()
 					})
 				}
 			}
@@ -1037,7 +1037,7 @@ func (a *app) paramsSide(c *ui.Context, f flow) {
 			for _, value := range parsed.Query()[key] {
 				uikit.KVRow(c, func() {
 					uikit.Hint(c, key).Font(uikit.FontMono).Width(140).SingleLine()
-					ui.Text(c, value).FontSize(uikit.TextBody).Font(uikit.FontMono).TextColor(t.Text).Grow(1).Selectable()
+					ui.Text(c, value).FontSize(uikit.Scaled(uikit.TextBody)).Font(uikit.FontMono).TextColor(t.Text).Grow(1).Selectable()
 				})
 				ui.Divider(c).Background(t.Border.Alpha(0.45))
 			}

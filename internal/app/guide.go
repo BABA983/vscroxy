@@ -134,15 +134,15 @@ func (a *app) guideStep(c *ui.Context, t *ui.Theme, i int, title, summary string
 			})
 		case current:
 			mark.Background(p.Accent).TextColor(p.AccentText).Children(func() {
-				ui.Text(c, fmt.Sprint(i+1)).FontSize(uikit.TextMeta).FontWeight(500)
+				ui.Text(c, fmt.Sprint(i+1)).FontSize(uikit.Scaled(uikit.TextMeta)).FontWeight(500)
 			})
 		default:
 			mark.Background(t.Text.Alpha(0.08)).TextColor(t.TextMuted).Children(func() {
-				ui.Text(c, fmt.Sprint(i+1)).FontSize(uikit.TextMeta)
+				ui.Text(c, fmt.Sprint(i+1)).FontSize(uikit.Scaled(uikit.TextMeta))
 			})
 		}
 		ui.Column(c).Grow(1).MinWidth(0).Gap(t.Space(1)).Children(func() {
-			heading := ui.Text(c, title).FontSize(uikit.TextBody).TextColor(t.Text)
+			heading := ui.Text(c, title).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Text)
 			if current {
 				heading.FontWeight(500)
 			}
@@ -167,7 +167,7 @@ func (a *app) guideStep(c *ui.Context, t *ui.Theme, i int, title, summary string
 
 func (a *app) guideCapture(c *ui.Context, t *ui.Theme) {
 	if a.srv == nil || !a.srv.Running() {
-		ui.Text(c, locales.CaptureIsStopped()).FontSize(uikit.TextBody).TextColor(t.Warning)
+		ui.Text(c, locales.CaptureIsStopped()).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Warning)
 		ui.Row(c).Children(func() {
 			if uikit.SecondaryButton(c, locales.DiagnoseCapture()).Clicked() {
 				a.openDiagnostics(nil, diagnoseMac)
@@ -190,7 +190,7 @@ func (a *app) guideCapture(c *ui.Context, t *ui.Theme) {
 	})
 	if s.checked || s.applying {
 		status, color := a.systemProxyStatus(t)
-		ui.Text(c, status).FontSize(uikit.TextMeta).TextColor(color)
+		ui.Text(c, status).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(color)
 	}
 }
 
@@ -202,7 +202,7 @@ func (a *app) guideCertificate(c *ui.Context, t *ui.Theme) {
 			a.checkCertificate(true)
 		}
 	})
-	ui.Text(c, status).FontSize(uikit.TextMeta).TextColor(color)
+	ui.Text(c, status).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(color)
 	uikit.Meta(c, locales.SomeAppsKeepTheirOwn())
 }
 
@@ -224,7 +224,7 @@ func (a *app) guideDecrypt(c *ui.Context, t *ui.Theme) {
 		return
 	}
 	box := func(key, label string, on bool, set func(bool)) {
-		ui.Checkbox(c.Key(key), &on, label).FontSize(uikit.TextBody).OnClick(func() { set(on) })
+		ui.Checkbox(c.Key(key), &on, label).FontSize(uikit.Scaled(uikit.TextBody)).OnClick(func() { set(on) })
 	}
 	for _, app := range apps {
 		box("guide-app:"+app.Path, app.Name, a.appInspectionEnabled(app.Path), func(on bool) { a.setAppInspection(app, on) })

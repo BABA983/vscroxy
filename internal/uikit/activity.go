@@ -31,10 +31,10 @@ func ActivityStrip(c *ui.Context, buckets []ActivityBucket, selected *ActivityRa
 		// chosen: a brush must never move the bars under the pointer that
 		// started it.
 		ui.Row(c).Width(240).Shrink(1).MinWidth(0).Gap(8).AlignItems(ui.Center).Children(func() {
-			Tip(c, ui.Text(c, summary).FontSize(TextMeta).TextColor(t.TextMuted).NoWrap().Ellipsis("…").Grow(1).MinWidth(0), summary).
+			Tip(c, ui.Text(c, summary).FontSize(Scaled(TextMeta)).TextColor(t.TextMuted).NoWrap().Ellipsis("…").Grow(1).MinWidth(0), summary).
 				ContentTransition(ui.ContentTransition{Numeric: true})
 			clear := SecondaryButton(c.Key("clear"), locales.ClearX()).Label(locales.ClearActivityRange()).
-				Height(18).PaddingX(4).FontSize(TextMeta).Shrink(0)
+				Height(18).PaddingX(4).FontSize(Scaled(TextMeta)).Shrink(0)
 			if selected.To > selected.From {
 				clear.OnClick(func() { *selected = ActivityRange{}; changed() })
 			} else {
@@ -175,7 +175,7 @@ func ActivityStrip(c *ui.Context, buckets []ActivityBucket, selected *ActivityRa
 				}
 			}
 		})
-		ui.Text(c, last).Font(FontMono).FontSize(TextMeta).TextColor(t.TextMuted).NoWrap()
+		ui.Text(c, last).Font(FontMono).FontSize(Scaled(TextMeta)).TextColor(t.TextMuted).NoWrap()
 	})
 	return strip
 }

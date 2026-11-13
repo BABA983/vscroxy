@@ -116,7 +116,7 @@ func (a *app) desktopContent(c *ui.Context) {
 						a.activityStrip(c)
 						if a.chosen.Len() > 1 {
 							ui.Row(c).Height(uikit.HeightLarge).Padding(0, c.Theme().Space(2)).Gap(c.Theme().Space(2)).AlignItems(ui.Center).Children(func() {
-								ui.Text(c, locales.SelectedCount(a.chosen.Len())).FontSize(uikit.TextMeta).FontWeight(500).Grow(1)
+								ui.Text(c, locales.SelectedCount(a.chosen.Len())).FontSize(uikit.Scaled(uikit.TextMeta)).FontWeight(500).Grow(1)
 								a.actionButton(c, "flow.replay", "Replay…")
 								a.actionButton(c, "capture.export-chosen", "Export HAR…")
 								a.actionButton(c, "capture.export-chosen-csv", "Export CSV…")
@@ -213,7 +213,7 @@ func (a *app) captureToolbar(c *ui.Context, t *ui.Theme) {
 			cb := ui.ComboboxBase(c.Key("capture-search"), &a.query)
 			search := cb.Input.Bind(&a.search).Label(locales.SearchHostOrPath()).Placeholder(placeholder).
 				Tooltip(cmp.Or(a.queryProblem, a.searchProblem, "Search host and path (including query) · Text supports key:value chips · Pattern modes treat the entire field as one expression · Ctrl/Cmd+F")).
-				Height(uikit.HeightControl).Padding(0, t.Space(1)).FontSize(uikit.TextBody).Grow(1).MinWidth(min(200, width/5)).FocusRing(false)
+				Height(uikit.HeightControl).Padding(0, t.Space(1)).FontSize(uikit.Scaled(uikit.TextBody)).Grow(1).MinWidth(min(200, width/5)).FocusRing(false)
 			if a.queryProblem != "" || a.searchProblem != "" {
 				search.TextColor(t.Danger)
 			}
@@ -234,7 +234,7 @@ func (a *app) captureToolbar(c *ui.Context, t *ui.Theme) {
 						first = first || s == suggestions[0]
 					}
 					item.Children(func() {
-						ui.Text(c, s.text).Font(uikit.FontMono).FontSize(uikit.TextData).TextColor(t.Text).SingleLine().Grow(1)
+						ui.Text(c, s.text).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextData)).TextColor(t.Text).SingleLine().Grow(1)
 						uikit.Meta(c, s.hint).SingleLine()
 					})
 				}
@@ -311,7 +311,7 @@ func (a *app) captureToolbar(c *ui.Context, t *ui.Theme) {
 						segment.Background(t.SurfaceHover)
 					}
 					segment.Children(func() {
-						ui.Text(c, label).FontSize(uikit.TextMeta)
+						ui.Text(c, label).FontSize(uikit.Scaled(uikit.TextMeta))
 					})
 				}
 			})
@@ -667,7 +667,7 @@ func (a *app) commandPalette(c *ui.Context) {
 			))
 
 			input := uikit.Input(c, &w.query).Label(locales.FindCommand()).Placeholder(locales.SearchCommandsRequestsEnvironments()).
-				Height(uikit.HeightLarge).FontSize(uikit.TextBody).FillWidth()
+				Height(uikit.HeightLarge).FontSize(uikit.Scaled(uikit.TextBody)).FillWidth()
 			if input.Changed() {
 				w.command = 0
 				w.commands.ScrollTo(0, ui.Start)
@@ -738,9 +738,9 @@ func (a *app) commandPalette(c *ui.Context) {
 					if !item.enabled {
 						label += " (unavailable)"
 					}
-					ui.Text(c, label).FontSize(uikit.TextBody).TextColor(color)
+					ui.Text(c, label).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(color)
 					ui.Spacer(c)
-					ui.Text(c, item.meta).FontSize(uikit.TextMeta).TextColor(color)
+					ui.Text(c, item.meta).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(color)
 				})
 				if b.Clicked() {
 					w.command = i

@@ -298,15 +298,15 @@ func (m messageView) row(c *ui.Context) {
 		color = uikit.Colors(t).Socket
 	}
 	ui.Row(c).Gap(t.Space(2)).Padding(t.Space(1), t.Space(2)).MinHeight(uikit.HeightControl).AlignItems(ui.Center).Children(func() {
-		ui.Text(c, m.arrow()).FontSize(uikit.TextBody).TextColor(color).Width(uikit.IconInline)
+		ui.Text(c, m.arrow()).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(color).Width(uikit.IconInline)
 		muted := t.TextMuted
-		ui.Text(c, m.stamp()).FontSize(uikit.TextMeta).FontFeatures("tnum").TextColor(muted).Width(80).SingleLine()
-		label := ui.Text(c, m.label()).FontSize(uikit.TextMeta).TextColor(muted).Width(52).SingleLine()
+		ui.Text(c, m.stamp()).FontSize(uikit.Scaled(uikit.TextMeta)).FontFeatures("tnum").TextColor(muted).Width(80).SingleLine()
+		label := ui.Text(c, m.label()).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(muted).Width(52).SingleLine()
 		label = uikit.Tip(c, label, m.kindLine())
-		preview := ui.Text(c, m.preview()).FontSize(uikit.TextBody).Font(uikit.FontMono).
+		preview := ui.Text(c, m.preview()).FontSize(uikit.Scaled(uikit.TextBody)).Font(uikit.FontMono).
 			TextColor(t.Text).SingleLine().Grow(1)
 		uikit.Tip(c, preview, m.preview())
-		ui.Text(c, humanBytes(m.size)).FontSize(uikit.TextMeta).FontFeatures("tnum").TextColor(muted).Width(48).SingleLine()
+		ui.Text(c, humanBytes(m.size)).FontSize(uikit.Scaled(uikit.TextMeta)).FontFeatures("tnum").TextColor(muted).Width(48).SingleLine()
 	})
 }
 
@@ -328,7 +328,7 @@ func (m messageView) detail(c *ui.Context, a *app, f flow, p *messagePanel) {
 	}
 	ui.Column(c).Fill().Children(func() {
 		ui.Row(c).Padding(t.Space(1), t.Space(3)).Gap(t.Space(2)).MinHeight(uikit.HeightLarge).AlignItems(ui.Center).Children(func() {
-			uikit.Tip(c, ui.Text(c, m.headline()).FontSize(uikit.TextBody).Font(uikit.FontMono).FontFeatures("tnum").TextColor(t.Text).
+			uikit.Tip(c, ui.Text(c, m.headline()).FontSize(uikit.Scaled(uikit.TextBody)).Font(uikit.FontMono).FontFeatures("tnum").TextColor(t.Text).
 				SingleLine().Grow(1), m.headline())
 			if uikit.SecondaryButton(c, locales.Copy()).Clicked() {
 				c.Services().WriteClipboard(payload)
@@ -345,7 +345,7 @@ func (m messageView) detail(c *ui.Context, a *app, f flow, p *messagePanel) {
 		})
 		ui.Divider(c)
 		if p.loadedError != "" {
-			ui.Text(c, locales.PayloadUnavailable(p.loadedError)).FontSize(uikit.TextMeta).
+			ui.Text(c, locales.PayloadUnavailable(p.loadedError)).FontSize(uikit.Scaled(uikit.TextMeta)).
 				TextColor(t.Danger).Background(t.Danger.Alpha(0.12)).Padding(t.Space(1), t.Space(3)).FillWidth()
 		}
 		if p.mode == 2 {
@@ -381,7 +381,7 @@ func (m messageView) textView(c *ui.Context, payload string) {
 		text = cut + "\n\n" + locales.ShowingFirstOf(humanBytes(maxMessageText), humanBytes(len(text)))
 	}
 	ui.Scroll(c).Grow(1).Padding(t.Space(3)).Children(func() {
-		ui.Text(c, text).FontSize(uikit.TextBody).Font(uikit.FontMono).TextColor(t.Text)
+		ui.Text(c, text).FontSize(uikit.Scaled(uikit.TextBody)).Font(uikit.FontMono).TextColor(t.Text)
 	})
 }
 
@@ -390,7 +390,7 @@ func (m messageView) textView(c *ui.Context, payload string) {
 func (m messageView) hexView(c *ui.Context, payload string) {
 	t := c.Theme()
 	ui.List(c, nil, (len(payload)+15)/16, func(i int) {
-		ui.Text(c, hexLine(payload, i)).FontSize(uikit.TextMeta).Font(uikit.FontMono).
+		ui.Text(c, hexLine(payload, i)).FontSize(uikit.Scaled(uikit.TextMeta)).Font(uikit.FontMono).
 			TextColor(t.Text).Padding(t.Space(1), t.Space(3)).SingleLine()
 	}).Grow(1)
 }
@@ -525,7 +525,7 @@ func (p *messagePanel) view(c *ui.Context, a *app, f flow, list []messageView) {
 	var visible []messageView
 	ui.Row(c).Padding(t.Space(2), t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 		search := ui.SearchField(c, &p.query).Placeholder(locales.SearchMessagesPlaceholder()).Label(locales.SearchMessages()).
-			Width(180).Height(uikit.HeightControl).FontSize(uikit.TextBody).Radius(uikit.RadiusControl)
+			Width(180).Height(uikit.HeightControl).FontSize(uikit.Scaled(uikit.TextBody)).Radius(uikit.RadiusControl)
 		uikit.Tip(c, search, locales.SearchesMetadataAndTheFull())
 		if search.Changed() {
 			p.follow = true
@@ -685,7 +685,7 @@ func (p *messagePanel) exportModal(c *ui.Context, a *app, f flow, list, visible 
 		ui.Column(c).Width(470).Gap(c.Theme().Space(3)).Children(func() {
 			uikit.DialogTitle(c, locales.ExportRetainedMessages())
 			uikit.Body(c, locales.ExportMessagesNote(len(visible), len(list)))
-			ui.Text(c, locales.PayloadsAndUrlsCanContain()).FontSize(uikit.TextBody).TextColor(c.Theme().Danger)
+			ui.Text(c, locales.PayloadsAndUrlsCanContain()).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(c.Theme().Danger)
 			ui.Row(c).Gap(c.Theme().Space(2)).Justify(ui.End).Children(func() {
 				if uikit.SecondaryButton(c, locales.Cancel()).Clicked() {
 					p.exportOpen = false

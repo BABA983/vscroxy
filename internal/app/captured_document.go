@@ -158,13 +158,13 @@ func (a *app) capturedHeader(c *ui.Context, t *ui.Theme, f flow, d *requestDocum
 		}
 		if a.edited(f.id) {
 			// The source names give way first; the mark and the status stay.
-			ui.Text(c, locales.Edited()).FontSize(uikit.TextMeta).TextColor(t.Accent).SingleLine().Shrink(0)
+			ui.Text(c, locales.Edited()).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Accent).SingleLine().Shrink(0)
 		}
 		if f.dns != "" {
 			// Which Host profile sent it elsewhere, as the Remote IP says.
 			profile, _, _ := strings.CutLast(f.hostProfile, ":")
 			_, ip, _ := strings.Cut(f.dns, " → ")
-			uikit.Tip(c, ui.Text(c, locales.MappedTo(profile, ip)).FontSize(uikit.TextMeta).TextColor(uikit.Colors(t).Accent).
+			uikit.Tip(c, ui.Text(c, locales.MappedTo(profile, ip)).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(uikit.Colors(t).Accent).
 				SingleLine().MinWidth(0), mappedBy(f))
 		}
 		ui.Spacer(c)

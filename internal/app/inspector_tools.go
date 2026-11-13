@@ -55,7 +55,7 @@ func (a *app) decoderModal(c *ui.Context) {
 				authoredText(c, &u.input, &u.inputEditor, &u.inputFor, "Decode input", "")
 			})
 			if u.error != "" {
-				ui.Text(c, u.error).FontSize(uikit.TextMeta).TextColor(t.Danger)
+				ui.Text(c, u.error).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Danger)
 			}
 			if u.result != nil {
 				requestCodeEditor(c, u.result)
@@ -125,7 +125,7 @@ func cookieView(c *ui.Context, headers http.Header, response bool, reveal *bool)
 			})
 		})
 		if invalid > 0 {
-			ui.Text(c, locales.InvalidCookies(invalid)).FontSize(uikit.TextMeta).TextColor(t.Warning).Padding(0, t.Space(3))
+			ui.Text(c, locales.InvalidCookies(invalid)).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Warning).Padding(0, t.Space(3))
 		}
 		ui.Scroll(c).Grow(1).FillWidth().Children(func() {
 			if len(cookies) == 0 {
@@ -137,7 +137,7 @@ func cookieView(c *ui.Context, headers http.Header, response bool, reveal *bool)
 					if *reveal {
 						value = cookie.Value
 					}
-					ui.Text(c, cookie.Name+" = "+value).Font(uikit.FontMono).FontSize(uikit.TextBody).Selectable().FillWidth()
+					ui.Text(c, cookie.Name+" = "+value).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextBody)).Selectable().FillWidth()
 					if response {
 						expires := "Session"
 						if !cookie.Expires.IsZero() {

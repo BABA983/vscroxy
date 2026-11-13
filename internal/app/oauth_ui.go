@@ -113,7 +113,7 @@ func (a *app) oauthFields(c *ui.Context, auth *request.Auth, collection string) 
 		status, color = s.problem, t.Danger
 	}
 	ui.Field(c, locales.AccessToken(), func() {
-		ui.Text(c, status).FontSize(uikit.TextMeta).TextColor(color).Selectable()
+		ui.Text(c, status).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(color).Selectable()
 		ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 			busy := s.key == cfg.Key() && s.busy
 			if busy && uikit.SecondaryButton(c, locales.Cancel()).Clicked() {

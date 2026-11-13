@@ -62,7 +62,7 @@ func (s *structuredInspector) view(c *ui.Context, source inspectionBody, content
 		})
 	})
 	if s.job.problem != "" {
-		ui.Text(c, s.job.problem).FontSize(uikit.TextBody).TextColor(t.Warning).Padding(t.Space(3)).FillWidth()
+		ui.Text(c, s.job.problem).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Warning).Padding(t.Space(3)).FillWidth()
 		uikit.Hint(c, locales.ChoosePrettyRawOrHex()).Padding(t.Space(3))
 		return
 	}

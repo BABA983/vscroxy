@@ -590,7 +590,7 @@ func (a *app) scriptsPage(c *ui.Context, t *ui.Theme, top float32, active bool) 
 	}
 	ui.Column(c).Width(268).MinHeight(0).Padding(top, t.Space(3), t.Space(3), t.Space(3)).Gap(t.Space(2)).Children(func() {
 		ui.Row(c).Gap(t.Space(1)).AlignItems(ui.Center).Children(func() {
-			ui.Text(c, locales.Scripts()).FontSize(uikit.TextTitle).FontWeight(500).TextColor(t.Text).Grow(1)
+			ui.Text(c, locales.Scripts()).FontSize(uikit.Scaled(uikit.TextTitle)).FontWeight(500).TextColor(t.Text).Grow(1)
 			if uikit.IconButton(c, "New "+what, "New "+what, plusIcon).Clicked() {
 				a.newScript(s, base, newScriptText)
 			}
@@ -605,7 +605,7 @@ func (a *app) scriptsPage(c *ui.Context, t *ui.Theme, top float32, active bool) 
 		})
 		uikit.Meta(c, about)
 		if s.problem != nil {
-			ui.Text(c, "Read-only: "+s.problem.Error()).FontSize(uikit.TextMeta).TextColor(t.Danger).MaxLines(3)
+			ui.Text(c, "Read-only: "+s.problem.Error()).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Danger).MaxLines(3)
 		}
 		a.scriptList(c, t, s, active)
 	})
@@ -655,9 +655,9 @@ func (a *app) scriptList(c *ui.Context, t *ui.Theme, s *scriptStore, active bool
 		r.Children(func() {
 			uikit.Glyph(c, scriptsIcon)
 			ui.Column(c).Grow(1).MinWidth(0).Children(func() {
-				ui.Text(c, name).FontSize(uikit.TextBody).TextColor(t.Text).SingleLine()
+				ui.Text(c, name).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Text).SingleLine()
 				if err := s.problems[name]; err != nil {
-					ui.Text(c, err.Error()).FontSize(uikit.TextMeta).TextColor(t.Danger).SingleLine()
+					ui.Text(c, err.Error()).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Danger).SingleLine()
 				} else if s.addon {
 					uikit.Meta(c, `from "`+name+`"`).Font(uikit.FontMono).SingleLine()
 				} else {
@@ -715,7 +715,7 @@ func (a *app) scriptEditor(c *ui.Context, t *ui.Theme, s *scriptStore, name stri
 	users, usedBy := a.scriptUsers(s, name)
 	what := map[bool]string{false: "Script", true: "Addon"}[s.addon]
 	ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-		in := uikit.Input(c, &s.name).Label(what + " name").Grow(1).MaxWidth(320).FontSize(uikit.TextTitle).Height(uikit.HeightLarge)
+		in := uikit.Input(c, &s.name).Label(what + " name").Grow(1).MaxWidth(320).FontSize(uikit.Scaled(uikit.TextTitle)).Height(uikit.HeightLarge)
 		if in.Submitted() {
 			a.renameScript(s, name, strings.TrimSpace(s.name))
 		}
@@ -810,7 +810,7 @@ func (a *app) scriptConsole(c *ui.Context, t *ui.Theme, name string) {
 					color = t.Warning
 				}
 				text := fmt.Sprintf("%s  %s · %s  %s", l.at.Format("15:04:05"), l.rule, l.phase, l.text)
-				ui.Text(c, text).Font(uikit.FontMono).FontSize(uikit.TextMeta).TextColor(color).Selectable().FillWidth()
+				ui.Text(c, text).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(color).Selectable().FillWidth()
 			}
 		})
 	})

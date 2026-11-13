@@ -94,7 +94,7 @@ func (a *app) proxySettings(c *ui.Context, t *ui.Theme) {
 				if a.srv != nil && a.srv.Running() {
 					uikit.Mono(c, a.srv.Addr()).Selectable()
 				} else {
-					ui.Text(c, locales.CaptureIsNotRunning()).FontSize(uikit.TextBody).TextColor(t.Warning)
+					ui.Text(c, locales.CaptureIsNotRunning()).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Warning)
 				}
 			})
 			ui.Field(c, locales.Port(), func() {

@@ -142,7 +142,7 @@ func (p *protoInspector) controls(c *ui.Context, registry *protoInspector) {
 			field := ui.Combobox(c, &p.name, options).Label(locales.ProtobufMessageType()).
 				Tooltip(locales.AutoResolvesHttpGrpcMethods()).
 				Grow(1).MinWidth(0).Height(uikit.HeightControl).Padding(0, t.Space(2)).
-				FontSize(uikit.TextBody).Radius(uikit.RadiusControl).FocusRing(false)
+				FontSize(uikit.Scaled(uikit.TextBody)).Radius(uikit.RadiusControl).FocusRing(false)
 			uikit.FieldFace(c, field, field.Focused())
 			if uikit.SecondaryButton(c, locales.Schema()).Shrink(0).Clicked() {
 				registry.open = true
@@ -150,7 +150,7 @@ func (p *protoInspector) controls(c *ui.Context, registry *protoInspector) {
 		})
 		search := ui.SearchField(c, &p.query).Label(locales.SearchProtobufMessages()).Placeholder(locales.SearchMessages2()).
 			Grow(1).Basis(180).MinWidth(0).Height(uikit.HeightControl).Padding(0, t.Space(2)).
-			FontSize(uikit.TextBody).Radius(uikit.RadiusControl).FocusRing(false)
+			FontSize(uikit.Scaled(uikit.TextBody)).Radius(uikit.RadiusControl).FocusRing(false)
 		uikit.FieldFace(c, search, search.Focused())
 	})
 }
@@ -162,7 +162,7 @@ func (p *protoInspector) resultView(c *ui.Context, a *app) {
 		return
 	}
 	if p.result.problem != "" {
-		ui.Text(c, p.result.problem).FontSize(uikit.TextMeta).TextColor(t.Danger).Padding(0, t.Space(3), t.Space(2), t.Space(3))
+		ui.Text(c, p.result.problem).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Danger).Padding(0, t.Space(3), t.Space(2), t.Space(3))
 		if len(p.result.messages) == 0 {
 			return
 		}
@@ -208,7 +208,7 @@ func (p *protoInspector) resultView(c *ui.Context, a *app) {
 			if message.compressed {
 				note += " · gzip"
 			}
-			ui.Text(c, note).FontSize(uikit.TextMeta).TextColor(t.Text).Padding(t.Space(2), t.Space(3)).SingleLine()
+			ui.Text(c, note).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Text).Padding(t.Space(2), t.Space(3)).SingleLine()
 		}).Grow(1)
 		c.SetTheme(t)
 	}, func() {
@@ -230,7 +230,7 @@ func (p *protoInspector) resultView(c *ui.Context, a *app) {
 				text = text[:maxMessageText] + "\n\n… Text preview limited to 64 KiB; Copy decoded keeps the full text."
 			}
 			ui.Scroll(c).Grow(1).Padding(t.Space(3)).Children(func() {
-				ui.Text(c, text).Font(uikit.FontMono).FontSize(uikit.TextBody).TextColor(t.Text)
+				ui.Text(c, text).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Text)
 			})
 		})
 	}).Grow(1)
@@ -315,9 +315,9 @@ func (p *protoInspector) modal(c *ui.Context, a *app) {
 					}
 				})
 				uikit.Hint(c, locales.IncludeRootsOptionalOnePer())
-				ui.TextArea(c, &p.roots).Height(70).Font(uikit.FontMono).FontSize(uikit.TextBody).Radius(uikit.RadiusControl).Label(locales.ProtobufIncludeRoots())
+				ui.TextArea(c, &p.roots).Height(70).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextBody)).Radius(uikit.RadiusControl).Label(locales.ProtobufIncludeRoots())
 				if p.problem != "" {
-					ui.Text(c, p.problem).FontSize(uikit.TextBody).TextColor(t.Danger)
+					ui.Text(c, p.problem).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Danger)
 				}
 				if p.loading {
 					uikit.Meta(c, locales.CompilingAndLinkingSchema())

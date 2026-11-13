@@ -41,7 +41,7 @@ func (a *app) collectionWizardModal(c *ui.Context, t *ui.Theme) {
 						} else if i == w.step {
 							color, background = t.AccentText, t.Accent
 						}
-						ui.Box(c).Size(22, 22).Radius(11).Background(background).Border(1, t.Border).Center().Children(func() { ui.Text(c, mark).FontSize(uikit.TextMeta).TextColor(color) })
+						ui.Box(c).Size(22, 22).Radius(11).Background(background).Border(1, t.Border).Center().Children(func() { ui.Text(c, mark).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(color) })
 						text := uikit.Body(c, label).SingleLine()
 						if i == w.step {
 							text.TextColor(t.Accent).FontWeight(500)
@@ -83,7 +83,7 @@ func (a *app) collectionWizardModal(c *ui.Context, t *ui.Theme) {
 						uikit.Body(c, locales.RequestsAndExamples(n, examples))
 						uikit.Body(c, locales.CollectionLabel(cmp.Or(w.destination, w.name)))
 						uikit.Body(c, locales.EnvironmentLabel(w.environmentLabel()))
-						ui.Checkbox(c, &w.generateAPI, "Also generate OpenAPI draft").FontSize(uikit.TextBody)
+						ui.Checkbox(c, &w.generateAPI, "Also generate OpenAPI draft").FontSize(uikit.Scaled(uikit.TextBody))
 						uikit.Hint(c, locales.TheApiDraftOpensIn())
 						uikit.Hint(c, locales.RequestsAndExamplesMayContain())
 					}
@@ -116,7 +116,7 @@ func (a *app) collectionWizardModal(c *ui.Context, t *ui.Theme) {
 								f := w.flows[i]
 								ui.Row(c.Key(i)).Gap(t.Space(2)).Height(uikit.HeightLarge).Children(func() {
 									uikit.Tip(c, uikit.Mono(c, cmp.Or(f.path, f.url)).Grow(1).MinWidth(0).SingleLine(), f.url)
-									ui.Text(c, strconv.Itoa(f.status)).Font(uikit.FontMono).FontSize(uikit.TextData).TextColor(uikit.StatusColor(f.status, t)).Width(32)
+									ui.Text(c, strconv.Itoa(f.status)).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextData)).TextColor(uikit.StatusColor(f.status, t)).Width(32)
 									uikit.Meta(c, fmt.Sprintf("%d ms", f.millis)).Width(52)
 								})
 							}
@@ -144,7 +144,7 @@ func (a *app) collectionWizardModal(c *ui.Context, t *ui.Theme) {
 				})
 			})
 			if w.problem != "" {
-				ui.Text(c, w.problem).FontSize(uikit.TextMeta).TextColor(t.Danger)
+				ui.Text(c, w.problem).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Danger)
 			}
 			uikit.DialogFooter(c).Children(func() {
 				message := "Nothing is saved until Create."
@@ -182,9 +182,9 @@ func (a *app) collectionScopeEditor(c *ui.Context, t *ui.Theme) {
 	w := &a.collectionUI
 	uikit.DialogTitle(c, locales.ChooseScope())
 	uikit.Body(c, locales.CapturedRequestsCount(len(w.flows)))
-	ui.Checkbox(c, &w.static, "Exclude static resources").FontSize(uikit.TextBody).OnChange(w.regroup)
-	ui.Checkbox(c, &w.tunnels, "Exclude CONNECT tunnels").FontSize(uikit.TextBody).OnChange(w.regroup)
-	ui.Checkbox(c, &w.failed, "Exclude network failures").FontSize(uikit.TextBody).OnChange(w.regroup)
+	ui.Checkbox(c, &w.static, "Exclude static resources").FontSize(uikit.Scaled(uikit.TextBody)).OnChange(w.regroup)
+	ui.Checkbox(c, &w.tunnels, "Exclude CONNECT tunnels").FontSize(uikit.Scaled(uikit.TextBody)).OnChange(w.regroup)
+	ui.Checkbox(c, &w.failed, "Exclude network failures").FontSize(uikit.Scaled(uikit.TextBody)).OnChange(w.regroup)
 	uikit.Hint(c, locales.Http4xxAnd5xxResponses())
 	uikit.Body(c, locales.ScopeSummary(len(w.scope()), len(w.flows)-len(w.scope()), len(w.groups)))
 }
@@ -197,7 +197,7 @@ func (a *app) collectionEndpointsEditor(c *ui.Context, t *ui.Theme) {
 		ui.Row(c.Key(g.id)).Gap(t.Space(2)).Height(uikit.HeightLarge).Children(func() {
 			ui.Checkbox(c, &g.include, "").Label("Include " + g.method + " " + g.template)
 			uikit.ToolbarButton(c, "Endpoint "+g.method+" "+g.template, g.origin, i == w.active).Grow(1).MinWidth(0).Children(func() {
-				ui.Text(c, g.method).Font(uikit.FontMono).FontSize(uikit.TextData).TextColor(uikit.MethodColor(g.method, t)).Width(46)
+				ui.Text(c, g.method).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextData)).TextColor(uikit.MethodColor(g.method, t)).Width(46)
 				uikit.Mono(c, g.template).Grow(1).MinWidth(0).SingleLine()
 				uikit.Meta(c, locales.TimesCount(len(g.flows)))
 			}).OnClick(func() { w.active = i })
@@ -252,7 +252,7 @@ func (a *app) collectionVariablesEditor(c *ui.Context, t *ui.Theme) {
 			uikit.Input(c, &credential.variable).Label(locales.CredentialVariable(i + 1)).Font(uikit.FontMono)
 			uikit.SelectLabels(c, &credential.storage, []string{credentialCurrent, credentialVault, credentialKeep}, optionLabel).Label(locales.StoreCredential(i + 1))
 			if credential.storage == credentialKeep {
-				ui.Text(c, locales.OriginalCredentialWillBeWritten()).FontSize(uikit.TextMeta).TextColor(t.Warning)
+				ui.Text(c, locales.OriginalCredentialWillBeWritten()).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Warning)
 			}
 		})
 	}
@@ -324,7 +324,7 @@ func (a *app) collectionExamplesEditor(c *ui.Context, t *ui.Theme) {
 			for _, i := range g.flows {
 				f := w.flows[i]
 				selected := w.examples[i]
-				ui.Checkbox(c.Key(i), &selected, fmt.Sprintf("%d · %s · %s", f.status, f.at.Format("15:04:05"), cmp.Or(f.path, "/"))).FontSize(uikit.TextMeta).
+				ui.Checkbox(c.Key(i), &selected, fmt.Sprintf("%d · %s · %s", f.status, f.at.Format("15:04:05"), cmp.Or(f.path, "/"))).FontSize(uikit.Scaled(uikit.TextMeta)).
 					Label(fmt.Sprintf("Example capture %d", i)).Disabled(f.status < 200 || f.status > 599 || f.conn.error != "").OnClick(func() { w.examples[i] = selected })
 			}
 		})
@@ -366,8 +366,8 @@ func (a *app) collectionWizardTree(c *ui.Context, t *ui.Theme) {
 					moveID, targetID, folder = id, g.id, name
 				}
 				row.Children(func() {
-					ui.Text(c, "⠿").FontSize(uikit.TextMeta).TextColor(t.TextMuted)
-					ui.Text(c, g.method).Font(uikit.FontMono).FontSize(uikit.TextData).TextColor(uikit.MethodColor(g.method, t)).Width(46)
+					ui.Text(c, "⠿").FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.TextMuted)
+					ui.Text(c, g.method).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextData)).TextColor(uikit.MethodColor(g.method, t)).Width(46)
 					uikit.Body(c, g.name).Grow(1).MinWidth(0).SingleLine()
 					n := 0
 					for _, j := range g.flows {

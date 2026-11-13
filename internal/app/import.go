@@ -323,10 +323,10 @@ func (a *app) collectionSaveModal(c *ui.Context, t *ui.Theme) {
 				uikit.Hint(c, locales.SavedInCaptureOrderNot())
 				ui.Form(c, func() {
 					ui.Field(c, locales.Collection(), func() {
-						ui.Autocomplete(c, &s.name, names).Label(locales.CollectionName()).Height(uikit.HeightControl).FontSize(uikit.TextBody)
+						ui.Autocomplete(c, &s.name, names).Label(locales.CollectionName()).Height(uikit.HeightControl).FontSize(uikit.Scaled(uikit.TextBody))
 					}).Description(hint)
 					ui.Field(c, locales.Folders(), func() {
-						ui.Checkbox(c, &s.perHost, "One folder per host").FontSize(uikit.TextBody)
+						ui.Checkbox(c, &s.perHost, "One folder per host").FontSize(uikit.Scaled(uikit.TextBody))
 					})
 				})
 			})

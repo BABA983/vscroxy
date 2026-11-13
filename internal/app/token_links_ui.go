@@ -121,7 +121,7 @@ func (a *app) tokenLinksModal(c *ui.Context, t *ui.Theme) {
 					return
 				}
 				if w.problem != "" {
-					ui.Text(c, w.problem).FontSize(uikit.TextBody).TextColor(t.Danger)
+					ui.Text(c, w.problem).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Danger)
 					return
 				}
 				if w.applied {
@@ -141,7 +141,7 @@ func (a *app) tokenLinksModal(c *ui.Context, t *ui.Theme) {
 						uikit.Body(c, script.label).FontWeight(500)
 						uikit.Mono(c, script.text).Wrap()
 					}
-					ui.Checkbox(c, &w.reviewed, "I reviewed these script and credential changes").FontSize(uikit.TextBody)
+					ui.Checkbox(c, &w.reviewed, "I reviewed these script and credential changes").FontSize(uikit.Scaled(uikit.TextBody))
 					return
 				}
 				if len(w.analysis.Links) == 0 {
@@ -178,7 +178,7 @@ func (a *app) tokenLinksModal(c *ui.Context, t *ui.Theme) {
 				}
 			})
 			if w.applyError != "" {
-				ui.Text(c, w.applyError).FontSize(uikit.TextBody).TextColor(t.Danger).MaxHeight(64)
+				ui.Text(c, w.applyError).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Danger).MaxHeight(64)
 			}
 			uikit.DialogFooter(c).Children(func() {
 				state := "Preview only · nothing changed"

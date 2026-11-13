@@ -99,8 +99,8 @@ func (a *app) examplesEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
 					item.Background(t.SurfaceHover)
 				}
 				if item.Children(func() {
-					ui.Text(c, strconv.Itoa(e.Status)).Font(uikit.FontMono).FontSize(uikit.TextMeta).FontWeight(500).TextColor(uikit.StatusColor(e.Status, t)).Width(28)
-					ui.Text(c, e.Name).FontSize(uikit.TextBody).SingleLine().Grow(1).MinWidth(0).TextColor(t.Text)
+					ui.Text(c, strconv.Itoa(e.Status)).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextMeta)).FontWeight(500).TextColor(uikit.StatusColor(e.Status, t)).Width(28)
+					ui.Text(c, e.Name).FontSize(uikit.Scaled(uikit.TextBody)).SingleLine().Grow(1).MinWidth(0).TextColor(t.Text)
 				}).Clicked() {
 					d.example, d.exampleEditor = i, nil
 				}
@@ -114,7 +114,7 @@ func (a *app) examplesEditor(c *ui.Context, d *requestDocument, t *ui.Theme) {
 			// Beside the response the editor has half the width: the actions
 			// take their own line rather than run off the pane.
 			ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Wrap().Children(func() {
-				ui.Text(c, fmt.Sprintf("%d %s", e.Status, http.StatusText(e.Status))).FontSize(uikit.TextBody).FontWeight(500).TextColor(uikit.StatusColor(e.Status, t))
+				ui.Text(c, fmt.Sprintf("%d %s", e.Status, http.StatusText(e.Status))).FontSize(uikit.Scaled(uikit.TextBody)).FontWeight(500).TextColor(uikit.StatusColor(e.Status, t))
 				uikit.Meta(c, humanBytes(len(e.Body))).FontFeatures("tnum")
 				ui.Spacer(c)
 				if uikit.Segmented(c, &d.exampleView, locales.Body(), locales.RequestHeadersLabel(), locales.Request()).Changed() {

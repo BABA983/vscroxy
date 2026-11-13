@@ -363,13 +363,13 @@ func (a *app) folderModal(c *ui.Context, t *ui.Theme) {
 					uikit.Hint(c, locales.InitialValuesAreSharedAnd2())
 					a.variableTable(c, &f.variables, variableTableOptions{enable: true})
 				case 3:
-					ui.TextArea(c, &f.draft.Description).Label(locales.Description()).Placeholder(locales.WhatTheseRequestsAreFor()).Font(uikit.FontMono).FontSize(uikit.TextBody).Radius(uikit.RadiusControl).Grow(1).MinHeight(0)
+					ui.TextArea(c, &f.draft.Description).Label(locales.Description()).Placeholder(locales.WhatTheseRequestsAreFor()).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextBody)).Radius(uikit.RadiusControl).Grow(1).MinHeight(0)
 				case 4:
 					a.folderSettingsEditor(c, f, t)
 				}
 			})
 			if f.problem != "" {
-				ui.Text(c, f.problem).FontSize(uikit.TextMeta).TextColor(t.Danger)
+				ui.Text(c, f.problem).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Danger)
 			}
 			uikit.DialogFooter(c).Children(func() {
 				if uikit.SecondaryButton(c, locales.Cancel()).Clicked() {

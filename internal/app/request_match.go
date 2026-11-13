@@ -151,7 +151,7 @@ func (a *app) capturedRequestMatch(c *ui.Context, t *ui.Theme, f flow) {
 	if len(matches) > 1 {
 		label = locales.MatchesCount(len(matches))
 	}
-	anchor := uikit.Tip(c, ui.Link(c.Key("captured-request-match"), label, "").FontSize(uikit.TextMeta).
+	anchor := uikit.Tip(c, ui.Link(c.Key("captured-request-match"), label, "").FontSize(uikit.Scaled(uikit.TextMeta)).
 		Bind(&a.matchUI.anchor).SingleLine().MinWidth(0), locales.SavedRequestsMatchingThisMethod())
 	anchor.OnClick(func() {
 		a.matchUI.open = !a.matchUI.open

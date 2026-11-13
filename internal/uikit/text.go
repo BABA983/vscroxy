@@ -8,14 +8,14 @@ import "github.com/egoist/mygo/ui"
 
 // Heading titles a dialog, a pane or the request an inspector shows.
 func Heading(c *ui.Context, s string) ui.Element {
-	return ui.Text(c, s).FontSize(TextTitle).FontWeight(500).LineHeight(LineTitle)
+	return ui.Text(c, s).FontSize(Scaled(TextTitle)).FontWeight(500).LineHeight(LineTitle)
 }
 
 // Body is ordinary reading text. It keeps the color around it, so it reads
 // right inside buttons and selected rows. Its leading stays compact because
 // controls and table cells use it too.
 func Body(c *ui.Context, s string) ui.Element {
-	return ui.Text(c, s).FontSize(TextBody)
+	return ui.Text(c, s).FontSize(Scaled(TextBody))
 }
 
 // Prose is body text that reads as a paragraph, with the leading long
@@ -27,7 +27,7 @@ func Prose(c *ui.Context, s string) ui.Element {
 // Mono is wire data: a URL, a header value, a path, a number. Monospace is
 // never used for a label a person reads as interface.
 func Mono(c *ui.Context, s string) ui.Element {
-	return ui.Text(c, s).Font(FontMono).FontSize(TextData)
+	return ui.Text(c, s).Font(FontMono).FontSize(Scaled(TextData))
 }
 
 // Hint explains: a sentence under a control or in an empty pane. It is the
@@ -40,7 +40,7 @@ func Hint(c *ui.Context, s string) ui.Element {
 // Meta is a secondary fact: a count, a timestamp, a size. Tabular figures
 // keep changing numbers from shifting the text around them.
 func Meta(c *ui.Context, s string) ui.Element {
-	return ui.Text(c, s).FontSize(TextMeta).LineHeight(LineMeta).FontFeatures("tnum").TextColor(c.Theme().TextMuted)
+	return ui.Text(c, s).FontSize(Scaled(TextMeta)).LineHeight(LineMeta).FontFeatures("tnum").TextColor(c.Theme().TextMuted)
 }
 
 // Label names a field or a group of them.

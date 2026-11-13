@@ -112,7 +112,7 @@ func (a *app) httpsSettings(c *ui.Context, t *ui.Theme) {
 		uikit.SettingsGroup(c, locales.Certificate(), func() {
 			ui.Field(c, locales.Trust(), func() {
 				ui.Column(c).Gap(t.Space(1)).Children(func() {
-					ui.Text(c, status).FontSize(uikit.TextBody).FontWeight(500).TextColor(color)
+					ui.Text(c, status).FontSize(uikit.Scaled(uikit.TextBody)).FontWeight(500).TextColor(color)
 					if s.cert != nil {
 						uikit.Body(c, cmp.Or(s.cert.Subject.CommonName, s.cert.Subject.String()))
 						uikit.Meta(c, "Valid: "+s.cert.NotBefore.Local().Format("2006-01-02")+" → "+s.cert.NotAfter.Local().Format("2006-01-02"))
@@ -127,13 +127,13 @@ func (a *app) httpsSettings(c *ui.Context, t *ui.Theme) {
 						if errors.Is(s.err, os.ErrNotExist) {
 							problem = "CA file not found. Start capture, then check again."
 						}
-						uikit.Tip(c, ui.Text(c, problem).FontSize(uikit.TextMeta).TextColor(t.Warning).SingleLine(), s.err.Error())
+						uikit.Tip(c, ui.Text(c, problem).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Warning).SingleLine(), s.err.Error())
 					}
 					if s.installErr != nil {
 						if errors.Is(s.installErr, system.ErrInstallCancelled) {
 							uikit.Meta(c, locales.InstallationCancelledYouCanTry())
 						} else {
-							uikit.Tip(c, ui.Text(c, "Installation failed: "+s.installErr.Error()).FontSize(uikit.TextMeta).TextColor(t.Danger).MaxLines(2), s.installErr.Error())
+							uikit.Tip(c, ui.Text(c, "Installation failed: "+s.installErr.Error()).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Danger).MaxLines(2), s.installErr.Error())
 							switch runtime.GOOS {
 							case "darwin":
 								uikit.Meta(c, locales.ManualFallbackUseShowCertificate())
@@ -304,13 +304,13 @@ func (a *app) connectPanel(c *ui.Context, f flow) {
 							uikit.Label(c, "Recorded failure · "+cmp.Or(f.conn.errorStage, "unknown stage")).Grow(1)
 							if uikit.ToolbarButton(c, locales.CopyError(), locales.CopyTheRecordedError(), false).Height(uikit.HeightControl).Gap(t.Space(1)).Children(func() {
 								ui.Icon(c, copyIcon).Size(uikit.IconInline, uikit.IconInline)
-								ui.Text(c, locales.Copy()).FontSize(uikit.TextMeta)
+								ui.Text(c, locales.Copy()).FontSize(uikit.Scaled(uikit.TextMeta))
 							}).Clicked() {
 								c.Services().WriteClipboard(f.conn.error)
 								a.done(locales.CopiedTheRecordedError())
 							}
 						})
-						uikit.Tip(c, ui.Text(c, f.conn.error).Font(uikit.FontMono).FontSize(uikit.TextMeta).TextColor(t.Danger).Selectable().SingleLine(), f.conn.error)
+						uikit.Tip(c, ui.Text(c, f.conn.error).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Danger).Selectable().SingleLine(), f.conn.error)
 					})
 				}
 				// What to do next. A failure is read before anything is
@@ -355,22 +355,22 @@ func (a *app) connectPanel(c *ui.Context, f flow) {
 				// explain a tunnel that was recorded earlier.
 				uikit.Label(c, locales.KnownConfiguration())
 				if domainEnabled {
-					ui.Text(c, locales.DomainRuleEnabledReconnectTo()).FontSize(uikit.TextMeta).TextColor(t.Text)
+					ui.Text(c, locales.DomainRuleEnabledReconnectTo()).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Text)
 				} else {
 					uikit.Meta(c, locales.DomainDecryptionDisabled())
 				}
 				if appEnabled {
-					uikit.Tip(c, ui.Text(c, locales.AppRuleEnabledReconnectTo()).FontSize(uikit.TextMeta), f.processPath)
+					uikit.Tip(c, ui.Text(c, locales.AppRuleEnabledReconnectTo()).FontSize(uikit.Scaled(uikit.TextMeta)), f.processPath)
 				} else if !filepath.IsAbs(f.processPath) {
 					uikit.Meta(c, locales.AppRuleUnavailableLocalExecutable())
 				}
-				ui.Text(c, trust).FontSize(uikit.TextMeta).TextColor(trustColor).
+				ui.Text(c, trust).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(trustColor).
 					Tooltip(locales.SystemTrustIsNotProof())
 				if broadScope {
 					ui.Row(c).Children(func() {
 						if uikit.ToolbarButton(c, "Inspect all domains from "+f.process, "Wider scope for new connections from "+f.processPath+"; not a fix for this failure", false).
 							Height(uikit.HeightControl).Padding(0, t.Space(1)).Children(func() {
-							ui.Text(c, "Inspect all domains from \""+f.process+"\"…").FontSize(uikit.TextMeta)
+							ui.Text(c, "Inspect all domains from \""+f.process+"\"…").FontSize(uikit.Scaled(uikit.TextMeta))
 						}).Clicked() {
 							a.setAppInspection(capture.SSLApp{Name: f.process, Path: f.processPath}, true)
 						}

@@ -228,7 +228,7 @@ func (a *app) hostsLabel() string {
 func (a *app) hostsMenu(c *ui.Context, t *ui.Theme) {
 	h := &a.profiles
 	ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Padding(t.Space(1), t.Space(1), t.Space(1), t.Space(2)).Children(func() {
-		ui.Text(c, locales.HostProfiles()).FontSize(uikit.TextBody).FontWeight(500).TextColor(t.Text).Grow(1)
+		ui.Text(c, locales.HostProfiles()).FontSize(uikit.Scaled(uikit.TextBody)).FontWeight(500).TextColor(t.Text).Grow(1)
 		a.hostsMode(c)
 	})
 	if len(h.set.Profiles) == 0 {
@@ -241,12 +241,12 @@ func (a *app) hostsMenu(c *ui.Context, t *ui.Theme) {
 			if ui.Switch(c, &on).Label("Host profile: " + p.Name).Changed() {
 				a.switchProfile(i, on)
 			}
-			ui.Text(c, p.Name).FontSize(uikit.TextBody).TextColor(t.Text).SingleLine().MinWidth(0)
+			ui.Text(c, p.Name).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Text).SingleLine().MinWidth(0)
 			if p.URL != "" {
 				uikit.Tip(c, uikit.Glyph(c, subscribeIcon), "Subscribed: "+p.URL)
 			}
 			if n := conflicts[p.Name]; n > 0 && p.On {
-				ui.Text(c, locales.ConflictsCount(n)).FontSize(uikit.TextMeta).TextColor(t.Warning).SingleLine().
+				ui.Text(c, locales.ConflictsCount(n)).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Warning).SingleLine().
 					Tooltip(locales.AHigherProfileMapsThe())
 			}
 			ui.Spacer(c)

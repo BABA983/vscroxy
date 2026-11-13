@@ -687,9 +687,9 @@ func (a *app) requestRenameModal(c *ui.Context, t *ui.Theme) {
 			}
 			uikit.DialogTitle(c, title)
 			uikit.Input(c, &d.composeName).Label(locales.Name()).Placeholder(locales.UntitledRequest()).FillWidth().
-				Height(uikit.HeightControl).Padding(0, t.Space(2)).Radius(uikit.RadiusControl).FontSize(uikit.TextBody)
+				Height(uikit.HeightControl).Padding(0, t.Space(2)).Radius(uikit.RadiusControl).FontSize(uikit.Scaled(uikit.TextBody))
 			uikit.Input(c, &d.composeCollection).Label(locales.Collection()).Placeholder(locales.Collection()).FillWidth().
-				Height(uikit.HeightControl).Padding(0, t.Space(2)).Radius(uikit.RadiusControl).FontSize(uikit.TextBody)
+				Height(uikit.HeightControl).Padding(0, t.Space(2)).Radius(uikit.RadiusControl).FontSize(uikit.Scaled(uikit.TextBody))
 			uikit.Meta(c, locales.TheCollectionGroupsSavedRequests())
 			uikit.DialogFooter(c).Children(func() {
 				if uikit.SecondaryButton(c, locales.Cancel()).Clicked() {
@@ -720,7 +720,7 @@ func (a *app) requestDocumentActions(c *ui.Context, t *ui.Theme, d *requestDocum
 			}
 		}
 		a.actionButton(c, "request.save", locales.Save())
-		uikit.MoreMenu(c, locales.RequestOptions(), func(m *ui.Menu) { actionMenu(m, a.documentActions(c, d)) }).Height(uikit.HeightControl).FontSize(uikit.TextTitle)
+		uikit.MoreMenu(c, locales.RequestOptions(), func(m *ui.Menu) { actionMenu(m, a.documentActions(c, d)) }).Height(uikit.HeightControl).FontSize(uikit.Scaled(uikit.TextTitle))
 	})
 }
 
@@ -795,14 +795,14 @@ func (a *app) requestVariablesPanel(c *ui.Context, t *ui.Theme, d *requestDocume
 
 func variableRows(c *ui.Context, rows []request.ResolvedVariable, reveal *bool) {
 	t := c.Theme()
-	ui.Checkbox(c, reveal, "Reveal values (plaintext)").FontSize(uikit.TextMeta)
+	ui.Checkbox(c, reveal, "Reveal values (plaintext)").FontSize(uikit.Scaled(uikit.TextMeta))
 	ui.Scroll(c).Grow(1).FillWidth().Gap(t.Space(2)).Children(func() {
 		if len(rows) == 0 {
 			uikit.Meta(c, locales.NoReferencedVariablesInThis())
 		}
 		for _, row := range rows {
 			ui.Row(c).Gap(t.Space(2)).Children(func() {
-				ui.Text(c, row.Name).Width(140).Font(uikit.FontMono).FontSize(uikit.TextMeta)
+				ui.Text(c, row.Name).Width(140).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextMeta))
 				value, color := "••••••", t.Text
 				if row.Missing {
 					value, color = "Unresolved", t.Warning
@@ -812,7 +812,7 @@ func variableRows(c *ui.Context, rows []request.ResolvedVariable, reveal *bool) 
 						value = "(empty value)"
 					}
 				}
-				ui.Text(c, value).FontSize(uikit.TextMeta).TextColor(color).Grow(1).Selectable()
+				ui.Text(c, value).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(color).Grow(1).Selectable()
 				uikit.Meta(c, row.Source).Width(180)
 			})
 		}
@@ -876,7 +876,7 @@ func (a *app) requestBar(c *ui.Context, t *ui.Theme, d *requestDocument, more fu
 					Height(uikit.HeightControl).Padding(0, t.Space(1)).Gap(t.Space(0.5)).Shrink(0).
 					Disabled(d.composeWaiting || d.grpcUI != nil && d.grpcUI.loading != nil)
 				proto.Children(func() {
-					ui.Text(c, cmp.Or(d.protocol, "HTTP")).FontSize(uikit.TextBody).TextColor(t.TextMuted).SingleLine()
+					ui.Text(c, cmp.Or(d.protocol, "HTTP")).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.TextMuted).SingleLine()
 					ui.Icon(c, chevronIcon).Size(10, 10).TextColor(t.TextMuted)
 				})
 				proto.PopoverMenuButton(func(m *ui.Menu) {
@@ -928,7 +928,7 @@ func (a *app) requestBar(c *ui.Context, t *ui.Theme, d *requestDocument, more fu
 			}
 			control.Children(func() {
 				method := ui.ComboboxBase(c, &d.composeMethod)
-				method.Input.Width(72).Height(uikit.HeightControl).Padding(0, t.Space(1)).Label(locales.Method()).FontSize(uikit.TextBody).FontWeight(500).
+				method.Input.Width(72).Height(uikit.HeightControl).Padding(0, t.Space(1)).Label(locales.Method()).FontSize(uikit.Scaled(uikit.TextBody)).FontWeight(500).
 					TextColor(uikit.MethodColor(d.composeMethod, t)).Border(0, t.Border)
 				if method.Input.Changed() {
 					d.composeMethod = strings.ToUpper(strings.TrimSpace(d.composeMethod))
@@ -944,7 +944,7 @@ func (a *app) requestBar(c *ui.Context, t *ui.Theme, d *requestDocument, more fu
 						if item.Highlighted() {
 							item.Background(t.SurfaceHover).TextColor(t.Text)
 						}
-						item.Children(func() { ui.Text(c, m).FontSize(uikit.TextBody).TextColor(uikit.MethodColor(m, t)) })
+						item.Children(func() { ui.Text(c, m).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(uikit.MethodColor(m, t)) })
 					}
 				})
 				if chosen, ok := method.Chosen(); ok {
@@ -961,7 +961,7 @@ func (a *app) requestBar(c *ui.Context, t *ui.Theme, d *requestDocument, more fu
 				placeholder = "mqtts://broker.example.com:8883"
 			}
 			input := ui.TextInputBase(c, &d.composeURL).Bind(&d.urlInput).Grow(1).Height(uikit.HeightControl).Padding(0, t.Space(2)).Label(locales.Url()).
-				Placeholder(placeholder).Font(uikit.FontMono).FontSize(uikit.TextBody)
+				Placeholder(placeholder).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextBody))
 			var set variableSet
 			var marks []variableMark
 			if strings.Contains(d.composeURL, "{{") {
@@ -1012,7 +1012,7 @@ func (a *app) requestBar(c *ui.Context, t *ui.Theme, d *requestDocument, more fu
 			sendWidth, cancelWidth = 64, 76
 		}
 		if !narrow || !d.composeWaiting {
-			a.actionButton(c, "request.send", sendLabel).Label(sendLabel).Width(sendWidth).Height(uikit.HeightLarge).Radius(uikit.RadiusControl).FontSize(uikit.TextBody).Background(t.Accent).TextColor(t.AccentText)
+			a.actionButton(c, "request.send", sendLabel).Label(sendLabel).Width(sendWidth).Height(uikit.HeightLarge).Radius(uikit.RadiusControl).FontSize(uikit.Scaled(uikit.TextBody)).Background(t.Accent).TextColor(t.AccentText)
 		}
 		if d.composeWaiting {
 			label := "Cancel"
@@ -1085,7 +1085,7 @@ func (a *app) requestEditor(c *ui.Context, t *ui.Theme, d *requestDocument, f fl
 	width := a.editorPaneWidthAt(c, &a.editorReqPane, draftPercent)
 	wide := width >= 720
 	bodyTools := func() {
-		uikit.SelectLabels(c, &d.bodyMode, bodyTypes, optionLabel).Label(locales.RequestBodyType()).Width(132).FontSize(uikit.TextMeta)
+		uikit.SelectLabels(c, &d.bodyMode, bodyTypes, optionLabel).Label(locales.RequestBodyType()).Width(132).FontSize(uikit.Scaled(uikit.TextMeta))
 		// Reading the bytes is a view of the same draft: the formats a
 		// capture's readers used to offer, without leaving the Body tab.
 		formats := a.draftBodyFormats(d)
@@ -1097,7 +1097,7 @@ func (a *app) requestEditor(c *ui.Context, t *ui.Theme, d *requestDocument, f fl
 						d.bodyRead = i
 					}
 				}
-			}).Label(locales.ReadBodyAs()), locales.ReadBodyAsHelp()).FontSize(uikit.TextMeta)
+			}).Label(locales.ReadBodyAs()), locales.ReadBodyAsHelp()).FontSize(uikit.Scaled(uikit.TextMeta))
 		})
 		text, seen := &d.composeBody, &d.bodyFor
 		formatLabel := locales.FormatBody()
@@ -1115,7 +1115,7 @@ func (a *app) requestEditor(c *ui.Context, t *ui.Theme, d *requestDocument, f fl
 		ui.Row(c).Disabled(!query && (!isJSON || !canFormat)).Children(func() {
 			if uikit.ToolbarButton(c, formatLabel, formatHelp, false).Children(func() {
 				ui.Icon(c, formatIcon).Size(uikit.IconInline, uikit.IconInline)
-				ui.Text(c, locales.Format()).FontSize(uikit.TextMeta)
+				ui.Text(c, locales.Format()).FontSize(uikit.Scaled(uikit.TextMeta))
 			}).Clicked() {
 				if query {
 					value, err := graphql.Format(d.graphql.Query)
@@ -1199,7 +1199,7 @@ func (a *app) requestSentState(c *ui.Context, t *ui.Theme, d *requestDocument) {
 		uikit.Meta(c, "Draft matches last attempt · "+d.sentAt.Local().Format("15:04:05")).
 			Tooltip(locales.TheDraftSnapshotMatchesVariables())
 	default:
-		ui.Text(c, locales.EditedSinceLastSendNot()).FontSize(uikit.TextMeta).TextColor(t.Warning).
+		ui.Text(c, locales.EditedSinceLastSendNot()).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Warning).
 			Tooltip(locales.TheResponseBelowBelongsTo())
 	}
 }
@@ -1333,7 +1333,7 @@ func (a *app) requestResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 				Tooltip(locales.RetainedResultFromThisExperiment())
 		}
 		if !d.composeWaiting && outcome != "" && outcome != "Response received" {
-			ui.Text(c, outcome).FontSize(uikit.TextMeta).TextColor(t.Warning).Padding(t.Space(1), t.Space(3))
+			ui.Text(c, outcome).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Warning).Padding(t.Space(1), t.Space(3))
 		}
 		if d.sentSet {
 			ui.Row(c).Height(uikit.HeightControl).Padding(0, t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
@@ -1348,13 +1348,13 @@ func (a *app) requestResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 					if d.lastAttemptOpen {
 						arrow = "⌄"
 					}
-					ui.Text(c, arrow).FontSize(uikit.TextTitle)
-					ui.Text(c, label).FontSize(uikit.TextMeta).SingleLine()
+					ui.Text(c, arrow).FontSize(uikit.Scaled(uikit.TextTitle))
+					ui.Text(c, label).FontSize(uikit.Scaled(uikit.TextMeta)).SingleLine()
 				}).Clicked() {
 					d.lastAttemptOpen = !d.lastAttemptOpen
 				}
 				if !reflect.DeepEqual(d.draft(), d.sent) {
-					ui.Text(c, locales.DraftChangedNotSent()).FontSize(uikit.TextMeta).TextColor(t.Warning)
+					ui.Text(c, locales.DraftChangedNotSent()).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Warning)
 				} else if !d.composeWaiting {
 					uikit.Meta(c, locales.DraftMatchesLastAttempt()).
 						Tooltip(locales.TheDraftSnapshotMatchesVariables())
@@ -1373,7 +1373,7 @@ func (a *app) requestResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 		if outcome == "Cancelled" && (d.response != nil || len(d.composeReplies) > 0 || d.responseTab == resViewConsole) {
 			ui.Column(c).Padding(t.Space(2), t.Space(3)).Gap(t.Space(2)).Children(func() { a.cancelledResult(c, t, d) })
 		} else if outcome == "Network error" && d.response != nil || outcome == "Post-response script failed" || outcome == "Timed out" && d.response != nil {
-			ui.Text(c, outcome+": "+detail).FontSize(uikit.TextMeta).TextColor(t.Danger).Padding(t.Space(2), t.Space(3)).Selectable()
+			ui.Text(c, outcome+": "+detail).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Danger).Padding(t.Space(2), t.Space(3)).Selectable()
 		}
 		if d.response == nil && len(d.composeReplies) == 0 && len(d.console) == 0 {
 			// Nothing has come back yet: the empty state says what to do, and
@@ -1392,10 +1392,10 @@ func (a *app) requestResponse(c *ui.Context, t *ui.Theme, d *requestDocument) {
 }
 
 func (a *app) cancelledResult(c *ui.Context, t *ui.Theme, d *requestDocument) {
-	ui.Text(c, locales.WaitingCancelledTheServerMay()).FontSize(uikit.TextBody).TextColor(t.Text)
+	ui.Text(c, locales.WaitingCancelledTheServerMay()).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Text)
 	ui.Collapsible(c, "Technical details", &d.sendDetails, func() {
 		uikit.Meta(c, d.composeResult).Selectable().FillWidth()
-	}).FontSize(uikit.TextBody)
+	}).FontSize(uikit.Scaled(uikit.TextBody))
 }
 
 // responseProvenance says when the response arrived and whether the capture it
@@ -1428,8 +1428,8 @@ func (a *app) responseBody(c *ui.Context, t *ui.Theme, d *requestDocument) {
 				} else if d.sendOutcome == "Cancelled" {
 					a.cancelledResult(c, t, d)
 				} else if d.sendOutcome != "" {
-					ui.Text(c, d.sendOutcome).FontSize(uikit.TextBody).TextColor(t.Warning)
-					ui.Text(c, d.composeResult).FontSize(uikit.TextBody).TextColor(t.Text).Selectable().FillWidth()
+					ui.Text(c, d.sendOutcome).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Warning)
+					ui.Text(c, d.composeResult).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Text).Selectable().FillWidth()
 					uikit.Meta(c, locales.EditTheDraftAndSend())
 				} else {
 					uikit.Body(c, cmp.Or(d.composeResult, locales.SendToSeeResponse())).TextColor(t.Text)
@@ -1544,7 +1544,7 @@ func testResultRow(c *ui.Context, result request.TestResult) {
 		name += " · skipped"
 	}
 	ui.Column(c).Gap(t.Space(0.5)).Children(func() {
-		ui.Text(c, name).FontSize(uikit.TextBody).TextColor(color)
+		ui.Text(c, name).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(color)
 		if result.Error != "" {
 			uikit.Meta(c, result.Error).Padding(0, 0, 0, t.Space(3)).Selectable()
 		}
@@ -1562,7 +1562,7 @@ func runConsole(c *ui.Context, entries []request.ConsoleMessage) {
 			if entry.Kind == "error" {
 				color = t.Danger
 			}
-			ui.Text(c, entry.Phase+" · "+entry.Kind+" · "+entry.Text).Font(uikit.FontMono).FontSize(uikit.TextBody).TextColor(color).Selectable().FillWidth()
+			ui.Text(c, entry.Phase+" · "+entry.Kind+" · "+entry.Text).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(color).Selectable().FillWidth()
 		}
 	})
 }
@@ -1573,7 +1573,7 @@ func (a *app) responseCompare(c *ui.Context, t *ui.Theme, d *requestDocument) {
 	ui.Row(c).Height(uikit.HeightControl).Padding(0, t.Space(3)).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 		if uikit.ToolbarButton(c, locales.BackToResponse(), locales.BackToTheResponse(), false).Height(uikit.HeightControl).Gap(t.Space(1)).Children(func() {
 			ui.Icon(c, backIcon).Size(uikit.IconInline, uikit.IconInline)
-			ui.Text(c, locales.BackToResponse()).FontSize(uikit.TextMeta)
+			ui.Text(c, locales.BackToResponse()).FontSize(uikit.Scaled(uikit.TextMeta))
 		}).Clicked() {
 			d.comparing = false
 		}
@@ -1614,7 +1614,7 @@ func (a *app) responseHex(c *ui.Context, d *requestDocument, body string) {
 		return
 	}
 	ui.List(c, &d.responseList, len(rows), func(i int) {
-		ui.Text(c, hexLine(body, rows[i])).FontSize(uikit.TextMeta).Font(uikit.FontMono).TextColor(c.Theme().Text).Padding(c.Theme().Space(1), c.Theme().Space(3)).SingleLine()
+		ui.Text(c, hexLine(body, rows[i])).FontSize(uikit.Scaled(uikit.TextMeta)).Font(uikit.FontMono).TextColor(c.Theme().Text).Padding(c.Theme().Space(1), c.Theme().Space(3)).SingleLine()
 	}).Grow(1)
 }
 

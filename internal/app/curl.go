@@ -291,11 +291,11 @@ func (a *app) curlImportModal(c *ui.Context, t *ui.Theme) {
 			uikit.DialogTitle(c, locales.ImportCurl2())
 			ui.Scroll(c).MinHeight(0).Shrink(1).Gap(t.Space(4)).Padding(0, t.Space(1)).Children(func() {
 				uikit.Hint(c, locales.PasteOneCurlCommandBash())
-				if ui.TextArea(c, &a.curlInput).Height(190).Font(uikit.FontMono).FontSize(uikit.TextBody).Radius(uikit.RadiusControl).Label(locales.CurlCommand()).Placeholder("curl 'https://api.example.com/projects' \\\\\\n  -H 'Accept: application/json'").AutoFocus().Changed() {
+				if ui.TextArea(c, &a.curlInput).Height(190).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextBody)).Radius(uikit.RadiusControl).Label(locales.CurlCommand()).Placeholder("curl 'https://api.example.com/projects' \\\\\\n  -H 'Accept: application/json'").AutoFocus().Changed() {
 					a.curlProblem = ""
 				}
 				if a.curlProblem != "" {
-					ui.Text(c, a.curlProblem).FontSize(uikit.TextBody).TextColor(t.Danger)
+					ui.Text(c, a.curlProblem).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Danger)
 				}
 			})
 			uikit.DialogFooter(c).Children(func() {

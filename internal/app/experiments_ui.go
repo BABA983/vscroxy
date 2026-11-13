@@ -297,7 +297,7 @@ func (a *app) experimentsView(c *ui.Context, t *ui.Theme, inline bool) {
 		})
 		uikit.Meta(c, locales.PrivateLocalSnapshotsMayContain())
 		if s.problem != "" {
-			ui.Text(c, s.problem).FontSize(uikit.TextBody).TextColor(t.Danger)
+			ui.Text(c, s.problem).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Danger)
 		}
 		ui.Row(c).Gap(t.Space(2)).Children(func() {
 			historyFilters(c, &s.status, &s.sourceFilter)
@@ -318,7 +318,7 @@ func (a *app) experimentsView(c *ui.Context, t *ui.Theme, inline bool) {
 					}
 					button := uikit.ToolbarButton(c, locales.ExperimentNumber(r.ID), r.Draft.Method+" "+r.Draft.URL+"\n"+r.Summary, r.ID == s.picked).
 						FillWidth().FontFeatures("tnum").Children(func() {
-						ui.Text(c, label).FontSize(uikit.TextMeta).FontFeatures("tnum").SingleLine()
+						ui.Text(c, label).FontSize(uikit.Scaled(uikit.TextMeta)).FontFeatures("tnum").SingleLine()
 					})
 					if button.Clicked() {
 						s.pick(r.ID)
@@ -350,7 +350,7 @@ func (a *app) experimentsView(c *ui.Context, t *ui.Theme, inline bool) {
 					}
 					return
 				}
-				uikit.Tip(c, ui.Text(c, locales.RunDraft(r.ID, r.Draft.Method, r.Draft.URL)).FontSize(uikit.TextBody).FontFeatures("tnum").FontWeight(500).SingleLine(), r.Draft.URL)
+				uikit.Tip(c, ui.Text(c, locales.RunDraft(r.ID, r.Draft.Method, r.Draft.URL)).FontSize(uikit.Scaled(uikit.TextBody)).FontFeatures("tnum").FontWeight(500).SingleLine(), r.Draft.URL)
 				uikit.Meta(c, r.Summary+" · Environment: "+cmp.Or(r.Environment, "none")).FontFeatures("tnum")
 				if r.Outcome != "" {
 					uikit.Meta(c, r.Outcome)
@@ -399,7 +399,7 @@ func (a *app) experimentsView(c *ui.Context, t *ui.Theme, inline bool) {
 				if s.tab == 5 {
 					uikit.Meta(c, locales.ReferencedValuesAfterPreScript())
 					if r.Variables == nil {
-						ui.Text(c, locales.NoVariableSnapshotRetainedOlder()).FontSize(uikit.TextMeta)
+						ui.Text(c, locales.NoVariableSnapshotRetainedOlder()).FontSize(uikit.Scaled(uikit.TextMeta))
 					}
 					variableRows(c, r.Variables, &s.revealVars)
 					return

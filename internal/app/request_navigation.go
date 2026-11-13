@@ -33,7 +33,7 @@ func treeRow(c *ui.Context, item ui.TreeItemParts, depth int) ui.Element {
 // the two is the row's gap alone.
 func methodCell(c *ui.Context, method string, slot float32) {
 	ui.Row(c).Width(slot).Shrink(0).Justify(ui.End).Children(func() {
-		uikit.MethodLabel(c, method).FontSize(uikit.TextMeta).Height(16)
+		uikit.MethodLabel(c, method).FontSize(uikit.Scaled(uikit.TextMeta)).Height(16)
 	})
 }
 

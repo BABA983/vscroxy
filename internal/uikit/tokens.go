@@ -4,6 +4,7 @@
 package uikit
 
 import (
+	"math"
 	"time"
 
 	"github.com/egoist/mygo/ui"
@@ -104,4 +105,23 @@ func popoverMotion() ui.ElementTransition {
 		Enter:        &ui.Motion{Y: 4},
 		Exit:         &ui.Motion{Y: 4},
 	}
+}
+
+// TextScale follows the desktop's text size, as the theme's own font size does:
+// a control that names one of the sizes above asks for it through here, so the
+// four sizes keep their proportions at any scale.
+var textScale float32 = 1
+
+// SetTextScale makes the sizes follow the desktop's text size: 1 is usual, 1.5
+// half again as large.
+func SetTextScale(scale float32) {
+	if scale <= 0 {
+		scale = 1
+	}
+	textScale = scale
+}
+
+// Scaled is a size from the scale the desktop asks for.
+func Scaled(size float32) float32 {
+	return float32(math.Round(float64(size * textScale)))
 }

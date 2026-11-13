@@ -41,10 +41,10 @@ func (a *app) timingView(c *ui.Context, f flow) {
 		waterfallRow(c, t, "Download", "rest of the response body", f.download, f.wait, total, download)
 		ui.Divider(c)
 		ui.Row(c).FillWidth().Gap(t.Space(2)).AlignItems(ui.Center).Padding(t.Space(1), 0).Children(func() {
-			ui.Text(c, locales.Total()).FontSize(uikit.TextBody).FontWeight(500).TextColor(t.Text).Shrink(0)
+			ui.Text(c, locales.Total()).FontSize(uikit.Scaled(uikit.TextBody)).FontWeight(500).TextColor(t.Text).Shrink(0)
 			target := f.method + " " + f.host + f.path
 			uikit.Tip(c, uikit.Meta(c, target).Grow(1).Shrink(1).MinWidth(0).SingleLine(), target)
-			ui.Text(c, fmt.Sprintf("%d ms", f.millis)).Font(uikit.FontMono).FontSize(uikit.TextMeta).FontFeatures("tnum").FontWeight(500).TextColor(t.Text).Shrink(0)
+			ui.Text(c, fmt.Sprintf("%d ms", f.millis)).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextMeta)).FontFeatures("tnum").FontWeight(500).TextColor(t.Text).Shrink(0)
 		})
 		uikit.Meta(c, connectionNote(f)).Padding(t.Space(1), 0, 0, 0)
 	})
@@ -218,7 +218,7 @@ func waterfallRow(c *ui.Context, t *ui.Theme, label, detail string, ms, offset, 
 	// inspector, and the bar takes the full width below them.
 	ui.Column(c).FillWidth().Gap(t.Space(1)).Padding(t.Space(1), 0).Children(func() {
 		ui.Row(c).FillWidth().Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-			ui.Text(c, label).FontSize(uikit.TextBody).TextColor(t.Text).Shrink(0)
+			ui.Text(c, label).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Text).Shrink(0)
 			uikit.Tip(c, uikit.Meta(c, detail).Grow(1).Shrink(1).MinWidth(0).SingleLine(), detail)
 			uikit.Meta(c, fmt.Sprintf("%d ms", ms)).Font(uikit.FontMono).FontFeatures("tnum").Shrink(0)
 		})

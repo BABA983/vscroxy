@@ -476,14 +476,14 @@ func (a *app) rulesPage(c *ui.Context, t *ui.Theme, top float32, active bool) {
 	}
 	ui.Column(c).Width(300).MinHeight(0).Padding(top, t.Space(3), t.Space(3), t.Space(3)).Gap(t.Space(2)).Children(func() {
 		ui.Row(c).Gap(t.Space(1)).AlignItems(ui.Center).Children(func() {
-			ui.Text(c, title).FontSize(uikit.TextTitle).FontWeight(500).TextColor(t.Text).Grow(1)
+			ui.Text(c, title).FontSize(uikit.Scaled(uikit.TextTitle)).FontWeight(500).TextColor(t.Text).Grow(1)
 			if uikit.IconButton(c, locales.NewRule(), locales.NewRule(), plusIcon).Clicked() {
 				a.editRule(-1, capture.Rule{Type: kind})
 			}
 		})
 		uikit.Tip(c, uikit.Input(c, &e.test).Label(locales.TestARequest()).Placeholder(locales.TestGetHttpsApiExample()), locales.MethodUrlAppHeaderValue()).Font(uikit.FontMono).FillWidth()
 		if e.draft.Operation != "" || slices.ContainsFunc(a.rules, func(r capture.Rule) bool { return r.Operation != "" }) {
-			ui.TextArea(c, &e.testBody).Label(locales.TestGraphqlBody()).Placeholder(`{"query":"query Search { items { id } }"}`).Height(80).FillWidth().Font(uikit.FontMono).FontSize(uikit.TextMeta).
+			ui.TextArea(c, &e.testBody).Label(locales.TestGraphqlBody()).Placeholder(`{"query":"query Search { items { id } }"}`).Height(80).FillWidth().Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextMeta)).
 				Tooltip(locales.PostUsesJsonByDefault())
 			if testing && e.testProblem != "" {
 				uikit.Hint(c, locales.GraphqlNotVerified(e.testProblem))
@@ -632,13 +632,13 @@ func (a *app) ruleList(c *ui.Context, t *ui.Theme, rows []int, preview []capture
 			uikit.Tip(c, uikit.Glyph(c, icon), kind)
 			ui.Column(c).Grow(1).MinWidth(0).Children(func() {
 				ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-					ui.Text(c, cmp.Or(r.Name, r.Match)).FontSize(uikit.TextBody).TextColor(t.Text).Grow(1).SingleLine()
+					ui.Text(c, cmp.Or(r.Name, r.Match)).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Text).Grow(1).SingleLine()
 					switch {
 					case p.Step > 0:
 						pal := uikit.Colors(t)
 						ui.Box(c).Size(16, 16).Radius(8).Background(pal.Accent).AlignItems(ui.Center).Justify(ui.Center).
 							Label(fmt.Sprintf("Acts %s", ordinal(p.Step))).Children(func() {
-							ui.Text(c, strconv.Itoa(p.Step)).FontSize(uikit.TextMeta).FontWeight(500).TextColor(pal.AccentText).FontFeatures("tnum")
+							ui.Text(c, strconv.Itoa(p.Step)).FontSize(uikit.Scaled(uikit.TextMeta)).FontWeight(500).TextColor(pal.AccentText).FontFeatures("tnum")
 						})
 					case preview == nil && a.srv != nil:
 						if n := a.srv.RuleHits(r); n > 0 {
@@ -679,7 +679,7 @@ func (a *app) ruleDetail(c *ui.Context, t *ui.Theme) {
 	e := &a.ruleUI
 	breakpoint := e.kind == "Request breakpoint" || e.kind == "Response breakpoint" || e.kind == "WebSocket message breakpoint"
 	ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-		uikit.Input(c, &e.draft.Name).Label(locales.RuleName()).Placeholder(cmp.Or(e.draft.Match, "Untitled rule")).Grow(1).MaxWidth(360).FontSize(uikit.TextTitle).Height(uikit.HeightLarge)
+		uikit.Input(c, &e.draft.Name).Label(locales.RuleName()).Placeholder(cmp.Or(e.draft.Match, "Untitled rule")).Grow(1).MaxWidth(360).FontSize(uikit.Scaled(uikit.TextTitle)).Height(uikit.HeightLarge)
 		on := !e.draft.Disabled
 		if ui.Switch(c, &on).Label(locales.RuleEnabled()).Changed() {
 			e.draft.Disabled = !on
@@ -779,7 +779,7 @@ func (a *app) ruleDetail(c *ui.Context, t *ui.Theme) {
 					uikit.Input(c, &e.status).Label(locales.ResponseStatus()).Width(95).Font(uikit.FontMono)
 				})
 				ui.Field(c, locales.RequestHeadersLabel(), func() {
-					ui.TextArea(c, &e.headers).Height(76).FillWidth().Font(uikit.FontMono).FontSize(uikit.TextBody).Radius(uikit.RadiusControl).Label(locales.ResponseHeaders()).Placeholder("Content-Type: application/json")
+					ui.TextArea(c, &e.headers).Height(76).FillWidth().Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextBody)).Radius(uikit.RadiusControl).Label(locales.ResponseHeaders()).Placeholder("Content-Type: application/json")
 				}).Description(locales.ConnectionHeadersAreRemovedThe())
 			case "Map Remote":
 				ui.Field(c, locales.SendTo(), func() {
@@ -833,7 +833,7 @@ func (a *app) ruleDetail(c *ui.Context, t *ui.Theme) {
 	})
 	ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 		if e.problem != "" {
-			ui.Text(c, e.problem).FontSize(uikit.TextMeta).TextColor(t.Danger).Grow(1).MaxLines(2)
+			ui.Text(c, e.problem).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Danger).Grow(1).MaxLines(2)
 		} else {
 			uikit.Meta(c, locales.ChangesApplyToNewRequests()).Grow(1).SingleLine()
 		}

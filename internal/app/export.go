@@ -94,7 +94,7 @@ func (a *app) exportModal(c *ui.Context, t *ui.Theme) {
 				if before != s.options || raw != s.unredacted {
 					s.reviewed = false
 				}
-				ui.Text(c, locales.FieldBasedRedactionIsNot()).FontSize(uikit.TextBody).TextColor(t.Warning).
+				ui.Text(c, locales.FieldBasedRedactionIsNot()).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Warning).
 					Tooltip(locales.PathsHostsNamesParameterNames())
 				for _, warning := range s.warnings {
 					uikit.Body(c, "• "+warning)

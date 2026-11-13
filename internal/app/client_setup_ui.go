@@ -31,7 +31,7 @@ func (a *app) clientSetupModal(c *ui.Context, t *ui.Theme) {
 				a.clientSetupExamples(c, t)
 			}
 			if s.problem != "" {
-				uikit.Tip(c, ui.Text(c, s.problem).FontSize(uikit.TextBody).TextColor(t.Danger).MaxLines(2), s.problem)
+				uikit.Tip(c, ui.Text(c, s.problem).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Danger).MaxLines(2), s.problem)
 			}
 			uikit.DialogFooter(c).Children(func() {
 				if uikit.SecondaryButton(c, locales.PhoneTabletSetup()).Clicked() {
@@ -97,7 +97,7 @@ func (a *app) clientSetupOneClick(c *ui.Context, t *ui.Theme) {
 		if s.last != "" {
 			ui.Divider(c)
 			uikit.Hint(c, locales.LastCommand())
-			ui.Text(c, s.last).Font(uikit.FontMono).FontSize(uikit.TextMeta).Selectable().MaxLines(3)
+			ui.Text(c, s.last).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextMeta)).Selectable().MaxLines(3)
 		}
 	})
 }
@@ -113,10 +113,10 @@ func (a *app) clientTerminalPanel(c *ui.Context, t *ui.Theme, p clientsetup.Prox
 			preview = append(preview, entry)
 		}
 	}
-	ui.Text(c, strings.Join(preview, "\n")).Font(uikit.FontMono).FontSize(uikit.TextMeta).Selectable().MaxLines(7)
+	ui.Text(c, strings.Join(preview, "\n")).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextMeta)).Selectable().MaxLines(7)
 	if p.BundlePath == "" {
 		ui.Text(c, locales.SystemCaBundleUnavailableOnly()).
-			FontSize(uikit.TextMeta).TextColor(t.Warning).MaxLines(2)
+			FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Warning).MaxLines(2)
 	} else {
 		uikit.Meta(c, "SSL_CERT_FILE, REQUESTS_CA_BUNDLE, CURL_CA_BUNDLE, GIT_SSL_CAINFO, PIP_CERT and DENO_CERT point at "+p.BundlePath+", a 0600 bundle of the system roots plus the vscroxy CA. Undecrypted hosts keep working.")
 	}
@@ -130,7 +130,7 @@ func (a *app) clientChromePanel(c *ui.Context, t *ui.Theme, p clientsetup.Proxy,
 	addr := cmp.Or(p.Addr, "127.0.0.1:7890")
 	uikit.Hint(c, locales.OpensChromeWithATemporary())
 	ui.Text(c, "--user-data-dir=<temporary profile>\n--proxy-server=http://"+addr).
-		Font(uikit.FontMono).FontSize(uikit.TextMeta).Selectable().MaxLines(2)
+		Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextMeta)).Selectable().MaxLines(2)
 	if uikit.PrimaryButton(c, locales.OpenChrome()).Disabled(!running).Clicked() {
 		a.openProxiedChrome()
 	}
@@ -146,7 +146,7 @@ func (a *app) clientFirefoxPanel(c *ui.Context, t *ui.Theme, p clientsetup.Proxy
 	addr := cmp.Or(p.Addr, "127.0.0.1:7890")
 	uikit.Hint(c, locales.OpensFirefoxWithATemporary())
 	ui.Text(c, "network.proxy.type=1 · HTTP/SSL "+addr+"\nsecurity.enterprise_roots.enabled=true").
-		Font(uikit.FontMono).FontSize(uikit.TextMeta).Selectable().MaxLines(2)
+		Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextMeta)).Selectable().MaxLines(2)
 	if uikit.PrimaryButton(c, locales.OpenFirefox()).Disabled(!running).Clicked() {
 		a.openProxiedFirefox()
 	}
@@ -176,7 +176,7 @@ func (a *app) clientAndroidPanel(c *ui.Context, t *ui.Theme, p clientsetup.Proxy
 	case s.androidLoading:
 		uikit.Meta(c, locales.LookingForAdbDevices())
 	case s.androidProblem != "":
-		uikit.Tip(c, ui.Text(c, s.androidProblem).FontSize(uikit.TextMeta).TextColor(t.Danger).MaxLines(2), s.androidProblem)
+		uikit.Tip(c, ui.Text(c, s.androidProblem).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Danger).MaxLines(2), s.androidProblem)
 	case len(s.android) == 0:
 		uikit.Meta(c, locales.StartAnEmulatorOrConnect())
 	}
@@ -206,7 +206,7 @@ func (a *app) clientIOSPanel(c *ui.Context, t *ui.Theme, p clientsetup.Proxy, ru
 	}
 	uikit.Hint(c, locales.AddsThePublicCaTo())
 	ui.Text(c, "xcrun simctl keychain booted add-root-cert "+cmp.Or(p.CAPath, "<CA>")).
-		Font(uikit.FontMono).FontSize(uikit.TextMeta).Selectable().MaxLines(2)
+		Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextMeta)).Selectable().MaxLines(2)
 	if uikit.PrimaryButton(c, locales.InstallCaInBootedSimulator()).Disabled(!running).Clicked() {
 		a.installSimulatorCA()
 	}
@@ -228,19 +228,19 @@ func (a *app) clientJavaPanel(c *ui.Context, t *ui.Theme, p clientsetup.Proxy, r
 		}
 	}
 	if s.javaCACerts == "" {
-		uikit.Tip(c, ui.Text(c, cmp.Or(s.javaProblem, "JDK cacerts are unavailable.")).FontSize(uikit.TextMeta).TextColor(t.Danger).MaxLines(3), s.javaProblem)
+		uikit.Tip(c, ui.Text(c, cmp.Or(s.javaProblem, "JDK cacerts are unavailable.")).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Danger).MaxLines(3), s.javaProblem)
 		return
 	}
 	commands, err := clientsetup.JavaTruststoreCommands(p, keystore, s.javaCACerts)
 	if err != nil {
-		uikit.Tip(c, ui.Text(c, err.Error()).FontSize(uikit.TextMeta).TextColor(t.Danger).MaxLines(3), err.Error())
+		uikit.Tip(c, ui.Text(c, err.Error()).FontSize(uikit.Scaled(uikit.TextMeta)).TextColor(t.Danger).MaxLines(3), err.Error())
 		return
 	}
 	command := clientsetup.JoinCommands(commands, runtime.GOOS == "windows")
 	uikit.Hint(c, locales.CopiesTheJdkSCacerts())
 	uikit.Tip(c, uikit.Meta(c, "JDK cacerts: "+s.javaCACerts).Font(uikit.FontMono).Selectable().MaxLines(2), s.javaCACerts)
 	uikit.Tip(c, uikit.Meta(c, "Truststore: "+keystore).Font(uikit.FontMono).Selectable().MaxLines(2), keystore)
-	ui.Text(c, command).Font(uikit.FontMono).FontSize(uikit.TextMeta).Selectable().MaxLines(8)
+	ui.Text(c, command).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextMeta)).Selectable().MaxLines(8)
 	ui.Row(c).Gap(t.Space(2)).Wrap().Children(func() {
 		if uikit.SecondaryButton(c, locales.CopyCommands()).Clicked() {
 			c.Services().WriteClipboard(command)
@@ -269,7 +269,7 @@ func (a *app) clientJavaPanel(c *ui.Context, t *ui.Theme, p clientsetup.Proxy, r
 		if runtime.GOOS == "windows" {
 			argsText = clientsetup.WindowsCommandLine("java", args)
 		}
-		ui.Text(c, argsText).Font(uikit.FontMono).FontSize(uikit.TextMeta).Selectable().MaxLines(3)
+		ui.Text(c, argsText).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextMeta)).Selectable().MaxLines(3)
 	}
 }
 
@@ -298,7 +298,7 @@ func (a *app) clientElectronPanel(c *ui.Context, t *ui.Theme, p clientsetup.Prox
 		})
 	})
 	addr := cmp.Or(p.Addr, "127.0.0.1:7890")
-	ui.Text(c, "--proxy-server=http://"+addr).Font(uikit.FontMono).FontSize(uikit.TextMeta).Selectable().MaxLines(1)
+	ui.Text(c, "--proxy-server=http://"+addr).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextMeta)).Selectable().MaxLines(1)
 	if uikit.PrimaryButton(c, locales.LaunchWithProxy()).Disabled(!running || strings.TrimSpace(s.electronPath) == "").Clicked() {
 		a.launchElectronApp()
 	}
@@ -327,7 +327,7 @@ func (a *app) clientSetupExamples(c *ui.Context, t *ui.Theme) {
 			c.Services().WriteClipboard(example)
 			a.done(locales.CopiedClientSetup(s.runtime))
 		}
-		ui.Text(c, example).Font(uikit.FontMono).FontSize(uikit.TextMeta).Selectable()
+		ui.Text(c, example).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextMeta)).Selectable()
 		uikit.Meta(c, locales.RunItThenUseDiagnose())
 	})
 }

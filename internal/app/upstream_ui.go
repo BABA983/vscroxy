@@ -422,14 +422,14 @@ func (a *app) upstreamSettingsGroup(c *ui.Context, t *ui.Theme) {
 	uikit.SettingsGroup(c, locales.Upstream2(), func() {
 		if a.upstreamProblem != "" {
 			ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-				ui.Text(c, a.upstreamProblem).FontSize(uikit.TextBody).TextColor(t.Danger).Selectable().Grow(1)
+				ui.Text(c, a.upstreamProblem).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Danger).Selectable().Grow(1)
 				if !a.upstreamLoading && uikit.SecondaryButton(c, locales.Retry()).Clicked() {
 					a.retryUpstreamNow()
 				}
 			})
 		}
 		if u.problem != "" {
-			ui.Text(c, u.problem).FontSize(uikit.TextBody).TextColor(t.Danger).Selectable()
+			ui.Text(c, u.problem).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Danger).Selectable()
 		}
 		ui.Field(c, locales.DefaultText2(), func() {
 			if uikit.Input(c, &u.defaultAddr).Label(locales.DefaultUpstream()).Placeholder(locales.DirectConnection()).Grow(1).MinWidth(160).Changed() {
@@ -437,12 +437,12 @@ func (a *app) upstreamSettingsGroup(c *ui.Context, t *ui.Theme) {
 			}
 		}).Description(locales.EmptyConnectsDirectlyAHost())
 		ui.Field(c, locales.HostRules(), func() {
-			if ui.TextArea(c, &u.rules).Label(locales.HostRules()).Placeholder("*.internal.test socks5://127.0.0.1:1080\napi.example.com:443 direct").Height(60).Font(uikit.FontMono).FontSize(uikit.TextBody).Radius(uikit.RadiusControl).Changed() {
+			if ui.TextArea(c, &u.rules).Label(locales.HostRules()).Placeholder("*.internal.test socks5://127.0.0.1:1080\napi.example.com:443 direct").Height(60).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextBody)).Radius(uikit.RadiusControl).Changed() {
 				u.dirty = true
 			}
 		}).Description(locales.OnePerLineHostPattern())
 		ui.Field(c, locales.Bypass(), func() {
-			if ui.TextArea(c, &u.bypass).Label(locales.BypassList()).Placeholder("localhost\n*.internal.test\n10.0.0.0/8").Height(50).Font(uikit.FontMono).FontSize(uikit.TextBody).Radius(uikit.RadiusControl).Changed() {
+			if ui.TextArea(c, &u.bypass).Label(locales.BypassList()).Placeholder("localhost\n*.internal.test\n10.0.0.0/8").Height(50).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextBody)).Radius(uikit.RadiusControl).Changed() {
 				u.dirty = true
 			}
 		}).Description(locales.HostsExampleComCidrLocalhost())

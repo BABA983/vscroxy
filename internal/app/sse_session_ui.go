@@ -67,14 +67,14 @@ func (a *app) sseModal(c *ui.Context, t *ui.Theme) {
 						s.session.stop()
 					}
 				})
-				ui.TextArea(c, &s.headers).Label(locales.SseRequestHeaders()).Placeholder("Authorization: Bearer …\nLast-Event-ID: …").Height(54).Font(uikit.FontMono).FontSize(uikit.TextBody).Radius(uikit.RadiusControl).Disabled(!finished)
+				ui.TextArea(c, &s.headers).Label(locales.SseRequestHeaders()).Placeholder("Authorization: Bearer …\nLast-Event-ID: …").Height(54).Font(uikit.FontMono).FontSize(uikit.Scaled(uikit.TextBody)).Radius(uikit.RadiusControl).Disabled(!finished)
 				ui.Checkbox(c, &s.reconnect, "Reconnect on EOF / network failure").Disabled(!finished)
 				if s.problem != "" {
-					ui.Text(c, s.problem).FontSize(uikit.TextBody).TextColor(t.Danger)
+					ui.Text(c, s.problem).FontSize(uikit.Scaled(uikit.TextBody)).TextColor(t.Danger)
 				}
 				ui.Row(c).Gap(t.Space(2)).Children(func() {
 					uikit.Input(c, &s.query).Label(locales.SearchSseEvents()).Placeholder(locales.SearchTypeIdPayloadAnd()).Grow(1).MinWidth(0)
-					ui.Text(c, locales.RetainedEvicted(len(events), evicted)).FontSize(uikit.TextMeta).FontFeatures("tnum")
+					ui.Text(c, locales.RetainedEvicted(len(events), evicted)).FontSize(uikit.Scaled(uikit.TextMeta)).FontFeatures("tnum")
 					if uikit.SecondaryButton(c, locales.LatestEvent()).Clicked() {
 						s.scroll.Y = math.MaxFloat32
 					}
