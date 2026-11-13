@@ -50,13 +50,12 @@ func ToolbarButton(c *ui.Context, label, tip string, active bool) ui.Element {
 	return hoverMotion(b, b.Hovered() || b.Pressed())
 }
 
-// FooterButton is the small button the footer carries: 20 points high with a
-// quiet face, and the selection tint while what it switches is on.
+// FooterButton is one action in the footer bar: 20 points high, at rest text
+// with no face of its own. The pointer brings a face, and being on brings the
+// same raised face a chosen segment has, so "on" and "under the pointer"
+// never read alike.
 func FooterButton(c *ui.Context, label, tip string, on bool) ui.Element {
 	t, p := c.Theme(), Colors(c.Theme())
-	// The footer's actions are actions: at rest they are text with no face of
-	// their own, so a bar of them does not read as a row of disabled buttons.
-	// The pointer brings a face, and being on brings the selection tint.
 	b := Tip(c, ui.ButtonBase(c).Label(label), tip).Height(HeightFooterControl).
 		Padding(0, t.Space(2)).Radius(RadiusInner).AlignItems(ui.Center).FontSize(Scaled(TextMeta)).
 		TextColor(t.Text)
@@ -67,7 +66,8 @@ func FooterButton(c *ui.Context, label, tip string, on bool) ui.Element {
 	case b.Hovered():
 		b.Background(p.FillHover)
 	case on:
-		b.Background(p.AccentTint)
+		// The selected segment's face: raised canvas with its hairline.
+		b.Background(p.Canvas).InsetShadow(0, 0, 0, 1, p.Hairline)
 	}
 	return hoverMotion(b, b.Hovered() || b.Pressed())
 }

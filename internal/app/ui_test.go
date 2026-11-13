@@ -2545,6 +2545,53 @@ func TestFooterKeepsTheNewCountApartFromTheLabel(t *testing.T) {
 	}
 }
 
+// Auto-follow at rest, under the pointer and on are three faces: on borrows
+// the chosen segment's raised canvas, not a tint that reads as hover.
+func TestFooterAutoFollowFacesAreDistinct(t *testing.T) {
+	a := workspaceApp()
+	for i := range 60 {
+		a.flows = append(a.flows, flow{id: 100 + i, method: "GET", scheme: "https", host: "api.example.com", path: fmt.Sprintf("/more/%d", i), url: fmt.Sprintf("https://api.example.com/more/%d", i), status: 200})
+	}
+	a.applyFilter()
+	tt := ui.NewTester(a.view, 1280, 800)
+	tt.Frame()
+	tt.Advance(400 * time.Millisecond)
+	button, ok := tt.Find("Auto-follow")
+	if !ok {
+		t.Fatalf("no Auto-follow button: %q", tt.Texts())
+	}
+	// The button's padding, left of the label's first glyph.
+	face := func() (r, g, b uint8) {
+		c := tt.Image().RGBAAt(int(button.X)+3, int(button.Y+button.H/2))
+		return c.R, c.G, c.B
+	}
+	table, _ := tt.Find("Captured requests")
+	tt.Scroll(table.X+table.W/2, table.Y+table.H/2, 0, -1e6)
+	tt.Frame()
+	tt.Advance(400 * time.Millisecond)
+	restR, restG, restB := face()
+	if a.following() {
+		t.Fatal("the list still follows after scrolling to the start")
+	}
+	tt.Scroll(table.X+table.W/2, table.Y+table.H/2, 0, 1e6)
+	tt.Frame()
+	tt.Advance(400 * time.Millisecond)
+	onR, onG, onB := face()
+	if !a.following() {
+		t.Fatal("scrolling back to the end did not resume following")
+	}
+	tt.Move(button.X+button.W/2, button.Y+button.H/2)
+	tt.Frame()
+	tt.Advance(400 * time.Millisecond)
+	hoverR, hoverG, hoverB := face()
+	if want := uikit.Colors(uikit.Theme(false)).Canvas; onR != want.R || onG != want.G || onB != want.B {
+		t.Fatalf("on face is (%d,%d,%d), want the chosen segment's canvas (%d,%d,%d)", onR, onG, onB, want.R, want.G, want.B)
+	}
+	if restR == onR && restG == onG && restB == onB || restR == hoverR && restG == hoverG && restB == hoverB || onR == hoverR && onG == hoverG && onB == hoverB {
+		t.Fatalf("faces read alike: rest (%d,%d,%d), on (%d,%d,%d), hover (%d,%d,%d)", restR, restG, restB, onR, onG, onB, hoverR, hoverG, hoverB)
+	}
+}
+
 // Tools that are on sit at the footer's end; the ones the window has no room
 // for fold into a count that lists them, rather than running under the edge.
 func TestFooterToolChipsFoldIntoACount(t *testing.T) {
