@@ -9,10 +9,33 @@ import (
 	"strings"
 	"time"
 
+	"github.com/egoist/mygo"
+	"github.com/egoist/mygo/transfer"
+
 	"github.com/baba983/vscroxy/internal/request"
 	"github.com/baba983/vscroxy/locales"
 	"github.com/egoist/mygo/ui"
 )
+
+// secretHeaders are the headers whose values do not belong in a clipboard
+// history, and the schemes whose text carries a credential.
+var secretHeaders = []string{"authorization:", "proxy-authorization:", "cookie:", "set-cookie:", "x-api-key:", "x-auth-token:", "api-key:"}
+
+// looksSecret reports whether copied text carries a credential.
+func looksSecret(text string) bool {
+	lower := strings.ToLower(text)
+	for _, header := range secretHeaders {
+		if strings.Contains(lower, header) {
+			return true
+		}
+	}
+	for _, marker := range []string{"-----begin private key-----", "access_token", "refresh_token", "client_secret", "\"token\":"} {
+		if strings.Contains(lower, marker) {
+			return true
+		}
+	}
+	return false
+}
 
 // Stable command IDs also feed the native menu and command palette.
 var requestCopyFormats = []struct{ id, label, format string }{
@@ -151,7 +174,14 @@ func (a *app) copyText(c *ui.Context, label string, generate func() (string, err
 				a.fail(locales.CopyFormat(label), err)
 				return
 			}
-			services.WriteClipboard(text)
+			if looksSecret(text) {
+				// A clipboard manager keeps its history out of a concealed
+				// write: an authorization header or a token does not belong
+				// there.
+				_ = mygo.Clipboard.Write(transfer.TextData(text), mygo.ClipboardOptions{Concealed: true})
+			} else {
+				services.WriteClipboard(text)
+			}
 			a.done(locales.CopiedFormat(label))
 		}
 		if win == nil {

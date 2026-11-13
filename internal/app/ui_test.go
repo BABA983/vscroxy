@@ -6183,3 +6183,20 @@ func TestFlushSettingsWritesWhatTheGapHeldBack(t *testing.T) {
 		t.Fatalf("quitting lost the change the gap held back: %s", data)
 	}
 }
+
+// Text that carries a credential goes to the clipboard as concealed, so a
+// clipboard manager keeps it out of its history; ordinary text does not.
+func TestCopyConcealsWhatCarriesACredential(t *testing.T) {
+	for text, want := range map[string]bool{
+		"GET / HTTP/1.1\r\nAuthorization: Bearer abc\r\n\r\n": true,
+		"GET / HTTP/1.1\r\nCookie: sid=1\r\n\r\n":             true,
+		`{"access_token":"abc"}`:                              true,
+		"-----BEGIN PRIVATE KEY-----\nabc\n":                  true,
+		"GET / HTTP/1.1\r\nAccept: */*\r\n\r\n":               false,
+		`{"name":"example"}`:                                  false,
+	} {
+		if got := looksSecret(text); got != want {
+			t.Fatalf("looksSecret(%q) = %t, want %t", text, got, want)
+		}
+	}
+}
