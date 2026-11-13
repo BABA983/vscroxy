@@ -84,6 +84,9 @@ func (p *protoInspector) inspect(c *ui.Context, a *app, key string, read func(co
 		}()
 	}
 	if p.answers != nil {
+		// The worker asks for a frame when it has the answer, but that needs a
+		// window: without one, as in a test, the pane asks again while the read
+		// is outstanding, and stops once the answer is in.
 		select {
 		case p.result = <-p.answers:
 			p.answers = nil
@@ -94,6 +97,9 @@ func (p *protoInspector) inspect(c *ui.Context, a *app, key string, read func(co
 }
 
 func (p *protoInspector) view(c *ui.Context, a *app, f flow, side int) {
+	// The read stops with the view that asked for it, rather than the window
+	// working out from the inspector's state whether this pane is showing.
+	defer ui.Column(c).OnUnmount(p.stop)
 	response := side == 0
 	p.controls(c, p)
 	schema, name := p.schema, p.name

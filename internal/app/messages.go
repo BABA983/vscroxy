@@ -457,6 +457,9 @@ type messagePanel struct {
 // the messages kept, and the chosen one in full.
 func (p *messagePanel) view(c *ui.Context, a *app, f flow, list []messageView) {
 	t := c.Theme()
+	// The search stops with the view that started it, rather than the window
+	// guessing from the inspector's state which view is showing.
+	defer ui.Box(c).Size(0, 0).OnUnmount(p.stopSearch)
 	if p.flowID != f.id {
 		p.stopSearch()
 		p.flowID = f.id

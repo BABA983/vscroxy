@@ -1697,22 +1697,6 @@ func (a *app) view(c *ui.Context) {
 	a.breakpointModal(c, t) // A live WebSocket's pause must cover its session panel.
 	a.protobuf.modal(c, a)
 	a.views.capture(a)
-	if !a.page.capture() || a.inspect.pane != inspectorMessages {
-		a.messageUI.stopSearch()
-	}
-	f, ok := a.current()
-	bodyShowing := a.page.capture() && ok && (a.inspect.tab[0] == composeTabBody || a.inspect.tab[1] == resViewBody)
-	protobufShowing := false
-	for side := range 2 {
-		ct := f.contentType(side == 0)
-		if a.bodyMode[side] == 5 || a.bodyMode[side] == 0 && (grpcContentType(ct) || strings.Contains(ct, "protobuf")) {
-			protobufShowing = true
-		}
-	}
-	messageProtoShowing := a.page.capture() && ok && a.inspect.pane == inspectorMessages && a.messageUI.mode == 2
-	if !messageProtoShowing && (!bodyShowing || !protobufShowing) {
-		a.protobuf.stop()
-	}
 	// Last, since every SetTheme above paints the root again: the shell paints
 	// its own surface, so nothing of the desktop shows through it.
 	c.Root().Background(uikit.Colors(c.Theme()).Chrome)
